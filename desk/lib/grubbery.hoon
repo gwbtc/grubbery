@@ -1,5 +1,5 @@
 /-  g=grubbery
-/+  grubberyio, gui, *examples
+/+  grubberyio, gui, *examples, wc=web-components
 |%
 ++  slip
   |=  [vax=vase gen=hoon]
@@ -86,7 +86,7 @@
   |=  [=dart:g perm=(unit perm:g)]
   ^-  (each (unit path) ~)
   ?~  perm  [%& ~]
-  ?:  ?=(%perk -.dart)  [%& ~]
+  ?:  ?=(?(%perk %muxt) -.dart)  [%& ~]
   ?:  ?=(?(%sysc %scry) -.dart)  [%| ~]
   ?-    -.load.dart
       ?(%make %oust %cull)
@@ -195,6 +195,7 @@
   ^-  form:m
   ?+    stud  !!
       [%sig ~]
+    ~&  >  %boot-sig
     ;<  ~  bind:m  (overwrite-base /bin/zuse /bin `!>(zuse-core))
     ;<  ~  bind:m  (overwrite-base /bin/grubbery /bin `!>(grubbery-lib))
     ;<  ~  bind:m  (overwrite-lib /add/two add-two)
@@ -235,6 +236,7 @@
     ;<  ~  bind:m  (overwrite-base-lib /gui '[/sig base:gui]')
     ;<  ~  bind:m  (overwrite-stud-lib /gui/init ',~')
     ;<  *  bind:m  (overwrite-and-poke /gui /gui ~ /gui/init !>(~))
+    ::
     ~&  >  "Grubbery booted!"
     done
   ==

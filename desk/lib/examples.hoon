@@ -162,6 +162,18 @@
   ;code.flex-grow:"*\{(render-tang-to-marl 80 (sell vase) ~)}"
   """
 ::
+++  gui-con-mime-template
+  %-  crip
+  """
+  =,  grubberyio
+  |=  [here=path =cone:g]
+  ^-  [@dr mime]
+  =/  data=vase  (grab-data (need (~(get of cone) /)))
+  :-  ~s0
+  :-  /application/octet-stream
+  (as-octs:mimes:html (jam q.data))
+  """
+::
 ++  gui-con-poke-template
   %-  crip
   """
@@ -176,5 +188,17 @@
   |=  args=(list (pair @t @t))
   ^-  pail:g
   [/sig !>(~)]
+  """
+::
+++  javascript-mime-con
+  %-  crip
+  """
+  =,  grubberyio
+  |=  [here=path =cone:g]
+  ^-  [@dr mime]
+  =/  data=vase  (grab-data (need (~(get of cone) /)))
+  :-  ~s0
+  :-  /application/javascript
+  (as-octs:mimes:html !<(@t data))
   """
 --

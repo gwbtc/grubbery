@@ -1,7 +1,24 @@
 /-  *grubbery
-/+  server
+/+  server, multipart
 =,  base
 |%
+++  carp
+  |=  cord=@t
+  ^-  @t
+  %+  fall
+    %+  rush  cord
+    %+  cook  |=(=@t (cat 3 '%' (rsh [3 2] (scot %ux t))))
+    ;~  pose
+      col  fas  wut  hax  sel  ser
+      pat  zap  buc  pam  soq  pal
+      par  tar  lus  com  mic  tis
+      ace
+    ==
+  cord
+::
+++  gems  |=(=@t (rap 3 (turn (trip t) carp)))
+++  tapa  |=(p=(list @t) ^+(p (turn p gems)))
+::
 ++  get-ship-groups
   |=  [=ship =cone]
   ^-  (set path)
@@ -121,6 +138,7 @@
   =/  m  (charm ,~)
   ^-  form:m
   |=  input
+  ~&  >  %sending-raw-darts
   [darts state %done ~]
 ::
 ++  send-raw-dart
@@ -145,6 +163,38 @@
   ?+  in  [%next ~]
       [~ %leave *]
     [%done path.u.in]
+  ==
+::
+++  toggle-mutex
+  |=  lock=?
+  =/  m  (charm ,~)
+  ^-  form:m
+  ;<  ~  bind:m  (send-raw-dart %muxt /toggle-mutex lock)
+  (take-lock-ack /toggle-mutex)
+::
+++  lock-mutex
+  =/  m  (charm ,~)
+  ^-  form:m
+  (toggle-mutex &)
+::
+++  unlock-mutex
+  =/  m  (charm ,~)
+  ^-  form:m
+  (toggle-mutex |)
+::
+++  take-lock-ack
+  |=  =wire
+  =/  m  (charm ,~)
+  ^-  form:m
+  |=  input
+  :+  ~  state
+  ?+  in  [%next ~]
+      [~ %lock *]
+    ?.  =(wire wire.u.in)
+      [%next ~]
+    ?~  err.u.in
+      [%done ~]
+    [%fail %lock-fail u.err.u.in]
   ==
 ::
 ++  send-wait
@@ -183,6 +233,22 @@
   ;<  now=@da  bind:m  get-time
   (wait (add now for))
 ::
+++  take-pack-sign
+  |=  =wire
+  =/  m  (charm ,@ta)
+  ^-  form:m
+  |=  input
+  :+  ~  state
+  ?+  in  [%next ~]
+      [~ %base * %pack *]
+    ?.  =(wire wire.u.in)
+      [%next ~]
+    ?-  -.p.sign.u.in
+        %&  [%done p.p.sign.u.in]
+        %|  [%fail p.p.sign.u.in]
+    ==
+  ==
+::
 ++  take-poke-sign
   |=  =wire
   =/  m  (charm ,~)
@@ -203,7 +269,36 @@
   =/  m  (charm ,~)
   ^-  form:m
   ;<  ~  bind:m  (send-raw-dart %grub /poke path %poke pail)
+  ;<  *  bind:m  (take-pack-sign /poke)
   (take-poke-sign /poke)
+::
+++  vent
+  |=  [=path poke=pail]
+  =/  m  (charm ,pail)
+  ^-  form:m
+  ~&  >>>  %venting
+  ;<  ~      bind:m  (send-raw-dart %grub /vent path %poke poke)
+  ~&  >>>  %taking-pack
+  ;<  *  bind:m  (take-pack-sign /vent)
+  ~&  >>>  %taking-perk
+  ;<  =pail  bind:m  (take-perk /vent)
+  ~&  >>>  %taking-poke-sign
+  ;<  ~      bind:m  (take-poke-sign /vent)
+  ~&  >>>  %returning-pail
+  (pure:m pail)
+::
+++  take-perk
+  |=  =wire
+  =/  m  (charm ,pail)
+  ^-  form:m
+  |=  input
+  :+  ~  state
+  ?+  in  [%next ~]
+      [~ %perk *]
+    ?.  =(wire wire.u.in)
+      [%next ~]
+    [%done pail.u.in]
+  ==
 ::
 ++  take-bump-sign
   |=  =wire
@@ -441,6 +536,7 @@
   |=  =path
   =/  m  (charm ,~)
   ^-  form:m
+  ~&  >  %ousting-grub
   =/  =dart  [%grub /oust-grub path %oust ~]
   ;<  ~  bind:m  (send-raw-dart dart)
   (take-gone /oust-grub)
@@ -450,6 +546,7 @@
   =/  m  (charm ,~)
   ^-  form:m
   |=  input
+  ~&  >  "taking-gone {(spud wire)}"
   :+  ~  state
   ?+  in  [%next ~]
       [~ %gone *]
@@ -611,6 +708,7 @@
   =/  m  (charm ,~)
   ^-  form:m
   |=  input
+  ~&  >  "taking-made {(spud wire)}"
   :+  ~  state
   ?+  in  [%next ~]
       [~ %made *]
@@ -1205,4 +1303,20 @@
       ;h1:"Method Not Allowed: {(trip method)}"
     ==
   ==
+::
+++  mime-response
+  |=  [cache=@dr =mime]
+  ^-  simple-payload:http
+  ~&  >>  mime-response+mime
+  :_  `q.mime
+  :-  200
+  :~  ['cache-control' (crip "max-age={(numb (div cache ~s1))}")]
+      ['content-type' (rsh [3 1] (spat p.mime))]
+  ==
+::
+++  give-mime-response
+  |=  [cache=@dr =mime]
+  =/  m  (charm ,~)
+  ^-  form:m
+  (give-simple-payload (mime-response cache mime))
 --

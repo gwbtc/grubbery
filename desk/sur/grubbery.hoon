@@ -22,6 +22,7 @@
 +$  dart
   $%  [%grub =wire =path =load]
       [%perk =wire =pail]
+      [%muxt =wire lock=?]
       [%sysc =card:agent:gall]
       [%scry =wire =mold =path]
   ==
@@ -40,15 +41,13 @@
       [%kill pid=@ta]
       [%peek ~]
   ==
-:: TODO: don't queue processes, they should all be going
-::       simultaneously
 ::
-:: proc=(map @ta proc:base)
-:: muxt=(unit @ta)
 +$  grub
   $%  [%base data=vase base=path]
       [%stem data=(each vase tang) stem=path tidy=? sour=(map path @da)]
   ==
+::
++$  take  [[here=path pid=@ta] take:base]
 ::
 +$  proc
   $:  =proc:base
@@ -63,8 +62,8 @@
 +$  tack
   $:  last=[step=@da poke=@da]
       sinx=(set path)
-      muxt=(unit @ta)
-      proc=(map @ta proc)
+      muxt=(unit @ta)     :: TODO: implement mutex functionality
+      proc=(map @ta proc) :: TODO: move this and muxt and poke.last to grub?
   ==
 +$  trac  (axal tack)
 :: NOTE: the distinction between cone and trac exists because
@@ -122,6 +121,7 @@
         [%cull =wire err=(unit tang)] :: response to cull
         [%dead =wire err=(unit tang)] :: response to kill
         [%sand =wire err=(unit tang)] :: response to sand
+        [%lock =wire err=(unit tang)] :: response to muxt
         [%base =wire =sign] :: response from poke or bump
         [%veto =dart] :: notify that a dart was sandboxed
         :: messages from gall and arvo
