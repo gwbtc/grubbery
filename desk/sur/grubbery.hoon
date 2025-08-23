@@ -49,9 +49,10 @@
 ::
 +$  proc
   $:  =proc:base
-      =give
-      next=cute:base
-      skip=cute:base
+      =poke            :: keep initial poke
+      temp=(axal vase) :: persist "transient" state
+      next=cute:base   :: queue of held inputs
+      skip=cute:base   :: queue of skipped inputs
   ==
 ::
 +$  cone  (axal grub)
@@ -92,6 +93,8 @@
 ++  base
   =<  base
   |%
+  :: TODO: get rid of bowl; all such information should be requested
+  ::
   +$  bowl
     $:  now=@da       :: time
         our=@p        :: host
@@ -130,16 +133,17 @@
         [%leave =path]
     ==
   ::
-  +$  input  [=bowl state=vase in=(unit intake)]
+  +$  input  [=bowl =pail state=vase temp=(axal vase) in=(unit intake)]
   ::
   +$  take  [=give in=(unit intake)]
   +$  cute  (qeu take)
   ::
   ++  output-raw
     |*  value=mold
-    $~  [~ !>(~) %done *value]
+    $~  [~ !>(~) [~ ~] %done *value]
     $:  darts=(list dart)
         state=vase
+        temp=(axal vase)
         $=  next
         $%  [%wait hold=?]
             [%skip hold=?]
@@ -168,7 +172,7 @@
       ^-  form
       |=  input
       ^-  output
-      [~ state %done value]
+      [~ state temp %done value]
     ::
     ++  bind
       |*  b=mold
@@ -179,6 +183,7 @@
       ^-  output
       :-  darts.b-res
       :-  state.b-res
+      :-  temp.b-res
       ?-    -.next.b-res
         %wait  [%wait hold.next.b-res]
         %skip  [%skip hold.next.b-res]
@@ -186,98 +191,106 @@
         %fail  [%fail err.next.b-res]
         %done  [%cont (fun value.next.b-res)]
       ==
-    ::
-    ++  eval
-      |%
-      +$  result
-        $%  [%next hold=?]
-            [%fail err=tang]
-            [%done =value]
-        ==
-      ::
-      ++  take
-        =|  darts=(list dart) :: effects
-        =|  done=(list [^take (unit tang)]) :: sequentially processed inputs
-        |=  [[=form next=cute skip=cute] =give =input]
-        ^-  [[(list dart) (list [^take (unit tang)]) vase result] _form cute cute]
-        =/  res=(each output tang)  (mule |.((form input)))
-        ?:  ?=(%| -.res)
-          =/  =tang  [leaf+"crash" p.res]
-          :_  [form next skip]
-          :-  darts :: no output darts on failure
-          :-  :_(done [[give in.input] ~ tang])
-          :-  state.input :: no output state on failure
-          [%fail tang]
-        =/  =output  p.res
-        ?-    -.next.output
-            %fail
-          :_  [form next skip]
-          :-  darts :: no output darts on failure
-          :-  :_(done [[give in.input] ~ err.next.output])
-          :-  state.input :: no output state on failure
-          [%fail err.next.output]
-          ::
-            %done
-          :_  [form next skip]
-          :-  (weld darts darts.output)
-          :-  :_(done [[give in.input] ~])
-          :-  state.output
-          [%done value.next.output]
-          ::
-            %cont
-          %=  $
-            next   (~(gas to next) ~(tap to skip))
-            skip   ~
-            form   self.next.output
-            darts  (weld darts darts.output)
-            done   :_(done [[give in.input] ~])
-            input  [bowl.input state.output ~]
-          ==
-          ::
-            %wait
-          =.  darts        (weld darts darts.output)
-          =.  done         :_(done [[give in.input] ~])
-          ?.  =(~ next)
-            :: recurse on queued input
-            ::
-            =^  top  next  ~(get to next)
-            %=  $
-              give   -.top
-              input  [bowl.input state.output +.top]
-            ==
-          :: await input
-          ::
-          :_  [form next skip]
-          :-  darts
-          :-  done
-          :-  state.output
-          [%next hold.next.output]
-          ::
-            %skip
-          ?:  =(~ in.input)
-            :: can't %skip a ~ input
-            ::
-            =/  =tang  [leaf+"cannot skip null input" ~]
-            :_  [form next skip]
-            :-  darts :: no output darts on failure
-            :-  :_(done [[give in.input] ~ tang])
-            :-  state.input :: no output state on failure
-            [%fail tang]
-          :: skip input
-          ::
-          =.  skip  (~(put to skip) [give in.input])
-          ?.  =(~ next)
-            :: recurse on queued input
-            ::
-            =^  top  next  ~(get to next)
-            $(give -.top, in.input +.top)
-          :_  [form next skip]
-          :-  darts :: %skips can't send effects
-          :-  done  :: skipping doesn't complete the $take
-          :-  state.input :: %skips can't change state
-          [%next hold.next.output]
-        ==
-      --
     --
+  --
+::
+++  eval
+  |%
+  ++  output  (output-raw:base ,~)
+  ::
+  +$  result
+    $%  [%next hold=?]
+        [%fail err=tang]
+        [%done ~]
+    ==
+  ::
+  +$  took  [take:base (unit tang)]
+  ::
+  ++  take
+    =|  darts=(list dart) :: effects
+    =|  done=(list took) :: sequentially processed inputs
+    |=  [=bowl:base state=vase =proc =take:base]
+    ^-  [(list dart) (list took) vase _proc result]
+    =/  res=(each output tang)
+      (mule |.((proc.proc bowl pail.poke.proc state temp.proc in.take)))
+    ?:  ?=(%| -.res)
+      =/  =tang  [leaf+"crash" p.res]
+      :-  darts :: no output darts on failure
+      :-  :_(done [take ~ tang])
+      :-  state :: no output state on failure
+      :-  proc  :: no output temp on failure
+      [%fail tang]
+    =/  =output  p.res
+    ?-    -.next.output
+        %fail
+      :-  darts :: no output darts on failure
+      :-  :_(done [take ~ err.next.output])
+      :-  state :: no output state on failure
+      :-  proc  :: no output temp on failure
+      [%fail err.next.output]
+      ::
+        %done
+      :-  (weld darts darts.output)
+      :-  :_(done [take ~])
+      :-  state.output
+      :-  proc(temp temp.output)
+      [%done ~]
+      ::
+        %cont
+      %=  $
+        darts      (weld darts darts.output)
+        done       :_(done [take ~])
+        state      state.output
+        next.proc  (~(gas to next.proc) ~(tap to skip.proc))
+        skip.proc  ~
+        proc.proc  self.next.output
+        temp.proc  temp.output
+        in.take    ~
+      ==
+      ::
+        %wait
+      =.  darts  (weld darts darts.output)
+      =.  done   :_(done [take ~])
+      ?.  =(~ next.proc)
+        :: recurse on queued input
+        ::
+        =^  top  next.proc  ~(get to next.proc)
+        %=  $
+          take       top
+          state      state.output
+          temp.proc  temp.output
+        ==
+      :: await input
+      ::
+      :-  darts
+      :-  done
+      :-  state.output
+      :-  proc(temp temp.output)
+      [%next hold.next.output]
+      ::
+        %skip
+      ?:  =(~ in.take)
+        :: can't %skip a ~ input
+        ::
+        =/  =tang  [leaf+"cannot skip null input" ~]
+        :-  darts :: no output darts on failure
+        :-  :_(done [take ~ tang])
+        :-  state :: no output state on failure
+        :-  proc  :: no output temp on failure
+        [%fail tang]
+      :: skip input
+      ::
+      =.  skip.proc  (~(put to skip.proc) take)
+      ?.  =(~ next.proc)
+        :: recurse on queued input
+        ::
+        =^  top  next.proc  ~(get to next.proc)
+        $(take top)
+      :-  darts :: %skips can't send effects
+      :-  done  :: skipping doesn't complete the $take
+      :-  state :: %skips can't change state
+      :-  proc  :: %skips can't change temporary variables
+      [%next hold.next.output]
+    ==
   --
 --

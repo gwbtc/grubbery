@@ -989,7 +989,7 @@
     ==
   =/  =tack:g  (need (~(get of trac) here))
   =.  proc.tack
-    (~(put by proc.tack) pid [p.build give.poke ~ ~])
+    (~(put by proc.tack) pid [p.build poke [~ ~] ~ ~])
   =.  trac  (~(put of trac) here tack)
   %=    this
       takes
@@ -1086,22 +1086,17 @@
   ?:  =(~ next.proc)
     this
   =^  =take:base:g  next.proc  ~(get to next.proc)
-  =.  proc.tack  (~(put by proc.tack) pid proc)
-  =.  trac  (~(put of trac) here tack)
   ?>  ?=(%base -.grub)
   =/  m  (charm:base:g ,~)
   =/  =bowl:base:g  (make-bowl from.give.take here pid)
-  =/  [[darts=(list dart:g) done=(list [take:base:g (unit tang)]) data=vase =result:eval:m] new=proc:base:g nxt=cute:base:g skp=cute:base:g]
-    (take:eval:m [proc next skip]:proc give.take bowl data.grub in.take)
+  =/  [darts=(list dart:g) done=(list took:eval:g) data=vase =proc:g =result:eval:base:g]
+    (take:eval:base:g bowl data.grub proc take)
   ::
   ~&  >>  -.result
   ::
   =/  tick=?  !=(data data.grub)
   =?  this  tick  (next-tack here)
   =.  cone  (~(put of cone) here grub(data data))
-  =.  proc.proc  new
-  =.  next.proc  nxt
-  =.  skip.proc  skp
   ::
   =.  proc.tack  (~(put by proc.tack) pid proc)
   =.  trac  (~(put of trac) here tack)
@@ -1143,20 +1138,20 @@
   ?>  ?=(%base -.grub)
   =/  =tack:g  (need (~(get of trac) here))
   =/  =proc:g  (~(got by proc.tack) pid)
-  ?:  ?=([@ %gall %grubbery %$ ^] from.give.proc)
+  ?:  ?=([@ %gall %grubbery %$ ^] from.give.poke.proc)
     %=    this
         takes
       :_  takes
-      :-  (get-here-pid from.give.proc)
+      :-  (get-here-pid from.give.poke.proc)
       :-  [(make-from here pid) back]
-      [~ %perk wire.give.proc pail]
+      [~ %perk wire.give.poke.proc pail]
     ==
-  ?:  ?=([@ %gall @ ~] from.give.proc)
+  ?:  ?=([@ %gall @ ~] from.give.poke.proc)
     :: TODO: figure out remote poke/bump/perk etc
     !!
-  ?>  ?=([@ %eyre @ @ ~] from.give.proc)
-  =/  src=@p       (slav %p i.t.t.from.give.proc)
-  =/  eyre-id=@ta  i.t.t.t.from.give.proc
+  ?>  ?=([@ %eyre @ @ ~] from.give.poke.proc)
+  =/  src=@p       (slav %p i.t.t.from.give.poke.proc)
+  =/  eyre-id=@ta  i.t.t.t.from.give.poke.proc
   =/  =wire  /http-response/[eyre-id]
   =/  =cage  
     ?+    p.pail  !!
@@ -1209,25 +1204,25 @@
   =.  this  (relinquish here)
   =.  trac  (~(put of trac) here tack)
   =.  this  (clean here pid)
-  ?:  ?=([@ %clay ~] from.give.proc) :: +on-load
+  ?:  ?=([@ %clay ~] from.give.poke.proc) :: +on-load
     ?~(res this (mean u.res))
-  ?:  ?=([@ %gall %grubbery %$ ^] from.give.proc)
+  ?:  ?=([@ %gall %grubbery %$ ^] from.give.poke.proc)
     %=    this
         takes
       :_  takes
-      :-  (get-here-pid from.give.proc)
+      :-  (get-here-pid from.give.poke.proc)
       :-  [[(scot %p our.bowl) /gall/grubbery] /]
-      [~ %base wire.give.proc %poke res]
+      [~ %base wire.give.poke.proc %poke res]
     ==
-  ?:  ?=([@ %gall @ ~] from.give.proc)
-    =/  =wire  (weld /poke/[i.from] wire):[give.proc .]
+  ?:  ?=([@ %gall @ ~] from.give.poke.proc)
+    =/  =wire  (weld /poke/[i.from] wire):[give.poke.proc .]
     %-  emit-cards
     :~  [%give %fact ~[wire] sign-base+!>([%poke res])]
         [%give %kick ~[wire] ~]
     ==
-  ?>  ?=([@ %eyre @ @ ~] from.give.proc)
-  =/  src=@p       (slav %p i.t.t.from.give.proc)
-  =/  eyre-id=@ta  i.t.t.t.from.give.proc
+  ?>  ?=([@ %eyre @ @ ~] from.give.poke.proc)
+  =/  src=@p       (slav %p i.t.t.from.give.poke.proc)
+  =/  eyre-id=@ta  i.t.t.t.from.give.poke.proc
   =/  =wire  /http-response/[eyre-id]
   =?  this  ?=(^ res)
     =/  =simple-payload:http
