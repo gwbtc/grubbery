@@ -22,7 +22,6 @@
 +$  dart
   $%  [%grub =wire =path =load]
       [%perk =wire =pail]
-      [%muxt =wire lock=?]
       [%sysc =card:agent:gall]
       [%scry =wire =mold =path]
   ==
@@ -62,8 +61,8 @@
 +$  tack
   $:  last=[step=@da poke=@da]
       sinx=(set path)
-      muxt=(unit @ta)     :: TODO: implement mutex functionality
-      proc=(map @ta proc) :: TODO: move this and muxt and poke.last to grub?
+      boar=(unit @ta)     :: who is hogging the pipes
+      proc=(map @ta proc)
   ==
 +$  trac  (axal tack)
 :: NOTE: the distinction between cone and trac exists because
@@ -121,7 +120,6 @@
         [%cull =wire err=(unit tang)] :: response to cull
         [%dead =wire err=(unit tang)] :: response to kill
         [%sand =wire err=(unit tang)] :: response to sand
-        [%lock =wire err=(unit tang)] :: response to muxt
         [%base =wire =sign] :: response from poke or bump
         [%veto =dart] :: notify that a dart was sandboxed
         :: messages from gall and arvo
@@ -143,7 +141,8 @@
     $:  darts=(list dart)
         state=vase
         $=  next
-        $%  [%next ~]
+        $%  [%wait hold=?]
+            [%skip hold=?]
             [%cont self=(form-raw value)]
             [%fail err=tang]
             [%done =value]
@@ -181,7 +180,8 @@
       :-  darts.b-res
       :-  state.b-res
       ?-    -.next.b-res
-        %next  [%next ~]
+        %wait  [%wait hold.next.b-res]
+        %skip  [%skip hold.next.b-res]
         %cont  [%cont ..$(m-b self.next.b-res)]
         %fail  [%fail err.next.b-res]
         %done  [%cont (fun value.next.b-res)]
@@ -190,7 +190,8 @@
     ++  eval
       |%
       +$  result
-        $%  [%next ~]
+        $%  [%wait hold=?]
+            [%skip hold=?]
             [%cont ~]
             [%fail err=tang]
             [%done =value]
@@ -201,14 +202,27 @@
         |=  [=form =input]
         ^-  [[(list dart) vase result] _form]
         =/  =output  (form input)
-        =.  darts  (weld darts darts.output)
+        :: new function on continue
+        ::
         =?  form  ?=(%cont -.next.output)
           self.next.output
+        :: %skips can't send effects
+        ::
+        =?  darts  !?=(%skip -.next.output)
+          (weld darts darts.output)
+        :: %skips can't change state
+        ::
+        =?  state.output  ?=(%skip -.next.output)
+          state.input
+        :: can't %skip a ~ input
+        ::
+        ?<  &(?=(%skip -.next.output) =(~ in.input))
         :_  form
         :-  darts
         :-  state.output
         ?-  -.next.output
-            %next  [%next ~]
+            %wait  [%wait hold.next.output]
+            %skip  [%skip hold.next.output]
             %cont  [%cont ~]
             %fail  [%fail err.next.output]
             %done  [%done value.next.output]

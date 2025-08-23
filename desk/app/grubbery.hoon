@@ -473,9 +473,6 @@
       %perk
     (give-perk here pid [wire pail]:dart)
     ::
-      %muxt
-    (toggle-mutex here pid [wire lock]:dart)
-    ::
       %grub
     ?-    -.load.dart
         %poke
@@ -1049,8 +1046,8 @@
     this
   =/  =grub:g  (need (~(get of cone) here))
   =/  =tack:g  (need (~(get of trac) here))
-  ?.  |(=(~ muxt.tack) =([~ pid] muxt.tack))
-    ~&  >>  "muxt is claimed"
+  ?.  |(=(~ boar.tack) =([~ pid] boar.tack))
+    ~&  >>  "boar is claimed"
     this
   =/  =proc:g  (~(got by proc.tack) pid)
   ?>  ?=(%base -.grub)
@@ -1070,16 +1067,15 @@
   =?  this  tick  (next-tack here)
   =.  cone  (~(put of cone) here grub(data data))
   =.  proc.proc  new
-  =?  takes  ?=(%cont -.result)
-    %-  ~(gas to takes)
-    %+  turn  ~(tap to skip.proc)
-    (lead [here pid])
-  =?  skip.proc  ?=(?(%cont %next) -.result)
-    ?:  ?=(%cont -.result)
-      ~ :: clear skipped
-    ?~  in.take
-      skip.proc :: don't skip a ~ input
+  ::
+  =?  skip.proc  ?=(%skip -.result)
     (~(put to skip.proc) take)
+  :: add skipped takes to main queue
+  ::
+  =?  skip.proc  ?=(%cont -.result)
+      ~
+  =?  next.proc  ?=(%cont -.result)
+    (~(gas to next.proc) ~(tap to skip.proc))
   ::
   =.  proc.tack  (~(put by proc.tack) pid proc)
   =.  trac  (~(put of trac) here tack)
@@ -1097,8 +1093,11 @@
     ~&  %proc-expired
     this
   ::
-  ?:  ?=(%next -.result)
-    this
+  ?:  ?=(?(%wait %skip) -.result)
+    ?:  hold.result
+      (claim here pid)
+    (relinquish here)
+  ::
   ?:  ?=(%cont -.result)
     =.  takes
       %-  ~(gas to *(qeu take:g))
@@ -1159,55 +1158,25 @@
     [~ %base back %perk ~]
   ==
 ::
-++  unlock-mutex
+++  claim
+  |=  [here=path pid=@ta]
+  ^+  this
+  =/  =tack:g  (need (~(get of trac) here))
+  ?>  =(~ boar.tack)
+  =.  boar.tack  [~ pid]
+  this(trac (~(put of trac) here tack))
+::
+++  relinquish
   |=  here=path
   ^+  this
   =/  =tack:g  (need (~(get of trac) here))
-  =.  muxt.tack  ~
-  =.  trac  (~(put of trac) here tack)
-  this
-::
-++  toggle-mutex
-  |=  [here=path pid=@ta =wire lock=?]
-  ^+  this
-  =/  =tack:g  (need (~(get of trac) here))
-  ?:  lock
-    ?.  =(~ muxt.tack)
-      ~&  >>>  %strange-mutex-lock-error
-      %=    this
-          takes
-        %+  ~(put to takes)  [here pid]
-        :-  [[(scot %p our.bowl) /gall/grubbery] /]
-        [~ %lock wire ~ %already-locked ~]
-      ==
-    =.  muxt.tack  [~ pid]
-    =.  trac  (~(put of trac) here tack)
-    %=    this
-        takes
-      %+  ~(put to takes)  [here pid]
-      :-  [[(scot %p our.bowl) /gall/grubbery] /]
-      [~ %lock wire ~]
-    ==
-  ?.  =([~ pid] muxt.tack)
-    ~&  >>>  %strange-mutex-unlock-error
-    %=    this
-        takes
-      %+  ~(put to takes)  [here pid]
-      :-  [[(scot %p our.bowl) /gall/grubbery] /]
-      [~ %lock wire ~ %not-locked-by-us ~]
-    ==
-  =.  this  (unlock-mutex here)
-  %=    this
-      takes
-    %+  ~(put to takes)  [here pid]
-    :-  [[(scot %p our.bowl) /gall/grubbery] /]
-    [~ %lock wire ~]
-  ==
+  =.  boar.tack  ~
+  this(trac (~(put of trac) here tack))
 ::
 ++  give-poke-ack
   |=  [here=path pid=@ta res=(unit tang)]
   ^+  this
-  ~|  $give-poke-ack-fail
+  ~|  %give-poke-ack-fail
   ~&  %giving-poke-ack
   ~&  here+here
   =/  =grub:g  (need (~(get of cone) here))
@@ -1215,8 +1184,8 @@
   =/  =tack:g  (need (~(get of trac) here))
   =/  =proc:g  (~(got by proc.tack) pid)
   =.  proc.tack  (~(del by proc.tack) pid)
-  ?>  |(=(~ muxt.tack) =([~ pid] muxt.tack))
-  =.  this  (unlock-mutex here)
+  ?>  |(=(~ boar.tack) =([~ pid] boar.tack))
+  =.  this  (relinquish here)
   =.  trac  (~(put of trac) here tack)
   =.  this  (clean here pid)
   ?:  ?=([@ %clay ~] from.give.proc) :: +on-load

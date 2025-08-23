@@ -151,7 +151,7 @@
   =/  m  (charm ,path)
   |=  input
   :+  ~  state
-  ?+  in  [%next ~]
+  ?+  in  [%wait |]
       [~ %watch *]
     [%done path.u.in]
   ==
@@ -160,41 +160,9 @@
   =/  m  (charm ,path)
   |=  input
   :+  ~  state
-  ?+  in  [%next ~]
+  ?+  in  [%wait |]
       [~ %leave *]
     [%done path.u.in]
-  ==
-::
-++  toggle-mutex
-  |=  lock=?
-  =/  m  (charm ,~)
-  ^-  form:m
-  ;<  ~  bind:m  (send-raw-dart %muxt /toggle-mutex lock)
-  (take-lock-ack /toggle-mutex)
-::
-++  lock-mutex
-  =/  m  (charm ,~)
-  ^-  form:m
-  (toggle-mutex &)
-::
-++  unlock-mutex
-  =/  m  (charm ,~)
-  ^-  form:m
-  (toggle-mutex |)
-::
-++  take-lock-ack
-  |=  =wire
-  =/  m  (charm ,~)
-  ^-  form:m
-  |=  input
-  :+  ~  state
-  ?+  in  [%next ~]
-      [~ %lock *]
-    ?.  =(wire wire.u.in)
-      [%next ~]
-    ?~  err.u.in
-      [%done ~]
-    [%fail %lock-fail u.err.u.in]
   ==
 ::
 ++  send-wait
@@ -210,10 +178,10 @@
   ^-  form:m
   |=  input
   :+  ~  state
-  ?+  in  [%next ~]
+  ?+  in  [%wait |]
       [~ %arvo [%wait @ ~] %behn %wake *]
     ?.  |(?=(~ until) =(`u.until (slaw %da i.t.wire.u.in)))
-      [%next ~]
+      [%wait |]
     ?~  error.sign.u.in
       [%done ~]
     [%fail %timer-error u.error.sign.u.in]
@@ -239,10 +207,10 @@
   ^-  form:m
   |=  input
   :+  ~  state
-  ?+  in  [%next ~]
+  ?+  in  [%wait |]
       [~ %base * %pack *]
     ?.  =(wire wire.u.in)
-      [%next ~]
+      [%wait |]
     ?-  -.p.sign.u.in
         %&  [%done p.p.sign.u.in]
         %|  [%fail p.p.sign.u.in]
@@ -255,10 +223,10 @@
   ^-  form:m
   |=  input
   :+  ~  state
-  ?+  in  [%next ~]
+  ?+  in  [%wait |]
       [~ %base * %poke *]
     ?.  =(wire wire.u.in)
-      [%next ~]
+      [%wait |]
     ?~  err.sign.u.in
       [%done ~]
     [%fail %poke-fail u.err.sign.u.in]
@@ -293,10 +261,10 @@
   ^-  form:m
   |=  input
   :+  ~  state
-  ?+  in  [%next ~]
+  ?+  in  [%wait |]
       [~ %perk *]
     ?.  =(wire wire.u.in)
-      [%next ~]
+      [%wait |]
     [%done pail.u.in]
   ==
 ::
@@ -306,10 +274,10 @@
   ^-  form:m
   |=  input
   :+  ~  state
-  ?+  in  [%next ~]
+  ?+  in  [%wait |]
       [~ %base * %bump *]
     ?.  =(wire wire.u.in)
-      [%next ~]
+      [%wait |]
     ?~  err.sign.u.in
       [%done ~]
     [%fail %bump-nack u.err.sign.u.in]
@@ -329,10 +297,10 @@
   ^-  form:m
   |=  input
   :+  ~  state
-  ?+  in  [%next ~]
+  ?+  in  [%wait |]
       [~ %base * %bump *]
     ?.  =(wire wire.u.in)
-      [%next ~]
+      [%wait |]
     ?~  err.sign.u.in
       [%done ~]
     [%done ~ u.err.sign.u.in]
@@ -352,10 +320,10 @@
   ^-  form:m
   |=  input
   :+  ~  state
-  ?+  in  [%next ~]
+  ?+  in  [%wait |]
       [~ %peek *]
     ?.  =(wire wire.u.in)
-      [%next ~]
+      [%wait |]
     [%done [cone sand]:u.in]
   ==
 ::
@@ -480,10 +448,10 @@
   ^-  form:m
   |=  input
   :+  ~  state
-  ?+  in  [%next ~]
+  ?+  in  [%wait |]
       [~ %scry *]
     ?.  =(wire wire.u.in)
-      [%next ~]
+      [%wait |]
     [%done !<(mold vase.u.in)]
   ==
 ::
@@ -523,10 +491,10 @@
   ^-  form:m
   |=  input
   :+  ~  state
-  ?+  in  [%next ~]
+  ?+  in  [%wait |]
       [~ %dead *]
     ?.  =(wire wire.u.in)
-      [%next ~]
+      [%wait |]
     ?~  err.u.in
       [%done ~]
     [%fail %kill-fail u.err.u.in]
@@ -548,10 +516,10 @@
   |=  input
   ~&  >  "taking-gone {(spud wire)}"
   :+  ~  state
-  ?+  in  [%next ~]
+  ?+  in  [%wait |]
       [~ %gone *]
     ?.  =(wire wire.u.in)
-      [%next ~]
+      [%wait |]
     ?~  err.u.in
       [%done ~]
     [%fail %oust-fail u.err.u.in]
@@ -571,10 +539,10 @@
   ^-  form:m
   |=  input
   :+  ~  state
-  ?+  in  [%next ~]
+  ?+  in  [%wait |]
       [~ %cull *]
     ?.  =(wire wire.u.in)
-      [%next ~]
+      [%wait |]
     ?~  err.u.in
       [%done ~]
     [%fail %cull-fail u.err.u.in]
@@ -594,10 +562,10 @@
   ^-  form:m
   |=  input
   :+  ~  state
-  ?+  in  [%next ~]
+  ?+  in  [%wait |]
       [~ %sand *]
     ?.  =(wire wire.u.in)
-      [%next ~]
+      [%wait |]
     ?~  err.u.in
       [%done ~]
     [%fail %sand-fail u.err.u.in]
@@ -710,10 +678,10 @@
   |=  input
   ~&  >  "taking-made {(spud wire)}"
   :+  ~  state
-  ?+  in  [%next ~]
+  ?+  in  [%wait |]
       [~ %made *]
     ?.  =(wire wire.u.in)
-      [%next ~]
+      [%wait |]
     ?~  err.u.in
       [%done ~]
     [%fail %make-fail u.err.u.in]
@@ -889,10 +857,10 @@
   ^-  form:m
   |=  input
   :+  ~  state
-  ?+  in  [%next ~]
+  ?+  in  [%wait |]
       [~ %base * %perk *]
     ?.  =(wire wire.u.in)
-      [%next ~]
+      [%wait |]
     ?~  err.sign.u.in
       [%done ~]
     [%fail %perk-nack u.err.sign.u.in]
@@ -919,10 +887,10 @@
   ^-  form:m
   |=  input
   :+  ~  state
-  ?+  in  [%next ~]
+  ?+  in  [%wait |]
       [~ %agent * %poke-ack *]
     ?.  =(wire wire.u.in)
-      [%next ~]
+      [%wait |]
     ?~  p.sign.u.in
       [%done ~]
     [%fail %poke-fail u.p.sign.u.in]
@@ -949,10 +917,10 @@
   ^-  form:m
   |=  input
   :+  ~  state
-  ?+  in  [%next ~]
+  ?+  in  [%wait |]
       [~ %agent * %poke-ack *]
     ?.  =(wire wire.u.in)
-      [%next ~]
+      [%wait |]
     ?~  p.sign.u.in
       [%done ~]
     [%done ~ u.p.sign.u.in]
@@ -1016,10 +984,10 @@
   ^-  form:m
   |=  input
   :+  ~  state
-  ?+  in  [%next ~]
+  ?+  in  [%wait |]
       [~ %agent * %watch-ack *]
     ?.  =(watch+wire wire.u.in)
-      [%next ~]
+      [%wait |]
     ?~  p.sign.u.in
       [%done ~]
     [%fail %watch-ack-fail u.p.sign.u.in]
@@ -1031,10 +999,10 @@
   ^-  form:m
   |=  input
   :+  ~  state
-  ?+  in  [%next ~]
+  ?+  in  [%wait |]
       [~ %agent * %fact *]
     ?.  =(watch+wire wire.u.in)
-      [%next ~]
+      [%wait |]
     [%done cage.sign.u.in]
   ==
 ::
@@ -1044,10 +1012,10 @@
   ^-  form:m
   |=  input
   :+  ~  state
-  ?+  in  [%next ~]
+  ?+  in  [%wait |]
       [~ %agent * %kick *]
     ?.  =(watch+wire wire.u.in)
-      [%next ~]
+      [%wait |]
     [%done ~]
   ==
 ::
@@ -1067,7 +1035,7 @@
   ^-  form:m
   |=  input
   :+  ~  state
-  ?+  in  [%next ~]
+  ?+  in  [%wait |]
     ::
       [~ %arvo [%request ~] %iris %http-response %cancel *]
     ::NOTE  iris does not (yet?) retry after cancel, so it means failure
@@ -1098,7 +1066,7 @@
   ^-  form:m
   |=  input
   :+  ~  state
-  ?+  in  [%next ~]
+  ?+  in  [%wait |]
       [~ %arvo [%request ~] %iris %http-response %cancel *]
     [%done ~]
       [~ %arvo [%request ~] %iris %http-response %finished *]
