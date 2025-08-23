@@ -1056,6 +1056,23 @@
   =.  this  (give-poke-sign i.done)
   $(done t.done)
 ::
+++  process-do-next
+  |=  [here=path pid=@ta]
+  ^+  this
+  =/  =tack:g  (need (~(get of trac) here))
+  ?>  (~(has by proc.tack) pid)
+  =/  =grub:g  (need (~(get of cone) here))
+  =/  =tack:g  (need (~(get of trac) here))
+  =/  =proc:g  (~(got by proc.tack) pid)
+  ?.  |(=(~ boar.tack) =([~ pid] boar.tack))
+    this
+  ?:  =(~ next.proc)
+    this
+  =^  top  next.proc  ~(get to next.proc)
+  =.  proc.tack  (~(put by proc.tack) pid proc)
+  =.  trac  (~(put of trac) here tack)
+  (process-take [here pid] top)
+::
 ++  process-take
   |=  [[here=path pid=@ta] =take:base:g]
   ^+  this
@@ -1064,14 +1081,15 @@
   =/  =tack:g  (need (~(get of trac) here))
   ?.  (~(has by proc.tack) pid)
     ~&  >>  "discarding message for non-existent process {(trip pid)}"
-    :: TODO: send responses
-    this
+    (give-poke-sign take ~ leaf+"non-existent process" ~)
   =/  =grub:g  (need (~(get of cone) here))
   =/  =tack:g  (need (~(get of trac) here))
+  =/  =proc:g  (~(got by proc.tack) pid)
   ?.  |(=(~ boar.tack) =([~ pid] boar.tack))
     ~&  >>  "boar is claimed"
-    this
-  =/  =proc:g  (~(got by proc.tack) pid)
+    =.  next.proc  (~(put to next.proc) take)
+    =.  proc.tack  (~(put by proc.tack) pid proc)
+    this(trac (~(put of trac) here tack))
   ?>  ?=(%base -.grub)
   =/  m  (charm:base:g ,~)
   =/  =bowl:base:g  (make-bowl from.give.take here pid)
@@ -1171,7 +1189,12 @@
   ^+  this
   =/  =tack:g  (need (~(get of trac) here))
   =.  boar.tack  ~
-  this(trac (~(put of trac) here tack))
+  =.  trac  (~(put of trac) here tack)
+  =/  pids=(list @ta)  ~(tap in ~(key by proc.tack))
+  |-
+  ?~  pids
+    this
+  $(pids t.pids, this (process-do-next here i.pids))
 ::
 ++  give-poke-ack
   |=  [here=path pid=@ta res=(unit tang)]

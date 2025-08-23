@@ -16,7 +16,6 @@
   ==
 ::
 +$  sand  (axal perm)
-::
 :: effects that a base grub can emit
 ::
 +$  dart
@@ -197,8 +196,8 @@
         ==
       ::
       ++  take
-        =|  darts=(list dart)
-        =|  done=(list [^take (unit tang)])
+        =|  darts=(list dart) :: effects
+        =|  done=(list [^take (unit tang)]) :: sequentially processed inputs
         |=  [[=form next=cute skip=cute] =give =input]
         ^-  [[(list dart) (list [^take (unit tang)]) vase result] _form cute cute]
         =/  res=(each output tang)  (mule |.((form input)))
