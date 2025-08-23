@@ -107,15 +107,15 @@
     ==
   ::
   +$  sign
-    $%  [%poke err=(unit tang)]
-        [%perk err=(unit tang)]
-        [%bump err=(unit tang)]
-        [%pack p=(each @ta tang)]
+    $%  [%poke err=(unit tang)] :: complete poke cycle (finish or crash)
+        [%perk err=(unit tang)] :: response to gift / subscription
+        [%bump err=(unit tang)] ::  response to command for running process
+        [%pack p=(each @ta tang)] :: build poke (id or build error)
     ==
   ::
   +$  intake
-    $%  [%bump =pail]
-        [%perk =wire =pail]
+    $%  [%bump =pail] :: command for a running process
+        [%perk =wire =pail] :: gift / subscription
         [%peek =wire =path =cone =sand] :: local read
         [%made =wire err=(unit tang)] :: response to make
         [%gone =wire err=(unit tang)] :: response to oust
