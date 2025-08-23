@@ -1056,23 +1056,6 @@
   =.  this  (give-poke-sign i.done)
   $(done t.done)
 ::
-++  process-do-next
-  |=  [here=path pid=@ta]
-  ^+  this
-  =/  =tack:g  (need (~(get of trac) here))
-  ?>  (~(has by proc.tack) pid)
-  =/  =grub:g  (need (~(get of cone) here))
-  =/  =tack:g  (need (~(get of trac) here))
-  =/  =proc:g  (~(got by proc.tack) pid)
-  ?.  |(=(~ boar.tack) =([~ pid] boar.tack))
-    this
-  ?:  =(~ next.proc)
-    this
-  =^  top  next.proc  ~(get to next.proc)
-  =.  proc.tack  (~(put by proc.tack) pid proc)
-  =.  trac  (~(put of trac) here tack)
-  (process-take [here pid] top)
-::
 ++  process-take
   |=  [[here=path pid=@ta] =take:base:g]
   ^+  this
@@ -1085,11 +1068,26 @@
   =/  =grub:g  (need (~(get of cone) here))
   =/  =tack:g  (need (~(get of trac) here))
   =/  =proc:g  (~(got by proc.tack) pid)
+  =.  next.proc  (~(put to next.proc) take)
+  =.  proc.tack  (~(put by proc.tack) pid proc)
+  =.  trac       (~(put of trac) here tack)
+  (process-do-next here pid)
+::
+++  process-do-next
+  |=  [here=path pid=@ta]
+  ^+  this
+  =/  =tack:g  (need (~(get of trac) here))
+  ?>  (~(has by proc.tack) pid)
+  =/  =grub:g  (need (~(get of cone) here))
+  =/  =tack:g  (need (~(get of trac) here))
+  =/  =proc:g  (~(got by proc.tack) pid)
   ?.  |(=(~ boar.tack) =([~ pid] boar.tack))
-    ~&  >>  "boar is claimed"
-    =.  next.proc  (~(put to next.proc) take)
-    =.  proc.tack  (~(put by proc.tack) pid proc)
-    this(trac (~(put of trac) here tack))
+    this
+  ?:  =(~ next.proc)
+    this
+  =^  =take:base:g  next.proc  ~(get to next.proc)
+  =.  proc.tack  (~(put by proc.tack) pid proc)
+  =.  trac  (~(put of trac) here tack)
   ?>  ?=(%base -.grub)
   =/  m  (charm:base:g ,~)
   =/  =bowl:base:g  (make-bowl from.give.take here pid)
