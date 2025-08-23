@@ -233,8 +233,8 @@
 ++  on-fail   on-fail:def
 --
 ::
-=|  cards=(list card)
-=|  bolts=(list bolt:g) :: a stack
+=|  cards=(list card)   :: list of effects
+=|  bolts=(list bolt:g) :: a stack of function calls
 =|  takes=(qeu take:g)
 |_  =bowl:gall
 +*  this  .
@@ -1014,7 +1014,7 @@
 :: ack for perk or bump
 ::
 ++  give-poke-sign
-  |=  [=give:g in=(unit intake:base:g) err=(unit tang)]
+  |=  [take:base:g err=(unit tang)]
   ^+  this
   =/  giv=give:g  [[(scot %p our.bowl) /gall/grubbery] /]
   ?+    in  this
@@ -1035,6 +1035,14 @@
     ==
   ==
 ::
+++  give-poke-signs
+  |=  done=(list [take:base:g (unit tang)])
+  ^+  this
+  ?~  done
+    this
+  =.  this  (give-poke-sign i.done)
+  $(done t.done)
+::
 ++  process-take
   |=  [[here=path pid=@ta] =take:base:g]
   ^+  this
@@ -1053,13 +1061,8 @@
   ?>  ?=(%base -.grub)
   =/  m  (charm:base:g ,~)
   =/  =bowl:base:g  (make-bowl from.give.take here pid)
-  =/  res=(each [[(list dart:g) vase result:eval:m] proc:base:g] tang)
-    (mule |.((take:eval:m proc.proc bowl data.grub in.take)))
-  =/  [[darts=(list dart:g) data=vase =result:eval:m] new=proc:base:g]
-    ?-  -.res
-      %&  p.res
-      %|  [[~ data.grub [%fail leaf+"crash" [leaf+(spud here) p.res]]] proc.proc]
-    ==
+  =/  [[darts=(list dart:g) done=(list [take:base:g (unit tang)]) data=vase =result:eval:m] new=proc:base:g nxt=cute:base:g skp=cute:base:g]
+    (take:eval:m [proc next skip]:proc give.take bowl data.grub in.take)
   ::
   ~&  >>  -.result
   ::
@@ -1067,43 +1070,31 @@
   =?  this  tick  (next-tack here)
   =.  cone  (~(put of cone) here grub(data data))
   =.  proc.proc  new
-  ::
-  =?  skip.proc  ?=(%skip -.result)
-    (~(put to skip.proc) take)
-  :: add skipped takes to main queue
-  ::
-  =?  skip.proc  ?=(%cont -.result)
-      ~
-  =?  next.proc  ?=(%cont -.result)
-    (~(gas to next.proc) ~(tap to skip.proc))
+  =.  next.proc  nxt
+  =.  skip.proc  skp
   ::
   =.  proc.tack  (~(put by proc.tack) pid proc)
   =.  trac  (~(put of trac) here tack)
   ::
   =?  this  tick  (dirty-and-tidy here)
   ::
-  =.  this  (give-poke-sign give.take in.take ?-(-.res %& ~, %| `p.res))
+  =.  this  (give-poke-signs done)
+  ::
   =.  this  (handle-base-emits here pid darts)
   ::
   ?.  (~(has of trac) here)
-    ~&  %tack-expired
+    ~&  >>  %tack-expired
     this
   =/  =tack:g  (need (~(get of trac) here))
   ?.  (~(has by proc.tack) pid)
-    ~&  %proc-expired
+    ~&  >>  %proc-expired
     this
   ::
-  ?:  ?=(?(%wait %skip) -.result)
+  ?:  ?=(%next -.result)
     ?:  hold.result
       (claim here pid)
     (relinquish here)
   ::
-  ?:  ?=(%cont -.result)
-    =.  takes
-      %-  ~(gas to *(qeu take:g))
-      :_  ~(tap to takes)
-      [[here pid] [[[(scot %p our.bowl) /gall/grubbery] /] ~]]
-    this
   ?>  ?=(?(%fail %done) -.result)
   ::
   =.  takes

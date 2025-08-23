@@ -51,8 +51,8 @@
 +$  proc
   $:  =proc:base
       =give
-      next=(qeu take:base)
-      skip=(qeu take:base)
+      next=cute:base
+      skip=cute:base
   ==
 ::
 +$  cone  (axal grub)
@@ -134,6 +134,7 @@
   +$  input  [=bowl state=vase in=(unit intake)]
   ::
   +$  take  [=give in=(unit intake)]
+  +$  cute  (qeu take)
   ::
   ++  output-raw
     |*  value=mold
@@ -190,42 +191,92 @@
     ++  eval
       |%
       +$  result
-        $%  [%wait hold=?]
-            [%skip hold=?]
-            [%cont ~]
+        $%  [%next hold=?]
             [%fail err=tang]
             [%done =value]
         ==
       ::
       ++  take
         =|  darts=(list dart)
-        |=  [=form =input]
-        ^-  [[(list dart) vase result] _form]
-        =/  =output  (form input)
-        :: new function on continue
-        ::
-        =?  form  ?=(%cont -.next.output)
-          self.next.output
-        :: %skips can't send effects
-        ::
-        =?  darts  !?=(%skip -.next.output)
-          (weld darts darts.output)
-        :: %skips can't change state
-        ::
-        =?  state.output  ?=(%skip -.next.output)
-          state.input
-        :: can't %skip a ~ input
-        ::
-        ?<  &(?=(%skip -.next.output) =(~ in.input))
-        :_  form
-        :-  darts
-        :-  state.output
-        ?-  -.next.output
-            %wait  [%wait hold.next.output]
-            %skip  [%skip hold.next.output]
-            %cont  [%cont ~]
-            %fail  [%fail err.next.output]
-            %done  [%done value.next.output]
+        =|  done=(list [^take (unit tang)])
+        |=  [[=form next=cute skip=cute] =give =input]
+        ^-  [[(list dart) (list [^take (unit tang)]) vase result] _form cute cute]
+        =/  res=(each output tang)  (mule |.((form input)))
+        ?:  ?=(%| -.res)
+          =/  =tang  [leaf+"crash" p.res]
+          :_  [form next skip]
+          :-  darts :: no output darts on failure
+          :-  :_(done [[give in.input] ~ tang])
+          :-  state.input :: no output state on failure
+          [%fail tang]
+        =/  =output  p.res
+        ?-    -.next.output
+            %fail
+          :_  [form next skip]
+          :-  darts :: no output darts on failure
+          :-  :_(done [[give in.input] ~ err.next.output])
+          :-  state.input :: no output state on failure
+          [%fail err.next.output]
+          ::
+            %done
+          :_  [form next skip]
+          :-  (weld darts darts.output)
+          :-  :_(done [[give in.input] ~])
+          :-  state.output
+          [%done value.next.output]
+          ::
+            %cont
+          %=  $
+            next   (~(gas to next) ~(tap to skip))
+            skip   ~
+            form   self.next.output
+            darts  (weld darts darts.output)
+            done   :_(done [[give in.input] ~])
+            input  [bowl.input state.output ~]
+          ==
+          ::
+            %wait
+          =.  darts        (weld darts darts.output)
+          =.  done         :_(done [[give in.input] ~])
+          ?.  =(~ next)
+            :: recurse on queued input
+            ::
+            =^  top  next  ~(get to next)
+            %=  $
+              give   -.top
+              input  [bowl.input state.output +.top]
+            ==
+          :: await input
+          ::
+          :_  [form next skip]
+          :-  darts
+          :-  done
+          :-  state.output
+          [%next hold.next.output]
+          ::
+            %skip
+          ?:  =(~ in.input)
+            :: can't %skip a ~ input
+            ::
+            =/  =tang  [leaf+"cannot skip null input" ~]
+            :_  [form next skip]
+            :-  darts :: no output darts on failure
+            :-  :_(done [[give in.input] ~ tang])
+            :-  state.input :: no output state on failure
+            [%fail tang]
+          :: skip input
+          ::
+          =.  skip  (~(put to skip) [give in.input])
+          ?.  =(~ next)
+            :: recurse on queued input
+            ::
+            =^  top  next  ~(get to next)
+            $(give -.top, in.input +.top)
+          :_  [form next skip]
+          :-  darts :: %skips can't send effects
+          :-  done  :: skipping doesn't complete the $take
+          :-  state.input :: %skips can't change state
+          [%next hold.next.output]
         ==
       --
     --
