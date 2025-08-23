@@ -233,9 +233,8 @@
 ++  on-fail   on-fail:def
 --
 ::
-=|  cards=(list card)   :: list of effects
-=|  bolts=(list bolt:g) :: a stack of function calls
-=|  takes=(qeu take:g)
+=|  cards=(list card)   :: list of gall-level effects
+=|  takes=(list take:g) :: stack of grub-level function calls
 |_  =bowl:gall
 +*  this  .
 ++  emit-card   |=(=card this(cards [card cards]))
@@ -255,12 +254,10 @@
 ::
 ++  abet
   |-
-  ?:  =(~ takes)
+  ?~  takes
     ~&  >  "done-abet!"
     [(flop cards) state]
-  =/  =take:g  (need ~(top to takes))
-  =.  takes  ~(nap to takes)
-  $(this (process-take take))
+  $(this (process-take(takes t.takes) i.takes))
 ::
 ++  boot
   ^+  this
@@ -514,7 +511,8 @@
     ~&  >>>  "vetoing illegal dart from {(spud here)}"
     %=    this
         takes
-      %+  ~(put to takes)  [here pid]
+      :_  takes
+      :-  [here pid]
       :-  [[(scot %p our.bowl) /gall/grubbery] /]
       [~ %veto dart]
     ==
@@ -530,7 +528,8 @@
       ?:  ?=(%| -.res)
         %=    this
             takes
-          %+  ~(put to takes)  [here pid]
+          :_  takes
+          :-  [here pid]
           :-  [[(scot %p our.bowl) /gall/grubbery] /]
           [~ %base wire.dart %poke ~ %poke-stud-fail p.res]
         ==
@@ -538,7 +537,8 @@
       ?:  ?=(%| -.res)
         %=    this
             takes
-          %+  ~(put to takes)  [here pid]
+          :_  takes
+          :-  [here pid]
           :-  [[(scot %p our.bowl) /gall/grubbery] /]
           [~ %base wire.dart %poke ~ %poke-clam-fail p.res]
         ==
@@ -549,7 +549,8 @@
       ?:  ?=(%| -.res)
         %=    this
             takes
-          %+  ~(put to takes)  [here pid]
+          :_  takes
+          :-  [here pid]
           :-  [[(scot %p our.bowl) /gall/grubbery] /]
           [~ %base wire.dart %bump ~ leaf+"bump-stud-fail" p.res]
         ==
@@ -557,7 +558,8 @@
       ?:  ?=(%| -.res)
         %=    this
             takes
-          %+  ~(put to takes)  [here pid]
+          :_  takes
+          :-  [here pid]
           :-  [[(scot %p our.bowl) /gall/grubbery] /]
           [~ %base wire.dart %bump ~ leaf+"bump-clam-fail" p.res]
         ==
@@ -571,7 +573,8 @@
       ?:  ?=(%| -.res)
         %=    this
             takes
-          %+  ~(put to takes)  [here pid]
+          :_  takes
+          :-  [here pid]
           :-  [[(scot %p our.bowl) /gall/grubbery] /]
           [~ %made wire.dart ~ %make-stud-fail p.res]
         ==
@@ -579,7 +582,8 @@
       ?:  ?=(%| -.res)
         %=    this
             takes
-          %+  ~(put to takes)  [here pid]
+          :_  takes
+          :-  [here pid]
           :-  [[(scot %p our.bowl) /gall/grubbery] /]
           [~ %made wire.dart ~ %make-clam-fail p.res]
         ==
@@ -750,7 +754,8 @@
     ?:(?=(%& -.res) this (mean p.res))
   %=    this
       takes
-    %+  ~(put to takes)  (get-here-pid from.give)
+    :_  takes
+    :-  (get-here-pid from.give)
     :-  [[(scot %p our.bowl) /gall/grubbery] /]
     [~ %gone wire.give err]
   ==
@@ -765,7 +770,8 @@
     ?:(?=(%& -.res) this (mean p.res))
   %=    this
       takes
-    %+  ~(put to takes)  (get-here-pid from.give)
+    :_  takes
+    :-  (get-here-pid from.give)
     :-  [[(scot %p our.bowl) /gall/grubbery] /]
     [~ %cull wire.give err]
   ==
@@ -789,7 +795,8 @@
     ?:(?=(%& -.res) this (mean p.res))
   %=    this
       takes
-    %+  ~(put to takes)  (get-here-pid from.give)
+    :_  takes
+    :-  (get-here-pid from.give)
     :-  [[(scot %p our.bowl) /gall/grubbery] /]
     [~ %sand wire.give err]
   ==
@@ -817,7 +824,8 @@
     ?:(?=(%& -.res) this (mean p.res))
   %=    this
       takes
-    %+  ~(put to takes)  (get-here-pid from.give)
+    :_  takes
+    :-  (get-here-pid from.give)
     :-  [[(scot %p our.bowl) /gall/grubbery] /]
     [~ %made wire.give err]
   ==
@@ -849,7 +857,8 @@
     ?:(?=(%& -.res) this (mean p.res))
   %=    this
       takes
-    %+  ~(put to takes)  (get-here-pid from.give)
+    :_  takes
+    :-  (get-here-pid from.give)
     :-  [[(scot %p our.bowl) /gall/grubbery] /]
     [~ %made wire.give err]
   ==
@@ -860,7 +869,8 @@
   =/  =give:g  [[(scot %p our.bowl) /gall/grubbery] /]
   %=    this
       takes
-    %+  ~(put to takes)  [here pid]
+    :_  takes
+    :-  [here pid]
     [give ~ %peek wire pat (~(dip of cone) pat) (~(dip of sand) pat)]
   ==
 ::
@@ -869,11 +879,7 @@
   ^+  this
   =/  from=path  [(scot %p our.bowl) /gall/grubbery]
   =;  =vase
-    %=    this
-        takes
-      %+  ~(put to takes)  [here pid]
-      [[from /] ~ %scry wire pat vase]
-    ==
+    this(takes :_(takes [[here pid] [[from /] ~ %scry wire pat vase]]))
   ?>  ?=(^ pat)
   ?>  ?=(^ t.pat)
   !>(.^(mold i.pat (scot %p our.bowl) i.t.pat (scot %da now.bowl) t.t.pat))
@@ -907,7 +913,8 @@
     ?:(?=(%| -.res) !! this)
   %=    this
       takes
-    %+  ~(put to takes)  (get-here-pid from.give)
+    :_  takes
+    :-  (get-here-pid from.give)
     :-  [[(scot %p our.bowl) /gall/grubbery] /]
     [~ %dead wire.give err]
   ==
@@ -917,7 +924,8 @@
   ^+  this
   %=    this
       takes
-    %+  ~(put to takes)  [here pid]
+    :_  takes
+    :-  [here pid]
     [give ~ %bump pail]
   ==
 :: TODO: handle outgoing keens
@@ -963,7 +971,8 @@
       this
     %=    this
         takes
-      %+  ~(put to takes)  (get-here-pid from.give.poke)
+      :_  takes
+      :-  (get-here-pid from.give.poke)
       :-  [[(scot %p our.bowl) /gall/grubbery] /]
       [~ %base wire.give.poke %pack %| %build-error p.build]
     ==
@@ -973,7 +982,8 @@
       this
     %=    this
         takes
-      %+  ~(put to takes)  (get-here-pid from.give.poke)
+      :_  takes
+      :-  (get-here-pid from.give.poke)
       :-  [[(scot %p our.bowl) /gall/grubbery] /]
       [~ %base wire.give.poke %pack %& pid]
     ==
@@ -983,7 +993,8 @@
   =.  trac  (~(put of trac) here tack)
   %=    this
       takes
-    %+  ~(put to takes)  [here pid]
+    :_  takes
+    :-  [here pid]
     [[[(scot %p our.bowl) /gall/grubbery] /] ~]
   ==
 ::
@@ -1022,7 +1033,8 @@
     ~&  >>  %giving-bump-sign
     %=    this
         takes
-      %+  ~(put to takes)  (get-here-pid from.give)
+      :_  takes
+      :-  (get-here-pid from.give)
       [giv ~ %base wire.give %bump err]
     ==
     ::
@@ -1030,7 +1042,8 @@
     ~&  >>  %giving-perk-sign
     %=    this
         takes
-      %+  ~(put to takes)  (get-here-pid from.give)
+      :_  takes
+      :-  (get-here-pid from.give)
       [giv ~ %base wire.give %perk err]
     ==
   ==
@@ -1046,7 +1059,8 @@
 ++  process-take
   |=  [[here=path pid=@ta] =take:base:g]
   ^+  this
-  ~&  >  %processing-intake
+  ~&  >>  %processing-intake
+  ~&  >>  [here pid]
   =/  =tack:g  (need (~(get of trac) here))
   ?.  (~(has by proc.tack) pid)
     ~&  >>  "discarding message for non-existent process {(trip pid)}"
@@ -1096,12 +1110,6 @@
     (relinquish here)
   ::
   ?>  ?=(?(%fail %done) -.result)
-  ::
-  =.  takes
-    %-  ~(gas to takes)
-    %+  turn  ~(tap to skip.proc)
-    (lead [here pid])
-  ::
   %^    give-poke-ack
       here
     pid
@@ -1122,8 +1130,8 @@
   ?:  ?=([@ %gall %grubbery %$ ^] from.give.proc)
     %=    this
         takes
-      %+  ~(put to takes)
-        (get-here-pid from.give.proc)
+      :_  takes
+      :-  (get-here-pid from.give.proc)
       :-  [(make-from here pid) back]
       [~ %perk wire.give.proc pail]
     ==
@@ -1144,7 +1152,8 @@
   =.  this  (emit-card %give %fact ~[wire] cage)
   %=    this
       takes
-    %+  ~(put to takes)  [here pid]
+    :_  takes
+    :-  [here pid]
     :-  [[(scot %p our.bowl) /gall/grubbery] /]
     [~ %base back %perk ~]
   ==
@@ -1184,7 +1193,8 @@
   ?:  ?=([@ %gall %grubbery %$ ^] from.give.proc)
     %=    this
         takes
-      %+  ~(put to takes)  (get-here-pid from.give.proc)
+      :_  takes
+      :-  (get-here-pid from.give.proc)
       :-  [[(scot %p our.bowl) /gall/grubbery] /]
       [~ %base wire.give.proc %poke res]
     ==
@@ -1245,8 +1255,8 @@
   =/  =give:g  [[(scot %p our.bowl) sap.bowl] /]
   %=    this
       takes
-    %+  ~(put to takes)
-      [here pid]
+    :_  takes
+    :-  [here pid]
     [give ~ %arvo wire sign]
   ==
 ::
@@ -1257,8 +1267,8 @@
   =/  =give:g  [[(scot %p our.bowl) sap.bowl] /]
   %=    this
       takes
-    %+  ~(put to takes)
-      [here pid]
+    :_  takes
+    :-  [here pid]
     [give ~ %agent wire sign]
   ==
 ::
@@ -1269,8 +1279,8 @@
   =/  =give:g  [[(scot %p our.bowl) sap.bowl] /]
   %=    this
       takes
-    %+  ~(put to takes)
-      [here pid]
+    :_  takes
+    :-  [here pid]
     [give ~ %watch wire]
   ==
 ::
@@ -1281,8 +1291,8 @@
   =/  =give:g  [[(scot %p our.bowl) sap.bowl] /]
   %=    this
       takes
-    %+  ~(put to takes)
-      [here pid]
+    :_  takes
+    :-  [here pid]
     [give ~ %leave wire]
   ==
 --
