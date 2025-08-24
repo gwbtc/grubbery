@@ -633,7 +633,7 @@
     =/  =stem:g  (get-stem-code stem.grub)
     =/  deps=(map path (each vase tang))
       (make-deps here ~(key by sour.grub)) :: sandboxed deps
-    (stem [now our eny here deps]:[bowl .])
+    (stem [here deps]:[bowl .])
   ?-    -.res
       %|
     ~&  >>>  "{(spud here)} crashed on recompute"

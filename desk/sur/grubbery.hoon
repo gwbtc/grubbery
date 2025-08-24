@@ -82,10 +82,7 @@
   |%
   +$  stem  $-(bowl vase)
   +$  bowl
-    $:  now=@da                          :: time
-        our=@p                           :: host
-        eny=@uvJ                         :: entropy
-        here=path                        :: our address
+    $:  here=path                        :: our address
         deps=(map path (each vase tang)) :: dependencies
     ==
   --
@@ -93,8 +90,6 @@
 ++  base
   =<  proc
   |%
-  :: TODO: get rid of bowl; all such information should be requested
-  ::
   +$  bowl
     $:  now=@da       :: time
         our=@p        :: host
