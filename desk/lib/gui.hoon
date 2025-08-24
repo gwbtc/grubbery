@@ -13,9 +13,10 @@
   =,  grubberyio
   ^-  base:g
   =<
-  |=  [=bowl:base:g =stud:g =vase]
   =/  m  (charm ,~)
   ^-  form:m
+  ;<  [=stud:g =vase]  bind:m  get-poke-pail
+  ;<  =bowl:base:g     bind:m  get-bowl
   ?+    stud  !!
       [%gui %init ~]
     ;<  ~  bind:m  (eyre-connect /grub here.bowl)

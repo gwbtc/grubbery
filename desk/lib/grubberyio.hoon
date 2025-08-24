@@ -775,6 +775,12 @@
   |=  input
   [~ state temp %done bowl]
 ::
+++  get-poke-pail
+  =/  m  (charm ,pail)
+  ^-  form:m
+  |=  input
+  [~ state temp %done pail]
+::
 ++  get-time
   =/  m  (charm ,@da)
   ^-  form:m

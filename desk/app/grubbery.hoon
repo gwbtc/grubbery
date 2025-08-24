@@ -106,33 +106,33 @@
     [cards this]
     ::
       %oust-grub
-    =+  !<(here=path vase)
+    =+  !<([=wire here=path] vase)
     ~&  here+here
-    =/  =give:g  [[(scot %p src.bowl) sap.bowl] /]
+    =/  =give:g  [[(scot %p src.bowl) sap.bowl] wire]
     =^  cards  state
       abet:(oust-grub:hc give here)
     [cards this]
     ::
       %cull-cone
-    =+  !<(here=path vase)
+    =+  !<([=wire here=path] vase)
     ~&  here+here
-    =/  =give:g  [[(scot %p src.bowl) sap.bowl] /]
+    =/  =give:g  [[(scot %p src.bowl) sap.bowl] wire]
     =^  cards  state
       abet:(cull-cone:hc give here)
     [cards this]
     ::
       %make-base
-    =+  !<([here=path base=path data=(unit ^vase)] vase)
+    =+  !<([=wire here=path base=path data=(unit ^vase)] vase)
     ~&  here+here
-    =/  =give:g  [[(scot %p src.bowl) sap.bowl] /]
+    =/  =give:g  [[(scot %p src.bowl) sap.bowl] wire]
     =^  cards  state
       abet:(make-base:hc give here base data)
     [cards this]
     ::
       %make-stem
-    =+  !<([here=path stem=path sour=(set path)] vase)
+    =+  !<([=wire here=path stem=path sour=(set path)] vase)
     ~&  here+here
-    =/  =give:g  [[(scot %p src.bowl) sap.bowl] /]
+    =/  =give:g  [[(scot %p src.bowl) sap.bowl] wire]
     =^  cards  state
       abet:(make-stem:hc give here stem sour)
     [cards this]
@@ -146,25 +146,25 @@
     [cards this]
     ::
       %bump-base
-    =+  !<([here=path pid=@ta =pail:g] vase)
+    =+  !<([=wire here=path pid=@ta =pail:g] vase)
     ~&  here+here
-    =/  =give:g  [[(scot %p src.bowl) sap.bowl] /]
+    =/  =give:g  [[(scot %p src.bowl) sap.bowl] wire]
     =^  cards  state
       abet:(bump-base:hc here pid give pail)
     [cards this]
     ::
       %kill-base
-    =+  !<([here=path pid=(unit @ta)] vase)
+    =+  !<([=wire here=path pid=(unit @ta)] vase)
     ~&  here+here
-    =/  =give:g  [[(scot %p src.bowl) sap.bowl] /]
+    =/  =give:g  [[(scot %p src.bowl) sap.bowl] wire]
     =^  cards  state
       abet:(kill-base:hc give here pid)
     [cards this]
     ::
       %edit-perm
-    =+  !<([here=path perm=(unit perm:g)] vase)
+    =+  !<([=wire here=path perm=(unit perm:g)] vase)
     ~&  here+here
-    =/  =give:g  [[(scot %p src.bowl) sap.bowl] /]
+    =/  =give:g  [[(scot %p src.bowl) sap.bowl] wire]
     =^  cards  state
       abet:(edit-perm:hc give here perm)
     [cards this]
@@ -915,20 +915,29 @@
   =/  =grub:g  (need (~(get of cone) here))
   ?>  ?=(%base -.grub)
   =/  pid=@ta  (make-pid here)
-  =/  =bowl:base:g  (make-bowl from.give.poke here pid)
   =/  build=(each proc:base:g tang)
-    (mule |.(((get-base-code base.grub) bowl pail.poke)))
+    (mule |.((get-base-code base.grub)))
   ?:  ?=(%| -.build)
     ?.  ?=([@ %gall %grubbery %$ ^] from.give.poke)
-      :: TODO: figure out remote poke/bump/perk etc
-      this
+      ?.  ?=([@ %gall @ ~] from.give.poke)
+        this
+      =/  =wire  (weld /poke/[i.from] wire):[give.poke .]
+      %-  emit-cards
+      :~  [%give %fact ~[wire] sign-base+!>([%pack %| %build-error p.build])]
+          [%give %kick ~[wire] ~]
+      ==
     %+  gibs-take
       (get-here-pid from.give.poke)
     [~ %base wire.give.poke %pack %| %build-error p.build]
   =.  this
     ?.  ?=([@ %gall %grubbery %$ ^] from.give.poke)
-      :: TODO: figure out remote poke/bump/perk etc
-      this
+      ?.  ?=([@ %gall @ ~] from.give.poke)
+        this
+      =/  =wire  (weld /poke/[i.from] wire):[give.poke .]
+      %-  emit-cards
+      :~  [%give %fact ~[wire] sign-base+!>([%pack %& pid])]
+          [%give %kick ~[wire] ~]
+      ==
     %+  gibs-take
       (get-here-pid from.give.poke)
     [~ %base wire.give.poke %pack %& pid]
@@ -1014,12 +1023,11 @@
     this
   ?:  =(~ next.proc)
     this
-  =^  =take:base:g  next.proc  ~(get to next.proc)
   ?>  ?=(%base -.grub)
   =/  m  (charm:base:g ,~)
-  =/  =bowl:base:g  (make-bowl from.give.take here pid)
+  =/  =bowl:base:g  (make-bowl / here pid)
   =/  [darts=(list dart:g) done=(list took:eval:g) data=vase temp=(axal vase) =proc:g =result:eval:base:g]
-    (take:eval:base:g bowl data.grub temp.tack proc take)
+    (take:eval:base:g bowl data.grub temp.tack proc)
   ::
   ~&  >>  -.result
   ::
@@ -1073,8 +1081,11 @@
     =/  =give:g  [(make-from here pid) back]
     (emit-take here-pid give ~ %perk wire.give.poke.proc pail)
   ?:  ?=([@ %gall @ ~] from.give.poke.proc)
-    :: TODO: figure out remote poke/bump/perk etc
-    !!
+    =/  =wire  (weld /poke/[i.from] wire):[give.poke.proc .]
+    %-  emit-cards
+    :~  [%give %fact ~[wire] sign-base+!>([%perk wire.give.poke.proc pail])]
+        [%give %kick ~[wire] ~]
+    ==
   ?>  ?=([@ %eyre @ @ ~] from.give.poke.proc)
   =/  src=@p       (slav %p i.t.t.from.give.poke.proc)
   =/  eyre-id=@ta  i.t.t.t.from.give.poke.proc

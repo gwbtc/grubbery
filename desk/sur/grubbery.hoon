@@ -91,7 +91,7 @@
   --
 ::
 ++  base
-  =<  base
+  =<  proc
   |%
   :: TODO: get rid of bowl; all such information should be requested
   ::
@@ -158,7 +158,6 @@
     $-(input (output-raw value))
   ::
   +$  proc  _*form:(charm ,~)
-  +$  base  $-([bowl pail] proc)
   :: 
   ++  charm
     |*  value=mold
@@ -205,13 +204,15 @@
     ==
   ::
   +$  took  [take:base (unit tang)]
-  :: TODO: should not accept a $take, should take top off next queue
   ::
   ++  take
     =|  darts=(list dart) :: effects
     =|  done=(list took) :: sequentially processed inputs
-    |=  [=bowl:base state=vase temp=(axal vase) =proc =take:base]
+    |=  [=bowl:base state=vase temp=(axal vase) =proc]
     ^-  [(list dart) (list took) vase (axal vase) _proc result]
+    =^  =take:base  next.proc  ~(get to next.proc)
+    =.  from.bowl  from.give.take
+    |-  :: recursion point so take can be replaced
     =/  res=(each output tang)
       (mule |.((proc.proc bowl pail.poke.proc state temp in.take)))
     ?:  ?=(%| -.res)
