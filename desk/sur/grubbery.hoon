@@ -49,6 +49,7 @@
 ::
 +$  proc
   $:  =proc:base
+      rupt=?           :: was process interrupted by a reboot?
       =poke            :: keep initial poke
       temp=(axal vase) :: persist "transient" state
       next=cute:base   :: queue of held inputs
@@ -133,7 +134,7 @@
         [%leave =path]
     ==
   ::
-  +$  input  [=bowl =pail state=vase temp=(axal vase) in=(unit intake)]
+  +$  input  [=bowl rupt=? =pail state=vase temp=(axal vase) in=(unit intake)]
   ::
   +$  take  [=give in=(unit intake)]
   +$  cute  (qeu take)
@@ -212,7 +213,7 @@
     |=  [=bowl:base state=vase =proc =take:base]
     ^-  [(list dart) (list took) vase _proc result]
     =/  res=(each output tang)
-      (mule |.((proc.proc bowl pail.poke.proc state temp.proc in.take)))
+      (mule |.((proc.proc bowl rupt.proc pail.poke.proc state temp.proc in.take)))
     ?:  ?=(%| -.res)
       =/  =tang  [leaf+"crash" p.res]
       :-  darts :: no output darts on failure

@@ -37,9 +37,6 @@
 ++  on-load
   |=  old=vase
   ^-  (quip card _this)
-  :: TODO: make sure we kill all processes everytime we load
-  ::       (might need to send poke responses outside the agent)
-  ::
   =.  state  !<(state-0 old)
   =^  cards  state
     abet:boot:hc
@@ -262,6 +259,9 @@
 ++  boot
   ^+  this
   ~&  >  %booting
+  :: TODO: recursively through trac for each proc, rebuild it and set it's
+  ::       rupt to yes, sinple as, if it doesn't build, crash
+  ::
   =/  =give:g  [[(scot %p src.bowl) sap.bowl] /]
   =.  this  (oust-grub give /boot)
   =.  this  (make-base give /boot /boot ~)
@@ -594,7 +594,8 @@
 ++  dirty
   |=  here=path
   ^-  [(set path) _this]
-  :: ~&  >>  "dirtying {(spud here)}"
+  ~&  >>  "dirtying {(spud here)}"
+  ~|  "failed to dirty {(spud here)}"
   =/  =grub:g  (need (~(get of cone) here))
   =/  =tack:g  (need (~(get of trac) here))
   ?:  &(?=(%stem -.grub) !tidy.grub)
@@ -606,6 +607,7 @@
       [~ this]
     [(sy ~[here]) this]
   =/  sinx=(list path)  ~(tap in sinx.tack)
+  ~|  sinx+sinx
   =|  edge=(set path)
   |-
   ?~  sinx
@@ -619,15 +621,15 @@
 ++  tidy
   |=  here=path
   ^+  this
-  :: ~&  >>  "tidying {(spud here)}"
+  ~&  >>  "tidying {(spud here)}"
   ?~  grub=(~(get of cone) here)
-    :: ~&  >>  "{(spud here)} has no data"
+    ~&  >>  "{(spud here)} has no data"
     this
   ?:  ?=(%base -.u.grub)
-    :: ~&  >>  "{(spud here)} is a base and thus tidy"
+    ~&  >>  "{(spud here)} is a base and thus tidy"
     this
   ?:  tidy.u.grub
-    :: ~&  >>  "{(spud here)} is already tidy"
+    ~&  >>  "{(spud here)} is already tidy"
     this
   =/  sour=(list (pair path @da))  ~(tap by sour.u.grub)
   |-
@@ -643,7 +645,7 @@
   |=  =path
   :-  path
   ?~  grub=(~(get of cone) path)
-    |+[leaf+"no grub" leaf+(spud here) ~]
+    |+[leaf+"no grub {(spud here)}" ~]
   (grab-data-soft:io u.grub)
 ::
 ++  make-sour
@@ -658,11 +660,11 @@
 ++  recompute-stem
   |=  [here=path =grub:g]
   ^+  this
-  :: ~&  >>  "recompute stem"
+  ~&  >>  "recompute stem"
   ?>  ?=(%stem -.grub)
   =/  new-sour=(map path @da)  (make-sour ~(key by sour.grub))
   ?:  =(new-sour sour.grub)
-    :: ~&  >>  "{(spud here)} hasn't changed on recompute"
+    ~&  >>  "{(spud here)} hasn't changed on recompute"
     =.  grub  grub(tidy %&)
     this(cone (~(put of cone) here grub))
   =/  res=(each vase tang)
@@ -673,15 +675,15 @@
     (stem [now our eny here deps]:[bowl .])
   ?-    -.res
       %|
-    :: ~&  >>>  "{(spud here)} crashed on recompute"
+    ~&  >>>  "{(spud here)} crashed on recompute"
     =/  =tang  [leaf+"stem boom" leaf+(spud here) p.res]
     =?  this  !=(data.grub |+tang)  (next-tack here)
-    :: %-  (slog tang)
+    %-  (slog tang)
     =.  grub  grub(tidy %&, data |+tang)
     this(cone (~(put of cone) here grub))
     ::
       %&
-    :: ~&  >  "{(spud here)} successfully recomputed"
+    ~&  >  "{(spud here)} successfully recomputed"
     =?  this  !=(data.grub &+p.res)  (next-tack here)
     =.  grub
       grub(data &+p.res, sour new-sour, tidy %&)
@@ -691,7 +693,7 @@
 ++  dirty-and-tidy
   |=  here=path
   ^+  this
-  :: ~&  >>  "dirty-and-tidy {(spud here)}"
+  ~&  >>  "dirty-and-tidy {(spud here)}"
   =^  e  this  (dirty here)
   =/  edge=(list path)  ~(tap in e)
   |-
@@ -892,7 +894,7 @@
   ?.  (~(has by proc.tack) pid)
     ~&  >>  "no process {(trip pid)} to kill at {(spud here)}"
     this
-  (give-poke-ack here pid ~ %killed [leaf+(spud here) ~])
+  (give-final-poke-ack here pid ~ %killed [leaf+(spud here) ~])
 ::
 ++  kill-all
   |=  here=path
@@ -989,7 +991,7 @@
     ==
   =/  =tack:g  (need (~(get of trac) here))
   =.  proc.tack
-    (~(put by proc.tack) pid [p.build poke [~ ~] ~ ~])
+    (~(put by proc.tack) pid [p.build | poke [~ ~] ~ ~])
   =.  trac  (~(put of trac) here tack)
   %=    this
       takes
@@ -1121,7 +1123,7 @@
     (relinquish here)
   ::
   ?>  ?=(?(%fail %done) -.result)
-  %^    give-poke-ack
+  %^    give-final-poke-ack
       here
     pid
   ?-  -.result
@@ -1173,7 +1175,7 @@
   |=  [here=path pid=@ta]
   ^+  this
   =/  =tack:g  (need (~(get of trac) here))
-  ?>  =(~ boar.tack)
+  ?>  |(=(~ boar.tack) =([~ pid] boar.tack))
   =.  boar.tack  [~ pid]
   this(trac (~(put of trac) here tack))
 ::
@@ -1189,10 +1191,10 @@
     this
   $(pids t.pids, this (process-do-next here i.pids))
 ::
-++  give-poke-ack
+++  give-final-poke-ack
   |=  [here=path pid=@ta res=(unit tang)]
   ^+  this
-  ~|  %give-poke-ack-fail
+  ~|  %give-final-poke-ack-fail
   ~&  %giving-poke-ack
   ~&  here+here
   =/  =grub:g  (need (~(get of cone) here))
@@ -1200,12 +1202,11 @@
   =/  =tack:g  (need (~(get of trac) here))
   =/  =proc:g  (~(got by proc.tack) pid)
   =.  proc.tack  (~(del by proc.tack) pid)
-  ?>  |(=(~ boar.tack) =([~ pid] boar.tack))
   =.  this  (relinquish here)
   =.  trac  (~(put of trac) here tack)
   =.  this  (clean here pid)
   ?:  ?=([@ %clay ~] from.give.poke.proc) :: +on-load
-    ?~(res this (mean u.res))
+    ?~(res this ((slog u.res) this))
   ?:  ?=([@ %gall %grubbery %$ ^] from.give.poke.proc)
     %=    this
         takes

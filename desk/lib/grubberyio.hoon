@@ -1,6 +1,7 @@
 /-  *grubbery
 /+  server, multipart
 =,  base
+=|  hold=? :: switch to interleave vs sequentialize processes
 |%
 ++  carp
   |=  cord=@t
@@ -152,7 +153,8 @@
   |=  input
   :-  ~
   :+  state  temp
-  ?+  in  [%wait |]
+  ?+  in  [%skip hold]
+    ~  [%wait hold]
       [~ %watch *]
     [%done path.u.in]
   ==
@@ -162,7 +164,8 @@
   |=  input
   :-  ~
   :+  state  temp
-  ?+  in  [%wait |]
+  ?+  in  [%skip hold]
+    ~  [%wait hold]
       [~ %leave *]
     [%done path.u.in]
   ==
@@ -181,10 +184,11 @@
   |=  input
   :-  ~
   :+  state  temp
-  ?+  in  [%wait |]
+  ?+  in  [%skip hold]
+    ~  [%wait hold]
       [~ %arvo [%wait @ ~] %behn %wake *]
     ?.  |(?=(~ until) =(`u.until (slaw %da i.t.wire.u.in)))
-      [%wait |]
+      [%skip hold]
     ?~  error.sign.u.in
       [%done ~]
     [%fail %timer-error u.error.sign.u.in]
@@ -211,10 +215,11 @@
   |=  input
   :-  ~
   :+  state  temp
-  ?+  in  [%wait |]
+  ?+  in  [%skip hold]
+    ~  [%wait hold]
       [~ %base * %pack *]
     ?.  =(wire wire.u.in)
-      [%wait |]
+      [%skip hold]
     ?-  -.p.sign.u.in
         %&  [%done p.p.sign.u.in]
         %|  [%fail p.p.sign.u.in]
@@ -228,10 +233,11 @@
   |=  input
   :-  ~
   :+  state  temp
-  ?+  in  [%wait |]
+  ?+  in  [%skip hold]
+    ~  [%wait hold]
       [~ %base * %poke *]
     ?.  =(wire wire.u.in)
-      [%wait |]
+      [%skip hold]
     ?~  err.sign.u.in
       [%done ~]
     [%fail %poke-fail u.err.sign.u.in]
@@ -267,10 +273,11 @@
   |=  input
   :-  ~
   :+  state  temp
-  ?+  in  [%wait |]
+  ?+  in  [%skip hold]
+    ~  [%wait hold]
       [~ %perk *]
     ?.  =(wire wire.u.in)
-      [%wait |]
+      [%skip hold]
     [%done pail.u.in]
   ==
 ::
@@ -281,10 +288,11 @@
   |=  input
   :-  ~
   :+  state  temp
-  ?+  in  [%wait |]
+  ?+  in  [%skip hold]
+    ~  [%wait hold]
       [~ %base * %bump *]
     ?.  =(wire wire.u.in)
-      [%wait |]
+      [%skip hold]
     ?~  err.sign.u.in
       [%done ~]
     [%fail %bump-nack u.err.sign.u.in]
@@ -305,10 +313,11 @@
   |=  input
   :-  ~
   :+  state  temp
-  ?+  in  [%wait |]
+  ?+  in  [%skip hold]
+    ~  [%wait hold]
       [~ %base * %bump *]
     ?.  =(wire wire.u.in)
-      [%wait |]
+      [%skip hold]
     ?~  err.sign.u.in
       [%done ~]
     [%done ~ u.err.sign.u.in]
@@ -329,10 +338,11 @@
   |=  input
   :-  ~
   :+  state  temp
-  ?+  in  [%wait |]
+  ?+  in  [%skip hold]
+    ~  [%wait hold]
       [~ %peek *]
     ?.  =(wire wire.u.in)
-      [%wait |]
+      [%skip hold]
     [%done [cone sand]:u.in]
   ==
 ::
@@ -458,10 +468,11 @@
   |=  input
   :-  ~
   :+  state  temp
-  ?+  in  [%wait |]
+  ?+  in  [%skip hold]
+    ~  [%wait hold]
       [~ %scry *]
     ?.  =(wire wire.u.in)
-      [%wait |]
+      [%skip hold]
     [%done !<(mold vase.u.in)]
   ==
 ::
@@ -502,10 +513,11 @@
   |=  input
   :-  ~
   :+  state  temp
-  ?+  in  [%wait |]
+  ?+  in  [%skip hold]
+    ~  [%wait hold]
       [~ %dead *]
     ?.  =(wire wire.u.in)
-      [%wait |]
+      [%skip hold]
     ?~  err.u.in
       [%done ~]
     [%fail %kill-fail u.err.u.in]
@@ -528,10 +540,11 @@
   ~&  >  "taking-gone {(spud wire)}"
   :-  ~
   :+  state  temp
-  ?+  in  [%wait |]
+  ?+  in  [%skip hold]
+    ~  [%wait hold]
       [~ %gone *]
     ?.  =(wire wire.u.in)
-      [%wait |]
+      [%skip hold]
     ?~  err.u.in
       [%done ~]
     [%fail %oust-fail u.err.u.in]
@@ -552,10 +565,11 @@
   |=  input
   :-  ~
   :+  state  temp
-  ?+  in  [%wait |]
+  ?+  in  [%skip hold]
+    ~  [%wait hold]
       [~ %cull *]
     ?.  =(wire wire.u.in)
-      [%wait |]
+      [%skip hold]
     ?~  err.u.in
       [%done ~]
     [%fail %cull-fail u.err.u.in]
@@ -576,10 +590,11 @@
   |=  input
   :-  ~
   :+  state  temp
-  ?+  in  [%wait |]
+  ?+  in  [%skip hold]
+    ~  [%wait hold]
       [~ %sand *]
     ?.  =(wire wire.u.in)
-      [%wait |]
+      [%skip hold]
     ?~  err.u.in
       [%done ~]
     [%fail %sand-fail u.err.u.in]
@@ -693,10 +708,11 @@
   ~&  >  "taking-made {(spud wire)}"
   :-  ~
   :+  state  temp
-  ?+  in  [%wait |]
+  ?+  in  [%skip hold]
+    ~  [%wait hold]
       [~ %made *]
     ?.  =(wire wire.u.in)
-      [%wait |]
+      [%skip hold]
     ?~  err.u.in
       [%done ~]
     [%fail %make-fail u.err.u.in]
@@ -873,10 +889,11 @@
   |=  input
   :-  ~
   :+  state  temp
-  ?+  in  [%wait |]
+  ?+  in  [%skip hold]
+    ~  [%wait hold]
       [~ %base * %perk *]
     ?.  =(wire wire.u.in)
-      [%wait |]
+      [%skip hold]
     ?~  err.sign.u.in
       [%done ~]
     [%fail %perk-nack u.err.sign.u.in]
@@ -904,10 +921,11 @@
   |=  input
   :-  ~
   :+  state  temp
-  ?+  in  [%wait |]
+  ?+  in  [%skip hold]
+    ~  [%wait hold]
       [~ %agent * %poke-ack *]
     ?.  =(wire wire.u.in)
-      [%wait |]
+      [%skip hold]
     ?~  p.sign.u.in
       [%done ~]
     [%fail %poke-fail u.p.sign.u.in]
@@ -935,10 +953,11 @@
   |=  input
   :-  ~
   :+  state  temp
-  ?+  in  [%wait |]
+  ?+  in  [%skip hold]
+    ~  [%wait hold]
       [~ %agent * %poke-ack *]
     ?.  =(wire wire.u.in)
-      [%wait |]
+      [%skip hold]
     ?~  p.sign.u.in
       [%done ~]
     [%done ~ u.p.sign.u.in]
@@ -1003,10 +1022,11 @@
   |=  input
   :-  ~
   :+  state  temp
-  ?+  in  [%wait |]
+  ?+  in  [%skip hold]
+    ~  [%wait hold]
       [~ %agent * %watch-ack *]
     ?.  =(watch+wire wire.u.in)
-      [%wait |]
+      [%skip hold]
     ?~  p.sign.u.in
       [%done ~]
     [%fail %watch-ack-fail u.p.sign.u.in]
@@ -1019,10 +1039,11 @@
   |=  input
   :-  ~
   :+  state  temp
-  ?+  in  [%wait |]
+  ?+  in  [%skip hold]
+    ~  [%wait hold]
       [~ %agent * %fact *]
     ?.  =(watch+wire wire.u.in)
-      [%wait |]
+      [%skip hold]
     [%done cage.sign.u.in]
   ==
 ::
@@ -1033,10 +1054,11 @@
   |=  input
   :-  ~
   :+  state  temp
-  ?+  in  [%wait |]
+  ?+  in  [%skip hold]
+    ~  [%wait hold]
       [~ %agent * %kick *]
     ?.  =(watch+wire wire.u.in)
-      [%wait |]
+      [%skip hold]
     [%done ~]
   ==
 ::
@@ -1057,7 +1079,8 @@
   |=  input
   :-  ~
   :+  state  temp
-  ?+  in  [%wait |]
+  ?+  in  [%skip hold]
+    ~  [%wait hold]
     ::
       [~ %arvo [%request ~] %iris %http-response %cancel *]
     ::NOTE  iris does not (yet?) retry after cancel, so it means failure
@@ -1089,7 +1112,8 @@
   |=  input
   :-  ~
   :+  state  temp
-  ?+  in  [%wait |]
+  ?+  in  [%skip hold]
+    ~  [%wait hold]
       [~ %arvo [%request ~] %iris %http-response %cancel *]
     [%done ~]
       [~ %arvo [%request ~] %iris %http-response %finished *]

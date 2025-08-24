@@ -9,6 +9,7 @@
 ++  make-id  |=(p=path (trip (rap 3 (join '_' `path`[%grub p]))))
 ::
 ++  base
+  =/  grubberyio  grubberyio(hold |)
   =,  grubberyio
   ^-  base:g
   =<
@@ -27,7 +28,9 @@
     ~&  >>  last-event-id+(get-header:http 'last-event-id' header-list.request.req)
     ~&  >  "received {(trip method.request.req)} request for {(spud site)}!"
     ?:  (is-sse-request req)
+      ~&  >>  %is-sse
       (do-sse (sse-last-id req) [ext site] args)
+    ~&  >>  %not-sse
     ?+    method.request.req
       %-  give-simple-payload
       (method-not-allowed method.request.req)
@@ -74,6 +77,7 @@
     |=  request-line:server
     =/  m  (charm ,~)
     ^-  form:m
+    ~&  >>  %doing-get
     ?+    site
       ;<  =cone:g   bind:m  (peek /)
       (give-manx-response (main-page cone))
@@ -113,6 +117,7 @@
       :: (give-mime-response ~s0 !<(mime q.pail))
       ::
         [%grub %main ~]
+      ~&  >>  "got to /grub/main"
       ;<  =cone:g  bind:m  (peek /)
       (give-manx-response (wrap-manx (main cone)))
       ::

@@ -145,6 +145,7 @@
       !:((slip (reel (snoc vax grubbery) slop) hoon.p.res))
     %+  turn  deps.p.res
     |=  [fac=term dep=path]
+    ~|  "failed to find dep {(spud dep)}"
     =/  =vase  (nead (~(got by deps.bowl) dep))
     vase(p [%face fac p.vase])
   --
