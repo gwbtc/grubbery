@@ -36,7 +36,7 @@
       [%sand perm=(unit perm)]
       [%poke =pail]
       [%bump pid=@ta =pail]
-      [%kill pid=@ta]
+      [%kill pid=(unit @ta)]
       [%peek ~]
   ==
 ::
@@ -49,9 +49,7 @@
 ::
 +$  proc
   $:  =proc:base
-      rupt=?           :: was process interrupted by a reboot?
       =poke            :: keep initial poke
-      temp=(axal vase) :: persist "transient" state
       next=cute:base   :: queue of held inputs
       skip=cute:base   :: queue of skipped inputs
   ==
@@ -62,7 +60,8 @@
 +$  tack
   $:  last=[step=@da poke=@da]
       sinx=(set path)
-      boar=(unit @ta)     :: who is hogging the pipes
+      boar=(unit @ta)  :: who is hogging the pipes
+      temp=(axal vase) :: persist shared "transient" state
       proc=(map @ta proc)
   ==
 +$  trac  (axal tack)
@@ -134,7 +133,7 @@
         [%leave =path]
     ==
   ::
-  +$  input  [=bowl rupt=? =pail state=vase temp=(axal vase) in=(unit intake)]
+  +$  input  [=bowl =pail state=vase temp=(axal vase) in=(unit intake)]
   ::
   +$  take  [=give in=(unit intake)]
   +$  cute  (qeu take)
@@ -206,20 +205,22 @@
     ==
   ::
   +$  took  [take:base (unit tang)]
+  :: TODO: should not accept a $take, should take top off next queue
   ::
   ++  take
     =|  darts=(list dart) :: effects
     =|  done=(list took) :: sequentially processed inputs
-    |=  [=bowl:base state=vase =proc =take:base]
-    ^-  [(list dart) (list took) vase _proc result]
+    |=  [=bowl:base state=vase temp=(axal vase) =proc =take:base]
+    ^-  [(list dart) (list took) vase (axal vase) _proc result]
     =/  res=(each output tang)
-      (mule |.((proc.proc bowl rupt.proc pail.poke.proc state temp.proc in.take)))
+      (mule |.((proc.proc bowl pail.poke.proc state temp in.take)))
     ?:  ?=(%| -.res)
       =/  =tang  [leaf+"crash" p.res]
       :-  darts :: no output darts on failure
       :-  :_(done [take ~ tang])
       :-  state :: no output state on failure
-      :-  proc  :: no output temp on failure
+      :-  temp  :: no output temp on failure
+      :-  proc  
       [%fail tang]
     =/  =output  p.res
     ?-    -.next.output
@@ -227,14 +228,16 @@
       :-  darts :: no output darts on failure
       :-  :_(done [take ~ err.next.output])
       :-  state :: no output state on failure
-      :-  proc  :: no output temp on failure
+      :-  temp  :: no output temp on failure
+      :-  proc
       [%fail err.next.output]
       ::
         %done
       :-  (weld darts darts.output)
       :-  :_(done [take ~])
       :-  state.output
-      :-  proc(temp temp.output)
+      :-  temp.output
+      :-  proc
       [%done ~]
       ::
         %cont
@@ -242,10 +245,10 @@
         darts      (weld darts darts.output)
         done       :_(done [take ~])
         state      state.output
+        temp       temp.output
         next.proc  (~(gas to next.proc) ~(tap to skip.proc))
         skip.proc  ~
         proc.proc  self.next.output
-        temp.proc  temp.output
         in.take    ~
       ==
       ::
@@ -259,14 +262,15 @@
         %=  $
           take       top
           state      state.output
-          temp.proc  temp.output
+          temp       temp.output
         ==
       :: await input
       ::
       :-  darts
       :-  done
       :-  state.output
-      :-  proc(temp temp.output)
+      :-  temp.output
+      :-  proc
       [%next hold.next.output]
       ::
         %skip
@@ -277,7 +281,8 @@
         :-  darts :: no output darts on failure
         :-  :_(done [take ~ tang])
         :-  state :: no output state on failure
-        :-  proc  :: no output temp on failure
+        :-  temp  :: no output temp on failure
+        :-  proc
         [%fail tang]
       :: skip input
       ::
@@ -290,7 +295,8 @@
       :-  darts :: %skips can't send effects
       :-  done  :: skipping doesn't complete the $take
       :-  state :: %skips can't change state
-      :-  proc  :: %skips can't change temporary variables
+      :-  temp  :: %skips can't change temporary variables
+      :-  proc
       [%next hold.next.output]
     ==
   --

@@ -154,7 +154,7 @@
     [cards this]
     ::
       %kill-base
-    =+  !<([here=path pid=@ta] vase)
+    =+  !<([here=path pid=(unit @ta)] vase)
     ~&  here+here
     =/  =give:g  [[(scot %p src.bowl) sap.bowl] /]
     =^  cards  state
@@ -264,10 +264,8 @@
 ++  boot
   ^+  this
   ~&  >  %booting
-  :: TODO: recursively through trac for each proc, rebuild it and set it's
-  ::       rupt to yes, sinple as, if it doesn't build, crash
-  ::
   =/  =give:g  [[(scot %p src.bowl) sap.bowl] /]
+  =.  this  mass-kill
   =.  this  (oust-grub give /boot)
   =.  this  (make-base give /boot /boot ~)
   (poke-base /boot give /sig !>(~))
@@ -287,7 +285,7 @@
   ?~  tac=(~(get of trac) here)
     =/  step=@da  (new-last [now now]:bowl)
     =.  history  (put:hon:g history step here)
-    this(trac (~(put of trac) here [step step] ~ ~ ~))
+    this(trac (~(put of trac) here [step step] ~ ~ [~ ~] ~))
   =^  del  history
     (del:hon:g history step.last.u.tac)
   ?:  &(=(~ sinx.u.tac) !(~(has of cone) here))
@@ -525,10 +523,10 @@
         %poke
       =/  res  (mule |.((get-stud p.pail.load.dart)))
       ?:  ?=(%| -.res)
-        (gibs-take [here pid] ~ %base wire.dart %poke ~ %poke-stud-fail p.res)
+        (gibs-take [here pid] ~ %base wire.dart %poke ~ leaf+"poke-stud-fail" p.res)
       =/  res  (mule |.((slam p.res q.pail.load.dart)))
       ?:  ?=(%| -.res)
-        (gibs-take [here pid] ~ %base wire.dart %poke ~ %poke-clam-fail p.res)
+        (gibs-take [here pid] ~ %base wire.dart %poke ~ leaf+"poke-clam-fail" p.res)
       (handle-bolt here pid dart(q.pail.load p.res))
       ::
         %bump
@@ -546,10 +544,10 @@
       =/  res
         (mule |.((get-stud (get-base-stud base.make.load.dart))))
       ?:  ?=(%| -.res)
-        (gibs-take [here pid] ~ %made wire.dart ~ %make-stud-fail p.res)
+        (gibs-take [here pid] ~ %made wire.dart ~ leaf+"make-stud-fail" p.res)
       =/  res  (mule |.((slam p.res u.data.make.load.dart)))
       ?:  ?=(%| -.res)
-        (gibs-take [here pid] ~ %made wire.dart ~ %make-clam-fail p.res)
+        (gibs-take [here pid] ~ %made wire.dart ~ leaf+"make-clam-fail" p.res)
       (handle-bolt here pid dart(data.make.load [~ p.res]))
     ==
   ==
@@ -830,15 +828,53 @@
   ?~  lit=~(tap in ~(key by proc.u.tack))
     this
   $(this (kill here i.lit))
+:: in preparation for mass-kill, clear all local gives
+::
+++  wipe-gives
+  ^+  this
+  %=    this
+      trac
+    %-  ~(gas of *(axal tack:g))
+    %+  turn  ~(tap of trac)
+    |=  [here=path =tack:g]
+    ^-  [path tack:g]
+    :-  here
+    %=    tack
+        proc
+      %-  ~(gas by *(map @ta proc:g))
+      %+  turn  ~(tap by proc.tack)
+      |=  [pid=@ta =proc:g]
+      ^-  [@ta proc:g]
+      :-  pid
+      ?.  ?=([@ %gall %grubbery %$ ^] from.give.poke.proc)
+        proc
+      ?.  =(i.from.give.poke.proc (scot %p our.bowl))
+        proc
+      proc(give.poke gibs)
+    ==
+  ==
+::
+++  mass-kill
+  ^+  this
+  =.  this  wipe-gives
+  =/  paths=(list path)  (turn ~(tap of trac) head)
+  |-
+  ?~  paths
+    this
+  $(paths t.paths, this (kill-all i.paths))
 ::
 ++  kill-base
-  |=  [=give:g here=path pid=@ta]
+  |=  [=give:g here=path pid=(unit @ta)]
   ^+  this
-  =/  res=(each _this tang)  (mule |.((kill here pid)))
+  =/  res=(each _this tang)
+    %-  mule  |.
+    ?~  pid
+      (kill-all here)
+    (kill here u.pid)
   =/  err=(unit tang)  ?-(-.res %& ~, %| `p.res)
   =?  this  ?=(%& -.res)  p.res
   ?.  ?=([@ %gall %grubbery %$ ^] from.give)
-    ?:(?=(%| -.res) !! this)
+    ?:(?=(%& -.res) this (mean p.res))
   (gibs-take (get-here-pid from.give) ~ %dead wire.give err)
 ::
 ++  bump-base
@@ -898,7 +934,7 @@
     [~ %base wire.give.poke %pack %& pid]
   =/  =tack:g  (need (~(get of trac) here))
   =.  proc.tack
-    (~(put by proc.tack) pid [p.build | poke [~ ~] ~ ~])
+    (~(put by proc.tack) pid [p.build poke ~ ~])
   =.  trac  (~(put of trac) here tack)
   (gibs-take [here pid] ~)
 ::
@@ -982,8 +1018,8 @@
   ?>  ?=(%base -.grub)
   =/  m  (charm:base:g ,~)
   =/  =bowl:base:g  (make-bowl from.give.take here pid)
-  =/  [darts=(list dart:g) done=(list took:eval:g) data=vase =proc:g =result:eval:base:g]
-    (take:eval:base:g bowl data.grub proc take)
+  =/  [darts=(list dart:g) done=(list took:eval:g) data=vase temp=(axal vase) =proc:g =result:eval:base:g]
+    (take:eval:base:g bowl data.grub temp.tack proc take)
   ::
   ~&  >>  -.result
   ::
@@ -991,6 +1027,7 @@
   =?  this  tick  (next-tack here)
   =.  cone  (~(put of cone) here grub(data data))
   ::
+  =.  temp.tack  temp
   =.  proc.tack  (~(put by proc.tack) pid proc)
   =.  trac  (~(put of trac) here tack)
   ::
@@ -1076,7 +1113,7 @@
   |=  [here=path pid=@ta res=(unit tang)]
   ^+  this
   ~|  %give-final-poke-ack-fail
-  ~&  %giving-poke-ack
+  ~&  %giving-final-poke-ack
   ~&  here+here
   =/  =grub:g  (need (~(get of cone) here))
   ?>  ?=(%base -.grub)

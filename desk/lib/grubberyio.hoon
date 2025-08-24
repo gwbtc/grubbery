@@ -499,7 +499,7 @@
   (gall-poke [our %grubbery] disconnect+!>(url))
 ::
 ++  kill-base
-  |=  [=path pid=@ta]
+  |=  [=path pid=(unit @ta)]
   =/  m  (charm ,~)
   ^-  form:m
   =/  =dart  [%grub /kill-base path %kill pid]
