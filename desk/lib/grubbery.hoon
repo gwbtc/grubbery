@@ -86,7 +86,7 @@
   |=  [=dart:g perm=(unit perm:g)]
   ^-  (each (unit path) ~)
   ?~  perm  [%& ~]
-  ?:  ?=(?(%perk %muxt) -.dart)  [%& ~]
+  ?:  ?=(%perk -.dart)  [%& ~]
   ?:  ?=(?(%sysc %scry) -.dart)  [%| ~]
   ?-    -.load.dart
       ?(%make %oust %cull)

@@ -17,6 +17,8 @@
 ::
 +$  sand  (axal perm)
 :: effects that a base grub can emit
+:: TODO: it should be possible to make a syscall such that the response
+::       comes back as an entirely new poke instead of as a base input
 ::
 +$  dart
   $%  [%grub =wire =path =load]
@@ -44,6 +46,8 @@
   $%  [%base data=vase base=path]
       [%stem data=(each vase tang) stem=path tidy=? sour=(map path @da)]
   ==
+:: TODO: for stems, assigning deps should be like mapping from a local
+::       deps namespace to the global grubbery namespace
 ::
 +$  take  [[here=path pid=@ta] take:base]
 ::
@@ -81,6 +85,7 @@
   =<  stem
   |%
   +$  stem  $-(bowl vase)
+  :: TODO: replace with only deps
   +$  bowl
     $:  here=path                        :: our address
         deps=(map path (each vase tang)) :: dependencies
@@ -90,6 +95,10 @@
 ++  base
   =<  proc
   |%
+  :: TODO: our, from and here should be restricted entirely in line with
+  ::       peek permissions; as a consequence relative path addressing should
+  ::       be possible
+  ::
   +$  bowl
     $:  now=@da       :: time
         our=@p        :: host
