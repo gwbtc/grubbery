@@ -251,7 +251,7 @@
   ^-  [path @ta]
   ?>  ?=(%& -.from)
   [(snip `path`p.from) (rear p.from)]
-:: handle all bolts and return effects and state
+:: handle all takes and return effects and state
 ::
 ++  abet
   |-
@@ -454,7 +454,7 @@
   =.  this  (handle-base-emit here pid i.darts)
   $(darts t.darts)
 ::
-++  handle-bolt
+++  handle-dart
   =/  clam=?  |
   |=  [here=path pid=@ta =dart:g]
   ^+  this
@@ -516,18 +516,18 @@
     (gibs-take [here pid] ~ %veto dart)
     ::
       %&
-    ?~  p.res                                 (handle-bolt here pid dart)
-    ?^  (decap:grubbery u.p.res here)         (handle-bolt here pid dart)
-    ?.  ?=(%grub -.dart)                      (handle-bolt here pid dart)
-    ?.  ?=(?(%poke %bump %make) -.load.dart)  (handle-bolt here pid dart)
+    ?~  p.res                                 (handle-dart here pid dart)
+    ?^  (decap:grubbery u.p.res here)         (handle-dart here pid dart)
+    ?.  ?=(%grub -.dart)                      (handle-dart here pid dart)
+    ?.  ?=(?(%poke %bump %make) -.load.dart)  (handle-dart here pid dart)
     ?-    -.load.dart
-      %poke  %*($ handle-bolt clam &, +6 [here pid dart])
-      %bump  %*($ handle-bolt clam &, +6 [here pid dart])
+      %poke  %*($ handle-dart clam &, +6 [here pid dart])
+      %bump  %*($ handle-dart clam &, +6 [here pid dart])
       ::
         %make
       :: TODO: incorporate directly into +make-base
-      ?:  ?=(%stem -.make.load.dart)  (handle-bolt here pid dart)
-      ?~  data.make.load.dart         (handle-bolt here pid dart)
+      ?:  ?=(%stem -.make.load.dart)  (handle-dart here pid dart)
+      ?~  data.make.load.dart         (handle-dart here pid dart)
       =/  res
         (mule |.((get-stud (get-base-stud base.make.load.dart))))
       ?:  ?=(%| -.res)
@@ -535,7 +535,7 @@
       =/  res  (mule |.((slam p.res u.data.make.load.dart)))
       ?:  ?=(%| -.res)
         (gibs-take [here pid] ~ %made wire.dart ~ leaf+"make-clam-fail" p.res)
-      (handle-bolt here pid dart(data.make.load [~ p.res]))
+      (handle-dart here pid dart(data.make.load [~ p.res]))
     ==
   ==
 ::
@@ -1005,7 +1005,6 @@
     ?.  &(=(h here) =(p pid))
       ~
     [~ duct ship w]
-  :: TODO: our, from and here need to depend on sand
   [now our eny wex sup here pid (~(get of sand) here)]:[bowl .]
 :: ack for perk or bump
 ::

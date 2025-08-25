@@ -24,9 +24,6 @@
       [%sysc =card:agent:gall]
       [%scry =wire =mold =path]
   ==
-:: pair of source grub (here) and emitted dart
-::
-+$  bolt  [here=path pid=@ta =dart]
 :: dart payload
 ::
 +$  load
@@ -48,13 +45,9 @@
 ::       deps namespace to the global grubbery namespace
 :: TODO: tidy and sour should be moved to trac?
 ::
-+$  bend  (pair @ud path)
-:: roads can be used to navigate relative to one's known or unknown location
-:: in the tree. from and here should also be roads, where a relative road
-:: means that you are sandboxed and where p.bend == (lent q.bend)
-::
-+$  road  (each path bend)
-+$  prov  [src=@p sap=path]
++$  bend  (pair @ud path)   :: relative path
++$  road  (each path bend)  :: absolute or relative path
++$  prov  [src=@p sap=path] :: external provenance
 :: [%| ~zod /gall/...]                    - from outside grubbery
 :: [%& ~ %& /some/absolute/path]          - absolute path from inside grubbery
 :: [%& ~ %| &+2 /relative/path/to/source] - relative path in peek sandbox
