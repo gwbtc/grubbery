@@ -886,25 +886,7 @@
   |=  =pail
   =/  m  (charm ,~)
   ^-  form:m
-  ;<  ~  bind:m  (send-raw-dart %perk /perk pail)
-  (take-perk-sign /perk)
-::
-++  take-perk-sign
-  |=  =wire
-  =/  m  (charm ,~)
-  ^-  form:m
-  |=  input
-  :-  ~
-  :+  state  temp
-  ?+  in  [%skip hold]
-    ~  [%wait hold]
-      [~ %base * %perk *]
-    ?.  =(wire wire.u.in)
-      [%skip hold]
-    ?~  err.sign.u.in
-      [%done ~]
-    [%fail %perk-nack u.err.sign.u.in]
-  ==
+  (send-raw-dart %perk /perk pail)
 ::
 ++  gall-poke
   |=  [=dock =cage]

@@ -128,9 +128,8 @@
     ==
   ::
   +$  sign
-    $%  [%poke err=(unit tang)] :: complete poke cycle (finish or crash)
-        [%perk err=(unit tang)] :: response to gift / subscription
-        [%bump err=(unit tang)] ::  response to command for running process
+    $%  [%poke err=(unit tang)]   :: complete poke cycle (finish or crash)
+        [%bump err=(unit tang)]   ::  response to command for running process
         [%pack p=(each @ta tang)] :: build poke (id or build error)
     ==
   ::
@@ -323,9 +322,9 @@
     ==
   --
 ::
-++  action
-  =<  action
+++  protocol
   |%
+  +$  perk  [=wire =stud =noun] :: updates to the poker
   +$  make
     $%  [%base base=path data=(unit noun)] :: TODO: needs to be clammed
         [%stem stem=path sour=(set path)]

@@ -1,12 +1,12 @@
 /-  *grubbery
-|_  axn=action:protocol
+|_  pek=perk:protocol
 ++  grow
   |%
-  ++  noun  axn
+  ++  noun  pek
   --
 ++  grab
   |%
-  ++  noun  action:protocol
+  ++  noun  perk:protocol
   --
 ++  grad  %noun
 --

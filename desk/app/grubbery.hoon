@@ -2,6 +2,7 @@
 /+  grubbery, io=grubberyio, server, dbug, verb, default-agent
 /=  x-  /mar/grub/sign-base
 /=  x-  /mar/grub/action
+/=  x-  /mar/grub/perk
 |%
 +$  card     card:agent:gall
 +$  state-0
@@ -100,7 +101,7 @@
     [cards this]
     ::
       %grub-action
-    =+  !<(axn=action:g vase)
+    =+  !<(axn=action:protocol:g vase)
     ~&  here+here.axn
     =/  =give:g  [|+[src sap]:bowl wire.axn]
     ?-    +<.axn
@@ -908,6 +909,17 @@
     $(next +(next))
   (scot %da next)
 ::
+++  give-external-sign
+  |=  [=give:g =sign:base:g]
+  ^+  this
+  ?>  ?=(%| -.from.give) :: assert from outside grubbery
+  =/  src=@ta  (scot %p src.p.from.give)
+  =/  =wire  (weld /poke/[src] wire.give)
+  %-  emit-cards
+  :~  [%give %fact ~[wire] grub-sign-base+!>(sign)]
+      [%give %kick ~[wire] ~]
+  ==
+::
 ++  poke-base
   |=  [here=path =poke:g]
   ^+  this
@@ -918,27 +930,15 @@
   =/  build=(each proc:base:g tang)
     (mule |.((get-base-code base.grub)))
   ?:  ?=(%| -.build)
+    =/  =sign:base:g  [%pack %| %build-error p.build]
     ?:  ?=(%| -.from.give.poke)
-      =/  src=@ta  (scot %p src.p.from.give.poke)
-      =/  =wire  (weld /poke/[src] wire):[give.poke .]
-      %-  emit-cards
-      :~  [%give %fact ~[wire] grub-sign-base+!>([%pack %| %build-error p.build])]
-          [%give %kick ~[wire] ~]
-      ==
-    %+  gibs-take
-      (get-here-pid from.give.poke)
-    [~ %base wire.give.poke %pack %| %build-error p.build]
+      (give-external-sign give.poke sign)
+    (gibs-take (get-here-pid from.give.poke) ~ %base wire.give.poke sign)
+  =/  =sign:base:g  [%pack %& pid]
   =.  this
     ?:  ?=(%| -.from.give.poke)
-      =/  src=@ta  (scot %p src.p.from.give.poke)
-      =/  =wire  (weld /poke/[src] wire):[give.poke .]
-      %-  emit-cards
-      :~  [%give %fact ~[wire] grub-sign-base+!>([%pack %& pid])]
-          [%give %kick ~[wire] ~]
-      ==
-    %+  gibs-take
-      (get-here-pid from.give.poke)
-    [~ %base wire.give.poke %pack %& pid]
+      (give-external-sign give.poke sign)
+    (gibs-take (get-here-pid from.give.poke) ~ %base wire.give.poke sign)
   =/  =tack:g  (need (~(get of trac) here))
   =.  proc.tack
     (~(put by proc.tack) pid [p.build poke ~ ~])
@@ -975,15 +975,12 @@
 ++  give-poke-sign
   |=  [take:base:g err=(unit tang)]
   ^+  this
-  ?+    in  this
-      [~ %bump *]
-    ~&  >>  %giving-bump-sign
-    (gibs-take (get-here-pid from.give) ~ %base wire.give %bump err)
-    ::
-      [~ %perk *]
-    ~&  >>  %giving-perk-sign
-    (gibs-take (get-here-pid from.give) ~ %base wire.give %perk err)
-  ==
+  ?.  ?=([~ %bump *] in)  this
+  ~&  >>  %giving-bump-sign
+  =/  =sign:base:g  [%bump err]
+  ?:  ?=(%| -.from.give)
+    (give-external-sign give sign)
+  (gibs-take (get-here-pid from.give) ~ %base wire.give sign)
 ::
 ++  give-poke-signs
   |=  done=(list [take:base:g (unit tang)])
@@ -1066,6 +1063,25 @@
     %fail  [~ err.result]
   ==
 ::
+++  give-http-perk
+  |=  [eyre-id=wire =pail:g]
+  ^+  this
+  =/  =wire  (weld /http-response eyre-id)
+  =/  =cage  
+    ?+    p.pail  !!
+      [%http-response-data ~]    http-response-data+q.pail
+      [%http-response-header ~]  http-response-header+q.pail
+    ==
+  (emit-card %give %fact ~[wire] cage)
+::
+++  give-external-perk
+  |=  [=give:g =pail:g]
+  ^+  this
+  ?>  ?=(%| -.from.give) :: assert from outside grubbery
+  =/  src=@ta  (scot %p src.p.from.give)
+  =/  =wire  (weld /poke/[src] wire.give)
+  (emit-card %give %fact ~[wire] grub-perk+!>([p.pail q.q.pail]))
+::
 ++  give-perk
   |=  [here=path pid=@ta back=wire =pail:g]
   ^+  this
@@ -1080,23 +1096,9 @@
     =/  =give:g  [(make-from here pid) back]
     (emit-take here-pid give ~ %perk wire.give.poke.proc pail)
   ?:  ?=([%gall *] sap.p.from.give.poke.proc)
-    =/  src=@ta  (scot %p src.p.from.give.poke.proc)
-    =/  =wire  (weld /poke/[src] wire):[give.poke.proc .]
-    %-  emit-cards
-    :~  [%give %fact ~[wire] grub-sign-base+!>([%perk wire.give.poke.proc pail])]
-        [%give %kick ~[wire] ~]
-    ==
+    (give-external-perk give.poke.proc pail)
   ?>  ?=([%eyre *] sap.p.from.give.poke.proc)
-  =/  =wire  (weld /http-response wire.give.poke.proc)
-  =/  =cage  
-    ?+    p.pail  !!
-        [%http-response-data ~]
-      http-response-data+q.pail
-        [%http-response-header ~]
-      http-response-header+q.pail
-    ==
-  =.  this  (emit-card %give %fact ~[wire] cage)
-  (gibs-take [here pid] ~ %base back %perk ~)
+  (give-http-perk wire.give.poke.proc pail)
 ::
 ++  claim
   |=  [here=path pid=@ta]
@@ -1118,6 +1120,21 @@
     this
   $(pids t.pids, this (process-do-next here i.pids))
 ::
+++  give-http-poke-sign
+  |=  [eyre-id=wire err=(unit tang)]
+  ^+  this
+  =/  =wire  (weld /http-response eyre-id)
+  ?~  err
+    :: TODO: give some positive response?
+    ::
+    (emit-card %give %kick ~[wire] ~)
+  =/  =simple-payload:http  (internal-server-error:io & "" u.err)
+  =/  header=cage  [%http-response-header !>(response-header.simple-payload)]
+  =/  data=cage    [%http-response-data !>(data.simple-payload)]
+  =.  this  (emit-card %give %fact ~[wire] header)
+  =.  this  (emit-card %give %fact ~[wire] data)
+  (emit-card %give %kick ~[wire] ~)
+::
 ++  give-final-poke-ack
   |=  [here=path pid=@ta res=(unit tang)]
   ^+  this
@@ -1132,30 +1149,16 @@
   =.  this  (relinquish here)
   =.  trac  (~(put of trac) here tack)
   =.  this  (clean here pid)
+  =/  =sign:base:g  [%poke res]
   ?:  ?=(%& -.from.give.poke.proc)
-    =/  [here=path pid=@ta]  (get-here-pid from.give.poke.proc)
-    (gibs-take [here pid] ~ %base wire.give.poke.proc %poke res)
+    =/  here-pid=[path @ta]  (get-here-pid from.give.poke.proc)
+    (gibs-take here-pid ~ %base wire.give.poke.proc sign)
   ?:  ?=([%clay *] sap.p.from.give.poke.proc) :: on-init / on-load
     ?~(res this ((slog u.res) this))
   ?:  ?=([%gall *] sap.p.from.give.poke.proc)
-    =/  src=@ta  (scot %p src.p.from.give.poke.proc)
-    =/  =wire  (weld /poke/[src] wire):[give.poke.proc .]
-    %-  emit-cards
-    :~  [%give %fact ~[wire] grub-sign-base+!>([%poke res])]
-        [%give %kick ~[wire] ~]
-    ==
+    (give-external-sign give.poke.proc sign)
   ?>  ?=([%eyre *] sap.p.from.give.poke.proc)
-  =/  =wire  (weld /http-response wire.give.poke.proc)
-  =?  this  ?=(^ res)
-    =/  =simple-payload:http
-      (internal-server-error:io & "" u.res)
-    =/  header-cage=cage  
-      [%http-response-header !>(response-header.simple-payload)]
-    =/  data-cage=cage  
-      [%http-response-data !>(data.simple-payload)]
-    =.  this  (emit-card %give %fact ~[wire] header-cage)
-    (emit-card %give %fact ~[wire] data-cage)
-  (emit-card %give %kick ~[wire] ~)
+  (give-http-poke-sign wire.give.poke.proc res)
 ::
 ++  wrap-wire
   |=  [here=path pid=@ta =wire]
