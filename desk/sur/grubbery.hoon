@@ -49,10 +49,10 @@
   ==
 :: TODO: for stems, assigning deps should be like mapping from a local
 ::       deps namespace to the global grubbery namespace
+:: TODO: tidy and sour should be moved to trac?
 ::
 :: TODO: our, from and here should be restricted entirely in line with
-::       peek permissions; as a consequence relative path addressing should
-::       be possible
+::       peek permissions
 ::
 +$  bend  (pair @ud path)
 :: roads can be used to navigate relative to one's known or unknown location
@@ -67,6 +67,9 @@
 :: [%& ~]                                 - out of peek sandbox
 ::
 +$  from  (each (unit road) prov)
+:: should probably distinguish from from from:base
+:: from:base might be the above, normal from might be
+:: +$  from  (each path prov)
 +$  take  [[here=path pid=@ta] take:base]
 ::
 +$  proc
@@ -77,7 +80,7 @@
   ==
 ::
 +$  cone  (axal grub)
-+$  give  [from=path =wire]
++$  give  [=from =wire]
 +$  poke  [=give =pail]
 +$  tack
   $:  last=[step=@da poke=@da]
@@ -119,7 +122,7 @@
         eny=@uvJ      :: entropy
         wex=boat:gall :: outgoing gall subs
         sup=bitt:gall :: incoming gall subs
-        from=path     :: provenance
+        =from         :: provenance
         here=path     :: our address
         pid=@ta       :: our process id
     ==
@@ -229,7 +232,7 @@
     |=  [=bowl:base state=vase temp=(axal vase) =proc]
     ^-  [(list dart) (list took) vase (axal vase) _proc result]
     =^  =take:base  next.proc  ~(get to next.proc)
-    =.  from.bowl  from.give.take
+    =.  from.bowl  from.give.take :: TODO: implement sandboxing
     |-  :: recursion point so take can be replaced
     =/  res=(each output tang)
       (mule |.((proc.proc bowl pail.poke.proc state temp in.take)))

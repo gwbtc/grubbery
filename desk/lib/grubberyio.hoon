@@ -800,7 +800,7 @@
   [~ state temp %done eny.bowl]
 ::
 ++  get-from
-  =/  m  (charm ,path)
+  =/  m  (charm ,from)
   ^-  form:m
   |=  input
   [~ state temp %done from.bowl]
