@@ -99,6 +99,7 @@
     [cards this]
     ::
       %oust-grub
+    ?>  =(src our):bowl
     =+  !<([=wire here=path] vase)
     ~&  here+here
     =/  =give:g  [|+[src sap]:bowl wire]
@@ -107,6 +108,7 @@
     [cards this]
     ::
       %cull-cone
+    ?>  =(src our):bowl
     =+  !<([=wire here=path] vase)
     ~&  here+here
     =/  =give:g  [|+[src sap]:bowl wire]
@@ -115,6 +117,7 @@
     [cards this]
     ::
       %make-base
+    ?>  =(src our):bowl
     =+  !<([=wire here=path base=path data=(unit ^vase)] vase)
     ~&  here+here
     =/  =give:g  [|+[src sap]:bowl wire]
@@ -123,6 +126,7 @@
     [cards this]
     ::
       %make-stem
+    ?>  =(src our):bowl
     =+  !<([=wire here=path stem=path sour=(set path)] vase)
     ~&  here+here
     =/  =give:g  [|+[src sap]:bowl wire]
@@ -132,6 +136,11 @@
     ::
       %poke-base
     =+  !<([=wire here=path =pail:g] vase)
+    :: peers can only poke beneath /peers/~sampel-palnet/
+    ::
+    ?>  ?:  =(src our):bowl  &
+        ?.  ?=([%peers @ ^] here)  |
+        =(i.t.here (scot %p src.bowl))
     ~&  here+here
     =/  =give:g  [|+[src sap]:bowl wire]
     =^  cards  state
@@ -139,7 +148,12 @@
     [cards this]
     ::
       %bump-base
+    :: peers can only bump beneath /peers/~sampel-palnet/
+    ::
     =+  !<([=wire here=path pid=@ta =pail:g] vase)
+    ?>  ?:  =(src our):bowl  &
+        ?.  ?=([%peers @ ^] here)  |
+        =(i.t.here (scot %p src.bowl))
     ~&  here+here
     =/  =give:g  [|+[src sap]:bowl wire]
     =^  cards  state
@@ -147,6 +161,7 @@
     [cards this]
     ::
       %kill-base
+    ?>  =(src our):bowl
     =+  !<([=wire here=path pid=(unit @ta)] vase)
     ~&  here+here
     =/  =give:g  [|+[src sap]:bowl wire]
@@ -155,6 +170,7 @@
     [cards this]
     ::
       %edit-perm
+    ?>  =(src our):bowl
     =+  !<([=wire here=path perm=(unit perm:g)] vase)
     ~&  here+here
     =/  =give:g  [|+[src sap]:bowl wire]
@@ -177,9 +193,6 @@
     [~ this]
     ::
       [%http-response *]
-    :: ~&  >  "eyre subscribing to http-response"
-    :: ~&  src+src.bowl
-    :: ~&  sap+sap.bowl
     [~ this]
   ==
 ::
@@ -1131,8 +1144,6 @@
   ?:  ?=([%clay *] sap.p.from.give.poke.proc) :: on-init / on-load
     ?~(res this ((slog u.res) this))
   ?:  ?=([%gall *] sap.p.from.give.poke.proc)
-    :: TODO: we probably want to gate this, maybe only allow pokes
-    ::       to /peers/~sampel-palnet, for example
     =/  src=@ta  (scot %p src.p.from.give.poke.proc)
     =/  =wire  (weld /poke/[src] wire):[give.poke.proc .]
     %-  emit-cards

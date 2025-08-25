@@ -23,7 +23,7 @@
 ::
 +$  dart
   $%  [%grub =wire =road =load]
-      [%perk =wire =pail]
+      [%perk =wire =pail]       :: updates to the poker
       [%sysc =card:agent:gall]
       [%scry =wire =mold =path]
   ==
