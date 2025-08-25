@@ -247,7 +247,7 @@
   |=  [=path =pail]
   =/  m  (charm ,~)
   ^-  form:m
-  ;<  ~  bind:m  (send-raw-dart %grub /poke path %poke pail)
+  ;<  ~  bind:m  (send-raw-dart %grub /poke &+path %poke pail)
   ;<  *  bind:m  (take-pack-sign /poke)
   (take-poke-sign /poke)
 ::
@@ -256,7 +256,7 @@
   =/  m  (charm ,pail)
   ^-  form:m
   ~&  >>>  %venting
-  ;<  ~      bind:m  (send-raw-dart %grub /vent path %poke poke)
+  ;<  ~      bind:m  (send-raw-dart %grub /vent &+path %poke poke)
   ~&  >>>  %taking-pack
   ;<  *  bind:m  (take-pack-sign /vent)
   ~&  >>>  %taking-perk
@@ -302,7 +302,7 @@
   |=  [=wire =path pid=@ta =pail]
   =/  m  (charm ,~)
   ^-  form:m
-  =/  =dart  [%grub wire path %bump pid pail]
+  =/  =dart  [%grub wire &+path %bump pid pail]
   ;<  ~  bind:m  (send-raw-dart dart)
   (take-bump-sign /bump)
 ::
@@ -327,7 +327,7 @@
   |=  [=wire =path pid=@ta =pail]
   =/  m  (charm ,(unit tang))
   ^-  form:m
-  =/  =dart  [%grub wire path %bump pid pail]
+  =/  =dart  [%grub wire &+path %bump pid pail]
   ;<  ~  bind:m  (send-raw-dart dart)
   (take-bump-sign-soft /poke)
 ::
@@ -393,7 +393,7 @@
   |=  =path
   =/  m  (charm ,(unit perm))
   ^-  form:m
-  =/  =dart  [%grub /get-perm path %peek ~]
+  =/  =dart  [%grub /get-perm &+path %peek ~]
   ;<  ~  bind:m  (send-raw-dart dart)
   ;<  [* =sand]  bind:m  (take-peek /get-perm)
   (pure:m (~(get of sand) /))
@@ -402,7 +402,7 @@
   |=  =path
   =/  m  (charm ,cone)
   ^-  form:m
-  =/  =dart  [%grub /peek path %peek ~]
+  =/  =dart  [%grub /peek &+path %peek ~]
   ;<  ~  bind:m  (send-raw-dart dart)
   ;<  [=cone *]  bind:m  (take-peek /peek)
   (pure:m cone)
@@ -502,7 +502,7 @@
   |=  [=path pid=(unit @ta)]
   =/  m  (charm ,~)
   ^-  form:m
-  =/  =dart  [%grub /kill-base path %kill pid]
+  =/  =dart  [%grub /kill-base &+path %kill pid]
   ;<  ~  bind:m  (send-raw-dart dart)
   (take-dead /kill-base)
 ::
@@ -528,7 +528,7 @@
   =/  m  (charm ,~)
   ^-  form:m
   ~&  >  %ousting-grub
-  =/  =dart  [%grub /oust-grub path %oust ~]
+  =/  =dart  [%grub /oust-grub &+path %oust ~]
   ;<  ~  bind:m  (send-raw-dart dart)
   (take-gone /oust-grub)
 ::
@@ -554,7 +554,7 @@
   |=  =path
   =/  m  (charm ,~)
   ^-  form:m
-  =/  =dart  [%grub /cull-cone path %cull ~]
+  =/  =dart  [%grub /cull-cone &+path %cull ~]
   ;<  ~  bind:m  (send-raw-dart dart)
   (take-cull /cull-cone)
 ::
@@ -579,7 +579,7 @@
   |=  [=path perm=(unit perm)]
   =/  m  (charm ,~)
   ^-  form:m
-  =/  =dart  [%grub /edit-perm path %sand perm]
+  =/  =dart  [%grub /edit-perm &+path %sand perm]
   ;<  ~  bind:m  (send-raw-dart dart)
   (take-sand /edit-perm)
 ::
@@ -604,7 +604,7 @@
   |=  [=path stem=path sour=(set path)]
   =/  m  (charm ,~)
   ^-  form:m
-  =/  =dart  [%grub /make-stem path %make %stem stem sour]
+  =/  =dart  [%grub /make-stem &+path %make %stem stem sour]
   ;<  ~  bind:m  (send-raw-dart dart)
   (take-made /make-stem)
 ::
@@ -619,7 +619,7 @@
   |=  [=path base=path data=(unit vase)]
   =/  m  (charm ,~)
   ^-  form:m
-  =/  =dart  [%grub /make-base path %make %base base data]
+  =/  =dart  [%grub /make-base &+path %make %base base data]
   ;<  ~  bind:m  (send-raw-dart dart)
   (take-made /make-base)
 ::
@@ -791,7 +791,7 @@
   =/  m  (charm ,ship)
   ^-  form:m
   |=  input
-  [~ state temp %done our.bowl]
+  [~ state temp %done (need our.bowl)]
 ::
 ++  get-entropy
   =/  m  (charm ,@uvJ)

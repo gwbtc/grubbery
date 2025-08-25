@@ -63,6 +63,24 @@
     ++  tap  (turn ~(tap of fat) head)
     --
   --
+::
+++  path-from-bend
+  |=  [here=path =bend:g]
+  ^-  (unit path)
+  =.  here  (flop here)
+  |-
+  ?:  =(0 p.bend)
+    `(weld (flop here) q.bend)
+  ?~  here  ~
+  $(here t.here, p.bend (dec p.bend))
+::
+++  path-from-road
+  |=  [here=path =road:g]
+  ^-  (unit path)
+  ?-  -.road
+    %&  `p.road
+    %|  (path-from-bend here p.road)
+  ==
 :: assumes a list of shortest prefixes
 ::
 ++  check-pax
@@ -83,20 +101,22 @@
   $(pax t.pax)
 ::
 ++  allowed
-  |=  [=dart:g perm=(unit perm:g)]
+  |=  [here=path =dart:g perm=(unit perm:g)]
   ^-  (each (unit path) ~)
   ?~  perm  [%& ~]
   ?:  ?=(%perk -.dart)  [%& ~]
   ?:  ?=(?(%sysc %scry) -.dart)  [%| ~]
+  =/  path=(unit path)  (path-from-road here road.dart)
+  ?~  path  [%| ~] :: invalid bend
   ?-    -.load.dart
       ?(%make %oust %cull)
-    (check-pax path.dart ~(tap in make.u.perm))
+    (check-pax u.path ~(tap in make.u.perm))
       %sand
-    (check-pax-hard path.dart ~(tap in make.u.perm))
+    (check-pax-hard u.path ~(tap in make.u.perm))
       ?(%poke %bump %kill)
-    (check-pax path.dart ~(tap in poke.u.perm))
+    (check-pax u.path ~(tap in poke.u.perm))
       %peek
-    (check-pax path.dart ~(tap in peek.u.perm))
+    (check-pax u.path ~(tap in peek.u.perm))
   ==
 ::  user groups:
 ::  /grp/who (set ship)

@@ -436,7 +436,7 @@
   =|  prefix=(unit path)
   |=  [here=path =dart:g]
   ^-  (each (unit path) ~)
-  =/  res  (allowed:grubbery dart (~(get of sand) here))
+  =/  res  (allowed:grubbery here dart (~(get of sand) here))
   ?-    -.res
     %|  [%| ~]
       %&
@@ -474,34 +474,35 @@
     (give-perk here pid [wire pail]:dart)
     ::
       %grub
+    =/  =path  (need (path-from-road:grubbery here road.dart))
     ?-    -.load.dart
         %poke
-      (poke-base path [from wire] pail.load):[dart .]
+      (poke-base path [from wire.dart] pail.load.dart)
       ::
         %bump
-      (bump-base path pid.load [from wire] pail.load):[dart .]
+      (bump-base path [pid.load [from wire] pail.load]:[dart .])
       ::
         %peek
-      (take-peek here pid [wire path]:dart)
+      (take-peek here pid wire.dart path)
       ::
         %make
       =/  =give:g  [from wire.dart]
       ?-  -.make.load.dart
-        %base  (make-base give [path [base data]:make.load]:dart)
-        %stem  (make-stem give [path [stem sour]:make.load]:dart)
+        %base  (make-base give path [base data]:make.load.dart)
+        %stem  (make-stem give path [stem sour]:make.load.dart)
       ==
       ::
         %oust
-      (oust-grub [from wire] path):[dart .]
+      (oust-grub [from wire.dart] path)
       ::
         %cull
-      (cull-cone [from wire] path):[dart .]
+      (cull-cone [from wire.dart] path)
       ::
         %sand
-      (edit-perm [from wire] path perm.load):[dart .]
+      (edit-perm [from wire.dart] path perm.load.dart)
       ::
         %kill
-      (kill-base [from wire] path pid.load):[dart .]
+      (kill-base [from wire.dart] path pid.load.dart)
     ==
   ==
 ::
@@ -970,7 +971,8 @@
     ?.  &(=(h here) =(p pid))
       ~
     [~ duct ship w]
-  [now our eny wex sup from here pid]:[bowl .]
+  :: TODO: our, from and here need to depend on sand
+  [now `our eny wex sup from here pid]:[bowl .]
 :: ack for perk or bump
 ::
 ++  give-poke-sign

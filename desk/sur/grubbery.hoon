@@ -19,9 +19,10 @@
 :: effects that a base grub can emit
 :: TODO: it should be possible to make a syscall such that the response
 ::       comes back as an entirely new poke instead of as a base input
+::       this probably involves storing studs for syscall responses
 ::
 +$  dart
-  $%  [%grub =wire =path =load]
+  $%  [%grub =wire =road =load]
       [%perk =wire =pail]
       [%sysc =card:agent:gall]
       [%scry =wire =mold =path]
@@ -49,6 +50,23 @@
 :: TODO: for stems, assigning deps should be like mapping from a local
 ::       deps namespace to the global grubbery namespace
 ::
+:: TODO: our, from and here should be restricted entirely in line with
+::       peek permissions; as a consequence relative path addressing should
+::       be possible
+::
++$  bend  (pair @ud path)
+:: roads can be used to navigate relative to one's known or unknown location
+:: in the tree. from and here should also be roads, where a relative road
+:: means that you are sandboxed and where p.bend == (lent q.bend)
+::
++$  road  (each path bend)
++$  prov  [src=@p sap=path]
+:: [%| ~zod /gall/...]                    - from outside grubbery
+:: [%& ~ %& /some/absolute/path]          - absolute path from inside grubbery
+:: [%& ~ %| &+2 /relative/path/to/source] - relative path in peek sandbox
+:: [%& ~]                                 - out of peek sandbox
+::
++$  from  (each (unit road) prov)
 +$  take  [[here=path pid=@ta] take:base]
 ::
 +$  proc
@@ -95,13 +113,9 @@
 ++  base
   =<  proc
   |%
-  :: TODO: our, from and here should be restricted entirely in line with
-  ::       peek permissions; as a consequence relative path addressing should
-  ::       be possible
-  ::
   +$  bowl
     $:  now=@da       :: time
-        our=@p        :: host
+        our=(unit @p) :: host - sandboxed grubs may not see
         eny=@uvJ      :: entropy
         wex=boat:gall :: outgoing gall subs
         sup=bitt:gall :: incoming gall subs
