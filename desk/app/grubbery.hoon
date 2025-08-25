@@ -244,15 +244,13 @@
 ++  make-from
   |=  [here=path pid=@ta]
   ^-  from:g
-  &+[~ &+(weld here /[pid])]
+  &+(weld here /[pid])
 ::
 ++  get-here-pid
   |=  =from:g
   ^-  [path @ta]
   ?>  ?=(%& -.from)
-  ?>  ?=(^ p.from)      :: (unit road)
-  ?>  ?=(%& -.u.p.from) :: path
-  [(snip `path`p.u.p.from) (rear p.u.p.from)]
+  [(snip `path`p.from) (rear p.from)]
 :: handle all bolts and return effects and state
 ::
 ++  abet
@@ -971,9 +969,9 @@
     (gibs-take here-pid ~ %base wire.give.poke sign)
   (start-process [here pid] p.build poke(q.u.pail p.clam-res))
 ::
-++  make-bowl
-  |=  [=from:g here=path pid=@ta]
-  ^-  bowl:base:g
+++  make-dish
+  |=  [here=path pid=@ta]
+  ^-  dish:eval:grubbery
   =.  wex.bowl
     %-  ~(gas by *boat:gall)
     %+  murn  ~(tap by wex.bowl)
@@ -995,7 +993,7 @@
       ~
     [~ duct ship w]
   :: TODO: our, from and here need to depend on sand
-  [now `our eny wex sup from &+here pid]:[bowl .]
+  [now our eny wex sup here pid (~(get of sand) here)]:[bowl .]
 :: ack for perk or bump
 ::
 ++  give-poke-sign
@@ -1047,9 +1045,9 @@
     this
   ?>  ?=(%base -.grub)
   =/  m  (charm:base:g ,~)
-  =/  =bowl:base:g  (make-bowl &+~ here pid)
-  =/  [darts=(list dart:g) done=(list took:eval:g) data=vase temp=(axal vase) =proc:g =result:eval:base:g]
-    (take:eval:base:g bowl data.grub temp.tack proc)
+  =/  =dish:eval:grubbery  (make-dish here pid)
+  =/  [darts=(list dart:g) done=(list took:eval:grubbery) data=vase temp=(axal vase) =proc:g =result:eval:grubbery]
+    (take:eval:grubbery dish data.grub temp.tack proc)
   ::
   ~&  >>  -.result
   ::
