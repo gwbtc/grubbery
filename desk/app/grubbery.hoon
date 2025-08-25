@@ -1,6 +1,7 @@
 /-  g=grubbery
 /+  grubbery, io=grubberyio, server, dbug, verb, default-agent
-/=  x-  /mar/sign-base
+/=  x-  /mar/grub/sign-base
+/=  x-  /mar/grub/action
 |%
 +$  card     card:agent:gall
 +$  state-0
@@ -98,85 +99,78 @@
       abet:(poke-base:hc dest give pail)
     [cards this]
     ::
-      %oust-grub
-    ?>  =(src our):bowl
-    =+  !<([=wire here=path] vase)
-    ~&  here+here
-    =/  =give:g  [|+[src sap]:bowl wire]
-    =^  cards  state
-      abet:(oust-grub:hc give here)
-    [cards this]
-    ::
-      %cull-cone
-    ?>  =(src our):bowl
-    =+  !<([=wire here=path] vase)
-    ~&  here+here
-    =/  =give:g  [|+[src sap]:bowl wire]
-    =^  cards  state
-      abet:(cull-cone:hc give here)
-    [cards this]
-    ::
-      %make-base
-    ?>  =(src our):bowl
-    =+  !<([=wire here=path base=path data=(unit ^vase)] vase)
-    ~&  here+here
-    =/  =give:g  [|+[src sap]:bowl wire]
-    =^  cards  state
-      abet:(make-base:hc give here base data)
-    [cards this]
-    ::
-      %make-stem
-    ?>  =(src our):bowl
-    =+  !<([=wire here=path stem=path sour=(set path)] vase)
-    ~&  here+here
-    =/  =give:g  [|+[src sap]:bowl wire]
-    =^  cards  state
-      abet:(make-stem:hc give here stem sour)
-    [cards this]
-    ::
-      %poke-base
-    =+  !<([=wire here=path =pail:g] vase)
-    :: peers can only poke beneath /peers/~sampel-palnet/
-    ::
-    ?>  ?:  =(src our):bowl  &
-        ?.  ?=([%peers @ ^] here)  |
-        =(i.t.here (scot %p src.bowl))
-    ~&  here+here
-    =/  =give:g  [|+[src sap]:bowl wire]
-    =^  cards  state
-      abet:(poke-base:hc here give pail)
-    [cards this]
-    ::
-      %bump-base
-    :: peers can only bump beneath /peers/~sampel-palnet/
-    ::
-    =+  !<([=wire here=path pid=@ta =pail:g] vase)
-    ?>  ?:  =(src our):bowl  &
-        ?.  ?=([%peers @ ^] here)  |
-        =(i.t.here (scot %p src.bowl))
-    ~&  here+here
-    =/  =give:g  [|+[src sap]:bowl wire]
-    =^  cards  state
-      abet:(bump-base:hc here pid give pail)
-    [cards this]
-    ::
-      %kill-base
-    ?>  =(src our):bowl
-    =+  !<([=wire here=path pid=(unit @ta)] vase)
-    ~&  here+here
-    =/  =give:g  [|+[src sap]:bowl wire]
-    =^  cards  state
-      abet:(kill-base:hc give here pid)
-    [cards this]
-    ::
-      %edit-perm
-    ?>  =(src our):bowl
-    =+  !<([=wire here=path perm=(unit perm:g)] vase)
-    ~&  here+here
-    =/  =give:g  [|+[src sap]:bowl wire]
-    =^  cards  state
-      abet:(edit-perm:hc give here perm)
-    [cards this]
+      %grub-action
+    =+  !<(axn=action:g vase)
+    ~&  here+here.axn
+    =/  =give:g  [|+[src sap]:bowl wire.axn]
+    ?-    +<.axn
+        %make
+      ?-    +>-.axn
+          %base
+        ?>  =(src our):bowl
+        :: TODO: CLAMMING
+        =/  data=(unit ^vase)  ?~(data.axn ~ `!>(u.data.axn))
+        =^  cards  state
+          abet:(make-base:hc give here.axn base.axn data)
+        [cards this]
+        ::
+          %stem
+        ?>  =(src our):bowl
+        =^  cards  state
+          abet:(make-stem:hc give [here stem sour]:axn)
+        [cards this]
+      ==
+      ::
+        %oust
+      ?>  =(src our):bowl
+      =^  cards  state
+        abet:(oust-grub:hc give here.axn)
+      [cards this]
+      ::
+        %cull
+      ?>  =(src our):bowl
+      =^  cards  state
+        abet:(cull-cone:hc give here.axn)
+      [cards this]
+      ::
+        %sand
+      ?>  =(src our):bowl
+      =^  cards  state
+        abet:(edit-perm:hc give [here perm]:axn)
+      [cards this]
+      ::
+        %poke
+      :: peers can only poke beneath /peers/~sampel-palnet/ or /public
+      ::
+      ?>  ?|  =(src our):bowl
+              ?=([%public ^] here.axn)
+              ?.  ?=([%peers @ ^] here.axn)  |
+              =(i.t.here.axn (scot %p src.bowl))
+          ==
+      :: TODO: CLAMMING
+      =^  cards  state
+        abet:(poke-base:hc here.axn give stud.axn !>(noun.axn))
+      [cards this]
+      ::
+        %bump
+      :: peers can only bump beneath /peers/~sampel-palnet/ or /public
+      ::
+      ?>  ?|  =(src our):bowl
+              ?=([%public ^] here.axn)
+              ?.  ?=([%peers @ ^] here.axn)  |
+              =(i.t.here.axn (scot %p src.bowl))
+          ==
+      :: TODO: CLAMMING
+      =^  cards  state
+        abet:(bump-base:hc here.axn pid.axn give stud.axn !>(noun.axn))
+      [cards this]
+      ::
+        %kill
+      ?>  =(src our):bowl
+      =^  cards  state
+        abet:(kill-base:hc give [here pid]:axn)
+      [cards this]
+    ==
   ==
 ::
 ++  on-watch
@@ -928,7 +922,7 @@
       =/  src=@ta  (scot %p src.p.from.give.poke)
       =/  =wire  (weld /poke/[src] wire):[give.poke .]
       %-  emit-cards
-      :~  [%give %fact ~[wire] sign-base+!>([%pack %| %build-error p.build])]
+      :~  [%give %fact ~[wire] grub-sign-base+!>([%pack %| %build-error p.build])]
           [%give %kick ~[wire] ~]
       ==
     %+  gibs-take
@@ -939,7 +933,7 @@
       =/  src=@ta  (scot %p src.p.from.give.poke)
       =/  =wire  (weld /poke/[src] wire):[give.poke .]
       %-  emit-cards
-      :~  [%give %fact ~[wire] sign-base+!>([%pack %& pid])]
+      :~  [%give %fact ~[wire] grub-sign-base+!>([%pack %& pid])]
           [%give %kick ~[wire] ~]
       ==
     %+  gibs-take
@@ -1089,7 +1083,7 @@
     =/  src=@ta  (scot %p src.p.from.give.poke.proc)
     =/  =wire  (weld /poke/[src] wire):[give.poke.proc .]
     %-  emit-cards
-    :~  [%give %fact ~[wire] sign-base+!>([%perk wire.give.poke.proc pail])]
+    :~  [%give %fact ~[wire] grub-sign-base+!>([%perk wire.give.poke.proc pail])]
         [%give %kick ~[wire] ~]
     ==
   ?>  ?=([%eyre *] sap.p.from.give.poke.proc)
@@ -1147,7 +1141,7 @@
     =/  src=@ta  (scot %p src.p.from.give.poke.proc)
     =/  =wire  (weld /poke/[src] wire):[give.poke.proc .]
     %-  emit-cards
-    :~  [%give %fact ~[wire] sign-base+!>([%poke res])]
+    :~  [%give %fact ~[wire] grub-sign-base+!>([%poke res])]
         [%give %kick ~[wire] ~]
     ==
   ?>  ?=([%eyre *] sap.p.from.give.poke.proc)

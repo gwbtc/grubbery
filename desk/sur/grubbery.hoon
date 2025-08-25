@@ -322,4 +322,24 @@
       [%next hold.next.output]
     ==
   --
+::
+++  action
+  =<  action
+  |%
+  +$  make
+    $%  [%base base=path data=(unit noun)] :: TODO: needs to be clammed
+        [%stem stem=path sour=(set path)]
+    ==
+  +$  action
+    $:  [=wire here=path]
+        $%  [%make make]
+            [%oust ~]
+            [%cull ~]
+            [%sand perm=(unit perm)]
+            [%poke =stud =noun]
+            [%bump pid=@ta =stud =noun] :: TODO: needs to be clammed
+            [%kill pid=(unit @ta)]
+        ==
+    ==
+  --
 --
