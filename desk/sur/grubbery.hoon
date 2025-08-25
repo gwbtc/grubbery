@@ -129,7 +129,7 @@
   ::
   +$  sign
     $%  [%poke err=(unit tang)]   :: complete poke cycle (finish or crash)
-        [%bump err=(unit tang)]   ::  response to command for running process
+        [%bump err=(unit tang)]   :: response to command for running process
         [%pack p=(each @ta tang)] :: build poke (id or build error)
     ==
   ::
@@ -326,7 +326,7 @@
   |%
   +$  perk  [=wire =stud =noun] :: updates to the poker
   +$  make
-    $%  [%base base=path data=(unit noun)] :: TODO: needs to be clammed
+    $%  [%base base=path data=(unit noun)]
         [%stem stem=path sour=(set path)]
     ==
   +$  action
@@ -336,7 +336,7 @@
             [%cull ~]
             [%sand perm=(unit perm)]
             [%poke =stud =noun]
-            [%bump pid=@ta =stud =noun] :: TODO: needs to be clammed
+            [%bump pid=@ta =stud =noun]
             [%kill pid=(unit @ta)]
         ==
     ==

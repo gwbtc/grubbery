@@ -97,7 +97,7 @@
     ::
     =/  =pail:g  [/handle-http-request !>([lin req])]
     =^  cards  state
-      abet:(poke-base:hc dest give pail)
+      abet:(poke-base:hc dest [give pail] |)
     [cards this]
     ::
       %grub-action
@@ -148,9 +148,8 @@
               ?.  ?=([%peers @ ^] here.axn)  |
               =(i.t.here.axn (scot %p src.bowl))
           ==
-      :: TODO: CLAMMING
       =^  cards  state
-        abet:(poke-base:hc here.axn give stud.axn !>(noun.axn))
+        abet:(poke-base:hc here.axn [give stud.axn !>(noun.axn)] &)
       [cards this]
       ::
         %bump
@@ -161,9 +160,8 @@
               ?.  ?=([%peers @ ^] here.axn)  |
               =(i.t.here.axn (scot %p src.bowl))
           ==
-      :: TODO: CLAMMING
       =^  cards  state
-        abet:(bump-base:hc here.axn pid.axn give stud.axn !>(noun.axn))
+        abet:(bump-base:hc here.axn pid.axn give [stud.axn !>(noun.axn)] &)
       [cards this]
       ::
         %kill
@@ -270,7 +268,7 @@
   =.  this  mass-kill
   =.  this  (oust-grub gibs /boot)
   =.  this  (make-base gibs /boot /boot ~)
-  (poke-base /boot gibs /sig !>(~))
+  (poke-base /boot [gibs /sig !>(~)] |)
 ::
 ++  new-last
   |=  [now=@da last=@da]
@@ -458,6 +456,7 @@
   $(darts t.darts)
 ::
 ++  handle-bolt
+  =/  clam=?  |
   |=  [here=path pid=@ta =dart:g]
   ^+  this
   =/  =from:g  (make-from here pid)
@@ -479,10 +478,10 @@
     =/  =path  (need (path-from-road:grubbery here road.dart))
     ?-    -.load.dart
         %poke
-      (poke-base path [from wire.dart] pail.load.dart)
+      (poke-base path [[from wire.dart] pail.load.dart] clam)
       ::
         %bump
-      (bump-base path [pid.load [from wire] pail.load]:[dart .])
+      (bump-base path [pid.load [from wire] pail.load clam]:[dart .])
       ::
         %peek
       (take-peek here pid wire.dart path)
@@ -523,23 +522,8 @@
     ?.  ?=(%grub -.dart)                      (handle-bolt here pid dart)
     ?.  ?=(?(%poke %bump %make) -.load.dart)  (handle-bolt here pid dart)
     ?-    -.load.dart
-        %poke
-      =/  res  (mule |.((get-stud p.pail.load.dart)))
-      ?:  ?=(%| -.res)
-        (gibs-take [here pid] ~ %base wire.dart %poke ~ leaf+"poke-stud-fail" p.res)
-      =/  res  (mule |.((slam p.res q.pail.load.dart)))
-      ?:  ?=(%| -.res)
-        (gibs-take [here pid] ~ %base wire.dart %poke ~ leaf+"poke-clam-fail" p.res)
-      (handle-bolt here pid dart(q.pail.load p.res))
-      ::
-        %bump
-      =/  res  (mule |.((get-stud p.pail.load.dart)))
-      ?:  ?=(%| -.res)
-        (gibs-take [here pid] ~ %base wire.dart %bump ~ leaf+"bump-stud-fail" p.res)
-      =/  res  (mule |.((slam p.res q.pail.load.dart)))
-      ?:  ?=(%| -.res)
-        (gibs-take [here pid] ~ %base wire.dart %bump ~ leaf+"bump-clam-fail" p.res)
-      (handle-bolt here pid dart(q.pail.load p.res))
+      %poke  %*($ handle-bolt clam &, +6 [here pid dart])
+      %bump  %*($ handle-bolt clam &, +6 [here pid dart])
       ::
         %make
       ?:  ?=(%stem -.make.load.dart)  (handle-bolt here pid dart)
@@ -760,6 +744,7 @@
   =.  cone  (~(put of cone) here grub)
   =.  this  (next-tack here)
   (dirty-and-tidy here)
+:: TODO: incorporate clamming
 ::
 ++  make-base
   |=  [=give:g here=path base=path data=(unit vase)]
@@ -802,6 +787,7 @@
 ++  take-peek
   |=  [here=path pid=@ta =wire pat=path]
   ^+  this
+  :: TODO: clam when peeking into a sandboxed cone?
   (gibs-take [here pid] ~ %peek wire pat (~(dip of cone) pat) (~(dip of sand) pat))
 ::
 ++  take-scry
@@ -879,8 +865,24 @@
   (gibs-take (get-here-pid from.give) ~ %dead wire.give err)
 ::
 ++  bump-base
-  |=  [here=path pid=@ta =give:g =pail:g]
+  |=  [here=path pid=@ta =give:g =pail:g clam=?]
   ^+  this
+  ?.  clam
+    (gibs-take [here pid] ~ %bump pail)
+  =/  stud-res  (mule |.((get-stud p.pail)))
+  ?:  ?=(%| -.stud-res)
+    =/  =sign:base:g  [%bump ~ leaf+"bump-stud-fail" p.stud-res]
+    ?:  ?=(%| -.from.give)
+      (give-external-sign give sign)
+    =/  here-pid=[path @ta]  (get-here-pid from.give)
+    (gibs-take here-pid ~ %base wire.give sign)
+  =/  clam-res  (mule |.((slam p.stud-res q.pail)))
+  ?:  ?=(%| -.clam-res)
+    =/  =sign:base:g  [%bump ~ leaf+"bump-clam-fail" p.clam-res]
+    ?:  ?=(%| -.from.give)
+      (give-external-sign give sign)
+    =/  here-pid=[path @ta]  (get-here-pid from.give)
+    (gibs-take here-pid ~ %base wire.give sign)
   (gibs-take [here pid] ~ %bump pail)
 :: TODO: handle outgoing keens
 ::
@@ -920,8 +922,21 @@
       [%give %kick ~[wire] ~]
   ==
 ::
+++  start-process
+  |=  [[here=path pid=@ta] =proc:base:g =poke:g]
+  ^+  this
+  =/  =sign:base:g  [%pack %& pid]
+  =.  this
+    ?:  ?=(%| -.from.give.poke)
+      (give-external-sign give.poke sign)
+    (gibs-take (get-here-pid from.give.poke) ~ %base wire.give.poke sign)
+  =/  =tack:g  (need (~(get of trac) here))
+  =.  proc.tack  (~(put by proc.tack) pid [proc poke ~ ~])
+  =.  trac  (~(put of trac) here tack)
+  (gibs-take [here pid] ~)
+::
 ++  poke-base
-  |=  [here=path =poke:g]
+  |=  [here=path =poke:g clam=?]
   ^+  this
   ~&  >  "poking base {(spud here)}"
   =/  =grub:g  (need (~(get of cone) here))
@@ -930,20 +945,27 @@
   =/  build=(each proc:base:g tang)
     (mule |.((get-base-code base.grub)))
   ?:  ?=(%| -.build)
-    =/  =sign:base:g  [%pack %| %build-error p.build]
+    =/  =sign:base:g  [%pack %| leaf+"build-error" p.build]
     ?:  ?=(%| -.from.give.poke)
       (give-external-sign give.poke sign)
     (gibs-take (get-here-pid from.give.poke) ~ %base wire.give.poke sign)
-  =/  =sign:base:g  [%pack %& pid]
-  =.  this
+  ?.  clam
+    (start-process [here pid] p.build poke)
+  =/  stud-res  (mule |.((get-stud p.pail.poke)))
+  ?:  ?=(%| -.stud-res)
+    =/  =sign:base:g  [%pack %| leaf+"poke-stud-fail" p.stud-res]
     ?:  ?=(%| -.from.give.poke)
       (give-external-sign give.poke sign)
-    (gibs-take (get-here-pid from.give.poke) ~ %base wire.give.poke sign)
-  =/  =tack:g  (need (~(get of trac) here))
-  =.  proc.tack
-    (~(put by proc.tack) pid [p.build poke ~ ~])
-  =.  trac  (~(put of trac) here tack)
-  (gibs-take [here pid] ~)
+    =/  here-pid=[path @ta]  (get-here-pid from.give.poke)
+    (gibs-take here-pid ~ %base wire.give.poke sign)
+  =/  clam-res  (mule |.((slam p.stud-res q.pail.poke)))
+  ?:  ?=(%| -.clam-res)
+    =/  =sign:base:g  [%pack %| leaf+"poke-clam-fail" p.clam-res]
+    ?:  ?=(%| -.from.give.poke)
+      (give-external-sign give.poke sign)
+    =/  here-pid=[path @ta]  (get-here-pid from.give.poke)
+    (gibs-take here-pid ~ %base wire.give.poke sign)
+  (start-process [here pid] p.build poke(q.pail p.clam-res))
 ::
 ++  make-bowl
   |=  [=from:g here=path pid=@ta]
