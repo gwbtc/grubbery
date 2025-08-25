@@ -779,7 +779,7 @@
   =/  m  (charm ,pail)
   ^-  form:m
   |=  input
-  [~ state temp %done pail]
+  [~ state temp %done (need pail)]
 ::
 ++  get-time
   =/  m  (charm ,@da)

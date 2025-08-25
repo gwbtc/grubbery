@@ -18,7 +18,7 @@
 +$  sand  (axal perm)
 :: effects that a base grub can emit
 :: TODO: it should be possible to make a syscall such that the response
-::       comes back as an entirely new poke instead of as a base input
+::       comes back as an entirely new poke instead of as a base input.
 ::       this probably involves storing studs for syscall responses
 ::
 +$  dart
@@ -81,7 +81,7 @@
 ::
 +$  cone  (axal grub)
 +$  give  [=from =wire]
-+$  poke  [=give =pail]
++$  poke  [=give pail=(unit pail)] :: null poke means on-load
 +$  tack
   $:  last=[step=@da poke=@da]
       sinx=(set path)
@@ -107,6 +107,7 @@
   |%
   +$  stem  $-(bowl vase)
   :: TODO: replace with only deps
+  :: TODO: sandboxing and clamming of deps
   +$  bowl
     $:  here=path                        :: our address
         deps=(map path (each vase tang)) :: dependencies
@@ -153,7 +154,7 @@
         [%leave =path]
     ==
   ::
-  +$  input  [=bowl =pail state=vase temp=(axal vase) in=(unit intake)]
+  +$  input  [=bowl pail=(unit pail) state=vase temp=(axal vase) in=(unit intake)]
   ::
   +$  take  [=give in=(unit intake)]
   +$  cute  (qeu take)

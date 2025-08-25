@@ -97,7 +97,7 @@
     ::
     =/  =pail:g  [/handle-http-request !>([lin req])]
     =^  cards  state
-      abet:(poke-base:hc dest [give pail] |)
+      abet:(poke-base:hc dest [give `pail] |)
     [cards this]
     ::
       %grub-action
@@ -149,7 +149,7 @@
               =(i.t.here.axn (scot %p src.bowl))
           ==
       =^  cards  state
-        abet:(poke-base:hc here.axn [give stud.axn !>(noun.axn)] &)
+        abet:(poke-base:hc here.axn [give ~ stud.axn !>(noun.axn)] &)
       [cards this]
       ::
         %bump
@@ -266,9 +266,10 @@
   ^+  this
   ~&  >  %booting
   =.  this  mass-kill
+  :: TODO: poke all base grubs with a ~
   =.  this  (oust-grub gibs /boot)
   =.  this  (make-base gibs /boot /boot ~)
-  (poke-base /boot [gibs /sig !>(~)] |)
+  (poke-base /boot [gibs ~ /sig !>(~)] |)
 ::
 ++  new-last
   |=  [now=@da last=@da]
@@ -478,7 +479,7 @@
     =/  =path  (need (path-from-road:grubbery here road.dart))
     ?-    -.load.dart
         %poke
-      (poke-base path [[from wire.dart] pail.load.dart] clam)
+      (poke-base path [[from wire.dart] `pail.load.dart] clam)
       ::
         %bump
       (bump-base path [pid.load [from wire] pail.load clam]:[dart .])
@@ -526,6 +527,7 @@
       %bump  %*($ handle-bolt clam &, +6 [here pid dart])
       ::
         %make
+      :: TODO: incorporate directly into +make-base
       ?:  ?=(%stem -.make.load.dart)  (handle-bolt here pid dart)
       ?~  data.make.load.dart         (handle-bolt here pid dart)
       =/  res
@@ -949,23 +951,25 @@
     ?:  ?=(%| -.from.give.poke)
       (give-external-sign give.poke sign)
     (gibs-take (get-here-pid from.give.poke) ~ %base wire.give.poke sign)
+  ?~  pail.poke
+    (start-process [here pid] p.build poke)
   ?.  clam
     (start-process [here pid] p.build poke)
-  =/  stud-res  (mule |.((get-stud p.pail.poke)))
+  =/  stud-res  (mule |.((get-stud p.u.pail.poke)))
   ?:  ?=(%| -.stud-res)
     =/  =sign:base:g  [%pack %| leaf+"poke-stud-fail" p.stud-res]
     ?:  ?=(%| -.from.give.poke)
       (give-external-sign give.poke sign)
     =/  here-pid=[path @ta]  (get-here-pid from.give.poke)
     (gibs-take here-pid ~ %base wire.give.poke sign)
-  =/  clam-res  (mule |.((slam p.stud-res q.pail.poke)))
+  =/  clam-res  (mule |.((slam p.stud-res q.u.pail.poke)))
   ?:  ?=(%| -.clam-res)
     =/  =sign:base:g  [%pack %| leaf+"poke-clam-fail" p.clam-res]
     ?:  ?=(%| -.from.give.poke)
       (give-external-sign give.poke sign)
     =/  here-pid=[path @ta]  (get-here-pid from.give.poke)
     (gibs-take here-pid ~ %base wire.give.poke sign)
-  (start-process [here pid] p.build poke(q.pail p.clam-res))
+  (start-process [here pid] p.build poke(q.u.pail p.clam-res))
 ::
 ++  make-bowl
   |=  [=from:g here=path pid=@ta]
@@ -1178,6 +1182,8 @@
   ?:  ?=([%clay *] sap.p.from.give.poke.proc) :: on-init / on-load
     ?~(res this ((slog u.res) this))
   ?:  ?=([%gall *] sap.p.from.give.poke.proc)
+    ?:  ?=([%grubbery ~] t.sap.p.from.give.poke.proc)
+      ?~(res this ((slog u.res) this))
     (give-external-sign give.poke.proc sign)
   ?>  ?=([%eyre *] sap.p.from.give.poke.proc)
   (give-http-poke-sign wire.give.poke.proc res)
