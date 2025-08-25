@@ -962,7 +962,7 @@
       ~
     [~ duct ship w]
   :: TODO: our, from and here need to depend on sand
-  [now `our eny wex sup from here pid]:[bowl .]
+  [now `our eny wex sup from &+here pid]:[bowl .]
 :: ack for perk or bump
 ::
 ++  give-poke-sign

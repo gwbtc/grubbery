@@ -809,7 +809,8 @@
   =/  m  (charm ,path)
   ^-  form:m
   |=  input
-  [~ state temp %done here.bowl]
+  ?>  ?=(%& -.here.bowl)
+  [~ state temp %done p.here.bowl]
 ::
 ++  get-state
   =/  m  (charm ,vase)

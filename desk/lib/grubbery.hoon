@@ -177,18 +177,18 @@
     =/  m  (charm:base:g ,~)
     ^-  form:m
     ;<  [=stud:g =vase]  bind:m  get-poke-pail
-    ;<  =bowl:base:g     bind:m  get-bowl
+    ;<  here=path        bind:m  get-here
     ?+    stud  !!
         [%sig ~]
       =+  !<(=@t vase)
       =/  res=(each [pax=(list (pair term path)) =hoon] tang)
         (mule |.((build t)))
       ;<  ~  bind:m  (replace !>([t res]))
-      ?>  ?=([%lib *] here.bowl)
-      =/  dest=path  [%bin t.here.bowl]
+      ?>  ?=([%lib *] here)
+      =/  dest=path  [%bin t.here]
       =/  sour=(set path)
         ?:(?=(%| -.res) ~ (sy (turn pax.p.res tail)))
-      =.  sour  (~(gas in sour) here.bowl /bin/grubbery ~)
+      =.  sour  (~(gas in sour) here /bin/grubbery ~)
       ;<  ~  bind:m  (overwrite-stem dest /bin sour)
       done
     ==
@@ -214,7 +214,6 @@
   =/  m  (charm:base:g ,~)
   ^-  form:m
   ;<  [=stud:g =vase]  bind:m  get-poke-pail
-  ;<  =bowl:base:g     bind:m  get-bowl
   ?+    stud  !!
       [%sig ~]
     ~&  >  %boot-sig

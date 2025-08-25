@@ -123,7 +123,7 @@
         wex=boat:gall :: outgoing gall subs
         sup=bitt:gall :: incoming gall subs
         =from         :: provenance
-        here=path     :: our address
+        here=road     :: our address
         pid=@ta       :: our process id
     ==
   ::

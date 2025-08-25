@@ -16,10 +16,10 @@
   =/  m  (charm ,~)
   ^-  form:m
   ;<  [=stud:g =vase]  bind:m  get-poke-pail
-  ;<  =bowl:base:g     bind:m  get-bowl
+  ;<  here=path        bind:m  get-here
   ?+    stud  !!
       [%gui %init ~]
-    ;<  ~  bind:m  (eyre-connect /grub here.bowl)
+    ;<  ~  bind:m  (eyre-connect /grub here)
     done
     ::
       [%handle-http-request ~]
