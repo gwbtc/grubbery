@@ -264,7 +264,7 @@
   ^+  this
   ~&  >  %booting
   =.  this  mass-kill
-  :: TODO: poke all base grubs with a ~
+  =.  this  null-pokes
   =.  this  (oust-grub gibs /boot)
   =.  this  (make-base gibs /boot /boot ~)
   (poke-base /boot [gibs ~ /sig !>(~)] |)
@@ -850,6 +850,14 @@
     this
   $(paths t.paths, this (kill-all i.paths))
 ::
+++  null-pokes
+  ^+  this
+  =/  paths=(list path)  (turn ~(tap of trac) head)
+  |-
+  ?~  paths
+    this
+  $(paths t.paths, this (poke-base i.paths [gibs ~] |))
+::
 ++  kill-base
   |=  [=give:g here=path pid=(unit @ta)]
   ^+  this
@@ -939,11 +947,16 @@
   |=  [here=path =poke:g clam=?]
   ^+  this
   ~&  >  "poking base {(spud here)}"
-  =/  =grub:g  (need (~(get of cone) here))
-  ?>  ?=(%base -.grub)
+  =/  grub=(unit grub:g)  (~(get of cone) here)
+  ?~  grub
+    ~&  >>  "ignoring poke to empty path {(spud here)}"
+    this
+  ?.  ?=(%base -.u.grub)
+    ~&  >>  "ignoring poke to stem {(spud here)}"
+    this
   =/  pid=@ta  (make-pid here)
   =/  build=(each proc:base:g tang)
-    (mule |.((get-base-code base.grub)))
+    (mule |.((get-base-code base.u.grub)))
   ?:  ?=(%| -.build)
     =/  =sign:base:g  [%pack %| leaf+"build-error" p.build]
     ?:  ?=(%| -.from.give.poke)

@@ -4,7 +4,6 @@
 :: evaluation engine for the main state and continuation monad
 ::
 ++  eval
-  =,  g
   |%
   +$  dish
     $:  now=@da
@@ -30,7 +29,7 @@
         pid
     ==
   ::
-  ++  output  (output-raw:base ,~)
+  ++  output  (output-raw:base:g ,~)
   ::
   +$  result
     $%  [%next hold=?]
@@ -38,15 +37,15 @@
         [%done ~]
     ==
   ::
-  +$  took  [take:base (unit tang)]
+  +$  took  [take:base:g (unit tang)]
   ::
   ++  take
-    =|  darts=(list dart) :: effects
+    =|  darts=(list dart:g) :: effects
     =|  done=(list took) :: sequentially processed inputs
     =|  =bowl:base:g
-    |=  [=dish state=vase temp=(axal vase) =proc]
-    ^-  [(list dart) (list took) vase (axal vase) _proc result]
-    =^  =take:base  next.proc  ~(get to next.proc)
+    |=  [=dish state=vase temp=(axal vase) =proc:g]
+    ^-  [(list dart:g) (list took) vase (axal vase) _proc result]
+    =^  =take:base:g  next.proc  ~(get to next.proc)
     |-  :: recursion point so take can be replaced
     =.  bowl  (make-bowl dish from.give.take)
     =/  res=(each output tang)
