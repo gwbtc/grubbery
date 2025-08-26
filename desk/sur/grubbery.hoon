@@ -110,7 +110,7 @@
   ::
   +$  sign
     $%  [%poke err=(unit tang)]   :: complete poke cycle (finish or crash)
-        [%bump err=(unit tang)]   :: response to command for running process
+        [%bump err=(unit tang)]   :: response to command for a running process
         [%pack p=(each @ta tang)] :: build poke (id or build error)
     ==
   ::

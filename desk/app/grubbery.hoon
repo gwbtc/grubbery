@@ -60,44 +60,64 @@
   ?+    mark  (on-poke:def mark vase)
       %connect
     ?>  =(src our):bowl
+    :: connect grub at path to url prefix
+    ::
     =+  !<([url=path =path] vase)
     :_  this
     [%pass [%connect path] %arvo %e %connect `url %grubbery]~
     ::
       %disconnect
     ?>  =(src our):bowl
+    :: disconnect whatever grub bound at url prefix
+    ::
     =+  !<(url=path vase)
     :-  [%pass / %arvo %e %disconnect `url]~
     this(bindings (~(del by bindings) url))
     ::
       %handle-http-request
     =+  !<([eyre-id=@ta req=inbound-request:eyre] vase)
-    =/  lin=request-line:server
-      (parse-request-line:server url.request.req)
+    =/  lin=request-line:server  (parse-request-line:server url.request.req)
+    :: recursively extend a prefix of the site path and look for bindings
+    ::
     =/  prefix=(list @t)  (scag 1 site.lin)
     |-
     ?~  here=(~(get by bindings) prefix)
-      ?.  (lth (lent prefix) (lent site.lin))
-        ~&("strange url: {(spud site.lin)}" [~ this])
-      $(prefix (scag +((lent prefix)) site.lin))
-    =/  suffix=path  (slag (lent prefix) site.lin)
-    :: send the request to the base grub with the longest
-    :: corresponding prefix
+      ?:  (lth (lent prefix) (lent site.lin))
+        :: site not exhausted; pop next term into prefix
+        ::
+        $(prefix (scag +((lent prefix)) site.lin))
+      :: no prefix left to pop and nothing bound
+      ::
+      =/  msg=tape  "strange url: {(spud site.lin)}"
+      ~&  >>  msg
+      :_  this
+      %+  give-simple-payload:app:server  eyre-id
+      (internal-server-error:io authenticated.req msg ~)
+    :: TODO: Unclear if the longest-corresponding-prefix approach
+    ::       is useful now that pokes are concurrent
     ::
-    =/  dest=path  (weld u.here suffix)
-    =.  dest
-      |-
-      ?^  get=(~(get of cone) dest)
-        ?:  ?=(%base -.u.get)
-          dest
-        $(dest (snip dest))
-      $(dest (snip dest))
+    :: Consider the request to be addressed to the base grub
+    :: with the longest corresponding binding-relative prefix
+    :: e.g. if /url/path is bound to /path/to/grub and if
+    :: and /path/to/grub/alice and /path/to/grub/bob are base grubs
+    :: then send request /url/path/alice to /path/to/grub/alice and
+    :: /url/path/bob to /path/to/grub/bob
+    ::
+    =/  suffix=path       (slag (lent prefix) site.lin)
+    =/  dest=(unit path)  (nearest-base-ancestor:hc (weld u.here suffix))
+    ?~  dest
+      =/  msg=tape  "no base bound to url: {(spud site.lin)}"
+      ~&  >>  msg
+      :_  this
+      %+  give-simple-payload:app:server  eyre-id
+      (internal-server-error:io authenticated.req msg ~)
+    :: poke the dest grub with the pre-parsed request line
+    :: and the raw request with a return address for the eyre-id
     ::
     =/  =give:g  [|+[src sap]:bowl /[eyre-id]]
-    ::
     =/  =pail:g  [/handle-http-request !>([lin req])]
     =^  cards  state
-      abet:(poke-base:hc dest [give `pail] |)
+      abet:(poke-base:hc u.dest [give `pail] |)
     [cards this]
     ::
       %grub-action
@@ -236,7 +256,7 @@
 ++  emit-card   |=(=card this(cards [card cards]))
 ++  emit-cards  |=(cadz=(list card) this(cards (welp (flop cadz) cards)))
 ++  emit-take   |=(=take:g this(takes [take takes]))
-++  gibs        [|+[our.bowl /gall/grubbery] /]
+++  gibs        `give:g`[|+[our.bowl /gall/grubbery] /]
 ++  gibs-take
   |=  [[here=path pid=@ta] in=(unit intake:base:g)]
   (emit-take [here pid] gibs in)
@@ -301,6 +321,17 @@
   ?~  path  %|
   ?.  =(i.head i.path)  %|
   $(head t.head, path t.path)
+::
+++  nearest-base-ancestor
+  |=  here=path
+  ^-  (unit path)
+  ?~  get=(~(get of cone) here)
+    ?:  =(/ here)  ~
+    $(here (snip here))
+  ?:  ?=(%base -.u.get)
+    `here
+  ?:  =(/ here)  ~
+  $(here (snip here))
 ::
 ++  get-base-code
   |=  base=path
