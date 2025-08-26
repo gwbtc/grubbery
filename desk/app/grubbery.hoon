@@ -520,7 +520,7 @@
     (handle-sysc-card here pid card.dart)
     ::
       %scry
-    (take-scry here pid [wire mold path]:dart)
+    (take-scry here pid [wire scry]:dart)
     ::
       %perk
     (give-perk here pid [wire pail]:dart)
@@ -863,13 +863,16 @@
   (gibs-take [here pid] ~ %peek wire pat (~(dip of cone) pat) (~(dip of sand) pat))
 ::
 ++  take-scry
-  |=  [here=path pid=@ta =wire =mold pat=path]
+  |=  [here=path pid=@ta =wire scry=(unit scry:g)]
   ^+  this
+  ?~  scry
+    (gibs-take [here pid] ~ %scry wire /gall/grubbery/state !>(state))
   =;  =vase
-    (gibs-take [here pid] ~ %scry wire pat vase)
+    (gibs-take [here pid] ~ %scry wire path.u.scry vase)
+  =*  pat  path.u.scry
   ?>  ?=(^ pat)
   ?>  ?=(^ t.pat)
-  !>(.^(mold i.pat (scot %p our.bowl) i.t.pat (scot %da now.bowl) t.t.pat))
+  !>(.^(mold.u.scry i.pat (scot %p our.bowl) i.t.pat (scot %da now.bowl) t.t.pat))
 ::
 ++  kill
   |=  [here=path pid=@ta]

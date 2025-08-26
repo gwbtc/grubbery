@@ -480,7 +480,7 @@
   |*  [=mold =path]
   =/  m  (charm ,mold)
   ^-  form:m
-  =/  =dart  [%scry /scry mold path]
+  =/  =dart  [%scry ~ /scry mold path]
   ;<  ~  bind:m  (send-raw-dart dart)
   (take-scry mold /scry)
 ::

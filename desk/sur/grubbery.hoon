@@ -16,13 +16,15 @@
   ==
 ::
 +$  sand  (axal perm)
+::
++$  scry  [=mold =path] :: normal non-grubbery scry request
 :: effects that a base grub can emit
 ::
 +$  dart
   $%  [%grub =wire =road =load]
       [%perk =wire =pail]       :: updates to the poker
       [%sysc =card:agent:gall]
-      [%scry =wire =mold =path]
+      [%scry =wire scry=(unit scry)]  :: null returns grubbery state
   ==
 :: dart payload
 ::
