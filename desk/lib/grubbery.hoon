@@ -342,22 +342,18 @@
 ::
 ++  bin
   |%
-  :: bin base does nothing; it's like a rock
+  :: bin base does nothing
+  :: TODO: why have it be a base at all....?
   ::
-  ++  base
-    =,  grubberyio
-    ^-  base:g
-    =/  m  (charm:base:g ,~)
-    ^-  form:m
-    done
+  ++  base  `base:g`done:grubberyio
     ::
   ++  stem
     =,  grubberyio
     ^-  stem:g
     |=  =deps:stem:g
     ^-  vase
-    =/  grubbery=vase  (nead (need (~(get of deps) /grubbery)))
-    =/  file=vase  (nead (need (~(get of deps) /lib)))
+    =/  grubbery=vase  (nead (need (~(get of deps) /bin/grubbery)))
+    =/  file=vase  (nead (need (~(get of deps) /source-lib)))
     =+  !<([@t res=(each [deps=(list (pair term path)) =hoon] tang)] file)
     ?:  ?=(%| -.res)
       ~|("hoon parsing failure" (mean p.res))

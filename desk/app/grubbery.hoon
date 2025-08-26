@@ -469,7 +469,7 @@
     (cury path-from-road:grubbery here)
   ?>  (no-cycles here sour)
   =/  =grub:g  (need (~(get of cone) here))
-  =/  =tack:g  (need (~(get of trac) here))
+  =/  =tack:g  ~|("no tack for {(spud here)}" (need (~(get of trac) here)))
   ?>  ?=(%stem -.grub)
   |-
   ?~  sour
@@ -825,14 +825,20 @@
   ^+  this
   ~&  >  "making-stem {(spud here)} with {(spud stem)}"
   ~|  "making stem {(spud here)} failed"
-  ?<  =(~ vine)
-  ?<  (~(has of cone) here)
-  ?<  ?=([%lib *] here) :: stems not allowed in /lib
+  ?:  =(~ vine)
+    ~&  >>>  "empty vine" :: TODO: should this be disallowed?
+    !!
+  ?:  (~(has of cone) here)
+    ~&  >>>  "path {(spud here)} already populated"
+    !!
+  ?:  ?=([%lib *] here) :: stems not allowed in /lib
+    ~&  >>>  "stems not allowed in /lib"
+    !!
   =/  =stud:g  (get-stem-stud stem)
   =/  =grub:g  [%stem |+[leaf+"new stem"]~ vine stem]
   =.  cone     (~(put of cone) here grub)
-  =.  this     (add-sources here vine)
   =.  this     (next-tack here)
+  =.  this     (add-sources here vine)
   =/  =tack:g  (need (~(get of trac) here))
   =.  trac     (~(put of trac) here tack(tidy |))
   ~&  >>  "computing-new-stem {(spud here)}"
