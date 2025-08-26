@@ -1,14 +1,16 @@
 /-  g=grubbery
 /+  grubbery, io=grubberyio, server, dbug, verb, default-agent
-/=  x-  /mar/grub/sign-base
+/=  x-  /mar/grub/sign-base :: x- means import for compilation in development
 /=  x-  /mar/grub/action
 /=  x-  /mar/grub/perk
+::
 |%
 +$  card     card:agent:gall
 +$  state-0
   $:  %0
       =cone:g
       =trac:g
+      =pool:g
       =sand:g
       =bindings:g
       =history:g
@@ -249,18 +251,27 @@
 ++  on-fail   on-fail:def
 --
 ::
-=|  cards=(list card)   :: list of gall-level effects
-=|  takes=(list take:g) :: stack of grub-level function calls
+=|  cards=(list card)  :: list of gall-level effects
+=|  takes=(qeu take:g) :: queue of grub-level function calls
 |_  =bowl:gall
 +*  this  .
 ++  emit-card   |=(=card this(cards [card cards]))
 ++  emit-cards  |=(cadz=(list card) this(cards (welp (flop cadz) cards)))
-++  emit-take   |=(=take:g this(takes [take takes]))
+++  enqu-take   |=(=take:g this(takes (~(put to takes) take)))
 ++  gibs        |=(=wire `give:g`[|+[our.bowl /gall/grubbery] wire])
 ++  gibs-take
   =|  =wire
   |=  [[here=path pid=@ta] in=(unit intake:base:g)]
-  (emit-take [here pid] (gibs wire) in)
+  (enqu-take [here pid] (gibs wire) in)
+:: handle all takes and return effects and state
+::
+++  abet
+  |-
+  ?:  =(~ takes)
+    ~&  >  "done-abet!"
+    [(flop cards) state]
+  =^  =take:g  takes  ~(get to takes)
+  $(this (process-take take))
 ::
 ++  make-from
   |=  [here=path pid=@ta]
@@ -272,14 +283,6 @@
   ^-  [path @ta]
   ?>  ?=(%& -.from)
   [(snip `path`p.from) (rear p.from)]
-:: handle all takes and return effects and state
-::
-++  abet
-  |-
-  ?~  takes
-    ~&  >  "done-abet!"
-    [(flop cards) state]
-  $(this (process-take(takes t.takes) i.takes))
 ::
 ++  boot
   ^+  this
@@ -298,21 +301,25 @@
   ?.  (has:hon:g history next)
     next
   $(next +(next))
+:: NOTE: tacks persist as long as they have either
+::       a corresponding grub or non-empty sinx
+:: TODO: expose subscription bath for history changes
 ::
 ++  next-tack
   |=  here=path
   ^+  this
   ?~  tac=(~(get of trac) here)
+    =/  =grub:g  (need (~(get of cone) here))
     =/  step=@da  (new-last [now now]:bowl)
     =.  history  (put:hon:g history step here)
-    this(trac (~(put of trac) here [step step] ~ | ~ ~ [~ ~] ~))
+    this(trac (~(put of trac) here -.grub step ~ | ~))
   =^  del  history
-    (del:hon:g history step.last.u.tac)
+    (del:hon:g history last.u.tac)
   ?:  &(=(~ sinx.u.tac) !(~(has of cone) here))
     this(trac (~(del of trac) here)) :: may occur in an oust
-  =/  step=@da  (new-last now.bowl step.last.u.tac)
+  =/  step=@da  (new-last now.bowl last.u.tac)
   =.  history  (put:hon:g history step here)
-  this(trac (~(put of trac) here u.tac(step.last step)))
+  this(trac (~(put of trac) here u.tac(last step)))
 :: +decap from /lib/rudder
 ::
 ++  has-prefix
@@ -346,7 +353,7 @@
   =/  =tack:g
     ~|  "{(spud base)}: base tack not found"
     (need (~(get of trac) (welp /bin/base base)))
-  ?>  ?=(%stem -.grub)
+  ?>  ?=(%stem kind.tack)
   ?>  tidy.tack
   =/  res  (mule |.(!<([* b=base:g] (grab-data:io grub))))
   ?:  ?=(%& -.res)
@@ -365,7 +372,7 @@
   =/  =tack:g
     ~|  "{(spud base)}: base tack not found"
     (need (~(get of trac) (welp /bin/base base)))
-  ?>  ?=(%stem -.grub)
+  ?>  ?=(%stem kind.tack)
   ?>  tidy.tack
   =/  res  (mule |.(!<([=stud:g *] (grab-data:io grub))))
   ?:  ?=(%& -.res)
@@ -382,7 +389,7 @@
   =/  =tack:g  
     ~|  "{(spud stem)}: stem tack not found"
     (need (~(get of trac) (welp /bin/stem stem)))
-  ?>  ?=(%stem -.grub)
+  ?>  ?=(%stem kind.tack)
   ?>  tidy.tack
   =/  res  (mule |.(!<([* s=stem:g] (grab-data:io grub))))
   ?:  ?=(%& -.res)
@@ -399,7 +406,7 @@
   =/  =tack:g  
     ~|  "{(spud stem)}: stem tack not found"
     (need (~(get of trac) (welp /bin/stem stem)))
-  ?>  ?=(%stem -.grub)
+  ?>  ?=(%stem kind.tack)
   ?>  tidy.tack
   =/  res  (mule |.(!<([=stud:g *] (grab-data:io grub))))
   ?:  ?=(%& -.res)
@@ -420,7 +427,7 @@
   =/  =tack:g  
     ~|  "{(spud stud)}: stud tack not found"
     (need (~(get of trac) (welp /bin/stud stud)))
-  ?>  ?=(%stem -.grub)
+  ?>  ?=(%stem kind.tack)
   ?>  tidy.tack
   (grab-data:io grub)
 ::
@@ -469,9 +476,8 @@
     %+  murn  (turn ~(tap of vine) tail)
     (cury path-from-road:grubbery here)
   ?>  (no-cycles here sour)
-  =/  =grub:g  (need (~(get of cone) here))
   =/  =tack:g  ~|("no tack for {(spud here)}" (need (~(get of trac) here)))
-  ?>  ?=(%stem -.grub)
+  ?>  ?=(%stem kind.tack)
   |-
   ?~  sour
     this(trac (~(put of trac) here tack))
@@ -502,7 +508,6 @@
   ^+  this
   ?~  darts
     this
-  =/  =tack:g  (need (~(get of trac) here))
   =.  this  (handle-base-emit here pid i.darts)
   $(darts t.darts)
 ::
@@ -596,14 +601,13 @@
   ^-  [(set path) _this]
   ~&  >>  "dirtying {(spud here)}"
   ~|  "failed to dirty {(spud here)}"
-  =/  =grub:g  (need (~(get of cone) here))
   =/  =tack:g  (need (~(get of trac) here))
-  ?:  &(?=(%stem -.grub) !tidy.tack)
+  ?:  &(?=(%stem kind.tack) !tidy.tack)
     [~ this]
-  =?  trac  ?=(%stem -.grub)
+  =?  trac  ?=(%stem kind.tack)
     (~(put of trac) here tack(tidy |))
   ?:  =(0 ~(wyt in sinx.tack))
-    ?:  ?=(%base -.grub)
+    ?:  ?=(%base kind.tack)
       [~ this]
     [(sy ~[here]) this]
   =/  sinx=(list path)  ~(tap in sinx.tack)
@@ -628,7 +632,7 @@
   ?~  tack=(~(get of trac) here)
     ~&  >>  "{(spud here)} has no tack"
     this
-  ?:  ?=(%base -.u.grub)
+  ?:  ?=(%base kind.u.tack)
     ~&  >>  "{(spud here)} is a base and thus tidy"
     this
   ?:  tidy.u.tack
@@ -663,7 +667,7 @@
   %+  turn  ~(tap in sour)
   |=  =path
   :-  path
-  step.last:(need (~(get of trac) path))
+  last:(need (~(get of trac) path))
 ::
 ++  recompute-stem
   |=  [here=path =grub:g]
@@ -717,9 +721,8 @@
   |=  here=path
   ^+  this
   ~|  "deleting sources of {(spud here)} failed"
-  =/  =grub:g  (need (~(get of cone) here))
   =/  =tack:g  (need (~(get of trac) here))
-  ?>  ?=(%stem -.grub)
+  ?>  ?=(%stem kind.tack)
   =/  sour=(list path)  (turn ~(tap in sour.tack) head)
   |-
   ?~  sour
@@ -741,6 +744,8 @@
       %stem  (del-sources here)
     ==
   =.  cone  (~(del of cone) here)
+  =.  pool  (~(del of pool) here)
+  :: NOTE: we don't remove tack here in order to preserve sinx
   (next-tack here)
 ::
 ++  do-cull
@@ -806,6 +811,8 @@
   =/  data=vase  (fall data (bunt-stud stud))
   =/  =grub:g  [%base data base]
   =.  cone  (~(put of cone) here grub)
+  =/  step=@da  (new-last [now now]:bowl)
+  =.  pool  (~(put of pool) here step ~ [~ ~] ~)
   =.  this  (next-tack here)
   (dirty-and-tidy here)
 :: TODO: incorporate clamming
@@ -878,8 +885,8 @@
   |=  [here=path pid=@ta]
   ^+  this
   ~|  "killing process {(trip pid)} at {(spud here)} failed"
-  =/  =tack:g  (need (~(get of trac) here))
-  ?.  (~(has by proc.tack) pid)
+  =/  =pipe:g  (need (~(get of pool) here))
+  ?.  (~(has by proc.pipe) pid)
     ~&  >>  "no process {(trip pid)} to kill at {(spud here)}"
     this
   (give-final-poke-ack here pid ~ %killed [leaf+(spud here) ~])
@@ -887,9 +894,9 @@
 ++  kill-all
   |=  here=path
   ^+  this
-  ?~  tack=(~(get of trac) here)
+  ?~  pipe=(~(get of pool) here)
     this 
-  ?~  lit=~(tap in ~(key by proc.u.tack))
+  ?~  lit=~(tap in ~(key by proc.u.pipe))
     this
   $(this (kill here i.lit))
 :: in preparation for mass-kill, clear all local gives
@@ -897,16 +904,16 @@
 ++  wipe-gives
   ^+  this
   %=    this
-      trac
-    %-  ~(gas of *(axal tack:g))
-    %+  turn  ~(tap of trac)
-    |=  [here=path =tack:g]
-    ^-  [path tack:g]
+      pool
+    %-  ~(gas of *pool:g)
+    %+  turn  ~(tap of pool)
+    |=  [here=path =pipe:g]
+    ^-  [path pipe:g]
     :-  here
-    %=    tack
+    %=    pipe
         proc
       %-  ~(gas by *(map @ta proc:g))
-      %+  turn  ~(tap by proc.tack)
+      %+  turn  ~(tap by proc.pipe)
       |=  [pid=@ta =proc:g]
       ^-  [@ta proc:g]
       :-  pid
@@ -986,11 +993,11 @@
 ++  make-pid
   |=  here=path
   ^-  @ta
-  =/  =tack:g  (need (~(get of trac) here))
-  =/  last=@da  poke.last.tack
+  =/  =pipe:g  (need (~(get of pool) here))
+  =/  last=@da  last.pipe
   =/  next=@da  ?:((lth last now.bowl) now.bowl +(last))
   |-
-  ?:  (~(has by proc.tack) (scot %da next))
+  ?:  (~(has by proc.pipe) (scot %da next))
     $(next +(next))
   (scot %da next)
 ::
@@ -1013,9 +1020,9 @@
     ?:  ?=(%| -.from.give.poke)
       (give-external-sign give.poke sign)
     (gibs-take (get-here-pid from.give.poke) ~ %base wire.give.poke sign)
-  =/  =tack:g  (need (~(get of trac) here))
-  =.  proc.tack  (~(put by proc.tack) pid [proc poke ~ ~])
-  =.  trac  (~(put of trac) here tack)
+  =/  =pipe:g  (need (~(get of pool) here))
+  =.  proc.pipe  (~(put by proc.pipe) pid [proc poke ~ ~])
+  =.  pool  (~(put of pool) here pipe)
   (gibs-take [here pid] ~)
 ::
 ++  poke-base
@@ -1106,27 +1113,23 @@
   ^+  this
   ~&  >>  %processing-intake
   ~&  >>  [here pid]
-  =/  =tack:g  (need (~(get of trac) here))
-  ?.  (~(has by proc.tack) pid)
+  =/  =pipe:g  (need (~(get of pool) here))
+  ?.  (~(has by proc.pipe) pid)
     ~&  >>  "discarding message for non-existent process {(trip pid)}"
     (give-poke-sign take ~ leaf+"non-existent process" ~)
-  =/  =grub:g  (need (~(get of cone) here))
-  =/  =tack:g  (need (~(get of trac) here))
-  =/  =proc:g  (~(got by proc.tack) pid)
+  =/  =proc:g  (~(got by proc.pipe) pid)
   =.  next.proc  (~(put to next.proc) take)
-  =.  proc.tack  (~(put by proc.tack) pid proc)
-  =.  trac       (~(put of trac) here tack)
+  =.  proc.pipe  (~(put by proc.pipe) pid proc)
+  =.  pool       (~(put of pool) here pipe)
   (process-do-next here pid)
 ::
 ++  process-do-next
   |=  [here=path pid=@ta]
   ^+  this
-  =/  =tack:g  (need (~(get of trac) here))
-  ?>  (~(has by proc.tack) pid)
   =/  =grub:g  (need (~(get of cone) here))
-  =/  =tack:g  (need (~(get of trac) here))
-  =/  =proc:g  (~(got by proc.tack) pid)
-  ?.  |(=(~ boar.tack) =([~ pid] boar.tack))
+  =/  =pipe:g  (need (~(get of pool) here))
+  =/  =proc:g  (~(got by proc.pipe) pid)
+  ?.  |(=(~ boar.pipe) =([~ pid] boar.pipe))
     this
   ?:  =(~ next.proc)
     this
@@ -1134,31 +1137,21 @@
   =/  m  (charm:base:g ,~)
   =/  =dish:eval:grubbery  (make-dish here pid)
   =/  [darts=(list dart:g) done=(list took:eval:grubbery) data=vase temp=(axal vase) =proc:g =result:eval:grubbery]
-    (take:eval:grubbery dish data.grub temp.tack proc)
+    (take:eval:grubbery dish data.grub temp.pipe proc)
   ::
   ~&  >>  -.result
   ::
+  =.  cone  (~(put of cone) here grub(data data))
+  =.  temp.pipe  temp
+  =.  proc.pipe  (~(put by proc.pipe) pid proc)
+  =.  pool  (~(put of pool) here pipe)
+  ::
   =/  tick=?  !=(data data.grub)
   =?  this  tick  (next-tack here)
-  =.  cone  (~(put of cone) here grub(data data))
-  ::
-  =.  temp.tack  temp
-  =.  proc.tack  (~(put by proc.tack) pid proc)
-  =.  trac  (~(put of trac) here tack)
-  ::
   =?  this  tick  (dirty-and-tidy here)
   ::
   =.  this  (give-poke-signs done)
-  ::
   =.  this  (handle-base-emits here pid darts)
-  ::
-  ?.  (~(has of trac) here)
-    ~&  >>  %tack-expired
-    this
-  =/  =tack:g  (need (~(get of trac) here))
-  ?.  (~(has by proc.tack) pid)
-    ~&  >>  %proc-expired
-    this
   ::
   ?:  ?=(%next -.result)
     ?:  hold.result
@@ -1200,12 +1193,12 @@
   ~&  [here+here pid+pid]
   =/  =grub:g  (need (~(get of cone) here))
   ?>  ?=(%base -.grub)
-  =/  =tack:g  (need (~(get of trac) here))
-  =/  =proc:g  (~(got by proc.tack) pid)
+  =/  =pipe:g  (need (~(get of pool) here))
+  =/  =proc:g  (~(got by proc.pipe) pid)
   ?:  ?=(%& -.from.give.poke.proc)
     =/  here-pid=[path @ta]  (get-here-pid from.give.poke.proc)
     =/  =give:g  [(make-from here pid) back]
-    (emit-take here-pid give ~ %perk wire.give.poke.proc pail)
+    (enqu-take here-pid give ~ %perk wire.give.poke.proc pail)
   ?:  ?=([%gall *] sap.p.from.give.poke.proc)
     (give-external-perk give.poke.proc pail)
   ?>  ?=([%eyre *] sap.p.from.give.poke.proc)
@@ -1214,18 +1207,18 @@
 ++  claim
   |=  [here=path pid=@ta]
   ^+  this
-  =/  =tack:g  (need (~(get of trac) here))
-  ?>  |(=(~ boar.tack) =([~ pid] boar.tack))
-  =.  boar.tack  [~ pid]
-  this(trac (~(put of trac) here tack))
+  =/  =pipe:g  (need (~(get of pool) here))
+  ?>  |(=(~ boar.pipe) =([~ pid] boar.pipe))
+  =.  boar.pipe  [~ pid]
+  this(pool (~(put of pool) here pipe))
 ::
 ++  relinquish
   |=  here=path
   ^+  this
-  =/  =tack:g  (need (~(get of trac) here))
-  =.  boar.tack  ~
-  =.  trac  (~(put of trac) here tack)
-  =/  pids=(list @ta)  ~(tap in ~(key by proc.tack))
+  =/  =pipe:g  (need (~(get of pool) here))
+  =.  boar.pipe  ~
+  =.  pool  (~(put of pool) here pipe)
+  =/  pids=(list @ta)  ~(tap in ~(key by proc.pipe))
   |-
   ?~  pids
     this
@@ -1254,11 +1247,11 @@
   ~&  here+here
   =/  =grub:g  (need (~(get of cone) here))
   ?>  ?=(%base -.grub)
-  =/  =tack:g  (need (~(get of trac) here))
-  =/  =proc:g  (~(got by proc.tack) pid)
-  =.  proc.tack  (~(del by proc.tack) pid)
+  =/  =pipe:g  (need (~(get of pool) here))
+  =/  =proc:g  (~(got by proc.pipe) pid)
+  =.  proc.pipe  (~(del by proc.pipe) pid)
   =.  this  (relinquish here)
-  =.  trac  (~(put of trac) here tack)
+  =.  pool  (~(put of pool) here pipe)
   =.  this  (clean here pid)
   =/  =sign:base:g  [%poke res]
   ?:  ?=(%& -.from.give.poke.proc)
@@ -1272,7 +1265,7 @@
       ~|  "crashed with wire {(spud wire.give.poke.proc)}"
       ?+  wire.give.poke.proc  !!
         [%boot ~]       (mean u.res)
-        [%null-poke ~]  ((slog u.res) this)
+        [%null-poke ~]  ((slog leaf+"null-poke-fail" u.res) this)
       ==
     (give-external-sign give.poke.proc sign)
   ?>  ?=([%eyre *] sap.p.from.give.poke.proc)

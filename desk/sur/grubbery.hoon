@@ -24,7 +24,7 @@
   $%  [%grub =wire =road =load]
       [%perk =wire =pail]       :: updates to the poker
       [%sysc =card:agent:gall]
-      [%scry =wire scry=(unit scry)]  :: null returns grubbery state
+      [%scry =wire scry=(unit scry)]  :: null returns grubbery agent state
   ==
 :: dart payload
 ::
@@ -57,33 +57,35 @@
 ::
 +$  proc
   $:  =proc:base
-      =poke            :: keep initial poke
-      next=cute:base   :: queue of held inputs
-      skip=cute:base   :: queue of skipped inputs
+      =poke                :: keep initial poke
+      next=(qeu take:base) :: queue of held inputs
+      skip=(qeu take:base) :: queue of skipped inputs
   ==
 ::
 +$  cone  (axal grub)
-+$  give  [=from =wire]
-+$  poke  [=give pail=(unit pail)] :: null poke means on-load
-:: TODO: refactor 
-:: [step.last tidy sinx sour]
-:: [poke.last boar temp proc]
+:: versioning and "signals"-style acyclic dependencies
 ::
 +$  tack
-  $:  last=[step=@da poke=@da]
+  $:  kind=?(%base %stem)
+      last=@da
       sinx=(set path)
       tidy=?
       sour=(map path @da)
+  ==
+::
++$  trac  (axal tack)
+::
++$  pipe
+  $:  last=@da
       boar=(unit @ta)          :: who is hogging the pipes
       temp=(axal vase)         :: persist shared "transient" state
       proc=(map @ta proc)
   ==
-+$  trac  (axal tack)
-:: NOTE: the distinction between cone and trac exists because
-::       it is not yet clear what information should be available
-::       on peek. Sinx being in tack also makes dependencies
-::       more ergonomic (for now) in the case where a source
-::       is deleted and then recreated or replaced
+::
++$  pool  (axal pipe)
+::
++$  give  [=from =wire]
++$  poke  [=give pail=(unit pail)] :: null poke means on-load
 ::
 +$  bindings  (map (list @t) path) :: eyre bindings
 :: time ordered latest changes
@@ -123,7 +125,7 @@
   +$  intake
     $%  [%bump =pail] :: command for a running process
         [%perk =wire =pail] :: gift / subscription
-        [%peek =wire =path =cone =sand] :: local read
+        [%peek =wire =path =cone =sand] :: local read; TODO: sandboxed sand
         [%made =wire err=(unit tang)] :: response to make
         [%gone =wire err=(unit tang)] :: response to oust
         [%cull =wire err=(unit tang)] :: response to cull
@@ -143,7 +145,6 @@
   +$  input  [=bowl pail=(unit pail) state=vase temp=(axal vase) in=(unit intake)]
   ::
   +$  take  [=give in=(unit intake)]
-  +$  cute  (qeu take)
   ::
   ++  output-raw
     |*  value=mold
