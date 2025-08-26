@@ -284,7 +284,7 @@
   ?~  tac=(~(get of trac) here)
     =/  step=@da  (new-last [now now]:bowl)
     =.  history  (put:hon:g history step here)
-    this(trac (~(put of trac) here [step step] ~ ~ [~ ~] ~))
+    this(trac (~(put of trac) here [step step] ~ | ~ [~ ~] ~))
   =^  del  history
     (del:hon:g history step.last.u.tac)
   ?:  &(=(~ sinx.u.tac) !(~(has of cone) here))
@@ -309,10 +309,13 @@
   ?:  ?=([%lib ~] base)  base:lib:grubbery
   ?:  ?=([%bin ~] base)  base:bin:grubbery
   =/  =grub:g
-    ~|  "{(spud base)}: base not found"
+    ~|  "{(spud base)}: base grub not found"
     (need (~(get of cone) (welp /bin/base base)))
+  =/  =tack:g
+    ~|  "{(spud base)}: base tack not found"
+    (need (~(get of trac) (welp /bin/base base)))
   ?>  ?=(%stem -.grub)
-  ?>  tidy.grub
+  ?>  tidy.tack
   =/  res  (mule |.(!<([* b=base:g] (grab-data:io grub))))
   ?:  ?=(%& -.res)
     b.p.res
@@ -325,10 +328,13 @@
   ?:  ?=([%lib ~] base)  /lib
   ?:  ?=([%bin ~] base)  /bin
   =/  =grub:g
-    ~|  "{(spud base)}: base not found"
+    ~|  "{(spud base)}: base grub not found"
     (need (~(get of cone) (welp /bin/base base)))
+  =/  =tack:g
+    ~|  "{(spud base)}: base tack not found"
+    (need (~(get of trac) (welp /bin/base base)))
   ?>  ?=(%stem -.grub)
-  ?>  tidy.grub
+  ?>  tidy.tack
   =/  res  (mule |.(!<([=stud:g *] (grab-data:io grub))))
   ?:  ?=(%& -.res)
     stud.p.res
@@ -339,10 +345,13 @@
   ^-  stem:g
   ?:  ?=([%bin ~] stem)  stem:bin:grubbery
   =/  =grub:g  
-    ~|  "{(spud stem)}: stem not found"
+    ~|  "{(spud stem)}: stem grub not found"
     (need (~(get of cone) (welp /bin/stem stem)))
+  =/  =tack:g  
+    ~|  "{(spud stem)}: stem tack not found"
+    (need (~(get of trac) (welp /bin/stem stem)))
   ?>  ?=(%stem -.grub)
-  ?>  tidy.grub
+  ?>  tidy.tack
   =/  res  (mule |.(!<([* s=stem:g] (grab-data:io grub))))
   ?:  ?=(%& -.res)
     s.p.res
@@ -353,10 +362,13 @@
   ^-  stud:g
   ?:  ?=([%bin ~] stem)  /bin
   =/  =grub:g  
-    ~|  "{(spud stem)}: stem not found"
+    ~|  "{(spud stem)}: stem grub not found"
     (need (~(get of cone) (welp /bin/stem stem)))
+  =/  =tack:g  
+    ~|  "{(spud stem)}: stem tack not found"
+    (need (~(get of trac) (welp /bin/stem stem)))
   ?>  ?=(%stem -.grub)
-  ?>  tidy.grub
+  ?>  tidy.tack
   =/  res  (mule |.(!<([=stud:g *] (grab-data:io grub))))
   ?:  ?=(%& -.res)
     stud.p.res
@@ -371,10 +383,13 @@
     !>(,[@t (each [(list (pair term path)) hoon] tang)])
   ?:  ?=([%bin ~] stud)  !>(noun)
   =/  =grub:g
-    ~|  "{(spud stud)}: stud not found"
+    ~|  "{(spud stud)}: stud grub not found"
     (need (~(get of cone) (welp /bin/stud stud)))
+  =/  =tack:g  
+    ~|  "{(spud stud)}: stud tack not found"
+    (need (~(get of trac) (welp /bin/stud stud)))
   ?>  ?=(%stem -.grub)
-  ?>  tidy.grub
+  ?>  tidy.tack
   (grab-data:io grub)
 ::
 ++  bunt-stud
@@ -546,10 +561,10 @@
   ~|  "failed to dirty {(spud here)}"
   =/  =grub:g  (need (~(get of cone) here))
   =/  =tack:g  (need (~(get of trac) here))
-  ?:  &(?=(%stem -.grub) !tidy.grub)
+  ?:  &(?=(%stem -.grub) !tidy.tack)
     [~ this]
-  =?  cone  ?=(%stem -.grub)
-    (~(put of cone) here grub(tidy |))
+  =?  trac  ?=(%stem -.grub)
+    (~(put of trac) here tack(tidy |))
   ?:  =(0 ~(wyt in sinx.tack))
     ?:  ?=(%base -.grub)
       [~ this]
@@ -573,10 +588,13 @@
   ?~  grub=(~(get of cone) here)
     ~&  >>  "{(spud here)} has no data"
     this
+  ?~  tack=(~(get of trac) here)
+    ~&  >>  "{(spud here)} has no tack"
+    this
   ?:  ?=(%base -.u.grub)
     ~&  >>  "{(spud here)} is a base and thus tidy"
     this
-  ?:  tidy.u.grub
+  ?:  tidy.u.tack
     ~&  >>  "{(spud here)} is already tidy"
     this
   =/  sour=(list (pair path @da))  ~(tap by sour.u.grub)
@@ -611,10 +629,10 @@
   ~&  >>  "recompute stem"
   ?>  ?=(%stem -.grub)
   =/  new-sour=(map path @da)  (make-sour ~(key by sour.grub))
+  =/  =tack:g  (need (~(get of trac) here))
   ?:  =(new-sour sour.grub)
     ~&  >>  "{(spud here)} hasn't changed on recompute"
-    =.  grub  grub(tidy %&)
-    this(cone (~(put of cone) here grub))
+    this(trac (~(put of trac) here tack(tidy &)))
   =/  res=(each vase tang)
     %-  mule  |.
     =/  =stem:g  (get-stem-code stem.grub)
@@ -627,15 +645,18 @@
     =/  =tang  [leaf+"stem boom" leaf+(spud here) p.res]
     =?  this  !=(data.grub |+tang)  (next-tack here)
     %-  (slog tang)
-    =.  grub  grub(tidy %&, data |+tang)
-    this(cone (~(put of cone) here grub))
+    %=  this
+      cone  (~(put of cone) here grub(data |+tang))
+      trac  (~(put of trac) here tack(tidy %&))
+    ==
     ::
       %&
     ~&  >  "{(spud here)} successfully recomputed"
     =?  this  !=(data.grub &+p.res)  (next-tack here)
-    =.  grub
-      grub(data &+p.res, sour new-sour, tidy %&)
-    this(cone (~(put of cone) here grub))
+    %=  this
+      cone  (~(put of cone) here grub(data &+p.res, sour new-sour))
+      trac  (~(put of trac) here tack(tidy %&))
+    ==
   ==
 ::
 ++  dirty-and-tidy
@@ -766,10 +787,12 @@
   ?<  (~(has of cone) here)
   ?<  ?=([%lib *] here) :: stems not allowed in /lib
   =/  =stud:g  (get-stem-stud stem)
-  =/  =grub:g  [%stem |+[leaf+"new stem"]~ stem | ~]
+  =/  =grub:g  [%stem |+[leaf+"new stem"]~ stem ~]
   =.  cone     (~(put of cone) here grub)
   =.  this     (add-sources here sour)
   =.  this     (next-tack here)
+  =/  =tack:g  (need (~(get of trac) here))
+  =.  trac     (~(put of trac) here tack(tidy |))
   ~&  >>  "computing-new-stem {(spud here)}"
   =.  this     (recompute-stem here (need (~(get of cone) here)))
   (dirty-and-tidy here)

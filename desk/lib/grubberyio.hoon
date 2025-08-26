@@ -105,7 +105,7 @@
   ?:  ?=([%bin ~] base)  (pure:m /bin)
   ;<  =grub  bind:m  (peek-root [%bin %base base])
   ?>  ?=(%stem -.grub)
-  ?>  tidy.grub
+  :: ?>  tidy.grub TODO: possibly remove
   =/  res  (mule |.(!<([=stud *] (grab-data grub))))
   ?:  ?=(%& -.res)
     (pure:m stud.p.res)
@@ -118,7 +118,7 @@
   ?:  ?=([%bin ~] stem)  (pure:m /bin)
   ;<  =grub  bind:m  (peek-root [%bin %stem stem])
   ?>  ?=(%stem -.grub)
-  ?>  tidy.grub
+  :: ?>  tidy.grub TODO: possibly remove
   =/  res  (mule |.(!<([=stud *] (grab-data grub))))
   ?:  ?=(%& -.res)
     (pure:m stud.p.res)

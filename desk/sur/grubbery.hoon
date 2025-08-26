@@ -39,7 +39,7 @@
 ::
 +$  grub
   $%  [%base data=vase base=path]
-      [%stem data=(each vase tang) stem=path tidy=? sour=(map path @da)]
+      [%stem data=(each vase tang) stem=path sour=(map path @da)]
   ==
 :: TODO: for stems, assigning deps should be like mapping from a local
 ::       deps namespace to the global grubbery namespace
@@ -54,10 +54,6 @@
 :: [%& ~]                                 - out of peek sandbox
 ::
 +$  from  (each path prov)
-:: should probably distinguish from from from:base
-:: from:base might be the above, normal from might be
-:: +$  from  (each path prov)
-:: +$  from  (each (unit road) prov)
 +$  take  [[here=path pid=@ta] take:base]
 ::
 +$  proc
@@ -73,6 +69,7 @@
 +$  tack
   $:  last=[step=@da poke=@da]
       sinx=(set path)
+      tidy=? 
       boar=(unit @ta)  :: who is hogging the pipes
       temp=(axal vase) :: persist shared "transient" state
       proc=(map @ta proc)
@@ -94,6 +91,9 @@
   =<  stem
   |%
   +$  stem  $-(bowl vase)
+  +$  vine  (axal road)             :: interface defining inputs
+  +$  deps  (axal (each vase tang)) :: real computed values
+  :: sour=(set path) -> (map path path) -> (axal path) -> (axal road)
   :: TODO: replace with only deps
   :: TODO: sandboxing and clamming of deps
   +$  bowl
