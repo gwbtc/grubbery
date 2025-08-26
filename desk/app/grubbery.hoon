@@ -292,34 +292,6 @@
   =.  this  (oust-grub (gibs /boot) /boot)
   =.  this  (make-base (gibs /boot) /boot /boot ~)
   (poke-base /boot [(gibs /boot) ~ /sig !>(~)] |)
-::
-++  new-last
-  |=  [now=@da last=@da]
-  ^-  @da
-  =/  next=@da  ?:((lth last now) now +(last))
-  |-
-  ?.  (has:hon:g history next)
-    next
-  $(next +(next))
-:: NOTE: tacks persist as long as they have either
-::       a corresponding grub or non-empty sinx
-:: TODO: expose subscription bath for history changes
-::
-++  next-tack
-  |=  here=path
-  ^+  this
-  ?~  tac=(~(get of trac) here)
-    =/  =grub:g  (need (~(get of cone) here))
-    =/  step=@da  (new-last [now now]:bowl)
-    =.  history  (put:hon:g history step here)
-    this(trac (~(put of trac) here -.grub step ~ | ~))
-  =^  del  history
-    (del:hon:g history last.u.tac)
-  ?:  &(=(~ sinx.u.tac) !(~(has of cone) here))
-    this(trac (~(del of trac) here)) :: may occur in an oust
-  =/  step=@da  (new-last now.bowl last.u.tac)
-  =.  history  (put:hon:g history step here)
-  this(trac (~(put of trac) here u.tac(last step)))
 :: +decap from /lib/rudder
 ::
 ++  has-prefix
@@ -437,58 +409,6 @@
   =/  func=vase  (get-stud stud)
   (slam func (slot 6 func))
 ::
-++  no-cycle
-  =|  hist=(list path)
-  |=  here=path
-  ^-  ?
-  =/  i=(unit @ud)  (find [here]~ hist) 
-  =/  cycle=(list path)  ?~(i ~ [here (scag +(u.i) hist)])
-  ?^  cycle
-    ~&  ["ERROR: cycle" cycle]
-    %| :: a cycle has been found
-  ?~  nod=(~(get of cone) here)
-    %& :: non-existent grubs aren't a cycle
-  ?:  ?=(%base -.u.nod)
-    %&
-  ?~  tak=(~(get of trac) here)
-    %& :: non-existent grubs aren't a cycle
-  =/  sour=(list path)  ~(tap in ~(key by sour.u.tak))
-  |-
-  ?~  sour
-    %&
-  ?.  ^$(hist [here hist], here i.sour)
-    %|
-  $(sour t.sour)
-::
-++  no-cycles
-  |=  [here=path sour=(list path)]
-  ^-  ?
-  ?~  sour
-    %&
-  ?.  %*($ no-cycle hist ~[here], here i.sour)
-    %|
-  $(sour t.sour)
-::
-++  add-sources
-  |=  [here=path =vine:stem:g]
-  ^+  this
-  =/  sour=(list path)
-    %+  murn  (turn ~(tap of vine) tail)
-    (cury path-from-road:grubbery here)
-  ?>  (no-cycles here sour)
-  =/  =tack:g  ~|("no tack for {(spud here)}" (need (~(get of trac) here)))
-  ?>  ?=(%stem kind.tack)
-  |-
-  ?~  sour
-    this(trac (~(put of trac) here tack))
-  =/  tac=(unit tack:g)  (~(get of trac) i.sour)
-  =?  this  ?=(~ tac)  (next-tack i.sour)
-  =/  sour-tack=tack:g  (need (~(get of trac) i.sour))
-  =.  sinx.sour-tack  (~(put in sinx.sour-tack) here)
-  =.  trac  (~(put of trac) i.sour sour-tack)
-  =.  sour.tack  (~(put by sour.tack) i.sour `@da`0) :: 0 forces recompute
-  $(sour t.sour)
-::
 ++  allowed
   =|  prefix=(unit path)
   |=  [here=path =dart:g]
@@ -596,6 +516,86 @@
     ==
   ==
 ::
+++  new-last
+  |=  [now=@da last=@da]
+  ^-  @da
+  =/  next=@da  ?:((lth last now) now +(last))
+  |-
+  ?.  (has:hon:g history next)
+    next
+  $(next +(next))
+:: NOTE: tacks persist as long as they have either
+::       a corresponding grub or non-empty sinx
+:: TODO: expose subscription path for history changes
+::
+++  next-tack
+  |=  here=path
+  ^+  this
+  ?~  tac=(~(get of trac) here)
+    =/  =grub:g  (need (~(get of cone) here))
+    =/  step=@da  (new-last [now now]:bowl)
+    =.  history  (put:hon:g history step here)
+    this(trac (~(put of trac) here -.grub step ~ | ~))
+  =^  del  history
+    (del:hon:g history last.u.tac)
+  ?:  &(=(~ sinx.u.tac) !(~(has of cone) here))
+    this(trac (~(del of trac) here)) :: may occur in an oust
+  =/  step=@da  (new-last now.bowl last.u.tac)
+  =.  history  (put:hon:g history step here)
+  this(trac (~(put of trac) here u.tac(last step)))
+::
+++  no-cycle
+  =|  hist=(list path)
+  |=  here=path
+  ^-  ?
+  =/  i=(unit @ud)  (find [here]~ hist) 
+  =/  cycle=(list path)  ?~(i ~ [here (scag +(u.i) hist)])
+  ?^  cycle
+    ~&  ["ERROR: cycle" cycle]
+    %| :: a cycle has been found
+  ?~  nod=(~(get of cone) here)
+    %& :: non-existent grubs aren't a cycle
+  ?:  ?=(%base -.u.nod)
+    %&
+  ?~  tak=(~(get of trac) here)
+    %& :: non-existent grubs aren't a cycle
+  =/  sour=(list path)  ~(tap in ~(key by sour.u.tak))
+  |-
+  ?~  sour
+    %&
+  ?.  ^$(hist [here hist], here i.sour)
+    %|
+  $(sour t.sour)
+::
+++  no-cycles
+  |=  [here=path sour=(list path)]
+  ^-  ?
+  ?~  sour
+    %&
+  ?.  %*($ no-cycle hist ~[here], here i.sour)
+    %|
+  $(sour t.sour)
+::
+++  add-sources
+  |=  [here=path =vine:stem:g]
+  ^+  this
+  =/  sour=(list path)
+    %+  murn  (turn ~(tap of vine) tail)
+    (cury path-from-road:grubbery here)
+  ?>  (no-cycles here sour)
+  =/  =tack:g  ~|("no tack for {(spud here)}" (need (~(get of trac) here)))
+  ?>  ?=(%stem kind.tack)
+  |-
+  ?~  sour
+    this(trac (~(put of trac) here tack))
+  =/  tac=(unit tack:g)  (~(get of trac) i.sour)
+  =?  this  ?=(~ tac)  (next-tack i.sour)
+  =/  sour-tack=tack:g  (need (~(get of trac) i.sour))
+  =.  sinx.sour-tack  (~(put in sinx.sour-tack) here)
+  =.  trac  (~(put of trac) i.sour sour-tack)
+  =.  sour.tack  (~(put by sour.tack) i.sour `@da`0) :: 0 forces recompute
+  $(sour t.sour)
+::
 ++  dirty
   |=  here=path
   ^-  [(set path) _this]
@@ -643,6 +643,18 @@
   ?~  sour
     (recompute-stem here u.grub)
   $(sour t.sour, this (tidy p.i.sour))
+::
+++  dirty-and-tidy
+  |=  here=path
+  ^+  this
+  ~&  >>  "dirty-and-tidy {(spud here)}"
+  =^  e  this  (dirty here)
+  =/  edge=(list path)  ~(tap in e)
+  |-
+  ?~  edge
+    this
+  =.  this  (tidy i.edge)
+  $(edge t.edge)
 ::
 ++  make-deps
   |=  [here=path =vine:stem:g]
@@ -704,18 +716,6 @@
       trac  (~(put of trac) here tack(tidy %&, sour new-sour))
     ==
   ==
-::
-++  dirty-and-tidy
-  |=  here=path
-  ^+  this
-  ~&  >>  "dirty-and-tidy {(spud here)}"
-  =^  e  this  (dirty here)
-  =/  edge=(list path)  ~(tap in e)
-  |-
-  ?~  edge
-    this
-  =.  this  (tidy i.edge)
-  $(edge t.edge)
 ::
 ++  del-sources
   |=  here=path
