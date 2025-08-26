@@ -19,6 +19,7 @@
   ;<  here=path        bind:m  get-here
   ?+    stud  !!
       [%gui %init ~]
+    ~&  >>>  %initializing-gui
     ;<  ~  bind:m  (eyre-connect /grub here)
     done
     ::

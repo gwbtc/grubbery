@@ -256,10 +256,11 @@
 ++  emit-card   |=(=card this(cards [card cards]))
 ++  emit-cards  |=(cadz=(list card) this(cards (welp (flop cadz) cards)))
 ++  emit-take   |=(=take:g this(takes [take takes]))
-++  gibs        `give:g`[|+[our.bowl /gall/grubbery] /]
+++  gibs        |=(=wire `give:g`[|+[our.bowl /gall/grubbery] wire])
 ++  gibs-take
+  =|  =wire
   |=  [[here=path pid=@ta] in=(unit intake:base:g)]
-  (emit-take [here pid] gibs in)
+  (emit-take [here pid] (gibs wire) in)
 ::
 ++  make-from
   |=  [here=path pid=@ta]
@@ -285,9 +286,9 @@
   ~&  >  %booting
   =.  this  mass-kill
   =.  this  null-pokes
-  =.  this  (oust-grub gibs /boot)
-  =.  this  (make-base gibs /boot /boot ~)
-  (poke-base /boot [gibs ~ /sig !>(~)] |)
+  =.  this  (oust-grub (gibs /boot) /boot)
+  =.  this  (make-base (gibs /boot) /boot /boot ~)
+  (poke-base /boot [(gibs /boot) ~ /sig !>(~)] |)
 ::
 ++  new-last
   |=  [now=@da last=@da]
@@ -908,7 +909,7 @@
       :-  pid
       ?:  ?=(%| -.from.give.poke.proc) :: from outside grubbery
         proc
-      proc(give.poke gibs)
+      proc(give.poke (gibs /))
     ==
   ==
 ::
@@ -927,7 +928,7 @@
   |-
   ?~  paths
     this
-  $(paths t.paths, this (poke-base i.paths [gibs ~] |))
+  $(paths t.paths, this (poke-base i.paths [(gibs /null-poke) ~] |))
 ::
 ++  kill-base
   |=  [=give:g here=path pid=(unit @ta)]
@@ -1264,7 +1265,12 @@
     ?~(res this ((slog u.res) this))
   ?:  ?=([%gall *] sap.p.from.give.poke.proc)
     ?:  ?=([%grubbery ~] t.sap.p.from.give.poke.proc)
-      ?~(res this ((slog u.res) this))
+      ?~  res  this
+      ~|  "crashed with wire {(spud wire.give.poke.proc)}"
+      ?+  wire.give.poke.proc  !!
+        [%boot ~]       (mean u.res)
+        [%null-poke ~]  ((slog u.res) this)
+      ==
     (give-external-sign give.poke.proc sign)
   ?>  ?=([%eyre *] sap.p.from.give.poke.proc)
   (give-http-poke-sign wire.give.poke.proc res)

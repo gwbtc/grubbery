@@ -74,11 +74,11 @@
   """
   :-  /loob
   =,  grubberyio
-  |=  =bowl:stem:g
+  |=  =deps:stem:g
   ^-  vase
-  =/  deps  ~(tap in ~(key by deps.bowl))
-  ?>  ?=(^ deps)
-  =+  !<(=@ud (nead (~(got by deps.bowl) i.deps)))
+  =/  deps-list  ~(tap in ~(key by ~(tar of deps)))
+  ?>  ?=(^ deps-list)
+  =+  !<(=@ud (nead (need (~(get of deps) i.deps-list))))
   !>(=(0 (mod ud 2)))
   """
 ::
@@ -87,11 +87,11 @@
   """
   :-  /txt
   =,  grubberyio
-  |=  =bowl:stem:g
+  |=  =deps:stem:g
   ^-  vase
-  =/  deps  ~(tap in ~(key by deps.bowl))
-  ?>  ?=(^ deps)
-  ?:  !<(? (nead (~(got by deps.bowl) i.deps)))
+  =/  deps-list  ~(tap in ~(key by ~(tar of deps)))
+  ?>  ?=(^ deps-list)
+  ?:  !<(? (nead (need (~(get of deps) i.deps-list))))
     !>('true')
   !>('false')
   """
@@ -120,11 +120,11 @@
   """
   :-  /noun
   =,  grubberyio
-  |=  =bowl:stem:g
+  |=  =deps:stem:g
   ^-  vase
-  =/  deps  ~(tap in ~(key by deps.bowl))
-  ?>  ?=(^ deps)
-  (nead (~(got by deps.bowl) i.deps))
+  =/  deps-list  ~(tap in ~(key by ~(tar of deps)))
+  ?>  ?=(^ deps-list)
+  (nead (need (~(get of deps) i.deps-list)))
   """
 ::
 ++  gui-con-base-template

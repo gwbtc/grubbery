@@ -63,6 +63,10 @@
 +$  cone  (axal grub)
 +$  give  [=from =wire]
 +$  poke  [=give pail=(unit pail)] :: null poke means on-load
+:: TODO: refactor 
+:: [step.last tidy sinx sour]
+:: [poke.last boar temp proc]
+::
 +$  tack
   $:  last=[step=@da poke=@da]
       sinx=(set path)

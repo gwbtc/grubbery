@@ -383,13 +383,10 @@
       ;<  ~  bind:m  (replace !>([t res]))
       ?>  ?=([%lib *] here)
       =/  dest=path  [%bin t.here]
-      =/  sour=(set path)
-        ?:(?=(%| -.res) ~ (sy (turn pax.p.res tail)))
-      =.  sour  (~(gas in sour) here /bin/grubbery ~)
       =/  sour=vine:stem:g
         %-  ~(gas of *vine:stem:g)
-        %+  turn  ~(tap in sour)
-        |=(=path [path &+path])
+        %+  welp  ~[[/source-lib &+here] [/bin/grubbery &+/bin/grubbery]]
+        ?:(?=(%| -.res) ~ (turn pax.p.res |=([=term =path] [path &+path])))
       ;<  ~  bind:m  (overwrite-stem dest /bin sour)
       done
     ==
@@ -418,9 +415,13 @@
   ?+    stud  !!
       [%sig ~]
     ~&  >  %boot-sig
+    ~&  >>>  %basic-libraries-studs
     ;<  ~  bind:m  (overwrite-base /bin/zuse /bin `!>(zuse-core))
+    ~&  >>>  %got-here-1
     ;<  ~  bind:m  (overwrite-base /bin/grubbery /bin `!>(grubbery-lib))
+    ~&  >>>  %got-here-2
     ;<  ~  bind:m  (overwrite-lib /add/two add-two)
+    ~&  >>>  %got-here-3
     ;<  ~  bind:m  (overwrite-stud-lib /noun 'noun')
     ;<  ~  bind:m  (overwrite-stud-lib /ud '@ud')
     ;<  ~  bind:m  (overwrite-stud-lib /loob '?')
@@ -434,9 +435,11 @@
     ;<  ~  bind:m  (overwrite-stud-lib /load ',~')
     :: "file"
     ::
+    ~&  >>>  %file
     ;<  ~  bind:m  (overwrite-base-lib /file file)
     :: user groups
     ::
+    ~&  >>>  %user-groups
     ;<  ~  bind:m  (overwrite-stud-lib /group '(set @p)')
     ;<  ~  bind:m  (overwrite-stud-lib /perm 'perm:g')
     ;<  ~  bind:m  (overwrite-base-lib /usergroup usergroup)
@@ -446,17 +449,22 @@
     ;<  ~  bind:m  (overwrite-base /grp/pub /group-perm `!>(*perm:g))
     :: counter test
     ::
+    ~&  >>>  %counter-test
     ;<  ~  bind:m  (overwrite-lib /add/two add-two)
-    ;<  ~  bind:m  (overwrite-base-lib /counter counter)
-    ;<  ~  bind:m  (overwrite-base-lib /counter-container counter-container)
-    ;<  ~  bind:m  (overwrite-stem-lib /is-even is-even)
-    ;<  ~  bind:m  (overwrite-stem-lib /parity parity)
-    ;<  *  bind:m
-      (overwrite-and-poke /counter-container /counter-container ~ /sig !>(~))
+    :: ;<  ~  bind:m  (overwrite-base-lib /counter counter)
+    :: ;<  ~  bind:m  (overwrite-base-lib /counter-container counter-container)
+    :: ;<  ~  bind:m  (overwrite-stem-lib /is-even is-even)
+    :: ;<  ~  bind:m  (overwrite-stem-lib /parity parity)
+    :: ;<  *  bind:m
+    ::   (overwrite-and-poke /counter-container /counter-container ~ /sig !>(~))
     :: gui setup
     ::
+    ~&  >>>  %gui-setup
+    ~&  >>>  %overwriting-gui-base-lib
     ;<  ~  bind:m  (overwrite-base-lib /gui '[/sig base:gui]')
+    ~&  >>>  %overwriting-gui-init-stud-lib
     ;<  ~  bind:m  (overwrite-stud-lib /gui/init ',~')
+    ~&  >>>  %overwriting-and-poking-gui-base
     ;<  *  bind:m  (overwrite-and-poke /gui /gui ~ /gui/init !>(~))
     ::
     ~&  >  "Grubbery booted!"
