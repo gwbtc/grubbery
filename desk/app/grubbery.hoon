@@ -118,7 +118,7 @@
           %stem
         ?>  =(src our):bowl
         =^  cards  state
-          abet:(make-stem:hc give [here stem sour]:axn)
+          abet:(make-stem:hc give [here stem vine]:axn)
         [cards this]
       ==
       ::
@@ -284,7 +284,7 @@
   ?~  tac=(~(get of trac) here)
     =/  step=@da  (new-last [now now]:bowl)
     =.  history  (put:hon:g history step here)
-    this(trac (~(put of trac) here [step step] ~ | ~ [~ ~] ~))
+    this(trac (~(put of trac) here [step step] ~ | ~ ~ [~ ~] ~))
   =^  del  history
     (del:hon:g history step.last.u.tac)
   ?:  &(=(~ sinx.u.tac) !(~(has of cone) here))
@@ -411,7 +411,9 @@
     %& :: non-existent grubs aren't a cycle
   ?:  ?=(%base -.u.nod)
     %&
-  =/  sour=(list path)  ~(tap in ~(key by sour.u.nod))
+  ?~  tak=(~(get of trac) here)
+    %& :: non-existent grubs aren't a cycle
+  =/  sour=(list path)  ~(tap in ~(key by sour.u.tak))
   |-
   ?~  sour
     %&
@@ -429,21 +431,24 @@
   $(sour t.sour)
 ::
 ++  add-sources
-  |=  [here=path sour=(set path)]
+  |=  [here=path =vine:stem:g]
   ^+  this
-  =/  sour=(list path)  ~(tap in sour)
+  =/  sour=(list path)
+    %+  murn  (turn ~(tap of vine) tail)
+    (cury path-from-road:grubbery here)
   ?>  (no-cycles here sour)
   =/  =grub:g  (need (~(get of cone) here))
+  =/  =tack:g  (need (~(get of trac) here))
   ?>  ?=(%stem -.grub)
   |-
   ?~  sour
-    this(cone (~(put of cone) here grub))
+    this(trac (~(put of trac) here tack))
   =/  tac=(unit tack:g)  (~(get of trac) i.sour)
   =?  this  ?=(~ tac)  (next-tack i.sour)
-  =/  =tack:g  (need (~(get of trac) i.sour))
-  =.  sinx.tack  (~(put in sinx.tack) here)
-  =.  trac  (~(put of trac) i.sour tack)
-  =.  sour.grub  (~(put by sour.grub) i.sour `@da`0) :: 0 forces recompute
+  =/  sour-tack=tack:g  (need (~(get of trac) i.sour))
+  =.  sinx.sour-tack  (~(put in sinx.sour-tack) here)
+  =.  trac  (~(put of trac) i.sour sour-tack)
+  =.  sour.tack  (~(put by sour.tack) i.sour `@da`0) :: 0 forces recompute
   $(sour t.sour)
 ::
 ++  allowed
@@ -504,7 +509,7 @@
       =/  =give:g  [from wire.dart]
       ?-  -.make.load.dart
         %base  (make-base give path [base data]:make.load.dart)
-        %stem  (make-stem give path [stem sour]:make.load.dart)
+        %stem  (make-stem give path [stem vine]:make.load.dart)
       ==
       ::
         %oust
@@ -597,20 +602,25 @@
   ?:  tidy.u.tack
     ~&  >>  "{(spud here)} is already tidy"
     this
-  =/  sour=(list (pair path @da))  ~(tap by sour.u.grub)
+  =/  sour=(list (pair path @da))  ~(tap by sour.u.tack)
   |-
   ?~  sour
     (recompute-stem here u.grub)
   $(sour t.sour, this (tidy p.i.sour))
 ::
 ++  make-deps
-  |=  [here=path sour=(set path)]
-  ^-  (map path (each vase tang))
-  %-  ~(gas by *(map path (each vase tang)))
-  %+  turn  ~(tap in sour)
-  |=  =path
-  :-  path
-  ?~  grub=(~(get of cone) path)
+  |=  [here=path =vine:stem:g]
+  ^-  deps:stem:g
+  %-  ~(gas of *deps:stem:g)
+  %+  murn  ~(tap of vine)
+  |=  [name=path =road:g]
+  ^-  (unit [path (each vase tang)])
+  :: TODO: need to sandbox
+  ?~  dep=(path-from-road:grubbery here road)
+    ~
+  :-  ~
+  :-  name
+  ?~  grub=(~(get of cone) u.dep)
     |+[leaf+"no grub {(spud here)}" ~]
   (grab-data-soft:io u.grub)
 ::
@@ -628,17 +638,17 @@
   ^+  this
   ~&  >>  "recompute stem"
   ?>  ?=(%stem -.grub)
-  =/  new-sour=(map path @da)  (make-sour ~(key by sour.grub))
   =/  =tack:g  (need (~(get of trac) here))
-  ?:  =(new-sour sour.grub)
+  =/  new-sour=(map path @da)  (make-sour ~(key by sour.tack))
+  ?:  =(new-sour sour.tack)
     ~&  >>  "{(spud here)} hasn't changed on recompute"
     this(trac (~(put of trac) here tack(tidy &)))
   =/  res=(each vase tang)
     %-  mule  |.
     =/  =stem:g  (get-stem-code stem.grub)
-    =/  deps=(map path (each vase tang))
-      (make-deps here ~(key by sour.grub)) :: sandboxed deps
-    (stem [here deps]:[bowl .])
+    =/  deps=(axal (each vase tang))
+      (make-deps here vine.grub) :: sandboxed deps
+    (stem deps)
   ?-    -.res
       %|
     ~&  >>>  "{(spud here)} crashed on recompute"
@@ -654,8 +664,8 @@
     ~&  >  "{(spud here)} successfully recomputed"
     =?  this  !=(data.grub &+p.res)  (next-tack here)
     %=  this
-      cone  (~(put of cone) here grub(data &+p.res, sour new-sour))
-      trac  (~(put of trac) here tack(tidy %&))
+      cone  (~(put of cone) here grub(data &+p.res))
+      trac  (~(put of trac) here tack(tidy %&, sour new-sour))
     ==
   ==
 ::
@@ -676,16 +686,17 @@
   ^+  this
   ~|  "deleting sources of {(spud here)} failed"
   =/  =grub:g  (need (~(get of cone) here))
+  =/  =tack:g  (need (~(get of trac) here))
   ?>  ?=(%stem -.grub)
-  =/  sour=(list path)  (turn ~(tap in sour.grub) head)
+  =/  sour=(list path)  (turn ~(tap in sour.tack) head)
   |-
   ?~  sour
     this
-  =/  =tack:g    (need (~(get of trac) i.sour))
-  =.  sinx.tack  (~(del in sinx.tack) here)
-  ?:  &(=(~ sinx.tack) !(~(has of cone) i.sour))
+  =/  sour-tack=tack:g    (need (~(get of trac) i.sour))
+  =.  sinx.sour-tack  (~(del in sinx.sour-tack) here)
+  ?:  &(=(~ sinx.sour-tack) !(~(has of cone) i.sour))
     $(sour t.sour, trac (~(del of trac) i.sour))
-  $(sour t.sour, trac (~(put of trac) i.sour tack))
+  $(sour t.sour, trac (~(put of trac) i.sour sour-tack))
 ::
 ++  do-oust
   |=  here=path
@@ -779,17 +790,17 @@
   (gibs-take (get-here-pid from.give) ~ %made wire.give err)
 ::
 ++  new-stem
-  |=  [here=path stem=path sour=(set path)]
+  |=  [here=path stem=path =vine:stem:g]
   ^+  this
   ~&  >  "making-stem {(spud here)} with {(spud stem)}"
   ~|  "making stem {(spud here)} failed"
-  ?<  =(~ sour)
+  ?<  =(~ vine)
   ?<  (~(has of cone) here)
   ?<  ?=([%lib *] here) :: stems not allowed in /lib
   =/  =stud:g  (get-stem-stud stem)
-  =/  =grub:g  [%stem |+[leaf+"new stem"]~ stem ~]
+  =/  =grub:g  [%stem |+[leaf+"new stem"]~ vine stem]
   =.  cone     (~(put of cone) here grub)
-  =.  this     (add-sources here sour)
+  =.  this     (add-sources here vine)
   =.  this     (next-tack here)
   =/  =tack:g  (need (~(get of trac) here))
   =.  trac     (~(put of trac) here tack(tidy |))
@@ -798,9 +809,9 @@
   (dirty-and-tidy here)
 ::
 ++  make-stem
-  |=  [=give:g here=path stem=path sour=(set path)]
+  |=  [=give:g here=path stem=path =vine:stem:g]
   ^+  this
-  =/  res=(each _this tang)  (mule |.((new-stem here stem sour)))
+  =/  res=(each _this tang)  (mule |.((new-stem here stem vine)))
   =/  err=(unit tang)  ?-(-.res %& ~, %| `p.res)
   =?  this  ?=(%& -.res)  p.res
   ?:  ?=(%| -.from.give)

@@ -193,12 +193,14 @@
         [%grub %make %stem ~]
       =/  =path       (rash (need (get-key:kv 'path' args)) stap)
       =/  stem=^path  (rash (need (get-key:kv 'stem' args)) stap)
-      =/  sour=(set ^path)
-        (sy (rash (need (get-key:kv 'sour' args)) (more com stap)))
+      =/  =vine:stem:g
+        %-  ~(gas of *vine:stem:g)
+        %+  turn  (rash (need (get-key:kv 'sour' args)) (more com stap))
+        |=(=^path [path %& path])
       ;<  grub=(unit grub:g)  bind:m  (peek-root-soft %lib %stem stem)
       ;<  ~  bind:m
         ?^(grub (pure:(charm ,~)) (overwrite-stem-lib stem stem-template:x))
-      (overwrite-stem path stem sour)
+      (overwrite-stem path stem vine)
       ::
         [%grub %kill %base ~]
       !!
@@ -1134,7 +1136,7 @@
     ?>  ?=(%stem -.grub)
     %-  pure:m
     ;div.flex-grow.flex.flex-col.items-center.justify-center
-      ;*  %+  turn  ~(tap in sour.grub)
+      ;*  %+  turn  ~(tap of vine.grub)
           |=  [=^path *]
           ;div: {(spud path)}
     ==

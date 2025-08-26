@@ -354,24 +354,19 @@
   ++  stem
     =,  grubberyio
     ^-  stem:g
-    |=  =bowl:stem:g
+    |=  =deps:stem:g
     ^-  vase
-    ?>  ?=([%bin *] here.bowl)
-    =/  grubbery=vase  (nead (~(got by deps.bowl) /bin/grubbery))
-    =/  file=vase  (nead (~(got by deps.bowl) [%lib t.here.bowl]))
+    =/  grubbery=vase  (nead (need (~(get of deps) /grubbery)))
+    =/  file=vase  (nead (need (~(get of deps) /lib)))
     =+  !<([@t res=(each [deps=(list (pair term path)) =hoon] tang)] file)
     ?:  ?=(%| -.res)
       ~|("hoon parsing failure" (mean p.res))
-    =/  deps=(set path)
-      %-  ~(gas in (sy (turn deps.p.res tail)))
-      ~[/bin/grubbery [%lib t.here.bowl]]
-    ?>  =(deps ~(key by deps.bowl))
     =;  vax=(list vase)
       !:((slip (reel (snoc vax grubbery) slop) hoon.p.res))
     %+  turn  deps.p.res
     |=  [fac=term dep=path]
     ~|  "failed to find dep {(spud dep)}"
-    =/  =vase  (nead (~(got by deps.bowl) dep))
+    =/  =vase  (nead (need (~(get of deps) dep)))
     vase(p [%face fac p.vase])
   --
 ::
@@ -395,6 +390,10 @@
       =/  sour=(set path)
         ?:(?=(%| -.res) ~ (sy (turn pax.p.res tail)))
       =.  sour  (~(gas in sour) here /bin/grubbery ~)
+      =/  sour=vine:stem:g
+        %-  ~(gas of *vine:stem:g)
+        %+  turn  ~(tap in sour)
+        |=(=path [path &+path])
       ;<  ~  bind:m  (overwrite-stem dest /bin sour)
       done
     ==

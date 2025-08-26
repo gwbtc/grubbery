@@ -4,7 +4,7 @@
 +$  card  card:agent:gall
 +$  make
   $%  [%base base=path data=(unit vase)]
-      [%stem stem=path sour=(set path)]
+      [%stem stem=path =vine:stem]
   ==
 ::
 +$  deed  ?(%make %oust %cull %sand %poke %bump %kill %peek)
@@ -39,11 +39,8 @@
 ::
 +$  grub
   $%  [%base data=vase base=path]
-      [%stem data=(each vase tang) stem=path sour=(map path @da)]
+      [%stem data=(each vase tang) =vine:stem stem=path]
   ==
-:: TODO: for stems, assigning deps should be like mapping from a local
-::       deps namespace to the global grubbery namespace
-:: TODO: tidy and sour should be moved to trac?
 ::
 +$  bend  (pair @ud path)   :: relative path
 +$  road  (each path bend)  :: absolute or relative path
@@ -69,9 +66,10 @@
 +$  tack
   $:  last=[step=@da poke=@da]
       sinx=(set path)
-      tidy=? 
-      boar=(unit @ta)  :: who is hogging the pipes
-      temp=(axal vase) :: persist shared "transient" state
+      tidy=?
+      sour=(map path @da)
+      boar=(unit @ta)          :: who is hogging the pipes
+      temp=(axal vase)         :: persist shared "transient" state
       proc=(map @ta proc)
   ==
 +$  trac  (axal tack)
@@ -90,16 +88,9 @@
 ++  stem
   =<  stem
   |%
-  +$  stem  $-(bowl vase)
+  +$  stem  $-(deps vase)
   +$  vine  (axal road)             :: interface defining inputs
   +$  deps  (axal (each vase tang)) :: real computed values
-  :: sour=(set path) -> (map path path) -> (axal path) -> (axal road)
-  :: TODO: replace with only deps
-  :: TODO: sandboxing and clamming of deps
-  +$  bowl
-    $:  here=path                        :: our address
-        deps=(map path (each vase tang)) :: dependencies
-    ==
   --
 ::
 ++  base
@@ -208,7 +199,7 @@
   +$  perk  [=wire =stud =noun] :: updates to the poker
   +$  make
     $%  [%base base=path data=(unit noun)]
-        [%stem stem=path sour=(set path)]
+        [%stem stem=path =vine:stem]
     ==
   +$  action
     $:  [=wire here=path]

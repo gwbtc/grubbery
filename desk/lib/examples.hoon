@@ -33,12 +33,12 @@
   =/  m  (charm:base:g ,~)
   ^-  form:m
   ;<  [=stud:g =vase]  bind:m  get-poke-pail
-  ;<  =bowl:base:g     bind:m  get-bowl
+  ;<  here=path        bind:m  get-here
   ?+    stud  !!
       [%sig ~]
-    =/  counter=path  (weld here.bowl /counter)
-    =/  is-even=path  (weld here.bowl /is-even)
-    =/  parity=path   (weld here.bowl /parity)
+    =/  counter=path  (weld here /counter)
+    =/  is-even=path  (weld here /is-even)
+    =/  parity=path   (weld here /parity)
     ;<  ~  bind:m
       (overwrite-base counter /counter `!>(10))
     ;<  ~  bind:m

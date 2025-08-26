@@ -601,19 +601,19 @@
   ==
 ::
 ++  make-stem
-  |=  [=path stem=path sour=(set path)]
+  |=  [=path stem=path =vine:stem]
   =/  m  (charm ,~)
   ^-  form:m
-  =/  =dart  [%grub /make-stem &+path %make %stem stem sour]
+  =/  =dart  [%grub /make-stem &+path %make %stem stem vine]
   ;<  ~  bind:m  (send-raw-dart dart)
   (take-made /make-stem)
 ::
 ++  overwrite-stem
-  |=  [=path stem=path sour=(set path)]
+  |=  [=path stem=path =vine:stem]
   =/  m  (charm ,~)
   ^-  form:m
   ;<  ~  bind:m  (oust-grub path)
-  (make-stem path stem sour)
+  (make-stem path stem vine)
 ::
 ++  make-base
   |=  [=path base=path data=(unit vase)]
@@ -723,9 +723,9 @@
   =/  m  (charm ,~)
   ^-  form:m
   ;<  =grub  bind:m  (peek-root from)
-  ?-    -.grub
+  ?-  -.grub
     %base  (overwrite-base to base.grub ~ data.grub)
-    %stem  (overwrite-stem to stem.grub ~(key by sour.grub))
+    %stem  (overwrite-stem to stem.grub vine.grub)
   ==
 :: mostly useful for recomputing a stem when you edit its stem code
 ::
@@ -762,12 +762,12 @@
   (cull-cone from)
 ::
 ++  re-source
-  |=  [here=path sour=(set path)]
+  |=  [here=path =vine:stem]
   =/  m  (charm ,~)
   ^-  form:m
   ;<  =grub  bind:m  (peek-root here)
   ?>  ?=(%stem -.grub)
-  (overwrite-stem here stem.grub sour)
+  (overwrite-stem here stem.grub vine)
 ::
 ++  get-bowl
   =/  m  (charm ,bowl)
