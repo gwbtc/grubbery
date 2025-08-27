@@ -160,7 +160,7 @@
         %sand
       ?>  =(src our):bowl
       =^  cards  state
-        abet:(edit-perm:hc give [here &+perm]:axn)
+        abet:(edit-perm:hc give [here perm]:axn)
       [cards this]
       ::
         %poke
@@ -414,18 +414,48 @@
   =/  func=vase  (get-stud stud)
   (slam func (slot 6 func))
 ::
+++  dart-to-dest
+  |=  [here=path pid=@ta =dart:g]
+  ^-  [jump:g (unit path)]
+  ?+    -.dart  [%sysc [~ /]] :: %sysc, %scry, %bowl
+      %grub
+    :_  (path-from-road:grubbery here road.dart)
+    ?-  -.load.dart
+      %peek                       %peek
+      ?(%poke %bump %kill)        %poke
+      ?(%make %oust %cull %sand)  %make
+    ==
+    ::
+      %perk
+    =/  =pipe:g  (need (~(get of pool) here))
+    =/  =proc:g  (~(got by proc.pipe) pid)
+    :-  %perk
+    ?-  -.from.give.poke.proc
+      %|  [~ /]
+      %&  [~ p.from.give.poke.proc]
+    ==
+  ==
+::
 ++  allowed
-  =|  prefix=(unit path)
-  |=  [here=path =dart:g]
-  ^-  (each (unit path) ~)
-  =/  res  (allowed:grubbery here dart (~(get of sand) here))
-  ?-    -.res
-    %|  [%| ~]
-      %&
-    =?  prefix  &(?=(~ prefix) ?=(^ p.res))  p.res
-    ?:  =(~ here)
-      [%& prefix]
-    $(here (snip here))
+  |=  [here=path =jump:g dest=(unit path)]
+  ^-  filt:g
+  ?~  dest  [~ %|]
+  =/  =bend:g  (make-bend:grubbery here u.dest)
+  =/  steps=@ud  p.bend
+  =|  =filt:g
+  |-
+  =/  next=filt:g 
+    %+  next-filt:grubbery
+      filt
+    (filter:grubbery u.dest jump here (~(get of sand) here))
+  ?:  =(0 steps)
+    ?:(=(/ q.bend) next filt) :: check for self, not for kids
+  ?:  ?=([~ %|] next)  next
+  ?:  =(/ here)  next
+  %=  $
+    filt   next
+    here   (snip here)
+    steps  (dec steps)
   ==
 ::
 ++  handle-base-emits
@@ -452,8 +482,11 @@
       %scry
     (take-scry here pid [wire scry]:dart)
     ::
+      %bowl
+    (take-bowl here pid wire.dart)
+    ::
       %perk
-    (give-perk here pid [wire pail]:dart)
+    (give-perk here pid pail.dart clam)
     ::
       %grub
     =/  =path  (need (path-from-road:grubbery here road.dart))
@@ -481,7 +514,7 @@
       (cull-cone [from wire.dart] path)
       ::
         %sand
-      (edit-perm [from wire.dart] path |+perm.load.dart)
+      (edit-perm [from wire.dart] path perm.load.dart)
       ::
         %kill
       (kill-base [from wire.dart] path pid.load.dart)
@@ -491,34 +524,27 @@
 ++  handle-base-emit
   |=  [here=path pid=@ta =dart:g]
   ^+  this
-  =/  res  (allowed here dart)
-  ?-    -.res
-      %|
+  =/  [=jump:g dest=(unit path)]  (dart-to-dest here pid dart)
+  =/  =filt:g  (allowed here jump dest)
+  ?+    filt  (handle-dart here pid dart)
+      [~ %|]
     ~&  >>>  "vetoing illegal dart from {(spud here)}"
     (gibs-take [here pid] ~ %veto dart)
     ::
-      %&
-    ?~  p.res                                 (handle-dart here pid dart)
-    ?^  (decap:grubbery u.p.res here)         (handle-dart here pid dart)
-    ?.  ?=(%grub -.dart)                      (handle-dart here pid dart)
-    ?.  ?=(?(%poke %bump %make) -.load.dart)  (handle-dart here pid dart)
-    ?-    -.load.dart
-      %poke  %*($ handle-dart clam &, +6 [here pid dart])
-      %bump  %*($ handle-dart clam &, +6 [here pid dart])
-      ::
-        %make
-      :: TODO: incorporate directly into +make-base
-      ?:  ?=(%stem -.make.load.dart)  (handle-dart here pid dart)
-      ?~  data.make.load.dart         (handle-dart here pid dart)
-      =/  res
-        (mule |.((get-stud (get-base-stud base.make.load.dart))))
-      ?:  ?=(%| -.res)
-        (gibs-take [here pid] ~ %made wire.dart ~ leaf+"make-stud-fail" p.res)
-      =/  res  (mule |.((slam p.res u.data.make.load.dart)))
-      ?:  ?=(%| -.res)
-        (gibs-take [here pid] ~ %made wire.dart ~ leaf+"make-clam-fail" p.res)
-      (handle-dart here pid dart(data.make.load [~ p.res]))
-    ==
+      [~ %&]
+    ?.  ?=([%grub * * %make *] dart)
+      %*($ handle-dart clam &, +6 [here pid dart])
+    :: TODO: incorporate directly into +make-base
+    ?:  ?=(%stem -.make.load.dart)  (handle-dart here pid dart)
+    ?~  data.make.load.dart         (handle-dart here pid dart)
+    =/  res
+      (mule |.((get-stud (get-base-stud base.make.load.dart))))
+    ?:  ?=(%| -.res)
+      (gibs-take [here pid] ~ %made wire.dart ~ leaf+"make-stud-fail" p.res)
+    =/  res  (mule |.((slam p.res u.data.make.load.dart)))
+    ?:  ?=(%| -.res)
+      (gibs-take [here pid] ~ %made wire.dart ~ leaf+"make-clam-fail" p.res)
+    (handle-dart here pid dart(data.make.load [~ p.res]))
   ==
 ::
 ++  new-last
@@ -676,6 +702,7 @@
   ^-  [path (each vase tang)]
   :-  name
   ?~  dep=(path-from-road:grubbery here road)
+    :: TODO: make sure actually cannot see outside of peek sandbox
     |+[leaf+"beyond peek sandbox: {(render-road:grubbery road)}" ~]
   ?~  grub=(~(get of cone) u.dep)
     |+[leaf+"no grub: {(spud here)}" ~]
@@ -798,18 +825,12 @@
   ?>  ?=(^ here) :: root should always have system access
   ?~  perm
     this(sand (~(del of sand) here))
-  =.  u.perm  (clean-perm:grubbery here u.perm)
   this(sand (~(put of sand) here u.perm))
 ::
 ++  edit-perm
-  |=  [=give:g here=path perm=(each (unit perm:g) (unit perm:nerf:g))]
+  |=  [=give:g here=path perm=(unit perm:g)]
   ^+  this
-  =/  p=(unit perm:g)
-    ?-  -.perm
-      %&  p.perm
-      %|  ?~(p.perm ~ `(perm-from-nerf-perm:grubbery here u.p.perm))
-    ==
-  =/  res=(each _this tang)  (mule |.((put-sand here p)))
+  =/  res=(each _this tang)  (mule |.((put-sand here perm)))
   =/  err=(unit tang)  ?-(-.res %& ~, %| `p.res)
   =?  this  ?=(%& -.res)  p.res
   ?:  ?=(%| -.from.give)
@@ -880,12 +901,12 @@
 ++  take-peek
   |=  [here=path pid=@ta =wire =path]
   ^+  this
-  :: TODO: clam when peeking into a sandboxed cone?
-  ::       i.e. if they don't have make perms on you, you don't trust
-  ::       what they make
-  =/  perm=(unit perm:g)  (~(get of sand) here)
-  =/  =sand:nerf:g  (mask-sand:grubbery here perm (~(dip of sand) path))
-  (gibs-take [here pid] ~ %peek wire path (~(dip of cone) path) sand)
+  :: this says: does giving the peek results pass through a filter when
+  :: going from the object back to the requester
+  =/  =filt:g  (allowed path %give ~ here)
+  :: TODO: Clam  cone contents if filt is [~ %&]
+  %+  gibs-take  [here pid]
+  [~ %peek wire path (~(dip of cone) path) (~(dip of sand) path)]
 ::
 ++  take-scry
   |=  [here=path pid=@ta =wire scry=(unit scry:g)]
@@ -898,6 +919,36 @@
   ?>  ?=(^ pat)
   ?>  ?=(^ t.pat)
   !>(.^(mold.u.scry i.pat (scot %p our.bowl) i.t.pat (scot %da now.bowl) t.t.pat))
+::
+++  make-bowl
+  |=  [here=path pid=@ta]
+  ^-  bowl:g
+  =.  wex.bowl
+    %-  ~(gas by *boat:gall)
+    %+  murn  ~(tap by wex.bowl)
+    |=  [[=wire =ship =term] acked=? pat=path]
+    ?.  ?=([%base @ *] wire)
+      ~
+    =/  [h=path p=@ta w=path]  (unwrap-wire wire)
+    ?.  &(=(h here) =(p pid))
+      ~
+    [~ [w ship term] acked pat]
+  =.  sup.bowl
+    %-  ~(gas by *bitt:gall)
+    %+  murn  ~(tap by sup.bowl)
+    |=  [=duct =ship pat=path]
+    ?.  ?=([%base @ *] pat)
+      ~
+    =/  [h=path p=@ta w=path]  (unwrap-wire pat)
+    ?.  &(=(h here) =(p pid))
+      ~
+    [~ duct ship w]
+  [now our eny wex sup here]:[bowl .]
+::
+++  take-bowl
+  |=  [here=path pid=@ta =wire]
+  ^+  this
+  (gibs-take [here pid] ~ %bowl wire (make-bowl here pid))
 ::
 ++  kill
   |=  [here=path pid=@ta]
@@ -975,8 +1026,9 @@
 ++  bump-base
   |=  [here=path pid=@ta =give:g =pail:g clam=?]
   ^+  this
+  =/  =from:base:g  (relativize-from:grubbery here from.give)
   ?.  clam
-    (gibs-take [here pid] ~ %bump pail)
+    (gibs-take [here pid] ~ %bump from pail)
   =/  stud-res  (mule |.((get-stud p.pail)))
   ?:  ?=(%| -.stud-res)
     =/  =sign:base:g  [%bump ~ leaf+"bump-stud-fail" p.stud-res]
@@ -991,7 +1043,7 @@
       (give-external-sign give sign)
     =/  here-pid=[path @ta]  (get-here-pid from.give)
     (gibs-take here-pid ~ %base wire.give sign)
-  (gibs-take [here pid] ~ %bump pail)
+  (gibs-take [here pid] ~ %bump from pail)
 :: TODO: handle outgoing keens
 ::
 ++  clean
@@ -1081,31 +1133,6 @@
     =/  here-pid=[path @ta]  (get-here-pid from.give.poke)
     (gibs-take here-pid ~ %base wire.give.poke sign)
   (start-process [here pid] p.build poke(q.u.pail p.clam-res))
-::
-++  make-dish
-  |=  [here=path pid=@ta]
-  ^-  dish:eval:grubbery
-  =.  wex.bowl
-    %-  ~(gas by *boat:gall)
-    %+  murn  ~(tap by wex.bowl)
-    |=  [[=wire =ship =term] acked=? pat=path]
-    ?.  ?=([%base @ *] wire)
-      ~
-    =/  [h=path p=@ta w=path]  (unwrap-wire wire)
-    ?.  &(=(h here) =(p pid))
-      ~
-    [~ [w ship term] acked pat]
-  =.  sup.bowl
-    %-  ~(gas by *bitt:gall)
-    %+  murn  ~(tap by sup.bowl)
-    |=  [=duct =ship pat=path]
-    ?.  ?=([%base @ *] pat)
-      ~
-    =/  [h=path p=@ta w=path]  (unwrap-wire pat)
-    ?.  &(=(h here) =(p pid))
-      ~
-    [~ duct ship w]
-  [now our eny wex sup here pid (~(get of sand) here)]:[bowl .]
 :: ack for perk or bump
 ::
 ++  give-poke-sign
@@ -1153,9 +1180,8 @@
     this
   ?>  ?=(%base -.grub)
   =/  m  (charm:base:g ,~)
-  =/  =dish:eval:grubbery  (make-dish here pid)
   =/  [darts=(list dart:g) done=(list took:eval:grubbery) data=vase temp=(axal vase) =proc:g =result:eval:grubbery]
-    (take:eval:grubbery dish data.grub temp.pipe proc)
+    (take:eval:grubbery here data.grub temp.pipe pid proc)
   ::
   ~&  >>  -.result
   ::
@@ -1205,8 +1231,9 @@
   (emit-card %give %fact ~[wire] grub-perk+!>([p.pail q.q.pail]))
 ::
 ++  give-perk
-  |=  [here=path pid=@ta back=wire =pail:g]
+  |=  [here=path pid=@ta =pail:g clam=?]
   ^+  this
+  :: TODO: implement clam
   ~&  %giving-perk
   ~&  [here+here pid+pid]
   =/  =grub:g  (need (~(get of cone) here))
@@ -1215,7 +1242,7 @@
   =/  =proc:g  (~(got by proc.pipe) pid)
   ?:  ?=(%& -.from.give.poke.proc)
     =/  here-pid=[path @ta]  (get-here-pid from.give.poke.proc)
-    =/  =give:g  [(make-from here pid) back]
+    =/  =give:g  [(make-from here pid) /] :: not expecting a sign
     (enqu-take here-pid give ~ %perk wire.give.poke.proc pail)
   ?:  ?=([%gall *] sap.p.from.give.poke.proc)
     (give-external-perk give.poke.proc pail)

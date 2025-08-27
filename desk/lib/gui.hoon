@@ -107,7 +107,7 @@
       ;<  =grub:g  bind:m  (peek-root t.t.site)
       ?>  ?=(%base -.grub)
       ;<  =cone:g  bind:m  (peek t.t.site)
-      ;<  =pail  bind:m  (vent t.t.site /gui/mime !>(~))
+      ;<  =pail:g  bind:m  (vent t.t.site /gui/mime !>(~))
       ~&  >>>  %we-got-the-pail
       ?>  ?=([%mime ~] p.pail)
       ~&  >>  %extracting-mime
@@ -262,7 +262,7 @@
       ?>  ?=(%base -.grub)
       ;<  p=grub:g  bind:m  (peek-root (weld /bin/gui/con/poke base.grub))
       =/  =pail:g
-        (!<($-(key-value-list:kv pail) (grab-data p)) args)
+        (!<($-(key-value-list:kv pail:g) (grab-data p)) args)
       ;<  *  bind:m  (poke t.t.site pail)
       (pure:m ~)
     ==
@@ -467,7 +467,7 @@
     ==
   ::
   ++  no-grub
-    |=  [=path perm=(unit perm:nerf:g)]
+    |=  [=path perm=(unit perm:g)]
     ^-  manx
     ;div.w-full.h-full.flex.flex-col(id (make-id path))
       ;div(class "flex justify-center p-1 border-b border-gray-300 bg-gray-50")
@@ -688,7 +688,7 @@
     =/  m  (charm ,manx)
     ^-  form:m
     ;<  grub=(unit grub:g)       bind:m  (peek-root-soft path)
-    ;<  perm=(unit perm:nerf:g)  bind:m  (get-perm path)
+    ;<  perm=(unit perm:g)  bind:m  (get-perm path)
     ?~  grub
       (pure:m (no-grub path perm))
     %-  pure:m
@@ -1206,7 +1206,7 @@
       (pure:m (no-lib here))
     =+  !<([code=@t *] (grab-data u.lib))
     ;<  grub=(unit grub:g)       bind:m  (peek-root-soft %bin here)
-    ;<  perm=(unit perm:nerf:g)  bind:m  (get-perm %lib here)
+    ;<  perm=(unit perm:g)  bind:m  (get-perm %lib here)
     ~&  >>  ["perm in +grub-tree-lib:" perm]
     (pure:m (lib-page here code grub perm))
   ::
@@ -1242,7 +1242,7 @@
     ==
   ::
   ++  lib-page
-    |=  [=path code=@t grub=(unit grub:g) perm=(unit perm:nerf:g)]
+    |=  [=path code=@t grub=(unit grub:g) perm=(unit perm:g)]
     ^-  manx
     ~&  >>  ["perm in +lib-page:" perm]
     =/  data=(each vase tang)
@@ -1463,7 +1463,7 @@
   ++  get-dom-manx
     |=  =path
     =/  m  (charm ,manx)
-    ;<  =cone  bind:m  (peek /gui/boot/dom)
+    ;<  =cone:g  bind:m  (peek /gui/boot/dom)
     ?~  grub=(~(get of cone) path)
       %-  pure:m
       ;div: No grub at this path.

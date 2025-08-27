@@ -5,30 +5,6 @@
 ::
 ++  eval
   |%
-  +$  dish
-    $:  now=@da
-        our=@p
-        eny=@uvJ
-        wex=boat:gall
-        sup=bitt:gall
-        here=path
-        pid=@ta
-        perm=(unit perm:g)
-    ==
-  ::
-  ++  make-bowl
-    |=  [dish =from:g]
-    ^-  bowl:base:g
-    :*  now
-        ?^(perm ~ `our)
-        eny
-        ?^(perm ~ `wex)
-        ?^(perm ~ `sup)
-        (mask-from here perm from)
-        (mask-here here perm)
-        pid
-    ==
-  ::
   ++  output  (output-raw:base:g ,~)
   ::
   +$  result
@@ -42,14 +18,13 @@
   ++  take
     =|  darts=(list dart:g) :: effects
     =|  done=(list took) :: sequentially processed inputs
-    =|  =bowl:base:g
-    |=  [=dish state=vase temp=(axal vase) =proc:g]
+    |=  [here=path state=vase temp=(axal vase) pid=@ta =proc:g]
     ^-  [(list dart:g) (list took) vase (axal vase) _proc result]
+    =/  =from:base:g  (relativize-from here from.give.poke.proc)
     =^  =take:base:g  next.proc  ~(get to next.proc)
     |-  :: recursion point so take can be replaced
-    =.  bowl  (make-bowl dish from.give.take)
     =/  res=(each output tang)
-      (mule |.((proc.proc bowl pail.poke.proc state temp in.take)))
+      (mule |.((proc.proc pid from pail.poke.proc state temp in.take)))
     ?:  ?=(%| -.res)
       =/  =tang  [leaf+"crash" p.res]
       :-  darts :: no output darts on failure
@@ -151,120 +126,6 @@
   ?~  site  ~
   ?.  =(i.base i.site)  ~
   $(base t.base, site t.site)
-:: get make, poke and peek permissions for grub at the path "here"
-:: each as a set of unique, shortest path prefixes, including here
-::
-++  clean-perm
-  |=  [here=path =perm:g]
-  ^+  perm
-  |^
-  :*  (clean make.perm)
-      (clean poke.perm)
-      (clean peek.perm)
-  ==
-  :: add here and keep only shortest prefixes
-  ::
-  ++  clean
-    |=  pax=(set path)
-    ^-  (set path)
-    (make:perx here ~(tap in pax))
-  --
-:: path prefix storage which keeps only shortest path prefixes
-::
-++  perx :: a permission axal
-  =<  perx
-  |%
-  +$  perx  (axal ~) :: no contents; only trie structure
-  :: set of unique shortest path prefixes
-  ::
-  ++  make
-    |=  pax=(list path)
-    ^-  (set path)
-    (sy ~(tap px (~(gas px *perx) pax)))
-  ++  px
-    |_  fat=perx
-    ++  put
-      |=  pax=path
-      ^+  fat
-      ?~  pax  [[~ ~] ~]     :: finish at end of path
-      ?^  fil.fat  [[~ ~] ~] :: finish at first populated descendant and prune
-      =/  kid  (~(get by dir.fat) i.pax)
-      :-  ~
-      %+  ~(put by dir.fat)
-        i.pax
-      ?^  kid
-        :: existing sub-tree: recurse for pruning logic
-        $(fat u.kid, pax t.pax)
-      :: no sub-tree: populate end of path
-      (~(put of *perx) t.pax ~)
-    ++  gas
-      |=  pax=(list path)
-      ^+  fat
-      ?~  pax  fat
-      $(pax t.pax, fat (put i.pax))
-    ++  tap  (turn ~(tap of fat) head) :: list paths; ignore null contents
-    --
-  --
-:: [%& ~]            - full system access
-:: [%& ~ /some/path] - access under /some/path
-:: [%| ~]            - no access
-::
-+$  auth  (each (unit path) ~)
-:: find unique path in pax that is a prefix of dest
-:: assumes a list of shortest prefixes in which case
-::
-++  find-prefix
-  |=  [dest=path pax=(list path)]
-  ^-  (unit path)
-  ?~  pax  ~
-  ?^  (decap i.pax dest)
-    [~ i.pax]
-  $(pax t.pax)
-:: find unique path in pax that is a strict, non-equal prefix of dest
-:: assumes a list of shortest prefixes in which case
-::
-++  find-prefix-hard
-  |=  [dest=path pax=(list path)]
-  ^-  (unit path)
-  ?~  pax  ~
-  ?:  ?=([~ ^] (decap i.pax dest))
-    [~ i.pax]
-  $(pax t.pax)
-::
-++  check-pax
-  |=  [dest=path pax=(list path)]
-  ^-  auth
-  ?~  pfx=(find-prefix dest pax)
-    [%| ~]
-  [%& ~ u.pfx]
-::
-++  check-pax-hard
-  |=  [dest=path pax=(list path)]
-  ^-  auth
-  ?~  pfx=(find-prefix-hard dest pax)
-    [%| ~]
-  [%& ~ u.pfx]
-::
-++  allowed
-  |=  [here=path =dart:g perm=(unit perm:g)]
-  ^-  auth
-  ?~  perm  [%& ~] :: null permissions represents full system access
-  ?:  ?=(%perk -.dart)  [%& ~] :: %perks ("subscription" updates) always allowed
-  ?:  ?=(?(%sysc %scry) -.dart)  [%| ~] :: only ~ perm can make syscalls or scry
-  =/  path=(unit path)  (path-from-road here road.dart)
-  ?~  path  [%| ~] :: invalid bend (bad relative path)
-  ?-    -.load.dart
-      ?(%make %oust %cull)
-    (check-pax u.path ~(tap in make.u.perm))
-      ?(%poke %bump %kill)
-    (check-pax u.path ~(tap in poke.u.perm))
-      %peek
-    (check-pax u.path ~(tap in peek.u.perm))
-      %sand
-    :: check-pax-hard: a perfectly sandboxed grub cannot change its own perms
-    ::
-    (check-pax-hard u.path ~(tap in make.u.perm))
-  ==
 :: Convert a relative path to an absolute path
 ::
 ++  path-from-bend
@@ -285,24 +146,6 @@
     %&  `p.road
     %|  (path-from-bend here p.road)
   ==
-:: relative paths are relative to the grub with these perms
-::
-++  perm-from-nerf-perm
-  |=  [here=path =perm:nerf:g]
-  ^-  perm:g
-  |^
-  :*  (make make.perm)
-      (make poke.perm)
-      (make peek.perm)
-  ==
-  ::
-  ++  make
-    |=  rod=(set road:g)
-    ^-  (set path)
-    %-  ~(gas in *(set path))
-    %+  murn  ~(tap in rod)
-    |=(=road:g (path-from-road here road))
-  --
 ::
 ++  render-road
   |=  =road:g
@@ -312,68 +155,68 @@
     %|  "^{(scow %ud p.p.road)} {(spud q.p.road)}"
   ==
 ::
-++  mask-here
-  |=  [here=path perm=(unit perm:g)]
-  ^-  road:g
-  ?~  perm  [%& here]
-  =/  pfx=(unit path)  (find-prefix here ~(tap in peek.u.perm))
-  ?>  ?=(^ pfx)
-  ?:  =([~ /] pfx)  [%& here]
-  =/  tel=path  (need (decap u.pfx here))
-  [%| (lent tel) tel]
+++  prefix
+  =|  p=path
+  |=  [a=path b=path]
+  ^-  path
+  ?~  a  (flop p)
+  ?~  b  (flop p)
+  ?.  =(i.a i.b)  (flop p)
+  $(a t.a, b t.b, p [i.a p])
 ::
-++  mask-path
-  |=  [here=path perm=(unit perm:g) dest=path]
-  ^-  (unit road:g)
-  ?~  perm  [~ %& dest]
-  =/  here-pfx=(unit path)  (find-prefix here ~(tap in peek.u.perm))
-  =/  dest-pfx=(unit path)  (find-prefix dest ~(tap in peek.u.perm))
-  ?>  ?=(^ here-pfx)
-  ?~  dest-pfx  ~
-  ?.  =(here-pfx dest-pfx)  ~
-  ?:  =([~ /] here-pfx)  [~ %& dest]
-  =/  here-tel=path  (need (decap u.here-pfx here))
-  =/  dest-tel=path  (need (decap u.here-pfx dest))
-  [~ %| (lent here-tel) dest-tel]
+++  make-bend
+  |=  [here=path dest=path]
+  ^-  bend:g
+  =/  pref=path  (prefix here dest)
+  =/  here-tel=path  (need (decap pref here))
+  =/  dest-tel=path  (need (decap pref dest))
+  [(lent here-tel) dest-tel]
 ::
-++  mask-from
-  |=  [here=path perm=(unit perm:g) =from:g]
+++  relativize-from
+  |=  [here=path =from:g]
   ^-  from:base:g
-  ?~  perm
-    ?-  -.from
-      %|  [%| p.from]
-      %&  [%& ~ &+p.from]
-    ==
-  ?-  -.from
-    %|  [%& ~]
-    %&  [%& (mask-path here perm p.from)]
-  ==
-:: This can only give you paths that share your peek prefix
+  ?.  ?=(%& -.from)
+    from
+  &+(make-bend here p.from)
 ::
-++  mask-perm
-  |=  [here=path mine=(unit perm:g) =perm:g]
-  ^-  perm:nerf:g
-  |^
-  :*  (mask make.perm)
-      (mask poke.perm)
-      (mask peek.perm)
-  ==
-  ::
-  ++  mask
-    |=  pax=(set path)
-    ^-  (set road:g)
-    %-  ~(gas in *(set road:g))
-    %+  murn  ~(tap in pax)
-    |=(=path (mask-path here mine path))
-  --
+++  raw-filter
+  |=  [dest=path filt=(list path)]
+  ^-  ?
+  ?~  filt  |
+  ?:  ?=(^ (decap i.filt dest))
+    &
+  $(filt t.filt)
 ::
-++  mask-sand
-  |=  [here=path mine=(unit perm:g) =sand:g]
-  ^-  sand:nerf:g
-  %-  ~(gas of *sand:nerf:g)
-  %+  turn  ~(tap of sand)
-  |=  [=path =perm:g]
-  [path (mask-perm here mine perm)]
+++  filter-roads
+  |=  [here=path dest=path filt=(list road:g)]
+  ^-  ?
+  (raw-filter dest (murn filt (cury path-from-road here)))
+::
+++  filter
+  |=  [dest=path =jump:g here=path perm=(unit perm:g)]
+  ^-  filt:g
+  ?~  perm  ~
+  ?:  ?=(%sysc jump)
+    [~ %|] :: any filter stops syscalls
+  ?:  ?=(?(%perk %give) jump)
+    [~ %&] :: perks + "gives" pass through any filter
+  :-  ~
+  ?-  jump
+    %make  (filter-roads here dest ~(tap in make.u.perm))
+    %poke  (filter-roads here dest ~(tap in poke.u.perm))
+    %peek  (filter-roads here dest ~(tap in peek.u.perm))
+  ==
+::
+++  next-filt
+  |=  [cur=filt:g nex=filt:g]
+  ^-  filt:g
+  ?~  cur  nex
+  ?~  nex  cur
+  ?:  ?=([~ %|] cur)
+    [~ %|]
+  ?:  ?=([~ %|] nex)
+    [~ %|]
+  [~ %&]
 ::  user groups:
 ::  /grp/who (set ship)
 ::  /grp/how perm
@@ -489,14 +332,14 @@
     ;<  ~  bind:m  (overwrite-base-lib /file file)
     :: user groups
     ::
-    ~&  >>>  %user-groups
-    ;<  ~  bind:m  (overwrite-stud-lib /group '(set @p)')
-    ;<  ~  bind:m  (overwrite-stud-lib /perm 'perm:g')
-    ;<  ~  bind:m  (overwrite-base-lib /usergroup usergroup)
-    ;<  ~  bind:m  (overwrite-base-lib /group-perm group-perm)
-    ;<  ~  bind:m  (overwrite-base /grp/who/~zod /usergroup `!>((sy ~[~zod])))
-    ;<  ~  bind:m  (overwrite-base /grp/how/~zod /group-perm `!>(*perm:g))
-    ;<  ~  bind:m  (overwrite-base /grp/pub /group-perm `!>(*perm:g))
+    :: ~&  >>>  %user-groups
+    :: ;<  ~  bind:m  (overwrite-stud-lib /group '(set @p)')
+    :: ;<  ~  bind:m  (overwrite-stud-lib /perm 'perm:g')
+    :: ;<  ~  bind:m  (overwrite-base-lib /usergroup usergroup)
+    :: ;<  ~  bind:m  (overwrite-base-lib /group-perm group-perm)
+    :: ;<  ~  bind:m  (overwrite-base /grp/who/~zod /usergroup `!>((sy ~[~zod])))
+    :: ;<  ~  bind:m  (overwrite-base /grp/how/~zod /group-perm `!>(*perm:g))
+    :: ;<  ~  bind:m  (overwrite-base /grp/pub /group-perm `!>(*perm:g))
     :: counter test
     ::
     ~&  >>>  %counter-test

@@ -6,35 +6,48 @@
   $%  [%base base=path data=(unit vase)]
       [%stem stem=path =vine:stem]
   ==
+:: ~      means unfiltered
+:: [~ %&] means filtered but allowed; any moving vases should be clammed
+:: [~ %|] means filtered and disallowed; dart will be vetoed
 ::
-+$  deed  ?(%make %oust %cull %sand %poke %bump %kill %peek)
++$  filt  (unit ?)
+:: It's called a jump because filters only apply to darts moving UP the tree
+::
++$  jump
+  $?  %make :: checking if make-related functionality is filtered
+      %poke :: checking if poke-related functionality is filtered
+      %peek :: checking if %peek requests are filtered
+      %give :: checking if %peek results are filtered
+      %sysc :: checking if syscalls are filtered
+      %perk :: checking if %perk updates are filtered
+  ==
 ::
 +$  perm
-  $:  make=(set path) :: %make, %oust or %sand
-      poke=(set path) :: %poke, %bump or %kill
-      peek=(set path)
+  $:  make=(set road) :: %make, %oust, %cull or %sand
+      poke=(set road) :: %poke, %bump or %kill
+      peek=(set road)
   ==
 ::
 +$  sand  (axal perm)
 ::
-++  nerf
-  |%
-  +$  perm
-    $:  make=(set road) :: %make, %oust or %sand
-        poke=(set road) :: %poke, %bump or %kill
-        peek=(set road)
-    ==
-  +$  sand  (axal perm)
-  --
-::
 +$  scry  [=mold =path] :: normal non-grubbery scry request
+::
++$  bowl
+  $:  now=@da
+      our=@p
+      eny=@uvJ
+      wex=boat:gall
+      sup=bitt:gall
+      here=path
+  ==
 :: effects that a base grub can emit
 ::
 +$  dart
   $%  [%grub =wire =road =load]
-      [%perk =wire =pail]       :: updates to the poker
+      [%perk =pail]                   :: updates to the poker
       [%sysc =card:agent:gall]
       [%scry =wire scry=(unit scry)]  :: null returns grubbery agent state
+      [%bowl =wire]                   :: ask grubbery for bowl info
   ==
 :: dart payload
 ::
@@ -42,7 +55,7 @@
   $%  [%make =make]
       [%oust ~]
       [%cull ~]
-      [%sand perm=(unit perm:nerf)]
+      [%sand perm=(unit perm)]
       [%poke =pail]
       [%bump pid=@ta =pail]
       [%kill pid=(unit @ta)]
@@ -83,7 +96,7 @@
 ::
 +$  pipe
   $:  last=@da
-      boar=(unit @ta)          :: who is hogging the pipes
+      boar=(unit @ta)          :: who is hogging the pipe
       temp=(axal vase)         :: persist shared "transient" state
       proc=(map @ta proc)
   ==
@@ -112,17 +125,7 @@
 ++  base
   =<  proc
   |%
-  +$  from  (each (unit road) prov)
-  +$  bowl
-    $:  now=@da              :: time
-        our=(unit @p)        :: host - sandboxed grubs may not see
-        eny=@uvJ             :: entropy
-        wex=(unit boat:gall) :: outgoing gall subs
-        sup=(unit bitt:gall) :: incoming gall subs
-        =from                :: provenance
-        here=road            :: our address
-        pid=@ta              :: our process id
-    ==
+  +$  from  (each bend prov)
   ::
   +$  sign
     $%  [%poke err=(unit tang)]   :: complete poke cycle (finish or crash)
@@ -131,9 +134,9 @@
     ==
   ::
   +$  intake
-    $%  [%bump =pail] :: command for a running process
+    $%  [%bump =from =pail] :: command for a running process
         [%perk =wire =pail] :: gift / subscription
-        [%peek =wire =path =cone =sand:nerf] :: local read
+        [%peek =wire =path =cone =sand] :: local read
         [%made =wire err=(unit tang)] :: response to make
         [%gone =wire err=(unit tang)] :: response to oust
         [%cull =wire err=(unit tang)] :: response to cull
@@ -144,13 +147,21 @@
         :: messages from gall and arvo
         ::
         [%scry =wire =path =vase]
+        [%bowl =wire =bowl]
         [%arvo =wire sign=sign-arvo]
         [%agent =wire =sign:agent:gall]
         [%watch =path]
         [%leave =path]
     ==
   ::
-  +$  input  [=bowl pail=(unit pail) state=vase temp=(axal vase) in=(unit intake)]
+  +$  input
+    $:  pid=@ta
+        =from
+        pail=(unit pail)
+        state=vase
+        temp=(axal vase)
+        in=(unit intake)
+    ==
   ::
   +$  take  [=give in=(unit intake)]
   ::
