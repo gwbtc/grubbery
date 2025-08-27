@@ -210,9 +210,8 @@
 :: [%| ~]            - no access
 ::
 +$  auth  (each (unit path) ~)
-:: find any path in pax that is a prefix of dest
+:: find unique path in pax that is a prefix of dest
 :: assumes a list of shortest prefixes in which case
-:: if a prefix exists it will be unique
 ::
 ++  find-prefix
   |=  [dest=path pax=(list path)]
@@ -221,9 +220,8 @@
   ?^  (decap i.pax dest)
     [~ i.pax]
   $(pax t.pax)
-:: find any path in pax that is a strict, non-equal prefix of dest
+:: find unique path in pax that is a strict, non-equal prefix of dest
 :: assumes a list of shortest prefixes in which case
-:: if a prefix exists it will be unique
 ::
 ++  find-prefix-hard
   |=  [dest=path pax=(list path)]
@@ -287,6 +285,32 @@
     %&  `p.road
     %|  (path-from-bend here p.road)
   ==
+:: relative paths are relative to the grub with these perms
+::
+++  perm-from-nerf-perm
+  |=  [here=path =perm:nerf:g]
+  ^-  perm:g
+  |^
+  :*  (make make.perm)
+      (make poke.perm)
+      (make peek.perm)
+  ==
+  ::
+  ++  make
+    |=  rod=(set road:g)
+    ^-  (set path)
+    %-  ~(gas in *(set path))
+    %+  murn  ~(tap in rod)
+    |=(=road:g (path-from-road here road))
+  --
+::
+++  render-road
+  |=  =road:g
+  ^-  tape
+  ?-  -.road
+    %&  (spud p.road)
+    %|  "^{(scow %ud p.p.road)} {(spud q.p.road)}"
+  ==
 ::
 ++  mask-here
   |=  [here=path perm=(unit perm:g)]
@@ -309,7 +333,7 @@
   ?.  =(here-pfx dest-pfx)  ~
   ?:  =([~ /] here-pfx)  [~ %& dest]
   =/  here-tel=path  (need (decap u.here-pfx here))
-  =/  dest-tel=path  (need (decap u.dest-pfx here))
+  =/  dest-tel=path  (need (decap u.here-pfx dest))
   [~ %| (lent here-tel) dest-tel]
 ::
 ++  mask-from
@@ -324,6 +348,32 @@
     %|  [%& ~]
     %&  [%& (mask-path here perm p.from)]
   ==
+:: This can only give you paths that share your peek prefix
+::
+++  mask-perm
+  |=  [here=path mine=(unit perm:g) =perm:g]
+  ^-  perm:nerf:g
+  |^
+  :*  (mask make.perm)
+      (mask poke.perm)
+      (mask peek.perm)
+  ==
+  ::
+  ++  mask
+    |=  pax=(set path)
+    ^-  (set road:g)
+    %-  ~(gas in *(set road:g))
+    %+  murn  ~(tap in pax)
+    |=(=path (mask-path here mine path))
+  --
+::
+++  mask-sand
+  |=  [here=path mine=(unit perm:g) =sand:g]
+  ^-  sand:nerf:g
+  %-  ~(gas of *sand:nerf:g)
+  %+  turn  ~(tap of sand)
+  |=  [=path =perm:g]
+  [path (mask-perm here mine perm)]
 ::  user groups:
 ::  /grp/who (set ship)
 ::  /grp/how perm

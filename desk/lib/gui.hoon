@@ -229,7 +229,7 @@
       (cull-cone (rash (need (get-key:kv 'path' args)) stap))
       ::
         [%grub %sand %sysc ~]
-      (edit-perm (rash (need (get-key:kv 'path' args)) stap) ~)
+      !! :: (edit-perm (rash (need (get-key:kv 'path' args)) stap) ~) TODO: fix
       ::
         [%grub %sand %grub ~]
       =/  =path       (rash (need (get-key:kv 'path' args)) stap)
@@ -239,7 +239,7 @@
         (sy (rash (need (get-key:kv 'poke' args)) (more com stap)))
       =/  peek=(set ^path)
         (sy (rash (need (get-key:kv 'peek' args)) (more com stap)))
-      (edit-perm path ~ make poke peek)
+      !! :: (edit-perm path ~ make poke peek) TODO: fix
       ::
         [%grub %make %lib ~]
       =/  =path    (rash (need (get-key:kv 'path' args)) stap)
@@ -467,7 +467,7 @@
     ==
   ::
   ++  no-grub
-    |=  [=path perm=(unit perm:g)]
+    |=  [=path perm=(unit perm:nerf:g)]
     ^-  manx
     ;div.w-full.h-full.flex.flex-col(id (make-id path))
       ;div(class "flex justify-center p-1 border-b border-gray-300 bg-gray-50")
@@ -537,7 +537,7 @@
                   %-  trip
                   %+  rap  3
                   %+  join  ','
-                  (turn ?~(perm ~ ~(tap in make.u.perm)) spat)
+                  "a" :: (turn ?~(perm ~ ~(tap in make.u.perm)) spat) TODO: fix
                 ==
               ==
               ;div
@@ -556,7 +556,7 @@
                   %-  trip
                   %+  rap  3
                   %+  join  ','
-                  (turn ?~(perm ~ ~(tap in poke.u.perm)) spat)
+                  "a" :: (turn ?~(perm ~ ~(tap in poke.u.perm)) spat) TODO: fix
                 ==
               ==
               ;div
@@ -575,7 +575,7 @@
                   %-  trip
                   %+  rap  3
                   %+  join  ','
-                  (turn ?~(perm ~ ~(tap in peek.u.perm)) spat)
+                  "a" :: (turn ?~(perm ~ ~(tap in peek.u.perm)) spat) TODO: fix
                 ==
               ==
               ;div(class "flex items-center justify-center mt-6")
@@ -687,8 +687,8 @@
     |=  =path
     =/  m  (charm ,manx)
     ^-  form:m
-    ;<  grub=(unit grub:g)  bind:m  (peek-root-soft path)
-    ;<  perm=(unit perm:g)  bind:m  (get-perm path)
+    ;<  grub=(unit grub:g)       bind:m  (peek-root-soft path)
+    ;<  perm=(unit perm:nerf:g)  bind:m  (get-perm path)
     ?~  grub
       (pure:m (no-grub path perm))
     %-  pure:m
@@ -855,7 +855,7 @@
                     %-  trip
                     %+  rap  3
                     %+  join  ','
-                    (turn ?~(perm ~ ~(tap in make.u.perm)) spat)
+                    "a" :: (turn ?~(perm ~ ~(tap in make.u.perm)) spat) TODO: fix
                   ==
                 ==
                 ;div
@@ -874,7 +874,7 @@
                     %-  trip
                     %+  rap  3
                     %+  join  ','
-                    (turn ?~(perm ~ ~(tap in poke.u.perm)) spat)
+                    "a" :: (turn ?~(perm ~ ~(tap in poke.u.perm)) spat) TODO: fix
                   ==
                 ==
                 ;div
@@ -893,7 +893,7 @@
                     %-  trip
                     %+  rap  3
                     %+  join  ','
-                    (turn ?~(perm ~ ~(tap in peek.u.perm)) spat)
+                    "a" :: (turn ?~(perm ~ ~(tap in peek.u.perm)) spat) TODO: fix
                   ==
                 ==
                 ;div(class "flex items-center justify-center mt-6")
@@ -1205,8 +1205,8 @@
     ?~  lib
       (pure:m (no-lib here))
     =+  !<([code=@t *] (grab-data u.lib))
-    ;<  grub=(unit grub:g)  bind:m  (peek-root-soft %bin here)
-    ;<  perm=(unit perm:g)  bind:m  (get-perm %lib here)
+    ;<  grub=(unit grub:g)       bind:m  (peek-root-soft %bin here)
+    ;<  perm=(unit perm:nerf:g)  bind:m  (get-perm %lib here)
     ~&  >>  ["perm in +grub-tree-lib:" perm]
     (pure:m (lib-page here code grub perm))
   ::
@@ -1242,7 +1242,7 @@
     ==
   ::
   ++  lib-page
-    |=  [=path code=@t grub=(unit grub:g) perm=(unit perm:g)]
+    |=  [=path code=@t grub=(unit grub:g) perm=(unit perm:nerf:g)]
     ^-  manx
     ~&  >>  ["perm in +lib-page:" perm]
     =/  data=(each vase tang)
@@ -1348,7 +1348,7 @@
                   %-  trip
                   %+  rap  3
                   %+  join  ','
-                  (turn ?~(perm ~ ~(tap in make.u.perm)) spat)
+                  "a" :: (turn ?~(perm ~ ~(tap in make.u.perm)) spat) TODO: fix
                 ==
               ==
               ;div
@@ -1367,7 +1367,7 @@
                   %-  trip
                   %+  rap  3
                   %+  join  ','
-                  (turn ?~(perm ~ ~(tap in poke.u.perm)) spat)
+                  "a" :: (turn ?~(perm ~ ~(tap in poke.u.perm)) spat) TODO: fix
                 ==
               ==
               ;div
@@ -1386,7 +1386,7 @@
                   %-  trip
                   %+  rap  3
                   %+  join  ','
-                  (turn ?~(perm ~ ~(tap in peek.u.perm)) spat)
+                  "a" :: (turn ?~(perm ~ ~(tap in peek.u.perm)) spat) TODO: fix
                 ==
               ==
               ;div(class "flex items-center justify-center mt-6")

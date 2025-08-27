@@ -10,12 +10,22 @@
 +$  deed  ?(%make %oust %cull %sand %poke %bump %kill %peek)
 ::
 +$  perm
-  $:  make=(set path) :: %make or %oust (%sand ?)
+  $:  make=(set path) :: %make, %oust or %sand
       poke=(set path) :: %poke, %bump or %kill
       peek=(set path)
   ==
 ::
 +$  sand  (axal perm)
+::
+++  nerf
+  |%
+  +$  perm
+    $:  make=(set road) :: %make, %oust or %sand
+        poke=(set road) :: %poke, %bump or %kill
+        peek=(set road)
+    ==
+  +$  sand  (axal perm)
+  --
 ::
 +$  scry  [=mold =path] :: normal non-grubbery scry request
 :: effects that a base grub can emit
@@ -32,7 +42,7 @@
   $%  [%make =make]
       [%oust ~]
       [%cull ~]
-      [%sand perm=(unit perm)]
+      [%sand perm=(unit perm:nerf)]
       [%poke =pail]
       [%bump pid=@ta =pail]
       [%kill pid=(unit @ta)]
@@ -61,8 +71,6 @@
       next=(qeu take:base) :: queue of held inputs
       skip=(qeu take:base) :: queue of skipped inputs
   ==
-::
-+$  cone  (axal grub)
 :: versioning and "signals"-style acyclic dependencies
 ::
 +$  tack
@@ -73,8 +81,6 @@
       sour=(map path @da)
   ==
 ::
-+$  trac  (axal tack)
-::
 +$  pipe
   $:  last=@da
       boar=(unit @ta)          :: who is hogging the pipes
@@ -82,6 +88,8 @@
       proc=(map @ta proc)
   ==
 ::
++$  cone  (axal grub)
++$  trac  (axal tack)
 +$  pool  (axal pipe)
 ::
 +$  give  [=from =wire]
@@ -125,7 +133,7 @@
   +$  intake
     $%  [%bump =pail] :: command for a running process
         [%perk =wire =pail] :: gift / subscription
-        [%peek =wire =path =cone =sand] :: local read; TODO: sandboxed sand
+        [%peek =wire =path =cone =sand:nerf] :: local read
         [%made =wire err=(unit tang)] :: response to make
         [%gone =wire err=(unit tang)] :: response to oust
         [%cull =wire err=(unit tang)] :: response to cull

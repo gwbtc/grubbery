@@ -333,7 +333,7 @@
 ::
 ++  take-peek
   |=  =wire
-  =/  m  (charm ,[cone sand])
+  =/  m  (charm ,[cone sand:nerf])
   ^-  form:m
   |=  input
   :-  ~
@@ -391,11 +391,11 @@
 ::
 ++  get-perm
   |=  =path
-  =/  m  (charm ,(unit perm))
+  =/  m  (charm ,(unit perm:nerf))
   ^-  form:m
   =/  =dart  [%grub /get-perm &+path %peek ~]
   ;<  ~  bind:m  (send-raw-dart dart)
-  ;<  [* =sand]  bind:m  (take-peek /get-perm)
+  ;<  [* =sand:nerf]  bind:m  (take-peek /get-perm)
   (pure:m (~(get of sand) /))
 ::
 ++  peek
@@ -576,7 +576,7 @@
   ==
 ::
 ++  edit-perm
-  |=  [=path perm=(unit perm)]
+  |=  [=path perm=(unit perm:nerf)]
   =/  m  (charm ,~)
   ^-  form:m
   =/  =dart  [%grub /edit-perm &+path %sand perm]

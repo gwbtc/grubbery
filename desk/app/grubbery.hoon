@@ -3,6 +3,7 @@
 /=  x-  /mar/grub/sign-base :: x- means import for compilation in development
 /=  x-  /mar/grub/action
 /=  x-  /mar/grub/perk
+/=  x-  /mar/grub/event
 ::
 |%
 +$  card     card:agent:gall
@@ -159,7 +160,7 @@
         %sand
       ?>  =(src our):bowl
       =^  cards  state
-        abet:(edit-perm:hc give [here perm]:axn)
+        abet:(edit-perm:hc give [here &+perm]:axn)
       [cards this]
       ::
         %poke
@@ -205,6 +206,10 @@
     ::
       [%poke @ *]
     ?>  =(src.bowl (slav %p i.t.path))
+    [~ this]
+    ::
+      [%history ~]
+    ?>  =(src our):bowl
     [~ this]
     ::
       [%http-response *]
@@ -476,7 +481,7 @@
       (cull-cone [from wire.dart] path)
       ::
         %sand
-      (edit-perm [from wire.dart] path perm.load.dart)
+      (edit-perm [from wire.dart] path |+perm.load.dart)
       ::
         %kill
       (kill-base [from wire.dart] path pid.load.dart)
@@ -526,7 +531,11 @@
   $(next +(next))
 :: NOTE: tacks persist as long as they have either
 ::       a corresponding grub or non-empty sinx
-:: TODO: expose subscription path for history changes
+::
+++  emit-event
+  |=  [when=@da =path]
+  ^+  this
+  (emit-card %give %fact ~[/history] %grub-event !>([when path]))
 ::
 ++  next-tack
   |=  here=path
@@ -535,6 +544,7 @@
     =/  =grub:g  (need (~(get of cone) here))
     =/  step=@da  (new-last [now now]:bowl)
     =.  history  (put:hon:g history step here)
+    =.  this  (emit-event step here)
     this(trac (~(put of trac) here -.grub step ~ | ~))
   =^  del  history
     (del:hon:g history last.u.tac)
@@ -542,6 +552,7 @@
     this(trac (~(del of trac) here)) :: may occur in an oust
   =/  step=@da  (new-last now.bowl last.u.tac)
   =.  history  (put:hon:g history step here)
+  =.  this  (emit-event step here)
   this(trac (~(put of trac) here u.tac(last step)))
 ::
 ++  no-cycle
@@ -660,16 +671,14 @@
   |=  [here=path =vine:stem:g]
   ^-  deps:stem:g
   %-  ~(gas of *deps:stem:g)
-  %+  murn  ~(tap of vine)
+  %+  turn  ~(tap of vine)
   |=  [name=path =road:g]
-  ^-  (unit [path (each vase tang)])
-  :: TODO: need to sandbox
-  ?~  dep=(path-from-road:grubbery here road)
-    ~
-  :-  ~
+  ^-  [path (each vase tang)]
   :-  name
+  ?~  dep=(path-from-road:grubbery here road)
+    |+[leaf+"beyond peek sandbox: {(render-road:grubbery road)}" ~]
   ?~  grub=(~(get of cone) u.dep)
-    |+[leaf+"no grub {(spud here)}" ~]
+    |+[leaf+"no grub: {(spud here)}" ~]
   (grab-data-soft:io u.grub)
 ::
 ++  make-sour
@@ -793,9 +802,14 @@
   this(sand (~(put of sand) here u.perm))
 ::
 ++  edit-perm
-  |=  [=give:g here=path perm=(unit perm:g)]
+  |=  [=give:g here=path perm=(each (unit perm:g) (unit perm:nerf:g))]
   ^+  this
-  =/  res=(each _this tang)  (mule |.((put-sand here perm)))
+  =/  p=(unit perm:g)
+    ?-  -.perm
+      %&  p.perm
+      %|  ?~(p.perm ~ `(perm-from-nerf-perm:grubbery here u.p.perm))
+    ==
+  =/  res=(each _this tang)  (mule |.((put-sand here p)))
   =/  err=(unit tang)  ?-(-.res %& ~, %| `p.res)
   =?  this  ?=(%& -.res)  p.res
   ?:  ?=(%| -.from.give)
@@ -864,10 +878,14 @@
   (gibs-take (get-here-pid from.give) ~ %made wire.give err)
 ::
 ++  take-peek
-  |=  [here=path pid=@ta =wire pat=path]
+  |=  [here=path pid=@ta =wire =path]
   ^+  this
   :: TODO: clam when peeking into a sandboxed cone?
-  (gibs-take [here pid] ~ %peek wire pat (~(dip of cone) pat) (~(dip of sand) pat))
+  ::       i.e. if they don't have make perms on you, you don't trust
+  ::       what they make
+  =/  perm=(unit perm:g)  (~(get of sand) here)
+  =/  =sand:nerf:g  (mask-sand:grubbery here perm (~(dip of sand) path))
+  (gibs-take [here pid] ~ %peek wire path (~(dip of cone) path) sand)
 ::
 ++  take-scry
   |=  [here=path pid=@ta =wire scry=(unit scry:g)]
