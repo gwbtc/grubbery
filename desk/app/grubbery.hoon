@@ -451,7 +451,6 @@
   ?:  =(0 steps)
     ?:(=(/ q.bend) next filt) :: check for self, not for kids
   ?:  ?=([~ %|] next)  next
-  ?:  =(/ here)  next
   %=  $
     filt   next
     here   (snip here)
@@ -720,7 +719,7 @@
 ++  recompute-stem
   |=  [here=path =grub:g]
   ^+  this
-  ~&  >>  "recompute stem"
+  ~&  >>  "recompute stem {(spud here)}"
   ?>  ?=(%stem -.grub)
   =/  =tack:g  (need (~(get of trac) here))
   =/  new-sour=(map path @da)  (make-sour ~(key by sour.tack))
@@ -738,6 +737,10 @@
     ~&  >>>  "{(spud here)} crashed on recompute"
     =/  =tang  [leaf+"stem boom" leaf+(spud here) p.res]
     =?  this  !=(data.grub |+tang)  (next-tack here)
+    :: TODO: need less error prone pattern for this kind of change
+    ::       we want to avoid *refetching* data we already have
+    ::
+    =/  =tack:g  (need (~(get of trac) here)) :: tack changed on +next-tack
     %-  (slog tang)
     %=  this
       cone  (~(put of cone) here grub(data |+tang))
@@ -747,6 +750,10 @@
       %&
     ~&  >  "{(spud here)} successfully recomputed"
     =?  this  !=(data.grub &+p.res)  (next-tack here)
+    :: TODO: need less error prone pattern for this kind of change
+    ::       we want to avoid *refetching* data we already have
+    ::
+    =/  =tack:g  (need (~(get of trac) here)) :: tack changed on +next-tack
     %=  this
       cone  (~(put of cone) here grub(data &+p.res))
       trac  (~(put of trac) here tack(tidy %&, sour new-sour))
@@ -1110,6 +1117,7 @@
   =/  build=(each proc:base:g tang)
     (mule |.((get-base-code base.u.grub)))
   ?:  ?=(%| -.build)
+    ~&  >>>  "build-error {(spud here)}"
     =/  =sign:base:g  [%pack %| leaf+"build-error" p.build]
     ?:  ?=(%| -.from.give.poke)
       (give-external-sign give.poke sign)
@@ -1120,6 +1128,7 @@
     (start-process [here pid] p.build poke)
   =/  stud-res  (mule |.((get-stud p.u.pail.poke)))
   ?:  ?=(%| -.stud-res)
+    ~&  >>>  "poke-stud-fail at {(spud here)} for stud {(spud p.u.pail.poke)}"
     =/  =sign:base:g  [%pack %| leaf+"poke-stud-fail" p.stud-res]
     ?:  ?=(%| -.from.give.poke)
       (give-external-sign give.poke sign)
@@ -1127,11 +1136,15 @@
     (gibs-take here-pid ~ %base wire.give.poke sign)
   =/  clam-res  (mule |.((slam p.stud-res q.u.pail.poke)))
   ?:  ?=(%| -.clam-res)
+    ~&  >>>  "poke-clam-fail {(spud here)}"
     =/  =sign:base:g  [%pack %| leaf+"poke-clam-fail" p.clam-res]
     ?:  ?=(%| -.from.give.poke)
+      ~&  >>  "giving external pack sign {(spud here)}"
       (give-external-sign give.poke sign)
+    ~&  >>  "giving internal pack sign {(spud here)}"
     =/  here-pid=[path @ta]  (get-here-pid from.give.poke)
     (gibs-take here-pid ~ %base wire.give.poke sign)
+  ~&  >>  "starting process {(spud here)}"
   (start-process [here pid] p.build poke(q.u.pail p.clam-res))
 :: ack for perk or bump
 ::

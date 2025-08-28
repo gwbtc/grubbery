@@ -382,6 +382,8 @@
     ::
     ~&  >>>  %counter-test
     ;<  ~  bind:m  (overwrite-lib /add/two add-two:x)
+    ;<  ~  bind:m  (overwrite-stud-lib /counter/inc ',~')
+    ;<  ~  bind:m  (overwrite-stud-lib /counter/two ',~')
     ;<  ~  bind:m  (overwrite-base-lib /counter counter:x)
     ;<  ~  bind:m  (overwrite-base-lib /counter-container counter-container:x)
     ;<  ~  bind:m  (overwrite-stem-lib /is-even is-even:x)

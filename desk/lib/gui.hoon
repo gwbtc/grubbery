@@ -295,14 +295,14 @@
         =hx-ext  "sse"
         =sse-connect  "/grub/events"
         =sse-close  "close"
-        :: ;div
-        ::   ;div
-        ::     ;div
-        ::       =sse-swap  "message"
-        ::       Waiting for message...
-        ::     ==
-        ::   ==
-        :: ==
+        ;div
+          ;div
+            ;div
+              =sse-swap  "message"
+              Waiting for message...
+            ==
+          ==
+        ==
         :: ;form
         ::   =action  "/grub/upload"
         ::   =method  "POST"

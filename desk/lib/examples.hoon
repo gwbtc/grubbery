@@ -70,11 +70,11 @@
   ^-  form:m
   ;<  [=stud:g =vase]  bind:m  get-poke-pail
   ?+    stud  !!
-      [%inc ~]
+      [%counter %inc ~]
     ;<  a=@ud  bind:m  (get-state-as @ud)
     (pour !>(+(a)))
     ::
-      [%two ~]
+      [%counter %two ~]
     ;<  a=@ud  bind:m  (get-state-as @ud)
     (pour !>((two:t a)))
   ==
@@ -101,7 +101,9 @@
   |=  =deps:stem:g
   ^-  vase
   =/  deps-list  ~(tap in ~(key by ~(tar of deps)))
+  ~&  deps-list+deps-list
   ?>  ?=(^ deps-list)
+  ~&  parity-vase+!<(? (nead (need (~(get of deps) i.deps-list))))
   ?:  !<(? (nead (need (~(get of deps) i.deps-list))))
     !>('true')
   !>('false')
