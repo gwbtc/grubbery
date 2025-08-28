@@ -22,7 +22,19 @@
   ^-  form:m
   ;<  [=stud:g =vase]  bind:m  get-poke-pail
   ?>  ?=([%sig ~] stud)
-  (pour !>(!<(perm vase)))
+  (pour !>(!<(perm:g vase)))
+  """
+::
+++  file
+  %-  crip
+  """
+  :-  /noun
+  =,  grubberyio
+  ^-  base:g
+  =/  m  (charm:base:g ,~)
+  ^-  form:m
+  ;<  [=stud:g =vase]  bind:m  get-poke-pail
+  (pour vase)
   """
 ::
 ++  counter-container
@@ -39,12 +51,11 @@
     =/  counter=path  (weld here /counter)
     =/  is-even=path  (weld here /is-even)
     =/  parity=path   (weld here /parity)
-    ;<  ~  bind:m
-      (overwrite-base counter /counter `!>(10))
-    ;<  ~  bind:m
-      (overwrite-stem is-even /is-even (sy ~[counter]))
-    ;<  ~  bind:m
-      (overwrite-stem parity /parity (sy ~[is-even]))
+    ;<  ~  bind:m  (overwrite-base counter /counter `!>(10))
+    =/  ie-vine=vine:stem:g  (~(put of *vine:stem:g) /counter &+counter)
+    ;<  ~  bind:m  (overwrite-stem is-even /is-even ie-vine)
+    =/  pa-vine=vine:stem:g  (~(put of *vine:stem:g) /is-even &+is-even)
+    ;<  ~  bind:m  (overwrite-stem parity /parity pa-vine)
     done
   ==
   """

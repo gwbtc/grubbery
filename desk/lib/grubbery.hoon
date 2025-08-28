@@ -1,5 +1,5 @@
 /-  g=grubbery
-/+  grubberyio, gui, *examples, wc=web-components
+/+  grubberyio, gui, x=examples, wc=web-components
 |%
 :: evaluation engine for the main state and continuation monad
 ::
@@ -221,9 +221,27 @@
 ::  /grp/who (set ship)
 ::  /grp/how perm
 ::  /grp/pub perm
+++  usergroup
+  :-  /group
+  =,  grubberyio
+  ^-  base:g
+  =/  m  (charm:base:g ,~)
+  ^-  form:m
+  ;<  [=stud:g =vase]  bind:m  get-poke-pail
+  ?>  ?=([%sig ~] stud)
+  (pour !>(!<((set @p) vase)))
+::
+++  group-perm
+  :-  /perm
+  =,  grubberyio
+  ^-  base:g
+  =/  m  (charm:base:g ,~)
+  ^-  form:m
+  ;<  [=stud:g =vase]  bind:m  get-poke-pail
+  ?>  ?=([%sig ~] stud)
+  (pour !>(!<(perm:g vase)))
+::
 ++  file
-  %-  crip
-  """
   :-  /noun
   =,  grubberyio
   ^-  base:g
@@ -231,7 +249,27 @@
   ^-  form:m
   ;<  [=stud:g =vase]  bind:m  get-poke-pail
   (pour vase)
-  """
+:: counter example
+::
+++  counter-container
+  :-  /sig
+  =,  grubberyio
+  =/  m  (charm:base:g ,~)
+  ^-  form:m
+  ;<  [=stud:g =vase]  bind:m  get-poke-pail
+  ;<  here=path        bind:m  get-here
+  ?+    stud  !!
+      [%sig ~]
+    =/  counter=path  (weld here /counter)
+    =/  is-even=path  (weld here /is-even)
+    =/  parity=path   (weld here /parity)
+    ;<  ~  bind:m  (overwrite-base counter /counter `!>(10))
+    =/  ie-vine=vine:stem:g  (~(put of *vine:stem:g) /counter &+counter)
+    ;<  ~  bind:m  (overwrite-stem is-even /is-even ie-vine)
+    =/  pa-vine=vine:stem:g  (~(put of *vine:stem:g) /is-even &+is-even)
+    ;<  ~  bind:m  (overwrite-stem parity /parity pa-vine)
+    done
+  ==
 ::
 ++  bin
   |%
@@ -313,7 +351,7 @@
     ~&  >>>  %got-here-1
     ;<  ~  bind:m  (overwrite-base /bin/grubbery /bin `!>(grubbery-lib))
     ~&  >>>  %got-here-2
-    ;<  ~  bind:m  (overwrite-lib /add/two add-two)
+    ;<  ~  bind:m  (overwrite-lib /add/two add-two:x)
     ~&  >>>  %got-here-3
     ;<  ~  bind:m  (overwrite-stud-lib /noun 'noun')
     ;<  ~  bind:m  (overwrite-stud-lib /ud '@ud')
@@ -329,27 +367,27 @@
     :: "file"
     ::
     ~&  >>>  %file
-    ;<  ~  bind:m  (overwrite-base-lib /file file)
+    ;<  ~  bind:m  (overwrite-base-lib /file file:x)
     :: user groups
     ::
-    :: ~&  >>>  %user-groups
-    :: ;<  ~  bind:m  (overwrite-stud-lib /group '(set @p)')
-    :: ;<  ~  bind:m  (overwrite-stud-lib /perm 'perm:g')
-    :: ;<  ~  bind:m  (overwrite-base-lib /usergroup usergroup)
-    :: ;<  ~  bind:m  (overwrite-base-lib /group-perm group-perm)
-    :: ;<  ~  bind:m  (overwrite-base /grp/who/~zod /usergroup `!>((sy ~[~zod])))
-    :: ;<  ~  bind:m  (overwrite-base /grp/how/~zod /group-perm `!>(*perm:g))
-    :: ;<  ~  bind:m  (overwrite-base /grp/pub /group-perm `!>(*perm:g))
+    ~&  >>>  %user-groups
+    ;<  ~  bind:m  (overwrite-stud-lib /group '(set @p)')
+    ;<  ~  bind:m  (overwrite-stud-lib /perm 'perm:g')
+    ;<  ~  bind:m  (overwrite-base-lib /usergroup usergroup:x)
+    ;<  ~  bind:m  (overwrite-base-lib /group-perm group-perm:x)
+    ;<  ~  bind:m  (overwrite-base /grp/who/~zod /usergroup `!>((sy ~[~zod])))
+    ;<  ~  bind:m  (overwrite-base /grp/how/~zod /group-perm `!>(*perm:g))
+    ;<  ~  bind:m  (overwrite-base /grp/pub /group-perm `!>(*perm:g))
     :: counter test
     ::
     ~&  >>>  %counter-test
-    ;<  ~  bind:m  (overwrite-lib /add/two add-two)
-    :: ;<  ~  bind:m  (overwrite-base-lib /counter counter)
-    :: ;<  ~  bind:m  (overwrite-base-lib /counter-container counter-container)
-    :: ;<  ~  bind:m  (overwrite-stem-lib /is-even is-even)
-    :: ;<  ~  bind:m  (overwrite-stem-lib /parity parity)
-    :: ;<  *  bind:m
-    ::   (overwrite-and-poke /counter-container /counter-container ~ /sig !>(~))
+    ;<  ~  bind:m  (overwrite-lib /add/two add-two:x)
+    ;<  ~  bind:m  (overwrite-base-lib /counter counter:x)
+    ;<  ~  bind:m  (overwrite-base-lib /counter-container counter-container:x)
+    ;<  ~  bind:m  (overwrite-stem-lib /is-even is-even:x)
+    ;<  ~  bind:m  (overwrite-stem-lib /parity parity:x)
+    ;<  *  bind:m
+      (overwrite-and-poke /counter-container /counter-container ~ /sig !>(~))
     :: gui setup
     ::
     ~&  >>>  %gui-setup
