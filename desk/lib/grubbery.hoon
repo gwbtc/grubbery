@@ -218,9 +218,9 @@
     [~ %|]
   [~ %&]
 ::  user groups:
-::  /grp/who (set ship)
-::  /grp/how perm
-::  /grp/pub perm
+::  /grp/who/group-name  (set ship)  (i.e. who is in what usergroup?)
+::  /grp/how/group-name  perm        (i.e. what can which usergroup do?)
+::  /grp/pub             perm        (i.e. what can the public do?)
 ++  usergroup
   :-  /group
   =,  grubberyio
