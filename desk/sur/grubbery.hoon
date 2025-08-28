@@ -70,10 +70,6 @@
 +$  bend  (pair @ud path)   :: relative path
 +$  road  (each path bend)  :: absolute or relative path
 +$  prov  [src=@p sap=path] :: external provenance
-:: [%| ~zod /gall/...]                    - from outside grubbery
-:: [%& ~ %& /some/absolute/path]          - absolute path from inside grubbery
-:: [%& ~ %| &+2 /relative/path/to/source] - relative path in peek sandbox
-:: [%& ~]                                 - out of peek sandbox
 ::
 +$  from  (each path prov)
 +$  take  [[here=path pid=@ta] take:base]
@@ -125,6 +121,10 @@
 ++  base
   =<  proc
   |%
+  :: [%| ~zod /gall/...]                - from outside grubbery
+  :: [%& %& /some/absolute/path]        - absolute path from inside grubbery
+  :: [%& %| 2 /relative/path/to/source] - relative path from inside grubbery
+  ::
   +$  from  (each bend prov)
   ::
   +$  sign
