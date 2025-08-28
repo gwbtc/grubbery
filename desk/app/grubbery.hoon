@@ -54,6 +54,13 @@
       [%x %history since=@ta ~]
     =/  since=@da  (slav %da since.pole)
     ``noun+!>((tap:hon:g (lot:hon:g history ~ `since)))
+    ::
+      [%c t=*]
+    =/  here=path  (snip t.pole)
+    =/  ship=@p  (slav %p (rear t.pole))
+    :: TODO: implement security context logic (Remote Scry)
+    ::
+    ``[%noun !>(=(ship our.bowl))]
   ==
 ::
 ++  on-poke
@@ -277,6 +284,18 @@
     [(flop cards) state]
   =^  =take:g  takes  ~(get to takes)
   $(this (process-take take))
+:: TODO: Remote Scry functionality
+::
+++  emit-tend
+  |=  [here=path =pail:g]
+  ^+  this
+  :: Presumably germs are selected for processing before tends
+  :: regardless of order?
+  ::
+  %-  emit-cards
+  :~  [%pass / %germ here] :: is there any reason not to do this every time?
+      [%pass / %tend here here %noun p.pail q.q.pail]
+  ==
 ::
 ++  make-from
   |=  [here=path pid=@ta]
