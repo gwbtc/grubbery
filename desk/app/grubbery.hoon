@@ -160,7 +160,7 @@
         %sand
       ?>  =(src our):bowl
       =^  cards  state
-        abet:(edit-perm:hc give [here perm]:axn)
+        abet:(edit-weir:hc give [here weir]:axn)
       [cards this]
       ::
         %poke
@@ -513,7 +513,7 @@
       (cull-cone [from wire.dart] path)
       ::
         %sand
-      (edit-perm [from wire.dart] path perm.load.dart)
+      (edit-weir [from wire.dart] path weir.load.dart)
       ::
         %kill
       (kill-base [from wire.dart] path pid.load.dart)
@@ -827,17 +827,17 @@
   (gibs-take (get-here-pid from.give) ~ %cull wire.give err)
 ::
 ++  put-sand
-  |=  [here=path perm=(unit perm:g)]
+  |=  [here=path weir=(unit weir:g)]
   ^+  this
   ?>  ?=(^ here) :: root should always have system access
-  ?~  perm
+  ?~  weir
     this(sand (~(del of sand) here))
-  this(sand (~(put of sand) here u.perm))
+  this(sand (~(put of sand) here u.weir))
 ::
-++  edit-perm
-  |=  [=give:g here=path perm=(unit perm:g)]
+++  edit-weir
+  |=  [=give:g here=path weir=(unit weir:g)]
   ^+  this
-  =/  res=(each _this tang)  (mule |.((put-sand here perm)))
+  =/  res=(each _this tang)  (mule |.((put-sand here weir)))
   =/  err=(unit tang)  ?-(-.res %& ~, %| `p.res)
   =?  this  ?=(%& -.res)  p.res
   ?:  ?=(%| -.from.give)

@@ -12,17 +12,17 @@
   (pour !>(!<((set @p) vase)))
   """
 ::
-++  group-perm
+++  group-weir
   %-  crip
   """
-  :-  /perm
+  :-  /weir
   =,  grubberyio
   ^-  base:g
   =/  m  (charm:base:g ,~)
   ^-  form:m
   ;<  [=stud:g =vase]  bind:m  get-poke-pail
   ?>  ?=([%sig ~] stud)
-  (pour !>(!<(perm:g vase)))
+  (pour !>(!<(weir:g vase)))
   """
 ::
 ++  file

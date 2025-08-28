@@ -193,18 +193,18 @@
   (raw-filter dest (murn filt (cury path-from-road here)))
 ::
 ++  filter
-  |=  [dest=path =jump:g here=path perm=(unit perm:g)]
+  |=  [dest=path =jump:g here=path weir=(unit weir:g)]
   ^-  filt:g
-  ?~  perm  ~
+  ?~  weir  ~
   ?:  ?=(%sysc jump)
     [~ %|] :: any filter stops syscalls
   ?:  ?=(?(%perk %give) jump)
     [~ %&] :: perks + "gives" pass through any filter
   :-  ~
   ?-  jump
-    %make  (filter-roads here dest ~(tap in make.u.perm))
-    %poke  (filter-roads here dest ~(tap in poke.u.perm))
-    %peek  (filter-roads here dest ~(tap in peek.u.perm))
+    %make  (filter-roads here dest ~(tap in make.u.weir))
+    %poke  (filter-roads here dest ~(tap in poke.u.weir))
+    %peek  (filter-roads here dest ~(tap in peek.u.weir))
   ==
 ::
 ++  next-filt
@@ -219,8 +219,8 @@
   [~ %&]
 ::  user groups:
 ::  /grp/who/group-name  (set ship)  (i.e. who is in what usergroup?)
-::  /grp/how/group-name  perm        (i.e. what can which usergroup do?)
-::  /grp/pub             perm        (i.e. what can the public do?)
+::  /grp/how/group-name  weir        (i.e. what can which usergroup do?)
+::  /grp/pub             weir        (i.e. what can the public do?)
 ++  usergroup
   :-  /group
   =,  grubberyio
@@ -231,15 +231,15 @@
   ?>  ?=([%sig ~] stud)
   (pour !>(!<((set @p) vase)))
 ::
-++  group-perm
-  :-  /perm
+++  group-weir
+  :-  /weir
   =,  grubberyio
   ^-  base:g
   =/  m  (charm:base:g ,~)
   ^-  form:m
   ;<  [=stud:g =vase]  bind:m  get-poke-pail
   ?>  ?=([%sig ~] stud)
-  (pour !>(!<(perm:g vase)))
+  (pour !>(!<(weir:g vase)))
 ::
 ++  file
   :-  /noun
@@ -372,12 +372,12 @@
     ::
     ~&  >>>  %user-groups
     ;<  ~  bind:m  (overwrite-stud-lib /group '(set @p)')
-    ;<  ~  bind:m  (overwrite-stud-lib /perm 'perm:g')
+    ;<  ~  bind:m  (overwrite-stud-lib /weir 'weir:g')
     ;<  ~  bind:m  (overwrite-base-lib /usergroup usergroup:x)
-    ;<  ~  bind:m  (overwrite-base-lib /group-perm group-perm:x)
+    ;<  ~  bind:m  (overwrite-base-lib /group-weir group-weir:x)
     ;<  ~  bind:m  (overwrite-base /grp/who/~zod /usergroup `!>((sy ~[~zod])))
-    ;<  ~  bind:m  (overwrite-base /grp/how/~zod /group-perm `!>(*perm:g))
-    ;<  ~  bind:m  (overwrite-base /grp/pub /group-perm `!>(*perm:g))
+    ;<  ~  bind:m  (overwrite-base /grp/how/~zod /group-weir `!>(*weir:g))
+    ;<  ~  bind:m  (overwrite-base /grp/pub /group-weir `!>(*weir:g))
     :: counter test
     ::
     ~&  >>>  %counter-test

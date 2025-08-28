@@ -22,13 +22,13 @@
       %perk :: checking if %perk updates are filtered
   ==
 ::
-+$  perm
++$  weir
   $:  make=(set road) :: %make, %oust, %cull or %sand
       poke=(set road) :: %poke, %bump or %kill
       peek=(set road)
   ==
 ::
-+$  sand  (axal perm)
++$  sand  (axal weir)
 ::
 +$  scry  [=mold =path] :: normal non-grubbery scry request
 ::
@@ -55,7 +55,7 @@
   $%  [%make =make]
       [%oust ~]
       [%cull ~]
-      [%sand perm=(unit perm)]
+      [%sand weir=(unit weir)]
       [%poke =pail]
       [%bump pid=@ta =pail]
       [%kill pid=(unit @ta)]
@@ -232,7 +232,7 @@
         $%  [%make make]
             [%oust ~]
             [%cull ~]
-            [%sand perm=(unit perm)]
+            [%sand weir=(unit weir)]
             [%poke =stud =noun]
             [%bump pid=@ta =stud =noun]
             [%kill pid=(unit @ta)]

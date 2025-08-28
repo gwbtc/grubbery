@@ -35,39 +35,39 @@
   ?.  (~(has in p.res) ship)  ~
   [~ path]
 ::
-++  merge-perms
-  =|  =perm:g
-  |=  perms=(list perm:g)
-  ^+  perm
-  ?~  perms
-    perm
+++  merge-weirs
+  =|  =weir:g
+  |=  weirs=(list weir:g)
+  ^+  weir
+  ?~  weirs
+    weir
   %=  $
-    perms      t.perms
-    make.perm  (~(uni in make.perm) make.i.perms)
-    poke.perm  (~(uni in poke.perm) poke.i.perms)
-    peek.perm  (~(uni in peek.perm) peek.i.perms)
+    weirs      t.weirs
+    make.weir  (~(uni in make.weir) make.i.weirs)
+    poke.weir  (~(uni in poke.weir) poke.i.weirs)
+    peek.weir  (~(uni in peek.weir) peek.i.weirs)
   ==
 ::
-++  get-ship-perm
+++  get-ship-weir
   |=  [=ship =cone:g]
-  ^-  perm:g
+  ^-  weir:g
   =/  groups=(set path)  (get-ship-groups ship cone)
-  =/  groups-perm=(list perm:g)
+  =/  groups-weir=(list weir:g)
     %+  murn  ~(tap of (~(dip of cone) /grp/how))
     |=  [=path =grub:g]
-    ^-  (unit perm:g)
+    ^-  (unit weir:g)
     ?.  (~(has in groups) path)  ~
     =/  data=(each vase tang)  (grab-data-soft grub)
     ?:  ?=(%| -.data)  ~
-    =/  res  (mule |.(!<(perm:g p.data)))
+    =/  res  (mule |.(!<(weir:g p.data)))
     ?:(?=(%| -.res) ~ [~ p.res])
-  =/  public-perm=perm:g
-    ?~  grub=(~(get of cone) /grp/pub)  *perm:g
+  =/  public-weir=weir:g
+    ?~  grub=(~(get of cone) /grp/pub)  *weir:g
     =/  data=(each vase tang)  (grab-data-soft u.grub)
-    ?:  ?=(%| -.data)  *perm:g
-    =/  res  (mule |.(!<(perm:g p.data)))
-    ?:(?=(%| -.res) *perm:g p.res)
-  (merge-perms public-perm groups-perm)
+    ?:  ?=(%| -.data)  *weir:g
+    =/  res  (mule |.(!<(weir:g p.data)))
+    ?:(?=(%| -.res) *weir:g p.res)
+  (merge-weirs public-weir groups-weir)
 ::
 ++  grab-data-soft
   |=  =grub:g
@@ -390,13 +390,13 @@
   %-  ~(gas of *(axal ~))
   (turn ~(tap of cone) |=([p=^path *] [p ~]))
 ::
-++  get-perm
+++  get-weir
   |=  =path
-  =/  m  (charm ,(unit perm:g))
+  =/  m  (charm ,(unit weir:g))
   ^-  form:m
-  =/  =dart:g  [%grub /get-perm &+path %peek ~]
+  =/  =dart:g  [%grub /get-weir &+path %peek ~]
   ;<  ~  bind:m  (send-raw-dart dart)
-  ;<  [* =sand:g]  bind:m  (take-peek /get-perm)
+  ;<  [* =sand:g]  bind:m  (take-peek /get-weir)
   (pure:m (~(get of sand) /))
 ::
 ++  peek
@@ -598,13 +598,13 @@
     [%fail %cull-fail u.err.u.in]
   ==
 ::
-++  edit-perm
-  |=  [=path perm=(unit perm:g)]
+++  edit-weir
+  |=  [=path weir=(unit weir:g)]
   =/  m  (charm ,~)
   ^-  form:m
-  =/  =dart:g  [%grub /edit-perm &+path %sand perm]
+  =/  =dart:g  [%grub /edit-weir &+path %sand weir]
   ;<  ~  bind:m  (send-raw-dart dart)
-  (take-sand /edit-perm)
+  (take-sand /edit-weir)
 ::
 ++  take-sand
   |=  =wire
@@ -683,7 +683,7 @@
   |=  [=path code=@t]
   =/  m  (charm ,~)
   ^-  form:m
-  ;<  ~  bind:m  (edit-perm [%lib path] ~)
+  ;<  ~  bind:m  (edit-weir [%lib path] ~)
   ;<  ~  bind:m  (oust-grub [%lib path])
   (make-lib path code)
 ::

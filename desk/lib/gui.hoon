@@ -229,7 +229,7 @@
       (cull-cone (rash (need (get-key:kv 'path' args)) stap))
       ::
         [%grub %sand %sysc ~]
-      !! :: (edit-perm (rash (need (get-key:kv 'path' args)) stap) ~) TODO: fix
+      !! :: (edit-weir (rash (need (get-key:kv 'path' args)) stap) ~) TODO: fix
       ::
         [%grub %sand %grub ~]
       =/  =path       (rash (need (get-key:kv 'path' args)) stap)
@@ -239,7 +239,7 @@
         (sy (rash (need (get-key:kv 'poke' args)) (more com stap)))
       =/  peek=(set ^path)
         (sy (rash (need (get-key:kv 'peek' args)) (more com stap)))
-      !! :: (edit-perm path ~ make poke peek) TODO: fix
+      !! :: (edit-weir path ~ make poke peek) TODO: fix
       ::
         [%grub %make %lib ~]
       =/  =path    (rash (need (get-key:kv 'path' args)) stap)
@@ -467,7 +467,7 @@
     ==
   ::
   ++  no-grub
-    |=  [=path perm=(unit perm:g)]
+    |=  [=path weir=(unit weir:g)]
     ^-  manx
     ;div.w-full.h-full.flex.flex-col(id (make-id path))
       ;div(class "flex justify-center p-1 border-b border-gray-300 bg-gray-50")
@@ -503,7 +503,7 @@
               ;input(type "hidden", name "get", value "/grub/tree{(spud path)}");
               ;input(type "hidden", name "path", value "{(spud path)}");
               ;div(class "flex items-center justify-center mt-6")
-                ;+  ?~  perm
+                ;+  ?~  weir
                     ;div(class "text-center text-3xl font-bold text-gray-800 p-4 bg-gray-200 rounded-lg shadow-lg")
                       ; Full System Access
                     ==
@@ -518,7 +518,7 @@
               =hx-indicator  "#loading-indicator"
               =hx-target  "#{(make-id path)}"
               =hx-swap  "outerHTML"
-              =hx-confirm  "Are you sure you want to edit the perms of {(spud path)}?"
+              =hx-confirm  "Are you sure you want to edit the weirs of {(spud path)}?"
               ;input(type "hidden", name "get", value "/grub/tree{(spud path)}");
               ;input(type "hidden", name "path", value "{(spud path)}");
               ;div
@@ -537,7 +537,7 @@
                   %-  trip
                   %+  rap  3
                   %+  join  ','
-                  "a" :: (turn ?~(perm ~ ~(tap in make.u.perm)) spat) TODO: fix
+                  "a" :: (turn ?~(weir ~ ~(tap in make.u.weir)) spat) TODO: fix
                 ==
               ==
               ;div
@@ -556,7 +556,7 @@
                   %-  trip
                   %+  rap  3
                   %+  join  ','
-                  "a" :: (turn ?~(perm ~ ~(tap in poke.u.perm)) spat) TODO: fix
+                  "a" :: (turn ?~(weir ~ ~(tap in poke.u.weir)) spat) TODO: fix
                 ==
               ==
               ;div
@@ -575,13 +575,13 @@
                   %-  trip
                   %+  rap  3
                   %+  join  ','
-                  "a" :: (turn ?~(perm ~ ~(tap in peek.u.perm)) spat) TODO: fix
+                  "a" :: (turn ?~(weir ~ ~(tap in peek.u.weir)) spat) TODO: fix
                 ==
               ==
               ;div(class "flex items-center justify-center mt-6")
                 ;button(type "submit", class "bg-blue-500 text-white font-bold py-2 px-6 rounded-lg hover:bg-blue-600 transition duration-300 ease-in-out")
                   ;+  ;/
-                  ?~  perm
+                  ?~  weir
                     "Give Perms"
                   "Edit Perms"
                 ==
@@ -688,9 +688,9 @@
     =/  m  (charm ,manx)
     ^-  form:m
     ;<  grub=(unit grub:g)       bind:m  (peek-root-soft path)
-    ;<  perm=(unit perm:g)  bind:m  (get-perm path)
+    ;<  weir=(unit weir:g)  bind:m  (get-weir path)
     ?~  grub
-      (pure:m (no-grub path perm))
+      (pure:m (no-grub path weir))
     %-  pure:m
     ^-  manx
     ;col-split(id (make-id path), class "w-full h-full mx-auto bg-white shadow-lg rounded-lg flex flex-col")
@@ -821,7 +821,7 @@
                 ;input(type "hidden", name "get", value "/grub/tree{(spud path)}");
                 ;input(type "hidden", name "path", value "{(spud path)}");
                 ;div(class "flex items-center justify-center mt-6")
-                  ;+  ?~  perm
+                  ;+  ?~  weir
                       ;div(class "text-center text-3xl font-bold text-gray-800 p-4 bg-gray-200 rounded-lg shadow-lg")
                         ; Full System Access
                       ==
@@ -836,7 +836,7 @@
                 =hx-indicator  "#loading-indicator"
                 =hx-target  "#{(make-id path)}"
                 =hx-swap  "outerHTML"
-                =hx-confirm  "Are you sure you want to edit the perms of {(spud path)}?"
+                =hx-confirm  "Are you sure you want to edit the weirs of {(spud path)}?"
                 ;input(type "hidden", name "get", value "/grub/tree{(spud path)}");
                 ;input(type "hidden", name "path", value "{(spud path)}");
                 ;div
@@ -855,7 +855,7 @@
                     %-  trip
                     %+  rap  3
                     %+  join  ','
-                    "a" :: (turn ?~(perm ~ ~(tap in make.u.perm)) spat) TODO: fix
+                    "a" :: (turn ?~(weir ~ ~(tap in make.u.weir)) spat) TODO: fix
                   ==
                 ==
                 ;div
@@ -874,7 +874,7 @@
                     %-  trip
                     %+  rap  3
                     %+  join  ','
-                    "a" :: (turn ?~(perm ~ ~(tap in poke.u.perm)) spat) TODO: fix
+                    "a" :: (turn ?~(weir ~ ~(tap in poke.u.weir)) spat) TODO: fix
                   ==
                 ==
                 ;div
@@ -893,13 +893,13 @@
                     %-  trip
                     %+  rap  3
                     %+  join  ','
-                    "a" :: (turn ?~(perm ~ ~(tap in peek.u.perm)) spat) TODO: fix
+                    "a" :: (turn ?~(weir ~ ~(tap in peek.u.weir)) spat) TODO: fix
                   ==
                 ==
                 ;div(class "flex items-center justify-center mt-6")
                   ;button(type "submit", class "bg-blue-500 text-white font-bold py-2 px-6 rounded-lg hover:bg-blue-600 transition duration-300 ease-in-out")
                     ;+  ;/
-                    ?~  perm
+                    ?~  weir
                       "Give Perms"
                     "Edit Perms"
                   ==
@@ -1206,9 +1206,9 @@
       (pure:m (no-lib here))
     =+  !<([code=@t *] (grab-data u.lib))
     ;<  grub=(unit grub:g)       bind:m  (peek-root-soft %bin here)
-    ;<  perm=(unit perm:g)  bind:m  (get-perm %lib here)
-    ~&  >>  ["perm in +grub-tree-lib:" perm]
-    (pure:m (lib-page here code grub perm))
+    ;<  weir=(unit weir:g)  bind:m  (get-weir %lib here)
+    ~&  >>  ["weir in +grub-tree-lib:" weir]
+    (pure:m (lib-page here code grub weir))
   ::
   ++  no-lib
     |=  =path
@@ -1242,9 +1242,9 @@
     ==
   ::
   ++  lib-page
-    |=  [=path code=@t grub=(unit grub:g) perm=(unit perm:g)]
+    |=  [=path code=@t grub=(unit grub:g) weir=(unit weir:g)]
     ^-  manx
-    ~&  >>  ["perm in +lib-page:" perm]
+    ~&  >>  ["weir in +lib-page:" weir]
     =/  data=(each vase tang)
       ?~  grub
         |+~[leaf+"no bin; bad dependency"]
@@ -1314,7 +1314,7 @@
               ;input(type "hidden", name "get", value "/grub/tree{(spud %lib path)}");
               ;input(type "hidden", name "path", value "{(spud %lib path)}");
               ;div(class "flex items-center justify-center mt-6")
-                ;+  ?~  perm
+                ;+  ?~  weir
                     ;div(class "text-center text-3xl font-bold text-gray-800 p-4 bg-gray-200 rounded-lg shadow-lg")
                       ; Full System Access
                     ==
@@ -1329,7 +1329,7 @@
               =hx-indicator  "#loading-indicator"
               =hx-target  "#{(make-id %lib path)}"
               =hx-swap  "outerHTML"
-              =hx-confirm  "Are you sure you want to edit the perms of {(spud %lib path)}?"
+              =hx-confirm  "Are you sure you want to edit the weirs of {(spud %lib path)}?"
               ;input(type "hidden", name "get", value "/grub/tree{(spud %lib path)}");
               ;input(type "hidden", name "path", value "{(spud %lib path)}");
               ;div
@@ -1348,7 +1348,7 @@
                   %-  trip
                   %+  rap  3
                   %+  join  ','
-                  "a" :: (turn ?~(perm ~ ~(tap in make.u.perm)) spat) TODO: fix
+                  "a" :: (turn ?~(weir ~ ~(tap in make.u.weir)) spat) TODO: fix
                 ==
               ==
               ;div
@@ -1367,7 +1367,7 @@
                   %-  trip
                   %+  rap  3
                   %+  join  ','
-                  "a" :: (turn ?~(perm ~ ~(tap in poke.u.perm)) spat) TODO: fix
+                  "a" :: (turn ?~(weir ~ ~(tap in poke.u.weir)) spat) TODO: fix
                 ==
               ==
               ;div
@@ -1386,13 +1386,13 @@
                   %-  trip
                   %+  rap  3
                   %+  join  ','
-                  "a" :: (turn ?~(perm ~ ~(tap in peek.u.perm)) spat) TODO: fix
+                  "a" :: (turn ?~(weir ~ ~(tap in peek.u.weir)) spat) TODO: fix
                 ==
               ==
               ;div(class "flex items-center justify-center mt-6")
                 ;button(type "submit", class "bg-blue-500 text-white font-bold py-2 px-6 rounded-lg hover:bg-blue-600 transition duration-300 ease-in-out")
                   ;+  ;/
-                  ?~  perm
+                  ?~  weir
                     "Give Perms"
                   "Edit Perms"
                 ==
