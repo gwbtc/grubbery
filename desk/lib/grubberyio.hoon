@@ -4,6 +4,7 @@
 |%
 ++  charm  charm:base:g
 +$  input  input:base:g
++$  bowl   bowl:base:g
 ++  carp
   |=  cord=@t
   ^-  @t
@@ -487,7 +488,7 @@
 ::
 ++  take-bowl
   |=  =wire
-  =/  m  (charm ,bowl:g)
+  =/  m  (charm ,bowl)
   ^-  form:m
   |=  input
   :-  ~
@@ -501,7 +502,7 @@
   ==
 ::
 ++  get-bowl
-  =/  m  (charm ,bowl:g)
+  =/  m  (charm ,bowl)
   ^-  form:m
   =/  =dart:g  [%bowl /bowl]
   ;<  ~  bind:m  (send-raw-dart dart)
@@ -801,19 +802,19 @@
 ++  get-time
   =/  m  (charm ,@da)
   ^-  form:m
-  ;<  =bowl:g  bind:m  get-bowl
+  ;<  =bowl  bind:m  get-bowl
   (pure:m now.bowl)
 ::
 ++  get-our
   =/  m  (charm ,ship)
   ^-  form:m
-  ;<  =bowl:g  bind:m  get-bowl
+  ;<  =bowl  bind:m  get-bowl
   (pure:m our.bowl)
 ::
 ++  get-entropy
   =/  m  (charm ,@uvJ)
   ^-  form:m
-  ;<  =bowl:g  bind:m  get-bowl
+  ;<  =bowl  bind:m  get-bowl
   (pure:m eny.bowl)
 ::
 ++  get-from
@@ -825,7 +826,7 @@
 ++  get-here
   =/  m  (charm ,path)
   ^-  form:m
-  ;<  =bowl:g  bind:m  get-bowl
+  ;<  =bowl  bind:m  get-bowl
   (pure:m here.bowl)
 ::
 ++  get-state

@@ -285,6 +285,10 @@
   =^  =take:g  takes  ~(get to takes)
   $(this (process-take take))
 :: TODO: Remote Scry functionality
+:: NOTE: Because $coops are associated with ALL versions of a path
+::       and we may want to restrict access to historical versions
+::       WITHOUT DELETING THEM we may have to roll our own versioning
+::       system and simply stick our own version at the head of the here path
 ::
 ++  emit-tend
   |=  [here=path =pail:g]
@@ -948,7 +952,7 @@
 ::
 ++  make-bowl
   |=  [here=path pid=@ta]
-  ^-  bowl:g
+  ^-  bowl:base:g
   =.  wex.bowl
     %-  ~(gas by *boat:gall)
     %+  murn  ~(tap by wex.bowl)
