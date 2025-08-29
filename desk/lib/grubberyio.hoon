@@ -137,11 +137,10 @@
   ==
 ::
 ++  send-raw-darts
-  |=  darts=(list =dart:g)
+  |=  darts=(list dart:g)
   =/  m  (charm ,~)
   ^-  form:m
   |=  input
-  ~&  >  %sending-raw-darts
   [darts state temp %done ~]
 ::
 ++  send-raw-dart
@@ -149,6 +148,19 @@
   =/  m  (charm ,~)
   ^-  form:m
   (send-raw-darts dart ~)
+::
+++  send-raw-cards
+  |=  cards=(list card:agent:gall)
+  =/  m  (charm ,~)
+  ^-  form:m
+  |=  input
+  [(turn cards (lead %sysc)) state temp %done ~]
+::
+++  send-raw-card
+  |=  =card:agent:gall
+  =/  m  (charm ,~)
+  ^-  form:m
+  (send-raw-cards card ~)
 ::
 ++  take-watch
   =/  m  (charm ,path)
@@ -415,7 +427,7 @@
   ^-  form:m
   ;<  =cone:g  bind:m  (peek path)
   ?~  grub=(~(get of cone) /)
-    (charm-fail %no-root-grub leaf+(spud path) ~)
+    (charm-fail leaf+"no-root-grub" leaf+(spud path) ~)
   (pure:m u.grub)
 ::
 ++  peek-root-soft
@@ -430,7 +442,7 @@
   =/  m  (charm ,a)
   ^-  form:m
   ;<  =grub:g  bind:m  (peek-root path)
-  (pure:m !<(a (grab-data grub)))
+  (pure:m ;;(a q:(grab-data grub)))
 ::
 ++  peek-root-as-soft
   |*  [a=mold =path]
@@ -482,7 +494,7 @@
   |*  [=mold =path]
   =/  m  (charm ,mold)
   ^-  form:m
-  =/  =dart:g  [%scry ~ /scry mold path]
+  =/  =dart:g  [%scry /scry ~ mold path]
   ;<  ~  bind:m  (send-raw-dart dart)
   (take-scry mold /scry)
 ::
@@ -687,6 +699,26 @@
   ;<  ~  bind:m  (edit-weir [%lib path] ~)
   ;<  ~  bind:m  (oust-grub [%lib path])
   (make-lib path code)
+::
+++  overwrite-libs
+  |=  libs=(list [path @t])
+  =/  m  (charm ,~)
+  ^-  form:m
+  ?~  libs  done
+  ;<  ~  bind:m  (overwrite-lib i.libs)
+  $(libs t.libs)
+::
+++  sync-lib-cone
+  =/  m  (charm ,~)
+  ^-  form:m
+  ;<  =bowl:base:g      bind:m  get-bowl
+  =/  =beak             [our.bowl %grubbery da+now.bowl]
+  ;<  tree=(list path)  bind:m  (scry-tree %grubbery /gub)
+  |-
+  ?~  tree  done
+  ;<  file=@t  bind:m  (scry-file @t %grubbery i.tree)
+  ;<  ~        bind:m  (overwrite-lib (slag 1 (snip i.tree)) file)
+  $(tree t.tree)
 ::
 ++  make-stud-lib 
   |=  [=path code=@t]
@@ -909,8 +941,8 @@
   |=  [=dock =cage]
   =/  m  (charm ,~)
   ^-  form:m
-  =/  =dart:g  [%sysc %pass /poke %agent dock %poke cage]
-  ;<  ~  bind:m  (send-raw-dart dart)
+  =/  =card:agent:gall  [%pass /poke %agent dock %poke cage]
+  ;<  ~  bind:m  (send-raw-card card)
   (take-gall-poke-ack /poke)
 ::
 ++  gall-poke-our
@@ -1068,6 +1100,91 @@
     [%done ~]
   ==
 ::
+::  Read from Clay
+::
+++  warp
+  |=  [=ship =riff:clay]
+  =/  m  (charm ,riot:clay)
+  ;<  ~  bind:m  (send-raw-card %pass /warp %arvo %c %warp ship riff)
+  (take-writ /warp)
+::
+++  read-file
+  |=  [[=ship =desk =case] =spur]
+  =*  arg  +<
+  =/  m  (charm ,cage)
+  ;<  =riot:clay  bind:m  (warp ship desk ~ %sing %x case spur)
+  ?~  riot
+    (charm-fail leaf+"read fail" >arg< ~)
+  (pure:m r.u.riot)
+::
+++  scry-file
+  |*  [=mold =desk =path]
+  =/  m  (charm ,mold)
+  (scry mold %cx desk path)
+::
+++  read-files
+  =|  files=(map spur cage)
+  |=  [[=ship =desk =case] spurs=(list spur)]
+  =/  m  (charm ,(map spur cage))
+  ?~  spurs
+    (pure:m files)
+  ;<  file=cage  bind:m  (read-file [ship desk case] i.spurs)
+  $(spurs t.spurs, files (~(put by files) i.spurs file))
+::
+++  read-text-file
+  |=  [[=ship =desk =case] =spur]
+  =*  arg  +<
+  =/  m  (charm ,@t)
+  ;<  =cage  bind:m  (read-file [ship desk case] spur)
+  (pure:m !<(@t q.cage))
+::
+++  read-text-files
+  =|  files=(map spur @t)
+  |=  [[=ship =desk =case] spurs=(list spur)]
+  =/  m  (charm ,(map spur @t))
+  ?~  spurs
+    (pure:m files)
+  ;<  file=@t  bind:m  (read-text-file [ship desk case] i.spurs)
+  $(spurs t.spurs, files (~(put by files) i.spurs file))
+::
+++  check-for-file
+  |=  [[=ship =desk =case] =spur]
+  =/  m  (charm ,?)
+  ;<  =riot:clay  bind:m  (warp ship desk ~ %sing %u case spur)
+  ?>  ?=(^ riot)
+  (pure:m !<(? q.r.u.riot))
+::
+++  list-tree
+  |=  [[=ship =desk =case] =spur]
+  =*  arg  +<
+  =/  m  (charm ,(list path))
+  ;<  =riot:clay  bind:m  (warp ship desk ~ %sing %t case spur)
+  ?~  riot
+    (charm-fail leaf+"list tree" >arg< ~)
+  (pure:m !<((list path) q.r.u.riot))
+::
+++  scry-tree
+  |=  [=desk =path]
+  =/  m  (charm ,(list ^path))
+  (scry (list ^path) %ct desk path)
+::
+::  Take Clay read result
+::
+++  take-writ
+  |=  =wire
+  =/  m  (charm ,riot:clay)
+  ^-  form:m
+  |=  input
+  :-  ~
+  :+  state  temp
+  ?+  in  [%skip hold]
+      ~  [%wait hold]
+      [~ %arvo * ?(%behn %clay) %writ *]
+    ?.  =(wire wire.u.in)
+      [%skip hold]
+    [%done +>.sign.u.in]
+  ==
+::
 ++  send-request
   |=  =request:http
   =/  m  (charm ,~)
@@ -1151,7 +1268,7 @@
   ;<  =cord  bind:m  (fetch-cord url)
   =/  json=(unit json)  (de:json:html cord)
   ?~  json
-    (charm-fail %json-parse-error ~)
+    (charm-fail leaf+"json-parse-error" ~)
   (pure:m u.json)
 ::
 ++  hiss-request

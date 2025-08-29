@@ -1,5 +1,5 @@
 /-  g=grubbery
-/+  grubberyio, gui, x=examples, wc=web-components
+/+  grubberyio, gui
 |%
 :: evaluation engine for the main state and continuation monad
 ::
@@ -217,59 +217,6 @@
   ?:  ?=([~ %|] nex)
     [~ %|]
   [~ %&]
-::  user groups:
-::  /grp/who/group-name  (set ship)  (i.e. who is in what usergroup?)
-::  /grp/how/group-name  weir        (i.e. what can which usergroup do?)
-::  /grp/pub             weir        (i.e. what can the public do?)
-++  usergroup
-  :-  /group
-  =,  grubberyio
-  ^-  base:g
-  =/  m  (charm:base:g ,~)
-  ^-  form:m
-  ;<  [=stud:g =vase]  bind:m  get-poke-pail
-  ?>  ?=([%sig ~] stud)
-  (pour !>(!<((set @p) vase)))
-::
-++  group-weir
-  :-  /weir
-  =,  grubberyio
-  ^-  base:g
-  =/  m  (charm:base:g ,~)
-  ^-  form:m
-  ;<  [=stud:g =vase]  bind:m  get-poke-pail
-  ?>  ?=([%sig ~] stud)
-  (pour !>(!<(weir:g vase)))
-::
-++  file
-  :-  /noun
-  =,  grubberyio
-  ^-  base:g
-  =/  m  (charm:base:g ,~)
-  ^-  form:m
-  ;<  [=stud:g =vase]  bind:m  get-poke-pail
-  (pour vase)
-:: counter example
-::
-++  counter-container
-  :-  /sig
-  =,  grubberyio
-  =/  m  (charm:base:g ,~)
-  ^-  form:m
-  ;<  [=stud:g =vase]  bind:m  get-poke-pail
-  ;<  here=path        bind:m  get-here
-  ?+    stud  !!
-      [%sig ~]
-    =/  counter=path  (weld here /counter)
-    =/  is-even=path  (weld here /is-even)
-    =/  parity=path   (weld here /parity)
-    ;<  ~  bind:m  (overwrite-base counter /counter `!>(10))
-    =/  ie-vine=vine:stem:g  (~(put of *vine:stem:g) /counter &+counter)
-    ;<  ~  bind:m  (overwrite-stem is-even /is-even ie-vine)
-    =/  pa-vine=vine:stem:g  (~(put of *vine:stem:g) /is-even &+is-even)
-    ;<  ~  bind:m  (overwrite-stem parity /parity pa-vine)
-    done
-  ==
 ::
 ++  bin
   |%
@@ -285,12 +232,12 @@
     ^-  vase
     =/  grubbery=vase  (nead (need (~(get of deps) /bin/grubbery)))
     =/  file=vase  (nead (need (~(get of deps) /source-lib)))
-    =+  !<([@t res=(each [deps=(list (pair term path)) =hoon] tang)] file)
-    ?:  ?=(%| -.res)
-      ~|("hoon parsing failure" (mean p.res))
+    =+  !<(=lib:g file)
+    ?:  ?=(%| -.code.lib)
+      ~|("hoon parsing failure" (mean p.code.lib))
     =;  vax=(list vase)
-      !:((slip (reel (snoc vax grubbery) slop) hoon.p.res))
-    %+  turn  deps.p.res
+      !:((slip (reel (snoc vax grubbery) slop) hoon.p.code.lib))
+    %+  turn  deps.p.code.lib
     |=  [fac=term dep=path]
     ~|  "failed to find dep {(spud dep)}"
     =/  =vase  (nead (need (~(get of deps) dep)))
@@ -309,15 +256,15 @@
     ?+    stud  !!
         [%sig ~]
       =+  !<(=@t vase)
-      =/  res=(each [pax=(list (pair term path)) =hoon] tang)
+      =/  code=(each code:lib:g tang)
         (mule |.((build t)))
-      ;<  ~  bind:m  (replace !>([t res]))
+      ;<  ~  bind:m  (replace !>([t code]))
       ?>  ?=([%lib *] here)
       =/  dest=path  [%bin t.here]
       =/  sour=vine:stem:g
         %-  ~(gas of *vine:stem:g)
         %+  welp  ~[[/source-lib &+here] [/bin/grubbery &+/bin/grubbery]]
-        ?:(?=(%| -.res) ~ (turn pax.p.res |=([=term =path] [path &+path])))
+        ?:(?=(%| -.code) ~ (turn deps.p.code |=([=term =path] [path &+path])))
       ;<  ~  bind:m  (overwrite-stem dest /bin sour)
       done
     ==
@@ -346,78 +293,27 @@
   ?+    stud  !!
       [%sig ~]
     ~&  >  %boot-sig
-    ~&  >>>  %basic-libraries-studs
-    ;<  ~  bind:m  (overwrite-base /bin/zuse /bin `!>(zuse-core))
-    ~&  >>>  %got-here-1
-    ;<  ~  bind:m  (overwrite-base /bin/grubbery /bin `!>(grubbery-lib))
-    ~&  >>>  %got-here-2
-    ;<  ~  bind:m  (overwrite-lib /add/two add-two:x)
-    ~&  >>>  %got-here-3
-    ;<  ~  bind:m  (overwrite-stud-lib /noun 'noun')
-    ;<  ~  bind:m  (overwrite-stud-lib /ud '@ud')
-    ;<  ~  bind:m  (overwrite-stud-lib /loob '?')
-    ;<  ~  bind:m  (overwrite-stud-lib /txt '@t')
-    ;<  ~  bind:m  (overwrite-stud-lib /wain 'wain')
-    ;<  ~  bind:m  (overwrite-stud-lib /wall 'wall')
-    ;<  ~  bind:m  (overwrite-stud-lib /dr '@dr')
-    ;<  ~  bind:m  (overwrite-stud-lib /manx 'manx')
-    ;<  ~  bind:m  (overwrite-stud-lib /sig ',~')
-    ;<  ~  bind:m  (overwrite-stud-lib /init ',~')
-    ;<  ~  bind:m  (overwrite-stud-lib /load ',~')
-    :: "file"
+    :: zuse-core and grubbery-lib comem first as all other libs depend on them
     ::
-    ~&  >>>  %file
-    ;<  ~  bind:m  (overwrite-base-lib /file file:x)
+    ;<  ~  bind:m  (overwrite-base /bin/zuse /bin `!>(zuse-core))
+    ;<  ~  bind:m  (overwrite-base /bin/grubbery /bin `!>(grubbery-lib))
+    ;<  ~  bind:m  sync-lib-cone
     :: user groups
     ::
     ~&  >>>  %user-groups
-    ;<  ~  bind:m  (overwrite-stud-lib /group '(set @p)')
-    ;<  ~  bind:m  (overwrite-stud-lib /weir 'weir:g')
-    ;<  ~  bind:m  (overwrite-base-lib /usergroup usergroup:x)
-    ;<  ~  bind:m  (overwrite-base-lib /group-weir group-weir:x)
     ;<  ~  bind:m  (overwrite-base /grp/who/~zod /usergroup `!>((sy ~[~zod])))
     ;<  ~  bind:m  (overwrite-base /grp/how/~zod /group-weir `!>(*weir:g))
     ;<  ~  bind:m  (overwrite-base /grp/pub /group-weir `!>(*weir:g))
     :: counter test
     ::
     ~&  >>>  %counter-test
-    ;<  ~  bind:m  (overwrite-lib /add/two add-two:x)
-    ;<  ~  bind:m  (overwrite-stud-lib /counter/inc ',~')
-    ;<  ~  bind:m  (overwrite-stud-lib /counter/two ',~')
-    ;<  ~  bind:m  (overwrite-base-lib /counter counter:x)
-    ;<  ~  bind:m  (overwrite-base-lib /counter-container counter-container:x)
-    ;<  ~  bind:m  (overwrite-stem-lib /is-even is-even:x)
-    ;<  ~  bind:m  (overwrite-stem-lib /parity parity:x)
     ;<  *  bind:m
       (overwrite-and-poke /counter-container /counter-container ~ /sig !>(~))
     :: gui setup
     ::
-    ~&  >>>  %gui-setup
-    ~&  >>>  %overwriting-gui-base-lib
-    ;<  ~  bind:m  (overwrite-base-lib /gui '[/sig base:gui]')
-    ~&  >>>  %overwriting-gui-init-stud-lib
-    ;<  ~  bind:m  (overwrite-stud-lib /gui/init ',~')
-    ~&  >>>  %overwriting-and-poking-gui-base
     ;<  *  bind:m  (overwrite-and-poke /gui /gui ~ /gui/init !>(~))
     ::
     ~&  >  "Grubbery booted!"
     done
   ==
-::
-++  dom
-  |%
-  ++  base
-    =,  grubberyio
-    ^-  base:g
-    =/  m  (charm:base:g ,~)
-    ^-  form:m
-    ;<  [=stud:g =vase]  bind:m  get-poke-pail
-    ?+    stud  !!
-        [%put-base-manx ~]
-      done
-      ::
-        [%put-stem-manx ~]
-      done
-    ==
-  --
 --

@@ -1,6 +1,9 @@
 |%
 +$  stud  path
 +$  pail  (pair stud vase)
+:: TODO: However it's done, packaging and sharing code needs to be
+::       made effortless in such a way that doesn't overcomplicated imports.
+::
 :: Consider something like:
 :: +$  site  [home=path code=path]
 ::
@@ -44,7 +47,7 @@
 :: versioning and "signals"-style acyclic dependencies
 ::
 +$  tack
-  $:  kind=?(%base %stem)
+  $:  kind=(unit ?(%base %stem))
       last=@da
       sinx=(set path)
       tidy=?
@@ -235,6 +238,14 @@
         %done  [%cont (fun value.next.b-res)]
       ==
     --
+  --
+:: hardcoded studs
+::
+++  lib
+  =<  lib
+  |%
+  +$  lib   [text=@t code=(each code tang)]
+  +$  code  [deps=(list (pair term path)) =hoon]
   --
 :: types that can move across the network
 ::

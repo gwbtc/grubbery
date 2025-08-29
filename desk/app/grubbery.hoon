@@ -1,9 +1,9 @@
 /-  g=grubbery
 /+  grubbery, io=grubberyio, server, dbug, verb, default-agent
-/=  x-  /mar/grub/sign-base :: x- means import for compilation in development
-/=  x-  /mar/grub/action
-/=  x-  /mar/grub/perk
-/=  x-  /mar/grub/event
+:: import to force compilation during development
+::
+/~  ted-  *  /ted
+/~  mar-  *  /mar/grub
 ::
 |%
 +$  card     card:agent:gall
@@ -353,7 +353,7 @@
   =/  =tack:g
     ~|  "{(spud base)}: base tack not found"
     (need (~(get of trac) (welp /bin/base base)))
-  ?>  ?=(%stem kind.tack)
+  ?>  ?=([~ %stem] kind.tack)
   ?>  tidy.tack
   =/  res  (mule |.(!<([* b=base:g] (grab-data:io grub))))
   ?:  ?=(%& -.res)
@@ -364,15 +364,15 @@
   |=  base=path
   ^-  stud:g
   ?:  ?=([%boot ~] base)  /sig
-  ?:  ?=([%lib ~] base)  /lib
-  ?:  ?=([%bin ~] base)  /bin
+  ?:  ?=([%lib ~] base)   /lib
+  ?:  ?=([%bin ~] base)   /bin
   =/  =grub:g
     ~|  "{(spud base)}: base grub not found"
     (need (~(get of cone) (welp /bin/base base)))
   =/  =tack:g
     ~|  "{(spud base)}: base tack not found"
     (need (~(get of trac) (welp /bin/base base)))
-  ?>  ?=(%stem kind.tack)
+  ?>  ?=([~ %stem] kind.tack)
   ?>  tidy.tack
   =/  res  (mule |.(!<([=stud:g *] (grab-data:io grub))))
   ?:  ?=(%& -.res)
@@ -389,7 +389,7 @@
   =/  =tack:g  
     ~|  "{(spud stem)}: stem tack not found"
     (need (~(get of trac) (welp /bin/stem stem)))
-  ?>  ?=(%stem kind.tack)
+  ?>  ?=([~ %stem] kind.tack)
   ?>  tidy.tack
   =/  res  (mule |.(!<([* s=stem:g] (grab-data:io grub))))
   ?:  ?=(%& -.res)
@@ -406,7 +406,7 @@
   =/  =tack:g  
     ~|  "{(spud stem)}: stem tack not found"
     (need (~(get of trac) (welp /bin/stem stem)))
-  ?>  ?=(%stem kind.tack)
+  ?>  ?=([~ %stem] kind.tack)
   ?>  tidy.tack
   =/  res  (mule |.(!<([=stud:g *] (grab-data:io grub))))
   ?:  ?=(%& -.res)
@@ -418,8 +418,7 @@
   |=  =stud:g
   ^-  vase
   ?:  ?=([%sig ~] stud)  !>(,~)
-  ?:  ?=([%lib ~] stud)
-    !>(,[@t (each [(list (pair term path)) hoon] tang)])
+  ?:  ?=([%lib ~] stud)  !>(,lib:g)
   ?:  ?=([%bin ~] stud)  !>(noun)
   =/  =grub:g
     ~|  "{(spud stud)}: stud grub not found"
@@ -427,7 +426,7 @@
   =/  =tack:g  
     ~|  "{(spud stud)}: stud tack not found"
     (need (~(get of trac) (welp /bin/stud stud)))
-  ?>  ?=(%stem kind.tack)
+  ?>  ?=([~ %stem] kind.tack)
   ?>  tidy.tack
   (grab-data:io grub)
 ::
@@ -588,12 +587,14 @@
 ++  next-tack
   |=  here=path
   ^+  this
+  ~|  "+next-tack failed {(spud here)}"
+  =/  kind=(unit ?(%base %stem))
+    ?~(grub=(~(get of cone) here) ~ `-.u.grub)
   ?~  tac=(~(get of trac) here)
-    =/  =grub:g  (need (~(get of cone) here))
     =/  step=@da  (new-last [now now]:bowl)
     =.  history  (put:hon:g history step here)
     =.  this  (emit-event step here)
-    this(trac (~(put of trac) here -.grub step ~ | ~))
+    this(trac (~(put of trac) here kind step ~ | ~))
   =^  del  history
     (del:hon:g history last.u.tac)
   ?:  &(=(~ sinx.u.tac) !(~(has of cone) here))
@@ -601,7 +602,7 @@
   =/  step=@da  (new-last now.bowl last.u.tac)
   =.  history  (put:hon:g history step here)
   =.  this  (emit-event step here)
-  this(trac (~(put of trac) here u.tac(last step)))
+  this(trac (~(put of trac) here u.tac(kind kind, last step)))
 ::
 ++  no-cycle
   =|  hist=(list path)
@@ -643,13 +644,16 @@
     (cury path-from-road:grubbery here)
   ?>  (no-cycles here sour)
   =/  =tack:g  ~|("no tack for {(spud here)}" (need (~(get of trac) here)))
-  ?>  ?=(%stem kind.tack)
+  ?>  ?=([~ %stem] kind.tack)
   |-
   ?~  sour
     this(trac (~(put of trac) here tack))
   =/  tac=(unit tack:g)  (~(get of trac) i.sour)
   =?  this  ?=(~ tac)  (next-tack i.sour)
-  =/  sour-tack=tack:g  (need (~(get of trac) i.sour))
+  :: NOTE: it is allowed to depend on things which do not exist yet
+  :: 
+  =?  this  ?=(~ (~(get of trac) i.sour))  (next-tack i.sour)
+  =/  sour-tack=tack:g   (need (~(get of trac) i.sour))
   =.  sinx.sour-tack  (~(put in sinx.sour-tack) here)
   =.  trac  (~(put of trac) i.sour sour-tack)
   =.  sour.tack  (~(put by sour.tack) i.sour `@da`0) :: 0 forces recompute
@@ -661,12 +665,12 @@
   ~&  >>  "dirtying {(spud here)}"
   ~|  "failed to dirty {(spud here)}"
   =/  =tack:g  (need (~(get of trac) here))
-  ?:  &(?=(%stem kind.tack) !tidy.tack)
+  ?:  &(?=([~ %stem] kind.tack) !tidy.tack)
     [~ this]
-  =?  trac  ?=(%stem kind.tack)
+  =?  trac  ?=([~ %stem] kind.tack)
     (~(put of trac) here tack(tidy |))
   ?:  =(0 ~(wyt in sinx.tack))
-    ?:  ?=(%base kind.tack)
+    ?:  ?=([~ %base] kind.tack)
       [~ this]
     [(sy ~[here]) this]
   =/  sinx=(list path)  ~(tap in sinx.tack)
@@ -691,7 +695,7 @@
   ?~  tack=(~(get of trac) here)
     ~&  >>  "{(spud here)} has no tack"
     this
-  ?:  ?=(%base kind.u.tack)
+  ?:  ?=([~ %base] kind.u.tack)
     ~&  >>  "{(spud here)} is a base and thus tidy"
     this
   ?:  tidy.u.tack
@@ -743,6 +747,7 @@
   |=  [here=path =grub:g]
   ^+  this
   ~&  >>  "recompute stem {(spud here)}"
+  ~|  "recompute stem {(spud here)}"
   ?>  ?=(%stem -.grub)
   =/  =tack:g  (need (~(get of trac) here))
   =/  new-sour=(map path @da)  (make-sour ~(key by sour.tack))
@@ -788,7 +793,7 @@
   ^+  this
   ~|  "deleting sources of {(spud here)} failed"
   =/  =tack:g  (need (~(get of trac) here))
-  ?>  ?=(%stem kind.tack)
+  ?>  ?=([~ %stem] kind.tack)
   =/  sour=(list path)  (turn ~(tap in sour.tack) head)
   |-
   ?~  sour
@@ -802,6 +807,7 @@
 ++  do-oust
   |=  here=path
   ^+  this
+  ~|  "do-oust failed {(spud here)}"
   ?~  grub=(~(get of cone) here)
     this
   =.  this
@@ -900,12 +906,15 @@
   ~|  "making stem {(spud here)} failed"
   ?:  =(~ vine)
     ~&  >>>  "empty vine" :: TODO: should this be disallowed?
+    ~|  "empty vine"
     !!
   ?:  (~(has of cone) here)
     ~&  >>>  "path {(spud here)} already populated"
+    ~|  "path {(spud here)} already populated"
     !!
   ?:  ?=([%lib *] here) :: stems not allowed in /lib
     ~&  >>>  "stems not allowed in /lib"
+    ~|  "stems not allowed in /lib"
     !!
   =/  =stud:g  (get-stem-stud stem)
   =/  =grub:g  [%stem |+[leaf+"new stem"]~ vine stem]
@@ -1207,6 +1216,7 @@
 ++  process-do-next
   |=  [here=path pid=@ta]
   ^+  this
+  ~|  "+process-do-next failed {(spud here)}"
   =/  =grub:g  (need (~(get of cone) here))
   =/  =pipe:g  (need (~(get of pool) here))
   =/  =proc:g  (~(got by proc.pipe) pid)
@@ -1306,13 +1316,14 @@
   $(pids t.pids, this (process-do-next here i.pids))
 ::
 ++  give-http-poke-sign
-  |=  [eyre-id=wire err=(unit tang)]
+  |=  [[here=path pid=@ta] eyre-id=wire err=(unit tang)]
   ^+  this
   =/  =wire  (weld /http-response eyre-id)
   ?~  err
     :: TODO: give some positive response?
     ::
     (emit-card %give %kick ~[wire] ~)
+  %-  (slog leaf+"fail at {(spud (weld here /[pid]))}" u.err)
   =/  =simple-payload:http  (internal-server-error:io & "" u.err)
   =/  header=cage  [%http-response-header !>(response-header.simple-payload)]
   =/  data=cage    [%http-response-data !>(data.simple-payload)]
@@ -1350,7 +1361,7 @@
       ==
     (give-external-sign give.poke.proc sign)
   ?>  ?=([%eyre *] sap.p.from.give.poke.proc)
-  (give-http-poke-sign wire.give.poke.proc res)
+  (give-http-poke-sign [here pid] wire.give.poke.proc res)
 ::
 ++  wrap-wire
   |=  [here=path pid=@ta =wire]
