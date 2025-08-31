@@ -321,7 +321,6 @@
       [%skip hold]
     [%done err.sign.u.in]
   ==
-:: TODO: need to gracefully handle vetoes
 ::
 ++  poke
   |=  [=path =pail:g]
@@ -355,15 +354,10 @@
   |=  [=path poke=pail:g]
   =/  m  (charm ,pail:g)
   ^-  form:m
-  ~&  >>>  %venting
-  ;<  ~      bind:m  (send-raw-dart %grub /vent &+path %poke poke)
-  ~&  >>>  %taking-pack
-  ;<  *  bind:m  (take-pack-sign /vent)
-  ~&  >>>  %taking-perk
+  ;<  ~        bind:m  (send-raw-dart %grub /vent &+path %poke poke)
+  ;<  *        bind:m  (take-pack-sign /vent)
   ;<  =pail:g  bind:m  (take-perk /vent)
-  ~&  >>>  %taking-poke-sign
-  ;<  ~      bind:m  (take-poke-sign /vent)
-  ~&  >>>  %returning-pail
+  ;<  ~        bind:m  (take-poke-sign /vent)
   (pure:m pail)
 ::
 ++  take-perk
@@ -1275,6 +1269,15 @@
     (charm-fail leaf+"read fail" >arg< ~)
   (pure:m r.u.riot)
 ::
+++  read-next
+  |=  [[=ship =desk =case] =spur]
+  =*  arg  +<
+  =/  m  (charm ,(unit cage))
+  ;<  =riot:clay  bind:m  (warp ship desk ~ %next %x case spur)
+  ?~  riot
+    (pure:m ~)
+  (pure:m `r.u.riot)
+::
 ++  scry-file
   |*  [=mold =desk =path]
   =/  m  (charm ,mold)
@@ -1344,6 +1347,19 @@
       [%skip hold]
     [%done +>.sign.u.in]
   ==
+::  Write to Clay
+::
+++  insert-file
+  |=  [=desk =path =cage]
+  =/  m  (charm ,~)
+  ^-  form:m
+  (send-raw-card %pass /info %arvo %c %info desk %& [path %ins cage]~)
+::
+++  mutate-file
+  |=  [=desk =path =cage]
+  =/  m  (charm ,~)
+  ^-  form:m
+  (send-raw-card %pass /info %arvo %c %info desk %& [path %mut cage]~)
 ::
 ++  send-request
   |=  =request:http

@@ -315,7 +315,15 @@
   ;<  *  bind:m  (overwrite-and-poke /gui /gui ~ /gui/init !>(~))
   ::
   ~&  >  "Grubbery booted!"
-  done
+  :: Recursively listen for changes to /gub and sync.
+  :: Commits that only change /gub will not cause app/grubbery.hoon
+  :: to recompile and so need a separate trigger to be propagated
+  :: to the Grubbery namespace.
+  |-
+  ;<  =bowl:base:g  bind:m  get-bowl
+  ;<  *             bind:m  (read-next [our.bowl %grubbery da+now.bowl] /gub)
+  ;<  ~             bind:m  sync-lib-cone
+  $
   ::
   |%
   ++  sync-lib-cone
