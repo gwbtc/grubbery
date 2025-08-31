@@ -330,8 +330,6 @@
     |-
     ?~  tree  done
     ;<  file=@t  bind:m  (scry-file @t %grubbery i.tree)
-    :: TODO: Don't naively overwrite; check if it's equal first
-    ::
     ;<  ~        bind:m  (overwrite-lib (slag 1 (snip i.tree)) file)
     $(tree t.tree)
   --

@@ -107,7 +107,6 @@
   ?:  ?=([%bin ~] base)  (pure:m /bin)
   ;<  =grub:g  bind:m  (peek-root [%bin %base base])
   ?>  ?=(%stem -.grub)
-  :: ?>  tidy.grub TODO: possibly remove
   =/  res  (mule |.(!<([=stud:g *] (grab-data grub))))
   ?:  ?=(%& -.res)
     (pure:m stud.p.res)
@@ -120,7 +119,6 @@
   ?:  ?=([%bin ~] stem)  (pure:m /bin)
   ;<  =grub:g  bind:m  (peek-root [%bin %stem stem])
   ?>  ?=(%stem -.grub)
-  :: ?>  tidy.grub TODO: possibly remove
   =/  res  (mule |.(!<([=stud:g *] (grab-data grub))))
   ?:  ?=(%& -.res)
     (pure:m stud.p.res)
@@ -161,6 +159,29 @@
   =/  m  (charm ,~)
   ^-  form:m
   (send-raw-cards card ~)
+:: Consult lib/strandio.hoon for context
+:: +main-loop rigamarole completely eliminated with skip queue in $pipe
+::
+++  echo
+  =/  m  (charm ,~)
+  ^-  form:m
+  ;<  [=from:base:g =pail:g]  bind:m  take-bump
+  |-
+  ?.  ?=([%txt ~] p.pail)
+    %-  (slog leaf+"over..." ~)
+    (pure:m ~)
+  =/  message=tape  (trip !<(@t q.pail))
+  %-  (slog leaf+"{message}..." ~)
+  ;<  ~  bind:m  (sleep ~s2)
+  ((slog leaf+"{message}.." ~) $)
+::
+++  veto-error
+  |=  veto=$<(%perk dart:g)
+  ^-  tang
+  ?-  -.veto
+    ?(%sysc %scry %bowl)  [leaf+"vetoed system call" ~]
+    %grub                 [leaf+"vetoed grub call on wire {(spud wire.veto)}" ~]
+  ==
 ::
 ++  take-watch
   =/  m  (charm ,path)
@@ -169,6 +190,8 @@
   :+  state  temp
   ?+  in  [%skip hold]
     ~  [%wait hold]
+      [~ %veto *]
+    [%fail (veto-error dart.u.in)]
       [~ %watch *]
     [%done path.u.in]
   ==
@@ -180,6 +203,8 @@
   :+  state  temp
   ?+  in  [%skip hold]
     ~  [%wait hold]
+      [~ %veto *]
+    [%fail (veto-error dart.u.in)]
       [~ %leave *]
     [%done path.u.in]
   ==
@@ -200,6 +225,8 @@
   :+  state  temp
   ?+  in  [%skip hold]
     ~  [%wait hold]
+      [~ %veto *]
+    [%fail (veto-error dart.u.in)]
       [~ %arvo [%wait @ ~] %behn %wake *]
     ?.  |(?=(~ until) =(`u.until (slaw %da i.t.wire.u.in)))
       [%skip hold]
@@ -231,6 +258,8 @@
   :+  state  temp
   ?+  in  [%skip hold]
     ~  [%wait hold]
+      [~ %veto *]
+    [%fail (veto-error dart.u.in)]
       [~ %base * %pack *]
     ?.  =(wire wire.u.in)
       [%skip hold]
@@ -249,6 +278,8 @@
   :+  state  temp
   ?+  in  [%skip hold]
     ~  [%wait hold]
+      [~ %veto *]
+    [%done |+(veto-error dart.u.in)]
       [~ %base * %pack *]
     ?.  =(wire wire.u.in)
       [%skip hold]
@@ -264,6 +295,8 @@
   :+  state  temp
   ?+  in  [%skip hold]
     ~  [%wait hold]
+      [~ %veto *]
+    [%fail (veto-error dart.u.in)]
       [~ %base * %poke *]
     ?.  =(wire wire.u.in)
       [%skip hold]
@@ -281,6 +314,8 @@
   :+  state  temp
   ?+  in  [%skip hold]
     ~  [%wait hold]
+      [~ %veto *]
+    [%fail (veto-error dart.u.in)]
       [~ %base * %poke *]
     ?.  =(wire wire.u.in)
       [%skip hold]
@@ -340,10 +375,24 @@
   :+  state  temp
   ?+  in  [%skip hold]
     ~  [%wait hold]
+      [~ %veto *]
+    [%fail (veto-error dart.u.in)]
       [~ %perk *]
     ?.  =(wire wire.u.in)
       [%skip hold]
     [%done pail.u.in]
+  ==
+::
+++  take-bump
+  =/  m  (charm ,[=from:base:g =pail:g])
+  ^-  form:m
+  |=  input
+  :-  ~
+  :+  state  temp
+  ?+  in  [%skip hold]
+    ~  [%wait hold]
+      [~ %bump *]
+    [%done [from pail]:u.in]
   ==
 ::
 ++  take-bump-sign
@@ -355,6 +404,8 @@
   :+  state  temp
   ?+  in  [%skip hold]
     ~  [%wait hold]
+      [~ %veto *]
+    [%fail (veto-error dart.u.in)]
       [~ %base * %bump *]
     ?.  =(wire wire.u.in)
       [%skip hold]
@@ -380,6 +431,8 @@
   :+  state  temp
   ?+  in  [%skip hold]
     ~  [%wait hold]
+      [~ %veto *]
+    [%done ~ (veto-error dart.u.in)]
       [~ %base * %bump *]
     ?.  =(wire wire.u.in)
       [%skip hold]
@@ -405,6 +458,8 @@
   :+  state  temp
   ?+  in  [%skip hold]
     ~  [%wait hold]
+      [~ %veto *]
+    [%fail (veto-error dart.u.in)]
       [~ %peek *]
     ?.  =(wire wire.u.in)
       [%skip hold]
@@ -443,7 +498,6 @@
     kids  ^$(sub-path (weld sub-path /[p.i.dir]), cone q.i.dir)
   ==
 :: tree information without the data
-:: (avoids storing large amounts of data in the monad)
 ::
 ++  tree
   |=  =path
@@ -535,6 +589,8 @@
   :+  state  temp
   ?+  in  [%skip hold]
     ~  [%wait hold]
+      [~ %veto *]
+    [%fail (veto-error dart.u.in)]
       [~ %scry *]
     ?.  =(wire wire.u.in)
       [%skip hold]
@@ -558,6 +614,8 @@
   :+  state  temp
   ?+  in  [%skip hold]
     ~  [%wait hold]
+      [~ %veto *]
+    [%fail (veto-error dart.u.in)]
       [~ %bowl *]
     ?.  =(wire wire.u.in)
       [%skip hold]
@@ -602,6 +660,8 @@
   :+  state  temp
   ?+  in  [%skip hold]
     ~  [%wait hold]
+      [~ %veto *]
+    [%fail (veto-error dart.u.in)]
       [~ %dead *]
     ?.  =(wire wire.u.in)
       [%skip hold]
@@ -629,6 +689,8 @@
   :+  state  temp
   ?+  in  [%skip hold]
     ~  [%wait hold]
+      [~ %veto *]
+    [%fail (veto-error dart.u.in)]
       [~ %gone *]
     ?.  =(wire wire.u.in)
       [%skip hold]
@@ -654,6 +716,8 @@
   :+  state  temp
   ?+  in  [%skip hold]
     ~  [%wait hold]
+      [~ %veto *]
+    [%fail (veto-error dart.u.in)]
       [~ %cull *]
     ?.  =(wire wire.u.in)
       [%skip hold]
@@ -679,6 +743,8 @@
   :+  state  temp
   ?+  in  [%skip hold]
     ~  [%wait hold]
+      [~ %veto *]
+    [%fail (veto-error dart.u.in)]
       [~ %sand *]
     ?.  =(wire wire.u.in)
       [%skip hold]
@@ -691,17 +757,21 @@
   |=  [=path data=vase base=path]
   =/  m  (charm ,?)
   ^-  form:m
-  ;<  =grub:g  bind:m  (peek-root path)
-  (pure:m =(grub [%base data base]))
+  ;<  grub=(unit grub:g)  bind:m  (peek-root-soft path)
+  ?~  grub
+    (pure:m |)
+  (pure:m =(u.grub [%base data base]))
 ::
 ++  check-stem
   |=  [=path =vine:stem:g stem=path]
   =/  m  (charm ,?)
   ^-  form:m
-  ;<  =grub:g  bind:m  (peek-root path)
-  ?.  ?=(%stem -.grub)
+  ;<  grub=(unit grub:g)  bind:m  (peek-root-soft path)
+  ?~  grub
     (pure:m |)
-  (pure:m =([vine stem] [vine stem]:grub))
+  ?.  ?=(%stem -.u.grub)
+    (pure:m |)
+  (pure:m =([vine stem] [vine stem]:u.grub))
 ::
 ++  make-stem
   |=  [=path stem=path =vine:stem:g]
@@ -851,6 +921,8 @@
   :+  state  temp
   ?+  in  [%skip hold]
     ~  [%wait hold]
+      [~ %veto *]
+    [%fail (veto-error dart.u.in)]
       [~ %made *]
     ?.  =(wire wire.u.in)
       [%skip hold]
@@ -997,30 +1069,15 @@
   |=  input
   ^-  output:m
   [~ new temp %done ~]
+:: short four letter alias
 ::
-++  commit
-  |=  new=vase
-  =/  m  (charm ,~)
-  ^-  form:m
-  ;<  ~  bind:m  (replace new)
-  :: when this card leaves %grubbery
-  :: the state will have officially changed and
-  :: all local dependency changes will have propagated
-  (sleep ~s0)
+++  pour  replace
 :: do nothing and give a sig
 ::
 ++  done
   =/  m  (charm ,~)
   ^-  form:m
   (pure:m ~)
-:: replace with value and give a sig
-::
-++  pour
-  |=  new=vase
-  =/  m  (charm ,~)
-  ^-  form:m
-  ;<  ~  bind:m  (replace new)
-  done
 ::
 ++  perk
   |=  =pail:g
@@ -1052,6 +1109,8 @@
   :+  state  temp
   ?+  in  [%skip hold]
     ~  [%wait hold]
+      [~ %veto *]
+    [%fail (veto-error dart.u.in)]
       [~ %agent * %poke-ack *]
     ?.  =(wire wire.u.in)
       [%skip hold]
@@ -1084,6 +1143,8 @@
   :+  state  temp
   ?+  in  [%skip hold]
     ~  [%wait hold]
+      [~ %veto *]
+    [%fail (veto-error dart.u.in)]
       [~ %agent * %poke-ack *]
     ?.  =(wire wire.u.in)
       [%skip hold]
@@ -1153,6 +1214,8 @@
   :+  state  temp
   ?+  in  [%skip hold]
     ~  [%wait hold]
+      [~ %veto *]
+    [%fail (veto-error dart.u.in)]
       [~ %agent * %watch-ack *]
     ?.  =(watch+wire wire.u.in)
       [%skip hold]
@@ -1170,6 +1233,8 @@
   :+  state  temp
   ?+  in  [%skip hold]
     ~  [%wait hold]
+      [~ %veto *]
+    [%fail (veto-error dart.u.in)]
       [~ %agent * %fact *]
     ?.  =(watch+wire wire.u.in)
       [%skip hold]
@@ -1185,6 +1250,8 @@
   :+  state  temp
   ?+  in  [%skip hold]
     ~  [%wait hold]
+      [~ %veto *]
+    [%fail (veto-error dart.u.in)]
       [~ %agent * %kick *]
     ?.  =(watch+wire wire.u.in)
       [%skip hold]
@@ -1270,6 +1337,8 @@
   :+  state  temp
   ?+  in  [%skip hold]
       ~  [%wait hold]
+      [~ %veto *]
+    [%fail (veto-error dart.u.in)]
       [~ %arvo * ?(%behn %clay) %writ *]
     ?.  =(wire wire.u.in)
       [%skip hold]
@@ -1295,6 +1364,8 @@
   :+  state  temp
   ?+  in  [%skip hold]
     ~  [%wait hold]
+      [~ %veto *]
+    [%fail (veto-error dart.u.in)]
     ::
       [~ %arvo [%request ~] %iris %http-response %cancel *]
     ::NOTE  iris does not (yet?) retry after cancel, so it means failure
@@ -1328,6 +1399,8 @@
   :+  state  temp
   ?+  in  [%skip hold]
     ~  [%wait hold]
+      [~ %veto *]
+    [%fail (veto-error dart.u.in)]
       [~ %arvo [%request ~] %iris %http-response %cancel *]
     [%done ~]
       [~ %arvo [%request ~] %iris %http-response %finished *]

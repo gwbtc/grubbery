@@ -297,11 +297,10 @@
 ++  boot
   ^+  this
   ~?  >  veb  %booting
+  ?:  =(~ cone)
+    (make-base (gibs /boot) / /root ~)
   =.  this  mass-kill
-  =.  this  null-pokes
-  ?^  (~(get of cone) /)
-    this
-  (make-base (gibs /boot) / /root ~)
+  null-pokes
 :: +decap from /lib/rudder
 ::
 ++  has-prefix
@@ -532,6 +531,7 @@
   ?+    filt  (handle-dart here pid dart)
       [~ %|]
     ~?  >>>  veb  "vetoing illegal dart from {(spud here)}"
+    ?<  ?=(%perk -.dart)
     (gibs-take /veto [here pid] ~ %veto dart)
     ::
       [~ %&]

@@ -156,7 +156,7 @@
         [%dead =wire err=(unit tang)] :: response to kill
         [%sand =wire err=(unit tang)] :: response to sand
         [%base =wire =sign] :: response from poke or bump
-        [%veto =dart] :: notify that a dart was sandboxed
+        [%veto dart=$<(%perk dart)] :: notify that a dart was sandboxed
         :: messages from gall and arvo
         ::
         [%scry =wire =path =vase]
