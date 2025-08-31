@@ -1,5 +1,5 @@
 /-  g=grubbery
-/+  grubberyio, gui
+/+  grubberyio
 |%
 :: evaluation engine for the main state and continuation monad
 ::
@@ -220,8 +220,8 @@
 ::
 ++  bin
   |%
-  :: bin base does nothing
-  :: TODO: why have it be a base at all....?
+  :: /bin/zuse and /bin/grubbery exist as inert compiled code
+  :: which is replaced on each +on-load
   ::
   ++  base  `base:g`done:grubberyio
     ::
@@ -253,21 +253,20 @@
     ^-  form:m
     ;<  [=stud:g =vase]  bind:m  get-poke-pail
     ;<  here=path        bind:m  get-here
-    ?+    stud  !!
-        [%sig ~]
-      =+  !<(=@t vase)
-      =/  code=(each code:lib:g tang)
-        (mule |.((build t)))
-      ;<  ~  bind:m  (replace !>([t code]))
-      ?>  ?=([%lib *] here)
-      =/  dest=path  [%bin t.here]
-      =/  sour=vine:stem:g
-        %-  ~(gas of *vine:stem:g)
-        %+  welp  ~[[/source-lib &+here] [/bin/grubbery &+/bin/grubbery]]
-        ?:(?=(%| -.code) ~ (turn deps.p.code |=([=term =path] [path &+path])))
-      ;<  ~  bind:m  (overwrite-stem dest /bin sour)
-      done
-    ==
+    ?>    ?=([%txt ~] stud)
+    =+  !<(=@t vase)
+    ;<  [text=@t *]  bind:m  (get-state-as ,[@t *])
+    ?:  =(t text)
+      (pure:m ~)
+    =/  code=(each code:lib:g tang)  (mule |.((build t)))
+    ;<  ~  bind:m  (replace !>([t code]))
+    ?>  ?=([%lib *] here)
+    =/  dest=path  [%bin t.here]
+    =/  sour=vine:stem:g
+      %-  ~(gas of *vine:stem:g)
+      %+  welp  ~[[/source-lib &+here] [/bin/grubbery &+/bin/grubbery]]
+      ?:(?=(%| -.code) ~ (turn deps.p.code |=([=term =path] [path &+path])))
+    (overwrite-stem dest /bin sour)
   :: TODO: allow optional face and relative paths (i.e. /^/^/path)
   ::
   ++  import-line
@@ -282,38 +281,58 @@
      (rash text ;~(pfix (star gap) ;~(plug (more gap import-line) vest)))
   --
 ::
-++  boot
+++  root
   =*  grubbery-lib  ..bin :: avoid masking by grubberyio
   =*  zuse-core  ..zuse
   =,  grubberyio
   ^-  base:g
   =/  m  (charm:base:g ,~)
   ^-  form:m
-  ;<  [=stud:g =vase]  bind:m  get-poke-pail
-  ?+    stud  !!
-      [%sig ~]
-    ~&  >  %boot-sig
-    :: zuse-core and grubbery-lib comem first as all other libs depend on them
+  ::
+  =<
+  ::
+  ;<  pail=(unit pail:g)  bind:m  get-poke
+  ?>  ?=(~ pail)
+  ~&  >  %null-poke
+  :: zuse-core and grubbery-lib come first as all other libs depend on them
+  ::
+  ;<  ~  bind:m  (overwrite-base /bin/zuse /bin `!>(zuse-core))
+  ;<  ~  bind:m  (overwrite-base /bin/grubbery /bin `!>(grubbery-lib))
+  ;<  ~  bind:m  sync-lib-cone
+  :: user groups
+  ::
+  ~&  >>>  %user-groups
+  ;<  ~  bind:m  (overwrite-base /grp/who/~zod /usergroup `!>((sy ~[~zod])))
+  ;<  ~  bind:m  (overwrite-base /grp/how/~zod /group-weir `!>(*weir:g))
+  ;<  ~  bind:m  (overwrite-base /grp/pub /group-weir `!>(*weir:g))
+  :: counter test
+  ::
+  ~&  >>>  %counter-test
+  ;<  *  bind:m
+    (overwrite-and-poke /counter-container /counter-container ~ /sig !>(~))
+  :: gui setup
+  ::
+  ;<  *  bind:m  (overwrite-and-poke /gui /gui ~ /gui/init !>(~))
+  ::
+  ~&  >  "Grubbery booted!"
+  done
+  ::
+  |%
+  ++  sync-lib-cone
+    =/  m  (charm ,~)
+    ^-  form:m
+    ;<  =bowl:base:g      bind:m  get-bowl
+    =/  =beak             [our.bowl %grubbery da+now.bowl]
+    :: NOTE: we scry directly so that any crashes
+    ::       still occur in the +on-load
     ::
-    ;<  ~  bind:m  (overwrite-base /bin/zuse /bin `!>(zuse-core))
-    ;<  ~  bind:m  (overwrite-base /bin/grubbery /bin `!>(grubbery-lib))
-    ;<  ~  bind:m  sync-lib-cone
-    :: user groups
+    ;<  tree=(list path)  bind:m  (scry-tree %grubbery /gub)
+    |-
+    ?~  tree  done
+    ;<  file=@t  bind:m  (scry-file @t %grubbery i.tree)
+    :: TODO: Don't naively overwrite; check if it's equal first
     ::
-    ~&  >>>  %user-groups
-    ;<  ~  bind:m  (overwrite-base /grp/who/~zod /usergroup `!>((sy ~[~zod])))
-    ;<  ~  bind:m  (overwrite-base /grp/how/~zod /group-weir `!>(*weir:g))
-    ;<  ~  bind:m  (overwrite-base /grp/pub /group-weir `!>(*weir:g))
-    :: counter test
-    ::
-    ~&  >>>  %counter-test
-    ;<  *  bind:m
-      (overwrite-and-poke /counter-container /counter-container ~ /sig !>(~))
-    :: gui setup
-    ::
-    ;<  *  bind:m  (overwrite-and-poke /gui /gui ~ /gui/init !>(~))
-    ::
-    ~&  >  "Grubbery booted!"
-    done
-  ==
+    ;<  ~        bind:m  (overwrite-lib (slag 1 (snip i.tree)) file)
+    $(tree t.tree)
+  --
 --

@@ -2,15 +2,8 @@
 +$  stud  path
 +$  pail  (pair stud vase)
 :: TODO: However it's done, packaging and sharing code needs to be
-::       made effortless in such a way that doesn't overcomplicated imports.
-::
-:: Consider something like:
-:: +$  site  [home=path code=path]
-::
-:: +$  grub
-::   $%  [%base data=vase base=site]
-::       [%stem data=(each vase tang) =vine:stem stem=site]
-::   ==
+::       made effortless in such a way that doesn't
+::       overcomplicated imports and other references.
 ::
 +$  grub
   $%  [%base data=vase base=path]

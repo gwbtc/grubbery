@@ -240,6 +240,21 @@
     ==
   ==
 ::
+++  take-pack-sign-soft
+  |=  =wire
+  =/  m  (charm ,(each @ta tang))
+  ^-  form:m
+  |=  input
+  :-  ~
+  :+  state  temp
+  ?+  in  [%skip hold]
+    ~  [%wait hold]
+      [~ %base * %pack *]
+    ?.  =(wire wire.u.in)
+      [%skip hold]
+    [%done p.sign.u.in]
+  ==
+::
 ++  take-poke-sign
   |=  =wire
   =/  m  (charm ,~)
@@ -257,6 +272,22 @@
     [%fail %poke-fail u.err.sign.u.in]
   ==
 ::
+++  take-poke-sign-soft
+  |=  =wire
+  =/  m  (charm ,(unit tang))
+  ^-  form:m
+  |=  input
+  :-  ~
+  :+  state  temp
+  ?+  in  [%skip hold]
+    ~  [%wait hold]
+      [~ %base * %poke *]
+    ?.  =(wire wire.u.in)
+      [%skip hold]
+    [%done err.sign.u.in]
+  ==
+:: TODO: need to gracefully handle vetoes
+::
 ++  poke
   |=  [=path =pail:g]
   =/  m  (charm ,~)
@@ -264,6 +295,26 @@
   ;<  ~  bind:m  (send-raw-dart %grub /poke &+path %poke pail)
   ;<  *  bind:m  (take-pack-sign /poke)
   (take-poke-sign /poke)
+::
+++  poke-soft
+  |=  [=path =pail:g]
+  =/  m  (charm ,(unit tang))
+  ^-  form:m
+  ;<  ~  bind:m  (send-raw-dart %grub /poke &+path %poke pail)
+  ;<  res=(each @ta tang)  bind:m  (take-pack-sign-soft /poke)
+  ?:  ?=(%| -.res)
+    (pure:m ~ p.res)
+  (take-poke-sign-soft /poke)
+:: poke without awaiting completion
+:: returns process id for further interaction
+::
+++  toss
+  |=  [=path =pail:g]
+  =/  m  (charm ,@ta)
+  ^-  form:m
+  ;<  ~  bind:m  (send-raw-dart %grub /poke &+path %poke pail)
+  (take-pack-sign /poke)
+:: poke while expecting a single returned piece of data (perk)
 ::
 ++  vent
   |=  [=path poke=pail:g]
@@ -636,6 +687,22 @@
     [%fail %sand-fail u.err.u.in]
   ==
 ::
+++  check-base
+  |=  [=path data=vase base=path]
+  =/  m  (charm ,?)
+  ^-  form:m
+  ;<  =grub:g  bind:m  (peek-root path)
+  (pure:m =(grub [%base data base]))
+::
+++  check-stem
+  |=  [=path =vine:stem:g stem=path]
+  =/  m  (charm ,?)
+  ^-  form:m
+  ;<  =grub:g  bind:m  (peek-root path)
+  ?.  ?=(%stem -.grub)
+    (pure:m |)
+  (pure:m =([vine stem] [vine stem]:grub))
+::
 ++  make-stem
   |=  [=path stem=path =vine:stem:g]
   =/  m  (charm ,~)
@@ -645,9 +712,15 @@
   (take-made /make-stem)
 ::
 ++  overwrite-stem
+  =|  chk=?
   |=  [=path stem=path =vine:stem:g]
   =/  m  (charm ,~)
   ^-  form:m
+  ;<  skip=?  bind:m
+    ?.  chk   (pure:(charm ?) |)
+    (check-stem path vine stem)
+  ?:  skip
+    (pure:m ~)
   ;<  ~  bind:m  (oust-grub path)
   (make-stem path stem vine)
 ::
@@ -660,9 +733,16 @@
   (take-made /make-base)
 ::
 ++  overwrite-base
+  =|  chk=?
   |=  [=path base=path data=(unit vase)]
   =/  m  (charm ,~)
   ^-  form:m
+  ;<  skip=?  bind:m
+    ?.  chk   (pure:(charm ?) |)
+    ?~  data  (pure:(charm ?) |)
+    (check-base path u.data base)
+  ?:  skip
+    (pure:m ~)
   ;<  ~  bind:m  (oust-grub path)
   (make-base path base data)
 ::
@@ -688,7 +768,7 @@
     %:  make-and-poke
       [%lib path]
       /lib  ~
-      [/sig !>(code)]
+      [/txt !>(code)]
     ==
   (pure:m ~)
 ::
@@ -696,7 +776,9 @@
   |=  [=path code=@t]
   =/  m  (charm ,~)
   ^-  form:m
-  ;<  ~  bind:m  (edit-weir [%lib path] ~)
+  ;<  res=(unit tang)  bind:m  (poke-soft [%lib path] /txt !>(code))
+  ?~  res
+    (pure:m ~)
   ;<  ~  bind:m  (oust-grub [%lib path])
   (make-lib path code)
 ::
@@ -713,6 +795,9 @@
   ^-  form:m
   ;<  =bowl:base:g      bind:m  get-bowl
   =/  =beak             [our.bowl %grubbery da+now.bowl]
+  :: NOTE: we scry directly so that any crashes
+  ::       still occur in the +on-load
+  ::
   ;<  tree=(list path)  bind:m  (scry-tree %grubbery /gub)
   |-
   ?~  tree  done
@@ -825,6 +910,12 @@
   ?>  ?=(%stem -.grub)
   (overwrite-stem here stem.grub vine)
 ::
+++  get-poke
+  =/  m  (charm ,(unit pail:g))
+  ^-  form:m
+  |=  input
+  [~ state temp %done pail]
+::
 ++  get-poke-pail
   =/  m  (charm ,pail:g)
   ^-  form:m
@@ -872,7 +963,7 @@
   =/  m  (charm ,a)
   ^-  form:m
   |=  input
-  [~ state temp %done !<(a state)]
+  [~ state temp %done ;;(a q.state)]
 ::
 ++  gut-state-as
   |*  a=mold
@@ -880,7 +971,7 @@
   =/  m  (charm ,a)
   ^-  form:m
   |=  input
-  =/  res  (mule |.(!<(a state)))
+  =/  res  (mule |.(;;(a q.state)))
   ?-  -.res
     %&  [~ state temp %done p.res]
     %|  [~ state temp %done (gut p.res)]
