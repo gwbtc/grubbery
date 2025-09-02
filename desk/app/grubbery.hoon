@@ -189,18 +189,23 @@
   |=  =path
   ^-  (quip card _this)
   ?+    path  (on-watch:def path)
+    :: allow watching a grub as you might watch a thread
+    ::
       [%base @ *]
     =^  cards  state
       abet:(take-watch path)
     [cards this]
+    :: give feedback for pokes to the %grubbery agent
     ::
       [%poke @ *]
     ?>  =(src.bowl (slav %p i.t.path))
     [~ this]
+    :: keep up with changes to tree state
     ::
       [%history ~]
     ?>  =(src our):bowl
     [~ this]
+    :: give responses to http requests
     ::
       [%http-response *]
     [~ this]
@@ -1050,7 +1055,7 @@
   ^+  this
   =/  =from:base:g  (relativize-from:grubbery here from.give)
   ?.  clam
-    (gibs-take /bump [here pid] ~ %bump from pail)
+    (enqu-take [here pid] give ~ %bump from pail)
   =/  stud-res  (mule |.((get-stud p.pail)))
   ?:  ?=(%| -.stud-res)
     =/  =sign:base:g  [%bump ~ leaf+"bump-stud-fail" p.stud-res]
@@ -1065,7 +1070,7 @@
       (give-external-sign give sign)
     =/  here-pid=[path @ta]  (get-here-pid from.give)
     (gibs-take /bump-fail here-pid ~ %base wire.give sign)
-  (gibs-take /bump [here pid] ~ %bump from pail)
+  (enqu-take [here pid] give ~ %bump from pail)
 :: TODO: handle outgoing keens
 ::
 ++  clean
@@ -1096,13 +1101,16 @@
 ++  give-external-sign
   |=  [=give:g =sign:base:g]
   ^+  this
+  ~?  >>  veb  %giving-external-sign
+  ~?  >>  veb  sign+sign
+  ~?  >>  veb  give+give
   ?>  ?=(%| -.from.give) :: assert from outside grubbery
   =/  src=@ta  (scot %p src.p.from.give)
   =/  =wire  (weld /poke/[src] wire.give)
-  %-  emit-cards
-  :~  [%give %fact ~[wire] grub-sign-base+!>(sign)]
-      [%give %kick ~[wire] ~]
-  ==
+  =.  this  (emit-card %give %fact ~[wire] grub-sign-base+!>(sign))
+  ?:  ?=(%pack -.sign)
+    this
+  (emit-card %give %kick ~[wire] ~)
 ::
 ++  start-process
   |=  [[here=path pid=@ta] =proc:base:g =poke:g]
@@ -1175,6 +1183,7 @@
   ?.  ?=([~ %bump *] in)  this
   ~?  >>  veb  %giving-bump-sign
   =/  =sign:base:g  [%bump err]
+  ~&  >>>  give+give
   ?:  ?=(%| -.from.give)
     (give-external-sign give sign)
   (gibs-take /bump (get-here-pid from.give) ~ %base wire.give sign)
@@ -1352,6 +1361,7 @@
   =/  =grub:g  (need (~(get of cone) here))
   ?>  ?=(%base -.grub)
   =/  =give:g  (get-process-give here pid)
+  ~&  >>>  give+give
   =.  this  (delete-process here pid)
   =.  this  (relinquish here)
   =.  this  (clean here pid)
