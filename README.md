@@ -2,6 +2,8 @@
 
 A tree-shaped manager for stateful long-running processes.
 
+https://drive.google.com/file/d/1fnvEjsRMLJqIRavDlDalbHzojQVCum5s/view?usp=drive_link
+
 ## Setup
 
 ### Installation
@@ -52,7 +54,7 @@ A tree-shaped manager for stateful long-running processes.
 #### Threads
 - `-grubbery!poke [~ /path/to/grub /stud/path noun]` - Poke a base grub and await completion
 - `-grubbery!bump [~ /path/to/grub 'pid' /stud/path noun]` - Bump a process
-- `-grubbery!toss [~ /path/to/grub /stud/path noun]` - Poke a base grub without waiting for completion (returns poke id)
+- `-grubbery!toss [~ /path/to/grub /stud/path noun]` - Poke a base grub without waiting for completion (returns process id)
 
 ### 3. Frontend
 
