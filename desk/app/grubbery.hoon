@@ -297,7 +297,7 @@
 ++  boot
   ^+  this
   ~?  >  veb  %booting
-  ?:  =(~ cone)
+  ?:  =([~ ~] cone)
     (make-base (gibs /boot) / /root ~)
   =.  this  mass-kill
   null-pokes

@@ -292,6 +292,7 @@
   =<
   ::
   ;<  pail=(unit pail:g)  bind:m  get-poke
+  ~&  >>>  %yo
   ?>  ?=(~ pail)
   ~&  >  %null-poke
   :: zuse-core and grubbery-lib come first as all other libs depend on them
@@ -336,9 +337,29 @@
     ::
     ;<  tree=(list path)  bind:m  (scry-tree %grubbery /gub)
     |-
-    ?~  tree  done
+    ?~  tree
+      boot-bill
     ;<  file=@t  bind:m  (scry-file @t %grubbery i.tree)
     ;<  ~        bind:m  (overwrite-lib (slag 1 (snip i.tree)) file)
     $(tree t.tree)
+  ::
+  ++  boot-bill
+    =/  m  (charm ,~)
+    ^-  form:m
+    ;<  file=@t  bind:m  (scry-file @t %grubbery /gub/bill/hoon)
+    =+  !<(bill=(list (pair path path)) (slip !>(zuse) (rash file vest)))
+    |-
+    ?~  bill
+      (pure:m ~)
+    ~&  >>>  i.bill
+    ;<  grub=(unit grub:g)  bind:m  (peek-root-soft p.i.bill)
+    ?~  grub
+      ;<  ~  bind:m  (make-base p.i.bill q.i.bill ~)
+      $(bill t.bill)
+    ?.  ?=([~ %base *] grub)
+      (charm-fail leaf+"bill-fail: existing stem at {(spud p.i.bill)}")
+    ?.  =(q.i.bill base.u.grub)
+      (charm-fail leaf+"bill-fail: existing base at {(spud p.i.bill)} with base {(spud base.u.grub)}")
+    $(bill t.bill)
   --
 --
