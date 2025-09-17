@@ -6,13 +6,10 @@
 ;<  here=path        bind:m  get-here
 ?+    stud  !!
     [%sig ~]
-  =/  counter=path  (weld here /counter)
-  =/  is-even=path  (weld here /is-even)
-  =/  parity=path   (weld here /parity)
-  ;<  ~  bind:m  (overwrite-base counter /counter `!>(10))
-  =/  ie-vine=vine:stem:g  (~(put of *vine:stem:g) /counter &+counter)
-  ;<  ~  bind:m  (overwrite-stem is-even /is-even ie-vine)
-  =/  pa-vine=vine:stem:g  (~(put of *vine:stem:g) /is-even &+is-even)
-  ;<  ~  bind:m  (overwrite-stem parity /parity pa-vine)
+  ;<  ~  bind:m  (overwrite-base |+[0 /counter] /counter `!>(10))
+  =/  ie-vine=vine:stem:g  (~(put of *vine:stem:g) /counter |+[1 /counter])
+  ;<  ~  bind:m  (overwrite-stem |+[0 /is-even] /is-even ie-vine)
+  =/  pa-vine=vine:stem:g  (~(put of *vine:stem:g) /is-even |+[1 /is-even])
+  ;<  ~  bind:m  (overwrite-stem |+[0 /parity] /parity pa-vine)
   done
 ==

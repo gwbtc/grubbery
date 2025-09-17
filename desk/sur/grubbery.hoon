@@ -261,4 +261,14 @@
         ==
     ==
   --
+::
++$  state-0
+  $:  %0
+      =cone
+      =trac
+      =pool
+      =sand
+      =bindings
+      =history
+  ==
 --

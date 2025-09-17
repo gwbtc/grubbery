@@ -42,7 +42,6 @@
       (give-simple-payload two-oh-four)
     =/  args=key-value-list:kv  (parse-body:kv body.request.req)
     =/  get=(unit @t)  (get-key:kv 'get' args)
-    ~&  >>  get+get
     ;<  ~  bind:m  (do-post site (delete-key:kv 'get' args))
     ?~  get
       (give-simple-payload two-oh-four)
@@ -60,20 +59,37 @@
   |=  [last-id=(unit @t) request-line:server]
   =/  m  (charm ,~)
   ^-  form:m
-  ?>  ?=([%grub %events ~] site)
-  ~&  >  "HELLO WORLD!"
-  ;<  ~  bind:m  give-sse-header
-  =|  a=@ud
-  |-
-  ?:  =(5 a)
-    ;<  ~  bind:m  (give-sse-manx ~ `'close' *manx)
-    done
-  =/  =manx
-    ;div: {(scow %ud a)}
-  ~&  >  "giving sse {(scow %ud a)}"
-  ;<  ~  bind:m  (give-sse-manx `(scot %ud a) ~ manx)
-  ;<  ~  bind:m  (sleep ~s1)
-  $(a +(a))
+  ?+    site  !!
+      [%grub %history ~]
+    ~&  >  "HELLO HISTORY!"
+    ;<  ~  bind:m  give-sse-header
+    ;<  ~  bind:m  (watch-our /history %grubbery /history)
+    |-
+    ;<  fact=cage  bind:m  (take-fact /history)
+    ?>  ?=(%grub-event p.fact)
+    =+  !<([when=@da here=path] q.fact)
+    =/  parent=path  (snip here)
+    ;<  =cone:g   bind:m  (peek &+parent)
+    ~&  cone-dir+~(tap in ~(key by dir.cone))
+    =/  =manx  (cone-navigator parent cone)
+    ;<  ~  bind:m  (give-sse-manx `'cone-replace' ~ manx)
+    $
+    ::
+      [%grub %events ~]
+    ~&  >  "HELLO WORLD!"
+    ;<  ~  bind:m  give-sse-header
+    =|  a=@ud
+    |-
+    ?:  =(5 a)
+      ;<  ~  bind:m  (give-sse-manx ~ `'close' *manx)
+      done
+    =/  =manx
+      ;div: {(scow %ud a)}
+    ~&  >  "giving sse {(scow %ud a)}"
+    ;<  ~  bind:m  (give-sse-manx `(scot %ud a) ~ manx)
+    ;<  ~  bind:m  (sleep ~s1)
+    $(a +(a))
+  ==
 ::
 ++  do-get
   |=  request-line:server
@@ -81,7 +97,7 @@
   ^-  form:m
   ~&  >>  %doing-get
   ?+    site
-    ;<  =cone:g   bind:m  (peek /)
+    ;<  =cone:g   bind:m  (peek &+/)
     (give-manx-response (main-page cone))
     ::
       [%grub %mime %web-components %side-bar ~]
@@ -104,10 +120,10 @@
     ::
       [%grub %mime *]
     ~&  >>>  %miming
-    ;<  =grub:g  bind:m  (peek-root t.t.site)
+    ;<  =grub:g  bind:m  (peek-root &+t.t.site)
     ?>  ?=(%base -.grub)
-    ;<  =cone:g  bind:m  (peek t.t.site)
-    ;<  =pail:g  bind:m  (vent t.t.site /gui/mime !>(~))
+    ;<  =cone:g  bind:m  (peek &+t.t.site)
+    ;<  =pail:g  bind:m  (vent &+t.t.site /gui/mime !>(~))
     ~&  >>>  %we-got-the-pail
     ?>  ?=([%mime ~] p.pail)
     ~&  >>  %extracting-mime
@@ -120,14 +136,14 @@
     ::
       [%grub %main ~]
     ~&  >>  "got to /grub/main"
-    ;<  =cone:g  bind:m  (peek /)
+    ;<  =cone:g  bind:m  (peek &+/)
     (give-manx-response (wrap-manx (main cone)))
     ::
       [%grub %search-bar *]
     (give-manx-response (search-bar t.t.site))
     ::
       [%grub %tree %lib *]
-    ;<  g=(unit grub:g)  bind:m  (peek-root-soft t.t.site)
+    ;<  g=(unit grub:g)  bind:m  (peek-root-soft &+t.t.site)
     ;<  =manx  bind:m  (grub-tree-lib t.t.t.site)
     (give-manx-response manx)
     ::
@@ -168,11 +184,13 @@
   |=  [site=path parts=(list [@t part:multipart])]
   =/  m  (charm ,~)
   ^-  form:m
-  ?+    site  !!
+  ~&  >>  "gui: +do-upload"
+  ~&  >>  site+site
+  ?+    site  (charm-fail leaf+"bad upload site" ~)
       [%grub %upload *]
-    ;<  =grub:g  bind:m  (peek-root t.t.site)
+    ;<  =grub:g  bind:m  (peek-root &+t.t.site)
     ?>  ?=(%base -.grub)
-    ;<  *  bind:m  (poke t.t.site /multipart !>(parts))
+    ;<  *  bind:m  (poke &+t.t.site /multipart !>(parts))
     (pure:m ~)
   ==
 ::
@@ -180,17 +198,18 @@
   |=  [site=path args=key-value-list:kv]
   =/  m  (charm ,~)
   ^-  form:m
-  ?+    site  !!
+  ~&  >>  "gui: +do-post"
+  ?+    site  (charm-fail leaf+"gui: bad post site {(spud site)}" ~)
     [%grub %get ~]  (pure:m ~)
     ::
       [%grub %make %base ~]
     =/  =path       (rash (need (get-key:kv 'path' args)) stap)
     =/  base=^path  (rash (need (get-key:kv 'base' args)) stap)
-    ;<  grub=(unit grub:g)  bind:m  (peek-root-soft %lib %base base)
-    ;<  =lib:g  bind:m  (peek-root-as lib:g /lib/base/template)
+    ;<  grub=(unit grub:g)  bind:m  (peek-root-soft %& %lib %base base)
+    ;<  =lib:g  bind:m  (peek-root-as lib:g &+/lib/base/template)
     ;<  ~  bind:m
       ?^(grub (pure:(charm ,~)) (overwrite-base-lib base text.lib))
-    (overwrite-base path base ~)
+    (overwrite-base &+path base ~)
     ::
       [%grub %make %stem ~]
     =/  =path       (rash (need (get-key:kv 'path' args)) stap)
@@ -199,11 +218,11 @@
       %-  ~(gas of *vine:stem:g)
       %+  turn  (rash (need (get-key:kv 'sour' args)) (more com stap))
       |=(=^path [path %& path])
-    ;<  grub=(unit grub:g)  bind:m  (peek-root-soft %lib %stem stem)
-    ;<  =lib:g  bind:m  (peek-root-as lib:g /lib/stem/template)
+    ;<  grub=(unit grub:g)  bind:m  (peek-root-soft %& %lib %stem stem)
+    ;<  =lib:g  bind:m  (peek-root-as lib:g &+/lib/stem/template)
     ;<  ~  bind:m
       ?^(grub (pure:(charm ,~)) (overwrite-stem-lib stem text.lib))
-    (overwrite-stem path stem vine)
+    (overwrite-stem &+path stem vine)
     ::
       [%grub %kill %base ~]
     !!
@@ -212,23 +231,23 @@
       [%grub %init %base ~]
     =/  =path  (rash (need (get-key:kv 'path' args)) stap)
     :: TODO: rewrite +throw
-    (poke path /init !>(~))
+    (poke &+path /init !>(~))
     ::
       [%grub %load %base ~]
     =/  =path  (rash (need (get-key:kv 'path' args)) stap)
     :: TODO: rewrite +throw
-    (poke path /load !>(~))
+    (poke &+path /load !>(~))
     ::
       [%grub %sig %base ~]
     =/  =path  (rash (need (get-key:kv 'path' args)) stap)
     :: TODO: rewrite +throw
-    (poke path /sig !>(~))
+    (poke &+path /sig !>(~))
     ::
       [%grub %oust %grub ~]
-    (oust-grub (rash (need (get-key:kv 'path' args)) stap))
+    (oust-grub &+(rash (need (get-key:kv 'path' args)) stap))
     ::
       [%grub %cull %cone ~]
-    (cull-cone (rash (need (get-key:kv 'path' args)) stap))
+    (cull-cone &+(rash (need (get-key:kv 'path' args)) stap))
     ::
       [%grub %sand %sysc ~]
     !! :: (edit-weir (rash (need (get-key:kv 'path' args)) stap) ~) TODO: fix
@@ -250,22 +269,22 @@
     ::
       [%grub %oust %lib ~]
     =/  =path  (rash (need (get-key:kv 'path' args)) stap)
-    ;<  ~  bind:m  (oust-grub [%lib path])
-    (oust-grub [%bin path])
+    ;<  ~  bind:m  (oust-grub %& %lib path)
+    (oust-grub %& %bin path)
     ::
       [%grub %cull %lib ~]
     =/  =path  (rash (need (get-key:kv 'path' args)) stap)
-    ;<  ~  bind:m  (cull-cone [%lib path])
-    (cull-cone [%bin path])
+    ;<  ~  bind:m  (cull-cone %& %lib path)
+    (cull-cone %& %bin path)
     ::
       [%grub %poke *]
     ~&  >>>  %receiving-poke-post
-    ;<  =grub:g  bind:m  (peek-root t.t.site)
+    ;<  =grub:g  bind:m  (peek-root &+t.t.site)
     ?>  ?=(%base -.grub)
-    ;<  p=grub:g  bind:m  (peek-root (weld /bin/gui/con/poke base.grub))
+    ;<  p=grub:g  bind:m  (peek-root &+(weld /bin/gui/con/poke base.grub))
     =/  =pail:g
       (!<($-(key-value-list:kv pail:g) (grab-data p)) args)
-    ;<  *  bind:m  (poke t.t.site pail)
+    ;<  *  bind:m  (poke &+t.t.site pail)
     (pure:m ~)
   ==
   
@@ -295,7 +314,7 @@
     ==
     ;body.h-screen.w-screen
       =hx-ext  "sse"
-      =sse-connect  "/grub/events"
+      =sse-connect  "/grub/history"
       =sse-close  "close"
       ;div
         ;div
@@ -434,6 +453,8 @@
   |=  [=path =cone:g]
   ^-  manx
   ;div.pl-6
+    =id  (make-id cone-navigator+path)
+    =hx-swap-oob  "outerHTML"
     ;div
       =class  "flex flex-row px-1 py-2 bg-blue-500 hover:bg-blue-200"
       ;*  ?:  =(~ dir.cone)
@@ -689,8 +710,8 @@
   |=  =path
   =/  m  (charm ,manx)
   ^-  form:m
-  ;<  grub=(unit grub:g)       bind:m  (peek-root-soft path)
-  ;<  weir=(unit weir:g)  bind:m  (get-weir path)
+  ;<  grub=(unit grub:g)  bind:m  (peek-root-soft &+path)
+  ;<  weir=(unit weir:g)  bind:m  (get-weir &+path)
   ?~  grub
     (pure:m (no-grub path weir))
   %-  pure:m
@@ -958,9 +979,9 @@
   |=  =path
   =/  m  (charm ,manx)
   ^-  form:m
-  ;<  =cone:g  bind:m  (peek path)
+  ;<  =cone:g  bind:m  (peek &+path)
   =/  =grub:g  (need (~(get of cone) /))
-  ;<  =stud:g  bind:m  (get-grub-stud path)
+  ;<  =stud:g  bind:m  (get-grub-stud &+path)
   %-  pure:m
   ^-  manx
   ;div(class "w-full h-full mx-auto bg-white shadow-lg rounded-lg flex flex-col overflow-auto")
@@ -1004,9 +1025,9 @@
   |=  =path
   =/  m  (charm ,manx)
   ^-  form:m
-  ;<  =cone:g  bind:m  (peek path)
+  ;<  =cone:g  bind:m  (peek &+path)
   =/  =grub:g  (need (~(get of cone) /))
-  ;<  =stud:g  bind:m  (get-grub-stud path)
+  ;<  =stud:g  bind:m  (get-grub-stud &+path)
   %-  pure:m
   ^-  manx
   ;div(class "w-full h-full mx-auto bg-white shadow-lg rounded-lg flex flex-col")
@@ -1078,11 +1099,11 @@
   |=  =path
   =/  m  (charm ,manx)
   ^-  form:m
-  ;<  =cone:g  bind:m  (peek path)
+  ;<  =cone:g  bind:m  (peek &+path)
   =/  =grub:g  (need (~(get of cone) /))
-  ;<  =stud:g  bind:m  (get-grub-stud path)
+  ;<  =stud:g  bind:m  (get-grub-stud &+path)
   ;<  s=(unit grub:g)  bind:m
-    (peek-root-soft (weld /bin/gui/con/stud stud))
+    (peek-root-soft &+(weld /bin/gui/con/stud stud))
   %-  pure:m
   ?~  s
     =/  res  (grab-data-soft grub)
@@ -1105,14 +1126,14 @@
   |=  =path
   =/  m  (charm ,manx)
   ^-  form:m
-  ;<  =cone:g  bind:m  (peek path)
+  ;<  =cone:g  bind:m  (peek &+path)
   =/  =grub:g  (need (~(get of cone) /))
   =/  con-path=^path
     ?-  -.grub
       %base  (weld /bin/gui/con/base base.grub)
       %stem  (weld /bin/gui/con/stem stem.grub)
     ==
-  ;<  c=(unit grub:g)  bind:m  (peek-root-soft con-path)
+  ;<  c=(unit grub:g)  bind:m  (peek-root-soft &+con-path)
   %-  pure:m
   ?~  c
     =/  res  (grab-data-soft grub)
@@ -1135,7 +1156,7 @@
   |=  =path
   =/  m  (charm ,manx)
   ^-  form:m
-  ;<  =grub:g  bind:m  (peek-root path)
+  ;<  =grub:g  bind:m  (peek-root &+path)
   ?>  ?=(%stem -.grub)
   %-  pure:m
   ;div.flex-grow.flex.flex-col.items-center.justify-center
@@ -1148,7 +1169,7 @@
   |=  =path
   =/  m  (charm ,manx)
   ^-  form:m
-  ;<  =grub:g  bind:m  (peek-root path)
+  ;<  =grub:g  bind:m  (peek-root &+path)
   %-  pure:m
   ;div(class "w-full h-full mx-auto bg-white shadow-lg rounded-lg flex flex-col")
     ;div(class "flex justify-center p-1 border-b border-gray-300 bg-gray-50")
@@ -1203,12 +1224,12 @@
   |=  here=path
   =/  m  (charm ,manx)
   ^-  form:m
-  ;<  lib=(unit grub:g)  bind:m  (peek-root-soft %lib here)
+  ;<  lib=(unit grub:g)  bind:m  (peek-root-soft %& %lib here)
   ?~  lib
     (no-lib here)
   =+  !<([code=@t *] (grab-data u.lib))
-  ;<  grub=(unit grub:g)       bind:m  (peek-root-soft %bin here)
-  ;<  weir=(unit weir:g)  bind:m  (get-weir %lib here)
+  ;<  grub=(unit grub:g)       bind:m  (peek-root-soft %& %bin here)
+  ;<  weir=(unit weir:g)  bind:m  (get-weir %& %lib here)
   ~&  >>  ["weir in +grub-tree-lib:" weir]
   (pure:m (lib-page here code grub weir))
 ::
@@ -1227,7 +1248,7 @@
       [%gui %con %poke *]  /lib/gui/con/template/poke
       [%gui %con %bump *]  /lib/gui/con/template/bump
     ==
-  ;<  =lib:g  bind:m  (peek-root-as lib:g temp)
+  ;<  =lib:g  bind:m  (peek-root-as lib:g &+temp)
   =/  template=tape  (trip text.lib)
   %-  pure:m
   ;div(id (make-id %lib path))
@@ -1469,7 +1490,7 @@
 ++  get-dom-manx
   |=  =path
   =/  m  (charm ,manx)
-  ;<  =cone:g  bind:m  (peek /gui/boot/dom)
+  ;<  =cone:g  bind:m  (peek &+/gui/boot/dom)
   ?~  grub=(~(get of cone) path)
     %-  pure:m
     ;div: No grub at this path.

@@ -8,15 +8,16 @@
 |%
 ++  veb  &
 +$  card     card:agent:gall
-+$  state-0
-  $:  %0
-      =cone:g
-      =trac:g
-      =pool:g
-      =sand:g
-      =bindings:g
-      =history:g
-  ==
++$  state-0  state-0:g
+:: +$  state-0
+::   $:  %0
+::       =cone:g
+::       =trac:g
+::       =pool:g
+::       =sand:g
+::       =bindings:g
+::       =history:g
+::   ==
 --
 ::
 =|  state-0
@@ -344,7 +345,8 @@
   =/  res  (mule |.(!<([* b=base:g] (grab-data:io grub))))
   ?:  ?=(%& -.res)
     b.p.res
-  ~|("base {(spud base)} failed to compile" !!)
+  ~|  "base {(spud base)} failed to compile"
+  (mean p.res)
 ::
 ++  get-base-stud
   |=  base=path
@@ -363,7 +365,8 @@
   =/  res  (mule |.(!<([=stud:g *] (grab-data:io grub))))
   ?:  ?=(%& -.res)
     stud.p.res
-  ~|("base {(spud base)} failed to compile" !!)
+  ~|  "base {(spud base)} failed to compile"
+  (mean p.res)
 ::
 ++  get-stem-code
   |=  stem=path
@@ -380,7 +383,8 @@
   =/  res  (mule |.(!<([* s=stem:g] (grab-data:io grub))))
   ?:  ?=(%& -.res)
     s.p.res
-  ~|("stem {(spud stem)} failed to compile" !!)
+  ~|  "stem {(spud stem)} failed to compile"
+  (mean p.res)
 ::
 ++  get-stem-stud
   |=  stem=path
@@ -397,7 +401,8 @@
   =/  res  (mule |.(!<([=stud:g *] (grab-data:io grub))))
   ?:  ?=(%& -.res)
     stud.p.res
-  ~|("stem {(spud stem)} failed to compile" !!)
+  ~|  "stem {(spud stem)} failed to compile"
+  (mean p.res)
 :: only useful for clamming
 ::
 ++  get-stud
@@ -716,7 +721,7 @@
   :-  name
   ?~  dep=(path-from-road:grubbery here road)
     :: TODO: make sure actually cannot see outside of peek sandbox
-    |+[leaf+"beyond peek sandbox: {(render-road:grubbery road)}" ~]
+    |+[leaf+"beyond peek sandbox: {(render-road:io road)}" ~]
   ?~  grub=(~(get of cone) u.dep)
     |+[leaf+"no grub: {(spud here)}" ~]
   (grab-data-soft:io u.grub)
@@ -1222,6 +1227,7 @@
   =/  =pipe:g  (need (~(get of pool) here))
   =/  =proc:g  (~(got by proc.pipe) pid)
   ~?  >>  veb  process-do-next-boar+boar.pipe
+  ~?  >>  veb  give+give.poke.proc
   ?.  |(=(~ boar.pipe) =([~ pid] boar.pipe))
     this
   ?:  =(~ next.proc)
@@ -1325,10 +1331,11 @@
 ++  give-http-poke-sign
   |=  [[here=path pid=@ta] eyre-id=wire err=(unit tang)]
   ^+  this
+  ~&  >>>  "+give-http-poke-sign {(spud (weld here /[pid]))}"
   =/  =wire  (weld /http-response eyre-id)
+  =/  =pipe:g  (need (~(get of pool) here))
+  ?<  (~(has by proc.pipe) pid)
   ?~  err
-    :: TODO: give some positive response?
-    ::
     (emit-card %give %kick ~[wire] ~)
   %-  (slog leaf+"fail at {(spud (weld here /[pid]))}" u.err)
   =/  =simple-payload:http  (internal-server-error:io & "" u.err)
@@ -1348,7 +1355,6 @@
   |=  [here=path pid=@ta]
   ^+  this
   =/  =pipe:g  (need (~(get of pool) here))
-  =/  =proc:g  (~(got by proc.pipe) pid)
   =.  proc.pipe  (~(del by proc.pipe) pid)
   this(pool (~(put of pool) here pipe))
 ::
@@ -1374,10 +1380,11 @@
   ?:  ?=([%gall *] sap.p.from.give)
     ?:  ?=([%grubbery ~] t.sap.p.from.give)
       ?~  res  this
-      ~|  "crashed with wire {(spud wire.give)}"
+      ~|  "crashed at {(spud (weld here /[pid]))} with wire {(spud wire.give)}"
       ?+  wire.give  !!
         [%boot ~]  (mean u.res)
           [%null-poke ~]
+        :: ?:  =(/ here)  (mean u.res)
         ((slog leaf+"null-poke-fail {(spud (weld here /[pid]))}" u.res) this)
       ==
     (give-external-sign give sign)

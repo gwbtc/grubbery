@@ -70,6 +70,24 @@
     ?:(?=(%| -.res) *weir:g p.res)
   (merge-weirs public-weir groups-weir)
 ::
+++  extend-road
+  |=  [=road:g =path:g]
+  ^-  road:g
+  ?-  -.road
+    %&  &+(weld p.road path)
+    %|  |+[p.p.road (weld q.p.road path)]
+  ==
+::
+++  render-road
+  |=  =road:g
+  ^-  tape
+  ?.  ?=(%| -.road)  (spud p.road)
+  ?.  =(0 p.p.road)
+    "^{(scow %ud p.p.road)}{(spud q.p.road)}"
+  ?~  q.p.road
+    "."
+  (trip (rsh [3 1] (spat q.p.road)))
+::
 ++  grab-data-soft
   |=  =grub:g
   ^-  (each vase tang)
@@ -105,7 +123,7 @@
   ?:  ?=([%boot ~] base)  (pure:m /sig)
   ?:  ?=([%lib ~] base)  (pure:m /lib)
   ?:  ?=([%bin ~] base)  (pure:m /bin)
-  ;<  =grub:g  bind:m  (peek-root [%bin %base base])
+  ;<  =grub:g  bind:m  (peek-root &+[%bin %base base])
   ?>  ?=(%stem -.grub)
   =/  res  (mule |.(!<([=stud:g *] (grab-data grub))))
   ?:  ?=(%& -.res)
@@ -117,7 +135,7 @@
   =/  m  (charm ,stud:g)
   ^-  form:m
   ?:  ?=([%bin ~] stem)  (pure:m /bin)
-  ;<  =grub:g  bind:m  (peek-root [%bin %stem stem])
+  ;<  =grub:g  bind:m  (peek-root &+[%bin %stem stem])
   ?>  ?=(%stem -.grub)
   =/  res  (mule |.(!<([=stud:g *] (grab-data grub))))
   ?:  ?=(%& -.res)
@@ -125,10 +143,10 @@
   ~|("stem {(spud stem)} failed to compile" !!)
 ::
 ++  get-grub-stud
-  |=  =path
+  |=  =road:g
   =/  m  (charm ,stud:g)
   ^-  form:m
-  ;<  =grub:g  bind:m  (peek-root path)
+  ;<  =grub:g  bind:m  (peek-root road)
   ?-  -.grub
     %base  (get-base-stud base.grub)
     %stem  (get-stem-stud stem.grub)
@@ -323,18 +341,18 @@
   ==
 ::
 ++  poke
-  |=  [=path =pail:g]
+  |=  [=road:g =pail:g]
   =/  m  (charm ,~)
   ^-  form:m
-  ;<  ~  bind:m  (send-raw-dart %grub /poke &+path %poke pail)
+  ;<  ~  bind:m  (send-raw-dart %grub /poke road %poke pail)
   ;<  *  bind:m  (take-pack-sign /poke)
   (take-poke-sign /poke)
 ::
 ++  poke-soft
-  |=  [=path =pail:g]
+  |=  [=road:g =pail:g]
   =/  m  (charm ,(unit tang))
   ^-  form:m
-  ;<  ~  bind:m  (send-raw-dart %grub /poke &+path %poke pail)
+  ;<  ~  bind:m  (send-raw-dart %grub /poke road %poke pail)
   ;<  res=(each @ta tang)  bind:m  (take-pack-sign-soft /poke)
   ?:  ?=(%| -.res)
     (pure:m ~ p.res)
@@ -343,18 +361,18 @@
 :: returns process id for further interaction
 ::
 ++  toss
-  |=  [=path =pail:g]
+  |=  [=road:g =pail:g]
   =/  m  (charm ,@ta)
   ^-  form:m
-  ;<  ~  bind:m  (send-raw-dart %grub /poke &+path %poke pail)
+  ;<  ~  bind:m  (send-raw-dart %grub /poke road %poke pail)
   (take-pack-sign /poke)
 :: poke while expecting a single returned piece of data (perk)
 ::
 ++  vent
-  |=  [=path poke=pail:g]
+  |=  [=road:g poke=pail:g]
   =/  m  (charm ,pail:g)
   ^-  form:m
-  ;<  ~        bind:m  (send-raw-dart %grub /vent &+path %poke poke)
+  ;<  ~        bind:m  (send-raw-dart %grub /vent road %poke poke)
   ;<  *        bind:m  (take-pack-sign /vent)
   ;<  =pail:g  bind:m  (take-perk /vent)
   ;<  ~        bind:m  (take-poke-sign /vent)
@@ -409,10 +427,10 @@
   ==
 ::
 ++  bump
-  |=  [=wire =path pid=@ta =pail:g]
+  |=  [=wire =road:g pid=@ta =pail:g]
   =/  m  (charm ,~)
   ^-  form:m
-  =/  =dart:g  [%grub wire &+path %bump pid pail]
+  =/  =dart:g  [%grub wire road %bump pid pail]
   ;<  ~  bind:m  (send-raw-dart dart)
   (take-bump-sign /bump)
 ::
@@ -436,10 +454,10 @@
   ==
 ::
 ++  bump-soft
-  |=  [=wire =path pid=@ta =pail:g]
+  |=  [=wire =road:g pid=@ta =pail:g]
   =/  m  (charm ,(unit tang))
   ^-  form:m
-  =/  =dart:g  [%grub wire &+path %bump pid pail]
+  =/  =dart:g  [%grub wire road %bump pid pail]
   ;<  ~  bind:m  (send-raw-dart dart)
   (take-bump-sign-soft /poke)
 ::
@@ -461,25 +479,25 @@
   ==
 ::
 ++  ls
-  |=  =path
+  |=  =road:g
   =/  m  (charm ,(list @ta))
   ^-  form:m
-  ;<  =cone:g  bind:m  (peek path)
+  ;<  =cone:g  bind:m  (peek road)
   (pure:m ~(tap in ~(key by dir.cone)))
 
 :: list of the first non-empty descendents of a path
 ::
 ++  kids
-  |=  =path
-  =/  m  (charm ,(list ^path))
+  |=  =road:g
+  =/  m  (charm ,(list path))
   ^-  form:m
-  ;<  =cone:g  bind:m  (peek path)
+  ;<  =cone:g  bind:m  (peek road)
   =.  cone  (~(del of cone) /)
-  =|  sub-path=^path
-  =|  kids=(list ^path)
+  =|  sub-path=path
+  =|  kids=(list path)
   %-  pure:m
   |-
-  ^-  (list ^path)
+  ^-  (list path)
   ?:  ?=(^ fil.cone)
     [sub-path kids]
   =/  dir  ~(tap by dir.cone)
@@ -494,85 +512,63 @@
 :: tree information without the data
 ::
 ++  tree
-  |=  =path
+  |=  =road:g
   =/  m  (charm ,(axal ~))
   ^-  form:m
-  ;<  =cone:g  bind:m  (peek path)
+  ;<  =cone:g  bind:m  (peek road)
   %-  pure:m
   %-  ~(gas of *(axal ~))
-  (turn ~(tap of cone) |=([p=^path *] [p ~]))
+  (turn ~(tap of cone) |=([p=path *] [p ~]))
 ::
 ++  get-weir
-  |=  =path
+  |=  =road:g
   =/  m  (charm ,(unit weir:g))
   ^-  form:m
-  =/  =dart:g  [%grub /get-weir &+path %peek ~]
+  =/  =dart:g  [%grub /get-weir road %peek ~]
   ;<  ~  bind:m  (send-raw-dart dart)
   ;<  [* =sand:g]  bind:m  (take-peek /get-weir)
   (pure:m (~(get of sand) /))
 ::
 ++  peek
-  |=  =path
+  |=  =road:g
   =/  m  (charm ,cone:g)
   ^-  form:m
-  =/  =dart:g  [%grub /peek &+path %peek ~]
+  =/  =dart:g  [%grub /peek road %peek ~]
   ;<  ~  bind:m  (send-raw-dart dart)
   ;<  [=cone:g *]  bind:m  (take-peek /peek)
   (pure:m cone)
 ::
 ++  peek-root
-  |=  =path
+  |=  =road:g
   =/  m  (charm ,grub:g)
   ^-  form:m
-  ;<  =cone:g  bind:m  (peek path)
+  ;<  =cone:g  bind:m  (peek road)
   ?~  grub=(~(get of cone) /)
-    (charm-fail leaf+"no-root-grub" leaf+(spud path) ~)
+    (charm-fail leaf+"no-root-grub" leaf+(render-road road) ~)
   (pure:m u.grub)
 ::
 ++  peek-root-soft
-  |=  =path
+  |=  =road:g
   =/  m  (charm ,(unit grub:g))
   ^-  form:m
-  ;<  =cone:g  bind:m  (peek path)
+  ;<  =cone:g  bind:m  (peek road)
   (pure:m (~(get of cone) /))
 ::
 ++  peek-root-as
-  |*  [a=mold =path]
+  |*  [a=mold =road:g]
   =/  m  (charm ,a)
   ^-  form:m
-  ;<  =grub:g  bind:m  (peek-root path)
+  ;<  =grub:g  bind:m  (peek-root road)
   (pure:m ;;(a q:(grab-data grub)))
 ::
 ++  peek-root-as-soft
-  |*  [a=mold =path]
+  |*  [a=mold =road:g]
   =/  m  (charm ,(unit a))
   ^-  form:m
-  ;<  grub=(unit grub:g)  bind:m  (peek-root-soft path)
+  ;<  grub=(unit grub:g)  bind:m  (peek-root-soft road)
   ?~  grub
     (pure:m ~)
   (pure:m `!<(a (grab-data u.grub)))
-:: peek, but with relative path
-::
-++  grab
-  |=  =path
-  =/  m  (charm ,cone:g)
-  ^-  form:m
-  ;<  here=^path  bind:m  get-here
-  (peek (weld here path))
-::
-++  grab-root
-  |=  =path
-  =/  m  (charm ,grub:g)
-  ^-  form:m
-  ;<  here=^path  bind:m  get-here
-  (peek-root (weld here path))
-::
-++  grab-root-as
-  |*  [a=mold =path]
-  =/  m  (charm ,a)
-  ^-  form:m
-  ;<  here=^path  bind:m  get-here
-  (peek-root-as (weld here path))
 ::
 ++  take-scry
   |*  [=mold =wire]
@@ -638,10 +634,10 @@
   (gall-poke [our %grubbery] disconnect+!>(url))
 ::
 ++  kill-base
-  |=  [=path pid=(unit @ta)]
+  |=  [=road:g pid=(unit @ta)]
   =/  m  (charm ,~)
   ^-  form:m
-  =/  =dart:g  [%grub /kill-base &+path %kill pid]
+  =/  =dart:g  [%grub /kill-base road %kill pid]
   ;<  ~  bind:m  (send-raw-dart dart)
   (take-dead /kill-base)
 ::
@@ -665,11 +661,11 @@
   ==
 ::
 ++  oust-grub
-  |=  =path
+  |=  =road:g
   =/  m  (charm ,~)
   ^-  form:m
   ~&  >  %ousting-grub
-  =/  =dart:g  [%grub /oust-grub &+path %oust ~]
+  =/  =dart:g  [%grub /oust-grub road %oust ~]
   ;<  ~  bind:m  (send-raw-dart dart)
   (take-gone /oust-grub)
 ::
@@ -694,10 +690,10 @@
   ==
 ::
 ++  cull-cone
-  |=  =path
+  |=  =road:g
   =/  m  (charm ,~)
   ^-  form:m
-  =/  =dart:g  [%grub /cull-cone &+path %cull ~]
+  =/  =dart:g  [%grub /cull-cone road %cull ~]
   ;<  ~  bind:m  (send-raw-dart dart)
   (take-cull /cull-cone)
 ::
@@ -721,10 +717,10 @@
   ==
 ::
 ++  edit-weir
-  |=  [=path weir=(unit weir:g)]
+  |=  [=road:g weir=(unit weir:g)]
   =/  m  (charm ,~)
   ^-  form:m
-  =/  =dart:g  [%grub /edit-weir &+path %sand weir]
+  =/  =dart:g  [%grub /edit-weir road %sand weir]
   ;<  ~  bind:m  (send-raw-dart dart)
   (take-sand /edit-weir)
 ::
@@ -748,19 +744,19 @@
   ==
 ::
 ++  check-base
-  |=  [=path data=vase base=path]
+  |=  [=road:g data=vase base=path]
   =/  m  (charm ,?)
   ^-  form:m
-  ;<  grub=(unit grub:g)  bind:m  (peek-root-soft path)
+  ;<  grub=(unit grub:g)  bind:m  (peek-root-soft road)
   ?~  grub
     (pure:m |)
   (pure:m =(u.grub [%base data base]))
 ::
 ++  check-stem
-  |=  [=path =vine:stem:g stem=path]
+  |=  [=road:g =vine:stem:g stem=path]
   =/  m  (charm ,?)
   ^-  form:m
-  ;<  grub=(unit grub:g)  bind:m  (peek-root-soft path)
+  ;<  grub=(unit grub:g)  bind:m  (peek-root-soft road)
   ?~  grub
     (pure:m |)
   ?.  ?=(%stem -.u.grub)
@@ -768,61 +764,61 @@
   (pure:m =([vine stem] [vine stem]:u.grub))
 ::
 ++  make-stem
-  |=  [=path stem=path =vine:stem:g]
+  |=  [=road:g stem=path =vine:stem:g]
   =/  m  (charm ,~)
   ^-  form:m
-  =/  =dart:g  [%grub /make-stem &+path %make %stem stem vine]
+  =/  =dart:g  [%grub /make-stem road %make %stem stem vine]
   ;<  ~  bind:m  (send-raw-dart dart)
   (take-made /make-stem)
 ::
 ++  overwrite-stem
   =|  chk=?
-  |=  [=path stem=path =vine:stem:g]
+  |=  [=road:g stem=path =vine:stem:g]
   =/  m  (charm ,~)
   ^-  form:m
   ;<  skip=?  bind:m
     ?.  chk   (pure:(charm ?) |)
-    (check-stem path vine stem)
+    (check-stem road vine stem)
   ?:  skip
     (pure:m ~)
-  ;<  ~  bind:m  (oust-grub path)
-  (make-stem path stem vine)
+  ;<  ~  bind:m  (oust-grub road)
+  (make-stem road stem vine)
 ::
 ++  make-base
-  |=  [=path base=path data=(unit vase)]
+  |=  [=road:g base=path data=(unit vase)]
   =/  m  (charm ,~)
   ^-  form:m
-  =/  =dart:g  [%grub /make-base &+path %make %base base data]
+  =/  =dart:g  [%grub /make-base road %make %base base data]
   ;<  ~  bind:m  (send-raw-dart dart)
   (take-made /make-base)
 ::
 ++  overwrite-base
   =|  chk=?
-  |=  [=path base=path data=(unit vase)]
+  |=  [=road:g base=path data=(unit vase)]
   =/  m  (charm ,~)
   ^-  form:m
   ;<  skip=?  bind:m
     ?.  chk   (pure:(charm ?) |)
     ?~  data  (pure:(charm ?) |)
-    (check-base path u.data base)
+    (check-base road u.data base)
   ?:  skip
     (pure:m ~)
-  ;<  ~  bind:m  (oust-grub path)
-  (make-base path base data)
+  ;<  ~  bind:m  (oust-grub road)
+  (make-base road base data)
 ::
 ++  make-and-poke
-  |=  [=path base=path data=(unit vase) poke=pail:g]
+  |=  [=road:g base=path data=(unit vase) poke=pail:g]
   =/  m  (charm ,~)
   ^-  form:m
-  ;<  ~  bind:m  (make-base path base data)
-  (^poke path poke)
+  ;<  ~  bind:m  (make-base road base data)
+  (^poke road poke)
 ::
 ++  overwrite-and-poke
-  |=  [=path base=path data=(unit vase) poke=pail:g]
+  |=  [=road:g base=path data=(unit vase) poke=pail:g]
   =/  m  (charm ,~)
   ^-  form:m
-  ;<  ~  bind:m  (overwrite-base path base data)
-  (^poke path poke)
+  ;<  ~  bind:m  (overwrite-base road base data)
+  (^poke road poke)
 ::
 ++  make-lib
   |=  [=path code=@t]
@@ -830,7 +826,7 @@
   ^-  form:m
   ;<  *  bind:m 
     %:  make-and-poke
-      [%lib path]
+      &+[%lib path]
       /lib  ~
       [/txt !>(code)]
     ==
@@ -840,10 +836,10 @@
   |=  [=path code=@t]
   =/  m  (charm ,~)
   ^-  form:m
-  ;<  res=(unit tang)  bind:m  (poke-soft [%lib path] /txt !>(code))
+  ;<  res=(unit tang)  bind:m  (poke-soft &+[%lib path] /txt !>(code))
   ?~  res
     (pure:m ~)
-  ;<  ~  bind:m  (oust-grub [%lib path])
+  ;<  ~  bind:m  (oust-grub &+[%lib path])
   (make-lib path code)
 ::
 ++  overwrite-libs
@@ -926,7 +922,7 @@
   ==
 ::
 ++  copy-grub
-  |=  [from=path to=path]
+  |=  [from=road:g to=road:g]
   =/  m  (charm ,~)
   ^-  form:m
   ;<  =grub:g  bind:m  (peek-root from)
@@ -937,20 +933,20 @@
 :: mostly useful for recomputing a stem when you edit its stem code
 ::
 ++  re-make
-  |=  here=path
+  |=  here=road:g
   =/  m  (charm ,~)
   ^-  form:m
   (copy-grub here here)
 ::
 ++  move-grub
-  |=  [from=path to=path]
+  |=  [from=road:g to=road:g]
   =/  m  (charm ,~)
   ^-  form:m
   ;<  ~  bind:m  (copy-grub from to)
   (oust-grub from)
 ::
 ++  copy-cone
-  |=  [from=path to=path]
+  |=  [from=road:g to=road:g]
   =/  m  (charm ,~)
   ^-  form:m
   ;<  =cone:g  bind:m  (peek from)
@@ -958,18 +954,19 @@
   |-
   ?~  grubs
     (pure:m ~)
-  ;<  ~  bind:m  (copy-grub (weld from i.grubs) (weld to i.grubs))
+  ;<  ~  bind:m
+    (copy-grub (extend-road from i.grubs) (extend-road to i.grubs))
   $(grubs t.grubs)
 ::
 ++  move-cone
-  |=  [from=path to=path]
+  |=  [from=road:g to=road:g]
   =/  m  (charm ,~)
   ^-  form:m
   ;<  ~  bind:m  (copy-cone from to)
   (cull-cone from)
 ::
 ++  re-source
-  |=  [here=path =vine:stem:g]
+  |=  [here=road:g =vine:stem:g]
   =/  m  (charm ,~)
   ^-  form:m
   ;<  =grub:g  bind:m  (peek-root here)
@@ -1584,6 +1581,7 @@
   [;/(i.raw) ;br; $(raw t.raw)]
 ::
 ++  two-oh-four
+  ^-  simple-payload:http
   [[204 ['content-type' 'application/json']~] ~]
 ::
 ++  internal-server-error

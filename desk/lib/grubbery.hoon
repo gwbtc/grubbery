@@ -111,6 +111,8 @@
       [%next hold.next.output]
     ==
   --
+:: TODO: look in slap for inspiration here to get more informative
+::       compilation errors
 ::
 ++  slip
   |=  [vax=vase gen=hoon]
@@ -145,14 +147,6 @@
   ?-  -.road
     %&  `p.road
     %|  (path-from-bend here p.road)
-  ==
-::
-++  render-road
-  |=  =road:g
-  ^-  tape
-  ?-  -.road
-    %&  (spud p.road)
-    %|  "^{(scow %ud p.p.road)} {(spud q.p.road)}"
   ==
 ::
 ++  prefix
@@ -258,7 +252,7 @@
     ;<  [text=@t *]  bind:m  (get-state-as ,[@t *])
     ?:  =(t text)
       (pure:m ~)
-    =/  code=(each code:lib:g tang)  (mule |.((build t)))
+    =/  code=(each code:lib:g tang)  (mule |.((parse-hoon here (trip t))))
     ;<  ~  bind:m  (replace !>([t code]))
     ?>  ?=([%lib *] here)
     =/  dest=path  [%bin t.here]
@@ -266,7 +260,7 @@
       %-  ~(gas of *vine:stem:g)
       %+  welp  ~[[/source-lib &+here] [/bin/grubbery &+/bin/grubbery]]
       ?:(?=(%| -.code) ~ (turn deps.p.code |=([=term =path] [path &+path])))
-    (overwrite-stem dest /bin sour)
+    (overwrite-stem &+dest /bin sour)
   :: TODO: allow optional face and relative paths (i.e. /^/^/path)
   ::
   ++  import-line
@@ -274,11 +268,37 @@
       (cook term ;~(pfix ;~(plug (jest '/-') gap) sym))
       (cook |=(=path (welp /bin path)) ;~(pfix ;~(plug gap fas) (more fas sym)))
     ==
-   ::
-   ++  build
-     |=  text=@t
-     ^-  [(list (pair term path)) hoon]
-     (rash text ;~(pfix (star gap) ;~(plug (more gap import-line) vest)))
+  ::
+  ++  parse
+    %-  full
+    ;~  pfix
+      (star gap)
+      ;~  plug
+        (more gap import-line)
+        vest
+      ==
+    ==
+  ::
+  ++  parse-hoon
+    |=  [pax=path tex=tape]
+    ^-  code:lib:g
+    =/  [=hair res=(unit [=code:lib:g =nail])]
+      %-  road  |.
+      (parse [1 1] tex)
+    ?^  res  code.u.res
+    %-  mean
+    =/  lyn  p.hair
+    =/  col  q.hair
+    ^-  (list tank)
+    :~  leaf+"syntax error at [{<lyn>} {<col>}] in {<pax>}"
+      ::
+        =/  =wain  (to-wain:format (crip tex))
+        ?:  (gth lyn (lent wain))
+          '<<end of file>>'
+        (snag (dec lyn) wain)
+      ::
+        leaf+(runt [(dec col) '-'] "^")
+    ==
   --
 ::
 ++  root
@@ -292,28 +312,27 @@
   =<
   ::
   ;<  pail=(unit pail:g)  bind:m  get-poke
-  ~&  >>>  %yo
   ?>  ?=(~ pail)
   ~&  >  %null-poke
   :: zuse-core and grubbery-lib come first as all other libs depend on them
   ::
-  ;<  ~  bind:m  (overwrite-base /bin/zuse /bin `!>(zuse-core))
-  ;<  ~  bind:m  (overwrite-base /bin/grubbery /bin `!>(grubbery-lib))
+  ;<  ~  bind:m  (overwrite-base &+/bin/zuse /bin `!>(zuse-core))
+  ;<  ~  bind:m  (overwrite-base &+/bin/grubbery /bin `!>(grubbery-lib))
   ;<  ~  bind:m  sync-lib-cone
   :: user groups
   ::
   ~&  >>>  %user-groups
-  ;<  ~  bind:m  (overwrite-base /grp/who/~zod /usergroup `!>((sy ~[~zod])))
-  ;<  ~  bind:m  (overwrite-base /grp/how/~zod /group-weir `!>(*weir:g))
-  ;<  ~  bind:m  (overwrite-base /grp/pub /group-weir `!>(*weir:g))
+  ;<  ~  bind:m  (overwrite-base &+/grp/who/~zod /usergroup `!>((sy ~[~zod])))
+  ;<  ~  bind:m  (overwrite-base &+/grp/how/~zod /group-weir `!>(*weir:g))
+  ;<  ~  bind:m  (overwrite-base &+/grp/pub /group-weir `!>(*weir:g))
   :: counter test
   ::
   ~&  >>>  %counter-test
   ;<  *  bind:m
-    (overwrite-and-poke /counter-container /counter-container ~ /sig !>(~))
+    (overwrite-and-poke &+/counter-container /counter-container ~ /sig !>(~))
   :: gui setup
   ::
-  ;<  *  bind:m  (overwrite-and-poke /gui /gui ~ /gui/init !>(~))
+  ;<  *  bind:m  (overwrite-and-poke &+/gui /gui ~ /gui/init !>(~))
   ::
   ~&  >  "Grubbery booted!"
   :: Recursively listen for changes to /gub and sync.
@@ -352,9 +371,9 @@
     ?~  bill
       (pure:m ~)
     ~&  >>>  i.bill
-    ;<  grub=(unit grub:g)  bind:m  (peek-root-soft p.i.bill)
+    ;<  grub=(unit grub:g)  bind:m  (peek-root-soft &+p.i.bill)
     ?~  grub
-      ;<  ~  bind:m  (make-base p.i.bill q.i.bill ~)
+      ;<  ~  bind:m  (make-base &+p.i.bill q.i.bill ~)
       $(bill t.bill)
     ?.  ?=([~ %base *] grub)
       (charm-fail leaf+"bill-fail: existing stem at {(spud p.i.bill)}")
