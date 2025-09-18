@@ -113,6 +113,7 @@
   --
 :: TODO: look in slap for inspiration here to get more informative
 ::       compilation errors
+::       Hint: it's going to involve !:
 ::
 ++  slip
   |=  [vax=vase gen=hoon]

@@ -1,5 +1,6 @@
 /-  dir       /stud/dir
 /-  dir-poke  /stud/dir/poke
+!:
 :-  /dir
 =,  grubberyio
 ^-  base:g
