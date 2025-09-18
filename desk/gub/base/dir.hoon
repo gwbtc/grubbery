@@ -1,5 +1,7 @@
-/-  dir       /stud/dir
-/-  dir-poke  /stud/dir/poke
+/-  dir        /stud/dir
+/-  dir-poke   /stud/dir/poke
+/-  mp         /stud/multipart
+/-  multipart  /multipart
 !:
 :-  /dir
 =,  grubberyio
@@ -7,7 +9,20 @@
 =/  m  (charm:base:g ,~)
 ^-  form:m
 ;<  [=stud:g =vase]  bind:m  get-poke-pail
-?+    stud  !!
+?+    stud  (charm-fail leaf+"bad stud" ~)
+    [%multipart ~]
+  =+  !<(=mp vase)
+  =/  parts=(map @t part:multipart)
+    (~(gas by *(map @t part:multipart)) mp)
+  =+  (~(got by parts) 'file')
+  =/  =road:g  |+[0 /[(fall file %unnamed)]]
+  =/  =mime
+    :_  (as-octs:mimes:html body)
+    (fall type /application/octet-stream)
+  ;<  ~     bind:m  (make-base road /mime ~ !>(mime))
+  ;<  =dir  bind:m  (get-state-as ,dir)
+  (pour !>([hid.dir (snoc dir.dir road)]))
+    ::
     [%dir %poke ~]
   =+  !<(=dir-poke vase)
   ?-    -.dir-poke

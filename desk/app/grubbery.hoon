@@ -1190,7 +1190,9 @@
   =/  =sign:base:g  [%bump err]
   ~&  >>>  give+give
   ?:  ?=(%| -.from.give)
-    (give-external-sign give sign)
+    ?.  ?=([%eyre *] sap.p.from.give)
+      (give-external-sign give sign)
+    (give-http-pack wire.give err)
   (gibs-take /bump (get-here-pid from.give) ~ %base wire.give sign)
 ::
 ++  give-poke-signs
@@ -1327,6 +1329,21 @@
     this
   =.  this  (process-do-next here i.pids)
   $(pids t.pids)
+::
+++  give-http-pack
+  |=  [eyre-id=wire err=(unit tang)]
+  ^+  this
+  ~&  >>>  "+give-http-pack {(spud eyre-id)}"
+  =/  =wire  (weld /http-response eyre-id)
+  ?~  err
+    (emit-card %give %kick ~[wire] ~)
+  %-  (slog leaf+"fail on {(spud wire)}" u.err)
+  =/  =simple-payload:http  (internal-server-error:io & "" u.err)
+  =/  header=cage  [%http-response-header !>(response-header.simple-payload)]
+  =/  data=cage    [%http-response-data !>(data.simple-payload)]
+  =.  this  (emit-card %give %fact ~[wire] header)
+  =.  this  (emit-card %give %fact ~[wire] data)
+  (emit-card %give %kick ~[wire] ~)
 ::
 ++  give-http-poke-sign
   |=  [[here=path pid=@ta] eyre-id=wire err=(unit tang)]

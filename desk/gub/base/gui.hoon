@@ -3,6 +3,7 @@
 /-  html-utils  /html-utils
 /-  fi  /feather-icons
 /-  wc  /web-components
+!:
 =/  grubberyio  grubberyio(hold |)
 =,  grubberyio
 :-  /sig
@@ -38,8 +39,15 @@
     =/  parts=(unit (list [@t part:multipart]))
       (de-request:multipart [header-list body]:request.req)
     ?^  parts
+      =/  paz=(map @t part:multipart)
+        (~(gas by *(map @t part:multipart)) u.parts)
+      =/  get=(unit part:multipart)  (~(get by paz) 'get')
+      ~&  get+get 
+      =.  u.parts  ~(tap by (~(del by paz) 'get'))
       ;<  ~  bind:m  (do-upload site u.parts)
-      (give-simple-payload two-oh-four)
+      ?~  get
+        (give-simple-payload two-oh-four)
+      (do-get (parse-request-line:server body.u.get))
     =/  args=key-value-list:kv  (parse-body:kv body.request.req)
     =/  get=(unit @t)  (get-key:kv 'get' args)
     ;<  ~  bind:m  (do-post site (delete-key:kv 'get' args))
@@ -96,43 +104,49 @@
   =/  m  (charm ,~)
   ^-  form:m
   ~&  >>  %doing-get
+  ~&  ext+ext
+  ~&  site+site
+  :: put extension back on site
+  ::
+  =.  site
+    %+  snoc  (snip site)
+    %^  cat  3
+      (rear site)
+    ?~(ext '' (cat 3 '.' u.ext))
+  ~&  site+site
   ?+    site
     ;<  =cone:g   bind:m  (peek &+/)
     (give-manx-response (main-page cone))
     ::
       [%grub %mime %web-components %side-bar ~]
     %-  give-mime-response
-    :-  ~s0
     :-  /application/javascript
     (as-octs:mimes:html side-bar:wc)
     ::
       [%grub %mime %web-components %row-split ~]
     %-  give-mime-response
-    :-  ~s0
     :-  /application/javascript
     (as-octs:mimes:html row-split:wc)
     ::
       [%grub %mime %web-components %col-split ~]
     %-  give-mime-response
-    :-  ~s0
     :-  /application/javascript
     (as-octs:mimes:html col-split:wc)
     ::
       [%grub %mime *]
-    ~&  >>>  %miming
-    ;<  =grub:g  bind:m  (peek-root &+t.t.site)
-    ?>  ?=(%base -.grub)
-    ;<  =cone:g  bind:m  (peek &+t.t.site)
-    ;<  =pail:g  bind:m  (vent &+t.t.site /gui/mime !>(~))
-    ~&  >>>  %we-got-the-pail
-    ?>  ?=([%mime ~] p.pail)
-    ~&  >>  %extracting-mime
-    =+  !<(=mime q.pail)
-    ~&  >>  %giving-mime-response
+    :: ~&  >>>  %miming
+    :: ;<  =grub:g  bind:m  (peek-root &+t.t.site)
+    :: ?>  ?=(%base -.grub)
+    :: ;<  =cone:g  bind:m  (peek &+t.t.site)
+    :: ~&  >>>  %we-got-the-pail
+    :: ?>  ?=([%mime ~] p.pail)
+    :: ~&  >>  %extracting-mime
+    :: =+  !<(=mime q.pail)
+    :: ~&  >>  %giving-mime-response
     =/  =manx
       ;h1: Hello, world!
     (give-manx-response manx)
-    :: (give-mime-response ~s0 !<(mime q.pail))
+    :: (give-mime-response !<(mime q.pail))
     ::
       [%grub %main ~]
     ~&  >>  "got to /grub/main"
@@ -160,8 +174,8 @@
     (give-manx-response manx)
     ::
       [%grub %view %cone *]
-    ;<  =manx  bind:m  (grub-view-cone t.t.t.site)
-    (give-manx-response manx)
+    ;<  =mime  bind:m  (grub-view-cone t.t.t.site)
+    (give-mime-response mime)
     ::
       [%grub %view %sour *]
     ;<  =manx  bind:m  (grub-view-sour t.t.t.site)
@@ -186,6 +200,7 @@
   ^-  form:m
   ~&  >>  "gui: +do-upload"
   ~&  >>  site+site
+  ~&  >>  parts+parts
   ?+    site  (charm-fail leaf+"bad upload site" ~)
       [%grub %upload *]
     ;<  =grub:g  bind:m  (peek-root &+t.t.site)
@@ -1124,7 +1139,8 @@
 ::
 ++  grub-view-cone
   |=  =path
-  =/  m  (charm ,manx)
+  ~&  >>  "+grub-view-cone"
+  =/  m  (charm ,mime)
   ^-  form:m
   ;<  =cone:g  bind:m  (peek &+path)
   =/  =grub:g  (need (~(get of cone) /))
@@ -1137,6 +1153,8 @@
   %-  pure:m
   ?~  c
     =/  res  (grab-data-soft grub)
+    =;  =manx
+      [/text/html (manx-to-octs:server manx)]
     ?:  ?=(%& -.res)
       (vase-to-manx p.res)
     ;div(class "bg-red-100 p-1 rounded-lg w-full h-full overflow-y-auto")
@@ -1145,9 +1163,11 @@
   =/  res
     %-  mule  |.
     %.  [path cone]
-    !<($-([^path cone:g] manx) (grab-data u.c))
+    !<($-([^path cone:g] mime) (grab-data u.c))
   ?:  ?=(%& -.res)
     p.res
+  =;  =manx
+    [/text/html (manx-to-octs:server manx)]
   ;div(class "bg-red-100 p-1 rounded-lg w-full h-full overflow-y-auto")
     ;code:"*{(render-tang-to-marl 80 p.res)}"
   ==

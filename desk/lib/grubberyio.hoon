@@ -88,6 +88,14 @@
     "."
   (trip (rsh [3 1] (spat q.p.road)))
 ::
+++  road-to-wire
+  |=  =road:g
+  ^-  wire
+  ?-  -.road
+    %&  (weld /y p.road)
+    %|  (weld /n/(scot %ud p.p.road) q.p.road)
+  ==
+::
 ++  grab-data-soft
   |=  =grub:g
   ^-  (each vase tang)
@@ -320,7 +328,7 @@
       [%skip hold]
     ?~  err.sign.u.in
       [%done ~]
-    [%fail %poke-fail u.err.sign.u.in]
+    [%fail leaf+"poke failed on wire {(spud wire)}" u.err.sign.u.in]
   ==
 ::
 ++  take-poke-sign-soft
@@ -344,9 +352,10 @@
   |=  [=road:g =pail:g]
   =/  m  (charm ,~)
   ^-  form:m
-  ;<  ~  bind:m  (send-raw-dart %grub /poke road %poke pail)
-  ;<  *  bind:m  (take-pack-sign /poke)
-  (take-poke-sign /poke)
+  =/  =wire  (weld /poke (road-to-wire road))
+  ;<  ~  bind:m  (send-raw-dart %grub wire road %poke pail)
+  ;<  *  bind:m  (take-pack-sign wire)
+  (take-poke-sign wire)
 ::
 ++  poke-soft
   |=  [=road:g =pail:g]
@@ -1621,18 +1630,18 @@
   ==
 ::
 ++  mime-response
-  |=  [cache=@dr =mime]
+  |=  =mime
   ^-  simple-payload:http
   ~&  >>  mime-response+mime
   :_  `q.mime
   :-  200
-  :~  ['cache-control' (crip "max-age={(numb (div cache ~s1))}")]
+  :~  ['cache-control' 'no-cache']
       ['content-type' (rsh [3 1] (spat p.mime))]
   ==
 ::
 ++  give-mime-response
-  |=  [cache=@dr =mime]
+  |=  =mime
   =/  m  (charm ,~)
   ^-  form:m
-  (give-simple-payload (mime-response cache mime))
+  (give-simple-payload (mime-response mime))
 --
