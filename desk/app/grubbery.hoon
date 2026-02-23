@@ -1,231 +1,194 @@
-/-  g=grubbery
-/+  grubbery, io=grubberyio, server, dbug, verb, default-agent
-:: import to force compilation during development
+/-  spider
+/+  default-agent, dbug, tarball, nexus, server
+/=  t-  /tests/nexus
+/=  t-  /tests/tarball
+:: add /nex to the ford build cache for fast compilation
 ::
-/~  ted-  *  /ted
-/~  mar-  *  /mar/grub
-::
+/~  nex  nexus:nexus  /nex
+/~  ted  thread:spider  /ted
 |%
-++  veb  &
-+$  card     card:agent:gall
-+$  state-0  state-0:g
-:: +$  state-0
-::   $:  %0
-::       =cone:g
-::       =trac:g
-::       =pool:g
-::       =sand:g
-::       =bindings:g
-::       =history:g
-::   ==
++$  versioned-state
+  $%  state-0
+  ==
++$  card  card:agent:gall
++$  state-0
+  $:  %0
+      =ball:tarball
+      =pool:nexus
+      =sand:nexus
+      =born:nexus
+      =subs:nexus
+  ==
 --
 ::
 =|  state-0
 =*  state  -
 ::
 =<
-::
 %-  agent:dbug
-%+  verb  |
 ^-  agent:gall
 |_  =bowl:gall
 +*  this  .
-    def   ~(. (default-agent this %|) bowl)
+    def   ~(. (default-agent this %.n) bowl)
     hc    ~(. +> bowl)
 ::
 ++  on-init
   ^-  (quip card _this)
+::  Create empty ball with %root nexus at root
+  =/  init-ball=ball:tarball  [`[~ `%root ~] ~]  :: lump with neck=%root
   =^  cards  state
-    abet:boot:hc
+    abet:(reload:hc *pool:nexus init-ball *sand:nexus *born:nexus *subs:nexus)
   [cards this]
 ::
-++  on-save   !>(state)
+++  on-save
+  ^-  vase
+  !>(state)
 ::
 ++  on-load
-  |=  old=vase
+  |=  old-state=vase
   ^-  (quip card _this)
-  =.  state  !<(state-0 old)
-  =^  cards  state
-    abet:boot:hc
-  [cards this]
-::
-++  on-peek
-  |=  =(pole knot)
-  ^-  (unit (unit cage))
-  ?+    pole  [~ ~]
-      [%x %history since=@ta ~]
-    =/  since=@da  (slav %da since.pole)
-    ``noun+!>((tap:hon:g (lot:hon:g history ~ `since)))
-    ::
-      [%c t=*]
-    =/  here=path  (snip t.pole)
-    =/  ship=@p  (slav %p (rear t.pole))
-    :: TODO: implement security context logic (Remote Scry)
-    ::
-    ``[%noun !>(=(ship our.bowl))]
+  =/  old  !<(versioned-state old-state)
+  ?-    -.old
+      %0
+    ::  Ensure neck at root is %root (nexus on-load will create main.sig)
+    =/  new-ball=ball:tarball
+      =/  lmp=lump:tarball  (fall fil.ball.old [~ ~ ~])
+      ball.old(fil `lmp(neck `%root))
+    =^  cards  state
+      abet:(reload:hc pool.old new-ball sand.old born.old subs.old)
+    [cards this]
   ==
 ::
 ++  on-poke
   |=  [=mark =vase]
   ^-  (quip card _this)
-  ~?  veb  "poke to {<dap.bowl>} agent with mark {<mark>}"
   ?+    mark  (on-poke:def mark vase)
-      %connect
-    ?>  =(src our):bowl
-    :: connect grub at path to url prefix
-    ::
-    =+  !<([url=path =path] vase)
-    :_  this
-    [%pass [%connect path] %arvo %e %connect `url %grubbery]~
-    ::
-      %disconnect
-    ?>  =(src our):bowl
-    :: disconnect whatever grub bound at url prefix
-    ::
-    =+  !<(url=path vase)
-    :-  [%pass / %arvo %e %disconnect `url]~
-    this(bindings (~(del by bindings) url))
-    ::
-      %handle-http-request
-    =+  !<([eyre-id=@ta req=inbound-request:eyre] vase)
-    =/  lin=request-line:server  (parse-request-line:server url.request.req)
-    :: recursively extend a prefix of the site path and look for bindings
-    ::
-    =/  prefix=(list @t)  (scag 1 site.lin)
-    |-
-    ?~  here=(~(get by bindings) prefix)
-      ?:  (lth (lent prefix) (lent site.lin))
-        :: site not exhausted; pop next term into prefix
-        ::
-        $(prefix (scag +((lent prefix)) site.lin))
-      :: no prefix left to pop and nothing bound
+      %grubbery-action
+    =+  !<(=action:nexus vase)
+    ?-    +<.action
+        %poke
+      ::  All pokes route through /peers/main gateway
+      ?>  ?=(%& -.dest.action)
+      =/  =give:nexus  [|+[src sap]:bowl wire.action]
+      =^  cards  state
+        abet:(poke:hc give [/peers %main] poke-in+!>([p.dest.action page.action]))
+      [cards this]
       ::
-      =/  msg=tape  "strange url: {(spud site.lin)}"
-      ~?  >>  veb  msg
-      :_  this
-      %+  give-simple-payload:app:server  eyre-id
-      (internal-server-error:io authenticated.req msg ~)
-    :: poke the destination grub with the pre-parsed request line
-    :: and the raw request with a return address for the eyre-id
-    ::
-    =/  =give:g  [|+[src sap]:bowl /[eyre-id]]
-    =/  =pail:g  [/handle-http-request !>([lin req])]
-    =^  cards  state
-      abet:(poke-base:hc u.here [give `pail] |)
-    [cards this]
-    ::
-      %grub-action
-    =+  !<(axn=action:protocol:g vase)
-    ~?  veb  here+here.axn
-    =/  =give:g  [|+[src sap]:bowl wire.axn]
-    ?-    +<.axn
         %make
-      ?-    +>-.axn
-          %base
-        ?>  =(src our):bowl
-        :: TODO: CLAMMING
-        =/  data=(unit ^vase)  ?~(data.axn ~ `!>(u.data.axn))
-        =^  cards  state
-          abet:(make-base:hc give here.axn base.axn data)
-        [cards this]
-        ::
-          %stem
-        ?>  =(src our):bowl
-        =^  cards  state
-          abet:(make-stem:hc give [here stem vine]:axn)
-        [cards this]
-      ==
-      ::
-        %oust
       ?>  =(src our):bowl
       =^  cards  state
-        abet:(oust-grub:hc give here.axn)
+        abet:(make:hc [dest make]:action)
       [cards this]
       ::
         %cull
       ?>  =(src our):bowl
       =^  cards  state
-        abet:(cull-cone:hc give here.axn)
+        abet:(cull:hc dest.action)
       [cards this]
       ::
         %sand
       ?>  =(src our):bowl
+      ::  Sand destination must be a directory
+      ?>  ?=(%| -.dest.action)
       =^  cards  state
-        abet:(edit-weir:hc give [here weir]:axn)
+        abet:(set-weir:hc [p.dest.action weir.action])
       [cards this]
       ::
-        %poke
-      :: peers can only poke beneath /peers/~sampel-palnet/ or /public
-      ::
-      ?>  ?|  =(src our):bowl
-              ?=([%public ^] here.axn)
-              ?.  ?=([%peers @ ^] here.axn)  |
-              =(i.t.here.axn (scot %p src.bowl))
-          ==
-      =^  cards  state
-        abet:(poke-base:hc here.axn [give ~ stud.axn !>(noun.axn)] &)
-      [cards this]
-      ::
-        %bump
-      :: peers can only bump beneath /peers/~sampel-palnet/ or /public
-      ::
-      ?>  ?|  =(src our):bowl
-              ?=([%public ^] here.axn)
-              ?.  ?=([%peers @ ^] here.axn)  |
-              =(i.t.here.axn (scot %p src.bowl))
-          ==
-      =^  cards  state
-        abet:(bump-base:hc here.axn pid.axn give [stud.axn !>(noun.axn)] &)
-      [cards this]
-      ::
-        %kill
+        %load
       ?>  =(src our):bowl
+      ::  Load destination must be a directory
+      ?>  ?=(%| -.dest.action)
       =^  cards  state
-        abet:(kill-base:hc give [here pid]:axn)
+        abet:(reload-nexus:hc p.dest.action)
       [cards this]
     ==
+    ::  HTTP request from eyre: forward to /server/main
+    ::
+    ::  NOTE: HTTP requests go directly to /server/main, bypassing /peers.
+    ::  Eyre gestures at treating them as "from a ship" via src.bowl —
+    ::  this feels misleading.
+    ::
+      %handle-http-request
+    =+  !<([eyre-id=@ta req=inbound-request:eyre] vase)
+    =/  =give:nexus  [|+[src sap]:bowl /[eyre-id]]
+    =^  cards  state
+      abet:(poke:hc give [/server %main] handle-http-request+!>([eyre-id src.bowl req]))
+    [cards this]
   ==
 ::
 ++  on-watch
   |=  =path
   ^-  (quip card _this)
   ?+    path  (on-watch:def path)
-    :: allow watching a grub as you might watch a thread
-    ::
-      [%base @ *]
-    =^  cards  state
-      abet:(take-watch path)
-    [cards this]
-    :: give feedback for pokes to the %grubbery agent
-    ::
       [%poke @ *]
     ?>  =(src.bowl (slav %p i.t.path))
     [~ this]
-    :: keep up with changes to tree state
-    ::
-      [%history ~]
-    ?>  =(src our):bowl
-    [~ this]
-    :: give responses to http requests
-    ::
       [%http-response *]
     [~ this]
+      [%proc @ *]
+    =^  cards  state
+      abet:(take-watch:hc path)
+    [cards this]
   ==
 ::
 ++  on-leave
   |=  =path
   ^-  (quip card _this)
-  ?.  ?=([%base @ *] path)
-    (on-leave:def path)
-  =^  cards  state
-    abet:(take-leave path)
-  [cards this]
+  ?+    path  (on-leave:def path)
+      [%poke @ *]
+    [~ this]
+      [%http-response @ ~]
+    =/  eyre-id=@ta  i.t.path
+    =/  =give:nexus  [|+[src sap]:bowl /cancel/[eyre-id]]
+    =^  cards  state
+      abet:(poke:hc give [/server %main] handle-http-cancel+!>(eyre-id))
+    [cards this]
+      [%proc ^]
+    =^  cards  state
+      abet:(take-leave:hc path)
+    [cards this]
+  ==
+::
+++  on-peek
+  |=  =path
+  ^-  (unit (unit cage))
+  ?+  path  (on-peek:def path)
+      [%x %peek %file *]
+    ::  Single file's cage with its actual mark
+    =/  here=^path  t.t.t.path
+    ?~  here  ~
+    =/  dir=^path  (snip `^path`here)
+    =/  name=@ta  (rear here)
+    =/  content=(unit content:tarball)
+      (~(get ba:tarball ball) dir name)
+    ?~  content  [~ ~]
+    ``cage.u.content
+    ::
+      [%x %peek %kids *]
+    ::  File names at path
+    =/  here=^path  t.t.t.path
+    ``kids+!>((~(lis ba:tarball ball) here))
+    ::
+      [%x %peek %subs *]
+    ::  Subdirectory names at path
+    =/  here=^path  t.t.t.path
+    ``kids+!>((~(lss ba:tarball ball) here))
+    ::
+      [%x %peek %tree *]
+    ::  Tree structure with marks, no content
+    =/  here=^path  t.t.t.path
+    =/  sub=ball:tarball  (~(dip ba:tarball ball) here)
+    ``tree+!>((ball-to-tree:tarball sub))
+    ::
+      [%x %peek %sand *]
+    ::  Sand (filter) subtree
+    =/  here=^path  t.t.t.path
+    ``sand+!>((~(dip of sand) here))
+  ==
 ::
 ++  on-agent
   |=  [=wire =sign:agent:gall]
   ^-  (quip card _this)
-  ?.  ?=([%base @ *] wire)
-    (on-agent:def wire sign)
   =^  cards  state
     abet:(take-agent:hc wire sign)
   [cards this]
@@ -233,1231 +196,1167 @@
 ++  on-arvo
   |=  [=wire sign=sign-arvo]
   ^-  (quip card _this)
-  ~?  >  veb  wire+wire
-  ?+    wire  (on-arvo:def wire sign)
-      [%base @ *]
-    =^  cards  state
-      abet:(take-arvo:hc wire sign)
-    [cards this]
-    ::
-      [%connect *]
-    ?>  ?=([%eyre %bound *] sign)
-    ?.  accepted.sign
-      %-  (slog leaf+"Binding {(spud path.binding.sign)} to {(spud t.wire)} failed!" ~)
-      [~ this]
-    %-  (slog leaf+"{(spud path.binding.sign)} bound successfully to {(spud t.wire)}!" ~)
-    [~ this(bindings (~(put by bindings) path.binding.sign t.wire))]
-  ==
+  =^  cards  state
+    abet:(take-arvo:hc wire sign)
+  [cards this]
 ::
 ++  on-fail   on-fail:def
 --
+::  helper core for routing events to processes
 ::
-=|  cards=(list card)  :: list of gall-level effects
-=|  takes=(qeu take:g) :: queue of grub-level function calls
+=|  cards=(list card)
+=|  takes=(qeu take:nexus)
 |_  =bowl:gall
 +*  this  .
-++  emit-card   |=(=card this(cards [card cards]))
-++  emit-cards  |=(cadz=(list card) this(cards (welp (flop cadz) cards)))
-++  enqu-take   |=(=take:g this(takes (~(put to takes) take)))
-++  gibs        |=(=wire `give:g`[|+[our.bowl /gall/grubbery] wire])
-++  gibs-take
-  |=  [=wire [here=path pid=@ta] in=(unit intake:base:g)]
-  (enqu-take [here pid] (gibs wire) in)
-:: handle all takes and return effects and state
 ::
 ++  abet
   |-
   ?:  =(~ takes)
-    ~?  >  veb  "done-abet!"
     [(flop cards) state]
-  =^  =take:g  takes  ~(get to takes)
-  $(this (process-take take))
-:: TODO: Remote Scry functionality
-:: NOTE: Because $coops are associated with ALL versions of a path
-::       and we may want to restrict access to historical versions
-::       WITHOUT DELETING THEM we may have to roll our own versioning
-::       system and simply stick our own version at the head of the here path
+  =^  [here=rail:tarball =take:fiber:nexus]  takes  ~(get to takes)
+  =.  this  (process-take here take)
+  $(this this)
+::  Put subtree into sand at path
 ::
-++  emit-tend
-  |=  [here=path =pail:g]
-  ^+  this
-  :: Presumably germs are selected for processing before tends
-  :: regardless of order?
+++  put-sub-sand
+  |=  [snd=sand:nexus pax=path sub=sand:nexus]
+  ^-  sand:nexus
+  ?~  pax  sub
+  =/  kid  (~(gut by dir.snd) i.pax *sand:nexus)
+  snd(dir (~(put by dir.snd) i.pax $(snd kid, pax t.pax)))
+::
+++  emit-card
+  |=  =card
+  this(cards [card cards])
+::
+++  emit-cards
+  |=  cadz=(list card)
+  this(cards (welp (flop cadz) cards))
+::
+++  enqu-take
+  |=  [here=rail:tarball =give:nexus in=(unit intake:fiber:nexus)]
+  this(takes (~(put to takes) [here give in]))
+::  Generate a system give (for internal system operations)
+::
+++  sys-give
+  |=  =wire
+  ^-  give:nexus
+  [|+[our.bowl /gall/grubbery] wire]
+::  Validate a vase according to a mark, checking nest or scrying for dais
+::  Pure vase validation given a dais
+::
+::  Assumes old vase was part of a chain of +validate-vase uses where the
+::  original was clammed
+::  Nest optimization: if old vase exists and types nest, reuse old type.
+::  Otherwise run vale to get canonical type from dais.
+::
+::  force=%.y skips nest optimization (for reload when types may have changed)
+::
+++  validate-vase
+  |=  [=dais:clay old=(unit vase) new=vase force=?]
+  ^-  (each vase tang)
+  ?:  ?&  !force
+          ?=(^ old)
+          (~(nest ut p.u.old) | p.new)
+      ==
+    &+[p.u.old q.new]
+  =/  vale-result=(each vase tang)
+    (mule |.((vale:dais q.new)))
+  ?:  ?=(%| -.vale-result)
+    =/  err=tang
+      :~  leaf+"vale failed"
+          leaf+"got:"
+          (skol p.new)
+      ==
+    |+(weld err p.vale-result)
+  &+p.vale-result
+::  Validate file content: handles %temp, empty-mime, scries for dais
+::
+++  validate-new-cage
+  |=  [=mark old=(unit vase) new=vase force=?]
+  ^-  (each vase tang)
+  ::  Skip validation for %temp mark - ephemeral
+  ?:  =(%temp mark)
+    &+new
+  ::  Reject empty mime files
+  ?:  ?&  =(%mime mark)
+          =(0 p.q:!<(mime new))
+      ==
+    |+~[leaf+"empty mime file"]
+  ::  Scry for dais (crashes if mark doesn't exist)
+  =/  =dais:clay
+    .^(dais:clay %cb /(scot %p our.bowl)/[q.byk.bowl]/(scot %da now.bowl)/[mark])
+  (validate-vase dais old new force)
+::  Clam a cage at sandbox boundary
+::  Used when data crosses a weir filter from untrusted source.
+::  Always forces full validation (no nest optimization).
+::
+++  clam-cage
+  |=  =cage
+  ^-  (each ^cage tang)
+  ::  Reject %temp mark - can't validate from untrusted source
+  ?:  =(%temp p.cage)
+    |+~[leaf+"clam: cannot validate %temp mark from untrusted source"]
+  =/  result=(each vase tang)
+    (validate-new-cage p.cage ~ q.cage %.y)
+  ?:  ?=(%| -.result)
+    result
+  &+[p.cage p.result]
+::  Validate all cages in a ball subtree, crash on failure
+::
+::  Always forces full dais validation (no nest optimization) because
+::  validate-ball is only called when installing a fresh subtree where
+::  the nest optimization wouldn't help anyway.
+::
+++  validate-ball
+  |=  =ball:tarball
+  ^-  ball:tarball
+  ::  validate files at this level
+  ::  for each file, run validate-new-cage and crash if it fails
+  ::  rebuild contents map with validated vases
   ::
-  %-  emit-cards
-  :~  [%pass / %germ here] :: is there any reason not to do this every time?
-      [%pass / %tend here here %noun p.pail q.q.pail]
+  =/  validated-contents=(map @ta content:tarball)
+    ?~  fil.ball  ~
+    =/  files=(list [@ta content:tarball])  ~(tap by contents.u.fil.ball)
+    =|  out=(map @ta content:tarball)
+    |-
+    ?~  files  out
+    =/  [name=@ta =content:tarball]  i.files
+    =/  res=(each vase tang)
+      (validate-new-cage p.cage.content ~ q.cage.content %.y)
+    ?.  ?=(%& -.res)  ~|(p.res !!)
+    $(files t.files, out (~(put by out) name content(cage [p.cage.content p.res])))
+  ::  recurse into subdirectories
+  ::  validate each child ball and rebuild dir map
+  ::
+  =/  validated-dir=(map @ta ball:tarball)
+    =/  kids=(list [@ta ball:tarball])  ~(tap by dir.ball)
+    =|  out=(map @ta ball:tarball)
+    |-
+    ?~  kids  out
+    =/  [name=@ta kid=ball:tarball]  i.kids
+    $(kids t.kids, out (~(put by out) name ^$(ball kid)))
+  ::  build validated ball
+  ::  preserve fil metadata, swap in validated contents
+  ::
+  :_  validated-dir
+  ?~  fil.ball  ~
+  `u.fil.ball(contents validated-contents)
+::
+++  store-proc
+  |=  [here=rail:tarball =proc:fiber:nexus]
+  ^+  this
+  =/  =pipe:nexus  (~(put by (fall (~(get of pool) path.here) ~)) name.here proc)
+  this(pool (~(put of pool) path.here pipe))
+::  Delete a file from pool and ball (NOT born - it's a high-water mark)
+::
+++  delete
+  |=  [dir=path name=@ta]
+  ^+  this
+  ~?  >>  ?=(^ (~(get ba:tarball ball) [dir name]))
+    "no grub at {(spud (weld dir /[name]))}"
+  ::  Clean up outgoing subscriptions from this file
+  =.  this  (sub-wipe [dir name])
+  ::  Remove from ball BEFORE notify so subscribers see deletion
+  =.  ball  (~(del ba:tarball ball) dir name)
+  =.  this  (bump-file [dir name])
+  =/  =pipe:nexus  (~(del by (fall (~(get of pool) dir) ~)) name)
+  this(pool (~(put of pool) dir pipe))
+::  Send ack/nack back to poke source
+::  - Internal (%&): enqueue %pack intake to source path
+::  - External (%|): emit gall card
+::
+::  For internal pokes, sanitizes error if source can't peek target.
+::
+++  give-poke-ack
+  |=  [here=rail:tarball =from:nexus =wire err=(unit tang)]
+  ^+  this
+  ::  Sanitize error if internal poke without peek permission
+  =/  err=(unit tang)
+    ?.  ?=(%& -.from)
+      ?~(err ~ `~[leaf+"poke failed"])
+    ?.  ?=([~ %|] (allowed %peek p.from `[%& here]))
+      err
+    ?~(err ~ `~[leaf+"poke failed"])  :: no peek = generic error
+  ?-    -.from
+      %&
+    ::  Internal - send %pack intake to source path
+    (enqu-take p.from (sys-give /pack) ~ %pack wire err)
+    ::
+      %|
+    ::  External - send fact on caller's subscription path, then kick
+    =/  src=@ta  (scot %p src.p.from)
+    =/  pat=path  (weld /poke/[src] wire)
+    =.  this  (emit-card %give %fact ~[pat] grubbery-ack+!>(err))
+    (emit-card %give %kick ~[pat] ~)
   ==
 ::
-++  make-from
-  |=  [here=path pid=@ta]
-  ^-  from:g
-  &+(weld here /[pid])
-::
-++  get-here-pid
-  |=  =from:g
-  ^-  [path @ta]
-  ?>  ?=(%& -.from)
-  [(snip `path`p.from) (rear p.from)]
-::
-++  boot
+++  give-poke-sign
+  |=  [here=rail:tarball =took:eval:fiber:nexus]
   ^+  this
-  ~?  >  veb  %booting
-  ?:  =([~ ~] cone)
-    (make-base (gibs /boot) / /root ~)
-  =.  this  mass-kill
-  null-pokes
-:: +decap from /lib/rudder
+  ?.  ?=([~ %poke *] in.take.took)  this
+  (give-poke-ack here from.give.take.took wire.give.take.took err.took)
 ::
-++  has-prefix
-  |=  [head=path =path]
-  ^-  ?
-  ?~  head  %&
-  ?~  path  %|
-  ?.  =(i.head i.path)  %|
-  $(head t.head, path t.path)
+++  give-poke-signs
+  |=  [here=rail:tarball done=(list took:eval:fiber:nexus)]
+  ^+  this
+  ?~  done  this
+  =.  this  (give-poke-sign here i.done)
+  $(done t.done)
 ::
-++  nearest-base-ancestor
-  |=  here=path
-  ^-  (unit path)
-  ?~  get=(~(get of cone) here)
-    ?:  =(/ here)  ~
-    $(here (snip here))
-  ?:  ?=(%base -.u.get)
-    `here
-  ?:  =(/ here)  ~
-  $(here (snip here))
+++  nack-poke-takes
+  |=  [here=rail:tarball takes=(qeu take:fiber:nexus) err=tang]
+  ^+  this
+  ?:  =(~ takes)  this
+  =^  =take:fiber:nexus  takes  ~(get to takes)
+  =.  this  (give-poke-sign here [take `err])
+  $(takes takes)
+::  Nack all queued pokes in a pool subtree
 ::
-++  get-base-code
+++  nack-pool
+  |=  [here=fold:tarball =pool:nexus err=tang]
+  ^+  this
+  ::  Nack pokes in procs at this level
+  =.  this
+    ?~  fil.pool  this
+    =/  procs=(list [name=@ta =proc:fiber:nexus])  ~(tap by u.fil.pool)
+    |-
+    ?~  procs  this
+    =/  proc-rail=rail:tarball  [here name.i.procs]
+    =.  this  (nack-poke-takes proc-rail next.proc.i.procs err)
+    =.  this  (nack-poke-takes proc-rail skip.proc.i.procs err)
+    $(procs t.procs)
+  ::  Recurse into subdirectories
+  =/  kids=(list [@ta pool:nexus])  ~(tap by dir.pool)
+  |-
+  ?~  kids  this
+  =.  this  ^$(here (snoc here -.i.kids), pool +.i.kids)
+  $(kids t.kids)
+::  Run nexus on-loads top-down recursively
+::
+++  run-on-loads
+  |=  [here=fold:tarball sub-sand=sand:nexus sub-ball=ball:tarball]
+  ^-  [sand:nexus ball:tarball]
+  ::  Check if this node has a nexus
+  =/  nex=(unit nexus:nexus)
+    ?~  fil.sub-ball  ~
+    ?~  neck.u.fil.sub-ball  ~
+    (build-nexus u.neck.u.fil.sub-ball)
+  ::  Run on-load if nexus exists
+  ::
+  ::  IMPORTANT: The weir at the root of sub-sand is preserved from the parent.
+  ::  A nexus cannot control its own sandboxing - that would defeat the purpose.
+  ::  Sandboxing is always imposed from above. The nexus can only set weirs
+  ::  for its children, never for itself.
+  ::
+  =/  parent-weir=(unit weir:nexus)  fil.sub-sand
+  =/  res=[sand:nexus ball:tarball]
+    ?~  nex  [sub-sand sub-ball]
+    (on-load:u.nex sub-sand sub-ball)
+  =:  sub-sand  -.res(fil parent-weir)
+      sub-ball  +.res
+  ==
+  ::  Recurse into subdirectories
+  =/  kids=(list [@ta ball:tarball])  ~(tap by dir.sub-ball)
+  |-
+  ?~  kids  [sub-sand sub-ball]
+  =/  kid-name=@ta  -.i.kids
+  =/  kid-ball=ball:tarball  +.i.kids
+  =/  kid-sand=sand:nexus  (~(dip of sub-sand) /[kid-name])
+  =/  [new-kid-sand=sand:nexus new-kid-ball=ball:tarball]
+    ^$(here (snoc here kid-name), sub-sand kid-sand, sub-ball kid-ball)
+  =.  sub-sand  (put-sub-sand sub-sand /[kid-name] new-kid-sand)
+  =.  dir.sub-ball  (~(put by dir.sub-ball) kid-name new-kid-ball)
+  $(kids t.kids)
+::  Reload a single nexus at dest (re-run on-load)
+::
+++  reload-nexus
+  |=  dest=fold:tarball
+  ^+  this
+  ::  Get the nexus for this directory
+  =/  sub-ball=ball:tarball  (~(dip ba:tarball ball) dest)
+  =/  nex=(unit nexus:nexus)
+    ?~  fil.sub-ball  ~
+    ?~  neck.u.fil.sub-ball  ~
+    (build-nexus u.neck.u.fil.sub-ball)
+  ?~  nex
+    ~|("no nexus at destination" !!)
+  ::  Get current sand subtree (preserve parent weir)
+  =/  sub-sand=sand:nexus  (~(dip of sand) dest)
+  =/  parent-weir=(unit weir:nexus)  fil.sub-sand
+  ::  Run on-load
+  =/  res=[sand:nexus ball:tarball]  (on-load:u.nex sub-sand sub-ball)
+  =/  new-sand=sand:nexus  -.res(fil parent-weir)
+  =/  new-ball=ball:tarball  +.res
+  ::  Put results back
+  =/  old-born=born:nexus  born
+  =.  sand  (put-sub-sand sand dest new-sand)
+  =.  ball  (~(pub ba:tarball ball) dest new-ball)
+  ::  Bump weir cass in born for any directories where weir changed
+  =.  this  (bump-weir-changes dest sub-sand new-sand)
+  =.  this  (notify old-born)
+  ::  Re-check subscriptions against potentially changed weirs in subtree
+  (audit-weir dest)
+::  Spawn processes for files in new ball, bump if content changed from old
+::
+++  spawn-new-files
+  |=  [here=fold:tarball new=ball:tarball]
+  ^+  this
+  ?~  fil.new  this
+  =/  files=(list [@ta content:tarball])  ~(tap by contents.u.fil.new)
+  |-
+  ?~  files  this
+  =/  file-name=@ta             -.i.files
+  =/  file-rail=rail:tarball    [here file-name]
+  =.  this  ?^((get-born file-rail) this (init-born file-rail))
+  =.  this  (spawn-proc file-rail [%load ~])
+  =.  this  (enqu-take file-rail (sys-give /load) ~)
+  $(files t.files)
+::  Spawn processes for all files in new ball recursively.
+::
+++  spawn-all-files
+  |=  [here=fold:tarball new=ball:tarball]
+  ^+  this
+  =.  this  (spawn-new-files here new)
+  =/  kids=(list [@ta ball:tarball])  ~(tap by dir.new)
+  |-
+  ?~  kids  this
+  =/  kid-name=@ta  -.i.kids
+  =.  this  ^$(here (snoc here kid-name), new +.i.kids)
+  $(kids t.kids)
+::
+++  reload
+  |=  $:  old-pool=pool:nexus
+          old-ball=ball:tarball
+          old-sand=sand:nexus
+          old-born=born:nexus
+          old-subs=subs:nexus
+      ==
+  ^+  this
+  ::  Nack pokes in old proc queues
+  =.  this  (nack-pool / old-pool ~[leaf+"agent [re]loaded"])
+  ::  Restore state (pool will be rebuilt)
+  =.  ball  old-ball
+  =.  sand  old-sand
+  =.  born  old-born
+  =.  subs  old-subs
+  ::  Capture ball before modifications (for change detection)
+  =/  pre-ball=ball:tarball  ball
+  ::  Clear ephemeral %temp cages - they shouldn't survive reload
+  =.  ball  ~(clear-temp ba:tarball ball)
+  ::  Run nexus on-loads top-down (may modify ball and sand)
+  =/  pre-sand=sand:nexus  sand
+  =/  [new-sand=sand:nexus new-ball=ball:tarball]  (run-on-loads / sand ball)
+  =:  sand  new-sand
+      ball  new-ball
+  ==
+  ::  Bump weir cass in born for any directories where weir changed
+  =.  this  (bump-weir-changes / pre-sand sand)
+  ::  Force-validate entire ball (type of $type may have changed since state was saved)
+  =.  ball  ~|(%validate-ball-reload (validate-ball ball))
+  ::  Validate name uniqueness (no file/dir collisions)
+  ?>  ~(validate-names ba:tarball ball)
+  ::  Re-check all subscriptions against potentially changed weirs
+  =.  this  (audit-weir /)
+  ::  Spawn processes and sync all changes
+  =.  this  (load-ball-changes / pre-ball ball)
+  this
+:: TODO: handle outgoing keens
+::
+::  Clean up subscriptions for a file (%file) or subtree (%tree)
+::
+++  clean
+  |=  [=path mode=?(%file %tree)]
+  ^+  this
+  ::  Leave outgoing subscriptions (wex)
+  ::
+  =.  this
+    %-  emit-cards
+    %+  murn  ~(tap by wex.bowl)
+    |=  [[=wire =ship =term] *]
+    ^-  (unit card)
+    ?.  ?=([%proc @ *] wire)  ~
+    =/  [proc-rail=rail:tarball @ ^path]  (unwrap-wire wire)
+    =/  proc-path=^path  (snoc path.proc-rail name.proc-rail)
+    ?.  ?-  mode
+          %file  =(proc-path path)
+          %tree  =((scag (lent path) proc-path) path)
+        ==
+      ~
+    [~ %pass wire %agent [ship term] %leave ~]
+  ::  Kick incoming subscribers (sup)
+  ::
+  %-  emit-cards
+  %+  murn  ~(tap by sup.bowl)
+  |=  [=duct =ship pat=^path]
+  ^-  (unit card)
+  ?.  ?=([%proc @ *] pat)  ~
+  =/  [proc-rail=rail:tarball sub=^path]  (unwrap-watch-path pat)
+  =/  proc-path=^path  (snoc path.proc-rail name.proc-rail)
+  ?.  ?-  mode
+        %file  =(proc-path path)
+        %tree  =((scag (lent path) proc-path) path)
+      ==
+    ~
+  [~ %give %kick ~[pat] ~]
+::  =subs: Subscription management
+::
+::  Add subscription: watcher subscribes to target with wire
+::
+++  sub-put
+  |=  [target=lane:tarball watcher=rail:tarball =wire]
+  ^+  this
+  ::  Add to forward index: target → (watcher → wire)
+  =/  watchers=(map rail:tarball ^wire)
+    (fall (~(get by fwd.subs) target) ~)
+  =.  fwd.subs  (~(put by fwd.subs) target (~(put by watchers) watcher wire))
+  ::  Add to reverse index: watcher → targets
+  =.  rev.subs  (~(put ju rev.subs) watcher target)
+  this
+::  Remove subscription: watcher unsubscribes from target
+::
+++  sub-del
+  |=  [target=lane:tarball watcher=rail:tarball]
+  ^+  this
+  ::  Remove from forward index
+  =/  watchers=(map rail:tarball wire)
+    (fall (~(get by fwd.subs) target) ~)
+  =.  watchers  (~(del by watchers) watcher)
+  =.  fwd.subs  ?~(watchers (~(del by fwd.subs) target) (~(put by fwd.subs) target watchers))
+  ::  Remove from reverse index
+  =.  rev.subs  (~(del ju rev.subs) watcher target)
+  this
+::  Remove all subscriptions from a watcher (for cleanup on death)
+::
+++  sub-wipe
+  |=  watcher=rail:tarball
+  ^+  this
+  =/  targets=(set lane:tarball)  (~(get ju rev.subs) watcher)
+  =.  this
+    %-  ~(rep in targets)
+    |=  [target=lane:tarball acc=_this]
+    (sub-del:acc target watcher)
+  this
+::  Send %news to all subscribers watching changed lanes
+::
+++  notify
+  |=  old-born=born:nexus
+  ^+  this
+  =/  changed=(set lane:tarball)  (diff-born:nexus old-born born)
+  ?:  =(~ changed)  this
+  ::  For each watched lane, find subscribers and send news
+  =/  watched=(list [target=lane:tarball watchers=(map rail:tarball wire)])
+    ~(tap by fwd.subs)
+  |-
+  ?~  watched  this
+  =/  [target=lane:tarball watchers=(map rail:tarball wire)]  i.watched
+  ::  Find all changed lanes that are inside this target (or equal to target)
+  =/  relevant=(set lane:tarball)
+    %-  ~(gas in *(set lane:tarball))
+    %+  murn  ~(tap in changed)
+    |=  chg=lane:tarball
+    ^-  (unit lane:tarball)
+    ?-    -.target
+        ::  File target: only exact match counts
+        %&
+      ?.  &(?=(%& -.chg) =(p.chg p.target))  ~
+      `chg
+        ::  Dir target: changed lane must be under target dir
+        %|
+      ?-  -.chg
+        ::  Changed file: file's dir must be under target dir
+        %&  ?~((decap:tarball p.target path.p.chg) ~ `chg)
+        ::  Changed dir: must be under or equal to target dir
+        %|  ?~((decap:tarball p.target p.chg) ~ `chg)
+      ==
+    ==
+  ::  Skip if nothing relevant changed
+  ?:  =(~ relevant)  $(watched t.watched)
+  ::  Get current view of target
+  =/  =view:nexus
+    ?-    -.target
+        %&
+      =/  content=(unit content:tarball)
+        (~(get ba:tarball ball) path.p.target name.p.target)
+      ?~  content  [%none ~]
+      =/  node=(unit [=tote:nexus bags=(map @ta sack:nexus)])
+        (~(get of born) path.p.target)
+      =/  sk=sack:nexus
+        ?~  node  *sack:nexus
+        (fall (~(get by bags.u.node) name.p.target) *sack:nexus)
+      [%file sk cage.u.content]
+        %|
+      =/  sub-ball=(unit ball:tarball)  (~(dap ba:tarball ball) p.target)
+      ?~  sub-ball  [%none ~]
+      [%ball (~(dip of sand) p.target) (~(dip of born) p.target) u.sub-ball]
+    ==
+  ::  Send to each watcher
+  =.  this
+    %-  ~(rep by watchers)
+    |=  [[watcher=rail:tarball =wire] acc=_this]
+    (enqu-take:acc watcher (sys-give:acc /news) ~ %news wire view)
+  $(watched t.watched)
+::  Fell a single subscription: remove from indices, send %fell to watcher
+::
+++  fell-sub
+  |=  [target=lane:tarball watcher=rail:tarball]
+  ^+  this
+  =/  =wire  (~(got by (~(got by fwd.subs) target)) watcher)
+  =.  this  (sub-del target watcher)
+  (enqu-take watcher (sys-give /fell) ~ %fell wire)
+::  Re-check subscriptions after weir change: fell any that are now blocked
+::
+++  audit-weir
   |=  base=path
-  ^-  base:g
-  ?:  ?=([%root ~] base)  root:grubbery
-  ?:  ?=([%lib ~] base)  base:lib:grubbery
-  ?:  ?=([%bin ~] base)  base:bin:grubbery
-  =/  =grub:g
-    ~|  "{(spud base)}: base grub not found"
-    (need (~(get of cone) (welp /bin/base base)))
-  =/  =tack:g
-    ~|  "{(spud base)}: base tack not found"
-    (need (~(get of trac) (welp /bin/base base)))
-  ?>  ?=([~ %stem] kind.tack)
-  ?>  tidy.tack
-  =/  res  (mule |.(!<([* b=base:g] (grab-data:io grub))))
-  ?:  ?=(%& -.res)
-    b.p.res
-  ~|  "base {(spud base)} failed to compile"
-  (mean p.res)
+  ^+  this
+  ::  Find watchers whose path is under (or equal to) the changed weir
+  =/  affected=(list rail:tarball)
+    %+  murn  ~(tap in ~(key by rev.subs))
+    |=  watcher=rail:tarball
+    ?~((decap:tarball base path.watcher) ~ `watcher)
+  |-
+  ?~  affected  this
+  =/  watcher=rail:tarball  i.affected
+  =/  targets=(list lane:tarball)  ~(tap in (~(get ju rev.subs) watcher))
+  =.  this
+    |-
+    ?~  targets  this
+    =/  =filt:nexus  (allowed %peek watcher `i.targets)
+    =?  this  ?=([~ %|] filt)  (fell-sub i.targets watcher)
+    $(targets t.targets)
+  $(affected t.affected)
 ::
-++  get-base-stud
-  |=  base=path
-  ^-  stud:g
-  ?:  ?=([%root ~] base)  /sig
-  ?:  ?=([%lib ~] base)   /lib
-  ?:  ?=([%bin ~] base)   /bin
-  =/  =grub:g
-    ~|  "{(spud base)}: base grub not found"
-    (need (~(get of cone) (welp /bin/base base)))
-  =/  =tack:g
-    ~|  "{(spud base)}: base tack not found"
-    (need (~(get of trac) (welp /bin/base base)))
-  ?>  ?=([~ %stem] kind.tack)
-  ?>  tidy.tack
-  =/  res  (mule |.(!<([=stud:g *] (grab-data:io grub))))
-  ?:  ?=(%& -.res)
-    stud.p.res
-  ~|  "base {(spud base)} failed to compile"
-  (mean p.res)
+++  process-darts
+  |=  [here=rail:tarball darts=(list dart:nexus)]
+  ^+  this
+  ?~  darts  this
+  =.  this  (process-dart here i.darts)
+  $(darts t.darts)
 ::
-++  get-stem-code
-  |=  stem=path
-  ^-  stem:g
-  ?:  ?=([%bin ~] stem)  stem:bin:grubbery
-  =/  =grub:g  
-    ~|  "{(spud stem)}: stem grub not found"
-    (need (~(get of cone) (welp /bin/stem stem)))
-  =/  =tack:g  
-    ~|  "{(spud stem)}: stem tack not found"
-    (need (~(get of trac) (welp /bin/stem stem)))
-  ?>  ?=([~ %stem] kind.tack)
-  ?>  tidy.tack
-  =/  res  (mule |.(!<([* s=stem:g] (grab-data:io grub))))
-  ?:  ?=(%& -.res)
-    s.p.res
-  ~|  "stem {(spud stem)} failed to compile"
-  (mean p.res)
+++  build-nexus
+  |=  neck=@tas
+  ^-  (unit nexus:nexus)
+  =/  base=path  /(scot %p our.bowl)/[q.byk.bowl]/(scot %da now.bowl)
+  =/  segs=(list path)  (segments:clay neck)
+  |-
+  ?~  segs  ~
+  =/  pax=path  `path`[%nex (snoc i.segs %hoon)]
+  ?.  .^(? %cu (weld base pax))
+    $(segs t.segs)
+  =+  .^(=vase %ca (weld base pax))
+  (mole |.(!<(nexus:nexus vase)))
 ::
-++  get-stem-stud
-  |=  stem=path
-  ^-  stud:g
-  ?:  ?=([%bin ~] stem)  /bin
-  =/  =grub:g  
-    ~|  "{(spud stem)}: stem grub not found"
-    (need (~(get of cone) (welp /bin/stem stem)))
-  =/  =tack:g  
-    ~|  "{(spud stem)}: stem tack not found"
-    (need (~(get of trac) (welp /bin/stem stem)))
-  ?>  ?=([~ %stem] kind.tack)
-  ?>  tidy.tack
-  =/  res  (mule |.(!<([=stud:g *] (grab-data:io grub))))
-  ?:  ?=(%& -.res)
-    stud.p.res
-  ~|  "stem {(spud stem)} failed to compile"
-  (mean p.res)
-:: only useful for clamming
+++  find-nearest-nexus
+  |=  here=rail:tarball
+  ^-  (unit (pair path neck:tarball))
+  =/  here-path=path  (snoc path.here name.here)
+  |-
+  ?~  lump=(~(get of ball) here-path)
+    ?~  here-path  ~
+    $(here-path (snip `path`here-path))
+  ?^  neck.u.lump
+    `[here-path u.neck.u.lump]
+  ?~  here-path  ~
+  $(here-path (snip `path`here-path))
 ::
-++  get-stud
-  |=  =stud:g
-  ^-  vase
-  ?:  ?=([%sig ~] stud)  !>(,~)
-  ?:  ?=([%lib ~] stud)  !>(,lib:g)
-  ?:  ?=([%bin ~] stud)  !>(noun)
-  =/  =grub:g
-    ~|  "{(spud stud)}: stud grub not found"
-    (need (~(get of cone) (welp /bin/stud stud)))
-  =/  =tack:g  
-    ~|  "{(spud stud)}: stud tack not found"
-    (need (~(get of trac) (welp /bin/stud stud)))
-  ?>  ?=([~ %stem] kind.tack)
-  ?>  tidy.tack
-  (grab-data:io grub)
+++  build-spool
+  |=  here=rail:tarball
+  ^-  (unit spool:fiber:nexus)
+  ::  Get the file from the ball - must exist
+  =/  file-data=(unit content:tarball)  (~(get ba:tarball ball) path.here name.here)
+  ?~  file-data  ~
+  ::  Extract mark from the cage
+  =/  =mark  p.cage.u.file-data
+  ::  Find the nearest parent nexus
+  =/  nex-info=(unit (pair path neck:tarball))  (find-nearest-nexus here)
+  ?~  nex-info  ~
+  ::  Build the nexus from the neck
+  =/  nex=(unit nexus:nexus)  (build-nexus q.u.nex-info)
+  ?~  nex  ~
+  ::  Call on-file with rail relative to nexus location
+  `(on-file:u.nex (relativize-rail:tarball p.u.nex-info here) mark)
 ::
-++  bunt-stud
-  |=  =stud:g
-  ^-  vase
-  =/  func=vase  (get-stud stud)
-  (slam func (slot 6 func))
+++  process-dart
+  |=  [here=rail:tarball =dart:nexus]
+  ^+  this
+  =/  [=jump:nexus dest=(unit lane:tarball)]  (dart-to-dest here dart)
+  =/  =filt:nexus  (allowed jump here dest)
+  ?+    filt  (handle-dart here dart)
+      [~ %|]
+    ::  Vetoed - send %veto intake back to source
+    (enqu-take here (sys-give /veto) ~ %veto dart)
+    ::
+      [~ %&]
+    ::  Allowed but should clam poke vases
+    ::  (make darts don't need clamming - they go through validate-cage anyway)
+    ?.  ?=([%node * * %poke *] dart)
+      (handle-dart here dart)
+    =/  clammed=(each cage tang)  (clam-cage cage.load.dart)
+    ?:  ?=(%| -.clammed)
+      (enqu-take here (sys-give /veto) ~ %veto dart)
+    (handle-dart here dart(cage.load p.clammed))
+  ==
+::  Extract jump category and destination from a dart for weir filtering.
+::  Returns [jump dest] where:
+::    - jump: the filter category (%sysc, %make, %poke, %peek)
+::    - dest: absolute destination path, or ~ for syscalls
 ::
 ++  dart-to-dest
-  |=  [here=path pid=@ta =dart:g]
-  ^-  [jump:g (unit path)]
-  ?+    -.dart  [%sysc [~ /]] :: %sysc, %scry, %bowl
-      %grub
-    :_  (path-from-road:grubbery here road.dart)
+  |=  [here=rail:tarball =dart:nexus]
+  ^-  [jump:nexus (unit lane:tarball)]
+  ?+    -.dart  [%sysc ~]          :: %sysc, %scry, %bowl target system
+      %node                        :: %node darts target a file/dir
+    =/  dest-lane=(unit lane:tarball)  (lane-from-road:tarball [%& here] road.dart)
+    :_  dest-lane
     ?-  -.load.dart
-      %peek                       %peek
-      ?(%poke %bump %kill)        %poke
-      ?(%make %oust %cull %sand)  %make
+      ?(%peek %keep %drop)        %peek  :: read operations
+      %poke                       %poke
+      ?(%make %cull %sand %load)  %make  :: all modify tree structure
+    ==
+  ==
+::
+++  handle-dart
+  |=  [here=rail:tarball =dart:nexus]
+  ^+  this
+  ?-    -.dart
+      %sysc
+    ::  Emit gall card directly (with wrapped wire/paths)
+    ::  Exception: /http-response/ paths go to eyre unwrapped
+    =/  =card  card.dart
+    ?+    card  (emit-card card)
+        [%pass *]
+      (emit-card card(p (wrap-wire here p.card)))
+        [%give ?(%fact %kick) *]
+      =/  wrapped=(list path)
+        %+  turn  paths.p.card
+        |=  p=path
+        ?:  ?=([%http-response *] p)
+          p  :: don't wrap http-response paths
+        (wrap-watch-path here p)
+      (emit-card card(paths.p wrapped))
     ==
     ::
-      %perk
-    =/  =pipe:g  (need (~(get of pool) here))
-    =/  =proc:g  (~(got by proc.pipe) pid)
-    :-  %perk
-    ?-  -.from.give.poke.proc
-      %|  [~ /]
-      %&  [~ p.from.give.poke.proc]
+      %node
+    ::  Send load to another path
+    =/  dest-lane=(unit lane:tarball)  (lane-from-road:tarball [%& here] road.dart)
+    ?~  dest-lane
+      ~&  [%node-bad-road here road.dart]
+      this
+    ?-    -.load.dart
+        %poke
+      ::  Poke destination must be a file
+      ?>  ?=(%& -.u.dest-lane)
+      =/  dest=rail:tarball  p.u.dest-lane
+      ::  Poke with return address (relativize source for fiber intake)
+      =/  rel=from:fiber:nexus  (relativize-from:nexus dest &+here)
+      (enqu-take dest [&+here wire.dart] ~ %poke rel cage.load.dart)
+      ::
+        %make
+      ::  Create file or directory - destination type must match payload type
+      =/  res=(each _this tang)  (mule |.((make u.dest-lane make.load.dart)))
+      ?-  -.res
+        %&  (enqu-take:p.res here (sys-give /made) ~ %made wire.dart ~)
+        %|  (enqu-take here (sys-give /made) ~ %made wire.dart `p.res)
+      ==
+      ::
+        %cull
+      ::  Delete file or directory at dest
+      =/  res=(each _this tang)  (mule |.((cull u.dest-lane)))
+      ?-  -.res
+        %&  (enqu-take:p.res here (sys-give /gone) ~ %gone wire.dart ~)
+        %|  (enqu-take here (sys-give /gone) ~ %gone wire.dart `p.res)
+      ==
+      ::
+        %sand
+      ::  Set weir at dest (must be a directory)
+      ?>  ?=(%| -.u.dest-lane)
+      =/  dest=fold:tarball  p.u.dest-lane
+      =/  res=(each _this tang)  (mule |.((set-weir dest weir.load.dart)))
+      ?-  -.res
+        %&  (enqu-take:p.res here (sys-give /sand) ~ %sand wire.dart ~)
+        %|  (enqu-take here (sys-give /sand) ~ %sand wire.dart `p.res)
+      ==
+      ::
+        %load
+      ::  Reload nexus at dest (must be a directory with a nexus)
+      ?>  ?=(%| -.u.dest-lane)
+      =/  dest=fold:tarball  p.u.dest-lane
+      =/  res=(each _this tang)  (mule |.((reload-nexus dest)))
+      ?-  -.res
+        %&  (enqu-take:p.res here (sys-give /load) ~ %load wire.dart ~)
+        %|  (enqu-take here (sys-give /load) ~ %load wire.dart `p.res)
+      ==
+      ::
+        %peek
+      ::  Peek at dest - directory returns ball+sand, file returns cage
+      ::  Returns %none if directory doesn't exist or has no lump
+      ?-    -.u.dest-lane
+          %|
+        =/  dest=fold:tarball  p.u.dest-lane
+        =/  sub-ball=(unit ball:tarball)  (~(dap ba:tarball ball) dest)
+        ?~  sub-ball
+          (enqu-take here (sys-give /peek) ~ %peek wire.dart &+[%none ~])
+        =/  sub-sand=sand:nexus  (~(dip of sand) dest)
+        =/  sub-born=born:nexus  (~(dip of born) dest)
+        (enqu-take here (sys-give /peek) ~ %peek wire.dart %& %ball sub-sand sub-born u.sub-ball)
+        ::
+          %&
+        =/  dest=rail:tarball  p.u.dest-lane
+        =/  content=(unit content:tarball)
+          (~(get ba:tarball ball) path.dest name.dest)
+        ?~  content
+          (enqu-take here (sys-give /peek) ~ %peek wire.dart &+[%none ~])
+        =/  node=(unit [=tote:nexus bags=(map @ta sack:nexus)])
+          (~(get of born) path.dest)
+        =/  sk=sack:nexus
+          ?~  node  *sack:nexus
+          (fall (~(get by bags.u.node) name.dest) *sack:nexus)
+        (enqu-take here (sys-give /peek) ~ %peek wire.dart %& %file sk cage.u.content)
+      ==
+      ::
+        %keep
+      ::  Subscribe to changes at dest (uses peek permission)
+      =.  this  (sub-put u.dest-lane here wire.dart)
+      (enqu-take here (sys-give /bond) ~ %bond wire.dart ~)
+      ::
+        %drop
+      ::  Unsubscribe from dest
+      =.  this  (sub-del u.dest-lane here)
+      (enqu-take here (sys-give /fell) ~ %fell wire.dart)
     ==
+    ::
+      %scry
+    ?~  scry.dart
+      ::  Null scry returns agent state
+      (enqu-take here (sys-give /scry) ~ %scry wire.dart !>(state))
+    ::  Do the scry and enqueue result
+    ::  Path format: /vane/desk/rest... -> /vane/~ship/desk/~date/rest...
+    =/  pat=path  path.u.scry.dart
+    ?>  ?=([@ @ *] pat)
+    =/  res=vase
+      !>(.^(mold.u.scry.dart i.pat (scot %p our.bowl) i.t.pat (scot %da now.bowl) t.t.pat))
+    (enqu-take here (sys-give /scry) ~ %scry wire.dart res)
+    ::
+      %bowl
+    ::  Request bowl - build and enqueue
+    (enqu-take here (sys-give /bowl) ~ %bowl wire.dart (make-bowl here))
+  ==
+::
+++  spawn-proc
+  |=  [here=rail:tarball =prod:fiber:nexus]
+  ^+  this
+  ::  Bump proc cass (born must already exist from save-file)
+  =.  this  (bump-proc here)
+  ::  Build and store proc - use default spool if no nexus
+  =/  =spool:fiber:nexus
+    (fall (build-spool here) default-spool)
+  =/  =process:fiber:nexus  (spool prod)
+  (store-proc here [process ~ ~])
+::
+++  default-spool
+  ^-  spool:fiber:nexus
+  |=  prod:fiber:nexus
+  stay:(fiber:fiber:nexus ,~)
+::
+++  process-take
+  |=  [here=rail:tarball =take:fiber:nexus]
+  ^+  this
+  ::  Get pipe at directory, or empty map
+  =/  =pipe:nexus  (fall (~(get of pool) path.here) ~)
+  ::  Get proc for this file - must exist
+  =/  prc=(unit proc:fiber:nexus)  (~(get by pipe) name.here)
+  ?~  prc  this
+  ::  Add take to queue, store, and run
+  =/  =proc:fiber:nexus  u.prc
+  =.  proc  proc(next (~(put to next.proc) take))
+  =.  this  (store-proc here proc)
+  (process-do-next here)
+::
+++  process-do-next
+  |=  here=rail:tarball
+  ^+  this
+  ::  Get proc from pool
+  =/  =pipe:nexus  (fall (~(get of pool) path.here) ~)
+  =/  =proc:fiber:nexus  (~(got by pipe) name.here)
+  ::  Get file state from ball
+  =/  file-data=(unit content:tarball)
+    (~(get ba:tarball ball) path.here name.here)
+  ?~  file-data  this  :: file doesn't exist
+  =/  fil-state=vase  q.cage.u.file-data
+  ::  Build bowl for this process (with filtered wex/sup)
+  =/  =bowl:nexus  (make-bowl here)
+  ::  Run the evaluator
+  =/  [darts=(list dart:nexus) done=(list took:eval:fiber:nexus) new-state=vase new-proc=_proc res=result:eval:fiber:nexus]
+    (take:eval:fiber:nexus bowl fil-state proc)
+  ::  Process darts (emit cards or enqueue takes)
+  =.  this  (process-darts here darts)
+  ::  Ack consumed pokes
+  =.  this  (give-poke-signs here done)
+  ::  Validate new state before handling result (runtime, no force)
+  =/  validated=(each vase tang)
+    (validate-new-cage p.cage.u.file-data `fil-state new-state %.n)
+  ?:  ?=(%| -.validated)
+    ::  Validation failed - treat as crash
+    =.  this  (nack-poke-takes here next.new-proc p.validated)
+    =.  this  (nack-poke-takes here skip.new-proc p.validated)
+    =.  this  (spawn-proc here [%rise p.validated])
+    (enqu-take here (sys-give /rise) ~)
+  ::  Validation passed - handle result normally
+  ?-    -.res
+      %next
+    ::  Save state (bumps aeon only if content changed)
+    =.  this  (save-file here [metadata.u.file-data p.cage.u.file-data p.validated])
+    (store-proc here new-proc)
+      %done
+    ::  State was valid, now delete
+    =/  err=tang  ~[leaf+"process completed"]
+    =.  this  (nack-poke-takes here next.new-proc err)
+    =.  this  (nack-poke-takes here skip.new-proc err)
+    =.  this  (clean (snoc path.here name.here) %file)
+    (delete path.here name.here)
+      %fail
+    ::  Process failed - don't save state, clean subs, restart
+    =.  this  (nack-poke-takes here next.new-proc err.res)
+    =.  this  (nack-poke-takes here skip.new-proc err.res)
+    =.  this  (clean (snoc path.here name.here) %file)
+    =.  this  (sub-wipe here)
+    =.  this  (spawn-proc here [%rise err.res])
+    (enqu-take here (sys-give /rise) ~)
+  ==
+::
+++  poke
+  |=  [=give:nexus here=rail:tarball =cage]
+  ^+  this
+  =/  rel-from=from:fiber:nexus  (relativize-from:nexus here from.give)
+  (enqu-take here give ~ %poke rel-from cage)
+::
+++  make
+  |=  [dest=lane:tarball =make:nexus]
+  ^+  this
+  ?-    -.dest
+      %|
+    ::  Make directory - payload must be [sand ball]
+    ?>  ?=(%& -.make)
+    =/  dest-path=fold:tarball  p.dest
+    =/  new-sand=sand:nexus  sand.p.make
+    =/  new-ball=ball:tarball  ball.p.make
+    ::  Assert nothing exists at path
+    =/  existing=ball:tarball  (~(dip ba:tarball ball) dest-path)
+    ?:  |(?=(^ fil.existing) !=(~ dir.existing))
+      ~|("path is not empty" !!)
+    ::  Put new sand and ball at path
+    =.  sand  (put-sub-sand sand dest-path new-sand)
+    =.  ball  (~(pub ba:tarball ball) dest-path new-ball)
+    ::  Run on-loads top-down (may modify sand and ball)
+    =/  [rol-sand=sand:nexus rol-ball=ball:tarball]
+      (run-on-loads dest-path new-sand new-ball)
+    =:  new-sand  rol-sand
+        new-ball  rol-ball
+    ==
+    ::  Validate all cages in loaded ball
+    =/  validated=ball:tarball  ~|(%validate-ball-make (validate-ball new-ball))
+    ::  Put the final sand and ball back
+    =.  sand  (put-sub-sand sand dest-path new-sand)
+    =.  ball  (~(pub ba:tarball ball) dest-path validated)
+    ::  Spawn processes and sync all changes (old is empty)
+    (load-ball-changes dest-path *ball:tarball validated)
+    ::
+      %&
+    ::  Make file - payload must be cage
+    ?>  ?=(%| -.make)
+    =/  dest-rail=rail:tarball  p.dest
+    ::  Assert file doesn't already exist
+    =/  existing-file=(unit content:tarball)
+      (~(get ba:tarball ball) path.dest-rail name.dest-rail)
+    ?^  existing-file
+      ~|("file already exists at path" !!)
+    ::  Validate the cage before storing (new file, no old content)
+    =/  validated=(each vase tang)
+      (validate-new-cage p.p.make ~ q.p.make %.n)
+    ?:  ?=(%| -.validated)
+      ~|("make failed: validation error" (mean p.validated))
+    ::  Save initial state (bumps file aeon since old content is ~)
+    =.  this  (save-file dest-rail [~ p.p.make p.validated])
+    ::  Spawn process (needs file in ball for build-spool)
+    =.  this  (spawn-proc dest-rail [%make ~])
+    (enqu-take dest-rail (sys-give /make) ~)
+  ==
+::
+++  cull
+  |=  dest=lane:tarball
+  ^+  this
+  ?-    -.dest
+      %|
+    ::  Cull directory - delete entire subtree
+    =/  dest-path=fold:tarball  p.dest
+    =/  sub=ball:tarball  (~(dip ba:tarball ball) dest-path)
+    ::  Bump all changes before deletion
+    =.  this  (cull-ball-changes dest-path sub)
+    ::  Nack all queued pokes in subtree
+    =.  this  (nack-pool dest-path (~(dip of pool) dest-path) ~[leaf+"culled"])
+    ::  Clean gall subscriptions for subtree
+    =.  this  (clean dest-path %tree)
+    ::  Remove from pool and ball (NOT born - it's a high-water mark)
+    =.  pool  (~(lop of pool) dest-path)
+    this(ball (~(lop ba:tarball ball) dest-path))
+    ::
+      %&
+    ::  Cull file - delete single file
+    =/  dest-rail=rail:tarball  p.dest
+    =/  dest-path=path  (rail-to-path:tarball dest-rail)
+    ::  Nack queued pokes for this file
+    =.  this  (nack-pool dest-path (~(dip of pool) dest-path) ~[leaf+"culled"])
+    ::  Clean subscriptions for this file
+    =.  this  (clean dest-path %file)
+    ::  Bump and remove from pool and ball
+    (delete path.dest-rail name.dest-rail)
+  ==
+::  Walk two sand trees and bump weir cass in born for changed weirs
+::
+++  bump-weir-changes
+  |=  [here=fold:tarball old=sand:nexus new=sand:nexus]
+  ^+  this
+  =?  this  !=(fil.old fil.new)
+    =/  old-born=born:nexus  born
+    =.  born  (~(bump-weir bo:nexus now.bowl [born ball]) here)
+    (notify old-born)
+  =/  all-kids=(list @ta)
+    ~(tap in (~(uni in ~(key by dir.old)) ~(key by dir.new)))
+  |-
+  ?~  all-kids  this
+  =/  kid-old=sand:nexus  (fall (~(get by dir.old) i.all-kids) *sand:nexus)
+  =/  kid-new=sand:nexus  (fall (~(get by dir.new) i.all-kids) *sand:nexus)
+  =.  this  ^$(here (snoc here i.all-kids), old kid-old, new kid-new)
+  $(all-kids t.all-kids)
+::
+++  set-weir
+  |=  [dest=path weir=(unit weir:nexus)]
+  ^+  this
+  ?>  ?=(^ dest)  :: root should always have system access
+  =/  old-sand=sand:nexus  sand
+  =.  sand  ?~(weir (~(del of sand) dest) (~(put of sand) dest u.weir))
+  ?:  =(old-sand sand)  this
+  ::  Bump weir cass in born for this directory
+  =/  old-born=born:nexus  born
+  =.  born  (~(bump-weir bo:nexus now.bowl [born ball]) dest)
+  =.  this  (notify old-born)
+  ::  Re-check subscriptions from watchers under this weir
+  (audit-weir dest)
+::
+++  make-bowl
+  |=  here=rail:tarball
+  ^-  bowl:nexus
+  ::  Filter wex to only include outgoing subscriptions for this process
+  =/  here-path=path  (snoc path.here name.here)
+  =/  filtered-wex=boat:gall
+    %-  ~(gas by *boat:gall)
+    %+  murn  ~(tap by wex.bowl)
+    |=  [[=wire =ship =term] acked=? =path]
+    ?.  ?=([%proc @ *] wire)  ~
+    =/  [proc-rail=rail:tarball @ orig-wire=^wire]  (unwrap-wire wire)
+    =/  proc-path=^path  (snoc path.proc-rail name.proc-rail)
+    ?.  =(proc-path here-path)  ~
+    [~ [orig-wire ship term] acked path]
+  ::  Filter sup to only include incoming subscriptions for this process
+  =/  filtered-sup=bitt:gall
+    %-  ~(gas by *bitt:gall)
+    %+  murn  ~(tap by sup.bowl)
+    |=  [=duct =ship =path]
+    ?.  ?=([%proc @ *] path)  ~
+    =/  [proc-rail=rail:tarball sub=^path]  (unwrap-watch-path path)
+    =/  proc-path=^path  (snoc path.proc-rail name.proc-rail)
+    ?.  =(proc-path here-path)  ~
+    [~ duct ship sub]
+  [now our eny filtered-wex filtered-sup here dap byk]:[bowl .]
+::  Sandboxing / weir filtering
+::
+::  The "governor" is the nearest directory strictly ABOVE both source
+::  and destination - the neutral authority that rules over both.
+::  We walk up from here TO the governor, checking weirs at each step,
+::  but don't check the governor's weir (we reach it, not pass through).
+::  Downward movement from the governor to dest is always free.
+::
+::  For syscalls (dest=~), there is no governor - walk all the way up.
+::
+++  nearest-governor
+  |=  [here=rail:tarball dest=(unit lane:tarball)]
+  ^-  (unit fold:tarball)
+  ?~  dest  ~  :: syscall - no governor
+  ?-    -.u.dest
+      ::  File destination: governor is just the common prefix.
+      %&
+    [~ (prefix:tarball path.here path.p.u.dest)]
+      ::  Directory destination: governor must be strictly above both.
+      ::
+      %|
+    =/  pref=fold:tarball  (prefix:tarball path.here p.u.dest)
+    ?:  &(!=(pref path.here) !=(pref p.u.dest))
+      [~ pref]
+    ?~  pref
+      [~ ~]
+    [~ (snip `fold:tarball`pref)]
   ==
 ::
 ++  allowed
-  |=  [here=path =jump:g dest=(unit path)]
-  ^-  filt:g
-  ?~  dest  [~ %|]
-  =/  =bend:g  (make-bend:grubbery here u.dest)
-  =/  steps=@ud  p.bend
-  =|  =filt:g
+  |=  [=jump:nexus here=rail:tarball dest=(unit lane:tarball)]
+  ^-  filt:nexus
+  =/  gov=(unit fold:tarball)  (nearest-governor here dest)
+  ::  For syscalls, use root as dummy dest (syscalls get blocked by any weir anyway)
+  =/  dest-lane=lane:tarball  (fall dest [%| /])
+  =|  =filt:nexus
   |-
-  =/  next=filt:g 
-    %+  next-filt:grubbery
-      filt
-    (filter:grubbery u.dest jump here (~(get of sand) here))
-  ?:  =(0 steps)
-    ?:(=(/ q.bend) next filt) :: check for self, not for kids
-  ?:  ?=([~ %|] next)  next
-  %=  $
-    filt   next
-    here   (snip here)
-    steps  (dec steps)
-  ==
-::
-++  handle-base-emits
-  |=  [here=path pid=@ta darts=(list dart:g)]
-  ^+  this
-  ?~  darts
-    this
-  =.  this  (handle-base-emit here pid i.darts)
-  $(darts t.darts)
-::
-++  handle-dart
-  =/  clam=?  |
-  |=  [here=path pid=@ta =dart:g]
-  ^+  this
-  =/  =from:g  (make-from here pid)
-  ?-    -.dart
-      %sysc
-    :: TODO: keep track of scrying with %keen so you can
-    ::       cancel with %yawn when you kill
-    ::       a process or when it crashes
-    ::
-    (handle-sysc-card here pid card.dart)
-    ::
-      %scry
-    (take-scry here pid [wire scry]:dart)
-    ::
-      %bowl
-    (take-bowl here pid wire.dart)
-    ::
-      %perk
-    (give-perk here pid pail.dart clam)
-    ::
-      %grub
-    =/  =path  (need (path-from-road:grubbery here road.dart))
-    ?-    -.load.dart
-        %poke
-      (poke-base path [[from wire.dart] `pail.load.dart] clam)
-      ::
-        %bump
-      (bump-base path [pid.load [from wire] pail.load clam]:[dart .])
-      ::
-        %peek
-      (take-peek here pid wire.dart path)
-      ::
-        %make
-      =/  =give:g  [from wire.dart]
-      ?-  -.make.load.dart
-        %base  (make-base give path [base data]:make.load.dart)
-        %stem  (make-stem give path [stem vine]:make.load.dart)
-      ==
-      ::
-        %oust
-      (oust-grub [from wire.dart] path)
-      ::
-        %cull
-      (cull-cone [from wire.dart] path)
-      ::
-        %sand
-      (edit-weir [from wire.dart] path weir.load.dart)
-      ::
-        %kill
-      (kill-base [from wire.dart] path pid.load.dart)
-    ==
-  ==
-::
-++  handle-base-emit
-  |=  [here=path pid=@ta =dart:g]
-  ^+  this
-  =/  [=jump:g dest=(unit path)]  (dart-to-dest here pid dart)
-  =/  =filt:g  (allowed here jump dest)
-  ?+    filt  (handle-dart here pid dart)
-      [~ %|]
-    ~?  >>>  veb  "vetoing illegal dart from {(spud here)}"
-    ?<  ?=(%perk -.dart)
-    (gibs-take /veto [here pid] ~ %veto dart)
-    ::
-      [~ %&]
-    ?.  ?=([%grub * * %make *] dart)
-      %*($ handle-dart clam &, +6 [here pid dart])
-    :: TODO: incorporate directly into +make-base
-    ?:  ?=(%stem -.make.load.dart)  (handle-dart here pid dart)
-    ?~  data.make.load.dart         (handle-dart here pid dart)
-    =/  res
-      (mule |.((get-stud (get-base-stud base.make.load.dart))))
-    ?:  ?=(%| -.res)
-      (gibs-take /make-fail [here pid] ~ %made wire.dart ~ leaf+"make-stud-fail" p.res)
-    =/  res  (mule |.((slam p.res u.data.make.load.dart)))
-    ?:  ?=(%| -.res)
-      (gibs-take /make-fail [here pid] ~ %made wire.dart ~ leaf+"make-clam-fail" p.res)
-    (handle-dart here pid dart(data.make.load [~ p.res]))
-  ==
-::
-++  new-last
-  |=  [now=@da last=@da]
-  ^-  @da
-  =/  next=@da  ?:((lth last now) now +(last))
-  |-
-  ?.  (has:hon:g history next)
+  ::  Reached governor - stop (don't check its weir)
+  ?:  &(?=(^ gov) =(path.here u.gov))
+    filt
+  ::  Check weir at current location
+  =/  weir-here  (~(get of sand) path.here)
+  =/  next=filt:nexus
+    (next-filt:nexus filt (filter:nexus jump path.here dest-lane weir-here))
+  ?:  ?=([~ %|] next)
+    [~ |]
+  ::  Reached root - stop (handles syscalls which have no governor)
+  ?~  path.here
     next
-  $(next +(next))
-:: NOTE: tacks persist as long as they have either
-::       a corresponding grub or non-empty sinx
+  $(filt next, path.here (snip `fold:tarball`path.here))
+::  =born: Thin wrappers around ++bo in lib/nexus.hoon
+::  See ++bo for documentation of semantics and invariants.
 ::
-++  emit-event
-  |=  [when=@da =path]
+++  get-born
+  |=  here=rail:tarball
+  ^-  (unit sack:nexus)
+  (~(get bo:nexus now.bowl [born ball]) here)
+::
+++  get-dir-cass
+  |=  dir=fold:tarball
+  ^-  (unit cass:clay)
+  (~(get-dir-cass bo:nexus now.bowl [born ball]) dir)
+::
+++  init-born
+  |=  here=rail:tarball
   ^+  this
-  (emit-card %give %fact ~[/history] %grub-event !>([when path]))
+  this(born (~(init bo:nexus now.bowl [born ball]) here))
 ::
-++  next-tack
-  |=  here=path
+++  bump-proc
+  |=  here=rail:tarball
   ^+  this
-  ~|  "+next-tack failed {(spud here)}"
-  =/  kind=(unit ?(%base %stem))
-    ?~(grub=(~(get of cone) here) ~ `-.u.grub)
-  ?~  tac=(~(get of trac) here)
-    =/  step=@da  (new-last [now now]:bowl)
-    =.  history  (put:hon:g history step here)
-    =.  this  (emit-event step here)
-    this(trac (~(put of trac) here kind step ~ | ~))
-  =^  del  history
-    (del:hon:g history last.u.tac)
-  ?:  &(=(~ sinx.u.tac) !(~(has of cone) here))
-    this(trac (~(del of trac) here)) :: may occur in an oust
-  =/  step=@da  (new-last now.bowl last.u.tac)
-  =.  history  (put:hon:g history step here)
-  =.  this  (emit-event step here)
-  this(trac (~(put of trac) here u.tac(kind kind, last step)))
+  =/  old-born=born:nexus  born
+  =.  born  (~(bump-proc bo:nexus now.bowl [born ball]) here)
+  (notify old-born)
 ::
-++  no-cycle
-  =|  hist=(list path)
-  |=  here=path
-  ^-  ?
-  =/  i=(unit @ud)  (find [here]~ hist) 
-  =/  cycle=(list path)  ?~(i ~ [here (scag +(u.i) hist)])
-  ?^  cycle
-    ~?  veb  ["ERROR: cycle" cycle]
-    %| :: a cycle has been found
-  ?~  nod=(~(get of cone) here)
-    %& :: non-existent grubs aren't a cycle
-  ?:  ?=(%base -.u.nod)
-    %&
-  ?~  tak=(~(get of trac) here)
-    %& :: non-existent grubs aren't a cycle
-  =/  sour=(list path)  ~(tap in ~(key by sour.u.tak))
-  |-
-  ?~  sour
-    %&
-  ?.  ^$(hist [here hist], here i.sour)
-    %|
-  $(sour t.sour)
-::
-++  no-cycles
-  |=  [here=path sour=(list path)]
-  ^-  ?
-  ?~  sour
-    %&
-  ?.  %*($ no-cycle hist ~[here], here i.sour)
-    %|
-  $(sour t.sour)
-::
-++  add-sources
-  |=  [here=path =vine:stem:g]
+++  bump-file
+  |=  here=rail:tarball
   ^+  this
-  =/  sour=(list path)
-    %+  murn  (turn ~(tap of vine) tail)
-    (cury path-from-road:grubbery here)
-  ?>  (no-cycles here sour)
-  =/  =tack:g  ~|("no tack for {(spud here)}" (need (~(get of trac) here)))
-  ?>  ?=([~ %stem] kind.tack)
-  |-
-  ?~  sour
-    this(trac (~(put of trac) here tack))
-  =/  tac=(unit tack:g)  (~(get of trac) i.sour)
-  =?  this  ?=(~ tac)  (next-tack i.sour)
-  :: NOTE: it is allowed to depend on things which do not exist yet
-  :: 
-  =?  this  ?=(~ (~(get of trac) i.sour))  (next-tack i.sour)
-  =/  sour-tack=tack:g   (need (~(get of trac) i.sour))
-  =.  sinx.sour-tack  (~(put in sinx.sour-tack) here)
-  =.  trac  (~(put of trac) i.sour sour-tack)
-  =.  sour.tack  (~(put by sour.tack) i.sour `@da`0) :: 0 forces recompute
-  $(sour t.sour)
+  =/  old-born=born:nexus  born
+  =.  born  (~(bump-file bo:nexus now.bowl [born ball]) here)
+  (notify old-born)
+::  Diff two balls and bump all changes (new, changed, deleted files and empty dirs).
 ::
-++  dirty
-  |=  here=path
-  ^-  [(set path) _this]
-  ~?  >>  veb  "dirtying {(spud here)}"
-  ~|  "failed to dirty {(spud here)}"
-  =/  =tack:g  (need (~(get of trac) here))
-  ?:  &(?=([~ %stem] kind.tack) !tidy.tack)
-    [~ this]
-  =?  trac  ?=([~ %stem] kind.tack)
-    (~(put of trac) here tack(tidy |))
-  ?:  =(0 ~(wyt in sinx.tack))
-    ?:  ?=([~ %base] kind.tack)
-      [~ this]
-    [(sy ~[here]) this]
-  =/  sinx=(list path)  ~(tap in sinx.tack)
-  ~|  sinx+sinx
-  =|  edge=(set path)
-  |-
-  ?~  sinx
-    [edge this]
-  =^  e  this  (dirty i.sinx)
-  %=  $
-    sinx   t.sinx
-    edge   (~(uni in edge) e)
-  ==
-::
-++  tidy
-  |=  here=path
+++  diff-balls
+  |=  [here=fold:tarball old-ball=ball:tarball new-ball=ball:tarball]
   ^+  this
-  ~?  >>  veb  "tidying {(spud here)}"
-  ?~  grub=(~(get of cone) here)
-    ~?  >>  veb  "{(spud here)} has no data"
-    this
-  ?~  tack=(~(get of trac) here)
-    ~?  >>  veb  "{(spud here)} has no tack"
-    this
-  ?:  ?=([~ %base] kind.u.tack)
-    ~?  >>  veb  "{(spud here)} is a base and thus tidy"
-    this
-  ?:  tidy.u.tack
-    ~?  >>  veb  "{(spud here)} is already tidy"
-    this
-  =/  sour=(list (pair path @da))  ~(tap by sour.u.tack)
-  |-
-  ?~  sour
-    (recompute-stem here u.grub)
-  $(sour t.sour, this (tidy p.i.sour))
+  =/  old-born=born:nexus  born
+  =.  born  (~(diff-balls bo:nexus now.bowl [born ball]) here old-ball new-ball)
+  (notify old-born)
+::  Spawn processes and sync all changes when a ball is created/reloaded.
+::  Handles spawning files and bumping all changes (new, changed, deleted files, empty dirs).
 ::
-++  dirty-and-tidy
-  |=  here=path
+++  load-ball-changes
+  |=  [here=fold:tarball old-ball=ball:tarball new-ball=ball:tarball]
   ^+  this
-  ~?  >>  veb  "dirty-and-tidy {(spud here)}"
-  =^  e  this  (dirty here)
-  =/  edge=(list path)  ~(tap in e)
-  |-
-  ?~  edge
-    this
-  =.  this  (tidy i.edge)
-  $(edge t.edge)
+  =.  this  (spawn-all-files here new-ball)
+  (diff-balls here old-ball new-ball)
+::  Bump all changes when a ball is being deleted.
+::  Diff old ball against empty ball to bump all files and empty dirs.
 ::
-++  make-deps
-  |=  [here=path =vine:stem:g]
-  ^-  deps:stem:g
-  %-  ~(gas of *deps:stem:g)
-  %+  turn  ~(tap of vine)
-  |=  [name=path =road:g]
-  ^-  [path (each vase tang)]
-  :-  name
-  ?~  dep=(path-from-road:grubbery here road)
-    :: TODO: make sure actually cannot see outside of peek sandbox
-    |+[leaf+"beyond peek sandbox: {(render-road:io road)}" ~]
-  ?~  grub=(~(get of cone) u.dep)
-    |+[leaf+"no grub: {(spud here)}" ~]
-  (grab-data-soft:io u.grub)
-::
-++  make-sour
-  |=  sour=(set path)
-  ^-  (map path @da)
-  %-  ~(gas by *(map path @da))
-  %+  turn  ~(tap in sour)
-  |=  =path
-  :-  path
-  last:(need (~(get of trac) path))
-::
-++  recompute-stem
-  |=  [here=path =grub:g]
+++  cull-ball-changes
+  |=  [here=fold:tarball sub=ball:tarball]
   ^+  this
-  ~?  >>  veb  "recompute stem {(spud here)}"
-  ~|  "recompute stem {(spud here)}"
-  ?>  ?=(%stem -.grub)
-  =/  =tack:g  (need (~(get of trac) here))
-  =/  new-sour=(map path @da)  (make-sour ~(key by sour.tack))
-  ?:  =(new-sour sour.tack)
-    ~?  >>  veb  "{(spud here)} hasn't changed on recompute"
-    this(trac (~(put of trac) here tack(tidy &)))
-  =/  res=(each vase tang)
-    %-  mule  |.
-    =/  =stem:g  (get-stem-code stem.grub)
-    =/  deps=(axal (each vase tang))
-      (make-deps here vine.grub) :: sandboxed deps
-    (stem deps)
-  ?-    -.res
-      %|
-    ~?  >>>  veb  "{(spud here)} crashed on recompute"
-    =/  =tang  [leaf+"stem boom" leaf+(spud here) p.res]
-    =?  this  !=(data.grub |+tang)  (next-tack here)
-    :: TODO: need less error prone pattern for this kind of change
-    ::       we want to avoid *refetching* data we already have
-    ::
-    =/  =tack:g  (need (~(get of trac) here)) :: tack changed on +next-tack
-    %-  (slog leaf+"{(spud here)} crashed on recompute" tang)
-    %=  this
-      cone  (~(put of cone) here grub(data |+tang))
-      trac  (~(put of trac) here tack(tidy %&))
-    ==
-    ::
-      %&
-    ~?  >  veb  "{(spud here)} successfully recomputed"
-    =?  this  !=(data.grub &+p.res)  (next-tack here)
-    :: TODO: need less error prone pattern for this kind of change
-    ::       we want to avoid *refetching* data we already have
-    ::
-    =/  =tack:g  (need (~(get of trac) here)) :: tack changed on +next-tack
-    %=  this
-      cone  (~(put of cone) here grub(data &+p.res))
-      trac  (~(put of trac) here tack(tidy %&, sour new-sour))
-    ==
-  ==
+  (diff-balls here sub *ball:tarball)
+::  Save file state and bump ONLY if content actually changed.
+::  This is the ONLY correct way to update file state.
+::  Invariant: file aeon changes iff file content changes.
 ::
-++  del-sources
-  |=  here=path
+++  save-file
+  |=  [here=rail:tarball new-content=content:tarball]
   ^+  this
-  ~|  "deleting sources of {(spud here)} failed"
-  =/  =tack:g  (need (~(get of trac) here))
-  ?>  ?=([~ %stem] kind.tack)
-  =/  sour=(list path)  (turn ~(tap in sour.tack) head)
-  |-
-  ?~  sour
-    this
-  =/  sour-tack=tack:g    (need (~(get of trac) i.sour))
-  =.  sinx.sour-tack  (~(del in sinx.sour-tack) here)
-  ?:  &(=(~ sinx.sour-tack) !(~(has of cone) i.sour))
-    $(sour t.sour, trac (~(del of trac) i.sour))
-  $(sour t.sour, trac (~(put of trac) i.sour sour-tack))
-::
-++  do-oust
-  |=  here=path
-  ^+  this
-  ~|  "do-oust failed {(spud here)}"
-  ?~  grub=(~(get of cone) here)
-    this
-  =.  this
-    ?-  -.u.grub
-      %base  (kill-all here)
-      %stem  (del-sources here)
-    ==
-  =.  cone  (~(del of cone) here)
-  =.  pool  (~(del of pool) here)
-  :: NOTE: we don't remove tack here in order to preserve sinx
-  (next-tack here)
-::
-++  do-cull
-  |=  here=path
-  ^+  this
-  =/  hone=cone:g  (~(dip of cone) here)
-  ?:  =(~ dir.hone)
-    =.  this  (do-oust here)
-    this(cone (~(lop of cone) here))
-  =/  next=(list @ta)  ~(tap in ~(key by dir.hone))
-  |-
-  ?~  next
-    this
-  =.  this  (do-cull (snoc here i.next))
-  $(next t.next)
-::
-++  oust-grub
-  |=  [=give:g here=path]
-  ^+  this
-  ~?  >  veb  "ousting {(spud here)}"
-  =/  res=(each _this tang)  (mule |.((do-oust here)))
-  =/  err=(unit tang)  ?-(-.res %& ~, %| `p.res)
-  =?  this  ?=(%& -.res)  p.res
-  ?:  ?=(%| -.from.give)
-    ?:(?=(%& -.res) this (mean p.res))
-  (gibs-take /gone (get-here-pid from.give) ~ %gone wire.give err)
-::
-++  cull-cone
-  |=  [=give:g here=path]
-  ^+  this
-  =/  res=(each _this tang)  (mule |.((do-cull here)))
-  =/  err=(unit tang)  ?-(-.res %& ~, %| `p.res)
-  =?  this  ?=(%& -.res)  p.res
-  ?:  ?=(%| -.from.give)
-    ?:(?=(%& -.res) this (mean p.res))
-  (gibs-take /cull (get-here-pid from.give) ~ %cull wire.give err)
-::
-++  put-sand
-  |=  [here=path weir=(unit weir:g)]
-  ^+  this
-  ?>  ?=(^ here) :: root should always have system access
-  ?~  weir
-    this(sand (~(del of sand) here))
-  this(sand (~(put of sand) here u.weir))
-::
-++  edit-weir
-  |=  [=give:g here=path weir=(unit weir:g)]
-  ^+  this
-  =/  res=(each _this tang)  (mule |.((put-sand here weir)))
-  =/  err=(unit tang)  ?-(-.res %& ~, %| `p.res)
-  =?  this  ?=(%& -.res)  p.res
-  ?:  ?=(%| -.from.give)
-    ?:(?=(%& -.res) this (mean p.res))
-  (gibs-take /sand (get-here-pid from.give) ~ %sand wire.give err)
-::
-++  new-base
-  |=  [here=path base=path data=(unit vase)]
-  ^+  this
-  ~|  "making base {(spud here)} failed"
-  ?<  (~(has of cone) here)
-  =/  =stud:g  (get-base-stud base)
-  =/  data=vase  (fall data (bunt-stud stud))
-  =/  =grub:g  [%base data base]
-  =.  cone  (~(put of cone) here grub)
-  =/  step=@da  (new-last [now now]:bowl)
-  =.  pool  (~(put of pool) here step ~ [~ ~] ~)
-  =.  this  (next-tack here)
-  (dirty-and-tidy here)
-:: TODO: incorporate clamming
-::
-++  make-base
-  |=  [=give:g here=path base=path data=(unit vase)]
-  ^+  this
-  ~?  >  veb  "making-base {(spud here)} with {(spud base)}"
-  =/  res=(each _this tang)  (mule |.((new-base here base data)))
-  =/  err=(unit tang)  ?-(-.res %& ~, %| `p.res)
-  =?  this  ?=(%& -.res)  p.res
-  =.  this  (poke-base here [(gibs /null-poke) ~] |)
-  ?:  ?=(%| -.from.give)
-    ?:(?=(%& -.res) this (mean p.res))
-  (gibs-take /made (get-here-pid from.give) ~ %made wire.give err)
-::
-++  new-stem
-  |=  [here=path stem=path =vine:stem:g]
-  ^+  this
-  ~?  >  veb  "making-stem {(spud here)} with {(spud stem)}"
-  ~|  "making stem {(spud here)} failed"
-  ?:  =(~ vine)
-    ~?  >>>  veb  "empty vine" :: TODO: should this be disallowed?
-    ~|  "empty vine"
-    !!
-  ?:  (~(has of cone) here)
-    ~?  >>>  veb  "path {(spud here)} already populated"
-    ~|  "path {(spud here)} already populated"
-    !!
-  ?:  ?=([%lib *] here) :: stems not allowed in /lib
-    ~?  >>>  veb  "stems not allowed in /lib"
-    ~|  "stems not allowed in /lib"
-    !!
-  =/  =stud:g  (get-stem-stud stem)
-  =/  =grub:g  [%stem |+[leaf+"new stem"]~ vine stem]
-  =.  cone     (~(put of cone) here grub)
-  =.  this     (next-tack here)
-  =.  this     (add-sources here vine)
-  =/  =tack:g  (need (~(get of trac) here))
-  =.  trac     (~(put of trac) here tack(tidy |))
-  ~?  >>  veb  "computing-new-stem {(spud here)}"
-  =.  this     (recompute-stem here (need (~(get of cone) here)))
-  (dirty-and-tidy here)
-::
-++  make-stem
-  |=  [=give:g here=path stem=path =vine:stem:g]
-  ^+  this
-  =/  res=(each _this tang)  (mule |.((new-stem here stem vine)))
-  =/  err=(unit tang)  ?-(-.res %& ~, %| `p.res)
-  =?  this  ?=(%& -.res)  p.res
-  ?:  ?=(%| -.from.give)
-    ?:(?=(%& -.res) this (mean p.res))
-  (gibs-take /made (get-here-pid from.give) ~ %made wire.give err)
-::
-++  take-peek
-  |=  [here=path pid=@ta =wire =path]
-  ^+  this
-  :: this says: does giving the peek results pass through a filter when
-  :: going from the object back to the requester
-  =/  =filt:g  (allowed path %give ~ here)
-  :: TODO: Clam  cone contents if filt is [~ %&]
-  %^  gibs-take  /peek  [here pid]
-  [~ %peek wire path (~(dip of cone) path) (~(dip of sand) path)]
-::
-++  take-scry
-  |=  [here=path pid=@ta =wire scry=(unit scry:g)]
-  ^+  this
-  ?~  scry
-    (gibs-take /scry [here pid] ~ %scry wire /gall/grubbery/state !>(state))
-  =;  =vase
-    (gibs-take /scry [here pid] ~ %scry wire path.u.scry vase)
-  =*  pat  path.u.scry
-  ?>  ?=(^ pat)
-  ?>  ?=(^ t.pat)
-  !>(.^(mold.u.scry i.pat (scot %p our.bowl) i.t.pat (scot %da now.bowl) t.t.pat))
-::
-++  make-bowl
-  |=  [here=path pid=@ta]
-  ^-  bowl:base:g
-  =.  wex.bowl
-    %-  ~(gas by *boat:gall)
-    %+  murn  ~(tap by wex.bowl)
-    |=  [[=wire =ship =term] acked=? pat=path]
-    ?.  ?=([%base @ *] wire)
-      ~
-    =/  [h=path p=@ta w=path]  (unwrap-wire wire)
-    ?.  &(=(h here) =(p pid))
-      ~
-    [~ [w ship term] acked pat]
-  =.  sup.bowl
-    %-  ~(gas by *bitt:gall)
-    %+  murn  ~(tap by sup.bowl)
-    |=  [=duct =ship pat=path]
-    ?.  ?=([%base @ *] pat)
-      ~
-    =/  [h=path p=@ta w=path]  (unwrap-wire pat)
-    ?.  &(=(h here) =(p pid))
-      ~
-    [~ duct ship w]
-  [now our eny wex sup here]:[bowl .]
-::
-++  take-bowl
-  |=  [here=path pid=@ta =wire]
-  ^+  this
-  (gibs-take /bowl [here pid] ~ %bowl wire (make-bowl here pid))
-::
-++  kill
-  |=  [here=path pid=@ta]
-  ^+  this
-  ~|  "killing process {(trip pid)} at {(spud here)} failed"
-  =/  =pipe:g  (need (~(get of pool) here))
-  ?.  (~(has by proc.pipe) pid)
-    ~?  >>  veb  "no process {(trip pid)} to kill at {(spud here)}"
-    this
-  (give-final-poke-ack here pid ~ %killed [leaf+(spud here) ~])
-::
-++  kill-all
-  |=  here=path
-  ^+  this
-  ?~  pipe=(~(get of pool) here)
-    this 
-  ?~  lit=~(tap in ~(key by proc.u.pipe))
-    this
-  $(this (kill here i.lit))
-:: in preparation for mass-kill, clear all local gives
-::
-++  wipe-gives
-  ^+  this
-  %=    this
-      pool
-    %-  ~(gas of *pool:g)
-    %+  turn  ~(tap of pool)
-    |=  [here=path =pipe:g]
-    ^-  [path pipe:g]
-    :-  here
-    %=    pipe
-        proc
-      %-  ~(gas by *(map @ta proc:g))
-      %+  turn  ~(tap by proc.pipe)
-      |=  [pid=@ta =proc:g]
-      ^-  [@ta proc:g]
-      :-  pid
-      ?:  ?=(%| -.from.give.poke.proc) :: from outside grubbery
-        proc
-      proc(give.poke (gibs /))
-    ==
-  ==
-::
-++  mass-kill
-  ^+  this
-  =.  this  wipe-gives
-  =/  paths=(list path)  (turn ~(tap of trac) head)
-  |-
-  ?~  paths
-    this
-  $(paths t.paths, this (kill-all i.paths))
-::
-++  null-pokes
-  ^+  this
-  =/  paths=(list path)  (turn ~(tap of trac) head)
-  |-
-  ?~  paths
-    this
-  $(paths t.paths, this (poke-base i.paths [(gibs /null-poke) ~] |))
-::
-++  kill-base
-  |=  [=give:g here=path pid=(unit @ta)]
-  ^+  this
-  =/  res=(each _this tang)
-    %-  mule  |.
-    ?~  pid
-      (kill-all here)
-    (kill here u.pid)
-  =/  err=(unit tang)  ?-(-.res %& ~, %| `p.res)
-  =?  this  ?=(%& -.res)  p.res
-  ?:  ?=(%| -.from.give)
-    ?:(?=(%& -.res) this (mean p.res))
-  (gibs-take /dead (get-here-pid from.give) ~ %dead wire.give err)
-::
-++  bump-base
-  |=  [here=path pid=@ta =give:g =pail:g clam=?]
-  ^+  this
-  =/  =from:base:g  (relativize-from:grubbery here from.give)
-  ?.  clam
-    (enqu-take [here pid] give ~ %bump from pail)
-  =/  stud-res  (mule |.((get-stud p.pail)))
-  ?:  ?=(%| -.stud-res)
-    =/  =sign:base:g  [%bump ~ leaf+"bump-stud-fail" p.stud-res]
-    ?:  ?=(%| -.from.give)
-      (give-external-sign give sign)
-    =/  here-pid=[path @ta]  (get-here-pid from.give)
-    (gibs-take /bump-fail here-pid ~ %base wire.give sign)
-  =/  clam-res  (mule |.((slam p.stud-res q.pail)))
-  ?:  ?=(%| -.clam-res)
-    =/  =sign:base:g  [%bump ~ leaf+"bump-clam-fail" p.clam-res]
-    ?:  ?=(%| -.from.give)
-      (give-external-sign give sign)
-    =/  here-pid=[path @ta]  (get-here-pid from.give)
-    (gibs-take /bump-fail here-pid ~ %base wire.give sign)
-  (enqu-take [here pid] give ~ %bump from pail)
-:: TODO: handle outgoing keens
-::
-++  clean
-  |=  [here=path pid=@ta]
-  ^+  this
-  %-  emit-cards
-  %+  murn  ~(tap by wex.bowl)
-  |=  [[=wire =ship =term] *]
-  ^-  (unit card)
-  ?.  ?=([%base @ *] wire)
-    ~
-  =/  [h=path p=@ta *]  (unwrap-wire wire)
-  ?.  &(=(h here) =(p pid))
-    ~
-  [~ %pass wire %agent [ship term] %leave ~]
-::
-++  make-pid
-  |=  here=path
-  ^-  @ta
-  =/  =pipe:g  (need (~(get of pool) here))
-  =/  last=@da  last.pipe
-  =/  next=@da  ?:((lth last now.bowl) now.bowl +(last))
-  |-
-  ?:  (~(has by proc.pipe) (scot %da next))
-    $(next +(next))
-  (scot %da next)
-::
-++  give-external-sign
-  |=  [=give:g =sign:base:g]
-  ^+  this
-  ~?  >>  veb  %giving-external-sign
-  ~?  >>  veb  sign+sign
-  ~?  >>  veb  give+give
-  ?>  ?=(%| -.from.give) :: assert from outside grubbery
-  =/  src=@ta  (scot %p src.p.from.give)
-  =/  =wire  (weld /poke/[src] wire.give)
-  =.  this  (emit-card %give %fact ~[wire] grub-sign-base+!>(sign))
-  ?:  ?=(%pack -.sign)
-    this
-  (emit-card %give %kick ~[wire] ~)
-::
-++  start-process
-  |=  [[here=path pid=@ta] =proc:base:g =poke:g]
-  ^+  this
-  =/  =sign:base:g  [%pack %& pid]
-  =.  this
-    ?:  ?=(%| -.from.give.poke)
-      (give-external-sign give.poke sign)
-    (gibs-take /poke-ack (get-here-pid from.give.poke) ~ %base wire.give.poke sign)
-  =/  =pipe:g  (need (~(get of pool) here))
-  =.  proc.pipe  (~(put by proc.pipe) pid [proc poke ~ ~])
-  =.  pool  (~(put of pool) here pipe)
-  (gibs-take /start-process [here pid] ~)
-::
-++  poke-base
-  |=  [here=path =poke:g clam=?]
-  ^+  this
-  ~?  >  veb  "poking base {(spud here)}"
-  =/  grub=(unit grub:g)  (~(get of cone) here)
-  ?~  grub
-    ~?  >>  veb  "bad poke to empty path {(spud here)}"
-    =/  =sign:base:g  [%pack %| leaf+"empty-path" ~]
-    ?:  ?=(%| -.from.give.poke)
-      (give-external-sign give.poke sign)
-    (gibs-take /poke-nack (get-here-pid from.give.poke) ~ %base wire.give.poke sign)
-  ?.  ?=(%base -.u.grub)
-    ~?  >>  veb  "bad poke to stem {(spud here)}"
-    =/  =sign:base:g  [%pack %| leaf+"bad-stem-poke" ~]
-    ?:  ?=(%| -.from.give.poke)
-      (give-external-sign give.poke sign)
-    (gibs-take /poke-nack (get-here-pid from.give.poke) ~ %base wire.give.poke sign)
-  =/  pid=@ta  (make-pid here)
-  =/  build=(each proc:base:g tang)
-    (mule |.((get-base-code base.u.grub)))
-  ?:  ?=(%| -.build)
-    ~?  >>>  veb  "build-error {(spud here)}"
-    =/  =sign:base:g  [%pack %| leaf+"build-error" p.build]
-    ?:  ?=(%| -.from.give.poke)
-      (give-external-sign give.poke sign)
-    (gibs-take /poke-nack (get-here-pid from.give.poke) ~ %base wire.give.poke sign)
-  ?~  pail.poke
-    (start-process [here pid] p.build poke)
-  ?.  clam
-    (start-process [here pid] p.build poke)
-  =/  stud-res  (mule |.((get-stud p.u.pail.poke)))
-  ?:  ?=(%| -.stud-res)
-    ~?  >>>  veb  "poke-stud-fail at {(spud here)} for stud {(spud p.u.pail.poke)}"
-    =/  =sign:base:g  [%pack %| leaf+"poke-stud-fail" p.stud-res]
-    ?:  ?=(%| -.from.give.poke)
-      (give-external-sign give.poke sign)
-    =/  here-pid=[path @ta]  (get-here-pid from.give.poke)
-    (gibs-take /poke-nack here-pid ~ %base wire.give.poke sign)
-  =/  clam-res  (mule |.((slam p.stud-res q.u.pail.poke)))
-  ?:  ?=(%| -.clam-res)
-    ~?  >>>  veb  "poke-clam-fail {(spud here)}"
-    =/  =sign:base:g  [%pack %| leaf+"poke-clam-fail" p.clam-res]
-    ?:  ?=(%| -.from.give.poke)
-      ~?  >>  veb  "giving external pack sign {(spud here)}"
-      (give-external-sign give.poke sign)
-    ~?  >>  veb  "giving internal pack sign {(spud here)}"
-    =/  here-pid=[path @ta]  (get-here-pid from.give.poke)
-    (gibs-take /poke-nack here-pid ~ %base wire.give.poke sign)
-  ~?  >>  veb  "starting process {(spud here)}"
-  (start-process [here pid] p.build poke(q.u.pail p.clam-res))
-:: ack for perk or bump
-::
-++  give-poke-sign
-  |=  [take:base:g err=(unit tang)]
-  ^+  this
-  ?.  ?=([~ %bump *] in)  this
-  ~?  >>  veb  %giving-bump-sign
-  =/  =sign:base:g  [%bump err]
-  ~&  >>>  give+give
-  ?:  ?=(%| -.from.give)
-    ?.  ?=([%eyre *] sap.p.from.give)
-      (give-external-sign give sign)
-    (give-http-pack wire.give err)
-  (gibs-take /bump (get-here-pid from.give) ~ %base wire.give sign)
-::
-++  give-poke-signs
-  |=  done=(list [take:base:g (unit tang)])
-  ^+  this
-  ?~  done
-    this
-  =.  this  (give-poke-sign i.done)
-  $(done t.done)
-::
-++  process-take
-  |=  [[here=path pid=@ta] =take:base:g]
-  ^+  this
-  ~?  >>  veb  %processing-intake
-  ~?  >>  veb  [here pid]
-  =/  =pipe:g  (need (~(get of pool) here))
-  ?.  (~(has by proc.pipe) pid)
-    ~?  >>  veb  "discarding message for non-existent process {(trip pid)}"
-    (give-poke-sign take ~ leaf+"non-existent process" ~)
-  =/  =proc:g  (~(got by proc.pipe) pid)
-  =.  next.proc  (~(put to next.proc) take)
-  =.  proc.pipe  (~(put by proc.pipe) pid proc)
-  =.  pool       (~(put of pool) here pipe)
-  (process-do-next here pid)
-::
-++  process-do-next
-  |=  [here=path pid=@ta]
-  ^+  this
-  ~|  "+process-do-next failed {(spud here)}"
-  ~&  >>  here+here
-  ~&  >>  pid+pid
-  ~?  >>  veb  "+process-do-next {(spud (weld here /[pid]))}"
-  =/  =grub:g  (need (~(get of cone) here))
-  =/  =pipe:g  (need (~(get of pool) here))
-  =/  =proc:g  (~(got by proc.pipe) pid)
-  ~?  >>  veb  process-do-next-boar+boar.pipe
-  ~?  >>  veb  give+give.poke.proc
-  ?.  |(=(~ boar.pipe) =([~ pid] boar.pipe))
-    this
-  ?:  =(~ next.proc)
-    this
-  ?>  ?=(%base -.grub)
-  =/  m  (charm:base:g ,~)
-  =/  [darts=(list dart:g) done=(list took:eval:grubbery) data=vase temp=(axal vase) =proc:g =result:eval:grubbery]
-    (take:eval:grubbery here data.grub temp.pipe pid proc)
-  ::
-  ~?  >>  veb  -.result
-  ::
-  =.  cone  (~(put of cone) here grub(data data))
-  =.  temp.pipe  temp
-  =.  proc.pipe  (~(put by proc.pipe) pid proc)
-  =.  pool  (~(put of pool) here pipe)
-  ::
-  =/  tick=?  !=(data data.grub)
-  =?  this  tick  (next-tack here)
-  =?  this  tick  (dirty-and-tidy here)
-  ::
-  =.  this  (give-poke-signs done)
-  =.  this  (handle-base-emits here pid darts)
-  ::
-  ?:  ?=(%next -.result)
-    ?:  hold.result
-      (claim here pid)
-    (relinquish here)
-  ::
-  ?>  ?=(?(%fail %done) -.result)
-  %^    give-final-poke-ack
-      here
-    pid
-  ?-  -.result
-    %done  ~
-    %fail  [~ err.result]
-  ==
-::
-++  give-http-perk
-  |=  [eyre-id=wire =pail:g]
-  ^+  this
-  =/  =wire  (weld /http-response eyre-id)
-  =/  =cage  
-    ?+    p.pail  !!
-      [%http-response-data ~]    http-response-data+q.pail
-      [%http-response-header ~]  http-response-header+q.pail
-    ==
-  (emit-card %give %fact ~[wire] cage)
-::
-++  give-external-perk
-  |=  [=give:g =pail:g]
-  ^+  this
-  ?>  ?=(%| -.from.give) :: assert from outside grubbery
-  =/  src=@ta  (scot %p src.p.from.give)
-  =/  =wire  (weld /poke/[src] wire.give)
-  (emit-card %give %fact ~[wire] grub-perk+!>([p.pail q.q.pail]))
-::
-++  give-perk
-  |=  [here=path pid=@ta =pail:g clam=?]
-  ^+  this
-  :: TODO: implement clam
-  ~?  veb  %giving-perk
-  ~?  veb  [here+here pid+pid]
-  =/  =grub:g  (need (~(get of cone) here))
-  ?>  ?=(%base -.grub)
-  =/  =pipe:g  (need (~(get of pool) here))
-  =/  =proc:g  (~(got by proc.pipe) pid)
-  ?:  ?=(%& -.from.give.poke.proc)
-    =/  here-pid=[path @ta]  (get-here-pid from.give.poke.proc)
-    =/  =give:g  [(make-from here pid) /] :: not expecting a sign
-    (enqu-take here-pid give ~ %perk wire.give.poke.proc pail)
-  ?:  ?=([%gall *] sap.p.from.give.poke.proc)
-    (give-external-perk give.poke.proc pail)
-  ?>  ?=([%eyre *] sap.p.from.give.poke.proc)
-  (give-http-perk wire.give.poke.proc pail)
-::
-++  claim
-  |=  [here=path pid=@ta]
-  ^+  this
-  ~?  >>  veb  "claiming boar: {(spud (weld here /[pid]))}"
-  =/  =pipe:g  (need (~(get of pool) here))
-  ?>  |(=(~ boar.pipe) =([~ pid] boar.pipe))
-  =.  boar.pipe  [~ pid]
-  this(pool (~(put of pool) here pipe))
-::
-++  relinquish
-  |=  here=path
-  ^+  this
-  =/  =pipe:g  (need (~(get of pool) here))
-  ~?  >>  veb
-    ?~  boar.pipe
-      "relinquishing empty boar: {(spud here)}"
-    "relinquishing boar: {(spud (weld here /[u.boar.pipe]))}"
-  =.  pool  (~(put of pool) here pipe(boar ~))
-  =/  pids=(list @ta)  ~(tap in ~(key by proc.pipe))
-  |-
-  ?~  pids
-    this
-  =.  this  (process-do-next here i.pids)
-  $(pids t.pids)
-::
-++  give-http-pack
-  |=  [eyre-id=wire err=(unit tang)]
-  ^+  this
-  ~&  >>>  "+give-http-pack {(spud eyre-id)}"
-  =/  =wire  (weld /http-response eyre-id)
-  ?~  err
-    (emit-card %give %kick ~[wire] ~)
-  %-  (slog leaf+"fail on {(spud wire)}" u.err)
-  =/  =simple-payload:http  (internal-server-error:io & "" u.err)
-  =/  header=cage  [%http-response-header !>(response-header.simple-payload)]
-  =/  data=cage    [%http-response-data !>(data.simple-payload)]
-  =.  this  (emit-card %give %fact ~[wire] header)
-  =.  this  (emit-card %give %fact ~[wire] data)
-  (emit-card %give %kick ~[wire] ~)
-::
-++  give-http-poke-sign
-  |=  [[here=path pid=@ta] eyre-id=wire err=(unit tang)]
-  ^+  this
-  ~&  >>>  "+give-http-poke-sign {(spud (weld here /[pid]))}"
-  =/  =wire  (weld /http-response eyre-id)
-  =/  =pipe:g  (need (~(get of pool) here))
-  ?<  (~(has by proc.pipe) pid)
-  ?~  err
-    (emit-card %give %kick ~[wire] ~)
-  %-  (slog leaf+"fail at {(spud (weld here /[pid]))}" u.err)
-  =/  =simple-payload:http  (internal-server-error:io & "" u.err)
-  =/  header=cage  [%http-response-header !>(response-header.simple-payload)]
-  =/  data=cage    [%http-response-data !>(data.simple-payload)]
-  =.  this  (emit-card %give %fact ~[wire] header)
-  =.  this  (emit-card %give %fact ~[wire] data)
-  (emit-card %give %kick ~[wire] ~)
-::
-++  get-process-give
-  |=  [here=path pid=@ta]
-  ^-  give:g
-  =/  =pipe:g  (need (~(get of pool) here))
-  give.poke:(~(got by proc.pipe) pid)
-::
-++  delete-process
-  |=  [here=path pid=@ta]
-  ^+  this
-  =/  =pipe:g  (need (~(get of pool) here))
-  =.  proc.pipe  (~(del by proc.pipe) pid)
-  this(pool (~(put of pool) here pipe))
-::
-++  give-final-poke-ack
-  |=  [here=path pid=@ta res=(unit tang)]
-  ^+  this
-  ~|  %give-final-poke-ack-fail
-  ~?  veb  %giving-final-poke-ack
-  ~?  veb  here+here
-  =/  =grub:g  (need (~(get of cone) here))
-  ?>  ?=(%base -.grub)
-  =/  =give:g  (get-process-give here pid)
-  ~&  >>>  give+give
-  =.  this  (delete-process here pid)
-  =.  this  (relinquish here)
-  =.  this  (clean here pid)
-  =/  =sign:base:g  [%poke res]
-  ?:  ?=(%& -.from.give)
-    =/  here-pid=[path @ta]  (get-here-pid from.give)
-    (gibs-take /poke here-pid ~ %base wire.give sign)
-  ?:  ?=([%clay *] sap.p.from.give) :: on-init / on-load
-    ?~(res this ((slog u.res) this))
-  ?:  ?=([%gall *] sap.p.from.give)
-    ?:  ?=([%grubbery ~] t.sap.p.from.give)
-      ?~  res  this
-      ~|  "crashed at {(spud (weld here /[pid]))} with wire {(spud wire.give)}"
-      ?+  wire.give  !!
-        [%boot ~]  (mean u.res)
-          [%null-poke ~]
-        :: ?:  =(/ here)  (mean u.res)
-        ((slog leaf+"null-poke-fail {(spud (weld here /[pid]))}" u.res) this)
+  ::  Init born if needed
+  =.  this  ?^((get-born here) this (init-born here))
+  ::  Only bump if content actually changed
+  =/  old=(unit content:tarball)  (~(get ba:tarball ball) here)
+  =.  ball  (~(put ba:tarball ball) here new-content)
+  ?:  ?&  ?=(^ old)
+          =(cage.u.old cage.new-content)
       ==
-    (give-external-sign give sign)
-  ?>  ?=([%eyre *] sap.p.from.give)
-  (give-http-poke-sign [here pid] wire.give res)
+    this
+  (bump-file here)
 ::
 ++  wrap-wire
-  |=  [here=path pid=@ta =wire]
+  |=  [here=rail:tarball =wire]
   ^+  wire
+  =/  =sack:nexus  (need (get-born here))
+  =/  here-path=path  (snoc path.here name.here)
   ;:  weld
-    /base/(scot %ud (lent here))
-    here  /[pid]  wire
+    /proc/(scot %ud (lent here-path))
+    here-path
+    /(scot %da da.proc.sack)
+    wire
   ==
 ::
 ++  unwrap-wire
   |=  =wire
-  ^-  [path @ta ^wire]
-  ?>  ?=([%base @ *] wire)
+  ^-  [rail:tarball @da ^wire]
+  ?>  ?=([%proc @ *] wire)
   =/  len=@ud  (slav %ud i.t.wire)
-  :+  (scag len t.t.wire)
-    (snag len t.t.wire)
-  (slag +(len) t.t.wire)
-::
-++  handle-sysc-card
-  |=  [here=path pid=@ta =card:agent:gall]
-  ^+  this
-  ?+    card  (emit-card card)
-      [%give ?(%fact %kick) *]
-    =-  (emit-card card(paths.p -))
-    (turn paths.p.card |=(p=path (wrap-wire here pid p)))
-    ::
-      [%pass * *]
-    (emit-card [%pass (wrap-wire here pid p.card) q.card])
-  ==
+  =/  here-path=path  (scag len t.t.wire)
+  ?>  ?=(^ here-path)
+  =/  here=rail:tarball  [(snip `path`here-path) (rear here-path)]
+  =/  rest=^wire  (slag len t.t.wire)
+  ?>  ?=([@ *] rest)
+  =/  b=@da  (slav %da i.rest)
+  [here b t.rest]
 ::
 ++  take-arvo
   |=  [wir=wire sign=sign-arvo]
   ^+  this
-  =/  [here=path pid=@ta =wire]  (unwrap-wire wir)
-  (gibs-take /arvo [here pid] ~ %arvo wire sign)
+  =/  [here=rail:tarball b=@da =wire]  (unwrap-wire wir)
+  =/  cur=(unit sack:nexus)  (get-born here)
+  ?.  ?&(?=(^ cur) =(b da.proc.u.cur))  this
+  (enqu-take here (sys-give /arvo) ~ %arvo wire sign)
 ::
 ++  take-agent
   |=  [wir=wire =sign:agent:gall]
   ^+  this
-  =/  [here=path pid=@ta =wire]  (unwrap-wire wir)
-  (gibs-take /agent [here pid] ~ %agent wire sign)
+  =/  [here=rail:tarball b=@da =wire]  (unwrap-wire wir)
+  =/  cur=(unit sack:nexus)  (get-born here)
+  ?.  ?&(?=(^ cur) =(b da.proc.u.cur))  this
+  (enqu-take here (sys-give /agent) ~ %agent wire sign)
+::  Unwrap incoming watch/leave paths
+::
+++  unwrap-watch-path
+  |=  pat=path
+  ^-  [rail:tarball path]
+  ?>  ?=([%proc @ *] pat)
+  =/  len=@ud  (slav %ud i.t.pat)
+  =/  here-path  (scag len t.t.pat)
+  ?>  ?=(^ here-path)
+  =/  here=rail:tarball  [(snip `(list @ta)`here-path) (rear here-path)]
+  [here (slag len t.t.pat)]
+::
+++  wrap-watch-path
+  |=  [here=rail:tarball =path]
+  ^+  path
+  =/  here-path=^path  (snoc path.here name.here)
+  (weld /proc/(scot %ud (lent here-path)) (weld here-path path))
 ::
 ++  take-watch
   |=  pat=path
   ^+  this
-  =/  [here=path pid=@ta =wire]  (unwrap-wire pat)
-  (gibs-take /watch [here pid] ~ %watch wire)
+  =/  [here=rail:tarball sub=path]  (unwrap-watch-path pat)
+  (enqu-take here (sys-give /watch) ~ %watch sub)
 ::
 ++  take-leave
   |=  pat=path
   ^+  this
-  =/  [here=path pid=@ta =wire]  (unwrap-wire pat)
-  (gibs-take /leave [here pid] ~ %leave wire)
+  =/  [here=rail:tarball sub=path]  (unwrap-watch-path pat)
+  (enqu-take here (sys-give /leave) ~ %leave sub)
 --
