@@ -354,6 +354,56 @@
     [%fail %sand-failed u.err.u.in]
   ==
 ::
+++  over
+  |=  [=wire =road:tarball =cage]
+  =/  m  (fiber ,~)
+  ^-  form:m
+  ;<  ~  bind:m  (send-dart %node wire road %over cage)
+  (take-over wire)
+::
+++  take-over
+  |=  =wire
+  =/  m  (fiber ,~)
+  ^-  form:m
+  |=  input
+  :+  ~  state
+  ?+  in  [%skip ~]
+      ~  [%wait ~]
+      [~ %veto *]
+    [%fail (veto-error dart.u.in)]
+      [~ %over * *]
+    ?.  =(wire wire.u.in)
+      [%skip ~]
+    ?~  err.u.in
+      [%done ~]
+    [%fail %over-failed u.err.u.in]
+  ==
+::
+++  diff
+  |=  [=wire =road:tarball =cage]
+  =/  m  (fiber ,~)
+  ^-  form:m
+  ;<  ~  bind:m  (send-dart %node wire road %diff cage)
+  (take-diff wire)
+::
+++  take-diff
+  |=  =wire
+  =/  m  (fiber ,~)
+  ^-  form:m
+  |=  input
+  :+  ~  state
+  ?+  in  [%skip ~]
+      ~  [%wait ~]
+      [~ %veto *]
+    [%fail (veto-error dart.u.in)]
+      [~ %diff * *]
+    ?.  =(wire wire.u.in)
+      [%skip ~]
+    ?~  err.u.in
+      [%done ~]
+    [%fail %diff-failed u.err.u.in]
+  ==
+::
 ++  reload
   |=  [=wire =road:tarball]
   =/  m  (fiber ,~)

@@ -5,6 +5,7 @@
 ::  in /tools/tools/ that compile to the same $tool type.
 ::
 /+  nexus, tarball, io=fiberio, json-utils, pretty-file
+!:
 |%
 ::  Tool execution result
 ::
@@ -1098,15 +1099,16 @@
     =/  src-mime=mime  [/text/plain (as-octs:mimes:html content)]
     =/  pax=path  (stab file-path)
     =/  road=road:tarball  [%& %& pax grub-name]
-    ::  If target is mime, store directly
+    ::  Check if file exists — use %over for existing, %make for new
+    ;<  exists=?  bind:m  (peek-exists:io /check road)
+    ?:  exists
+      ::  Existing file: %over handles mark conversion via warm tubes
+      ;<  ~  bind:m  (over:io /write road mime+!>(src-mime))
+      (pure:m [%text (crip "Wrote {(trip file-path)}/{(trip file-name)}")])
+    ::  New file: build tube from %mime to target mark, then %make
     ?:  =(target-mark %mime)
-      ;<  exists=?  bind:m  (peek-exists:io /check road)
-      ?:  exists
-        ;<  ~  bind:m  (poke:io /write road mime+!>(src-mime))
-        (pure:m [%text (crip "Wrote {(trip file-path)}/{(trip file-name)} [mime]")])
       ;<  ~  bind:m  (make:io /write road |+mime+!>(src-mime))
       (pure:m [%text (crip "Created {(trip file-path)}/{(trip file-name)} [mime]")])
-    ::  Build tube from %mime to target mark
     ;<  our=@p  bind:m  get-our:io
     ;<  =desk  bind:m  get-desk:io
     ;<  now=@da  bind:m  get-time:io
@@ -1117,10 +1119,6 @@
       =/  result=(each vase tang)  (mule |.((u.tube !>(src-mime))))
       ?.  ?=(%& -.result)  mime+!>(src-mime)
       [target-mark p.result]
-    ;<  exists=?  bind:m  (peek-exists:io /check road)
-    ?:  exists
-      ;<  ~  bind:m  (poke:io /write road cage)
-      (pure:m [%text (crip "Wrote {(trip file-path)}/{(trip file-name)} [{(trip p.cage)}]")])
     ;<  ~  bind:m  (make:io /write road |+cage)
     (pure:m [%text (crip "Created {(trip file-path)}/{(trip file-name)} [{(trip p.cage)}]")])
   --
@@ -1187,26 +1185,10 @@
           %empty-search
         (pure:m [%error 'old_string cannot be empty'])
       ==
-    ::  Convert edited text back to original mark, cull and re-make
+    ::  Send edited text back via %over — runtime handles mark conversion
     =/  new-mime=^mime  [/text/plain (as-octs:mimes:html (crip p.result))]
     =/  road=road:tarball  [%& %& pax grub-name]
-    ?:  =(original-mark %mime)
-      =/  new-cage=[mark=@tas =vase]  [%mime !>(new-mime)]
-      ;<  ~  bind:m  (cull:io /edit-cull road)
-      ;<  ~  bind:m  (make:io /edit-make road |+new-cage)
-      (pure:m [%text (crip "Edited {(trip file-path)}/{(trip file-name)}")])
-    ;<  our=@p  bind:m  get-our:io
-    ;<  =desk  bind:m  get-desk:io
-    ;<  now=@da  bind:m  get-time:io
-    ;<  tube=(unit tube:clay)  bind:m
-      (try-build-tube:io our desk [%da now] [%mime original-mark])
-    =/  new-cage=[mark=@tas =vase]
-      ?~  tube  [%mime !>(new-mime)]
-      =/  converted=(each vase tang)  (mule |.((u.tube !>(new-mime))))
-      ?.  ?=(%& -.converted)  [%mime !>(new-mime)]
-      [original-mark p.converted]
-    ;<  ~  bind:m  (cull:io /edit-cull road)
-    ;<  ~  bind:m  (make:io /edit-make road |+new-cage)
+    ;<  ~  bind:m  (over:io /edit road mime+!>(new-mime))
     (pure:m [%text (crip "Edited {(trip file-path)}/{(trip file-name)}")])
   --
 --

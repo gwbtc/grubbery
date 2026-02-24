@@ -791,9 +791,9 @@
     (enqu-take here (sys-give /veto) ~ %veto dart)
     ::
       [~ %&]
-    ::  Allowed but should clam poke vases
+    ::  Allowed but should clam vases crossing sandbox boundary
     ::  (make darts don't need clamming - they go through validate-cage anyway)
-    ?.  ?=([%node * * %poke *] dart)
+    ?.  ?=([%node * * ?(%poke %over %diff) *] dart)
       (handle-dart here dart)
     =/  clammed=(each cage tang)  (clam-cage cage.load.dart)
     ?:  ?=(%| -.clammed)
@@ -815,7 +815,7 @@
     ?-  -.load.dart
       ?(%peek %keep %drop)        %peek  :: read operations
       %poke                       %poke
-      ?(%make %cull %sand %load)  %make  :: all modify tree structure
+      ?(%make %cull %sand %load %over %diff)  %make  :: all modify tree structure
     ==
   ==
 ::
@@ -890,6 +890,51 @@
         %&  (enqu-take:p.res here (sys-give /load) ~ %load wire.dart ~)
         %|  (enqu-take here (sys-give /load) ~ %load wire.dart `p.res)
       ==
+      ::
+        %over
+      ::  Overwrite grub content, converting mark via warm tube if needed
+      ?>  ?=(%& -.u.dest-lane)
+      =/  dest=rail:tarball  p.u.dest-lane
+      =/  old=(unit content:tarball)
+        (~(get ba:tarball ball) path.dest name.dest)
+      ?~  old
+        (enqu-take here (sys-give /over) ~ %over wire.dart `~[leaf+"file not found: {(spud (snoc path.dest name.dest))}"])
+      =/  old-mark=@tas  p.cage.u.old
+      =/  new-mark=@tas  p.cage.load.dart
+      =/  converted=cage
+        ?:  =(old-mark new-mark)
+          cage.load.dart
+        =/  =tube:clay
+          .^(tube:clay %cc /(scot %p our.bowl)/[q.byk.bowl]/(scot %da now.bowl)/[new-mark]/[old-mark])
+        [old-mark (tube q.cage.load.dart)]
+      =/  val=(each vase tang)
+        (validate-new-cage p.converted `q.cage.u.old q.converted %.n)
+      ?:  ?=(%| -.val)
+        (enqu-take here (sys-give /over) ~ %over wire.dart `p.val)
+      =/  new-content=content:tarball  u.old(cage [p.converted p.val])
+      =.  this  (save-file dest new-content)
+      =.  this  (enqu-take dest (sys-give /writ) ~ %writ %over)
+      (enqu-take here (sys-give /over) ~ %over wire.dart ~)
+      ::
+        %diff
+      ::  Replace grub content with same-mark cage, notify process
+      ?>  ?=(%& -.u.dest-lane)
+      =/  dest=rail:tarball  p.u.dest-lane
+      =/  old=(unit content:tarball)
+        (~(get ba:tarball ball) path.dest name.dest)
+      ?~  old
+        (enqu-take here (sys-give /diff) ~ %diff wire.dart `~[leaf+"file not found: {(spud (snoc path.dest name.dest))}"])
+      =/  old-mark=@tas  p.cage.u.old
+      ?.  =(old-mark p.cage.load.dart)
+        (enqu-take here (sys-give /diff) ~ %diff wire.dart `~[leaf+"mark mismatch: expected %{(trip old-mark)}, got %{(trip p.cage.load.dart)}"])
+      =/  val=(each vase tang)
+        (validate-new-cage old-mark `q.cage.u.old q.cage.load.dart %.n)
+      ?:  ?=(%| -.val)
+        (enqu-take here (sys-give /diff) ~ %diff wire.dart `p.val)
+      =/  new-content=content:tarball  u.old(cage [old-mark p.val])
+      =.  this  (save-file dest new-content)
+      =.  this  (enqu-take dest (sys-give /writ) ~ %writ %diff)
+      (enqu-take here (sys-give /diff) ~ %diff wire.dart ~)
       ::
         %peek
       ::  Peek at dest - directory returns ball+sand, file returns cage

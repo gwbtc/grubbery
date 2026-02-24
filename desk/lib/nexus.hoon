@@ -64,6 +64,8 @@
 +$  load
   $%  [%poke =cage]             :: poke a grub
       [%make =make]             :: create grub or directory
+      [%over =cage]             :: overwrite grub content (runtime mark conversion)
+      [%diff =cage]             :: replace same-mark grub content, notify process
       [%cull ~]                 :: delete grub or directory
       [%sand weir=(unit weir)]  :: set weir
       [%load ~]                 :: trigger on-load for a nexus (folds only)
@@ -106,6 +108,9 @@
         [%pack =wire err=(unit tang)] :: response from poke; tang is generic if not allowed to peek
         [%sand =wire err=(unit tang)] :: response to sand
         [%load =wire err=(unit tang)] :: response to load
+        [%over =wire err=(unit tang)] :: response to over (content overwrite)
+        [%diff =wire err=(unit tang)] :: response to diff (same-mark replace)
+        [%writ p=?(%over %diff)]      :: notify grub its file was externally modified
         [%bond =wire err=(unit tang)] :: subscription established/failed
         [%fell =wire]                 :: subscription canceled (weir change, deletion, etc)
         [%news =wire =view] :: state notification
