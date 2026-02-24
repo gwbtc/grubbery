@@ -65,7 +65,7 @@
           :-  'capabilities'
           %-  pairs:enjs:format
           :~  :-  'tools'
-              (pairs:enjs:format ~[['listChanged' b+%.n]])
+              (pairs:enjs:format ~[['listChanged' b+%.y]])
           ==
           :-  'serverInfo'
           %-  pairs:enjs:format
