@@ -613,45 +613,45 @@
   ==
 +$  ack  (unit tang)
 ::
-++  deaf
-  |=  tap=(trap)
-  ^-  (each * (list tank))
-  =/  ton  (mock [tap %9 2 %0 1] ~)
-  ?-  -.ton
-    %0  [%& p.ton]
-  ::
-    %1  =/  sof=(unit path)  ((soft path) p.ton)
-        [%| ?~(sof leaf+"deaf.hunk" (smyt u.sof)) ~]
-  ::
-    %2  [%| p.ton]
-  ==
-::  Scry-free mule: like +mule but blocks .^ calls
-::  FSCK: Runs the code twice, including slogs, etc.
-::        +mule doesn't do that because it's jetted.
-::
-++  hoss
-  |*  tap=(trap)
-  =/  mud  (deaf tap)
-  ?-  -.mud
-    %&  [%& p=$:tap]
-    %|  [%| p=p.mud]
-  ==
-::
-++  mohr
-  |*  [tul=mold pul=mold]
-  |=  [tap=(trap tul) gul=$@(~ $-(^ (unit (unit))))]
-  =/  ton  (mock [tap %9 2 %0 1] gul)
-  ?-  -.ton
-    %0  [%0 p=`tul`!<(tul [-:!>(*tul) p.ton])]
-  ::
-    %1  ?@  gul  !!
-        :-  %1  ^=  p
-        ?~  pax=((soft pul) p.ton)
-          |^p.ton
-        &^u.pax
-  ::
-    %2  [%2 p=p.ton]
-  ==
+:: ++  deaf
+::   |=  tap=(trap)
+::   ^-  (each * (list tank))
+::   =/  ton  (mock [tap %9 2 %0 1] ~)
+::   ?-  -.ton
+::     %0  [%& p.ton]
+::   ::
+::     %1  =/  sof=(unit path)  ((soft path) p.ton)
+::         [%| ?~(sof leaf+"deaf.hunk" (smyt u.sof)) ~]
+::   ::
+::     %2  [%| p.ton]
+::   ==
+:: ::  Scry-free mule: like +mule but blocks .^ calls
+:: ::  FSCK: Runs the code twice, including slogs, etc.
+:: ::        +mule doesn't do that because it's jetted.
+:: ::
+:: ++  hoss
+::   |*  tap=(trap)
+::   =/  mud  (deaf tap)
+::   ?-  -.mud
+::     %&  [%& p=$:tap]
+::     %|  [%| p=p.mud]
+::   ==
+:: ::
+:: ++  mohr
+::   |*  [tul=mold pul=mold]
+::   |=  [tap=(trap tul) gul=$@(~ $-(^ (unit (unit))))]
+::   =/  ton  (mock [tap %9 2 %0 1] gul)
+::   ?-  -.ton
+::     %0  [%0 p=`tul`!<(tul [-:!>(*tul) p.ton])]
+::   ::
+::     %1  ?@  gul  !!
+::         :-  %1  ^=  p
+::         ?~  pax=((soft pul) p.ton)
+::           |^p.ton
+::         &^u.pax
+::   ::
+::     %2  [%2 p=p.ton]
+::   ==
 ::  Convert absolute from (rail) to relative from (fiber bend)
 ::
 ::  External sources pass through unchanged.
