@@ -159,7 +159,7 @@
       (~(get by built-ins:tools) p.u.tool-name)
     ?~  resolved
       (pure:m `(rpc-error rpc-method-not-found 'Unknown tool' id))
-    ;<  result=tool-result:tools  bind:m  (handler:u.resolved p.u.arguments)
+    ;<  result=tool-result:tools  bind:m  handler:u.resolved
     ?-  -.result
       %text   (pure:m `(mcp-text-result text.result id))
       %error  (pure:m `(rpc-error rpc-internal-error message.result id))

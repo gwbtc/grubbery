@@ -59,7 +59,7 @@
     ?~  resolved
       ~&  >>>  "%tools req/{(trip call-id)}: not found: {(trip tool-name)}"
       (pure:m ~)
-    ;<  =tool-result:tools  bind:m  (handler:u.resolved args)
+    ;<  =tool-result:tools  bind:m  handler:u.resolved
     ~&  >  "%tools req/{(trip call-id)}: {<-.tool-result>}"
     (pure:m ~)
   ==

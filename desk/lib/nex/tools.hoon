@@ -12,6 +12,15 @@
   $%  [%text text=@t]
       [%error message=@t]
   ==
+::  Tool process state: args + step tag + step-specific data.
+::  Step tag acts like a head-tagged union — handlers switch on it.
+::  %start = fresh invocation. %done = finished with result.
+::
++$  tool-state
+  $:  args=(map @t json)
+      step=@tas
+      data=json
+  ==
 ::  Parameter schema for tool discovery (MCP, Claude API, etc.)
 ::
 +$  parameter-type
@@ -39,9 +48,7 @@
   ++  handler      *tool-handler
   --
 ::
-+$  tool-handler
-  $-  (map @t json)
-  _*form:(fiber:fiber:nexus ,tool-result)
++$  tool-handler  _*form:(fiber:fiber:nexus ,tool-result)
 ::  Built-in tool registry
 ::
 ++  built-ins
@@ -75,7 +82,6 @@
   ++  required  *(list @t)
   ++  handler
     ^-  tool-handler
-    |=  args=(map @t json)
     =/  m  (fiber:fiber:nexus ,tool-result)
     ^-  form:m
     ;<  =bowl:nexus  bind:m  (get-bowl:io /bowl)
@@ -95,11 +101,11 @@
   ++  required  ~['mount_point']
   ++  handler
     ^-  tool-handler
-    |=  arguments=(map @t json)
     =/  m  (fiber:fiber:nexus ,tool-result)
     ^-  form:m
+    ;<  st=tool-state  bind:m  (get-state-as:io ,tool-state)
     =/  mount-point=@tas
-      %.  [%o arguments]
+      %.  [%o args.st]
       %-  ot:dejs:format
       :~  ['mount_point' so:dejs:format]
       ==
@@ -127,64 +133,74 @@
   ++  required  ~['mount_point']
   ++  handler
     ^-  tool-handler
-    |=  arguments=(map @t json)
     =/  m  (fiber:fiber:nexus ,tool-result)
     ^-  form:m
-    ::  Parse arguments
-    =/  mount-point=@tas
-      %.  [%o arguments]
-      %-  ot:dejs:format
-      :~  ['mount_point' so:dejs:format]
-      ==
-    =/  timeout-seconds=@ud
-      ?~  timeout-json=(~(get by arguments) 'timeout_seconds')
-        30
-      ?.  ?=([%n *] u.timeout-json)
-        30
-      (rash p.u.timeout-json dem)
-    =/  timeout=@dr  (mul timeout-seconds ~s1)
-    ::  Get initial version
-    ;<  initial=cass:clay  bind:m  (do-scry:io cass:clay /scry /cw/[mount-point])
-    ::  Store initial state as JSON
-    =/  init-json=json
-      %-  pairs:enjs:format
-      :~  ['sent' b+%.n]
-          :-  'initial-version'
-          %-  pairs:enjs:format
-          :~  ['ud' (numb:enjs:format ud.initial)]
-              ['da' s+(scot %da da.initial)]
-          ==
-          ['logs' a+~]
-      ==
-    ;<  ~  bind:m  (replace:io !>(init-json))
-    ::  Subscribe to dill logs
-    ;<  ~  bind:m  (send-card:io %pass /dill-logs %arvo %d %logs `~)
-    ::  Set main timeout
-    ;<  =bowl:nexus  bind:m  (get-bowl:io /bowl)
-    ;<  ~  bind:m  (send-card:io %pass /commit-timeout %arvo %b %wait (add now.bowl timeout))
-    ::  Commit the desk
-    ;<  ~  bind:m  (gall-poke-our:io %hood kiln-commit+!>([mount-point %.n]))
-    ::  Collect logs until timeout
-    ;<  ~  bind:m  collect-logs
-    ::  Unsubscribe from dill logs
-    ;<  ~  bind:m  (send-card:io %pass /dill-logs %arvo %d %logs ~)
-    ::  Read final state
-    ;<  jon=json  bind:m  (get-state-as:io ,json)
-    =/  iv-json=json  (~(got jo:json-utils jon) /initial-version)
-    =/  initial-version=cass:clay
-      :*  (~(dog jo:json-utils iv-json) /ud ni:dejs:format)
-          (slav %da (~(dog jo:json-utils iv-json) /da so:dejs:format))
-      ==
-    =/  log-texts=(list @t)
-      (~(dug jo:json-utils jon) /logs (ar:dejs:format so:dejs:format) ~)
-    ;<  final-version=cass:clay  bind:m  (do-scry:io cass:clay /scry /cw/[mount-point])
-    =/  result=tape
-      %+  weld  "Initial version: {<ud.initial-version>}\0a"
-      %+  weld  "Final version: {<ud.final-version>}\0a"
-      %+  weld  "Logs ({<(lent log-texts)>}):\0a"
-      (roll (flop log-texts) |=([log=@t acc=tape] (weld acc (trip log))))
-    (pure:m [%text (crip result)])
+    ;<  st=tool-state  bind:m  (get-state-as:io ,tool-state)
+    ?+  step.st  (pure:m [%error 'Unknown commit step'])
+        %start
+      ::  Parse arguments
+      =/  mount-point=@tas
+        %.  [%o args.st]
+        %-  ot:dejs:format
+        :~  ['mount_point' so:dejs:format]
+        ==
+      =/  timeout-seconds=@ud
+        ?~  timeout-json=(~(get by args.st) 'timeout_seconds')
+          30
+        ?.  ?=([%n *] u.timeout-json)
+          30
+        (rash p.u.timeout-json dem)
+      =/  timeout=@dr  (mul timeout-seconds ~s1)
+      ::  Get initial version
+      ;<  initial=cass:clay  bind:m  (do-scry:io cass:clay /scry /cw/[mount-point])
+      ::  Checkpoint: save state before committing
+      =/  commit-data=json
+        %-  pairs:enjs:format
+        :~  ['initial-ud' (numb:enjs:format ud.initial)]
+            ['initial-da' s+(scot %da da.initial)]
+            ['logs' a+~]
+        ==
+      ;<  ~  bind:m
+        (replace:io !>([args.st %committing commit-data]))
+      ::  Subscribe to dill logs
+      ;<  ~  bind:m  (send-card:io %pass /dill-logs %arvo %d %logs `~)
+      ::  Set main timeout
+      ;<  =bowl:nexus  bind:m  (get-bowl:io /bowl)
+      ;<  ~  bind:m
+        (send-card:io %pass /commit-timeout %arvo %b %wait (add now.bowl timeout))
+      ::  Commit the desk (may kill us if committing own desk)
+      ;<  ~  bind:m  (gall-poke-our:io %hood kiln-commit+!>([mount-point %.n]))
+      ::  If we survive, collect logs and finish
+      ;<  ~  bind:m  collect-logs
+      ;<  ~  bind:m  (send-card:io %pass /dill-logs %arvo %d %logs ~)
+      (finish-commit args.st data.st)
+        ::  %committing: restarted after desk recompile
+        ::
+        %committing
+      (finish-commit args.st data.st)
+    ==
   --
+::
+++  finish-commit
+  |=  [args=(map @t json) data=json]
+  =/  m  (fiber:fiber:nexus ,tool-result)
+  ^-  form:m
+  =/  mount-point=@tas
+    %.  [%o args]
+    %-  ot:dejs:format
+    :~  ['mount_point' so:dejs:format]
+    ==
+  =/  initial-ud=@ud
+    (~(dog jo:json-utils data) /initial-ud ni:dejs:format)
+  =/  log-texts=(list @t)
+    (~(dug jo:json-utils data) /logs (ar:dejs:format so:dejs:format) ~)
+  ;<  final=cass:clay  bind:m  (do-scry:io cass:clay /scry /cw/[mount-point])
+  =/  result=tape
+    %+  weld  "Initial version: {<initial-ud>}\0a"
+    %+  weld  "Final version: {<ud.final>}\0a"
+    %+  weld  "Logs ({<(lent log-texts)>}):\0a"
+    (roll (flop log-texts) |=([log=@t acc=tape] (weld acc (trip log))))
+  (pure:m [%text (crip result)])
 ::
 ++  tool-scry
   ^-  tool
@@ -213,11 +229,11 @@
   ++  required  ~['path']
   ++  handler
     ^-  tool-handler
-    |=  arguments=(map @t json)
     =/  m  (fiber:fiber:nexus ,tool-result)
     ^-  form:m
+    ;<  st=tool-state  bind:m  (get-state-as:io ,tool-state)
     =/  path-text=@t
-      %.  [%o arguments]
+      %.  [%o args.st]
       %-  ot:dejs:format
       :~  ['path' so:dejs:format]
       ==
@@ -240,11 +256,11 @@
   ++  required  ~['desk' 'path']
   ++  handler
     ^-  tool-handler
-    |=  arguments=(map @t json)
     =/  m  (fiber:fiber:nexus ,tool-result)
     ^-  form:m
+    ;<  st=tool-state  bind:m  (get-state-as:io ,tool-state)
     =/  [desk=@t file-path=@t]
-      %.  [%o arguments]
+      %.  [%o args.st]
       %-  ot:dejs:format
       :~  ['desk' so:dejs:format]
           ['path' so:dejs:format]
@@ -274,11 +290,11 @@
   ++  required  ~['desk' 'path']
   ++  handler
     ^-  tool-handler
-    |=  arguments=(map @t json)
     =/  m  (fiber:fiber:nexus ,tool-result)
     ^-  form:m
+    ;<  st=tool-state  bind:m  (get-state-as:io ,tool-state)
     =/  [desk=@t file-path=@t]
-      %.  [%o arguments]
+      %.  [%o args.st]
       %-  ot:dejs:format
       :~  ['desk' so:dejs:format]
           ['path' so:dejs:format]
@@ -311,11 +327,11 @@
   ++  required  ~['agent']
   ++  handler
     ^-  tool-handler
-    |=  arguments=(map @t json)
     =/  m  (fiber:fiber:nexus ,tool-result)
     ^-  form:m
+    ;<  st=tool-state  bind:m  (get-state-as:io ,tool-state)
     =/  agent=@t
-      %.  [%o arguments]
+      %.  [%o args.st]
       %-  ot:dejs:format
       :~  ['agent' so:dejs:format]
       ==
@@ -337,11 +353,11 @@
   ++  required  ~['agent']
   ++  handler
     ^-  tool-handler
-    |=  arguments=(map @t json)
     =/  m  (fiber:fiber:nexus ,tool-result)
     ^-  form:m
+    ;<  st=tool-state  bind:m  (get-state-as:io ,tool-state)
     =/  agent=@t
-      %.  [%o arguments]
+      %.  [%o args.st]
       %-  ot:dejs:format
       :~  ['agent' so:dejs:format]
       ==
@@ -363,11 +379,11 @@
   ++  required  ~['desk']
   ++  handler
     ^-  tool-handler
-    |=  arguments=(map @t json)
     =/  m  (fiber:fiber:nexus ,tool-result)
     ^-  form:m
+    ;<  st=tool-state  bind:m  (get-state-as:io ,tool-state)
     =/  desk=@t
-      %.  [%o arguments]
+      %.  [%o args.st]
       %-  ot:dejs:format
       :~  ['desk' so:dejs:format]
       ==
@@ -392,18 +408,18 @@
   ++  required  ~['desk']
   ++  handler
     ^-  tool-handler
-    |=  arguments=(map @t json)
     =/  m  (fiber:fiber:nexus ,tool-result)
     ^-  form:m
+    ;<  st=tool-state  bind:m  (get-state-as:io ,tool-state)
     =/  desk=@t
-      %.  [%o arguments]
+      %.  [%o args.st]
       %-  ot:dejs:format
       :~  ['desk' so:dejs:format]
       ==
     =/  dek=@tas  (slav %tas desk)
     ;<  =bowl:nexus  bind:m  (get-bowl:io /bowl)
     =/  src=@p
-      ?~  ship-json=(~(get by arguments) 'ship')
+      ?~  ship-json=(~(get by args.st) 'ship')
         our.bowl
       ?.  ?=([%s *] u.ship-json)  our.bowl
       (slav %p p.u.ship-json)
@@ -426,19 +442,19 @@
   ++  required  ~['desk' 'path' 'public']
   ++  handler
     ^-  tool-handler
-    |=  arguments=(map @t json)
     =/  m  (fiber:fiber:nexus ,tool-result)
     ^-  form:m
+    ;<  st=tool-state  bind:m  (get-state-as:io ,tool-state)
     =/  desk=@t
-      %.  [%o arguments]
+      %.  [%o args.st]
       %-  ot:dejs:format
       :~  ['desk' so:dejs:format]
       ==
     =/  dek=@tas  (slav %tas desk)
     =/  pax=path
-      (stab (~(dog jo:json-utils [%o arguments]) /path so:dejs:format))
+      (stab (~(dog jo:json-utils [%o args.st]) /path so:dejs:format))
     =/  pub=?
-      (~(dog jo:json-utils [%o arguments]) /public bo:dejs:format)
+      (~(dog jo:json-utils [%o args.st]) /public bo:dejs:format)
     ;<  ~  bind:m
       (gall-poke-our:io %hood kiln-permission+!>([dek pax pub]))
     =/  status=tape  ?:(pub "public" "private")
@@ -477,21 +493,21 @@
   ?-    -.commit-event
       %timeout  (pure:m ~)
       %quiet
-    ;<  jon=json  bind:m  (get-state-as:io ,json)
+    ;<  st=tool-state  bind:m  (get-state-as:io ,tool-state)
     =/  logs=(list json)
-      (~(dug jo:json-utils jon) /logs (ar:dejs:format same:dejs:format) ~)
+      (~(dug jo:json-utils data.st) /logs (ar:dejs:format same:dejs:format) ~)
     ?.  =(count.commit-event (lent logs))
       $  :: stale timer, keep waiting
     (pure:m ~)
       %log
-    ;<  jon=json  bind:m  (get-state-as:io ,json)
+    ;<  st=tool-state  bind:m  (get-state-as:io ,tool-state)
     =/  logs=(list json)
-      (~(dug jo:json-utils jon) /logs (ar:dejs:format same:dejs:format) ~)
+      (~(dug jo:json-utils data.st) /logs (ar:dejs:format same:dejs:format) ~)
     =/  log-text=tape  (format-told told.commit-event)
-    =/  updated-jon=json
-      (~(put jo:json-utils jon) /logs a+[s+(crip log-text) logs])
+    =/  new-data=json
+      (~(put jo:json-utils data.st) /logs a+[s+(crip log-text) logs])
     =/  new-count=@ud  +((lent logs))
-    ;<  ~  bind:m  (replace:io !>(updated-jon))
+    ;<  ~  bind:m  (replace:io !>([args.st step.st new-data]))
     ;<  =bowl:nexus  bind:m  (get-bowl:io /bowl)
     ;<  ~  bind:m
       (send-card:io %pass /commit-quiet/(scot %ud new-count) %arvo %b %wait (add now.bowl ~s1))

@@ -1008,7 +1008,8 @@
     =.  this  (save-file here [metadata.u.file-data p.cage.u.file-data p.validated])
     (store-proc here new-proc)
       %done
-    ::  State was valid, now delete
+    ::  Save final state so subscribers see it, then delete
+    =.  this  (save-file here [metadata.u.file-data p.cage.u.file-data p.validated])
     =/  err=tang  ~[leaf+"process completed"]
     =.  this  (nack-poke-takes here next.new-proc err)
     =.  this  (nack-poke-takes here skip.new-proc err)
