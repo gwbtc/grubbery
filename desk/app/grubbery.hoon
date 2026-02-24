@@ -856,8 +856,24 @@
       (enqu-take dest [&+here wire.dart] ~ %poke rel cage.load.dart)
       ::
         %make
-      ::  Create file or directory - destination type must match payload type
-      =/  res=(each _this tang)  (mule |.((make u.dest-lane make.load.dart)))
+      ::  Create file or directory.
+      ::  If mark is set and payload is a file cage, convert the cage
+      ::  to the destination mark via warm tube cache before storing.
+      ::  This lets callers send e.g. a mime cage and have the runtime
+      ::  convert it to %hoon, %txt, etc. using Clay's warm Ford cache.
+      =/  =make:nexus
+        ?~  mark.load.dart
+          make.load.dart
+        ?.  ?=(%| -.make.load.dart)
+          ::  mark conversion only applies to file cages, not directories
+          make.load.dart
+        ?:  =(p.p.make.load.dart u.mark.load.dart)
+          ::  marks already match, no conversion needed
+          make.load.dart
+        =/  =tube:clay
+          .^(tube:clay %cc /(scot %p our.bowl)/[q.byk.bowl]/(scot %da now.bowl)/[p.p.make.load.dart]/[u.mark.load.dart])
+        make.load.dart(p [u.mark.load.dart (tube q.p.make.load.dart)])
+      =/  res=(each _this tang)  (mule |.((^make u.dest-lane make)))
       ?-  -.res
         %&  (enqu-take:p.res here (sys-give /made) ~ %made wire.dart ~)
         %|  (enqu-take here (sys-give /made) ~ %made wire.dart `p.res)

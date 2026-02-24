@@ -63,7 +63,9 @@
 ::
 +$  load
   $%  [%poke =cage]             :: poke a grub
-      [%make =make]             :: create grub or directory
+      [%make =make mark=(unit mark)]  :: create grub or directory
+                                       :: mark: if set, convert cage to this
+                                       :: mark via warm tube before storing
       [%over =cage]             :: overwrite grub content (runtime mark conversion)
       [%diff =cage]             :: replace same-mark grub content, notify process
       [%cull ~]                 :: delete grub or directory

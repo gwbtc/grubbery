@@ -286,10 +286,10 @@
 ::  File operations: make, poke, peek, cull, sand
 ::
 ++  make
-  |=  [=wire =road:tarball =make:nexus]
+  |=  [=wire =road:tarball =make:nexus mark=(unit mark)]
   =/  m  (fiber ,~)
   ^-  form:m
-  ;<  ~  bind:m  (send-dart %node wire road %make make)
+  ;<  ~  bind:m  (send-dart %node wire road %make make mark)
   (take-made wire)
 ::
 ++  poke

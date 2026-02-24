@@ -14,6 +14,24 @@
 !: :: turn on stack trace
 =>  |%
     ++  srv  ~(. res:nex-server [%| 1 %& ~ %main])
+    ::  SSE keep-alive loop for Streamable HTTP transport.
+    ::  On desk recompile, process restarts with %rise prod —
+    ::  caller sends tools/list_changed before entering this loop.
+    ::
+    ++  sse-loop
+      |=  eyre-id=@ta
+      =/  m  (fiber:fiber:nexus ,~)
+      ^-  form:m
+      ;<  =bowl:nexus  bind:m  (get-bowl:io /sse)
+      ;<  ~  bind:m  (send-wait:io (add now.bowl ~s30))
+      |-
+      ;<  nw=news-or-wake:io  bind:m  (take-news-or-wake:io /mcp-sse)
+      ?:  ?=(%news -.nw)  $
+      ::  Timer wake: send keep-alive
+      ;<  ~  bind:m  (send-data:srv eyre-id `sse-keep-alive:http-utils)
+      ;<  =bowl:nexus  bind:m  (get-bowl:io /sse)
+      ;<  ~  bind:m  (send-wait:io (add now.bowl ~s30))
+      $
     --
 ^-  nexus:nexus
 |%
@@ -52,6 +70,24 @@
       ;<  ~  bind:m
         (send-simple:srv eyre-id [[403 ~] `(as-octs:mimes:html 'Forbidden')])
       (pure:m ~)
+    ::  SSE stream for server-initiated notifications (Streamable HTTP)
+    ::  Client GETs with Accept: text/event-stream to open the channel.
+    ::  On desk recompile, process restarts — send tools/list_changed.
+    ::
+    ?:  (is-sse-request:http-utils req)
+      ?.  ?=(%rise -.prod)
+        ::  Fresh connection: send SSE header, enter keep-alive loop
+        ;<  ~  bind:m  (send-header:srv eyre-id sse-header:http-utils)
+        (sse-loop eyre-id)
+      ::  Restarted after desk recompile: notify tools changed
+      =/  notify=json
+        %-  pairs:enjs:format
+        :~  ['jsonrpc' s+'2.0']
+            ['method' s+'notifications/tools/list_changed']
+        ==
+      =/  ev=sse-event:http-utils  [~ ~ [(en:json:html notify)]~]
+      ;<  ~  bind:m  (send-data:srv eyre-id `(sse-encode:http-utils ~[ev]))
+      (sse-loop eyre-id)
     ::  Parse JSON body
     =/  bod=(unit octs)  body.request.req
     ?~  bod
@@ -97,7 +133,7 @@
       ;<  ~  bind:m
         (keep:io /watch [%| 1 %& /tools tid])
       ;<  ~  bind:m
-        (make:io /make [%| 1 %& /tools tid] |+tool-state+!>(ts))
+        (make:io /make [%| 1 %& /tools tid] |+tool-state+!>(ts) ~)
       ::  Wait for tool to finish
       |-
       ;<  nw=news-or-wake:io  bind:m  (take-news-or-wake:io /watch)

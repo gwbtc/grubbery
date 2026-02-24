@@ -69,7 +69,7 @@
               ?:  =('wallet-name' key)  val
               $(params t.params)
             =/  wallet-key=@ta  (scot %da now.bowl)
-            ;<  ~  bind:m  (make:io /make [%| 1 %& /wallets wallet-key] |+sig+!>(wallet-name))
+            ;<  ~  bind:m  (make:io /make [%| 1 %& /wallets wallet-key] |+sig+!>(wallet-name) ~)
             ;<  ~  bind:m  (send-simple:srv eyre-id two-oh-four:http-utils)
             (pure:m ~)
           ::  GET /: serve wallet page

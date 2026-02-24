@@ -159,7 +159,7 @@
       [(crip (scag name-len full-text)) `u.dir-ext]
     =/  folder-path=path  (snoc tree-path dir-name)
     =/  new-ball=ball:tarball  [`[~ dir-neck ~] ~]
-    ;<  ~  bind:m  (make:io /mkd [%& %| folder-path] &+[*sand:nexus new-ball])
+    ;<  ~  bind:m  (make:io /mkd [%& %| folder-path] &+[*sand:nexus new-ball] ~)
     ;<  ~  bind:m  (send-simple:srv eyre-id [[303 ~[['location' (crip redirect-url)]]] ~])
     (pure:m ~)
   ::
@@ -176,7 +176,7 @@
     ?~  sym
       ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'Invalid symlink target')])
       (pure:m ~)
-    ;<  ~  bind:m  (make:io /make [%& %& tree-path linkname] |+[%symlink !>(u.sym)])
+    ;<  ~  bind:m  (make:io /make [%& %& tree-path linkname] |+[%symlink !>(u.sym)] ~)
     ;<  ~  bind:m  (send-simple:srv eyre-id [[303 ~[['location' (crip redirect-url)]]] ~])
     (pure:m ~)
   ::
@@ -283,14 +283,14 @@
   ?^  files
     =/  [name=@ta =content:tarball]  i.files
     ;<  ~  bind:m
-      (make:io /upload [%& %& tree-path name] |+cage.content)
+      (make:io /upload [%& %& tree-path name] |+cage.content ~)
     $(files t.files)
   =/  dirs=(list [@ta ball:tarball])  ~(tap by dir.new)
   |-
   ?^  dirs
     =/  [name=@ta sub=ball:tarball]  i.dirs
     ;<  ~  bind:m
-      (make:io /upload [%& %| (snoc tree-path name)] &+[*sand:nexus sub])
+      (make:io /upload [%& %| (snoc tree-path name)] &+[*sand:nexus sub] ~)
     $(dirs t.dirs)
   =/  redirect-url=tape
     ?~(tree-path "/grubbery/ball" "/grubbery/ball{(trip (spat tree-path))}")

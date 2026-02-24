@@ -43,9 +43,11 @@
       !<([call-id=@ta tool-name=@t args=(map @t json)] q.cage)
     ~&  >  "%tools /main: {(trip tool-name.req)} [{(trip call-id.req)}]"
     ;<  ~  bind:m
-      %^  make:io  /exec
-        [%& %& [%requests ~] call-id.req]
-      |+[%tool-args !>(`[@t (map @t json)]`[tool-name.req args.req])]
+      %-  make:io
+      :^    /exec
+          [%& %& [%requests ~] call-id.req]
+        |+[%tool-args !>(`[@t (map @t json)]`[tool-name.req args.req])]
+      ~
     ^$
   ::  /requests/{call-id}: resolve tool, run handler, done
       [[%requests ~] @]

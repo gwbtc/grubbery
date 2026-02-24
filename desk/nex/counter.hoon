@@ -66,7 +66,7 @@
           ?:  ?=(%'POST' method.request.req)
             ::  Create a new counter
             =/  counter-name=@ta  (scot %da now.bowl)
-            ;<  ~  bind:m  (make:io /make [%| 2 %& /counters counter-name] |+ud+!>(0))
+            ;<  ~  bind:m  (make:io /make [%| 2 %& /counters counter-name] |+ud+!>(0) ~)
             ;<  ~  bind:m  (send-simple:srv eyre-id two-oh-four:http-utils)
             (pure:m ~)
           ::  Serve counter page

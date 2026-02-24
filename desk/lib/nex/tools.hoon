@@ -802,7 +802,7 @@
     ?:  exists
       ;<  ~  bind:m  (poke:io /write road json+!>(content))
       (pure:m [%text (crip "Updated {(trip file-path)}/{(trip file-name)}")])
-    ;<  ~  bind:m  (make:io /write road |+json+!>(content))
+    ;<  ~  bind:m  (make:io /write road |+json+!>(content) ~)
     (pure:m [%text (crip "Created {(trip file-path)}/{(trip file-name)}")])
   --
 ::
@@ -865,7 +865,7 @@
       [(crip (scag name-len full-text)) `u.dir-ext]
     =/  folder-path=path  (snoc (stab parent-path) dir-name)
     =/  new-ball=ball:tarball  [`[~ dir-neck ~] ~]
-    ;<  ~  bind:m  (make:io /mkdir [%& %| folder-path] &+[*sand:nexus new-ball])
+    ;<  ~  bind:m  (make:io /mkdir [%& %| folder-path] &+[*sand:nexus new-ball] ~)
     =/  neck-msg=tape  ?~(dir-neck "" " (nexus: {(trip u.dir-neck)})")
     (pure:m [%text (crip "Created folder {(spud folder-path)}{neck-msg}")])
   --
@@ -924,7 +924,7 @@
     ?~  sym
       (pure:m [%error (crip "Invalid symlink target: {(trip target)}")])
     ;<  ~  bind:m
-      (make:io /symlink [%& %& (stab link-path) link-name] |+[%symlink !>(u.sym)])
+      (make:io /symlink [%& %& (stab link-path) link-name] |+[%symlink !>(u.sym)] ~)
     (pure:m [%text (crip "Created symlink {(trip link-path)}/{(trip link-name)} -> {(trip target)}")])
   --
 ::
@@ -1066,14 +1066,19 @@
     ;:  weld
       "Write a text file to the grubbery ball. "
       "Mark is detected from filename extension "
-      "(e.g. .hoon, .txt, .json). Falls back to %txt if unknown."
+      "(e.g. .hoon, .txt, .json). Falls back to %txt if unknown. "
+      "Set content_type to store as raw mime (e.g. \"text/html\"). "
+      "Set mark to convert from mime to a specific mark (e.g. \"hoon\"). "
+      "When using mark, omit the extension from the filename — the mark becomes the extension."
     ==
   ++  parameters
     ^-  (map @t parameter-def)
     %-  ~(gas by *(map @t parameter-def))
     :~  ['path' [%string 'Directory path (e.g. "/")']]
-        ['name' [%string 'Filename with extension (e.g. "foo.hoon", "notes.txt")']]
+        ['name' [%string 'Filename with extension (e.g. "foo.hoon", "notes.txt"). Omit extension when using mark parameter.']]
         ['content' [%string 'Text content to write']]
+        ['content_type' [%string 'MIME content type (e.g. "text/html"). When set, stores as raw mime.']]
+        ['mark' [%string 'Destination mark (e.g. "hoon", "txt"). Converts from mime to this mark via warm tube.']]
     ==
   ++  required  ~['path' 'name' 'content']
   ++  handler
@@ -1088,39 +1093,47 @@
           ['name' so:dejs:format]
           ['content' so:dejs:format]
       ==
+    =/  content-type=(unit @t)
+      ?~  ct=(~(get by args.st) 'content_type')  ~
+      ?.  ?=([%s *] u.ct)  ~
+      ?:  =('' p.u.ct)  ~
+      `p.u.ct
+    =/  dest-mark=(unit @tas)
+      ?~  mk=(~(get by args.st) 'mark')  ~
+      ?.  ?=([%s *] u.mk)  ~
+      ?:  =('' p.u.mk)  ~
+      `p.u.mk
     =/  ext=(unit @ta)  (parse-extension:tarball file-name)
-    =/  target-mark=@tas  (fall ext %txt)
     ::  Strip extension from filename for grub name
     =/  grub-name=@ta
       ?~  ext  file-name
       =/  et=tape  (trip u.ext)
       =/  ft=tape  (trip file-name)
       (crip (scag (sub (lent ft) (add 1 (lent et))) ft))
-    =/  src-mime=mime  [/text/plain (as-octs:mimes:html content)]
     =/  pax=path  (stab file-path)
     =/  road=road:tarball  [%& %& pax grub-name]
-    ::  Check if file exists — use %over for existing, %make for new
+    ::  Explicit content_type: store as raw mime with that content-type
+    ?^  content-type
+      =/  mtype=path  (stab (cat 3 '/' u.content-type))
+      =/  src-mime=mime  [mtype (as-octs:mimes:html content)]
+      ;<  exists=?  bind:m  (peek-exists:io /check road)
+      ?:  exists
+        ;<  ~  bind:m  (over:io /write road mime+!>(src-mime))
+        (pure:m [%text (crip "Wrote {(trip file-path)}/{(trip file-name)} [{(trip u.content-type)}]")])
+      ;<  ~  bind:m  (make:io /write road |+mime+!>(src-mime) ~)
+      (pure:m [%text (crip "Created {(trip file-path)}/{(trip file-name)} [{(trip u.content-type)}]")])
+    ::  Build mime cage from content
+    =/  src-mime=mime  [/text/plain (as-octs:mimes:html content)]
     ;<  exists=?  bind:m  (peek-exists:io /check road)
     ?:  exists
-      ::  Existing file: %over handles mark conversion via warm tubes
+      ::  Existing file: %over converts mime to file's mark via warm tube
       ;<  ~  bind:m  (over:io /write road mime+!>(src-mime))
       (pure:m [%text (crip "Wrote {(trip file-path)}/{(trip file-name)}")])
-    ::  New file: build tube from %mime to target mark, then %make
-    ?:  =(target-mark %mime)
-      ;<  ~  bind:m  (make:io /write road |+mime+!>(src-mime))
-      (pure:m [%text (crip "Created {(trip file-path)}/{(trip file-name)} [mime]")])
-    ;<  our=@p  bind:m  get-our:io
-    ;<  =desk  bind:m  get-desk:io
-    ;<  now=@da  bind:m  get-time:io
-    ;<  tube=(unit tube:clay)  bind:m
-      (try-build-tube:io our desk [%da now] [%mime target-mark])
-    =/  =cage
-      ?~  tube  mime+!>(src-mime)
-      =/  result=(each vase tang)  (mule |.((u.tube !>(src-mime))))
-      ?.  ?=(%& -.result)  mime+!>(src-mime)
-      [target-mark p.result]
-    ;<  ~  bind:m  (make:io /write road |+cage)
-    (pure:m [%text (crip "Created {(trip file-path)}/{(trip file-name)} [{(trip p.cage)}]")])
+    ::  New file: pass dest-mark so runtime converts mime before storing.
+    ::  If no mark specified, stores as mime.
+    ;<  ~  bind:m  (make:io /write road |+mime+!>(src-mime) dest-mark)
+    =/  mark-msg=tape  ?~(dest-mark "mime" (trip u.dest-mark))
+    (pure:m [%text (crip "Created {(trip file-path)}/{(trip file-name)} [{mark-msg}]")])
   --
 ::
 ++  tool-edit-file

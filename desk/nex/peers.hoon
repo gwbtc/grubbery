@@ -246,12 +246,12 @@
   =/  ship-ball=ball:tarball
     (~(put ba:tarball *ball:tarball) [/ %main] [~ %sig !>(~)])
   ?:  =(src our)
-    (make:io /create-ship [%| 0 %| ship-dir] &+[*sand:nexus ship-ball])
+    (make:io /create-ship [%| 0 %| ship-dir] &+[*sand:nexus ship-ball] ~)
   ;<  [who=(map rail:tarball (set @p)) how=(map rail:tarball weir:nexus)]  bind:m
     read-usergroups
   =/  =weir:nexus  (compute-ship-weir src (build-src who) how)
   =/  ship-sand=sand:nexus  (~(put of *sand:nexus) / weir)
-  (make:io /create-ship [%| 0 %| ship-dir] &+[ship-sand ship-ball])
+  (make:io /create-ship [%| 0 %| ship-dir] &+[ship-sand ship-ball] ~)
 ::  Sand weirs for all foreign ship directories from pre-built data.
 ::
 ++  sand-all-ships
