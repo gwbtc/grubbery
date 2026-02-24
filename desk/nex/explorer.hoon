@@ -394,7 +394,19 @@
     =/  lanes=(list lane:tarball)  ~(tap in what)
     |-
     ?~  lanes
-      ::  After processing all lanes, check for weir change
+      ::  Check if watched directory was deleted
+      =/  still-exists=?
+        ?|  =(~ watch-path)
+            ?=(^ (~(dap ba:tarball root) watch-path))
+        ==
+      ?.  still-exists
+        =/  =json
+          (pairs:enjs:format ~[['action' s+'deleted']])
+        =/  =sse-event:http-utils  [~ `'ball-change' [(en:json:html json)]~]
+        =/  data=octs  (sse-encode:http-utils ~[sse-event])
+        ;<  ~  bind:m  (send-data:srv eyre-id `data)
+        (pure:m ~)
+      ::  Check for weir change
       ?.  =(prev-weir new-weir)
         =.  prev-weir  new-weir
         =/  weir-html=tape
@@ -903,6 +915,11 @@
       if (d.action === 'weir') {
         var sb = document.getElementById('sandbox-value');
         if (sb) sb.innerHTML = d.html;
+        return;
+      }
+      if (d.action === 'deleted') {
+        document.body.innerHTML = '<h1>Directory deleted</h1><p><a href="/grubbery/ball">Back to root</a></p>';
+        es.close();
         return;
       }
       var row = tb.querySelector('tr[data-name="' + d.name + '"]');

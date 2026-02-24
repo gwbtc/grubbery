@@ -65,6 +65,19 @@
       ['mount_desk' tool-mount-desk]
       ['install_app' tool-install-app]
       ['toggle_permissions' tool-toggle-permissions]
+      ['send_telegram' tool-send-telegram]
+      ['browse' tool-browse]
+      ['read_grub' tool-read-grub]
+      ['create_grub' tool-create-grub]
+      ['delete_grub' tool-delete-grub]
+      ['create_folder' tool-create-folder]
+      ['delete_folder' tool-delete-folder]
+      ['create_symlink' tool-create-symlink]
+      ['add_weir' tool-add-weir]
+      ['del_weir' tool-del-weir]
+      ['clear_weir' tool-clear-weir]
+      ['write_file' tool-write-file]
+      ['edit_file' tool-edit-file]
   ==
 ::  All tool definitions (for MCP tools/list)
 ::
@@ -173,6 +186,7 @@
       ::  If we survive, collect logs and finish
       ;<  ~  bind:m  collect-logs
       ;<  ~  bind:m  (send-card:io %pass /dill-logs %arvo %d %logs ~)
+      ;<  st=tool-state  bind:m  (get-state-as:io ,tool-state)
       (finish-commit args.st data.st)
         ::  %committing: restarted after desk recompile
         ::
@@ -185,11 +199,15 @@
   |=  [args=(map @t json) data=json]
   =/  m  (fiber:fiber:nexus ,tool-result)
   ^-  form:m
+  ?.  ?=([%o *] data)
+    (pure:m [%error 'Commit state lost (stale tool grub). Please retry.'])
   =/  mount-point=@tas
     %.  [%o args]
     %-  ot:dejs:format
     :~  ['mount_point' so:dejs:format]
     ==
+  ?~  (~(get by p.data) 'initial-ud')
+    (pure:m [%error 'Commit state incomplete. Please retry.'])
   =/  initial-ud=@ud
     (~(dog jo:json-utils data) /initial-ud ni:dejs:format)
   =/  log-texts=(list @t)
@@ -214,6 +232,7 @@
       "The return type will always be JSON, and the read will fail if "
       "there is no mark conversion from the endpoint's mark to JSON. "
       "Examples: /gx/hood/kiln/pikes/json, /cx/base/sys/kelvin"
+      "Supported marks: json, txt, hoon, mime."
     ==
   ++  parameters
     ^-  (map @t parameter-def)
@@ -237,9 +256,23 @@
       %-  ot:dejs:format
       :~  ['path' so:dejs:format]
       ==
-    ;<  result=json  bind:m
-      (do-scry:io json /scry (stab path-text))
-    (pure:m [%text (en:json:html result)])
+    =/  pax=path  (stab path-text)
+    =/  mark=@tas  (rear pax)
+    ?+  mark
+      (pure:m [%error (crip "Unsupported scry mark: %{(trip mark)}. Use /json, /txt, /hoon, or /mime.")])
+        %json
+      ;<  result=json  bind:m  (do-scry:io json /scry pax)
+      (pure:m [%text (en:json:html result)])
+        %txt
+      ;<  result=wain  bind:m  (do-scry:io wain /scry pax)
+      (pure:m [%text (of-wain:format result)])
+        %hoon
+      ;<  result=@t  bind:m  (do-scry:io @t /scry pax)
+      (pure:m [%text result])
+        %mime
+      ;<  result=mime  bind:m  (do-scry:io mime /scry pax)
+      (pure:m [%text (crip (trip q.q.result))])
+    ==
   --
 ::
 ++  tool-list-files
@@ -534,4 +567,646 @@
       %text
     "{p.log}\0a"
   ==
+::
+++  tool-send-telegram
+  ^-  tool
+  |%
+  ++  name  'send_telegram'
+  ++  description  'Send a Telegram message. Requires config/creds/telegram.json with bot-token and chat-id.'
+  ++  parameters
+    ^-  (map @t parameter-def)
+    %-  ~(gas by *(map @t parameter-def))
+    :~  ['message' [%string 'Message to send']]
+    ==
+  ++  required  ~['message']
+  ++  handler
+    ^-  tool-handler
+    =/  m  (fiber:fiber:nexus ,tool-result)
+    ^-  form:m
+    ;<  st=tool-state  bind:m  (get-state-as:io ,tool-state)
+    =/  message=@t
+      %.  [%o args.st]
+      %-  ot:dejs:format
+      :~  ['message' so:dejs:format]
+      ==
+    ::  Read telegram config from ball
+    ;<  creds-seen=seen:nexus  bind:m
+      (peek:io /creds [%& %& /config/creds 'telegram.json'])
+    ?.  ?=([%& %file *] creds-seen)
+      (pure:m [%error 'Telegram credentials not configured. Create config/creds/telegram.json with bot-token and chat-id.'])
+    =/  jon=json  !<(json q.cage.p.creds-seen)
+    =/  bot-token=@t  (~(dog jo:json-utils jon) /bot-token so:dejs:format)
+    =/  chat-id=@t  (~(dog jo:json-utils jon) /chat-id so:dejs:format)
+    ::  POST to Telegram Bot API
+    =/  url=@t
+      (crip "{(trip 'https://api.telegram.org/bot')}{(trip bot-token)}/sendMessage")
+    =/  body=@t
+      (rap 3 ~['chat_id=' chat-id '&text=' message])
+    =/  =request:http
+      :*  %'POST'
+          url
+          ~[['content-type' 'application/x-www-form-urlencoded']]
+          `(as-octs:mimes:html body)
+      ==
+    ;<  ~  bind:m  (send-request:io request)
+    ;<  =client-response:iris  bind:m  take-client-response:io
+    ?.  ?=(%finished -.client-response)
+      (pure:m [%error 'Telegram request failed'])
+    =/  code=@ud  status-code.response-header.client-response
+    ?.  =(200 code)
+      (pure:m [%error (crip "Telegram API error: HTTP {<code>}")])
+    (pure:m [%text 'Telegram message sent'])
+  --
+::
+++  tool-browse
+  ^-  tool
+  |%
+  ++  name  'browse'
+  ++  description  'List files and subdirectories at a path in the grubbery ball'
+  ++  parameters
+    ^-  (map @t parameter-def)
+    %-  ~(gas by *(map @t parameter-def))
+    :~  ['path' [%string 'Directory path (e.g. "/" or "/config/creds")']]
+    ==
+  ++  required  ~['path']
+  ++  handler
+    ^-  tool-handler
+    =/  m  (fiber:fiber:nexus ,tool-result)
+    ^-  form:m
+    ;<  st=tool-state  bind:m  (get-state-as:io ,tool-state)
+    =/  dir-path=@t
+      %.  [%o args.st]
+      %-  ot:dejs:format
+      :~  ['path' so:dejs:format]
+      ==
+    =/  pax=path  (stab dir-path)
+    ;<  =seen:nexus  bind:m  (peek:io /browse [%& %| pax])
+    ?.  ?=([%& %ball *] seen)
+      (pure:m [%error (crip "Directory not found: {(trip dir-path)}")])
+    =/  neck-text=tape
+      ?~  fil.ball.p.seen  ""
+      ?~  neck.u.fil.ball.p.seen  ""
+      "\0aNexus: {(trip u.neck.u.fil.ball.p.seen)}"
+    =/  sub-dirs=(list @ta)  ~(tap in ~(key by dir.ball.p.seen))
+    =/  files=(list [@ta @tas])
+      ?~  fil.ball.p.seen  ~
+      %+  turn  ~(tap by contents.u.fil.ball.p.seen)
+      |=([n=@ta c=content:tarball] [n p.cage.c])
+    =/  dir-text=tape
+      ?~  sub-dirs  ""
+      %-  zing
+      %+  turn  sub-dirs
+      |=(d=@ta "\0a  {(trip d)}/")
+    =/  file-text=tape
+      ?~  files  ""
+      %-  zing
+      %+  turn  files
+      |=([n=@ta m=@tas] "\0a  {(trip n)}.{(trip m)}")
+    (pure:m [%text (crip "{(trip dir-path)}{neck-text}{dir-text}{file-text}")])
+  --
+::
+++  tool-read-grub
+  ^-  tool
+  |%
+  ++  name  'read_grub'
+  ++  description  'Read a grub (file) from the grubbery ball. Returns JSON content directly, other marks as text.'
+  ++  parameters
+    ^-  (map @t parameter-def)
+    %-  ~(gas by *(map @t parameter-def))
+    :~  ['path' [%string 'Directory path (e.g. "/config/creds")']]
+        ['name' [%string 'Grub filename (e.g. "telegram.json")']]
+    ==
+  ++  required  ~['path' 'name']
+  ++  handler
+    ^-  tool-handler
+    =/  m  (fiber:fiber:nexus ,tool-result)
+    ^-  form:m
+    ;<  st=tool-state  bind:m  (get-state-as:io ,tool-state)
+    =/  [file-path=@t file-name=@t]
+      %.  [%o args.st]
+      %-  ot:dejs:format
+      :~  ['path' so:dejs:format]
+          ['name' so:dejs:format]
+      ==
+    =/  pax=path  (stab file-path)
+    ;<  [grub-name=@ta =seen:nexus]  bind:m
+      (lookup-grub pax file-name)
+    ?.  ?=([%& %file *] seen)
+      (pure:m [%error (crip "Not found: {(trip file-path)}/{(trip file-name)}")])
+    (render-grub-content seen)
+  --
+::  Render grub content as text for tool output
+::
+++  render-grub-content
+  |=  =seen:nexus
+  =/  m  (fiber:fiber:nexus ,tool-result)
+  ^-  form:m
+  ?>  ?=([%& %file *] seen)
+  =/  =cage  cage.p.seen
+  ?+  p.cage
+    ::  Fallback: scry for tube to mime via %cc
+    ;<  =desk  bind:m  get-desk:io
+    ;<  convert=tube:clay  bind:m
+      (do-scry:io tube:clay /tube /cc/[desk]/[p.cage]/mime)
+    =/  result-vase=vase  (convert q.cage)
+    =/  out=mime  !<(mime result-vase)
+    (pure:m [%text (crip (trip q.q.out))])
+      %json
+    (pure:m [%text (en:json:html !<(json q.cage))])
+      %txt
+    (pure:m [%text (of-wain:format !<(wain q.cage))])
+      %hoon
+    (pure:m [%text !<(@t q.cage)])
+      %mime
+    =/  out=mime  !<(mime q.cage)
+    (pure:m [%text (crip (trip q.q.out))])
+  ==
+::  Look up a grub by name, trying direct then stripping extension
+::  Returns [actual-grub-name seen]
+::
+++  lookup-grub
+  |=  [pax=path file-name=@ta]
+  =/  m  (fiber:fiber:nexus ,[name=@ta seen=seen:nexus])
+  ^-  form:m
+  ;<  =seen:nexus  bind:m
+    (peek:io /read [%& %& pax file-name])
+  ?:  ?=([%& %file *] seen)
+    (pure:m [file-name seen])
+  =/  ext=(unit @ta)  (parse-extension:tarball file-name)
+  ?~  ext
+    (pure:m [file-name seen])
+  =/  base=@ta
+    =/  et=tape  (trip u.ext)
+    =/  ft=tape  (trip file-name)
+    (crip (scag (sub (lent ft) (add 1 (lent et))) ft))
+  ;<  seen2=seen:nexus  bind:m
+    (peek:io /read-base [%& %& pax base])
+  (pure:m [base seen2])
+::  String replacement on tapes
+::  Returns (unit tape) — ~ if not found or ambiguous
+::
+++  tape-replace
+  |=  [txt=tape old=tape new=tape all=?]
+  ^-  (each tape @tas)
+  =/  old-len=@ud  (lent old)
+  ?:  =(0 old-len)  [%| %empty-search]
+  =/  idx=(unit @ud)  (find old txt)
+  ?~  idx  [%| %not-found]
+  ?.  all
+    ::  Single replace: verify uniqueness
+    =/  after=@ud  (add u.idx old-len)
+    =/  rest=tape  (slag after txt)
+    ?^  (find old rest)  [%| %not-unique]
+    :-  %&
+    :(weld (scag u.idx txt) new (slag after txt))
+  ::  Replace all occurrences
+  =|  acc=tape
+  =/  src=tape  txt
+  |-
+  =/  hit=(unit @ud)  (find old src)
+  ?~  hit  [%& (weld acc src)]
+  %=  $
+    acc  :(weld acc (scag u.hit src) new)
+    src  (slag (add u.hit old-len) src)
+  ==
+::
+++  tool-create-grub
+  ^-  tool
+  |%
+  ++  name  'create_grub'
+  ++  description  'Create or update a grub (file) in the grubbery ball. Content is stored as JSON.'
+  ++  parameters
+    ^-  (map @t parameter-def)
+    %-  ~(gas by *(map @t parameter-def))
+    :~  ['path' [%string 'Directory path (e.g. "/config/creds")']]
+        ['name' [%string 'Grub filename (e.g. "telegram.json")']]
+        ['content' [%object 'JSON content to write']]
+    ==
+  ++  required  ~['path' 'name' 'content']
+  ++  handler
+    ^-  tool-handler
+    =/  m  (fiber:fiber:nexus ,tool-result)
+    ^-  form:m
+    ;<  st=tool-state  bind:m  (get-state-as:io ,tool-state)
+    =/  [file-path=@t file-name=@t]
+      %.  [%o args.st]
+      %-  ot:dejs:format
+      :~  ['path' so:dejs:format]
+          ['name' so:dejs:format]
+      ==
+    =/  content=json  (~(got by args.st) 'content')
+    =/  pax=path  (stab file-path)
+    =/  road=road:tarball  [%& %& pax file-name]
+    ;<  exists=?  bind:m  (peek-exists:io /check road)
+    ?:  exists
+      ;<  ~  bind:m  (poke:io /write road json+!>(content))
+      (pure:m [%text (crip "Updated {(trip file-path)}/{(trip file-name)}")])
+    ;<  ~  bind:m  (make:io /write road |+json+!>(content))
+    (pure:m [%text (crip "Created {(trip file-path)}/{(trip file-name)}")])
+  --
+::
+++  tool-delete-grub
+  ^-  tool
+  |%
+  ++  name  'delete_grub'
+  ++  description  'Delete a grub (file) from the grubbery ball'
+  ++  parameters
+    ^-  (map @t parameter-def)
+    %-  ~(gas by *(map @t parameter-def))
+    :~  ['path' [%string 'Directory containing the grub (e.g. "/mcp/tools")']]
+        ['name' [%string 'Grub filename to delete']]
+    ==
+  ++  required  ~['path' 'name']
+  ++  handler
+    ^-  tool-handler
+    =/  m  (fiber:fiber:nexus ,tool-result)
+    ^-  form:m
+    ;<  st=tool-state  bind:m  (get-state-as:io ,tool-state)
+    =/  [file-path=@t file-name=@t]
+      %.  [%o args.st]
+      %-  ot:dejs:format
+      :~  ['path' so:dejs:format]
+          ['name' so:dejs:format]
+      ==
+    ;<  ~  bind:m  (cull:io /delete [%& %& (stab file-path) file-name])
+    (pure:m [%text (crip "Deleted {(trip file-path)}/{(trip file-name)}")])
+  --
+::
+++  tool-create-folder
+  ^-  tool
+  |%
+  ++  name  'create_folder'
+  ++  description  'Create a folder in the grubbery ball. Optionally set a nexus (neck) by providing a name like "mydir.nexus-name".'
+  ++  parameters
+    ^-  (map @t parameter-def)
+    %-  ~(gas by *(map @t parameter-def))
+    :~  ['path' [%string 'Parent directory path (e.g. "/")']]
+        ['name' [%string 'Folder name. Append .nexus to set a neck (e.g. "chat.claude" creates folder "chat" with nexus "claude")']]
+    ==
+  ++  required  ~['path' 'name']
+  ++  handler
+    ^-  tool-handler
+    =/  m  (fiber:fiber:nexus ,tool-result)
+    ^-  form:m
+    ;<  st=tool-state  bind:m  (get-state-as:io ,tool-state)
+    =/  [parent-path=@t folder-name=@t]
+      %.  [%o args.st]
+      %-  ot:dejs:format
+      :~  ['path' so:dejs:format]
+          ['name' so:dejs:format]
+      ==
+    =/  dir-ext=(unit @ta)  (parse-extension:tarball folder-name)
+    =/  [dir-name=@ta dir-neck=(unit neck:tarball)]
+      ?~  dir-ext  [folder-name ~]
+      =/  ext-text=tape  (trip u.dir-ext)
+      =/  full-text=tape  (trip folder-name)
+      =/  name-len=@ud  (sub (lent full-text) (add 1 (lent ext-text)))
+      [(crip (scag name-len full-text)) `u.dir-ext]
+    =/  folder-path=path  (snoc (stab parent-path) dir-name)
+    =/  new-ball=ball:tarball  [`[~ dir-neck ~] ~]
+    ;<  ~  bind:m  (make:io /mkdir [%& %| folder-path] &+[*sand:nexus new-ball])
+    =/  neck-msg=tape  ?~(dir-neck "" " (nexus: {(trip u.dir-neck)})")
+    (pure:m [%text (crip "Created folder {(spud folder-path)}{neck-msg}")])
+  --
+::
+++  tool-delete-folder
+  ^-  tool
+  |%
+  ++  name  'delete_folder'
+  ++  description  'Delete a folder and all its contents from the grubbery ball'
+  ++  parameters
+    ^-  (map @t parameter-def)
+    %-  ~(gas by *(map @t parameter-def))
+    :~  ['path' [%string 'Path of the folder to delete (e.g. "/old/stuff")']]
+    ==
+  ++  required  ~['path']
+  ++  handler
+    ^-  tool-handler
+    =/  m  (fiber:fiber:nexus ,tool-result)
+    ^-  form:m
+    ;<  st=tool-state  bind:m  (get-state-as:io ,tool-state)
+    =/  folder-path=@t
+      %.  [%o args.st]
+      %-  ot:dejs:format
+      :~  ['path' so:dejs:format]
+      ==
+    ;<  ~  bind:m  (cull:io /delete [%& %| (stab folder-path)])
+    (pure:m [%text (crip "Deleted folder {(trip folder-path)}")])
+  --
+::
+++  tool-create-symlink
+  ^-  tool
+  |%
+  ++  name  'create_symlink'
+  ++  description  'Create a symlink in the grubbery ball. Target is an absolute path like "/some/file" or a relative path like "^^/sibling".'
+  ++  parameters
+    ^-  (map @t parameter-def)
+    %-  ~(gas by *(map @t parameter-def))
+    :~  ['path' [%string 'Directory to create the symlink in (e.g. "/")']]
+        ['name' [%string 'Symlink name']]
+        ['target' [%string 'Target path (e.g. "/some/path" for absolute, "^^/sibling" for relative)']]
+    ==
+  ++  required  ~['path' 'name' 'target']
+  ++  handler
+    ^-  tool-handler
+    =/  m  (fiber:fiber:nexus ,tool-result)
+    ^-  form:m
+    ;<  st=tool-state  bind:m  (get-state-as:io ,tool-state)
+    =/  [link-path=@t link-name=@t target=@t]
+      %.  [%o args.st]
+      %-  ot:dejs:format
+      :~  ['path' so:dejs:format]
+          ['name' so:dejs:format]
+          ['target' so:dejs:format]
+      ==
+    =/  sym=(unit symlink:tarball)  (parse-symlink:tarball target)
+    ?~  sym
+      (pure:m [%error (crip "Invalid symlink target: {(trip target)}")])
+    ;<  ~  bind:m
+      (make:io /symlink [%& %& (stab link-path) link-name] |+[%symlink !>(u.sym)])
+    (pure:m [%text (crip "Created symlink {(trip link-path)}/{(trip link-name)} -> {(trip target)}")])
+  --
+::
+++  tool-add-weir
+  ^-  tool
+  |%
+  ++  name  'add_weir'
+  ++  description  'Add a sandbox (weir) rule to a directory. Categories: write, poke, read. Road types: dir, file.'
+  ++  parameters
+    ^-  (map @t parameter-def)
+    %-  ~(gas by *(map @t parameter-def))
+    :~  ['path' [%string 'Directory to add the weir rule to (e.g. "/mcp")']]
+        ['category' [%string 'Rule category: "write", "poke", or "read"']]
+        ['road_path' [%string 'Allowed road path (e.g. "/")']]
+        ['road_type' [%string 'Road type: "dir" or "file"']]
+    ==
+  ++  required  ~['path' 'category' 'road_path']
+  ++  handler
+    ^-  tool-handler
+    =/  m  (fiber:fiber:nexus ,tool-result)
+    ^-  form:m
+    ;<  st=tool-state  bind:m  (get-state-as:io ,tool-state)
+    =/  [weir-path=@t category=@t road-path=@t]
+      %.  [%o args.st]
+      %-  ot:dejs:format
+      :~  ['path' so:dejs:format]
+          ['category' so:dejs:format]
+          ['road_path' so:dejs:format]
+      ==
+    =/  road-type=@t
+      ?~  rt=(~(get by args.st) 'road_type')  'dir'
+      ?.  ?=([%s *] u.rt)  'dir'
+      p.u.rt
+    =/  pax=path  (stab road-path)
+    =/  new-road=road:tarball
+      ?:  =('file' road-type)
+        ?~  pax  [%& %| /]
+        [%& %& (snip `path`pax) (rear pax)]
+      [%& %| pax]
+    =/  dir-pax=path  (stab weir-path)
+    ;<  dir-seen=seen:nexus  bind:m  (peek:io /weir [%& %| dir-pax])
+    =/  cur=weir:nexus
+      ?.  ?=([%& %ball *] dir-seen)  [~ ~ ~]
+      =/  dir-sand=sand:nexus  sand.p.dir-seen
+      (fall fil.dir-sand [~ ~ ~])
+    =/  new=weir:nexus
+      ?+  category  cur
+        %'write'  cur(make (~(put in make.cur) new-road))
+        %'poke'   cur(poke (~(put in poke.cur) new-road))
+        %'read'   cur(peek (~(put in peek.cur) new-road))
+      ==
+    ;<  ~  bind:m  (sand:io /weir [%& %| dir-pax] `new)
+    (pure:m [%text (crip "Added {(trip category)} rule to {(trip weir-path)}")])
+  --
+::
+++  tool-del-weir
+  ^-  tool
+  |%
+  ++  name  'del_weir'
+  ++  description  'Remove a sandbox (weir) rule from a directory'
+  ++  parameters
+    ^-  (map @t parameter-def)
+    %-  ~(gas by *(map @t parameter-def))
+    :~  ['path' [%string 'Directory to remove the weir rule from']]
+        ['category' [%string 'Rule category: "write", "poke", or "read"']]
+        ['road_path' [%string 'Road path to remove']]
+        ['road_type' [%string 'Road type: "dir" or "file"']]
+    ==
+  ++  required  ~['path' 'category' 'road_path']
+  ++  handler
+    ^-  tool-handler
+    =/  m  (fiber:fiber:nexus ,tool-result)
+    ^-  form:m
+    ;<  st=tool-state  bind:m  (get-state-as:io ,tool-state)
+    =/  [weir-path=@t category=@t road-path=@t]
+      %.  [%o args.st]
+      %-  ot:dejs:format
+      :~  ['path' so:dejs:format]
+          ['category' so:dejs:format]
+          ['road_path' so:dejs:format]
+      ==
+    =/  road-type=@t
+      ?~  rt=(~(get by args.st) 'road_type')  'dir'
+      ?.  ?=([%s *] u.rt)  'dir'
+      p.u.rt
+    =/  pax=path  (stab road-path)
+    =/  del-road=road:tarball
+      ?:  =('file' road-type)
+        ?~  pax  [%& %| /]
+        [%& %& (snip `path`pax) (rear pax)]
+      [%& %| pax]
+    =/  dir-pax=path  (stab weir-path)
+    ;<  dir-seen=seen:nexus  bind:m  (peek:io /weir [%& %| dir-pax])
+    =/  cur=weir:nexus
+      ?.  ?=([%& %ball *] dir-seen)  [~ ~ ~]
+      =/  dir-sand=sand:nexus  sand.p.dir-seen
+      (fall fil.dir-sand [~ ~ ~])
+    =/  new=weir:nexus
+      ?+  category  cur
+        %'write'  cur(make (~(del in make.cur) del-road))
+        %'poke'   cur(poke (~(del in poke.cur) del-road))
+        %'read'   cur(peek (~(del in peek.cur) del-road))
+      ==
+    ;<  ~  bind:m  (sand:io /weir [%& %| dir-pax] `new)
+    (pure:m [%text (crip "Removed {(trip category)} rule from {(trip weir-path)}")])
+  --
+::
+++  tool-clear-weir
+  ^-  tool
+  |%
+  ++  name  'clear_weir'
+  ++  description  'Clear all sandbox (weir) rules from a directory, giving it unrestricted access'
+  ++  parameters
+    ^-  (map @t parameter-def)
+    %-  ~(gas by *(map @t parameter-def))
+    :~  ['path' [%string 'Directory to clear the weir from']]
+    ==
+  ++  required  ~['path']
+  ++  handler
+    ^-  tool-handler
+    =/  m  (fiber:fiber:nexus ,tool-result)
+    ^-  form:m
+    ;<  st=tool-state  bind:m  (get-state-as:io ,tool-state)
+    =/  weir-path=@t
+      %.  [%o args.st]
+      %-  ot:dejs:format
+      :~  ['path' so:dejs:format]
+      ==
+    ;<  ~  bind:m  (sand:io /weir [%& %| (stab weir-path)] ~)
+    (pure:m [%text (crip "Cleared weir from {(trip weir-path)}")])
+  --
+::
+++  tool-write-file
+  ^-  tool
+  |%
+  ++  name  'write_file'
+  ++  description
+    ^~  %-  crip
+    ;:  weld
+      "Write a text file to the grubbery ball. "
+      "Mark is detected from filename extension "
+      "(e.g. .hoon, .txt, .json). Falls back to %txt if unknown."
+    ==
+  ++  parameters
+    ^-  (map @t parameter-def)
+    %-  ~(gas by *(map @t parameter-def))
+    :~  ['path' [%string 'Directory path (e.g. "/")']]
+        ['name' [%string 'Filename with extension (e.g. "foo.hoon", "notes.txt")']]
+        ['content' [%string 'Text content to write']]
+    ==
+  ++  required  ~['path' 'name' 'content']
+  ++  handler
+    ^-  tool-handler
+    =/  m  (fiber:fiber:nexus ,tool-result)
+    ^-  form:m
+    ;<  st=tool-state  bind:m  (get-state-as:io ,tool-state)
+    =/  [file-path=@t file-name=@t content=@t]
+      %.  [%o args.st]
+      %-  ot:dejs:format
+      :~  ['path' so:dejs:format]
+          ['name' so:dejs:format]
+          ['content' so:dejs:format]
+      ==
+    =/  ext=(unit @ta)  (parse-extension:tarball file-name)
+    =/  target-mark=@tas  (fall ext %txt)
+    ::  Strip extension from filename for grub name
+    =/  grub-name=@ta
+      ?~  ext  file-name
+      =/  et=tape  (trip u.ext)
+      =/  ft=tape  (trip file-name)
+      (crip (scag (sub (lent ft) (add 1 (lent et))) ft))
+    =/  src-mime=mime  [/text/plain (as-octs:mimes:html content)]
+    =/  pax=path  (stab file-path)
+    =/  road=road:tarball  [%& %& pax grub-name]
+    ::  If target is mime, store directly
+    ?:  =(target-mark %mime)
+      ;<  exists=?  bind:m  (peek-exists:io /check road)
+      ?:  exists
+        ;<  ~  bind:m  (poke:io /write road mime+!>(src-mime))
+        (pure:m [%text (crip "Wrote {(trip file-path)}/{(trip file-name)} [mime]")])
+      ;<  ~  bind:m  (make:io /write road |+mime+!>(src-mime))
+      (pure:m [%text (crip "Created {(trip file-path)}/{(trip file-name)} [mime]")])
+    ::  Build tube from %mime to target mark
+    ;<  our=@p  bind:m  get-our:io
+    ;<  =desk  bind:m  get-desk:io
+    ;<  now=@da  bind:m  get-time:io
+    ;<  tube=(unit tube:clay)  bind:m
+      (try-build-tube:io our desk [%da now] [%mime target-mark])
+    =/  =cage
+      ?~  tube  mime+!>(src-mime)
+      =/  result=(each vase tang)  (mule |.((u.tube !>(src-mime))))
+      ?.  ?=(%& -.result)  mime+!>(src-mime)
+      [target-mark p.result]
+    ;<  exists=?  bind:m  (peek-exists:io /check road)
+    ?:  exists
+      ;<  ~  bind:m  (poke:io /write road cage)
+      (pure:m [%text (crip "Wrote {(trip file-path)}/{(trip file-name)} [{(trip p.cage)}]")])
+    ;<  ~  bind:m  (make:io /write road |+cage)
+    (pure:m [%text (crip "Created {(trip file-path)}/{(trip file-name)} [{(trip p.cage)}]")])
+  --
+::
+++  tool-edit-file
+  ^-  tool
+  |%
+  ++  name  'edit_file'
+  ++  description
+    ^~  %-  crip
+    ;:  weld
+      "Edit a text file in the grubbery ball via exact string replacement. "
+      "Fails if old_string is not found or is ambiguous (multiple matches). "
+      "Works with any mark that has a text/mime conversion."
+    ==
+  ++  parameters
+    ^-  (map @t parameter-def)
+    %-  ~(gas by *(map @t parameter-def))
+    :~  ['path' [%string 'Directory path (e.g. "/")']]
+        ['name' [%string 'Filename (e.g. "foo.hoon")']]
+        ['old_string' [%string 'The exact text to find and replace']]
+        ['new_string' [%string 'The replacement text']]
+        ['replace_all' [%boolean 'Replace all occurrences (default: false)']]
+    ==
+  ++  required  ~['path' 'name' 'old_string' 'new_string']
+  ++  handler
+    ^-  tool-handler
+    =/  m  (fiber:fiber:nexus ,tool-result)
+    ^-  form:m
+    ;<  st=tool-state  bind:m  (get-state-as:io ,tool-state)
+    =/  [file-path=@t file-name=@t old-string=@t new-string=@t]
+      %.  [%o args.st]
+      %-  ot:dejs:format
+      :~  ['path' so:dejs:format]
+          ['name' so:dejs:format]
+          ['old_string' so:dejs:format]
+          ['new_string' so:dejs:format]
+      ==
+    =/  replace-all=?
+      =/  ra  (~(get by args.st) 'replace_all')
+      ?~  ra  %.n
+      ?:  ?=([%b *] u.ra)  p.u.ra
+      %.n
+    =/  pax=path  (stab file-path)
+    ::  Look up the grub
+    ;<  [grub-name=@ta =seen:nexus]  bind:m
+      (lookup-grub pax file-name)
+    ?.  ?=([%& %file *] seen)
+      (pure:m [%error (crip "Not found: {(trip file-path)}/{(trip file-name)}")])
+    =/  original-mark=@tas  p.cage.p.seen
+    ::  Convert to text via mime
+    ;<  =mime  bind:m  (cage-to-mime:io cage.p.seen)
+    =/  txt=tape  (trip q.q.mime)
+    ::  Do replacement
+    =/  result=(each tape @tas)
+      (tape-replace txt (trip old-string) (trip new-string) replace-all)
+    ?.  ?=(%& -.result)
+      ?+  p.result
+        (pure:m [%error 'Edit failed'])
+          %not-found
+        (pure:m [%error 'old_string not found in file'])
+          %not-unique
+        (pure:m [%error 'old_string matches multiple locations. Provide more context to make it unique, or set replace_all.'])
+          %empty-search
+        (pure:m [%error 'old_string cannot be empty'])
+      ==
+    ::  Convert edited text back to original mark, cull and re-make
+    =/  new-mime=^mime  [/text/plain (as-octs:mimes:html (crip p.result))]
+    =/  road=road:tarball  [%& %& pax grub-name]
+    ?:  =(original-mark %mime)
+      =/  new-cage=[mark=@tas =vase]  [%mime !>(new-mime)]
+      ;<  ~  bind:m  (cull:io /edit-cull road)
+      ;<  ~  bind:m  (make:io /edit-make road |+new-cage)
+      (pure:m [%text (crip "Edited {(trip file-path)}/{(trip file-name)}")])
+    ;<  our=@p  bind:m  get-our:io
+    ;<  =desk  bind:m  get-desk:io
+    ;<  now=@da  bind:m  get-time:io
+    ;<  tube=(unit tube:clay)  bind:m
+      (try-build-tube:io our desk [%da now] [%mime original-mark])
+    =/  new-cage=[mark=@tas =vase]
+      ?~  tube  [%mime !>(new-mime)]
+      =/  converted=(each vase tang)  (mule |.((u.tube !>(new-mime))))
+      ?.  ?=(%& -.converted)  [%mime !>(new-mime)]
+      [original-mark p.converted]
+    ;<  ~  bind:m  (cull:io /edit-cull road)
+    ;<  ~  bind:m  (make:io /edit-make road |+new-cage)
+    (pure:m [%text (crip "Edited {(trip file-path)}/{(trip file-name)}")])
+  --
 --

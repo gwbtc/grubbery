@@ -6,6 +6,7 @@
 ++  grow
   |%
   ++  noun  kids
+  ++  json  [%a (turn kids |=(k=@ta s+k))]
   --
 ++  grab
   |%

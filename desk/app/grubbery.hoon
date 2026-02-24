@@ -2,6 +2,9 @@
 /+  default-agent, dbug, tarball, nexus, server
 /=  t-  /tests/nexus
 /=  t-  /tests/tarball
+/=  m-  /mar/kids
+/=  m-  /mar/tree
+/=  m-  /mar/sand
 :: add /nex to the ford build cache for fast compilation
 ::
 /~  nex  nexus:nexus  /nex
@@ -161,7 +164,8 @@
     =/  name=@ta  (rear here)
     =/  content=(unit content:tarball)
       (~(get ba:tarball ball) dir name)
-    ?~  content  [~ ~]
+    ?~  content
+      [~ ~]
     ``cage.u.content
     ::
       [%x %peek %kids *]
