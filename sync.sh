@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Load config
-DEST=$(python3 -c "import json; print(json.load(open('config.json'))['dest'])")
+DEST=$(python3 -c "import json, os; print(os.path.expanduser(json.load(open('config.json'))['dest']))")
 SOURCE="desk/"
 
 # Initial sync
