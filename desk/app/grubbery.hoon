@@ -608,12 +608,12 @@
 ::  Add subscription: watcher subscribes to target with wire
 ::
 ++  sub-put
-  |=  [target=lane:tarball watcher=rail:tarball =wire]
+  |=  [target=lane:tarball watcher=rail:tarball =wire mark=(unit mark)]
   ^+  this
-  ::  Add to forward index: target → (watcher → wire)
-  =/  watchers=(map rail:tarball ^wire)
+  ::  Add to forward index: target → (watcher → [wire mark])
+  =/  watchers=(map rail:tarball [=^wire mark=(unit ^mark)])
     (fall (~(get by fwd.subs) target) ~)
-  =.  fwd.subs  (~(put by fwd.subs) target (~(put by watchers) watcher wire))
+  =.  fwd.subs  (~(put by fwd.subs) target (~(put by watchers) watcher [wire mark]))
   ::  Add to reverse index: watcher → targets
   =.  rev.subs  (~(put ju rev.subs) watcher target)
   this
@@ -623,7 +623,7 @@
   |=  [target=lane:tarball watcher=rail:tarball]
   ^+  this
   ::  Remove from forward index
-  =/  watchers=(map rail:tarball wire)
+  =/  watchers=(map rail:tarball [=wire mark=(unit mark)])
     (fall (~(get by fwd.subs) target) ~)
   =.  watchers  (~(del by watchers) watcher)
   =.  fwd.subs  ?~(watchers (~(del by fwd.subs) target) (~(put by fwd.subs) target watchers))
@@ -649,11 +649,11 @@
   =/  changed=(set lane:tarball)  (diff-born:nexus old-born born)
   ?:  =(~ changed)  this
   ::  For each watched lane, find subscribers and send news
-  =/  watched=(list [target=lane:tarball watchers=(map rail:tarball wire)])
+  =/  watched=(list [target=lane:tarball watchers=(map rail:tarball [=wire mark=(unit mark)])])
     ~(tap by fwd.subs)
   |-
   ?~  watched  this
-  =/  [target=lane:tarball watchers=(map rail:tarball wire)]  i.watched
+  =/  [target=lane:tarball watchers=(map rail:tarball [=wire mark=(unit mark)])]  i.watched
   ::  Find all changed lanes that are inside this target (or equal to target)
   =/  relevant=(set lane:tarball)
     %-  ~(gas in *(set lane:tarball))
@@ -694,20 +694,28 @@
       ?~  sub-ball  [%none ~]
       [%ball (~(dip of sand) p.target) (~(dip of born) p.target) u.sub-ball]
     ==
-  ::  Send to each watcher
+  ::  Send to each watcher, converting file view if mark is set
+  ::  TODO: cache tubes per [from-mark to-mark] within a notify pass
   =.  this
     %-  ~(rep by watchers)
-    |=  [[watcher=rail:tarball =wire] acc=_this]
-    (enqu-take:acc watcher (sys-give:acc /news) ~ %news wire view)
+    |=  [[watcher=rail:tarball =wire mark=(unit mark)] acc=_this]
+    =/  watcher-view=view:nexus
+      ?~  mark  view
+      ?.  ?=(%file -.view)  view
+      ?:  =(p.cage.view u.mark)  view  :: already correct mark
+      =/  =tube:clay
+        .^(tube:clay %cc /(scot %p our.bowl)/[q.byk.bowl]/(scot %da now.bowl)/[p.cage.view]/[u.mark])
+      view(cage [u.mark (tube q.cage.view)])
+    (enqu-take:acc watcher (sys-give:acc /news) ~ %news wire watcher-view)
   $(watched t.watched)
 ::  Fell a single subscription: remove from indices, send %fell to watcher
 ::
 ++  fell-sub
   |=  [target=lane:tarball watcher=rail:tarball]
   ^+  this
-  =/  =wire  (~(got by (~(got by fwd.subs) target)) watcher)
+  =/  val=[=wire mark=(unit mark)]  (~(got by (~(got by fwd.subs) target)) watcher)
   =.  this  (sub-del target watcher)
-  (enqu-take watcher (sys-give /fell) ~ %fell wire)
+  (enqu-take watcher (sys-give /fell) ~ %fell wire.val)
 ::  Re-check subscriptions after weir change: fell any that are now blocked
 ::
 ++  audit-weir
@@ -976,12 +984,18 @@
         =/  sk=sack:nexus
           ?~  node  *sack:nexus
           (fall (~(get by bags.u.node) name.dest) *sack:nexus)
-        (enqu-take here (sys-give /peek) ~ %peek wire.dart %& %file sk cage.u.content)
+        =/  result=cage
+          ?~  mark.load.dart  cage.u.content
+          ?:  =(p.cage.u.content u.mark.load.dart)  cage.u.content
+          =/  =tube:clay
+            .^(tube:clay %cc /(scot %p our.bowl)/[q.byk.bowl]/(scot %da now.bowl)/[p.cage.u.content]/[u.mark.load.dart])
+          [u.mark.load.dart (tube q.cage.u.content)]
+        (enqu-take here (sys-give /peek) ~ %peek wire.dart %& %file sk result)
       ==
       ::
         %keep
       ::  Subscribe to changes at dest (uses peek permission)
-      =.  this  (sub-put u.dest-lane here wire.dart)
+      =.  this  (sub-put u.dest-lane here wire.dart mark.load.dart)
       (enqu-take here (sys-give /bond) ~ %bond wire.dart ~)
       ::
         %drop

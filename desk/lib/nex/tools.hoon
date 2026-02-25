@@ -592,7 +592,7 @@
       ==
     ::  Read telegram config from ball
     ;<  creds-seen=seen:nexus  bind:m
-      (peek:io /creds [%& %& /config/creds 'telegram.json'])
+      (peek:io /creds [%& %& /config/creds 'telegram.json'] ~)
     ?.  ?=([%& %file *] creds-seen)
       (pure:m [%error 'Telegram credentials not configured. Create config/creds/telegram.json with bot-token and chat-id.'])
     =/  jon=json  !<(json q.cage.p.creds-seen)
@@ -641,7 +641,7 @@
       :~  ['path' so:dejs:format]
       ==
     =/  pax=path  (stab dir-path)
-    ;<  =seen:nexus  bind:m  (peek:io /browse [%& %| pax])
+    ;<  =seen:nexus  bind:m  (peek:io /browse [%& %| pax] ~)
     ?.  ?=([%& %ball *] seen)
       (pure:m [%error (crip "Directory not found: {(trip dir-path)}")])
     =/  neck-text=tape
@@ -730,7 +730,7 @@
   =/  m  (fiber:fiber:nexus ,[name=@ta seen=seen:nexus])
   ^-  form:m
   ;<  =seen:nexus  bind:m
-    (peek:io /read [%& %& pax file-name])
+    (peek:io /read [%& %& pax file-name] ~)
   ?:  ?=([%& %file *] seen)
     (pure:m [file-name seen])
   =/  ext=(unit @ta)  (parse-extension:tarball file-name)
@@ -741,7 +741,7 @@
     =/  ft=tape  (trip file-name)
     (crip (scag (sub (lent ft) (add 1 (lent et))) ft))
   ;<  seen2=seen:nexus  bind:m
-    (peek:io /read-base [%& %& pax base])
+    (peek:io /read-base [%& %& pax base] ~)
   (pure:m [base seen2])
 ::  String replacement on tapes
 ::  Returns (unit tape) — ~ if not found or ambiguous
@@ -965,7 +965,7 @@
         [%& %& (snip `path`pax) (rear pax)]
       [%& %| pax]
     =/  dir-pax=path  (stab weir-path)
-    ;<  dir-seen=seen:nexus  bind:m  (peek:io /weir [%& %| dir-pax])
+    ;<  dir-seen=seen:nexus  bind:m  (peek:io /weir [%& %| dir-pax] ~)
     =/  cur=weir:nexus
       ?.  ?=([%& %ball *] dir-seen)  [~ ~ ~]
       =/  dir-sand=sand:nexus  sand.p.dir-seen
@@ -1017,7 +1017,7 @@
         [%& %& (snip `path`pax) (rear pax)]
       [%& %| pax]
     =/  dir-pax=path  (stab weir-path)
-    ;<  dir-seen=seen:nexus  bind:m  (peek:io /weir [%& %| dir-pax])
+    ;<  dir-seen=seen:nexus  bind:m  (peek:io /weir [%& %| dir-pax] ~)
     =/  cur=weir:nexus
       ?.  ?=([%& %ball *] dir-seen)  [~ ~ ~]
       =/  dir-sand=sand:nexus  sand.p.dir-seen

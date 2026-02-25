@@ -98,9 +98,9 @@
         ?>  ?=(%sig mark)
         ;<  ~  bind:m  (rise-wait:io prod "%peers /main: failed, poke to restart")
         ~&  >  "%peers /main: starting"
-        ;<  ~  bind:m  (keep:io /watch-who [%| 0 %| /usergroups/who])
-        ;<  ~  bind:m  (keep:io /watch-how [%| 0 %| /usergroups/how])
-        ;<  ~  bind:m  (keep:io /watch-ships [%| 0 %| /ships])
+        ;<  ~  bind:m  (keep:io /watch-who [%| 0 %| /usergroups/who] ~)
+        ;<  ~  bind:m  (keep:io /watch-how [%| 0 %| /usergroups/how] ~)
+        ;<  ~  bind:m  (keep:io /watch-ships [%| 0 %| /ships] ~)
         |-
         ;<  =main-event  bind:m  take-main-event
         ?-    -.main-event
@@ -138,10 +138,11 @@
             %fell
           ~&  >  [%peers-main %fell-resubscribe wire.main-event]
           ;<  ~  bind:m
-            %+  keep:io  wire.main-event
+            %^  keep:io  wire.main-event
             ?:  =(/watch-who wire.main-event)  [%| 0 %| /usergroups/who]
             ?:  =(/watch-how wire.main-event)  [%| 0 %| /usergroups/how]
             [%| 0 %| /ships]
+            ~
           $
         ==
         ::  /ships/*/main: per-ship gateway
@@ -284,7 +285,7 @@
   ;<  [who=(map rail:tarball (set @p)) how=(map rail:tarball weir:nexus)]  bind:m
     read-usergroups
   ;<  ships-seen=seen:nexus  bind:m
-    (peek:io /read-ships [%| 0 %| /ships])
+    (peek:io /read-ships [%| 0 %| /ships] ~)
   ?.  ?&(?=(%& -.ships-seen) ?=(%ball -.p.ships-seen))
     ~&  >  [%peers-main %no-ships-data]
     (pure:m ~)
@@ -296,7 +297,7 @@
   =/  m  (fiber:fiber:nexus ,[(map rail:tarball (set @p)) (map rail:tarball weir:nexus)])
   ^-  form:m
   ;<  ug-seen=seen:nexus  bind:m
-    (peek:io /read-usergroups [%| 0 %| /usergroups])
+    (peek:io /read-usergroups [%| 0 %| /usergroups] ~)
   ?.  ?&(?=(%& -.ug-seen) ?=(%ball -.p.ug-seen))
     (pure:m [~ ~])
   =/  ug-ball=ball:tarball  ball.p.ug-seen

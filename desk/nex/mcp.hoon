@@ -131,7 +131,7 @@
       ;<  =bowl:nexus  bind:m  (get-bowl:io /bowl)
       =/  tid=@ta  (scot %da now.bowl)
       ;<  ~  bind:m
-        (keep:io /watch [%| 1 %& /tools tid])
+        (keep:io /watch [%| 1 %& /tools tid] ~)
       ;<  ~  bind:m
         (make:io /make [%| 1 %& /tools tid] |+tool-state+!>(ts) ~)
       ::  Wait for tool to finish

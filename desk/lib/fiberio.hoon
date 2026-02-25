@@ -300,10 +300,10 @@
   (take-pack wire)
 ::
 ++  peek
-  |=  [=wire =road:tarball]
+  |=  [=wire =road:tarball mark=(unit mark)]
   =/  m  (fiber ,seen:nexus)
   ^-  form:m
-  ;<  ~  bind:m  (send-dart %node wire road %peek ~)
+  ;<  ~  bind:m  (send-dart %node wire road %peek mark)
   (take-peek wire)
 ::
 ::  Check if a target (file or directory) exists at a road.
@@ -313,7 +313,7 @@
   |=  [=wire =road:tarball]
   =/  m  (fiber ,?)
   ^-  form:m
-  ;<  =seen:nexus  bind:m  (peek wire road)
+  ;<  =seen:nexus  bind:m  (peek wire road ~)
   (pure:m ?&(?=(%& -.seen) !?=(%none -.p.seen)))
 ::
 ++  cull
@@ -425,10 +425,10 @@
 ::  Subscription operations: keep, drop
 ::
 ++  keep
-  |=  [=wire =road:tarball]
+  |=  [=wire =road:tarball mark=(unit mark)]
   =/  m  (fiber ,~)
   ^-  form:m
-  ;<  ~  bind:m  (send-dart %node wire road %keep ~)
+  ;<  ~  bind:m  (send-dart %node wire road %keep mark)
   (take-bond wire)
 ::
 ++  drop

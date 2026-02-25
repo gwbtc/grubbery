@@ -47,7 +47,7 @@
             ?~  p  ~
             (stab u.p)
           (handle-stream eyre-id req watch-path)
-        ;<  root-seen=seen:nexus  bind:m  (peek:io /peek [%& %| ~])
+        ;<  root-seen=seen:nexus  bind:m  (peek:io /peek [%& %| ~] ~)
         ?.  ?=([%& %ball *] root-seen)
           ;<  ~  bind:m  (send-simple:srv eyre-id [[500 ~] `(as-octs:mimes:html 'Peek failed')])
           (pure:m ~)
@@ -342,7 +342,7 @@
     ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'SSE only')])
     (pure:m ~)
   ;<  ~  bind:m  (send-header:srv eyre-id sse-header:http-utils)
-  ;<  initial-seen=seen:nexus  bind:m  (peek:io /initial [%& %| ~])
+  ;<  initial-seen=seen:nexus  bind:m  (peek:io /initial [%& %| ~] ~)
   =/  prev-born=born:nexus
     ?.  ?&(?=(%& -.initial-seen) ?=(%ball -.p.initial-seen))
       *born:nexus
@@ -352,7 +352,7 @@
       ~
     =/  s  (~(dip of sand.p.initial-seen) watch-path)
     fil.s
-  ;<  ~  bind:m  (keep:io /ball [%& %| ~])
+  ;<  ~  bind:m  (keep:io /ball [%& %| ~] ~)
   ;<  =bowl:nexus  bind:m  (get-bowl:io /sse)
   ;<  ~  bind:m  (send-wait:io (add now.bowl ~s30))
   |-

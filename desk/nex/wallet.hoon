@@ -106,7 +106,7 @@
             (pure:m ~)
           ;<  ~  bind:m  (send-header:srv eyre-id sse-header:http-utils)
           ::  Subscribe to /wallets directory
-          ;<  ~  bind:m  (keep:io /wallets [%| 1 %| /wallets])
+          ;<  ~  bind:m  (keep:io /wallets [%| 1 %| /wallets] ~)
           ;<  ~  bind:m  (send-wait:io (add now.bowl ~s30))
           |-
           ;<  nw=news-or-wake:io  bind:m  (take-news-or-wake:io /wallets)

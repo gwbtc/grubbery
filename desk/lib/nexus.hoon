@@ -71,8 +71,11 @@
       [%cull ~]                 :: delete grub or directory
       [%sand weir=(unit weir)]  :: set weir
       [%load ~]                 :: trigger on-load for a nexus (folds only)
-      [%peek ~]                 :: read a grub
-      [%keep ~]                 :: subscribe to changes at dest (grub or ball per road)
+      [%peek mark=(unit mark)]  :: read a grub
+                                       :: mark: if set, convert file cage to this
+                                       :: mark via warm tube before returning
+      [%keep mark=(unit mark)]  :: subscribe to changes at dest (grub or ball per road)
+                                       :: mark: if set, convert file cage in news
       [%drop ~]                 :: unsubscribe from dest
   ==
 ::
@@ -315,7 +318,7 @@
 ::  rev: "what is this process watching?" → for cleanup on death
 ::
 +$  subs
-  $:  fwd=(map lane:tarball (map rail:tarball wire))
+  $:  fwd=(map lane:tarball (map rail:tarball [=wire mark=(unit mark)]))
       rev=(jug rail:tarball lane:tarball)
   ==
 ::  High-water marks per grub - NEVER deleted, even when grubs are deleted.

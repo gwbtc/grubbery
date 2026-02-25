@@ -103,7 +103,7 @@
             (pure:m ~)
           ;<  ~  bind:m  (send-header:srv eyre-id sse-header:http-utils)
           ::  Subscribe to /counters directory
-          ;<  ~  bind:m  (keep:io /counters [%| 2 %| /counters])
+          ;<  ~  bind:m  (keep:io /counters [%| 2 %| /counters] ~)
           ::  Start keep-alive timer
           ;<  ~  bind:m  (send-wait:io (add now.bowl ~s30))
           |-
