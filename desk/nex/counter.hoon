@@ -10,6 +10,12 @@
       ::  Create /counters directory if not present
       =?  ball  =(~ (~(get of ball) /counters))
         (~(put of ball) /counters [~ ~ ~])
+      ::  Create /ui/views directory if not present
+      =?  ball  =(~ (~(get of ball) /ui/views))
+        (~(put of ball) /ui/views [~ ~ ~])
+      ::  Create /ui/views/page file if not present
+      =?  ball  =(~ (~(get ba:tarball ball) [/ui/views %page]))
+        (~(put ba:tarball ball) [/ui/views %page] [~ %mime !>(`mime`[/text/html (as-octs:mimes:html '<p>loading</p>')])])
       ::  Create /ui/main file if not present
       =?  ball  =(~ (~(get ba:tarball ball) [/ui %main]))
         (~(put ba:tarball ball) [/ui %main] [~ %sig !>(~)])
@@ -34,6 +40,15 @@
         ;<  ~  bind:m  (sleep:io ~s1)
         ;<  ~  bind:m  (replace:io !>(+(count)))
         $
+          ::  /ui/views/page: render full page HTML once, persist
+          ::
+          [[%ui %views ~] %page]
+        ;<  ~  bind:m  (rise-wait:io prod "%counter /ui/views/page: failed")
+        ;<  =bowl:nexus  bind:m  (get-bowl:io /bowl)
+        =/  prefix=path  (url-prefix (snip (snip path.here.bowl)))
+        =/  =mime  [/text/html (as-octs:mimes:html (crip (en-xml:html (counter-page prefix))))]
+        ;<  ~  bind:m  (replace:io !>(mime))
+        stay:m
           ::  /ui/main: bind paths and dispatch requests
           ::
           [[%ui ~] %main]
@@ -69,9 +84,13 @@
             ;<  ~  bind:m  (make:io /make [%| 2 %& /counters counter-name] |+ud+!>(0) ~)
             ;<  ~  bind:m  (send-simple:srv eyre-id two-oh-four:http-utils)
             (pure:m ~)
-          ::  Serve counter page
-          =/  bod=octs  (manx-to-octs:server (counter-page prefix))
-          ;<  ~  bind:m  (send-simple:srv eyre-id (mime-response:http-utils [/text/html bod]))
+          ::  Serve counter page from view grub
+          ;<  =seen:nexus  bind:m  (peek:io /peek [%| 2 %& /ui/views %page] ~)
+          ?.  ?=([%& %file *] seen)
+            ;<  ~  bind:m  (send-simple:srv eyre-id [[500 ~] `(as-octs:mimes:html 'View not ready')])
+            (pure:m ~)
+          =/  =mime  !<(mime q.cage.p.seen)
+          ;<  ~  bind:m  (send-simple:srv eyre-id (mime-response:http-utils mime))
           (pure:m ~)
         ::
             [%delete ~]

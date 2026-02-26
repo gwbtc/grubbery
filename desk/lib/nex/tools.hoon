@@ -4,7 +4,7 @@
 ::  plus a fiber handler. Built-ins live here; user tools are .hoon files
 ::  in /tools/tools/ that compile to the same $tool type.
 ::
-/+  nexus, tarball, io=fiberio, json-utils, pretty-file
+/+  nexus, tarball, io=fiberio, json-utils, pretty-file, s3
 !:
 |%
 ::  Tool execution result
@@ -50,6 +50,18 @@
   --
 ::
 +$  tool-handler  _*form:(fiber:fiber:nexus ,tool-result)
+::  Simple glob pattern matching (* = any sequence of characters)
+::
+++  glob-match
+  |=  [pat=tape txt=tape]
+  ^-  ?
+  ?~  pat  =(txt ~)
+  ?:  =(i.pat '*')
+    ?|  (glob-match t.pat txt)
+        ?&(?=(^ txt) (glob-match pat t.txt))
+    ==
+  ?~  txt  %.n
+  ?&(=(i.pat i.txt) (glob-match t.pat t.txt))
 ::  Built-in tool registry
 ::
 ++  built-ins
@@ -59,8 +71,10 @@
       ['commit' tool-commit]
       ['desk_version' tool-desk-version]
       ['scry' tool-scry]
-      ['list_files' tool-list-files]
-      ['get_file' tool-get-file]
+      ['list_clay_files' tool-list-files]
+      ['get_clay_file' tool-get-file]
+      ['insert_clay_file' tool-insert-file]
+      ['edit_clay_file' tool-edit-clay-file]
       ['nuke_agent' tool-nuke-agent]
       ['revive_agent' tool-revive-agent]
       ['mount_desk' tool-mount-desk]
@@ -68,8 +82,10 @@
       ['toggle_permissions' tool-toggle-permissions]
       ['send_telegram' tool-send-telegram]
       ['browse' tool-browse]
+      ['glob' tool-glob]
+      ['grep' tool-grep]
       ['read_grub' tool-read-grub]
-      ['create_grub' tool-create-grub]
+      ['write_grub' tool-write-grub]
       ['delete_grub' tool-delete-grub]
       ['create_folder' tool-create-folder]
       ['delete_folder' tool-delete-folder]
@@ -77,8 +93,13 @@
       ['add_weir' tool-add-weir]
       ['del_weir' tool-del-weir]
       ['clear_weir' tool-clear-weir]
-      ['write_file' tool-write-file]
       ['edit_file' tool-edit-file]
+      ['s3_list' tool-s3-list]
+      ['s3_upload' tool-s3-upload]
+      ['s3_upload_directory' tool-s3-upload-directory]
+      ['s3_download' tool-s3-download]
+      ['s3_download_directory' tool-s3-download-directory]
+      ['s3_delete' tool-s3-delete]
   ==
 ::  All tool definitions (for MCP tools/list)
 ::
@@ -221,6 +242,66 @@
     (roll (flop log-texts) |=([log=@t acc=tape] (weld acc (trip log))))
   (pure:m [%text (crip result)])
 ::
+++  finish-clay-write
+  |=  [args=(map @t json) data=json]
+  =/  m  (fiber:fiber:nexus ,tool-result)
+  ^-  form:m
+  ?.  ?=([%o *] data)
+    (pure:m [%error 'Clay write state lost. Please retry.'])
+  ?~  (~(get by p.data) 'initial-ud')
+    (pure:m [%error 'Clay write state incomplete. Please retry.'])
+  =/  initial-ud=@ud
+    (~(dog jo:json-utils data) /initial-ud ni:dejs:format)
+  =/  desk=@t
+    (~(dog jo:json-utils data) /desk so:dejs:format)
+  =/  file-path=@t
+    (~(dog jo:json-utils data) /file-path so:dejs:format)
+  =/  log-texts=(list @t)
+    (~(dug jo:json-utils data) /logs (ar:dejs:format so:dejs:format) ~)
+  =/  dek=@tas  (slav %tas desk)
+  ;<  final=cass:clay  bind:m  (do-scry:io cass:clay /scry /cw/[dek])
+  =/  has-errors=?
+    %+  lien  log-texts
+    |=(t=@t !=(~ (find "ERROR" (trip t))))
+  =/  result=tape
+    ?:  has-errors
+      %+  weld  "Clay write FAILED for {(trip file-path)} in %{(trip desk)}\0a"
+      %+  weld  "Version unchanged: {<ud.final>}\0a"
+      %+  weld  "Errors ({<(lent log-texts)>}):\0a"
+      (roll (flop log-texts) |=([log=@t acc=tape] (weld acc (trip log))))
+    %+  weld  "Wrote {(trip file-path)} to %{(trip desk)}\0a"
+    %+  weld  "Version: {<initial-ud>} -> {<ud.final>}\0a"
+    ?~  log-texts  ""
+    %+  weld  "Logs ({<(lent log-texts)>}):\0a"
+    (roll (flop log-texts) |=([log=@t acc=tape] (weld acc (trip log))))
+  ?:  has-errors
+    (pure:m [%error (crip result)])
+  (pure:m [%text (crip result)])
+::  Sleep to leave the Eyre HTTP request event.  Returns ~ on
+::  success (timer fired cleanly) or [~ tang] if the subsequent
+::  work crashed the event and behn retried with the error.
+::  This lets us capture Clay build errors as data instead of
+::  crashing with crud! or timer-error.
+::
+++  sleep-or-crud
+  |=  for=@dr
+  =/  m  (fiber:fiber:nexus ,(unit tang))
+  ^-  form:m
+  ;<  =bowl:nexus  bind:m  (get-bowl:io /sleep)
+  =/  until=@da  (add now.bowl for)
+  ;<  ~  bind:m  (send-wait:io until)
+  |=  input:fiber:nexus
+  :+  ~  state
+  ?+  in  [%skip ~]
+      ~  [%wait ~]
+      [~ %arvo [%wait @ ~] %behn %wake *]
+    ?.  =(`until (slaw %da i.t.wire.u.in))
+      [%skip ~]
+    ?~  error.sign.u.in
+      [%done ~]
+    [%done `u.error.sign.u.in]
+  ==
+::
 ++  tool-scry
   ^-  tool
   |%
@@ -279,7 +360,7 @@
 ++  tool-list-files
   ^-  tool
   |%
-  ++  name  'list_files'
+  ++  name  'list_clay_files'
   ++  description  'List files in Clay under a given path'
   ++  parameters
     ^-  (map @t parameter-def)
@@ -313,7 +394,7 @@
 ++  tool-get-file
   ^-  tool
   |%
-  ++  name  'get_file'
+  ++  name  'get_clay_file'
   ++  description  'Fetch a file from Clay and return its contents as text'
   ++  parameters
     ^-  (map @t parameter-def)
@@ -346,6 +427,188 @@
       %+  turn  tang
       |=(=tank (turn (wash [0 160] tank) crip))
     (pure:m [%text (of-wain:format wain)])
+  --
+::
+++  tool-insert-file
+  ^-  tool
+  |%
+  ++  name  'insert_clay_file'
+  ++  description
+    ^~  %-  crip
+    ;:  weld
+      "Insert or overwrite a file in the Clay filesystem. "
+      "The mark is the last segment of the path (e.g. /app/foo/hoon has mark %hoon). "
+      "The desk must have a matching mark file in /mar/."
+    ==
+  ++  parameters
+    ^-  (map @t parameter-def)
+    %-  ~(gas by *(map @t parameter-def))
+    :~  ['desk' [%string 'Target desk name (e.g. "base")']]
+        ['path' [%string 'File path including mark (e.g. "/gen/hello/hoon")']]
+        ['content' [%string 'File content to write']]
+    ==
+  ++  required  ~['desk' 'path' 'content']
+  ++  handler
+    ^-  tool-handler
+    =/  m  (fiber:fiber:nexus ,tool-result)
+    ^-  form:m
+    ;<  st=tool-state  bind:m  (get-state-as:io ,tool-state)
+    ?+  step.st  (pure:m [%error 'Unknown insert step'])
+        %start
+      ::  Sleep to leave the Eyre HTTP request event.  If the Clay
+      ::  write crashes the build, behn retries with the error and
+      ::  sleep-or-crud captures it as data instead of crashing.
+      ::
+      ;<  err=(unit tang)  bind:m  (sleep-or-crud (div ~s1 10))
+      ?^  err
+        =/  lines=wall  (zing (turn (flop u.err) |=(=tank (wash [0 80] tank))))
+        (pure:m [%error (crip "Clay build failed:\0a{(of-wall:format lines)}")])
+      =/  [desk=@t file-path=@t content=@t]
+        %.  [%o args.st]
+        %-  ot:dejs:format
+        :~  ['desk' so:dejs:format]
+            ['path' so:dejs:format]
+            ['content' so:dejs:format]
+        ==
+      =/  dek=@tas  (slav %tas desk)
+      =/  pax=path  (stab file-path)
+      ?~  pax
+        (pure:m [%error 'Empty path'])
+      =/  mark=@tas  (rear pax)
+      ::  Get initial version
+      ;<  initial=cass:clay  bind:m  (do-scry:io cass:clay /scry /cw/[dek])
+      ::  Checkpoint: save state before writing
+      =/  write-data=json
+        %-  pairs:enjs:format
+        :~  ['initial-ud' (numb:enjs:format ud.initial)]
+            ['desk' s+desk]
+            ['file-path' s+file-path]
+            ['logs' a+~]
+        ==
+      ;<  ~  bind:m
+        (replace:io !>([args.st %inserting write-data]))
+      ::  Subscribe to dill logs
+      ;<  ~  bind:m  (send-card:io %pass /dill-logs %arvo %d %logs `~)
+      ::  Set timeout
+      ;<  =bowl:nexus  bind:m  (get-bowl:io /bowl)
+      ;<  ~  bind:m
+        (send-card:io %pass /commit-timeout %arvo %b %wait (add now.bowl ~s30))
+      ::  Write to Clay via %hood
+      ;<  ~  bind:m
+        (gall-poke-our:io %hood kiln-info+!>(["" `[dek %& [pax %ins mark !>(content)]~]]))
+      ::  Collect logs and finish
+      ;<  ~  bind:m  collect-logs
+      ;<  ~  bind:m  (send-card:io %pass /dill-logs %arvo %d %logs ~)
+      ;<  st=tool-state  bind:m  (get-state-as:io ,tool-state)
+      (finish-clay-write args.st data.st)
+        %inserting
+      (finish-clay-write args.st data.st)
+    ==
+  --
+::
+++  tool-edit-clay-file
+  ^-  tool
+  |%
+  ++  name  'edit_clay_file'
+  ++  description
+    ^~  %-  crip
+    ;:  weld
+      "Edit a file in Clay via exact string replacement. "
+      "Reads the file, replaces old_string with new_string, and writes it back. "
+      "Fails if old_string is not found or matches multiple times."
+    ==
+  ++  parameters
+    ^-  (map @t parameter-def)
+    %-  ~(gas by *(map @t parameter-def))
+    :~  ['desk' [%string 'Desk name (e.g. "base")']]
+        ['path' [%string 'File path including mark (e.g. "/gen/hello/hoon")']]
+        ['old_string' [%string 'The exact text to find and replace']]
+        ['new_string' [%string 'The replacement text']]
+    ==
+  ++  required  ~['desk' 'path' 'old_string' 'new_string']
+  ++  handler
+    ^-  tool-handler
+    =/  m  (fiber:fiber:nexus ,tool-result)
+    ^-  form:m
+    ;<  st=tool-state  bind:m  (get-state-as:io ,tool-state)
+    ?+  step.st  (pure:m [%error 'Unknown edit step'])
+        %start
+      ::  Sleep to leave the Eyre HTTP request event.  If the Clay
+      ::  write crashes the build, behn retries with the error and
+      ::  sleep-or-crud captures it as data instead of crashing.
+      ::
+      ;<  err=(unit tang)  bind:m  (sleep-or-crud (div ~s1 10))
+      ?^  err
+        =/  lines=wall  (zing (turn (flop u.err) |=(=tank (wash [0 80] tank))))
+        (pure:m [%error (crip "Clay build failed:\0a{(of-wall:format lines)}")])
+      =/  [desk=@t file-path=@t old=@t new=@t]
+        %.  [%o args.st]
+        %-  ot:dejs:format
+        :~  ['desk' so:dejs:format]
+            ['path' so:dejs:format]
+            ['old_string' so:dejs:format]
+            ['new_string' so:dejs:format]
+        ==
+      =/  dek=@tas  (slav %tas desk)
+      =/  pax=path  (stab file-path)
+      ?~  pax
+        (pure:m [%error 'Empty path'])
+      =/  mark=@tas  (rear pax)
+      ::  Read current file content
+      ;<  =bowl:nexus  bind:m  (get-bowl:io /bowl)
+      ;<  =riot:clay  bind:m
+        (warp:io our.bowl dek ~ %sing %x da+now.bowl pax)
+      ?~  riot
+        (pure:m [%error (crip "File not found: {(trip file-path)}")])
+      =/  =tang  (pretty-file:pretty-file !<(noun q.r.u.riot))
+      =/  =wain
+        %-  zing
+        %+  turn  tang
+        |=(=tank (turn (wash [0 160] tank) crip))
+      =/  text=tape  (trip (of-wain:format wain))
+      ::  Find and replace
+      =/  old-tape=tape  (trip old)
+      =/  idx=(unit @ud)  (find old-tape text)
+      ?~  idx
+        (pure:m [%error 'old_string not found in file'])
+      ::  Check for multiple matches
+      =/  rest=tape  (slag (add u.idx (lent old-tape)) text)
+      ?.  =(~ (find old-tape rest))
+        (pure:m [%error 'old_string matches multiple times; provide more context'])
+      ::  Build new content
+      =/  new-tape=tape  (trip new)
+      =/  before=tape  (scag u.idx text)
+      =/  after=tape  (slag (add u.idx (lent old-tape)) text)
+      =/  result=@t  (crip (zing ~[before new-tape after]))
+      ::  Get initial version
+      ;<  initial=cass:clay  bind:m  (do-scry:io cass:clay /scry /cw/[dek])
+      ::  Checkpoint: save state before writing
+      =/  write-data=json
+        %-  pairs:enjs:format
+        :~  ['initial-ud' (numb:enjs:format ud.initial)]
+            ['desk' s+desk]
+            ['file-path' s+file-path]
+            ['logs' a+~]
+        ==
+      ;<  ~  bind:m
+        (replace:io !>([args.st %editing write-data]))
+      ::  Subscribe to dill logs
+      ;<  ~  bind:m  (send-card:io %pass /dill-logs %arvo %d %logs `~)
+      ::  Set timeout
+      ;<  =bowl:nexus  bind:m  (get-bowl:io /bowl)
+      ;<  ~  bind:m
+        (send-card:io %pass /commit-timeout %arvo %b %wait (add now.bowl ~s30))
+      ::  Write to Clay via %hood
+      ;<  ~  bind:m
+        (gall-poke-our:io %hood kiln-info+!>(["" `[dek %& [pax %ins mark !>(result)]~]]))
+      ::  Collect logs and finish
+      ;<  ~  bind:m  collect-logs
+      ;<  ~  bind:m  (send-card:io %pass /dill-logs %arvo %d %logs ~)
+      ;<  st=tool-state  bind:m  (get-state-as:io ,tool-state)
+      (finish-clay-write args.st data.st)
+        %editing
+      (finish-clay-write args.st data.st)
+    ==
   --
 ::
 ++  tool-nuke-agent
@@ -573,7 +836,7 @@
   ^-  tool
   |%
   ++  name  'send_telegram'
-  ++  description  'Send a Telegram message. Requires config/creds/telegram.json with bot-token and chat-id.'
+  ++  description  'Send a Telegram message. Requires config/creds/telegram with bot-token and chat-id.'
   ++  parameters
     ^-  (map @t parameter-def)
     %-  ~(gas by *(map @t parameter-def))
@@ -592,9 +855,9 @@
       ==
     ::  Read telegram config from ball
     ;<  creds-seen=seen:nexus  bind:m
-      (peek:io /creds [%& %& /config/creds 'telegram.json'] ~)
+      (peek:io /creds [%& %& /config/creds 'telegram'] ~)
     ?.  ?=([%& %file *] creds-seen)
-      (pure:m [%error 'Telegram credentials not configured. Create config/creds/telegram.json with bot-token and chat-id.'])
+      (pure:m [%error 'Telegram credentials not configured. Create config/creds/telegram with bot-token and chat-id.'])
     =/  jon=json  !<(json q.cage.p.creds-seen)
     =/  bot-token=@t  (~(dog jo:json-utils jon) /bot-token so:dejs:format)
     =/  chat-id=@t  (~(dog jo:json-utils jon) /chat-id so:dejs:format)
@@ -664,6 +927,186 @@
       %+  turn  files
       |=([n=@ta m=@tas] "\0a  {(trip n)}.{(trip m)}")
     (pure:m [%text (crip "{(trip dir-path)}{neck-text}{dir-text}{file-text}")])
+  --
+::
+++  tool-glob
+  ^-  tool
+  |%
+  ++  name  'glob'
+  ++  description
+    ^~  %-  crip
+    ;:  weld
+      "Search for files in the grubbery ball by path, name, and/or mark. "
+      "All patterns support * wildcards. All filters are optional; "
+      "omitted filters match everything."
+    ==
+  ++  parameters
+    ^-  (map @t parameter-def)
+    %-  ~(gas by *(map @t parameter-def))
+    :~  ['path' [%string 'Directory path pattern (e.g. "/tools/*", "/config")']]
+        ['name' [%string 'Filename pattern without extension (e.g. "config*", "*test*")']]
+        ['mark' [%string 'Mark/extension pattern (e.g. "hoon", "pdf", "mime")']]
+    ==
+  ++  required  ~
+  ++  handler
+    ^-  tool-handler
+    =/  m  (fiber:fiber:nexus ,tool-result)
+    ^-  form:m
+    ;<  st=tool-state  bind:m  (get-state-as:io ,tool-state)
+    =/  pat-path=(unit @t)
+      ?~  p=(~(get by args.st) 'path')  ~
+      ?.  ?=([%s *] u.p)  ~
+      ?:  =('' p.u.p)  ~
+      `p.u.p
+    =/  pat-name=(unit @t)
+      ?~  n=(~(get by args.st) 'name')  ~
+      ?.  ?=([%s *] u.n)  ~
+      ?:  =('' p.u.n)  ~
+      `p.u.n
+    =/  pat-mark=(unit @t)
+      ?~  mk=(~(get by args.st) 'mark')  ~
+      ?.  ?=([%s *] u.mk)  ~
+      ?:  =('' p.u.mk)  ~
+      `p.u.mk
+    ::  Browse root to get entire ball
+    ;<  =seen:nexus  bind:m  (peek:io /browse [%& %| ~] ~)
+    ?.  ?=([%& %ball *] seen)
+      (pure:m [%error 'Could not read ball'])
+    ::  Flatten ball to list of [rail content] pairs
+    =/  all-files=(list [rail:tarball content:tarball])
+      ~(tap ba:tarball ball.p.seen)
+    ::  Filter by patterns
+    =/  matches=(list [rail:tarball @tas])
+      %+  murn  all-files
+      |=  [=rail:tarball =content:tarball]
+      =/  file-path=tape  ?~(path.rail "/" (trip (spat path.rail)))
+      =/  file-name=tape  (trip name.rail)
+      =/  file-mark=tape  (trip p.cage.content)
+      =/  path-ok=?
+        ?~  pat-path  %.y
+        (glob-match (trip u.pat-path) file-path)
+      =/  name-ok=?
+        ?~  pat-name  %.y
+        (glob-match (trip u.pat-name) file-name)
+      =/  mark-ok=?
+        ?~  pat-mark  %.y
+        (glob-match (trip u.pat-mark) file-mark)
+      ?.  ?&(path-ok name-ok mark-ok)  ~
+      `[rail p.cage.content]
+    ?~  matches
+      (pure:m [%text 'No matches found'])
+    =/  result=tape
+      %-  zing
+      %+  turn  matches
+      |=  [=rail:tarball mark=@tas]
+      =/  pax=tape  ?~(path.rail "/" (trip (spat path.rail)))
+      "\0a{pax}/{(trip name.rail)}.{(trip mark)}"
+    (pure:m [%text (crip "Found {<(lent matches)>} matches:{result}")])
+  --
+::
+++  tool-grep
+  ^-  tool
+  |%
+  ++  name  'grep'
+  ++  description
+    ^~  %-  crip
+    ;:  weld
+      "Search file contents in the grubbery ball for a string. "
+      "Returns matching lines with file paths and line numbers. "
+      "Optionally filter which files to search by path, name, or mark pattern."
+    ==
+  ++  parameters
+    ^-  (map @t parameter-def)
+    %-  ~(gas by *(map @t parameter-def))
+    :~  ['pattern' [%string 'Text string to search for']]
+        ['path' [%string 'Directory path pattern to filter files (e.g. "/config/*")']]
+        ['name' [%string 'Filename pattern to filter (e.g. "*config*")']]
+        ['mark' [%string 'Mark/extension pattern to filter (e.g. "hoon", "txt")']]
+    ==
+  ++  required  ~['pattern']
+  ++  handler
+    ^-  tool-handler
+    =/  m  (fiber:fiber:nexus ,tool-result)
+    ^-  form:m
+    ;<  st=tool-state  bind:m  (get-state-as:io ,tool-state)
+    =/  search=@t
+      %.  [%o args.st]
+      %-  ot:dejs:format
+      :~  ['pattern' so:dejs:format]
+      ==
+    =/  pat-path=(unit @t)
+      ?~  p=(~(get by args.st) 'path')  ~
+      ?.  ?=([%s *] u.p)  ~
+      ?:  =('' p.u.p)  ~
+      `p.u.p
+    =/  pat-name=(unit @t)
+      ?~  n=(~(get by args.st) 'name')  ~
+      ?.  ?=([%s *] u.n)  ~
+      ?:  =('' p.u.n)  ~
+      `p.u.n
+    =/  pat-mark=(unit @t)
+      ?~  mk=(~(get by args.st) 'mark')  ~
+      ?.  ?=([%s *] u.mk)  ~
+      ?:  =('' p.u.mk)  ~
+      `p.u.mk
+    =/  search-tape=tape  (trip search)
+    ::  Browse root to get entire ball
+    ;<  =seen:nexus  bind:m  (peek:io /browse [%& %| ~] ~)
+    ?.  ?=([%& %ball *] seen)
+      (pure:m [%error 'Could not read ball'])
+    ::  Flatten and filter by metadata patterns
+    =/  candidates=(list [rail:tarball content:tarball])
+      %+  skim  ~(tap ba:tarball ball.p.seen)
+      |=  [=rail:tarball =content:tarball]
+      =/  file-path=tape  ?~(path.rail "/" (trip (spat path.rail)))
+      =/  file-name=tape  (trip name.rail)
+      =/  file-mark=tape  (trip p.cage.content)
+      ?&  ?~(pat-path %.y (glob-match (trip u.pat-path) file-path))
+          ?~(pat-name %.y (glob-match (trip u.pat-name) file-name))
+          ?~(pat-mark %.y (glob-match (trip u.pat-mark) file-mark))
+      ==
+    ::  Search each candidate file for the pattern
+    =|  results=(list tape)
+    =/  total-matches=@ud  0
+    |-
+    ?~  candidates
+      ?~  results
+        (pure:m [%text 'No matches found'])
+      =/  out=tape  (zing (flop results))
+      (pure:m [%text (crip "Found {<total-matches>} matches:{out}")])
+    =/  [=rail:tarball =content:tarball]  i.candidates
+    =/  file-label=tape
+      =/  pax=tape  ?~(path.rail "/" (trip (spat path.rail)))
+      "{pax}/{(trip name.rail)}.{(trip p.cage.content)}"
+    ::  Try to read file content as text
+    ;<  file-seen=seen:nexus  bind:m
+      (peek:io /read [%& %& path.rail name.rail] ~)
+    ?.  ?=([%& %file *] file-seen)
+      $(candidates t.candidates)
+    ;<  =mime  bind:m  (cage-to-mime:io cage.p.file-seen)
+    =/  text=tape  (trip ;;(@t q.q.mime))
+    ::  Split into lines and search
+    =/  lines=(list tape)
+      %+  roll  (flop text)
+      |=  [c=@t acc=(list tape)]
+      ?~  acc
+        ?:  =(c 10)  ["" ~]
+        [(trip c) ~]
+      ?:  =(c 10)  ["" acc]
+      [[(weld (trip c) i.acc) t.acc]]
+    =/  line-num=@ud  1
+    =/  file-matches=(list tape)  ~
+    |-
+    ?~  lines
+      =/  new-results=(list tape)
+        ?~  file-matches  results
+        (weld (flop file-matches) results)
+      ^$(candidates t.candidates, results new-results, total-matches (add total-matches (lent file-matches)))
+    =/  hit=?  !=(~ (find search-tape i.lines))
+    =?  file-matches  hit
+      :_  file-matches
+      "\0a{file-label}:{<line-num>}: {i.lines}"
+    $(lines t.lines, line-num +(line-num))
   --
 ::
 ++  tool-read-grub
@@ -770,41 +1213,6 @@
     acc  :(weld acc (scag u.hit src) new)
     src  (slag (add u.hit old-len) src)
   ==
-::
-++  tool-create-grub
-  ^-  tool
-  |%
-  ++  name  'create_grub'
-  ++  description  'Create or update a grub (file) in the grubbery ball. Content is stored as JSON.'
-  ++  parameters
-    ^-  (map @t parameter-def)
-    %-  ~(gas by *(map @t parameter-def))
-    :~  ['path' [%string 'Directory path (e.g. "/config/creds")']]
-        ['name' [%string 'Grub filename (e.g. "telegram.json")']]
-        ['content' [%object 'JSON content to write']]
-    ==
-  ++  required  ~['path' 'name' 'content']
-  ++  handler
-    ^-  tool-handler
-    =/  m  (fiber:fiber:nexus ,tool-result)
-    ^-  form:m
-    ;<  st=tool-state  bind:m  (get-state-as:io ,tool-state)
-    =/  [file-path=@t file-name=@t]
-      %.  [%o args.st]
-      %-  ot:dejs:format
-      :~  ['path' so:dejs:format]
-          ['name' so:dejs:format]
-      ==
-    =/  content=json  (~(got by args.st) 'content')
-    =/  pax=path  (stab file-path)
-    =/  road=road:tarball  [%& %& pax file-name]
-    ;<  exists=?  bind:m  (peek-exists:io /check road)
-    ?:  exists
-      ;<  ~  bind:m  (poke:io /write road json+!>(content))
-      (pure:m [%text (crip "Updated {(trip file-path)}/{(trip file-name)}")])
-    ;<  ~  bind:m  (make:io /write road |+json+!>(content) ~)
-    (pure:m [%text (crip "Created {(trip file-path)}/{(trip file-name)}")])
-  --
 ::
 ++  tool-delete-grub
   ^-  tool
@@ -1057,10 +1465,10 @@
     (pure:m [%text (crip "Cleared weir from {(trip weir-path)}")])
   --
 ::
-++  tool-write-file
+++  tool-write-grub
   ^-  tool
   |%
-  ++  name  'write_file'
+  ++  name  'write_grub'
   ++  description
     ^~  %-  crip
     ;:  weld
@@ -1203,5 +1611,480 @@
     =/  road=road:tarball  [%& %& pax grub-name]
     ;<  ~  bind:m  (over:io /edit road mime+!>(new-mime))
     (pure:m [%text (crip "Edited {(trip file-path)}/{(trip file-name)}")])
+  --
+::  S3 credential type
+::
++$  s3-creds
+  $:  access-key=@t
+      secret-key=@t
+      region=@t
+      endpoint=@t
+      bucket=@t
+  ==
+::  Read S3 credentials from config/creds/s3
+::
+++  read-s3-creds
+  =/  m  (fiber:fiber:nexus ,s3-creds)
+  ^-  form:m
+  ;<  creds-seen=seen:nexus  bind:m
+    (peek:io /creds [%& %& /config/creds 's3'] ~)
+  ?.  ?=([%& %file *] creds-seen)
+    ~|  %s3-creds-not-found
+    !!
+  =/  jon=json  !<(json q.cage.p.creds-seen)
+  =/  creds=s3-creds
+    %.  jon
+    %-  ot:dejs:format
+    :~  ['access-key' so:dejs:format]
+        ['secret-key' so:dejs:format]
+        ['region' so:dejs:format]
+        ['endpoint' so:dejs:format]
+        ['bucket' so:dejs:format]
+    ==
+  (pure:m creds)
+::
+++  tool-s3-list
+  ^-  tool
+  |%
+  ++  name  's3_list'
+  ++  description  'List files in S3 bucket'
+  ++  parameters
+    ^-  (map @t parameter-def)
+    %-  ~(gas by *(map @t parameter-def))
+    :~  ['prefix' [%string 'S3 key prefix to filter by (optional)']]
+    ==
+  ++  required  *(list @t)
+  ++  handler
+    ^-  tool-handler
+    =/  m  (fiber:fiber:nexus ,tool-result)
+    ^-  form:m
+    ;<  st=tool-state  bind:m  (get-state-as:io ,tool-state)
+    =/  prefix=@t
+      ?~  pj=(~(get by args.st) 'prefix')  ''
+      ?.  ?=([%s *] u.pj)  ''
+      p.u.pj
+    ;<  creds=s3-creds  bind:m  read-s3-creds
+    ;<  =bowl:nexus  bind:m  (get-bowl:io /bowl)
+    ::  Build LIST request
+    =/  query-string=@t  (build-list-query:s3 prefix)
+    =/  [amz-date=@t payload-hash=@t authorization=@t]
+      %:  build-signature:s3
+        'GET'
+        access-key.creds
+        secret-key.creds
+        region.creds
+        endpoint.creds
+        bucket.creds
+        ''
+        query-string
+        ~
+        now.bowl
+      ==
+    =/  url=@t  (build-url:s3 endpoint.creds bucket.creds '' `query-string)
+    =/  headers=(list [@t @t])  (build-headers:s3 'GET' payload-hash amz-date authorization)
+    =/  =request:http  [%'GET' url headers ~]
+    ;<  ~  bind:m  (send-request:io request)
+    ;<  =client-response:iris  bind:m  take-client-response:io
+    =/  body=@t
+      ?+  client-response  ''
+        [%finished * [~ [* [p=@ q=@]]]]
+      ;;(@t q.data.u.full-file.client-response)
+      ==
+    =/  keys=(list @t)  (parse-list-response:s3 body)
+    ?~  keys
+      (pure:m [%text 'No files found'])
+    =/  result=tape
+      %-  zing
+      %+  turn  keys
+      |=(k=@t "{(trip k)}\0a")
+    (pure:m [%text (crip result)])
+  --
+::
+++  tool-s3-upload
+  ^-  tool
+  |%
+  ++  name  's3_upload'
+  ++  description  'Upload a single ball file to S3'
+  ++  parameters
+    ^-  (map @t parameter-def)
+    %-  ~(gas by *(map @t parameter-def))
+    :~  ['path' [%string 'Ball directory path (e.g. "/mydir")']]
+        ['name' [%string 'Grub filename (e.g. "notes.txt")']]
+        ['s3_key' [%string 'S3 object key (optional, defaults to filename)']]
+    ==
+  ++  required  ~['path' 'name']
+  ++  handler
+    ^-  tool-handler
+    =/  m  (fiber:fiber:nexus ,tool-result)
+    ^-  form:m
+    ;<  st=tool-state  bind:m  (get-state-as:io ,tool-state)
+    =/  [file-path=@t file-name=@t]
+      %.  [%o args.st]
+      %-  ot:dejs:format
+      :~  ['path' so:dejs:format]
+          ['name' so:dejs:format]
+      ==
+    =/  s3-key=@t
+      ?~  sk=(~(get by args.st) 's3_key')  file-name
+      ?.  ?=([%s *] u.sk)  file-name
+      ?:  =('' p.u.sk)  file-name
+      p.u.sk
+    =/  pax=path  (stab file-path)
+    ::  Read the file from ball
+    ;<  [grub-name=@ta =seen:nexus]  bind:m
+      (lookup-grub pax file-name)
+    ?.  ?=([%& %file *] seen)
+      (pure:m [%error (crip "Not found: {(trip file-path)}/{(trip file-name)}")])
+    ::  Convert to text via mime
+    ;<  =mime  bind:m  (cage-to-mime:io cage.p.seen)
+    =/  text=@t  ;;(@t q.q.mime)
+    ::  Get creds and sign
+    ;<  creds=s3-creds  bind:m  read-s3-creds
+    ;<  =bowl:nexus  bind:m  (get-bowl:io /bowl)
+    =/  [amz-date=@t payload-hash=@t authorization=@t]
+      %:  build-signature:s3
+        'PUT'
+        access-key.creds
+        secret-key.creds
+        region.creds
+        endpoint.creds
+        bucket.creds
+        s3-key
+        ''
+        `text
+        now.bowl
+      ==
+    =/  url=@t  (build-url:s3 endpoint.creds bucket.creds s3-key ~)
+    =/  headers=(list [@t @t])  (build-headers:s3 'PUT' payload-hash amz-date authorization)
+    =/  =request:http
+      [%'PUT' url headers `(as-octs:mimes:html text)]
+    ;<  ~  bind:m  (send-request:io request)
+    ;<  =client-response:iris  bind:m  take-client-response:io
+    ?.  ?=(%finished -.client-response)
+      (pure:m [%error 'S3 upload failed'])
+    =/  code=@ud  status-code.response-header.client-response
+    ?.  (lth code 300)
+      (pure:m [%error (crip "S3 upload error: HTTP {<code>}")])
+    (pure:m [%text (crip "Uploaded {(trip file-path)}/{(trip file-name)} to s3://{(trip s3-key)}")])
+  --
+::
+++  tool-s3-upload-directory
+  ^-  tool
+  |%
+  ++  name  's3_upload_directory'
+  ++  description  'Upload a ball directory to S3'
+  ++  parameters
+    ^-  (map @t parameter-def)
+    %-  ~(gas by *(map @t parameter-def))
+    :~  ['path' [%string 'Ball directory path (e.g. "/mydir")']]
+        ['s3_prefix' [%string 'S3 key prefix (e.g. "backups/mydir")']]
+    ==
+  ++  required  ~['path' 's3_prefix']
+  ++  handler
+    ^-  tool-handler
+    =/  m  (fiber:fiber:nexus ,tool-result)
+    ^-  form:m
+    ;<  st=tool-state  bind:m  (get-state-as:io ,tool-state)
+    =/  [dir-path=@t s3-prefix=@t]
+      %.  [%o args.st]
+      %-  ot:dejs:format
+      :~  ['path' so:dejs:format]
+          ['s3_prefix' so:dejs:format]
+      ==
+    =/  pax=path  (stab dir-path)
+    ::  Browse directory to get file listing
+    ;<  =seen:nexus  bind:m  (peek:io /browse [%& %| pax] ~)
+    ?.  ?=([%& %ball *] seen)
+      (pure:m [%error (crip "Directory not found: {(trip dir-path)}")])
+    ::  Collect all files recursively from the ball
+    ::  Browse returns the subtree at pax, so walk from ~ and prepend pax
+    =/  files-to-upload=(list [path @ta])
+      %+  turn  (collect-files-recursive:s3 ball.p.seen ~)
+      |=([p=path n=@ta] [(weld pax p) n])
+    ::  Upload each file
+    =/  uploaded=@ud  0
+    |-
+    ?~  files-to-upload
+      (pure:m [%text (crip "Uploaded {<uploaded>} files to s3://{(trip s3-prefix)}")])
+    =/  [file-path=path filename=@ta]  i.files-to-upload
+    ::  Read file content
+    ;<  file-seen=seen:nexus  bind:m
+      (peek:io /read [%& %& file-path filename] ~)
+    ?.  ?=([%& %file *] file-seen)
+      $(files-to-upload t.files-to-upload)
+    ::  Convert to text
+    ;<  =mime  bind:m  (cage-to-mime:io cage.p.file-seen)
+    =/  text=@t  ;;(@t q.q.mime)
+    ::  Build S3 key, appending mark as extension
+    =/  mark=@tas  p.cage.p.file-seen
+    =/  full-name=@ta
+      ?:  =(mark %mime)  filename
+      (crip "{(trip filename)}.{(trip mark)}")
+    =/  relative-path=path
+      ?:  =(pax ~)  (snoc file-path full-name)
+      (snoc (slag (lent pax) file-path) full-name)
+    =/  s3-key=@t
+      ?:  =(s3-prefix '')
+        (path-to-s3-key:s3 relative-path)
+      (crip "{(trip s3-prefix)}/{(trip (path-to-s3-key:s3 relative-path))}")
+    ::  Sign and upload
+    ;<  creds=s3-creds  bind:m  read-s3-creds
+    ;<  =bowl:nexus  bind:m  (get-bowl:io /bowl)
+    =/  [amz-date=@t payload-hash=@t authorization=@t]
+      %:  build-signature:s3
+        'PUT'
+        access-key.creds
+        secret-key.creds
+        region.creds
+        endpoint.creds
+        bucket.creds
+        s3-key
+        ''
+        `text
+        now.bowl
+      ==
+    =/  url=@t  (build-url:s3 endpoint.creds bucket.creds s3-key ~)
+    =/  headers=(list [@t @t])  (build-headers:s3 'PUT' payload-hash amz-date authorization)
+    =/  =request:http
+      [%'PUT' url headers `(as-octs:mimes:html text)]
+    ;<  ~  bind:m  (send-request:io request)
+    ;<  =client-response:iris  bind:m  take-client-response:io
+    $(files-to-upload t.files-to-upload, uploaded +(uploaded))
+  --
+::
+++  tool-s3-download
+  ^-  tool
+  |%
+  ++  name  's3_download'
+  ++  description  'Download an S3 file to the grubbery ball'
+  ++  parameters
+    ^-  (map @t parameter-def)
+    %-  ~(gas by *(map @t parameter-def))
+    :~  ['s3_key' [%string 'S3 object key to download']]
+        ['path' [%string 'Ball directory path to save to (e.g. "/downloads")']]
+    ==
+  ++  required  ~['s3_key' 'path']
+  ++  handler
+    ^-  tool-handler
+    =/  m  (fiber:fiber:nexus ,tool-result)
+    ^-  form:m
+    ;<  st=tool-state  bind:m  (get-state-as:io ,tool-state)
+    =/  [s3-key=@t dest-path=@t]
+      %.  [%o args.st]
+      %-  ot:dejs:format
+      :~  ['s3_key' so:dejs:format]
+          ['path' so:dejs:format]
+      ==
+    =/  pax=path  (stab dest-path)
+    ;<  creds=s3-creds  bind:m  read-s3-creds
+    ;<  =bowl:nexus  bind:m  (get-bowl:io /bowl)
+    ::  Sign GET request
+    =/  [amz-date=@t payload-hash=@t authorization=@t]
+      %:  build-signature:s3
+        'GET'
+        access-key.creds
+        secret-key.creds
+        region.creds
+        endpoint.creds
+        bucket.creds
+        s3-key
+        ''
+        ~
+        now.bowl
+      ==
+    =/  url=@t  (build-url:s3 endpoint.creds bucket.creds s3-key ~)
+    =/  headers=(list [@t @t])  (build-headers:s3 'GET' payload-hash amz-date authorization)
+    =/  =request:http  [%'GET' url headers ~]
+    ;<  ~  bind:m  (send-request:io request)
+    ;<  =client-response:iris  bind:m  take-client-response:io
+    ?.  ?=([%finished *] client-response)
+      (pure:m [%error 'S3 download failed'])
+    =/  code=@ud  status-code.response-header.client-response
+    ?.  (lth code 300)
+      (pure:m [%error (crip "S3 download error: HTTP {<code>}")])
+    ?~  full-file.client-response
+      (pure:m [%error 'Empty response from S3'])
+    =/  content=@t  ;;(@t q.data.u.full-file.client-response)
+    ::  Extract filename and parse extension
+    =/  filename=@ta  (extract-filename:s3 s3-key)
+    =/  ext=(unit @ta)  (parse-extension:tarball filename)
+    ::  Strip extension from filename for grub name
+    =/  grub-name=@ta
+      ?~  ext  filename
+      =/  et=tape  (trip u.ext)
+      =/  ft=tape  (trip filename)
+      (crip (scag (sub (lent ft) (add 1 (lent et))) ft))
+    ::  Detect content type from response headers
+    =/  response-headers=(list [key=@t value=@t])
+      headers.response-header.client-response
+    =/  ct=(unit @t)  (extract-content-type:s3 response-headers)
+    ::  Build mime from content
+    =/  mtype=path  (determine-mime-type:tarball ct filename)
+    =/  file-mime=mime  [mtype (as-octs:mimes:html content)]
+    =/  road=road:tarball  [%& %& pax grub-name]
+    ;<  exists=?  bind:m  (peek-exists:io /check road)
+    ?:  exists
+      ;<  ~  bind:m  (over:io /write road mime+!>(file-mime))
+      (pure:m [%text (crip "Downloaded s3://{(trip s3-key)} to {(trip dest-path)}/{(trip filename)}")])
+    ;<  ~  bind:m  (make:io /write road |+mime+!>(file-mime) ext)
+    (pure:m [%text (crip "Downloaded s3://{(trip s3-key)} to {(trip dest-path)}/{(trip filename)}")])
+  --
+::
+++  tool-s3-download-directory
+  ^-  tool
+  |%
+  ++  name  's3_download_directory'
+  ++  description  'Download all files under an S3 prefix to the grubbery ball'
+  ++  parameters
+    ^-  (map @t parameter-def)
+    %-  ~(gas by *(map @t parameter-def))
+    :~  ['s3_prefix' [%string 'S3 key prefix to download (e.g. "backups/mydir")']]
+        ['path' [%string 'Ball directory path to save to (e.g. "/downloads")']]
+    ==
+  ++  required  ~['s3_prefix' 'path']
+  ++  handler
+    ^-  tool-handler
+    =/  m  (fiber:fiber:nexus ,tool-result)
+    ^-  form:m
+    ;<  st=tool-state  bind:m  (get-state-as:io ,tool-state)
+    =/  [s3-prefix=@t dest-path=@t]
+      %.  [%o args.st]
+      %-  ot:dejs:format
+      :~  ['s3_prefix' so:dejs:format]
+          ['path' so:dejs:format]
+      ==
+    =/  pax=path  (stab dest-path)
+    ;<  creds=s3-creds  bind:m  read-s3-creds
+    ::  First list all files under prefix
+    ;<  =bowl:nexus  bind:m  (get-bowl:io /bowl)
+    =/  query-string=@t  (build-list-query:s3 s3-prefix)
+    =/  [amz-date=@t payload-hash=@t authorization=@t]
+      %:  build-signature:s3
+        'GET'
+        access-key.creds
+        secret-key.creds
+        region.creds
+        endpoint.creds
+        bucket.creds
+        ''
+        query-string
+        ~
+        now.bowl
+      ==
+    =/  url=@t  (build-url:s3 endpoint.creds bucket.creds '' `query-string)
+    =/  headers=(list [@t @t])  (build-headers:s3 'GET' payload-hash amz-date authorization)
+    =/  =request:http  [%'GET' url headers ~]
+    ;<  ~  bind:m  (send-request:io request)
+    ;<  =client-response:iris  bind:m  take-client-response:io
+    =/  body=@t
+      ?+  client-response  ''
+        [%finished * [~ [* [p=@ q=@]]]]
+      ;;(@t q.data.u.full-file.client-response)
+      ==
+    =/  all-keys=(list @t)  (parse-list-response:s3 body)
+    ::  Filter out directory markers (keys ending in /)
+    =/  files=(list @t)
+      %+  skip  all-keys
+      |=(key=@t =((rear (trip key)) '/'))
+    ::  Download each file
+    =/  downloaded=@ud  0
+    |-
+    ?~  files
+      (pure:m [%text (crip "Downloaded {<downloaded>} files to {(trip dest-path)}")])
+    =/  s3-key=@t  i.files
+    =/  filename=@ta  (extract-filename:s3 s3-key)
+    =/  ext=(unit @ta)  (parse-extension:tarball filename)
+    ::  Strip extension from filename for grub name
+    =/  grub-name=@ta
+      ?~  ext  filename
+      =/  et=tape  (trip u.ext)
+      =/  ft=tape  (trip filename)
+      (crip (scag (sub (lent ft) (add 1 (lent et))) ft))
+    ::  Sign GET request
+    ;<  =bowl:nexus  bind:m  (get-bowl:io /bowl)
+    =/  [ld-amz-date=@t ld-payload-hash=@t ld-authorization=@t]
+      %:  build-signature:s3
+        'GET'
+        access-key.creds
+        secret-key.creds
+        region.creds
+        endpoint.creds
+        bucket.creds
+        s3-key
+        ''
+        ~
+        now.bowl
+      ==
+    =/  dl-url=@t  (build-url:s3 endpoint.creds bucket.creds s3-key ~)
+    =/  dl-headers=(list [@t @t])  (build-headers:s3 'GET' ld-payload-hash ld-amz-date ld-authorization)
+    =/  dl-request=request:http  [%'GET' dl-url dl-headers ~]
+    ;<  ~  bind:m  (send-request:io dl-request)
+    ;<  dl-response=client-response:iris  bind:m  take-client-response:io
+    ?.  ?=([%finished *] dl-response)
+      $(files t.files)
+    ?~  full-file.dl-response
+      $(files t.files)
+    =/  content=@t  ;;(@t q.data.u.full-file.dl-response)
+    =/  response-headers=(list [key=@t value=@t])
+      headers.response-header.dl-response
+    =/  ct=(unit @t)  (extract-content-type:s3 response-headers)
+    =/  mtype=path  (determine-mime-type:tarball ct filename)
+    =/  file-mime=mime  [mtype (as-octs:mimes:html content)]
+    =/  road=road:tarball  [%& %& pax grub-name]
+    ;<  exists=?  bind:m  (peek-exists:io /check road)
+    ?:  exists
+      ;<  ~  bind:m  (over:io /write road mime+!>(file-mime))
+      $(files t.files, downloaded +(downloaded))
+    ;<  ~  bind:m  (make:io /write road |+mime+!>(file-mime) ext)
+    $(files t.files, downloaded +(downloaded))
+  --
+::
+++  tool-s3-delete
+  ^-  tool
+  |%
+  ++  name  's3_delete'
+  ++  description  'Delete a file from S3'
+  ++  parameters
+    ^-  (map @t parameter-def)
+    %-  ~(gas by *(map @t parameter-def))
+    :~  ['s3_key' [%string 'S3 object key to delete']]
+    ==
+  ++  required  ~['s3_key']
+  ++  handler
+    ^-  tool-handler
+    =/  m  (fiber:fiber:nexus ,tool-result)
+    ^-  form:m
+    ;<  st=tool-state  bind:m  (get-state-as:io ,tool-state)
+    =/  s3-key=@t
+      %.  [%o args.st]
+      %-  ot:dejs:format
+      :~  ['s3_key' so:dejs:format]
+      ==
+    ;<  creds=s3-creds  bind:m  read-s3-creds
+    ;<  =bowl:nexus  bind:m  (get-bowl:io /bowl)
+    =/  [amz-date=@t payload-hash=@t authorization=@t]
+      %:  build-signature:s3
+        'DELETE'
+        access-key.creds
+        secret-key.creds
+        region.creds
+        endpoint.creds
+        bucket.creds
+        s3-key
+        ''
+        ~
+        now.bowl
+      ==
+    =/  url=@t  (build-url:s3 endpoint.creds bucket.creds s3-key ~)
+    =/  headers=(list [@t @t])  (build-headers:s3 'DELETE' payload-hash amz-date authorization)
+    =/  =request:http  [%'DELETE' url headers ~]
+    ;<  ~  bind:m  (send-request:io request)
+    ;<  =client-response:iris  bind:m  take-client-response:io
+    ?.  ?=(%finished -.client-response)
+      (pure:m [%error 'S3 delete failed'])
+    =/  code=@ud  status-code.response-header.client-response
+    ?.  (lth code 300)
+      (pure:m [%error (crip "S3 delete error: HTTP {<code>}")])
+    (pure:m [%text (crip "Deleted s3://{(trip s3-key)}")])
   --
 --

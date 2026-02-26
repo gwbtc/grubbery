@@ -31,6 +31,11 @@
   ::  Create /mcp directory with neck=%mcp
   =?  ball  =(~ (~(get of ball) /mcp))
     (~(put of ball) /mcp [~ `%mcp ~])
+  ::  Create /config/creds directory if not present
+  =?  ball  =(~ (~(get of ball) /config))
+    (~(put of ball) /config [~ ~ ~])
+  =?  ball  =(~ (~(get of ball) /config/creds))
+    (~(put of ball) /config/creds [~ ~ ~])
   [sand ball]
 ::
 ++  on-file
