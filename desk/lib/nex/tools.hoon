@@ -77,6 +77,7 @@
       ['edit_clay_file' tool-edit-clay-file]
       ['nuke_agent' tool-nuke-agent]
       ['revive_agent' tool-revive-agent]
+      ['poke_agent' tool-poke-agent]
       ['mount_desk' tool-mount-desk]
       ['install_app' tool-install-app]
       ['toggle_permissions' tool-toggle-permissions]
@@ -661,6 +662,48 @@
     =/  agt=@tas  (slav %tas agent)
     ;<  ~  bind:m  (gall-poke-our:io %hood kiln-revive+!>(agt))
     (pure:m [%text (crip "Revived %{(trip agt)}")])
+  --
+::
+++  tool-poke-agent
+  ^-  tool
+  |%
+  ++  name  'poke_agent'
+  ++  description  'Poke a Gall agent with data of a specified mark'
+  ++  parameters
+    ^-  (map @t parameter-def)
+    %-  ~(gas by *(map @t parameter-def))
+    :~  ['agent' [%string 'Agent name (e.g. "hood")']]
+        ['mark' [%string 'Poke mark (e.g. "helm-pass")']]
+        ['data' [%string 'Hoon expression for the poke data (e.g. "\'my-password\'")']]
+    ==
+  ++  required  ~['agent' 'mark' 'data']
+  ++  handler
+    ^-  tool-handler
+    =/  m  (fiber:fiber:nexus ,tool-result)
+    ^-  form:m
+    ;<  st=tool-state  bind:m  (get-state-as:io ,tool-state)
+    =/  [agent=@t mark=@t data=@t]
+      %.  [%o args.st]
+      %-  ot:dejs:format
+      :~  ['agent' so:dejs:format]
+          ['mark' so:dejs:format]
+          ['data' so:dejs:format]
+      ==
+    =/  agt=@tas  (slav %tas agent)
+    =/  mar=@tas  (slav %tas mark)
+    ::  Parse and eval hoon in a mule to catch errors
+    =/  res=(each vase tang)
+      (mule |.((slap !>(..zuse) (ream data))))
+    ?:  ?=(%| -.res)
+      =/  lines=wall  (zing (turn (flop p.res) |=(=tank (wash [0 80] tank))))
+      (pure:m [%error (crip "Bad hoon expression:\0a{(of-wall:format lines)}")])
+    ::  Poke and capture nack as data instead of crashing
+    ;<  err=(unit tang)  bind:m
+      (gall-poke-or-nack:io agt mar^p.res)
+    ?^  err
+      =/  lines=wall  (zing (turn (flop u.err) |=(=tank (wash [0 80] tank))))
+      (pure:m [%error (crip "Poke nacked:\0a{(of-wall:format lines)}")])
+    (pure:m [%text (crip "Poked %{(trip agt)} with %{(trip mar)}")])
   --
 ::
 ++  tool-mount-desk

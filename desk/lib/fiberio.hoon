@@ -1011,6 +1011,28 @@
   ^-  form:m
   ;<  our=@p  bind:m  get-our
   (gall-poke /poke [our dude] cage)
+::  Poke our own ship, returning nack as (unit tang) instead of crashing
+::
+++  gall-poke-or-nack
+  |=  [=dude:gall =cage]
+  =/  m  (fiber ,(unit tang))
+  ^-  form:m
+  ;<  our=@p  bind:m  get-our
+  =/  =card:agent:gall  [%pass /poke %agent [our dude] %poke cage]
+  ;<  ~  bind:m  (send-card card)
+  |=  input
+  :+  ~  state
+  ?+  in  [%skip ~]
+      ~  [%wait ~]
+      [~ %veto *]
+    [%fail (veto-error dart.u.in)]
+      [~ %agent * *]
+    ?.  =(/poke wire.u.in)
+      [%skip ~]
+    ?.  ?=(%poke-ack -.sign.u.in)
+      [%skip ~]
+    [%done p.sign.u.in]
+  ==
 ::
 ++  give-response-header
   |=  [eyre-id=@ta =response-header:http]
