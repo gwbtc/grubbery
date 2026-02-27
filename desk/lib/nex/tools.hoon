@@ -71,6 +71,7 @@
       ['commit' tool-commit]
       ['desk_version' tool-desk-version]
       ['scry' tool-scry]
+      ['eval' tool-eval]
       ['list_clay_files' tool-list-files]
       ['get_clay_file' tool-get-file]
       ['insert_clay_file' tool-insert-file]
@@ -101,6 +102,8 @@
       ['s3_download' tool-s3-download]
       ['s3_download_directory' tool-s3-download-directory]
       ['s3_delete' tool-s3-delete]
+      ::  TODO: run_tests — run unit/integration tests via spider
+      ::  TODO: new_desk — create a new desk with default provisions
   ==
 ::  All tool definitions (for MCP tools/list)
 ::
@@ -356,6 +359,37 @@
       ;<  result=mime  bind:m  (do-scry:io mime /scry pax)
       (pure:m [%text (crip (trip q.q.result))])
     ==
+  --
+::
+++  tool-eval
+  ^-  tool
+  |%
+  ++  name  'eval'
+  ++  description  'Evaluate a Hoon expression and return the result as text'
+  ++  parameters
+    ^-  (map @t parameter-def)
+    %-  ~(gas by *(map @t parameter-def))
+    :~  ['hoon' [%string 'Any Hoon expression, e.g. "(add 2 2)"']]
+    ==
+  ++  required  ~['hoon']
+  ++  handler
+    ^-  tool-handler
+    =/  m  (fiber:fiber:nexus ,tool-result)
+    ^-  form:m
+    ;<  st=tool-state  bind:m  (get-state-as:io ,tool-state)
+    =/  code=@t
+      %.  [%o args.st]
+      %-  ot:dejs:format
+      :~  ['hoon' so:dejs:format]
+      ==
+    =/  res=(each vase tang)
+      (mule |.((slap !>(..zuse) (ream code))))
+    ?:  ?=(%| -.res)
+      =/  lines=wall  (zing (turn (flop p.res) |=(=tank (wash [0 80] tank))))
+      (pure:m [%error (crip "Eval failed:\0a{(of-wall:format lines)}")])
+    =/  =tank  (sell p.res)
+    =/  =wall  (wash [0 160] tank)
+    (pure:m [%text (of-wain:format (turn wall crip))])
   --
 ::
 ++  tool-list-files
