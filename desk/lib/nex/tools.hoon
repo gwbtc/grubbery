@@ -132,27 +132,27 @@
   ^-  tool
   |%
   ++  name  'desk_version'
-  ++  description  'Get the current version of a mounted desk'
+  ++  description  'Get the current version of a desk'
   ++  parameters
     ^-  (map @t parameter-def)
     %-  ~(gas by *(map @t parameter-def))
-    :~  ['mount_point' [%string 'Mount point name (e.g. "base")']]
+    :~  ['desk' [%string 'Desk name (e.g. "base")']]
     ==
-  ++  required  ~['mount_point']
+  ++  required  ~['desk']
   ++  handler
     ^-  tool-handler
     =/  m  (fiber:fiber:nexus ,tool-result)
     ^-  form:m
     ;<  st=tool-state  bind:m  (get-state-as:io ,tool-state)
-    =/  mount-point=@tas
+    =/  dek=@tas
       %.  [%o args.st]
       %-  ot:dejs:format
-      :~  ['mount_point' so:dejs:format]
+      :~  ['desk' so:dejs:format]
       ==
-    ;<  =cass:clay  bind:m  (do-scry:io cass:clay /scry /cw/[mount-point])
+    ;<  =cass:clay  bind:m  (do-scry:io cass:clay /scry /cw/[dek])
     =/  result=tape
       ;:  weld
-        "Desk: {(trip mount-point)}\0a"
+        "Desk: {(trip dek)}\0a"
         "Version: {<ud.cass>}\0a"
         "Date: {(scow %da da.cass)}"
       ==
