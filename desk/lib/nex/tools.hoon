@@ -76,6 +76,7 @@
       ['get_clay_file' tool-get-file]
       ['insert_clay_file' tool-insert-file]
       ['edit_clay_file' tool-edit-clay-file]
+      ['batch_edit_clay' tool-batch-edit-clay]
       ['nuke_agent' tool-nuke-agent]
       ['revive_agent' tool-revive-agent]
       ['poke_agent' tool-poke-agent]
@@ -642,6 +643,150 @@
       ;<  st=tool-state  bind:m  (get-state-as:io ,tool-state)
       (finish-clay-write args.st data.st)
         %editing
+      (finish-clay-write args.st data.st)
+    ==
+  --
+::
+++  tool-batch-edit-clay
+  ^-  tool
+  |%
+  ++  name  'batch_edit_clay'
+  ++  description
+    ^~  %-  crip
+    ;:  weld
+      "Edit multiple files in Clay as a single atomic commit. "
+      "Takes a desk and an array of edits, each with path, old_string, "
+      "and new_string. All edits are applied in one Clay write so the "
+      "desk only recompiles once. Fails if any old_string is not found "
+      "or matches multiple times."
+    ==
+  ++  parameters
+    ^-  (map @t parameter-def)
+    %-  ~(gas by *(map @t parameter-def))
+    :~  ['desk' [%string 'Desk name (e.g. "base")']]
+        ['edits' [%array 'Array of {path, old_string, new_string} objects']]
+    ==
+  ++  required  ~['desk' 'edits']
+  ++  handler
+    ^-  tool-handler
+    =/  m  (fiber:fiber:nexus ,tool-result)
+    ^-  form:m
+    ;<  st=tool-state  bind:m  (get-state-as:io ,tool-state)
+    ?+  step.st  (pure:m [%error 'Unknown batch-edit step'])
+        %start
+      ;<  err=(unit tang)  bind:m  (sleep-or-crud (div ~s1 10))
+      ?^  err
+        =/  lines=wall  (zing (turn (flop u.err) |=(=tank (wash [0 80] tank))))
+        (pure:m [%error (crip "Clay build failed:\0a{(of-wall:format lines)}")])
+      ::  Parse arguments
+      =/  desk=@t
+        %.  [%o args.st]
+        (ot:dejs:format ~[['desk' so:dejs:format]])
+      =/  edits-json=json
+        (~(got by args.st) 'edits')
+      ?.  ?=([%a *] edits-json)
+        (pure:m [%error 'edits must be a JSON array'])
+      =/  edit-list=(list json)  p.edits-json
+      ?~  edit-list
+        (pure:m [%error 'edits array is empty'])
+      =/  dek=@tas  (slav %tas desk)
+      ;<  =bowl:nexus  bind:m  (get-bowl:io /bowl)
+      ::  Process each edit: read file, find-and-replace, collect instruction
+      =/  instructions=(list [pax=path mark=@tas content=@t])  ~
+      =/  file-names=(list @t)  ~
+      =/  remaining=(list json)  edit-list
+      |-
+      ?~  remaining
+        ::  All edits processed — write the batch
+        ?~  instructions
+          (pure:m [%error 'no valid edits to apply'])
+        ::  Get initial version
+        ;<  initial=cass:clay  bind:m  (do-scry:io cass:clay /scry /cw/[dek])
+        ::  Build the kiln file-instruction list
+        =/  ins=(list [path %ins @tas vase])
+          %+  turn  (flop instructions)
+          |=  [pax=path mark=@tas content=@t]
+          [pax %ins mark !>(content)]
+        ::  Checkpoint
+        =/  write-data=json
+          %-  pairs:enjs:format
+          :~  ['initial-ud' (numb:enjs:format ud.initial)]
+              ['desk' s+desk]
+              ['file-path' s+(crip "{<(lent instructions)>} files")]
+              ['logs' a+~]
+          ==
+        ;<  ~  bind:m
+          (replace:io !>([args.st %batch-editing write-data]))
+        ::  Subscribe to dill logs
+        ;<  ~  bind:m  (send-card:io %pass /dill-logs %arvo %d %logs `~)
+        ::  Set timeout
+        ;<  =bowl:nexus  bind:m  (get-bowl:io /bowl)
+        ;<  ~  bind:m
+          (send-card:io %pass /commit-timeout %arvo %b %wait (add now.bowl ~s30))
+        ::  Single atomic write via %hood
+        ;<  ~  bind:m
+          (gall-poke-our:io %hood kiln-info+!>(["" `[dek %& ins]]))
+        ::  Collect logs and finish
+        ;<  ~  bind:m  collect-logs
+        ;<  ~  bind:m  (send-card:io %pass /dill-logs %arvo %d %logs ~)
+        ;<  st=tool-state  bind:m  (get-state-as:io ,tool-state)
+        ::  Build result with file list
+        ;<  res=tool-result  bind:m  (finish-clay-write args.st data.st)
+        =/  file-summary=tape
+          %+  roll  (flop file-names)
+          |=  [f=@t acc=tape]
+          ?~  acc  (trip f)
+          (zing ~[acc "\0a" (trip f)])
+        ?-  -.res
+          %error  (pure:m res)
+          %text   (pure:m [%text (crip (zing ~[(trip text.res) "\0aFiles edited:\0a" file-summary]))])
+        ==
+      ::  Process one edit
+      =/  edit=json  i.remaining
+      =/  parsed=(unit [file-path=@t old=@t new=@t])
+        %-  mole  |.
+        %.  edit
+        %-  ot:dejs:format
+        :~  ['path' so:dejs:format]
+            ['old_string' so:dejs:format]
+            ['new_string' so:dejs:format]
+        ==
+      ?~  parsed
+        (pure:m [%error 'each edit must have path, old_string, new_string'])
+      =/  pax=path  (stab file-path.u.parsed)
+      ?~  pax
+        (pure:m [%error (crip "empty path in edit")])
+      =/  mark=@tas  (rear pax)
+      ::  Read current file content from Clay
+      ;<  =riot:clay  bind:m
+        (warp:io our.bowl dek ~ %sing %x da+now.bowl pax)
+      ?~  riot
+        (pure:m [%error (crip "File not found: {(trip file-path.u.parsed)}")])
+      =/  =tang  (pretty-file:pretty-file !<(noun q.r.u.riot))
+      =/  =wain
+        %-  zing
+        %+  turn  tang
+        |=(=tank (turn (wash [0 160] tank) crip))
+      =/  text=tape  (trip (of-wain:format wain))
+      ::  Find and replace
+      =/  old-tape=tape  (trip old.u.parsed)
+      =/  idx=(unit @ud)  (find old-tape text)
+      ?~  idx
+        (pure:m [%error (crip "old_string not found in {(trip file-path.u.parsed)}")])
+      =/  rest=tape  (slag (add u.idx (lent old-tape)) text)
+      ?.  =(~ (find old-tape rest))
+        (pure:m [%error (crip "old_string matches multiple times in {(trip file-path.u.parsed)}")])
+      =/  new-tape=tape  (trip new.u.parsed)
+      =/  before=tape  (scag u.idx text)
+      =/  after=tape  (slag (add u.idx (lent old-tape)) text)
+      =/  result=@t  (crip (zing ~[before new-tape after]))
+      ::  Accumulate and continue
+      %=  $
+        remaining     t.remaining
+        instructions  [[pax mark result] instructions]
+        file-names    [file-path.u.parsed file-names]
+      ==
+        %batch-editing
       (finish-clay-write args.st data.st)
     ==
   --
