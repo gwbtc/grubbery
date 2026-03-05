@@ -1,10 +1,11 @@
 /-  spider
 /+  default-agent, dbug, tarball, nexus, server,
-    nex-tools
+    nex-tools, marks
 /=  t-  /tests/nexus
 /=  t-  /tests/tarball
 /=  m-  /mar/kids
 /=  m-  /mar/tree
+/=  m-  /mar/sand
 /=  m-  /mar/sand
 :: add /nex to the ford build cache for fast compilation
 ::
@@ -118,6 +119,13 @@
     =^  cards  state
       abet:(poke:hc give [/server %main] handle-http-request+!>([eyre-id src.bowl req]))
     [cards this]
+      ::
+      %rebuild-marks
+    ::  Rebuild all tube and dais caches.
+    ?>  =(src our):bowl
+    =.  ball  (~(pub ba:tarball ball) /bin/tubes (rebuild-tubes:marks our.bowl q.byk.bowl now.bowl))
+    =.  ball  (~(pub ba:tarball ball) /bin/daises (rebuild-daises:marks our.bowl q.byk.bowl now.bowl))
+    [~ this]
   ==
 ::
 ++  on-watch
@@ -275,7 +283,25 @@
       ==
     |+(weld err p.vale-result)
   &+p.vale-result
-::  Validate file content: handles %temp, empty-mime, scries for dais
+::  Get a cached tube from /bin/tubes/[from]/[to]
+::
+++  get-tube
+  |=  [from=mark to=mark]
+  ^-  tube:clay
+  =/  c=(unit content:tarball)
+    (~(get ba:tarball ball) /bin/tubes/[from] to)
+  ?~  c  ~|([%tube-not-cached from to] !!)
+  !<(tube:clay q.cage.u.c)
+::  Get a cached dais from /bin/daises/[mark]
+::
+++  get-dais
+  |=  =mark
+  ^-  dais:clay
+  =/  c=(unit content:tarball)
+    (~(get ba:tarball ball) /bin/daises mark)
+  ?~  c  ~|([%dais-not-cached mark] !!)
+  !<(dais:clay q.cage.u.c)
+::  Validate file content: handles %temp, empty-mime, looks up cached dais
 ::
 ++  validate-new-cage
   |=  [=mark old=(unit vase) new=vase force=?]
@@ -288,9 +314,7 @@
           =(0 p.q:!<(mime new))
       ==
     |+~[leaf+"empty mime file"]
-  ::  Scry for dais (crashes if mark doesn't exist)
-  =/  =dais:clay
-    .^(dais:clay %cb /(scot %p our.bowl)/[q.byk.bowl]/(scot %da now.bowl)/[mark])
+  =/  =dais:clay  (get-dais mark)
   (validate-vase dais old new force)
 ::  Clam a cage at sandbox boundary
 ::  Used when data crosses a weir filter from untrusted source.
@@ -549,6 +573,10 @@
   =/  pre-ball=ball:tarball  ball
   ::  Clear ephemeral %temp cages - they shouldn't survive reload
   =.  ball  ~(clear-temp ba:tarball ball)
+  ::  Build tube and dais caches synchronously as %temp grubs.
+  ::  Reproduces Clay's tube/dais-building logic without crash-prone scries.
+  =.  ball  (~(pub ba:tarball ball) /bin/tubes (rebuild-tubes:marks our.bowl q.byk.bowl now.bowl))
+  =.  ball  (~(pub ba:tarball ball) /bin/daises (rebuild-daises:marks our.bowl q.byk.bowl now.bowl))
   ::  Run nexus on-loads top-down (may modify ball and sand)
   =/  pre-sand=sand:nexus  sand
   =/  [new-sand=sand:nexus new-ball=ball:tarball]  (run-on-loads / sand ball)
@@ -704,8 +732,7 @@
       ?~  mark  view
       ?.  ?=(%file -.view)  view
       ?:  =(p.cage.view u.mark)  view  :: already correct mark
-      =/  =tube:clay
-        .^(tube:clay %cc /(scot %p our.bowl)/[q.byk.bowl]/(scot %da now.bowl)/[p.cage.view]/[u.mark])
+      =/  =tube:clay  (get-tube p.cage.view u.mark)
       view(cage [u.mark (tube q.cage.view)])
     (enqu-take:acc watcher (sys-give:acc /news) ~ %news wire watcher-view)
   $(watched t.watched)
@@ -879,8 +906,7 @@
         ?:  =(p.p.make.load.dart u.mark.load.dart)
           ::  marks already match, no conversion needed
           make.load.dart
-        =/  =tube:clay
-          .^(tube:clay %cc /(scot %p our.bowl)/[q.byk.bowl]/(scot %da now.bowl)/[p.p.make.load.dart]/[u.mark.load.dart])
+        =/  =tube:clay  (get-tube p.p.make.load.dart u.mark.load.dart)
         make.load.dart(p [u.mark.load.dart (tube q.p.make.load.dart)])
       =/  res=(each _this tang)  (mule |.((^make u.dest-lane make)))
       ?-  -.res
@@ -929,8 +955,7 @@
       =/  converted=cage
         ?:  =(old-mark new-mark)
           cage.load.dart
-        =/  =tube:clay
-          .^(tube:clay %cc /(scot %p our.bowl)/[q.byk.bowl]/(scot %da now.bowl)/[new-mark]/[old-mark])
+        =/  =tube:clay  (get-tube new-mark old-mark)
         [old-mark (tube q.cage.load.dart)]
       =/  val=(each vase tang)
         (validate-new-cage p.converted `q.cage.u.old q.converted %.n)
@@ -988,8 +1013,7 @@
         =/  result=cage
           ?~  mark.load.dart  cage.u.content
           ?:  =(p.cage.u.content u.mark.load.dart)  cage.u.content
-          =/  =tube:clay
-            .^(tube:clay %cc /(scot %p our.bowl)/[q.byk.bowl]/(scot %da now.bowl)/[p.cage.u.content]/[u.mark.load.dart])
+          =/  =tube:clay  (get-tube p.cage.u.content u.mark.load.dart)
           [u.mark.load.dart (tube q.cage.u.content)]
         (enqu-take here (sys-give /peek) ~ %peek wire.dart %& %file sk result)
       ==

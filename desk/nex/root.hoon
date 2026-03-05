@@ -5,9 +5,13 @@
 ++  on-load
   |=  [=sand:nexus =ball:tarball]
   ^-  [sand:nexus ball:tarball]
-  ::  Create /main file if not present
-  =?  ball  =(~ (~(get ba:tarball ball) [/ %main]))
-    (~(put ba:tarball ball) [/ %main] [~ %sig !>(~)])
+  ::  Create /root directory with system processes
+  =?  ball  =(~ (~(get of ball) /root))
+    (~(put of ball) /root [~ ~ ~])
+  =?  ball  =(~ (~(get ba:tarball ball) [/root %main]))
+    (~(put ba:tarball ball) [/root %main] [~ %sig !>(~)])
+  =?  ball  =(~ (~(get ba:tarball ball) [/root %marks]))
+    (~(put ba:tarball ball) [/root %marks] [~ %sig !>(~)])
   ::  Create /server directory with neck=%server
   =?  ball  =(~ (~(get of ball) /server))
     (~(put of ball) /server [~ `%server ~])
@@ -45,11 +49,30 @@
   =/  m  (fiber:fiber:nexus ,~)
   ^-  process:fiber:nexus
   ?+    rail  stay:m
-      [~ %main]
+      [[%root ~] %main]
     ;<  ~  bind:m  (rise-wait:io prod "%root /main: failed, poke to restart")
-    ~&  >  "%root /main: warming tube cache"
-    ;<  ~  bind:m  (warm-tubes:io &)
-    ~&  >  "%root /main: tube cache warm"
     stay:m
+  ::
+      [[%root ~] %marks]
+    ;<  ~  bind:m  (rise-wait:io prod "%root /marks: failed, poke to restart")
+    ~&  >  "%root /marks: warming Clay caches"
+    ;<  ~  bind:m  (warm-tubes:io &)
+    ~&  >  "%root /marks: Clay caches warm"
+    ::  Watch /mar for file additions/removals and rebuild marks.
+    ::  Uses %y (directory listing) not %z (content hash) to avoid
+    ::  infinite loops — %ca scries in rebuild update Clay's build
+    ::  cache which changes the %z hash.
+    ;<  our=@p  bind:m  get-our:io
+    ;<  =desk   bind:m  get-desk:io
+    ;<  now=@da  bind:m  get-time:io
+    |-
+    ;<  =riot:clay  bind:m
+      (warp:io our desk ~ %next %y da+now /mar)
+    ?~  riot  stay:m
+    ~&  >  "%root /marks: marks changed, rebuilding"
+    ;<  ~  bind:m
+      (gall-poke-our:io %grubbery rebuild-marks+!>(~))
+    ;<  now=@da  bind:m  get-time:io
+    $
   ==
 --
