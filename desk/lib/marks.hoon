@@ -8,7 +8,7 @@
 ::  Daises are built inline (like Clay's build-dais) using the
 ::  build-nave → build-dais pipeline with slap instead of slub.
 ::
-/+  tarball
+/+  nexus, tarball
 |%
 ::  +rebuild-tubes: rebuild /bin/tubes/ sub-ball
 ::
@@ -148,6 +148,63 @@
     |=  noun=*
     (slam (slap nav limb/%vale) !>(noun))
   --
+::  +rebuild-nexuses: rebuild /bin/nexuses/ sub-ball
+::
+::  Lists /nex/*.hoon files and compiles each via %ca scry.
+::  Nexuses are cached by neck (filename without .hoon).
+::  Uses segments:clay for hyphenated neck resolution (e.g.
+::  neck %foo-bar tries /nex/foo-bar.hoon then /nex/foo/bar.hoon).
+::
+++  rebuild-nexuses
+  |=  [our=@p =desk now=@da]
+  ^-  ball:tarball
+  =/  base=path  /(scot %p our)/[desk]/(scot %da now)
+  =/  =arch  .^(arch %cy (weld base /nex))
+  ::  Collect all .hoon files recursively, building neck from path
+  =/  entries=(list [neck=@tas =path])
+    (collect-nex-files /nex arch base)
+  ~&  >  [%nexus-files (lent entries)]
+  =/  acc=ball:tarball  *ball:tarball
+  |-
+  ?~  entries  acc
+  =/  [neck=@tas pax=path]  i.entries
+  =/  res=(each vase tang)
+    (mule |.(.^(vase %ca (weld base pax))))
+  ?:  ?=(%| -.res)
+    %-  (%*(. slog pri 3) leaf+"{<neck>}: nexus build failed" (flop p.res))
+    $(entries t.entries)
+  =/  nex-res=(each nexus:nexus tang)
+    (mule |.(!<(nexus:nexus p.res)))
+  ?:  ?=(%| -.nex-res)
+    %-  (%*(. slog pri 3) leaf+"{<neck>}: nexus type mismatch" (flop p.nex-res))
+    $(entries t.entries)
+  $(entries t.entries, acc (~(put ba:tarball acc) [/ neck] [~ %temp !>(p.nex-res)]))
+::  +collect-nex-files: recursively collect nexus .hoon files from arch
+::
+::  Builds neck by joining path segments with hep, e.g.
+::  /nex/foo/bar.hoon → neck %foo-bar
+::
+++  collect-nex-files
+  |=  [prefix=path =arch base=path]
+  ^-  (list [neck=@tas =path])
+  =/  kids=(list [@tas ^arch])
+    %+  murn  ~(tap by dir.arch)
+    |=  [name=@tas *]
+    ^-  (unit [@tas ^arch])
+    =/  sub=^arch  .^(^arch %cy (weld base (snoc prefix name)))
+    `[name sub]
+  %-  zing
+  %+  turn  kids
+  |=  [name=@tas sub=^arch]
+  =/  sub-prefix=path  (snoc prefix name)
+  ::  If this dir has a hoon file, it's a nexus
+  ?:  (~(has by dir.sub) %hoon)
+    =/  neck=@tas
+      =/  segs=path  (slag 1 sub-prefix)  :: drop /nex
+      (rap 3 (join '-' segs))
+    [neck (snoc sub-prefix %hoon)]~
+  ::  Otherwise recurse
+  (collect-nex-files sub-prefix sub base)
 ::  +build-mark-cores: list and compile all mark cores for a desk
 ::
 ++  build-mark-cores

@@ -121,10 +121,11 @@
     [cards this]
       ::
       %rebuild-marks
-    ::  Rebuild all tube and dais caches.
+    ::  Rebuild all tube, dais, and nexus caches.
     ?>  =(src our):bowl
     =.  ball  (~(pub ba:tarball ball) /bin/tubes (rebuild-tubes:marks our.bowl q.byk.bowl now.bowl))
     =.  ball  (~(pub ba:tarball ball) /bin/daises (rebuild-daises:marks our.bowl q.byk.bowl now.bowl))
+    =.  ball  (~(pub ba:tarball ball) /bin/nexuses (rebuild-nexuses:marks our.bowl q.byk.bowl now.bowl))
     [~ this]
   ==
 ::
@@ -382,7 +383,7 @@
 ++  delete
   |=  [dir=path name=@ta]
   ^+  this
-  ~?  >>  ?=(^ (~(get ba:tarball ball) [dir name]))
+  ~?  >>  ?=(~ (~(get ba:tarball ball) [dir name]))
     "no grub at {(spud (weld dir /[name]))}"
   ::  Clean up outgoing subscriptions from this file
   =.  this  (sub-wipe [dir name])
@@ -573,10 +574,10 @@
   =/  pre-ball=ball:tarball  ball
   ::  Clear ephemeral %temp cages - they shouldn't survive reload
   =.  ball  ~(clear-temp ba:tarball ball)
-  ::  Build tube and dais caches synchronously as %temp grubs.
-  ::  Reproduces Clay's tube/dais-building logic without crash-prone scries.
+  ::  Build tube, dais, and nexus caches synchronously as %temp grubs.
   =.  ball  (~(pub ba:tarball ball) /bin/tubes (rebuild-tubes:marks our.bowl q.byk.bowl now.bowl))
   =.  ball  (~(pub ba:tarball ball) /bin/daises (rebuild-daises:marks our.bowl q.byk.bowl now.bowl))
+  =.  ball  (~(pub ba:tarball ball) /bin/nexuses (rebuild-nexuses:marks our.bowl q.byk.bowl now.bowl))
   ::  Run nexus on-loads top-down (may modify ball and sand)
   =/  pre-sand=sand:nexus  sand
   =/  [new-sand=sand:nexus new-ball=ball:tarball]  (run-on-loads / sand ball)
@@ -776,15 +777,10 @@
 ++  build-nexus
   |=  neck=@tas
   ^-  (unit nexus:nexus)
-  =/  base=path  /(scot %p our.bowl)/[q.byk.bowl]/(scot %da now.bowl)
-  =/  segs=(list path)  (segments:clay neck)
-  |-
-  ?~  segs  ~
-  =/  pax=path  `path`[%nex (snoc i.segs %hoon)]
-  ?.  .^(? %cu (weld base pax))
-    $(segs t.segs)
-  =+  .^(=vase %ca (weld base pax))
-  (mole |.(!<(nexus:nexus vase)))
+  =/  c=(unit content:tarball)
+    (~(get ba:tarball ball) /bin/nexuses neck)
+  ?~  c  ~
+  (mole |.(!<(nexus:nexus q.cage.u.c)))
 ::
 ++  find-nearest-nexus
   |=  here=rail:tarball
@@ -893,21 +889,17 @@
       ::
         %make
       ::  Create file or directory.
-      ::  If mark is set and payload is a file cage, convert the cage
-      ::  to the destination mark via warm tube cache before storing.
-      ::  This lets callers send e.g. a mime cage and have the runtime
-      ::  convert it to %hoon, %txt, etc. using Clay's warm Ford cache.
+      ::  If mark is set on a file make, convert the cage to the
+      ::  destination mark via cached tube before storing.
       =/  =make:nexus
-        ?~  mark.load.dart
-          make.load.dart
         ?.  ?=(%| -.make.load.dart)
-          ::  mark conversion only applies to file cages, not directories
           make.load.dart
-        ?:  =(p.p.make.load.dart u.mark.load.dart)
-          ::  marks already match, no conversion needed
+        ?~  mark.p.make.load.dart
           make.load.dart
-        =/  =tube:clay  (get-tube p.p.make.load.dart u.mark.load.dart)
-        make.load.dart(p [u.mark.load.dart (tube q.p.make.load.dart)])
+        ?:  =(p.cage.p.make.load.dart u.mark.p.make.load.dart)
+          make.load.dart
+        =/  =tube:clay  (get-tube p.cage.p.make.load.dart u.mark.p.make.load.dart)
+        make.load.dart(cage.p [u.mark.p.make.load.dart (tube q.cage.p.make.load.dart)])
       =/  res=(each _this tang)  (mule |.((^make u.dest-lane make)))
       ?-  -.res
         %&  (enqu-take:p.res here (sys-give /made) ~ %made wire.dart ~)
@@ -1177,11 +1169,11 @@
       ~|("file already exists at path" !!)
     ::  Validate the cage before storing (new file, no old content)
     =/  validated=(each vase tang)
-      (validate-new-cage p.p.make ~ q.p.make %.n)
+      (validate-new-cage p.cage.p.make ~ q.cage.p.make %.n)
     ?:  ?=(%| -.validated)
       ~|("make failed: validation error" (mean p.validated))
     ::  Save initial state (bumps file aeon since old content is ~)
-    =.  this  (save-file dest-rail [~ p.p.make p.validated])
+    =.  this  (save-file dest-rail [~ p.cage.p.make p.validated])
     ::  Spawn process (needs file in ball for build-spool)
     =.  this  (spawn-proc dest-rail [%make ~])
     (enqu-take dest-rail (sys-give /make) ~)

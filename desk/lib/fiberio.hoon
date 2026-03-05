@@ -286,10 +286,10 @@
 ::  File operations: make, poke, peek, cull, sand
 ::
 ++  make
-  |=  [=wire =road:tarball =make:nexus mark=(unit mark)]
+  |=  [=wire =road:tarball =make:nexus]
   =/  m  (fiber ,~)
   ^-  form:m
-  ;<  ~  bind:m  (send-dart %node wire road %make make mark)
+  ;<  ~  bind:m  (send-dart %node wire road %make make)
   (take-made wire)
 ::
 ++  poke
@@ -512,178 +512,39 @@
   ?>  ?=([%clay %writ *] sign-arvo)
   (pure:m +>.sign-arvo)
 ::
-++  build-tube
-  |=  [[=ship =desk =case] =mars:clay]
-  =*  arg  +<
-  =/  m  (fiber ,tube:clay)
-  ^-  form:m
-  ;<  =riot:clay  bind:m
-    (warp ship desk ~ %sing %c case /[a.mars]/[b.mars])
-  ?~  riot
-    (fiber-fail leaf+<['build-tube' arg]> ~)
-  ?>  =(%tube p.r.u.riot)
-  (pure:m !<(tube:clay q.r.u.riot))
+::  +get-tube: look up a cached tube from /bin/tubes/
 ::
-++  build-tube-soft
-  |=  [[=ship =desk =case] =mars:clay]
+++  get-tube
+  |=  =mars:clay
   =/  m  (fiber ,(unit tube:clay))
   ^-  form:m
-  ;<  =riot:clay  bind:m
-    (warp ship desk ~ %sing %c case /[a.mars]/[b.mars])
-  ?~  riot
+  =/  =road:tarball  [%& %& /bin/tubes/[a.mars] b.mars]
+  ;<  =seen:nexus  bind:m  (peek /tube road ~)
+  ?.  ?=([%& %file *] seen)
     (pure:m ~)
-  ?>  =(%tube p.r.u.riot)
-  (pure:m `!<(tube:clay q.r.u.riot))
-::  +try-build-tube: build a single tube, trying our desk first then %base
+  (pure:m `!<(tube:clay q.cage.p.seen))
+::  +get-dais: look up a cached dais from /bin/daises/
 ::
-++  try-build-tube
-  |=  [our=@p =desk =case =mars:clay]
-  =/  m  (fiber ,(unit tube:clay))
-  ^-  form:m
-  ;<  tube=(unit tube:clay)  bind:m
-    (build-tube-soft [our desk case] mars)
-  ?^  tube
-    (pure:m tube)
-  (build-tube-soft [our %base case] mars)
-::  +build-file-soft: compile a source file, return unit vase
-::
-++  build-file-soft
-  |=  [[=ship =desk =case] =spur]
-  =/  m  (fiber ,(unit vase))
-  ^-  form:m
-  ;<  =riot:clay  bind:m
-    (warp ship desk ~ %sing %a case spur)
-  ?~  riot
-    (pure:m ~)
-  ?>  =(%vase p.r.u.riot)
-  (pure:m `!<(vase q.r.u.riot))
-::  +build-dais-soft: build a dais for a mark, return unit
-::
-++  build-dais-soft
-  |=  [[=ship =desk =case] mak=mark]
+++  get-dais
+  |=  mak=mark
   =/  m  (fiber ,(unit dais:clay))
   ^-  form:m
-  ;<  =riot:clay  bind:m
-    (warp ship desk ~ %sing %b case /[mak])
-  ?~  riot
+  =/  =road:tarball  [%& %& /bin/daises mak]
+  ;<  =seen:nexus  bind:m  (peek /dais road ~)
+  ?.  ?=([%& %file *] seen)
     (pure:m ~)
-  ?>  =(%dais p.r.u.riot)
-  (pure:m `!<(dais:clay q.r.u.riot))
-::  +list-marks: list mark files from desk's /mar directory
+  (pure:m `!<(dais:clay q.cage.p.seen))
+::  +get-nexus: look up a cached nexus from /bin/nexuses/
 ::
-++  list-marks
-  |=  [=ship =desk =case]
-  =/  m  (fiber ,(list path))
+++  get-nexus
+  |=  neck=@tas
+  =/  m  (fiber ,(unit nexus:nexus))
   ^-  form:m
-  ;<  =riot:clay  bind:m
-    (warp ship desk ~ %sing %t case /mar)
-  ?~  riot
+  =/  =road:tarball  [%& %& /bin/nexuses neck]
+  ;<  =seen:nexus  bind:m  (peek /nexus road ~)
+  ?.  ?=([%& %file *] seen)
     (pure:m ~)
-  (pure:m !<((list path) q.r.u.riot))
-::  +en-fit: convert /mar/foo/.../bar/hoon path to mark name
-::
-++  en-fit
-  |=  =path
-  ^-  @tas
-  =.  path  ?>(?=([%mar *] path) (flop t.path))
-  =.  path  ?>(?=([%hoon *] path) (flop t.path))
-  (rap 3 (join '-' path))
-::  +get-mark-arms: inspect a mark core vase for grab/grow arm names
-::
-++  get-mark-arms
-  |=  =vase
-  ^-  [grab=(list mark) grow=(list mark)]
-  :-  ?.  (slob %grab -:vase)  ~
-      (sloe -:(slap vase [%limb %grab]))
-  ?.  (slob %grow -:vase)  ~
-  (sloe -:(slap vase [%limb %grow]))
-::  +mark-pairs: discover all conversion pairs from a mark core
-::
-++  mark-pairs
-  |=  all-marks=(set mark)
-  |=  [=path =vase]
-  ^-  (list mars:clay)
-  =/  fit=mark  (en-fit path)
-  =/  [grab=(list mark) grow=(list mark)]
-    (get-mark-arms vase)
-  ;:  weld  [fit fit]~
-    (murn grab |=(=mark ?.((~(has in all-marks) mark) ~ `[mark fit])))
-    (murn grow |=(=mark ?.((~(has in all-marks) mark) ~ `[fit mark])))
-  ==
-::  +build-all-files: compile all mark cores from a list of paths
-::
-++  build-all-files
-  |=  [verb=? =ship =desk =case paths=(list path)]
-  =/  cores=(map path vase)  ~
-  |-
-  =/  m  (fiber ,(map path vase))
-  ^-  form:m
-  =*  loop  $
-  ?~  paths  (pure:m cores)
-  ;<  vus=(unit vase)  bind:m
-    (build-file-soft [ship desk case] i.paths)
-  ?~  vus
-    ~?  >>>  verb  [%warm-build-failed i.paths]
-    loop(paths t.paths)
-  ~?  >  verb  [%warm-built i.paths]
-  loop(paths t.paths, cores (~(put by cores) i.paths u.vus))
-::  +build-all-tubes: warm all tube conversions
-::
-++  build-all-tubes
-  |=  [verb=? =ship =desk =case mars=(list mars:clay)]
-  |-
-  =/  m  (fiber ,~)
-  ^-  form:m
-  =*  loop  $
-  ?~  mars  (pure:m ~)
-  ;<  tub=(unit tube:clay)  bind:m
-    (build-tube-soft [ship desk case] i.mars)
-  ~?  >  verb  ?~(tub [%warm-tube-failed i.mars] [%warm-tube i.mars])
-  loop(mars t.mars)
-::  +build-all-dais: warm all dais validators
-::
-++  build-all-dais
-  |=  [verb=? =ship =desk =case marks=(list mark)]
-  |-
-  =/  m  (fiber ,~)
-  ^-  form:m
-  =*  loop  $
-  ?~  marks  (pure:m ~)
-  ;<  das=(unit dais:clay)  bind:m
-    (build-dais-soft [ship desk case] i.marks)
-  ~?  >  verb  ?~(das [%warm-dais-failed i.marks] [%warm-dais i.marks])
-  loop(marks t.marks)
-::  +warm-tubes: pre-warm all tube and dais caches for a desk
-::  Call from root nexus on-load to ensure Clay caches are hot
-::
-++  warm-tubes
-  |=  verb=?
-  =/  m  (fiber ,~)
-  ^-  form:m
-  ;<  our=@p   bind:m  get-our
-  ;<  =desk    bind:m  get-desk
-  ;<  now=@da  bind:m  get-time
-  ::  List mark files from /mar
-  ;<  paths=(list path)  bind:m  (list-marks our desk %da now)
-  =.  paths  (turn (skim (turn paths flop) |=(=path ?=([%hoon *] path))) flop)
-  ::  Build all mark cores
-  ;<  cores=(map path vase)  bind:m
-    (build-all-files verb our desk da+now paths)
-  ::  Discover all mark conversion pairs
-  =/  marks=(list mark)  (turn paths en-fit)
-  =/  all-marks=(set mark)  (sy marks)
-  =/  mars=(list mars:clay)
-    %~  tap  in
-    %-  ~(gas in *(set mars:clay))
-    %-  zing
-    %+  turn  ~(tap by cores)
-    (mark-pairs all-marks)
-  ::  Warm all tubes
-  ;<  ~  bind:m  (build-all-tubes verb our desk da+now mars)
-  ::  Warm all dais
-  ;<  ~  bind:m  (build-all-dais verb our desk da+now marks)
-  ~&  >  [%warm-complete tubes+(lent mars) dais+(lent marks)]
-  (pure:m ~)
+  (pure:m `!<(nexus:nexus q.cage.p.seen))
 ::  +collect-marks: collect all marks used in cages within a ball (deep)
 ::
 ++  collect-marks
@@ -727,9 +588,6 @@
   |=  marks=(set mark)
   =/  m  (fiber ,(map mars:clay tube:clay))
   ^-  form:m
-  ;<  our=@p  bind:m  get-our
-  ;<  =desk  bind:m  get-desk
-  ;<  now=@da  bind:m  get-time
   =/  mark-list=(list mark)  ~(tap in marks)
   =/  conversions=(map mars:clay tube:clay)  ~
   |-  ^-  form:m
@@ -737,7 +595,7 @@
     (pure:m conversions)
   =/  =mars:clay  [i.mark-list %mime]
   ;<  tube-result=(unit tube:clay)  bind:m
-    (try-build-tube our desk da+now mars)
+    (get-tube mars)
   =?  conversions  ?=(^ tube-result)
     (~(put by conversions) mars u.tube-result)
   $(mark-list t.mark-list)
@@ -765,12 +623,9 @@
     (pure:m !<(mime q.cage))
   ?:  =(%temp p.cage)
     (pure:m [/text/plain (as-octs:mimes:html (crip (noah q.cage)))])
-  ;<  our=@p  bind:m  get-our
-  ;<  =desk  bind:m  get-desk
-  ;<  now=@da  bind:m  get-time
   =/  =mars:clay  [p.cage %mime]
   ;<  tube=(unit tube:clay)  bind:m
-    (try-build-tube our desk [%da now] mars)
+    (get-tube mars)
   ?~  tube
     (pure:m [/application/octet-stream (as-octs:mimes:html (jam q.cage))])
   =/  result=(each vase tang)  (mule |.((u.tube q.cage)))

@@ -44,10 +44,9 @@
     ~&  >  "%tools /main: {(trip tool-name.req)} [{(trip call-id.req)}]"
     ;<  ~  bind:m
       %-  make:io
-      :^    /exec
+      :+    /exec
           [%& %& [%requests ~] call-id.req]
-        |+[%tool-args !>(`[@t (map @t json)]`[tool-name.req args.req])]
-      ~
+        |+[[%tool-args !>(`[@t (map @t json)]`[tool-name.req args.req])] ~]
     ^$
   ::  /requests/{call-id}: resolve tool, run handler, done
       [[%requests ~] @]

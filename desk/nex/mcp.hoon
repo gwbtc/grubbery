@@ -133,7 +133,7 @@
       ;<  ~  bind:m
         (keep:io /watch [%| 1 %& /tools tid] ~)
       ;<  ~  bind:m
-        (make:io /make [%| 1 %& /tools tid] |+tool-state+!>(ts) ~)
+        (make:io /make [%| 1 %& /tools tid] |+[tool-state+!>(ts) ~])
       ::  Wait for tool to finish
       |-
       ;<  nw=news-or-wake:io  bind:m  (take-news-or-wake:io /watch)

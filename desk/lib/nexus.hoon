@@ -52,7 +52,7 @@
       byk=beak
   ==
 ::
-+$  make  (each [=sand =ball:tarball] cage)
++$  make  (each [=sand =ball:tarball] [=cage mark=(unit mark)])
 +$  view
   $%  [%ball =sand =born ball=ball:tarball]
       [%file =sack =cage]
@@ -63,9 +63,7 @@
 ::
 +$  load
   $%  [%poke =cage]             :: poke a grub
-      [%make =make mark=(unit mark)]  :: create grub or directory
-                                       :: mark: if set, convert cage to this
-                                       :: mark via warm tube before storing
+      [%make =make]                    :: create grub or directory
       [%over =cage]             :: overwrite grub content (runtime mark conversion)
       [%diff =cage]             :: replace same-mark grub content, notify process
       [%cull ~]                 :: delete grub or directory

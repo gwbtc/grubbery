@@ -24,7 +24,6 @@
         ;<  ~  bind:m  (rise-wait:io prod "%explorer /main: failed, poke to restart")
         ~&  >  "%explorer /main: binding /grubbery/ball"
         ;<  ~  bind:m  (bind-http:nex-server [~ /grubbery/ball])
-        ;<  ~  bind:m  (bind-http:nex-server [~ /grubbery/ball/stream])
         ~&  >  "%explorer /main: ready"
         (http-dispatch:nex-server %explorer)
           [[%requests ~] @]
@@ -165,7 +164,7 @@
       [(crip (scag name-len full-text)) `u.dir-ext]
     =/  folder-path=path  (snoc tree-path dir-name)
     =/  new-ball=ball:tarball  [`[~ dir-neck ~] ~]
-    ;<  ~  bind:m  (make:io /mkd [%& %| folder-path] &+[*sand:nexus new-ball] ~)
+    ;<  ~  bind:m  (make:io /mkd [%& %| folder-path] &+[*sand:nexus new-ball])
     ;<  ~  bind:m  (send-simple:srv eyre-id [[303 ~[['location' (crip redirect-url)]]] ~])
     (pure:m ~)
   ::
@@ -182,7 +181,7 @@
     ?~  sym
       ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'Invalid symlink target')])
       (pure:m ~)
-    ;<  ~  bind:m  (make:io /make [%& %& tree-path linkname] |+[%symlink !>(u.sym)] ~)
+    ;<  ~  bind:m  (make:io /make [%& %& tree-path linkname] |+[[%symlink !>(u.sym)] ~])
     ;<  ~  bind:m  (send-simple:srv eyre-id [[303 ~[['location' (crip redirect-url)]]] ~])
     (pure:m ~)
   ::
@@ -256,8 +255,6 @@
     (pure:m ~)
   ::  Build mime→mark tubes for uploaded file extensions
   ;<  now=@da  bind:m  get-time:io
-  ;<  our=@p  bind:m  get-our:io
-  ;<  =desk  bind:m  get-desk:io
   =/  exts=(set @ta)
     %-  ~(gas in *(set @ta))
     %+  murn  u.parts
@@ -273,7 +270,7 @@
     ?~  ext-list  (pure:m convs)
     =/  =mars:clay  [%mime i.ext-list]
     ;<  tube=(unit tube:clay)  bind:m
-      (try-build-tube:io our desk [%da now] mars)
+      (get-tube:io mars)
     =?  convs  ?=(^ tube)
       (~(put by convs) mars u.tube)
     $(ext-list t.ext-list)
@@ -289,14 +286,14 @@
   ?^  files
     =/  [name=@ta =content:tarball]  i.files
     ;<  ~  bind:m
-      (make:io /upload [%& %& tree-path name] |+cage.content ~)
+      (make:io /upload [%& %& tree-path name] |+[cage.content ~])
     $(files t.files)
   =/  dirs=(list [@ta ball:tarball])  ~(tap by dir.new)
   |-
   ?^  dirs
     =/  [name=@ta sub=ball:tarball]  i.dirs
     ;<  ~  bind:m
-      (make:io /upload [%& %| (snoc tree-path name)] &+[*sand:nexus sub] ~)
+      (make:io /upload [%& %| (snoc tree-path name)] &+[*sand:nexus sub])
     $(dirs t.dirs)
   =/  redirect-url=tape
     ?~(tree-path "/grubbery/ball" "/grubbery/ball{(trip (spat tree-path))}")

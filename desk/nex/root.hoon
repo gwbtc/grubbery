@@ -12,6 +12,8 @@
     (~(put ba:tarball ball) [/root %main] [~ %sig !>(~)])
   =?  ball  =(~ (~(get ba:tarball ball) [/root %marks]))
     (~(put ba:tarball ball) [/root %marks] [~ %sig !>(~)])
+  =?  ball  =(~ (~(get ba:tarball ball) [/root %nexuses]))
+    (~(put ba:tarball ball) [/root %nexuses] [~ %sig !>(~)])
   ::  Create /server directory with neck=%server
   =?  ball  =(~ (~(get of ball) /server))
     (~(put of ball) /server [~ `%server ~])
@@ -55,9 +57,6 @@
   ::
       [[%root ~] %marks]
     ;<  ~  bind:m  (rise-wait:io prod "%root /marks: failed, poke to restart")
-    ~&  >  "%root /marks: warming Clay caches"
-    ;<  ~  bind:m  (warm-tubes:io &)
-    ~&  >  "%root /marks: Clay caches warm"
     ::  Watch /mar for file additions/removals and rebuild marks.
     ::  Uses %y (directory listing) not %z (content hash) to avoid
     ::  infinite loops — %ca scries in rebuild update Clay's build
@@ -70,6 +69,22 @@
       (warp:io our desk ~ %next %y da+now /mar)
     ?~  riot  stay:m
     ~&  >  "%root /marks: marks changed, rebuilding"
+    ;<  ~  bind:m
+      (gall-poke-our:io %grubbery rebuild-marks+!>(~))
+    ;<  now=@da  bind:m  get-time:io
+    $
+  ::
+      [[%root ~] %nexuses]
+    ;<  ~  bind:m  (rise-wait:io prod "%root /nexuses: failed, poke to restart")
+    ::  Watch /nex for file additions/removals and rebuild nexuses.
+    ;<  our=@p  bind:m  get-our:io
+    ;<  =desk   bind:m  get-desk:io
+    ;<  now=@da  bind:m  get-time:io
+    |-
+    ;<  =riot:clay  bind:m
+      (warp:io our desk ~ %next %y da+now /nex)
+    ?~  riot  stay:m
+    ~&  >  "%root /nexuses: nexus files changed, rebuilding"
     ;<  ~  bind:m
       (gall-poke-our:io %grubbery rebuild-marks+!>(~))
     ;<  now=@da  bind:m  get-time:io
