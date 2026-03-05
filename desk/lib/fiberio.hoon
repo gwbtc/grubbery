@@ -697,6 +697,8 @@
     |-  ^-  (set mark)
     ?~  entries  marks
     =*  content  q.i.entries
+    ?:  =(%temp p.cage.content)
+      $(entries t.entries)
     $(entries t.entries, marks (~(put in marks) p.cage.content))
   ::  Recurse into subdirectories
   =/  subdirs=(list (pair @ta ball:tarball))  ~(tap by dir.ball)
@@ -716,6 +718,8 @@
   |-  ^-  (set mark)
   ?~  entries  marks
   =*  ct  q.i.entries
+  ?:  =(%temp p.cage.ct)
+    $(entries t.entries)
   $(entries t.entries, marks (~(put in marks) p.cage.ct))
 ::  +build-mark-conversions: build conversions map for a set of marks
 ::
@@ -759,6 +763,8 @@
   ^-  form:m
   ?:  =(%mime p.cage)
     (pure:m !<(mime q.cage))
+  ?:  =(%temp p.cage)
+    (pure:m [/text/plain (as-octs:mimes:html (crip (noah q.cage)))])
   ;<  our=@p  bind:m  get-our
   ;<  =desk  bind:m  get-desk
   ;<  now=@da  bind:m  get-time

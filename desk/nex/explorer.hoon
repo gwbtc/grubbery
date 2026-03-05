@@ -37,10 +37,16 @@
           (pure:m ~)
         ~&  >  [%explorer-request eyre-id url.request.req]
         =/  =request-line:server  (parse-request-line:server url.request.req)
-        ::  Extract raw path, resolve through ball tree
+        ::  Extract raw path, resolve through ball tree.
+        ::  Re-append URL extension to last segment — apat strips
+        ::  ".pdf" etc into ext, but grub names include it.
         =/  raw-path=path
-          ?.  ?=([%grubbery %ball *] site.request-line)  ~
-          t.t.site.request-line
+          =/  segs=path
+            ?.  ?=([%grubbery %ball *] site.request-line)  ~
+            t.t.site.request-line
+          ?.  &(?=(^ ext.request-line) ?=(^ segs))  segs
+          (snoc (snip `path`segs) (crip "{(trip (rear segs))}.{(trip u.ext.request-line)}"))
+
         ?:  ?=([%stream ~] raw-path)
           =/  watch-path=path
             =/  p=(unit @t)  (get-key:kv:html-utils 'path' args.request-line)
@@ -1018,6 +1024,8 @@
   =/  =mime
     ?:  =(%mime p.cag)
       !<(mime q.cag)
+    ?:  =(%temp p.cag)
+      [/text/plain (as-octs:mimes:html (crip (noah q.cag)))]
     (~(cage-to-mime gen:tarball [now conversions]) cag)
   =/  mime-raw=tape  (trip (spat p.mime))
   =/  mime-display=tape  ?~(mime-raw "" (tail mime-raw))

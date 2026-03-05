@@ -4,7 +4,7 @@
 |_  val=[call-id=@ta tool-name=@t args=(map @t json)]
 ++  grab
   |%
-  ++  noun  [call-id=@ta tool-name=@t args=(map @t json)]
+  ++  noun  ,[call-id=@ta tool-name=@t args=(map @t json)]
   --
 ++  grow
   |%

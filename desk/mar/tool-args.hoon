@@ -4,7 +4,7 @@
 |_  val=[@t (map @t json)]
 ++  grab
   |%
-  ++  noun  [@t (map @t json)]
+  ++  noun  ,[@t (map @t json)]
   --
 ++  grow
   |%
