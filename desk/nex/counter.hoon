@@ -98,15 +98,18 @@
   ^-  manx
   =/  api=tape  "/grubbery/api/file/counter/counters"
   =/  keep=tape  "/grubbery/api/keep/counter/counters"
+  =/  kids=tape  "/grubbery/api/kids/counter/counters"
   =/  js=tape
     ;:  weld
       "var API='{api}';"
       "var KEEP='{keep}';"
+      "var KIDS='{kids}';"
       "document.getElementById('create').onclick=function()\{fetch(API+'/'+Date.now().toString(36)+'?mark=ud',\{method:'PUT',headers:\{'Content-Type':'text/plain'},body:'0'})};"
       "function removeCounter(n)\{var e=document.getElementById('c-'+n);if(e)e.remove();if(!document.querySelector('.counter'))document.getElementById('counters').textContent='No counters'}"
       "function deleteCounter(n)\{fetch(API+'/'+n,\{method:'DELETE'});removeCounter(n)}"
       "function upsertCounter(n,v)\{var b=document.getElementById('counters');var e=document.getElementById('c-'+n);if(!e)\{if(b.textContent==='Connecting...'||b.textContent==='No counters')b.textContent='';e=document.createElement('div');e.id='c-'+n;e.className='counter fc fh g2 p2 b1 br1 jcsb';b.appendChild(e)}e.innerHTML='<div class=\"fc-col\"><span class=\"s7 bold\">'+v+'</span><span class=\"s9 muted\">'+n+'</span></div><button class=\"p-1 b1 br1 hover pointer s9\" onclick=\"deleteCounter(\\x27'+n+'\\x27)\">Delete</button>'}"
-      "async function connect()\{try\{var r=await fetch(KEEP,\{headers:\{Accept:'text/event-stream'}});var R=r.body.getReader();var d=new TextDecoder();var buf='';while(true)\{var c=await R.read();if(c.done)break;buf+=d.decode(c.value,\{stream:true});var ps=buf.split('\\n\\n');buf=ps.pop();for(var i=0;i<ps.length;i++)\{if(!ps[i].trim())continue;var ev='',data='',ls=ps[i].split('\\n');for(var j=0;j<ls.length;j++)\{if(ls[j].indexOf('event: ')===0)ev=ls[j].slice(7);else if(ls[j].indexOf('data: ')===0)data=ls[j].slice(6)}if(!ev)continue;var sp=ev.indexOf(' ');if(sp<0)continue;var act=ev.slice(0,sp);var nm=ev.slice(sp+2);if(act==='del')removeCounter(nm);else upsertCounter(nm,data)}}}catch(x)\{}setTimeout(connect,2000)}connect()"
+      "async function loadInitial()\{try\{var r=await fetch(KIDS);var j=await r.json();for(var i=0;i<j.files.length;i++)\{var n=j.files[i];var v=await fetch(API+'/'+n+'?mark=txt');upsertCounter(n,await v.text())}}catch(x)\{}}"
+      "async function connect()\{try\{var r=await fetch(KEEP,\{headers:\{Accept:'text/event-stream'}});var R=r.body.getReader();var d=new TextDecoder();var buf='';while(true)\{var c=await R.read();if(c.done)break;buf+=d.decode(c.value,\{stream:true});var ps=buf.split('\\n\\n');buf=ps.pop();for(var i=0;i<ps.length;i++)\{if(!ps[i].trim())continue;var ev='',data='',ls=ps[i].split('\\n');for(var j=0;j<ls.length;j++)\{if(ls[j].indexOf('event: ')===0)ev=ls[j].slice(7);else if(ls[j].indexOf('data: ')===0)data=ls[j].slice(6)}if(!ev)continue;var sp=ev.indexOf(' ');if(sp<0)continue;var act=ev.slice(0,sp);var nm=ev.slice(sp+2);if(act==='del')removeCounter(nm);else upsertCounter(nm,data)}}}catch(x)\{}setTimeout(connect,2000)}loadInitial().then(connect)"
     ==
   ;html
     ;head
