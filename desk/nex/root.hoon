@@ -5,15 +5,15 @@
 ++  on-load
   |=  [=sand:nexus =ball:tarball]
   ^-  [sand:nexus ball:tarball]
-  ::  Create /root directory with system processes
-  =?  ball  =(~ (~(get of ball) /root))
-    (~(put of ball) /root [~ ~ ~])
-  =?  ball  =(~ (~(get ba:tarball ball) [/root %main]))
-    (~(put ba:tarball ball) [/root %main] [~ %sig !>(~)])
-  =?  ball  =(~ (~(get ba:tarball ball) [/root %marks]))
-    (~(put ba:tarball ball) [/root %marks] [~ %sig !>(~)])
-  =?  ball  =(~ (~(get ba:tarball ball) [/root %nexuses]))
-    (~(put ba:tarball ball) [/root %nexuses] [~ %sig !>(~)])
+  ::  Create /sys directory with system processes
+  =?  ball  =(~ (~(get of ball) /sys))
+    (~(put of ball) /sys [~ ~ ~])
+  =?  ball  =(~ (~(get ba:tarball ball) [/sys %main]))
+    (~(put ba:tarball ball) [/sys %main] [~ %sig !>(~)])
+  =?  ball  =(~ (~(get ba:tarball ball) [/sys %marks]))
+    (~(put ba:tarball ball) [/sys %marks] [~ %sig !>(~)])
+  =?  ball  =(~ (~(get ba:tarball ball) [/sys %nexuses]))
+    (~(put ba:tarball ball) [/sys %nexuses] [~ %sig !>(~)])
   ::  Create /server directory with neck=%server
   =?  ball  =(~ (~(get of ball) /server))
     (~(put of ball) /server [~ `%server ~])
@@ -51,12 +51,12 @@
   =/  m  (fiber:fiber:nexus ,~)
   ^-  process:fiber:nexus
   ?+    rail  stay:m
-      [[%root ~] %main]
-    ;<  ~  bind:m  (rise-wait:io prod "%root /main: failed, poke to restart")
+      [[%sys ~] %main]
+    ;<  ~  bind:m  (rise-wait:io prod "%sys /main: failed, poke to restart")
     stay:m
   ::
-      [[%root ~] %marks]
-    ;<  ~  bind:m  (rise-wait:io prod "%root /marks: failed, poke to restart")
+      [[%sys ~] %marks]
+    ;<  ~  bind:m  (rise-wait:io prod "%sys /marks: failed, poke to restart")
     ::  Watch /mar for file additions/removals and rebuild marks.
     ::  Uses %y (directory listing) not %z (content hash) to avoid
     ::  infinite loops — %ca scries in rebuild update Clay's build
@@ -68,14 +68,14 @@
     ;<  =riot:clay  bind:m
       (warp:io our desk ~ %next %y da+now /mar)
     ?~  riot  stay:m
-    ~&  >  "%root /marks: marks changed, rebuilding"
+    ~&  >  "%sys /marks: marks changed, rebuilding"
     ;<  ~  bind:m
-      (gall-poke-our:io %grubbery rebuild-marks+!>(~))
+      (gall-poke-our:io %grubbery rebuild-caches+!>(~))
     ;<  now=@da  bind:m  get-time:io
     $
   ::
-      [[%root ~] %nexuses]
-    ;<  ~  bind:m  (rise-wait:io prod "%root /nexuses: failed, poke to restart")
+      [[%sys ~] %nexuses]
+    ;<  ~  bind:m  (rise-wait:io prod "%sys /nexuses: failed, poke to restart")
     ::  Watch /nex for file additions/removals and rebuild nexuses.
     ;<  our=@p  bind:m  get-our:io
     ;<  =desk   bind:m  get-desk:io
@@ -84,9 +84,9 @@
     ;<  =riot:clay  bind:m
       (warp:io our desk ~ %next %y da+now /nex)
     ?~  riot  stay:m
-    ~&  >  "%root /nexuses: nexus files changed, rebuilding"
+    ~&  >  "%sys /nexuses: nexus files changed, rebuilding"
     ;<  ~  bind:m
-      (gall-poke-our:io %grubbery rebuild-marks+!>(~))
+      (gall-poke-our:io %grubbery rebuild-caches+!>(~))
     ;<  now=@da  bind:m  get-time:io
     $
   ==

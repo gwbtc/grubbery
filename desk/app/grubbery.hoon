@@ -7,6 +7,8 @@
 /=  m-  /mar/tree
 /=  m-  /mar/sand
 /=  m-  /mar/sand
+/=  m-  /mar/dill-told
+/=  m-  /mar/dill-blit
 :: add /nex to the ford build cache for fast compilation
 ::
 /~  nex  nexus:nexus  /nex
@@ -43,7 +45,10 @@
   =/  init-ball=ball:tarball  [`[~ `%root ~] ~]  :: lump with neck=%root
   =^  cards  state
     abet:(reload:hc *pool:nexus init-ball *sand:nexus *born:nexus *subs:nexus)
-  [cards this]
+  =^  dill-cards  state
+    abet:sync-dill:hc
+  :_  this
+  (weld dill-cards cards)
 ::
 ++  on-save
   ^-  vase
@@ -61,7 +66,10 @@
       ball.old(fil `lmp(neck `%root))
     =^  cards  state
       abet:(reload:hc pool.old new-ball sand.old born.old subs.old)
-    [cards this]
+    =^  dill-cards  state
+      abet:sync-dill:hc
+    :_  this
+    (weld dill-cards cards)
   ==
 ::
 ++  on-poke
@@ -120,13 +128,20 @@
       abet:(poke:hc give [/server %main] handle-http-request+!>([eyre-id src.bowl req]))
     [cards this]
       ::
-      %rebuild-marks
-    ::  Rebuild all tube, dais, and nexus caches.
+      %rebuild-caches
+    ::  Rebuild all mark tube, dais, and nexus caches.
     ?>  =(src our):bowl
     =.  ball  (~(pub ba:tarball ball) /bin/tubes (rebuild-tubes:marks our.bowl q.byk.bowl now.bowl))
     =.  ball  (~(pub ba:tarball ball) /bin/daises (rebuild-daises:marks our.bowl q.byk.bowl now.bowl))
     =.  ball  (~(pub ba:tarball ball) /bin/nexuses (rebuild-nexuses:marks our.bowl q.byk.bowl now.bowl))
     [~ this]
+      ::
+      %refresh-sessions
+    ::  Scry for dill sessions, sync subscriptions and grubs
+    ?>  =(src our):bowl
+    =^  cards  state
+      abet:sync-dill:hc
+    [cards this]
   ==
 ::
 ++  on-watch
@@ -210,6 +225,17 @@
 ++  on-arvo
   |=  [=wire sign=sign-arvo]
   ^-  (quip card _this)
+  ?:  ?=([%dill-logs ~] wire)
+    ?>  ?=([%dill %logs *] sign)
+    =^  cards  state
+      abet:(save-file:hc [/sys %dill-logs] [~ %dill-told !>(told.sign)])
+    [cards this]
+  ?:  ?=([%dill-session @ ~] wire)
+    ?>  ?=([%dill %blit *] sign)
+    =/  ses=@tas  i.t.wire
+    =^  cards  state
+      abet:(save-file:hc [/sys/dill-sessions ses] [~ %dill-blit !>(p.sign)])
+    [cards this]
   =^  cards  state
     abet:(take-arvo:hc wire sign)
   [cards this]
@@ -1369,6 +1395,34 @@
   |=  [here=fold:tarball sub=ball:tarball]
   ^+  this
   (diff-balls here sub *ball:tarball)
+::  Subscribe to dill logs and sessions, create grubs for both.
+::
+++  sync-dill
+  ^+  this
+  ::  Create dill-logs grub and subscribe
+  =.  this  (save-file [/sys %dill-logs] [~ %dill-told !>(*told:dill)])
+  =.  this  (emit-card [%pass /dill-logs %arvo %d %logs `~])
+  ::  Scry for sessions
+  =/  sessions=(list @tas)
+    ~(tap in .^((set @tas) %dy /(scot %p our.bowl)/$/(scot %da now.bowl)/sessions))
+  ::  Unsubscribe from sessions no longer in dill
+  =/  old=(list @ta)  (~(lis ba:tarball ball) /sys/dill-sessions)
+  =/  new=(set @tas)  (~(gas in *(set @tas)) sessions)
+  =.  this
+    %-  emit-cards
+    %+  murn  old
+    |=  ses=@ta
+    ?:  (~(has in new) ses)  ~
+    `[%pass /dill-session/[ses] %arvo %d %shot ses %flee ~]
+  ::  Create grubs and subscribe
+  =.  this
+    %+  roll  sessions
+    |=  [ses=@tas acc=_this]
+    (save-file:acc [/sys/dill-sessions ses] [~ %dill-blit !>(*(list blit:dill))])
+  %-  emit-cards
+  %+  turn  sessions
+  |=(ses=@tas [%pass /dill-session/[ses] %arvo %d %shot ses %view ~])
+::
 ::  Save file state and bump ONLY if content actually changed.
 ::  This is the ONLY correct way to update file state.
 ::  Invariant: file aeon changes iff file content changes.

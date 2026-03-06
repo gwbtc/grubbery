@@ -26,6 +26,76 @@
 ::    1. Eyre on-leave sends %handle-http-cancel
 ::    2. Server removes connection, forwards cancel to handler rail
 ::
+::  =============================================================
+::  PLAN: Generic Ball HTTP API
+::  =============================================================
+::
+::  The $load type maps directly to HTTP operations on any ball
+::  path. Mark conversion is handled automatically by the runtime,
+::  and weir/sand handles authorization. No custom HTTP handler
+::  code needed — the ball IS the API.
+::
+::  Any request to /ball/... is interpreted as a ball operation
+::  against the root of the tarball tree.
+::
+::  Verb mapping:
+::
+::    GET  /ball/path/to/file          → %peek file
+::      Returns the grub's cage converted to response mime.
+::      ?mark=json    convert cage to %json before serving
+::      ?mark=txt     convert cage to %txt before serving
+::      (default: convert to %mime via cached tube)
+::
+::    GET  /ball/path/to/dir           → %peek directory
+::      ?as=list      flat listing of immediate children (names + marks)
+::      ?as=tree      recursive tree (names + marks, nested)
+::      ?as=tar       download entire subtree as tarball
+::      (default: list)
+::
+::    PUT  /ball/path/to/file          → %make file
+::      Request body is the file content.
+::      Content-Type header determines source mark (%mime).
+::      ?mark=hoon    convert mime to %hoon before storing
+::      ?mark=txt     convert mime to %txt before storing
+::      (no ?mark: store as %mime)
+::
+::    POST /ball/path/to/file          → %poke / %over / %diff
+::      ?op=poke      poke the grub's process
+::      ?op=over      overwrite content (runtime mark conversion)
+::      ?op=diff      same-mark content replacement, notify process
+::      (default: over)
+::
+::    DELETE /ball/path                 → %cull
+::      Deletes grub or directory at path.
+::
+::    PUT  /ball/path/to/dir           → %make directory
+::      Creates a new directory. Body ignored or contains
+::      initial ball structure.
+::
+::  SSE streams:
+::
+::    GET  /ball/path/to/file?stream   → %keep on file
+::      Opens an SSE channel. Each %diff/%over on the file emits:
+::        event: diff
+::        id: <born cass of file at change>
+::        data: <cage converted to ?mark or %txt>
+::
+::    GET  /ball/path/to/dir?stream    → %keep on directory
+::      Opens an SSE channel. Each file change in the subtree emits:
+::        event: <relative path of changed file>
+::        id: <born cass of that file at change>
+::        data: <cage converted to ?mark or %txt>
+::
+::  Authorization:
+::    All operations are filtered through the weir/sand system.
+::    The ball path determines which weir applies. No additional
+::    auth layer needed — the sandbox IS the access control.
+::
+::  Mark conversion:
+::    All conversions use cached tubes from /bin/tubes/.
+::    No Clay scries at request time.
+::  =============================================================
+::
 /+  nexus, tarball, io=fiberio, server, http-utils, nex-server
 !: :: turn on stack trace
 =<  ^-  nexus:nexus

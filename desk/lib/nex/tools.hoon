@@ -202,8 +202,8 @@
         ==
       ;<  ~  bind:m
         (replace:io !>([args.st %committing commit-data]))
-      ::  Subscribe to dill logs
-      ;<  ~  bind:m  (send-card:io %pass /dill-logs %arvo %d %logs `~)
+      ::  Watch /sys/dill-logs for log events from the agent
+      ;<  ~  bind:m  (keep:io /dill-logs [%& %& /sys %dill-logs] ~)
       ::  Set main timeout
       ;<  =bowl:nexus  bind:m  (get-bowl:io /bowl)
       ;<  ~  bind:m
@@ -212,7 +212,7 @@
       ;<  ~  bind:m  (gall-poke-our:io %hood kiln-commit+!>([mount-point %.n]))
       ::  If we survive, collect logs and finish
       ;<  ~  bind:m  collect-logs
-      ;<  ~  bind:m  (send-card:io %pass /dill-logs %arvo %d %logs ~)
+      ;<  ~  bind:m  (drop:io /dill-logs [%& %& /sys %dill-logs])
       ;<  st=tool-state  bind:m  (get-state-as:io ,tool-state)
       (finish-commit args.st data.st)
         ::  %committing: restarted after desk recompile
@@ -523,8 +523,8 @@
         ==
       ;<  ~  bind:m
         (replace:io !>([args.st %inserting write-data]))
-      ::  Subscribe to dill logs
-      ;<  ~  bind:m  (send-card:io %pass /dill-logs %arvo %d %logs `~)
+      ::  Watch /sys/dill-logs for log events from the agent
+      ;<  ~  bind:m  (keep:io /dill-logs [%& %& /sys %dill-logs] ~)
       ::  Set timeout
       ;<  =bowl:nexus  bind:m  (get-bowl:io /bowl)
       ;<  ~  bind:m
@@ -534,7 +534,7 @@
         (gall-poke-our:io %hood kiln-info+!>(["" `[dek %& [pax %ins mark !>(content)]~]]))
       ::  Collect logs and finish
       ;<  ~  bind:m  collect-logs
-      ;<  ~  bind:m  (send-card:io %pass /dill-logs %arvo %d %logs ~)
+      ;<  ~  bind:m  (drop:io /dill-logs [%& %& /sys %dill-logs])
       ;<  st=tool-state  bind:m  (get-state-as:io ,tool-state)
       (finish-clay-write args.st data.st)
         %inserting
@@ -628,8 +628,8 @@
         ==
       ;<  ~  bind:m
         (replace:io !>([args.st %editing write-data]))
-      ::  Subscribe to dill logs
-      ;<  ~  bind:m  (send-card:io %pass /dill-logs %arvo %d %logs `~)
+      ::  Watch /sys/dill-logs for log events from the agent
+      ;<  ~  bind:m  (keep:io /dill-logs [%& %& /sys %dill-logs] ~)
       ::  Set timeout
       ;<  =bowl:nexus  bind:m  (get-bowl:io /bowl)
       ;<  ~  bind:m
@@ -639,7 +639,7 @@
         (gall-poke-our:io %hood kiln-info+!>(["" `[dek %& [pax %ins mark !>(result)]~]]))
       ::  Collect logs and finish
       ;<  ~  bind:m  collect-logs
-      ;<  ~  bind:m  (send-card:io %pass /dill-logs %arvo %d %logs ~)
+      ;<  ~  bind:m  (drop:io /dill-logs [%& %& /sys %dill-logs])
       ;<  st=tool-state  bind:m  (get-state-as:io ,tool-state)
       (finish-clay-write args.st data.st)
         %editing
@@ -717,8 +717,8 @@
           ==
         ;<  ~  bind:m
           (replace:io !>([args.st %batch-editing write-data]))
-        ::  Subscribe to dill logs
-        ;<  ~  bind:m  (send-card:io %pass /dill-logs %arvo %d %logs `~)
+        ::  Watch /sys/dill-logs for log events from the agent
+        ;<  ~  bind:m  (keep:io /dill-logs [%& %& /sys %dill-logs] ~)
         ::  Set timeout
         ;<  =bowl:nexus  bind:m  (get-bowl:io /bowl)
         ;<  ~  bind:m
@@ -728,7 +728,7 @@
           (gall-poke-our:io %hood kiln-info+!>(["" `[dek %& ins]]))
         ::  Collect logs and finish
         ;<  ~  bind:m  collect-logs
-        ;<  ~  bind:m  (send-card:io %pass /dill-logs %arvo %d %logs ~)
+        ;<  ~  bind:m  (drop:io /dill-logs [%& %& /sys %dill-logs])
         ;<  st=tool-state  bind:m  (get-state-as:io ,tool-state)
         ::  Build result with file list
         ;<  res=tool-result  bind:m  (finish-clay-write args.st data.st)
@@ -1000,8 +1000,10 @@
     [%done %timeout ~]
       [~ %arvo [%commit-quiet @ ~] %behn %wake *]
     [%done %quiet (slav %ud i.t.wire.u.in)]
-      [~ %arvo [%dill-logs ~] %dill %logs *]
-    [%done %log told.sign.u.in]
+      [~ %news [%dill-logs ~] *]
+    ?.  ?=([%file *] view.u.in)  [%skip ~]
+    ?.  ?=(%dill-told p.cage.view.u.in)  [%skip ~]
+    [%done %log !<(told:dill q.cage.view.u.in)]
   ==
 ::
 ++  collect-logs

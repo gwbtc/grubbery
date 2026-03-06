@@ -56,8 +56,6 @@
         ;<  =bowl:nexus  bind:m  (get-bowl:io /bowl)
         =/  prefix=path  (url-prefix (snip path.here.bowl))
         ;<  ~  bind:m  (bind-http:nex-server [~ prefix])
-        ;<  ~  bind:m  (bind-http:nex-server [~ (weld prefix /delete)])
-        ;<  ~  bind:m  (bind-http:nex-server [~ (weld prefix /stream)])
         (http-dispatch:nex-server %counter)
           ::  /ui/requests/*: individual request handlers
           ::
