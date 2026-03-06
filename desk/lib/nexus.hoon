@@ -789,6 +789,22 @@
       ['poke' [%a (turn ~(tap in poke.weir) road-to-json)]]
       ['peek' [%a (turn ~(tap in peek.weir) road-to-json)]]
   ==
+++  road-from-json
+  |=  =json
+  ^-  road:tarball
+  ?>  ?=([%s *] json)
+  [%& %| (stab p.json)]
+++  weir-from-json
+  |=  =json
+  ^-  weir
+  =/  [make=(list road:tarball) poke=(list road:tarball) peek=(list road:tarball)]
+    %.  json
+    %-  ot:dejs:format
+    :~  ['make' (ar:dejs:format road-from-json)]
+        ['poke' (ar:dejs:format road-from-json)]
+        ['peek' (ar:dejs:format road-from-json)]
+    ==
+  [(~(gas in *(set road:tarball)) make) (~(gas in *(set road:tarball)) poke) (~(gas in *(set road:tarball)) peek)]
 ++  sand-to-json
   |=  s=sand
   ^-  json
