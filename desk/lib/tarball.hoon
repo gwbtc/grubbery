@@ -441,6 +441,24 @@
   :-  ~
   :-  neck.u.fil.b
   (~(run by contents.u.fil.b) |=(c=content p.cage.c))
+::  Convert tree to json
+::
+++  tree-to-json
+  |=  tre=tree
+  ^-  json
+  =/  subdirs=json
+    [%o (~(run by dir.tre) tree-to-json)]
+  ?~  fil.tre
+    (pairs:enjs:format ~[['dirs' subdirs]])
+  =/  files=json
+    [%o (~(run by files.u.fil.tre) |=(m=@tas s+m))]
+  =/  neck=json
+    ?~(neck.u.fil.tre ~ s+u.neck.u.fil.tre)
+  %-  pairs:enjs:format
+  :~  ['neck' neck]
+      ['files' files]
+      ['dirs' subdirs]
+  ==
 ::
 ++  ba
   |_  b=ball
@@ -840,9 +858,8 @@
   ++  cage-to-mime
     |=  =cage
     ^-  mime
-    ::  Never export temp cages (backup check)
     ?:  =(%temp p.cage)
-      ~|("attempted to export %temp cage" !!)
+      [/application/x-urb-jam (as-octs:mimes:html (jam q.cage))]
     =/  key=mars:clay  [a=p.cage b=%mime]
     ?~  tube=(~(get by conversions) key)
       ::  No conversion available, fall back to jamming like mar/noun.hoon

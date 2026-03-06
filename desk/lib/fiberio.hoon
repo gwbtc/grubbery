@@ -622,18 +622,18 @@
   ?:  =(%mime p.cage)
     (pure:m !<(mime q.cage))
   ?:  =(%temp p.cage)
-    (pure:m [/text/plain (as-octs:mimes:html (crip (noah q.cage)))])
+    (pure:m [/application/x-urb-jam (as-octs:mimes:html (jam q.cage))])
   =/  =mars:clay  [p.cage %mime]
   ;<  tube=(unit tube:clay)  bind:m
     (get-tube mars)
   ?~  tube
-    (pure:m [/application/octet-stream (as-octs:mimes:html (jam q.cage))])
+    (pure:m [/application/x-urb-jam (as-octs:mimes:html (jam q.cage))])
   =/  result=(each vase tang)  (mule |.((u.tube q.cage)))
   ?:  ?=(%| -.result)
-    (pure:m [/application/octet-stream (as-octs:mimes:html (jam q.cage))])
+    (pure:m [/application/x-urb-jam (as-octs:mimes:html (jam q.cage))])
   =/  extracted  (mule |.(!<(mime p.result)))
   ?:  ?=(%| -.extracted)
-    (pure:m [/application/octet-stream (as-octs:mimes:html (jam q.cage))])
+    (pure:m [/application/x-urb-jam (as-octs:mimes:html (jam q.cage))])
   (pure:m p.extracted)
 ::  Gall agent operations (via syscalls)
 ::

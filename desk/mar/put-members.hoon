@@ -1,5 +1,4 @@
-::  ships: a set of ship identities
-::  text format: space-separated @p values, e.g. "~zod ~bus ~nec"
+::  put-members: replace entire group membership
 ::
 |_  ships=(set @p)
 ++  grab

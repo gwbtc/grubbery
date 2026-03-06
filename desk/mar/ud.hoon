@@ -12,9 +12,9 @@
 ++  grow
   |%
   ++  noun  val
+  ++  txt  ~[(crip (a-co:co val))]
   ++  mime
     ^-  ^mime
-    =/  txt=wain  ~[(crip (a-co:co val))]
     [/text/plain (as-octs:mimes:html (of-wain:format txt))]
   --
 ++  grad  %noun

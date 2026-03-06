@@ -71,74 +71,14 @@
         =/  prefix=path  (url-prefix (snip (snip path.here.bowl)))
         =/  =request-line:server  (parse-request-line:server url.request.req)
         =/  suffix=path  (slag (lent prefix) site.request-line)
-        ?+    suffix
-          ;<  ~  bind:m  (send-simple:srv eyre-id [[404 ~] `(as-octs:mimes:html 'Not Found')])
+        ::  Serve counter page from view grub
+        ;<  =seen:nexus  bind:m  (peek:io /peek [%| 2 %& /ui/views %page] ~)
+        ?.  ?=([%& %file *] seen)
+          ;<  ~  bind:m  (send-simple:srv eyre-id [[500 ~] `(as-octs:mimes:html 'View not ready')])
           (pure:m ~)
-        ::
-            ~
-          ?:  ?=(%'POST' method.request.req)
-            ::  Create a new counter
-            =/  counter-name=@ta  (scot %da now.bowl)
-            ;<  ~  bind:m  (make:io /make [%| 2 %& /counters counter-name] |+[ud+!>(0) ~])
-            ;<  ~  bind:m  (send-simple:srv eyre-id two-oh-four:http-utils)
-            (pure:m ~)
-          ::  Serve counter page from view grub
-          ;<  =seen:nexus  bind:m  (peek:io /peek [%| 2 %& /ui/views %page] ~)
-          ?.  ?=([%& %file *] seen)
-            ;<  ~  bind:m  (send-simple:srv eyre-id [[500 ~] `(as-octs:mimes:html 'View not ready')])
-            (pure:m ~)
-          =/  =mime  !<(mime q.cage.p.seen)
-          ;<  ~  bind:m  (send-simple:srv eyre-id (mime-response:http-utils mime))
-          (pure:m ~)
-        ::
-            [%delete ~]
-          ?.  ?=(%'POST' method.request.req)
-            ;<  ~  bind:m  (send-simple:srv eyre-id [[405 ~] ~])
-            (pure:m ~)
-          =/  bod=(unit octs)  body.request.req
-          ?~  bod
-            ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'Missing body')])
-            (pure:m ~)
-          =/  params=(list [@t @t])  (fall (rush q.u.bod yquy:de-purl:html) ~)
-          =/  id=(unit @t)
-            |-
-            ?~  params  ~
-            =/  [key=@t val=@t]  i.params
-            ?:  =('id' key)  `val
-            $(params t.params)
-          ?~  id
-            ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'Missing id')])
-            (pure:m ~)
-          =/  counter-name=@ta  u.id
-          ;<  ~  bind:m  (cull:io /cull [%| 2 %& /counters counter-name])
-          ;<  ~  bind:m  (send-simple:srv eyre-id two-oh-four:http-utils)
-          (pure:m ~)
-        ::
-            [%stream ~]
-          ?.  (is-sse-request:http-utils req)
-            ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'SSE only')])
-            (pure:m ~)
-          ;<  ~  bind:m  (send-header:srv eyre-id sse-header:http-utils)
-          ::  Subscribe to /counters directory
-          ;<  ~  bind:m  (keep:io /counters [%| 2 %| /counters] ~)
-          ::  Start keep-alive timer
-          ;<  ~  bind:m  (send-wait:io (add now.bowl ~s30))
-          |-
-          ;<  nw=news-or-wake:io  bind:m  (take-news-or-wake:io /counters)
-          ?-  -.nw
-              %wake
-            ;<  ~  bind:m  (send-data:srv eyre-id `sse-keep-alive:http-utils)
-            ;<  =bowl:nexus  bind:m  (get-bowl:io /sse)
-            ;<  ~  bind:m  (send-wait:io (add now.bowl ~s30))
-            $
-              %news
-            =/  =sse-event:http-utils
-              [~ `'counters-update' (manx-to-wain:http-utils (render-counters prefix view.nw))]
-            =/  data=octs  (sse-encode:http-utils ~[sse-event])
-            ;<  ~  bind:m  (send-data:srv eyre-id `data)
-            $
-          ==
-        ==
+        =/  =mime  !<(mime q.cage.p.seen)
+        ;<  ~  bind:m  (send-simple:srv eyre-id (mime-response:http-utils mime))
+        (pure:m ~)
       ==
     --
 |%
@@ -153,58 +93,36 @@
 ::
 ++  srv  ~(. res:nex-server [%| 1 %& ~ %main])
 ::
-++  render-counters
-  |=  [prefix=path =view:nexus]
-  ^-  manx
-  ?.  ?=(%ball -.view)
-    ;div#counters: No counters
-  =/  files=(list [key=@ta =content:tarball])
-    ?~  fil.ball.view  ~
-    %+  sort  ~(tap by contents.u.fil.ball.view)
-    |=  [[a=@ta *] [b=@ta *]]
-    (lth (slav %da a) (slav %da b))
-  =/  del-url=tape  (spud (weld prefix /delete))
-  ;div#counters
-    ;*  %+  turn  files
-        |=  [key=@ta =content:tarball]
-        ^-  manx
-        =/  val=@ud  !<(@ud q.cage.content)
-        ;div.counter.fc.fh.g2.p2.b1.br1.jcsb
-          ;div.fc-col
-            ;span.s7.bold: {(scow %ud val)}
-            ;span.s9.muted: {(scow %da (slav %da key))}
-          ==
-          ;form(hx-post del-url, hx-swap "none")
-            ;input(type "hidden", name "id", value (trip key));
-            ;button.p-1.b1.br1.hover.pointer.s9(type "submit"): Delete
-          ==
-        ==
-  ==
-::
 ++  counter-page
   |=  prefix=path
   ^-  manx
-  =/  base-url=tape  (spud prefix)
-  =/  stream-url=tape  (spud (weld prefix /stream))
+  =/  api=tape  "/grubbery/api/file/counter/counters"
+  =/  keep=tape  "/grubbery/api/keep/counter/counters"
+  =/  js=tape
+    ;:  weld
+      "var API='{api}';"
+      "var KEEP='{keep}';"
+      "document.getElementById('create').onclick=function()\{fetch(API+'/'+Date.now().toString(36)+'?mark=ud',\{method:'PUT',headers:\{'Content-Type':'text/plain'},body:'0'})};"
+      "function removeCounter(n)\{var e=document.getElementById('c-'+n);if(e)e.remove();if(!document.querySelector('.counter'))document.getElementById('counters').textContent='No counters'}"
+      "function deleteCounter(n)\{fetch(API+'/'+n,\{method:'DELETE'});removeCounter(n)}"
+      "function upsertCounter(n,v)\{var b=document.getElementById('counters');var e=document.getElementById('c-'+n);if(!e)\{if(b.textContent==='Connecting...'||b.textContent==='No counters')b.textContent='';e=document.createElement('div');e.id='c-'+n;e.className='counter fc fh g2 p2 b1 br1 jcsb';b.appendChild(e)}e.innerHTML='<div class=\"fc-col\"><span class=\"s7 bold\">'+v+'</span><span class=\"s9 muted\">'+n+'</span></div><button class=\"p-1 b1 br1 hover pointer s9\" onclick=\"deleteCounter(\\x27'+n+'\\x27)\">Delete</button>'}"
+      "async function connect()\{try\{var r=await fetch(KEEP,\{headers:\{Accept:'text/event-stream'}});var R=r.body.getReader();var d=new TextDecoder();var buf='';while(true)\{var c=await R.read();if(c.done)break;buf+=d.decode(c.value,\{stream:true});var ps=buf.split('\\n\\n');buf=ps.pop();for(var i=0;i<ps.length;i++)\{if(!ps[i].trim())continue;var ev='',data='',ls=ps[i].split('\\n');for(var j=0;j<ls.length;j++)\{if(ls[j].indexOf('event: ')===0)ev=ls[j].slice(7);else if(ls[j].indexOf('data: ')===0)data=ls[j].slice(6)}if(!ev)continue;var sp=ev.indexOf(' ');if(sp<0)continue;var act=ev.slice(0,sp);var nm=ev.slice(sp+2);if(act==='del')removeCounter(nm);else upsertCounter(nm,data)}}}catch(x)\{}setTimeout(connect,2000)}connect()"
+    ==
   ;html
     ;head
       ;title: Grubbery Counters
       ;meta(charset "utf-8");
       ;meta(name "viewport", content "width=device-width, initial-scale=1");
-      ;script(src "https://unpkg.com/htmx.org@2.0.3");
-      ;script(src "https://unpkg.com/htmx-ext-sse@2.2.2/sse.js");
-      ;+  feather:feather
       ;style
         ;+  ;/  "body \{ font-family: monospace; max-width: 600px; margin: 0 auto; padding: 2rem; } .counter \{ margin-bottom: 0.5rem; } .muted \{ opacity: 0.5; } .fc \{ display: flex; } .fh \{ flex-direction: row; } .fc-col \{ display: flex; flex-direction: column; } .g2 \{ gap: 0.5rem; } .p2 \{ padding: 0.5rem; } .p-1 \{ padding: 0.25rem 0.5rem; } .b1 \{ border: 1px solid #ccc; } .br1 \{ border-radius: 4px; } .jcsb \{ justify-content: space-between; align-items: center; } .s7 \{ font-size: 1.2rem; } .s9 \{ font-size: 0.8rem; } .bold \{ font-weight: bold; } .hover:hover \{ background: #eee; } .pointer \{ cursor: pointer; } .mb2 \{ margin-bottom: 1rem; }"
       ==
     ==
     ;body
       ;h1: Grubbery Counters
-      ;form.mb2(hx-post base-url, hx-swap "none")
-        ;button.p2.b1.br1.hover.pointer(type "submit"): + New Counter
-      ==
-      ;div(hx-ext "sse", sse-connect stream-url, sse-swap "counters-update")
-        ;div#counters: Connecting...
+      ;button#create.mb2.p2.b1.br1.hover.pointer: + New Counter
+      ;div#counters: Connecting...
+      ;script
+        ;+  ;/  js
       ==
     ==
   ==

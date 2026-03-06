@@ -96,7 +96,7 @@
 ::    No Clay scries at request time.
 ::  =============================================================
 ::
-/+  nexus, tarball, io=fiberio, server, http-utils, nex-server
+/+  nexus, tarball, io=fiberio, server, http-utils, html-utils, nex-server
 !: :: turn on stack trace
 =<  ^-  nexus:nexus
     |%
@@ -105,9 +105,10 @@
       ^-  [sand:nexus ball:tarball]
       =/  fresh=server-state:nex-server  [%0 ~ ~]
       =/  existing  (~(get ba:tarball ball) [/ %main])
-      ?^  existing
-        [sand ball]
-      =.  ball  (~(put ba:tarball ball) [/ %main] [~ %server-state !>(fresh)])
+      =?  ball  =(~ existing)
+        (~(put ba:tarball ball) [/ %main] [~ %server-state !>(fresh)])
+      =?  ball  =(~ (~(get of ball) /requests))
+        (~(put of ball) /requests [~ ~ ~])
       [sand ball]
     ::
     ++  on-file
@@ -116,8 +117,21 @@
       |=  =prod:fiber:nexus
       =/  m  (fiber:fiber:nexus ,~)
       ^-  process:fiber:nexus
-      ?.  ?=([~ %main] rail)  stay:m
+      ?+    rail  stay:m
+          [[%requests ~] @]
+        ;<  ~  bind:m  (rise-wait:io prod "%server /requests: failed")
+        =/  eyre-id=@ta  name.rail
+        ;<  [src=@p req=inbound-request:eyre]  bind:m  (get-state-as:io ,[src=@p inbound-request:eyre])
+        =/  =request-line:server  (parse-request-line:server url.request.req)
+        (handle-ball-api eyre-id src req request-line)
+      ::
+          [~ %main]
       ;<  ~  bind:m  (rise-wait:io prod "%server /main: failed, poke to restart")
+      ~&  >  "%server /main: binding /grubbery/api"
+      ;<  =dude:gall  bind:m  get-agent:io
+      ;<  ~  bind:m
+        %-  send-cards:io
+        [%pass /eyre-api %arvo %e %connect [~ /grubbery/api] dude]~
       ~&  >  "%server /main: ready"
       |-
       ;<  [=from:fiber:nexus =cage]  bind:m  take-poke-from:io
@@ -236,6 +250,12 @@
           !<([eyre-id=@ta @p inbound-request:eyre] q.cage)
         ~&  >  [%server-request eyre-id url.request.req]
         =/  =request-line:server  (parse-request-line:server url.request.req)
+        ::  Ball API: dispatch to /requests/{eyre-id} fiber
+        ::
+        ?:  ?=([%grubbery %api *] site.request-line)
+          ;<  ~  bind:m
+            (make:io /api [%| 0 %& /requests eyre-id] |+[http-request+!>([src req]) ~])
+          $
         =/  match=(unit [=binding:eyre handler=rail:tarball])
           (find-binding bindings.st request-line)
         ?~  match
@@ -260,15 +280,504 @@
         =.  connections.st  (~(del by connections.st) eyre-id)
         ;<  ~  bind:m  (replace:io !>(st))
         ::  Forward cancel to handler
-        ?~  conn-binding  $
+        ::  Ball API requests don't use the binding system — cull the
+        ::  request fiber directly so SSE loops terminate on disconnect.
+        ?~  conn-binding
+          ;<  ~  bind:m  (cull:io /cancel [%| 0 %& /requests eyre-id])
+          $
         =/  handler=rail:tarball
           (fall (~(get by bindings.st) u.conn-binding) *rail:tarball)
         =/  =road:tarball  [%& %& handler]
         ;<  ~  bind:m  (poke:io /cancel road handle-http-cancel+!>(eyre-id))
         $
       ==
+      ==
     --
 |%
+::  +handle-ball-api: route /grubbery/api requests by HTTP method
+::
+++  handle-ball-api
+  |=  [eyre-id=@ta src=@p req=inbound-request:eyre rl=request-line:server]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  ;<  our=@p  bind:m  get-our:io
+  ?.  =(src our)
+    (send-error eyre-id 403 'Forbidden')
+  ?>  ?=([%grubbery %api *] site.rl)
+  =/  rest=path  t.t.site.rl
+  =/  args=(list [key=@t value=@t])  args.rl
+  ::  Route by first segment: file, kids, tree, tar, dir
+  ?~  rest
+    (send-error eyre-id 400 'Missing endpoint: file, kids, tree, tar, dir')
+  =/  endpoint=@tas  i.rest
+  ::  Re-append URL extension — eyre's apat strips ".ext" from last segment
+  =/  api-path=path
+    =/  segs=path  t.rest
+    ?.  &(?=(^ ext.rl) ?=(^ segs))  segs
+    (snoc (snip `path`segs) (crip "{(trip (rear segs))}.{(trip u.ext.rl)}"))
+  ?+    [method.request.req endpoint]
+      (send-error eyre-id 405 'Method Not Allowed')
+  ::  GET /file/... — peek file, convert to mime
+      [%'GET' %file]   (serve-file-peek eyre-id api-path args)
+  ::  GET /kids/... — immediate children (files + subdirs)
+      [%'GET' %kids]   (serve-kids eyre-id api-path)
+  ::  GET /tree/... — recursive tree with marks
+      [%'GET' %tree]   (serve-tree eyre-id api-path)
+  ::  GET /tar/...  — tarball download
+      [%'GET' %tar]    (serve-tar eyre-id api-path)
+  ::  PUT /file/... — create file
+      [%'PUT' %file]   (serve-file-make eyre-id api-path args body.request.req)
+  ::  PUT /dir/...  — create directory
+      [%'PUT' %dir]    (serve-dir-make eyre-id api-path)
+  ::  POST /poke/... — poke file process
+      [%'POST' %poke]   (serve-post eyre-id api-path args body.request.req %poke)
+  ::  POST /over/... — overwrite file content
+      [%'POST' %over]   (serve-post eyre-id api-path args body.request.req %over)
+  ::  POST /diff/... — same-mark diff, notify process
+      [%'POST' %diff]   (serve-post eyre-id api-path args body.request.req %diff)
+  ::  GET /keep/... — SSE stream of changes
+      [%'GET' %keep]    (serve-keep eyre-id api-path req)
+  ::  DELETE /file/... — delete file
+      [%'DELETE' %file]  (serve-file-cull eyre-id api-path)
+  ::  DELETE /dir/...  — delete directory
+      [%'DELETE' %dir]   (serve-dir-cull eyre-id api-path)
+  ==
+::  +send-error: respond with HTTP error
+::
+++  send-error
+  |=  [eyre-id=@ta code=@ud msg=@t]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  ;<  ~  bind:m
+    %-  send-cards:io
+    (give-simple-payload:app:server eyre-id [[code ~] `(as-octs:mimes:html msg)])
+  (pure:m ~)
+::  +send-json: respond with JSON body
+::
+++  send-json
+  |=  [eyre-id=@ta =json]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  =/  bod=octs  (as-octs:mimes:html (en:json:html json))
+  ;<  ~  bind:m
+    %-  send-cards:io
+    (give-simple-payload:app:server eyre-id (mime-response:http-utils [/application/json bod]))
+  (pure:m ~)
+::  +peek-root: peek the root ball
+::
+++  peek-root
+  |=  eyre-id=@ta
+  =/  m  (fiber:fiber:nexus ,(unit ball:tarball))
+  ^-  form:m
+  ;<  root-seen=seen:nexus  bind:m  (peek:io /peek [%& %| ~] ~)
+  ?.  ?=([%& %ball *] root-seen)
+    (pure:m ~)
+  (pure:m `ball.p.root-seen)
+::  +serve-file-peek: GET /file — peek grub, convert to mime
+::
+++  serve-file-peek
+  |=  [eyre-id=@ta api-path=path args=(list [key=@t value=@t])]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  ?~  api-path
+    (send-error eyre-id 400 'File path required')
+  ;<  root=(unit ball:tarball)  bind:m  (peek-root eyre-id)
+  ?~  root
+    (send-error eyre-id 500 'Peek failed')
+  =/  parent=path  (snip `path`api-path)
+  =/  name=@ta  (rear api-path)
+  =/  parent-ball=ball:tarball  (~(dip ba:tarball u.root) parent)
+  =/  content-data=(unit content:tarball)
+    ?~  fil.parent-ball  ~
+    (~(get by contents.u.fil.parent-ball) name)
+  ?~  content-data
+    (send-error eyre-id 404 'Not found')
+  =/  =cage  cage.u.content-data
+  ::  ?mark= parameter: convert through intermediate mark before mime
+  =/  mark-param=(unit @t)  (get-key:kv:html-utils 'mark' args)
+  ?^  mark-param
+    =/  target-mark=@tas  u.mark-param
+    ;<  tube=(unit tube:clay)  bind:m  (get-tube:io [p.cage target-mark])
+    ?~  tube
+      (send-error eyre-id 400 'No tube for mark conversion')
+    =/  result=(each vase tang)  (mule |.((u.tube q.cage)))
+    ?:  ?=(%| -.result)
+      (send-error eyre-id 500 'Mark conversion failed')
+    =.  cage  [target-mark p.result]
+    ;<  =mime  bind:m  (cage-to-mime:io cage)
+    ;<  ~  bind:m
+      %-  send-cards:io
+      (give-simple-payload:app:server eyre-id (mime-response:http-utils mime))
+    (pure:m ~)
+  ;<  =mime  bind:m  (cage-to-mime:io cage)
+  ;<  ~  bind:m
+    %-  send-cards:io
+    (give-simple-payload:app:server eyre-id (mime-response:http-utils mime))
+  (pure:m ~)
+::  +serve-kids: GET /kids — immediate children (files + subdirs)
+::
+++  serve-kids
+  |=  [eyre-id=@ta api-path=path]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  ;<  root=(unit ball:tarball)  bind:m  (peek-root eyre-id)
+  ?~  root
+    (send-error eyre-id 500 'Peek failed')
+  =/  sub=(unit ball:tarball)  (~(dap ba:tarball u.root) api-path)
+  ?~  sub
+    (send-error eyre-id 404 'Not found')
+  =/  files=(list @ta)  (~(lis ba:tarball u.sub) /)
+  =/  subs=(list @ta)   (~(lss ba:tarball u.sub) /)
+  %+  send-json  eyre-id
+  %-  pairs:enjs:format
+  :~  ['files' [%a (turn files |=(n=@ta s+n))]]
+      ['dirs' [%a (turn subs |=(n=@ta s+n))]]
+  ==
+::  +serve-tree: GET /tree — recursive tree with marks
+::
+++  serve-tree
+  |=  [eyre-id=@ta api-path=path]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  ;<  root=(unit ball:tarball)  bind:m  (peek-root eyre-id)
+  ?~  root
+    (send-error eyre-id 500 'Peek failed')
+  =/  sub=(unit ball:tarball)  (~(dap ba:tarball u.root) api-path)
+  ?~  sub
+    (send-error eyre-id 404 'Not found')
+  (send-json eyre-id (tree-to-json:tarball (ball-to-tree:tarball u.sub)))
+::  +serve-tar: GET /tar — tarball download
+::
+++  serve-tar
+  |=  [eyre-id=@ta api-path=path]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  ;<  root-seen=seen:nexus  bind:m  (peek:io /peek [%& %| ~] ~)
+  ?.  ?=([%& %ball *] root-seen)
+    (send-error eyre-id 500 'Peek failed')
+  =/  root=ball:tarball  ball.p.root-seen
+  =/  sub=(unit ball:tarball)  (~(dap ba:tarball root) api-path)
+  ?~  sub
+    (send-error eyre-id 404 'Not found')
+  =/  sub-born=born:nexus  (~(dip of born.p.root-seen) api-path)
+  =/  stamped=ball:tarball  (stamp-mtimes:nexus sub-born u.sub)
+  ;<  now=@da  bind:m  get-time:io
+  ;<  conversions=(map mars:clay tube:clay)  bind:m
+    (get-mark-conversions:io stamped)
+  =/  tar=tarball:tarball
+    (~(make-tarball gen:tarball [now conversions]) api-path stamped)
+  =/  tar-data=octs  (encode-tarball:tarball tar)
+  =/  dir-name=tape
+    ?~(api-path "root" (trip (rear api-path)))
+  =/  headers=header-list:http
+    :~  ['content-type' 'application/x-tar']
+        ['content-disposition' (crip "attachment; filename=\"{dir-name}.tar\"")]
+    ==
+  ;<  ~  bind:m
+    %-  send-cards:io
+    (give-simple-payload:app:server eyre-id [[200 headers] `tar-data])
+  (pure:m ~)
+::  +serve-file-make: PUT /file — create file
+::
+++  serve-file-make
+  |=  [eyre-id=@ta api-path=path args=(list [key=@t value=@t]) body=(unit octs)]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  ?~  api-path
+    (send-error eyre-id 400 'File path required')
+  ?~  body
+    (send-error eyre-id 400 'Missing body')
+  =/  =rail:tarball  [(snip `path`api-path) (rear api-path)]
+  =/  =road:tarball  [%& %& rail]
+  ;<  exists=?  bind:m  (peek-exists:io /check road)
+  ?:  exists
+    (send-error eyre-id 409 'Already exists')
+  =/  mark-param=(unit @t)  (get-key:kv:html-utils 'mark' args)
+  =/  mime-cage=cage  [%mime !>(`mime`[/application/octet-stream u.body])]
+  ?~  mark-param
+    ;<  ~  bind:m  (make:io /make road [%| mime-cage ~])
+    ;<  ~  bind:m
+      %-  send-cards:io
+      (give-simple-payload:app:server eyre-id [[201 ~] `(as-octs:mimes:html 'Created')])
+    (pure:m ~)
+  =/  target-mark=@tas  u.mark-param
+  ;<  tube=(unit tube:clay)  bind:m  (get-tube:io [%mime target-mark])
+  ?~  tube
+    (send-error eyre-id 400 'No tube for mark conversion')
+  =/  result=(each vase tang)  (mule |.((u.tube q.mime-cage)))
+  ?:  ?=(%| -.result)
+    (send-error eyre-id 500 'Mark conversion failed')
+  =/  =cage  [target-mark p.result]
+  ;<  ~  bind:m  (make:io /make road [%| cage ~])
+  ;<  ~  bind:m
+    %-  send-cards:io
+    (give-simple-payload:app:server eyre-id [[201 ~] `(as-octs:mimes:html 'Created')])
+  (pure:m ~)
+::  +serve-dir-make: PUT /dir — create directory
+::
+++  serve-dir-make
+  |=  [eyre-id=@ta api-path=path]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  ?~  api-path
+    (send-error eyre-id 400 'Directory path required')
+  ::  Parse last segment for neck extension (e.g. blah.counter → blah with neck %counter)
+  =/  raw-name=@ta  (rear api-path)
+  =/  dir-ext=(unit @ta)  (parse-extension:tarball raw-name)
+  =/  dir-name=@ta
+    ?~  dir-ext  raw-name
+    =/  full=tape  (trip raw-name)
+    =/  ext-len=@ud  (add 1 (lent (trip u.dir-ext)))
+    (crip (scag (sub (lent full) ext-len) full))
+  =/  dir-path=path  (snoc (snip `path`api-path) dir-name)
+  =/  =road:tarball  [%& %| dir-path]
+  ;<  exists=?  bind:m  (peek-exists:io /check road)
+  ?:  exists
+    (send-error eyre-id 409 'Already exists')
+  =/  init-ball=ball:tarball
+    ?~  dir-ext
+      [`[~ ~ ~] ~]
+    [`[~ `u.dir-ext ~] ~]
+  ;<  ~  bind:m  (make:io /make road [%& *sand:nexus init-ball])
+  ;<  ~  bind:m
+    %-  send-cards:io
+    (give-simple-payload:app:server eyre-id [[201 ~] `(as-octs:mimes:html 'Created')])
+  (pure:m ~)
+::  +serve-post: POST /poke, /over, /diff — send dart to file
+::
+++  serve-post
+  |=  [eyre-id=@ta api-path=path args=(list [key=@t value=@t]) body=(unit octs) op=?(%poke %over %diff)]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  ?~  api-path
+    (send-error eyre-id 400 'File path required')
+  ?~  body
+    (send-error eyre-id 400 'Missing body')
+  =/  =road:tarball  [%& %& (snip `path`api-path) (rear api-path)]
+  ;<  exists=?  bind:m  (peek-exists:io /check road)
+  ?.  exists
+    (send-error eyre-id 404 'Not found')
+  =/  mark-param=(unit @t)  (get-key:kv:html-utils 'mark' args)
+  =/  mime-cage=cage  [%mime !>(`mime`[/application/octet-stream u.body])]
+  ?~  mark-param
+    ;<  ~  bind:m
+      ?-  op
+        %poke  (poke:io /post road mime-cage)
+        %over  (over:io /post road mime-cage)
+        %diff  (diff:io /post road mime-cage)
+      ==
+    ;<  ~  bind:m
+      %-  send-cards:io
+      (give-simple-payload:app:server eyre-id [[200 ~] `(as-octs:mimes:html 'OK')])
+    (pure:m ~)
+  =/  target-mark=@tas  u.mark-param
+  ;<  tube=(unit tube:clay)  bind:m  (get-tube:io [%mime target-mark])
+  ?~  tube
+    (send-error eyre-id 400 'No tube for mark conversion')
+  =/  result=(each vase tang)  (mule |.((u.tube q.mime-cage)))
+  ?:  ?=(%| -.result)
+    (send-error eyre-id 500 'Mark conversion failed')
+  =/  =cage  [target-mark p.result]
+  ;<  ~  bind:m
+    ?-  op
+      %poke  (poke:io /post road cage)
+      %over  (over:io /post road cage)
+      %diff  (diff:io /post road cage)
+    ==
+  ;<  ~  bind:m
+    %-  send-cards:io
+    (give-simple-payload:app:server eyre-id [[200 ~] `(as-octs:mimes:html 'OK')])
+  (pure:m ~)
+::  +serve-file-cull: DELETE /file — delete file
+::
+++  serve-file-cull
+  |=  [eyre-id=@ta api-path=path]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  ?~  api-path
+    (send-error eyre-id 400 'File path required')
+  =/  =road:tarball  [%& %& (snip `path`api-path) (rear api-path)]
+  ;<  exists=?  bind:m  (peek-exists:io /check road)
+  ?.  exists
+    (send-error eyre-id 404 'Not found')
+  ;<  ~  bind:m  (cull:io /cull road)
+  ;<  ~  bind:m
+    %-  send-cards:io
+    (give-simple-payload:app:server eyre-id [[200 ~] `(as-octs:mimes:html 'Deleted')])
+  (pure:m ~)
+::  +serve-dir-cull: DELETE /dir — delete directory
+::
+++  serve-dir-cull
+  |=  [eyre-id=@ta api-path=path]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  ?~  api-path
+    (send-error eyre-id 400 'Directory path required')
+  =/  =road:tarball  [%& %| api-path]
+  ;<  exists=?  bind:m  (peek-exists:io /check road)
+  ?.  exists
+    (send-error eyre-id 404 'Not found')
+  ;<  ~  bind:m  (cull:io /cull road)
+  ;<  ~  bind:m
+    %-  send-cards:io
+    (give-simple-payload:app:server eyre-id [[200 ~] `(as-octs:mimes:html 'Deleted')])
+  (pure:m ~)
+::  +serve-keep: GET /keep — SSE stream of changes
+::
+++  serve-keep
+  |=  [eyre-id=@ta api-path=path req=inbound-request:eyre]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  ?.  (is-sse-request:http-utils req)
+    (send-error eyre-id 400 'Requires Accept: text/event-stream')
+  =/  rl=request-line:server  (parse-request-line:server url.request.req)
+  =/  mark-param=(unit @t)  (get-key:kv:html-utils 'mark' args.rl)
+  ::  Send SSE response header
+  ;<  ~  bind:m
+    (send-cards:io [(give-sse-header:http-utils eyre-id) ~])
+  ::  Determine road: check if api-path points to a file
+  =/  file-road=(unit road:tarball)
+    ?~  api-path  ~
+    `[%& %& (snip `path`api-path) (rear api-path)]
+  ;<  is-file=?  bind:m
+    ?~  file-road  (pure:(fiber:fiber:nexus ,?) %.n)
+    (peek-exists:io /check u.file-road)
+  =/  =road:tarball
+    ?:  is-file  (need file-road)
+    [%& %| api-path]
+  ::  Subscribe to changes
+  ;<  ~  bind:m  (keep:io /keep road ~)
+  ::  Get initial born for directory diffing (peek same road we subscribed to)
+  ;<  initial-seen=seen:nexus  bind:m  (peek:io /initial road ~)
+  =/  prev-born=born:nexus
+    ?.  ?&(?=(%& -.initial-seen) ?=(%ball -.p.initial-seen))
+      *born:nexus
+    born.p.initial-seen
+  ::  Start keep-alive timer
+  ;<  =bowl:nexus  bind:m  (get-bowl:io /sse)
+  ;<  ~  bind:m  (send-wait:io (add now.bowl ~s30))
+  ::  Event loop
+  |-
+  ;<  nw=news-or-wake:io  bind:m  (take-news-or-wake:io /keep)
+  ?-    -.nw
+      %wake
+    ;<  ~  bind:m
+      (send-cards:io [(give-sse-keep-alive:http-utils eyre-id) ~])
+    ;<  =bowl:nexus  bind:m  (get-bowl:io /sse)
+    ;<  ~  bind:m  (send-wait:io (add now.bowl ~s30))
+    $
+  ::
+      %news
+    ?+    view.nw  $
+    ::  Single file changed
+        [%file *]
+      =/  =cage  cage.view.nw
+      =/  id=@t  (scot %ud ud.file.sack.view.nw)
+      =/  file-name=@t
+        ?~  api-path  '/'
+        (rear api-path)
+      =/  event-name=@t  (crip "upd {(trip file-name)}")
+      ;<  body=@t  bind:m  (cage-to-txt cage mark-param)
+      =/  data=wain  (to-wain:format body)
+      =/  =sse-event:http-utils  [`id `event-name data]
+      ;<  ~  bind:m
+        (send-cards:io [(give-sse-event:http-utils eyre-id sse-event) ~])
+      $
+    ::  Directory changed — diff born to find changed lanes
+        [%ball *]
+      =/  root=ball:tarball  ball.view.nw
+      =/  root-born=born:nexus  born.view.nw
+      =/  what=(set lane:tarball)  (diff-born-state:nexus prev-born root-born)
+      =/  old-born=born:nexus  prev-born
+      =.  prev-born  root-born
+      =/  lanes=(list lane:tarball)  ~(tap in what)
+      |-
+      ?~  lanes  ^$
+      ::  Skip directory lanes (TBD)
+      ?:  ?=(%| -.i.lanes)
+        $(lanes t.lanes)
+      ::  Lanes are relative to the subscribed subtree
+      =/  file-path=path  path.p.i.lanes
+      =/  file-name=@ta  name.p.i.lanes
+      =/  lane-path=@t  (spat (snoc file-path file-name))
+      ::  Get file cass from new born for event ID
+      =/  sub-born=born:nexus  (~(dip of root-born) file-path)
+      =/  file-sack=(unit sack:nexus)
+        ?~  fil.sub-born  ~
+        (~(get by bags.u.fil.sub-born) file-name)
+      =/  id=@t
+        ?~  file-sack  '0'
+        (scot %ud ud.file.u.file-sack)
+      ::  Check if lane existed in old born
+      =/  old-sub=born:nexus  (~(dip of old-born) file-path)
+      =/  old-sack=(unit sack:nexus)
+        ?~  fil.old-sub  ~
+        (~(get by bags.u.fil.old-sub) file-name)
+      ::  Get file content from the ball
+      =/  sub=ball:tarball  (~(dip ba:tarball root) file-path)
+      =/  ct=(unit content:tarball)
+        ?~  fil.sub  ~
+        (~(get by contents.u.fil.sub) file-name)
+      ?~  ct
+        ::  File gone — send delete event
+        =/  event-name=@t  (crip "del {(trip lane-path)}")
+        =/  =sse-event:http-utils  [`id `event-name ~['']]
+        ;<  ~  bind:m
+          (send-cards:io [(give-sse-event:http-utils eyre-id sse-event) ~])
+        $(lanes t.lanes)
+      ::  File exists — new or upd
+      =/  action=@t  ?~(old-sack 'new' 'upd')
+      =/  event-name=@t  (crip "{(trip action)} {(trip lane-path)}")
+      =/  =cage  cage.u.ct
+      ;<  body=@t  bind:m  (cage-to-txt cage mark-param)
+      =/  data=wain  (to-wain:format body)
+      =/  =sse-event:http-utils  [`id `event-name data]
+      ;<  ~  bind:m
+        (send-cards:io [(give-sse-event:http-utils eyre-id sse-event) ~])
+      $(lanes t.lanes)
+    ==
+  ==
+::  +cage-to-txt: convert cage to text for SSE data
+::
+::    With mark param: cage → target mark → txt
+::    Without: cage → txt directly
+::    Falls back to mime body extraction if no txt tube exists.
+::
+++  cage-to-txt
+  |=  [=cage mark-param=(unit @t)]
+  =/  m  (fiber:fiber:nexus ,@t)
+  ^-  form:m
+  ::  Step 1: optionally convert to intermediate mark
+  ?~  mark-param
+    (cage-to-txt-raw cage)
+  =/  target-mark=@tas  u.mark-param
+  ?:  =(p.cage target-mark)
+    (cage-to-txt-raw cage)
+  ;<  tube=(unit tube:clay)  bind:m  (get-tube:io [p.cage target-mark])
+  ?~  tube
+    (cage-to-txt-raw cage)
+  =/  result=(each vase tang)  (mule |.((u.tube q.cage)))
+  ?:  ?=(%| -.result)
+    (cage-to-txt-raw cage)
+  (cage-to-txt-raw [target-mark p.result])
+::  +cage-to-txt-raw: convert a single cage to @t
+::
+++  cage-to-txt-raw
+  |=  =cage
+  =/  m  (fiber:fiber:nexus ,@t)
+  ^-  form:m
+  ?:  =(%txt p.cage)
+    (pure:m (of-wain:format !<(wain q.cage)))
+  ;<  tube=(unit tube:clay)  bind:m  (get-tube:io [p.cage %txt])
+  ?~  tube
+    ::  Fallback: convert to mime and extract body as text
+    ;<  =mime  bind:m  (cage-to-mime:io cage)
+    (pure:m `@t`(end [3 p.q.mime] q.q.mime))
+  =/  result=(each vase tang)  (mule |.((u.tube q.cage)))
+  ?:  ?=(%| -.result)
+    ;<  =mime  bind:m  (cage-to-mime:io cage)
+    (pure:m `@t`(end [3 p.q.mime] q.q.mime))
+  (pure:m (of-wain:format !<(wain p.result)))
 ::  +find-suffix: returns [~ /tail] if :full is (weld :prefix /tail)
 ::
 ++  find-suffix

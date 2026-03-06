@@ -10,10 +10,8 @@
     (~(put of ball) /sys [~ ~ ~])
   =?  ball  =(~ (~(get ba:tarball ball) [/sys %main]))
     (~(put ba:tarball ball) [/sys %main] [~ %sig !>(~)])
-  =?  ball  =(~ (~(get ba:tarball ball) [/sys %marks]))
-    (~(put ba:tarball ball) [/sys %marks] [~ %sig !>(~)])
-  =?  ball  =(~ (~(get ba:tarball ball) [/sys %nexuses]))
-    (~(put ba:tarball ball) [/sys %nexuses] [~ %sig !>(~)])
+  =.  ball  (~(put ba:tarball ball) [/sys %marks] [~ %ud !>(0)])
+  =.  ball  (~(put ba:tarball ball) [/sys %nexuses] [~ %ud !>(0)])
   ::  Create /server directory with neck=%server
   =?  ball  =(~ (~(get of ball) /server))
     (~(put of ball) /server [~ `%server ~])
@@ -61,6 +59,8 @@
     ::  Uses %y (directory listing) not %z (content hash) to avoid
     ::  infinite loops — %ca scries in rebuild update Clay's build
     ::  cache which changes the %z hash.
+    ::  Dedup: read current listing after notification, compare to
+    ::  last-seen (stored in grub state), skip if unchanged.
     ;<  our=@p  bind:m  get-our:io
     ;<  =desk   bind:m  get-desk:io
     ;<  now=@da  bind:m  get-time:io
@@ -68,15 +68,24 @@
     ;<  =riot:clay  bind:m
       (warp:io our desk ~ %next %y da+now /mar)
     ?~  riot  stay:m
-    ~&  >  "%sys /marks: marks changed, rebuilding"
+    ;<  now=@da  bind:m  get-time:io
+    ;<  snap=riot:clay  bind:m
+      (warp:io our desk ~ %sing %w da+now /)
+    =/  cur-rev=@ud  ?~(snap 0 !<(@ud q.r.u.snap))
+    ;<  last-rev=@ud  bind:m  (get-state-as:io ,@ud)
+    ?:  =(cur-rev last-rev)
+      ~&  >  [%sys-marks %same-rev cur-rev]
+      $
+    ;<  ~  bind:m  (replace:io !>(cur-rev))
+    ~&  >  [%sys-marks %rebuilding cur-rev]
     ;<  ~  bind:m
       (gall-poke-our:io %grubbery rebuild-caches+!>(~))
-    ;<  now=@da  bind:m  get-time:io
     $
   ::
       [[%sys ~] %nexuses]
     ;<  ~  bind:m  (rise-wait:io prod "%sys /nexuses: failed, poke to restart")
     ::  Watch /nex for file additions/removals and rebuild nexuses.
+    ::  Same dedup pattern as marks watcher.
     ;<  our=@p  bind:m  get-our:io
     ;<  =desk   bind:m  get-desk:io
     ;<  now=@da  bind:m  get-time:io
@@ -84,10 +93,18 @@
     ;<  =riot:clay  bind:m
       (warp:io our desk ~ %next %y da+now /nex)
     ?~  riot  stay:m
-    ~&  >  "%sys /nexuses: nexus files changed, rebuilding"
+    ;<  now=@da  bind:m  get-time:io
+    ;<  snap=riot:clay  bind:m
+      (warp:io our desk ~ %sing %w da+now /)
+    =/  cur-rev=@ud  ?~(snap 0 !<(@ud q.r.u.snap))
+    ;<  last-rev=@ud  bind:m  (get-state-as:io ,@ud)
+    ?:  =(cur-rev last-rev)
+      ~&  >  [%sys-nexuses %same-rev cur-rev]
+      $
+    ;<  ~  bind:m  (replace:io !>(cur-rev))
+    ~&  >  [%sys-nexuses %rebuilding cur-rev]
     ;<  ~  bind:m
       (gall-poke-our:io %grubbery rebuild-caches+!>(~))
-    ;<  now=@da  bind:m  get-time:io
     $
   ==
 --

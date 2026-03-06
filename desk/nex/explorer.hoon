@@ -102,6 +102,12 @@
     ;<  ~  bind:m  (send-simple:srv eyre-id [[404 ~] `(as-octs:mimes:html 'Not found')])
     (pure:m ~)
   =/  =cage  cage.u.content-data
+  =/  pretty-param=(unit @t)  (get-key:kv:html-utils 'pretty' args)
+  ?^  pretty-param
+    ::  ?pretty: render noun as text instead of binary download
+    =/  bod=octs  (as-octs:mimes:html (crip (noah q.cage)))
+    ;<  ~  bind:m  (send-simple:srv eyre-id (mime-response:http-utils [/text/plain bod]))
+    (pure:m ~)
   ;<  =mime  bind:m  (cage-to-mime:io cage)
   ;<  ~  bind:m  (send-simple:srv eyre-id (mime-response:http-utils [p.mime q.mime]))
   (pure:m ~)
@@ -1021,14 +1027,14 @@
   =/  =mime
     ?:  =(%mime p.cag)
       !<(mime q.cag)
-    ?:  =(%temp p.cag)
-      [/text/plain (as-octs:mimes:html (crip (noah q.cag)))]
     (~(cage-to-mime gen:tarball [now conversions]) cag)
   =/  mime-raw=tape  (trip (spat p.mime))
   =/  mime-display=tape  ?~(mime-raw "" (tail mime-raw))
+  =/  is-binary=?  =(p.mime /application/x-urb-jam)
+  =/  view-url=tape  ?:(is-binary "{file-url}?pretty" file-url)
   ;tr(data-name (trip name), data-type "grub", data-size (scow %ud p.q.mime))
     ;td
-      ;a/"{file-url}": {display-name}
+      ;a/"{view-url}": {display-name}
     ==
     ;td: {mime-display}
     ;td: {(format-size p.q.mime)}

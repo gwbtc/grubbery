@@ -6,7 +6,7 @@
 /=  m-  /mar/kids
 /=  m-  /mar/tree
 /=  m-  /mar/sand
-/=  m-  /mar/sand
+/=  m-  /mar/ships
 /=  m-  /mar/dill-told
 /=  m-  /mar/dill-blit
 :: add /nex to the ford build cache for fast compilation
