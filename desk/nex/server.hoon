@@ -336,7 +336,7 @@
   ::  POST /diff/... — same-mark diff, notify process
       [%'POST' %diff]   (serve-post eyre-id api-path args body.request.req %diff)
   ::  GET /keep/... — SSE stream of changes
-      [%'GET' %keep]    (serve-keep eyre-id api-path req)
+      [%'GET' %keep]    (serve-keep eyre-id api-path args req)
   ::  DELETE /file/... — delete file
       [%'DELETE' %file]  (serve-file-cull eyre-id api-path)
   ::  DELETE /dir/...  — delete directory
@@ -348,10 +348,51 @@
   |=  [eyre-id=@ta code=@ud msg=@t]
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
-  ;<  ~  bind:m
-    %-  send-cards:io
-    (give-simple-payload:app:server eyre-id [[code ~] `(as-octs:mimes:html msg)])
-  (pure:m ~)
+  %-  send-cards:io
+  (give-simple-payload:app:server eyre-id [[code ~] `(as-octs:mimes:html msg)])
+::  +send-ok: respond with 200 and message
+::
+++  send-ok
+  |=  [eyre-id=@ta msg=@t]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  %-  send-cards:io
+  (give-simple-payload:app:server eyre-id [[200 ~] `(as-octs:mimes:html msg)])
+::  +send-created: respond with 201 Created
+::
+++  send-created
+  |=  eyre-id=@ta
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  %-  send-cards:io
+  (give-simple-payload:app:server eyre-id [[201 ~] `(as-octs:mimes:html 'Created')])
+::  +send-mime: respond with 200 and mime body
+::
+++  send-mime
+  |=  [eyre-id=@ta =mime]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  %-  send-cards:io
+  (give-simple-payload:app:server eyre-id (mime-response:http-utils mime))
+::  +maybe-convert: optionally convert cage through ?mark= param
+::    Returns ~ on error (error response already sent).
+::
+++  maybe-convert
+  |=  [eyre-id=@ta =cage mark-param=(unit @t)]
+  =/  m  (fiber:fiber:nexus ,(unit ^cage))
+  ^-  form:m
+  ?~  mark-param  (pure:m `cage)
+  =/  target-mark=@tas  u.mark-param
+  ?:  =(p.cage target-mark)  (pure:m `cage)
+  ;<  tube=(unit tube:clay)  bind:m  (get-tube:io [p.cage target-mark])
+  ?~  tube
+    ;<  ~  bind:m  (send-error eyre-id 400 'No tube for mark conversion')
+    (pure:m ~)
+  =/  result=(each vase tang)  (mule |.((u.tube q.cage)))
+  ?:  ?=(%| -.result)
+    ;<  ~  bind:m  (send-error eyre-id 500 'Mark conversion failed')
+    (pure:m ~)
+  (pure:m `[target-mark p.result])
 ::  +send-json: respond with JSON body
 ::
 ++  send-json
@@ -359,14 +400,11 @@
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
   =/  bod=octs  (as-octs:mimes:html (en:json:html json))
-  ;<  ~  bind:m
-    %-  send-cards:io
-    (give-simple-payload:app:server eyre-id (mime-response:http-utils [/application/json bod]))
-  (pure:m ~)
+  %-  send-cards:io
+  (give-simple-payload:app:server eyre-id (mime-response:http-utils [/application/json bod]))
 ::  +peek-root: peek the root ball
 ::
 ++  peek-root
-  |=  eyre-id=@ta
   =/  m  (fiber:fiber:nexus ,(unit ball:tarball))
   ^-  form:m
   ;<  root-seen=seen:nexus  bind:m  (peek:io /peek [%& %| ~] ~)
@@ -381,7 +419,7 @@
   ^-  form:m
   ?~  api-path
     (send-error eyre-id 400 'File path required')
-  ;<  root=(unit ball:tarball)  bind:m  (peek-root eyre-id)
+  ;<  root=(unit ball:tarball)  bind:m  peek-root
   ?~  root
     (send-error eyre-id 500 'Peek failed')
   =/  parent=path  (snip `path`api-path)
@@ -393,34 +431,18 @@
   ?~  content-data
     (send-error eyre-id 404 'Not found')
   =/  =cage  cage.u.content-data
-  ::  ?mark= parameter: convert through intermediate mark before mime
   =/  mark-param=(unit @t)  (get-key:kv:html-utils 'mark' args)
-  ?^  mark-param
-    =/  target-mark=@tas  u.mark-param
-    ;<  tube=(unit tube:clay)  bind:m  (get-tube:io [p.cage target-mark])
-    ?~  tube
-      (send-error eyre-id 400 'No tube for mark conversion')
-    =/  result=(each vase tang)  (mule |.((u.tube q.cage)))
-    ?:  ?=(%| -.result)
-      (send-error eyre-id 500 'Mark conversion failed')
-    =.  cage  [target-mark p.result]
-    ;<  =mime  bind:m  (cage-to-mime:io cage)
-    ;<  ~  bind:m
-      %-  send-cards:io
-      (give-simple-payload:app:server eyre-id (mime-response:http-utils mime))
-    (pure:m ~)
-  ;<  =mime  bind:m  (cage-to-mime:io cage)
-  ;<  ~  bind:m
-    %-  send-cards:io
-    (give-simple-payload:app:server eyre-id (mime-response:http-utils mime))
-  (pure:m ~)
+  ;<  converted=(unit ^cage)  bind:m  (maybe-convert eyre-id cage mark-param)
+  ?~  converted  (pure:m ~)
+  ;<  =mime  bind:m  (cage-to-mime:io u.converted)
+  (send-mime eyre-id mime)
 ::  +serve-kids: GET /kids — immediate children (files + subdirs)
 ::
 ++  serve-kids
   |=  [eyre-id=@ta api-path=path]
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
-  ;<  root=(unit ball:tarball)  bind:m  (peek-root eyre-id)
+  ;<  root=(unit ball:tarball)  bind:m  peek-root
   ?~  root
     (send-error eyre-id 500 'Peek failed')
   =/  sub=(unit ball:tarball)  (~(dap ba:tarball u.root) api-path)
@@ -439,7 +461,7 @@
   |=  [eyre-id=@ta api-path=path]
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
-  ;<  root=(unit ball:tarball)  bind:m  (peek-root eyre-id)
+  ;<  root=(unit ball:tarball)  bind:m  peek-root
   ?~  root
     (send-error eyre-id 500 'Peek failed')
   =/  sub=(unit ball:tarball)  (~(dap ba:tarball u.root) api-path)
@@ -473,10 +495,8 @@
     :~  ['content-type' 'application/x-tar']
         ['content-disposition' (crip "attachment; filename=\"{dir-name}.tar\"")]
     ==
-  ;<  ~  bind:m
-    %-  send-cards:io
-    (give-simple-payload:app:server eyre-id [[200 headers] `tar-data])
-  (pure:m ~)
+  %-  send-cards:io
+  (give-simple-payload:app:server eyre-id [[200 headers] `tar-data])
 ::  +serve-file-make: PUT /file — create file
 ::
 ++  serve-file-make
@@ -494,25 +514,10 @@
     (send-error eyre-id 409 'Already exists')
   =/  mark-param=(unit @t)  (get-key:kv:html-utils 'mark' args)
   =/  mime-cage=cage  [%mime !>(`mime`[/application/octet-stream u.body])]
-  ?~  mark-param
-    ;<  ~  bind:m  (make:io /make road [%| mime-cage ~])
-    ;<  ~  bind:m
-      %-  send-cards:io
-      (give-simple-payload:app:server eyre-id [[201 ~] `(as-octs:mimes:html 'Created')])
-    (pure:m ~)
-  =/  target-mark=@tas  u.mark-param
-  ;<  tube=(unit tube:clay)  bind:m  (get-tube:io [%mime target-mark])
-  ?~  tube
-    (send-error eyre-id 400 'No tube for mark conversion')
-  =/  result=(each vase tang)  (mule |.((u.tube q.mime-cage)))
-  ?:  ?=(%| -.result)
-    (send-error eyre-id 500 'Mark conversion failed')
-  =/  =cage  [target-mark p.result]
-  ;<  ~  bind:m  (make:io /make road [%| cage ~])
-  ;<  ~  bind:m
-    %-  send-cards:io
-    (give-simple-payload:app:server eyre-id [[201 ~] `(as-octs:mimes:html 'Created')])
-  (pure:m ~)
+  ;<  converted=(unit cage)  bind:m  (maybe-convert eyre-id mime-cage mark-param)
+  ?~  converted  (pure:m ~)
+  ;<  ~  bind:m  (make:io /make road [%| u.converted ~])
+  (send-created eyre-id)
 ::  +serve-dir-make: PUT /dir — create directory
 ::
 ++  serve-dir-make
@@ -539,10 +544,7 @@
       [`[~ ~ ~] ~]
     [`[~ `u.dir-ext ~] ~]
   ;<  ~  bind:m  (make:io /make road [%& *sand:nexus init-ball])
-  ;<  ~  bind:m
-    %-  send-cards:io
-    (give-simple-payload:app:server eyre-id [[201 ~] `(as-octs:mimes:html 'Created')])
-  (pure:m ~)
+  (send-created eyre-id)
 ::  +serve-post: POST /poke, /over, /diff — send dart to file
 ::
 ++  serve-post
@@ -559,35 +561,15 @@
     (send-error eyre-id 404 'Not found')
   =/  mark-param=(unit @t)  (get-key:kv:html-utils 'mark' args)
   =/  mime-cage=cage  [%mime !>(`mime`[/application/octet-stream u.body])]
-  ?~  mark-param
-    ;<  ~  bind:m
-      ?-  op
-        %poke  (poke:io /post road mime-cage)
-        %over  (over:io /post road mime-cage)
-        %diff  (diff:io /post road mime-cage)
-      ==
-    ;<  ~  bind:m
-      %-  send-cards:io
-      (give-simple-payload:app:server eyre-id [[200 ~] `(as-octs:mimes:html 'OK')])
-    (pure:m ~)
-  =/  target-mark=@tas  u.mark-param
-  ;<  tube=(unit tube:clay)  bind:m  (get-tube:io [%mime target-mark])
-  ?~  tube
-    (send-error eyre-id 400 'No tube for mark conversion')
-  =/  result=(each vase tang)  (mule |.((u.tube q.mime-cage)))
-  ?:  ?=(%| -.result)
-    (send-error eyre-id 500 'Mark conversion failed')
-  =/  =cage  [target-mark p.result]
+  ;<  converted=(unit cage)  bind:m  (maybe-convert eyre-id mime-cage mark-param)
+  ?~  converted  (pure:m ~)
   ;<  ~  bind:m
     ?-  op
-      %poke  (poke:io /post road cage)
-      %over  (over:io /post road cage)
-      %diff  (diff:io /post road cage)
+      %poke  (poke:io /post road u.converted)
+      %over  (over:io /post road u.converted)
+      %diff  (diff:io /post road u.converted)
     ==
-  ;<  ~  bind:m
-    %-  send-cards:io
-    (give-simple-payload:app:server eyre-id [[200 ~] `(as-octs:mimes:html 'OK')])
-  (pure:m ~)
+  (send-ok eyre-id 'OK')
 ::  +serve-file-cull: DELETE /file — delete file
 ::
 ++  serve-file-cull
@@ -601,10 +583,7 @@
   ?.  exists
     (send-error eyre-id 404 'Not found')
   ;<  ~  bind:m  (cull:io /cull road)
-  ;<  ~  bind:m
-    %-  send-cards:io
-    (give-simple-payload:app:server eyre-id [[200 ~] `(as-octs:mimes:html 'Deleted')])
-  (pure:m ~)
+  (send-ok eyre-id 'Deleted')
 ::  +serve-dir-cull: DELETE /dir — delete directory
 ::
 ++  serve-dir-cull
@@ -618,20 +597,16 @@
   ?.  exists
     (send-error eyre-id 404 'Not found')
   ;<  ~  bind:m  (cull:io /cull road)
-  ;<  ~  bind:m
-    %-  send-cards:io
-    (give-simple-payload:app:server eyre-id [[200 ~] `(as-octs:mimes:html 'Deleted')])
-  (pure:m ~)
+  (send-ok eyre-id 'Deleted')
 ::  +serve-keep: GET /keep — SSE stream of changes
 ::
 ++  serve-keep
-  |=  [eyre-id=@ta api-path=path req=inbound-request:eyre]
+  |=  [eyre-id=@ta api-path=path args=(list [key=@t value=@t]) req=inbound-request:eyre]
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
   ?.  (is-sse-request:http-utils req)
     (send-error eyre-id 400 'Requires Accept: text/event-stream')
-  =/  rl=request-line:server  (parse-request-line:server url.request.req)
-  =/  mark-param=(unit @t)  (get-key:kv:html-utils 'mark' args.rl)
+  =/  mark-param=(unit @t)  (get-key:kv:html-utils 'mark' args)
   ::  Send SSE response header
   ;<  ~  bind:m
     (send-cards:io [(give-sse-header:http-utils eyre-id) ~])
