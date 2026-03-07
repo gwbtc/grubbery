@@ -67,8 +67,7 @@
 ++  built-ins
   ^-  (map @t tool)
   %-  ~(gas by *(map @t tool))
-  :~  ['get_ship' get-ship]
-      ['commit' tool-commit]
+  :~  ['commit' tool-commit]
       ['desk_version' tool-desk-version]
       ['scry' tool-scry]
       ['eval' tool-eval]
@@ -113,20 +112,6 @@
   ~(val by built-ins)
 ::  Built-in tool implementations
 ::
-++  get-ship
-  ^-  tool
-  |%
-  ++  name  'get_ship'
-  ++  description  'Get the current ship name'
-  ++  parameters  *(map @t parameter-def)
-  ++  required  *(list @t)
-  ++  handler
-    ^-  tool-handler
-    =/  m  (fiber:fiber:nexus ,tool-result)
-    ^-  form:m
-    ;<  =bowl:nexus  bind:m  (get-bowl:io /bowl)
-    (pure:m [%text (scot %p our.bowl)])
-  --
 ::
 ++  tool-desk-version
   ^-  tool

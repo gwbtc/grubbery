@@ -55,18 +55,14 @@
   ::
       [[%sys ~] %marks]
     ;<  ~  bind:m  (rise-wait:io prod "%sys /marks: failed, poke to restart")
-    ::  Watch /mar for file additions/removals and rebuild marks.
-    ::  Uses %y (directory listing) not %z (content hash) to avoid
-    ::  infinite loops — %ca scries in rebuild update Clay's build
-    ::  cache which changes the %z hash.
-    ::  Dedup: read current listing after notification, compare to
-    ::  last-seen (stored in grub state), skip if unchanged.
+    ::  Watch /mar for changes and rebuild marks.
+    ::  Dedup: compare desk revision to last-seen, skip if unchanged.
     ;<  our=@p  bind:m  get-our:io
     ;<  =desk   bind:m  get-desk:io
     ;<  now=@da  bind:m  get-time:io
     |-
     ;<  =riot:clay  bind:m
-      (warp:io our desk ~ %next %y da+now /mar)
+      (warp:io our desk ~ %next %z da+now /mar)
     ?~  riot  stay:m
     ;<  now=@da  bind:m  get-time:io
     ;<  snap=riot:clay  bind:m
@@ -84,14 +80,14 @@
   ::
       [[%sys ~] %nexuses]
     ;<  ~  bind:m  (rise-wait:io prod "%sys /nexuses: failed, poke to restart")
-    ::  Watch /nex for file additions/removals and rebuild nexuses.
+    ::  Watch /nex for changes and rebuild nexuses.
     ::  Same dedup pattern as marks watcher.
     ;<  our=@p  bind:m  get-our:io
     ;<  =desk   bind:m  get-desk:io
     ;<  now=@da  bind:m  get-time:io
     |-
     ;<  =riot:clay  bind:m
-      (warp:io our desk ~ %next %y da+now /nex)
+      (warp:io our desk ~ %next %z da+now /nex)
     ?~  riot  stay:m
     ;<  now=@da  bind:m  get-time:io
     ;<  snap=riot:clay  bind:m

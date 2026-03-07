@@ -110,24 +110,27 @@
   ==
 ::
 ++  tool-definitions
+  |=  dynamic=(map @t tool:tools)
   ^-  (list json)
-  (turn all-tool-defs:tools tool-def-to-mcp)
+  =/  all=(list tool:tools)
+    (weld all-tool-defs:tools ~(val by dynamic))
+  (turn all tool-def-to-mcp)
 ::
 ++  mcp-tools-list
-  |=  id=(unit json)
+  |=  [dynamic=(map @t tool:tools) id=(unit json)]
   %-  pairs:enjs:format
   %+  welp
     ?~(id ~ ['id' u.id]~)
   :~  ['jsonrpc' s+'2.0']
       :-  'result'
       %-  pairs:enjs:format
-      :~  ['tools' [%a tool-definitions]]
+      :~  ['tools' [%a (tool-definitions dynamic)]]
       ==
   ==
 ::  Main MCP request handler
 ::
 ++  handle-request
-  |=  jon=json
+  |=  [jon=json dynamic=(map @t tool:tools)]
   =/  m  (fiber:fiber:nexus ,(unit json))
   ^-  form:m
   =/  method=(unit json)  (~(get jo:json-utils jon) /method)
@@ -142,27 +145,6 @@
     (pure:m ~)
   ::
       [~ [%s %'tools/list']]
-    (pure:m `(mcp-tools-list id))
-  ::
-      [~ [%s %'tools/call']]
-    =/  tool-name=(unit json)  (~(get jo:json-utils jon) /params/name)
-    ?~  tool-name
-      (pure:m `(rpc-error rpc-invalid-params 'Missing tool name' id))
-    ?.  ?=([%s *] u.tool-name)
-      (pure:m `(rpc-error rpc-invalid-params 'Invalid tool name' id))
-    =/  arguments=(unit json)  (~(get jo:json-utils jon) /params/arguments)
-    ?~  arguments
-      (pure:m `(rpc-error rpc-invalid-params 'Missing arguments' id))
-    ?.  ?=([%o *] u.arguments)
-      (pure:m `(rpc-error rpc-invalid-params 'Invalid arguments' id))
-    =/  resolved=(unit tool:tools)
-      (~(get by built-ins:tools) p.u.tool-name)
-    ?~  resolved
-      (pure:m `(rpc-error rpc-method-not-found 'Unknown tool' id))
-    ;<  result=tool-result:tools  bind:m  handler:u.resolved
-    ?-  -.result
-      %text   (pure:m `(mcp-text-result text.result id))
-      %error  (pure:m `(rpc-error rpc-internal-error message.result id))
-    ==
+    (pure:m `(mcp-tools-list dynamic id))
   ==
 --
