@@ -112,9 +112,7 @@
 ++  tool-definitions
   |=  dynamic=(map @t tool:tools)
   ^-  (list json)
-  =/  all=(list tool:tools)
-    (weld all-tool-defs:tools ~(val by dynamic))
-  (turn all tool-def-to-mcp)
+  (turn ~(val by dynamic) tool-def-to-mcp)
 ::
 ++  mcp-tools-list
   |=  [dynamic=(map @t tool:tools) id=(unit json)]

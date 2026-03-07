@@ -4,10 +4,11 @@
 ::    /main             bind HTTP path, dispatch requests
 ::    /requests/{id}    parse HTTP, route protocol vs tools/call
 ::    /tools/{id}       tool execution grub (mark %tool-state)
-::    /lib/**           user tool source (hoon text)
-::    /bin/**           compiled tools (mark %temp; name.tang on failure)
-::    /mirror           watches clay /lib/nex/mcp/tools/, writes to /lib/
-::    /builder          watches /lib/, compiles to /bin/
+::    /lib/std/**        standard tool sources (synced from clay by per-file watchers)
+::    /lib/cus/**        custom tool sources (user-managed, inert)
+::    /bin/**            compiled tools (mark %temp on success, %tang on failure)
+::    /builder           watches /lib/, compiles all sources to /bin/
+::    /mirror            watches clay dir, creates/destroys /lib/std/ watchers
 ::
 /+  nexus, tarball, io=fiberio, server, nex-server, nex-mcp
 /+  json-utils, nex-tools
@@ -44,18 +45,10 @@
       ;<  exists=?  bind:m  (peek-exists:io /chk road)
       ?:  exists  (cull:io /cull road)
       (pure:m ~)
-    ::  Write error tang to /bin/, ensuring dir exists.
-    ::  Overwrites if tang file already present.
-    ::
-    ++  write-error
-      |=  [bin-path=path tang-road=road:tarball =tang]
-      =/  m  (fiber:fiber:nexus ,~)
-      ^-  form:m
-      ;<  has-tang=?  bind:m  (peek-exists:io /chk tang-road)
-      ?:  has-tang
-        (over:io /build tang-road temp+!>(tang))
-      ;<  ~  bind:m  (ensure-bin-dir bin-path)
-      (make:io /build tang-road |+[temp+!>(tang) ~])
+    ::  Compile a tool source file and write result to /bin/.
+    ::  Success → mark %temp (compiled vase).
+    ::  Failure → mark %tang (error trace).
+    ::  Same grub name either way; mark distinguishes state.
     ::
     ++  compile-lib
       |=  [file-path=path file-name=@ta source=cage]
@@ -63,8 +56,6 @@
       ^-  form:m
       =/  bin-path=path  (weld /bin file-path)
       =/  bin-road=road:tarball  [%| 0 %& bin-path file-name]
-      =/  tang-name=@ta  (crip "{(trip file-name)}.tang")
-      =/  tang-road=road:tarball  [%| 0 %& bin-path tang-name]
       ::  Extract source text
       =/  src=@t
         ?:  =(%txt p.source)  (of-wain:format !<(wain q.source))
@@ -75,23 +66,30 @@
         (mule |.((slap tool-subject (ream src))))
       ?:  ?=(%| -.res)
         ~&  >  [%mcp-builder-fail file-path file-name]
-        (write-error bin-path tang-road p.res)
+        (write-bin bin-path bin-road tang+!>(p.res))
       ::  Validate as $tool
       =/  check=(each tool:nex-tools tang)
         (mule |.(!<(tool:nex-tools p.res)))
       ?:  ?=(%| -.check)
         ~&  >  [%mcp-builder-type-fail file-path file-name]
         =/  =tang  [[%leaf "does not nest against $tool:nex-tools"] p.check]
-        (write-error bin-path tang-road tang)
-      ::  Success — write compiled tool, clean up old tang
+        (write-bin bin-path bin-road tang+!>(tang))
+      ::  Success
       ~&  >  [%mcp-builder-ok file-path file-name]
-      ;<  has-bin=?  bind:m  (peek-exists:io /chk bin-road)
-      ?:  has-bin
-        ;<  ~  bind:m  (over:io /build bin-road temp+p.res)
-        (cull-if-exists tang-road)
+      (write-bin bin-path bin-road temp+p.res)
+    ::  Write a cage to /bin/, creating dir if needed, overwriting if exists.
+    ::
+    ++  write-bin
+      |=  [bin-path=path bin-road=road:tarball =cage]
+      =/  m  (fiber:fiber:nexus ,~)
+      ^-  form:m
+      ;<  exists=?  bind:m  (peek-exists:io /chk bin-road)
+      ?:  exists
+        ::  Cull and recreate: mark may change (temp↔tang)
+        ;<  ~  bind:m  (cull:io /build bin-road)
+        (make:io /build bin-road |+[cage ~])
       ;<  ~  bind:m  (ensure-bin-dir bin-path)
-      ;<  ~  bind:m  (make:io /build bin-road |+[temp+p.res ~])
-      (cull-if-exists tang-road)
+      (make:io /build bin-road |+[cage ~])
     ::  Peek /bin/ and extract all successfully compiled tools.
     ::  Walks the ball tree recursively, collecting vase-marked grubs.
     ::
@@ -101,7 +99,14 @@
       ;<  bin-seen=seen:nexus  bind:m  (peek:io /bin [%| 1 %| /bin] ~)
       ?.  ?=([%& %ball *] bin-seen)
         (pure:m ~)
-      (pure:m (collect-tools ball.p.bin-seen))
+      ::  Collect cus/ first, then std/ — std wins on name conflicts
+      =/  cus-ball=ball:tarball
+        (~(gut by dir.ball.p.bin-seen) %cus *ball:tarball)
+      =/  std-ball=ball:tarball
+        (~(gut by dir.ball.p.bin-seen) %std *ball:tarball)
+      =/  cus-tools=(map @t tool:nex-tools)  (collect-tools cus-ball)
+      =/  std-tools=(map @t tool:nex-tools)  (collect-tools std-ball)
+      (pure:m (~(uni by cus-tools) std-tools))
     ::
     ++  collect-tools
       |=  b=ball:tarball
@@ -114,9 +119,7 @@
         |-
         ?~  files  result
         =/  [name=@ta =content:tarball]  i.files
-        ?:  ?|  !=(p.cage.content %temp)
-                ?=(^ (find ".tang" (trip name)))  ::  skip error files
-            ==
+        ?:  !=(p.cage.content %temp)
           $(files t.files)
         =/  got=(each tool:nex-tools tang)
           (mule |.(!<(tool:nex-tools q.cage.content)))
@@ -143,12 +146,16 @@
     (~(put of ball) /tools [~ ~ ~])
   =?  ball  =(~ (~(get of ball) /lib))
     (~(put of ball) /lib [~ ~ ~])
+  =?  ball  =(~ (~(get of ball) /lib/std))
+    (~(put of ball) /lib/std [~ ~ ~])
+  =?  ball  =(~ (~(get of ball) /lib/cus))
+    (~(put of ball) /lib/cus [~ ~ ~])
   =?  ball  =(~ (~(get of ball) /bin))
     (~(put of ball) /bin [~ ~ ~])
   =?  ball  =(~ (~(get ba:tarball ball) [/ %builder]))
     (~(put ba:tarball ball) [/ %builder] [~ %sig !>(~)])
-  =?  ball  =(~ (~(get ba:tarball ball) [/ %mirror]))
-    (~(put ba:tarball ball) [/ %mirror] [~ %sig !>(~)])
+  ::  Always restart mirror to recompile all std tools
+  =.  ball  (~(put ba:tarball ball) [/ %mirror] [~ %sig !>(~)])
   [sand ball]
 ::
 ++  on-file
@@ -241,39 +248,25 @@
     =/  json-bytes=octs  (as-octs:mimes:html (en:json:html u.response))
     %-  send-simple:srv
     [eyre-id [[200 ~[['content-type' 'application/json']]] `json-bytes]]
-      ::  /builder: watch /lib/, compile to /bin/
+      ::  /builder: watch /lib/, compile all sources to /bin/
       ::
       [~ %builder]
     ;<  ~  bind:m  (rise-wait:io prod "%mcp /builder: failed")
     ~&  >  "%mcp /builder: starting"
-    ::  Initial compile: peek /lib/ ball, compile all existing files
-    ;<  lib-seen=seen:nexus  bind:m  (peek:io /lib [%| 0 %| /lib] ~)
-    ;<  ~  bind:m
-      ?.  ?&  ?=([%& %ball *] lib-seen)
-              ?=(^ fil.ball.p.lib-seen)
-          ==
-        (pure:m ~)
-      =/  files=(list [@ta content:tarball])
-        ~(tap by contents.u.fil.ball.p.lib-seen)
-      |-
-      ?~  files  (pure:m ~)
-      =/  [name=@ta =content:tarball]  i.files
-      ;<  ~  bind:m  (compile-lib / name cage.content)
-      $(files t.files)
     ::  Subscribe to /lib/ for changes
     ;<  ~  bind:m  (keep:io /lib [%| 0 %| /lib] ~)
-    ;<  initial=seen:nexus  bind:m  (peek:io /born [%| 0 %| /lib] ~)
+    ;<  lib-init=seen:nexus  bind:m  (peek:io /born [%| 0 %| /lib] ~)
     =/  prev-born=born:nexus
-      ?.  ?&(?=(%& -.initial) ?=(%ball -.p.initial))
+      ?.  ?&(?=(%& -.lib-init) ?=(%ball -.p.lib-init))
         *born:nexus
-      born.p.initial
-    ;<  =bowl:nexus  bind:m  (get-bowl:io /sse)
+      born.p.lib-init
+    ;<  =bowl:nexus  bind:m  (get-bowl:io /tmr)
     ;<  ~  bind:m  (send-wait:io (add now.bowl ~s30))
     ~&  >  "%mcp /builder: watching /lib/"
     |-
     ;<  nw=news-or-wake:io  bind:m  (take-news-or-wake:io /lib)
     ?:  ?=(%wake -.nw)
-      ;<  =bowl:nexus  bind:m  (get-bowl:io /sse)
+      ;<  =bowl:nexus  bind:m  (get-bowl:io /tmr)
       ;<  ~  bind:m  (send-wait:io (add now.bowl ~s30))
       $
     ?.  ?=([%ball *] view.nw)  $
@@ -293,78 +286,129 @@
       ?~  fil.sub  ~
       (~(get by contents.u.fil.sub) file-name)
     ?~  ct
-      ::  File deleted — cull corresponding /bin/ entries
+      ::  File deleted — cull corresponding /bin/ entry
       ~&  >  [%mcp-builder-delete file-path file-name]
       =/  bin-road=road:tarball  [%| 0 %& (weld /bin file-path) file-name]
-      =/  tang-name=@ta  (crip "{(trip file-name)}.tang")
-      =/  tang-road=road:tarball  [%| 0 %& (weld /bin file-path) tang-name]
       ;<  ~  bind:m  (cull-if-exists bin-road)
-      ;<  ~  bind:m  (cull-if-exists tang-road)
       $(lanes t.lanes)
     ::  File exists — compile it
     ~&  >  [%mcp-builder-compile file-path file-name]
     ;<  ~  bind:m  (compile-lib file-path file-name cage.u.ct)
     $(lanes t.lanes)
-      ::  /mirror: watch clay /lib/nex/mcp/tools/, write sources to /lib/
+      ::  /mirror: watch clay dir, create/destroy /lib/std/ watchers
       ::
       [~ %mirror]
     ;<  ~  bind:m  (rise-wait:io prod "%mcp /mirror: failed")
     ~&  >  "%mcp /mirror: starting"
     ;<  our=@p  bind:m  get-our:io
     ;<  =desk  bind:m  get-desk:io
+    ::  Delete all existing /lib/std/ processes for clean slate
+    ;<  std-seen=seen:nexus  bind:m  (peek:io /std [%| 0 %| /lib/std] ~)
+    ;<  ~  bind:m
+      ?.  ?&  ?=([%& %ball *] std-seen)
+              ?=(^ fil.ball.p.std-seen)
+          ==
+        (pure:m ~)
+      =/  old=(list [@ta content:tarball])
+        ~(tap by contents.u.fil.ball.p.std-seen)
+      |-
+      ?~  old  (pure:m ~)
+      =/  [oname=@ta *]  i.old
+      ~&  >  [%mcp-mirror-cull-old oname]
+      ;<  ~  bind:m  (cull:io /cull [%| 0 %& /lib/std oname])
+      $(old t.old)
+    ::  List tool files from clay
     ;<  now=@da  bind:m  get-time:io
-    ::  Initial read: list all tool files and write to /lib/
     ;<  =riot:clay  bind:m
       (warp:io our desk ~ %sing %y da+now /lib/nex/mcp/tools)
     ?.  ?=(^ riot)
       ~&  >  "%mcp /mirror: no /lib/nex/mcp/tools/ on desk"
       stay:m
-    ::  List files via %t care
     ;<  files=(list path)  bind:m
       (do-scry:io (list path) /scry [%ct desk /lib/nex/mcp/tools])
-    ~&  >  [%mcp-mirror-files files]
     =/  tool-files=(list path)
       (skip files |=(p=path !=(%hoon (rear p))))
+    ~&  >  [%mcp-mirror-files (lent tool-files)]
+    ::  Create a /lib/std/ process for each tool file
     |-
     ?~  tool-files
-      ::  Done with initial mirror, watch for changes
+      ::  Done creating, watch clay dir for additions/removals
       ~&  >  "%mcp /mirror: watching clay"
       ;<  now=@da  bind:m  get-time:io
       |-
       ;<  =riot:clay  bind:m
         (warp:io our desk ~ %next %z da+now /lib/nex/mcp/tools)
       ?~  riot  stay:m
-      ~&  >  "%mcp /mirror: clay changed, re-mirroring"
+      ~&  >  "%mcp /mirror: clay dir changed"
       ;<  now=@da  bind:m  get-time:io
       ;<  files=(list path)  bind:m
         (do-scry:io (list path) /scry [%ct desk /lib/nex/mcp/tools])
       =/  tool-files=(list path)
         (skip files |=(p=path !=(%hoon (rear p))))
-      |-
-      ?~  tool-files  ^$
-      =/  pax=path  i.tool-files
-      =/  file-name=@ta  (rear (snip pax))
-      ~&  >  [%mcp-mirror-write file-name]
-      ;<  src=@t  bind:m
-        (do-scry:io @t /scry [%cx desk pax])
-      =/  lib-road=road:tarball  [%| 0 %& /lib file-name]
-      ;<  exists=?  bind:m  (peek-exists:io /chk lib-road)
+      =/  new-names=(set @ta)
+        %-  ~(gas in *(set @ta))
+        (turn tool-files |=(p=path (rear (snip p))))
+      ::  Get current /lib/std/ processes
+      ;<  std-seen=seen:nexus  bind:m  (peek:io /std [%| 0 %| /lib/std] ~)
+      =/  old-names=(set @ta)
+        ?.  ?&  ?=([%& %ball *] std-seen)
+                ?=(^ fil.ball.p.std-seen)
+            ==
+          ~
+        (~(run in ~(key by contents.u.fil.ball.p.std-seen)) |=(n=@ta n))
+      ::  Delete removed tools
+      =/  removed=(list @ta)  ~(tap in (~(dif in old-names) new-names))
       ;<  ~  bind:m
-        ?:  exists  (over:io /mirror lib-road hoon+!>(src))
-        (make:io /mirror lib-road |+[hoon+!>(src) ~])
-      $(tool-files t.tool-files)
-    ::  Initial mirror: write each file
+        |-
+        ?~  removed  (pure:m ~)
+        ~&  >  [%mcp-mirror-remove i.removed]
+        ;<  ~  bind:m  (cull:io /cull [%| 0 %& /lib/std i.removed])
+        $(removed t.removed)
+      ::  Create new tools
+      =/  added=(list @ta)  ~(tap in (~(dif in new-names) old-names))
+      ;<  ~  bind:m
+        |-
+        ?~  added  (pure:m ~)
+        ~&  >  [%mcp-mirror-add i.added]
+        ;<  ~  bind:m
+          (make:io /std [%| 0 %& /lib/std i.added] |+[hoon+!>('') ~])
+        $(added t.added)
+      ^$
+    ::  Create /lib/std/ process for this tool
     =/  pax=path  i.tool-files
     =/  file-name=@ta  (rear (snip pax))
-    ~&  >  [%mcp-mirror-write file-name]
-    ;<  src=@t  bind:m
-      (do-scry:io @t /scry [%cx desk pax])
-    =/  lib-road=road:tarball  [%| 0 %& /lib file-name]
-    ;<  exists=?  bind:m  (peek-exists:io /chk lib-road)
+    ~&  >  [%mcp-mirror-create file-name]
     ;<  ~  bind:m
-      ?:  exists  (over:io /mirror lib-road hoon+!>(src))
-      (make:io /mirror lib-road |+[hoon+!>(src) ~])
+      (make:io /std [%| 0 %& /lib/std file-name] |+[hoon+!>('') ~])
     $(tool-files t.tool-files)
+      ::  /lib/std/**/name: watches own clay file, stores source as content
+      ::
+      [[%lib %std *] @]
+    ;<  ~  bind:m  (rise-wait:io prod "%mcp /lib/std: failed")
+    =/  file-name=@ta  name.rail
+    =/  sub-path=path  (slag 2 `path`path.rail)
+    ~&  >  [%mcp-std-start sub-path file-name]
+    ;<  our=@p  bind:m  get-our:io
+    ;<  =desk  bind:m  get-desk:io
+    =/  clay-path=path
+      :(weld /lib/nex/mcp/tools sub-path /[file-name] /hoon)
+    ::  Read source from clay, store as own content
+    ;<  now=@da  bind:m  get-time:io
+    ;<  src=@t  bind:m  (do-scry:io @t /scry [%cx desk clay-path])
+    ;<  ~  bind:m  (replace:io !>(src))
+    ::  Watch for changes
+    |-
+    ;<  now=@da  bind:m  get-time:io
+    ;<  =riot:clay  bind:m
+      (warp:io our desk ~ %next %x da+now clay-path)
+    ?~  riot
+      ~&  >  [%mcp-std-gone file-name]
+      stay:m
+    ~&  >  [%mcp-std-changed file-name]
+    ;<  now=@da  bind:m  get-time:io
+    ;<  src=@t  bind:m  (do-scry:io @t /scry [%cx desk clay-path])
+    ;<  ~  bind:m  (replace:io !>(src))
+    $
       ::  /tools/{id}: tool process (mark %tool-state)
       ::  Reads tool-state, runs handler step machine, writes %done.
       ::  Knows nothing about HTTP — the request watcher handles that.
@@ -378,10 +422,8 @@
     =/  tool-json=json  (~(got by args.st) '_tool')
     ?.  ?=([%s *] tool-json)  !!
     =/  tool-name=@t  p.tool-json
-    ::  Look up in built-ins, then dynamic tools from /bin/
-    ;<  dynamic=(map @t tool:nex-tools)  bind:m  get-dynamic-tools
-    =/  all=(map @t tool:nex-tools)
-      (~(uni by built-ins:nex-tools) dynamic)
+    ::  Look up in dynamic tools from /bin/
+    ;<  all=(map @t tool:nex-tools)  bind:m  get-dynamic-tools
     =/  tl=(unit tool:nex-tools)  (~(get by all) tool-name)
     ?~  tl
       =/  err-data=json

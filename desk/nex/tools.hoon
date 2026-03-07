@@ -54,14 +54,7 @@
     ;<  [tool-name=@t args=(map @t json)]  bind:m
       (get-state-as:io ,[@t (map @t json)])
     ~&  >  "%tools req/{(trip call-id)}: {(trip tool-name)}"
-    =/  resolved=(unit tool:tools)
-      (~(get by built-ins:tools) tool-name)
-    ::  TODO: if not built-in, compile /tools/{tool-name}.hoon
-    ?~  resolved
-      ~&  >>>  "%tools req/{(trip call-id)}: not found: {(trip tool-name)}"
-      (pure:m ~)
-    ;<  =tool-result:tools  bind:m  handler:u.resolved
-    ~&  >  "%tools req/{(trip call-id)}: {<-.tool-result>}"
+    ~&  >>>  "%tools req/{(trip call-id)}: not found: {(trip tool-name)}"
     (pure:m ~)
   ==
 --

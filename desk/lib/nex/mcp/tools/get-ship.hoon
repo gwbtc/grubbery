@@ -1,5 +1,6 @@
 ::  get-ship: return the current ship name
 ::
+!:
 ^-  tool:tools
 |%
 ++  name  'get_ship'

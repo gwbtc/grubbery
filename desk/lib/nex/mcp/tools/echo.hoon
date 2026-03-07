@@ -1,5 +1,6 @@
 ::  echo: simple test tool that echoes back its input
 ::
+!:
 ^-  tool:tools
 |%
 ++  name  'echo'

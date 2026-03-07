@@ -64,7 +64,7 @@
   =/  m  (fiber ,a)
   ^-  form:m
   |=  input
-  [~ state %done ;;(a q.state)]
+  [~ state %done !<(a state)] :: ;;(a q.state)
 ::
 ++  gut-state-as
   |*  a=mold
