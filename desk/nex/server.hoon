@@ -34,6 +34,7 @@
     ++  on-load
       |=  [=sand:nexus =ball:tarball]
       ^-  [sand:nexus ball:tarball]
+      =.  ball  (~(put ba:tarball ball) [/ %ver] [~ %ud !>(0)])
       =/  fresh=server-state:nex-server  [%0 ~ ~]
       =/  existing  (~(get ba:tarball ball) [/ %main])
       =?  ball  =(~ existing)

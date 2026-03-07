@@ -7,6 +7,7 @@
     ++  on-load
       |=  [=sand:nexus =ball:tarball]
       ^-  [sand:nexus ball:tarball]
+      =.  ball  (~(put ba:tarball ball) [/ %ver] [~ %ud !>(0)])
       =?  ball  =(~ (~(get ba:tarball ball) [/ %main]))
         (~(put ba:tarball ball) [/ %main] [~ %sig !>(~)])
       =?  ball  =(~ (~(get of ball) /requests))

@@ -5,6 +5,7 @@
 ++  on-load
   |=  [=sand:nexus =ball:tarball]
   ^-  [sand:nexus ball:tarball]
+  =.  ball  (~(put ba:tarball ball) [/ %ver] [~ %ud !>(0)])
   ::  Create /sys directory with system processes
   =?  ball  =(~ (~(get of ball) /sys))
     (~(put of ball) /sys [~ ~ ~])

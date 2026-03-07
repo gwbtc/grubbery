@@ -7,6 +7,7 @@
     ++  on-load
       |=  [=sand:nexus =ball:tarball]
       ^-  [sand:nexus ball:tarball]
+      =.  ball  (~(put ba:tarball ball) [/ %ver] [~ %ud !>(0)])
       ::  Create /wallets directory if not present
       =?  ball  =(~ (~(get of ball) /wallets))
         (~(put of ball) /wallets [~ ~ ~])

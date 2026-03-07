@@ -49,6 +49,7 @@
     ++  on-load
       |=  [=sand:nexus =ball:tarball]
       ^-  [sand:nexus ball:tarball]
+      =.  ball  (~(put ba:tarball ball) [/ %ver] [~ %ud !>(0)])
       ::  Create /main file (weir manager) if not present
       =?  ball  =(~ (~(get ba:tarball ball) [/ %main]))
         (~(put ba:tarball ball) [/ %main] [~ %sig !>(~)])
