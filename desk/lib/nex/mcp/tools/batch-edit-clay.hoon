@@ -63,7 +63,7 @@
             ['logs' a+~]
         ==
       ;<  ~  bind:m
-        (replace:io !>([args.st %batch-editing write-data]))
+        (replace:io !>([tool.st args.st %batch-editing write-data]))
       ;<  *  bind:m  (keep:io /dill/logs [%& %& /sys/dill %'logs.dill-told'] ~)
       ;<  =bowl:nexus  bind:m  (get-bowl:io /bowl)
       ;<  ~  bind:m

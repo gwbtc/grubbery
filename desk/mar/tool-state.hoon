@@ -10,7 +10,8 @@
   ++  json
     ^-  ^json
     %-  pairs:enjs:format
-    :~  ['step' s+step.tool-state]
+    :~  ['tool' s+tool.tool-state]
+        ['step' s+step.tool-state]
         ['data' data.tool-state]
         ['args' [%o args.tool-state]]
     ==

@@ -965,4 +965,40 @@
       [%done %wake ~]
     [%fail %timer-error u.error.sign.u.in]
   ==
+::  Clay file helpers
+::
+::  +build-clay-file: compile a hoon source file, returns (unit vase)
+::
+++  build-clay-file
+  |=  [dek=desk pax=path]
+  =/  m  (fiber ,(unit vase))
+  ^-  form:m
+  ;<  our=ship    bind:m  get-our
+  ;<  now=@da     bind:m  get-time
+  =/  base=path   /(scot %p our)/[dek]/(scot %da now)
+  =/  exists=?    .^(? %cu (weld base pax))
+  ?.  exists  (pure:m ~)
+  =/  res=(each vase tang)
+    (mule |.(.^(vase %ca (weld base pax))))
+  ?:(?=(%& -.res) (pure:m `p.res) (pure:m ~))
+::  +list-clay-tree: list all file paths under a directory
+::
+++  list-clay-tree
+  |=  [dek=desk pax=path]
+  =/  m  (fiber ,(list path))
+  ^-  form:m
+  ;<  our=ship  bind:m  get-our
+  ;<  now=@da   bind:m  get-time
+  =/  base=path  /(scot %p our)/[dek]/(scot %da now)
+  (pure:m .^((list path) %ct (weld base pax)))
+::  +check-clay-file: check if a file exists
+::
+++  check-clay-file
+  |=  [dek=desk pax=path]
+  =/  m  (fiber ,?)
+  ^-  form:m
+  ;<  our=ship  bind:m  get-our
+  ;<  now=@da   bind:m  get-time
+  =/  base=path  /(scot %p our)/[dek]/(scot %da now)
+  (pure:m .^(? %cu (weld base pax)))
 --

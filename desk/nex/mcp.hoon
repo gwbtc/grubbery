@@ -4,11 +4,9 @@
 ::    /main.sig         bind HTTP path, dispatch requests
 ::    /requests/{id}    parse HTTP, route protocol vs tools/call
 ::    /tools/{id}       tool execution grub (mark %tool-state)
-::    /lib/std/**        standard tool sources (synced from clay by per-file watchers)
-::    /lib/cus/**        custom tool sources (user-managed, inert)
+::    /cus/**        custom tool sources (user-managed, inert)
 ::    /bin/**            compiled tools (mark %temp on success, %tang on failure)
-::    /builder.sig       watches /lib/, compiles all sources to /bin/
-::    /mirror.sig        watches clay dir, creates/destroys /lib/std/ watchers
+::    /builder.sig       watches ball mirror + /cus/, compiles to /bin/
 ::
 /+  nexus, tarball, io=fiberio, server, nex-server, nex-mcp
 /+  json-utils, nex-tools, build
@@ -310,10 +308,8 @@
     (~(put of ball) /requests [~ ~ ~])
   =?  ball  =(~ (~(get of ball) /tools))
     (~(put of ball) /tools [~ ~ ~])
-  =?  ball  =(~ (~(get of ball) /lib))
-    (~(put of ball) /lib [~ ~ ~])
-  =?  ball  =(~ (~(get of ball) /lib/cus))
-    (~(put of ball) /lib/cus [~ ~ ~])
+  =?  ball  =(~ (~(get of ball) /cus))
+    (~(put of ball) /cus [~ ~ ~])
   =?  ball  =(~ (~(get of ball) /bin))
     (~(put of ball) /bin [~ ~ ~])
   =?  ball  =(~ (~(get ba:tarball ball) [/ %'builder.sig']))
@@ -362,13 +358,12 @@
         (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'Missing tool name')])
       ?.  ?=([%s *] u.tool-name)
         (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'Invalid tool name')])
-      ::  Build tool-state with _tool in args for handler lookup
       =/  tool-args=(map @t json)
         ?~  arguments  ~
         ?.  ?=([%o *] u.arguments)  ~
         p.u.arguments
       =/  ts=tool-state:nex-tools
-        :+  (~(put by tool-args) '_tool' u.tool-name)
+        :^  p.u.tool-name  tool-args
           %start
         ~
       ::  Create tool grub and subscribe
@@ -414,36 +409,33 @@
     =/  json-bytes=octs  (as-octs:mimes:html (en:json:html u.response))
     %-  send-simple:srv
     [eyre-id [[200 ~[['content-type' 'application/json']]] `json-bytes]]
-      ::  /builder.sig: watch ball mirror + /lib/cus/, compile to /bin/
+      ::  /builder.sig: watch ball mirror + /cus/, compile to /bin/
       ::
       [~ %'builder.sig']
     ;<  ~  bind:m  (rise-wait:io prod "%mcp /builder: failed")
     ~&  >  "%mcp /builder: starting"
-    ::  Watch ball mirror for standard tool sources
-    ;<  *  bind:m  (keep:io /std [%| 1 %| /sys/clay/grubbery/lib/nex/mcp/tools] ~)
+    ::  Peek ball mirror for initial compile (hoon files survive clear-temp)
     ;<  std-init=seen:nexus  bind:m
-      (peek:io /std-init [%| 1 %| /sys/clay/grubbery/lib/nex/mcp/tools] ~)
+      (peek:io /std-init [%& %| /sys/clay/grubbery/lib/nex/mcp/tools] ~)
+    ;<  cus-init=seen:nexus  bind:m
+      (peek:io /cus-init [%| 0 %| /cus] ~)
+    ::  Initial compile from peek
     =/  std-born=born:nexus
-      ?.  ?&(?=(%& -.std-init) ?=(%ball -.p.std-init))
-        *born:nexus
+      ?.  ?=([%& %ball *] std-init)  *born:nexus
       born.p.std-init
-    ::  Watch /lib/cus/ for custom tool sources
-    ;<  *  bind:m  (keep:io /cus [%| 0 %| /lib/cus] ~)
-    ;<  cus-init=seen:nexus  bind:m  (peek:io /cus-init [%| 0 %| /lib/cus] ~)
     =/  cus-born=born:nexus
-      ?.  ?&(?=(%& -.cus-init) ?=(%ball -.p.cus-init))
-        *born:nexus
+      ?.  ?=([%& %ball *] cus-init)  *born:nexus
       born.p.cus-init
-    ::  Initial compile: all std tools from ball mirror
     ;<  ~  bind:m
-      ?.  ?&(?=(%& -.std-init) ?=(%ball -.p.std-init))
-        (pure:m ~)
+      ?.  ?=([%& %ball *] std-init)  (pure:m ~)
       (compile-ball-tools /std ball.p.std-init)
-    ::  Initial compile: all cus tools
     ;<  ~  bind:m
-      ?.  ?&(?=(%& -.cus-init) ?=(%ball -.p.cus-init))
+      ?.  ?&(?=([%& %ball *] cus-init) ?=(^ fil.ball.p.cus-init))
         (pure:m ~)
       (compile-ball-tools /cus ball.p.cus-init)
+    ::  Subscribe for ongoing changes
+    ;<  *  bind:m  (keep:io /std [%& %| /sys/clay/grubbery/lib/nex/mcp/tools] ~)
+    ;<  *  bind:m  (keep:io /cus [%| 0 %| /cus] ~)
     ~&  >  "%mcp /builder: watching for changes"
     |-
     ;<  event=builder-event  bind:m  take-builder-event
@@ -477,27 +469,20 @@
     ;<  st=tool-state:nex-tools  bind:m
       (get-state-as:io ,tool-state:nex-tools)
     ?:  =(%done step.st)  (pure:m ~)
-    ::  Look up handler by tool name stored in args
-    =/  tool-json=json  (~(got by args.st) '_tool')
-    ?.  ?=([%s *] tool-json)  !!
-    =/  tool-name=@t  p.tool-json
     ::  Look up tool handler — waits for builder if needed
-    ;<  got=(each tool:nex-tools tang)  bind:m  (await-tool tool-name)
+    ;<  got=(each tool:nex-tools tang)  bind:m  (await-tool tool.st)
     ?:  ?=(%| -.got)
-      ::  Compile error — write error result with tang
       =/  err-msg=@t  (render-tang:build p.got)
       =/  result-data=json
         (pairs:enjs:format ~[['type' s+'error'] ['message' s+err-msg]])
-      (replace:io !>(`tool-state:nex-tools`[args.st %done result-data]))
+      (replace:io !>(`tool-state:nex-tools`[tool.st args.st %done result-data]))
     =/  tl=tool:nex-tools  p.got
-    ::  Run handler — returns tool-result
     ;<  result=tool-result:nex-tools  bind:m  handler.tl
-    ::  Write result as %done
     =/  result-data=json
       ?-  -.result
         %text   (pairs:enjs:format ~[['type' s+'text'] ['text' s+text.result]])
         %error  (pairs:enjs:format ~[['type' s+'error'] ['message' s+message.result]])
       ==
-    (replace:io !>(`tool-state:nex-tools`[args.st %done result-data]))
+    (replace:io !>(`tool-state:nex-tools`[tool.st args.st %done result-data]))
   ==
 --
