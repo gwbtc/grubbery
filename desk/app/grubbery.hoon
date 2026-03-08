@@ -1039,7 +1039,32 @@
         %keep
       ::  Subscribe to changes at dest (uses peek permission)
       =.  this  (sub-put u.dest-lane here wire.dart mark.load.dart)
-      (enqu-take here (sys-give /bond) ~ %bond wire.dart ~)
+      ::  Construct initial view of the watched lane
+      =/  =view:nexus
+        ?-  -.u.dest-lane
+            %&
+          =/  dest=rail:tarball  p.u.dest-lane
+          =/  content=(unit content:tarball)
+            (~(get ba:tarball ball) path.dest name.dest)
+          ?~  content  [%none ~]
+          =/  node=(unit [=tote:nexus bags=(map @ta sack:nexus)])
+            (~(get of born) path.dest)
+          =/  sk=sack:nexus
+            ?~  node  *sack:nexus
+            (fall (~(get by bags.u.node) name.dest) *sack:nexus)
+          [%file sk cage.u.content]
+            %|
+          =/  dest=fold:tarball  p.u.dest-lane
+          =/  sub-ball=(unit ball:tarball)  (~(dap ba:tarball ball) dest)
+          ?~  sub-ball  [%none ~]
+          [%ball (~(dip of sand) dest) (~(dip of born) dest) u.sub-ball]
+        ==
+      ::  Apply mark conversion if requested
+      =?  view  &(?=(^ mark.load.dart) ?=(%file -.view))
+        ?:  =(p.cage.view u.mark.load.dart)  view
+        =/  =tube:clay  (get-tube p.cage.view u.mark.load.dart)
+        view(cage [u.mark.load.dart (tube q.cage.view)])
+      (enqu-take here (sys-give /bond) ~ %bond wire.dart &+view)
       ::
         %drop
       ::  Unsubscribe from dest

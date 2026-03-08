@@ -712,7 +712,7 @@
     ?:  is-file  (need file-road)
     [%& %| api-path]
   ::  Subscribe to changes
-  ;<  ~  bind:m  (keep:io /keep road ~)
+  ;<  *  bind:m  (keep:io /keep road ~)
   ::  Get initial born for directory diffing (peek same road we subscribed to)
   ;<  initial-seen=seen:nexus  bind:m  (peek:io /initial road ~)
   =/  prev-born=born:nexus

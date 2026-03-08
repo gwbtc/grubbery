@@ -114,7 +114,7 @@
         [%over =wire err=(unit tang)] :: response to over (content overwrite)
         [%diff =wire err=(unit tang)] :: response to diff (same-mark replace)
         [%writ p=?(%over %diff)]      :: notify grub its file was externally modified
-        [%bond =wire err=(unit tang)] :: subscription established/failed
+        [%bond =wire now=(each view tang)] :: subscription ack with initial view
         [%fell =wire]                 :: subscription canceled (weir change, deletion, etc)
         [%news =wire =view] :: state notification
         [%veto =dart] :: notify that a dart was sandboxed

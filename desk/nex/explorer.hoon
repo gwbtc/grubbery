@@ -353,7 +353,7 @@
       ~
     =/  s  (~(dip of sand.p.initial-seen) watch-path)
     fil.s
-  ;<  ~  bind:m  (keep:io /ball [%& %| ~] ~)
+  ;<  *  bind:m  (keep:io /ball [%& %| ~] ~)
   ;<  =bowl:nexus  bind:m  (get-bowl:io /sse)
   ;<  ~  bind:m  (send-wait:io (add now.bowl ~s30))
   |-

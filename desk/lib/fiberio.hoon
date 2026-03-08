@@ -426,7 +426,7 @@
 ::
 ++  keep
   |=  [=wire =road:tarball mark=(unit mark)]
-  =/  m  (fiber ,~)
+  =/  m  (fiber ,view:nexus)
   ^-  form:m
   ;<  ~  bind:m  (send-dart %node wire road %keep mark)
   (take-bond wire)
@@ -440,7 +440,7 @@
 ::
 ++  take-bond
   |=  =wire
-  =/  m  (fiber ,~)
+  =/  m  (fiber ,view:nexus)
   ^-  form:m
   |=  input
   :+  ~  state
@@ -451,9 +451,9 @@
       [~ %bond * *]
     ?.  =(wire wire.u.in)
       [%skip ~]
-    ?~  err.u.in
-      [%done ~]
-    [%fail %keep-failed u.err.u.in]
+    ?:  ?=(%& -.now.u.in)
+      [%done p.now.u.in]
+    [%fail %keep-failed p.now.u.in]
   ==
 ::
 ++  take-fell

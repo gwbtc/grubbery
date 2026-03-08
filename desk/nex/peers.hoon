@@ -99,9 +99,9 @@
         ?>  ?=(%sig mark)
         ;<  ~  bind:m  (rise-wait:io prod "%peers /main: failed, poke to restart")
         ~&  >  "%peers /main: starting"
-        ;<  ~  bind:m  (keep:io /watch-who [%| 0 %| /usergroups/who] ~)
-        ;<  ~  bind:m  (keep:io /watch-how [%| 0 %| /usergroups/how] ~)
-        ;<  ~  bind:m  (keep:io /watch-ships [%| 0 %| /ships] ~)
+        ;<  *  bind:m  (keep:io /watch-who [%| 0 %| /usergroups/who] ~)
+        ;<  *  bind:m  (keep:io /watch-how [%| 0 %| /usergroups/how] ~)
+        ;<  *  bind:m  (keep:io /watch-ships [%| 0 %| /ships] ~)
         |-
         ;<  =main-event  bind:m  take-main-event
         ?-    -.main-event
@@ -138,7 +138,7 @@
         ::
             %fell
           ~&  >  [%peers-main %fell-resubscribe wire.main-event]
-          ;<  ~  bind:m
+          ;<  *  bind:m
             %^  keep:io  wire.main-event
             ?:  =(/watch-who wire.main-event)  [%| 0 %| /usergroups/who]
             ?:  =(/watch-how wire.main-event)  [%| 0 %| /usergroups/how]

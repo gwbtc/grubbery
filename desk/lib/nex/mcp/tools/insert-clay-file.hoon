@@ -52,7 +52,7 @@
       ==
     ;<  ~  bind:m
       (replace:io !>([args.st %inserting write-data]))
-    ;<  ~  bind:m  (keep:io /dill-logs [%& %& /sys %dill-logs] ~)
+    ;<  *  bind:m  (keep:io /dill-logs [%& %& /sys %dill-logs] ~)
     ;<  =bowl:nexus  bind:m  (get-bowl:io /bowl)
     ;<  ~  bind:m
       (send-card:io %pass /commit-timeout %arvo %b %wait (add now.bowl ~s30))

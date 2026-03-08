@@ -143,6 +143,9 @@
       ?:(?=(%& -.got) `p.got ~)
     ::  +find-tool-in-ball: search std/ then cus/ in a /bin/ ball
     ::
+    ::    Iterates all compiled files and matches by the tool's name
+    ::    field, since filenames (get-ship) differ from tool names (get_ship).
+    ::
     ++  find-tool-in-ball
       |=  [tool-name=@t b=ball:tarball]
       ^-  (unit tool:nex-tools)
@@ -150,36 +153,39 @@
       |-
       ?~  dirs  ~
       =/  sub=ball:tarball  (~(gut by dir.b) i.dirs *ball:tarball)
-      =/  ct=(unit content:tarball)
-        ?~(fil.sub ~ (~(get by contents.u.fil.sub) tool-name))
-      ?~  ct  $(dirs t.dirs)
-      =/  tl=(unit tool:nex-tools)  (extract-tool cage.u.ct)
-      ?^  tl  tl
-      $(dirs t.dirs)
+      ?~  fil.sub  $(dirs t.dirs)
+      =/  files=(list [@ta content:tarball])
+        ~(tap by contents.u.fil.sub)
+      |-
+      ?~  files  ^$(dirs t.dirs)
+      =/  tl=(unit tool:nex-tools)  (extract-tool cage.i.files)
+      ?~  tl  $(files t.files)
+      ?:  =(tool-name name:u.tl)  tl
+      $(files t.files)
     ::  +await-tool: load a compiled tool handler by name
     ::
-    ::    Peeks /bin/ for a compiled .temp grub (std/ before cus/).
-    ::    If not found yet (builder still running after agent restart),
-    ::    subscribes to /bin/ and blocks until the tool appears.
+    ::    Subscribes to /bin/ — the bond returns the initial view,
+    ::    so there's no race with the builder. If the tool is already
+    ::    compiled, we get it immediately. Otherwise we wait for
+    ::    subscription updates.
     ::
     ++  await-tool
       |=  tool-name=@t
       =/  m  (fiber:fiber:nexus ,tool:nex-tools)
       ^-  form:m
-      ;<  bin-seen=seen:nexus  bind:m  (peek:io /bin [%| 1 %| /bin] ~)
-      ?:  ?=([%& %ball *] bin-seen)
+      ;<  init=view:nexus  bind:m  (keep:io /await-tool [%| 1 %| /bin] ~)
+      ?:  ?=([%ball *] init)
         =/  found=(unit tool:nex-tools)
-          (find-tool-in-ball tool-name ball.p.bin-seen)
+          (find-tool-in-ball tool-name ball.init)
         ?^  found  (pure:m u.found)
-        (await-tool-sub tool-name)
-      (await-tool-sub tool-name)
-    ::  +await-tool-sub: subscribe to /bin/ and block until tool appears
-    ::
-    ++  await-tool-sub
-      |=  tool-name=@t
-      =/  m  (fiber:fiber:nexus ,tool:nex-tools)
-      ^-  form:m
-      ;<  ~  bind:m  (keep:io /await-tool [%| 1 %| /bin] ~)
+        |-
+        ;<  nw=news-or-wake:io  bind:m  (take-news-or-wake:io /await-tool)
+        ?:  ?=(%wake -.nw)  $
+        ?.  ?=([%ball *] view.nw)  $
+        =/  found=(unit tool:nex-tools)
+          (find-tool-in-ball tool-name ball.view.nw)
+        ?~  found  $
+        (pure:m u.found)
       |-
       ;<  nw=news-or-wake:io  bind:m  (take-news-or-wake:io /await-tool)
       ?:  ?=(%wake -.nw)  $
@@ -271,7 +277,7 @@
       =/  tid=@ta  eyre-id
       =/  tool-road=road:tarball  [%| 1 %& /tools tid]
       ;<  exists=?  bind:m  (peek-exists:io /chk tool-road)
-      ;<  ~  bind:m
+      ;<  *  bind:m
         (keep:io /watch tool-road ~)
       ;<  ~  bind:m
         ?.  exists
@@ -315,7 +321,7 @@
     ;<  ~  bind:m  (rise-wait:io prod "%mcp /builder: failed")
     ~&  >  "%mcp /builder: starting"
     ::  Subscribe to /lib/ for changes
-    ;<  ~  bind:m  (keep:io /lib [%| 0 %| /lib] ~)
+    ;<  *  bind:m  (keep:io /lib [%| 0 %| /lib] ~)
     ;<  lib-init=seen:nexus  bind:m  (peek:io /born [%| 0 %| /lib] ~)
     =/  prev-born=born:nexus
       ?.  ?&(?=(%& -.lib-init) ?=(%ball -.p.lib-init))
