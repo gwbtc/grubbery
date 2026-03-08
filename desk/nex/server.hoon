@@ -711,14 +711,30 @@
   =/  =road:tarball
     ?:  is-file  (need file-road)
     [%& %| api-path]
-  ::  Subscribe to changes
-  ;<  *  bind:m  (keep:io /keep road ~)
-  ::  Get initial born for directory diffing (peek same road we subscribed to)
-  ;<  initial-seen=seen:nexus  bind:m  (peek:io /initial road ~)
+  ::  Subscribe to changes — bond returns initial view
+  ;<  init=view:nexus  bind:m  (keep:io /keep road ~)
   =/  prev-born=born:nexus
-    ?.  ?&(?=(%& -.initial-seen) ?=(%ball -.p.initial-seen))
-      *born:nexus
-    born.p.initial-seen
+    ?.  ?=([%ball *] init)  *born:nexus
+    born.init
+  ::  Send "old" events for initial state
+  ;<  ~  bind:m
+    ?+  init  (pure:m ~)
+    ::  Single file — send one "old" event
+        [%file *]
+      =/  file-name=@t
+        ?~  api-path  '/'
+        (rear api-path)
+      =/  id=@t  (scot %ud ud.file.sack.init)
+      =/  event-name=@t  (crip "old {(trip file-name)}")
+      ;<  body=@t  bind:m  (cage-to-txt cage.init mark-param)
+      =/  data=wain  (to-wain:format body)
+      =/  =sse-event:http-utils  [`id `event-name data]
+      (send-cards:io [(give-sse-event:http-utils eyre-id sse-event) ~])
+    ::  Directory — send "old" for each file
+        [%ball *]
+      =/  root=ball:tarball  ball.init
+      (send-old-dir eyre-id root born.init / mark-param)
+    ==
   ::  Start keep-alive timer
   ;<  =bowl:nexus  bind:m  (get-bowl:io /sse)
   ;<  ~  bind:m  (send-wait:io (add now.bowl ~s30))
@@ -803,6 +819,42 @@
       $(lanes t.lanes)
     ==
   ==
+::  +send-old-dir: send "old" SSE events for all files in a ball
+::
+++  send-old-dir
+  |=  [eyre-id=@ta b=ball:tarball =born:nexus here=path mark-param=(unit @t)]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  ::  Send "old" for files in this directory
+  ;<  ~  bind:m
+    ?~  fil.b  (pure:m ~)
+    =/  files=(list [@ta content:tarball])  ~(tap by contents.u.fil.b)
+    |-
+    ?~  files  (pure:m ~)
+    =/  [file-name=@ta =content:tarball]  i.files
+    =/  lane-path=@t  (spat (snoc here file-name))
+    =/  sub-born=born:nexus  (~(dip of born) here)
+    =/  file-sack=(unit sack:nexus)
+      ?~  fil.sub-born  ~
+      (~(get by bags.u.fil.sub-born) file-name)
+    =/  id=@t
+      ?~  file-sack  '0'
+      (scot %ud ud.file.u.file-sack)
+    =/  event-name=@t  (crip "old {(trip lane-path)}")
+    ;<  body=@t  bind:m  (cage-to-txt cage.content mark-param)
+    =/  data=wain  (to-wain:format body)
+    =/  =sse-event:http-utils  [`id `event-name data]
+    ;<  ~  bind:m
+      (send-cards:io [(give-sse-event:http-utils eyre-id sse-event) ~])
+    $(files t.files)
+  ::  Recurse into subdirectories
+  =/  dirs=(list [@ta ball:tarball])  ~(tap by dir.b)
+  |-
+  ?~  dirs  (pure:m ~)
+  =/  [dir-name=@ta sub=ball:tarball]  i.dirs
+  ;<  ~  bind:m  (send-old-dir eyre-id sub born (snoc here dir-name) mark-param)
+  $(dirs t.dirs)
+::
 ::  +cage-to-txt: convert cage to text for SSE data
 ::
 ::    With mark param: cage → target mark → txt
