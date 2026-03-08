@@ -219,6 +219,84 @@
       =/  err=(unit tang)  (find-tang-in-ball tool-name ball.view.nw)
       ?^  err  (pure:m [%| u.err])
       $
+    ::  Builder event: news from std or cus watch, or timer wake
+    ::
+    +$  builder-event
+      $%  [%std =view:nexus]
+          [%cus =view:nexus]
+          [%wake ~]
+      ==
+    ::  Take news from either /std or /cus watch, or timer wake
+    ::
+    ++  take-builder-event
+      =/  m  (fiber:fiber:nexus ,builder-event)
+      ^-  form:m
+      |=  input:fiber:nexus
+      :+  ~  state
+      ?+  in  [%skip ~]
+          ~  [%wait ~]
+          [~ %news * *]
+        ?:  =(/std wire.u.in)  [%done %std view.u.in]
+        ?:  =(/cus wire.u.in)  [%done %cus view.u.in]
+        [%skip ~]
+          [~ %arvo [%wait @ ~] %behn %wake *]
+        ?~  error.sign.u.in  [%done %wake ~]
+        [%fail %timer-error u.error.sign.u.in]
+      ==
+    ::  Strip .hoon suffix from grub name (ball mirror uses dotted names)
+    ::
+    ++  strip-hoon
+      |=  name=@ta
+      ^-  @ta
+      =/  t=tape  (trip name)
+      =/  len=@ud  (lent t)
+      ?.  (gth len 5)  name
+      ?.  =(".hoon" (slag (sub len 5) t))  name
+      (crip (scag (sub len 5) t))
+    ::  Compile all tool files from a ball snapshot
+    ::
+    ++  compile-ball-tools
+      |=  [bin-prefix=path b=ball:tarball]
+      =/  m  (fiber:fiber:nexus ,~)
+      ^-  form:m
+      ?~  fil.b  (pure:m ~)
+      =/  files=(list [@ta content:tarball])
+        ~(tap by contents.u.fil.b)
+      |-
+      ?~  files  (pure:m ~)
+      =/  [file-name=@ta =content:tarball]  i.files
+      =/  stem=@ta  (strip-hoon file-name)
+      ~&  >  [%mcp-builder-compile stem]
+      ;<  ~  bind:m  (compile-lib bin-prefix stem cage.content)
+      $(files t.files)
+    ::  Process born-diff changes: compile changed, cull deleted
+    ::
+    ++  process-changes
+      |=  [bin-prefix=path root=ball:tarball changed=(set lane:tarball)]
+      =/  m  (fiber:fiber:nexus ,~)
+      ^-  form:m
+      =/  lanes=(list lane:tarball)  ~(tap in changed)
+      |-
+      ?~  lanes  (pure:m ~)
+      ?:  ?=(%| -.i.lanes)  $(lanes t.lanes)
+      =/  file-path=path  path.p.i.lanes
+      =/  file-name=@ta  name.p.i.lanes
+      =/  stem=@ta  (strip-hoon file-name)
+      ::  Check if file still exists (not a delete)
+      =/  sub=ball:tarball  (~(dip ba:tarball root) file-path)
+      =/  ct=(unit content:tarball)
+        ?~  fil.sub  ~
+        (~(get by contents.u.fil.sub) file-name)
+      ?~  ct
+        ~&  >  [%mcp-builder-delete bin-prefix stem]
+        =/  bin-road=road:tarball
+          [%| 0 %& (weld /bin (weld bin-prefix file-path)) stem]
+        ;<  ~  bind:m  (cull-if-exists bin-road)
+        $(lanes t.lanes)
+      ~&  >  [%mcp-builder-compile bin-prefix stem]
+      ;<  ~  bind:m
+        (compile-lib (weld bin-prefix file-path) stem cage.u.ct)
+      $(lanes t.lanes)
     --
 ^-  nexus:nexus
 |%
@@ -234,16 +312,12 @@
     (~(put of ball) /tools [~ ~ ~])
   =?  ball  =(~ (~(get of ball) /lib))
     (~(put of ball) /lib [~ ~ ~])
-  =?  ball  =(~ (~(get of ball) /lib/std))
-    (~(put of ball) /lib/std [~ ~ ~])
   =?  ball  =(~ (~(get of ball) /lib/cus))
     (~(put of ball) /lib/cus [~ ~ ~])
   =?  ball  =(~ (~(get of ball) /bin))
     (~(put of ball) /bin [~ ~ ~])
   =?  ball  =(~ (~(get ba:tarball ball) [/ %'builder.sig']))
     (~(put ba:tarball ball) [/ %'builder.sig'] [~ %sig !>(~)])
-  ::  Always restart mirror to recompile all std tools
-  =.  ball  (~(put ba:tarball ball) [/ %'mirror.sig'] [~ %sig !>(~)])
   [sand ball]
 ::
 ++  on-file
@@ -340,173 +414,60 @@
     =/  json-bytes=octs  (as-octs:mimes:html (en:json:html u.response))
     %-  send-simple:srv
     [eyre-id [[200 ~[['content-type' 'application/json']]] `json-bytes]]
-      ::  /builder.sig: watch /lib/, compile all sources to /bin/
+      ::  /builder.sig: watch ball mirror + /lib/cus/, compile to /bin/
       ::
       [~ %'builder.sig']
     ;<  ~  bind:m  (rise-wait:io prod "%mcp /builder: failed")
     ~&  >  "%mcp /builder: starting"
-    ::  Subscribe to /lib/ for changes
-    ;<  *  bind:m  (keep:io /lib [%| 0 %| /lib] ~)
-    ;<  lib-init=seen:nexus  bind:m  (peek:io /born [%| 0 %| /lib] ~)
-    =/  prev-born=born:nexus
-      ?.  ?&(?=(%& -.lib-init) ?=(%ball -.p.lib-init))
+    ::  Watch ball mirror for standard tool sources
+    ;<  *  bind:m  (keep:io /std [%| 1 %| /sys/clay/grubbery/lib/nex/mcp/tools] ~)
+    ;<  std-init=seen:nexus  bind:m
+      (peek:io /std-init [%| 1 %| /sys/clay/grubbery/lib/nex/mcp/tools] ~)
+    =/  std-born=born:nexus
+      ?.  ?&(?=(%& -.std-init) ?=(%ball -.p.std-init))
         *born:nexus
-      born.p.lib-init
-    ;<  =bowl:nexus  bind:m  (get-bowl:io /tmr)
-    ;<  ~  bind:m  (send-wait:io (add now.bowl ~s30))
-    ~&  >  "%mcp /builder: watching /lib/"
-    |-
-    ;<  nw=news-or-wake:io  bind:m  (take-news-or-wake:io /lib)
-    ?:  ?=(%wake -.nw)
-      ;<  =bowl:nexus  bind:m  (get-bowl:io /tmr)
-      ;<  ~  bind:m  (send-wait:io (add now.bowl ~s30))
-      $
-    ?.  ?=([%ball *] view.nw)  $
-    =/  root=ball:tarball  ball.view.nw
-    =/  root-born=born:nexus  born.view.nw
-    =/  what=(set lane:tarball)  (diff-born-state:nexus prev-born root-born)
-    =.  prev-born  root-born
-    =/  lanes=(list lane:tarball)  ~(tap in what)
-    |-
-    ?~  lanes  ^$
-    ?:  ?=(%| -.i.lanes)  $(lanes t.lanes)
-    =/  file-path=path  path.p.i.lanes
-    =/  file-name=@ta  name.p.i.lanes
-    ::  Check if file still exists (not a delete)
-    =/  sub=ball:tarball  (~(dip ba:tarball root) file-path)
-    =/  ct=(unit content:tarball)
-      ?~  fil.sub  ~
-      (~(get by contents.u.fil.sub) file-name)
-    ?~  ct
-      ::  File deleted — cull corresponding /bin/ entry
-      ~&  >  [%mcp-builder-delete file-path file-name]
-      =/  bin-road=road:tarball  [%| 0 %& (weld /bin file-path) file-name]
-      ;<  ~  bind:m  (cull-if-exists bin-road)
-      $(lanes t.lanes)
-    ::  File exists — compile it
-    ~&  >  [%mcp-builder-compile file-path file-name]
-    ;<  ~  bind:m  (compile-lib file-path file-name cage.u.ct)
-    $(lanes t.lanes)
-      ::  /mirror.sig: watch clay dir, create/destroy /lib/std/ watchers
-      ::
-      [~ %'mirror.sig']
-    ;<  ~  bind:m  (rise-wait:io prod "%mcp /mirror: failed")
-    ~&  >  "%mcp /mirror: starting"
-    ;<  our=@p  bind:m  get-our:io
-    ;<  =desk  bind:m  get-desk:io
-    ::  Delete all existing /lib/std/ processes for clean slate
-    ;<  std-seen=seen:nexus  bind:m  (peek:io /std [%| 0 %| /lib/std] ~)
+      born.p.std-init
+    ::  Watch /lib/cus/ for custom tool sources
+    ;<  *  bind:m  (keep:io /cus [%| 0 %| /lib/cus] ~)
+    ;<  cus-init=seen:nexus  bind:m  (peek:io /cus-init [%| 0 %| /lib/cus] ~)
+    =/  cus-born=born:nexus
+      ?.  ?&(?=(%& -.cus-init) ?=(%ball -.p.cus-init))
+        *born:nexus
+      born.p.cus-init
+    ::  Initial compile: all std tools from ball mirror
     ;<  ~  bind:m
-      ?.  ?&  ?=([%& %ball *] std-seen)
-              ?=(^ fil.ball.p.std-seen)
-          ==
+      ?.  ?&(?=(%& -.std-init) ?=(%ball -.p.std-init))
         (pure:m ~)
-      =/  old=(list [@ta content:tarball])
-        ~(tap by contents.u.fil.ball.p.std-seen)
-      |-
-      ?~  old  (pure:m ~)
-      =/  [oname=@ta *]  i.old
-      ~&  >  [%mcp-mirror-cull-old oname]
-      ;<  ~  bind:m  (cull:io /cull [%| 0 %& /lib/std oname])
-      $(old t.old)
-    ::  List tool files from clay
-    ;<  now=@da  bind:m  get-time:io
-    ;<  =riot:clay  bind:m
-      (warp:io our desk ~ %sing %y da+now /lib/nex/mcp/tools)
-    ?.  ?=(^ riot)
-      ~&  >  "%mcp /mirror: no /lib/nex/mcp/tools/ on desk"
-      stay:m
-    ;<  files=(list path)  bind:m
-      (do-scry:io (list path) /scry [%ct desk /lib/nex/mcp/tools])
-    =/  tool-files=(list path)
-      (skip files |=(p=path !=(%hoon (rear p))))
-    ~&  >  [%mcp-mirror-files (lent tool-files)]
-    ::  Create a /lib/std/ process for each tool file
-    |-
-    ?~  tool-files
-      ::  Done creating, watch clay dir for additions/removals
-      ~&  >  "%mcp /mirror: watching clay"
-      ;<  now=@da  bind:m  get-time:io
-      |-
-      ;<  =riot:clay  bind:m
-        (warp:io our desk ~ %next %z da+now /lib/nex/mcp/tools)
-      ?~  riot  stay:m
-      ~&  >  "%mcp /mirror: clay dir changed"
-      ;<  now=@da  bind:m  get-time:io
-      ;<  files=(list path)  bind:m
-        (do-scry:io (list path) /scry [%ct desk /lib/nex/mcp/tools])
-      =/  tool-files=(list path)
-        (skip files |=(p=path !=(%hoon (rear p))))
-      =/  new-names=(set @ta)
-        %-  ~(gas in *(set @ta))
-        (turn tool-files |=(p=path (rear (snip p))))
-      ::  Get current /lib/std/ processes
-      ;<  std-seen=seen:nexus  bind:m  (peek:io /std [%| 0 %| /lib/std] ~)
-      =/  old-names=(set @ta)
-        ?.  ?&  ?=([%& %ball *] std-seen)
-                ?=(^ fil.ball.p.std-seen)
-            ==
-          ~
-        (~(run in ~(key by contents.u.fil.ball.p.std-seen)) |=(n=@ta n))
-      ::  Delete removed tools
-      =/  removed=(list @ta)  ~(tap in (~(dif in old-names) new-names))
-      ;<  ~  bind:m
-        |-
-        ?~  removed  (pure:m ~)
-        ~&  >  [%mcp-mirror-remove i.removed]
-        ;<  ~  bind:m  (cull:io /cull [%| 0 %& /lib/std i.removed])
-        $(removed t.removed)
-      ::  Create new tools with source from clay
-      =/  added=(list @ta)  ~(tap in (~(dif in new-names) old-names))
-      ;<  ~  bind:m
-        |-
-        ?~  added  (pure:m ~)
-        ~&  >  [%mcp-mirror-add i.added]
-        =/  clay-path=path  :(weld /lib/nex/mcp/tools /[i.added] /hoon)
-        ;<  now=@da  bind:m  get-time:io
-        ;<  src=@t  bind:m  (do-scry:io @t /scry [%cx desk clay-path])
-        ;<  ~  bind:m
-          (make:io /std [%| 0 %& /lib/std i.added] |+[hoon+!>(src) ~])
-        $(added t.added)
-      ^$
-    ::  Create /lib/std/ process for this tool with source from clay
-    =/  pax=path  i.tool-files
-    =/  file-name=@ta  (rear (snip pax))
-    ~&  >  [%mcp-mirror-create file-name]
-    =/  clay-path=path  :(weld /lib/nex/mcp/tools /[file-name] /hoon)
-    ;<  now=@da  bind:m  get-time:io
-    ;<  src=@t  bind:m  (do-scry:io @t /scry [%cx desk clay-path])
+      (compile-ball-tools /std ball.p.std-init)
+    ::  Initial compile: all cus tools
     ;<  ~  bind:m
-      (make:io /std [%| 0 %& /lib/std file-name] |+[hoon+!>(src) ~])
-    $(tool-files t.tool-files)
-      ::  /lib/std/**/name: watches own clay file, stores source as content
-      ::
-      [[%lib %std *] @]
-    ;<  ~  bind:m  (rise-wait:io prod "%mcp /lib/std: failed")
-    =/  file-name=@ta  name.rail
-    =/  sub-path=path  (slag 2 `path`path.rail)
-    ~&  >  [%mcp-std-start sub-path file-name]
-    ;<  our=@p  bind:m  get-our:io
-    ;<  =desk  bind:m  get-desk:io
-    =/  clay-path=path
-      :(weld /lib/nex/mcp/tools sub-path /[file-name] /hoon)
-    ::  Read source from clay, store as own content
-    ;<  now=@da  bind:m  get-time:io
-    ;<  src=@t  bind:m  (do-scry:io @t /scry [%cx desk clay-path])
-    ;<  ~  bind:m  (replace:io !>(src))
-    ::  Watch for changes
+      ?.  ?&(?=(%& -.cus-init) ?=(%ball -.p.cus-init))
+        (pure:m ~)
+      (compile-ball-tools /cus ball.p.cus-init)
+    ~&  >  "%mcp /builder: watching for changes"
     |-
-    ;<  now=@da  bind:m  get-time:io
-    ;<  =riot:clay  bind:m
-      (warp:io our desk ~ %next %x da+now clay-path)
-    ?~  riot
-      ~&  >  [%mcp-std-gone file-name]
-      stay:m
-    ~&  >  [%mcp-std-changed file-name]
-    ;<  now=@da  bind:m  get-time:io
-    ;<  src=@t  bind:m  (do-scry:io @t /scry [%cx desk clay-path])
-    ;<  ~  bind:m  (replace:io !>(src))
-    $
+    ;<  event=builder-event  bind:m  take-builder-event
+    ?-    -.event
+        %wake  $
+        %std
+      ?.  ?=([%ball *] view.event)  $
+      =/  root=ball:tarball  ball.view.event
+      =/  root-born=born:nexus  born.view.event
+      =/  what=(set lane:tarball)
+        (diff-born-state:nexus std-born root-born)
+      =.  std-born  root-born
+      ;<  ~  bind:m  (process-changes /std root what)
+      $
+        %cus
+      ?.  ?=([%ball *] view.event)  $
+      =/  root=ball:tarball  ball.view.event
+      =/  root-born=born:nexus  born.view.event
+      =/  what=(set lane:tarball)
+        (diff-born-state:nexus cus-born root-born)
+      =.  cus-born  root-born
+      ;<  ~  bind:m  (process-changes /cus root what)
+      $
+    ==
       ::  /tools/{id}: tool process (mark %tool-state)
       ::  Reads tool-state, runs handler step machine, writes %done.
       ::  Knows nothing about HTTP — the request watcher handles that.

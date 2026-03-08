@@ -84,11 +84,11 @@
   ==
 ::
 ++  on-poke
-  |=  [=mark =vase]
+  |=  [mak=mark vas=vase]
   ^-  (quip card _this)
-  ?+    mark  (on-poke:def mark vase)
+  ?+    mak  (on-poke:def mak vas)
       %grubbery-action
-    =+  !<(=action:nexus vase)
+    =+  !<(=action:nexus vas)
     ?-    +<.action
         %poke
       ::  All pokes route through /peers.peers/main.sig gateway
@@ -133,7 +133,7 @@
     ::  this feels misleading.
     ::
       %handle-http-request
-    =+  !<([eyre-id=@ta req=inbound-request:eyre] vase)
+    =+  !<([eyre-id=@ta req=inbound-request:eyre] vas)
     =/  =give:nexus  [|+[src sap]:bowl /[eyre-id]]
     =^  cards  state
       abet:(poke:hc give [/'server.server' %'main.server-state'] handle-http-request+!>([eyre-id src.bowl req]))
@@ -157,7 +157,7 @@
       %mount-desk
     ::  Mount a Clay desk into /sys/clay/[desk]
     ?>  =(src our):bowl
-    =/  dek=desk  !<(desk vase)
+    =/  dek=desk  !<(desk vas)
     =?  ball  =(~ (~(get of ball) /sys/clay/[dek]))
       (~(put of ball) /sys/clay/[dek] [~ ~ ~])
     =^  cards  state
@@ -167,7 +167,9 @@
       %unmount-desk
     ::  Unmount a Clay desk from /sys/clay/[desk]
     ?>  =(src our):bowl
-    =/  dek=desk  !<(desk vase)
+    =/  dek=desk  !<(desk vas)
+    ?>  !=(dek %grubbery)
+    ?>  !=(dek %base)
     =^  cards  state
       abet:(unmount-clay-desk:hc dek)
     [cards this]
@@ -1495,6 +1497,8 @@
   =/  old-files=(set path)
     %-  silt
     (list-clay-files base)
+  ::  Capture born before sync for change detection (grubbery desk)
+  =/  pre-born=born:nexus  born
   ::  Save each Clay file into tarball
   =/  new-files=(set path)  (silt files)
   =.  this
@@ -1539,9 +1543,144 @@
     =/  dir=path   (weld base (snip `(list @ta)`sans))
     =/  name=@ta   (cat 3 stem (cat 3 '.' mar))
     (delete:acc dir name)
+  ::  For grubbery desk: incrementally rebuild changed mark/nexus caches
+  =?  this  =(dek %grubbery)
+    (rebuild-changed-caches pre-born)
   ::  Subscribe to %next %z on desk root
   %-  emit-card
   [%pass /clay-desk/[dek] %arvo %c %warp our.bowl dek `[%next %z da+now.bowl /]]
+::  Incrementally rebuild mark/nexus caches for files that changed
+::  during a grubbery desk sync.  Diffs born before/after to detect
+::  which /mar/ and /nex/ files actually had content changes.
+::
+++  rebuild-changed-caches
+  |=  pre-born=born:nexus
+  ^+  this
+  =/  clay-base=path  /sys/clay/grubbery
+  ::  Diff born for /mar subtree to find changed marks
+  =/  old-mar=born:nexus  (~(dip of pre-born) (weld clay-base /mar))
+  =/  new-mar=born:nexus  (~(dip of born) (weld clay-base /mar))
+  =/  mar-changed=(set lane:tarball)
+    (diff-born-state:nexus old-mar new-mar)
+  =/  changed-marks=(list mark)
+    %+  murn  ~(tap in mar-changed)
+    |=  =lane:tarball
+    ?.  ?=([%& *] lane)  ~
+    =/  nom=tape  (trip name.p.lane)
+    =/  len=@ud  (lent nom)
+    ?.  (gth len 5)  ~
+    ?.  =(".hoon" (slag (sub len 5) nom))  ~
+    `(crip (scag (sub len 5) nom))
+  ::  Diff born for /nex subtree to find changed nexuses
+  =/  old-nex=born:nexus  (~(dip of pre-born) (weld clay-base /nex))
+  =/  new-nex=born:nexus  (~(dip of born) (weld clay-base /nex))
+  =/  nex-changed=(set lane:tarball)
+    (diff-born-state:nexus old-nex new-nex)
+  =/  changed-necks=(list neck:tarball)
+    %+  murn  ~(tap in nex-changed)
+    |=  =lane:tarball
+    ?.  ?=([%& *] lane)  ~
+    =/  nom=tape  (trip name.p.lane)
+    =/  len=@ud  (lent nom)
+    ?.  (gth len 5)  ~
+    ?.  =(".hoon" (slag (sub len 5) nom))  ~
+    =/  stem=@ta  (crip (scag (sub len 5) nom))
+    =/  segs=path  (snoc path.p.lane stem)
+    `(rap 3 (join '-' segs))
+  ::  Rebuild marks if any changed
+  =?  this  ?=(^ changed-marks)
+    ~&  >  [%sync-marks %rebuilding (lent changed-marks)]
+    (rebuild-marks-incremental changed-marks)
+  ::  Rebuild nexuses if any changed
+  =?  this  ?=(^ changed-necks)
+    ~&  >  [%sync-nexuses %rebuilding (lent changed-necks)]
+    (rebuild-nexuses-incremental changed-necks)
+  this
+::  Rebuild daises and tubes for a list of changed marks
+::
+++  rebuild-marks-incremental
+  |=  changed=(list mark)
+  ^+  this
+  =/  cores=(map mark vase)  (build-mark-cores:marks our.bowl q.byk.bowl now.bowl)
+  =/  all-marks=(set mark)  ~(key by cores)
+  =/  changed-set=(set mark)  (silt changed)
+  ::  Rebuild daises for changed marks
+  =.  ball
+    %+  roll  changed
+    |=  [mak=mark acc=_ball]
+    =/  core=(unit vase)  (~(get by cores) mak)
+    ?~  core
+      (~(del ba:tarball acc) [/bin/daises mak])
+    =/  res=(each dais:clay tang)
+      (mule |.((build-dais:marks cores mak u.core)))
+    ?:  ?=(%| -.res)
+      %-  (%*(. slog pri 3) leaf+"{<mak>}: dais build failed" (flop p.res))
+      acc
+    (~(put ba:tarball acc) [/bin/daises mak] [~ %temp !>(p.res)])
+  ::  Discover all tube pairs and rebuild those involving changed marks
+  =/  pairs=(list mars:clay)
+    %-  zing
+    %+  turn  ~(tap by cores)
+    |=  [mak=mark vas=vase]
+    ^-  (list mars:clay)
+    =/  [grab=(list mark) grow=(list mark)]
+      :-  ?.  (slob %grab -:vas)  ~
+          (sloe -:(slap vas [%limb %grab]))
+      ?.  (slob %grow -:vas)  ~
+      (sloe -:(slap vas [%limb %grow]))
+    ;:  weld
+      (murn grab |=(m=mark ?.((~(has in all-marks) m) ~ `[m mak])))
+      (murn grow |=(m=mark ?.((~(has in all-marks) m) ~ `[mak m])))
+    ==
+  =/  affected=(list mars:clay)
+    %+  skim  pairs
+    |=  =mars:clay
+    |((~(has in changed-set) a.mars) (~(has in changed-set) b.mars))
+  =.  ball
+    %+  roll  affected
+    |=  [=mars:clay acc=_ball]
+    =/  tub=(unit tube:clay)  (try-build-tube:marks cores mars)
+    ?~  tub
+      (~(del ba:tarball acc) [/bin/tubes/[a.mars] b.mars])
+    (~(put ba:tarball acc) [/bin/tubes/[a.mars] b.mars] [~ %temp !>(u.tub)])
+  ::  Delete all tubes for deleted marks
+  =/  deleted=(list mark)
+    (skip changed |=(mak=mark (~(has by cores) mak)))
+  =.  ball
+    %+  roll  deleted
+    |=  [mak=mark acc=_ball]
+    =.  acc  (~(lop ba:tarball acc) /bin/tubes/[mak])
+    =/  sources=(list @ta)  (~(lss ba:tarball acc) /bin/tubes)
+    %+  roll  sources
+    |=  [src=@ta inner=_acc]
+    (~(del ba:tarball inner) [/bin/tubes/[src] mak])
+  ~&  >  [%marks-rebuilt (lent changed) %tubes (lent affected)]
+  this
+::  Rebuild nexus cores for a list of changed necks
+::
+++  rebuild-nexuses-incremental
+  |=  changed=(list neck:tarball)
+  ^+  this
+  =/  base=path  /(scot %p our.bowl)/[q.byk.bowl]/(scot %da now.bowl)
+  =.  ball
+    %+  roll  changed
+    |=  [=neck:tarball acc=_ball]
+    =/  exists=?  .^(? %cu (weld base /nex/[neck]/hoon))
+    ?.  exists
+      (~(del ba:tarball acc) [/bin/nexuses neck])
+    =/  res=(each vase tang)
+      (mule |.(.^(vase %ca (weld base /nex/[neck]/hoon))))
+    ?:  ?=(%| -.res)
+      %-  (%*(. slog pri 3) leaf+"{<neck>}: nexus build failed" (flop p.res))
+      acc
+    =/  nex-res=(each nexus:nexus tang)
+      (mule |.(!<(nexus:nexus p.res)))
+    ?:  ?=(%| -.nex-res)
+      %-  (%*(. slog pri 3) leaf+"{<neck>}: nexus type mismatch" (flop p.nex-res))
+      acc
+    (~(put ba:tarball acc) [/bin/nexuses neck] [~ %temp !>(p.nex-res)])
+  ~&  >  [%nexuses-rebuilt (lent changed)]
+  this
 ::  List all files mirrored under a /sys/clay/[desk] path
 ::  Returns Clay-style paths (like /app/foo/hoon) with mark as last element
 ::
