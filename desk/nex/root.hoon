@@ -30,10 +30,7 @@
   ::  Create /claude directory with neck=%claude
   =?  ball  =(~ (~(get of ball) /claude))
     (~(put of ball) /claude [~ `%claude ~])
-  ::  Create /tools directory with neck=%tools
-  =?  ball  =(~ (~(get of ball) /tools))
-    (~(put of ball) /tools [~ `%tools ~])
-  ::  Create /mcp directory with neck=%mcp
+::  Create /mcp directory with neck=%mcp
   =?  ball  =(~ (~(get of ball) /mcp))
     (~(put of ball) /mcp [~ `%mcp ~])
   ::  Create /config/creds directory if not present
