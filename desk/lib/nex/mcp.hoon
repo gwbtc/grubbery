@@ -143,6 +143,14 @@
     (pure:m ~)
   ::
       [~ [%s %'tools/list']]
-    (pure:m `(mcp-tools-list dynamic id))
+    =/  advertised=(map @t tool:tools)
+      %-  ~(gas by *(map @t tool:tools))
+      %+  skim  ~(tap by dynamic)
+      |=  [name=@t *]
+      ?|  =(name 'list_tools')
+          =(name 'call_tool')
+          =(name 'echo')
+      ==
+    (pure:m `(mcp-tools-list advertised id))
   ==
 --
