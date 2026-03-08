@@ -132,6 +132,62 @@
       ?~  dirs  result
       =/  [* sub=ball:tarball]  i.dirs
       $(dirs t.dirs, result (~(uni by result) (collect-tools sub)))
+    ::  +extract-tool: try to pull a tool from a compiled .temp cage
+    ::
+    ++  extract-tool
+      |=  =cage
+      ^-  (unit tool:nex-tools)
+      ?.  =(%temp p.cage)  ~
+      =/  got=(each tool:nex-tools tang)
+        (mule |.(!<(tool:nex-tools q.cage)))
+      ?:(?=(%& -.got) `p.got ~)
+    ::  +find-tool-in-ball: search std/ then cus/ in a /bin/ ball
+    ::
+    ++  find-tool-in-ball
+      |=  [tool-name=@t b=ball:tarball]
+      ^-  (unit tool:nex-tools)
+      =/  dirs=(list @ta)  ~[%std %cus]
+      |-
+      ?~  dirs  ~
+      =/  sub=ball:tarball  (~(gut by dir.b) i.dirs *ball:tarball)
+      =/  ct=(unit content:tarball)
+        ?~(fil.sub ~ (~(get by contents.u.fil.sub) tool-name))
+      ?~  ct  $(dirs t.dirs)
+      =/  tl=(unit tool:nex-tools)  (extract-tool cage.u.ct)
+      ?^  tl  tl
+      $(dirs t.dirs)
+    ::  +await-tool: load a compiled tool handler by name
+    ::
+    ::    Peeks /bin/ for a compiled .temp grub (std/ before cus/).
+    ::    If not found yet (builder still running after agent restart),
+    ::    subscribes to /bin/ and blocks until the tool appears.
+    ::
+    ++  await-tool
+      |=  tool-name=@t
+      =/  m  (fiber:fiber:nexus ,tool:nex-tools)
+      ^-  form:m
+      ;<  bin-seen=seen:nexus  bind:m  (peek:io /bin [%| 1 %| /bin] ~)
+      ?:  ?=([%& %ball *] bin-seen)
+        =/  found=(unit tool:nex-tools)
+          (find-tool-in-ball tool-name ball.p.bin-seen)
+        ?^  found  (pure:m u.found)
+        (await-tool-sub tool-name)
+      (await-tool-sub tool-name)
+    ::  +await-tool-sub: subscribe to /bin/ and block until tool appears
+    ::
+    ++  await-tool-sub
+      |=  tool-name=@t
+      =/  m  (fiber:fiber:nexus ,tool:nex-tools)
+      ^-  form:m
+      ;<  ~  bind:m  (keep:io /await-tool [%| 1 %| /bin] ~)
+      |-
+      ;<  nw=news-or-wake:io  bind:m  (take-news-or-wake:io /await-tool)
+      ?:  ?=(%wake -.nw)  $
+      ?.  ?=([%ball *] view.nw)  $
+      =/  found=(unit tool:nex-tools)
+        (find-tool-in-ball tool-name ball.view.nw)
+      ?~  found  $
+      (pure:m u.found)
     --
 ^-  nexus:nexus
 |%
@@ -211,12 +267,16 @@
           %start
         ~
       ::  Create tool grub and subscribe
-      ;<  =bowl:nexus  bind:m  (get-bowl:io /bowl)
-      =/  tid=@ta  (scot %da now.bowl)
+      ::  Use eyre-id as tool grub ID so it's stable across restarts
+      =/  tid=@ta  eyre-id
+      =/  tool-road=road:tarball  [%| 1 %& /tools tid]
+      ;<  exists=?  bind:m  (peek-exists:io /chk tool-road)
       ;<  ~  bind:m
-        (keep:io /watch [%| 1 %& /tools tid] ~)
+        (keep:io /watch tool-road ~)
       ;<  ~  bind:m
-        (make:io /make [%| 1 %& /tools tid] |+[tool-state+!>(ts) ~])
+        ?.  exists
+          (make:io /make tool-road |+[tool-state+!>(ts) ~])
+        (pure:m ~)
       ::  Wait for tool to finish
       |-
       ;<  nw=news-or-wake:io  bind:m  (take-news-or-wake:io /watch)
@@ -423,18 +483,10 @@
     =/  tool-json=json  (~(got by args.st) '_tool')
     ?.  ?=([%s *] tool-json)  !!
     =/  tool-name=@t  p.tool-json
-    ::  Look up in dynamic tools from /bin/
-    ;<  all=(map @t tool:nex-tools)  bind:m  get-dynamic-tools
-    =/  tl=(unit tool:nex-tools)  (~(get by all) tool-name)
-    ?~  tl
-      =/  err-data=json
-        %-  pairs:enjs:format
-        :~  ['type' s+'error']
-            ['message' s+(crip "Unknown tool: {(trip tool-name)}")]
-        ==
-      (replace:io !>(`tool-state:nex-tools`[args.st %done err-data]))
+    ::  Look up tool handler — waits for builder if needed
+    ;<  tl=tool:nex-tools  bind:m  (await-tool tool-name)
     ::  Run handler — returns tool-result
-    ;<  result=tool-result:nex-tools  bind:m  handler.u.tl
+    ;<  result=tool-result:nex-tools  bind:m  handler.tl
     ::  Write result as %done
     =/  result-data=json
       ?-  -.result

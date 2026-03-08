@@ -27,7 +27,7 @@
 ::    2. Server removes connection, forwards cancel to handler rail
 ::
 ::
-/+  nexus, tarball, io=fiberio, server, http-utils, html-utils, nex-server
+/+  nexus, tarball, io=fiberio, server, http-utils, html-utils, nex-server, multipart
 !: :: turn on stack trace
 =<  ^-  nexus:nexus
     |%
@@ -275,10 +275,14 @@
       [%'DELETE' %dir]   (serve-dir-cull eyre-id api-path)
   ::  GET /sand/...    — get directory permissions as JSON
       [%'GET' %sand]     (serve-sand-peek eyre-id api-path)
+  ::  GET /weir/...    — get single directory weir as JSON
+      [%'GET' %weir]     (serve-weir-peek eyre-id api-path)
   ::  PUT /weir/...    — replace weir with JSON body
       [%'PUT' %weir]     (serve-weir-put eyre-id api-path body.request.req)
   ::  DELETE /weir/... — clear weir
       [%'DELETE' %weir]  (serve-weir-del eyre-id api-path)
+  ::  POST /upload/... — multipart file/directory upload
+      [%'POST' %upload]  (serve-upload eyre-id api-path req)
   ==
 ::  +send-error: respond with HTTP error
 ::
@@ -536,6 +540,109 @@
     (send-error eyre-id 404 'Not found')
   ;<  ~  bind:m  (cull:io /cull road)
   (send-ok eyre-id 'Deleted')
+::  +ensure-parents: create parent directories if they don't exist
+::
+++  ensure-parents
+  |=  [base=path segments=path]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  ?~  segments  (pure:m ~)
+  =/  next=path  (snoc base i.segments)
+  =/  dir-road=road:tarball  [%& %| next]
+  ;<  exists=?  bind:m  (peek-exists:io /chk dir-road)
+  ?.  exists
+    ;<  ~  bind:m
+      (make:io /upload dir-road &+[*sand:nexus `[~ ~ ~] ~])
+    (ensure-parents next t.segments)
+  (ensure-parents next t.segments)
+::  +serve-upload: POST /upload — multipart file/directory upload
+::
+++  serve-upload
+  |=  [eyre-id=@ta tree-path=path req=inbound-request:eyre]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  =/  parts=(unit (list [@t part:multipart]))
+    (de-request:multipart header-list.request.req body.request.req)
+  ?~  parts
+    (send-error eyre-id 400 'Invalid multipart data')
+  ::  Build mime→mark tubes for uploaded file extensions
+  =/  exts=(set @ta)
+    %-  ~(gas in *(set @ta))
+    %+  murn  u.parts
+    |=  [field-name=@t =part:multipart]
+    ?.  =('file' field-name)  ~
+    ?~  file.part  ~
+    (parse-extension:tarball u.file.part)
+  ;<  conversions=(map mars:clay tube:clay)  bind:m
+    =/  m  (fiber:fiber:nexus ,(map mars:clay tube:clay))
+    =/  ext-list=(list @ta)  ~(tap in exts)
+    =|  convs=(map mars:clay tube:clay)
+    |-  ^-  form:m
+    ?~  ext-list  (pure:m convs)
+    =/  =mars:clay  [%mime i.ext-list]
+    ;<  tube=(unit tube:clay)  bind:m
+      (get-tube:io mars)
+    =?  convs  ?=(^ tube)
+      (~(put by convs) mars u.tube)
+    $(ext-list t.ext-list)
+  ::  Process each file part directly
+  =|  created=(list @t)
+  =/  remaining  u.parts
+  |-
+  ?~  remaining
+    =/  response=json
+      %-  pairs:enjs:format
+      :~  ['path' s+?~(tree-path '/' (spat tree-path))]
+          ['created' [%a (turn (flop created) |=(n=@t s+n))]]
+      ==
+    =/  bod=octs  (as-octs:mimes:html (en:json:html response))
+    %-  send-cards:io
+    %+  give-simple-payload:app:server  eyre-id
+    [[201 ~[['content-type' 'application/json']]] `bod]
+  =/  [field-name=@t file-part=part:multipart]  i.remaining
+  ?.  =('file' field-name)
+    $(remaining t.remaining)
+  =/  filename-raw=@t
+    (fall file.file-part 'uploaded-file')
+  ::  Parse filename — may include path for directory uploads
+  =/  filename-path=path
+    (fall (rush (crip (weld "/" (trip filename-raw))) stap) ~)
+  ?~  filename-path
+    $(remaining t.remaining)
+  ::  Split into parent dirs and leaf filename
+  =/  [file-parent=path file-name=@ta]
+    ?~  t.filename-path
+      [~ i.filename-path]
+    [(snip `(list @ta)`filename-path) (rear filename-path)]
+  =/  full-path=path  (weld tree-path file-parent)
+  ::  Build mime cage and try mark conversion
+  =/  file-mime=mime
+    :_  (as-octs:mimes:html body.file-part)
+    (fall type.file-part /application/octet-stream)
+  =/  mime-cage=cage  [%mime !>(file-mime)]
+  =/  ext=(unit @ta)  (parse-extension:tarball file-name)
+  =/  [final-cage=cage stem=@ta]
+    ?~  ext  [mime-cage file-name]
+    =/  =mars:clay  [%mime u.ext]
+    =/  tube=(unit tube:clay)  (~(get by conversions) mars)
+    ?~  tube  [mime-cage file-name]
+    =/  result=(each vase tang)  (mule |.((u.tube q.mime-cage)))
+    ?:  ?=(%| -.result)  [mime-cage file-name]
+    ::  Strip extension from filename since mark carries it
+    =/  full=tape  (trip file-name)
+    =/  ext-len=@ud  +((lent (trip u.ext)))
+    =/  stem-name=@ta  (crip (scag (sub (lent full) ext-len) full))
+    [[u.ext p.result] stem-name]
+  ::  Ensure parent dirs exist
+  ;<  ~  bind:m  (ensure-parents tree-path file-parent)
+  ::  Create or overwrite file
+  =/  =road:tarball  [%& %& full-path stem]
+  ;<  exists=?  bind:m  (peek-exists:io /chk road)
+  ?:  exists
+    ;<  ~  bind:m  (over:io /upload road final-cage)
+    $(remaining t.remaining, created [filename-raw created])
+  ;<  ~  bind:m  (make:io /upload road |+[final-cage ~])
+  $(remaining t.remaining, created [filename-raw created])
 ::  +serve-sand-peek: GET /sand — directory permissions as JSON
 ::
 ++  serve-sand-peek
@@ -546,6 +653,17 @@
   ?.  ?=([%& %ball *] dir-seen)
     (send-error eyre-id 404 'Not found')
   (send-json eyre-id (sand-to-json:nexus sand.p.dir-seen))
+::  +serve-weir-peek: GET /weir — single directory weir as JSON
+::
+++  serve-weir-peek
+  |=  [eyre-id=@ta api-path=path]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  ;<  dir-seen=seen:nexus  bind:m  (peek:io /weir [%& %| api-path] ~)
+  ?.  ?=([%& %ball *] dir-seen)
+    (send-error eyre-id 404 'Not found')
+  =/  =weir:nexus  (fall fil.sand.p.dir-seen *weir:nexus)
+  (send-json eyre-id (weir-to-json:nexus weir))
 ::  +serve-weir-put: PUT /weir — replace weir from JSON body
 ::
 ++  serve-weir-put

@@ -139,9 +139,6 @@
   ::
       %'delete-grub'
     =/  filename=@t  (fall (get-key:kv:html-utils 'filename' args) '')
-    ?:  =('' filename)
-      ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'Missing filename')])
-      (pure:m ~)
     ::  cull road: up 3 from /explorer/requests/[id] to root, then file
     ;<  ~  bind:m  (cull:io /delete [%& %& tree-path filename])
     ;<  ~  bind:m  (send-simple:srv eyre-id [[303 ~[['location' (crip redirect-url)]]] ~])
@@ -149,9 +146,6 @@
   ::
       %'delete-folder'
     =/  foldername=@t  (fall (get-key:kv:html-utils 'foldername' args) '')
-    ?:  =('' foldername)
-      ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'Missing foldername')])
-      (pure:m ~)
     =/  folder-path=path  (snoc tree-path foldername)
     ;<  ~  bind:m  (cull:io /delete [%& %| folder-path])
     ;<  ~  bind:m  (send-simple:srv eyre-id [[303 ~[['location' (crip redirect-url)]]] ~])
@@ -159,9 +153,6 @@
   ::
       %'create-folder'
     =/  foldername=@t  (fall (get-key:kv:html-utils 'foldername' args) '')
-    ?:  =('' foldername)
-      ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'Missing foldername')])
-      (pure:m ~)
     =/  dir-ext=(unit @ta)  (parse-extension:tarball foldername)
     =/  [dir-name=@ta dir-neck=(unit neck:tarball)]
       ?~  dir-ext  [foldername ~]
