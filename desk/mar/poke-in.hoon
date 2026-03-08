@@ -1,7 +1,7 @@
-::  poke-in: inbound poke from foreign ship, routed through /peers/main
+::  poke-in: inbound poke from foreign ship, routed through /peers.peers/main.sig
 ::
 ::  Destination rail + untyped payload (page = [mark noun]).
-::  The gateway at /peers/ships/~ship/main converts the page
+::  The gateway at /peers.peers/ships/~ship/main.sig converts the page
 ::  to a cage and forwards to the destination.
 ::
 /+  tarball

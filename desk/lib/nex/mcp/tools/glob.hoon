@@ -71,6 +71,6 @@
     %+  turn  matches
     |=  [=rail:tarball mark=@tas]
     =/  pax=tape  ?~(path.rail "/" (trip (spat path.rail)))
-    "\0a{pax}/{(trip name.rail)}.{(trip mark)}"
+    "\0a{pax}/{(trip name.rail)}"
   (pure:m [%text (crip "Found {<(lent matches)>} matches:{result}")])
 --

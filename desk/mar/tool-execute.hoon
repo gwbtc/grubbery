@@ -1,4 +1,4 @@
-::  tool-execute: poke tools/main to start execution
+::  tool-execute: poke tools/main.sig to start execution
 ::  [call-id tool-name args] — dispatcher creates /requests/{call-id}
 ::
 |_  val=[call-id=@ta tool-name=@t args=(map @t json)]

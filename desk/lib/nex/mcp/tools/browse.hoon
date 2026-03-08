@@ -37,6 +37,6 @@
     ?~  files  ""
     %-  zing
     %+  turn  files
-    |=([n=@ta m=@tas] "\0a  {(trip n)}.{(trip m)}")
+    |=([n=@ta m=@tas] "\0a  {(trip n)}")
   (pure:m [%text (crip "{(trip dir-path)}{neck-text}{dir-text}{file-text}")])
 --

@@ -1,20 +1,20 @@
 ::  mcp nexus: MCP JSON-RPC endpoint for grubbery
 ::
 ::  Tree layout:
-::    /main             bind HTTP path, dispatch requests
+::    /main.sig         bind HTTP path, dispatch requests
 ::    /requests/{id}    parse HTTP, route protocol vs tools/call
 ::    /tools/{id}       tool execution grub (mark %tool-state)
 ::    /lib/std/**        standard tool sources (synced from clay by per-file watchers)
 ::    /lib/cus/**        custom tool sources (user-managed, inert)
 ::    /bin/**            compiled tools (mark %temp on success, %tang on failure)
-::    /builder           watches /lib/, compiles all sources to /bin/
-::    /mirror            watches clay dir, creates/destroys /lib/std/ watchers
+::    /builder.sig       watches /lib/, compiles all sources to /bin/
+::    /mirror.sig        watches clay dir, creates/destroys /lib/std/ watchers
 ::
 /+  nexus, tarball, io=fiberio, server, nex-server, nex-mcp
 /+  json-utils, nex-tools, build
 !: :: turn on stack trace
 =>  |%
-    ++  srv  ~(. res:nex-server [%| 1 %& ~ %main])
+    ++  srv  ~(. res:nex-server [%| 1 %& ~ %'main.sig'])
     ::  Subject vase for compiling user tools.
     ::  Includes standard library + grubbery libs.
     ::
@@ -225,9 +225,9 @@
 ++  on-load
   |=  [=sand:nexus =ball:tarball]
   ^-  [sand:nexus ball:tarball]
-  =.  ball  (~(put ba:tarball ball) [/ %ver] [~ %ud !>(0)])
-  =?  ball  =(~ (~(get ba:tarball ball) [/ %main]))
-    (~(put ba:tarball ball) [/ %main] [~ %sig !>(~)])
+  =.  ball  (~(put ba:tarball ball) [/ %'ver.ud'] [~ %ud !>(0)])
+  =?  ball  =(~ (~(get ba:tarball ball) [/ %'main.sig']))
+    (~(put ba:tarball ball) [/ %'main.sig'] [~ %sig !>(~)])
   =?  ball  =(~ (~(get of ball) /requests))
     (~(put of ball) /requests [~ ~ ~])
   =?  ball  =(~ (~(get of ball) /tools))
@@ -240,10 +240,10 @@
     (~(put of ball) /lib/cus [~ ~ ~])
   =?  ball  =(~ (~(get of ball) /bin))
     (~(put of ball) /bin [~ ~ ~])
-  =?  ball  =(~ (~(get ba:tarball ball) [/ %builder]))
-    (~(put ba:tarball ball) [/ %builder] [~ %sig !>(~)])
+  =?  ball  =(~ (~(get ba:tarball ball) [/ %'builder.sig']))
+    (~(put ba:tarball ball) [/ %'builder.sig'] [~ %sig !>(~)])
   ::  Always restart mirror to recompile all std tools
-  =.  ball  (~(put ba:tarball ball) [/ %mirror] [~ %sig !>(~)])
+  =.  ball  (~(put ba:tarball ball) [/ %'mirror.sig'] [~ %sig !>(~)])
   [sand ball]
 ::
 ++  on-file
@@ -253,7 +253,7 @@
   =/  m  (fiber:fiber:nexus ,~)
   ^-  process:fiber:nexus
   ?+    rail  stay:m
-      [~ %main]
+      [~ %'main.sig']
     ;<  ~  bind:m  (rise-wait:io prod "%mcp /main: failed")
     ;<  ~  bind:m  (bind-http:nex-server [~ /grubbery/mcp])
     ~&  >  "%mcp /main: ready, bound /grubbery/mcp"
@@ -340,9 +340,9 @@
     =/  json-bytes=octs  (as-octs:mimes:html (en:json:html u.response))
     %-  send-simple:srv
     [eyre-id [[200 ~[['content-type' 'application/json']]] `json-bytes]]
-      ::  /builder: watch /lib/, compile all sources to /bin/
+      ::  /builder.sig: watch /lib/, compile all sources to /bin/
       ::
-      [~ %builder]
+      [~ %'builder.sig']
     ;<  ~  bind:m  (rise-wait:io prod "%mcp /builder: failed")
     ~&  >  "%mcp /builder: starting"
     ::  Subscribe to /lib/ for changes
@@ -387,9 +387,9 @@
     ~&  >  [%mcp-builder-compile file-path file-name]
     ;<  ~  bind:m  (compile-lib file-path file-name cage.u.ct)
     $(lanes t.lanes)
-      ::  /mirror: watch clay dir, create/destroy /lib/std/ watchers
+      ::  /mirror.sig: watch clay dir, create/destroy /lib/std/ watchers
       ::
-      [~ %mirror]
+      [~ %'mirror.sig']
     ;<  ~  bind:m  (rise-wait:io prod "%mcp /mirror: failed")
     ~&  >  "%mcp /mirror: starting"
     ;<  our=@p  bind:m  get-our:io

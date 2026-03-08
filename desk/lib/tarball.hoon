@@ -360,19 +360,9 @@
     ?~  file-parent
       base
     =/  next-dir-raw=@ta  i.file-parent
-    ::  Parse directory name for neck extension (e.g., "tasks.worker" -> name="tasks", neck="worker")
-    =/  dir-ext=(unit @ta)  (parse-extension next-dir-raw)
-    =/  [dir-name=@ta dir-neck=(unit neck)]
-      ?~  dir-ext
-        ::  No extension, no neck
-        [next-dir-raw ~]
-      ::  Has extension - strip it and use as neck
-      =/  ext-text=tape  (trip u.dir-ext)
-      =/  full-text=tape  (trip next-dir-raw)
-      =/  ext-len=@ud  (add 1 (lent ext-text))  :: +1 for the dot
-      =/  name-len=@ud  (sub (lent full-text) ext-len)
-      =/  clean-name=@ta  (crip (scag name-len full-text))
-      [clean-name `u.dir-ext]
+    ::  Directory name is used as-is (no extension stripping)
+    =/  dir-name=@ta  next-dir-raw
+    =/  dir-neck=(unit neck)  ~
     =/  dir-path=path  (snoc current-path dir-name)
     ::  Only create if doesn't exist
     =/  dir-exists=(unit lump)  (~(get of base) dir-path)
@@ -409,24 +399,11 @@
   ::  Try to convert to cage, otherwise store as %mime cage
   =/  file-mime=mime  [mime-type [file-size body.file-part]]
   =/  maybe-cage=(unit cage)  (mime-to-cage conversions file-name file-mime)
-  ::  If conversion succeeded, strip extension from filename
-  ::  Otherwise keep full filename for %mime cages
+  ::  Keep full filename as-is (no extension stripping)
   =/  [store-name=@ta file-content=content]
     ?~  maybe-cage
-      ::  No conversion - keep full filename with extension
       [file-name [file-metadata [%mime !>(file-mime)]]]
-    ::  Successful conversion - strip extension
-    =/  ext=(unit @ta)  (parse-extension file-name)
-    =/  name-without-ext=@ta
-      ?~  ext
-        file-name  :: no extension found, use as-is
-      ::  Strip the extension: "main.hoon" -> "main"
-      =/  full-text=tape  (trip file-name)
-      =/  ext-text=tape  (trip u.ext)
-      =/  ext-len=@ud  (add 1 (lent ext-text))  :: +1 for the dot
-      =/  name-len=@ud  (sub (lent full-text) ext-len)
-      (crip (scag name-len full-text))
-    [name-without-ext [file-metadata u.maybe-cage]]
+    [file-name [file-metadata u.maybe-cage]]
   ::  Add file to base with explicit directories
   =/  new-base=ball
     (~(put ba base-with-dirs) [full-parent store-name] file-content)
@@ -940,7 +917,7 @@
             ['linkname' (encode-symlink u.maybe-sym)]
         ==
       (generate-entry sym-metadata ~)
-    ::  Regular file - name already has extension from extend-ball
+    ::  Regular file
     =/  =mime  (cage-to-mime cage.content)
     =/  cage-metadata=metadata
       %-  ~(gas by metadata.content)
@@ -950,49 +927,7 @@
       ==
     (generate-entry cage-metadata `q.mime)
   ::
-::  +extend-ball: rewrite ball keys with filesystem extensions
-::
-::  Bakes .mark extensions into filenames and .neck extensions into
-::  directory names so tar paths match their directory entries.
-::  e.g. key %main in a %hoon cage becomes %main.hoon,
-::  dir key %server with neck %server becomes %server.server
-::
-  ++  extend-ball
-    |=  =ball
-    ^-  ^ball
-    =/  new-fil=(unit lump)
-      ?~  fil.ball  ~
-      =/  new-contents=(map @ta content)
-        %-  ~(gas by *(map @ta content))
-        %+  turn  ~(tap by contents.u.fil.ball)
-        |=  [name=@ta =content]
-        =/  ext-name=@ta
-          ?:  =(%mime p.cage.content)  name
-          (crip "{(trip name)}.{(trip p.cage.content)}")
-        [ext-name content]
-      `u.fil.ball(contents new-contents)
-    ::  Rename subdirs: add .neck extension to dir keys, recurse
-    =/  new-dir=(map @ta ^ball)
-      %-  ~(gas by *(map @ta ^ball))
-      %+  turn  ~(tap by dir.ball)
-      |=  [name=@ta sub=^ball]
-      =/  ext-name=@ta
-        ?~  fil.sub  name
-        ?~  neck.u.fil.sub  name
-        (crip "{(trip name)}.{(trip u.neck.u.fil.sub)}")
-      [ext-name (extend-ball sub)]
-    [new-fil new-dir]
-::  +make-tarball: extend ball keys with .mark/.neck then generate tar
-::
-::  Extends once at the top then delegates to +make-tarball-raw
-::  which recurses without re-extending.
-::
   ++  make-tarball
-    |=  [=path =ball]
-    ^-  tarball
-    (make-tarball-raw path (extend-ball ball))
-  ::
-  ++  make-tarball-raw
     |=  [=path =ball]
     ^-  tarball
     =/  tar-entries=tarball
@@ -1015,7 +950,7 @@
       tar-entries
     =/  [name=@ta sub-ball=^ball]  i.directories
     =/  sub-tar=tarball
-      (make-tarball-raw (snoc path name) sub-ball)
+      (make-tarball (snoc path name) sub-ball)
     %=  $
       directories  t.directories
       tar-entries  (weld tar-entries sub-tar)

@@ -42,15 +42,8 @@
     ?.  ?=([%s *] u.mk)  ~
     ?:  =('' p.u.mk)  ~
     `p.u.mk
-  =/  ext=(unit @ta)  (parse-extension:tarball file-name)
-  ::  Strip extension from filename for grub name
-  =/  grub-name=@ta
-    ?~  ext  file-name
-    =/  et=tape  (trip u.ext)
-    =/  ft=tape  (trip file-name)
-    (crip (scag (sub (lent ft) (add 1 (lent et))) ft))
   =/  pax=path  (stab file-path)
-  =/  road=road:tarball  [%& %& pax grub-name]
+  =/  road=road:tarball  [%& %& pax file-name]
   ::  Explicit content_type: store as raw mime with that content-type
   ?^  content-type
     =/  mtype=path  (stab (cat 3 '/' u.content-type))

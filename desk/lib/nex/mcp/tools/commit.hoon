@@ -19,11 +19,13 @@
   ;<  st=tool-state:tools  bind:m  (get-state-as:io ,tool-state:tools)
   ?+  step.st  (pure:m [%error 'Unknown commit step'])
       %start
-    =/  mount-point=@tas
-      %.  [%o args.st]
-      %-  ot:dejs:format
-      :~  ['mount_point' so:dejs:format]
-      ==
+    =/  mount-point-json=(unit json)
+      (~(get by args.st) 'mount_point')
+    ?~  mount-point-json
+      (pure:m [%error 'Missing required argument: mount_point'])
+    ?.  ?=([%s *] u.mount-point-json)
+      (pure:m [%error 'mount_point must be a string'])
+    =/  mount-point=@tas  (slav %tas p.u.mount-point-json)
     =/  timeout-seconds=@ud
       ?~  timeout-json=(~(get by args.st) 'timeout_seconds')
         30
@@ -40,13 +42,13 @@
       ==
     ;<  ~  bind:m
       (replace:io !>([args.st %committing commit-data]))
-    ;<  *  bind:m  (keep:io /dill-logs [%& %& /sys %dill-logs] ~)
+    ;<  *  bind:m  (keep:io /dill/logs [%& %& /sys/dill %'logs.dill-told'] ~)
     ;<  =bowl:nexus  bind:m  (get-bowl:io /bowl)
     ;<  ~  bind:m
       (send-card:io %pass /commit-timeout %arvo %b %wait (add now.bowl timeout))
     ;<  ~  bind:m  (gall-poke-our:io %hood kiln-commit+!>([mount-point %.n]))
     ;<  ~  bind:m  collect-logs:tools
-    ;<  ~  bind:m  (drop:io /dill-logs [%& %& /sys %dill-logs])
+    ;<  ~  bind:m  (drop:io /dill/logs [%& %& /sys/dill %'logs.dill-told'])
     ;<  st=tool-state:tools  bind:m  (get-state-as:io ,tool-state:tools)
     (finish-commit:tools args.st data.st)
       %committing

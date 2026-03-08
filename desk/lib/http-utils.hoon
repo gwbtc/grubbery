@@ -77,6 +77,22 @@
   ^-  (unit @t)
   (get-header:http 'last-event-id' header-list.request.req)
 ::
+::  URL parsing
+::
+::  +parse-url: parse URL into path segments and query args
+::  Unlike parse-request-line, does NOT strip extensions from filenames.
+::
+++  parse-url
+  |=  url=@t
+  ^-  [site=path args=quay:eyre]
+  %+  fall
+    %+  rush  url
+    ;~  plug
+      ;~(pfix fas (more fas smeg:de-purl:html))
+      yque:de-purl:html
+    ==
+  [~ ~]
+::
 ::  URL encoding
 ::
 ++  encode-request-line

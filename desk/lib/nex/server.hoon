@@ -46,9 +46,9 @@
       bindings=(map binding:eyre rail:tarball)
       connections=(map @ta binding:eyre)
   ==
-::  Absolute road to /server/main
+::  Absolute road to /server.server/main.server-state
 ::
-++  server-road  `road:tarball`[%& %& /server %main]
+++  server-road  `road:tarball`[%& %& /'server.server' %'main.server-state']
 ::  Register an eyre binding with the server nexus.
 ::  Target defaults to the sender (the calling process).
 ::
@@ -66,7 +66,7 @@
   ^-  form:m
   (poke:io /bind server-road server-action+!>([%bind binding `bend]))
 ::  HTTP response helpers, parameterized on dispatcher road.
-::  Usage: =/  srv  ~(. res:nex-server [%| 1 %& ~ %main])
+::  Usage: =/  srv  ~(. res:nex-server [%| 1 %& ~ %'main.sig'])
 ::         (send-simple:srv eyre-id payload)
 ::
 ++  res

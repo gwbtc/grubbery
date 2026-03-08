@@ -1,4 +1,4 @@
-::  -grubbery!poke [/server %main %server-action [%reset ~]]
+::  -grubbery!poke [/'server.server' %'main.server-state' %server-action [%reset ~]]
 ::
 /-  spider
 /+  *strandio, nexus

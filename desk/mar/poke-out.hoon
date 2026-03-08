@@ -1,7 +1,7 @@
 ::  poke-out: outbound poke to agent on remote ship
 ::
 ::  Target ship, agent, and untyped payload (page = [mark noun]).
-::  Handled by /peers/main which has syscall access to send Gall pokes.
+::  Handled by /peers.peers/main.sig which has syscall access to send Gall pokes.
 ::
 !: :: turn on stack trace
 |_  [=ship =dude:gall =page]

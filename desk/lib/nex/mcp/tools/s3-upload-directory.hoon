@@ -41,10 +41,7 @@
     $(files-to-upload t.files-to-upload)
   ;<  =mime  bind:m  (cage-to-mime:io cage.p.file-seen)
   =/  text=@t  ;;(@t q.q.mime)
-  =/  mark=@tas  p.cage.p.file-seen
-  =/  full-name=@ta
-    ?:  =(mark %mime)  filename
-    (crip "{(trip filename)}.{(trip mark)}")
+  =/  full-name=@ta  filename
   =/  relative-path=path
     ?:  =(pax ~)  (snoc file-path full-name)
     (snoc (slag (lent pax) file-path) full-name)

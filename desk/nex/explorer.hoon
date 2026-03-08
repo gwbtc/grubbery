@@ -7,9 +7,9 @@
     ++  on-load
       |=  [=sand:nexus =ball:tarball]
       ^-  [sand:nexus ball:tarball]
-      =.  ball  (~(put ba:tarball ball) [/ %ver] [~ %ud !>(0)])
-      =?  ball  =(~ (~(get ba:tarball ball) [/ %main]))
-        (~(put ba:tarball ball) [/ %main] [~ %sig !>(~)])
+      =.  ball  (~(put ba:tarball ball) [/ %'ver.ud'] [~ %ud !>(0)])
+      =?  ball  =(~ (~(get ba:tarball ball) [/ %'main.sig']))
+        (~(put ba:tarball ball) [/ %'main.sig'] [~ %sig !>(~)])
       =?  ball  =(~ (~(get of ball) /requests))
         (~(put of ball) /requests [~ ~ ~])
       [sand ball]
@@ -21,7 +21,7 @@
       =/  m  (fiber:fiber:nexus ,~)
       ^-  process:fiber:nexus
       ?+    rail  stay:m
-          [~ %main]
+          [~ %'main.sig']
         ;<  ~  bind:m  (rise-wait:io prod "%explorer /main: failed, poke to restart")
         ~&  >  "%explorer /main: binding /grubbery/ball"
         ;<  ~  bind:m  (bind-http:nex-server [~ /grubbery/ball])
@@ -36,20 +36,14 @@
           ;<  ~  bind:m  (send-simple:srv eyre-id [[403 ~] `(as-octs:mimes:html 'Forbidden')])
           (pure:m ~)
         ~&  >  [%explorer-request eyre-id url.request.req]
-        =/  =request-line:server  (parse-request-line:server url.request.req)
-        ::  Extract raw path, resolve through ball tree.
-        ::  Re-append URL extension to last segment — apat strips
-        ::  ".pdf" etc into ext, but grub names include it.
+        =/  [site=path args=quay:eyre]  (parse-url:http-utils url.request.req)
         =/  raw-path=path
-          =/  segs=path
-            ?.  ?=([%grubbery %ball *] site.request-line)  ~
-            t.t.site.request-line
-          ?.  &(?=(^ ext.request-line) ?=(^ segs))  segs
-          (snoc (snip `path`segs) (crip "{(trip (rear segs))}.{(trip u.ext.request-line)}"))
+          ?.  ?=([%grubbery %ball *] site)  ~
+          t.t.site
 
         ?:  ?=([%stream ~] raw-path)
           =/  watch-path=path
-            =/  p=(unit @t)  (get-key:kv:html-utils 'path' args.request-line)
+            =/  p=(unit @t)  (get-key:kv:html-utils 'path' args)
             ?~  p  ~
             (stab u.p)
           (handle-stream eyre-id req watch-path)
@@ -63,14 +57,14 @@
         =/  tree-path=path  (resolve-url-path raw-path root)
         ?:  =('POST' method.request.req)
           (handle-post eyre-id tree-path root-sand req)
-        (handle-get eyre-id tree-path root root-born root-sand args.request-line)
+        (handle-get eyre-id tree-path root root-born root-sand args)
       ==
     --
 ::
 |%
-::  HTTP response door (road from /explorer/requests/* to /explorer/main)
+::  HTTP response door (road from /explorer.explorer/requests/* to /explorer.explorer/main.sig)
 ::
-++  srv  ~(. res:nex-server [%| 1 %& ~ %main])
+++  srv  ~(. res:nex-server [%| 1 %& ~ %'main.sig'])
 ::  Handle GET requests
 ::
 ++  handle-get
@@ -139,7 +133,7 @@
   ::
       %'delete-grub'
     =/  filename=@t  (fall (get-key:kv:html-utils 'filename' args) '')
-    ::  cull road: up 3 from /explorer/requests/[id] to root, then file
+    ::  cull road: up 3 from /explorer.explorer/requests/[id] to root, then file
     ;<  ~  bind:m  (cull:io /delete [%& %& tree-path filename])
     ;<  ~  bind:m  (send-simple:srv eyre-id [[303 ~[['location' (crip redirect-url)]]] ~])
     (pure:m ~)
@@ -153,13 +147,8 @@
   ::
       %'create-folder'
     =/  foldername=@t  (fall (get-key:kv:html-utils 'foldername' args) '')
-    =/  dir-ext=(unit @ta)  (parse-extension:tarball foldername)
-    =/  [dir-name=@ta dir-neck=(unit neck:tarball)]
-      ?~  dir-ext  [foldername ~]
-      =/  ext-text=tape  (trip u.dir-ext)
-      =/  full-text=tape  (trip foldername)
-      =/  name-len=@ud  (sub (lent full-text) (add 1 (lent ext-text)))
-      [(crip (scag name-len full-text)) `u.dir-ext]
+    =/  dir-name=@ta  foldername
+    =/  dir-neck=(unit neck:tarball)  ~
     =/  folder-path=path  (snoc tree-path dir-name)
     =/  new-ball=ball:tarball  [`[~ dir-neck ~] ~]
     ;<  ~  bind:m  (make:io /mkd [%& %| folder-path] &+[*sand:nexus new-ball])
@@ -318,21 +307,12 @@
     ==
   ;<  ~  bind:m  (send-simple:srv eyre-id [[200 headers] `tar-data])
   (pure:m ~)
-::  Find a grub by URL segment in a lump
-::  Matches exact name first, then tries name.mark pattern
+::  Find a grub by exact name in a lump
 ::
 ++  find-grub
   |=  [seg=@ta =lump:tarball]
   ^-  (unit content:tarball)
-  =/  direct  (~(get by contents.lump) seg)
-  ?^  direct  direct
-  =/  entries=(list [@ta content:tarball])  ~(tap by contents.lump)
-  |-
-  ?~  entries  ~
-  =/  [name=@ta =content:tarball]  i.entries
-  ?:  =(seg (crip "{(trip name)}.{(trip p.cage.content)}"))
-    `content
-  $(entries t.entries)
+  (~(get by contents.lump) seg)
 ::  Handle SSE stream: subscribe to root, push change events
 ::
 ++  handle-stream
@@ -375,8 +355,7 @@
     =.  prev-born  root-born
     =/  par=ball:tarball  (~(dip ba:tarball root) watch-path)
     =/  par-born=born:nexus  (~(dip of root-born) watch-path)
-    =/  necks=(map path @ta)  (get-necks watch-path root)
-    =/  url-prefix=tape  (build-url watch-path necks)
+    =/  url-prefix=tape  (build-url watch-path)
     ;<  =bowl:nexus  bind:m  (get-bowl:io /sse)
     ::  Only build tubes for marks of files that changed in watched dir
     =/  changed-marks=(set mark)
@@ -468,27 +447,7 @@
     ;<  ~  bind:m  (send-data:srv eyre-id `data)
     $(lanes t.lanes)
   ==
-::  Walk root ball along path, collecting neck for each directory
-::
-++  get-necks
-  |=  [pax=path root=ball:tarball]
-  ^-  (map path @ta)
-  =/  result=(map path @ta)
-    ?~  fil.root  ~
-    ?~  neck.u.fil.root  ~
-    (~(put by *(map path @ta)) ~ u.neck.u.fil.root)
-  =/  current=ball:tarball  root
-  =/  built=path  ~
-  =/  rem=path  pax
-  |-
-  ?~  rem  result
-  =/  child=(unit ball:tarball)  (~(get by dir.current) i.rem)
-  ?~  child  result
-  =.  built  (snoc built i.rem)
-  =?  result  ?&(?=(^ fil.u.child) ?=(^ neck.u.fil.u.child))
-    (~(put by result) built u.neck.u.fil.u.child)
-  $(rem t.rem, current u.child)
-::  Resolve URL path by stripping neck extensions from segments
+::  Resolve URL path — direct match only
 ::
 ++  resolve-url-path
   |=  [raw=path root=ball:tarball]
@@ -497,43 +456,20 @@
   =/  result=path  ~
   |-
   ?~  raw  result
-  ::  Try direct match in directory children
   =/  child=(unit ball:tarball)  (~(get by dir.current) i.raw)
   ?^  child
     $(raw t.raw, result (snoc result i.raw), current u.child)
-  ::  Try stripping extension to match dir with neck
-  =/  match=(unit [@ta ball:tarball])
-    =/  dirs=(list [@ta ball:tarball])  ~(tap by dir.current)
-    |-
-    ?~  dirs  ~
-    =/  [dn=@ta sub=ball:tarball]  i.dirs
-    =/  nk=(unit @ta)
-      ?~  fil.sub  ~
-      neck.u.fil.sub
-    ?~  nk  $(dirs t.dirs)
-    ?:  =(i.raw (crip "{(trip dn)}.{(trip u.nk)}"))
-      `[dn sub]
-    $(dirs t.dirs)
-  ?^  match
-    =/  [dn=@ta sub=ball:tarball]  u.match
-    $(raw t.raw, result (snoc result dn), current sub)
   ::  No match — keep segment as-is
   $(raw t.raw, result (snoc result i.raw))
-::  Build URL path with neck extensions for each segment
+::  Build URL path from segments
 ::
 ++  build-url
-  |=  [pax=path necks=(map path @ta)]
+  |=  pax=path
   ^-  tape
-  =/  built=path  ~
   =/  acc=tape  "/grubbery/ball"
   |-
   ?~  pax  acc
-  =.  built  (snoc built i.pax)
-  =/  nk=(unit @ta)  (~(get by necks) built)
-  =/  seg=tape
-    ?~  nk  "/{(trip i.pax)}"
-    "/{(trip i.pax)}.{(trip u.nk)}"
-  $(pax t.pax, acc (weld acc seg))
+  $(pax t.pax, acc (weld acc "/{(trip i.pax)}"))
 ::
 ++  page-head
   |=  title=tape
@@ -551,7 +487,6 @@
       ; th { border-bottom: 1px solid #ccc; }
       ; a { color: #0366d6; text-decoration: none; }
       ; a:hover { text-decoration: underline; }
-      ; .neck { color: #6a737d; font-style: italic; }
       ; .breadcrumb { margin-bottom: 10px; }
       ; .breadcrumb a { margin: 0 2px; }
       ; .info { margin: 10px 0; padding: 10px; background: #f6f8fa; border-radius: 6px; }
@@ -560,6 +495,7 @@
       ; button { padding: 2px 8px; cursor: pointer; font-family: monospace; font-size: 12px; }
       ; .del-form { display: inline; }
       ; .symlink-target { color: #6a737d; }
+      ; .mark-mismatch { color: #cb2431; font-weight: bold; }
       ; .action-row { margin: 6px 0; display: flex; gap: 6px; align-items: center; }
       ; .action-row label { font-weight: bold; min-width: 110px; }
       ; .inline-form { display: flex; gap: 4px; align-items: center; }
@@ -579,35 +515,26 @@
   ==
 ::
 ++  breadcrumb
-  |=  [pax=path necks=(map path @ta)]
+  |=  pax=path
   ^-  manx
-  ::  Precompute segment data (need accumulation for built path)
-  =/  seg-data=(list [seg=@ta url=tape neck-ext=tape])
+  =/  seg-data=(list [seg=@ta url=tape])
     =/  built=path  ~
-    =/  acc=(list [seg=@ta url=tape neck-ext=tape])  ~
+    =/  acc=(list [seg=@ta url=tape])  ~
     =/  rem=path  pax
     |-
     ?~  rem  (flop acc)
     =.  built  (snoc built i.rem)
-    =/  url=tape  (build-url built necks)
-    =/  nk=tape
-      =/  got=(unit @ta)  (~(get by necks) built)
-      ?~  got  ""
-      ".{(trip u.got)}"
-    $(rem t.rem, acc [[i.rem url nk] acc])
-  =/  root-neck=tape
-    =/  got=(unit @ta)  (~(get by necks) ~)
-    ?~  got  ""
-    ".{(trip u.got)}"
+    =/  url=tape  (build-url built)
+    $(rem t.rem, acc [[i.rem url] acc])
   =/  crumbs=(list manx)
-    :~  ;a/"/grubbery/ball": {root-neck}/
+    :~  ;a/"/grubbery/ball": /
     ==
   =.  crumbs
     %+  weld  crumbs
     %+  turn  seg-data
-    |=  [seg=@ta url=tape neck-ext=tape]
+    |=  [seg=@ta url=tape]
     ^-  manx
-    ;a/"{url}": {(trip seg)}{neck-ext}/
+    ;a/"{url}": {(trip seg)}/
   ;div.breadcrumb
     ;*  crumbs
   ==
@@ -804,33 +731,29 @@
   =/  b-born=born:nexus  (~(dip of root-born) pax)
   =/  dir-sand=sand:nexus  (~(dip of root-sand) pax)
   =/  dir-weir=(unit weir:nexus)  fil.dir-sand
-  =/  necks=(map path @ta)  (get-necks pax root)
-  =/  neck-ext=tape
-    ?~  fil.b  ""
-    ?~  neck.u.fil.b  ""
-    ".{(trip u.neck.u.fil.b)}"
   =/  path-display=tape
-    ?~  pax  "/{neck-ext}"
-    "{(trip (spat pax))}{neck-ext}"
+    ?~  pax  "/"
+    (trip (spat pax))
   =/  kids  dir.b
   =/  file-contents=(map @ta content:tarball)
     ?~  fil.b  ~
     contents.u.fil.b
   =/  subdirs=(list @ta)  ~(tap in ~(key by kids))
   =/  files=(list @ta)  ~(tap in ~(key by file-contents))
-  =/  url-prefix=tape  (build-url pax necks)
+  =/  url-prefix=tape  (build-url pax)
   ;html
     ;+  (page-head "Index of {path-display}")
     ;body
-      ;+  (breadcrumb pax necks)
+      ;+  (breadcrumb pax)
       ;h1: Index of {path-display}
       ;+  (dir-info b url-prefix dir-weir pax)
       ;table#listing(data-path (trip (spat pax)))
         ;tr
           ;th.sortable(data-col "0", onclick "sortTable(0)"): Name
-          ;th.sortable(data-col "1", onclick "sortTable(1)"): Mime Type
-          ;th.sortable(data-col "2", onclick "sortTable(2)"): Size
-          ;th.sortable(data-col "3", onclick "sortTable(3)"): Modified
+          ;th.sortable(data-col "1", onclick "sortTable(1)"): Mark
+          ;th.sortable(data-col "2", onclick "sortTable(2)"): Mime Type
+          ;th.sortable(data-col "3", onclick "sortTable(3)"): Size
+          ;th.sortable(data-col "4", onclick "sortTable(4)"): Modified
           ;th: Actions
         ==
         ;*
@@ -838,12 +761,13 @@
         ::  Parent link
         =?  rows  ?=(^ pax)
           =/  parent=path  (snip `path`pax)
-          =/  parent-url=tape  (build-url parent necks)
+          =/  parent-url=tape  (build-url parent)
           %+  snoc  rows
           ;tr
             ;td
               ;a/"{parent-url}": ../
             ==
+            ;td: -
             ;td: -
             ;td: -
             ;td: -
@@ -880,7 +804,7 @@
     return Array.from(tbl.querySelectorAll('tr[data-name]'));
   }
   function sortVal(row, col) {
-    if (col === 2) return parseInt(row.dataset.size || '0') || 0;
+    if (col === 3) return parseInt(row.dataset.size || '0') || 0;
     return (row.cells[col] && row.cells[col].textContent || '').toLowerCase();
   }
   function doSort() {
@@ -948,15 +872,12 @@
 ++  render-dir-row
   |=  [name=@ta sub=ball:tarball url-prefix=tape]
   ^-  manx
-  =/  sub-neck=tape
-    ?~  fil.sub  ""
-    ?~  neck.u.fil.sub  ""
-    ".{(trip u.neck.u.fil.sub)}"
-  =/  dir-url=tape  "{url-prefix}/{(trip name)}{sub-neck}"
+  =/  dir-url=tape  "{url-prefix}/{(trip name)}"
   ;tr(data-name (trip name), data-type "dir")
     ;td
-      ;a/"{dir-url}": {(trip name)}{sub-neck}/
+      ;a/"{dir-url}": {(trip name)}/
     ==
+    ;td: -
     ;td: -
     ;td: -
     ;td: -
@@ -1002,6 +923,7 @@
       ==
       ;td: symlink
       ;td: -
+      ;td: -
       ;td: {mtime-display}
       ;td
         ;form.del-form(method "POST", action url-prefix)
@@ -1011,11 +933,14 @@
         ==
       ==
     ==
-  =/  display-name=tape
-    ?:  =(%mime p.cag)
-      (trip name)
-    "{(trip name)}.{(trip p.cag)}"
+  =/  display-name=tape  (trip name)
   =/  file-url=tape  "{url-prefix}/{display-name}"
+  =/  mark-name=tape  (trip p.cag)
+  =/  ext=(unit @ta)  (parse-extension:tarball name)
+  =/  mark-matches=?
+    ?~  ext  %.n
+    =(u.ext p.cag)
+  =/  mark-class=tape  ?:(mark-matches "" " mark-mismatch")
   =/  =mime
     ?:  =(%mime p.cag)
       !<(mime q.cag)
@@ -1028,6 +953,7 @@
     ;td
       ;a/"{view-url}": {display-name}
     ==
+    ;td(class mark-class): {mark-name}
     ;td: {mime-display}
     ;td: {(format-size p.q.mime)}
     ;td: {mtime-display}

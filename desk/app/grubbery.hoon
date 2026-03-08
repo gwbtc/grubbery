@@ -1,3 +1,4 @@
+::
 /-  spider
 /+  default-agent, dbug, tarball, nexus, server,
     nex-tools, marks, build
@@ -9,6 +10,8 @@
 /=  m-  /mar/ships
 /=  m-  /mar/dill-told
 /=  m-  /mar/dill-blit
+/=  m-  /mar/jael-private-keys
+/=  m-  /mar/jael-public-keys-result
 :: add /nex to the ford build cache for fast compilation
 ::
 /~  nex  nexus:nexus  /nex
@@ -47,8 +50,12 @@
     abet:(reload:hc *pool:nexus init-ball *sand:nexus *born:nexus *subs:nexus)
   =^  dill-cards  state
     abet:sync-dill:hc
+  =^  clay-cards  state
+    abet:sync-clay:hc
+  =^  jael-cards  state
+    abet:sync-jael:hc
   :_  this
-  (weld dill-cards cards)
+  :(weld jael-cards clay-cards dill-cards cards)
 ::
 ++  on-save
   ^-  vase
@@ -68,8 +75,12 @@
       abet:(reload:hc pool.old new-ball sand.old born.old subs.old)
     =^  dill-cards  state
       abet:sync-dill:hc
+    =^  clay-cards  state
+      abet:sync-clay:hc
+    =^  jael-cards  state
+      abet:sync-jael:hc
     :_  this
-    (weld dill-cards cards)
+    :(weld jael-cards clay-cards dill-cards cards)
   ==
 ::
 ++  on-poke
@@ -80,11 +91,11 @@
     =+  !<(=action:nexus vase)
     ?-    +<.action
         %poke
-      ::  All pokes route through /peers/main gateway
+      ::  All pokes route through /peers.peers/main.sig gateway
       ?>  ?=(%& -.dest.action)
       =/  =give:nexus  [|+[src sap]:bowl wire.action]
       =^  cards  state
-        abet:(poke:hc give [/peers %main] poke-in+!>([p.dest.action page.action]))
+        abet:(poke:hc give [/'peers.peers' %'main.sig'] poke-in+!>([p.dest.action page.action]))
       [cards this]
       ::
         %make
@@ -115,9 +126,9 @@
         abet:(reload-nexus:hc p.dest.action)
       [cards this]
     ==
-    ::  HTTP request from eyre: forward to /server/main
+    ::  HTTP request from eyre: forward to /server.server/main.server-state
     ::
-    ::  NOTE: HTTP requests go directly to /server/main, bypassing /peers.
+    ::  NOTE: HTTP requests go directly to /server.server/main.server-state, bypassing /peers.peers.
     ::  Eyre gestures at treating them as "from a ship" via src.bowl —
     ::  this feels misleading.
     ::
@@ -125,7 +136,7 @@
     =+  !<([eyre-id=@ta req=inbound-request:eyre] vase)
     =/  =give:nexus  [|+[src sap]:bowl /[eyre-id]]
     =^  cards  state
-      abet:(poke:hc give [/server %main] handle-http-request+!>([eyre-id src.bowl req]))
+      abet:(poke:hc give [/'server.server' %'main.server-state'] handle-http-request+!>([eyre-id src.bowl req]))
     [cards this]
       ::
       %rebuild-caches
@@ -141,6 +152,24 @@
     ?>  =(src our):bowl
     =^  cards  state
       abet:sync-dill:hc
+    [cards this]
+      ::
+      %mount-desk
+    ::  Mount a Clay desk into /sys/clay/[desk]
+    ?>  =(src our):bowl
+    =/  dek=desk  !<(desk vase)
+    =?  ball  =(~ (~(get of ball) /sys/clay/[dek]))
+      (~(put of ball) /sys/clay/[dek] [~ ~ ~])
+    =^  cards  state
+      abet:(sync-clay-desk:hc dek)
+    [cards this]
+      ::
+      %unmount-desk
+    ::  Unmount a Clay desk from /sys/clay/[desk]
+    ?>  =(src our):bowl
+    =/  dek=desk  !<(desk vase)
+    =^  cards  state
+      abet:(unmount-clay-desk:hc dek)
     [cards this]
   ==
 ::
@@ -169,7 +198,7 @@
     =/  eyre-id=@ta  i.t.path
     =/  =give:nexus  [|+[src sap]:bowl /cancel/[eyre-id]]
     =^  cards  state
-      abet:(poke:hc give [/server %main] handle-http-cancel+!>(eyre-id))
+      abet:(poke:hc give [/'server.server' %'main.server-state'] handle-http-cancel+!>(eyre-id))
     [cards this]
       [%proc ^]
     =^  cards  state
@@ -225,16 +254,32 @@
 ++  on-arvo
   |=  [=wire sign=sign-arvo]
   ^-  (quip card _this)
-  ?:  ?=([%dill-logs ~] wire)
+  ?:  ?=([%dill %logs ~] wire)
     ?>  ?=([%dill %logs *] sign)
     =^  cards  state
-      abet:(save-file:hc [/sys %dill-logs] [~ %dill-told !>(told.sign)])
+      abet:(save-file:hc [/sys/dill %'logs.dill-told'] [~ %dill-told !>(told.sign)])
     [cards this]
-  ?:  ?=([%dill-session @ ~] wire)
+  ?:  ?=([%dill %session @ ~] wire)
     ?>  ?=([%dill %blit *] sign)
-    =/  ses=@tas  i.t.wire
+    =/  ses=@tas  i.t.t.wire
     =^  cards  state
-      abet:(save-file:hc [/sys/dill-sessions ses] [~ %dill-blit !>(p.sign)])
+      abet:(save-file:hc [/sys/dill/sessions ses] [~ %dill-blit !>(p.sign)])
+    [cards this]
+  ?:  ?=([%clay-desk @ ~] wire)
+    ?>  ?=([%clay %writ *] sign)
+    =/  dek=desk  (slav %tas i.t.wire)
+    =^  cards  state
+      abet:(on-clay-writ:hc dek +>.sign)
+    [cards this]
+  ?:  ?=([%jael %public ~] wire)
+    ?>  ?=([%jael %public-keys *] sign)
+    =^  cards  state
+      abet:(on-jael-public:hc public-keys-result.sign)
+    [cards this]
+  ?:  ?=([%jael %private ~] wire)
+    ?>  ?=([%jael %private-keys *] sign)
+    =^  cards  state
+      abet:(save-file:hc [/sys/jael %'private-keys.jael-private-keys'] [~ %jael-private-keys !>([life.sign vein.sign])])
     [cards this]
   =^  cards  state
     abet:(take-arvo:hc wire sign)
@@ -1420,33 +1465,195 @@
   |=  [here=fold:tarball sub=ball:tarball]
   ^+  this
   (diff-balls here sub *ball:tarball)
+::  Mirror Clay desks to /sys/clay/[desk]/
+::
+++  sync-clay
+  ^+  this
+  ::  Ensure /sys/clay directory exists
+  =?  ball  =(~ (~(get of ball) /sys/clay))
+    (~(put of ball) /sys/clay [~ ~ ~])
+  ::  Ensure default desks have directories
+  =?  ball  =(~ (~(get of ball) /sys/clay/base))
+    (~(put of ball) /sys/clay/base [~ ~ ~])
+  =?  ball  =(~ (~(get of ball) /sys/clay/grubbery))
+    (~(put of ball) /sys/clay/grubbery [~ ~ ~])
+  ::  Sync all desks listed as kids of /sys/clay/
+  =/  dek=(list desk)  (~(lss ba:tarball ball) /sys/clay)
+  |-  ^+  this
+  ?~  dek  this
+  $(dek t.dek, this (sync-clay-desk i.dek))
+::
+++  sync-clay-desk
+  |=  dek=desk
+  ^+  this
+  =/  base=path  /sys/clay/[dek]
+  =/  pax=path   /(scot %p our.bowl)/[dek]/(scot %da now.bowl)
+  ::  Scry for all file paths in desk
+  ::  Each path is like /app/foo/hoon where last element is mark
+  =/  files=(list path)  .^((list path) %ct pax)
+  ::  Get current files in tarball at this desk's mirror path
+  =/  old-files=(set path)
+    %-  silt
+    (list-clay-files base)
+  ::  Save each Clay file into tarball
+  =/  new-files=(set path)  (silt files)
+  =.  this
+    %+  roll  files
+    |=  [fyl=path acc=_this]
+    ^+  acc
+    ?.  ?=([@ @ *] fyl)  acc
+    =/  mar=@tas   (rear fyl)
+    =/  sans=path  (snip `(list @ta)`fyl)
+    =/  stem=@ta   (rear sans)
+    =/  dir=path   (weld base (snip `(list @ta)`sans))
+    =/  name=@ta   (cat 3 stem (cat 3 '.' mar))
+    =/  =vase  .^(vase %cr (weld pax fyl))
+    =/  old=(unit content:tarball)
+      (~(get ba:tarball ball.acc) [dir name])
+    =/  dais=(unit dais:clay)
+      =/  c=(unit content:tarball)
+        (~(get ba:tarball ball.acc) /bin/daises mar)
+      ?~  c  ~
+      `!<(dais:clay q.cage.u.c)
+    ?~  dais
+      ~&  [%sync-clay-skip-no-mark mar fyl]
+      acc
+    =/  old-vase=(unit ^vase)  ?~(old ~ `q.cage.u.old)
+    =/  res=(each ^vase tang)
+      (validate-vase:acc u.dais old-vase vase %.n)
+    ?.  ?=(%& -.res)
+      ~&  [%sync-clay-vale-failed mar fyl]
+      acc
+    (save-file:acc [dir name] [~ mar p.res])
+  ::  Delete files that no longer exist in Clay
+  =/  removed=(list path)
+    %+  skim  ~(tap in old-files)
+    |=(p=path !(~(has in new-files) p))
+  =.  this
+    %+  roll  removed
+    |=  [fyl=path acc=_this]
+    ?.  ?=([@ @ *] fyl)  acc
+    =/  mar=@tas   (rear fyl)
+    =/  sans=path  (snip `(list @ta)`fyl)
+    =/  stem=@ta   (rear sans)
+    =/  dir=path   (weld base (snip `(list @ta)`sans))
+    =/  name=@ta   (cat 3 stem (cat 3 '.' mar))
+    (delete:acc dir name)
+  ::  Subscribe to %next %z on desk root
+  %-  emit-card
+  [%pass /clay-desk/[dek] %arvo %c %warp our.bowl dek `[%next %z da+now.bowl /]]
+::  List all files mirrored under a /sys/clay/[desk] path
+::  Returns Clay-style paths (like /app/foo/hoon) with mark as last element
+::
+++  list-clay-files
+  |=  base=path
+  ^-  (list path)
+  =/  sub=ball:tarball  (~(dip ba:tarball ball) base)
+  (ball-to-paths / sub)
+::
+++  ball-to-paths
+  |=  [prefix=path bal=ball:tarball]
+  ^-  (list path)
+  =/  files=(list path)
+    ?~  fil.bal  ~
+    %+  turn  ~(tap by contents.u.fil.bal)
+    |=  [name=@ta =content:tarball]
+    ::  Reconstruct Clay path from dotted name: foo.hoon -> /prefix/foo/hoon
+    =/  parts=(list @ta)  (split-dot name)
+    ?~  parts  (snoc prefix name)
+    (weld (snoc prefix i.parts) t.parts)
+  =/  kids=(list path)
+    %-  zing
+    %+  turn  ~(tap by dir.bal)
+    |=  [name=@ta sub=ball:tarball]
+    ^$(prefix (snoc prefix name), bal sub)
+  (weld files kids)
+::  Split a @ta on the last dot: foo.hoon -> [foo /hoon]
+::
+++  split-dot
+  |=  name=@ta
+  ^-  (list @ta)
+  =/  t=tape  (trip name)
+  =/  idx=(unit @ud)
+    =/  i=@ud  (lent t)
+    |-  ^-  (unit @ud)
+    ?:  =(0 i)  ~
+    =.  i  (dec i)
+    ?:  =('.' (snag i t))  `i
+    $
+  ?~  idx  ~[name]
+  =/  pre=tape  (scag u.idx t)
+  =/  suf=tape  (slag +(u.idx) t)
+  ?:  |(=(~ pre) =(~ suf))  ~[name]
+  ~[(crip pre) (crip suf)]
+::  Handle %writ from Clay desk subscription
+::
+++  on-clay-writ
+  |=  [dek=desk =riot:clay]
+  ^+  this
+  ?~  riot
+    ::  Desk was deleted — unsub, remove mirror
+    ~&  >  [%clay-desk-deleted dek]
+    (unmount-clay-desk dek)
+  ::  Desk changed — re-sync files and re-subscribe
+  ~&  >  [%clay-desk-changed dek]
+  (sync-clay-desk dek)
+::
+++  unmount-clay-desk
+  |=  dek=desk
+  ^+  this
+  =.  this  (emit-card [%pass /clay-desk/[dek] %arvo %c %warp our.bowl dek ~])
+  (cull [%| /sys/clay/[dek]])
+::
 ::  Subscribe to dill logs and sessions, create grubs for both.
 ::
 ++  sync-dill
   ^+  this
-  ::  Create dill-logs grub and subscribe
-  =.  this  (save-file [/sys %dill-logs] [~ %dill-told !>(*told:dill)])
-  =.  this  (emit-card [%pass /dill-logs %arvo %d %logs `~])
+  ::  Create dill/logs grub and subscribe
+  =.  this  (save-file [/sys/dill %'logs.dill-told'] [~ %dill-told !>(*told:dill)])
+  =.  this  (emit-card [%pass /dill/logs %arvo %d %logs `~])
   ::  Scry for sessions
   =/  sessions=(list @tas)
     ~(tap in .^((set @tas) %dy /(scot %p our.bowl)/$/(scot %da now.bowl)/sessions))
   ::  Unsubscribe from sessions no longer in dill
-  =/  old=(list @ta)  (~(lis ba:tarball ball) /sys/dill-sessions)
+  =/  old=(list @ta)  (~(lis ba:tarball ball) /sys/dill/sessions)
   =/  new=(set @tas)  (~(gas in *(set @tas)) sessions)
   =.  this
     %-  emit-cards
     %+  murn  old
     |=  ses=@ta
     ?:  (~(has in new) ses)  ~
-    `[%pass /dill-session/[ses] %arvo %d %shot ses %flee ~]
+    `[%pass /dill/session/[ses] %arvo %d %shot ses %flee ~]
   ::  Create grubs and subscribe
   =.  this
     %+  roll  sessions
     |=  [ses=@tas acc=_this]
-    (save-file:acc [/sys/dill-sessions ses] [~ %dill-blit !>(*(list blit:dill))])
+    (save-file:acc [/sys/dill/sessions ses] [~ %dill-blit !>(*(list blit:dill))])
   %-  emit-cards
   %+  turn  sessions
-  |=(ses=@tas [%pass /dill-session/[ses] %arvo %d %shot ses %view ~])
+  |=(ses=@tas [%pass /dill/session/[ses] %arvo %d %shot ses %view ~])
+::
+++  sync-jael
+  ^+  this
+  ::  Create jael directory
+  =?  ball  =(~ (~(get of ball) /sys/jael))
+    (~(put of ball) /sys/jael [~ ~ ~])
+  ::  Create grubs and subscribe
+  =.  this
+    (save-file [/sys/jael %'private-keys.jael-private-keys'] [~ %jael-private-keys !>(*[life (map life ring)])])
+  =.  this
+    (save-file [/sys/jael %'public-keys.jael-public-keys-result'] [~ %jael-public-keys-result !>(*public-keys-result:jael)])
+  ::  Subscribe to private keys
+  =.  this
+    (emit-card [%pass /jael/private %arvo %j %private-keys ~])
+  ::  Subscribe to public keys for our ship
+  %-  emit-cards
+  ~[[%pass /jael/public %arvo %j %public-keys (silt ~[our.bowl])]]
+::
+++  on-jael-public
+  |=  =public-keys-result:jael
+  ^+  this
+  (save-file [/sys/jael %'public-keys.jael-public-keys-result'] [~ %jael-public-keys-result !>(public-keys-result)])
 ::
 ::  Save file state and bump ONLY if content actually changed.
 ::  This is the ONLY correct way to update file state.

@@ -54,17 +54,12 @@
   =/  content=@t  ;;(@t q.data.u.full-file.client-response)
   =/  filename=@ta  (extract-filename:s3:tools s3-key)
   =/  ext=(unit @ta)  (parse-extension:tarball filename)
-  =/  grub-name=@ta
-    ?~  ext  filename
-    =/  et=tape  (trip u.ext)
-    =/  ft=tape  (trip filename)
-    (crip (scag (sub (lent ft) (add 1 (lent et))) ft))
   =/  response-headers=(list [key=@t value=@t])
     headers.response-header.client-response
   =/  ct=(unit @t)  (extract-content-type:s3:tools response-headers)
   =/  mtype=path  (determine-mime-type:tarball ct filename)
   =/  file-mime=mime  [mtype (as-octs:mimes:html content)]
-  =/  road=road:tarball  [%& %& pax grub-name]
+  =/  road=road:tarball  [%& %& pax filename]
   ;<  exists=?  bind:m  (peek-exists:io /check road)
   ?:  exists
     ;<  ~  bind:m  (over:io /write road mime+!>(file-mime))

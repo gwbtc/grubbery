@@ -76,14 +76,14 @@
       ==
     ;<  ~  bind:m
       (replace:io !>([args.st %editing write-data]))
-    ;<  *  bind:m  (keep:io /dill-logs [%& %& /sys %dill-logs] ~)
+    ;<  *  bind:m  (keep:io /dill/logs [%& %& /sys/dill %'logs.dill-told'] ~)
     ;<  =bowl:nexus  bind:m  (get-bowl:io /bowl)
     ;<  ~  bind:m
       (send-card:io %pass /commit-timeout %arvo %b %wait (add now.bowl ~s30))
     ;<  ~  bind:m
       (gall-poke-our:io %hood kiln-info+!>(["" `[dek %& [pax %ins mark !>(result)]~]]))
     ;<  ~  bind:m  collect-logs:tools
-    ;<  ~  bind:m  (drop:io /dill-logs [%& %& /sys %dill-logs])
+    ;<  ~  bind:m  (drop:io /dill/logs [%& %& /sys/dill %'logs.dill-told'])
     ;<  st=tool-state:tools  bind:m  (get-state-as:io ,tool-state:tools)
     (finish-clay-write:tools args.st data.st)
       %editing

@@ -8,7 +8,7 @@
 ++  parameters
   ^-  (map @t parameter-def:tools)
   %-  ~(gas by *(map @t parameter-def:tools))
-  :~  ['path' [%string 'Directory to add the weir rule to (e.g. "/mcp")']]
+  :~  ['path' [%string 'Directory to add the weir rule to (e.g. "/mcp.mcp")']]
       ['category' [%string 'Rule category: "write", "poke", or "read"']]
       ['road_path' [%string 'Allowed road path (e.g. "/")']]
       ['road_type' [%string 'Road type: "dir" or "file"']]

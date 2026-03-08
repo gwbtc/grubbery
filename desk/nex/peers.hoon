@@ -1,12 +1,12 @@
 ::  peers nexus: external ship gateway + role-based access control
 ::
-::  All foreign ship interaction enters through /peers. Each ship gets
-::  a gateway process at /ships/~ship/main that handles bidirectional
+::  All foreign ship interaction enters through /peers.peers. Each ship gets
+::  a gateway process at /ships/~ship/main.sig that handles bidirectional
 ::  pokes. Usergroups provide role-based weir management: group
 ::  membership determines what each ship can reach.
 ::
-::  /peers/
-::    /main          inbound poke router + weir manager
+::  /peers.peers/
+::    /main.sig      inbound poke router + weir manager
 ::    /usergroups/   role-based access data
 ::      /who/        group → members: /who/admins → (set @p)
 ::                     hierarchical: /who/acme/eng/leads → (set @p)
@@ -16,30 +16,30 @@
 ::                     our own ship lives here too, with full tree access
 ::                     (skips usergroup lookup entirely)
 ::      /~zod/       weir derived from union of group weir templates
-::        /main      inbound gateway: page → cage, forward to tree
+::        /main.sig      inbound gateway: page → cage, forward to tree
 ::
 ::  Inbound poke flow (%poke-in):
 ::    1. Foreign ship pokes grubbery with [dest =page]
-::    2. Grubbery forwards %poke-in to /peers/main
-::    3. /peers/main creates /ships/~src/ dir+gateway if absent
-::    4. /peers/main forwards %poke-in to /ships/~src/main
-::    5. Gateway asserts from is /peers/main (trusted router)
+::    2. Grubbery forwards %poke-in to /peers.peers/main.sig
+::    3. /peers.peers/main.sig creates /ships/~src/ dir+gateway if absent
+::    4. /peers.peers/main.sig forwards %poke-in to /ships/~src/main
+::    5. Gateway asserts from is /peers.peers/main.sig (trusted router)
 ::    6. Converts page to cage, forwards to dest in tree
 ::
 ::  Outbound poke flow (%poke-out):
-::    1. Tree process pokes /peers/main with %poke-out [ship dude page]
-::    2. /peers/main sends Gall poke to [ship dude] (has syscall access)
+::    1. Tree process pokes /peers.peers/main.sig with %poke-out [ship dude page]
+::    2. /peers.peers/main.sig sends Gall poke to [ship dude] (has syscall access)
 ::
 ::  Weir strategy:
-::    /peers/ has a permissive weir (full tree, no syscalls). Anything
-::    leaving /peers/ gets clammed. Ship dirs have tighter weirs derived
-::    from usergroup membership. /peers/main watches /who, /how, and
+::    /peers.peers/ has a permissive weir (full tree, no syscalls). Anything
+::    leaving /peers.peers/ gets clammed. Ship dirs have tighter weirs derived
+::    from usergroup membership. /peers.peers/main.sig watches /who, /how, and
 ::    /ships, recalculating and %sand'ing weirs reactively.
 ::
 ::  Security:
 ::    The gateway enforces provenance on %poke-in: only accepted from
-::    /peers/main (the trusted inbound router). Grubs cannot forge
-::    inbound pokes. %poke-out goes through /peers/main which has
+::    /peers.peers/main.sig (the trusted inbound router). Grubs cannot forge
+::    inbound pokes. %poke-out goes through /peers.peers/main.sig which has
 ::    syscall access (ship gateways don't — weirs block syscalls).
 ::
 /+  nexus, tarball, io=fiberio
@@ -49,10 +49,10 @@
     ++  on-load
       |=  [=sand:nexus =ball:tarball]
       ^-  [sand:nexus ball:tarball]
-      =.  ball  (~(put ba:tarball ball) [/ %ver] [~ %ud !>(0)])
-      ::  Create /main file (weir manager) if not present
-      =?  ball  =(~ (~(get ba:tarball ball) [/ %main]))
-        (~(put ba:tarball ball) [/ %main] [~ %sig !>(~)])
+      =.  ball  (~(put ba:tarball ball) [/ %'ver.ud'] [~ %ud !>(0)])
+      ::  Create /main.sig file (weir manager) if not present
+      =?  ball  =(~ (~(get ba:tarball ball) [/ %'main.sig']))
+        (~(put ba:tarball ball) [/ %'main.sig'] [~ %sig !>(~)])
       ::  Create /usergroups directory (role-based access data)
       =?  ball  =(~ (~(get of ball) /usergroups))
         (~(put of ball) /usergroups [~ ~ ~])
@@ -82,7 +82,7 @@
       ::  i.t.path.rail). Mark is asserted inside each case instead.
       ::
       ?+    rail  stay:m
-        ::  /main: poke router + weir manager
+        ::  /main.sig: poke router + weir manager
         ::  Routes inbound %poke-in to per-ship gateways,
         ::  lazily creating ship directories on first contact.
         ::  Watches /who, /how, and /ships for changes, re-syncs all
@@ -95,7 +95,7 @@
         ::  diff-born to scope work to changed ships only) to avoid
         ::  the redundant pass.
         ::
-          [~ %main]
+          [~ %'main.sig']
         ?>  ?=(%sig mark)
         ;<  ~  bind:m  (rise-wait:io prod "%peers /main: failed, poke to restart")
         ~&  >  "%peers /main: starting"
@@ -121,7 +121,7 @@
             ~&  >  [%peers-main %routing (scot %p src)]
             ;<  ~  bind:m  (ensure-ship-dir src)
             ;<  ~  bind:m
-              (poke:io /forward [%| 0 %& [/ships/[(scot %p src)] %main]] cage)
+              (poke:io /forward [%| 0 %& [/ships/(scot %p src) %'main.sig']] cage)
             $
               %poke-out
             =/  [=ship =dude:gall =page]
@@ -146,11 +146,11 @@
             ~
           $
         ==
-        ::  /ships/*/main: per-ship gateway
-        ::  Per-ship gateway: receives %poke-in from /peers/main,
+        ::  /ships/*/main.sig: per-ship gateway
+        ::  Per-ship gateway: receives %poke-in from /peers.peers/main.sig,
         ::  converts page to cage, forwards into the tree.
         ::
-          [[%ships @ ~] %main]
+          [[%ships @ ~] %'main.sig']
         ?>  ?=(%sig mark)
         ;<  ~  bind:m  (rise-wait:io prod "%peers /ships/*/main: failed, poke to restart")
         =/  ship-name=@ta  i.t.path.rail
@@ -161,7 +161,7 @@
           ~&  >  [%peers-gateway ship-name %unknown-mark p.cage]
           $
         ?>  ?&  ?=(%& -.from)
-                =(p.from [2 [/ %main]])
+                =(p.from [2 [/ %'main.sig']])
             ==
         =/  [dest=rail:tarball =page]
           !<([rail:tarball page] q.cage)
@@ -246,7 +246,7 @@
   ;<  exists=?  bind:m  (peek-exists:io /check-ship [%| 0 %| ship-dir])
   ?:  exists  (pure:m ~)
   =/  ship-ball=ball:tarball
-    (~(put ba:tarball *ball:tarball) [/ %main] [~ %sig !>(~)])
+    (~(put ba:tarball *ball:tarball) [/ %'main.sig'] [~ %sig !>(~)])
   ?:  =(src our)
     (make:io /create-ship [%| 0 %| ship-dir] &+[*sand:nexus ship-ball])
   ;<  [who=(map rail:tarball (set @p)) how=(map rail:tarball weir:nexus)]  bind:m

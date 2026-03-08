@@ -6,8 +6,8 @@
 ::  Server authorizes every response to ensure it came from the
 ::  process that owns the binding.
 ::
-::  /server/
-::    /main    binding registry + request router + response proxy
+::  /server.server/
+::    /main.server-state    binding registry + request router + response proxy
 ::
 ::  State (server-state in nex-server):
 ::    bindings:     (map binding:eyre rail) — URL prefix → handler location
@@ -15,7 +15,7 @@
 ::
 ::  Request flow:
 ::    1. Eyre sends %handle-http-request to grubbery
-::    2. Grubbery forwards to /server/main
+::    2. Grubbery forwards to /server.server/main.server-state
 ::    3. Server finds longest-prefix binding match
 ::    4. Records connection (eyre-id → binding), forwards to handler rail
 ::    5. Handler pokes back %server-action [%send eyre-id update]
@@ -34,11 +34,11 @@
     ++  on-load
       |=  [=sand:nexus =ball:tarball]
       ^-  [sand:nexus ball:tarball]
-      =.  ball  (~(put ba:tarball ball) [/ %ver] [~ %ud !>(0)])
+      =.  ball  (~(put ba:tarball ball) [/ %'ver.ud'] [~ %ud !>(0)])
       =/  fresh=server-state:nex-server  [%0 ~ ~]
-      =/  existing  (~(get ba:tarball ball) [/ %main])
+      =/  existing  (~(get ba:tarball ball) [/ %'main.server-state'])
       =?  ball  =(~ existing)
-        (~(put ba:tarball ball) [/ %main] [~ %server-state !>(fresh)])
+        (~(put ba:tarball ball) [/ %'main.server-state'] [~ %server-state !>(fresh)])
       =?  ball  =(~ (~(get of ball) /requests))
         (~(put of ball) /requests [~ ~ ~])
       [sand ball]
@@ -54,10 +54,10 @@
         ;<  ~  bind:m  (rise-wait:io prod "%server /requests: failed")
         =/  eyre-id=@ta  name.rail
         ;<  [src=@p req=inbound-request:eyre]  bind:m  (get-state-as:io ,[src=@p inbound-request:eyre])
-        =/  =request-line:server  (parse-request-line:server url.request.req)
-        (handle-ball-api eyre-id src req request-line)
+        =/  [site=path args=quay:eyre]  (parse-url:http-utils url.request.req)
+        (handle-ball-api eyre-id src req site args)
       ::
-          [~ %main]
+          [~ %'main.server-state']
       ;<  ~  bind:m  (rise-wait:io prod "%server /main: failed, poke to restart")
       ~&  >  "%server /main: binding /grubbery/api"
       ;<  =dude:gall  bind:m  get-agent:io
@@ -181,17 +181,17 @@
         =/  [eyre-id=@ta src=@p req=inbound-request:eyre]
           !<([eyre-id=@ta @p inbound-request:eyre] q.cage)
         ~&  >  [%server-request eyre-id url.request.req]
-        =/  =request-line:server  (parse-request-line:server url.request.req)
+        =/  site=path  site:(parse-url:http-utils url.request.req)
         ::  Ball API: dispatch to /requests/{eyre-id} fiber
         ::
-        ?:  ?=([%grubbery %api *] site.request-line)
+        ?:  ?=([%grubbery %api *] site)
           ;<  ~  bind:m
             (make:io /api [%| 0 %& /requests eyre-id] |+[http-request+!>([src req]) ~])
           $
         =/  match=(unit [=binding:eyre handler=rail:tarball])
-          (find-binding bindings.st request-line)
+          (find-binding bindings.st site)
         ?~  match
-          ~&  >  [%server-no-binding site.request-line]
+          ~&  >  [%server-no-binding site]
           ;<  ~  bind:m
             %-  send-cards:io
             (give-simple-payload:app:server eyre-id [[404 ~] `(as-octs:mimes:html 'Not Found')])
@@ -229,24 +229,19 @@
 ::  +handle-ball-api: route /grubbery/api requests by HTTP method
 ::
 ++  handle-ball-api
-  |=  [eyre-id=@ta src=@p req=inbound-request:eyre rl=request-line:server]
+  |=  [eyre-id=@ta src=@p req=inbound-request:eyre site=path args=quay:eyre]
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
   ;<  our=@p  bind:m  get-our:io
   ?.  =(src our)
     (send-error eyre-id 403 'Forbidden')
-  ?>  ?=([%grubbery %api *] site.rl)
-  =/  rest=path  t.t.site.rl
-  =/  args=(list [key=@t value=@t])  args.rl
+  ?>  ?=([%grubbery %api *] site)
+  =/  rest=path  t.t.site
   ::  Route by first segment: file, kids, tree, tar, dir
   ?~  rest
     (send-error eyre-id 400 'Missing endpoint: file, kids, tree, tar, dir')
   =/  endpoint=@tas  i.rest
-  ::  Re-append URL extension — eyre's apat strips ".ext" from last segment
-  =/  api-path=path
-    =/  segs=path  t.rest
-    ?.  &(?=(^ ext.rl) ?=(^ segs))  segs
-    (snoc (snip `path`segs) (crip "{(trip (rear segs))}.{(trip u.ext.rl)}"))
+  =/  api-path=path  t.rest
   ?+    [method.request.req endpoint]
       (send-error eyre-id 405 'Method Not Allowed')
   ::  GET /file/... — peek file, convert to mime
@@ -468,23 +463,13 @@
   ^-  form:m
   ?~  api-path
     (send-error eyre-id 400 'Directory path required')
-  ::  Parse last segment for neck extension (e.g. blah.counter → blah with neck %counter)
-  =/  raw-name=@ta  (rear api-path)
-  =/  dir-ext=(unit @ta)  (parse-extension:tarball raw-name)
-  =/  dir-name=@ta
-    ?~  dir-ext  raw-name
-    =/  full=tape  (trip raw-name)
-    =/  ext-len=@ud  (add 1 (lent (trip u.dir-ext)))
-    (crip (scag (sub (lent full) ext-len) full))
+  =/  dir-name=@ta  (rear api-path)
   =/  dir-path=path  (snoc (snip `path`api-path) dir-name)
   =/  =road:tarball  [%& %| dir-path]
   ;<  exists=?  bind:m  (peek-exists:io /check road)
   ?:  exists
     (send-error eyre-id 409 'Already exists')
-  =/  init-ball=ball:tarball
-    ?~  dir-ext
-      [`[~ ~ ~] ~]
-    [`[~ `u.dir-ext ~] ~]
+  =/  init-ball=ball:tarball  [`[~ ~ ~] ~]
   ;<  ~  bind:m  (make:io /make road [%& *sand:nexus init-ball])
   (send-created eyre-id)
 ::  +serve-post: POST /poke, /over, /diff — send dart to file
@@ -621,22 +606,18 @@
     (fall type.file-part /application/octet-stream)
   =/  mime-cage=cage  [%mime !>(file-mime)]
   =/  ext=(unit @ta)  (parse-extension:tarball file-name)
-  =/  [final-cage=cage stem=@ta]
-    ?~  ext  [mime-cage file-name]
+  =/  final-cage=cage
+    ?~  ext  mime-cage
     =/  =mars:clay  [%mime u.ext]
     =/  tube=(unit tube:clay)  (~(get by conversions) mars)
-    ?~  tube  [mime-cage file-name]
+    ?~  tube  mime-cage
     =/  result=(each vase tang)  (mule |.((u.tube q.mime-cage)))
-    ?:  ?=(%| -.result)  [mime-cage file-name]
-    ::  Strip extension from filename since mark carries it
-    =/  full=tape  (trip file-name)
-    =/  ext-len=@ud  +((lent (trip u.ext)))
-    =/  stem-name=@ta  (crip (scag (sub (lent full) ext-len) full))
-    [[u.ext p.result] stem-name]
+    ?:  ?=(%| -.result)  mime-cage
+    [u.ext p.result]
   ::  Ensure parent dirs exist
   ;<  ~  bind:m  (ensure-parents tree-path file-parent)
-  ::  Create or overwrite file
-  =/  =road:tarball  [%& %& full-path stem]
+  ::  Create or overwrite file — keep full filename
+  =/  =road:tarball  [%& %& full-path file-name]
   ;<  exists=?  bind:m  (peek-exists:io /chk road)
   ?:  exists
     ;<  ~  bind:m  (over:io /upload road final-cage)
@@ -927,14 +908,14 @@
 ::  +find-binding: longest-prefix match against registered bindings
 ::
 ++  find-binding
-  |=  [bindings=(map binding:eyre rail:tarball) =request-line:server]
+  |=  [bindings=(map binding:eyre rail:tarball) site=path]
   ^-  (unit [=binding:eyre handler=rail:tarball])
   =|  best=(unit [=binding:eyre handler=rail:tarball])
   =/  entries=(list [=binding:eyre handler=rail:tarball])
     ~(tap by bindings)
   |-
   ?~  entries  best
-  ?~  (find-suffix path.binding.i.entries site.request-line)
+  ?~  (find-suffix path.binding.i.entries site)
     $(entries t.entries)
   ?~  best  $(best `i.entries, entries t.entries)
   ?:  (gth (lent path.binding.i.entries) (lent path.binding.u.best))

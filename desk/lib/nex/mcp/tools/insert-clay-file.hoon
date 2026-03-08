@@ -8,7 +8,8 @@
   ^~  %-  crip
   ;:  weld
     "Insert or overwrite a file in the Clay filesystem. "
-    "The mark is the last segment of the path (e.g. /app/foo/hoon has mark %hoon). "
+    "Paths use slashes, not dots: /gen/hello/hoon (not /gen/hello.hoon). "
+    "The last segment is the mark (e.g. /app/foo/hoon has mark %hoon). "
     "The desk must have a matching mark file in /mar/."
   ==
 ++  parameters
@@ -52,14 +53,14 @@
       ==
     ;<  ~  bind:m
       (replace:io !>([args.st %inserting write-data]))
-    ;<  *  bind:m  (keep:io /dill-logs [%& %& /sys %dill-logs] ~)
+    ;<  *  bind:m  (keep:io /dill/logs [%& %& /sys/dill %'logs.dill-told'] ~)
     ;<  =bowl:nexus  bind:m  (get-bowl:io /bowl)
     ;<  ~  bind:m
       (send-card:io %pass /commit-timeout %arvo %b %wait (add now.bowl ~s30))
     ;<  ~  bind:m
       (gall-poke-our:io %hood kiln-info+!>(["" `[dek %& [pax %ins mark !>(content)]~]]))
     ;<  ~  bind:m  collect-logs:tools
-    ;<  ~  bind:m  (drop:io /dill-logs [%& %& /sys %dill-logs])
+    ;<  ~  bind:m  (drop:io /dill/logs [%& %& /sys/dill %'logs.dill-told'])
     ;<  st=tool-state:tools  bind:m  (get-state-as:io ,tool-state:tools)
     (finish-clay-write:tools args.st data.st)
       %inserting

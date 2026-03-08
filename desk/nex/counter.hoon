@@ -7,19 +7,19 @@
     ++  on-load
       |=  [=sand:nexus =ball:tarball]
       ^-  [sand:nexus ball:tarball]
-      =.  ball  (~(put ba:tarball ball) [/ %ver] [~ %ud !>(0)])
+      =.  ball  (~(put ba:tarball ball) [/ %'ver.ud'] [~ %ud !>(0)])
       ::  Create /counters directory if not present
       =?  ball  =(~ (~(get of ball) /counters))
         (~(put of ball) /counters [~ ~ ~])
       ::  Create /ui/views directory if not present
       =?  ball  =(~ (~(get of ball) /ui/views))
         (~(put of ball) /ui/views [~ ~ ~])
-      ::  Create /ui/views/page file if not present
-      =?  ball  =(~ (~(get ba:tarball ball) [/ui/views %page]))
-        (~(put ba:tarball ball) [/ui/views %page] [~ %mime !>(`mime`[/text/html (as-octs:mimes:html '<p>loading</p>')])])
-      ::  Create /ui/main file if not present
-      =?  ball  =(~ (~(get ba:tarball ball) [/ui %main]))
-        (~(put ba:tarball ball) [/ui %main] [~ %sig !>(~)])
+      ::  Create /ui/views/page.html file if not present
+      =?  ball  =(~ (~(get ba:tarball ball) [/ui/views %'page.html']))
+        (~(put ba:tarball ball) [/ui/views %'page.html'] [~ %mime !>(`mime`[/text/html (as-octs:mimes:html '<p>loading</p>')])])
+      ::  Create /ui/main.sig file if not present
+      =?  ball  =(~ (~(get ba:tarball ball) [/ui %'main.sig']))
+        (~(put ba:tarball ball) [/ui %'main.sig'] [~ %sig !>(~)])
       ::  Create /ui/requests directory if not present
       =?  ball  =(~ (~(get of ball) /ui/requests))
         (~(put of ball) /ui/requests [~ ~ ~])
@@ -41,18 +41,21 @@
         ;<  ~  bind:m  (sleep:io ~s1)
         ;<  ~  bind:m  (replace:io !>(+(count)))
         $
-          ::  /ui/views/page: render full page HTML once, persist
+          ::  /ui/views/page.html: render full page HTML once, persist
           ::
-          [[%ui %views ~] %page]
+          [[%ui %views ~] %'page.html']
         ;<  ~  bind:m  (rise-wait:io prod "%counter /ui/views/page: failed")
         ;<  =bowl:nexus  bind:m  (get-bowl:io /bowl)
         =/  prefix=path  (url-prefix (snip (snip path.here.bowl)))
         =/  =mime  [/text/html (as-octs:mimes:html (crip (en-xml:html (counter-page prefix))))]
         ;<  ~  bind:m  (replace:io !>(mime))
         stay:m
-          ::  /ui/main: bind paths and dispatch requests
+          ::  /ui/main.sig: bind /grubbery/counters/ as a separate HTTP
+          ::  endpoint and dispatch requests into /ui/requests/.
+          ::  Nexuses can bind their own endpoints independently of
+          ::  the central /grubbery/api.
           ::
-          [[%ui ~] %main]
+          [[%ui ~] %'main.sig']
         ;<  ~  bind:m  (rise-wait:io prod "%counter /ui/main: failed")
         ;<  =bowl:nexus  bind:m  (get-bowl:io /bowl)
         =/  prefix=path  (url-prefix (snip path.here.bowl))
@@ -70,10 +73,10 @@
           (pure:m ~)
         ;<  =bowl:nexus  bind:m  (get-bowl:io /bowl)
         =/  prefix=path  (url-prefix (snip (snip path.here.bowl)))
-        =/  =request-line:server  (parse-request-line:server url.request.req)
-        =/  suffix=path  (slag (lent prefix) site.request-line)
+        =/  site=path  site:(parse-url:http-utils url.request.req)
+        =/  suffix=path  (slag (lent prefix) site)
         ::  Serve counter page from view grub
-        ;<  =seen:nexus  bind:m  (peek:io /peek [%| 2 %& /ui/views %page] ~)
+        ;<  =seen:nexus  bind:m  (peek:io /peek [%| 2 %& /ui/views %'page.html'] ~)
         ?.  ?=([%& %file *] seen)
           ;<  ~  bind:m  (send-simple:srv eyre-id [[500 ~] `(as-octs:mimes:html 'View not ready')])
           (pure:m ~)
@@ -90,15 +93,15 @@
   |=  root=path
   ^-  path
   (weld /grubbery/counters root)
-::  HTTP response door (road from /ui/requests/* to /ui/main)
+::  HTTP response door (road from /ui/requests/* to /ui/main.sig)
 ::
-++  srv  ~(. res:nex-server [%| 1 %& ~ %main])
+++  srv  ~(. res:nex-server [%| 1 %& ~ %'main.sig'])
 ::
 ++  counter-page
   |=  prefix=path
   ^-  manx
-  =/  api=tape  "/grubbery/api/file/counter/counters"
-  =/  keep=tape  "/grubbery/api/keep/counter/counters"
+  =/  api=tape  "/grubbery/api/file/counter.counter/counters"
+  =/  keep=tape  "/grubbery/api/keep/counter.counter/counters"
   =/  js=tape
     ;:  weld
       "var API='{api}';"

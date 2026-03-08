@@ -69,7 +69,7 @@
   =/  [=rail:tarball =content:tarball]  i.candidates
   =/  file-label=tape
     =/  pax=tape  ?~(path.rail "/" (trip (spat path.rail)))
-    "{pax}/{(trip name.rail)}.{(trip p.cage.content)}"
+    "{pax}/{(trip name.rail)}"
   ::  Try to read file content as text
   ;<  file-seen=seen:nexus  bind:m
     (peek:io /read [%& %& path.rail name.rail] ~)

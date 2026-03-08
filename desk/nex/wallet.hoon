@@ -7,13 +7,13 @@
     ++  on-load
       |=  [=sand:nexus =ball:tarball]
       ^-  [sand:nexus ball:tarball]
-      =.  ball  (~(put ba:tarball ball) [/ %ver] [~ %ud !>(0)])
+      =.  ball  (~(put ba:tarball ball) [/ %'ver.ud'] [~ %ud !>(0)])
       ::  Create /wallets directory if not present
       =?  ball  =(~ (~(get of ball) /wallets))
         (~(put of ball) /wallets [~ ~ ~])
-      ::  Create /main file if not present
-      =?  ball  =(~ (~(get ba:tarball ball) [/ %main]))
-        (~(put ba:tarball ball) [/ %main] [~ %sig !>(~)])
+      ::  Create /main.sig file if not present
+      =?  ball  =(~ (~(get ba:tarball ball) [/ %'main.sig']))
+        (~(put ba:tarball ball) [/ %'main.sig'] [~ %sig !>(~)])
       ::  Create /requests directory if not present
       =?  ball  =(~ (~(get of ball) /requests))
         (~(put of ball) /requests [~ ~ ~])
@@ -26,9 +26,9 @@
       =/  m  (fiber:fiber:nexus ,~)
       ^-  process:fiber:nexus
       ?+    rail  stay:m
-          ::  /main: bind paths and dispatch requests
+          ::  /main.sig: bind paths and dispatch requests
           ::
-          [~ %main]
+          [~ %'main.sig']
         ;<  ~  bind:m  (rise-wait:io prod "%wallet /main: failed")
         ~&  >  "%wallet /main: binding /grubbery/wallet"
         ;<  ~  bind:m  (bind-http:nex-server [~ /grubbery/wallet])
@@ -47,10 +47,10 @@
           ;<  ~  bind:m  (send-simple:srv eyre-id [[403 ~] `(as-octs:mimes:html 'Forbidden')])
           (pure:m ~)
         ;<  =bowl:nexus  bind:m  (get-bowl:io /bowl)
-        =/  =request-line:server  (parse-request-line:server url.request.req)
+        =/  site=path  site:(parse-url:http-utils url.request.req)
         =/  suffix=path
-          ?.  ?=([%grubbery %wallet *] site.request-line)  ~
-          t.t.site.request-line
+          ?.  ?=([%grubbery %wallet *] site)  ~
+          t.t.site
         ?+    suffix
           ;<  ~  bind:m  (send-simple:srv eyre-id [[404 ~] `(as-octs:mimes:html 'Not Found')])
           (pure:m ~)
@@ -128,7 +128,7 @@
       ==
     --
 |%
-++  srv  ~(. res:nex-server [%| 1 %& ~ %main])
+++  srv  ~(. res:nex-server [%| 1 %& ~ %'main.sig'])
 ::
 ++  render-wallets
   |=  =view:nexus

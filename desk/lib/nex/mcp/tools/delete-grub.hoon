@@ -8,7 +8,7 @@
 ++  parameters
   ^-  (map @t parameter-def:tools)
   %-  ~(gas by *(map @t parameter-def:tools))
-  :~  ['path' [%string 'Directory containing the grub (e.g. "/mcp/tools")']]
+  :~  ['path' [%string 'Directory containing the grub (e.g. "/mcp.mcp/tools")']]
       ['name' [%string 'Grub filename to delete']]
   ==
 ++  required  ~['path' 'name']

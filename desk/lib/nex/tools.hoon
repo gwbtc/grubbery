@@ -168,7 +168,7 @@
     [%done %timeout ~]
       [~ %arvo [%commit-quiet @ ~] %behn %wake *]
     [%done %quiet (slav %ud i.t.wire.u.in)]
-      [~ %news [%dill-logs ~] *]
+      [~ %news [%dill %logs ~] *]
     ?.  ?=([%file *] view.u.in)  [%skip ~]
     ?.  ?=(%dill-told p.cage.view.u.in)  [%skip ~]
     [%done %log !<(told:dill q.cage.view.u.in)]
@@ -250,7 +250,7 @@
     =/  out=mime  !<(mime q.cage)
     (pure:m [%text (crip (trip q.q.out))])
   ==
-::  Look up a grub by name, trying direct then stripping extension
+::  Look up a grub by name — exact match
 ::  Returns [actual-grub-name seen]
 ::
 ++  lookup-grub
@@ -259,18 +259,7 @@
   ^-  form:m
   ;<  =seen:nexus  bind:m
     (peek:io /read [%& %& pax file-name] ~)
-  ?:  ?=([%& %file *] seen)
-    (pure:m [file-name seen])
-  =/  ext=(unit @ta)  (parse-extension:tarball file-name)
-  ?~  ext
-    (pure:m [file-name seen])
-  =/  base=@ta
-    =/  et=tape  (trip u.ext)
-    =/  ft=tape  (trip file-name)
-    (crip (scag (sub (lent ft) (add 1 (lent et))) ft))
-  ;<  seen2=seen:nexus  bind:m
-    (peek:io /read-base [%& %& pax base] ~)
-  (pure:m [base seen2])
+  (pure:m [file-name seen])
 ::  String replacement on tapes
 ::  Returns (unit tape) — ~ if not found or ambiguous
 ::
