@@ -11,7 +11,7 @@
 ::    /mirror            watches clay dir, creates/destroys /lib/std/ watchers
 ::
 /+  nexus, tarball, io=fiberio, server, nex-server, nex-mcp
-/+  json-utils, nex-tools
+/+  json-utils, nex-tools, build
 !: :: turn on stack trace
 =>  |%
     ++  srv  ~(. res:nex-server [%| 1 %& ~ %main])
@@ -48,7 +48,6 @@
     ::  Compile a tool source file and write result to /bin/.
     ::  Success → mark %temp (compiled vase).
     ::  Failure → mark %tang (error trace).
-    ::  Same grub name either way; mark distinguishes state.
     ::
     ++  compile-lib
       |=  [file-path=path file-name=@ta source=cage]
@@ -56,26 +55,21 @@
       ^-  form:m
       =/  bin-path=path  (weld /bin file-path)
       =/  bin-road=road:tarball  [%| 0 %& bin-path file-name]
-      ::  Extract source text
-      =/  src=@t
-        ?:  =(%txt p.source)  (of-wain:format !<(wain q.source))
-        ?:  =(%hoon p.source)  !<(@t q.source)
-        !<(@t q.source)
-      ::  Try to compile
+      =/  bon=path  (weld file-path /[file-name]/hoon)
+      =/  src=@t  (extract-src:build source)
       =/  res=(each vase tang)
-        (mule |.((slap tool-subject (ream src))))
+        (build-hoon:build tool-subject bon src)
       ?:  ?=(%| -.res)
-        ~&  >  [%mcp-builder-fail file-path file-name]
+        ~&  >  [%mcp-builder-fail bon]
         (write-bin bin-path bin-road tang+!>(p.res))
       ::  Validate as $tool
       =/  check=(each tool:nex-tools tang)
         (mule |.(!<(tool:nex-tools p.res)))
       ?:  ?=(%| -.check)
-        ~&  >  [%mcp-builder-type-fail file-path file-name]
         =/  =tang  [[%leaf "does not nest against $tool:nex-tools"] p.check]
+        ~&  >  [%mcp-builder-type-fail bon]
         (write-bin bin-path bin-road tang+!>(tang))
-      ::  Success
-      ~&  >  [%mcp-builder-ok file-path file-name]
+      ~&  >  [%mcp-builder-ok bon]
       (write-bin bin-path bin-road temp+p.res)
     ::  Write a cage to /bin/, creating dir if needed, overwriting if exists.
     ::
@@ -162,38 +156,69 @@
       ?~  tl  $(files t.files)
       ?:  =(tool-name name:u.tl)  tl
       $(files t.files)
+    ::  +find-tang-in-ball: search for a compile error by filename
+    ::
+    ::    Converts tool name underscores to hyphens to match filenames
+    ::    (e.g. get_ship → get-ship). Returns tang if found.
+    ::
+    ++  find-tang-in-ball
+      |=  [tool-name=@t b=ball:tarball]
+      ^-  (unit tang)
+      =/  file-name=@ta
+        (crip (turn (trip tool-name) |=(c=@t ?:(=(c '_') '-' c))))
+      =/  dirs=(list @ta)  ~[%std %cus]
+      |-
+      ?~  dirs  ~
+      =/  sub=ball:tarball  (~(gut by dir.b) i.dirs *ball:tarball)
+      ?~  fil.sub  $(dirs t.dirs)
+      =/  ct=(unit content:tarball)
+        (~(get by contents.u.fil.sub) file-name)
+      ?~  ct  $(dirs t.dirs)
+      ?.  =(%tang p.cage.u.ct)  $(dirs t.dirs)
+      =/  got=(each tang tang)
+        (mule |.(!<(tang q.cage.u.ct)))
+      ?:(?=(%& -.got) `p.got `~[leaf+"tool {(trip tool-name)} failed to compile"])
     ::  +await-tool: load a compiled tool handler by name
     ::
     ::    Subscribes to /bin/ — the bond returns the initial view,
     ::    so there's no race with the builder. If the tool is already
-    ::    compiled, we get it immediately. Otherwise we wait for
-    ::    subscription updates.
+    ::    compiled, we get it immediately. If it failed to compile
+    ::    (tang), we fail with the error. Otherwise we wait for updates.
     ::
     ++  await-tool
       |=  tool-name=@t
-      =/  m  (fiber:fiber:nexus ,tool:nex-tools)
+      =/  m  (fiber:fiber:nexus ,(each tool:nex-tools tang))
       ^-  form:m
       ;<  init=view:nexus  bind:m  (keep:io /await-tool [%| 1 %| /bin] ~)
       ?:  ?=([%ball *] init)
         =/  found=(unit tool:nex-tools)
           (find-tool-in-ball tool-name ball.init)
-        ?^  found  (pure:m u.found)
+        ?^  found  (pure:m [%& u.found])
+        ::  No temp — check for compile error
+        =/  err=(unit tang)  (find-tang-in-ball tool-name ball.init)
+        ?^  err  (pure:m [%| u.err])
+        ::  Neither — wait for builder
         |-
         ;<  nw=news-or-wake:io  bind:m  (take-news-or-wake:io /await-tool)
         ?:  ?=(%wake -.nw)  $
         ?.  ?=([%ball *] view.nw)  $
         =/  found=(unit tool:nex-tools)
           (find-tool-in-ball tool-name ball.view.nw)
-        ?~  found  $
-        (pure:m u.found)
+        ?^  found  (pure:m [%& u.found])
+        ::  No temp — check for fresh compile error
+        =/  err=(unit tang)  (find-tang-in-ball tool-name ball.view.nw)
+        ?^  err  (pure:m [%| u.err])
+        $
       |-
       ;<  nw=news-or-wake:io  bind:m  (take-news-or-wake:io /await-tool)
       ?:  ?=(%wake -.nw)  $
       ?.  ?=([%ball *] view.nw)  $
       =/  found=(unit tool:nex-tools)
         (find-tool-in-ball tool-name ball.view.nw)
-      ?~  found  $
-      (pure:m u.found)
+      ?^  found  (pure:m [%& u.found])
+      =/  err=(unit tang)  (find-tang-in-ball tool-name ball.view.nw)
+      ?^  err  (pure:m [%| u.err])
+      $
     --
 ^-  nexus:nexus
 |%
@@ -431,22 +456,28 @@
         ~&  >  [%mcp-mirror-remove i.removed]
         ;<  ~  bind:m  (cull:io /cull [%| 0 %& /lib/std i.removed])
         $(removed t.removed)
-      ::  Create new tools
+      ::  Create new tools with source from clay
       =/  added=(list @ta)  ~(tap in (~(dif in new-names) old-names))
       ;<  ~  bind:m
         |-
         ?~  added  (pure:m ~)
         ~&  >  [%mcp-mirror-add i.added]
+        =/  clay-path=path  :(weld /lib/nex/mcp/tools /[i.added] /hoon)
+        ;<  now=@da  bind:m  get-time:io
+        ;<  src=@t  bind:m  (do-scry:io @t /scry [%cx desk clay-path])
         ;<  ~  bind:m
-          (make:io /std [%| 0 %& /lib/std i.added] |+[hoon+!>('') ~])
+          (make:io /std [%| 0 %& /lib/std i.added] |+[hoon+!>(src) ~])
         $(added t.added)
       ^$
-    ::  Create /lib/std/ process for this tool
+    ::  Create /lib/std/ process for this tool with source from clay
     =/  pax=path  i.tool-files
     =/  file-name=@ta  (rear (snip pax))
     ~&  >  [%mcp-mirror-create file-name]
+    =/  clay-path=path  :(weld /lib/nex/mcp/tools /[file-name] /hoon)
+    ;<  now=@da  bind:m  get-time:io
+    ;<  src=@t  bind:m  (do-scry:io @t /scry [%cx desk clay-path])
     ;<  ~  bind:m
-      (make:io /std [%| 0 %& /lib/std file-name] |+[hoon+!>('') ~])
+      (make:io /std [%| 0 %& /lib/std file-name] |+[hoon+!>(src) ~])
     $(tool-files t.tool-files)
       ::  /lib/std/**/name: watches own clay file, stores source as content
       ::
@@ -490,7 +521,14 @@
     ?.  ?=([%s *] tool-json)  !!
     =/  tool-name=@t  p.tool-json
     ::  Look up tool handler — waits for builder if needed
-    ;<  tl=tool:nex-tools  bind:m  (await-tool tool-name)
+    ;<  got=(each tool:nex-tools tang)  bind:m  (await-tool tool-name)
+    ?:  ?=(%| -.got)
+      ::  Compile error — write error result with tang
+      =/  err-msg=@t  (render-tang:build p.got)
+      =/  result-data=json
+        (pairs:enjs:format ~[['type' s+'error'] ['message' s+err-msg]])
+      (replace:io !>(`tool-state:nex-tools`[args.st %done result-data]))
+    =/  tl=tool:nex-tools  p.got
     ::  Run handler — returns tool-result
     ;<  result=tool-result:nex-tools  bind:m  handler.tl
     ::  Write result as %done

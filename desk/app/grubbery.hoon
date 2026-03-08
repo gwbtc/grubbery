@@ -1,6 +1,6 @@
 /-  spider
 /+  default-agent, dbug, tarball, nexus, server,
-    nex-tools, marks
+    nex-tools, marks, build
 /=  t-  /tests/nexus
 /=  t-  /tests/tarball
 /=  m-  /mar/kids
