@@ -17,17 +17,19 @@
   =/  m  (fiber:fiber:nexus ,tool-result:tools)
   ^-  form:m
   ;<  st=tool-state:tools  bind:m  (get-state-as:io ,tool-state:tools)
-  =/  [desk=@t file-path=@t]
-    %.  [%o args.st]
-    %-  ot:dejs:format
-    :~  ['desk' so:dejs:format]
-        ['path' so:dejs:format]
-    ==
-  =/  dek=@tas  (slav %tas desk)
-  =/  pax=path  (stab file-path)
+  =/  desk=(unit @t)  (~(deg jo:json-utils [%o args.st]) /desk so:dejs:format)
+  =/  file-path=(unit @t)  (~(deg jo:json-utils [%o args.st]) /path so:dejs:format)
+  ?~  desk
+    (pure:m [%error 'Missing required argument: desk'])
+  ?~  file-path
+    (pure:m [%error 'Missing required argument: path'])
+  =/  dek=(unit @tas)  (slaw %tas u.desk)
+  ?~  dek
+    (pure:m [%error (crip "Invalid desk name: {(trip u.desk)}")])
+  =/  pax=path  (stab u.file-path)
   ;<  =bowl:nexus  bind:m  (get-bowl:io /bowl)
   ;<  =riot:clay  bind:m
-    (warp:io our.bowl dek ~ %sing %x da+now.bowl pax)
+    (warp:io our.bowl u.dek ~ %sing %x da+now.bowl pax)
   ?~  riot
     (pure:m [%error 'File not found'])
   =/  =tang  (pretty-file:pretty-file:tools !<(noun q.r.u.riot))

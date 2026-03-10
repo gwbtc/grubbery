@@ -11,6 +11,8 @@
 /=  m-  /mar/dill-blit
 /=  m-  /mar/jael-private-keys
 /=  m-  /mar/jael-public-keys-result
+/=  m-  /mar/claude-action
+/=  m-  /mar/claude-messages
 :: add /nex to the ford build cache for fast compilation
 ::
 /~  nex  nexus:nexus  /nex

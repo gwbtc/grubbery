@@ -2017,4 +2017,90 @@
   %-  expect-fail
   |.((~(pub ba:tarball b) / bad-ball))
 ::
+::  cord-to-road tests
+::
+++  test-cord-to-road-absolute-file
+  %+  expect-eq
+    !>  `road:tarball`[%& %& /foo/bar %baz]
+  !>  (cord-to-road:tarball '/foo/bar/baz')
+::
+++  test-cord-to-road-absolute-root-file
+  %+  expect-eq
+    !>  `road:tarball`[%& %& / %foo]
+  !>  (cord-to-road:tarball '/foo')
+::
+++  test-cord-to-road-absolute-dir
+  %+  expect-eq
+    !>  `road:tarball`[%& %| /foo/bar]
+  !>  (cord-to-road:tarball '/foo/bar/')
+::
+++  test-cord-to-road-empty
+  %+  expect-eq
+    !>  `road:tarball`[%& %| /]
+  !>  (cord-to-road:tarball '')
+::
+++  test-cord-to-road-relative-dot-file
+  %+  expect-eq
+    !>  `road:tarball`[%| 0 %& / %'foo.txt']
+  !>  (cord-to-road:tarball './foo.txt')
+::
+++  test-cord-to-road-relative-dotdot-file
+  %+  expect-eq
+    !>  `road:tarball`[%| 1 %& / %bar]
+  !>  (cord-to-road:tarball '../bar')
+::
+++  test-cord-to-road-relative-dotdot-dotdot
+  %+  expect-eq
+    !>  `road:tarball`[%| 2 %& /baz %qux]
+  !>  (cord-to-road:tarball '../../baz/qux')
+::
+++  test-cord-to-road-relative-dotdot-only
+  %+  expect-eq
+    !>  `road:tarball`[%| 1 %| /]
+  !>  (cord-to-road:tarball '..')
+::
+++  test-cord-to-road-relative-bare
+  %+  expect-eq
+    !>  `road:tarball`[%| 0 %& / %'config.json']
+  !>  (cord-to-road:tarball 'config.json')
+::
+++  test-cord-to-road-relative-dir
+  %+  expect-eq
+    !>  `road:tarball`[%| 0 %| /foo/bar]
+  !>  (cord-to-road:tarball './foo/bar/')
+::
+::  road-to-cord tests
+::
+++  test-road-to-cord-absolute-file
+  %+  expect-eq
+    !>  '/foo/bar/baz'
+  !>  (road-to-cord:tarball [%& %& /foo/bar %baz])
+::
+++  test-road-to-cord-absolute-dir
+  %+  expect-eq
+    !>  '/foo/bar'
+  !>  (road-to-cord:tarball [%& %| /foo/bar])
+::
+++  test-road-to-cord-relative-dot-file
+  %+  expect-eq
+    !>  './foo'
+  !>  (road-to-cord:tarball [%| 0 %& / %foo])
+::
+++  test-road-to-cord-relative-dotdot
+  %+  expect-eq
+    !>  '../bar'
+  !>  (road-to-cord:tarball [%| 1 %& / %bar])
+::
+++  test-road-to-cord-roundtrip-absolute
+  =/  txt=@t  '/one/two/three'
+  %+  expect-eq
+    !>  txt
+  !>  (road-to-cord:tarball (cord-to-road:tarball txt))
+::
+++  test-road-to-cord-roundtrip-relative
+  =/  txt=@t  '../../foo/bar'
+  %+  expect-eq
+    !>  txt
+  !>  (road-to-cord:tarball (cord-to-road:tarball txt))
+::
 --

@@ -17,12 +17,16 @@
   =/  m  (fiber:fiber:nexus ,tool-result:tools)
   ^-  form:m
   ;<  st=tool-state:tools  bind:m  (get-state-as:io ,tool-state:tools)
-  =/  file-path=@t  (~(dog jo:json-utils [%o args.st]) /path so:dejs:format)
-  =/  file-name=@t  (~(dog jo:json-utils [%o args.st]) /name so:dejs:format)
-  =/  pax=path  (stab file-path)
+  =/  file-path=(unit @t)  (~(deg jo:json-utils [%o args.st]) /path so:dejs:format)
+  =/  file-name=(unit @t)  (~(deg jo:json-utils [%o args.st]) /name so:dejs:format)
+  ?~  file-path
+    (pure:m [%error 'Missing required argument: path'])
+  ?~  file-name
+    (pure:m [%error 'Missing required argument: name'])
+  =/  pax=path  (stab u.file-path)
   ;<  [grub-name=@ta =seen:nexus]  bind:m
-    (lookup-grub:tools pax file-name)
+    (lookup-grub:tools pax u.file-name)
   ?.  ?=([%& %file *] seen)
-    (pure:m [%error (crip "Not found: {(trip file-path)}/{(trip file-name)}")])
+    (pure:m [%error (crip "Not found: {(trip u.file-path)}/{(trip u.file-name)}")])
   (render-grub-content:tools seen)
 --

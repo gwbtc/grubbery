@@ -956,4 +956,71 @@
       tar-entries  (weld tar-entries sub-tar)
     ==
   --
+::  Road encoding/decoding: unix-style path strings ↔ road type
+::
+::  Absolute paths start with /: /path/to/file → absolute file road
+::  Relative paths: ./file, ../file, ../../dir/file
+::  Trailing slash means directory: /path/to/dir/
+::
+++  road-to-cord
+  |=  =road
+  ^-  @t
+  ?-  -.road
+      %&  (lane-to-tape p.road)
+      %|
+    =/  ups=tape
+      ?:  =(0 p.p.road)  "."
+      (snip `path`(zing (reap p.p.road "../")))
+    =/  rest=tape  (trip (lane-to-tape q.p.road))
+    =/  rest=tape  ?:(?=([%'/' *] rest) t.rest rest)
+    (crip (weld ups ?~(rest rest (weld "/" rest))))
+  ==
+::
+++  lane-to-tape
+  |=  =lane
+  ^-  @t
+  ?-  -.lane
+      %&  (spat (rail-to-path p.lane))
+      %|  (spat p.lane)
+  ==
+::
+++  cord-to-road
+  |=  txt=@t
+  ^-  road
+  =/  t=tape  (trip txt)
+  ?~  t  [%& %| /]
+  ?:  =('/' i.t)
+    [%& (tape-to-lane t)]
+  (tape-to-road t)
+::  parse ../ prefixes, counting depth
+::
+++  tape-to-road
+  =|  depth=@ud
+  |=  t=tape
+  ^-  road
+  ?~  t  [%| depth %| /]
+  ?:  ?&  ?=([%'.' %'.' *] t)
+          ?|  ?=(~ t.t.t)
+              ?=([%'/' *] t.t.t)
+      ==  ==
+    ?~  t.t.t  [%| +(depth) %| /]
+    $(t t.t.t.t, depth +(depth))
+  ?:  ?=([%'.' %'/' *] t)
+    [%| depth (tape-to-lane (slag 2 `tape`t))]
+  [%| depth (tape-to-lane (weld "/" t))]
+::
+++  tape-to-lane
+  |=  t=tape
+  ^-  lane
+  ?~  t  [%| /]
+  =/  pax=path
+    %+  scan  t
+    (more fas (cook crip (star ;~(less fas next))))
+  ::  filter empty segments, drop leading empty from /
+  =/  pax=path  (skip pax |=(s=@ta =('' s)))
+  ?~  pax  [%| /]
+  ::  trailing slash = directory
+  ?:  =('/' (rear t))
+    [%| pax]
+  [%& (snip `path`pax) (rear pax)]
 --
