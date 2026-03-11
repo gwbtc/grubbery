@@ -6,8 +6,8 @@
 =<  ^-  nexus:nexus
     |%
     ++  on-load
-      |=  [=sand:nexus =ball:tarball]
-      ^-  [sand:nexus ball:tarball]
+      |=  [=sand:nexus =gain:nexus =ball:tarball]
+      ^-  [sand:nexus gain:nexus ball:tarball]
       =.  ball  (~(put ba:tarball ball) [/ %'ver.ud'] [~ %ud !>(0)])
       =?  ball  =(~ (~(get ba:tarball ball) [/ %'config.json']))
         =/  default=json
@@ -30,14 +30,14 @@
         (~(put ba:tarball ball) [/ %'system-prompt.txt'] [~ %txt !>(default)])
       =?  ball  =(~ (~(get of ball) /ui))
         (~(put of ball) /ui [~ ~ ~])
-      =?  ball  =(~ (~(get ba:tarball ball) [/ui %'chat.html']))
+      =.  ball
         %+  ~(put ba:tarball ball)  [/ui %'chat.html']
         [~ %manx !>((chat-page ~))]
       =?  ball  =(~ (~(get of ball) /ui/sse))
         (~(put of ball) /ui/sse [~ ~ ~])
-      =?  ball  =(~ (~(get ba:tarball ball) [/ui/sse %'last-message.json']))
+      =.  ball
         (~(put ba:tarball ball) [/ui/sse %'last-message.json'] [~ %json !>(*json)])
-      [sand ball]
+      [sand gain ball]
     ::
     ++  on-file
       |=  [=rail:tarball =mark]
@@ -147,6 +147,10 @@
         ;<  ~  bind:m  (rise-wait:io prod "%claude page: failed")
         ;<  init=view:nexus  bind:m
           (keep:io /msgs (cord-to-road:tarball '../messages.claude-messages') ~)
+        ?.  ?=([%file *] init)  $
+        =/  msg=messages  !<(messages q.cage.init)
+        =/  page=manx  (chat-page (tap:mon messages.msg))
+        ;<  ~  bind:m  (replace:io !>(page))
         |-
         ;<  upd=view:nexus  bind:m  (take-news:io /msgs)
         ?.  ?=([%file *] upd)  $
@@ -160,16 +164,24 @@
         ;<  ~  bind:m  (rise-wait:io prod "%claude sse: failed")
         ;<  init=view:nexus  bind:m
           (keep:io /msgs (cord-to-road:tarball '../../messages.claude-messages') ~)
+        ?.  ?=([%file *] init)  $
+        =/  msg=messages  !<(messages q.cage.init)
+        =/  last=(unit [key=@ud val=message])  (ram:mon messages.msg)
+        =/  out=json
+          ?~  last  ~
+          %-  pairs:enjs:format
+          ~[['role' s+role.val.u.last] ['content' s+content.val.u.last]]
+        ;<  ~  bind:m  (replace:io !>(out))
         |-
         ;<  upd=view:nexus  bind:m  (take-news:io /msgs)
         ?.  ?=([%file *] upd)  $
         =/  msg=messages  !<(messages q.cage.upd)
         =/  last=(unit [key=@ud val=message])  (ram:mon messages.msg)
-        =/  =json
+        =/  out=json
           ?~  last  ~
           %-  pairs:enjs:format
           ~[['role' s+role.val.u.last] ['content' s+content.val.u.last]]
-        ;<  ~  bind:m  (replace:io !>(json))
+        ;<  ~  bind:m  (replace:io !>(out))
         $
       ==
     --
@@ -235,9 +247,11 @@
     ;:  weld
       "var API='{api}',BASE='{base}';"
       "var box=document.getElementById('messages'),input=document.getElementById('input'),form=document.getElementById('form');"
+      "function scrollBottom()\{box.scrollTop=box.scrollHeight}"
+      "setTimeout(scrollBottom,100);setTimeout(scrollBottom,300);window.addEventListener('load',scrollBottom);"
       "function esc(s)\{var d=document.createElement('div');d.textContent=s;return d.innerHTML}"
-      "function addMsg(role,content)\{var d=document.createElement('div');d.className='msg '+role;d.innerHTML='<b>'+role+'</b><pre>'+esc(content)+'</pre>';box.appendChild(d);box.scrollTop=box.scrollHeight}"
-      "function showError(msg)\{var d=document.createElement('div');d.className='msg error';d.innerHTML='<b>error</b><pre>'+esc(msg)+'</pre>';box.appendChild(d);box.scrollTop=box.scrollHeight}"
+      "function addMsg(role,content)\{var d=document.createElement('div');d.className='msg '+role;d.innerHTML='<b>'+role+'</b><pre>'+esc(content)+'</pre>';box.appendChild(d);scrollBottom()}"
+      "function showError(msg)\{var d=document.createElement('div');d.className='msg error';d.innerHTML='<b>error</b><pre>'+esc(msg)+'</pre>';box.appendChild(d);scrollBottom()}"
       "form.onsubmit=async function(e)\{e.preventDefault();var t=input.value.trim();if(!t)return;input.value='';var r=await fetch(API+'/poke/'+BASE+'/messages.claude-messages?mark=claude-action',\{method:'POST',headers:\{'Content-Type':'application/json'},body:JSON.stringify(\{text:t})});if(!r.ok)\{var err=await r.text();showError(r.status+': '+err)}};"
       "function onLastMsg(e)\{try\{var m=JSON.parse(e.data);if(m.role&&m.content)addMsg(m.role,m.content)}catch(x)\{}}"
       "function connect()\{var es=new EventSource(API+'/keep/'+BASE+'/ui/sse/last-message.json?mark=json');es.addEventListener('upd last-message.json',onLastMsg);es.onerror=function()\{es.close();setTimeout(connect,2000)}}"

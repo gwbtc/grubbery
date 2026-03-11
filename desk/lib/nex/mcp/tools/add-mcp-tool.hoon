@@ -80,6 +80,6 @@
   ?:  exists
     ;<  ~  bind:m  (over:io /write road hoon+!>(source))
     (await-compile tool-name sub-path)
-  ;<  ~  bind:m  (make:io /write road |+[hoon+!>(source) ~])
+  ;<  ~  bind:m  (make:io /write road |+[%.n hoon+!>(source) ~])
   (await-compile tool-name sub-path)
 --

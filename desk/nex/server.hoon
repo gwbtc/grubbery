@@ -32,8 +32,8 @@
 =<  ^-  nexus:nexus
     |%
     ++  on-load
-      |=  [=sand:nexus =ball:tarball]
-      ^-  [sand:nexus ball:tarball]
+      |=  [=sand:nexus =gain:nexus =ball:tarball]
+      ^-  [sand:nexus gain:nexus ball:tarball]
       =.  ball  (~(put ba:tarball ball) [/ %'ver.ud'] [~ %ud !>(0)])
       =/  fresh=server-state:nex-server  [%0 ~ ~]
       =/  existing  (~(get ba:tarball ball) [/ %'main.server-state'])
@@ -41,7 +41,7 @@
         (~(put ba:tarball ball) [/ %'main.server-state'] [~ %server-state !>(fresh)])
       =?  ball  =(~ (~(get of ball) /requests))
         (~(put of ball) /requests [~ ~ ~])
-      [sand ball]
+      [sand gain ball]
     ::
     ++  on-file
       |=  [=rail:tarball =mark]
@@ -186,7 +186,7 @@
         ::
         ?:  ?=([%grubbery %api *] site)
           ;<  ~  bind:m
-            (make:io /api [%| 0 %& /requests eyre-id] |+[http-request+!>([src req]) ~])
+            (make:io /api [%| 0 %& /requests eyre-id] |+[%.n http-request+!>([src req]) ~])
           $
         =/  match=(unit [=binding:eyre handler=rail:tarball])
           (find-binding bindings.st site)
@@ -450,10 +450,11 @@
   ?:  exists
     (send-error eyre-id 409 'Already exists')
   =/  mark-param=(unit @t)  (get-key:kv:html-utils 'mark' args)
+  =/  gain=?  =('true' (fall (get-key:kv:html-utils 'gain' args) ''))
   =/  mime-cage=cage  [%mime !>(`mime`[/application/octet-stream u.body])]
   ;<  converted=(unit cage)  bind:m  (maybe-convert eyre-id mime-cage mark-param)
   ?~  converted  (pure:m ~)
-  ;<  ~  bind:m  (make:io /make road [%| u.converted ~])
+  ;<  ~  bind:m  (make:io /make road [%| gain u.converted ~])
   (send-created eyre-id)
 ::  +serve-dir-make: PUT /dir — create directory
 ::
@@ -470,7 +471,7 @@
   ?:  exists
     (send-error eyre-id 409 'Already exists')
   =/  init-ball=ball:tarball  [`[~ ~ ~] ~]
-  ;<  ~  bind:m  (make:io /make road [%& *sand:nexus init-ball])
+  ;<  ~  bind:m  (make:io /make road &+[*sand:nexus *gain:nexus init-ball])
   (send-created eyre-id)
 ::  +serve-post: POST /poke, /over, /diff — send dart to file
 ::
@@ -537,7 +538,7 @@
   ;<  exists=?  bind:m  (peek-exists:io /chk dir-road)
   ?.  exists
     ;<  ~  bind:m
-      (make:io /upload dir-road &+[*sand:nexus `[~ ~ ~] ~])
+      (make:io /upload dir-road &+[*sand:nexus *gain:nexus `[~ ~ ~] ~])
     (ensure-parents next t.segments)
   (ensure-parents next t.segments)
 ::  +serve-upload: POST /upload — multipart file/directory upload
@@ -622,7 +623,7 @@
   ?:  exists
     ;<  ~  bind:m  (over:io /upload road final-cage)
     $(remaining t.remaining, created [filename-raw created])
-  ;<  ~  bind:m  (make:io /upload road |+[final-cage ~])
+  ;<  ~  bind:m  (make:io /upload road |+[%.n final-cage ~])
   $(remaining t.remaining, created [filename-raw created])
 ::  +serve-sand-peek: GET /sand — directory permissions as JSON
 ::

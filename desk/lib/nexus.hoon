@@ -52,7 +52,8 @@
       byk=beak
   ==
 ::
-+$  make  (each [=sand =ball:tarball] [=cage mark=(unit mark)])
++$  gain  (axal (map @ta ?))
++$  make  (each [=sand =gain =ball:tarball] [gain=? =cage mark=(unit mark)])
 +$  view
   $%  [%ball =sand =born ball=ball:tarball]
       [%file =sack =cage]
@@ -61,6 +62,12 @@
 +$  seen  (each view tang)
 :: dart payload
 ::
++$  case  $%([%ud p=@ud] [%da p=@da])
++$  lose
+  $%  [%pick cass=(set cass:clay)]       :: drop specific versions
+      [%date from=(unit @da) to=(unit @da)]  :: drop date range (~ = open-ended)
+      [%numb from=(unit @ud) to=(unit @ud)]  :: drop number range (~ = open-ended)
+  ==
 +$  load
   $%  [%poke =cage]             :: poke a grub
       [%make =make]                    :: create grub or directory
@@ -69,11 +76,15 @@
       [%cull ~]                 :: delete grub or directory
       [%sand weir=(unit weir)]  :: set weir
       [%load ~]                 :: trigger on-load for a nexus (folds only)
-      [%peek mark=(unit mark)]  :: read a grub
-                                       :: mark: if set, convert file cage to this
-                                       :: mark via warm tube before returning
+      [%gain flag=?]            :: set gain flag (recursive on directories)
+      [%peek mark=(unit mark) case=(unit case) clam=?]
+                                       :: read a grub
+                                       :: mark: convert file cage to this mark
+                                       :: ver: if set, read historical version
       [%keep mark=(unit mark)]  :: subscribe to changes at dest (grub or ball per road)
                                        :: mark: if set, convert file cage in news
+      [%lose =lose]             :: drop hist entries, decrement silo refs
+      [%seek =lobe:clay]        :: find all [rail cass] pairs with this hash
       [%drop ~]                 :: unsubscribe from dest
   ==
 ::
@@ -111,6 +122,9 @@
         [%pack =wire err=(unit tang)] :: response from poke; tang is generic if not allowed to peek
         [%sand =wire err=(unit tang)] :: response to sand
         [%load =wire err=(unit tang)] :: response to load
+        [%gain =wire err=(unit tang)] :: response to gain
+        [%lost =wire err=(unit tang)] :: response to lose
+        [%found =wire hits=(list [=rail:tarball =cass:clay])] :: response to seek
         [%over =wire err=(unit tang)] :: response to over (content overwrite)
         [%diff =wire err=(unit tang)] :: response to diff (same-mark replace)
         [%writ p=?(%over %diff)]      :: notify grub its file was externally modified
@@ -326,14 +340,45 @@
 ::  file: incremented on content change
 ::
 +$  tote  [weir=cass:clay fold=cass:clay]
-+$  sack  [proc=cass:clay file=cass:clay]
++$  sack  [proc=cass:clay file=cass:clay hist=((mop cass:clay lobe:clay) cass-order)]
 +$  born  (axal [=tote bags=(map @ta sack)])
++$  silo  (map lobe:clay [refs=@ud =cage])
+++  cass-order  |=([a=cass:clay b=cass:clay] (lth ud.a ud.b))
+++  on-hist  ((on cass:clay lobe:clay) cass-order)
+::  Resolve a hist case to a lobe from the hist mop
+::  %ud: exact match on revision number
+::  %da: latest entry with da <= target date
+::
+++  resolve-case
+  |=  [cas=case hist=((mop cass:clay lobe:clay) cass-order)]
+  ^-  lobe:clay
+  ?-    -.cas
+      %ud
+    =/  entries=(list [key=cass:clay val=lobe:clay])  (tap:on-hist hist)
+    |-
+    ?~  entries  ~|(%hist-version-not-found !!)
+    ?:  =(ud.key.i.entries p.cas)
+      val.i.entries
+    $(entries t.entries)
+      %da
+    =/  entries=(list [key=cass:clay val=lobe:clay])  (tap:on-hist hist)
+    ::  tap gives ascending order; find latest entry with da <= target
+    =/  best=(unit lobe:clay)  ~
+    |-
+    ?~  entries
+      ?~  best  ~|(%hist-version-not-found !!)
+      u.best
+    ?:  (gth da.key.i.entries p.cas)
+      ?~  best  ~|(%hist-version-not-found !!)
+      u.best
+    $(entries t.entries, best `val.i.entries)
+  ==
 ::  +bo: Pure operations on born (version tracking)
 ::
 ::  Structure: (axal [tote bags=(map @ta sack)])
 ::    - tote = [weir=cass:clay fold=cass:clay]
 ::    - Each directory node has a tote and bags (grub sacks)
-::    - sack = [proc=cass:clay file=cass:clay]
+::    - sack = [proc=cass:clay file=cass:clay hist=((mop ...))]
 ::
 ::  Semantics:
 ::    - proc cass: bumped on process spawn/restart (stale detection + notifications)
@@ -390,19 +435,19 @@
     =/  nex-da=@da
       ?:((lth da.cass now) now +(da.cass))
     [+(ud.cass) nex-da]
-  ::  Init born for new file: [proc=0 file=0] (no bump - first creation)
+  ::  Init born for new file (no bump - first creation)
   ::
   ++  init
     |=  here=rail:tarball
     ^-  born
-    (put here [[0 now] [0 now]])
+    (put here [[0 now] [0 now] ~])
   ::  Bump proc cass (asserts born exists)
   ::
   ++  bump-proc
     |=  here=rail:tarball
     ^-  born
     =/  sok=sack  (need (get here))
-    (put here [(next-cass proc.sok) file.sok])
+    (put here [(next-cass proc.sok) file.sok hist.sok])
   ::  Bump dir cass and propagate up to root
   ::
   ++  bump-dir
@@ -420,7 +465,7 @@
     |=  here=rail:tarball
     ^-  born
     =/  sok=sack  (need (get here))
-    =.  born.old  (put here [proc.sok (next-cass file.sok)])
+    =.  born.old  (put here [proc.sok (next-cass file.sok) hist.sok])
     (bump-dir path.here)
   ::  Bump weir cass of directory node and propagate fold cass up
   ::
@@ -512,6 +557,71 @@
     =/  kid-new=ball:tarball  (fall (~(get by dir.new-ball) i.kids) *ball:tarball)
     =.  born.old  (diff-balls (snoc here i.kids) kid-old kid-new)
     $(kids t.kids)
+  --
+::  +si: Pure operations on silo (content-addressed object store)
+::
+::  Hash is computed from the page (mark + noun) for content identity,
+::  but the full cage (mark + vase) is stored to avoid re-clamming.
+::
+++  si
+  |_  =silo
+  ++  hash
+    |=  =cage
+    ^-  lobe:clay
+    `@uvI`(sham [p q.q]:cage)
+  ::  Insert cage, increment refcount if exists. Returns lobe and new silo.
+  ::
+  ++  put
+    |=  =cage
+    ^-  [lobe:clay ^silo]
+    =/  =lobe:clay  (hash cage)
+    =/  got  (~(get by silo) lobe)
+    ?~  got
+      [lobe (~(put by silo) lobe [1 cage])]
+    [lobe (~(put by silo) lobe [+(refs.u.got) cage])]
+  ::  Decrement refcount, delete if zero.
+  ::
+  ++  drop
+    |=  =lobe:clay
+    ^-  ^silo
+    =/  got  (~(get by silo) lobe)
+    ?~  got  silo
+    ?:  (lte refs.u.got 1)
+      (~(del by silo) lobe)
+    (~(put by silo) lobe [refs=(dec refs.u.got) cage.u.got])
+  ::  Look up cage by lobe.
+  ::
+  ++  get
+    |=  =lobe:clay
+    ^-  (unit cage)
+    =/  got  (~(get by silo) lobe)
+    ?~  got  ~
+    `cage.u.got
+  ::  Drop refs for all lobes in a hist.
+  ::
+  ++  drop-hist
+    |=  hist=(tree [key=cass:clay val=lobe:clay])
+    ^-  ^silo
+    =/  entries=(list [key=cass:clay val=lobe:clay])
+      (tap:on-hist hist)
+    |-
+    ?~  entries  silo
+    $(entries t.entries, silo (drop val.i.entries))
+  ::  Record a cage: insert into silo, update hist per gain flag.
+  ::  Returns [lobe new-silo new-hist].
+  ::
+  ++  record
+    |=  [=cage =cass:clay gain=? hist=(tree [key=cass:clay val=lobe:clay])]
+    ^-  [lobe:clay ^silo (tree [key=cass:clay val=lobe:clay])]
+    =/  [=lobe:clay new-silo=^silo]  (put cage)
+    ?:  gain
+      [lobe new-silo (put:on-hist hist cass lobe)]
+    ::  !gain: drop previous ref, replace hist with just latest
+    =/  prev=(unit [key=cass:clay val=lobe:clay])
+      (ram:on-hist hist)
+    =?  new-silo  ?=(^ prev)
+      (~(drop si new-silo) val.u.prev)
+    [lobe new-silo (put:on-hist ~ cass lobe)]
   --
 ::  +stamp-mtimes: stamp born datetimes into ball metadata as mtime
 ::
@@ -749,8 +859,8 @@
   :: this nexus is initially created
   ::
   ++  on-load
-    |~  [sand ball:tarball]
-    [*sand *ball:tarball]
+    |~  [sand gain ball:tarball]
+    [*sand *gain *ball:tarball]
   :: every grub has a running process alongside its file content.
   :: processes should be able to recover proper operation based on
   ::   state alone, even when restarted. this is not guaranteed and
@@ -805,6 +915,52 @@
         ['peek' (ar:dejs:format road-from-json)]
     ==
   [(~(gas in *(set road:tarball)) make) (~(gas in *(set road:tarball)) poke) (~(gas in *(set road:tarball)) peek)]
+++  cass-to-json
+  |=  =cass:clay
+  ^-  json
+  (pairs:enjs:format ~[['ud' (numb:enjs:format ud.cass)] ['da' s+(scot %da da.cass)]])
+::
+++  sack-to-json
+  |=  =sack
+  ^-  json
+  %-  pairs:enjs:format
+  :~  ['proc' (cass-to-json proc.sack)]
+      ['file' (cass-to-json file.sack)]
+      :-  'hist'
+      :-  %a
+      %+  turn  (tap:on-hist hist.sack)
+      |=  [key=cass:clay val=lobe:clay]
+      %-  pairs:enjs:format
+      :~  ['ud' (numb:enjs:format ud.key)]
+          ['da' s+(scot %da da.key)]
+          ['lobe' s+(scot %uv val)]
+      ==
+  ==
+::
+++  born-to-json
+  |=  b=born
+  ^-  json
+  =/  node-json=json
+    ?~  fil.b  ~
+    %-  pairs:enjs:format
+    :~  :-  'tote'
+        %-  pairs:enjs:format
+        :~  ['weir' (cass-to-json weir.tote.u.fil.b)]
+            ['fold' (cass-to-json fold.tote.u.fil.b)]
+        ==
+        :-  'bags'
+        [%o (~(run by bags.u.fil.b) sack-to-json)]
+    ==
+  =/  kids-json=json
+    [%o (~(run by dir.b) |=(kid=born ^$(b kid)))]
+  ?~  fil.b
+    ?:  =(~ dir.b)  ~
+    (pairs:enjs:format ~[['dirs' kids-json]])
+  %-  pairs:enjs:format
+  :~  ['node' node-json]
+      ['dirs' kids-json]
+  ==
+::
 ++  sand-to-json
   |=  s=sand
   ^-  json
@@ -813,6 +969,16 @@
     (pairs:enjs:format ~[['dirs' subdirs]])
   %-  pairs:enjs:format
   :~  ['weir' (weir-to-json u.fil.s)]
+      ['dirs' subdirs]
+  ==
+++  gain-to-json
+  |=  g=gain
+  ^-  json
+  =/  subdirs=json  [%o (~(run by dir.g) gain-to-json)]
+  ?~  fil.g
+    (pairs:enjs:format ~[['dirs' subdirs]])
+  %-  pairs:enjs:format
+  :~  ['node' [%o (~(run by u.fil.g) |=(f=? b+f))]]
       ['dirs' subdirs]
   ==
 --

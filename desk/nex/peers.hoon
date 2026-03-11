@@ -47,8 +47,8 @@
 =<  ^-  nexus:nexus
     |%
     ++  on-load
-      |=  [=sand:nexus =ball:tarball]
-      ^-  [sand:nexus ball:tarball]
+      |=  [=sand:nexus =gain:nexus =ball:tarball]
+      ^-  [sand:nexus gain:nexus ball:tarball]
       =.  ball  (~(put ba:tarball ball) [/ %'ver.ud'] [~ %ud !>(0)])
       ::  Create /main.sig file (weir manager) if not present
       =?  ball  =(~ (~(get ba:tarball ball) [/ %'main.sig']))
@@ -69,7 +69,7 @@
         (~(put of ball) /ships [~ ~ ~])
       =/  root-roads=(set road:tarball)  (sy [%& %| /]~)
       =.  sand  (~(put of sand) /ships [root-roads root-roads root-roads])
-      [sand ball]
+      [sand gain ball]
     ::
     ++  on-file
       |=  [=rail:tarball =mark]
@@ -248,12 +248,12 @@
   =/  ship-ball=ball:tarball
     (~(put ba:tarball *ball:tarball) [/ %'main.sig'] [~ %sig !>(~)])
   ?:  =(src our)
-    (make:io /create-ship [%| 0 %| ship-dir] &+[*sand:nexus ship-ball])
+    (make:io /create-ship [%| 0 %| ship-dir] &+[*sand:nexus *gain:nexus ship-ball])
   ;<  [who=(map rail:tarball (set @p)) how=(map rail:tarball weir:nexus)]  bind:m
     read-usergroups
   =/  =weir:nexus  (compute-ship-weir src (build-src who) how)
   =/  ship-sand=sand:nexus  (~(put of *sand:nexus) / weir)
-  (make:io /create-ship [%| 0 %| ship-dir] &+[ship-sand ship-ball])
+  (make:io /create-ship [%| 0 %| ship-dir] &+[ship-sand *gain:nexus ship-ball])
 ::  Sand weirs for all foreign ship directories from pre-built data.
 ::
 ++  sand-all-ships

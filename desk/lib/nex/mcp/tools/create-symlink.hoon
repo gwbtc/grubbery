@@ -25,6 +25,6 @@
   ?~  sym
     (pure:m [%error (crip "Invalid symlink target: {(trip target)}")])
   ;<  ~  bind:m
-    (make:io /symlink [%& %& (stab link-path) link-name] |+[[%symlink !>(u.sym)] ~])
+    (make:io /symlink [%& %& (stab link-path) link-name] |+[%.n [%symlink !>(u.sym)] ~])
   (pure:m [%text (crip "Created symlink {(trip link-path)}/{(trip link-name)} -> {(trip target)}")])
 --

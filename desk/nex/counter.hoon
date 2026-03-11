@@ -5,12 +5,22 @@
 =<  ^-  nexus:nexus
     |%
     ++  on-load
-      |=  [=sand:nexus =ball:tarball]
-      ^-  [sand:nexus ball:tarball]
+      |=  [=sand:nexus =gain:nexus =ball:tarball]
+      ^-  [sand:nexus gain:nexus ball:tarball]
       =.  ball  (~(put ba:tarball ball) [/ %'ver.ud'] [~ %ud !>(0)])
       ::  Create /counters directory if not present
       =?  ball  =(~ (~(get of ball) /counters))
         (~(put of ball) /counters [~ ~ ~])
+      ::  Enable history retention for all counter files
+      =/  counter-ball=ball:tarball  (~(dip ba:tarball ball) /counters)
+      =/  counter-files=(list @ta)
+        ?~  fil.counter-ball  ~
+        ~(tap in ~(key by contents.u.fil.counter-ball))
+      =.  gain
+        =/  gmap=(map @ta ?)  (fall (~(get of gain) /counters) ~)
+        %+  ~(put of gain)  /counters
+        |-  ?~  counter-files  gmap
+        $(counter-files t.counter-files, gmap (~(put by gmap) i.counter-files %.y))
       ::  Create /ui/views directory if not present
       =?  ball  =(~ (~(get of ball) /ui/views))
         (~(put of ball) /ui/views [~ ~ ~])
@@ -23,7 +33,7 @@
       ::  Create /ui/requests directory if not present
       =?  ball  =(~ (~(get of ball) /ui/requests))
         (~(put of ball) /ui/requests [~ ~ ~])
-      [sand ball]
+      [sand gain ball]
     ::
     ++  on-file
       |=  [=rail:tarball =mark]

@@ -3,8 +3,8 @@
 !:  :: turn on stack trace
 |%
 ++  on-load
-  |=  [=sand:nexus =ball:tarball]
-  ^-  [sand:nexus ball:tarball]
+  |=  [=sand:nexus =gain:nexus =ball:tarball]
+  ^-  [sand:nexus gain:nexus ball:tarball]
   =.  ball  (~(put ba:tarball ball) [/ %'ver.ud'] [~ %ud !>(0)])
   ::  Create /sys directory with system processes
   =?  ball  =(~ (~(get of ball) /sys))
@@ -36,7 +36,7 @@
     (~(put of ball) /config [~ ~ ~])
   =?  ball  =(~ (~(get of ball) /config/creds))
     (~(put of ball) /config/creds [~ ~ ~])
-  [sand ball]
+  [sand gain ball]
 ::
 ++  on-file
   |=  [=rail:tarball mak=mark]

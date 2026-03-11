@@ -5,8 +5,8 @@
 =<  ^-  nexus:nexus
     |%
     ++  on-load
-      |=  [=sand:nexus =ball:tarball]
-      ^-  [sand:nexus ball:tarball]
+      |=  [=sand:nexus =gain:nexus =ball:tarball]
+      ^-  [sand:nexus gain:nexus ball:tarball]
       =.  ball  (~(put ba:tarball ball) [/ %'ver.ud'] [~ %ud !>(0)])
       ::  Create /wallets directory if not present
       =?  ball  =(~ (~(get of ball) /wallets))
@@ -17,7 +17,7 @@
       ::  Create /requests directory if not present
       =?  ball  =(~ (~(get of ball) /requests))
         (~(put of ball) /requests [~ ~ ~])
-      [sand ball]
+      [sand gain ball]
     ::
     ++  on-file
       |=  [=rail:tarball =mark]
@@ -70,7 +70,7 @@
               ?:  =('wallet-name' key)  val
               $(params t.params)
             =/  wallet-key=@ta  (scot %da now.bowl)
-            ;<  ~  bind:m  (make:io /make [%| 1 %& /wallets wallet-key] |+[sig+!>(wallet-name) ~])
+            ;<  ~  bind:m  (make:io /make [%| 1 %& /wallets wallet-key] |+[%.n sig+!>(wallet-name) ~])
             ;<  ~  bind:m  (send-simple:srv eyre-id two-oh-four:http-utils)
             (pure:m ~)
           ::  GET /: serve wallet page

@@ -6,6 +6,9 @@
 /=  m-  /mar/kids
 /=  m-  /mar/tree
 /=  m-  /mar/sand
+/=  m-  /mar/born
+/=  m-  /mar/subs
+/=  m-  /mar/gain
 /=  m-  /mar/ships
 /=  m-  /mar/dill-told
 /=  m-  /mar/dill-blit
@@ -13,10 +16,7 @@
 /=  m-  /mar/jael-public-keys-result
 /=  m-  /mar/claude-action
 /=  m-  /mar/claude-messages
-:: add /nex to the ford build cache for fast compilation
 ::
-/~  nex  nexus:nexus  /nex
-/~  ted  thread:spider  /ted
 |%
 +$  versioned-state
   $%  state-0
@@ -29,6 +29,8 @@
       =sand:nexus
       =born:nexus
       =subs:nexus
+      =silo:nexus
+      =gain:nexus
   ==
 --
 ::
@@ -48,7 +50,7 @@
 ::  Create empty ball with %root nexus at root
   =/  init-ball=ball:tarball  [`[~ `%root ~] ~]  :: lump with neck=%root
   =^  cards  state
-    abet:(reload:hc *pool:nexus init-ball *sand:nexus *born:nexus *subs:nexus)
+    abet:(reload:hc *pool:nexus init-ball *sand:nexus *born:nexus *subs:nexus *silo:nexus *gain:nexus)
   =^  dill-cards  state
     abet:sync-dill:hc
   =^  clay-cards  state
@@ -73,7 +75,7 @@
       =/  lmp=lump:tarball  (fall fil.ball.old [~ ~ ~])
       ball.old(fil `lmp(neck `%root))
     =^  cards  state
-      abet:(reload:hc pool.old new-ball sand.old born.old subs.old)
+      abet:(reload:hc pool.old new-ball sand.old born.old subs.old silo.old gain.old)
     =^  dill-cards  state
       abet:sync-dill:hc
     =^  clay-cards  state
@@ -245,6 +247,27 @@
     ::  Sand (filter) subtree
     =/  here=^path  t.t.t.path
     ``sand+!>((~(dip of sand) here))
+    ::
+      [%x %peek %born *]
+    ::  Born (version tracking) subtree
+    =/  here=^path  t.t.t.path
+    ``born+!>((~(dip of born) here))
+    ::
+      [%x %peek %gain *]
+    ::  Gain (history retention flags) subtree
+    =/  here=^path  t.t.t.path
+    ``gain+!>((~(dip of gain) here))
+    ::
+      [%x %peek %silo %lobe @ ~]
+    ::  Look up cage in silo by lobe hash
+    =/  =lobe:clay  (slav %uv i.t.t.t.t.path)
+    =/  got=(unit cage)  (~(get si:nexus silo) lobe)
+    ?~  got  [~ ~]
+    ``u.got
+    ::
+      [%x %peek %subs ~]
+    ::  Internal subscriptions
+    ``subs+!>(subs)
   ==
 ::
 ++  on-agent
@@ -312,6 +335,133 @@
   ?~  pax  sub
   =/  kid  (~(gut by dir.snd) i.pax *sand:nexus)
   snd(dir (~(put by dir.snd) i.pax $(snd kid, pax t.pax)))
+::
+++  put-sub-gain
+  |=  [gn=gain:nexus pax=path sub=gain:nexus]
+  ^-  gain:nexus
+  ?~  pax  sub
+  =/  kid  (~(gut by dir.gn) i.pax *gain:nexus)
+  gn(dir (~(put by dir.gn) i.pax $(gn kid, pax t.pax)))
+::  Look up gain flag for a file (rail)
+::
+++  lookup-gain
+  |=  here=rail:tarball
+  ^-  ?
+  =/  node=(unit (map @ta ?))  (~(get of gain) path.here)
+  ?~  node  %.n
+  (fall (~(get by u.node) name.here) %.n)
+::  Set gain flag for a file
+::
+++  set-gain
+  |=  [here=rail:tarball flag=?]
+  ^-  gain:nexus
+  =/  node=(map @ta ?)  (fall (~(get of gain) path.here) ~)
+  (~(put of gain) path.here (~(put by node) name.here flag))
+::  Set gain for a lane: single file or recursive on directory
+::
+++  set-gain-lane
+  |=  [=lane:tarball flag=?]
+  ^+  this
+  ?-    -.lane
+      %&
+    ::  File: set gain for single rail
+    =.  gain  (set-gain p.lane flag)
+    this
+      %|
+    ::  Directory: set gain for all files in subtree
+    =/  sub-ball=ball:tarball  (~(dip ba:tarball ball) p.lane)
+    =/  lumps=(list [pax=path =lump:tarball])  ~(tap of sub-ball)
+    |-
+    ?~  lumps  this
+    =/  files=(list @ta)  ~(tap in ~(key by contents.lump.i.lumps))
+    =.  this
+      |-
+      ?~  files  this
+      =.  gain  (set-gain [(weld p.lane pax.i.lumps) i.files] flag)
+      $(files t.files)
+    $(lumps t.lumps)
+  ==
+::  Drop hist entries matching a lose spec, decrementing silo refs
+::
+++  drop-hist
+  |=  [here=rail:tarball =lose:nexus]
+  ^+  this
+  =/  sk=sack:nexus  (need (get-born here))
+  =/  entries=(list [key=cass:clay val=lobe:clay])
+    (tap:on-hist:nexus hist.sk)
+  =/  kept=(list [key=cass:clay val=lobe:clay])  ~
+  |-
+  ?~  entries
+    =/  new-hist=((mop cass:clay lobe:clay) cass-order:nexus)  *((mop cass:clay lobe:clay) cass-order:nexus)
+    =.  new-hist
+      |-
+      ?~  kept  new-hist
+      $(kept t.kept, new-hist (put:on-hist:nexus new-hist key.i.kept val.i.kept))
+    =.  born  (~(put bo:nexus now.bowl [born ball]) here sk(hist new-hist))
+    this
+  =/  drop=?
+    ?-    -.lose
+        %pick
+      (~(has in cass.lose) key.i.entries)
+        %date
+      ?&  (fall (bind from.lose |=(d=@da (gte da.key.i.entries d))) %.y)
+          (fall (bind to.lose |=(d=@da (lte da.key.i.entries d))) %.y)
+      ==
+        %numb
+      ?&  (fall (bind from.lose |=(n=@ud (gte ud.key.i.entries n))) %.y)
+          (fall (bind to.lose |=(n=@ud (lte ud.key.i.entries n))) %.y)
+      ==
+    ==
+  ?:  drop
+    =.  silo  (~(drop si:nexus silo) val.i.entries)
+    $(entries t.entries)
+  $(entries t.entries, kept [i.entries kept])
+::  Find all [rail cass] pairs in a subtree whose hist contains a lobe
+::
+++  seek-lobe
+  |=  [=lane:tarball target=lobe:clay]
+  ^-  (list [=rail:tarball =cass:clay])
+  ?-    -.lane
+      %&
+    ::  Single file: check its hist
+    =/  node=(unit [=tote:nexus bags=(map @ta sack:nexus)])
+      (~(get of born) path.p.lane)
+    ?~  node  ~
+    =/  sk=(unit sack:nexus)  (~(get by bags.u.node) name.p.lane)
+    ?~  sk  ~
+    (match-hist p.lane hist.u.sk target)
+      %|
+    ::  Directory: walk all files in born subtree
+    =/  sub-born=born:nexus  (~(dip of born) p.lane)
+    =/  nodes=(list [pax=path =tote:nexus bags=(map @ta sack:nexus)])
+      ~(tap of sub-born)
+    (seek-nodes p.lane nodes target)
+  ==
+::
+++  seek-nodes
+  |=  [base=path nodes=(list [pax=path =tote:nexus bags=(map @ta sack:nexus)]) target=lobe:clay]
+  ^-  (list [=rail:tarball =cass:clay])
+  ?~  nodes  ~
+  =/  files=(list [@ta sack:nexus])  ~(tap by bags.i.nodes)
+  =/  hits=(list [=rail:tarball =cass:clay])
+    (seek-files base pax.i.nodes files target)
+  (weld hits $(nodes t.nodes))
+::
+++  seek-files
+  |=  [base=path pax=path files=(list [@ta sack:nexus]) target=lobe:clay]
+  ^-  (list [=rail:tarball =cass:clay])
+  ?~  files  ~
+  =/  hits=(list [=rail:tarball =cass:clay])
+    (match-hist [(weld base pax) -.i.files] hist.+.i.files target)
+  (weld hits $(files t.files))
+::
+++  match-hist
+  |=  [here=rail:tarball hist=((mop cass:clay lobe:clay) cass-order:nexus) target=lobe:clay]
+  ^-  (list [=rail:tarball =cass:clay])
+  %+  murn  (tap:on-hist:nexus hist)
+  |=  [key=cass:clay val=lobe:clay]
+  ?.  =(val target)  ~
+  `[here key]
 ::
 ++  emit-card
   |=  =card
@@ -461,6 +611,10 @@
     "no grub at {(spud (weld dir /[name]))}"
   ::  Clean up outgoing subscriptions from this file
   =.  this  (sub-wipe [dir name])
+  ::  Drop all silo refs from hist
+  =/  sok=(unit sack:nexus)  (get-born [dir name])
+  =?  silo  ?=(^ sok)
+    (~(drop-hist si:nexus silo) hist.u.sok)
   ::  Remove from ball BEFORE notify so subscribers see deletion
   =.  ball  (~(del ba:tarball ball) dir name)
   =.  this  (bump-file [dir name])
@@ -539,8 +693,8 @@
 ::  Run nexus on-loads top-down recursively
 ::
 ++  run-on-loads
-  |=  [here=fold:tarball sub-sand=sand:nexus sub-ball=ball:tarball]
-  ^-  [sand:nexus ball:tarball]
+  |=  [here=fold:tarball sub-sand=sand:nexus sub-gain=gain:nexus sub-ball=ball:tarball]
+  ^-  [sand:nexus gain:nexus ball:tarball]
   ::  Check if this node has a nexus
   =/  nex=(unit nexus:nexus)
     ?~  fil.sub-ball  ~
@@ -554,22 +708,25 @@
   ::  for its children, never for itself.
   ::
   =/  parent-weir=(unit weir:nexus)  fil.sub-sand
-  =/  res=[sand:nexus ball:tarball]
-    ?~  nex  [sub-sand sub-ball]
-    (on-load:u.nex sub-sand sub-ball)
-  =:  sub-sand  -.res(fil parent-weir)
-      sub-ball  +.res
+  =/  [upd-sand=sand:nexus upd-gain=gain:nexus upd-ball=ball:tarball]
+    ?~  nex  [sub-sand sub-gain sub-ball]
+    (on-load:u.nex sub-sand sub-gain sub-ball)
+  =:  sub-sand  upd-sand(fil parent-weir)
+      sub-gain  upd-gain
+      sub-ball  upd-ball
   ==
   ::  Recurse into subdirectories
   =/  kids=(list [@ta ball:tarball])  ~(tap by dir.sub-ball)
   |-
-  ?~  kids  [sub-sand sub-ball]
+  ?~  kids  [sub-sand sub-gain sub-ball]
   =/  kid-name=@ta  -.i.kids
   =/  kid-ball=ball:tarball  +.i.kids
   =/  kid-sand=sand:nexus  (~(dip of sub-sand) /[kid-name])
-  =/  [new-kid-sand=sand:nexus new-kid-ball=ball:tarball]
-    ^$(here (snoc here kid-name), sub-sand kid-sand, sub-ball kid-ball)
+  =/  kid-gain=gain:nexus  (~(dip of sub-gain) /[kid-name])
+  =/  [new-kid-sand=sand:nexus new-kid-gain=gain:nexus new-kid-ball=ball:tarball]
+    ^$(here (snoc here kid-name), sub-sand kid-sand, sub-gain kid-gain, sub-ball kid-ball)
   =.  sub-sand  (put-sub-sand sub-sand /[kid-name] new-kid-sand)
+  =.  sub-gain  (put-sub-gain sub-gain /[kid-name] new-kid-gain)
   =.  dir.sub-ball  (~(put by dir.sub-ball) kid-name new-kid-ball)
   $(kids t.kids)
 ::  Reload a single nexus at dest (re-run on-load)
@@ -587,15 +744,19 @@
     ~|("no nexus at destination" !!)
   ::  Get current sand subtree (preserve parent weir)
   =/  sub-sand=sand:nexus  (~(dip of sand) dest)
+  =/  sub-gain=gain:nexus  (~(dip of gain) dest)
   =/  parent-weir=(unit weir:nexus)  fil.sub-sand
   ::  Run on-load
-  =/  res=[sand:nexus ball:tarball]  (on-load:u.nex sub-sand sub-ball)
-  =/  new-sand=sand:nexus  -.res(fil parent-weir)
-  =/  new-ball=ball:tarball  +.res
+  =/  [upd-sand=sand:nexus upd-gain=gain:nexus upd-ball=ball:tarball]
+    (on-load:u.nex sub-sand sub-gain sub-ball)
+  =/  new-sand=sand:nexus    upd-sand(fil parent-weir)
+  =/  new-gain=gain:nexus    upd-gain
+  =/  new-ball=ball:tarball  upd-ball
   ::  Put results back
   =/  old-born=born:nexus  born
   =.  sand  (put-sub-sand sand dest new-sand)
   =.  ball  (~(pub ba:tarball ball) dest new-ball)
+  =.  gain  (put-sub-gain gain dest new-gain)
   ::  Bump weir cass in born for any directories where weir changed
   =.  this  (bump-weir-changes dest sub-sand new-sand)
   =.  this  (notify old-born)
@@ -635,6 +796,8 @@
           old-sand=sand:nexus
           old-born=born:nexus
           old-subs=subs:nexus
+          old-silo=silo:nexus
+          old-gain=gain:nexus
       ==
   ^+  this
   ::  Nack pokes in old proc queues
@@ -644,6 +807,8 @@
   =.  sand  old-sand
   =.  born  old-born
   =.  subs  old-subs
+  =.  silo  old-silo
+  =.  gain  old-gain
   ::  Capture ball before modifications (for change detection)
   =/  pre-ball=ball:tarball  ball
   ::  Clear ephemeral %temp cages - they shouldn't survive reload
@@ -652,10 +817,12 @@
   =.  ball  (~(pub ba:tarball ball) /bin/tubes (rebuild-tubes:marks our.bowl q.byk.bowl now.bowl))
   =.  ball  (~(pub ba:tarball ball) /bin/daises (rebuild-daises:marks our.bowl q.byk.bowl now.bowl))
   =.  ball  (~(pub ba:tarball ball) /bin/nexuses (rebuild-nexuses:marks our.bowl q.byk.bowl now.bowl))
-  ::  Run nexus on-loads top-down (may modify ball and sand)
+  ::  Run nexus on-loads top-down (may modify ball, sand, and gain)
   =/  pre-sand=sand:nexus  sand
-  =/  [new-sand=sand:nexus new-ball=ball:tarball]  (run-on-loads / sand ball)
+  =/  [new-sand=sand:nexus new-gain=gain:nexus new-ball=ball:tarball]
+    (run-on-loads / sand gain ball)
   =:  sand  new-sand
+      gain  new-gain
       ball  new-ball
   ==
   ::  Bump weir cass in born for any directories where weir changed
@@ -891,7 +1058,7 @@
   ^+  this
   =/  [=jump:nexus dest=(unit lane:tarball)]  (dart-to-dest here dart)
   =/  =filt:nexus  (allowed jump here dest)
-  ?+    filt  (handle-dart here dart)
+  ?+    filt  (handle-dart here dart filt)
       [~ %|]
     ::  Vetoed - send %veto intake back to source
     (enqu-take here (sys-give /veto) ~ %veto dart)
@@ -899,12 +1066,13 @@
       [~ %&]
     ::  Allowed but should clam vases crossing sandbox boundary
     ::  (make darts don't need clamming - they go through validate-cage anyway)
+    ::  Peek results are clammed inside handle-dart (data flows back)
     ?.  ?=([%node * * ?(%poke %over %diff) *] dart)
-      (handle-dart here dart)
+      (handle-dart here dart filt)
     =/  clammed=(each cage tang)  (clam-cage cage.load.dart)
     ?:  ?=(%| -.clammed)
       (enqu-take here (sys-give /veto) ~ %veto dart)
-    (handle-dart here dart(cage.load p.clammed))
+    (handle-dart here dart(cage.load p.clammed) filt)
   ==
 ::  Extract jump category and destination from a dart for weir filtering.
 ::  Returns [jump dest] where:
@@ -919,14 +1087,17 @@
     =/  dest-lane=(unit lane:tarball)  (lane-from-road:tarball [%& here] road.dart)
     :_  dest-lane
     ?-  -.load.dart
-      ?(%peek %keep %drop)        %peek  :: read operations
+      ?(%peek %keep %drop %seek)   %peek  :: read operations
       %poke                       %poke
-      ?(%make %cull %sand %load %over %diff)  %make  :: all modify tree structure
+        $?  %make  %cull  %sand  %load
+            %over  %diff  %gain  %lose
+        ==
+      %make  :: all modify tree structure
     ==
   ==
 ::
 ++  handle-dart
-  |=  [here=rail:tarball =dart:nexus]
+  |=  [here=rail:tarball =dart:nexus =filt:nexus]
   ^+  this
   ?-    -.dart
       %sysc
@@ -1055,6 +1226,7 @@
         %peek
       ::  Peek at dest - directory returns ball+sand, file returns cage
       ::  Returns %none if directory doesn't exist or has no lump
+      ::  ver: if set, read historical version from hist via silo
       ?-    -.u.dest-lane
           %|
         =/  dest=fold:tarball  p.u.dest-lane
@@ -1076,11 +1248,32 @@
         =/  sk=sack:nexus
           ?~  node  *sack:nexus
           (fall (~(get by bags.u.node) name.dest) *sack:nexus)
+        ::  Resolve source cage: historical from silo or current from ball
+        =/  source=(unit cage)
+          ?^  case.load.dart
+            =/  =lobe:clay
+              (resolve-case:nexus u.case.load.dart hist.sk)
+            (~(get si:nexus silo) lobe)
+          `cage.u.content
+        ?~  source
+          (enqu-take here (sys-give /peek) ~ %peek wire.dart &+[%none ~])
+        ::  Clam at weir boundary or by request
+        =/  clammed=cage
+          ?.  |(?=([~ %&] filt) clam.load.dart)  u.source
+          =/  res=(each cage tang)  (clam-cage u.source)
+          ?:  ?=(%| -.res)
+            ~|(%peek-clam-failed !!)
+          p.res
+        ::  Update silo entry with refreshed type if from hist
+        =?  silo  ?=(^ case.load.dart)
+          =/  =lobe:clay  (resolve-case:nexus u.case.load.dart hist.sk)
+          (~(put by silo) lobe [refs:(~(got by silo) lobe) clammed])
+        ::  Apply mark conversion if requested
         =/  result=cage
-          ?~  mark.load.dart  cage.u.content
-          ?:  =(p.cage.u.content u.mark.load.dart)  cage.u.content
-          =/  =tube:clay  (get-tube p.cage.u.content u.mark.load.dart)
-          [u.mark.load.dart (tube q.cage.u.content)]
+          ?~  mark.load.dart  clammed
+          ?:  =(p.clammed u.mark.load.dart)  clammed
+          =/  =tube:clay  (get-tube p.clammed u.mark.load.dart)
+          [u.mark.load.dart (tube q.clammed)]
         (enqu-take here (sys-give /peek) ~ %peek wire.dart %& %file sk result)
       ==
       ::
@@ -1118,6 +1311,32 @@
       ::  Unsubscribe from dest
       =.  this  (sub-del u.dest-lane here)
       (enqu-take here (sys-give /fell) ~ %fell wire.dart)
+      ::
+        %seek
+      ::  Find all [rail cass] pairs with matching lobe in subtree
+      =/  hits=(list [=rail:tarball =cass:clay])
+        (seek-lobe u.dest-lane lobe.load.dart)
+      (enqu-take here (sys-give /found) ~ %found wire.dart hits)
+      ::
+        %gain
+      ::  Set gain flag. Recursive on directories, single file on rails.
+      =/  res=(each _this tang)
+        (mule |.((set-gain-lane u.dest-lane flag.load.dart)))
+      ?-  -.res
+        %&  (enqu-take:p.res here (sys-give /gain) ~ %gain wire.dart ~)
+        %|  (enqu-take here (sys-give /gain) ~ %gain wire.dart `p.res)
+      ==
+      ::
+        %lose
+      ::  Drop hist entries and decrement silo refs
+      ?>  ?=(%& -.u.dest-lane)
+      =/  dest=rail:tarball  p.u.dest-lane
+      =/  res=(each _this tang)
+        (mule |.((drop-hist dest lose.load.dart)))
+      ?-  -.res
+        %&  (enqu-take:p.res here (sys-give /lost) ~ %lost wire.dart ~)
+        %|  (enqu-take here (sys-give /lost) ~ %lost wire.dart `p.res)
+      ==
     ==
     ::
       %scry
@@ -1231,28 +1450,32 @@
   ^+  this
   ?-    -.dest
       %|
-    ::  Make directory - payload must be [sand ball]
+    ::  Make directory - payload must be [sand gain ball]
     ?>  ?=(%& -.make)
     =/  dest-path=fold:tarball  p.dest
     =/  new-sand=sand:nexus  sand.p.make
+    =/  new-gain=gain:nexus  gain.p.make
     =/  new-ball=ball:tarball  ball.p.make
     ::  Assert nothing exists at path
     =/  existing=ball:tarball  (~(dip ba:tarball ball) dest-path)
     ?:  |(?=(^ fil.existing) !=(~ dir.existing))
       ~|("path is not empty" !!)
-    ::  Put new sand and ball at path
+    ::  Put new sand, gain, and ball at path
     =.  sand  (put-sub-sand sand dest-path new-sand)
+    =.  gain  (put-sub-gain gain dest-path new-gain)
     =.  ball  (~(pub ba:tarball ball) dest-path new-ball)
-    ::  Run on-loads top-down (may modify sand and ball)
-    =/  [rol-sand=sand:nexus rol-ball=ball:tarball]
-      (run-on-loads dest-path new-sand new-ball)
+    ::  Run on-loads top-down (may modify sand, ball, and gain)
+    =/  [rol-sand=sand:nexus rol-gain=gain:nexus rol-ball=ball:tarball]
+      (run-on-loads dest-path new-sand new-gain new-ball)
     =:  new-sand  rol-sand
+        new-gain  rol-gain
         new-ball  rol-ball
     ==
     ::  Validate all cages in loaded ball
     =/  validated=ball:tarball  ~|(%validate-ball-make (validate-ball new-ball))
-    ::  Put the final sand and ball back
+    ::  Put the final sand, gain, and ball back
     =.  sand  (put-sub-sand sand dest-path new-sand)
+    =.  gain  (put-sub-gain gain dest-path new-gain)
     =.  ball  (~(pub ba:tarball ball) dest-path validated)
     ::  Spawn processes and sync all changes (old is empty)
     (load-ball-changes dest-path *ball:tarball validated)
@@ -1271,6 +1494,10 @@
       (validate-new-cage p.cage.p.make ~ q.cage.p.make %.n)
     ?:  ?=(%| -.validated)
       ~|("make failed: validation error" (mean p.validated))
+    ::  Record gain flag if set
+    =?  this  gain.p.make
+      =.  gain  (set-gain dest-rail %.y)
+      this
     ::  Save initial state (bumps file aeon since old content is ~)
     =.  this  (save-file dest-rail [~ p.cage.p.make p.validated])
     ::  Spawn process (needs file in ball for build-spool)
@@ -1445,14 +1672,30 @@
   =/  old-born=born:nexus  born
   =.  born  (~(bump-file bo:nexus now.bowl [born ball]) here)
   (notify old-born)
+::  Record cage in silo and append to hist on sack.
+::
+++  record-hist
+  |=  [here=rail:tarball =cage cas=(unit cass:clay)]
+  ^+  this
+  ::  Skip silo/hist for ephemeral %temp marks
+  ?:  =(%temp p.cage)  this
+  =/  sok=sack:nexus  (need (get-born here))
+  ::  Use provided cass or compute next from current file cass
+  =/  new-cass=cass:clay
+    (fall cas (~(next-cass bo:nexus now.bowl [born ball]) file.sok))
+  =/  gaining=?  (lookup-gain here)
+  =/  [=lobe:clay new-silo=silo:nexus new-hist=_hist.sok]
+    (~(record si:nexus silo) cage new-cass gaining hist.sok)
+  =.  silo  new-silo
+  =.  born  (~(put bo:nexus now.bowl [born ball]) here sok(hist new-hist))
+  this
 ::  Diff two balls and bump all changes (new, changed, deleted files and empty dirs).
 ::
 ++  diff-balls
   |=  [here=fold:tarball old-ball=ball:tarball new-ball=ball:tarball]
   ^+  this
-  =/  old-born=born:nexus  born
   =.  born  (~(diff-balls bo:nexus now.bowl [born ball]) here old-ball new-ball)
-  (notify old-born)
+  this
 ::  Spawn processes and sync all changes when a ball is created/reloaded.
 ::  Handles spawning files and bumping all changes (new, changed, deleted files, empty dirs).
 ::
@@ -1460,14 +1703,69 @@
   |=  [here=fold:tarball old-ball=ball:tarball new-ball=ball:tarball]
   ^+  this
   =.  this  (spawn-all-files here new-ball)
-  (diff-balls here old-ball new-ball)
+  =/  old-born=born:nexus  born
+  ::  diff-balls (inits/bumps born), record silo/hist, then notify
+  =.  this  (diff-balls here old-ball new-ball)
+  =.  this  (record-ball-changes here old-ball new-ball)
+  (notify old-born)
 ::  Bump all changes when a ball is being deleted.
 ::  Diff old ball against empty ball to bump all files and empty dirs.
 ::
 ++  cull-ball-changes
   |=  [here=fold:tarball sub=ball:tarball]
   ^+  this
-  (diff-balls here sub *ball:tarball)
+  =/  old-born=born:nexus  born
+  =.  this  (diff-balls here sub *ball:tarball)
+  =.  this  (record-ball-changes here sub *ball:tarball)
+  (notify old-born)
+::  Walk old/new balls and record silo/hist for new/changed files,
+::  drop silo refs for deleted files.
+::
+++  record-ball-changes
+  |=  [here=fold:tarball old-ball=ball:tarball new-ball=ball:tarball]
+  ^+  this
+  =/  old-files=(map @ta content:tarball)
+    ?~(fil.old-ball ~ contents.u.fil.old-ball)
+  =/  new-files=(map @ta content:tarball)
+    ?~(fil.new-ball ~ contents.u.fil.new-ball)
+  =/  old-names=(set @ta)  ~(key by old-files)
+  =/  new-names=(set @ta)  ~(key by new-files)
+  =/  all-names=(list @ta)  ~(tap in (~(uni in old-names) new-names))
+  =.  this
+    |-
+    ?~  all-names  this
+    =/  name=@ta  i.all-names
+    =/  in-old=?  (~(has in old-names) name)
+    =/  in-new=?  (~(has in new-names) name)
+    =.  this
+      ?:  &(in-new !in-old)
+        ::  New file: record in silo/hist (born already init'd by diff-balls)
+        =/  sok=sack:nexus  (need (get-born [here name]))
+        (record-hist [here name] cage:(~(got by new-files) name) `file.sok)
+      ?:  &(in-old !in-new)
+        ::  Deleted file: drop silo refs
+        =/  sok=(unit sack:nexus)  (get-born [here name])
+        =?  silo  ?=(^ sok)
+          (~(drop-hist si:nexus silo) hist.u.sok)
+        this
+      ::  Both: record if changed
+      =/  old-content=content:tarball  (~(got by old-files) name)
+      =/  new-content=content:tarball  (~(got by new-files) name)
+      ?.  =(cage.old-content cage.new-content)
+        =/  sok=sack:nexus  (need (get-born [here name]))
+        (record-hist [here name] cage.new-content `file.sok)
+      this
+    $(all-names t.all-names)
+  ::  Recurse into subdirs
+  =/  all-kids=(set @ta)
+    (~(uni in ~(key by dir.old-ball)) ~(key by dir.new-ball))
+  =/  kids=(list @ta)  ~(tap in all-kids)
+  |-
+  ?~  kids  this
+  =/  old-kid=ball:tarball  (fall (~(get by dir.old-ball) i.kids) *ball:tarball)
+  =/  new-kid=ball:tarball  (fall (~(get by dir.new-ball) i.kids) *ball:tarball)
+  =.  this  ^$(here (snoc here i.kids), old-ball old-kid, new-ball new-kid)
+  $(kids t.kids)
 ::  Mirror Clay desks to /sys/clay/[desk]/
 ::
 ++  sync-clay
@@ -1811,6 +2109,8 @@
           =(cage.u.old cage.new-content)
       ==
     this
+  ::  Record content in silo and hist
+  =.  this  (record-hist here cage.new-content ~)
   (bump-file here)
 ::
 ++  wrap-wire

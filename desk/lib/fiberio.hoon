@@ -303,7 +303,16 @@
   |=  [=wire =road:tarball mark=(unit mark)]
   =/  m  (fiber ,seen:nexus)
   ^-  form:m
-  ;<  ~  bind:m  (send-dart %node wire road %peek mark)
+  ;<  ~  bind:m  (send-dart %node wire road %peek mark ~ %.n)
+  (take-peek wire)
+::
+::  Peek at a historical version of a file
+::
+++  peek-at
+  |=  [=wire =road:tarball mark=(unit mark) =case:nexus]
+  =/  m  (fiber ,seen:nexus)
+  ^-  form:m
+  ;<  ~  bind:m  (send-dart %node wire road %peek mark `case %.n)
   (take-peek wire)
 ::
 ::  Check if a target (file or directory) exists at a road.
@@ -352,6 +361,61 @@
     ?~  err.u.in
       [%done ~]
     [%fail %sand-failed u.err.u.in]
+  ==
+::
+++  set-gain
+  |=  [=wire =road:tarball flag=?]
+  =/  m  (fiber ,~)
+  ^-  form:m
+  ;<  ~  bind:m  (send-dart %node wire road %gain flag)
+  |=  input
+  :+  ~  state
+  ?+  in  [%skip ~]
+      ~  [%wait ~]
+      [~ %veto *]
+    [%fail (veto-error dart.u.in)]
+      [~ %gain * *]
+    ?.  =(wire wire.u.in)
+      [%skip ~]
+    ?~  err.u.in
+      [%done ~]
+    [%fail %gain-failed u.err.u.in]
+  ==
+::
+++  lose
+  |=  [=wire =road:tarball =lose:nexus]
+  =/  m  (fiber ,~)
+  ^-  form:m
+  ;<  ~  bind:m  (send-dart %node wire road %lose lose)
+  |=  input
+  :+  ~  state
+  ?+  in  [%skip ~]
+      ~  [%wait ~]
+      [~ %veto *]
+    [%fail (veto-error dart.u.in)]
+      [~ %lost * *]
+    ?.  =(wire wire.u.in)
+      [%skip ~]
+    ?~  err.u.in
+      [%done ~]
+    [%fail %lose-failed u.err.u.in]
+  ==
+::
+++  seek
+  |=  [=wire =road:tarball =lobe:clay]
+  =/  m  (fiber ,(list [=rail:tarball =cass:clay]))
+  ^-  form:m
+  ;<  ~  bind:m  (send-dart %node wire road %seek lobe)
+  |=  input
+  :+  ~  state
+  ?+  in  [%skip ~]
+      ~  [%wait ~]
+      [~ %veto *]
+    [%fail (veto-error dart.u.in)]
+      [~ %found * *]
+    ?.  =(wire wire.u.in)
+      [%skip ~]
+    [%done hits.u.in]
   ==
 ::
 ++  over

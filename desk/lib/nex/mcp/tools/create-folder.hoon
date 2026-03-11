@@ -22,6 +22,6 @@
   =/  dir-name=@ta  folder-name
   =/  folder-path=path  (snoc (stab parent-path) dir-name)
   =/  new-ball=ball:tarball  [`[~ ~ ~] ~]
-  ;<  ~  bind:m  (make:io /mkdir [%& %| folder-path] &+[*sand:nexus new-ball])
+  ;<  ~  bind:m  (make:io /mkdir [%& %| folder-path] &+[*sand:nexus *gain:nexus new-ball])
   (pure:m [%text (crip "Created folder {(spud folder-path)}")])
 --

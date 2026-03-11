@@ -281,7 +281,7 @@
   =/  new-born=born:nexus  (init:b [/a/b %file])
   =/  b2  (make-bo-with now new-born)
   %+  expect-eq
-    !>  `(unit sack:nexus)``[[0 now] [0 now]]
+    !>  `(unit sack:nexus)``[[0 now] [0 now] ~]
   !>  (get:b2 [/a/b %file])
 ::
 ++  test-bo-bump-proc-increments
@@ -717,4 +717,349 @@
   %+  expect-eq
     !>  %.n
   !>  (is-empty-dir:b no-lump)
+::
+::  ==========================================
+::  +si (silo) tests
+::  ==========================================
+::
+++  make-cage
+  |=  [=mark data=@t]
+  ^-  cage
+  [mark !>(data)]
+::
+++  test-si-put-new
+  ::  Inserting a new cage returns lobe and silo with refs=1
+  =/  s  ~(. si:nexus *silo:nexus)
+  =/  =cage  (make-cage %txt 'hello')
+  =/  [=lobe:clay new-silo=silo:nexus]  (put:s cage)
+  =/  s2  ~(. si:nexus new-silo)
+  =/  got  (need (get:s2 lobe))
+  ;:  weld
+    %+  expect-eq
+      !>  `@ud`1
+    !>  refs:(~(got by new-silo) lobe)
+  ::
+    %+  expect-eq
+      !>  %txt
+    !>  p.got
+  ==
+::
+++  test-si-put-duplicate-increments-refs
+  ::  Inserting the same cage twice increments refcount
+  =/  s  ~(. si:nexus *silo:nexus)
+  =/  =cage  (make-cage %txt 'hello')
+  =/  [lobe1=lobe:clay silo1=silo:nexus]  (put:s cage)
+  =/  s2  ~(. si:nexus silo1)
+  =/  [lobe2=lobe:clay silo2=silo:nexus]  (put:s2 cage)
+  ;:  weld
+    %+  expect-eq
+      !>  lobe1
+    !>  lobe2
+  ::
+    %+  expect-eq
+      !>  `@ud`2
+    !>  refs:(~(got by silo2) lobe1)
+  ==
+::
+++  test-si-drop-decrements-refs
+  ::  Dropping with refs>1 decrements
+  =/  s  ~(. si:nexus *silo:nexus)
+  =/  =cage  (make-cage %txt 'hello')
+  =/  [=lobe:clay silo1=silo:nexus]  (put:s cage)
+  =/  s2  ~(. si:nexus silo1)
+  =/  [* silo2=silo:nexus]  (put:s2 cage)
+  ::  refs=2, drop once -> refs=1
+  =/  s3  ~(. si:nexus silo2)
+  =/  silo3=silo:nexus  (drop:s3 lobe)
+  %+  expect-eq
+    !>  `@ud`1
+  !>  refs:(~(got by silo3) lobe)
+::
+++  test-si-drop-deletes-at-zero
+  ::  Dropping with refs=1 removes from silo
+  =/  s  ~(. si:nexus *silo:nexus)
+  =/  =cage  (make-cage %txt 'hello')
+  =/  [=lobe:clay silo1=silo:nexus]  (put:s cage)
+  =/  s2  ~(. si:nexus silo1)
+  =/  silo2=silo:nexus  (drop:s2 lobe)
+  %+  expect-eq
+    !>  ~
+  !>  (~(get by silo2) lobe)
+::
+++  test-si-drop-missing-is-noop
+  ::  Dropping a nonexistent lobe is a no-op
+  =/  s  ~(. si:nexus *silo:nexus)
+  =/  fake-lobe=lobe:clay  `@uvI`(sham 'fake')
+  %+  expect-eq
+    !>  *silo:nexus
+  !>  (drop:s fake-lobe)
+::
+++  test-si-get-missing
+  ::  Getting a nonexistent lobe returns ~
+  =/  s  ~(. si:nexus *silo:nexus)
+  =/  fake-lobe=lobe:clay  `@uvI`(sham 'fake')
+  %+  expect-eq
+    !>  `(unit cage)`~
+  !>  (get:s fake-lobe)
+::
+++  test-si-different-content-different-lobe
+  ::  Different content produces different lobes
+  =/  s  ~(. si:nexus *silo:nexus)
+  =/  cage1=cage  (make-cage %txt 'hello')
+  =/  cage2=cage  (make-cage %txt 'world')
+  =/  [lobe1=lobe:clay silo1=silo:nexus]  (put:s cage1)
+  =/  s2  ~(. si:nexus silo1)
+  =/  [lobe2=lobe:clay silo2=silo:nexus]  (put:s2 cage2)
+  ;:  weld
+    %+  expect-eq
+      !>  %.n
+    !>  =(lobe1 lobe2)
+  ::
+    %+  expect-eq
+      !>  `@ud`2
+    !>  ~(wyt by silo2)
+  ==
+::
+++  test-si-different-mark-different-lobe
+  ::  Same noun but different mark produces different lobe
+  =/  s  ~(. si:nexus *silo:nexus)
+  =/  cage1=cage  (make-cage %txt 'hello')
+  =/  cage2=cage  (make-cage %json 'hello')
+  =/  [lobe1=lobe:clay *]  (put:s cage1)
+  =/  [lobe2=lobe:clay *]  (put:s cage2)
+  %+  expect-eq
+    !>  %.n
+  !>  =(lobe1 lobe2)
+::
+++  test-si-hash-deterministic
+  ::  Same cage always produces the same hash
+  =/  s  ~(. si:nexus *silo:nexus)
+  =/  =cage  (make-cage %txt 'hello')
+  %+  expect-eq
+    !>  (hash:s cage)
+  !>  (hash:s cage)
+::
+++  test-si-record-keep-accumulates
+  ::  record with keep=%.y accumulates history entries
+  =/  s  ~(. si:nexus *silo:nexus)
+  =/  cage1=cage  (make-cage %txt 'first')
+  =/  cage2=cage  (make-cage %txt 'second')
+  =/  cage3=cage  (make-cage %txt 'third')
+  =/  cass1=cass:clay  [1 ~2024.1.1]
+  =/  cass2=cass:clay  [2 ~2024.1.2]
+  =/  cass3=cass:clay  [3 ~2024.1.3]
+  =/  hist=_hist:*sack:nexus  ~
+  =/  [lobe1=lobe:clay silo1=silo:nexus hist1=_hist]
+    (~(record si:nexus *silo:nexus) cage1 cass1 %.y hist)
+  =/  [lobe2=lobe:clay silo2=silo:nexus hist2=_hist]
+    (~(record si:nexus silo1) cage2 cass2 %.y hist1)
+  =/  [lobe3=lobe:clay silo3=silo:nexus hist3=_hist]
+    (~(record si:nexus silo2) cage3 cass3 %.y hist2)
+  ;:  weld
+    ::  All 3 entries in hist
+    %+  expect-eq
+      !>  `@ud`3
+    !>  (lent (tap:on-hist:nexus hist3))
+  ::  All 3 in silo with refs=1
+    %+  expect-eq
+      !>  `@ud`3
+    !>  ~(wyt by silo3)
+  ::  Oldest entry maps to lobe1
+    %+  expect-eq
+      !>  `(unit lobe:clay)`(get:on-hist:nexus hist3 cass1)
+    !>  `(unit lobe:clay)``lobe1
+  ==
+::
+++  test-si-record-no-keep-replaces
+  ::  record with keep=%.n replaces hist, drops old ref
+  =/  s  ~(. si:nexus *silo:nexus)
+  =/  cage1=cage  (make-cage %txt 'first')
+  =/  cage2=cage  (make-cage %txt 'second')
+  =/  cass1=cass:clay  [1 ~2024.1.1]
+  =/  cass2=cass:clay  [2 ~2024.1.2]
+  =/  hist=_hist:*sack:nexus  ~
+  =/  [lobe1=lobe:clay silo1=silo:nexus hist1=_hist]
+    (~(record si:nexus *silo:nexus) cage1 cass1 %.n hist)
+  =/  [lobe2=lobe:clay silo2=silo:nexus hist2=_hist]
+    (~(record si:nexus silo1) cage2 cass2 %.n hist1)
+  ;:  weld
+    ::  Only 1 entry in hist (latest)
+    %+  expect-eq
+      !>  `@ud`1
+    !>  (lent (tap:on-hist:nexus hist2))
+  ::  Old cage dropped from silo
+    %+  expect-eq
+      !>  ~
+    !>  (~(get by silo2) lobe1)
+  ::  New cage in silo
+    %+  expect-eq
+      !>  %.y
+    !>  ?=(^ (~(get by silo2) lobe2))
+  ==
+::
+++  test-si-record-no-keep-same-content
+  ::  record with keep=%.n and same content doesn't drop (refcount handles it)
+  =/  =cage  (make-cage %txt 'same')
+  =/  cass1=cass:clay  [1 ~2024.1.1]
+  =/  cass2=cass:clay  [2 ~2024.1.2]
+  =/  hist=_hist:*sack:nexus  ~
+  =/  [lobe1=lobe:clay silo1=silo:nexus hist1=_hist]
+    (~(record si:nexus *silo:nexus) cage cass1 %.n hist)
+  =/  [lobe2=lobe:clay silo2=silo:nexus hist2=_hist]
+    (~(record si:nexus silo1) cage cass2 %.n hist1)
+  ;:  weld
+    ::  Same lobe (content-addressed)
+    %+  expect-eq
+      !>  lobe1
+    !>  lobe2
+  ::  Still in silo (put incremented, drop decremented, net refs=1)
+    %+  expect-eq
+      !>  `@ud`1
+    !>  refs:(~(got by silo2) lobe1)
+  ==
+::
+++  test-si-drop-hist-all-refs
+  ::  drop-hist removes all refs from silo
+  =/  cage1=cage  (make-cage %txt 'aaa')
+  =/  cage2=cage  (make-cage %txt 'bbb')
+  =/  cage3=cage  (make-cage %txt 'ccc')
+  =/  hist=_hist:*sack:nexus  ~
+  =/  [* silo1=silo:nexus hist1=_hist]
+    (~(record si:nexus *silo:nexus) cage1 [1 ~2024.1.1] %.y hist)
+  =/  [* silo2=silo:nexus hist2=_hist]
+    (~(record si:nexus silo1) cage2 [2 ~2024.1.2] %.y hist1)
+  =/  [* silo3=silo:nexus hist3=_hist]
+    (~(record si:nexus silo2) cage3 [3 ~2024.1.3] %.y hist2)
+  ::  3 entries in silo
+  ?>  =(3 ~(wyt by silo3))
+  ::  Drop all
+  =/  silo4=silo:nexus  (~(drop-hist si:nexus silo3) hist3)
+  %+  expect-eq
+    !>  `@ud`0
+  !>  ~(wyt by silo4)
+::
+++  test-si-drop-hist-shared-refs
+  ::  drop-hist with shared content only decrements, doesn't delete
+  =/  =cage  (make-cage %txt 'shared')
+  =/  hist=_hist:*sack:nexus  ~
+  ::  Record same cage twice with keep (2 hist entries, same lobe, refs=2)
+  =/  [=lobe:clay silo1=silo:nexus hist1=_hist]
+    (~(record si:nexus *silo:nexus) cage [1 ~2024.1.1] %.y hist)
+  =/  [* silo2=silo:nexus hist2=_hist]
+    (~(record si:nexus silo1) cage [2 ~2024.1.2] %.y hist1)
+  ?>  =(2 refs:(~(got by silo2) lobe))
+  ::  Drop all hist refs
+  =/  silo3=silo:nexus  (~(drop-hist si:nexus silo2) hist2)
+  ::  Lobe gone (2 drops on refs=2)
+  %+  expect-eq
+    !>  `@ud`0
+  !>  ~(wyt by silo3)
+::
+::  ==========================================
+::  +resolve-case tests
+::  ==========================================
+::
+++  make-hist
+  |=  entries=(list [ud=@ud da=@da =lobe:clay])
+  ^-  ((mop cass:clay lobe:clay) cass-order:nexus)
+  =/  hist=((mop cass:clay lobe:clay) cass-order:nexus)  ~
+  |-
+  ?~  entries  hist
+  $(entries t.entries, hist (put:on-hist:nexus hist [ud.i.entries da.i.entries] lobe.i.entries))
+::
+++  test-resolve-case-ud-exact
+  ::  %ud finds exact revision number
+  =/  lobe1=lobe:clay  `@uvI`(sham 'aaa')
+  =/  lobe2=lobe:clay  `@uvI`(sham 'bbb')
+  =/  lobe3=lobe:clay  `@uvI`(sham 'ccc')
+  =/  hist  (make-hist ~[[1 ~2024.1.1 lobe1] [2 ~2024.1.2 lobe2] [3 ~2024.1.3 lobe3]])
+  %+  expect-eq
+    !>  lobe2
+  !>  (resolve-case:nexus [%ud 2] hist)
+::
+++  test-resolve-case-ud-first
+  ::  %ud finds first entry
+  =/  lobe1=lobe:clay  `@uvI`(sham 'aaa')
+  =/  lobe2=lobe:clay  `@uvI`(sham 'bbb')
+  =/  hist  (make-hist ~[[1 ~2024.1.1 lobe1] [2 ~2024.1.2 lobe2]])
+  %+  expect-eq
+    !>  lobe1
+  !>  (resolve-case:nexus [%ud 1] hist)
+::
+++  test-resolve-case-ud-last
+  ::  %ud finds last entry
+  =/  lobe1=lobe:clay  `@uvI`(sham 'aaa')
+  =/  lobe2=lobe:clay  `@uvI`(sham 'bbb')
+  =/  lobe3=lobe:clay  `@uvI`(sham 'ccc')
+  =/  hist  (make-hist ~[[1 ~2024.1.1 lobe1] [2 ~2024.1.2 lobe2] [3 ~2024.1.3 lobe3]])
+  %+  expect-eq
+    !>  lobe3
+  !>  (resolve-case:nexus [%ud 3] hist)
+::
+++  test-resolve-case-ud-not-found
+  ::  %ud crashes on missing revision
+  =/  lobe1=lobe:clay  `@uvI`(sham 'aaa')
+  =/  hist  (make-hist ~[[1 ~2024.1.1 lobe1]])
+  =/  res=(each lobe:clay tang)
+    (mule |.((resolve-case:nexus [%ud 99] hist)))
+  %+  expect-eq
+    !>  %.y
+  !>  ?=(%| -.res)
+::
+++  test-resolve-case-da-exact
+  ::  %da exact date match
+  =/  lobe1=lobe:clay  `@uvI`(sham 'aaa')
+  =/  lobe2=lobe:clay  `@uvI`(sham 'bbb')
+  =/  hist  (make-hist ~[[1 ~2024.1.1 lobe1] [2 ~2024.1.2 lobe2]])
+  %+  expect-eq
+    !>  lobe2
+  !>  (resolve-case:nexus [%da ~2024.1.2] hist)
+::
+++  test-resolve-case-da-between
+  ::  %da falls back to nearest previous date
+  =/  lobe1=lobe:clay  `@uvI`(sham 'aaa')
+  =/  lobe2=lobe:clay  `@uvI`(sham 'bbb')
+  =/  lobe3=lobe:clay  `@uvI`(sham 'ccc')
+  =/  hist  (make-hist ~[[1 ~2024.1.1 lobe1] [2 ~2024.3.1 lobe2] [3 ~2024.6.1 lobe3]])
+  ::  Date between entry 1 and 2 should return lobe1
+  %+  expect-eq
+    !>  lobe1
+  !>  (resolve-case:nexus [%da ~2024.2.1] hist)
+::
+++  test-resolve-case-da-after-all
+  ::  %da after all entries returns latest
+  =/  lobe1=lobe:clay  `@uvI`(sham 'aaa')
+  =/  lobe2=lobe:clay  `@uvI`(sham 'bbb')
+  =/  hist  (make-hist ~[[1 ~2024.1.1 lobe1] [2 ~2024.3.1 lobe2]])
+  %+  expect-eq
+    !>  lobe2
+  !>  (resolve-case:nexus [%da ~2025.1.1] hist)
+::
+++  test-resolve-case-da-before-all
+  ::  %da before all entries crashes
+  =/  lobe1=lobe:clay  `@uvI`(sham 'aaa')
+  =/  hist  (make-hist ~[[1 ~2024.6.1 lobe1]])
+  =/  res=(each lobe:clay tang)
+    (mule |.((resolve-case:nexus [%da ~2024.1.1] hist)))
+  %+  expect-eq
+    !>  %.y
+  !>  ?=(%| -.res)
+::
+++  test-resolve-case-da-empty
+  ::  %da on empty hist crashes
+  =/  hist=((mop cass:clay lobe:clay) cass-order:nexus)  ~
+  =/  res=(each lobe:clay tang)
+    (mule |.((resolve-case:nexus [%da ~2024.1.1] hist)))
+  %+  expect-eq
+    !>  %.y
+  !>  ?=(%| -.res)
+::
+++  test-resolve-case-ud-empty
+  ::  %ud on empty hist crashes
+  =/  hist=((mop cass:clay lobe:clay) cass-order:nexus)  ~
+  =/  res=(each lobe:clay tang)
+    (mule |.((resolve-case:nexus [%ud 1] hist)))
+  %+  expect-eq
+    !>  %.y
+  !>  ?=(%| -.res)
 --

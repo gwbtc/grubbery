@@ -95,6 +95,6 @@
   ?:  exists
     ;<  ~  bind:m  (over:io /write road mime+!>(file-mime))
     $(files t.files, downloaded +(downloaded))
-  ;<  ~  bind:m  (make:io /write road |+[mime+!>(file-mime) ext])
+  ;<  ~  bind:m  (make:io /write road |+[%.n mime+!>(file-mime) ext])
   $(files t.files, downloaded +(downloaded))
 --

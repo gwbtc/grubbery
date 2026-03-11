@@ -33,7 +33,7 @@
       ^-  form:m
       ;<  exists=?  bind:m  (peek-exists:io /chk [%| 0 %| bin-path])
       ?:  exists  (pure:m ~)
-      (make:io /mkd [%| 0 %| bin-path] &+[*sand:nexus [`[~ ~ ~] ~]])
+      (make:io /mkd [%| 0 %| bin-path] &+[*sand:nexus *gain:nexus [`[~ ~ ~] ~]])
     ::  Cull a grub if it exists
     ::
     ++  cull-if-exists
@@ -79,9 +79,9 @@
       ?:  exists
         ::  Cull and recreate: mark may change (temp↔tang)
         ;<  ~  bind:m  (cull:io /build bin-road)
-        (make:io /build bin-road |+[cage ~])
+        (make:io /build bin-road |+[%.n cage ~])
       ;<  ~  bind:m  (ensure-bin-dir bin-path)
-      (make:io /build bin-road |+[cage ~])
+      (make:io /build bin-road |+[%.n cage ~])
     ::  Peek /bin/ and extract all successfully compiled tools.
     ::  Walks the ball tree recursively, collecting vase-marked grubs.
     ::
@@ -299,8 +299,8 @@
 ^-  nexus:nexus
 |%
 ++  on-load
-  |=  [=sand:nexus =ball:tarball]
-  ^-  [sand:nexus ball:tarball]
+  |=  [=sand:nexus =gain:nexus =ball:tarball]
+  ^-  [sand:nexus gain:nexus ball:tarball]
   =.  ball  (~(put ba:tarball ball) [/ %'ver.ud'] [~ %ud !>(0)])
   =?  ball  =(~ (~(get ba:tarball ball) [/ %'main.sig']))
     (~(put ba:tarball ball) [/ %'main.sig'] [~ %sig !>(~)])
@@ -314,7 +314,7 @@
     (~(put of ball) /bin [~ ~ ~])
   =?  ball  =(~ (~(get ba:tarball ball) [/ %'builder.sig']))
     (~(put ba:tarball ball) [/ %'builder.sig'] [~ %sig !>(~)])
-  [sand ball]
+  [sand gain ball]
 ::
 ++  on-file
   |=  [=rail:tarball =mark]
@@ -375,7 +375,7 @@
         (keep:io /watch tool-road ~)
       ;<  ~  bind:m
         ?.  exists
-          (make:io /make tool-road |+[tool-state+!>(ts) ~])
+          (make:io /make tool-road |+[%.n tool-state+!>(ts) ~])
         (pure:m ~)
       ::  Wait for tool to finish
       |-
