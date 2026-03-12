@@ -9,7 +9,7 @@
 ::    /builder.sig       watches ball mirror + /cus/, compiles to /bin/
 ::
 /+  nexus, tarball, io=fiberio, server, nex-server, nex-mcp
-/+  json-utils, nex-tools, build
+/+  json-utils, nex-tools, nex-clurd, build
 !: :: turn on stack trace
 =>  |%
     ++  srv  ~(. res:nex-server [%| 1 %& ~ %'main.sig'])
@@ -23,6 +23,7 @@
               io=io
               json-utils=json-utils
               tools=nex-tools
+              clurd=nex-clurd
               ..zuse
           ==
     ::  Ensure /bin/ subdirectory exists

@@ -34,6 +34,9 @@
   ::  Create /sys/build.build directory with neck=%build
   =?  ball  =(~ (~(get of ball) /sys/'build.build'))
     (~(put of ball) /sys/'build.build' [~ `%build ~])
+  ::  Create /clurd.clurd directory with neck=%clurd
+  =?  ball  =(~ (~(get of ball) /'clurd.clurd'))
+    (~(put of ball) /'clurd.clurd' [~ `%clurd ~])
   ::  Create /config/creds directory if not present
   =?  ball  =(~ (~(get of ball) /config))
     (~(put of ball) /config [~ ~ ~])
