@@ -261,6 +261,7 @@
 ++  build-all
   |=  [sut=vase =ball:tarball =build-cache]
   ^-  build-out
+  =/  sut-hash=@uv  (sham q.sut)
   =/  sources=source-map  (find-hoon-sources ball)
   ::  Phase 1: Parse and resolve all sources
   ::
@@ -326,7 +327,7 @@
   ::  Compute cache key: own hash + sorted dep cache keys
   =/  dep-keys=(list @uv)
     (turn imports.fi |=(r=resolved-import (~(got by key-map) rail.r)))
-  =/  ckey=@uv  (sham [src-hash.fi (snoc path.rail name.rail) (sort dep-keys lth)])
+  =/  ckey=@uv  (sham [sut-hash src-hash.fi (snoc path.rail name.rail) (sort dep-keys lth)])
   ::  Cache hit → reuse
   ?:  (~(has by build-cache) ckey)
     %=  $
