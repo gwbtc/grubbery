@@ -39,6 +39,17 @@
     (~(put of ball) /config [~ ~ ~])
   =?  ball  =(~ (~(get of ball) /config/creds))
     (~(put of ball) /config/creds [~ ~ ~])
+  ::  Enable history retention for dill and jael grubs
+  =/  dill-jael=(list rail:tarball)
+    :~  [/sys/dill %'logs.dill-told']
+        [/sys/jael %'private-keys.jael-private-keys']
+        [/sys/jael %'public-keys.jael-public-keys-result']
+    ==
+  =.  gain
+    %+  roll  dill-jael
+    |=  [here=rail:tarball gn=_gain]
+    =/  node=(map @ta ?)  (fall (~(get of gn) path.here) ~)
+    (~(put of gn) path.here (~(put by node) name.here %.y))
   [sand gain ball]
 ::
 ++  on-file

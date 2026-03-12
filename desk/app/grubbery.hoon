@@ -1090,7 +1090,7 @@
     =/  dest-lane=(unit lane:tarball)  (lane-from-road:tarball [%& here] road.dart)
     :_  dest-lane
     ?-  -.load.dart
-      ?(%peek %keep %drop %seek)   %peek  :: read operations
+      ?(%peek %keep %drop %seek %peep)  %peek  :: read operations
       %poke                       %poke
         $?  %make  %cull  %sand  %load
             %over  %diff  %gain  %lose
@@ -1238,6 +1238,8 @@
           (enqu-take here (sys-give /peek) ~ %peek wire.dart &+[%none ~])
         =/  sub-sand=sand:nexus  (~(dip of sand) dest)
         =/  sub-born=born:nexus  (~(dip of born) dest)
+        =?  u.sub-ball  |(?=([~ %&] filt) clam.load.dart)
+          (validate-ball u.sub-ball)
         (enqu-take here (sys-give /peek) ~ %peek wire.dart %& %ball sub-sand sub-born u.sub-ball)
         ::
           %&
@@ -1317,9 +1319,41 @@
       ::
         %seek
       ::  Find all [rail cass] pairs with matching lobe in subtree
-      =/  hits=(list [=rail:tarball =cass:clay])
-        (seek-lobe u.dest-lane lobe.load.dart)
-      (enqu-take here (sys-give /found) ~ %seek wire.dart hits)
+      =/  res=(each (list [=rail:tarball =cass:clay]) tang)
+        (mule |.((seek-lobe u.dest-lane lobe.load.dart)))
+      (enqu-take here (sys-give /found) ~ %seek wire.dart res)
+      ::
+        %peep
+      ::  Query hist entries matching find spec, return cages
+      ?>  ?=(%& -.u.dest-lane)
+      =/  dest=rail:tarball  p.u.dest-lane
+      =/  sk=(unit sack:nexus)  (get-born dest)
+      ?~  sk
+        (enqu-take here (sys-give /peep) ~ %peep wire.dart |+~[leaf+"no history for {(spud (snoc path.dest name.dest))}"])
+      =/  entries=(list [key=cass:clay val=lobe:clay])
+        (tap:on-hist:nexus hist.u.sk)
+      =/  hits=(list [cass:clay cage])
+        %+  murn  entries
+        |=  [key=cass:clay val=lobe:clay]
+        ^-  (unit [cass:clay cage])
+        =/  match=?
+          ?-    -.find.load.dart
+              %pick
+            (~(has in cass.find.load.dart) key)
+              %date
+            ?&  (fall (bind from.find.load.dart |=(d=@da (gte da.key d))) %.y)
+                (fall (bind to.find.load.dart |=(d=@da (lte da.key d))) %.y)
+            ==
+              %numb
+            ?&  (fall (bind from.find.load.dart |=(n=@ud (gte ud.key n))) %.y)
+                (fall (bind to.find.load.dart |=(n=@ud (lte ud.key n))) %.y)
+            ==
+          ==
+        ?.  match  ~
+        =/  got=(unit cage)  (~(get si:nexus silo) val)
+        ?~  got  ~
+        `[key u.got]
+      (enqu-take here (sys-give /peep) ~ %peep wire.dart &+hits)
       ::
         %gain
       ::  Set gain flag. Recursive on directories, single file on rails.
@@ -2045,7 +2079,6 @@
   ^+  this
   =.  this  (emit-card [%pass /clay-desk/[dek] %arvo %c %warp our.bowl dek ~])
   (cull [%| /sys/clay/[dek]])
-::
 ::  Subscribe to dill logs and sessions, create grubs for both.
 ::
 ++  sync-dill
@@ -2065,10 +2098,11 @@
     |=  ses=@ta
     ?:  (~(has in new) ses)  ~
     `[%pass /dill/session/[ses] %arvo %d %shot ses %flee ~]
-  ::  Create grubs and subscribe
+  ::  Create grubs and subscribe, with gain enabled
   =.  this
     %+  roll  sessions
     |=  [ses=@tas acc=_this]
+    =.  gain.acc  (set-gain:acc [/sys/dill/sessions ses] %.y)
     (save-file:acc [/sys/dill/sessions ses] [~ %dill-blit !>(*(list blit:dill))])
   %-  emit-cards
   %+  turn  sessions
@@ -2095,7 +2129,6 @@
   |=  =public-keys-result:jael
   ^+  this
   (save-file [/sys/jael %'public-keys.jael-public-keys-result'] [~ %jael-public-keys-result !>(public-keys-result)])
-::
 ::  Save file state and bump ONLY if content actually changed.
 ::  This is the ONLY correct way to update file state.
 ::  Invariant: file aeon changes iff file content changes.

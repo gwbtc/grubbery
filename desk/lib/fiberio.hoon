@@ -403,7 +403,7 @@
 ::
 ++  seek
   |=  [=wire =road:tarball =lobe:clay]
-  =/  m  (fiber ,(list [=rail:tarball =cass:clay]))
+  =/  m  (fiber ,(each (list [=rail:tarball =cass:clay]) tang))
   ^-  form:m
   ;<  ~  bind:m  (send-dart %node wire road %seek lobe)
   |=  input
@@ -415,7 +415,24 @@
       [~ %seek * *]
     ?.  =(wire wire.u.in)
       [%skip ~]
-    [%done hits.u.in]
+    [%done res.u.in]
+  ==
+::
+++  peep
+  |=  [=wire =road:tarball =find:nexus]
+  =/  m  (fiber ,(each (list [=cass:clay =cage]) tang))
+  ^-  form:m
+  ;<  ~  bind:m  (send-dart %node wire road %peep find)
+  |=  input
+  :+  ~  state
+  ?+  in  [%skip ~]
+      ~  [%wait ~]
+      [~ %veto *]
+    [%fail (veto-error dart.u.in)]
+      [~ %peep * *]
+    ?.  =(wire wire.u.in)
+      [%skip ~]
+    [%done res.u.in]
   ==
 ::
 ++  over

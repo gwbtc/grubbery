@@ -82,7 +82,6 @@
       [%sand weir=(unit weir)]  :: set weir
       [%load ~]                 :: trigger on-load for a nexus (folds only)
       [%gain flag=?]            :: set gain flag (recursive on directories)
-      :: TODO: improve %peek interface and allow peeking with $find
       [%peek mark=(unit mark) case=(unit case) clam=?]
                                        :: read a grub
                                        :: mark: convert file cage to this mark
@@ -91,6 +90,7 @@
                                        :: mark: if set, convert file cage in news
       [%lose =lose]             :: drop hist entries, decrement silo refs
       [%seek =lobe:clay]        :: find all [rail cass] pairs with this hash
+      [%peep =find]
       [%drop ~]                 :: unsubscribe from dest
   ==
 ::
@@ -131,7 +131,8 @@
         [%load =wire err=(unit tang)] :: response to load
         [%gain =wire err=(unit tang)] :: response to gain
         [%lost =wire err=(unit tang)] :: response to lose
-        [%seek =wire hits=(list [=rail:tarball =cass:clay])] :: response to seek
+        [%seek =wire res=(each (list [=rail:tarball =cass:clay]) tang)] :: response to seek
+        [%peep =wire res=(each (list [=cass:clay =cage]) tang)] :: response to peep
         [%over =wire err=(unit tang)] :: response to over (content overwrite)
         [%diff =wire err=(unit tang)] :: response to diff (same-mark replace)
         [%writ p=?(%over %diff)]      :: notify grub its file was externally modified
