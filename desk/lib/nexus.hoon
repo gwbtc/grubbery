@@ -1,13 +1,17 @@
 /+  tarball
 |%
 +$  card  card:agent:gall
+::  The ball (tarball) is WYSIWYG: fully materialized, no dedup.
+::  Every file is stored inline. To deduplicate, make references
+::  via path+cass rather than copying content.
+::
 ::  A "grub" is the entity that lives at a rail: its file content and
 ::  its running process, considered as one thing. You create, delete,
 ::  poke, and watch grubs. When the distinction matters, "file" means
 ::  the data (content + metadata) and "process" means the running fiber.
 ::
 ::  Grubs live in directories. Directories hold grubs and other
-::  directories, have a neck (nexus mark), and may have a weir
+::  directories, may have a neck identifying a nexus, and may have a weir
 ::  (sandbox rules).
 ::
 +$  prov  [src=@p sap=path]         :: external provenance
@@ -68,6 +72,7 @@
       [%date from=(unit @da) to=(unit @da)]  :: drop date range (~ = open-ended)
       [%numb from=(unit @ud) to=(unit @ud)]  :: drop number range (~ = open-ended)
   ==
++$  find  lose
 +$  load
   $%  [%poke =cage]             :: poke a grub
       [%make =make]                    :: create grub or directory
@@ -77,6 +82,7 @@
       [%sand weir=(unit weir)]  :: set weir
       [%load ~]                 :: trigger on-load for a nexus (folds only)
       [%gain flag=?]            :: set gain flag (recursive on directories)
+      :: TODO: improve %peek interface and allow peeking with $find
       [%peek mark=(unit mark) case=(unit case) clam=?]
                                        :: read a grub
                                        :: mark: convert file cage to this mark
@@ -113,6 +119,7 @@
   ::
   +$  bend  (pair @ud rail:tarball)   :: fiber-relative: steps up + target grub
   +$  from  (each bend prov)
+  +$  road  (each rail:tarball bend)
   ::
   +$  intake
     $%  [%poke =from =cage] :: command for a running process (from is relative)
@@ -124,7 +131,7 @@
         [%load =wire err=(unit tang)] :: response to load
         [%gain =wire err=(unit tang)] :: response to gain
         [%lost =wire err=(unit tang)] :: response to lose
-        [%found =wire hits=(list [=rail:tarball =cass:clay])] :: response to seek
+        [%seek =wire hits=(list [=rail:tarball =cass:clay])] :: response to seek
         [%over =wire err=(unit tang)] :: response to over (content overwrite)
         [%diff =wire err=(unit tang)] :: response to diff (same-mark replace)
         [%writ p=?(%over %diff)]      :: notify grub its file was externally modified
@@ -152,7 +159,8 @@
   ::
   +$  prod
     $%  [%make ~]     :: making new file
-        [%load ~]     :: gall on-init or on-load
+        [%load ~]     :: nexus was reloaded
+        [%bump ~]     :: zuse got a kelvin bump
         [%rise =tang] :: failed while running
     ==
   ::
@@ -340,17 +348,17 @@
 ::  file: incremented on content change
 ::
 +$  tote  [weir=cass:clay fold=cass:clay]
-+$  sack  [proc=cass:clay file=cass:clay hist=((mop cass:clay lobe:clay) cass-order)]
++$  sack  [proc=cass:clay file=cass:clay hist=((mop cass:clay lobe:clay) cor)]
 +$  born  (axal [=tote bags=(map @ta sack)])
 +$  silo  (map lobe:clay [refs=@ud =cage])
-++  cass-order  |=([a=cass:clay b=cass:clay] (lth ud.a ud.b))
-++  on-hist  ((on cass:clay lobe:clay) cass-order)
+++  cor   |=([a=cass:clay b=cass:clay] (lth ud.a ud.b))
+++  on-hist  ((on cass:clay lobe:clay) cor)
 ::  Resolve a hist case to a lobe from the hist mop
 ::  %ud: exact match on revision number
 ::  %da: latest entry with da <= target date
 ::
 ++  resolve-case
-  |=  [cas=case hist=((mop cass:clay lobe:clay) cass-order)]
+  |=  [cas=case hist=((mop cass:clay lobe:clay) cor)]
   ^-  lobe:clay
   ?-    -.cas
       %ud
@@ -600,7 +608,7 @@
   ::  Drop refs for all lobes in a hist.
   ::
   ++  drop-hist
-    |=  hist=(tree [key=cass:clay val=lobe:clay])
+    |=  hist=((mop cass:clay lobe:clay) cor)
     ^-  ^silo
     =/  entries=(list [key=cass:clay val=lobe:clay])
       (tap:on-hist hist)
@@ -610,18 +618,26 @@
   ::  Record a cage: insert into silo, update hist per gain flag.
   ::  Returns [lobe new-silo new-hist].
   ::
+  ::  gain=%.y: append to hist, keeping full history.
+  ::  gain=%.n: don't accumulate history. If the current live
+  ::    version (identified by the file cass) is in hist, drop its
+  ::    silo ref and remove it. Older history is preserved —
+  ::    gain only controls what happens live, not retroactively.
+  ::
   ++  record
-    |=  [=cage =cass:clay gain=? hist=(tree [key=cass:clay val=lobe:clay])]
-    ^-  [lobe:clay ^silo (tree [key=cass:clay val=lobe:clay])]
+    |=  [=cage =cass:clay gain=? file=cass:clay hist=((mop cass:clay lobe:clay) cor)]
+    ^-  [lobe:clay ^silo ((mop cass:clay lobe:clay) cor)]
     =/  [=lobe:clay new-silo=^silo]  (put cage)
     ?:  gain
       [lobe new-silo (put:on-hist hist cass lobe)]
-    ::  !gain: drop previous ref, replace hist with just latest
-    =/  prev=(unit [key=cass:clay val=lobe:clay])
-      (ram:on-hist hist)
+    ::  !gain: replace current live version only, preserve older history
+    =/  prev=(unit lobe:clay)  (get:on-hist hist file)
     =?  new-silo  ?=(^ prev)
-      (~(drop si new-silo) val.u.prev)
-    [lobe new-silo (put:on-hist ~ cass lobe)]
+      (~(drop si new-silo) u.prev)
+    =/  trimmed
+      ?~  prev  hist
+      +:(del:on-hist hist file)
+    [lobe new-silo (put:on-hist trimmed cass lobe)]
   --
 ::  +stamp-mtimes: stamp born datetimes into ball metadata as mtime
 ::
@@ -891,6 +907,7 @@
         ==
     ==
   ==
+::
 ++  weir-to-json
   |=  =weir
   ^-  json
@@ -899,11 +916,13 @@
       ['poke' [%a (turn ~(tap in poke.weir) road-to-json)]]
       ['peek' [%a (turn ~(tap in peek.weir) road-to-json)]]
   ==
+::
 ++  road-from-json
   |=  =json
   ^-  road:tarball
   ?>  ?=([%s *] json)
   [%& %| (stab p.json)]
+::
 ++  weir-from-json
   |=  =json
   ^-  weir
@@ -915,6 +934,7 @@
         ['peek' (ar:dejs:format road-from-json)]
     ==
   [(~(gas in *(set road:tarball)) make) (~(gas in *(set road:tarball)) poke) (~(gas in *(set road:tarball)) peek)]
+::
 ++  cass-to-json
   |=  =cass:clay
   ^-  json
@@ -971,6 +991,7 @@
   :~  ['weir' (weir-to-json u.fil.s)]
       ['dirs' subdirs]
   ==
+::
 ++  gain-to-json
   |=  g=gain
   ^-  json

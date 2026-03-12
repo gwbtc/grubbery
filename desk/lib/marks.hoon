@@ -10,7 +10,7 @@
 ::
 /+  nexus, tarball
 |%
-::  +rebuild-tubes: rebuild /bin/tubes/ sub-ball
+::  +rebuild-tubes: rebuild /sys/tubes/ sub-ball
 ::
 ++  rebuild-tubes
   |=  [our=@p =desk now=@da]
@@ -21,7 +21,7 @@
   %+  roll  ~(tap by tubs)
   |=  [[=mars:clay =tube:clay] acc=ball:tarball]
   (~(put ba:tarball acc) [/[a.mars] b.mars] [~ %temp !>(tube)])
-::  +rebuild-daises: rebuild /bin/daises/ sub-ball
+::  +rebuild-daises: rebuild /sys/daises/ sub-ball
 ::
 ++  rebuild-daises
   |=  [our=@p =desk now=@da]
@@ -148,7 +148,7 @@
     |=  noun=*
     (slam (slap nav limb/%vale) !>(noun))
   --
-::  +rebuild-nexuses: rebuild /bin/nexuses/ sub-ball
+::  +rebuild-nexuses: rebuild /sys/nexuses/ sub-ball
 ::
 ::  Lists /nex/*.hoon files and compiles each via %ca scry.
 ::  Nexuses are cached by neck (filename without .hoon).

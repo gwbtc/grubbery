@@ -341,7 +341,7 @@
       [%skip ~]
     ?~  err.u.in
       [%done ~]
-    [%fail %cull-failed u.err.u.in]
+    [%fail %cull-failed >road< u.err.u.in]
   ==
 ::
 ++  sand
@@ -412,7 +412,7 @@
       ~  [%wait ~]
       [~ %veto *]
     [%fail (veto-error dart.u.in)]
-      [~ %found * *]
+      [~ %seek * *]
     ?.  =(wire wire.u.in)
       [%skip ~]
     [%done hits.u.in]
@@ -576,35 +576,35 @@
   ?>  ?=([%clay %writ *] sign-arvo)
   (pure:m +>.sign-arvo)
 ::
-::  +get-tube: look up a cached tube from /bin/tubes/
+::  +get-tube: look up a cached tube from /sys/tubes/
 ::
 ++  get-tube
   |=  =mars:clay
   =/  m  (fiber ,(unit tube:clay))
   ^-  form:m
-  =/  =road:tarball  [%& %& /bin/tubes/[a.mars] b.mars]
+  =/  =road:tarball  [%& %& /sys/tubes/[a.mars] b.mars]
   ;<  =seen:nexus  bind:m  (peek /tube road ~)
   ?.  ?=([%& %file *] seen)
     (pure:m ~)
   (pure:m `!<(tube:clay q.cage.p.seen))
-::  +get-dais: look up a cached dais from /bin/daises/
+::  +get-dais: look up a cached dais from /sys/daises/
 ::
 ++  get-dais
   |=  mak=mark
   =/  m  (fiber ,(unit dais:clay))
   ^-  form:m
-  =/  =road:tarball  [%& %& /bin/daises mak]
+  =/  =road:tarball  [%& %& /sys/daises mak]
   ;<  =seen:nexus  bind:m  (peek /dais road ~)
   ?.  ?=([%& %file *] seen)
     (pure:m ~)
   (pure:m `!<(dais:clay q.cage.p.seen))
-::  +get-nexus: look up a cached nexus from /bin/nexuses/
+::  +get-nexus: look up a cached nexus from /sys/nexuses/
 ::
 ++  get-nexus
   |=  neck=@tas
   =/  m  (fiber ,(unit nexus:nexus))
   ^-  form:m
-  =/  =road:tarball  [%& %& /bin/nexuses neck]
+  =/  =road:tarball  [%& %& /sys/nexuses neck]
   ;<  =seen:nexus  bind:m  (peek /nexus road ~)
   ?.  ?=([%& %file *] seen)
     (pure:m ~)

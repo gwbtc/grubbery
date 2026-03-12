@@ -31,6 +31,9 @@
   ::  Create /mcp.mcp directory with neck=%mcp
   =?  ball  =(~ (~(get of ball) /'mcp.mcp'))
     (~(put of ball) /'mcp.mcp' [~ `%mcp ~])
+  ::  Create /sys/build.build directory with neck=%build
+  =?  ball  =(~ (~(get of ball) /sys/'build.build'))
+    (~(put of ball) /sys/'build.build' [~ `%build ~])
   ::  Create /config/creds directory if not present
   =?  ball  =(~ (~(get of ball) /config))
     (~(put of ball) /config [~ ~ ~])

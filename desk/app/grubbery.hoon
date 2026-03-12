@@ -3,12 +3,14 @@
     nex-tools, marks, build
 /=  t-  /tests/nexus
 /=  t-  /tests/tarball
+/=  t-  /tests/build
 /=  m-  /mar/kids
 /=  m-  /mar/tree
 /=  m-  /mar/sand
 /=  m-  /mar/born
 /=  m-  /mar/subs
 /=  m-  /mar/gain
+/=  m-  /mar/keys
 /=  m-  /mar/ships
 /=  m-  /mar/dill-told
 /=  m-  /mar/dill-blit
@@ -16,6 +18,7 @@
 /=  m-  /mar/jael-public-keys-result
 /=  m-  /mar/claude-action
 /=  m-  /mar/claude-messages
+/=  n-  /nex/build
 ::
 |%
 +$  versioned-state
@@ -145,9 +148,9 @@
       %rebuild-caches
     ::  Rebuild all mark tube, dais, and nexus caches.
     ?>  =(src our):bowl
-    =.  ball  (~(pub ba:tarball ball) /bin/tubes (rebuild-tubes:marks our.bowl q.byk.bowl now.bowl))
-    =.  ball  (~(pub ba:tarball ball) /bin/daises (rebuild-daises:marks our.bowl q.byk.bowl now.bowl))
-    =.  ball  (~(pub ba:tarball ball) /bin/nexuses (rebuild-nexuses:marks our.bowl q.byk.bowl now.bowl))
+    =.  ball  (~(pub ba:tarball ball) /sys/tubes (rebuild-tubes:marks our.bowl q.byk.bowl now.bowl))
+    =.  ball  (~(pub ba:tarball ball) /sys/daises (rebuild-daises:marks our.bowl q.byk.bowl now.bowl))
+    =.  ball  (~(pub ba:tarball ball) /sys/nexuses (rebuild-nexuses:marks our.bowl q.byk.bowl now.bowl))
     [~ this]
       ::
       %refresh-sessions
@@ -392,7 +395,7 @@
   =/  kept=(list [key=cass:clay val=lobe:clay])  ~
   |-
   ?~  entries
-    =/  new-hist=((mop cass:clay lobe:clay) cass-order:nexus)  *((mop cass:clay lobe:clay) cass-order:nexus)
+    =/  new-hist=((mop cass:clay lobe:clay) cor:nexus)  *((mop cass:clay lobe:clay) cor:nexus)
     =.  new-hist
       |-
       ?~  kept  new-hist
@@ -456,7 +459,7 @@
   (weld hits $(files t.files))
 ::
 ++  match-hist
-  |=  [here=rail:tarball hist=((mop cass:clay lobe:clay) cass-order:nexus) target=lobe:clay]
+  |=  [here=rail:tarball hist=((mop cass:clay lobe:clay) cor:nexus) target=lobe:clay]
   ^-  (list [=rail:tarball =cass:clay])
   %+  murn  (tap:on-hist:nexus hist)
   |=  [key=cass:clay val=lobe:clay]
@@ -508,22 +511,22 @@
       ==
     |+(weld err p.vale-result)
   &+p.vale-result
-::  Get a cached tube from /bin/tubes/[from]/[to]
+::  Get a cached tube from /sys/tubes/[from]/[to]
 ::
 ++  get-tube
   |=  [from=mark to=mark]
   ^-  tube:clay
   =/  c=(unit content:tarball)
-    (~(get ba:tarball ball) /bin/tubes/[from] to)
+    (~(get ba:tarball ball) /sys/tubes/[from] to)
   ?~  c  ~|([%tube-not-cached from to] !!)
   !<(tube:clay q.cage.u.c)
-::  Get a cached dais from /bin/daises/[mark]
+::  Get a cached dais from /sys/daises/[mark]
 ::
 ++  get-dais
   |=  =mark
   ^-  dais:clay
   =/  c=(unit content:tarball)
-    (~(get ba:tarball ball) /bin/daises mark)
+    (~(get ba:tarball ball) /sys/daises mark)
   ?~  c  ~|([%dais-not-cached mark] !!)
   !<(dais:clay q.cage.u.c)
 ::  Validate file content: handles %temp, empty-mime, looks up cached dais
@@ -814,9 +817,9 @@
   ::  Clear ephemeral %temp cages - they shouldn't survive reload
   =.  ball  ~(clear-temp ba:tarball ball)
   ::  Build tube, dais, and nexus caches synchronously as %temp grubs.
-  =.  ball  (~(pub ba:tarball ball) /bin/tubes (rebuild-tubes:marks our.bowl q.byk.bowl now.bowl))
-  =.  ball  (~(pub ba:tarball ball) /bin/daises (rebuild-daises:marks our.bowl q.byk.bowl now.bowl))
-  =.  ball  (~(pub ba:tarball ball) /bin/nexuses (rebuild-nexuses:marks our.bowl q.byk.bowl now.bowl))
+  =.  ball  (~(pub ba:tarball ball) /sys/tubes (rebuild-tubes:marks our.bowl q.byk.bowl now.bowl))
+  =.  ball  (~(pub ba:tarball ball) /sys/daises (rebuild-daises:marks our.bowl q.byk.bowl now.bowl))
+  =.  ball  (~(pub ba:tarball ball) /sys/nexuses (rebuild-nexuses:marks our.bowl q.byk.bowl now.bowl))
   ::  Run nexus on-loads top-down (may modify ball, sand, and gain)
   =/  pre-sand=sand:nexus  sand
   =/  [new-sand=sand:nexus new-gain=gain:nexus new-ball=ball:tarball]
@@ -1019,7 +1022,7 @@
   |=  neck=@tas
   ^-  (unit nexus:nexus)
   =/  c=(unit content:tarball)
-    (~(get ba:tarball ball) /bin/nexuses neck)
+    (~(get ba:tarball ball) /sys/nexuses neck)
   ?~  c  ~
   (mole |.(!<(nexus:nexus q.cage.u.c)))
 ::
@@ -1316,7 +1319,7 @@
       ::  Find all [rail cass] pairs with matching lobe in subtree
       =/  hits=(list [=rail:tarball =cass:clay])
         (seek-lobe u.dest-lane lobe.load.dart)
-      (enqu-take here (sys-give /found) ~ %found wire.dart hits)
+      (enqu-take here (sys-give /found) ~ %seek wire.dart hits)
       ::
         %gain
       ::  Set gain flag. Recursive on directories, single file on rails.
@@ -1685,7 +1688,7 @@
     (fall cas (~(next-cass bo:nexus now.bowl [born ball]) file.sok))
   =/  gaining=?  (lookup-gain here)
   =/  [=lobe:clay new-silo=silo:nexus new-hist=_hist.sok]
-    (~(record si:nexus silo) cage new-cass gaining hist.sok)
+    (~(record si:nexus silo) cage new-cass gaining file.sok hist.sok)
   =.  silo  new-silo
   =.  born  (~(put bo:nexus now.bowl [born ball]) here sok(hist new-hist))
   this
@@ -1815,7 +1818,7 @@
       (~(get ba:tarball ball.acc) [dir name])
     =/  dais=(unit dais:clay)
       =/  c=(unit content:tarball)
-        (~(get ba:tarball ball.acc) /bin/daises mar)
+        (~(get ba:tarball ball.acc) /sys/daises mar)
       ?~  c  ~
       `!<(dais:clay q.cage.u.c)
     ?~  dais
@@ -1909,13 +1912,13 @@
     |=  [mak=mark acc=_ball]
     =/  core=(unit vase)  (~(get by cores) mak)
     ?~  core
-      (~(del ba:tarball acc) [/bin/daises mak])
+      (~(del ba:tarball acc) [/sys/daises mak])
     =/  res=(each dais:clay tang)
       (mule |.((build-dais:marks cores mak u.core)))
     ?:  ?=(%| -.res)
       %-  (%*(. slog pri 3) leaf+"{<mak>}: dais build failed" (flop p.res))
       acc
-    (~(put ba:tarball acc) [/bin/daises mak] [~ %temp !>(p.res)])
+    (~(put ba:tarball acc) [/sys/daises mak] [~ %temp !>(p.res)])
   ::  Discover all tube pairs and rebuild those involving changed marks
   =/  pairs=(list mars:clay)
     %-  zing
@@ -1940,19 +1943,19 @@
     |=  [=mars:clay acc=_ball]
     =/  tub=(unit tube:clay)  (try-build-tube:marks cores mars)
     ?~  tub
-      (~(del ba:tarball acc) [/bin/tubes/[a.mars] b.mars])
-    (~(put ba:tarball acc) [/bin/tubes/[a.mars] b.mars] [~ %temp !>(u.tub)])
+      (~(del ba:tarball acc) [/sys/tubes/[a.mars] b.mars])
+    (~(put ba:tarball acc) [/sys/tubes/[a.mars] b.mars] [~ %temp !>(u.tub)])
   ::  Delete all tubes for deleted marks
   =/  deleted=(list mark)
     (skip changed |=(mak=mark (~(has by cores) mak)))
   =.  ball
     %+  roll  deleted
     |=  [mak=mark acc=_ball]
-    =.  acc  (~(lop ba:tarball acc) /bin/tubes/[mak])
-    =/  sources=(list @ta)  (~(lss ba:tarball acc) /bin/tubes)
+    =.  acc  (~(lop ba:tarball acc) /sys/tubes/[mak])
+    =/  sources=(list @ta)  (~(lss ba:tarball acc) /sys/tubes)
     %+  roll  sources
     |=  [src=@ta inner=_acc]
-    (~(del ba:tarball inner) [/bin/tubes/[src] mak])
+    (~(del ba:tarball inner) [/sys/tubes/[src] mak])
   ~&  >  [%marks-rebuilt (lent changed) %tubes (lent affected)]
   this
 ::  Rebuild nexus cores for a list of changed necks
@@ -1966,7 +1969,7 @@
     |=  [=neck:tarball acc=_ball]
     =/  exists=?  .^(? %cu (weld base /nex/[neck]/hoon))
     ?.  exists
-      (~(del ba:tarball acc) [/bin/nexuses neck])
+      (~(del ba:tarball acc) [/sys/nexuses neck])
     =/  res=(each vase tang)
       (mule |.(.^(vase %ca (weld base /nex/[neck]/hoon))))
     ?:  ?=(%| -.res)
@@ -1977,7 +1980,7 @@
     ?:  ?=(%| -.nex-res)
       %-  (%*(. slog pri 3) leaf+"{<neck>}: nexus type mismatch" (flop p.nex-res))
       acc
-    (~(put ba:tarball acc) [/bin/nexuses neck] [~ %temp !>(p.nex-res)])
+    (~(put ba:tarball acc) [/sys/nexuses neck] [~ %temp !>(p.nex-res)])
   ~&  >  [%nexuses-rebuilt (lent changed)]
   this
 ::  List all files mirrored under a /sys/clay/[desk] path
