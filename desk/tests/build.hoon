@@ -431,10 +431,15 @@
 ++  test-topo-sort-empty
   =/  deps=(map rail:tarball (set rail:tarball))  ~
   =/  res  (topo-sort:build deps)
-  ?>  ?=(%& -.res)
-  %+  expect-eq
-    !>  *(list rail:tarball)
-  !>  p.res
+  ;:  weld
+    %+  expect-eq
+      !>  *(list rail:tarball)
+    !>  order.res
+  ::
+    %+  expect-eq
+      !>  *(set rail:tarball)
+    !>  cycle.res
+  ==
 ::
 ++  test-topo-sort-no-deps
   ::  Three files with no deps — all appear (any order)
@@ -445,10 +450,15 @@
         [[/ %'c.hoon'] ~]
     ==
   =/  res  (topo-sort:build deps)
-  ?>  ?=(%& -.res)
-  %+  expect-eq
-    !>  3
-  !>  (lent p.res)
+  ;:  weld
+    %+  expect-eq
+      !>  3
+    !>  (lent order.res)
+  ::
+    %+  expect-eq
+      !>  *(set rail:tarball)
+    !>  cycle.res
+  ==
 ::
 ++  test-topo-sort-linear
   ::  a → b → c: c first, then b, then a
@@ -459,12 +469,10 @@
         [[/ %'c.hoon'] ~]
     ==
   =/  res  (topo-sort:build deps)
-  ?>  ?=(%& -.res)
   ::  c must come before b, b before a
-  =/  order=(list rail:tarball)  p.res
-  =/  idx-c=@ud  (need (find ~[[/ %'c.hoon']] order))
-  =/  idx-b=@ud  (need (find ~[[/ %'b.hoon']] order))
-  =/  idx-a=@ud  (need (find ~[[/ %'a.hoon']] order))
+  =/  idx-c=@ud  (need (find ~[[/ %'c.hoon']] order.res))
+  =/  idx-b=@ud  (need (find ~[[/ %'b.hoon']] order.res))
+  =/  idx-a=@ud  (need (find ~[[/ %'a.hoon']] order.res))
   ;:  weld
     (expect !>(=(%.y (lth idx-c idx-b))))
     (expect !>(=(%.y (lth idx-b idx-a))))
@@ -478,7 +486,17 @@
         [[/ %'b.hoon'] (~(gas in *(set rail:tarball)) ~[[/ %'a.hoon']])]
     ==
   =/  res  (topo-sort:build deps)
-  (expect !>(=(%.y ?=(%| -.res))))
+  ;:  weld
+    ::  cycle set should contain both files
+    %+  expect-eq
+      !>  2
+    !>  ~(wyt in cycle.res)
+  ::
+    ::  order should be empty (no non-cycle files)
+    %+  expect-eq
+      !>  *(list rail:tarball)
+    !>  order.res
+  ==
 ::
 ++  test-topo-sort-diamond
   ::  a→b, a→c, b→d, c→d: d first, b and c middle, a last
@@ -490,12 +508,10 @@
         [[/ %'d.hoon'] ~]
     ==
   =/  res  (topo-sort:build deps)
-  ?>  ?=(%& -.res)
-  =/  order=(list rail:tarball)  p.res
-  =/  idx-d=@ud  (need (find ~[[/ %'d.hoon']] order))
-  =/  idx-b=@ud  (need (find ~[[/ %'b.hoon']] order))
-  =/  idx-c=@ud  (need (find ~[[/ %'c.hoon']] order))
-  =/  idx-a=@ud  (need (find ~[[/ %'a.hoon']] order))
+  =/  idx-d=@ud  (need (find ~[[/ %'d.hoon']] order.res))
+  =/  idx-b=@ud  (need (find ~[[/ %'b.hoon']] order.res))
+  =/  idx-c=@ud  (need (find ~[[/ %'c.hoon']] order.res))
+  =/  idx-a=@ud  (need (find ~[[/ %'a.hoon']] order.res))
   ;:  weld
     (expect !>(=(%.y (lth idx-d idx-b))))
     (expect !>(=(%.y (lth idx-d idx-c))))
@@ -503,7 +519,7 @@
     (expect !>(=(%.y (lth idx-c idx-a))))
     %+  expect-eq
       !>  4
-    !>  (lent order)
+    !>  (lent order.res)
   ==
 ::
 ::  ==========================================

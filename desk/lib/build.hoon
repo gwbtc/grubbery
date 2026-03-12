@@ -225,17 +225,16 @@
 ::  +topo-sort: topological sort of dependency graph (leaves first)
 ::
 ::    Repeatedly selects nodes whose deps are all resolved.
-::    Returns compilation order on success, or the set of
-::    nodes involved in a cycle on failure.
+::    Returns sorted order and the set of nodes stuck in cycles.
 ::
 ++  topo-sort
   |=  deps=(map rail:tarball (set rail:tarball))
-  ^-  (each (list rail:tarball) (set rail:tarball))
+  ^-  [order=(list rail:tarball) cycle=(set rail:tarball)]
   =/  remaining=(set rail:tarball)  ~(key by deps)
   =/  done=(set rail:tarball)  ~
   =/  result=(list rail:tarball)  ~
   |-
-  ?:  =(~ remaining)  [%& result]
+  ?:  =(~ remaining)  [result ~]
   =/  ready=(list rail:tarball)
     %+  murn  ~(tap in remaining)
     |=  r=rail:tarball
@@ -243,7 +242,7 @@
     ?.  (~(all in my-deps) |=(d=rail:tarball (~(has in done) d)))
       ~
     `r
-  ?~  ready  [%| remaining]
+  ?~  ready  [result remaining]
   =/  ready-set=(set rail:tarball)  (~(gas in *(set rail:tarball)) ready)
   %=  $
     result     (weld result ready)
@@ -291,24 +290,28 @@
     %-  ~(run by files)
     |=  fi=file-info
     (~(gas in *(set rail:tarball)) (turn imports.fi |=(r=resolved-import rail.r)))
-  =/  order  (topo-sort deps)
-  ::  Cycle → all stuck files get error
-  ?:  ?=(%| -.order)
-    =/  results=(map rail:tarball build-result)
-      (~(run by errors) |=(t=tang [%| t]))
-    =.  results
-      %+  roll  ~(tap in p.order)
-      |=  [r=rail:tarball acc=_results]
-      (~(put by acc) r [%| ~[leaf+"circular dependency"]])
-    [results build-cache deps ~]
+  =/  sort-res  (topo-sort deps)
   ::  Phase 3: Compile in topological order
   ::
   =/  results=(map rail:tarball build-result)
     (~(run by errors) |=(t=tang [%| t]))
+  ::  Add cycle errors
+  =.  results
+    %+  roll  ~(tap in cycle.sort-res)
+    |=  [r=rail:tarball acc=_results]
+    =/  my-deps=(set rail:tarball)  (~(gut by deps) r ~)
+    =/  cycle-deps=(set rail:tarball)  (~(int in my-deps) cycle.sort-res)
+    =/  dep-paths=tape
+      %-  zing
+      ^-  (list tape)
+      %+  join  ", "
+      %+  turn  ~(tap in cycle-deps)
+      |=(d=rail:tarball (spud (snoc path.d name.d)))
+    (~(put by acc) r [%| ~[leaf+"circular dependency in {(spud (snoc path.r name.r))} on {dep-paths}"]])
   =|  key-map=(map rail:tarball @uv)
   |-
-  ?~  p.order  [results build-cache deps key-map]
-  =/  =rail:tarball  i.p.order
+  ?~  order.sort-res  [results build-cache deps key-map]
+  =/  =rail:tarball  i.order.sort-res
   =/  fi=file-info  (~(got by files) rail)
   ::  Check if any dep failed
   =/  dep-failed=?
@@ -317,7 +320,7 @@
     !?=([~ %& *] (~(get by results) rail.r))
   ?:  dep-failed
     %=  $
-      p.order  t.p.order
+      order.sort-res  t.order.sort-res
       results  (~(put by results) rail [%| ~[leaf+"dep failed in {(spud (snoc path.rail name.rail))}"]])
     ==
   ::  Compute cache key: own hash + sorted dep cache keys
@@ -327,7 +330,7 @@
   ::  Cache hit → reuse
   ?:  (~(has by build-cache) ckey)
     %=  $
-      p.order  t.p.order
+      order.sort-res  t.order.sort-res
       results  (~(put by results) rail [%& (~(got by build-cache) ckey)])
       key-map  (~(put by key-map) rail ckey)
     ==
@@ -342,7 +345,7 @@
   ::  Compile
   =/  res=build-result  (build-hoon aug (snoc path.rail name.rail) body.fi)
   %=  $
-    p.order      t.p.order
+    order.sort-res  t.order.sort-res
     results      (~(put by results) rail res)
     key-map      ?:(?=(%& -.res) (~(put by key-map) rail ckey) key-map)
     build-cache  ?:(?=(%& -.res) (~(put by build-cache) ckey p.res) build-cache)

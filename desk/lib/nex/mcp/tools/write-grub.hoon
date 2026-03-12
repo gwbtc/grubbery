@@ -29,9 +29,15 @@
   =/  m  (fiber:fiber:nexus ,tool-result:tools)
   ^-  form:m
   ;<  st=tool-state:tools  bind:m  (get-state-as:io ,tool-state:tools)
-  =/  file-path=@t  (~(dog jo:json-utils [%o args.st]) /path so:dejs:format)
-  =/  file-name=@t  (~(dog jo:json-utils [%o args.st]) /name so:dejs:format)
-  =/  content=@t  (~(dog jo:json-utils [%o args.st]) /content so:dejs:format)
+  =/  file-path=(unit @t)  (~(deg jo:json-utils [%o args.st]) /path so:dejs:format)
+  =/  file-name=(unit @t)  (~(deg jo:json-utils [%o args.st]) /name so:dejs:format)
+  =/  content-raw=(unit @t)  (~(deg jo:json-utils [%o args.st]) /content so:dejs:format)
+  ?~  file-path
+    (pure:m [%error 'Missing required argument: path'])
+  ?~  file-name
+    (pure:m [%error 'Missing required argument: name'])
+  ?~  content-raw
+    (pure:m [%error 'Missing required argument: content'])
   =/  content-type=(unit @t)
     ?~  ct=(~(get jo:json-utils [%o args.st]) /'content_type')  ~
     ?.  ?=([%s *] u.ct)  ~
@@ -42,6 +48,9 @@
     ?.  ?=([%s *] u.mk)  ~
     ?:  =('' p.u.mk)  ~
     `p.u.mk
+  =/  file-path=@t  u.file-path
+  =/  file-name=@t  u.file-name
+  =/  content=@t  u.content-raw
   =/  pax=path  (stab file-path)
   =/  road=road:tarball  [%& %& pax file-name]
   ::  Explicit content_type: store as raw mime with that content-type

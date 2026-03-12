@@ -99,6 +99,25 @@
       ;<  ~  bind:m
         (cull:io /cln [%| 0 %& (weld /bin path.rail.i.files) name.rail.i.files])
       $(files t.files)
+    ::  Purge files in /src/ that aren't %hoon mark with .hoon extension
+    ::
+    ++  purge-src
+      |=  =ball:tarball
+      =/  m  (fiber:fiber:nexus ,~)
+      ^-  form:m
+      =/  files=(list [=rail:tarball =content:tarball])
+        ~(tap ba:tarball ball)
+      |-
+      ?~  files  (pure:m ~)
+      =/  bad=?
+        ?|  !=(p.cage.content.i.files %hoon)
+            !(has-hoon-ext:build name.rail.i.files)
+        ==
+      ?.  bad  $(files t.files)
+      ~&  >  [%purge-src rail.i.files]
+      ;<  ~  bind:m
+        (cull:io /purge [%| 0 %& (weld /src path.rail.i.files) name.rail.i.files])
+      $(files t.files)
     ::  Run a full build cycle: load cache, build, write results, clean stale
     ::
     ++  do-build
@@ -107,6 +126,8 @@
       ^-  form:m
       ?.  ?=([%ball *] src-view)  (pure:m ~)
       =/  src-ball=ball:tarball  ball.src-view
+      ::  Purge non-hoon files from /src/
+      ;<  ~  bind:m  (purge-src src-ball)
       ::  Load existing state from /bin/ and keys
       ;<  bin-seen=seen:nexus  bind:m  (peek:io /bin [%| 0 %| /bin] ~)
       =/  bin-ball=ball:tarball
