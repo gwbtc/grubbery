@@ -20,6 +20,7 @@
 /=  m-  /mar/claude-messages
 /=  n-  /nex/build
 /=  n-  /nex/mcp
+/=  n-  /nex/claude
 ::
 |%
 +$  versioned-state

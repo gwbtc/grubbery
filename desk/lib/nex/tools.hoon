@@ -21,6 +21,7 @@
       args=(map @t json)
       step=@tas
       data=json
+      update=(unit json)
   ==
 ::  Parameter schema for tool discovery (MCP, Claude API, etc.)
 ::
@@ -197,7 +198,7 @@
     =/  new-data=json
       (~(put jo:json-utils data.st) /logs a+[s+(crip log-text) logs])
     =/  new-count=@ud  +((lent logs))
-    ;<  ~  bind:m  (replace:io !>([tool.st args.st step.st new-data]))
+    ;<  ~  bind:m  (replace:io !>([tool.st args.st step.st new-data ~]))
     ;<  =bowl:nexus  bind:m  (get-bowl:io /bowl)
     ;<  ~  bind:m
       (send-card:io %pass /commit-quiet/(scot %ud new-count) %arvo %b %wait (add now.bowl ~s1))

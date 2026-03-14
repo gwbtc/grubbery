@@ -78,6 +78,6 @@
     (pure:m [%error (crip "Tool not found: {(trip tool-name)}")])
   ::  Swap state to target tool's args and update tool name
   ;<  ~  bind:m
-    (replace:io !>(`tool-state:tools`[tool-name tool-args %start *json]))
+    (replace:io !>(`tool-state:tools`[tool-name tool-args %start *json ~]))
   handler.u.found
 --

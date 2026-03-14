@@ -14,6 +14,7 @@
         ['step' s+step.tool-state]
         ['data' data.tool-state]
         ['args' [%o args.tool-state]]
+        ['update' ?~(update.tool-state ~ u.update.tool-state)]
     ==
   ++  mime
     =/  jon=^json  json

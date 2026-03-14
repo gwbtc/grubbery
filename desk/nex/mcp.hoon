@@ -364,9 +364,7 @@
         ?.  ?=([%o *] u.arguments)  ~
         p.u.arguments
       =/  ts=tool-state:nex-tools
-        :^  p.u.tool-name  tool-args
-          %start
-        ~
+        [p.u.tool-name tool-args %start ~ ~]
       ::  Create tool grub and subscribe
       ::  Use eyre-id as tool grub ID so it's stable across restarts
       =/  tid=@ta  eyre-id
@@ -387,16 +385,17 @@
       =/  st=tool-state:nex-tools
         !<(tool-state:nex-tools q.cage.view.nw)
       ?.  =(%done step.st)  $  :: not done yet
-      ::  Done — build JSON-RPC response
+      ?~  update.st  $  :: done but no update — shouldn't happen, keep waiting
+      ::  Done — build JSON-RPC response from update
       =/  result-type=(unit json)
-        (~(get jo:json-utils data.st) /type)
+        (~(get jo:json-utils u.update.st) /type)
       =/  rpc-result=json
         ?:  ?=([~ %s %'error'] result-type)
           =/  msg=@t
-            (~(dog jo:json-utils data.st) /message so:dejs:format)
+            (~(dog jo:json-utils u.update.st) /message so:dejs:format)
           (rpc-error:nex-mcp rpc-internal-error:nex-mcp msg id)
         =/  txt=@t
-          (~(dog jo:json-utils data.st) /text so:dejs:format)
+          (~(dog jo:json-utils u.update.st) /text so:dejs:format)
         (mcp-text-result:nex-mcp txt id)
       =/  json-bytes=octs
         (as-octs:mimes:html (en:json:html rpc-result))
@@ -476,14 +475,14 @@
       =/  err-msg=@t  (render-tang:build p.got)
       =/  result-data=json
         (pairs:enjs:format ~[['type' s+'error'] ['message' s+err-msg]])
-      (replace:io !>(`tool-state:nex-tools`[tool.st args.st %done result-data]))
+      (replace:io !>(`tool-state:nex-tools`[tool.st args.st %done data.st `result-data]))
     =/  tl=tool:nex-tools  p.got
     ;<  result=tool-result:nex-tools  bind:m  handler.tl
-    =/  result-data=json
+    =/  result-json=json
       ?-  -.result
         %text   (pairs:enjs:format ~[['type' s+'text'] ['text' s+text.result]])
         %error  (pairs:enjs:format ~[['type' s+'error'] ['message' s+message.result]])
       ==
-    (replace:io !>(`tool-state:nex-tools`[tool.st args.st %done result-data]))
+    (replace:io !>(`tool-state:nex-tools`[tool.st args.st %done data.st `result-json]))
   ==
 --
