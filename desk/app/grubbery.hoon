@@ -21,6 +21,7 @@
 /=  n-  /nex/build
 /=  n-  /nex/mcp
 /=  n-  /nex/claude
+/=  n-  /nex/counter
 ::
 |%
 +$  versioned-state

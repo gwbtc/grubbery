@@ -21,6 +21,8 @@
         (~(put ba:tarball ball) [/ %'messages.claude-messages'] [~ %claude-messages !>(`messages`[%0 *((mop @ud message) lth)])])
       =?  ball  =(~ (~(get ba:tarball ball) [/ %'custom-prompt.txt']))
         (~(put ba:tarball ball) [/ %'custom-prompt.txt'] [~ %txt !>(*wain)])
+      =?  ball  =(~ (~(get of ball) /api-requests))
+        (~(put of ball) /api-requests [~ ~ ~])
       =?  ball  =(~ (~(get of ball) /ui))
         (~(put of ball) /ui [~ ~ ~])
       =.  ball
@@ -52,20 +54,18 @@
           ~&  >  [%claude-chat %unknown-mark p.cage]
           $
         =/  =action  !<(action q.cage)
-        ?-  -.action
-            %say
-          ?:  =('' text.action)  $
-          ~&  >  [%claude-chat %got-message text.action]
-          ::  append user message, save
-          =/  idx=@ud
-            =/  top  (ram:mon messages.msg)
-            ?~(top 0 +(key.u.top))
-          =/  msg=messages
-            msg(messages (put:mon messages.msg idx ['user' text.action]))
-          ;<  ~  bind:m  (replace:io !>(msg))
-          ::  call-claude: read config, build request, send, dispatch response
-          ::  loops back on thought/tool, stops on message/wait/done
-          ::
+        ?:  =('' text.action)  $
+        ~&  >  [%claude-say (end [3 80] text.action)]
+        ::  append user message, save
+        =/  idx=@ud
+          =/  top  (ram:mon messages.msg)
+          ?~(top 0 +(key.u.top))
+        =/  msg=messages
+          msg(messages (put:mon messages.msg idx ['user' text.action]))
+        ;<  ~  bind:m  (replace:io !>(msg))
+        ::  call-claude: read config, build request, send, dispatch response
+        ::  loops back on thought/tool, stops on message/wait/done
+        ::
           =/  errs=@ud  0
           =/  thinks=@ud  0
           |-  ::  inner loop for agent turns
@@ -84,6 +84,7 @@
             ^$
           =/  model=@t       (jget-t cfg 'model' 'claude-sonnet-4-20250514')
           =/  max-tokens=@ud  (jget-n cfg 'max_tokens' 4.096)
+          =/  max-messages=@ud  (jget-n cfg 'max_messages' 50)
           ::  build system prompt: hardcoded protocol + optional custom prompt
           ;<  custom-seen=seen:nexus  bind:m
             (peek:io /prompt (cord-to-road:tarball './custom-prompt.txt') `%txt)
@@ -107,10 +108,15 @@
                 '.'
                 ?:(=('' custom) '' (rap 3 ~['\0a\0aCUSTOM INSTRUCTIONS:\0a' custom]))
             ==
-          ::  build request — filter <error> messages from API payload
+          ::  build request — window + filter messages for API payload
+          =/  all-msgs=(list [idx=@ud =message])  (tap:mon messages.msg)
+          =/  msg-count-ud=@ud  (lent all-msgs)
+          =/  windowed=(list [idx=@ud =message])
+            ?:  (lte msg-count-ud max-messages)  all-msgs
+            (slag (sub msg-count-ud max-messages) all-msgs)
           =/  msgs-json=json
             :-  %a
-            %+  murn  (tap:mon messages.msg)
+            %+  murn  windowed
             |=  [idx=@ud =message]
             ?:  =((end [3 7] content.message) '<error>')  ~
             :-  ~
@@ -182,22 +188,40 @@
             $(errs 0, thinks +(thinks))
           ::
               %tool
-            ~&  >  [%claude-tool (lent calls.u.tag) %calls]
-            ::  TODO: execute tool calls, stream results back
+            ~&  >  [%claude-tool (lent calls.u.tag) %calls continue.u.tag]
+            ::  TODO: execute tool calls, results arrive as separate events
+            ?.  continue.u.tag  ^$
             ;<  ~  bind:m  (sleep:io ~s0..0001)
             ;<  msg=messages  bind:m  (get-state-as:io ,messages)
-            ;<  ~  bind:m  (append-msg msg 'user' '<tool>Tool execution not yet implemented</tool>')
-            $(thinks 0)  ::  loop back for Claude to see result
+            ;<  ~  bind:m  (append-msg msg 'user' '<continue/>')
+            $(thinks 0)
           ::
               %api
-            ~&  >  [%claude-api method.u.tag path.u.tag]
-            ::  TODO: execute API call via fiber primitives
+            ~&  >  [%claude-api method.u.tag path.u.tag continue.u.tag]
+            ::  Spawn API request fiber — result arrives as %append poke
+            ;<  =bowl:nexus  bind:m  (get-bowl:io /bowl)
+            =/  call-id=@ta  (scot %da now.bowl)
+            =/  req-json=json
+              %-  pairs:enjs:format
+              :~  ['method' s+method.u.tag]
+                  ['path' s+path.u.tag]
+                  ['body' s+body.u.tag]
+              ==
+            ;<  ~  bind:m
+              (make:io /api [%| 0 %& /api-requests call-id] |+[%.n json+!>(req-json) ~])
+            ?.  continue.u.tag  ^$
             ;<  ~  bind:m  (sleep:io ~s0..0001)
             ;<  msg=messages  bind:m  (get-state-as:io ,messages)
-            =/  summary=@t
-              (rap 3 ~[(crip (cuss (trip method.u.tag))) ' ' path.u.tag ' - not yet implemented'])
-            ;<  ~  bind:m  (append-msg msg 'user' (cat 3 '<api>' (cat 3 summary '</api>')))
-            $(thinks 0)  ::  loop back for Claude to see result
+            ;<  ~  bind:m  (append-msg msg 'user' '<continue/>')
+            $(thinks 0)
+          ::
+              %notify
+            ~&  >  [%claude-notify continue.u.tag]
+            ?.  continue.u.tag  ^$
+            ;<  ~  bind:m  (sleep:io ~s0..0001)
+            ;<  msg=messages  bind:m  (get-state-as:io ,messages)
+            ;<  ~  bind:m  (append-msg msg 'user' '<continue/>')
+            $(thinks 0)
           ::
               %message
             ~&  >  %claude-message
@@ -211,7 +235,31 @@
             ~&  >  [%claude-done output.u.tag]
             ^$  ::  stop permanently (for now, same as wait)
           ==
-        ==
+      ::  /api-requests/{call-id} — executes API call, pokes result back
+      ::
+          [[%api-requests ~] @]
+        ;<  ~  bind:m  (rise-wait:io prod "%claude api-request: failed")
+        =/  call-id=@ta  name.rail
+        ~&  >  [%claude-api-request call-id]
+        ;<  req=json  bind:m  (get-state-as:io ,json)
+        =/  method=@t  (jget-t req 'method' '')
+        =/  api-path=@t  (jget-t req 'path' '')
+        =/  body=@t  (jget-t req 'body' '')
+        =/  msg-road=road:tarball  [%| 1 %& / %'messages.claude-messages']
+        ::  Keep is long-lived — handle separately
+        =/  segs=(list @t)
+          %+  turn
+            (skip (split (trip api-path) '/') |=(t=tape =(~ t)))
+          crip
+        ?:  &(=((crip (cuss (trip method))) %'GET') ?=(^ segs) =(i.segs 'keep'))
+          (dispatch-keep msg-road (turn t.segs |=(s=@t `@ta`s)))
+        ::  One-shot operations
+        ;<  result=@t  bind:m  (dispatch-api method api-path body)
+        =/  result-text=@t  (cat 3 '<api>' (cat 3 result '</api>'))
+        ~&  >  [%claude-api-done call-id (end [3 80] result)]
+        ;<  ~  bind:m
+          (poke:io /result msg-road claude-action+!>(`action`[%say result-text]))
+        (pure:m ~)
       ::  /ui/chat.html — watches messages, renders page
       ::
           [[%ui ~] %'chat.html']
@@ -268,34 +316,397 @@
       'PROTOCOL: Every response must be exactly ONE XML tag. Valid tags:'
       ''
       '<thought>Your internal reasoning. Not shown to user. You get another turn immediately.</thought>'
-      '<tool>{"name":"tool_name","args":{"key":"value"}}</tool>'
-      '  Executes a tool. You can include multiple calls: <tool>[{"name":"a","args":{}},{"name":"b","args":{}}]</tool>'
-      '  Results stream back as <result> tags. You get another turn immediately.'
+      '<tool continue="true">{"name":"tool_name","args":{"key":"value"}}</tool>'
+      '  Executes a tool. Multiple calls: <tool>[{"name":"a","args":{}},{"name":"b","args":{}}]</tool>'
+      '  Results come back as <tool> under user role.'
+      '<api method="METHOD" path="/endpoint/path" continue="true">optional body</api>'
+      '  Direct grubbery filesystem API. Results come back as <api> under user role.'
+      '  The grubbery is a ball — a nested filesystem of typed files (grubs) and directories.'
+      '  Files have marks (types) like hoon, txt, json, mime. The system auto-converts to text.'
+      ''
+      '  READ endpoints (no body needed, self-closing OK):'
+      '    GET /file/path/to/name.ext  — read file content (auto-converted to text via mark tubes)'
+      '    GET /kids/path/             — list immediate files + subdirs as JSON {files:[], dirs:[]}'
+      '    GET /tree/path/             — recursive tree as JSON'
+      '    GET /sand/path/             — directory permissions as JSON'
+      '    GET /weir/path/             — single directory access rule as JSON'
+      '    GET /keep/path/             — subscribe to changes (long-lived, streams updates into chat)'
+      ''
+      '  WRITE endpoints (body = text content or JSON):'
+      '    PUT /file/path/to/name.ext  — create new file (body = content, mark detected from extension)'
+      '    POST /over/path/to/name.ext — overwrite existing file (body = new content)'
+      '    DELETE /file/path/to/name.ext — delete file'
+      '    PUT /dir/path/              — create directory'
+      '    DELETE /dir/path/           — delete directory'
+      '    POST /poke/path/to/name.ext — poke file process (body = payload)'
+      '    POST /diff/path/to/name.ext — diff file (body = diff payload)'
+      '    PUT /weir/path/             — set directory access rule (body = weir JSON)'
+      '    DELETE /weir/path/          — clear directory access rule'
+      ''
+      '  API calls are asynchronous. Results arrive as <api> messages in the conversation.'
+      '  One-shot calls (file, kids, tree, etc.) return a single result.'
+      '  GET /keep/ is long-lived — it streams updates (new/upd/del) as they happen.'
+      '  Keep messages use prefixes: "old" (initial), "upd" (changed), "new" (created), "del" (deleted).'
+      ''
+      '  ASYNC PATTERN: With continue="false", you can fire an API call then <wait/> for the result.'
+      '  With continue="true" (default), you get a turn immediately — the result arrives later as a'
+      '  separate <api> message in the conversation. Use continue="false" + <wait/> when you need the'
+      '  result before proceeding. Use continue="true" when you want to keep working while it loads.'
+      '<notify continue="true">payload</notify>'
+      '  Sends a notification to listeners (subscriptions, agents, etc). Fire-and-forget.'
       '<message>Text shown to the user. Pauses until the user responds or an event arrives.</message>'
       '<wait/>'
-      '  Pause without showing anything. Resumes when an event arrives (tool result, user message, etc).'
-      '<api method="METHOD" path="/endpoint/path">optional body</api>'
-      '  Direct filesystem API call. Methods: GET, PUT, POST, DELETE.'
-      '  Self-closing for reads: <api method="GET" path="/file/foo/bar.txt" />'
-      '  Results stream back as <tool> tags. You get another turn immediately.'
+      '  Pause without showing anything. Resumes when an event arrives.'
       '<done>Optional final output (JSON or text). Ends the session permanently.</done>'
+      ''
+      'CONTINUE ATTRIBUTE:'
+      '  <tool>, <api>, and <notify> accept continue="true" (default) or continue="false".'
+      '  continue="true": you get another turn immediately. API/tool results arrive later as messages.'
+      '  continue="false": pause until the user sends a message or an event (like an API result) arrives.'
       ''
       'RULES:'
       '- CRITICAL: Your ENTIRE response must be exactly ONE XML tag. Nothing before it, nothing after it.'
       '- Do NOT combine multiple tags in one response. If you want to think then respond,'
       '  send <thought> ONLY. You will get another turn where you can send <message>.'
-      '- <thought> and <tool> give you another turn immediately. After your thought or tool'
-      '  response is stored, the system automatically injects a <continue/> message into the'
+      '- <thought> always gives you another turn immediately.'
+      '- <tool>, <api>, <notify> with continue="true" give you another turn after the response.'
+      '  With continue="false" they pause like <message>.'
+      '- After your action is processed, the system injects a <continue/> message into the'
       '  conversation to hand you the next turn. The user does not send these — the system does.'
-      '  They are visible in the chat log as protocol markers. When you see <continue/>, it means'
-      '  your previous action was processed and you should continue with your next response.'
-      '- <message>, <wait>, and <done> pause or end.'
+      '  They are visible in the chat log as protocol markers.'
+      '- <message>, <wait>, and <done> always pause or end.'
       '- If you need to think before acting, use <thought> first, then respond on your next turn.'
       '- IMPORTANT: Do not chain more than 2-3 thoughts in a row. After thinking, send a <message>.'
       '  The system enforces a thought cap - after 5 consecutive thoughts, your next response'
       '  MUST be a <message>, <wait>, or <done>.'
       '- For tool calls, use the exact tool names and argument formats provided.'
   ==
+::  Dispatch API call: parse method + path, execute, return result text
+::  Path format: /endpoint/rest... (e.g. /file/config.json, /kids/, /tree/)
+::
+++  dispatch-api
+  |=  [method=@t api-path=@t body=@t]
+  =/  m  (fiber:fiber:nexus ,@t)
+  ^-  form:m
+  =/  path-tape=tape  (trip api-path)
+  =/  segs=(list @t)
+    %+  turn
+      (skip (split path-tape '/') |=(t=tape =(~ t)))
+    crip
+  ?~  segs
+    %-  pure:m
+    'ERROR: Empty path. Use /file/..., /kids/..., /tree/..., /dir/..., /over/..., /poke/..., /diff/..., /sand/..., /weir/..., /keep/...'
+  =/  endpoint=@t   i.segs
+  =/  rest=path      (turn t.segs |=(s=@t `@ta`s))
+  =/  meth=@t  (crip (cuss (trip method)))
+  ?+    [meth endpoint]
+      %-  pure:m
+      %-  crip
+      """
+      ERROR: {(trip meth)} /{(trip endpoint)} is not a valid endpoint.
+      Path must start with an endpoint prefix. Valid endpoints:
+        GET /file/...  GET /kids/...  GET /tree/...  GET /sand/...  GET /weir/...  GET /keep/...
+        PUT /file/...  PUT /dir/...  PUT /weir/...
+        POST /over/...  POST /poke/...  POST /diff/...
+        DELETE /file/...  DELETE /dir/...  DELETE /weir/...
+      You sent: {(trip meth)} {(trip api-path)}
+      """
+  ::  GET /file/... — read a file
+      [%'GET' %'file']
+    ?~  rest
+      (pure:m 'ERROR: File path required (e.g. /file/config.json)')
+    =/  parent=path  (snip `path`rest)
+    =/  name=@ta     (rear rest)
+    =/  =road:tarball  [%& %& parent name]
+    ;<  =seen:nexus  bind:m  (peek:io /api-read road ~)
+    ?.  ?=([%& %file *] seen)
+      (pure:m (crip "ERROR: Not found: {(trip api-path)}"))
+    (cage-to-txt cage.p.seen)
+  ::  GET /kids/... — list files + subdirs
+      [%'GET' %'kids']
+    =/  dir-road=road:tarball  [%& %| rest]
+    ;<  dir-seen=seen:nexus  bind:m  (peek:io /api-kids dir-road ~)
+    ?.  ?=([%& %ball *] dir-seen)
+      (pure:m (crip "ERROR: Not found: {(trip api-path)}"))
+    =/  b=ball:tarball  ball.p.dir-seen
+    =/  files=(list @ta)
+      ?~(fil.b ~ ~(tap in ~(key by contents.u.fil.b)))
+    =/  dirs=(list @ta)  ~(tap in ~(key by dir.b))
+    =/  result=json
+      %-  pairs:enjs:format
+      :~  ['files' [%a (turn files |=(n=@ta s+n))]]
+          ['dirs' [%a (turn dirs |=(n=@ta s+n))]]
+      ==
+    (pure:m (en:json:html result))
+  ::  GET /tree/... — recursive tree
+      [%'GET' %'tree']
+    =/  dir-road=road:tarball  [%& %| rest]
+    ;<  dir-seen=seen:nexus  bind:m  (peek:io /api-tree dir-road ~)
+    ?.  ?=([%& %ball *] dir-seen)
+      (pure:m (crip "ERROR: Not found: {(trip api-path)}"))
+    (pure:m (en:json:html (tree-to-json:tarball (ball-to-tree:tarball ball.p.dir-seen))))
+  ::  PUT /file/... — create file (body is content)
+      [%'PUT' %'file']
+    ?~  rest
+      (pure:m 'ERROR: File path required')
+    =/  parent=path  (snip `path`rest)
+    =/  name=@ta     (rear rest)
+    =/  =road:tarball  [%& %& parent name]
+    ;<  exists=?  bind:m  (peek-exists:io /api-chk road)
+    ?:  exists
+      (pure:m (crip "ERROR: Already exists: {(trip api-path)}"))
+    =/  =mime  [/text/plain (as-octs:mimes:html body)]
+    ;<  ~  bind:m  (make:io /api-make road |+[%.n mime+!>(mime) ~])
+    (pure:m (crip "Created {(trip api-path)}"))
+  ::  POST /over/... — overwrite file (body is content)
+      [%'POST' %'over']
+    ?~  rest
+      (pure:m 'ERROR: File path required')
+    =/  parent=path  (snip `path`rest)
+    =/  name=@ta     (rear rest)
+    =/  =road:tarball  [%& %& parent name]
+    ;<  exists=?  bind:m  (peek-exists:io /api-chk road)
+    ?.  exists
+      (pure:m (crip "ERROR: Not found: {(trip api-path)}"))
+    =/  =mime  [/text/plain (as-octs:mimes:html body)]
+    ;<  ~  bind:m  (over:io /api-over road mime+!>(mime))
+    (pure:m (crip "Wrote {(trip api-path)}"))
+  ::  DELETE /file/... — delete file
+      [%'DELETE' %'file']
+    ?~  rest
+      (pure:m 'ERROR: File path required')
+    =/  parent=path  (snip `path`rest)
+    =/  name=@ta     (rear rest)
+    =/  =road:tarball  [%& %& parent name]
+    ;<  exists=?  bind:m  (peek-exists:io /api-chk road)
+    ?.  exists
+      (pure:m (crip "ERROR: Not found: {(trip api-path)}"))
+    ;<  ~  bind:m  (cull:io /api-cull road)
+    (pure:m (crip "Deleted {(trip api-path)}"))
+  ::  PUT /dir/... — create directory
+      [%'PUT' %'dir']
+    ?~  rest
+      (pure:m 'ERROR: Directory path required')
+    =/  dir-road=road:tarball  [%& %| rest]
+    ;<  exists=?  bind:m  (peek-exists:io /api-chk dir-road)
+    ?:  exists
+      (pure:m (crip "ERROR: Already exists: {(trip api-path)}"))
+    ;<  ~  bind:m  (make:io /api-make dir-road &+[*sand:nexus *gain:nexus `[~ ~ ~] ~])
+    (pure:m (crip "Created directory {(trip api-path)}"))
+  ::  DELETE /dir/... — delete directory
+      [%'DELETE' %'dir']
+    ?~  rest
+      (pure:m 'ERROR: Directory path required')
+    =/  dir-road=road:tarball  [%& %| rest]
+    ;<  exists=?  bind:m  (peek-exists:io /api-chk dir-road)
+    ?.  exists
+      (pure:m (crip "ERROR: Not found: {(trip api-path)}"))
+    ;<  ~  bind:m  (cull:io /api-cull dir-road)
+    (pure:m (crip "Deleted directory {(trip api-path)}"))
+  ::  POST /poke/... — poke file process
+      [%'POST' %'poke']
+    ?~  rest
+      (pure:m 'ERROR: File path required')
+    =/  parent=path  (snip `path`rest)
+    =/  name=@ta     (rear rest)
+    =/  =road:tarball  [%& %& parent name]
+    ;<  exists=?  bind:m  (peek-exists:io /api-chk road)
+    ?.  exists
+      (pure:m (crip "ERROR: Not found: {(trip api-path)}"))
+    =/  =mime  [/text/plain (as-octs:mimes:html body)]
+    ;<  ~  bind:m  (poke:io /api-poke road mime+!>(mime))
+    (pure:m (crip "Poked {(trip api-path)}"))
+  ::  POST /diff/... — diff file
+      [%'POST' %'diff']
+    ?~  rest
+      (pure:m 'ERROR: File path required')
+    =/  parent=path  (snip `path`rest)
+    =/  name=@ta     (rear rest)
+    =/  =road:tarball  [%& %& parent name]
+    ;<  exists=?  bind:m  (peek-exists:io /api-chk road)
+    ?.  exists
+      (pure:m (crip "ERROR: Not found: {(trip api-path)}"))
+    =/  =mime  [/text/plain (as-octs:mimes:html body)]
+    ;<  ~  bind:m  (diff:io /api-diff road mime+!>(mime))
+    (pure:m (crip "Diffed {(trip api-path)}"))
+  ::  GET /sand/... — directory permissions
+      [%'GET' %'sand']
+    =/  dir-road=road:tarball  [%& %| rest]
+    ;<  dir-seen=seen:nexus  bind:m  (peek:io /api-sand dir-road ~)
+    ?.  ?=([%& %ball *] dir-seen)
+      (pure:m (crip "ERROR: Not found: {(trip api-path)}"))
+    (pure:m (en:json:html (sand-to-json:nexus sand.p.dir-seen)))
+  ::  GET /weir/... — single directory weir
+      [%'GET' %'weir']
+    =/  dir-road=road:tarball  [%& %| rest]
+    ;<  dir-seen=seen:nexus  bind:m  (peek:io /api-weir dir-road ~)
+    ?.  ?=([%& %ball *] dir-seen)
+      (pure:m (crip "ERROR: Not found: {(trip api-path)}"))
+    =/  =weir:nexus  (fall fil.sand.p.dir-seen *weir:nexus)
+    (pure:m (en:json:html (weir-to-json:nexus weir)))
+  ::  PUT /weir/... — replace weir
+      [%'PUT' %'weir']
+    =/  jon=(unit json)  (de:json:html body)
+    ?~  jon
+      (pure:m 'ERROR: Invalid JSON body')
+    =/  parsed=(each weir:nexus tang)
+      (mule |.((weir-from-json:nexus u.jon)))
+    ?:  ?=(%| -.parsed)
+      (pure:m 'ERROR: Invalid weir JSON')
+    ;<  ~  bind:m  (sand:io /api-weir [%& %| rest] `p.parsed)
+    (pure:m (crip "Set weir for {(trip api-path)}"))
+  ::  DELETE /weir/... — clear weir
+      [%'DELETE' %'weir']
+    ;<  ~  bind:m  (sand:io /api-weir [%& %| rest] ~)
+    (pure:m (crip "Cleared weir for {(trip api-path)}"))
+  ==
+::  Dispatch keep: long-lived subscription, pokes changes to conversation
+::
+++  dispatch-keep
+  |=  [msg-road=road:tarball api-path=path]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  ::  Determine road: check if path points to a file or directory
+  =/  file-road=(unit road:tarball)
+    ?~  api-path  ~
+    `[%& %& (snip `path`api-path) (rear api-path)]
+  ;<  is-file=?  bind:m
+    ?~  file-road  (pure:(fiber:fiber:nexus ,?) %.n)
+    (peek-exists:io /check u.file-road)
+  =/  =road:tarball
+    ?:  is-file  (need file-road)
+    [%& %| api-path]
+  ::  Subscribe — keep:io returns initial view
+  ;<  init=view:nexus  bind:m  (keep:io /keep road ~)
+  =/  prev-born=born:nexus
+    ?.  ?=([%ball *] init)  *born:nexus
+    born.init
+  ::  Poke initial state
+  ;<  ~  bind:m
+    ?+  init  (pure:m ~)
+        [%file *]
+      ;<  content=@t  bind:m  (cage-to-txt cage.init)
+      =/  file-name=@t
+        ?~(api-path '/' (rear api-path))
+      =/  msg=@t  (rap 3 ~['<api>old ' file-name ': ' content '</api>'])
+      (poke:io /init msg-road claude-action+!>(`action`[%say msg]))
+        [%ball *]
+      (poke-ball-init msg-road ball.init born.init / api-path)
+    ==
+  ::  Event loop — wait for changes, poke each one
+  |-
+  ;<  nw=news-or-wake:io  bind:m  (take-news-or-wake:io /keep)
+  ?-    -.nw
+      %wake  $  ::  keep-alive, just continue
+      %news
+    ?+    view.nw  $
+        [%file *]
+      ;<  content=@t  bind:m  (cage-to-txt cage.view.nw)
+      =/  file-name=@t
+        ?~(api-path '/' (rear api-path))
+      =/  msg=@t  (rap 3 ~['<api>upd ' file-name ': ' content '</api>'])
+      ;<  ~  bind:m
+        (poke:io /upd msg-road claude-action+!>(`action`[%say msg]))
+      $
+        [%ball *]
+      =/  root=ball:tarball  ball.view.nw
+      =/  root-born=born:nexus  born.view.nw
+      =/  what=(set lane:tarball)  (diff-born-state:nexus prev-born root-born)
+      =/  old-born=born:nexus  prev-born
+      =.  prev-born  root-born
+      =/  lanes=(list lane:tarball)  ~(tap in what)
+      |-
+      ?~  lanes  ^$
+      ?:  ?=(%| -.i.lanes)
+        $(lanes t.lanes)
+      =/  file-path=path  path.p.i.lanes
+      =/  file-name=@ta  name.p.i.lanes
+      =/  lane-path=@t  (spat (snoc file-path file-name))
+      ::  Get content from ball
+      =/  sub=ball:tarball  (~(dip ba:tarball root) file-path)
+      =/  ct=(unit content:tarball)
+        ?~  fil.sub  ~
+        (~(get by contents.u.fil.sub) file-name)
+      ?~  ct
+        ::  File deleted
+        =/  msg=@t  (rap 3 ~['<api>del ' lane-path '</api>'])
+        ;<  ~  bind:m
+          (poke:io /del msg-road claude-action+!>(`action`[%say msg]))
+        $(lanes t.lanes)
+      ::  File new or updated
+      =/  old-sub=born:nexus  (~(dip of old-born) file-path)
+      =/  old-sack=(unit sack:nexus)
+        ?~  fil.old-sub  ~
+        (~(get by bags.u.fil.old-sub) file-name)
+      =/  act=@t  ?~(old-sack 'new' 'upd')
+      ;<  content=@t  bind:m  (cage-to-txt cage.u.ct)
+      =/  msg=@t
+        %+  rap  3
+        :~  '<api>'
+            act  ' '  lane-path
+            ': '  content  '</api>'
+        ==
+      ;<  ~  bind:m
+        (poke:io /upd msg-road claude-action+!>(`action`[%say msg]))
+      $(lanes t.lanes)
+    ==
+  ==
+::  Poke initial state for a directory subscription
+::
+++  poke-ball-init
+  |=  [msg-road=road:tarball b=ball:tarball =born:nexus here=path api-path=path]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  ::  Files in this directory
+  ;<  ~  bind:m
+    ?~  fil.b  (pure:m ~)
+    =/  files=(list [@ta content:tarball])  ~(tap by contents.u.fil.b)
+    |-
+    ?~  files  (pure:m ~)
+    =/  [file-name=@ta =content:tarball]  i.files
+    =/  lane-path=@t  (spat (snoc here file-name))
+    ;<  content-text=@t  bind:m  (cage-to-txt cage.content)
+    =/  msg=@t  (rap 3 ~['<api>old ' lane-path ': ' content-text '</api>'])
+    ;<  ~  bind:m
+      (poke:io /init msg-road claude-action+!>(`action`[%say msg]))
+    $(files t.files)
+  ::  Recurse into subdirectories
+  =/  dirs=(list [@ta ball:tarball])  ~(tap by dir.b)
+  |-
+  ?~  dirs  (pure:m ~)
+  =/  [dir-name=@ta sub=ball:tarball]  i.dirs
+  ;<  ~  bind:m  (poke-ball-init msg-road sub born (snoc here dir-name) api-path)
+  $(dirs t.dirs)
+::  Convert a cage to text — uses mark tubes, falls back to mime
+::
+++  cage-to-txt
+  |=  =cage
+  =/  m  (fiber:fiber:nexus ,@t)
+  ^-  form:m
+  ?:  =(%txt p.cage)
+    (pure:m (of-wain:format !<(wain q.cage)))
+  ;<  tube=(unit tube:clay)  bind:m  (get-tube:io [p.cage %txt])
+  ?~  tube
+    ::  Fallback: convert to mime and extract body as text
+    ;<  =mime  bind:m  (cage-to-mime:io cage)
+    (pure:m `@t`(end [3 p.q.mime] q.q.mime))
+  =/  result=(each vase tang)  (mule |.((u.tube q.cage)))
+  ?:  ?=(%| -.result)
+    ;<  =mime  bind:m  (cage-to-mime:io cage)
+    (pure:m `@t`(end [3 p.q.mime] q.q.mime))
+  (pure:m (of-wain:format !<(wain p.result)))
+::
+::  Split a tape on a delimiter character
+::
+++  split
+  |=  [t=tape d=@t]
+  ^-  (list tape)
+  =|  [acc=(list tape) cur=tape]
+  |-
+  ?~  t  (flop [cur acc])
+  ?:  =(i.t d)
+    $(t t.t, acc [cur acc], cur ~)
+  $(t t.t, cur (snoc cur i.t))
 ::
 ++  jget-t
   |=  [j=json key=@t default=@t]
@@ -345,6 +756,9 @@
   ?:  &(=('user' rol) =((end [3 5] raw) '<api>'))
     %-  pairs:enjs:format
     ~[['role' s+'user'] ['type' s+'api'] ['content' s+(extract-inner raw)]]
+  ?:  &(=('user' rol) =((end [3 8] raw) '<notify>'))
+    %-  pairs:enjs:format
+    ~[['role' s+'user'] ['type' s+'notify'] ['content' s+(extract-inner raw)]]
   ::  user messages — plain text
   ?:  =('user' rol)
     %-  pairs:enjs:format
@@ -373,6 +787,9 @@
     =/  summary=@t  (rap 3 ~[(crip (cuss (trip method.u.tag))) ' ' path.u.tag])
     %-  pairs:enjs:format
     ~[['role' s+'assistant'] ['type' s+'api'] ['content' s+summary]]
+      %notify
+    %-  pairs:enjs:format
+    ~[['role' s+'assistant'] ['type' s+'notify'] ['content' s+text.u.tag]]
       %wait
     %-  pairs:enjs:format
     ~[['role' s+'assistant'] ['type' s+'wait'] ['content' s+'']]
@@ -439,7 +856,8 @@
     =/  tag-name=tape
       =/  sp=(unit @ud)  (find " " tag-str)
       ?~(sp tag-str (scag u.sp tag-str))
-    ?:  =("api" tag-name)  (parse-api-tag tag-str '')
+    ?:  =("api" tag-name)     (parse-api-tag tag-str '')
+    ?:  =("notify" tag-name)  `[%notify '' (parse-continue tag-str)]
     ~
   ::  Match <tag>content</tag> pattern
   =/  open=(unit @ud)  (find "<" t)
@@ -462,14 +880,16 @@
   ?:  =("thought" tag-name)  `[%thought inner]
   ?:  =("message" tag-name)  `[%message inner]
   ?:  =("done" tag-name)     `[%done inner]
-  ?:  =("tool" tag-name)     (parse-tool-tag inner)
+  ?:  =("tool" tag-name)     (parse-tool-tag tag-str inner)
   ?:  =("api" tag-name)      (parse-api-tag tag-str inner)
+  ?:  =("notify" tag-name)   `[%notify inner (parse-continue tag-str)]
   ~
 ::  Parse <tool> tag content as JSON tool calls
 ::
 ++  parse-tool-tag
-  |=  text=@t
+  |=  [tag-str=tape text=@t]
   ^-  (unit response-tag)
+  =/  cont=?  (parse-continue tag-str)
   =/  jon=(unit json)  (de:json:html text)
   ?~  jon  ~
   ?:  ?=([%a *] u.jon)
@@ -479,11 +899,11 @@
       |=  j=json
       (parse-one-tool j)
     ?~  calls  ~
-    `[%tool calls]
+    `[%tool calls cont]
   ::  Single tool call object
   =/  call=(unit tool-call)  (parse-one-tool u.jon)
   ?~  call  ~
-  `[%tool ~[u.call]]
+  `[%tool ~[u.call] cont]
 ::
 ++  parse-one-tool
   |=  j=json
@@ -503,7 +923,7 @@
   =/  method=@t  (get-attr tag-str "method")
   =/  path=@t    (get-attr tag-str "path")
   ?:  |(=('' method) =('' path))  ~
-  `[%api method path body]
+  `[%api method path body (parse-continue tag-str)]
 ::  Extract an attribute value from a tag string
 ::  e.g. (get-attr "api method=\"GET\" path=\"/foo\"" "method") -> 'GET'
 ::
@@ -517,6 +937,14 @@
   =/  end=(unit @ud)  (find "\"" val-start)
   ?~  end  ''
   (crip (scag u.end val-start))
+::  Parse continue attribute: defaults to true
+::
+++  parse-continue
+  |=  tag-str=tape
+  ^-  ?
+  =/  val=@t  (get-attr tag-str "continue")
+  ?.  =('false' val)  %.y
+  %.n
 ::
 ++  extract-error
   |=  response=@t
@@ -618,6 +1046,8 @@
           ".msg.result b \{ color: #036; } "
           ".msg.api pre \{ background: #f0f0ff; padding: 0.5rem; border-radius: 4px; } "
           ".msg.api b \{ color: #449; } "
+          ".msg.notify pre \{ background: #fff5e6; padding: 0.5rem; border-radius: 4px; } "
+          ".msg.notify b \{ color: #964; } "
           ".msg.error pre \{ background: #fee; padding: 0.5rem; border-radius: 4px; color: #c00; } "
           ".msg.error b \{ color: #c00; } "
           "#form \{ display: flex; gap: 0.5rem; align-items: flex-end; } "
@@ -636,7 +1066,7 @@
           "#filters input \{ display: none; } "
           "#filters input:checked + span \{ opacity: 1; } "
           "#filters input:not(:checked) + span \{ text-decoration: line-through; } "
-          ".hide-assistant-message .msg.message.assistant, .hide-assistant-thought .msg.thought.assistant, .hide-assistant-tool .msg.tool.assistant, .hide-assistant-api .msg.api.assistant, .hide-assistant-wait .msg.wait.assistant, .hide-assistant-done .msg.done.assistant \{ display: none; } "
+          ".hide-assistant-message .msg.message.assistant, .hide-assistant-thought .msg.thought.assistant, .hide-assistant-tool .msg.tool.assistant, .hide-assistant-api .msg.api.assistant, .hide-assistant-notify .msg.notify.assistant, .hide-assistant-wait .msg.wait.assistant, .hide-assistant-done .msg.done.assistant, .hide-assistant-error .msg.error.assistant \{ display: none; } "
           ".hide-user-message .msg.message.user, .hide-user-error .msg.error.user, .hide-user-tool .msg.tool.user, .hide-user-api .msg.api.user, .hide-user-continue .msg.continue.user \{ display: none; } "
           "#header \{ display: flex; align-items: baseline; gap: 0.75rem; margin-bottom: 1rem; } "
           "#header h1 \{ margin-bottom: 0; } "
@@ -686,6 +1116,10 @@
             ;span: api
           ==
           ;label
+            ;input(type "checkbox", checked "", data-type "notify", data-role "assistant");
+            ;span: notify
+          ==
+          ;label
             ;input(type "checkbox", checked "", data-type "wait", data-role "assistant");
             ;span: wait
           ==
@@ -693,16 +1127,16 @@
             ;input(type "checkbox", checked "", data-type "done", data-role "assistant");
             ;span: done
           ==
+          ;label
+            ;input(type "checkbox", checked "", data-type "error", data-role "assistant");
+            ;span: error
+          ==
         ==
         ;div(class "filter-row")
           ;span(class "filter-label"): user
           ;label
             ;input(type "checkbox", checked "", data-type "message", data-role "user");
             ;span: message
-          ==
-          ;label
-            ;input(type "checkbox", checked "", data-type "error", data-role "user");
-            ;span: error
           ==
           ;label
             ;input(type "checkbox", checked "", data-type "tool", data-role "user");
@@ -715,6 +1149,10 @@
           ;label
             ;input(type "checkbox", checked "", data-type "continue", data-role "user");
             ;span: continue
+          ==
+          ;label
+            ;input(type "checkbox", checked "", data-type "error", data-role "user");
+            ;span: error
           ==
         ==
       ==
@@ -734,9 +1172,10 @@
                     =((end [3 1] content.message) '<')
                 ==
               =/  tag-type=tape
-                ?:  =((end [3 7] content.message) '<error>')  "error"
-                ?:  =((end [3 6] content.message) '<tool>')   "tool"
-                ?:  =((end [3 5] content.message) '<api>')    "api"
+                ?:  =((end [3 7] content.message) '<error>')   "error"
+                ?:  =((end [3 6] content.message) '<tool>')    "tool"
+                ?:  =((end [3 5] content.message) '<api>')     "api"
+                ?:  =((end [3 8] content.message) '<notify>')  "notify"
                 "message"
               =/  inner=tape  (trip (extract-inner content.message))
               :-  ~
@@ -809,6 +1248,13 @@
                 ;b: assistant
                 ;span(class "sub"): api
                 ;pre: {summary}
+              ==
+                %notify
+              :-  ~
+              ;div(class "msg notify assistant")
+                ;b: assistant
+                ;span(class "sub"): notify
+                ;pre: {(trip text.u.tag)}
               ==
                 %wait
               :-  ~

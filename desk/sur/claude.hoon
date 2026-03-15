@@ -6,8 +6,9 @@
 ::
 +$  response-tag
   $%  [%thought text=@t]
-      [%tool calls=(list tool-call)]
-      [%api method=@t path=@t body=@t]
+      [%tool calls=(list tool-call) continue=?]
+      [%api method=@t path=@t body=@t continue=?]
+      [%notify text=@t continue=?]
       [%message text=@t]
       [%wait ~]
       [%done output=@t]
