@@ -7,6 +7,7 @@
 +$  response-tag
   $%  [%thought text=@t]
       [%tool calls=(list tool-call)]
+      [%api method=@t path=@t body=@t]
       [%message text=@t]
       [%wait ~]
       [%done output=@t]

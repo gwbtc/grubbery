@@ -51,7 +51,10 @@
   =/  file-path=@t  u.file-path
   =/  file-name=@t  u.file-name
   =/  content=@t  u.content-raw
-  =/  pax=path  (stab file-path)
+  =/  pax-parsed=(each path @t)  (parse-path:tools file-path)
+  ?:  ?=(%| -.pax-parsed)
+    (pure:m [%error p.pax-parsed])
+  =/  pax=path  p.pax-parsed
   =/  road=road:tarball  [%& %& pax file-name]
   ::  Explicit content_type: store as raw mime with that content-type
   ?^  content-type

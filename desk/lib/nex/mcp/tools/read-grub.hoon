@@ -23,7 +23,10 @@
     (pure:m [%error 'Missing required argument: path'])
   ?~  file-name
     (pure:m [%error 'Missing required argument: name'])
-  =/  pax=path  (stab u.file-path)
+  =/  pax-parsed=(each path @t)  (parse-path:tools u.file-path)
+  ?:  ?=(%| -.pax-parsed)
+    (pure:m [%error p.pax-parsed])
+  =/  pax=path  p.pax-parsed
   ;<  [grub-name=@ta =seen:nexus]  bind:m
     (lookup-grub:tools pax u.file-name)
   ?.  ?=([%& %file *] seen)

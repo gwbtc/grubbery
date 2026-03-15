@@ -63,6 +63,15 @@
     ==
   ?~  txt  %.n
   ?&(=(i.pat i.txt) (glob-match t.pat t.txt))
+::  Safe path parser: returns error result instead of crashing
+::
+++  parse-path
+  |=  t=@t
+  ^-  (each path @t)
+  =/  pax=(unit path)  (rush t stap)
+  ?~  pax
+    [%| (crip "Invalid path: {(trip t)} (must start with /)")]
+  [%& u.pax]
 ::  Shared helper arms used by dynamic tool files
 ::
 ++  finish-commit

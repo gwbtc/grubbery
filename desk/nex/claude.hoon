@@ -19,37 +19,8 @@
         (~(put ba:tarball ball) [/ %'config.json'] [~ %json !>(default)])
       =?  ball  =(~ (~(get ba:tarball ball) [/ %'messages.claude-messages']))
         (~(put ba:tarball ball) [/ %'messages.claude-messages'] [~ %claude-messages !>(`messages`[%0 *((mop @ud message) lth)])])
-      =?  ball  =(~ (~(get ba:tarball ball) [/ %'system-prompt.txt']))
-        =/  default=wain
-          :~  'You are Claude, an AI assistant running natively on an Urbit ship.'
-              'Urbit is a peer-to-peer operating system. You run as a Hoon application on the user\'s personal server.'
-              ''
-              'PROTOCOL: Every response must be exactly ONE XML tag. Valid tags:'
-              ''
-              '<thought>Your internal reasoning. Not shown to user. You get another turn immediately.</thought>'
-              '<tool>{"name":"tool_name","args":{"key":"value"}}</tool>'
-              '  Executes a tool. You can include multiple calls: <tool>[{"name":"a","args":{}},{"name":"b","args":{}}]</tool>'
-              '  Results stream back as <result> tags. You get another turn immediately.'
-              '<message>Text shown to the user. Pauses until the user responds or an event arrives.</message>'
-              '<wait/>'
-              '  Pause without showing anything. Resumes when an event arrives (tool result, user message, etc).'
-              '<done>Optional final output (JSON or text). Ends the session permanently.</done>'
-              ''
-              'RULES:'
-              '- CRITICAL: Your ENTIRE response must be exactly ONE XML tag. Nothing before it, nothing after it.'
-              '- Do NOT combine multiple tags in one response. If you want to think then respond,'
-              '  send <thought> ONLY. You will get another turn where you can send <message>.'
-              '- <thought> and <tool> give you another turn immediately. After your thought or tool'
-              '  response is stored, the system injects a <continue/> user message to hand you the next turn.'
-              '  When you see <continue/>, it means your previous action was processed and you should proceed.'
-              '- <message>, <wait>, and <done> pause or end.'
-              '- If you need to think before acting, use <thought> first, then respond on your next turn.'
-              '- IMPORTANT: Do not chain more than 2-3 thoughts in a row. After thinking, send a <message>.'
-              '  The system enforces a thought cap — after 5 consecutive thoughts, your next response'
-              '  MUST be a <message>, <wait>, or <done>.'
-              '- For tool calls, use the exact tool names and argument formats provided.'
-          ==
-        (~(put ba:tarball ball) [/ %'system-prompt.txt'] [~ %txt !>(default)])
+      =?  ball  =(~ (~(get ba:tarball ball) [/ %'custom-prompt.txt']))
+        (~(put ba:tarball ball) [/ %'custom-prompt.txt'] [~ %txt !>(*wain)])
       =?  ball  =(~ (~(get of ball) /ui))
         (~(put of ball) /ui [~ ~ ~])
       =.  ball
@@ -113,20 +84,20 @@
             ^$
           =/  model=@t       (jget-t cfg 'model' 'claude-sonnet-4-20250514')
           =/  max-tokens=@ud  (jget-n cfg 'max_tokens' 4.096)
-          ::  read system prompt + append dynamic context
-          ;<  prompt-seen=seen:nexus  bind:m
-            (peek:io /prompt (cord-to-road:tarball './system-prompt.txt') `%txt)
+          ::  build system prompt: hardcoded protocol + optional custom prompt
+          ;<  custom-seen=seen:nexus  bind:m
+            (peek:io /prompt (cord-to-road:tarball './custom-prompt.txt') `%txt)
           ;<  =bowl:nexus  bind:m  (get-bowl:io /bowl)
+          =/  custom=@t
+            ?.  ?=([%& %file *] custom-seen)  ''
+            =/  =wain  !<(wain q.cage.p.custom-seen)
+            ?~(wain '' (of-wain:format wain))
+          =/  ship=@t  (scot %p our.bowl)
+          =/  msg-count=@t  (crip (a-co:co (lent (tap:mon messages.msg))))
           =/  system=(unit @t)
-            ?.  ?=([%& %file *] prompt-seen)  ~
-            =/  =wain  !<(wain q.cage.p.prompt-seen)
-            ?~  wain  ~
-            =/  base=@t  (of-wain:format wain)
-            =/  ship=@t  (scot %p our.bowl)
-            =/  msg-count=@t  (crip (a-co:co (lent (tap:mon messages.msg))))
             :-  ~
             %+  rap  3
-            :~  base
+            :~  system-prompt
                 '\0a\0aLIVE CONTEXT: Ship: '
                 ship
                 '. Current time: '
@@ -134,6 +105,7 @@
                 '. Messages in conversation: '
                 msg-count
                 '.'
+                ?:(=('' custom) '' (rap 3 ~['\0a\0aCUSTOM INSTRUCTIONS:\0a' custom]))
             ==
           ::  build request — filter <error> messages from API payload
           =/  msgs-json=json
@@ -214,7 +186,17 @@
             ::  TODO: execute tool calls, stream results back
             ;<  ~  bind:m  (sleep:io ~s0..0001)
             ;<  msg=messages  bind:m  (get-state-as:io ,messages)
-            ;<  ~  bind:m  (append-msg msg 'user' '<result>Tool execution not yet implemented</result>')
+            ;<  ~  bind:m  (append-msg msg 'user' '<tool>Tool execution not yet implemented</tool>')
+            $(thinks 0)  ::  loop back for Claude to see result
+          ::
+              %api
+            ~&  >  [%claude-api method.u.tag path.u.tag]
+            ::  TODO: execute API call via fiber primitives
+            ;<  ~  bind:m  (sleep:io ~s0..0001)
+            ;<  msg=messages  bind:m  (get-state-as:io ,messages)
+            =/  summary=@t
+              (rap 3 ~[(crip (cuss (trip method.u.tag))) ' ' path.u.tag ' - not yet implemented'])
+            ;<  ~  bind:m  (append-msg msg 'user' (cat 3 '<api>' (cat 3 summary '</api>')))
             $(thinks 0)  ::  loop back for Claude to see result
           ::
               %message
@@ -277,6 +259,44 @@
 ::  helper core
 ::
 |%
+++  system-prompt
+  ^~
+  %-  of-wain:format
+  :~  'You are Claude, an AI assistant running natively on an Urbit ship.'
+      'Urbit is a peer-to-peer operating system. You run as a Hoon application on the user\'s personal server.'
+      ''
+      'PROTOCOL: Every response must be exactly ONE XML tag. Valid tags:'
+      ''
+      '<thought>Your internal reasoning. Not shown to user. You get another turn immediately.</thought>'
+      '<tool>{"name":"tool_name","args":{"key":"value"}}</tool>'
+      '  Executes a tool. You can include multiple calls: <tool>[{"name":"a","args":{}},{"name":"b","args":{}}]</tool>'
+      '  Results stream back as <result> tags. You get another turn immediately.'
+      '<message>Text shown to the user. Pauses until the user responds or an event arrives.</message>'
+      '<wait/>'
+      '  Pause without showing anything. Resumes when an event arrives (tool result, user message, etc).'
+      '<api method="METHOD" path="/endpoint/path">optional body</api>'
+      '  Direct filesystem API call. Methods: GET, PUT, POST, DELETE.'
+      '  Self-closing for reads: <api method="GET" path="/file/foo/bar.txt" />'
+      '  Results stream back as <tool> tags. You get another turn immediately.'
+      '<done>Optional final output (JSON or text). Ends the session permanently.</done>'
+      ''
+      'RULES:'
+      '- CRITICAL: Your ENTIRE response must be exactly ONE XML tag. Nothing before it, nothing after it.'
+      '- Do NOT combine multiple tags in one response. If you want to think then respond,'
+      '  send <thought> ONLY. You will get another turn where you can send <message>.'
+      '- <thought> and <tool> give you another turn immediately. After your thought or tool'
+      '  response is stored, the system automatically injects a <continue/> message into the'
+      '  conversation to hand you the next turn. The user does not send these — the system does.'
+      '  They are visible in the chat log as protocol markers. When you see <continue/>, it means'
+      '  your previous action was processed and you should continue with your next response.'
+      '- <message>, <wait>, and <done> pause or end.'
+      '- If you need to think before acting, use <thought> first, then respond on your next turn.'
+      '- IMPORTANT: Do not chain more than 2-3 thoughts in a row. After thinking, send a <message>.'
+      '  The system enforces a thought cap - after 5 consecutive thoughts, your next response'
+      '  MUST be a <message>, <wait>, or <done>.'
+      '- For tool calls, use the exact tool names and argument formats provided.'
+  ==
+::
 ++  jget-t
   |=  [j=json key=@t default=@t]
   ^-  @t
@@ -319,9 +339,12 @@
   ?:  =((end [3 7] raw) '<error>')
     %-  pairs:enjs:format
     ~[['role' s+rol] ['type' s+'error'] ['content' s+(extract-inner raw)]]
-  ?:  =((end [3 8] raw) '<result>')
+  ?:  &(=('user' rol) =((end [3 6] raw) '<tool>'))
     %-  pairs:enjs:format
-    ~[['role' s+rol] ['type' s+'result'] ['content' s+(extract-inner raw)]]
+    ~[['role' s+'user'] ['type' s+'tool'] ['content' s+(extract-inner raw)]]
+  ?:  &(=('user' rol) =((end [3 5] raw) '<api>'))
+    %-  pairs:enjs:format
+    ~[['role' s+'user'] ['type' s+'api'] ['content' s+(extract-inner raw)]]
   ::  user messages — plain text
   ?:  =('user' rol)
     %-  pairs:enjs:format
@@ -346,6 +369,10 @@
       ?:(=('' acc) name.tc (cat 3 acc (cat 3 ', ' name.tc)))
     %-  pairs:enjs:format
     ~[['role' s+'assistant'] ['type' s+'tool'] ['content' s+names]]
+      %api
+    =/  summary=@t  (rap 3 ~[(crip (cuss (trip method.u.tag))) ' ' path.u.tag])
+    %-  pairs:enjs:format
+    ~[['role' s+'assistant'] ['type' s+'api'] ['content' s+summary]]
       %wait
     %-  pairs:enjs:format
     ~[['role' s+'assistant'] ['type' s+'wait'] ['content' s+'']]
@@ -406,6 +433,14 @@
           =("<wait />" t)
       ==
     `[%wait ~]
+  ::  Check for self-closing <api ... /> first
+  ?:  &(=('<' (snag 0 t)) =('>' (snag (dec (lent t)) t)) =('/' (snag (sub (lent t) 2) t)))
+    =/  tag-str=tape  (slag 1 (scag (sub (lent t) 2) t))
+    =/  tag-name=tape
+      =/  sp=(unit @ud)  (find " " tag-str)
+      ?~(sp tag-str (scag u.sp tag-str))
+    ?:  =("api" tag-name)  (parse-api-tag tag-str '')
+    ~
   ::  Match <tag>content</tag> pattern
   =/  open=(unit @ud)  (find "<" t)
   ?~  open  ~
@@ -428,6 +463,7 @@
   ?:  =("message" tag-name)  `[%message inner]
   ?:  =("done" tag-name)     `[%done inner]
   ?:  =("tool" tag-name)     (parse-tool-tag inner)
+  ?:  =("api" tag-name)      (parse-api-tag tag-str inner)
   ~
 ::  Parse <tool> tag content as JSON tool calls
 ::
@@ -458,6 +494,29 @@
   =/  args=(unit json)  (~(get by p.j) 'args')
   =/  args-t=@t  ?~(args '{}' (en:json:html u.args))
   `[p.u.name args-t]
+::
+::  Parse <api> tag: extract method and path attributes
+::
+++  parse-api-tag
+  |=  [tag-str=tape body=@t]
+  ^-  (unit response-tag)
+  =/  method=@t  (get-attr tag-str "method")
+  =/  path=@t    (get-attr tag-str "path")
+  ?:  |(=('' method) =('' path))  ~
+  `[%api method path body]
+::  Extract an attribute value from a tag string
+::  e.g. (get-attr "api method=\"GET\" path=\"/foo\"" "method") -> 'GET'
+::
+++  get-attr
+  |=  [tag-str=tape attr=tape]
+  ^-  @t
+  =/  key=tape  (weld attr "=\"")
+  =/  pos=(unit @ud)  (find key tag-str)
+  ?~  pos  ''
+  =/  val-start=tape  (slag (add u.pos (lent key)) tag-str)
+  =/  end=(unit @ud)  (find "\"" val-start)
+  ?~  end  ''
+  (crip (scag u.end val-start))
 ::
 ++  extract-error
   |=  response=@t
@@ -504,14 +563,15 @@
   ^-  manx
   =/  api=tape  "/grubbery/api"
   =/  base=tape  "claude.claude"
+  =/  sp-json=tape  (trip (en:json:html s+system-prompt))
   =/  js=tape
     ;:  weld
-      "var API='{api}',BASE='{base}';"
+      "var API='{api}',BASE='{base}',SYSTEM_PROMPT={sp-json};"
       "var box=document.getElementById('messages'),input=document.getElementById('input'),form=document.getElementById('form');"
       "function scrollBottom()\{box.scrollTop=box.scrollHeight}"
       "setTimeout(scrollBottom,100);setTimeout(scrollBottom,300);window.addEventListener('load',scrollBottom);"
       "function esc(s)\{var d=document.createElement('div');d.textContent=s;return d.innerHTML}"
-      "function addMsg(role,content,type)\{var d=document.createElement('div');var t=type||'message';d.className='msg '+t;var label='<b>'+esc(role)+'</b>';if(t==='continue'||t==='wait')\{d.innerHTML=label+'<span class=\\'sub\\'>'+esc(t)+'</span>'}else\{d.innerHTML=label+(t!=='message'?'<span class=\\'sub\\'>'+esc(t)+'</span>':'')+'<pre>'+esc(content)+'</pre>'}box.appendChild(d);scrollBottom()}"
+      "function addMsg(role,content,type)\{var d=document.createElement('div');var t=type||'message';d.className='msg '+t+' '+role;var label='<b>'+esc(role)+'</b>';if(t==='continue'||t==='wait')\{d.innerHTML=label+'<span class=\\'sub\\'>'+esc(t)+'</span>'}else\{d.innerHTML=label+(t!=='message'?'<span class=\\'sub\\'>'+esc(t)+'</span>':'')+'<pre>'+esc(content)+'</pre>'}box.appendChild(d);scrollBottom()}"
       "function showError(msg)\{var d=document.createElement('div');d.className='msg error';d.innerHTML='<b>system</b><span class=\\'sub\\'>error</span><pre>'+esc(msg)+'</pre>';box.appendChild(d);scrollBottom()}"
       "function autoResize()\{input.style.height='auto';input.style.height=input.scrollHeight+'px'}"
       "input.addEventListener('input',autoResize);"
@@ -521,7 +581,13 @@
       "function connect()\{var es=new EventSource(API+'/keep/'+BASE+'/ui/sse/last-message.json?mark=json');es.addEventListener('upd last-message.json',onLastMsg);es.onerror=function()\{es.close();setTimeout(connect,2000)}}"
       "function onStatus(e)\{try\{var s=JSON.parse(e.data);var el=document.getElementById('loading');if(s.loading)\{el.classList.add('active')}else\{el.classList.remove('active')}}catch(x)\{}}"
       "function connectStatus()\{var es=new EventSource(API+'/keep/'+BASE+'/ui/sse/status.json?mark=json');es.addEventListener('upd status.json',onStatus);es.onerror=function()\{es.close();setTimeout(connectStatus,2000)}}"
-    "document.querySelectorAll('#filters input').forEach(function(cb)\{cb.addEventListener('change',function()\{var t=this.getAttribute('data-type');if(this.checked)\{box.classList.remove('hide-'+t)}else\{box.classList.add('hide-'+t)}})});"
+    "document.querySelectorAll('#filters input').forEach(function(cb)\{cb.addEventListener('change',function()\{var t=this.getAttribute('data-type');var r=this.getAttribute('data-role');var cls='hide-'+r+'-'+t;if(this.checked)\{box.classList.remove(cls)}else\{box.classList.add(cls)}})});"
+    "var backdrop=document.getElementById('modal-backdrop'),editor=document.getElementById('prompt-editor'),sysDiv=document.getElementById('prompt-system'),saveBtn=document.getElementById('prompt-save');"
+    "document.getElementById('prompt-btn').onclick=async function()\{backdrop.classList.add('open');sysDiv.textContent=SYSTEM_PROMPT;try\{var r=await fetch(API+'/file/'+BASE+'/custom-prompt.txt?mark=txt');editor.value=r.ok?await r.text():''}catch(e)\{editor.value=''}};"
+    "document.getElementById('prompt-close').onclick=function()\{backdrop.classList.remove('open')};"
+    "backdrop.onclick=function(e)\{if(e.target===backdrop)backdrop.classList.remove('open')};"
+    "saveBtn.onclick=async function()\{try\{var r=await fetch(API+'/over/'+BASE+'/custom-prompt.txt?mark=txt',\{method:'POST',body:editor.value});if(r.ok)\{backdrop.classList.remove('open')}else\{alert('Save failed: '+r.status)}}catch(e)\{alert('Save failed: '+e.message)}};"
+    "document.querySelectorAll('#modal-tabs button').forEach(function(btn)\{btn.onclick=function()\{document.querySelectorAll('#modal-tabs button').forEach(function(b)\{b.classList.remove('active')});document.querySelectorAll('.tab-pane').forEach(function(p)\{p.classList.remove('active')});btn.classList.add('active');document.getElementById('tab-'+btn.getAttribute('data-tab')).classList.add('active');saveBtn.style.display=btn.getAttribute('data-tab')==='custom'?'':'none'}});"
     "connect();connectStatus();"
     ==
   ;html
@@ -550,6 +616,8 @@
           ".msg.wait \{ opacity: 0.3; font-size: 0.7rem; } "
           ".msg.result pre \{ background: #e8f4fd; padding: 0.5rem; border-radius: 4px; } "
           ".msg.result b \{ color: #036; } "
+          ".msg.api pre \{ background: #f0f0ff; padding: 0.5rem; border-radius: 4px; } "
+          ".msg.api b \{ color: #449; } "
           ".msg.error pre \{ background: #fee; padding: 0.5rem; border-radius: 4px; color: #c00; } "
           ".msg.error b \{ color: #c00; } "
           "#form \{ display: flex; gap: 0.5rem; align-items: flex-end; } "
@@ -568,52 +636,84 @@
           "#filters input \{ display: none; } "
           "#filters input:checked + span \{ opacity: 1; } "
           "#filters input:not(:checked) + span \{ text-decoration: line-through; } "
-          ".hide-thought .msg.thought, .hide-tool .msg.tool, .hide-error .msg.error, .hide-result .msg.result, .hide-continue .msg.continue, .hide-wait .msg.wait, .hide-done .msg.done, .hide-message .msg.message \{ display: none; } "
+          ".hide-assistant-message .msg.message.assistant, .hide-assistant-thought .msg.thought.assistant, .hide-assistant-tool .msg.tool.assistant, .hide-assistant-api .msg.api.assistant, .hide-assistant-wait .msg.wait.assistant, .hide-assistant-done .msg.done.assistant \{ display: none; } "
+          ".hide-user-message .msg.message.user, .hide-user-error .msg.error.user, .hide-user-tool .msg.tool.user, .hide-user-api .msg.api.user, .hide-user-continue .msg.continue.user \{ display: none; } "
+          "#header \{ display: flex; align-items: baseline; gap: 0.75rem; margin-bottom: 1rem; } "
+          "#header h1 \{ margin-bottom: 0; } "
+          "#prompt-btn \{ font-family: monospace; font-size: 0.65rem; text-transform: uppercase; opacity: 0.4; cursor: pointer; padding: 0.15rem 0.4rem; border: 1px solid #ccc; border-radius: 3px; background: none; } "
+          "#prompt-btn:hover \{ opacity: 0.8; } "
+          "#modal-backdrop \{ display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.3); z-index: 100; } "
+          "#modal-backdrop.open \{ display: flex; align-items: center; justify-content: center; } "
+          "#modal \{ background: #fff; border: 1px solid #ccc; border-radius: 4px; width: 90%; max-width: 700px; height: 70vh; display: flex; flex-direction: column; padding: 1rem; } "
+          "#modal-header \{ display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 0.75rem; } "
+          "#modal-header span \{ font-family: monospace; font-size: 0.8rem; font-weight: bold; text-transform: uppercase; opacity: 0.5; } "
+          "#modal-actions \{ display: flex; gap: 0.5rem; } "
+          "#modal-actions button \{ font-family: monospace; font-size: 0.65rem; text-transform: uppercase; padding: 0.2rem 0.5rem; border: 1px solid #ccc; border-radius: 3px; cursor: pointer; background: none; } "
+          "#modal-actions button:hover \{ background: #eee; } "
+          "#modal-tabs \{ display: flex; gap: 0; margin-bottom: 0.75rem; border-bottom: 1px solid #ccc; } "
+          "#modal-tabs button \{ font-family: monospace; font-size: 0.65rem; text-transform: uppercase; padding: 0.3rem 0.6rem; border: 1px solid #ccc; border-bottom: none; border-radius: 3px 3px 0 0; cursor: pointer; background: #f5f5f5; opacity: 0.5; margin-bottom: -1px; } "
+          "#modal-tabs button.active \{ background: #fff; opacity: 1; border-bottom: 1px solid #fff; } "
+          "#modal-tabs button:hover \{ opacity: 0.8; } "
+          ".tab-pane \{ display: none; flex: 1; min-height: 0; } "
+          ".tab-pane.active \{ display: flex; flex-direction: column; flex: 1; } "
+          "#prompt-system \{ flex: 1; font-family: monospace; font-size: 0.8rem; line-height: 1.5; border: 1px solid #e0e0e0; border-radius: 4px; padding: 0.5rem; background: #f8f8f8; color: #666; overflow-y: auto; white-space: pre-wrap; word-wrap: break-word; } "
+          "#prompt-editor \{ flex: 1; font-family: monospace; font-size: 0.8rem; line-height: 1.5; border: 1px solid #ccc; border-radius: 4px; padding: 0.5rem; resize: none; } "
         ==
       ==
     ==
     ;body
-      ;h1: Claude Chat
+      ;div#header
+        ;h1: Claude Chat
+        ;button#prompt-btn: prompt
+      ==
       ;div#filters
         ;div(class "filter-row")
           ;span(class "filter-label"): assistant
           ;label
-            ;input(type "checkbox", checked "", data-type "message");
+            ;input(type "checkbox", checked "", data-type "message", data-role "assistant");
             ;span: message
           ==
           ;label
-            ;input(type "checkbox", checked "", data-type "thought");
+            ;input(type "checkbox", checked "", data-type "thought", data-role "assistant");
             ;span: thought
           ==
           ;label
-            ;input(type "checkbox", checked "", data-type "tool");
+            ;input(type "checkbox", checked "", data-type "tool", data-role "assistant");
             ;span: tool
           ==
           ;label
-            ;input(type "checkbox", checked "", data-type "wait");
+            ;input(type "checkbox", checked "", data-type "api", data-role "assistant");
+            ;span: api
+          ==
+          ;label
+            ;input(type "checkbox", checked "", data-type "wait", data-role "assistant");
             ;span: wait
           ==
           ;label
-            ;input(type "checkbox", checked "", data-type "done");
+            ;input(type "checkbox", checked "", data-type "done", data-role "assistant");
             ;span: done
           ==
         ==
         ;div(class "filter-row")
           ;span(class "filter-label"): user
           ;label
-            ;input(type "checkbox", checked "", data-type "message");
+            ;input(type "checkbox", checked "", data-type "message", data-role "user");
             ;span: message
           ==
           ;label
-            ;input(type "checkbox", checked "", data-type "error");
+            ;input(type "checkbox", checked "", data-type "error", data-role "user");
             ;span: error
           ==
           ;label
-            ;input(type "checkbox", checked "", data-type "result");
-            ;span: result
+            ;input(type "checkbox", checked "", data-type "tool", data-role "user");
+            ;span: tool
           ==
           ;label
-            ;input(type "checkbox", checked "", data-type "continue");
+            ;input(type "checkbox", checked "", data-type "api", data-role "user");
+            ;span: api
+          ==
+          ;label
+            ;input(type "checkbox", checked "", data-type "continue", data-role "user");
             ;span: continue
           ==
         ==
@@ -626,7 +726,7 @@
             ::  protocol messages (loading/continue/error/result)
             ?:  =('<continue/>' content.message)
               :-  ~
-              ;div(class "msg continue")
+              ;div(class "msg continue {role}")
                 ;b: {role}
                 ;span(class "sub"): continue
               ==
@@ -634,12 +734,13 @@
                     =((end [3 1] content.message) '<')
                 ==
               =/  tag-type=tape
-                ?:  =((end [3 7] content.message) '<error>')   "error"
-                ?:  =((end [3 8] content.message) '<result>')  "result"
+                ?:  =((end [3 7] content.message) '<error>')  "error"
+                ?:  =((end [3 6] content.message) '<tool>')   "tool"
+                ?:  =((end [3 5] content.message) '<api>')    "api"
                 "message"
               =/  inner=tape  (trip (extract-inner content.message))
               :-  ~
-              ;div(class "msg {tag-type}")
+              ;div(class "msg {tag-type} {role}")
                 ;b: {role}
                 ;span(class "sub"): {tag-type}
                 ;pre: {inner}
@@ -648,7 +749,7 @@
             =/  is-err=?  =((end [3 7] content.message) '[Error]')
             ?:  is-err
               :-  ~
-              ;div(class "msg error")
+              ;div(class "msg error {role}")
                 ;b: {role}
                 ;span(class "sub"): error
                 ;pre: {(trip (rsh [3 8] content.message))}
@@ -656,14 +757,14 @@
             ::  non-assistant: show as-is
             ?.  =('assistant' role.message)
               :-  ~
-              ;div(class "msg message")
+              ;div(class "msg message {role}")
                 ;b: {role}
                 ;pre: {(trip content.message)}
               ==
             ::  assistant: check for <error>, then parse XML tag
             ?:  =((end [3 7] content.message) '<error>')
               :-  ~
-              ;div(class "msg error")
+              ;div(class "msg error assistant")
                 ;b: assistant
                 ;span(class "sub"): error
                 ;pre: {(trip (extract-inner content.message))}
@@ -671,21 +772,21 @@
             =/  tag=(unit response-tag)  (parse-response content.message)
             ?~  tag
               :-  ~
-              ;div(class "msg message")
+              ;div(class "msg message assistant")
                 ;b: assistant
                 ;pre: {(trip content.message)}
               ==
             ?-  -.u.tag
                 %thought
               :-  ~
-              ;div(class "msg thought")
+              ;div(class "msg thought assistant")
                 ;b: assistant
                 ;span(class "sub"): thought
                 ;pre: {(trip text.u.tag)}
               ==
                 %message
               :-  ~
-              ;div(class "msg message")
+              ;div(class "msg message assistant")
                 ;b: assistant
                 ;pre: {(trip text.u.tag)}
               ==
@@ -695,20 +796,29 @@
                 |=  [tc=tool-call acc=tape]
                 (weld acc "{(trip name.tc)}({(trip args.tc)}) ")
               :-  ~
-              ;div(class "msg tool")
+              ;div(class "msg tool assistant")
                 ;b: assistant
                 ;span(class "sub"): tool
                 ;pre: {calls-text}
               ==
+                %api
+              =/  summary=tape
+                "{(cuss (trip method.u.tag))} {(trip path.u.tag)}"
+              :-  ~
+              ;div(class "msg api assistant")
+                ;b: assistant
+                ;span(class "sub"): api
+                ;pre: {summary}
+              ==
                 %wait
               :-  ~
-              ;div(class "msg wait")
+              ;div(class "msg wait assistant")
                 ;b: assistant
                 ;span(class "sub"): wait
               ==
                 %done
               :-  ~
-              ;div(class "msg done")
+              ;div(class "msg done assistant")
                 ;b: assistant
                 ;span(class "sub"): done
                 ;pre: {(trip output.u.tag)}
@@ -719,6 +829,27 @@
       ;form#form
         ;textarea#input(rows "1", placeholder "Type a message...");
         ;button(type "submit"): Send
+      ==
+      ;div#modal-backdrop
+        ;div#modal
+          ;div#modal-header
+            ;span: Prompt
+            ;div#modal-actions
+              ;button#prompt-save: save
+              ;button#prompt-close: close
+            ==
+          ==
+          ;div#modal-tabs
+            ;button(class "active", data-tab "system"): system
+            ;button(data-tab "custom"): custom
+          ==
+          ;div(id "tab-system", class "tab-pane active")
+            ;div#prompt-system;
+          ==
+          ;div(id "tab-custom", class "tab-pane")
+            ;textarea#prompt-editor;
+          ==
+        ==
       ==
       ;script
         ;+  ;/  js
