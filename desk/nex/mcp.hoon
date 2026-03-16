@@ -490,16 +490,51 @@
   ^-  @t
   ?-    -.mana
       %&
-    ?+  p.mana  'Inert subdirectory under the MCP nexus. No special behavior.'
-      ~  'MCP (Model Context Protocol) nexus. JSON-RPC server for AI tool use. /cus/ holds custom tool source files, /bin/ holds compiled tools, /tools/ holds running tool instances. The builder process watches /cus/ and recompiles on change.'
-      [%cus ~]   'Custom tool sources. Drop .hoon files here to add MCP tools. The builder auto-compiles them into /bin/. Source must produce a valid tool:tools.'
-      [%bin ~]   'Compiled tools. .temp files are successful builds (executable vases), .tang files are compile errors. Auto-managed by the builder.'
-      [%tools ~]  'Running tool instances. Each active tool call gets a fiber here with its state (tool-state mark). Cleaned up on completion.'
+    ?+  p.mana  'Subdirectory under the MCP nexus.'
+        ~
+      %-  crip
+      """
+      MCP NEXUS — Model Context Protocol JSON-RPC tool server
+
+      Exposes Hoon-defined tools to AI clients (Claude Code, etc.) via
+      the MCP JSON-RPC protocol. Tools are compiled from source in /cus/
+      into /bin/, then registered for dispatch.
+
+      Built-in tools are loaded from /lib/nex/mcp/tools/. Custom tools
+      in /cus/ extend the set. The builder watches /cus/ and recompiles
+      on change.
+
+      FILES:
+        main.sig            HTTP binding process. Registers /grubbery/mcp
+                            with the server, handles JSON-RPC dispatch.
+        builder.sig         Tool compiler. Watches /cus/, compiles to /bin/,
+                            registers tools in the live tool registry.
+        ver.ud              Schema version.
+
+      DIRECTORIES:
+        cus/                Custom tool sources. Drop .hoon files here to
+                            add tools. Must produce a valid tool:tools gate.
+        bin/                Compiled tools. .temp = success (vase),
+                            .tang = error. Auto-managed by builder.
+        tools/              Running tool instances. Each active tool call
+                            gets a fiber here (tool-state mark). Cleaned
+                            up on completion.
+        requests/           Per-request fibers for active HTTP connections.
+      """
+        [%cus ~]
+      'Custom tool sources. Drop .hoon files here to add MCP tools. The builder auto-compiles them into /bin/. Source must produce a gate matching the tool:tools interface.'
+        [%bin ~]
+      'Compiled tools. .temp = successful build (executable vase), .tang = compile error (stack trace). Auto-managed by the builder — do not edit directly.'
+        [%tools ~]
+      'Running tool instances. Each active tool call gets a fiber here with its state (tool-state mark). Cleaned up on completion.'
+        [%requests ~]
+      'Per-request fibers for active MCP HTTP connections.'
     ==
       %|
-    ?+  name.rail.p.mana  'Inert file under the MCP nexus. No special documentation.'
-      %'main.sig'   'MCP HTTP binding process. Registers /grubbery/mcp with the server and handles JSON-RPC dispatch.'
-      %'builder.sig'  'MCP tool builder. Watches /cus/ for source changes, compiles to /bin/, registers tools in the live registry.'
+    ?+  rail.p.mana  'File under the MCP nexus.'
+      [~ %'main.sig']     'MCP HTTP binding process. Mark: sig. Registers /grubbery/mcp with the server, parses JSON-RPC requests, dispatches to tool fibers in /tools/.'
+      [~ %'builder.sig']  'MCP tool builder. Mark: sig. Watches /cus/ for source changes, compiles to /bin/, registers tools in the live registry.'
+      [~ %'ver.ud']       'Schema version counter. Mark: ud.'
     ==
   ==
 --

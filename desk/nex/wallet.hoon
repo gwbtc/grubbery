@@ -131,13 +131,36 @@
       ^-  @t
       ?-    -.mana
           %&
-        ?+  p.mana  'Inert subdirectory under the wallet nexus. No special behavior.'
-          ~  'Wallet nexus. Bitcoin wallet management with web UI. /wallets/ holds wallet grubs. Serves HTML interface with SSE streaming for live updates.'
-          [%wallets ~]  'Wallet storage. Each file is a wallet grub.'
+        ?+  p.mana  'Subdirectory under the wallet nexus.'
+            ~
+          %-  crip
+          """
+          WALLET NEXUS — Bitcoin wallet management with web UI
+
+          Manages Bitcoin wallets with a browser-based interface. Each wallet
+          is stored as a grub file in /wallets/. The web UI serves at
+          the registered HTTP prefix with live SSE updates.
+
+          FILES:
+            main.sig            HTTP binding process. Serves wallet UI and
+                                handles wallet operations.
+            ver.ud              Schema version.
+
+          DIRECTORIES:
+            wallets/            Wallet storage. Each file is a wallet grub
+                                containing keys, addresses, and transaction
+                                history.
+            requests/           Per-request fibers for active HTTP connections.
+          """
+            [%wallets ~]
+          'Wallet storage. Each file is a wallet grub containing keys, addresses, and transaction history.'
+            [%requests ~]
+          'Per-request fibers for active HTTP connections to the wallet UI.'
         ==
           %|
-        ?+  name.rail.p.mana  'Inert file under the wallet nexus. No special documentation.'
-          %'main.sig'  'Wallet HTTP binding process. Serves wallet UI and handles SSE streaming.'
+        ?+  rail.p.mana  'File under the wallet nexus.'
+          [~ %'main.sig']  'Wallet HTTP binding process. Mark: sig. Serves wallet UI, handles wallet operations, streams live updates via SSE.'
+          [~ %'ver.ud']    'Schema version counter. Mark: ud.'
         ==
       ==
     --

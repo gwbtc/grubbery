@@ -34,9 +34,6 @@
   ::  Create /sys/build.build directory with neck=%build
   =?  ball  =(~ (~(get of ball) /sys/'build.build'))
     (~(put of ball) /sys/'build.build' [~ `%build ~])
-  ::  Create /clurd.clurd directory with neck=%clurd
-  =?  ball  =(~ (~(get of ball) /'clurd.clurd'))
-    (~(put of ball) /'clurd.clurd' [~ `%clurd ~])
   ::  Create /config/creds directory if not present
   =?  ball  =(~ (~(get of ball) /config))
     (~(put of ball) /config [~ ~ ~])
@@ -71,17 +68,63 @@
   ^-  @t
   ?-    -.mana
       %&
-    ?+  p.mana  'Inert subdirectory under the root nexus. No special behavior.'
+    ?+  p.mana  'Subdirectory under the root nexus.'
         ~
-      'Grubbery root. The top-level ball containing all system nexuses and user data. Subdirectories: sys/ (system internals, build, logs), server.server/ (HTTP gateway), claude.claude/ (AI chat), mcp.mcp/ (MCP tools), counter.counter/ (counters), explorer.explorer/ (file browser), peers.peers/ (external ship access), wallet.wallet/ (bitcoin), clurd.clurd/ (terminal), config/ (credentials).'
+      %-  crip
+      """
+      GRUBBERY ROOT — top-level tarball
+
+      The root nexus bootstraps all system nexuses and user data.
+      Each subdirectory with a neck (e.g. server.server/) is a child
+      nexus managed by its own nex/ file.
+
+      NEXUSES:
+        server.server/     HTTP gateway. Routes requests to handler nexuses.
+        claude.claude/     AI chat via Anthropic API.
+        mcp.mcp/           MCP (Model Context Protocol) JSON-RPC tool server.
+        explorer.explorer/ Web-based tarball file browser.
+        counter.counter/   Auto-incrementing counters with live UI.
+        peers.peers/       External ship gateway with role-based access control.
+        wallet.wallet/     Bitcoin wallet management.
+
+      SYSTEM:
+        sys/               System internals — build compiler, terminal logs,
+                           cryptographic keys, root main process.
+        config/            User configuration and credentials.
+      """
         [%sys ~]
-      'System internals. Contains build.build/ (Hoon compiler), dill/ (terminal logs), jael/ (cryptographic keys), and the root main process.'
+      %-  crip
+      """
+      sys/ — System internals.
+
+      SUBDIRECTORIES:
+        build.build/    Hoon compiler nexus. Compiles /src/ to /bin/.
+        dill/           Terminal I/O logs. Mark: dill-told. History retained.
+        jael/           Cryptographic key storage. History retained.
+                        private-keys.jael-private-keys — ship private keys.
+                        public-keys.jael-public-keys-result — PKI cache.
+
+      FILES:
+        main.sig        Root system process. Mark: sig.
+      """
         [%config ~]
-      'Configuration directory. Contains creds/ for API keys and service credentials.'
+      %-  crip
+      """
+      config/ — User configuration.
+
+      SUBDIRECTORIES:
+        creds/          API keys and service credentials. Files here are
+                        read by nexuses that need them (e.g. claude reads
+                        config.json for its API key, MCP tools read
+                        telegram tokens, S3 keys, etc).
+      """
         [%config %creds ~]
-      'Credentials store. Service credentials (telegram bot tokens, S3 keys, etc). Files are auto-read by nexuses that need them.'
+      'Credentials store. Service API keys and tokens. Files are read by nexuses on demand.'
     ==
       %|
-    'Inert file under the root nexus. No special documentation.'
+    ?+  rail.p.mana  'File under the root nexus.'
+      [~ %'ver.ud']         'Schema version counter. Mark: ud. Incremented on structural migrations in on-load.'
+      [[%sys ~] %'main.sig']  'Root system process. Mark: sig. Manages system-level coordination.'
+    ==
   ==
 --

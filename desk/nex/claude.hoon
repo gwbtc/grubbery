@@ -28,7 +28,7 @@
       =.  ball  (~(del ba:tarball ball) [/ %'registry.txt'])
       ::  main.claude-registry — create if missing, preserve across restarts
       =?  ball  =(~ (~(get ba:tarball ball) [/ %'main.claude-registry']))
-        (~(put ba:tarball ball) [/ %'main.claude-registry'] [~ %claude-registry !>(`registry`[%0 0 ~ ~])])
+        (~(put ba:tarball ball) [/ %'main.claude-registry'] [~ %claude-registry !>(`registry`[%0 0 ~ %.y])])
       ::  weir.txt — live rendered view of parent directory weir
       =.  ball
         (~(put ba:tarball ball) [/ %'weir.txt'] [~ %txt !>(`wain`~['No weir set.'])])
@@ -45,7 +45,7 @@
       =.  ball
         (~(put ba:tarball ball) [/ui/sse %'last-message.html'] [~ %manx !>(*manx)])
       =.  ball
-        (~(put ba:tarball ball) [/ui/sse %'status.json'] [~ %json !>((pairs:enjs:format ~[['loading' b+%.n]]))])
+        (~(put ba:tarball ball) [/ui/sse %'status.json'] [~ %json !>((pairs:enjs:format ~[['loading' b+%.n] ['live' b+%.y]]))])
       [sand gain ball]
     ::
     ++  on-file
@@ -65,6 +65,8 @@
           ~&  >  [%claude-chat %unknown-mark p.cage]
           $
         =/  =action  !<(action q.cage)
+        ?:  ?=(%live -.action)  $       ::  not a message — skip
+        ?:  ?=(%interrupt -.action)  $  ::  not a message — skip
         =/  [role=@t text=@t]
           ?-  -.action
               %say  ['user' text.action]
@@ -79,15 +81,15 @@
         ;<  ~  bind:m  (replace:io !>(new))
         $
       ::  /main.claude-registry — THE process. Handles user messages, Claude API,
-      ::  keeps, one-shots, everything. Messages file is inert state written via
-      ::  poke:io.
+      ::  everything. Messages file is inert state written via poke:io.
       ::
-      ::  State: [%0 next-id=@ud active=(map @ud reg-request)]
-      ::  Tracks active keep subscriptions. One-shots complete inline.
+      ::  State: [%0 nex=@ud slots=(map @ud slot)]
+      ::  Every outgoing operation gets a slot. Responses match by wire /slot/N.
       ::
-      ::  Event loop multiplexes:
+      ::  Event loop multiplexes ALL events:
       ::  - Pokes: user messages (claude-action from UI)
-      ::  - News on /keep/N: keep subscription updates
+      ::  - Peek/made/over/gone/pack/diff/sand/manu: async responses
+      ::  - Bond/news/fell: subscription lifecycle
       ::
           [~ %'main.claude-registry']
         ;<  ~  bind:m  (rise-wait:io prod "%claude: failed")
@@ -170,7 +172,7 @@
             config.json             API key, model, max_tokens (JSON)
             messages.claude-messages Ordered message log (claude-messages mark)
             custom-prompt.txt       Prepended to system prompt on every API call
-            main.claude-registry    Active request tracker — keeps + flights
+            main.claude-registry    Async slot registry — every request gets a slot
             weir.txt                Live-rendered view of parent directory sandbox rules
 
           DIRECTORIES:
@@ -183,22 +185,11 @@
           PROCESSES:
             messages.claude-messages  Inert store. Accepts %claude-action pokes,
                                       appends [role content] to the mop. That's all.
-            main.claude-registry      THE process. On user poke (%say):
-                                      1. Appends user message to store
-                                      2. Builds system prompt (custom + live context)
-                                      3. Calls Anthropic API via HTTP
-                                      4. Parses response as single XML tag
-                                      5. Dispatches tag:
-                                         <thought>  → append, loop (gets another turn)
-                                         <tool>     → dispatch to MCP, append result, loop
-                                         <api>      → dispatch to ball API, append result
-                                         <message>  → append, pause for input/events
-                                         <wait/>    → pause without output
-                                         <done>     → end session
-                                         <notify>   → fire-and-forget notification
-                                         <continue/> → get another turn immediately
-                                      6. Also multiplexes keep subscription updates
-                                         (news events arrive between turns)
+            main.claude-registry      THE process. Multiplexes ALL events:
+                                      pokes (user messages), peek/ack responses,
+                                      bond/news/fell (subscription lifecycle).
+                                      Every outgoing dart gets a slot with wire
+                                      /slot/N. Responses match back by wire.
             weir.txt                  Watches parent dir via keep ../  Renders
                                       sandbox rules as text on each change.
             ui/chat.html              Watches messages via keep. Re-renders full
@@ -260,9 +251,9 @@
           """
         ==
           %|
-        ?+  name.rail.p.mana
-            'Inert file under the claude nexus. No special behavior or documentation beyond its mark and contents.'
-            %'config.json'
+        ?+  rail.p.mana
+            'File under the claude nexus.'
+            [~ %'config.json']
           %-  crip
           """
           config.json — API configuration. Mark: json.
@@ -277,7 +268,7 @@
 
           If api_key is empty, the first chat message returns an error.
           """
-            %'messages.claude-messages'
+            [~ %'messages.claude-messages']
           %-  crip
           """
           messages.claude-messages — Chat history. Mark: claude-messages.
@@ -298,7 +289,7 @@
           All logic (API calls, tool dispatch, etc.) lives in main.claude-registry,
           which pokes this file to record messages.
           """
-            %'custom-prompt.txt'
+            [~ %'custom-prompt.txt']
           %-  crip
           """
           custom-prompt.txt — Custom system prompt. Mark: txt (wain).
@@ -310,7 +301,7 @@
           READ:  peek, or api action "file ./custom-prompt.txt"
           WRITE: over with text body, or api action "over ./custom-prompt.txt"
           """
-            %'main.claude-registry'
+            [~ %'main.claude-registry']
           %-  crip
           """
           main.claude-registry — Main process + request tracker. Mark: claude-registry.
@@ -332,7 +323,7 @@
           The registry state is included in the system prompt so Claude
           knows what subscriptions and requests are active.
           """
-            %'weir.txt'
+            [~ %'weir.txt']
           %-  crip
           """
           weir.txt — Live sandbox rules display. Mark: txt.
@@ -345,9 +336,9 @@
           This is a derived view — do not edit directly.
           To change sandbox rules, use setweir/rmweir on the parent directory.
           """
-            %'ver.ud'
+            [~ %'ver.ud']
           'ver.ud — Nexus schema version counter. Mark: ud. Incremented on structural migrations in on-load.'
-            %'chat.html'
+            [[%ui ~] %'chat.html']
           %-  crip
           """
           ui/chat.html — Full chat page. Mark: manx (Sail HTML).
@@ -362,7 +353,7 @@
 
           Served at /grubbery/claude/ via the server nexus HTTP binding.
           """
-            %'last-message.html'
+            [[%ui %sse ~] %'last-message.html']
           %-  crip
           """
           ui/sse/last-message.html — SSE message stream. Mark: manx.
@@ -375,7 +366,7 @@
 
           This is the live streaming backbone of the chat UI.
           """
-            %'status.json'
+            [[%ui %sse ~] %'status.json']
           %-  crip
           """
           ui/sse/status.json — Loading state. Mark: json. \{"loading": true/false}.
@@ -394,8 +385,9 @@
 |%
 ::  Main event loop — handles user messages, Claude API, keeps, everything
 ::
-::  Multiplexes pokes (user messages from UI) and news (keep updates).
-::  Messages file written via poke:io (%claude-action).
+::  Multiplexes ALL events: pokes, peeks, acks, keeps, etc.
+::  Every outgoing dart has a slot in the registry. Every response
+::  matches back by wire /slot/N, formats a message, and calls claude-turn.
 ::
 ++  main-loop
   |=  msg-road=road:tarball
@@ -403,11 +395,19 @@
   ^-  form:m
   |-
   ;<  ev=main-event  bind:m  take-main-event
+  ;<  reg=registry  bind:m  (get-state-as:io ,registry)
   ?-    -.ev
-  ::  User message from UI — run Claude conversation turn
+  ::  User message from UI
   ::
       %poke
     =/  =action  !<(action q.cage.ev)
+    ?:  ?=(%interrupt -.action)
+      ~&  >  %claude-interrupt-no-op
+      $
+    ?:  ?=(%live -.action)
+      ~&  >  [%claude-live flag.action]
+      ;<  ~  bind:m  (set-live flag.action)
+      $
     =/  [role=@t text=@t]
       ?-  -.action
           %say  ['user' text.action]
@@ -415,63 +415,121 @@
       ==
     ?:  =('' text)  $
     ~&  >  [%claude-say (end [3 80] text)]
+    ::  User message always resumes live mode
+    ?.  live.reg
+      ~&  >  %claude-resuming
+      ;<  ~  bind:m  (set-live %.y)
+      ;<  ~  bind:m  (append-to-msgs msg-road role text)
+      ;<  ~  bind:m  (claude-turn msg-road)
+      $
     ;<  ~  bind:m  (append-to-msgs msg-road role text)
     ;<  ~  bind:m  (claude-turn msg-road)
     $
-  ::  Keep subscription update — append result to messages, then call Claude
+  ::  Peek result (file, kids, tree, sand, weir)
   ::
-      %news
-    ::  Wire is /keep/(scot %t path) — extract the path
-    =/  keep-path=(unit @t)
-      ?~  wire.ev  ~
-      ?~  t.wire.ev  ~
-      (slaw %t i.t.wire.ev)
-    ?~  keep-path
-      ~&  >>>  [%claude-unknown-wire wire.ev]
+      %peek
+    =/  id-slot  (get-slot wire.ev slots.reg)
+    ?~  id-slot
+      ~&  >>>  [%claude-stale-peek wire.ev]
       $
-    ;<  reg=registry  bind:m  (get-state-as:io ,registry)
-    ?.  (~(has by keeps.reg) u.keep-path)  $  ::  stale — ignore
-    ::  Bump update count
-    =/  count=@ud  (fall (~(get by keeps.reg) u.keep-path) 0)
-    ;<  ~  bind:m  (replace:io !>(`registry`reg(keeps (~(put by keeps.reg) u.keep-path +(count)))))
-    ?+    view.ev  $
-        [%file *]
-      ;<  content=@t  bind:m  (cage-to-txt cage.view.ev)
-      =/  msg=@t
-        (rap 3 ~['<api action="keep" path="' u.keep-path '">' content '</api>'])
-      ;<  ~  bind:m  (append-to-msgs msg-road 'user' msg)
+    =/  [id=@ud =slot]  u.id-slot
+    ;<  ~  bind:m  (clear-slot id)
+    ;<  [result=@t rev=(unit @ud)]  bind:m  (format-peek slot seen.ev)
+    ;<  ~  bind:m  (append-msg msg-road slot result rev)
+    ?.  live.reg  $
+    ;<  ~  bind:m  (claude-turn msg-road)
+    $
+  ::  Ack responses (make, over, cull, poke, diff, sand)
+  ::
+      %made
+    ;<  ~  bind:m  (handle-ack msg-road wire.ev err.ev slots.reg live.reg)
+    $
+      %over
+    ;<  ~  bind:m  (handle-ack msg-road wire.ev err.ev slots.reg live.reg)
+    $
+      %gone
+    ;<  ~  bind:m  (handle-ack msg-road wire.ev err.ev slots.reg live.reg)
+    $
+      %pack
+    ;<  ~  bind:m  (handle-ack msg-road wire.ev err.ev slots.reg live.reg)
+    $
+      %diff
+    ;<  ~  bind:m  (handle-ack msg-road wire.ev err.ev slots.reg live.reg)
+    $
+      %sand
+    ;<  ~  bind:m  (handle-ack msg-road wire.ev err.ev slots.reg live.reg)
+    $
+  ::  Manu documentation result
+  ::
+      %manu
+    =/  id-slot  (get-slot wire.ev slots.reg)
+    ?~  id-slot
+      ~&  >>>  [%claude-stale-manu wire.ev]
+      $
+    =/  [id=@ud =slot]  u.id-slot
+    ;<  ~  bind:m  (clear-slot id)
+    =/  result=@t
+      ?:  ?=(%& -.res.ev)  p.res.ev
+      (crip "ERROR: manu failed")
+    ;<  ~  bind:m  (append-msg msg-road slot result ~)
+    ?.  live.reg  $
+    ;<  ~  bind:m  (claude-turn msg-road)
+    $
+  ::  Keep subscription acked — initial view
+  ::
+      %bond
+    =/  id-slot  (get-slot wire.ev slots.reg)
+    ?~  id-slot
+      ~&  >>>  [%claude-stale-bond wire.ev]
+      $
+    =/  [id=@ud =slot]  u.id-slot
+    ?:  ?=(%| -.now.ev)
+      ;<  ~  bind:m  (clear-slot id)
+      ;<  ~  bind:m  (append-msg msg-road slot 'ERROR: Subscription failed' ~)
+      ?.  live.reg  $
       ;<  ~  bind:m  (claude-turn msg-road)
       $
-        [%ball *]
-      =/  rest=path  (turn (segments u.keep-path) |=(s=@t `@ta`s))
-      =/  root=ball:tarball  ball.view.ev
-      =/  root-born=born:nexus  born.view.ev
-      =/  what=(set lane:tarball)  (diff-born-state:nexus *born:nexus root-born)
-      =/  lanes=(list lane:tarball)  ~(tap in what)
-      |-
-      ?~  lanes
-        ;<  ~  bind:m  (claude-turn msg-road)
-        ^$
-      ?:  ?=(%| -.i.lanes)
-        $(lanes t.lanes)
-      =/  file-path=path  path.p.i.lanes
-      =/  file-name=@ta  name.p.i.lanes
-      =/  lane-path=@t  (spat (snoc file-path file-name))
-      =/  sub=ball:tarball  (~(dip ba:tarball root) file-path)
-      =/  ct=(unit content:tarball)
-        ?~  fil.sub  ~
-        (~(get by contents.u.fil.sub) file-name)
-      ?~  ct
-        =/  msg=@t
-          (rap 3 ~['<api action="keep" path="' lane-path '">DELETED</api>'])
-        ;<  ~  bind:m  (append-to-msgs msg-road 'user' msg)
-        $(lanes t.lanes)
-      ;<  content=@t  bind:m  (cage-to-txt cage.u.ct)
-      =/  msg=@t
-        (rap 3 ~['<api action="keep" path="' lane-path '">' content '</api>'])
-      ;<  ~  bind:m  (append-to-msgs msg-road 'user' msg)
-      $(lanes t.lanes)
-    ==
+    ;<  ~  bind:m  (format-view msg-road path.slot p.now.ev %.y)
+    ?.  live.reg  $
+    ;<  ~  bind:m  (claude-turn msg-road)
+    $
+  ::  Keep subscription update
+  ::
+      %news
+    =/  id-slot  (get-slot wire.ev slots.reg)
+    ?~  id-slot
+      ~&  >>>  [%claude-stale-news wire.ev]
+      $
+    =/  [id=@ud =slot]  u.id-slot
+    ::  Suppress updates for subscriptions being dropped
+    ?:  =(action.slot 'drop')
+      ~&  >  [%claude-news-after-drop path.slot]
+      $
+    ;<  ~  bind:m  (format-view msg-road path.slot view.ev %.n)
+    ?.  live.reg  $
+    ;<  ~  bind:m  (claude-turn msg-road)
+    $
+  ::  Subscription ended (drop, kicked, deleted, weir change)
+  ::
+      %fell
+    =/  id-slot  (get-slot wire.ev slots.reg)
+    ?~  id-slot
+      ~&  >>>  [%claude-stale-fell wire.ev]
+      $
+    =/  [id=@ud =slot]  u.id-slot
+    ;<  ~  bind:m  (clear-slot id)
+    =/  result=@t
+      ?:  =(action.slot 'drop')  'Unsubscribed'
+      'SUBSCRIPTION ENDED'
+    ;<  ~  bind:m  (append-msg msg-road slot result ~)
+    ?.  live.reg  $
+    ;<  ~  bind:m  (claude-turn msg-road)
+    $
+  ::  Dart vetoed by sandbox
+  ::
+      %veto
+    ~&  >>>  [%claude-veto dart.ev]
+    $
   ==
 ::  Claude conversation turn — call API, parse response, dispatch
 ::  Called after any event that should trigger Claude to respond.
@@ -512,17 +570,13 @@
     ::  Registry state rendered to text for system prompt
     ;<  reg=registry  bind:m  (get-state-as:io ,registry)
     =/  reg-wain=wain
-      =/  keep-list=(list [@t @ud])  ~(tap by keeps.reg)
-      =/  flight-list=(list [@ud [action=@t path=@t]])  ~(tap by flights.reg)
-      ?:  &(=(~ keep-list) =(~ flight-list))  ~['No active requests.']
+      =/  slot-list=(list [@ud slot])  ~(tap by slots.reg)
+      :-  ?:(live.reg 'REGISTRY: LIVE' 'REGISTRY: HALTED (waiting for user message to resume)')
+      ?~  slot-list  ~['No active requests.']
       :-  'ACTIVE REQUESTS:'
-      %+  weld
-        %+  turn  keep-list
-        |=  [pax=@t updates=@ud]
-        (crip "  keep {(trip pax)}{?:(=(0 updates) "" " ({(a-co:co updates)} updates)")}")
-      %+  turn  flight-list
-      |=  [id=@ud action=@t path=@t]
-      (crip "  {(trip action)} {(trip path)}")
+      %+  turn  slot-list
+      |=  [id=@ud =slot]
+      (crip "  [{(a-co:co id)}] {(trip action.slot)} {(trip path.slot)}")
     =/  reg-text=@t  (of-wain:format reg-wain)
     =/  weir-text=@t
       ?.  ?=([%& %file *] weir-seen)  ''
@@ -570,8 +624,9 @@
     =/  body-cord=@t  (en:json:html (pairs:enjs:format body-pairs))
     ~&  >  [%claude-sending (lent (tap:mon messages.msg)) %messages]
     =/  status-road=road:tarball  (cord-to-road:tarball './ui/sse/status.json')
-    =/  loading-on=json   (pairs:enjs:format ~[['loading' b+%.y]])
-    =/  loading-off=json  (pairs:enjs:format ~[['loading' b+%.n]])
+    ;<  reg=registry  bind:m  (get-state-as:io ,registry)
+    =/  loading-on=json   (pairs:enjs:format ~[['loading' b+%.y] ['live' b+live.reg]])
+    =/  loading-off=json  (pairs:enjs:format ~[['loading' b+%.n] ['live' b+live.reg]])
     ;<  ~  bind:m  (over:io /status status-road json+!>(loading-on))
     =/  =request:http
       :^  %'POST'  'https://api.anthropic.com/v1/messages'
@@ -580,149 +635,218 @@
             ['anthropic-version' '2023-06-01']
         ==
       `(as-octs:mimes:html body-cord)
-    ;<  response=@t  bind:m  (fetch:io request)
-    ~&  >  %claude-got-response
+    ;<  response=(unit @t)  bind:m  (fetch-or-interrupt request)
     ;<  ~  bind:m  (over:io /status status-road json+!>(loading-off))
+    ?~  response
+      ~&  >  %claude-interrupted
+      ;<  ~  bind:m  (set-live %.n)
+      ;<  ~  bind:m  (append-to-msgs msg-road 'user' '<error>Interrupted by user.</error>')
+      (pure:m ~)
+    ~&  >  %claude-got-response
     ::  check for API-level errors
-    =/  err=(unit @t)  (extract-error response)
+    =/  err=(unit @t)  (extract-error u.response)
     ?^  err
       ~&  >>>  [%claude-api-error u.err]
+      ;<  ~  bind:m  (set-live %.n)
       ;<  ~  bind:m  (append-to-msgs msg-road 'assistant' (cat 3 '<error>' (cat 3 u.err '</error>')))
-      (pure:m ~)  ::  API errors don't loop back
-    =/  reply=@t  (extract-reply response)
+      (pure:m ~)
+    =/  reply=@t  (extract-reply u.response)
     ?:  =('' reply)
-      ~&  >>>  [%claude-empty-reply response]
+      ~&  >>>  [%claude-empty-reply u.response]
       ;<  ~  bind:m  (append-to-msgs msg-road 'user' '<error>Empty response from Claude API — no text content blocks returned.</error>')
       ?:  (gte +(errs) 3)
         ~&  >>>  %claude-error-limit-reached
+        ;<  ~  bind:m  (set-live %.n)
         (pure:m ~)
       $(errs +(errs))
-    ::  parse XML tag — take the first valid tag, ignore the rest
-    =/  tag=(unit response-tag)  (parse-response reply)
-    ?~  tag
+    ::  parse XML tags from response
+    =/  tags=(list response-tag)  (parse-responses reply)
+    ::  process tags sequentially
+    =|  did-think=?
+    |-
+    ?~  tags
       ~&  >>>  [%claude-bad-tag reply]
       =/  err-msg=@t
-        (rap 3 ~['<error>Invalid response — must be exactly one XML tag. Your response was: ' reply '</error>'])
+        (rap 3 ~['<error>Invalid response — must be valid XML tags. Your response was: ' reply '</error>'])
       ;<  ~  bind:m  (sleep:io ~s0..0001)
       ;<  ~  bind:m  (append-to-msgs msg-road 'user' err-msg)
       ?:  (gte +(errs) 3)
         ~&  >>>  %claude-error-limit-reached
+        ;<  ~  bind:m  (set-live %.n)
         (pure:m ~)
       $(errs +(errs))
-    ::  valid tag — store and dispatch
+    ::  valid tag(s) — store and dispatch
     ;<  ~  bind:m  (append-to-msgs msg-road 'assistant' reply)
     ;<  ~  bind:m  (sleep:io ~s0..0001)
-    ?-  -.u.tag
+    =/  tag=response-tag  i.tags
+    =/  more=?  ?=(^ t.tags)
+    ?-  -.tag
         %thought
-      ~&  >  [%claude-thought (end [3 80] text.u.tag)]
-      ?:  (gte +(thinks) 5)
+      ~&  >  [%claude-thought (end [3 80] text.tag)]
+      =.  thinks  +(thinks)
+      ?:  more  $(tags t.tags, did-think %.y)
+      ::  last tag is thought — continue
+      ?:  (gte thinks 5)
         ~&  >>>  %claude-thought-cap-reached
         ;<  ~  bind:m  (sleep:io ~s0..0001)
         ;<  ~  bind:m  (append-to-msgs msg-road 'user' '<error>Thought cap reached (5). You must respond with message, wait, or done.</error>')
         $(errs 0, thinks 0)
       ;<  ~  bind:m  (sleep:io ~s0..0001)
       ;<  ~  bind:m  (append-to-msgs msg-road 'user' '<continue/>')
-      $(errs 0, thinks +(thinks))
+      $(errs 0)
     ::
         %tool
-      ~&  >  [%claude-tool (lent calls.u.tag) %calls continue.u.tag]
-      ?.  continue.u.tag  (pure:m ~)
+      ~&  >  [%claude-tool (lent calls.tag) %calls continue.tag]
+      ?:  more  $(tags t.tags, thinks 0)
+      ?.  continue.tag  (pure:m ~)
       ;<  ~  bind:m  (sleep:io ~s0..0001)
       ;<  ~  bind:m  (append-to-msgs msg-road 'user' '<continue/>')
       $(thinks 0)
     ::
         %api
-      ~&  >  [%claude-api action.u.tag path.u.tag continue.u.tag]
-      ?:  continue.u.tag
-        ;<  ~  bind:m  (append-to-msgs msg-road 'user' '<continue/>')
-        ;<  ~  bind:m  (handle-api msg-road action.u.tag path.u.tag body.u.tag)
-        $(thinks 0)
-      ;<  ~  bind:m  (handle-api msg-road action.u.tag path.u.tag body.u.tag)
-      (pure:m ~)
+      ~&  >  [%claude-api action.tag path.tag]
+      ;<  ~  bind:m  (handle-api msg-road action.tag path.tag body.tag)
+      ?:  more  $(tags t.tags, thinks 0)
+      ?.  continue.tag  (pure:m ~)
+      ;<  ~  bind:m  (sleep:io ~s0..0001)
+      ;<  ~  bind:m  (append-to-msgs msg-road 'user' '<continue/>')
+      $(thinks 0)
     ::
         %notify
-      ~&  >  [%claude-notify continue.u.tag]
-      ?.  continue.u.tag  (pure:m ~)
+      ~&  >  [%claude-notify continue.tag]
+      ?:  more  $(tags t.tags, thinks 0)
+      ?.  continue.tag  (pure:m ~)
       ;<  ~  bind:m  (sleep:io ~s0..0001)
       ;<  ~  bind:m  (append-to-msgs msg-road 'user' '<continue/>')
       $(thinks 0)
     ::
         %message
       ~&  >  %claude-message
-      (pure:m ~)  ::  done — return to main loop
+      ?:  more  $(tags t.tags, thinks 0)
+      ?.  continue.tag  (pure:m ~)
+      ;<  ~  bind:m  (sleep:io ~s0..0001)
+      ;<  ~  bind:m  (append-to-msgs msg-road 'user' '<continue/>')
+      $(thinks 0)
     ::
         %wait
       ~&  >  %claude-wait
-      (pure:m ~)  ::  done — return to main loop
+      ?:  more  $(tags t.tags)
+      (pure:m ~)
     ::
         %done
-      ~&  >  [%claude-done output.u.tag]
-      (pure:m ~)  ::  done — return to main loop
+      ~&  >  [%claude-done output.tag]
+      (pure:m ~)  ::  terminal — even if more tags follow
     ==
-::  Handle API request inline — keeps, one-shots, drop
+::  Handle API request — fire-and-forget
+::
+::  Allocates a slot, sends the dart, returns immediately.
+::  The response arrives as a main-event and is handled in main-loop.
 ::
 ++  handle-api
   |=  [msg-road=road:tarball act=@t api-path=@t body=@t]
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
+  =/  =road:tarball  (cord-to-road:tarball api-path)
   ;<  reg=registry  bind:m  (get-state-as:io ,registry)
   ~&  >  [%claude-api-dispatch act api-path]
-  ::  drop — cancel keep subscription and remove from registry
+  ::  drop — find existing keep slot, send drop dart on its wire
+  ::
   ?:  =(act 'drop')
-    ?.  (~(has by keeps.reg) api-path)
+    =/  keep-id=(unit @ud)
+      =/  slist  ~(tap by slots.reg)
+      |-
+      ?~  slist  ~
+      =/  [id=@ud =slot]  i.slist
+      ?:  &(=('keep' action.slot) =(api-path path.slot))
+        `id
+      $(slist t.slist)
+    ?~  keep-id
       (append-to-msgs msg-road 'user' (rap 3 ~['<api action="drop" path="' api-path '">Not subscribed to this path.</api>']))
-    =/  rest=path  (turn (segments api-path) |=(s=@t `@ta`s))
-    =/  file-road=(unit road:tarball)
-      ?~  rest  ~
-      `[%& %& (snip `path`rest) (rear rest)]
-    ;<  is-file=?  bind:m
-      ?~  file-road  (pure:(fiber:fiber:nexus ,?) %.n)
-      (peek-exists:io /check u.file-road)
-    =/  =road:tarball
-      ?:  is-file  (need file-road)
-      [%& %| rest]
-    =/  keep-wire=wire  /keep/(scot %t api-path)
-    ;<  ~  bind:m  (drop:io keep-wire road)
-    ;<  ~  bind:m  (replace:io !>(`registry`reg(keeps (~(del by keeps.reg) api-path))))
-    (append-to-msgs msg-road 'user' (rap 3 ~['<api action="drop" path="' api-path '">Unsubscribed</api>']))
-  ::  keep — one per path
+    ::  Mark slot as "drop" so fell handler knows it was user-initiated
+    ;<  ~  bind:m
+      (replace:io !>(`registry`reg(slots (~(put by slots.reg) u.keep-id ['drop' api-path]))))
+    =/  keep-wire=wire  /slot/(scot %ud u.keep-id)
+    (send-dart:io %node keep-wire road %drop ~)
+  ::  keep — check for duplicate
+  ::
   ?:  =(act 'keep')
-    ?:  (~(has by keeps.reg) api-path)
+    =/  already=?
+      %+  lien  ~(tap by slots.reg)
+      |=  [id=@ud act=@t pax=@t]
+      &(=('keep' act) =(api-path pax))
+    ?:  already
       (append-to-msgs msg-road 'user' (rap 3 ~['<api action="keep" path="' api-path '">Already subscribed to this path.</api>']))
-    =/  rest=path  (turn (segments api-path) |=(s=@t `@ta`s))
-    =/  file-road=(unit road:tarball)
-      ?~  rest  ~
-      `[%& %& (snip `path`rest) (rear rest)]
-    ;<  is-file=?  bind:m
-      ?~  file-road  (pure:(fiber:fiber:nexus ,?) %.n)
-      (peek-exists:io /check u.file-road)
-    =/  =road:tarball
-      ?:  is-file  (need file-road)
-      [%& %| rest]
-    =/  keep-wire=wire  /keep/(scot %t api-path)
-    ;<  init=view:nexus  bind:m  (keep:io keep-wire road ~)
-    ;<  ~  bind:m  (replace:io !>(`registry`reg(keeps (~(put by keeps.reg) api-path 0))))
-    ::  Append initial value to messages
-    ?+  init  (pure:m ~)
-        [%file *]
-      ;<  content=@t  bind:m  (cage-to-txt cage.init)
-      (append-to-msgs msg-road 'user' (rap 3 ~['<api action="keep" path="' api-path '">' content '</api>']))
-        [%ball *]
-      (poke-ball-init msg-road api-path ball.init / rest)
-    ==
-  ::  In-flight request — track, dispatch, remove
-  =/  fid=@ud  nex.reg
-  ;<  ~  bind:m  (replace:io !>(`registry`reg(nex +(fid), flights (~(put by flights.reg) fid [act api-path]))))
-  ;<  result=@t  bind:m  (dispatch-api act api-path body)
-  ~&  >  [%claude-api-done act (end [3 80] result)]
-  ;<  reg=registry  bind:m  (get-state-as:io ,registry)
-  ;<  ~  bind:m  (replace:io !>(`registry`reg(flights (~(del by flights.reg) fid))))
-  (append-to-msgs msg-road 'user' (rap 3 ~['<api action="' act '" path="' api-path '">' result '</api>']))
-::  Multiplex pokes (user messages) and news (keep updates)
+    =/  id=@ud  nex.reg
+    =/  slot-wire=wire  /slot/(scot %ud id)
+    ;<  ~  bind:m
+      (replace:io !>(`registry`reg(nex +(id), slots (~(put by slots.reg) id [act api-path]))))
+    (send-dart:io %node slot-wire road %keep ~)
+  ::  All other actions — allocate slot, fire dart
+  ::
+  =/  id=@ud  nex.reg
+  =/  slot-wire=wire  /slot/(scot %ud id)
+  =/  new-reg=registry  reg(nex +(id), slots (~(put by slots.reg) id [act api-path]))
+  ;<  ~  bind:m  (replace:io !>(`registry`new-reg))
+  ?+    act
+    ::  Unknown action — deregister and report error
+    ;<  ~  bind:m  (replace:io !>(`registry`new-reg(slots (~(del by slots.reg) id))))
+    %-  append-to-msgs  :+  msg-road  'user'
+    (rap 3 ~['<api action="' act '" path="' api-path '">ERROR: Unknown action. Valid: file, kids, tree, sand, weir, manu, keep, drop, make, over, rmf, dir, rmd, poke, diff, setweir, rmweir</api>'])
+  ::  reads
+      %'file'   (send-dart:io %node slot-wire road %peek ~ ~ %.n)
+      %'kids'   (send-dart:io %node slot-wire road %peek ~ ~ %.n)
+      %'tree'   (send-dart:io %node slot-wire road %peek ~ ~ %.n)
+      %'sand'   (send-dart:io %node slot-wire road %peek ~ ~ %.n)
+      %'weir'   (send-dart:io %node slot-wire road %peek ~ ~ %.n)
+  ::  manu
+      %'manu'   (send-dart:io %manu slot-wire |+road)
+  ::  writes
+      %'make'
+    =/  =mime  [/text/plain (as-octs:mimes:html body)]
+    (send-dart:io %node slot-wire road %make |+[%.n mime+!>(mime) ~])
+      %'dir'
+    (send-dart:io %node slot-wire road %make &+[*sand:nexus *gain:nexus `[~ ~ ~] ~])
+      %'over'
+    =/  =mime  [/text/plain (as-octs:mimes:html body)]
+    (send-dart:io %node slot-wire road %over mime+!>(mime))
+      %'rmf'   (send-dart:io %node slot-wire road %cull ~)
+      %'rmd'   (send-dart:io %node slot-wire road %cull ~)
+      %'poke'
+    =/  =mime  [/text/plain (as-octs:mimes:html body)]
+    (send-dart:io %node slot-wire road %poke mime+!>(mime))
+      %'diff'
+    =/  =mime  [/text/plain (as-octs:mimes:html body)]
+    (send-dart:io %node slot-wire road %diff mime+!>(mime))
+      %'setweir'
+    =/  jon=(unit json)  (de:json:html body)
+    ?~  jon
+      ;<  ~  bind:m  (replace:io !>(`registry`new-reg(slots (~(del by slots.reg) id))))
+      (append-to-msgs msg-road 'user' (rap 3 ~['<api action="setweir" path="' api-path '">ERROR: Invalid JSON body</api>']))
+    =/  parsed=(each weir:nexus tang)
+      (mule |.((weir-from-json:nexus u.jon)))
+    ?:  ?=(%| -.parsed)
+      ;<  ~  bind:m  (replace:io !>(`registry`new-reg(slots (~(del by slots.reg) id))))
+      (append-to-msgs msg-road 'user' (rap 3 ~['<api action="setweir" path="' api-path '">ERROR: Invalid weir JSON</api>']))
+    (send-dart:io %node slot-wire road %sand `p.parsed)
+      %'rmweir'
+    (send-dart:io %node slot-wire road %sand ~)
+  ==
+::  Multiplex ALL events — pokes, responses, subscriptions
 ::
 +$  main-event
   $%  [%poke =cage]
+      [%peek =wire =seen:nexus]
+      [%made =wire err=(unit tang)]
+      [%over =wire err=(unit tang)]
+      [%gone =wire err=(unit tang)]
+      [%pack =wire err=(unit tang)]
+      [%diff =wire err=(unit tang)]
+      [%sand =wire err=(unit tang)]
+      [%manu =wire res=(each @t tang)]
+      [%bond =wire now=(each view:nexus tang)]
       [%news =wire =view:nexus]
+      [%fell =wire]
+      [%veto =dart:nexus]
   ==
 ++  take-main-event
   =/  m  (fiber:fiber:nexus ,main-event)
@@ -735,8 +859,18 @@
     ?.  ?=(%claude-action p.cage.u.in)
       [%skip ~]
     [%done %poke cage.u.in]
-      [~ %news * *]
-    [%done %news wire.u.in view.u.in]
+      [~ %peek * *]   [%done %peek wire.u.in seen.u.in]
+      [~ %made * *]   [%done %made wire.u.in err.u.in]
+      [~ %over * *]   [%done %over wire.u.in err.u.in]
+      [~ %gone * *]   [%done %gone wire.u.in err.u.in]
+      [~ %pack * *]   [%done %pack wire.u.in err.u.in]
+      [~ %diff * *]   [%done %diff wire.u.in err.u.in]
+      [~ %sand * *]   [%done %sand wire.u.in err.u.in]
+      [~ %manu * *]   [%done %manu wire.u.in res.u.in]
+      [~ %bond * *]   [%done %bond wire.u.in now.u.in]
+      [~ %news * *]   [%done %news wire.u.in view.u.in]
+      [~ %fell *]     [%done %fell wire.u.in]
+      [~ %veto *]     [%done %veto dart.u.in]
   ==
 ++  system-prompt
   ^~
@@ -744,138 +878,202 @@
   :~  'You are Claude, an AI assistant running natively on an Urbit ship.'
       'Urbit is a peer-to-peer operating system. You run as a Hoon application on the user\'s personal server.'
       ''
-      'PROTOCOL: Your ENTIRE response must be exactly ONE XML tag — nothing else.'
-      'NOT TWO TAGS. NOT TEXT THEN A TAG. NOT A TAG THEN ANOTHER TAG. ONE. SINGLE. TAG.'
-      'If you send <api .../> followed by <message>...</message>, the ENTIRE response is'
-      'rejected and you get an error. You will get another turn — send each tag separately.'
+      '=== CRITICAL RULES (read these first) ==='
       ''
-      'Valid tags:'
+      'XML TAGS ONLY. Your ENTIRE output must be one or more XML tags — nothing else.'
+      'NO PLAIN TEXT OUTSIDE OF TAGS. Every piece of output must be inside a tag.'
+      'Multiple tags in one response are processed left-to-right. The last tag\'s continue flag'
+      'determines whether you get another turn. Earlier tags are processed unconditionally.'
       ''
-      '<thought>Your internal reasoning. Not shown to user. You get another turn immediately.</thought>'
-      '<tool continue="true">{"name":"tool_name","args":{"key":"value"}}</tool>'
-      '  Executes a tool. Multiple calls: <tool>[{"name":"a","args":{}},{"name":"b","args":{}}]</tool>'
-      '  Results come back as <tool> under user role.'
-      '<api action="ACTION" path="/path" continue="true">optional body</api>'
-      '  Direct grubbery filesystem API. Results come back as <api> under user role.'
-      '  The grubbery is a ball — a nested filesystem of typed files (grubs) and directories.'
-      '  Files have marks (types) like hoon, txt, json, mime. The system auto-converts to text.'
+      'FLOW CONTROL:'
+      '- You can include multiple tags in one response. They are processed left-to-right.'
+      '  The LAST tag\'s continue flag determines whether you get another turn.'
+      '  Example: <thought>Let me check.</thought><api action="file" path="./x.txt"/>'
+      '  This thinks AND reads in a single response — no round-trip needed.'
+      '- <thought> for internal reasoning. ALWAYS follow thoughts with action or message.'
+      '  Do not chain more than 2-3 thoughts. After 5, the system forces a non-thought tag.'
+      '- <message> is how you talk to the user. If you want to say something, say it.'
+      '  <message>Text.</message> — says it, then pauses for user input or events.'
+      '  <message>Text.</message><api .../> — says it AND acts in one response.'
+      '- <wait/> pauses with no output. Use this when you genuinely have nothing to say.'
+      '  Do NOT narrate what you are doing. Do NOT explain your own tag choices.'
+      '- <done> ends the session permanently. Optional body (JSON or text).'
+      '- continue="true" on the LAST tag means you get another turn immediately.'
+      '  continue="false" (default) on the LAST tag means pause until user message or event.'
       ''
-      '  PATHS: Trailing slash = directory, no trailing slash = file. This matters!'
-      '    /path/to/name.ext  — file (name.ext in /path/to/)'
-      '    /path/to/dir/      — directory'
-      '    ./relative          — relative to this nexus (file)'
-      '    ./relative/         — relative to this nexus (directory)'
-      '    ../up/              — up one level then into directory'
-      '  The system parses paths strictly. "ui/sse" is a FILE named sse. "ui/sse/" is a DIRECTORY.'
+      '<continue/> is a SYSTEM message, NOT from the user. It means "your previous response was'
+      'processed — now respond again." Do NOT treat it as user input. Do NOT ask the'
+      'user to clarify. Do NOT say "the user sent continue." Just proceed with your next response.'
+      'With multi-tag responses, you need fewer continues — put multiple tags in one response.'
       ''
-      '  READ actions (no body needed, self-closing OK):'
-      '    file  /path/to/name.ext  — read file content (auto-converted to text)'
-      '    kids  /path/             — list immediate files + subdirs as JSON'
-      '    tree  /path/             — recursive tree as JSON'
-      '    sand  /path/             — directory permissions as JSON'
-      '    weir  /path/             — single directory access rule as JSON'
-      '    manu  /path/to/name.ext  — documentation for a file (from nearest nexus)'
-      '    manu  /path/to/dir/     — documentation for a directory (from nearest nexus)'
-      '    keep  /path/             — subscribe to changes (long-lived, streams updates)'
-      '    drop  /path/             — unsubscribe from a keep subscription'
+      'API results appear under the USER ROLE because that is how the system injects responses.'
+      'They are REAL system-generated messages. Do NOT assume they are fake or user-fabricated.'
       ''
-      '  WRITE actions (body = text content or JSON):'
-      '    make  /path/to/name.ext  — create new file (body = content, mark from extension)'
-      '    over  /path/to/name.ext  — overwrite existing file (body = new content)'
-      '    rmf   /path/to/name.ext  — delete file'
-      '    dir   /path/             — create directory'
-      '    rmd   /path/             — delete directory'
-      '    poke  /path/to/name.ext  — poke file process (body = payload)'
-      '    diff  /path/to/name.ext  — diff file (body = diff payload)'
-      '    setweir /path/           — set directory access rule (body = weir JSON)'
-      '    rmweir  /path/           — clear directory access rule'
+      '=== EXAMPLES ==='
       ''
-      '  HOW RESULTS WORK: When you send an <api> tag, the registry assigns a numeric ID and'
-      '  handles the request. The result comes back as a USER-ROLE message with this format:'
-      '    <api id="42" action="file" path="/the/path">content</api>'
-      '  The id matches YOUR request. The action and path confirm what it was for.'
-      '  These are REAL system-generated messages — they are NOT from the user. They appear'
-      '  under the user role because that is how the system injects responses into the chat.'
-      '  Do NOT assume API results are fake, spoofed, or user-fabricated. They are genuine.'
+      'Read a file:          <api action="file" path="./data.txt"/>'
+      'Read a directory:     <api action="kids" path="./"/>'
+      'Create a file:        <api action="make" path="./notes.txt">Hello world</api>'
+      'Overwrite a file:     <api action="over" path="./notes.txt">New content</api>'
+      'Think then read:      <thought>I should check what files exist.</thought><api action="kids" path="./"/>'
+      'Speak then read:      <message>Let me look that up.</message><api action="file" path="./config.json"/>'
+      'Read two files:       <api action="file" path="./a.txt"/><api action="file" path="./b.txt"/>'
+      'Subscribe:            <api action="keep" path="./logs/"/>'
+      'Unsubscribe:          <api action="drop" path="./logs/"/>'
+      'Use a tool:           <tool>{"name":"echo","args":{"message":"hi"}}</tool>'
+      'Nothing to say:       <wait/>'
+      'End session:          <done>Task complete.</done>'
       ''
-      '  WEIR (permissions): Your weir controls which API operations you can perform.'
-      '  It has three fields: make (create/delete), poke (write/modify), peek (read).'
-      '  Each field lists the roads (paths) you are allowed to target. An empty list means'
-      '  no restrictions for that operation. Your current weir is shown in LIVE CONTEXT below.'
+      'WRONG (text+tag):     Let me check. <api action="file" path="./x"/>'
+      'WRONG (no close tag): <api action="file" path="./x">'
       ''
-      '  ACTIVE REQUESTS: This prompt includes a live view of the registry state.'
-      '  Each entry shows: ID, action, path, and status (pending/streaming).'
-      '  One-shot actions (file, kids, make, etc.) complete quickly and disappear.'
-      '  keep subscriptions stay as "streaming" until you drop them.'
-      '  drop cancels a keep by path. Use <api action="drop" path="/same/path"/>.'
+      '=== TAG REFERENCE ==='
       ''
-      '  ASYNC PATTERN: With continue="true" (default), you get a turn immediately —'
-      '  the result arrives later as a user-role <api> message. Use continue="false"'
-      '  + <wait/> when you need the result before proceeding.'
-      '<notify continue="true">payload</notify>'
-      '  Sends a notification to listeners (subscriptions, agents, etc). Fire-and-forget.'
-      '<message>Text shown to the user. Pauses until the user responds or an event arrives.</message>'
+      '<thought>Internal reasoning. Not shown to user.</thought>'
+      '<message>Text shown to user.</message>'
+      '<message continue="true">Text shown, then you get another turn.</message>'
       '<wait/>'
-      '  Pause without showing anything. Resumes when an event arrives.'
-      '  Prefer <wait/> over <message> when you have nothing new or useful to say. If your message'
-      '  would just be a summary of what happened, a restatement of results the user can already see,'
-      '  or filler like "Got it" or "Interesting!" — send <wait/> instead. Save <message> for when'
-      '  you have a genuine question, insight, or something the user needs to know.'
-      '<done>Optional final output (JSON or text). Ends the session permanently.</done>'
+      '<done>Optional final output.</done>'
+      '<tool continue="true">{"name":"tool_name","args":{"key":"value"}}</tool>'
+      '  Multiple: <tool>[{"name":"a","args":{}},{"name":"b","args":{}}]</tool>'
+      '<api action="ACTION" path="/path" continue="true">optional body</api>  (closing tag REQUIRED)'
+      '<notify continue="true">payload</notify>'
       ''
-      'CONTINUE ATTRIBUTE:'
-      '  <tool>, <api>, and <notify> support continue="true" (default) or continue="false".'
-      '  continue="true": you get another turn immediately. API/tool results arrive later as messages.'
-      '  continue="false": pause until the user sends a message or an event (like an API result) arrives.'
+      '=== API REFERENCE ==='
       ''
-      'RULES:'
-      '- CRITICAL: ONE TAG PER RESPONSE. Your output is parsed as a single XML tag. If you'
-      '  include anything else — a second tag, prose, explanation — the ENTIRE response is'
-      '  DISCARDED and replaced with an error. You WILL get another turn. Use it.'
-      '- NEVER send <api .../> then <message> in the same response. Send <api/>, get your'
-      '  turn back via <continue/>, THEN send <message> on the next turn.'
-      '- <thought> always gives you another turn immediately.'
-      '- <tool>, <api>, <notify> with continue="true" give you another turn after the response.'
-      '  With continue="false" they pause like <message>.'
-      '- <continue/> is a SYSTEM message, NOT from the user. It means "your previous action was'
-      '  processed — now take your next action." Do NOT treat it as user input. Do NOT ask the'
-      '  user to clarify. Do NOT say "the user sent continue." Just proceed with your next tag.'
-      '- <message>, <wait>, and <done> always pause or end.'
-      '- If you need to think before acting, use <thought> first, then <message> on your next turn.'
-      '  ALWAYS follow thoughts with a <message> before <wait>ing or <done>. Never think then go silent.'
-      '- Do not chain more than 2-3 thoughts in a row. The system enforces a thought cap — after 5'
-      '  consecutive thoughts, your next response MUST be a <message>, <wait>, or <done>.'
-      '- Do NOT chain multiple <message> tags in a row. If you need to act after speaking, use'
-      '  <message continue="true">text</message> to get another turn, then send your <api> or <tool>.'
-      '- For tool calls, use the exact tool names and argument formats provided.'
+      'The grubbery is a ball — a nested filesystem of typed files (grubs) and directories.'
+      'Files have marks (types) like hoon, txt, json, mime. The system auto-converts to text.'
+      ''
+      'PATHS: Trailing slash = directory, no trailing slash = file. This matters!'
+      '  /path/to/name.ext  — file (name.ext in /path/to/)'
+      '  /path/to/dir/      — directory'
+      '  ./relative          — relative to this nexus (file)'
+      '  ./relative/         — relative to this nexus (directory)'
+      '  ../up/              — up one level then into directory'
+      'The system parses paths strictly. "ui/sse" is a FILE named sse. "ui/sse/" is a DIRECTORY.'
+      ''
+      'READ actions (no body needed, self-closing OK):'
+      '  file  /path/to/name.ext  — read file content (auto-converted to text)'
+      '  kids  /path/             — list immediate files + subdirs as JSON'
+      '  tree  /path/             — recursive tree as JSON'
+      '  sand  /path/             — directory permissions as JSON'
+      '  weir  /path/             — single directory access rule as JSON'
+      '  manu  /path/to/name.ext  — documentation for a file (from nearest nexus)'
+      '  manu  /path/to/dir/     — documentation for a directory (from nearest nexus)'
+      '  keep  /path/             — subscribe to changes (long-lived, streams updates)'
+      '  drop  /path/             — unsubscribe from a keep subscription'
+      ''
+      'WRITE actions (body = text content or JSON):'
+      '  make  /path/to/name.ext  — create new file (body = content, mark from extension)'
+      '  over  /path/to/name.ext  — overwrite existing file (body = new content)'
+      '  rmf   /path/to/name.ext  — delete file'
+      '  dir   /path/             — create directory'
+      '  rmd   /path/             — delete directory'
+      '  poke  /path/to/name.ext  — poke file process (body = payload)'
+      '  diff  /path/to/name.ext  — diff file (body = diff payload)'
+      '  setweir /path/           — set directory access rule (body = weir JSON)'
+      '  rmweir  /path/           — clear directory access rule'
+      ''
+      'RESULTS: All actions are async. Results arrive as user-role messages:'
+      '  <api action="file" path="/the/path">content or error</api>'
+      ''
+      'WEIR (permissions): make (create/delete), poke (write/modify), peek (read).'
+      'Each field lists allowed roads. Empty = no restrictions. Your weir is in LIVE CONTEXT below.'
+      ''
+      'ACTIVE REQUESTS: The registry state is shown in LIVE CONTEXT below.'
+      'ALL api actions are async — results arrive as user-role messages when ready.'
+      'keep subscriptions stay active until you drop them or they are kicked.'
+      'drop cancels a keep by path: <api action="drop" path="/same/path"/>'
   ==
-::  Dispatch API call by action
+::  Registry helpers — slot lookup and cleanup
 ::
-++  dispatch-api
-  |=  [act=@t api-path=@t body=@t]
-  =/  m  (fiber:fiber:nexus ,@t)
+++  get-slot
+  |=  [=wire slots=(map @ud slot)]
+  ^-  (unit [@ud slot])
+  ?.  ?=([%slot @ *] wire)  ~
+  =/  id=(unit @ud)  (slaw %ud i.t.wire)
+  ?~  id  ~
+  =/  s=(unit slot)  (~(get by slots) u.id)
+  ?~  s  ~
+  `[u.id u.s]
+::
+++  clear-slot
+  |=  id=@ud
+  =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
-  =/  =road:tarball  (cord-to-road:tarball api-path)
-  ?+    act
-      %-  pure:m
-      %-  crip
-      """
-      ERROR: Unknown action '{(trip act)}'.
-      Valid actions: file, kids, tree, sand, weir, manu, keep, drop,
-        make, over, rmf, dir, rmd, poke, diff, setweir, rmweir
-      """
-  ::  file — read a file
+  ;<  reg=registry  bind:m  (get-state-as:io ,registry)
+  (replace:io !>(`registry`reg(slots (~(del by slots.reg) id))))
+::  Fetch with interrupt: send HTTP request, wait for response OR interrupt poke.
+::  Returns ~ on interrupt, (some body) on HTTP response.
+::
+++  fetch-or-interrupt
+  |=  =request:http
+  =/  m  (fiber:fiber:nexus ,(unit @t))
+  ^-  form:m
+  ;<  ~  bind:m  (send-request:io request)
+  =/  m  (fiber:fiber:nexus ,(unit @t))
+  ^-  form:m
+  |=  input:fiber:nexus
+  :+  ~  state
+  ?+  in  [%skip ~]
+      ~  [%wait ~]
+    ::  Interrupt poke — consumed, returns ~
+    ::
+      [~ %poke * *]
+    =/  =action  !<(action q.cage.u.in)
+    ?.  ?=(%interrupt -.action)
+      [%skip ~]
+    [%done ~]
+    ::  HTTP response — extract body, return (some body)
+    ::
+      [~ %arvo [%request ~] %iris %http-response %cancel *]
+    [%done ~]
+      [~ %arvo [%request ~] %iris %http-response %finished *]
+    =/  =client-response:iris  client-response.sign.u.in
+    ?>  ?=(%finished -.client-response)
+    =/  body=@t
+      ?~(full-file.client-response '' q.data.u.full-file.client-response)
+    [%done `body]
+  ==
+::
+++  set-live
+  |=  flag=?
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  ;<  reg=registry  bind:m  (get-state-as:io ,registry)
+  ;<  ~  bind:m  (replace:io !>(`registry`reg(live flag)))
+  =/  status-road=road:tarball  (cord-to-road:tarball './ui/sse/status.json')
+  =/  =json  (pairs:enjs:format ~[['loading' b+%.n] ['live' b+flag]])
+  (over:io /status status-road json+!>(json))
+::
+++  append-msg
+  |=  [msg-road=road:tarball =slot result=@t rev=(unit @ud)]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  =/  rev-attr=@t
+    ?~  rev  ''
+    (crip " rev=\"{(a-co:co u.rev)}\"")
+  =/  msg=@t  (rap 3 ~['<api action="' action.slot '" path="' path.slot '"' rev-attr '>' result '</api>'])
+  (append-to-msgs msg-road 'user' msg)
+::  Format peek response based on slot action
+::
+++  format-peek
+  |=  [=slot =seen:nexus]
+  =/  m  (fiber:fiber:nexus ,[@t (unit @ud)])
+  ^-  form:m
+  ?+    action.slot
+    (pure:m [(crip "ERROR: Unknown read action {(trip action.slot)}") ~])
+  ::
       %'file'
-    ;<  =seen:nexus  bind:m  (peek:io /api-read road ~)
     ?.  ?=([%& %file *] seen)
-      (pure:m (crip "ERROR: Not found: {(trip api-path)}"))
-    (cage-to-txt cage.p.seen)
-  ::  kids — list files + subdirs
+      (pure:m [(crip "ERROR: Not found: {(trip path.slot)}") ~])
+    ;<  content=@t  bind:m  (cage-to-txt cage.p.seen)
+    (pure:m [content `ud.file.sack.p.seen])
+  ::
       %'kids'
-    ;<  dir-seen=seen:nexus  bind:m  (peek:io /api-kids road ~)
-    ?.  ?=([%& %ball *] dir-seen)
-      (pure:m (crip "ERROR: Not found: {(trip api-path)}"))
-    =/  b=ball:tarball  ball.p.dir-seen
+    ?.  ?=([%& %ball *] seen)
+      (pure:m [(crip "ERROR: Not found: {(trip path.slot)}") ~])
+    =/  b=ball:tarball  ball.p.seen
     =/  files=(list @ta)
       ?~(fil.b ~ ~(tap in ~(key by contents.u.fil.b)))
     =/  dirs=(list @ta)  ~(tap in ~(key by dir.b))
@@ -884,103 +1082,76 @@
       :~  ['files' [%a (turn files |=(n=@ta s+n))]]
           ['dirs' [%a (turn dirs |=(n=@ta s+n))]]
       ==
-    (pure:m (en:json:html result))
-  ::  tree — recursive tree
+    (pure:m [(en:json:html result) ~])
+  ::
       %'tree'
-    ;<  dir-seen=seen:nexus  bind:m  (peek:io /api-tree road ~)
-    ?.  ?=([%& %ball *] dir-seen)
-      (pure:m (crip "ERROR: Not found: {(trip api-path)}"))
-    (pure:m (en:json:html (tree-to-json:tarball (ball-to-tree:tarball ball.p.dir-seen))))
-  ::  make — create file or directory (body is content for files)
-      %'make'
-    ;<  exists=?  bind:m  (peek-exists:io /api-chk road)
-    ?:  exists
-      (pure:m (crip "ERROR: Already exists: {(trip api-path)}"))
-    =/  =mime  [/text/plain (as-octs:mimes:html body)]
-    ;<  ~  bind:m  (make:io /api-make road |+[%.n mime+!>(mime) ~])
-    (pure:m (crip "Created {(trip api-path)}"))
-  ::  over — overwrite file (body is content)
-      %'over'
-    ;<  exists=?  bind:m  (peek-exists:io /api-chk road)
-    ?.  exists
-      (pure:m (crip "ERROR: Not found: {(trip api-path)}"))
-    =/  =mime  [/text/plain (as-octs:mimes:html body)]
-    ;<  ~  bind:m  (over:io /api-over road mime+!>(mime))
-    (pure:m (crip "Wrote {(trip api-path)}"))
-  ::  rmf — delete file
-      %'rmf'
-    ;<  exists=?  bind:m  (peek-exists:io /api-chk road)
-    ?.  exists
-      (pure:m (crip "ERROR: Not found: {(trip api-path)}"))
-    ;<  ~  bind:m  (cull:io /api-cull road)
-    (pure:m (crip "Deleted {(trip api-path)}"))
-  ::  dir — create directory
-      %'dir'
-    ;<  exists=?  bind:m  (peek-exists:io /api-chk road)
-    ?:  exists
-      (pure:m (crip "ERROR: Already exists: {(trip api-path)}"))
-    ;<  ~  bind:m  (make:io /api-make road &+[*sand:nexus *gain:nexus `[~ ~ ~] ~])
-    (pure:m (crip "Created directory {(trip api-path)}"))
-  ::  rmd — delete directory
-      %'rmd'
-    ;<  exists=?  bind:m  (peek-exists:io /api-chk road)
-    ?.  exists
-      (pure:m (crip "ERROR: Not found: {(trip api-path)}"))
-    ;<  ~  bind:m  (cull:io /api-cull road)
-    (pure:m (crip "Deleted directory {(trip api-path)}"))
-  ::  poke — poke file process
-      %'poke'
-    ;<  exists=?  bind:m  (peek-exists:io /api-chk road)
-    ?.  exists
-      (pure:m (crip "ERROR: Not found: {(trip api-path)}"))
-    =/  =mime  [/text/plain (as-octs:mimes:html body)]
-    ;<  ~  bind:m  (poke:io /api-poke road mime+!>(mime))
-    (pure:m (crip "Poked {(trip api-path)}"))
-  ::  diff — diff file
-      %'diff'
-    ;<  exists=?  bind:m  (peek-exists:io /api-chk road)
-    ?.  exists
-      (pure:m (crip "ERROR: Not found: {(trip api-path)}"))
-    =/  =mime  [/text/plain (as-octs:mimes:html body)]
-    ;<  ~  bind:m  (diff:io /api-diff road mime+!>(mime))
-    (pure:m (crip "Diffed {(trip api-path)}"))
-  ::  sand — directory permissions
+    ?.  ?=([%& %ball *] seen)
+      (pure:m [(crip "ERROR: Not found: {(trip path.slot)}") ~])
+    (pure:m [(en:json:html (tree-to-json:tarball (ball-to-tree:tarball ball.p.seen))) ~])
+  ::
       %'sand'
-    ;<  dir-seen=seen:nexus  bind:m  (peek:io /api-sand road ~)
-    ?.  ?=([%& %ball *] dir-seen)
-      (pure:m (crip "ERROR: Not found: {(trip api-path)}"))
-    (pure:m (en:json:html (sand-to-json:nexus sand.p.dir-seen)))
-  ::  weir — single directory weir
+    ?.  ?=([%& %ball *] seen)
+      (pure:m [(crip "ERROR: Not found: {(trip path.slot)}") ~])
+    (pure:m [(en:json:html (sand-to-json:nexus sand.p.seen)) ~])
+  ::
       %'weir'
-    ;<  dir-seen=seen:nexus  bind:m  (peek:io /api-weir road ~)
-    ?.  ?=([%& %ball *] dir-seen)
-      (pure:m (crip "ERROR: Not found: {(trip api-path)}"))
-    =/  =weir:nexus  (fall fil.sand.p.dir-seen *weir:nexus)
-    (pure:m (en:json:html (weir-to-json:nexus weir)))
-  ::  setweir — replace weir
-      %'setweir'
-    =/  jon=(unit json)  (de:json:html body)
-    ?~  jon
-      (pure:m 'ERROR: Invalid JSON body')
-    =/  parsed=(each weir:nexus tang)
-      (mule |.((weir-from-json:nexus u.jon)))
-    ?:  ?=(%| -.parsed)
-      (pure:m 'ERROR: Invalid weir JSON')
-    ;<  ~  bind:m  (sand:io /api-weir road `p.parsed)
-    (pure:m (crip "Set weir for {(trip api-path)}"))
-  ::  rmweir — clear weir
-      %'rmweir'
-    ;<  ~  bind:m  (sand:io /api-weir road ~)
-    (pure:m (crip "Cleared weir for {(trip api-path)}"))
-  ::  manu — documentation for a path
-      %'manu'
-    ;<  text=@t  bind:m  (manu:io /api-manu |+road)
-    (pure:m text)
+    ?.  ?=([%& %ball *] seen)
+      (pure:m [(crip "ERROR: Not found: {(trip path.slot)}") ~])
+    =/  =weir:nexus  (fall fil.sand.p.seen *weir:nexus)
+    (pure:m [(en:json:html (weir-to-json:nexus weir)) ~])
   ==
-::  Poke initial state for a directory subscription
+::  Handle ack response (make, over, cull, poke, diff, sand)
 ::
-++  poke-ball-init
-  |=  [msg-road=road:tarball keep-path=@t b=ball:tarball here=path api-path=path]
+++  handle-ack
+  |=  [msg-road=road:tarball =wire err=(unit tang) slots=(map @ud slot) live=?]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  =/  id-slot  (get-slot wire slots)
+  ?~  id-slot
+    ~&  >>>  [%claude-stale-ack wire]
+    (pure:m ~)
+  =/  [id=@ud =slot]  u.id-slot
+  ;<  ~  bind:m  (clear-slot id)
+  =/  result=@t
+    ?~  err
+      ?+  action.slot
+        (crip "Done: {(trip action.slot)} {(trip path.slot)}")
+          %'make'     (crip "Created {(trip path.slot)}")
+          %'dir'      (crip "Created directory {(trip path.slot)}")
+          %'over'     (crip "Wrote {(trip path.slot)}")
+          %'rmf'      (crip "Deleted {(trip path.slot)}")
+          %'rmd'      (crip "Deleted directory {(trip path.slot)}")
+          %'poke'     (crip "Poked {(trip path.slot)}")
+          %'diff'     (crip "Diffed {(trip path.slot)}")
+          %'setweir'  (crip "Set weir for {(trip path.slot)}")
+          %'rmweir'   (crip "Cleared weir for {(trip path.slot)}")
+      ==
+    (crip "ERROR: {(trip action.slot)} failed")
+  ;<  ~  bind:m  (append-msg msg-road slot result ~)
+  ?.  live  (pure:m ~)
+  (claude-turn msg-road)
+::  Format a view (file or ball) as messages — used by bond and news
+::
+++  format-view
+  |=  [msg-road=road:tarball api-path=@t =view:nexus is-bond=?]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  =/  act=@t  ?:(is-bond 'bond' 'keep')
+  ?-    -.view
+      %none
+    (append-to-msgs msg-road 'user' (rap 3 ~['<api action="' act '" path="' api-path '">DELETED</api>']))
+      %file
+    ;<  content=@t  bind:m  (cage-to-txt cage.view)
+    =/  rev=@ud  ud.file.sack.view
+    =/  rev-attr=@t  (crip " rev=\"{(a-co:co rev)}\"")
+    (append-to-msgs msg-road 'user' (rap 3 ~['<api action="' act '" path="' api-path '"' rev-attr '>' content '</api>']))
+      %ball
+    (walk-ball msg-road api-path act ball.view /)
+  ==
+::  Walk a ball recursively, sending a message per file
+::
+++  walk-ball
+  |=  [msg-road=road:tarball api-path=@t act=@t b=ball:tarball here=path]
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
   ::  Files in this directory
@@ -993,7 +1164,7 @@
     =/  lane-path=@t  (spat (snoc here file-name))
     ;<  content-text=@t  bind:m  (cage-to-txt cage.content)
     =/  msg=@t
-      (rap 3 ~['<api action="keep" path="' lane-path '">' content-text '</api>'])
+      (rap 3 ~['<api action="' act '" path="' lane-path '">' content-text '</api>'])
     ;<  ~  bind:m  (append-to-msgs msg-road 'user' msg)
     $(files t.files)
   ::  Recurse into subdirectories
@@ -1001,7 +1172,7 @@
   |-
   ?~  dirs  (pure:m ~)
   =/  [dir-name=@ta sub=ball:tarball]  i.dirs
-  ;<  ~  bind:m  (poke-ball-init msg-road keep-path sub (snoc here dir-name) api-path)
+  ;<  ~  bind:m  (walk-ball msg-road api-path act sub (snoc here dir-name))
   $(dirs t.dirs)
 ::
 ++  render-weir
@@ -1109,9 +1280,11 @@
     =/  tag-str=tape  (slag 1 (scag (need (find ">" (trip raw))) (trip raw)))
     =/  a=@t  (get-attr tag-str "action")
     =/  p=@t  (get-attr tag-str "path")
+    =/  r=@t  (get-attr tag-str "rev")
     =/  sub=@t
       ?:  =('' a)  'api'
-      (crip "{(trip a)} {(trip p)}")
+      ?:  =('' r)  (crip "{(trip (api-display-name a))} {(trip p)}")
+      (crip "{(trip (api-display-name a))} {(trip p)} (rev {(trip r)})")
     ['user' 'api' (extract-inner raw) sub a p]
   ::  user: notify result
   ?:  &(=('user' rol) =((end [3 8] raw) '<notify>'))
@@ -1119,34 +1292,77 @@
   ::  user: plain text
   ?:  =('user' rol)
     ['user' 'message' raw '' '' '']
-  ::  assistant: parse XML protocol tag
-  =/  tag=(unit response-tag)  (parse-response raw)
-  ?~  tag
+  ::  assistant: parse XML protocol tag(s)
+  =/  tags=(list response-tag)  (parse-responses raw)
+  ?~  tags
     ['assistant' 'message' raw '' '' '']
-  ?-  -.u.tag
-      %thought   ['assistant' 'thought' text.u.tag 'thought' '' '']
-      %message   ['assistant' 'message' text.u.tag '' '' '']
+  (tag-to-dm i.tags)
+::  Friendly display name for api actions
+::
+++  api-display-name
+  |=  act=@t
+  ^-  @t
+  ?+  act  act
+    %'file'     'read'
+    %'kids'     'kids'
+    %'tree'     'tree'
+    %'sand'     'sand'
+    %'weir'     'weir'
+    %'manu'     'docs'
+    %'make'     'create'
+    %'over'     'write'
+    %'rmf'      'delete'
+    %'rmd'      'rmdir'
+    %'dir'      'mkdir'
+    %'poke'     'poke'
+    %'diff'     'diff'
+    %'setweir'  'setweir'
+    %'rmweir'   'rmweir'
+    %'bond'     'subscribed'
+    %'keep'     'update'
+    %'drop'     'unsubscribe'
+  ==
+::  Convert a response-tag to a display-msg
+::
+++  tag-to-dm
+  |=  tag=response-tag
+  ^-  display-msg
+  ?-  -.tag
+      %thought   ['assistant' 'thought' text.tag 'thought' '' '']
+      %message   ['assistant' 'message' text.tag '' '' '']
       %tool
     =/  names=@t
-      %+  roll  calls.u.tag
+      %+  roll  calls.tag
       |=  [tc=tool-call acc=@t]
       ?:(=('' acc) name.tc (cat 3 acc (cat 3 ', ' name.tc)))
     ['assistant' 'tool' names 'tool' '' '']
       %api
-    =/  sub=@t  (crip "{(trip action.u.tag)} {(trip path.u.tag)}")
-    ['assistant' 'api' body.u.tag sub action.u.tag path.u.tag]
-      %notify    ['assistant' 'notify' text.u.tag 'notify' '' '']
+    =/  sub=@t  (crip "{(trip (api-display-name action.tag))} {(trip path.tag)}")
+    ['assistant' 'api' body.tag sub action.tag path.tag]
+      %notify    ['assistant' 'notify' text.tag 'notify' '' '']
       %wait      ['assistant' 'wait' '' 'wait' '' '']
-      %done      ['assistant' 'done' output.u.tag 'done' '' '']
+      %done      ['assistant' 'done' output.tag 'done' '' '']
   ==
+::  Classify a message into a list of display-msgs (multi-tag aware)
 ::
-::  Render a message to a manx div — the one true renderer
-::  Used by both SSE (manx->txt via mark) and Sail server render
-::
-++  msg-to-manx
+++  classify-multi
   |=  =message
+  ^-  (list display-msg)
+  =/  rol=@t  role.message
+  =/  raw=@t  content.message
+  ::  non-assistant messages: always a single display-msg
+  ?.  =('assistant' rol)
+    ~[(classify message)]
+  ::  assistant: parse all XML tags
+  =/  tags=(list response-tag)  (parse-responses raw)
+  ?~  tags  ~[(classify message)]
+  (turn tags tag-to-dm)
+::
+::  Render a single display-msg to a manx div
+::
+++  dm-to-manx
+  |=  dm=display-msg
   ^-  manx
-  =/  dm=display-msg  (classify message)
   =/  role=tape   (trip role.dm)
   =/  type=tape   (trip type.dm)
   =/  cls=tape    "msg {type} {role}"
@@ -1169,6 +1385,22 @@
   ;div(class cls)
     ;b: {role}
     ;pre: {body}
+  ==
+::
+::  Render a message to manx — the one true renderer
+::  Used by both SSE (manx->txt via mark) and Sail server render
+::
+++  msg-to-manx
+  |=  =message
+  ^-  manx
+  =/  dms=(list display-msg)  (classify-multi message)
+  ?~  dms  ;div;
+  ?:  ?=(~ t.dms)
+    (dm-to-manx i.dms)
+  ::  multi-tag: wrap in a group div
+  =/  children=(list manx)  (turn dms dm-to-manx)
+  ;div(class "msg-group")
+    ;*  children
   ==
 ::  Trim leading and trailing whitespace from a tape
 ::
@@ -1224,27 +1456,28 @@
   |=  reply=@t
   ^-  (unit response-tag)
   =/  t=tape  (trim-tape (trip reply))
-  ::  <wait/> or <wait />
-  ?:  ?|  =("<wait/>" t)
-          =("<wait />" t)
-      ==
-    `[%wait ~]
-  ::  Check for self-closing <api ... /> first
-  ?:  &(=('<' (snag 0 t)) =('>' (snag (dec (lent t)) t)) =('/' (snag (sub (lent t) 2) t)))
-    =/  tag-str=tape  (slag 1 (scag (sub (lent t) 2) t))
+  ::  Check for self-closing tag: <tag ... />
+  ::  Find first /> to detect self-closing (works even with trailing content)
+  ?~  t  ~
+  ?.  =('<' i.t)  ~
+  =/  sc=(unit @ud)  (find "/>" t)
+  =/  gt=(unit @ud)  (find ">" t)
+  ?:  &(?=(^ sc) ?=(^ gt) =(+(u.sc) u.gt))
+    =/  inner=tape  (slag 1 (scag u.sc `tape`t))
     =/  tag-name=tape
-      =/  sp=(unit @ud)  (find " " tag-str)
-      ?~(sp tag-str (scag u.sp tag-str))
-    ?:  =("api" tag-name)     (parse-api-tag tag-str '')
-    ?:  =("notify" tag-name)  `[%notify '' (parse-continue tag-str)]
+      =/  sp=(unit @ud)  (find " " inner)
+      ?~(sp inner (scag u.sp inner))
+    ?:  =("wait" tag-name)     `[%wait ~]
+    ?:  =("api" tag-name)      (parse-api-tag inner '')
+    ?:  =("notify" tag-name)   `[%notify '' (parse-continue inner)]
     ~
   ::  Match <tag>content</tag> pattern
   =/  open=(unit @ud)  (find "<" t)
   ?~  open  ~
-  =/  close-bracket=(unit @ud)  (find ">" (slag u.open t))
+  =/  close-bracket=(unit @ud)  (find ">" (slag u.open `tape`t))
   ?~  close-bracket  ~
   =/  tag-end=@ud  (add u.open +(u.close-bracket))
-  =/  tag-str=tape  (slag +(u.open) (scag (dec tag-end) t))
+  =/  tag-str=tape  (slag +(u.open) (scag (dec tag-end) `tape`t))
   ::  strip attributes if any
   =/  tag-name=tape
     =/  sp=(unit @ud)  (find " " tag-str)
@@ -1255,14 +1488,52 @@
   =/  close-pos=(unit @ud)  (find close-tag t)
   ?~  close-pos  ~
   ::  extract inner content (everything between open and close tags)
-  =/  inner=@t  (crip (scag (sub u.close-pos tag-end) (slag tag-end t)))
+  =/  inner=@t  (crip (scag (sub u.close-pos tag-end) (slag tag-end `tape`t)))
   ?:  =("thought" tag-name)  `[%thought inner]
-  ?:  =("message" tag-name)  `[%message inner]
+  ?:  =("message" tag-name)  `[%message inner (parse-continue tag-str)]
   ?:  =("done" tag-name)     `[%done inner]
   ?:  =("tool" tag-name)     (parse-tool-tag tag-str inner)
   ?:  =("api" tag-name)      (parse-api-tag tag-str inner)
   ?:  =("notify" tag-name)   `[%notify inner (parse-continue tag-str)]
   ~
+::  Parse multiple XML tags from a single response
+::
+++  parse-responses
+  |=  reply=@t
+  ^-  (list response-tag)
+  =/  t=tape  (trim-tape (trip reply))
+  =|  acc=(list response-tag)
+  |-
+  ?:  =(~ t)  (flop acc)
+  =/  chunk=@t  (crip t)
+  =/  tag=(unit response-tag)  (parse-response chunk)
+  ?~  tag  (flop acc)
+  =/  end=@ud  (find-tag-end t)
+  ?:  =(0 end)  (flop [u.tag acc])
+  $(acc [u.tag acc], t (trim-tape (slag end `tape`t)))
+::  Find the character position after the first complete XML tag
+::
+++  find-tag-end
+  |=  t=tape
+  ^-  @ud
+  ?.  ?=(^ t)  0
+  ?.  =('<' i.t)  0
+  ::  self-closing: <tag ... />
+  =/  sc=(unit @ud)  (find "/>" t)
+  =/  gt=(unit @ud)  (find ">" t)
+  ?~  gt  0
+  ::  if /> appears before or at >  it's self-closing
+  ?:  &(?=(^ sc) =(+(u.sc) u.gt))
+    +(u.gt)
+  ::  paired tag: extract name, find </name>
+  =/  tag-str=tape  (slag 1 (scag u.gt `tape`t))
+  =/  tag-name=tape
+    =/  sp=(unit @ud)  (find " " tag-str)
+    ?~(sp tag-str (scag u.sp tag-str))
+  =/  close-tag=tape  "</{tag-name}>"
+  =/  close-pos=(unit @ud)  (find close-tag t)
+  ?~  close-pos  0
+  (add u.close-pos (lent close-tag))
 ::  Parse <tool> tag content as JSON tool calls
 ::
 ++  parse-tool-tag
@@ -1322,8 +1593,7 @@
   |=  tag-str=tape
   ^-  ?
   =/  val=@t  (get-attr tag-str "continue")
-  ?.  =('false' val)  %.y
-  %.n
+  =('true' val)
 ::
 ++  extract-error
   |=  response=@t
@@ -1385,7 +1655,10 @@
       "form.onsubmit=async function(e)\{e.preventDefault();var t=input.value.trim();if(!t)return;input.value='';autoResize();var r=await fetch(API+'/poke/'+BASE+'/main.claude-registry?mark=claude-action',\{method:'POST',headers:\{'Content-Type':'application/json'},body:JSON.stringify(\{text:t})});if(!r.ok)\{var err=await r.text();showError(r.status+': '+err)}};"
       "function onLastMsg(e)\{if(e.data)\{box.insertAdjacentHTML('beforeend',e.data);scrollBottom()}}"
       "function connect()\{var es=new EventSource(API+'/keep/'+BASE+'/ui/sse/last-message.html?mark=txt');es.addEventListener('upd last-message.html',onLastMsg);es.onerror=function()\{es.close();setTimeout(connect,2000)}}"
-      "function onStatus(e)\{try\{var s=JSON.parse(e.data);var el=document.getElementById('loading');if(s.loading)\{el.classList.add('active')}else\{el.classList.remove('active')}}catch(x)\{}}"
+      "var intBtn=document.getElementById('interrupt-btn');"
+      "function onStatus(e)\{try\{var s=JSON.parse(e.data);var el=document.getElementById('loading');if(s.loading)\{el.classList.add('active');intBtn.classList.add('active')}else\{el.classList.remove('active');intBtn.classList.remove('active')};if('live' in s)\{setLiveUI(s.live)}}catch(x)\{}}"
+      "intBtn.onclick=async function()\{await fetch(API+'/poke/'+BASE+'/main.claude-registry?mark=claude-action',\{method:'POST',headers:\{'Content-Type':'application/json'},body:JSON.stringify(\{interrupt:true})})};"
+      "var lastEsc=0;document.addEventListener('keydown',function(e)\{if(e.key==='Escape')\{var now=Date.now();if(now-lastEsc<500)\{intBtn.click();lastEsc=0}else\{lastEsc=now}}});"
       "function connectStatus()\{var es=new EventSource(API+'/keep/'+BASE+'/ui/sse/status.json?mark=json');es.addEventListener('upd status.json',onStatus);es.onerror=function()\{es.close();setTimeout(connectStatus,2000)}}"
     "document.querySelectorAll('#filters input').forEach(function(cb)\{cb.addEventListener('change',function()\{var t=this.getAttribute('data-type');var r=this.getAttribute('data-role');var cls='hide-'+r+'-'+t;if(this.checked)\{box.classList.remove(cls)}else\{box.classList.add(cls)}})});"
     "var backdrop=document.getElementById('modal-backdrop'),editor=document.getElementById('prompt-editor'),sysDiv=document.getElementById('prompt-system'),saveBtn=document.getElementById('prompt-save');"
@@ -1403,6 +1676,9 @@
     "document.getElementById('cfg-save').onclick=async function()\{try\{var j=JSON.parse(cfgEditor.value);var r=await fetch(API+'/over/'+BASE+'/config.json?mark=json',\{method:'POST',headers:\{'Content-Type':'application/json'},body:JSON.stringify(j)});if(r.ok)\{cfgBack.classList.remove('open')}else\{alert('Save failed: '+r.status)}}catch(e)\{alert('Invalid JSON: '+e.message)}};"
     "document.getElementById('cfg-close').onclick=function()\{cfgBack.classList.remove('open')};"
     "cfgBack.onclick=function(e)\{if(e.target===cfgBack)cfgBack.classList.remove('open')};"
+    "var liveBtn=document.getElementById('live-btn');"
+    "function setLiveUI(on)\{liveBtn.className=on?'on':'off';liveBtn.textContent=on?'live':'halted'}"
+    "liveBtn.onclick=async function()\{var on=liveBtn.className==='off';setLiveUI(on);await fetch(API+'/poke/'+BASE+'/main.claude-registry?mark=claude-action',\{method:'POST',headers:\{'Content-Type':'application/json'},body:JSON.stringify(\{live:on})})};"
     "connect();connectStatus();"
     ==
   ;html
@@ -1416,6 +1692,9 @@
           "body \{ font-family: monospace; max-width: 800px; margin: 0 auto; padding: 1rem; height: 100vh; display: flex; flex-direction: column; } "
           "h1 \{ margin-bottom: 1rem; font-size: 1.2rem; } "
           "#messages \{ flex: 1; overflow-y: auto; border: 1px solid #ccc; border-radius: 4px; padding: 1rem; margin-bottom: 1rem; } "
+          ".msg-group \{ margin-bottom: 1rem; } "
+          ".msg-group > .msg \{ margin-bottom: 0.25rem; } "
+          ".msg-group > .msg:last-child \{ margin-bottom: 0; } "
           ".msg \{ margin-bottom: 1rem; } "
           ".msg b \{ display: inline; text-transform: uppercase; font-size: 0.7rem; opacity: 0.5; } "
           ".msg .sub \{ font-size: 0.65rem; opacity: 0.4; margin-left: 0.5rem; text-transform: uppercase; } "
@@ -1457,8 +1736,13 @@
           ".hide-user-message .msg.message.user, .hide-user-error .msg.error.user, .hide-user-tool .msg.tool.user, .hide-user-api .msg.api.user, .hide-user-continue .msg.continue.user \{ display: none; } "
           "#header \{ display: flex; align-items: baseline; gap: 0.75rem; margin-bottom: 1rem; } "
           "#header h1 \{ margin-bottom: 0; } "
-          "#prompt-btn, #registry-btn, #config-btn \{ font-family: monospace; font-size: 0.65rem; text-transform: uppercase; opacity: 0.4; cursor: pointer; padding: 0.15rem 0.4rem; border: 1px solid #ccc; border-radius: 3px; background: none; } "
-          "#prompt-btn:hover, #registry-btn:hover, #config-btn:hover \{ opacity: 0.8; } "
+          "#prompt-btn, #registry-btn, #config-btn, #live-btn \{ font-family: monospace; font-size: 0.65rem; text-transform: uppercase; opacity: 0.4; cursor: pointer; padding: 0.15rem 0.4rem; border: 1px solid #ccc; border-radius: 3px; background: none; } "
+          "#prompt-btn:hover, #registry-btn:hover, #config-btn:hover, #live-btn:hover \{ opacity: 0.8; } "
+          "#interrupt-btn \{ display: none; color: #c00; border-color: #c00; } "
+          "#interrupt-btn.active \{ display: block; } "
+          "#interrupt-btn:hover \{ background: #fdd; } "
+          "#live-btn.on \{ opacity: 0.8; color: #080; border-color: #080; } "
+          "#live-btn.off \{ opacity: 0.8; color: #c00; border-color: #c00; } "
           "#reg-backdrop \{ display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.3); z-index: 100; } "
           "#reg-backdrop.open \{ display: flex; align-items: center; justify-content: center; } "
           "#reg-modal \{ background: #fff; border: 1px solid #ccc; border-radius: 4px; width: 90%; max-width: 700px; max-height: 70vh; display: flex; flex-direction: column; padding: 1rem; } "
@@ -1504,6 +1788,7 @@
     ;body
       ;div#header
         ;h1: Claude Chat
+        ;button#live-btn.on: live
         ;button#prompt-btn: prompt
         ;button#registry-btn: registry
         ;button#config-btn: config
@@ -1575,6 +1860,7 @@
       ==
       ;div#loading;
       ;form#form
+        ;button#interrupt-btn(type "button"): Stop
         ;textarea#input(rows "1", placeholder "Type a message...");
         ;button(type "submit"): Send
       ==

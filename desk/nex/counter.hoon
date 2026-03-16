@@ -98,14 +98,42 @@
       ^-  @t
       ?-    -.mana
           %&
-        ?+  p.mana  'Inert subdirectory under the counter nexus. No special behavior.'
-          ~  'Counter nexus. Manages auto-incrementing counters with a live HTML UI. /counters/ holds individual counter files (each is a @ud). /ui/ serves the web interface with SSE streaming.'
-          [%counters ~]  'Counter storage. Each file is a @ud counter keyed by @da timestamp. Poke a counter to increment it.'
-          [%ui ~]  'Counter web UI. Serves HTML page with live SSE updates when counters change.'
+        ?+  p.mana  'Subdirectory under the counter nexus.'
+            ~
+          %-  crip
+          """
+          COUNTER NEXUS — auto-incrementing counters with live web UI
+
+          A simple demo nexus. Each counter is a file in /counters/ holding
+          a @ud value. Poke a counter to increment it. The web UI at
+          /ui/ renders all counters and streams updates via SSE.
+
+          FILES:
+            ver.ud              Schema version.
+
+          DIRECTORIES:
+            counters/           Counter storage. Each file is a @ud. Poke to
+                                increment. Keyed by @da timestamp on creation.
+            ui/                 Web interface with SSE streaming.
+            ui/views/           Server-rendered HTML pages.
+            ui/views/page.html  Full counter page. Mark: manx. Re-rendered
+                                when counters change.
+            ui/requests/        Per-request fibers for HTTP connections.
+          """
+            [%counters ~]
+          'Counter storage. Each file holds a @ud value. Poke to increment. New counters are keyed by @da timestamp.'
+            [%ui ~]
+          'Counter web UI. Serves HTML page with live SSE updates when counters change.'
+            [%ui %views ~]
+          'Server-rendered HTML views for the counter UI.'
+            [%ui %requests ~]
+          'Per-request fibers for active HTTP connections to the counter UI.'
         ==
           %|
-        ?+  name.rail.p.mana  'Inert file under the counter nexus. No special documentation.'
-          %'ver.ud'  'Counter nexus version. Incremented on schema changes.'
+        ?+  rail.p.mana  'File under the counter nexus.'
+          [~ %'ver.ud']                    'Schema version counter. Mark: ud.'
+          [[%ui ~] %'main.sig']            'Counter UI HTTP binding process. Mark: sig. Registers with the server nexus and dispatches requests.'
+          [[%ui %views ~] %'page.html']    'Full counter page. Mark: manx (Sail HTML). Re-rendered on counter changes.'
         ==
       ==
     --

@@ -64,12 +64,32 @@
       ^-  @t
       ?-    -.mana
           %&
-        ?+  p.mana  'Inert subdirectory under the explorer nexus. No special behavior.'
-          ~  'Explorer nexus. Web-based tarball file browser. Serves directory listings with create, delete, upload, and symlink actions. Streams live changes via SSE.'
+        ?+  p.mana  'Subdirectory under the explorer nexus.'
+            ~
+          %-  crip
+          """
+          EXPLORER NEXUS — web-based tarball file browser
+
+          Serves directory listings and file contents over HTTP with a
+          full CRUD interface: create, delete, upload, rename, and symlink.
+          Streams live directory changes via SSE so the browser updates
+          without polling.
+
+          FILES:
+            main.sig            HTTP binding process. Registers /grubbery/
+                                with the server nexus.
+            ver.ud              Schema version.
+
+          DIRECTORIES:
+            requests/           Per-request fibers for active HTTP connections.
+          """
+            [%requests ~]
+          'Active HTTP request fibers. Each inbound request spawns a fiber here; cleaned up on completion.'
         ==
           %|
-        ?+  name.rail.p.mana  'Inert file under the explorer nexus. No special documentation.'
-          %'main.sig'  'Explorer HTTP binding process. Registers URL prefix with the server nexus and dispatches inbound requests.'
+        ?+  rail.p.mana  'File under the explorer nexus.'
+          [~ %'main.sig']  'Explorer HTTP binding process. Mark: sig. Registers URL prefix with the server nexus and dispatches inbound requests to per-request fibers in /requests/.'
+          [~ %'ver.ud']    'Schema version counter. Mark: ud.'
         ==
       ==
     --

@@ -179,14 +179,49 @@
       ^-  @t
       ?-    -.mana
           %&
-        ?+  p.mana  'Inert subdirectory under the peers nexus. No special behavior.'
-          ~  'Peers nexus. External ship gateway with role-based access control. /usergroups/who/ defines group membership (sets of ships), /usergroups/how/ defines weir templates per group. /ships/ holds per-ship gateway processes created on first contact.'
-          [%usergroups ~]  'Usergroup definitions. /who/ has membership sets (mark: ships), /how/ has weir templates (mark: weir). Groups control what remote ships can access.'
-          [%ships ~]  'Per-ship gateways. Each remote ship that connects gets a directory here with a gateway process that routes their pokes through access control.'
+        ?+  p.mana  'Subdirectory under the peers nexus.'
+            ~
+          %-  crip
+          """
+          PEERS NEXUS — external ship gateway with role-based access control
+
+          All interaction from foreign ships flows through here. Each remote
+          ship gets its own directory under /ships/ with a gateway process
+          that enforces access control via weir rules.
+
+          Access is managed through usergroups: /usergroups/who/ defines
+          which ships belong to which groups, /usergroups/how/ defines
+          what weir (sandbox rules) each group gets. The main process
+          syncs group membership changes to per-ship weirs automatically.
+
+          FILES:
+            main.sig            Main process. Routes inbound foreign pokes,
+                                manages usergroup-to-weir synchronization.
+            ver.ud              Schema version.
+
+          DIRECTORIES:
+            usergroups/         Role-based access definitions.
+            usergroups/who/     Group membership. Each file is a set of @p.
+                                Mark: ships.
+            usergroups/how/     Weir templates per group. Each file defines
+                                the sandbox rules for that group. Mark: weir.
+            ships/              Per-ship gateways. Created lazily on first
+                                contact. Each ship gets its own directory
+                                with a gateway process.
+          """
+            [%usergroups ~]
+          'Usergroup definitions. /who/ has membership sets (mark: ships), /how/ has weir templates (mark: weir). Groups control what remote ships can access.'
+            [%usergroups %who ~]
+          'Group membership sets. Each file is named for a group and contains a set of @p. Mark: ships.'
+            [%usergroups %how ~]
+          'Weir templates per group. Each file is named for a group and defines sandbox rules applied to member ships. Mark: weir.'
+            [%ships ~]
+          'Per-ship gateways. Created lazily on first contact. Each remote ship gets a directory here with a gateway process that routes pokes through its weir.'
         ==
           %|
-        ?+  name.rail.p.mana  'Inert file under the peers nexus. No special documentation.'
-          %'main.sig'  'Peers main process. Routes inbound pokes from external ships, manages usergroup-to-weir sync.'
+        ?+  rail.p.mana  'File under the peers nexus.'
+          [~ %'main.sig']  'Peers main process. Mark: sig. Routes inbound pokes from external ships, creates per-ship gateways, syncs usergroup membership to per-ship weirs.'
+          [~ %'ver.ud']    'Schema version counter. Mark: ud.'
         ==
       ==
     --

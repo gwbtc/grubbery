@@ -9,17 +9,13 @@
   ++  noun  reg
   ++  txt
     ^-  wain
-    =/  keep-list=(list [@t @ud])  ~(tap by keeps.reg)
-    =/  flight-list=(list [@ud [action=@t path=@t]])  ~(tap by flights.reg)
-    ?:  &(=(~ keep-list) =(~ flight-list))  ~['No active requests.']
+    =/  slot-list  ~(tap by slots.reg)
+    :-  ?:(live.reg 'LIVE' 'HALTED')
+    ?~  slot-list  ~['No active requests.']
     :-  'ACTIVE REQUESTS:'
-    %+  weld
-      %+  turn  keep-list
-      |=  [pax=@t updates=@ud]
-      (crip "  keep {(trip pax)}{?:(=(0 updates) "" " ({(a-co:co updates)} updates)")}")
-    %+  turn  flight-list
-    |=  [id=@ud action=@t path=@t]
-    (crip "  {(trip action)} {(trip path)}")
+    %+  turn  slot-list
+    |=  [id=@ud act=@t pax=@t]
+    (crip "  [{(a-co:co id)}] {(trip act)} {(trip pax)}")
   --
 ++  grad  %noun
 --

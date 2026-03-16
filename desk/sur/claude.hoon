@@ -4,6 +4,8 @@
 +$  action
   $%  [%say text=@t]          ::  from UI — stored as user role
       [%add role=@t text=@t]  ::  from registry — explicit role
+      [%live flag=?]           ::  toggle API calls on/off
+      [%interrupt ~]           ::  cancel in-flight API call
   ==
 ::  Parsed response tag from Claude
 ::
@@ -12,16 +14,17 @@
       [%tool calls=(list tool-call) continue=?]
       [%api action=@t path=@t body=@t continue=?]
       [%notify text=@t continue=?]
-      [%message text=@t]
+      [%message text=@t continue=?]
       [%wait ~]
       [%done output=@t]
   ==
 +$  tool-call  [name=@t args=@t]
-::  Registry: singleton multiplexer for LLM <-> grubbery namespace
+::  Registry: async multiplexer for LLM <-> grubbery namespace
 ::
-::  keeps: one per path, long-lived subscriptions
-::  flights: in-flight async requests, keyed by counter
+::  Every outgoing operation (peek, make, keep, etc.) gets a slot.
+::  Responses match back by wire /slot/(scot %ud id).
 ::
-+$  registry  [%0 nex=@ud keeps=(map @t @ud) flights=(map @ud [action=@t path=@t])]
++$  slot  [action=@t path=@t]
++$  registry  [%0 nex=@ud slots=(map @ud slot) live=?]
 ++  mon  ((on @ud message) lth)
 --

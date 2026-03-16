@@ -11,6 +11,12 @@
     |=  j=^json
     ^-  action
     ?.  ?=([%o *] j)  [%say '']
+    =/  interrupt=(unit ^json)  (~(get by p.j) 'interrupt')
+    ?^  interrupt
+      [%interrupt ~]
+    =/  live=(unit ^json)  (~(get by p.j) 'live')
+    ?^  live
+      [%live ?=([%b %.y] u.live)]
     =/  text=(unit ^json)  (~(get by p.j) 'text')
     ?~  text  [%say '']
     ?.  ?=([%s *] u.text)  [%say '']
@@ -28,6 +34,12 @@
         %add
       %-  pairs:enjs:format
       ~[['type' s+'add'] ['role' s+role.act] ['text' s+text.act]]
+        %live
+      %-  pairs:enjs:format
+      ~[['type' s+'live'] ['live' b+flag.act]]
+        %interrupt
+      %-  pairs:enjs:format
+      ~[['type' s+'interrupt']]
     ==
   --
 ++  grad  %noun

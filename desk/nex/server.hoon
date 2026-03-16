@@ -229,13 +229,50 @@
       ^-  @t
       ?-    -.mana
           %&
-        ?+  p.mana  'Inert subdirectory under the server nexus. No special routing or behavior.'
-          ~  'HTTP server nexus. Routes inbound HTTP requests to handler processes via URL prefix bindings. State in main.server-state tracks active bindings and open connections. /requests/ holds per-request fibers.'
-          [%requests ~]  'Active HTTP request fibers. Each inbound request spawns a fiber here; cleaned up on completion or client disconnect.'
+        ?+  p.mana  'Subdirectory under the server nexus.'
+            ~
+          %-  crip
+          """
+          HTTP SERVER NEXUS — eyre request gateway
+
+          Routes inbound HTTP requests to handler processes via URL prefix
+          bindings. Other nexuses register their URL prefixes here (e.g.
+          claude registers /grubbery/claude/, explorer registers /grubbery/).
+
+          FILES:
+            main.server-state   Active bindings and connection state.
+            ver.ud              Schema version.
+
+          DIRECTORIES:
+            requests/           Per-request fibers. Each inbound HTTP request
+                                spawns a short-lived fiber here. Cleaned up
+                                on response or client disconnect.
+
+          PROCESS:
+            main.server-state listens for eyre %request events, matches the
+            URL against registered bindings, and forwards the request to
+            the bound handler nexus. It also manages eyre %connect/%disconnect
+            lifecycle and tracks open connections for cleanup.
+          """
+            [%requests ~]
+          'Active HTTP request fibers. Each inbound request spawns a fiber here; cleaned up on completion or client disconnect.'
         ==
           %|
-        ?+  name.rail.p.mana  'Inert file under the server nexus. No special documentation.'
-          %'main.server-state'  'Server state. Maps URL bindings to handler rails and tracks open eyre connections. Mark: server-state.'
+        ?+  rail.p.mana  'File under the server nexus.'
+            [~ %'main.server-state']
+          %-  crip
+          """
+          main.server-state — Server process + binding registry. Mark: server-state.
+
+          TYPE: [%0 bindings=(map path rail:tarball) connections=(map @ud duct)]
+            bindings:    URL prefix -> handler rail. Set by child nexuses on load.
+            connections: Open eyre connection IDs. Tracked for cleanup.
+
+          This is the only process. It multiplexes all HTTP events:
+          inbound requests, response completions, and connection lifecycle.
+          """
+            [~ %'ver.ud']
+          'Schema version counter. Mark: ud.'
         ==
       ==
     --

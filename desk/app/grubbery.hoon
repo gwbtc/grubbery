@@ -18,6 +18,7 @@
 /=  m-  /mar/jael-public-keys-result
 /=  m-  /mar/claude-action
 /=  m-  /mar/claude-messages
+/=  m-  /mar/claude-registry
 /=  n-  /nex/build
 /=  n-  /nex/mcp
 /=  n-  /nex/claude

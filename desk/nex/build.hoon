@@ -230,14 +230,44 @@
   ^-  @t
   ?-    -.mana
       %&
-    ?+  p.mana  'Inert subdirectory under the build nexus. No special behavior beyond holding compiled output or source files.'
-      ~  'Build nexus. Hoon compiler with content-hash caching. /src/ holds source files, /bin/ holds compiled output (.temp = success, .tang = errors), /keys.keys tracks build cache. The builder process watches /src/ and recompiles on change.'
-      [%src ~]  'Hoon source files. Drop .hoon files here; the builder auto-compiles them into /bin/.'
-      [%bin ~]  'Compiled output. .temp files are successful builds (vases), .tang files are compile errors.'
+    ?+  p.mana  'Subdirectory under the build nexus. May contain source files or compiled output.'
+        ~
+      %-  crip
+      """
+      BUILD NEXUS — Hoon compiler with content-hash caching
+
+      Compiles Hoon source files from /src/ into /bin/. Uses content
+      hashing to skip unchanged files. Supports /lib/ imports within
+      the source tree via the /<  pattern.
+
+      FILES:
+        keys.keys           Build cache — content hashes for incremental rebuilds.
+        builder.sig         Builder process — watches /src/, recompiles on change.
+        ver.ud              Schema version.
+
+      DIRECTORIES:
+        src/                Hoon source files. Subdirectories are preserved
+                            in the output structure (e.g. src/lib/foo.hoon
+                            compiles to bin/lib/foo.temp).
+        bin/                Compiled output. Auto-managed — do not edit directly.
+                            .temp files are successful builds (vases).
+                            .tang files are compile errors (stack traces).
+
+      Seeds src/main.hoon and src/lib/add1.hoon as examples on first load.
+      """
+        [%src ~]
+      'Hoon source files. Drop .hoon files here; the builder auto-compiles them into /bin/. Subdirectories like /lib/ are supported for imports.'
+        [%bin ~]
+      'Compiled output. .temp = successful build (vase), .tang = compile error (tang). Auto-managed by the builder — do not edit directly.'
     ==
       %|
-    ?+  name.rail.p.mana  'Inert file under the build nexus. Likely a compiled artifact or source with no special documentation.'
-      %'keys.keys'  'Build cache keys. Maps source content hashes to compiled output, enabling incremental rebuilds.'
+    ?+  rail.p.mana  'File under the build nexus.'
+        [~ %'keys.keys']
+      'Build cache keys. Mark: keys. Maps (rail:tarball -> @uv) — source content hashes for incremental rebuilds. Stale entries are pruned on each build.'
+        [~ %'builder.sig']
+      'Builder process. Mark: sig. Watches /src/ via keep subscription. On any change, recompiles all sources and writes results to /bin/.'
+        [~ %'ver.ud']
+      'Schema version counter. Mark: ud.'
     ==
   ==
 --
