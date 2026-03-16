@@ -224,6 +224,20 @@
         $
       ==
       ==
+    ++  on-manu
+      |=  =mana:nexus
+      ^-  @t
+      ?-    -.mana
+          %&
+        ?+  p.mana  'Inert subdirectory under the server nexus. No special routing or behavior.'
+          ~  'HTTP server nexus. Routes inbound HTTP requests to handler processes via URL prefix bindings. State in main.server-state tracks active bindings and open connections. /requests/ holds per-request fibers.'
+          [%requests ~]  'Active HTTP request fibers. Each inbound request spawns a fiber here; cleaned up on completion or client disconnect.'
+        ==
+          %|
+        ?+  name.rail.p.mana  'Inert file under the server nexus. No special documentation.'
+          %'main.server-state'  'Server state. Maps URL bindings to handler rails and tracks open eyre connections. Mark: server-state.'
+        ==
+      ==
     --
 |%
 ::  +handle-ball-api: route /grubbery/api requests by HTTP method
@@ -278,6 +292,8 @@
       [%'DELETE' %weir]  (serve-weir-del eyre-id api-path)
   ::  POST /upload/... — multipart file/directory upload
       [%'POST' %upload]  (serve-upload eyre-id api-path req)
+  ::  GET /manu/...  — documentation for a path
+      [%'GET' %manu]     (serve-manu eyre-id api-path)
   ==
 ::  +send-error: respond with HTTP error
 ::
@@ -671,6 +687,25 @@
   ^-  form:m
   ;<  ~  bind:m  (sand:io /weir [%& %| api-path] ~)
   (send-ok eyre-id 'Deleted')
+::  +serve-manu: GET /manu — documentation for a path
+::
+++  serve-manu
+  |=  [eyre-id=@ta api-path=path]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  =/  file-road=(unit road:tarball)
+    ?~  api-path  ~
+    `[%& %& (snip `path`api-path) (rear api-path)]
+  ;<  is-file=?  bind:m
+    ?~  file-road  (pure:(fiber:fiber:nexus ,?) %.n)
+    (peek-exists:io /manu-chk u.file-road)
+  =/  =road:tarball
+    ?:  is-file  (need file-road)
+    [%& %| api-path]
+  ;<  text=@t  bind:m  (manu:io /manu |+road)
+  ?:  =('' text)
+    (send-ok eyre-id 'No documentation')
+  (send-ok eyre-id text)
 ::  +serve-keep: GET /keep — SSE stream of changes
 ::
 ++  serve-keep

@@ -126,6 +126,20 @@
           ==
         ==
       ==
+    ++  on-manu
+      |=  =mana:nexus
+      ^-  @t
+      ?-    -.mana
+          %&
+        ?+  p.mana  'Inert subdirectory under the wallet nexus. No special behavior.'
+          ~  'Wallet nexus. Bitcoin wallet management with web UI. /wallets/ holds wallet grubs. Serves HTML interface with SSE streaming for live updates.'
+          [%wallets ~]  'Wallet storage. Each file is a wallet grub.'
+        ==
+          %|
+        ?+  name.rail.p.mana  'Inert file under the wallet nexus. No special documentation.'
+          %'main.sig'  'Wallet HTTP binding process. Serves wallet UI and handles SSE streaming.'
+        ==
+      ==
     --
 |%
 ++  srv  ~(. res:nex-server [%| 1 %& ~ %'main.sig'])

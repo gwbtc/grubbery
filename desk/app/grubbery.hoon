@@ -857,7 +857,7 @@
     |=  [[=wire =ship =term] *]
     ^-  (unit card)
     ?.  ?=([%proc @ *] wire)  ~
-    =/  [proc-rail=rail:tarball @ ^path]  (unwrap-wire wire)
+    =/  [proc-rail=rail:tarball ^path]  (unwrap-wire wire)
     =/  proc-path=^path  (snoc path.proc-rail name.proc-rail)
     ?.  ?-  mode
           %file  =(proc-path path)
@@ -1099,6 +1099,13 @@
             %over  %diff  %gain  %lose
         ==
       %make  :: all modify tree structure
+    ==
+    ::
+      %manu
+    ?-  -.target.dart
+      %&  [%sysc ~]                    :: explicit: caller knows the nexus, no filtering
+        %|  :: by road: requires peek permission
+      [%peek (lane-from-road:tarball [%& here] p.target.dart)]
     ==
   ==
 ::
@@ -1379,6 +1386,56 @@
       ==
     ==
     ::
+      %manu
+    ?-    -.target.dart
+        %&
+      ::  Explicit: build nexus from neck, call on-manu directly
+      =/  nex=(unit nexus:nexus)  (build-nexus neck.p.target.dart)
+      ?~  nex
+        (enqu-take here (sys-give /manu) ~ %manu wire.dart |+~[leaf+"nexus not found: {(trip neck.p.target.dart)}"])
+      =/  text=@t  (on-manu:u.nex mana.p.target.dart)
+      (enqu-take here (sys-give /manu) ~ %manu wire.dart &+text)
+      ::
+        %|
+      ::  By road: resolve, find nearest nexus, relativize, call on-manu
+      =/  dest-lane=(unit lane:tarball)  (lane-from-road:tarball [%& here] p.target.dart)
+      ?~  dest-lane
+        (enqu-take here (sys-give /manu) ~ %manu wire.dart |+~[leaf+"bad road"])
+      ::  Full path from lane
+      =/  target-path=path
+        ?-(-.u.dest-lane %& (snoc path.p.u.dest-lane name.p.u.dest-lane), %| p.u.dest-lane)
+      ::  Walk up tree to find nearest covering nexus
+      =/  nex-info=(unit (pair path neck:tarball))
+        |-
+        ?~  lump=(~(get of ball) target-path)
+          ?~  target-path  ~
+          $(target-path (snip `path`target-path))
+        ?^  neck.u.lump
+          `[target-path u.neck.u.lump]
+        ?~  target-path  ~
+        $(target-path (snip `path`target-path))
+      ?~  nex-info
+        (enqu-take here (sys-give /manu) ~ %manu wire.dart |+~[leaf+"no nexus covers this path"])
+      =/  nex=(unit nexus:nexus)  (build-nexus q.u.nex-info)
+      ?~  nex
+        (enqu-take here (sys-give /manu) ~ %manu wire.dart |+~[leaf+"nexus build failed: {(trip q.u.nex-info)}"])
+      ::  Relativize target path to nexus location
+      =/  rel-path=path  (slag (lent p.u.nex-info) target-path)
+      ::  Build query from relative path + lane type
+      =/  =mana:nexus
+        ?-    -.u.dest-lane
+            %|  [%& rel-path]
+            %&
+          =/  =mark
+            =/  content=(unit content:tarball)
+              (~(get ba:tarball ball) path.p.u.dest-lane name.p.u.dest-lane)
+            (fall (bind content |=(c=content:tarball p.cage.c)) %$)
+          [%| [(snip rel-path) (rear rel-path)] mark]
+        ==
+      =/  text=@t  (on-manu:u.nex mana)
+      (enqu-take here (sys-give /manu) ~ %manu wire.dart &+text)
+    ==
+    ::
       %scry
     ?~  scry.dart
       ::  Null scry returns agent state
@@ -1470,11 +1527,9 @@
     =.  this  (clean (snoc path.here name.here) %file)
     (delete path.here name.here)
       %fail
-    ::  Process failed - don't save state, clean subs, restart
+    ::  Process failed - don't save state, restart. Subs survive (wires still route).
     =.  this  (nack-poke-takes here next.new-proc err.res)
     =.  this  (nack-poke-takes here skip.new-proc err.res)
-    =.  this  (clean (snoc path.here name.here) %file)
-    =.  this  (sub-wipe here)
     =.  this  (spawn-proc here [%rise err.res])
     (enqu-take here (sys-give /rise) ~)
   ==
@@ -1616,7 +1671,7 @@
     %+  murn  ~(tap by wex.bowl)
     |=  [[=wire =ship =term] acked=? =path]
     ?.  ?=([%proc @ *] wire)  ~
-    =/  [proc-rail=rail:tarball @ orig-wire=^wire]  (unwrap-wire wire)
+    =/  [proc-rail=rail:tarball orig-wire=^wire]  (unwrap-wire wire)
     =/  proc-path=^path  (snoc path.proc-rail name.proc-rail)
     ?.  =(proc-path here-path)  ~
     [~ [orig-wire ship term] acked path]
@@ -2155,42 +2210,34 @@
 ++  wrap-wire
   |=  [here=rail:tarball =wire]
   ^+  wire
-  =/  =sack:nexus  (need (get-born here))
   =/  here-path=path  (snoc path.here name.here)
   ;:  weld
     /proc/(scot %ud (lent here-path))
     here-path
-    /(scot %da da.proc.sack)
     wire
   ==
 ::
 ++  unwrap-wire
   |=  =wire
-  ^-  [rail:tarball @da ^wire]
+  ^-  [rail:tarball ^wire]
   ?>  ?=([%proc @ *] wire)
   =/  len=@ud  (slav %ud i.t.wire)
   =/  here-path=path  (scag len t.t.wire)
   ?>  ?=(^ here-path)
   =/  here=rail:tarball  [(snip `path`here-path) (rear here-path)]
   =/  rest=^wire  (slag len t.t.wire)
-  ?>  ?=([@ *] rest)
-  =/  b=@da  (slav %da i.rest)
-  [here b t.rest]
+  [here rest]
 ::
 ++  take-arvo
   |=  [wir=wire sign=sign-arvo]
   ^+  this
-  =/  [here=rail:tarball b=@da =wire]  (unwrap-wire wir)
-  =/  cur=(unit sack:nexus)  (get-born here)
-  ?.  ?&(?=(^ cur) =(b da.proc.u.cur))  this
+  =/  [here=rail:tarball =wire]  (unwrap-wire wir)
   (enqu-take here (sys-give /arvo) ~ %arvo wire sign)
 ::
 ++  take-agent
   |=  [wir=wire =sign:agent:gall]
   ^+  this
-  =/  [here=rail:tarball b=@da =wire]  (unwrap-wire wir)
-  =/  cur=(unit sack:nexus)  (get-born here)
-  ?.  ?&(?=(^ cur) =(b da.proc.u.cur))  this
+  =/  [here=rail:tarball =wire]  (unwrap-wire wir)
   (enqu-take here (sys-give /agent) ~ %agent wire sign)
 ::  Unwrap incoming watch/leave paths
 ::

@@ -59,6 +59,19 @@
           (handle-post eyre-id tree-path root-sand req)
         (handle-get eyre-id tree-path root root-born root-sand args)
       ==
+    ++  on-manu
+      |=  =mana:nexus
+      ^-  @t
+      ?-    -.mana
+          %&
+        ?+  p.mana  'Inert subdirectory under the explorer nexus. No special behavior.'
+          ~  'Explorer nexus. Web-based tarball file browser. Serves directory listings with create, delete, upload, and symlink actions. Streams live changes via SSE.'
+        ==
+          %|
+        ?+  name.rail.p.mana  'Inert file under the explorer nexus. No special documentation.'
+          %'main.sig'  'Explorer HTTP binding process. Registers URL prefix with the server nexus and dispatches inbound requests.'
+        ==
+      ==
     --
 ::
 |%

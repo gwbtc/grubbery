@@ -15,6 +15,7 @@
     %scry  ~[leaf+"vetoed scry on wire {(spud wire.dart)}"]
     %bowl  ~[leaf+"vetoed bowl request on wire {(spud wire.dart)}"]
     %node  ~[leaf+"vetoed node operation on wire {(spud wire.dart)}"]
+    %manu  ~[leaf+"vetoed manu request on wire {(spud wire.dart)}"]
   ==
 ::
 ++  send-darts
@@ -324,6 +325,25 @@
   ^-  form:m
   ;<  =seen:nexus  bind:m  (peek wire road ~)
   (pure:m ?&(?=(%& -.seen) !?=(%none -.p.seen)))
+::
+++  manu
+  |=  [=wire target=(each [=neck:tarball =mana:nexus] road:tarball)]
+  =/  m  (fiber ,@t)
+  ^-  form:m
+  ;<  ~  bind:m  (send-dart %manu wire target)
+  |=  input
+  :+  ~  state
+  ?+  in  [%skip ~]
+      ~  [%wait ~]
+      [~ %veto *]
+    [%fail (veto-error dart.u.in)]
+      [~ %manu * *]
+    ?.  =(wire wire.u.in)
+      [%skip ~]
+    ?:  ?=(%| -.res.u.in)
+      [%fail %manu-failed p.res.u.in]
+    [%done p.res.u.in]
+  ==
 ::
 ++  cull
   |=  [=wire =road:tarball]

@@ -174,6 +174,21 @@
           [[%usergroups %how *] @]
         ?>  ?=(%weir mark)  how-file
       ==
+    ++  on-manu
+      |=  =mana:nexus
+      ^-  @t
+      ?-    -.mana
+          %&
+        ?+  p.mana  'Inert subdirectory under the peers nexus. No special behavior.'
+          ~  'Peers nexus. External ship gateway with role-based access control. /usergroups/who/ defines group membership (sets of ships), /usergroups/how/ defines weir templates per group. /ships/ holds per-ship gateway processes created on first contact.'
+          [%usergroups ~]  'Usergroup definitions. /who/ has membership sets (mark: ships), /how/ has weir templates (mark: weir). Groups control what remote ships can access.'
+          [%ships ~]  'Per-ship gateways. Each remote ship that connects gets a directory here with a gateway process that routes their pokes through access control.'
+        ==
+          %|
+        ?+  name.rail.p.mana  'Inert file under the peers nexus. No special documentation.'
+          %'main.sig'  'Peers main process. Routes inbound pokes from external ships, manages usergroup-to-weir sync.'
+        ==
+      ==
     --
 |%
 +$  main-event

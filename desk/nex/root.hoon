@@ -66,4 +66,22 @@
     ;<  ~  bind:m  (rise-wait:io prod "%sys /main: failed, poke to restart")
     stay:m
   ==
+++  on-manu
+  |=  =mana:nexus
+  ^-  @t
+  ?-    -.mana
+      %&
+    ?+  p.mana  'Inert subdirectory under the root nexus. No special behavior.'
+        ~
+      'Grubbery root. The top-level ball containing all system nexuses and user data. Subdirectories: sys/ (system internals, build, logs), server.server/ (HTTP gateway), claude.claude/ (AI chat), mcp.mcp/ (MCP tools), counter.counter/ (counters), explorer.explorer/ (file browser), peers.peers/ (external ship access), wallet.wallet/ (bitcoin), clurd.clurd/ (terminal), config/ (credentials).'
+        [%sys ~]
+      'System internals. Contains build.build/ (Hoon compiler), dill/ (terminal logs), jael/ (cryptographic keys), and the root main process.'
+        [%config ~]
+      'Configuration directory. Contains creds/ for API keys and service credentials.'
+        [%config %creds ~]
+      'Credentials store. Service credentials (telegram bot tokens, S3 keys, etc). Files are auto-read by nexuses that need them.'
+    ==
+      %|
+    'Inert file under the root nexus. No special documentation.'
+  ==
 --

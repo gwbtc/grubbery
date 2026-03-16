@@ -58,6 +58,9 @@
 ::
 +$  gain  (axal (map @ta ?))
 +$  make  (each [=sand =gain =ball:tarball] [gain=? =cage mark=(unit mark)])
+:: TODO: Consider whether subs and gain information should be visible in the view
+::       It absolutely should; subs with grub-relative paths
+::
 +$  view
   $%  [%ball =sand =born ball=ball:tarball]
       [%file =sack =cage]
@@ -93,12 +96,17 @@
       [%peep =find]
       [%drop ~]                 :: unsubscribe from dest
   ==
+::  manu types — documentation query
+::
++$  mana  (each fold:tarball mury)       :: directory or file query
++$  mury  [=rail:tarball =mark]          :: file query: rail + mark
 ::
 +$  dart
   $%  [%sysc =card:agent:gall]  :: regular card
       [%node =wire road=road:tarball =load]
       [%scry =wire scry=(unit scry)]
       [%bowl =wire]
+      [%manu =wire target=(each [=neck:tarball =mana] road:tarball)]
   ==
 ::
 ++  fiber
@@ -133,6 +141,7 @@
         [%lost =wire err=(unit tang)] :: response to lose
         [%seek =wire res=(each (list [=rail:tarball =cass:clay]) tang)] :: response to seek
         [%peep =wire res=(each (list [=cass:clay =cage]) tang)] :: response to peep
+        [%manu =wire res=(each @t tang)] :: response to manu
         [%over =wire err=(unit tang)] :: response to over (content overwrite)
         [%diff =wire err=(unit tang)] :: response to diff (same-mark replace)
         [%writ p=?(%over %diff)]      :: notify grub its file was externally modified
@@ -886,6 +895,11 @@
   ++  on-file
     |~  [rail:tarball mark]
     *spool:fiber :: define spool (initializer) for grub at rail
+  :: manual page for a grub or directory. returns documentation text.
+  ::
+  ++  on-manu
+    |~  mana
+    *@t
   --
 ::  JSON conversion helpers
 ::

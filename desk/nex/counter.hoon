@@ -93,6 +93,21 @@
         ;<  ~  bind:m  (send-simple:srv eyre-id (mime-response:http-utils mime))
         (pure:m ~)
       ==
+    ++  on-manu
+      |=  =mana:nexus
+      ^-  @t
+      ?-    -.mana
+          %&
+        ?+  p.mana  'Inert subdirectory under the counter nexus. No special behavior.'
+          ~  'Counter nexus. Manages auto-incrementing counters with a live HTML UI. /counters/ holds individual counter files (each is a @ud). /ui/ serves the web interface with SSE streaming.'
+          [%counters ~]  'Counter storage. Each file is a @ud counter keyed by @da timestamp. Poke a counter to increment it.'
+          [%ui ~]  'Counter web UI. Serves HTML page with live SSE updates when counters change.'
+        ==
+          %|
+        ?+  name.rail.p.mana  'Inert file under the counter nexus. No special documentation.'
+          %'ver.ud'  'Counter nexus version. Incremented on schema changes.'
+        ==
+      ==
     --
 |%
 ::  Derive URL prefix from nexus root path

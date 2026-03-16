@@ -485,4 +485,21 @@
       ==
     (replace:io !>(`tool-state:nex-tools`[tool.st args.st %done data.st `result-json]))
   ==
+++  on-manu
+  |=  =mana:nexus
+  ^-  @t
+  ?-    -.mana
+      %&
+    ?+  p.mana  'Inert subdirectory under the MCP nexus. No special behavior.'
+      ~  'MCP (Model Context Protocol) nexus. JSON-RPC server for AI tool use. /cus/ holds custom tool source files, /bin/ holds compiled tools, /tools/ holds running tool instances. The builder process watches /cus/ and recompiles on change.'
+      [%cus ~]   'Custom tool sources. Drop .hoon files here to add MCP tools. The builder auto-compiles them into /bin/. Source must produce a valid tool:tools.'
+      [%bin ~]   'Compiled tools. .temp files are successful builds (executable vases), .tang files are compile errors. Auto-managed by the builder.'
+      [%tools ~]  'Running tool instances. Each active tool call gets a fiber here with its state (tool-state mark). Cleaned up on completion.'
+    ==
+      %|
+    ?+  name.rail.p.mana  'Inert file under the MCP nexus. No special documentation.'
+      %'main.sig'   'MCP HTTP binding process. Registers /grubbery/mcp with the server and handles JSON-RPC dispatch.'
+      %'builder.sig'  'MCP tool builder. Watches /cus/ for source changes, compiles to /bin/, registers tools in the live registry.'
+    ==
+  ==
 --

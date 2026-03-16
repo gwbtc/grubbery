@@ -21,8 +21,14 @@
   ++  noun  act
   ++  json
     ^-  ^json
-    %-  pairs:enjs:format
-    ~[['type' s+'say'] ['text' s+text.act]]
+    ?-  -.act
+        %say
+      %-  pairs:enjs:format
+      ~[['type' s+'say'] ['text' s+text.act]]
+        %add
+      %-  pairs:enjs:format
+      ~[['type' s+'add'] ['role' s+role.act] ['text' s+text.act]]
+    ==
   --
 ++  grad  %noun
 --

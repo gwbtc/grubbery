@@ -30,4 +30,14 @@
     ;<  ~  bind:m  (rise-wait:io prod "%clurd /main: failed")
     stay:m
   ==
+++  on-manu
+  |=  =mana:nexus
+  ^-  @t
+  ?-    -.mana
+      %&
+    ?+  p.mana  'Inert subdirectory under the clurd nexus. No special behavior.'
+      ~  'Clurd nexus. Programmatic dill terminal access. Provides blit rendering (VT100 to text) used by MCP tools for terminal operations like dojo commands.'
+    ==
+      %|  'Inert file under the clurd nexus. No special documentation.'
+  ==
 --

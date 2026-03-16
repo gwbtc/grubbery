@@ -225,4 +225,19 @@
     ;<  ~  bind:m  (do-build view.nw)
     $
   ==
+++  on-manu
+  |=  =mana:nexus
+  ^-  @t
+  ?-    -.mana
+      %&
+    ?+  p.mana  'Inert subdirectory under the build nexus. No special behavior beyond holding compiled output or source files.'
+      ~  'Build nexus. Hoon compiler with content-hash caching. /src/ holds source files, /bin/ holds compiled output (.temp = success, .tang = errors), /keys.keys tracks build cache. The builder process watches /src/ and recompiles on change.'
+      [%src ~]  'Hoon source files. Drop .hoon files here; the builder auto-compiles them into /bin/.'
+      [%bin ~]  'Compiled output. .temp files are successful builds (vases), .tang files are compile errors.'
+    ==
+      %|
+    ?+  name.rail.p.mana  'Inert file under the build nexus. Likely a compiled artifact or source with no special documentation.'
+      %'keys.keys'  'Build cache keys. Maps source content hashes to compiled output, enabling incremental rebuilds.'
+    ==
+  ==
 --
