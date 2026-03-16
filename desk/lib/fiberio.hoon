@@ -14,6 +14,7 @@
     %sysc  ~[leaf+"vetoed syscall"]
     %scry  ~[leaf+"vetoed scry on wire {(spud wire.dart)}"]
     %bowl  ~[leaf+"vetoed bowl request on wire {(spud wire.dart)}"]
+    %kept  ~[leaf+"vetoed kept request on wire {(spud wire.dart)}"]
     %node  ~[leaf+"vetoed node operation on wire {(spud wire.dart)}"]
     %manu  ~[leaf+"vetoed manu request on wire {(spud wire.dart)}"]
   ==
@@ -123,6 +124,29 @@
     ?.  =(wire wire.u.in)
       [%skip ~]
     [%done bowl.u.in]
+  ==
+::
+++  get-kept
+  |=  =wire
+  =/  m  (fiber ,kept:nexus)
+  ^-  form:m
+  ;<  ~  bind:m  (send-dart %kept wire)
+  (take-kept wire)
+::
+++  take-kept
+  |=  =wire
+  =/  m  (fiber ,kept:nexus)
+  ^-  form:m
+  |=  input
+  :+  ~  state
+  ?+  in  [%skip ~]
+      ~  [%wait ~]
+      [~ %veto *]
+    [%fail (veto-error dart.u.in)]
+      [~ %kept * *]
+    ?.  =(wire wire.u.in)
+      [%skip ~]
+    [%done kept.u.in]
   ==
 ::  On %rise, log the error and wait for a poke to restart (expect %sig).
 ::  On normal startup, continue immediately.

@@ -58,12 +58,11 @@
 ::
 +$  gain  (axal (map @ta ?))
 +$  make  (each [=sand =gain =ball:tarball] [gain=? =cage mark=(unit mark)])
-:: TODO: Consider whether subs and gain information should be visible in the view
-::       It absolutely should; subs with grub-relative paths
++$  kept  (set bend:tarball)
 ::
 +$  view
-  $%  [%ball =sand =born ball=ball:tarball]
-      [%file =sack =cage]
+  $%  [%ball =sand =gain =born ball=ball:tarball]
+      [%file =sack gain=? =cage]
       [%none ~]
   ==
 +$  seen  (each view tang)
@@ -91,10 +90,10 @@
                                        :: ver: if set, read historical version
       [%keep mark=(unit mark)]  :: subscribe to changes at dest (grub or ball per road)
                                        :: mark: if set, convert file cage in news
+      [%drop ~]                 :: unsubscribe from dest
       [%lose =lose]             :: drop hist entries, decrement silo refs
       [%seek =lobe:clay]        :: find all [rail cass] pairs with this hash
       [%peep =find]
-      [%drop ~]                 :: unsubscribe from dest
   ==
 ::  manu types — documentation query
 ::
@@ -106,6 +105,7 @@
       [%node =wire road=road:tarball =load]
       [%scry =wire scry=(unit scry)]
       [%bowl =wire]
+      [%kept =wire]              :: see your own outgoing subscriptions
       [%manu =wire target=(each [=neck:tarball =mana] road:tarball)]
   ==
 ::
@@ -132,6 +132,7 @@
   +$  intake
     $%  [%poke =from =cage] :: command for a running process (from is relative)
         [%peek =wire =seen] :: local read result
+        [%kept =wire =kept]              :: your outgoing subscriptions
         [%made =wire err=(unit tang)] :: response to make
         [%gone =wire err=(unit tang)] :: response to cull
         [%pack =wire err=(unit tang)] :: response from poke; tang is generic if not allowed to peek
@@ -344,21 +345,24 @@
 +$  pool  (axal pipe)
 ::  Internal subscriptions: process watches tree locations
 ::
++$  subscribers    (map rail:tarball [=wire mark=(unit mark)])
++$  subscriptions  (set lane:tarball)
 ::  fwd: "who is watching this lane?" → watcher + wire for routing
 ::  rev: "what is this process watching?" → for cleanup on death
 ::
 +$  subs
-  $:  fwd=(map lane:tarball (map rail:tarball [=wire mark=(unit mark)]))
-      rev=(jug rail:tarball lane:tarball)
+  $:  fwd=(axal [dir=subscribers fil=(map @ta subscribers)])
+      rev=(axal (map @ta subscriptions))
   ==
 ::  High-water marks per grub - NEVER deleted, even when grubs are deleted.
 ::  Prevents stale responses and enables subscription ordering.
 ::
 ::  proc: incremented on process spawn/restart
+::  life: incremented on grub creation (not updates; survives deletion)
 ::  file: incremented on content change
 ::
 +$  tote  [weir=cass:clay fold=cass:clay]
-+$  sack  [proc=cass:clay file=cass:clay hist=((mop cass:clay lobe:clay) cor)]
++$  sack  [proc=cass:clay life=cass:clay file=cass:clay hist=((mop cass:clay lobe:clay) cor)]
 +$  born  (axal [=tote bags=(map @ta sack)])
 +$  silo  (map lobe:clay [refs=@ud =cage])
 ++  cor   |=([a=cass:clay b=cass:clay] (lth ud.a ud.b))
@@ -453,19 +457,23 @@
     =/  nex-da=@da
       ?:((lth da.cass now) now +(da.cass))
     [+(ud.cass) nex-da]
-  ::  Init born for new file (no bump - first creation)
+  ::  Init born for new file — bump life if sack exists (re-creation),
+  ::  otherwise start life at 1.
   ::
   ++  init
     |=  here=rail:tarball
     ^-  born
-    (put here [[0 now] [0 now] ~])
+    =/  existing=(unit sack)  (get here)
+    ?~  existing
+      (put here [[0 now] [0 now] [0 now] ~])
+    (put here [proc.u.existing (next-cass life.u.existing) file.u.existing hist.u.existing])
   ::  Bump proc cass (asserts born exists)
   ::
   ++  bump-proc
     |=  here=rail:tarball
     ^-  born
     =/  sok=sack  (need (get here))
-    (put here [(next-cass proc.sok) file.sok hist.sok])
+    (put here [(next-cass proc.sok) life.sok file.sok hist.sok])
   ::  Bump dir cass and propagate up to root
   ::
   ++  bump-dir
@@ -483,7 +491,7 @@
     |=  here=rail:tarball
     ^-  born
     =/  sok=sack  (need (get here))
-    =.  born.old  (put here [proc.sok (next-cass file.sok) hist.sok])
+    =.  born.old  (put here [proc.sok life.sok (next-cass file.sok) hist.sok])
     (bump-dir path.here)
   ::  Bump weir cass of directory node and propagate fold cass up
   ::

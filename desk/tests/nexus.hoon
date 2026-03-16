@@ -281,7 +281,7 @@
   =/  new-born=born:nexus  (init:b [/a/b %file])
   =/  b2  (make-bo-with now new-born)
   %+  expect-eq
-    !>  `(unit sack:nexus)``[[0 now] [0 now] ~]
+    !>  `(unit sack:nexus)``[[0 now] [0 now] [0 now] ~]
   !>  (get:b2 [/a/b %file])
 ::
 ++  test-bo-bump-proc-increments

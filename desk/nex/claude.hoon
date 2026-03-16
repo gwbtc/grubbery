@@ -211,7 +211,7 @@
 
           API (via <api> tags in chat):
             Paths support ./ and ../ relative to the nexus.
-            READ:  file, kids, tree, sand, weir, manu, keep, lose
+            READ:  file, kids, tree, sand, weir, manu, keep, drop
             WRITE: make, over, rmf, dir, rmd, poke, diff, setweir, rmweir
             All paths are parsed by cord-to-road — trailing / means directory,
             no trailing / means file. Relative paths resolve from the nexus.
@@ -597,7 +597,7 @@
         ~&  >>>  %claude-error-limit-reached
         (pure:m ~)
       $(errs +(errs))
-    ::  parse XML tag BEFORE storing — reject garbage
+    ::  parse XML tag — take the first valid tag, ignore the rest
     =/  tag=(unit response-tag)  (parse-response reply)
     ?~  tag
       ~&  >>>  [%claude-bad-tag reply]
@@ -659,7 +659,7 @@
       ~&  >  [%claude-done output.u.tag]
       (pure:m ~)  ::  done — return to main loop
     ==
-::  Handle API request inline — keeps, one-shots, lose
+::  Handle API request inline — keeps, one-shots, drop
 ::
 ++  handle-api
   |=  [msg-road=road:tarball act=@t api-path=@t body=@t]
@@ -667,10 +667,10 @@
   ^-  form:m
   ;<  reg=registry  bind:m  (get-state-as:io ,registry)
   ~&  >  [%claude-api-dispatch act api-path]
-  ::  lose — cancel keep subscription and remove from registry
-  ?:  =(act 'lose')
+  ::  drop — cancel keep subscription and remove from registry
+  ?:  =(act 'drop')
     ?.  (~(has by keeps.reg) api-path)
-      (append-to-msgs msg-road 'user' (rap 3 ~['<api action="lose" path="' api-path '">Not subscribed to this path.</api>']))
+      (append-to-msgs msg-road 'user' (rap 3 ~['<api action="drop" path="' api-path '">Not subscribed to this path.</api>']))
     =/  rest=path  (turn (segments api-path) |=(s=@t `@ta`s))
     =/  file-road=(unit road:tarball)
       ?~  rest  ~
@@ -684,7 +684,7 @@
     =/  keep-wire=wire  /keep/(scot %t api-path)
     ;<  ~  bind:m  (drop:io keep-wire road)
     ;<  ~  bind:m  (replace:io !>(`registry`reg(keeps (~(del by keeps.reg) api-path))))
-    (append-to-msgs msg-road 'user' (rap 3 ~['<api action="lose" path="' api-path '">Unsubscribed</api>']))
+    (append-to-msgs msg-road 'user' (rap 3 ~['<api action="drop" path="' api-path '">Unsubscribed</api>']))
   ::  keep — one per path
   ?:  =(act 'keep')
     ?:  (~(has by keeps.reg) api-path)
@@ -777,7 +777,7 @@
       '    manu  /path/to/name.ext  — documentation for a file (from nearest nexus)'
       '    manu  /path/to/dir/     — documentation for a directory (from nearest nexus)'
       '    keep  /path/             — subscribe to changes (long-lived, streams updates)'
-      '    lose  /path/             — unsubscribe from a keep subscription'
+      '    drop  /path/             — unsubscribe from a keep subscription'
       ''
       '  WRITE actions (body = text content or JSON):'
       '    make  /path/to/name.ext  — create new file (body = content, mark from extension)'
@@ -806,8 +806,8 @@
       '  ACTIVE REQUESTS: This prompt includes a live view of the registry state.'
       '  Each entry shows: ID, action, path, and status (pending/streaming).'
       '  One-shot actions (file, kids, make, etc.) complete quickly and disappear.'
-      '  keep subscriptions stay as "streaming" until you lose them.'
-      '  lose cancels a keep by path. Use <api action="lose" path="/same/path"/>.'
+      '  keep subscriptions stay as "streaming" until you drop them.'
+      '  drop cancels a keep by path. Use <api action="drop" path="/same/path"/>.'
       ''
       '  ASYNC PATTERN: With continue="true" (default), you get a turn immediately —'
       '  the result arrives later as a user-role <api> message. Use continue="false"'
@@ -837,14 +837,16 @@
       '- <thought> always gives you another turn immediately.'
       '- <tool>, <api>, <notify> with continue="true" give you another turn after the response.'
       '  With continue="false" they pause like <message>.'
-      '- After your action is processed, the system injects a <continue/> message into the'
-      '  conversation to hand you the next turn. The user does not send these — the system does.'
-      '  They are visible in the chat log as protocol markers.'
+      '- <continue/> is a SYSTEM message, NOT from the user. It means "your previous action was'
+      '  processed — now take your next action." Do NOT treat it as user input. Do NOT ask the'
+      '  user to clarify. Do NOT say "the user sent continue." Just proceed with your next tag.'
       '- <message>, <wait>, and <done> always pause or end.'
-      '- If you need to think before acting, use <thought> first, then respond on your next turn.'
-      '- IMPORTANT: Do not chain more than 2-3 thoughts in a row. After thinking, send a <message>.'
-      '  The system enforces a thought cap - after 5 consecutive thoughts, your next response'
-      '  MUST be a <message>, <wait>, or <done>.'
+      '- If you need to think before acting, use <thought> first, then <message> on your next turn.'
+      '  ALWAYS follow thoughts with a <message> before <wait>ing or <done>. Never think then go silent.'
+      '- Do not chain more than 2-3 thoughts in a row. The system enforces a thought cap — after 5'
+      '  consecutive thoughts, your next response MUST be a <message>, <wait>, or <done>.'
+      '- Do NOT chain multiple <message> tags in a row. If you need to act after speaking, use'
+      '  <message continue="true">text</message> to get another turn, then send your <api> or <tool>.'
       '- For tool calls, use the exact tool names and argument formats provided.'
   ==
 ::  Dispatch API call by action
@@ -859,7 +861,7 @@
       %-  crip
       """
       ERROR: Unknown action '{(trip act)}'.
-      Valid actions: file, kids, tree, sand, weir, manu, keep, lose,
+      Valid actions: file, kids, tree, sand, weir, manu, keep, drop,
         make, over, rmf, dir, rmd, poke, diff, setweir, rmweir
       """
   ::  file — read a file
@@ -1396,6 +1398,11 @@
     "document.getElementById('registry-btn').onclick=async function()\{regBack.classList.add('open');regContent.innerHTML='<span class=\\'reg-empty\\'>Loading...</span>';try\{var r=await fetch(API+'/file/'+BASE+'/main.claude-registry?mark=txt');var txt=r.ok?await r.text():'Failed to load';regContent.innerHTML='<pre>'+esc(txt)+'</pre>'}catch(e)\{regContent.innerHTML='<span class=\\'reg-empty\\'>Error: '+esc(e.message)+'</span>'}};"
     "document.getElementById('reg-close').onclick=function()\{regBack.classList.remove('open')};"
     "regBack.onclick=function(e)\{if(e.target===regBack)regBack.classList.remove('open')};"
+    "var cfgBack=document.getElementById('cfg-backdrop'),cfgEditor=document.getElementById('cfg-editor');"
+    "document.getElementById('config-btn').onclick=async function()\{cfgBack.classList.add('open');try\{var r=await fetch(API+'/file/'+BASE+'/config.json?mark=json');cfgEditor.value=r.ok?JSON.stringify(JSON.parse(await r.text()),null,2):''}catch(e)\{cfgEditor.value=''}};"
+    "document.getElementById('cfg-save').onclick=async function()\{try\{var j=JSON.parse(cfgEditor.value);var r=await fetch(API+'/over/'+BASE+'/config.json?mark=json',\{method:'POST',headers:\{'Content-Type':'application/json'},body:JSON.stringify(j)});if(r.ok)\{cfgBack.classList.remove('open')}else\{alert('Save failed: '+r.status)}}catch(e)\{alert('Invalid JSON: '+e.message)}};"
+    "document.getElementById('cfg-close').onclick=function()\{cfgBack.classList.remove('open')};"
+    "cfgBack.onclick=function(e)\{if(e.target===cfgBack)cfgBack.classList.remove('open')};"
     "connect();connectStatus();"
     ==
   ;html
@@ -1450,8 +1457,8 @@
           ".hide-user-message .msg.message.user, .hide-user-error .msg.error.user, .hide-user-tool .msg.tool.user, .hide-user-api .msg.api.user, .hide-user-continue .msg.continue.user \{ display: none; } "
           "#header \{ display: flex; align-items: baseline; gap: 0.75rem; margin-bottom: 1rem; } "
           "#header h1 \{ margin-bottom: 0; } "
-          "#prompt-btn, #registry-btn \{ font-family: monospace; font-size: 0.65rem; text-transform: uppercase; opacity: 0.4; cursor: pointer; padding: 0.15rem 0.4rem; border: 1px solid #ccc; border-radius: 3px; background: none; } "
-          "#prompt-btn:hover, #registry-btn:hover \{ opacity: 0.8; } "
+          "#prompt-btn, #registry-btn, #config-btn \{ font-family: monospace; font-size: 0.65rem; text-transform: uppercase; opacity: 0.4; cursor: pointer; padding: 0.15rem 0.4rem; border: 1px solid #ccc; border-radius: 3px; background: none; } "
+          "#prompt-btn:hover, #registry-btn:hover, #config-btn:hover \{ opacity: 0.8; } "
           "#reg-backdrop \{ display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.3); z-index: 100; } "
           "#reg-backdrop.open \{ display: flex; align-items: center; justify-content: center; } "
           "#reg-modal \{ background: #fff; border: 1px solid #ccc; border-radius: 4px; width: 90%; max-width: 700px; max-height: 70vh; display: flex; flex-direction: column; padding: 1rem; } "
@@ -1460,6 +1467,15 @@
           "#reg-header button \{ font-family: monospace; font-size: 0.65rem; text-transform: uppercase; padding: 0.2rem 0.5rem; border: 1px solid #ccc; border-radius: 3px; cursor: pointer; background: none; } "
           "#reg-header button:hover \{ background: #eee; } "
           "#reg-content \{ overflow-y: auto; font-family: monospace; font-size: 0.8rem; line-height: 1.8; } "
+          "#cfg-backdrop \{ display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.3); z-index: 100; } "
+          "#cfg-backdrop.open \{ display: flex; align-items: center; justify-content: center; } "
+          "#cfg-modal \{ background: #fff; border: 1px solid #ccc; border-radius: 4px; width: 90%; max-width: 700px; height: 50vh; display: flex; flex-direction: column; padding: 1rem; } "
+          "#cfg-header \{ display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 0.75rem; } "
+          "#cfg-header span \{ font-family: monospace; font-size: 0.8rem; font-weight: bold; text-transform: uppercase; opacity: 0.5; } "
+          "#cfg-actions \{ display: flex; gap: 0.5rem; } "
+          "#cfg-actions button \{ font-family: monospace; font-size: 0.65rem; text-transform: uppercase; padding: 0.2rem 0.5rem; border: 1px solid #ccc; border-radius: 3px; cursor: pointer; background: none; } "
+          "#cfg-actions button:hover \{ background: #eee; } "
+          "#cfg-editor \{ flex: 1; font-family: monospace; font-size: 0.8rem; line-height: 1.5; border: 1px solid #ccc; border-radius: 4px; padding: 0.5rem; resize: none; } "
           ".reg-empty \{ opacity: 0.4; } "
           ".reg-entry \{ display: flex; justify-content: space-between; align-items: center; padding: 0.3rem 0; border-bottom: 1px solid #eee; } "
           ".reg-entry .reg-info \{ } "
@@ -1490,6 +1506,7 @@
         ;h1: Claude Chat
         ;button#prompt-btn: prompt
         ;button#registry-btn: registry
+        ;button#config-btn: config
       ==
       ;div#filters
         ;div(class "filter-row")
@@ -1589,6 +1606,18 @@
             ;button#reg-close: close
           ==
           ;div#reg-content;
+        ==
+      ==
+      ;div#cfg-backdrop
+        ;div#cfg-modal
+          ;div#cfg-header
+            ;span: Config
+            ;div#cfg-actions
+              ;button#cfg-save: save
+              ;button#cfg-close: close
+            ==
+          ==
+          ;textarea#cfg-editor;
         ==
       ==
       ;script

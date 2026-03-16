@@ -857,7 +857,7 @@
     |=  [[=wire =ship =term] *]
     ^-  (unit card)
     ?.  ?=([%proc @ *] wire)  ~
-    =/  [proc-rail=rail:tarball ^path]  (unwrap-wire wire)
+    =/  [proc-rail=rail:tarball @ ^path]  (unwrap-wire wire)
     =/  proc-path=^path  (snoc path.proc-rail name.proc-rail)
     ?.  ?-  mode
           %file  =(proc-path path)
@@ -882,17 +882,95 @@
   [~ %give %kick ~[pat] ~]
 ::  =subs: Subscription management
 ::
+::  Axal helpers for fwd/rev indices
+::
+++  fwd-get
+  |=  target=lane:tarball
+  ^-  subscribers:nexus
+  =/  pax=path  ?-(-.target %| p.target, %& path.p.target)
+  =/  node=[dir=subscribers:nexus fil=(map @ta subscribers:nexus)]
+    (fall (~(get of fwd.subs) pax) [~ ~])
+  ?-(-.target %| dir.node, %& (fall (~(get by fil.node) name.p.target) ~))
+::
+++  fwd-set
+  |=  [target=lane:tarball watchers=subscribers:nexus]
+  ^+  fwd.subs
+  =/  pax=path  ?-(-.target %| p.target, %& path.p.target)
+  =/  node=[dir=subscribers:nexus fil=(map @ta subscribers:nexus)]
+    (fall (~(get of fwd.subs) pax) [~ ~])
+  =.  node
+    ?-  -.target
+      %|  node(dir watchers)
+      %&  ?~  watchers  node(fil (~(del by fil.node) name.p.target))
+          node(fil (~(put by fil.node) name.p.target watchers))
+    ==
+  ?:  &(=(~ dir.node) =(~ fil.node))
+    (~(del of fwd.subs) pax)
+  (~(put of fwd.subs) pax node)
+::
+++  rev-get
+  |=  watcher=rail:tarball
+  ^-  subscriptions:nexus
+  =/  node=(map @ta subscriptions:nexus)
+    (fall (~(get of rev.subs) path.watcher) ~)
+  (fall (~(get by node) name.watcher) ~)
+::
+++  rev-set
+  |=  [watcher=rail:tarball targets=subscriptions:nexus]
+  ^+  rev.subs
+  =/  node=(map @ta subscriptions:nexus)
+    (fall (~(get of rev.subs) path.watcher) ~)
+  =.  node
+    ?~  targets  (~(del by node) name.watcher)
+    (~(put by node) name.watcher targets)
+  ?~  node  (~(del of rev.subs) path.watcher)
+  (~(put of rev.subs) path.watcher node)
+::
+++  tap-fwd
+  =/  fwd=_fwd.subs  fwd.subs
+  =|  pax=path
+  =|  acc=(list [lane:tarball subscribers:nexus])
+  |-  ^+  acc
+  =.  acc
+    ?~  fil.fwd  acc
+    =+  nod=u.fil.fwd
+    =.  acc  ?~(dir.nod acc [[[%| pax] dir.nod] acc])
+    =/  fils  ~(tap by fil.nod)
+    |-  ?~  fils  acc
+    =?  acc  ?=(^ q.i.fils)  [[[%& pax p.i.fils] q.i.fils] acc]
+    $(fils t.fils)
+  =/  kids  ~(tap by dir.fwd)
+  |-  ?~  kids  acc
+  =.  acc  ^$(pax (snoc pax p.i.kids), fwd q.i.kids)
+  $(kids t.kids)
+::
+++  tap-rev
+  =/  rev=_rev.subs  rev.subs
+  =|  pax=path
+  =|  acc=(list [rail:tarball subscriptions:nexus])
+  |-  ^+  acc
+  =.  acc
+    ?~  fil.rev  acc
+    =/  entries  ~(tap by u.fil.rev)
+    |-  ?~  entries  acc
+    =?  acc  ?=(^ q.i.entries)  [[[pax p.i.entries] q.i.entries] acc]
+    $(entries t.entries)
+  =/  kids  ~(tap by dir.rev)
+  |-  ?~  kids  acc
+  =.  acc  ^$(pax (snoc pax p.i.kids), rev q.i.kids)
+  $(kids t.kids)
+::
 ::  Add subscription: watcher subscribes to target with wire
 ::
 ++  sub-put
   |=  [target=lane:tarball watcher=rail:tarball =wire mark=(unit mark)]
   ^+  this
   ::  Add to forward index: target → (watcher → [wire mark])
-  =/  watchers=(map rail:tarball [=^wire mark=(unit ^mark)])
-    (fall (~(get by fwd.subs) target) ~)
-  =.  fwd.subs  (~(put by fwd.subs) target (~(put by watchers) watcher [wire mark]))
+  =/  watchers=subscribers:nexus  (fwd-get target)
+  =.  fwd.subs  (fwd-set target (~(put by watchers) watcher [wire mark]))
   ::  Add to reverse index: watcher → targets
-  =.  rev.subs  (~(put ju rev.subs) watcher target)
+  =/  targets=subscriptions:nexus  (rev-get watcher)
+  =.  rev.subs  (rev-set watcher (~(put in targets) target))
   this
 ::  Remove subscription: watcher unsubscribes from target
 ::
@@ -900,19 +978,18 @@
   |=  [target=lane:tarball watcher=rail:tarball]
   ^+  this
   ::  Remove from forward index
-  =/  watchers=(map rail:tarball [=wire mark=(unit mark)])
-    (fall (~(get by fwd.subs) target) ~)
-  =.  watchers  (~(del by watchers) watcher)
-  =.  fwd.subs  ?~(watchers (~(del by fwd.subs) target) (~(put by fwd.subs) target watchers))
+  =/  watchers=subscribers:nexus  (~(del by (fwd-get target)) watcher)
+  =.  fwd.subs  (fwd-set target watchers)
   ::  Remove from reverse index
-  =.  rev.subs  (~(del ju rev.subs) watcher target)
+  =/  targets=subscriptions:nexus  (~(del in (rev-get watcher)) target)
+  =.  rev.subs  (rev-set watcher targets)
   this
 ::  Remove all subscriptions from a watcher (for cleanup on death)
 ::
 ++  sub-wipe
   |=  watcher=rail:tarball
   ^+  this
-  =/  targets=(set lane:tarball)  (~(get ju rev.subs) watcher)
+  =/  targets=(set lane:tarball)  (rev-get watcher)
   =.  this
     %-  ~(rep in targets)
     |=  [target=lane:tarball acc=_this]
@@ -927,7 +1004,7 @@
   ?:  =(~ changed)  this
   ::  For each watched lane, find subscribers and send news
   =/  watched=(list [target=lane:tarball watchers=(map rail:tarball [=wire mark=(unit mark)])])
-    ~(tap by fwd.subs)
+    tap-fwd
   |-
   ?~  watched  this
   =/  [target=lane:tarball watchers=(map rail:tarball [=wire mark=(unit mark)])]  i.watched
@@ -965,14 +1042,13 @@
       =/  sk=sack:nexus
         ?~  node  *sack:nexus
         (fall (~(get by bags.u.node) name.p.target) *sack:nexus)
-      [%file sk cage.u.content]
+      [%file sk (lookup-gain p.target) cage.u.content]
         %|
       =/  sub-ball=(unit ball:tarball)  (~(dap ba:tarball ball) p.target)
       ?~  sub-ball  [%none ~]
-      [%ball (~(dip of sand) p.target) (~(dip of born) p.target) u.sub-ball]
+      [%ball (~(dip of sand) p.target) (~(dip of gain) p.target) (~(dip of born) p.target) u.sub-ball]
     ==
   ::  Send to each watcher, converting file view if mark is set
-  ::  TODO: cache tubes per [from-mark to-mark] within a notify pass
   =.  this
     %-  ~(rep by watchers)
     |=  [[watcher=rail:tarball =wire mark=(unit mark)] acc=_this]
@@ -989,7 +1065,7 @@
 ++  fell-sub
   |=  [target=lane:tarball watcher=rail:tarball]
   ^+  this
-  =/  val=[=wire mark=(unit mark)]  (~(got by (~(got by fwd.subs) target)) watcher)
+  =/  val=[=wire mark=(unit mark)]  (~(got by (fwd-get target)) watcher)
   =.  this  (sub-del target watcher)
   (enqu-take watcher (sys-give /fell) ~ %fell wire.val)
 ::  Re-check subscriptions after weir change: fell any that are now blocked
@@ -998,20 +1074,20 @@
   |=  base=path
   ^+  this
   ::  Find watchers whose path is under (or equal to) the changed weir
-  =/  affected=(list rail:tarball)
-    %+  murn  ~(tap in ~(key by rev.subs))
-    |=  watcher=rail:tarball
-    ?~((decap:tarball base path.watcher) ~ `watcher)
+  =/  affected=(list [watcher=rail:tarball targets=subscriptions:nexus])
+    %+  skim  tap-rev
+    |=  [watcher=rail:tarball *]
+    ?=(^ (decap:tarball base path.watcher))
   |-
   ?~  affected  this
-  =/  watcher=rail:tarball  i.affected
-  =/  targets=(list lane:tarball)  ~(tap in (~(get ju rev.subs) watcher))
+  =/  watcher=rail:tarball  watcher.i.affected
+  =/  tgts=(list lane:tarball)  ~(tap in targets.i.affected)
   =.  this
     |-
-    ?~  targets  this
-    =/  =filt:nexus  (allowed %peek watcher `i.targets)
-    =?  this  ?=([~ %|] filt)  (fell-sub i.targets watcher)
-    $(targets t.targets)
+    ?~  tgts  this
+    =/  =filt:nexus  (allowed %peek watcher `i.tgts)
+    =?  this  ?=([~ %|] filt)  (fell-sub i.tgts watcher)
+    $(tgts t.tgts)
   $(affected t.affected)
 ::
 ++  process-darts
@@ -1250,7 +1326,8 @@
         =/  sub-born=born:nexus  (~(dip of born) dest)
         =?  u.sub-ball  |(?=([~ %&] filt) clam.load.dart)
           (validate-ball u.sub-ball)
-        (enqu-take here (sys-give /peek) ~ %peek wire.dart %& %ball sub-sand sub-born u.sub-ball)
+        =/  sub-gain=gain:nexus  (~(dip of gain) dest)
+        (enqu-take here (sys-give /peek) ~ %peek wire.dart %& %ball sub-sand sub-gain sub-born u.sub-ball)
         ::
           %&
         =/  dest=rail:tarball  p.u.dest-lane
@@ -1289,7 +1366,7 @@
           ?:  =(p.clammed u.mark.load.dart)  clammed
           =/  =tube:clay  (get-tube p.clammed u.mark.load.dart)
           [u.mark.load.dart (tube q.clammed)]
-        (enqu-take here (sys-give /peek) ~ %peek wire.dart %& %file sk result)
+        (enqu-take here (sys-give /peek) ~ %peek wire.dart %& %file sk (lookup-gain dest) result)
       ==
       ::
         %keep
@@ -1308,12 +1385,12 @@
           =/  sk=sack:nexus
             ?~  node  *sack:nexus
             (fall (~(get by bags.u.node) name.dest) *sack:nexus)
-          [%file sk cage.u.content]
+          [%file sk (lookup-gain dest) cage.u.content]
             %|
           =/  dest=fold:tarball  p.u.dest-lane
           =/  sub-ball=(unit ball:tarball)  (~(dap ba:tarball ball) dest)
           ?~  sub-ball  [%none ~]
-          [%ball (~(dip of sand) dest) (~(dip of born) dest) u.sub-ball]
+          [%ball (~(dip of sand) dest) (~(dip of gain) dest) (~(dip of born) dest) u.sub-ball]
         ==
       ::  Apply mark conversion if requested
       =?  view  &(?=(^ mark.load.dart) ?=(%file -.view))
@@ -1451,6 +1528,15 @@
       %bowl
     ::  Request bowl - build and enqueue
     (enqu-take here (sys-give /bowl) ~ %bowl wire.dart (make-bowl here))
+    ::
+      %kept
+    ::  Return this grub's outgoing subscriptions, relativized
+    =/  targets=(set lane:tarball)  (rev-get here)
+    =/  =kept:nexus
+      %-  ~(gas in *kept:nexus)
+      %+  turn  ~(tap in targets)
+      |=(target=lane:tarball (make-bend:tarball here target))
+    (enqu-take here (sys-give /kept) ~ %kept wire.dart kept)
   ==
 ::
 ++  spawn-proc
@@ -1671,7 +1757,7 @@
     %+  murn  ~(tap by wex.bowl)
     |=  [[=wire =ship =term] acked=? =path]
     ?.  ?=([%proc @ *] wire)  ~
-    =/  [proc-rail=rail:tarball orig-wire=^wire]  (unwrap-wire wire)
+    =/  [proc-rail=rail:tarball @ orig-wire=^wire]  (unwrap-wire wire)
     =/  proc-path=^path  (snoc path.proc-rail name.proc-rail)
     ?.  =(proc-path here-path)  ~
     [~ [orig-wire ship term] acked path]
@@ -2210,34 +2296,42 @@
 ++  wrap-wire
   |=  [here=rail:tarball =wire]
   ^+  wire
+  =/  =sack:nexus  (need (get-born here))
   =/  here-path=path  (snoc path.here name.here)
   ;:  weld
     /proc/(scot %ud (lent here-path))
     here-path
+    /(scot %ud ud.life.sack)
     wire
   ==
 ::
 ++  unwrap-wire
   |=  =wire
-  ^-  [rail:tarball ^wire]
+  ^-  [rail:tarball @ud ^wire]
   ?>  ?=([%proc @ *] wire)
   =/  len=@ud  (slav %ud i.t.wire)
   =/  here-path=path  (scag len t.t.wire)
   ?>  ?=(^ here-path)
   =/  here=rail:tarball  [(snip `path`here-path) (rear here-path)]
   =/  rest=^wire  (slag len t.t.wire)
-  [here rest]
+  ?>  ?=(^ rest)
+  =/  lif=@ud  (slav %ud i.rest)
+  [here lif t.rest]
 ::
 ++  take-arvo
   |=  [wir=wire sign=sign-arvo]
   ^+  this
-  =/  [here=rail:tarball =wire]  (unwrap-wire wir)
+  =/  [here=rail:tarball lif=@ud =wire]  (unwrap-wire wir)
+  =/  cur=(unit sack:nexus)  (get-born here)
+  ?.  ?&(?=(^ cur) =(lif ud.life.u.cur))  this
   (enqu-take here (sys-give /arvo) ~ %arvo wire sign)
 ::
 ++  take-agent
   |=  [wir=wire =sign:agent:gall]
   ^+  this
-  =/  [here=rail:tarball =wire]  (unwrap-wire wir)
+  =/  [here=rail:tarball lif=@ud =wire]  (unwrap-wire wir)
+  =/  cur=(unit sack:nexus)  (get-born here)
+  ?.  ?&(?=(^ cur) =(lif ud.life.u.cur))  this
   (enqu-take here (sys-give /agent) ~ %agent wire sign)
 ::  Unwrap incoming watch/leave paths
 ::
