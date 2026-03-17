@@ -59,9 +59,9 @@
         %+  spin:loader  [sand gain ball]
         :~  (ver-row:loader 0)
             [%fall %& [/ %'main.sig'] %.n [~ %sig !>(~)]]
-            [%fall %| /usergroups/who [~ ~] [~ ~] [`[~ ~ ~] ~]]
-            [%fall %| /usergroups/how [~ ~] [~ ~] [`[~ ~ ~] ~]]
-            [%fall %| /ships ships-sand [~ ~] [`[~ ~ ~] ~]]
+            [%fall %| /usergroups/who [~ ~] [~ ~] empty-dir:loader]
+            [%fall %| /usergroups/how [~ ~] [~ ~] empty-dir:loader]
+            [%fall %| /ships ships-sand [~ ~] empty-dir:loader]
         ==
       ==
     ::

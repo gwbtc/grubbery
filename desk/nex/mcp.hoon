@@ -34,7 +34,7 @@
       ^-  form:m
       ;<  exists=?  bind:m  (peek-exists:io /chk [%| 0 %| bin-path])
       ?:  exists  (pure:m ~)
-      (make:io /mkd [%| 0 %| bin-path] &+[*sand:nexus *gain:nexus [`[~ ~ ~] ~]])
+      (make:io /mkd [%| 0 %| bin-path] &+[*sand:nexus *gain:nexus empty-dir:loader])
     ::  Cull a grub if it exists
     ::
     ++  cull-if-exists
@@ -309,10 +309,10 @@
     :~  (ver-row:loader 0)
         [%fall %& [/ %'main.sig'] %.n [~ %sig !>(~)]]
         [%fall %& [/ %'builder.sig'] %.n [~ %sig !>(~)]]
-        [%fall %| /requests [~ ~] [~ ~] [`[~ ~ ~] ~]]
-        [%fall %| /tools [~ ~] [~ ~] [`[~ ~ ~] ~]]
-        [%fall %| /cus [~ ~] [~ ~] [`[~ ~ ~] ~]]
-        [%fall %| /bin [~ ~] [~ ~] [`[~ ~ ~] ~]]
+        [%fall %| /requests [~ ~] [~ ~] empty-dir:loader]
+        [%fall %| /tools [~ ~] [~ ~] empty-dir:loader]
+        [%fall %| /cus [~ ~] [~ ~] empty-dir:loader]
+        [%fall %| /bin [~ ~] [~ ~] empty-dir:loader]
     ==
   ==
 ::

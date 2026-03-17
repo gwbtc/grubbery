@@ -12,9 +12,9 @@
           ?(~ [~ %0])
         %+  spin:loader  [sand gain ball]
         :~  (ver-row:loader 0)
-            [%fall %| /wallets [~ ~] [~ ~] [`[~ ~ ~] ~]]
+            [%fall %| /wallets [~ ~] [~ ~] empty-dir:loader]
             [%fall %& [/ %'main.sig'] %.n [~ %sig !>(~)]]
-            [%fall %| /requests [~ ~] [~ ~] [`[~ ~ ~] ~]]
+            [%fall %| /requests [~ ~] [~ ~] empty-dir:loader]
         ==
       ==
     ::

@@ -13,7 +13,7 @@
         %+  spin:loader  [sand gain ball]
         :~  (ver-row:loader 0)
             [%fall %& [/ %'main.sig'] %.n [~ %sig !>(~)]]
-            [%fall %| /requests [~ ~] [~ ~] [`[~ ~ ~] ~]]
+            [%fall %| /requests [~ ~] [~ ~] empty-dir:loader]
         ==
       ==
     ::

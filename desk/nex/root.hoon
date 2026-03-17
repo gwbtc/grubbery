@@ -20,15 +20,15 @@
         [%fall %| /'mcp.mcp' [~ ~] [~ ~] [`[~ `%mcp ~] ~]]
         [%fall %| /sys/'build.build' [~ ~] [~ ~] [`[~ `%build ~] ~]]
         ::  config
-        [%fall %| /config/creds [~ ~] [~ ~] [`[~ ~ ~] ~]]
+        [%fall %| /config/creds [~ ~] [~ ~] empty-dir:loader]
         ::  system internals — populated by app/grubbery.hoon before
         ::  on-load runs. Must be preserved or the framework breaks.
-        [%fall %| /sys/daises [~ ~] [~ ~] [`[~ ~ ~] ~]]
-        [%fall %| /sys/nexuses [~ ~] [~ ~] [`[~ ~ ~] ~]]
-        [%fall %| /sys/tubes [~ ~] [~ ~] [`[~ ~ ~] ~]]
-        [%fall %| /sys/clay [~ ~] [~ ~] [`[~ ~ ~] ~]]
-        [%fall %| /sys/dill [~ ~] [~ ~] [`[~ ~ ~] ~]]
-        [%fall %| /sys/jael [~ ~] [~ ~] [`[~ ~ ~] ~]]
+        [%fall %| /sys/daises [~ ~] [~ ~] empty-dir:loader]
+        [%fall %| /sys/nexuses [~ ~] [~ ~] empty-dir:loader]
+        [%fall %| /sys/tubes [~ ~] [~ ~] empty-dir:loader]
+        [%fall %| /sys/clay [~ ~] [~ ~] empty-dir:loader]
+        [%fall %| /sys/dill [~ ~] [~ ~] empty-dir:loader]
+        [%fall %| /sys/jael [~ ~] [~ ~] empty-dir:loader]
     ==
   ==
 ::

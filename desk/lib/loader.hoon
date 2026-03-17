@@ -44,6 +44,8 @@
   `!<(@ud q.cage.u.ct)
 ::  +ver-row: convenience row to set the version file
 ::
+++  empty-dir  [`[~ ~ ~] ~]
+::
 ++  ver-row
   |=  ver=@ud
   ^-  row
