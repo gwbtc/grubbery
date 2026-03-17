@@ -14,7 +14,10 @@
   =/  m  (fiber:fiber:nexus ,tool-result:tools)
   ^-  form:m
   ;<  st=tool-state:tools  bind:m  (get-state-as:io ,tool-state:tools)
-  =/  code=@t  (~(dog jo:json-utils [%o args.st]) /hoon so:dejs:format)
+  =/  code-unit=(unit @t)  (~(deg jo:json-utils [%o args.st]) /hoon so:dejs:format)
+  ?~  code-unit
+    (pure:m [%error 'Missing required parameter: hoon'])
+  =/  code=@t  u.code-unit
   =/  res=(each vase tang)
     (mule |.((slap !>(..zuse) (ream code))))
   ?:  ?=(%| -.res)

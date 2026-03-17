@@ -11,7 +11,7 @@
 ::  Builder watches /src/ and rebuilds on change.
 ::  %temp files vanish on kelvin change → full rebuild.
 ::
-/+  nexus, tarball, build, io=fiberio
+/+  nexus, tarball, build, io=fiberio, loader
 !:
 =>  |%
     ::  Reconstruct build-cache from /bin/ vases + keys
@@ -150,57 +150,62 @@
         (write-file / [%| 0 %& / %'keys.keys'] keys+!>(keys.res))
       ::  Clean stale /bin/ entries
       (clean-bin [bin-ball results.res])
+    ::  +seed-src: default /src ball for fresh installs
+    ::
+    ++  seed-src
+      %+  spin:loader  [[~ ~] [~ ~] [~ ~]]
+      :~  [%over %& [/lib %'add1.hoon'] %.n [~ %hoon !>('|=(a=@ +(a))')]]
+          [%over %& [/ %'main.hoon'] %.n [~ %hoon !>('/<  add1  /lib/add1.hoon\0a(add1 41)')]]
+      ==
+    ::  +sync-build: fold-load that compiles /src, writes /bin + keys
+    ::
+    ++  sync-build
+      |=  [=sand:nexus =gain:nexus =ball:tarball]
+      ^-  [sand:nexus gain:nexus ball:tarball]
+      =/  keys=(map rail:tarball @uv)
+        =/  entry=(unit content:tarball)
+          (~(get ba:tarball ball) [/ %'keys.keys'])
+        ?~  entry  ~
+        !<((map rail:tarball @uv) q.cage.u.entry)
+      =/  old-cache=build-cache:build
+        %+  ball-to-cache
+          (fall (~(dap ba:tarball ball) /bin) *ball:tarball)
+        keys
+      =/  src-ball=ball:tarball
+        (fall (~(dap ba:tarball ball) /src) *ball:tarball)
+      =/  res=build-out:build
+        (build-all:build !>(..zuse) src-ball old-cache)
+      =.  ball  (~(put of ball) /bin [~ ~ ~])
+      =.  ball
+        %+  roll  ~(tap by results.res)
+        |=  [[=rail:tarball =build-result:build] acc=_ball]
+        =/  stem=@ta  (strip-hoon:build name.rail)
+        =/  bin-path=path  (weld /bin path.rail)
+        =?  acc  =(~ (~(get of acc) bin-path))
+          (~(put of acc) bin-path [~ ~ ~])
+        ?:  ?=(%& -.build-result)
+          =/  bin-name=@ta  (crip "{(trip stem)}.temp")
+          (~(put ba:tarball acc) [bin-path bin-name] [~ %temp p.build-result])
+        =/  bin-name=@ta  (crip "{(trip stem)}.tang")
+        (~(put ba:tarball acc) [bin-path bin-name] [~ %tang !>(p.build-result)])
+      :+  sand  gain
+      (~(put ba:tarball ball) [/ %'keys.keys'] [~ %keys !>(keys.res)])
     --
 ^-  nexus:nexus
 |%
 ++  on-load
   |=  [=sand:nexus =gain:nexus =ball:tarball]
   ^-  [sand:nexus gain:nexus ball:tarball]
-  ::  Ensure directories exist
-  =?  ball  =(~ (~(get of ball) /bin))
-    (~(put of ball) /bin [~ ~ ~])
-  =?  ball  =(~ (~(get of ball) /src))
-    (~(put of ball) /src [~ ~ ~])
-  ::  Seed sample sources if empty
-  =?  ball  =(~ (~(get ba:tarball ball) [/src/lib %'add1.hoon']))
-    (~(put ba:tarball ball) [/src/lib %'add1.hoon'] [~ %hoon !>('|=(a=@ +(a))')])
-  =?  ball  =(~ (~(get ba:tarball ball) [/src %'main.hoon']))
-    (~(put ba:tarball ball) [/src %'main.hoon'] [~ %hoon !>('/<  add1  /lib/add1.hoon\0a(add1 41)')])
-  ::  Sync build on load
-  =/  keys=(map rail:tarball @uv)
-    =/  entry=(unit content:tarball)
-      (~(get ba:tarball ball) [/ %'keys.keys'])
-    ?~  entry  ~
-    !<((map rail:tarball @uv) q.cage.u.entry)
-  =/  bin-ball=ball:tarball
-    (fall (~(dap ba:tarball ball) /bin) *ball:tarball)
-  =/  old-cache=build-cache:build  (ball-to-cache bin-ball keys)
-  =/  src-ball=ball:tarball
-    (fall (~(dap ba:tarball ball) /src) *ball:tarball)
-  =/  res=build-out:build
-    (build-all:build !>(..zuse) src-ball old-cache)
-  ::  Clear /bin/ for fresh write
-  =.  ball  (~(put of ball) /bin [~ ~ ~])
-  ::  Store results in /bin/: .temp for success, .tang for failure
-  =.  ball
-    %+  roll  ~(tap by results.res)
-    |=  [[=rail:tarball =build-result:build] acc=_ball]
-    =/  stem=@ta  (strip-hoon:build name.rail)
-    =/  bin-path=path  (weld /bin path.rail)
-    =?  acc  =(~ (~(get of acc) bin-path))
-      (~(put of acc) bin-path [~ ~ ~])
-    ?:  ?=(%& -.build-result)
-      =/  bin-name=@ta  (crip "{(trip stem)}.temp")
-      (~(put ba:tarball acc) [bin-path bin-name] [~ %temp p.build-result])
-    =/  bin-name=@ta  (crip "{(trip stem)}.tang")
-    (~(put ba:tarball acc) [bin-path bin-name] [~ %tang !>(p.build-result)])
-  ::  Store keys
-  =.  ball
-    (~(put ba:tarball ball) [/ %'keys.keys'] [~ %keys !>(keys.res)])
-  ::  Create builder process
-  =?  ball  =(~ (~(get ba:tarball ball) [/ %'builder.sig']))
-    (~(put ba:tarball ball) [/ %'builder.sig'] [~ %sig !>(~)])
-  [sand gain ball]
+  =/  =ver:loader  (get-ver:loader ball)
+  ?+  ver  !!
+      ?(~ [~ %0])
+    %+  spin:loader  [sand gain ball]
+    :~  [%load %| / / sync-build]
+        (ver-row:loader 0)
+        [%fall %& [/ %'builder.sig'] %.n [~ %sig !>(~)]]
+        [%fall %| /src seed-src]
+    ==
+  ==
 ::
 ++  on-file
   |=  [=rail:tarball =mark]

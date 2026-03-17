@@ -9,7 +9,7 @@
 ::    /builder.sig       watches ball mirror + /cus/, compiles to /bin/
 ::
 /+  nexus, tarball, io=fiberio, server, nex-server, nex-mcp
-/+  json-utils, nex-tools, nex-clurd, build
+/+  json-utils, nex-tools, nex-clurd, build, loader
 !: :: turn on stack trace
 =>  |%
     ++  srv  ~(. res:nex-server [%| 1 %& ~ %'main.sig'])
@@ -302,20 +302,19 @@
 ++  on-load
   |=  [=sand:nexus =gain:nexus =ball:tarball]
   ^-  [sand:nexus gain:nexus ball:tarball]
-  =.  ball  (~(put ba:tarball ball) [/ %'ver.ud'] [~ %ud !>(0)])
-  =?  ball  =(~ (~(get ba:tarball ball) [/ %'main.sig']))
-    (~(put ba:tarball ball) [/ %'main.sig'] [~ %sig !>(~)])
-  =?  ball  =(~ (~(get of ball) /requests))
-    (~(put of ball) /requests [~ ~ ~])
-  =?  ball  =(~ (~(get of ball) /tools))
-    (~(put of ball) /tools [~ ~ ~])
-  =?  ball  =(~ (~(get of ball) /cus))
-    (~(put of ball) /cus [~ ~ ~])
-  =?  ball  =(~ (~(get of ball) /bin))
-    (~(put of ball) /bin [~ ~ ~])
-  =?  ball  =(~ (~(get ba:tarball ball) [/ %'builder.sig']))
-    (~(put ba:tarball ball) [/ %'builder.sig'] [~ %sig !>(~)])
-  [sand gain ball]
+  =/  =ver:loader  (get-ver:loader ball)
+  ?+  ver  !!
+      ?(~ [~ %0])
+    %+  spin:loader  [sand gain ball]
+    :~  (ver-row:loader 0)
+        [%fall %& [/ %'main.sig'] %.n [~ %sig !>(~)]]
+        [%fall %& [/ %'builder.sig'] %.n [~ %sig !>(~)]]
+        [%fall %| /requests [~ ~] [~ ~] [`[~ ~ ~] ~]]
+        [%fall %| /tools [~ ~] [~ ~] [`[~ ~ ~] ~]]
+        [%fall %| /cus [~ ~] [~ ~] [`[~ ~ ~] ~]]
+        [%fall %| /bin [~ ~] [~ ~] [`[~ ~ ~] ~]]
+    ==
+  ==
 ::
 ++  on-file
   |=  [=rail:tarball =mark]

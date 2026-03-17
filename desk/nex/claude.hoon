@@ -1,52 +1,35 @@
 ::  claude nexus: flat chat with Claude API
 ::
 /-  *claude
-/+  nexus, tarball, io=fiberio
+/+  nexus, tarball, io=fiberio, loader
 !:
 =<  ^-  nexus:nexus
     |%
     ++  on-load
       |=  [=sand:nexus =gain:nexus =ball:tarball]
       ^-  [sand:nexus gain:nexus ball:tarball]
-      =.  ball  (~(put ba:tarball ball) [/ %'ver.ud'] [~ %ud !>(0)])
-      =?  ball  =(~ (~(get ba:tarball ball) [/ %'config.json']))
-        =/  default=json
-          %-  pairs:enjs:format
-          :~  ['api_key' s+'']
-              ['model' s+'claude-sonnet-4-20250514']
-              ['max_tokens' (numb:enjs:format 4.096)]
-          ==
-        (~(put ba:tarball ball) [/ %'config.json'] [~ %json !>(default)])
-      =?  ball  =(~ (~(get ba:tarball ball) [/ %'messages.claude-messages']))
-        (~(put ba:tarball ball) [/ %'messages.claude-messages'] [~ %claude-messages !>(`messages`[%0 *((mop @ud message) lth)])])
-      =?  ball  =(~ (~(get ba:tarball ball) [/ %'custom-prompt.txt']))
-        (~(put ba:tarball ball) [/ %'custom-prompt.txt'] [~ %txt !>(*wain)])
-      ::  clean up legacy api-requests, registry dir, registry.txt
-      =.  ball  (~(del ba:tarball ball) [/ %'requests.claude-registry'])
-      =.  ball  (~(del of ball) /api-requests)
-      =.  ball  (~(del of ball) /registry)
-      =.  ball  (~(del ba:tarball ball) [/ %'registry.txt'])
-      ::  main.claude-registry — create if missing, preserve across restarts
-      =?  ball  =(~ (~(get ba:tarball ball) [/ %'main.claude-registry']))
-        (~(put ba:tarball ball) [/ %'main.claude-registry'] [~ %claude-registry !>(`registry`[%0 0 ~ %.y])])
-      ::  weir.txt — live rendered view of parent directory weir
-      =.  ball
-        (~(put ba:tarball ball) [/ %'weir.txt'] [~ %txt !>(`wain`~['No weir set.'])])
-      =?  ball  =(~ (~(get of ball) /ui))
-        (~(put of ball) /ui [~ ~ ~])
-      =.  ball
-        %+  ~(put ba:tarball ball)  [/ui %'chat.html']
-        [~ %manx !>((chat-page ~))]
-      =?  ball  =(~ (~(get of ball) /ui/sse))
-        (~(put of ball) /ui/sse [~ ~ ~])
-      ::  migrate: last-message.json -> last-message.html
-      =.  ball  (~(del ba:tarball ball) [/ui/sse %'last-message.json'])
-      =.  ball  (~(del ba:tarball ball) [/ui/sse %'last-message.txt'])
-      =.  ball
-        (~(put ba:tarball ball) [/ui/sse %'last-message.html'] [~ %manx !>(*manx)])
-      =.  ball
-        (~(put ba:tarball ball) [/ui/sse %'status.json'] [~ %json !>((pairs:enjs:format ~[['loading' b+%.n] ['live' b+%.y]]))])
-      [sand gain ball]
+      =/  =ver:loader  (get-ver:loader ball)
+      =/  default-config=json
+        %-  pairs:enjs:format
+        :~  ['api_key' s+'']
+            ['model' s+'claude-sonnet-4-20250514']
+            ['max_tokens' (numb:enjs:format 4.096)]
+        ==
+      ?+  ver  !!
+          ?(~ [~ %0])
+        %+  spin:loader  [sand gain ball]
+        :~  (ver-row:loader 0)
+            [%fall %& [/ %'config.json'] %.n [~ %json !>(default-config)]]
+            [%fall %& [/ %'messages.claude-messages'] %.n [~ %claude-messages !>(`messages`[%0 *((mop @ud message) lth)])]]
+            [%fall %& [/ %'custom-prompt.txt'] %.n [~ %txt !>(*wain)]]
+            [%fall %& [/ %'main.claude-registry'] %.n [~ %claude-registry !>(`registry`[%0 0 ~ %.y])]]
+            ::  always overwritten
+            [%over %& [/ %'weir.txt'] %.n [~ %txt !>(`wain`~['No weir set.'])]]
+            [%over %& [/ui %'chat.html'] %.n [~ %manx !>((chat-page ~))]]
+            [%over %& [/ui/sse %'last-message.html'] %.n [~ %manx !>(*manx)]]
+            [%over %& [/ui/sse %'status.json'] %.n [~ %json !>((pairs:enjs:format ~[['loading' b+%.n] ['live' b+%.y]]))]]
+        ==
+      ==
     ::
     ++  on-file
       |=  [=rail:tarball =mark]

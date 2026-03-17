@@ -1,29 +1,23 @@
 ::  counter nexus: many auto-incrementing counters identified by @da
 ::
-/+  nexus, tarball, io=fiberio, server, http-utils, feather, nex-server
+/+  nexus, tarball, io=fiberio, server, http-utils, feather, nex-server, loader
 !: :: turn on stack trace
 =<  ^-  nexus:nexus
     |%
     ++  on-load
       |=  [=sand:nexus =gain:nexus =ball:tarball]
       ^-  [sand:nexus gain:nexus ball:tarball]
-      =.  ball  (~(put ba:tarball ball) [/ %'ver.ud'] [~ %ud !>(0)])
-      ::  Create /counters directory if not present
-      =?  ball  =(~ (~(get of ball) /counters))
-        (~(put of ball) /counters [~ ~ ~])
-      ::  Create /ui/views directory if not present
-      =?  ball  =(~ (~(get of ball) /ui/views))
-        (~(put of ball) /ui/views [~ ~ ~])
-      ::  Create /ui/views/page.html if not present
-      =?  ball  =(~ (~(get ba:tarball ball) [/ui/views %'page.html']))
-        (~(put ba:tarball ball) [/ui/views %'page.html'] [~ %manx !>((counter-page ~))])
-      ::  Create /ui/main.sig file if not present
-      =?  ball  =(~ (~(get ba:tarball ball) [/ui %'main.sig']))
-        (~(put ba:tarball ball) [/ui %'main.sig'] [~ %sig !>(~)])
-      ::  Create /ui/requests directory if not present
-      =?  ball  =(~ (~(get of ball) /ui/requests))
-        (~(put of ball) /ui/requests [~ ~ ~])
-      [sand gain ball]
+      =/  =ver:loader  (get-ver:loader ball)
+      ?+  ver  !!
+          ?(~ [~ %0])
+        %+  spin:loader  [sand gain ball]
+        :~  (ver-row:loader 0)
+            [%fall %| /counters [~ ~] [~ ~] [`[~ ~ ~] ~]]
+            [%fall %& [/ui/views %'page.html'] %.n [~ %manx !>((counter-page ~))]]
+            [%fall %& [/ui %'main.sig'] %.n [~ %sig !>(~)]]
+            [%fall %| /ui/requests [~ ~] [~ ~] [`[~ ~ ~] ~]]
+        ==
+      ==
     ::
     ++  on-file
       |=  [=rail:tarball =mark]

@@ -42,34 +42,28 @@
 ::    inbound pokes. %poke-out goes through /peers.peers/main.sig which has
 ::    syscall access (ship gateways don't — weirs block syscalls).
 ::
-/+  nexus, tarball, io=fiberio
+/+  nexus, tarball, io=fiberio, loader
 !: :: turn on stack trace
 =<  ^-  nexus:nexus
     |%
     ++  on-load
       |=  [=sand:nexus =gain:nexus =ball:tarball]
       ^-  [sand:nexus gain:nexus ball:tarball]
-      =.  ball  (~(put ba:tarball ball) [/ %'ver.ud'] [~ %ud !>(0)])
-      ::  Create /main.sig file (weir manager) if not present
-      =?  ball  =(~ (~(get ba:tarball ball) [/ %'main.sig']))
-        (~(put ba:tarball ball) [/ %'main.sig'] [~ %sig !>(~)])
-      ::  Create /usergroups directory (role-based access data)
-      =?  ball  =(~ (~(get of ball) /usergroups))
-        (~(put of ball) /usergroups [~ ~ ~])
-      ::  Create /usergroups/who - group membership sets
-      =?  ball  =(~ (~(get of ball) /usergroups/who))
-        (~(put of ball) /usergroups/who [~ ~ ~])
-      ::  Create /usergroups/how - weir templates per group
-      =?  ball  =(~ (~(get of ball) /usergroups/how))
-        (~(put of ball) /usergroups/how [~ ~ ~])
-      ::  Create /ships directory (ship dirs created lazily)
-      ::  Permissive weir: ships can reach the full tree from here.
-      ::  Per-ship weirs narrow access for each foreign ship.
-      =?  ball  =(~ (~(get of ball) /ships))
-        (~(put of ball) /ships [~ ~ ~])
-      =/  root-roads=(set road:tarball)  (sy [%& %| /]~)
-      =.  sand  (~(put of sand) /ships [root-roads root-roads root-roads])
-      [sand gain ball]
+      =/  =ver:loader  (get-ver:loader ball)
+      ?+  ver  !!
+          ?(~ [~ %0])
+        ::  Permissive weir for /ships: full tree access.
+        ::  Per-ship weirs narrow access for each foreign ship.
+        =/  root-roads=(set road:tarball)  (sy [%& %| /]~)
+        =/  ships-sand=sand:nexus  [`[root-roads root-roads root-roads] ~]
+        %+  spin:loader  [sand gain ball]
+        :~  (ver-row:loader 0)
+            [%fall %& [/ %'main.sig'] %.n [~ %sig !>(~)]]
+            [%fall %| /usergroups/who [~ ~] [~ ~] [`[~ ~ ~] ~]]
+            [%fall %| /usergroups/how [~ ~] [~ ~] [`[~ ~ ~] ~]]
+            [%fall %| /ships ships-sand [~ ~] [`[~ ~ ~] ~]]
+        ==
+      ==
     ::
     ++  on-file
       |=  [=rail:tarball =mark]

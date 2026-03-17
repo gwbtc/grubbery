@@ -4,6 +4,7 @@
 /=  t-  /tests/nexus
 /=  t-  /tests/tarball
 /=  t-  /tests/build
+/=  t-  /tests/loader
 /=  m-  /mar/kids
 /=  m-  /mar/tree
 /=  m-  /mar/sand
@@ -23,6 +24,8 @@
 /=  n-  /nex/mcp
 /=  n-  /nex/claude
 /=  n-  /nex/counter
+/=  n-  /nex/server
+/=  n-  /nex/root
 ::
 |%
 +$  versioned-state
@@ -715,12 +718,19 @@
   ::  for its children, never for itself.
   ::
   =/  parent-weir=(unit weir:nexus)  fil.sub-sand
+  =/  parent-neck=(unit neck:tarball)
+    ?~(fil.sub-ball ~ neck.u.fil.sub-ball)
   =/  [upd-sand=sand:nexus upd-gain=gain:nexus upd-ball=ball:tarball]
     ?~  nex  [sub-sand sub-gain sub-ball]
     (on-load:u.nex sub-sand sub-gain sub-ball)
+  ::  Enforce parent weir on sand and parent neck on ball.
+  ::  A nexus cannot change its own sandboxing or its own identity.
+  ::
+  =/  restored-lump=lump:tarball
+    (fall fil.upd-ball *lump:tarball)
   =:  sub-sand  upd-sand(fil parent-weir)
       sub-gain  upd-gain
-      sub-ball  upd-ball
+      sub-ball  upd-ball(fil `restored-lump(neck parent-neck))
   ==
   ::  Recurse into subdirectories
   =/  kids=(list [@ta ball:tarball])  ~(tap by dir.sub-ball)
@@ -753,12 +763,17 @@
   =/  sub-sand=sand:nexus  (~(dip of sand) dest)
   =/  sub-gain=gain:nexus  (~(dip of gain) dest)
   =/  parent-weir=(unit weir:nexus)  fil.sub-sand
+  =/  parent-neck=(unit neck:tarball)
+    ?~(fil.sub-ball ~ neck.u.fil.sub-ball)
   ::  Run on-load
   =/  [upd-sand=sand:nexus upd-gain=gain:nexus upd-ball=ball:tarball]
     (on-load:u.nex sub-sand sub-gain sub-ball)
+  ::  Enforce parent weir on sand and parent neck on ball
+  =/  restored-lump=lump:tarball
+    (fall fil.upd-ball *lump:tarball)
   =/  new-sand=sand:nexus    upd-sand(fil parent-weir)
   =/  new-gain=gain:nexus    upd-gain
-  =/  new-ball=ball:tarball  upd-ball
+  =/  new-ball=ball:tarball  upd-ball(fil `restored-lump(neck parent-neck))
   ::  Put results back
   =/  old-born=born:nexus  born
   =.  sand  (put-sub-sand sand dest new-sand)
@@ -2230,6 +2245,7 @@
   ^+  this
   ::  Create dill/logs grub and subscribe
   =.  this  (save-file [/sys/dill %'logs.dill-told'] [~ %dill-told !>(*told:dill)])
+  =.  gain  (set-gain [/sys/dill %'logs.dill-told'] %.y)
   =.  this  (emit-card [%pass /dill/logs %arvo %d %logs `~])
   ::  Scry for sessions
   =/  sessions=(list @tas)
@@ -2261,8 +2277,10 @@
   ::  Create grubs and subscribe
   =.  this
     (save-file [/sys/jael %'private-keys.jael-private-keys'] [~ %jael-private-keys !>(*[life (map life ring)])])
+  =.  gain  (set-gain [/sys/jael %'private-keys.jael-private-keys'] %.y)
   =.  this
     (save-file [/sys/jael %'public-keys.jael-public-keys-result'] [~ %jael-public-keys-result !>(*public-keys-result:jael)])
+  =.  gain  (set-gain [/sys/jael %'public-keys.jael-public-keys-result'] %.y)
   ::  Subscribe to private keys
   =.  this
     (emit-card [%pass /jael/private %arvo %j %private-keys ~])

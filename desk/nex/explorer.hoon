@@ -1,18 +1,21 @@
 ::  explorer nexus: tarball tree browser
 ::
-/+  nexus, tarball, io=fiberio, server, http-utils, feather, nex-server, iso-8601, html-utils, multipart
+/+  nexus, tarball, io=fiberio, server, http-utils, feather, nex-server, iso-8601, html-utils, multipart, loader
 !: :: turn on stack trace
 =<  ^-  nexus:nexus
     |%
     ++  on-load
       |=  [=sand:nexus =gain:nexus =ball:tarball]
       ^-  [sand:nexus gain:nexus ball:tarball]
-      =.  ball  (~(put ba:tarball ball) [/ %'ver.ud'] [~ %ud !>(0)])
-      =?  ball  =(~ (~(get ba:tarball ball) [/ %'main.sig']))
-        (~(put ba:tarball ball) [/ %'main.sig'] [~ %sig !>(~)])
-      =?  ball  =(~ (~(get of ball) /requests))
-        (~(put of ball) /requests [~ ~ ~])
-      [sand gain ball]
+      =/  =ver:loader  (get-ver:loader ball)
+      ?+  ver  !!
+          ?(~ [~ %0])
+        %+  spin:loader  [sand gain ball]
+        :~  (ver-row:loader 0)
+            [%fall %& [/ %'main.sig'] %.n [~ %sig !>(~)]]
+            [%fall %| /requests [~ ~] [~ ~] [`[~ ~ ~] ~]]
+        ==
+      ==
     ::
     ++  on-file
       |=  [=rail:tarball =mark]
@@ -181,10 +184,10 @@
       %'create-folder'
     =/  foldername=@t  (fall (get-key:kv:html-utils 'foldername' args) '')
     =/  dir-name=@ta  foldername
-    =/  dir-neck=(unit neck:tarball)  ~
+    =/  dir-neck=(unit neck:tarball)  (parse-extension:tarball dir-name)
     =/  folder-path=path  (snoc tree-path dir-name)
     =/  new-ball=ball:tarball  [`[~ dir-neck ~] ~]
-    ;<  ~  bind:m  (make:io /mkd [%& %| folder-path] &+[*sand:nexus *gain:nexus new-ball])
+    ;<  ~  bind:m  (make:io /mkd [%& %| folder-path] &+[[~ ~] [~ ~] new-ball])
     ;<  ~  bind:m  (send-simple:srv eyre-id [[303 ~[['location' (crip redirect-url)]]] ~])
     (pure:m ~)
   ::
@@ -313,7 +316,7 @@
   ?^  dirs
     =/  [name=@ta sub=ball:tarball]  i.dirs
     ;<  ~  bind:m
-      (make:io /upload [%& %| (snoc tree-path name)] &+[*sand:nexus *gain:nexus sub])
+      (make:io /upload [%& %| (snoc tree-path name)] &+[[~ ~] [~ ~] sub])
     $(dirs t.dirs)
   =/  redirect-url=tape
     ?~(tree-path "/grubbery/ball" "/grubbery/ball{(trip (spat tree-path))}")

@@ -27,21 +27,22 @@
 ::    2. Server removes connection, forwards cancel to handler rail
 ::
 ::
-/+  nexus, tarball, io=fiberio, server, http-utils, html-utils, nex-server, multipart
+/+  nexus, tarball, io=fiberio, server, http-utils, html-utils, nex-server, multipart, loader
 !: :: turn on stack trace
 =<  ^-  nexus:nexus
     |%
     ++  on-load
       |=  [=sand:nexus =gain:nexus =ball:tarball]
       ^-  [sand:nexus gain:nexus ball:tarball]
-      =.  ball  (~(put ba:tarball ball) [/ %'ver.ud'] [~ %ud !>(0)])
-      =/  fresh=server-state:nex-server  [%0 ~ ~]
-      =/  existing  (~(get ba:tarball ball) [/ %'main.server-state'])
-      =?  ball  =(~ existing)
-        (~(put ba:tarball ball) [/ %'main.server-state'] [~ %server-state !>(fresh)])
-      =?  ball  =(~ (~(get of ball) /requests))
-        (~(put of ball) /requests [~ ~ ~])
-      [sand gain ball]
+      =/  =ver:loader  (get-ver:loader ball)
+      ?+  ver  !!
+          ?(~ [~ %0])  :: no version or version 0
+        %+  spin:loader  [sand gain ball]
+        :~  (ver-row:loader 0)
+            [%fall %& [/ %'main.server-state'] %.n [~ %server-state !>(`server-state:nex-server`[%0 ~ ~])]]
+            [%fall %| /requests [~ ~] [~ ~] [`[~ ~ ~] ~]]
+        ==
+      ==
     ::
     ++  on-file
       |=  [=rail:tarball =mark]
@@ -524,7 +525,7 @@
   ?:  exists
     (send-error eyre-id 409 'Already exists')
   =/  init-ball=ball:tarball  [`[~ ~ ~] ~]
-  ;<  ~  bind:m  (make:io /make road &+[*sand:nexus *gain:nexus init-ball])
+  ;<  ~  bind:m  (make:io /make road &+[[~ ~] [~ ~] init-ball])
   (send-created eyre-id)
 ::  +serve-post: POST /poke, /over, /diff — send dart to file
 ::
@@ -591,7 +592,7 @@
   ;<  exists=?  bind:m  (peek-exists:io /chk dir-road)
   ?.  exists
     ;<  ~  bind:m
-      (make:io /upload dir-road &+[*sand:nexus *gain:nexus `[~ ~ ~] ~])
+      (make:io /upload dir-road &+[[~ ~] [~ ~] `[~ ~ ~] ~])
     (ensure-parents next t.segments)
   (ensure-parents next t.segments)
 ::  +serve-upload: POST /upload — multipart file/directory upload

@@ -1,23 +1,22 @@
 ::  wallet nexus: bitcoin wallet management UI (stub)
 ::
-/+  nexus, tarball, io=fiberio, server, http-utils, feather, nex-server
+/+  nexus, tarball, io=fiberio, server, http-utils, feather, nex-server, loader
 !: :: turn on stack trace
 =<  ^-  nexus:nexus
     |%
     ++  on-load
       |=  [=sand:nexus =gain:nexus =ball:tarball]
       ^-  [sand:nexus gain:nexus ball:tarball]
-      =.  ball  (~(put ba:tarball ball) [/ %'ver.ud'] [~ %ud !>(0)])
-      ::  Create /wallets directory if not present
-      =?  ball  =(~ (~(get of ball) /wallets))
-        (~(put of ball) /wallets [~ ~ ~])
-      ::  Create /main.sig file if not present
-      =?  ball  =(~ (~(get ba:tarball ball) [/ %'main.sig']))
-        (~(put ba:tarball ball) [/ %'main.sig'] [~ %sig !>(~)])
-      ::  Create /requests directory if not present
-      =?  ball  =(~ (~(get of ball) /requests))
-        (~(put of ball) /requests [~ ~ ~])
-      [sand gain ball]
+      =/  =ver:loader  (get-ver:loader ball)
+      ?+  ver  !!
+          ?(~ [~ %0])
+        %+  spin:loader  [sand gain ball]
+        :~  (ver-row:loader 0)
+            [%fall %| /wallets [~ ~] [~ ~] [`[~ ~ ~] ~]]
+            [%fall %& [/ %'main.sig'] %.n [~ %sig !>(~)]]
+            [%fall %| /requests [~ ~] [~ ~] [`[~ ~ ~] ~]]
+        ==
+      ==
     ::
     ++  on-file
       |=  [=rail:tarball =mark]
