@@ -1,64 +1,19 @@
 # Grubbery
 
-A tree-shaped manager for stateful long-running processes.
+A tree-shaped manager for stateful long-running processes on Urbit.
 
-https://drive.google.com/file/d/1fnvEjsRMLJqIRavDlDalbHzojQVCum5s/view?usp=drive_link
+## Core Concepts
 
-## Setup
+**Grub** — a file and its running process. Files are the leaves of the tree. Each file has content (a cage) and a long-running fiber that operates on it. When a grub's process completes, the grub is deleted. When it fails, it restarts.
 
-### Installation
-- Copy desk files to ship's pier
-- Run `|commit %grubbery` in dojo
-- Agent starts automatically via desk.bill
+**Nexus** — the behavior definition for a directory. Each directory in the tree has a nexus that defines how its grubs are initialized and updated. Nexus definitions live in `nex/` and are compiled into the tree at load time.
 
-### Configuration
-- Update `config.json` with ship path
-- Run `./sync.sh` for live file watching
+**Tarball** — the filesystem. An `(axal lump)` tree where each node holds content, metadata, a nexus identifier, and version history. The tarball is the single source of truth for all state in grubbery.
 
-## Agent Interaction
+**Fiber** — the process monad. Grub processes are monadic computations that yield effects (darts) and receive events (intakes). A fiber can poke other grubs, peek at their state, watch directories for changes, send gall cards, sleep, and more. Fibers survive agent reloads — on load, every process is rebuilt from its nexus and restarted.
 
-### 1. Desk Modification
+**Weir** — sandbox filter. A weir sits on a directory and controls what its children can reach. It specifies allowed destinations for make, poke, and peek operations. Syscalls (raw gall cards) are blocked by any weir on the path to root. External ships enter the tree through a gateway and are subject to weir sandboxing like any other process.
 
-#### File Structure
-- `desk/gub/` - Main grub directory
-- `desk/gub/base/` - Base grub implementations
-- `desk/gub/stem/` - Stem grub implementations
-- `desk/gub/stud/` - Type definitions
-- Additional libraries and resources throughout `desk/gub/`
+**Dart** — an effect yielded by a fiber. Darts are the fiber's way of interacting with the world: making new grubs, poking files, peeking at state, subscribing to directories, sending gall cards, and so on.
 
-#### Bill Configuration
-- `desk/gub/bill.hoon` - Defines grub initialization
-- Format: `[/path/in/namespace /name/of/base]`
-- Example: `[/this/is/a/base /counter]`
-- Only specifies bases (not stems)
-- Bases start with bunt value of their specified state type
-
-#### Workflow
-- Edit files in `desk/gub/`
-- Run `|commit %grubbery` to reload
-- Changes update the namespace:
-  - Code from `gub/` available as text in `lib/`
-  - Code from `gub/` available as compiled code in `bin/`
-- Import with `/-  name  /path/to/lib` at top of files
-
-### 2. Dojo Interaction
-
-#### Direct Pokes
-- `:grubbery &grub-action [[/wire /path/to/grub] %make %base /counter ~]` - Make base grub
-- `:grubbery &grub-action [[/wire /path/to/grub] %oust ~]` - Remove grub
-- `:grubbery &grub-action [[/wire /path/to/grub] %cull ~]` - Recursively remove grub and descendants
-- `:grubbery &grub-action [[/wire /path/to/grub] %sand ~]` - Set sandboxing
-- `:grubbery &grub-action [[/wire /path/to/grub] %kill ~]` - Kill all processes
-- `:grubbery &grub-action [[/wire /path/to/grub] %kill ~ 'pid']` - Kill specific process
-
-#### Threads
-- `-grubbery!poke [~ /path/to/grub /stud/path noun]` - Poke a base grub and await completion
-- `-grubbery!bump [~ /path/to/grub 'pid' /stud/path noun]` - Bump a process
-- `-grubbery!toss [~ /path/to/grub /stud/path noun]` - Poke a base grub without waiting for completion (returns process id)
-
-### 3. Frontend
-
-- Navigate to connected URL path /grub/main
-- Relatively self-explanatory interface
-- Deeply inadequate in many ways
-- Many opportunities for improvement
+**Intake** — an event received by a fiber. Intakes are responses to darts (peek results, poke acks), external inputs (incoming pokes, subscription updates), or lifecycle events (process start, restart after failure).
