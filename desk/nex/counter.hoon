@@ -1,5 +1,6 @@
 ::  counter nexus: many auto-incrementing counters identified by @da
 ::
+/-  homunculus
 /+  nexus, tarball, io=fiberio, server, http-utils, feather, nex-server, loader
 !: :: turn on stack trace
 =<  ^-  nexus:nexus
@@ -16,6 +17,7 @@
             [%fall %& [/ui/views %'page.html'] %.n [~ %manx !>((counter-page ~))]]
             [%fall %& [/ui %'main.sig'] %.n [~ %sig !>(~)]]
             [%fall %| /ui/requests [~ ~] [~ ~] empty-dir:loader]
+            [%fall %& [/ %'homunculus.sig'] %.n [~ %sig !>(~)]]
         ==
       ==
     ::
@@ -86,6 +88,44 @@
         =/  =mime  !<(mime q.cage.p.seen)
         ;<  ~  bind:m  (send-simple:srv eyre-id (mime-response:http-utils mime))
         (pure:m ~)
+          ::  /homunculus.sig: register with homunculus and render TUI
+          ::
+          [~ %'homunculus.sig']
+        ;<  ~  bind:m  (rise-wait:io prod "%counter /homunculus: failed")
+        ;<  our=@p  bind:m  get-our:io
+        ::  Register with homunculus
+        ~&  >>  "registering with homunculus"
+        ;<  ~  bind:m
+          %-  send-card:io
+          :*  %pass  /homunculus  %agent  [our %homunculus]
+              %poke  %homunculus-register  !>(~)
+          ==
+        ~&  >>  "watching counters"
+        ::  Watch counters directory
+        ;<  init=view:nexus  bind:m
+          (keep:io /ctrs (cord-to-road:tarball './counters/') ~)
+        ~&  >>  "rendering tui"
+        ::  Initial render
+        ;<  ~  bind:m
+          (render-tui our (counters-from-view init))
+        ::  Loop: re-render on counter changes or homunculus %open
+        |-
+        ;<  got=news-or-poke  bind:m  (take-news-or-poke /ctrs)
+        ?-  -.got
+            %news
+          ?.  ?=([%ball *] view.got)  $
+          ;<  ~  bind:m
+            (render-tui our (counters-from-view view.got))
+          $
+            %poke
+          ?.  ?=(%homunculus-event p.cage.got)  $
+          =/  eve  !<(event:homunculus q.cage.got)
+          ?+  -.eve  $
+              %open
+            ;<  ~  bind:m  (peek-and-render our)
+            $
+          ==
+        ==
       ==
     ++  on-manu
       |=  =mana:nexus
@@ -189,6 +229,94 @@
       ;script
         ;+  ;/  js
       ==
+    ==
+  ==
+++  peek-and-render
+  |=  our=@p
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  ;<  =seen:nexus  bind:m
+    (peek:io /ctrs [%| 0 %| /counters] ~)
+  (render-tui our (counters-from-seen seen))
+::
++$  news-or-poke
+  $%  [%news =view:nexus]
+      [%poke =cage]
+  ==
+::
+++  take-news-or-poke
+  |=  news-wire=wire
+  =/  m  (fiber:fiber:nexus ,news-or-poke)
+  ^-  form:m
+  |=  input:fiber:nexus
+  :+  ~  state
+  ?+  in  [%skip ~]
+      ~  [%wait ~]
+      [~ %news * *]
+    ?.  =(news-wire wire.u.in)
+      [%skip ~]
+    [%done %news view.u.in]
+      [~ %poke * *]
+    [%done %poke cage.u.in]
+  ==
+::
+++  render-tui
+  |=  [our=@p counters=(list [@ta @ud])]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  %-  send-card:io
+  :*  %pass  /homunculus  %agent  [our %homunculus]
+      %poke  %homunculus-update
+      !>  ^-  update:homunculus
+      :~  [%element (counter-tui counters)]
+      ==
+  ==
+::
+++  counters-from-seen
+  |=  =seen:nexus
+  ^-  (list [@ta @ud])
+  ?.  ?=([%& %ball *] seen)  ~
+  =/  =lump:tarball  (fall fil.ball.p.seen *lump:tarball)
+  %+  murn  ~(tap by contents.lump)
+  |=  [name=@ta =content:tarball]
+  ?.  ?=(%ud p.cage.content)  ~
+  `[name !<(@ud q.cage.content)]
+::
+++  counters-from-view
+  |=  =view:nexus
+  ^-  (list [@ta @ud])
+  ?.  ?=([%ball *] view)  ~
+  =/  =lump:tarball  (fall fil.ball.view *lump:tarball)
+  %+  murn  ~(tap by contents.lump)
+  |=  [name=@ta =content:tarball]
+  ?.  ?=(%ud p.cage.content)  ~
+  `[name !<(@ud q.cage.content)]
+::
+++  counter-tui
+  |=  counters=(list [@ta @ud])
+  ^-  manx
+  ;col(w "100%", h "100%", bg "#171C1D", fg "#51D6FF")
+    ;row(w "100%", h "1", px "2", fg "#bdfff6")
+      Grubbery Counters
+    ==
+    ;col(w "100%", h "grow", px "2", mt "1")
+      ;*  ?~  counters
+            =/  empty=manx
+              ;row: No counters yet
+            ~[empty]
+          %+  turn  counters
+          |=  [name=@ta val=@ud]
+          =/  n=tape  (trip name)
+          =/  v=tape  (scow %ud val)
+          ;row(w "100%", h "1", mt "1")
+            ;row(w "grow")
+              ;row(fg "#A8E0FF"): {v}
+              ;row(ml "2", fg "#51D6FF"): {n}
+            ==
+            ;select/"del/{n}"(px "1", select-bg "#FF570A", select-fg "#FFFFFF")
+              del
+            ==
+          ==
     ==
   ==
 --

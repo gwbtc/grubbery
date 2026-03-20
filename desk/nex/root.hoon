@@ -17,7 +17,7 @@
         [%fall %| /'explorer.explorer' [~ ~] [~ ~] [`[~ `%explorer ~] ~]]
         [%fall %| /'peers.peers' [~ ~] [~ ~] [`[~ `%peers ~] ~]]
         [%fall %| /'claude.claude' [~ ~] [~ ~] [`[~ `%claude ~] ~]]
-        [%fall %| /'mcp.mcp' [~ ~] [~ ~] [`[~ `%mcp ~] ~]]
+        :: [%fall %| /'mcp.mcp' [~ ~] [~ ~] [`[~ `%mcp ~] ~]]
         [%fall %| /sys/'build.build' [~ ~] [~ ~] [`[~ `%build ~] ~]]
         ::  config
         [%fall %| /config/creds [~ ~] [~ ~] empty-dir:loader]

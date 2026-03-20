@@ -1,3 +1,4 @@
+::
 /-  spider
 /+  default-agent, dbug, tarball, nexus, server,
     nex-tools, marks, build
@@ -150,6 +151,13 @@
     =/  =give:nexus  [|+[src sap]:bowl /[eyre-id]]
     =^  cards  state
       abet:(poke:hc give [/'server.server' %'main.server-state'] handle-http-request+!>([eyre-id src.bowl req]))
+    [cards this]
+      ::
+      %homunculus-event
+    ?>  =(src our):bowl
+    =/  =give:nexus  [|+[src sap]:bowl /homunculus-event]
+    =^  cards  state
+      abet:(poke:hc give [/'counter.counter' %'homunculus.sig'] homunculus-event+vas)
     [cards this]
       ::
       %rebuild-caches
