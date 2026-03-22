@@ -18,6 +18,8 @@
 |%
 +$  file-load  $-([? content:tarball] [? content:tarball])
 +$  fold-load  $-([sand:nexus gain:nexus ball:tarball] [sand:nexus gain:nexus ball:tarball])
+++  same-file  |=([? content:tarball] +<)
+++  same-fold  |=([sand:nexus gain:nexus ball:tarball] +<)
 ::
 +$  row
   $%  [%stay %& =rail:tarball]

@@ -10,6 +10,7 @@
       ?(~ [~ %0])
     %+  spin:loader  [sand gain ball]
     :~  (ver-row:loader 0)
+        [%load %| / / same-fold:loader]
         [%fall %& [/sys %'main.sig'] %.n [~ %sig !>(~)]]
         ::  child nexuses
         [%fall %| /'server.server' [~ ~] [~ ~] [`[~ `%server ~] ~]]
@@ -17,6 +18,8 @@
         [%fall %| /'explorer.explorer' [~ ~] [~ ~] [`[~ `%explorer ~] ~]]
         [%fall %| /'peers.peers' [~ ~] [~ ~] [`[~ `%peers ~] ~]]
         [%fall %| /'claude.claude' [~ ~] [~ ~] [`[~ `%claude ~] ~]]
+        [%fall %| /'oneshot.oneshot' [~ ~] [~ ~] [`[~ `%oneshot ~] ~]]
+        [%fall %| /'telegram.telegram' [~ ~] [~ ~] [`[~ `%telegram ~] ~]]
         [%fall %| /'mcp.mcp' [~ ~] [~ ~] [`[~ `%mcp ~] ~]]
         [%fall %| /sys/'build.build' [~ ~] [~ ~] [`[~ `%build ~] ~]]
         ::  config

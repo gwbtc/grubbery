@@ -28,6 +28,7 @@
 /=  n-  /nex/root
 /=  n-  /nex/oneshot
 /=  n-  /nex/telegram
+/=  n-  /nex/telegram-bot
 ::
 |%
 +$  versioned-state

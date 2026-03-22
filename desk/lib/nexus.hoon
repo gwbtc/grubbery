@@ -97,8 +97,8 @@
   ==
 ::  manu types — documentation query
 ::
-+$  mana  (each fold:tarball mury)       :: directory or file query
 +$  mury  [=rail:tarball =mark]          :: file query: rail + mark
++$  mana  (each fold:tarball mury)       :: directory or file query
 ::
 +$  dart
   $%  [%sysc =card:agent:gall]  :: regular card

@@ -17,8 +17,8 @@
   --
 ++  grab
   |%                                                    ::  convert from
-  ++  mime  |=([p=mite q=octs] (fall (de:json (@t q.q)) *^json))
-  ++  noun  ^json                                        ::  clam from %noun
+  ++  mime  |=([p=mite q=octs] (need (de:json (@t q.q))))  ::  crash on bad json
+  ++  noun  ^json                                       ::  clam from %noun
   ++  numb  numb:enjs
   ++  time  time:enjs
   --
