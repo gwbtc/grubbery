@@ -26,6 +26,8 @@
 /=  n-  /nex/counter
 /=  n-  /nex/server
 /=  n-  /nex/root
+/=  n-  /nex/oneshot
+/=  n-  /nex/telegram
 ::
 |%
 +$  versioned-state
@@ -1564,7 +1566,13 @@
   =/  =spool:fiber:nexus
     (fall (build-spool here) default-spool)
   =/  =process:fiber:nexus  (spool prod)
-  (store-proc here [process ~ ~])
+  =/  =pipe:nexus  (fall (~(get of pool) path.here) ~)
+  =/  old=(unit proc:fiber:nexus)  (~(get by pipe) name.here)
+  ?~  old
+    (store-proc here [process ~ ~])
+  ::  Preserve existing queues
+  ::
+  (store-proc here [process [next skip]:u.old])
 ::
 ++  default-spool
   ^-  spool:fiber:nexus

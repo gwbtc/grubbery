@@ -369,9 +369,13 @@
       =/  tid=@ta  eyre-id
       =/  tool-road=road:tarball  [%| 1 %& /tools tid]
       ;<  exists=?  bind:m  (peek-exists:io /chk tool-road)
-      ;<  *  bind:m
-        (keep:io /watch tool-road ~)
+      ::  Check if already subscribed (survives restart)
+      ;<  =kept:nexus  bind:m  (get-kept:io /watch)
       ;<  ~  bind:m
+        ?.  =(~ kept)
+          (pure:m ~)
+        ;<  *  bind:m
+          (keep:io /watch tool-road ~)
         ?.  exists
           (make:io /make tool-road |+[%.n tool-state+!>(ts) ~])
         (pure:m ~)
@@ -379,12 +383,11 @@
       |-
       ;<  nw=news-or-wake:io  bind:m  (take-news-or-wake:io /watch)
       ?:  ?=(%wake -.nw)  $  :: timer, keep waiting
-      ::  Got news — extract tool-state from view
-      ?.  ?=(%file -.view.nw)  $  :: not a file update, keep waiting
+      ?.  ?=(%file -.view.nw)  $
       =/  st=tool-state:nex-tools
         !<(tool-state:nex-tools q.cage.view.nw)
-      ?.  =(%done step.st)  $  :: not done yet
-      ?~  update.st  $  :: done but no update — shouldn't happen, keep waiting
+      ?.  =(%done step.st)  $
+      ?~  update.st  $
       ::  Done — build JSON-RPC response from update
       =/  result-type=(unit json)
         (~(get jo:json-utils u.update.st) /type)
