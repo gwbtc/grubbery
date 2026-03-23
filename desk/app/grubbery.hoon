@@ -1188,7 +1188,7 @@
     =/  dest-lane=(unit lane:tarball)  (lane-from-road:tarball [%& here] road.dart)
     :_  dest-lane
     ?-  -.load.dart
-      ?(%peek %keep %drop %seek %peep)  %peek  :: read operations
+      ?(%peek %keep %drop %seek %peep %manu)  %peek  :: read operations
       %poke                       %poke
         $?  %make  %cull  %sand  %load
             %over  %diff  %gain  %lose
@@ -1197,11 +1197,7 @@
     ==
     ::
       %manu
-    ?-  -.target.dart
-      %&  [%sysc ~]                    :: explicit: caller knows the nexus, no filtering
-        %|  :: by road: requires peek permission
-      [%peek (lane-from-road:tarball [%& here] p.target.dart)]
-    ==
+    [%sysc ~]  :: direct: no path to check, bypasses weir
   ==
 ::
 ++  handle-dart
@@ -1480,24 +1476,9 @@
         %&  (enqu-take:p.res here (sys-give /lost) ~ %lost wire.dart ~)
         %|  (enqu-take here (sys-give /lost) ~ %lost wire.dart `p.res)
       ==
-    ==
-    ::
-      %manu
-    ?-    -.target.dart
-        %&
-      ::  Explicit: build nexus from neck, call on-manu directly
-      =/  nex=(unit nexus:nexus)  (build-nexus neck.p.target.dart)
-      ?~  nex
-        (enqu-take here (sys-give /manu) ~ %manu wire.dart |+~[leaf+"nexus not found: {(trip neck.p.target.dart)}"])
-      =/  text=@t  (on-manu:u.nex mana.p.target.dart)
-      (enqu-take here (sys-give /manu) ~ %manu wire.dart &+text)
       ::
-        %|
+        %manu
       ::  By road: resolve, find nearest nexus, relativize, call on-manu
-      =/  dest-lane=(unit lane:tarball)  (lane-from-road:tarball [%& here] p.target.dart)
-      ?~  dest-lane
-        (enqu-take here (sys-give /manu) ~ %manu wire.dart |+~[leaf+"bad road"])
-      ::  Full path from lane
       =/  target-path=path
         ?-(-.u.dest-lane %& (snoc path.p.u.dest-lane name.p.u.dest-lane), %| p.u.dest-lane)
       ::  Walk up tree to find nearest covering nexus
@@ -1531,6 +1512,14 @@
       =/  text=@t  (on-manu:u.nex mana)
       (enqu-take here (sys-give /manu) ~ %manu wire.dart &+text)
     ==
+    ::
+      %manu
+    ::  Direct: build nexus from neck, call on-manu directly
+    =/  nex=(unit nexus:nexus)  (build-nexus neck.dart)
+    ?~  nex
+      (enqu-take here (sys-give /manu) ~ %manu wire.dart |+~[leaf+"nexus not found: {(trip neck.dart)}"])
+    =/  text=@t  (on-manu:u.nex mana.dart)
+    (enqu-take here (sys-give /manu) ~ %manu wire.dart &+text)
     ::
       %scry
     ?~  scry.dart

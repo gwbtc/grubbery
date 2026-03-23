@@ -782,7 +782,7 @@
       %'sand'   (send-dart:io %node slot-wire road %peek ~ ~ %.n)
       %'weir'   (send-dart:io %node slot-wire road %peek ~ ~ %.n)
   ::  manu
-      %'manu'   (send-dart:io %manu slot-wire |+road)
+      %'manu'   (send-dart:io %node slot-wire road %manu ~)
   ::  writes
       %'make'
     =/  =mime  [/text/plain (as-octs:mimes:html body)]

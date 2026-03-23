@@ -16,7 +16,7 @@
   ;<  st=tool-state:tools  bind:m  (get-state-as:io ,tool-state:tools)
   =/  pax=@t  (~(dog jo:json-utils [%o args.st]) /path so:dejs:format)
   =/  =road:tarball  (cord-to-road:tarball pax)
-  ;<  doc=@t  bind:m  (manu:io /manu |+road)
+  ;<  doc=@t  bind:m  (manu-road:io /manu road)
   ?:  =('' doc)
     (pure:m [%text (crip "No documentation found for {(trip pax)}")])
   (pure:m [%text doc])

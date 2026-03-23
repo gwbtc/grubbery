@@ -87,13 +87,14 @@
       [%peek mark=(unit mark) case=(unit case) clam=?]
                                        :: read a grub
                                        :: mark: convert file cage to this mark
-                                       :: ver: if set, read historical version
+                                       :: case: if set, read historical version
       [%keep mark=(unit mark)]  :: subscribe to changes at dest (grub or ball per road)
                                        :: mark: if set, convert file cage in news
       [%drop ~]                 :: unsubscribe from dest
       [%lose =lose]             :: drop hist entries, decrement silo refs
       [%seek =lobe:clay]        :: find all [rail cass] pairs with this hash
       [%peep =find]
+      [%manu ~]                  :: docs for this path (road resolves nexus + query)
   ==
 ::  manu types — documentation query
 ::
@@ -106,7 +107,7 @@
       [%scry =wire scry=(unit scry)]
       [%bowl =wire]
       [%kept =wire]              :: see your own outgoing subscriptions
-      [%manu =wire target=(each [=neck:tarball =mana] road:tarball)]
+      [%manu =wire =neck:tarball =mana]  :: direct docs query to a known nexus
   ==
 ::
 ++  fiber

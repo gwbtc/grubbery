@@ -350,11 +350,27 @@
   ;<  =seen:nexus  bind:m  (peek wire road ~)
   (pure:m ?&(?=(%& -.seen) !?=(%none -.p.seen)))
 ::
+::  Direct manu: query a known nexus by neck
+::
 ++  manu
-  |=  [=wire target=(each [=neck:tarball =mana:nexus] road:tarball)]
+  |=  [=wire =neck:tarball =mana:nexus]
   =/  m  (fiber ,@t)
   ^-  form:m
-  ;<  ~  bind:m  (send-dart %manu wire target)
+  ;<  ~  bind:m  (send-dart %manu wire neck mana)
+  (take-manu wire)
+::  Road manu: query docs for a path (system resolves nexus)
+::
+++  manu-road
+  |=  [=wire =road:tarball]
+  =/  m  (fiber ,@t)
+  ^-  form:m
+  ;<  ~  bind:m  (send-dart %node wire road %manu ~)
+  (take-manu wire)
+::
+++  take-manu
+  |=  =wire
+  =/  m  (fiber ,@t)
+  ^-  form:m
   |=  input
   :+  ~  state
   ?+  in  [%skip ~]

@@ -740,7 +740,7 @@
   =/  =road:tarball
     ?:  is-file  (need file-road)
     [%& %| api-path]
-  ;<  text=@t  bind:m  (manu:io /manu |+road)
+  ;<  text=@t  bind:m  (manu-road:io /manu road)
   ?:  =('' text)
     (send-ok eyre-id 'No documentation')
   (send-ok eyre-id text)
