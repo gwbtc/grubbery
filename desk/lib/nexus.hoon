@@ -108,6 +108,7 @@
       [%bowl =wire]
       [%kept =wire]              :: see your own outgoing subscriptions
       [%manu =wire =neck:tarball =mana]  :: direct docs query to a known nexus
+      [%code =wire =path name=@ta]  :: look up compiled artifact from bins
   ==
 ::
 ++  fiber
@@ -153,6 +154,7 @@
         [%veto =dart] :: notify that a dart was sandboxed
         :: messages from gall and arvo
         ::
+        [%code =wire res=(each vase tang)]  :: compiled artifact from bins
         [%scry =wire =vase]
         [%bowl =wire =bowl]
         [%arvo =wire sign=sign-arvo]
@@ -172,7 +174,6 @@
   +$  prod
     $%  [%make ~]     :: making new file
         [%load ~]     :: nexus was reloaded
-        [%bump ~]     :: zuse got a kelvin bump
         [%rise =tang] :: failed while running
     ==
   ::

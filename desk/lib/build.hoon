@@ -12,7 +12,7 @@
 ::      local/bar.hoon        relative (0 up, same as ./)
 ::      ../../lib/baz.hoon    relative (2 up)
 ::
-/+  tarball
+/+  tarball, marks
 |%
 +$  import  [name=@tas =road:tarball]
 +$  resolved-import  [name=@tas =rail:tarball]
@@ -25,12 +25,34 @@
   ==
 +$  build-result  (each vase tang)
 +$  build-cache  (map @uv vase)
++$  bins  (axal (map @ta (each vase tang)))
++$  lode
+  $:  keys=(map rail:tarball @uv)
+      deps=(map rail:tarball (set rail:tarball))
+      =bins
+  ==
 +$  build-out
   $:  results=(map rail:tarball build-result)
       cache=build-cache
       deps=(map rail:tarball (set rail:tarball))
       keys=(map rail:tarball @uv)
   ==
+::  +bins-to-cache: reconstruct build-cache from bins axal + keys
+::
+++  bins-to-cache
+  |=  [=bins keys=(map rail:tarball @uv)]
+  ^-  build-cache
+  %+  roll  ~(tap by keys)
+  |=  [[=rail:tarball ckey=@uv] acc=build-cache]
+  ?:  (~(has by acc) ckey)  acc
+  =/  stem=@ta  (strip-hoon name.rail)
+  =/  node=(unit (map @ta (each vase tang)))
+    (~(get of bins) path.rail)
+  ?~  node  acc
+  =/  entry=(unit (each vase tang))  (~(get by u.node) stem)
+  ?~  entry  acc
+  ?.  ?=(%& -.u.entry)  acc
+  (~(put by acc) ckey p.u.entry)
 ::  +parse-imports: extract /<  imports from source text
 ::
 ::    Returns list of imports and remaining source (as cord).
@@ -277,11 +299,26 @@
     =/  resolved=(list resolved-import)
       (murn raw |=(=import (resolve-import rail import)))
     ?.  =((lent raw) (lent resolved))
-      [files (~(put by errors) rail ~[leaf+"unresolved import in {(spud (snoc path.rail name.rail))}"])]
+      =/  resolved-names=(set @tas)
+        (~(gas in *(set @tas)) (turn resolved |=(r=resolved-import name.r)))
+      =/  bad=(list import)
+        (skip raw |=(=import (~(has in resolved-names) name.import)))
+      =/  bad-names=tape
+        %-  zing
+        ^-  (list tape)
+        %+  join  ", "
+        (turn bad |=(=import (trip name.import)))
+      [files (~(put by errors) rail ~[leaf+"unresolved import in {(spud (snoc path.rail name.rail))}: {bad-names}"])]
     =/  missing=(list resolved-import)
       (skip resolved |=(r=resolved-import (~(has by sources) rail.r)))
     ?.  =(~ missing)
-      [files (~(put by errors) rail ~[leaf+"missing import in {(spud (snoc path.rail name.rail))}"])]
+      =/  miss-paths=tape
+        %-  zing
+        ^-  (list tape)
+        %+  join  ", "
+        %+  turn  missing
+        |=(r=resolved-import (spud (snoc path.rail.r name.rail.r)))
+      [files (~(put by errors) rail ~[leaf+"missing import in {(spud (snoc path.rail name.rail))}: {miss-paths}"])]
     [(~(put by files) rail [src (sham src) resolved body.p.res]) errors]
   =/  files=(map rail:tarball file-info)  files.prep
   =/  errors=(map rail:tarball tang)  errors.prep
@@ -344,7 +381,9 @@
     =/  dep=vase  p.dep-res
     (slop [[%face name.r p.dep] q.dep] acc)
   ::  Compile
-  =/  res=build-result  (build-hoon aug (snoc path.rail name.rail) body.fi)
+  =/  res=build-result
+    =/  r  (mule |.((build-hoon aug (snoc path.rail name.rail) body.fi)))
+    ?:(?=(%& -.r) p.r [%| ~[leaf+"crash compiling {(spud (snoc path.rail name.rail))}"]])
   %=  $
     order.sort-res  t.order.sort-res
     results      (~(put by results) rail res)

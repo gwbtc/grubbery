@@ -604,17 +604,6 @@
     %+  lien  tap
     |=  [=rail c=content]
     (fn c)
-  ::  Clear all %temp cages from ball
-  ::
-  ++  clear-temp
-    ^-  ball
-    %+  roll  ~(tap of b)
-    |=  [[pax=path lmp=lump] acc=ball]
-    =/  cleaned-contents=(map @ta content)
-      %-  ~(gas by *(map @ta content))
-      %+  skip  ~(tap by contents.lmp)
-      |=([name=@ta c=content] =(%temp p.cage.c))
-    (~(put of acc) pax lmp(contents cleaned-contents))
   ::  Delete entire subtree at path
   ::
   ++  lop
@@ -835,8 +824,6 @@
   ++  cage-to-mime
     |=  =cage
     ^-  mime
-    ?:  =(%temp p.cage)
-      [/application/x-urb-jam (as-octs:mimes:html (jam q.cage))]
     =/  key=mars:clay  [a=p.cage b=%mime]
     ?~  tube=(~(get by conversions) key)
       ::  No conversion available, fall back to jamming like mar/noun.hoon
@@ -933,10 +920,7 @@
     =/  tar-entries=tarball
       ?~  fil.ball
         ~
-      =/  contents-list=(list [@ta content])  ~(tap by contents.u.fil.ball)
-      =/  exportable=(list [@ta content])
-        %+  skip  contents-list
-        |=([name=@ta c=content] =(%temp p.cage.c))
+      =/  exportable=(list [@ta content])  ~(tap by contents.u.fil.ball)
       %+  weld
         ?~  path
           ~

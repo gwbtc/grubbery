@@ -17,6 +17,7 @@
     %kept  ~[leaf+"vetoed kept request on wire {(spud wire.dart)}"]
     %node  ~[leaf+"vetoed node operation on wire {(spud wire.dart)}"]
     %manu  ~[leaf+"vetoed manu request on wire {(spud wire.dart)}"]
+    %code  ~[leaf+"vetoed code request on wire {(spud wire.dart)}"]
   ==
 ::
 ++  send-darts
@@ -423,7 +424,7 @@
     [%fail %sand-failed u.err.u.in]
   ==
 ::
-++  set-gain
+++  gain
   |=  [=wire =road:tarball flag=?]
   =/  m  (fiber ,~)
   ^-  form:m
@@ -652,40 +653,77 @@
   ;<  =sign-arvo  bind:m  (take-arvo /warp)
   ?>  ?=([%clay %writ *] sign-arvo)
   (pure:m +>.sign-arvo)
+::  +get-code: look up a compiled artifact from bins
 ::
-::  +get-tube: look up a cached tube from /sys/tubes/
+++  get-code
+  |=  [=wire =path name=@ta]
+  =/  m  (fiber ,(unit vase))
+  ^-  form:m
+  ;<  ~  bind:m  (send-dart %code wire path name)
+  (take-code wire)
+::
+++  take-code
+  |=  =wire
+  =/  m  (fiber ,(unit vase))
+  ^-  form:m
+  |=  input
+  :+  ~  state
+  ?+  in  [%skip ~]
+      ~  [%wait ~]
+      [~ %veto *]
+    [%fail (veto-error dart.u.in)]
+      [~ %code * *]
+    ?.  =(wire wire.u.in)
+      [%skip ~]
+    ?:  ?=(%& -.res.u.in)
+      [%done `p.res.u.in]
+    [%done ~]
+  ==
+::  +get-code-full: look up artifact, returning error tang on failure
+::
+++  get-code-full
+  |=  [=wire =path name=@ta]
+  =/  m  (fiber ,(each vase tang))
+  ^-  form:m
+  ;<  ~  bind:m  (send-dart %code wire path name)
+  |=  input
+  :+  ~  state
+  ?+  in  [%skip ~]
+      ~  [%wait ~]
+      [~ %veto *]
+    [%fail (veto-error dart.u.in)]
+      [~ %code * *]
+    ?.  =(wire wire.u.in)
+      [%skip ~]
+    [%done res.u.in]
+  ==
+::  +get-tube: look up a compiled tube from bins
 ::
 ++  get-tube
   |=  =mars:clay
   =/  m  (fiber ,(unit tube:clay))
   ^-  form:m
-  =/  =road:tarball  [%& %& /sys/tubes/[a.mars] b.mars]
-  ;<  =seen:nexus  bind:m  (peek /tube road ~)
-  ?.  ?=([%& %file *] seen)
-    (pure:m ~)
-  (pure:m `!<(tube:clay q.cage.p.seen))
-::  +get-dais: look up a cached dais from /sys/daises/
+  ;<  res=(unit vase)  bind:m  (get-code /tube /tub/[a.mars] b.mars)
+  ?~  res  (pure:m ~)
+  (pure:m `!<(tube:clay u.res))
+::  +get-dais: look up a compiled dais from bins
 ::
 ++  get-dais
   |=  mak=mark
   =/  m  (fiber ,(unit dais:clay))
   ^-  form:m
-  =/  =road:tarball  [%& %& /sys/daises mak]
-  ;<  =seen:nexus  bind:m  (peek /dais road ~)
-  ?.  ?=([%& %file *] seen)
-    (pure:m ~)
-  (pure:m `!<(dais:clay q.cage.p.seen))
-::  +get-nexus: look up a cached nexus from /sys/nexuses/
+  ;<  res=(unit vase)  bind:m  (get-code /dais /das mak)
+  ?~  res  (pure:m ~)
+  (pure:m `!<(dais:clay u.res))
+::  +get-nexus: look up a compiled nexus from bins
 ::
 ++  get-nexus
   |=  neck=@tas
   =/  m  (fiber ,(unit nexus:nexus))
   ^-  form:m
-  =/  =road:tarball  [%& %& /sys/nexuses neck]
-  ;<  =seen:nexus  bind:m  (peek /nexus road ~)
-  ?.  ?=([%& %file *] seen)
-    (pure:m ~)
-  (pure:m `!<(nexus:nexus q.cage.p.seen))
+  ;<  res=(unit vase)  bind:m  (get-code /nexus /nex neck)
+  ?~  res  (pure:m ~)
+  (pure:m `!<(nexus:nexus u.res))
 ::  +collect-marks: collect all marks used in cages within a ball (deep)
 ::
 ++  collect-marks
@@ -699,8 +737,6 @@
     |-  ^-  (set mark)
     ?~  entries  marks
     =*  content  q.i.entries
-    ?:  =(%temp p.cage.content)
-      $(entries t.entries)
     $(entries t.entries, marks (~(put in marks) p.cage.content))
   ::  Recurse into subdirectories
   =/  subdirs=(list (pair @ta ball:tarball))  ~(tap by dir.ball)
@@ -720,8 +756,6 @@
   |-  ^-  (set mark)
   ?~  entries  marks
   =*  ct  q.i.entries
-  ?:  =(%temp p.cage.ct)
-    $(entries t.entries)
   $(entries t.entries, marks (~(put in marks) p.cage.ct))
 ::  +build-mark-conversions: build conversions map for a set of marks
 ::
@@ -762,8 +796,6 @@
   ^-  form:m
   ?:  =(%mime p.cage)
     (pure:m !<(mime q.cage))
-  ?:  =(%temp p.cage)
-    (pure:m [/application/x-urb-jam (as-octs:mimes:html (jam q.cage))])
   =/  =mars:clay  [p.cage %mime]
   ;<  tube=(unit tube:clay)  bind:m
     (get-tube mars)

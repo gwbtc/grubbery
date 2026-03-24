@@ -1,8 +1,6 @@
-::  marks: synchronous tube and dais builder
+::  marks: tube, dais, and nave builder
 ::
-::  Reproduces Clay's tube/dais-building logic using only safe scries.
-::  All mark files are listed via %cy and built via %ca — we only
-::  scry for files we KNOW exist because we listed them ourselves.
+::  Reproduces Clay's tube/dais-building logic.
 ::  Tube gates are composed from grab/grow arms using slap/slam/slob,
 ::  exactly as Clay does internally in +build-cast.
 ::  Daises are built inline (like Clay's build-dais) using the
@@ -10,42 +8,6 @@
 ::
 /+  nexus, tarball
 |%
-::  +rebuild-tubes: rebuild /sys/tubes/ sub-ball
-::
-++  rebuild-tubes
-  |=  [our=@p =desk now=@da]
-  ^-  ball:tarball
-  =/  tubs=(map mars:clay tube:clay)
-    (build-tubes our desk now)
-  ~&  >  [%tubes-rebuilt ~(wyt by tubs)]
-  %+  roll  ~(tap by tubs)
-  |=  [[=mars:clay =tube:clay] acc=ball:tarball]
-  (~(put ba:tarball acc) [/[a.mars] b.mars] [~ %temp !>(tube)])
-::  +rebuild-daises: rebuild /sys/daises/ sub-ball
-::
-++  rebuild-daises
-  |=  [our=@p =desk now=@da]
-  ^-  ball:tarball
-  =/  cores=(map mark vase)  (build-mark-cores our desk now)
-  =/  daises=(map mark dais:clay)
-    %-  ~(gas by *(map mark dais:clay))
-    %+  murn  ~(tap by cores)
-    |=  [=mark cor=vase]
-    ^-  (unit [^mark dais:clay])
-    =/  res=(each dais:clay tang)
-      (mule |.((build-dais cores mark cor)))
-    ?:  ?=(%& -.res)  `[mark p.res]
-    %-  (%*(. slog pri 3) leaf+"{<mark>}: dais build failed" (flop p.res))
-    ~
-  ~&  >  [%daises-rebuilt ~(wyt by daises)]
-  %+  roll  ~(tap by daises)
-  |=  [[=mark =dais:clay] acc=ball:tarball]
-  (~(put ba:tarball acc) [/ mark] [~ %temp !>(dais)])
-::  +build-dais: build a dais from a raw mark core
-::
-::  Reproduces Clay's build-nave then build-dais, using slap
-::  instead of slub (which is kernel-only).
-::
 ::  +build-nave: build statically typed nave from mark core
 ::
 ::  Mirrors Clay's build-nave. Core-grad builds from grad arms
@@ -57,8 +19,10 @@
   =/  gad=vase  (slap cor limb/%grad)
   ?@  q.gad
     ::  Atom grad — delegate to another mark's nave + tubes.
-    =/  mok=mark  !<(mark gad)
-    =/  deg=vase  (build-nave cores mok (~(got by cores) mok))
+    =+  !<(mok=mark gad)
+    =/  deg=vase
+      ~|  leaf+"build-nave: {(trip mak)} missing grad mark {(trip mok)}"
+      (build-nave cores mok (~(got by cores) mok))
     =/  tub=vase  (build-cast cores mak mok ~)
     =/  but=vase  (build-cast cores mok mak ~)
     %+  slap
@@ -148,128 +112,6 @@
     |=  noun=*
     (slam (slap nav limb/%vale) !>(noun))
   --
-::  +rebuild-nexuses: rebuild /sys/nexuses/ sub-ball
-::
-::  Lists /nex/*.hoon files and compiles each via %ca scry.
-::  Nexuses are cached by neck (filename without .hoon).
-::  Uses segments:clay for hyphenated neck resolution (e.g.
-::  neck %foo-bar tries /nex/foo-bar.hoon then /nex/foo/bar.hoon).
-::
-++  rebuild-nexuses
-  |=  [our=@p =desk now=@da]
-  ^-  ball:tarball
-  =/  base=path  /(scot %p our)/[desk]/(scot %da now)
-  =/  =arch  .^(arch %cy (weld base /nex))
-  ::  Collect all .hoon files recursively, building neck from path
-  =/  entries=(list [neck=@tas =path])
-    (collect-nex-files /nex arch base)
-  ~&  >  [%nexus-files (lent entries)]
-  =/  acc=ball:tarball  *ball:tarball
-  |-
-  ?~  entries  acc
-  =/  [neck=@tas pax=path]  i.entries
-  =/  res=(each vase tang)
-    (mule |.(.^(vase %ca (weld base pax))))
-  ?:  ?=(%| -.res)
-    %-  (%*(. slog pri 3) leaf+"{<neck>}: nexus build failed" (flop p.res))
-    $(entries t.entries)
-  =/  nex-res=(each nexus:nexus tang)
-    (mule |.(!<(nexus:nexus p.res)))
-  ?:  ?=(%| -.nex-res)
-    %-  (%*(. slog pri 3) leaf+"{<neck>}: nexus type mismatch" (flop p.nex-res))
-    $(entries t.entries)
-  $(entries t.entries, acc (~(put ba:tarball acc) [/ neck] [~ %temp !>(p.nex-res)]))
-::  +collect-nex-files: recursively collect nexus .hoon files from arch
-::
-::  Builds neck by joining path segments with hep, e.g.
-::  /nex/foo/bar.hoon → neck %foo-bar
-::
-++  collect-nex-files
-  |=  [prefix=path =arch base=path]
-  ^-  (list [neck=@tas =path])
-  =/  kids=(list [@tas ^arch])
-    %+  murn  ~(tap by dir.arch)
-    |=  [name=@tas *]
-    ^-  (unit [@tas ^arch])
-    =/  sub=^arch  .^(^arch %cy (weld base (snoc prefix name)))
-    `[name sub]
-  %-  zing
-  %+  turn  kids
-  |=  [name=@tas sub=^arch]
-  =/  sub-prefix=path  (snoc prefix name)
-  ::  If this dir has a hoon file, it's a nexus
-  ?:  (~(has by dir.sub) %hoon)
-    =/  neck=@tas
-      =/  segs=path  (slag 1 sub-prefix)  :: drop /nex
-      (rap 3 (join '-' segs))
-    [neck (snoc sub-prefix %hoon)]~
-  ::  Otherwise recurse
-  (collect-nex-files sub-prefix sub base)
-::  +build-mark-cores: list and compile all mark cores for a desk
-::
-++  build-mark-cores
-  |=  [our=@p =desk now=@da]
-  ^-  (map mark vase)
-  =/  base=path  /(scot %p our)/[desk]/(scot %da now)
-  =/  =arch  .^(arch %cy (weld base /mar))
-  =/  mark-names=(list mark)
-    %+  murn  ~(tap by dir.arch)
-    |=  [name=@tas *]
-    ^-  (unit mark)
-    ?.  .^(? %cu (weld base /mar/[name]/hoon))  ~
-    `name
-  %-  ~(gas by *(map mark vase))
-  %+  murn  mark-names
-  |=  =mark
-  ^-  (unit [^mark vase])
-  `[mark .^(vase %ca (weld base /mar/[mark]/hoon))]
-::  +build-tubes: build all tube conversions for a desk
-::
-::  Returns a map from [from-mark to-mark] to tube gate.
-::  Runs synchronously — safe for on-load.
-::
-++  build-tubes
-  |=  [our=@p =desk now=@da]
-  ^-  (map mars:clay tube:clay)
-  =/  cores=(map mark vase)  (build-mark-cores our desk now)
-  ::  Discover all conversion pairs from grab/grow arms
-  =/  all-marks=(set mark)  ~(key by cores)
-  =/  pairs=(list mars:clay)
-    %-  zing
-    %+  turn  ~(tap by cores)
-    |=  [=mark =vase]
-    ^-  (list mars:clay)
-    =/  [grab=(list ^mark) grow=(list ^mark)]
-      :-  ?.  (slob %grab -:vase)  ~
-          (sloe -:(slap vase [%limb %grab]))
-      ?.  (slob %grow -:vase)  ~
-      (sloe -:(slap vase [%limb %grow]))
-    ;:  weld
-      (murn grab |=(m=^mark ?.((~(has in all-marks) m) ~ `[m mark])))
-      (murn grow |=(m=^mark ?.((~(has in all-marks) m) ~ `[mark m])))
-    ==
-  ::  Build tubes for each valid pair
-  =/  tubes=(map mars:clay tube:clay)  ~
-  |-
-  ?~  pairs  tubes
-  =/  =mars:clay  i.pairs
-  ?:  (~(has by tubes) mars)
-    $(pairs t.pairs)
-  =/  tub=(unit tube:clay)
-    (try-build-tube cores mars)
-  =?  tubes  ?=(^ tub)
-    (~(put by tubes) mars u.tub)
-  $(pairs t.pairs)
-::  +try-build-tube: attempt to build a single tube, return ~ on failure
-::
-++  try-build-tube
-  |=  [cores=(map mark vase) =mars:clay]
-  ^-  (unit tube:clay)
-  =/  res=(each tube:clay tang)
-    (mule |.((build-tube cores mars)))
-  ?:  ?=(%& -.res)  `p.res
-  ~&  >>>  [%tube-build-failed mars]
-  ~
 ::  +build-tube: build a $-(vase vase) tube gate from mark cores
 ::
 ++  build-tube
@@ -351,4 +193,40 @@
   =/  faz  (with-face i.vaz)
   =.  res  `?~(res faz (slop faz u.res))
   $(vaz t.vaz)
+::  +nave-from: build a nave from mark cores
+::
+++  nave-from
+  |=  [mak=mark cores=(map mark vase)]
+  ^-  vase
+  (build-nave cores mak (~(got by cores) mak))
+::  +dais-from: build a dais from mark cores
+::
+++  dais-from
+  |=  [mak=mark cores=(map mark vase)]
+  ^-  dais:clay
+  (build-dais cores mak (~(got by cores) mak))
+::  +tube-from: build a tube from mark cores
+::
+++  tube-from
+  |=  [=mars:clay cores=(map mark vase)]
+  ^-  tube:clay
+  (build-tube cores mars)
+::  +dais: build a dais from a list of [mark vase] deps
+::
+++  dais
+  |=  [mak=mark deps=(list [mark vase])]
+  ^-  dais:clay
+  (dais-from mak (~(gas by *(map mark vase)) deps))
+::  +nave: build a nave from a list of [mark vase] deps
+::
+++  nave
+  |=  [mak=mark deps=(list [mark vase])]
+  ^-  vase
+  (nave-from mak (~(gas by *(map mark vase)) deps))
+::  +tube: build a tube from a list of [mark vase] deps
+::
+++  tube
+  |=  [=mars:clay deps=(list [mark vase])]
+  ^-  tube:clay
+  (tube-from mars (~(gas by *(map mark vase)) deps))
 --
