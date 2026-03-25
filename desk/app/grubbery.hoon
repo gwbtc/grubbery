@@ -27,7 +27,7 @@
       =subs:nexus
       =silo:nexus
       =gain:nexus
-      =lode:build
+      =lode:nexus
   ==
 ++  sut
   :: Need to determine how much actually needs to be in here...
@@ -64,7 +64,7 @@
 ++  on-init
   ^-  (quip card _this)
   =^  code-cards  state
-    abet:sync-code:hc
+    abet:sync-gub:hc
   =/  init-ball=ball:tarball
     =/  lmp=lump:tarball  (fall fil.ball [~ ~ ~])
     ball(fil `lmp(neck `%root))
@@ -89,7 +89,7 @@
   =/  old  !<(versioned-state old-state)
   ?-    -.old
       %0
-    ::  Restore all state first — sync-code needs consistent born/pool/etc
+    ::  Restore all state first — sync-gub needs consistent born/pool/etc
     =:  ball   ball.old
         pool   pool.old
         sand   sand.old
@@ -101,8 +101,8 @@
     ==
     ::  Compile code from Clay
     =^  code-cards  state
-      abet:sync-code:hc
-    ::  Reload with current ball (has sync-code changes + bootstrap daises)
+      abet:sync-gub:hc
+    ::  Reload with current ball (has sync-gub changes + bootstrap daises)
     =^  cards  state
       abet:(reload:hc pool ball sand born subs silo gain)
     =^  dill-cards  state
@@ -533,77 +533,65 @@
 ::
 ++  bins-get
   |=  [=path name=@ta]
-  ^-  (unit (each vase tang))
-  =/  node=(unit (map @ta (each vase tang)))
+  ^-  (unit built:nexus)
+  =/  node=(unit (map @ta built:nexus))
     (~(get of bins.lode) path)
   ?~  node  ~
   (~(get by u.node) name)
 ::
 ++  bins-put
-  |=  [=path name=@ta val=(each vase tang)]
-  ^-  bins:build
-  =/  node=(map @ta (each vase tang))
-    (fall (~(get of bins.lode) path) *(map @ta (each vase tang)))
+  |=  [=path name=@ta val=built:nexus]
+  ^-  bins:nexus
+  =/  node=(map @ta built:nexus)
+    (fall (~(get of bins.lode) path) *(map @ta built:nexus))
   (~(put of bins.lode) path (~(put by node) name val))
 ::
 ++  get-tube
   |=  [from=mark to=mark]
   ^-  tube:clay
-  =/  res=(unit (each vase tang))  (bins-get /tub/[from] to)
+  =/  res=(unit built:nexus)  (bins-get /tub/[from] to)
   ?~  res  ~|([%tube-not-found from to] !!)
-  ?.  ?=(%& -.u.res)  ~|([%tube-failed from to] !!)
-  !<(tube:clay p.u.res)
+  ?.  ?=(%vase -.u.res)  ~|([%tube-failed from to] !!)
+  !<(tube:clay vase.u.res)
 ::  Get a cached dais from bins
 ::
 ++  get-dais
   |=  =mark
   ^-  dais:clay
-  =/  res=(unit (each vase tang))  (bins-get /das mark)
+  =/  res=(unit built:nexus)  (bins-get /das mark)
   ?~  res
     ~&  >>>  "get-dais: %{(trip mark)} not found"
     ~|([%dais-not-found mark] !!)
-  ?.  ?=(%& -.u.res)  ~|([%dais-failed mark] !!)
-  !<(dais:clay p.u.res)
-::  Lazily build a tube: generate source, compile, return result
+  ?.  ?=(%vase -.u.res)  ~|([%dais-failed mark] !!)
+  !<(dais:clay vase.u.res)
+::  Lazily build a tube from compiled mark cores in bins
 ::
 ++  build-tube-lazy
   |=  [from=mark to=mark]
-  ^-  (each vase tang)
-  ::  Generate tube source text
-  =/  tube-src=@t
-    %-  crip
-    ;:  weld
-      "/<  {(trip from)}  /mar/{(trip from)}.hoon\0a"
-      "/<  {(trip to)}  /mar/{(trip to)}.hoon\0a"
-      "%+  tube:marks  [%{(trip from)} %{(trip to)}]\0a"
-      ":~\0a"
-      "  [%{(trip from)} !>({(trip from)})]\0a"
-      "  [%{(trip to)} !>({(trip to)})]\0a"
-      "==\0a"
-    ==
-  ::  Build mini source ball: tube source + mark deps
-  =/  mini=ball:tarball  *ball:tarball
-  =/  tube-name=@ta  (cat 3 to '.hoon')
-  =.  mini  (~(put ba:tarball mini) [/tub/[from] tube-name] [~ %hoon !>(tube-src)])
-  ::  Add mark sources from /sys/code/
-  =/  from-src=(unit content:tarball)
-    (~(get ba:tarball ball) /sys/code/mar (cat 3 from '.hoon'))
-  =/  to-src=(unit content:tarball)
-    (~(get ba:tarball ball) /sys/code/mar (cat 3 to '.hoon'))
-  ?~  from-src
-    |+~[leaf+"tube: mark source %{(trip from)} not found"]
-  ?~  to-src
-    |+~[leaf+"tube: mark source %{(trip to)} not found"]
-  =.  mini  (~(put ba:tarball mini) [/mar (cat 3 from '.hoon')] u.from-src)
-  =.  mini  (~(put ba:tarball mini) [/mar (cat 3 to '.hoon')] u.to-src)
-  ::  Compile with cached marks
-  =/  old-cache=build-cache:build  (bins-to-cache:build bins.lode keys.lode)
-  =/  res=build-out:build  (build-all:build sut mini old-cache)
-  =/  tube-rail=rail:tarball  [/tub/[from] tube-name]
-  =/  result=(unit build-result:build)  (~(get by results.res) tube-rail)
-  ?~  result
-    |+~[leaf+"tube: build produced no result for {(trip from)}->{(trip to)}"]
-  u.result
+  ^-  [built:nexus _this]
+  ::  Look up compiled mark cores from bins
+  =/  from-res=(unit built:nexus)  (bins-get /mar from)
+  =/  to-res=(unit built:nexus)  (bins-get /mar to)
+  ?~  from-res
+    [[%tang ~[leaf+"tube: mark %{(trip from)} not found in bins"]] this]
+  ?~  to-res
+    [[%tang ~[leaf+"tube: mark %{(trip to)} not found in bins"]] this]
+  ?.  ?=(%vase -.u.from-res)
+    [[%tang ~[leaf+"tube: mark %{(trip from)} failed to compile"]] this]
+  ?.  ?=(%vase -.u.to-res)
+    [[%tang ~[leaf+"tube: mark %{(trip to)} failed to compile"]] this]
+  =/  cores=(map mark vase)
+    (~(gas by *(map mark vase)) ~[[from vase.u.from-res] [to vase.u.to-res]])
+  =/  res=(each tube:clay tang)
+    (mule |.((tube-from:marks [from to] cores)))
+  ?:  ?=(%| -.res)
+    [[%tang p.res] this]
+  ::  Cache in bins and return
+  =/  tub-node=(map @ta built:nexus)
+    (fall (~(get of bins.lode) /tub/[from]) *(map @ta built:nexus))
+  =.  bins.lode
+    (~(put of bins.lode) /tub/[from] (~(put by tub-node) to [%vase !>(p.res)]))
+  [[%vase !>(p.res)] this]
 ::  Validate file content, looks up cached dais
 ::
 ++  validate-new-cage
@@ -1179,10 +1167,10 @@
 ++  build-nexus
   |=  neck=@tas
   ^-  (unit nexus:nexus)
-  =/  res=(unit (each vase tang))  (bins-get /nex neck)
+  =/  res=(unit built:nexus)  (bins-get /nex neck)
   ?~  res  ~
-  ?.  ?=(%& -.u.res)  ~
-  (mole |.(!<(nexus:nexus p.u.res)))
+  ?.  ?=(%vase -.u.res)  ~
+  (mole |.(!<(nexus:nexus vase.u.res)))
 ::
 ++  find-nearest-nexus
   |=  here=rail:tarball
@@ -1602,7 +1590,7 @@
     ::
       %code
     ::  Look up compiled artifact from bins
-    =/  entry=(unit (each vase tang))  (bins-get path.dart name.dart)
+    =/  entry=(unit built:nexus)  (bins-get path.dart name.dart)
     ?^  entry
       (enqu-take here (sys-give /code) ~ %code wire.dart u.entry)
     ::  Cache miss — lazy-build tubes on demand
@@ -1611,11 +1599,9 @@
             ?=(^ t.path.dart)
             =(~ t.t.path.dart)
         ==
-      (enqu-take here (sys-give /code) ~ %code wire.dart |+~[leaf+"bins: {(trip name.dart)} not found at {(spud path.dart)}"])
+      (enqu-take here (sys-give /code) ~ %code wire.dart [%tang ~[leaf+"bins: {(trip name.dart)} not found at {(spud path.dart)}"]])
     =+  [from to]=[i.t.path.dart name.dart]
-    =/  res=(each vase tang)  (build-tube-lazy from to)
-    =?  bins.lode  ?=(%& -.res)
-      (bins-put /tub/[from] to res)
+    =^  res=built:nexus  this  (build-tube-lazy from to)
     (enqu-take here (sys-give /code) ~ %code wire.dart res)
     ::
       %bowl
@@ -2094,10 +2080,10 @@
     =/  old=(unit content:tarball)
       (~(get ba:tarball ball.acc) [dir name])
     =/  dais=(unit dais:clay)
-      =/  res=(unit (each vase tang))  (bins-get /das mar)
+      =/  res=(unit built:nexus)  (bins-get /das mar)
       ?~  res  ~
-      ?.  ?=(%& -.u.res)  ~
-      (mole |.(!<(dais:clay p.u.res)))
+      ?.  ?=(%vase -.u.res)  ~
+      (mole |.(!<(dais:clay vase.u.res)))
     ?~  dais
       ~&  [%sync-clay-skip-no-mark mar fyl]
       acc
@@ -2139,56 +2125,82 @@
 ++  build-code
   ^+  this
   =/  src-ball=ball:tarball  (~(dip ba:tarball ball) /sys/code)
-  ::  Purge non-hoon files
-  =/  junk=(list [=rail:tarball =content:tarball])
-    %+  skim  ~(tap ba:tarball src-ball)
-    |=([=rail:tarball =content:tarball] !=(p.cage.content %hoon))
-  =.  src-ball
-    %+  roll  junk
-    |=  [[=rail:tarball *] acc=_src-ball]
-    (~(del ba:tarball acc) path.rail name.rail)
-  =.  ball
-    %+  roll  junk
-    |=  [[=rail:tarball *] acc=_ball]
-    (~(del ba:tarball acc) (weld /sys/code path.rail) name.rail)
+  ::  Separate hoon and non-hoon files
+  =/  all-files=(list [=rail:tarball =content:tarball])
+    ~(tap ba:tarball src-ball)
+  =/  hoon-ball=ball:tarball
+    %+  roll  all-files
+    |=  [[=rail:tarball =content:tarball] acc=_src-ball]
+    ?.  =(p.cage.content %hoon)
+      (~(del ba:tarball acc) path.rail name.rail)
+    acc
+  =/  mime-files=(list [=rail:tarball =content:tarball])
+    (skim all-files |=([* =content:tarball] =(%mime p.cage.content)))
   ::  Ensure %code neck on /sys/code/
   =/  code-lump=lump:tarball
     (fall (~(get of ball) /sys/code) *lump:tarball)
   =.  ball  (~(put of ball) /sys/code code-lump(neck `%code))
   ::  Reconstruct cache from bins + keys
   =/  old-cache=build-cache:build  (bins-to-cache:build bins.lode keys.lode)
-  ::  Phase 1: compile all src/ (marks, nexuses, libs)
-  =/  res1=build-out:build  (build-all:build sut src-ball old-cache)
-  ::  Phase 2: generate dais/nave source from compiled marks, recompile
-  =/  gen=(list [=rail:tarball =content:tarball])
-    (generate-dais-nave-src results.res1)
-  ~&  >  "build-code: generated {<(lent gen)>} dais/nave sources"
-  =.  src-ball
-    %+  roll  gen
-    |=  [[=rail:tarball =content:tarball] acc=_src-ball]
-    (~(put ba:tarball acc) rail content)
-  =/  res=build-out:build  (build-all:build sut src-ball cache.res1)
-  ::  Write generated sources to /sys/code/
-  =.  ball
-    %+  roll  gen
-    |=  [[=rail:tarball =content:tarball] acc=_ball]
-    (~(put ba:tarball acc) [(weld /sys/code path.rail) name.rail] content)
-  ::  Build bins axal from results, validating artifacts
-  =/  old-bins=bins:build  bins.lode
-  =/  new-bins=bins:build
+  ::  Single compilation pass: marks, libs, nexuses (hoon only)
+  =/  res=build-out:build  (build-all:build sut src-ball old-cache)
+  ::  Build bins axal from results + mime files
+  =/  old-bins=bins:nexus  bins.lode
+  ::  Seed bins with mime files
+  =/  new-bins=bins:nexus
+    %+  roll  mime-files
+    |=  [[=rail:tarball =content:tarball] acc=bins:nexus]
+    =/  =mime  !<(mime q.cage.content)
+    =/  node=(map @ta built:nexus)
+      (fall (~(get of acc) path.rail) *(map @ta built:nexus))
+    (~(put of acc) path.rail (~(put by node) name.rail [%mime mime]))
+  ::  Add compiled hoon results
+  =.  new-bins
     %+  roll  ~(tap by results.res)
-    |=  [[=rail:tarball =build-result:build] acc=bins:build]
+    |=  [[=rail:tarball =build-result:build] acc=_new-bins]
     =/  stem=@ta  (strip-hoon:build name.rail)
-    =/  res=build-result:build
-      ?.  ?=(%& -.build-result)  build-result
+    =/  =built:nexus
+      ?:  ?=(%| -.build-result)  [%tang p.build-result]
       =/  val-err=(unit tang)  (validate-build rail p.build-result)
       ?^  val-err
         ~&  >>  "validate-build failed: {(spud (snoc path.rail name.rail))}"
-        [%| u.val-err]
-      build-result
-    =/  node=(map @ta (each vase tang))
-      (fall (~(get of acc) path.rail) *(map @ta (each vase tang)))
-    (~(put of acc) path.rail (~(put by node) stem res))
+        [%tang u.val-err]
+      [%vase p.build-result]
+    =/  node=(map @ta built:nexus)
+      (fall (~(get of acc) path.rail) *(map @ta built:nexus))
+    (~(put of acc) path.rail (~(put by node) stem built))
+  ::  Gather compiled mark cores for dais/nave construction
+  =/  mar-node=(map @ta built:nexus)
+    (fall (~(get of new-bins) /mar) *(map @ta built:nexus))
+  =/  mark-cores=(map mark vase)
+    %-  ~(gas by *(map mark vase))
+    %+  murn  ~(tap by mar-node)
+    |=  [mak=@ta =built:nexus]
+    ?.  ?=(%vase -.built)  ~
+    `[mak vase.built]
+  ::  Build daises and naves directly from compiled mark cores
+  =.  new-bins
+    %+  roll  ~(tap by mark-cores)
+    |=  [[mak=mark =vase] acc=_new-bins]
+    ::  Build dais
+    =/  dais-res=(each dais:clay tang)
+      (mule |.((dais-from:marks mak mark-cores)))
+    =/  das-node=(map @ta built:nexus)
+      (fall (~(get of acc) /das) *(map @ta built:nexus))
+    =.  acc
+      ?:  ?=(%| -.dais-res)
+        ~&  >>  "build-code: dais for %{(trip mak)} failed"
+        (~(put of acc) /das (~(put by das-node) mak [%tang p.dais-res]))
+      (~(put of acc) /das (~(put by das-node) mak [%vase !>(p.dais-res)]))
+    ::  Build nave
+    =/  nave-res=(each ^vase tang)
+      (mule |.((nave-from:marks mak mark-cores)))
+    =/  nav-node=(map @ta built:nexus)
+      (fall (~(get of acc) /nav) *(map @ta built:nexus))
+    ?:  ?=(%| -.nave-res)
+      ~&  >>  "build-code: nave for %{(trip mak)} failed"
+      (~(put of acc) /nav (~(put by nav-node) mak [%tang p.nave-res]))
+    (~(put of acc) /nav (~(put by nav-node) mak [%vase p.nave-res]))
   ::  Update build state
   =.  lode  [keys.res deps.res new-bins]
   ::  Validate marks: clam existing grubs through changed marks
@@ -2196,99 +2208,32 @@
   =.  bins.lode  new-bins
   ::  Validate nexuses: run on-load for directories using changed nexuses
   (validate-nexuses old-bins bins.lode)
-::  Generate dais and nave source files from compiled mark cores.
-::  Inspects grab/grow arms via slob/sloe to find dependencies,
-::  then generates source in the same format as handwritten files.
-::
-++  generate-dais-nave-src
-  |=  results=(map rail:tarball build-result:build)
-  ^-  (list [rail:tarball content:tarball])
-  ::  Gather successfully compiled marks
-  =/  compiled=(list [mak=mark =vase])
-    %+  murn  ~(tap by results)
-    |=  [=rail:tarball =build-result:build]
-    ?.  =(/mar path.rail)  ~
-    ?.  ?=(%& -.build-result)  ~
-    =/  nom=tape  (trip (strip-hoon:build name.rail))
-    `[(crip nom) p.build-result]
-  =/  all-marks=(set mark)
-    (~(gas in *(set mark)) (turn compiled head))
-  ::  For each mark, find deps and generate dais + nave source
-  |-
-  ?~  compiled  ~
-  =/  [mak=mark cor=vase]  i.compiled
-  ::  Find grab/grow arm names that correspond to real marks
-  =/  grab-arms=(list mark)
-    ?.  (slob %grab -.cor)  ~
-    (skim (sloe -:(slap cor limb/%grab)) ~(has in all-marks))
-  =/  grow-arms=(list mark)
-    ?.  (slob %grow -.cor)  ~
-    (skim (sloe -:(slap cor limb/%grow)) ~(has in all-marks))
-  ::  All deps = mark itself + grab + grow (deduplicated)
-  =/  deps=(list mark)
-    ~(tap in (~(gas in *(set mark)) [mak (weld grab-arms grow-arms)]))
-  ::  Generate import lines
-  =/  imports=tape
-    %+  roll  deps
-    |=  [dep=mark acc=tape]
-    (weld acc "/<  {(trip dep)}  /mar/{(trip dep)}.hoon\0a")
-  ::  Generate dep entries in tall form: [%name !>(name)]
-  =/  entries=tape
-    %+  roll  deps
-    |=  [dep=mark acc=tape]
-    (weld acc "  [%{(trip dep)} !>({(trip dep)})]\0a")
-  ::  Dais source
-  =/  dais-src=@t
-    %-  crip
-    ;:  weld
-      imports
-      "%+  dais:marks  %{(trip mak)}\0a"
-      ":~\0a"
-      entries
-      "==\0a"
-    ==
-  ::  Nave source
-  =/  nave-src=@t
-    %-  crip
-    ;:  weld
-      imports
-      "%+  nave:marks  %{(trip mak)}\0a"
-      ":~\0a"
-      entries
-      "==\0a"
-    ==
-  =/  dais-name=@ta  (cat 3 mak '.hoon')
-  =/  nave-name=@ta  (cat 3 mak '.hoon')
-  :*  [[/das dais-name] [~ %hoon !>(dais-src)]]
-      [[/nav nave-name] [~ %hoon !>(nave-src)]]
-      $(compiled t.compiled)
-  ==
 ::  Validate marks: for each changed mark in bin/mar/, build a dais
 ::  and clam all grubs with that mark through validate-vase.
 ::  On success, updates grubs in ball with clammed vases.
 ::  On failure, downgrades the mark to .tang in new-bin.
 ::
 ++  validate-marks
-  |=  [old-bins=bins:build new-bins=bins:build]
+  |=  [old-bins=bins:nexus new-bins=bins:nexus]
   ^+  [new-bins this]
   ::  Gather all successfully compiled mark cores from bins /mar node
-  =/  mar-node=(map @ta (each vase tang))
-    (fall (~(get of new-bins) /mar) *(map @ta (each vase tang)))
+  =/  mar-node=(map @ta built:nexus)
+    (fall (~(get of new-bins) /mar) *(map @ta built:nexus))
   =/  mark-cores=(map mark vase)
     %-  ~(gas by *(map mark vase))
     %+  murn  ~(tap by mar-node)
-    |=  [mak=@ta res=(each vase tang)]
-    ?.  ?=(%& -.res)  ~
-    `[mak p.res]
+    |=  [mak=@ta =built:nexus]
+    ?.  ?=(%vase -.built)  ~
+    `[mak vase.built]
   ::  Find changed marks (new or different from old)
-  =/  old-mar=(map @ta (each vase tang))
-    (fall (~(get of old-bins) /mar) *(map @ta (each vase tang)))
+  =/  old-mar=(map @ta built:nexus)
+    (fall (~(get of old-bins) /mar) *(map @ta built:nexus))
   =/  changed=(list mark)
     %+  murn  ~(tap by mar-node)
-    |=  [mak=@ta res=(each vase tang)]
-    ?.  ?=(%& -.res)  ~
-    =/  old=(unit (each vase tang))  (~(get by old-mar) mak)
-    ?:  ?&(?=(^ old) ?=(%& -.u.old) =(q.p.u.old q.p.res))  ~
+    |=  [mak=@ta =built:nexus]
+    ?.  ?=(%vase -.built)  ~
+    =/  old=(unit built:nexus)  (~(get by old-mar) mak)
+    ?:  ?&(?=(^ old) ?=(%vase -.u.old) =(q.vase.u.old q.vase.built))  ~
     `mak
   ::  Process each changed mark
   =/  remaining=_changed  changed
@@ -2301,7 +2246,7 @@
   ?:  ?=(%| -.dais-res)
     ~&  >>  "validate-marks: {(trip mak)} dais build failed"
     =/  err=tang  [leaf+"mark {(trip mak)}: dais build failed" p.dais-res]
-    =.  mar-node  (~(put by mar-node) mak [%| err])
+    =.  mar-node  (~(put by mar-node) mak [%tang err])
     =.  new-bins  (~(put of new-bins) /mar mar-node)
     $(remaining t.remaining)
   =/  =dais:clay  p.dais-res
@@ -2342,20 +2287,20 @@
 ::  apply the results (like reload-nexus). Crashes if any on-load fails.
 ::
 ++  validate-nexuses
-  |=  [old-bins=bins:build new-bins=bins:build]
+  |=  [old-bins=bins:nexus new-bins=bins:nexus]
   ^+  this
   ::  Find changed nexuses in bins /nex node
-  =/  nex-node=(map @ta (each vase tang))
-    (fall (~(get of new-bins) /nex) *(map @ta (each vase tang)))
-  =/  old-nex=(map @ta (each vase tang))
-    (fall (~(get of old-bins) /nex) *(map @ta (each vase tang)))
+  =/  nex-node=(map @ta built:nexus)
+    (fall (~(get of new-bins) /nex) *(map @ta built:nexus))
+  =/  old-nex=(map @ta built:nexus)
+    (fall (~(get of old-bins) /nex) *(map @ta built:nexus))
   =/  changed=(list [neck=@tas =vase])
     %+  murn  ~(tap by nex-node)
-    |=  [neck=@ta res=(each vase tang)]
-    ?.  ?=(%& -.res)  ~
-    =/  old=(unit (each vase tang))  (~(get by old-nex) neck)
-    ?:  ?&(?=(^ old) ?=(%& -.u.old) =(q.p.u.old q.p.res))  ~
-    `[neck p.res]
+    |=  [neck=@ta =built:nexus]
+    ?.  ?=(%vase -.built)  ~
+    =/  old=(unit built:nexus)  (~(get by old-nex) neck)
+    ?:  ?&(?=(^ old) ?=(%vase -.u.old) =(q.vase.u.old q.vase.built))  ~
+    `[neck vase.built]
   ::  Process each changed nexus
   =/  remaining=_changed  changed
   |-
@@ -2435,7 +2380,7 @@
   ~
 ::  Mirror /gub/{mar,nex,lib} from Clay into /sys/code/, then build.
 ::
-++  sync-code
+++  sync-gub
   ^+  this
   =/  pax=path  /(scot %p our.bowl)/[q.byk.bowl]/(scot %da now.bowl)
   ::  Build the target ball for /sys/code/
@@ -2455,12 +2400,18 @@
       =/  stem=@ta   (rear sans)
       =/  rel-dir=path  (slag 2 (snip `(list @ta)`sans))
       =/  name=@ta   (cat 3 stem (cat 3 '.' mar))
+      ?:  =(mar %hoon)
+        =/  =vase  .^(vase %cr (weld pax fyl))
+        =/  val=(each ^vase tang)  (validate-new-cage mar ~ vase %.y)
+        ?.  ?=(%& -.val)
+          ~&  >>>  "sync-gub: validation failed for {(trip name)}: {(trip (render-tang:build p.val))}"
+          acc
+        (~(put ba:tarball acc) [rel-dir name] [~ mar p.val])
+      ::  Non-hoon: scry file, convert to mime via tube, store as %mime grub
       =/  =vase  .^(vase %cr (weld pax fyl))
-      =/  val=(each ^vase tang)  (validate-new-cage mar ~ vase %.y)
-      ?.  ?=(%& -.val)
-        ~&  >>>  "sync-code: validation failed for {(trip name)}: {(trip (render-tang:build p.val))}"
-        acc
-      (~(put ba:tarball acc) [rel-dir name] [~ mar p.val])
+      =/  tub=tube:clay  .^(tube:clay %cc (weld pax /[mar]/mime))
+      =/  =mime  !<(mime (tub vase))
+      (~(put ba:tarball acc) [rel-dir name] [~ %mime !>(mime)])
     ::  Merge into accumulating ball
     =/  rest=ball:tarball  $(cats t.cats)
     rest(dir (~(put by dir.rest) kat kat-ball))
@@ -2527,7 +2478,7 @@
   ~&  >  [%clay-desk-changed dek]
   =.  this  (sync-clay-desk dek)
   =?  this  =(dek %grubbery)
-    sync-code
+    sync-gub
   this
 ::
 ++  unmount-clay-desk

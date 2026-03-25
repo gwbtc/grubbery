@@ -124,10 +124,10 @@
       out
     (pure:m [%text (crip "{<(lent matches)>} tools found:{result}")])
   =/  n=@ta  i.src-names
-  ;<  res=(each vase tang)  bind:m  (get-code-full:io /tool /lib/mcp n)
-  ?.  ?=(%& -.res)  $(src-names t.src-names)
+  ;<  res=built:nexus  bind:m  (get-code-full:io /tool /lib/mcp n)
+  ?.  ?=(%vase -.res)  $(src-names t.src-names)
   =/  got=(each tool:tools tang)
-    (mule |.(!<(tool:tools p.res)))
+    (mule |.(!<(tool:tools vase.res)))
   ?.  ?=(%& -.got)  $(src-names t.src-names)
   $(src-names t.src-names, all-tools [p.got all-tools])
 --

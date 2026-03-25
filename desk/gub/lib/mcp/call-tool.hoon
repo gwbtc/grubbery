@@ -36,11 +36,11 @@
   =/  file-name=@ta
     (crip (turn (trip tool-name) |=(c=@t ?:(=(c '_') '-' c))))
   ::  Look up compiled tool from bins
-  ;<  res=(each vase tang)  bind:m  (get-code-full:io /tool /lib/mcp file-name)
-  ?:  ?=(%| -.res)
+  ;<  res=built:nexus  bind:m  (get-code-full:io /tool /lib/mcp file-name)
+  ?.  ?=(%vase -.res)
     (pure:m [%error (crip "Tool not found: {(trip tool-name)}")])
   =/  got=(each tool:tools tang)
-    (mule |.(!<(tool:tools p.res)))
+    (mule |.(!<(tool:tools vase.res)))
   ?.  ?=(%& -.got)
     (pure:m [%error (crip "Tool {(trip tool-name)} failed type check")])
   ::  Swap state to target tool's args and run handler

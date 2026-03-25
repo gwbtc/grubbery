@@ -28,7 +28,7 @@
   ?>  ?=(%& -.res)
   %+  expect-eq
     !>  ^-  (list import:build)
-    :~  [%foo [%& %& /lib %'foo.hoon']]
+    :~  [%file %foo [%& %& /lib %'foo.hoon']]
     ==
   !>  imports.p.res
 ::
@@ -39,7 +39,7 @@
   ?>  ?=(%& -.res)
   %+  expect-eq
     !>  ^-  (list import:build)
-    :~  [%bar [%| 0 %& /local %'bar.hoon']]
+    :~  [%file %bar [%| 0 %& /local %'bar.hoon']]
     ==
   !>  imports.p.res
 ::
@@ -50,7 +50,7 @@
   ?>  ?=(%& -.res)
   %+  expect-eq
     !>  ^-  (list import:build)
-    :~  [%bar [%| 0 %& /local %'bar.hoon']]
+    :~  [%file %bar [%| 0 %& /local %'bar.hoon']]
     ==
   !>  imports.p.res
 ::
@@ -61,7 +61,7 @@
   ?>  ?=(%& -.res)
   %+  expect-eq
     !>  ^-  (list import:build)
-    :~  [%baz [%| 2 %& /lib %'baz.hoon']]
+    :~  [%file %baz [%| 2 %& /lib %'baz.hoon']]
     ==
   !>  imports.p.res
 ::
@@ -129,7 +129,7 @@
   ?>  ?=(%& -.res)
   %+  expect-eq
     !>  ^-  (list import:build)
-    :~  [%x [%| 1 %& / %'foo.hoon']]
+    :~  [%file %x [%| 1 %& / %'foo.hoon']]
     ==
   !>  imports.p.res
 ::
@@ -140,7 +140,7 @@
   ?>  ?=(%& -.res)
   %+  expect-eq
     !>  ^-  (list import:build)
-    :~  [%deep [%& %& /a/b/c/d %'file.hoon']]
+    :~  [%file %deep [%& %& /a/b/c/d %'file.hoon']]
     ==
   !>  imports.p.res
 ::
@@ -151,25 +151,25 @@
 ++  test-import-rule-absolute
   =/  res  (rust "/<  foo  /lib/foo.hoon" import-rule:build)
   %+  expect-eq
-    !>  `[%foo [%& %& /lib %'foo.hoon']]
+    !>  `[%file %foo [%& %& /lib %'foo.hoon']]
   !>  res
 ::
 ++  test-import-rule-relative
   =/  res  (rust "/<  bar  ./bar.hoon" import-rule:build)
   %+  expect-eq
-    !>  `[%bar [%| 0 %& / %'bar.hoon']]
+    !>  `[%file %bar [%| 0 %& / %'bar.hoon']]
   !>  res
 ::
 ++  test-import-rule-bare-relative
   =/  res  (rust "/<  bar  bar.hoon" import-rule:build)
   %+  expect-eq
-    !>  `[%bar [%| 0 %& / %'bar.hoon']]
+    !>  `[%file %bar [%| 0 %& / %'bar.hoon']]
   !>  res
 ::
 ++  test-import-rule-updirs
   =/  res  (rust "/<  baz  ../../lib/baz.hoon" import-rule:build)
   %+  expect-eq
-    !>  `[%baz [%| 2 %& /lib %'baz.hoon']]
+    !>  `[%file %baz [%| 2 %& /lib %'baz.hoon']]
   !>  res
 ::
 ++  test-import-rule-not-import
@@ -187,42 +187,42 @@
   ::  Hyphens in path segments
   =/  res  (rust "/<  foo  /lib/my-lib.hoon" import-rule:build)
   %+  expect-eq
-    !>  `[%foo [%& %& /lib %'my-lib.hoon']]
+    !>  `[%file %foo [%& %& /lib %'my-lib.hoon']]
   !>  res
 ::
 ++  test-import-rule-dotted-path
   ::  Dots in path segments (besides the extension)
   =/  res  (rust "/<  foo  /lib/foo.bar.hoon" import-rule:build)
   %+  expect-eq
-    !>  `[%foo [%& %& /lib %'foo.bar.hoon']]
+    !>  `[%file %foo [%& %& /lib %'foo.bar.hoon']]
   !>  res
 ::
 ++  test-import-rule-hyphenated-name
   ::  Hyphenated import name
   =/  res  (rust "/<  my-lib  /lib/foo.hoon" import-rule:build)
   %+  expect-eq
-    !>  `[%my-lib [%& %& /lib %'foo.hoon']]
+    !>  `[%file %my-lib [%& %& /lib %'foo.hoon']]
   !>  res
 ::
 ++  test-import-rule-deep-relative
   ::  Deep relative path ./a/b/c/file.hoon
   =/  res  (rust "/<  foo  ./a/b/c/file.hoon" import-rule:build)
   %+  expect-eq
-    !>  `[%foo [%| 0 %& /a/b/c %'file.hoon']]
+    !>  `[%file %foo [%| 0 %& /a/b/c %'file.hoon']]
   !>  res
 ::
 ++  test-import-rule-single-segment-absolute
   ::  Single segment absolute /foo.hoon
   =/  res  (rust "/<  foo  /foo.hoon" import-rule:build)
   %+  expect-eq
-    !>  `[%foo [%& %& / %'foo.hoon']]
+    !>  `[%file %foo [%& %& / %'foo.hoon']]
   !>  res
 ::
 ++  test-import-rule-extra-whitespace
   ::  Extra whitespace between tokens
   =/  res  (rust "/<  foo    /lib/foo.hoon" import-rule:build)
   %+  expect-eq
-    !>  `[%foo [%& %& /lib %'foo.hoon']]
+    !>  `[%file %foo [%& %& /lib %'foo.hoon']]
   !>  res
 ::
 ::  ==========================================
@@ -268,7 +268,8 @@
   %+  expect-eq
     !>  ^-  (list @tas)
     ~[%alpha %beta %gamma]
-  !>  (turn imports.p.res |=(i=import:build name.i))
+  !>  %+  turn  imports.p.res
+      |=(i=import:build ?>(?=(%file -.i) name.i))
 ::
 ++  test-parse-imports-multiline-body
   ::  Body with multiple lines preserved
@@ -341,11 +342,11 @@
   ?>  ?=(%& -.res)
   %+  expect-eq
     !>  ^-  (list import:build)
-    :~  [%abs [%& %& /lib %'abs.hoon']]
-        [%rel [%| 0 %& / %'rel.hoon']]
-        [%bare [%| 0 %& / %'bare.hoon']]
-        [%up [%| 1 %& / %'up.hoon']]
-        [%up2 [%| 2 %& /dir %'up2.hoon']]
+    :~  [%file %abs [%& %& /lib %'abs.hoon']]
+        [%file %rel [%| 0 %& / %'rel.hoon']]
+        [%file %bare [%| 0 %& / %'bare.hoon']]
+        [%file %up [%| 1 %& / %'up.hoon']]
+        [%file %up2 [%| 2 %& /dir %'up2.hoon']]
     ==
   !>  imports.p.res
 ::
@@ -395,31 +396,31 @@
 ++  test-resolve-import-absolute
   ::  Absolute import resolves regardless of source location
   =/  here=rail:tarball  [/app %'my.hoon']
-  =/  imp=import:build  [%foo [%& %& /lib %'foo.hoon']]
+  =/  imp=import:build  [%file %foo [%& %& /lib %'foo.hoon']]
   %+  expect-eq
-    !>  `[%foo [/lib %'foo.hoon']]
+    !>  `[%file %foo [/lib %'foo.hoon']]
   !>  (resolve-import:build here imp)
 ::
 ++  test-resolve-import-relative
   ::  ./bar.hoon from /app/my.hoon → /app/bar.hoon
   =/  here=rail:tarball  [/app %'my.hoon']
-  =/  imp=import:build  [%bar [%| 0 %& / %'bar.hoon']]
+  =/  imp=import:build  [%file %bar [%| 0 %& / %'bar.hoon']]
   %+  expect-eq
-    !>  `[%bar [/app %'bar.hoon']]
+    !>  `[%file %bar [/app %'bar.hoon']]
   !>  (resolve-import:build here imp)
 ::
 ++  test-resolve-import-updir
   ::  ../lib/util.hoon from /app/my.hoon → /lib/util.hoon
   =/  here=rail:tarball  [/app %'my.hoon']
-  =/  imp=import:build  [%util [%| 1 %& /lib %'util.hoon']]
+  =/  imp=import:build  [%file %util [%| 1 %& /lib %'util.hoon']]
   %+  expect-eq
-    !>  `[%util [/lib %'util.hoon']]
+    !>  `[%file %util [/lib %'util.hoon']]
   !>  (resolve-import:build here imp)
 ::
 ++  test-resolve-import-updir-too-far
   ::  Walking up past root returns ~
   =/  here=rail:tarball  [/ %'my.hoon']
-  =/  imp=import:build  [%x [%| 2 %& / %'x.hoon']]
+  =/  imp=import:build  [%file %x [%| 2 %& / %'x.hoon']]
   %+  expect-eq
     !>  ~
   !>  (resolve-import:build here imp)

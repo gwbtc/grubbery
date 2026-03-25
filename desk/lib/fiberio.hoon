@@ -675,15 +675,15 @@
       [~ %code * *]
     ?.  =(wire wire.u.in)
       [%skip ~]
-    ?:  ?=(%& -.res.u.in)
-      [%done `p.res.u.in]
+    ?:  ?=(%vase -.built.u.in)
+      [%done `vase.built.u.in]
     [%done ~]
   ==
-::  +get-code-full: look up artifact, returning error tang on failure
+::  +get-code-full: look up artifact, returning full built result
 ::
 ++  get-code-full
   |=  [=wire =path name=@ta]
-  =/  m  (fiber ,(each vase tang))
+  =/  m  (fiber ,built:nexus)
   ^-  form:m
   ;<  ~  bind:m  (send-dart %code wire path name)
   |=  input
@@ -695,7 +695,7 @@
       [~ %code * *]
     ?.  =(wire wire.u.in)
       [%skip ~]
-    [%done res.u.in]
+    [%done built.u.in]
   ==
 ::  +get-tube: look up a compiled tube from bins
 ::

@@ -33,12 +33,14 @@
   =/  nam=@t  (~(dog jo:json-utils [%o args.st]) /name so:dejs:format)
   =/  bin-path=path  (stab pax)
   =/  bin-name=@ta  (crip (trip nam))
-  ;<  res=(each vase tang)  bind:m  (get-code-full:io /check bin-path bin-name)
-  ?:  ?=(%& -.res)
+  ;<  res=built:nexus  bind:m  (get-code-full:io /check bin-path bin-name)
+  ?:  ?=(%vase -.res)
     (pure:m [%text (crip "OK: {(trip pax)}/{(trip nam)} compiled successfully")])
+  ?.  ?=(%tang -.res)
+    (pure:m [%text (crip "OK: {(trip pax)}/{(trip nam)} — non-vase artifact")])
   =/  rendered=tape
     %-  zing
-    %+  turn  (flop p.res)
+    %+  turn  (flop tang.res)
     |=(=tank (weld ~(ram re tank) "\0a"))
   (pure:m [%error (crip "FAILED: {(trip pax)}/{(trip nam)}\0a{rendered}")])
 --

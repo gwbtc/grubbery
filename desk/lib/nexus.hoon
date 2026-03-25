@@ -1,6 +1,13 @@
 /+  tarball
 |%
 +$  card  card:agent:gall
++$  built  $%([%vase =vase] [%tang =tang] [%mime =mime])
++$  bins  (axal (map @ta built))
++$  lode
+  $:  keys=(map rail:tarball @uv)
+      deps=(map rail:tarball (set rail:tarball))
+      =bins
+  ==
 ::  The ball (tarball) is WYSIWYG: fully materialized, no dedup.
 ::  Every file is stored inline. To deduplicate, make references
 ::  via path+cass rather than copying content.
@@ -154,7 +161,7 @@
         [%veto =dart] :: notify that a dart was sandboxed
         :: messages from gall and arvo
         ::
-        [%code =wire res=(each vase tang)]  :: compiled artifact from bins
+        [%code =wire =built]  :: compiled artifact from bins
         [%scry =wire =vase]
         [%bowl =wire =bowl]
         [%arvo =wire sign=sign-arvo]

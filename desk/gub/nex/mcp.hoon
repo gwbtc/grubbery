@@ -40,10 +40,10 @@
       |-
       ?~  names  (pure:m result)
       =/  name=@ta  i.names
-      ;<  res=(each vase tang)  bind:m  (get-code-full:io /tool /lib/mcp name)
-      ?.  ?=(%& -.res)  $(names t.names)
+      ;<  res=built:nexus  bind:m  (get-code-full:io /tool /lib/mcp name)
+      ?.  ?=(%vase -.res)  $(names t.names)
       =/  got=(each tool:nex-tools tang)
-        (mule |.(!<(tool:nex-tools p.res)))
+        (mule |.(!<(tool:nex-tools vase.res)))
       ?.  ?=(%& -.got)  $(names t.names)
       $(names t.names, result (~(put by result) name:p.got p.got))
     ::  +await-tool: look up a compiled tool handler by name
@@ -57,11 +57,11 @@
       ^-  form:m
       =/  file-name=@ta
         (crip (turn (trip tool-name) |=(c=@t ?:(=(c '_') '-' c))))
-      ;<  res=(each vase tang)  bind:m  (get-code-full:io /tool /lib/mcp file-name)
-      ?:  ?=(%| -.res)
-        (pure:m [%| p.res])
+      ;<  res=built:nexus  bind:m  (get-code-full:io /tool /lib/mcp file-name)
+      ?.  ?=(%vase -.res)
+        (pure:m [%| ?:(?=(%tang -.res) tang.res ~[leaf+"not a vase"])])
       =/  got=(each tool:nex-tools tang)
-        (mule |.(!<(tool:nex-tools p.res)))
+        (mule |.(!<(tool:nex-tools vase.res)))
       ?:  ?=(%& -.got)
         (pure:m [%& p.got])
       (pure:m [%| p.got])
