@@ -224,7 +224,8 @@
       ^-  form
       |=  input
       ^-  output
-      [~ state %wait ~]
+      ?~  in  [~ state %wait ~]
+      [~ state %skip ~]
     ::
     ++  bind
       |*  b=mold
@@ -352,6 +353,7 @@
 ::
 +$  pipe  (map @ta proc:fiber)
 +$  pool  (axal pipe)
++$  boom  [fold=(map fold:tarball tang) file=(map rail:tarball tang)]
 ::  Internal subscriptions: process watches tree locations
 ::
 +$  subscribers    (map rail:tarball [=wire mark=(unit mark)])

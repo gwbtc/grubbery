@@ -28,7 +28,9 @@
       =silo:nexus
       =gain:nexus
       =lode:nexus
+      =boom:nexus
   ==
+++  kel  21.000.000 :: start big; burn many at once
 ++  sut
   :: Need to determine how much actually needs to be in here...
   ::
@@ -585,6 +587,8 @@
   |=  [=mark old=(unit vase) new=vase force=?]
   ^-  (each vase tang)
   ::  Bootstrap marks — hardcoded like Clay's page-to-cage
+  ?:  =(%boom mark)
+    (mule |.(!>(;;([tang page] q.new))))
   ?:  =(%hoon mark)
     (mule |.(!>(;;(@t q.new))))
   ?:  =(%tang mark)
@@ -613,6 +617,13 @@
 ++  clam-page
   |=  =page
   ^-  (each cage tang)
+  ::  boom: unwrap inner page and retry its mark
+  ::  if it heals, return the real cage; otherwise re-boom
+  ?:  =(%boom p.page)
+    =/  [err=tang inner=^page]  ;;([tang ^page] q.page)
+    =/  res  $(page inner)
+    ?:  ?=(%& -.res)  res
+    &+[%boom !>([p.res inner])]
   ?:  =(%hoon p.page)
     (mule |.([%hoon !>(;;(@t q.page))]))
   ?:  =(%tang p.page)
@@ -670,6 +681,78 @@
   ^+  this
   =/  =pipe:nexus  (~(put by (fall (~(get of pool) path.here) ~)) name.here proc)
   this(pool (~(put of pool) path.here pipe))
+::  Boom a nexus directory — store tang, +stay all processes under it
+::
+++  boom-nexus
+  |=  [dest=fold:tarball err=tang]
+  ^+  this
+  =.  boom  boom(fold (~(put by fold.boom) dest err))
+  ::  Replace all processes under dest with +stay
+  (stay-all-procs dest)
+::  Boom a file — store tang, +stay its process
+::
+++  boom-file
+  |=  [here=rail:tarball err=tang]
+  ^+  this
+  =.  boom  boom(file (~(put by file.boom) here err))
+  =/  =pipe:nexus  (fall (~(get of pool) path.here) ~)
+  =/  old=(unit proc:fiber:nexus)  (~(get by pipe) name.here)
+  =/  =proc:fiber:nexus
+    ?~  old  [stay:(fiber:fiber:nexus ,~) ~ ~]
+    [stay:(fiber:fiber:nexus ,~) next.u.old skip.u.old]
+  (store-proc here proc)
+::  Replace all processes under a directory with +stay
+::
+++  stay-all-procs
+  |=  dest=fold:tarball
+  ^+  this
+  =/  sub-pool=pool:nexus  (~(dip of pool) dest)
+  (stay-pipe dest sub-pool)
+::
+++  stay-pipe
+  |=  [here=fold:tarball sub=pool:nexus]
+  ^+  this
+  ::  Stay all files in this directory's pipe
+  =.  this
+    ?~  fil.sub  this
+    =/  files=(list [@ta proc:fiber:nexus])  ~(tap by u.fil.sub)
+    |-
+    ?~  files  this
+    =/  old=proc:fiber:nexus  +.i.files
+    =/  stay-proc=proc:fiber:nexus
+      [stay:(fiber:fiber:nexus ,~) next.old skip.old]
+    =.  this  (store-proc [here -.i.files] stay-proc)
+    $(files t.files)
+  ::  Recurse into subdirectories
+  =/  kids=(list [@ta pool:nexus])  ~(tap by dir.sub)
+  |-
+  ?~  kids  this
+  =.  this  (stay-pipe (snoc here -.i.kids) +.i.kids)
+  $(kids t.kids)
+::  Clear all booms (nexus and file) under a directory
+::
+++  clear-booms-under
+  |=  dest=fold:tarball
+  ^+  boom
+  =/  len=@ud  (lent dest)
+  :_  %-  ~(gas by *(map rail:tarball tang))
+      %+  skip  ~(tap by file.boom)
+      |=  [r=rail:tarball *]
+      =(dest (scag len path.r))
+  %-  ~(gas by *(map fold:tarball tang))
+  %+  skip  ~(tap by fold.boom)
+  |=  [p=fold:tarball *]
+  =(dest (scag len p))
+::  Check if a file's nexus is boomed (any ancestor directory in fold boom)
+::
+++  is-nexus-boomed
+  |=  here=rail:tarball
+  ^-  ?
+  =/  pax=path  path.here
+  |-
+  ?~  pax  |
+  ?:  (~(has by fold.boom) pax)  &
+  $(pax (snip `path`pax))
 ::  Delete a file from pool and ball (NOT born - it's a high-water mark)
 ::
 ++  delete
@@ -834,9 +917,18 @@
   =/  sub-gain=gain:nexus  (~(dip of gain) dest)
   =/  parent-weir=(unit weir:nexus)  fil.sub-sand
   =/  parent-neck=(unit neck:tarball)  ?~(fil.sub-ball ~ neck.u.fil.sub-ball)
-  ::  Run on-load
+  ::  Clear all booms under this nexus before reloading
+  ::  (reload will re-boom anything that still fails)
+  =.  boom  (clear-booms-under dest)
+  ::  Run on-load (may crash)
+  =/  load-res=(each [sand:nexus gain:nexus ball:tarball] tang)
+    (mule |.((on-load:nex sub-sand sub-gain sub-ball)))
+  ?:  ?=(%| -.load-res)
+    ::  on-load crashed — boom this nexus, stay all processes
+    ~&  >>  "reload-nexus-at: boom at {(spud dest)}"
+    (boom-nexus dest p.load-res)
   =/  [upd-sand=sand:nexus upd-gain=gain:nexus upd-ball=ball:tarball]
-    (on-load:nex sub-sand sub-gain sub-ball)
+    p.load-res
   ::  Enforce parent weir on sand and parent neck on ball
   =/  restored-lump=lump:tarball  (fall fil.upd-ball *lump:tarball)
   =/  new-sand=sand:nexus    upd-sand(fil parent-weir)
@@ -1591,12 +1683,25 @@
 ++  spawn-proc
   |=  [here=rail:tarball =prod:fiber:nexus]
   ^+  this
+  ::  Skip if nexus is boomed — don't try to build processes
+  ?:  (is-nexus-boomed here)
+    this
   ::  Bump proc cass (born must already exist from save-file)
   =.  this  (bump-proc here)
-  ::  Build and store proc - use default spool if no nexus
-  =/  =spool:fiber:nexus
-    (fall (build-spool here) default-spool)
-  =/  =process:fiber:nexus  (spool prod)
+  ::  Build spool and process — boom file on crash
+  =/  spool-res=(each spool:fiber:nexus tang)
+    (mule |.((fall (build-spool here) default-spool)))
+  ?:  ?=(%| -.spool-res)
+    ~&  >>  "spawn-proc: boom {(spud (snoc path.here name.here))} — on-file crash"
+    (boom-file here p.spool-res)
+  =/  proc-res=(each process:fiber:nexus tang)
+    (mule |.((p.spool-res prod)))
+  ?:  ?=(%| -.proc-res)
+    ~&  >>  "spawn-proc: boom {(spud (snoc path.here name.here))} — spool crash"
+    (boom-file here p.proc-res)
+  ::  Success — clear any existing file boom
+  =.  boom  boom(file (~(del by file.boom) here))
+  =/  =process:fiber:nexus  p.proc-res
   =/  =pipe:nexus  (fall (~(get of pool) path.here) ~)
   =/  old=(unit proc:fiber:nexus)  (~(get by pipe) name.here)
   ?~  old
@@ -1650,8 +1755,6 @@
     (validate-new-cage p.cage.u.file-data `fil-state new-state %.n)
   ?:  ?=(%| -.validated)
     ::  Validation failed - treat as crash
-    =.  this  (nack-poke-takes here next.new-proc p.validated)
-    =.  this  (nack-poke-takes here skip.new-proc p.validated)
     =.  this  (spawn-proc here [%rise p.validated])
     (enqu-take here (sys-give /rise) ~)
   ::  Validation passed - handle result normally
@@ -1664,14 +1767,14 @@
     ::  Save final state so subscribers see it, then delete
     =.  this  (save-file here [metadata.u.file-data p.cage.u.file-data p.validated])
     =/  err=tang  ~[leaf+"process completed"]
+    :: only nack-pokes when we're done
+    ::
     =.  this  (nack-poke-takes here next.new-proc err)
     =.  this  (nack-poke-takes here skip.new-proc err)
     =.  this  (clean (snoc path.here name.here) %file)
     (delete path.here name.here)
       %fail
     ::  Process failed - don't save state, restart. Subs survive (wires still route).
-    =.  this  (nack-poke-takes here next.new-proc err.res)
-    =.  this  (nack-poke-takes here skip.new-proc err.res)
     =.  this  (spawn-proc here [%rise err.res])
     (enqu-take here (sys-give /rise) ~)
   ==
@@ -2221,37 +2324,42 @@
     =.  new-bins  (~(put of new-bins) /mar mar-node)
     $(remaining t.remaining)
   =/  =dais:clay  p.dais-res
-  ::  Find all grubs in ball with this mark (outside /sys/)
+  ::  Find all grubs with this mark, including booms with matching inner mark
   =/  grubs=(list [=rail:tarball =content:tarball])
     %+  skim  ~(tap ba:tarball ball)
     |=  [=rail:tarball =content:tarball]
-    ?&  =(mak p.cage.content)
-        !=(/sys (scag 1 path.rail))
-    ==
+    ?.  !=(/sys (scag 1 path.rail))  |
+    ?:  =(mak p.cage.content)  &
+    ?.  =(%boom p.cage.content)  |
+    =/  [* inner=page]  ;;([tang page] q.q.cage.content)
+    =(mak p.inner)
   ?~  grubs  $(remaining t.remaining)
-  ::  Clam each grub through validate-vase, collecting results
+  ::  Clam each grub: extract noun from cage or boom, validate through dais
   =/  results=(list [=rail:tarball =content:tarball res=(each vase tang)])
     %+  turn  grubs
     |=  [=rail:tarball =content:tarball]
-    [rail content (validate-vase dais ~ q.cage.content %.y)]
-  ::  Check for failures
-  =/  failures=(list [=rail:tarball =content:tarball res=(each vase tang)])
-    (skim results |=([* * res=(each vase tang)] ?=(%| -.res)))
-  ?^  failures
-    ~|  :-  leaf+"mark {(trip mak)}: existing grubs failed validation"
-        %-  zing
-        %+  turn  failures
-        |=  [=rail:tarball * res=(each vase tang)]
-        ?>  ?=(%| -.res)
-        [leaf+"  {(spud (snoc path.rail name.rail))}" p.res]
-    !!
-  ::  All passed — save grubs with clammed vases via save-file
+    =/  noun=*
+      ?:  =(%boom p.cage.content)
+        q:(tail ;;([tang page] q.q.cage.content))
+      q.q.cage.content
+    [rail content (validate-vase dais ~ [-:!>(**) noun] %.y)]
+  ::  Save results: successes restore, failures boom
   =.  this
     %+  roll  results
     |=  [[=rail:tarball =content:tarball res=(each vase tang)] acc=_this]
-    ?>  ?=(%& -.res)
-    (save-file:acc rail content(q.cage p.res))
-  ~&  >  "validate-marks: {(trip mak)} — {<(lent grubs)>} grubs re-validated"
+    ?:  ?=(%& -.res)
+      (save-file:acc rail content(cage [mak p.res]))
+    ~&  >>  "validate-marks: boom {(spud (snoc path.rail name.rail))}"
+    =/  noun=*
+      ?:  =(%boom p.cage.content)
+        q:(tail ;;([tang page] q.q.cage.content))
+      q.q.cage.content
+    (save-file:acc rail content(cage [%boom !>([p.res [mak noun]])]))
+  =/  booms=(list [=rail:tarball =content:tarball res=(each vase tang)])
+    (skim results |=([* * res=(each vase tang)] ?=(%| -.res)))
+  =/  healed=(list [=rail:tarball =content:tarball res=(each vase tang)])
+    (skim results |=([* * res=(each vase tang)] ?=(%& -.res)))
+  ~&  >  "validate-marks: {(trip mak)} — {<(lent healed)>} ok, {<(lent booms)>} boom"
   $(remaining t.remaining)
 ::  Reload nexuses: for each changed nexus in bin/nex/, find all
 ::  directories using that neck, run on-load with the new code, and
@@ -2280,10 +2388,6 @@
   ::  Build nexus from compiled vase
   =/  nex-res=(each nexus:nexus tang)
     (mule |.(!<(nexus:nexus vase)))
-  ?:  ?=(%| -.nex-res)
-    ~|  [leaf+"validate-nexuses: {(trip neck)} type mismatch" p.nex-res]
-    !!
-  =/  nex=nexus:nexus  p.nex-res
   ::  Find all directories using this neck (outside /sys/)
   =/  dirs=(list fold:tarball)
     %+  murn  ~(tap of ball)
@@ -2292,7 +2396,12 @@
     ?:  =(/sys (scag 1 pax))  ~
     `pax
   ?~  dirs  $(remaining t.remaining)
+  ?:  ?=(%| -.nex-res)
+    ~|  [leaf+"validate-nexuses: {(trip neck)} type mismatch" p.nex-res]
+    !!
+  =/  nex=nexus:nexus  p.nex-res
   ::  Run on-load and apply results for each directory
+  ::  (reload-nexus-at handles boom/clear internally)
   =/  dir-remaining=(list fold:tarball)  dirs
   |-
   ?~  dir-remaining  ^$(remaining t.remaining)
@@ -2378,7 +2487,7 @@
           ~&  >>>  "sync-gub: validation failed for {(trip name)}: {(trip (render-tang:build p.val))}"
           acc
         (~(put ba:tarball acc) [rel-dir name] [~ mar p.val])
-      ::  Non-hoon: scry file, convert to mime via tube, store as %mime grub
+      ::  Non-hoon: convert to mime via tube, store as %mime grub
       =/  =vase  .^(vase %cr (weld pax fyl))
       =/  tub=tube:clay  .^(tube:clay %cc (weld pax /[mar]/mime))
       =/  =mime  !<(mime (tub vase))
