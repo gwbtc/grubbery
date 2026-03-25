@@ -373,7 +373,7 @@
 +$  tote  [weir=cass:clay fold=cass:clay]
 +$  sack  [proc=cass:clay life=cass:clay file=cass:clay hist=((mop cass:clay lobe:clay) cor)]
 +$  born  (axal [=tote bags=(map @ta sack)])
-+$  silo  (map lobe:clay [refs=@ud =cage])
++$  silo  (map lobe:clay [refs=@ud =page])
 ++  cor   |=([a=cass:clay b=cass:clay] (lth ud.a ud.b))
 ++  on-hist  ((on cass:clay lobe:clay) cor)
 ::  Resolve a hist case to a lobe from the hist mop
@@ -595,25 +595,26 @@
   --
 ::  +si: Pure operations on silo (content-addressed object store)
 ::
-::  Hash is computed from the page (mark + noun) for content identity,
-::  but the full cage (mark + vase) is stored to avoid re-clamming.
+::  Stores pages (mark + noun) rather than cages (mark + vase).
+::  Callers must clam on read to reconstruct the vase.
+::  This avoids stale types when marks evolve.
 ::
 ++  si
   |_  =silo
   ++  hash
-    |=  =cage
+    |=  =page
     ^-  lobe:clay
-    `@uvI`(sham [p q.q]:cage)
-  ::  Insert cage, increment refcount if exists. Returns lobe and new silo.
+    `@uvI`(sham page)
+  ::  Insert page, increment refcount if exists. Returns lobe and new silo.
   ::
   ++  put
-    |=  =cage
+    |=  =page
     ^-  [lobe:clay ^silo]
-    =/  =lobe:clay  (hash cage)
+    =/  =lobe:clay  (hash page)
     =/  got  (~(get by silo) lobe)
     ?~  got
-      [lobe (~(put by silo) lobe [1 cage])]
-    [lobe (~(put by silo) lobe [+(refs.u.got) cage])]
+      [lobe (~(put by silo) lobe [1 page])]
+    [lobe (~(put by silo) lobe [+(refs.u.got) page])]
   ::  Decrement refcount, delete if zero.
   ::
   ++  drop
@@ -623,15 +624,15 @@
     ?~  got  silo
     ?:  (lte refs.u.got 1)
       (~(del by silo) lobe)
-    (~(put by silo) lobe [refs=(dec refs.u.got) cage.u.got])
-  ::  Look up cage by lobe.
+    (~(put by silo) lobe [refs=(dec refs.u.got) page.u.got])
+  ::  Look up page by lobe.
   ::
   ++  get
     |=  =lobe:clay
-    ^-  (unit cage)
+    ^-  (unit page)
     =/  got  (~(get by silo) lobe)
     ?~  got  ~
-    `cage.u.got
+    `page.u.got
   ::  Drop refs for all lobes in a hist.
   ::
   ++  drop-hist
@@ -642,7 +643,7 @@
     |-
     ?~  entries  silo
     $(entries t.entries, silo (drop val.i.entries))
-  ::  Record a cage: insert into silo, update hist per gain flag.
+  ::  Record a page: insert into silo, update hist per gain flag.
   ::  Returns [lobe new-silo new-hist].
   ::
   ::  gain=%.y: append to hist, keeping full history.
@@ -652,9 +653,9 @@
   ::    gain only controls what happens live, not retroactively.
   ::
   ++  record
-    |=  [=cage =cass:clay gain=? file=cass:clay hist=((mop cass:clay lobe:clay) cor)]
+    |=  [=page =cass:clay gain=? file=cass:clay hist=((mop cass:clay lobe:clay) cor)]
     ^-  [lobe:clay ^silo ((mop cass:clay lobe:clay) cor)]
-    =/  [=lobe:clay new-silo=^silo]  (put cage)
+    =/  [=lobe:clay new-silo=^silo]  (put page)
     ?:  gain
       [lobe new-silo (put:on-hist hist cass lobe)]
     ::  !gain: replace current live version only, preserve older history

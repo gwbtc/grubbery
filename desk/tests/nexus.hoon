@@ -727,11 +727,12 @@
   ^-  cage
   [mark !>(data)]
 ::
+::
 ++  test-si-put-new
-  ::  Inserting a new cage returns lobe and silo with refs=1
+  ::  Inserting a new page returns lobe and silo with refs=1
   =/  s  ~(. si:nexus *silo:nexus)
-  =/  =cage  (make-cage %txt 'hello')
-  =/  [=lobe:clay new-silo=silo:nexus]  (put:s cage)
+  =/  =page  [%txt 'hello']
+  =/  [=lobe:clay new-silo=silo:nexus]  (put:s page)
   =/  s2  ~(. si:nexus new-silo)
   =/  got  (need (get:s2 lobe))
   ;:  weld
@@ -745,12 +746,12 @@
   ==
 ::
 ++  test-si-put-duplicate-increments-refs
-  ::  Inserting the same cage twice increments refcount
+  ::  Inserting the same page twice increments refcount
   =/  s  ~(. si:nexus *silo:nexus)
-  =/  =cage  (make-cage %txt 'hello')
-  =/  [lobe1=lobe:clay silo1=silo:nexus]  (put:s cage)
+  =/  =page  [%txt 'hello']
+  =/  [lobe1=lobe:clay silo1=silo:nexus]  (put:s page)
   =/  s2  ~(. si:nexus silo1)
-  =/  [lobe2=lobe:clay silo2=silo:nexus]  (put:s2 cage)
+  =/  [lobe2=lobe:clay silo2=silo:nexus]  (put:s2 page)
   ;:  weld
     %+  expect-eq
       !>  lobe1
@@ -764,10 +765,10 @@
 ++  test-si-drop-decrements-refs
   ::  Dropping with refs>1 decrements
   =/  s  ~(. si:nexus *silo:nexus)
-  =/  =cage  (make-cage %txt 'hello')
-  =/  [=lobe:clay silo1=silo:nexus]  (put:s cage)
+  =/  =page  [%txt 'hello']
+  =/  [=lobe:clay silo1=silo:nexus]  (put:s page)
   =/  s2  ~(. si:nexus silo1)
-  =/  [* silo2=silo:nexus]  (put:s2 cage)
+  =/  [* silo2=silo:nexus]  (put:s2 page)
   ::  refs=2, drop once -> refs=1
   =/  s3  ~(. si:nexus silo2)
   =/  silo3=silo:nexus  (drop:s3 lobe)
@@ -778,8 +779,8 @@
 ++  test-si-drop-deletes-at-zero
   ::  Dropping with refs=1 removes from silo
   =/  s  ~(. si:nexus *silo:nexus)
-  =/  =cage  (make-cage %txt 'hello')
-  =/  [=lobe:clay silo1=silo:nexus]  (put:s cage)
+  =/  =page  [%txt 'hello']
+  =/  [=lobe:clay silo1=silo:nexus]  (put:s page)
   =/  s2  ~(. si:nexus silo1)
   =/  silo2=silo:nexus  (drop:s2 lobe)
   %+  expect-eq
@@ -799,17 +800,17 @@
   =/  s  ~(. si:nexus *silo:nexus)
   =/  fake-lobe=lobe:clay  `@uvI`(sham 'fake')
   %+  expect-eq
-    !>  `(unit cage)`~
+    !>  `(unit page)`~
   !>  (get:s fake-lobe)
 ::
 ++  test-si-different-content-different-lobe
   ::  Different content produces different lobes
   =/  s  ~(. si:nexus *silo:nexus)
-  =/  cage1=cage  (make-cage %txt 'hello')
-  =/  cage2=cage  (make-cage %txt 'world')
-  =/  [lobe1=lobe:clay silo1=silo:nexus]  (put:s cage1)
+  =/  page1=page  [%txt 'hello']
+  =/  page2=page  [%txt 'world']
+  =/  [lobe1=lobe:clay silo1=silo:nexus]  (put:s page1)
   =/  s2  ~(. si:nexus silo1)
-  =/  [lobe2=lobe:clay silo2=silo:nexus]  (put:s2 cage2)
+  =/  [lobe2=lobe:clay silo2=silo:nexus]  (put:s2 page2)
   ;:  weld
     %+  expect-eq
       !>  %.n
@@ -823,38 +824,38 @@
 ++  test-si-different-mark-different-lobe
   ::  Same noun but different mark produces different lobe
   =/  s  ~(. si:nexus *silo:nexus)
-  =/  cage1=cage  (make-cage %txt 'hello')
-  =/  cage2=cage  (make-cage %json 'hello')
-  =/  [lobe1=lobe:clay *]  (put:s cage1)
-  =/  [lobe2=lobe:clay *]  (put:s cage2)
+  =/  page1=page  [%txt 'hello']
+  =/  page2=page  [%json 'hello']
+  =/  [lobe1=lobe:clay *]  (put:s page1)
+  =/  [lobe2=lobe:clay *]  (put:s page2)
   %+  expect-eq
     !>  %.n
   !>  =(lobe1 lobe2)
 ::
 ++  test-si-hash-deterministic
-  ::  Same cage always produces the same hash
+  ::  Same page always produces the same hash
   =/  s  ~(. si:nexus *silo:nexus)
-  =/  =cage  (make-cage %txt 'hello')
+  =/  =page  [%txt 'hello']
   %+  expect-eq
-    !>  (hash:s cage)
-  !>  (hash:s cage)
+    !>  (hash:s page)
+  !>  (hash:s page)
 ::
 ++  test-si-record-keep-accumulates
   ::  record with keep=%.y accumulates history entries
   =/  s  ~(. si:nexus *silo:nexus)
-  =/  cage1=cage  (make-cage %txt 'first')
-  =/  cage2=cage  (make-cage %txt 'second')
-  =/  cage3=cage  (make-cage %txt 'third')
+  =/  page1=page  [%txt 'first']
+  =/  page2=page  [%txt 'second']
+  =/  page3=page  [%txt 'third']
   =/  cass1=cass:clay  [1 ~2024.1.1]
   =/  cass2=cass:clay  [2 ~2024.1.2]
   =/  cass3=cass:clay  [3 ~2024.1.3]
   =/  hist=_hist:*sack:nexus  ~
   =/  [lobe1=lobe:clay silo1=silo:nexus hist1=_hist]
-    (~(record si:nexus *silo:nexus) cage1 cass1 %.y *cass:clay hist)
+    (~(record si:nexus *silo:nexus) page1 cass1 %.y *cass:clay hist)
   =/  [lobe2=lobe:clay silo2=silo:nexus hist2=_hist]
-    (~(record si:nexus silo1) cage2 cass2 %.y *cass:clay hist1)
+    (~(record si:nexus silo1) page2 cass2 %.y *cass:clay hist1)
   =/  [lobe3=lobe:clay silo3=silo:nexus hist3=_hist]
-    (~(record si:nexus silo2) cage3 cass3 %.y *cass:clay hist2)
+    (~(record si:nexus silo2) page3 cass3 %.y *cass:clay hist2)
   ;:  weld
     ::  All 3 entries in hist
     %+  expect-eq
@@ -873,25 +874,25 @@
 ++  test-si-record-no-keep-replaces
   ::  record with gain=%.n replaces current live version, drops old ref
   =/  s  ~(. si:nexus *silo:nexus)
-  =/  cage1=cage  (make-cage %txt 'first')
-  =/  cage2=cage  (make-cage %txt 'second')
+  =/  page1=page  [%txt 'first']
+  =/  page2=page  [%txt 'second']
   =/  cass1=cass:clay  [1 ~2024.1.1]
   =/  cass2=cass:clay  [2 ~2024.1.2]
   =/  hist=_hist:*sack:nexus  ~
   =/  [lobe1=lobe:clay silo1=silo:nexus hist1=_hist]
-    (~(record si:nexus *silo:nexus) cage1 cass1 %.n *cass:clay hist)
+    (~(record si:nexus *silo:nexus) page1 cass1 %.n *cass:clay hist)
   =/  [lobe2=lobe:clay silo2=silo:nexus hist2=_hist]
-    (~(record si:nexus silo1) cage2 cass2 %.n cass1 hist1)
+    (~(record si:nexus silo1) page2 cass2 %.n cass1 hist1)
   ;:  weld
     ::  Only 1 entry in hist (latest)
     %+  expect-eq
       !>  `@ud`1
     !>  (lent (tap:on-hist:nexus hist2))
-  ::  Old cage dropped from silo
+  ::  Old page dropped from silo
     %+  expect-eq
       !>  ~
     !>  (~(get by silo2) lobe1)
-  ::  New cage in silo
+  ::  New page in silo
     %+  expect-eq
       !>  %.y
     !>  ?=(^ (~(get by silo2) lobe2))
@@ -899,14 +900,14 @@
 ::
 ++  test-si-record-no-keep-same-content
   ::  record with gain=%.n and same content: refcount stays at 1
-  =/  =cage  (make-cage %txt 'same')
+  =/  =page  [%txt 'same']
   =/  cass1=cass:clay  [1 ~2024.1.1]
   =/  cass2=cass:clay  [2 ~2024.1.2]
   =/  hist=_hist:*sack:nexus  ~
   =/  [lobe1=lobe:clay silo1=silo:nexus hist1=_hist]
-    (~(record si:nexus *silo:nexus) cage cass1 %.n *cass:clay hist)
+    (~(record si:nexus *silo:nexus) page cass1 %.n *cass:clay hist)
   =/  [lobe2=lobe:clay silo2=silo:nexus hist2=_hist]
-    (~(record si:nexus silo1) cage cass2 %.n cass1 hist1)
+    (~(record si:nexus silo1) page cass2 %.n cass1 hist1)
   ;:  weld
     ::  Same lobe (content-addressed)
     %+  expect-eq
@@ -920,16 +921,16 @@
 ::
 ++  test-si-drop-hist-all-refs
   ::  drop-hist removes all refs from silo
-  =/  cage1=cage  (make-cage %txt 'aaa')
-  =/  cage2=cage  (make-cage %txt 'bbb')
-  =/  cage3=cage  (make-cage %txt 'ccc')
+  =/  page1=page  [%txt 'aaa']
+  =/  page2=page  [%txt 'bbb']
+  =/  page3=page  [%txt 'ccc']
   =/  hist=_hist:*sack:nexus  ~
   =/  [* silo1=silo:nexus hist1=_hist]
-    (~(record si:nexus *silo:nexus) cage1 [1 ~2024.1.1] %.y *cass:clay hist)
+    (~(record si:nexus *silo:nexus) page1 [1 ~2024.1.1] %.y *cass:clay hist)
   =/  [* silo2=silo:nexus hist2=_hist]
-    (~(record si:nexus silo1) cage2 [2 ~2024.1.2] %.y *cass:clay hist1)
+    (~(record si:nexus silo1) page2 [2 ~2024.1.2] %.y *cass:clay hist1)
   =/  [* silo3=silo:nexus hist3=_hist]
-    (~(record si:nexus silo2) cage3 [3 ~2024.1.3] %.y *cass:clay hist2)
+    (~(record si:nexus silo2) page3 [3 ~2024.1.3] %.y *cass:clay hist2)
   ::  3 entries in silo
   ?>  =(3 ~(wyt by silo3))
   ::  Drop all
@@ -940,13 +941,13 @@
 ::
 ++  test-si-drop-hist-shared-refs
   ::  drop-hist with shared content only decrements, doesn't delete
-  =/  =cage  (make-cage %txt 'shared')
+  =/  =page  [%txt 'shared']
   =/  hist=_hist:*sack:nexus  ~
-  ::  Record same cage twice with keep (2 hist entries, same lobe, refs=2)
+  ::  Record same page twice with keep (2 hist entries, same lobe, refs=2)
   =/  [=lobe:clay silo1=silo:nexus hist1=_hist]
-    (~(record si:nexus *silo:nexus) cage [1 ~2024.1.1] %.y *cass:clay hist)
+    (~(record si:nexus *silo:nexus) page [1 ~2024.1.1] %.y *cass:clay hist)
   =/  [* silo2=silo:nexus hist2=_hist]
-    (~(record si:nexus silo1) cage [2 ~2024.1.2] %.y *cass:clay hist1)
+    (~(record si:nexus silo1) page [2 ~2024.1.2] %.y *cass:clay hist1)
   ?>  =(2 refs:(~(got by silo2) lobe))
   ::  Drop all hist refs
   =/  silo3=silo:nexus  (~(drop-hist si:nexus silo2) hist2)

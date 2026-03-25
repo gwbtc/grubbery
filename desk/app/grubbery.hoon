@@ -63,21 +63,18 @@
 ::
 ++  on-init
   ^-  (quip card _this)
-  =^  code-cards  state
-    abet:sync-gub:hc
-  =/  init-ball=ball:tarball
-    =/  lmp=lump:tarball  (fall fil.ball [~ ~ ~])
-    ball(fil `lmp(neck `%root))
-  =^  cards  state
-    abet:(reload:hc *pool:nexus init-ball *sand:nexus *born:nexus *subs:nexus *silo:nexus *gain:nexus)
-  =^  dill-cards  state
-    abet:sync-dill:hc
-  =^  clay-cards  state
-    abet:sync-clay:hc
-  =^  jael-cards  state
-    abet:sync-jael:hc
-  :_  this
-  :(weld jael-cards clay-cards dill-cards cards code-cards)
+  ::  Ensure root neck
+  =/  lmp=lump:tarball  (fall fil.ball [~ ~ ~])
+  =.  ball  ball(fil `lmp(neck `%root))
+  ::  Compile code from Clay (cascades nexus on-loads)
+  =.  state  +:abet:sync-gub:hc
+  ::  Validate and sync all changes
+  =.  ball  ~|(%validate-ball-init (validate-ball:hc ball))
+  =.  state  +:abet:(load-ball-changes:hc / *ball:tarball ball)
+  =.  state  +:abet:sync-dill:hc
+  =.  state  +:abet:sync-clay:hc
+  =.  state  +:abet:sync-jael:hc
+  [cards this]
 ::
 ++  on-save
   ^-  vase
@@ -89,30 +86,20 @@
   =/  old  !<(versioned-state old-state)
   ?-    -.old
       %0
-    ::  Restore all state first — sync-gub needs consistent born/pool/etc
-    =:  ball   ball.old
-        pool   pool.old
-        sand   sand.old
-        born   born.old
-        subs   subs.old
-        silo   silo.old
-        gain   gain.old
-        lode   lode.old
-    ==
-    ::  Compile code from Clay
-    =^  code-cards  state
-      abet:sync-gub:hc
-    ::  Reload with current ball (has sync-gub changes + bootstrap daises)
-    =^  cards  state
-      abet:(reload:hc pool ball sand born subs silo gain)
-    =^  dill-cards  state
-      abet:sync-dill:hc
-    =^  clay-cards  state
-      abet:sync-clay:hc
-    =^  jael-cards  state
-      abet:sync-jael:hc
-    :_  this
-    :(weld jael-cards clay-cards dill-cards cards code-cards)
+    ::  Restore all state
+    =.  state  old
+    ::  Capture ball before rebuild (for change detection)
+    =/  pre-ball=ball:tarball  ball
+    ::  Compile code from Clay (cascades nexus on-loads)
+    =.  state  +:abet:sync-gub:hc
+    ::  Validate ball (types may have changed)
+    =.  ball  ~|(%validate-ball-reload (validate-ball:hc ball))
+    ::  Sync all changes
+    =.  state  +:abet:(load-ball-changes:hc / pre-ball ball)
+    =.  state  +:abet:sync-dill:hc
+    =.  state  +:abet:sync-clay:hc
+    =.  state  +:abet:sync-jael:hc
+    [cards this]
   ==
 ::
 ++  on-poke
@@ -280,11 +267,11 @@
     ``gain+!>((~(dip of gain) here))
     ::
       [%x %peek %silo %lobe @ ~]
-    ::  Look up cage in silo by lobe hash
+    ::  Look up page in silo by lobe hash
     =/  =lobe:clay  (slav %uv i.t.t.t.t.path)
-    =/  got=(unit cage)  (~(get si:nexus silo) lobe)
+    =/  got=(unit page)  (~(get si:nexus silo) lobe)
     ?~  got  [~ ~]
-    ``u.got
+    ``[p.u.got !>(q.u.got)]
     ::
       [%x %peek %subs ~]
     ::  Internal subscriptions
@@ -620,6 +607,22 @@
   ?:  ?=(%| -.result)
     result
   &+[p.cage p.result]
+::  Clam a page (mark + noun) into a cage.
+::  Used when reading historical data from the silo.
+::
+++  clam-page
+  |=  =page
+  ^-  (each cage tang)
+  ?:  =(%hoon p.page)
+    (mule |.([%hoon !>(;;(@t q.page))]))
+  ?:  =(%tang p.page)
+    (mule |.([%tang !>(;;(tang q.page))]))
+  ?:  =(%mime p.page)
+    (mule |.([%mime !>(;;(mime q.page))]))
+  =/  =dais:clay  (get-dais p.page)
+  =/  res=(each vase tang)  (mule |.((vale:dais q.page)))
+  ?:  ?=(%| -.res)  res
+  &+[p.page p.res]
 ::  Validate all cages in a ball subtree, crash on failure
 ::
 ::  Always forces full dais validation (no nest optimization) because
@@ -873,42 +876,6 @@
   =.  this  ^$(here (snoc here kid-name), new +.i.kids)
   $(kids t.kids)
 ::
-++  reload
-  |=  $:  old-pool=pool:nexus
-          old-ball=ball:tarball
-          old-sand=sand:nexus
-          old-born=born:nexus
-          old-subs=subs:nexus
-          old-silo=silo:nexus
-          old-gain=gain:nexus
-      ==
-  ^+  this
-  =.  ball  old-ball
-  =.  sand  old-sand
-  =.  born  old-born
-  =.  subs  old-subs
-  =.  silo  old-silo
-  =.  gain  old-gain
-  ::  Capture ball before modifications (for change detection)
-  =/  pre-ball=ball:tarball  ball
-  ::  Run nexus on-loads top-down (may modify ball, sand, and gain)
-  =/  pre-sand=sand:nexus  sand
-  =/  [new-sand=sand:nexus new-gain=gain:nexus new-ball=ball:tarball]
-    (run-on-loads / sand gain ball)
-  =:  sand  new-sand
-      gain  new-gain
-      ball  new-ball
-  ==
-  ::  Bump weir cass in born for any directories where weir changed
-  =.  this  (bump-weir-changes / pre-sand sand)
-  ::  Force-validate entire ball (type of $type may have changed since state was saved)
-  =.  ball  ~|(%validate-ball-reload (validate-ball ball))
-  ::  Validate name uniqueness (no file/dir collisions)
-  ?>  ~(validate-names ba:tarball ball)
-  ::  Re-check all subscriptions against potentially changed weirs
-  =.  this  (audit-weir /)
-  ::  Spawn processes and sync all changes
-  (load-ball-changes / pre-ball ball)
 :: TODO: handle outgoing keens
 ::
 ::  Clean up subscriptions for a file (%file) or subtree (%tree)
@@ -1408,12 +1375,17 @@
         =/  sk=sack:nexus
           ?~  node  *sack:nexus
           (fall (~(get by bags.u.node) name.dest) *sack:nexus)
-        ::  Resolve source cage: historical from silo or current from ball
+        ::  Resolve source: historical page from silo or current cage from ball
         =/  source=(unit cage)
           ?^  case.load.dart
             =/  =lobe:clay
               (resolve-case:nexus u.case.load.dart hist.sk)
-            (~(get si:nexus silo) lobe)
+            =/  got=(unit page)  (~(get si:nexus silo) lobe)
+            ?~  got  ~
+            ::  Clam page back to cage
+            =/  res=(each cage tang)  (clam-page u.got)
+            ?:  ?=(%| -.res)  ~
+            `p.res
           `cage.u.content
         ?~  source
           (enqu-take here (sys-give /peek) ~ %peek wire.dart &+[%none ~])
@@ -1424,10 +1396,6 @@
           ?:  ?=(%| -.res)
             ~|(%peek-clam-failed !!)
           p.res
-        ::  Update silo entry with refreshed type if from hist
-        =?  silo  ?=(^ case.load.dart)
-          =/  =lobe:clay  (resolve-case:nexus u.case.load.dart hist.sk)
-          (~(put by silo) lobe [refs:(~(got by silo) lobe) clammed])
         ::  Apply mark conversion if requested
         =/  result=cage
           ?~  mark.load.dart  clammed
@@ -1479,7 +1447,7 @@
       (enqu-take here (sys-give /found) ~ %seek wire.dart res)
       ::
         %peep
-      ::  Query hist entries matching find spec, return cages
+      ::  Query hist entries matching find spec, clam pages to cages
       ?>  ?=(%& -.u.dest-lane)
       =/  dest=rail:tarball  p.u.dest-lane
       =/  sk=(unit sack:nexus)  (get-born dest)
@@ -1505,9 +1473,11 @@
             ==
           ==
         ?.  match  ~
-        =/  got=(unit cage)  (~(get si:nexus silo) val)
+        =/  got=(unit page)  (~(get si:nexus silo) val)
         ?~  got  ~
-        `[key u.got]
+        =/  res=(each cage tang)  (clam-page u.got)
+        ?:  ?=(%| -.res)  ~
+        `[key p.res]
       (enqu-take here (sys-give /peep) ~ %peep wire.dart &+hits)
       ::
         %gain
@@ -1939,7 +1909,7 @@
   =/  old-born=born:nexus  born
   =.  born  (~(bump-file bo:nexus now.bowl [born ball]) here)
   (notify old-born)
-::  Record cage in silo and append to hist on sack.
+::  Record page in silo and append to hist on sack.
 ::
 ++  record-hist
   |=  [here=rail:tarball =cage cas=(unit cass:clay)]
@@ -1949,8 +1919,9 @@
   =/  new-cass=cass:clay
     (fall cas (~(next-cass bo:nexus now.bowl [born ball]) file.sok))
   =/  gaining=?  (lookup-gain here)
+  =/  =page  [p q.q]:cage
   =/  [=lobe:clay new-silo=silo:nexus new-hist=_hist.sok]
-    (~(record si:nexus silo) cage new-cass gaining file.sok hist.sok)
+    (~(record si:nexus silo) page new-cass gaining file.sok hist.sok)
   =.  silo  new-silo
   =.  born  (~(put bo:nexus now.bowl [born ball]) here sok(hist new-hist))
   this
