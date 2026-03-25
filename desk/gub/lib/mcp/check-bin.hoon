@@ -4,7 +4,6 @@
 ::  Looks up an artifact in bins via %code dart. Returns the
 ::  compilation error tang if it failed, or confirms success.
 ::
-!:
 ^-  tool:tools
 |%
 ++  name  'check_bin'

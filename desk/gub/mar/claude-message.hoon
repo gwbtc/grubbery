@@ -1,8 +1,7 @@
 ::  claude-message mark: single message to append to the chat store
 ::  [role=@t text=@t]
 ::
-/<  claude  /lib/claude.hoon
-=,  claude
+/<  *  /lib/claude.hoon
 |_  msg=message
 ++  grab
   |%

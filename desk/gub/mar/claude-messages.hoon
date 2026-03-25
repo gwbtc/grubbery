@@ -1,5 +1,4 @@
-/<  claude  /lib/claude.hoon
-=,  claude
+/<  *  /lib/claude.hoon
 |_  msg=messages
 ++  grab
   |%
