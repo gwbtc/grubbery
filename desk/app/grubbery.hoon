@@ -70,7 +70,6 @@
   =.  ball  ball(fil `lmp(neck `%root))
   ::  Compile code from Clay (cascades nexus on-loads)
   =^  gub-cards  state  abet:sync-gub:hc
-  =.  ball  ~|(%validate-ball-init (validate-ball:hc /code ball))
   =^  load-cards  state  abet:(load-ball-changes:hc / *ball:tarball ball)
   =^  dill-cards  state  abet:sync-dill:hc
   =^  clay-cards  state  abet:sync-clay:hc
@@ -101,8 +100,6 @@
     =/  pre-ball=ball:tarball  ball
     ::  Compile code from Clay (cascades nexus on-loads)
     =^  gub-cards  state  abet:sync-gub:hc
-    ::  Validate ball (types may have changed)
-    =.  ball  ~|(%validate-ball-reload (validate-ball:hc /code ball))
     ::  Sync all changes
     =^  load-cards  state  abet:(load-ball-changes:hc / pre-ball ball)
     =^  dill-cards  state  abet:sync-dill:hc
@@ -695,12 +692,14 @@
 ::  the nest optimization wouldn't help anyway.
 ::
 ++  validate-ball
-  |=  [pax=path =ball:tarball]
+  |=  [cod=path =ball:tarball]
   ^-  ball:tarball
   ::  validate files at this level
   ::  for each file, run validate-new-cage and crash if it fails
   ::  rebuild contents map with validated vases
   ::
+  =|  here=path
+  |-
   =/  validated-contents=(map @ta content:tarball)
     ?~  fil.ball  ~
     =/  files=(list [@ta content:tarball])  ~(tap by contents.u.fil.ball)
@@ -709,8 +708,10 @@
     ?~  files  out
     =/  [name=@ta =content:tarball]  i.files
     =/  res=(each vase tang)
-      (validate-new-cage pax p.cage.content ~ q.cage.content %.y)
-    ?.  ?=(%& -.res)  ~|(p.res !!)
+      (validate-new-cage cod p.cage.content ~ q.cage.content %.y)
+    ?.  ?=(%& -.res)
+      ~&  >>  "validate-ball: skipping {(trip name)} (mark %{(trip p.cage.content)}) at {(spud (weld cod here))}"
+      $(files t.files, out (~(put by out) name content))
     $(files t.files, out (~(put by out) name content(cage [p.cage.content p.res])))
   ::  recurse into subdirectories
   ::  validate each child ball and rebuild dir map
@@ -721,7 +722,7 @@
     |-
     ?~  kids  out
     =/  [name=@ta kid=ball:tarball]  i.kids
-    $(kids t.kids, out (~(put by out) name ^$(pax (snoc pax name), ball kid)))
+    $(kids t.kids, out (~(put by out) name ^$(here (snoc here name), ball kid)))
   ::  build validated ball
   ::  preserve fil metadata, swap in validated contents
   ::
@@ -1823,9 +1824,9 @@
   =/  validated=(each vase tang)
     (validate-new-cage path.here p.cage.u.file-data `fil-state new-state %.n)
   ?:  ?=(%| -.validated)
-    ::  Validation failed - treat as crash
-    =.  this  (spawn-proc here [%rise p.validated])
-    (enqu-take here (sys-give /rise) ~)
+    ::  Validation failed - boom the file (don't restart, infra is broken)
+    ~&  >>  "process-take: validation failed, booming {(spud (snoc path.here name.here))}"
+    (boom-file here p.validated)
   ::  Validation passed - handle result normally
   ?-    -.res
       %next
@@ -1844,6 +1845,7 @@
     (delete path.here name.here)
       %fail
     ::  Process failed - don't save state, restart. Subs survive (wires still route).
+    ~&  >>  "process-take: FAIL {(spud (snoc path.here name.here))}"
     =.  this  (spawn-proc here [%rise err.res])
     (enqu-take here (sys-give /rise) ~)
   ==
@@ -2224,6 +2226,8 @@
     =/  old=(unit content:tarball)
       (~(get ba:tarball ball.acc) [dir name])
     =/  dais=(unit dais:clay)
+      ?:  ?=(?(%hoon %mime %kelvin) mar)
+        (mole |.(.^(dais:clay %cb (weld pax `path`/[mar]))))
       =/  res=(unit built:nexus)  (get-built / /das mar)
       ?~  res  ~
       ?.  ?=(%vase -.u.res)  ~
@@ -2317,6 +2321,8 @@
           leaf+"  code nexus declares: {<(waft-to-wefts:clay waft)>}"
           leaf+"  grubbery expects: [%grubbery {<kel>}]"
       ==
+    ~&  >>>  "build-code: building tang bins for {<(lent all-files)>} files"
+    =/  hoon-count=@ud  0
     =/  new-bins=bins:nexus
       %+  roll  all-files
       |=  [[=rail:tarball =content:tarball] acc=bins:nexus]
@@ -2325,8 +2331,10 @@
       =/  node=(map @ta built:nexus)
         (fall (~(get of acc) path.rail) *(map @ta built:nexus))
       (~(put of acc) path.rail (~(put by node) stem [%tang err]))
+    ~&  >>>  "build-code: tang bins built"
     =.  lode  [~ ~ new-bins]
     =.  code  (~(put by code) cod lode)
+    ~&  >>>  "build-code: kelvin mismatch done, returning"
     this
   ::  Reconstruct cache from bins + keys
   =/  old-cache=build-cache:build  (bins-to-cache:build bins.lode keys.lode)
@@ -2622,9 +2630,14 @@
   ::  Get old ball at /code/
   =/  old-src=ball:tarball  (~(dip ba:tarball ball) /code)
   ::  Diff and bump src changes (born, silo, hist, notify)
+  ~&  >  "sync-gub: load-ball-changes start"
   =.  this  (load-ball-changes /code old-src new-src)
+  ~&  >  "sync-gub: load-ball-changes done"
   ::  Compile
-  (build-code /code)
+  ~&  >  "sync-gub: build-code start"
+  =/  res=_this  (build-code /code)
+  ~&  >  "sync-gub: build-code done"
+  res
 ::  List all files mirrored under a /sys/clay/[desk] path
 ::  Returns Clay-style paths (like /app/foo/hoon) with mark as last element
 ::

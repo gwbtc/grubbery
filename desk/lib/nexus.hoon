@@ -392,6 +392,13 @@
     |=  dest=fold:tarball
     ^-  ^boom
     (~(lop of boom) dest)
+  ::  +has-file: check if a specific file is boomed
+  ::
+  ++  has-file
+    |=  here=rail:tarball
+    ^-  ?
+    =/  node  (get path.here)
+    (~(has by fil.node) name.here)
   ::  +has-fold: check if any ancestor directory is boomed
   ::
   ++  has-fold
