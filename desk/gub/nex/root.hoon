@@ -24,7 +24,7 @@
         [%fall %| /config/creds [~ ~] [~ ~] empty-dir:loader]
         ::  system internals — populated by app/grubbery.hoon before
         ::  on-load runs. Must be preserved or the framework breaks.
-        [%fall %| /sys/code [~ ~] [~ ~] [`[~ `%code ~] ~]]
+        [%fall %| /code [~ ~] [~ ~] [`[~ `%code ~] ~]]
         [%fall %| /sys/clay [~ ~] [~ ~] empty-dir:loader]
         [%fall %| /sys/dill [~ ~] [~ ~] empty-dir:loader]
         [%fall %| /sys/jael [~ ~] [~ ~] empty-dir:loader]

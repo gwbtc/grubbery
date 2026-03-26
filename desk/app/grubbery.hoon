@@ -27,7 +27,7 @@
       =subs:nexus
       =silo:nexus
       =gain:nexus
-      =lode:nexus
+      =code:nexus
       =boom:nexus
   ==
 ++  kel  21.000.000 :: start big; burn many at once
@@ -71,7 +71,7 @@
   ::  Compile code from Clay (cascades nexus on-loads)
   =.  state  +:abet:sync-gub:hc
   ::  Validate and sync all changes
-  =.  ball  ~|(%validate-ball-init (validate-ball:hc ball))
+  =.  ball  ~|(%validate-ball-init (validate-ball:hc /code ball))
   =.  state  +:abet:(load-ball-changes:hc / *ball:tarball ball)
   =.  state  +:abet:sync-dill:hc
   =.  state  +:abet:sync-clay:hc
@@ -95,7 +95,7 @@
     ::  Compile code from Clay (cascades nexus on-loads)
     =.  state  +:abet:sync-gub:hc
     ::  Validate ball (types may have changed)
-    =.  ball  ~|(%validate-ball-reload (validate-ball:hc ball))
+    =.  ball  ~|(%validate-ball-reload (validate-ball:hc /code ball))
     ::  Sync all changes
     =.  state  +:abet:(load-ball-changes:hc / pre-ball ball)
     =.  state  +:abet:sync-dill:hc
@@ -518,36 +518,53 @@
       ==
     |+(weld err p.vale-result)
   &+p.vale-result
-::  Get a cached tube from bins
+::  Find the code nexus governing a given path.
+::  Walks up ancestors, checking if any immediate child is in the code map.
+::  Find which code nexus a path is inside of.
+::  Used by save-file/delete to trigger rebuilds.
 ::
-++  bins-get
-  |=  [=path name=@ta]
+++  code-in
+  |=  pax=path
+  ^-  (unit fold:tarball)
+  |-
+  ?:  (~(has by code) pax)  `pax
+  ?~  pax  ~
+  $(pax (snip `path`pax))
+::  Look up a compiled artifact by walking up the tree.
+::  At each ancestor, checks for a child named %code in the code map.
+::  A %tang counts as found; only true absence walks to the next.
+::
+++  get-built
+  |=  [pax=path =path name=@ta]
   ^-  (unit built:nexus)
-  =/  node=(unit (map @ta built:nexus))
-    (~(get of bins.lode) path)
-  ?~  node  ~
-  (~(get by u.node) name)
-::
-++  bins-put
-  |=  [=path name=@ta val=built:nexus]
-  ^-  bins:nexus
-  =/  node=(map @ta built:nexus)
-    (fall (~(get of bins.lode) path) *(map @ta built:nexus))
-  (~(put of bins.lode) path (~(put by node) name val))
+  |-
+  =/  cod=^path  (snoc pax %code)
+  =/  lod=(unit lode:nexus)  (~(get by code) cod)
+  ?^  lod
+    =/  node=(unit (map @ta built:nexus))
+      (~(get of bins.u.lod) path)
+    =/  hit=(unit built:nexus)
+      ?~  node  ~
+      (~(get by u.node) name)
+    ?^  hit  hit
+    ?~  pax  ~
+    $(pax (snip `(list @ta)`pax))
+  ?~  pax  ~
+  $(pax (snip `(list @ta)`pax))
 ::
 ++  get-tube
-  |=  [from=mark to=mark]
+  |=  [pax=path from=mark to=mark]
   ^-  tube:clay
-  =/  res=(unit built:nexus)  (bins-get /tub/[from] to)
+  =/  res=(unit built:nexus)  (get-built pax /tub/[from] to)
   ?~  res  ~|([%tube-not-found from to] !!)
   ?.  ?=(%vase -.u.res)  ~|([%tube-failed from to] !!)
   !<(tube:clay vase.u.res)
 ::  Get a cached dais from bins
 ::
 ++  get-dais
-  |=  =mark
+  |=  [pax=path =mark]
   ^-  dais:clay
-  =/  res=(unit built:nexus)  (bins-get /das mark)
+  =/  res=(unit built:nexus)  (get-built pax /das mark)
   ?~  res
     ~&  >>>  "get-dais: %{(trip mark)} not found"
     ~|([%dais-not-found mark] !!)
@@ -556,35 +573,49 @@
 ::  Lazily build a tube from compiled mark cores in bins
 ::
 ++  build-tube-lazy
-  |=  [from=mark to=mark]
+  |=  [pax=path from=mark to=mark]
   ^-  [built:nexus _this]
-  ::  Look up compiled mark cores from bins
-  =/  from-res=(unit built:nexus)  (bins-get /mar from)
-  =/  to-res=(unit built:nexus)  (bins-get /mar to)
-  ?~  from-res
-    [[%tang ~[leaf+"tube: mark %{(trip from)} not found in bins"]] this]
-  ?~  to-res
-    [[%tang ~[leaf+"tube: mark %{(trip to)} not found in bins"]] this]
-  ?.  ?=(%vase -.u.from-res)
+  ::  Walk up to find a code nexus with both mark cores
+  |-
+  =/  cod=path  (snoc pax %code)
+  =/  lod=(unit lode:nexus)  (~(get by code) cod)
+  ?~  lod
+    ?~  pax
+      [[%tang ~[leaf+"tube: no code nexus has both %{(trip from)} and %{(trip to)}"]] this]
+    $(pax (snip `path`pax))
+  =/  mar-node=(unit (map @ta built:nexus))  (~(get of bins.u.lod) /mar)
+  ?~  mar-node
+    ?~  pax
+      [[%tang ~[leaf+"tube: no code nexus has both %{(trip from)} and %{(trip to)}"]] this]
+    $(pax (snip `path`pax))
+  =/  from-hit=(unit built:nexus)  (~(get by u.mar-node) from)
+  =/  to-hit=(unit built:nexus)  (~(get by u.mar-node) to)
+  ?.  &(?=(^ from-hit) ?=(^ to-hit))
+    ?~  pax
+      [[%tang ~[leaf+"tube: no code nexus has both %{(trip from)} and %{(trip to)}"]] this]
+    $(pax (snip `path`pax))
+  ?.  ?=(%vase -.u.from-hit)
     [[%tang ~[leaf+"tube: mark %{(trip from)} failed to compile"]] this]
-  ?.  ?=(%vase -.u.to-res)
+  ?.  ?=(%vase -.u.to-hit)
     [[%tang ~[leaf+"tube: mark %{(trip to)} failed to compile"]] this]
   =/  cores=(map mark vase)
-    (~(gas by *(map mark vase)) ~[[from vase.u.from-res] [to vase.u.to-res]])
+    (~(gas by *(map mark vase)) ~[[from vase.u.from-hit] [to vase.u.to-hit]])
   =/  res=(each tube:clay tang)
     (mule |.((tube-from:marks [from to] cores)))
   ?:  ?=(%| -.res)
     [[%tang p.res] this]
-  ::  Cache in bins and return
+  ::  Cache tube in the code nexus where both marks were found
+  =/  =lode:nexus  u.lod
   =/  tub-node=(map @ta built:nexus)
     (fall (~(get of bins.lode) /tub/[from]) *(map @ta built:nexus))
   =.  bins.lode
     (~(put of bins.lode) /tub/[from] (~(put by tub-node) to [%vase !>(p.res)]))
+  =.  code  (~(put by code) cod lode)
   [[%vase !>(p.res)] this]
 ::  Validate file content, looks up cached dais
 ::
 ++  validate-new-cage
-  |=  [=mark old=(unit vase) new=vase force=?]
+  |=  [pax=path =mark old=(unit vase) new=vase force=?]
   ^-  (each vase tang)
   ::  Bootstrap marks — hardcoded like Clay's page-to-cage
   ?:  =(%boom mark)
@@ -595,19 +626,17 @@
     (mule |.(!>(;;(tang q.new))))
   ?:  =(%mime mark)
     (mule |.(!>(;;(mime q.new))))
-  ::  ~&  >  "validate-new-cage: looking up dais for %{(trip mark)}"
-  =/  =dais:clay  (get-dais mark)
+  =/  =dais:clay  (get-dais pax mark)
   (validate-vase dais old new force)
 ::  Clam a cage at sandbox boundary
 ::  Used when data crosses a weir filter from untrusted source.
 ::  Always forces full validation (no nest optimization).
 ::
 ++  clam-cage
-  |=  =cage
+  |=  [pax=path =cage]
   ^-  (each ^cage tang)
-  ::  ~&  >  "clam-cage: calling validate-new-cage for %{(trip p.cage)}"
   =/  result=(each vase tang)
-    (validate-new-cage p.cage ~ q.cage %.y)
+    (validate-new-cage pax p.cage ~ q.cage %.y)
   ?:  ?=(%| -.result)
     result
   &+[p.cage p.result]
@@ -615,7 +644,7 @@
 ::  Used when reading historical data from the silo.
 ::
 ++  clam-page
-  |=  =page
+  |=  [pax=path =page]
   ^-  (each cage tang)
   ::  boom: unwrap inner page and retry its mark
   ::  if it heals, return the real cage; otherwise re-boom
@@ -630,7 +659,7 @@
     (mule |.([%tang !>(;;(tang q.page))]))
   ?:  =(%mime p.page)
     (mule |.([%mime !>(;;(mime q.page))]))
-  =/  =dais:clay  (get-dais p.page)
+  =/  =dais:clay  (get-dais pax p.page)
   =/  res=(each vase tang)  (mule |.((vale:dais q.page)))
   ?:  ?=(%| -.res)  res
   &+[p.page p.res]
@@ -641,7 +670,7 @@
 ::  the nest optimization wouldn't help anyway.
 ::
 ++  validate-ball
-  |=  =ball:tarball
+  |=  [pax=path =ball:tarball]
   ^-  ball:tarball
   ::  validate files at this level
   ::  for each file, run validate-new-cage and crash if it fails
@@ -654,9 +683,8 @@
     |-
     ?~  files  out
     =/  [name=@ta =content:tarball]  i.files
-    ::  ~&  >  "validate-ball: validating {(trip name)} %{(trip p.cage.content)}"
     =/  res=(each vase tang)
-      (validate-new-cage p.cage.content ~ q.cage.content %.y)
+      (validate-new-cage pax p.cage.content ~ q.cage.content %.y)
     ?.  ?=(%& -.res)  ~|(p.res !!)
     $(files t.files, out (~(put by out) name content(cage [p.cage.content p.res])))
   ::  recurse into subdirectories
@@ -668,7 +696,7 @@
     |-
     ?~  kids  out
     =/  [name=@ta kid=ball:tarball]  i.kids
-    $(kids t.kids, out (~(put by out) name ^$(ball kid)))
+    $(kids t.kids, out (~(put by out) name ^$(pax (snoc pax name), ball kid)))
   ::  build validated ball
   ::  preserve fil metadata, swap in validated contents
   ::
@@ -771,10 +799,11 @@
   =.  this  (bump-file [dir name])
   =/  =pipe:nexus  (~(del by (fall (~(get of pool) dir) ~)) name)
   =.  pool  (~(put of pool) dir pipe)
-  ::  Rebuild on /sys/code/ change
-  ?.  =(/sys/code (scag 2 dir))
-    this
-  build-code
+  ::  Rebuild if deletion is inside a code nexus
+  =/  cod=(unit path)  (code-in dir)
+  ?~  cod  this
+  ~&  >>>  "delete: triggering build-code from {(spud dir)}"
+  (build-code u.cod)
 ::  Send ack/nack back to poke source
 ::  - Internal (%&): enqueue %pack intake to source path
 ::  - External (%|): emit gall card
@@ -854,8 +883,7 @@
   =/  nex=(unit nexus:nexus)
     ?~  fil.sub-ball  ~
     ?~  neck.u.fil.sub-ball  ~
-    ::  ~&  >  "run-on-loads: build-nexus {(trip u.neck.u.fil.sub-ball)} at {(spud here)}"
-    (build-nexus u.neck.u.fil.sub-ball)
+    (build-nexus here u.neck.u.fil.sub-ball)
   ::  Run on-load if nexus exists
   ::
   ::  IMPORTANT: The weir at the root of sub-sand is preserved from the parent.
@@ -901,8 +929,7 @@
   =/  nex=(unit nexus:nexus)
     ?~  fil.sub-ball  ~
     ?~  neck.u.fil.sub-ball  ~
-    ::  ~&  >  "reload-nexus: build-nexus {(trip u.neck.u.fil.sub-ball)} at {(spud dest)}"
-    (build-nexus u.neck.u.fil.sub-ball)
+    (build-nexus dest u.neck.u.fil.sub-ball)
   ?~  nex
     ~|("no nexus at destination" !!)
   (reload-nexus-at dest u.nex)
@@ -939,7 +966,36 @@
   =.  gain  (put-sub-gain gain dest new-gain)
   =.  this  (load-ball-changes dest old-sub new-ball)
   =.  this  (bump-weir-changes dest sub-sand new-sand)
-  (audit-weir dest)
+  =.  this  (audit-weir dest)
+  (reload-new-nexuses dest old-sub)
+::  Walk a subtree after on-load, reloading any newly created nexuses.
+::  Recurses through all directories (nexuses may be deeply nested).
+::  When a new nexus is found and reloaded, its reload-nexus-at will
+::  handle any nexuses created by ITS on-load via the same mechanism.
+::
+++  reload-new-nexuses
+  |=  [dest=fold:tarball old-sub=ball:tarball]
+  ^+  this
+  =/  new-sub=ball:tarball  (~(dip ba:tarball ball) dest)
+  =/  kids=(list [@ta ball:tarball])  ~(tap by dir.new-sub)
+  |-
+  ?~  kids  this
+  =/  [kid-name=@ta kid-ball=ball:tarball]  i.kids
+  =/  kid-path=fold:tarball  (snoc dest kid-name)
+  =/  old-kid=(unit ball:tarball)  (~(get by dir.old-sub) kid-name)
+  =.  this
+    ::  New directory with a neck — reload it
+    ?:  ?&  ?=(~ old-kid)
+            ?=(^ fil.kid-ball)
+            ?=(^ neck.u.fil.kid-ball)
+        ==
+      =/  kid-nex=(unit nexus:nexus)
+        (build-nexus kid-path u.neck.u.fil.kid-ball)
+      ?~  kid-nex  this
+      (reload-nexus-at kid-path u.kid-nex)
+    ::  Existing or non-nexus directory — recurse deeper
+    $(kids ~(tap by dir.kid-ball), dest kid-path, old-sub (fall old-kid *ball:tarball))
+  $(kids t.kids)
 ::  Spawn processes for files in new ball, bump if content changed from old
 ::
 ++  spawn-new-files
@@ -1182,7 +1238,7 @@
       ?~  mark  view
       ?.  ?=(%file -.view)  view
       ?:  =(p.cage.view u.mark)  view  :: already correct mark
-      =/  =tube:clay  (get-tube p.cage.view u.mark)
+      =/  =tube:clay  (get-tube path.watcher p.cage.view u.mark)
       view(cage [u.mark (tube q.cage.view)])
     (enqu-take:acc watcher (sys-give:acc /news) ~ %news wire watcher-view)
   $(watched t.watched)
@@ -1224,9 +1280,9 @@
   $(darts t.darts)
 ::
 ++  build-nexus
-  |=  neck=@tas
+  |=  [pax=path neck=@tas]
   ^-  (unit nexus:nexus)
-  =/  res=(unit built:nexus)  (bins-get /nex neck)
+  =/  res=(unit built:nexus)  (get-built pax /nex neck)
   ?~  res  ~
   ?.  ?=(%vase -.u.res)  ~
   (mole |.(!<(nexus:nexus vase.u.res)))
@@ -1256,8 +1312,7 @@
   =/  nex-info=(unit (pair path neck:tarball))  (find-nearest-nexus here)
   ?~  nex-info  ~
   ::  Build the nexus from the neck
-  ::  ~&  >  "build-spool: build-nexus {(trip q.u.nex-info)} for {(spud (snoc path.here name.here))}"
-  =/  nex=(unit nexus:nexus)  (build-nexus q.u.nex-info)
+  =/  nex=(unit nexus:nexus)  (build-nexus path.here q.u.nex-info)
   ?~  nex  ~
   ::  Call on-file with rail relative to nexus location
   `(on-file:u.nex (relativize-rail:tarball p.u.nex-info here) mark)
@@ -1278,7 +1333,7 @@
     ::  Peek results are clammed inside handle-dart (data flows back)
     ?.  ?=([%node * * ?(%poke %over %diff) *] dart)
       (handle-dart here dart filt)
-    =/  clammed=(each cage tang)  (clam-cage cage.load.dart)
+    =/  clammed=(each cage tang)  (clam-cage path.here cage.load.dart)
     ?:  ?=(%| -.clammed)
       (enqu-take here (sys-give /veto) ~ %veto dart)
     (handle-dart here dart(cage.load p.clammed) filt)
@@ -1313,6 +1368,7 @@
 ++  handle-dart
   |=  [here=rail:tarball =dart:nexus =filt:nexus]
   ^+  this
+  =/  cod=path  path.here
   ?-    -.dart
       %sysc
     ::  Emit gall card directly (with wrapped wire/paths)
@@ -1357,7 +1413,7 @@
           make.load.dart
         ?:  =(p.cage.p.make.load.dart u.mark.p.make.load.dart)
           make.load.dart
-        =/  =tube:clay  (get-tube p.cage.p.make.load.dart u.mark.p.make.load.dart)
+        =/  =tube:clay  (get-tube cod p.cage.p.make.load.dart u.mark.p.make.load.dart)
         make.load.dart(cage.p [u.mark.p.make.load.dart (tube q.cage.p.make.load.dart)])
       =/  res=(each _this tang)  (mule |.((^make u.dest-lane make)))
       ?-  -.res
@@ -1406,11 +1462,11 @@
       =/  converted=cage
         ?:  =(old-mark new-mark)
           cage.load.dart
-        =/  =tube:clay  (get-tube new-mark old-mark)
+        =/  =tube:clay  (get-tube cod new-mark old-mark)
         [old-mark (tube q.cage.load.dart)]
       ::  ~&  >  "process-over: validate-new-cage for %{(trip p.converted)} at {(spud (snoc path.here name.here))}"
       =/  val=(each vase tang)
-        (validate-new-cage p.converted `q.cage.u.old q.converted %.n)
+        (validate-new-cage cod p.converted `q.cage.u.old q.converted %.n)
       ?:  ?=(%| -.val)
         (enqu-take here (sys-give /over) ~ %over wire.dart `p.val)
       =/  new-content=content:tarball  u.old(cage [p.converted p.val])
@@ -1431,7 +1487,7 @@
         (enqu-take here (sys-give /diff) ~ %diff wire.dart `~[leaf+"mark mismatch: expected %{(trip old-mark)}, got %{(trip p.cage.load.dart)}"])
       ::  ~&  >  "process-diff: validate-new-cage for %{(trip old-mark)} at {(spud (snoc path.dest name.dest))}"
       =/  val=(each vase tang)
-        (validate-new-cage old-mark `q.cage.u.old q.cage.load.dart %.n)
+        (validate-new-cage cod old-mark `q.cage.u.old q.cage.load.dart %.n)
       ?:  ?=(%| -.val)
         (enqu-take here (sys-give /diff) ~ %diff wire.dart `p.val)
       =/  new-content=content:tarball  u.old(cage [old-mark p.val])
@@ -1452,7 +1508,7 @@
         =/  sub-sand=sand:nexus  (~(dip of sand) dest)
         =/  sub-born=born:nexus  (~(dip of born) dest)
         =?  u.sub-ball  |(?=([~ %&] filt) clam.load.dart)
-          (validate-ball u.sub-ball)
+          (validate-ball cod u.sub-ball)
         =/  sub-gain=gain:nexus  (~(dip of gain) dest)
         (enqu-take here (sys-give /peek) ~ %peek wire.dart %& %ball sub-sand sub-gain sub-born u.sub-ball)
         ::
@@ -1475,7 +1531,7 @@
             =/  got=(unit page)  (~(get si:nexus silo) lobe)
             ?~  got  ~
             ::  Clam page back to cage
-            =/  res=(each cage tang)  (clam-page u.got)
+            =/  res=(each cage tang)  (clam-page cod u.got)
             ?:  ?=(%| -.res)  ~
             `p.res
           `cage.u.content
@@ -1484,7 +1540,7 @@
         ::  Clam at weir boundary or by request
         =/  clammed=cage
           ?.  |(?=([~ %&] filt) clam.load.dart)  u.source
-          =/  res=(each cage tang)  (clam-cage u.source)
+          =/  res=(each cage tang)  (clam-cage cod u.source)
           ?:  ?=(%| -.res)
             ~|(%peek-clam-failed !!)
           p.res
@@ -1492,7 +1548,7 @@
         =/  result=cage
           ?~  mark.load.dart  clammed
           ?:  =(p.clammed u.mark.load.dart)  clammed
-          =/  =tube:clay  (get-tube p.clammed u.mark.load.dart)
+          =/  =tube:clay  (get-tube cod p.clammed u.mark.load.dart)
           [u.mark.load.dart (tube q.clammed)]
         (enqu-take here (sys-give /peek) ~ %peek wire.dart %& %file sk (lookup-gain dest) result)
       ==
@@ -1523,7 +1579,7 @@
       ::  Apply mark conversion if requested
       =?  view  &(?=(^ mark.load.dart) ?=(%file -.view))
         ?:  =(p.cage.view u.mark.load.dart)  view
-        =/  =tube:clay  (get-tube p.cage.view u.mark.load.dart)
+        =/  =tube:clay  (get-tube cod p.cage.view u.mark.load.dart)
         view(cage [u.mark.load.dart (tube q.cage.view)])
       (enqu-take here (sys-give /bond) ~ %bond wire.dart &+view)
       ::
@@ -1567,7 +1623,7 @@
         ?.  match  ~
         =/  got=(unit page)  (~(get si:nexus silo) val)
         ?~  got  ~
-        =/  res=(each cage tang)  (clam-page u.got)
+        =/  res=(each cage tang)  (clam-page cod u.got)
         ?:  ?=(%| -.res)  ~
         `[key p.res]
       (enqu-take here (sys-give /peep) ~ %peep wire.dart &+hits)
@@ -1609,7 +1665,7 @@
       ?~  nex-info
         (enqu-take here (sys-give /manu) ~ %manu wire.dart |+~[leaf+"no nexus covers this path"])
       ::  ~&  >  "process-manu-search: build-nexus {(trip q.u.nex-info)} at {(spud (snoc path.here name.here))}"
-      =/  nex=(unit nexus:nexus)  (build-nexus q.u.nex-info)
+      =/  nex=(unit nexus:nexus)  (build-nexus cod q.u.nex-info)
       ?~  nex
         (enqu-take here (sys-give /manu) ~ %manu wire.dart |+~[leaf+"nexus build failed: {(trip q.u.nex-info)}"])
       ::  Relativize target path to nexus location
@@ -1632,7 +1688,7 @@
       %manu
     ::  Direct: build nexus from neck, call on-manu directly
     ::  ~&  >  "process-manu-direct: build-nexus {(trip neck.dart)} at {(spud (snoc path.here name.here))}"
-    =/  nex=(unit nexus:nexus)  (build-nexus neck.dart)
+    =/  nex=(unit nexus:nexus)  (build-nexus cod neck.dart)
     ?~  nex
       (enqu-take here (sys-give /manu) ~ %manu wire.dart |+~[leaf+"nexus not found: {(trip neck.dart)}"])
     =/  text=@t  (on-manu:u.nex mana.dart)
@@ -1652,7 +1708,7 @@
     ::
       %code
     ::  Look up compiled artifact from bins
-    =/  entry=(unit built:nexus)  (bins-get path.dart name.dart)
+    =/  entry=(unit built:nexus)  (get-built cod path.dart name.dart)
     ?^  entry
       (enqu-take here (sys-give /code) ~ %code wire.dart u.entry)
     ::  Cache miss — lazy-build tubes on demand
@@ -1663,7 +1719,7 @@
         ==
       (enqu-take here (sys-give /code) ~ %code wire.dart [%tang ~[leaf+"bins: {(trip name.dart)} not found at {(spud path.dart)}"]])
     =+  [from to]=[i.t.path.dart name.dart]
-    =^  res=built:nexus  this  (build-tube-lazy from to)
+    =^  res=built:nexus  this  (build-tube-lazy cod from to)
     (enqu-take here (sys-give /code) ~ %code wire.dart res)
     ::
       %bowl
@@ -1752,7 +1808,7 @@
   ::  Validate new state before handling result (runtime, no force)
   ::  ~&  >  "process-result: validate-new-cage for %{(trip p.cage.u.file-data)} at {(spud (snoc path.here name.here))}"
   =/  validated=(each vase tang)
-    (validate-new-cage p.cage.u.file-data `fil-state new-state %.n)
+    (validate-new-cage path.here p.cage.u.file-data `fil-state new-state %.n)
   ?:  ?=(%| -.validated)
     ::  Validation failed - treat as crash
     =.  this  (spawn-proc here [%rise p.validated])
@@ -1812,7 +1868,7 @@
         new-ball  rol-ball
     ==
     ::  Validate all cages in loaded ball
-    =/  validated=ball:tarball  ~|(%validate-ball-make (validate-ball new-ball))
+    =/  validated=ball:tarball  ~|(%validate-ball-make (validate-ball dest-path new-ball))
     ::  Put the final sand, gain, and ball back
     =.  sand  (put-sub-sand sand dest-path new-sand)
     =.  gain  (put-sub-gain gain dest-path new-gain)
@@ -1831,7 +1887,7 @@
     ::  Validate the cage before storing (new file, no old content)
     ::  ~&  >  "process-make: validate-new-cage for %{(trip p.cage.p.make)} at {(spud (snoc path.dest-rail name.dest-rail))}"
     =/  validated=(each vase tang)
-      (validate-new-cage p.cage.p.make ~ q.cage.p.make %.n)
+      (validate-new-cage path.dest-rail p.cage.p.make ~ q.cage.p.make %.n)
     ?:  ?=(%| -.validated)
       ~|("make failed: validation error" (mean p.validated))
     ::  Record gain flag if set
@@ -2154,7 +2210,7 @@
     =/  old=(unit content:tarball)
       (~(get ba:tarball ball.acc) [dir name])
     =/  dais=(unit dais:clay)
-      =/  res=(unit built:nexus)  (bins-get /das mar)
+      =/  res=(unit built:nexus)  (get-built / /das mar)
       ?~  res  ~
       ?.  ?=(%vase -.u.res)  ~
       (mole |.(!<(dais:clay vase.u.res)))
@@ -2185,23 +2241,22 @@
   ::  Subscribe to %next %z on desk root
   %-  emit-card
   [%pass /clay-desk/[dek] %arvo %c %warp our.bowl dek `[%next %z da+now.bowl /]]
-::  React to any change under /sys/code/.
+::  React to any change under a code nexus.
 ::  Enforces: src/ is hoon-only, bin/ is build-managed.
 ::  Triggers rebuild when src/ changes.
 ::
-::  Mirror /gub/ from Clay directly into /sys/code/
-::  Builds a target ball from Clay scries, then uses load-ball-changes
-::  to diff against current state and properly bump born/silo/hist.
-::
-::  Compile /sys/code/ into bins.lode, update lode.
-::  Purges non-hoon files from /sys/code/.
+::  Compile a code nexus into its lode in the code map.
+::  Purges non-hoon files from the code nexus.
 ::
 ++  build-code
+  |=  cod=path
   ^+  this
-  =/  src-ball=ball:tarball  (~(dip ba:tarball ball) /sys/code)
+  ~&  >  "build-code: start {(spud cod)}"
+  =/  src-ball=ball:tarball  (~(dip ba:tarball ball) cod)
   ::  Separate hoon and non-hoon files
   =/  all-files=(list [=rail:tarball =content:tarball])
     ~(tap ba:tarball src-ball)
+  ~&  >  "build-code: {<(lent all-files)>} files"
   =/  hoon-ball=ball:tarball
     %+  roll  all-files
     |=  [[=rail:tarball =content:tarball] acc=_src-ball]
@@ -2210,14 +2265,18 @@
     acc
   =/  mime-files=(list [=rail:tarball =content:tarball])
     (skim all-files |=([* =content:tarball] =(%mime p.cage.content)))
-  ::  Ensure %code neck on /sys/code/
+  ::  Ensure %code neck on code nexus directory
   =/  code-lump=lump:tarball
-    (fall (~(get of ball) /sys/code) *lump:tarball)
-  =.  ball  (~(put of ball) /sys/code code-lump(neck `%code))
+    (fall (~(get of ball) cod) *lump:tarball)
+  =.  ball  (~(put of ball) cod code-lump(neck `%code))
+  ::  Get or create lode for this code nexus
+  =/  =lode:nexus  (fall (~(get by code) cod) *lode:nexus)
   ::  Reconstruct cache from bins + keys
   =/  old-cache=build-cache:build  (bins-to-cache:build bins.lode keys.lode)
+  ~&  >  "build-code: compiling..."
   ::  Single compilation pass: marks, libs, nexuses (hoon only)
   =/  res=build-out:build  (build-all:build sut src-ball old-cache)
+  ~&  >  "build-code: compiled {<~(wyt by results.res)>} results"
   ::  Build bins axal from results + mime files
   =/  old-bins=bins:nexus  bins.lode
   ::  Seed bins with mime files
@@ -2276,19 +2335,26 @@
       (~(put of acc) /nav (~(put by nav-node) mak [%tang p.nave-res]))
     (~(put of acc) /nav (~(put by nav-node) mak [%vase p.nave-res]))
   ::  Update build state
+  ~&  >  "build-code: updating lode"
   =.  lode  [keys.res deps.res new-bins]
+  =.  code  (~(put by code) cod lode)
   ::  Validate marks: clam existing grubs through changed marks
-  =^  new-bins  this  (validate-marks old-bins new-bins)
-  =.  bins.lode  new-bins
+  ~&  >  "build-code: validate-marks"
+  =^  new-bins  this  (validate-marks cod old-bins new-bins)
+  =/  upd-lode=lode:nexus  (fall (~(get by code) cod) *lode:nexus)
+  =.  code  (~(put by code) cod upd-lode(bins new-bins))
   ::  Validate nexuses: run on-load for directories using changed nexuses
-  (validate-nexuses old-bins bins.lode)
+  ~&  >  "build-code: validate-nexuses"
+  =.  this  (validate-nexuses cod old-bins new-bins)
+  ~&  >  "build-code: done"
+  this
 ::  Validate marks: for each changed mark in bin/mar/, build a dais
 ::  and clam all grubs with that mark through validate-vase.
 ::  On success, updates grubs in ball with clammed vases.
 ::  On failure, downgrades the mark to .tang in new-bin.
 ::
 ++  validate-marks
-  |=  [old-bins=bins:nexus new-bins=bins:nexus]
+  |=  [cod=path old-bins=bins:nexus new-bins=bins:nexus]
   ^+  [new-bins this]
   ::  Gather all successfully compiled mark cores from bins /mar node
   =/  mar-node=(map @ta built:nexus)
@@ -2325,25 +2391,28 @@
     $(remaining t.remaining)
   =/  =dais:clay  p.dais-res
   ::  Find all grubs with this mark, including booms with matching inner mark
+  =/  scope=path  (snip `(list @ta)`cod)
   =/  grubs=(list [=rail:tarball =content:tarball])
     %+  skim  ~(tap ba:tarball ball)
     |=  [=rail:tarball =content:tarball]
-    ?.  !=(/sys (scag 1 path.rail))  |
+    ?.  =(scope (scag (lent scope) path.rail))  |
     ?:  =(mak p.cage.content)  &
     ?.  =(%boom p.cage.content)  |
     =/  [* inner=page]  ;;([tang page] q.q.cage.content)
     =(mak p.inner)
   ?~  grubs  $(remaining t.remaining)
-  ::  Clam each grub: extract noun from cage or boom, validate through dais
+  ::  Clam each grub through dais; booms extract inner noun
   =/  results=(list [=rail:tarball =content:tarball res=(each vase tang)])
     %+  turn  grubs
     |=  [=rail:tarball =content:tarball]
-    =/  noun=*
-      ?:  =(%boom p.cage.content)
-        q:(tail ;;([tang page] q.q.cage.content))
-      q.q.cage.content
-    [rail content (validate-vase dais ~ [-:!>(**) noun] %.y)]
-  ::  Save results: successes restore, failures boom
+    ?:  =(%boom p.cage.content)
+      =/  [err=tang =page]  ;;([tang page] q.q.cage.content)
+      [rail content (mule |.((vale:dais q.page)))]
+    =/  new=(each vase tang)  (mule |.((vale:dais q.q.cage.content)))
+    ?:  ?=(%| -.new)
+      [rail content new]
+    [rail content (validate-vase dais `q.cage.content p.new %.n)]
+  ::  Save results: success restores normal cage, failure re-booms
   =.  this
     %+  roll  results
     |=  [[=rail:tarball =content:tarball res=(each vase tang)] acc=_this]
@@ -2352,7 +2421,8 @@
     ~&  >>  "validate-marks: boom {(spud (snoc path.rail name.rail))}"
     =/  noun=*
       ?:  =(%boom p.cage.content)
-        q:(tail ;;([tang page] q.q.cage.content))
+        =/  [err=tang =page]  ;;([tang page] q.q.cage.content)
+        q.page
       q.q.cage.content
     (save-file:acc rail content(cage [%boom !>([p.res [mak noun]])]))
   =/  booms=(list [=rail:tarball =content:tarball res=(each vase tang)])
@@ -2366,7 +2436,7 @@
 ::  apply the results (like reload-nexus). Crashes if any on-load fails.
 ::
 ++  validate-nexuses
-  |=  [old-bins=bins:nexus new-bins=bins:nexus]
+  |=  [cod=path old-bins=bins:nexus new-bins=bins:nexus]
   ^+  this
   ::  Find changed nexuses in bins /nex node
   =/  nex-node=(map @ta built:nexus)
@@ -2388,12 +2458,13 @@
   ::  Build nexus from compiled vase
   =/  nex-res=(each nexus:nexus tang)
     (mule |.(!<(nexus:nexus vase)))
-  ::  Find all directories using this neck (outside /sys/)
+  ::  Find all directories using this neck under this code nexus's scope
+  =/  scope=path  (snip `(list @ta)`cod)
   =/  dirs=(list fold:tarball)
     %+  murn  ~(tap of ball)
     |=  [pax=path =lump:tarball]
     ?.  ?&(?=(^ neck.lump) =(u.neck.lump neck))  ~
-    ?:  =(/sys (scag 1 pax))  ~
+    ?.  =(scope (scag (lent scope) pax))  ~
     `pax
   ?~  dirs  $(remaining t.remaining)
   ?:  ?=(%| -.nex-res)
@@ -2458,12 +2529,13 @@
     ?:(?=(%& -.res) ~ `(weld ~[leaf+"tube {(trip name.rail)}: type mismatch"] p.res))
   ::  No validation for other paths (e.g. lib/*.hoon)
   ~
-::  Mirror /gub/ from Clay into /sys/code/, then build.
+::  Mirror /gub/ from Clay into /code/, then build.
 ::
 ++  sync-gub
   ^+  this
+  ~&  >  "sync-gub: start"
   =/  pax=path  /(scot %p our.bowl)/[q.byk.bowl]/(scot %da now.bowl)
-  ::  Build the target ball for /sys/code/
+  ::  Build the target ball for /code/
   =/  files=(list path)  .^((list path) %ct (weld pax /gub))
   =/  new-src=ball:tarball
     %+  roll  files
@@ -2481,7 +2553,7 @@
       (~(put ba:tarball acc) [/ %'sys.kelvin'] [~ %kelvin !>(waft)])
     ?:  =(mar %hoon)
       =/  =vase  .^(vase %cr (weld pax fyl))
-      =/  val=(each ^vase tang)  (validate-new-cage mar ~ vase %.y)
+      =/  val=(each ^vase tang)  (validate-new-cage /code mar ~ vase %.y)
       ?.  ?=(%& -.val)
         ~&  >>>  "sync-gub: validation failed for {(trip name)}: {(trip (render-tang:build p.val))}"
         acc
@@ -2491,12 +2563,12 @@
     =/  tub=tube:clay  .^(tube:clay %cc (weld pax /[mar]/mime))
     =/  =mime  !<(mime (tub vase))
     (~(put ba:tarball acc) [rel-dir name] [~ %mime !>(mime)])
-  ::  Get old ball at /sys/code/
-  =/  old-src=ball:tarball  (~(dip ba:tarball ball) /sys/code)
+  ::  Get old ball at /code/
+  =/  old-src=ball:tarball  (~(dip ba:tarball ball) /code)
   ::  Diff and bump src changes (born, silo, hist, notify)
-  =.  this  (load-ball-changes /sys/code old-src new-src)
+  =.  this  (load-ball-changes /code old-src new-src)
   ::  Compile
-  build-code
+  (build-code /code)
 ::  List all files mirrored under a /sys/clay/[desk] path
 ::  Returns Clay-style paths (like /app/foo/hoon) with mark as last element
 ::
@@ -2634,10 +2706,11 @@
   ::  Record content in silo and hist
   =.  this  (record-hist here cage.new-content ~)
   =.  this  (bump-file here)
-  ::  Rebuild on /sys/code/ change
-  ?.  =(/sys/code (scag 2 path.here))
-    this
-  build-code
+  ::  Rebuild if change is inside a code nexus
+  =/  cod=(unit path)  (code-in path.here)
+  ?~  cod  this
+  ~&  >>>  "save-file: triggering build-code from {(spud (snoc path.here name.here))}"
+  (build-code u.cod)
 ::
 ++  wrap-wire
   |=  [here=rail:tarball =wire]

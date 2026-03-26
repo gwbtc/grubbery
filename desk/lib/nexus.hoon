@@ -8,6 +8,7 @@
       deps=(map rail:tarball (set rail:tarball))
       =bins
   ==
++$  code  (map fold:tarball lode)
 ::  The ball (tarball) is WYSIWYG: fully materialized, no dedup.
 ::  Every file is stored inline. To deduplicate, make references
 ::  via path+cass rather than copying content.
@@ -353,7 +354,11 @@
 ::
 +$  pipe  (map @ta proc:fiber)
 +$  pool  (axal pipe)
-+$  boom  [fold=(map fold:tarball tang) file=(map rail:tarball tang)]
++$  boom
+  ::  (axal [fol=(unit tang) fil=(map @ta tang)])
+  $:  fold=(map fold:tarball tang)
+      file=(map rail:tarball tang)
+  ==
 ::  Internal subscriptions: process watches tree locations
 ::
 +$  subscribers    (map rail:tarball [=wire mark=(unit mark)])
