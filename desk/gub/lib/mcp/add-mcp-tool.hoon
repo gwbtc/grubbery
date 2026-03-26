@@ -1,7 +1,7 @@
 /<  tools  /lib/nex/tools.hoon
 ::  add-mcp-tool: add a custom MCP tool
 ::
-::    Writes Hoon source to the ball mirror at /sys/code/lib/mcp/
+::    Writes Hoon source to the ball mirror at /code/lib/mcp/
 ::    so build-code compiles it into bins. Then checks compilation
 ::    result via %code dart.
 ::
@@ -13,7 +13,7 @@
   ^~  %-  crip
   ;:  weld
     "Add a custom MCP tool by writing Hoon source to the "
-    "build pipeline at /sys/code/lib/mcp/. The source is "
+    "build pipeline at /code/lib/mcp/. The source is "
     "compiled by build-code and made available via bins. "
     "The source must produce a valid tool:tools. "
     "Use check_bin to verify compilation status."
@@ -36,12 +36,12 @@
     (~(dog jo:json-utils [%o args.st]) /source so:dejs:format)
   =/  file-name=@ta  (cat 3 tool-name '.hoon')
   =/  road=road:tarball
-    [%& %& /sys/code/lib/mcp file-name]
+    [%& %& /code/lib/mcp file-name]
   ::  Write source to ball mirror
   ;<  exists=?  bind:m  (peek-exists:io /chk road)
   ?:  exists
     ;<  ~  bind:m  (over:io /write road hoon+!>(source))
-    (pure:m [%text (crip "Source written: /sys/code/lib/mcp/{(trip file-name)}. Use check_bin to verify compilation.")])
+    (pure:m [%text (crip "Source written: /code/lib/mcp/{(trip file-name)}. Use check_bin to verify compilation.")])
   ;<  ~  bind:m  (make:io /write road |+[%.n hoon+!>(source) ~])
-  (pure:m [%text (crip "Source written: /sys/code/lib/mcp/{(trip file-name)}. Use check_bin to verify compilation.")])
+  (pure:m [%text (crip "Source written: /code/lib/mcp/{(trip file-name)}. Use check_bin to verify compilation.")])
 --

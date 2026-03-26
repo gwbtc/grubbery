@@ -4,7 +4,6 @@
 ::    /main.sig         bind HTTP path, dispatch requests
 ::    /requests/{id}    parse HTTP, route protocol vs tools/call
 ::    /tools/{id}       tool execution grub (mark %tool-state)
-::    /cus/**           custom tool sources (reserved for future use)
 ::
 /<  nex-server  /lib/nex/server.hoon
 /<  nex-mcp     /lib/nex/mcp.hoon
@@ -28,7 +27,7 @@
       =/  m  (fiber:fiber:nexus ,(map @t tool:nex-tools))
       ^-  form:m
       ;<  src-seen=seen:nexus  bind:m
-        (peek:io /src [%& %| /sys/code/lib/mcp] ~)
+        (peek:io /src [%& %| /code/lib/mcp] ~)
       ?.  ?=([%& %ball *] src-seen)
         (pure:m ~)
       ?~  fil.ball.p.src-seen
@@ -79,7 +78,6 @@
         [%fall %& [/ %'main.sig'] %.n [~ %sig !>(~)]]
         [%fall %| /requests [~ ~] [~ ~] empty-dir:loader]
         [%fall %| /tools [~ ~] [~ ~] empty-dir:loader]
-        [%fall %| /cus [~ ~] [~ ~] empty-dir:loader]
     ==
       [~ %1]
     [sand gain ball]
@@ -223,14 +221,11 @@
         ver.ud              Schema version.
 
       DIRECTORIES:
-        cus/                Custom tool sources (reserved for future use).
         tools/              Running tool instances. Each active tool call
                             gets a fiber here (tool-state mark). Cleaned
                             up on completion.
         requests/           Per-request fibers for active HTTP connections.
       """
-        [%cus ~]
-      'Custom tool sources (reserved for future use).'
         [%tools ~]
       'Running tool instances. Each active tool call gets a fiber here with its state (tool-state mark). Cleaned up on completion.'
         [%requests ~]

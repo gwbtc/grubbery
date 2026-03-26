@@ -71,7 +71,7 @@
     ?=([%b %.y] u.v)
   ::  Peek ball mirror for tool source filenames
   ;<  src-seen=seen:nexus  bind:m
-    (peek:io /src [%& %| /sys/code/lib/mcp] ~)
+    (peek:io /src [%& %| /code/lib/mcp] ~)
   ?.  ?=([%& %ball *] src-seen)
     (pure:m [%error 'No tool sources found'])
   ?~  fil.ball.p.src-seen
