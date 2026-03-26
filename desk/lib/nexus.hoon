@@ -8,6 +8,10 @@
       deps=(map rail:tarball (set rail:tarball))
       =bins
   ==
+::  TODO: each code nexus compiles independently, so identical libraries
+::  in different nexuses are recompiled and stored separately. A global
+::  refcounted cache keyed by build hash (like Clay's +flow across desks)
+::  would let nexuses share compiled artifacts and skip redundant builds.
 +$  code  (map fold:tarball lode)
 ::  The ball (tarball) is WYSIWYG: fully materialized, no dedup.
 ::  Every file is stored inline. To deduplicate, make references

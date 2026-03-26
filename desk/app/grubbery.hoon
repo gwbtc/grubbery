@@ -69,14 +69,21 @@
   =/  lmp=lump:tarball  (fall fil.ball [~ ~ ~])
   =.  ball  ball(fil `lmp(neck `%root))
   ::  Compile code from Clay (cascades nexus on-loads)
-  =.  state  +:abet:sync-gub:hc
-  ::  Validate and sync all changes
+  =^  gub-cards  state  abet:sync-gub:hc
   =.  ball  ~|(%validate-ball-init (validate-ball:hc /code ball))
-  =.  state  +:abet:(load-ball-changes:hc / *ball:tarball ball)
-  =.  state  +:abet:sync-dill:hc
-  =.  state  +:abet:sync-clay:hc
-  =.  state  +:abet:sync-jael:hc
-  [cards this]
+  =^  load-cards  state  abet:(load-ball-changes:hc / *ball:tarball ball)
+  =^  dill-cards  state  abet:sync-dill:hc
+  =^  clay-cards  state  abet:sync-clay:hc
+  =^  jael-cards  state  abet:sync-jael:hc
+  :_  this
+  ;:  weld
+    gub-cards
+    load-cards
+    dill-cards
+    clay-cards
+    jael-cards
+    cards
+  ==
 ::
 ++  on-save
   ^-  vase
@@ -93,15 +100,23 @@
     ::  Capture ball before rebuild (for change detection)
     =/  pre-ball=ball:tarball  ball
     ::  Compile code from Clay (cascades nexus on-loads)
-    =.  state  +:abet:sync-gub:hc
+    =^  gub-cards  state  abet:sync-gub:hc
     ::  Validate ball (types may have changed)
     =.  ball  ~|(%validate-ball-reload (validate-ball:hc /code ball))
     ::  Sync all changes
-    =.  state  +:abet:(load-ball-changes:hc / pre-ball ball)
-    =.  state  +:abet:sync-dill:hc
-    =.  state  +:abet:sync-clay:hc
-    =.  state  +:abet:sync-jael:hc
-    [cards this]
+    =^  load-cards  state  abet:(load-ball-changes:hc / pre-ball ball)
+    =^  dill-cards  state  abet:sync-dill:hc
+    =^  clay-cards  state  abet:sync-clay:hc
+    =^  jael-cards  state  abet:sync-jael:hc
+    :_  this
+    ;:  weld
+      gub-cards
+      load-cards
+      dill-cards
+      clay-cards
+      jael-cards
+      cards
+    ==
   ==
 ::
 ++  on-poke
@@ -302,6 +317,7 @@
       abet:(save-file:hc [/sys/dill/sessions ses] [~ %dill-blit !>(p.sign)])
     [cards this]
   ?:  ?=([%clay-desk @ ~] wire)
+    ~&  >>  "on-arvo: clay writ on wire {<wire>}"
     ?>  ?=([%clay %writ *] sign)
     =/  dek=desk  (slav %tas i.t.wire)
     =^  cards  state
@@ -566,9 +582,11 @@
   ^-  dais:clay
   =/  res=(unit built:nexus)  (get-built pax /das mark)
   ?~  res
-    ~&  >>>  "get-dais: %{(trip mark)} not found"
-    ~|([%dais-not-found mark] !!)
-  ?.  ?=(%vase -.u.res)  ~|([%dais-failed mark] !!)
+    ~&  >>>  "get-dais: %{(trip mark)} not found, searched from {(spud pax)}"
+    ~|([%dais-not-found mark pax] !!)
+  ?.  ?=(%vase -.u.res)
+    ~&  >>>  "get-dais: %{(trip mark)} failed (tang), searched from {(spud pax)}"
+    ~|([%dais-failed mark pax] !!)
   !<(dais:clay vase.u.res)
 ::  Lazily build a tube from compiled mark cores in bins
 ::
@@ -626,7 +644,14 @@
     (mule |.(!>(;;(tang q.new))))
   ?:  =(%mime mark)
     (mule |.(!>(;;(mime q.new))))
-  =/  =dais:clay  (get-dais pax mark)
+  ?:  =(%kelvin mark)
+    (mule |.(!>(;;(waft:clay q.new))))
+  =/  res=(unit built:nexus)  (get-built pax /das mark)
+  ?~  res
+    |+~[leaf+"validate-new-cage: no dais for %{(trip mark)} at {(spud pax)}"]
+  ?.  ?=(%vase -.u.res)
+    |+~[leaf+"validate-new-cage: dais for %{(trip mark)} failed at {(spud pax)}"]
+  =/  =dais:clay  !<(dais:clay vase.u.res)
   (validate-vase dais old new force)
 ::  Clam a cage at sandbox boundary
 ::  Used when data crosses a weir filter from untrusted source.
@@ -2154,6 +2179,7 @@
 ::
 ++  sync-clay
   ^+  this
+  ~&  >>  "sync-clay: start"
   ::  Ensure /sys/clay directory exists
   =?  ball  =(~ (~(get of ball) /sys/clay))
     (~(put of ball) /sys/clay [~ ~ ~])
@@ -2227,6 +2253,7 @@
     =/  name=@ta   (cat 3 stem (cat 3 '.' mar))
     (delete:acc dir name)
   ::  Subscribe to %next %z on desk root
+  ~&  >>  "sync-clay-desk: subscribing to {<dek>}"
   %-  emit-card
   [%pass /clay-desk/[dek] %arvo %c %warp our.bowl dek `[%next %z da+now.bowl /]]
 ::  React to any change under a code nexus.
@@ -2253,12 +2280,54 @@
     acc
   =/  mime-files=(list [=rail:tarball =content:tarball])
     (skim all-files |=([* =content:tarball] =(%mime p.cage.content)))
+  ::  Check kelvin compatibility
+  =/  kel-content=(unit content:tarball)
+    (~(get ba:tarball src-ball) [/ %'sys.kelvin'])
+  ~&  >  "build-code: kelvin file {?~(kel-content "missing" "found")}"
+  =/  kel-ok=?
+    ?~  kel-content
+      ~&  >  "build-code: no sys.kelvin, skipping check"
+      %.y
+    ~&  >  "build-code: sys.kelvin mark={<p.cage.u.kel-content>}"
+    ~&  >  "build-code: sys.kelvin type={<p.q.cage.u.kel-content>}"
+    =/  waft-res=(each waft:clay tang)
+      (mule |.(!<(waft:clay q.cage.u.kel-content)))
+    ?:  ?=(%| -.waft-res)
+      ~&  >>>  "build-code: failed to extract waft from sys.kelvin"
+      ~&  >>>  p.waft-res
+      %.y
+    =/  wefts=(set weft)  (waft-to-wefts:clay p.waft-res)
+    ~&  >  "build-code: wefts={<wefts>} checking for [%grubbery {<kel>}]"
+    =/  ok=?  (~(has in wefts) [%grubbery kel])
+    ~&  >  "build-code: kelvin ok={<ok>}"
+    ok
   ::  Ensure %code neck on code nexus directory
   =/  code-lump=lump:tarball
     (fall (~(get of ball) cod) *lump:tarball)
   =.  ball  (~(put of ball) cod code-lump(neck `%code))
   ::  Get or create lode for this code nexus
   =/  =lode:nexus  (fall (~(get by code) cod) *lode:nexus)
+  =/  old-bins=bins:nexus  bins.lode
+  ::  Kelvin mismatch: every file becomes a crash
+  ?.  kel-ok
+    ~&  >>>  "build-code: kelvin mismatch in {(spud cod)}"
+    =/  =waft:clay  !<(waft:clay q.cage:(need kel-content))
+    =/  err=tang
+      :~  leaf+"incompatible kelvin: {(spud cod)}"
+          leaf+"  code nexus declares: {<(waft-to-wefts:clay waft)>}"
+          leaf+"  grubbery expects: [%grubbery {<kel>}]"
+      ==
+    =/  new-bins=bins:nexus
+      %+  roll  all-files
+      |=  [[=rail:tarball =content:tarball] acc=bins:nexus]
+      ?.  =(%hoon p.cage.content)  acc
+      =/  stem=@ta  (strip-hoon:build name.rail)
+      =/  node=(map @ta built:nexus)
+        (fall (~(get of acc) path.rail) *(map @ta built:nexus))
+      (~(put of acc) path.rail (~(put by node) stem [%tang err]))
+    =.  lode  [~ ~ new-bins]
+    =.  code  (~(put by code) cod lode)
+    this
   ::  Reconstruct cache from bins + keys
   =/  old-cache=build-cache:build  (bins-to-cache:build bins.lode keys.lode)
   ~&  >  "build-code: compiling..."
@@ -2266,7 +2335,6 @@
   =/  res=build-out:build  (build-all:build sut src-ball old-cache)
   ~&  >  "build-code: compiled {<~(wyt by results.res)>} results"
   ::  Build bins axal from results + mime files
-  =/  old-bins=bins:nexus  bins.lode
   ::  Seed bins with mime files
   =/  new-bins=bins:nexus
     %+  roll  mime-files
@@ -2608,12 +2676,13 @@
   ^+  this
   ?~  riot
     ::  Desk was deleted — unsub, remove mirror
-    ~&  >  [%clay-desk-deleted dek]
+    ~&  >>  "on-clay-writ: desk deleted {<dek>}"
     (unmount-clay-desk dek)
   ::  Desk changed — re-sync files and re-subscribe
-  ~&  >  [%clay-desk-changed dek]
+  ~&  >>  "on-clay-writ: desk changed {<dek>}"
   =.  this  (sync-clay-desk dek)
   =?  this  =(dek %grubbery)
+    ~&  >>  "on-clay-writ: triggering sync-gub"
     sync-gub
   this
 ::
