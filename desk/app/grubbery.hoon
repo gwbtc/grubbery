@@ -2189,7 +2189,7 @@
 ::  Enforces: src/ is hoon-only, bin/ is build-managed.
 ::  Triggers rebuild when src/ changes.
 ::
-::  Mirror /gub/{mar,nex,lib} from Clay directly into /sys/code/
+::  Mirror /gub/ from Clay directly into /sys/code/
 ::  Builds a target ball from Clay scries, then uses load-ball-changes
 ::  to diff against current state and properly bump born/silo/hist.
 ::
@@ -2458,43 +2458,39 @@
     ?:(?=(%& -.res) ~ `(weld ~[leaf+"tube {(trip name.rail)}: type mismatch"] p.res))
   ::  No validation for other paths (e.g. lib/*.hoon)
   ~
-::  Mirror /gub/{mar,nex,lib} from Clay into /sys/code/, then build.
+::  Mirror /gub/ from Clay into /sys/code/, then build.
 ::
 ++  sync-gub
   ^+  this
   =/  pax=path  /(scot %p our.bowl)/[q.byk.bowl]/(scot %da now.bowl)
   ::  Build the target ball for /sys/code/
+  =/  files=(list path)  .^((list path) %ct (weld pax /gub))
   =/  new-src=ball:tarball
-    =/  cats=(list @ta)  ~[%mar %nex %lib]
-    |-  ^-  ball:tarball
-    ?~  cats  *ball:tarball
-    =/  kat=@ta  i.cats
-    =/  files=(list path)  .^((list path) %ct (weld pax /gub/[kat]))
-    ::  Build ball for this category
-    =/  kat-ball=ball:tarball
-      %+  roll  files
-      |=  [fyl=path acc=ball:tarball]
-      ?.  ?=([@ @ @ @ *] fyl)  acc
-      =/  mar=@tas   (rear fyl)
-      =/  sans=path  (snip `(list @ta)`fyl)
-      =/  stem=@ta   (rear sans)
-      =/  rel-dir=path  (slag 2 (snip `(list @ta)`sans))
-      =/  name=@ta   (cat 3 stem (cat 3 '.' mar))
-      ?:  =(mar %hoon)
-        =/  =vase  .^(vase %cr (weld pax fyl))
-        =/  val=(each ^vase tang)  (validate-new-cage mar ~ vase %.y)
-        ?.  ?=(%& -.val)
-          ~&  >>>  "sync-gub: validation failed for {(trip name)}: {(trip (render-tang:build p.val))}"
-          acc
-        (~(put ba:tarball acc) [rel-dir name] [~ mar p.val])
-      ::  Non-hoon: convert to mime via tube, store as %mime grub
+    %+  roll  files
+    |=  [fyl=path acc=ball:tarball]
+    ?.  ?=([@ @ @ *] fyl)  acc
+    =/  mar=@tas   (rear fyl)
+    =/  sans=path  (snip `(list @ta)`fyl)
+    =/  stem=@ta   (rear sans)
+    =/  rel-dir=path  (slag 1 (snip `(list @ta)`sans))
+    =/  name=@ta   (cat 3 stem (cat 3 '.' mar))
+    ::  sys.kelvin: store as kelvin mark at root
+    ?:  =(%'sys.kelvin' name)
       =/  =vase  .^(vase %cr (weld pax fyl))
-      =/  tub=tube:clay  .^(tube:clay %cc (weld pax /[mar]/mime))
-      =/  =mime  !<(mime (tub vase))
-      (~(put ba:tarball acc) [rel-dir name] [~ %mime !>(mime)])
-    ::  Merge into accumulating ball
-    =/  rest=ball:tarball  $(cats t.cats)
-    rest(dir (~(put by dir.rest) kat kat-ball))
+      =/  =waft:clay  ;;(waft:clay q.vase)
+      (~(put ba:tarball acc) [/ %'sys.kelvin'] [~ %kelvin !>(waft)])
+    ?:  =(mar %hoon)
+      =/  =vase  .^(vase %cr (weld pax fyl))
+      =/  val=(each ^vase tang)  (validate-new-cage mar ~ vase %.y)
+      ?.  ?=(%& -.val)
+        ~&  >>>  "sync-gub: validation failed for {(trip name)}: {(trip (render-tang:build p.val))}"
+        acc
+      (~(put ba:tarball acc) [rel-dir name] [~ mar p.val])
+    ::  Non-hoon: convert to mime via tube, store as %mime grub
+    =/  =vase  .^(vase %cr (weld pax fyl))
+    =/  tub=tube:clay  .^(tube:clay %cc (weld pax /[mar]/mime))
+    =/  =mime  !<(mime (tub vase))
+    (~(put ba:tarball acc) [rel-dir name] [~ %mime !>(mime)])
   ::  Get old ball at /sys/code/
   =/  old-src=ball:tarball  (~(dip ba:tarball ball) /sys/code)
   ::  Diff and bump src changes (born, silo, hist, notify)
