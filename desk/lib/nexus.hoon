@@ -354,11 +354,51 @@
 ::
 +$  pipe  (map @ta proc:fiber)
 +$  pool  (axal pipe)
-+$  boom
-  ::  (axal [fol=(unit tang) fil=(map @ta tang)])
-  $:  fold=(map fold:tarball tang)
-      file=(map rail:tarball tang)
-  ==
++$  boom  (axal [fol=(unit tang) fil=(map @ta tang)])
+++  bm
+  |_  =boom
+  ++  get
+    |=  pax=path
+    ^-  [fol=(unit tang) fil=(map @ta tang)]
+    (fall (~(get of boom) pax) [~ ~])
+  ::  +put-fold: boom a directory (nexus on-load crash)
+  ::
+  ++  put-fold
+    |=  [pax=fold:tarball err=tang]
+    ^-  ^boom
+    =/  node  (get pax)
+    (~(put of boom) pax node(fol `err))
+  ::  +put-file: boom a file (on-file/spool crash)
+  ::
+  ++  put-file
+    |=  [here=rail:tarball err=tang]
+    ^-  ^boom
+    =/  node  (get path.here)
+    (~(put of boom) path.here node(fil (~(put by fil.node) name.here err)))
+  ::  +del-file: clear a file boom
+  ::
+  ++  del-file
+    |=  here=rail:tarball
+    ^-  ^boom
+    =/  node  (get path.here)
+    (~(put of boom) path.here node(fil (~(del by fil.node) name.here)))
+  ::  +clear: clear all booms under a directory
+  ::
+  ++  clear
+    |=  dest=fold:tarball
+    ^-  ^boom
+    (~(lop of boom) dest)
+  ::  +has-fold: check if any ancestor directory is boomed
+  ::
+  ++  has-fold
+    |=  pax=path
+    ^-  ?
+    |-
+    =/  node  (get pax)
+    ?:  ?=(^ fol.node)  &
+    ?~  pax  |
+    $(pax (snip `path`pax))
+  --
 ::  Internal subscriptions: process watches tree locations
 ::
 +$  subscribers    (map rail:tarball [=wire mark=(unit mark)])

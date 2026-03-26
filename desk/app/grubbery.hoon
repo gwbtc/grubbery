@@ -714,7 +714,7 @@
 ++  boom-nexus
   |=  [dest=fold:tarball err=tang]
   ^+  this
-  =.  boom  boom(fold (~(put by fold.boom) dest err))
+  =.  boom  (~(put-fold bm:nexus boom) dest err)
   ::  Replace all processes under dest with +stay
   (stay-all-procs dest)
 ::  Boom a file — store tang, +stay its process
@@ -722,7 +722,7 @@
 ++  boom-file
   |=  [here=rail:tarball err=tang]
   ^+  this
-  =.  boom  boom(file (~(put by file.boom) here err))
+  =.  boom  (~(put-file bm:nexus boom) here err)
   =/  =pipe:nexus  (fall (~(get of pool) path.here) ~)
   =/  old=(unit proc:fiber:nexus)  (~(get by pipe) name.here)
   =/  =proc:fiber:nexus
@@ -762,25 +762,13 @@
 ++  clear-booms-under
   |=  dest=fold:tarball
   ^+  boom
-  =/  len=@ud  (lent dest)
-  :_  %-  ~(gas by *(map rail:tarball tang))
-      %+  skip  ~(tap by file.boom)
-      |=  [r=rail:tarball *]
-      =(dest (scag len path.r))
-  %-  ~(gas by *(map fold:tarball tang))
-  %+  skip  ~(tap by fold.boom)
-  |=  [p=fold:tarball *]
-  =(dest (scag len p))
+  (~(clear bm:nexus boom) dest)
 ::  Check if a file's nexus is boomed (any ancestor directory in fold boom)
 ::
 ++  is-nexus-boomed
   |=  here=rail:tarball
   ^-  ?
-  =/  pax=path  path.here
-  |-
-  ?~  pax  |
-  ?:  (~(has by fold.boom) pax)  &
-  $(pax (snip `path`pax))
+  (~(has-fold bm:nexus boom) path.here)
 ::  Delete a file from pool and ball (NOT born - it's a high-water mark)
 ::
 ++  delete
@@ -1756,7 +1744,7 @@
     ~&  >>  "spawn-proc: boom {(spud (snoc path.here name.here))} — spool crash"
     (boom-file here p.proc-res)
   ::  Success — clear any existing file boom
-  =.  boom  boom(file (~(del by file.boom) here))
+  =.  boom  (~(del-file bm:nexus boom) here)
   =/  =process:fiber:nexus  p.proc-res
   =/  =pipe:nexus  (fall (~(get of pool) path.here) ~)
   =/  old=(unit proc:fiber:nexus)  (~(get by pipe) name.here)
