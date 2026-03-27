@@ -1356,7 +1356,7 @@
     ::  Allowed but should clam vases crossing sandbox boundary
     ::  (make darts don't need clamming - they go through validate-cage anyway)
     ::  Peek results are clammed inside handle-dart (data flows back)
-    ?.  ?=([%node * * ?(%poke %over %diff) *] dart)
+    ?.  ?=([%node * * ?(%poke %over) *] dart)
       (handle-dart here dart filt)
     =/  clammed=(each cage tang)  (clam-cage path.here cage.load.dart)
     ?:  ?=(%| -.clammed)
@@ -1379,7 +1379,7 @@
       ?(%peek %keep %drop %seek %peep %manu %boom %code %font)  %peek  :: read operations
       %poke                       %poke
         $?  %make  %cull  %sand  %load
-            %over  %diff  %gain  %lose
+            %over  %gain  %lose
         ==
       %make  :: all modify tree structure
     ==
@@ -1494,29 +1494,8 @@
         (enqu-take here (sys-give /over) ~ %over wire.dart `p.val)
       =/  new-content=content:tarball  u.old(cage [p.converted p.val])
       =.  this  (save-file dest new-content)
-      =.  this  (enqu-take dest (sys-give /writ) ~ %writ %over)
+      =.  this  (enqu-take dest (sys-give /writ) ~ %writ ~)
       (enqu-take here (sys-give /over) ~ %over wire.dart ~)
-      ::
-        %diff
-      ::  Replace grub content with same-mark cage, notify process
-      ?>  ?=(%& -.u.dest-lane)
-      =/  dest=rail:tarball  p.u.dest-lane
-      =/  old=(unit content:tarball)
-        (~(get ba:tarball ball) path.dest name.dest)
-      ?~  old
-        (enqu-take here (sys-give /diff) ~ %diff wire.dart `~[leaf+"file not found: {(spud (snoc path.dest name.dest))}"])
-      =/  old-mark=@tas  p.cage.u.old
-      ?.  =(old-mark p.cage.load.dart)
-        (enqu-take here (sys-give /diff) ~ %diff wire.dart `~[leaf+"mark mismatch: expected %{(trip old-mark)}, got %{(trip p.cage.load.dart)}"])
-      ::  ~&  >  "process-diff: validate-new-cage for %{(trip old-mark)} at {(spud (snoc path.dest name.dest))}"
-      =/  val=(each vase tang)
-        (validate-new-cage cod old-mark `q.cage.u.old q.cage.load.dart %.n)
-      ?:  ?=(%| -.val)
-        (enqu-take here (sys-give /diff) ~ %diff wire.dart `p.val)
-      =/  new-content=content:tarball  u.old(cage [old-mark p.val])
-      =.  this  (save-file dest new-content)
-      =.  this  (enqu-take dest (sys-give /writ) ~ %writ %diff)
-      (enqu-take here (sys-give /diff) ~ %diff wire.dart ~)
       ::
         %peek
       ::  Peek at dest - directory returns ball+sand, file returns cage
@@ -1621,12 +1600,19 @@
         =/  =lode:nexus  (~(got by code) u.nex)
         =/  inner=path  (slag (lent u.nex) path.dest)
         =/  node=(unit (map @ta built:nexus))  (~(get of bins.lode) inner)
-        ?~  node
-          (enqu-take here (sys-give /code) ~ %code wire.dart |+[%tang ~[leaf+"code: nothing at {(spud path.dest)}"]])
-        =/  hit=(unit built:nexus)  (~(get by u.node) name.dest)
-        ?~  hit
+        =/  hit=(unit built:nexus)
+          ?~  node  ~
+          (~(get by u.node) name.dest)
+        ::  Lazy tube building: if lookup misses on a /tub path, build on demand
+        ?^  hit
+          (enqu-take here (sys-give /code) ~ %code wire.dart |+u.hit)
+        ?.  ?=([%tub @ ~] inner)
           (enqu-take here (sys-give /code) ~ %code wire.dart |+[%tang ~[leaf+"code: {(trip name.dest)} not found at {(spud path.dest)}"]])
-        (enqu-take here (sys-give /code) ~ %code wire.dart |+u.hit)
+        =/  from=mark  i.t.inner
+        =/  to=mark  name.dest
+        =/  [=built:nexus =_this]
+          (build-tube-lazy (snip `path`u.nex) from to)
+        (enqu-take here (sys-give /code) ~ %code wire.dart |+built)
       ==
       ::
         %font

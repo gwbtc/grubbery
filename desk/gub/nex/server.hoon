@@ -311,8 +311,6 @@
       [%'POST' %poke]   (serve-post eyre-id api-path args body.request.req %poke)
   ::  POST /over/... — overwrite file content
       [%'POST' %over]   (serve-post eyre-id api-path args body.request.req %over)
-  ::  POST /diff/... — same-mark diff, notify process
-      [%'POST' %diff]   (serve-post eyre-id api-path args body.request.req %diff)
   ::  GET /keep/... — SSE stream of changes
       [%'GET' %keep]    (serve-keep eyre-id api-path args req)
   ::  DELETE /file/... — delete file
@@ -526,10 +524,10 @@
   =/  init-ball=ball:tarball  [`[~ ~ ~] ~]
   ;<  ~  bind:m  (make:io /make road &+[[~ ~] [~ ~] init-ball])
   (send-created eyre-id)
-::  +serve-post: POST /poke, /over, /diff — send dart to file
+::  +serve-post: POST /poke, /over — send dart to file
 ::
 ++  serve-post
-  |=  [eyre-id=@ta api-path=path args=(list [key=@t value=@t]) body=(unit octs) op=?(%poke %over %diff)]
+  |=  [eyre-id=@ta api-path=path args=(list [key=@t value=@t]) body=(unit octs) op=?(%poke %over)]
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
   ?~  api-path
@@ -548,7 +546,6 @@
     ?-  op
       %poke  (poke:io /post road u.converted)
       %over  (over:io /post road u.converted)
-      %diff  (diff:io /post road u.converted)
     ==
   (send-ok eyre-id 'OK')
 ::  +serve-file-cull: DELETE /file — delete file

@@ -91,7 +91,6 @@
   $%  [%poke =cage]             :: poke a grub
       [%make =make]                    :: create grub or directory
       [%over =cage]             :: overwrite grub content (runtime mark conversion)
-      [%diff =cage]             :: replace same-mark grub content, notify process
       [%cull ~]                 :: delete grub or directory
       [%sand weir=(unit weir)]  :: set weir
       [%load ~]                 :: trigger on-load for a nexus (folds only)
@@ -161,8 +160,7 @@
         [%manu =wire res=(each @t tang)] :: response to manu
         [%boom =wire res=(each boom (unit tang))]  :: boom at dest: subtree or file error
         [%over =wire err=(unit tang)] :: response to over (content overwrite)
-        [%diff =wire err=(unit tang)] :: response to diff (same-mark replace)
-        [%writ p=?(%over %diff)]      :: notify grub its file was externally modified
+        [%writ ~] :: notify grub its file was externally modified by %over
         [%bond =wire now=(each view tang)] :: subscription ack with initial view
         [%fell =wire]                 :: subscription canceled (weir change, deletion, etc)
         [%news =wire =view] :: state notification

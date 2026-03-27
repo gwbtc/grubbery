@@ -421,7 +421,7 @@
     ?.  live.reg  $
     ;<  ~  bind:m  (claude-turn msg-road)
     $
-  ::  Ack responses (make, over, cull, poke, diff, sand)
+  ::  Ack responses (make, over, cull, poke, sand)
   ::
       %made
     ;<  ~  bind:m  (handle-ack msg-road wire.ev err.ev slots.reg live.reg)
@@ -433,9 +433,6 @@
     ;<  ~  bind:m  (handle-ack msg-road wire.ev err.ev slots.reg live.reg)
     $
       %pack
-    ;<  ~  bind:m  (handle-ack msg-road wire.ev err.ev slots.reg live.reg)
-    $
-      %diff
     ;<  ~  bind:m  (handle-ack msg-road wire.ev err.ev slots.reg live.reg)
     $
       %sand
@@ -798,7 +795,7 @@
     (send-dart:io %node slot-wire road %poke mime+!>(mime))
       %'diff'
     =/  =mime  [/text/plain (as-octs:mimes:html body)]
-    (send-dart:io %node slot-wire road %diff mime+!>(mime))
+    (send-dart:io %node slot-wire road %over mime+!>(mime))
       %'setweir'
     =/  jon=(unit json)  (de:json:html body)
     ?~  jon
@@ -822,7 +819,6 @@
       [%over =wire err=(unit tang)]
       [%gone =wire err=(unit tang)]
       [%pack =wire err=(unit tang)]
-      [%diff =wire err=(unit tang)]
       [%sand =wire err=(unit tang)]
       [%manu =wire res=(each @t tang)]
       [%bond =wire now=(each view:nexus tang)]
@@ -846,7 +842,6 @@
       [~ %over * *]   [%done %over wire.u.in err.u.in]
       [~ %gone * *]   [%done %gone wire.u.in err.u.in]
       [~ %pack * *]   [%done %pack wire.u.in err.u.in]
-      [~ %diff * *]   [%done %diff wire.u.in err.u.in]
       [~ %sand * *]   [%done %sand wire.u.in err.u.in]
       [~ %manu * *]   [%done %manu wire.u.in res.u.in]
       [~ %bond * *]   [%done %bond wire.u.in now.u.in]
