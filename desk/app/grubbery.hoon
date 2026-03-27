@@ -2483,10 +2483,20 @@
       (mule |.((nave-from:marks mak mark-cores)))
     =/  nav-node=(map @ta built:nexus)
       (fall (~(get of acc) /nav) *(map @ta built:nexus))
-    ?:  ?=(%| -.nave-res)
-      ~&  >>  "build-code: nave for %{(trip mak)} failed"
-      (~(put of acc) /nav (~(put by nav-node) mak [%tang p.nave-res]))
-    (~(put of acc) /nav (~(put by nav-node) mak [%vase p.nave-res]))
+    =.  acc
+      ?:  ?=(%| -.nave-res)
+        ~&  >>  "build-code: nave for %{(trip mak)} failed"
+        (~(put of acc) /nav (~(put by nav-node) mak [%tang p.nave-res]))
+      (~(put of acc) /nav (~(put by nav-node) mak [%vase p.nave-res]))
+    ::  Build vale gate
+    =/  vale-res=(each $-(* ^vase) tang)
+      (mule |.((build-vale:marks vase)))
+    =/  val-node=(map @ta built:nexus)
+      (fall (~(get of acc) /val) *(map @ta built:nexus))
+    ?:  ?=(%| -.vale-res)
+      ~&  >>  "build-code: vale for %{(trip mak)} failed"
+      (~(put of acc) /val (~(put by val-node) mak [%tang p.vale-res]))
+    (~(put of acc) /val (~(put by val-node) mak [%vase !>(p.vale-res)]))
   ::  Update build state
   ~&  >  "build-code: updating lode"
   =.  lode  [keys.res deps.res new-bins]

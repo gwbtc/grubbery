@@ -112,6 +112,16 @@
     |=  noun=*
     (slam (slap nav limb/%vale) !>(noun))
   --
+::  +build-vale: extract noun validator from a mark core
+::
+::  Pulls +noun:grab from the mark core as a $-(* vase) gate.
+::
+++  build-vale
+  |=  cor=vase
+  ^-  $-(* vase)
+  =/  gat=vase
+    (slap cor !,(*hoon |=(noun=* (noun:grab noun))))
+  |=(noun=* (slam gat !>(noun)))
 ::  +build-tube: build a $-(vase vase) tube gate from mark cores
 ::
 ++  build-tube
