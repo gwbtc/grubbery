@@ -20,7 +20,6 @@
       [%mime name=@tas =road:tarball]        ::  /&  name  path
       [%cast name=@tas mark=@tas =road:tarball]  ::  /*  name  %mark  path
       [%tube name=@tas from=@tas to=@tas]    ::  /$  name  %from  %to
-      [%nave name=@tas mark=@tas]            ::  /%  name  %mark
   ==
 +$  resolved-import
   $%  [%file name=@tas =rail:tarball]
@@ -28,7 +27,6 @@
       [%mime name=@tas =lane:tarball]        ::  file rail or dir fold
       [%cast name=@tas mark=@tas =rail:tarball]
       [%tube name=@tas from=@tas to=@tas]
-      [%nave name=@tas mark=@tas]
   ==
 +$  source-map  (map rail:tarball @t)
 +$  file-info
@@ -88,9 +86,7 @@
     ?^  try  try
     =/  try  (rust line cast-rule)
     ?^  try  try
-    =/  try  (rust line tube-rule)
-    ?^  try  try
-    (rust line nave-rule)
+    (rust line tube-rule)
   ?~  parsed
     ::  Not an import — rest is body
     [%& [(flop imports) (of-wain:format lines)]]
@@ -114,7 +110,6 @@
 ::    /&  name  path       mime import (file or directory)
 ::    /*  name  %mark  path  import file as mark type
 ::    /$  name  %a  %b     tube import (mark conversion gate)
-::    /%  name  %mark      nave import (mark core)
 ::
 ++  seg  (cook crip (plus ;~(pose aln hep dot)))
 ::
@@ -170,16 +165,6 @@
   ;~  pfix
     ;~(plug fas buc gap)
     ;~(plug sym ;~(pfix gap ;~(plug ;~(pfix cen sym) ;~(pfix gap ;~(pfix cen sym)))))
-  ==
-::  /%  name  %mark — nave import
-::
-++  nave-rule
-  %+  cook
-    |=  [name=@tas mark=@tas]
-    [%nave name mark]
-  ;~  pfix
-    ;~(plug fas cen gap)
-    ;~(plug sym ;~(pfix gap ;~(pfix cen sym)))
   ==
 ::
 ++  abs-dir
@@ -332,7 +317,6 @@
       ?.  ?=(%& -.u.res)  ~
       `[%cast name.import mark.import p.u.res]
     %tube  `[%tube +.import]
-    %nave  `[%nave +.import]
   ==
 ::  +find-hoon-sources: extract source text from all %hoon files in a ball
 ::
@@ -440,7 +424,6 @@
         %cast  (has-file rail.r)
         %mime  %.y  :: resolved at compile time from ball
         %tube  %.y  :: resolved at compile time from marks
-        %nave  %.y  :: resolved at compile time from marks
       ==
     ?.  =(~ missing)
       =/  miss-paths=tape
@@ -455,7 +438,6 @@
           %cast  (spud (snoc path.rail.r name.rail.r))
           %mime  "mime"
           %tube  "tube"
-          %nave  "nave"
         ==
       [files (~(put by errors) rail ~[leaf+"missing import in {(spud (snoc path.rail name.rail))}: {miss-paths}"])]
     [(~(put by files) rail [src (sham src) resolved body.p.res]) errors]
@@ -482,7 +464,6 @@
       %|  ~
     ==
       %tube  ~[[/mar (crip "{(trip from.r)}.hoon")] [/mar (crip "{(trip to.r)}.hoon")]]
-      %nave  ~[[/mar (crip "{(trip mark.r)}.hoon")]]
     ==
   =/  sort-res  (topo-sort deps)
   ::  Phase 3: Compile in topological order
@@ -535,7 +516,7 @@
       results  (~(put by results) rail [%& (~(got by build-cache) ckey)])
       key-map  (~(put by key-map) rail ckey)
     ==
-  ::  Collect all compiled mark cores for tube/nave building
+  ::  Collect all compiled mark cores for tube building
   =/  mark-cores=(map mark vase)
     %-  ~(gas by *(map mark vase))
     %+  murn  ~(tap by results)
@@ -594,9 +575,6 @@
         %tube
       =/  tub=tube:clay  (tube-from:marks [from.r to.r] mark-cores)
       =/  dep=vase  !>(tub)
-      (slop [[%face name.r p.dep] q.dep] acc)
-        %nave
-      =/  dep=vase  (nave-from:marks mark.r mark-cores)
       (slop [[%face name.r p.dep] q.dep] acc)
     ==
   ::  Compile
