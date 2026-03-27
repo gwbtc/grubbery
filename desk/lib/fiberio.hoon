@@ -766,16 +766,16 @@
   ;<  res=(unit vase)  bind:m  (get-code /tube road)
   ?~  res  (pure:m ~)
   (pure:m `!<(tube:clay u.res))
-::  +get-dais: look up a compiled dais from bins
+::  +get-vale: look up a compiled vale gate from bins
 ::
-++  get-dais
+++  get-vale
   |=  [cod=road:tarball mak=mark]
-  =/  m  (fiber ,(unit dais:clay))
+  =/  m  (fiber ,(unit $-(* vase)))
   ^-  form:m
-  =/  =road:tarball  (extend-road:tarball cod /das mak)
-  ;<  res=(unit vase)  bind:m  (get-code /dais road)
+  =/  =road:tarball  (extend-road:tarball cod /val mak)
+  ;<  res=(unit vase)  bind:m  (get-code /vale road)
   ?~  res  (pure:m ~)
-  (pure:m `!<(dais:clay u.res))
+  (pure:m `!<($-(* vase) u.res))
 ::  +get-nexus: look up a compiled nexus from bins
 ::
 ++  get-nexus

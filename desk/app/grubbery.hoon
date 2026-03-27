@@ -503,18 +503,17 @@
   |=  =wire
   ^-  give:nexus
   [|+[our.bowl /gall/grubbery] wire]
-::  Validate a vase according to a mark, checking nest or scrying for dais
-::  Pure vase validation given a dais
+::  Validate a vase using a vale gate $-(* vase)
 ::
 ::  Assumes old vase was part of a chain of +validate-vase uses where the
 ::  original was clammed
 ::  Nest optimization: if old vase exists and types nest, reuse old type.
-::  Otherwise run vale to get canonical type from dais.
+::  Otherwise run vale to get canonical type.
 ::
 ::  force=%.y skips nest optimization (for reload when types may have changed)
 ::
 ++  validate-vase
-  |=  [=dais:clay old=(unit vase) new=vase force=?]
+  |=  [vale=$-(* vase) old=(unit vase) new=vase force=?]
   ^-  (each vase tang)
   ?:  ?&  !force
           ?=(^ old)
@@ -522,7 +521,7 @@
       ==
     &+[p.u.old q.new]
   =/  vale-result=(each vase tang)
-    (mule |.((vale:dais q.new)))
+    (mule |.((vale q.new)))
   ?:  ?=(%| -.vale-result)
     =/  err=tang
       :~  leaf+"vale failed"
@@ -580,19 +579,19 @@
   ?~  res  ~|([%tube-not-found from to] !!)
   ?.  ?=(%vase -.u.res)  ~|([%tube-failed from to] !!)
   !<(tube:clay vase.u.res)
-::  Get a cached dais from bins
+::  Get a cached vale gate from bins
 ::
-++  get-dais
+++  get-vale
   |=  [pax=path =mark]
-  ^-  dais:clay
-  =/  res=(unit built:nexus)  (get-built pax /das mark)
+  ^-  $-(* vase)
+  =/  res=(unit built:nexus)  (get-built pax /val mark)
   ?~  res
-    ~&  >>>  "get-dais: %{(trip mark)} not found, searched from {(spud pax)}"
-    ~|([%dais-not-found mark pax] !!)
+    ~&  >>>  "get-vale: %{(trip mark)} not found, searched from {(spud pax)}"
+    ~|([%vale-not-found mark pax] !!)
   ?.  ?=(%vase -.u.res)
-    ~&  >>>  "get-dais: %{(trip mark)} failed (tang), searched from {(spud pax)}"
-    ~|([%dais-failed mark pax] !!)
-  !<(dais:clay vase.u.res)
+    ~&  >>>  "get-vale: %{(trip mark)} failed (tang), searched from {(spud pax)}"
+    ~|([%vale-failed mark pax] !!)
+  !<($-(* vase) vase.u.res)
 ::  Lazily build a tube from compiled mark cores in bins
 ::
 ++  build-tube-lazy
@@ -651,13 +650,13 @@
     (mule |.(!>(;;(mime q.new))))
   ?:  =(%kelvin mark)
     (mule |.(!>(;;(waft:clay q.new))))
-  =/  res=(unit built:nexus)  (get-built pax /das mark)
+  =/  res=(unit built:nexus)  (get-built pax /val mark)
   ?~  res
-    |+~[leaf+"validate-new-cage: no dais for %{(trip mark)} at {(spud pax)}"]
+    |+~[leaf+"validate-new-cage: no vale for %{(trip mark)} at {(spud pax)}"]
   ?.  ?=(%vase -.u.res)
-    |+~[leaf+"validate-new-cage: dais for %{(trip mark)} failed at {(spud pax)}"]
-  =/  =dais:clay  !<(dais:clay vase.u.res)
-  (validate-vase dais old new force)
+    |+~[leaf+"validate-new-cage: vale for %{(trip mark)} failed at {(spud pax)}"]
+  =/  vale=$-(* vase)  !<($-(* vase) vase.u.res)
+  (validate-vase vale old new force)
 ::  Clam a cage at sandbox boundary
 ::  Used when data crosses a weir filter from untrusted source.
 ::  Always forces full validation (no nest optimization).
@@ -689,8 +688,8 @@
     (mule |.([%tang !>(;;(tang q.page))]))
   ?:  =(%mime p.page)
     (mule |.([%mime !>(;;(mime q.page))]))
-  =/  =dais:clay  (get-dais pax p.page)
-  =/  res=(each vase tang)  (mule |.((vale:dais q.page)))
+  =/  vale=$-(* vase)  (get-vale pax p.page)
+  =/  res=(each vase tang)  (mule |.((vale q.page)))
   ?:  ?=(%| -.res)  res
   &+[p.page p.res]
 ::  Validate all cages in a ball subtree, crash on failure
@@ -2298,19 +2297,22 @@
     =/  new-vase=vase  .^(vase %cr (weld pax fyl))
     =/  old=(unit content:tarball)
       (~(get ba:tarball ball.acc) [dir name])
-    =/  dais=(unit dais:clay)
+    =/  vale=(unit $-(* vase))
       ?:  ?=(?(%hoon %mime %kelvin) mar)
-        (mole |.(.^(dais:clay %cb (weld pax `path`/[mar]))))
-      =/  res=(unit built:nexus)  (get-built / /das mar)
+        =/  dais=(unit dais:clay)
+          (mole |.(.^(dais:clay %cb (weld pax `path`/[mar]))))
+        ?~  dais  ~
+        `vale:u.dais
+      =/  res=(unit built:nexus)  (get-built / /val mar)
       ?~  res  ~
       ?.  ?=(%vase -.u.res)  ~
-      (mole |.(!<(dais:clay vase.u.res)))
-    ?~  dais
+      (mole |.(!<($-(* vase) vase.u.res)))
+    ?~  vale
       ~&  [%sync-clay-skip-no-mark mar fyl]
       acc
     =/  old-vase=(unit vase)  ?~(old ~ `q.cage.u.old)
     =/  res=(each vase tang)
-      (validate-vase:acc u.dais old-vase new-vase %.n)
+      (validate-vase:acc u.vale old-vase new-vase %.n)
     ?.  ?=(%& -.res)
       ~&  [%sync-clay-vale-failed mar fyl]
       acc
@@ -2511,7 +2513,7 @@
   =.  this  (validate-nexuses cod old-bins new-bins)
   ~&  >  "build-code: done"
   this
-::  Validate marks: for each changed mark in bin/mar/, build a dais
+::  Validate marks: for each changed mark in bin/mar/, build a vale gate
 ::  and clam all grubs with that mark through validate-vase.
 ::  On success, updates grubs in ball with clammed vases.
 ::  On failure, downgrades the mark to .tang in new-bin.
@@ -2543,16 +2545,16 @@
   |-
   ?~  remaining  [new-bins this]
   =/  mak=mark  i.remaining
-  ::  Build dais from mark core + all mark cores
-  =/  dais-res=(each dais:clay tang)
-    (mule |.((build-dais:marks mark-cores mak (~(got by mark-cores) mak))))
-  ?:  ?=(%| -.dais-res)
-    ~&  >>  "validate-marks: {(trip mak)} dais build failed"
-    =/  err=tang  [leaf+"mark {(trip mak)}: dais build failed" p.dais-res]
+  ::  Build vale gate from mark core
+  =/  vale-res=(each $-(* vase) tang)
+    (mule |.((build-vale:marks (~(got by mark-cores) mak))))
+  ?:  ?=(%| -.vale-res)
+    ~&  >>  "validate-marks: {(trip mak)} vale build failed"
+    =/  err=tang  [leaf+"mark {(trip mak)}: vale build failed" p.vale-res]
     =.  mar-node  (~(put by mar-node) mak [%tang err])
     =.  new-bins  (~(put of new-bins) /mar mar-node)
     $(remaining t.remaining)
-  =/  =dais:clay  p.dais-res
+  =/  vale=$-(* vase)  p.vale-res
   ::  Find all grubs with this mark, including booms with matching inner mark
   =/  scope=path  (snip `(list @ta)`cod)
   =/  grubs=(list [=rail:tarball =content:tarball])
@@ -2564,17 +2566,17 @@
     =/  [* inner=page]  ;;([tang page] q.q.cage.content)
     =(mak p.inner)
   ?~  grubs  $(remaining t.remaining)
-  ::  Clam each grub through dais; booms extract inner noun
+  ::  Clam each grub through vale; booms extract inner noun
   =/  results=(list [=rail:tarball =content:tarball res=(each vase tang)])
     %+  turn  grubs
     |=  [=rail:tarball =content:tarball]
     ?:  =(%boom p.cage.content)
       =/  [err=tang =page]  ;;([tang page] q.q.cage.content)
-      [rail content (mule |.((vale:dais q.page)))]
-    =/  new=(each vase tang)  (mule |.((vale:dais q.q.cage.content)))
+      [rail content (mule |.((vale q.page)))]
+    =/  new=(each vase tang)  (mule |.((vale q.q.cage.content)))
     ?:  ?=(%| -.new)
       [rail content new]
-    [rail content (validate-vase dais `q.cage.content p.new %.n)]
+    [rail content (validate-vase vale `q.cage.content p.new %.n)]
   ::  Save results: success restores normal cage, failure re-booms
   =.  this
     %+  roll  results
@@ -2650,6 +2652,7 @@
 ::    mar/*        — mark door (has +grab, +grow, +grad)
 ::    nex/*        — nexus:nexus
 ::    das/*        — dais:clay
+::    val/*        — $-(* vase) vale gate
 ::    nav/*        — nave (has diff, form, join, mash, pact, vale)
 ::    tub/**       — tube:clay ($-(vase vase))
 ::
@@ -2673,6 +2676,10 @@
     =/  res=(each dais:clay tang)
       (mule |.(!<(dais:clay vase)))
     ?:(?=(%& -.res) ~ `(weld ~[leaf+"dais {(trip name.rail)}: type mismatch"] p.res))
+  ?:  =(/val (scag 1 dir))
+    =/  res=(each $-(* ^vase) tang)
+      (mule |.(!<($-(* ^vase) vase)))
+    ?:(?=(%& -.res) ~ `(weld ~[leaf+"vale {(trip name.rail)}: type mismatch"] p.res))
   ?:  =(/nav (scag 1 dir))
     ::  nave-from returns a vase containing the nave core — unwrap one level
     =/  res=(each ~ tang)
