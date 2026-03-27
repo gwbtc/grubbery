@@ -37,5 +37,4 @@
   ++  mime  [/application/json (as-octs:mimes:html -:txt)]
   ++  txt   [(en:json:html json)]~
   --
-++  grad  %noun
 --

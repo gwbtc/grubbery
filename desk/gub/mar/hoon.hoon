@@ -31,5 +31,4 @@
   ++  noun  @t                                  ::  clam from %noun
   ++  txt   of-wain:format
   --
-++  grad  %txt
 --

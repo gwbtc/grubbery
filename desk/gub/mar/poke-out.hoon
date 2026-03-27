@@ -12,5 +12,4 @@
   |%
   ++  noun  [ship dude page]
   --
-++  grad  %noun
 --

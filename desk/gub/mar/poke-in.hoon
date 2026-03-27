@@ -13,5 +13,4 @@
   |%
   ++  noun  [dest page]
   --
-++  grad  %noun
 --

@@ -18,5 +18,4 @@
     |=  [id=@ud act=@t pax=@t]
     (crip "  [{(a-co:co id)}] {(trip act)} {(trip pax)}")
   --
-++  grad  %noun
 --

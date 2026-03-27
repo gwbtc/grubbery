@@ -30,5 +30,4 @@
     ~_  tex
     !<((list dude:gall) (slap !>(~) (ream tex)))
   --
-++  grad  %noun
 --

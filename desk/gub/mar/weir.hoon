@@ -9,5 +9,4 @@
   |%
   ++  noun  weir
   --
-++  grad  %noun
 --

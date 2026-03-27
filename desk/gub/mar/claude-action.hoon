@@ -42,5 +42,4 @@
       ~[['type' s+'interrupt']]
     ==
   --
-++  grad  %noun
 --

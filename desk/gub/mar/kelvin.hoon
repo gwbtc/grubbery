@@ -24,5 +24,4 @@
     |=  [=mite len=@ud tex=@]
     (cord-to-waft:clay tex)
   --
-++  grad  %noun
 --

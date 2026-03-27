@@ -4,7 +4,6 @@
 ::
 =,  format
 |_  tan=(list tank)
-++  grad  %noun
 ++  grow
   |%
   ++  noun  tan

@@ -8,5 +8,4 @@
   |%
   ++  noun  act
   --
-++  grad  %noun
 --

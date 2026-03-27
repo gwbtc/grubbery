@@ -7,5 +7,4 @@
   |%
   ++  noun  req
   --
-++  grad  %noun
 --

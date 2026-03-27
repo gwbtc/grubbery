@@ -48,5 +48,4 @@
     ==
   ++  mime  [/text/plain (as-octs:mimes:html (of-wain:format txt))]
   --
-++  grad  %noun
 --

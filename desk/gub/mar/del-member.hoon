@@ -16,5 +16,4 @@
     ^-  ^mime
     [/text/plain (as-octs:mimes:html (scot %p ship))]
   --
-++  grad  %noun
 --

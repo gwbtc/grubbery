@@ -3,7 +3,6 @@
 /<  nex-server  /lib/nex/server.hoon
 !: :: turn on stack trace
 |_  state=server-state:nex-server
-++  grad  %noun
 ++  grow
   |%
   ++  noun  state

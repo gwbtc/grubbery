@@ -9,5 +9,4 @@
   |%
   ++  noun  ~
   --
-++  grad  %noun
 --

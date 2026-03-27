@@ -20,5 +20,4 @@
     =/  jon=^json  json
     [/application/json (as-octs:mimes:html (en:json:html jon))]
   --
-++  grad  %noun
 --

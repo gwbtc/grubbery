@@ -2628,7 +2628,7 @@
 ::
 ::  Returns ~ if valid, (unit tang) if the artifact doesn't match
 ::  the expected type for its location:
-::    mar/*        — mark door (has +grab, +grow, +grad)
+::    mar/*        — mark door (has +grab, +grow)
 ::    nex/*        — nexus:nexus
 ::    val/*        — $-(* vase) vale gate
 ::    tub/**       — tube:clay ($-(vase vase))
@@ -2642,9 +2642,8 @@
       %-  mule  |.
       ?>  (slob %grab -.vase)
       ?>  (slob %grow -.vase)
-      ?>  (slob %grad -.vase)
       ~
-    ?:(?=(%& -.res) ~ `~[leaf+"mark {(trip name.rail)}: missing +grab, +grow, or +grad"])
+    ?:(?=(%& -.res) ~ `~[leaf+"mark {(trip name.rail)}: missing +grab or +grow"])
   ?:  =(/nex (scag 1 dir))
     =/  res=(each nexus:nexus tang)
       (mule |.(!<(nexus:nexus vase)))

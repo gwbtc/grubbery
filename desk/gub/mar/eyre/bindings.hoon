@@ -1,7 +1,6 @@
 ::  eyre-bindings: list of HTTP bindings for eyre
 ::
 |_  bindings=(list binding:eyre)
-++  grad  %noun
 ++  grow
   |%
   ++  noun  bindings

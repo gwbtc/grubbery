@@ -21,5 +21,4 @@
   ++  numb  numb:enjs
   ++  time  time:enjs
   --
-++  grad  %mime
 --

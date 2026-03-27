@@ -7,5 +7,4 @@
   |%
   ++  noun  eyre-id
   --
-++  grad  %noun
 --

@@ -11,5 +11,4 @@
   |%
   ++  noun  msg
   --
-++  grad  %noun
 --

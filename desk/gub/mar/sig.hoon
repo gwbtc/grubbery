@@ -9,5 +9,4 @@
   ++  json  ~
   ++  mime  [/application/json (as-octs:mimes:html 'null')]
   --
-++  grad  %noun
 --

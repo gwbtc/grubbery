@@ -29,5 +29,4 @@
     =/  txt=@t  (crip (zing (join " " parts)))
     [/text/plain (as-octs:mimes:html txt)]
   --
-++  grad  %noun
 --

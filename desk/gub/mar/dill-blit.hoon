@@ -16,7 +16,6 @@
     (zing (turn blits blit-to-wain))
   ++  mime  [/application/json (as-octs:mimes:html (en:json:html json))]
   --
-++  grad  %noun
 ::
 ++  blit-to-json
   |=  =blit:dill
