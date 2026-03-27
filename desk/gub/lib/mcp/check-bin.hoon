@@ -32,7 +32,7 @@
   =/  nam=@t  (~(dog jo:json-utils [%o args.st]) /name so:dejs:format)
   =/  bin-path=path  (stab pax)
   =/  bin-name=@ta  (crip (trip nam))
-  ;<  res=built:nexus  bind:m  (get-code-full:io /check bin-path bin-name)
+  ;<  res=built:nexus  bind:m  (get-code-full:io /check [%& %& (weld /code bin-path) bin-name])
   ?:  ?=(%vase -.res)
     (pure:m [%text (crip "OK: {(trip pax)}/{(trip nam)} compiled successfully")])
   ?.  ?=(%tang -.res)

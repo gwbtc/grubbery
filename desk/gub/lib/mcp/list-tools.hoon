@@ -124,7 +124,7 @@
       out
     (pure:m [%text (crip "{<(lent matches)>} tools found:{result}")])
   =/  n=@ta  i.src-names
-  ;<  res=built:nexus  bind:m  (get-code-full:io /tool /lib/mcp n)
+  ;<  res=built:nexus  bind:m  (get-code-full:io /tool [%& %& /code/lib/mcp n])
   ?.  ?=(%vase -.res)  $(src-names t.src-names)
   =/  got=(each tool:tools tang)
     (mule |.(!<(tool:tools vase.res)))

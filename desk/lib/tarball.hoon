@@ -120,6 +120,15 @@
   |=  [here=rail dest=rail]
   ^-  bend
   (make-bend here [%& dest])
+::  Extend a directory road by appending inner path + filename
+::
+++  extend-road
+  |=  [=road inner=path name=@ta]
+  ^-  ^road
+  ?-  -.road
+      %&  [%& %& (weld ?-(-.p.road %& (snoc path.p.p.road name.p.p.road), %| p.p.road) inner) name]
+      %|  [%| p.p.road %& (weld ?-(-.q.p.road %& (snoc path.p.q.p.road name.p.q.p.road), %| p.q.p.road) inner) name]
+  ==
 ::  Compute common prefix of two paths
 ::
 ++  prefix

@@ -17,7 +17,6 @@
     %kept  ~[leaf+"vetoed kept request on wire {(spud wire.dart)}"]
     %node  ~[leaf+"vetoed node operation on wire {(spud wire.dart)}"]
     %manu  ~[leaf+"vetoed manu request on wire {(spud wire.dart)}"]
-    %code  ~[leaf+"vetoed code request on wire {(spud wire.dart)}"]
   ==
 ::
 ++  send-darts
@@ -653,13 +652,13 @@
   ;<  =sign-arvo  bind:m  (take-arvo /warp)
   ?>  ?=([%clay %writ *] sign-arvo)
   (pure:m +>.sign-arvo)
-::  +get-code: look up a compiled artifact from bins
+::  +get-code: peek the code (bins) slice at a road
 ::
 ++  get-code
-  |=  [=wire =path name=@ta]
+  |=  [=wire =road:tarball]
   =/  m  (fiber ,(unit vase))
   ^-  form:m
-  ;<  ~  bind:m  (send-dart %code wire path name)
+  ;<  ~  bind:m  (send-dart %node wire road %code ~)
   (take-code wire)
 ::
 ++  take-code
@@ -675,17 +674,19 @@
       [~ %code * *]
     ?.  =(wire wire.u.in)
       [%skip ~]
-    ?:  ?=(%vase -.built.u.in)
-      [%done `vase.built.u.in]
+    ?.  ?=(%| -.res.u.in)
+      [%skip ~]
+    ?:  ?=(%vase -.p.res.u.in)
+      [%done `vase.p.res.u.in]
     [%done ~]
   ==
-::  +get-code-full: look up artifact, returning full built result
+::  +get-code-full: peek code slice, returning full built
 ::
 ++  get-code-full
-  |=  [=wire =path name=@ta]
+  |=  [=wire =road:tarball]
   =/  m  (fiber ,built:nexus)
   ^-  form:m
-  ;<  ~  bind:m  (send-dart %code wire path name)
+  ;<  ~  bind:m  (send-dart %node wire road %code ~)
   |=  input
   :+  ~  state
   ?+  in  [%skip ~]
@@ -695,33 +696,94 @@
       [~ %code * *]
     ?.  =(wire wire.u.in)
       [%skip ~]
-    [%done built.u.in]
+    ?.  ?=(%| -.res.u.in)
+      [%skip ~]
+    [%done p.res.u.in]
+  ==
+::  +get-code-tree: peek code slice subtree at a directory road
+::
+++  get-code-tree
+  |=  [=wire =road:tarball]
+  =/  m  (fiber ,bins:nexus)
+  ^-  form:m
+  ;<  ~  bind:m  (send-dart %node wire road %code ~)
+  |=  input
+  :+  ~  state
+  ?+  in  [%skip ~]
+      ~  [%wait ~]
+      [~ %veto *]
+    [%fail (veto-error dart.u.in)]
+      [~ %code * *]
+    ?.  =(wire wire.u.in)
+      [%skip ~]
+    ?.  ?=(%& -.res.u.in)
+      [%skip ~]
+    [%done p.res.u.in]
+  ==
+::  +get-boom: query boom state at a road
+::
+++  get-boom
+  |=  [=wire =road:tarball]
+  =/  m  (fiber ,(each boom:nexus (unit tang)))
+  ^-  form:m
+  ;<  ~  bind:m  (send-dart %node wire road %boom ~)
+  |=  input
+  :+  ~  state
+  ?+  in  [%skip ~]
+      ~  [%wait ~]
+      [~ %veto *]
+    [%fail (veto-error dart.u.in)]
+      [~ %boom * *]
+    ?.  =(wire wire.u.in)
+      [%skip ~]
+    [%done res.u.in]
+  ==
+::  +get-font: find code responsible for a node
+::
+++  get-font
+  |=  [=wire =road:tarball]
+  =/  m  (fiber ,(unit rail:tarball))
+  ^-  form:m
+  ;<  ~  bind:m  (send-dart %node wire road %font ~)
+  |=  input
+  :+  ~  state
+  ?+  in  [%skip ~]
+      ~  [%wait ~]
+      [~ %veto *]
+    [%fail (veto-error dart.u.in)]
+      [~ %font * *]
+    ?.  =(wire wire.u.in)
+      [%skip ~]
+    [%done res.u.in]
   ==
 ::  +get-tube: look up a compiled tube from bins
 ::
 ++  get-tube
-  |=  =mars:clay
+  |=  [cod=road:tarball =mars:clay]
   =/  m  (fiber ,(unit tube:clay))
   ^-  form:m
-  ;<  res=(unit vase)  bind:m  (get-code /tube /tub/[a.mars] b.mars)
+  =/  =road:tarball  (extend-road:tarball cod /tub/[a.mars] b.mars)
+  ;<  res=(unit vase)  bind:m  (get-code /tube road)
   ?~  res  (pure:m ~)
   (pure:m `!<(tube:clay u.res))
 ::  +get-dais: look up a compiled dais from bins
 ::
 ++  get-dais
-  |=  mak=mark
+  |=  [cod=road:tarball mak=mark]
   =/  m  (fiber ,(unit dais:clay))
   ^-  form:m
-  ;<  res=(unit vase)  bind:m  (get-code /dais /das mak)
+  =/  =road:tarball  (extend-road:tarball cod /das mak)
+  ;<  res=(unit vase)  bind:m  (get-code /dais road)
   ?~  res  (pure:m ~)
   (pure:m `!<(dais:clay u.res))
 ::  +get-nexus: look up a compiled nexus from bins
 ::
 ++  get-nexus
-  |=  neck=@tas
+  |=  [cod=road:tarball neck=@tas]
   =/  m  (fiber ,(unit nexus:nexus))
   ^-  form:m
-  ;<  res=(unit vase)  bind:m  (get-code /nexus /nex neck)
+  =/  =road:tarball  (extend-road:tarball cod /nex neck)
+  ;<  res=(unit vase)  bind:m  (get-code /nexus road)
   ?~  res  (pure:m ~)
   (pure:m `!<(nexus:nexus u.res))
 ::  +collect-marks: collect all marks used in cages within a ball (deep)
@@ -770,7 +832,7 @@
     (pure:m conversions)
   =/  =mars:clay  [i.mark-list %mime]
   ;<  tube-result=(unit tube:clay)  bind:m
-    (get-tube mars)
+    (get-tube [%& %| /code] mars)
   =?  conversions  ?=(^ tube-result)
     (~(put by conversions) mars u.tube-result)
   $(mark-list t.mark-list)
@@ -798,7 +860,7 @@
     (pure:m !<(mime q.cage))
   =/  =mars:clay  [p.cage %mime]
   ;<  tube=(unit tube:clay)  bind:m
-    (get-tube mars)
+    (get-tube [%& %| /code] mars)
   ?~  tube
     (pure:m [/application/x-urb-jam (as-octs:mimes:html (jam q.cage))])
   =/  result=(each vase tang)  (mule |.((u.tube q.cage)))

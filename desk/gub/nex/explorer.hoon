@@ -294,7 +294,7 @@
     ?~  ext-list  (pure:m convs)
     =/  =mars:clay  [%mime i.ext-list]
     ;<  tube=(unit tube:clay)  bind:m
-      (get-tube:io mars)
+      (get-tube:io [%& %| /code] mars)
     =?  convs  ?=(^ tube)
       (~(put by convs) mars u.tube)
     $(ext-list t.ext-list)

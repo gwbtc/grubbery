@@ -374,7 +374,7 @@
   ?~  mark-param  (pure:m `cage)
   =/  target-mark=@tas  u.mark-param
   ?:  =(p.cage target-mark)  (pure:m `cage)
-  ;<  tube=(unit tube:clay)  bind:m  (get-tube:io [p.cage target-mark])
+  ;<  tube=(unit tube:clay)  bind:m  (get-tube:io [%& %| /code] [p.cage target-mark])
   ?~  tube
     ;<  ~  bind:m  (send-error eyre-id 400 'No tube for mark conversion')
     (pure:m ~)
@@ -620,7 +620,7 @@
     ?~  ext-list  (pure:m convs)
     =/  =mars:clay  [%mime i.ext-list]
     ;<  tube=(unit tube:clay)  bind:m
-      (get-tube:io mars)
+      (get-tube:io [%& %| /code] mars)
     =?  convs  ?=(^ tube)
       (~(put by convs) mars u.tube)
     $(ext-list t.ext-list)
@@ -925,7 +925,7 @@
   =/  target-mark=@tas  u.mark-param
   ?:  =(p.cage target-mark)
     (cage-to-txt-raw cage)
-  ;<  tube=(unit tube:clay)  bind:m  (get-tube:io [p.cage target-mark])
+  ;<  tube=(unit tube:clay)  bind:m  (get-tube:io [%& %| /code] [p.cage target-mark])
   ?~  tube
     (cage-to-txt-raw cage)
   =/  result=(each vase tang)  (mule |.((u.tube q.cage)))
@@ -940,7 +940,7 @@
   ^-  form:m
   ?:  =(%txt p.cage)
     (pure:m (of-wain:format !<(wain q.cage)))
-  ;<  tube=(unit tube:clay)  bind:m  (get-tube:io [p.cage %txt])
+  ;<  tube=(unit tube:clay)  bind:m  (get-tube:io [%& %| /code] [p.cage %txt])
   ?~  tube
     ::  Fallback: convert to mime and extract body as text
     ;<  =mime  bind:m  (cage-to-mime:io cage)

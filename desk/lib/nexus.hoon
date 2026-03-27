@@ -107,6 +107,9 @@
       [%seek =lobe:clay]        :: find all [rail cass] pairs with this hash
       [%peep =find]
       [%manu ~]                  :: docs for this path (road resolves nexus + query)
+      [%boom ~]                  :: query boom state subtree at dest
+      [%code ~]                  :: look up compiled artifacts at dest
+      [%font ~]                  :: find code responsible for dest node
   ==
 ::  manu types — documentation query
 ::
@@ -120,7 +123,6 @@
       [%bowl =wire]
       [%kept =wire]              :: see your own outgoing subscriptions
       [%manu =wire =neck:tarball =mana]  :: direct docs query to a known nexus
-      [%code =wire =path name=@ta]  :: look up compiled artifact from bins
   ==
 ::
 ++  fiber
@@ -157,6 +159,7 @@
         [%seek =wire res=(each (list [=rail:tarball =cass:clay]) tang)] :: response to seek
         [%peep =wire res=(each (list [=cass:clay =cage]) tang)] :: response to peep
         [%manu =wire res=(each @t tang)] :: response to manu
+        [%boom =wire res=(each boom (unit tang))]  :: boom at dest: subtree or file error
         [%over =wire err=(unit tang)] :: response to over (content overwrite)
         [%diff =wire err=(unit tang)] :: response to diff (same-mark replace)
         [%writ p=?(%over %diff)]      :: notify grub its file was externally modified
@@ -166,7 +169,8 @@
         [%veto =dart] :: notify that a dart was sandboxed
         :: messages from gall and arvo
         ::
-        [%code =wire =built]  :: compiled artifact from bins
+        [%code =wire res=(each bins built)]  :: bins subtree or single artifact
+        [%font =wire res=(unit rail:tarball)]  :: path to responsible code, or ~
         [%scry =wire =vase]
         [%bowl =wire =bowl]
         [%arvo =wire sign=sign-arvo]

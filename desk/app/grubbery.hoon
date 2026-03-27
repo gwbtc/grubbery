@@ -533,23 +533,17 @@
   &+p.vale-result
 ::  Find the code nexus governing a given path.
 ::  Walks up ancestors, checking if any immediate child is in the code map.
-::  Find which code nexus a path is inside of.
-::  Used by save-file/delete to trigger rebuilds.
-::
-++  code-in
-  |=  pax=path
-  ^-  (unit fold:tarball)
-  |-
-  ?:  (~(has by code) pax)  `pax
-  ?~  pax  ~
-  $(pax (snip `path`pax))
-::  Look up a compiled artifact by walking up the tree.
+::  Walk up the tree looking for a compiled artifact in code nexuses.
 ::  At each ancestor, checks for a child named %code in the code map.
 ::  A %tang counts as found; only true absence walks to the next.
 ::
-++  get-built
+::  +seek-built: core walk, returns [rail built] pair
+::  +find-built: returns the rail to the artifact
+::  +get-built: returns the artifact itself
+::
+++  seek-built
   |=  [pax=path =path name=@ta]
-  ^-  (unit built:nexus)
+  ^-  (unit [=rail:tarball =built:nexus])
   |-
   =/  cod=^path  (snoc pax %code)
   =/  lod=(unit lode:nexus)  (~(get by code) cod)
@@ -559,11 +553,25 @@
     =/  hit=(unit built:nexus)
       ?~  node  ~
       (~(get by u.node) name)
-    ?^  hit  hit
+    ?^  hit  `[[(weld cod path) name] u.hit]
     ?~  pax  ~
     $(pax (snip `(list @ta)`pax))
   ?~  pax  ~
   $(pax (snip `(list @ta)`pax))
+::
+++  find-built
+  |=  [pax=path =path name=@ta]
+  ^-  (unit rail:tarball)
+  =/  res  (seek-built pax path name)
+  ?~  res  ~
+  `rail.u.res
+::
+++  get-built
+  |=  [pax=path =path name=@ta]
+  ^-  (unit built:nexus)
+  =/  res  (seek-built pax path name)
+  ?~  res  ~
+  `built.u.res
 ::
 ++  get-tube
   |=  [pax=path from=mark to=mark]
@@ -814,7 +822,11 @@
   =/  =pipe:nexus  (~(del by (fall (~(get of pool) dir) ~)) name)
   =.  pool  (~(put of pool) dir pipe)
   ::  Rebuild if deletion is inside a code nexus
-  =/  cod=(unit path)  (code-in dir)
+  =/  cod=(unit path)
+    =+  pax=dir
+    |-  ?:  (~(has by code) pax)  `pax
+    ?~  pax  ~
+    $(pax (snip `path`pax))
   ?~  cod  this
   ~&  >>>  "delete: triggering build-code from {(spud dir)}"
   (build-code u.cod)
@@ -1365,7 +1377,7 @@
     =/  dest-lane=(unit lane:tarball)  (lane-from-road:tarball [%& here] road.dart)
     :_  dest-lane
     ?-  -.load.dart
-      ?(%peek %keep %drop %seek %peep %manu)  %peek  :: read operations
+      ?(%peek %keep %drop %seek %peep %manu %boom %code %font)  %peek  :: read operations
       %poke                       %poke
         $?  %make  %cull  %sand  %load
             %over  %diff  %gain  %lose
@@ -1375,8 +1387,6 @@
     ::
       %manu
     [%sysc ~]  :: direct: no path to check, bypasses weir
-      %code
-    [%sysc ~]  :: direct: bins lookup, no path routing
   ==
 ::
 ++  handle-dart
@@ -1567,6 +1577,85 @@
         (enqu-take here (sys-give /peek) ~ %peek wire.dart %& %file sk (lookup-gain dest) result)
       ==
       ::
+        %boom
+      ::  Query boom state at dest: subtree for directory, file error for file
+      ?-    -.u.dest-lane
+          %|
+        =/  dest=fold:tarball  p.u.dest-lane
+        =/  sub-boom=boom:nexus  (~(dip of boom) dest)
+        (enqu-take here (sys-give /boom) ~ %boom wire.dart &+sub-boom)
+        ::
+          %&
+        =/  dest=rail:tarball  p.u.dest-lane
+        =/  node  (~(get bm:nexus boom) path.dest)
+        =/  err=(unit tang)  (~(get by fil.node) name.dest)
+        (enqu-take here (sys-give /boom) ~ %boom wire.dart |+err)
+      ==
+      ::
+        %code
+      ::  Peek the bins slice at dest
+      ::
+      ?-    -.u.dest-lane
+          %|
+        =/  dest=fold:tarball  p.u.dest-lane
+        =/  nex=(unit fold:tarball)
+          =+  pax=dest
+          |-  ?:  (~(has by code) pax)  `pax
+          ?~  pax  ~
+          $(pax (snip `path`pax))
+        ?~  nex
+          (enqu-take here (sys-give /code) ~ %code wire.dart |+[%tang ~[leaf+"code: no code nexus at {(spud dest)}"]])
+        =/  =lode:nexus  (~(got by code) u.nex)
+        =/  inner=fold:tarball  (slag (lent u.nex) dest)
+        =/  sub-bins=bins:nexus  (~(dip of bins.lode) inner)
+        (enqu-take here (sys-give /code) ~ %code wire.dart &+sub-bins)
+        ::
+          %&
+        =/  dest=rail:tarball  p.u.dest-lane
+        =/  nex=(unit fold:tarball)
+          =+  pax=path.dest
+          |-  ?:  (~(has by code) pax)  `pax
+          ?~  pax  ~
+          $(pax (snip `path`pax))
+        ?~  nex
+          (enqu-take here (sys-give /code) ~ %code wire.dart |+[%tang ~[leaf+"code: no code nexus at {(spud path.dest)}"]])
+        =/  =lode:nexus  (~(got by code) u.nex)
+        =/  inner=path  (slag (lent u.nex) path.dest)
+        =/  node=(unit (map @ta built:nexus))  (~(get of bins.lode) inner)
+        ?~  node
+          (enqu-take here (sys-give /code) ~ %code wire.dart |+[%tang ~[leaf+"code: nothing at {(spud path.dest)}"]])
+        =/  hit=(unit built:nexus)  (~(get by u.node) name.dest)
+        ?~  hit
+          (enqu-take here (sys-give /code) ~ %code wire.dart |+[%tang ~[leaf+"code: {(trip name.dest)} not found at {(spud path.dest)}"]])
+        (enqu-take here (sys-give /code) ~ %code wire.dart |+u.hit)
+      ==
+      ::
+        %font
+      ::  Find code responsible for dest node
+      ::  Directory: nexus code from neck. File: mark core.
+      ::  Also checks peek access on the returned code rail.
+      =/  font-rail=(unit rail:tarball)
+        ?-    -.u.dest-lane
+            %|
+          =/  dest=fold:tarball  p.u.dest-lane
+          =/  =lump:tarball  (fall (~(get of ball) dest) *lump:tarball)
+          ?~  neck.lump  ~
+          (find-built dest /nex u.neck.lump)
+            %&
+          =/  dest=rail:tarball  p.u.dest-lane
+          =/  content=(unit content:tarball)
+            (~(get ba:tarball ball) path.dest name.dest)
+          ?~  content  ~
+          (find-built path.dest /mar p.cage.u.content)
+        ==
+      ::  Check peek access on the code rail — veto if denied
+      ?~  font-rail
+        (enqu-take here (sys-give /font) ~ %font wire.dart ~)
+      =/  =filt:nexus  (allowed %peek here `[%& u.font-rail])
+      ?:  ?=([~ %|] filt)
+        (enqu-take here (sys-give /veto) ~ %veto dart)
+      (enqu-take here (sys-give /font) ~ %font wire.dart font-rail)
+      ::
         %keep
       ::  Subscribe to changes at dest (uses peek permission)
       =.  this  (sub-put u.dest-lane here wire.dart mark.load.dart)
@@ -1719,22 +1808,6 @@
     =/  res=vase
       !>(.^(mold.u.scry.dart i.pat (scot %p our.bowl) i.t.pat (scot %da now.bowl) t.t.pat))
     (enqu-take here (sys-give /scry) ~ %scry wire.dart res)
-    ::
-      %code
-    ::  Look up compiled artifact from bins
-    =/  entry=(unit built:nexus)  (get-built cod path.dart name.dart)
-    ?^  entry
-      (enqu-take here (sys-give /code) ~ %code wire.dart u.entry)
-    ::  Cache miss — lazy-build tubes on demand
-    ?.  ?&  ?=(^ path.dart)
-            =(i.path.dart %tub)
-            ?=(^ t.path.dart)
-            =(~ t.t.path.dart)
-        ==
-      (enqu-take here (sys-give /code) ~ %code wire.dart [%tang ~[leaf+"bins: {(trip name.dart)} not found at {(spud path.dart)}"]])
-    =+  [from to]=[i.t.path.dart name.dart]
-    =^  res=built:nexus  this  (build-tube-lazy cod from to)
-    (enqu-take here (sys-give /code) ~ %code wire.dart res)
     ::
       %bowl
     ::  Request bowl - build and enqueue
@@ -2270,6 +2343,20 @@
 ++  build-code
   |=  cod=path
   ^+  this
+  ::  Flatten compound marks/nexuses: /mar/some/thing.hoon -> /mar key %some-thing
+  =/  flatten-rail
+    |=  [=rail:tarball stem=@ta]
+    ^-  [path @ta]
+    ?:  ?&  ?=(^ path.rail)
+            ?=(?(%mar %nex) i.path.rail)
+            ?=(^ t.path.rail)
+        ==
+      :-  ~[i.path.rail]
+      %-  crip
+      %-  zing
+      %+  join  "-"
+      (turn (snoc t.path.rail stem) trip)
+    [path.rail stem]
   ~&  >  "build-code: start {(spud cod)}"
   =/  src-ball=ball:tarball  (~(dip ba:tarball ball) cod)
   ::  Separate hoon and non-hoon files
@@ -2328,9 +2415,10 @@
       |=  [[=rail:tarball =content:tarball] acc=bins:nexus]
       ?.  =(%hoon p.cage.content)  acc
       =/  stem=@ta  (strip-hoon:build name.rail)
+      =/  [store-path=path store-name=@ta]  (flatten-rail rail stem)
       =/  node=(map @ta built:nexus)
-        (fall (~(get of acc) path.rail) *(map @ta built:nexus))
-      (~(put of acc) path.rail (~(put by node) stem [%tang err]))
+        (fall (~(get of acc) store-path) *(map @ta built:nexus))
+      (~(put of acc) store-path (~(put by node) store-name [%tang err]))
     ~&  >>>  "build-code: tang bins built"
     =.  lode  [~ ~ new-bins]
     =.  code  (~(put by code) cod lode)
@@ -2363,9 +2451,10 @@
         ~&  >>  "validate-build failed: {(spud (snoc path.rail name.rail))}"
         [%tang u.val-err]
       [%vase p.build-result]
+    =/  [store-path=path store-name=@ta]  (flatten-rail rail stem)
     =/  node=(map @ta built:nexus)
-      (fall (~(get of acc) path.rail) *(map @ta built:nexus))
-    (~(put of acc) path.rail (~(put by node) stem built))
+      (fall (~(get of acc) store-path) *(map @ta built:nexus))
+    (~(put of acc) store-path (~(put by node) store-name built))
   ::  Gather compiled mark cores for dais/nave construction
   =/  mar-node=(map @ta built:nexus)
     (fall (~(get of new-bins) /mar) *(map @ta built:nexus))
@@ -2777,7 +2866,11 @@
   =.  this  (record-hist here cage.new-content ~)
   =.  this  (bump-file here)
   ::  Rebuild if change is inside a code nexus
-  =/  cod=(unit path)  (code-in path.here)
+  =/  cod=(unit path)
+    =+  pax=path.here
+    |-  ?:  (~(has by code) pax)  `pax
+    ?~  pax  ~
+    $(pax (snip `path`pax))
   ?~  cod  this
   ~&  >>>  "save-file: triggering build-code from {(spud (snoc path.here name.here))}"
   (build-code u.cod)

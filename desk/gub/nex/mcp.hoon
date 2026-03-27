@@ -39,7 +39,7 @@
       |-
       ?~  names  (pure:m result)
       =/  name=@ta  i.names
-      ;<  res=built:nexus  bind:m  (get-code-full:io /tool /lib/mcp name)
+      ;<  res=built:nexus  bind:m  (get-code-full:io /tool [%& %& /code/lib/mcp name])
       ?.  ?=(%vase -.res)  $(names t.names)
       =/  got=(each tool:nex-tools tang)
         (mule |.(!<(tool:nex-tools vase.res)))
@@ -56,7 +56,7 @@
       ^-  form:m
       =/  file-name=@ta
         (crip (turn (trip tool-name) |=(c=@t ?:(=(c '_') '-' c))))
-      ;<  res=built:nexus  bind:m  (get-code-full:io /tool /lib/mcp file-name)
+      ;<  res=built:nexus  bind:m  (get-code-full:io /tool [%& %& /code/lib/mcp file-name])
       ?.  ?=(%vase -.res)
         (pure:m [%| ?:(?=(%tang -.res) tang.res ~[leaf+"not a vase"])])
       =/  got=(each tool:nex-tools tang)
