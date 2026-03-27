@@ -2457,7 +2457,7 @@
     =/  node=(map @ta built:nexus)
       (fall (~(get of acc) store-path) *(map @ta built:nexus))
     (~(put of acc) store-path (~(put by node) store-name built))
-  ::  Gather compiled mark cores for dais/nave construction
+  ::  Gather compiled mark cores for vale gate construction
   =/  mar-node=(map @ta built:nexus)
     (fall (~(get of new-bins) /mar) *(map @ta built:nexus))
   =/  mark-cores=(map mark vase)
@@ -2466,31 +2466,10 @@
     |=  [mak=@ta =built:nexus]
     ?.  ?=(%vase -.built)  ~
     `[mak vase.built]
-  ::  Build daises and naves directly from compiled mark cores
+  ::  Build vale gates from compiled mark cores
   =.  new-bins
     %+  roll  ~(tap by mark-cores)
     |=  [[mak=mark =vase] acc=_new-bins]
-    ::  Build dais
-    =/  dais-res=(each dais:clay tang)
-      (mule |.((dais-from:marks mak mark-cores)))
-    =/  das-node=(map @ta built:nexus)
-      (fall (~(get of acc) /das) *(map @ta built:nexus))
-    =.  acc
-      ?:  ?=(%| -.dais-res)
-        ~&  >>  "build-code: dais for %{(trip mak)} failed"
-        (~(put of acc) /das (~(put by das-node) mak [%tang p.dais-res]))
-      (~(put of acc) /das (~(put by das-node) mak [%vase !>(p.dais-res)]))
-    ::  Build nave
-    =/  nave-res=(each ^vase tang)
-      (mule |.((nave-from:marks mak mark-cores)))
-    =/  nav-node=(map @ta built:nexus)
-      (fall (~(get of acc) /nav) *(map @ta built:nexus))
-    =.  acc
-      ?:  ?=(%| -.nave-res)
-        ~&  >>  "build-code: nave for %{(trip mak)} failed"
-        (~(put of acc) /nav (~(put by nav-node) mak [%tang p.nave-res]))
-      (~(put of acc) /nav (~(put by nav-node) mak [%vase p.nave-res]))
-    ::  Build vale gate
     =/  vale-res=(each $-(* ^vase) tang)
       (mule |.((build-vale:marks vase)))
     =/  val-node=(map @ta built:nexus)
@@ -2651,9 +2630,7 @@
 ::  the expected type for its location:
 ::    mar/*        — mark door (has +grab, +grow, +grad)
 ::    nex/*        — nexus:nexus
-::    das/*        — dais:clay
 ::    val/*        — $-(* vase) vale gate
-::    nav/*        — nave (has diff, form, join, mash, pact, vale)
 ::    tub/**       — tube:clay ($-(vase vase))
 ::
 ++  validate-build
@@ -2672,27 +2649,10 @@
     =/  res=(each nexus:nexus tang)
       (mule |.(!<(nexus:nexus vase)))
     ?:(?=(%& -.res) ~ `(weld ~[leaf+"nexus {(trip name.rail)}: type mismatch"] p.res))
-  ?:  =(/das (scag 1 dir))
-    =/  res=(each dais:clay tang)
-      (mule |.(!<(dais:clay vase)))
-    ?:(?=(%& -.res) ~ `(weld ~[leaf+"dais {(trip name.rail)}: type mismatch"] p.res))
   ?:  =(/val (scag 1 dir))
     =/  res=(each $-(* ^vase) tang)
       (mule |.(!<($-(* ^vase) vase)))
     ?:(?=(%& -.res) ~ `(weld ~[leaf+"vale {(trip name.rail)}: type mismatch"] p.res))
-  ?:  =(/nav (scag 1 dir))
-    ::  nave-from returns a vase containing the nave core — unwrap one level
-    =/  res=(each ~ tang)
-      %-  mule  |.
-      =/  inner=^vase  !<(^vase vase)
-      ?>  (slob %diff -.inner)
-      ?>  (slob %form -.inner)
-      ?>  (slob %join -.inner)
-      ?>  (slob %mash -.inner)
-      ?>  (slob %pact -.inner)
-      ?>  (slob %vale -.inner)
-      ~
-    ?:(?=(%& -.res) ~ `~[leaf+"nave {(trip name.rail)}: missing required arms (diff, form, join, mash, pact, vale)"])
   ?:  =(/tub (scag 1 dir))
     =/  res=(each tube:clay tang)
       (mule |.(!<(tube:clay vase)))
