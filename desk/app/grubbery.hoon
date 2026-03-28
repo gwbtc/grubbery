@@ -557,8 +557,9 @@
   |=  [pax=path =path name=@ta]
   ^-  (unit [namespace=fold:tarball source=rail:tarball =built:nexus])
   |-
-  ?~  pax  ~
-  =/  cod=^path  (snoc (snip `(list @ta)`pax) %code)
+  =/  cod=^path
+    ?~  pax  /code  :: root: check /code directly
+    (snoc (snip `(list @ta)`pax) %code)
   =/  lod=(unit lode:nexus)  (~(get by code) cod)
   ?^  lod
     =/  node=(unit (map @ta built:nexus))
@@ -568,6 +569,7 @@
       (~(get by u.node) name)
     ?^  hit  `[cod [path name] u.hit]
     ~  :: nearest code namespace is authoritative — don't walk up
+  ?~  pax  ~  :: reached root, nothing found
   $(pax (snip `(list @ta)`pax))
 ::
 ++  find-built
@@ -2420,7 +2422,9 @@
     |=  [[=rail:tarball =build-result:build] acc=_new-bins]
     =/  stem=@ta  (strip-hoon:build name.rail)
     =/  =built:nexus
-      ?:  ?=(%| -.build-result)  [%tang p.build-result]
+      ?:  ?=(%| -.build-result)
+        %-  (slog (flop p.build-result))
+        [%tang p.build-result]
       =/  val-err=(unit tang)  (validate-build rail p.build-result)
       ?^  val-err
         ~&  >>  "validate-build failed: {(spud (snoc path.rail name.rail))}"

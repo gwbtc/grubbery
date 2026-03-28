@@ -194,20 +194,21 @@
 ::    source line and caret pointer on parse failure.
 ::
 ++  parse-hoon
-  |=  [pax=path src=@t]
+  |=  [pax=path src=@t line-offset=@ud]
   ^-  (each hoon tang)
   =/  vaz  (vang & pax)
   =/  vex=(like hoon)
-    ((full (ifix [gay gay] tall:vaz)) [1 1] (trip src))
+    ((full (ifix [gay gay] tall:vaz)) [(add 1 line-offset) 1] (trip src))
   ?^  q.vex  [%& p.u.q.vex]
   =/  lyn=@ud  p.p.vex
   =/  col=@ud  q.p.vex
   =/  =wain  (to-wain:format src)
+  =/  body-lyn=@ud  (sub lyn line-offset)
   :-  %|
   :~  [%leaf (runt [(dec col) '-'] "^")]
-      ?:  (gth lyn (lent wain))
+      ?:  (gth body-lyn (lent wain))
         [%leaf "<<end of file>>"]
-      [%leaf (trip (snag (dec lyn) wain))]
+      [%leaf (trip (snag (dec body-lyn) wain))]
       [%leaf "syntax error at [{<lyn>} {<col>}] in {(spud pax)}"]
   ==
 ::  +compile-hoon: compile a hoon AST against a subject vase
@@ -232,9 +233,9 @@
 ::    Convenience arm that chains +parse-hoon and +compile-hoon.
 ::
 ++  build-hoon
-  |=  [sut=vase pax=path src=@t]
+  |=  [sut=vase pax=path src=@t line-offset=@ud]
   ^-  (each vase tang)
-  =/  parsed  (parse-hoon pax src)
+  =/  parsed  (parse-hoon pax src line-offset)
   ?:  ?=(%| -.parsed)  parsed
   (compile-hoon sut pax p.parsed)
 ::  +extract-src: extract source text from a cage
@@ -518,8 +519,10 @@
       ==
     ==
   ::  Compile
+  =/  import-lines=@ud
+    (sub (lent (to-wain:format src.fi)) (lent (to-wain:format body.fi)))
   =/  res=build-result
-    =/  r  (mule |.((build-hoon aug (snoc path.rail name.rail) body.fi)))
+    =/  r  (mule |.((build-hoon aug (snoc path.rail name.rail) body.fi import-lines)))
     ?:(?=(%& -.r) p.r [%| ~[leaf+"crash compiling {(spud (snoc path.rail name.rail))}"]])
   ::  For marks: compile raw door into marc
   =.  res

@@ -250,6 +250,14 @@
     =/  result-vase=vase  (convert q.cage)
     =/  out=mime  !<(mime result-vase)
     (pure:m [%text (crip (trip q.q.out))])
+      %boom
+    =/  [err=tang mar=@tas data=*]  !<([tang @tas *] q.cage)
+    =/  rendered=tape
+      %-  zing
+      %+  turn  (flop err)
+      |=(=tank (weld ~(ram re tank) "\0a"))
+    %-  pure:m
+    [%error (crip "BOOM (mark %{(trip mar)})\0a{rendered}")]
       %json
     (pure:m [%text (en:json:html !<(json q.cage))])
       %txt
