@@ -714,10 +714,11 @@
     [%done res.u.in]
   ==
 ::  +get-font: find code responsible for a node
+::  Returns bend to code namespace (relative to asker) + source rail within
 ::
 ++  get-font
   |=  [=wire =road:tarball]
-  =/  m  (fiber ,(unit rail:tarball))
+  =/  m  (fiber ,(unit [=bend:tarball source=rail:tarball]))
   ^-  form:m
   ;<  ~  bind:m  (send-dart %node wire road %font ~)
   |=  input
@@ -741,17 +742,25 @@
   ;<  res=(unit vase)  bind:m  (get-code /marc road)
   ?~  res  (pure:m ~)
   (pure:m `!<(marc:tarball u.res))
-::  +get-tube: look up a tube via marc grow gate
+::  +get-tube: look up a tube via marc grow/grab
+::
+::  Tries source.grow(target) first, then target.grab(source).
 ::
 ++  get-tube
   |=  [cod=road:tarball =bars:tarball]
   =/  m  (fiber ,(unit tube:clay))
   ^-  form:m
-  ;<  marc-res=(unit marc:tarball)  bind:m  (get-marc cod a.bars)
-  ?~  marc-res  (pure:m ~)
-  =/  tube-res=(unit tube:clay)
-    (mole |.((grow.u.marc-res b.bars)))
-  (pure:m tube-res)
+  ;<  src-marc=(unit marc:tarball)  bind:m  (get-marc cod a.bars)
+  =/  grow-tube=(unit tube:clay)
+    ?~  src-marc  ~
+    (mole |.((grow.u.src-marc b.bars)))
+  ?^  grow-tube  (pure:m grow-tube)
+  ::  Fallback: try target.grab(source)
+  ;<  dst-marc=(unit marc:tarball)  bind:m  (get-marc cod b.bars)
+  ?~  dst-marc  (pure:m ~)
+  =/  grab-tube=(unit tube:clay)
+    (mole |.((grab.u.dst-marc a.bars)))
+  (pure:m grab-tube)
 ::  +get-vale: look up a vale via marc
 ::
 ++  get-vale

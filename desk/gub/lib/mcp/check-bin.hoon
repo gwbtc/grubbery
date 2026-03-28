@@ -20,7 +20,8 @@
   ^-  (map @t parameter-def:tools)
   %-  ~(gas by *(map @t parameter-def:tools))
   :~  ['path' [%string 'Bins path (e.g. "/lib/mcp", "/mar", "/nex", "/das")']]
-      ['name' [%string 'Artifact name without .hoon (e.g. "echo", "txt", "server")']]
+      ['name' [%string 'Artifact name (e.g. "echo", "txt", "server")']]
+      ['code' [%string 'Code namespace path (default: "/code"). e.g. "/my/custom/code"']]
   ==
 ++  required  ~['path' 'name']
 ++  handler
@@ -30,9 +31,17 @@
   ;<  st=tool-state:tools  bind:m  (get-state-as:io ,tool-state:tools)
   =/  pax=@t  (~(dog jo:json-utils [%o args.st]) /path so:dejs:format)
   =/  nam=@t  (~(dog jo:json-utils [%o args.st]) /name so:dejs:format)
+  =/  code-ns=path
+    =/  raw=(unit @t)
+      ?~  p=(~(get jo:json-utils [%o args.st]) /code)  ~
+      ?.  ?=([%s *] u.p)  ~
+      ?:  =('' p.u.p)  ~
+      `p.u.p
+    ?~  raw  /code
+    (stab u.raw)
   =/  bin-path=path  (stab pax)
   =/  bin-name=@ta  (crip (trip nam))
-  ;<  res=built:nexus  bind:m  (get-code-full:io /check [%& %& (weld /code bin-path) bin-name])
+  ;<  res=built:nexus  bind:m  (get-code-full:io /check [%& %& (weld code-ns bin-path) bin-name])
   ?:  ?=(%vase -.res)
     (pure:m [%text (crip "OK: {(trip pax)}/{(trip nam)} compiled successfully")])
   ?.  ?=(%tang -.res)

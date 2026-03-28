@@ -117,7 +117,24 @@
     ;<  now=@da  bind:m  get-time:io
     ;<  conversions=(map mars:clay tube:clay)  bind:m
       (get-mark-conversions-shallow:io u.sub)
-    =/  bod=octs  (manx-to-octs:server (render-dir tree-path root root-born root-sand now conversions))
+    ::  Get code origin for this directory level (for neck/mark links)
+    ::  Resolve bend to absolute code namespace path for URL construction
+    ;<  font=(unit [=bend:tarball source=rail:tarball])  bind:m
+      (get-font:io /font [%& %| tree-path])
+    ;<  here=rail:tarball  bind:m  get-here:io
+    =/  code-origin=(unit [namespace=fold:tarball source=rail:tarball])
+      ?~  font  ~
+      =/  ns=(unit lane:tarball)
+        (lane-from-bend:tarball [%& here] bend.u.font)
+      ?~  ns  ~
+      ?.  ?=(%| -.u.ns)  ~
+      `[p.u.ns source.u.font]
+    ::  Get boom state for this directory subtree
+    ;<  boom-res=(each boom:nexus (unit tang))  bind:m
+      (get-boom:io /boom [%& %| tree-path])
+    =/  dir-boom=boom:nexus
+      ?:(?=(%& -.boom-res) p.boom-res *boom:nexus)
+    =/  bod=octs  (manx-to-octs:server (render-dir tree-path root root-born root-sand now conversions code-origin dir-boom))
     ;<  ~  bind:m  (send-simple:srv eyre-id (mime-response:http-utils [/text/html bod]))
     (pure:m ~)
   ::  Not a directory — try as grub
@@ -460,10 +477,10 @@
           ?~  fil.par  ""
           =/  ct=(unit content:tarball)  (~(get by contents.u.fil.par) item)
           ?~  ct  ""
-          (en-xml:html (render-grub-row item u.ct url-prefix watch-path par-born now.bowl conversions))
+          (en-xml:html (render-grub-row item u.ct url-prefix watch-path par-born now.bowl conversions ~ ~))
         =/  sub=(unit ball:tarball)  (~(get by dir.par) item)
         ?~  sub  ""
-        (en-xml:html (render-dir-row item u.sub url-prefix))
+        (en-xml:html (render-dir-row item u.sub url-prefix %.n))
       =/  =json
         %-  pairs:enjs:format
         :~  ['action' s+'add']
@@ -549,6 +566,12 @@
       ; .sortable::after { content: ' \2195'; opacity: 0.3; }
       ; .sortable.asc::after { content: ' \2191'; opacity: 1; }
       ; .sortable.desc::after { content: ' \2193'; opacity: 1; }
+      ; .boom-indicator { color: #cb2431; font-weight: bold; margin-left: 6px; cursor: pointer; }
+      ; .boom-banner { margin: 10px 0; padding: 10px; background: #ffeef0; border: 1px solid #cb2431; border-radius: 6px; }
+      ; .boom-banner summary { color: #cb2431; font-weight: bold; cursor: pointer; }
+      ; .boom-banner pre, .boom-file pre { white-space: pre-wrap; font-size: 12px; margin: 8px 0 0; max-height: 300px; overflow: auto; }
+      ; .boom-file { display: inline; }
+      ; .boom-file summary { display: inline; }
     ==
   ==
 ::
@@ -578,7 +601,7 @@
   ==
 ::
 ++  dir-info
-  |=  [b=ball:tarball url-prefix=tape dir-weir=(unit weir:nexus) pax=path]
+  |=  [b=ball:tarball url-prefix=tape dir-weir=(unit weir:nexus) pax=path neck-url=(unit tape)]
   ^-  manx
   =/  neck-display=tape
     ?~  fil.b  "-"
@@ -592,7 +615,13 @@
   ;div.info
     ;dl
       ;dt: nexus
-      ;dd: {neck-display}
+      ;dd
+        ;*  ?~  neck-url
+              :~  ;span: {neck-display}
+              ==
+            :~  ;a/"{u.neck-url}": {neck-display}
+            ==
+      ==
       ;dt: items
       ;dd: {(scow %ud nkids)}
       ;dt: sandbox
@@ -763,12 +792,21 @@
           root-sand=sand:nexus
           now=@da
           conversions=(map mars:clay tube:clay)
+          code-origin=(unit [namespace=fold:tarball source=rail:tarball])
+          =boom:nexus
       ==
   ^-  manx
   =/  b=ball:tarball  (~(dip ba:tarball root) pax)
   =/  b-born=born:nexus  (~(dip of root-born) pax)
   =/  dir-sand=sand:nexus  (~(dip of root-sand) pax)
   =/  dir-weir=(unit weir:nexus)  fil.dir-sand
+  ::  Code links: neck source URL + code namespace for mark URLs
+  =/  neck-url=(unit tape)
+    ?~  code-origin  ~
+    `"/grubbery/ball{(trip (spat (snoc (weld namespace.u.code-origin path.source.u.code-origin) name.source.u.code-origin)))}.hoon"
+  =/  code-namespace=(unit path)
+    ?~  code-origin  ~
+    `namespace.u.code-origin
   =/  path-display=tape
     ?~  pax  "/"
     (trip (spat pax))
@@ -779,12 +817,27 @@
   =/  subdirs=(list @ta)  ~(tap in ~(key by kids))
   =/  files=(list @ta)  ~(tap in ~(key by file-contents))
   =/  url-prefix=tape  (build-url pax)
+  ::  Boom state at this level
+  =/  boom-here=[fol=(unit tang) fil=(map @ta tang)]
+    (fall (~(get of boom) ~) [~ ~])
+  =/  nexus-boom=(unit tang)  fol.boom-here
+  =/  file-booms=(map @ta tang)  fil.boom-here
   ;html
     ;+  (page-head "Index of {path-display}")
     ;body
       ;+  (breadcrumb pax)
       ;h1: Index of {path-display}
-      ;+  (dir-info b url-prefix dir-weir pax)
+      ;+  (dir-info b url-prefix dir-weir pax neck-url)
+      ;*  ?~  nexus-boom  ~
+          =/  rendered=tape
+            %-  zing
+            %+  turn  (flop u.nexus-boom)
+            |=(=tank (weld ~(ram re tank) "\0a"))
+          :~  ;details.boom-banner
+                ;summary: nexus crashed
+                ;pre: {rendered}
+              ==
+          ==
       ;table#listing(data-path (trip (spat pax)))
         ;tr
           ;th.sortable(data-col "0", onclick "sortTable(0)"): Name
@@ -818,7 +871,8 @@
           |=  name=@ta
           ^-  manx
           =/  sub=ball:tarball  (~(got by kids) name)
-          (render-dir-row name sub url-prefix)
+          =/  sub-boomed=?  (~(has by dir.boom) name)
+          (render-dir-row name sub url-prefix sub-boomed)
         ::  Grubs
         =.  rows
           %+  weld  rows
@@ -826,7 +880,8 @@
           |=  name=@ta
           ^-  manx
           =/  =content:tarball  (~(got by file-contents) name)
-          (render-grub-row name content url-prefix pax b-born now conversions)
+          =/  file-boom=(unit tang)  (~(get by file-booms) name)
+          (render-grub-row name content url-prefix pax b-born now conversions code-namespace file-boom)
         rows
       ==
       ;script: {(trip sse-script)}
@@ -908,12 +963,15 @@
   "{(scow %ud (div n 1.048.576))} MB"
 ::
 ++  render-dir-row
-  |=  [name=@ta sub=ball:tarball url-prefix=tape]
+  |=  [name=@ta sub=ball:tarball url-prefix=tape boomed=?]
   ^-  manx
   =/  dir-url=tape  "{url-prefix}/{(trip name)}"
   ;tr(data-name (trip name), data-type "dir")
     ;td
       ;a/"{dir-url}": {(trip name)}/
+      ;*  ?.  boomed  ~
+          :~  ;span.boom-indicator: !
+          ==
     ==
     ;td: -
     ;td: -
@@ -939,6 +997,8 @@
           dir-born=born:nexus
           now=@da
           conversions=(map mars:clay tube:clay)
+          code-namespace=(unit path)
+          file-boom=(unit tang)
       ==
   ^-  manx
   =/  mtime-display=tape
@@ -990,8 +1050,27 @@
   ;tr(data-name (trip name), data-type "grub", data-size (scow %ud p.q.mime))
     ;td
       ;a/"{view-url}": {display-name}
+      ;*  ?~  file-boom  ~
+          =/  rendered=tape
+            %-  zing
+            %+  turn  (flop u.file-boom)
+            |=(=tank (weld ~(ram re tank) "\0a"))
+          :~  ;details.boom-file
+                ;summary.boom-indicator: !
+                ;pre: {rendered}
+              ==
+          ==
     ==
-    ;td(class mark-class): {mark-name}
+    ;td(class mark-class)
+      ;*  =/  mark-url=(unit tape)
+            ?~  code-namespace  ~
+            `"/grubbery/ball{(trip (spat (weld u.code-namespace /mar)))}/{(trip p.cag)}.hoon"
+          ?~  mark-url
+            :~  ;span: {mark-name}
+            ==
+          :~  ;a/"{u.mark-url}": {mark-name}
+          ==
+    ==
     ;td: {mime-display}
     ;td: {(format-size p.q.mime)}
     ;td: {mtime-display}

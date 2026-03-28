@@ -103,10 +103,10 @@
       [%lose =lose]             :: drop hist entries, decrement silo refs
       [%seek =lobe:clay]        :: find all [rail cass] pairs with this hash
       [%peep =find]
-      [%manu ~]                  :: docs for this path (road resolves nexus + query)
-      [%boom ~]                  :: query boom state subtree at dest
-      [%code ~]                  :: look up compiled artifacts at dest
-      [%font ~]                  :: find code responsible for dest node
+      [%manu ~]                 :: docs for this path (road resolves nexus + query)
+      [%boom ~]                 :: query boom state subtree at dest
+      [%code ~]                 :: look up compiled artifacts at dest
+      [%font ~]                 :: find code responsible for dest node
   ==
 ::  manu types — documentation query
 ::
@@ -163,10 +163,10 @@
         [%fell =wire]                 :: subscription canceled (weir change, deletion, etc)
         [%news =wire =view] :: state notification
         [%veto =dart] :: notify that a dart was sandboxed
+        [%code =wire res=(each bins built)]  :: bins subtree or single artifact
+        [%font =wire res=(unit [=bend:tarball source=rail:tarball])]  :: code namespace (relative bend) + source file within
         :: messages from gall and arvo
         ::
-        [%code =wire res=(each bins built)]  :: bins subtree or single artifact
-        [%font =wire res=(unit rail:tarball)]  :: path to responsible code, or ~
         [%scry =wire =vase]
         [%bowl =wire =bowl]
         [%arvo =wire sign=sign-arvo]

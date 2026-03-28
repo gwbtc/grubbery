@@ -536,13 +536,20 @@
 ::  At each ancestor, checks for a child named %code in the code map.
 ::  A %tang counts as found; only true absence walks to the next.
 ::
-::  +seek-built: core walk, returns [rail built] pair
-::  +find-built: returns the rail to the artifact
-::  +get-built: returns the artifact itself
+::  +seek-built: find a compiled artifact by walking up the tree
+::  +find-built: namespace + source rail (no artifact)
+::  +get-built: just the artifact
+::
+::  Code namespaces are hermetic: once the nearest /code lode is found,
+::  that's the authority. If it doesn't have the artifact, we return ~
+::  rather than falling back to a parent namespace. This means lower
+::  namespaces must copy marks/libs they need from upper ones. A
+::  ford-style refcounted cache (TODO) will make this redundancy free
+::  at runtime via content-addressed dedup.
 ::
 ++  seek-built
   |=  [pax=path =path name=@ta]
-  ^-  (unit [=rail:tarball =built:nexus])
+  ^-  (unit [namespace=fold:tarball source=rail:tarball =built:nexus])
   |-
   =/  cod=^path  (snoc pax %code)
   =/  lod=(unit lode:nexus)  (~(get by code) cod)
@@ -552,18 +559,17 @@
     =/  hit=(unit built:nexus)
       ?~  node  ~
       (~(get by u.node) name)
-    ?^  hit  `[[(weld cod path) name] u.hit]
-    ?~  pax  ~
-    $(pax (snip `(list @ta)`pax))
+    ?^  hit  `[cod [path name] u.hit]
+    ~  :: nearest code namespace is authoritative — don't walk up
   ?~  pax  ~
   $(pax (snip `(list @ta)`pax))
 ::
 ++  find-built
   |=  [pax=path =path name=@ta]
-  ^-  (unit rail:tarball)
+  ^-  (unit [namespace=fold:tarball source=rail:tarball])
   =/  res  (seek-built pax path name)
   ?~  res  ~
-  `rail.u.res
+  `[namespace.u.res source.u.res]
 ::
 ++  get-built
   |=  [pax=path =path name=@ta]
@@ -1584,8 +1590,9 @@
         %font
       ::  Find code responsible for dest node
       ::  Directory: nexus code from neck. File: mark core.
+      ::  Returns bend (relative to asker) to code namespace + source rail within.
       ::  Also checks peek access on the returned code rail.
-      =/  font-rail=(unit rail:tarball)
+      =/  font-split=(unit [namespace=fold:tarball source=rail:tarball])
         ?-    -.u.dest-lane
             %|
           =/  dest=fold:tarball  p.u.dest-lane
@@ -1599,13 +1606,16 @@
           ?~  content  ~
           (find-built path.dest /mar p.cage.u.content)
         ==
-      ::  Check peek access on the code rail — veto if denied
-      ?~  font-rail
+      ?~  font-split
         (enqu-take here (sys-give /font) ~ %font wire.dart ~)
-      =/  =filt:nexus  (allowed %peek here `[%& u.font-rail])
+      ::  Check peek access on the absolute code rail
+      =/  abs-rail=rail:tarball  [(weld namespace.u.font-split path.source.u.font-split) name.source.u.font-split]
+      =/  =filt:nexus  (allowed %peek here `[%& abs-rail])
       ?:  ?=([~ %|] filt)
         (enqu-take here (sys-give /veto) ~ %veto dart)
-      (enqu-take here (sys-give /font) ~ %font wire.dart font-rail)
+      ::  Return bend from asker to code namespace + source file within
+      =/  =bend:tarball  (make-bend:tarball here [%| namespace.u.font-split])
+      (enqu-take here (sys-give /font) ~ %font wire.dart `[bend source.u.font-split])
       ::
         %keep
       ::  Subscribe to changes at dest (uses peek permission)
