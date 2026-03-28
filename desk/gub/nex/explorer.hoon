@@ -566,12 +566,15 @@
       ; .sortable::after { content: ' \2195'; opacity: 0.3; }
       ; .sortable.asc::after { content: ' \2191'; opacity: 1; }
       ; .sortable.desc::after { content: ' \2193'; opacity: 1; }
-      ; .boom-banner { margin: 10px 0; padding: 10px; background: #ffeef0; border: 1px solid #cb2431; border-radius: 6px; }
-      ; .boom-banner summary { color: #cb2431; font-weight: bold; cursor: pointer; }
-      ; .boom-banner pre, .boom-file pre { white-space: pre-wrap; font-size: 12px; margin: 8px 0 0; max-height: 300px; overflow: auto; }
-      ; .boom-file { margin-left: 6px; }
-      ; .boom-file summary { color: #cb2431; font-weight: bold; cursor: pointer; list-style: none; display: inline; }
-      ; .boom-file[open] pre { display: block; }
+      ; .boom-banner { margin: 10px 0; padding: 10px; background: #ffeef0; border: 1px solid #cb2431; border-radius: 6px; cursor: pointer; }
+      ; .boom-banner:hover { background: #fdd; }
+      ; .boom-icon { color: #cb2431; font-weight: bold; cursor: pointer; margin-left: 4px; display: inline; }
+      ; .boom-icon:hover { text-decoration: underline; }
+      ; .boom-modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.4); z-index: 1000; }
+      ; .boom-modal-overlay.active { display: flex; align-items: center; justify-content: center; }
+      ; .boom-modal { background: #fff; border: 2px solid #cb2431; border-radius: 8px; padding: 16px; max-width: 80vw; max-height: 80vh; overflow: auto; min-width: 400px; }
+      ; .boom-modal h3 { color: #cb2431; margin: 0 0 8px; }
+      ; .boom-modal pre { white-space: pre-wrap; font-size: 12px; margin: 0; max-height: 60vh; overflow: auto; background: #ffeef0; padding: 8px; border-radius: 4px; }
     ==
   ==
 ::
@@ -829,13 +832,9 @@
       ;h1: Index of {path-display}
       ;+  (dir-info b url-prefix dir-weir pax neck-url)
       ;*  ?~  nexus-boom  ~
-          =/  rendered=tape
-            %-  zing
-            %+  turn  (flop u.nexus-boom)
-            |=(=tank (weld ~(ram re tank) "\0a"))
-          :~  ;details.boom-banner
-                ;summary: nexus crashed
-                ;pre: {rendered}
+          =/  rendered=tape  (render-tang u.nexus-boom)
+          :~  ;div.boom-banner(data-tang rendered, onclick "showBoom(this)")
+                nexus crashed — click for details
               ==
           ==
       ;table#listing(data-path (trip (spat pax)))
@@ -884,6 +883,12 @@
           =/  file-boom=(unit tang)  (~(get by file-booms) name)
           (render-grub-row name content url-prefix pax b-born now conversions code-namespace file-boom)
         rows
+      ==
+      ;div#boom-overlay.boom-modal-overlay
+        ;div.boom-modal
+          ;h3: Error
+          ;pre;
+        ==
       ==
       ;script: {(trip sse-script)}
     ==
@@ -950,9 +955,29 @@
     });
     window.addEventListener('beforeunload', function() { es.close(); });
   })();
+  function showBoom(el) {
+    var pre = el.dataset.tang;
+    var ov = document.getElementById('boom-overlay');
+    ov.querySelector('pre').textContent = pre;
+    ov.classList.add('active');
+  }
+  document.addEventListener('click', function(e) {
+    var ov = document.getElementById('boom-overlay');
+    if (e.target === ov) ov.classList.remove('active');
+  });
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') document.getElementById('boom-overlay').classList.remove('active');
+  });
   '''
 ::
 ::
+::
+++  render-tang
+  |=  =tang
+  ^-  tape
+  %-  zing
+  %+  turn  (flop tang)
+  |=(=tank (weld ~(ram re tank) "\0a"))
 ::
 ++  format-size
   |=  n=@ud
@@ -971,14 +996,8 @@
     ;td
       ;a/"{dir-url}": {(trip name)}/
       ;*  ?~  nexus-boom  ~
-          =/  rendered=tape
-            %-  zing
-            %+  turn  (flop u.nexus-boom)
-            |=(=tank (weld ~(ram re tank) "\0a"))
-          :~  ;details.boom-file
-                ;summary: !
-                ;pre: {rendered}
-              ==
+          =/  rendered=tape  (render-tang u.nexus-boom)
+          :~  ;span.boom-icon(data-tang rendered, onclick "showBoom(this)"): !
           ==
     ==
     ;td: -
@@ -1059,14 +1078,8 @@
     ;td
       ;a/"{view-url}": {display-name}
       ;*  ?~  file-boom  ~
-          =/  rendered=tape
-            %-  zing
-            %+  turn  (flop u.file-boom)
-            |=(=tank (weld ~(ram re tank) "\0a"))
-          :~  ;details.boom-file
-                ;summary.boom-indicator: !
-                ;pre: {rendered}
-              ==
+          =/  rendered=tape  (render-tang u.file-boom)
+          :~  ;span.boom-icon(data-tang rendered, onclick "showBoom(this)"): !
           ==
     ==
     ;td(class mark-class)

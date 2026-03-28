@@ -1,7 +1,7 @@
 /-  spider
 /+  default-agent, dbug, tarball, nexus,
     server, multipart, http-utils, html-utils, json-utils,
-    marks, build, fiberio, loader, cram, pretty-file
+    marks, build, fiberio, loader, cram, pretty-file, root
 /=  t-  /tests/nexus
 /=  t-  /tests/tarball
 /=  t-  /tests/build
@@ -65,17 +65,20 @@
 ::
 ++  on-init
   ^-  (quip card _this)
-  ::  Ensure root neck
-  =/  lmp=lump:tarball  (fall fil.ball [~ ~ ~])
+  ::  Ensure root lump with hardcoded neck (root nexus from lib, not code)
+  =/  lmp=lump:tarball  (fall fil.ball *lump:tarball)
   =.  ball  ball(fil `lmp(neck `[/ %root]))
-  ::  Compile code from Clay (cascades nexus on-loads)
+  ::  Compile code from Clay
   =^  gub-cards  state  abet:sync-gub:hc
+  ::  Reload root nexus (hardcoded — after code compile so child nexuses build)
+  =^  root-cards  state  abet:(reload-nexus-at:hc / root)
   =^  load-cards  state  abet:(load-ball-changes:hc / *ball:tarball ball)
   =^  dill-cards  state  abet:sync-dill:hc
   =^  clay-cards  state  abet:sync-clay:hc
   =^  jael-cards  state  abet:sync-jael:hc
   :_  this
   ;:  weld
+    root-cards
     gub-cards
     load-cards
     dill-cards
@@ -100,6 +103,8 @@
     =/  pre-ball=ball:tarball  ball
     ::  Compile code from Clay (cascades nexus on-loads)
     =^  gub-cards  state  abet:sync-gub:hc
+    ::  Reload root nexus (hardcoded — runs on every app reload, after code compile)
+    =^  root-cards  state  abet:(reload-nexus-at:hc / root)
     ::  Sync all changes
     =^  load-cards  state  abet:(load-ball-changes:hc / pre-ball ball)
     =^  dill-cards  state  abet:sync-dill:hc
@@ -107,6 +112,7 @@
     =^  jael-cards  state  abet:sync-jael:hc
     :_  this
     ;:  weld
+      root-cards
       gub-cards
       load-cards
       dill-cards
@@ -551,7 +557,8 @@
   |=  [pax=path =path name=@ta]
   ^-  (unit [namespace=fold:tarball source=rail:tarball =built:nexus])
   |-
-  =/  cod=^path  (snoc pax %code)
+  ?~  pax  ~
+  =/  cod=^path  (snoc (snip `(list @ta)`pax) %code)
   =/  lod=(unit lode:nexus)  (~(get by code) cod)
   ?^  lod
     =/  node=(unit (map @ta built:nexus))
@@ -561,7 +568,6 @@
       (~(get by u.node) name)
     ?^  hit  `[cod [path name] u.hit]
     ~  :: nearest code namespace is authoritative — don't walk up
-  ?~  pax  ~
   $(pax (snip `(list @ta)`pax))
 ::
 ++  find-built
@@ -719,6 +725,12 @@
   |=  [dest=fold:tarball err=tang]
   ^+  this
   =.  boom  (~(put-fold bm:nexus boom) dest err)
+  ::  Boom every file under dest so they show the error too
+  =/  sub=ball:tarball  (~(dip ba:tarball ball) dest)
+  =.  boom
+    %+  roll  ~(tap ba:tarball sub)
+    |=  [[=rail:tarball *] acc=_boom]
+    (~(put-file bm:nexus acc) [(weld dest path.rail) name.rail] err)
   ::  Replace all processes under dest with +stay
   (stay-all-procs dest)
 ::  Boom a file — store tang, +stay its process
@@ -788,6 +800,7 @@
     (~(drop-hist si:nexus silo) hist.u.sok)
   ::  Remove from ball BEFORE notify so subscribers see deletion
   =.  ball  (~(del ba:tarball ball) dir name)
+  =.  boom  (~(del-file bm:nexus boom) [dir name])
   =.  this  (bump-file [dir name])
   =/  =pipe:nexus  (~(del by (fall (~(get of pool) dir) ~)) name)
   =.  pool  (~(put of pool) dir pipe)
@@ -1283,6 +1296,7 @@
 ++  build-nexus
   |=  [pax=path =neck:tarball]
   ^-  (each nexus:nexus tang)
+  ?:  =([/ %root] neck)  &+root
   =/  res=(unit built:nexus)  (get-built pax (weld /nex path.neck) name.neck)
   ?~  res  |+~[leaf+"build-nexus: {(trip (rail-to-arm:tarball [path.neck name.neck]))} not found in code"]
   ?+  -.u.res
@@ -2431,6 +2445,53 @@
   ~&  >  "build-code: done"
   this
 ::  Validate marks: for each changed mark in bin/mar/, build a vale gate
+::  Walk ball under a code namespace, pruning at child code namespaces.
+::  Returns all [fold lump] pairs governed by this code namespace —
+::  i.e. under scope but not under a deeper code namespace.
+::
+++  governed-dirs
+  |=  cod=path
+  ^-  (list [=fold:tarball =lump:tarball])
+  =/  scope=path  (snip `(list @ta)`cod)
+  =/  sub=ball:tarball  (~(dip ba:tarball ball) scope)
+  =/  out=(list [=fold:tarball =lump:tarball])  ~
+  =|  here=path
+  |-
+  ::  Check if any child is a code namespace — if so, this directory
+  ::  is another code namespace's scope, not ours. Prune entirely.
+  ::  Exception: here=~ is our own scope (we expect our own /code child).
+  =/  has-child-code=?
+    %+  lien  ~(tap by dir.sub)
+    |=  [name=@ta kid=ball:tarball]
+    ?&(=(%code name) ?=(^ fil.kid) ?=(^ neck.u.fil.kid) =([/ %code] u.neck.u.fil.kid))
+  ::  Collect this node if it has a lump
+  =?  out  ?=(^ fil.sub)
+    [[(weld scope here) u.fil.sub] out]
+  ::  Child code namespace means everything below is governed by it, not us.
+  ::  Collect the node but don't descend. Exception: here=~ is our own scope.
+  ?:  ?&(has-child-code !=(here ~))
+    out
+  ::  Descend into children, skipping the code directory itself
+  =/  kids=(list [@ta ball:tarball])  ~(tap by dir.sub)
+  |-
+  ?~  kids  out
+  =/  [name=@ta kid=ball:tarball]  i.kids
+  =?  out  !=(name %code)
+    ^$(here (snoc here name), sub kid)
+  $(kids t.kids)
+::  Walk ball under a code namespace, collecting all files governed by it.
+::  Prunes at child code namespaces.
+::
+++  governed-files
+  |=  cod=path
+  ^-  (list [=rail:tarball =content:tarball])
+  =/  dirs=(list [=fold:tarball =lump:tarball])  (governed-dirs cod)
+  %-  zing
+  %+  turn  dirs
+  |=  [=fold:tarball =lump:tarball]
+  %+  turn  ~(tap by contents.lump)
+  |=  [name=@ta =content:tarball]
+  [[fold name] content]
 ::  and clam all grubs with that mark through validate-vase.
 ::  On success, updates grubs in ball with clammed vases.
 ::  On failure, downgrades the mark to .tang in new-bin.
@@ -2462,11 +2523,9 @@
   =/  [=blot:tarball =built:nexus]  i.remaining
   =/  nam=@tas  (rail-to-arm:tarball blot)
   ::  Find all grubs with this mark, including booms with matching inner mark
-  =/  scope=path  (snip `(list @ta)`cod)
   =/  grubs=(list [=rail:tarball =content:tarball])
-    %+  skim  ~(tap ba:tarball ball)
+    %+  skim  (governed-files cod)
     |=  [=rail:tarball =content:tarball]
-    ?.  =(scope (scag (lent scope) path.rail))  |
     ?:  =(name.blot p.cage.content)  &
     ?.  =(%boom p.cage.content)  |
     =/  [* inner=page]  ;;([tang page] q.q.cage.content)
@@ -2541,14 +2600,12 @@
       %tang  |+tang.built
       %vase  (mule |.(!<(nexus:nexus vase.built)))
     ==
-  ::  Find all directories using this neck under this code nexus's scope
-  =/  scope=path  (snip `(list @ta)`cod)
+  ::  Find all directories using this neck, governed by this code namespace
   =/  dirs=(list fold:tarball)
-    %+  murn  ~(tap of ball)
-    |=  [pax=path =lump:tarball]
+    %+  murn  (governed-dirs cod)
+    |=  [=fold:tarball =lump:tarball]
     ?.  ?&(?=(^ neck.lump) =(u.neck.lump neck))  ~
-    ?.  =(scope (scag (lent scope) pax))  ~
-    `pax
+    `fold
   ?~  dirs  $(remaining t.remaining)
   ::  Run on-load and apply results for each directory
   ::  (reload-nexus-at handles boom/clear internally)

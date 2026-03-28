@@ -1,5 +1,7 @@
+::  Root nexus — hardcoded in app/grubbery.hoon, not loaded from code namespace.
+::
+/+  nexus, tarball, loader, io=fiberio
 ^-  nexus:nexus
-!:  :: turn on stack trace
 |%
 ++  on-load
   |=  [=sand:nexus =gain:nexus =ball:tarball]
@@ -30,7 +32,6 @@
         [%fall %| /sys/jael [~ ~] [~ ~] empty-dir:loader]
     ==
   ==
-::
 ++  on-file
   |=  [=rail:tarball mak=mark]
   ^-  spool:fiber:nexus
