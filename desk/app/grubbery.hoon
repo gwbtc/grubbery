@@ -67,7 +67,7 @@
   ^-  (quip card _this)
   ::  Ensure root neck
   =/  lmp=lump:tarball  (fall fil.ball [~ ~ ~])
-  =.  ball  ball(fil `lmp(neck `%root))
+  =.  ball  ball(fil `lmp(neck `[/ %root]))
   ::  Compile code from Clay (cascades nexus on-loads)
   =^  gub-cards  state  abet:sync-gub:hc
   =^  load-cards  state  abet:(load-ball-changes:hc / *ball:tarball ball)
@@ -1266,9 +1266,9 @@
   $(darts t.darts)
 ::
 ++  build-nexus
-  |=  [pax=path neck=@tas]
+  |=  [pax=path =neck:tarball]
   ^-  (unit nexus:nexus)
-  =/  res=(unit built:nexus)  (get-built pax /nex neck)
+  =/  res=(unit built:nexus)  (get-built pax (weld /nex path.neck) name.neck)
   ?~  res  ~
   ?.  ?=(%vase -.u.res)  ~
   (mole |.(!<(nexus:nexus vase.u.res)))
@@ -1588,7 +1588,7 @@
           =/  dest=fold:tarball  p.u.dest-lane
           =/  =lump:tarball  (fall (~(get of ball) dest) *lump:tarball)
           ?~  neck.lump  ~
-          (find-built dest /nex u.neck.lump)
+          (find-built dest (weld /nex path.u.neck.lump) name.u.neck.lump)
             %&
           =/  dest=rail:tarball  p.u.dest-lane
           =/  content=(unit content:tarball)
@@ -1718,7 +1718,7 @@
       ::  ~&  >  "process-manu-search: build-nexus {(trip q.u.nex-info)} at {(spud (snoc path.here name.here))}"
       =/  nex=(unit nexus:nexus)  (build-nexus cod q.u.nex-info)
       ?~  nex
-        (enqu-take here (sys-give /manu) ~ %manu wire.dart |+~[leaf+"nexus build failed: {(trip q.u.nex-info)}"])
+        (enqu-take here (sys-give /manu) ~ %manu wire.dart |+~[leaf+"nexus build failed: {(trip (rail-to-arm:tarball q.u.nex-info))}"])
       ::  Relativize target path to nexus location
       =/  rel-path=path  (slag (lent p.u.nex-info) target-path)
       ::  Build query from relative path + lane type
@@ -1741,7 +1741,7 @@
     ::  ~&  >  "process-manu-direct: build-nexus {(trip neck.dart)} at {(spud (snoc path.here name.here))}"
     =/  nex=(unit nexus:nexus)  (build-nexus cod neck.dart)
     ?~  nex
-      (enqu-take here (sys-give /manu) ~ %manu wire.dart |+~[leaf+"nexus not found: {(trip neck.dart)}"])
+      (enqu-take here (sys-give /manu) ~ %manu wire.dart |+~[leaf+"nexus not found: {(trip (rail-to-arm:tarball neck.dart))}"])
     =/  text=@t  (on-manu:u.nex mana.dart)
     (enqu-take here (sys-give /manu) ~ %manu wire.dart &+text)
     ::
@@ -2346,7 +2346,7 @@
   ::  Ensure %code neck on code nexus directory
   =/  code-lump=lump:tarball
     (fall (~(get of ball) cod) *lump:tarball)
-  =.  ball  (~(put of ball) cod code-lump(neck `%code))
+  =.  ball  (~(put of ball) cod code-lump(neck `[/ %code]))
   ::  Get or create lode for this code nexus
   =/  =lode:nexus  (fall (~(get by code) cod) *lode:nexus)
   =/  old-bins=bins:nexus  bins.lode
@@ -2406,29 +2406,8 @@
     =/  node=(map @ta built:nexus)
       (fall (~(get of acc) store-path) *(map @ta built:nexus))
     (~(put of acc) store-path (~(put by node) store-name built))
-  ::  Gather compiled mark source cores and build marcs
-  =/  mar-node=(map @ta built:nexus)
-    (fall (~(get of new-bins) /mar) *(map @ta built:nexus))
-  =/  mark-cores=(map mark vase)
-    %-  ~(gas by *(map mark vase))
-    %+  murn  ~(tap by mar-node)
-    |=  [mak=@ta =built:nexus]
-    ?.  ?=(%vase -.built)  ~
-    `[mak vase.built]
-  ::  Build marc dispatch cores from mark source cores
-  =.  new-bins
-    =/  new-mar-node=_mar-node  mar-node
-    =+
-    %+  roll  ~(tap by mark-cores)
-    |=  [[mak=mark =vase] acc=_new-mar-node]
-    =/  marc-res=(each marc:tarball tang)
-      (mule |.((build-marc:marks mak vase mark-cores)))
-    ?:  ?=(%| -.marc-res)
-      ~&  >>  "build-code: marc for %{(trip mak)} failed"
-      (~(put by acc) mak [%tang p.marc-res])
-    (~(put by acc) mak [%vase !>(p.marc-res)])
-  (~(put of new-bins) /mar -)
   ::  Update build state
+  ::  Note: /mar entries in results are already marcs (built in build.hoon)
   ~&  >  "build-code: updating lode"
   =.  lode  [keys.res deps.res new-bins]
   =.  code  (~(put by code) cod lode)
@@ -2531,18 +2510,18 @@
     (fall (~(get of new-bins) /nex) *(map @ta built:nexus))
   =/  old-nex=(map @ta built:nexus)
     (fall (~(get of old-bins) /nex) *(map @ta built:nexus))
-  =/  changed=(list [neck=@tas =vase])
+  =/  changed=(list [=neck:tarball =vase])
     %+  murn  ~(tap by nex-node)
-    |=  [neck=@ta =built:nexus]
+    |=  [name=@ta =built:nexus]
     ?.  ?=(%vase -.built)  ~
-    =/  old=(unit built:nexus)  (~(get by old-nex) neck)
+    =/  old=(unit built:nexus)  (~(get by old-nex) name)
     ?:  ?&(?=(^ old) ?=(%vase -.u.old) =(q.vase.u.old q.vase.built))  ~
-    `[neck vase.built]
+    `[[/ name] vase.built]
   ::  Process each changed nexus
   =/  remaining=_changed  changed
   |-
   ?~  remaining  this
-  =/  [neck=@tas =vase]  i.remaining
+  =/  [=neck:tarball =vase]  i.remaining
   ::  Build nexus from compiled vase
   =/  nex-res=(each nexus:nexus tang)
     (mule |.(!<(nexus:nexus vase)))
@@ -2556,7 +2535,7 @@
     `pax
   ?~  dirs  $(remaining t.remaining)
   ?:  ?=(%| -.nex-res)
-    ~|  [leaf+"validate-nexuses: {(trip neck)} type mismatch" p.nex-res]
+    ~|  [leaf+"validate-nexuses: {(trip (rail-to-arm:tarball neck))} type mismatch" p.nex-res]
     !!
   =/  nex=nexus:nexus  p.nex-res
   ::  Run on-load and apply results for each directory
@@ -2565,7 +2544,7 @@
   |-
   ?~  dir-remaining  ^$(remaining t.remaining)
   =/  dest=fold:tarball  i.dir-remaining
-  ~&  >  "validate-nexuses: reloading {(trip neck)} at {(spud dest)}"
+  ~&  >  "validate-nexuses: reloading {(trip (rail-to-arm:tarball neck))} at {(spud dest)}"
   =.  this  (reload-nexus-at dest nex)
   $(dir-remaining t.dir-remaining)
 ::  Validate a compiled artifact based on its source path.
@@ -2579,13 +2558,9 @@
   |=  [=rail:tarball =vase]
   ^-  (unit tang)
   =/  dir=path  path.rail
-  ?:  =(/mar (scag 1 dir))
-    =/  res=(each ~ tang)
-      %-  mule  |.
-      ?>  (slob %grab -.vase)
-      ?>  (slob %grow -.vase)
-      ~
-    ?:(?=(%& -.res) ~ `~[leaf+"mark {(trip name.rail)}: missing +grab or +grow"])
+  ::  Marks: validated by build-marc after compilation, not here.
+  ::  Cached entries are marcs (not raw doors), so slob won't find arms.
+  ?:  =(/mar (scag 1 dir))  ~
   ?:  =(/nex (scag 1 dir))
     =/  res=(each nexus:nexus tang)
       (mule |.(!<(nexus:nexus vase)))

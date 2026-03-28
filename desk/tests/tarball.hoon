@@ -1268,23 +1268,23 @@
 ++  test-mkd-with-neck
   ::  Create directory with neck (mark)
   =/  my-ball  *ball:tarball
-  =/  result  (~(mkd ba:tarball my-ball) /tasks ~ `%worker)
+  =/  result  (~(mkd ba:tarball my-ball) /tasks ~ `[/ %worker])
   =/  sub  (~(dip ba:tarball result) /tasks)
   ?~  fil.sub  !!
   %+  expect-eq
-    !>  `%worker
+    !>  `[/ %worker]
   !>  neck.u.fil.sub
 ::
 ++  test-mkd-with-metadata-and-neck
   ::  Create directory with both metadata and neck
   =/  my-ball  *ball:tarball
   =/  meta=(map @t @t)  (~(gas by *(map @t @t)) ~[['mtime' '12345'] ['owner' 'zod']])
-  =/  result  (~(mkd ba:tarball my-ball) /tasks meta `%executor)
+  =/  result  (~(mkd ba:tarball my-ball) /tasks meta `[/ %executor])
   =/  sub  (~(dip ba:tarball result) /tasks)
   ?~  fil.sub  !!
   ;:  weld
     %+  expect-eq
-      !>  `%executor
+      !>  `[/ %executor]
     !>  neck.u.fil.sub
     %+  expect-eq
       !>  `'12345'
@@ -1298,11 +1298,11 @@
   ::  Create nested directories
   =/  my-ball  *ball:tarball
   =/  g1  (~(mkd ba:tarball my-ball) /foo ~ ~)
-  =/  g2  (~(mkd ba:tarball g1) /foo/bar ~ `%special)
+  =/  g2  (~(mkd ba:tarball g1) /foo/bar ~ `[/ %special])
   =/  sub  (~(dip ba:tarball g2) /foo/bar)
   ?~  fil.sub  !!
   %+  expect-eq
-    !>  `%special
+    !>  `[/ %special]
   !>  neck.u.fil.sub
 ::
 ::  pub tests (put subtree at path)
@@ -1397,7 +1397,7 @@
   ::  Put should not overwrite existing lumps on intermediate directories
   =/  my-ball  *ball:tarball
   =/  meta=(map @t @t)  (~(gas by *(map @t @t)) ~[['key' 'value']])
-  =/  g1  (~(mkd ba:tarball my-ball) /a meta `%special)
+  =/  g1  (~(mkd ba:tarball my-ball) /a meta `[/ %special])
   =/  content=content:tarball  [~ [%mime !>([/text/plain [5 'hello']])]]
   =/  result  (~(put ba:tarball g1) [/a/b/c %file] content)
   =/  at-a  (~(dip ba:tarball result) /a)
@@ -1405,7 +1405,7 @@
   ;:  weld
     ::  Neck should be preserved
     %+  expect-eq
-      !>  `%special
+      !>  `[/ %special]
     !>  neck.u.fil.at-a
     ::  Metadata should be preserved
     %+  expect-eq
@@ -1432,7 +1432,7 @@
   ::  Multiple puts to different paths should not interfere
   =/  my-ball  *ball:tarball
   =/  meta=(map @t @t)  (~(gas by *(map @t @t)) ~[['key' 'value']])
-  =/  g1  (~(mkd ba:tarball my-ball) /x meta `%first)
+  =/  g1  (~(mkd ba:tarball my-ball) /x meta `[/ %first])
   =/  content=content:tarball  [~ [%mime !>([/text/plain [5 'hello']])]]
   =/  g2  (~(put ba:tarball g1) [/y/z %file] content)
   ::  /x should still have its original lump
@@ -1441,7 +1441,7 @@
   ?~  fil.at-x  !!
   ;:  weld
     %+  expect-eq
-      !>  `%first
+      !>  `[/ %first]
     !>  neck.u.fil.at-x
     ::  /y should have a lump too
     %-  expect
@@ -1471,7 +1471,7 @@
 ++  test-mkd-creates-intermediate-lumps
   ::  mkd at deep path should create lumps for intermediate directories
   =/  my-ball  *ball:tarball
-  =/  result  (~(mkd ba:tarball my-ball) /a/b/c ~ `%target)
+  =/  result  (~(mkd ba:tarball my-ball) /a/b/c ~ `[/ %target])
   ::  Check intermediate directories have lumps
   =/  at-a  (~(dip ba:tarball result) /a)
   =/  at-ab  (~(dip ba:tarball result) /a/b)
@@ -1486,8 +1486,8 @@
   ::  mkd should not overwrite existing lumps on intermediate directories
   =/  my-ball  *ball:tarball
   =/  meta=(map @t @t)  (~(gas by *(map @t @t)) ~[['key' 'value']])
-  =/  g1  (~(mkd ba:tarball my-ball) /a meta `%special)
-  =/  result  (~(mkd ba:tarball g1) /a/b/c ~ `%target)
+  =/  g1  (~(mkd ba:tarball my-ball) /a meta `[/ %special])
+  =/  result  (~(mkd ba:tarball g1) /a/b/c ~ `[/ %target])
   =/  at-a  (~(dip ba:tarball result) /a)
   =/  at-abc  (~(dip ba:tarball result) /a/b/c)
   ?~  fil.at-a  !!
@@ -1495,7 +1495,7 @@
   ;:  weld
     ::  /a neck should be preserved
     %+  expect-eq
-      !>  `%special
+      !>  `[/ %special]
     !>  neck.u.fil.at-a
     ::  /a metadata should be preserved
     %+  expect-eq
@@ -1503,7 +1503,7 @@
     !>  (~(get by metadata.u.fil.at-a) 'key')
     ::  /a/b/c should have the target neck
     %+  expect-eq
-      !>  `%target
+      !>  `[/ %target]
     !>  neck.u.fil.at-abc
   ==
 ::
@@ -1527,7 +1527,7 @@
   ::  pub should not overwrite existing lumps on intermediate directories
   =/  my-ball  *ball:tarball
   =/  meta=(map @t @t)  (~(gas by *(map @t @t)) ~[['key' 'value']])
-  =/  g1  (~(mkd ba:tarball my-ball) /a meta `%special)
+  =/  g1  (~(mkd ba:tarball my-ball) /a meta `[/ %special])
   =/  content=content:tarball  [~ [%mime !>([/text/plain [5 'hello']])]]
   =/  sub-ball  (~(put ba:tarball *ball:tarball) [/ %file] content)
   =/  result  (~(pub ba:tarball g1) /a/b/c sub-ball)
@@ -1536,7 +1536,7 @@
   ;:  weld
     ::  Neck should be preserved
     %+  expect-eq
-      !>  `%special
+      !>  `[/ %special]
     !>  neck.u.fil.at-a
     ::  Metadata should be preserved
     %+  expect-eq
@@ -1548,14 +1548,14 @@
   ::  pub should preserve the subtree's own lump structure
   =/  my-ball  *ball:tarball
   =/  sub-meta=(map @t @t)  (~(gas by *(map @t @t)) ~[['sub-key' 'sub-value']])
-  =/  sub-ball  (~(mkd ba:tarball *ball:tarball) / sub-meta `%sub-neck)
+  =/  sub-ball  (~(mkd ba:tarball *ball:tarball) / sub-meta `[/ %sub-neck])
   =/  result  (~(pub ba:tarball my-ball) /target sub-ball)
   =/  at-target  (~(dip ba:tarball result) /target)
   ?~  fil.at-target  !!
   ;:  weld
     ::  Subtree's neck should be preserved
     %+  expect-eq
-      !>  `%sub-neck
+      !>  `[/ %sub-neck]
     !>  neck.u.fil.at-target
     ::  Subtree's metadata should be preserved
     %+  expect-eq

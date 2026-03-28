@@ -2,12 +2,10 @@
 |%
 +$  card  card:agent:gall
 +$  built  $%([%vase =vase] [%tang =tang] [%mime =mime])
++$  keys  (map rail:tarball @uv)
++$  deps  (map rail:tarball (set rail:tarball))
 +$  bins  (axal (map @ta built))
-+$  lode
-  $:  keys=(map rail:tarball @uv)
-      deps=(map rail:tarball (set rail:tarball))
-      =bins
-  ==
++$  lode  [=keys =deps =bins]
 ::  TODO: each code nexus compiles independently, so identical libraries
 ::  in different nexuses are recompiled and stored separately. A global
 ::  refcounted cache keyed by build hash (like Clay's +flow across desks)

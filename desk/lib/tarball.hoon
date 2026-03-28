@@ -2,11 +2,17 @@
 ::
 /+  multipart
 |%
-+$  neck      @tas                :: a "mark" at the directory level
++$  neck      rail                :: a nexus identity (directory-level mark)
 +$  metadata  (map @t @t)
 ::  Compiled mark core: built once from mark source, used for vale + tubes
 ::
-+$  marc  [vale=$-(* vase) grow=$-(mark tube:clay) grab=$-(mark tube:clay)]
++$  marc
+  $_  ^?
+  |%
+  ++  vale  |~(* *vase)
+  ++  grow  |~(mark *tube:clay)
+  ++  grab  |~(mark *tube:clay)
+  --
 ::  Path types with file/directory distinction
 ::
 +$  rail  [=path name=@ta]        :: path to file (dir + filename)
@@ -150,6 +156,20 @@
   ?~  pax  ~
   ?.  =(i.pre i.pax)  ~
   $(pre t.pre, pax t.pax)
+::  +rail-to-arm: encode a rail as a flat @tas for display/arm names
+::
+::  [/ %txt] → %txt
+::  [/eyre %bindings] → %eyre--bindings
+::  [/foo/bar %baz] → %foo--bar--baz
+::
+++  rail-to-arm
+  |=  =rail
+  ^-  @tas
+  ?~  path.rail  name.rail
+  %-  crip
+  %-  zing
+  %+  join  "--"
+  (snoc (turn path.rail trip) (trip name.rail))
 ::  Helper: wrap symlink as cage for storage
 ::
 ++  symlink-to-cage
@@ -442,7 +462,7 @@
   =/  files=json
     [%o (~(run by files.u.fil.tre) |=(m=@tas s+m))]
   =/  neck=json
-    ?~(neck.u.fil.tre ~ s+u.neck.u.fil.tre)
+    ?~(neck.u.fil.tre ~ s+(rail-to-arm u.neck.u.fil.tre))
   %-  pairs:enjs:format
   :~  ['neck' neck]
       ['files' files]

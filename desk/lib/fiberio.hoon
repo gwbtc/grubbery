@@ -764,10 +764,10 @@
 ::  +get-nexus: look up a compiled nexus from bins
 ::
 ++  get-nexus
-  |=  [cod=road:tarball neck=@tas]
+  |=  [cod=road:tarball =neck:tarball]
   =/  m  (fiber ,(unit nexus:nexus))
   ^-  form:m
-  =/  =road:tarball  (extend-road:tarball cod /nex neck)
+  =/  =road:tarball  (extend-road:tarball cod (weld /nex path.neck) name.neck)
   ;<  res=(unit vase)  bind:m  (get-code /nexus road)
   ?~  res  (pure:m ~)
   (pure:m `!<(nexus:nexus u.res))

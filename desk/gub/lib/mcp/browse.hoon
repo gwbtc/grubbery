@@ -29,7 +29,7 @@
   =/  neck-text=tape
     ?~  fil.ball.p.seen  ""
     ?~  neck.u.fil.ball.p.seen  ""
-    "\0aNexus: {(trip u.neck.u.fil.ball.p.seen)}"
+    "\0aNexus: {(trip (rail-to-arm:tarball u.neck.u.fil.ball.p.seen))}"
   =/  sub-dirs=(list @ta)  ~(tap in ~(key by dir.ball.p.seen))
   =/  files=(list [@ta @tas])
     ?~  fil.ball.p.seen  ~

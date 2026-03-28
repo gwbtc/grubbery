@@ -185,7 +185,8 @@
       %'create-folder'
     =/  foldername=@t  (fall (get-key:kv:html-utils 'foldername' args) '')
     =/  dir-name=@ta  foldername
-    =/  dir-neck=(unit neck:tarball)  (parse-extension:tarball dir-name)
+    =/  dir-neck=(unit neck:tarball)
+      (bind (parse-extension:tarball dir-name) |=(n=@ta `rail:tarball`[/ n]))
     =/  folder-path=path  (snoc tree-path dir-name)
     =/  new-ball=ball:tarball  [`[~ dir-neck ~] ~]
     ;<  ~  bind:m  (make:io /mkd [%& %| folder-path] &+[[~ ~] [~ ~] new-ball])
@@ -582,7 +583,7 @@
   =/  neck-display=tape
     ?~  fil.b  "-"
     ?~  neck.u.fil.b  "-"
-    (trip u.neck.u.fil.b)
+    (trip (rail-to-arm:tarball u.neck.u.fil.b))
   =/  nkids=@ud
     %+  add
       ~(wyt by dir.b)

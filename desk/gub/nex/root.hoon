@@ -12,19 +12,19 @@
         [%load %| / / same-fold:loader]
         [%fall %& [/sys %'main.sig'] %.n [~ %sig !>(~)]]
         ::  child nexuses
-        [%fall %| /'server.server' [~ ~] [~ ~] [`[~ `%server ~] ~]]
-        [%fall %| /'counter.counter' [~ ~] [~ ~] [`[~ `%counter ~] ~]]
-        [%fall %| /'explorer.explorer' [~ ~] [~ ~] [`[~ `%explorer ~] ~]]
-        [%fall %| /'peers.peers' [~ ~] [~ ~] [`[~ `%peers ~] ~]]
-        [%fall %| /'claude.claude' [~ ~] [~ ~] [`[~ `%claude ~] ~]]
-        [%fall %| /'oneshot.oneshot' [~ ~] [~ ~] [`[~ `%oneshot ~] ~]]
-        [%fall %| /'telegram.telegram' [~ ~] [~ ~] [`[~ `%telegram ~] ~]]
-        [%fall %| /'mcp.mcp' [~ ~] [~ ~] [`[~ `%mcp ~] ~]]
+        [%fall %| /'server.server' [~ ~] [~ ~] [`[~ `[/ %server] ~] ~]]
+        [%fall %| /'counter.counter' [~ ~] [~ ~] [`[~ `[/ %counter] ~] ~]]
+        [%fall %| /'explorer.explorer' [~ ~] [~ ~] [`[~ `[/ %explorer] ~] ~]]
+        [%fall %| /'peers.peers' [~ ~] [~ ~] [`[~ `[/ %peers] ~] ~]]
+        [%fall %| /'claude.claude' [~ ~] [~ ~] [`[~ `[/ %claude] ~] ~]]
+        [%fall %| /'oneshot.oneshot' [~ ~] [~ ~] [`[~ `[/ %oneshot] ~] ~]]
+        [%fall %| /'telegram.telegram' [~ ~] [~ ~] [`[~ `[/ %telegram] ~] ~]]
+        [%fall %| /'mcp.mcp' [~ ~] [~ ~] [`[~ `[/ %mcp] ~] ~]]
         ::  config
         [%fall %| /config/creds [~ ~] [~ ~] empty-dir:loader]
         ::  system internals — populated by app/grubbery.hoon before
         ::  on-load runs. Must be preserved or the framework breaks.
-        [%fall %| /code [~ ~] [~ ~] [`[~ `%code ~] ~]]
+        [%fall %| /code [~ ~] [~ ~] [`[~ `[/ %code] ~] ~]]
         [%fall %| /sys/clay [~ ~] [~ ~] empty-dir:loader]
         [%fall %| /sys/dill [~ ~] [~ ~] empty-dir:loader]
         [%fall %| /sys/jael [~ ~] [~ ~] empty-dir:loader]
