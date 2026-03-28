@@ -688,8 +688,8 @@
     =/  res=(each vase tang)
       (validate-new-cage cod [/ p.cage.content] ~ q.cage.content %.y)
     ?.  ?=(%& -.res)
-      ~&  >>  "validate-ball: skipping {(trip name)} (mark %{(trip p.cage.content)}) at {(spud (weld cod here))}"
-      $(files t.files, out (~(put by out) name content))
+      ~&  >>  "validate-ball: boom {(trip name)} (mark %{(trip p.cage.content)}) at {(spud (weld cod here))}"
+      $(files t.files, out (~(put by out) name content(cage [%boom !>([p.res [p.cage.content q.q.cage.content]])])))
     $(files t.files, out (~(put by out) name content(cage [p.cage.content p.res])))
   ::  recurse into subdirectories
   ::  validate each child ball and rebuild dir map
@@ -875,11 +875,14 @@
 ++  run-on-loads
   |=  [here=fold:tarball sub-sand=sand:nexus sub-gain=gain:nexus sub-ball=ball:tarball]
   ^-  [sand:nexus gain:nexus ball:tarball]
-  ::  Check if this node has a nexus
+  ::  Check if this node has a nexus (skip on compile failure during boot)
   =/  nex=(unit nexus:nexus)
     ?~  fil.sub-ball  ~
     ?~  neck.u.fil.sub-ball  ~
-    (build-nexus here u.neck.u.fil.sub-ball)
+    =/  res  (build-nexus here u.neck.u.fil.sub-ball)
+    ?:  ?=(%& -.res)  `p.res
+    ~&  >>  "run-on-loads: nexus build error at {(spud here)}"
+    ~
   ::  Run on-load if nexus exists
   ::
   ::  IMPORTANT: The weir at the root of sub-sand is preserved from the parent.
@@ -922,13 +925,14 @@
   |=  dest=fold:tarball
   ^+  this
   =/  sub-ball=ball:tarball  (~(dip ba:tarball ball) dest)
-  =/  nex=(unit nexus:nexus)
-    ?~  fil.sub-ball  ~
-    ?~  neck.u.fil.sub-ball  ~
+  ?~  fil.sub-ball  ~|("no nexus at destination" !!)
+  ?~  neck.u.fil.sub-ball  ~|("no nexus at destination" !!)
+  =/  nex=(each nexus:nexus tang)
     (build-nexus dest u.neck.u.fil.sub-ball)
-  ?~  nex
-    ~|("no nexus at destination" !!)
-  (reload-nexus-at dest u.nex)
+  ?:  ?=(%| -.nex)
+    ~&  >>  "reload-nexus: build error at {(spud dest)}"
+    (boom-nexus dest p.nex)
+  (reload-nexus-at dest p.nex)
 ::  Run on-load for a nexus at dest and apply results
 ::
 ++  reload-nexus-at
@@ -985,10 +989,11 @@
             ?=(^ fil.kid-ball)
             ?=(^ neck.u.fil.kid-ball)
         ==
-      =/  kid-nex=(unit nexus:nexus)
+      =/  kid-nex=(each nexus:nexus tang)
         (build-nexus kid-path u.neck.u.fil.kid-ball)
-      ?~  kid-nex  this
-      (reload-nexus-at kid-path u.kid-nex)
+      ?:  ?=(%| -.kid-nex)
+        (boom-nexus kid-path p.kid-nex)
+      (reload-nexus-at kid-path p.kid-nex)
     ::  Existing or non-nexus directory — recurse deeper
     $(kids ~(tap by dir.kid-ball), dest kid-path, old-sub (fall old-kid *ball:tarball))
   $(kids t.kids)
@@ -1277,11 +1282,17 @@
 ::
 ++  build-nexus
   |=  [pax=path =neck:tarball]
-  ^-  (unit nexus:nexus)
+  ^-  (each nexus:nexus tang)
   =/  res=(unit built:nexus)  (get-built pax (weld /nex path.neck) name.neck)
-  ?~  res  ~
-  ?.  ?=(%vase -.u.res)  ~
-  (mole |.(!<(nexus:nexus vase.u.res)))
+  ?~  res  |+~[leaf+"build-nexus: {(trip (rail-to-arm:tarball [path.neck name.neck]))} not found in code"]
+  ?+  -.u.res
+    |+~[leaf+"build-nexus: unexpected artifact type {<-.u.res>}"]
+    %tang  |+tang.u.res
+    %vase
+  =/  nex=(unit nexus:nexus)  (mole |.(!<(nexus:nexus vase.u.res)))
+  ?~  nex  |+~[leaf+"build-nexus: failed to extract nexus from vase"]
+  &+u.nex
+  ==
 ::
 ++  find-nearest-nexus
   |=  here=rail:tarball
@@ -1308,10 +1319,10 @@
   =/  nex-info=(unit (pair path neck:tarball))  (find-nearest-nexus here)
   ?~  nex-info  ~
   ::  Build the nexus from the neck
-  =/  nex=(unit nexus:nexus)  (build-nexus path.here q.u.nex-info)
-  ?~  nex  ~
+  =/  nex-res=(each nexus:nexus tang)  (build-nexus path.here q.u.nex-info)
+  ?:  ?=(%| -.nex-res)  ~
   ::  Call on-file with rail relative to nexus location
-  `(on-file:u.nex (relativize-rail:tarball p.u.nex-info here) mark)
+  `(on-file:p.nex-res (relativize-rail:tarball p.u.nex-info here) mark)
 ::
 ++  process-dart
   |=  [here=rail:tarball =dart:nexus]
@@ -1729,8 +1740,8 @@
       ?~  nex-info
         (enqu-take here (sys-give /manu) ~ %manu wire.dart |+~[leaf+"no nexus covers this path"])
       ::  ~&  >  "process-manu-search: build-nexus {(trip q.u.nex-info)} at {(spud (snoc path.here name.here))}"
-      =/  nex=(unit nexus:nexus)  (build-nexus cod q.u.nex-info)
-      ?~  nex
+      =/  nex-res=(each nexus:nexus tang)  (build-nexus cod q.u.nex-info)
+      ?:  ?=(%| -.nex-res)
         (enqu-take here (sys-give /manu) ~ %manu wire.dart |+~[leaf+"nexus build failed: {(trip (rail-to-arm:tarball q.u.nex-info))}"])
       ::  Relativize target path to nexus location
       =/  rel-path=path  (slag (lent p.u.nex-info) target-path)
@@ -1745,17 +1756,17 @@
             (fall (bind content |=(c=content:tarball p.cage.c)) %$)
           [%| [(snip rel-path) (rear rel-path)] mark]
         ==
-      =/  text=@t  (on-manu:u.nex mana)
+      =/  text=@t  (on-manu:p.nex-res mana)
       (enqu-take here (sys-give /manu) ~ %manu wire.dart &+text)
     ==
     ::
       %manu
     ::  Direct: build nexus from neck, call on-manu directly
     ::  ~&  >  "process-manu-direct: build-nexus {(trip neck.dart)} at {(spud (snoc path.here name.here))}"
-    =/  nex=(unit nexus:nexus)  (build-nexus cod neck.dart)
-    ?~  nex
+    =/  nex-res=(each nexus:nexus tang)  (build-nexus cod neck.dart)
+    ?:  ?=(%| -.nex-res)
       (enqu-take here (sys-give /manu) ~ %manu wire.dart |+~[leaf+"nexus not found: {(trip (rail-to-arm:tarball neck.dart))}"])
-    =/  text=@t  (on-manu:u.nex mana.dart)
+    =/  text=@t  (on-manu:p.nex-res mana.dart)
     (enqu-take here (sys-give /manu) ~ %manu wire.dart &+text)
     ::
       %scry
@@ -2432,18 +2443,17 @@
   =/  old-sub=bins:nexus  (~(dip of old-bins) /mar)
   =/  all-new=(list [pax=path node=(map @ta built:nexus)])
     ~(tap of mar-sub)
-  ::  Find changed blots
+  ::  Find changed blots (any change — vase, tang, etc)
   =/  changed=(list [=blot:tarball =built:nexus])
     %-  zing
     %+  turn  all-new
     |=  [pax=path node=(map @ta built:nexus)]
     %+  murn  ~(tap by node)
     |=  [nam=@ta =built:nexus]
-    ?.  ?=(%vase -.built)  ~
     =/  old-node=(map @ta built:nexus)
       (fall (~(get of old-sub) pax) *(map @ta built:nexus))
     =/  old=(unit built:nexus)  (~(get by old-node) nam)
-    ?:  ?&(?=(^ old) ?=(%vase -.u.old) =(q.vase.u.old q.vase.built))  ~
+    ?:  =(old `built)  ~
     `[[pax nam] built]
   ::  Process each changed mark
   =/  remaining=_changed  changed
@@ -2451,15 +2461,6 @@
   ?~  remaining  [new-bins this]
   =/  [=blot:tarball =built:nexus]  i.remaining
   =/  nam=@tas  (rail-to-arm:tarball blot)
-  ::  Extract marc from compiled bins
-  ?.  ?=(%vase -.built)
-    $(remaining t.remaining)
-  =/  marc-res=(each marc:tarball tang)
-    (mule |.(!<(marc:tarball vase.built)))
-  ?:  ?=(%| -.marc-res)
-    ~&  >>  "validate-marks: {(trip nam)} marc extraction failed"
-    $(remaining t.remaining)
-  =/  vale=$-(* vase)  vale.p.marc-res
   ::  Find all grubs with this mark, including booms with matching inner mark
   =/  scope=path  (snip `(list @ta)`cod)
   =/  grubs=(list [=rail:tarball =content:tarball])
@@ -2471,18 +2472,25 @@
     =/  [* inner=page]  ;;([tang page] q.q.cage.content)
     =(name.blot p.inner)
   ?~  grubs  $(remaining t.remaining)
-  ::  Clam each grub through vale; booms extract inner noun
+  ::  Get vale gate, or a crash gate if mark failed to compile
+  =/  vale=$-(* vase)
+    ?.  ?=(%vase -.built)
+      |=(* (mean ?:(?=(%tang -.built) tang.built ~[leaf+"validate-marks: {(trip nam)} failed"])))
+    =/  marc-res=(each marc:tarball tang)
+      (mule |.(!<(marc:tarball vase.built)))
+    ?:(?=(%| -.marc-res) |=(* (mean p.marc-res)) vale.p.marc-res)
+  ::  Clam each grub; success restores cage, failure booms
   =/  results=(list [=rail:tarball =content:tarball res=(each vase tang)])
     %+  turn  grubs
     |=  [=rail:tarball =content:tarball]
-    ?:  =(%boom p.cage.content)
-      =/  [err=tang =page]  ;;([tang page] q.q.cage.content)
-      [rail content (mule |.((vale q.page)))]
-    =/  new=(each vase tang)  (mule |.((vale q.q.cage.content)))
-    ?:  ?=(%| -.new)
-      [rail content new]
+    =/  noun=*
+      ?:  =(%boom p.cage.content)
+        =/  [* =page]  ;;([tang page] q.q.cage.content)
+        q.page
+      q.q.cage.content
+    =/  new=(each vase tang)  (mule |.((vale noun)))
+    ?:  ?=(%| -.new)  [rail content new]
     [rail content (validate-vase vale `q.cage.content p.new %.n)]
-  ::  Save results: success restores normal cage, failure re-booms
   =.  this
     %+  roll  results
     |=  [[=rail:tarball =content:tarball res=(each vase tang)] acc=_this]
@@ -2491,15 +2499,13 @@
     ~&  >>  "validate-marks: boom {(spud (snoc path.rail name.rail))}"
     =/  noun=*
       ?:  =(%boom p.cage.content)
-        =/  [err=tang =page]  ;;([tang page] q.q.cage.content)
+        =/  [* =page]  ;;([tang page] q.q.cage.content)
         q.page
       q.q.cage.content
     (save-file:acc rail content(cage [%boom !>([p.res [name.blot noun]])]))
-  =/  booms=(list [=rail:tarball =content:tarball res=(each vase tang)])
-    (skim results |=([* * res=(each vase tang)] ?=(%| -.res)))
-  =/  healed=(list [=rail:tarball =content:tarball res=(each vase tang)])
-    (skim results |=([* * res=(each vase tang)] ?=(%& -.res)))
-  ~&  >  "validate-marks: {(trip nam)} — {<(lent healed)>} ok, {<(lent booms)>} boom"
+  =/  n-boom=@ud
+    (lent (skim results |=([* * res=(each vase tang)] ?=(%| -.res))))
+  ~&  >  "validate-marks: {(trip nam)} — {<(sub (lent grubs) n-boom)>} ok, {<n-boom>} boom"
   $(remaining t.remaining)
 ::  Reload nexuses: for each changed nexus in bin/nex/, find all
 ::  directories using that neck, run on-load with the new code, and
@@ -2513,26 +2519,28 @@
   =/  old-sub=bins:nexus  (~(dip of old-bins) /nex)
   =/  all-new=(list [pax=path node=(map @ta built:nexus)])
     ~(tap of nex-sub)
-  =/  changed=(list [=neck:tarball =vase])
+  =/  changed=(list [=neck:tarball =built:nexus])
     %-  zing
     %+  turn  all-new
     |=  [pax=path node=(map @ta built:nexus)]
     %+  murn  ~(tap by node)
     |=  [nam=@ta =built:nexus]
-    ?.  ?=(%vase -.built)  ~
     =/  old-node=(map @ta built:nexus)
       (fall (~(get of old-sub) pax) *(map @ta built:nexus))
     =/  old=(unit built:nexus)  (~(get by old-node) nam)
-    ?:  ?&(?=(^ old) ?=(%vase -.u.old) =(q.vase.u.old q.vase.built))  ~
-    `[[pax nam] vase.built]
+    ?:  =(old `built)  ~
+    `[[pax nam] built]
   ::  Process each changed nexus
   =/  remaining=_changed  changed
   |-
   ?~  remaining  this
-  =/  [=neck:tarball =vase]  i.remaining
-  ::  Build nexus from compiled vase
+  =/  [=neck:tarball =built:nexus]  i.remaining
+  ::  Extract nexus or propagate error
   =/  nex-res=(each nexus:nexus tang)
-    (mule |.(!<(nexus:nexus vase)))
+    ?+  -.built  |+~[leaf+"validate-nexuses: unexpected built type {<-.built>}"]
+      %tang  |+tang.built
+      %vase  (mule |.(!<(nexus:nexus vase.built)))
+    ==
   ::  Find all directories using this neck under this code nexus's scope
   =/  scope=path  (snip `(list @ta)`cod)
   =/  dirs=(list fold:tarball)
@@ -2542,18 +2550,18 @@
     ?.  =(scope (scag (lent scope) pax))  ~
     `pax
   ?~  dirs  $(remaining t.remaining)
-  ?:  ?=(%| -.nex-res)
-    ~|  [leaf+"validate-nexuses: {(trip (rail-to-arm:tarball neck))} type mismatch" p.nex-res]
-    !!
-  =/  nex=nexus:nexus  p.nex-res
   ::  Run on-load and apply results for each directory
   ::  (reload-nexus-at handles boom/clear internally)
   =/  dir-remaining=(list fold:tarball)  dirs
   |-
   ?~  dir-remaining  ^$(remaining t.remaining)
   =/  dest=fold:tarball  i.dir-remaining
+  ?:  ?=(%| -.nex-res)
+    ~&  >>  "validate-nexuses: boom {(trip (rail-to-arm:tarball neck))} at {(spud dest)}"
+    =.  this  (boom-nexus dest p.nex-res)
+    $(dir-remaining t.dir-remaining)
   ~&  >  "validate-nexuses: reloading {(trip (rail-to-arm:tarball neck))} at {(spud dest)}"
-  =.  this  (reload-nexus-at dest nex)
+  =.  this  (reload-nexus-at dest p.nex-res)
   $(dir-remaining t.dir-remaining)
 ::  Validate a compiled artifact based on its source path.
 ::

@@ -480,7 +480,7 @@
           (en-xml:html (render-grub-row item u.ct url-prefix watch-path par-born now.bowl conversions ~ ~))
         =/  sub=(unit ball:tarball)  (~(get by dir.par) item)
         ?~  sub  ""
-        (en-xml:html (render-dir-row item u.sub url-prefix %.n))
+        (en-xml:html (render-dir-row item u.sub url-prefix ~))
       =/  =json
         %-  pairs:enjs:format
         :~  ['action' s+'add']
@@ -566,12 +566,12 @@
       ; .sortable::after { content: ' \2195'; opacity: 0.3; }
       ; .sortable.asc::after { content: ' \2191'; opacity: 1; }
       ; .sortable.desc::after { content: ' \2193'; opacity: 1; }
-      ; .boom-indicator { color: #cb2431; font-weight: bold; margin-left: 6px; cursor: pointer; }
       ; .boom-banner { margin: 10px 0; padding: 10px; background: #ffeef0; border: 1px solid #cb2431; border-radius: 6px; }
       ; .boom-banner summary { color: #cb2431; font-weight: bold; cursor: pointer; }
       ; .boom-banner pre, .boom-file pre { white-space: pre-wrap; font-size: 12px; margin: 8px 0 0; max-height: 300px; overflow: auto; }
-      ; .boom-file { display: inline; }
-      ; .boom-file summary { display: inline; }
+      ; .boom-file { margin-left: 6px; }
+      ; .boom-file summary { color: #cb2431; font-weight: bold; cursor: pointer; list-style: none; display: inline; }
+      ; .boom-file[open] pre { display: block; }
     ==
   ==
 ::
@@ -871,8 +871,9 @@
           |=  name=@ta
           ^-  manx
           =/  sub=ball:tarball  (~(got by kids) name)
-          =/  sub-boomed=?  (~(has by dir.boom) name)
-          (render-dir-row name sub url-prefix sub-boomed)
+          =/  sub-boom-node=[fol=(unit tang) fil=(map @ta tang)]
+            (fall (~(get of boom) /[name]) [~ ~])
+          (render-dir-row name sub url-prefix fol.sub-boom-node)
         ::  Grubs
         =.  rows
           %+  weld  rows
@@ -963,14 +964,21 @@
   "{(scow %ud (div n 1.048.576))} MB"
 ::
 ++  render-dir-row
-  |=  [name=@ta sub=ball:tarball url-prefix=tape boomed=?]
+  |=  [name=@ta sub=ball:tarball url-prefix=tape nexus-boom=(unit tang)]
   ^-  manx
   =/  dir-url=tape  "{url-prefix}/{(trip name)}"
   ;tr(data-name (trip name), data-type "dir")
     ;td
       ;a/"{dir-url}": {(trip name)}/
-      ;*  ?.  boomed  ~
-          :~  ;span.boom-indicator: !
+      ;*  ?~  nexus-boom  ~
+          =/  rendered=tape
+            %-  zing
+            %+  turn  (flop u.nexus-boom)
+            |=(=tank (weld ~(ram re tank) "\0a"))
+          :~  ;details.boom-file
+                ;summary: !
+                ;pre: {rendered}
+              ==
           ==
     ==
     ;td: -
