@@ -575,47 +575,51 @@
 ::  Get a compiled marc from bins
 ::
 ++  get-marc
-  |=  [pax=path =mark]
+  |=  [pax=path =blot:tarball]
   ^-  marc:tarball
-  =/  res=(unit built:nexus)  (get-built pax /mar mark)
+  =/  res=(unit built:nexus)  (get-built pax (weld /mar path.blot) name.blot)
   ?~  res
-    ~&  >>>  "get-marc: %{(trip mark)} not found, searched from {(spud pax)}"
-    ~|([%marc-not-found mark pax] !!)
+    =/  nam=@tas  (rail-to-arm:tarball blot)
+    ~&  >>>  "get-marc: %{(trip nam)} not found, searched from {(spud pax)}"
+    ~|([%marc-not-found nam pax] !!)
   ?.  ?=(%vase -.u.res)
-    ~&  >>>  "get-marc: %{(trip mark)} failed (tang), searched from {(spud pax)}"
-    ~|([%marc-failed mark pax] !!)
+    =/  nam=@tas  (rail-to-arm:tarball blot)
+    ~&  >>>  "get-marc: %{(trip nam)} failed (tang), searched from {(spud pax)}"
+    ~|([%marc-failed nam pax] !!)
   !<(marc:tarball vase.u.res)
 ::
 ++  get-vale
-  |=  [pax=path =mark]
+  |=  [pax=path =blot:tarball]
   ^-  $-(* vase)
-  vale:(get-marc pax mark)
+  vale:(get-marc pax blot)
 ::
 ++  get-tube
-  |=  [pax=path from=mark to=mark]
+  |=  [pax=path =bars:tarball]
   ^-  tube:clay
-  (grow:(get-marc pax from) to)
+  (grow:(get-marc pax a.bars) b.bars)
 ::  Validate file content, looks up cached dais
 ::
 ++  validate-new-cage
-  |=  [pax=path =mark old=(unit vase) new=vase force=?]
+  |=  [pax=path =blot:tarball old=(unit vase) new=vase force=?]
   ^-  (each vase tang)
   ::  Bootstrap marks — hardcoded like Clay's page-to-cage
-  ?:  =(%boom mark)
+  ?:  =([/ %boom] blot)
     (mule |.(!>(;;([tang page] q.new))))
-  ?:  =(%hoon mark)
+  ?:  =([/ %hoon] blot)
     (mule |.(!>(;;(@t q.new))))
-  ?:  =(%tang mark)
+  ?:  =([/ %tang] blot)
     (mule |.(!>(;;(tang q.new))))
-  ?:  =(%mime mark)
+  ?:  =([/ %mime] blot)
     (mule |.(!>(;;(mime q.new))))
-  ?:  =(%kelvin mark)
+  ?:  =([/ %kelvin] blot)
     (mule |.(!>(;;(waft:clay q.new))))
-  =/  res=(unit built:nexus)  (get-built pax /mar mark)
+  =/  res=(unit built:nexus)  (get-built pax (weld /mar path.blot) name.blot)
   ?~  res
-    |+~[leaf+"validate-new-cage: no marc for %{(trip mark)} at {(spud pax)}"]
+    =/  nam=@tas  (rail-to-arm:tarball blot)
+    |+~[leaf+"validate-new-cage: no marc for %{(trip nam)} at {(spud pax)}"]
   ?.  ?=(%vase -.u.res)
-    |+~[leaf+"validate-new-cage: marc for %{(trip mark)} failed at {(spud pax)}"]
+    =/  nam=@tas  (rail-to-arm:tarball blot)
+    |+~[leaf+"validate-new-cage: marc for %{(trip nam)} failed at {(spud pax)}"]
   =/  vale=$-(* vase)  vale:!<(marc:tarball vase.u.res)
   (validate-vase vale old new force)
 ::  Clam a cage at sandbox boundary
@@ -626,7 +630,7 @@
   |=  [pax=path =cage]
   ^-  (each ^cage tang)
   =/  result=(each vase tang)
-    (validate-new-cage pax p.cage ~ q.cage %.y)
+    (validate-new-cage pax [/ p.cage] ~ q.cage %.y)
   ?:  ?=(%| -.result)
     result
   &+[p.cage p.result]
@@ -649,7 +653,7 @@
     (mule |.([%tang !>(;;(tang q.page))]))
   ?:  =(%mime p.page)
     (mule |.([%mime !>(;;(mime q.page))]))
-  =/  vale=$-(* vase)  (get-vale pax p.page)
+  =/  vale=$-(* vase)  (get-vale pax [/ p.page])
   =/  res=(each vase tang)  (mule |.((vale q.page)))
   ?:  ?=(%| -.res)  res
   &+[p.page p.res]
@@ -676,7 +680,7 @@
     ?~  files  out
     =/  [name=@ta =content:tarball]  i.files
     =/  res=(each vase tang)
-      (validate-new-cage cod p.cage.content ~ q.cage.content %.y)
+      (validate-new-cage cod [/ p.cage.content] ~ q.cage.content %.y)
     ?.  ?=(%& -.res)
       ~&  >>  "validate-ball: skipping {(trip name)} (mark %{(trip p.cage.content)}) at {(spud (weld cod here))}"
       $(files t.files, out (~(put by out) name content))
@@ -1224,7 +1228,7 @@
       ?~  mark  view
       ?.  ?=(%file -.view)  view
       ?:  =(p.cage.view u.mark)  view  :: already correct mark
-      =/  =tube:clay  (get-tube path.watcher p.cage.view u.mark)
+      =/  =tube:clay  (get-tube path.watcher [[/ p.cage.view] [/ u.mark]])
       view(cage [u.mark (tube q.cage.view)])
     (enqu-take:acc watcher (sys-give:acc /news) ~ %news wire watcher-view)
   $(watched t.watched)
@@ -1397,7 +1401,7 @@
           make.load.dart
         ?:  =(p.cage.p.make.load.dart u.mark.p.make.load.dart)
           make.load.dart
-        =/  =tube:clay  (get-tube cod p.cage.p.make.load.dart u.mark.p.make.load.dart)
+        =/  =tube:clay  (get-tube cod [[/ p.cage.p.make.load.dart] [/ u.mark.p.make.load.dart]])
         make.load.dart(cage.p [u.mark.p.make.load.dart (tube q.cage.p.make.load.dart)])
       =/  res=(each _this tang)  (mule |.((^make u.dest-lane make)))
       ?-  -.res
@@ -1446,11 +1450,10 @@
       =/  converted=cage
         ?:  =(old-mark new-mark)
           cage.load.dart
-        =/  =tube:clay  (get-tube cod new-mark old-mark)
+        =/  =tube:clay  (get-tube cod [[/ new-mark] [/ old-mark]])
         [old-mark (tube q.cage.load.dart)]
-      ::  ~&  >  "process-over: validate-new-cage for %{(trip p.converted)} at {(spud (snoc path.here name.here))}"
       =/  val=(each vase tang)
-        (validate-new-cage cod p.converted `q.cage.u.old q.converted %.n)
+        (validate-new-cage cod [/ p.converted] `q.cage.u.old q.converted %.n)
       ?:  ?=(%| -.val)
         (enqu-take here (sys-give /over) ~ %over wire.dart `p.val)
       =/  new-content=content:tarball  u.old(cage [p.converted p.val])
@@ -1511,7 +1514,7 @@
         =/  result=cage
           ?~  mark.load.dart  clammed
           ?:  =(p.clammed u.mark.load.dart)  clammed
-          =/  =tube:clay  (get-tube cod p.clammed u.mark.load.dart)
+          =/  =tube:clay  (get-tube cod [[/ p.clammed] [/ u.mark.load.dart]])
           [u.mark.load.dart (tube q.clammed)]
         (enqu-take here (sys-give /peek) ~ %peek wire.dart %& %file sk (lookup-gain dest) result)
       ==
@@ -1569,8 +1572,8 @@
         ::  Tube requests: /tub/from/to — resolve via marc grow gate
         ?.  ?=([%tub @ ~] inner)
           (enqu-take here (sys-give /code) ~ %code wire.dart |+[%tang ~[leaf+"code: {(trip name.dest)} not found at {(spud path.dest)}"]])
-        =/  from=mark  i.t.inner
-        =/  to=mark  name.dest
+        =/  from=blot:tarball  [/ i.t.inner]
+        =/  to=blot:tarball  [/ name.dest]
         =/  tube-res=(each tube:clay tang)
           (mule |.((grow:(get-marc (snip `path`u.nex) from) to)))
         ?:  ?=(%| -.tube-res)
@@ -1630,7 +1633,7 @@
       ::  Apply mark conversion if requested
       =?  view  &(?=(^ mark.load.dart) ?=(%file -.view))
         ?:  =(p.cage.view u.mark.load.dart)  view
-        =/  =tube:clay  (get-tube cod p.cage.view u.mark.load.dart)
+        =/  =tube:clay  (get-tube cod [[/ p.cage.view] [/ u.mark.load.dart]])
         view(cage [u.mark.load.dart (tube q.cage.view)])
       (enqu-take here (sys-give /bond) ~ %bond wire.dart &+view)
       ::
@@ -1843,7 +1846,7 @@
   ::  Validate new state before handling result (runtime, no force)
   ::  ~&  >  "process-result: validate-new-cage for %{(trip p.cage.u.file-data)} at {(spud (snoc path.here name.here))}"
   =/  validated=(each vase tang)
-    (validate-new-cage path.here p.cage.u.file-data `fil-state new-state %.n)
+    (validate-new-cage path.here [/ p.cage.u.file-data] `fil-state new-state %.n)
   ?:  ?=(%| -.validated)
     ::  Validation failed - boom the file (don't restart, infra is broken)
     ~&  >>  "process-take: validation failed, booming {(spud (snoc path.here name.here))}"
@@ -1923,7 +1926,7 @@
     ::  Validate the cage before storing (new file, no old content)
     ::  ~&  >  "process-make: validate-new-cage for %{(trip p.cage.p.make)} at {(spud (snoc path.dest-rail name.dest-rail))}"
     =/  validated=(each vase tang)
-      (validate-new-cage path.dest-rail p.cage.p.make ~ q.cage.p.make %.n)
+      (validate-new-cage path.dest-rail [/ p.cage.p.make] ~ q.cage.p.make %.n)
     ?:  ?=(%| -.validated)
       ~|("make failed: validation error" (mean p.validated))
     ::  Record gain flag if set
@@ -2252,7 +2255,8 @@
           (mole |.(.^(dais:clay %cb (weld pax `path`/[mar]))))
         ?~  dais  ~
         `vale:u.dais
-      =/  res=(unit built:nexus)  (get-built / /mar mar)
+      =/  =blot:tarball  [/ mar]
+      =/  res=(unit built:nexus)  (get-built / (weld /mar path.blot) name.blot)
       ?~  res  ~
       ?.  ?=(%vase -.u.res)  ~
       (mole |.(vale:!<(marc:tarball vase.u.res)))
@@ -2294,20 +2298,6 @@
 ++  build-code
   |=  cod=path
   ^+  this
-  ::  Flatten compound marks/nexuses: /mar/some/thing.hoon -> /mar key %some-thing
-  =/  flatten-rail
-    |=  [=rail:tarball stem=@ta]
-    ^-  [path @ta]
-    ?:  ?&  ?=(^ path.rail)
-            ?=(?(%mar %nex) i.path.rail)
-            ?=(^ t.path.rail)
-        ==
-      :-  ~[i.path.rail]
-      %-  crip
-      %-  zing
-      %+  join  "-"
-      (turn (snoc t.path.rail stem) trip)
-    [path.rail stem]
   ~&  >  "build-code: start {(spud cod)}"
   =/  src-ball=ball:tarball  (~(dip ba:tarball ball) cod)
   ::  Separate hoon and non-hoon files
@@ -2366,10 +2356,9 @@
       |=  [[=rail:tarball =content:tarball] acc=bins:nexus]
       ?.  =(%hoon p.cage.content)  acc
       =/  stem=@ta  (strip-hoon:build name.rail)
-      =/  [store-path=path store-name=@ta]  (flatten-rail rail stem)
       =/  node=(map @ta built:nexus)
-        (fall (~(get of acc) store-path) *(map @ta built:nexus))
-      (~(put of acc) store-path (~(put by node) store-name [%tang err]))
+        (fall (~(get of acc) path.rail) *(map @ta built:nexus))
+      (~(put of acc) path.rail (~(put by node) stem [%tang err]))
     ~&  >>>  "build-code: tang bins built"
     =.  lode  [~ ~ new-bins]
     =.  code  (~(put by code) cod lode)
@@ -2402,10 +2391,9 @@
         ~&  >>  "validate-build failed: {(spud (snoc path.rail name.rail))}"
         [%tang u.val-err]
       [%vase p.build-result]
-    =/  [store-path=path store-name=@ta]  (flatten-rail rail stem)
     =/  node=(map @ta built:nexus)
-      (fall (~(get of acc) store-path) *(map @ta built:nexus))
-    (~(put of acc) store-path (~(put by node) store-name built))
+      (fall (~(get of acc) path.rail) *(map @ta built:nexus))
+    (~(put of acc) path.rail (~(put by node) stem built))
   ::  Update build state
   ::  Note: /mar entries in results are already marcs (built in build.hoon)
   ~&  >  "build-code: updating lode"
@@ -2429,32 +2417,37 @@
 ++  validate-marks
   |=  [cod=path old-bins=bins:nexus new-bins=bins:nexus]
   ^+  [new-bins this]
-  ::  Find changed marcs in bins /mar node
-  =/  mar-node=(map @ta built:nexus)
-    (fall (~(get of new-bins) /mar) *(map @ta built:nexus))
-  =/  old-mar=(map @ta built:nexus)
-    (fall (~(get of old-bins) /mar) *(map @ta built:nexus))
-  =/  changed=(list mark)
-    %+  murn  ~(tap by mar-node)
-    |=  [mak=@ta =built:nexus]
+  ::  Walk /mar subtree to find all [blot built] pairs
+  =/  mar-sub=bins:nexus  (~(dip of new-bins) /mar)
+  =/  old-sub=bins:nexus  (~(dip of old-bins) /mar)
+  =/  all-new=(list [pax=path node=(map @ta built:nexus)])
+    ~(tap of mar-sub)
+  ::  Find changed blots
+  =/  changed=(list [=blot:tarball =built:nexus])
+    %-  zing
+    %+  turn  all-new
+    |=  [pax=path node=(map @ta built:nexus)]
+    %+  murn  ~(tap by node)
+    |=  [nam=@ta =built:nexus]
     ?.  ?=(%vase -.built)  ~
-    =/  old=(unit built:nexus)  (~(get by old-mar) mak)
+    =/  old-node=(map @ta built:nexus)
+      (fall (~(get of old-sub) pax) *(map @ta built:nexus))
+    =/  old=(unit built:nexus)  (~(get by old-node) nam)
     ?:  ?&(?=(^ old) ?=(%vase -.u.old) =(q.vase.u.old q.vase.built))  ~
-    `mak
+    `[[pax nam] built]
   ::  Process each changed mark
   =/  remaining=_changed  changed
   |-
   ?~  remaining  [new-bins this]
-  =/  mak=mark  i.remaining
+  =/  [=blot:tarball =built:nexus]  i.remaining
+  =/  nam=@tas  (rail-to-arm:tarball blot)
   ::  Extract marc from compiled bins
-  =/  marc-hit=(unit built:nexus)  (~(get by mar-node) mak)
-  ?~  marc-hit  $(remaining t.remaining)
-  ?.  ?=(%vase -.u.marc-hit)
+  ?.  ?=(%vase -.built)
     $(remaining t.remaining)
   =/  marc-res=(each marc:tarball tang)
-    (mule |.(!<(marc:tarball vase.u.marc-hit)))
+    (mule |.(!<(marc:tarball vase.built)))
   ?:  ?=(%| -.marc-res)
-    ~&  >>  "validate-marks: {(trip mak)} marc extraction failed"
+    ~&  >>  "validate-marks: {(trip nam)} marc extraction failed"
     $(remaining t.remaining)
   =/  vale=$-(* vase)  vale.p.marc-res
   ::  Find all grubs with this mark, including booms with matching inner mark
@@ -2463,10 +2456,10 @@
     %+  skim  ~(tap ba:tarball ball)
     |=  [=rail:tarball =content:tarball]
     ?.  =(scope (scag (lent scope) path.rail))  |
-    ?:  =(mak p.cage.content)  &
+    ?:  =(name.blot p.cage.content)  &
     ?.  =(%boom p.cage.content)  |
     =/  [* inner=page]  ;;([tang page] q.q.cage.content)
-    =(mak p.inner)
+    =(name.blot p.inner)
   ?~  grubs  $(remaining t.remaining)
   ::  Clam each grub through vale; booms extract inner noun
   =/  results=(list [=rail:tarball =content:tarball res=(each vase tang)])
@@ -2484,19 +2477,19 @@
     %+  roll  results
     |=  [[=rail:tarball =content:tarball res=(each vase tang)] acc=_this]
     ?:  ?=(%& -.res)
-      (save-file:acc rail content(cage [mak p.res]))
+      (save-file:acc rail content(cage [name.blot p.res]))
     ~&  >>  "validate-marks: boom {(spud (snoc path.rail name.rail))}"
     =/  noun=*
       ?:  =(%boom p.cage.content)
         =/  [err=tang =page]  ;;([tang page] q.q.cage.content)
         q.page
       q.q.cage.content
-    (save-file:acc rail content(cage [%boom !>([p.res [mak noun]])]))
+    (save-file:acc rail content(cage [%boom !>([p.res [name.blot noun]])]))
   =/  booms=(list [=rail:tarball =content:tarball res=(each vase tang)])
     (skim results |=([* * res=(each vase tang)] ?=(%| -.res)))
   =/  healed=(list [=rail:tarball =content:tarball res=(each vase tang)])
     (skim results |=([* * res=(each vase tang)] ?=(%& -.res)))
-  ~&  >  "validate-marks: {(trip mak)} — {<(lent healed)>} ok, {<(lent booms)>} boom"
+  ~&  >  "validate-marks: {(trip nam)} — {<(lent healed)>} ok, {<(lent booms)>} boom"
   $(remaining t.remaining)
 ::  Reload nexuses: for each changed nexus in bin/nex/, find all
 ::  directories using that neck, run on-load with the new code, and
@@ -2505,18 +2498,23 @@
 ++  validate-nexuses
   |=  [cod=path old-bins=bins:nexus new-bins=bins:nexus]
   ^+  this
-  ::  Find changed nexuses in bins /nex node
-  =/  nex-node=(map @ta built:nexus)
-    (fall (~(get of new-bins) /nex) *(map @ta built:nexus))
-  =/  old-nex=(map @ta built:nexus)
-    (fall (~(get of old-bins) /nex) *(map @ta built:nexus))
+  ::  Find changed nexuses in bins /nex subtree
+  =/  nex-sub=bins:nexus  (~(dip of new-bins) /nex)
+  =/  old-sub=bins:nexus  (~(dip of old-bins) /nex)
+  =/  all-new=(list [pax=path node=(map @ta built:nexus)])
+    ~(tap of nex-sub)
   =/  changed=(list [=neck:tarball =vase])
-    %+  murn  ~(tap by nex-node)
-    |=  [name=@ta =built:nexus]
+    %-  zing
+    %+  turn  all-new
+    |=  [pax=path node=(map @ta built:nexus)]
+    %+  murn  ~(tap by node)
+    |=  [nam=@ta =built:nexus]
     ?.  ?=(%vase -.built)  ~
-    =/  old=(unit built:nexus)  (~(get by old-nex) name)
+    =/  old-node=(map @ta built:nexus)
+      (fall (~(get of old-sub) pax) *(map @ta built:nexus))
+    =/  old=(unit built:nexus)  (~(get by old-node) nam)
     ?:  ?&(?=(^ old) ?=(%vase -.u.old) =(q.vase.u.old q.vase.built))  ~
-    `[[/ name] vase.built]
+    `[[pax nam] vase.built]
   ::  Process each changed nexus
   =/  remaining=_changed  changed
   |-
@@ -2591,7 +2589,7 @@
       (~(put ba:tarball acc) [/ %'sys.kelvin'] [~ %kelvin !>(waft)])
     ?:  =(mar %hoon)
       =/  =vase  .^(vase %cr (weld pax fyl))
-      =/  val=(each ^vase tang)  (validate-new-cage /code mar ~ vase %.y)
+      =/  val=(each ^vase tang)  (validate-new-cage /code [/ mar] ~ vase %.y)
       ?.  ?=(%& -.val)
         ~&  >>>  "sync-gub: validation failed for {(trip name)}: {(trip (render-tang:build p.val))}"
         acc

@@ -28,32 +28,34 @@
   |=(noun=* (slam gat !>(noun)))
 ::  +build-grow: build dispatch gate for outbound conversions
 ::
-::  Returns a gate: given a target mark, produce a tube.
-::  Only handles marks directly defined in +grow of this core.
+::  Returns a gate: given a target blot, produce a tube.
+::  Converts blot to arm name via rail-to-arm for the slap.
 ::
 ++  build-grow
   |=  cor=vase
-  ^-  $-(mark tube:clay)
-  |=  to=mark
+  ^-  $-(blot:tarball tube:clay)
+  |=  to=blot:tarball
   ^-  tube:clay
+  =/  arm=@tas  (rail-to-arm:tarball to)
   =/  gat=vase
     %+  slap  (with-faces cor+cor ~)
     ^-  hoon
     :+  %brcl  !,(*hoon v=+<.cor)
-    :+  %tsgl  limb/to
+    :+  %tsgl  [%limb arm]
     !,(*hoon ~(grow cor v))
   =>([gat=gat ..zuse] |=(v=vase (slam gat v)))
 ::  +build-grab: build dispatch gate for inbound conversions
 ::
-::  Returns a gate: given a source mark, produce a tube.
-::  Only handles marks directly defined in +grab of this core.
+::  Returns a gate: given a source blot, produce a tube.
+::  Converts blot to arm name via rail-to-arm for the slap.
 ::
 ++  build-grab
   |=  cor=vase
-  ^-  $-(mark tube:clay)
-  |=  from=mark
+  ^-  $-(blot:tarball tube:clay)
+  |=  from=blot:tarball
   ^-  tube:clay
-  =/  gat=vase  (slap cor tsgl/[limb/from limb/%grab])
+  =/  arm=@tas  (rail-to-arm:tarball from)
+  =/  gat=vase  (slap cor tsgl/[[%limb arm] limb/%grab])
   =>([gat=gat ..zuse] |=(v=vase (slam gat v)))
 ::
 ++  with-face

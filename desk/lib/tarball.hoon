@@ -3,6 +3,8 @@
 /+  multipart
 |%
 +$  neck      rail                :: a nexus identity (directory-level mark)
++$  blot      rail                :: a mark identity (hierarchical)
++$  bars      [a=blot b=blot]    :: blot pair for conversions
 +$  metadata  (map @t @t)
 ::  Compiled mark core: built once from mark source, used for vale + tubes
 ::
@@ -10,8 +12,8 @@
   $_  ^?
   |%
   ++  vale  |~(* *vase)
-  ++  grow  |~(mark *tube:clay)
-  ++  grab  |~(mark *tube:clay)
+  ++  grow  |~(blot *tube:clay)
+  ++  grab  |~(blot *tube:clay)
   --
 ::  Path types with file/directory distinction
 ::
@@ -170,6 +172,35 @@
   %-  zing
   %+  join  "--"
   (snoc (turn path.rail trip) (trip name.rail))
+::  +arm-to-rail: decode a flat @tas arm name back to a rail
+::
+::  %txt → [/ %txt]
+::  %eyre--bindings → [/eyre %bindings]
+::  %foo--bar--baz → [/foo/bar %baz]
+::
+++  arm-to-rail
+  |=  arm=@tas
+  ^-  rail
+  =/  t=tape  (trip arm)
+  =/  segs=(list tape)  (split-on-double-hyphen t)
+  ?~  segs  [/ arm]
+  ?~  t.segs  [/ arm]
+  :-  (turn (snip `(list tape)`segs) crip)
+  (crip (rear segs))
+::
+++  split-on-double-hyphen
+  |=  t=tape
+  ^-  (list tape)
+  =|  acc=tape
+  =|  res=(list tape)
+  |-
+  ?~  t  (snoc res acc)
+  ?:  ?&  =('-' i.t)
+          ?=(^ t.t)
+          =('-' i.t.t)
+      ==
+    $(t t.t.t, acc ~, res (snoc res acc))
+  $(t t.t, acc (snoc acc i.t))
 ::  Helper: wrap symlink as cage for storage
 ::
 ++  symlink-to-cage

@@ -131,7 +131,7 @@
     ::  look up and run %mime -> target tube
     ::
     ;<  tube=(unit tube:clay)  bind:m
-      (get-tube:io [%& %| /code] [%mime mark.output])
+      (get-tube:io [%& %| /code] [[/ %mime] [/ mark.output]])
     ?~  tube
       =/  err=tang  ~[leaf+(trip (cat 3 'no tube from %mime to %' mark.output))]
       (pure:m [%| %& raw err])

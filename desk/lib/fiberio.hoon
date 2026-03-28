@@ -734,31 +734,31 @@
 ::  +get-marc: look up a compiled marc from bins
 ::
 ++  get-marc
-  |=  [cod=road:tarball mak=mark]
+  |=  [cod=road:tarball =blot:tarball]
   =/  m  (fiber ,(unit marc:tarball))
   ^-  form:m
-  =/  =road:tarball  (extend-road:tarball cod /mar mak)
+  =/  =road:tarball  (extend-road:tarball cod (weld /mar path.blot) name.blot)
   ;<  res=(unit vase)  bind:m  (get-code /marc road)
   ?~  res  (pure:m ~)
   (pure:m `!<(marc:tarball u.res))
 ::  +get-tube: look up a tube via marc grow gate
 ::
 ++  get-tube
-  |=  [cod=road:tarball =mars:clay]
+  |=  [cod=road:tarball =bars:tarball]
   =/  m  (fiber ,(unit tube:clay))
   ^-  form:m
-  ;<  marc-res=(unit marc:tarball)  bind:m  (get-marc cod a.mars)
+  ;<  marc-res=(unit marc:tarball)  bind:m  (get-marc cod a.bars)
   ?~  marc-res  (pure:m ~)
   =/  tube-res=(unit tube:clay)
-    (mole |.((grow.u.marc-res b.mars)))
+    (mole |.((grow.u.marc-res b.bars)))
   (pure:m tube-res)
 ::  +get-vale: look up a vale via marc
 ::
 ++  get-vale
-  |=  [cod=road:tarball mak=mark]
+  |=  [cod=road:tarball =blot:tarball]
   =/  m  (fiber ,(unit $-(* vase)))
   ^-  form:m
-  ;<  marc-res=(unit marc:tarball)  bind:m  (get-marc cod mak)
+  ;<  marc-res=(unit marc:tarball)  bind:m  (get-marc cod blot)
   ?~  marc-res  (pure:m ~)
   (pure:m `vale.u.marc-res)
 ::  +get-nexus: look up a compiled nexus from bins
@@ -817,7 +817,7 @@
     (pure:m conversions)
   =/  =mars:clay  [i.mark-list %mime]
   ;<  tube-result=(unit tube:clay)  bind:m
-    (get-tube [%& %| /code] mars)
+    (get-tube [%& %| /code] [[/ a.mars] [/ b.mars]])
   =?  conversions  ?=(^ tube-result)
     (~(put by conversions) mars u.tube-result)
   $(mark-list t.mark-list)
@@ -845,7 +845,7 @@
     (pure:m !<(mime q.cage))
   =/  =mars:clay  [p.cage %mime]
   ;<  tube=(unit tube:clay)  bind:m
-    (get-tube [%& %| /code] mars)
+    (get-tube [%& %| /code] [[/ a.mars] [/ b.mars]])
   ?~  tube
     (pure:m [/application/x-urb-jam (as-octs:mimes:html (jam q.cage))])
   =/  result=(each vase tang)  (mule |.((u.tube q.cage)))

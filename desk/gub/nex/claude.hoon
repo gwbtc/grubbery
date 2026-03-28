@@ -1166,7 +1166,7 @@
   ^-  form:m
   ?:  =(%txt p.cage)
     (pure:m (of-wain:format !<(wain q.cage)))
-  ;<  tube=(unit tube:clay)  bind:m  (get-tube:io [%& %| /code] [p.cage %txt])
+  ;<  tube=(unit tube:clay)  bind:m  (get-tube:io [%& %| /code] [[/ p.cage] [/ %txt]])
   ?~  tube
     ::  Fallback: convert to mime and extract body as text
     ;<  =mime  bind:m  (cage-to-mime:io cage)
