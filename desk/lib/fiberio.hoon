@@ -731,26 +731,36 @@
       [%skip ~]
     [%done res.u.in]
   ==
-::  +get-tube: look up a compiled tube from bins
+::  +get-marc: look up a compiled marc from bins
+::
+++  get-marc
+  |=  [cod=road:tarball mak=mark]
+  =/  m  (fiber ,(unit marc:tarball))
+  ^-  form:m
+  =/  =road:tarball  (extend-road:tarball cod /mar mak)
+  ;<  res=(unit vase)  bind:m  (get-code /marc road)
+  ?~  res  (pure:m ~)
+  (pure:m `!<(marc:tarball u.res))
+::  +get-tube: look up a tube via marc grow gate
 ::
 ++  get-tube
   |=  [cod=road:tarball =mars:clay]
   =/  m  (fiber ,(unit tube:clay))
   ^-  form:m
-  =/  =road:tarball  (extend-road:tarball cod /tub/[a.mars] b.mars)
-  ;<  res=(unit vase)  bind:m  (get-code /tube road)
-  ?~  res  (pure:m ~)
-  (pure:m `!<(tube:clay u.res))
-::  +get-vale: look up a compiled vale gate from bins
+  ;<  marc-res=(unit marc:tarball)  bind:m  (get-marc cod a.mars)
+  ?~  marc-res  (pure:m ~)
+  =/  tube-res=(unit tube:clay)
+    (mole |.((grow.u.marc-res b.mars)))
+  (pure:m tube-res)
+::  +get-vale: look up a vale via marc
 ::
 ++  get-vale
   |=  [cod=road:tarball mak=mark]
   =/  m  (fiber ,(unit $-(* vase)))
   ^-  form:m
-  =/  =road:tarball  (extend-road:tarball cod /val mak)
-  ;<  res=(unit vase)  bind:m  (get-code /vale road)
-  ?~  res  (pure:m ~)
-  (pure:m `!<($-(* vase) u.res))
+  ;<  marc-res=(unit marc:tarball)  bind:m  (get-marc cod mak)
+  ?~  marc-res  (pure:m ~)
+  (pure:m `vale.u.marc-res)
 ::  +get-nexus: look up a compiled nexus from bins
 ::
 ++  get-nexus

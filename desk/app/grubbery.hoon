@@ -572,68 +572,29 @@
   ?~  res  ~
   `built.u.res
 ::
-++  get-tube
-  |=  [pax=path from=mark to=mark]
-  ^-  tube:clay
-  =/  res=(unit built:nexus)  (get-built pax /tub/[from] to)
-  ?~  res  ~|([%tube-not-found from to] !!)
-  ?.  ?=(%vase -.u.res)  ~|([%tube-failed from to] !!)
-  !<(tube:clay vase.u.res)
-::  Get a cached vale gate from bins
+::  Get a compiled marc from bins
+::
+++  get-marc
+  |=  [pax=path =mark]
+  ^-  marc:tarball
+  =/  res=(unit built:nexus)  (get-built pax /mar mark)
+  ?~  res
+    ~&  >>>  "get-marc: %{(trip mark)} not found, searched from {(spud pax)}"
+    ~|([%marc-not-found mark pax] !!)
+  ?.  ?=(%vase -.u.res)
+    ~&  >>>  "get-marc: %{(trip mark)} failed (tang), searched from {(spud pax)}"
+    ~|([%marc-failed mark pax] !!)
+  !<(marc:tarball vase.u.res)
 ::
 ++  get-vale
   |=  [pax=path =mark]
   ^-  $-(* vase)
-  =/  res=(unit built:nexus)  (get-built pax /val mark)
-  ?~  res
-    ~&  >>>  "get-vale: %{(trip mark)} not found, searched from {(spud pax)}"
-    ~|([%vale-not-found mark pax] !!)
-  ?.  ?=(%vase -.u.res)
-    ~&  >>>  "get-vale: %{(trip mark)} failed (tang), searched from {(spud pax)}"
-    ~|([%vale-failed mark pax] !!)
-  !<($-(* vase) vase.u.res)
-::  Lazily build a tube from compiled mark cores in bins
+  vale:(get-marc pax mark)
 ::
-++  build-tube-lazy
+++  get-tube
   |=  [pax=path from=mark to=mark]
-  ^-  [built:nexus _this]
-  ::  Walk up to find a code nexus with both mark cores
-  |-
-  =/  cod=path  (snoc pax %code)
-  =/  lod=(unit lode:nexus)  (~(get by code) cod)
-  ?~  lod
-    ?~  pax
-      [[%tang ~[leaf+"tube: no code nexus has both %{(trip from)} and %{(trip to)}"]] this]
-    $(pax (snip `path`pax))
-  =/  mar-node=(unit (map @ta built:nexus))  (~(get of bins.u.lod) /mar)
-  ?~  mar-node
-    ?~  pax
-      [[%tang ~[leaf+"tube: no code nexus has both %{(trip from)} and %{(trip to)}"]] this]
-    $(pax (snip `path`pax))
-  =/  from-hit=(unit built:nexus)  (~(get by u.mar-node) from)
-  =/  to-hit=(unit built:nexus)  (~(get by u.mar-node) to)
-  ?.  &(?=(^ from-hit) ?=(^ to-hit))
-    ?~  pax
-      [[%tang ~[leaf+"tube: no code nexus has both %{(trip from)} and %{(trip to)}"]] this]
-    $(pax (snip `path`pax))
-  ?.  ?=(%vase -.u.from-hit)
-    [[%tang ~[leaf+"tube: mark %{(trip from)} failed to compile"]] this]
-  ?.  ?=(%vase -.u.to-hit)
-    [[%tang ~[leaf+"tube: mark %{(trip to)} failed to compile"]] this]
-  =/  cores=(map mark vase)
-    (~(gas by *(map mark vase)) ~[[from vase.u.from-hit] [to vase.u.to-hit]])
-  =/  res=(each tube:clay tang)
-    (mule |.((tube-from:marks [from to] cores)))
-  ?:  ?=(%| -.res)
-    [[%tang p.res] this]
-  ::  Cache tube in the code nexus where both marks were found
-  =/  =lode:nexus  u.lod
-  =/  tub-node=(map @ta built:nexus)
-    (fall (~(get of bins.lode) /tub/[from]) *(map @ta built:nexus))
-  =.  bins.lode
-    (~(put of bins.lode) /tub/[from] (~(put by tub-node) to [%vase !>(p.res)]))
-  =.  code  (~(put by code) cod lode)
-  [[%vase !>(p.res)] this]
+  ^-  tube:clay
+  (grow:(get-marc pax from) to)
 ::  Validate file content, looks up cached dais
 ::
 ++  validate-new-cage
@@ -650,12 +611,12 @@
     (mule |.(!>(;;(mime q.new))))
   ?:  =(%kelvin mark)
     (mule |.(!>(;;(waft:clay q.new))))
-  =/  res=(unit built:nexus)  (get-built pax /val mark)
+  =/  res=(unit built:nexus)  (get-built pax /mar mark)
   ?~  res
-    |+~[leaf+"validate-new-cage: no vale for %{(trip mark)} at {(spud pax)}"]
+    |+~[leaf+"validate-new-cage: no marc for %{(trip mark)} at {(spud pax)}"]
   ?.  ?=(%vase -.u.res)
-    |+~[leaf+"validate-new-cage: vale for %{(trip mark)} failed at {(spud pax)}"]
-  =/  vale=$-(* vase)  !<($-(* vase) vase.u.res)
+    |+~[leaf+"validate-new-cage: marc for %{(trip mark)} failed at {(spud pax)}"]
+  =/  vale=$-(* vase)  vale:!<(marc:tarball vase.u.res)
   (validate-vase vale old new force)
 ::  Clam a cage at sandbox boundary
 ::  Used when data crosses a weir filter from untrusted source.
@@ -1603,16 +1564,18 @@
         =/  hit=(unit built:nexus)
           ?~  node  ~
           (~(get by u.node) name.dest)
-        ::  Lazy tube building: if lookup misses on a /tub path, build on demand
         ?^  hit
           (enqu-take here (sys-give /code) ~ %code wire.dart |+u.hit)
+        ::  Tube requests: /tub/from/to — resolve via marc grow gate
         ?.  ?=([%tub @ ~] inner)
           (enqu-take here (sys-give /code) ~ %code wire.dart |+[%tang ~[leaf+"code: {(trip name.dest)} not found at {(spud path.dest)}"]])
         =/  from=mark  i.t.inner
         =/  to=mark  name.dest
-        =/  [=built:nexus =_this]
-          (build-tube-lazy (snip `path`u.nex) from to)
-        (enqu-take here (sys-give /code) ~ %code wire.dart |+built)
+        =/  tube-res=(each tube:clay tang)
+          (mule |.((grow:(get-marc (snip `path`u.nex) from) to)))
+        ?:  ?=(%| -.tube-res)
+          (enqu-take here (sys-give /code) ~ %code wire.dart |+[%tang p.tube-res])
+        (enqu-take here (sys-give /code) ~ %code wire.dart |+[%vase !>(p.tube-res)])
       ==
       ::
         %font
@@ -2289,10 +2252,10 @@
           (mole |.(.^(dais:clay %cb (weld pax `path`/[mar]))))
         ?~  dais  ~
         `vale:u.dais
-      =/  res=(unit built:nexus)  (get-built / /val mar)
+      =/  res=(unit built:nexus)  (get-built / /mar mar)
       ?~  res  ~
       ?.  ?=(%vase -.u.res)  ~
-      (mole |.(!<($-(* vase) vase.u.res)))
+      (mole |.(vale:!<(marc:tarball vase.u.res)))
     ?~  vale
       ~&  [%sync-clay-skip-no-mark mar fyl]
       acc
@@ -2443,7 +2406,7 @@
     =/  node=(map @ta built:nexus)
       (fall (~(get of acc) store-path) *(map @ta built:nexus))
     (~(put of acc) store-path (~(put by node) store-name built))
-  ::  Gather compiled mark cores for vale gate construction
+  ::  Gather compiled mark source cores and build marcs
   =/  mar-node=(map @ta built:nexus)
     (fall (~(get of new-bins) /mar) *(map @ta built:nexus))
   =/  mark-cores=(map mark vase)
@@ -2452,18 +2415,19 @@
     |=  [mak=@ta =built:nexus]
     ?.  ?=(%vase -.built)  ~
     `[mak vase.built]
-  ::  Build vale gates from compiled mark cores
+  ::  Build marc dispatch cores from mark source cores
   =.  new-bins
+    =/  new-mar-node=_mar-node  mar-node
+    =+
     %+  roll  ~(tap by mark-cores)
-    |=  [[mak=mark =vase] acc=_new-bins]
-    =/  vale-res=(each $-(* ^vase) tang)
-      (mule |.((build-vale:marks vase)))
-    =/  val-node=(map @ta built:nexus)
-      (fall (~(get of acc) /val) *(map @ta built:nexus))
-    ?:  ?=(%| -.vale-res)
-      ~&  >>  "build-code: vale for %{(trip mak)} failed"
-      (~(put of acc) /val (~(put by val-node) mak [%tang p.vale-res]))
-    (~(put of acc) /val (~(put by val-node) mak [%vase !>(p.vale-res)]))
+    |=  [[mak=mark =vase] acc=_new-mar-node]
+    =/  marc-res=(each marc:tarball tang)
+      (mule |.((build-marc:marks mak vase mark-cores)))
+    ?:  ?=(%| -.marc-res)
+      ~&  >>  "build-code: marc for %{(trip mak)} failed"
+      (~(put by acc) mak [%tang p.marc-res])
+    (~(put by acc) mak [%vase !>(p.marc-res)])
+  (~(put of new-bins) /mar -)
   ::  Update build state
   ~&  >  "build-code: updating lode"
   =.  lode  [keys.res deps.res new-bins]
@@ -2486,16 +2450,9 @@
 ++  validate-marks
   |=  [cod=path old-bins=bins:nexus new-bins=bins:nexus]
   ^+  [new-bins this]
-  ::  Gather all successfully compiled mark cores from bins /mar node
+  ::  Find changed marcs in bins /mar node
   =/  mar-node=(map @ta built:nexus)
     (fall (~(get of new-bins) /mar) *(map @ta built:nexus))
-  =/  mark-cores=(map mark vase)
-    %-  ~(gas by *(map mark vase))
-    %+  murn  ~(tap by mar-node)
-    |=  [mak=@ta =built:nexus]
-    ?.  ?=(%vase -.built)  ~
-    `[mak vase.built]
-  ::  Find changed marks (new or different from old)
   =/  old-mar=(map @ta built:nexus)
     (fall (~(get of old-bins) /mar) *(map @ta built:nexus))
   =/  changed=(list mark)
@@ -2510,16 +2467,17 @@
   |-
   ?~  remaining  [new-bins this]
   =/  mak=mark  i.remaining
-  ::  Build vale gate from mark core
-  =/  vale-res=(each $-(* vase) tang)
-    (mule |.((build-vale:marks (~(got by mark-cores) mak))))
-  ?:  ?=(%| -.vale-res)
-    ~&  >>  "validate-marks: {(trip mak)} vale build failed"
-    =/  err=tang  [leaf+"mark {(trip mak)}: vale build failed" p.vale-res]
-    =.  mar-node  (~(put by mar-node) mak [%tang err])
-    =.  new-bins  (~(put of new-bins) /mar mar-node)
+  ::  Extract marc from compiled bins
+  =/  marc-hit=(unit built:nexus)  (~(get by mar-node) mak)
+  ?~  marc-hit  $(remaining t.remaining)
+  ?.  ?=(%vase -.u.marc-hit)
     $(remaining t.remaining)
-  =/  vale=$-(* vase)  p.vale-res
+  =/  marc-res=(each marc:tarball tang)
+    (mule |.(!<(marc:tarball vase.u.marc-hit)))
+  ?:  ?=(%| -.marc-res)
+    ~&  >>  "validate-marks: {(trip mak)} marc extraction failed"
+    $(remaining t.remaining)
+  =/  vale=$-(* vase)  vale.p.marc-res
   ::  Find all grubs with this mark, including booms with matching inner mark
   =/  scope=path  (snip `(list @ta)`cod)
   =/  grubs=(list [=rail:tarball =content:tarball])
@@ -2616,8 +2574,6 @@
 ::  the expected type for its location:
 ::    mar/*        — mark door (has +grab, +grow)
 ::    nex/*        — nexus:nexus
-::    val/*        — $-(* vase) vale gate
-::    tub/**       — tube:clay ($-(vase vase))
 ::
 ++  validate-build
   |=  [=rail:tarball =vase]
@@ -2634,14 +2590,6 @@
     =/  res=(each nexus:nexus tang)
       (mule |.(!<(nexus:nexus vase)))
     ?:(?=(%& -.res) ~ `(weld ~[leaf+"nexus {(trip name.rail)}: type mismatch"] p.res))
-  ?:  =(/val (scag 1 dir))
-    =/  res=(each $-(* ^vase) tang)
-      (mule |.(!<($-(* ^vase) vase)))
-    ?:(?=(%& -.res) ~ `(weld ~[leaf+"vale {(trip name.rail)}: type mismatch"] p.res))
-  ?:  =(/tub (scag 1 dir))
-    =/  res=(each tube:clay tang)
-      (mule |.(!<(tube:clay vase)))
-    ?:(?=(%& -.res) ~ `(weld ~[leaf+"tube {(trip name.rail)}: type mismatch"] p.res))
   ::  No validation for other paths (e.g. lib/*.hoon)
   ~
 ::  Mirror /gub/ from Clay into /code/, then build.

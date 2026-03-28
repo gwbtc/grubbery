@@ -1,11 +1,21 @@
-::  marks: tube and vale builder
+::  marks: marc builder
 ::
-::  Reproduces Clay's tube-building logic.
-::  Tube gates are composed from grab/grow arms using slap/slam/slob,
-::  exactly as Clay does internally in +build-cast.
+::  Compiles mark source cores into marc:tarball dispatch cores.
+::  All slap/slob introspection happens at build time.
 ::
 /+  nexus, tarball
 |%
+::  +build-marc: compile a mark source core into a marc dispatch core
+::
+::  Takes the mark's own name, its compiled vase, and all mark core vases
+::  in scope.  Returns a marc with vale/grow/grab gates.
+::
+++  build-marc
+  |=  [mak=mark cor=vase cores=(map mark vase)]
+  ^-  marc:tarball
+  :+  (build-vale cor)
+    (build-grow mak cor cores)
+  (build-grab mak cor cores)
 ::  +build-vale: extract noun validator from a mark core
 ::
 ::  Pulls +noun:grab from the mark core as a $-(* vase) gate.
@@ -16,12 +26,29 @@
   =/  gat=vase
     (slap cor !,(*hoon |=(noun=* (noun:grab noun))))
   |=(noun=* (slam gat !>(noun)))
-::  +build-tube: build a $-(vase vase) tube gate from mark cores
+::  +build-grow: build a dispatch gate for outbound conversions
 ::
-++  build-tube
-  |=  [cores=(map mark vase) =mars:clay]
+::  Returns a gate that takes a target mark and produces a tube.
+::  Closes over available mark cores for intermediary resolution.
+::
+++  build-grow
+  |=  [mak=mark cor=vase cores=(map mark vase)]
+  ^-  $-(mark tube:clay)
+  |=  to=mark
   ^-  tube:clay
-  =/  gat=vase  (build-cast cores a.mars b.mars ~)
+  =/  gat=vase  (build-cast cores mak to ~)
+  =>([gat=gat ..zuse] |=(v=vase (slam gat v)))
+::  +build-grab: build a dispatch gate for inbound conversions
+::
+::  Returns a gate that takes a source mark and produces a tube.
+::  Closes over available mark cores for intermediary resolution.
+::
+++  build-grab
+  |=  [mak=mark cor=vase cores=(map mark vase)]
+  ^-  $-(mark tube:clay)
+  |=  from=mark
+  ^-  tube:clay
+  =/  gat=vase  (build-cast cores from mak ~)
   =>([gat=gat ..zuse] |=(v=vase (slam gat v)))
 ::  +build-cast: produce a gate to convert mark a to mark b
 ::
@@ -97,16 +124,11 @@
   =/  faz  (with-face i.vaz)
   =.  res  `?~(res faz (slop faz u.res))
   $(vaz t.vaz)
-::  +tube-from: build a tube from mark cores
+::  +tube-from: build a tube from raw mark cores (used at compile time)
 ::
 ++  tube-from
   |=  [=mars:clay cores=(map mark vase)]
   ^-  tube:clay
-  (build-tube cores mars)
-::  +tube: build a tube from a list of [mark vase] deps
-::
-++  tube
-  |=  [=mars:clay deps=(list [mark vase])]
-  ^-  tube:clay
-  (tube-from mars (~(gas by *(map mark vase)) deps))
+  =/  gat=vase  (build-cast cores a.mars b.mars ~)
+  =>([gat=gat ..zuse] |=(v=vase (slam gat v)))
 --

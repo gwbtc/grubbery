@@ -4,6 +4,9 @@
 |%
 +$  neck      @tas                :: a "mark" at the directory level
 +$  metadata  (map @t @t)
+::  Compiled mark core: built once from mark source, used for vale + tubes
+::
++$  marc  [vale=$-(* vase) grow=$-(mark tube:clay) grab=$-(mark tube:clay)]
 ::  Path types with file/directory distinction
 ::
 +$  rail  [=path name=@ta]        :: path to file (dir + filename)
