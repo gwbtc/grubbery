@@ -22,6 +22,7 @@
   :~  ['path' [%string 'Bins path (e.g. "/lib/mcp", "/mar", "/nex", "/das")']]
       ['name' [%string 'Artifact name (e.g. "echo", "txt", "server")']]
       ['code' [%string 'Code namespace path (default: "/code"). e.g. "/my/custom/code"']]
+      ['show' [%boolean 'Show the compiled noun via +sell (default: false)']]
   ==
 ++  required  ~['path' 'name']
 ++  handler
@@ -29,8 +30,13 @@
   =/  m  (fiber:fiber:nexus ,tool-result:tools)
   ^-  form:m
   ;<  st=tool-state:tools  bind:m  (get-state-as:io ,tool-state:tools)
-  =/  pax=@t  (~(dog jo:json-utils [%o args.st]) /path so:dejs:format)
-  =/  nam=@t  (~(dog jo:json-utils [%o args.st]) /name so:dejs:format)
+  =/  parsed=(each [@t @t] tang)
+    %-  mule  |.
+    :-  (~(dog jo:json-utils [%o args.st]) /path so:dejs:format)
+    (~(dog jo:json-utils [%o args.st]) /name so:dejs:format)
+  ?:  ?=(%| -.parsed)
+    (pure:m [%error 'Missing or invalid required arguments (path, name)'])
+  =/  [pax=@t nam=@t]  p.parsed
   =/  code-ns=path
     =/  raw=(unit @t)
       ?~  p=(~(get jo:json-utils [%o args.st]) /code)  ~
@@ -39,11 +45,22 @@
       `p.u.p
     ?~  raw  /code
     (stab u.raw)
+  =/  show=?
+    =/  p  (~(get jo:json-utils [%o args.st]) /show)
+    ?~  p  %.n
+    ?+  u.p  %.n
+      [%b *]  p.u.p
+    ==
   =/  bin-path=path  (stab pax)
   =/  bin-name=@ta  (crip (trip nam))
   ;<  res=built:nexus  bind:m  (get-code-full:io /check [%& %& (weld code-ns bin-path) bin-name])
   ?:  ?=(%vase -.res)
-    (pure:m [%text (crip "OK: {(trip pax)}/{(trip nam)} compiled successfully")])
+    =/  msg=tape  "OK: {(trip pax)}/{(trip nam)} compiled successfully"
+    ?.  show
+      (pure:m [%text (crip msg)])
+    =/  printed=tape
+      ~(ram re (sell vase.res))
+    (pure:m [%text (crip "{msg}\0a\0a{printed}")])
   ?.  ?=(%tang -.res)
     (pure:m [%text (crip "OK: {(trip pax)}/{(trip nam)} — non-vase artifact")])
   =/  rendered=tape

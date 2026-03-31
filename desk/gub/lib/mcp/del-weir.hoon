@@ -20,9 +20,14 @@
   =/  m  (fiber:fiber:nexus ,tool-result:tools)
   ^-  form:m
   ;<  st=tool-state:tools  bind:m  (get-state-as:io ,tool-state:tools)
-  =/  weir-path=@t  (~(dog jo:json-utils [%o args.st]) /path so:dejs:format)
-  =/  category=@t  (~(dog jo:json-utils [%o args.st]) /category so:dejs:format)
-  =/  road-path=@t  (~(dog jo:json-utils [%o args.st]) /'road_path' so:dejs:format)
+  =/  parsed=(each [@t @t @t] tang)
+    %-  mule  |.
+    :+  (~(dog jo:json-utils [%o args.st]) /path so:dejs:format)
+      (~(dog jo:json-utils [%o args.st]) /category so:dejs:format)
+    (~(dog jo:json-utils [%o args.st]) /'road_path' so:dejs:format)
+  ?:  ?=(%| -.parsed)
+    (pure:m [%error 'Missing or invalid required arguments (path, category, road_path)'])
+  =/  [weir-path=@t category=@t road-path=@t]  p.parsed
   =/  road-type=@t
     ?~  rt=(~(get jo:json-utils [%o args.st]) /'road_type')  'dir'
     ?.  ?=([%s *] u.rt)  'dir'

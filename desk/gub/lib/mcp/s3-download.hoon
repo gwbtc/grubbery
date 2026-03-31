@@ -18,12 +18,16 @@
   =/  m  (fiber:fiber:nexus ,tool-result:tools)
   ^-  form:m
   ;<  st=tool-state:tools  bind:m  (get-state-as:io ,tool-state:tools)
-  =/  [s3-key=@t dest-path=@t]
+  =/  parsed=(each [@t @t] tang)
+    %-  mule  |.
     %.  [%o args.st]
     %-  ot:dejs:format
     :~  ['s3_key' so:dejs:format]
         ['path' so:dejs:format]
     ==
+  ?:  ?=(%| -.parsed)
+    (pure:m [%error 'Missing or invalid required arguments (s3_key, path)'])
+  =/  [s3-key=@t dest-path=@t]  p.parsed
   =/  pax=path  (stab dest-path)
   ;<  creds=s3-creds:tools  bind:m  read-s3-creds:tools
   ;<  =bowl:nexus  bind:m  (get-bowl:io /bowl)

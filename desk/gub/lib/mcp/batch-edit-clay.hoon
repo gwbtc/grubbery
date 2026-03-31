@@ -32,11 +32,13 @@
     ?^  err
       =/  lines=wall  (zing (turn (flop u.err) |=(=tank (wash [0 80] tank))))
       (pure:m [%error (crip "Clay build failed:\0a{(of-wall:format lines)}")])
-    =/  desk=@t
-      %.  [%o args.st]
-      (ot:dejs:format ~[['desk' so:dejs:format]])
-    =/  edits-json=json
+    =/  parsed=(each [@t json] tang)
+      %-  mule  |.
+      :-  %.([%o args.st] (ot:dejs:format ~[['desk' so:dejs:format]]))
       (~(got by args.st) 'edits')
+    ?:  ?=(%| -.parsed)
+      (pure:m [%error 'Missing or invalid required arguments (desk, edits)'])
+    =/  [desk=@t edits-json=json]  p.parsed
     ?.  ?=([%a *] edits-json)
       (pure:m [%error 'edits must be a JSON array'])
     =/  edit-list=(list json)  p.edits-json

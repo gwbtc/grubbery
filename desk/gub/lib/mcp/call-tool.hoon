@@ -25,8 +25,11 @@
   =/  m  (fiber:fiber:nexus ,tool-result:tools)
   ^-  form:m
   ;<  st=tool-state:tools  bind:m  (get-state-as:io ,tool-state:tools)
-  =/  tool-name=@t
-    (~(dog jo:json-utils [%o args.st]) /'tool_name' so:dejs:format)
+  =/  parsed=(each @t tang)
+    (mule |.((~(dog jo:json-utils [%o args.st]) /'tool_name' so:dejs:format)))
+  ?:  ?=(%| -.parsed)
+    (pure:m [%error 'Missing or invalid argument: tool_name'])
+  =/  tool-name=@t  p.parsed
   =/  tool-args=(map @t json)
     =/  v  (~(get jo:json-utils [%o args.st]) /'tool_args')
     ?~  v  ~

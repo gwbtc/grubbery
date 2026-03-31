@@ -15,7 +15,11 @@
   =/  m  (fiber:fiber:nexus ,tool-result:tools)
   ^-  form:m
   ;<  st=tool-state:tools  bind:m  (get-state-as:io ,tool-state:tools)
-  =/  dek=@tas  (~(dog jo:json-utils [%o args.st]) /desk so:dejs:format)
+  =/  parsed=(each @t tang)
+    (mule |.((~(dog jo:json-utils [%o args.st]) /desk so:dejs:format)))
+  ?:  ?=(%| -.parsed)
+    (pure:m [%error 'Missing or invalid argument: desk'])
+  =/  dek=@tas  p.parsed
   ;<  =cass:clay  bind:m  (do-scry:io cass:clay /scry /cw/[dek])
   =/  result=tape
     ;:  weld

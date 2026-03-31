@@ -80,8 +80,11 @@
   ?+  step.st  (pure:m [%error 'Unknown run_dojo step'])
       %start
     =/  args=json  [%o args.st]
-    =/  command=@t
-      (~(dog jo:json-utils args) /command so:dejs:format)
+    =/  parsed=(each @t tang)
+      (mule |.((~(dog jo:json-utils args) /command so:dejs:format)))
+    ?:  ?=(%| -.parsed)
+      (pure:m [%error 'Missing or invalid argument: command'])
+    =/  command=@t  p.parsed
     =/  session=@tas
       =/  ses=@t  (~(dug jo:json-utils args) /session so:dejs:format '')
       (crip (trip ses))

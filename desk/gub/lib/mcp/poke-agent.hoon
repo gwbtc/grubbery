@@ -19,9 +19,14 @@
   =/  m  (fiber:fiber:nexus ,tool-result:tools)
   ^-  form:m
   ;<  st=tool-state:tools  bind:m  (get-state-as:io ,tool-state:tools)
-  =/  agent=@t  (~(dog jo:json-utils [%o args.st]) /agent so:dejs:format)
-  =/  mark=@t  (~(dog jo:json-utils [%o args.st]) /mark so:dejs:format)
-  =/  data=@t  (~(dog jo:json-utils [%o args.st]) /data so:dejs:format)
+  =/  parsed=(each [@t @t @t] tang)
+    %-  mule  |.
+    :+  (~(dog jo:json-utils [%o args.st]) /agent so:dejs:format)
+      (~(dog jo:json-utils [%o args.st]) /mark so:dejs:format)
+    (~(dog jo:json-utils [%o args.st]) /data so:dejs:format)
+  ?:  ?=(%| -.parsed)
+    (pure:m [%error 'Missing or invalid required arguments (agent, mark, data)'])
+  =/  [agent=@t mark=@t data=@t]  p.parsed
   =/  agt=@tas  (slav %tas agent)
   =/  mar=@tas  (slav %tas mark)
   =/  res=(each vase tang)

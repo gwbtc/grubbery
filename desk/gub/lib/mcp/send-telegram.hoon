@@ -15,15 +15,24 @@
   =/  m  (fiber:fiber:nexus ,tool-result:tools)
   ^-  form:m
   ;<  st=tool-state:tools  bind:m  (get-state-as:io ,tool-state:tools)
-  =/  message=@t  (~(dog jo:json-utils [%o args.st]) /message so:dejs:format)
+  =/  parsed=(each @t tang)
+    (mule |.((~(dog jo:json-utils [%o args.st]) /message so:dejs:format)))
+  ?:  ?=(%| -.parsed)
+    (pure:m [%error 'Missing or invalid argument: message'])
+  =/  message=@t  p.parsed
   ::  Read telegram config from ball
   ;<  creds-seen=seen:nexus  bind:m
     (peek:io /creds [%& %& /config/creds 'telegram'] ~)
   ?.  ?=([%& %file *] creds-seen)
     (pure:m [%error 'Telegram credentials not configured. Create config/creds/telegram with bot-token and chat-id.'])
   =/  jon=json  !<(json q.cage.p.creds-seen)
-  =/  bot-token=@t  (~(dog jo:json-utils jon) /bot-token so:dejs:format)
-  =/  chat-id=@t  (~(dog jo:json-utils jon) /chat-id so:dejs:format)
+  =/  creds-parsed=(each [@t @t] tang)
+    %-  mule  |.
+    :-  (~(dog jo:json-utils jon) /bot-token so:dejs:format)
+    (~(dog jo:json-utils jon) /chat-id so:dejs:format)
+  ?:  ?=(%| -.creds-parsed)
+    (pure:m [%error 'Telegram config missing bot-token or chat-id'])
+  =/  [bot-token=@t chat-id=@t]  p.creds-parsed
   ::  POST to Telegram Bot API
   =/  url=@t
     (crip "{(trip 'https://api.telegram.org/bot')}{(trip bot-token)}/sendMessage")

@@ -19,9 +19,14 @@
   =/  m  (fiber:fiber:nexus ,tool-result:tools)
   ^-  form:m
   ;<  st=tool-state:tools  bind:m  (get-state-as:io ,tool-state:tools)
-  =/  link-path=@t  (~(dog jo:json-utils [%o args.st]) /path so:dejs:format)
-  =/  link-name=@t  (~(dog jo:json-utils [%o args.st]) /name so:dejs:format)
-  =/  target=@t  (~(dog jo:json-utils [%o args.st]) /target so:dejs:format)
+  =/  parsed=(each [@t @t @t] tang)
+    %-  mule  |.
+    :+  (~(dog jo:json-utils [%o args.st]) /path so:dejs:format)
+      (~(dog jo:json-utils [%o args.st]) /name so:dejs:format)
+    (~(dog jo:json-utils [%o args.st]) /target so:dejs:format)
+  ?:  ?=(%| -.parsed)
+    (pure:m [%error 'Missing or invalid required arguments (path, name, target)'])
+  =/  [link-path=@t link-name=@t target=@t]  p.parsed
   =/  sym=(unit symlink:tarball)  (parse-symlink:tarball target)
   ?~  sym
     (pure:m [%error (crip "Invalid symlink target: {(trip target)}")])

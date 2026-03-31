@@ -15,7 +15,11 @@
   =/  m  (fiber:fiber:nexus ,tool-result:tools)
   ^-  form:m
   ;<  st=tool-state:tools  bind:m  (get-state-as:io ,tool-state:tools)
-  =/  pax=@t  (~(dog jo:json-utils [%o args.st]) /path so:dejs:format)
+  =/  parsed=(each @t tang)
+    (mule |.((~(dog jo:json-utils [%o args.st]) /path so:dejs:format)))
+  ?:  ?=(%| -.parsed)
+    (pure:m [%error 'Missing or invalid argument: path'])
+  =/  pax=@t  p.parsed
   =/  =road:tarball  (cord-to-road:tarball pax)
   ;<  doc=@t  bind:m  (manu-road:io /manu road)
   ?:  =('' doc)

@@ -26,7 +26,11 @@
   =/  m  (fiber:fiber:nexus ,tool-result:tools)
   ^-  form:m
   ;<  st=tool-state:tools  bind:m  (get-state-as:io ,tool-state:tools)
-  =/  search=@t  (~(dog jo:json-utils [%o args.st]) /pattern so:dejs:format)
+  =/  parsed=(each @t tang)
+    (mule |.((~(dog jo:json-utils [%o args.st]) /pattern so:dejs:format)))
+  ?:  ?=(%| -.parsed)
+    (pure:m [%error 'Missing or invalid argument: pattern'])
+  =/  search=@t  p.parsed
   =/  pat-path=(unit @t)
     ?~  p=(~(get jo:json-utils [%o args.st]) /path)  ~
     ?.  ?=([%s *] u.p)  ~

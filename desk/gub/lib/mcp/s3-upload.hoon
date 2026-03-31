@@ -19,12 +19,16 @@
   =/  m  (fiber:fiber:nexus ,tool-result:tools)
   ^-  form:m
   ;<  st=tool-state:tools  bind:m  (get-state-as:io ,tool-state:tools)
-  =/  [file-path=@t file-name=@t]
+  =/  parsed=(each [@t @t] tang)
+    %-  mule  |.
     %.  [%o args.st]
     %-  ot:dejs:format
     :~  ['path' so:dejs:format]
         ['name' so:dejs:format]
     ==
+  ?:  ?=(%| -.parsed)
+    (pure:m [%error 'Missing or invalid required arguments (path, name)'])
+  =/  [file-path=@t file-name=@t]  p.parsed
   =/  s3-key=@t
     ?~  sk=(~(get by args.st) 's3_key')  file-name
     ?.  ?=([%s *] u.sk)  file-name

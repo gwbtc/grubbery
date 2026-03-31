@@ -458,6 +458,16 @@
   (my ~[[root-id root]])
 ::  apply an action: returns new store (crashes on validation failure)
 ::
+::  This is the policy layer — it dispatches to fundamental operations
+::  (apply-create, apply-move, etc) which are purely mechanical, then
+::  applies smart defaults on top:
+::
+::    - new goals default to actionable
+::    - adding a child under an actionable parent auto-unsets the parent
+::    - moving a goal under an actionable parent auto-unsets the parent
+::
+::  Anyone wanting different policy can call the fundamental ops directly.
+::
 ++  apply
   |=  [store=goal-store =action now=@da]
   ^-  [goal-store (unit goal-id)]
@@ -488,6 +498,20 @@
       =/  nd  (get-node store node-id.action)
       [~ (put-node store node-id.action nd(moment moment.action))]
     ==
+  ::  policy: new goals default actionable
+  =?  store  ?=(%create -.action)
+    =/  cid=goal-id  (need new-id)
+    =/  g  (get-goal store cid)
+    (~(put by store) cid g(actionable %.y))
+  ::  policy: parent loses actionable when it gains a child
+  =?  store  ?=(%create -.action)
+    =/  par  (get-goal store parent.action)
+    ?.  actionable.par  store
+    (~(put by store) parent.action par(actionable %.n))
+  =?  store  ?=(%move -.action)
+    =/  par  (get-goal store new-parent.action)
+    ?.  actionable.par  store
+    (~(put by store) new-parent.action par(actionable %.n))
   ?>  (validate store)
   [store new-id]
 ::

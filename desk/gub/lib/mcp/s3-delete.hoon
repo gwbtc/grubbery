@@ -17,11 +17,15 @@
   =/  m  (fiber:fiber:nexus ,tool-result:tools)
   ^-  form:m
   ;<  st=tool-state:tools  bind:m  (get-state-as:io ,tool-state:tools)
-  =/  s3-key=@t
+  =/  parsed=(each @t tang)
+    %-  mule  |.
     %.  [%o args.st]
     %-  ot:dejs:format
     :~  ['s3_key' so:dejs:format]
     ==
+  ?:  ?=(%| -.parsed)
+    (pure:m [%error 'Missing or invalid argument: s3_key'])
+  =/  s3-key=@t  p.parsed
   ;<  creds=s3-creds:tools  bind:m  read-s3-creds:tools
   ;<  =bowl:nexus  bind:m  (get-bowl:io /bowl)
   =/  [amz-date=@t payload-hash=@t authorization=@t]

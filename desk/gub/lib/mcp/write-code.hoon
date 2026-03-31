@@ -78,8 +78,13 @@
   =/  m  (fiber:fiber:nexus ,tool-result:tools)
   ^-  form:m
   ;<  st=tool-state:tools  bind:m  (get-state-as:io ,tool-state:tools)
-  =/  pax=@t  (~(dog jo:json-utils [%o args.st]) /path so:dejs:format)
-  =/  nam=@t  (~(dog jo:json-utils [%o args.st]) /name so:dejs:format)
+  =/  parsed=(each [@t @t] tang)
+    %-  mule  |.
+    :-  (~(dog jo:json-utils [%o args.st]) /path so:dejs:format)
+    (~(dog jo:json-utils [%o args.st]) /name so:dejs:format)
+  ?:  ?=(%| -.parsed)
+    (pure:m [%error 'Missing or invalid required arguments (path, name)'])
+  =/  [pax=@t nam=@t]  p.parsed
   =/  content=(unit @t)
     (~(deg jo:json-utils [%o args.st]) /content so:dejs:format)
   =/  old-string=(unit @t)

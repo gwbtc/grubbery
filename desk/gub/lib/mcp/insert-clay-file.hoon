@@ -32,13 +32,17 @@
     ?^  err
       =/  lines=wall  (zing (turn (flop u.err) |=(=tank (wash [0 80] tank))))
       (pure:m [%error (crip "Clay build failed:\0a{(of-wall:format lines)}")])
-    =/  [desk=@t file-path=@t content=@t]
+    =/  parsed=(each [@t @t @t] tang)
+      %-  mule  |.
       %.  [%o args.st]
       %-  ot:dejs:format
       :~  ['desk' so:dejs:format]
           ['path' so:dejs:format]
           ['content' so:dejs:format]
       ==
+    ?:  ?=(%| -.parsed)
+      (pure:m [%error 'Missing or invalid required arguments (desk, path, content)'])
+    =/  [desk=@t file-path=@t content=@t]  p.parsed
     =/  dek=@tas  (slav %tas desk)
     =/  pax=path  (stab file-path)
     ?~  pax

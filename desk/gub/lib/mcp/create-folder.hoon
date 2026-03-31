@@ -18,8 +18,13 @@
   =/  m  (fiber:fiber:nexus ,tool-result:tools)
   ^-  form:m
   ;<  st=tool-state:tools  bind:m  (get-state-as:io ,tool-state:tools)
-  =/  parent-path=@t  (~(dog jo:json-utils [%o args.st]) /path so:dejs:format)
-  =/  folder-name=@t  (~(dog jo:json-utils [%o args.st]) /name so:dejs:format)
+  =/  parsed=(each [@t @t] tang)
+    %-  mule  |.
+    :-  (~(dog jo:json-utils [%o args.st]) /path so:dejs:format)
+    (~(dog jo:json-utils [%o args.st]) /name so:dejs:format)
+  ?:  ?=(%| -.parsed)
+    (pure:m [%error 'Missing or invalid required arguments (path, name)'])
+  =/  [parent-path=@t folder-name=@t]  p.parsed
   =/  dir-name=@ta  folder-name
   =/  folder-path=path  (snoc (stab parent-path) dir-name)
   =/  new-ball=ball:tarball  [`[~ ~ ~] ~]

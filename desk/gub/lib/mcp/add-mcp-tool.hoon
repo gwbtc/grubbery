@@ -30,10 +30,13 @@
   =/  m  (fiber:fiber:nexus ,tool-result:tools)
   ^-  form:m
   ;<  st=tool-state:tools  bind:m  (get-state-as:io ,tool-state:tools)
-  =/  tool-name=@ta
-    (~(dog jo:json-utils [%o args.st]) /name so:dejs:format)
-  =/  source=@t
+  =/  parsed=(each [@t @t] tang)
+    %-  mule  |.
+    :-  (~(dog jo:json-utils [%o args.st]) /name so:dejs:format)
     (~(dog jo:json-utils [%o args.st]) /source so:dejs:format)
+  ?:  ?=(%| -.parsed)
+    (pure:m [%error 'Missing or invalid required arguments (name, source)'])
+  =/  [tool-name=@ta source=@t]  p.parsed
   =/  file-name=@ta  (cat 3 tool-name '.hoon')
   =/  road=road:tarball
     [%& %& /code/lib/mcp file-name]

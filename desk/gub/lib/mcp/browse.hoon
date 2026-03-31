@@ -15,7 +15,11 @@
   =/  m  (fiber:fiber:nexus ,tool-result:tools)
   ^-  form:m
   ;<  st=tool-state:tools  bind:m  (get-state-as:io ,tool-state:tools)
-  =/  dir-path=@t  (~(dog jo:json-utils [%o args.st]) /path so:dejs:format)
+  =/  parsed=(each @t tang)
+    (mule |.((~(dog jo:json-utils [%o args.st]) /path so:dejs:format)))
+  ?:  ?=(%| -.parsed)
+    (pure:m [%error 'Missing or invalid argument: path'])
+  =/  dir-path=@t  p.parsed
   =/  pax=path
     =/  t=tape  (trip dir-path)
     =/  stripped=tape

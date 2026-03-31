@@ -19,12 +19,16 @@
   =/  m  (fiber:fiber:nexus ,tool-result:tools)
   ^-  form:m
   ;<  st=tool-state:tools  bind:m  (get-state-as:io ,tool-state:tools)
-  =/  desk=@t  (~(dog jo:json-utils [%o args.st]) /desk so:dejs:format)
-  =/  dek=@tas  (slav %tas desk)
-  =/  pax=path
-    (stab (~(dog jo:json-utils [%o args.st]) /path so:dejs:format))
-  =/  pub=?
+  =/  parsed=(each [@t @t ?] tang)
+    %-  mule  |.
+    :+  (~(dog jo:json-utils [%o args.st]) /desk so:dejs:format)
+      (~(dog jo:json-utils [%o args.st]) /path so:dejs:format)
     (~(dog jo:json-utils [%o args.st]) /public bo:dejs:format)
+  ?:  ?=(%| -.parsed)
+    (pure:m [%error 'Missing or invalid required arguments (desk, path, public)'])
+  =/  [desk=@t path-text=@t pub=?]  p.parsed
+  =/  dek=@tas  (slav %tas desk)
+  =/  pax=path  (stab path-text)
   ;<  ~  bind:m
     (gall-poke-our:io %hood kiln-permission+!>([dek pax pub]))
   =/  status=tape  ?:(pub "public" "private")

@@ -18,12 +18,16 @@
   =/  m  (fiber:fiber:nexus ,tool-result:tools)
   ^-  form:m
   ;<  st=tool-state:tools  bind:m  (get-state-as:io ,tool-state:tools)
-  =/  [dir-path=@t s3-prefix=@t]
+  =/  parsed=(each [@t @t] tang)
+    %-  mule  |.
     %.  [%o args.st]
     %-  ot:dejs:format
     :~  ['path' so:dejs:format]
         ['s3_prefix' so:dejs:format]
     ==
+  ?:  ?=(%| -.parsed)
+    (pure:m [%error 'Missing or invalid required arguments (path, s3_prefix)'])
+  =/  [dir-path=@t s3-prefix=@t]  p.parsed
   =/  pax=path  (stab dir-path)
   ;<  =seen:nexus  bind:m  (peek:io /browse [%& %| pax] ~)
   ?.  ?=([%& %ball *] seen)

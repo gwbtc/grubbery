@@ -27,10 +27,15 @@
   =/  m  (fiber:fiber:nexus ,tool-result:tools)
   ^-  form:m
   ;<  st=tool-state:tools  bind:m  (get-state-as:io ,tool-state:tools)
-  =/  file-path=@t  (~(dog jo:json-utils [%o args.st]) /path so:dejs:format)
-  =/  file-name=@t  (~(dog jo:json-utils [%o args.st]) /name so:dejs:format)
-  =/  old-string=@t  (~(dog jo:json-utils [%o args.st]) /'old_string' so:dejs:format)
-  =/  new-string=@t  (~(dog jo:json-utils [%o args.st]) /'new_string' so:dejs:format)
+  =/  parsed=(each [@t @t @t @t] tang)
+    %-  mule  |.
+    :^  (~(dog jo:json-utils [%o args.st]) /path so:dejs:format)
+      (~(dog jo:json-utils [%o args.st]) /name so:dejs:format)
+      (~(dog jo:json-utils [%o args.st]) /'old_string' so:dejs:format)
+    (~(dog jo:json-utils [%o args.st]) /'new_string' so:dejs:format)
+  ?:  ?=(%| -.parsed)
+    (pure:m [%error 'Missing or invalid required arguments (path, name, old_string, new_string)'])
+  =/  [file-path=@t file-name=@t old-string=@t new-string=@t]  p.parsed
   =/  replace-all=?
     =/  ra  (~(get jo:json-utils [%o args.st]) /'replace_all')
     ?~  ra  %.n

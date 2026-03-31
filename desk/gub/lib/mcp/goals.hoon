@@ -42,7 +42,7 @@
   :-  gid
   ?:  =('start' pt)  %start
   ?:  =('end' pt)    %end
-  ~|([%invalid-point pt] !!)
+  !!
 ::  format a goal as text
 ::
 ++  render-goal
@@ -101,11 +101,15 @@
   =/  m  (fiber:fiber:nexus ,tool-result:tools)
   ^-  form:m
   ;<  st=tool-state:tools  bind:m  (get-state-as:io ,tool-state:tools)
-  =/  command=@t  (~(dog jo:json-utils [%o args.st]) /command so:dejs:format)
+  =/  parsed=(each @t tang)
+    (mule |.((~(dog jo:json-utils [%o args.st]) /command so:dejs:format)))
+  ?:  ?=(%| -.parsed)
+    (pure:m [%error 'Missing or invalid argument: command'])
+  =/  command=@t  p.parsed
   =/  store-name=(unit @t)
     (~(deg jo:json-utils [%o args.st]) /store so:dejs:format)
-  =/  action-text=(unit @t)
-    (~(deg jo:json-utils [%o args.st]) /action so:dejs:format)
+  =/  action-jon=(unit json)
+    (~(deg jo:json-utils [%o args.st]) /action same:dejs:format)
   =/  goal-id-text=(unit @t)
     (~(deg jo:json-utils [%o args.st]) /'goal_id' so:dejs:format)
   ::
@@ -154,15 +158,17 @@
       %'act'
     ?~  store-name
       (pure:m [%error 'Missing required argument: store'])
-    ?~  action-text
+    ?~  action-jon
       (pure:m [%error 'Missing required argument: action'])
-    =/  jon=json  (need (de:json:html u.action-text))
+    =/  jon=json  u.action-jon
     ?.  ?=([%o *] jon)
       (pure:m [%error 'Action must be a JSON object'])
-    =/  act-type=@t
-      (~(dog jo:json-utils jon) /type so:dejs:format)
-    ;<  =bowl:nexus  bind:m  (get-bowl:io /bowl)
-    =/  act=action:goals
+    =/  act-parsed=(each [@t action:goals] tang)
+      %-  mule  |.
+      =/  act-type=@t
+        (~(dog jo:json-utils jon) /type so:dejs:format)
+      :-  act-type
+      ^-  action:goals
       ?+  act-type
         ~|([%unknown-action-type act-type] !!)
       ::
@@ -214,6 +220,11 @@
         ?~  moment-text  ~
         `(slav %da u.moment-text)
       ==
+    ?:  ?=(%| -.act-parsed)
+      (pure:m [%error 'Missing or invalid action arguments'])
+    =/  act-type=@t  -.p.act-parsed
+    =/  act=action:goals  +.p.act-parsed
+    ;<  =bowl:nexus  bind:m  (get-bowl:io /bowl)
     ;<  ~  bind:m
       (poke:io /act (store-road u.store-name) goal-action+!>(act))
     (pure:m [%text (crip "Applied {(trip act-type)}")])

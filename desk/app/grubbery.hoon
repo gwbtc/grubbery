@@ -1,9 +1,7 @@
 /-  spider
 /+  default-agent, dbug, tarball, nexus,
     server, multipart, http-utils, html-utils, json-utils,
-    marks, build, fiberio, loader, cram, pretty-file, root,
-    goals
-/=  t-  /tests/goals
+    marks, build, fiberio, loader, cram, pretty-file, root
 /=  t-  /tests/nexus
 /=  t-  /tests/tarball
 /=  t-  /tests/build

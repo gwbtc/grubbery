@@ -21,7 +21,11 @@
   =/  m  (fiber:fiber:nexus ,tool-result:tools)
   ^-  form:m
   ;<  st=tool-state:tools  bind:m  (get-state-as:io ,tool-state:tools)
-  =/  desk=@t  (~(dog jo:json-utils [%o args.st]) /desk so:dejs:format)
+  =/  parsed=(each @t tang)
+    (mule |.((~(dog jo:json-utils [%o args.st]) /desk so:dejs:format)))
+  ?:  ?=(%| -.parsed)
+    (pure:m [%error 'Missing or invalid argument: desk'])
+  =/  desk=@t  p.parsed
   =/  dek=@tas  (slav %tas desk)
   ;<  =bowl:nexus  bind:m  (get-bowl:io /bowl)
   ::  Scry default files from %base

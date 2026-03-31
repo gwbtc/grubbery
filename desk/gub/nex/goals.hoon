@@ -106,6 +106,15 @@
                 :+  %reorder
                   (~(dog jo:json-utils jon) /id so:dejs:format)
                 (~(deg jo:json-utils jon) /before so:dejs:format)
+                  %'update'
+                :+  %update
+                  (~(dog jo:json-utils jon) /id so:dejs:format)
+                ^-  (map @t json)
+                =/  data-text=(unit @t)
+                  (~(deg jo:json-utils jon) /data so:dejs:format)
+                ?~  data-text  ~
+                =/  data-jon=json  (need (de:json:html u.data-text))
+                ((om:dejs:format same:dejs:format) data-jon)
               ==
             ;<  ~  bind:m
               (poke:io /act [%| 0 %& /store (store-fname store-name)] goal-action+!>(act))
@@ -315,6 +324,14 @@
           ;*  (turn front |=(g=goal:goals (render-goal-row name g 0)))
         ==
     ==
+  =/  root-summary=tape
+    =/  sv=(unit json)  (~(get by data.root) 'summary')
+    ?.  ?=([~ %s *] sv)  ""
+    (trip p.u.sv)
+  =/  root-desc=tape
+    =/  dv=(unit json)  (~(get by data.root) 'description')
+    ?.  ?=([~ %s *] dv)  ""
+    (trip p.u.dv)
   ;div.store-view(id "store-{sn}", style "display:none")
     ;div.store-header
       ;button.btn(onclick "showList()"): back
@@ -323,6 +340,18 @@
         ;button.tab.tab-active(id "tab-{sn}-tree", onclick "switchTab('{sn}','tree')"): tree
         ;button.tab(id "tab-{sn}-gantt", onclick "switchTab('{sn}','gantt')"): gantt
       ==
+    ==
+    ;div.store-meta(id "meta-{sn}")
+      ;+  ?.  =(root-summary "")
+            ;p.store-summary: {root-summary}
+          ;p.store-summary.muted: No summary.
+      ;+  ?.  =(root-desc "")
+            ;details.store-details
+              ;summary: details
+              ;p.store-desc: {root-desc}
+            ==
+          ;span;
+      ;button.btn-sm(onclick "editMeta('{sn}')"): edit
     ==
     ;div.tab-panel(id "panel-{sn}-tree")
       ;*  frontier-manx
@@ -662,6 +691,29 @@
       sib=sib.nextElementSibling;
     }
   }
+  function editMeta(store)\{
+    var meta=document.getElementById('meta-'+store);
+    var sumEl=meta.querySelector('.store-summary');
+    var curSum=sumEl&&!sumEl.classList.contains('muted')?sumEl.textContent:'';
+    var descEl=meta.querySelector('.store-desc');
+    var curDesc=descEl?descEl.textContent:'';
+    meta.innerHTML='<div style="display:flex;flex-direction:column;gap:6px">'
+      +'<input id="meta-summary-'+store+'" placeholder="Summary (one line)" value="'+curSum.replace(/"/g,'&amp;quot;')+'" style="font-size:0.85rem;padding:4px 6px;border:1px solid #ccc;border-radius:3px">'
+      +'<textarea id="meta-desc-'+store+'" rows="4" placeholder="Description (detailed)" style="font-size:0.8rem;padding:4px 6px;border:1px solid #ccc;border-radius:3px;resize:vertical">'+curDesc+'</textarea>'
+      +'<div style="display:flex;gap:4px">'
+      +'<button class="btn-sm" onclick="saveMeta(&quot;'+store+'&quot;)">save</button>'
+      +'<button class="btn-sm" onclick="location.reload()">cancel</button>'
+      +'</div></div>';
+  }
+  function saveMeta(store)\{
+    var summary=document.getElementById('meta-summary-'+store).value;
+    var desc=document.getElementById('meta-desc-'+store).value;
+    var data=\{};
+    if(summary)data.summary=summary;
+    if(desc)data.description=desc;
+    poke(\{action:'goal-action',store:store,type:'update',id:'0',data:JSON.stringify(data)},
+      function()\{location.hash=store;location.reload()});
+  }
   function goalAct(store,type,id,val)\{
     var b=\{action:'goal-action',store:store,type:type,id:id};
     if(val!==undefined)b.value=val;
@@ -696,7 +748,12 @@
     ".store-card-info \{ display: flex; gap: 12px; align-items: center; } "
     ".store-name \{ font-weight: bold; } "
     ".store-view \{ } "
-    ".store-header \{ display: flex; gap: 12px; align-items: center; margin-bottom: 12px; } "
+    ".store-header \{ display: flex; gap: 12px; align-items: center; margin-bottom: 8px; } "
+    ".store-meta \{ margin-bottom: 12px; display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; } "
+    ".store-summary \{ font-size: 0.85rem; color: #555; margin: 0; } "
+    ".store-details \{ width: 100%; font-size: 0.8rem; color: #666; } "
+    ".store-details summary \{ cursor: pointer; opacity: 0.6; font-size: 0.75rem; } "
+    ".store-desc \{ margin: 4px 0 0; } "
     ".tree-section \{ margin-bottom: 12px; } "
     ".tree-toggle \{ opacity: 0.4; font-size: 0.7rem; cursor: pointer; user-select: none; } "
     ".tree-toggle:hover \{ opacity: 1; } "
