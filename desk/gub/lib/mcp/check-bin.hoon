@@ -50,5 +50,5 @@
     %-  zing
     %+  turn  (flop tang.res)
     |=(=tank (weld ~(ram re tank) "\0a"))
-  (pure:m [%error (crip "FAILED: {(trip pax)}/{(trip nam)}\0a{rendered}")])
+  (pure:m [%text (crip "FAILED: {(trip pax)}/{(trip nam)}\0a{rendered}")])
 --

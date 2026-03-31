@@ -243,11 +243,12 @@
   ?>  ?=([%& %file *] seen)
   =/  =cage  cage.p.seen
   ?+  p.cage
-    ::  Fallback: scry for tube to mime via %cc
-    ;<  =desk  bind:m  get-desk:io
-    ;<  convert=tube:clay  bind:m
-      (do-scry:io tube:clay /tube /cc/[desk]/[p.cage]/mime)
-    =/  result-vase=vase  (convert q.cage)
+    ::  Fallback: convert to mime via grubbery's marc system
+    ;<  convert=(unit tube:clay)  bind:m
+      (get-tube:io [%& %| /code] [[/ p.cage] [/ %mime]])
+    ?~  convert
+      (pure:m [%error (crip "No conversion from {(trip p.cage)} to mime")])
+    =/  result-vase=vase  (u.convert q.cage)
     =/  out=mime  !<(mime result-vase)
     (pure:m [%text (crip (trip q.q.out))])
       %boom

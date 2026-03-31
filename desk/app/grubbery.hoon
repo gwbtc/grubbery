@@ -1,7 +1,9 @@
 /-  spider
 /+  default-agent, dbug, tarball, nexus,
     server, multipart, http-utils, html-utils, json-utils,
-    marks, build, fiberio, loader, cram, pretty-file, root
+    marks, build, fiberio, loader, cram, pretty-file, root,
+    goals
+/=  t-  /tests/goals
 /=  t-  /tests/nexus
 /=  t-  /tests/tarball
 /=  t-  /tests/build
@@ -610,7 +612,10 @@
 ++  get-tube
   |=  [pax=path =bars:tarball]
   ^-  tube:clay
-  (grow:(get-marc pax a.bars) b.bars)
+  =/  via-grow=(each tube:clay tang)
+    (mule |.((grow:(get-marc pax a.bars) b.bars)))
+  ?:  ?=(%& -.via-grow)  p.via-grow
+  (grab:(get-marc pax b.bars) a.bars)
 ::  Validate file content, looks up cached dais
 ::
 ++  validate-new-cage

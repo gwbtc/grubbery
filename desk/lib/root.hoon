@@ -21,6 +21,7 @@
         [%fall %| /'claude.claude' [~ ~] [~ ~] [`[~ `[/ %claude] ~] ~]]
         [%fall %| /'oneshot.oneshot' [~ ~] [~ ~] [`[~ `[/ %oneshot] ~] ~]]
         [%fall %| /'telegram.telegram' [~ ~] [~ ~] [`[~ `[/ %telegram] ~] ~]]
+        [%fall %| /'goals.goals' [~ ~] [~ ~] [`[~ `[/ %goals] ~] ~]]
         [%fall %| /'mcp.mcp' [~ ~] [~ ~] [`[~ `[/ %mcp] ~] ~]]
         ::  config
         [%fall %| /config/creds [~ ~] [~ ~] empty-dir:loader]
