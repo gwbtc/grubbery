@@ -545,32 +545,42 @@
 ::  +seek-built: find a compiled artifact by walking up the tree
 ::  +find-built: namespace + source rail (no artifact)
 ::  +get-built: just the artifact
+::  Code namespace governance
 ::
-::  Code namespaces are hermetic: once the nearest /code lode is found,
-::  that's the authority. If it doesn't have the artifact, we return ~
-::  rather than falling back to a parent namespace. This means lower
-::  namespaces must copy marks/libs they need from upper ones. A
-::  ford-style refcounted cache (TODO) will make this redundancy free
-::  at runtime via content-addressed dedup.
+::  Every path in the tarball is governed by exactly one /code namespace:
+::  the nearest /code sibling found by walking up from the path.
+::  Governance is hermetic — if the governing namespace doesn't have an
+::  artifact, we return ~ rather than falling back to a parent. Lower
+::  namespaces must include marks/libs they need. A ford-style refcounted
+::  cache (TODO) will make this redundancy free via content-addressed dedup.
+::
+::  +find-code-ns: find the /code namespace governing a path
+::
+++  find-code-ns
+  |=  pax=path
+  ^-  (unit fold:tarball)
+  |-
+  =/  cod=path
+    ?~  pax  /code
+    (snoc (snip `(list @ta)`pax) %code)
+  ?^  (~(get by code) cod)  `cod
+  ?~  pax  ~
+  $(pax (snip `(list @ta)`pax))
+::  +seek-built: find a compiled artifact in the governing namespace
 ::
 ++  seek-built
   |=  [pax=path =path name=@ta]
   ^-  (unit [namespace=fold:tarball source=rail:tarball =built:nexus])
-  |-
-  =/  cod=^path
-    ?~  pax  /code  :: root: check /code directly
-    (snoc (snip `(list @ta)`pax) %code)
-  =/  lod=(unit lode:nexus)  (~(get by code) cod)
-  ?^  lod
-    =/  node=(unit (map @ta built:nexus))
-      (~(get of bins.u.lod) path)
-    =/  hit=(unit built:nexus)
-      ?~  node  ~
-      (~(get by u.node) name)
-    ?^  hit  `[cod [path name] u.hit]
-    ~  :: nearest code namespace is authoritative — don't walk up
-  ?~  pax  ~  :: reached root, nothing found
-  $(pax (snip `(list @ta)`pax))
+  =/  ns=(unit fold:tarball)  (find-code-ns pax)
+  ?~  ns  ~
+  =/  lod=lode:nexus  (~(got by code) u.ns)
+  =/  node=(unit (map @ta built:nexus))
+    (~(get of bins.lod) path)
+  =/  hit=(unit built:nexus)
+    ?~  node  ~
+    (~(get by u.node) name)
+  ?~  hit  ~
+  `[u.ns [path name] u.hit]
 ::
 ++  find-built
   |=  [pax=path =path name=@ta]
@@ -1618,34 +1628,15 @@
       ==
       ::
         %font
-      ::  Find code responsible for dest node
-      ::  Directory: nexus code from neck. File: mark core.
-      ::  Returns bend (relative to asker) to code namespace + source rail within.
-      ::  Also checks peek access on the returned code rail.
-      =/  font-split=(unit [namespace=fold:tarball source=rail:tarball])
-        ?-    -.u.dest-lane
-            %|
-          =/  dest=fold:tarball  p.u.dest-lane
-          =/  =lump:tarball  (fall (~(get of ball) dest) *lump:tarball)
-          ?~  neck.lump  ~
-          (find-built dest (weld /nex path.u.neck.lump) name.u.neck.lump)
-            %&
-          =/  dest=rail:tarball  p.u.dest-lane
-          =/  content=(unit content:tarball)
-            (~(get ba:tarball ball) path.dest name.dest)
-          ?~  content  ~
-          (find-built path.dest /mar name.p.sage.u.content)
-        ==
-      ?~  font-split
+      ::  Find the /code namespace governing this node.
+      ::  Walks up from dest to the nearest /code lode.
+      =/  pax=path
+        ?-(-.u.dest-lane %| p.u.dest-lane, %& path.p.u.dest-lane)
+      =/  ns=(unit fold:tarball)  (find-code-ns pax)
+      ?~  ns
         (enqu-take here (sys-give /font) ~ %font wire.dart ~)
-      ::  Check peek access on the absolute code rail
-      =/  abs-rail=rail:tarball  [(weld namespace.u.font-split path.source.u.font-split) name.source.u.font-split]
-      =/  =filt:nexus  (allowed %peek here `[%& abs-rail])
-      ?:  ?=([~ %|] filt)
-        (enqu-take here (sys-give /veto) ~ %veto dart)
-      ::  Return bend from asker to code namespace + source file within
-      =/  =bend:tarball  (make-bend:tarball here [%| namespace.u.font-split])
-      (enqu-take here (sys-give /font) ~ %font wire.dart `[bend source.u.font-split])
+      =/  =bend:tarball  (make-bend:tarball here [%| u.ns])
+      (enqu-take here (sys-give /font) ~ %font wire.dart `bend)
       ::
         %keep
       ::  Subscribe to changes at dest (uses peek permission)

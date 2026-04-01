@@ -164,7 +164,7 @@
         [%news =wire =view] :: state notification
         [%veto =dart] :: notify that a dart was sandboxed
         [%code =wire res=(each bins built)]  :: bins subtree or single artifact
-        [%font =wire res=(unit [=bend:tarball source=rail:tarball])]  :: code namespace (relative bend) + source file within
+        [%font =wire res=(unit bend:tarball)]  :: bend to governing /code namespace
         :: messages from gall and arvo
         ::
         [%scry =wire =vase]

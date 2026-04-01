@@ -119,22 +119,22 @@
       (get-mark-conversions-shallow:io u.sub)
     ::  Get code origin for this directory level (for neck/mark links)
     ::  Resolve bend to absolute code namespace path for URL construction
-    ;<  font=(unit [=bend:tarball source=rail:tarball])  bind:m
+    ;<  font=(unit bend:tarball)  bind:m
       (get-font:io /font [%& %| tree-path])
     ;<  here=rail:tarball  bind:m  get-here:io
-    =/  code-origin=(unit [namespace=fold:tarball source=rail:tarball])
+    =/  code-namespace=(unit path)
       ?~  font  ~
       =/  ns=(unit lane:tarball)
-        (lane-from-bend:tarball [%& here] bend.u.font)
+        (lane-from-bend:tarball [%& here] u.font)
       ?~  ns  ~
       ?.  ?=(%| -.u.ns)  ~
-      `[p.u.ns source.u.font]
+      `p.u.ns
     ::  Get boom state for this directory subtree
     ;<  boom-res=(each boom:nexus (unit tang))  bind:m
       (get-boom:io /boom [%& %| tree-path])
     =/  dir-boom=boom:nexus
       ?:(?=(%& -.boom-res) p.boom-res *boom:nexus)
-    =/  bod=octs  (manx-to-octs:server (render-dir tree-path root root-born root-sand now conversions code-origin dir-boom))
+    =/  bod=octs  (manx-to-octs:server (render-dir tree-path root root-born root-sand now conversions code-namespace dir-boom))
     ;<  ~  bind:m  (send-simple:srv eyre-id (mime-response:http-utils [/text/html bod]))
     (pure:m ~)
   ::  Not a directory — try as grub
@@ -795,7 +795,7 @@
           root-sand=sand:nexus
           now=@da
           conversions=(map mars:clay tube:clay)
-          code-origin=(unit [namespace=fold:tarball source=rail:tarball])
+          code-namespace=(unit path)
           =boom:nexus
       ==
   ^-  manx
@@ -803,13 +803,12 @@
   =/  b-born=born:nexus  (~(dip of root-born) pax)
   =/  dir-sand=sand:nexus  (~(dip of root-sand) pax)
   =/  dir-weir=(unit weir:nexus)  fil.dir-sand
-  ::  Code links: neck source URL + code namespace for mark URLs
+  ::  Code links: neck source URL from lump + code namespace from font
   =/  neck-url=(unit tape)
-    ?~  code-origin  ~
-    `"/grubbery/ball{(trip (spat (snoc (weld namespace.u.code-origin path.source.u.code-origin) name.source.u.code-origin)))}.hoon"
-  =/  code-namespace=(unit path)
-    ?~  code-origin  ~
-    `namespace.u.code-origin
+    ?~  code-namespace  ~
+    ?~  fil.root  ~
+    ?~  neck.u.fil.root  ~
+    `"/grubbery/ball{(trip (spat (weld u.code-namespace /nex)))}/{(trip (rail-to-arm:tarball u.neck.u.fil.root))}.hoon"
   =/  path-display=tape
     ?~  pax  "/"
     (trip (spat pax))

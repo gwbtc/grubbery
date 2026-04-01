@@ -718,7 +718,7 @@
 ::
 ++  get-font
   |=  [=wire =road:tarball]
-  =/  m  (fiber ,(unit [=bend:tarball source=rail:tarball]))
+  =/  m  (fiber ,(unit bend:tarball))
   ^-  form:m
   ;<  ~  bind:m  (send-dart %node wire road %font ~)
   |=  input
