@@ -12,8 +12,8 @@
         %+  spin:loader  [sand gain ball]
         :~  (ver-row:loader 0)
             [%fall %| /counters [~ ~] [~ ~] empty-dir:loader]
-            [%fall %& [/ui/views %'page.html'] %.n [~ %manx !>((counter-page ~))]]
-            [%fall %& [/ui %'main.sig'] %.n [~ %sig !>(~)]]
+            [%fall %& [/ui/views %'page.html'] %.n [~ [/ %manx] !>((counter-page ~))]]
+            [%fall %& [/ui %'main.sig'] %.n [~ [/ %sig] !>(~)]]
             [%fall %| /ui/requests [~ ~] [~ ~] empty-dir:loader]
         ==
       ==
@@ -47,8 +47,8 @@
           =/  =lump:tarball  (fall fil.ball.upd *lump:tarball)
           %+  murn  ~(tap by contents.lump)
           |=  [name=@ta =content:tarball]
-          ?.  ?=(%ud p.cage.content)  ~
-          `[name !<(@ud q.cage.content)]
+          ?.  ?=(%ud name.p.sage.content)  ~
+          `[name !<(@ud q.sage.content)]
         =/  page=manx  (counter-page counters)
         ;<  ~  bind:m  (replace:io !>(page))
         $
@@ -82,7 +82,7 @@
         ?.  ?=([%& %file *] seen)
           ;<  ~  bind:m  (send-simple:srv eyre-id [[500 ~] `(as-octs:mimes:html 'View not ready')])
           (pure:m ~)
-        =/  =mime  !<(mime q.cage.p.seen)
+        =/  =mime  !<(mime q.sage.p.seen)
         ;<  ~  bind:m  (send-simple:srv eyre-id (mime-response:http-utils mime))
         (pure:m ~)
       ==

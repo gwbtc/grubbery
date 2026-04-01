@@ -67,7 +67,7 @@
   =/  range-to=@ud
     (fall to cur-ver)
   ::  Fetch all versions in range via peep
-  ;<  res=(each (list [=cass:clay =cage]) tang)  bind:m
+  ;<  res=(each (list [=cass:clay =sage:tarball]) tang)  bind:m
     (peep:io /hist ses-road [%numb `range-from `range-to])
   ?:  ?=(%| -.res)
     (pure:m [%error (crip (zing (turn (flop p.res) |=(=tank (weld ~(ram re tank) "\0a")))))])
@@ -77,8 +77,8 @@
   =/  all-blits=(list blit:dill)
     %-  zing
     %+  turn  p.res
-    |=  [=cass:clay =cage]
-    !<((list blit:dill) q.cage)
+    |=  [=cass:clay =sage:tarball]
+    !<((list blit:dill) q.sage)
   =/  rendered=@t  (render-blits:clurd all-blits wid)
   (pure:m [%text (crip "Terminal ({<session>}, versions {<range-from>}-{<range-to>} of {<cur-ver>}):\0a{(trip rendered)}")])
 --

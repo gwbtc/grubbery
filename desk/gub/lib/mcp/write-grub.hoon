@@ -63,20 +63,20 @@
     =/  src-mime=mime  [mtype (as-octs:mimes:html content)]
     ;<  exists=?  bind:m  (peek-exists:io /check road)
     ?:  exists
-      ;<  ~  bind:m  (over:io /write road mime+!>(src-mime))
+      ;<  ~  bind:m  (over:io /write road [[/ %mime] !>(src-mime)])
       (pure:m [%text (crip "Wrote {(trip file-path)}/{(trip file-name)} [{(trip u.content-type)}]")])
-    ;<  ~  bind:m  (make:io /write road |+[%.n mime+!>(src-mime) ~])
+    ;<  ~  bind:m  (make:io /write road |+[%.n [[/ %mime] !>(src-mime)] ~])
     (pure:m [%text (crip "Created {(trip file-path)}/{(trip file-name)} [{(trip u.content-type)}]")])
   ::  Build mime cage from content
   =/  src-mime=mime  [/text/plain (as-octs:mimes:html content)]
   ;<  exists=?  bind:m  (peek-exists:io /check road)
   ?:  exists
     ::  Existing file: %over converts mime to file's mark via warm tube
-    ;<  ~  bind:m  (over:io /write road mime+!>(src-mime))
+    ;<  ~  bind:m  (over:io /write road [[/ %mime] !>(src-mime)])
     (pure:m [%text (crip "Wrote {(trip file-path)}/{(trip file-name)}")])
   ::  New file: pass dest-mark so runtime converts mime before storing.
   ::  If no mark specified, stores as mime.
-  ;<  ~  bind:m  (make:io /write road |+[%.n mime+!>(src-mime) dest-mark])
+  ;<  ~  bind:m  (make:io /write road |+[%.n [[/ %mime] !>(src-mime)] dest-mark])
   =/  mark-msg=tape  ?~(dest-mark "mime" (trip u.dest-mark))
   (pure:m [%text (crip "Created {(trip file-path)}/{(trip file-name)} [{mark-msg}]")])
 --

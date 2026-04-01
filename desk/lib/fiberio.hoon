@@ -160,13 +160,13 @@
   ^-  form:m
   ?.  ?=(%rise -.prod)  (pure:m ~)
   %-  (slog leaf+msg tang.prod)
-  ;<  =cage  bind:m  take-poke
-  ?:  ?=(%sig p.cage)
+  ;<  =sage:tarball  bind:m  take-poke
+  ?:  =([/ %sig] p.sage)
     (pure:m ~)
-  (trace leaf+"strange restart mark: {<p.cage>}" ~)
+  (trace leaf+"strange restart mark: {<p.sage>}" ~)
 ::
 ++  take-poke
-  =/  m  (fiber ,cage)
+  =/  m  (fiber ,sage:tarball)
   ^-  form:m
   |=  input
   :+  ~  state
@@ -175,19 +175,19 @@
       [~ %veto *]
     [%fail (veto-error dart.u.in)]
       [~ %poke * *]
-    [%done cage.u.in]
+    [%done sage.u.in]
   ==
 ::  Take a poke and return both its source and payload
 ::
-::  Returns [from cage] where:
+::  Returns [from sage] where:
 ::    from: %.y bend for internal (relative), %.n prov for external
-::    cage: the poke payload
+::    sage: the poke payload
 ::
 ::  The from is relative to the current file's location.
 ::  Use this when you need to verify the poke source for security.
 ::
 ++  take-poke-from
-  =/  m  (fiber ,[from:fiber:nexus cage])
+  =/  m  (fiber ,[from:fiber:nexus sage:tarball])
   ^-  form:m
   |=  input
   :+  ~  state
@@ -196,7 +196,7 @@
       [~ %veto *]
     [%fail (veto-error dart.u.in)]
       [~ %poke * *]
-    [%done [from cage]:u.in]
+    [%done [from sage]:u.in]
   ==
 ::
 ++  take-watch
@@ -318,10 +318,10 @@
   (take-made wire)
 ::
 ++  poke
-  |=  [=wire =road:tarball =cage]
+  |=  [=wire =road:tarball =sage:tarball]
   =/  m  (fiber ,~)
   ^-  form:m
-  ;<  ~  bind:m  (send-dart %node wire road %poke cage)
+  ;<  ~  bind:m  (send-dart %node wire road %poke sage)
   (take-pack wire)
 ::
 ++  peek
@@ -480,7 +480,7 @@
 ::
 ++  peep
   |=  [=wire =road:tarball =find:nexus]
-  =/  m  (fiber ,(each (list [=cass:clay =cage]) tang))
+  =/  m  (fiber ,(each (list [=cass:clay =sage:tarball]) tang))
   ^-  form:m
   ;<  ~  bind:m  (send-dart %node wire road %peep find)
   |=  input
@@ -496,10 +496,10 @@
   ==
 ::
 ++  over
-  |=  [=wire =road:tarball =cage]
+  |=  [=wire =road:tarball =sage:tarball]
   =/  m  (fiber ,~)
   ^-  form:m
-  ;<  ~  bind:m  (send-dart %node wire road %over cage)
+  ;<  ~  bind:m  (send-dart %node wire road %over sage)
   (take-over wire)
 ::
 ++  take-over
@@ -793,7 +793,7 @@
     |-  ^-  (set mark)
     ?~  entries  marks
     =*  content  q.i.entries
-    $(entries t.entries, marks (~(put in marks) p.cage.content))
+    $(entries t.entries, marks (~(put in marks) name.p.sage.content))
   ::  Recurse into subdirectories
   =/  subdirs=(list (pair @ta ball:tarball))  ~(tap by dir.ball)
   |-  ^-  (set mark)
@@ -812,7 +812,7 @@
   |-  ^-  (set mark)
   ?~  entries  marks
   =*  ct  q.i.entries
-  $(entries t.entries, marks (~(put in marks) p.cage.ct))
+  $(entries t.entries, marks (~(put in marks) name.p.sage.ct))
 ::  +build-mark-conversions: build conversions map for a set of marks
 ::
 ++  build-mark-conversions
@@ -844,25 +844,25 @@
   =/  m  (fiber ,(map mars:clay tube:clay))
   ^-  form:m
   (build-mark-conversions (collect-marks-shallow ball))
-::  +cage-to-mime: convert cage to mime, falling back to jam
+::  +sage-to-mime: convert sage to mime, falling back to jam
 ::
-++  cage-to-mime
-  |=  =cage
+++  sage-to-mime
+  |=  =sage:tarball
   =/  m  (fiber ,mime)
   ^-  form:m
-  ?:  =(%mime p.cage)
-    (pure:m !<(mime q.cage))
-  =/  =mars:clay  [p.cage %mime]
+  ?:  =([/ %mime] p.sage)
+    (pure:m !<(mime q.sage))
+  =/  =mars:clay  [name.p.sage %mime]
   ;<  tube=(unit tube:clay)  bind:m
     (get-tube [%& %| /code] [[/ a.mars] [/ b.mars]])
   ?~  tube
-    (pure:m [/application/x-urb-jam (as-octs:mimes:html (jam q.cage))])
-  =/  result=(each vase tang)  (mule |.((u.tube q.cage)))
+    (pure:m [/application/x-urb-jam (as-octs:mimes:html (jam q.sage))])
+  =/  result=(each vase tang)  (mule |.((u.tube q.sage)))
   ?:  ?=(%| -.result)
-    (pure:m [/application/x-urb-jam (as-octs:mimes:html (jam q.cage))])
+    (pure:m [/application/x-urb-jam (as-octs:mimes:html (jam q.sage))])
   =/  extracted  (mule |.(!<(mime p.result)))
   ?:  ?=(%| -.extracted)
-    (pure:m [/application/x-urb-jam (as-octs:mimes:html (jam q.cage))])
+    (pure:m [/application/x-urb-jam (as-octs:mimes:html (jam q.sage))])
   (pure:m p.extracted)
 ::  Gall agent operations (via syscalls)
 ::

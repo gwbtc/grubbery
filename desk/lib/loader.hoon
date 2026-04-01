@@ -43,7 +43,7 @@
   ^-  ver
   =/  ct=(unit content:tarball)  (~(get ba:tarball ball) [/ %'ver.ud'])
   ?~  ct  ~
-  `!<(@ud q.cage.u.ct)
+  `!<(@ud q.sage.u.ct)
 ::  +ver-row: convenience row to set the version file
 ::
 ++  empty-dir  [`[~ ~ ~] ~]
@@ -51,7 +51,7 @@
 ++  ver-row
   |=  ver=@ud
   ^-  row
-  [%over %& [/ %'ver.ud'] %.n [~ %ud !>(ver)]]
+  [%over %& [/ %'ver.ud'] %.n [~ [/ %ud] !>(ver)]]
 ::  +put-sand: place a sub-sand at a path
 ::
 ++  put-sand

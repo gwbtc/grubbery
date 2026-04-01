@@ -385,7 +385,7 @@
 ++  test-bo-is-empty-dir-false-has-files
   ::  is-empty-dir returns false if has files
   =/  b  (make-bo ~2024.1.1)
-  =/  has-file=ball:tarball  [`[~ ~ (~(put by *(map @ta content:tarball)) %foo [~ [%txt !>('hi')]])] ~]
+  =/  has-file=ball:tarball  [`[~ ~ (~(put by *(map @ta content:tarball)) %foo [~ [[/ %txt] !>('hi')]])] ~]
   %+  expect-eq
     !>  %.n
   !>  (is-empty-dir:b has-file)
@@ -515,7 +515,7 @@
   =/  contents=(map @ta content:tarball)
     %-  ~(gas by *(map @ta content:tarball))
     %+  turn  files
-    |=(f=@ta [f [~ [%txt !>('test')]]])
+    |=(f=@ta [f [~ [/ %txt] !>('test')]])
   [`[~ ~ contents] ~]
 ::
 ::  Helper to make a ball with a file with specific content
@@ -524,7 +524,7 @@
   |=  [name=@ta content=@t]
   ^-  ball:tarball
   =/  contents=(map @ta content:tarball)
-    (~(put by *(map @ta content:tarball)) name [~ [%txt !>(content)]])
+    (~(put by *(map @ta content:tarball)) name [~ [[/ %txt] !>(content)]])
   [`[~ ~ contents] ~]
 ::
 ++  test-bo-diff-balls-new-file
@@ -615,17 +615,17 @@
   ::  Old: deleted, changed, unchanged
   =/  old-contents=(map @ta content:tarball)
     %-  ~(gas by *(map @ta content:tarball))
-    :~  [%deleted [~ [%txt !>('del')]]]
-        [%changed [~ [%txt !>('old')]]]
-        [%unchanged [~ [%txt !>('same')]]]
+    :~  [%deleted [~ [[/ %txt] !>('del')]]]
+        [%changed [~ [[/ %txt] !>('old')]]]
+        [%unchanged [~ [[/ %txt] !>('same')]]]
     ==
   =/  old-ball=ball:tarball  [`[~ ~ old-contents] ~]
   ::  New: new, changed, unchanged
   =/  new-contents=(map @ta content:tarball)
     %-  ~(gas by *(map @ta content:tarball))
-    :~  [%new [~ [%txt !>('new')]]]
-        [%changed [~ [%txt !>('different')]]]
-        [%unchanged [~ [%txt !>('same')]]]
+    :~  [%new [~ [[/ %txt] !>('new')]]]
+        [%changed [~ [[/ %txt] !>('different')]]]
+        [%unchanged [~ [[/ %txt] !>('same')]]]
     ==
   =/  new-ball=ball:tarball  [`[~ ~ new-contents] ~]
   =/  born4=born:nexus  (diff-balls:b4 / old-ball new-ball)
@@ -731,8 +731,8 @@
 ++  test-si-put-new
   ::  Inserting a new page returns lobe and silo with refs=1
   =/  s  ~(. si:nexus *silo:nexus)
-  =/  =page  [%txt 'hello']
-  =/  [=lobe:clay new-silo=silo:nexus]  (put:s page)
+  =/  =bask:tarball  [[/ %txt] 'hello']
+  =/  [=lobe:clay new-silo=silo:nexus]  (put:s bask)
   =/  s2  ~(. si:nexus new-silo)
   =/  got  (need (get:s2 lobe))
   ;:  weld
@@ -748,10 +748,10 @@
 ++  test-si-put-duplicate-increments-refs
   ::  Inserting the same page twice increments refcount
   =/  s  ~(. si:nexus *silo:nexus)
-  =/  =page  [%txt 'hello']
-  =/  [lobe1=lobe:clay silo1=silo:nexus]  (put:s page)
+  =/  =bask:tarball  [[/ %txt] 'hello']
+  =/  [lobe1=lobe:clay silo1=silo:nexus]  (put:s bask)
   =/  s2  ~(. si:nexus silo1)
-  =/  [lobe2=lobe:clay silo2=silo:nexus]  (put:s2 page)
+  =/  [lobe2=lobe:clay silo2=silo:nexus]  (put:s2 bask)
   ;:  weld
     %+  expect-eq
       !>  lobe1
@@ -765,10 +765,10 @@
 ++  test-si-drop-decrements-refs
   ::  Dropping with refs>1 decrements
   =/  s  ~(. si:nexus *silo:nexus)
-  =/  =page  [%txt 'hello']
-  =/  [=lobe:clay silo1=silo:nexus]  (put:s page)
+  =/  =bask:tarball  [[/ %txt] 'hello']
+  =/  [=lobe:clay silo1=silo:nexus]  (put:s bask)
   =/  s2  ~(. si:nexus silo1)
-  =/  [* silo2=silo:nexus]  (put:s2 page)
+  =/  [* silo2=silo:nexus]  (put:s2 bask)
   ::  refs=2, drop once -> refs=1
   =/  s3  ~(. si:nexus silo2)
   =/  silo3=silo:nexus  (drop:s3 lobe)
@@ -779,8 +779,8 @@
 ++  test-si-drop-deletes-at-zero
   ::  Dropping with refs=1 removes from silo
   =/  s  ~(. si:nexus *silo:nexus)
-  =/  =page  [%txt 'hello']
-  =/  [=lobe:clay silo1=silo:nexus]  (put:s page)
+  =/  =bask:tarball  [[/ %txt] 'hello']
+  =/  [=lobe:clay silo1=silo:nexus]  (put:s bask)
   =/  s2  ~(. si:nexus silo1)
   =/  silo2=silo:nexus  (drop:s2 lobe)
   %+  expect-eq
@@ -800,14 +800,14 @@
   =/  s  ~(. si:nexus *silo:nexus)
   =/  fake-lobe=lobe:clay  `@uvI`(sham 'fake')
   %+  expect-eq
-    !>  `(unit page)`~
+    !>  `(unit bask:tarball)`~
   !>  (get:s fake-lobe)
 ::
 ++  test-si-different-content-different-lobe
   ::  Different content produces different lobes
   =/  s  ~(. si:nexus *silo:nexus)
-  =/  page1=page  [%txt 'hello']
-  =/  page2=page  [%txt 'world']
+  =/  page1=bask:tarball  [[/ %txt] 'hello']
+  =/  page2=bask:tarball  [[/ %txt] 'world']
   =/  [lobe1=lobe:clay silo1=silo:nexus]  (put:s page1)
   =/  s2  ~(. si:nexus silo1)
   =/  [lobe2=lobe:clay silo2=silo:nexus]  (put:s2 page2)
@@ -824,8 +824,8 @@
 ++  test-si-different-mark-different-lobe
   ::  Same noun but different mark produces different lobe
   =/  s  ~(. si:nexus *silo:nexus)
-  =/  page1=page  [%txt 'hello']
-  =/  page2=page  [%json 'hello']
+  =/  page1=bask:tarball  [[/ %txt] 'hello']
+  =/  page2=bask:tarball  [[/ %json] 'hello']
   =/  [lobe1=lobe:clay *]  (put:s page1)
   =/  [lobe2=lobe:clay *]  (put:s page2)
   %+  expect-eq
@@ -835,17 +835,17 @@
 ++  test-si-hash-deterministic
   ::  Same page always produces the same hash
   =/  s  ~(. si:nexus *silo:nexus)
-  =/  =page  [%txt 'hello']
+  =/  =bask:tarball  [[/ %txt] 'hello']
   %+  expect-eq
-    !>  (hash:s page)
-  !>  (hash:s page)
+    !>  (hash:s bask)
+  !>  (hash:s bask)
 ::
 ++  test-si-record-keep-accumulates
   ::  record with keep=%.y accumulates history entries
   =/  s  ~(. si:nexus *silo:nexus)
-  =/  page1=page  [%txt 'first']
-  =/  page2=page  [%txt 'second']
-  =/  page3=page  [%txt 'third']
+  =/  page1=bask:tarball  [[/ %txt] 'first']
+  =/  page2=bask:tarball  [[/ %txt] 'second']
+  =/  page3=bask:tarball  [[/ %txt] 'third']
   =/  cass1=cass:clay  [1 ~2024.1.1]
   =/  cass2=cass:clay  [2 ~2024.1.2]
   =/  cass3=cass:clay  [3 ~2024.1.3]
@@ -874,8 +874,8 @@
 ++  test-si-record-no-keep-replaces
   ::  record with gain=%.n replaces current live version, drops old ref
   =/  s  ~(. si:nexus *silo:nexus)
-  =/  page1=page  [%txt 'first']
-  =/  page2=page  [%txt 'second']
+  =/  page1=bask:tarball  [[/ %txt] 'first']
+  =/  page2=bask:tarball  [[/ %txt] 'second']
   =/  cass1=cass:clay  [1 ~2024.1.1]
   =/  cass2=cass:clay  [2 ~2024.1.2]
   =/  hist=_hist:*sack:nexus  ~
@@ -900,14 +900,14 @@
 ::
 ++  test-si-record-no-keep-same-content
   ::  record with gain=%.n and same content: refcount stays at 1
-  =/  =page  [%txt 'same']
+  =/  =bask:tarball  [[/ %txt] 'same']
   =/  cass1=cass:clay  [1 ~2024.1.1]
   =/  cass2=cass:clay  [2 ~2024.1.2]
   =/  hist=_hist:*sack:nexus  ~
   =/  [lobe1=lobe:clay silo1=silo:nexus hist1=_hist]
-    (~(record si:nexus *silo:nexus) page cass1 %.n *cass:clay hist)
+    (~(record si:nexus *silo:nexus) bask cass1 %.n *cass:clay hist)
   =/  [lobe2=lobe:clay silo2=silo:nexus hist2=_hist]
-    (~(record si:nexus silo1) page cass2 %.n cass1 hist1)
+    (~(record si:nexus silo1) bask cass2 %.n cass1 hist1)
   ;:  weld
     ::  Same lobe (content-addressed)
     %+  expect-eq
@@ -921,9 +921,9 @@
 ::
 ++  test-si-drop-hist-all-refs
   ::  drop-hist removes all refs from silo
-  =/  page1=page  [%txt 'aaa']
-  =/  page2=page  [%txt 'bbb']
-  =/  page3=page  [%txt 'ccc']
+  =/  page1=bask:tarball  [[/ %txt] 'aaa']
+  =/  page2=bask:tarball  [[/ %txt] 'bbb']
+  =/  page3=bask:tarball  [[/ %txt] 'ccc']
   =/  hist=_hist:*sack:nexus  ~
   =/  [* silo1=silo:nexus hist1=_hist]
     (~(record si:nexus *silo:nexus) page1 [1 ~2024.1.1] %.y *cass:clay hist)
@@ -941,13 +941,13 @@
 ::
 ++  test-si-drop-hist-shared-refs
   ::  drop-hist with shared content only decrements, doesn't delete
-  =/  =page  [%txt 'shared']
+  =/  =bask:tarball  [[/ %txt] 'shared']
   =/  hist=_hist:*sack:nexus  ~
   ::  Record same page twice with keep (2 hist entries, same lobe, refs=2)
   =/  [=lobe:clay silo1=silo:nexus hist1=_hist]
-    (~(record si:nexus *silo:nexus) page [1 ~2024.1.1] %.y *cass:clay hist)
+    (~(record si:nexus *silo:nexus) bask [1 ~2024.1.1] %.y *cass:clay hist)
   =/  [* silo2=silo:nexus hist2=_hist]
-    (~(record si:nexus silo1) page [2 ~2024.1.2] %.y *cass:clay hist1)
+    (~(record si:nexus silo1) bask [2 ~2024.1.2] %.y *cass:clay hist1)
   ?>  =(2 refs:(~(got by silo2) lobe))
   ::  Drop all hist refs
   =/  silo3=silo:nexus  (~(drop-hist si:nexus silo2) hist2)

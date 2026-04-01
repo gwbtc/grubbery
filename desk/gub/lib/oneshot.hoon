@@ -28,10 +28,10 @@
   ==
 ::  Result of a one-shot call
 ::
-::  &/[raw cage]: LLM responded, tube passed
+::  &/[raw sage]: LLM responded, tube passed
 ::  |/&/[raw tang]: LLM responded, tube crashed
 ::  |/|/@t: no LLM response (API/network error)
-+$  success      [raw=@t =cage]
++$  success      [raw=@t =sage:tarball]
 +$  parse-error  [raw=@t =tang]
 +$  api-error    @t
 +$  failure      (each parse-error api-error)
@@ -127,7 +127,7 @@
     =/  =mime  [/text/plain (as-octs:mimes:html raw)]
     =/  mime-vase=vase  !>(mime)
     ?:  =(mark.output %mime)
-      (pure:m [%& raw %mime mime-vase])
+      (pure:m [%& raw [/ %mime] mime-vase])
     ::  look up and run %mime -> target tube
     ::
     ;<  tube=(unit tube:clay)  bind:m
@@ -138,7 +138,7 @@
     =/  convert=(each vase tang)  (mule |.((u.tube mime-vase)))
     ?:  ?=(%| -.convert)
       (pure:m [%| %& raw (flop p.convert)])
-    (pure:m [%& raw mark.output p.convert])
+    (pure:m [%& raw [/ mark.output] p.convert])
   ::  +call-retry: call with retry on crash, accumulating errors
   ::
   ++  call-retry

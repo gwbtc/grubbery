@@ -67,12 +67,12 @@
   ==
 ::
 +$  gain  (axal (map @ta ?))
-+$  make  (each [=sand =gain =ball:tarball] [gain=? =cage mark=(unit mark)])
++$  make  (each [=sand =gain =ball:tarball] [gain=? =sage:tarball mark=(unit mark)])
 +$  kept  (set bend:tarball)
 ::
 +$  view
   $%  [%ball =sand =gain =born ball=ball:tarball]
-      [%file =sack gain=? =cage]
+      [%file =sack gain=? =sage:tarball]
       [%none ~]
   ==
 +$  seen  (each view tang)
@@ -86,19 +86,19 @@
   ==
 +$  find  lose
 +$  load
-  $%  [%poke =cage]             :: poke a grub
+  $%  [%poke =sage:tarball]      :: poke a grub
       [%make =make]                    :: create grub or directory
-      [%over =cage]             :: overwrite grub content (runtime mark conversion)
+      [%over =sage:tarball]     :: overwrite grub content (runtime mark conversion)
       [%cull ~]                 :: delete grub or directory
       [%sand weir=(unit weir)]  :: set weir
       [%load ~]                 :: trigger on-load for a nexus (folds only)
       [%gain flag=?]            :: set gain flag (recursive on directories)
       [%peek mark=(unit mark) case=(unit case) clam=?]
                                        :: read a grub
-                                       :: mark: convert file cage to this mark
+                                       :: mark: convert file sage to this mark
                                        :: case: if set, read historical version
       [%keep mark=(unit mark)]  :: subscribe to changes at dest (grub or ball per road)
-                                       :: mark: if set, convert file cage in news
+                                       :: mark: if set, convert file sage in news
       [%drop ~]                 :: unsubscribe from dest
       [%lose =lose]             :: drop hist entries, decrement silo refs
       [%seek =lobe:clay]        :: find all [rail cass] pairs with this hash
@@ -143,7 +143,7 @@
   +$  road  (each rail:tarball bend)
   ::
   +$  intake
-    $%  [%poke =from =cage] :: command for a running process (from is relative)
+    $%  [%poke =from =sage:tarball] :: command for a running process (from is relative)
         [%peek =wire =seen] :: local read result
         [%kept =wire =kept]              :: your outgoing subscriptions
         [%made =wire err=(unit tang)] :: response to make
@@ -154,7 +154,7 @@
         [%gain =wire err=(unit tang)] :: response to gain
         [%lost =wire err=(unit tang)] :: response to lose
         [%seek =wire res=(each (list [=rail:tarball =cass:clay]) tang)] :: response to seek
-        [%peep =wire res=(each (list [=cass:clay =cage]) tang)] :: response to peep
+        [%peep =wire res=(each (list [=cass:clay =sage:tarball]) tang)] :: response to peep
         [%manu =wire res=(each @t tang)] :: response to manu
         [%boom =wire res=(each boom (unit tang))]  :: boom at dest: subtree or file error
         [%over =wire err=(unit tang)] :: response to over (content overwrite)
@@ -431,7 +431,7 @@
 +$  tote  [weir=cass:clay fold=cass:clay]
 +$  sack  [proc=cass:clay life=cass:clay file=cass:clay hist=((mop cass:clay lobe:clay) cor)]
 +$  born  (axal [=tote bags=(map @ta sack)])
-+$  silo  (map lobe:clay [refs=@ud =page])
++$  silo  (map lobe:clay [refs=@ud =bask:tarball])
 ++  cor   |=([a=cass:clay b=cass:clay] (lth ud.a ud.b))
 ++  on-hist  ((on cass:clay lobe:clay) cor)
 ::  Resolve a hist case to a lobe from the hist mop
@@ -623,7 +623,7 @@
         ::  File in both: check if changed
         =/  old-content=content:tarball  (~(got by old-files) name)
         =/  new-content=content:tarball  (~(got by new-files) name)
-        ?.  =(cage.old-content cage.new-content)
+        ?.  =(sage.old-content sage.new-content)
           ::  Changed: bump
           (bump-file [here name])
         ::  No change
@@ -660,19 +660,19 @@
 ++  si
   |_  =silo
   ++  hash
-    |=  =page
+    |=  =bask:tarball
     ^-  lobe:clay
-    `@uvI`(sham page)
-  ::  Insert page, increment refcount if exists. Returns lobe and new silo.
+    `@uvI`(sham bask)
+  ::  Insert bask, increment refcount if exists. Returns lobe and new silo.
   ::
   ++  put
-    |=  =page
+    |=  =bask:tarball
     ^-  [lobe:clay ^silo]
-    =/  =lobe:clay  (hash page)
+    =/  =lobe:clay  (hash bask)
     =/  got  (~(get by silo) lobe)
     ?~  got
-      [lobe (~(put by silo) lobe [1 page])]
-    [lobe (~(put by silo) lobe [+(refs.u.got) page])]
+      [lobe (~(put by silo) lobe [1 bask])]
+    [lobe (~(put by silo) lobe [+(refs.u.got) bask])]
   ::  Decrement refcount, delete if zero.
   ::
   ++  drop
@@ -682,15 +682,15 @@
     ?~  got  silo
     ?:  (lte refs.u.got 1)
       (~(del by silo) lobe)
-    (~(put by silo) lobe [refs=(dec refs.u.got) page.u.got])
-  ::  Look up page by lobe.
+    (~(put by silo) lobe [refs=(dec refs.u.got) bask.u.got])
+  ::  Look up bask by lobe.
   ::
   ++  get
     |=  =lobe:clay
-    ^-  (unit page)
+    ^-  (unit bask:tarball)
     =/  got  (~(get by silo) lobe)
     ?~  got  ~
-    `page.u.got
+    `bask.u.got
   ::  Drop refs for all lobes in a hist.
   ::
   ++  drop-hist
@@ -701,7 +701,7 @@
     |-
     ?~  entries  silo
     $(entries t.entries, silo (drop val.i.entries))
-  ::  Record a page: insert into silo, update hist per gain flag.
+  ::  Record a bask: insert into silo, update hist per gain flag.
   ::  Returns [lobe new-silo new-hist].
   ::
   ::  gain=%.y: append to hist, keeping full history.
@@ -711,9 +711,9 @@
   ::    gain only controls what happens live, not retroactively.
   ::
   ++  record
-    |=  [=page =cass:clay gain=? file=cass:clay hist=((mop cass:clay lobe:clay) cor)]
+    |=  [=bask:tarball =cass:clay gain=? file=cass:clay hist=((mop cass:clay lobe:clay) cor)]
     ^-  [lobe:clay ^silo ((mop cass:clay lobe:clay) cor)]
-    =/  [=lobe:clay new-silo=^silo]  (put page)
+    =/  [=lobe:clay new-silo=^silo]  (put bask)
     ?:  gain
       [lobe new-silo (put:on-hist hist cass lobe)]
     ::  !gain: replace current live version only, preserve older history
@@ -828,7 +828,7 @@
           [%cull ~]
           [%sand weir=(unit weir)]
           [%load ~]
-          [%poke =page]
+          [%poke =bask:tarball]
       ==
   ==
 +$  ack  (unit tang)

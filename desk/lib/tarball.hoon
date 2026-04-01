@@ -5,6 +5,8 @@
 +$  neck      rail                :: a nexus identity (directory-level mark)
 +$  blot      rail                :: a mark identity (hierarchical)
 +$  bars      [a=blot b=blot]    :: blot pair for conversions
++$  sage      (pair blot vase)   :: grubbery cage: blot-typed content
++$  bask      (pair blot noun)  :: grubbery page: blot-typed noun
 +$  metadata  (map @t @t)
 ::  Compiled mark core: built once from mark source, used for vale + tubes
 ::
@@ -25,12 +27,12 @@
 ::  Symlink: untyped path reference (resolved at lookup time)
 ::
 +$  symlink   (each path (pair @ud path))
-+$  content   [=metadata =cage]
++$  content   [=metadata =sage]
 +$  lump      [=metadata neck=(unit neck) contents=(map @ta content)]
 +$  ball      (axal lump)
 :: simple descriptive file tree
 ::
-+$  node  [neck=(unit neck) files=(map @ta @tas)]
++$  node  [neck=(unit neck) files=(map @ta blot)]
 +$  tree  (axal node)
 ::  Tarball archive types
 ::
@@ -201,19 +203,19 @@
       ==
     $(t t.t.t, acc ~, res (snoc res acc))
   $(t t.t, acc (snoc acc i.t))
-::  Helper: wrap symlink as cage for storage
+::  Helper: wrap symlink as sage for storage
 ::
-++  symlink-to-cage
+++  symlink-to-sage
   |=  =symlink
-  ^-  cage
-  [%symlink !>(symlink)]
+  ^-  sage
+  [[/ %symlink] !>(symlink)]
 ::
-++  cage-to-symlink
-  |=  =cage
+++  sage-to-symlink
+  |=  =sage
   ^-  (unit symlink)
-  ?.  =(%symlink p.cage)
+  ?.  =([/ %symlink] p.sage)
     ~
-  `!<(symlink q.cage)
+  `!<(symlink q.sage)
 ::
 ++  ext-to-mime
   |=  ext=@ta
@@ -258,18 +260,18 @@
   =/  result  (;~(sfix pext dot) [1^1 reversed])
   ?~  q.result  ~
   `p.u.q.result
-::  Convert mime back to cage using mark system
+::  Convert mime back to sage using mark system
 ::  Returns ~ if no extension or no conversion available
 ::
-++  mime-to-cage
+++  mime-to-sage
   |=  [conversions=(map mars:clay tube:clay) filename=@ta =mime]
-  ^-  (unit cage)
+  ^-  (unit sage)
   =/  ext=(unit @ta)  (parse-extension filename)
   ?~  ext
     ~
   ?~  tube=(~(get by conversions) %mime u.ext)
     ~
-  `[u.ext (u.tube !>(mime))]
+  `[[/ u.ext] (u.tube !>(mime))]
 ::  Determine MIME type from Content-Type header and/or file extension
 ::  Prefers explicit Content-Type, falls back to extension inference
 ::  Returns path-formatted mime type (e.g., /text/plain)
@@ -459,14 +461,14 @@
     :~  ['mtime' (da-oct now)]
         ['size' (scot %ud file-size)]
     ==
-  ::  Try to convert to cage, otherwise store as %mime cage
+  ::  Try to convert to sage, otherwise store as %mime sage
   =/  file-mime=mime  [mime-type [file-size body.file-part]]
-  =/  maybe-cage=(unit cage)  (mime-to-cage conversions file-name file-mime)
+  =/  maybe-sage=(unit sage)  (mime-to-sage conversions file-name file-mime)
   ::  Keep full filename as-is (no extension stripping)
   =/  [store-name=@ta file-content=content]
-    ?~  maybe-cage
-      [file-name [file-metadata [%mime !>(file-mime)]]]
-    [file-name [file-metadata u.maybe-cage]]
+    ?~  maybe-sage
+      [file-name [file-metadata [[/ %mime] !>(file-mime)]]]
+    [file-name [file-metadata u.maybe-sage]]
   ::  Add file to base with explicit directories
   =/  new-base=ball
     (~(put ba base-with-dirs) [full-parent store-name] file-content)
@@ -480,7 +482,7 @@
   ?~  fil.b  ~
   :-  ~
   :-  neck.u.fil.b
-  (~(run by contents.u.fil.b) |=(c=content p.cage.c))
+  (~(run by contents.u.fil.b) |=(c=content p.sage.c))
 ::  Convert tree to json
 ::
 ++  tree-to-json
@@ -491,7 +493,7 @@
   ?~  fil.tre
     (pairs:enjs:format ~[['dirs' subdirs]])
   =/  files=json
-    [%o (~(run by files.u.fil.tre) |=(m=@tas s+m))]
+    [%o (~(run by files.u.fil.tre) |=(m=blot s+(rail-to-arm m)))]
   =/  neck=json
     ?~(neck.u.fil.tre ~ s+(rail-to-arm u.neck.u.fil.tre))
   %-  pairs:enjs:format
@@ -572,46 +574,46 @@
   ++  gut
     |=  [=rail default=content]
     (fall (get rail) default)
-  ::  Get a cage (crash if not found)
+  ::  Get a sage (crash if not found)
   ::
-  ++  got-cage
+  ++  got-sage
     |=  =rail
-    ^-  cage
+    ^-  sage
     =/  c=content  (got rail)
-    cage.c
-  ::  Get a file as mime (crash if not found or not a mime cage)
+    sage.c
+  ::  Get a file as mime (crash if not found or not a mime sage)
   ::
   ++  got-file
     |=  =rail
     ^-  mime
     =/  c=content  (got rail)
-    ?.  =(%mime p.cage.c)
+    ?.  =([/ %mime] p.sage.c)
       ~|("not a mime file: {(spud (snoc path.rail name.rail))}" !!)
-    !<(mime q.cage.c)
+    !<(mime q.sage.c)
   ::  Get a symlink (crash if not found or not a symlink)
   ::
   ++  got-symlink
     |=  =rail
     ^-  symlink
     =/  c=content  (got rail)
-    =/  maybe-sym=(unit symlink)  (cage-to-symlink cage.c)
+    =/  maybe-sym=(unit symlink)  (sage-to-symlink sage.c)
     ?~  maybe-sym
       ~|("not a symlink: {(spud (snoc path.rail name.rail))}" !!)
     u.maybe-sym
-  ::  Get cage and extract as specific type (crash if wrong type)
+  ::  Get sage and extract as specific type (crash if wrong type)
   ::
-  ++  got-cage-as
+  ++  got-sage-as
     |*  [=rail a=mold]
     ^-  a
-    !<(a q:(got-cage rail))
-  ::  Get cage as unit (returns ~ if not found)
+    !<(a q:(got-sage rail))
+  ::  Get sage as unit (returns ~ if not found)
   ::
-  ++  get-cage-as
+  ++  get-sage-as
     |*  [=rail a=mold]
     ^-  (unit a)
     ?~  may=(get rail)
       ~
-    `!<(a q.cage.u.may)
+    `!<(a q.sage.u.may)
   ::  Count total content items across all directories
   ::
   ++  wyt
@@ -881,26 +883,26 @@
   ::  to preserve arbitrary metadata fields like date-created
   ::  Format: <length> <key>=<value>\n
   ::
-  ::  Convert cage to mime using mark conversions map
+  ::  Convert sage to mime using mark conversions map
   ::  Falls back to noun jamming if no conversion exists
   ::
-  ++  cage-to-mime
-    |=  =cage
+  ++  sage-to-mime
+    |=  =sage
     ^-  mime
-    =/  key=mars:clay  [a=p.cage b=%mime]
+    =/  key=mars:clay  [a=name.p.sage b=%mime]
     ?~  tube=(~(get by conversions) key)
       ::  No conversion available, fall back to jamming like mar/noun.hoon
-      [/application/x-urb-jam (as-octs:mimes:html (jam q.cage))]
+      [/application/x-urb-jam (as-octs:mimes:html (jam q.sage))]
     ::  Try the direct tube conversion
-    =/  result=(each vase tang)  (mule |.((u.tube q.cage)))
+    =/  result=(each vase tang)  (mule |.((u.tube q.sage)))
     ?:  ?=([%| *] result)
       ::  Tube conversion failed, fall back to jamming
-      [/application/x-urb-jam (as-octs:mimes:html (jam q.cage))]
+      [/application/x-urb-jam (as-octs:mimes:html (jam q.sage))]
     ::  Successfully converted, check what we got
     ::  The tube should produce a vase of a mime, extract it
     =/  extracted  (mule |.(!<(mime p.result)))
     ?:  ?=([%| *] extracted)
-      [/application/x-urb-jam (as-octs:mimes:html (jam q.cage))]
+      [/application/x-urb-jam (as-octs:mimes:html (jam q.sage))]
     p.extracted
   ::
   ++  generate-header
@@ -955,8 +957,8 @@
     |=  [=path =content]
     ^-  tarball-entry
     =/  [prefix=^path name=^path]  (split-path path)
-    ::  Check if this is a symlink cage
-    =/  maybe-sym=(unit symlink)  (cage-to-symlink cage.content)
+    ::  Check if this is a symlink sage
+    =/  maybe-sym=(unit symlink)  (sage-to-symlink sage.content)
     ?^  maybe-sym
       ::  It's a symlink
       =/  sym-metadata=metadata
@@ -968,14 +970,14 @@
         ==
       (generate-entry sym-metadata ~)
     ::  Regular file
-    =/  =mime  (cage-to-mime cage.content)
-    =/  cage-metadata=metadata
+    =/  =mime  (sage-to-mime sage.content)
+    =/  sage-metadata=metadata
       %-  ~(gas by metadata.content)
       :~  ['typeflag' '0']
           ['prefix' (rsh [3 1] (spat prefix))]
           ['name' (rsh [3 1] (spat name))]
       ==
-    (generate-entry cage-metadata `q.mime)
+    (generate-entry sage-metadata `q.mime)
   ::
   ++  make-tarball
     |=  [=path =ball]

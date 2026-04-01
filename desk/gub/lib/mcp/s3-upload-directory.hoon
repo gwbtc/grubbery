@@ -44,7 +44,7 @@
     (peek:io /read [%& %& file-path filename] ~)
   ?.  ?=([%& %file *] file-seen)
     $(files-to-upload t.files-to-upload)
-  ;<  =mime  bind:m  (cage-to-mime:io cage.p.file-seen)
+  ;<  =mime  bind:m  (sage-to-mime:io sage.p.file-seen)
   =/  text=@t  ;;(@t q.q.mime)
   =/  full-name=@ta  filename
   =/  relative-path=path

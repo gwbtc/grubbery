@@ -13,7 +13,7 @@
         %+  spin:loader  [sand gain ball]
         :~  (ver-row:loader 0)
             [%fall %| /wallets [~ ~] [~ ~] empty-dir:loader]
-            [%fall %& [/ %'main.sig'] %.n [~ %sig !>(~)]]
+            [%fall %& [/ %'main.sig'] %.n [~ [/ %sig] !>(~)]]
             [%fall %| /requests [~ ~] [~ ~] empty-dir:loader]
         ==
       ==
@@ -69,7 +69,7 @@
               ?:  =('wallet-name' key)  val
               $(params t.params)
             =/  wallet-key=@ta  (scot %da now.bowl)
-            ;<  ~  bind:m  (make:io /make [%| 1 %& /wallets wallet-key] |+[%.n sig+!>(wallet-name) ~])
+            ;<  ~  bind:m  (make:io /make [%| 1 %& /wallets wallet-key] |+[%.n [[/ %sig] !>(wallet-name)] ~])
             ;<  ~  bind:m  (send-simple:srv eyre-id two-oh-four:http-utils)
             (pure:m ~)
           ::  GET /: serve wallet page
@@ -184,7 +184,7 @@
     ;*  %+  turn  files
         |=  [key=@ta =content:tarball]
         ^-  manx
-        =/  name=@t  !<(@t q.cage.content)
+        =/  name=@t  !<(@t q.sage.content)
         ;div(style "display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px; background: var(--b1); border-radius: 8px; margin-bottom: 8px;")
           ;div(style "flex: 1; min-width: 0;")
             ;div(style "font-weight: bold; font-size: 16px;"): {(trip name)}

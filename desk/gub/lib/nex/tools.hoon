@@ -180,8 +180,8 @@
     [%done %quiet (slav %ud i.t.wire.u.in)]
       [~ %news [%dill %logs ~] *]
     ?.  ?=([%file *] view.u.in)  [%skip ~]
-    ?.  ?=(%dill-told p.cage.view.u.in)  [%skip ~]
-    [%done %log !<(told:dill q.cage.view.u.in)]
+    ?.  ?=(%dill-told name.p.sage.view.u.in)  [%skip ~]
+    [%done %log !<(told:dill q.sage.view.u.in)]
   ==
 ::
 ++  collect-logs
@@ -241,18 +241,18 @@
   =/  m  (fiber:fiber:nexus ,tool-result)
   ^-  form:m
   ?>  ?=([%& %file *] seen)
-  =/  =cage  cage.p.seen
-  ?+  p.cage
+  =/  =sage:tarball  sage.p.seen
+  ?+  name.p.sage
     ::  Fallback: convert to mime via grubbery's marc system
     ;<  convert=(unit tube:clay)  bind:m
-      (get-tube:io [%& %| /code] [[/ p.cage] [/ %mime]])
+      (get-tube:io [%& %| /code] [p.sage [/ %mime]])
     ?~  convert
-      (pure:m [%error (crip "No conversion from {(trip p.cage)} to mime")])
-    =/  result-vase=vase  (u.convert q.cage)
+      (pure:m [%error (crip "No conversion from {(trip name.p.sage)} to mime")])
+    =/  result-vase=vase  (u.convert q.sage)
     =/  out=mime  !<(mime result-vase)
     (pure:m [%text (crip (trip q.q.out))])
       %boom
-    =/  [err=tang mar=@tas data=*]  !<([tang @tas *] q.cage)
+    =/  [err=tang mar=@tas data=*]  !<([tang @tas *] q.sage)
     =/  rendered=tape
       %-  zing
       %+  turn  (flop err)
@@ -260,13 +260,13 @@
     %-  pure:m
     [%error (crip "BOOM (mark %{(trip mar)})\0a{rendered}")]
       %json
-    (pure:m [%text (en:json:html !<(json q.cage))])
+    (pure:m [%text (en:json:html !<(json q.sage))])
       %txt
-    (pure:m [%text (of-wain:format !<(wain q.cage))])
+    (pure:m [%text (of-wain:format !<(wain q.sage))])
       %hoon
-    (pure:m [%text !<(@t q.cage)])
+    (pure:m [%text !<(@t q.sage)])
       %mime
-    =/  out=mime  !<(mime q.cage)
+    =/  out=mime  !<(mime q.sage)
     (pure:m [%text (crip (trip q.q.out))])
   ==
 ::  Look up a grub by name — exact match
@@ -325,7 +325,7 @@
   ?.  ?=([%& %file *] creds-seen)
     ~|  %s3-creds-not-found
     !!
-  =/  jon=json  !<(json q.cage.p.creds-seen)
+  =/  jon=json  !<(json q.sage.p.creds-seen)
   =/  creds=s3-creds
     %.  jon
     %-  ot:dejs:format

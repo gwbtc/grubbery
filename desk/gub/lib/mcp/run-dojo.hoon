@@ -34,22 +34,22 @@
   =/  ses-road=road:tarball  [%& %& /sys/dill/sessions session]
   =/  logs-road=road:tarball  [%& %& /sys/dill %'logs.dill-told']
   ::  Fetch terminal blits and logs since our command
-  ;<  ses-res=(each (list [=cass:clay =cage]) tang)  bind:m
+  ;<  ses-res=(each (list [=cass:clay =sage:tarball]) tang)  bind:m
     (peep:io /hist ses-road [%numb `+(pre-ver) ~])
-  ;<  log-res=(each (list [=cass:clay =cage]) tang)  bind:m
+  ;<  log-res=(each (list [=cass:clay =sage:tarball]) tang)  bind:m
     (peep:io /logs logs-road [%numb `+(pre-log-ver) ~])
   ::  Render terminal output
   =/  all-blits=(list blit:dill)
     ?.  ?=(%& -.ses-res)  ~
-    (zing (turn p.ses-res |=([=cass:clay =cage] !<((list blit:dill) q.cage))))
+    (zing (turn p.ses-res |=([=cass:clay =sage:tarball] !<((list blit:dill) q.sage))))
   =/  terminal=@t  (render-blits:clurd all-blits wid)
   ::  Render logs
   =/  log-text=tape
     ?.  ?=(%& -.log-res)  ""
     %-  zing
     %+  turn  p.log-res
-    |=  [=cass:clay =cage]
-    =/  =told:dill  !<(told:dill q.cage)
+    |=  [=cass:clay =sage:tarball]
+    =/  =told:dill  !<(told:dill q.sage)
     (format-told:tools told)
   ::  Combine
   =/  out=tape
@@ -137,12 +137,12 @@
       ;<  st=tool-state:tools  bind:m  (get-state-as:io ,tool-state:tools)
       (read-results st)
     ?.  ?=([%file *] view.nw)  $
-    ?.  ?=(%dill-blit p.cage.view.nw)  $
+    ?.  ?=(%dill-blit name.p.sage.view.nw)  $
     =.  batches  +(batches)
     ::  Skip the first batch (command echo) — wait for result + prompt
     ?.  (gth batches 1)  $
     =/  blits=(list blit:dill)
-      !<((list blit:dill) q.cage.view.nw)
+      !<((list blit:dill) q.sage.view.nw)
     =/  rendered=@t  (render-blits:clurd blits wid)
     =/  txt=tape  (trip rendered)
     ::  Check for prompt at end of this batch

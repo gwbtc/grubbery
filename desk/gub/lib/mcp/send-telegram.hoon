@@ -25,7 +25,7 @@
     (peek:io /creds [%& %& /config/creds 'telegram'] ~)
   ?.  ?=([%& %file *] creds-seen)
     (pure:m [%error 'Telegram credentials not configured. Create config/creds/telegram with bot-token and chat-id.'])
-  =/  jon=json  !<(json q.cage.p.creds-seen)
+  =/  jon=json  !<(json q.sage.p.creds-seen)
   =/  creds-parsed=(each [@t @t] tang)
     %-  mule  |.
     :-  (~(dog jo:json-utils jon) /bot-token so:dejs:format)

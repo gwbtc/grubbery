@@ -13,7 +13,7 @@
           ?(~ [~ %0])
         %+  spin:loader  [sand gain ball]
         :~  (ver-row:loader 0)
-            [%fall %& [/ %'main.sig'] %.n [~ %sig !>(~)]]
+            [%fall %& [/ %'main.sig'] %.n [~ [/ %sig] !>(~)]]
             [%fall %| /requests [~ ~] [~ ~] empty-dir:loader]
         ==
       ==
@@ -150,14 +150,14 @@
   ?~  content-data
     ;<  ~  bind:m  (send-simple:srv eyre-id [[404 ~] `(as-octs:mimes:html 'Not found')])
     (pure:m ~)
-  =/  =cage  cage.u.content-data
+  =/  =sage:tarball  sage.u.content-data
   =/  pretty-param=(unit @t)  (get-key:kv:html-utils 'pretty' args)
   ?^  pretty-param
     ::  ?pretty: render noun as text instead of binary download
-    =/  bod=octs  (as-octs:mimes:html (crip (noah q.cage)))
+    =/  bod=octs  (as-octs:mimes:html (crip (noah q.sage)))
     ;<  ~  bind:m  (send-simple:srv eyre-id (mime-response:http-utils [/text/plain bod]))
     (pure:m ~)
-  ;<  =mime  bind:m  (cage-to-mime:io cage)
+  ;<  =mime  bind:m  (sage-to-mime:io sage)
   ;<  ~  bind:m  (send-simple:srv eyre-id (mime-response:http-utils [p.mime q.mime]))
   (pure:m ~)
 ::  Handle POST requests (delete actions)
@@ -223,7 +223,7 @@
     ?~  sym
       ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'Invalid symlink target')])
       (pure:m ~)
-    ;<  ~  bind:m  (make:io /make [%& %& tree-path linkname] |+[%.n [%symlink !>(u.sym)] ~])
+    ;<  ~  bind:m  (make:io /make [%& %& tree-path linkname] |+[%.n [[/ %symlink] !>(u.sym)] ~])
     ;<  ~  bind:m  (send-simple:srv eyre-id [[303 ~[['location' (crip redirect-url)]]] ~])
     (pure:m ~)
   ::
@@ -328,7 +328,7 @@
   ?^  files
     =/  [name=@ta =content:tarball]  i.files
     ;<  ~  bind:m
-      (make:io /upload [%& %& tree-path name] |+[%.n cage.content ~])
+      (make:io /upload [%& %& tree-path name] |+[%.n sage.content ~])
     $(files t.files)
   =/  dirs=(list [@ta ball:tarball])  ~(tap by dir.new)
   |-
@@ -423,7 +423,7 @@
       ?~  fil.par  ~
       =/  ct=(unit content:tarball)  (~(get by contents.u.fil.par) name.p.lane)
       ?~  ct  ~
-      `p.cage.u.ct
+      `name.p.sage.u.ct
     ;<  conversions=(map mars:clay tube:clay)  bind:m
       (build-mark-conversions:io changed-marks)
     =/  lanes=(list lane:tarball)  ~(tap in what)
@@ -1035,9 +1035,9 @@
     =/  sk=(unit sack:nexus)  (~(get by bags.u.node) name)
     ?~  sk  "-"
     (en:datetime-local:iso-8601 da.file.u.sk)
-  =/  cag=cage  cage.content
-  ?:  =(%symlink p.cag)
-    =/  sym  !<(symlink:tarball q.cag)
+  =/  sag=sage:tarball  sage.content
+  ?:  =(%symlink name.p.sag)
+    =/  sym  !<(symlink:tarball q.sag)
     =/  target-display=tape  (trip (encode-symlink:tarball sym))
     =/  resolved-path=path  (resolve-symlink:tarball sym pax)
     =/  target-url=tape  "/grubbery/ball{(trip (spat resolved-path))}"
@@ -1060,16 +1060,16 @@
     ==
   =/  display-name=tape  (trip name)
   =/  file-url=tape  "{url-prefix}/{display-name}"
-  =/  mark-name=tape  (trip p.cag)
+  =/  mark-name=tape  (trip name.p.sag)
   =/  ext=(unit @ta)  (parse-extension:tarball name)
   =/  mark-matches=?
     ?~  ext  %.n
-    =(u.ext p.cag)
+    =(u.ext name.p.sag)
   =/  mark-class=tape  ?:(mark-matches "" " mark-mismatch")
   =/  =mime
-    ?:  =(%mime p.cag)
-      !<(mime q.cag)
-    (~(cage-to-mime gen:tarball [now conversions]) cag)
+    ?:  =(%mime name.p.sag)
+      !<(mime q.sag)
+    (~(sage-to-mime gen:tarball [now conversions]) sag)
   =/  mime-raw=tape  (trip (spat p.mime))
   =/  mime-display=tape  ?~(mime-raw "" (tail mime-raw))
   =/  is-binary=?  =(p.mime /application/x-urb-jam)
@@ -1085,7 +1085,7 @@
     ;td(class mark-class)
       ;*  =/  mark-url=(unit tape)
             ?~  code-namespace  ~
-            `"/grubbery/ball{(trip (spat (weld u.code-namespace /mar)))}/{(trip p.cag)}.hoon"
+            `"/grubbery/ball{(trip (spat (weld u.code-namespace /mar)))}/{(trip name.p.sag)}.hoon"
           ?~  mark-url
             :~  ;span: {mark-name}
             ==

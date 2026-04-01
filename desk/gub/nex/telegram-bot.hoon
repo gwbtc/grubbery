@@ -19,12 +19,12 @@
           ?(~ [~ %0])
         %+  spin:loader  [sand gain ball]
         :~  (ver-row:loader 0)
-            [%fall %& [/ %'config.json'] %.n [~ %json !>(default-config)]]
-            [%fall %& [/ %'offset.ud'] %.n [~ %ud !>(0)]]
-            [%fall %& [/ %'send.sig'] %.n [~ %sig !>(~)]]
-            [%fall %& [/ %'poller.sig'] %.n [~ %sig !>(~)]]
+            [%fall %& [/ %'config.json'] %.n [~ [/ %json] !>(default-config)]]
+            [%fall %& [/ %'offset.ud'] %.n [~ [/ %ud] !>(0)]]
+            [%fall %& [/ %'send.sig'] %.n [~ [/ %sig] !>(~)]]
+            [%fall %& [/ %'poller.sig'] %.n [~ [/ %sig] !>(~)]]
             [%fall %| /messages [~ ~] [~ ~] empty-dir:loader]
-            [%over %& [/ui %'chat.html'] %.n [~ %manx !>((chat-page "" *(map @t @t) *(list json)))]]
+            [%over %& [/ui %'chat.html'] %.n [~ [/ %manx] !>((chat-page "" *(map @t @t) *(list json)))]]
         ==
       ==
     ::
@@ -162,16 +162,16 @@
         ::  update offset
         ::
         =/  offset-road=road:tarball  (cord-to-road:tarball './offset.ud')
-        ;<  ~  bind:m  (over:io /off offset-road ud+!>(new-offset))
+        ;<  ~  bind:m  (over:io /off offset-road [[/ %ud] !>(new-offset)])
         $(offset new-offset)
           ::  /send.sig: accept pokes to send messages as the bot
           ::
           [~ %'send.sig']
         ;<  ~  bind:m  (rise-wait:io prod "%telegram-bot send: failed")
         |-
-        ;<  =cage  bind:m  take-poke:io
-        ?.  ?=(%json p.cage)  $
-        =/  req=json  !<(json q.cage)
+        ;<  =sage:tarball  bind:m  take-poke:io
+        ?.  ?=(%json name.p.sage)  $
+        =/  req=json  !<(json q.sage)
         ?.  ?=([%o *] req)  $
         =/  message=@t
           =/  v  (~(get by p.req) 'message')
@@ -281,7 +281,7 @@
     (peek:io /cfg (cord-to-road:tarball './config.json') `%json)
   ?.  ?=([%& %file *] seen)
     (pure:m '')
-  =/  cfg=json  !<(json q.cage.p.seen)
+  =/  cfg=json  !<(json q.sage.p.seen)
   ?.  ?=(%o -.cfg)
     (pure:m '')
   =/  v  (~(get by p.cfg) 'bot-token')
@@ -295,7 +295,7 @@
     (peek:io /off (cord-to-road:tarball './offset.ud') `%ud)
   ?.  ?=([%& %file *] seen)
     (pure:m 0)
-  (pure:m !<(@ud q.cage.p.seen))
+  (pure:m !<(@ud q.sage.p.seen))
 ::
 ++  read-chat-file
   |=  cid=@t
@@ -305,7 +305,7 @@
     (peek:io /msg (cord-to-road:tarball (rap 3 ~['./messages/' cid '.json'])) `%json)
   ?.  ?=([%& %file *] seen)
     (pure:m [%o ~])
-  (pure:m !<(json q.cage.p.seen))
+  (pure:m !<(json q.sage.p.seen))
 ::
 ++  get-chat-name
   |=  [dat=json default=@t]
@@ -339,8 +339,8 @@
   ;<  =seen:nexus  bind:m
     (peek:io /chk file-road ~)
   ?:  ?=([%& %file *] seen)
-    (over:io /msg file-road json+!>(dat))
-  (make:io /msg file-road [%| gain=%.n json+!>(dat) ~])
+    (over:io /msg file-road [[/ %json] !>(dat)])
+  (make:io /msg file-road [%| gain=%.n [[/ %json] !>(dat)] ~])
 ::
 ::  Extract chat names and messages from the messages/ directory view.
 ::  Files live in fil.ball.view → contents (not dir, which is subdirs).
@@ -354,8 +354,8 @@
     ~(tap by contents.u.fil.ball.view)
   %+  roll  files
   |=  [[key=@ta =content:tarball] chats=(map @t @t) msgs=(list json)]
-  ?.  ?=(%json p.cage.content)  [chats msgs]
-  =/  dat=json  !<(json q.cage.content)
+  ?.  ?=(%json name.p.sage.content)  [chats msgs]
+  =/  dat=json  !<(json q.sage.content)
   ::  handle old format: [%a msgs] — derive chat-id from first message
   ?:  ?=([%a *] dat)
     =/  old-msgs=(list json)  p.dat

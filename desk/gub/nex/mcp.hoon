@@ -75,7 +75,7 @@
       ?(~ [~ %0])
     %+  spin:loader  [sand gain ball]
     :~  (ver-row:loader 1)
-        [%fall %& [/ %'main.sig'] %.n [~ %sig !>(~)]]
+        [%fall %& [/ %'main.sig'] %.n [~ [/ %sig] !>(~)]]
         [%fall %| /requests [~ ~] [~ ~] empty-dir:loader]
         [%fall %| /tools [~ ~] [~ ~] empty-dir:loader]
     ==
@@ -142,7 +142,7 @@
         ;<  *  bind:m
           (keep:io /watch tool-road ~)
         ?.  exists
-          (make:io /make tool-road |+[%.n tool-state+!>(ts) ~])
+          (make:io /make tool-road |+[%.n [[/ %tool-state] !>(ts)] ~])
         (pure:m ~)
       ::  Wait for tool to finish
       |-
@@ -150,7 +150,7 @@
       ?:  ?=(%wake -.nw)  $
       ?.  ?=(%file -.view.nw)  $
       =/  st=tool-state:nex-tools
-        !<(tool-state:nex-tools q.cage.view.nw)
+        !<(tool-state:nex-tools q.sage.view.nw)
       ?.  =(%done step.st)  $
       ?~  update.st  $
       ::  Done — build JSON-RPC response from update

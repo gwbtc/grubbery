@@ -18,15 +18,15 @@
           ?(~ [~ %0])
         %+  spin:loader  [sand gain ball]
         :~  (ver-row:loader 0)
-            [%fall %& [/ %'config.json'] %.n [~ %json !>(default-config)]]
-            [%fall %& [/ %'messages.claude-messages'] %.n [~ %claude-messages !>(`messages`[%0 *((mop @ud message) lth)])]]
-            [%fall %& [/ %'custom-prompt.txt'] %.n [~ %txt !>(*wain)]]
-            [%fall %& [/ %'main.claude-registry'] %.n [~ %claude-registry !>(`registry`[%0 0 ~ %.y])]]
+            [%fall %& [/ %'config.json'] %.n [~ [/ %json] !>(default-config)]]
+            [%fall %& [/ %'messages.claude-messages'] %.n [~ [/ %claude-messages] !>(`messages`[%0 *((mop @ud message) lth)])]]
+            [%fall %& [/ %'custom-prompt.txt'] %.n [~ [/ %txt] !>(*wain)]]
+            [%fall %& [/ %'main.claude-registry'] %.n [~ [/ %claude-registry] !>(`registry`[%0 0 ~ %.y])]]
             ::  always overwritten
-            [%over %& [/ %'weir.txt'] %.n [~ %txt !>(`wain`~['No weir set.'])]]
-            [%over %& [/ui %'chat.html'] %.n [~ %manx !>((chat-page ~))]]
-            [%over %& [/ui/sse %'last-message.html'] %.n [~ %manx !>(*manx)]]
-            [%over %& [/ui/sse %'status.json'] %.n [~ %json !>((pairs:enjs:format ~[['loading' b+%.n] ['live' b+%.y]]))]]
+            [%over %& [/ %'weir.txt'] %.n [~ [/ %txt] !>(`wain`~['No weir set.'])]]
+            [%over %& [/ui %'chat.html'] %.n [~ [/ %manx] !>((chat-page ~))]]
+            [%over %& [/ui/sse %'last-message.html'] %.n [~ [/ %manx] !>(*manx)]]
+            [%over %& [/ui/sse %'status.json'] %.n [~ [/ %json] !>((pairs:enjs:format ~[['loading' b+%.n] ['live' b+%.y]]))]]
         ==
       ==
     ::
@@ -42,11 +42,11 @@
           [~ %'messages.claude-messages']
         ;<  ~  bind:m  (rise-wait:io prod "%claude chat: failed")
         |-
-        ;<  =cage  bind:m  take-poke:io
-        ?.  ?=(%claude-action p.cage)
-          ~&  >  [%claude-chat %unknown-mark p.cage]
+        ;<  =sage:tarball  bind:m  take-poke:io
+        ?.  ?=(%claude-action name.p.sage)
+          ~&  >  [%claude-chat %unknown-mark name.p.sage]
           $
-        =/  =action  !<(action q.cage)
+        =/  =action  !<(action q.sage)
         ?:  ?=(%live -.action)  $       ::  not a message — skip
         ?:  ?=(%interrupt -.action)  $  ::  not a message — skip
         =/  [role=@t text=@t]
@@ -99,13 +99,13 @@
         ;<  init=view:nexus  bind:m
           (keep:io /msgs (cord-to-road:tarball '../messages.claude-messages') ~)
         ?.  ?=([%file *] init)  $
-        =/  msg=messages  !<(messages q.cage.init)
+        =/  msg=messages  !<(messages q.sage.init)
         =/  page=manx  (chat-page (tap:mon messages.msg))
         ;<  ~  bind:m  (replace:io !>(page))
         |-
         ;<  upd=view:nexus  bind:m  (take-news:io /msgs)
         ?.  ?=([%file *] upd)  $
-        =/  msg=messages  !<(messages q.cage.upd)
+        =/  msg=messages  !<(messages q.sage.upd)
         =/  page=manx  (chat-page (tap:mon messages.msg))
         ;<  ~  bind:m  (replace:io !>(page))
         $
@@ -116,14 +116,14 @@
         ;<  init=view:nexus  bind:m
           (keep:io /msgs (cord-to-road:tarball '../../messages.claude-messages') ~)
         ?.  ?=([%file *] init)  $
-        =/  msg=messages  !<(messages q.cage.init)
+        =/  msg=messages  !<(messages q.sage.init)
         =/  last=(unit [key=@ud val=message])  (ram:mon messages.msg)
         =/  init-manx=manx  ?~(last *manx (msg-to-manx val.u.last))
         ;<  ~  bind:m  (replace:io !>(init-manx))
         |-
         ;<  upd=view:nexus  bind:m  (take-news:io /msgs)
         ?.  ?=([%file *] upd)  $
-        =/  msg=messages  !<(messages q.cage.upd)
+        =/  msg=messages  !<(messages q.sage.upd)
         =/  last=(unit [key=@ud val=message])  (ram:mon messages.msg)
         ?~  last  $
         ;<  ~  bind:m  (replace:io !>((msg-to-manx val.u.last)))
@@ -382,7 +382,7 @@
   ::  User message from UI
   ::
       %poke
-    =/  =action  !<(action q.cage.ev)
+    =/  =action  !<(action q.sage.ev)
     ?:  ?=(%interrupt -.action)
       ~&  >  %claude-interrupt-no-op
       $
@@ -527,7 +527,7 @@
     =/  cfg=json
       ?.  ?=([%& %file *] cfg-seen)
         (need (de:json:html '{}'))
-      !<(json q.cage.p.cfg-seen)
+      !<(json q.sage.p.cfg-seen)
     =/  api-key=@t  (jget-t cfg 'api_key' '')
     ?:  =('' api-key)
       ~&  >>>  %claude-no-api-key
@@ -544,7 +544,7 @@
     ;<  =bowl:nexus  bind:m  (get-bowl:io /bowl)
     =/  custom=@t
       ?.  ?=([%& %file *] custom-seen)  ''
-      =/  =wain  !<(wain q.cage.p.custom-seen)
+      =/  =wain  !<(wain q.sage.p.custom-seen)
       ?~(wain '' (of-wain:format wain))
     ::  Registry state rendered to text for system prompt
     ;<  reg=registry  bind:m  (get-state-as:io ,registry)
@@ -559,7 +559,7 @@
     =/  reg-text=@t  (of-wain:format reg-wain)
     =/  weir-text=@t
       ?.  ?=([%& %file *] weir-seen)  ''
-      =/  =wain  !<(wain q.cage.p.weir-seen)
+      =/  =wain  !<(wain q.sage.p.weir-seen)
       ?~(wain '' (of-wain:format wain))
     =/  ship=@t  (scot %p our.bowl)
     =/  msg-count=@t  (crip (a-co:co (lent (tap:mon messages.msg))))
@@ -606,7 +606,7 @@
     ;<  reg=registry  bind:m  (get-state-as:io ,registry)
     =/  loading-on=json   (pairs:enjs:format ~[['loading' b+%.y] ['live' b+live.reg]])
     =/  loading-off=json  (pairs:enjs:format ~[['loading' b+%.n] ['live' b+live.reg]])
-    ;<  ~  bind:m  (over:io /status status-road json+!>(loading-on))
+    ;<  ~  bind:m  (over:io /status status-road [[/ %json] !>(loading-on)])
     =/  =request:http
       :^  %'POST'  'https://api.anthropic.com/v1/messages'
         :~  ['content-type' 'application/json']
@@ -615,7 +615,7 @@
         ==
       `(as-octs:mimes:html body-cord)
     ;<  response=(unit @t)  bind:m  (fetch-or-interrupt request)
-    ;<  ~  bind:m  (over:io /status status-road json+!>(loading-off))
+    ;<  ~  bind:m  (over:io /status status-road [[/ %json] !>(loading-off)])
     ?~  response
       ~&  >  %claude-interrupted
       ;<  ~  bind:m  (set-live %.n)
@@ -782,20 +782,20 @@
   ::  writes
       %'make'
     =/  =mime  [/text/plain (as-octs:mimes:html body)]
-    (send-dart:io %node slot-wire road %make |+[%.n mime+!>(mime) ~])
+    (send-dart:io %node slot-wire road %make |+[%.n [[/ %mime] !>(mime)] ~])
       %'dir'
     (send-dart:io %node slot-wire road %make &+[*sand:nexus *gain:nexus `[~ ~ ~] ~])
       %'over'
     =/  =mime  [/text/plain (as-octs:mimes:html body)]
-    (send-dart:io %node slot-wire road %over mime+!>(mime))
+    (send-dart:io %node slot-wire road %over [[/ %mime] !>(mime)])
       %'rmf'   (send-dart:io %node slot-wire road %cull ~)
       %'rmd'   (send-dart:io %node slot-wire road %cull ~)
       %'poke'
     =/  =mime  [/text/plain (as-octs:mimes:html body)]
-    (send-dart:io %node slot-wire road %poke mime+!>(mime))
+    (send-dart:io %node slot-wire road %poke [[/ %mime] !>(mime)])
       %'diff'
     =/  =mime  [/text/plain (as-octs:mimes:html body)]
-    (send-dart:io %node slot-wire road %over mime+!>(mime))
+    (send-dart:io %node slot-wire road %over [[/ %mime] !>(mime)])
       %'setweir'
     =/  jon=(unit json)  (de:json:html body)
     ?~  jon
@@ -813,7 +813,7 @@
 ::  Multiplex ALL events — pokes, responses, subscriptions
 ::
 +$  main-event
-  $%  [%poke =cage]
+  $%  [%poke =sage:tarball]
       [%peek =wire =seen:nexus]
       [%made =wire err=(unit tang)]
       [%over =wire err=(unit tang)]
@@ -834,9 +834,9 @@
   ?+  in  [%skip ~]
       ~  [%wait ~]
       [~ %poke * *]
-    ?.  ?=(%claude-action p.cage.u.in)
+    ?.  ?=(%claude-action name.p.sage.u.in)
       [%skip ~]
-    [%done %poke cage.u.in]
+    [%done %poke sage.u.in]
       [~ %peek * *]   [%done %peek wire.u.in seen.u.in]
       [~ %made * *]   [%done %made wire.u.in err.u.in]
       [~ %over * *]   [%done %over wire.u.in err.u.in]
@@ -997,7 +997,7 @@
     ::  Interrupt poke — consumed, returns ~
     ::
       [~ %poke * *]
-    =/  =action  !<(action q.cage.u.in)
+    =/  =action  !<(action q.sage.u.in)
     ?.  ?=(%interrupt -.action)
       [%skip ~]
     [%done ~]
@@ -1021,7 +1021,7 @@
   ;<  ~  bind:m  (replace:io !>(`registry`reg(live flag)))
   =/  status-road=road:tarball  (cord-to-road:tarball './ui/sse/status.json')
   =/  =json  (pairs:enjs:format ~[['loading' b+%.n] ['live' b+flag]])
-  (over:io /status status-road json+!>(json))
+  (over:io /status status-road [[/ %json] !>(json)])
 ::
 ++  append-msg
   |=  [msg-road=road:tarball =slot result=@t rev=(unit @ud)]
@@ -1044,7 +1044,7 @@
       %'file'
     ?.  ?=([%& %file *] seen)
       (pure:m [(crip "ERROR: Not found: {(trip path.slot)}") ~])
-    ;<  content=@t  bind:m  (cage-to-txt cage.p.seen)
+    ;<  content=@t  bind:m  (sage-to-txt sage.p.seen)
     (pure:m [content `ud.file.sack.p.seen])
   ::
       %'kids'
@@ -1118,7 +1118,7 @@
       %none
     (append-to-msgs msg-road 'user' (rap 3 ~['<api action="' act '" path="' api-path '">DELETED</api>']))
       %file
-    ;<  content=@t  bind:m  (cage-to-txt cage.view)
+    ;<  content=@t  bind:m  (sage-to-txt sage.view)
     =/  rev=@ud  ud.file.sack.view
     =/  rev-attr=@t  (crip " rev=\"{(a-co:co rev)}\"")
     (append-to-msgs msg-road 'user' (rap 3 ~['<api action="' act '" path="' api-path '"' rev-attr '>' content '</api>']))
@@ -1139,7 +1139,7 @@
     ?~  files  (pure:m ~)
     =/  [file-name=@ta =content:tarball]  i.files
     =/  lane-path=@t  (spat (snoc here file-name))
-    ;<  content-text=@t  bind:m  (cage-to-txt cage.content)
+    ;<  content-text=@t  bind:m  (sage-to-txt sage.content)
     =/  msg=@t
       (rap 3 ~['<api action="' act '" path="' lane-path '">' content-text '</api>'])
     ;<  ~  bind:m  (append-to-msgs msg-road 'user' msg)
@@ -1160,20 +1160,20 @@
   ?:  =(*weir:nexus weir)  ~['No weir set.']
   ~[(crip "PERMISSIONS (weir): {(trip (en:json:html (weir-to-json:nexus weir)))}")]
 ::
-++  cage-to-txt
-  |=  =cage
+++  sage-to-txt
+  |=  =sage:tarball
   =/  m  (fiber:fiber:nexus ,@t)
   ^-  form:m
-  ?:  =(%txt p.cage)
-    (pure:m (of-wain:format !<(wain q.cage)))
-  ;<  tube=(unit tube:clay)  bind:m  (get-tube:io [%& %| /code] [[/ p.cage] [/ %txt]])
+  ?:  =(%txt name.p.sage)
+    (pure:m (of-wain:format !<(wain q.sage)))
+  ;<  tube=(unit tube:clay)  bind:m  (get-tube:io [%& %| /code] [p.sage [/ %txt]])
   ?~  tube
     ::  Fallback: convert to mime and extract body as text
-    ;<  =mime  bind:m  (cage-to-mime:io cage)
+    ;<  =mime  bind:m  (sage-to-mime:io sage)
     (pure:m `@t`(end [3 p.q.mime] q.q.mime))
-  =/  result=(each vase tang)  (mule |.((u.tube q.cage)))
+  =/  result=(each vase tang)  (mule |.((u.tube q.sage)))
   ?:  ?=(%| -.result)
-    ;<  =mime  bind:m  (cage-to-mime:io cage)
+    ;<  =mime  bind:m  (sage-to-mime:io sage)
     (pure:m `@t`(end [3 p.q.mime] q.q.mime))
   (pure:m (of-wain:format !<(wain p.result)))
 ::
@@ -1407,14 +1407,14 @@
   ;<  seen=seen:nexus  bind:m  (peek:io /msgs msg-road `%claude-messages)
   ?.  ?=([%& %file *] seen)
     (pure:m `messages`[%0 *((mop @ud message) lth)])
-  (pure:m !<(messages q.cage.p.seen))
+  (pure:m !<(messages q.sage.p.seen))
 ::  Append a message to the messages file via poke
 ::
 ++  append-to-msgs
   |=  [msg-road=road:tarball role=@t content=@t]
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
-  (poke:io /msgs msg-road claude-action+!>(`action`[%add role content]))
+  (poke:io /msgs msg-road [[/ %claude-action] !>(`action`[%add role content])])
 ::  Extract inner text from an XML tag like <error>text</error>
 ::
 ++  extract-inner

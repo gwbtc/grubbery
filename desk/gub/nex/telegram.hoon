@@ -13,8 +13,8 @@
           ?(~ [~ %0])
         %+  spin:loader  [sand gain ball]
         :~  (ver-row:loader 0)
-            [%fall %& [/ %'main.sig'] %.n [~ %sig !>(~)]]
-            [%over %& [/ui %'manage.html'] %.n [~ %manx !>((manage-page ~))]]
+            [%fall %& [/ %'main.sig'] %.n [~ [/ %sig] !>(~)]]
+            [%over %& [/ui %'manage.html'] %.n [~ [/ %manx] !>((manage-page ~))]]
             [%fall %| /bots [~ ~] [~ ~] empty-dir:loader]
         ==
       ==
@@ -31,9 +31,9 @@
           [~ %'main.sig']
         ;<  ~  bind:m  (rise-wait:io prod "%telegram main: failed")
         |-
-        ;<  =cage  bind:m  take-poke:io
-        ?.  ?=(%json p.cage)  $
-        =/  req=json  !<(json q.cage)
+        ;<  =sage:tarball  bind:m  take-poke:io
+        ?.  ?=(%json name.p.sage)  $
+        =/  req=json  !<(json q.sage)
         ?.  ?=([%o *] req)  $
         =/  action=@t
           =/  v  (~(get by p.req) 'action')
@@ -77,7 +77,7 @@
             (pairs:enjs:format ~[['bot-token' s+bot-token]])
           =/  cfg-road=road:tarball
             (cord-to-road:tarball (rap 3 ~['./bots/' dir-name '/config.json']))
-          ;<  ~  bind:m  (over:io /cfg cfg-road json+!>(cfg))
+          ;<  ~  bind:m  (over:io /cfg cfg-road [[/ %json] !>(cfg)])
           $
         ::
             %delete

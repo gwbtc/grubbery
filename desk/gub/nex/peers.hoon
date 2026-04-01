@@ -56,7 +56,7 @@
         =/  ships-sand=sand:nexus  [`[root-roads root-roads root-roads] ~]
         %+  spin:loader  [sand gain ball]
         :~  (ver-row:loader 0)
-            [%fall %& [/ %'main.sig'] %.n [~ %sig !>(~)]]
+            [%fall %& [/ %'main.sig'] %.n [~ [/ %sig] !>(~)]]
             [%fall %| /usergroups/who [~ ~] [~ ~] empty-dir:loader]
             [%fall %| /usergroups/how [~ ~] [~ ~] empty-dir:loader]
             [%fall %| /ships ships-sand [~ ~] empty-dir:loader]
@@ -99,8 +99,8 @@
         ?-    -.main-event
             %poke
           =/  =from:fiber:nexus  from.main-event
-          =/  =cage  cage.main-event
-          ?+    p.cage  $
+          =/  =sage:tarball  sage.main-event
+          ?+    name.p.sage  $
               %peers-sync
             ~&  >  [%peers-main %sync]
             ;<  ~  bind:m  sync-all-weirs
@@ -113,11 +113,11 @@
             ~&  >  [%peers-main %routing (scot %p src)]
             ;<  ~  bind:m  (ensure-ship-dir src)
             ;<  ~  bind:m
-              (poke:io /forward [%| 0 %& [/ships/(scot %p src) %'main.sig']] cage)
+              (poke:io /forward [%| 0 %& [/ships/(scot %p src) %'main.sig']] sage)
             $
               %poke-out
             =/  [=ship =dude:gall =page]
-              !<([@p dude:gall page] q.cage)
+              !<([@p dude:gall page] q.sage)
             ~&  >  [%peers-main %outbound (scot %p ship) dude]
             ;<  ~  bind:m  (gall-poke:io /outbound [ship dude] [p.page !>(q.page)])
             $
@@ -148,17 +148,17 @@
         =/  ship-name=@ta  i.t.path.rail
         ~&  >  [%peers-gateway ship-name %ready]
         |-
-        ;<  [=from:fiber:nexus =cage]  bind:m  take-poke-from:io
-        ?.  ?=(%poke-in p.cage)
-          ~&  >  [%peers-gateway ship-name %unknown-mark p.cage]
+        ;<  [=from:fiber:nexus =sage:tarball]  bind:m  take-poke-from:io
+        ?.  ?=(%poke-in name.p.sage)
+          ~&  >  [%peers-gateway ship-name %unknown-mark name.p.sage]
           $
         ?>  ?&  ?=(%& -.from)
                 =(p.from [2 [/ %'main.sig']])
             ==
-        =/  [dest=rail:tarball =page]
-          !<([rail:tarball page] q.cage)
-        ~&  >  [%peers-gateway ship-name %inbound dest p.page]
-        =/  payload=^cage  [p.page !>(q.page)]
+        =/  [dest=rail:tarball =bask:tarball]
+          !<([rail:tarball bask:tarball] q.sage)
+        ~&  >  [%peers-gateway ship-name %inbound dest name.p.bask]
+        =/  payload=sage:tarball  [p.bask !>(q.bask)]
         ;<  ~  bind:m  (poke:io /forward [%& %& dest] payload)
         $
           [[%usergroups %who *] @]
@@ -219,7 +219,7 @@
     --
 |%
 +$  main-event
-  $%  [%poke =from:fiber:nexus =cage]
+  $%  [%poke =from:fiber:nexus =sage:tarball]
       [%news =wire =view:nexus]
       [%fell =wire]
   ==
@@ -234,7 +234,7 @@
       [~ %veto *]
     [%fail (veto-error:io dart.u.in.input)]
       [~ %poke * *]
-    [%done %poke [from cage]:u.in.input]
+    [%done %poke [from sage]:u.in.input]
       [~ %news * *]
     [%done %news [wire view]:u.in.input]
       [~ %fell *]
@@ -250,14 +250,14 @@
   ?+  in.input  [~ state.input %skip ~]
       ~  [~ state.input %wait ~]
       [~ %poke * *]
-    ?+  p.cage.u.in.input  [~ state.input %skip ~]
-        %put-members  [~ q.cage.u.in.input %wait ~]
+    ?+  name.p.sage.u.in.input  [~ state.input %skip ~]
+        %put-members  [~ q.sage.u.in.input %wait ~]
         %add-member
       =/  members  !<((set @p) state.input)
-      [~ !>((~(put in members) !<(@p q.cage.u.in.input))) %wait ~]
+      [~ !>((~(put in members) !<(@p q.sage.u.in.input))) %wait ~]
         %del-member
       =/  members  !<((set @p) state.input)
-      [~ !>((~(del in members) !<(@p q.cage.u.in.input))) %wait ~]
+      [~ !>((~(del in members) !<(@p q.sage.u.in.input))) %wait ~]
     ==
   ==
 ::  /usergroups/how/**:  weir templates (hierarchical paths supported)
@@ -270,9 +270,9 @@
   ?+  in.input  [~ state.input %skip ~]
       ~  [~ state.input %wait ~]
       [~ %poke * *]
-    ?.  =(%put-weir p.cage.u.in.input)
+    ?.  =(%put-weir name.p.sage.u.in.input)
       [~ state.input %skip ~]
-    [~ q.cage.u.in.input %wait ~]
+    [~ q.sage.u.in.input %wait ~]
   ==
 ::  Ensure /ships/~ship/ directory exists with gateway process.
 ::  Our ship: no weir (full tree access).
@@ -288,7 +288,7 @@
   ;<  exists=?  bind:m  (peek-exists:io /check-ship [%| 0 %| ship-dir])
   ?:  exists  (pure:m ~)
   =/  ship-ball=ball:tarball
-    (~(put ba:tarball *ball:tarball) [/ %'main.sig'] [~ %sig !>(~)])
+    (~(put ba:tarball *ball:tarball) [/ %'main.sig'] [~ [/ %sig] !>(~)])
   ?:  =(src our)
     (make:io /create-ship [%| 0 %| ship-dir] &+[*sand:nexus *gain:nexus ship-ball])
   ;<  [who=(map rail:tarball (set @p)) how=(map rail:tarball weir:nexus)]  bind:m
@@ -355,7 +355,7 @@
   %+  murn  ~(tap ba:tarball sub)
   |=  [=rail:tarball =content:tarball]
   ^-  (unit [rail:tarball mold])
-  =/  res  (mule |.(!<(mold q.cage.content)))
+  =/  res  (mule |.(!<(mold q.sage.content)))
   ?:(?=(%| -.res) ~ `[rail p.res])
 ::  Build reverse index: ship → group rails from who map
 ::

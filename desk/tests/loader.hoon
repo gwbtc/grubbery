@@ -9,7 +9,7 @@
 ++  mk-content
   |=  txt=@t
   ^-  content:tarball
-  [~ [%txt !>(txt)]]
+  [~ [/ %txt] !>(txt)]
 ::
 ++  mk-ball-1
   ::  ball with one file at root
@@ -424,18 +424,18 @@
 ::
 ++  test-server-scenario-imperative
   ::  simulate server on-load imperative style on existing ball
-  =/  server-ct=content:tarball  [~ %server-state !>('state-data')]
+  =/  server-ct=content:tarball  [~ [/ %server-state] !>('state-data')]
   =/  old-ball=ball:tarball
-    =/  b  (~(put ba:tarball *ball:tarball) [/ %'ver.ud'] [~ %ud !>(0)])
+    =/  b  (~(put ba:tarball *ball:tarball) [/ %'ver.ud'] [~ [/ %ud] !>(0)])
     (~(put ba:tarball b) [/ %'main.server-state'] server-ct)
   =/  old-sand=sand:nexus  [`[make=~ poke=(sy ~[[%& [%| /]]]) peek=~] ~]
   =/  old-gain=gain:nexus  (set-file-gain:loader *gain:nexus [/ %'ver.ud'] %.n)
   ::  imperative: modify ball in place, preserve sand/gain
   =/  ball=ball:tarball  old-ball
-  =.  ball  (~(put ba:tarball ball) [/ %'ver.ud'] [~ %ud !>(0)])
+  =.  ball  (~(put ba:tarball ball) [/ %'ver.ud'] [~ [/ %ud] !>(0)])
   =/  existing  (~(get ba:tarball ball) [/ %'main.server-state'])
   =?  ball  =(~ existing)
-    (~(put ba:tarball ball) [/ %'main.server-state'] [~ %server-state !>('fresh')])
+    (~(put ba:tarball ball) [/ %'main.server-state'] [~ [/ %server-state] !>('fresh')])
   ::  imperative preserves sand and gain
   ;:  weld
     %+  expect-eq
@@ -451,17 +451,17 @@
 ::
 ++  test-server-scenario-spin
   ::  simulate server on-load with spin on existing ball
-  =/  server-ct=content:tarball  [~ %server-state !>('state-data')]
+  =/  server-ct=content:tarball  [~ [/ %server-state] !>('state-data')]
   =/  old-ball=ball:tarball
-    =/  b  (~(put ba:tarball *ball:tarball) [/ %'ver.ud'] [~ %ud !>(0)])
+    =/  b  (~(put ba:tarball *ball:tarball) [/ %'ver.ud'] [~ [/ %ud] !>(0)])
     (~(put ba:tarball b) [/ %'main.server-state'] server-ct)
   =/  old-sand=sand:nexus  [`[make=~ poke=(sy ~[[%& [%| /]]]) peek=~] ~]
   =/  old-gain=gain:nexus  (set-file-gain:loader *gain:nexus [/ %'ver.ud'] %.n)
   ::  spin: build new from old
   =/  [=sand:nexus =gain:nexus =ball:tarball]
     %+  spin:loader  [old-sand old-gain old-ball]
-    :~  [%over %& [/ %'ver.ud'] %.n [~ %ud !>(0)]]
-        [%fall %& [/ %'main.server-state'] %.n [~ %server-state !>('fresh')]]
+    :~  [%over %& [/ %'ver.ud'] %.n [~ [/ %ud] !>(0)]]
+        [%fall %& [/ %'main.server-state'] %.n [~ [/ %server-state] !>('fresh')]]
     ==
   ;:  weld
     ::  ball content is correct
@@ -506,7 +506,7 @@
 ++  test-get-ver-has-version
   ::  ball with ver.ud returns [~ n]
   =/  =ball:tarball
-    (~(put ba:tarball *ball:tarball) [/ %'ver.ud'] [~ %ud !>(5)])
+    (~(put ba:tarball *ball:tarball) [/ %'ver.ud'] [~ [/ %ud] !>(5)])
   %+  expect-eq
     !>  `ver:loader``5
   !>  (get-ver:loader ball)

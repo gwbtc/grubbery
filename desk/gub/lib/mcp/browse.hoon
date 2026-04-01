@@ -38,7 +38,7 @@
   =/  files=(list [@ta @tas])
     ?~  fil.ball.p.seen  ~
     %+  turn  ~(tap by contents.u.fil.ball.p.seen)
-    |=([n=@ta c=content:tarball] [n p.cage.c])
+    |=([n=@ta c=content:tarball] [n name.p.sage.c])
   =/  dir-text=tape
     ?~  sub-dirs  ""
     %-  zing

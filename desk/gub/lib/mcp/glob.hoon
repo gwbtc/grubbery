@@ -53,7 +53,7 @@
     |=  [=rail:tarball =content:tarball]
     =/  file-path=tape  ?~(path.rail "/" (trip (spat path.rail)))
     =/  file-name=tape  (trip name.rail)
-    =/  file-mark=tape  (trip p.cage.content)
+    =/  file-mark=tape  (trip name.p.sage.content)
     =/  path-ok=?
       ?~  pat-path  %.y
       (glob-match:tools (trip u.pat-path) file-path)
@@ -64,7 +64,7 @@
       ?~  pat-mark  %.y
       (glob-match:tools (trip u.pat-mark) file-mark)
     ?.  ?&(path-ok name-ok mark-ok)  ~
-    `[rail p.cage.content]
+    `[rail name.p.sage.content]
   ?~  matches
     (pure:m [%text 'No matches found'])
   =/  result=tape

@@ -57,7 +57,7 @@
     |=  [=rail:tarball =content:tarball]
     =/  file-path=tape  ?~(path.rail "/" (trip (spat path.rail)))
     =/  file-name=tape  (trip name.rail)
-    =/  file-mark=tape  (trip p.cage.content)
+    =/  file-mark=tape  (trip name.p.sage.content)
     ?&  ?~(pat-path %.y (glob-match:tools (trip u.pat-path) file-path))
         ?~(pat-name %.y (glob-match:tools (trip u.pat-name) file-name))
         ?~(pat-mark %.y (glob-match:tools (trip u.pat-mark) file-mark))
@@ -80,7 +80,7 @@
     (peek:io /read [%& %& path.rail name.rail] ~)
   ?.  ?=([%& %file *] file-seen)
     $(candidates t.candidates)
-  ;<  =mime  bind:m  (cage-to-mime:io cage.p.file-seen)
+  ;<  =mime  bind:m  (sage-to-mime:io sage.p.file-seen)
   =/  text=tape  (trip ;;(@t q.q.mime))
   ::  Split into lines and search
   =/  lines=(list tape)

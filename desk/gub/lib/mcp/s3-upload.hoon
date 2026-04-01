@@ -39,7 +39,7 @@
     (lookup-grub:tools pax file-name)
   ?.  ?=([%& %file *] seen)
     (pure:m [%error (crip "Not found: {(trip file-path)}/{(trip file-name)}")])
-  ;<  =mime  bind:m  (cage-to-mime:io cage.p.seen)
+  ;<  =mime  bind:m  (sage-to-mime:io sage.p.seen)
   =/  text=@t  ;;(@t q.q.mime)
   ;<  creds=s3-creds:tools  bind:m  read-s3-creds:tools
   ;<  =bowl:nexus  bind:m  (get-bowl:io /bowl)

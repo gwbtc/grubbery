@@ -12,7 +12,7 @@
     %+  spin:loader  [sand gain ball]
     :~  (ver-row:loader 0)
         [%load %| / / same-fold:loader]
-        [%fall %& [/sys %'main.sig'] %.n [~ %sig !>(~)]]
+        [%fall %& [/sys %'main.sig'] %.n [~ [/ %sig] !>(~)]]
         ::  child nexuses
         [%fall %| /'server.server' [~ ~] [~ ~] [`[~ `[/ %server] ~] ~]]
         [%fall %| /'counter.counter' [~ ~] [~ ~] [`[~ `[/ %counter] ~] ~]]

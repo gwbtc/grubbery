@@ -17,8 +17,8 @@
           ?(~ [~ %0] [~ %1])
         %+  spin:loader  [sand gain ball]
         :~  (ver-row:loader 1)
-            [%fall %& [/ %'main.sig'] %.n [~ %sig !>(~)]]
-            [%fall %& [/ %'page.html'] %.n [~ %manx !>((goals-page ~ ~))]]
+            [%fall %& [/ %'main.sig'] %.n [~ [/ %sig] !>(~)]]
+            [%fall %& [/ %'page.html'] %.n [~ [/ %manx] !>((goals-page ~ ~))]]
             [%fall %| /store [~ ~] [~ ~] empty-dir:loader]
         ==
       ==
@@ -36,28 +36,28 @@
         ;<  ~  bind:m  (rise-wait:io prod "%goals /main: failed, poke to restart")
         ~&  >  "%goals /main: ready"
         |-
-        ;<  [=from:fiber:nexus =cage]  bind:m  take-poke-from:io
-        ?+    p.cage
-            ~&  >  [%goals-main %unknown-mark p.cage]
+        ;<  [=from:fiber:nexus =sage:tarball]  bind:m  take-poke-from:io
+        ?+    name.p.sage
+            ~&  >  [%goals-main %unknown-mark name.p.sage]
             $
             %goal-create-store
-          =/  name=@ta  !<(@ta q.cage)
+          =/  name=@ta  !<(@ta q.sage)
           ~&  >  [%goals-main %creating name]
           ;<  =bowl:nexus  bind:m  (get-bowl:io /bowl)
           =/  store=goal-store:goals  (create-store:goals now.bowl)
           =/  fname=@ta  (store-fname name)
           ;<  ~  bind:m
-            (make:io /create [%| 0 %& /store fname] |+[%.n goal-store+!>(store) `%goal-store])
+            (make:io /create [%| 0 %& /store fname] |+[%.n [[/ %goal-store] !>(store)] `%goal-store])
           $
             %goal-delete-store
-          =/  name=@ta  !<(@ta q.cage)
+          =/  name=@ta  !<(@ta q.sage)
           ~&  >  [%goals-main %deleting name]
           ;<  ~  bind:m  (cull:io /delete [%| 0 %& /store (store-fname name)])
           $
           ::  JSON pokes for web UI actions
           ::
             %json
-          =/  jon=json  !<(json q.cage)
+          =/  jon=json  !<(json q.sage)
           ?.  ?=([%o *] jon)  $
           =/  act-type=@t
             (~(dug jo:json-utils jon) /action so:dejs:format '')
@@ -69,7 +69,7 @@
             =/  store=goal-store:goals  (create-store:goals now.bowl)
             =/  fname=@ta  (store-fname name)
             ;<  ~  bind:m
-              (make:io /create [%| 0 %& /store fname] |+[%.n goal-store+!>(store) `%goal-store])
+              (make:io /create [%| 0 %& /store fname] |+[%.n [[/ %goal-store] !>(store)] `%goal-store])
             $
               %'delete-store'
             =/  name=@ta  (~(dog jo:json-utils jon) /name so:dejs:format)
@@ -117,7 +117,7 @@
                 ((om:dejs:format same:dejs:format) data-jon)
               ==
             ;<  ~  bind:m
-              (poke:io /act [%| 0 %& /store (store-fname store-name)] goal-action+!>(act))
+              (poke:io /act [%| 0 %& /store (store-fname store-name)] [[/ %goal-action] !>(act)])
             $
           ==
         ==
@@ -146,11 +146,11 @@
         =/  store-name=@ta  (store-name-from-fname name.rail)
         ~&  >  [%goals-store store-name %ready]
         |-
-        ;<  [=from:fiber:nexus =cage]  bind:m  take-poke-from:io
-        ?.  =(%goal-action p.cage)
-          ~&  >  [%goals-store store-name %unknown-mark p.cage]
+        ;<  [=from:fiber:nexus =sage:tarball]  bind:m  take-poke-from:io
+        ?.  =(%goal-action name.p.sage)
+          ~&  >  [%goals-store store-name %unknown-mark name.p.sage]
           $
-        =/  act=action:goals  !<(action:goals q.cage)
+        =/  act=action:goals  !<(action:goals q.sage)
         ;<  store=goal-store:goals  bind:m  (get-state-as:io ,goal-store:goals)
         ;<  =bowl:nexus  bind:m  (get-bowl:io /bowl)
         ::  auto-generate ID for create with empty id
@@ -201,7 +201,7 @@
     --
 |%
 ++  take-poke-from
-  =/  m  (fiber:fiber:nexus ,[from=from:fiber:nexus =cage])
+  =/  m  (fiber:fiber:nexus ,[from=from:fiber:nexus =sage:tarball])
   ^-  form:m
   |=  =input:fiber:nexus
   :+  ~  state.input
@@ -210,7 +210,7 @@
       [~ %veto *]
     [%fail (veto-error:io dart.u.in.input)]
       [~ %poke * *]
-    [%done [from cage]:u.in.input]
+    [%done [from sage]:u.in.input]
   ==
 ::  store-fname: build filename from store name (e.g. 'test' -> 'test.goal-store')
 ::
@@ -240,8 +240,8 @@
   |-
   ?~  entries  out
   =/  [fname=@ta ct=content:tarball]  i.entries
-  ?.  =(%goal-store p.cage.ct)  $(entries t.entries)
-  =/  store=goal-store:goals  !<(goal-store:goals q.cage.ct)
+  ?.  =(%goal-store name.p.sage.ct)  $(entries t.entries)
+  =/  store=goal-store:goals  !<(goal-store:goals q.sage.ct)
   =/  sname=@ta  (store-name-from-fname fname)
   $(entries t.entries, out (~(put by out) sname store))
 ::  Render the full goals page

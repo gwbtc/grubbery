@@ -31,7 +31,7 @@
     (peek:io /read (store-road name) ~)
   ?.  ?=([%& %file *] seen)
     ~|(%store-not-found !!)
-  (pure:m !<(goal-store:goals q.cage.p.seen))
+  (pure:m !<(goal-store:goals q.sage.p.seen))
 ::  parse a node-id from json fields
 ::
 ++  parse-nid
@@ -123,7 +123,7 @@
     ;<  =bowl:nexus  bind:m  (get-bowl:io /bowl)
     =/  store=goal-store:goals  (create-store:goals now.bowl)
     ;<  ~  bind:m
-      (make:io /create (store-road name) |+[%.n goal-store+!>(store) `%goal-store])
+      (make:io /create (store-road name) |+[%.n [[/ %goal-store] !>(store)] `%goal-store])
     (pure:m [%text (crip "Created store: {(trip name)}")])
   ::
       %'delete-store'
@@ -226,7 +226,7 @@
     =/  act=action:goals  +.p.act-parsed
     ;<  =bowl:nexus  bind:m  (get-bowl:io /bowl)
     ;<  ~  bind:m
-      (poke:io /act (store-road u.store-name) goal-action+!>(act))
+      (poke:io /act (store-road u.store-name) [[/ %goal-action] !>(act)])
     (pure:m [%text (crip "Applied {(trip act-type)}")])
   ::
       ::  list: show all goals in a store

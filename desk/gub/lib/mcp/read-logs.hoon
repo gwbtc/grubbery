@@ -49,22 +49,22 @@
       (peek-at:io /read logs-road ~ [%ud u.ver])
     ?.  ?=([%& %file *] seen)
       (pure:m [%error 'Logs not found or version does not exist'])
-    =/  =told:dill  !<(told:dill q.cage.p.seen)
+    =/  =told:dill  !<(told:dill q.sage.p.seen)
     (pure:m [%text (crip (format-told:tools told))])
   ::  Range query
   ?:  |(?=(^ from) ?=(^ to))
-    ;<  res=(each (list [=cass:clay =cage]) tang)  bind:m
+    ;<  res=(each (list [=cass:clay =sage:tarball]) tang)  bind:m
       (peep:io /hist logs-road [%numb from to])
     ?:  ?=(%| -.res)
       (pure:m [%error (crip (zing (turn (flop p.res) |=(=tank (weld ~(ram re tank) "\0a")))))])
     ?~  p.res
       (pure:m [%text 'No log versions found in range'])
     =/  out=tape  ""
-    =/  entries=(list [=cass:clay =cage])  p.res
+    =/  entries=(list [=cass:clay =sage:tarball])  p.res
     |-
     ?~  entries
       (pure:m [%text (crip out)])
-    =/  =told:dill  !<(told:dill q.cage.i.entries)
+    =/  =told:dill  !<(told:dill q.sage.i.entries)
     %=  $
       entries  t.entries
       out  (weld out "--- Log {<ud.cass.i.entries>} ---\0a{(format-told:tools told)}\0a")
@@ -74,6 +74,6 @@
     (peek:io /read logs-road ~)
   ?.  ?=([%& %file *] seen)
     (pure:m [%error 'Logs grub not found'])
-  =/  =told:dill  !<(told:dill q.cage.p.seen)
+  =/  =told:dill  !<(told:dill q.sage.p.seen)
   (pure:m [%text (crip (format-told:tools told))])
 --

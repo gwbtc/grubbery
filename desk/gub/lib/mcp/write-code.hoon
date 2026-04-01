@@ -35,9 +35,9 @@
   =/  src-mime=mime  [/text/plain (as-octs:mimes:html content)]
   ;<  exists=?  bind:m  (peek-exists:io /check src-road)
   ?:  exists
-    ;<  ~  bind:m  (over:io /write src-road mime+!>(src-mime))
+    ;<  ~  bind:m  (over:io /write src-road [[/ %mime] !>(src-mime)])
     (do-check bin-road pax nam)
-  ;<  ~  bind:m  (make:io /write src-road |+[%.n mime+!>(src-mime) `%hoon])
+  ;<  ~  bind:m  (make:io /write src-road |+[%.n [[/ %mime] !>(src-mime)] `%hoon])
   (do-check bin-road pax nam)
 ::
 ++  replace
@@ -116,7 +116,7 @@
   ;<  =seen:nexus  bind:m  (peek:io /read src-road ~)
   ?.  ?=([%& %file *] seen)
     (pure:m [%error (crip "File not found: {(trip pax)}/{(trip nam)}.hoon")])
-  =/  current=@t  !<(@t q.cage.p.seen)
+  =/  current=@t  !<(@t q.sage.p.seen)
   =/  result=(unit tape)
     (replace (trip current) (trip u.old-string) (trip u.new-string))
   ?~  result

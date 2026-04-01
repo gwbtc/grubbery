@@ -67,8 +67,8 @@
   =/  road=road:tarball  [%& %& pax filename]
   ;<  exists=?  bind:m  (peek-exists:io /check road)
   ?:  exists
-    ;<  ~  bind:m  (over:io /write road mime+!>(file-mime))
+    ;<  ~  bind:m  (over:io /write road [[/ %mime] !>(file-mime)])
     (pure:m [%text (crip "Downloaded s3://{(trip s3-key)} to {(trip dest-path)}/{(trip filename)}")])
-  ;<  ~  bind:m  (make:io /write road |+[%.n mime+!>(file-mime) ext])
+  ;<  ~  bind:m  (make:io /write road |+[%.n [[/ %mime] !>(file-mime)] ext])
   (pure:m [%text (crip "Downloaded s3://{(trip s3-key)} to {(trip dest-path)}/{(trip filename)}")])
 --

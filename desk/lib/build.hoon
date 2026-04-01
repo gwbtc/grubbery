@@ -238,16 +238,16 @@
   =/  parsed  (parse-hoon pax src line-offset)
   ?:  ?=(%| -.parsed)  parsed
   (compile-hoon sut pax p.parsed)
-::  +extract-src: extract source text from a cage
+::  +extract-src: extract source text from a sage
 ::
 ::    Handles %hoon and %txt marks.
 ::
 ++  extract-src
-  |=  =cage
+  |=  =sage:tarball
   ^-  @t
-  ?+  p.cage  !!
-    %hoon  !<(@t q.cage)
-    %txt   (of-wain:format !<(wain q.cage))
+  ?+  name.p.sage  !!
+    %hoon  !<(@t q.sage)
+    %txt   (of-wain:format !<(wain q.sage))
   ==
 ::  +render-tang: render a tang to text for display
 ::
@@ -292,9 +292,9 @@
   %-  ~(gas by *source-map)
   %+  murn  ~(tap ba:tarball ball)
   |=  [=rail:tarball =content:tarball]
-  ?.  =(%hoon p.cage.content)  ~
+  ?.  =([/ %hoon] p.sage.content)  ~
   ?.  (has-hoon-ext name.rail)  ~
-  `[rail !<(@t q.cage.content)]
+  `[rail !<(@t q.sage.content)]
 ::  +has-hoon-ext: check if filename ends in .hoon
 ::
 ++  has-hoon-ext
@@ -361,8 +361,8 @@
     %-  ~(gas by *(map rail:tarball vase))
     %+  murn  ~(tap ba:tarball ball)
     |=  [=rail:tarball =content:tarball]
-    ?.  =(%mime p.cage.content)  ~
-    `[rail q.cage.content]
+    ?.  =([/ %mime] p.sage.content)  ~
+    `[rail q.sage.content]
   ::  Phase 1: Parse and resolve all sources
   ::
   =/  prep
@@ -508,8 +508,8 @@
           %+  roll
             %+  murn  ~(tap ba:tarball sub)
             |=  [=rail:tarball =content:tarball]
-            ?.  =(%mime p.cage.content)  ~
-            `[path.rail name.rail !<(mime q.cage.content)]
+            ?.  =([/ %mime] p.sage.content)  ~
+            `[path.rail name.rail !<(mime q.sage.content)]
           |=  [[pax=path nam=@ta mym=mime] acc=(axal (map @ta mime))]
           =/  nod=(map @ta mime)
             (fall (~(get of acc) pax) *(map @ta mime))
