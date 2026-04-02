@@ -1,7 +1,7 @@
-::  wallet nexus: bitcoin wallet management UI (stub)
+::  wallet nexus: bitcoin SPV wallet management UI
 ::
-/<  nex-server  /lib/nex/server.hoon
-/<  feather     /lib/feather.hoon
+/<  feather  /lib/feather.hoon
+/<  fi       /lib/feather-icons.hoon
 =<  ^-  nexus:nexus
     |%
     ++  on-load
@@ -12,9 +12,7 @@
           ?(~ [~ %0])
         %+  spin:loader  [sand gain ball]
         :~  (ver-row:loader 0)
-            [%fall %| /wallets [~ ~] [~ ~] empty-dir:loader]
-            [%fall %& [/ %'main.sig'] %.n [~ [/ %sig] !>(~)]]
-            [%fall %| /requests [~ ~] [~ ~] empty-dir:loader]
+            [%fall %& [/ %'page.html'] %.n [~ [/ %manx] !>(wallet-page)]]
         ==
       ==
     ::
@@ -25,105 +23,11 @@
       =/  m  (fiber:fiber:nexus ,~)
       ^-  process:fiber:nexus
       ?+    rail  stay:m
-          ::  /main.sig: bind paths and dispatch requests
-          ::
-          [~ %'main.sig']
-        ;<  ~  bind:m  (rise-wait:io prod "%wallet /main: failed")
-        ~&  >  "%wallet /main: binding /grubbery/wallet"
-        ;<  ~  bind:m  (bind-http:nex-server [~ /grubbery/wallet])
-        ;<  ~  bind:m  (bind-http:nex-server [~ /grubbery/wallet/delete])
-        ;<  ~  bind:m  (bind-http:nex-server [~ /grubbery/wallet/stream])
-        ~&  >  "%wallet /main: ready"
-        (http-dispatch:nex-server %wallet)
-          ::  /requests/*: individual request handlers
-          ::
-          [[%requests ~] @]
-        ;<  ~  bind:m  (rise-wait:io prod "%wallet /requests: failed")
-        =/  eyre-id=@ta  name.rail
-        ;<  [src=@p req=inbound-request:eyre]  bind:m  (get-state-as:io ,[src=@p inbound-request:eyre])
-        ;<  our=@p  bind:m  get-our:io
-        ?.  =(src our)
-          ;<  ~  bind:m  (send-simple:srv eyre-id [[403 ~] `(as-octs:mimes:html 'Forbidden')])
-          (pure:m ~)
-        ;<  =bowl:nexus  bind:m  (get-bowl:io /bowl)
-        =/  site=path  site:(parse-url:http-utils url.request.req)
-        =/  suffix=path
-          ?.  ?=([%grubbery %wallet *] site)  ~
-          t.t.site
-        ?+    suffix
-          ;<  ~  bind:m  (send-simple:srv eyre-id [[404 ~] `(as-octs:mimes:html 'Not Found')])
-          (pure:m ~)
-        ::
-            ~
-          ?:  ?=(%'POST' method.request.req)
-            ::  Create a new wallet grub
-            =/  bod=(unit octs)  body.request.req
-            ?~  bod
-              ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'Missing body')])
-              (pure:m ~)
-            =/  params=(list [@t @t])  (fall (rush q.u.bod yquy:de-purl:html) ~)
-            =/  wallet-name=@t
-              |-
-              ?~  params  'Unnamed'
-              =/  [key=@t val=@t]  i.params
-              ?:  =('wallet-name' key)  val
-              $(params t.params)
-            =/  wallet-key=@ta  (scot %da now.bowl)
-            ;<  ~  bind:m  (make:io /make [%| 1 %& /wallets wallet-key] |+[%.n [[/ %sig] !>(wallet-name)] ~])
-            ;<  ~  bind:m  (send-simple:srv eyre-id two-oh-four:http-utils)
-            (pure:m ~)
-          ::  GET /: serve wallet page
-          =/  bod=octs  (manx-to-octs:server (wallet-page))
-          ;<  ~  bind:m  (send-simple:srv eyre-id (mime-response:http-utils [/text/html bod]))
-          (pure:m ~)
-        ::
-            [%delete ~]
-          ?.  ?=(%'POST' method.request.req)
-            ;<  ~  bind:m  (send-simple:srv eyre-id [[405 ~] ~])
-            (pure:m ~)
-          =/  bod=(unit octs)  body.request.req
-          ?~  bod
-            ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'Missing body')])
-            (pure:m ~)
-          =/  params=(list [@t @t])  (fall (rush q.u.bod yquy:de-purl:html) ~)
-          =/  id=(unit @t)
-            |-
-            ?~  params  ~
-            =/  [key=@t val=@t]  i.params
-            ?:  =('id' key)  `val
-            $(params t.params)
-          ?~  id
-            ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'Missing id')])
-            (pure:m ~)
-          =/  wallet-key=@ta  u.id
-          ;<  ~  bind:m  (cull:io /cull [%| 1 %& /wallets wallet-key])
-          ;<  ~  bind:m  (send-simple:srv eyre-id two-oh-four:http-utils)
-          (pure:m ~)
-        ::
-            [%stream ~]
-          ?.  (is-sse-request:http-utils req)
-            ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'SSE only')])
-            (pure:m ~)
-          ;<  ~  bind:m  (send-header:srv eyre-id sse-header:http-utils)
-          ::  Subscribe to /wallets directory
-          ;<  *  bind:m  (keep:io /wallets [%| 1 %| /wallets] ~)
-          ;<  ~  bind:m  (send-wait:io (add now.bowl ~s30))
-          |-
-          ;<  nw=news-or-wake:io  bind:m  (take-news-or-wake:io /wallets)
-          ?-  -.nw
-              %wake
-            ;<  ~  bind:m  (send-data:srv eyre-id `sse-keep-alive:http-utils)
-            ;<  =bowl:nexus  bind:m  (get-bowl:io /sse)
-            ;<  ~  bind:m  (send-wait:io (add now.bowl ~s30))
-            $
-              %news
-            =/  =sse-event:http-utils
-              [~ `'wallet-list-update' (manx-to-wain:http-utils (render-wallets view.nw))]
-            =/  data=octs  (sse-encode:http-utils ~[sse-event])
-            ;<  ~  bind:m  (send-data:srv eyre-id `data)
-            $
-          ==
-        ==
+          [~ %'page.html']
+        ;<  ~  bind:m  (rise-wait:io prod "%wallet /page: failed")
+        ~&  >  "%wallet /page: rendered"
+        ;<  ~  bind:m  (replace:io !>(wallet-page))
+        stay:m
       ==
     ++  on-manu
       |=  =mana:nexus
@@ -134,122 +38,340 @@
             ~
           %-  crip
           """
-          WALLET NEXUS — Bitcoin wallet management with web UI
+          WALLET NEXUS — Bitcoin SPV wallet management
 
-          Manages Bitcoin wallets with a browser-based interface. Each wallet
-          is stored as a grub file in /wallets/. The web UI serves at
-          the registered HTTP prefix with live SSE updates.
+          Manages Bitcoin wallets, watch-only accounts, and signing
+          accounts. View at /grubbery/api/peek/wallet.wallet/page.html?mark=mime
 
           FILES:
-            main.sig            HTTP binding process. Serves wallet UI and
-                                handles wallet operations.
-            ver.ud              Schema version.
-
-          DIRECTORIES:
-            wallets/            Wallet storage. Each file is a wallet grub
-                                containing keys, addresses, and transaction
-                                history.
-            requests/           Per-request fibers for active HTTP connections.
+            page.html         Server-rendered wallet page (manx).
+            ver.ud            Schema version.
           """
-            [%wallets ~]
-          'Wallet storage. Each file is a wallet grub containing keys, addresses, and transaction history.'
-            [%requests ~]
-          'Per-request fibers for active HTTP connections to the wallet UI.'
         ==
           %|
         ?+  rail.p.mana  'File under the wallet nexus.'
-          [~ %'main.sig']  'Wallet HTTP binding process. Mark: sig. Serves wallet UI, handles wallet operations, streams live updates via SSE.'
-          [~ %'ver.ud']    'Schema version counter. Mark: ud.'
+          [~ %'page.html']  'Server-rendered wallet page. Mark: manx.'
+          [~ %'ver.ud']     'Schema version.'
         ==
       ==
     --
 |%
-++  srv  ~(. res:nex-server [%| 1 %& ~ %'main.sig'])
-::
-++  render-wallets
-  |=  =view:nexus
-  ^-  manx
-  ?.  ?=(%ball -.view)
-    ;div#wallet-list: No wallets
-  =/  files=(list [key=@ta =content:tarball])
-    ?~  fil.ball.view  ~
-    %+  sort  ~(tap by contents.u.fil.ball.view)
-    |=  [[a=@ta *] [b=@ta *]]
-    (aor a b)
-  ?~  files
-    ;div#wallet-list(style "padding: 16px; text-align: center; color: var(--f3);")
-      ;p: No wallets yet. Add one below.
-    ==
-  ;div#wallet-list
-    ;*  %+  turn  files
-        |=  [key=@ta =content:tarball]
-        ^-  manx
-        =/  name=@t  !<(@t q.sage.content)
-        ;div(style "display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px; background: var(--b1); border-radius: 8px; margin-bottom: 8px;")
-          ;div(style "flex: 1; min-width: 0;")
-            ;div(style "font-weight: bold; font-size: 16px;"): {(trip name)}
-            ;div(style "font-size: 12px; color: var(--f3); font-family: monospace;"): {(scow %da (slav %da key))}
-          ==
-          ;form(hx-post "/grubbery/wallet/delete", hx-swap "none")
-            ;input(type "hidden", name "id", value (trip key));
-            ;button(type "submit", style "padding: 6px 12px; background: var(--b2); border: 1px solid var(--b3); color: var(--f3); border-radius: 4px; cursor: pointer; font-size: 12px;"): Delete
-          ==
-        ==
-  ==
-::
 ++  wallet-page
-  |.
   ^-  manx
   ;html
     ;head
       ;title: Bitcoin Wallet
       ;meta(charset "utf-8");
       ;meta(name "viewport", content "width=device-width, initial-scale=1");
-      ;script(src "https://unpkg.com/htmx.org@2.0.3");
-      ;script(src "https://unpkg.com/htmx-ext-sse@2.2.2/sse.js");
       ;+  feather:feather
       ;style
         ;+  ;/  style-text
       ==
     ==
     ;body
-      ;div(style "max-width: 700px; margin: 0 auto; padding: 32px 16px;")
-        ;div(style "text-align: center; margin-bottom: 24px;")
-          ;h1(style "font-size: 28px; font-weight: bold; margin: 0 0 4px 0;"): Bitcoin Wallet
-          ;p(style "font-size: 14px; color: var(--f2); margin: 0;"): Manage your Bitcoin wallets
-        ==
-        ::  SSE connection for live updates
-        ;div(hx-ext "sse", sse-connect "/grubbery/wallet/stream", sse-swap "wallet-list-update")
-          ;div#wallet-list: Connecting...
-        ==
-        ::  Add wallet form
-        ;div(style "background: var(--b0); border: 1px solid var(--b2); border-radius: 8px; padding: 16px; margin-top: 24px;")
-          ;h2(style "font-size: 18px; font-weight: bold; margin: 0 0 16px 0; text-align: center;"): Add Wallet
-          ;form(hx-post "/grubbery/wallet", hx-swap "none", style "display: flex; flex-direction: column; gap: 12px;")
-            ;div
-              ;label(style "display: block; font-size: 13px; font-weight: bold; margin-bottom: 4px;"): Wallet Name
-              ;input(type "text", name "wallet-name", placeholder "My Bitcoin Wallet", required "true", style "width: 100%; padding: 8px; border: 1px solid var(--b3); border-radius: 4px; background: var(--b1); color: var(--f0); font-family: inherit; box-sizing: border-box;");
+      ;div(style "min-width: 650px; height: 100%;")
+        ;div.fc(style "height: 100%;")
+          ::  Fixed header
+          ;div.p5.ma.mw-page(style "flex-shrink: 0; padding-bottom: 0; width: 100%;")
+            ;div.tc.mb2
+              ;h1.s3.bold: ₿ Bitcoin Wallet
+              ;p.f2.s-1: Manage your Bitcoin wallets and accounts
             ==
-            ;button(type "submit", style "padding: 12px; background: var(--f-3); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 14px;"): Add Wallet
+          ==
+          ::  Scrollable content
+          ;div.fc.g3.p5.ma.mw-page(style "flex: 1; min-height: 0; overflow-y: auto; padding-top: 0; width: 100%;")
+            ;+  tab-container
+          ==
+        ==
+      ==
+      ;script
+        ;+  ;/  script-text
+      ==
+    ==
+  ==
+::
+++  tab-container
+  ^-  manx
+  ;div.tab-container.b0.br2(data-active-tab "wallets", style "box-shadow: 0 4px 12px rgba(0,0,0,0.15); overflow: hidden; display: flex; flex-direction: column; min-height: 0; flex: 1; width: 100%;")
+    ::  Tab buttons
+    ;div.fr.b1(style "flex-shrink: 0;")
+      ;button.tab-button.p4.grow.hover.pointer(data-tab "wallets", style "border: none; background: var(--b0); color: var(--f0); border-bottom: 3px solid var(--f-3); outline: none; flex: 1;"): Full Wallets
+      ;button.tab-button.p4.grow.hover.pointer(data-tab "watch", style "border: none; background: var(--b1); color: var(--f2); border-bottom: 3px solid transparent; outline: none; flex: 1;"): Watch-Only
+      ;button.tab-button.p4.grow.hover.pointer(data-tab "signing", style "border: none; background: var(--b1); color: var(--f2); border-bottom: 3px solid transparent; outline: none; flex: 1;"): Signing
+    ==
+    ::  Tab content
+    ;div.p3.b0(style "flex: 1; min-height: 0; display: flex; flex-direction: column;")
+      ;div#content-wallets.tab-content(style "display: flex; flex-direction: column; flex: 1; min-height: 0;")
+        ;+  wallets-panel
+      ==
+      ;div#content-watch.tab-content(style "display: none;")
+        ;+  watch-only-panel
+      ==
+      ;div#content-signing.tab-content(style "display: none;")
+        ;+  signing-panel
+      ==
+    ==
+  ==
+::  Full Wallets tab
+::
+++  wallets-panel
+  ^-  manx
+  ;div.fc.g2(style "flex: 1; min-height: 0;")
+    ;div#wallet-list-container.p4.b0.br2(style "flex: 1; min-height: 0; overflow-y: auto;")
+      ;div.p4.b1.br2.tc
+        ;div.s0.f2.mb2: No wallets yet
+        ;div.f3.s-1: Generate a new wallet or restore from a seed phrase below
+      ==
+    ==
+    ;div.p4.b2.br2(style "flex-shrink: 0;")
+      ;div.s0.bold.tc.hover.pointer(onclick "toggleAddPanel(this)", style "display: flex; align-items: center; justify-content: center; gap: 8px; padding-bottom: 4px;")
+        ; Add New Wallet
+        ;div.add-chevron(style "width: 16px; height: 16px; display: flex; align-items: center; transition: transform 0.2s;")
+          ;+  (make:fi 'chevron-down')
+        ==
+      ==
+      ;div.add-panel(style "display: none;")
+        ::  Generate / Restore sub-tabs
+        ;div.tab-container(data-active-tab "generate")
+          ;div.fr.g2(style "margin-bottom: 12px;")
+            ;button.tab-button.p2.grow.b0.br1.hover.pointer.bold(data-tab "generate", style "border: 1px solid var(--b3); outline: none;"): Generate
+            ;button.tab-button.p2.grow.b1.br1.hover.pointer.bold(data-tab "restore", style "border: 1px solid var(--b3); outline: none;"): Restore
+          ==
+          ;div#content-generate.tab-content(style "display: block;")
+            ;+  generate-wallet-form
+          ==
+          ;div#content-restore.tab-content(style "display: none;")
+            ;+  restore-wallet-form
           ==
         ==
       ==
     ==
   ==
 ::
+++  generate-wallet-form
+  ^-  manx
+  ;form(method "post")
+    ;div.fc.g1
+      ;input(type "hidden", name "action", value "add-wallet-from-entropy");
+      ;div
+        ;label.s-1.bold: Wallet Name
+        ;input.p2.b1.br1.wf(type "text", name "wallet-name", placeholder "My Bitcoin Wallet", required "true");
+      ==
+      ;button.p3.b-3.f-3.br2.hover.pointer(type "submit", style "outline: none;"): Generate Wallet
+    ==
+  ==
+::
+++  restore-wallet-form
+  ^-  manx
+  ;div
+    ;form(method "post")
+      ;div.fc.g1
+        ;input(type "hidden", name "action", value "add-wallet");
+        ;div
+          ;label.s-1.bold: Wallet Name
+          ;input.p2.b1.br1.wf(type "text", name "wallet-name", placeholder "My Restored Wallet", required "true");
+        ==
+        ;div
+          ;label.s-1.bold: Seed Format
+          ;div(style "display: flex; gap: 16px; margin-top: 4px;")
+            ;label(style "display: flex; align-items: center; gap: 4px; cursor: pointer;")
+              ;input(type "radio", name "seed-format", value "bip39", checked "true", onchange "updateSeedInput(this.value)");
+              ; BIP39 Mnemonic
+            ==
+            ;label(style "display: flex; align-items: center; gap: 4px; cursor: pointer;")
+              ;input(type "radio", name "seed-format", value "q", onchange "updateSeedInput(this.value)");
+              ; Urbit @q
+            ==
+          ==
+        ==
+        ;div
+          ;label.s-1.bold(id "seed-label"): Seed Phrase
+          ;textarea.p2.b1.br1.wf(id "seed-input", name "seed-phrase", placeholder "abandon abandon abandon...", rows "3", required "true", style "font-family: monospace;", oninput "this.value = this.value.replace(/[^a-z ]/g, '')");
+        ==
+        ;button.p3.b-3.f-3.br2.hover.pointer(type "submit", style "outline: none;"): Restore Wallet
+      ==
+    ==
+  ==
+::  Watch-Only tab
+::
+++  watch-only-panel
+  ^-  manx
+  ;div.fc.g2(style "flex: 1; min-height: 0;")
+    ;div#watch-only-list-container.p4.b0.br2(style "flex: 1; min-height: 0; overflow-y: auto;")
+      ;div.p4.b1.br2.tc
+        ;div.s0.f2.mb2: No watch-only accounts yet
+        ;div.f3.s-1: Import xpubs or addresses to track balances
+      ==
+    ==
+    ;div.p4.b2.br2(style "flex-shrink: 0;")
+      ;div.s0.bold.tc.hover.pointer(onclick "toggleAddPanel(this)", style "display: flex; align-items: center; justify-content: center; gap: 8px;")
+        ; Add Watch-Only Account
+        ;div.add-chevron(style "width: 16px; height: 16px; display: flex; align-items: center; transition: transform 0.2s;")
+          ;+  (make:fi 'chevron-down')
+        ==
+      ==
+      ;div.add-panel(style "display: none;")
+        ;form(method "post")
+          ;div.fc.g1
+            ;input(type "hidden", name "action", value "add-watch-only");
+            ;div
+              ;label.s-1.bold: Account Name
+              ;input.p2.b1.br1.wf(type "text", name "account-name", placeholder "Hardware Wallet", required "true");
+            ==
+            ;div
+              ;label.s-1.bold: Extended Public Key (xpub/tpub)
+              ;textarea.p2.b1.br1.wf(name "xpub", placeholder "xpub...", rows "1", required "true", style "font-family: monospace;");
+            ==
+            ;+  script-type-select
+            ;+  network-select
+            ;button.p3.b-3.f-3.br2.hover.pointer(type "submit", style "outline: none;"): Add Account
+          ==
+        ==
+      ==
+    ==
+  ==
+::  Signing tab
+::
+++  signing-panel
+  ^-  manx
+  ;div.fc.g2(style "flex: 1; min-height: 0;")
+    ;div#signing-list-container.p4.b0.br2(style "flex: 1; min-height: 0; overflow-y: auto;")
+      ;div.p4.b1.br2.tc
+        ;div.s0.f2.mb2: No signing accounts yet
+        ;div.f3.s-1: Import private keys or connect hardware wallets
+      ==
+    ==
+    ;div.p4.b2.br2(style "flex-shrink: 0;")
+      ;div.s0.bold.tc.hover.pointer(onclick "toggleAddPanel(this)", style "display: flex; align-items: center; justify-content: center; gap: 8px;")
+        ; Add Signing Account
+        ;div.add-chevron(style "width: 16px; height: 16px; display: flex; align-items: center; transition: transform 0.2s;")
+          ;+  (make:fi 'chevron-down')
+        ==
+      ==
+      ;div.add-panel(style "display: none;")
+        ;form(method "post")
+          ;div.fc.g1
+            ;input(type "hidden", name "action", value "add-signing");
+            ;div
+              ;label.s-1.bold: Account Name
+              ;input.p2.b1.br1.wf(type "text", name "account-name", placeholder "Hot Wallet", required "true");
+            ==
+            ;div
+              ;label.s-1.bold: Extended Private Key (xprv/tprv)
+              ;textarea.p2.b1.br1.wf(name "xprv", placeholder "xprv...", rows "1", required "true", style "font-family: monospace;");
+            ==
+            ;+  script-type-select
+            ;+  network-select
+            ;button.p3.b-3.f-3.br2.hover.pointer(type "submit", style "outline: none;"): Add Account
+          ==
+        ==
+      ==
+    ==
+  ==
+::  Shared form components
+::
+++  script-type-select
+  ^-  manx
+  ;div
+    ;label.s-1.bold: Script Type
+    ;select.p2.b1.br1.wf.hover.pointer(name "script-type", required "true", style "outline: none;")
+      ;option(value "p2wpkh", selected "selected"): Native SegWit (P2WPKH)
+      ;option(value "p2sh-p2wpkh"): Wrapped SegWit (P2SH-P2WPKH)
+      ;option(value "p2pkh"): Legacy (P2PKH)
+      ;option(value "p2tr"): Taproot (P2TR)
+    ==
+  ==
+::
+++  network-select
+  ^-  manx
+  ;div
+    ;label.s-1.bold: Network
+    ;select.p2.b1.br1.wf.hover.pointer(name "network", required "true", style "outline: none;")
+      ;option(value "main", selected "selected"): Bitcoin Mainnet
+      ;option(value "testnet"): Bitcoin Testnet
+    ==
+  ==
+::
 ++  style-text
   ^-  tape
   """
-  :root \{
-    --b0: #1a1a2e; --b1: #16213e; --b2: #0f3460; --b3: #533483;
-    --f0: #e4e4e4; --f1: #c4c4c4; --f2: #a4a4a4; --f3: #747474;
-    --f-1: #ff4444; --f-3: #e94560;
+  html, body \{
+    height: 100vh !important;
+    overflow: hidden !important;
+    margin: 0 !important;
   }
-  body \{
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-    background: var(--b0); color: var(--f0); margin: 0;
+  """
+::
+++  script-text
+  ^-  tape
+  """
+  function toggleAddPanel(el) \{
+    var panel = el.parentElement.querySelector('.add-panel');
+    var chevron = el.querySelector('.add-chevron');
+    if (panel.style.display === 'none' || !panel.style.display) \{
+      panel.style.display = 'block';
+      chevron.style.transform = 'rotate(180deg)';
+    } else \{
+      panel.style.display = 'none';
+      chevron.style.transform = '';
+    }
   }
-  a \{ color: var(--f-3); }
-  button:hover \{ opacity: 0.85; }
+
+  function updateSeedInput(format) \{
+    var input = document.getElementById('seed-input');
+    var label = document.getElementById('seed-label');
+    if (format === 'q') \{
+      label.textContent = 'Urbit @q';
+      input.placeholder = '~sampel-palnet or ~sampel-palnet-sampel-palnet...';
+      input.oninput = function() \{ this.value = this.value.replace(/[^a-z~.-]/g, ''); };
+    } else \{
+      label.textContent = 'Seed Phrase';
+      input.placeholder = 'abandon abandon abandon...';
+      input.oninput = function() \{ this.value = this.value.replace(/[^a-z ]/g, ''); };
+    }
+    input.value = '';
+  }
+
+  (function() \{
+    function activateTab(container, tabName) \{
+      container.querySelectorAll('.tab-content').forEach(function(c) \{
+        c.style.display = 'none';
+      });
+      var target = container.querySelector('#content-' + tabName);
+      if (target) \{
+        target.style.display = 'flex';
+        target.style.flexDirection = 'column';
+        target.style.flex = '1';
+        target.style.minHeight = '0';
+      }
+      container.querySelectorAll(':scope > .fr > .tab-button, :scope > .tab-button').forEach(function(b) \{
+        b.style.background = 'var(--b1)';
+        b.style.color = 'var(--f2)';
+        b.style.borderBottom = '3px solid transparent';
+      });
+      var activeBtn = container.querySelector('.tab-button[data-tab="' + tabName + '"]');
+      if (activeBtn) \{
+        activeBtn.style.background = 'var(--b0)';
+        activeBtn.style.color = 'var(--f0)';
+        activeBtn.style.borderBottom = '3px solid var(--f-3)';
+      }
+      container.setAttribute('data-active-tab', tabName);
+    }
+
+    document.querySelectorAll('.tab-button').forEach(function(btn) \{
+      btn.addEventListener('click', function() \{
+        var tabName = this.getAttribute('data-tab');
+        var container = this.closest('.tab-container');
+        activateTab(container, tabName);
+      });
+    });
+
+    document.querySelectorAll('.tab-container').forEach(function(container) \{
+      var activeTab = container.getAttribute('data-active-tab');
+      if (activeTab) \{
+        activateTab(container, activeTab);
+      }
+    });
+  })();
   """
 --

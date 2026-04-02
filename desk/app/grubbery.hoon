@@ -1023,35 +1023,34 @@
   =.  this  (load-ball-changes dest old-sub new-ball)
   =.  this  (bump-weir-changes dest sub-sand new-sand)
   =.  this  (audit-weir dest)
-  (reload-new-nexuses dest old-sub)
-::  Walk a subtree after on-load, reloading any newly created nexuses.
-::  Recurses through all directories (nexuses may be deeply nested).
-::  When a new nexus is found and reloaded, its reload-nexus-at will
-::  handle any nexuses created by ITS on-load via the same mechanism.
+  (reload-child-nexuses dest)
+::  Recursively reload all child nexuses top-to-bottom.
+::  Every directory with a neck is reloaded via reload-nexus-at,
+::  which runs on-load, spawns processes, and recurses into its children.
 ::
-++  reload-new-nexuses
-  |=  [dest=fold:tarball old-sub=ball:tarball]
+++  reload-child-nexuses
+  |=  dest=fold:tarball
   ^+  this
-  =/  new-sub=ball:tarball  (~(dip ba:tarball ball) dest)
-  =/  kids=(list [@ta ball:tarball])  ~(tap by dir.new-sub)
+  =/  sub=ball:tarball  (~(dip ba:tarball ball) dest)
+  =/  kids=(list [@ta ball:tarball])  ~(tap by dir.sub)
   |-
   ?~  kids  this
   =/  [kid-name=@ta kid-ball=ball:tarball]  i.kids
   =/  kid-path=fold:tarball  (snoc dest kid-name)
-  =/  old-kid=(unit ball:tarball)  (~(get by dir.old-sub) kid-name)
   =.  this
-    ::  New directory with a neck — reload it
-    ?:  ?&  ?=(~ old-kid)
-            ?=(^ fil.kid-ball)
+    ::  Directory with a neck — reload it (recurses into its children)
+    ::  Skip /code — it has a neck but is the code compiler, not a nexus
+    ?:  ?&  ?=(^ fil.kid-ball)
             ?=(^ neck.u.fil.kid-ball)
+            !=([/ %code] u.neck.u.fil.kid-ball)
         ==
       =/  kid-nex=(each nexus:nexus tang)
         (build-nexus kid-path u.neck.u.fil.kid-ball)
       ?:  ?=(%| -.kid-nex)
         (bang-nexus kid-path p.kid-nex)
       (reload-nexus-at kid-path p.kid-nex)
-    ::  Existing or non-nexus directory — recurse deeper
-    $(kids ~(tap by dir.kid-ball), dest kid-path, old-sub (fall old-kid *ball:tarball))
+    ::  Non-nexus directory — recurse deeper
+    $(kids ~(tap by dir.kid-ball), dest kid-path)
   $(kids t.kids)
 ::  Spawn processes for files in new ball, bump if content changed from old
 ::

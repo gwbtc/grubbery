@@ -6,6 +6,129 @@
 ::    store/
 ::      <name>.goal-store   each store is a flat file
 ::
+::  == GOAL DECOMPOSITION & AUDIT ==
+::
+::  the purpose of this system is to achieve the root goal — completely,
+::  thoroughly, and efficiently. every node in the tree exists only to
+::  serve that purpose. do not decompose for the sake of decomposing.
+::  do not create subgoals to fill out a symmetrical tree. if a goal
+::  can be achieved without further breakdown, leave it alone. if a
+::  branch doesn't move the root forward, it shouldn't exist.
+::
+::  not everything needs to be elaborated upfront. a goal can be a
+::  placeholder that invites its own decomposition later — "plan the
+::  dinner party menu" is a valid actionable goal whose output is
+::  more goals. decompose just enough to act, then let the work
+::  itself reveal the next level of structure.
+::
+::  a goal is a predicate over states — a condition that is either met or
+::  not. prospectively it's a goal, retrospectively it's a criterion. each
+::  goal's start and end nodes encode this: the start node marks entry into
+::  the work, the end node marks the completion condition being satisfied.
+::
+::  every goal's summary MUST describe a state of the world, not an
+::  activity. the summary is the criterion — reading it should tell
+::  you exactly what's true when this goal is done. the description
+::  field holds longer context, rationale, or notes.
+::
+::  tense and voice depend on the goal's level:
+::    - intermediate goals: present tense, as if evaluating from
+::      within the achieved state. "fish is a normal weeknight
+::      protein" not "learned to cook fish." you are there, looking
+::      around, checking whether it's true.
+::    - actionable goals: imperative, action-oriented. "make apple
+::      tart with pate brisee from scratch" not "made apple tart."
+::      these are tasks — something you sit down and do.
+::
+::  -- actionable goals --
+::
+::  an actionable goal is a concrete task that can be undertaken in a
+::  single focused session. for a human, this means one ultradian
+::  rhythm: roughly 90 minutes, at most 4 hours. for an LLM, this
+::  means completable before context compression becomes necessary —
+::  a single session's worth of coherent work. if it can't be started
+::  and finished (or meaningfully advanced to a clear stopping point)
+::  in that window, it needs further decomposition.
+::
+::  CRITICAL: a goal that describes a state requiring weeks or months
+::  of effort is NOT actionable, even if it has no children yet. "can
+::  make 10 weeknight dinners from memory" is an intermediate goal
+::  that needs decomposition into session-sized tasks like "cook the
+::  cherry tomato pasta without checking the recipe." do not confuse
+::  "describes a concrete state" with "is actionable." a goal can be
+::  concrete, state-based, and well-defined while still being far too
+::  large for a single session. only mark actionable when someone
+::  could literally sit down right now and do it.
+::
+::  -- decomposing a goal (top-down) --
+::
+::  to decompose a goal one level down: factor the parent predicate into
+::  component predicates along a single axis.
+::
+::  each subgoal must be:
+::    - strictly smaller: governs a proper subset of the parent's concern
+::    - independent: satisfiable without reference to sibling implementation
+::    - obviously contributing: the relationship to the parent is
+::      self-evident, not argued for
+::
+::  the decomposition should be maximally coarse. find the biggest pieces
+::  that are still strictly smaller than the parent and can't be merged
+::  without reconstituting it. this prevents skipping levels.
+::
+::  at every level, a subgoal describes a state to achieve, not a step to
+::  take. even at the bottom — where the solution space collapses to one
+::  and the subgoal becomes a task — it's still a predicate, just narrow.
+::
+::  test for correct level: if the subgoal could be satisfied by multiple
+::  implementations, it's still at goal level. solution space of one = leaf
+::  task. both are valid, but grain should be roughly uniform per level.
+::
+::  test for skipped levels: if any subset of subgoals can be coherently
+::  aggregated into an unnamed goal smaller than the parent but larger than
+::  them — that intermediate was skipped. name it, insert it.
+::
+::  in this system: decomposition = creating children under a parent. the
+::  containment edges (parent.start -> child.start, child.end ->
+::  parent.end) encode the "strict subset" relationship structurally.
+::
+::  -- auditing a goal tree (bottom-up) --
+::
+::  given an existing tree, verify structural coherence from leaves to root.
+::  at each node, three checks:
+::
+::  1. does every child obviously contribute to this parent?
+::     look at each child: is it immediately clear what part of the parent
+::     it serves? if you have to construct an argument, the child is
+::     misplaced or the decomposition axis is wrong.
+::
+::  2. could any subset of children be grouped under an unnamed intermediate?
+::     if yes, a level was skipped. that group should exist as a node.
+::
+::  3. are the children jointly sufficient?
+::     if all children are satisfied, is there a scenario where the parent
+::     still isn't? if so, a child is missing.
+::
+::  4. is each goal well-specified?
+::     can you evaluate whether this goal is met without ambiguity?
+::     if children seem incoherent or hard to audit, the problem may
+::     not be the children — the parent itself may be vague. a fuzzy
+::     parent produces fuzzy decompositions. if decomposition is
+::     difficult and the difficulty traces to a lack of clarity in
+::     the parent, sharpen the parent.
+::
+::  recurse upward. at every level the parent-child relationship should be
+::  boring — self-evident, no surprises.
+::
+::  failure modes:
+::    - orphan goals: children that don't obviously serve their parent.
+::      reparent or delete.
+::    - missing goals: a parent whose children can't jointly satisfy it.
+::      add what's missing.
+::    - skipped levels: children that aggregate into natural unnamed groups.
+::      insert intermediate nodes.
+::    - wrong axis: children that are all coupled or overlapping. the
+::      decomposition cut the wrong joint. restructure.
+::
 /<  goals       /lib/goals.hoon
 =<  ^-  nexus:nexus
     |%
