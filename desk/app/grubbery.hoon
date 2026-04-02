@@ -28,7 +28,6 @@
       =silo:nexus
       =gain:nexus
       =code:nexus
-      =boom:nexus
   ==
 ++  kel  21.000.000 :: start big; burn many at once
 ++  sut
@@ -732,33 +731,44 @@
 ++  store-proc
   |=  [here=rail:tarball =proc:fiber:nexus]
   ^+  this
-  =/  =pipe:nexus  (~(put by (fall (~(get of pool) path.here) ~)) name.here proc)
+  =/  old=pipe:nexus  (fall (~(get of pool) path.here) *pipe:nexus)
+  =/  =pipe:nexus  old(proc (~(put by proc.old) name.here proc))
   this(pool (~(put of pool) path.here pipe))
-::  Boom a nexus directory — store tang, +stay all processes under it
+::  Bang a nexus directory — store tang, +stay all processes under it
+::  TODO: bang subscriptions via born. Add proc=cass:clay to $tote that bumps
+::  on any proc change (spawn, crash, bang, heal) under that directory.
+::  Nexus bangs bump it too since they stay all procs. File-level healing is
+::  implicit (successful spawn overwrites |+tang with &+process). Nexus-level
+::  healing is explicit via clear-bangs-under before reload.
 ::
-++  boom-nexus
+++  bang-nexus
   |=  [dest=fold:tarball err=tang]
   ^+  this
-  =.  boom  (~(put-fold bm:nexus boom) dest err)
-  ::  Boom every file under dest so they show the error too
+  ~&  >>>  "BANG nexus {(spud dest)}"
+  %-  (slog err)
+  ::  Set bang on the pipe at dest
+  =/  old=pipe:nexus  (fall (~(get of pool) dest) *pipe:nexus)
+  =.  pool  (~(put of pool) dest old(bang `err))
+  ::  Bang every file under dest (set process to |+err)
   =/  sub=ball:tarball  (~(dip ba:tarball ball) dest)
-  =.  boom
+  =.  this
     %+  roll  ~(tap ba:tarball sub)
-    |=  [[=rail:tarball *] acc=_boom]
-    (~(put-file bm:nexus acc) [(weld dest path.rail) name.rail] err)
+    |=  [[=rail:tarball *] acc=_this]
+    (bang-file:acc [(weld dest path.rail) name.rail] err)
   ::  Replace all processes under dest with +stay
   (stay-all-procs dest)
-::  Boom a file — store tang, +stay its process
+::  Bang a file — store tang on its process
 ::
-++  boom-file
+++  bang-file
   |=  [here=rail:tarball err=tang]
   ^+  this
-  =.  boom  (~(put-file bm:nexus boom) here err)
-  =/  =pipe:nexus  (fall (~(get of pool) path.here) ~)
-  =/  old=(unit proc:fiber:nexus)  (~(get by pipe) name.here)
+  ~&  >>>  "BANG file {(spud (snoc path.here name.here))}"
+  %-  (slog err)
+  =/  =pipe:nexus  (fall (~(get of pool) path.here) *pipe:nexus)
+  =/  old=(unit proc:fiber:nexus)  (~(get by proc.pipe) name.here)
   =/  =proc:fiber:nexus
-    ?~  old  [stay:(fiber:fiber:nexus ,~) ~ ~]
-    [stay:(fiber:fiber:nexus ,~) next.u.old skip.u.old]
+    ?~  old  [|+err ~ ~]
+    [|+err next.u.old skip.u.old]
   (store-proc here proc)
 ::  Replace all processes under a directory with +stay
 ::
@@ -774,12 +784,12 @@
   ::  Stay all files in this directory's pipe
   =.  this
     ?~  fil.sub  this
-    =/  files=(list [@ta proc:fiber:nexus])  ~(tap by u.fil.sub)
+    =/  files=(list [@ta proc:fiber:nexus])  ~(tap by proc.u.fil.sub)
     |-
     ?~  files  this
     =/  old=proc:fiber:nexus  +.i.files
     =/  stay-proc=proc:fiber:nexus
-      [stay:(fiber:fiber:nexus ,~) next.old skip.old]
+      [&+stay:(fiber:fiber:nexus ,~) next.old skip.old]
     =.  this  (store-proc [here -.i.files] stay-proc)
     $(files t.files)
   ::  Recurse into subdirectories
@@ -788,18 +798,36 @@
   ?~  kids  this
   =.  this  (stay-pipe (snoc here -.i.kids) +.i.kids)
   $(kids t.kids)
-::  Clear all booms (nexus and file) under a directory
+::  Clear all bangs (nexus and file) under a directory
 ::
-++  clear-booms-under
+++  clear-bangs-under
   |=  dest=fold:tarball
-  ^+  boom
-  (~(clear bm:nexus boom) dest)
-::  Check if a file's nexus is boomed (any ancestor directory in fold boom)
+  ^-  pool:nexus
+  ?~  dest  (clear-pool-bangs pool)
+  =/  kid=pool:nexus  (~(gut by dir.pool) i.dest ^+(pool [~ ~]))
+  pool(dir (~(put by dir.pool) i.dest $(pool kid, dest t.dest)))
 ::
-++  is-nexus-boomed
+++  clear-pool-bangs
+  |=  pol=pool:nexus
+  ^-  pool:nexus
+  =.  fil.pol
+    ?~  fil.pol  ~
+    `[~ proc.u.fil.pol]
+  %=  pol
+    dir  %-  ~(run by dir.pol)
+         |=(sub=pool:nexus ^-(pool:nexus (clear-pool-bangs sub)))
+  ==
+::  Check if a file's nexus is banged (any ancestor directory has bang)
+::
+++  is-nexus-banged
   |=  here=rail:tarball
   ^-  ?
-  (~(has-fold bm:nexus boom) path.here)
+  =/  pax=path  path.here
+  |-
+  =/  pip=pipe:nexus  (fall (~(get of pool) pax) *pipe:nexus)
+  ?:  ?=(^ bang.pip)  &
+  ?~  pax  |
+  $(pax (snip `path`pax))
 ::  Delete a file from pool and ball (NOT born - it's a high-water mark)
 ::
 ++  delete
@@ -815,9 +843,9 @@
     (~(drop-hist si:nexus silo) hist.u.sok)
   ::  Remove from ball BEFORE notify so subscribers see deletion
   =.  ball  (~(del ba:tarball ball) dir name)
-  =.  boom  (~(del-file bm:nexus boom) [dir name])
   =.  this  (bump-file [dir name])
-  =/  =pipe:nexus  (~(del by (fall (~(get of pool) dir) ~)) name)
+  =/  old=pipe:nexus  (fall (~(get of pool) dir) *pipe:nexus)
+  =/  =pipe:nexus  old(proc (~(del by proc.old) name))
   =.  pool  (~(put of pool) dir pipe)
   ::  Rebuild if deletion is inside a code nexus
   =/  cod=(unit path)
@@ -885,7 +913,7 @@
   ::  Nack pokes in procs at this level
   =.  this
     ?~  fil.pool  this
-    =/  procs=(list [name=@ta =proc:fiber:nexus])  ~(tap by u.fil.pool)
+    =/  procs=(list [name=@ta =proc:fiber:nexus])  ~(tap by proc.u.fil.pool)
     |-
     ?~  procs  this
     =/  proc-rail=rail:tarball  [here name.i.procs]
@@ -959,7 +987,7 @@
     (build-nexus dest u.neck.u.fil.sub-ball)
   ?:  ?=(%| -.nex)
     ~&  >>  "reload-nexus: build error at {(spud dest)}"
-    (boom-nexus dest p.nex)
+    (bang-nexus dest p.nex)
   (reload-nexus-at dest p.nex)
 ::  Run on-load for a nexus at dest and apply results
 ::
@@ -972,16 +1000,16 @@
   =/  sub-gain=gain:nexus  (~(dip of gain) dest)
   =/  parent-weir=(unit weir:nexus)  fil.sub-sand
   =/  parent-neck=(unit neck:tarball)  ?~(fil.sub-ball ~ neck.u.fil.sub-ball)
-  ::  Clear all booms under this nexus before reloading
-  ::  (reload will re-boom anything that still fails)
-  =.  boom  (clear-booms-under dest)
+  ::  Clear all bangs under this nexus before reloading
+  ::  (reload will re-bang anything that still fails)
+  =.  pool  (clear-bangs-under dest)
   ::  Run on-load (may crash)
   =/  load-res=(each [sand:nexus gain:nexus ball:tarball] tang)
     (mule |.((on-load:nex sub-sand sub-gain sub-ball)))
   ?:  ?=(%| -.load-res)
-    ::  on-load crashed — boom this nexus, stay all processes
-    ~&  >>  "reload-nexus-at: boom at {(spud dest)}"
-    (boom-nexus dest p.load-res)
+    ::  on-load crashed — bang this nexus, stay all processes
+    ~&  >>  "reload-nexus-at: bang at {(spud dest)}"
+    (bang-nexus dest p.load-res)
   =/  [upd-sand=sand:nexus upd-gain=gain:nexus upd-ball=ball:tarball]
     p.load-res
   ::  Enforce parent weir on sand and parent neck on ball
@@ -1020,7 +1048,7 @@
       =/  kid-nex=(each nexus:nexus tang)
         (build-nexus kid-path u.neck.u.fil.kid-ball)
       ?:  ?=(%| -.kid-nex)
-        (boom-nexus kid-path p.kid-nex)
+        (bang-nexus kid-path p.kid-nex)
       (reload-nexus-at kid-path p.kid-nex)
     ::  Existing or non-nexus directory — recurse deeper
     $(kids ~(tap by dir.kid-ball), dest kid-path, old-sub (fall old-kid *ball:tarball))
@@ -1038,7 +1066,6 @@
   =/  file-rail=rail:tarball    [here file-name]
   =.  this  ?^((get-born file-rail) this (init-born file-rail))
   =.  this  (spawn-proc file-rail [%load ~])
-  =.  this  (enqu-take file-rail (sys-give /load) ~)
   $(files t.files)
 ::  Spawn processes for all files in new ball recursively.
 ::
@@ -1387,7 +1414,7 @@
     =/  dest-lane=(unit lane:tarball)  (lane-from-road:tarball [%& here] road.dart)
     :_  dest-lane
     ?-  -.load.dart
-      ?(%peek %keep %drop %seek %peep %manu %boom %code %font)  %peek  :: read operations
+      ?(%peek %keep %drop %seek %peep %manu %bang %code %font)  %peek  :: read operations
       %poke                       %poke
         $?  %make  %cull  %sand  %load
             %over  %gain  %lose
@@ -1565,19 +1592,23 @@
         (enqu-take here (sys-give /peek) ~ %peek wire.dart %& %file sk (lookup-gain dest) result)
       ==
       ::
-        %boom
-      ::  Query boom state at dest: subtree for directory, file error for file
+        %bang
+      ::  Query error state at dest: directory bangs or file error
       ?-    -.u.dest-lane
           %|
         =/  dest=fold:tarball  p.u.dest-lane
-        =/  sub-boom=boom:nexus  (~(dip of boom) dest)
-        (enqu-take here (sys-give /boom) ~ %boom wire.dart &+sub-boom)
+        =/  pip=pipe:nexus  (fall (~(get of pool) dest) *pipe:nexus)
+        =/  err=(map @ta (unit tang))
+          %-  ~(run by proc.pip)
+          |=(=proc:fiber:nexus ?:(?=(%| -.process.proc) `p.process.proc ~))
+        (enqu-take here (sys-give /bang) ~ %bang wire.dart &+[bang.pip err])
         ::
           %&
         =/  dest=rail:tarball  p.u.dest-lane
-        =/  node  (~(get bm:nexus boom) path.dest)
-        =/  err=(unit tang)  (~(get by fil.node) name.dest)
-        (enqu-take here (sys-give /boom) ~ %boom wire.dart |+err)
+        =/  pip=pipe:nexus  (fall (~(get of pool) path.dest) *pipe:nexus)
+        =/  prc=(unit proc:fiber:nexus)  (~(get by proc.pip) name.dest)
+        =/  err=(unit tang)  ?~(prc ~ ?:(?=(%| -.process.u.prc) `p.process.u.prc ~))
+        (enqu-take here (sys-give /bang) ~ %bang wire.dart |+err)
       ==
       ::
         %code
@@ -1808,32 +1839,35 @@
 ++  spawn-proc
   |=  [here=rail:tarball =prod:fiber:nexus]
   ^+  this
-  ::  Skip if nexus is boomed — don't try to build processes
-  ?:  (is-nexus-boomed here)
+  ::  Skip if nexus is banged — don't try to build processes
+  ?:  (is-nexus-banged here)
     this
   ::  Bump proc cass (born must already exist from save-file)
   =.  this  (bump-proc here)
-  ::  Build spool and process — boom file on crash
+  ::  Build spool and process — bang file on crash
   =/  spool-res=(each spool:fiber:nexus tang)
     (mule |.((fall (build-spool here) default-spool)))
   ?:  ?=(%| -.spool-res)
-    ~&  >>  "spawn-proc: boom {(spud (snoc path.here name.here))} — on-file crash"
-    (boom-file here p.spool-res)
+    ~&  >>  "spawn-proc: bang {(spud (snoc path.here name.here))} — on-file crash"
+    (bang-file here p.spool-res)
   =/  proc-res=(each process:fiber:nexus tang)
     (mule |.((p.spool-res prod)))
   ?:  ?=(%| -.proc-res)
-    ~&  >>  "spawn-proc: boom {(spud (snoc path.here name.here))} — spool crash"
-    (boom-file here p.proc-res)
-  ::  Success — clear any existing file boom
-  =.  boom  (~(del-file bm:nexus boom) here)
+    ~&  >>  "spawn-proc: bang {(spud (snoc path.here name.here))} — spool crash"
+    (bang-file here p.proc-res)
+  ::  Success — process is live
   =/  =process:fiber:nexus  p.proc-res
-  =/  =pipe:nexus  (fall (~(get of pool) path.here) ~)
-  =/  old=(unit proc:fiber:nexus)  (~(get by pipe) name.here)
-  ?~  old
-    (store-proc here [process ~ ~])
-  ::  Preserve existing queues
+  =/  =pipe:nexus  (fall (~(get of pool) path.here) *pipe:nexus)
+  =/  old=(unit proc:fiber:nexus)  (~(get by proc.pipe) name.here)
+  ::  Prepend start trigger, preserve existing queues if any
   ::
-  (store-proc here [process [next skip]:u.old])
+  =/  start=take:fiber:nexus  [(sys-give /start) ~]
+  =/  old-next=(qeu take:fiber:nexus)  ?~(old ~ next.u.old)
+  =/  old-skip=(qeu take:fiber:nexus)  ?~(old ~ skip.u.old)
+  =/  new-next=(qeu take:fiber:nexus)
+    (~(gas to *(qeu take:fiber:nexus)) [start ~(tap to old-next)])
+  =.  this  (store-proc here [&+process new-next old-skip])
+  (process-do-next here)
 ::
 ++  default-spool
   ^-  spool:fiber:nexus
@@ -1843,13 +1877,19 @@
 ++  process-take
   |=  [here=rail:tarball =take:fiber:nexus]
   ^+  this
-  ::  Get pipe at directory, or empty map
-  =/  =pipe:nexus  (fall (~(get of pool) path.here) ~)
+  ::  Get pipe at directory
+  =/  =pipe:nexus  (fall (~(get of pool) path.here) *pipe:nexus)
   ::  Get proc for this file - must exist
-  =/  prc=(unit proc:fiber:nexus)  (~(get by pipe) name.here)
+  =/  prc=(unit proc:fiber:nexus)  (~(get by proc.pipe) name.here)
   ?~  prc  this
-  ::  Add take to queue, store, and run
   =/  =proc:fiber:nexus  u.prc
+  ::  Crashed process — nack pokes immediately, queue everything else
+  ?:  ?=(%| -.process.proc)
+    ?:  ?=([* ~ %poke *] take)
+      (give-poke-sign here [take `p.process.proc])
+    =.  proc  proc(next (~(put to next.proc) take))
+    (store-proc here proc)
+  ::  Add take to queue, store, and run
   =.  proc  proc(next (~(put to next.proc) take))
   =.  this  (store-proc here proc)
   (process-do-next here)
@@ -1858,8 +1898,10 @@
   |=  here=rail:tarball
   ^+  this
   ::  Get proc from pool
-  =/  =pipe:nexus  (fall (~(get of pool) path.here) ~)
-  =/  =proc:fiber:nexus  (~(got by pipe) name.here)
+  =/  =pipe:nexus  (fall (~(get of pool) path.here) *pipe:nexus)
+  =/  =proc:fiber:nexus  (~(got by proc.pipe) name.here)
+  ::  Crashed process — takes accumulate in next, don't evaluate
+  ?:  ?=(%| -.process.proc)  this
   ::  Get file state from ball
   =/  file-data=(unit content:tarball)
     (~(get ba:tarball ball) path.here name.here)
@@ -1868,7 +1910,7 @@
   ::  Build bowl for this process (with filtered wex/sup)
   =/  =bowl:nexus  (make-bowl here)
   ::  Run the evaluator
-  =/  [darts=(list dart:nexus) done=(list took:eval:fiber:nexus) new-state=vase new-proc=_proc res=result:eval:fiber:nexus]
+  =/  [darts=(list dart:nexus) done=(list took:eval:fiber:nexus) new-state=vase new-proc=proc:fiber:nexus res=result:eval:fiber:nexus]
     (take:eval:fiber:nexus bowl fil-state proc)
   ::  Process darts (emit cards or enqueue takes)
   =.  this  (process-darts here darts)
@@ -1879,9 +1921,9 @@
   =/  validated=(each vase tang)
     (validate-new-sage path.here p.sage.u.file-data `fil-state new-state %.n)
   ?:  ?=(%| -.validated)
-    ::  Validation failed - boom the file (don't restart, infra is broken)
-    ~&  >>  "process-take: validation failed, booming {(spud (snoc path.here name.here))}"
-    (boom-file here p.validated)
+    ::  Validation failed - bang the file (don't restart, infra is broken)
+    ~&  >>  "process-take: validation failed, bang {(spud (snoc path.here name.here))}"
+    (bang-file here p.validated)
   ::  Validation passed - handle result normally
   ?-    -.res
       %next
@@ -1901,8 +1943,7 @@
       %fail
     ::  Process failed - don't save state, restart. Subs survive (wires still route).
     ~&  >>  "process-take: FAIL {(spud (snoc path.here name.here))}"
-    =.  this  (spawn-proc here [%rise err.res])
-    (enqu-take here (sys-give /rise) ~)
+    (spawn-proc here [%rise err.res])
   ==
 ::
 ++  poke
@@ -1967,8 +2008,7 @@
     ::  Save initial state (bumps file aeon since old content is ~)
     =.  this  (save-file dest-rail [~ p.sage.p.make p.validated])
     ::  Spawn process (needs file in ball for build-spool)
-    =.  this  (spawn-proc dest-rail [%make ~])
-    (enqu-take dest-rail (sys-give /make) ~)
+    (spawn-proc dest-rail [%make ~])
   ==
 ::
 ++  cull
@@ -2417,6 +2457,7 @@
     =/  stem=@ta  (strip-hoon:build name.rail)
     =/  =built:nexus
       ?:  ?=(%| -.build-result)
+        ~&  >>>  "build-code: FAILED {(spud (snoc path.rail name.rail))}"
         %-  (slog (flop p.build-result))
         [%tang p.build-result]
       =/  val-err=(unit tang)  (validate-build rail p.build-result)
@@ -2606,14 +2647,14 @@
     `fold
   ?~  dirs  $(remaining t.remaining)
   ::  Run on-load and apply results for each directory
-  ::  (reload-nexus-at handles boom/clear internally)
+  ::  (reload-nexus-at handles bang/clear internally)
   =/  dir-remaining=(list fold:tarball)  dirs
   |-
   ?~  dir-remaining  ^$(remaining t.remaining)
   =/  dest=fold:tarball  i.dir-remaining
   ?:  ?=(%| -.nex-res)
-    ~&  >>  "validate-nexuses: boom {(trip (rail-to-arm:tarball neck))} at {(spud dest)}"
-    =.  this  (boom-nexus dest p.nex-res)
+    ~&  >>  "validate-nexuses: bang {(trip (rail-to-arm:tarball neck))} at {(spud dest)}"
+    =.  this  (bang-nexus dest p.nex-res)
     $(dir-remaining t.dir-remaining)
   ~&  >  "validate-nexuses: reloading {(trip (rail-to-arm:tarball neck))} at {(spud dest)}"
   =.  this  (reload-nexus-at dest p.nex-res)

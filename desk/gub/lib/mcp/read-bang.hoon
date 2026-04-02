@@ -1,8 +1,8 @@
 /<  tools  /lib/nex/tools.hoon
 ^-  tool:tools
 |%
-++  name  'read_boom'
-++  description  'Check if a nexus directory or file has a boom (error). For directories returns the nexus error, for files returns the file error.'
+++  name  'read_bang'
+++  description  'Check if a nexus directory or file has an error (bang). For directories returns the nexus bang and per-file errors, for files returns the file error.'
 ++  parameters
   ^-  (map @t parameter-def:tools)
   (malt ~[['path' [%string 'Path to query (e.g. "/claude.claude/" for nexus, "/claude.claude/config.json" for file)']]])
@@ -18,24 +18,24 @@
     (pure:m [%error 'Missing or invalid argument: path'])
   =/  pax=@t  p.parsed
   =/  =road:tarball  (cord-to-road:tarball pax)
-  ;<  res=(each boom:nexus (unit tang))  bind:m  (get-boom:io /boom road)
+  ;<  res=(each bangs:nexus (unit tang))  bind:m  (get-bang:io /bang road)
   ?:  ?=(%| -.res)
-    ::  File boom
+    ::  File error
+    ::
     ?~  p.res
       (pure:m [%text (crip "No error for {(trip pax)}")])
     =/  rendered=tape
       %-  zing
       %+  turn  (flop u.p.res)
       |=(=tank (weld ~(ram re tank) "\0a"))
-    (pure:m [%text (crip "BOOM file {(trip pax)}\0a{rendered}")])
-  ::  Directory boom — extract this node's fol
-  =/  node=[fol=(unit tang) fil=(map @ta tang)]
-    (fall fil.p.res [~ ~])
-  ?~  fol.node
+    (pure:m [%text (crip "BANG file {(trip pax)}\0a{rendered}")])
+  ::  Directory bangs
+  ::
+  ?~  bang.p.res
     (pure:m [%text (crip "No nexus error at {(trip pax)}")])
   =/  rendered=tape
     %-  zing
-    %+  turn  (flop u.fol.node)
+    %+  turn  (flop u.bang.p.res)
     |=(=tank (weld ~(ram re tank) "\0a"))
-  (pure:m [%text (crip "BOOM nexus {(trip pax)}\0a{rendered}")])
+  (pure:m [%text (crip "BANG nexus {(trip pax)}\0a{rendered}")])
 --

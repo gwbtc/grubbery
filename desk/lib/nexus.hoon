@@ -1,7 +1,11 @@
 /+  tarball
 |%
 +$  card  card:agent:gall
-+$  built  $%([%vase =vase] [%tang =tang] [%mime =mime])
++$  built
+  $%  [%vase =vase]
+      [%tang =tang]
+      [%mime =mime]
+  ==
 +$  keys  (map rail:tarball @uv)
 +$  deps  (map rail:tarball (set rail:tarball))
 +$  bins  (axal (map @ta built))
@@ -104,7 +108,7 @@
       [%seek =lobe:clay]        :: find all [rail cass] pairs with this hash
       [%peep =find]
       [%manu ~]                 :: docs for this path (road resolves nexus + query)
-      [%boom ~]                 :: query boom state subtree at dest
+      [%bang ~]                 :: query error state at dest
       [%code ~]                 :: look up compiled artifacts at dest
       [%font ~]                 :: find code responsible for dest node
   ==
@@ -125,9 +129,9 @@
 ++  fiber
   |%
   +$  proc
-    $:  =process                 :: running fiber
-        next=(qeu take)          :: queue of held inputs
-        skip=(qeu take)          :: queue of skipped inputs
+    $:  process=(each process tang)  :: running fiber or crash error
+        next=(qeu take)              :: queue of held inputs
+        skip=(qeu take)              :: queue of skipped inputs
     ==
   ::  Relative source path for pokes
   ::
@@ -156,7 +160,7 @@
         [%seek =wire res=(each (list [=rail:tarball =cass:clay]) tang)] :: response to seek
         [%peep =wire res=(each (list [=cass:clay =sage:tarball]) tang)] :: response to peep
         [%manu =wire res=(each @t tang)] :: response to manu
-        [%boom =wire res=(each boom (unit tang))]  :: boom at dest: subtree or file error
+        [%bang =wire res=(each bangs (unit tang))]  :: directory bangs or file error
         [%over =wire err=(unit tang)] :: response to over (content overwrite)
         [%writ ~] :: notify grub its file was externally modified by %over
         [%bond =wire now=(each view tang)] :: subscription ack with initial view
@@ -275,7 +279,8 @@
         ::       should use hoss
         ::       but double compute and double slogs sucks
         ::
-        (mule |.((process.proc state in.take)))
+        ?>  ?=(%& -.process.proc)
+        (mule |.((p.process.proc state in.take)))
       ?:  ?=(%| -.res)
         =/  =tang  [leaf+"crash" p.res]
         :-  darts :: no output darts on failure
@@ -306,7 +311,7 @@
           state         state.output
           next.proc     (~(gas to next.proc) ~(tap to skip.proc))
           skip.proc     ~
-          process.proc  self.next.output
+          process.proc  &+self.next.output
           take          [give.take ~]
         ==
         ::
@@ -356,60 +361,9 @@
     --
   --
 ::
-+$  pipe  (map @ta proc:fiber)
-+$  pool  (axal pipe)
-+$  boom  (axal [fol=(unit tang) fil=(map @ta tang)])
-++  bm
-  |_  =boom
-  ++  get
-    |=  pax=path
-    ^-  [fol=(unit tang) fil=(map @ta tang)]
-    (fall (~(get of boom) pax) [~ ~])
-  ::  +put-fold: boom a directory (nexus on-load crash)
-  ::
-  ++  put-fold
-    |=  [pax=fold:tarball err=tang]
-    ^-  ^boom
-    =/  node  (get pax)
-    (~(put of boom) pax node(fol `err))
-  ::  +put-file: boom a file (on-file/spool crash)
-  ::
-  ++  put-file
-    |=  [here=rail:tarball err=tang]
-    ^-  ^boom
-    =/  node  (get path.here)
-    (~(put of boom) path.here node(fil (~(put by fil.node) name.here err)))
-  ::  +del-file: clear a file boom
-  ::
-  ++  del-file
-    |=  here=rail:tarball
-    ^-  ^boom
-    =/  node  (get path.here)
-    (~(put of boom) path.here node(fil (~(del by fil.node) name.here)))
-  ::  +clear: clear all booms under a directory
-  ::
-  ++  clear
-    |=  dest=fold:tarball
-    ^-  ^boom
-    (~(lop of boom) dest)
-  ::  +has-file: check if a specific file is boomed
-  ::
-  ++  has-file
-    |=  here=rail:tarball
-    ^-  ?
-    =/  node  (get path.here)
-    (~(has by fil.node) name.here)
-  ::  +has-fold: check if any ancestor directory is boomed
-  ::
-  ++  has-fold
-    |=  pax=path
-    ^-  ?
-    |-
-    =/  node  (get pax)
-    ?:  ?=(^ fol.node)  &
-    ?~  pax  |
-    $(pax (snip `path`pax))
-  --
++$  pipe   [bang=(unit tang) proc=(map @ta proc:fiber)]
++$  pool   (axal pipe)
++$  bangs  [bang=(unit tang) err=(map @ta (unit tang))]
 ::  Internal subscriptions: process watches tree locations
 ::
 +$  subscribers    (map rail:tarball [=wire mark=(unit mark)])

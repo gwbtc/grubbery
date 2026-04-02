@@ -695,20 +695,20 @@
       [%skip ~]
     [%done p.res.u.in]
   ==
-::  +get-boom: query boom state at a road
+::  +get-bang: query error state at a road
 ::
-++  get-boom
+++  get-bang
   |=  [=wire =road:tarball]
-  =/  m  (fiber ,(each boom:nexus (unit tang)))
+  =/  m  (fiber ,(each bangs:nexus (unit tang)))
   ^-  form:m
-  ;<  ~  bind:m  (send-dart %node wire road %boom ~)
+  ;<  ~  bind:m  (send-dart %node wire road %bang ~)
   |=  input
   :+  ~  state
   ?+  in  [%skip ~]
       ~  [%wait ~]
       [~ %veto *]
     [%fail (veto-error dart.u.in)]
-      [~ %boom * *]
+      [~ %bang * *]
     ?.  =(wire wire.u.in)
       [%skip ~]
     [%done res.u.in]

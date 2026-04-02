@@ -129,12 +129,12 @@
       ?~  ns  ~
       ?.  ?=(%| -.u.ns)  ~
       `p.u.ns
-    ::  Get boom state for this directory subtree
-    ;<  boom-res=(each boom:nexus (unit tang))  bind:m
-      (get-boom:io /boom [%& %| tree-path])
-    =/  dir-boom=boom:nexus
-      ?:(?=(%& -.boom-res) p.boom-res *boom:nexus)
-    =/  bod=octs  (manx-to-octs:server (render-dir tree-path root root-born root-sand now conversions code-namespace dir-boom))
+    ::  Get bang state for this directory
+    ;<  bang-res=(each bangs:nexus (unit tang))  bind:m
+      (get-bang:io /bang [%& %| tree-path])
+    =/  dir-bangs=bangs:nexus
+      ?:(?=(%& -.bang-res) p.bang-res *bangs:nexus)
+    =/  bod=octs  (manx-to-octs:server (render-dir tree-path root root-born root-sand now conversions code-namespace dir-bangs))
     ;<  ~  bind:m  (send-simple:srv eyre-id (mime-response:http-utils [/text/html bod]))
     (pure:m ~)
   ::  Not a directory — try as grub
@@ -796,7 +796,7 @@
           now=@da
           conversions=(map mars:clay tube:clay)
           code-namespace=(unit path)
-          =boom:nexus
+          =bangs:nexus
       ==
   ^-  manx
   =/  b=ball:tarball  (~(dip ba:tarball root) pax)
@@ -819,19 +819,17 @@
   =/  subdirs=(list @ta)  ~(tap in ~(key by kids))
   =/  files=(list @ta)  ~(tap in ~(key by file-contents))
   =/  url-prefix=tape  (build-url pax)
-  ::  Boom state at this level
-  =/  boom-here=[fol=(unit tang) fil=(map @ta tang)]
-    (fall (~(get of boom) ~) [~ ~])
-  =/  nexus-boom=(unit tang)  fol.boom-here
-  =/  file-booms=(map @ta tang)  fil.boom-here
+  ::  Error state at this level
+  =/  nexus-bang=(unit tang)  bang.bangs
+  =/  file-bangs=(map @ta (unit tang))  err.bangs
   ;html
     ;+  (page-head "Index of {path-display}")
     ;body
       ;+  (breadcrumb pax)
       ;h1: Index of {path-display}
       ;+  (dir-info b url-prefix dir-weir pax neck-url)
-      ;*  ?~  nexus-boom  ~
-          =/  rendered=tape  (render-tang u.nexus-boom)
+      ;*  ?~  nexus-bang  ~
+          =/  rendered=tape  (render-tang u.nexus-bang)
           :~  ;div.boom-banner(data-tang rendered, onclick "showBoom(this)")
                 nexus crashed — click for details
               ==
@@ -869,9 +867,8 @@
           |=  name=@ta
           ^-  manx
           =/  sub=ball:tarball  (~(got by kids) name)
-          =/  sub-boom-node=[fol=(unit tang) fil=(map @ta tang)]
-            (fall (~(get of boom) /[name]) [~ ~])
-          (render-dir-row name sub url-prefix fol.sub-boom-node)
+          ::  TODO: query sub-directory bang state
+          (render-dir-row name sub url-prefix ~)
         ::  Grubs
         =.  rows
           %+  weld  rows
@@ -879,8 +876,8 @@
           |=  name=@ta
           ^-  manx
           =/  =content:tarball  (~(got by file-contents) name)
-          =/  file-boom=(unit tang)  (~(get by file-booms) name)
-          (render-grub-row name content url-prefix pax b-born now conversions code-namespace file-boom)
+          =/  file-bang=(unit tang)  (fall (~(get by file-bangs) name) ~)
+          (render-grub-row name content url-prefix pax b-born now conversions code-namespace file-bang)
         rows
       ==
       ;div#boom-overlay.boom-modal-overlay
@@ -988,14 +985,14 @@
   "{(scow %ud (div n 1.048.576))} MB"
 ::
 ++  render-dir-row
-  |=  [name=@ta sub=ball:tarball url-prefix=tape nexus-boom=(unit tang)]
+  |=  [name=@ta sub=ball:tarball url-prefix=tape nexus-bang=(unit tang)]
   ^-  manx
   =/  dir-url=tape  "{url-prefix}/{(trip name)}"
   ;tr(data-name (trip name), data-type "dir")
     ;td
       ;a/"{dir-url}": {(trip name)}/
-      ;*  ?~  nexus-boom  ~
-          =/  rendered=tape  (render-tang u.nexus-boom)
+      ;*  ?~  nexus-bang  ~
+          =/  rendered=tape  (render-tang u.nexus-bang)
           :~  ;span.boom-icon(data-tang rendered, onclick "showBoom(this)"): !
           ==
     ==
@@ -1024,7 +1021,7 @@
           now=@da
           conversions=(map mars:clay tube:clay)
           code-namespace=(unit path)
-          file-boom=(unit tang)
+          file-bang=(unit tang)
       ==
   ^-  manx
   =/  mtime-display=tape
@@ -1076,8 +1073,8 @@
   ;tr(data-name (trip name), data-type "grub", data-size (scow %ud p.q.mime))
     ;td
       ;a/"{view-url}": {display-name}
-      ;*  ?~  file-boom  ~
-          =/  rendered=tape  (render-tang u.file-boom)
+      ;*  ?~  file-bang  ~
+          =/  rendered=tape  (render-tang u.file-bang)
           :~  ;span.boom-icon(data-tang rendered, onclick "showBoom(this)"): !
           ==
     ==
