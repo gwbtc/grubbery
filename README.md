@@ -2,9 +2,9 @@
 
 A tree-shaped manager for stateful long-running processes on Urbit.
 
-- Grub-based Shrubbery - Active, bug-like processes inspired by %spider in a file system inspired by Shrubbery. Emphasis on doing over being.
-- Grug-brained Shrubbery - Aims at a simple, mechanical feel with few moving parts.
-- Groundwire Shrubbery - Asynchronous monadic processes allow easy expression of complex block chain operations. Sandboxing provides security.
+- **Grub-based Shrubbery** - Active, bug-like processes inspired by %spider in a file system inspired by Shrubbery. Emphasis on **doing** over **being**.
+- **Grug-brained Shrubbery** - Aims at a simple, mechanical feel with few moving parts.
+- **Groundwire Shrubbery** - Asynchronous monadic processes allow easy expression of complex block chain operations. Sandboxing provides security.
 
 ## Core Concepts
 
