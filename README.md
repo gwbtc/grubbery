@@ -2,6 +2,10 @@
 
 A tree-shaped manager for stateful long-running processes on Urbit.
 
+- Grub-based Shrubbery - active bug-like processes inspired by %spider in a tree inspired by Shrubbery
+- Grug-brained Shrubbery - aims at a simple, mechanical feel, with only a handful of moving parts
+- Groundwire Shrubbery - Asynchronous thread-like pattern facilitates common blockchain operations and sandboxing provides security 
+
 ## Core Concepts
 
 **Grub** — a file and its running process. Files are the leaves of the tree. Each file has content (a cage) and a long-running fiber that operates on it. When a grub's process completes, the grub is deleted. When it fails, it restarts.
