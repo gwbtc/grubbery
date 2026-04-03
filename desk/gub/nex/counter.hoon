@@ -12,7 +12,7 @@
         %+  spin:loader  [sand gain ball]
         :~  (ver-row:loader 0)
             [%fall %| /counters [~ ~] [~ ~] empty-dir:loader]
-            [%fall %& [/ui/views %'page.html'] %.n [~ [/ %manx] !>((counter-page ~))]]
+            [%over %& [/ui/views %'page.html'] %.n [~ [/ %manx] !>((counter-page ~))]]
             [%fall %& [/ui %'main.sig'] %.n [~ [/ %sig] !>(~)]]
             [%fall %| /ui/requests [~ ~] [~ ~] empty-dir:loader]
         ==

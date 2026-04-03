@@ -1854,19 +1854,18 @@
   ?:  ?=(%| -.proc-res)
     ~&  >>  "spawn-proc: bang {(spud (snoc path.here name.here))} — spool crash"
     (bang-file here p.proc-res)
-  ::  Success — process is live
+  ::  Success — process is live. Move existing next into skip so the
+  ::  fresh process doesn't consume stale takes meant for the old one.
+  ::  They merge back on %cont when the process is ready.
   =/  =process:fiber:nexus  p.proc-res
   =/  =pipe:nexus  (fall (~(get of pool) path.here) *pipe:nexus)
   =/  old=(unit proc:fiber:nexus)  (~(get by proc.pipe) name.here)
-  ::  Prepend start trigger, preserve existing queues if any
-  ::
-  =/  start=take:fiber:nexus  [(sys-give /start) ~]
   =/  old-next=(qeu take:fiber:nexus)  ?~(old ~ next.u.old)
   =/  old-skip=(qeu take:fiber:nexus)  ?~(old ~ skip.u.old)
-  =/  new-next=(qeu take:fiber:nexus)
-    (~(gas to *(qeu take:fiber:nexus)) [start ~(tap to old-next)])
-  =.  this  (store-proc here [&+process new-next old-skip])
-  (process-do-next here)
+  =/  merged-skip=(qeu take:fiber:nexus)
+    (~(gas to old-skip) ~(tap to old-next))
+  =.  this  (store-proc here [&+process ~ merged-skip])
+  (enqu-take here (sys-give /start) ~)
 ::
 ++  default-spool
   ^-  spool:fiber:nexus
@@ -1941,8 +1940,22 @@
     (delete path.here name.here)
       %fail
     ::  Process failed - don't save state, restart. Subs survive (wires still route).
-    ~&  >>  "process-take: FAIL {(spud (snoc path.here name.here))}"
-    (spawn-proc here [%rise err.res])
+    ::  Sync queues (consumed takes removed), rebuild process, enqueue
+    ::  rise via abet. Same pattern as spawn-proc.
+    ?:  (is-nexus-banged here)  this
+    =.  this  (bump-proc here)
+    =/  spool-res=(each spool:fiber:nexus tang)
+      (mule |.((fall (build-spool here) default-spool)))
+    ?:  ?=(%| -.spool-res)
+      (bang-file here p.spool-res)
+    =/  proc-res=(each process:fiber:nexus tang)
+      (mule |.((p.spool-res [%rise err.res])))
+    ?:  ?=(%| -.proc-res)
+      (bang-file here p.proc-res)
+    =/  merged-skip=(qeu take:fiber:nexus)
+      (~(gas to skip.new-proc) ~(tap to next.new-proc))
+    =.  this  (store-proc here [&+p.proc-res ~ merged-skip])
+    (enqu-take here (sys-give /rise) ~)
   ==
 ::
 ++  poke
