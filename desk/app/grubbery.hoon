@@ -68,18 +68,22 @@
   =/  lmp=lump:tarball  (fall fil.ball *lump:tarball)
   =.  ball  ball(fil `lmp(neck `[/ %root]))
   ::  Compile code from Clay
+  ~&  >>  "on-init: sync-gub"
   =^  gub-cards  state  abet:sync-gub:hc
   ::  Reload root nexus (hardcoded — after code compile so child nexuses build)
+  ~&  >>  "on-init: reload-nexus-at"
   =^  root-cards  state  abet:(reload-nexus-at:hc / root)
-  =^  load-cards  state  abet:(load-ball-changes:hc / *ball:tarball ball)
+  ~&  >>  "on-init: sync-dill"
   =^  dill-cards  state  abet:sync-dill:hc
+  ~&  >>  "on-init: sync-clay"
   =^  clay-cards  state  abet:sync-clay:hc
+  ~&  >>  "on-init: sync-jael"
   =^  jael-cards  state  abet:sync-jael:hc
+  ~&  >>  "on-init: done"
   :_  this
   ;:  weld
     root-cards
     gub-cards
-    load-cards
     dill-cards
     clay-cards
     jael-cards
@@ -98,22 +102,23 @@
       %0
     ::  Restore all state
     =.  state  old
-    ::  Capture ball before rebuild (for change detection)
-    =/  pre-ball=ball:tarball  ball
     ::  Compile code from Clay (cascades nexus on-loads)
+    ~&  >>  "on-load: sync-gub"
     =^  gub-cards  state  abet:sync-gub:hc
     ::  Reload root nexus (hardcoded — runs on every app reload, after code compile)
+    ~&  >>  "on-load: reload-nexus-at"
     =^  root-cards  state  abet:(reload-nexus-at:hc / root)
-    ::  Sync all changes
-    =^  load-cards  state  abet:(load-ball-changes:hc / pre-ball ball)
+    ~&  >>  "on-load: sync-dill"
     =^  dill-cards  state  abet:sync-dill:hc
+    ~&  >>  "on-load: sync-clay"
     =^  clay-cards  state  abet:sync-clay:hc
+    ~&  >>  "on-load: sync-jael"
     =^  jael-cards  state  abet:sync-jael:hc
+    ~&  >>  "on-load: done"
     :_  this
     ;:  weld
       root-cards
       gub-cards
-      load-cards
       dill-cards
       clay-cards
       jael-cards
@@ -1790,14 +1795,17 @@
         ?-    -.u.dest-lane
             %|  [%& rel-path]
             %&
+          ?~  rel-path
+            [%& ~]
           =/  =mark
             =/  content=(unit content:tarball)
               (~(get ba:tarball ball) path.p.u.dest-lane name.p.u.dest-lane)
             (fall (bind content |=(c=content:tarball name.p.sage.c)) %$)
-          [%| [(snip rel-path) (rear rel-path)] mark]
+          [%| [(snip `path`rel-path) (rear rel-path)] mark]
         ==
-      =/  text=@t  (on-manu:p.nex-res mana)
-      (enqu-take here (sys-give /manu) ~ %manu wire.dart &+text)
+      =/  manu-res=(each @t tang)
+        (mule |.((on-manu:p.nex-res mana)))
+      (enqu-take here (sys-give /manu) ~ %manu wire.dart manu-res)
     ==
     ::
       %manu
@@ -1806,8 +1814,9 @@
     =/  nex-res=(each nexus:nexus tang)  (build-nexus cod neck.dart)
     ?:  ?=(%| -.nex-res)
       (enqu-take here (sys-give /manu) ~ %manu wire.dart |+~[leaf+"nexus not found: {(trip (rail-to-arm:tarball neck.dart))}"])
-    =/  text=@t  (on-manu:p.nex-res mana.dart)
-    (enqu-take here (sys-give /manu) ~ %manu wire.dart &+text)
+    =/  manu-res=(each @t tang)
+      (mule |.((on-manu:p.nex-res mana.dart)))
+    (enqu-take here (sys-give /manu) ~ %manu wire.dart manu-res)
     ::
       %scry
     ?~  scry.dart
