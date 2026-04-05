@@ -20,8 +20,6 @@
             [%over %& [/ %'page.html'] %.n [~ [/ %manx] !>((wallet-page ~))]]
             [%fall %| /wallets [~ ~] [~ ~] empty-dir:loader]
             [%fall %| /ui/sse [~ ~] [~ ~] empty-dir:loader]
-            [%fall %| /ui/views [~ ~] [~ ~] empty-dir:loader]
-            [%load %| /wallets /ui/views/wallets wallets-to-views]
             [%over %& [/ui/sse %'wallets.html'] %.n [~ [/ %manx] !>((wallet-list-html ~))]]
         ==
       ==
@@ -72,10 +70,13 @@
             =/  pubkey=@ux  (seed-to-pubkey u.sd)
             =/  wallet-key=@ta  (crip (hexn:http-utils pubkey))
             =/  wal=wallet-data  [wallet-name u.sd pubkey]
+            =/  wallet-dir=@ta  (cat 3 wallet-key '.wallet')
+            =/  wal-lump=lump:tarball
+              :+  ~  `[/wallet %wallet]
+              (~(put by *(map @ta content:tarball)) %'data.wallet' [~ [/ %wallet] !>(wal)])
+            =/  wal-ball=ball:tarball  [`wal-lump ~]
             ;<  ~  bind:m
-              (make:io /create [%| 0 %& /wallets wallet-key] |+[%.n [[/ %wallet] !>(wal)] ~])
-            ;<  ~  bind:m
-              (make:io /create-view [%| 0 %& /ui/views/wallets (cat 3 wallet-key '.html')] |+[%.n [[/ %manx] !>((wallet-detail-page wal))] ~])
+              (make:io /create [%| 0 %| (snoc /wallets wallet-dir)] &+[*sand:nexus *gain:nexus wal-ball])
             $
               %'add-wallet-from-entropy'
             =/  wallet-name=@t
@@ -86,19 +87,21 @@
             =/  pubkey=@ux  (seed-to-pubkey [%t seed-phrase])
             =/  wallet-key=@ta  (crip (hexn:http-utils pubkey))
             =/  wal=wallet-data  [wallet-name [%t seed-phrase] pubkey]
+            =/  wallet-dir=@ta  (cat 3 wallet-key '.wallet')
+            =/  wal-lump=lump:tarball
+              :+  ~  `[/wallet %wallet]
+              (~(put by *(map @ta content:tarball)) %'data.wallet' [~ [/ %wallet] !>(wal)])
+            =/  wal-ball=ball:tarball  [`wal-lump ~]
             ;<  ~  bind:m
-              (make:io /create [%| 0 %& /wallets wallet-key] |+[%.n [[/ %wallet] !>(wal)] ~])
-            ;<  ~  bind:m
-              (make:io /create-view [%| 0 %& /ui/views/wallets (cat 3 wallet-key '.html')] |+[%.n [[/ %manx] !>((wallet-detail-page wal))] ~])
+              (make:io /create [%| 0 %| (snoc /wallets wallet-dir)] &+[*sand:nexus *gain:nexus wal-ball])
             $
               %'remove-wallet'
             =/  pubkey=@t
               (~(dog jo:json-utils jon) /pubkey so:dejs:format)
             =/  wallet-key=@ta  (crip (trip pubkey))
+            =/  wallet-dir=@ta  (cat 3 wallet-key '.wallet')
             ;<  ~  bind:m
-              (cull:io /delete [%| 0 %& /wallets wallet-key])
-            ;<  ~  bind:m
-              (cull:io /delete-view [%| 0 %& /ui/views/wallets (cat 3 wallet-key '.html')])
+              (cull:io /delete [%| 0 %| (snoc /wallets wallet-dir)])
             $
           ==
         ==
@@ -128,24 +131,6 @@
         =/  wals=(list wallet-data)  (view-to-wallets upd)
         ;<  ~  bind:m  (replace:io !>((wallet-list-html wals)))
         $
-          ::  /ui/views/wallets/*.html: per-wallet detail page
-          ::
-          [[%ui %views %wallets ~] @]
-        ;<  ~  bind:m  (rise-wait:io prod "%wallet /ui/views/wallets: failed")
-        =/  wallet-key=@ta
-          =/  nt=tape  (trip name.rail)
-          (crip (scag (sub (lent nt) 5) nt))
-        ;<  init=view:nexus  bind:m
-          (keep:io /wal (cord-to-road:tarball '../../../wallets/') ~)
-        =/  wal=(unit wallet-data)  (find-wallet-in-view init wallet-key)
-        ?~  wal  stay:m
-        ;<  ~  bind:m  (replace:io !>((wallet-detail-page u.wal)))
-        |-
-        ;<  upd=view:nexus  bind:m  (take-news:io /wal)
-        =/  wal=(unit wallet-data)  (find-wallet-in-view upd wallet-key)
-        ?~  wal  stay:m
-        ;<  ~  bind:m  (replace:io !>((wallet-detail-page u.wal)))
-        $
       ==
     ++  on-manu
       |=  =mana:nexus
@@ -159,7 +144,7 @@
           WALLET NEXUS — Bitcoin SPV wallet management
 
           Manages Bitcoin wallets, watch-only accounts, and signing
-          accounts. View at /grubbery/api/file/wallet.wallet/page.html
+          accounts. View at /grubbery/api/file/wallet.wallet_app/page.html
 
           FILES:
             main.sig          Poke handler for wallet actions.
@@ -167,17 +152,11 @@
             ver.ud            Schema version.
 
           DIRECTORIES:
-            wallets/          Wallet storage. Each file keyed by pubkey.
-            ui/views/         Server-rendered HTML views.
-            ui/views/wallets/ Per-wallet detail pages. Keyed by fingerprint.
+            wallets/          Per-wallet nexuses. Each keyed by pubkey fingerprint.
             ui/sse/           SSE streams. Sanitized data for live UI updates.
           """
             [%wallets ~]
-          'Wallet storage. Each file is a wallet grub keyed by master public key.'
-            [%ui %views ~]
-          'Server-rendered HTML views.'
-            [%ui %views %wallets ~]
-          'Per-wallet detail pages. Each file is a manx keyed by wallet fingerprint.'
+          'Per-wallet nexuses. Each directory keyed by pubkey fingerprint.'
             [%ui %sse ~]
           'SSE streams. Sanitized wallet data for live UI updates via keep endpoint.'
         ==
@@ -187,7 +166,6 @@
           [~ %'page.html']             'Server-rendered wallet page. Mark: manx.'
           [~ %'ver.ud']                'Schema version.'
           [[%ui %sse ~] %'wallets.html']  'Wallet list HTML fragment for SSE. Mark: manx.'
-          [[%ui %views %wallets ~] @]  'Per-wallet detail page. Mark: manx.'
         ==
       ==
     --
@@ -253,40 +231,13 @@
   |=  =view:nexus
   ^-  (list wallet-data)
   ?.  ?=([%ball *] view)  ~
-  =/  =lump:tarball  (fall fil.ball.view *lump:tarball)
-  %+  murn  ~(tap by contents.lump)
-  |=  [name=@ta =content:tarball]
-  ?.  ?=(%wallet name.p.sage.content)  ~
-  (mole |.(!<(wallet-data q.sage.content)))
-::
-++  find-wallet-in-view
-  |=  [=view:nexus key=@ta]
-  ^-  (unit wallet-data)
-  ?.  ?=([%ball *] view)  ~
-  =/  =lump:tarball  (fall fil.ball.view *lump:tarball)
-  =/  ct=(unit content:tarball)  (~(get by contents.lump) key)
+  %+  murn  ~(tap by dir.ball.view)
+  |=  [name=@ta sub=ball:tarball]
+  =/  sub-lump=lump:tarball  (fall fil.sub *lump:tarball)
+  =/  ct=(unit content:tarball)  (~(get by contents.sub-lump) 'data.wallet')
   ?~  ct  ~
   ?.  ?=(%wallet name.p.sage.u.ct)  ~
   (mole |.(!<(wallet-data q.sage.u.ct)))
-::  +wallets-to-views: fold-load that transforms /wallets/ ball into
-::  /ui/views/wallets/ ball with rendered detail pages
-::
-++  wallets-to-views
-  |=  [=sand:nexus =gain:nexus =ball:tarball]
-  ^-  [sand:nexus gain:nexus ball:tarball]
-  =/  =lump:tarball  (fall fil.ball *lump:tarball)
-  =/  new-ball=ball:tarball  *ball:tarball
-  =/  entries=(list [@ta content:tarball])  ~(tap by contents.lump)
-  |-
-  ?~  entries  [*sand:nexus *gain:nexus new-ball]
-  =/  [key=@ta =content:tarball]  i.entries
-  ?.  ?=(%wallet name.p.sage.content)  $(entries t.entries)
-  =/  wal=(unit wallet-data)  (mole |.(!<(wallet-data q.sage.content)))
-  ?~  wal  $(entries t.entries)
-  =/  view-name=@ta  (cat 3 key '.html')
-  =/  view-content=content:tarball  [~ [/ %manx] !>((wallet-detail-page u.wal))]
-  =.  new-ball  (~(put ba:tarball new-ball) [/ view-name] view-content)
-  $(entries t.entries)
 ::
 ++  seed-to-cord
   |=  =seed
@@ -425,7 +376,7 @@
   ^-  manx
   =/  wallet-key=tape  (hexn:http-utils fingerprint.wal)
   =/  detail-url=tape
-    "/grubbery/api/file/wallet.wallet/ui/views/wallets/{wallet-key}.html"
+    "/grubbery/api/file/wallet.wallet_app/wallets/{wallet-key}.wallet/page.html"
   ;div.p3.b1.br2.hover.pointer
     =onclick  "window.location.href='{detail-url}'"
     =style  "display: flex; justify-content: space-between; align-items: center; gap: 12px;"
@@ -451,52 +402,6 @@
       =style  "background: var(--b2); border: 1px solid var(--b3); color: var(--f3); display: flex; align-items: center; width: 32px; height: 32px; justify-content: center; outline: none; flex-shrink: 0;"
       ;div(style "width: 16px; height: 16px; display: flex; align-items: center; justify-content: center;")
         ;+  (make:fi 'trash-2')
-      ==
-    ==
-  ==
-::  wallet detail page
-::
-++  wallet-detail-page
-  |=  wal=wallet-data
-  ^-  manx
-  =/  back-url=tape
-    "/grubbery/api/file/wallet.wallet/page.html"
-  ;html
-    ;head
-      ;title: {(trip name.wal)}
-      ;meta(charset "utf-8");
-      ;meta(name "viewport", content "width=device-width, initial-scale=1");
-      ;+  feather:feather
-      ;style
-        ;+  ;/  style-text
-      ==
-    ==
-    ;body
-      ;div(style "min-width: 650px; height: 100%;")
-        ;div.fc.g3.p5.ma.mw-page(style "height: 100%;")
-          ;div(style "flex-shrink: 0; display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;")
-            ;a.hover.pointer(href back-url, style "color: var(--f3); text-decoration: none;"): ← Back to Wallets
-          ==
-          ;div.p4.b1.br2(style "flex-shrink: 0;")
-            ;h1.s2.bold.mb2: {(trip name.wal)}
-            ;div.mb2(style "display: flex; gap: 8px; align-items: center;")
-              ;span.f3.s-1: Seed:
-              ;code.mono.s-2.p2.b2.br1: {(mask-seed seed.wal)}
-              ;button.p1.b0.br1.hover.pointer
-                =data-seed  (trip (seed-to-cord seed.wal))
-                =onclick  "copyToClipboard(this.dataset.seed)"
-                =style  "background: transparent; border: 1px solid var(--b3); color: var(--f3); display: flex; align-items: center; justify-content: center; outline: none;"
-                ;div(style "width: 14px; height: 14px; display: flex; align-items: center; justify-content: center;")
-                  ;+  (make:fi 'copy')
-                ==
-              ==
-            ==
-          ==
-          ;div.fc.g3(style "flex: 1; min-height: 0;");
-        ==
-      ==
-      ;script
-        ;+  ;/  detail-script-text
       ==
     ==
   ==
@@ -673,19 +578,11 @@
   }
   """
 ::
-++  detail-script-text
-  ^-  tape
-  """
-  function copyToClipboard(text) \{
-    navigator.clipboard.writeText(text);
-  }
-  """
-::
 ++  script-text
   ^-  tape
   """
   var API = '/' + window.location.pathname.split('/')[1] + '/'+'api';
-  var BASE = 'wallet.wallet';
+  var BASE = 'wallet.wallet_app';
 
   function poke(body, cb) \{
     var url = API + '/'+'poke/' + BASE + '/'+'main.sig?mark=json';

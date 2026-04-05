@@ -67,7 +67,7 @@
         explorer.explorer/ Web-based tarball file browser.
         counter.counter/   Auto-incrementing counters with live UI.
         peers.peers/       External ship gateway with role-based access control.
-        wallet.wallet_app/ Bitcoin wallet management.
+        wallet.wallet_app/ Bitcoin wallet management with per-wallet nexuses.
 
       SYSTEM:
         sys/               System internals — build compiler, terminal logs,
