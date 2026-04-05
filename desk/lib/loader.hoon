@@ -29,7 +29,7 @@
       [%over %& =rail:tarball gain=? =content:tarball]
       [%over %| =path =sand:nexus =gain:nexus =ball:tarball]
       [%load %& from=rail:tarball to=rail:tarball =file-load]
-      [%load %| from=path to=path =fold-load]
+      [%load %| from=fold:tarball to=fold:tarball =fold-load]
   ==
 ::
 +$  ver  (unit @ud)

@@ -1237,7 +1237,7 @@
 ++  notify
   |=  old-born=born:nexus
   ^+  this
-  =/  changed=(set lane:tarball)  (diff-born:nexus old-born born)
+  =/  changed=(set lane:tarball)  (diff-born-state:nexus old-born born)
   ?:  =(~ changed)  this
   ::  For each watched lane, find subscribers and send news
   =/  watched=(list [target=lane:tarball watchers=(map rail:tarball [=wire mark=(unit mark)])])
@@ -1841,8 +1841,8 @@
   ::  Skip if nexus is banged — don't try to build processes
   ?:  (is-nexus-banged here)
     this
-  ::  Bump proc cass (born must already exist from save-file)
-  =.  this  (bump-proc here)
+  ::  Bump proc cass quietly (caller batches notify)
+  =.  this  (bump-proc here %.n)
   ::  Build spool and process — bang file on crash
   =/  spool-res=(each spool:fiber:nexus tang)
     (mule |.((fall (build-spool here) default-spool)))
@@ -1943,7 +1943,7 @@
     ::  Sync queues (consumed takes removed), rebuild process, enqueue
     ::  rise via abet. Same pattern as spawn-proc.
     ?:  (is-nexus-banged here)  this
-    =.  this  (bump-proc here)
+    =.  this  (bump-proc here %.y)
     =/  spool-res=(each spool:fiber:nexus tang)
       (mule |.((fall (build-spool here) default-spool)))
     ?:  ?=(%| -.spool-res)
@@ -2020,7 +2020,9 @@
     ::  Save initial state (bumps file aeon since old content is ~)
     =.  this  (save-file dest-rail [~ p.sage.p.make p.validated])
     ::  Spawn process (needs file in ball for build-spool)
-    (spawn-proc dest-rail [%make ~])
+    ::  bump-proc for immediate notify (spawn-proc is quiet)
+    =.  this  (spawn-proc dest-rail [%make ~])
+    (bump-proc dest-rail %.y)
   ==
 ::
 ++  cull
@@ -2178,10 +2180,11 @@
   this(born (~(init bo:nexus now.bowl [born ball]) here))
 ::
 ++  bump-proc
-  |=  here=rail:tarball
+  |=  [here=rail:tarball loud=?]
   ^+  this
   =/  old-born=born:nexus  born
   =.  born  (~(bump-proc bo:nexus now.bowl [born ball]) here)
+  ?.  loud  this
   (notify old-born)
 ::
 ++  bump-file
@@ -2220,8 +2223,9 @@
   ^+  this
   ::  Write new sub-ball into main ball
   =.  ball  (~(pub ba:tarball ball) here new-ball)
-  =.  this  (spawn-all-files here new-ball)
   =/  old-born=born:nexus  born
+  ::  Spawn procs quietly (bump-proc-quiet), then batch notify at end
+  =.  this  (spawn-all-files here new-ball)
   ::  diff-balls (inits/bumps born), record silo/hist, then notify
   =.  this  (diff-balls here old-ball new-ball)
   =.  this  (record-ball-changes here old-ball new-ball)

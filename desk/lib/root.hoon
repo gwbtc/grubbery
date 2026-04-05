@@ -23,7 +23,7 @@
         [%fall %| /'telegram.telegram' [~ ~] [~ ~] [`[~ `[/ %telegram] ~] ~]]
         [%fall %| /'goals.goals' [~ ~] [~ ~] [`[~ `[/ %goals] ~] ~]]
         [%fall %| /'mcp.mcp' [~ ~] [~ ~] [`[~ `[/ %mcp] ~] ~]]
-        [%fall %| /'wallet.wallet' [~ ~] [~ ~] [`[~ `[/ %wallet] ~] ~]]
+        [%fall %| /'wallet.wallet_app' [~ ~] [~ ~] [`[~ `[/wallet %app] ~] ~]]
         ::  config
         [%fall %| /config/creds [~ ~] [~ ~] empty-dir:loader]
         ::  system internals — populated by app/grubbery.hoon before
@@ -67,7 +67,7 @@
         explorer.explorer/ Web-based tarball file browser.
         counter.counter/   Auto-incrementing counters with live UI.
         peers.peers/       External ship gateway with role-based access control.
-        wallet.wallet/     Bitcoin wallet management.
+        wallet.wallet_app/ Bitcoin wallet management.
 
       SYSTEM:
         sys/               System internals — build compiler, terminal logs,
