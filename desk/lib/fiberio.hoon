@@ -403,6 +403,28 @@
       [%done ~]
     [%fail %cull-failed >road< u.err.u.in]
   ==
+::  Like +cull but logs and continues on error instead of crashing.
+::  Use for best-effort cleanup where the target may already be gone.
+::
+++  cull-soft
+  |=  [=wire =road:tarball]
+  =/  m  (fiber ,~)
+  ^-  form:m
+  ;<  ~  bind:m  (send-dart %node wire road %cull ~)
+  |=  input
+  :+  ~  state
+  ?+  in  [%skip ~]
+      ~  [%wait ~]
+      [~ %veto *]
+    [%fail (veto-error dart.u.in)]
+      [~ %gone * *]
+    ?.  =(wire wire.u.in)
+      [%skip ~]
+    ?~  err.u.in
+      [%done ~]
+    ~&  >>  [%cull-soft-ignored (road-to-cord:tarball road)]
+    [%done ~]
+  ==
 ::
 ++  sand
   |=  [=wire =road:tarball weir=(unit weir:nexus)]

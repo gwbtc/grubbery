@@ -73,6 +73,7 @@
   ::  Reload root nexus (hardcoded — after code compile so child nexuses build)
   ~&  >>  "on-init: reload-nexus-at"
   =^  root-cards  state  abet:(reload-nexus-at:hc / root)
+  =^  spawn-cards  state  abet:(spawn-all-files:hc / ball)
   ~&  >>  "on-init: sync-dill"
   =^  dill-cards  state  abet:sync-dill:hc
   ~&  >>  "on-init: sync-clay"
@@ -83,6 +84,7 @@
   :_  this
   ;:  weld
     root-cards
+    spawn-cards
     gub-cards
     dill-cards
     clay-cards
@@ -108,6 +110,7 @@
     ::  Reload root nexus (hardcoded — runs on every app reload, after code compile)
     ~&  >>  "on-load: reload-nexus-at"
     =^  root-cards  state  abet:(reload-nexus-at:hc / root)
+    =^  spawn-cards  state  abet:(spawn-all-files:hc / ball)
     ~&  >>  "on-load: sync-dill"
     =^  dill-cards  state  abet:sync-dill:hc
     ~&  >>  "on-load: sync-clay"
@@ -118,6 +121,7 @@
     :_  this
     ;:  weld
       root-cards
+      spawn-cards
       gub-cards
       dill-cards
       clay-cards
@@ -993,8 +997,12 @@
   ?:  ?=(%| -.nex)
     ~&  >>  "reload-nexus: build error at {(spud dest)}"
     (bang-nexus dest p.nex)
-  (reload-nexus-at dest p.nex)
+  =.  this  (reload-nexus-at dest p.nex)
+  (spawn-all-files dest (~(dip ba:tarball ball) dest))
 ::  Run on-load for a nexus at dest and apply results
+::
+::  Reload a nexus: run on-load, write ball, recurse into child nexuses.
+::  Does NOT spawn processes — callers spawn after the full tree is settled.
 ::
 ++  reload-nexus-at
   |=  [dest=fold:tarball nex=nexus:nexus]
@@ -1030,8 +1038,7 @@
   =.  this  (audit-weir dest)
   (reload-child-nexuses dest)
 ::  Recursively reload all child nexuses top-to-bottom.
-::  Every directory with a neck is reloaded via reload-nexus-at,
-::  which runs on-load, spawns processes, and recurses into its children.
+::  Every directory with a neck loads state and recurses into its children.
 ::
 ++  reload-child-nexuses
   |=  dest=fold:tarball
@@ -2233,8 +2240,6 @@
   ::  Write new sub-ball into main ball
   =.  ball  (~(pub ba:tarball ball) here new-ball)
   =/  old-born=born:nexus  born
-  ::  Spawn procs quietly (bump-proc-quiet), then batch notify at end
-  =.  this  (spawn-all-files here new-ball)
   ::  diff-balls (inits/bumps born), record silo/hist, then notify
   =.  this  (diff-balls here old-ball new-ball)
   =.  this  (record-ball-changes here old-ball new-ball)
@@ -2503,9 +2508,9 @@
   =^  new-bins  this  (validate-marks cod old-bins new-bins)
   =/  upd-lode=lode:nexus  (fall (~(get by code) cod) *lode:nexus)
   =.  code  (~(put by code) cod upd-lode(bins new-bins))
-  ::  Validate nexuses: run on-load for directories using changed nexuses
-  ~&  >  "build-code: validate-nexuses"
-  =.  this  (validate-nexuses cod old-bins new-bins)
+  ::  Reload nexuses whose compiled code changed
+  ~&  >  "build-code: reload-changed-nexuses"
+  =.  this  (reload-changed-nexuses cod keys.lode keys.res old-bins new-bins)
   ~&  >  "build-code: done"
   this
 ::  Validate marks: for each changed mark in bin/mar/, build a vale gate
@@ -2634,10 +2639,10 @@
 ::  directories using that neck, run on-load with the new code, and
 ::  apply the results (like reload-nexus). Crashes if any on-load fails.
 ::
-++  validate-nexuses
-  |=  [cod=path old-bins=bins:nexus new-bins=bins:nexus]
+++  reload-changed-nexuses
+  |=  [cod=path old-keys=keys:nexus new-keys=keys:nexus old-bins=bins:nexus new-bins=bins:nexus]
   ^+  this
-  ::  Find changed nexuses in bins /nex subtree
+  ::  Find nexuses in /nex whose content hash changed
   =/  nex-sub=bins:nexus  (~(dip of new-bins) /nex)
   =/  old-sub=bins:nexus  (~(dip of old-bins) /nex)
   =/  all-new=(list [pax=path node=(map @ta built:nexus)])
@@ -2648,10 +2653,18 @@
     |=  [pax=path node=(map @ta built:nexus)]
     %+  murn  ~(tap by node)
     |=  [nam=@ta =built:nexus]
+    =/  =rail:tarball  [(weld /nex pax) nam]
+    =/  old-key=(unit @uv)  (~(get by old-keys) rail)
+    =/  new-key=(unit @uv)  (~(get by new-keys) rail)
+    ::  Debug: detect key-same but vase-different
     =/  old-node=(map @ta built:nexus)
       (fall (~(get of old-sub) pax) *(map @ta built:nexus))
-    =/  old=(unit built:nexus)  (~(get by old-node) nam)
-    ?:  =(old `built)  ~
+    =/  old-built=(unit built:nexus)  (~(get by old-node) nam)
+    ~?  >>>  ?&  =(old-key new-key)
+                 !=(old-built `built)
+             ==
+      [%reload-changed-nexuses-debug %keys-same-vase-diff rail]
+    ?:  =(old-key new-key)  ~
     `[[pax nam] built]
   ::  Process each changed nexus
   =/  remaining=_changed  changed
@@ -2660,7 +2673,7 @@
   =/  [=neck:tarball =built:nexus]  i.remaining
   ::  Extract nexus or propagate error
   =/  nex-res=(each nexus:nexus tang)
-    ?+  -.built  |+~[leaf+"validate-nexuses: unexpected built type {<-.built>}"]
+    ?+  -.built  |+~[leaf+"reload-changed-nexuses: unexpected built type {<-.built>}"]
       %tang  |+tang.built
       %vase  (mule |.(!<(nexus:nexus vase.built)))
     ==
@@ -2678,11 +2691,12 @@
   ?~  dir-remaining  ^$(remaining t.remaining)
   =/  dest=fold:tarball  i.dir-remaining
   ?:  ?=(%| -.nex-res)
-    ~&  >>  "validate-nexuses: bang {(trip (rail-to-arm:tarball neck))} at {(spud dest)}"
+    ~&  >>  "reload-changed-nexuses: bang {(trip (rail-to-arm:tarball neck))} at {(spud dest)}"
     =.  this  (bang-nexus dest p.nex-res)
     $(dir-remaining t.dir-remaining)
-  ~&  >  "validate-nexuses: reloading {(trip (rail-to-arm:tarball neck))} at {(spud dest)}"
+  ~&  >  "reload-changed-nexuses: reloading {(trip (rail-to-arm:tarball neck))} at {(spud dest)}"
   =.  this  (reload-nexus-at dest p.nex-res)
+  =.  this  (spawn-all-files dest (~(dip ba:tarball ball) dest))
   $(dir-remaining t.dir-remaining)
 ::  Validate a compiled artifact based on its source path.
 ::
