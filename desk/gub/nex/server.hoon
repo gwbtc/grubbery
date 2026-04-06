@@ -68,7 +68,7 @@
       |-
       ;<  [=from:fiber:nexus =sage:tarball]  bind:m  take-poke-from:io
       ;<  st=server-state:nex-server  bind:m  (get-state-as:io server-state:nex-server)
-      ;<  =bowl:nexus  bind:m  (get-bowl:io /bowl)
+      ;<  =bowl:nexus  bind:m  get-bowl:io
       ?+    name.p.sage  $
           ::  Server action: bind, unbind, reset, send
           ::
@@ -133,7 +133,7 @@
             =/  handler=rail:tarball
               (fall (~(get by bindings.st) binding) *rail:tarball)
             =/  =road:tarball  [%& %& handler]
-            ;<  ~  bind:m  (poke:io /cancel road [[/ %handle-http-cancel] !>(eid)])
+            ;<  ~  bind:m  (poke:io road [[/ %handle-http-cancel] !>(eid)])
             $(conns t.conns)
           =.  connections.st  ~
           ;<  ~  bind:m  (replace:io !>(st))
@@ -152,7 +152,7 @@
             =/  sender-rail=rail:tarball
               (resolve-rail:nex-server here.bowl p.from)
             =/  =road:tarball  [%& %& sender-rail]
-            ;<  ~  bind:m  (poke:io /cancel road [[/ %handle-http-cancel] !>(eyre-id.act)])
+            ;<  ~  bind:m  (poke:io road [[/ %handle-http-cancel] !>(eyre-id.act)])
             $
           =/  expected-rail=(unit rail:tarball)  (~(get by bindings.st) u.conn-binding)
           ?~  expected-rail
@@ -186,7 +186,7 @@
         ::
         ?:  ?=([%grubbery %api *] site)
           ;<  ~  bind:m
-            (make:io /api [%| 0 %& /requests eyre-id] |+[%.n [[/ %http-request] !>([src req])] ~])
+            (make:io [%| 0 %& /requests eyre-id] |+[%.n [[/ %http-request] !>([src req])] ~])
           $
         =/  match=(unit [=binding:eyre handler=rail:tarball])
           (find-binding bindings.st site)
@@ -201,7 +201,7 @@
         ;<  ~  bind:m  (replace:io !>(st))
         ::  Forward request to handler via absolute road
         =/  =road:tarball  [%& %& handler.u.match]
-        ;<  ~  bind:m  (poke:io /forward road [[/ %handle-http-request] !>([eyre-id src req])])
+        ;<  ~  bind:m  (poke:io road [[/ %handle-http-request] !>([eyre-id src req])])
         $
           ::  Client disconnected (eyre on-leave)
           ::
@@ -215,12 +215,12 @@
         ::  Ball API requests don't use the binding system — cull the
         ::  request fiber directly so SSE loops terminate on disconnect.
         ?~  conn-binding
-          ;<  *  bind:m  (cull-soft:io /cancel [%| 0 %& /requests eyre-id])
+          ;<  *  bind:m  (cull-soft:io [%| 0 %& /requests eyre-id])
           $
         =/  handler=rail:tarball
           (fall (~(get by bindings.st) u.conn-binding) *rail:tarball)
         =/  =road:tarball  [%& %& handler]
-        ;<  ~  bind:m  (poke:io /cancel road [[/ %handle-http-cancel] !>(eyre-id)])
+        ;<  ~  bind:m  (poke:io road [[/ %handle-http-cancel] !>(eyre-id)])
         $
       ==
       ==
@@ -395,7 +395,7 @@
 ++  peek-root
   =/  m  (fiber:fiber:nexus ,(unit ball:tarball))
   ^-  form:m
-  ;<  root-seen=seen:nexus  bind:m  (peek:io /peek [%& %| ~] ~)
+  ;<  root-seen=seen:nexus  bind:m  (peek:io [%& %| ~] ~)
   ?.  ?=([%& %ball *] root-seen)
     (pure:m ~)
   (pure:m `ball.p.root-seen)
@@ -462,7 +462,7 @@
   |=  [eyre-id=@ta api-path=path]
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
-  ;<  root-seen=seen:nexus  bind:m  (peek:io /peek [%& %| ~] ~)
+  ;<  root-seen=seen:nexus  bind:m  (peek:io [%& %| ~] ~)
   ?.  ?=([%& %ball *] root-seen)
     (send-error eyre-id 500 'Peek failed')
   =/  root=ball:tarball  ball.p.root-seen
@@ -497,7 +497,7 @@
     (send-error eyre-id 400 'Missing body')
   =/  =rail:tarball  [(snip `path`api-path) (rear api-path)]
   =/  =road:tarball  [%& %& rail]
-  ;<  exists=?  bind:m  (peek-exists:io /check road)
+  ;<  exists=?  bind:m  (peek-exists:io road)
   ?:  exists
     (send-error eyre-id 409 'Already exists')
   =/  mark-param=(unit @t)  (get-key:kv:html-utils 'mark' args)
@@ -505,7 +505,7 @@
   =/  mime-sage=sage:tarball  [[/ %mime] !>(`mime`[/application/octet-stream u.body])]
   ;<  converted=(unit sage:tarball)  bind:m  (maybe-convert eyre-id mime-sage mark-param)
   ?~  converted  (pure:m ~)
-  ;<  ~  bind:m  (make:io /make road [%| gain u.converted ~])
+  ;<  ~  bind:m  (make:io road [%| gain u.converted ~])
   (send-created eyre-id)
 ::  +serve-dir-make: PUT /dir — create directory
 ::
@@ -518,11 +518,11 @@
   =/  dir-name=@ta  (rear api-path)
   =/  dir-path=path  (snoc (snip `path`api-path) dir-name)
   =/  =road:tarball  [%& %| dir-path]
-  ;<  exists=?  bind:m  (peek-exists:io /check road)
+  ;<  exists=?  bind:m  (peek-exists:io road)
   ?:  exists
     (send-error eyre-id 409 'Already exists')
   =/  init-ball=ball:tarball  [`[~ ~ ~] ~]
-  ;<  ~  bind:m  (make:io /make road &+[[~ ~] [~ ~] init-ball])
+  ;<  ~  bind:m  (make:io road &+[[~ ~] [~ ~] init-ball])
   (send-created eyre-id)
 ::  +serve-post: POST /poke, /over — send dart to file
 ::
@@ -535,7 +535,7 @@
   ?~  body
     (send-error eyre-id 400 'Missing body')
   =/  =road:tarball  [%& %& (snip `path`api-path) (rear api-path)]
-  ;<  exists=?  bind:m  (peek-exists:io /check road)
+  ;<  exists=?  bind:m  (peek-exists:io road)
   ?.  exists
     (send-error eyre-id 404 'Not found')
   =/  mark-param=(unit @t)  (get-key:kv:html-utils 'mark' args)
@@ -544,8 +544,8 @@
   ?~  converted  (pure:m ~)
   ;<  ~  bind:m
     ?-  op
-      %poke  (poke:io /post road u.converted)
-      %over  (over:io /post road u.converted)
+      %poke  (poke:io road u.converted)
+      %over  (over:io road u.converted)
     ==
   (send-ok eyre-id 'OK')
 ::  +serve-file-cull: DELETE /file — delete file
@@ -557,10 +557,10 @@
   ?~  api-path
     (send-error eyre-id 400 'File path required')
   =/  =road:tarball  [%& %& (snip `path`api-path) (rear api-path)]
-  ;<  exists=?  bind:m  (peek-exists:io /check road)
+  ;<  exists=?  bind:m  (peek-exists:io road)
   ?.  exists
     (send-error eyre-id 404 'Not found')
-  ;<  ~  bind:m  (cull:io /cull road)
+  ;<  ~  bind:m  (cull:io road)
   (send-ok eyre-id 'Deleted')
 ::  +serve-dir-cull: DELETE /dir — delete directory
 ::
@@ -571,10 +571,10 @@
   ?~  api-path
     (send-error eyre-id 400 'Directory path required')
   =/  =road:tarball  [%& %| api-path]
-  ;<  exists=?  bind:m  (peek-exists:io /check road)
+  ;<  exists=?  bind:m  (peek-exists:io road)
   ?.  exists
     (send-error eyre-id 404 'Not found')
-  ;<  ~  bind:m  (cull:io /cull road)
+  ;<  ~  bind:m  (cull:io road)
   (send-ok eyre-id 'Deleted')
 ::  +ensure-parents: create parent directories if they don't exist
 ::
@@ -585,10 +585,10 @@
   ?~  segments  (pure:m ~)
   =/  next=path  (snoc base i.segments)
   =/  dir-road=road:tarball  [%& %| next]
-  ;<  exists=?  bind:m  (peek-exists:io /chk dir-road)
+  ;<  exists=?  bind:m  (peek-exists:io dir-road)
   ?.  exists
     ;<  ~  bind:m
-      (make:io /upload dir-road &+[[~ ~] [~ ~] `[~ ~ ~] ~])
+      (make:io dir-road &+[[~ ~] [~ ~] `[~ ~ ~] ~])
     (ensure-parents next t.segments)
   (ensure-parents next t.segments)
 ::  +serve-upload: POST /upload — multipart file/directory upload
@@ -669,11 +669,11 @@
   ;<  ~  bind:m  (ensure-parents tree-path file-parent)
   ::  Create or overwrite file — keep full filename
   =/  =road:tarball  [%& %& full-path file-name]
-  ;<  exists=?  bind:m  (peek-exists:io /chk road)
+  ;<  exists=?  bind:m  (peek-exists:io road)
   ?:  exists
-    ;<  ~  bind:m  (over:io /upload road final-sage)
+    ;<  ~  bind:m  (over:io road final-sage)
     $(remaining t.remaining, created [filename-raw created])
-  ;<  ~  bind:m  (make:io /upload road |+[%.n final-sage ~])
+  ;<  ~  bind:m  (make:io road |+[%.n final-sage ~])
   $(remaining t.remaining, created [filename-raw created])
 ::  +serve-sand-peek: GET /sand — directory permissions as JSON
 ::
@@ -681,7 +681,7 @@
   |=  [eyre-id=@ta api-path=path]
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
-  ;<  dir-seen=seen:nexus  bind:m  (peek:io /sand [%& %| api-path] ~)
+  ;<  dir-seen=seen:nexus  bind:m  (peek:io [%& %| api-path] ~)
   ?.  ?=([%& %ball *] dir-seen)
     (send-error eyre-id 404 'Not found')
   (send-json eyre-id (sand-to-json:nexus sand.p.dir-seen))
@@ -691,7 +691,7 @@
   |=  [eyre-id=@ta api-path=path]
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
-  ;<  dir-seen=seen:nexus  bind:m  (peek:io /weir [%& %| api-path] ~)
+  ;<  dir-seen=seen:nexus  bind:m  (peek:io [%& %| api-path] ~)
   ?.  ?=([%& %ball *] dir-seen)
     (send-error eyre-id 404 'Not found')
   =/  =weir:nexus  (fall fil.sand.p.dir-seen *weir:nexus)
@@ -711,7 +711,7 @@
     (mule |.((weir-from-json:nexus u.jon)))
   ?:  ?=(%| -.parsed)
     (send-error eyre-id 400 'Invalid weir JSON')
-  ;<  ~  bind:m  (sand:io /weir [%& %| api-path] `p.parsed)
+  ;<  ~  bind:m  (sand:io [%& %| api-path] `p.parsed)
   (send-ok eyre-id 'OK')
 ::  +serve-weir-del: DELETE /weir — clear weir
 ::
@@ -719,7 +719,7 @@
   |=  [eyre-id=@ta api-path=path]
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
-  ;<  ~  bind:m  (sand:io /weir [%& %| api-path] ~)
+  ;<  ~  bind:m  (sand:io [%& %| api-path] ~)
   (send-ok eyre-id 'Deleted')
 ::  +serve-manu: GET /manu — documentation for a path
 ::
@@ -732,11 +732,11 @@
     `[%& %& (snip `path`api-path) (rear api-path)]
   ;<  is-file=?  bind:m
     ?~  file-road  (pure:(fiber:fiber:nexus ,?) %.n)
-    (peek-exists:io /manu-chk u.file-road)
+    (peek-exists:io u.file-road)
   =/  =road:tarball
     ?:  is-file  (need file-road)
     [%& %| api-path]
-  ;<  text=@t  bind:m  (manu-road:io /manu road)
+  ;<  text=@t  bind:m  (manu-road:io road)
   ?:  =('' text)
     (send-ok eyre-id 'No documentation')
   (send-ok eyre-id text)
@@ -758,7 +758,7 @@
     `[%& %& (snip `path`api-path) (rear api-path)]
   ;<  is-file=?  bind:m
     ?~  file-road  (pure:(fiber:fiber:nexus ,?) %.n)
-    (peek-exists:io /check u.file-road)
+    (peek-exists:io u.file-road)
   =/  =road:tarball
     ?:  is-file  (need file-road)
     [%& %| api-path]
@@ -787,7 +787,7 @@
       (send-old-dir eyre-id root born.init / mark-param)
     ==
   ::  Start keep-alive timer
-  ;<  =bowl:nexus  bind:m  (get-bowl:io /sse)
+  ;<  =bowl:nexus  bind:m  get-bowl:io
   ;<  ~  bind:m  (send-wait:io (add now.bowl ~s30))
   ::  Event loop
   |-
@@ -796,7 +796,7 @@
       %wake
     ;<  ~  bind:m
       (send-cards:io [(give-sse-keep-alive:http-utils eyre-id) ~])
-    ;<  =bowl:nexus  bind:m  (get-bowl:io /sse)
+    ;<  =bowl:nexus  bind:m  get-bowl:io
     ;<  ~  bind:m  (send-wait:io (add now.bowl ~s30))
     $
   ::

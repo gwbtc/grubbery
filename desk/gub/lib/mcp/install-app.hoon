@@ -24,7 +24,7 @@
     (pure:m [%error 'Missing or invalid argument: desk'])
   =/  desk=@t  p.parsed
   =/  dek=@tas  (slav %tas desk)
-  ;<  =bowl:nexus  bind:m  (get-bowl:io /bowl)
+  ;<  =bowl:nexus  bind:m  get-bowl:io
   =/  src=@p
     ?~  ship-json=(~(get jo:json-utils [%o args.st]) /ship)
       our.bowl

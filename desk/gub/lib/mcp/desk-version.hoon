@@ -20,7 +20,7 @@
   ?:  ?=(%| -.parsed)
     (pure:m [%error 'Missing or invalid argument: desk'])
   =/  dek=@tas  p.parsed
-  ;<  =cass:clay  bind:m  (do-scry:io cass:clay /scry /cw/[dek])
+  ;<  =cass:clay  bind:m  (do-scry:io cass:clay /cw/[dek])
   =/  result=tape
     ;:  weld
       "Desk: {(trip dek)}\0a"

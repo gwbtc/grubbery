@@ -65,19 +65,19 @@
           ?:  =('' dir-name)  $
           ::  check if bot already exists
           ;<  =seen:nexus  bind:m
-            (peek:io /chk [%| 0 %| /bots/[dir-name]] ~)
+            (peek:io [%| 0 %| /bots/[dir-name]] ~)
           ?.  ?=([%& %none *] seen)
             ~&  >>  [%telegram-bot-already-exists dir-name]
             $
           =/  new-ball=ball:tarball  [`[~ `[/ %telegram-bot] ~] ~]
           ;<  ~  bind:m
-            (make:io /add [%| 0 %| /bots/[dir-name]] &+[*sand:nexus *gain:nexus new-ball])
+            (make:io [%| 0 %| /bots/[dir-name]] &+[*sand:nexus *gain:nexus new-ball])
           ::  write the bot token into its config
           =/  cfg=json
             (pairs:enjs:format ~[['bot-token' s+bot-token]])
           =/  cfg-road=road:tarball
             (cord-to-road:tarball (rap 3 ~['./bots/' dir-name '/config.json']))
-          ;<  ~  bind:m  (over:io /cfg cfg-road [[/ %json] !>(cfg)])
+          ;<  ~  bind:m  (over:io cfg-road [[/ %json] !>(cfg)])
           $
         ::
             %delete
@@ -87,7 +87,7 @@
             p.u.v
           ?:  =('' bot-name)  $
           =/  dir-name=@ta  bot-name
-          ;<  ~  bind:m  (cull:io /del [%| 0 %| /bots/[dir-name]])
+          ;<  ~  bind:m  (cull:io [%| 0 %| /bots/[dir-name]])
           $
         ==
           ::  /ui/manage.html: bot management view

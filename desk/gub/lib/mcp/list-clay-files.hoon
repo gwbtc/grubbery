@@ -28,7 +28,7 @@
   =/  dek=@tas  (slav %tas desk)
   =/  pax=path  (stab file-path)
   ;<  files=(list path)  bind:m
-    (do-scry:io (list path) /scry [%ct dek pax])
+    (do-scry:io (list path) [%ct dek pax])
   =/  result=tape
     %-  zing
     %+  turn  files

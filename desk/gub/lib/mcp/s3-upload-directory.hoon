@@ -29,7 +29,7 @@
     (pure:m [%error 'Missing or invalid required arguments (path, s3_prefix)'])
   =/  [dir-path=@t s3-prefix=@t]  p.parsed
   =/  pax=path  (stab dir-path)
-  ;<  =seen:nexus  bind:m  (peek:io /browse [%& %| pax] ~)
+  ;<  =seen:nexus  bind:m  (peek:io [%& %| pax] ~)
   ?.  ?=([%& %ball *] seen)
     (pure:m [%error (crip "Directory not found: {(trip dir-path)}")])
   =/  files-to-upload=(list [path @ta])
@@ -41,7 +41,7 @@
     (pure:m [%text (crip "Uploaded {<uploaded>} files to s3://{(trip s3-prefix)}")])
   =/  [file-path=path filename=@ta]  i.files-to-upload
   ;<  file-seen=seen:nexus  bind:m
-    (peek:io /read [%& %& file-path filename] ~)
+    (peek:io [%& %& file-path filename] ~)
   ?.  ?=([%& %file *] file-seen)
     $(files-to-upload t.files-to-upload)
   ;<  =mime  bind:m  (sage-to-mime:io sage.p.file-seen)
@@ -55,7 +55,7 @@
       (path-to-s3-key:s3:tools relative-path)
     (crip "{(trip s3-prefix)}/{(trip (path-to-s3-key:s3:tools relative-path))}")
   ;<  creds=s3-creds:tools  bind:m  read-s3-creds:tools
-  ;<  =bowl:nexus  bind:m  (get-bowl:io /bowl)
+  ;<  =bowl:nexus  bind:m  get-bowl:io
   =/  [amz-date=@t payload-hash=@t authorization=@t]
     %:  build-signature:s3:tools
       'PUT'

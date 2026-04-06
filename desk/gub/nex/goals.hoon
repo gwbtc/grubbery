@@ -201,16 +201,16 @@
             %goal-create-store
           =/  name=@ta  !<(@ta q.sage)
           ~&  >  [%goals-main %creating name]
-          ;<  =bowl:nexus  bind:m  (get-bowl:io /bowl)
+          ;<  =bowl:nexus  bind:m  get-bowl:io
           =/  store=goal-store:goals  (create-store:goals now.bowl)
           =/  fname=@ta  (store-fname name)
           ;<  ~  bind:m
-            (make:io /create [%| 0 %& /store fname] |+[%.n [[/ %goal-store] !>(store)] `%goal-store])
+            (make:io [%| 0 %& /store fname] |+[%.n [[/ %goal-store] !>(store)] `%goal-store])
           $
             %goal-delete-store
           =/  name=@ta  !<(@ta q.sage)
           ~&  >  [%goals-main %deleting name]
-          ;<  ~  bind:m  (cull:io /delete [%| 0 %& /store (store-fname name)])
+          ;<  ~  bind:m  (cull:io [%| 0 %& /store (store-fname name)])
           $
           ::  JSON pokes for web UI actions
           ::
@@ -223,21 +223,21 @@
               %'create-store'
             =/  name=@ta  (~(dog jo:json-utils jon) /name so:dejs:format)
             ~&  >  [%goals-main %creating name]
-            ;<  =bowl:nexus  bind:m  (get-bowl:io /bowl)
+            ;<  =bowl:nexus  bind:m  get-bowl:io
             =/  store=goal-store:goals  (create-store:goals now.bowl)
             =/  fname=@ta  (store-fname name)
             ;<  ~  bind:m
-              (make:io /create [%| 0 %& /store fname] |+[%.n [[/ %goal-store] !>(store)] `%goal-store])
+              (make:io [%| 0 %& /store fname] |+[%.n [[/ %goal-store] !>(store)] `%goal-store])
             $
               %'delete-store'
             =/  name=@ta  (~(dog jo:json-utils jon) /name so:dejs:format)
             ~&  >  [%goals-main %deleting name]
-            ;<  ~  bind:m  (cull:io /delete [%| 0 %& /store (store-fname name)])
+            ;<  ~  bind:m  (cull:io [%| 0 %& /store (store-fname name)])
             $
               %'goal-action'
             =/  store-name=@ta  (~(dog jo:json-utils jon) /store so:dejs:format)
             =/  act-name=@t  (~(dog jo:json-utils jon) /type so:dejs:format)
-            ;<  =bowl:nexus  bind:m  (get-bowl:io /bowl)
+            ;<  =bowl:nexus  bind:m  get-bowl:io
             =/  act=action:goals
               ?+    act-name  ~|([%unknown-goal-action act-name] !!)
                   %'create'
@@ -275,7 +275,7 @@
                 ((om:dejs:format same:dejs:format) data-jon)
               ==
             ;<  ~  bind:m
-              (poke:io /act [%| 0 %& /store (store-fname store-name)] [[/ %goal-action] !>(act)])
+              (poke:io [%| 0 %& /store (store-fname store-name)] [[/ %goal-action] !>(act)])
             $
           ==
         ==
@@ -310,7 +310,7 @@
           $
         =/  act=action:goals  !<(action:goals q.sage)
         ;<  store=goal-store:goals  bind:m  (get-state-as:io ,goal-store:goals)
-        ;<  =bowl:nexus  bind:m  (get-bowl:io /bowl)
+        ;<  =bowl:nexus  bind:m  get-bowl:io
         ::  auto-generate ID for create with empty id
         =/  act=action:goals
           ?.  ?=(%create -.act)  act

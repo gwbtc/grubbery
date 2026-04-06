@@ -71,7 +71,7 @@
     ?=([%b %.y] u.v)
   ::  Peek ball mirror for tool source filenames
   ;<  src-seen=seen:nexus  bind:m
-    (peek:io /src [%& %| /code/lib/mcp] ~)
+    (peek:io [%& %| /code/lib/mcp] ~)
   ?.  ?=([%& %ball *] src-seen)
     (pure:m [%error 'No tool sources found'])
   ?~  fil.ball.p.src-seen
@@ -124,7 +124,7 @@
       out
     (pure:m [%text (crip "{<(lent matches)>} tools found:{result}")])
   =/  n=@ta  i.src-names
-  ;<  res=built:nexus  bind:m  (get-code-full:io /tool [%& %& /code/lib/mcp n])
+  ;<  res=built:nexus  bind:m  (get-code-full:io [%& %& /code/lib/mcp n])
   ?.  ?=(%vase -.res)  $(src-names t.src-names)
   =/  got=(each tool:tools tang)
     (mule |.(!<(tool:tools vase.res)))

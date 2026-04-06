@@ -34,7 +34,7 @@
         30
       (rash p.u.timeout-json dem)
     =/  timeout=@dr  (mul timeout-seconds ~s1)
-    ;<  initial=cass:clay  bind:m  (do-scry:io cass:clay /scry /cw/[mount-point])
+    ;<  initial=cass:clay  bind:m  (do-scry:io cass:clay /cw/[mount-point])
     =/  commit-data=json
       %-  pairs:enjs:format
       :~  ['initial-ud' (numb:enjs:format ud.initial)]
@@ -44,7 +44,7 @@
     ;<  ~  bind:m
       (replace:io !>([tool.st args.st %committing commit-data ~]))
     ;<  *  bind:m  (keep:io /dill/logs [%& %& /sys/dill %'logs.dill-told'] ~)
-    ;<  =bowl:nexus  bind:m  (get-bowl:io /bowl)
+    ;<  =bowl:nexus  bind:m  get-bowl:io
     ;<  ~  bind:m
       (send-card:io %pass /commit-timeout %arvo %b %wait (add now.bowl timeout))
     ;<  ~  bind:m  (gall-poke-our:io %hood kiln-commit+!>([mount-point %.n]))

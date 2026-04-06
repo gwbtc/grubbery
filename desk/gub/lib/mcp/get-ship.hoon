@@ -12,6 +12,6 @@
   ^-  tool-handler:tools
   =/  m  (fiber:fiber:nexus ,tool-result:tools)
   ^-  form:m
-  ;<  =bowl:nexus  bind:m  (get-bowl:io /bowl)
+  ;<  =bowl:nexus  bind:m  get-bowl:io
   (pure:m [%text (scot %p our.bowl)])
 --

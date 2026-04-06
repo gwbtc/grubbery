@@ -78,12 +78,12 @@
               (~(put by *(map @ta content:tarball)) %'main.wallet_wallet' [~ [/wallet %wallet] !>(wal)])
             =/  wal-ball=ball:tarball  [`wal-lump ~]
             ;<  ~  bind:m
-              (make:io /create [%| 0 %| (snoc /wallets wallet-dir)] &+[*sand:nexus *gain:nexus wal-ball])
+              (make:io [%| 0 %| (snoc /wallets wallet-dir)] &+[*sand:nexus *gain:nexus wal-ball])
             $
               %'add-wallet-from-entropy'
             =/  wallet-name=@t
               (~(dog jo:json-utils jon) /wallet-name so:dejs:format)
-            ;<  =bowl:nexus  bind:m  (get-bowl:io /bowl)
+            ;<  =bowl:nexus  bind:m  get-bowl:io
             =/  seed-phrase=cord
               (gen-seed:seed-phrases eny.bowl %128)
             =/  pubkey=@ux  (seed-to-pubkey [%t seed-phrase])
@@ -95,7 +95,7 @@
               (~(put by *(map @ta content:tarball)) %'main.wallet_wallet' [~ [/wallet %wallet] !>(wal)])
             =/  wal-ball=ball:tarball  [`wal-lump ~]
             ;<  ~  bind:m
-              (make:io /create [%| 0 %| (snoc /wallets wallet-dir)] &+[*sand:nexus *gain:nexus wal-ball])
+              (make:io [%| 0 %| (snoc /wallets wallet-dir)] &+[*sand:nexus *gain:nexus wal-ball])
             $
               %'remove-wallet'
             =/  pubkey=@t
@@ -103,7 +103,7 @@
             =/  wallet-key=@ta  (crip (trip pubkey))
             =/  wallet-dir=@ta  (cat 3 wallet-key '.wallet_wallet')
             ;<  ~  bind:m
-              (cull:io /delete [%| 0 %| (snoc /wallets wallet-dir)])
+              (cull:io [%| 0 %| (snoc /wallets wallet-dir)])
             $
           ==
         ==

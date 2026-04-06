@@ -17,7 +17,7 @@
   |=  [=road:tarball pax=@t nam=@t]
   =/  m  (fiber:fiber:nexus ,tool-result:tools)
   ^-  form:m
-  ;<  res=built:nexus  bind:m  (get-code-full:io /check road)
+  ;<  res=built:nexus  bind:m  (get-code-full:io road)
   ?:  ?=(%vase -.res)
     (pure:m [%text (crip "OK: {(trip pax)}/{(trip nam)} compiled successfully")])
   ?.  ?=(%tang -.res)
@@ -33,11 +33,11 @@
   =/  m  (fiber:fiber:nexus ,tool-result:tools)
   ^-  form:m
   =/  src-mime=mime  [/text/plain (as-octs:mimes:html content)]
-  ;<  exists=?  bind:m  (peek-exists:io /check src-road)
+  ;<  exists=?  bind:m  (peek-exists:io src-road)
   ?:  exists
-    ;<  ~  bind:m  (over:io /write src-road [[/ %mime] !>(src-mime)])
+    ;<  ~  bind:m  (over:io src-road [[/ %mime] !>(src-mime)])
     (do-check bin-road pax nam)
-  ;<  ~  bind:m  (make:io /write src-road |+[%.n [[/ %mime] !>(src-mime)] `%hoon])
+  ;<  ~  bind:m  (make:io src-road |+[%.n [[/ %mime] !>(src-mime)] `%hoon])
   (do-check bin-road pax nam)
 ::
 ++  replace
@@ -113,7 +113,7 @@
   ?~  new-string
     (pure:m [%error 'Missing required argument: new_string'])
   ::  read current source
-  ;<  =seen:nexus  bind:m  (peek:io /read src-road ~)
+  ;<  =seen:nexus  bind:m  (peek:io src-road ~)
   ?.  ?=([%& %file *] seen)
     (pure:m [%error (crip "File not found: {(trip pax)}/{(trip nam)}.hoon")])
   =/  current=@t  !<(@t q.sage.p.seen)

@@ -49,7 +49,7 @@
     ?~  pax
       (pure:m [%error 'Empty path'])
     =/  mark=@tas  (rear pax)
-    ;<  =bowl:nexus  bind:m  (get-bowl:io /bowl)
+    ;<  =bowl:nexus  bind:m  get-bowl:io
     ;<  =riot:clay  bind:m
       (warp:io our.bowl dek ~ %sing %x da+now.bowl pax)
     ?~  riot
@@ -71,7 +71,7 @@
     =/  before=tape  (scag u.idx text)
     =/  after=tape  (slag (add u.idx (lent old-tape)) text)
     =/  result=@t  (crip (zing ~[before new-tape after]))
-    ;<  initial=cass:clay  bind:m  (do-scry:io cass:clay /scry /cw/[dek])
+    ;<  initial=cass:clay  bind:m  (do-scry:io cass:clay /cw/[dek])
     =/  write-data=json
       %-  pairs:enjs:format
       :~  ['initial-ud' (numb:enjs:format ud.initial)]
@@ -82,7 +82,7 @@
     ;<  ~  bind:m
       (replace:io !>([tool.st args.st %editing write-data ~]))
     ;<  *  bind:m  (keep:io /dill/logs [%& %& /sys/dill %'logs.dill-told'] ~)
-    ;<  =bowl:nexus  bind:m  (get-bowl:io /bowl)
+    ;<  =bowl:nexus  bind:m  get-bowl:io
     ;<  ~  bind:m
       (send-card:io %pass /commit-timeout %arvo %b %wait (add now.bowl ~s30))
     ;<  ~  bind:m

@@ -48,7 +48,7 @@
     ?~  pax
       (pure:m [%error 'Empty path'])
     =/  mark=@tas  (rear pax)
-    ;<  initial=cass:clay  bind:m  (do-scry:io cass:clay /scry /cw/[dek])
+    ;<  initial=cass:clay  bind:m  (do-scry:io cass:clay /cw/[dek])
     =/  write-data=json
       %-  pairs:enjs:format
       :~  ['initial-ud' (numb:enjs:format ud.initial)]
@@ -59,7 +59,7 @@
     ;<  ~  bind:m
       (replace:io !>([tool.st args.st %inserting write-data ~]))
     ;<  *  bind:m  (keep:io /dill/logs [%& %& /sys/dill %'logs.dill-told'] ~)
-    ;<  =bowl:nexus  bind:m  (get-bowl:io /bowl)
+    ;<  =bowl:nexus  bind:m  get-bowl:io
     ;<  ~  bind:m
       (send-card:io %pass /commit-timeout %arvo %b %wait (add now.bowl ~s30))
     ;<  ~  bind:m

@@ -59,7 +59,7 @@
           ::
           [[%ui ~] %'main.sig']
         ;<  ~  bind:m  (rise-wait:io prod "%counter /ui/main: failed")
-        ;<  =bowl:nexus  bind:m  (get-bowl:io /bowl)
+        ;<  =bowl:nexus  bind:m  get-bowl:io
         =/  prefix=path  (url-prefix (snip path.here.bowl))
         ;<  ~  bind:m  (bind-http:nex-server [~ prefix])
         (http-dispatch:nex-server %counter)
@@ -73,12 +73,12 @@
         ?.  =(src our)
           ;<  ~  bind:m  (send-simple:srv eyre-id [[403 ~] `(as-octs:mimes:html 'Forbidden')])
           (pure:m ~)
-        ;<  =bowl:nexus  bind:m  (get-bowl:io /bowl)
+        ;<  =bowl:nexus  bind:m  get-bowl:io
         =/  prefix=path  (url-prefix (snip (snip path.here.bowl)))
         =/  site=path  site:(parse-url:http-utils url.request.req)
         =/  suffix=path  (slag (lent prefix) site)
         ::  Serve counter page from view grub
-        ;<  =seen:nexus  bind:m  (peek:io /peek [%| 2 %& /ui/views %'page.html'] `%mime)
+        ;<  =seen:nexus  bind:m  (peek:io [%| 2 %& /ui/views %'page.html'] `%mime)
         ?.  ?=([%& %file *] seen)
           ;<  ~  bind:m  (send-simple:srv eyre-id [[500 ~] `(as-octs:mimes:html 'View not ready')])
           (pure:m ~)

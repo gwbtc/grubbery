@@ -35,9 +35,9 @@
   =/  logs-road=road:tarball  [%& %& /sys/dill %'logs.dill-told']
   ::  Fetch terminal blits and logs since our command
   ;<  ses-res=(each (list [=cass:clay =sage:tarball]) tang)  bind:m
-    (peep:io /hist ses-road [%numb `+(pre-ver) ~])
+    (peep:io ses-road [%numb `+(pre-ver) ~])
   ;<  log-res=(each (list [=cass:clay =sage:tarball]) tang)  bind:m
-    (peep:io /logs logs-road [%numb `+(pre-log-ver) ~])
+    (peep:io logs-road [%numb `+(pre-log-ver) ~])
   ::  Render terminal output
   =/  all-blits=(list blit:dill)
     ?.  ?=(%& -.ses-res)  ~
@@ -97,11 +97,11 @@
     ::  Record version before command for both session and logs
     =/  ses-road=road:tarball  [%& %& /sys/dill/sessions session]
     =/  logs-road=road:tarball  [%& %& /sys/dill %'logs.dill-told']
-    ;<  pre=seen:nexus  bind:m  (peek:io /pre ses-road ~)
+    ;<  pre=seen:nexus  bind:m  (peek:io ses-road ~)
     =/  pre-ver=@ud
       ?.  ?=([%& %file *] pre)  0
       ud.file.sack.p.pre
-    ;<  pre-logs=seen:nexus  bind:m  (peek:io /pre-logs logs-road ~)
+    ;<  pre-logs=seen:nexus  bind:m  (peek:io logs-road ~)
     =/  pre-log-ver=@ud
       ?.  ?=([%& %file *] pre-logs)  0
       ud.file.sack.p.pre-logs
@@ -125,7 +125,7 @@
     ::  Subscribe to session for updates
     ;<  *  bind:m  (keep:io /watch ses-road ~)
     ::  Set timeout
-    ;<  =bowl:nexus  bind:m  (get-bowl:io /bowl)
+    ;<  =bowl:nexus  bind:m  get-bowl:io
     ;<  ~  bind:m
       (send-card:io %pass /timeout %arvo %b %wait (add now.bowl (mul ~s1 timeout)))
     ::  Wait until we see a prompt in a blit batch that comes AFTER our command

@@ -41,10 +41,10 @@
   =/  road=road:tarball
     [%& %& /code/lib/mcp file-name]
   ::  Write source to ball mirror
-  ;<  exists=?  bind:m  (peek-exists:io /chk road)
+  ;<  exists=?  bind:m  (peek-exists:io road)
   ?:  exists
-    ;<  ~  bind:m  (over:io /write road [[/ %hoon] !>(source)])
+    ;<  ~  bind:m  (over:io road [[/ %hoon] !>(source)])
     (pure:m [%text (crip "Source written: /code/lib/mcp/{(trip file-name)}. Use check_bin to verify compilation.")])
-  ;<  ~  bind:m  (make:io /write road |+[%.n [[/ %hoon] !>(source)] ~])
+  ;<  ~  bind:m  (make:io road |+[%.n [[/ %hoon] !>(source)] ~])
   (pure:m [%text (crip "Source written: /code/lib/mcp/{(trip file-name)}. Use check_bin to verify compilation.")])
 --

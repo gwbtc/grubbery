@@ -42,7 +42,7 @@
   ;<  =mime  bind:m  (sage-to-mime:io sage.p.seen)
   =/  text=@t  ;;(@t q.q.mime)
   ;<  creds=s3-creds:tools  bind:m  read-s3-creds:tools
-  ;<  =bowl:nexus  bind:m  (get-bowl:io /bowl)
+  ;<  =bowl:nexus  bind:m  get-bowl:io
   =/  [amz-date=@t payload-hash=@t authorization=@t]
     %:  build-signature:s3:tools
       'PUT'

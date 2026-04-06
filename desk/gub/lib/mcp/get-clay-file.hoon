@@ -28,7 +28,7 @@
   ?~  dek
     (pure:m [%error (crip "Invalid desk name: {(trip u.desk)}")])
   =/  pax=path  (stab u.file-path)
-  ;<  =bowl:nexus  bind:m  (get-bowl:io /bowl)
+  ;<  =bowl:nexus  bind:m  get-bowl:io
   ;<  =riot:clay  bind:m
     (warp:io our.bowl u.dek ~ %sing %x da+now.bowl pax)
   ?~  riot

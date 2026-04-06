@@ -41,7 +41,7 @@
     ?:  =('' p.u.mk)  ~
     `p.u.mk
   ::  Browse root to get entire ball
-  ;<  =seen:nexus  bind:m  (peek:io /browse [%& %| ~] ~)
+  ;<  =seen:nexus  bind:m  (peek:io [%& %| ~] ~)
   ?.  ?=([%& %ball *] seen)
     (pure:m [%error 'Could not read ball'])
   ::  Flatten ball to list of [rail content] pairs

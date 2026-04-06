@@ -21,7 +21,7 @@
     (pure:m [%error 'Missing or invalid argument: path'])
   =/  pax=@t  p.parsed
   =/  =road:tarball  (cord-to-road:tarball pax)
-  ;<  doc=@t  bind:m  (manu-road:io /manu road)
+  ;<  doc=@t  bind:m  (manu-road:io road)
   ?:  =('' doc)
     (pure:m [%text (crip "No documentation found for {(trip pax)}")])
   (pure:m [%text doc])

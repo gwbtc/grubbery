@@ -39,7 +39,7 @@
   =/  file-name=@ta
     (crip (turn (trip tool-name) |=(c=@t ?:(=(c '_') '-' c))))
   ::  Look up compiled tool from bins
-  ;<  res=built:nexus  bind:m  (get-code-full:io /tool [%& %& /code/lib/mcp file-name])
+  ;<  res=built:nexus  bind:m  (get-code-full:io [%& %& /code/lib/mcp file-name])
   ?.  ?=(%vase -.res)
     (pure:m [%error (crip "Tool not found: {(trip tool-name)}")])
   =/  got=(each tool:tools tang)

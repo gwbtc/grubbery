@@ -113,13 +113,13 @@
             ~&  >  [%peers-main %routing (scot %p src)]
             ;<  ~  bind:m  (ensure-ship-dir src)
             ;<  ~  bind:m
-              (poke:io /forward [%| 0 %& [/ships/(scot %p src) %'main.sig']] sage)
+              (poke:io [%| 0 %& [/ships/(scot %p src) %'main.sig']] sage)
             $
               %poke-out
             =/  [=ship =dude:gall =page]
               !<([@p dude:gall page] q.sage)
             ~&  >  [%peers-main %outbound (scot %p ship) dude]
-            ;<  ~  bind:m  (gall-poke:io /outbound [ship dude] [p.page !>(q.page)])
+            ;<  ~  bind:m  (gall-poke:io [ship dude] [p.page !>(q.page)])
             $
           ==
         ::
@@ -159,7 +159,7 @@
           !<([rail:tarball bask:tarball] q.sage)
         ~&  >  [%peers-gateway ship-name %inbound dest name.p.bask]
         =/  payload=sage:tarball  [p.bask !>(q.bask)]
-        ;<  ~  bind:m  (poke:io /forward [%& %& dest] payload)
+        ;<  ~  bind:m  (poke:io [%& %& dest] payload)
         $
           [[%usergroups %who *] @]
         ?>  ?=(%ships mark)  who-file
@@ -285,17 +285,17 @@
   ;<  our=@p  bind:m  get-our:io
   =/  ship-ta=@ta  (scot %p src)
   =/  ship-dir=path  /ships/[ship-ta]
-  ;<  exists=?  bind:m  (peek-exists:io /check-ship [%| 0 %| ship-dir])
+  ;<  exists=?  bind:m  (peek-exists:io [%| 0 %| ship-dir])
   ?:  exists  (pure:m ~)
   =/  ship-ball=ball:tarball
     (~(put ba:tarball *ball:tarball) [/ %'main.sig'] [~ [/ %sig] !>(~)])
   ?:  =(src our)
-    (make:io /create-ship [%| 0 %| ship-dir] &+[*sand:nexus *gain:nexus ship-ball])
+    (make:io [%| 0 %| ship-dir] &+[*sand:nexus *gain:nexus ship-ball])
   ;<  [who=(map rail:tarball (set @p)) how=(map rail:tarball weir:nexus)]  bind:m
     read-usergroups
   =/  =weir:nexus  (compute-ship-weir src (build-src who) how)
   =/  ship-sand=sand:nexus  (~(put of *sand:nexus) / weir)
-  (make:io /create-ship [%| 0 %| ship-dir] &+[ship-sand *gain:nexus ship-ball])
+  (make:io [%| 0 %| ship-dir] &+[ship-sand *gain:nexus ship-ball])
 ::  Sand weirs for all foreign ship directories from pre-built data.
 ::
 ++  sand-all-ships
@@ -314,11 +314,11 @@
   ?~  ship-p
     $(ship-names t.ship-names)
   ?:  =(u.ship-p our)
-    ;<  ~  bind:m  (sand:io /sand-weir [%| 0 %| /ships/[ship-ta]] ~)
+    ;<  ~  bind:m  (sand:io [%| 0 %| /ships/[ship-ta]] ~)
     $(ship-names t.ship-names)
   =/  =weir:nexus  (compute-ship-weir u.ship-p src how)
   ~&  >  [%peers-main %sand-weir ship-ta]
-  ;<  ~  bind:m  (sand:io /sand-weir [%| 0 %| /ships/[ship-ta]] `weir)
+  ;<  ~  bind:m  (sand:io [%| 0 %| /ships/[ship-ta]] `weir)
   $(ship-names t.ship-names)
 ::  Full sync: read usergroups, sand all ship weirs.
 ::
@@ -328,7 +328,7 @@
   ;<  [who=(map rail:tarball (set @p)) how=(map rail:tarball weir:nexus)]  bind:m
     read-usergroups
   ;<  ships-seen=seen:nexus  bind:m
-    (peek:io /read-ships [%| 0 %| /ships] ~)
+    (peek:io [%| 0 %| /ships] ~)
   ?.  ?&(?=(%& -.ships-seen) ?=(%ball -.p.ships-seen))
     ~&  >  [%peers-main %no-ships-data]
     (pure:m ~)
@@ -340,7 +340,7 @@
   =/  m  (fiber:fiber:nexus ,[(map rail:tarball (set @p)) (map rail:tarball weir:nexus)])
   ^-  form:m
   ;<  ug-seen=seen:nexus  bind:m
-    (peek:io /read-usergroups [%| 0 %| /usergroups] ~)
+    (peek:io [%| 0 %| /usergroups] ~)
   ?.  ?&(?=(%& -.ug-seen) ?=(%ball -.p.ug-seen))
     (pure:m [~ ~])
   =/  ug-ball=ball:tarball  ball.p.ug-seen

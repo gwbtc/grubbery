@@ -39,7 +39,7 @@
       [%& %& (snip `path`pax) (rear pax)]
     [%& %| pax]
   =/  dir-pax=path  (stab weir-path)
-  ;<  dir-seen=seen:nexus  bind:m  (peek:io /weir [%& %| dir-pax] ~)
+  ;<  dir-seen=seen:nexus  bind:m  (peek:io [%& %| dir-pax] ~)
   =/  cur=weir:nexus
     ?.  ?=([%& %ball *] dir-seen)  [~ ~ ~]
     =/  dir-sand=sand:nexus  sand.p.dir-seen
@@ -50,6 +50,6 @@
       %'poke'   cur(poke (~(put in poke.cur) new-road))
       %'read'   cur(peek (~(put in peek.cur) new-road))
     ==
-  ;<  ~  bind:m  (sand:io /weir [%& %| dir-pax] `new)
+  ;<  ~  bind:m  (sand:io [%& %| dir-pax] `new)
   (pure:m [%text (crip "Added {(trip category)} rule to {(trip weir-path)}")])
 --

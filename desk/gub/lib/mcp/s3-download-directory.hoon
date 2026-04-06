@@ -30,7 +30,7 @@
   =/  [s3-prefix=@t dest-path=@t]  p.parsed
   =/  pax=path  (stab dest-path)
   ;<  creds=s3-creds:tools  bind:m  read-s3-creds:tools
-  ;<  =bowl:nexus  bind:m  (get-bowl:io /bowl)
+  ;<  =bowl:nexus  bind:m  get-bowl:io
   =/  query-string=@t  (build-list-query:s3:tools s3-prefix)
   =/  [amz-date=@t payload-hash=@t authorization=@t]
     %:  build-signature:s3:tools
@@ -66,7 +66,7 @@
   =/  s3-key=@t  i.files
   =/  filename=@ta  (extract-filename:s3:tools s3-key)
   =/  ext=(unit @ta)  (parse-extension:tarball filename)
-  ;<  =bowl:nexus  bind:m  (get-bowl:io /bowl)
+  ;<  =bowl:nexus  bind:m  get-bowl:io
   =/  [ld-amz-date=@t ld-payload-hash=@t ld-authorization=@t]
     %:  build-signature:s3:tools
       'GET'
@@ -96,10 +96,10 @@
   =/  mtype=path  (determine-mime-type:tarball ct filename)
   =/  file-mime=mime  [mtype (as-octs:mimes:html content)]
   =/  road=road:tarball  [%& %& pax filename]
-  ;<  exists=?  bind:m  (peek-exists:io /check road)
+  ;<  exists=?  bind:m  (peek-exists:io road)
   ?:  exists
-    ;<  ~  bind:m  (over:io /write road [[/ %mime] !>(file-mime)])
+    ;<  ~  bind:m  (over:io road [[/ %mime] !>(file-mime)])
     $(files t.files, downloaded +(downloaded))
-  ;<  ~  bind:m  (make:io /write road |+[%.n [[/ %mime] !>(file-mime)] ext])
+  ;<  ~  bind:m  (make:io road |+[%.n [[/ %mime] !>(file-mime)] ext])
   $(files t.files, downloaded +(downloaded))
 --

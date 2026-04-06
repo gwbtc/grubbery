@@ -25,6 +25,6 @@
   ?:  ?=(%| -.parsed)
     (pure:m [%error 'Missing or invalid required arguments (path, name)'])
   =/  [file-path=@t file-name=@t]  p.parsed
-  ;<  ~  bind:m  (cull:io /delete [%& %& (stab file-path) file-name])
+  ;<  ~  bind:m  (cull:io [%& %& (stab file-path) file-name])
   (pure:m [%text (crip "Deleted {(trip file-path)}/{(trip file-name)}")])
 --

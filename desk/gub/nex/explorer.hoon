@@ -51,7 +51,7 @@
             ?~  p  ~
             (stab u.p)
           (handle-stream eyre-id req watch-path)
-        ;<  root-seen=seen:nexus  bind:m  (peek:io /peek [%& %| ~] ~)
+        ;<  root-seen=seen:nexus  bind:m  (peek:io [%& %| ~] ~)
         ?.  ?=([%& %ball *] root-seen)
           ;<  ~  bind:m  (send-simple:srv eyre-id [[500 ~] `(as-octs:mimes:html 'Peek failed')])
           (pure:m ~)
@@ -121,7 +121,7 @@
     ::  get-font returns a bend relative to this fiber's location,
     ::  so we resolve it with our own `here` rail to get the absolute path.
     ;<  font=(unit bend:tarball)  bind:m
-      (get-font:io /font [%& %| tree-path])
+      (get-font:io [%& %| tree-path])
     ;<  here=rail:tarball  bind:m  get-here:io
     =/  code-namespace=(unit path)
       ?~  font  ~
@@ -132,7 +132,7 @@
       `p.u.ns
     ::  Get bang state for this directory
     ;<  bang-res=(each bangs:nexus (unit tang))  bind:m
-      (get-bang:io /bang [%& %| tree-path])
+      (get-bang:io [%& %| tree-path])
     =/  dir-bangs=bangs:nexus
       ?:(?=(%& -.bang-res) p.bang-res *bangs:nexus)
     =/  bod=octs  (manx-to-octs:server (render-dir tree-path root root-born root-sand now conversions code-namespace dir-bangs))
@@ -189,14 +189,14 @@
       %'delete-grub'
     =/  filename=@t  (fall (get-key:kv:html-utils 'filename' args) '')
     ::  cull road: up 3 from /explorer.explorer/requests/[id] to root, then file
-    ;<  ~  bind:m  (cull:io /delete [%& %& tree-path filename])
+    ;<  ~  bind:m  (cull:io [%& %& tree-path filename])
     ;<  ~  bind:m  (send-simple:srv eyre-id [[303 ~[['location' (crip redirect-url)]]] ~])
     (pure:m ~)
   ::
       %'delete-folder'
     =/  foldername=@t  (fall (get-key:kv:html-utils 'foldername' args) '')
     =/  folder-path=path  (snoc tree-path foldername)
-    ;<  ~  bind:m  (cull:io /delete [%& %| folder-path])
+    ;<  ~  bind:m  (cull:io [%& %| folder-path])
     ;<  ~  bind:m  (send-simple:srv eyre-id [[303 ~[['location' (crip redirect-url)]]] ~])
     (pure:m ~)
   ::
@@ -207,7 +207,7 @@
       (bind (parse-extension:tarball dir-name) |=(n=@ta `rail:tarball`[/ n]))
     =/  folder-path=path  (snoc tree-path dir-name)
     =/  new-ball=ball:tarball  [`[~ dir-neck ~] ~]
-    ;<  ~  bind:m  (make:io /mkd [%& %| folder-path] &+[[~ ~] [~ ~] new-ball])
+    ;<  ~  bind:m  (make:io [%& %| folder-path] &+[[~ ~] [~ ~] new-ball])
     ;<  ~  bind:m  (send-simple:srv eyre-id [[303 ~[['location' (crip redirect-url)]]] ~])
     (pure:m ~)
   ::
@@ -224,7 +224,7 @@
     ?~  sym
       ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'Invalid symlink target')])
       (pure:m ~)
-    ;<  ~  bind:m  (make:io /make [%& %& tree-path linkname] |+[%.n [[/ %symlink] !>(u.sym)] ~])
+    ;<  ~  bind:m  (make:io [%& %& tree-path linkname] |+[%.n [[/ %symlink] !>(u.sym)] ~])
     ;<  ~  bind:m  (send-simple:srv eyre-id [[303 ~[['location' (crip redirect-url)]]] ~])
     (pure:m ~)
   ::
@@ -250,7 +250,7 @@
         %'poke'   cur(poke (~(put in poke.cur) new-road))
         %'read'   cur(peek (~(put in peek.cur) new-road))
       ==
-    ;<  ~  bind:m  (sand:io /sand [%& %| tree-path] `new)
+    ;<  ~  bind:m  (sand:io [%& %| tree-path] `new)
     ;<  ~  bind:m  (send-simple:srv eyre-id [[303 ~[['location' (crip redirect-url)]]] ~])
     (pure:m ~)
   ::
@@ -276,17 +276,17 @@
         %'poke'   cur(poke (~(del in poke.cur) del-road))
         %'read'   cur(peek (~(del in peek.cur) del-road))
       ==
-    ;<  ~  bind:m  (sand:io /sand [%& %| tree-path] `new)
+    ;<  ~  bind:m  (sand:io [%& %| tree-path] `new)
     ;<  ~  bind:m  (send-simple:srv eyre-id [[303 ~[['location' (crip redirect-url)]]] ~])
     (pure:m ~)
   ::
       %'clear-weir'
-    ;<  ~  bind:m  (sand:io /sand [%& %| tree-path] ~)
+    ;<  ~  bind:m  (sand:io [%& %| tree-path] ~)
     ;<  ~  bind:m  (send-simple:srv eyre-id [[303 ~[['location' (crip redirect-url)]]] ~])
     (pure:m ~)
   ::
       %'reload-nexus'
-    ;<  ~  bind:m  (reload:io /reload [%& %| tree-path])
+    ;<  ~  bind:m  (reload:io [%& %| tree-path])
     ;<  ~  bind:m  (send-simple:srv eyre-id [[303 ~[['location' (crip redirect-url)]]] ~])
     (pure:m ~)
   ==
@@ -334,14 +334,14 @@
   ?^  files
     =/  [name=@ta =content:tarball]  i.files
     ;<  ~  bind:m
-      (make:io /upload [%& %& tree-path name] |+[%.n sage.content ~])
+      (make:io [%& %& tree-path name] |+[%.n sage.content ~])
     $(files t.files)
   =/  dirs=(list [@ta ball:tarball])  ~(tap by dir.new)
   |-
   ?^  dirs
     =/  [name=@ta sub=ball:tarball]  i.dirs
     ;<  ~  bind:m
-      (make:io /upload [%& %| (snoc tree-path name)] &+[[~ ~] [~ ~] sub])
+      (make:io [%& %| (snoc tree-path name)] &+[[~ ~] [~ ~] sub])
     $(dirs t.dirs)
   =/  redirect-url=tape
     ?~(tree-path "/grubbery/ball" "/grubbery/ball{(trip (spat tree-path))}")
@@ -384,7 +384,7 @@
     ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'SSE only')])
     (pure:m ~)
   ;<  ~  bind:m  (send-header:srv eyre-id sse-header:http-utils)
-  ;<  initial-seen=seen:nexus  bind:m  (peek:io /initial [%& %| ~] ~)
+  ;<  initial-seen=seen:nexus  bind:m  (peek:io [%& %| ~] ~)
   =/  prev-born=born:nexus
     ?.  ?&(?=(%& -.initial-seen) ?=(%ball -.p.initial-seen))
       *born:nexus
@@ -395,14 +395,14 @@
     =/  s  (~(dip of sand.p.initial-seen) watch-path)
     fil.s
   ;<  *  bind:m  (keep:io /ball [%& %| ~] ~)
-  ;<  =bowl:nexus  bind:m  (get-bowl:io /sse)
+  ;<  =bowl:nexus  bind:m  get-bowl:io
   ;<  ~  bind:m  (send-wait:io (add now.bowl ~s30))
   |-
   ;<  nw=news-or-wake:io  bind:m  (take-news-or-wake:io /ball)
   ?-    -.nw
       %wake
     ;<  ~  bind:m  (send-data:srv eyre-id `sse-keep-alive:http-utils)
-    ;<  =bowl:nexus  bind:m  (get-bowl:io /sse)
+    ;<  =bowl:nexus  bind:m  get-bowl:io
     ;<  ~  bind:m  (send-wait:io (add now.bowl ~s30))
     $
       %news
@@ -421,7 +421,7 @@
     ::  the same blot & nexus links as the initial page render.
     ::  The bend is relative to this fiber, so resolve with `here`.
     ;<  font=(unit bend:tarball)  bind:m
-      (get-font:io /font [%& %| watch-path])
+      (get-font:io [%& %| watch-path])
     ;<  here=rail:tarball  bind:m  get-here:io
     =/  code-namespace=(unit path)
       ?~  font  ~
@@ -430,7 +430,7 @@
       ?~  ns  ~
       ?.  ?=(%| -.u.ns)  ~
       `p.u.ns
-    ;<  =bowl:nexus  bind:m  (get-bowl:io /sse)
+    ;<  =bowl:nexus  bind:m  get-bowl:io
     ::  Only build tubes for marks of files that changed in watched dir
     =/  changed-blots=(set blot:tarball)
       %-  ~(gas in *(set blot:tarball))

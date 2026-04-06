@@ -90,7 +90,7 @@
     (~(dog jo:json-utils data) /initial-ud ni:dejs:format)
   =/  log-texts=(list @t)
     (~(dug jo:json-utils data) /logs (ar:dejs:format so:dejs:format) ~)
-  ;<  final=cass:clay  bind:m  (do-scry:io cass:clay /scry /cw/[mount-point])
+  ;<  final=cass:clay  bind:m  (do-scry:io cass:clay /cw/[mount-point])
   =/  result=tape
     %+  weld  "Initial version: {<initial-ud>}\0a"
     %+  weld  "Final version: {<ud.final>}\0a"
@@ -115,7 +115,7 @@
   =/  log-texts=(list @t)
     (~(dug jo:json-utils data) /logs (ar:dejs:format so:dejs:format) ~)
   =/  dek=@tas  (slav %tas desk)
-  ;<  final=cass:clay  bind:m  (do-scry:io cass:clay /scry /cw/[dek])
+  ;<  final=cass:clay  bind:m  (do-scry:io cass:clay /cw/[dek])
   =/  has-errors=?
     %+  lien  log-texts
     |=(t=@t !=(~ (find "ERROR" (trip t))))
@@ -143,7 +143,7 @@
   |=  for=@dr
   =/  m  (fiber:fiber:nexus ,(unit tang))
   ^-  form:m
-  ;<  =bowl:nexus  bind:m  (get-bowl:io /sleep)
+  ;<  =bowl:nexus  bind:m  get-bowl:io
   =/  until=@da  (add now.bowl for)
   ;<  ~  bind:m  (send-wait:io until)
   |=  input:fiber:nexus
@@ -207,7 +207,7 @@
       (~(put jo:json-utils data.st) /logs a+[s+(crip log-text) logs])
     =/  new-count=@ud  +((lent logs))
     ;<  ~  bind:m  (replace:io !>([tool.st args.st step.st new-data ~]))
-    ;<  =bowl:nexus  bind:m  (get-bowl:io /bowl)
+    ;<  =bowl:nexus  bind:m  get-bowl:io
     ;<  ~  bind:m
       (send-card:io %pass /commit-quiet/(scot %ud new-count) %arvo %b %wait (add now.bowl ~s1))
     $
@@ -277,7 +277,7 @@
   =/  m  (fiber:fiber:nexus ,[name=@ta seen=seen:nexus])
   ^-  form:m
   ;<  =seen:nexus  bind:m
-    (peek:io /read [%& %& pax file-name] ~)
+    (peek:io [%& %& pax file-name] ~)
   (pure:m [file-name seen])
 ::  String replacement on tapes
 ::  Returns (unit tape) — ~ if not found or ambiguous
@@ -321,7 +321,7 @@
   =/  m  (fiber:fiber:nexus ,s3-creds)
   ^-  form:m
   ;<  creds-seen=seen:nexus  bind:m
-    (peek:io /creds [%& %& /config/creds 's3'] ~)
+    (peek:io [%& %& /config/creds 's3'] ~)
   ?.  ?=([%& %file *] creds-seen)
     ~|  %s3-creds-not-found
     !!

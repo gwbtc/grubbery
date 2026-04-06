@@ -27,7 +27,7 @@
     (pure:m [%error 'Missing or invalid argument: desk'])
   =/  desk=@t  p.parsed
   =/  dek=@tas  (slav %tas desk)
-  ;<  =bowl:nexus  bind:m  (get-bowl:io /bowl)
+  ;<  =bowl:nexus  bind:m  get-bowl:io
   ::  Scry default files from %base
   =/  our=@p  our.bowl
   =/  now=@da  now.bowl

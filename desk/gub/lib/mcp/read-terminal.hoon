@@ -55,7 +55,7 @@
     [%& %& /sys/dill/sessions session]
   ::  Get current version to compute range
   ;<  =seen:nexus  bind:m
-    (peek:io /cur ses-road ~)
+    (peek:io ses-road ~)
   ?.  ?=([%& %file *] seen)
     (pure:m [%error 'Session not found'])
   =/  cur-ver=@ud  ud.file.sack.p.seen
@@ -68,7 +68,7 @@
     (fall to cur-ver)
   ::  Fetch all versions in range via peep
   ;<  res=(each (list [=cass:clay =sage:tarball]) tang)  bind:m
-    (peep:io /hist ses-road [%numb `range-from `range-to])
+    (peep:io ses-road [%numb `range-from `range-to])
   ?:  ?=(%| -.res)
     (pure:m [%error (crip (zing (turn (flop p.res) |=(=tank (weld ~(ram re tank) "\0a")))))])
   ?~  p.res

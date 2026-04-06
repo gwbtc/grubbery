@@ -27,7 +27,7 @@
       =/  m  (fiber:fiber:nexus ,(map @t tool:nex-tools))
       ^-  form:m
       ;<  src-seen=seen:nexus  bind:m
-        (peek:io /src [%& %| /code/lib/mcp] ~)
+        (peek:io [%& %| /code/lib/mcp] ~)
       ?.  ?=([%& %ball *] src-seen)
         (pure:m ~)
       ?~  fil.ball.p.src-seen
@@ -39,7 +39,7 @@
       |-
       ?~  names  (pure:m result)
       =/  name=@ta  i.names
-      ;<  res=built:nexus  bind:m  (get-code-full:io /tool [%& %& /code/lib/mcp name])
+      ;<  res=built:nexus  bind:m  (get-code-full:io [%& %& /code/lib/mcp name])
       ?.  ?=(%vase -.res)  $(names t.names)
       =/  got=(each tool:nex-tools tang)
         (mule |.(!<(tool:nex-tools vase.res)))
@@ -56,7 +56,7 @@
       ^-  form:m
       =/  file-name=@ta
         (crip (turn (trip tool-name) |=(c=@t ?:(=(c '_') '-' c))))
-      ;<  res=built:nexus  bind:m  (get-code-full:io /tool [%& %& /code/lib/mcp file-name])
+      ;<  res=built:nexus  bind:m  (get-code-full:io [%& %& /code/lib/mcp file-name])
       ?.  ?=(%vase -.res)
         (pure:m [%| ?:(?=(%tang -.res) tang.res ~[leaf+"not a vase"])])
       =/  got=(each tool:nex-tools tang)
@@ -134,15 +134,15 @@
       ::  Create tool grub and subscribe
       =/  tid=@ta  eyre-id
       =/  tool-road=road:tarball  [%| 1 %& /tools tid]
-      ;<  exists=?  bind:m  (peek-exists:io /chk tool-road)
-      ;<  =kept:nexus  bind:m  (get-kept:io /watch)
+      ;<  exists=?  bind:m  (peek-exists:io tool-road)
+      ;<  =kept:nexus  bind:m  get-kept:io
       ;<  ~  bind:m
         ?.  =(~ kept)
           (pure:m ~)
         ;<  *  bind:m
           (keep:io /watch tool-road ~)
         ?.  exists
-          (make:io /make tool-road |+[%.n [[/ %tool-state] !>(ts)] ~])
+          (make:io tool-road |+[%.n [[/ %tool-state] !>(ts)] ~])
         (pure:m ~)
       ::  Wait for tool to finish
       |-

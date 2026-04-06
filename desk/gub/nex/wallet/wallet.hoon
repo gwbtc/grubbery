@@ -129,8 +129,8 @@
             ::  clear error + show loading
             =/  err-road=road:tarball   (cord-to-road:tarball './ui/sse/error.html')
             =/  load-road=road:tarball  (cord-to-road:tarball './ui/sse/loading.html')
-            ;<  ~  bind:m  (over:io /err-clear err-road [[/ %manx] !>(;div;)])
-            ;<  ~  bind:m  (over:io /load-on load-road [[/ %manx] !>(loading-bar)])
+            ;<  ~  bind:m  (over:io err-road [[/ %manx] !>(;div;)])
+            ;<  ~  bind:m  (over:io load-road [[/ %manx] !>(loading-bar)])
             ;<  ~  bind:m  (sleep:io `@dr`(div ~s1 10))
             ::  derive account key from master seed
             =/  network=?(%main %testnet %regtest)
@@ -157,16 +157,16 @@
               (~(put by *(map @ta content:tarball)) %'data.wallet_account' [~ [/wallet %account] !>(acct)])
             =/  acct-ball=ball:tarball  [`acct-lump ~]
             ;<  err=(unit tang)  bind:m
-              (make-soft:io /create [%| 2 %| (snoc /accounts acct-dir)] &+[*sand:nexus *gain:nexus acct-ball])
+              (make-soft:io [%| 2 %| (snoc /accounts acct-dir)] &+[*sand:nexus *gain:nexus acct-ball])
 
             ?^  err
               ;<  ~  bind:m
-                (over:io /load-off load-road [[/ %manx] !>(;div;)])
+                (over:io load-road [[/ %manx] !>(;div;)])
               ;<  ~  bind:m
-                (over:io /err-write err-road [[/ %manx] !>((render-error u.err))])
+                (over:io err-road [[/ %manx] !>((render-error u.err))])
               $
             ::  clear loading + update wallet accounts map
-            ;<  ~  bind:m  (over:io /load-off load-road [[/ %manx] !>(;div;)])
+            ;<  ~  bind:m  (over:io load-road [[/ %manx] !>(;div;)])
             =/  acct-path=account:wt  [[%.y purpose] [%.y coin-type] [%.y account-idx]]
             =.  wal  wal(accounts (~(put by accounts.wal) acct-path acct-pubkey))
             ;<  ~  bind:m  (replace:io !>(wal))
@@ -179,20 +179,20 @@
             ::  clear error + show loading
             =/  err-road=road:tarball   (cord-to-road:tarball './ui/sse/error.html')
             =/  load-road=road:tarball  (cord-to-road:tarball './ui/sse/loading.html')
-            ;<  ~  bind:m  (over:io /err-clear err-road [[/ %manx] !>(;div;)])
-            ;<  ~  bind:m  (over:io /load-on load-road [[/ %manx] !>(loading-bar)])
+            ;<  ~  bind:m  (over:io err-road [[/ %manx] !>(;div;)])
+            ;<  ~  bind:m  (over:io load-road [[/ %manx] !>(loading-bar)])
             ;<  ~  bind:m  (sleep:io `@dr`(div ~s1 10))
             ;<  err=(unit tang)  bind:m
-              (cull-soft:io /delete [%| 2 %| (snoc /accounts acct-dir)])
+              (cull-soft:io [%| 2 %| (snoc /accounts acct-dir)])
 
             ?^  err
               ;<  ~  bind:m
-                (over:io /load-off load-road [[/ %manx] !>(;div;)])
+                (over:io load-road [[/ %manx] !>(;div;)])
               ;<  ~  bind:m
-                (over:io /err-write err-road [[/ %manx] !>((render-error u.err))])
+                (over:io err-road [[/ %manx] !>((render-error u.err))])
               $
             ::  clear loading + remove from wallet accounts map
-            ;<  ~  bind:m  (over:io /load-off load-road [[/ %manx] !>(;div;)])
+            ;<  ~  bind:m  (over:io load-road [[/ %manx] !>(;div;)])
             =.  wal
               %=  wal
                 accounts
@@ -204,7 +204,7 @@
             $
               %'clear-error'
             =/  err-road=road:tarball  (cord-to-road:tarball './ui/sse/error.html')
-            ;<  ~  bind:m  (over:io /err-clear err-road [[/ %manx] !>(;div;)])
+            ;<  ~  bind:m  (over:io err-road [[/ %manx] !>(;div;)])
             $
           ==
         ==

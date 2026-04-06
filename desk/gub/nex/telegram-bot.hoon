@@ -162,7 +162,7 @@
         ::  update offset
         ::
         =/  offset-road=road:tarball  (cord-to-road:tarball './offset.ud')
-        ;<  ~  bind:m  (over:io /off offset-road [[/ %ud] !>(new-offset)])
+        ;<  ~  bind:m  (over:io offset-road [[/ %ud] !>(new-offset)])
         $(offset new-offset)
           ::  /send.sig: accept pokes to send messages as the bot
           ::
@@ -218,7 +218,7 @@
           [[%ui ~] %'chat.html']
         ;<  ~  bind:m  (rise-wait:io prod "%telegram-bot chat: failed")
         ::  compute base path for API calls
-        ;<  =bowl:nexus  bind:m  (get-bowl:io /bowl)
+        ;<  =bowl:nexus  bind:m  get-bowl:io
         =/  base=tape
           ::  path.here.bowl keys already contain dots for necks
           ::  e.g. /telegram.telegram/bots/claude-1/ui
@@ -278,7 +278,7 @@
   =/  m  (fiber:fiber:nexus ,@t)
   ^-  form:m
   ;<  =seen:nexus  bind:m
-    (peek:io /cfg (cord-to-road:tarball './config.json') `%json)
+    (peek:io (cord-to-road:tarball './config.json') `%json)
   ?.  ?=([%& %file *] seen)
     (pure:m '')
   =/  cfg=json  !<(json q.sage.p.seen)
@@ -292,7 +292,7 @@
   =/  m  (fiber:fiber:nexus ,@ud)
   ^-  form:m
   ;<  =seen:nexus  bind:m
-    (peek:io /off (cord-to-road:tarball './offset.ud') `%ud)
+    (peek:io (cord-to-road:tarball './offset.ud') `%ud)
   ?.  ?=([%& %file *] seen)
     (pure:m 0)
   (pure:m !<(@ud q.sage.p.seen))
@@ -302,7 +302,7 @@
   =/  m  (fiber:fiber:nexus ,json)
   ^-  form:m
   ;<  =seen:nexus  bind:m
-    (peek:io /msg (cord-to-road:tarball (rap 3 ~['./messages/' cid '.json'])) `%json)
+    (peek:io (cord-to-road:tarball (rap 3 ~['./messages/' cid '.json'])) `%json)
   ?.  ?=([%& %file *] seen)
     (pure:m [%o ~])
   (pure:m !<(json q.sage.p.seen))
@@ -337,10 +337,10 @@
         ['messages' [%a msgs]]
     ==
   ;<  =seen:nexus  bind:m
-    (peek:io /chk file-road ~)
+    (peek:io file-road ~)
   ?:  ?=([%& %file *] seen)
-    (over:io /msg file-road [[/ %json] !>(dat)])
-  (make:io /msg file-road [%| gain=%.n [[/ %json] !>(dat)] ~])
+    (over:io file-road [[/ %json] !>(dat)])
+  (make:io file-road [%| gain=%.n [[/ %json] !>(dat)] ~])
 ::
 ::  Extract chat names and messages from the messages/ directory view.
 ::  Files live in fil.ball.view → contents (not dir, which is subdirs).

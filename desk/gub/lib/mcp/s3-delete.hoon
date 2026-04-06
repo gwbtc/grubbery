@@ -27,7 +27,7 @@
     (pure:m [%error 'Missing or invalid argument: s3_key'])
   =/  s3-key=@t  p.parsed
   ;<  creds=s3-creds:tools  bind:m  read-s3-creds:tools
-  ;<  =bowl:nexus  bind:m  (get-bowl:io /bowl)
+  ;<  =bowl:nexus  bind:m  get-bowl:io
   =/  [amz-date=@t payload-hash=@t authorization=@t]
     %:  build-signature:s3:tools
       'DELETE'

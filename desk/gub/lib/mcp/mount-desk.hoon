@@ -21,7 +21,7 @@
     (pure:m [%error 'Missing or invalid argument: desk'])
   =/  desk=@t  p.parsed
   =/  dek=@tas  (slav %tas desk)
-  ;<  =bowl:nexus  bind:m  (get-bowl:io /bowl)
+  ;<  =bowl:nexus  bind:m  get-bowl:io
   ;<  ~  bind:m
     (gall-poke-our:io %hood kiln-mount+!>([/(scot %p our.bowl)/[dek]/(scot %da now.bowl) dek]))
   (pure:m [%text (crip "Mounted %{(trip dek)}")])

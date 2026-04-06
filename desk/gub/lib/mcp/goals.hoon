@@ -28,7 +28,7 @@
   =/  m  (fiber:fiber:nexus ,goal-store:goals)
   ^-  form:m
   ;<  =seen:nexus  bind:m
-    (peek:io /read (store-road name) ~)
+    (peek:io (store-road name) ~)
   ?.  ?=([%& %file *] seen)
     ~|(%store-not-found !!)
   (pure:m !<(goal-store:goals q.sage.p.seen))
@@ -120,21 +120,21 @@
     ?~  store-name
       (pure:m [%error 'Missing required argument: store'])
     =/  name=@ta  u.store-name
-    ;<  =bowl:nexus  bind:m  (get-bowl:io /bowl)
+    ;<  =bowl:nexus  bind:m  get-bowl:io
     =/  store=goal-store:goals  (create-store:goals now.bowl)
     ;<  ~  bind:m
-      (make:io /create (store-road name) |+[%.n [[/ %goal-store] !>(store)] `%goal-store])
+      (make:io (store-road name) |+[%.n [[/ %goal-store] !>(store)] `%goal-store])
     (pure:m [%text (crip "Created store: {(trip name)}")])
   ::
       %'delete-store'
     ?~  store-name
       (pure:m [%error 'Missing required argument: store'])
-    ;<  ~  bind:m  (cull:io /delete (store-road u.store-name))
+    ;<  ~  bind:m  (cull:io (store-road u.store-name))
     (pure:m [%text (crip "Deleted store: {(trip u.store-name)}")])
   ::
       %'list-stores'
     ;<  =seen:nexus  bind:m
-      (peek:io /read store-dir-road ~)
+      (peek:io store-dir-road ~)
     ?.  ?=([%& %ball *] seen)
       (pure:m [%text 'No stores found.'])
     ?~  fil.ball.p.seen
@@ -224,9 +224,9 @@
       (pure:m [%error 'Missing or invalid action arguments'])
     =/  act-type=@t  -.p.act-parsed
     =/  act=action:goals  +.p.act-parsed
-    ;<  =bowl:nexus  bind:m  (get-bowl:io /bowl)
+    ;<  =bowl:nexus  bind:m  get-bowl:io
     ;<  ~  bind:m
-      (poke:io /act (store-road u.store-name) [[/ %goal-action] !>(act)])
+      (poke:io (store-road u.store-name) [[/ %goal-action] !>(act)])
     (pure:m [%text (crip "Applied {(trip act-type)}")])
   ::
       ::  list: show all goals in a store

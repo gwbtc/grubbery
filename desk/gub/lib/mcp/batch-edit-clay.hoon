@@ -45,7 +45,7 @@
     ?~  edit-list
       (pure:m [%error 'edits array is empty'])
     =/  dek=@tas  (slav %tas desk)
-    ;<  =bowl:nexus  bind:m  (get-bowl:io /bowl)
+    ;<  =bowl:nexus  bind:m  get-bowl:io
     =/  instructions=(list [pax=path mark=@tas content=@t])  ~
     =/  file-names=(list @t)  ~
     =/  remaining=(list json)  edit-list
@@ -53,7 +53,7 @@
     ?~  remaining
       ?~  instructions
         (pure:m [%error 'no valid edits to apply'])
-      ;<  initial=cass:clay  bind:m  (do-scry:io cass:clay /scry /cw/[dek])
+      ;<  initial=cass:clay  bind:m  (do-scry:io cass:clay /cw/[dek])
       =/  ins=(list [path %ins @tas vase])
         %+  turn  (flop instructions)
         |=  [pax=path mark=@tas content=@t]
@@ -68,7 +68,7 @@
       ;<  ~  bind:m
         (replace:io !>([tool.st args.st %batch-editing write-data ~]))
       ;<  *  bind:m  (keep:io /dill/logs [%& %& /sys/dill %'logs.dill-told'] ~)
-      ;<  =bowl:nexus  bind:m  (get-bowl:io /bowl)
+      ;<  =bowl:nexus  bind:m  get-bowl:io
       ;<  ~  bind:m
         (send-card:io %pass /commit-timeout %arvo %b %wait (add now.bowl ~s30))
       ;<  ~  bind:m

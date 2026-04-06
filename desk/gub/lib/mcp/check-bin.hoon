@@ -53,7 +53,7 @@
     ==
   =/  bin-path=path  (stab pax)
   =/  bin-name=@ta  (crip (trip nam))
-  ;<  res=built:nexus  bind:m  (get-code-full:io /check [%& %& (weld code-ns bin-path) bin-name])
+  ;<  res=built:nexus  bind:m  (get-code-full:io [%& %& (weld code-ns bin-path) bin-name])
   ?:  ?=(%vase -.res)
     =/  msg=tape  "OK: {(trip pax)}/{(trip nam)} compiled successfully"
     ?.  show

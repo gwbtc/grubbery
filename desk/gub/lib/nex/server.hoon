@@ -55,7 +55,7 @@
   |=  =binding:eyre
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
-  (poke:io /bind server-road [[/ %server-action] !>([%bind binding ~])])
+  (poke:io server-road [[/ %server-action] !>([%bind binding ~])])
 ::  Register an eyre binding targeting a specific process.
 ::  The target bend is relative to the calling process.
 ::
@@ -63,7 +63,7 @@
   |=  [=binding:eyre =bend:fiber:nexus]
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
-  (poke:io /bind server-road [[/ %server-action] !>([%bind binding `bend])])
+  (poke:io server-road [[/ %server-action] !>([%bind binding `bend])])
 ::  HTTP response helpers, parameterized on dispatcher road.
 ::  Usage: =/  srv  ~(. res:nex-server [%| 1 %& ~ %'main.sig'])
 ::         (send-simple:srv eyre-id payload)
@@ -74,7 +74,7 @@
     |=  [eyre-id=@ta =eyre-update]
     =/  m  (fiber:fiber:nexus ,~)
     ^-  form:m
-    (poke:io /send main [[/ %server-action] !>([%send eyre-id eyre-update])])
+    (poke:io main [[/ %server-action] !>([%send eyre-id eyre-update])])
   ::
   ++  send-simple
     |=  [eyre-id=@ta =simple-payload:http]
@@ -114,15 +114,15 @@
     =/  [eyre-id=@ta src=@p req=inbound-request:eyre]
       !<([eyre-id=@ta @p inbound-request:eyre] q.sage)
     ~&  >  [label %dispatch eyre-id url.request.req]
-    ;<  ~  bind:m  (make:io /make [%| 0 %& /requests eyre-id] |+[%.n [[/ %http-request] !>([src req])] ~])
+    ;<  ~  bind:m  (make:io [%| 0 %& /requests eyre-id] |+[%.n [[/ %http-request] !>([src req])] ~])
     $
       %server-action
-    ;<  ~  bind:m  (poke:io /send server-road sage)
+    ;<  ~  bind:m  (poke:io server-road sage)
     $
       %handle-http-cancel
     =/  eyre-id=@ta  !<(@ta q.sage)
     ~&  >  [label %cancel eyre-id]
-    ;<  ~  bind:m  (cull:io /cancel [%| 0 %& /requests eyre-id])
+    ;<  ~  bind:m  (cull:io [%| 0 %& /requests eyre-id])
     $
   ==
 ::  Resolve a fiber bend to an absolute rail, given the resolver's

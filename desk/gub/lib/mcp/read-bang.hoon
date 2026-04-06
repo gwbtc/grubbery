@@ -18,7 +18,7 @@
     (pure:m [%error 'Missing or invalid argument: path'])
   =/  pax=@t  p.parsed
   =/  =road:tarball  (cord-to-road:tarball pax)
-  ;<  res=(each bangs:nexus (unit tang))  bind:m  (get-bang:io /bang road)
+  ;<  res=(each bangs:nexus (unit tang))  bind:m  (get-bang:io road)
   ?:  ?=(%| -.res)
     ::  File error
     ::

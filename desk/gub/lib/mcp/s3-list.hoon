@@ -22,7 +22,7 @@
     ?.  ?=([%s *] u.pj)  ''
     p.u.pj
   ;<  creds=s3-creds:tools  bind:m  read-s3-creds:tools
-  ;<  =bowl:nexus  bind:m  (get-bowl:io /bowl)
+  ;<  =bowl:nexus  bind:m  get-bowl:io
   =/  query-string=@t  (build-list-query:s3:tools prefix)
   =/  [amz-date=@t payload-hash=@t authorization=@t]
     %:  build-signature:s3:tools

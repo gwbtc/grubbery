@@ -22,7 +22,7 @@
   =/  message=@t  p.parsed
   ::  Read telegram config from ball
   ;<  creds-seen=seen:nexus  bind:m
-    (peek:io /creds [%& %& /config/creds 'telegram'] ~)
+    (peek:io [%& %& /config/creds 'telegram'] ~)
   ?.  ?=([%& %file *] creds-seen)
     (pure:m [%error 'Telegram credentials not configured. Create config/creds/telegram with bot-token and chat-id.'])
   =/  jon=json  !<(json q.sage.p.creds-seen)

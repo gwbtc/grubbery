@@ -67,6 +67,6 @@
   ::  Send edited text back via %over — runtime handles mark conversion
   =/  new-mime=^mime  [/text/plain (as-octs:mimes:html (crip p.result))]
   =/  road=road:tarball  [%& %& pax grub-name]
-  ;<  ~  bind:m  (over:io /edit road [[/ %mime] !>(new-mime)])
+  ;<  ~  bind:m  (over:io road [[/ %mime] !>(new-mime)])
   (pure:m [%text (crip "Edited {(trip file-path)}/{(trip file-name)}")])
 --

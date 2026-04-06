@@ -27,7 +27,7 @@
         (snip `(list @)`t)
       t
     (stab (crip stripped))
-  ;<  =seen:nexus  bind:m  (peek:io /browse [%& %| pax] ~)
+  ;<  =seen:nexus  bind:m  (peek:io [%& %| pax] ~)
   ?.  ?=([%& %ball *] seen)
     (pure:m [%error (crip "Directory not found: {(trip dir-path)}")])
   =/  neck-text=tape

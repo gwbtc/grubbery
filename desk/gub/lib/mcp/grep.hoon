@@ -48,7 +48,7 @@
     `p.u.mk
   =/  search-tape=tape  (trip search)
   ::  Browse root to get entire ball
-  ;<  =seen:nexus  bind:m  (peek:io /browse [%& %| ~] ~)
+  ;<  =seen:nexus  bind:m  (peek:io [%& %| ~] ~)
   ?.  ?=([%& %ball *] seen)
     (pure:m [%error 'Could not read ball'])
   ::  Flatten and filter by metadata patterns
@@ -77,7 +77,7 @@
     "{pax}/{(trip name.rail)}"
   ::  Try to read file content as text
   ;<  file-seen=seen:nexus  bind:m
-    (peek:io /read [%& %& path.rail name.rail] ~)
+    (peek:io [%& %& path.rail name.rail] ~)
   ?.  ?=([%& %file *] file-seen)
     $(candidates t.candidates)
   ;<  =mime  bind:m  (sage-to-mime:io sage.p.file-seen)

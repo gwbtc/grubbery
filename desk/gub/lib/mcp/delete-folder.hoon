@@ -20,6 +20,6 @@
   ?:  ?=(%| -.parsed)
     (pure:m [%error 'Missing or invalid argument: path'])
   =/  folder-path=@t  p.parsed
-  ;<  ~  bind:m  (cull:io /delete [%& %| (stab folder-path)])
+  ;<  ~  bind:m  (cull:io [%& %| (stab folder-path)])
   (pure:m [%text (crip "Deleted folder {(trip folder-path)}")])
 --

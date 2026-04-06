@@ -133,7 +133,7 @@
                 u.acct(change new-addrs)
               u.acct(receiving new-addrs)
             ;<  ~  bind:m
-              (over:io /acct-write (cord-to-road:tarball './data.wallet_account') [[/wallet %account] !>(updated)])
+              (over:io (cord-to-road:tarball './data.wallet_account') [[/wallet %account] !>(updated)])
             $
           ==
         ==
