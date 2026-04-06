@@ -117,8 +117,9 @@
     ;<  now=@da  bind:m  get-time:io
     ;<  conversions=(map bars:tarball tube:clay)  bind:m
       (get-blot-conversions-shallow:io u.sub)
-    ::  Get code origin for this directory level (for neck/mark links)
-    ::  Resolve bend to absolute code namespace path for URL construction
+    ::  Resolve governing /code namespace for blot & nexus links.
+    ::  get-font returns a bend relative to this fiber's location,
+    ::  so we resolve it with our own `here` rail to get the absolute path.
     ;<  font=(unit bend:tarball)  bind:m
       (get-font:io /font [%& %| tree-path])
     ;<  here=rail:tarball  bind:m  get-here:io
@@ -416,6 +417,19 @@
     =/  par=ball:tarball  (~(dip ba:tarball root) watch-path)
     =/  par-born=born:nexus  (~(dip of root-born) watch-path)
     =/  url-prefix=tape  (build-url watch-path)
+    ::  Resolve governing /code namespace so SSE-pushed rows get
+    ::  the same blot & nexus links as the initial page render.
+    ::  The bend is relative to this fiber, so resolve with `here`.
+    ;<  font=(unit bend:tarball)  bind:m
+      (get-font:io /font [%& %| watch-path])
+    ;<  here=rail:tarball  bind:m  get-here:io
+    =/  code-namespace=(unit path)
+      ?~  font  ~
+      =/  ns=(unit lane:tarball)
+        (lane-from-bend:tarball [%& here] u.font)
+      ?~  ns  ~
+      ?.  ?=(%| -.u.ns)  ~
+      `p.u.ns
     ;<  =bowl:nexus  bind:m  (get-bowl:io /sse)
     ::  Only build tubes for marks of files that changed in watched dir
     =/  changed-blots=(set blot:tarball)
@@ -482,7 +496,7 @@
           ?~  fil.par  ""
           =/  ct=(unit content:tarball)  (~(get by contents.u.fil.par) item)
           ?~  ct  ""
-          (en-xml:html (render-grub-row item u.ct url-prefix watch-path par-born now.bowl conversions ~ ~))
+          (en-xml:html (render-grub-row item u.ct url-prefix watch-path par-born now.bowl conversions code-namespace ~))
         =/  sub=(unit ball:tarball)  (~(get by dir.par) item)
         ?~  sub  ""
         (en-xml:html (render-dir-row item u.sub url-prefix ~))
@@ -817,7 +831,9 @@
   =/  b-born=born:nexus  (~(dip of root-born) pax)
   =/  dir-sand=sand:nexus  (~(dip of root-sand) pax)
   =/  dir-weir=(unit weir:nexus)  fil.dir-sand
-  ::  Code links: neck source URL from lump + code namespace from font
+  ::  Nexus source link: combines the governing /code namespace
+  ::  with the directory's neck rail to form a URL to the .hoon source.
+  ::  e.g. /grubbery/ball/code/nex/wallet/account.hoon
   =/  neck-url=(unit tape)
     ?~  code-namespace  ~
     ?~  fil.b  ~
@@ -1096,6 +1112,7 @@
           :~  ;span.boom-icon(data-tang rendered, onclick "showBoom(this)"): !
           ==
     ==
+    ::  Blot link: governing /code namespace + /mar/ + blot rail
     ;td(class mark-class)
       ;*  =/  mark-url=(unit tape)
             ?~  code-namespace  ~
