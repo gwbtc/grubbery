@@ -2049,15 +2049,17 @@
     ::  Cull directory - delete entire subtree
     =/  dest-path=fold:tarball  p.dest
     =/  sub=ball:tarball  (~(dip ba:tarball ball) dest-path)
-    ::  Bump all changes before deletion
+    ::  Remove from ball BEFORE notify so subscribers see deletion
+    =.  ball  (~(lop ba:tarball ball) dest-path)
+    ::  Bump all changes and notify
     =.  this  (cull-ball-changes dest-path sub)
     ::  Nack all queued pokes in subtree
     =.  this  (nack-pool dest-path (~(dip of pool) dest-path) ~[leaf+"culled"])
     ::  Clean gall subscriptions for subtree
     =.  this  (clean dest-path %tree)
-    ::  Remove from pool and ball (NOT born - it's a high-water mark)
+    ::  Remove from pool
     =.  pool  (~(lop of pool) dest-path)
-    this(ball (~(lop ba:tarball ball) dest-path))
+    this
     ::
       %&
     ::  Cull file - delete single file
@@ -2501,6 +2503,7 @@
   ::  Update build state
   ::  Note: /mar entries in results are already marcs (built in build.hoon)
   ~&  >  "build-code: updating lode"
+  =/  old-keys=keys:nexus  keys.lode
   =.  lode  [keys.res deps.res new-bins]
   =.  code  (~(put by code) cod lode)
   ::  Validate marks: clam existing grubs through changed marks
@@ -2510,7 +2513,7 @@
   =.  code  (~(put by code) cod upd-lode(bins new-bins))
   ::  Reload nexuses whose compiled code changed
   ~&  >  "build-code: reload-changed-nexuses"
-  =.  this  (reload-changed-nexuses cod keys.lode keys.res old-bins new-bins)
+  =.  this  (reload-changed-nexuses cod old-keys keys.res old-bins new-bins)
   ~&  >  "build-code: done"
   this
 ::  Validate marks: for each changed mark in bin/mar/, build a vale gate
@@ -2630,7 +2633,7 @@
         =/  [* =bask:tarball]  ;;([tang bask:tarball] q.q.sage.content)
         q.bask
       q.q.sage.content
-    (save-file:acc rail content(sage [[/ %boom] !>([p.res [name.blot noun]])]))
+    (save-file:acc rail content(sage [[/ %boom] !>([p.res [blot noun]])]))
   =/  n-boom=@ud
     (lent (skim results |=([* * res=(each vase tang)] ?=(%| -.res))))
   ~&  >  "validate-marks: {(trip nam)} — {<(sub (lent grubs) n-boom)>} ok, {<n-boom>} boom"
@@ -2654,16 +2657,18 @@
     %+  murn  ~(tap by node)
     |=  [nam=@ta =built:nexus]
     =/  =rail:tarball  [(weld /nex pax) nam]
-    =/  old-key=(unit @uv)  (~(get by old-keys) rail)
-    =/  new-key=(unit @uv)  (~(get by new-keys) rail)
-    ::  Debug: detect key-same but vase-different
+    =/  key-rail=rail:tarball  [path.rail (cat 3 nam '.hoon')]
+    =/  old-key=(unit @uv)  (~(get by old-keys) key-rail)
+    =/  new-key=(unit @uv)  (~(get by new-keys) key-rail)
+    ::  Invariant: if keys match, vases must match
     =/  old-node=(map @ta built:nexus)
       (fall (~(get of old-sub) pax) *(map @ta built:nexus))
     =/  old-built=(unit built:nexus)  (~(get by old-node) nam)
-    ~?  >>>  ?&  =(old-key new-key)
-                 !=(old-built `built)
-             ==
-      [%reload-changed-nexuses-debug %keys-same-vase-diff rail]
+    ?:  ?&  =(old-key new-key)
+            !=(old-built `built)
+        ==
+      ~|  [%reload-changed-nexuses %keys-same-vase-diff rail]
+      !!
     ?:  =(old-key new-key)  ~
     `[[pax nam] built]
   ::  Process each changed nexus
@@ -2691,10 +2696,10 @@
   ?~  dir-remaining  ^$(remaining t.remaining)
   =/  dest=fold:tarball  i.dir-remaining
   ?:  ?=(%| -.nex-res)
-    ~&  >>  "reload-changed-nexuses: bang {(trip (rail-to-arm:tarball neck))} at {(spud dest)}"
+    ~&  >>  "reload-changed-nexuses: bang {(spud (weld path.neck ~[name.neck]))} at {(spud dest)}"
     =.  this  (bang-nexus dest p.nex-res)
     $(dir-remaining t.dir-remaining)
-  ~&  >  "reload-changed-nexuses: reloading {(trip (rail-to-arm:tarball neck))} at {(spud dest)}"
+  ~&  >  "reload-changed-nexuses: reloading {(spud (weld path.neck ~[name.neck]))} at {(spud dest)}"
   =.  this  (reload-nexus-at dest p.nex-res)
   =.  this  (spawn-all-files dest (~(dip ba:tarball ball) dest))
   $(dir-remaining t.dir-remaining)

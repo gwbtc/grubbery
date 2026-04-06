@@ -472,8 +472,8 @@
   =/  sub-born=born:nexus  (~(dip of born.p.root-seen) api-path)
   =/  stamped=ball:tarball  (stamp-mtimes:nexus sub-born u.sub)
   ;<  now=@da  bind:m  get-time:io
-  ;<  conversions=(map mars:clay tube:clay)  bind:m
-    (get-mark-conversions:io stamped)
+  ;<  conversions=(map bars:tarball tube:clay)  bind:m
+    (get-blot-conversions:io stamped)
   =/  tar=tarball:tarball
     (~(make-tarball gen:tarball [now conversions]) api-path stamped)
   =/  tar-data=octs  (encode-tarball:tarball tar)
@@ -609,17 +609,17 @@
     ?.  =('file' field-name)  ~
     ?~  file.part  ~
     (parse-extension:tarball u.file.part)
-  ;<  conversions=(map mars:clay tube:clay)  bind:m
-    =/  m  (fiber:fiber:nexus ,(map mars:clay tube:clay))
+  ;<  conversions=(map bars:tarball tube:clay)  bind:m
+    =/  m  (fiber:fiber:nexus ,(map bars:tarball tube:clay))
     =/  ext-list=(list @ta)  ~(tap in exts)
-    =|  convs=(map mars:clay tube:clay)
+    =|  convs=(map bars:tarball tube:clay)
     |-  ^-  form:m
     ?~  ext-list  (pure:m convs)
-    =/  =mars:clay  [%mime i.ext-list]
+    =/  =bars:tarball  [[/ %mime] [/ i.ext-list]]
     ;<  tube=(unit tube:clay)  bind:m
-      (get-tube:io [%& %| /code] [[/ a.mars] [/ b.mars]])
+      (get-tube:io [%& %| /code] bars)
     =?  convs  ?=(^ tube)
-      (~(put by convs) mars u.tube)
+      (~(put by convs) bars u.tube)
     $(ext-list t.ext-list)
   ::  Process each file part directly
   =|  created=(list @t)
@@ -659,8 +659,8 @@
   =/  ext=(unit @ta)  (parse-extension:tarball file-name)
   =/  final-sage=sage:tarball
     ?~  ext  mime-sage
-    =/  =mars:clay  [%mime u.ext]
-    =/  tube=(unit tube:clay)  (~(get by conversions) mars)
+    =/  =bars:tarball  [[/ %mime] [/ u.ext]]
+    =/  tube=(unit tube:clay)  (~(get by conversions) bars)
     ?~  tube  mime-sage
     =/  result=(each vase tang)  (mule |.((u.tube q.mime-sage)))
     ?:  ?=(%| -.result)  mime-sage

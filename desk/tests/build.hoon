@@ -702,4 +702,128 @@
     (expect !>(=(%.y ?=([~ %& *] (~(get by results.res) [/lib %'b.hoon'])))))
     (expect !>(=(%.y ?=([~ %& *] (~(get by results.res) [/lib %'c.hoon'])))))
   ==
+::
+::  ==========================================
+::  +build-all key change detection tests
+::  ==========================================
+::
+++  test-build-all-keys-change-on-source-change
+  ::  When source changes, the key for that file must change
+  =/  ball1=ball:tarball
+    (~(put ba:tarball *ball:tarball) [/ %'foo.hoon'] [~ [[/ %hoon] !>('|=(a=@ +(a))')]])
+  =/  res1  (build-all:build !>(~) ball1 *build-cache:build)
+  =/  ball2=ball:tarball
+    (~(put ba:tarball *ball:tarball) [/ %'foo.hoon'] [~ [[/ %hoon] !>('|=(a=@ +(+(a)))')]])
+  =/  res2  (build-all:build !>(~) ball2 cache.res1)
+  =/  key1  (~(get by keys.res1) [/ %'foo.hoon'])
+  =/  key2  (~(get by keys.res2) [/ %'foo.hoon'])
+  ;:  weld
+    ::  both keys exist
+    (expect !>(=(%.y ?=(^ key1))))
+    (expect !>(=(%.y ?=(^ key2))))
+    ::  keys differ
+    (expect !>(=(%.y !=(key1 key2))))
+  ==
+::
+++  test-build-all-keys-stable-on-same-source
+  ::  When source is identical, the key must be the same
+  =/  =ball:tarball
+    (~(put ba:tarball *ball:tarball) [/ %'foo.hoon'] [~ [[/ %hoon] !>('|=(a=@ +(a))')]])
+  =/  res1  (build-all:build !>(~) ball *build-cache:build)
+  =/  res2  (build-all:build !>(~) ball cache.res1)
+  %+  expect-eq
+    !>  (~(get by keys.res1) [/ %'foo.hoon'])
+  !>  (~(get by keys.res2) [/ %'foo.hoon'])
+::
+++  test-build-all-keys-change-on-dep-change
+  ::  When a dependency's source changes, the dependent's key must change
+  =/  ball1=ball:tarball  *ball:tarball
+  =.  ball1  (~(put ba:tarball ball1) [/lib %'dep.hoon'] [~ [[/ %hoon] !>('|=(a=@ +(a))')]])
+  =.  ball1  (~(put ba:tarball ball1) [/ %'main.hoon'] [~ [[/ %hoon] !>('/<  dep  /lib/dep.hoon\0a(dep 5)')]])
+  =/  res1  (build-all:build !>(~) ball1 *build-cache:build)
+  ::  change dep source
+  =/  ball2=ball:tarball  *ball:tarball
+  =.  ball2  (~(put ba:tarball ball2) [/lib %'dep.hoon'] [~ [[/ %hoon] !>('|=(a=@ +(+(a)))')]])
+  =.  ball2  (~(put ba:tarball ball2) [/ %'main.hoon'] [~ [[/ %hoon] !>('/<  dep  /lib/dep.hoon\0a(dep 5)')]])
+  =/  res2  (build-all:build !>(~) ball2 cache.res1)
+  =/  main-key1  (~(get by keys.res1) [/ %'main.hoon'])
+  =/  main-key2  (~(get by keys.res2) [/ %'main.hoon'])
+  =/  dep-key1  (~(get by keys.res1) [/lib %'dep.hoon'])
+  =/  dep-key2  (~(get by keys.res2) [/lib %'dep.hoon'])
+  ;:  weld
+    ::  dep key changed
+    (expect !>(=(%.y !=(dep-key1 dep-key2))))
+    ::  main key also changed (dep changed)
+    (expect !>(=(%.y !=(main-key1 main-key2))))
+  ==
+::
+++  test-build-all-no-key-for-failed-build
+  ::  When compilation fails, no key should be in the key map
+  =/  =ball:tarball
+    (~(put ba:tarball *ball:tarball) [/ %'bad.hoon'] [~ [[/ %hoon] !>('|=(')]])
+  =/  res  (build-all:build !>(~) ball *build-cache:build)
+  %+  expect-eq
+    !>  ~
+  !>  (~(get by keys.res) [/ %'bad.hoon'])
+::
+++  test-build-all-key-appears-after-fix
+  ::  File fails, then source is fixed — key should appear
+  =/  ball1=ball:tarball
+    (~(put ba:tarball *ball:tarball) [/ %'foo.hoon'] [~ [[/ %hoon] !>('|=(')]])
+  =/  res1  (build-all:build !>(~) ball1 *build-cache:build)
+  =/  key1  (~(get by keys.res1) [/ %'foo.hoon'])
+  ::  fix the source
+  =/  ball2=ball:tarball
+    (~(put ba:tarball *ball:tarball) [/ %'foo.hoon'] [~ [[/ %hoon] !>('|=(a=@ a)')]])
+  =/  res2  (build-all:build !>(~) ball2 cache.res1)
+  =/  key2  (~(get by keys.res2) [/ %'foo.hoon'])
+  ;:  weld
+    ::  no key when broken
+    (expect !>(=(%.y ?=(~ key1))))
+    ::  key exists after fix
+    (expect !>(=(%.y ?=(^ key2))))
+  ==
+::
+++  test-build-all-keys-change-fail-fix-change
+  ::  Simulates the exact bug: file changes, fails, then fixed version
+  ::  should have different key from original
+  =/  ball-v1=ball:tarball
+    (~(put ba:tarball *ball:tarball) [/ %'foo.hoon'] [~ [[/ %hoon] !>('|=(a=@ +(a))')]])
+  =/  res-v1  (build-all:build !>(~) ball-v1 *build-cache:build)
+  =/  key-v1  (~(got by keys.res-v1) [/ %'foo.hoon'])
+  ::  v2: source changes but has syntax error
+  =/  ball-v2=ball:tarball
+    (~(put ba:tarball *ball:tarball) [/ %'foo.hoon'] [~ [[/ %hoon] !>('|=(a=@ +(+(')]])
+  =/  res-v2  (build-all:build !>(~) ball-v2 cache.res-v1)
+  ::  v3: fixed version with different logic
+  =/  ball-v3=ball:tarball
+    (~(put ba:tarball *ball:tarball) [/ %'foo.hoon'] [~ [[/ %hoon] !>('|=(a=@ +(+(a)))')]])
+  =/  res-v3  (build-all:build !>(~) ball-v3 cache.res-v2)
+  =/  key-v3  (~(got by keys.res-v3) [/ %'foo.hoon'])
+  ::  v1 and v3 keys must differ (source is different)
+  (expect !>(=(%.y !=(key-v1 key-v3))))
+::
+++  test-build-all-keys-use-hoon-suffix
+  ::  key-map must use original rails (with .hoon suffix).
+  ::  reload-changed-nexuses constructs rails from bins (stripped stems)
+  ::  and must append .hoon to look up keys. This test documents that
+  ::  keys.res uses .hoon names, NOT stripped stems.
+  =/  =ball:tarball  *ball:tarball
+  =.  ball  (~(put ba:tarball ball) [/lib %'dep.hoon'] [~ [[/ %hoon] !>('|=(a=@ +(a))')]])
+  =.  ball  (~(put ba:tarball ball) [/nex %'app.hoon'] [~ [[/ %hoon] !>('/<  dep  /lib/dep.hoon\0a|=(a=@ (dep a))')]])
+  =/  res  (build-all:build !>(~) ball *build-cache:build)
+  ::  key-map has entry via .hoon name
+  =/  key-via-hoon  (~(get by keys.res) [/nex %'app.hoon'])
+  ::  key-map does NOT have entry via stripped name
+  =/  key-via-stem  (~(get by keys.res) [/nex %app])
+  ::  results also uses .hoon name
+  =/  result-exists  (~(has by results.res) [/nex %'app.hoon'])
+  ;:  weld
+    ::  key exists via .hoon name
+    (expect !>(=(%.y ?=(^ key-via-hoon))))
+    ::  key does NOT exist via stripped name
+    (expect !>(=(%.y =(~ key-via-stem))))
+    ::  result also uses .hoon name
+    (expect !>(=(%.y result-exists)))
+  ==
 --

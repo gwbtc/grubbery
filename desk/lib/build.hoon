@@ -527,7 +527,7 @@
   ::  For marks: compile raw door into marc
   =.  res
     ?.  ?&  ?=(%& -.res)
-            =(/mar path.rail)
+            ?=([%mar *] path.rail)
         ==
       res
     =/  marc-res=(each marc:tarball tang)

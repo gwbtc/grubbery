@@ -802,70 +802,68 @@
   ;<  res=(unit vase)  bind:m  (get-code /nexus road)
   ?~  res  (pure:m ~)
   (pure:m `!<(nexus:nexus u.res))
-::  +collect-marks: collect all marks used in cages within a ball (deep)
+::  +collect-blots: collect all blots used in sages within a ball (deep)
 ::
-++  collect-marks
+++  collect-blots
   |=  =ball:tarball
-  ^-  (set mark)
-  =/  marks=(set mark)  ~
-  ::  Collect marks from current node's contents
-  =?  marks  ?=(^ fil.ball)
+  ^-  (set blot:tarball)
+  =/  blots=(set blot:tarball)  ~
+  =?  blots  ?=(^ fil.ball)
     =/  entries=(list (pair @ta content:tarball))
       ~(tap by contents.u.fil.ball)
-    |-  ^-  (set mark)
-    ?~  entries  marks
+    |-  ^-  (set blot:tarball)
+    ?~  entries  blots
     =*  content  q.i.entries
-    $(entries t.entries, marks (~(put in marks) name.p.sage.content))
-  ::  Recurse into subdirectories
+    $(entries t.entries, blots (~(put in blots) p.sage.content))
   =/  subdirs=(list (pair @ta ball:tarball))  ~(tap by dir.ball)
-  |-  ^-  (set mark)
-  ?~  subdirs  marks
-  =/  submarks=(set mark)  ^$(ball q.i.subdirs)
-  $(subdirs t.subdirs, marks (~(uni in marks) submarks))
-::  +collect-marks-shallow: collect marks only from immediate files (no recurse)
+  |-  ^-  (set blot:tarball)
+  ?~  subdirs  blots
+  =/  sub=(set blot:tarball)  ^$(ball q.i.subdirs)
+  $(subdirs t.subdirs, blots (~(uni in blots) sub))
+::  +collect-blots-shallow: collect blots only from immediate files (no recurse)
 ::
-++  collect-marks-shallow
+++  collect-blots-shallow
   |=  =ball:tarball
-  ^-  (set mark)
+  ^-  (set blot:tarball)
   ?~  fil.ball  ~
   =/  entries=(list (pair @ta content:tarball))
     ~(tap by contents.u.fil.ball)
-  =/  marks=(set mark)  ~
-  |-  ^-  (set mark)
-  ?~  entries  marks
+  =/  blots=(set blot:tarball)  ~
+  |-  ^-  (set blot:tarball)
+  ?~  entries  blots
   =*  ct  q.i.entries
-  $(entries t.entries, marks (~(put in marks) name.p.sage.ct))
-::  +build-mark-conversions: build conversions map for a set of marks
+  $(entries t.entries, blots (~(put in blots) p.sage.ct))
+::  +build-blot-conversions: build conversions map for a set of blots
 ::
-++  build-mark-conversions
-  |=  marks=(set mark)
-  =/  m  (fiber ,(map mars:clay tube:clay))
+++  build-blot-conversions
+  |=  blots=(set blot:tarball)
+  =/  m  (fiber ,(map bars:tarball tube:clay))
   ^-  form:m
-  =/  mark-list=(list mark)  ~(tap in marks)
-  =/  conversions=(map mars:clay tube:clay)  ~
+  =/  blot-list=(list blot:tarball)  ~(tap in blots)
+  =/  conversions=(map bars:tarball tube:clay)  ~
   |-  ^-  form:m
-  ?~  mark-list
+  ?~  blot-list
     (pure:m conversions)
-  =/  =mars:clay  [i.mark-list %mime]
+  =/  =bars:tarball  [i.blot-list [/ %mime]]
   ;<  tube-result=(unit tube:clay)  bind:m
-    (get-tube [%& %| /code] [[/ a.mars] [/ b.mars]])
+    (get-tube [%& %| /code] bars)
   =?  conversions  ?=(^ tube-result)
-    (~(put by conversions) mars u.tube-result)
-  $(mark-list t.mark-list)
-::  +get-mark-conversions: build mark conversions for all marks in ball (deep)
+    (~(put by conversions) bars u.tube-result)
+  $(blot-list t.blot-list)
+::  +get-blot-conversions: build blot conversions for all blots in ball (deep)
 ::
-++  get-mark-conversions
+++  get-blot-conversions
   |=  =ball:tarball
-  =/  m  (fiber ,(map mars:clay tube:clay))
+  =/  m  (fiber ,(map bars:tarball tube:clay))
   ^-  form:m
-  (build-mark-conversions (collect-marks ball))
-::  +get-mark-conversions-shallow: build conversions for immediate files only
+  (build-blot-conversions (collect-blots ball))
+::  +get-blot-conversions-shallow: build conversions for immediate files only
 ::
-++  get-mark-conversions-shallow
+++  get-blot-conversions-shallow
   |=  =ball:tarball
-  =/  m  (fiber ,(map mars:clay tube:clay))
+  =/  m  (fiber ,(map bars:tarball tube:clay))
   ^-  form:m
-  (build-mark-conversions (collect-marks-shallow ball))
+  (build-blot-conversions (collect-blots-shallow ball))
 ::  +sage-to-mime: convert sage to mime, falling back to jam
 ::
 ++  sage-to-mime
@@ -874,9 +872,9 @@
   ^-  form:m
   ?:  =([/ %mime] p.sage)
     (pure:m !<(mime q.sage))
-  =/  =mars:clay  [name.p.sage %mime]
+  =/  =bars:tarball  [p.sage [/ %mime]]
   ;<  tube=(unit tube:clay)  bind:m
-    (get-tube [%& %| /code] [[/ a.mars] [/ b.mars]])
+    (get-tube [%& %| /code] bars)
   ?~  tube
     (pure:m [/application/x-urb-jam (as-octs:mimes:html (jam q.sage))])
   =/  result=(each vase tang)  (mule |.((u.tube q.sage)))

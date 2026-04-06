@@ -1,11 +1,12 @@
 ::  wallet nexus: bitcoin SPV wallet management UI
 ::
-::
 /<  feather       /lib/feather.hoon
 /<  fi            /lib/feather-icons.hoon
+/<  wt            /lib/wallet-types.hoon
 /<  bip39         /lib/bip39.hoon
 /<  bip32         /lib/bip32.hoon
 /<  seed-phrases  /lib/seed-phrases.hoon
+=,  wt
 =<  ^-  nexus:nexus
     |%
     ++  on-load
@@ -19,6 +20,7 @@
             [%over %& [/ %'main.sig'] %.n [~ [/ %sig] !>(~)]]
             [%over %& [/ %'page.html'] %.n [~ [/ %manx] !>((wallet-page ~))]]
             [%fall %| /wallets [~ ~] [~ ~] empty-dir:loader]
+            [%fall %| /accounts [~ ~] [~ ~] empty-dir:loader]
             [%fall %| /ui/sse [~ ~] [~ ~] empty-dir:loader]
             [%over %& [/ui/sse %'wallets.html'] %.n [~ [/ %manx] !>((wallet-list-html ~))]]
         ==
@@ -69,11 +71,11 @@
             ?~  sd  $
             =/  pubkey=@ux  (seed-to-pubkey u.sd)
             =/  wallet-key=@ta  (crip (hexn:http-utils pubkey))
-            =/  wal=wallet-data  [wallet-name u.sd pubkey]
-            =/  wallet-dir=@ta  (cat 3 wallet-key '.wallet')
+            =/  wal=wallet-data  [wallet-name u.sd pubkey ~]
+            =/  wallet-dir=@ta  (cat 3 wallet-key '.wallet_wallet')
             =/  wal-lump=lump:tarball
               :+  ~  `[/wallet %wallet]
-              (~(put by *(map @ta content:tarball)) %'data.wallet' [~ [/ %wallet] !>(wal)])
+              (~(put by *(map @ta content:tarball)) %'main.wallet_wallet' [~ [/wallet %wallet] !>(wal)])
             =/  wal-ball=ball:tarball  [`wal-lump ~]
             ;<  ~  bind:m
               (make:io /create [%| 0 %| (snoc /wallets wallet-dir)] &+[*sand:nexus *gain:nexus wal-ball])
@@ -86,11 +88,11 @@
               (gen-seed:seed-phrases eny.bowl %128)
             =/  pubkey=@ux  (seed-to-pubkey [%t seed-phrase])
             =/  wallet-key=@ta  (crip (hexn:http-utils pubkey))
-            =/  wal=wallet-data  [wallet-name [%t seed-phrase] pubkey]
-            =/  wallet-dir=@ta  (cat 3 wallet-key '.wallet')
+            =/  wal=wallet-data  [wallet-name [%t seed-phrase] pubkey ~]
+            =/  wallet-dir=@ta  (cat 3 wallet-key '.wallet_wallet')
             =/  wal-lump=lump:tarball
               :+  ~  `[/wallet %wallet]
-              (~(put by *(map @ta content:tarball)) %'data.wallet' [~ [/ %wallet] !>(wal)])
+              (~(put by *(map @ta content:tarball)) %'main.wallet_wallet' [~ [/wallet %wallet] !>(wal)])
             =/  wal-ball=ball:tarball  [`wal-lump ~]
             ;<  ~  bind:m
               (make:io /create [%| 0 %| (snoc /wallets wallet-dir)] &+[*sand:nexus *gain:nexus wal-ball])
@@ -99,13 +101,13 @@
             =/  pubkey=@t
               (~(dog jo:json-utils jon) /pubkey so:dejs:format)
             =/  wallet-key=@ta  (crip (trip pubkey))
-            =/  wallet-dir=@ta  (cat 3 wallet-key '.wallet')
+            =/  wallet-dir=@ta  (cat 3 wallet-key '.wallet_wallet')
             ;<  ~  bind:m
               (cull:io /delete [%| 0 %| (snoc /wallets wallet-dir)])
             $
           ==
         ==
-          ::  /page.html: render wallet page, watch /wallets/ for changes
+          ::  /page.html: render wallet list, re-render on /wallets/ changes
           ::
           [~ %'page.html']
         ;<  ~  bind:m  (rise-wait:io prod "%wallet /page: failed")
@@ -157,6 +159,8 @@
           """
             [%wallets ~]
           'Per-wallet nexuses. Each directory keyed by pubkey fingerprint.'
+            [%accounts ~]
+          'Per-account nexuses. Each directory keyed by account pubkey. Sibling to wallets.'
             [%ui %sse ~]
           'SSE streams. Sanitized wallet data for live UI updates via keep endpoint.'
         ==
@@ -169,12 +173,9 @@
         ==
       ==
     --
-::  wallet types
+::  wallet helpers
 ::
 |%
-+$  seed  $%([%t phrase=@t] [%q secret=@q])
-+$  wallet-data  [name=@t =seed fingerprint=@ux]
-::
 ++  seed-to-pubkey
   |=  =seed
   ^-  @ux
@@ -225,7 +226,7 @@
     ?:  =('bip39' p.stype)  [%t p.sval]
     [%q (slav %q p.sval)]
   =/  fingerprint=@ux  (scan (trip p.fp) hex)
-  [p.name seed fingerprint]
+  [p.name seed fingerprint ~]
 ::
 ++  view-to-wallets
   |=  =view:nexus
@@ -234,7 +235,7 @@
   %+  murn  ~(tap by dir.ball.view)
   |=  [name=@ta sub=ball:tarball]
   =/  sub-lump=lump:tarball  (fall fil.sub *lump:tarball)
-  =/  ct=(unit content:tarball)  (~(get by contents.sub-lump) 'data.wallet')
+  =/  ct=(unit content:tarball)  (~(get by contents.sub-lump) 'main.wallet_wallet')
   ?~  ct  ~
   ?.  ?=(%wallet name.p.sage.u.ct)  ~
   (mole |.(!<(wallet-data q.sage.u.ct)))
@@ -376,7 +377,7 @@
   ^-  manx
   =/  wallet-key=tape  (hexn:http-utils fingerprint.wal)
   =/  detail-url=tape
-    "/grubbery/api/file/wallet.wallet_app/wallets/{wallet-key}.wallet/page.html"
+    "/grubbery/api/file/wallet.wallet_app/wallets/{wallet-key}.wallet_wallet/page.html"
   ;div.p3.b1.br2.hover.pointer
     =onclick  "window.location.href='{detail-url}'"
     =style  "display: flex; justify-content: space-between; align-items: center; gap: 12px;"

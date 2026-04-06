@@ -264,12 +264,13 @@
 ::  Returns ~ if no extension or no conversion available
 ::
 ++  mime-to-sage
-  |=  [conversions=(map mars:clay tube:clay) filename=@ta =mime]
+  |=  [conversions=(map bars tube:clay) filename=@ta =mime]
   ^-  (unit sage)
   =/  ext=(unit @ta)  (parse-extension filename)
   ?~  ext
     ~
-  ?~  tube=(~(get by conversions) %mime u.ext)
+  =/  =bars  [[/ %mime] [/ u.ext]]
+  ?~  tube=(~(get by conversions) bars)
     ~
   `[[/ u.ext] (u.tube !>(mime))]
 ::  Determine MIME type from Content-Type header and/or file extension
@@ -393,7 +394,7 @@
           base-path=path
           parts=(list [@t part:multipart])
           now=@da
-          conversions=(map mars:clay tube:clay)
+          conversions=(map bars tube:clay)
       ==
   ^-  ball
   ?~  parts  base
@@ -878,18 +879,18 @@
   $(p t.p, n [i.p n])
 ::
 ++  gen
-  |_  [now=@da conversions=(map mars:clay tube:clay)]
+  |_  [now=@da conversions=(map bars tube:clay)]
   ::  TODO: implement PAX extended headers (typeflag 'x' and 'g')
   ::  to preserve arbitrary metadata fields like date-created
   ::  Format: <length> <key>=<value>\n
   ::
-  ::  Convert sage to mime using mark conversions map
+  ::  Convert sage to mime using blot conversions map
   ::  Falls back to noun jamming if no conversion exists
   ::
   ++  sage-to-mime
     |=  =sage
     ^-  mime
-    =/  key=mars:clay  [a=name.p.sage b=%mime]
+    =/  key=bars  [p.sage [/ %mime]]
     ?~  tube=(~(get by conversions) key)
       ::  No conversion available, fall back to jamming like mar/noun.hoon
       [/application/x-urb-jam (as-octs:mimes:html (jam q.sage))]

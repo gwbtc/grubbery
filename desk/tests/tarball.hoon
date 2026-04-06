@@ -1049,7 +1049,7 @@
 ::  mime-to-sage tests
 ::
 ++  test-mime-to-sage-no-extension
-  =/  conversions  *(map mars:clay tube:clay)
+  =/  conversions  *(map bars:tarball tube:clay)
   =/  test-mime  [/text/plain [5 'hello']]
   =/  result  (mime-to-sage:tarball conversions 'readme' test-mime)
   %+  expect-eq
@@ -1057,7 +1057,7 @@
   !>  result
 ::
 ++  test-mime-to-sage-jammed-no-ext
-  =/  conversions  *(map mars:clay tube:clay)
+  =/  conversions  *(map bars:tarball tube:clay)
   =/  test-data  42
   =/  jammed  (jam test-data)
   =/  test-mime  [/application/x-urb-jam (as-octs:mimes:html jammed)]
@@ -1068,7 +1068,7 @@
   !>  result
 ::
 ++  test-mime-to-sage-jammed-with-ext
-  =/  conversions  *(map mars:clay tube:clay)
+  =/  conversions  *(map bars:tarball tube:clay)
   =/  test-data  [%hello %world]
   =/  jammed  (jam test-data)
   =/  test-mime  [/application/x-urb-jam (as-octs:mimes:html jammed)]
@@ -1079,7 +1079,7 @@
   !>  result
 ::
 ++  test-mime-to-sage-no-conversion
-  =/  conversions  *(map mars:clay tube:clay)
+  =/  conversions  *(map bars:tarball tube:clay)
   =/  test-mime  [/text/plain [5 'hello']]
   =/  result  (mime-to-sage:tarball conversions 'data.txt' test-mime)
   %+  expect-eq
@@ -1091,14 +1091,14 @@
   =/  mock-tube=$-(vase vase)
     |=  v=vase
     !>([%array ~[[%string 'test']]])
-  =/  conversions=(map mars:clay tube:clay)
-    (~(put by *(map mars:clay tube:clay)) [%mime %json] mock-tube)
+  =/  conversions=(map bars:tarball tube:clay)
+    (~(put by *(map bars:tarball tube:clay)) [[/ %mime] [/ %json]] mock-tube)
   =/  test-mime  [/application/json [2 '{}']]
   =/  result  (mime-to-sage:tarball conversions 'data.json' test-mime)
   ?~  result  !!
   ;:  weld
     %+  expect-eq
-      !>  %json
+      !>  [/ %json]
     !>  p.u.result
     %+  expect-eq
       !>  !>([%array ~[[%string 'test']]])
@@ -1106,7 +1106,7 @@
   ==
 ::
 ++  test-mime-to-sage-uppercase-ext
-  =/  conversions  *(map mars:clay tube:clay)
+  =/  conversions  *(map bars:tarball tube:clay)
   =/  test-mime  [/text/plain [5 'HELLO']]
   =/  result  (mime-to-sage:tarball conversions 'FILE.TXT' test-mime)
   ::  Extension should be normalized to lowercase, but no conversion so returns ~
@@ -1115,7 +1115,7 @@
   !>  result
 ::
 ++  test-mime-to-sage-hyphenated-ext
-  =/  conversions  *(map mars:clay tube:clay)
+  =/  conversions  *(map bars:tarball tube:clay)
   =/  test-mime  [/text/html [10 '<p>test</p>']]
   =/  result  (mime-to-sage:tarball conversions 'page.html-min' test-mime)
   %+  expect-eq
@@ -1123,7 +1123,7 @@
   !>  result
 ::
 ++  test-mime-to-sage-jammed-complex
-  =/  conversions  *(map mars:clay tube:clay)
+  =/  conversions  *(map bars:tarball tube:clay)
   =/  test-data=(list @ud)  ~[1 2 3 4 5]
   =/  jammed  (jam test-data)
   =/  test-mime  [/application/x-urb-jam (as-octs:mimes:html jammed)]
@@ -1134,7 +1134,7 @@
   !>  result
 ::
 ++  test-mime-to-sage-empty-conversions
-  =/  conversions  *(map mars:clay tube:clay)
+  =/  conversions  *(map bars:tarball tube:clay)
   =/  test-mime  [/text/css [4 'body']]
   =/  result  (mime-to-sage:tarball conversions 'style.css' test-mime)
   %+  expect-eq
@@ -1142,7 +1142,7 @@
   !>  result
 ::
 ++  test-mime-to-sage-multiple-dots
-  =/  conversions  *(map mars:clay tube:clay)
+  =/  conversions  *(map bars:tarball tube:clay)
   =/  test-mime  [/text/plain [3 'hi']]
   =/  result  (mime-to-sage:tarball conversions 'my.backup.txt' test-mime)
   %+  expect-eq
@@ -1154,14 +1154,14 @@
   =/  mock-tube=$-(vase vase)
     |=  v=vase
     !>('converted')
-  =/  conversions=(map mars:clay tube:clay)
-    (~(put by *(map mars:clay tube:clay)) [%mime %md] mock-tube)
+  =/  conversions=(map bars:tarball tube:clay)
+    (~(put by *(map bars:tarball tube:clay)) [[/ %mime] [/ %md]] mock-tube)
   =/  test-mime  [/text/markdown [6 '# Test']]
   =/  result  (mime-to-sage:tarball conversions 'readme.md' test-mime)
   ?~  result  !!
   ;:  weld
     %+  expect-eq
-      !>  %md
+      !>  [/ %md]
     !>  p.u.result
     %+  expect-eq
       !>  !>('converted')
@@ -1173,8 +1173,8 @@
   =/  mock-tube=$-(vase vase)
     |=  v=vase
     !>('converted-json')
-  =/  conversions=(map mars:clay tube:clay)
-    (~(put by *(map mars:clay tube:clay)) [%mime %json] mock-tube)
+  =/  conversions=(map bars:tarball tube:clay)
+    (~(put by *(map bars:tarball tube:clay)) [[/ %mime] [/ %json]] mock-tube)
   =/  test-data  %test-atom
   =/  jammed  (jam test-data)
   =/  test-mime  [/application/x-urb-jam (as-octs:mimes:html jammed)]
@@ -1183,7 +1183,7 @@
   ?~  result  !!
   ;:  weld
     %+  expect-eq
-      !>  %json
+      !>  [/ %json]
     !>  p.u.result
     %+  expect-eq
       !>  !>('converted-json')

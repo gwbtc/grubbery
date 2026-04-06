@@ -129,6 +129,41 @@
 ::    - wrong axis: children that are all coupled or overlapping. the
 ::      decomposition cut the wrong joint. restructure.
 ::
+::  -- frontier health --
+::
+::  the utility of a structured goals container is in surfacing a
+::  frontier that is substantial enough to offer real choice and
+::  compact enough to reflect useful prioritization. if everything
+::  is on the frontier, nothing is.
+::
+::  for an achievable multi-session project undertaken by a single
+::  agent (human or LLM), a healthy frontier is 5–12 goals. below 5,
+::  one external blocker leaves you stuck. above 12, you're browsing
+::  a backlog, not choosing what to do next. 5–12 maps to working
+::  memory — you can scan the options and pick without scrolling.
+::
+::  frontier size is a quality metric for the graph. a well-structured
+::  store with real precedence links naturally produces a tight
+::  frontier because the DAG is doing work — filtering the full tree
+::  down to what's actually unblocked. a sloppy store produces a wide
+::  frontier because everything looks independent when you haven't
+::  thought about ordering.
+::
+::  if the frontier is too large:
+::    - add precedence links: some goals probably do depend on each
+::      other, and encoding that shrinks the frontier.
+::    - group siblings under intermediates: a level was skipped,
+::      and inserting it sequences work naturally.
+::    - accept genuine parallelism: some projects really do have
+::      many independent tracks. but verify this is true, not just
+::      an artifact of missing structure.
+::
+::  if the frontier is too small:
+::    - decompose blocked goals: something on the frontier may be
+::      too large and hiding actionable sub-work.
+::    - check for over-sequencing: precedence links should encode
+::      real dependencies, not just preferred order.
+::
 /<  goals       /lib/goals.hoon
 =<  ^-  nexus:nexus
     |%

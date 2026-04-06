@@ -115,8 +115,8 @@
     ?:  ?&(?=(^ download-param) =(u.download-param 'tar'))
       (serve-tarball eyre-id tree-path u.sub (~(dip of root-born) tree-path))
     ;<  now=@da  bind:m  get-time:io
-    ;<  conversions=(map mars:clay tube:clay)  bind:m
-      (get-mark-conversions-shallow:io u.sub)
+    ;<  conversions=(map bars:tarball tube:clay)  bind:m
+      (get-blot-conversions-shallow:io u.sub)
     ::  Get code origin for this directory level (for neck/mark links)
     ::  Resolve bend to absolute code namespace path for URL construction
     ;<  font=(unit bend:tarball)  bind:m
@@ -304,17 +304,17 @@
     ?.  =('file' field-name)  ~
     ?~  file.part  ~
     (parse-extension:tarball u.file.part)
-  ;<  conversions=(map mars:clay tube:clay)  bind:m
-    =/  m  (fiber:fiber:nexus ,(map mars:clay tube:clay))
+  ;<  conversions=(map bars:tarball tube:clay)  bind:m
+    =/  m  (fiber:fiber:nexus ,(map bars:tarball tube:clay))
     =/  ext-list=(list @ta)  ~(tap in exts)
-    =|  convs=(map mars:clay tube:clay)
+    =|  convs=(map bars:tarball tube:clay)
     |-  ^-  form:m
     ?~  ext-list  (pure:m convs)
-    =/  =mars:clay  [%mime i.ext-list]
+    =/  =bars:tarball  [[/ %mime] [/ i.ext-list]]
     ;<  tube=(unit tube:clay)  bind:m
-      (get-tube:io [%& %| /code] [[/ a.mars] [/ b.mars]])
+      (get-tube:io [%& %| /code] bars)
     =?  convs  ?=(^ tube)
-      (~(put by convs) mars u.tube)
+      (~(put by convs) bars u.tube)
     $(ext-list t.ext-list)
   ::  Build ball from multipart using from-parts
   =/  new=ball:tarball
@@ -349,8 +349,8 @@
   ^-  form:m
   =/  stamped=ball:tarball  (stamp-mtimes:nexus sub-born b)
   ;<  now=@da  bind:m  get-time:io
-  ;<  conversions=(map mars:clay tube:clay)  bind:m
-    (get-mark-conversions:io stamped)
+  ;<  conversions=(map bars:tarball tube:clay)  bind:m
+    (get-blot-conversions:io stamped)
   =/  tar=tarball:tarball
     (~(make-tarball gen:tarball [now conversions]) tree-path stamped)
   =/  tar-data=octs  (encode-tarball:tarball tar)
@@ -413,19 +413,19 @@
     =/  url-prefix=tape  (build-url watch-path)
     ;<  =bowl:nexus  bind:m  (get-bowl:io /sse)
     ::  Only build tubes for marks of files that changed in watched dir
-    =/  changed-marks=(set mark)
-      %-  ~(gas in *(set mark))
+    =/  changed-blots=(set blot:tarball)
+      %-  ~(gas in *(set blot:tarball))
       %+  murn  ~(tap in what)
       |=  =lane:tarball
-      ^-  (unit mark)
+      ^-  (unit blot:tarball)
       ?.  ?=(%& -.lane)  ~
       ?.  =(path.p.lane watch-path)  ~
       ?~  fil.par  ~
       =/  ct=(unit content:tarball)  (~(get by contents.u.fil.par) name.p.lane)
       ?~  ct  ~
-      `name.p.sage.u.ct
-    ;<  conversions=(map mars:clay tube:clay)  bind:m
-      (build-mark-conversions:io changed-marks)
+      `p.sage.u.ct
+    ;<  conversions=(map bars:tarball tube:clay)  bind:m
+      (build-blot-conversions:io changed-blots)
     =/  lanes=(list lane:tarball)  ~(tap in what)
     |-
     ?~  lanes
@@ -794,7 +794,7 @@
           root-born=born:nexus
           root-sand=sand:nexus
           now=@da
-          conversions=(map mars:clay tube:clay)
+          conversions=(map bars:tarball tube:clay)
           code-namespace=(unit path)
           =bangs:nexus
       ==
@@ -837,7 +837,7 @@
       ;table#listing(data-path (trip (spat pax)))
         ;tr
           ;th.sortable(data-col "0", onclick "sortTable(0)"): Name
-          ;th.sortable(data-col "1", onclick "sortTable(1)"): Mark
+          ;th.sortable(data-col "1", onclick "sortTable(1)"): Blot
           ;th.sortable(data-col "2", onclick "sortTable(2)"): Mime Type
           ;th.sortable(data-col "3", onclick "sortTable(3)"): Size
           ;th.sortable(data-col "4", onclick "sortTable(4)"): Modified
@@ -1019,7 +1019,7 @@
           pax=path
           dir-born=born:nexus
           now=@da
-          conversions=(map mars:clay tube:clay)
+          conversions=(map bars:tarball tube:clay)
           code-namespace=(unit path)
           file-bang=(unit tang)
       ==
@@ -1056,11 +1056,15 @@
     ==
   =/  display-name=tape  (trip name)
   =/  file-url=tape  "{url-prefix}/{display-name}"
-  =/  mark-name=tape  (trip name.p.sag)
+  =/  mark-name=tape  (spud (rail-to-path:tarball p.sag))
   =/  ext=(unit @ta)  (parse-extension:tarball name)
+  =/  rail-ext=@ta
+    %-  crip  %-  zing
+    %+  join  "_"
+    (turn (rail-to-path:tarball p.sag) trip)
   =/  mark-matches=?
     ?~  ext  %.n
-    =(u.ext name.p.sag)
+    =(u.ext rail-ext)
   =/  mark-class=tape  ?:(mark-matches "" " mark-mismatch")
   =/  =mime
     ?:  =(%mime name.p.sag)
@@ -1081,7 +1085,8 @@
     ;td(class mark-class)
       ;*  =/  mark-url=(unit tape)
             ?~  code-namespace  ~
-            `"/grubbery/ball{(trip (spat (weld u.code-namespace /mar)))}/{(trip name.p.sag)}.hoon"
+            =/  mar-path=path  (weld u.code-namespace (weld /mar (rail-to-path:tarball p.sag)))
+            `"/grubbery/ball{(trip (spat mar-path))}.hoon"
           ?~  mark-url
             :~  ;span: {mark-name}
             ==
