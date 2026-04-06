@@ -535,8 +535,8 @@
   |=  [=wire =road:tarball =sage:tarball]
   =/  m  (fiber ,~)
   ^-  form:m
-  ;<  ~  bind:m  (send-dart %node wire road %over sage)
-  (take-over wire)
+  ;<  ~  bind:m  (send-dart %node /over road %over sage)
+  (take-over /over)
 ::
 ++  take-over
   |=  =wire

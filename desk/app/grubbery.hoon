@@ -2011,8 +2011,9 @@
     ::  Put the final sand, gain, and ball back
     =.  sand  (put-sub-sand sand dest-path new-sand)
     =.  gain  (put-sub-gain gain dest-path new-gain)
-    ::  Spawn processes and sync all changes (old is empty)
-    (load-ball-changes dest-path *ball:tarball validated)
+    ::  Sync all changes (old is empty) and spawn processes
+    =.  this  (load-ball-changes dest-path *ball:tarball validated)
+    (spawn-all-files dest-path validated)
     ::
       %&
     ::  Make file - payload must be cage

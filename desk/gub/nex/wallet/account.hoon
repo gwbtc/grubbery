@@ -40,15 +40,30 @@
           ::
           [~ %'page.html']
         ;<  ~  bind:m  (rise-wait:io prod "%account detail: failed")
+        ~&  >  [%account-page %init-keep %path (cord-to-road:tarball './')]
         ;<  init=view:nexus  bind:m
           (keep:io /data (cord-to-road:tarball './') ~)
+        ~&  >  [%account-page %init-view -.init]
         =/  acct=(unit account-data)  (extract-account init)
-        ?~  acct  stay:m
+        ~&  >  [%account-page %init-extract ?=(^ acct)]
+        ?~  acct
+          ~&  >  [%account-page %waiting-for-data]
+          |-
+          ;<  upd=view:nexus  bind:m  (take-news:io /data)
+          ~&  >  [%account-page %upd-waiting -.upd]
+          =/  acct=(unit account-data)  (extract-account upd)
+          ~&  >  [%account-page %upd-waiting-extract ?=(^ acct)]
+          ?~  acct  $
+          ~&  >  [%account-page %rendering-from-wait]
+          ;<  ~  bind:m  (replace:io !>((detail-page u.acct)))
+          $
+        ~&  >  [%account-page %rendering-immediate]
         ;<  ~  bind:m  (replace:io !>((detail-page u.acct)))
         |-
         ;<  upd=view:nexus  bind:m  (take-news:io /data)
+        ~&  >  [%account-page %upd -.upd]
         =/  acct=(unit account-data)  (extract-account upd)
-        ?~  acct  stay:m
+        ?~  acct  $
         ;<  ~  bind:m  (replace:io !>((detail-page u.acct)))
         $
           ::  /ui/sse/addresses.html: live address list fragment
@@ -58,12 +73,18 @@
         ;<  init=view:nexus  bind:m
           (keep:io /data (cord-to-road:tarball '../../') ~)
         =/  acct=(unit account-data)  (extract-account init)
-        ?~  acct  stay:m
+        ?~  acct
+          |-
+          ;<  upd=view:nexus  bind:m  (take-news:io /data)
+          =/  acct=(unit account-data)  (extract-account upd)
+          ?~  acct  $
+          ;<  ~  bind:m  (replace:io !>((addresses-fragment u.acct)))
+          $
         ;<  ~  bind:m  (replace:io !>((addresses-fragment u.acct)))
         |-
         ;<  upd=view:nexus  bind:m  (take-news:io /data)
         =/  acct=(unit account-data)  (extract-account upd)
-        ?~  acct  stay:m
+        ?~  acct  $
         ;<  ~  bind:m  (replace:io !>((addresses-fragment u.acct)))
         $
           ::  /main.sig: handle pokes (derive-next)

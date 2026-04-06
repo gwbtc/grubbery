@@ -283,6 +283,11 @@
     ;<  ~  bind:m  (sand:io /sand [%& %| tree-path] ~)
     ;<  ~  bind:m  (send-simple:srv eyre-id [[303 ~[['location' (crip redirect-url)]]] ~])
     (pure:m ~)
+  ::
+      %'reload-nexus'
+    ;<  ~  bind:m  (reload:io /reload [%& %| tree-path])
+    ;<  ~  bind:m  (send-simple:srv eyre-id [[303 ~[['location' (crip redirect-url)]]] ~])
+    (pure:m ~)
   ==
 ::  Handle multipart file upload
 ::
@@ -609,7 +614,7 @@
   =/  neck-display=tape
     ?~  fil.b  "-"
     ?~  neck.u.fil.b  "-"
-    (trip (rail-to-arm:tarball u.neck.u.fil.b))
+    (trip (spat (rail-to-path:tarball u.neck.u.fil.b)))
   =/  nkids=@ud
     %+  add
       ~(wyt by dir.b)
@@ -648,6 +653,15 @@
                 ;input(type "text", name "road-path", placeholder "/path", required "");
                 ;input(type "hidden", name "action", value "add-weir-road");
                 ;button(type "submit"): Add
+              ==
+            ==
+        ==
+    ;*  ?.  ?&(?=(^ fil.b) ?=(^ neck.u.fil.b))  ~
+        :~  ;div.action-row
+              ;form.inline-form(method "POST", action url-prefix)
+                ;label: Nexus:
+                ;input(type "hidden", name "action", value "reload-nexus");
+                ;button(type "submit"): Reload
               ==
             ==
         ==
@@ -806,9 +820,9 @@
   ::  Code links: neck source URL from lump + code namespace from font
   =/  neck-url=(unit tape)
     ?~  code-namespace  ~
-    ?~  fil.root  ~
-    ?~  neck.u.fil.root  ~
-    `"/grubbery/ball{(trip (spat (weld u.code-namespace /nex)))}/{(trip (rail-to-arm:tarball u.neck.u.fil.root))}.hoon"
+    ?~  fil.b  ~
+    ?~  neck.u.fil.b  ~
+    `"/grubbery/ball{(trip (spat (weld u.code-namespace /nex)))}{(trip (spat (rail-to-path:tarball u.neck.u.fil.b)))}.hoon"
   =/  path-display=tape
     ?~  pax  "/"
     (trip (spat pax))
