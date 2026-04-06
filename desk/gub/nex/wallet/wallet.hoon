@@ -28,6 +28,7 @@
             [%fall %| /ui/sse [~ ~] [~ ~] empty-dir:loader]
             [%over %& [/ui/sse %'accounts.html'] %.n [~ [/ %manx] !>(;div;)]]
             [%over %& [/ui/sse %'error.html'] %.n [~ [/ %manx] !>(;div;)]]
+            [%over %& [/ui/sse %'loading.html'] %.n [~ [/ %manx] !>(;div;)]]
             [%load %& [/ %'main.wallet_wallet'] [/ %'page.html'] data-to-page]
         ==
       ==
@@ -47,24 +48,26 @@
           (keep:io /data (cord-to-road:tarball './') ~)
         ;<  accts=view:nexus  bind:m
           (keep:io /accts (cord-to-road:tarball '../../accounts/') ~)
-        ;<  err-view=view:nexus  bind:m
-          (keep:io /err (cord-to-road:tarball './ui/sse/') ~)
+        ;<  sse=view:nexus  bind:m
+          (keep:io /sse (cord-to-road:tarball './ui/sse/') ~)
         =/  wal=(unit wallet-data)  (extract-wallet data)
         =/  acct-list=(list account-data)  (extract-accounts accts wal)
         ?~  wal  stay:m
-        =/  err=manx  (extract-error err-view)
-        ;<  ~  bind:m  (replace:io !>((detail-page u.wal acct-list err)))
+        =/  err=manx   (extract-sse-manx sse 'error.html')
+        =/  load=manx  (extract-sse-manx sse 'loading.html')
+        ;<  ~  bind:m  (replace:io !>((detail-page u.wal acct-list err load)))
         |-
-        ;<  [tag=?(%data %accts %err) =view:nexus]  bind:m
-          (take-any-news /data /accts /err)
-        =?  data    =(tag %data)   view
-        =?  accts   =(tag %accts)  view
-        =?  err-view  =(tag %err)  view
+        ;<  [tag=?(%data %accts %sse) =view:nexus]  bind:m
+          (take-any-news /data /accts /sse)
+        =?  data   =(tag %data)   view
+        =?  accts  =(tag %accts)  view
+        =?  sse    =(tag %sse)    view
         =/  wal=(unit wallet-data)  (extract-wallet data)
         =/  acct-list=(list account-data)  (extract-accounts accts wal)
         ?~  wal  stay:m
-        =/  err=manx  (extract-error err-view)
-        ;<  ~  bind:m  (replace:io !>((detail-page u.wal acct-list err)))
+        =/  err=manx   (extract-sse-manx sse 'error.html')
+        =/  load=manx  (extract-sse-manx sse 'loading.html')
+        ;<  ~  bind:m  (replace:io !>((detail-page u.wal acct-list err load)))
         $
           ::  /ui/sse/accounts.html: rendered account list for SSE
           ::
@@ -123,6 +126,12 @@
             =/  account-idx=@ud
               (rash (~(dug jo:json-utils jon) /account-number so:dejs:format '0') dem)
             =/  =script-type  (purpose-to-script purpose)
+            ::  clear error + show loading
+            =/  err-road=road:tarball   (cord-to-road:tarball './ui/sse/error.html')
+            =/  load-road=road:tarball  (cord-to-road:tarball './ui/sse/loading.html')
+            ;<  ~  bind:m  (over:io /err-clear err-road [[/ %manx] !>(;div;)])
+            ;<  ~  bind:m  (over:io /load-on load-road [[/ %manx] !>(loading-bar)])
+            ;<  ~  bind:m  (sleep:io `@dr`(div ~s1 10))
             ::  derive account key from master seed
             =/  network=?(%main %testnet %regtest)
               ?:  =(1 coin-type)  %testnet  %main
@@ -149,15 +158,15 @@
             =/  acct-ball=ball:tarball  [`acct-lump ~]
             ;<  err=(unit tang)  bind:m
               (make-soft:io /create [%| 2 %| (snoc /accounts acct-dir)] &+[*sand:nexus *gain:nexus acct-ball])
+
             ?^  err
               ;<  ~  bind:m
-                (over:io /err-write (cord-to-road:tarball './ui/sse/error.html') [[/ %manx] !>((render-error u.err))])
+                (over:io /load-off load-road [[/ %manx] !>(;div;)])
+              ;<  ~  bind:m
+                (over:io /err-write err-road [[/ %manx] !>((render-error u.err))])
               $
-            ::  clear error on success
-            ;<  ~  bind:m
-              (over:io /err-clear (cord-to-road:tarball './ui/sse/error.html') [[/ %manx] !>(;div;)])
-
-            ::  update wallet accounts map
+            ::  clear loading + update wallet accounts map
+            ;<  ~  bind:m  (over:io /load-off load-road [[/ %manx] !>(;div;)])
             =/  acct-path=account:wt  [[%.y purpose] [%.y coin-type] [%.y account-idx]]
             =.  wal  wal(accounts (~(put by accounts.wal) acct-path acct-pubkey))
             ;<  ~  bind:m  (replace:io !>(wal))
@@ -167,16 +176,23 @@
               (~(dog jo:json-utils jon) /account-key so:dejs:format)
             =/  acct-pubkey=@ux  (scan (trip acct-key) hex)
             =/  acct-dir=@ta  (cat 3 (crip (trip acct-key)) '.wallet_account')
+            ::  clear error + show loading
+            =/  err-road=road:tarball   (cord-to-road:tarball './ui/sse/error.html')
+            =/  load-road=road:tarball  (cord-to-road:tarball './ui/sse/loading.html')
+            ;<  ~  bind:m  (over:io /err-clear err-road [[/ %manx] !>(;div;)])
+            ;<  ~  bind:m  (over:io /load-on load-road [[/ %manx] !>(loading-bar)])
+            ;<  ~  bind:m  (sleep:io `@dr`(div ~s1 10))
             ;<  err=(unit tang)  bind:m
               (cull-soft:io /delete [%| 2 %| (snoc /accounts acct-dir)])
+
             ?^  err
               ;<  ~  bind:m
-                (over:io /err-write (cord-to-road:tarball './ui/sse/error.html') [[/ %manx] !>((render-error u.err))])
+                (over:io /load-off load-road [[/ %manx] !>(;div;)])
+              ;<  ~  bind:m
+                (over:io /err-write err-road [[/ %manx] !>((render-error u.err))])
               $
-            ::  clear error on success
-            ;<  ~  bind:m
-              (over:io /err-clear (cord-to-road:tarball './ui/sse/error.html') [[/ %manx] !>(;div;)])
-            ::  remove from wallet accounts map
+            ::  clear loading + remove from wallet accounts map
+            ;<  ~  bind:m  (over:io /load-off load-road [[/ %manx] !>(;div;)])
             =.  wal
               %=  wal
                 accounts
@@ -185,6 +201,10 @@
                 |=([* pk=@ux] =(pk acct-pubkey))
               ==
             ;<  ~  bind:m  (replace:io !>(wal))
+            $
+              %'clear-error'
+            =/  err-road=road:tarball  (cord-to-road:tarball './ui/sse/error.html')
+            ;<  ~  bind:m  (over:io /err-clear err-road [[/ %manx] !>(;div;)])
             $
           ==
         ==
@@ -226,7 +246,7 @@
 ::
 ++  take-any-news
   |=  [a=wire b=wire c=wire]
-  =/  m  (fiber:fiber:nexus ,[?(%data %accts %err) view:nexus])
+  =/  m  (fiber:fiber:nexus ,[?(%data %accts %sse) view:nexus])
   ^-  form:m
   |=  input:fiber:nexus
   :+  ~  state
@@ -235,19 +255,25 @@
       [~ %news * *]
     ?:  =(a wire.u.in)  [%done %data view.u.in]
     ?:  =(b wire.u.in)  [%done %accts view.u.in]
-    ?:  =(c wire.u.in)  [%done %err view.u.in]
+    ?:  =(c wire.u.in)  [%done %sse view.u.in]
     [%skip ~]
   ==
 ::
-++  extract-error
-  |=  =view:nexus
+++  extract-sse-manx
+  |=  [=view:nexus name=@ta]
   ^-  manx
   ?.  ?=([%ball *] view)  ;div;
   =/  =lump:tarball  (fall fil.ball.view *lump:tarball)
-  =/  ct=(unit content:tarball)  (~(get by contents.lump) 'error.html')
+  =/  ct=(unit content:tarball)  (~(get by contents.lump) name)
   ?~  ct  ;div;
   =/  result=(unit manx)  (mole |.(!<(manx q.sage.u.ct)))
   (fall result ;div;)
+::
+++  loading-bar
+  ^-  manx
+  ;div(style "height: 2px; background: #e0e0e0; overflow: hidden; border-radius: 1px;")
+    ;div(style "height: 100%; width: 30%; background: #888; animation: slide 1s ease-in-out infinite;");
+  ==
 ::
 ++  render-error
   |=  =tang
@@ -275,6 +301,13 @@
   ;details(style "background: #fce8e6; color: #c62828; padding: 6px 10px; border-radius: 3px; border: 1px solid #f5c6cb; font-size: 13px;")
     ;summary(style "display: flex; align-items: center; gap: 6px; cursor: pointer; list-style: none;")
       ;span(style "flex: 1;"): {message}
+      ;button
+        =onclick  "clearError()"
+        =style  "background: none; border: none; color: #c62828; cursor: pointer; padding: 0; display: flex; align-items: center; justify-content: center; opacity: 0.6;"
+        ;div(style "width: 14px; height: 14px; display: flex; align-items: center; justify-content: center;")
+          ;+  (make:fi 'x')
+        ==
+      ==
       ;div(style "width: 14px; height: 14px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;")
         ;+  (make:fi 'chevron-down')
       ==
@@ -293,7 +326,7 @@
   ?:  =(ct *content:tarball)  [%.n ct]
   ?:  =([/ %boom] p.sage.ct)  [%.n ct]
   =/  wal=wallet-data  !<(wallet-data q.sage.ct)
-  [%.n [~ [/ %manx] !>((detail-page wal ~ ;div;))]]
+  [%.n [~ [/ %manx] !>((detail-page wal ~ ;div; ;div;))]]
 ::
 ++  extract-wallet
   |=  =view:nexus
@@ -548,7 +581,7 @@
   ==
 ::
 ++  detail-page
-  |=  [wal=wallet-data accts=(list account-data) err=manx]
+  |=  [wal=wallet-data accts=(list account-data) err=manx load=manx]
   ^-  manx
   =/  back-url=tape
     "/grubbery/api/file/wallet.wallet_app/page.html"
@@ -589,6 +622,9 @@
             ;div(id "accounts-container", style "flex: 1; min-height: 0; overflow-y: auto;")
               ;+  (accounts-fragment accts)
             ==
+            ;div(id "loading-container")
+              ;+  load
+            ==
             ;div(id "error-container")
               ;+  err
             ==
@@ -610,6 +646,10 @@
     overflow: hidden !important;
     margin: 0 !important;
   }
+  @keyframes slide \{
+    0% \{ transform: translateX(-100%) }
+    100% \{ transform: translateX(400%) }
+  }
   """
 ::
 ++  script-text
@@ -620,8 +660,16 @@
     return path.replace('/api/file/', '/api/poke/').replace('/ball/', '/api/poke/').replace('page.html', 'main.wallet_wallet') + '?mark=json';
   }
 
+  function showLoading() \{
+    var lc = document.getElementById('loading-container');
+    if (lc) lc.innerHTML = '<div style="height:2px;background:#e0e0e0;overflow:hidden;border-radius:1px"><div style="height:100%;width:30%;background:#888;animation:slide 1s ease-in-out infinite"></div></div>';
+    var ec = document.getElementById('error-container');
+    if (ec) ec.innerHTML = '';
+  }
+
   function submitAddAccount(e) \{
     e.preventDefault();
+    showLoading();
     var data = \{};
     new FormData(e.target).forEach(function(v, k) \{ data[k] = v; });
     fetch(getPokeUrl(), \{
@@ -664,7 +712,17 @@
     });
   })();
 
+  function clearError() \{
+    document.getElementById('error-container').innerHTML = '';
+    fetch(getPokeUrl(), \{
+      method: 'POST',
+      headers: \{'Content-Type': 'application/json'},
+      body: JSON.stringify(\{action: 'clear-error'})
+    });
+  }
+
   function removeAccount(key) \{
+    showLoading();
     fetch(getPokeUrl(), \{
       method: 'POST',
       headers: \{'Content-Type': 'application/json'},
@@ -724,10 +782,15 @@
           if (act === 'old') continue;
           var html = data.join('\\n');
           if (name === 'accounts.html') \{
+            document.getElementById('loading-container').innerHTML = '';
             var el = document.getElementById('accounts-container');
             if (el) el.innerHTML = html;
           } else if (name === 'error.html') \{
+            document.getElementById('loading-container').innerHTML = '';
             var el = document.getElementById('error-container');
+            if (el) el.innerHTML = html;
+          } else if (name === 'loading.html') \{
+            var el = document.getElementById('loading-container');
             if (el) el.innerHTML = html;
           }
         }
