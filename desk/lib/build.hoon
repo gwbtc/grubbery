@@ -347,8 +347,13 @@
 ::    paths, topologically sorts, and compiles bottom-up. Each file's
 ::    imports are added as named faces in its compilation subject.
 ::
-::    Cache keys are content-based: hash of (source hash + sorted dep
-::    cache keys). Same content + same deps = cache hit regardless of path.
+::    Cache keys are content-based: hash of (subject + source + path +
+::    sorted dep cache keys). Same inputs = same key = cache hit.
+::
+::    Every file gets a key regardless of compilation outcome — parse
+::    errors, cycle errors, dep failures, and compile failures all
+::    produce deterministic keys from their inputs. This ensures the
+::    reload-changed-nexuses invariant holds: same key ↔ same artifact.
 ::
 ++  build-all
   |=  [sut=vase =ball:tarball =build-cache]
@@ -444,10 +449,15 @@
       %+  join  ", "
       %+  turn  ~(tap in cycle-deps)
       |=(d=rail:tarball (spud (snoc path.d name.d)))
-    (~(put by acc) r [%| ~[leaf+"circular dependency in {(spud (snoc path.r name.r))} on {dep-paths}"]])
-  ::  Seed key-map with mime content hashes
+    =/  err=tang  ~[leaf+"circular dependency in {(spud (snoc path.r name.r))} on {dep-paths}"]
+    (~(put by acc) r [%| err])
+  ::  Seed key-map: mime content hashes + all pre-loop error tang hashes
   =/  key-map=(map rail:tarball @uv)
-    (~(run by mimes) |=(v=vase (sham q.v)))
+    %+  roll  ~(tap by results)
+    |=  [[=rail:tarball =build-result] acc=(map rail:tarball @uv)]
+    ?:  ?=(%& -.build-result)
+      (~(put by acc) rail (sham q.p.build-result))
+    (~(put by acc) rail (sham p.build-result))
   |-
   ?~  order.sort-res  [results build-cache deps key-map]
   =/  =rail:tarball  i.order.sort-res
@@ -460,14 +470,16 @@
   =/  dep-failed=?
     %+  lien  ~(tap in my-deps)
     |=(d=rail:tarball !?=([~ %& *] (~(get by results) d)))
+  ::  Compute cache key: own hash + sorted dep cache keys
+  =/  dep-keys=(list @uv)
+    (turn ~(tap in my-deps) |=(d=rail:tarball (~(got by key-map) d)))
   ?:  dep-failed
+    =/  ckey=@uv  (sham [sut-hash src-hash.fi (snoc path.rail name.rail) (sort dep-keys lth)])
     %=  $
       order.sort-res  t.order.sort-res
       results  (~(put by results) rail [%| ~[leaf+"dep failed in {(spud (snoc path.rail name.rail))}"]])
+      key-map  (~(put by key-map) rail ckey)
     ==
-  ::  Compute cache key: own hash + sorted dep cache keys + glob hashes
-  =/  dep-keys=(list @uv)
-    (turn ~(tap in my-deps) |=(d=rail:tarball (~(got by key-map) d)))
   =/  ckey=@uv  (sham [sut-hash src-hash.fi (snoc path.rail name.rail) (sort dep-keys lth)])
   ::  Cache hit → reuse
   ?:  (~(has by build-cache) ckey)
@@ -536,7 +548,7 @@
   %=  $
     order.sort-res  t.order.sort-res
     results      (~(put by results) rail res)
-    key-map      ?:(?=(%& -.res) (~(put by key-map) rail ckey) key-map)
+    key-map      (~(put by key-map) rail ckey)
     build-cache  ?:(?=(%& -.res) (~(put by build-cache) ckey p.res) build-cache)
   ==
 --

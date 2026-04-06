@@ -23,7 +23,9 @@
         :~  (ver-row:loader 0)
             [%stay %& [/ %'data.wallet_account']]
             [%over %& [/ %'main.sig'] %.n [~ [/ %sig] !>(~)]]
-            [%load %& [/ %'data.wallet_account'] [/ %'page.html'] data-to-page]
+            [%fall %| /ui/sse [~ ~] [~ ~] empty-dir:loader]
+            [%over %& [/ui/sse %'addresses.html'] %.n [~ [/ %manx] !>(;div;)]]
+            [%over %& [/ %'page.html'] %.n [~ [/ %manx] !>(;div;)]]
         ==
       ==
     ::
@@ -48,6 +50,21 @@
         =/  acct=(unit account-data)  (extract-account upd)
         ?~  acct  stay:m
         ;<  ~  bind:m  (replace:io !>((detail-page u.acct)))
+        $
+          ::  /ui/sse/addresses.html: live address list fragment
+          ::
+          [[%ui %sse ~] %'addresses.html']
+        ;<  ~  bind:m  (rise-wait:io prod "%account /ui/sse/addresses: failed")
+        ;<  init=view:nexus  bind:m
+          (keep:io /data (cord-to-road:tarball '../../') ~)
+        =/  acct=(unit account-data)  (extract-account init)
+        ?~  acct  stay:m
+        ;<  ~  bind:m  (replace:io !>((addresses-fragment u.acct)))
+        |-
+        ;<  upd=view:nexus  bind:m  (take-news:io /data)
+        =/  acct=(unit account-data)  (extract-account upd)
+        ?~  acct  stay:m
+        ;<  ~  bind:m  (replace:io !>((addresses-fragment u.acct)))
         $
           ::  /main.sig: handle pokes (derive-next)
           ::
@@ -109,6 +126,8 @@
         ?+  p.mana  'Subdirectory under this account.'
             ~
           'Individual BIP44 account. Derives and displays Bitcoin addresses.'
+            [%ui %sse ~]
+          'SSE streams for live UI updates.'
         ==
           %|
         ?+  rail.p.mana  'File under this account.'
@@ -267,6 +286,14 @@
     ==
   ==
 ::
+++  addresses-fragment
+  |=  acct=account-data
+  ^-  manx
+  ;div.fc.g3
+    ;+  (address-list-section acct "receiving" receiving.acct)
+    ;+  (address-list-section acct "change" change.acct)
+  ==
+::
 ++  detail-page
   |=  acct=account-data
   ^-  manx
@@ -296,11 +323,8 @@
               ;span.s-1.p1.b2.br1: {(network-label network.acct)}
             ==
           ==
-          ;div(style "flex: 1; min-height: 0; overflow-y: auto;")
-            ;div.fc.g3
-              ;+  (address-list-section acct "receiving" receiving.acct)
-              ;+  (address-list-section acct "change" change.acct)
-            ==
+          ;div(id "addresses-container", style "flex: 1; min-height: 0; overflow-y: auto;")
+            ;+  (addresses-fragment acct)
           ==
         ==
       ==
@@ -342,12 +366,54 @@
       body: JSON.stringify(\{action: 'derive-next', chain: chain})
     }).then(function(r) \{
       if (!r.ok) return r.text().then(function(t) \{ console.error('derive-next error', t) });
-      setTimeout(function() \{ window.location.reload(); }, 500);
     }).catch(function(e) \{ console.error('derive-next failed', e) });
   }
 
   function copyToClipboard(text) \{
     navigator.clipboard.writeText(text);
   }
+
+  var path = window.location.pathname;
+  var parts = path.split('/');
+  var apiIdx = parts.indexOf('api');
+  var API = parts.slice(0, apiIdx + 1).join('/');
+  var acctBase = path.replace('/api/file/', '').replace('/page.html', '');
+  var SSE = API + '/keep/' + acctBase + '/ui/sse?mark=txt';
+  async function connectSSE() \{
+    try \{
+      var r = await fetch(SSE, \{headers: \{Accept: 'text/event-stream'}});
+      var reader = r.body.getReader();
+      var dec = new TextDecoder();
+      var buf = '';
+      while (true) \{
+        var chunk = await reader.read();
+        if (chunk.done) break;
+        buf += dec.decode(chunk.value, \{stream: true});
+        var evts = buf.split('\\n\\n');
+        buf = evts.pop();
+        for (var i = 0; i < evts.length; i++) \{
+          if (!evts[i].trim()) continue;
+          var ev = '', data = [], lines = evts[i].split('\\n');
+          for (var j = 0; j < lines.length; j++) \{
+            if (lines[j].indexOf('event: ') === 0) ev = lines[j].slice(7);
+            else if (lines[j].indexOf('data: ') === 0) data.push(lines[j].slice(6));
+          }
+          if (!ev) continue;
+          var sp = ev.indexOf(' ');
+          if (sp < 0) continue;
+          var act = ev.slice(0, sp);
+          var name = ev.slice(sp + 2);
+          if (act === 'old') continue;
+          if (name === 'addresses.html' && data.length) \{
+            var container = document.getElementById('addresses-container');
+            if (container) container.innerHTML = data.join('\\n');
+          }
+        }
+      }
+    } catch (e) \{
+      setTimeout(connectSSE, 2000);
+    }
+  }
+  connectSSE();
   """
 --

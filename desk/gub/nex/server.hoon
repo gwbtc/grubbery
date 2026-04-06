@@ -215,7 +215,7 @@
         ::  Ball API requests don't use the binding system — cull the
         ::  request fiber directly so SSE loops terminate on disconnect.
         ?~  conn-binding
-          ;<  ~  bind:m  (cull-soft:io /cancel [%| 0 %& /requests eyre-id])
+          ;<  *  bind:m  (cull-soft:io /cancel [%| 0 %& /requests eyre-id])
           $
         =/  handler=rail:tarball
           (fall (~(get by bindings.st) u.conn-binding) *rail:tarball)

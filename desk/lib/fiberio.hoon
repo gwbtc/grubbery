@@ -317,6 +317,23 @@
   ;<  ~  bind:m  (send-dart %node wire road %make make)
   (take-made wire)
 ::
+++  make-soft
+  |=  [=wire =road:tarball =make:nexus]
+  =/  m  (fiber ,(unit tang))
+  ^-  form:m
+  ;<  ~  bind:m  (send-dart %node wire road %make make)
+  |=  input
+  :+  ~  state
+  ?+  in  [%skip ~]
+      ~  [%wait ~]
+      [~ %veto *]
+    [%fail (veto-error dart.u.in)]
+      [~ %made * *]
+    ?.  =(wire wire.u.in)
+      [%skip ~]
+    [%done err.u.in]
+  ==
+::
 ++  poke
   |=  [=wire =road:tarball =sage:tarball]
   =/  m  (fiber ,~)
@@ -408,7 +425,7 @@
 ::
 ++  cull-soft
   |=  [=wire =road:tarball]
-  =/  m  (fiber ,~)
+  =/  m  (fiber ,(unit tang))
   ^-  form:m
   ;<  ~  bind:m  (send-dart %node wire road %cull ~)
   |=  input
@@ -420,10 +437,7 @@
       [~ %gone * *]
     ?.  =(wire wire.u.in)
       [%skip ~]
-    ?~  err.u.in
-      [%done ~]
-    ~&  >>  [%cull-soft-ignored (road-to-cord:tarball road)]
-    [%done ~]
+    [%done err.u.in]
   ==
 ::
 ++  sand

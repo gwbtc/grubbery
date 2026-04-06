@@ -1,10 +1,10 @@
 ::  per-wallet nexus: individual bitcoin wallet instance
-::  v2: accounts support
 ::
 ::  Each wallet directory contains:
 ::    main.wallet_wallet  wallet-data + poke handler (name, seed, fingerprint, accounts)
 ::    page.html           rendered detail page (manx)
 ::    accounts/      per-account nexuses
+::
 ::
 /<  feather       /lib/feather.hoon
 /<  fi            /lib/feather-icons.hoon
@@ -25,6 +25,9 @@
         %+  spin:loader  [sand gain ball]
         :~  (ver-row:loader 0)
             [%stay %& [/ %'main.wallet_wallet']]
+            [%fall %| /ui/sse [~ ~] [~ ~] empty-dir:loader]
+            [%over %& [/ui/sse %'accounts.html'] %.n [~ [/ %manx] !>(;div;)]]
+            [%over %& [/ui/sse %'error.html'] %.n [~ [/ %manx] !>(;div;)]]
             [%load %& [/ %'main.wallet_wallet'] [/ %'page.html'] data-to-page]
         ==
       ==
@@ -36,7 +39,7 @@
       =/  m  (fiber:fiber:nexus ,~)
       ^-  process:fiber:nexus
       ?+    rail  stay:m
-          ::  /page.html: render wallet detail, watch for main + account changes
+          ::  /page.html: render wallet detail, re-render on changes
           ::
           [~ %'page.html']
         ;<  ~  bind:m  (rise-wait:io prod "%wallet detail: failed")
@@ -44,10 +47,37 @@
           (keep:io /data (cord-to-road:tarball './') ~)
         ;<  accts=view:nexus  bind:m
           (keep:io /accts (cord-to-road:tarball '../../accounts/') ~)
+        ;<  err-view=view:nexus  bind:m
+          (keep:io /err (cord-to-road:tarball './ui/sse/') ~)
         =/  wal=(unit wallet-data)  (extract-wallet data)
         =/  acct-list=(list account-data)  (extract-accounts accts wal)
         ?~  wal  stay:m
-        ;<  ~  bind:m  (replace:io !>((detail-page u.wal acct-list)))
+        =/  err=manx  (extract-error err-view)
+        ;<  ~  bind:m  (replace:io !>((detail-page u.wal acct-list err)))
+        |-
+        ;<  [tag=?(%data %accts %err) =view:nexus]  bind:m
+          (take-any-news /data /accts /err)
+        =?  data    =(tag %data)   view
+        =?  accts   =(tag %accts)  view
+        =?  err-view  =(tag %err)  view
+        =/  wal=(unit wallet-data)  (extract-wallet data)
+        =/  acct-list=(list account-data)  (extract-accounts accts wal)
+        ?~  wal  stay:m
+        =/  err=manx  (extract-error err-view)
+        ;<  ~  bind:m  (replace:io !>((detail-page u.wal acct-list err)))
+        $
+          ::  /ui/sse/accounts.html: rendered account list for SSE
+          ::
+          [[%ui %sse ~] %'accounts.html']
+        ;<  ~  bind:m  (rise-wait:io prod "%wallet /ui/sse: failed")
+        ;<  data=view:nexus  bind:m
+          (keep:io /data (cord-to-road:tarball '../../') ~)
+        ;<  accts=view:nexus  bind:m
+          (keep:io /accts (cord-to-road:tarball '../../../../accounts/') ~)
+        =/  wal=(unit wallet-data)  (extract-wallet data)
+        =/  acct-list=(list account-data)  (extract-accounts accts wal)
+        ?~  wal  stay:m
+        ;<  ~  bind:m  (replace:io !>((accounts-fragment acct-list)))
         |-
         ;<  [tag=?(%data %accts) =view:nexus]  bind:m
           (take-either-news /data /accts)
@@ -56,7 +86,7 @@
         =/  wal=(unit wallet-data)  (extract-wallet data)
         =/  acct-list=(list account-data)  (extract-accounts accts wal)
         ?~  wal  stay:m
-        ;<  ~  bind:m  (replace:io !>((detail-page u.wal acct-list)))
+        ;<  ~  bind:m  (replace:io !>((accounts-fragment acct-list)))
         $
           ::  /main.wallet_wallet: wallet data + poke handler
           ::
@@ -117,21 +147,35 @@
               :+  ~  `[/wallet %account]
               (~(put by *(map @ta content:tarball)) %'data.wallet_account' [~ [/wallet %account] !>(acct)])
             =/  acct-ball=ball:tarball  [`acct-lump ~]
+            ;<  err=(unit tang)  bind:m
+              (make-soft:io /create [%| 2 %| (snoc /accounts acct-dir)] &+[*sand:nexus *gain:nexus acct-ball])
+            ?^  err
+              ;<  ~  bind:m
+                (over:io /err-write (cord-to-road:tarball './ui/sse/error.html') [[/ %manx] !>((render-error u.err))])
+              $
+            ::  clear error on success
             ;<  ~  bind:m
-              (make:io /create [%| 2 %| (snoc /accounts acct-dir)] &+[*sand:nexus *gain:nexus acct-ball])
+              (over:io /err-clear (cord-to-road:tarball './ui/sse/error.html') [[/ %manx] !>(;div;)])
+
             ::  update wallet accounts map
             =/  acct-path=account:wt  [[%.y purpose] [%.y coin-type] [%.y account-idx]]
             =.  wal  wal(accounts (~(put by accounts.wal) acct-path acct-pubkey))
             ;<  ~  bind:m  (replace:io !>(wal))
-            ~&  >  [%wallet-main %account-created]
             $
               %'remove-account'
             =/  acct-key=@t
               (~(dog jo:json-utils jon) /account-key so:dejs:format)
             =/  acct-pubkey=@ux  (scan (trip acct-key) hex)
             =/  acct-dir=@ta  (cat 3 (crip (trip acct-key)) '.wallet_account')
+            ;<  err=(unit tang)  bind:m
+              (cull-soft:io /delete [%| 2 %| (snoc /accounts acct-dir)])
+            ?^  err
+              ;<  ~  bind:m
+                (over:io /err-write (cord-to-road:tarball './ui/sse/error.html') [[/ %manx] !>((render-error u.err))])
+              $
+            ::  clear error on success
             ;<  ~  bind:m
-              (cull:io /delete [%| 2 %| (snoc /accounts acct-dir)])
+              (over:io /err-clear (cord-to-road:tarball './ui/sse/error.html') [[/ %manx] !>(;div;)])
             ::  remove from wallet accounts map
             =.  wal
               %=  wal
@@ -180,13 +224,76 @@
     [%skip ~]
   ==
 ::
+++  take-any-news
+  |=  [a=wire b=wire c=wire]
+  =/  m  (fiber:fiber:nexus ,[?(%data %accts %err) view:nexus])
+  ^-  form:m
+  |=  input:fiber:nexus
+  :+  ~  state
+  ?+  in  [%skip ~]
+      ~  [%wait ~]
+      [~ %news * *]
+    ?:  =(a wire.u.in)  [%done %data view.u.in]
+    ?:  =(b wire.u.in)  [%done %accts view.u.in]
+    ?:  =(c wire.u.in)  [%done %err view.u.in]
+    [%skip ~]
+  ==
+::
+++  extract-error
+  |=  =view:nexus
+  ^-  manx
+  ?.  ?=([%ball *] view)  ;div;
+  =/  =lump:tarball  (fall fil.ball.view *lump:tarball)
+  =/  ct=(unit content:tarball)  (~(get by contents.lump) 'error.html')
+  ?~  ct  ;div;
+  =/  result=(unit manx)  (mole |.(!<(manx q.sage.u.ct)))
+  (fall result ;div;)
+::
+++  render-error
+  |=  =tang
+  ^-  manx
+  =/  lines=(list tape)
+    %+  turn  (flop tang)
+    |=(=tank ~(ram re tank))
+  =/  message=tape
+    =/  msgs=(list tape)
+      %+  skim  lines
+      |=  l=tape
+      ?&  !=(l "")
+          !=('/' (snag 0 l))
+      ==
+    ?~  msgs  "Something went wrong"
+    =/  raw=tape  i.msgs
+    =/  stripped=tape
+      ?.  ?&  (gte (lent raw) 2)
+              =('"' (snag 0 raw))
+              =('"' (rear raw))
+          ==
+        raw
+      (scag (sub (lent raw) 2) (slag 1 raw))
+    (weld "Error: " stripped)
+  ;details(style "background: #fce8e6; color: #c62828; padding: 6px 10px; border-radius: 3px; border: 1px solid #f5c6cb; font-size: 13px;")
+    ;summary(style "display: flex; align-items: center; gap: 6px; cursor: pointer; list-style: none;")
+      ;span(style "flex: 1;"): {message}
+      ;div(style "width: 14px; height: 14px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;")
+        ;+  (make:fi 'chevron-down')
+      ==
+    ==
+    ;pre(style "margin-top: 6px; white-space: pre-wrap; font-family: monospace; font-size: 11px; max-height: 160px; overflow-y: auto; opacity: 0.8;")
+      ;*  %+  turn  lines
+          |=  line=tape
+          ^-  manx
+          ;div: {line}
+    ==
+  ==
+::
 ++  data-to-page
   |=  [gn=? ct=content:tarball]
   ^-  [? content:tarball]
   ?:  =(ct *content:tarball)  [%.n ct]
   ?:  =([/ %boom] p.sage.ct)  [%.n ct]
   =/  wal=wallet-data  !<(wallet-data q.sage.ct)
-  [%.n [~ [/ %manx] !>((detail-page wal ~))]]
+  [%.n [~ [/ %manx] !>((detail-page wal ~ ;div;))]]
 ::
 ++  extract-wallet
   |=  =view:nexus
@@ -422,14 +529,29 @@
     ==
   ==
 ::
-++  detail-page
-  |=  [wal=wallet-data accts=(list account-data)]
+++  accounts-fragment
+  |=  accts=(list account-data)
   ^-  manx
-  =/  back-url=tape
-    "/grubbery/api/file/wallet.wallet_app/page.html"
   =/  sorted=(list account-data)
     %+  sort  accts
     |=([a=account-data b=account-data] (aor name.a name.b))
+  ?:  =(~ sorted)
+    ;div.p3.b1.br2.tc.f3.s-1.empty-msg: No accounts yet. Add one below.
+  ;div.fc.g1
+    ;*  %+  turn  sorted
+        |=  acct=account-data
+        =/  acct-key  (from-extended:bip32 (trip xprv.acct))
+        =/  key-hex=tape  (hexn:http-utils public-key:acct-key)
+        ;div(id "card-{key-hex}")
+          ;+  (account-card acct)
+        ==
+  ==
+::
+++  detail-page
+  |=  [wal=wallet-data accts=(list account-data) err=manx]
+  ^-  manx
+  =/  back-url=tape
+    "/grubbery/api/file/wallet.wallet_app/page.html"
   ;html
     ;head
       ;title: {(trip name.wal)}
@@ -462,16 +584,15 @@
             ==
           ==
           ::  accounts section
-          ;div(style "flex: 1; min-height: 0; overflow-y: auto;")
-            ;div.fc.g2
-              ;h2.s1.bold: Accounts
-              ;+  ?:  =(~ sorted)
-                    ;div.p3.b1.br2.tc.f3.s-1: No accounts yet. Add one below.
-                  ;div.fc.g1
-                    ;*  (turn sorted account-card)
-                  ==
-              ;+  add-account-form
+          ;div.fc.g2(style "flex: 1; min-height: 0;")
+            ;h2.s1.bold: Accounts
+            ;div(id "accounts-container", style "flex: 1; min-height: 0; overflow-y: auto;")
+              ;+  (accounts-fragment accts)
             ==
+            ;div(id "error-container")
+              ;+  err
+            ==
+            ;+  add-account-form
           ==
         ==
       ==
@@ -509,7 +630,7 @@
       body: JSON.stringify(data)
     }).then(function(r) \{
       if (!r.ok) return r.text().then(function(t) \{ console.error('add-account error', t) });
-      setTimeout(function() \{ window.location.reload(); }, 500);
+      e.target.reset();
     }).catch(function(e) \{ console.error('add-account failed', e) });
   }
 
@@ -550,7 +671,6 @@
       body: JSON.stringify(\{action: 'remove-account', 'account-key': key})
     }).then(function(r) \{
       if (!r.ok) return r.text().then(function(t) \{ console.error('remove-account error', t) });
-      setTimeout(function() \{ window.location.reload(); }, 500);
     }).catch(function(e) \{ console.error('remove-account failed', e) });
   }
 
@@ -569,5 +689,53 @@
   function copyToClipboard(text) \{
     navigator.clipboard.writeText(text);
   }
+
+  var path = window.location.pathname;
+  var parts = path.split('/');
+  var apiIdx = parts.indexOf('api');
+  var API = parts.slice(0, apiIdx + 1).join('/');
+  var walBase = path.replace(API + '/file/', '').replace('/page.html', '');
+  var SSE = API + '/keep/' + walBase + '/ui/sse?mark=txt';
+
+  async function connectSSE() \{
+    try \{
+      var r = await fetch(SSE, \{headers: \{Accept: 'text/event-stream'}});
+      var reader = r.body.getReader();
+      var dec = new TextDecoder();
+      var buf = '';
+      while (true) \{
+        var chunk = await reader.read();
+        if (chunk.done) break;
+        buf += dec.decode(chunk.value, \{stream: true});
+        var evts = buf.split('\\n\\n');
+        buf = evts.pop();
+        for (var i = 0; i < evts.length; i++) \{
+          if (!evts[i].trim()) continue;
+          var ev = '', data = [], lines = evts[i].split('\\n');
+          for (var j = 0; j < lines.length; j++) \{
+            if (lines[j].indexOf('event: ') === 0) ev = lines[j].slice(7);
+            else if (lines[j].indexOf('data: ') === 0) data.push(lines[j].slice(6));
+          }
+          if (!ev) continue;
+          var sp = ev.indexOf(' ');
+          if (sp < 0) continue;
+          var act = ev.slice(0, sp);
+          var name = ev.slice(sp + 2);
+          if (act === 'old') continue;
+          var html = data.join('\\n');
+          if (name === 'accounts.html') \{
+            var el = document.getElementById('accounts-container');
+            if (el) el.innerHTML = html;
+          } else if (name === 'error.html') \{
+            var el = document.getElementById('error-container');
+            if (el) el.innerHTML = html;
+          }
+        }
+      }
+    } catch (e) \{
+      setTimeout(connectSSE, 2000);
+    }
+  }
+  connectSSE();
   """
 --

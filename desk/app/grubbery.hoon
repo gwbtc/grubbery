@@ -2660,14 +2660,14 @@
     =/  key-rail=rail:tarball  [path.rail (cat 3 nam '.hoon')]
     =/  old-key=(unit @uv)  (~(get by old-keys) key-rail)
     =/  new-key=(unit @uv)  (~(get by new-keys) key-rail)
-    ::  Invariant: if keys match, vases must match
     =/  old-node=(map @ta built:nexus)
       (fall (~(get of old-sub) pax) *(map @ta built:nexus))
     =/  old-built=(unit built:nexus)  (~(get by old-node) nam)
+    ::  Invariant: if keys match, built artifacts must match
     ?:  ?&  =(old-key new-key)
             !=(old-built `built)
         ==
-      ~|  [%reload-changed-nexuses %keys-same-vase-diff rail]
+      ~|  [%reload-changed-nexuses %keys-same-vase-diff path=pax name=nam]
       !!
     ?:  =(old-key new-key)  ~
     `[[pax nam] built]
