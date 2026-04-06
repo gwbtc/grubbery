@@ -655,21 +655,17 @@
 ++  script-text
   ^-  tape
   """
-  function getPokeUrl() \{
-    var path = window.location.pathname;
-    return path.replace('/api/file/', '/api/poke/').replace('/ball/', '/api/poke/').replace('page.html', 'main.wallet_wallet') + '?mark=json';
-  }
+  var path = window.location.pathname;
+  var m = path.match(/^(\\/\\w+)\\/(?:api\\/file|ball)\\/(.*?)\\/page\\.html/);
+  var API = m ? m[1] + '/api' : '/grubbery/api';
+  var walBase = m ? m[2] : '';
 
-  function showLoading() \{
-    var lc = document.getElementById('loading-container');
-    if (lc) lc.innerHTML = '<div style="height:2px;background:#e0e0e0;overflow:hidden;border-radius:1px"><div style="height:100%;width:30%;background:#888;animation:slide 1s ease-in-out infinite"></div></div>';
-    var ec = document.getElementById('error-container');
-    if (ec) ec.innerHTML = '';
+  function getPokeUrl() \{
+    return API + '/poke/' + walBase + '/main.wallet_wallet?mark=json';
   }
 
   function submitAddAccount(e) \{
     e.preventDefault();
-    showLoading();
     var data = \{};
     new FormData(e.target).forEach(function(v, k) \{ data[k] = v; });
     fetch(getPokeUrl(), \{
@@ -713,7 +709,6 @@
   })();
 
   function clearError() \{
-    document.getElementById('error-container').innerHTML = '';
     fetch(getPokeUrl(), \{
       method: 'POST',
       headers: \{'Content-Type': 'application/json'},
@@ -722,7 +717,6 @@
   }
 
   function removeAccount(key) \{
-    showLoading();
     fetch(getPokeUrl(), \{
       method: 'POST',
       headers: \{'Content-Type': 'application/json'},
@@ -748,16 +742,13 @@
     navigator.clipboard.writeText(text);
   }
 
-  var path = window.location.pathname;
-  var parts = path.split('/');
-  var apiIdx = parts.indexOf('api');
-  var API = parts.slice(0, apiIdx + 1).join('/');
-  var walBase = path.replace(API + '/file/', '').replace('/page.html', '');
   var SSE = API + '/keep/' + walBase + '/ui/sse?mark=txt';
 
   async function connectSSE() \{
+    console.log('SSE: connecting to', SSE);
     try \{
       var r = await fetch(SSE, \{headers: \{Accept: 'text/event-stream'}});
+      console.log('SSE: connected, status', r.status);
       var reader = r.body.getReader();
       var dec = new TextDecoder();
       var buf = '';
@@ -779,14 +770,12 @@
           if (sp < 0) continue;
           var act = ev.slice(0, sp);
           var name = ev.slice(sp + 2);
-          if (act === 'old') continue;
           var html = data.join('\\n');
+          console.log('SSE:', act, name, html.length + ' chars');
           if (name === 'accounts.html') \{
-            document.getElementById('loading-container').innerHTML = '';
             var el = document.getElementById('accounts-container');
             if (el) el.innerHTML = html;
           } else if (name === 'error.html') \{
-            document.getElementById('loading-container').innerHTML = '';
             var el = document.getElementById('error-container');
             if (el) el.innerHTML = html;
           } else if (name === 'loading.html') \{
@@ -796,6 +785,7 @@
         }
       }
     } catch (e) \{
+      console.error('SSE: error', e);
       setTimeout(connectSSE, 2000);
     }
   }
