@@ -717,14 +717,23 @@
   })();
 
   var SSE = API + '/'+'keep/' + BASE + '/'+'ui/sse?mark=txt';
+  var sseController = null;
+  var sseReader = null;
+
   async function connectSSE() \{
+    if (sseReader) try \{ sseReader.cancel(); } catch(e) \{}
+    if (sseController) sseController.abort();
+    sseController = new AbortController();
     try \{
-      var r = await fetch(SSE, \{headers: \{Accept: 'text/event-stream'}});
-      var reader = r.body.getReader();
+      var r = await fetch(SSE, \{
+        headers: \{Accept: 'text/event-stream'},
+        signal: sseController.signal
+      });
+      sseReader = r.body.getReader();
       var dec = new TextDecoder();
       var buf = '';
       while (true) \{
-        var chunk = await reader.read();
+        var chunk = await sseReader.read();
         if (chunk.done) break;
         buf += dec.decode(chunk.value, \{stream: true});
         var parts = buf.split('\\n\\n');
@@ -748,9 +757,16 @@
           }
         }
       }
-    } catch(x) \{}
-    setTimeout(connectSSE, 2000);
+    } catch (e) \{
+      if (e.name !== 'AbortError') \{
+        setTimeout(connectSSE, 2000);
+      }
+    }
   }
+  window.addEventListener('beforeunload', function() \{
+    if (sseReader) try \{ sseReader.cancel(); } catch(e) \{}
+    if (sseController) sseController.abort();
+  });
   connectSSE();
   """
 --

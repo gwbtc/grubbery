@@ -743,17 +743,25 @@
   }
 
   var SSE = API + '/keep/' + walBase + '/ui/sse?mark=txt';
+  var sseController = null;
+  var sseReader = null;
 
   async function connectSSE() \{
+    if (sseReader) try \{ sseReader.cancel(); } catch(e) \{}
+    if (sseController) sseController.abort();
+    sseController = new AbortController();
     console.log('SSE: connecting to', SSE);
     try \{
-      var r = await fetch(SSE, \{headers: \{Accept: 'text/event-stream'}});
+      var r = await fetch(SSE, \{
+        headers: \{Accept: 'text/event-stream'},
+        signal: sseController.signal
+      });
       console.log('SSE: connected, status', r.status);
-      var reader = r.body.getReader();
+      sseReader = r.body.getReader();
       var dec = new TextDecoder();
       var buf = '';
       while (true) \{
-        var chunk = await reader.read();
+        var chunk = await sseReader.read();
         if (chunk.done) break;
         buf += dec.decode(chunk.value, \{stream: true});
         var evts = buf.split('\\n\\n');
@@ -785,10 +793,16 @@
         }
       }
     } catch (e) \{
-      console.error('SSE: error', e);
-      setTimeout(connectSSE, 2000);
+      if (e.name !== 'AbortError') \{
+        console.error('SSE: error', e);
+        setTimeout(connectSSE, 2000);
+      }
     }
   }
+  window.addEventListener('beforeunload', function() \{
+    if (sseReader) try \{ sseReader.cancel(); } catch(e) \{}
+    if (sseController) sseController.abort();
+  });
   connectSSE();
   """
 --
