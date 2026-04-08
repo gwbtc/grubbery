@@ -51,7 +51,11 @@
     ?+  u.p  %.n
       [%b *]  p.u.p
     ==
-  =/  bin-path=path  (stab pax)
+  =/  bin-path=path
+    =/  pax-t=tape  (trip pax)
+    =/  full=@t  ?:(=('/' (end 3 pax)) pax (crip "/{pax-t}"))
+    =/  res=(each path tang)  (mule |.((stab full)))
+    ?:(?=(%& -.res) p.res /(crip pax-t))
   =/  bin-name=@ta  (crip (trip nam))
   ;<  res=built:nexus  bind:m  (get-code-full:io [%& %& (weld code-ns bin-path) bin-name])
   ?:  ?=(%vase -.res)

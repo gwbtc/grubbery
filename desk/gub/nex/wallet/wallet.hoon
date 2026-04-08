@@ -143,9 +143,9 @@
             ::  derive first receiving address
             =/  first-addr=(unit @t)
               (derive-acct-addr xprv script-type network 0 0)
-            =/  receiving=(list @t)
+            =/  receiving=(list address-entry)
               ?~  first-addr  ~
-              ~[u.first-addr]
+              ~[[u.first-addr ~]]
             ::  create account data
             =/  acct=account-data
               [account-name fingerprint.wal script-type network [%.y purpose] [%.y coin-type] [%.y account-idx] xprv receiving ~]

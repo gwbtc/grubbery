@@ -10,6 +10,21 @@
 /<  nex-tools   /lib/nex/tools.hoon
 =>  |%
     ++  srv  ~(. res:nex-server [%| 1 %& ~ %'main.sig'])
+    ::  On crash, write error to tool state so MCP returns it.
+    ::  On normal startup, continue.
+    ::
+    ++  rise-tool
+      |=  =prod:fiber:nexus
+      =/  m  (fiber:fiber:nexus ,~)
+      ^-  form:m
+      ?.  ?=(%rise -.prod)  (pure:m ~)
+      %-  (slog leaf+"%mcp tool crashed" tang.prod)
+      ;<  st=tool-state:nex-tools  bind:m
+        (get-state-as:io ,tool-state:nex-tools)
+      =/  err-msg=@t  (render-tang:build tang.prod)
+      =/  result-data=json
+        (pairs:enjs:format ~[['type' s+'error'] ['message' s+(crip "crash\0a{(trip err-msg)}")]])
+      (replace:io !>(`tool-state:nex-tools`[tool.st args.st %done data.st `result-data]))
     ::  Strip .hoon suffix from grub name
     ::
     ++  strip-hoon
@@ -180,7 +195,7 @@
       ::  Reads tool-state, looks up handler from bins, runs it, writes %done.
       ::
       [[%tools ~] @]
-    ;<  ~  bind:m  (rise-wait:io prod "%mcp tool failed")
+    ;<  ~  bind:m  (rise-tool prod)
     ;<  st=tool-state:nex-tools  bind:m
       (get-state-as:io ,tool-state:nex-tools)
     ?:  =(%done step.st)  (pure:m ~)
