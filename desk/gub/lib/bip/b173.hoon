@@ -4,6 +4,8 @@
 ::  Heavily copies:
 ::  https://github.com/bitcoinjs/bech32/blob/master/index.js
 ::
+::  Ported from groundwire's lib/bip/b173.hoon.
+::
 /<  sur  /lib/sur/bitcoin.hoon
 /<  bcu  /lib/bitcoin-utils.hoon
 =,  sur

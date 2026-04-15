@@ -1,5 +1,5 @@
-::  sur/btc.hoon
-::  Utilities for working with BTC data types and transactions
+::  lib/sur/bitcoin.hoon
+::  Bitcoin data types (network, hexb, tx, block, psbt, ...)
 ::
 ::  chyg: whether account is (non-)change. 0 or 1
 ::  bytc: "btc-byts" with dat cast to @ux

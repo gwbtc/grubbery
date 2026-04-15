@@ -2,7 +2,7 @@
 ::  Utilities for working with BTC data types and transactions
 ::  Crypto is unjetted
 ::
-/<  bitcoin  /lib/bitcoin.hoon
+/<  bitcoin  /lib/sur/bitcoin.hoon
 =,  bitcoin
 |%
 ::

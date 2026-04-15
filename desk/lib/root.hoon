@@ -24,6 +24,7 @@
         [%fall %| /'goals.goals' [~ ~] [~ ~] [`[~ `[/ %goals] ~] ~]]
         [%fall %| /'mcp.mcp' [~ ~] [~ ~] [`[~ `[/ %mcp] ~] ~]]
         [%fall %| /'wallet.wallet_app' [~ ~] [~ ~] [`[~ `[/wallet %app] ~] ~]]
+        [%fall %| /'groundwire.groundwire' [~ ~] [~ ~] [`[~ `[/ %groundwire] ~] ~]]
         ::  config
         [%fall %| /config/creds [~ ~] [~ ~] empty-dir:loader]
         ::  system internals — populated by app/grubbery.hoon before

@@ -655,8 +655,14 @@
   ?.  ?=(%vase -.u.res)
     =/  nam=@tas  (rail-to-arm:tarball blot)
     |+~[leaf+"validate-new-sage: marc for %{(trip nam)} failed at {(spud pax)}"]
-  =/  vale=$-(* vase)  vale:!<(marc:tarball vase.u.res)
-  (validate-vase vale old new force)
+  =/  nam=@tas  (rail-to-arm:tarball blot)
+  =/  vale-res=(each $-(* vase) tang)
+    ~|  [%validate-new-sage %marc-extract-failed nam pax]
+    %-  mule  |.
+    vale:!<(marc:tarball vase.u.res)
+  ?:  ?=(%| -.vale-res)
+    |+[leaf+"validate-new-sage: marc for %{(trip nam)} broke at {(spud pax)}" p.vale-res]
+  (validate-vase p.vale-res old new force)
 ::  Clam a sage at sandbox boundary
 ::  Used when data crosses a weir filter from untrusted source.
 ::  Always forces full validation (no nest optimization).
@@ -715,6 +721,7 @@
     ?~  files  out
     =/  [name=@ta =content:tarball]  i.files
     =/  res=(each vase tang)
+      ~|  [%validate-ball name (weld cod here) p.sage.content]
       (validate-new-sage cod p.sage.content ~ q.sage.content %.y)
     ?.  ?=(%& -.res)
       ~&  >>  "validate-ball: boom {(trip name)} (mark %{(trip name.p.sage.content)}) at {(spud (weld cod here))}"
@@ -772,7 +779,7 @@
   |=  [here=rail:tarball err=tang]
   ^+  this
   ~&  >>>  "BANG file {(spud (snoc path.here name.here))}"
-  %-  (slog err)
+  :: %-  (slog err) often too big
   =/  =pipe:nexus  (fall (~(get of pool) path.here) *pipe:nexus)
   =/  old=(unit proc:fiber:nexus)  (~(get by proc.pipe) name.here)
   =/  =proc:fiber:nexus
@@ -1030,6 +1037,9 @@
   =/  new-sand=sand:nexus    upd-sand(fil parent-weir)
   =/  new-gain=gain:nexus    upd-gain
   =/  new-ball=ball:tarball  upd-ball(fil `restored-lump(neck parent-neck))
+  ::  Validate marks in the new ball — failures become /boom blots so
+  ::  bad marks surface as inspectable files rather than downstream bangs.
+  =.  new-ball  ~|([%validate-ball-reload dest] (validate-ball dest new-ball))
   ::  Put results back — load-ball-changes writes ball and does bookkeeping
   =.  sand  (put-sub-sand sand dest new-sand)
   =.  gain  (put-sub-gain gain dest new-gain)
@@ -1531,6 +1541,9 @@
         (enqu-take here (sys-give /over) ~ %over wire.dart `~[leaf+"file not found: {(spud (snoc path.dest name.dest))}"])
       =/  old-blot=blot:tarball  p.sage.u.old
       =/  new-blot=blot:tarball  p.sage.load.dart
+      ?:  =([/ %boom] old-blot)
+        ~&  >>>  "over: target file is boomed: {(spud (snoc path.dest name.dest))}"
+        (enqu-take here (sys-give /over) ~ %over wire.dart `~[leaf+"over: target file is boomed, fix the mark and reload: {(spud (snoc path.dest name.dest))}"])
       =/  converted=sage:tarball
         ?:  =(old-blot new-blot)
           sage.load.dart
@@ -1923,9 +1936,14 @@
   =/  fil-state=vase  q.sage.u.file-data
   ::  Build bowl for this process (with filtered wex/sup)
   =/  =bowl:nexus  (make-bowl here)
-  ::  Run the evaluator
+  ::  Run the evaluator (mule to catch hard crashes like !< mismatches)
+  =/  eval-res=(each [darts=(list dart:nexus) done=(list took:eval:fiber:nexus) new-state=vase new-proc=proc:fiber:nexus res=result:eval:fiber:nexus] tang)
+    (mule |.((take:eval:fiber:nexus bowl fil-state proc)))
+  ?:  ?=(%| -.eval-res)
+    ~&  >>  "process-take: eval crashed, banging {(spud (snoc path.here name.here))}"
+    (bang-file here p.eval-res)
   =/  [darts=(list dart:nexus) done=(list took:eval:fiber:nexus) new-state=vase new-proc=proc:fiber:nexus res=result:eval:fiber:nexus]
-    (take:eval:fiber:nexus bowl fil-state proc)
+    p.eval-res
   ::  Process darts (emit cards or enqueue takes)
   =.  this  (process-darts here darts)
   ::  Ack consumed pokes
