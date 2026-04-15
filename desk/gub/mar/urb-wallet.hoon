@@ -20,8 +20,18 @@
           %uw  s+(scot %uw uw.seed.wal)
           %ux  s+(scot %ux ux.seed.wal)
         ==
-        ['has-utxo' b+?=(^ utxo.wal)]
+        ['tweak' s+(scot %ux twk.wal)]
+        :-  'utxo'
+        ?~  utxo.wal  ~
+        %-  pairs:enjs:format
+        :~  ['txid' s+(scot %ux txid.u.utxo.wal)]
+            ['vout' (numb:enjs:format vout.u.utxo.wal)]
+            ['value' (numb:enjs:format value.u.utxo.wal)]
+        ==
     ==
+  ++  mime
+    =/  jon=^json  json
+    [/application/json (as-octs:mimes:html (en:json:html jon))]
   --
 ++  grab
   |%
