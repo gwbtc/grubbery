@@ -28,6 +28,7 @@
       =silo:nexus
       =gain:nexus
       =code:nexus
+      jael-source=(unit rail:tarball)
   ==
 ++  kel  21.000.000 :: start big; burn many at once
 ++  sut
@@ -212,6 +213,18 @@
     =^  cards  state
       abet:(unmount-clay-desk:hc dek)
     [cards this]
+      ::
+      %set-jael-source
+    ::  Set the rail whose file backs jael PKI subscriptions.
+    ::  Jael subscribes on / and /(scot %p ship); grubbery gives
+    ::  %azimuth-udiffs facts when the file at this rail changes.
+    ?>  =(src our):bowl
+    =/  rl=rail:tarball  !<(rail:tarball vas)
+    ~&  >  [%grubbery %set-jael-source rl]
+    =.  jael-source  `rl
+    ::  Tell jael to listen to us
+    :-  [%pass /jael-listen %arvo %j %listen ~ [%| dap.bowl]]~
+    this
   ==
 ::
 ++  on-watch
@@ -223,6 +236,28 @@
     [~ this]
       [%http-response *]
     [~ this]
+      ::  Jael subscribes on / for all udiffs
+      ~
+    ?~  jael-source  (on-watch:def path)
+    =/  content=(unit content:tarball)
+      (~(get ba:tarball ball) u.jael-source)
+    ?~  content  `this
+    :_  this
+    [%give %fact ~ %azimuth-udiffs q.sage.u.content]~
+      ::  Jael subscribes on /(scot %p ship) for per-ship udiffs
+      [@ ~]
+    ?~  jael-source  (on-watch:def path)
+    =/  who=(unit @p)  (slaw %p i.path)
+    ?~  who  (on-watch:def path)
+    =/  content=(unit content:tarball)
+      (~(get ba:tarball ball) u.jael-source)
+    ?~  content  `this
+    =+  !<(uds=udiffs:point:jael q.sage.u.content)
+    =/  filtered=udiffs:point:jael
+      %+  skim  uds
+      |=([=ship *] =(ship u.who))
+    :_  this
+    [%give %fact ~ %azimuth-udiffs !>(filtered)]~
       [%proc @ *]
     =^  cards  state
       abet:(take-watch:hc path)
@@ -1261,6 +1296,8 @@
   ^+  this
   =/  changed=(set lane:tarball)  (diff-born-state:nexus old-born born)
   ?:  =(~ changed)  this
+  ::  If the jael-source file changed, give udiffs to gall subscribers
+  =.  this  (maybe-give-jael changed)
   ::  For each watched lane, find subscribers and send news
   =/  watched=(list [target=lane:tarball watchers=(map rail:tarball [=wire mark=(unit mark)])])
     tap-fwd
@@ -1319,6 +1356,34 @@
       view(sage [[/ u.mark] (tube q.sage.view)])
     (enqu-take:acc watcher (sys-give:acc /news) ~ %news wire watcher-view)
   $(watched t.watched)
+::  If the jael-source rail changed, give %azimuth-udiffs to gall subs.
+::  Sends on / (all udiffs) and on /(scot %p ship) (filtered per ship).
+::
+++  maybe-give-jael
+  |=  changed=(set lane:tarball)
+  ^+  this
+  ?~  jael-source  this
+  =/  src-lane=lane:tarball  [%& u.jael-source]
+  ?.  (~(has in changed) src-lane)  this
+  =/  content=(unit content:tarball)
+    (~(get ba:tarball ball) u.jael-source)
+  ?~  content  this
+  =+  !<(uds=udiffs:point:jael q.sage.u.content)
+  ?:  =(~ uds)  this
+  ::  Give full batch on /
+  =.  cards
+    [[%give %fact ~[/] %azimuth-udiffs !>(uds)] cards]
+  ::  Give per-ship filtered batches on /(scot %p ship)
+  =/  remaining=(list @p)
+    %+  turn  uds
+    |=([=ship *] ship)
+  |-
+  ?~  remaining  this
+  =/  filtered=udiffs:point:jael
+    (skim uds |=([s=^ship *] =(s i.remaining)))
+  =.  cards
+    [[%give %fact ~[/(scot %p i.remaining)] %azimuth-udiffs !>(filtered)] cards]
+  $(remaining t.remaining)
 ::  Fell a single subscription: remove from indices, send %fell to watcher
 ::
 ++  fell-sub
