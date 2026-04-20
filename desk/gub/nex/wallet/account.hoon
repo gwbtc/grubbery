@@ -63,7 +63,6 @@
         =/  pst  (extract-proc-state init)
         ;<  =bowl:nexus  bind:m  get-bowl:io
         (replace:io !>((detail-page u.acct addrs now.bowl scan.pst progress.pst ~)))
-        $(prev-hash curr-hash)
           ::  /ui/sse-manager.sig: SSE manager process
           ::  watches account root, diffs state, writes targeted fragments to sse/
           ::
