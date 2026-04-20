@@ -47,7 +47,7 @@
     :*  (~(dog jo:json-utils jon) /addr so:dejs:format)
         ;;(?(%recv %chng) (slav %tas (~(dog jo:json-utils jon) /chain so:dejs:format)))
         (~(dog jo:json-utils jon) /idx ni:dejs:format)
-        ;;(?(%main %testnet %regtest) (slav %tas (~(dog jo:json-utils jon) /network so:dejs:format)))
+        ;;(?(%main %testnet3 %testnet4 %signet %regtest) (slav %tas (~(dog jo:json-utils jon) /network so:dejs:format)))
         info
         ~   :: utxos — not parsed from JSON for now
         ~   :: txs — not parsed from JSON for now

@@ -54,7 +54,7 @@
   $:  addr=@t
       chain=?(%recv %chng)
       idx=@ud
-      network=?(%main %testnet %regtest)
+      network=?(%main %testnet3 %testnet4 %signet %regtest)
       info=(unit address-info)
       utxos=(list utxo)
       txs=(list transaction)
@@ -71,12 +71,24 @@
   $:  name=@t
       wallet=@ux
       =script-type
-      network=?(%main %testnet %regtest)
+      network=?(%main %testnet3 %testnet4 %signet %regtest)
       purpose=seg
       coin-type=seg
       account-idx=seg
       xprv=@t
       recv-count=@ud
       chng-count=@ud
+  ==
+::  +to-bip-network: map expanded network to bip32/bech32 protocol network
+::
+++  to-bip-network
+  |=  network=?(%main %testnet3 %testnet4 %signet %regtest)
+  ^-  ?(%main %testnet %regtest)
+  ?-  network
+    %main      %main
+    %testnet3  %testnet
+    %testnet4  %testnet
+    %signet    %testnet
+    %regtest   %regtest
   ==
 --

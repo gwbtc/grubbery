@@ -133,38 +133,25 @@
             ;<  ~  bind:m  (over:io load-road [[/ %manx] !>(loading-bar)])
             ;<  ~  bind:m  (sleep:io `@dr`(div ~s1 10))
             ::  derive account key from master seed
-            =/  network=?(%main %testnet %regtest)
-              ?:  =(1 coin-type)  %testnet  %main
+            =/  network=?(%main %testnet3 %testnet4 %signet %regtest)
+              ?:  =(1 coin-type)  %testnet4  %main
             =/  master  (from-seed:bip32 (seed-to-bytes seed.wal))
             =/  pax=tape
               "m/{(scow %ud purpose)}'/{(scow %ud coin-type)}'/{(scow %ud account-idx)}'"
             =/  derived  (derive-path:master pax)
-            =/  xprv=@t  (crip (prv-extended:derived network))
-            ::  derive first receiving address
-            =/  first-addr=(unit @t)
-              (derive-acct-addr xprv script-type network 0 0)
-            ::  create account data
+            =/  xprv=@t  (crip (prv-extended:derived (to-bip-network:wt network)))
+            ::  create account data with no addresses
             =/  acct=account-data
-              [account-name fingerprint.wal script-type network [%.y purpose] [%.y coin-type] [%.y account-idx] xprv ?~(first-addr 0 1) 0]
+              [account-name fingerprint.wal script-type network [%.y purpose] [%.y coin-type] [%.y account-idx] xprv 0 0]
             =/  acct-pubkey=@ux  public-key:derived
             =/  acct-key=@ta  (crip (hexn:http-utils acct-pubkey))
             =/  acct-dir=@ta  (cat 3 acct-key '.wallet_account')
             =/  acct-lump=lump:tarball
               :+  ~  `[/wallet %account]
               (~(put by *(map @ta content:tarball)) %'data.wallet_account' [~ [/wallet %account] !>(acct)])
-            ::  build address subdirs for first address if derived
-            =/  recv-dir=(map @ta ball:tarball)
-              ?~  first-addr  ~
-              =/  addr-dat=address-data:wt
-                [u.first-addr %recv 0 network ~ ~ ~]
-              =/  addr-lump=lump:tarball
-                :+  ~  `[/wallet %address]
-                %-  ~(put by *(map @ta content:tarball))
-                ['data.wallet_address' [~ [/wallet %address] !>(addr-dat)]]
-              (~(put by *(map @ta ball:tarball)) '0.wallet_address' [`addr-lump ~])
             =/  addrs-dir=(map @ta ball:tarball)
               %-  ~(gas by *(map @ta ball:tarball))
-              :~  ['receiving' [~ recv-dir]]
+              :~  ['receiving' [~ ~]]
                   ['change' [~ ~]]
               ==
             =/  acct-ball=ball:tarball
@@ -395,15 +382,16 @@
   ==
 ::
 ++  derive-acct-addr
-  |=  [xprv=@t =script-type network=?(%main %testnet %regtest) chain=@ud index=@ud]
+  |=  [xprv=@t =script-type network=?(%main %testnet3 %testnet4 %signet %regtest) chain=@ud index=@ud]
   ^-  (unit @t)
   =/  acct-key  (from-extended:bip32 (trip xprv))
   =/  chain-key  (derive:acct-key chain)
   =/  addr-key  (derive:chain-key index)
   =/  pubkey=@  public-key:addr-key
+  =/  bip-net  (to-bip-network:wt network)
   ?-  script-type
-    %p2wpkh      (encode-pubkey:bech32 network [33 pubkey])
-    %p2tr        (encode-taproot:bech32 network [32 (end [3 32] pubkey)])
+    %p2wpkh      (encode-pubkey:bech32 bip-net [33 pubkey])
+    %p2tr        (encode-taproot:bech32 bip-net [32 (end [3 32] pubkey)])
     %p2pkh       ~
     %p2sh-p2wpkh  ~
   ==

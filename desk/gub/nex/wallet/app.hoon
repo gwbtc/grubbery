@@ -17,7 +17,7 @@
       ?+  ver  !!
           ?(~ [~ %0])
         =/  [wal-dir=@ta wal-ball=ball:tarball acct-dir=@ta acct-ball=ball:tarball]
-          (make-dev-wallet 'Dev Wallet' [%t 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about'] %testnet)
+          (make-dev-wallet 'Dev Wallet' [%t 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about'] %testnet4)
         %+  spin:loader  [sand gain ball]
         :~  (ver-row:loader 0)
             [%over %& [/ %'main.sig'] %.n [~ [/ %sig] !>(~)]]
@@ -193,7 +193,7 @@
   public-key:(from-seed:bip32 seed-bytes)
 ::
 ++  make-dev-wallet
-  |=  [name=@t =seed network=?(%main %testnet %regtest)]
+  |=  [name=@t =seed network=?(%main %testnet3 %testnet4 %signet %regtest)]
   ^-  [@ta ball:tarball @ta ball:tarball]
   =/  seed-bytes=byts
     ?-  -.seed
@@ -204,10 +204,11 @@
   =/  fp=@ux  public-key:master
   =/  coin=@ud  ?:(=(%main network) 0 1)
   =/  derived  (derive-path:master "m/84'/{(scow %ud coin)}'/0'")
-  =/  xprv=@t  (crip (prv-extended:derived network))
+  =/  bip-net  (to-bip-network:wt network)
+  =/  xprv=@t  (crip (prv-extended:derived bip-net))
   =/  apk=@ux  public-key:derived
   =/  addr=(unit @t)
-    (encode-pubkey:bech32 network [33 public-key:(derive:(derive:derived 0) 0)])
+    (encode-pubkey:bech32 bip-net [33 public-key:(derive:(derive:derived 0) 0)])
   =/  apath=account  [[%.y 84] [%.y coin] [%.y 0]]
   =/  wal=wallet-data  [name seed fp (~(put by *(map account @ux)) apath apk)]
   =/  acct=account-data  ['Default' fp %p2wpkh network [%.y 84] [%.y coin] [%.y 0] xprv ?~(addr 0 1) 0]

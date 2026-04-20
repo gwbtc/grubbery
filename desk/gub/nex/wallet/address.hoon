@@ -317,12 +317,14 @@
   ==
 ::
 ++  mempool-base
-  |=  network=?(%main %testnet %regtest)
+  |=  network=?(%main %testnet3 %testnet4 %signet %regtest)
   ^-  tape
   ?-  network
-    %main     "https://mempool.space/api/address/"
-    %testnet  "https://mempool.space/testnet4/api/address/"
-    %regtest  "http://localhost:3000/address/"
+    %main      "https://mempool.space/api/address/"
+    %testnet3  "https://mempool.space/testnet3/api/address/"
+    %testnet4  "https://mempool.space/testnet4/api/address/"
+    %signet    "https://mempool.space/signet/api/address/"
+    %regtest   "http://localhost:3000/address/"
   ==
 ::
 +$  refresh-event
@@ -544,7 +546,7 @@
   =/  chain-label=tape
     ?:(?=(%recv chain.dat) "Receiving" "Change")
   =/  network-label=tape
-    ?-(network.dat %main "Mainnet", %testnet "Testnet", %regtest "Regtest")
+    ?-(network.dat %main "Mainnet", %testnet3 "Testnet3", %testnet4 "Testnet4", %signet "Signet", %regtest "Regtest")
   ;html
     ;head
       ;title: Address {(scag 12 addr-text)}...

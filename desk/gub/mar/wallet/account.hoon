@@ -14,7 +14,7 @@
     :*  (~(dog jo:json-utils jon) /name so:dejs:format)
         (slav %ux (~(dog jo:json-utils jon) /wallet so:dejs:format))
         ;;(script-type (slav %tas (~(dog jo:json-utils jon) /script-type so:dejs:format)))
-        ;;(?(%main %testnet %regtest) (slav %tas (~(dog jo:json-utils jon) /network so:dejs:format)))
+        ;;(?(%main %testnet3 %testnet4 %signet %regtest) (slav %tas (~(dog jo:json-utils jon) /network so:dejs:format)))
         [%.y (rash (~(dog jo:json-utils jon) /purpose so:dejs:format) dem)]
         [%.y (rash (~(dog jo:json-utils jon) /coin-type so:dejs:format) dem)]
         [%.y (rash (~(dog jo:json-utils jon) /account-idx so:dejs:format) dem)]

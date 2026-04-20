@@ -174,6 +174,23 @@
               (cull-soft:io (cord-to-road:tarball (crip "./addresses/{chain-dir}/{(scow %ud idx)}.wallet_address/")))
             $
           ::
+              %'set-network'
+            =/  net=@t
+              (~(dug jo:json-utils jon) /network so:dejs:format '')
+            =/  new-network=?(%main %testnet3 %testnet4 %signet %regtest)
+              ;;(?(%main %testnet3 %testnet4 %signet %regtest) (slav %tas net))
+            ;<  acct-seen=seen:nexus  bind:m
+              (peek:io (cord-to-road:tarball './data.wallet_account') ~)
+            ?.  ?=(%& -.acct-seen)  $
+            ?.  ?=([%file *] p.acct-seen)  $
+            =/  acct=(unit account-data)
+              (mole |.(!<(account-data q.sage.p.acct-seen)))
+            ?~  acct  $
+            =/  updated=account-data  u.acct(network new-network)
+            ;<  ~  bind:m
+              (over:io (cord-to-road:tarball './data.wallet_account') [[/wallet %account] !>(updated)])
+            $
+          ::
               %'full-scan'
             =/  proc-json=json
               %-  pairs:enjs:format
@@ -186,17 +203,18 @@
             $
           ::
               %'pause-scan'
+            ::  fire-and-forget: don't wait for ack so main.sig stays responsive
             =/  pause-json=json
               (pairs:enjs:format ~[['action' s+'pause']])
             ;<  ~  bind:m
-              (poke:io (cord-to-road:tarball './proc/scan.json') [[/ %json] !>(pause-json)])
+              (send-dart:io [%node /pause (cord-to-road:tarball './proc/scan.json') %poke [[/ %json] !>(pause-json)]])
             $
           ::
               %'resume-scan'
             =/  resume-json=json
               (pairs:enjs:format ~[['action' s+'resume']])
             ;<  ~  bind:m
-              (poke:io (cord-to-road:tarball './proc/scan.json') [[/ %json] !>(resume-json)])
+              (send-dart:io [%node /resume (cord-to-road:tarball './proc/scan.json') %poke [[/ %json] !>(resume-json)]])
             $
           ::
               %'cancel-scan'
@@ -341,15 +359,16 @@
   [scan progress]
 ::
 ++  derive-addr
-  |=  [xprv=@t =script-type network=?(%main %testnet %regtest) chain=@ud index=@ud]
+  |=  [xprv=@t =script-type network=?(%main %testnet3 %testnet4 %signet %regtest) chain=@ud index=@ud]
   ^-  (unit @t)
   =/  acct-key  (from-extended:bip32 (trip xprv))
   =/  chain-key  (derive:acct-key chain)
   =/  addr-key  (derive:chain-key index)
   =/  pubkey=@  public-key:addr-key
+  =/  bip-net  (to-bip-network:wt network)
   ?-  script-type
-    %p2wpkh      (encode-pubkey:bech32 network [33 pubkey])
-    %p2tr        (encode-taproot:bech32 network [32 (end [3 32] pubkey)])
+    %p2wpkh      (encode-pubkey:bech32 bip-net [33 pubkey])
+    %p2tr        (encode-taproot:bech32 bip-net [32 (end [3 32] pubkey)])
     %p2pkh       ~
     %p2sh-p2wpkh  ~
   ==
@@ -420,7 +439,7 @@
 ::  +make-addr-dir: create an address nexus directory
 ::
 ++  make-addr-dir
-  |=  [steps-up=@ud addr=@t chain=?(%recv %chng) idx=@ud network=?(%main %testnet %regtest)]
+  |=  [steps-up=@ud addr=@t chain=?(%recv %chng) idx=@ud network=?(%main %testnet3 %testnet4 %signet %regtest)]
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
   (make-addr-dir-with steps-up [addr chain idx network ~ ~ ~])
@@ -514,6 +533,8 @@
       chng-idxs=(set @ud)
       refreshing=(set (pair ?(%recv %chng) @ud))
       total-balance=@ud
+      network=?(%main %testnet3 %testnet4 %signet %regtest)
+      coin-type=@ud
   ==
 ::
 ++  make-sse-prev
@@ -526,6 +547,8 @@
       (silt (turn (addrs-by-chain addrs %chng) |=(a=address-data idx.a)))
       (extract-refreshing view)
       (compute-total-balance addrs)
+      network.acct
+      q.coin-type.acct
   ==
 ::
 ++  sse-write
@@ -551,7 +574,9 @@
     (sse-write (cord-to-road:tarball './sse/account-summary.html') [[/ %manx] !>((account-summary-ui addrs))])
   ;<  ~  bind:m
     (sse-write (cord-to-road:tarball './sse/derive-recv.html') [[/ %manx] !>((derive-button "receiving" recv))])
-  (sse-write (cord-to-road:tarball './sse/derive-chng.html') [[/ %manx] !>((derive-button "change" chng))])
+  ;<  ~  bind:m
+    (sse-write (cord-to-road:tarball './sse/derive-chng.html') [[/ %manx] !>((derive-button "change" chng))])
+  (sse-write (cord-to-road:tarball './sse/network-status.html') [[/ %manx] !>((network-badge-ui network.acct q.coin-type.acct))])
 ::
 ++  sse-init-chain
   |=  [addrs=(list address-data) now=@da chain-tag=?(%recv %chng) chain=tape rfsh=(set (pair ?(%recv %chng) @ud))]
@@ -607,8 +632,13 @@
     ;<  ~  bind:m  (over:io road [[/ %manx] !>(row)])
     $(changed t.changed)
   ::  if total balance changed, update account summary
-  ?.  =(total-balance.prev total-balance.curr)
-    (over:io (cord-to-road:tarball './sse/account-summary.html') [[/ %manx] !>((account-summary-ui addrs))])
+  ;<  ~  bind:m
+    ?.  =(total-balance.prev total-balance.curr)
+      (over:io (cord-to-road:tarball './sse/account-summary.html') [[/ %manx] !>((account-summary-ui addrs))])
+    (pure:m ~)
+  ::  if network changed, update badge + modal
+  ?.  =(network.prev network.curr)
+    (over:io (cord-to-road:tarball './sse/network-status.html') [[/ %manx] !>((network-badge-ui network.curr coin-type.curr))])
   (pure:m ~)
 ::
 ++  sse-cull-removed
@@ -653,18 +683,49 @@
     ?:  =(`s+'resume' act)  [%done %resume ~]
     [%skip ~]
   ==
+::  refresh event: either a nexus subscription update or a pause poke
+::
++$  refresh-event
+  $%  [%news =view:nexus]
+      [%pause ~]
+  ==
+::
+++  take-refresh-event
+  |=  =wire
+  =/  m  (fiber:fiber:nexus ,refresh-event)
+  ^-  form:m
+  |=  input:fiber:nexus
+  :+  ~  state
+  ?+  in  [%skip ~]
+      ~  [%wait ~]
+      [~ %veto *]
+    [%fail (veto-error:io dart.u.in)]
+      [~ %news * *]
+    ?.  =(wire wire.u.in)  [%skip ~]
+    [%done %news view.u.in]
+      [~ %poke * *]
+    =/  res=(unit json)  (mole |.(!<(json q.sage.u.in)))
+    ?~  res  [%skip ~]
+    ?.  ?=([%o *] u.res)  [%skip ~]
+    =/  act=(unit json)  (~(get by p.u.res) 'action')
+    ?:  =(`s+'pause' act)  [%done %pause ~]
+    [%skip ~]
+  ==
+::
 ++  mempool-base-url
-  |=  network=?(%main %testnet %regtest)
+  |=  network=?(%main %testnet3 %testnet4 %signet %regtest)
   ^-  tape
   ?-  network
-    %main     "https://mempool.space/api/address/"
-    %testnet  "https://mempool.space/testnet4/api/address/"
-    %regtest  "http://localhost:3000/address/"
+    %main      "https://mempool.space/api/address/"
+    %testnet3  "https://mempool.space/testnet3/api/address/"
+    %testnet4  "https://mempool.space/testnet4/api/address/"
+    %signet    "https://mempool.space/signet/api/address/"
+    %regtest   "http://localhost:3000/address/"
   ==
 ::  +scan-fetch: like fetch-address-info but pausable during HTTP wait
 ::
 ++  scan-fetch
-  |=  [address=@t network=?(%main %testnet %regtest)]
+  |=  [address=@t network=?(%main %testnet3 %testnet4 %signet %regtest)]
   =/  m  (fiber:fiber:nexus ,(unit address-info))
   ^-  form:m
   =/  url=@t
@@ -740,7 +801,7 @@
 ++  scan-chain
   |=  $:  acct=account-data
           chain=?(%receiving %change)
-          network=?(%main %testnet %regtest)
+          network=?(%main %testnet3 %testnet4 %signet %regtest)
           data-road=road:tarball
           start-idx=@ud
           start-gap=@ud
@@ -823,9 +884,13 @@
   =/  refresh-json=json  (pairs:enjs:format ~[['action' s+'refresh']])
   ;<  ~  bind:m
     (poke:io (cord-to-road:tarball addr-data-path) [[/ %json] !>(refresh-json)])
-  ::  3. wait for refreshing.json to clear
+  ::  3. wait for refreshing.json to clear (also handles pause pokes)
   |-
-  ;<  upd=view:nexus  bind:m  (take-news:io wire)
+  ;<  evt=refresh-event  bind:m  (take-refresh-event wire)
+  ?:  ?=(%pause -.evt)
+    ;<  ~  bind:m  pause-loop
+    $
+  =/  upd=view:nexus  view.evt
   ?.  ?=([%ball *] upd)  $
   =/  =lump:tarball  (fall fil.ball.upd *lump:tarball)
   =/  rfsh-ct=(unit content:tarball)  (~(get by contents.lump) 'refreshing.json')
@@ -851,16 +916,19 @@
   (add total (sub funded.u.info.a spent.u.info.a))
 ::
 ++  network-badge
-  |=  network=?(%main %testnet %regtest)
+  |=  network=?(%main %testnet3 %testnet4 %signet %regtest)
   ^-  manx
+  =/  testnet-svg=manx
+    %-  need  %-  de-xml:html
+    '<svg xmlns="http://www.w3.org/2000/svg" height="16" width="16" viewBox="0 0 64 64"><g transform="translate(0.00630876,-0.00301984)"><path fill="#6b8fd8" d="m63.033,39.744c-4.274,17.143-21.637,27.576-38.782,23.301-17.138-4.274-27.571-21.638-23.295-38.78,4.272-17.145,21.635-27.579,38.775-23.305,17.144,4.274,27.576,21.64,23.302,38.784z"/><path fill="#FFF" d="m46.103,27.444c0.637-4.258-2.605-6.547-7.038-8.074l1.438-5.768-3.511-0.875-1.4,5.616c-0.923-0.23-1.871-0.447-2.813-0.662l1.41-5.653-3.509-0.875-1.439,5.766c-0.764-0.174-1.514-0.346-2.242-0.527l0.004-0.018-4.842-1.209-0.934,3.75s2.605,0.597,2.55,0.634c1.422,0.355,1.679,1.296,1.636,2.042l-1.638,6.571c0.098,0.025,0.225,0.061,0.365,0.117-0.117-0.029-0.242-0.061-0.371-0.092l-2.296,9.205c-0.174,0.432-0.615,1.08-1.609,0.834,0.035,0.051-2.552-0.637-2.552-0.637l-1.743,4.019,4.569,1.139c0.85,0.213,1.683,0.436,2.503,0.646l-1.453,5.834,3.507,0.875,1.439-5.772c0.958,0.26,1.888,0.5,2.798,0.726l-1.434,5.745,3.511,0.875,1.453-5.823c5.987,1.133,10.489,0.676,12.384-4.739,1.527-4.36-0.076-6.875-3.226-8.515,2.294-0.529,4.022-2.038,4.483-5.155zm-8.022,11.249c-1.085,4.36-8.426,2.003-10.806,1.412l1.928-7.729c2.38,0.594,10.012,1.77,8.878,6.317zm1.086-11.312c-0.99,3.966-7.1,1.951-9.082,1.457l1.748-7.01c1.982,0.494,8.365,1.416,7.334,5.553z"/></g></svg>'
   ?-  network
       %main
     %-  need  %-  de-xml:html
     '<svg xmlns="http://www.w3.org/2000/svg" height="16" width="16" viewBox="0 0 64 64"><g transform="translate(0.00630876,-0.00301984)"><path fill="#f7931a" d="m63.033,39.744c-4.274,17.143-21.637,27.576-38.782,23.301-17.138-4.274-27.571-21.638-23.295-38.78,4.272-17.145,21.635-27.579,38.775-23.305,17.144,4.274,27.576,21.64,23.302,38.784z"/><path fill="#FFF" d="m46.103,27.444c0.637-4.258-2.605-6.547-7.038-8.074l1.438-5.768-3.511-0.875-1.4,5.616c-0.923-0.23-1.871-0.447-2.813-0.662l1.41-5.653-3.509-0.875-1.439,5.766c-0.764-0.174-1.514-0.346-2.242-0.527l0.004-0.018-4.842-1.209-0.934,3.75s2.605,0.597,2.55,0.634c1.422,0.355,1.679,1.296,1.636,2.042l-1.638,6.571c0.098,0.025,0.225,0.061,0.365,0.117-0.117-0.029-0.242-0.061-0.371-0.092l-2.296,9.205c-0.174,0.432-0.615,1.08-1.609,0.834,0.035,0.051-2.552-0.637-2.552-0.637l-1.743,4.019,4.569,1.139c0.85,0.213,1.683,0.436,2.503,0.646l-1.453,5.834,3.507,0.875,1.439-5.772c0.958,0.26,1.888,0.5,2.798,0.726l-1.434,5.745,3.511,0.875,1.453-5.823c5.987,1.133,10.489,0.676,12.384-4.739,1.527-4.36-0.076-6.875-3.226-8.515,2.294-0.529,4.022-2.038,4.483-5.155zm-8.022,11.249c-1.085,4.36-8.426,2.003-10.806,1.412l1.928-7.729c2.38,0.594,10.012,1.77,8.878,6.317zm1.086-11.312c-0.99,3.966-7.1,1.951-9.082,1.457l1.748-7.01c1.982,0.494,8.365,1.416,7.334,5.553z"/></g></svg>'
   ::
-      %testnet
-    %-  need  %-  de-xml:html
-    '<svg xmlns="http://www.w3.org/2000/svg" height="16" width="16" viewBox="0 0 64 64"><g transform="translate(0.00630876,-0.00301984)"><path fill="#6b8fd8" d="m63.033,39.744c-4.274,17.143-21.637,27.576-38.782,23.301-17.138-4.274-27.571-21.638-23.295-38.78,4.272-17.145,21.635-27.579,38.775-23.305,17.144,4.274,27.576,21.64,23.302,38.784z"/><path fill="#FFF" d="m46.103,27.444c0.637-4.258-2.605-6.547-7.038-8.074l1.438-5.768-3.511-0.875-1.4,5.616c-0.923-0.23-1.871-0.447-2.813-0.662l1.41-5.653-3.509-0.875-1.439,5.766c-0.764-0.174-1.514-0.346-2.242-0.527l0.004-0.018-4.842-1.209-0.934,3.75s2.605,0.597,2.55,0.634c1.422,0.355,1.679,1.296,1.636,2.042l-1.638,6.571c0.098,0.025,0.225,0.061,0.365,0.117-0.117-0.029-0.242-0.061-0.371-0.092l-2.296,9.205c-0.174,0.432-0.615,1.08-1.609,0.834,0.035,0.051-2.552-0.637-2.552-0.637l-1.743,4.019,4.569,1.139c0.85,0.213,1.683,0.436,2.503,0.646l-1.453,5.834,3.507,0.875,1.439-5.772c0.958,0.26,1.888,0.5,2.798,0.726l-1.434,5.745,3.511,0.875,1.453-5.823c5.987,1.133,10.489,0.676,12.384-4.739,1.527-4.36-0.076-6.875-3.226-8.515,2.294-0.529,4.022-2.038,4.483-5.155zm-8.022,11.249c-1.085,4.36-8.426,2.003-10.806,1.412l1.928-7.729c2.38,0.594,10.012,1.77,8.878,6.317zm1.086-11.312c-0.99,3.966-7.1,1.951-9.082,1.457l1.748-7.01c1.982,0.494,8.365,1.416,7.334,5.553z"/></g></svg>'
+      %testnet3  testnet-svg
+      %testnet4  testnet-svg
+      %signet    testnet-svg
   ::
       %regtest
     %-  need  %-  de-xml:html
@@ -868,12 +936,140 @@
   ==
 ::
 ++  network-label
-  |=  network=?(%main %testnet %regtest)
+  |=  network=?(%main %testnet3 %testnet4 %signet %regtest)
   ^-  tape
   ?-  network
-    %main     "Mainnet"
-    %testnet  "Testnet"
-    %regtest  "Regtest"
+    %main      "Mainnet"
+    %testnet3  "Testnet3"
+    %testnet4  "Testnet4"
+    %signet    "Signet"
+    %regtest   "Regtest"
+  ==
+::
+++  network-badge-ui
+  |=  [network=?(%main %testnet3 %testnet4 %signet %regtest) coin-type=@ud]
+  ^-  manx
+  ;div#network-status(style "display: flex; align-items: center; gap: 8px; margin-top: 12px;")
+    ;div.p2.br1(style "display: flex; align-items: center; gap: 8px; background: var(--b2);")
+      ;div.p2.b1.br2(style "display: flex; align-items: center; gap: 6px;")
+        ;+  (network-badge network)
+        ;span.f2.s-1: {(network-label network)}
+      ==
+      ;button.hover.pointer
+        =onclick  "showNetworkModal()"
+        =title  "Change network"
+        =style  "background: var(--b1); border: none; color: var(--f3); display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 4px; cursor: pointer; outline: none;"
+        ;div(style "width: 16px; height: 16px; display: flex; align-items: center; justify-content: center;")
+          ;+  (make:fi 'edit-2')
+        ==
+      ==
+    ==
+    ;+  (network-modal network coin-type)
+  ==
+::
+++  network-modal
+  |=  [current=?(%main %testnet3 %testnet4 %signet %regtest) coin-type=@ud]
+  ^-  manx
+  =/  is-mainnet-cointype=?  =(0 coin-type)
+  =/  is-testnet-cointype=?  !is-mainnet-cointype
+  =/  testnet-svg=manx
+    %-  need  %-  de-xml:html
+    '<svg xmlns="http://www.w3.org/2000/svg" height="16" width="16" viewBox="0 0 64 64"><g transform="translate(0.00630876,-0.00301984)"><path fill="#6b8fd8" d="m63.033,39.744c-4.274,17.143-21.637,27.576-38.782,23.301-17.138-4.274-27.571-21.638-23.295-38.78,4.272-17.145,21.635-27.579,38.775-23.305,17.144,4.274,27.576,21.64,23.302,38.784z"/><path fill="#FFF" d="m46.103,27.444c0.637-4.258-2.605-6.547-7.038-8.074l1.438-5.768-3.511-0.875-1.4,5.616c-0.923-0.23-1.871-0.447-2.813-0.662l1.41-5.653-3.509-0.875-1.439,5.766c-0.764-0.174-1.514-0.346-2.242-0.527l0.004-0.018-4.842-1.209-0.934,3.75s2.605,0.597,2.55,0.634c1.422,0.355,1.679,1.296,1.636,2.042l-1.638,6.571c0.098,0.025,0.225,0.061,0.365,0.117-0.117-0.029-0.242-0.061-0.371-0.092l-2.296,9.205c-0.174,0.432-0.615,1.08-1.609,0.834,0.035,0.051-2.552-0.637-2.552-0.637l-1.743,4.019,4.569,1.139c0.85,0.213,1.683,0.436,2.503,0.646l-1.453,5.834,3.507,0.875,1.439-5.772c0.958,0.26,1.888,0.5,2.798,0.726l-1.434,5.745,3.511,0.875,1.453-5.823c5.987,1.133,10.489,0.676,12.384-4.739,1.527-4.36-0.076-6.875-3.226-8.515,2.294-0.529,4.022-2.038,4.483-5.155zm-8.022,11.249c-1.085,4.36-8.426,2.003-10.806,1.412l1.928-7.729c2.38,0.594,10.012,1.77,8.878,6.317zm1.086-11.312c-0.99,3.966-7.1,1.951-9.082,1.457l1.748-7.01c1.982,0.494,8.365,1.416,7.334,5.553z"/></g></svg>'
+  =/  mainnet-svg=manx
+    %-  need  %-  de-xml:html
+    '<svg xmlns="http://www.w3.org/2000/svg" height="16" width="16" viewBox="0 0 64 64"><g transform="translate(0.00630876,-0.00301984)"><path fill="#f7931a" d="m63.033,39.744c-4.274,17.143-21.637,27.576-38.782,23.301-17.138-4.274-27.571-21.638-23.295-38.78,4.272-17.145,21.635-27.579,38.775-23.305,17.144,4.274,27.576,21.64,23.302,38.784z"/><path fill="#FFF" d="m46.103,27.444c0.637-4.258-2.605-6.547-7.038-8.074l1.438-5.768-3.511-0.875-1.4,5.616c-0.923-0.23-1.871-0.447-2.813-0.662l1.41-5.653-3.509-0.875-1.439,5.766c-0.764-0.174-1.514-0.346-2.242-0.527l0.004-0.018-4.842-1.209-0.934,3.75s2.605,0.597,2.55,0.634c1.422,0.355,1.679,1.296,1.636,2.042l-1.638,6.571c0.098,0.025,0.225,0.061,0.365,0.117-0.117-0.029-0.242-0.061-0.371-0.092l-2.296,9.205c-0.174,0.432-0.615,1.08-1.609,0.834,0.035,0.051-2.552-0.637-2.552-0.637l-1.743,4.019,4.569,1.139c0.85,0.213,1.683,0.436,2.503,0.646l-1.453,5.834,3.507,0.875,1.439-5.772c0.958,0.26,1.888,0.5,2.798,0.726l-1.434,5.745,3.511,0.875,1.453-5.823c5.987,1.133,10.489,0.676,12.384-4.739,1.527-4.36-0.076-6.875-3.226-8.515,2.294-0.529,4.022-2.038,4.483-5.155zm-8.022,11.249c-1.085,4.36-8.426,2.003-10.806,1.412l1.928-7.729c2.38,0.594,10.012,1.77,8.878,6.317zm1.086-11.312c-0.99,3.966-7.1,1.951-9.082,1.457l1.748-7.01c1.982,0.494,8.365,1.416,7.334,5.553z"/></g></svg>'
+  =/  active-style=tape  " background: rgba(100, 150, 255, 0.15); border-color: rgba(100, 150, 255, 0.4);"
+  ;div#network-modal(style "display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center;", onclick "if(event.target === this) hideModal('network-modal')")
+    ;div.p4.b1.br2(style "max-width: 320px; width: 100%;")
+      ;div(style "display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;")
+        ;h3.s1.bold: Select Network
+        ;button.hover.pointer(onclick "hideModal('network-modal')", style "background: transparent; border: none; color: var(--f3); cursor: pointer; padding: 4px;")
+          ;div(style "width: 20px; height: 20px;")
+            ;+  (make:fi 'x')
+          ==
+        ==
+      ==
+      ;div.fc.g2
+        ;+  ?:  is-testnet-cointype
+              ;span;
+            ;button.p3.b1.br2.hover.pointer.wf(onclick "setNetwork('main')", style "text-align: left; display: flex; align-items: center; gap: 8px;{?:(=(%main current) active-style "")}")
+              ;+  mainnet-svg
+              ;span: Mainnet
+            ==
+        ;+  ?:  is-mainnet-cointype
+              ;span;
+            ;button.p3.b1.br2.hover.pointer.wf(onclick "setNetwork('testnet4')", style "text-align: left; display: flex; align-items: center; gap: 8px;{?:(=(%testnet4 current) active-style "")}")
+              ;+  testnet-svg
+              ;span: Testnet4
+            ==
+        ;+  ?:  is-mainnet-cointype
+              ;span;
+            ;button.p3.b1.br2.hover.pointer.wf(onclick "setNetwork('testnet3')", style "text-align: left; display: flex; align-items: center; gap: 8px;{?:(=(%testnet3 current) active-style "")}")
+              ;+  testnet-svg
+              ;span: Testnet3
+            ==
+        ;+  ?:  is-mainnet-cointype
+              ;span;
+            ;button.p3.b1.br2.hover.pointer.wf(onclick "setNetwork('signet')", style "text-align: left; display: flex; align-items: center; gap: 8px;{?:(=(%signet current) active-style "")}")
+              ;+  testnet-svg
+              ;span: Signet
+            ==
+        ;+  ?:  is-mainnet-cointype
+              ;span;
+            ;button.p3.b1.br2.hover.pointer.wf(onclick "setNetwork('regtest')", style "text-align: left; display: flex; align-items: center; gap: 8px;{?:(=(%regtest current) active-style "")}")
+              ;+  testnet-svg
+              ;span: Regtest
+            ==
+      ==
+    ==
+  ==
+::
+++  next-unused-addr
+  |=  addrs=(list address-data)
+  ^-  (unit @t)
+  =/  recv=(list address-data)  (addrs-by-chain addrs %recv)
+  |-
+  ?~  recv  ~
+  =/  a=address-data  i.recv
+  ?:  ?|(?=(~ info.a) =(0 tx-count.u.info.a))
+    `addr.a
+  $(recv t.recv)
+::
+++  receive-modal
+  |=  addrs=(list address-data)
+  ^-  manx
+  =/  next=(unit @t)  (next-unused-addr addrs)
+  ;div#receive-modal(style "display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center;", onclick "if(event.target === this) hideModal('receive-modal')")
+    ;div.p4.b1.br2(style "max-width: 400px; width: 100%;")
+      ;div(style "display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;")
+        ;h2.s1.bold: Receive Bitcoin
+        ;button.hover.pointer(onclick "hideModal('receive-modal')", style "background: transparent; border: 1px solid var(--b3); color: var(--f3); padding: 4px; outline: none; border-radius: 4px;")
+          ;div(style "width: 20px; height: 20px;")
+            ;+  (make:fi 'x')
+          ==
+        ==
+      ==
+      ;+  ?~  next
+            ;div.tc.p4
+              ;p.f2: No address available. Derive or scan your account first.
+            ==
+          ;div
+            ;div.tc(style "margin-bottom: 16px;")
+              ;div#receive-qr(data-address "{(trip u.next)}", style "display: inline-block;");
+            ==
+            ;div.p3.b2.br2(style "display: flex; align-items: center; gap: 8px;")
+              ;button.p1.b0.br1.hover.pointer
+                =onclick  "copyReceiveAddr()"
+                =title  "Copy address"
+                =style  "background: transparent; border: 1px solid var(--b3); color: var(--f3); display: flex; align-items: center; width: 24px; height: 24px; justify-content: center; outline: none; flex-shrink: 0;"
+                ;div(style "width: 12px; height: 12px; display: flex; align-items: center; justify-content: center;")
+                  ;+  (make:fi 'copy')
+                ==
+              ==
+              ;div#receive-addr.mono.f3(style "overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0;"): {(trip u.next)}
+            ==
+          ==
+    ==
   ==
 ::
 ++  format-sats
@@ -916,20 +1112,18 @@
     ;span.f2.bold.f-3: Derive Next Address (Index {(scow %ud next-idx)})
   ==
 ::
-++  address-list-section
-  |=  [acct=account-data chain=tape chain-tag=?(%recv %chng) addrs=(list address-data) now=@da rfsh=(set (pair ?(%recv %chng) @ud))]
+++  address-list
+  |=  [acct=account-data chain-tag=?(%recv %chng) addrs=(list address-data) now=@da rfsh=(set (pair ?(%recv %chng) @ud))]
   ^-  manx
-  ;div.fc.g2
-    ;+  (derive-button chain addrs)
-    ;div.fc.g2(id "addr-list-{(trip chain-tag)}")
-      ;*  ?:  =(~ addrs)
-            :~  ;div.p4.b1.br2.tc(id "empty-{(trip chain-tag)}")
-                  ;div.s0.f2.mb2: No addresses yet
-                  ;div.f3.s-1: Click above to derive your first address
-                ==
-            ==
-          (turn (flop addrs) |=(a=address-data (address-row a now chain chain-tag (~(has in rfsh) [chain-tag idx.a]))))
-    ==
+  =/  chain=tape  ?:(?=(%recv chain-tag) "receiving" "change")
+  ;div.fc.g2(id "addr-list-{(trip chain-tag)}")
+    ;*  ?:  =(~ addrs)
+          :~  ;div.p4.b1.br2.tc(id "empty-{(trip chain-tag)}")
+                ;div.s0.f2.mb2: No addresses yet
+                ;div.f3.s-1: Click above to derive your first address
+              ==
+          ==
+        (turn (flop addrs) |=(a=address-data (address-row a now chain chain-tag (~(has in rfsh) [chain-tag idx.a]))))
   ==
 ::
 ++  address-row
@@ -1114,21 +1308,31 @@
   ^-  manx
   =/  recv=(list address-data)  (addrs-by-chain addrs %recv)
   =/  chng=(list address-data)  (addrs-by-chain addrs %chng)
-  ;div.fc.g2
-    ;+  (scan-status-ui scan progress)
-    ;div(style "display: flex; border-bottom: 1px solid var(--b3);")
-      ;button.tab-btn(data-tab "receiving", onclick "showTab('receiving')", style "flex: 1; padding: 8px 16px; background: transparent; border: none; border-bottom: 2px solid var(--f1); color: var(--f1); font-weight: bold; cursor: pointer; outline: none;")
-        ; Receiving ({(scow %ud (lent recv))})
+  ;div.fc(style "flex: 1; min-height: 0;")
+    ;div.fc.g2(style "flex-shrink: 0;")
+      ;+  (scan-status-ui scan progress)
+      ;div(style "display: flex; border-bottom: 1px solid var(--b3);")
+        ;button.tab-btn(data-tab "receiving", onclick "showTab('receiving')", style "flex: 1; padding: 8px 16px; background: transparent; border: none; border-bottom: 2px solid var(--f1); color: var(--f1); font-weight: bold; cursor: pointer; outline: none;")
+          ; Receiving ({(scow %ud (lent recv))})
+        ==
+        ;button.tab-btn(data-tab "change", onclick "showTab('change')", style "flex: 1; padding: 8px 16px; background: transparent; border: none; border-bottom: 2px solid transparent; color: var(--f3); cursor: pointer; outline: none;")
+          ; Change ({(scow %ud (lent chng))})
+        ==
       ==
-      ;button.tab-btn(data-tab "change", onclick "showTab('change')", style "flex: 1; padding: 8px 16px; background: transparent; border: none; border-bottom: 2px solid transparent; color: var(--f3); cursor: pointer; outline: none;")
-        ; Change ({(scow %ud (lent chng))})
+      ;div#receiving-derive(style "padding-top: 8px;")
+        ;+  (derive-button "receiving" recv)
+      ==
+      ;div#change-derive(style "display: none; padding-top: 8px;")
+        ;+  (derive-button "change" chng)
       ==
     ==
-    ;div#receiving-addresses
-      ;+  (address-list-section acct "receiving" %recv recv now rfsh)
-    ==
-    ;div#change-addresses(style "display: none;")
-      ;+  (address-list-section acct "change" %chng chng now rfsh)
+    ;div.fc.g2(style "flex: 1; min-height: 0; overflow-y: auto; padding-top: 8px;")
+      ;div#receiving-addresses
+        ;+  (address-list acct %recv recv now rfsh)
+      ==
+      ;div#change-addresses(style "display: none;")
+        ;+  (address-list acct %chng chng now rfsh)
+      ==
     ==
   ==
 ::
@@ -1141,6 +1345,7 @@
       ;meta(charset "utf-8");
       ;meta(name "viewport", content "width=device-width, initial-scale=1");
       ;+  feather:feather
+      ;script(src "https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js");
       ;style
         ;+  ;/  style-text
       ==
@@ -1167,20 +1372,33 @@
               ;code.mono.s-2.p1.b2.br1: {(format-account-path purpose.acct coin-type.acct account-idx.acct)}
               ;+  (coin-type-badge coin-type.acct)
             ==
-            ;div(style "display: flex; align-items: center; gap: 8px; margin-top: 12px;")
-              ;div.p2.br1(style "display: flex; align-items: center; gap: 8px; background: var(--b2);")
-                ;div.p2.b1.br2(style "display: flex; align-items: center; gap: 6px;")
-                  ;+  (network-badge network.acct)
-                  ;span.f2.s-1: {(network-label network.acct)}
-                ==
-              ==
-            ==
+            ;+  (network-badge-ui network.acct q.coin-type.acct)
           ==
           ;div.p4.b2.br2(style "flex-shrink: 0;")
             ;h2.s1.bold.mb2: Account Summary
             ;+  (account-summary-ui addrs)
+            ;div(style "display: flex; gap: 8px; margin-top: 12px; justify-content: center;")
+              ;a.p2.b1.br2.hover.pointer
+                =href  "#"
+                =onclick  "alert('Send page coming soon'); return false;"
+                =style  "display: flex; align-items: center; justify-content: center; gap: 6px; background: rgba(100, 150, 255, 0.15); border: 1px solid rgba(100, 150, 255, 0.4); color: var(--f3); text-decoration: none; outline: none; white-space: nowrap;"
+                ;div(style "width: 16px; height: 16px; display: flex; align-items: center; justify-content: center;")
+                  ;+  (make:fi 'arrow-up')
+                ==
+                ;span.f2.bold: Send
+              ==
+              ;button.p2.b1.br2.hover.pointer
+                =onclick  "showReceiveModal()"
+                =style  "display: flex; align-items: center; justify-content: center; gap: 6px; background: rgba(50, 200, 100, 0.15); border: 1px solid rgba(50, 200, 100, 0.4); color: var(--f3); outline: none; white-space: nowrap;"
+                ;div(style "width: 16px; height: 16px; display: flex; align-items: center; justify-content: center;")
+                  ;+  (make:fi 'arrow-down')
+                ==
+                ;span.f2.bold: Receive
+              ==
+            ==
           ==
-          ;div#live-content.fc.g3(style "flex: 1; min-height: 0; overflow-y: auto;")
+          ;+  (receive-modal addrs)
+          ;div#live-content.fc.g3(style "flex: 1; min-height: 0;")
             ;+  (addresses-fragment acct addrs now scan progress rfsh)
           ==
         ==
@@ -1222,6 +1440,40 @@
     var parts = path.split('/');
     var base = parts.slice(0, parts.indexOf('wallet.wallet_app') + 1).join('/');
     window.location.href = base + '/wallets/' + walletFp + '.wallet_wallet/page.html';
+  }
+
+  function showReceiveModal() \{
+    document.getElementById('receive-modal').style.display = 'flex';
+    var qrContainer = document.getElementById('receive-qr');
+    if (qrContainer) \{
+      var address = qrContainer.getAttribute('data-address');
+      qrContainer.innerHTML = '';
+      new QRCode(qrContainer, \{text: address, width: 200, height: 200});
+    }
+  }
+
+  function copyReceiveAddr() \{
+    var el = document.getElementById('receive-addr');
+    if (el) navigator.clipboard.writeText(el.textContent.trim());
+  }
+
+  function showNetworkModal() \{
+    document.getElementById('network-modal').style.display = 'flex';
+  }
+
+  function hideModal(id) \{
+    document.getElementById(id).style.display = 'none';
+  }
+
+  function setNetwork(network) \{
+    var url = API + '/poke/' + acctBase + '/main.sig?mark=json';
+    fetch(url, \{
+      method: 'POST',
+      headers: \{'Content-Type': 'application/json'},
+      body: JSON.stringify(\{action: 'set-network', network: network})
+    }).then(function() \{
+      hideModal('network-modal');
+    }).catch(function(e) \{ console.error('set-network failed', e) });
   }
 
   function deriveNext(chain) \{
@@ -1337,8 +1589,12 @@
   function applyTab() \{
     var r = document.getElementById('receiving-addresses');
     var c = document.getElementById('change-addresses');
+    var rd = document.getElementById('receiving-derive');
+    var cd = document.getElementById('change-derive');
     if (r) r.style.display = activeTab === 'receiving' ? '' : 'none';
     if (c) c.style.display = activeTab === 'change' ? '' : 'none';
+    if (rd) rd.style.display = activeTab === 'receiving' ? '' : 'none';
+    if (cd) cd.style.display = activeTab === 'change' ? '' : 'none';
     document.querySelectorAll('.tab-btn').forEach(function(btn) \{
       var active = btn.dataset.tab === activeTab;
       btn.style.borderBottomColor = active ? 'var(--f1)' : 'transparent';
