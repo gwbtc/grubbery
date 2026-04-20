@@ -6,6 +6,7 @@
 /<  bip39         /lib/bip39.hoon
 /<  bip32         /lib/bip32.hoon
 /<  seed-phrases  /lib/seed-phrases.hoon
+/<  bech32        /lib/bech32.hoon
 =,  wt
 =<  ^-  nexus:nexus
     |%
@@ -15,6 +16,8 @@
       =/  =ver:loader  (get-ver:loader ball)
       ?+  ver  !!
           ?(~ [~ %0])
+        =/  [wal-dir=@ta wal-ball=ball:tarball acct-dir=@ta acct-ball=ball:tarball]
+          (make-dev-wallet 'Dev Wallet' [%t 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about'] %testnet)
         %+  spin:loader  [sand gain ball]
         :~  (ver-row:loader 0)
             [%over %& [/ %'main.sig'] %.n [~ [/ %sig] !>(~)]]
@@ -23,6 +26,8 @@
             [%fall %| /accounts [~ ~] [~ ~] empty-dir:loader]
             [%fall %| /ui/sse [~ ~] [~ ~] empty-dir:loader]
             [%over %& [/ui/sse %'wallets.html'] %.n [~ [/ %manx] !>((wallet-list-html ~))]]
+            [%fall %| (snoc /wallets wal-dir) [~ ~] [~ ~] wal-ball]
+            [%fall %| (snoc /accounts acct-dir) [~ ~] [~ ~] acct-ball]
         ==
       ==
     ::
@@ -186,6 +191,53 @@
           [(met 3 val) val]
     ==
   public-key:(from-seed:bip32 seed-bytes)
+::
+++  make-dev-wallet
+  |=  [name=@t =seed network=?(%main %testnet %regtest)]
+  ^-  [@ta ball:tarball @ta ball:tarball]
+  =/  seed-bytes=byts
+    ?-  -.seed
+      %t  64^(to-seed:bip39 (trip phrase.seed) "")
+      %q  =/  val=@  `@`secret.seed  [(met 3 val) val]
+    ==
+  =/  master  (from-seed:bip32 seed-bytes)
+  =/  fp=@ux  public-key:master
+  =/  coin=@ud  ?:(=(%main network) 0 1)
+  =/  derived  (derive-path:master "m/84'/{(scow %ud coin)}'/0'")
+  =/  xprv=@t  (crip (prv-extended:derived network))
+  =/  apk=@ux  public-key:derived
+  =/  addr=(unit @t)
+    (encode-pubkey:bech32 network [33 public-key:(derive:(derive:derived 0) 0)])
+  =/  apath=account  [[%.y 84] [%.y coin] [%.y 0]]
+  =/  wal=wallet-data  [name seed fp (~(put by *(map account @ux)) apath apk)]
+  =/  acct=account-data  ['Default' fp %p2wpkh network [%.y 84] [%.y coin] [%.y 0] xprv ?~(addr 0 1) 0]
+  =/  wdir=@ta  (cat 3 (crip (hexn:http-utils fp)) '.wallet_wallet')
+  =/  adir=@ta  (cat 3 (crip (hexn:http-utils apk)) '.wallet_account')
+  ::  build address data for first receiving address
+  =/  addr-dat=address-data
+    ?~  addr  ['' %recv 0 network ~ ~ ~]
+    [u.addr %recv 0 network ~ ~ ~]
+  =/  addr-lump=lump:tarball
+    :+  ~  `[/wallet %address]
+    (~(put by *(map @ta content:tarball)) %'data.wallet_address' [~ [/wallet %address] !>(addr-dat)])
+  =/  addr-ball=ball:tarball  [`addr-lump ~]
+  ::  account ball with addresses/receiving/ subdir containing 0.wallet_address
+  =/  recv-dir=(map @ta ball:tarball)
+    (~(put by *(map @ta ball:tarball)) '0.wallet_address' addr-ball)
+  =/  addrs-dir=(map @ta ball:tarball)
+    %-  ~(gas by *(map @ta ball:tarball))
+    :~  ['receiving' [~ recv-dir]]
+        ['change' [~ ~]]
+    ==
+  =/  acct-lump=lump:tarball
+    :+  ~  `[/wallet %account]
+    (~(put by *(map @ta content:tarball)) %'data.wallet_account' [~ [/wallet %account] !>(acct)])
+  =/  acct-ball=ball:tarball  [`acct-lump (~(put by *(map @ta ball:tarball)) %addresses [~ addrs-dir])]
+  :^  wdir
+    :-  `[~ `[/wallet %wallet] (~(put by *(map @ta content:tarball)) %'main.wallet_wallet' [~ [/wallet %wallet] !>(wal)])]
+    ~
+  adir
+  acct-ball
 ::
 ++  wallet-to-json
   |=  wal=wallet-data

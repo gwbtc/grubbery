@@ -203,6 +203,32 @@
       ==
     $(t t.t.t, acc ~, res (snoc res acc))
   $(t t.t, acc (snoc acc i.t))
+::  +ext-to-neck: parse underscore-separated extension into a neck rail
+::
+::  %app → [/ %app]
+::  %wallet_app → [/wallet %app]
+::  %wallet_account → [/wallet %account]
+::
+++  ext-to-neck
+  |=  ext=@ta
+  ^-  rail
+  =/  t=tape  (trip ext)
+  =/  segs=(list tape)  (split-on-underscore t)
+  ?~  segs  [/ ext]
+  ?~  t.segs  [/ ext]
+  :-  (turn (snip `(list tape)`segs) crip)
+  (crip (rear segs))
+::
+++  split-on-underscore
+  |=  t=tape
+  ^-  (list tape)
+  =|  acc=tape
+  =|  res=(list tape)
+  |-
+  ?~  t  (snoc res acc)
+  ?:  =('_' i.t)
+    $(t t.t, acc ~, res (snoc res acc))
+  $(t t.t, acc (snoc acc i.t))
 ::  Helper: wrap symlink as sage for storage
 ::
 ++  symlink-to-sage
@@ -249,7 +275,7 @@
         ==
       ~  ::  must start with letter
     ((sand %ta) (crip text))
-  (cook |=(a=tape (rap 3 ^-((list @) a))) (star ;~(pose aln hep)))
+  (cook |=(a=tape (rap 3 ^-((list @) a))) (star ;~(pose aln hep cab)))
 ::  Extract file extension from filename
 ::  Examples: 'data.json' -> `%json, 'page.html-css' -> `%html-css, 'noext' -> ~
 ::

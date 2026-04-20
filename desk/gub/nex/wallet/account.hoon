@@ -4,6 +4,7 @@
 ::    data.account   account-data (name, xprv, script-type, addresses)
 ::    main.sig       poke handler for derive-next
 ::    page.html      rendered detail page (manx)
+::    address.html   address detail page (client-side mempool.space)
 ::
 /<  feather       /lib/feather.hoon
 /<  fi            /lib/feather-icons.hoon
@@ -26,6 +27,9 @@
             [%fall %| /ui [~ ~] [~ ~] empty-dir:loader]
             [%over %& [/ui %'sse-manager.sig'] %.n [~ [/ %sig] !>(~)]]
             [%fall %| /ui/sse [~ ~] [~ ~] empty-dir:loader]
+            [%fall %| /addresses [~ ~] [~ ~] empty-dir:loader]
+            [%fall %| /addresses/receiving [~ ~] [~ ~] empty-dir:loader]
+            [%fall %| /addresses/change [~ ~] [~ ~] empty-dir:loader]
             [%over %& [/ %'page.html'] %.n [~ [/ %manx] !>(;div;)]]
         ==
       ==
@@ -41,43 +45,24 @@
           ::
           [~ %'page.html']
         ;<  ~  bind:m  (rise-wait:io prod "%account detail: failed")
-        ::  watch entire dir for full initial state (scan, refreshing)
         ;<  init=view:nexus  bind:m
           (keep:io /data (cord-to-road:tarball './') ~)
         =/  acct=(unit account-data)  (extract-account init)
         ?~  acct
+          ::  wait for account data to appear
           |-
           ;<  upd=view:nexus  bind:m  (take-news:io /data)
           =/  acct=(unit account-data)  (extract-account upd)
           ?~  acct  $
+          =/  addrs=(list address-data)  (extract-addresses upd)
           =/  pst  (extract-proc-state upd)
           ;<  =bowl:nexus  bind:m  get-bowl:io
-          ;<  ~  bind:m  (replace:io !>((detail-page u.acct now.bowl scan.pst progress.pst refreshing.pst)))
-          ::  hash on data + scan state + refreshing (not progress)
-          =/  prev-hash=@  (mug [u.acct scan.pst refreshing.pst])
-          |-
-          ;<  upd=view:nexus  bind:m  (take-news:io /data)
-          =/  acct=(unit account-data)  (extract-account upd)
-          ?~  acct  $
-          =/  pst  (extract-proc-state upd)
-          =/  curr-hash=@  (mug [u.acct scan.pst refreshing.pst])
-          ?:  =(prev-hash curr-hash)  $
-          ;<  =bowl:nexus  bind:m  get-bowl:io
-          ;<  ~  bind:m  (replace:io !>((detail-page u.acct now.bowl scan.pst progress.pst refreshing.pst)))
-          $(prev-hash curr-hash)
+          (replace:io !>((detail-page u.acct addrs now.bowl scan.pst progress.pst ~)))
+        ::  render once — SSE handles all live updates
+        =/  addrs=(list address-data)  (extract-addresses init)
         =/  pst  (extract-proc-state init)
         ;<  =bowl:nexus  bind:m  get-bowl:io
-        ;<  ~  bind:m  (replace:io !>((detail-page u.acct now.bowl scan.pst progress.pst refreshing.pst)))
-        =/  prev-hash=@  (mug [u.acct scan.pst refreshing.pst])
-        |-
-        ;<  upd=view:nexus  bind:m  (take-news:io /data)
-        =/  acct=(unit account-data)  (extract-account upd)
-        ?~  acct  $
-        =/  pst  (extract-proc-state upd)
-        =/  curr-hash=@  (mug [u.acct scan.pst refreshing.pst])
-        ?:  =(prev-hash curr-hash)  $
-        ;<  =bowl:nexus  bind:m  get-bowl:io
-        ;<  ~  bind:m  (replace:io !>((detail-page u.acct now.bowl scan.pst progress.pst refreshing.pst)))
+        (replace:io !>((detail-page u.acct addrs now.bowl scan.pst progress.pst ~)))
         $(prev-hash curr-hash)
           ::  /ui/sse-manager.sig: SSE manager process
           ::  watches account root, diffs state, writes targeted fragments to sse/
@@ -88,37 +73,39 @@
           (keep:io /data (cord-to-road:tarball '../') ~)
         =/  acct=(unit account-data)  (extract-account init)
         ?~  acct
-          ::  no account data yet — wait
           |-
           ;<  upd=view:nexus  bind:m  (take-news:io /data)
           =/  acct=(unit account-data)  (extract-account upd)
           ?~  acct  $
+          =/  addrs=(list address-data)  (extract-addresses upd)
           =/  pst  (extract-proc-state upd)
           ;<  =bowl:nexus  bind:m  get-bowl:io
-          ;<  ~  bind:m  (sse-init u.acct now.bowl pst)
-          =/  prev=sse-prev  (make-sse-prev u.acct pst)
+          =/  prev=sse-prev  (make-sse-prev upd u.acct addrs pst)
+          ;<  ~  bind:m  (sse-init u.acct addrs now.bowl pst refreshing.prev)
           |-
           ;<  upd=view:nexus  bind:m  (take-news:io /data)
           =/  acct=(unit account-data)  (extract-account upd)
           ?~  acct  $
+          =/  addrs=(list address-data)  (extract-addresses upd)
           =/  pst  (extract-proc-state upd)
-          =/  curr=sse-prev  (make-sse-prev u.acct pst)
+          =/  curr=sse-prev  (make-sse-prev upd u.acct addrs pst)
           ;<  =bowl:nexus  bind:m  get-bowl:io
-          ;<  ~  bind:m  (sse-diff u.acct now.bowl prev curr)
+          ;<  ~  bind:m  (sse-diff u.acct addrs now.bowl prev curr)
           $(prev curr)
-        ::  have account — initialize SSE files
+        =/  addrs=(list address-data)  (extract-addresses init)
         =/  pst  (extract-proc-state init)
         ;<  =bowl:nexus  bind:m  get-bowl:io
-        ;<  ~  bind:m  (sse-init u.acct now.bowl pst)
-        =/  prev=sse-prev  (make-sse-prev u.acct pst)
+        =/  prev=sse-prev  (make-sse-prev init u.acct addrs pst)
+        ;<  ~  bind:m  (sse-init u.acct addrs now.bowl pst refreshing.prev)
         |-
         ;<  upd=view:nexus  bind:m  (take-news:io /data)
         =/  acct=(unit account-data)  (extract-account upd)
         ?~  acct  $
+        =/  addrs=(list address-data)  (extract-addresses upd)
         =/  pst  (extract-proc-state upd)
-        =/  curr=sse-prev  (make-sse-prev u.acct pst)
+        =/  curr=sse-prev  (make-sse-prev upd u.acct addrs pst)
         ;<  =bowl:nexus  bind:m  get-bowl:io
-        ;<  ~  bind:m  (sse-diff u.acct now.bowl prev curr)
+        ;<  ~  bind:m  (sse-diff u.acct addrs now.bowl prev curr)
         $(prev curr)
           ::  /main.sig: handle pokes — dispatches to process files
           ::
@@ -140,9 +127,12 @@
             =/  acct=(unit account-data)  (extract-account cur)
             ?~  acct  $
             =/  is-change=?  =(chain 'change')
-            =/  addrs=(list address-entry)
-              ?:(is-change change.u.acct receiving.u.acct)
-            =/  next-idx=@ud  (lent addrs)
+            =/  addrs=(list address-data)  (extract-addresses cur)
+            =/  chain-addrs=(list address-data)
+              (addrs-by-chain addrs ?:(is-change %chng %recv))
+            =/  next-idx=@ud
+              ?~  chain-addrs  0
+              +(idx:(rear chain-addrs))
             =/  new-addr=(unit @t)
               %:  derive-addr
                 xprv.u.acct
@@ -152,28 +142,34 @@
                 next-idx
               ==
             ?~  new-addr  $
-            =/  new-entry=address-entry  [u.new-addr ~]
-            =/  new-addrs=(list address-entry)  (snoc addrs new-entry)
+            ::  bump count to match actual next
             =/  updated=account-data
               ?:  is-change
-                u.acct(change new-addrs)
-              u.acct(receiving new-addrs)
+                u.acct(chng-count +(next-idx))
+              u.acct(recv-count +(next-idx))
             ;<  ~  bind:m
               (over:io (cord-to-road:tarball './data.wallet_account') [[/wallet %account] !>(updated)])
+            ::  create per-address nexus directory
+            =/  chain-dir=tape  ?:(is-change "change" "receiving")
+            ;<  ~  bind:m
+              (make-addr-dir 0 u.new-addr ?:(is-change %chng %recv) next-idx network.u.acct)
+            ::  auto-refresh the new address
+            =/  refresh-json=json  (pairs:enjs:format ~[['action' s+'refresh']])
+            ;<  ~  bind:m
+              (poke:io (cord-to-road:tarball (crip "./addresses/{chain-dir}/{(scow %ud next-idx)}.wallet_address/data.wallet_address")) [[/ %json] !>(refresh-json)])
             $
           ::
-              %'refresh-address'
+              %'delete-address'
             =/  chain=@t
-              (~(dug jo:json-utils jon) /chain so:dejs:format 'receiving')
+              (~(dug jo:json-utils jon) /chain so:dejs:format 'recv')
             =/  idx=@ud
-              (rash (~(dug jo:json-utils jon) /index so:dejs:format '0') dem)
-            =/  chain-seg=@ta  ?:(=(chain 'change') %chng %recv)
-            =/  proc-road=road:tarball
-              %-  cord-to-road:tarball
-              (crip "./proc/refresh/{(trip chain-seg)}/{(scow %ud idx)}.json")
-            =/  proc-json=json
-              (pairs:enjs:format ~[['status' s+'active']])
-            ;<  ~  bind:m  (make:io proc-road |+[%.n [[/ %json] !>(proc-json)] ~])
+              (~(dug jo:json-utils jon) /index ni:dejs:format 0)
+            =/  chain-tag=@ta  ;;(@ta chain)
+            =/  chain-dir=tape
+              ?:(?=(%recv chain-tag) "receiving" "change")
+            ::  cull address dir (trailing slash = directory)
+            ;<  *  bind:m
+              (cull-soft:io (cord-to-road:tarball (crip "./addresses/{chain-dir}/{(scow %ud idx)}.wallet_address/")))
             $
           ::
               %'full-scan'
@@ -207,18 +203,6 @@
             ;<  *  bind:m
               (cull-soft:io (cord-to-road:tarball './scan-paused.json'))
             $
-          ::
-              %'cancel-refresh'
-            =/  chain=@t
-              (~(dug jo:json-utils jon) /chain so:dejs:format 'receiving')
-            =/  idx=@ud
-              (rash (~(dug jo:json-utils jon) /index so:dejs:format '0') dem)
-            =/  chain-seg=@ta  ?:(=(chain 'change') %chng %recv)
-            =/  proc-road=road:tarball
-              %-  cord-to-road:tarball
-              (crip "./proc/refresh/{(trip chain-seg)}/{(scow %ud idx)}.json")
-            ;<  *  bind:m  (cull-soft:io proc-road)
-            $
           ==
         ==
       ::
@@ -236,53 +220,6 @@
           (scan-chain u.acct %receiving network.u.acct data-road)
         ;<  chng-result=account-data  bind:m
           (scan-chain recv-result %change network.recv-result data-road)
-        (pure:m ~)
-      ::
-          ::  /proc/refresh/recv/*.json: refresh a receiving address
-          ::
-          [[%proc %refresh %recv ~] *]
-        ;<  ~  bind:m  (rise-wait:io prod "%refresh recv: failed")
-        =/  idx=@ud
-          (rash (crip (scag (sub (lent (trip name.rail)) 5) (trip name.rail))) dem)
-        ;<  cur=view:nexus  bind:m
-          (keep:io /acct (cord-to-road:tarball '../../../') ~)
-        =/  acct=(unit account-data)  (extract-account cur)
-        ?~  acct  (pure:m ~)
-        ?:  (gte idx (lent receiving.u.acct))
-          (pure:m ~)
-        =/  entry=address-entry  (snag idx receiving.u.acct)
-        ;<  new-info=(unit address-info)  bind:m
-          (fetch-address-info addr.entry network.u.acct)
-        ?~  new-info  (pure:m ~)
-        =/  updated-entry=address-entry  [addr.entry `u.new-info]
-        =/  new-recv=(list address-entry)
-          (snap receiving.u.acct idx updated-entry)
-        =/  updated=account-data  u.acct(receiving new-recv)
-        ;<  ~  bind:m
-          (over:io (cord-to-road:tarball '../../../data.wallet_account') [[/wallet %account] !>(updated)])
-        (pure:m ~)
-      ::
-          ::  /proc/refresh/chng/*.json: refresh a change address
-          ::
-          [[%proc %refresh %chng ~] *]
-        ;<  ~  bind:m  (rise-wait:io prod "%refresh chng: failed")
-        =/  idx=@ud
-          (rash (crip (scag (sub (lent (trip name.rail)) 5) (trip name.rail))) dem)
-        ;<  cur=view:nexus  bind:m
-          (keep:io /acct (cord-to-road:tarball '../../../') ~)
-        =/  acct=(unit account-data)  (extract-account cur)
-        ?~  acct  (pure:m ~)
-        ?:  (gte idx (lent change.u.acct))  (pure:m ~)
-        =/  entry=address-entry  (snag idx change.u.acct)
-        ;<  new-info=(unit address-info)  bind:m
-          (fetch-address-info addr.entry network.u.acct)
-        ?~  new-info  (pure:m ~)
-        =/  updated-entry=address-entry  [addr.entry `u.new-info]
-        =/  new-chng=(list address-entry)
-          (snap change.u.acct idx updated-entry)
-        =/  updated=account-data  u.acct(change new-chng)
-        ;<  ~  bind:m
-          (over:io (cord-to-road:tarball '../../../data.wallet_account') [[/wallet %account] !>(updated)])
         (pure:m ~)
       ==
     ::
@@ -315,7 +252,7 @@
   ?:  =(ct *content:tarball)  [%.n ct]
   ?:  =([/ %boom] p.sage.ct)  [%.n ct]
   =/  acct=account-data  !<(account-data q.sage.ct)
-  [%.n [~ [/ %manx] !>((detail-page acct *@da %none ~ ~))]]
+  [%.n [~ [/ %manx] !>((detail-page acct ~ *@da %none ~ ~))]]
 ::
 ++  extract-account
   |=  =view:nexus
@@ -331,8 +268,8 @@
 ::
 ++  extract-proc-state
   |=  =view:nexus
-  ^-  [scan=?(%active %paused %none) progress=(unit scan-progress) refreshing=(set [?(%recv %chng) @ud])]
-  ?.  ?=([%ball *] view)  [%none ~ ~]
+  ^-  [scan=?(%active %paused %none) progress=(unit scan-progress)]
+  ?.  ?=([%ball *] view)  [%none ~]
   ::  check for scan-paused.json marker at account root
   =/  root-lump=(unit lump:tarball)  fil.ball.view
   =/  is-paused=?
@@ -366,40 +303,7 @@
   =/  scan=?(%active %paused %none)
     ?:  is-paused  %paused
     ?:(has-scan %active %none)
-  ::  check for refreshes
-  ?~  proc-dir  [scan progress ~]
-  =/  refresh-dir=(unit ball:tarball)  (~(get by dir.u.proc-dir) 'refresh')
-  ?~  refresh-dir  [scan progress ~]
-  =/  refreshing=(set [?(%recv %chng) @ud])  ~
-  ::  check recv
-  =/  recv-dir=(unit ball:tarball)  (~(get by dir.u.refresh-dir) 'recv')
-  =.  refreshing
-    ?~  recv-dir  refreshing
-    ?~  fil.u.recv-dir  refreshing
-    =/  names=(list @ta)  ~(tap in ~(key by contents.u.fil.u.recv-dir))
-    |-
-    ?~  names  refreshing
-    =/  name-tape=tape  (trip i.names)
-    =/  idx=(unit @ud)
-      (rush (crip (scag (sub (lent name-tape) 5) name-tape)) dem)
-    =?  refreshing  ?=(^ idx)
-      (~(put in refreshing) [%recv u.idx])
-    $(names t.names)
-  ::  check chng
-  =/  chng-dir=(unit ball:tarball)  (~(get by dir.u.refresh-dir) 'chng')
-  =.  refreshing
-    ?~  chng-dir  refreshing
-    ?~  fil.u.chng-dir  refreshing
-    =/  names=(list @ta)  ~(tap in ~(key by contents.u.fil.u.chng-dir))
-    |-
-    ?~  names  refreshing
-    =/  name-tape=tape  (trip i.names)
-    =/  idx=(unit @ud)
-      (rush (crip (scag (sub (lent name-tape) 5) name-tape)) dem)
-    =?  refreshing  ?=(^ idx)
-      (~(put in refreshing) [%chng u.idx])
-    $(names t.names)
-  [scan progress refreshing]
+  [scan progress]
 ::
 ++  derive-addr
   |=  [xprv=@t =script-type network=?(%main %testnet %regtest) chain=@ud index=@ud]
@@ -414,6 +318,93 @@
     %p2pkh       ~
     %p2sh-p2wpkh  ~
   ==
+::
+::  +extract-addresses: pull address-data from addresses/{receiving,change}/ in ball
+::
+++  extract-addresses
+  |=  =view:nexus
+  ^-  (list address-data)
+  ?.  ?=([%ball *] view)  ~
+  =/  addr-dir=(unit ball:tarball)  (~(get by dir.ball.view) 'addresses')
+  ?~  addr-dir  ~
+  =/  recv-dir=(unit ball:tarball)  (~(get by dir.u.addr-dir) 'receiving')
+  =/  chng-dir=(unit ball:tarball)  (~(get by dir.u.addr-dir) 'change')
+  (weld (extract-addr-kids recv-dir) (extract-addr-kids chng-dir))
+::
+++  extract-addr-kids
+  |=  chain-dir=(unit ball:tarball)
+  ^-  (list address-data)
+  ?~  chain-dir  ~
+  =/  kids=(list (pair @ta ball:tarball))  ~(tap by dir.u.chain-dir)
+  %+  murn  kids
+  |=  [name=@ta kid=ball:tarball]
+  ^-  (unit address-data)
+  ?~  fil.kid  ~
+  =/  ct=(unit content:tarball)  (~(get by contents.u.fil.kid) 'data.wallet_address')
+  ?~  ct  ~
+  (mole |.(!<(address-data q.sage.u.ct)))
+::  +extract-refreshing: find addresses with refreshing.json marker
+::
+++  extract-refreshing
+  |=  =view:nexus
+  ^-  (set (pair ?(%recv %chng) @ud))
+  ?.  ?=([%ball *] view)  ~
+  =/  addr-dir=(unit ball:tarball)  (~(get by dir.ball.view) 'addresses')
+  ?~  addr-dir  ~
+  =/  recv-dir=(unit ball:tarball)  (~(get by dir.u.addr-dir) 'receiving')
+  =/  chng-dir=(unit ball:tarball)  (~(get by dir.u.addr-dir) 'change')
+  %-  silt
+  (weld (refreshing-kids recv-dir %recv) (refreshing-kids chng-dir %chng))
+::
+++  refreshing-kids
+  |=  [chain-dir=(unit ball:tarball) chain=?(%recv %chng)]
+  ^-  (list (pair ?(%recv %chng) @ud))
+  ?~  chain-dir  ~
+  =/  kids=(list (pair @ta ball:tarball))  ~(tap by dir.u.chain-dir)
+  %+  murn  kids
+  |=  [name=@ta kid=ball:tarball]
+  ^-  (unit (pair ?(%recv %chng) @ud))
+  ?~  fil.kid  ~
+  ::  check if refreshing.json content is b+%.y
+  =/  ct=(unit content:tarball)  (~(get by contents.u.fil.kid) 'refreshing.json')
+  ?~  ct  ~
+  =/  val=(unit json)  (mole |.(!<(json q.sage.u.ct)))
+  ?.  =(`[%b %.y] val)  ~
+  ::  parse index from dir name like "0.wallet_address"
+  =/  idx=(unit @ud)  (rush name ;~(sfix dem dot (jest 'wallet_address')))
+  ?~  idx  ~
+  `[chain u.idx]
+::  +addrs-by-chain: filter and sort addresses by chain
+::
+++  addrs-by-chain
+  |=  [addrs=(list address-data) which=?(%recv %chng)]
+  ^-  (list address-data)
+  =/  filtered=(list address-data)
+    (skim addrs |=(a=address-data =(chain.a which)))
+  (sort filtered |=([a=address-data b=address-data] (lth idx.a idx.b)))
+::  +make-addr-dir: create an address nexus directory
+::
+++  make-addr-dir
+  |=  [steps-up=@ud addr=@t chain=?(%recv %chng) idx=@ud network=?(%main %testnet %regtest)]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  (make-addr-dir-with steps-up [addr chain idx network ~ ~ ~])
+::
+++  make-addr-dir-with
+  |=  [steps-up=@ud dat=address-data]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  =/  chain-dir=@ta  ?:(?=(%recv chain.dat) %receiving %change)
+  =/  dir-name=@ta
+    (crip "{(scow %ud idx.dat)}.wallet_address")
+  =/  addr-lump=lump:tarball
+    :+  ~  `[/wallet %address]
+    %-  ~(put by *(map @ta content:tarball))
+    ['data.wallet_address' [~ [/wallet %address] !>(dat)]]
+  =/  addr-ball=ball:tarball  [`addr-lump ~]
+  ;<  *  bind:m
+    (make-soft:io [%| steps-up %| /addresses/[chain-dir]/[dir-name]] &+[*sand:nexus *gain:nexus addr-ball])
+  (pure:m ~)
 ::
 ++  format-account-path
   |=  [purpose=seg coin-type=seg account-idx=seg]
@@ -477,60 +468,30 @@
     ;+  badge
   ==
 ::
-++  mempool-base-url
-  |=  network=?(%main %testnet %regtest)
-  ^-  tape
-  ?-  network
-    %main     "https://mempool.space/api/address/"
-    %testnet  "https://mempool.space/testnet4/api/address/"
-    %regtest  "http://localhost:3000/address/"
-  ==
-::
-++  fetch-address-info
-  |=  [address=@t network=?(%main %testnet %regtest)]
-  =/  m  (fiber:fiber:nexus ,(unit address-info))
-  ^-  form:m
-  =/  url=@t
-    (crip (weld (mempool-base-url network) (trip address)))
-  =/  =request:http
-    [%'GET' url ~[['Accept' 'application/json']] ~]
-  ;<  ~  bind:m  (send-request:io request)
-  ;<  =client-response:iris  bind:m  take-client-response:io
-  (parse-address-response client-response)
 ::
 ::  SSE manager state tracking
 ::
 +$  sse-prev
   $:  scan=?(%active %paused %none)
       progress=(unit scan-progress)
-      refreshing=(set [?(%recv %chng) @ud])
-      n-recv=@ud
-      n-chng=@ud
-      recv-hashes=(map @ud @)
-      chng-hashes=(map @ud @)
+      addr-hash=@
+      recv-idxs=(set @ud)
+      chng-idxs=(set @ud)
+      refreshing=(set (pair ?(%recv %chng) @ud))
+      total-balance=@ud
   ==
 ::
 ++  make-sse-prev
-  |=  [acct=account-data pst=[scan=?(%active %paused %none) progress=(unit scan-progress) refreshing=(set [?(%recv %chng) @ud])]]
+  |=  [=view:nexus acct=account-data addrs=(list address-data) pst=[scan=?(%active %paused %none) progress=(unit scan-progress)]]
   ^-  sse-prev
   :*  scan.pst
       progress.pst
-      refreshing.pst
-      (lent receiving.acct)
-      (lent change.acct)
-      (hash-entries receiving.acct)
-      (hash-entries change.acct)
+      (mug addrs)
+      (silt (turn (addrs-by-chain addrs %recv) |=(a=address-data idx.a)))
+      (silt (turn (addrs-by-chain addrs %chng) |=(a=address-data idx.a)))
+      (extract-refreshing view)
+      (compute-total-balance addrs)
   ==
-::
-++  hash-entries
-  |=  addrs=(list address-entry)
-  ^-  (map @ud @)
-  =/  idx=@ud  0
-  =/  hashes=(map @ud @)  ~
-  |-
-  ?~  addrs  hashes
-  $(addrs t.addrs, idx +(idx), hashes (~(put by hashes) idx (mug i.addrs)))
-::  write or create an SSE file
 ::
 ++  sse-write
   |=  [road=road:tarball sage=sage:tarball]
@@ -541,86 +502,91 @@
     (over:io road sage)
   (make:io road |+[%.n sage ~])
 ::
-::  create initial SSE files
-::
 ++  sse-init
-  |=  [acct=account-data now=@da pst=[scan=?(%active %paused %none) progress=(unit scan-progress) refreshing=(set [?(%recv %chng) @ud])]]
+  |=  [acct=account-data addrs=(list address-data) now=@da pst=[scan=?(%active %paused %none) progress=(unit scan-progress)] rfsh=(set (pair ?(%recv %chng) @ud))]
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
   ;<  ~  bind:m
     (sse-write (cord-to-road:tarball './sse/scan-status.html') [[/ %manx] !>((scan-status-ui scan.pst progress.pst))])
+  =/  recv=(list address-data)  (addrs-by-chain addrs %recv)
+  =/  chng=(list address-data)  (addrs-by-chain addrs %chng)
+  ;<  ~  bind:m  (sse-init-chain recv now %recv "receiving" rfsh)
+  ;<  ~  bind:m  (sse-init-chain chng now %chng "change" rfsh)
   ;<  ~  bind:m
-    (sse-init-chain receiving.acct now %recv "receiving" refreshing.pst)
+    (sse-write (cord-to-road:tarball './sse/account-summary.html') [[/ %manx] !>((account-summary-ui addrs))])
   ;<  ~  bind:m
-    (sse-init-chain change.acct now %chng "change" refreshing.pst)
-  (pure:m ~)
+    (sse-write (cord-to-road:tarball './sse/derive-recv.html') [[/ %manx] !>((derive-button "receiving" recv))])
+  (sse-write (cord-to-road:tarball './sse/derive-chng.html') [[/ %manx] !>((derive-button "change" chng))])
 ::
 ++  sse-init-chain
-  |=  [addrs=(list address-entry) now=@da chain-tag=?(%recv %chng) chain=tape refreshing=(set [?(%recv %chng) @ud])]
+  |=  [addrs=(list address-data) now=@da chain-tag=?(%recv %chng) chain=tape rfsh=(set (pair ?(%recv %chng) @ud))]
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
-  =/  n=@ud  (lent addrs)
-  =/  idx=@ud  0
-  |-
-  ?:  =(idx n)  (pure:m ~)
-  =/  entry=address-entry  (snag idx addrs)
-  =/  is-loading=?  (~(has in refreshing) [chain-tag idx])
-  =/  row=manx  (address-row idx entry now chain chain-tag is-loading)
+  ?~  addrs  (pure:m ~)
+  =/  loading=?  (~(has in rfsh) [chain-tag idx.i.addrs])
+  =/  row=manx  (address-row i.addrs now chain chain-tag loading)
   =/  road=road:tarball
-    (cord-to-road:tarball (crip "./sse/addr-{(trip chain-tag)}-{(scow %ud idx)}.html"))
+    (cord-to-road:tarball (crip "./sse/addr-{(trip chain-tag)}-{(scow %ud idx.i.addrs)}.html"))
   ;<  ~  bind:m  (sse-write road [[/ %manx] !>(row)])
-  $(idx +(idx))
-::
-::  diff previous vs current state, write only changed fragments
+  $(addrs t.addrs)
 ::
 ++  sse-diff
-  |=  [acct=account-data now=@da prev=sse-prev curr=sse-prev]
+  |=  [acct=account-data addrs=(list address-data) now=@da prev=sse-prev curr=sse-prev]
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
-  ::  scan status or progress changed?
   ;<  ~  bind:m
     ?:  &(=(scan.prev scan.curr) =(progress.prev progress.curr))
       (pure:m ~)
     (over:io (cord-to-road:tarball './sse/scan-status.html') [[/ %manx] !>((scan-status-ui scan.curr progress.curr))])
-  ::  diff address rows
-  ;<  ~  bind:m
-    (sse-diff-chain receiving.acct now %recv "receiving" refreshing.curr prev curr)
-  ;<  ~  bind:m
-    (sse-diff-chain change.acct now %chng "change" refreshing.curr prev curr)
+  ::  if addresses changed, re-init surviving rows and cull removed ones
+  ?.  =(addr-hash.prev addr-hash.curr)
+    =/  recv=(list address-data)  (addrs-by-chain addrs %recv)
+    =/  chng=(list address-data)  (addrs-by-chain addrs %chng)
+    ;<  ~  bind:m  (sse-init-chain recv now %recv "receiving" refreshing.curr)
+    ;<  ~  bind:m  (sse-init-chain chng now %chng "change" refreshing.curr)
+    ;<  ~  bind:m  (sse-cull-removed %recv recv-idxs.prev recv-idxs.curr)
+    ;<  ~  bind:m  (sse-cull-removed %chng chng-idxs.prev chng-idxs.curr)
+    ;<  ~  bind:m
+      (over:io (cord-to-road:tarball './sse/account-summary.html') [[/ %manx] !>((account-summary-ui addrs))])
+    ;<  ~  bind:m
+      (over:io (cord-to-road:tarball './sse/derive-recv.html') [[/ %manx] !>((derive-button "receiving" recv))])
+    (over:io (cord-to-road:tarball './sse/derive-chng.html') [[/ %manx] !>((derive-button "change" chng))])
+  ::  if refreshing set changed, re-render affected rows
+  ?.  =(refreshing.prev refreshing.curr)
+    =/  changed=(list (pair ?(%recv %chng) @ud))
+      ~(tap in (~(uni in (~(dif in refreshing.prev) refreshing.curr)) (~(dif in refreshing.curr) refreshing.prev)))
+    |-
+    ?~  changed  (pure:m ~)
+    =/  [chain=?(%recv %chng) idx=@ud]  i.changed
+    =/  chain-tag=?(%recv %chng)  chain
+    =/  matches=(list address-data)
+      %+  skim  addrs
+      |=(a=address-data &(=(chain.a chain) =(idx.a idx)))
+    =/  addr=(unit address-data)  ?~(matches ~ `i.matches)
+    ?~  addr  $(changed t.changed)
+    =/  loading=?  (~(has in refreshing.curr) [chain idx])
+    =/  chain-name=tape  ?:(?=(%recv chain) "receiving" "change")
+    =/  row=manx  (address-row u.addr now chain-name chain-tag loading)
+    =/  road=road:tarball
+      (cord-to-road:tarball (crip "./sse/addr-{(trip chain-tag)}-{(scow %ud idx)}.html"))
+    ;<  ~  bind:m  (over:io road [[/ %manx] !>(row)])
+    $(changed t.changed)
+  ::  if total balance changed, update account summary
+  ?.  =(total-balance.prev total-balance.curr)
+    (over:io (cord-to-road:tarball './sse/account-summary.html') [[/ %manx] !>((account-summary-ui addrs))])
   (pure:m ~)
 ::
-++  sse-diff-chain
-  |=  $:  addrs=(list address-entry)
-          now=@da
-          chain-tag=?(%recv %chng)
-          chain=tape
-          refreshing=(set [?(%recv %chng) @ud])
-          prev=sse-prev
-          curr=sse-prev
-      ==
+++  sse-cull-removed
+  |=  [chain-tag=?(%recv %chng) old=(set @ud) new=(set @ud)]
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
-  =/  prev-hashes=(map @ud @)
-    ?:(?=(%recv chain-tag) recv-hashes.prev chng-hashes.prev)
-  =/  curr-hashes=(map @ud @)
-    ?:(?=(%recv chain-tag) recv-hashes.curr chng-hashes.curr)
-  =/  prev-n=@ud  ?:(?=(%recv chain-tag) n-recv.prev n-chng.prev)
-  =/  curr-n=@ud  ?:(?=(%recv chain-tag) n-recv.curr n-chng.curr)
-  =/  idx=@ud  0
+  =/  removed=(list @ud)  ~(tap in (~(dif in old) new))
   |-
-  ?:  =(idx curr-n)  (pure:m ~)
-  =/  entry=address-entry  (snag idx addrs)
-  =/  is-loading=?  (~(has in refreshing) [chain-tag idx])
-  =/  prev-hash=@  (fall (~(get by prev-hashes) idx) 0)
-  =/  curr-hash=@  (fall (~(get by curr-hashes) idx) 0)
-  =/  prev-loading=?  (~(has in refreshing.prev) [chain-tag idx])
-  =/  changed=?  |(!=(prev-hash curr-hash) !=(prev-loading is-loading))
-  ?.  changed  $(idx +(idx))
-  =/  row=manx  (address-row idx entry now chain chain-tag is-loading)
+  ?~  removed  (pure:m ~)
   =/  road=road:tarball
-    (cord-to-road:tarball (crip "./sse/addr-{(trip chain-tag)}-{(scow %ud idx)}.html"))
-  ;<  ~  bind:m  (sse-write road [[/ %manx] !>(row)])
-  $(idx +(idx))
+    (cord-to-road:tarball (crip "./sse/addr-{(trip chain-tag)}-{(scow %ud i.removed)}.html"))
+  ;<  *  bind:m  (cull-soft:io road)
+  $(removed t.removed)
 ::
 ::  scan event: either an HTTP response or a pause/resume poke
 ::
@@ -651,6 +617,14 @@
     ?:  =(`s+'pause' act)   [%done %pause ~]
     ?:  =(`s+'resume' act)  [%done %resume ~]
     [%skip ~]
+  ==
+++  mempool-base-url
+  |=  network=?(%main %testnet %regtest)
+  ^-  tape
+  ?-  network
+    %main     "https://mempool.space/api/address/"
+    %testnet  "https://mempool.space/testnet4/api/address/"
+    %regtest  "http://localhost:3000/address/"
   ==
 ::  +scan-fetch: like fetch-address-info but pausable during HTTP wait
 ::
@@ -733,100 +707,102 @@
   =/  m  (fiber:fiber:nexus ,account-data)
   ^-  form:m
   =/  is-change=?  =(chain %change)
-  =/  addrs=(list address-entry)
-    ?:(is-change change.acct receiving.acct)
+  =/  existing=@ud  ?:(is-change chng-count.acct recv-count.acct)
   =/  gap-limit=@ud  20
-  ::  refresh all existing addresses first
-  =/  idx=@ud  0
-  =/  updated-addrs=(list address-entry)  addrs
+  =/  scan-idx=@ud  0
+  =/  gap=@ud  0
+  =/  count=@ud  existing
   |-
-  ?:  =(idx (lent addrs))
-    ::  done refreshing existing, now scan beyond with gap limit
-    =/  scan-idx=@ud  (lent updated-addrs)
-    =/  gap=@ud  0
-    |-
-    ?:  (gte gap gap-limit)
-      ::  hit gap limit, done
-      =/  result=account-data
-        ?:  is-change
-          acct(change updated-addrs)
-        acct(receiving updated-addrs)
-      (pure:m result)
-    ::  derive next address
-    =/  new-addr=(unit @t)
-      %:  derive-addr
-        xprv.acct
-        script-type.acct
-        network
-        ?:(is-change 1 0)
-        scan-idx
-      ==
-    ?~  new-addr
-      ::  derivation failed, done
-      =/  result=account-data
-        ?:  is-change
-          acct(change updated-addrs)
-        acct(receiving updated-addrs)
-      (pure:m result)
-    ::  update scan progress in proc file
-    =/  phase-tape=@t  ?:(is-change 'chng' 'recv')
-    =/  scan-prog=json
-      %-  pairs:enjs:format
-      :~  ['phase' s+phase-tape]
-          ['idx' (numb:enjs:format scan-idx)]
-          ['gap' (numb:enjs:format gap)]
-      ==
-    ;<  ~  bind:m  (replace:io !>(scan-prog))
-    ;<  new-info=(unit address-info)  bind:m
-      (scan-fetch u.new-addr network)
-    =/  new-entry=address-entry
-      [u.new-addr new-info]
-    =.  updated-addrs  (snoc updated-addrs new-entry)
-    ::  save progress after each address
-    =/  progress=account-data
-      ?:  is-change
-        acct(change updated-addrs)
-      acct(receiving updated-addrs)
+  ?:  (gte gap gap-limit)
+    ::  hit gap limit, done — save final count
+    =/  result=account-data
+      ?:(is-change acct(chng-count count) acct(recv-count count))
     ;<  ~  bind:m
-      (over:io data-road [[/wallet %account] !>(progress)])
-    ?~  new-info
-      $(scan-idx +(scan-idx), gap +(gap))
-    ?:  =(0 tx-count.u.new-info)
-      $(scan-idx +(scan-idx), gap +(gap))
-    $(scan-idx +(scan-idx), gap 0)
-  ::  refresh existing address at idx — update progress
+      (over:io data-road [[/wallet %account] !>(result)])
+    (pure:m result)
+  ::  derive next address
+  =/  new-addr=(unit @t)
+    %:  derive-addr
+      xprv.acct
+      script-type.acct
+      network
+      ?:(is-change 1 0)
+      scan-idx
+    ==
+  ?~  new-addr
+    ::  derivation failed, done
+    =/  result=account-data
+      ?:(is-change acct(chng-count count) acct(recv-count count))
+    ;<  ~  bind:m
+      (over:io data-road [[/wallet %account] !>(result)])
+    (pure:m result)
+  ::  update scan progress in proc file
   =/  phase-tape=@t  ?:(is-change 'chng' 'recv')
   =/  scan-prog=json
     %-  pairs:enjs:format
     :~  ['phase' s+phase-tape]
-        ['idx' (numb:enjs:format idx)]
-        ['gap' (numb:enjs:format 0)]
+        ['idx' (numb:enjs:format scan-idx)]
+        ['gap' (numb:enjs:format gap)]
     ==
   ;<  ~  bind:m  (replace:io !>(scan-prog))
-  =/  entry=address-entry  (snag idx addrs)
-  ;<  new-info=(unit address-info)  bind:m
-    (scan-fetch addr.entry network)
-  =/  updated-entry=address-entry
-    ?~  new-info  entry
-    [addr.entry `u.new-info]
-  =.  updated-addrs  (snap updated-addrs idx updated-entry)
-  ::  save progress
-  =/  progress=account-data
-    ?:  is-change
-      acct(change updated-addrs)
-    acct(receiving updated-addrs)
+  ::  create empty address dir so the row appears via SSE
+  =/  chain-tag=?(%recv %chng)  ?:(is-change %chng %recv)
+  =/  chain-dir=@ta  ?:(is-change %change %receiving)
+  =/  dir-name=@ta  (crip "{(scow %ud scan-idx)}.wallet_address")
+  =/  addr-dir-path=@t  (crip "../addresses/{(trip chain-dir)}/{(trip dir-name)}/")
+  =/  addr-data-path=@t  (crip "../addresses/{(trip chain-dir)}/{(trip dir-name)}/data.wallet_address")
+  ;<  exists=?  bind:m  (peek-exists:io (cord-to-road:tarball addr-data-path))
   ;<  ~  bind:m
-    (over:io data-road [[/wallet %account] !>(progress)])
-  $(idx +(idx))
+    ?:  exists
+      =/(m (fiber:fiber:nexus ,~) (pure:m ~))
+    (make-addr-dir 1 u.new-addr chain-tag scan-idx network)
+  ::  poke address to refresh, wait for result
+  ;<  new-info=(unit address-info)  bind:m
+    (scan-refresh addr-data-path addr-dir-path)
+  ::  bump count if beyond existing
+  =?  count  (gte scan-idx existing)  +(count)
+  ::  check gap
+  ?~  new-info
+    $(scan-idx +(scan-idx), gap +(gap))
+  ?:  =(0 tx-count.u.new-info)
+    $(scan-idx +(scan-idx), gap +(gap))
+  $(scan-idx +(scan-idx), gap 0)
+::  +scan-refresh: poke address to refresh, wait for completion, return info
+::
+++  scan-refresh
+  |=  [addr-data-path=@t addr-dir-path=@t]
+  =/  m  (fiber:fiber:nexus ,(unit address-info))
+  ^-  form:m
+  =/  refresh-json=json  (pairs:enjs:format ~[['action' s+'refresh']])
+  ;<  ~  bind:m
+    (poke:io (cord-to-road:tarball addr-data-path) [[/ %json] !>(refresh-json)])
+  =/  addr-dir-road=road:tarball  (cord-to-road:tarball addr-dir-path)
+  ;<  *  bind:m
+    (keep:io /scan-wait addr-dir-road ~)
+  |-
+  ;<  upd=view:nexus  bind:m  (take-news:io /scan-wait)
+  ?.  ?=([%ball *] upd)  $
+  =/  =lump:tarball  (fall fil.ball.upd *lump:tarball)
+  =/  rfsh-ct=(unit content:tarball)  (~(get by contents.lump) 'refreshing.json')
+  =/  still-loading=?
+    ?~  rfsh-ct  %.n
+    =/  val=(unit json)  (mole |.(!<(json q.sage.u.rfsh-ct)))
+    =(`[%b %.y] val)
+  ?:  still-loading  $
+  ::  refresh done — extract result
+  =/  addr-ct=(unit content:tarball)  (~(get by contents.lump) 'data.wallet_address')
+  ?~  addr-ct  (pure:m ~)
+  =/  dat=(unit address-data)  (mole |.(!<(address-data q.sage.u.addr-ct)))
+  ?~  dat  (pure:m ~)
+  (pure:m info.u.dat)
 ::
 ++  compute-total-balance
-  |=  acct=account-data
+  |=  addrs=(list address-data)
   ^-  @ud
-  =/  all=(list address-entry)  (weld receiving.acct change.acct)
-  %+  roll  all
-  |=  [entry=address-entry total=@ud]
-  ?~  info.entry  total
-  (add total (sub funded.u.info.entry spent.u.info.entry))
+  %+  roll  addrs
+  |=  [a=address-data total=@ud]
+  ?~  info.a  total
+  (add total (sub funded.u.info.a spent.u.info.a))
 ::
 ++  network-badge
   |=  network=?(%main %testnet %regtest)
@@ -854,69 +830,85 @@
     %regtest  "Regtest"
   ==
 ::
-++  address-list-section
-  |=  [acct=account-data chain=tape chain-tag=?(%recv %chng) addrs=(list address-entry) now=@da refreshing=(set [?(%recv %chng) @ud])]
+++  format-sats
+  |=  n=@ud
+  ^-  tape
+  =/  digits=tape  (a-co:co n)
+  =/  len=@ud  (lent digits)
+  ?:  (lte len 3)  digits
+  =/  rev=tape  (flop digits)
+  =/  out=tape  ~
+  =/  i=@ud  0
+  |-
+  ?~  rev  out
+  =?  out  &((gth i 0) =(0 (mod i 3)))
+    [',' out]
+  $(rev t.rev, out [i.rev out], i +(i))
+::
+++  account-summary-ui
+  |=  addrs=(list address-data)
   ^-  manx
-  =/  next-idx=@ud  (lent addrs)
+  =/  total-balance=@ud  (compute-total-balance addrs)
+  ;div#account-summary(style "display: flex; justify-content: space-between; align-items: baseline;")
+    ;span.f2(style "opacity: 0.8;"): Total Balance
+    ;span.s0.bold.mono: {(format-sats total-balance)} sats
+  ==
+::
+++  derive-button
+  |=  [chain=tape addrs=(list address-data)]
+  ^-  manx
+  =/  next-idx=@ud
+    ?~  addrs  0
+    +(idx:(rear addrs))
+  =/  chain-tag=tape
+    ?:(=("receiving" chain) "recv" "chng")
+  ;div.p3.b2.br2.hover.pointer
+    =id  "derive-{chain-tag}"
+    =onclick  "deriveNext('{chain}')"
+    =style  "display: flex; align-items: center; justify-content: center; gap: 8px; border: 2px dashed var(--b3);"
+    ;div(style "font-size: 24px; color: var(--f-3);"): +
+    ;span.f2.bold.f-3: Derive Next Address (Index {(scow %ud next-idx)})
+  ==
+::
+++  address-list-section
+  |=  [acct=account-data chain=tape chain-tag=?(%recv %chng) addrs=(list address-data) now=@da rfsh=(set (pair ?(%recv %chng) @ud))]
+  ^-  manx
   ;div.fc.g2(style "flex: 1; min-height: 0;")
-    ;div.p3.b2.br2.hover.pointer
-      =onclick  "deriveNext('{chain}')"
-      =style  "display: flex; align-items: center; justify-content: center; gap: 8px; border: 2px dashed var(--b3);"
-      ;div(style "font-size: 24px; color: var(--f-3);"): +
-      ;span.f2.bold.f-3: Derive Next Address (Index {(scow %ud next-idx)})
-    ==
-    ;div.fc.g2(style "flex: 1; min-height: 0; overflow-y: auto;")
-      ;*  ?:  =(0 (lent addrs))
-            :~  ;div.p4.b1.br2.tc
+    ;+  (derive-button chain addrs)
+    ;div.fc.g2(id "addr-list-{(trip chain-tag)}", style "flex: 1; min-height: 0; overflow-y: auto;")
+      ;*  ?:  =(~ addrs)
+            :~  ;div.p4.b1.br2.tc(id "empty-{(trip chain-tag)}")
                   ;div.s0.f2.mb2: No addresses yet
                   ;div.f3.s-1: Click above to derive your first address
                 ==
             ==
-          %+  turn  (flop (gulf 0 (dec (lent addrs))))
-          |=  idx=@ud
-          =/  entry=address-entry  (snag idx addrs)
-          =/  is-loading=?  (~(has in refreshing) [chain-tag idx])
-          (address-row idx entry now chain chain-tag is-loading)
+          (turn (flop addrs) |=(a=address-data (address-row a now chain chain-tag (~(has in rfsh) [chain-tag idx.a]))))
     ==
   ==
 ::
 ++  address-row
-  |=  [idx=@ud entry=address-entry now=@da chain=tape chain-tag=?(%recv %chng) is-loading=?]
+  |=  [a=address-data now=@da chain=tape chain-tag=?(%recv %chng) is-loading=?]
   ^-  manx
-  =/  addr-text=tape  (trip addr.entry)
-  =/  row-id=tape  "addr-{(trip chain-tag)}-{(scow %ud idx)}"
+  =/  addr-text=tape  (trip addr.a)
+  =/  row-id=tape  "addr-{(trip chain-tag)}-{(scow %ud idx.a)}"
   =/  has-txs=?
-    ?~  info.entry  %.n
-    (gth tx-count.u.info.entry 0)
-  ::  staleness color for refresh button
-  =/  bg-color=tape
-    ?~  info.entry
-      "rgba(200, 80, 80, 0.2)"
-    ?:  (lth now last-check.u.info.entry)  "var(--b2)"
-    =/  time-since=@dr  (sub now last-check.u.info.entry)
-    ?:  (lth time-since ~h1)   "var(--b2)"
-    ?:  (lth time-since ~h6)   "rgba(200, 180, 80, 0.15)"
-    ?:  (lth time-since ~d1)   "rgba(220, 140, 80, 0.2)"
-    "rgba(200, 80, 80, 0.2)"
-  =/  last-check-text=tape
-    ?~  info.entry  "Never checked"
-    "Last checked: {(scow %da last-check.u.info.entry)}"
+    ?~  info.a  %.n
+    (gth tx-count.u.info.a 0)
   =/  row-classes=tape
     ?:(has-txs "p3 b1 br2 hover" "p3 b1 br2 hover empty-address")
   ;div(id row-id, class row-classes, style "display: flex; justify-content: space-between; align-items: center; gap: 12px;")
     ;div(style "flex: 1; min-width: 0;")
       ;div(style "display: flex; align-items: center; gap: 8px;")
-        ;span.f3.s-2.mono: Index {(scow %ud idx)}
-        ;+  ?~  info.entry  ;span;
-            =/  tx-count=@ud  tx-count.u.info.entry
+        ;span.f3.s-2.mono: Index {(scow %ud idx.a)}
+        ;+  ?~  info.a  ;span;
             =/  balance=@ud
-              (sub funded.u.info.entry spent.u.info.entry)
+              (sub funded.u.info.a spent.u.info.a)
             ;div(style "display: flex; gap: 8px;")
               ;span.f3.s-2(style "opacity: 0.8;")
-                ; • {(scow %ud tx-count)} txs
+                ; • {(scow %ud tx-count.u.info.a)} txs
               ==
               ;span.f3.s-2(style "opacity: 0.8;")
-                ; • {(scow %ud balance)} sats
+                ; • {(format-sats balance)} sats
               ==
             ==
       ==
@@ -933,36 +925,54 @@
             ;+  (make:fi 'check')
           ==
         ==
-        ;span.mono.f2.s-1(style "white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--f3);"): {addr-text}
+        ;a.mono.f2.s-1.hover
+          =href  "addresses/{?:(?=(%recv chain-tag) "receiving" "change")}/{(scow %ud idx.a)}.wallet_address/page.html"
+          =style  "white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--f3); text-decoration: none;"
+          ;+  ;/  addr-text
+        ==
       ==
     ==
-    ;div(style "display: flex; gap: 4px;")
+    ;div(style "display: flex; gap: 4px; flex-shrink: 0;")
       ;+  ?:  is-loading
-            ::  loading: spinner + cancel button
             ;div(style "display: flex; gap: 4px;")
+              ::  spinner indicator
               ;div.p2.b1.br1(style "background: rgba(100, 150, 255, 0.2); border: 1px solid var(--b3); color: var(--f3); display: flex; align-items: center; width: 32px; height: 32px; justify-content: center;")
                 ;div(style "width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; animation: spin 1s linear infinite;")
                   ;+  (make:fi 'loader')
                 ==
               ==
+              ::  cancel button
               ;button.p2.b1.br1.hover.pointer
-                =title  "Cancel this refresh"
-                =onclick  "cancelRefresh('{chain}', '{(scow %ud idx)}')"
+                =title  "Cancel refresh"
+                =data-chain  (trip chain-tag)
+                =data-idx  (scow %ud idx.a)
+                =onclick  "cancelRefresh(this.dataset.chain, this.dataset.idx)"
                 =style  "background: rgba(255, 80, 80, 0.2); border: 1px solid rgba(255, 80, 80, 0.4); color: #ff5050; display: flex; align-items: center; width: 32px; height: 32px; justify-content: center; outline: none;"
                 ;div(style "width: 16px; height: 16px; display: flex; align-items: center; justify-content: center;")
                   ;+  (make:fi 'x-circle')
                 ==
               ==
             ==
-          ::  normal: refresh button
           ;button.p2.b1.br1.hover.pointer
-            =title  last-check-text
-            =onclick  "refreshAddress('{(scow %ud idx)}')"
-            =style  "background: {bg-color}; border: 1px solid var(--b3); color: var(--f3); display: flex; align-items: center; width: 32px; height: 32px; justify-content: center; outline: none;"
+            =title  ?~(info.a "Never checked" "Last: {(scow %da last-check.u.info.a)}")
+            =data-chain  (trip chain-tag)
+            =data-idx  (scow %ud idx.a)
+            =onclick  "refreshAddress(this.dataset.chain, this.dataset.idx)"
+            =style  "background: var(--b2); border: 1px solid var(--b3); color: var(--f3); display: flex; align-items: center; width: 32px; height: 32px; justify-content: center; outline: none;"
             ;div(style "width: 16px; height: 16px; display: flex; align-items: center; justify-content: center;")
               ;+  (make:fi 'refresh-cw')
             ==
           ==
+      ;button.p2.b1.br1.hover.pointer
+        =title  "Remove address"
+        =data-chain  (trip chain-tag)
+        =data-idx  (scow %ud idx.a)
+        =onclick  "deleteAddress(this.dataset.chain, this.dataset.idx)"
+        =style  "background: var(--b2); border: 1px solid var(--b3); color: var(--f3); display: flex; align-items: center; width: 32px; height: 32px; justify-content: center; outline: none; opacity: 0.5;"
+        ;div(style "width: 16px; height: 16px; display: flex; align-items: center; justify-content: center;")
+          ;+  (make:fi 'trash-2')
+        ==
+      ==
     ==
   ==
 ::
@@ -1054,32 +1064,31 @@
   ==
 ::
 ++  addresses-fragment
-  |=  [acct=account-data now=@da scan=?(%active %paused %none) progress=(unit scan-progress) refreshing=(set [?(%recv %chng) @ud])]
+  |=  [acct=account-data addrs=(list address-data) now=@da scan=?(%active %paused %none) progress=(unit scan-progress) rfsh=(set (pair ?(%recv %chng) @ud))]
   ^-  manx
-  =/  n-recv=@ud  (lent receiving.acct)
-  =/  n-chng=@ud  (lent change.acct)
+  =/  recv=(list address-data)  (addrs-by-chain addrs %recv)
+  =/  chng=(list address-data)  (addrs-by-chain addrs %chng)
   ;div.fc.g2
     ;+  (scan-status-ui scan progress)
     ;div(style "display: flex; border-bottom: 1px solid var(--b3);")
       ;button.tab-btn(data-tab "receiving", onclick "showTab('receiving')", style "flex: 1; padding: 8px 16px; background: transparent; border: none; border-bottom: 2px solid var(--f1); color: var(--f1); font-weight: bold; cursor: pointer; outline: none;")
-        ; Receiving ({(scow %ud n-recv)})
+        ; Receiving ({(scow %ud (lent recv))})
       ==
       ;button.tab-btn(data-tab "change", onclick "showTab('change')", style "flex: 1; padding: 8px 16px; background: transparent; border: none; border-bottom: 2px solid transparent; color: var(--f3); cursor: pointer; outline: none;")
-        ; Change ({(scow %ud n-chng)})
+        ; Change ({(scow %ud (lent chng))})
       ==
     ==
     ;div#receiving-addresses
-      ;+  (address-list-section acct "receiving" %recv receiving.acct now refreshing)
+      ;+  (address-list-section acct "receiving" %recv recv now rfsh)
     ==
     ;div#change-addresses(style "display: none;")
-      ;+  (address-list-section acct "change" %chng change.acct now refreshing)
+      ;+  (address-list-section acct "change" %chng chng now rfsh)
     ==
   ==
 ::
 ++  detail-page
-  |=  [acct=account-data now=@da scan=?(%active %paused %none) progress=(unit scan-progress) refreshing=(set [?(%recv %chng) @ud])]
+  |=  [acct=account-data addrs=(list address-data) now=@da scan=?(%active %paused %none) progress=(unit scan-progress) rfsh=(set (pair ?(%recv %chng) @ud))]
   ^-  manx
-  =/  total-balance=@ud  (compute-total-balance acct)
   ;html
     ;head
       ;title: {(trip name.acct)}
@@ -1123,13 +1132,10 @@
           ==
           ;div.p4.b2.br2(style "flex-shrink: 0;")
             ;h2.s1.bold.mb2: Account Summary
-            ;div#account-summary(style "display: flex; justify-content: space-between; align-items: baseline;")
-              ;span.f2(style "opacity: 0.8;"): Total Balance
-              ;span.s0.bold.mono: {(scow %ud total-balance)} sats
-            ==
+            ;+  (account-summary-ui addrs)
           ==
           ;div#live-content.fc.g3(style "flex: 1; min-height: 0; overflow-y: auto;")
-            ;+  (addresses-fragment acct now scan progress refreshing)
+            ;+  (addresses-fragment acct addrs now scan progress rfsh)
           ==
         ==
       ==
@@ -1183,13 +1189,34 @@
     }).catch(function(e) \{ console.error('derive-next failed', e) });
   }
 
-  function refreshAddress(index) \{
+  function deleteAddress(chain, idx) \{
+    if (!confirm('Remove address ' + chain + '-' + idx + '?')) return;
     var url = API + '/poke/' + acctBase + '/main.sig?mark=json';
     fetch(url, \{
       method: 'POST',
       headers: \{'Content-Type': 'application/json'},
-      body: JSON.stringify(\{action: 'refresh-address', chain: activeTab, index: index})
+      body: JSON.stringify(\{action: 'delete-address', chain: chain, index: Number(idx)})
+    }).catch(function(e) \{ console.error('delete failed', e) });
+  }
+
+  function refreshAddress(chain, idx) \{
+    var chainDir = chain === 'recv' ? 'receiving' : 'change';
+    var url = API + '/poke/' + acctBase + '/addresses/' + chainDir + '/' + idx + '.wallet_address/data.wallet_address?mark=json';
+    fetch(url, \{
+      method: 'POST',
+      headers: \{'Content-Type': 'application/json'},
+      body: JSON.stringify(\{action: 'refresh'})
     }).catch(function(e) \{ console.error('refresh failed', e) });
+  }
+
+  function cancelRefresh(chain, idx) \{
+    var chainDir = chain === 'recv' ? 'receiving' : 'change';
+    var url = API + '/poke/' + acctBase + '/addresses/' + chainDir + '/' + idx + '.wallet_address/data.wallet_address?mark=json';
+    fetch(url, \{
+      method: 'POST',
+      headers: \{'Content-Type': 'application/json'},
+      body: JSON.stringify(\{action: 'cancel'})
+    }).catch(function(e) \{ console.error('cancel failed', e) });
   }
 
   function fullScan() \{
@@ -1226,15 +1253,6 @@
       headers: \{'Content-Type': 'application/json'},
       body: JSON.stringify(\{action: 'cancel-scan'})
     }).catch(function(e) \{ console.error('cancel-scan failed', e) });
-  }
-
-  function cancelRefresh(chain, index) \{
-    var url = API + '/poke/' + acctBase + '/main.sig?mark=json';
-    fetch(url, \{
-      method: 'POST',
-      headers: \{'Content-Type': 'application/json'},
-      body: JSON.stringify(\{action: 'cancel-refresh', chain: chain, index: index})
-    }).catch(function(e) \{ console.error('cancel-refresh failed', e) });
   }
 
   function toggleEmptyAddresses() \{
@@ -1318,7 +1336,7 @@
           var act = ev.slice(0, sp);
           var name = ev.slice(sp + 2);
           console.log('[SSE]', act, name, data.length + ' lines');
-          if ((act === 'upd' || act === 'old') && data.length) \{
+          if ((act === 'upd' || act === 'old' || act === 'new') && data.length) \{
             var tmp = document.createElement('div');
             tmp.innerHTML = data.join('\\n');
             var el = tmp.firstElementChild;
@@ -1326,12 +1344,27 @@
               var existing = document.getElementById(el.id);
               if (existing) \{
                 existing.replaceWith(el);
-              } else if (act === 'old') \{
+              } else \{
                 var container = null;
-                if (el.id.indexOf('addr-recv-') === 0) container = document.getElementById('receiving-addresses');
-                else if (el.id.indexOf('addr-chng-') === 0) container = document.getElementById('change-addresses');
-                if (container) container.appendChild(el);
+                if (el.id.indexOf('addr-recv-') === 0) container = document.getElementById('addr-list-recv');
+                else if (el.id.indexOf('addr-chng-') === 0) container = document.getElementById('addr-list-chng');
+                if (container) \{
+                  var emptyId = el.id.indexOf('addr-recv-') === 0 ? 'empty-recv' : 'empty-chng';
+                  var empty = document.getElementById(emptyId);
+                  if (empty) empty.remove();
+                  container.insertBefore(el, container.firstChild);
+                }
               }
+            }
+          } else if (act === 'del') \{
+            var id = name.replace('.html', '');
+            var el = document.getElementById(id);
+            if (!el) continue;
+            var container = el.parentElement;
+            el.remove();
+            if (container && container.children.length === 0) \{
+              var tag = container.id === 'addr-list-recv' ? 'recv' : 'chng';
+              container.innerHTML = '<div class="p4 b1 br2 tc" id="empty-' + tag + '"><div class="s0 f2 mb2">No addresses yet</div><div class="f3 s-1">Click above to derive your first address</div></div>';
             }
           }
         }

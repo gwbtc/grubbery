@@ -143,19 +143,32 @@
             ::  derive first receiving address
             =/  first-addr=(unit @t)
               (derive-acct-addr xprv script-type network 0 0)
-            =/  receiving=(list address-entry)
-              ?~  first-addr  ~
-              ~[[u.first-addr ~]]
             ::  create account data
             =/  acct=account-data
-              [account-name fingerprint.wal script-type network [%.y purpose] [%.y coin-type] [%.y account-idx] xprv receiving ~]
+              [account-name fingerprint.wal script-type network [%.y purpose] [%.y coin-type] [%.y account-idx] xprv ?~(first-addr 0 1) 0]
             =/  acct-pubkey=@ux  public-key:derived
             =/  acct-key=@ta  (crip (hexn:http-utils acct-pubkey))
             =/  acct-dir=@ta  (cat 3 acct-key '.wallet_account')
             =/  acct-lump=lump:tarball
               :+  ~  `[/wallet %account]
               (~(put by *(map @ta content:tarball)) %'data.wallet_account' [~ [/wallet %account] !>(acct)])
-            =/  acct-ball=ball:tarball  [`acct-lump ~]
+            ::  build address subdirs for first address if derived
+            =/  recv-dir=(map @ta ball:tarball)
+              ?~  first-addr  ~
+              =/  addr-dat=address-data:wt
+                [u.first-addr %recv 0 network ~ ~ ~]
+              =/  addr-lump=lump:tarball
+                :+  ~  `[/wallet %address]
+                %-  ~(put by *(map @ta content:tarball))
+                ['data.wallet_address' [~ [/wallet %address] !>(addr-dat)]]
+              (~(put by *(map @ta ball:tarball)) '0.wallet_address' [`addr-lump ~])
+            =/  addrs-dir=(map @ta ball:tarball)
+              %-  ~(gas by *(map @ta ball:tarball))
+              :~  ['receiving' [~ recv-dir]]
+                  ['change' [~ ~]]
+              ==
+            =/  acct-ball=ball:tarball
+              [`acct-lump (~(put by *(map @ta ball:tarball)) %addresses [~ addrs-dir])]
             ;<  err=(unit tang)  bind:m
               (make-soft:io [%| 2 %| (snoc /accounts acct-dir)] &+[*sand:nexus *gain:nexus acct-ball])
 

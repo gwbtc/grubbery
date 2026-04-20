@@ -204,7 +204,7 @@
     =/  foldername=@t  (fall (get-key:kv:html-utils 'foldername' args) '')
     =/  dir-name=@ta  foldername
     =/  dir-neck=(unit neck:tarball)
-      (bind (parse-extension:tarball dir-name) |=(n=@ta `rail:tarball`[/ n]))
+      (bind (parse-extension:tarball dir-name) ext-to-neck:tarball)
     =/  folder-path=path  (snoc tree-path dir-name)
     =/  new-ball=ball:tarball  [`[~ dir-neck ~] ~]
     ;<  ~  bind:m  (make:io [%& %| folder-path] &+[[~ ~] [~ ~] new-ball])

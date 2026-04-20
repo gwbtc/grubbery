@@ -1,4 +1,4 @@
-::  wallet-types: shared types for wallet and account nexuses
+::  wallet-types: shared types for wallet, account, and address nexuses
 ::
 |%
 +$  seg  (pair ? @ud)
@@ -14,9 +14,51 @@
       spent=@ud           :: chain_stats.spent_txo_sum (total sats spent)
       last-check=@da
   ==
-::  address entry: derived address string + optional fetched info
+::  transaction status: confirmed or unconfirmed
 ::
-+$  address-entry  [addr=@t info=(unit address-info)]
++$  tx-status
+  $%  [%unconfirmed ~]
+      [%confirmed block-hash=@t block-height=@ud]
+  ==
+::  transaction input
+::
++$  tx-input
+  $:  spent-txid=@t
+      spent-vout=@ud
+      prevout=(unit tx-output)
+  ==
+::  transaction output
+::
++$  tx-output  [value=@ud address=@t]
+::  transaction: full mempool.space transaction data
+::
++$  transaction
+  $:  txid=@t
+      inputs=(list tx-input)
+      outputs=(list tx-output)
+      =tx-status
+      fee=(unit @ud)
+      size=(unit @ud)
+  ==
+::  unspent transaction output
+::
++$  utxo
+  $:  txid=@t
+      vout=@ud
+      value=@ud
+      =tx-status
+  ==
+::  per-address data: stored in each address nexus
+::
++$  address-data
+  $:  addr=@t
+      chain=?(%recv %chng)
+      idx=@ud
+      network=?(%main %testnet %regtest)
+      info=(unit address-info)
+      utxos=(list utxo)
+      txs=(list transaction)
+  ==
 ::  scan process state: tracks progress through gap-limit scan
 ::
 +$  scan-state
@@ -24,9 +66,6 @@
       idx=@ud
       gap=@ud
   ==
-::  refresh process state: which address to refresh
-::
-+$  refresh-state  [chain=?(%recv %chng) idx=@ud]
 ::
 +$  account-data
   $:  name=@t
@@ -37,7 +76,7 @@
       coin-type=seg
       account-idx=seg
       xprv=@t
-      receiving=(list address-entry)
-      change=(list address-entry)
+      recv-count=@ud
+      chng-count=@ud
   ==
 --
