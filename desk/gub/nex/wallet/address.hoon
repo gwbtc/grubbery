@@ -47,9 +47,11 @@
           ;<  upd=view:nexus  bind:m  (take-news:io /data)
           =/  dat=(unit address-data)  (extract-address upd)
           ?~  dat  $
-          (replace:io !>((detail-page u.dat)))
+          ;<  ~  bind:m  (replace:io !>((detail-page u.dat)))
+          stay:m
         ::  render once — SSE handles all live updates
-        (replace:io !>((detail-page u.dat)))
+        ;<  ~  bind:m  (replace:io !>((detail-page u.dat)))
+        stay:m
           ::  /ui/sse-manager.sig: SSE manager — watches data, writes live fragments
           ::
           [[%ui ~] %'sse-manager.sig']

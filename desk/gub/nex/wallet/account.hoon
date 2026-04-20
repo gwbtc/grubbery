@@ -57,12 +57,14 @@
           =/  addrs=(list address-data)  (extract-addresses upd)
           =/  pst  (extract-proc-state upd)
           ;<  =bowl:nexus  bind:m  get-bowl:io
-          (replace:io !>((detail-page u.acct addrs now.bowl scan.pst progress.pst ~)))
+          ;<  ~  bind:m  (replace:io !>((detail-page u.acct addrs now.bowl scan.pst progress.pst ~)))
+          stay:m
         ::  render once — SSE handles all live updates
         =/  addrs=(list address-data)  (extract-addresses init)
         =/  pst  (extract-proc-state init)
         ;<  =bowl:nexus  bind:m  get-bowl:io
-        (replace:io !>((detail-page u.acct addrs now.bowl scan.pst progress.pst ~)))
+        ;<  ~  bind:m  (replace:io !>((detail-page u.acct addrs now.bowl scan.pst progress.pst ~)))
+        stay:m
           ::  /ui/sse-manager.sig: SSE manager process
           ::  watches account root, diffs state, writes targeted fragments to sse/
           ::
@@ -121,17 +123,16 @@
               %'derive-next'
             =/  chain=@t
               (~(dug jo:json-utils jon) /chain so:dejs:format 'receiving')
-            ;<  cur=view:nexus  bind:m
-              (keep:io /acct-read (cord-to-road:tarball './') ~)
-            =/  acct=(unit account-data)  (extract-account cur)
+            ;<  acct-seen=seen:nexus  bind:m
+              (peek:io (cord-to-road:tarball './data.wallet_account') ~)
+            ?.  ?=(%& -.acct-seen)  $
+            ?.  ?=([%file *] p.acct-seen)  $
+            =/  acct=(unit account-data)
+              (mole |.(!<(account-data q.sage.p.acct-seen)))
             ?~  acct  $
             =/  is-change=?  =(chain 'change')
-            =/  addrs=(list address-data)  (extract-addresses cur)
-            =/  chain-addrs=(list address-data)
-              (addrs-by-chain addrs ?:(is-change %chng %recv))
             =/  next-idx=@ud
-              ?~  chain-addrs  0
-              +(idx:(rear chain-addrs))
+              ?:(is-change chng-count.u.acct recv-count.u.acct)
             =/  new-addr=(unit @t)
               %:  derive-addr
                 xprv.u.acct
@@ -757,7 +758,7 @@
     (make-addr-dir 1 u.new-addr chain-tag scan-idx network)
   ::  poke address to refresh, wait for result
   ;<  new-info=(unit address-info)  bind:m
-    (scan-refresh addr-data-path addr-dir-path)
+    (scan-refresh addr-data-path addr-dir-path scan-idx)
   ::  bump count if beyond existing
   =?  count  (gte scan-idx existing)  +(count)
   ::  check gap
@@ -766,20 +767,24 @@
   ?:  =(0 tx-count.u.new-info)
     $(scan-idx +(scan-idx), gap +(gap))
   $(scan-idx +(scan-idx), gap 0)
-::  +scan-refresh: poke address to refresh, wait for completion, return info
+::  +scan-refresh: subscribe, poke refresh, wait for completion, drop, return info
 ::
 ++  scan-refresh
-  |=  [addr-data-path=@t addr-dir-path=@t]
+  |=  [addr-data-path=@t addr-dir-path=@t scan-idx=@ud]
   =/  m  (fiber:fiber:nexus ,(unit address-info))
   ^-  form:m
+  =/  addr-dir-road=road:tarball  (cord-to-road:tarball addr-dir-path)
+  =/  =wire  /scan-wait/(scot %ud scan-idx)
+  ::  1. subscribe first so we don't miss the update
+  ;<  *  bind:m
+    (keep:io wire addr-dir-road ~)
+  ::  2. poke to start refresh
   =/  refresh-json=json  (pairs:enjs:format ~[['action' s+'refresh']])
   ;<  ~  bind:m
     (poke:io (cord-to-road:tarball addr-data-path) [[/ %json] !>(refresh-json)])
-  =/  addr-dir-road=road:tarball  (cord-to-road:tarball addr-dir-path)
-  ;<  *  bind:m
-    (keep:io /scan-wait addr-dir-road ~)
+  ::  3. wait for refreshing.json to clear
   |-
-  ;<  upd=view:nexus  bind:m  (take-news:io /scan-wait)
+  ;<  upd=view:nexus  bind:m  (take-news:io wire)
   ?.  ?=([%ball *] upd)  $
   =/  =lump:tarball  (fall fil.ball.upd *lump:tarball)
   =/  rfsh-ct=(unit content:tarball)  (~(get by contents.lump) 'refreshing.json')
@@ -788,7 +793,8 @@
     =/  val=(unit json)  (mole |.(!<(json q.sage.u.rfsh-ct)))
     =(`[%b %.y] val)
   ?:  still-loading  $
-  ::  refresh done — extract result
+  ::  4. drop subscription, extract result
+  ;<  ~  bind:m  (drop:io wire addr-dir-road)
   =/  addr-ct=(unit content:tarball)  (~(get by contents.lump) 'data.wallet_address')
   ?~  addr-ct  (pure:m ~)
   =/  dat=(unit address-data)  (mole |.(!<(address-data q.sage.u.addr-ct)))
