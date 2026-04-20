@@ -919,9 +919,9 @@
 ++  address-list-section
   |=  [acct=account-data chain=tape chain-tag=?(%recv %chng) addrs=(list address-data) now=@da rfsh=(set (pair ?(%recv %chng) @ud))]
   ^-  manx
-  ;div.fc.g2(style "flex: 1; min-height: 0;")
+  ;div.fc.g2
     ;+  (derive-button chain addrs)
-    ;div.fc.g2(id "addr-list-{(trip chain-tag)}", style "flex: 1; min-height: 0; overflow-y: auto;")
+    ;div.fc.g2(id "addr-list-{(trip chain-tag)}")
       ;*  ?:  =(~ addrs)
             :~  ;div.p4.b1.br2.tc(id "empty-{(trip chain-tag)}")
                   ;div.s0.f2.mb2: No addresses yet
