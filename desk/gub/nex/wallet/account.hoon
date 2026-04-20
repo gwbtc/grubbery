@@ -30,6 +30,8 @@
             [%fall %| /addresses [~ ~] [~ ~] empty-dir:loader]
             [%fall %| /addresses/receiving [~ ~] [~ ~] empty-dir:loader]
             [%fall %| /addresses/change [~ ~] [~ ~] empty-dir:loader]
+            [%fall %| /proc [~ ~] [~ ~] empty-dir:loader]
+            [%stay %& [/proc %'scan.json']]
             [%over %& [/ %'page.html'] %.n [~ [/ %manx] !>(;div;)]]
         ==
       ==
@@ -215,11 +217,30 @@
           (keep:io /acct (cord-to-road:tarball '../') ~)
         =/  acct=(unit account-data)  (extract-account cur)
         ?~  acct  (pure:m ~)
+        ::  read existing progress to resume where we left off
+        ;<  prev-state=vase  bind:m  get-state:io
+        =/  prev-json=json  (fall (mole |.(!<(json prev-state))) *json)
+        =/  prev=scan-progress  (parse-scan-progress prev-json)
+        =/  recv-start-idx=@ud
+          ?:  =('recv' phase.prev)  idx.prev
+          ?:  =('chng' phase.prev)  0  ::  recv already done
+          0
+        =/  recv-start-gap=@ud
+          ?:  =('recv' phase.prev)  gap.prev
+          0
+        =/  skip-recv=?  =('chng' phase.prev)
         ::  scan receiving then change
         ;<  recv-result=account-data  bind:m
-          (scan-chain u.acct %receiving network.u.acct data-road)
+          ?:  skip-recv  =/(m (fiber:fiber:nexus ,account-data) (pure:m u.acct))
+          (scan-chain u.acct %receiving network.u.acct data-road recv-start-idx recv-start-gap)
+        =/  chng-start-idx=@ud
+          ?:  =('chng' phase.prev)  idx.prev
+          0
+        =/  chng-start-gap=@ud
+          ?:  =('chng' phase.prev)  gap.prev
+          0
         ;<  chng-result=account-data  bind:m
-          (scan-chain recv-result %change network.recv-result data-road)
+          (scan-chain recv-result %change network.recv-result data-road chng-start-idx chng-start-gap)
         (pure:m ~)
       ==
     ::
@@ -265,6 +286,20 @@
   (mole |.(!<(account-data q.sage.u.ct)))
 ::
 +$  scan-progress  [phase=@t idx=@ud gap=@ud]
+::
+++  parse-scan-progress
+  |=  jon=json
+  ^-  scan-progress
+  ?.  ?=([%o *] jon)  ['' 0 0]
+  =/  phase=(unit json)  (~(get by p.jon) 'phase')
+  =/  idx-j=(unit json)  (~(get by p.jon) 'idx')
+  =/  gap-j=(unit json)  (~(get by p.jon) 'gap')
+  ?.  &(?=([~ %s *] phase) ?=([~ %n *] idx-j) ?=([~ %n *] gap-j))
+    ['' 0 0]
+  =/  idx=(unit @ud)  (rush p.u.idx-j dem)
+  =/  gap=(unit @ud)  (rush p.u.gap-j dem)
+  ?:  |(?=(~ idx) ?=(~ gap))  ['' 0 0]
+  [p.u.phase u.idx u.gap]
 ::
 ++  extract-proc-state
   |=  =view:nexus
@@ -703,15 +738,21 @@
   (pure:m ~)
 ::
 ++  scan-chain
-  |=  [acct=account-data chain=?(%receiving %change) network=?(%main %testnet %regtest) data-road=road:tarball]
+  |=  $:  acct=account-data
+          chain=?(%receiving %change)
+          network=?(%main %testnet %regtest)
+          data-road=road:tarball
+          start-idx=@ud
+          start-gap=@ud
+      ==
   =/  m  (fiber:fiber:nexus ,account-data)
   ^-  form:m
   =/  is-change=?  =(chain %change)
   =/  existing=@ud  ?:(is-change chng-count.acct recv-count.acct)
   =/  gap-limit=@ud  20
-  =/  scan-idx=@ud  0
-  =/  gap=@ud  0
-  =/  count=@ud  existing
+  =/  scan-idx=@ud  start-idx
+  =/  gap=@ud  start-gap
+  =/  count=@ud  (max existing start-idx)
   |-
   ?:  (gte gap gap-limit)
     ::  hit gap limit, done — save final count
@@ -1357,7 +1398,18 @@
                   var emptyId = el.id.indexOf('addr-recv-') === 0 ? 'empty-recv' : 'empty-chng';
                   var empty = document.getElementById(emptyId);
                   if (empty) empty.remove();
-                  container.insertBefore(el, container.firstChild);
+                  var newIdx = parseInt(el.id.split('-').pop(), 10);
+                  var inserted = false;
+                  var children = container.children;
+                  for (var k = 0; k < children.length; k++) \{
+                    var cIdx = parseInt(children[k].id.split('-').pop(), 10);
+                    if (!isNaN(cIdx) && cIdx < newIdx) \{
+                      container.insertBefore(el, children[k]);
+                      inserted = true;
+                      break;
+                    }
+                  }
+                  if (!inserted) container.appendChild(el);
                 }
               }
             }
