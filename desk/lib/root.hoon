@@ -8,9 +8,9 @@
   ^-  [sand:nexus gain:nexus ball:tarball]
   =/  =ver:loader  (get-ver:loader ball)
   ?+  ver  !!
-      ?(~ [~ %0])
+      ?(~ [~ %0] [~ %1])
     %+  spin:loader  [sand gain ball]
-    :~  (ver-row:loader 0)
+    :~  (ver-row:loader 1)
         [%load %| / / same-fold:loader]
         [%fall %& [/sys %'main.sig'] %.n [~ [/ %sig] !>(~)]]
         ::  child nexuses
@@ -24,7 +24,8 @@
         [%fall %| /'goals.goals' [~ ~] [~ ~] [`[~ `[/ %goals] ~] ~]]
         [%fall %| /'mcp.mcp' [~ ~] [~ ~] [`[~ `[/ %mcp] ~] ~]]
         [%fall %| /'wallet.wallet_app' [~ ~] [~ ~] [`[~ `[/wallet %app] ~] ~]]
-        [%fall %| /'groundwire.groundwire' [~ ~] [~ ~] [`[~ `[/ %groundwire] ~] ~]]
+        [%fall %| /'indexer.indexer_app' [~ ~] [~ ~] [`[~ `[/indexer %app] ~] ~]]
+        :: [%fall %| /'groundwire.groundwire' [~ ~] [~ ~] [`[~ `[/ %groundwire] ~] ~]]
         ::  config
         [%fall %| /config/creds [~ ~] [~ ~] empty-dir:loader]
         ::  system internals — populated by app/grubbery.hoon before
@@ -69,6 +70,7 @@
         counter.counter/   Auto-incrementing counters with live UI.
         peers.peers/       External ship gateway with role-based access control.
         wallet.wallet_app/ Bitcoin wallet management with per-wallet nexuses.
+        indexer.indexer_app/ Bitcoind block cache. Polls RPC, caches blocks.
 
       SYSTEM:
         sys/               System internals — build compiler, terminal logs,

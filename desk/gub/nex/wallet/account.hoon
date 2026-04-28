@@ -2,15 +2,16 @@
 ::
 ::  Each account directory contains:
 ::    data.account   account-data (name, xprv, script-type, addresses)
-::    main.sig       poke handler for derive-next
-::    page.html      rendered detail page (manx)
-::    address.html   address detail page (client-side mempool.space)
+::    data.draft     transaction draft state
+::    main.sig       poke handler for derive-next + send actions
 ::
-/<  feather       /lib/feather.hoon
-/<  fi            /lib/feather-icons.hoon
 /<  wt            /lib/wallet-types.hoon
 /<  bip32         /lib/bip32.hoon
 /<  bech32        /lib/bech32.hoon
+/<  drft          /lib/tx/draft.hoon
+/<  fees          /lib/tx/fees.hoon
+/<  utxo-sel      /lib/tx/select.hoon
+/<  acct-ui       /lib/wallet-account-ui.hoon
 =,  wt
 =<  ^-  nexus:nexus
     |%
@@ -23,16 +24,10 @@
         %+  spin:loader  [sand gain ball]
         :~  (ver-row:loader 0)
             [%stay %& [/ %'data.wallet_account']]
-            [%over %& [/ %'main.sig'] %.n [~ [/ %sig] !>(~)]]
-            [%fall %| /ui [~ ~] [~ ~] empty-dir:loader]
-            [%over %& [/ui %'sse-manager.sig'] %.n [~ [/ %sig] !>(~)]]
-            [%fall %| /ui/sse [~ ~] [~ ~] empty-dir:loader]
-            [%fall %| /addresses [~ ~] [~ ~] empty-dir:loader]
-            [%fall %| /addresses/receiving [~ ~] [~ ~] empty-dir:loader]
-            [%fall %| /addresses/change [~ ~] [~ ~] empty-dir:loader]
-            [%fall %| /proc [~ ~] [~ ~] empty-dir:loader]
-            [%stay %& [/proc %'scan.json']]
-            [%over %& [/ %'page.html'] %.n [~ [/ %manx] !>(;div;)]]
+          [%over %& [/ %'main.sig'] %.n [~ [/ %sig] !>(~)]]
+          [%fall %| /addresses [~ ~] [~ ~] empty-dir:loader]
+          [%fall %| /proc [~ ~] [~ ~] empty-dir:loader]
+          [%stay %& [/proc %'scan.json']]
         ==
       ==
     ::
@@ -43,84 +38,19 @@
       =/  m  (fiber:fiber:nexus ,~)
       ^-  process:fiber:nexus
       ?+    rail  stay:m
-          ::  /page.html: render account detail, watch for data changes
-          ::
-          [~ %'page.html']
-        ;<  ~  bind:m  (rise-wait:io prod "%account detail: failed")
-        ;<  init=view:nexus  bind:m
-          (keep:io /data (cord-to-road:tarball './') ~)
-        =/  acct=(unit account-data)  (extract-account init)
-        ?~  acct
-          ::  wait for account data to appear
-          |-
-          ;<  upd=view:nexus  bind:m  (take-news:io /data)
-          =/  acct=(unit account-data)  (extract-account upd)
-          ?~  acct  $
-          =/  addrs=(list address-data)  (extract-addresses upd)
-          =/  pst  (extract-proc-state upd)
-          ;<  =bowl:nexus  bind:m  get-bowl:io
-          ;<  ~  bind:m  (replace:io !>((detail-page u.acct addrs now.bowl scan.pst progress.pst ~)))
-          stay:m
-        ::  render once — SSE handles all live updates
-        =/  addrs=(list address-data)  (extract-addresses init)
-        =/  pst  (extract-proc-state init)
-        ;<  =bowl:nexus  bind:m  get-bowl:io
-        ;<  ~  bind:m  (replace:io !>((detail-page u.acct addrs now.bowl scan.pst progress.pst ~)))
-        stay:m
-          ::  /ui/sse-manager.sig: SSE manager process
-          ::  watches account root, diffs state, writes targeted fragments to sse/
-          ::
-          [[%ui ~] %'sse-manager.sig']
-        ;<  ~  bind:m  (rise-wait:io prod "%account /ui/sse-manager: failed")
-        ;<  init=view:nexus  bind:m
-          (keep:io /data (cord-to-road:tarball '../') ~)
-        =/  acct=(unit account-data)  (extract-account init)
-        ?~  acct
-          |-
-          ;<  upd=view:nexus  bind:m  (take-news:io /data)
-          =/  acct=(unit account-data)  (extract-account upd)
-          ?~  acct  $
-          =/  addrs=(list address-data)  (extract-addresses upd)
-          =/  pst  (extract-proc-state upd)
-          ;<  =bowl:nexus  bind:m  get-bowl:io
-          =/  prev=sse-prev  (make-sse-prev upd u.acct addrs pst)
-          ;<  ~  bind:m  (sse-init u.acct addrs now.bowl pst refreshing.prev)
-          |-
-          ;<  upd=view:nexus  bind:m  (take-news:io /data)
-          =/  acct=(unit account-data)  (extract-account upd)
-          ?~  acct  $
-          =/  addrs=(list address-data)  (extract-addresses upd)
-          =/  pst  (extract-proc-state upd)
-          =/  curr=sse-prev  (make-sse-prev upd u.acct addrs pst)
-          ;<  =bowl:nexus  bind:m  get-bowl:io
-          ;<  ~  bind:m  (sse-diff u.acct addrs now.bowl prev curr)
-          $(prev curr)
-        =/  addrs=(list address-data)  (extract-addresses init)
-        =/  pst  (extract-proc-state init)
-        ;<  =bowl:nexus  bind:m  get-bowl:io
-        =/  prev=sse-prev  (make-sse-prev init u.acct addrs pst)
-        ;<  ~  bind:m  (sse-init u.acct addrs now.bowl pst refreshing.prev)
-        |-
-        ;<  upd=view:nexus  bind:m  (take-news:io /data)
-        =/  acct=(unit account-data)  (extract-account upd)
-        ?~  acct  $
-        =/  addrs=(list address-data)  (extract-addresses upd)
-        =/  pst  (extract-proc-state upd)
-        =/  curr=sse-prev  (make-sse-prev upd u.acct addrs pst)
-        ;<  =bowl:nexus  bind:m  get-bowl:io
-        ;<  ~  bind:m  (sse-diff u.acct addrs now.bowl prev curr)
-        $(prev curr)
           ::  /main.sig: handle pokes — dispatches to process files
           ::
           [~ %'main.sig']
         ;<  ~  bind:m  (rise-wait:io prod "%account /main: failed")
         |-
         ;<  [=from:fiber:nexus =sage:tarball]  bind:m  take-poke-from:io
+        ~&  ["%account main.sig poke" name.p.sage]
         ?+    name.p.sage  $
             %json
           =/  jon=json  !<(json q.sage)
           ?.  ?=([%o *] jon)  $
           =/  act=@t  (~(dug jo:json-utils jon) /action so:dejs:format '')
+          ~&  ["%account main.sig action" act]
           ?+    act  $
               %'derive-next'
             =/  chain=@t
@@ -133,32 +63,28 @@
               (mole |.(!<(account-data q.sage.p.acct-seen)))
             ?~  acct  $
             =/  is-change=?  =(chain 'change')
+            =/  chain-tag=?(%recv %chng)  ?:(is-change %chng %recv)
+            ::  read existing mop for this chain
+            ;<  mop=addr-mop  bind:m  (read-mop "." active-network.u.acct chain-tag)
             =/  next-idx=@ud
-              ?:(is-change chng-count.u.acct recv-count.u.acct)
+              =/  top=(unit [idx=@ud address-data])
+                (pry:((on @ud address-data) gth) mop)
+              ?~  top  0
+              +(idx.u.top)
             =/  new-addr=(unit @t)
               %:  derive-addr
                 xprv.u.acct
                 script-type.u.acct
-                network.u.acct
+                active-network.u.acct
                 ?:(is-change 1 0)
                 next-idx
               ==
             ?~  new-addr  $
-            ::  bump count to match actual next
-            =/  updated=account-data
-              ?:  is-change
-                u.acct(chng-count +(next-idx))
-              u.acct(recv-count +(next-idx))
-            ;<  ~  bind:m
-              (over:io (cord-to-road:tarball './data.wallet_account') [[/wallet %account] !>(updated)])
-            ::  create per-address nexus directory
-            =/  chain-dir=tape  ?:(is-change "change" "receiving")
-            ;<  ~  bind:m
-              (make-addr-dir 0 u.new-addr ?:(is-change %chng %recv) next-idx network.u.acct)
-            ::  auto-refresh the new address
-            =/  refresh-json=json  (pairs:enjs:format ~[['action' s+'refresh']])
-            ;<  ~  bind:m
-              (poke:io (cord-to-road:tarball (crip "./addresses/{chain-dir}/{(scow %ud next-idx)}.wallet_address/data.wallet_address")) [[/ %json] !>(refresh-json)])
+            ::  put address into mop and write
+            =/  dat=address-data  [u.new-addr %.n ~ ~ ~]
+            =/  updated=addr-mop
+              (put:((on @ud address-data) gth) mop next-idx dat)
+            ;<  ~  bind:m  (write-mop "." active-network.u.acct chain-tag updated)
             $
           ::
               %'delete-address'
@@ -166,12 +92,19 @@
               (~(dug jo:json-utils jon) /chain so:dejs:format 'recv')
             =/  idx=@ud
               (~(dug jo:json-utils jon) /index ni:dejs:format 0)
-            =/  chain-tag=@ta  ;;(@ta chain)
-            =/  chain-dir=tape
-              ?:(?=(%recv chain-tag) "receiving" "change")
-            ::  cull address dir (trailing slash = directory)
-            ;<  *  bind:m
-              (cull-soft:io (cord-to-road:tarball (crip "./addresses/{chain-dir}/{(scow %ud idx)}.wallet_address/")))
+            =/  chain-tag=?(%recv %chng)
+              ?:(?=(%recv ;;(?(%recv %chng) (slav %tas chain))) %recv %chng)
+            ;<  acct-seen=seen:nexus  bind:m
+              (peek:io (cord-to-road:tarball './data.wallet_account') ~)
+            ?.  ?=(%& -.acct-seen)  $
+            ?.  ?=([%file *] p.acct-seen)  $
+            =/  acct=(unit account-data)
+              (mole |.(!<(account-data q.sage.p.acct-seen)))
+            ?~  acct  $
+            ;<  mop=addr-mop  bind:m  (read-mop "." active-network.u.acct chain-tag)
+            =/  updated=addr-mop
+              +:(del:((on @ud address-data) gth) mop idx)
+            ;<  ~  bind:m  (write-mop "." active-network.u.acct chain-tag updated)
             $
           ::
               %'set-network'
@@ -186,7 +119,9 @@
             =/  acct=(unit account-data)
               (mole |.(!<(account-data q.sage.p.acct-seen)))
             ?~  acct  $
-            =/  updated=account-data  u.acct(network new-network)
+            ::  ensure address dir exists for the new network
+            ;<  ~  bind:m  (ensure-net-dir new-network)
+            =/  updated=account-data  u.acct(active-network new-network)
             ;<  ~  bind:m
               (over:io (cord-to-road:tarball './data.wallet_account') [[/wallet %account] !>(updated)])
             $
@@ -223,9 +158,247 @@
             ;<  *  bind:m
               (cull-soft:io (cord-to-road:tarball './scan-paused.json'))
             $
+          ::
+              %'refresh'
+            =/  chain=@t
+              (~(dug jo:json-utils jon) /chain so:dejs:format 'recv')
+            =/  idx=@ud
+              (~(dug jo:json-utils jon) /index ni:dejs:format 0)
+            =/  chain-tag=?(%recv %chng)
+              ?:(?=(%recv ;;(?(%recv %chng) (slav %tas chain))) %recv %chng)
+            ;<  acct-seen=seen:nexus  bind:m
+              (peek:io (cord-to-road:tarball './data.wallet_account') ~)
+            ?.  ?=([%& %file *] acct-seen)  $
+            =/  acct=(unit account-data)
+              (mole |.(!<(account-data q.sage.p.acct-seen)))
+            ?~  acct  $
+            ::  spawn refresh process file
+            =/  net=@ta  ;;(@ta active-network.u.acct)
+            =/  proc-name=@t
+              (crip "refresh-{(trip net)}-{(trip chain-tag)}-{(scow %ud idx)}.json")
+            =/  proc-road=road:tarball
+              (cord-to-road:tarball (crip "./proc/{(trip proc-name)}"))
+            =/  proc-json=json
+              %-  pairs:enjs:format
+              :~  ['network' s+net]
+                  ['chain' s+chain-tag]
+                  ['index' (numb:enjs:format idx)]
+              ==
+            ~&  >  [%refresh %spawning proc-name]
+            ;<  ~  bind:m
+              (make:io proc-road |+[%.n [[/ %json] !>(proc-json)] ~])
+            $
+          ::
+          ::  === Draft transaction actions ===
+          ::
+              %'add-output'
+            =/  address=@t  (so:dejs:format (need (~(get by p.jon) 'address')))
+            =/  amount=@ud  (ni:dejs:format (need (~(get by p.jon) 'amount')))
+            ;<  =bowl:nexus  bind:m  get-bowl:io
+            ;<  existing=(unit transaction:drft)  bind:m  read-draft-file
+            =/  dr=transaction:drft
+              ?~  existing
+                [~ ~ ~ `%random now.bowl now.bowl]
+              u.existing(modified now.bowl)
+            =.  outputs.dr  (snoc outputs.dr [address amount])
+            ;<  ~  bind:m  (write-draft dr)
+            $
+          ::
+              %'delete-output'
+            =/  idx=@ud  (ni:dejs:format (need (~(get by p.jon) 'index')))
+            ;<  existing=(unit transaction:drft)  bind:m  read-draft-file
+            ?~  existing  $
+            ;<  =bowl:nexus  bind:m  get-bowl:io
+            =/  dr=transaction:drft  u.existing(modified now.bowl)
+            =.  outputs.dr  (oust [idx 1] outputs.dr)
+            ;<  ~  bind:m  (write-draft dr)
+            $
+          ::
+              %'clear-draft'
+            =/  draft-road=road:tarball
+              (cord-to-road:tarball './data.wallet_draft')
+            ;<  exists=?  bind:m  (peek-exists:io draft-road)
+            ?.  exists  $
+            ;<  *  bind:m  (cull-soft:io draft-road)
+            $
+          ::
+              %'set-change-config'
+            =/  fee-rate=@ud  (ni:dejs:format (need (~(get by p.jon) 'fee-rate')))
+            =/  chg-addr=@t  (so:dejs:format (need (~(get by p.jon) 'change-address')))
+            ;<  =bowl:nexus  bind:m  get-bowl:io
+            ;<  existing=(unit transaction:drft)  bind:m  read-draft-file
+            =/  dr=transaction:drft
+              ?~  existing
+                [~ ~ ~ `%random now.bowl now.bowl]
+              u.existing(modified now.bowl)
+            =.  change.dr  `[fee-rate chg-addr]
+            ;<  ~  bind:m  (write-draft dr)
+            $
+          ::
+              %'clear-change-config'
+            ;<  existing=(unit transaction:drft)  bind:m  read-draft-file
+            ?~  existing  $
+            ;<  =bowl:nexus  bind:m  get-bowl:io
+            =.  change.u.existing  ~
+            ;<  ~  bind:m  (write-draft u.existing(modified now.bowl))
+            $
+          ::
+              %'set-auto-select-mode'
+            =/  mode-text=@t  (so:dejs:format (need (~(get by p.jon) 'mode')))
+            =/  new-auto=(unit select-mode:drft)
+              ?:  =('disabled' mode-text)  ~
+              ?:  =('largest-first' mode-text)  `%largest-first
+              `%random
+            ;<  =bowl:nexus  bind:m  get-bowl:io
+            ;<  existing=(unit transaction:drft)  bind:m  read-draft-file
+            =/  dr=transaction:drft
+              ?~  existing
+                [~ ~ ~ new-auto now.bowl now.bowl]
+              u.existing(auto-select new-auto, modified now.bowl)
+            ;<  ~  bind:m  (write-draft dr)
+            $
+          ::
+              %'run-auto-select'
+            ;<  acct-seen=seen:nexus  bind:m
+              (peek:io (cord-to-road:tarball './data.wallet_account') ~)
+            ?.  ?=(%& -.acct-seen)  $
+            ?.  ?=([%file *] p.acct-seen)  $
+            =/  acct=(unit account-data)
+              (mole |.(!<(account-data q.sage.p.acct-seen)))
+            ?~  acct  $
+            ;<  existing=(unit transaction:drft)  bind:m  read-draft-file
+            ?~  existing  $
+            =/  mode=select-mode:drft
+              (fall auto-select.u.existing %random)
+            =/  fee-rate=@ud
+              ?~  change.u.existing  1
+              fee-rate.u.change.u.existing
+            ::  collect UTXOs from all addresses
+            ;<  recv=addr-mop  bind:m  (read-mop "." active-network.u.acct %recv)
+            ;<  chng=addr-mop  bind:m  (read-mop "." active-network.u.acct %chng)
+            =/  utxos=(list utxo-input:drft)
+              (collect-utxo-inputs recv chng script-type.u.acct)
+            =/  total-outputs=@ud  (sum-outputs:drft outputs.u.existing)
+            ?:  =(0 total-outputs)
+              ::  nothing to fund, clear inputs
+              ;<  =bowl:nexus  bind:m  get-bowl:io
+              ;<  ~  bind:m  (write-draft u.existing(inputs ~, modified now.bowl))
+              $
+            ::  calculate output vbytes for selection
+            =/  output-vbytes=@ud
+              %+  add
+                %+  roll  outputs.u.existing
+                |=  [out=output:drft sum=@ud]
+                (add sum (output-vbytes:fees (address-to-spend:drft address.out)))
+              ?~  change.u.existing  0
+              (output-vbytes:fees (address-to-spend:drft address.u.change.u.existing))
+            ::  convert to selectables and run selection
+            =/  selectables=(list utxo-input:drft)
+              (turn utxos |=(u=utxo-input:drft [txid.u vout.u amount.u spend.u]))
+            ;<  eny=@uvJ  bind:m  get-entropy:io
+            =/  sel-result=(unit (list utxo-input:drft))
+              ?-  mode
+                %largest-first  (largest-first:utxo-sel selectables total-outputs output-vbytes fee-rate)
+                %random         (random:utxo-sel selectables total-outputs output-vbytes fee-rate eny)
+              ==
+            ?~  sel-result  $  ::  insufficient funds
+            =/  selected=(list utxo-input:drft)
+              %+  turn  u.sel-result
+              |=  s=utxo-input:drft
+              =/  match  (skim utxos |=(u=utxo-input:drft &(=(txid.u txid.s) =(vout.u vout.s))))
+              ?>(?=(^ match) i.match)
+            ;<  =bowl:nexus  bind:m  get-bowl:io
+            ;<  ~  bind:m  (write-draft u.existing(inputs selected, modified now.bowl))
+            $
+          ::
+              %'add-input'
+            =/  utxo-txid=@t  (so:dejs:format (need (~(get by p.jon) 'utxo-txid')))
+            =/  utxo-vout=@ud  (ni:dejs:format (need (~(get by p.jon) 'utxo-vout')))
+            =/  utxo-value=@ud  (ni:dejs:format (need (~(get by p.jon) 'utxo-value')))
+            =/  utxo-spend=@t  (so:dejs:format (need (~(get by p.jon) 'utxo-spend')))
+            ;<  =bowl:nexus  bind:m  get-bowl:io
+            ;<  existing=(unit transaction:drft)  bind:m  read-draft-file
+            =/  dr=transaction:drft
+              ?~  existing
+                [~ ~ ~ `%random now.bowl now.bowl]
+              u.existing(modified now.bowl)
+            =/  spend=spend:fees  ;;(spend:fees (slav %tas utxo-spend))
+            =/  new-input=utxo-input:drft  [utxo-txid utxo-vout utxo-value spend]
+            =.  inputs.dr  (snoc inputs.dr new-input)
+            ;<  ~  bind:m  (write-draft dr)
+            $
+          ::
+              %'remove-input'
+            =/  utxo-txid=@t  (so:dejs:format (need (~(get by p.jon) 'utxo-txid')))
+            =/  utxo-vout=@ud  (ni:dejs:format (need (~(get by p.jon) 'utxo-vout')))
+            ;<  existing=(unit transaction:drft)  bind:m  read-draft-file
+            ?~  existing  $
+            ;<  =bowl:nexus  bind:m  get-bowl:io
+            =.  inputs.u.existing
+              %+  skip  inputs.u.existing
+              |=  input=utxo-input:drft
+              &(=(txid.input utxo-txid) =(vout.input utxo-vout))
+            ;<  ~  bind:m  (write-draft u.existing(modified now.bowl))
+            $
           ==
         ==
       ::
+          ::  /proc/refresh-*.json: per-address refresh process
+          ::
+          [[%proc ~] @]
+        ;<  ~  bind:m  (rise-wait:io prod "%refresh: failed")
+        ::  parse params from state
+        ;<  state=vase  bind:m  get-state:io
+        =/  params=json  (fall (mole |.(!<(json state))) *json)
+        ?.  ?=([%o *] params)  stay:m
+        ?.  (~(has by p.params) 'network')  stay:m
+        =/  network=?(%main %testnet3 %testnet4 %signet %regtest)
+          ;;(?(%main %testnet3 %testnet4 %signet %regtest) (slav %tas (~(dog jo:json-utils params) /network so:dejs:format)))
+        =/  chain-tag=?(%recv %chng)
+          ;;(?(%recv %chng) (slav %tas (~(dog jo:json-utils params) /chain so:dejs:format)))
+        =/  idx=@ud  (~(dog jo:json-utils params) /index ni:dejs:format)
+        ~&  >  [%refresh %start network=network chain=chain-tag idx=idx]
+        ::  set loading flag
+        ;<  mop=addr-mop  bind:m  (read-mop ".." network chain-tag)
+        =/  dat=(unit address-data)
+          (get:((on @ud address-data) gth) mop idx)
+        ?~  dat  ~&(>>> [%refresh %bail-no-addr-at-idx idx=idx] (pure:m ~))
+        =/  loading-mop=addr-mop
+          (put:((on @ud address-data) gth) mop idx u.dat(loading %.y))
+        ;<  ~  bind:m  (write-mop ".." network chain-tag loading-mop)
+        ::  fetch address info
+        =/  base=tape  (mempool-base-url network)
+        =/  addr-url=@t  (crip (weld base (trip addr.u.dat)))
+        ~&  >  [%refresh %fetching addr=addr.u.dat]
+        ;<  ~  bind:m  (send-request:io [%'GET' addr-url ~[['Accept' 'application/json']] ~])
+        ;<  info-resp=client-response:iris  bind:m  take-http
+        ;<  =bowl:nexus  bind:m  get-bowl:io
+        =/  info=(unit address-info)
+          (parse-info-response info-resp now.bowl)
+        ::  fetch UTXOs
+        =/  utxo-url=@t  (crip (weld (weld base (trip addr.u.dat)) "/utxo"))
+        ;<  ~  bind:m  (send-request:io [%'GET' utxo-url ~[['Accept' 'application/json']] ~])
+        ;<  utxo-resp=client-response:iris  bind:m  take-http
+        =/  new-utxos=(list utxo)  (parse-utxo-response utxo-resp)
+        ::  fetch txs
+        =/  txs-url=@t  (crip (weld (weld base (trip addr.u.dat)) "/txs"))
+        ;<  ~  bind:m  (send-request:io [%'GET' txs-url ~[['Accept' 'application/json']] ~])
+        ;<  txs-resp=client-response:iris  bind:m  take-http
+        =/  new-txs=(list transaction)  (parse-txs-response txs-resp)
+        ::  clear loading, write results
+        =/  updated=address-data  u.dat(loading %.n, info info, utxos new-utxos)
+        ;<  fresh-mop=addr-mop  bind:m  (read-mop ".." network chain-tag)
+        =/  new-mop=addr-mop
+          (put:((on @ud address-data) gth) fresh-mop idx updated)
+        ;<  ~  bind:m  (write-mop ".." network chain-tag new-mop)
+        ::  merge new txs into tx-map
+        ;<  existing-txs=tx-map  bind:m  (read-txs ".." network)
+        =/  merged=tx-map
+          %-  ~(gas by existing-txs)
+          (turn new-txs |=(=transaction [txid.transaction transaction]))
+        ;<  ~  bind:m  (write-txs ".." network merged)
+        ~&  >  [%refresh %done network=network chain=chain-tag idx=idx info=?=(^ info) utxos=(lent new-utxos) txs=(lent new-txs)]
+        (pure:m ~)
           ::  /proc/scan.json: full scan process
           ::
           [[%proc ~] %'scan.json']
@@ -248,17 +421,17 @@
           0
         =/  skip-recv=?  =('chng' phase.prev)
         ::  scan receiving then change
-        ;<  recv-result=account-data  bind:m
-          ?:  skip-recv  =/(m (fiber:fiber:nexus ,account-data) (pure:m u.acct))
-          (scan-chain u.acct %receiving network.u.acct data-road recv-start-idx recv-start-gap)
+        ;<  ~  bind:m
+          ?:  skip-recv  =/(m (fiber:fiber:nexus ,~) (pure:m ~))
+          (scan-chain u.acct %receiving active-network.u.acct recv-start-idx recv-start-gap)
         =/  chng-start-idx=@ud
           ?:  =('chng' phase.prev)  idx.prev
           0
         =/  chng-start-gap=@ud
           ?:  =('chng' phase.prev)  gap.prev
           0
-        ;<  chng-result=account-data  bind:m
-          (scan-chain recv-result %change network.recv-result data-road chng-start-idx chng-start-gap)
+        ;<  ~  bind:m
+          (scan-chain u.acct %change active-network.u.acct chng-start-idx chng-start-gap)
         (pure:m ~)
       ==
     ::
@@ -270,14 +443,11 @@
         ?+  p.mana  'Subdirectory under this account.'
             ~
           'Individual BIP44 account. Derives and displays Bitcoin addresses.'
-            [%ui %sse ~]
-          'SSE streams for live UI updates.'
         ==
           %|
         ?+  rail.p.mana  'File under this account.'
           [~ %'data.wallet_account']  'Account data: name, xprv, script-type, addresses. Mark: account.'
           [~ %'main.sig']      'Poke handler for account actions. Mark: sig.'
-          [~ %'page.html']     'Rendered account detail page. Mark: manx.'
           [~ %'ver.ud']        'Schema version.'
         ==
       ==
@@ -291,7 +461,7 @@
   ?:  =(ct *content:tarball)  [%.n ct]
   ?:  =([/ %boom] p.sage.ct)  [%.n ct]
   =/  acct=account-data  !<(account-data q.sage.ct)
-  [%.n [~ [/ %manx] !>((detail-page acct ~ *@da %none ~ ~))]]
+  [%.n [~ [/ %manx] !>((detail-page:acct-ui acct *addr-mop *addr-mop *@da %none ~ ~ ''))]]
 ::
 ++  extract-account
   |=  =view:nexus
@@ -302,6 +472,58 @@
   ?~  ct  ~
   ?.  ?=(%account name.p.sage.u.ct)  ~
   (mole |.(!<(account-data q.sage.u.ct)))
+::
+++  read-draft-file
+  =/  m  (fiber:fiber:nexus ,(unit transaction:drft))
+  ^-  form:m
+  =/  draft-road=road:tarball
+    (cord-to-road:tarball './data.wallet_draft')
+  ;<  exists=?  bind:m  (peek-exists:io draft-road)
+  ?.  exists  (pure:m ~)
+  ;<  seen=seen:nexus  bind:m  (peek:io draft-road ~)
+  ?.  ?=(%& -.seen)  (pure:m ~)
+  ?.  ?=([%file *] p.seen)  (pure:m ~)
+  (pure:m (mole |.(!<(transaction:drft q.sage.p.seen))))
+::
+++  write-draft
+  |=  dr=transaction:drft
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  =/  road=road:tarball  (cord-to-road:tarball './data.wallet_draft')
+  ;<  exists=?  bind:m  (peek-exists:io road)
+  ?:  exists
+    (over:io road [[/wallet %draft] !>(dr)])
+  (make:io road |+[%.n [[/wallet %draft] !>(dr)] ~])
+::
+++  read-wallet-name
+  |=  wallet-fp=@ux
+  =/  m  (fiber:fiber:nexus ,@t)
+  ^-  form:m
+  =/  fp-hex=tape  (hexn:http-utils wallet-fp)
+  =/  wal-road=road:tarball
+    (cord-to-road:tarball (crip "../../wallets/{fp-hex}.wallet_wallet/main.wallet_wallet"))
+  ;<  exists=?  bind:m  (peek-exists:io wal-road)
+  ?.  exists  (pure:m '')
+  ;<  seen=seen:nexus  bind:m  (peek:io wal-road ~)
+  ?.  ?=(%& -.seen)  (pure:m '')
+  ?.  ?=([%file *] p.seen)  (pure:m '')
+  =/  wal=(unit wallet-data)  (mole |.(!<(wallet-data q.sage.p.seen)))
+  ?~  wal  (pure:m '')
+  (pure:m name.u.wal)
+::
+++  collect-utxo-inputs
+  |=  [recv=addr-mop chng=addr-mop =script-type]
+  ^-  (list utxo-input:drft)
+  =/  spend=spend:fees  script-type
+  =/  all=(list [@ud address-data])
+    (weld (mop-to-list recv) (mop-to-list chng))
+  %-  zing
+  %+  turn  all
+  |=  [idx=@ud a=address-data]
+  %+  turn  utxos.a
+  |=  u=utxo
+  ^-  utxo-input:drft
+  [txid.u vout.u value.u spend]
 ::
 +$  scan-progress  [phase=@t idx=@ud gap=@ud]
 ::
@@ -319,45 +541,6 @@
   ?:  |(?=(~ idx) ?=(~ gap))  ['' 0 0]
   [p.u.phase u.idx u.gap]
 ::
-++  extract-proc-state
-  |=  =view:nexus
-  ^-  [scan=?(%active %paused %none) progress=(unit scan-progress)]
-  ?.  ?=([%ball *] view)  [%none ~]
-  ::  check for scan-paused.json marker at account root
-  =/  root-lump=(unit lump:tarball)  fil.ball.view
-  =/  is-paused=?
-    ?~  root-lump  %.n
-    (~(has by contents.u.root-lump) 'scan-paused.json')
-  ::  check for scan proc file and extract progress
-  =/  proc-dir=(unit ball:tarball)  (~(get by dir.ball.view) 'proc')
-  =/  has-scan=?
-    ?~  proc-dir  %.n
-    ?~  fil.u.proc-dir  %.n
-    (~(has by contents.u.fil.u.proc-dir) 'scan.json')
-  =/  progress=(unit scan-progress)
-    ?.  has-scan  ~
-    =/  pd=ball:tarball  (need proc-dir)
-    =/  lp=lump:tarball  (need fil.pd)
-    =/  ct=(unit content:tarball)
-      (~(get by contents.lp) 'scan.json')
-    ?~  ct  ~
-    =/  res=(unit json)  (mole |.(!<(json q.sage.u.ct)))
-    ?~  res  ~
-    ?.  ?=([%o *] u.res)  ~
-    =/  phase=(unit json)  (~(get by p.u.res) 'phase')
-    =/  idx-j=(unit json)  (~(get by p.u.res) 'idx')
-    =/  gap-j=(unit json)  (~(get by p.u.res) 'gap')
-    ?.  &(?=([~ %s *] phase) ?=([~ %n *] idx-j) ?=([~ %n *] gap-j))  ~
-    =/  idx=(unit @ud)  (rush p.u.idx-j dem)
-    =/  gap=(unit @ud)  (rush p.u.gap-j dem)
-    ?~  idx  ~
-    ?~  gap  ~
-    `[p.u.phase u.idx u.gap]
-  =/  scan=?(%active %paused %none)
-    ?:  is-paused  %paused
-    ?:(has-scan %active %none)
-  [scan progress]
-::
 ++  derive-addr
   |=  [xprv=@t =script-type network=?(%main %testnet3 %testnet4 %signet %regtest) chain=@ud index=@ud]
   ^-  (unit @t)
@@ -373,285 +556,111 @@
     %p2sh-p2wpkh  ~
   ==
 ::
-::  +extract-addresses: pull address-data from addresses/{receiving,change}/ in ball
+::  +extract-mops: pull recv and chng addr-mops from a ball view
 ::
-++  extract-addresses
-  |=  =view:nexus
-  ^-  (list address-data)
-  ?.  ?=([%ball *] view)  ~
-  =/  addr-dir=(unit ball:tarball)  (~(get by dir.ball.view) 'addresses')
-  ?~  addr-dir  ~
-  =/  recv-dir=(unit ball:tarball)  (~(get by dir.u.addr-dir) 'receiving')
-  =/  chng-dir=(unit ball:tarball)  (~(get by dir.u.addr-dir) 'change')
-  (weld (extract-addr-kids recv-dir) (extract-addr-kids chng-dir))
+++  extract-mops
+  |=  [=view:nexus network=?(%main %testnet3 %testnet4 %signet %regtest)]
+  ^-  [recv=addr-mop chng=addr-mop]
+  ?.  ?=([%ball *] view)  [*addr-mop *addr-mop]
+  =/  addrs-ball=(unit ball:tarball)  (~(get by dir.ball.view) 'addresses')
+  ?~  addrs-ball  [*addr-mop *addr-mop]
+  =/  net-ball=(unit ball:tarball)  (~(get by dir.u.addrs-ball) ;;(@ta network))
+  ?~  net-ball  [*addr-mop *addr-mop]
+  ?~  fil.u.net-ball  [*addr-mop *addr-mop]
+  =/  recv=addr-mop
+    =/  ct=(unit content:tarball)  (~(get by contents.u.fil.u.net-ball) 'recv.wallet_addresses')
+    ?~  ct  *addr-mop
+    (fall (mole |.(!<(addr-mop q.sage.u.ct))) *addr-mop)
+  =/  chng=addr-mop
+    =/  ct=(unit content:tarball)  (~(get by contents.u.fil.u.net-ball) 'chng.wallet_addresses')
+    ?~  ct  *addr-mop
+    (fall (mole |.(!<(addr-mop q.sage.u.ct))) *addr-mop)
+  [recv chng]
+::  +addr-road: compute road to a chain's mop file
 ::
-++  extract-addr-kids
-  |=  chain-dir=(unit ball:tarball)
-  ^-  (list address-data)
-  ?~  chain-dir  ~
-  =/  kids=(list (pair @ta ball:tarball))  ~(tap by dir.u.chain-dir)
-  %+  murn  kids
-  |=  [name=@ta kid=ball:tarball]
-  ^-  (unit address-data)
-  ?~  fil.kid  ~
-  =/  ct=(unit content:tarball)  (~(get by contents.u.fil.kid) 'data.wallet_address')
-  ?~  ct  ~
-  (mole |.(!<(address-data q.sage.u.ct)))
-::  +extract-refreshing: find addresses with refreshing.json marker
+++  addr-road
+  |=  [base=tape network=?(%main %testnet3 %testnet4 %signet %regtest) chain=?(%recv %chng)]
+  ^-  road:tarball
+  (cord-to-road:tarball (crip "{base}/addresses/{(trip ;;(@ta network))}/{(trip chain)}.wallet_addresses"))
+::  +read-mop: fiber that reads a single mop file
 ::
-++  extract-refreshing
-  |=  =view:nexus
-  ^-  (set (pair ?(%recv %chng) @ud))
-  ?.  ?=([%ball *] view)  ~
-  =/  addr-dir=(unit ball:tarball)  (~(get by dir.ball.view) 'addresses')
-  ?~  addr-dir  ~
-  =/  recv-dir=(unit ball:tarball)  (~(get by dir.u.addr-dir) 'receiving')
-  =/  chng-dir=(unit ball:tarball)  (~(get by dir.u.addr-dir) 'change')
-  %-  silt
-  (weld (refreshing-kids recv-dir %recv) (refreshing-kids chng-dir %chng))
+++  read-mop
+  |=  [base=tape network=?(%main %testnet3 %testnet4 %signet %regtest) chain=?(%recv %chng)]
+  =/  m  (fiber:fiber:nexus ,addr-mop)
+  ^-  form:m
+  =/  road=road:tarball  (addr-road base network chain)
+  ~&  >>  [%read-mop %road road network=network chain=chain]
+  ;<  exists=?  bind:m  (peek-exists:io road)
+  ~&  >>  [%read-mop %exists exists]
+  ?.  exists  ~&(>>> [%read-mop %no-file-returning-empty] (pure:m *addr-mop))
+  ;<  seen=seen:nexus  bind:m  (peek:io road ~)
+  ~&  >>  [%read-mop %seen-type ?=([%& %file *] seen)]
+  ?.  ?=([%& %file *] seen)  ~&(>>> [%read-mop %not-file-node] (pure:m *addr-mop))
+  =/  result=addr-mop  (fall (mole |.(!<(addr-mop q.sage.p.seen))) *addr-mop)
+  ~&  >>  [%read-mop %ok size=(lent (tap:((on @ud address-data) gth) result))]
+  (pure:m result)
+::  +write-mop: fiber that writes a mop file (creates dir structure if needed)
 ::
-++  refreshing-kids
-  |=  [chain-dir=(unit ball:tarball) chain=?(%recv %chng)]
-  ^-  (list (pair ?(%recv %chng) @ud))
-  ?~  chain-dir  ~
-  =/  kids=(list (pair @ta ball:tarball))  ~(tap by dir.u.chain-dir)
-  %+  murn  kids
-  |=  [name=@ta kid=ball:tarball]
-  ^-  (unit (pair ?(%recv %chng) @ud))
-  ?~  fil.kid  ~
-  ::  check if refreshing.json content is b+%.y
-  =/  ct=(unit content:tarball)  (~(get by contents.u.fil.kid) 'refreshing.json')
-  ?~  ct  ~
-  =/  val=(unit json)  (mole |.(!<(json q.sage.u.ct)))
-  ?.  =(`[%b %.y] val)  ~
-  ::  parse index from dir name like "0.wallet_address"
-  =/  idx=(unit @ud)  (rush name ;~(sfix dem dot (jest 'wallet_address')))
-  ?~  idx  ~
-  `[chain u.idx]
-::  +addrs-by-chain: filter and sort addresses by chain
-::
-++  addrs-by-chain
-  |=  [addrs=(list address-data) which=?(%recv %chng)]
-  ^-  (list address-data)
-  =/  filtered=(list address-data)
-    (skim addrs |=(a=address-data =(chain.a which)))
-  (sort filtered |=([a=address-data b=address-data] (lth idx.a idx.b)))
-::  +make-addr-dir: create an address nexus directory
-::
-++  make-addr-dir
-  |=  [steps-up=@ud addr=@t chain=?(%recv %chng) idx=@ud network=?(%main %testnet3 %testnet4 %signet %regtest)]
+++  write-mop
+  |=  [base=tape network=?(%main %testnet3 %testnet4 %signet %regtest) chain=?(%recv %chng) mop=addr-mop]
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
-  (make-addr-dir-with steps-up [addr chain idx network ~ ~ ~])
+  =/  road=road:tarball  (addr-road base network chain)
+  ~&  >>  [%write-mop %road road network=network chain=chain]
+  ;<  exists=?  bind:m  (peek-exists:io road)
+  ~&  >>  [%write-mop %exists exists]
+  ?:  exists
+    ~&  >>  [%write-mop %overwriting]
+    (over:io road [[/wallet %addresses] !>(mop)])
+  ~&  >>  [%write-mop %creating]
+  (make:io road |+[%.n [[/wallet %addresses] !>(mop)] ~])
+::  +txs-road: compute road to the tx-map file
 ::
-++  make-addr-dir-with
-  |=  [steps-up=@ud dat=address-data]
+++  txs-road
+  |=  [base=tape network=?(%main %testnet3 %testnet4 %signet %regtest)]
+  ^-  road:tarball
+  (cord-to-road:tarball (crip "{base}/addresses/{(trip ;;(@ta network))}/txs.wallet_txs"))
+::  +read-txs: fiber that reads the tx-map file
+::
+++  read-txs
+  |=  [base=tape network=?(%main %testnet3 %testnet4 %signet %regtest)]
+  =/  m  (fiber:fiber:nexus ,tx-map)
+  ^-  form:m
+  =/  road=road:tarball  (txs-road base network)
+  ;<  exists=?  bind:m  (peek-exists:io road)
+  ?.  exists  (pure:m *tx-map)
+  ;<  seen=seen:nexus  bind:m  (peek:io road ~)
+  ?.  ?=([%& %file *] seen)  (pure:m *tx-map)
+  (pure:m (fall (mole |.(!<(tx-map q.sage.p.seen))) *tx-map))
+::  +write-txs: fiber that writes the tx-map file
+::
+++  write-txs
+  |=  [base=tape network=?(%main %testnet3 %testnet4 %signet %regtest) txs=tx-map]
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
-  =/  chain-dir=@ta  ?:(?=(%recv chain.dat) %receiving %change)
-  =/  dir-name=@ta
-    (crip "{(scow %ud idx.dat)}.wallet_address")
-  =/  addr-lump=lump:tarball
-    :+  ~  `[/wallet %address]
-    %-  ~(put by *(map @ta content:tarball))
-    ['data.wallet_address' [~ [/wallet %address] !>(dat)]]
-  =/  addr-ball=ball:tarball  [`addr-lump ~]
-  ;<  *  bind:m
-    (make-soft:io [%| steps-up %| /addresses/[chain-dir]/[dir-name]] &+[*sand:nexus *gain:nexus addr-ball])
-  (pure:m ~)
-::
-++  format-account-path
-  |=  [purpose=seg coin-type=seg account-idx=seg]
-  ^-  tape
-  =/  [ph=? pi=@ud]  purpose
-  =/  [ch=? ci=@ud]  coin-type
-  =/  [ah=? ai=@ud]  account-idx
-  %+  welp  "m/"
-  %+  welp  (scow %ud pi)
-  %+  welp  ?:(ph "'" "")
-  %+  welp  "/"
-  %+  welp  (scow %ud ci)
-  %+  welp  ?:(ch "'" "")
-  %+  welp  "/"
-  %+  welp  (scow %ud ai)
-  ?:(ah "'" "")
-::
-++  purpose-badge
-  |=  purpose=seg
-  ^-  manx
-  =/  [hardened=? index=@ud]  purpose
-  =/  tooltip=tape
-    ?+  index  (scow %ud index)
-        %86  "Taproot (BIP86) - 86"
-        %84  "Native SegWit (BIP84) - 84"
-        %49  "Wrapped SegWit (BIP49) - 49"
-        %44  "Legacy (BIP44) - 44"
-    ==
-  =/  [color=tape label=tape]
-    ?+  index  ["#888" (scow %ud index)]
-        %86  ["#9333ea" "86"]
-        %84  ["#10b981" "84"]
-        %49  ["#f59e0b" "49"]
-        %44  ["#6b7280" "44"]
-    ==
-  ;div(title "{tooltip}", style "display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 50%; background: {color}; color: white; font-size: 10px; font-weight: bold; font-family: monospace; cursor: default;"): {label}
-::
-++  coin-type-badge
-  |=  coin-type=seg
-  ^-  manx
-  =/  [hardened=? index=@ud]  coin-type
-  =/  tooltip=tape
-    ?+  index  (scow %ud index)
-        %0  "Bitcoin Mainnet - 0"
-        %1  "Bitcoin Testnet - 1"
-    ==
-  =/  badge=manx
-    ?+  index
-      %-  need  %-  de-xml:html
-      '<svg xmlns="http://www.w3.org/2000/svg" height="16" width="16" viewBox="0 0 64 64"><circle cx="32" cy="32" r="30" fill="#9ca3af"/></svg>'
-    ::
-        %0
-      %-  need  %-  de-xml:html
-      '<svg xmlns="http://www.w3.org/2000/svg" height="16" width="16" viewBox="0 0 64 64"><g transform="translate(0.00630876,-0.00301984)"><path fill="#f7931a" d="m63.033,39.744c-4.274,17.143-21.637,27.576-38.782,23.301-17.138-4.274-27.571-21.638-23.295-38.78,4.272-17.145,21.635-27.579,38.775-23.305,17.144,4.274,27.576,21.64,23.302,38.784z"/><path fill="#FFF" d="m46.103,27.444c0.637-4.258-2.605-6.547-7.038-8.074l1.438-5.768-3.511-0.875-1.4,5.616c-0.923-0.23-1.871-0.447-2.813-0.662l1.41-5.653-3.509-0.875-1.439,5.766c-0.764-0.174-1.514-0.346-2.242-0.527l0.004-0.018-4.842-1.209-0.934,3.75s2.605,0.597,2.55,0.634c1.422,0.355,1.679,1.296,1.636,2.042l-1.638,6.571c0.098,0.025,0.225,0.061,0.365,0.117-0.117-0.029-0.242-0.061-0.371-0.092l-2.296,9.205c-0.174,0.432-0.615,1.08-1.609,0.834,0.035,0.051-2.552-0.637-2.552-0.637l-1.743,4.019,4.569,1.139c0.85,0.213,1.683,0.436,2.503,0.646l-1.453,5.834,3.507,0.875,1.439-5.772c0.958,0.26,1.888,0.5,2.798,0.726l-1.434,5.745,3.511,0.875,1.453-5.823c5.987,1.133,10.489,0.676,12.384-4.739,1.527-4.36-0.076-6.875-3.226-8.515,2.294-0.529,4.022-2.038,4.483-5.155zm-8.022,11.249c-1.085,4.36-8.426,2.003-10.806,1.412l1.928-7.729c2.38,0.594,10.012,1.77,8.878,6.317zm1.086-11.312c-0.99,3.966-7.1,1.951-9.082,1.457l1.748-7.01c1.982,0.494,8.365,1.416,7.334,5.553z"/></g></svg>'
-    ::
-        %1
-      %-  need  %-  de-xml:html
-      '<svg xmlns="http://www.w3.org/2000/svg" height="16" width="16" viewBox="0 0 64 64"><g transform="translate(0.00630876,-0.00301984)"><path fill="#6b8fd8" d="m63.033,39.744c-4.274,17.143-21.637,27.576-38.782,23.301-17.138-4.274-27.571-21.638-23.295-38.78,4.272-17.145,21.635-27.579,38.775-23.305,17.144,4.274,27.576,21.64,23.302,38.784z"/><path fill="#FFF" d="m46.103,27.444c0.637-4.258-2.605-6.547-7.038-8.074l1.438-5.768-3.511-0.875-1.4,5.616c-0.923-0.23-1.871-0.447-2.813-0.662l1.41-5.653-3.509-0.875-1.439,5.766c-0.764-0.174-1.514-0.346-2.242-0.527l0.004-0.018-4.842-1.209-0.934,3.75s2.605,0.597,2.55,0.634c1.422,0.355,1.679,1.296,1.636,2.042l-1.638,6.571c0.098,0.025,0.225,0.061,0.365,0.117-0.117-0.029-0.242-0.061-0.371-0.092l-2.296,9.205c-0.174,0.432-0.615,1.08-1.609,0.834,0.035,0.051-2.552-0.637-2.552-0.637l-1.743,4.019,4.569,1.139c0.85,0.213,1.683,0.436,2.503,0.646l-1.453,5.834,3.507,0.875,1.439-5.772c0.958,0.26,1.888,0.5,2.798,0.726l-1.434,5.745,3.511,0.875,1.453-5.823c5.987,1.133,10.489,0.676,12.384-4.739,1.527-4.36-0.076-6.875-3.226-8.515,2.294-0.529,4.022-2.038,4.483-5.155zm-8.022,11.249c-1.085,4.36-8.426,2.003-10.806,1.412l1.928-7.729c2.38,0.594,10.012,1.77,8.878,6.317zm1.086-11.312c-0.99,3.966-7.1,1.951-9.082,1.457l1.748-7.01c1.982,0.494,8.365,1.416,7.334,5.553z"/></g></svg>'
-    ==
-  ;span(title "{tooltip}", style "cursor: default;")
-    ;+  badge
-  ==
-::
-::
-::  SSE manager state tracking
-::
-+$  sse-prev
-  $:  scan=?(%active %paused %none)
-      progress=(unit scan-progress)
-      addr-hash=@
-      recv-idxs=(set @ud)
-      chng-idxs=(set @ud)
-      refreshing=(set (pair ?(%recv %chng) @ud))
-      total-balance=@ud
-      network=?(%main %testnet3 %testnet4 %signet %regtest)
-      coin-type=@ud
-  ==
-::
-++  make-sse-prev
-  |=  [=view:nexus acct=account-data addrs=(list address-data) pst=[scan=?(%active %paused %none) progress=(unit scan-progress)]]
-  ^-  sse-prev
-  :*  scan.pst
-      progress.pst
-      (mug addrs)
-      (silt (turn (addrs-by-chain addrs %recv) |=(a=address-data idx.a)))
-      (silt (turn (addrs-by-chain addrs %chng) |=(a=address-data idx.a)))
-      (extract-refreshing view)
-      (compute-total-balance addrs)
-      network.acct
-      q.coin-type.acct
-  ==
-::
-++  sse-write
-  |=  [road=road:tarball sage=sage:tarball]
-  =/  m  (fiber:fiber:nexus ,~)
-  ^-  form:m
+  =/  road=road:tarball  (txs-road base network)
   ;<  exists=?  bind:m  (peek-exists:io road)
   ?:  exists
-    (over:io road sage)
-  (make:io road |+[%.n sage ~])
+    (over:io road [[/wallet %txs] !>(txs)])
+  (make:io road |+[%.n [[/wallet %txs] !>(txs)] ~])
+::  +ensure-net-dir: create network dir + empty mop files if needed
 ::
-++  sse-init
-  |=  [acct=account-data addrs=(list address-data) now=@da pst=[scan=?(%active %paused %none) progress=(unit scan-progress)] rfsh=(set (pair ?(%recv %chng) @ud))]
+++  ensure-net-dir
+  |=  network=?(%main %testnet3 %testnet4 %signet %regtest)
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
-  ;<  ~  bind:m
-    (sse-write (cord-to-road:tarball './sse/scan-status.html') [[/ %manx] !>((scan-status-ui scan.pst progress.pst))])
-  =/  recv=(list address-data)  (addrs-by-chain addrs %recv)
-  =/  chng=(list address-data)  (addrs-by-chain addrs %chng)
-  ;<  ~  bind:m  (sse-init-chain recv now %recv "receiving" rfsh)
-  ;<  ~  bind:m  (sse-init-chain chng now %chng "change" rfsh)
-  ;<  ~  bind:m
-    (sse-write (cord-to-road:tarball './sse/account-summary.html') [[/ %manx] !>((account-summary-ui addrs))])
-  ;<  ~  bind:m
-    (sse-write (cord-to-road:tarball './sse/derive-recv.html') [[/ %manx] !>((derive-button "receiving" recv))])
-  ;<  ~  bind:m
-    (sse-write (cord-to-road:tarball './sse/derive-chng.html') [[/ %manx] !>((derive-button "change" chng))])
-  (sse-write (cord-to-road:tarball './sse/network-status.html') [[/ %manx] !>((network-badge-ui network.acct q.coin-type.acct))])
+  =/  recv-road=road:tarball  (addr-road "." network %recv)
+  ;<  exists=?  bind:m  (peek-exists:io recv-road)
+  ?:  exists  (pure:m ~)
+  ;<  ~  bind:m  (write-mop "." network %recv *addr-mop)
+  ;<  ~  bind:m  (write-mop "." network %chng *addr-mop)
+  (write-txs "." network *tx-map)
+::  +mop-to-list: tap mop to indexed list (ascending by index)
 ::
-++  sse-init-chain
-  |=  [addrs=(list address-data) now=@da chain-tag=?(%recv %chng) chain=tape rfsh=(set (pair ?(%recv %chng) @ud))]
-  =/  m  (fiber:fiber:nexus ,~)
-  ^-  form:m
-  ?~  addrs  (pure:m ~)
-  =/  loading=?  (~(has in rfsh) [chain-tag idx.i.addrs])
-  =/  row=manx  (address-row i.addrs now chain chain-tag loading)
-  =/  road=road:tarball
-    (cord-to-road:tarball (crip "./sse/addr-{(trip chain-tag)}-{(scow %ud idx.i.addrs)}.html"))
-  ;<  ~  bind:m  (sse-write road [[/ %manx] !>(row)])
-  $(addrs t.addrs)
-::
-++  sse-diff
-  |=  [acct=account-data addrs=(list address-data) now=@da prev=sse-prev curr=sse-prev]
-  =/  m  (fiber:fiber:nexus ,~)
-  ^-  form:m
-  ;<  ~  bind:m
-    ?:  &(=(scan.prev scan.curr) =(progress.prev progress.curr))
-      (pure:m ~)
-    (over:io (cord-to-road:tarball './sse/scan-status.html') [[/ %manx] !>((scan-status-ui scan.curr progress.curr))])
-  ::  if addresses changed, re-init surviving rows and cull removed ones
-  ?.  =(addr-hash.prev addr-hash.curr)
-    =/  recv=(list address-data)  (addrs-by-chain addrs %recv)
-    =/  chng=(list address-data)  (addrs-by-chain addrs %chng)
-    ;<  ~  bind:m  (sse-init-chain recv now %recv "receiving" refreshing.curr)
-    ;<  ~  bind:m  (sse-init-chain chng now %chng "change" refreshing.curr)
-    ;<  ~  bind:m  (sse-cull-removed %recv recv-idxs.prev recv-idxs.curr)
-    ;<  ~  bind:m  (sse-cull-removed %chng chng-idxs.prev chng-idxs.curr)
-    ;<  ~  bind:m
-      (over:io (cord-to-road:tarball './sse/account-summary.html') [[/ %manx] !>((account-summary-ui addrs))])
-    ;<  ~  bind:m
-      (over:io (cord-to-road:tarball './sse/derive-recv.html') [[/ %manx] !>((derive-button "receiving" recv))])
-    (over:io (cord-to-road:tarball './sse/derive-chng.html') [[/ %manx] !>((derive-button "change" chng))])
-  ::  if refreshing set changed, re-render affected rows
-  ?.  =(refreshing.prev refreshing.curr)
-    =/  changed=(list (pair ?(%recv %chng) @ud))
-      ~(tap in (~(uni in (~(dif in refreshing.prev) refreshing.curr)) (~(dif in refreshing.curr) refreshing.prev)))
-    |-
-    ?~  changed  (pure:m ~)
-    =/  [chain=?(%recv %chng) idx=@ud]  i.changed
-    =/  chain-tag=?(%recv %chng)  chain
-    =/  matches=(list address-data)
-      %+  skim  addrs
-      |=(a=address-data &(=(chain.a chain) =(idx.a idx)))
-    =/  addr=(unit address-data)  ?~(matches ~ `i.matches)
-    ?~  addr  $(changed t.changed)
-    =/  loading=?  (~(has in refreshing.curr) [chain idx])
-    =/  chain-name=tape  ?:(?=(%recv chain) "receiving" "change")
-    =/  row=manx  (address-row u.addr now chain-name chain-tag loading)
-    =/  road=road:tarball
-      (cord-to-road:tarball (crip "./sse/addr-{(trip chain-tag)}-{(scow %ud idx)}.html"))
-    ;<  ~  bind:m  (over:io road [[/ %manx] !>(row)])
-    $(changed t.changed)
-  ::  if total balance changed, update account summary
-  ;<  ~  bind:m
-    ?.  =(total-balance.prev total-balance.curr)
-      (over:io (cord-to-road:tarball './sse/account-summary.html') [[/ %manx] !>((account-summary-ui addrs))])
-    (pure:m ~)
-  ::  if network changed, update badge + modal
-  ?.  =(network.prev network.curr)
-    (over:io (cord-to-road:tarball './sse/network-status.html') [[/ %manx] !>((network-badge-ui network.curr coin-type.curr))])
-  (pure:m ~)
-::
-++  sse-cull-removed
-  |=  [chain-tag=?(%recv %chng) old=(set @ud) new=(set @ud)]
-  =/  m  (fiber:fiber:nexus ,~)
-  ^-  form:m
-  =/  removed=(list @ud)  ~(tap in (~(dif in old) new))
-  |-
-  ?~  removed  (pure:m ~)
-  =/  road=road:tarball
-    (cord-to-road:tarball (crip "./sse/addr-{(trip chain-tag)}-{(scow %ud i.removed)}.html"))
-  ;<  *  bind:m  (cull-soft:io road)
-  $(removed t.removed)
+++  mop-to-list
+  |=  mop=addr-mop
+  ^-  (list [@ud address-data])
+  (flop (tap:((on @ud address-data) gth) mop))
 ::
 ::  scan event: either an HTTP response or a pause/resume poke
 ::
@@ -683,41 +692,13 @@
     ?:  =(`s+'resume' act)  [%done %resume ~]
     [%skip ~]
   ==
-::  refresh event: either a nexus subscription update or a pause poke
-::
-+$  refresh-event
-  $%  [%news =view:nexus]
-      [%pause ~]
-  ==
-::
-++  take-refresh-event
-  |=  =wire
-  =/  m  (fiber:fiber:nexus ,refresh-event)
-  ^-  form:m
-  |=  input:fiber:nexus
-  :+  ~  state
-  ?+  in  [%skip ~]
-      ~  [%wait ~]
-      [~ %veto *]
-    [%fail (veto-error:io dart.u.in)]
-      [~ %news * *]
-    ?.  =(wire wire.u.in)  [%skip ~]
-    [%done %news view.u.in]
-      [~ %poke * *]
-    =/  res=(unit json)  (mole |.(!<(json q.sage.u.in)))
-    ?~  res  [%skip ~]
-    ?.  ?=([%o *] u.res)  [%skip ~]
-    =/  act=(unit json)  (~(get by p.u.res) 'action')
-    ?:  =(`s+'pause' act)  [%done %pause ~]
-    [%skip ~]
-  ==
 ::
 ++  mempool-base-url
   |=  network=?(%main %testnet3 %testnet4 %signet %regtest)
   ^-  tape
   ?-  network
     %main      "https://mempool.space/api/address/"
-    %testnet3  "https://mempool.space/testnet3/api/address/"
+    %testnet3  "https://mempool.space/testnet/api/address/"
     %testnet4  "https://mempool.space/testnet4/api/address/"
     %signet    "https://mempool.space/signet/api/address/"
     %regtest   "http://localhost:3000/address/"
@@ -765,6 +746,133 @@
   ?~  spent     (pure:m ~)
   ;<  =bowl:nexus  bind:m  get-bowl:io
   (pure:m `[u.tx-count u.funded u.spent now.bowl])
+::  +take-http: simple HTTP response handler for non-cancellable requests
+::
+++  take-http
+  =/  m  (fiber:fiber:nexus ,client-response:iris)
+  ^-  form:m
+  |=  input:fiber:nexus
+  :+  ~  state
+  ?+  in  [%skip ~]
+      ~  [%wait ~]
+      [~ %arvo [%request ~] %iris %http-response %finished *]
+    [%done client-response.sign.u.in]
+  ==
+::  +parse-info-response: extract address-info from HTTP response (non-fiber)
+::
+++  parse-info-response
+  |=  [=client-response:iris now=@da]
+  ^-  (unit address-info)
+  ?.  ?=(%finished -.client-response)  ~
+  ?~  full-file.client-response  ~
+  =/  body=@t  q.data.u.full-file.client-response
+  =/  parsed=(each json tang)  (mule |.((need (de:json:html body))))
+  ?:  ?=(%| -.parsed)  ~
+  =/  data=json  p.parsed
+  =/  tc=(unit @ud)  (mole |.((ni:dejs:format (~(got jo:json-utils data) /'chain_stats'/'tx_count'))))
+  =/  funded=(unit @ud)  (mole |.((ni:dejs:format (~(got jo:json-utils data) /'chain_stats'/'funded_txo_sum'))))
+  =/  spent=(unit @ud)  (mole |.((ni:dejs:format (~(got jo:json-utils data) /'chain_stats'/'spent_txo_sum'))))
+  ?:  |(?=(~ tc) ?=(~ funded) ?=(~ spent))  ~
+  `[u.tc u.funded u.spent now]
+::  +parse-utxo-response: extract UTXOs from HTTP response
+::
+++  parse-utxo-response
+  |=  =client-response:iris
+  ^-  (list utxo)
+  ?.  ?=(%finished -.client-response)  ~
+  ?~  full-file.client-response  ~
+  =/  body=@t  q.data.u.full-file.client-response
+  =/  parsed=(each json tang)  (mule |.((need (de:json:html body))))
+  ?:  ?=(%| -.parsed)  ~
+  ?.  ?=(%a -.p.parsed)  ~
+  %+  murn  p.p.parsed
+  |=  j=json
+  ^-  (unit utxo)
+  =/  txid=(unit @t)
+    (mole |.((so:dejs:format (~(got jo:json-utils j) /txid))))
+  =/  vout=(unit @ud)
+    (mole |.((ni:dejs:format (~(got jo:json-utils j) /vout))))
+  =/  value=(unit @ud)
+    (mole |.((ni:dejs:format (~(got jo:json-utils j) /value))))
+  ?~  txid   ~
+  ?~  vout   ~
+  ?~  value  ~
+  =/  status=tx-status
+    =/  sj=(unit json)  (mole |.((~(got jo:json-utils j) /status)))
+    ?~  sj  [%unconfirmed ~]
+    (parse-tx-status u.sj)
+  `[u.txid u.vout u.value status]
+::
+++  parse-tx-status
+  |=  sj=json
+  ^-  tx-status
+  =/  conf=(unit ?)
+    (mole |.((bo:dejs:format (~(got jo:json-utils sj) /confirmed))))
+  ?~  conf  [%unconfirmed ~]
+  ?.  u.conf  [%unconfirmed ~]
+  =/  bh=(unit @t)
+    (mole |.((so:dejs:format (~(got jo:json-utils sj) /'block_hash'))))
+  =/  ht=(unit @ud)
+    (mole |.((ni:dejs:format (~(got jo:json-utils sj) /'block_height'))))
+  ?~  bh  [%unconfirmed ~]
+  ?~  ht  [%unconfirmed ~]
+  [%confirmed u.bh u.ht]
+::  +parse-txs-response: extract transactions from HTTP response
+::
+++  parse-txs-response
+  |=  =client-response:iris
+  ^-  (list transaction)
+  ?.  ?=(%finished -.client-response)  ~
+  ?~  full-file.client-response  ~
+  =/  body=@t  q.data.u.full-file.client-response
+  =/  parsed=(each json tang)  (mule |.((need (de:json:html body))))
+  ?:  ?=(%| -.parsed)  ~
+  ?.  ?=(%a -.p.parsed)  ~
+  %+  murn  p.p.parsed
+  |=  tj=json
+  ^-  (unit transaction)
+  =/  txid=(unit @t)
+    (mole |.((so:dejs:format (~(got jo:json-utils tj) /txid))))
+  ?~  txid  ~
+  =/  vin-json=(unit json)  (mole |.((~(got jo:json-utils tj) /vin)))
+  =/  inputs=(list tx-input)
+    ?~  vin-json  ~
+    ?.  ?=(%a -.u.vin-json)  ~
+    %+  murn  p.u.vin-json
+    |=  ij=json
+    ^-  (unit tx-input)
+    =/  st=(unit @t)  (mole |.((so:dejs:format (~(got jo:json-utils ij) /txid))))
+    =/  sv=(unit @ud)  (mole |.((ni:dejs:format (~(got jo:json-utils ij) /vout))))
+    ?~  st  ~
+    ?~  sv  ~
+    =/  prevout=(unit tx-output)
+      =/  pj=(unit json)  (mole |.((~(got jo:json-utils ij) /prevout)))
+      ?~  pj  ~
+      =/  pv=(unit @ud)  (mole |.((ni:dejs:format (~(got jo:json-utils u.pj) /value))))
+      =/  pa=(unit @t)  (mole |.((so:dejs:format (~(got jo:json-utils u.pj) /'scriptpubkey_address'))))
+      ?~  pv  ~
+      ?~  pa  ~
+      `[u.pv u.pa]
+    `[u.st u.sv prevout]
+  =/  vout-json=(unit json)  (mole |.((~(got jo:json-utils tj) /vout)))
+  =/  outputs=(list tx-output)
+    ?~  vout-json  ~
+    ?.  ?=(%a -.u.vout-json)  ~
+    %+  murn  p.u.vout-json
+    |=  oj=json
+    ^-  (unit tx-output)
+    =/  v=(unit @ud)  (mole |.((ni:dejs:format (~(got jo:json-utils oj) /value))))
+    =/  a=(unit @t)  (mole |.((so:dejs:format (~(got jo:json-utils oj) /'scriptpubkey_address'))))
+    ?~  v  ~
+    ?~  a  ~
+    `[u.v u.a]
+  =/  sj=(unit json)  (mole |.((~(got jo:json-utils tj) /status)))
+  =/  status=tx-status
+    ?~  sj  [%unconfirmed ~]
+    (parse-tx-status u.sj)
+  =/  fee=(unit @ud)  (mole |.((ni:dejs:format (~(got jo:json-utils tj) /fee))))
+  =/  size=(unit @ud)  (mole |.((ni:dejs:format (~(got jo:json-utils tj) /size))))
+  `[u.txid inputs outputs status fee size]
 ::
 ::  +pause-loop: block until resumed, managing marker file
 ::
@@ -802,27 +910,19 @@
   |=  $:  acct=account-data
           chain=?(%receiving %change)
           network=?(%main %testnet3 %testnet4 %signet %regtest)
-          data-road=road:tarball
           start-idx=@ud
           start-gap=@ud
       ==
-  =/  m  (fiber:fiber:nexus ,account-data)
+  =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
   =/  is-change=?  =(chain %change)
-  =/  existing=@ud  ?:(is-change chng-count.acct recv-count.acct)
+  =/  chain-tag=?(%recv %chng)  ?:(is-change %chng %recv)
   =/  gap-limit=@ud  20
   =/  scan-idx=@ud  start-idx
   =/  gap=@ud  start-gap
-  =/  count=@ud  (max existing start-idx)
   |-
   ?:  (gte gap gap-limit)
-    ::  hit gap limit, done — save final count
-    =/  result=account-data
-      ?:(is-change acct(chng-count count) acct(recv-count count))
-    ;<  ~  bind:m
-      (over:io data-road [[/wallet %account] !>(result)])
-    (pure:m result)
-  ::  derive next address
+    (pure:m ~)
   =/  new-addr=(unit @t)
     %:  derive-addr
       xprv.acct
@@ -832,12 +932,7 @@
       scan-idx
     ==
   ?~  new-addr
-    ::  derivation failed, done
-    =/  result=account-data
-      ?:(is-change acct(chng-count count) acct(recv-count count))
-    ;<  ~  bind:m
-      (over:io data-road [[/wallet %account] !>(result)])
-    (pure:m result)
+    (pure:m ~)
   ::  update scan progress in proc file
   =/  phase-tape=@t  ?:(is-change 'chng' 'recv')
   =/  scan-prog=json
@@ -847,851 +942,20 @@
         ['gap' (numb:enjs:format gap)]
     ==
   ;<  ~  bind:m  (replace:io !>(scan-prog))
-  ::  create empty address dir so the row appears via SSE
-  =/  chain-tag=?(%recv %chng)  ?:(is-change %chng %recv)
-  =/  chain-dir=@ta  ?:(is-change %change %receiving)
-  =/  dir-name=@ta  (crip "{(scow %ud scan-idx)}.wallet_address")
-  =/  addr-dir-path=@t  (crip "../addresses/{(trip chain-dir)}/{(trip dir-name)}/")
-  =/  addr-data-path=@t  (crip "../addresses/{(trip chain-dir)}/{(trip dir-name)}/data.wallet_address")
-  ;<  exists=?  bind:m  (peek-exists:io (cord-to-road:tarball addr-data-path))
-  ;<  ~  bind:m
-    ?:  exists
-      =/(m (fiber:fiber:nexus ,~) (pure:m ~))
-    (make-addr-dir 1 u.new-addr chain-tag scan-idx network)
-  ::  poke address to refresh, wait for result
+  ;<  ~  bind:m  (sleep:io `@dr`(div ~s1 1.000))
+  ::  fetch address info
   ;<  new-info=(unit address-info)  bind:m
-    (scan-refresh addr-data-path addr-dir-path scan-idx)
-  ::  bump count if beyond existing
-  =?  count  (gte scan-idx existing)  +(count)
+    (scan-fetch u.new-addr network)
+  ::  add address to mop file
+  =/  addr-dat=address-data  [u.new-addr %.n ~ new-info ~]
+  ;<  mop=addr-mop  bind:m  (read-mop ".." network chain-tag)
+  =/  updated=addr-mop
+    (put:((on @ud address-data) gth) mop scan-idx addr-dat)
+  ;<  ~  bind:m  (write-mop ".." network chain-tag updated)
   ::  check gap
   ?~  new-info
     $(scan-idx +(scan-idx), gap +(gap))
   ?:  =(0 tx-count.u.new-info)
     $(scan-idx +(scan-idx), gap +(gap))
   $(scan-idx +(scan-idx), gap 0)
-::  +scan-refresh: subscribe, poke refresh, wait for completion, drop, return info
-::
-++  scan-refresh
-  |=  [addr-data-path=@t addr-dir-path=@t scan-idx=@ud]
-  =/  m  (fiber:fiber:nexus ,(unit address-info))
-  ^-  form:m
-  =/  addr-dir-road=road:tarball  (cord-to-road:tarball addr-dir-path)
-  =/  =wire  /scan-wait/(scot %ud scan-idx)
-  ::  1. subscribe first so we don't miss the update
-  ;<  *  bind:m
-    (keep:io wire addr-dir-road ~)
-  ::  2. poke to start refresh
-  =/  refresh-json=json  (pairs:enjs:format ~[['action' s+'refresh']])
-  ;<  ~  bind:m
-    (poke:io (cord-to-road:tarball addr-data-path) [[/ %json] !>(refresh-json)])
-  ::  3. wait for refreshing.json to clear (also handles pause pokes)
-  |-
-  ;<  evt=refresh-event  bind:m  (take-refresh-event wire)
-  ?:  ?=(%pause -.evt)
-    ;<  ~  bind:m  pause-loop
-    $
-  =/  upd=view:nexus  view.evt
-  ?.  ?=([%ball *] upd)  $
-  =/  =lump:tarball  (fall fil.ball.upd *lump:tarball)
-  =/  rfsh-ct=(unit content:tarball)  (~(get by contents.lump) 'refreshing.json')
-  =/  still-loading=?
-    ?~  rfsh-ct  %.n
-    =/  val=(unit json)  (mole |.(!<(json q.sage.u.rfsh-ct)))
-    =(`[%b %.y] val)
-  ?:  still-loading  $
-  ::  4. drop subscription, extract result
-  ;<  ~  bind:m  (drop:io wire addr-dir-road)
-  =/  addr-ct=(unit content:tarball)  (~(get by contents.lump) 'data.wallet_address')
-  ?~  addr-ct  (pure:m ~)
-  =/  dat=(unit address-data)  (mole |.(!<(address-data q.sage.u.addr-ct)))
-  ?~  dat  (pure:m ~)
-  (pure:m info.u.dat)
-::
-++  compute-total-balance
-  |=  addrs=(list address-data)
-  ^-  @ud
-  %+  roll  addrs
-  |=  [a=address-data total=@ud]
-  ?~  info.a  total
-  (add total (sub funded.u.info.a spent.u.info.a))
-::
-++  network-badge
-  |=  network=?(%main %testnet3 %testnet4 %signet %regtest)
-  ^-  manx
-  =/  testnet-svg=manx
-    %-  need  %-  de-xml:html
-    '<svg xmlns="http://www.w3.org/2000/svg" height="16" width="16" viewBox="0 0 64 64"><g transform="translate(0.00630876,-0.00301984)"><path fill="#6b8fd8" d="m63.033,39.744c-4.274,17.143-21.637,27.576-38.782,23.301-17.138-4.274-27.571-21.638-23.295-38.78,4.272-17.145,21.635-27.579,38.775-23.305,17.144,4.274,27.576,21.64,23.302,38.784z"/><path fill="#FFF" d="m46.103,27.444c0.637-4.258-2.605-6.547-7.038-8.074l1.438-5.768-3.511-0.875-1.4,5.616c-0.923-0.23-1.871-0.447-2.813-0.662l1.41-5.653-3.509-0.875-1.439,5.766c-0.764-0.174-1.514-0.346-2.242-0.527l0.004-0.018-4.842-1.209-0.934,3.75s2.605,0.597,2.55,0.634c1.422,0.355,1.679,1.296,1.636,2.042l-1.638,6.571c0.098,0.025,0.225,0.061,0.365,0.117-0.117-0.029-0.242-0.061-0.371-0.092l-2.296,9.205c-0.174,0.432-0.615,1.08-1.609,0.834,0.035,0.051-2.552-0.637-2.552-0.637l-1.743,4.019,4.569,1.139c0.85,0.213,1.683,0.436,2.503,0.646l-1.453,5.834,3.507,0.875,1.439-5.772c0.958,0.26,1.888,0.5,2.798,0.726l-1.434,5.745,3.511,0.875,1.453-5.823c5.987,1.133,10.489,0.676,12.384-4.739,1.527-4.36-0.076-6.875-3.226-8.515,2.294-0.529,4.022-2.038,4.483-5.155zm-8.022,11.249c-1.085,4.36-8.426,2.003-10.806,1.412l1.928-7.729c2.38,0.594,10.012,1.77,8.878,6.317zm1.086-11.312c-0.99,3.966-7.1,1.951-9.082,1.457l1.748-7.01c1.982,0.494,8.365,1.416,7.334,5.553z"/></g></svg>'
-  ?-  network
-      %main
-    %-  need  %-  de-xml:html
-    '<svg xmlns="http://www.w3.org/2000/svg" height="16" width="16" viewBox="0 0 64 64"><g transform="translate(0.00630876,-0.00301984)"><path fill="#f7931a" d="m63.033,39.744c-4.274,17.143-21.637,27.576-38.782,23.301-17.138-4.274-27.571-21.638-23.295-38.78,4.272-17.145,21.635-27.579,38.775-23.305,17.144,4.274,27.576,21.64,23.302,38.784z"/><path fill="#FFF" d="m46.103,27.444c0.637-4.258-2.605-6.547-7.038-8.074l1.438-5.768-3.511-0.875-1.4,5.616c-0.923-0.23-1.871-0.447-2.813-0.662l1.41-5.653-3.509-0.875-1.439,5.766c-0.764-0.174-1.514-0.346-2.242-0.527l0.004-0.018-4.842-1.209-0.934,3.75s2.605,0.597,2.55,0.634c1.422,0.355,1.679,1.296,1.636,2.042l-1.638,6.571c0.098,0.025,0.225,0.061,0.365,0.117-0.117-0.029-0.242-0.061-0.371-0.092l-2.296,9.205c-0.174,0.432-0.615,1.08-1.609,0.834,0.035,0.051-2.552-0.637-2.552-0.637l-1.743,4.019,4.569,1.139c0.85,0.213,1.683,0.436,2.503,0.646l-1.453,5.834,3.507,0.875,1.439-5.772c0.958,0.26,1.888,0.5,2.798,0.726l-1.434,5.745,3.511,0.875,1.453-5.823c5.987,1.133,10.489,0.676,12.384-4.739,1.527-4.36-0.076-6.875-3.226-8.515,2.294-0.529,4.022-2.038,4.483-5.155zm-8.022,11.249c-1.085,4.36-8.426,2.003-10.806,1.412l1.928-7.729c2.38,0.594,10.012,1.77,8.878,6.317zm1.086-11.312c-0.99,3.966-7.1,1.951-9.082,1.457l1.748-7.01c1.982,0.494,8.365,1.416,7.334,5.553z"/></g></svg>'
-  ::
-      %testnet3  testnet-svg
-      %testnet4  testnet-svg
-      %signet    testnet-svg
-  ::
-      %regtest
-    %-  need  %-  de-xml:html
-    '<svg xmlns="http://www.w3.org/2000/svg" height="16" width="16" viewBox="0 0 64 64"><circle cx="32" cy="32" r="30" fill="#9ca3af"/></svg>'
-  ==
-::
-++  network-label
-  |=  network=?(%main %testnet3 %testnet4 %signet %regtest)
-  ^-  tape
-  ?-  network
-    %main      "Mainnet"
-    %testnet3  "Testnet3"
-    %testnet4  "Testnet4"
-    %signet    "Signet"
-    %regtest   "Regtest"
-  ==
-::
-++  network-badge-ui
-  |=  [network=?(%main %testnet3 %testnet4 %signet %regtest) coin-type=@ud]
-  ^-  manx
-  ;div#network-status(style "display: flex; align-items: center; gap: 8px; margin-top: 12px;")
-    ;div.p2.br1(style "display: flex; align-items: center; gap: 8px; background: var(--b2);")
-      ;div.p2.b1.br2(style "display: flex; align-items: center; gap: 6px;")
-        ;+  (network-badge network)
-        ;span.f2.s-1: {(network-label network)}
-      ==
-      ;button.hover.pointer
-        =onclick  "showNetworkModal()"
-        =title  "Change network"
-        =style  "background: var(--b1); border: none; color: var(--f3); display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 4px; cursor: pointer; outline: none;"
-        ;div(style "width: 16px; height: 16px; display: flex; align-items: center; justify-content: center;")
-          ;+  (make:fi 'edit-2')
-        ==
-      ==
-    ==
-    ;+  (network-modal network coin-type)
-  ==
-::
-++  network-modal
-  |=  [current=?(%main %testnet3 %testnet4 %signet %regtest) coin-type=@ud]
-  ^-  manx
-  =/  is-mainnet-cointype=?  =(0 coin-type)
-  =/  is-testnet-cointype=?  !is-mainnet-cointype
-  =/  testnet-svg=manx
-    %-  need  %-  de-xml:html
-    '<svg xmlns="http://www.w3.org/2000/svg" height="16" width="16" viewBox="0 0 64 64"><g transform="translate(0.00630876,-0.00301984)"><path fill="#6b8fd8" d="m63.033,39.744c-4.274,17.143-21.637,27.576-38.782,23.301-17.138-4.274-27.571-21.638-23.295-38.78,4.272-17.145,21.635-27.579,38.775-23.305,17.144,4.274,27.576,21.64,23.302,38.784z"/><path fill="#FFF" d="m46.103,27.444c0.637-4.258-2.605-6.547-7.038-8.074l1.438-5.768-3.511-0.875-1.4,5.616c-0.923-0.23-1.871-0.447-2.813-0.662l1.41-5.653-3.509-0.875-1.439,5.766c-0.764-0.174-1.514-0.346-2.242-0.527l0.004-0.018-4.842-1.209-0.934,3.75s2.605,0.597,2.55,0.634c1.422,0.355,1.679,1.296,1.636,2.042l-1.638,6.571c0.098,0.025,0.225,0.061,0.365,0.117-0.117-0.029-0.242-0.061-0.371-0.092l-2.296,9.205c-0.174,0.432-0.615,1.08-1.609,0.834,0.035,0.051-2.552-0.637-2.552-0.637l-1.743,4.019,4.569,1.139c0.85,0.213,1.683,0.436,2.503,0.646l-1.453,5.834,3.507,0.875,1.439-5.772c0.958,0.26,1.888,0.5,2.798,0.726l-1.434,5.745,3.511,0.875,1.453-5.823c5.987,1.133,10.489,0.676,12.384-4.739,1.527-4.36-0.076-6.875-3.226-8.515,2.294-0.529,4.022-2.038,4.483-5.155zm-8.022,11.249c-1.085,4.36-8.426,2.003-10.806,1.412l1.928-7.729c2.38,0.594,10.012,1.77,8.878,6.317zm1.086-11.312c-0.99,3.966-7.1,1.951-9.082,1.457l1.748-7.01c1.982,0.494,8.365,1.416,7.334,5.553z"/></g></svg>'
-  =/  mainnet-svg=manx
-    %-  need  %-  de-xml:html
-    '<svg xmlns="http://www.w3.org/2000/svg" height="16" width="16" viewBox="0 0 64 64"><g transform="translate(0.00630876,-0.00301984)"><path fill="#f7931a" d="m63.033,39.744c-4.274,17.143-21.637,27.576-38.782,23.301-17.138-4.274-27.571-21.638-23.295-38.78,4.272-17.145,21.635-27.579,38.775-23.305,17.144,4.274,27.576,21.64,23.302,38.784z"/><path fill="#FFF" d="m46.103,27.444c0.637-4.258-2.605-6.547-7.038-8.074l1.438-5.768-3.511-0.875-1.4,5.616c-0.923-0.23-1.871-0.447-2.813-0.662l1.41-5.653-3.509-0.875-1.439,5.766c-0.764-0.174-1.514-0.346-2.242-0.527l0.004-0.018-4.842-1.209-0.934,3.75s2.605,0.597,2.55,0.634c1.422,0.355,1.679,1.296,1.636,2.042l-1.638,6.571c0.098,0.025,0.225,0.061,0.365,0.117-0.117-0.029-0.242-0.061-0.371-0.092l-2.296,9.205c-0.174,0.432-0.615,1.08-1.609,0.834,0.035,0.051-2.552-0.637-2.552-0.637l-1.743,4.019,4.569,1.139c0.85,0.213,1.683,0.436,2.503,0.646l-1.453,5.834,3.507,0.875,1.439-5.772c0.958,0.26,1.888,0.5,2.798,0.726l-1.434,5.745,3.511,0.875,1.453-5.823c5.987,1.133,10.489,0.676,12.384-4.739,1.527-4.36-0.076-6.875-3.226-8.515,2.294-0.529,4.022-2.038,4.483-5.155zm-8.022,11.249c-1.085,4.36-8.426,2.003-10.806,1.412l1.928-7.729c2.38,0.594,10.012,1.77,8.878,6.317zm1.086-11.312c-0.99,3.966-7.1,1.951-9.082,1.457l1.748-7.01c1.982,0.494,8.365,1.416,7.334,5.553z"/></g></svg>'
-  =/  active-style=tape  " background: rgba(100, 150, 255, 0.15); border-color: rgba(100, 150, 255, 0.4);"
-  ;div#network-modal(style "display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center;", onclick "if(event.target === this) hideModal('network-modal')")
-    ;div.p4.b1.br2(style "max-width: 320px; width: 100%;")
-      ;div(style "display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;")
-        ;h3.s1.bold: Select Network
-        ;button.hover.pointer(onclick "hideModal('network-modal')", style "background: transparent; border: none; color: var(--f3); cursor: pointer; padding: 4px;")
-          ;div(style "width: 20px; height: 20px;")
-            ;+  (make:fi 'x')
-          ==
-        ==
-      ==
-      ;div.fc.g2
-        ;+  ?:  is-testnet-cointype
-              ;span;
-            ;button.p3.b1.br2.hover.pointer.wf(onclick "setNetwork('main')", style "text-align: left; display: flex; align-items: center; gap: 8px;{?:(=(%main current) active-style "")}")
-              ;+  mainnet-svg
-              ;span: Mainnet
-            ==
-        ;+  ?:  is-mainnet-cointype
-              ;span;
-            ;button.p3.b1.br2.hover.pointer.wf(onclick "setNetwork('testnet4')", style "text-align: left; display: flex; align-items: center; gap: 8px;{?:(=(%testnet4 current) active-style "")}")
-              ;+  testnet-svg
-              ;span: Testnet4
-            ==
-        ;+  ?:  is-mainnet-cointype
-              ;span;
-            ;button.p3.b1.br2.hover.pointer.wf(onclick "setNetwork('testnet3')", style "text-align: left; display: flex; align-items: center; gap: 8px;{?:(=(%testnet3 current) active-style "")}")
-              ;+  testnet-svg
-              ;span: Testnet3
-            ==
-        ;+  ?:  is-mainnet-cointype
-              ;span;
-            ;button.p3.b1.br2.hover.pointer.wf(onclick "setNetwork('signet')", style "text-align: left; display: flex; align-items: center; gap: 8px;{?:(=(%signet current) active-style "")}")
-              ;+  testnet-svg
-              ;span: Signet
-            ==
-        ;+  ?:  is-mainnet-cointype
-              ;span;
-            ;button.p3.b1.br2.hover.pointer.wf(onclick "setNetwork('regtest')", style "text-align: left; display: flex; align-items: center; gap: 8px;{?:(=(%regtest current) active-style "")}")
-              ;+  testnet-svg
-              ;span: Regtest
-            ==
-      ==
-    ==
-  ==
-::
-++  next-unused-addr
-  |=  addrs=(list address-data)
-  ^-  (unit @t)
-  =/  recv=(list address-data)  (addrs-by-chain addrs %recv)
-  |-
-  ?~  recv  ~
-  =/  a=address-data  i.recv
-  ?:  ?|(?=(~ info.a) =(0 tx-count.u.info.a))
-    `addr.a
-  $(recv t.recv)
-::
-++  receive-modal
-  |=  addrs=(list address-data)
-  ^-  manx
-  =/  next=(unit @t)  (next-unused-addr addrs)
-  ;div#receive-modal(style "display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center;", onclick "if(event.target === this) hideModal('receive-modal')")
-    ;div.p4.b1.br2(style "max-width: 400px; width: 100%;")
-      ;div(style "display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;")
-        ;h2.s1.bold: Receive Bitcoin
-        ;button.hover.pointer(onclick "hideModal('receive-modal')", style "background: transparent; border: 1px solid var(--b3); color: var(--f3); padding: 4px; outline: none; border-radius: 4px;")
-          ;div(style "width: 20px; height: 20px;")
-            ;+  (make:fi 'x')
-          ==
-        ==
-      ==
-      ;+  ?~  next
-            ;div.tc.p4
-              ;p.f2: No address available. Derive or scan your account first.
-            ==
-          ;div
-            ;div.tc(style "margin-bottom: 16px;")
-              ;div#receive-qr(data-address "{(trip u.next)}", style "display: inline-block;");
-            ==
-            ;div.p3.b2.br2(style "display: flex; align-items: center; gap: 8px;")
-              ;button.p1.b0.br1.hover.pointer
-                =onclick  "copyReceiveAddr()"
-                =title  "Copy address"
-                =style  "background: transparent; border: 1px solid var(--b3); color: var(--f3); display: flex; align-items: center; width: 24px; height: 24px; justify-content: center; outline: none; flex-shrink: 0;"
-                ;div(style "width: 12px; height: 12px; display: flex; align-items: center; justify-content: center;")
-                  ;+  (make:fi 'copy')
-                ==
-              ==
-              ;div#receive-addr.mono.f3(style "overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0;"): {(trip u.next)}
-            ==
-          ==
-    ==
-  ==
-::
-++  format-sats
-  |=  n=@ud
-  ^-  tape
-  =/  digits=tape  (a-co:co n)
-  =/  len=@ud  (lent digits)
-  ?:  (lte len 3)  digits
-  =/  rev=tape  (flop digits)
-  =/  out=tape  ~
-  =/  i=@ud  0
-  |-
-  ?~  rev  out
-  =?  out  &((gth i 0) =(0 (mod i 3)))
-    [',' out]
-  $(rev t.rev, out [i.rev out], i +(i))
-::
-++  account-summary-ui
-  |=  addrs=(list address-data)
-  ^-  manx
-  =/  total-balance=@ud  (compute-total-balance addrs)
-  ;div#account-summary(style "display: flex; justify-content: space-between; align-items: baseline;")
-    ;span.f2(style "opacity: 0.8;"): Total Balance
-    ;span.s0.bold.mono: {(format-sats total-balance)} sats
-  ==
-::
-++  derive-button
-  |=  [chain=tape addrs=(list address-data)]
-  ^-  manx
-  =/  next-idx=@ud
-    ?~  addrs  0
-    +(idx:(rear addrs))
-  =/  chain-tag=tape
-    ?:(=("receiving" chain) "recv" "chng")
-  ;div.p3.b2.br2.hover.pointer
-    =id  "derive-{chain-tag}"
-    =onclick  "deriveNext('{chain}')"
-    =style  "display: flex; align-items: center; justify-content: center; gap: 8px; border: 2px dashed var(--b3);"
-    ;div(style "font-size: 24px; color: var(--f-3);"): +
-    ;span.f2.bold.f-3: Derive Next Address (Index {(scow %ud next-idx)})
-  ==
-::
-++  address-list
-  |=  [acct=account-data chain-tag=?(%recv %chng) addrs=(list address-data) now=@da rfsh=(set (pair ?(%recv %chng) @ud))]
-  ^-  manx
-  =/  chain=tape  ?:(?=(%recv chain-tag) "receiving" "change")
-  ;div.fc.g2(id "addr-list-{(trip chain-tag)}")
-    ;*  ?:  =(~ addrs)
-          :~  ;div.p4.b1.br2.tc(id "empty-{(trip chain-tag)}")
-                ;div.s0.f2.mb2: No addresses yet
-                ;div.f3.s-1: Click above to derive your first address
-              ==
-          ==
-        (turn (flop addrs) |=(a=address-data (address-row a now chain chain-tag (~(has in rfsh) [chain-tag idx.a]))))
-  ==
-::
-++  address-row
-  |=  [a=address-data now=@da chain=tape chain-tag=?(%recv %chng) is-loading=?]
-  ^-  manx
-  =/  addr-text=tape  (trip addr.a)
-  =/  row-id=tape  "addr-{(trip chain-tag)}-{(scow %ud idx.a)}"
-  =/  has-txs=?
-    ?~  info.a  %.n
-    (gth tx-count.u.info.a 0)
-  =/  row-classes=tape
-    ?:(has-txs "p3 b1 br2 hover" "p3 b1 br2 hover empty-address")
-  ;div(id row-id, class row-classes, style "display: flex; justify-content: space-between; align-items: center; gap: 12px;")
-    ;div(style "flex: 1; min-width: 0;")
-      ;div(style "display: flex; align-items: center; gap: 8px;")
-        ;span.f3.s-2.mono: Index {(scow %ud idx.a)}
-        ;+  ?~  info.a  ;span;
-            =/  balance=@ud
-              (sub funded.u.info.a spent.u.info.a)
-            ;div(style "display: flex; gap: 8px;")
-              ;span.f3.s-2(style "opacity: 0.8;")
-                ; • {(scow %ud tx-count.u.info.a)} txs
-              ==
-              ;span.f3.s-2(style "opacity: 0.8;")
-                ; • {(format-sats balance)} sats
-              ==
-            ==
-      ==
-      ;div(style "display: flex; align-items: center; gap: 8px;")
-        ;button.p1.b0.br1.hover.pointer
-          =data-addr  addr-text
-          =onclick  "copyAddr(this)"
-          =title  "Copy address"
-          =style  "background: transparent; border: 1px solid var(--b3); color: var(--f3); display: flex; align-items: center; width: 24px; height: 24px; justify-content: center; outline: none;"
-          ;div.copy-icon(style "width: 12px; height: 12px; display: flex; align-items: center; justify-content: center;")
-            ;+  (make:fi 'copy')
-          ==
-          ;div.check-icon(style "width: 12px; height: 12px; display: none; align-items: center; justify-content: center; color: #10b981;")
-            ;+  (make:fi 'check')
-          ==
-        ==
-        ;a.mono.f2.s-1.hover
-          =href  "addresses/{?:(?=(%recv chain-tag) "receiving" "change")}/{(scow %ud idx.a)}.wallet_address/page.html"
-          =style  "white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--f3); text-decoration: none;"
-          ;+  ;/  addr-text
-        ==
-      ==
-    ==
-    ;div(style "display: flex; gap: 4px; flex-shrink: 0;")
-      ;+  ?:  is-loading
-            ;div(style "display: flex; gap: 4px;")
-              ::  spinner indicator
-              ;div.p2.b1.br1(style "background: rgba(100, 150, 255, 0.2); border: 1px solid var(--b3); color: var(--f3); display: flex; align-items: center; width: 32px; height: 32px; justify-content: center;")
-                ;div(style "width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; animation: spin 1s linear infinite;")
-                  ;+  (make:fi 'loader')
-                ==
-              ==
-              ::  cancel button
-              ;button.p2.b1.br1.hover.pointer
-                =title  "Cancel refresh"
-                =data-chain  (trip chain-tag)
-                =data-idx  (scow %ud idx.a)
-                =onclick  "cancelRefresh(this.dataset.chain, this.dataset.idx)"
-                =style  "background: rgba(255, 80, 80, 0.2); border: 1px solid rgba(255, 80, 80, 0.4); color: #ff5050; display: flex; align-items: center; width: 32px; height: 32px; justify-content: center; outline: none;"
-                ;div(style "width: 16px; height: 16px; display: flex; align-items: center; justify-content: center;")
-                  ;+  (make:fi 'x-circle')
-                ==
-              ==
-            ==
-          ;button.p2.b1.br1.hover.pointer
-            =title  ?~(info.a "Never checked" "Last: {(scow %da last-check.u.info.a)}")
-            =data-chain  (trip chain-tag)
-            =data-idx  (scow %ud idx.a)
-            =onclick  "refreshAddress(this.dataset.chain, this.dataset.idx)"
-            =style  "background: var(--b2); border: 1px solid var(--b3); color: var(--f3); display: flex; align-items: center; width: 32px; height: 32px; justify-content: center; outline: none;"
-            ;div(style "width: 16px; height: 16px; display: flex; align-items: center; justify-content: center;")
-              ;+  (make:fi 'refresh-cw')
-            ==
-          ==
-      ;button.p2.b1.br1.hover.pointer
-        =title  "Remove address"
-        =data-chain  (trip chain-tag)
-        =data-idx  (scow %ud idx.a)
-        =onclick  "deleteAddress(this.dataset.chain, this.dataset.idx)"
-        =style  "background: var(--b2); border: 1px solid var(--b3); color: var(--f3); display: flex; align-items: center; width: 32px; height: 32px; justify-content: center; outline: none; opacity: 0.5;"
-        ;div(style "width: 16px; height: 16px; display: flex; align-items: center; justify-content: center;")
-          ;+  (make:fi 'trash-2')
-        ==
-      ==
-    ==
-  ==
-::
-++  scan-status-ui
-  |=  [scan=?(%active %paused %none) progress=(unit scan-progress)]
-  ^-  manx
-  ?-    scan
-      %active
-    =/  border-color=tape  "rgba(100, 150, 255, 0.4)"
-    =/  bg-color=tape  "rgba(100, 150, 255, 0.1)"
-    ;div#scan-status.p3.b2.br2(style "display: flex; align-items: center; justify-content: space-between; gap: 12px; border: 2px solid {border-color}; background: {bg-color};")
-      ;div(style "display: flex; align-items: center; gap: 12px; flex: 1;")
-        ;div(style "width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; animation: spin 1s linear infinite;")
-          ;+  (make:fi 'loader')
-        ==
-        ;div(style "display: flex; flex-direction: column; gap: 4px;")
-          ;+  ?~  progress
-                ;span.f2.bold: Scanning...
-              ;span.f2.bold: {?:(=('recv' phase.u.progress) "Receiving" "Change")}
-          ;+  ?~  progress
-                ;span;
-              ;span.f3.s-1: Index: {(scow %ud idx.u.progress)} • Gap: {(scow %ud gap.u.progress)}/20
-        ==
-      ==
-      ;div(style "display: flex; gap: 4px;")
-        ;button.p2.b1.br1.hover.pointer
-          =title  "Pause full scan"
-          =onclick  "pauseScan()"
-          =style  "background: rgba(255, 180, 50, 0.2); border: 1px solid rgba(255, 180, 50, 0.4); color: #ffb432; display: flex; align-items: center; width: 32px; height: 32px; justify-content: center; outline: none;"
-          ;div(style "width: 16px; height: 16px; display: flex; align-items: center; justify-content: center;")
-            ;+  (make:fi 'pause')
-          ==
-        ==
-        ;button.p2.b1.br1.hover.pointer
-          =title  "Cancel full scan"
-          =onclick  "cancelScan()"
-          =style  "background: rgba(255, 80, 80, 0.2); border: 1px solid rgba(255, 80, 80, 0.4); color: #ff5050; display: flex; align-items: center; width: 32px; height: 32px; justify-content: center; outline: none;"
-          ;div(style "width: 16px; height: 16px; display: flex; align-items: center; justify-content: center;")
-            ;+  (make:fi 'x-circle')
-          ==
-        ==
-      ==
-    ==
-  ::
-      %paused
-    =/  border-color=tape  "rgba(150, 150, 150, 0.4)"
-    =/  bg-color=tape  "rgba(150, 150, 150, 0.1)"
-    ;div#scan-status.p3.b2.br2(style "display: flex; align-items: center; justify-content: space-between; gap: 12px; border: 2px solid {border-color}; background: {bg-color};")
-      ;div(style "display: flex; align-items: center; gap: 12px; flex: 1;")
-        ;div(style "width: 20px; height: 20px; display: flex; align-items: center; justify-content: center;")
-          ;+  (make:fi 'pause-circle')
-        ==
-        ;div(style "display: flex; flex-direction: column; gap: 4px;")
-          ;+  ?~  progress
-                ;span.f2.bold: Scan Paused
-              ;span.f2.bold: Paused — {?:(=('recv' phase.u.progress) "Receiving" "Change")}
-          ;+  ?~  progress
-                ;span;
-              ;span.f3.s-1: Index: {(scow %ud idx.u.progress)} • Gap: {(scow %ud gap.u.progress)}/20
-        ==
-      ==
-      ;div(style "display: flex; gap: 4px;")
-        ;button.p2.b1.br1.hover.pointer
-          =title  "Resume full scan"
-          =onclick  "resumeScan()"
-          =style  "background: rgba(50, 200, 100, 0.2); border: 1px solid rgba(50, 200, 100, 0.4); color: #32c864; display: flex; align-items: center; width: 32px; height: 32px; justify-content: center; outline: none;"
-          ;div(style "width: 16px; height: 16px; display: flex; align-items: center; justify-content: center;")
-            ;+  (make:fi 'play')
-          ==
-        ==
-        ;button.p2.b1.br1.hover.pointer
-          =title  "Cancel full scan"
-          =onclick  "cancelScan()"
-          =style  "background: rgba(255, 80, 80, 0.2); border: 1px solid rgba(255, 80, 80, 0.4); color: #ff5050; display: flex; align-items: center; width: 32px; height: 32px; justify-content: center; outline: none;"
-          ;div(style "width: 16px; height: 16px; display: flex; align-items: center; justify-content: center;")
-            ;+  (make:fi 'x-circle')
-          ==
-        ==
-      ==
-    ==
-  ::
-      %none
-    ;div#scan-status.p3.b2.br2.hover.pointer
-      =onclick  "fullScan()"
-      =style  "display: flex; align-items: center; justify-content: center; gap: 8px; border: 2px solid var(--b3); background: var(--b2);"
-      ;div(style "font-size: 24px; color: var(--f-3);"): ↻
-      ;span.f2.bold.f-3: Full Scan
-    ==
-  ==
-::
-++  addresses-fragment
-  |=  [acct=account-data addrs=(list address-data) now=@da scan=?(%active %paused %none) progress=(unit scan-progress) rfsh=(set (pair ?(%recv %chng) @ud))]
-  ^-  manx
-  =/  recv=(list address-data)  (addrs-by-chain addrs %recv)
-  =/  chng=(list address-data)  (addrs-by-chain addrs %chng)
-  ;div.fc(style "flex: 1; min-height: 0;")
-    ;div.fc.g2(style "flex-shrink: 0;")
-      ;+  (scan-status-ui scan progress)
-      ;div(style "display: flex; border-bottom: 1px solid var(--b3);")
-        ;button.tab-btn(data-tab "receiving", onclick "showTab('receiving')", style "flex: 1; padding: 8px 16px; background: transparent; border: none; border-bottom: 2px solid var(--f1); color: var(--f1); font-weight: bold; cursor: pointer; outline: none;")
-          ; Receiving ({(scow %ud (lent recv))})
-        ==
-        ;button.tab-btn(data-tab "change", onclick "showTab('change')", style "flex: 1; padding: 8px 16px; background: transparent; border: none; border-bottom: 2px solid transparent; color: var(--f3); cursor: pointer; outline: none;")
-          ; Change ({(scow %ud (lent chng))})
-        ==
-      ==
-      ;div#receiving-derive(style "padding-top: 8px;")
-        ;+  (derive-button "receiving" recv)
-      ==
-      ;div#change-derive(style "display: none; padding-top: 8px;")
-        ;+  (derive-button "change" chng)
-      ==
-    ==
-    ;div.fc.g2(style "flex: 1; min-height: 0; overflow-y: auto; padding-top: 8px;")
-      ;div#receiving-addresses
-        ;+  (address-list acct %recv recv now rfsh)
-      ==
-      ;div#change-addresses(style "display: none;")
-        ;+  (address-list acct %chng chng now rfsh)
-      ==
-    ==
-  ==
-::
-++  detail-page
-  |=  [acct=account-data addrs=(list address-data) now=@da scan=?(%active %paused %none) progress=(unit scan-progress) rfsh=(set (pair ?(%recv %chng) @ud))]
-  ^-  manx
-  ;html
-    ;head
-      ;title: {(trip name.acct)}
-      ;meta(charset "utf-8");
-      ;meta(name "viewport", content "width=device-width, initial-scale=1");
-      ;+  feather:feather
-      ;script(src "https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js");
-      ;style
-        ;+  ;/  style-text
-      ==
-    ==
-    ;body
-      ;input(type "hidden", id "wallet-fp", value (hexn:http-utils wallet.acct));
-      ;div(style "min-width: 650px; height: 100%;")
-        ;div#account-page.fc.g3.p5.ma.mw-page(style "height: 100%;")
-          ;div(style "flex-shrink: 0; display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;")
-            ;a.hover.pointer(id "back-link", href "#", onclick "goBack(); return false;", style "color: var(--f3); text-decoration: none;"): ← Back to Wallet
-          ==
-          ;div.p4.b1.br2(style "flex-shrink: 0; position: relative;")
-            ;button#empty-toggle.hover.pointer
-              =onclick  "toggleEmptyAddresses()"
-              =title  "Hide addresses without transactions"
-              =style  "position: absolute; top: 16px; right: 16px; background: transparent; border: 1px solid var(--b3); color: var(--f3); display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 4px; cursor: pointer; outline: none;"
-              ;div#eye-icon(style "width: 16px; height: 16px; display: flex; align-items: center; justify-content: center;")
-                ;+  (make:fi 'eye')
-              ==
-            ==
-            ;h1.s2.bold.mb2: {(trip name.acct)}
-            ;div(style "display: flex; gap: 8px; align-items: center; flex-wrap: wrap;")
-              ;+  (purpose-badge purpose.acct)
-              ;code.mono.s-2.p1.b2.br1: {(format-account-path purpose.acct coin-type.acct account-idx.acct)}
-              ;+  (coin-type-badge coin-type.acct)
-            ==
-            ;+  (network-badge-ui network.acct q.coin-type.acct)
-          ==
-          ;div.p4.b2.br2(style "flex-shrink: 0;")
-            ;h2.s1.bold.mb2: Account Summary
-            ;+  (account-summary-ui addrs)
-            ;div(style "display: flex; gap: 8px; margin-top: 12px; justify-content: center;")
-              ;a.p2.b1.br2.hover.pointer
-                =href  "#"
-                =onclick  "alert('Send page coming soon'); return false;"
-                =style  "display: flex; align-items: center; justify-content: center; gap: 6px; background: rgba(100, 150, 255, 0.15); border: 1px solid rgba(100, 150, 255, 0.4); color: var(--f3); text-decoration: none; outline: none; white-space: nowrap;"
-                ;div(style "width: 16px; height: 16px; display: flex; align-items: center; justify-content: center;")
-                  ;+  (make:fi 'arrow-up')
-                ==
-                ;span.f2.bold: Send
-              ==
-              ;button.p2.b1.br2.hover.pointer
-                =onclick  "showReceiveModal()"
-                =style  "display: flex; align-items: center; justify-content: center; gap: 6px; background: rgba(50, 200, 100, 0.15); border: 1px solid rgba(50, 200, 100, 0.4); color: var(--f3); outline: none; white-space: nowrap;"
-                ;div(style "width: 16px; height: 16px; display: flex; align-items: center; justify-content: center;")
-                  ;+  (make:fi 'arrow-down')
-                ==
-                ;span.f2.bold: Receive
-              ==
-            ==
-          ==
-          ;+  (receive-modal addrs)
-          ;div#live-content.fc.g3(style "flex: 1; min-height: 0;")
-            ;+  (addresses-fragment acct addrs now scan progress rfsh)
-          ==
-        ==
-      ==
-      ;script
-        ;+  ;/  script-text
-      ==
-    ==
-  ==
-::
-++  style-text
-  ^-  tape
-  """
-  html, body \{
-    height: 100vh !important;
-    overflow: hidden !important;
-    margin: 0 !important;
-  }
-  @keyframes spin \{
-    from \{ transform: rotate(0deg); }
-    to \{ transform: rotate(360deg); }
-  }
-  #account-page.hide-empty .empty-address \{
-    display: none !important;
-  }
-  """
-::
-++  script-text
-  ^-  tape
-  """
-  var path = window.location.pathname;
-  var m = path.match(/^(\\/\\w+)\\/(?:api\\/file|ball)\\/(.*?)\\/page\\.html/);
-  var API = m ? m[1] + '/api' : '/grubbery/api';
-  var acctBase = m ? m[2] : '';
-  var activeTab = 'receiving';
-
-  function goBack() \{
-    var walletFp = document.getElementById('wallet-fp').value;
-    var parts = path.split('/');
-    var base = parts.slice(0, parts.indexOf('wallet.wallet_app') + 1).join('/');
-    window.location.href = base + '/wallets/' + walletFp + '.wallet_wallet/page.html';
-  }
-
-  function showReceiveModal() \{
-    document.getElementById('receive-modal').style.display = 'flex';
-    var qrContainer = document.getElementById('receive-qr');
-    if (qrContainer) \{
-      var address = qrContainer.getAttribute('data-address');
-      qrContainer.innerHTML = '';
-      new QRCode(qrContainer, \{text: address, width: 200, height: 200});
-    }
-  }
-
-  function copyReceiveAddr() \{
-    var el = document.getElementById('receive-addr');
-    if (el) navigator.clipboard.writeText(el.textContent.trim());
-  }
-
-  function showNetworkModal() \{
-    document.getElementById('network-modal').style.display = 'flex';
-  }
-
-  function hideModal(id) \{
-    document.getElementById(id).style.display = 'none';
-  }
-
-  function setNetwork(network) \{
-    var url = API + '/poke/' + acctBase + '/main.sig?mark=json';
-    fetch(url, \{
-      method: 'POST',
-      headers: \{'Content-Type': 'application/json'},
-      body: JSON.stringify(\{action: 'set-network', network: network})
-    }).then(function() \{
-      hideModal('network-modal');
-    }).catch(function(e) \{ console.error('set-network failed', e) });
-  }
-
-  function deriveNext(chain) \{
-    var url = API + '/poke/' + acctBase + '/main.sig?mark=json';
-    fetch(url, \{
-      method: 'POST',
-      headers: \{'Content-Type': 'application/json'},
-      body: JSON.stringify(\{action: 'derive-next', chain: chain})
-    }).then(function(r) \{
-      if (!r.ok) return r.text().then(function(t) \{ console.error('derive-next error', t) });
-    }).catch(function(e) \{ console.error('derive-next failed', e) });
-  }
-
-  function deleteAddress(chain, idx) \{
-    if (!confirm('Remove address ' + chain + '-' + idx + '?')) return;
-    var url = API + '/poke/' + acctBase + '/main.sig?mark=json';
-    fetch(url, \{
-      method: 'POST',
-      headers: \{'Content-Type': 'application/json'},
-      body: JSON.stringify(\{action: 'delete-address', chain: chain, index: Number(idx)})
-    }).catch(function(e) \{ console.error('delete failed', e) });
-  }
-
-  function refreshAddress(chain, idx) \{
-    var chainDir = chain === 'recv' ? 'receiving' : 'change';
-    var url = API + '/poke/' + acctBase + '/addresses/' + chainDir + '/' + idx + '.wallet_address/data.wallet_address?mark=json';
-    fetch(url, \{
-      method: 'POST',
-      headers: \{'Content-Type': 'application/json'},
-      body: JSON.stringify(\{action: 'refresh'})
-    }).catch(function(e) \{ console.error('refresh failed', e) });
-  }
-
-  function cancelRefresh(chain, idx) \{
-    var chainDir = chain === 'recv' ? 'receiving' : 'change';
-    var url = API + '/poke/' + acctBase + '/addresses/' + chainDir + '/' + idx + '.wallet_address/data.wallet_address?mark=json';
-    fetch(url, \{
-      method: 'POST',
-      headers: \{'Content-Type': 'application/json'},
-      body: JSON.stringify(\{action: 'cancel'})
-    }).catch(function(e) \{ console.error('cancel failed', e) });
-  }
-
-  function fullScan() \{
-    var url = API + '/poke/' + acctBase + '/main.sig?mark=json';
-    fetch(url, \{
-      method: 'POST',
-      headers: \{'Content-Type': 'application/json'},
-      body: JSON.stringify(\{action: 'full-scan'})
-    }).catch(function(e) \{ console.error('scan failed', e) });
-  }
-
-  function pauseScan() \{
-    var url = API + '/poke/' + acctBase + '/main.sig?mark=json';
-    fetch(url, \{
-      method: 'POST',
-      headers: \{'Content-Type': 'application/json'},
-      body: JSON.stringify(\{action: 'pause-scan'})
-    }).catch(function(e) \{ console.error('pause-scan failed', e) });
-  }
-
-  function resumeScan() \{
-    var url = API + '/poke/' + acctBase + '/main.sig?mark=json';
-    fetch(url, \{
-      method: 'POST',
-      headers: \{'Content-Type': 'application/json'},
-      body: JSON.stringify(\{action: 'resume-scan'})
-    }).catch(function(e) \{ console.error('resume-scan failed', e) });
-  }
-
-  function cancelScan() \{
-    var url = API + '/poke/' + acctBase + '/main.sig?mark=json';
-    fetch(url, \{
-      method: 'POST',
-      headers: \{'Content-Type': 'application/json'},
-      body: JSON.stringify(\{action: 'cancel-scan'})
-    }).catch(function(e) \{ console.error('cancel-scan failed', e) });
-  }
-
-  function toggleEmptyAddresses() \{
-    var page = document.getElementById('account-page');
-    var button = document.getElementById('empty-toggle');
-    var iconContainer = document.getElementById('eye-icon');
-    var isHiding = page.classList.contains('hide-empty');
-    if (isHiding) \{
-      page.classList.remove('hide-empty');
-      button.setAttribute('title', 'Hide addresses without transactions');
-      iconContainer.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>';
-    } else \{
-      page.classList.add('hide-empty');
-      button.setAttribute('title', 'Show addresses without transactions');
-      iconContainer.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>';
-    }
-  }
-
-  function copyAddr(btn) \{
-    navigator.clipboard.writeText(btn.dataset.addr);
-    var ci = btn.querySelector('.copy-icon');
-    var ki = btn.querySelector('.check-icon');
-    if (ci) ci.style.display = 'none';
-    if (ki) ki.style.display = 'flex';
-    setTimeout(function() \{
-      if (ci) ci.style.display = 'flex';
-      if (ki) ki.style.display = 'none';
-    }, 1500);
-  }
-
-  function showTab(tab) \{
-    activeTab = tab;
-    applyTab();
-  }
-
-  function applyTab() \{
-    var r = document.getElementById('receiving-addresses');
-    var c = document.getElementById('change-addresses');
-    var rd = document.getElementById('receiving-derive');
-    var cd = document.getElementById('change-derive');
-    if (r) r.style.display = activeTab === 'receiving' ? '' : 'none';
-    if (c) c.style.display = activeTab === 'change' ? '' : 'none';
-    if (rd) rd.style.display = activeTab === 'receiving' ? '' : 'none';
-    if (cd) cd.style.display = activeTab === 'change' ? '' : 'none';
-    document.querySelectorAll('.tab-btn').forEach(function(btn) \{
-      var active = btn.dataset.tab === activeTab;
-      btn.style.borderBottomColor = active ? 'var(--f1)' : 'transparent';
-      btn.style.color = active ? 'var(--f1)' : 'var(--f3)';
-      btn.style.fontWeight = active ? 'bold' : 'normal';
-    });
-  }
-
-  var SSE = API + '/keep/' + acctBase + '/ui/sse?mark=txt';
-  var sseController = null;
-  var sseReader = null;
-
-  async function connectSSE() \{
-    if (sseReader) try \{ sseReader.cancel(); } catch(e) \{}
-    if (sseController) sseController.abort();
-    sseController = new AbortController();
-    try \{
-      var r = await fetch(SSE, \{
-        headers: \{Accept: 'text/event-stream'},
-        signal: sseController.signal
-      });
-      sseReader = r.body.getReader();
-      var dec = new TextDecoder();
-      var buf = '';
-      while (true) \{
-        var chunk = await sseReader.read();
-        if (chunk.done) break;
-        buf += dec.decode(chunk.value, \{stream: true});
-        var evts = buf.split('\\n\\n');
-        buf = evts.pop();
-        for (var i = 0; i < evts.length; i++) \{
-          if (!evts[i].trim()) continue;
-          var ev = '', data = [], lines = evts[i].split('\\n');
-          for (var j = 0; j < lines.length; j++) \{
-            if (lines[j].indexOf('event: ') === 0) ev = lines[j].slice(7);
-            else if (lines[j].indexOf('data: ') === 0) data.push(lines[j].slice(6));
-          }
-          if (!ev) continue;
-          var sp = ev.indexOf(' ');
-          if (sp < 0) continue;
-          var act = ev.slice(0, sp);
-          var name = ev.slice(sp + 2);
-          console.log('[SSE]', act, name, data.length + ' lines');
-          if ((act === 'upd' || act === 'old' || act === 'new') && data.length) \{
-            var tmp = document.createElement('div');
-            tmp.innerHTML = data.join('\\n');
-            var el = tmp.firstElementChild;
-            if (el && el.id) \{
-              var existing = document.getElementById(el.id);
-              if (existing) \{
-                existing.replaceWith(el);
-              } else \{
-                var container = null;
-                if (el.id.indexOf('addr-recv-') === 0) container = document.getElementById('addr-list-recv');
-                else if (el.id.indexOf('addr-chng-') === 0) container = document.getElementById('addr-list-chng');
-                if (container) \{
-                  var emptyId = el.id.indexOf('addr-recv-') === 0 ? 'empty-recv' : 'empty-chng';
-                  var empty = document.getElementById(emptyId);
-                  if (empty) empty.remove();
-                  var newIdx = parseInt(el.id.split('-').pop(), 10);
-                  var inserted = false;
-                  var children = container.children;
-                  for (var k = 0; k < children.length; k++) \{
-                    var cIdx = parseInt(children[k].id.split('-').pop(), 10);
-                    if (!isNaN(cIdx) && cIdx < newIdx) \{
-                      container.insertBefore(el, children[k]);
-                      inserted = true;
-                      break;
-                    }
-                  }
-                  if (!inserted) container.appendChild(el);
-                }
-              }
-            }
-          } else if (act === 'del') \{
-            var id = name.replace('.html', '');
-            var el = document.getElementById(id);
-            if (!el) continue;
-            var container = el.parentElement;
-            el.remove();
-            if (container && container.children.length === 0) \{
-              var tag = container.id === 'addr-list-recv' ? 'recv' : 'chng';
-              container.innerHTML = '<div class="p4 b1 br2 tc" id="empty-' + tag + '"><div class="s0 f2 mb2">No addresses yet</div><div class="f3 s-1">Click above to derive your first address</div></div>';
-            }
-          }
-        }
-      }
-    } catch (e) \{
-      if (e.name !== 'AbortError') \{
-        setTimeout(connectSSE, 2000);
-      }
-    }
-  }
-  window.addEventListener('beforeunload', function() \{
-    if (sseReader) try \{ sseReader.cancel(); } catch(e) \{}
-    if (sseController) sseController.abort();
-  });
-  connectSSE();
-  """
 --

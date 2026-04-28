@@ -140,22 +140,16 @@
               "m/{(scow %ud purpose)}'/{(scow %ud coin-type)}'/{(scow %ud account-idx)}'"
             =/  derived  (derive-path:master pax)
             =/  xprv=@t  (crip (prv-extended:derived (to-bip-network:wt network)))
-            ::  create account data with no addresses
+            ::  create account data with empty inline addresses
             =/  acct=account-data
-              [account-name fingerprint.wal script-type network [%.y purpose] [%.y coin-type] [%.y account-idx] xprv 0 0]
+              [account-name fingerprint.wal script-type network [%.y purpose] [%.y coin-type] [%.y account-idx] xprv]
             =/  acct-pubkey=@ux  public-key:derived
             =/  acct-key=@ta  (crip (hexn:http-utils acct-pubkey))
             =/  acct-dir=@ta  (cat 3 acct-key '.wallet_account')
             =/  acct-lump=lump:tarball
               :+  ~  `[/wallet %account]
               (~(put by *(map @ta content:tarball)) %'data.wallet_account' [~ [/wallet %account] !>(acct)])
-            =/  addrs-dir=(map @ta ball:tarball)
-              %-  ~(gas by *(map @ta ball:tarball))
-              :~  ['receiving' [~ ~]]
-                  ['change' [~ ~]]
-              ==
-            =/  acct-ball=ball:tarball
-              [`acct-lump (~(put by *(map @ta ball:tarball)) %addresses [~ addrs-dir])]
+            =/  acct-ball=ball:tarball  [`acct-lump ~]
             ;<  err=(unit tang)  bind:m
               (make-soft:io [%| 2 %| (snoc /accounts acct-dir)] &+[*sand:nexus *gain:nexus acct-ball])
 
@@ -482,7 +476,7 @@
   =/  acct-pubkey=@ux  public-key:acct-key
   =/  key-hex=tape  (hexn:http-utils acct-pubkey)
   =/  detail-url=tape
-    "/grubbery/api/file/wallet.wallet_app/accounts/{key-hex}.wallet_account/page.html"
+    "/groundwire/wallet/a/{key-hex}"
   =/  account-path-str=tape
     (format-account-path purpose.acct coin-type.acct account-idx.acct)
   ;div.p3.b1.br2.hover(style "display: flex; justify-content: space-between; align-items: center; gap: 12px;")
@@ -585,7 +579,7 @@
   |=  [wal=wallet-data accts=(list account-data) err=manx load=manx]
   ^-  manx
   =/  back-url=tape
-    "/grubbery/api/file/wallet.wallet_app/page.html"
+    "/groundwire/wallet"
   ;html
     ;head
       ;title: {(trip name.wal)}

@@ -48,17 +48,20 @@
       value=@ud
       =tx-status
   ==
-::  per-address data: stored in each address nexus
+::  per-address data: stored in addr-mop files keyed by index
+::  path encodes network + chain: addresses/[network]/[recv|chng].wallet_addresses
 ::
 +$  address-data
   $:  addr=@t
-      chain=?(%recv %chng)
-      idx=@ud
-      network=?(%main %testnet3 %testnet4 %signet %regtest)
+      loading=?
+      last-error=(unit tang)
       info=(unit address-info)
       utxos=(list utxo)
-      txs=(list transaction)
   ==
+::  ordered map of index -> address-data (descending by index)
+::
++$  addr-mop  ((mop @ud address-data) gth)
++$  tx-map  (map @t transaction)
 ::  scan process state: tracks progress through gap-limit scan
 ::
 +$  scan-state
@@ -71,13 +74,11 @@
   $:  name=@t
       wallet=@ux
       =script-type
-      network=?(%main %testnet3 %testnet4 %signet %regtest)
+      active-network=?(%main %testnet3 %testnet4 %signet %regtest)
       purpose=seg
       coin-type=seg
       account-idx=seg
       xprv=@t
-      recv-count=@ud
-      chng-count=@ud
   ==
 ::  +to-bip-network: map expanded network to bip32/bech32 protocol network
 ::

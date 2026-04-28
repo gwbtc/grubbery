@@ -7,6 +7,9 @@
 /<  bip32         /lib/bip32.hoon
 /<  seed-phrases  /lib/seed-phrases.hoon
 /<  bech32        /lib/bech32.hoon
+/<  nex-server    /lib/nex/server.hoon
+/<  acct-ui       /lib/wallet-account-ui.hoon
+/<  drft          /lib/tx/draft.hoon
 =,  wt
 =<  ^-  nexus:nexus
     |%
@@ -18,6 +21,8 @@
           ?(~ [~ %0])
         =/  [wal-dir=@ta wal-ball=ball:tarball acct-dir=@ta acct-ball=ball:tarball]
           (make-dev-wallet 'Dev Wallet' [%t 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about'] %testnet4)
+        =/  [fau-wal-dir=@ta fau-wal-ball=ball:tarball fau-acct-dir=@ta fau-acct-ball=ball:tarball]
+          (make-dev-wallet 'Fauceted Wallet' [%t 'injury idea term fox crop movie type critic hello inquiry lottery agree'] %testnet3)
         %+  spin:loader  [sand gain ball]
         :~  (ver-row:loader 0)
             [%over %& [/ %'main.sig'] %.n [~ [/ %sig] !>(~)]]
@@ -26,8 +31,12 @@
             [%fall %| /accounts [~ ~] [~ ~] empty-dir:loader]
             [%fall %| /ui/sse [~ ~] [~ ~] empty-dir:loader]
             [%over %& [/ui/sse %'wallets.html'] %.n [~ [/ %manx] !>((wallet-list-html ~))]]
+            [%fall %& [/ui %'http.sig'] %.n [~ [/ %sig] !>(~)]]
+            [%fall %| /ui/requests [~ ~] [~ ~] empty-dir:loader]
             [%fall %| (snoc /wallets wal-dir) [~ ~] [~ ~] wal-ball]
             [%fall %| (snoc /accounts acct-dir) [~ ~] [~ ~] acct-ball]
+            [%fall %| (snoc /wallets fau-wal-dir) [~ ~] [~ ~] fau-wal-ball]
+            [%fall %| (snoc /accounts fau-acct-dir) [~ ~] [~ ~] fau-acct-ball]
         ==
       ==
     ::
@@ -138,6 +147,118 @@
         =/  wals=(list wallet-data)  (view-to-wallets upd)
         ;<  ~  bind:m  (replace:io !>((wallet-list-html wals)))
         $
+          ::  /ui/http.sig: bind /groundwire/wallet/ and dispatch requests
+          ::
+          [[%ui ~] %'http.sig']
+        ;<  ~  bind:m  (rise-wait:io prod "%wallet /ui/http: failed")
+        ;<  =bowl:nexus  bind:m  get-bowl:io
+        =/  prefix=path  /groundwire/wallet
+        ;<  ~  bind:m  (bind-http:nex-server [~ prefix])
+        (http-dispatch:nex-server %wallet)
+          ::  /ui/requests/*: individual HTTP request handlers
+          ::
+          [[%ui %requests ~] @]
+        ;<  ~  bind:m  (rise-wait:io prod "%wallet /ui/requests: failed")
+        =/  eyre-id=@ta  name.rail
+        ;<  [src=@p req=inbound-request:eyre]  bind:m  (get-state-as:io ,[src=@p inbound-request:eyre])
+        ;<  our=@p  bind:m  get-our:io
+        ?.  =(src our)
+          ;<  ~  bind:m  (send-simple:srv eyre-id [[403 ~] `(as-octs:mimes:html 'Forbidden')])
+          (pure:m ~)
+        =/  site=path  site:(parse-url:http-utils url.request.req)
+        =/  suffix=path
+          %+  skip  (slag (lent /groundwire/wallet) site)
+          |=(s=@ta =('' s))
+        ::  route: / → wallet list page
+        ?~  suffix
+          ;<  wals=(list wallet-data)  bind:m  load-wallets
+          ;<  ~  bind:m  (send-html eyre-id (wallet-page wals))
+          (pure:m ~)
+        ::  route: /w/<wallet-key>/ → wallet detail page
+        ?:  ?&  ?=([%w @ *] suffix)
+                =(~ t.t.suffix)
+            ==
+          =/  wal-key=@ta  (cat 3 i.t.suffix '.wallet_wallet')
+          ;<  ~  bind:m
+            (serve-page-html eyre-id (crip "../../wallets/{(trip wal-key)}/page.html"))
+          (pure:m ~)
+        ::  route: /a/<account-key>/ → account page
+        ?:  ?&  ?=([%a @ *] suffix)
+                =(~ t.t.suffix)
+            ==
+          =/  acct-key=@ta  (cat 3 i.t.suffix '.wallet_account')
+          ;<  acct=(unit account-data)  bind:m  (load-account acct-key)
+          ?~  acct
+            ;<  ~  bind:m  (send-simple:srv eyre-id [[404 ~] `(as-octs:mimes:html 'Account not found')])
+            (pure:m ~)
+          ;<  recv=addr-mop  bind:m  (load-addr-mop acct-key active-network.u.acct %recv)
+          ;<  chng=addr-mop  bind:m  (load-addr-mop acct-key active-network.u.acct %chng)
+          ;<  =bowl:nexus  bind:m  get-bowl:io
+          ;<  [scan=?(%active %paused %none) progress=(unit scan-progress:acct-ui)]  bind:m
+            (load-scan-state acct-key)
+          ;<  wal-name=@t  bind:m  (load-wallet-name wallet.u.acct)
+          ;<  ~  bind:m  (send-html eyre-id (detail-page:acct-ui u.acct recv chng now.bowl scan progress ~ wal-name))
+          (pure:m ~)
+        ::  route: /a/<account-key>/send → send page
+        ?:  ?=([%a @ %send ~] suffix)
+          =/  acct-key=@ta  (cat 3 i.t.suffix '.wallet_account')
+          ;<  acct=(unit account-data)  bind:m  (load-account acct-key)
+          ?~  acct
+            ;<  ~  bind:m  (send-simple:srv eyre-id [[404 ~] `(as-octs:mimes:html 'Account not found')])
+            (pure:m ~)
+          ;<  recv=addr-mop  bind:m  (load-addr-mop acct-key active-network.u.acct %recv)
+          ;<  chng=addr-mop  bind:m  (load-addr-mop acct-key active-network.u.acct %chng)
+          ;<  =bowl:nexus  bind:m  get-bowl:io
+          ;<  dr=(unit transaction:drft)  bind:m  (load-draft acct-key)
+          ;<  wal-name=@t  bind:m  (load-wallet-name wallet.u.acct)
+          ;<  ~  bind:m  (send-html eyre-id (send-page:acct-ui u.acct recv chng dr now.bowl wal-name))
+          (pure:m ~)
+        ::  route: /a/<account-key>/addr/<chain>/<idx> → address detail
+        ?:  ?=([%a @ %addr @ @ ~] suffix)
+          =/  acct-key=@ta  (cat 3 i.t.suffix '.wallet_account')
+          =/  chain=@ta  i.t.t.t.suffix
+          =/  idx-ta=@ta  i.t.t.t.t.suffix
+          ;<  acct=(unit account-data)  bind:m  (load-account acct-key)
+          ?~  acct
+            ;<  ~  bind:m  (send-simple:srv eyre-id [[404 ~] `(as-octs:mimes:html 'Account not found')])
+            (pure:m ~)
+          =/  chain-tag=?(%recv %chng)  ?:(?=(%recv chain) %recv %chng)
+          =/  idx=@ud  (fall (slaw %ud idx-ta) 0)
+          ;<  mop=addr-mop  bind:m  (load-addr-mop acct-key active-network.u.acct chain-tag)
+          =/  dat=(unit address-data)
+            (get:((on @ud address-data) gth) mop idx)
+          ?~  dat
+            ;<  ~  bind:m  (send-simple:srv eyre-id [[404 ~] `(as-octs:mimes:html 'Address not found')])
+            (pure:m ~)
+          =/  akh=tape  (trip i.t.suffix)
+          ;<  txs=tx-map  bind:m  (load-txs acct-key active-network.u.acct)
+          ;<  ~  bind:m  (send-html eyre-id (addr-detail-page idx u.dat chain-tag u.acct akh txs))
+          (pure:m ~)
+        ::  route: /a/<account-key>/tx/<txid> → transaction detail
+        ?:  ?=([%a @ %tx @ ~] suffix)
+          =/  acct-key=@ta  (cat 3 i.t.suffix '.wallet_account')
+          =/  txid=@ta  i.t.t.t.suffix
+          ;<  acct=(unit account-data)  bind:m  (load-account acct-key)
+          ?~  acct
+            ;<  ~  bind:m  (send-simple:srv eyre-id [[404 ~] `(as-octs:mimes:html 'Account not found')])
+            (pure:m ~)
+          ;<  txs=tx-map  bind:m  (load-txs acct-key active-network.u.acct)
+          =/  tx=(unit transaction)  (~(get by txs) txid)
+          ?~  tx
+            ;<  ~  bind:m  (send-simple:srv eyre-id [[404 ~] `(as-octs:mimes:html 'Transaction not found')])
+            (pure:m ~)
+          ;<  recv=addr-mop  bind:m  (load-addr-mop acct-key active-network.u.acct %recv)
+          ;<  chng=addr-mop  bind:m  (load-addr-mop acct-key active-network.u.acct %chng)
+          =/  hit=(unit [idx=@ud chain=?(%recv %chng) address-data])
+            (find-tx-addr u.tx recv chng)
+          =/  akh=tape  (trip i.t.suffix)
+          =/  [hit-idx=@ud hit-chain=?(%recv %chng) dat=address-data]
+            (fall hit [0 %recv *address-data])
+          ;<  ~  bind:m  (send-html eyre-id (tx-detail-page u.tx hit-idx hit-chain dat u.acct akh txs))
+          (pure:m ~)
+        ::  unknown route
+        ;<  ~  bind:m  (send-simple:srv eyre-id [[404 ~] `(as-octs:mimes:html 'Not found')])
+        (pure:m ~)
       ==
     ++  on-manu
       |=  =mana:nexus
@@ -181,6 +302,673 @@
 ::  wallet helpers
 ::
 |%
+::  HTTP response helpers — road from /ui/requests/* to /ui/http.sig
+::
+++  srv  ~(. res:nex-server [%| 1 %& ~ %'http.sig'])
+::
+++  send-html
+  |=  [eyre-id=@ta page=manx]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  =/  bod=@t  (crip (en-xml:html page))
+  =/  =octs  (as-octs:mimes:html bod)
+  (send-simple:srv eyre-id [[200 ~[['content-type' 'text/html']]] `octs])
+::  +serve-page-html: peek a page.html manx from the ball and serve it
+::
+++  serve-page-html
+  |=  [eyre-id=@ta road-cord=@t]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  =/  =road:tarball  (cord-to-road:tarball road-cord)
+  ;<  =seen:nexus  bind:m  (peek:io road `%mime)
+  ?.  ?=([%& %file *] seen)
+    (send-simple:srv eyre-id [[404 ~] `(as-octs:mimes:html 'Page not found')])
+  =/  =mime  !<(mime q.sage.p.seen)
+  (send-simple:srv eyre-id (mime-response:http-utils mime))
+::  +load-account: peek account data by key
+::
+++  load-account
+  |=  acct-key=@ta
+  =/  m  (fiber:fiber:nexus ,(unit account-data))
+  ^-  form:m
+  =/  =road:tarball
+    (cord-to-road:tarball (crip "../../accounts/{(trip acct-key)}/data.wallet_account"))
+  ;<  =seen:nexus  bind:m  (peek:io road ~)
+  ?.  ?=([%& %file *] seen)  (pure:m ~)
+  (pure:m (mole |.(!<(account-data q.sage.p.seen))))
+::
+++  load-wallets
+  =/  m  (fiber:fiber:nexus ,(list wallet-data))
+  ^-  form:m
+  ;<  =seen:nexus  bind:m  (peek:io (cord-to-road:tarball '../../wallets/') ~)
+  ?.  ?=(%& -.seen)  (pure:m ~)
+  (pure:m (view-to-wallets p.seen))
+::
+::  +load-addr-mop: read an addr-mop file from an account ball
+::
+++  load-addr-mop
+  |=  [acct-key=@ta network=?(%main %testnet3 %testnet4 %signet %regtest) chain=?(%recv %chng)]
+  =/  m  (fiber:fiber:nexus ,addr-mop)
+  ^-  form:m
+  =/  =road:tarball
+    (cord-to-road:tarball (crip "../../accounts/{(trip acct-key)}/addresses/{(trip ;;(@ta network))}/{(trip chain)}.wallet_addresses"))
+  ;<  exists=?  bind:m  (peek-exists:io road)
+  ?.  exists  (pure:m *addr-mop)
+  ;<  =seen:nexus  bind:m  (peek:io road ~)
+  ?.  ?=([%& %file *] seen)  (pure:m *addr-mop)
+  (pure:m (fall (mole |.(!<(addr-mop q.sage.p.seen))) *addr-mop))
+::  +load-txs: load tx-map from an account's network directory (app-level)
+::
+++  load-txs
+  |=  [acct-key=@ta network=?(%main %testnet3 %testnet4 %signet %regtest)]
+  =/  m  (fiber:fiber:nexus ,tx-map)
+  ^-  form:m
+  =/  =road:tarball
+    (cord-to-road:tarball (crip "../../accounts/{(trip acct-key)}/addresses/{(trip ;;(@ta network))}/txs.wallet_txs"))
+  ;<  exists=?  bind:m  (peek-exists:io road)
+  ?.  exists  (pure:m *tx-map)
+  ;<  =seen:nexus  bind:m  (peek:io road ~)
+  ?.  ?=([%& %file *] seen)  (pure:m *tx-map)
+  (pure:m (fall (mole |.(!<(tx-map q.sage.p.seen))) *tx-map))
+::  +load-scan-state: peek scan process file and paused marker
+::
+++  load-scan-state
+  |=  acct-key=@ta
+  =/  m  (fiber:fiber:nexus ,[?(%active %paused %none) (unit scan-progress:acct-ui)])
+  ^-  form:m
+  =/  scan-road=road:tarball
+    (cord-to-road:tarball (crip "../../accounts/{(trip acct-key)}/proc/scan.json"))
+  ;<  scan-exists=?  bind:m  (peek-exists:io scan-road)
+  ?.  scan-exists  (pure:m [%none ~])
+  ;<  =seen:nexus  bind:m  (peek:io scan-road ~)
+  ?.  ?=([%& %file *] seen)  (pure:m [%none ~])
+  =/  jon=json  (fall (mole |.(!<(json q.sage.p.seen))) *json)
+  =/  progress=scan-progress:acct-ui
+    ?.  ?=([%o *] jon)  ['' 0 0]
+    =/  phase=(unit json)  (~(get by p.jon) 'phase')
+    =/  idx-j=(unit json)  (~(get by p.jon) 'idx')
+    =/  gap-j=(unit json)  (~(get by p.jon) 'gap')
+    ?.  &(?=([~ %s *] phase) ?=([~ %n *] idx-j) ?=([~ %n *] gap-j))
+      ['' 0 0]
+    =/  idx=(unit @ud)  (rush p.u.idx-j dem)
+    =/  gap=(unit @ud)  (rush p.u.gap-j dem)
+    ?:  |(?=(~ idx) ?=(~ gap))  ['' 0 0]
+    [p.u.phase u.idx u.gap]
+  ::  check for paused marker
+  =/  pause-road=road:tarball
+    (cord-to-road:tarball (crip "../../accounts/{(trip acct-key)}/scan-paused.json"))
+  ;<  paused=?  bind:m  (peek-exists:io pause-road)
+  (pure:m [?:(paused %paused %active) `progress])
+::  +load-wallet-name: peek wallet name from wallet data
+::
+++  load-wallet-name
+  |=  wallet-fp=@ux
+  =/  m  (fiber:fiber:nexus ,@t)
+  ^-  form:m
+  =/  fp-hex=tape  (hexn:http-utils wallet-fp)
+  =/  =road:tarball
+    (cord-to-road:tarball (crip "../../wallets/{fp-hex}.wallet_wallet/main.wallet_wallet"))
+  ;<  exists=?  bind:m  (peek-exists:io road)
+  ?.  exists  (pure:m '')
+  ;<  =seen:nexus  bind:m  (peek:io road ~)
+  ?.  ?=([%& %file *] seen)  (pure:m '')
+  =/  wal=(unit wallet-data)  (mole |.(!<(wallet-data q.sage.p.seen)))
+  ?~  wal  (pure:m '')
+  (pure:m name.u.wal)
+::  +load-draft: peek draft transaction from account
+::
+++  load-draft
+  |=  acct-key=@ta
+  =/  m  (fiber:fiber:nexus ,(unit transaction:drft))
+  ^-  form:m
+  =/  =road:tarball
+    (cord-to-road:tarball (crip "../../accounts/{(trip acct-key)}/data.wallet_draft"))
+  ;<  exists=?  bind:m  (peek-exists:io road)
+  ?.  exists  (pure:m ~)
+  ;<  =seen:nexus  bind:m  (peek:io road ~)
+  ?.  ?=([%& %file *] seen)  (pure:m ~)
+  (pure:m (mole |.(!<(transaction:drft q.sage.p.seen))))
+::  +find-tx-addr: given a tx, find first address in mops that it touches
+::
+++  find-tx-addr
+  |=  [tx=transaction recv=addr-mop chng=addr-mop]
+  ^-  (unit [idx=@ud chain=?(%recv %chng) address-data])
+  =/  all-addrs=(set @t)
+    %-  ~(gas in *(set @t))
+    %+  weld
+      (turn outputs.tx |=(=tx-output address.tx-output))
+    %+  murn  inputs.tx
+    |=(=tx-input ?~(prevout.tx-input ~ `address.u.prevout.tx-input))
+  =/  recv-list=(list [@ud address-data])
+    (flop (tap:((on @ud address-data) gth) recv))
+  =/  res=(unit [idx=@ud chain=?(%recv %chng) address-data])
+    |-
+    ?~  recv-list  ~
+    =/  [idx=@ud a=address-data]  i.recv-list
+    ?:  (~(has in all-addrs) addr.a)  `[idx %recv a]
+    $(recv-list t.recv-list)
+  ?^  res  res
+  =/  chng-list=(list [@ud address-data])
+    (flop (tap:((on @ud address-data) gth) chng))
+  |-
+  ?~  chng-list  ~
+  =/  [idx=@ud a=address-data]  i.chng-list
+  ?:  (~(has in all-addrs) addr.a)  `[idx %chng a]
+  $(chng-list t.chng-list)
+::
+++  format-sats
+  |=  n=@ud
+  ^-  tape
+  =/  digits=tape  (a-co:co n)
+  =/  len=@ud  (lent digits)
+  ?:  (lte len 3)  digits
+  =/  rev=tape  (flop digits)
+  =/  out=tape  ~
+  =/  i=@ud  0
+  |-
+  ?~  rev  out
+  =?  out  &((gth i 0) =(0 (mod i 3)))
+    [',' out]
+  $(rev t.rev, out [i.rev out], i +(i))
+::
+++  truncate-txid
+  |=  txid=@t
+  ^-  tape
+  =/  full=tape  (trip txid)
+  =/  len=@ud  (lent full)
+  ?:  (lte len 16)  full
+  :(weld (scag 8 full) "..." (slag (sub len 8) full))
+::
+++  mk-acct-base
+  |=  akh=tape
+  ^-  tape
+  "wallet.wallet_app/accounts/{akh}.wallet_account"
+::  +addr-detail-page: render address detail from inline data
+::
+++  addr-detail-page
+  |=  [idx=@ud dat=address-data chain-tag=?(%recv %chng) acct=account-data akh=tape txs=tx-map]
+  ^-  manx
+  =/  network  active-network.acct
+  =/  acct-base=tape  (mk-acct-base akh)
+  =/  addr-text=tape  (trip addr.dat)
+  =/  chain-label=tape
+    ?:(?=(%recv chain-tag) "Receiving" "Change")
+  =/  network-label=tape
+    ?-(network %main "Mainnet", %testnet3 "Testnet3", %testnet4 "Testnet4", %signet "Signet", %regtest "Regtest")
+  =/  addr-txs=(list transaction)
+    %+  murn  ~(val by txs)
+    |=  =transaction
+    =/  in-out=?
+      ?|  %+  lien  outputs.transaction
+          |=(=tx-output =(address.tx-output addr.dat))
+        ::
+          %+  lien  inputs.transaction
+          |=  =tx-input
+          ?~  prevout.tx-input  %.n
+          =(address.u.prevout.tx-input addr.dat)
+      ==
+    ?:(in-out `transaction ~)
+  ;html
+    ;head
+      ;title: Address {(scag 12 addr-text)}...
+      ;meta(charset "utf-8");
+      ;meta(name "viewport", content "width=device-width, initial-scale=1");
+      ;+  feather:feather
+      ;style
+        ;+  ;/  addr-style-text
+      ==
+    ==
+    ;body
+      ;div(style "min-width: 650px; height: 100%;")
+        ;div.fc.g3.p5.ma.mw-page(style "height: 100%; overflow: hidden;")
+          ::  back link
+          ;div(style "flex-shrink: 0;")
+            ;a.hover.pointer(id "back-link", href "#", onclick "goBack(); return false;", style "color: var(--f3); text-decoration: none;"): ← Back to Account
+          ==
+          ::  header
+          ;div.p4.b1.br2(style "flex-shrink: 0;")
+            ;div(style "display: flex; align-items: center; gap: 8px; margin-bottom: 8px;")
+              ;span.s-2.bold.f3(style "background: var(--b2); padding: 2px 8px; border-radius: 4px;"): {chain-label} #{(a-co:co idx)}
+              ;span.s-2.f3(style "background: var(--b2); padding: 2px 8px; border-radius: 4px;"): {network-label}
+            ==
+            ;div(style "display: flex; align-items: center; gap: 8px;")
+              ;code.mono.s-1(style "word-break: break-all; flex: 1;"): {addr-text}
+              ;button.p1.b0.br1.hover.pointer
+                =data-addr  addr-text
+                =onclick  "copyToClipboard(this.dataset.addr)"
+                =style  "background: transparent; border: 1px solid var(--b3); color: var(--f3); display: flex; align-items: center; width: 28px; height: 28px; justify-content: center; outline: none; flex-shrink: 0;"
+                ;div(style "width: 14px; height: 14px; display: flex; align-items: center; justify-content: center;")
+                  ;+  (make:fi 'copy')
+                ==
+              ==
+            ==
+          ==
+          ::  live content
+          ;+  (addr-live-content dat %.n akh addr-txs)
+        ==
+      ==
+      ;script
+        ;+  ;/  (addr-script-text acct-base (trip chain-tag) (scow %ud idx))
+      ==
+    ==
+  ==
+::  +addr-live-content: balance, UTXOs, and tx list for address page
+::
+++  addr-live-content
+  |=  [dat=address-data is-loading=? akh=tape addr-txs=(list transaction)]
+  ^-  manx
+  =/  balance=@ud
+    ?~  info.dat  0
+    (sub funded.u.info.dat spent.u.info.dat)
+  ;div#live-content.fc.g3(style "flex: 1; min-height: 0; overflow: hidden;")
+    ::  balance stats
+    ;div.p4.b2.br2(style "flex-shrink: 0; overflow: hidden;")
+      ;h2.s0.bold.mb2: Balance
+      ;div(style "display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px;")
+        ;div
+          ;div.f3.s-2: Balance
+          ;div.s0.bold.mono: {(format-sats balance)} sats
+        ==
+        ;div
+          ;div.f3.s-2: Funded
+          ;div.s-1.mono: {?~(info.dat "—" (format-sats funded.u.info.dat))}
+        ==
+        ;div
+          ;div.f3.s-2: Spent
+          ;div.s-1.mono: {?~(info.dat "—" (format-sats spent.u.info.dat))}
+        ==
+        ;div
+          ;div.f3.s-2: Transactions
+          ;div.s-1.mono: {?~(info.dat "—" (a-co:co tx-count.u.info.dat))}
+        ==
+      ==
+      ;div(style "display: flex; justify-content: space-between; align-items: center; margin-top: 12px;")
+        ;span.f3.s-2: {?~(info.dat "Never checked" "Last: {(scow %da last-check.u.info.dat)}")}
+        ;+  ?:  is-loading
+              ;div(style "display: flex; gap: 4px;")
+                ;div.p2.b1.br1(style "background: rgba(100, 150, 255, 0.2); border: 1px solid var(--b3); color: var(--f3); display: flex; align-items: center; height: 32px; padding: 0 8px; justify-content: center;")
+                  ;div(style "width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; animation: spin 1s linear infinite;")
+                    ;+  (make:fi 'loader')
+                  ==
+                ==
+              ==
+            ;button.p2.b1.br1.hover.pointer
+              =onclick  "doRefresh()"
+              =style  "border: 1px solid var(--b3); color: var(--f2); display: flex; align-items: center; gap: 6px; outline: none;"
+              ;div(style "width: 14px; height: 14px; display: flex; align-items: center; justify-content: center;")
+                ;+  (make:fi 'refresh-cw')
+              ==
+              ;span.s-2: Refresh
+            ==
+      ==
+    ==
+    ::  error banner
+    ;+  ?~  last-error.dat
+          ;span;
+        ;div.p3.br1.fc.g1(style "background: rgba(255, 80, 80, 0.15); border: 1px solid rgba(255, 80, 80, 0.3); color: #ff5050;")
+          ;span.s-1.bold: Refresh failed
+          ;*  %+  turn  u.last-error.dat
+              |=  =tank
+              ;pre.s-2.mono(style "margin: 0; white-space: pre-wrap; word-break: break-all;")
+                ; {~(ram re tank)}
+              ==
+        ==
+    ::  UTXOs
+    ;div.p4.b1.br2(style "flex: 1; min-height: 0; display: flex; flex-direction: column;")
+      ;h2.s0.bold.mb2(style "flex-shrink: 0;"): UTXOs ({(a-co:co (lent utxos.dat))})
+      ;+  ?:  =(~ utxos.dat)
+            ;div.p3.b2.br2.tc.f3.s-1: No unspent outputs
+          ;div.fc.g1(style "flex: 1; min-height: 0; overflow-y: auto;")
+            ;*  =/  akh  akh
+                %+  turn  utxos.dat
+                |=  =utxo
+                ^-  manx
+                ;div.p3.b2.br2(style "display: flex; justify-content: space-between; align-items: center;")
+                  ;div(style "min-width: 0; flex: 1;")
+                    ;div(style "display: flex; align-items: center; gap: 6px;")
+                      ;a.mono.s-2.f2(href "/groundwire/wallet/a/{akh}/tx/{(trip txid.utxo)}", style "white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--f2); text-decoration: none;"): {(truncate-txid txid.utxo)}:{(a-co:co vout.utxo)}
+                      ;+  ?-  -.tx-status.utxo
+                              %confirmed
+                            ;span.s-2(style "color: #10b981; font-size: 11px;"): ✓
+                              %unconfirmed
+                            ;span.s-2(style "color: #f59e0b; font-size: 11px;"): ○
+                          ==
+                    ==
+                  ==
+                  ;span.mono.s-1.bold: {(format-sats value.utxo)} sats
+                ==
+          ==
+    ==
+    ::  transactions
+    ;div.p4.b1.br2(style "flex: 1; min-height: 0; display: flex; flex-direction: column;")
+      ;h2.s0.bold.mb2(style "flex-shrink: 0;"): Transactions ({(a-co:co (lent addr-txs))})
+      ;+  ?:  =(~ addr-txs)
+            ;div.p3.b2.br2.tc.f3.s-1: No transactions
+          ;div.fc.g1(style "flex: 1; min-height: 0; overflow-y: auto;")
+            ;*  =/  akh  akh
+                %+  turn  addr-txs
+                |=  =transaction
+                ^-  manx
+                =/  is-incoming=?
+                  %+  lien  outputs.transaction
+                  |=(=tx-output =(address.tx-output addr.dat))
+                =/  is-outgoing=?
+                  %+  lien  inputs.transaction
+                  |=  =tx-input
+                  ?~  prevout.tx-input  %.n
+                  =(address.u.prevout.tx-input addr.dat)
+                =/  direction=tape
+                  ?:  &(is-incoming is-outgoing)  "↕ Self"
+                  ?:(is-incoming "↓ Recv" "↑ Send")
+                =/  dir-color=tape
+                  ?:  &(is-incoming is-outgoing)  "#888"
+                  ?:(is-incoming "#10b981" "#ef4444")
+                =/  recv-amt=@ud
+                  %+  roll  outputs.transaction
+                  |=  [=tx-output total=@ud]
+                  ?.  =(address.tx-output addr.dat)  total
+                  (add total value.tx-output)
+                =/  send-amt=@ud
+                  %+  roll  inputs.transaction
+                  |=  [=tx-input total=@ud]
+                  ?~  prevout.tx-input  total
+                  ?.  =(address.u.prevout.tx-input addr.dat)  total
+                  (add total value.u.prevout.tx-input)
+                =/  net-text=tape
+                  ?:  (gte recv-amt send-amt)
+                    "+{(format-sats (sub recv-amt send-amt))}"
+                  "-{(format-sats (sub send-amt recv-amt))}"
+                ;div.p3.b2.br2(style "display: flex; justify-content: space-between; align-items: center;")
+                  ;div(style "min-width: 0; flex: 1;")
+                    ;div(style "display: flex; align-items: center; gap: 8px;")
+                      ;span.s-1.bold(style "color: {dir-color};"): {direction}
+                      ;a.mono.s-2.f2(href "/groundwire/wallet/a/{akh}/tx/{(trip txid.transaction)}", style "white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--f2); text-decoration: none; display: flex; align-items: center; gap: 4px;")
+                        ;span(style "overflow: hidden; text-overflow: ellipsis;"): {(truncate-txid txid.transaction)}
+                        ;div(style "width: 12px; height: 12px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;")
+                          ;+  (make:fi 'external-link')
+                        ==
+                      ==
+                      ;+  ?-  -.tx-status.transaction
+                              %confirmed
+                            ;span.s-2(style "color: #10b981; font-size: 11px;"): ✓ block {(a-co:co block-height.tx-status.transaction)}
+                              %unconfirmed
+                            ;span.s-2(style "color: #f59e0b; font-size: 11px;"): ○ pending
+                          ==
+                    ==
+                    ;div.f3.s-2(style "display: flex; gap: 12px; margin-top: 2px;")
+                      ;span: {(a-co:co (lent inputs.transaction))} in → {(a-co:co (lent outputs.transaction))} out
+                      ;+  ?~  fee.transaction  ;span;
+                          ;span: fee: {(format-sats u.fee.transaction)}
+                    ==
+                  ==
+                  ;span.mono.s-1.bold(style "color: {dir-color}; white-space: nowrap;"): {net-text} sats
+                ==
+          ==
+    ==
+  ==
+::  +tx-detail-page: render transaction detail from inline data
+::
+++  tx-detail-page
+  |=  [tx=transaction addr-idx=@ud addr-chain=?(%recv %chng) dat=address-data acct=account-data akh=tape txs=tx-map]
+  ^-  manx
+  =/  network  active-network.acct
+  =/  txid-text=tape  (trip txid.tx)
+  =/  confirmed=?  ?=(%confirmed -.tx-status.tx)
+  =/  block-height=(unit @ud)
+    ?:(?=(%unconfirmed -.tx-status.tx) ~ `block-height.tx-status.tx)
+  =/  fee=@ud  (fall fee.tx 0)
+  =/  size=@ud  (fall size.tx 0)
+  =/  network-label=tape
+    ?-(network %main "Mainnet", %testnet3 "Testnet3", %testnet4 "Testnet4", %signet "Signet", %regtest "Regtest")
+  =/  status-color=tape  ?:(confirmed "rgba(50, 200, 100, 0.3)" "rgba(255, 180, 50, 0.3)")
+  =/  status-text=tape  ?:(confirmed "Confirmed" "Unconfirmed")
+  =/  indexed-outputs=(list [vout-index=@ud output=tx-output])
+    =/  idx=@ud  0
+    =/  outs=(list tx-output)  outputs.tx
+    |-  ^-  (list [vout-index=@ud output=tx-output])
+    ?~  outs  ~
+    [[idx i.outs] $(outs t.outs, idx +(idx))]
+  =/  utxo-set=(set [@t @ud])
+    %-  ~(gas in *(set [@t @ud]))
+    (turn utxos.dat |=(=utxo [txid.utxo vout.utxo]))
+  =/  known-txids=(set @t)  ~(key by txs)
+  ;html
+    ;head
+      ;title: Transaction: {(scag 12 txid-text)}...
+      ;meta(charset "utf-8");
+      ;meta(name "viewport", content "width=device-width, initial-scale=1");
+      ;+  feather:feather
+      ;style
+        ;+  ;/  addr-style-text
+      ==
+    ==
+    ;body
+      ;div(style "min-width: 650px; height: 100%;")
+        ;div.fc.g3.p5.ma.mw-page(style "height: 100%; overflow-y: auto;")
+          ;script
+            ;+  ;/  tx-script-text
+          ==
+          ;a.hover.pointer(id "back-link", href "#", onclick "goBackToAddr(); return false;", style "color: var(--f3); text-decoration: none;"): ← Back to Address
+          ;div(style "display: flex; align-items: center; gap: 8px;")
+            ;h1: Transaction Details
+            ;span.s-2.f3(style "background: var(--b2); padding: 2px 8px; border-radius: 4px;"): {network-label}
+          ==
+          ::  Transaction ID
+          ;div.p3.b2.br2
+            ;div.f3.s-2.pb2: Transaction ID
+            ;div(style "display: flex; align-items: center; gap: 8px;")
+              ;div.mono.f2(style "overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1;"): {txid-text}
+              ;button.p1.b0.br1.hover.pointer
+                =data-txid  txid-text
+                =onclick  "copyToClipboard(this.dataset.txid)"
+                =title  "Copy transaction ID"
+                =style  "background: transparent; border: 1px solid var(--b3); color: var(--f3); display: flex; align-items: center; width: 24px; height: 24px; justify-content: center; outline: none;"
+                ;div(style "width: 12px; height: 12px; display: flex; align-items: center; justify-content: center;")
+                  ;+  (make:fi 'copy')
+                ==
+              ==
+            ==
+          ==
+          ::  Transaction Info
+          ;div.p3.b2.br2
+            ;div.f3.s-2.pb2: Transaction Info
+            ;div(style "display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 16px;")
+              ;div
+                ;div.f3.s-1(style "opacity: 0.8; margin-bottom: 4px;"): Status
+                ;span.f3.s-2.p2.br1(style "background: {status-color}; display: inline-block;"): {status-text}
+              ==
+              ;div
+                ;div.f3.s-1(style "opacity: 0.8; margin-bottom: 4px;"): Block
+                ;+  ?~  block-height
+                      ;div.f3: Pending
+                    ;div.f3: {(a-co:co u.block-height)}
+              ==
+              ;div
+                ;div.f3.s-1(style "opacity: 0.8; margin-bottom: 4px;"): Fee
+                ;div.f3: {(format-sats fee)} sats
+              ==
+              ;div
+                ;div.f3.s-1(style "opacity: 0.8; margin-bottom: 4px;"): Size
+                ;div.f3: {(a-co:co size)} bytes
+              ==
+            ==
+          ==
+          ::  Inputs
+          ;div.p3.b2.br2
+            ;div.f3.s-2.pb2: Inputs ({(a-co:co (lent inputs.tx))})
+            ;div(style "max-height: 400px; overflow-y: auto;")
+              ;div.fc.g2
+                ;*  =/  akh  akh
+                %+  turn  inputs.tx
+                    |=  =tx-input
+                    ^-  manx
+                    =/  in-txid=tape  (trip spent-txid.tx-input)
+                    =/  vout=@ud  spent-vout.tx-input
+                    ?~  prevout.tx-input
+                      ;div.p3.b1.br2(style "display: flex; justify-content: space-between; align-items: center;")
+                        ;span.f3(style "opacity: 0.5;"): [Prevout data not available]
+                      ==
+                    =/  value=@ud  value.u.prevout.tx-input
+                    =/  address=tape  (trip address.u.prevout.tx-input)
+                    =/  is-ours=?  =(address.u.prevout.tx-input addr.dat)
+                    ;div.p3.b1.br2(style "display: flex; justify-content: space-between; align-items: center; gap: 12px;")
+                      ;div(style "flex: 1; min-width: 0;")
+                        ;div(style "display: flex; align-items: center; gap: 8px; margin-bottom: 8px;")
+                          ;button.p1.b0.br1.hover.pointer
+                            =data-txid  in-txid
+                            =onclick  "copyToClipboard(this.dataset.txid)"
+                            =title  "Copy transaction ID"
+                            =style  "background: transparent; border: 1px solid var(--b3); color: var(--f3); display: flex; align-items: center; width: 24px; height: 24px; justify-content: center; outline: none; flex-shrink: 0;"
+                            ;div(style "width: 12px; height: 12px; display: flex; align-items: center; justify-content: center;")
+                              ;+  (make:fi 'copy')
+                            ==
+                          ==
+                          ;+  ?:  (~(has in known-txids) spent-txid.tx-input)
+                                ;a.mono.f2.s-1(href "/groundwire/wallet/a/{akh}/tx/{in-txid}", style "white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--f2); text-decoration: none; display: flex; align-items: center; gap: 4px; flex: 1; min-width: 0;")
+                                  ;span(style "overflow: hidden; text-overflow: ellipsis;"): {(truncate-txid (crip in-txid))}:{(a-co:co vout)}
+                                  ;div(style "width: 12px; height: 12px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;")
+                                    ;+  (make:fi 'external-link')
+                                  ==
+                                ==
+                              ;div.mono.f2.s-1(style "white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--f3); flex: 1; min-width: 0;"): {(truncate-txid (crip in-txid))}:{(a-co:co vout)}
+                        ==
+                        ;div(style "display: flex; align-items: center; gap: 8px;")
+                          ;button.p1.b0.br1.hover.pointer
+                            =data-addr  address
+                            =onclick  "copyToClipboard(this.dataset.addr)"
+                            =title  "Copy address"
+                            =style  "background: transparent; border: 1px solid var(--b3); color: var(--f3); display: flex; align-items: center; width: 24px; height: 24px; justify-content: center; outline: none; flex-shrink: 0;"
+                            ;div(style "width: 12px; height: 12px; display: flex; align-items: center; justify-content: center;")
+                              ;+  (make:fi 'copy')
+                            ==
+                          ==
+                          ;+  ?:  is-ours
+                                ;a.mono.f2.s-1(href "/groundwire/wallet/a/{akh}/addr/{(trip addr-chain)}/{(scow %ud addr-idx)}", style "white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #10b981; text-decoration: none; flex: 1; min-width: 0;"): {address}
+                              ;span.mono.f2.s-1(style "white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--f3); flex: 1; min-width: 0;"): {address}
+                        ==
+                      ==
+                      ;div.f3.s-2(style "white-space: nowrap; flex-shrink: 0;"): {(format-sats value)} sats
+                    ==
+              ==
+            ==
+          ==
+          ::  Outputs
+          ;div.p3.b2.br2
+            ;div.f3.s-2.pb2: Outputs ({(a-co:co (lent outputs.tx))})
+            ;div(style "max-height: 400px; overflow-y: auto;")
+              ;div.fc.g2
+                ;*  =/  akh  akh
+                %+  turn  indexed-outputs
+                    |=  [vout-index=@ud output=tx-output]
+                    ^-  manx
+                    =/  value=@ud  value.output
+                    =/  address=tape  (trip address.output)
+                    =/  is-ours=?  =(address.output addr.dat)
+                    =/  is-utxo=?
+                      (~(has in utxo-set) [txid.tx vout-index])
+                    =/  row-bg=tape
+                      ?:(is-utxo "background: rgba(255, 200, 50, 0.15);" "background: var(--b1);")
+                    ;div.p3.b1.br2(style "display: flex; justify-content: space-between; align-items: center; gap: 12px; {row-bg}")
+                      ;div(style "flex: 1; min-width: 0;")
+                        ;div(style "display: flex; align-items: center; gap: 8px;")
+                          ;button.p1.b0.br1.hover.pointer
+                            =data-addr  address
+                            =onclick  "copyToClipboard(this.dataset.addr)"
+                            =title  "Copy address"
+                            =style  "background: transparent; border: 1px solid var(--b3); color: var(--f3); display: flex; align-items: center; width: 24px; height: 24px; justify-content: center; outline: none; flex-shrink: 0;"
+                            ;div(style "width: 12px; height: 12px; display: flex; align-items: center; justify-content: center;")
+                              ;+  (make:fi 'copy')
+                            ==
+                          ==
+                          ;span.f3.s-2.mono(style "opacity: 0.8; white-space: nowrap; flex-shrink: 0;"): Output #{(a-co:co vout-index)}
+                          ;+  ?:  is-ours
+                                ;a.mono.f2.s-1(href "/groundwire/wallet/a/{akh}/addr/{(trip addr-chain)}/{(scow %ud addr-idx)}", style "white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #10b981; text-decoration: none; flex: 1; min-width: 0;"): {address}
+                              ;span.mono.f2.s-1(style "white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--f3); flex: 1; min-width: 0;"): {address}
+                        ==
+                      ==
+                      ;div(style "display: flex; align-items: center; gap: 8px; flex-shrink: 0;")
+                        ;+  ?:  is-utxo
+                              ;div(style "width: 14px; height: 14px; display: flex; align-items: center; justify-content: center;", title "UTXO")
+                                ;+  (make:fi 'star')
+                              ==
+                            ;div;
+                        ;div.f3.s-2(style "white-space: nowrap;"): {(format-sats value)} sats
+                      ==
+                    ==
+              ==
+            ==
+          ==
+        ==
+      ==
+    ==
+  ==
+::
+++  addr-style-text
+  ^-  tape
+  """
+  html, body \{
+    height: 100vh !important;
+    overflow: hidden !important;
+    margin: 0 !important;
+  }
+  @keyframes spin \{
+    from \{ transform: rotate(0deg); }
+    to \{ transform: rotate(360deg); }
+  }
+  """
+::
+++  tx-script-text
+  ^-  tape
+  """
+  var path = window.location.pathname;
+
+  function goBackToAddr() \{
+    var m = path.match(/^(\\/groundwire\\/wallet\\/a\\/[^/]+)/);
+    if (m) \{
+      window.location.href = m[1];
+    } else \{
+      history.back();
+    }
+  }
+
+  function copyToClipboard(text) \{
+    navigator.clipboard.writeText(text);
+  }
+  """
+::
+++  addr-script-text
+  |=  [acct-base=tape chain=tape idx=tape]
+  ^-  tape
+  """
+  var API = '/grubbery/api';
+  var acctBase = '{acct-base}';
+
+  function goBack() \{
+    var path = window.location.pathname;
+    var m = path.match(/^\\/groundwire\\/wallet\\/a\\/([^/]+)/);
+    if (m) \{
+      window.location.href = '/groundwire/wallet/a/' + m[1];
+    } else \{
+      history.back();
+    }
+  }
+
+  function copyToClipboard(text) \{
+    navigator.clipboard.writeText(text);
+  }
+
+  function doRefresh() \{
+    var url = API + '/poke/' + acctBase + '/main.sig?mark=json';
+    fetch(url, \{
+      method: 'POST',
+      headers: \{'Content-Type': 'application/json'},
+      body: JSON.stringify(\{action: 'refresh', chain: '{chain}', index: {idx}})
+    }).then(function(r) \{
+      if (!r.ok) return r.text().then(function(t) \{ console.error('refresh error', t) });
+    }).catch(function(e) \{ console.error('refresh failed', e) });
+  }
+  """
+::
 ++  seed-to-pubkey
   |=  =seed
   ^-  @ux
@@ -211,29 +999,33 @@
     (encode-pubkey:bech32 bip-net [33 public-key:(derive:(derive:derived 0) 0)])
   =/  apath=account  [[%.y 84] [%.y coin] [%.y 0]]
   =/  wal=wallet-data  [name seed fp (~(put by *(map account @ux)) apath apk)]
-  =/  acct=account-data  ['Default' fp %p2wpkh network [%.y 84] [%.y coin] [%.y 0] xprv ?~(addr 0 1) 0]
+  ::  build account data (no inline addresses)
+  =/  acct=account-data  ['Default' fp %p2wpkh network [%.y 84] [%.y coin] [%.y 0] xprv]
+  ::  build initial recv mop with first address
+  =/  init-addr=address-data
+    ?~  addr  ['' %.n ~ ~ ~]
+    [u.addr %.n ~ ~ ~]
+  =/  recv-mop=addr-mop
+    (put:((on @ud address-data) gth) *addr-mop 0 init-addr)
+  ::  build account ball with address mop files
   =/  wdir=@ta  (cat 3 (crip (hexn:http-utils fp)) '.wallet_wallet')
   =/  adir=@ta  (cat 3 (crip (hexn:http-utils apk)) '.wallet_account')
-  ::  build address data for first receiving address
-  =/  addr-dat=address-data
-    ?~  addr  ['' %recv 0 network ~ ~ ~]
-    [u.addr %recv 0 network ~ ~ ~]
-  =/  addr-lump=lump:tarball
-    :+  ~  `[/wallet %address]
-    (~(put by *(map @ta content:tarball)) %'data.wallet_address' [~ [/wallet %address] !>(addr-dat)])
-  =/  addr-ball=ball:tarball  [`addr-lump ~]
-  ::  account ball with addresses/receiving/ subdir containing 0.wallet_address
-  =/  recv-dir=(map @ta ball:tarball)
-    (~(put by *(map @ta ball:tarball)) '0.wallet_address' addr-ball)
-  =/  addrs-dir=(map @ta ball:tarball)
-    %-  ~(gas by *(map @ta ball:tarball))
-    :~  ['receiving' [~ recv-dir]]
-        ['change' [~ ~]]
-    ==
+  =/  net-dir=@ta  ;;(@ta network)
   =/  acct-lump=lump:tarball
     :+  ~  `[/wallet %account]
     (~(put by *(map @ta content:tarball)) %'data.wallet_account' [~ [/wallet %account] !>(acct)])
-  =/  acct-ball=ball:tarball  [`acct-lump (~(put by *(map @ta ball:tarball)) %addresses [~ addrs-dir])]
+  ::  build addresses/[network]/ ball with recv + chng mop files
+  =/  chain-lump=lump:tarball
+    :+  ~  ~
+    %-  ~(gas by *(map @ta content:tarball))
+    :~  ['recv.wallet_addresses' [~ [/wallet %addresses] !>(recv-mop)]]
+        ['chng.wallet_addresses' [~ [/wallet %addresses] !>(*addr-mop)]]
+        ['txs.wallet_txs' [~ [/wallet %txs] !>(*tx-map)]]
+    ==
+  =/  net-ball=ball:tarball  [`chain-lump ~]
+  =/  addr-dir=ball:tarball  [~ (~(put by *(map @ta ball:tarball)) net-dir net-ball)]
+  =/  acct-ball=ball:tarball
+    [`acct-lump (~(put by *(map @ta ball:tarball)) 'addresses' addr-dir)]
   :^  wdir
     :-  `[~ `[/wallet %wallet] (~(put by *(map @ta content:tarball)) %'main.wallet_wallet' [~ [/wallet %wallet] !>(wal)])]
     ~
@@ -430,7 +1222,7 @@
   ^-  manx
   =/  wallet-key=tape  (hexn:http-utils fingerprint.wal)
   =/  detail-url=tape
-    "/grubbery/api/file/wallet.wallet_app/wallets/{wallet-key}.wallet_wallet/page.html"
+    "/groundwire/wallet/w/{wallet-key}"
   ;div.p3.b1.br2.hover.pointer
     =onclick  "window.location.href='{detail-url}'"
     =style  "display: flex; justify-content: space-between; align-items: center; gap: 12px;"

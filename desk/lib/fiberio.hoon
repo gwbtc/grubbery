@@ -1088,6 +1088,12 @@
   (pure:m r.byk.bowl)
 ::  HTTP client (iris) helpers
 ::
+++  cancel-request
+  |=  =wire
+  =/  m  (fiber ,~)
+  ^-  form:m
+  (send-card %pass wire %arvo %i %cancel-request ~)
+::
 ++  send-request
   |=  =request:http
   =/  m  (fiber ,~)
