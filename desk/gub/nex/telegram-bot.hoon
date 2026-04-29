@@ -24,6 +24,8 @@
             [%fall %& [/ %'send.sig'] %.n [~ [/ %sig] !>(~)]]
             [%fall %& [/ %'poller.sig'] %.n [~ [/ %sig] !>(~)]]
             [%fall %| /messages [~ ~] [~ ~] empty-dir:loader]
+            [%fall %| /ui/sse [~ ~] [~ ~] empty-dir:loader]
+            [%over %& [/ui/sse %'data.html'] %.n [~ [/ %manx] !>((sse-data ~ ~))]]
             [%over %& [/ui %'chat.html'] %.n [~ [/ %manx] !>((chat-page "" *(map @t @t) *(list json)))]]
         ==
       ==
@@ -213,6 +215,21 @@
         =/  old-msgs=(list json)  (get-chat-msgs existing)
         ;<  ~  bind:m  (write-chat-file chat-id old-name (snoc old-msgs out-msg))
         $
+          ::  /ui/sse/data.html: SSE fragment with messages data
+          ::
+          [[%ui %sse ~] %'data.html']
+        ;<  ~  bind:m  (rise-wait:io prod "%telegram-bot sse: failed")
+        ;<  =bowl:nexus  bind:m  get-bowl:io
+        =/  ball-id=tape  (trip (snag 0 path.here.bowl))
+        ;<  init=view:nexus  bind:m
+          (keep:io /msgs (cord-to-road:tarball '../../messages/') ~)
+        =/  chat-data=[(map @t @t) (list json)]  (view-to-chat-data init)
+        ;<  ~  bind:m  (replace:io !>((sse-data -.chat-data +.chat-data)))
+        |-
+        ;<  upd=view:nexus  bind:m  (take-news:io /msgs)
+        =/  chat-data=[(map @t @t) (list json)]  (view-to-chat-data upd)
+        ;<  ~  bind:m  (replace:io !>((sse-data -.chat-data +.chat-data)))
+        $
           ::  /ui/chat.html: live chat view
           ::
           [[%ui ~] %'chat.html']
@@ -383,6 +400,18 @@
     p.u.v
   [(~(put by chats) cid name) (weld msgs file-msgs)]
 ::
+++  sse-data
+  |=  [chats=(map @t @t) messages=(list json)]
+  ^-  manx
+  =/  chats-json=tape
+    %-  trip
+    %-  en:json:html
+    %-  pairs:enjs:format
+    %+  turn  ~(tap by chats)
+    |=([id=@t name=@t] [id s+name])
+  =/  msgs-json=tape  (trip (en:json:html [%a messages]))
+  ;div(id "sse-data", data-chats chats-json, data-messages msgs-json);
+::
 ++  chat-page
   |=  [base=tape chats=(map @t @t) messages=(list json)]
   ^-  manx
@@ -485,6 +514,48 @@
             ::  chat management — create/delete message files directly
             "document.getElementById('add-chat-btn').onclick=async function()\{var id=document.getElementById('add-chat-id').value.trim();var name=document.getElementById('add-chat-name').value.trim()||id;if(!id)\{alert('Chat ID required');return}await fetch(API+'/file/'+BASE+'/messages/'+id+'.json?mark=json',\{method:'PUT',headers:\{'Content-Type':'application/json'},body:JSON.stringify(\{name:name,'chat-id':id,messages:[]})});location.reload()};"
             "document.getElementById('del-chat-btn').onclick=async function()\{if(curChat==='all')\{alert('Select a chat first');return}var el=document.querySelector('.chat-item.active');var name=el?el.textContent:curChat;if(!confirm('Delete chat \"'+name+'\" ('+curChat+')?'))return;await fetch(API+'/file/'+BASE+'/messages/'+curChat+'.json',\{method:'DELETE'});location.reload()};"
+            ::  SSE live updates
+            "var sseCtrl=null,sseRdr=null;"
+            "function initSidebar()\{var items=document.querySelectorAll('.chat-item');items.forEach(function(el)\{el.onclick=function()\{items.forEach(function(x)\{x.classList.remove('active')});el.classList.add('active');curChat=el.dataset.id;renderMsgs()}})};"
+            "async function connectSSE()\{"
+            "if(sseRdr)try\{sseRdr.cancel()}catch(e)\{}"
+            "if(sseCtrl)sseCtrl.abort();"
+            "sseCtrl=new AbortController();"
+            "try\{"
+            "var r=await fetch(API+'/keep/'+BASE+'/ui/sse?mark=txt',\{headers:\{Accept:'text/event-stream'},signal:sseCtrl.signal});"
+            "sseRdr=r.body.getReader();"
+            "var dec=new TextDecoder();var buf='';"
+            "while(true)\{"
+            "var chunk=await sseRdr.read();"
+            "if(chunk.done)break;"
+            "buf+=dec.decode(chunk.value,\{stream:true});"
+            "var evts=buf.split('\\n\\n');"
+            "buf=evts.pop();"
+            "for(var i=0;i<evts.length;i++)\{"
+            "var evt=evts[i];if(!evt.trim())continue;"
+            "var tmp=document.createElement('div');tmp.innerHTML=evt.replace(/^data:\\s*/gm,'').trim();"
+            "var d=tmp.querySelector('#sse-data');"
+            "if(!d)continue;"
+            "try\{"
+            "var newChats=JSON.parse(d.dataset.chats||'\{}');"
+            "var newMsgs=JSON.parse(d.dataset.messages||'[]');"
+            "allMsgs=newMsgs;"
+            "var cl=document.getElementById('chat-list');"
+            "var html='<div class=\"chat-item all\" data-id=\"all\">All chats</div>';"
+            "for(var cid in newChats)\{html+='<div class=\"chat-item\" data-id=\"'+esc(cid)+'\">'+esc(newChats[cid])+'</div>'}"
+            "cl.innerHTML=html;"
+            "initSidebar();"
+            "var prev=document.querySelector('.chat-item[data-id=\"'+curChat+'\"]');"
+            "if(prev)prev.classList.add('active');"
+            "else\{document.querySelector('.chat-item.all').classList.add('active');curChat='all'}"
+            "renderMsgs();"
+            "}catch(e)\{console.error('SSE parse error',e)}"
+            "}"
+            "}"
+            "}catch(e)\{if(e.name!=='AbortError')setTimeout(connectSSE,3000)}"
+            "}"
+            "window.addEventListener('beforeunload',function()\{if(sseRdr)try\{sseRdr.cancel()}catch(e)\{};if(sseCtrl)sseCtrl.abort()});"
+            "connectSSE();"
           ==
       ==
     ==

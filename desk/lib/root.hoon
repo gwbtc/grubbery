@@ -31,6 +31,7 @@
         ::  system internals — populated by app/grubbery.hoon before
         ::  on-load runs. Must be preserved or the framework breaks.
         [%fall %| /code [~ ~] [~ ~] [`[~ `[/ %code] ~] ~]]
+        [%fall %| /sys/bowl [~ ~] [~ ~] [`[~ `[/ %bowl] ~] ~]]
         [%fall %| /sys/clay [~ ~] [~ ~] empty-dir:loader]
         [%fall %| /sys/dill [~ ~] [~ ~] empty-dir:loader]
         [%fall %| /sys/jael [~ ~] [~ ~] empty-dir:loader]

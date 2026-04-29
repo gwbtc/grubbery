@@ -11,6 +11,8 @@
 /<  drft          /lib/tx/draft.hoon
 /<  fees          /lib/tx/fees.hoon
 /<  utxo-sel      /lib/tx/select.hoon
+/<  txb           /lib/tx/build.hoon
+/<  bcu           /lib/bitcoin-utils.hoon
 /<  acct-ui       /lib/wallet-account-ui.hoon
 =,  wt
 =<  ^-  nexus:nexus
@@ -85,6 +87,20 @@
             =/  updated=addr-mop
               (put:((on @ud address-data) gth) mop next-idx dat)
             ;<  ~  bind:m  (write-mop "." active-network.u.acct chain-tag updated)
+            ::  auto-refresh the newly derived address
+            =/  net=@ta  ;;(@ta active-network.u.acct)
+            =/  proc-name=@t
+              (crip "refresh-{(trip net)}-{(trip chain-tag)}-{(scow %ud next-idx)}.json")
+            =/  proc-road=road:tarball
+              (cord-to-road:tarball (crip "./proc/{(trip proc-name)}"))
+            =/  proc-json=json
+              %-  pairs:enjs:format
+              :~  ['network' s+net]
+                  ['chain' s+chain-tag]
+                  ['index' (numb:enjs:format next-idx)]
+              ==
+            ;<  ~  bind:m
+              (make:io proc-road |+[%.n [[/ %json] !>(proc-json)] ~])
             $
           ::
               %'delete-address'
@@ -340,9 +356,166 @@
               &(=(txid.input utxo-txid) =(vout.input utxo-vout))
             ;<  ~  bind:m  (write-draft u.existing(modified now.bowl))
             $
+          ::
+              %'build-transaction'
+            ~&  >>  "=== BUILD AND BROADCAST TRANSACTION ==="
+            ::  read account data
+            ;<  acct-seen=seen:nexus  bind:m
+              (peek:io (cord-to-road:tarball './data.wallet_account') ~)
+            ?.  ?=(%& -.acct-seen)  $
+            ?.  ?=([%file *] p.acct-seen)  $
+            =/  acct=(unit account-data)
+              (mole |.(!<(account-data q.sage.p.acct-seen)))
+            ?~  acct
+              ~&  >>>  "account data not found"
+              $
+            ::  read draft
+            ;<  existing=(unit transaction:drft)  bind:m  read-draft-file
+            ?~  existing
+              ~&  >>>  "no draft transaction"
+              $
+            ?:  =(~ inputs.u.existing)
+              ~&  >>>  "no inputs in draft"
+              $
+            ?:  =(~ outputs.u.existing)
+              ~&  >>>  "no outputs in draft"
+              $
+            ::  load address mops to map UTXOs → derivation paths
+            ;<  recv=addr-mop  bind:m  (read-mop "." active-network.u.acct %recv)
+            ;<  chng=addr-mop  bind:m  (read-mop "." active-network.u.acct %chng)
+            ::  build address → [chain index] lookup
+            =/  addr-lookup=(map @t [chain=@ud idx=@ud])
+              =/  m=(map @t [chain=@ud idx=@ud])  ~
+              =.  m
+                =/  entries=(list [@ud address-data])
+                  (flop (tap:((on @ud address-data) gth) recv))
+                |-
+                ?~  entries  m
+                =.  m  (~(put by m) addr.i.entries [0 -.i.entries])
+                $(entries t.entries)
+              =/  entries=(list [@ud address-data])
+                (flop (tap:((on @ud address-data) gth) chng))
+              |-
+              ?~  entries  m
+              =.  m  (~(put by m) addr.i.entries [1 -.i.entries])
+              $(entries t.entries)
+            ::  build UTXO → address lookup from mops
+            =/  utxo-to-addr=(map [@t @ud] @t)
+              =/  m=(map [@t @ud] @t)  ~
+              =/  all=(list [@ud address-data])
+                (weld (mop-to-list recv) (mop-to-list chng))
+              |-
+              ?~  all  m
+              =/  [idx=@ud a=address-data]  i.all
+              =.  m
+                |-
+                ?~  utxos.a  m
+                =.  m  (~(put by m) [txid.i.utxos.a vout.i.utxos.a] addr.a)
+                $(utxos.a t.utxos.a)
+              $(all t.all)
+            ::  create account-level bip32 wallet from xprv
+            =/  account-wallet  (from-extended:bip32 (trip xprv.u.acct))
+            ::  build tx inputs
+            =/  tx-inputs=(list input:ap:tt:txb)
+              %+  turn  inputs.u.existing
+              |=  in=utxo-input:drft
+              ::  find which address owns this UTXO
+              =/  owner=(unit @t)  (~(get by utxo-to-addr) [txid.in vout.in])
+              ?~  owner  ~|("UTXO owner not found: {<txid.in>}:{<vout.in>}" !!)
+              =/  path=(unit [chain=@ud idx=@ud])  (~(get by addr-lookup) u.owner)
+              ?~  path  ~|("address path not found: {<u.owner>}" !!)
+              ::  derive signing key
+              =/  derived  (derive:(derive:account-wallet chain.u.path) idx.u.path)
+              =/  privkey=@ux  prv.derived
+              =/  pubkey=@ux  (ser-p:derived pub.derived)
+              ::  convert txid from hex string to little-endian @ux
+              =/  txid-display=@ux  (rash txid.in hex)
+              =/  txid=@ux  dat:(flip:byt:bcu [32 txid-display])
+              ::  convert spend type
+              =/  spend=spend-type:tt:txb
+                ?-  spend.in
+                  %p2pkh        [%p2pkh ~]
+                  %p2sh-p2wpkh  [%p2sh-p2wpkh ~]
+                  %p2wpkh       [%p2wpkh ~]
+                  %p2tr         [%p2tr %key-path ~]
+                ==
+              [privkey pubkey txid vout.in amount.in `@ud`0xffff.ffff spend]
+            ::  build outputs (including change)
+            =/  tx-outputs=(list output:ap:tt:txb)
+              (incorporate-change:drft u.existing)
+            ::  build and sign transaction
+            ~&  >>  "building tx: {<(lent tx-inputs)>} inputs, {<(lent tx-outputs)>} outputs"
+            =/  tx-hex=tape
+              (build-transaction:txb active-network.u.acct 2 tx-inputs tx-outputs 0)
+            =/  tx-hex-cord=@t  (crip tx-hex)
+            ~&  >>  "tx hex: {<tx-hex-cord>}"
+            ::  broadcast via mempool.space API
+            =/  broadcast-url=@t
+              ?-  active-network.u.acct
+                %main      'https://mempool.space/api/tx'
+                %testnet3  'https://mempool.space/testnet/api/tx'
+                %testnet4  'https://mempool.space/testnet4/api/tx'
+                %signet    'https://mempool.space/signet/api/tx'
+                %regtest   'http://localhost:3000/tx'
+              ==
+            =/  =request:http
+              :*  %'POST'
+                  broadcast-url
+                  ~[['content-type' 'text/plain']]
+                  `(as-octs:mimes:html tx-hex-cord)
+              ==
+            ;<  ~  bind:m  (send-request:io request)
+            ;<  =client-response:iris  bind:m  take-http
+            =/  broadcast-result=cord
+              ?+  client-response  'broadcast-failed'
+                [%finished * [~ [* [p=@ q=@]]]]
+              q.data.u.full-file.client-response
+              ==
+            ~&  >>  "broadcast result: {<broadcast-result>}"
+            ::  clear draft on success
+            =/  draft-road=road:tarball
+              (cord-to-road:tarball './data.wallet_draft')
+            ;<  exists=?  bind:m  (peek-exists:io draft-road)
+            ?.  exists  $
+            ;<  *  bind:m  (cull-soft:io draft-road)
+            $
           ==
         ==
       ::
+          ::  /proc/scan.json: full scan process (must be before generic @)
+          ::
+          [[%proc ~] %'scan.json']
+        ;<  ~  bind:m  (rise-wait:io prod "%scan: failed")
+        =/  data-road=road:tarball  (cord-to-road:tarball '../data.wallet_account')
+        ;<  cur=view:nexus  bind:m
+          (keep:io /acct (cord-to-road:tarball '../') ~)
+        =/  acct=(unit account-data)  (extract-account cur)
+        ?~  acct  (pure:m ~)
+        ::  read existing progress to resume where we left off
+        ;<  prev-state=vase  bind:m  get-state:io
+        =/  prev-json=json  (fall (mole |.(!<(json prev-state))) *json)
+        =/  prev=scan-progress  (parse-scan-progress prev-json)
+        =/  recv-start-idx=@ud
+          ?:  =('recv' phase.prev)  idx.prev
+          ?:  =('chng' phase.prev)  0  ::  recv already done
+          0
+        =/  recv-start-gap=@ud
+          ?:  =('recv' phase.prev)  gap.prev
+          0
+        =/  skip-recv=?  =('chng' phase.prev)
+        ::  scan receiving then change
+        ;<  ~  bind:m
+          ?:  skip-recv  =/(m (fiber:fiber:nexus ,~) (pure:m ~))
+          (scan-chain u.acct %receiving active-network.u.acct recv-start-idx recv-start-gap)
+        =/  chng-start-idx=@ud
+          ?:  =('chng' phase.prev)  idx.prev
+          0
+        =/  chng-start-gap=@ud
+          ?:  =('chng' phase.prev)  gap.prev
+          0
+        ;<  ~  bind:m
+          (scan-chain u.acct %change active-network.u.acct chng-start-idx chng-start-gap)
+        (pure:m ~)
           ::  /proc/refresh-*.json: per-address refresh process
           ::
           [[%proc ~] @]
@@ -398,40 +571,6 @@
           (turn new-txs |=(=transaction [txid.transaction transaction]))
         ;<  ~  bind:m  (write-txs ".." network merged)
         ~&  >  [%refresh %done network=network chain=chain-tag idx=idx info=?=(^ info) utxos=(lent new-utxos) txs=(lent new-txs)]
-        (pure:m ~)
-          ::  /proc/scan.json: full scan process
-          ::
-          [[%proc ~] %'scan.json']
-        ;<  ~  bind:m  (rise-wait:io prod "%scan: failed")
-        =/  data-road=road:tarball  (cord-to-road:tarball '../data.wallet_account')
-        ;<  cur=view:nexus  bind:m
-          (keep:io /acct (cord-to-road:tarball '../') ~)
-        =/  acct=(unit account-data)  (extract-account cur)
-        ?~  acct  (pure:m ~)
-        ::  read existing progress to resume where we left off
-        ;<  prev-state=vase  bind:m  get-state:io
-        =/  prev-json=json  (fall (mole |.(!<(json prev-state))) *json)
-        =/  prev=scan-progress  (parse-scan-progress prev-json)
-        =/  recv-start-idx=@ud
-          ?:  =('recv' phase.prev)  idx.prev
-          ?:  =('chng' phase.prev)  0  ::  recv already done
-          0
-        =/  recv-start-gap=@ud
-          ?:  =('recv' phase.prev)  gap.prev
-          0
-        =/  skip-recv=?  =('chng' phase.prev)
-        ::  scan receiving then change
-        ;<  ~  bind:m
-          ?:  skip-recv  =/(m (fiber:fiber:nexus ,~) (pure:m ~))
-          (scan-chain u.acct %receiving active-network.u.acct recv-start-idx recv-start-gap)
-        =/  chng-start-idx=@ud
-          ?:  =('chng' phase.prev)  idx.prev
-          0
-        =/  chng-start-gap=@ud
-          ?:  =('chng' phase.prev)  gap.prev
-          0
-        ;<  ~  bind:m
-          (scan-chain u.acct %change active-network.u.acct chng-start-idx chng-start-gap)
         (pure:m ~)
       ==
     ::
@@ -942,11 +1081,17 @@
         ['gap' (numb:enjs:format gap)]
     ==
   ;<  ~  bind:m  (replace:io !>(scan-prog))
+  ::  write address with loading flag before fetch
+  =/  loading-dat=address-data  [u.new-addr %.y ~ ~ ~]
+  ;<  pre-mop=addr-mop  bind:m  (read-mop ".." network chain-tag)
+  =/  pre-updated=addr-mop
+    (put:((on @ud address-data) gth) pre-mop scan-idx loading-dat)
+  ;<  ~  bind:m  (write-mop ".." network chain-tag pre-updated)
   ;<  ~  bind:m  (sleep:io `@dr`(div ~s1 1.000))
   ::  fetch address info
   ;<  new-info=(unit address-info)  bind:m
     (scan-fetch u.new-addr network)
-  ::  add address to mop file
+  ::  clear loading, write results
   =/  addr-dat=address-data  [u.new-addr %.n ~ new-info ~]
   ;<  mop=addr-mop  bind:m  (read-mop ".." network chain-tag)
   =/  updated=addr-mop

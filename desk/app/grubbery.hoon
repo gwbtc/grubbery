@@ -74,6 +74,8 @@
   ::  Reload root nexus (hardcoded — after code compile so child nexuses build)
   ~&  >>  "on-init: reload-nexus-at"
   =^  root-cards  state  abet:(reload-nexus-at:hc / root)
+  ::  Build all code namespaces (after nexus reload so on-loads have created them)
+  =^  code-cards  state  abet:(build-new-code-namespaces:hc / ball)
   =^  spawn-cards  state  abet:(spawn-all-files:hc / ball)
   ~&  >>  "on-init: sync-dill"
   =^  dill-cards  state  abet:sync-dill:hc
@@ -85,6 +87,7 @@
   :_  this
   ;:  weld
     root-cards
+    code-cards
     spawn-cards
     gub-cards
     dill-cards
@@ -111,6 +114,8 @@
     ::  Reload root nexus (hardcoded — runs on every app reload, after code compile)
     ~&  >>  "on-load: reload-nexus-at"
     =^  root-cards  state  abet:(reload-nexus-at:hc / root)
+    ::  Build all code namespaces (after nexus reload so on-loads have created them)
+    =^  code-cards  state  abet:(build-new-code-namespaces:hc / ball)
     =^  spawn-cards  state  abet:(spawn-all-files:hc / ball)
     ~&  >>  "on-load: sync-dill"
     =^  dill-cards  state  abet:sync-dill:hc
@@ -122,6 +127,7 @@
     :_  this
     ;:  weld
       root-cards
+      code-cards
       spawn-cards
       gub-cards
       dill-cards
@@ -2096,6 +2102,8 @@
     =.  gain  (put-sub-gain gain dest-path new-gain)
     ::  Sync all changes (old is empty) and spawn processes
     =.  this  (load-ball-changes dest-path *ball:tarball validated)
+    ::  Register and build any code namespaces in the new ball
+    =.  this  (build-new-code-namespaces dest-path validated)
     (spawn-all-files dest-path validated)
     ::
       %&
@@ -2478,6 +2486,27 @@
 ::  React to any change under a code nexus.
 ::  Enforces: src/ is hoon-only, bin/ is build-managed.
 ::  Triggers rebuild when src/ changes.
+::  Walk a newly created ball and build-code for any %code neck directories.
+::
+++  build-new-code-namespaces
+  |=  [here=fold:tarball bol=ball:tarball]
+  ^+  this
+  ::  check if this directory has a %code neck
+  ?:  ?&  ?=(^ fil.bol)
+          ?=(^ neck.u.fil.bol)
+          =([/ %code] u.neck.u.fil.bol)
+      ==
+    ::  skip if already registered and built
+    ?:  (~(has by code) here)  this
+    ::  register and build
+    ~&  >  "register-code-namespace: {(spud here)}"
+    (build-code here)
+  ::  recurse into children
+  =/  kids=(list [@ta ball:tarball])  ~(tap by dir.bol)
+  |-
+  ?~  kids  this
+  =.  this  ^$(here (snoc here -.i.kids), bol +.i.kids)
+  $(kids t.kids)
 ::
 ::  Compile a code nexus into its lode in the code map.
 ::  Purges non-hoon files from the code nexus.
@@ -2747,13 +2776,11 @@
     =/  old-node=(map @ta built:nexus)
       (fall (~(get of old-sub) pax) *(map @ta built:nexus))
     =/  old-built=(unit built:nexus)  (~(get by old-node) nam)
-    ::  Invariant: if keys match, built artifacts must match
+    ::  same key = no change (but ~ = ~ means "both missing", not "same")
     ?:  ?&  =(old-key new-key)
-            !=(old-built `built)
+            ?=(^ old-key)
         ==
-      ~|  [%reload-changed-nexuses %keys-same-vase-diff path=pax name=nam]
-      !!
-    ?:  =(old-key new-key)  ~
+      ~
     `[[pax nam] built]
   ::  Process each changed nexus
   =/  remaining=_changed  changed

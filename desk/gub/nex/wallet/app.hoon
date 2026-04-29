@@ -213,6 +213,22 @@
           ;<  wal-name=@t  bind:m  (load-wallet-name wallet.u.acct)
           ;<  ~  bind:m  (send-html eyre-id (send-page:acct-ui u.acct recv chng dr now.bowl wal-name))
           (pure:m ~)
+        ::  route: /a/<account-key>/send/stream → SSE for send page
+        ?:  ?=([%a @ %send %stream ~] suffix)
+          =/  acct-key=@ta  (cat 3 i.t.suffix '.wallet_account')
+          (handle-send-stream eyre-id req acct-key)
+        ::  route: /a/<account-key>/stream → SSE for live updates
+        ?:  ?=([%a @ %stream ~] suffix)
+          =/  acct-key=@ta  (cat 3 i.t.suffix '.wallet_account')
+          (handle-account-stream eyre-id req acct-key)
+        ::  route: /a/<account-key>/addr/<chain>/<idx>/stream → SSE for address
+        ?:  ?=([%a @ %addr @ @ %stream ~] suffix)
+          =/  acct-key=@ta  (cat 3 i.t.suffix '.wallet_account')
+          =/  chain=@ta  i.t.t.t.suffix
+          =/  idx-ta=@ta  i.t.t.t.t.suffix
+          =/  chain-tag=?(%recv %chng)  ?:(?=(%recv chain) %recv %chng)
+          =/  idx=@ud  (fall (slaw %ud idx-ta) 0)
+          (handle-addr-stream eyre-id req acct-key chain-tag idx i.t.suffix)
         ::  route: /a/<account-key>/addr/<chain>/<idx> → address detail
         ?:  ?=([%a @ %addr @ @ ~] suffix)
           =/  acct-key=@ta  (cat 3 i.t.suffix '.wallet_account')
@@ -428,6 +444,272 @@
   ;<  =seen:nexus  bind:m  (peek:io road ~)
   ?.  ?=([%& %file *] seen)  (pure:m ~)
   (pure:m (mole |.(!<(transaction:drft q.sage.p.seen))))
+::  +send-sse-fragment: send a single SSE fragment targeting a DOM element
+::
+++  send-sse-fragment
+  |=  [eyre-id=@ta target=@t content=manx]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  =/  =json
+    (pairs:enjs:format ~[['target' s+target] ['html' s+(crip (en-xml:html content))]])
+  =/  =sse-event:http-utils  [~ `'fragment' [(en:json:html json)]~]
+  =/  data=octs  (sse-encode:http-utils ~[sse-event])
+  (send-data:srv eyre-id `data)
+::  +send-sse-prepend: prepend a row to a DOM element if rowId doesn't exist
+::
+++  send-sse-prepend
+  |=  [eyre-id=@ta target=@t row-id=@t content=manx]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  =/  =json
+    %-  pairs:enjs:format
+    :~  ['target' s+target]
+        ['html' s+(crip (en-xml:html content))]
+        ['action' s+'prepend']
+        ['rowId' s+row-id]
+    ==
+  =/  =sse-event:http-utils  [~ `'fragment' [(en:json:html json)]~]
+  =/  data=octs  (sse-encode:http-utils ~[sse-event])
+  (send-data:srv eyre-id `data)
+::  +send-sse-update: update an existing row by ID (outerHTML replace)
+::
+++  send-sse-update
+  |=  [eyre-id=@ta target=@t row-id=@t content=manx]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  =/  =json
+    %-  pairs:enjs:format
+    :~  ['target' s+target]
+        ['html' s+(crip (en-xml:html content))]
+        ['action' s+'update']
+        ['rowId' s+row-id]
+    ==
+  =/  =sse-event:http-utils  [~ `'fragment' [(en:json:html json)]~]
+  =/  data=octs  (sse-encode:http-utils ~[sse-event])
+  (send-data:srv eyre-id `data)
+::  +send-addr-rows: prepend new rows, update existing ones in-place
+::
+++  send-addr-rows
+  |=  [eyre-id=@ta acct=account-data chain-tag=?(%recv %chng) mop=addr-mop now=@da]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  =/  entries=(list [@ud address-data])  (mop-to-list:acct-ui mop)
+  =/  chain=tape  ?:(?=(%recv chain-tag) "receiving" "change")
+  =/  acct-key  (from-extended:bip32 (trip xprv.acct))
+  =/  key-hex=tape  (hexn:http-utils public-key:acct-key)
+  =/  list-id=@t  (crip "addr-list-{(trip chain-tag)}")
+  |-
+  ?~  entries  (pure:m ~)
+  =/  [idx=@ud a=address-data]  i.entries
+  =/  row-id=@t  (crip "addr-{(trip chain-tag)}-{(scow %ud idx)}")
+  =/  row=manx  (address-row:acct-ui idx a now chain chain-tag active-network.acct key-hex)
+  ;<  ~  bind:m  (send-sse-prepend eyre-id list-id row-id row)
+  ;<  ~  bind:m  (send-sse-update eyre-id list-id row-id row)
+  $(entries t.entries)
+::  +handle-account-stream: SSE stream for account detail page
+::
+++  handle-account-stream
+  |=  [eyre-id=@ta req=inbound-request:eyre acct-key=@ta]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  ?.  (is-sse-request:http-utils req)
+    ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'SSE only')])
+    (pure:m ~)
+  ;<  ~  bind:m  (send-header:srv eyre-id sse-header:http-utils)
+  ::  watch the account ball
+  =/  acct-road=road:tarball
+    (cord-to-road:tarball (crip "../../accounts/{(trip acct-key)}/"))
+  ;<  *  bind:m  (keep:io /acct-stream acct-road ~)
+  ;<  =bowl:nexus  bind:m  get-bowl:io
+  ;<  ~  bind:m  (send-wait:io (add now.bowl ~s30))
+  |-
+  ;<  nw=news-or-wake:io  bind:m  (take-news-or-wake:io /acct-stream)
+  ?-    -.nw
+      %wake
+    ;<  ~  bind:m  (send-data:srv eyre-id `sse-keep-alive:http-utils)
+    ;<  =bowl:nexus  bind:m  get-bowl:io
+    ;<  ~  bind:m  (send-wait:io (add now.bowl ~s30))
+    $
+      %news
+    ::  reload all account data and re-render fragments
+    ;<  acct=(unit account-data)  bind:m  (load-account acct-key)
+    ?~  acct  $
+    ;<  recv=addr-mop  bind:m  (load-addr-mop acct-key active-network.u.acct %recv)
+    ;<  chng=addr-mop  bind:m  (load-addr-mop acct-key active-network.u.acct %chng)
+    ;<  =bowl:nexus  bind:m  get-bowl:io
+    ;<  [scan=?(%active %paused %none) progress=(unit scan-progress:acct-ui)]  bind:m
+      (load-scan-state acct-key)
+    ::  send granular fragments to preserve scroll position
+    ::  update receive modal address
+    =/  next-addr=(unit @t)  (next-unused-addr:acct-ui recv)
+    ;<  ~  bind:m
+      ?~  next-addr  (pure:m ~)
+      =/  =sse-event:http-utils  [~ `'receive-addr' [u.next-addr]~]
+      =/  data=octs  (sse-encode:http-utils ~[sse-event])
+      (send-data:srv eyre-id `data)
+    ;<  ~  bind:m
+      (send-sse-fragment eyre-id 'account-summary-wrap' (account-summary-ui:acct-ui recv chng))
+    ;<  ~  bind:m
+      (send-sse-fragment eyre-id 'scan-status-wrap' (scan-status-ui:acct-ui scan progress))
+    ;<  ~  bind:m  (send-addr-rows eyre-id u.acct %recv recv now.bowl)
+    ;<  ~  bind:m  (send-addr-rows eyre-id u.acct %chng chng now.bowl)
+    ;<  ~  bind:m
+      (send-sse-fragment eyre-id 'receiving-derive' (derive-button:acct-ui "receiving" recv))
+    ;<  ~  bind:m
+      (send-sse-fragment eyre-id 'change-derive' (derive-button:acct-ui "change" chng))
+    =/  recv-count=@ud  (lent (mop-to-list:acct-ui recv))
+    =/  chng-count=@ud  (lent (mop-to-list:acct-ui chng))
+    ;<  ~  bind:m
+      (send-sse-fragment eyre-id 'tab-bar' (tab-bar:acct-ui recv-count chng-count))
+    ;<  ~  bind:m
+      (send-sse-fragment eyre-id 'network-badge-wrap' (network-badge-ui:acct-ui active-network.u.acct q.coin-type.u.acct))
+    $
+  ==
+::  +handle-send-stream: SSE stream for send page
+::
+++  handle-send-stream
+  |=  [eyre-id=@ta req=inbound-request:eyre acct-key=@ta]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  ?.  (is-sse-request:http-utils req)
+    ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'SSE only')])
+    (pure:m ~)
+  ;<  ~  bind:m  (send-header:srv eyre-id sse-header:http-utils)
+  =/  acct-road=road:tarball
+    (cord-to-road:tarball (crip "../../accounts/{(trip acct-key)}/"))
+  ;<  *  bind:m  (keep:io /send-stream acct-road ~)
+  ;<  =bowl:nexus  bind:m  get-bowl:io
+  ;<  ~  bind:m  (send-wait:io (add now.bowl ~s30))
+  |-
+  ;<  nw=news-or-wake:io  bind:m  (take-news-or-wake:io /send-stream)
+  ?-    -.nw
+      %wake
+    ;<  ~  bind:m  (send-data:srv eyre-id `sse-keep-alive:http-utils)
+    ;<  =bowl:nexus  bind:m  get-bowl:io
+    ;<  ~  bind:m  (send-wait:io (add now.bowl ~s30))
+    $
+      %news
+    ;<  acct=(unit account-data)  bind:m  (load-account acct-key)
+    ?~  acct  $
+    ;<  recv=addr-mop  bind:m  (load-addr-mop acct-key active-network.u.acct %recv)
+    ;<  chng=addr-mop  bind:m  (load-addr-mop acct-key active-network.u.acct %chng)
+    ;<  dr=(unit transaction:drft)  bind:m  (load-draft acct-key)
+    =/  fi=fee-calc:acct-ui  (compute-fee-info:acct-ui dr)
+    =/  utxos=(list [addr=@t u=utxo chain=?(%recv %chng) idx=@ud])
+      %+  weld
+        ^-  (list [addr=@t u=utxo chain=?(%recv %chng) idx=@ud])
+        %-  zing
+        %+  turn  (mop-to-list:acct-ui recv)
+        |=  [idx=@ud a=address-data]
+        (turn utxos.a |=(u=utxo [addr.a u %recv idx]))
+      ^-  (list [addr=@t u=utxo chain=?(%recv %chng) idx=@ud])
+      %-  zing
+      %+  turn  (mop-to-list:acct-ui chng)
+      |=  [idx=@ud a=address-data]
+      (turn utxos.a |=(u=utxo [addr.a u %chng idx]))
+    =/  total-balance=@ud
+      %+  roll  utxos
+      |=  [[addr=@t u=utxo chain=?(%recv %chng) idx=@ud] sum=@ud]
+      (add sum value.u)
+    =/  next-chg=(unit @t)  (next-unused-change-addr:acct-ui chng)
+    =/  auto-mode=(unit select-mode:drft)
+      ?~  dr  ~
+      auto-select.u.dr
+    =/  has-auto=?  ?=(^ auto-mode)
+    =/  is-random=?  =(auto-mode `%random)
+    =/  is-largest=?  =(auto-mode `%largest-first)
+    =/  spend=spend:fees:acct-ui  script-type.u.acct
+    =/  utxo-rows=(list manx)
+      ?~  utxos
+        :~  ;div.p3.b1.br2.f3: No UTXOs available
+        ==
+      %+  turn  utxos
+      |=  [addr=@t u=utxo chain=?(%recv %chng) idx=@ud]
+      =/  is-sel=?
+        ?~  dr  %.n
+        %+  lien  inputs.u.dr
+        |=(i=utxo-input:drft &(=(txid.i txid.u) =(vout.i vout.u)))
+      (utxo-row-ui:acct-ui txid.u vout.u value.u addr spend is-sel)
+    ::  send balance
+    ;<  ~  bind:m
+      =/  bal=manx  ;span: Available: {(scow %ud total-balance)} sats
+      (send-sse-fragment eyre-id 'send-balance' bal)
+    ::  send fee info
+    ;<  ~  bind:m
+      (send-sse-fragment eyre-id 'send-fee-info' (fee-info-ui:acct-ui fi))
+    ::  send auto-select
+    ;<  ~  bind:m
+      (send-sse-fragment eyre-id 'send-auto-select' (auto-select-ui:acct-ui has-auto is-random is-largest (add total-outputs.fi est-fee.fi)))
+    ::  send utxo list
+    ;<  ~  bind:m
+      =/  utxo-manx=manx  [[%div [%class "fc"]~] utxo-rows]
+      (send-sse-fragment eyre-id 'utxo-list' utxo-manx)
+    ::  send change section
+    ;<  ~  bind:m
+      (send-sse-fragment eyre-id 'send-change-section' (change-section-ui:acct-ui has-change-config.fi fee-rate.fi est-fee.fi est-vbytes.fi change-result.fi next-chg))
+    ::  send output list
+    ;<  ~  bind:m
+      (send-sse-fragment eyre-id 'output-list' (output-list-ui:acct-ui dr))
+    $
+  ==
+::  +handle-addr-stream: SSE stream for address detail page
+::
+++  handle-addr-stream
+  |=  [eyre-id=@ta req=inbound-request:eyre acct-key=@ta chain-tag=?(%recv %chng) idx=@ud akh-ta=@ta]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  ?.  (is-sse-request:http-utils req)
+    ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'SSE only')])
+    (pure:m ~)
+  ;<  ~  bind:m  (send-header:srv eyre-id sse-header:http-utils)
+  ::  watch the account ball
+  =/  acct-road=road:tarball
+    (cord-to-road:tarball (crip "../../accounts/{(trip acct-key)}/"))
+  ;<  *  bind:m  (keep:io /addr-stream acct-road ~)
+  ;<  =bowl:nexus  bind:m  get-bowl:io
+  ;<  ~  bind:m  (send-wait:io (add now.bowl ~s30))
+  |-
+  ;<  nw=news-or-wake:io  bind:m  (take-news-or-wake:io /addr-stream)
+  ?-    -.nw
+      %wake
+    ;<  ~  bind:m  (send-data:srv eyre-id `sse-keep-alive:http-utils)
+    ;<  =bowl:nexus  bind:m  get-bowl:io
+    ;<  ~  bind:m  (send-wait:io (add now.bowl ~s30))
+    $
+      %news
+    ::  reload address data and re-render live content
+    ;<  acct=(unit account-data)  bind:m  (load-account acct-key)
+    ?~  acct  $
+    ;<  mop=addr-mop  bind:m  (load-addr-mop acct-key active-network.u.acct chain-tag)
+    =/  dat=(unit address-data)
+      (get:((on @ud address-data) gth) mop idx)
+    ?~  dat  $
+    =/  akh=tape  (trip akh-ta)
+    =/  net=@ta  ;;(@ta active-network.u.acct)
+    =/  proc-name=@t
+      (crip "refresh-{(trip net)}-{(trip chain-tag)}-{(scow %ud idx)}.json")
+    =/  proc-road=road:tarball
+      (cord-to-road:tarball (crip "../../accounts/{(trip acct-key)}/proc/{(trip proc-name)}"))
+    ;<  loading=?  bind:m  (peek-exists:io proc-road)
+    ;<  txs=tx-map  bind:m  (load-txs acct-key active-network.u.acct)
+    =/  addr-txs=(list transaction)
+      %-  sort-txs
+      %+  murn  ~(val by txs)
+      |=  =transaction
+      =/  in-out=?
+        ?|  %+  lien  outputs.transaction
+            |=(=tx-output =(address.tx-output addr.u.dat))
+          ::
+            %+  lien  inputs.transaction
+            |=  =tx-input
+            ?~  prevout.tx-input  %.n
+            =(address.u.prevout.tx-input addr.u.dat)
+        ==
+      ?:(in-out `transaction ~)
+    ;<  ~  bind:m
+      (send-sse-fragment eyre-id 'live-content' (addr-live-content u.dat loading akh addr-txs))
+    $
+  ==
 ::  +find-tx-addr: given a tx, find first address in mops that it touches
 ::
 ++  find-tx-addr
@@ -471,6 +753,18 @@
     [',' out]
   $(rev t.rev, out [i.rev out], i +(i))
 ::
+++  sort-txs
+  |=  txs=(list transaction)
+  ^-  (list transaction)
+  %+  sort  txs
+  |=  [a=transaction b=transaction]
+  ::  unconfirmed first, then by descending block height
+  ?:  ?=(%unconfirmed -.tx-status.a)
+    ?:  ?=(%unconfirmed -.tx-status.b)  %.y
+    %.y
+  ?:  ?=(%unconfirmed -.tx-status.b)  %.n
+  (gth block-height.tx-status.a block-height.tx-status.b)
+::
 ++  truncate-txid
   |=  txid=@t
   ^-  tape
@@ -496,6 +790,7 @@
   =/  network-label=tape
     ?-(network %main "Mainnet", %testnet3 "Testnet3", %testnet4 "Testnet4", %signet "Signet", %regtest "Regtest")
   =/  addr-txs=(list transaction)
+    %-  sort-txs
     %+  murn  ~(val by txs)
     |=  =transaction
     =/  in-out=?
@@ -967,6 +1262,25 @@
       if (!r.ok) return r.text().then(function(t) \{ console.error('refresh error', t) });
     }).catch(function(e) \{ console.error('refresh failed', e) });
   }
+
+  function connectSSE() \{
+    var path = window.location.pathname;
+    var url = path + (path.endsWith('/') ? 'stream' : '/stream');
+    var es = new EventSource(url);
+    es.addEventListener('fragment', function(e) \{
+      try \{
+        var data = JSON.parse(e.data);
+        var el = document.getElementById(data.target);
+        if (!el) return;
+        el.innerHTML = data.html;
+      } catch(err) \{ console.error('SSE fragment error', err); }
+    });
+    es.onerror = function() \{
+      es.close();
+      setTimeout(connectSSE, 3000);
+    };
+  }
+  connectSSE();
   """
 ::
 ++  seed-to-pubkey

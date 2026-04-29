@@ -196,12 +196,115 @@
               ==
             ;<  ~  bind:m  (replace:io !>(wal))
             $
+              %'discover-accounts'
+            =/  purpose-select=@t
+              (~(dug jo:json-utils jon) /purpose-select so:dejs:format '84')
+            =/  purpose=@ud
+              ?:(=(purpose-select 'custom') (rash (~(dog jo:json-utils jon) /purpose-custom so:dejs:format) dem) (rash purpose-select dem))
+            =/  coin-type-select=@t
+              (~(dug jo:json-utils jon) /coin-type-select so:dejs:format '0')
+            =/  coin-type=@ud
+              ?:(=(coin-type-select 'custom') (rash (~(dog jo:json-utils jon) /coin-type-custom so:dejs:format) dem) (rash coin-type-select dem))
+            =/  disc-json=json
+              %-  pairs:enjs:format
+              :~  ['purpose' (numb:enjs:format purpose)]
+                  ['coin-type' (numb:enjs:format coin-type)]
+                  ['account-idx' (numb:enjs:format 0)]
+              ==
+            ;<  ~  bind:m
+              (make:io (cord-to-road:tarball './proc/discover.json') |+[%.n [[/ %json] !>(disc-json)] ~])
+            $
+          ::
+              %'cancel-discovery'
+            ;<  *  bind:m
+              (cull-soft:io (cord-to-road:tarball './proc/discover.json'))
+            =/  load-road=road:tarball  (cord-to-road:tarball './ui/sse/loading.html')
+            ;<  ~  bind:m  (over:io load-road [[/ %manx] !>(;div;)])
+            $
+          ::
               %'clear-error'
             =/  err-road=road:tarball  (cord-to-road:tarball './ui/sse/error.html')
             ;<  ~  bind:m  (over:io err-road [[/ %manx] !>(;div;)])
             $
           ==
         ==
+          ::  /proc/discover.json: account discovery process
+          ::
+          [[%proc ~] %'discover.json']
+        ;<  ~  bind:m  (rise-wait:io prod "%discover: failed")
+        ;<  wal-view=view:nexus  bind:m
+          (keep:io /wal (cord-to-road:tarball '../') ~)
+        =/  wal=(unit wallet-data)  (extract-wallet wal-view)
+        ?~  wal  (pure:m ~)
+        ::  read progress from proc state
+        ;<  prev-state=vase  bind:m  get-state:io
+        =/  prev=json  (fall (mole |.(!<(json prev-state))) *json)
+        =/  purpose=@ud
+          (fall (mole |.((ni:dejs:format (~(got jo:json-utils prev) /'purpose')))) 84)
+        =/  coin-type=@ud
+          (fall (mole |.((ni:dejs:format (~(got jo:json-utils prev) /'coin-type')))) 0)
+        =/  start-idx=@ud
+          (fall (mole |.((ni:dejs:format (~(got jo:json-utils prev) /'account-idx')))) 0)
+        =/  =script-type  (purpose-to-script purpose)
+        =/  network=?(%main %testnet3 %testnet4 %signet %regtest)
+          ?:(=(1 coin-type) %testnet4 %main)
+        =/  account-idx=@ud  start-idx
+        =/  load-road=road:tarball  (cord-to-road:tarball '../ui/sse/loading.html')
+        |-
+        ::  update progress in proc state
+        =/  prog=json
+          %-  pairs:enjs:format
+          :~  ['purpose' (numb:enjs:format purpose)]
+              ['coin-type' (numb:enjs:format coin-type)]
+              ['account-idx' (numb:enjs:format account-idx)]
+          ==
+        ;<  ~  bind:m  (replace:io !>(prog))
+        ::  show progress in loading bar
+        ;<  ~  bind:m
+          (over:io load-road [[/ %manx] !>((discover-loading purpose coin-type account-idx))])
+        ::  derive xprv for this account index
+        =/  master  (from-seed:bip32 (seed-to-bytes seed.u.wal))
+        =/  pax=tape
+          "m/{(scow %ud purpose)}'/{(scow %ud coin-type)}'/{(scow %ud account-idx)}'"
+        =/  derived  (derive-path:master pax)
+        =/  xprv=@t  (crip (prv-extended:derived (to-bip-network:wt network)))
+        ::  check recv + change chains for any activity
+        ;<  recv-active=?  bind:m
+          (discover-check-chain xprv script-type network 0)
+        ;<  chng-active=?  bind:m
+          (discover-check-chain xprv script-type network 1)
+        ::  no activity = discovery complete
+        ?.  |(recv-active chng-active)
+          ;<  ~  bind:m  (over:io load-road [[/ %manx] !>(;div;)])
+          (pure:m ~)
+        ::  account has activity — create it
+        =/  acct-name=@t  (crip "Account {(scow %ud account-idx)}")
+        =/  acct=account-data:wt
+          [acct-name fingerprint.u.wal script-type network [%.y purpose] [%.y coin-type] [%.y account-idx] xprv]
+        =/  acct-pubkey=@ux  public-key:derived
+        =/  acct-key=@ta  (crip (hexn:http-utils acct-pubkey))
+        =/  acct-dir=@ta  (cat 3 acct-key '.wallet_account')
+        =/  acct-lump=lump:tarball
+          :+  ~  `[/wallet %account]
+          (~(put by *(map @ta content:tarball)) %'data.wallet_account' [~ [/wallet %account] !>(acct)])
+        =/  acct-ball=ball:tarball  [`acct-lump ~]
+        ;<  err=(unit tang)  bind:m
+          (make-soft:io [%| 3 %| (snoc /accounts acct-dir)] &+[*sand:nexus *gain:nexus acct-ball])
+        ?^  err
+          ~&(>>> [%discover %account-create-failed] (pure:m ~))
+        ::  update wallet accounts map
+        =/  acct-path=account:wt  [[%.y purpose] [%.y coin-type] [%.y account-idx]]
+        =.  u.wal  u.wal(accounts (~(put by accounts.u.wal) acct-path acct-pubkey))
+        ;<  ~  bind:m
+          (over:io (cord-to-road:tarball '../main.wallet_wallet') [[/wallet %wallet] !>(u.wal)])
+        ::  kick off full scan on the new account
+        =/  scan-json=json
+          %-  pairs:enjs:format
+          ~[['phase' s+'recv'] ['idx' (numb:enjs:format 0)] ['gap' (numb:enjs:format 0)]]
+        ;<  ~  bind:m
+          (make:io (cord-to-road:tarball (crip "../../../accounts/{(trip acct-dir)}/proc/scan.json")) |+[%.n [[/ %json] !>(scan-json)] ~])
+        ::  continue to next account
+        $(account-idx +(account-idx))
       ==
     ::
     ++  on-manu
@@ -313,6 +416,77 @@
           ;div: {line}
     ==
   ==
+::
+++  discover-loading
+  |=  [purpose=@ud coin-type=@ud account-idx=@ud]
+  ^-  manx
+  =/  pax=tape
+    "m/{(scow %ud purpose)}'/{(scow %ud coin-type)}'/{(scow %ud account-idx)}'"
+  ;div(style "display: flex; align-items: center; gap: 12px; padding: 8px 12px; border: 2px solid rgba(100, 150, 255, 0.4); background: rgba(100, 150, 255, 0.1); border-radius: 6px;")
+    ;div(style "width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; animation: spin 1s linear infinite;")
+      ;+  (make:fi 'loader')
+    ==
+    ;div(style "flex: 1;")
+      ;div.s-1.bold: Discovering accounts...
+      ;div.s-2.f3: Scanning {pax}
+    ==
+    ;button.p2.b1.br1.hover.pointer(onclick "cancelDiscovery()", style "outline: none; border: 1px solid rgba(255,80,80,0.4); background: rgba(255,80,80,0.1); color: #ff5050;")
+      ; Cancel
+    ==
+  ==
+::
+++  discover-check-chain
+  |=  [xprv=@t =script-type network=?(%main %testnet3 %testnet4 %signet %regtest) chain=@ud]
+  =/  m  (fiber:fiber:nexus ,?)
+  ^-  form:m
+  =/  gap-limit=@ud  20
+  =/  idx=@ud  0
+  =/  gap=@ud  0
+  =/  found=?  %.n
+  |-
+  ?:  (gte gap gap-limit)  (pure:m found)
+  =/  addr=(unit @t)  (derive-acct-addr xprv script-type network chain idx)
+  ?~  addr  (pure:m found)
+  =/  url=@t  (crip (weld (disc-mempool-url network) (trip u.addr)))
+  ;<  ~  bind:m  (send-request:io [%'GET' url ~[['Accept' 'application/json']] ~])
+  ;<  resp=client-response:iris  bind:m  disc-take-http
+  =/  tc=@ud  (disc-parse-tx-count resp)
+  ;<  ~  bind:m  (sleep:io `@dr`(div ~s1 1.000))
+  ?:  (gth tc 0)
+    $(idx +(idx), gap 0, found %.y)
+  $(idx +(idx), gap +(gap))
+::
+++  disc-mempool-url
+  |=  network=?(%main %testnet3 %testnet4 %signet %regtest)
+  ^-  tape
+  ?-  network
+    %main      "https://mempool.space/api/address/"
+    %testnet3  "https://mempool.space/testnet/api/address/"
+    %testnet4  "https://mempool.space/testnet4/api/address/"
+    %signet    "https://mempool.space/signet/api/address/"
+    %regtest   "http://localhost:3000/address/"
+  ==
+::
+++  disc-take-http
+  =/  m  (fiber:fiber:nexus ,client-response:iris)
+  ^-  form:m
+  |=  input:fiber:nexus
+  :+  ~  state
+  ?+  in  [%skip ~]
+      ~  [%wait ~]
+      [~ %arvo [%request ~] %iris %http-response %finished *]
+    [%done client-response.sign.u.in]
+  ==
+::
+++  disc-parse-tx-count
+  |=  =client-response:iris
+  ^-  @ud
+  ?.  ?=(%finished -.client-response)  0
+  ?~  full-file.client-response  0
+  =/  body=@t  q.data.u.full-file.client-response
+  =/  parsed=(each json tang)  (mule |.((need (de:json:html body))))
+  ?:  ?=(%| -.parsed)  0
+  (fall (mole |.((ni:dejs:format (~(got jo:json-utils p.parsed) /'chain_stats'/'tx_count')))) 0)
 ::
 ++  data-to-page
   |=  [gn=? ct=content:tarball]
@@ -503,6 +677,50 @@
     ==
   ==
 ::
+++  discover-form
+  ^-  manx
+  ;div.p4.b2.br2.add-account-form
+    ;div.s0.bold.tc.hover.pointer(onclick "toggleAddPanel(this)", style "display: flex; align-items: center; justify-content: center; gap: 8px; padding-bottom: 4px;")
+      ; Discover Accounts
+      ;div.add-chevron(style "width: 16px; height: 16px; display: flex; align-items: center; transition: transform 0.2s;")
+        ;+  (make:fi 'chevron-down')
+      ==
+    ==
+    ;div.add-panel(style "display: none;")
+      ;p.f3.s-2.mb2: Scan for existing accounts by checking addresses on-chain
+      ;form(method "post", onsubmit "submitDiscover(event)")
+        ;div.fc.g2
+          ;div
+            ;label.s-1.bold.f3: Purpose
+            ;select.purpose-select.p2.b1.br1.wf.hover.pointer(name "purpose-select", required "true", style "outline: none;")
+              ;option(value "84", selected "selected"): Native SegWit (BIP84) - 84
+              ;option(value "49"): Wrapped SegWit (BIP49) - 49
+              ;option(value "44"): Legacy (BIP44) - 44
+              ;option(value "86"): Taproot (BIP86) - 86
+              ;option(value "custom"): Custom...
+            ==
+            ;div.custom-purpose-container.fc.g1(style "display: none; margin-top: 8px;")
+              ;input.custom-purpose-input.p2.b1.br1.wf(type "number", name "purpose-custom", placeholder "Enter purpose number", min "0", max "2147483647");
+            ==
+          ==
+          ;div
+            ;label.s-1.bold.f3: Coin Type
+            ;select.coin-type-select.p2.b1.br1.wf.hover.pointer(name "coin-type-select", required "true", style "outline: none;")
+              ;option(value "0", selected "selected"): Bitcoin Mainnet - 0
+              ;option(value "1"): Bitcoin Testnet - 1
+              ;option(value "custom"): Custom...
+            ==
+            ;div.custom-coin-type-container.fc.g1(style "display: none; margin-top: 8px;")
+              ;input.custom-coin-type-input.p2.b1.br1.wf(type "number", name "coin-type-custom", placeholder "Enter coin type (SLIP-44)", min "0", max "2147483647");
+            ==
+          ==
+          ;input(type "hidden", name "action", value "discover-accounts");
+          ;button.p3.b-3.f-3.br2.hover.pointer(type "submit", style "outline: none; border: none;"): Discover
+        ==
+      ==
+    ==
+  ==
+::
 ++  add-account-form
   ^-  manx
   ;div.p4.b2.br2.add-account-form
@@ -623,6 +841,7 @@
             ;div(id "error-container")
               ;+  err
             ==
+            ;+  discover-form
             ;+  add-account-form
           ==
         ==
@@ -644,6 +863,10 @@
   @keyframes slide \{
     0% \{ transform: translateX(-100%) }
     100% \{ transform: translateX(400%) }
+  }
+  @keyframes spin \{
+    from \{ transform: rotate(0deg) }
+    to \{ transform: rotate(360deg) }
   }
   """
 ::
@@ -719,6 +942,27 @@
     }).then(function(r) \{
       if (!r.ok) return r.text().then(function(t) \{ console.error('remove-account error', t) });
     }).catch(function(e) \{ console.error('remove-account failed', e) });
+  }
+
+  function submitDiscover(e) \{
+    e.preventDefault();
+    var data = \{};
+    new FormData(e.target).forEach(function(v, k) \{ data[k] = v; });
+    fetch(getPokeUrl(), \{
+      method: 'POST',
+      headers: \{'Content-Type': 'application/json'},
+      body: JSON.stringify(data)
+    }).then(function(r) \{
+      if (!r.ok) return r.text().then(function(t) \{ console.error('discover error', t) });
+    }).catch(function(e) \{ console.error('discover failed', e) });
+  }
+
+  function cancelDiscovery() \{
+    fetch(getPokeUrl(), \{
+      method: 'POST',
+      headers: \{'Content-Type': 'application/json'},
+      body: JSON.stringify(\{action: 'cancel-discovery'})
+    });
   }
 
   function toggleAddPanel(el) \{

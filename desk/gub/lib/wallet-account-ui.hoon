@@ -288,6 +288,18 @@
     ;span.s0.bold.mono: {(format-sats total-balance)} sats
   ==
 ::
+++  tab-bar
+  |=  [recv-count=@ud chng-count=@ud]
+  ^-  manx
+  ;div(style "display: flex; border-bottom: 1px solid var(--b3);")
+    ;button.tab-btn(data-tab "receiving", onclick "showTab('receiving')", style "flex: 1; padding: 8px 16px; background: transparent; border: none; border-bottom: 2px solid var(--f1); color: var(--f1); font-weight: bold; cursor: pointer; outline: none;")
+      ; Receiving ({(scow %ud recv-count)})
+    ==
+    ;button.tab-btn(data-tab "change", onclick "showTab('change')", style "flex: 1; padding: 8px 16px; background: transparent; border: none; border-bottom: 2px solid transparent; color: var(--f3); cursor: pointer; outline: none;")
+      ; Change ({(scow %ud chng-count)})
+    ==
+  ==
+::
 ++  derive-button
   |=  [chain=tape mop=addr-mop]
   ^-  manx
@@ -542,14 +554,11 @@
   =/  chng-count=@ud  (lent (mop-to-list chng))
   ;div.fc(style "flex: 1; min-height: 0;")
     ;div.fc.g2(style "flex-shrink: 0;")
-      ;+  (scan-status-ui scan progress)
-      ;div(style "display: flex; border-bottom: 1px solid var(--b3);")
-        ;button.tab-btn(data-tab "receiving", onclick "showTab('receiving')", style "flex: 1; padding: 8px 16px; background: transparent; border: none; border-bottom: 2px solid var(--f1); color: var(--f1); font-weight: bold; cursor: pointer; outline: none;")
-          ; Receiving ({(scow %ud recv-count)})
-        ==
-        ;button.tab-btn(data-tab "change", onclick "showTab('change')", style "flex: 1; padding: 8px 16px; background: transparent; border: none; border-bottom: 2px solid transparent; color: var(--f3); cursor: pointer; outline: none;")
-          ; Change ({(scow %ud chng-count)})
-        ==
+      ;div#scan-status-wrap
+        ;+  (scan-status-ui scan progress)
+      ==
+      ;div#tab-bar
+        ;+  (tab-bar recv-count chng-count)
       ==
       ;div#receiving-derive(style "padding-top: 8px;")
         ;+  (derive-button "receiving" recv)
@@ -558,7 +567,7 @@
         ;+  (derive-button "change" chng)
       ==
     ==
-    ;div.fc.g2(style "flex: 1; min-height: 0; overflow-y: auto; padding-top: 8px;")
+    ;div#addr-scroll.fc.g2(style "flex: 1; min-height: 0; overflow-y: auto; padding-top: 8px;")
       ;div#receiving-addresses
         ;+  (address-list acct %recv recv now)
       ==
@@ -732,13 +741,14 @@
   """
 ::
 ++  script-text
-  |=  [network=?(%main %testnet3 %testnet4 %signet %regtest) acct-base=tape]
+  |=  [network=?(%main %testnet3 %testnet4 %signet %regtest) acct-base=tape acct-hex=tape]
   ^-  tape
   """
   var API = '/grubbery/api';
   var acctBase = '{acct-base}';
   var activeNetwork = '{(trip ;;(@ta network))}';
   var activeTab = 'receiving';
+  var acctHex = '{acct-hex}';
 
   function showReceiveModal() \{
     document.getElementById('receive-modal').style.display = 'flex';
@@ -770,7 +780,7 @@
       headers: \{'Content-Type': 'application/json'},
       body: JSON.stringify(\{action: 'set-network', network: network})
     }).then(function() \{
-      hideModal('network-modal');
+      window.location.reload();
     }).catch(function(e) \{ console.error('set-network failed', e) });
   }
 
@@ -783,7 +793,6 @@
       headers: \{'Content-Type': 'application/json'},
       body: JSON.stringify(\{action: 'derive-next', chain: chain})
     }).then(function(r) \{
-      console.log('[debug] deriveNext response', r.status);
       if (!r.ok) return r.text().then(function(t) \{ console.error('derive-next error', t) });
     }).catch(function(e) \{ console.error('derive-next failed', e) });
   }
@@ -894,10 +903,47 @@
       btn.style.fontWeight = active ? 'bold' : 'normal';
     });
   }
+
+  function connectSSE() \{
+    var es = new EventSource('/groundwire/wallet/a/' + acctHex + '/stream');
+    es.addEventListener('fragment', function(e) \{
+      try \{
+        var data = JSON.parse(e.data);
+        var el = document.getElementById(data.target);
+        if (!el) return;
+        if (data.action === 'prepend') \{
+          if (data.rowId && document.getElementById(data.rowId)) return;
+          var empty = el.querySelector('[id^="empty-"]');
+          if (empty) empty.remove();
+          el.insertAdjacentHTML('afterbegin', data.html);
+        } else if (data.action === 'update') \{
+          var existing = document.getElementById(data.rowId);
+          if (existing) existing.outerHTML = data.html;
+        } else \{
+          el.innerHTML = data.html;
+        }
+        applyTab();
+      } catch(err) \{ console.error('SSE fragment error', err); }
+    });
+    es.addEventListener('receive-addr', function(e) \{
+      try \{
+        var addr = e.data;
+        var qr = document.getElementById('receive-qr');
+        if (qr) qr.setAttribute('data-address', addr);
+        var el = document.getElementById('receive-addr');
+        if (el) el.textContent = addr;
+      } catch(err) \{ console.error('SSE receive-addr error', err); }
+    });
+    es.onerror = function() \{
+      es.close();
+      setTimeout(connectSSE, 3000);
+    };
+  }
+  connectSSE();
   """
 ::
 ++  send-scripts-ui
-  |=  [next-chg-tape=tape acct-base=tape]
+  |=  [next-chg-tape=tape acct-base=tape key-hex=tape]
   ^-  manx
   =/  js=tape
     """
@@ -967,6 +1013,23 @@
     function buildTransaction() \{
       poke('build-transaction');
     }
+
+    function connectSSE() \{
+      var es = new EventSource('/groundwire/wallet/a/{key-hex}/send/stream');
+      es.addEventListener('fragment', function(e) \{
+        try \{
+          var data = JSON.parse(e.data);
+          var el = document.getElementById(data.target);
+          if (!el) return;
+          el.innerHTML = data.html;
+        } catch(err) \{ console.error('SSE fragment error', err); }
+      });
+      es.onerror = function() \{
+        es.close();
+        setTimeout(connectSSE, 3000);
+      };
+    }
+    connectSSE();
     """
   ;script
     ;+  ;/  js
@@ -975,6 +1038,8 @@
 ++  detail-page
   |=  [acct=account-data recv=addr-mop chng=addr-mop now=@da scan=?(%active %paused %none) progress=(unit scan-progress) rfsh=(set (pair ?(%recv %chng) @ud)) wal-name=@t]
   ^-  manx
+  =/  acct-key  (from-extended:bip32 (trip xprv.acct))
+  =/  key-hex=tape  (hexn:http-utils public-key:acct-key)
   ;html
     ;head
       ;title: {(trip name.acct)}
@@ -1011,14 +1076,18 @@
               ;code.mono.s-2.p1.b2.br1: {(format-account-path purpose.acct coin-type.acct account-idx.acct)}
               ;+  (coin-type-badge coin-type.acct)
             ==
-            ;+  (network-badge-ui active-network.acct q.coin-type.acct)
+            ;div#network-badge-wrap
+              ;+  (network-badge-ui active-network.acct q.coin-type.acct)
+            ==
           ==
           ;div.p4.b2.br2(style "flex-shrink: 0;")
             ;h2.s1.bold.mb2: Account Summary
-            ;+  (account-summary-ui recv chng)
+            ;div#account-summary-wrap
+              ;+  (account-summary-ui recv chng)
+            ==
             ;div(style "display: flex; gap: 8px; margin-top: 12px; justify-content: center;")
               ;a.p2.b1.br2.hover.pointer
-                =href  "./send.html"
+                =href  "/groundwire/wallet/a/{key-hex}/send"
                 =style  "display: flex; align-items: center; justify-content: center; gap: 6px; background: rgba(100, 150, 255, 0.15); border: 1px solid rgba(100, 150, 255, 0.4); color: var(--f3); text-decoration: none; outline: none; white-space: nowrap;"
                 ;div(style "width: 16px; height: 16px; display: flex; align-items: center; justify-content: center;")
                   ;+  (make:fi 'arrow-up')
@@ -1043,10 +1112,8 @@
       ==
       ;script
         ;+  ;/
-          =/  acct-key  (from-extended:bip32 (trip xprv.acct))
-          =/  key-hex=tape  (hexn:http-utils public-key:acct-key)
           =/  acct-base=tape  "wallet.wallet_app/accounts/{key-hex}.wallet_account"
-          (script-text active-network.acct acct-base)
+          (script-text active-network.acct acct-base key-hex)
       ==
     ==
   ==
@@ -1054,6 +1121,8 @@
 ++  send-page
   |=  [acct=account-data recv=addr-mop chng=addr-mop dr=(unit transaction:drft) now=@da wal-name=@t]
   ^-  manx
+  =/  acct-key  (from-extended:bip32 (trip xprv.acct))
+  =/  key-hex=tape  (hexn:http-utils public-key:acct-key)
   =/  fi=fee-calc  (compute-fee-info dr)
   =/  utxos=(list [addr=@t u=utxo chain=?(%recv %chng) idx=@ud])
     %+  weld
@@ -1101,19 +1170,23 @@
     ==
     ;body.dark.b0.f1(style "height: 100%;")
       ;div.fc.g3.p5.ma(style "max-width: 720px; height: 100%; overflow-y: auto;")
-        ;a.hover.pointer(href "./page.html", style "color: var(--f3); text-decoration: none; flex-shrink: 0;"): ← Back
+        ;a.hover.pointer(href "/groundwire/wallet/a/{key-hex}/", style "color: var(--f3); text-decoration: none; flex-shrink: 0;"): ← Back
         ;div.p4.b1.br2(style "flex-shrink: 0;")
           ;h1.s2.bold(style "margin-bottom: 8px;")
             ; Send Bitcoin
             ;span(style "opacity: 0.4; margin: 0 8px;"): |
             ;span.f2(style "opacity: 0.5; font-weight: normal;"): {(trip name.acct)}
           ==
-          ;div.f2(style "margin-top: 4px;"): Available: {(scow %ud total-balance)} sats
-          ;+  (fee-info-ui fi)
+          ;div#send-balance.f2(style "margin-top: 4px;"): Available: {(scow %ud total-balance)} sats
+          ;div#send-fee-info
+            ;+  (fee-info-ui fi)
+          ==
         ==
         ;div.p4.b2.br2
           ;h2.s1.bold.mb2: Select UTXOs (Inputs)
-          ;+  (auto-select-ui has-auto is-random is-largest (add total-outputs.fi est-fee.fi))
+          ;div#send-auto-select
+            ;+  (auto-select-ui has-auto is-random is-largest (add total-outputs.fi est-fee.fi))
+          ==
           ;div.f3(style "opacity: 0.8; margin-bottom: 8px;"): Select which coins to spend
           ;div#utxo-list(style "max-height: 300px; overflow-y: auto;")
             ;*  utxo-rows
@@ -1140,7 +1213,9 @@
         ;div.p4.b2.br2(style "flex-shrink: 0;")
           ;h2.s1.bold.mb2: Transaction Outputs
           ;div.f3(style "opacity: 0.8; margin-bottom: 12px;"): Draft outputs for this transaction
-          ;+  (change-section-ui has-change-config.fi fee-rate.fi est-fee.fi est-vbytes.fi change-result.fi next-chg)
+          ;div#send-change-section
+            ;+  (change-section-ui has-change-config.fi fee-rate.fi est-fee.fi est-vbytes.fi change-result.fi next-chg)
+          ==
           ;div#output-list
             ;+  (output-list-ui dr)
           ==
@@ -1159,10 +1234,8 @@
         ==
       ==
       ;+
-        =/  acct-key  (from-extended:bip32 (trip xprv.acct))
-        =/  key-hex=tape  (hexn:http-utils public-key:acct-key)
         =/  acct-base=tape  "wallet.wallet_app/accounts/{key-hex}.wallet_account"
-        (send-scripts-ui next-chg-tape acct-base)
+        (send-scripts-ui next-chg-tape acct-base key-hex)
     ==
   ==
 --

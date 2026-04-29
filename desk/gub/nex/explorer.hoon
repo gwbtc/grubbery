@@ -785,8 +785,11 @@
   ?-    -.road
       %&  (render-lane p.road)
       %|
-    =/  ups=tape  (reap p.p.road '^')
-    "{ups}{(render-lane q.p.road)}"
+    =/  ups=tape  ?:(=(0 p.p.road) "./" (zing (reap p.p.road "../")))
+    =/  lane=tape  (render-lane q.p.road)
+    ::  strip leading / since ups already provides the prefix
+    =/  trimmed=tape  ?:(&(?=(^ lane) =(i.lane '/')) t.lane lane)
+    "{ups}{trimmed}"
   ==
 ::
 ++  road-to-form

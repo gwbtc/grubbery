@@ -125,6 +125,24 @@
     [%done bowl.u.in]
   ==
 ::
+::  Try %bowl dart; return %& bowl on success, %| tang on veto
+::
+++  try-bowl
+  =/  m  (fiber ,(each bowl:nexus tang))
+  ^-  form:m
+  ;<  ~  bind:m  (send-dart %bowl /try-bowl)
+  |=  input
+  :+  ~  state
+  ?+  in  [%skip ~]
+      ~  [%wait ~]
+      [~ %veto *]
+    [%done |+(veto-error dart.u.in)]
+      [~ %bowl * *]
+    ?.  =(/try-bowl wire.u.in)
+      [%skip ~]
+    [%done &+bowl.u.in]
+  ==
+::
 ++  get-kept
   =/  m  (fiber ,kept:nexus)
   ^-  form:m
@@ -1039,29 +1057,43 @@
   (wait (add now.bowl for))
 ::  Convenience bowl accessors
 ::
+::  Try %bowl dart first; if vetoed, fall back to /sys/bowl/ oracle
+::
 ++  get-our
   =/  m  (fiber ,ship)
   ^-  form:m
-  ;<  =bowl:nexus  bind:m  get-bowl
-  (pure:m our.bowl)
+  ;<  res=(each bowl:nexus tang)  bind:m  try-bowl
+  ?:  ?=(%& -.res)  (pure:m our.p.res)
+  ;<  ~  bind:m  (poke [&+&+[/sys/bowl %'our.sig']] [/ %sig] !>(~))
+  ;<  =sage:tarball  bind:m  take-poke
+  (pure:m !<(@p q.sage))
 ::
 ++  get-time
   =/  m  (fiber ,@da)
   ^-  form:m
-  ;<  =bowl:nexus  bind:m  get-bowl
-  (pure:m now.bowl)
+  ;<  res=(each bowl:nexus tang)  bind:m  try-bowl
+  ?:  ?=(%& -.res)  (pure:m now.p.res)
+  ;<  ~  bind:m  (poke [&+&+[/sys/bowl %'now.sig']] [/ %sig] !>(~))
+  ;<  =sage:tarball  bind:m  take-poke
+  (pure:m !<(@da q.sage))
 ::
 ++  get-entropy
   =/  m  (fiber ,@uvJ)
   ^-  form:m
-  ;<  =bowl:nexus  bind:m  get-bowl
-  (pure:m eny.bowl)
+  ;<  res=(each bowl:nexus tang)  bind:m  try-bowl
+  ?:  ?=(%& -.res)  (pure:m eny.p.res)
+  ;<  ~  bind:m  (poke [&+&+[/sys/bowl %'eny.sig']] [/ %sig] !>(~))
+  ;<  =sage:tarball  bind:m  take-poke
+  (pure:m !<(@uvJ q.sage))
 ::
 ++  get-here
   =/  m  (fiber ,rail:tarball)
   ^-  form:m
-  ;<  =bowl:nexus  bind:m  get-bowl
-  (pure:m here.bowl)
+  ;<  res=(each bowl:nexus tang)  bind:m  try-bowl
+  ?:  ?=(%& -.res)  (pure:m here.p.res)
+  ;<  ~  bind:m  (poke [&+&+[/sys/bowl %'here.sig']] [/ %sig] !>(~))
+  ;<  =sage:tarball  bind:m  take-poke
+  (pure:m !<(rail:tarball q.sage))
 ::
 ++  get-agent
   =/  m  (fiber ,dude:gall)
