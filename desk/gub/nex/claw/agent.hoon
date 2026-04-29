@@ -13,6 +13,8 @@
         =/  default-config=json
           %-  pairs:enjs:format
           :~  ['model' s+'claude-sonnet-4-20250514']
+              ['context_window' (numb:enjs:format 200.000)]
+              ['message_cap' (numb:enjs:format 20.000)]
           ==
         =/  default-prompt=wain
           :~  'You are an AI assistant running as a claw nexus on an Urbit ship.'
@@ -128,12 +130,14 @@
           =/  proxy=@t
             =/  p  (get-str config 'api-proxy')
             ?:(=('' p) '../../apis/anthropic.sig' p)
+          =/  ctx-window=@ud  (get-num config 'context_window' 200.000)
+          =/  msg-cap=@ud  (get-num config 'message_cap' 20.000)
           ;<  =convo  bind:m  (read-conv conv-key)
           =/  updated=^convo
             (snoc convo [%msg 'user' (crip "[spawn_task result]: {(trip result-text)}")])
           ;<  ~  bind:m  (write-conv conv-key updated)
           ;<  tools=(map @t tool:nex-tools)  bind:m  get-tools
-          ;<  final=^convo  bind:m  (agent-turn conv-key model proxy updated tools)
+          ;<  final=^convo  bind:m  (agent-turn conv-key model proxy ctx-window msg-cap updated tools)
           $
             %poke
           ~&  >>  ["%claw poke from:" from.main-event]
@@ -170,6 +174,8 @@
             =/  proxy=@t
               =/  p  (get-str config 'api-proxy')
               ?:(=('' p) '../../apis/anthropic.sig' p)
+            =/  ctx-window=@ud  (get-num config 'context_window' 200.000)
+            =/  msg-cap=@ud  (get-num config 'message_cap' 20.000)
             ::  read conversation, append user message
             ;<  =convo  bind:m  (read-conv conv-key)
             =/  updated=^convo  (snoc convo [%msg 'user' content])
@@ -177,7 +183,7 @@
             ::  discover tools
             ;<  tools=(map @t tool:nex-tools)  bind:m  get-tools
             ::  enter agent turn loop
-            ;<  final=^convo  bind:m  (agent-turn conv-key model proxy updated tools)
+            ;<  final=^convo  bind:m  (agent-turn conv-key model proxy ctx-window msg-cap updated tools)
             $
           ::
               %'clear'
@@ -250,16 +256,14 @@
 ::  types and helpers
 ::
 |%
-::  conversation entry: either a message or a summary placeholder
+::  conversation entry
 ::
 +$  entry
   $%  [%msg role=@t content=@t]
-      [%sum id=@ud covers=(list @ud) content=@t]
       [%tool-use id=@t name=@t input=json]
       [%tool-result tool-use-id=@t content=@t]
   ==
 ::  a conversation is an ordered list of entries
-::  messages are never deleted, only compacted behind summaries
 ::
 +$  convo  (list entry)
 ::
@@ -273,6 +277,15 @@
   ?~  val  ''
   ?.  ?=(%s -.u.val)  ''
   p.u.val
+::
+++  get-num
+  |=  [jon=json key=@t default=@ud]
+  ^-  @ud
+  ?.  ?=(%o -.jon)  default
+  =/  val=(unit json)  (~(get by p.jon) key)
+  ?~  val  default
+  ?.  ?=(%n -.u.val)  default
+  (fall (rush p.u.val dem) default)
 ::
 +$  main-event
   $%  [%poke =from:fiber:nexus =sage:tarball]
@@ -409,6 +422,11 @@
       [name:clear-weir-tool clear-weir-tool]
       [name:finish-tool finish-tool]
       [name:spawn-task-tool spawn-task-tool]
+      [name:grep-files-tool grep-files-tool]
+      [name:glob-files-tool glob-files-tool]
+      [name:grep-history-tool grep-history-tool]
+      [name:recall-messages-tool recall-messages-tool]
+      [name:summarize-tool summarize-tool]
   ==
 ::
 ::  +get-tools: return built-in tools merged with dynamic tools from content/code/lib/tools
@@ -504,7 +522,7 @@
 ::  sends prompt to API, handles tool_use responses, loops until end_turn
 ::
 ++  agent-turn
-  |=  [conv-key=@t model=@t proxy=@t =convo tools=(map @t tool:nex-tools)]
+  |=  [conv-key=@t model=@t proxy=@t ctx-window=@ud msg-cap=@ud =convo tools=(map @t tool:nex-tools)]
   =/  m  (fiber:fiber:nexus ,^convo)
   ^-  form:m
   ~&  >>  "%claw agent-turn: start"
@@ -526,7 +544,6 @@
       "Location: {(spud (snoc path.here name.here))}"
     ==
   |-
-  =/  [ctx=@t api-msgs-list=(list json)]  (assemble convo)
   =/  sys-prompt=@t
     %-  crip
     ;:  weld
@@ -535,9 +552,16 @@
       (trip runtime-ctx)
       ?:  =('' memories)  ""
       :(weld "\0a\0a## Memories\0a\0a" (trip memories))
-      ?:  =('' ctx)  ""
-      :(weld "\0a\0a" (trip ctx))
     ==
+  ::  subtract prompt + tool defs from window budget
+  =/  prompt-tokens=@ud  (max 1 (div (met 3 sys-prompt) 4))
+  =/  tools-tokens=@ud
+    ?:  =(~ tools)  0
+    (max 1 (div (met 3 (en:json:html (tools-to-json tools))) 4))
+  =/  effective-window=@ud
+    ?:  (gth (add prompt-tokens tools-tokens) ctx-window)  1.000
+    (sub ctx-window (add prompt-tokens tools-tokens))
+  =/  api-msgs-list=(list json)  (assemble convo effective-window msg-cap)
   ::  build API request body
   =/  api-msgs=json  [%a api-msgs-list]
   =/  body-pairs=(list [@t json])
@@ -586,7 +610,7 @@
     (pure:m updated)
   ::  execute tools, append results
   ~&  >  ["%claw: executing" (lent calls) "tool calls"]
-  ;<  results=(list [@t @t])  bind:m  (run-tool-calls calls)
+  ;<  results=(list [@t @t])  bind:m  (run-tool-calls calls conv-key)
   =/  with-results=^convo
     %+  roll  results
     |=  [[id=@t result=@t] acc=_updated]
@@ -602,7 +626,7 @@
 ::  If %done, the tool completed synchronously — subscription dropped.
 ::
 ++  run-tool-calls
-  |=  calls=(list content-block)
+  |=  [calls=(list content-block) conv-key=@t]
   =/  m  (fiber:fiber:nexus ,(list [@t @t]))
   ^-  form:m
   =/  results=(list [@t @t])  ~
@@ -612,7 +636,7 @@
   ?>  ?=(%tool-use -.call)
   =/  tool-args=(map @t json)
     ?.  ?=(%o -.input.call)  ~
-    p.input.call
+    (~(put by p.input.call) '_conv_key' s+conv-key)
   =/  ts=tool-state:nex-tools
     [name.call tool-args %start ~ ~]
   =/  tid=@ta  id.call
@@ -751,15 +775,6 @@
   ^-  (unit entry)
   ?.  ?=(%o -.json)  ~
   =/  type=(unit @t)  (bind (~(get by p.json) 'type') |=(j=^json ?>(?=(%s -.j) p.j)))
-  ?:  ?=([~ %'sum'] type)
-    =/  id=@ud  (fall (bind (~(get by p.json) 'id') |=(j=^json ?>(?=(%n -.j) (fall (rush p.j dem) 0)))) 0)
-    =/  covers=(list @ud)
-      =/  cv  (~(get by p.json) 'covers')
-      ?~  cv  ~
-      ?.  ?=(%a -.u.cv)  ~
-      (murn p.u.cv |=(j=^json ?.(?=(%n -.j) ~ (rush p.j dem))))
-    =/  content=@t  (fall (bind (~(get by p.json) 'content') |=(j=^json ?>(?=(%s -.j) p.j))) '')
-    `[%sum id covers content]
   ?:  ?=([~ %'tool_use'] type)
     =/  id=@t  (fall (bind (~(get by p.json) 'id') |=(j=^json ?>(?=(%s -.j) p.j))) '')
     =/  name=@t  (fall (bind (~(get by p.json) 'name') |=(j=^json ?>(?=(%s -.j) p.j))) '')
@@ -785,13 +800,6 @@
   ?-  -.entry
       %msg
     (pairs:enjs:format ~[['role' s+role.entry] ['content' s+content.entry]])
-      %sum
-    %-  pairs:enjs:format
-    :~  ['type' s+'sum']
-        ['id' (numb:enjs:format id.entry)]
-        ['covers' [%a (turn covers.entry |=(n=@ud (numb:enjs:format n)))]]
-        ['content' s+content.entry]
-    ==
       %tool-use
     %-  pairs:enjs:format
     :~  ['type' s+'tool_use']
@@ -809,20 +817,57 @@
 ::
 ::  +assemble: build API messages JSON from conversation
 ::
-::  returns context string (from summaries) and list of API message objects.
-::  handles %msg, %sum, %tool-use, and %tool-result entries.
+::  returns list of API message objects with sliding window.
+::  walks backward from end, keeping entries within token budget.
+::  if truncated, prepends a note about earlier history.
+::  resolves [ref:N-M] in tool results from full convo.
+::  truncates individual messages exceeding msg-cap tokens.
 ::  consecutive tool-use entries get merged into one assistant message.
 ::  consecutive tool-result entries get merged into one user message.
 ::
 ++  assemble
-  |=  =convo
-  ^-  [ctx=@t msgs=(list json)]
-  =/  ctx=tape  ~
-  =/  msgs=(list json)  ~
+  |=  [=convo ctx-window=@ud msg-cap=@ud]
+  ^-  (list json)
+  =/  total=@ud  (lent convo)
+  =/  cap-chars=@ud  (mul msg-cap 4)
+  ::  sliding window: walk backward, keep entries within budget
+  =/  windowed=^convo
+    =/  budget=@ud  ctx-window
+    =/  rev=^convo  (flop convo)
+    =/  kept=^convo  ~
+    |-
+    ?~  rev  kept
+    =/  tok=@ud  (entry-tokens i.rev)
+    ?:  (gth tok budget)  kept
+    $(rev t.rev, kept [i.rev kept], budget (sub budget tok))
+  =/  skipped=@ud  (sub total (lent windowed))
+  =/  skipped-tokens=@ud
+    %+  roll  (scag skipped convo)
+    |=  [e=entry acc=@ud]
+    (add acc (entry-tokens e))
+  =/  window-start=@ud  skipped
+  =/  prefix=(unit json)
+    ?:  =(0 skipped)  ~
+    =/  note=@t
+      %-  crip
+      ;:  weld
+        "[Conversation history truncated. "
+        (a-co:co skipped)
+        " earlier messages (est. "
+        (a-co:co skipped-tokens)
+        " tokens) not shown, covering messages 0-"
+        (a-co:co (dec skipped))
+        ". Current window starts at message "
+        (a-co:co window-start)
+        ".]"
+      ==
+    `(pairs:enjs:format ~[['role' s+'user'] ['content' s+note]])
+  ::  assemble the windowed entries
+  =/  msgs=(list json)  ?~(prefix ~ [u.prefix]~)
   =/  pending-tools=(list json)  ~
   =/  pending-results=(list json)  ~
-  |-  ^-  [ctx=@t msgs=(list json)]
-  ::  flush helpers
+  =/  walk=^convo  windowed
+  |-  ^-  (list json)
   =/  flush-tools=_msgs
     ?~  pending-tools  msgs
     :_  msgs
@@ -833,49 +878,133 @@
     :_  msgs
     %-  pairs:enjs:format
     ~[['role' s+'user'] ['content' [%a (flop pending-results)]]]
-  ?~  convo
+  ?~  walk
     =.  msgs  flush-tools
     =.  msgs  flush-results
-    [(crip ctx) (flop msgs)]
-  ?-  -.i.convo
+    (flop msgs)
+  ?-  -.i.walk
       %msg
     =.  msgs  flush-tools
     =.  msgs  flush-results
+    =/  txt=@t  (cap-content content.i.walk cap-chars)
     %=  $
-      convo  t.convo
+      walk  t.walk
       pending-tools  ~
       pending-results  ~
       msgs  :_  msgs
-             (pairs:enjs:format ~[['role' s+role.i.convo] ['content' s+content.i.convo]])
+             (pairs:enjs:format ~[['role' s+role.i.walk] ['content' s+txt]])
     ==
-      %sum
-    =/  line=tape
-      ?:  =('' content.i.convo)
-        "[Earlier conversation summarized but not yet realized]"
-      (trip content.i.convo)
-    $(convo t.convo, ctx ?~(ctx line (weld (weld ctx "\0a\0a") line)))
       %tool-use
     =.  msgs  flush-results
     =.  pending-results  ~
     =/  block=json
       %-  pairs:enjs:format
       :~  ['type' s+'tool_use']
-          ['id' s+id.i.convo]
-          ['name' s+name.i.convo]
-          ['input' input.i.convo]
+          ['id' s+id.i.walk]
+          ['name' s+name.i.walk]
+          ['input' input.i.walk]
       ==
-    $(convo t.convo, pending-tools [block pending-tools])
+    $(walk t.walk, pending-tools [block pending-tools])
       %tool-result
     =.  msgs  flush-tools
     =.  pending-tools  ~
+    ::  resolve [ref:N-M] markers from full convo
+    =/  txt=@t  (resolve-content content.i.walk convo cap-chars)
     =/  block=json
       %-  pairs:enjs:format
       :~  ['type' s+'tool_result']
-          ['tool_use_id' s+tool-use-id.i.convo]
-          ['content' s+content.i.convo]
+          ['tool_use_id' s+tool-use-id.i.walk]
+          ['content' s+txt]
       ==
-    $(convo t.convo, pending-results [block pending-results])
+    $(walk t.walk, pending-results [block pending-results])
   ==
+::
+::  +cap-content: truncate content to char limit with note
+::
+++  cap-content
+  |=  [txt=@t limit=@ud]
+  ^-  @t
+  ?:  (lte (met 3 txt) limit)  txt
+  =/  original=@ud  (met 3 txt)
+  %-  crip
+  ;:  weld
+    (scag limit (trip txt))
+    "\0a\0a[truncated: showing "
+    (a-co:co (div limit 4))
+    " of ~"
+    (a-co:co (div original 4))
+    " est. tokens]"
+  ==
+::
+::  +resolve-content: resolve [ref:N-M] markers, then cap
+::
+++  resolve-content
+  |=  [txt=@t full=convo limit=@ud]
+  ^-  @t
+  =/  t=tape  (trip txt)
+  ?.  ?&  (gte (lent t) 5)
+          =("[ref:" (scag 5 t))
+      ==
+    (cap-content txt limit)
+  ::  parse [ref:N-M]
+  =/  inner=tape  (slag 5 t)
+  =/  close=(unit @ud)  (find "]" inner)
+  ?~  close  (cap-content txt limit)
+  =/  range=tape  (scag u.close inner)
+  =/  dash=(unit @ud)  (find "-" range)
+  ?~  dash  (cap-content txt limit)
+  =/  from=@ud  (fall (rush (crip (scag u.dash range)) dem) 0)
+  =/  to=@ud  (fall (rush (crip (slag +(u.dash) range)) dem) 0)
+  ::  resolve entries from full convo
+  =/  resolved=tape
+    %-  zing
+    %+  turn  (gulf from to)
+    |=  idx=@ud
+    ^-  tape
+    ?:  (gte idx (lent full))  ~
+    =/  e=entry  (snag idx full)
+    ;:  weld
+      "["
+      (a-co:co idx)
+      "] "
+      ?-  -.e
+          %msg
+        ;:  weld  (trip role.e)  ": "  (trip content.e)  ==
+          %tool-use
+        (weld "tool_use: " (trip name.e))
+          %tool-result
+        (weld "tool_result: " (trip content.e))
+      ==
+      "\0a"
+    ==
+  (cap-content (crip resolved) limit)
+::
+::  split a tape into lines by newline
+::
+++  to-lines
+  |=  t=tape
+  ^-  (list tape)
+  =/  acc=(list tape)  ~
+  =/  cur=tape  ~
+  |-
+  ?~  t
+    (flop [cur acc])
+  ?:  =(i.t '\0a')
+    $(t t.t, acc [cur acc], cur ~)
+  $(t t.t, cur (snoc cur i.t))
+::
+::  estimate tokens for a conversation entry (~4 chars per token)
+::
+++  entry-tokens
+  |=  =entry
+  ^-  @ud
+  =/  chars=@ud
+    ?-  -.entry
+        %msg          (met 3 content.entry)
+        %tool-use     (add (met 3 name.entry) (met 3 (en:json:html input.entry)))
+        %tool-result  (met 3 content.entry)
+    ==
+  (max 1 (div chars 4))
 ::
 ::
 ++  read-conv-names
@@ -925,6 +1054,10 @@
             ==
             ;label.cfg-label: Model
             ;input#cfg-model(type "text", placeholder "claude-sonnet-4-20250514");
+            ;label.cfg-label: Context window (tokens)
+            ;input#cfg-window(type "number", placeholder "200000");
+            ;label.cfg-label: Message cap (tokens)
+            ;input#cfg-msgcap(type "number", placeholder "20000");
             ;div#cfg-status;
           ==
         ==
@@ -993,8 +1126,8 @@
   #cfg-header span \{ font-size: 14px; font-weight: 600; }
   #cfg-header div \{ display: flex; gap: 6px; }
   .cfg-label \{ display: block; font-size: 12px; color: #888; margin: 12px 0 4px; }
-  #cfg-model \{ width: 100%; padding: 8px 10px; border-radius: 6px; border: 1px solid #333; background: #111; color: #eee; font-size: 13px; font-family: monospace; outline: none; box-sizing: border-box; }
-  #cfg-model:focus \{ border-color: #2563eb; }
+  #cfg-model, #cfg-window, #cfg-msgcap \{ width: 100%; padding: 8px 10px; border-radius: 6px; border: 1px solid #333; background: #111; color: #eee; font-size: 13px; font-family: monospace; outline: none; box-sizing: border-box; }
+  #cfg-model:focus, #cfg-window:focus, #cfg-msgcap:focus \{ border-color: #2563eb; }
   #cfg-status \{ margin-top: 10px; font-size: 12px; color: #4ade80; }
   """
 ::
@@ -1119,6 +1252,8 @@
   // Config modal
   var cfgBack = document.getElementById('cfg-backdrop');
   var cfgModel = document.getElementById('cfg-model');
+  var cfgWindow = document.getElementById('cfg-window');
+  var cfgMsgcap = document.getElementById('cfg-msgcap');
   var cfgStatus = document.getElementById('cfg-status');
 
   document.getElementById('config-btn').onclick = function() \{
@@ -1127,6 +1262,8 @@
       .then(function(r) \{ return r.json() })
       .then(function(j) \{
         cfgModel.value = j['model'] || '';
+        cfgWindow.value = j['context_window'] || 200000;
+        cfgMsgcap.value = j['message_cap'] || 20000;
       }).catch(function() \{});
     cfgBack.classList.add('open');
   };
@@ -1140,7 +1277,7 @@
   };
 
   document.getElementById('cfg-save').onclick = async function() \{
-    var cfg = \{'model': cfgModel.value};
+    var cfg = \{'model': cfgModel.value, 'context_window': parseInt(cfgWindow.value) || 200000, 'message_cap': parseInt(cfgMsgcap.value) || 20000};
     var r = await fetch(API + '/over/' + BALL + '/config.json?mark=json', \{
       method: 'POST',
       headers: \{'Content-Type': 'application/json'},
@@ -1167,6 +1304,26 @@
   ^-  (unit @t)
   (bind (~(get by args.st) key) |=(j=json ?>(?=(%s -.j) p.j)))
 ::
+::  +agent-road: adjust a road so relative paths resolve from the agent root
+::
+::  Tools run at /tools/{tid}, one level below the agent. The LLM thinks
+::  in terms of the agent directory, so ./foo should mean agent-root/foo,
+::  not /tools/{tid}/foo. This prepends ../ to relative roads.
+::
+++  agent-road
+  |=  raw=@t
+  ^-  road:tarball
+  =/  t=tape  (trip raw)
+  =/  adjusted=@t
+    ::  only adjust ./ (agent-relative), not ../ (already traversing)
+    ?:  =("./" (scag 2 t))
+      (crip (weld "../" (slag 2 t)))
+    ::  bare ../ paths: add one more level to account for tool depth
+    ?:  =(".." (scag 2 t))
+      (crip (weld "../" t))
+    raw
+  (cord-to-road:tarball adjusted)
+::
 ::
 ++  browse-tool
   ^-  tool:nex-tools
@@ -1190,7 +1347,7 @@
     ;<  st=tool-state:nex-tools  bind:m  (get-state-as:io ,tool-state:nex-tools)
     ?~  raw=(get-arg st 'road')
       (pure:m [%error 'Missing required argument: road'])
-    =/  road=road:tarball  (cord-to-road:tarball u.raw)
+    =/  road=road:tarball  (agent-road u.raw)
     ;<  =seen:nexus  bind:m  (peek:io road ~)
     ?.  ?=([%& %ball *] seen)
       (pure:m [%error (crip "Not a directory: {(trip u.raw)}")])
@@ -1215,13 +1372,18 @@
   ++  description
     ^~  %-  crip
     ;:  weld
-      "Read a file from this nexus. "
-      "Accepts a road string pointing to a file: "
-      "absolute (/config.json) or relative (./context/conversations/main.json)."
+      "Read a file from this nexus. Paths are relative to the agent root "
+      "(e.g. ./config.json, ./context/conversations/main.json) or absolute. "
+      "Use offset/limit to read a specific line range from large files."
     ==
   ++  parameters
     ^-  (map @t parameter-def:nex-tools)
-    (malt ~[['road' [%string 'Road to a file (e.g. "/config.json", "./context/conversations/main.json")']]])
+    %-  malt
+    ^-  (list [@t parameter-def:nex-tools])
+    :~  ['road' [%string 'Path to a file (e.g. "./config.json")']]
+        ['offset' [%number 'Start line (1-indexed, default: 1)']]
+        ['limit' [%number 'Max lines to return (default: all)']]
+    ==
   ++  required  ~['road']
   ++  handler
     ^-  tool-handler:nex-tools
@@ -1230,11 +1392,45 @@
     ;<  st=tool-state:nex-tools  bind:m  (get-state-as:io ,tool-state:nex-tools)
     ?~  raw=(get-arg st 'road')
       (pure:m [%error 'Missing required argument: road'])
-    =/  road=road:tarball  (cord-to-road:tarball u.raw)
+    =/  road=road:tarball  (agent-road u.raw)
     ;<  =seen:nexus  bind:m  (peek:io road ~)
     ?.  ?=([%& %file *] seen)
       (pure:m [%error (crip "Not found: {(trip u.raw)}")])
-    (render-grub-content:nex-tools seen)
+    =/  off=@ud
+      =/  v  (~(get by args.st) 'offset')
+      ?~  v  0
+      ?:  ?=(%n -.u.v)  (fall (rush p.u.v dem) 0)
+      ?:  ?=(%s -.u.v)  (fall (rush p.u.v dem) 0)
+      0
+    =/  lim=@ud
+      =/  v  (~(get by args.st) 'limit')
+      ?~  v  0
+      ?:  ?=(%n -.u.v)  (fall (rush p.u.v dem) 0)
+      ?:  ?=(%s -.u.v)  (fall (rush p.u.v dem) 0)
+      0
+    ?:  &(=(0 off) =(0 lim))
+      ::  no range specified, return full file
+      (render-grub-content:nex-tools seen)
+    ::  range read: convert to text and slice by lines
+    ;<  =mime  bind:m  (sage-to-mime:io sage.p.seen)
+    =/  text=tape  (trip ;;(@t q.q.mime))
+    =/  lines=(list tape)  (to-lines text)
+    =/  total=@ud  (lent lines)
+    =/  start=@ud  ?:(=(0 off) 0 (dec off))
+    =/  sliced=(list tape)
+      =/  after=(list tape)  (slag start lines)
+      ?:(=(0 lim) after (scag lim after))
+    =/  end=@ud  (add start (lent sliced))
+    =/  header=tape
+      "[lines {<(add start 1)>}-{<end>} of {<total>}]\0a"
+    =/  numbered=tape
+      %-  zing
+      =/  n=@ud  (add start 1)
+      |-
+      ?~  sliced  ~
+      =/  line=tape  :(weld (a-co:co n) "\09" i.sliced "\0a")
+      [line $(sliced t.sliced, n +(n))]
+    (pure:m [%text (crip (weld header numbered))])
   --
 ::
 ++  write-tool
@@ -1267,7 +1463,7 @@
       (pure:m [%error 'Missing required argument: road'])
     ?~  content=(get-arg st 'content')
       (pure:m [%error 'Missing required argument: content'])
-    =/  road=road:tarball  (cord-to-road:tarball u.raw)
+    =/  road=road:tarball  (agent-road u.raw)
     =/  src-mime=mime  [/text/plain (as-octs:mimes:html u.content)]
     ;<  exists=?  bind:m  (peek-exists:io road)
     ?:  exists
@@ -1313,7 +1509,7 @@
       ?~  ra  %.n
       ?:  ?=([~ %b *] ra)  p.u.ra
       %.n
-    =/  road=road:tarball  (cord-to-road:tarball u.raw)
+    =/  road=road:tarball  (agent-road u.raw)
     ;<  =seen:nexus  bind:m  (peek:io road ~)
     ?.  ?=([%& %file *] seen)
       (pure:m [%error (crip "Not found: {(trip u.raw)}")])
@@ -1352,7 +1548,7 @@
     ;<  st=tool-state:nex-tools  bind:m  (get-state-as:io ,tool-state:nex-tools)
     ?~  raw=(get-arg st 'road')
       (pure:m [%error 'Missing required argument: road'])
-    =/  road=road:tarball  (cord-to-road:tarball u.raw)
+    =/  road=road:tarball  (agent-road u.raw)
     ;<  ~  bind:m  (cull:io road)
     (pure:m [%text (crip "Deleted {(trip u.raw)}")])
   --
@@ -1373,7 +1569,7 @@
     ;<  st=tool-state:nex-tools  bind:m  (get-state-as:io ,tool-state:nex-tools)
     ?~  raw=(get-arg st 'road')
       (pure:m [%error 'Missing required argument: road'])
-    =/  road=road:tarball  (cord-to-road:tarball u.raw)
+    =/  road=road:tarball  (agent-road u.raw)
     =/  new-ball=ball:tarball  [`[~ ~ ~] ~]
     ;<  ~  bind:m  (make:io road &+[*sand:nexus *gain:nexus new-ball])
     (pure:m [%text (crip "Created directory {(trip u.raw)}")])
@@ -1406,7 +1602,7 @@
       (pure:m [%error 'Missing required argument: road'])
     ?~  code-raw=(get-arg st 'code')
       (pure:m [%error 'Missing required argument: code'])
-    =/  road=road:tarball  (cord-to-road:tarball u.raw)
+    =/  road=road:tarball  (agent-road u.raw)
     =/  code-pax=path  (stab u.code-raw)
     ?~  code-pax
       (pure:m [%error 'Code path cannot be empty'])
@@ -1432,7 +1628,7 @@
     ;<  st=tool-state:nex-tools  bind:m  (get-state-as:io ,tool-state:nex-tools)
     ?~  raw=(get-arg st 'road')
       (pure:m [%error 'Missing required argument: road'])
-    =/  road=road:tarball  (cord-to-road:tarball u.raw)
+    =/  road=road:tarball  (agent-road u.raw)
     ;<  ~  bind:m  (cull:io road)
     (pure:m [%text (crip "Deleted nexus {(trip u.raw)}")])
   --
@@ -1453,7 +1649,7 @@
     ;<  st=tool-state:nex-tools  bind:m  (get-state-as:io ,tool-state:nex-tools)
     ?~  raw=(get-arg st 'road')
       (pure:m [%error 'Missing required argument: road'])
-    =/  road=road:tarball  (cord-to-road:tarball u.raw)
+    =/  road=road:tarball  (agent-road u.raw)
     ;<  doc=@t  bind:m  (manu-road:io road)
     ?:  =('' doc)
       (pure:m [%text (crip "No documentation found for {(trip u.raw)}")])
@@ -1476,7 +1672,7 @@
     ;<  st=tool-state:nex-tools  bind:m  (get-state-as:io ,tool-state:nex-tools)
     ?~  raw=(get-arg st 'road')
       (pure:m [%error 'Missing required argument: road'])
-    =/  road=road:tarball  (cord-to-road:tarball u.raw)
+    =/  road=road:tarball  (agent-road u.raw)
     ;<  res=(unit bend:tarball)  bind:m  (get-font:io road)
     ?~  res
       (pure:m [%text (crip "No code found governing {(trip u.raw)}")])
@@ -1499,7 +1695,7 @@
     ;<  st=tool-state:nex-tools  bind:m  (get-state-as:io ,tool-state:nex-tools)
     ?~  raw=(get-arg st 'road')
       (pure:m [%error 'Missing required argument: road'])
-    =/  dir-road=road:tarball  (cord-to-road:tarball u.raw)
+    =/  dir-road=road:tarball  (agent-road u.raw)
     ;<  dir-seen=seen:nexus  bind:m  (peek:io dir-road ~)
     ?.  ?=([%& %ball *] dir-seen)
       (pure:m [%error (crip "Not a directory or not found: {(trip u.raw)}")])
@@ -1549,7 +1745,7 @@
       (pure:m [%error 'Missing required argument: category'])
     ?~  allow=(get-arg st 'allow_road')
       (pure:m [%error 'Missing required argument: allow_road'])
-    =/  dir-road=road:tarball  (cord-to-road:tarball u.raw)
+    =/  dir-road=road:tarball  (agent-road u.raw)
     =/  allow-road=road:tarball  (cord-to-road:tarball u.allow)
     ;<  dir-seen=seen:nexus  bind:m  (peek:io dir-road ~)
     =/  cur=weir:nexus
@@ -1589,7 +1785,7 @@
       (pure:m [%error 'Missing required argument: category'])
     ?~  allow=(get-arg st 'allow_road')
       (pure:m [%error 'Missing required argument: allow_road'])
-    =/  dir-road=road:tarball  (cord-to-road:tarball u.raw)
+    =/  dir-road=road:tarball  (agent-road u.raw)
     =/  del-road=road:tarball  (cord-to-road:tarball u.allow)
     ;<  dir-seen=seen:nexus  bind:m  (peek:io dir-road ~)
     =/  cur=weir:nexus
@@ -1621,7 +1817,7 @@
     ;<  st=tool-state:nex-tools  bind:m  (get-state-as:io ,tool-state:nex-tools)
     ?~  raw=(get-arg st 'road')
       (pure:m [%error 'Missing required argument: road'])
-    =/  road=road:tarball  (cord-to-road:tarball u.raw)
+    =/  road=road:tarball  (agent-road u.raw)
     ;<  ~  bind:m  (sand:io road ~)
     (pure:m [%text (crip "Cleared weir from {(trip u.raw)}")])
   --
@@ -1655,7 +1851,7 @@
       (pure:m [%error 'Missing required argument: code_road'])
     ?~  nam=(get-arg st 'name')
       (pure:m [%error 'Missing required argument: name'])
-    =/  dir-road=road:tarball  (cord-to-road:tarball u.raw)
+    =/  dir-road=road:tarball  (agent-road u.raw)
     =/  bin-name=@ta  (crip (trip u.nam))
     =/  code-road=road:tarball
       ?-  -.dir-road
@@ -1697,7 +1893,7 @@
     ;<  st=tool-state:nex-tools  bind:m  (get-state-as:io ,tool-state:nex-tools)
     ?~  raw=(get-arg st 'road')
       (pure:m [%error 'Missing required argument: road'])
-    =/  road=road:tarball  (cord-to-road:tarball u.raw)
+    =/  road=road:tarball  (agent-road u.raw)
     ;<  res=(each bangs:nexus (unit tang))  bind:m  (get-bang:io road)
     ?:  ?=(%| -.res)
       ?~  p.res
@@ -1922,5 +2118,402 @@
       (replace:io !>(`tool-state:nex-tools`[tool.st args.st %ack ack-data `ack-data]))
     ::  subscribe and wait for result
     (await-child-result pfx)
+  --
+::
+++  grep-files-tool
+  ^-  tool:nex-tools
+  |%
+  ++  name  'grep'
+  ++  description
+    ^~  %-  crip
+    ;:  weld
+      "Search file contents for a string. Returns matching lines with "
+      "file paths and line numbers. Optionally filter by path, name, or mark pattern."
+    ==
+  ++  parameters
+    ^-  (map @t parameter-def:nex-tools)
+    %-  malt
+    :~  ['pattern' [%string 'Text string to search for']]
+        ['path' [%string 'Directory path glob filter (e.g. "/context/*")']]
+        ['name' [%string 'Filename glob filter (e.g. "*config*")']]
+        ['mark' [%string 'Mark/extension glob filter (e.g. "hoon", "json")']]
+    ==
+  ++  required  ~['pattern']
+  ++  handler
+    ^-  tool-handler:nex-tools
+    =/  m  (fiber:fiber:nexus ,tool-result:nex-tools)
+    ^-  form:m
+    ;<  st=tool-state:nex-tools  bind:m  (get-state-as:io ,tool-state:nex-tools)
+    ?~  raw=(get-arg st 'pattern')
+      (pure:m [%error 'Missing required argument: pattern'])
+    =/  search=tape  (trip u.raw)
+    =/  pat-path=(unit @t)  (get-arg st 'path')
+    =/  pat-name=(unit @t)  (get-arg st 'name')
+    =/  pat-mark=(unit @t)  (get-arg st 'mark')
+    ::  browse agent root (one level up from tool grub)
+    ;<  =seen:nexus  bind:m  (peek:io [%| 1 %| ~] ~)
+    ?.  ?=([%& %ball *] seen)
+      (pure:m [%error 'Could not read ball'])
+    =/  candidates=(list [rail:tarball content:tarball])
+      %+  skim  ~(tap ba:tarball ball.p.seen)
+      |=  [=rail:tarball =content:tarball]
+      =/  fp=tape  ?~(path.rail "/" (trip (spat path.rail)))
+      =/  fn=tape  (trip name.rail)
+      =/  fm=tape  (trip name.p.sage.content)
+      ?&  ?~(pat-path %.y (glob-match:nex-tools (trip u.pat-path) fp))
+          ?~(pat-name %.y (glob-match:nex-tools (trip u.pat-name) fn))
+          ?~(pat-mark %.y (glob-match:nex-tools (trip u.pat-mark) fm))
+      ==
+    =|  results=(list tape)
+    =/  total=@ud  0
+    |-
+    ?~  candidates
+      ?~  results
+        (pure:m [%text 'No matches found'])
+      =/  out=tape  (zing (flop results))
+      (pure:m [%text (crip "Found {<total>} matches:{out}")])
+    =/  [=rail:tarball =content:tarball]  i.candidates
+    =/  label=tape
+      =/  pax=tape  ?~(path.rail "/" (trip (spat path.rail)))
+      "{pax}/{(trip name.rail)}"
+    ;<  file-seen=seen:nexus  bind:m
+      (peek:io [%| 1 %& path.rail name.rail] ~)
+    ?.  ?=([%& %file *] file-seen)
+      $(candidates t.candidates)
+    ;<  =mime  bind:m  (sage-to-mime:io sage.p.file-seen)
+    =/  text=tape  (trip ;;(@t q.q.mime))
+    =/  lines=(list tape)  (to-lines text)
+    =/  line-num=@ud  1
+    =/  hits=(list tape)  ~
+    |-
+    ?~  lines
+      =/  new-results=(list tape)
+        ?~  hits  results
+        (weld (flop hits) results)
+      ^$(candidates t.candidates, results new-results, total (add total (lent hits)))
+    =?  hits  !=(~ (find search i.lines))
+      :_  hits
+      "\0a{label}:{<line-num>}: {i.lines}"
+    $(lines t.lines, line-num +(line-num))
+  --
+::
+++  glob-files-tool
+  ^-  tool:nex-tools
+  |%
+  ++  name  'glob'
+  ++  description
+    ^~  %-  crip
+    ;:  weld
+      "Search for files by path, name, and/or mark. "
+      "All patterns support * wildcards. Omitted filters match everything."
+    ==
+  ++  parameters
+    ^-  (map @t parameter-def:nex-tools)
+    %-  malt
+    :~  ['path' [%string 'Directory path glob filter (e.g. "/context/*")']]
+        ['name' [%string 'Filename glob filter (e.g. "*config*")']]
+        ['mark' [%string 'Mark/extension glob filter (e.g. "hoon", "json")']]
+    ==
+  ++  required  ~
+  ++  handler
+    ^-  tool-handler:nex-tools
+    =/  m  (fiber:fiber:nexus ,tool-result:nex-tools)
+    ^-  form:m
+    ;<  st=tool-state:nex-tools  bind:m  (get-state-as:io ,tool-state:nex-tools)
+    =/  pat-path=(unit @t)  (get-arg st 'path')
+    =/  pat-name=(unit @t)  (get-arg st 'name')
+    =/  pat-mark=(unit @t)  (get-arg st 'mark')
+    ;<  =seen:nexus  bind:m  (peek:io [%| 1 %| ~] ~)
+    ?.  ?=([%& %ball *] seen)
+      (pure:m [%error 'Could not read ball'])
+    =/  matches=(list [rail:tarball @tas])
+      %+  murn  ~(tap ba:tarball ball.p.seen)
+      |=  [=rail:tarball =content:tarball]
+      =/  fp=tape  ?~(path.rail "/" (trip (spat path.rail)))
+      =/  fn=tape  (trip name.rail)
+      =/  fm=tape  (trip name.p.sage.content)
+      ?.  ?&  ?~(pat-path %.y (glob-match:nex-tools (trip u.pat-path) fp))
+              ?~(pat-name %.y (glob-match:nex-tools (trip u.pat-name) fn))
+              ?~(pat-mark %.y (glob-match:nex-tools (trip u.pat-mark) fm))
+          ==
+        ~
+      `[rail name.p.sage.content]
+    ?~  matches
+      (pure:m [%text 'No matches found'])
+    =/  result=tape
+      %-  zing
+      %+  turn  matches
+      |=  [=rail:tarball mark=@tas]
+      =/  pax=tape  ?~(path.rail "/" (trip (spat path.rail)))
+      "\0a{pax}/{(trip name.rail)}"
+    (pure:m [%text (crip "Found {<(lent matches)>} matches:{result}")])
+  --
+::
+++  grep-history-tool
+  ^-  tool:nex-tools
+  |%
+  ++  name  'grep_history'
+  ++  description
+    ^~  %-  crip
+    ;:  weld
+      "Search the full conversation history (including messages outside the current "
+      "context window) for a substring. Returns matching entries with their index, "
+      "role, and the matching line. Use recall_messages to pull specific results "
+      "into the current context."
+    ==
+  ++  parameters
+    ^-  (map @t parameter-def:nex-tools)
+    %-  malt
+    :~  ['query' [%string 'Substring to search for (case-insensitive)']]
+        ['conversation' [%string 'Conversation key (default: "main")']]
+    ==
+  ++  required  ~['query']
+  ++  handler
+    ^-  tool-handler:nex-tools
+    =/  m  (fiber:fiber:nexus ,tool-result:nex-tools)
+    ^-  form:m
+    ;<  st=tool-state:nex-tools  bind:m  (get-state-as:io ,tool-state:nex-tools)
+    ?~  raw=(get-arg st 'query')
+      (pure:m [%error 'Missing required argument: query'])
+    =/  query=tape  (cass (trip u.raw))
+    =/  conv-key=@t
+      (fall (get-arg st '_conv_key') (fall (get-arg st 'conversation') 'main'))
+    =/  conv-road=road:tarball
+      (agent-road (crip "./context/conversations/{(trip conv-key)}.json"))
+    ;<  exists=?  bind:m  (peek-exists:io conv-road)
+    ?.  exists
+      (pure:m [%text (crip "Conversation '{(trip conv-key)}' not found.")])
+    ;<  =seen:nexus  bind:m  (peek:io conv-road ~)
+    ?.  ?=([%& %file *] seen)
+      (pure:m [%text (crip "Could not read conversation '{(trip conv-key)}'.")])
+    =/  jon=json  (fall (mole |.(!<(json q.sage.p.seen))) *json)
+    =/  conv=convo  (parse-convo jon)
+    =/  results=tape  ~
+    =/  idx=@ud  0
+    =/  walk=convo  conv
+    |-
+    ?~  walk
+      ?~  results
+        (pure:m [%text 'No matches found.'])
+      (pure:m [%text (crip results)])
+    =/  e=entry  i.walk
+    =/  content=tape
+      ?-  -.e
+          %msg          (trip content.e)
+          %tool-use     (weld "tool_use: " (trip name.e))
+          %tool-result  (trip content.e)
+      ==
+    =/  role=tape
+      ?-  -.e
+          %msg          (trip role.e)
+          %tool-use     "assistant"
+          %tool-result  "tool_result"
+      ==
+    ::  search each line of content
+    =/  lines=(list tape)  (to-lines content)
+    =/  line-hits=tape
+      %-  zing
+      %+  murn  lines
+      |=  line=tape
+      ^-  (unit tape)
+      =/  lower=tape  (cass line)
+      ?~  (find query lower)  ~
+      =/  display=tape  ?:((gth (lent line) 200) (weld (scag 200 line) "...") line)
+      `:(weld "[" (a-co:co idx) "] " role ": " display "\0a")
+    %=  $
+      walk   t.walk
+      idx    +(idx)
+      results  (weld results line-hits)
+    ==
+  --
+::
+++  recall-messages-tool
+  ^-  tool:nex-tools
+  |%
+  ++  name  'recall_messages'
+  ++  description
+    ^~  %-  crip
+    ;:  weld
+      "Include messages from the conversation history by index range. "
+      "The content is resolved at assembly time from the full stored history. "
+      "Use grep_history first to find relevant message indices."
+    ==
+  ++  parameters
+    ^-  (map @t parameter-def:nex-tools)
+    %-  malt
+    :~  ['from' [%number 'Start message index (inclusive)']]
+        ['to' [%number 'End message index (inclusive)']]
+    ==
+  ++  required  ~['from' 'to']
+  ++  handler
+    ^-  tool-handler:nex-tools
+    =/  m  (fiber:fiber:nexus ,tool-result:nex-tools)
+    ^-  form:m
+    ;<  st=tool-state:nex-tools  bind:m  (get-state-as:io ,tool-state:nex-tools)
+    =/  from=@ud
+      =/  v  (~(get by args.st) 'from')
+      ?~  v  0
+      ?:  ?=(%n -.u.v)  (fall (rush p.u.v dem) 0)
+      ?:  ?=(%s -.u.v)  (fall (rush p.u.v dem) 0)
+      0
+    =/  to=@ud
+      =/  v  (~(get by args.st) 'to')
+      ?~  v  0
+      ?:  ?=(%n -.u.v)  (fall (rush p.u.v dem) 0)
+      ?:  ?=(%s -.u.v)  (fall (rush p.u.v dem) 0)
+      0
+    ?:  (gth from to)
+      (pure:m [%error '"from" must be <= "to"'])
+    (pure:m [%text (crip "[ref:{(a-co:co from)}-{(a-co:co to)}]")])
+  --
+::
+++  summarize-tool
+  ^-  tool:nex-tools
+  |%
+  ++  name  'summarize'
+  ++  description
+    ^~  %-  crip
+    ;:  weld
+      "Summarize a range of conversation messages by sending them to the LLM. "
+      "Use grep_history first to identify relevant message indices. "
+      "Always specify what kind of summary you need in the prompt: "
+      "process (step-by-step what happened), decisions (choices and reasoning), "
+      "technical (tools/code/configs), or action-items (what's next)."
+    ==
+  ++  parameters
+    ^-  (map @t parameter-def:nex-tools)
+    %-  malt
+    ^-  (list [@t parameter-def:nex-tools])
+    :~  ['from' [%number 'Start message index (inclusive)']]
+        ['to' [%number 'End message index (inclusive)']]
+        ['prompt' [%string 'What kind of summary: process, decisions, technical, action-items, or custom instruction']]
+    ==
+  ++  required  ~['from' 'to']
+  ++  handler
+    ^-  tool-handler:nex-tools
+    =/  m  (fiber:fiber:nexus ,tool-result:nex-tools)
+    ^-  form:m
+    ;<  st=tool-state:nex-tools  bind:m  (get-state-as:io ,tool-state:nex-tools)
+    =/  from=@ud
+      =/  v  (~(get by args.st) 'from')
+      ?~  v  0
+      ?:  ?=(%n -.u.v)  (fall (rush p.u.v dem) 0)
+      ?:  ?=(%s -.u.v)  (fall (rush p.u.v dem) 0)
+      0
+    =/  to=@ud
+      =/  v  (~(get by args.st) 'to')
+      ?~  v  0
+      ?:  ?=(%n -.u.v)  (fall (rush p.u.v dem) 0)
+      ?:  ?=(%s -.u.v)  (fall (rush p.u.v dem) 0)
+      0
+    ?:  (gth from to)
+      (pure:m [%error '"from" must be <= "to"'])
+    =/  user-prompt=@t
+      (fall (get-arg st 'prompt') 'Provide a concise chronological summary of what happened.')
+    ::  read conversation
+    =/  conv-key=@t
+      (fall (get-arg st '_conv_key') 'main')
+    =/  conv-road=road:tarball
+      (agent-road (crip "./context/conversations/{(trip conv-key)}.json"))
+    ;<  exists=?  bind:m  (peek-exists:io conv-road)
+    ?.  exists
+      (pure:m [%error (crip "Conversation '{(trip conv-key)}' not found.")])
+    ;<  =seen:nexus  bind:m  (peek:io conv-road ~)
+    ?.  ?=([%& %file *] seen)
+      (pure:m [%error 'Could not read conversation.'])
+    =/  jon=json  (fall (mole |.(!<(json q.sage.p.seen))) *json)
+    =/  full=convo  (parse-convo jon)
+    ::  slice the range
+    =/  sliced=convo  (scag (add (sub to from) 1) (slag from full))
+    ?:  =(~ sliced)
+      (pure:m [%error 'No messages in specified range.'])
+    ::  flatten slice into plain text transcript
+    =/  transcript=tape
+      %-  zing
+      =/  idx=@ud  from
+      |-
+      ?~  sliced  ~
+      =/  e=entry  i.sliced
+      =/  line=tape
+        ?-  -.e
+          %msg          :(weld "[" (a-co:co idx) "] " (trip role.e) ": " (trip content.e) "\0a")
+          %tool-use     :(weld "[" (a-co:co idx) "] tool_use: " (trip name.e) "\0a")
+          %tool-result  :(weld "[" (a-co:co idx) "] tool_result: " (trip content.e) "\0a")
+        ==
+      [line $(sliced t.sliced, idx +(idx))]
+    ::  read config for model + proxy
+    =/  cfg-road=road:tarball  (agent-road './config.json')
+    ;<  cfg-seen=seen:nexus  bind:m  (peek:io cfg-road ~)
+    =/  config=json
+      ?.  ?=([%& %file *] cfg-seen)  *json
+      (fall (mole |.(!<(json q.sage.p.cfg-seen))) *json)
+    =/  model=@t
+      =/  m  (get-str config 'model')
+      ?:(=('' m) 'claude-sonnet-4-20250514' m)
+    =/  proxy=@t
+      =/  p  (get-str config 'api-proxy')
+      ?:(=('' p) '' p)
+    ?:  =('' proxy)
+      (pure:m [%error 'No api-proxy configured. Set it in config.json.'])
+    ::  build request: single user message with transcript
+    =/  payload=json
+      %-  pairs:enjs:format
+      :~  ['model' s+model]
+          ['max_tokens' (numb:enjs:format 4.096)]
+          :-  'system'
+          :-  %s
+          %-  crip
+          =/  total=@ud  (lent full)
+          ;:  weld
+            "You are summarizing messages "
+            (a-co:co from)
+            "-"
+            (a-co:co to)
+            " from a larger conversation ("
+            (a-co:co total)
+            " messages total). This is a slice, not the full exchange.\0a\0a"
+            "Rules:\0a"
+            "- Use third-person perspective (never first-person)\0a"
+            "- Be chronological and concrete\0a"
+            "- Note problems encountered, changes in behavior, and breakthroughs\0a"
+            "- Preserve key details and context, not just conclusions\0a\0a"
+            "User instruction: "
+            (trip user-prompt)
+          ==
+          :-  'messages'
+          :-  %a
+          :~  %-  pairs:enjs:format
+              :~  ['role' s+'user']
+                  ['content' s+(crip transcript)]
+              ==
+          ==
+      ==
+    =/  proxy-road=road:tarball  (agent-road proxy)
+    ;<  ~  bind:m  (poke:io proxy-road [/ %json] !>(payload))
+    ;<  =sage:tarball  bind:m  take-poke:io
+    =/  resp=json  (fall (mole |.(!<(json q.sage))) *json)
+    =/  parsed=(unit api-response)  (parse-json-response resp)
+    ?~  parsed
+      (pure:m [%error 'Failed to parse API response.'])
+    =/  text=@t
+      %-  crip
+      %-  zing
+      %+  turn  content-blocks.u.parsed
+      |=  =content-block
+      ?+  -.content-block  ""
+        %text  (trip text.content-block)
+      ==
+    =/  header=@t
+      %-  crip
+      ;:  weld
+        "[Summary of messages "
+        (a-co:co from)
+        "-"
+        (a-co:co to)
+        " from "
+        (a-co:co (lent full))
+        " total]\0a"
+      ==
+    (pure:m [%text (crip :(weld (trip header) (trip text)))])
   --
 --

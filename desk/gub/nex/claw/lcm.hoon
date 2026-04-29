@@ -37,7 +37,9 @@
             [%fall %& [/ %'store.json'] %.n [~ [/ %json] !>([%a ~])]]
             [%fall %& [/ %'dag.json'] %.n [~ [/ %json] !>([%a ~])]]
             [%fall %& [/ %'active.json'] %.n [~ [/ %json] !>([%a ~])]]
-            [%over %& [/ %'page.html'] %.n [~ [/ %manx] !>(lcm-page)]]
+            [%fall %& [/ %'assembled.json'] %.n [~ [/ %json] !>([%a ~])]]
+            [%fall %& [/ %'grep-results.json'] %.n [~ [/ %json] !>([%a ~])]]
+            [%over %& [/ %'page.html'] %.n [~ [/ %manx] !>((lcm-page ""))]]
         ==
       ==
     ::
@@ -49,39 +51,77 @@
       ^-  process:fiber:nexus
       ?+    rail  stay:m
           [~ %'main.sig']
+        ~&  >  "%lcm: main.sig on-file entered"
         ;<  ~  bind:m  (rise-wait:io prod "%lcm: failed")
+        ~&  >  "%lcm: past rise-wait, entering loop"
         |-
+        ~&  >  "%lcm: waiting for poke"
         ;<  =sage:tarball  bind:m  take-poke:io
-        =/  jon=json  (fall (mole |.(!<(json q.sage))) *json)
-        ?.  ?=([%o *] jon)  $
+        ~&  >  ["%lcm: got poke, mark:" name.p.sage]
+        =/  jon=json
+          ?:  =(%json name.p.sage)
+            (fall (mole |.(!<(json q.sage))) *json)
+          ?:  =(%mime name.p.sage)
+            =/  m=mime  (fall (mole |.(!<(mime q.sage))) *mime)
+            (fall (de:json:html q.q.m) *json)
+          *json
+        ~&  >  ["%lcm: parsed json:" jon]
+        ?.  ?=([%o *] jon)
+          ~&  >>>  "%lcm: not a json object, skipping"
+          $
         =/  act=@t  (get-str jon 'action')
-        ?+    act  $
+        ~&  >  ["%lcm: action:" act]
+        ?+    act
+          ~&  >>>  ["%lcm: unknown action:" act]
+          $
+        ::
             %'ingest'
           =/  role=@t  (get-str jon 'role')
           =/  content=@t  (get-str jon 'content')
-          ?:  |(=('' role) =('' content))  $
+          ~&  >  ["%lcm: ingest" role (met 3 content) "bytes"]
+          ?:  |(=('' role) =('' content))
+            ~&  >>>  "%lcm: empty role or content"
+            $
           ;<  ~  bind:m  (do-ingest role content)
+          ~&  >  "%lcm: ingest done"
           $
         ::
             %'compact'
+          ~&  >  "%lcm: compact requested"
           ;<  ~  bind:m  do-compact
+          ~&  >  "%lcm: compact done"
           $
         ::
             %'assemble'
           =/  budget=@ud  (get-num jon 'budget')
-          ?:  =(0 budget)  $
+          ~&  >  ["%lcm: assemble with budget" budget]
+          ?:  =(0 budget)
+            ~&  >>>  "%lcm: zero budget"
+            $
           ;<  ~  bind:m  (do-assemble budget)
+          ~&  >  "%lcm: assemble done"
           $
         ::
             %'grep'
           =/  query=@t  (get-str jon 'query')
-          ?:  =('' query)  $
+          ~&  >  ["%lcm: grep query:" query]
+          ?:  =('' query)
+            ~&  >>>  "%lcm: empty query"
+            $
           ;<  ~  bind:m  (do-grep query)
+          ~&  >  "%lcm: grep done"
           $
         ==
           [~ %'page.html']
         ;<  ~  bind:m  (rise-wait:io prod "%lcm page: failed")
-        (pure:m ~)
+        ;<  here=rail:tarball  bind:m  get-here:io
+        =/  ball-id=tape
+          %-  zing
+          %+  join  "/"
+          ^-  (list tape)
+          (turn path.here trip)
+        ;<  ~  bind:m  (replace:io !>((lcm-page ball-id)))
+        stay:m
       ==
     ::
     ++  on-manu
@@ -344,9 +384,9 @@
   =/  leaf-target=@ud  (get-num cfg 'leaf_target')
   =/  tail-n=@ud      (get-num cfg 'fresh_tail')
   =/  leaf-fan=@ud    (get-num cfg 'leaf_fanout')
-  =/  proxy=@t        (get-str cfg 'proxy')
+  =/  proxy=@t  (get-str cfg 'proxy')
   ?:  =('' proxy)
-    ~&  >>>  "%lcm: no proxy configured, cannot compact"
+    ~&  >>>  "%lcm: no proxy configured, set 'proxy' in config.json"
     (pure:m ~)
   ::  count total tokens in active context
   =/  total-tok=@ud
@@ -356,18 +396,22 @@
     ?:  =(typ 'msg')  (add acc (msg-tokens (snag-or (item-seq item) msgs *json)))
     ?:  =(typ 'sum')  (add acc (sum-tokens (snag-or (item-id item) sums *json)))
     acc
-  ?.  (gth total-tok threshold)
-    ~&  >  ["%lcm: below threshold" total-tok "<" threshold]
-    (pure:m ~)
-  ::  select oldest raw messages outside fresh tail
-  =/  split=@ud  (sub (lent items) (min (lent items) tail-n))
+  ~&  >  ["%lcm: total tokens" total-tok "threshold" threshold]
+  ::  select raw messages to compact
+  ::  if above threshold, only compact outside fresh tail
+  ::  if manual (below threshold), compact all raw messages
+  =/  above=?  (gth total-tok threshold)
+  =/  split=@ud
+    ?:  above
+      (sub (lent items) (min (lent items) tail-n))
+    (lent items)
   =/  eligible=(list json)  (scag split items)
   =/  chunk=(list @ud)  ~
   =/  chunk-acc=@ud  0
   |-
   ?~  eligible
-    ?:  (lth (lent chunk) leaf-fan)
-      ~&  >  ["%lcm: not enough messages to compact" (lent chunk) "<" leaf-fan]
+    ?~  chunk
+      ~&  >  "%lcm: nothing to compact"
       (pure:m ~)
     =/  chunk-seqs=(list @ud)  (flop chunk)
     (do-leaf-compact chunk-seqs msgs sums items leaf-target proxy)
@@ -458,7 +502,7 @@
   =/  tail-n=@ud       (get-num cfg 'fresh_tail')
   =/  cond-fan=@ud     (get-num cfg 'condense_fanout')
   =/  cond-target=@ud  (get-num cfg 'condense_target')
-  =/  proxy=@t         (get-str cfg 'proxy')
+  =/  proxy=@t  (get-str cfg 'proxy')
   ?:  =('' proxy)  (pure:m ~)
   ::  find same-depth summary groups outside fresh tail
   =/  split=@ud  (sub (lent items) (min (lent items) tail-n))
@@ -684,6 +728,7 @@
 ::  +lcm-page: test UI for LCM nexus
 ::
 ++  lcm-page
+  |=  ball-id=tape
   ^-  manx
   ;html
     ;head
@@ -721,6 +766,10 @@
               ;input#grep-q(type "text", placeholder "grep query...");
               ;button(onclick "doGrep()"): grep
             ==
+            ;div.row
+              ;input#proxy(type "text", placeholder "proxy road e.g. /apis/anthropic.sig");
+              ;button(onclick "saveConfig()"): save config
+            ==
           ==
         ==
         ;div#panels
@@ -750,7 +799,7 @@
         ;div#status;
       ==
       ;script
-        ;+  ;/  lcm-script
+        ;+  ;/  (lcm-script ball-id)
       ==
     ==
   ==
@@ -785,82 +834,100 @@
   """
 ::
 ++  lcm-script
+  |=  ball-id=tape
   ^-  tape
+  ;:  weld
+    "var API = '/grubbery/api';\0avar BALL = '{ball-id}';\0a"
   """
-  var API = '/grubbery/api';
 
-  function getPath() \{
-    // extract ball path from page URL
-    var p = window.location.pathname;
-    // URL is like /grubbery/view/path/to/lcm/page.html
-    var m = p.match(/\\/grubbery\\/view\\/(.+)\\/page\\.html/);
-    if (!m) return '';
-    return m[1];
-  }
-
-  var BALL = getPath();
-
-  async function api(method, path, body) \{
-    var opts = \{ method: method, headers: \{'Content-Type': 'application/json'} };
-    if (body) opts.body = JSON.stringify(body);
-    var r = await fetch(API + '/' + path, opts);
-    return r.json();
+  function fileUrl(name) \{
+    return API + '/file/' + BALL + '/' + name + '?mark=json';
   }
 
   async function readFile(name) \{
-    try \{
-      var r = await fetch(API + '/read/' + BALL + '/' + name);
-      return r.json();
-    } catch(e) \{ return null; }
+    var r = await fetch(fileUrl(name));
+    if (!r.ok) return null;
+    return r.json();
   }
 
   async function pokeSig(body) \{
-    return api('POST', 'poke/' + BALL + '/main.sig', body);
+    var r = await fetch(API + '/poke/' + BALL + '/main.sig?mark=json', \{
+      method: 'POST',
+      headers: \{'Content-Type': 'application/json'},
+      body: JSON.stringify(body)
+    });
+    return r.json();
+  }
+
+  function renderStore(data) \{
+    var el = document.getElementById('store-view');
+    if (!data || !Array.isArray(data) || !data.length) \{
+      el.textContent = '(empty)'; return;
+    }
+    el.innerHTML = data.map(function(m, i) \{
+      return '<div class="msg-item"><span class="msg-role">[' + i + '] ' + m.role + '</span>: ' +
+        (m.content || '').substring(0, 200) + ' <span style="color:#666">(' + m.tokens + 't)</span></div>';
+    }).join('');
+  }
+
+  function renderDag(data) \{
+    var el = document.getElementById('dag-view');
+    if (!data || !Array.isArray(data) || !data.length) \{
+      el.textContent = '(empty)'; return;
+    }
+    el.innerHTML = data.map(function(s, i) \{
+      return '<div class="sum-item">[' + i + '] d' + s.depth + ' ' + s.kind +
+        ' (' + s.tokens + 't) src:' + JSON.stringify(s.sources) +
+        '\\n' + (s.content || '').substring(0, 300) + '</div>';
+    }).join('');
+  }
+
+  function renderActive(data) \{
+    var el = document.getElementById('active-view');
+    if (!data || !Array.isArray(data) || !data.length) \{
+      el.textContent = '(empty)'; return;
+    }
+    el.innerHTML = data.map(function(item) \{
+      if (item.type === 'msg') return '<span class="active-msg">msg:' + item.seq + '</span> ';
+      if (item.type === 'sum') return '<span class="active-sum">sum:' + item.id + '</span> ';
+      return '? ';
+    }).join('');
+  }
+
+  function renderAssembled(data) \{
+    var el = document.getElementById('assembled-view');
+    if (!data || !Array.isArray(data) || !data.length) \{
+      el.textContent = '(not yet assembled)'; return;
+    }
+    el.innerHTML = data.map(function(m) \{
+      return '<div class="msg-item"><span class="msg-role">' + m.role + '</span>: ' +
+        (m.content || '').substring(0, 400) + '</div>';
+    }).join('');
+  }
+
+  function renderGrep(data) \{
+    var el = document.getElementById('grep-view');
+    if (!data || !Array.isArray(data) || !data.length) \{
+      el.textContent = 'no results'; return;
+    }
+    el.innerHTML = data.map(function(r) \{
+      if (r.type === 'msg') return '<div class="grep-hit"><span class="msg-role">msg:' + r.seq + ' ' + r.role + '</span>: ' + r.content + '</div>';
+      if (r.type === 'summary') return '<div class="grep-hit"><span class="active-sum">sum:' + r.id + ' d' + r.depth + '</span>: ' + r.content + '</div>';
+      return '';
+    }).join('');
   }
 
   async function refresh() \{
-    var store = await readFile('store.json');
-    var dag = await readFile('dag.json');
-    var active = await readFile('active.json');
-    var assembled = await readFile('assembled.json');
-
-    // render store
-    var sv = document.getElementById('store-view');
-    if (store && Array.isArray(store)) \{
-      sv.innerHTML = store.map(function(m, i) \{
-        return '<div class="msg-item"><span class="msg-role">[' + i + '] ' + m.role + '</span>: ' +
-          (m.content || '').substring(0, 200) + ' <span style="color:#666">(' + m.tokens + 't)</span></div>';
-      }).join('');
-    } else sv.textContent = '(empty)';
-
-    // render dag
-    var dv = document.getElementById('dag-view');
-    if (dag && Array.isArray(dag) && dag.length) \{
-      dv.innerHTML = dag.map(function(s, i) \{
-        return '<div class="sum-item">[' + i + '] d' + s.depth + ' ' + s.kind +
-          ' (' + s.tokens + 't) src:' + JSON.stringify(s.sources) +
-          '\\n' + (s.content || '').substring(0, 300) + '</div>';
-      }).join('');
-    } else dv.textContent = '(empty)';
-
-    // render active
-    var av = document.getElementById('active-view');
-    if (active && Array.isArray(active)) \{
-      av.innerHTML = active.map(function(item) \{
-        if (item.type === 'msg') return '<span class="active-msg">msg:' + item.seq + '</span> ';
-        if (item.type === 'sum') return '<span class="active-sum">sum:' + item.id + '</span> ';
-        return '? ';
-      }).join('');
-    } else av.textContent = '(empty)';
-
-    // render assembled
-    var ev = document.getElementById('assembled-view');
-    if (assembled && Array.isArray(assembled)) \{
-      ev.innerHTML = assembled.map(function(m) \{
-        var c = (m.content || '').substring(0, 400);
-        return '<div class="msg-item"><span class="msg-role">' + m.role + '</span>: ' + c + '</div>';
-      }).join('');
-    } else ev.textContent = '(not yet assembled)';
+    var results = await Promise.all([
+      readFile('store.json'),
+      readFile('dag.json'),
+      readFile('active.json'),
+      readFile('assembled.json')
+    ]);
+    renderStore(results[0]);
+    renderDag(results[1]);
+    renderActive(results[2]);
+    renderAssembled(results[3]);
   }
 
   async function doIngest() \{
@@ -871,7 +938,7 @@
     await pokeSig(\{action: 'ingest', role: role, content: content});
     document.getElementById('content').value = '';
     document.getElementById('status').textContent = 'ingested';
-    setTimeout(refresh, 500);
+    setTimeout(refresh, 300);
   }
 
   async function doCompact() \{
@@ -886,7 +953,25 @@
     document.getElementById('status').textContent = 'assembling...';
     await pokeSig(\{action: 'assemble', budget: budget});
     document.getElementById('status').textContent = 'assembled';
-    setTimeout(refresh, 500);
+    setTimeout(refresh, 300);
+  }
+
+  async function loadConfig() \{
+    var cfg = await readFile('config.json');
+    if (cfg && cfg.proxy) \{
+      document.getElementById('proxy').value = cfg.proxy;
+    }
+  }
+
+  async function saveConfig() \{
+    var cfg = await readFile('config.json') || \{};
+    cfg.proxy = document.getElementById('proxy').value;
+    await fetch(API + '/over/' + BALL + '/config.json?mark=json', \{
+      method: 'POST',
+      headers: \{'Content-Type': 'application/json'},
+      body: JSON.stringify(cfg)
+    });
+    document.getElementById('status').textContent = 'config saved';
   }
 
   async function doGrep() \{
@@ -895,19 +980,51 @@
     document.getElementById('status').textContent = 'searching...';
     await pokeSig(\{action: 'grep', query: q});
     document.getElementById('status').textContent = 'search done';
-    setTimeout(async function() \{
-      var results = await readFile('grep-results.json');
-      var gv = document.getElementById('grep-view');
-      if (results && Array.isArray(results) && results.length) \{
-        gv.innerHTML = results.map(function(r) \{
-          if (r.type === 'msg') return '<div class="grep-hit"><span class="msg-role">msg:' + r.seq + ' ' + r.role + '</span>: ' + r.content + '</div>';
-          if (r.type === 'summary') return '<div class="grep-hit"><span class="active-sum">sum:' + r.id + ' d' + r.depth + '</span>: ' + r.content + '</div>';
-          return '';
-        }).join('');
-      } else gv.textContent = 'no results';
+    setTimeout(function() \{
+      readFile('grep-results.json').then(renderGrep);
     }, 500);
   }
 
+  var sseCtrl = null;
+  var sseRdr = null;
+
+  async function connectSSE() \{
+    if (sseRdr) try \{ sseRdr.cancel(); } catch(e) \{}
+    if (sseCtrl) sseCtrl.abort();
+    sseCtrl = new AbortController();
+    try \{
+      var r = await fetch(API + '/keep/' + BALL + '/store.json?mark=json', \{
+        headers: \{Accept: 'text/event-stream'},
+        signal: sseCtrl.signal
+      });
+      sseRdr = r.body.getReader();
+      var dec = new TextDecoder();
+      var buf = '';
+      while (true) \{
+        var chunk = await sseRdr.read();
+        if (chunk.done) break;
+        buf += dec.decode(chunk.value, \{stream: true});
+        var evts = buf.split('\\n\\n');
+        buf = evts.pop();
+        for (var i = 0; i < evts.length; i++) \{
+          if (!evts[i].trim()) continue;
+          refresh();
+          break;
+        }
+      }
+    } catch(e) \{
+      if (e.name !== 'AbortError') setTimeout(connectSSE, 2000);
+    }
+  }
+
+  window.addEventListener('beforeunload', function() \{
+    if (sseRdr) try \{ sseRdr.cancel(); } catch(e) \{}
+    if (sseCtrl) sseCtrl.abort();
+  });
+
   refresh();
+  loadConfig();
+  connectSSE();
   """
+  ==
 --

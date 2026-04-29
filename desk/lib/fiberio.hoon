@@ -1300,4 +1300,24 @@
   ;<  now=@da   bind:m  get-time
   =/  base=path  /(scot %p our)/[dek]/(scot %da now)
   (pure:m .^(? %cu (weld base pax)))
+::  +copy-grub: copy a file from src to dst
+::
+++  copy-grub
+  |=  [src=road:tarball dst=road:tarball]
+  =/  m  (fiber ,~)
+  ^-  form:m
+  ;<  =seen:nexus  bind:m  (peek src ~)
+  ?.  ?=([%& %file *] seen)
+    ~|(%copy-grub-src-not-found !!)
+  (make dst |+[%.n sage.p.seen ~])
+::  +copy-fold: copy a directory from src to dst
+::
+++  copy-fold
+  |=  [src=road:tarball dst=road:tarball]
+  =/  m  (fiber ,~)
+  ^-  form:m
+  ;<  =seen:nexus  bind:m  (peek src ~)
+  ?.  ?=([%& %ball *] seen)
+    ~|(%copy-fold-src-not-found !!)
+  (make dst &+[sand.p.seen gain.p.seen ball.p.seen])
 --
