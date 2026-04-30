@@ -9,20 +9,18 @@
   ^~  %-  crip
   ;:  weld
     "Write a text file to the grubbery ball. "
-    "Mark is detected from filename extension "
-    "(e.g. .hoon, .txt, .json). Falls back to %txt if unknown. "
-    "Set content_type to store as raw mime (e.g. \"text/html\"). "
-    "Set mark to convert from mime to a specific mark (e.g. \"hoon\"). "
-    "When using mark, omit the extension from the filename — the mark becomes the extension."
+    "Set mark to store as a specific mark (e.g. \"hoon\", \"/wallet/account\"). "
+    "Without mark, stores as raw mime. "
+    "Set content_type to override the mime type (e.g. \"text/html\")."
   ==
 ++  parameters
   ^-  (map @t parameter-def:tools)
   %-  ~(gas by *(map @t parameter-def:tools))
   :~  ['path' [%string 'Directory path (e.g. "/")']]
-      ['name' [%string 'Filename with extension (e.g. "foo.hoon", "notes.txt"). Omit extension when using mark parameter.']]
+      ['name' [%string 'Filename (e.g. "foo.hoon", "notes.txt", "config.json")']]
       ['content' [%string 'Text content to write']]
       ['content_type' [%string 'MIME content type (e.g. "text/html"). When set, stores as raw mime.']]
-      ['mark' [%string 'Destination mark (e.g. "hoon", "txt"). Converts from mime to this mark via warm tube.']]
+      ['mark' [%string 'Target mark as a blot path (e.g. "hoon", "/wallet/account"). Omit to store as mime.']]
   ==
 ++  required  ~['path' 'name' 'content']
 ++  handler
@@ -48,7 +46,12 @@
     ?~  mk=(~(get jo:json-utils [%o args.st]) /mark)  ~
     ?.  ?=([%s *] u.mk)  ~
     ?:  =('' p.u.mk)  ~
-    `p.u.mk
+    ::  parse as blot path, extract name
+    =/  pax=path
+      ?:  =('/' (end 3 p.u.mk))  (stab p.u.mk)
+      (stab (cat 3 '/' p.u.mk))
+    ?~  pax  ~
+    `(rear pax)
   =/  file-path=@t  u.file-path
   =/  file-name=@t  u.file-name
   =/  content=@t  u.content-raw
@@ -71,6 +74,8 @@
   =/  src-mime=mime  [/text/plain (as-octs:mimes:html content)]
   ;<  exists=?  bind:m  (peek-exists:io road)
   ?:  exists
+    ?^  dest-mark
+      (pure:m [%error 'Cannot change mark of existing file. Delete it first, then recreate with the desired mark.'])
     ::  Existing file: %over converts mime to file's mark via warm tube
     ;<  ~  bind:m  (over:io road [[/ %mime] !>(src-mime)])
     (pure:m [%text (crip "Wrote {(trip file-path)}/{(trip file-name)}")])

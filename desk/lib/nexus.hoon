@@ -163,7 +163,7 @@
         [%bang =wire res=(each bangs (unit tang))]  :: directory bangs or file error
         [%over =wire err=(unit tang)] :: response to over (content overwrite)
         [%writ ~] :: notify grub its file was externally modified by %over
-        [%bond =wire now=(each view tang)] :: subscription ack with initial view
+        [%bond =wire now=seen] :: subscription ack with initial view
         [%fell =wire]                 :: subscription canceled (weir change, deletion, etc)
         [%news =wire =view] :: state notification
         [%veto =dart] :: notify that a dart was sandboxed

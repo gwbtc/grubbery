@@ -242,33 +242,38 @@
   ^-  form:m
   ?>  ?=([%& %file *] seen)
   =/  =sage:tarball  sage.p.seen
-  ?+  name.p.sage
-    ::  Fallback: convert to mime via grubbery's marc system
-    ;<  convert=(unit tube:clay)  bind:m
-      (get-tube:io [%& %| /code] [p.sage [/ %mime]])
-    ?~  convert
-      (pure:m [%error (crip "No conversion from {(trip name.p.sage)} to mime")])
-    =/  result-vase=vase  (u.convert q.sage)
-    =/  out=mime  !<(mime result-vase)
-    (pure:m [%text (crip (trip q.q.out))])
-      %boom
-    =/  [err=tang mar=@tas data=*]  !<([tang @tas *] q.sage)
-    =/  rendered=tape
-      %-  zing
-      %+  turn  (flop err)
-      |=(=tank (weld ~(ram re tank) "\0a"))
-    %-  pure:m
-    [%error (crip "BOOM (mark %{(trip mar)})\0a{rendered}")]
-      %json
-    (pure:m [%text (en:json:html !<(json q.sage))])
-      %txt
-    (pure:m [%text (of-wain:format !<(wain q.sage))])
-      %hoon
-    (pure:m [%text !<(@t q.sage)])
-      %mime
-    =/  out=mime  !<(mime q.sage)
-    (pure:m [%text (crip (trip q.q.out))])
-  ==
+  =/  blot-text=@t
+    (crip "[mark: {(spud (snoc path.p.sage name.p.sage))}]")
+  ;<  result=tool-result  bind:m
+    ?+  name.p.sage
+      ::  Fallback: convert to mime via grubbery's marc system
+      ;<  convert=(unit tube:clay)  bind:m
+        (get-tube:io [%& %| /code] [p.sage [/ %mime]])
+      ?~  convert
+        (pure:m [%error (crip "No conversion from {(trip name.p.sage)} to mime")])
+      =/  result-vase=vase  (u.convert q.sage)
+      =/  out=mime  !<(mime result-vase)
+      (pure:m [%text (crip (trip q.q.out))])
+        %boom
+      =/  [err=tang mar=@tas data=*]  !<([tang @tas *] q.sage)
+      =/  rendered=tape
+        %-  zing
+        %+  turn  (flop err)
+        |=(=tank (weld ~(ram re tank) "\0a"))
+      %-  pure:m
+      [%error (crip "BOOM (mark %{(trip mar)})\0a{rendered}")]
+        %json
+      (pure:m [%text (en:json:html !<(json q.sage))])
+        %txt
+      (pure:m [%text (of-wain:format !<(wain q.sage))])
+        %hoon
+      (pure:m [%text !<(@t q.sage)])
+        %mime
+      =/  out=mime  !<(mime q.sage)
+      (pure:m [%text (crip (trip q.q.out))])
+    ==
+  ?:  ?=(%error -.result)  (pure:m result)
+  (pure:m [%text (crip "{(trip blot-text)}\0a{(trip text.result)}")])
 ::  Look up a grub by name — exact match
 ::  Returns [actual-grub-name seen]
 ::

@@ -153,6 +153,8 @@
             %-  pairs:enjs:format
             :~  ['model' s+'claude-sonnet-4-20250514']
                 ['api-proxy' s+(crip proxy-path)]
+                ['context_window' (numb:enjs:format 80.000)]
+                ['message_cap' (numb:enjs:format 20.000)]
             ==
           =/  cfg-road=road:tarball
             (cord-to-road:tarball (crip "./agents/{(trip name)}/config.json"))

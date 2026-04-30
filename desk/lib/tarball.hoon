@@ -24,6 +24,21 @@
 +$  lane  (each rail fold)        :: [%& rail] file or [%| fold] directory
 +$  bend  (pair @ud lane)         :: relative: steps up + destination lane
 +$  road  (each lane bend)        :: [%& lane] absolute or [%| bend] relative
+::
+::  TODO: consider nexus-relative roads
+::
+::  A road variant that resolves relative to nexus boundaries (necks)
+::  instead of directory depth. Would eliminate the %| N offset footgun.
+::
+::    */path       -- resolve from the nearest governing nexus (walk up to first neck)
+::    **/path      -- resolve from the nexus above that (walk up past first neck to second)
+::    *[neck]/path -- resolve from the nearest governing nexus with this specific neck
+::                    e.g. *[/claw/app]/config.json finds the nearest /claw/app nexus above
+::
+::  Resolution: walk up from fiber location, check each directory for a neck.
+::  */ stops at the first neck found. *[neck] stops at the first neck matching the name.
+::  ** variants skip the first match and find the next one up.
+::
 ::  Symlink: untyped path reference (resolved at lookup time)
 ::
 +$  symlink   (each path (pair @ud path))

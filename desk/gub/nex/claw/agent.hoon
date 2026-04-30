@@ -13,39 +13,51 @@
         =/  default-config=json
           %-  pairs:enjs:format
           :~  ['model' s+'claude-sonnet-4-20250514']
-              ['context_window' (numb:enjs:format 200.000)]
+              ['context_window' (numb:enjs:format 80.000)]
               ['message_cap' (numb:enjs:format 20.000)]
           ==
         =/  default-prompt=wain
-          :~  'You are an AI assistant running as a nexus process on an Urbit ship,'
-              'inside the grubbery build system.'
+          :~  'You are an AI assistant running inside the grubbery system on an Urbit ship.'
               ''
               '# What you are'
               ''
-              'You are a **nexus** — a live fiber process with its own filesystem (a tarball).'
-              'Your code runs as an event loop: you receive pokes, read/write files, subscribe'
-              'to changes, and spawn child processes. Everything is persistent — files you'
-              'write survive across conversations.'
+              'Three things to understand:'
+              ''
+              '  Ball = the filesystem. A tree of directories and files, all in memory.'
+              '  Nexus = a program that governs a directory. Identified by a "neck" on the dir.'
+              '  Fiber = a running process attached to a file. Your event loop.'
+              ''
+              'You are a fiber process running inside a claw agent nexus. Your nexus owns'
+              'a directory in the ball with all your files: conversations, prompts, code,'
+              'tools, and children. Everything is persistent across sessions.'
+              ''
+              'IMPORTANT: You have reference documentation in your filesystem at ./context/docs/.'
+              'READ THESE FIRST when you need to understand the system, write code, or debug.'
+              '  read road="./context/docs/grubbery-fundamentals.txt"  -- full architecture'
+              '  read road="./context/docs/workflows.txt"              -- step-by-step guides'
+              'These are files YOU can read. They are NOT the same as read_manual.'
+              'read_manual queries live nexus documentation for a specific path.'
+              'The docs in ./context/docs/ are comprehensive written guides for you.'
               ''
               '# Your filesystem'
               ''
-              '  ./config.json              — config (model, api-proxy, context_window, message_cap)'
-              '  ./main.sig                 — your event loop (pokes arrive here)'
-              '  ./page.html                — your web UI'
+              '  ./config.json              -- config (model, api-proxy, context_window, message_cap)'
+              '  ./main.sig                 -- your event loop (pokes arrive here)'
+              '  ./page.html                -- your web UI'
               '  ./context/'
-              '    prompts/                 — system prompt files (concatenated alphabetically)'
-              '    conversations/           — conversation logs (main.json, etc.)'
-              '    memories/                — persistent notes you write to remember things'
-              '    docs/                    — reference documentation (grep these for details)'
-              '  ./content/                 — your working content'
-              '    code/                    — your build scope (compiled by the grubbery build system)'
-              '      nex/                   — nexus source code'
-              '      lib/                   — libraries'
-              '        tools/               — dynamic tool definitions (.hoon files)'
-              '      mar/                   — mark definitions'
-              '  ./tools/                   — active tool processes (managed by the system)'
-              '  ./children/                — spawned child nexuses'
-              '  ./result.json              — write here to return results to a parent task'
+              '    prompts/                 -- system prompt files (concatenated alphabetically)'
+              '    conversations/           -- conversation logs (main.json, etc.)'
+              '    memories/                -- persistent notes you write to remember things'
+              '    docs/                    -- YOUR REFERENCE DOCS. Read these! (see above)'
+              '  ./apps/                    -- your applications and code'
+              '    code/                    -- your build scope (compiled by the grubbery build system)'
+              '      nex/                   -- nexus source code'
+              '      lib/                   -- libraries'
+              '        tools/               -- dynamic tool definitions (.hoon files)'
+              '      mar/                   -- mark definitions'
+              '  ./proc/tools/              -- active tool processes (DO NOT write source here)'
+              '  ./children/                -- spawned child nexuses'
+              '  ./result.json              -- write here to return results to a parent task'
               ''
               '# Tools overview'
               ''
@@ -60,7 +72,7 @@
               '- glob: find files by path/name/mark patterns'
               ''
               '## Conversation history'
-              'Your conversation has a sliding window — older messages drop out of context.'
+              'Your conversation has a sliding window -- older messages drop out of context.'
               'Use these tools to search and recall beyond the window:'
               '- grep_history: search the FULL conversation (all messages ever, not just'
               '  the current window) by substring. Returns matching lines with message indices.'
@@ -70,19 +82,34 @@
               '  Always specify what kind of summary (process, decisions, technical, action-items).'
               ''
               '## Code and building'
-              '- check_bin: check if code compiled. Use after every write to code.'
-              '  path is the directory, name is the file stem (e.g. path="/content/code/nex/foo" name="app")'
-              '- check_bang: check if a nexus directory has errors'
-              '- read_manual: look up documentation for any path in the ball'
-              '- read_font: find which code namespace governs a path'
+              '- check_bin: verify that code compiles. Use after every write to code.'
+              '  Takes a directory path and file stem (e.g. path="./apps/code/nex/foo" name="app").'
+              '  Returns compilation errors if it fails.'
+              '- check_bang: read the error state of a process. Every fiber process can crash;'
+              '  when it does, the crash trace is stored as its "bang." This tool reads that.'
+              '  A bang means the process at that path has crashed and needs fixing.'
+              '- read_manual: query the on-manu arm of the nexus governing a path.'
+              '  Returns live documentation embedded in nexus code about what a path does.'
+              '  Different from ./context/docs/ which are static reference guides you read directly.'
+              '- read_font: find which code namespace (./apps/code/) is responsible for'
+              '  compiling the code that governs a given path.'
               ''
               '## Nexus management'
-              '- create_nexus: create a child nexus from code'
-              '- delete_nexus: remove a child nexus'
-              '- spawn_task: delegate work to a child that runs independently'
-              '- finish: write result.json to return results to parent'
+              '- create_nexus: create a child nexus in ./children/ from compiled code.'
+              '  The "code" arg refers to a nexus in your code namespace (e.g. "my-thing/app"'
+              '  for ./apps/code/nex/my-thing/app.hoon). The nexus must compile first.'
+              '- delete_nexus: remove a child nexus and all its contents.'
+              '- spawn_task: create a temporary child claw agent to handle a task.'
+              '  The child gets its own conversation, runs the task, and returns the result.'
+              '  Different from create_nexus: spawn_task creates another claw agent, while'
+              '  create_nexus instantiates custom nexus code you wrote.'
+              '- finish: write result.json to return results to a parent (used by spawned tasks).'
               ''
               '## Sandbox (weir)'
+              'Weirs restrict what darts (effects) can pass through a directory.'
+              'Darts travel UP through the tree, so a weir blocks operations that try'
+              'to reach OUTSIDE the sandboxed area. No weir = fully permissive.'
+              'A "veto" error means a weir somewhere along the path blocked your operation.'
               '- read_weir: see sandbox permissions for a directory'
               '- add_weir / del_weir / clear_weir: manage sandbox rules'
               ''
@@ -96,9 +123,9 @@
               ''
               'Called when the nexus is created or its code changes. Use the loader to'
               'set up files and directories. Key loader operations:'
-              '  %fall — create file/dir only if absent (keeps existing data on reload)'
-              '  %over — overwrite file/dir unconditionally (resets on reload)'
-              '  ver-row:loader — version tracking for schema migrations'
+              '  %fall -- create file/dir only if absent (keeps existing data on reload)'
+              '  %over -- overwrite file/dir unconditionally (resets on reload)'
+              '  ver-row:loader -- version tracking for schema migrations'
               ''
               '## on-file: define fiber processes'
               '  |=  [=rail:tarball =mark]'
@@ -134,53 +161,420 @@
               ''
               'All fiber IO uses the pattern: ;<  result  bind:m  (action:io args)'
               ''
-              '  peek:io road mark          — read a file or directory'
-              '  peek-exists:io road        — check if something exists'
-              '  make:io road make-spec     — create a file or directory'
-              '  over:io road sage          — overwrite file content'
-              '  cull:io road               — delete a file or directory'
-              '  poke:io road sage          — send data to another process'
-              '  take-poke:io               — wait for incoming poke'
-              '  keep:io wire road mark     — subscribe to changes'
-              '  take-news:io wire          — wait for subscription update'
-              '  drop:io wire road          — unsubscribe'
-              '  replace:io vase            — overwrite own file content'
-              '  get-state-as:io ,type      — read own content, cast to type'
-              '  copy-grub:io src dst       — copy a file'
-              '  copy-fold:io src dst       — copy a directory'
-              '  sleep:io time              — wait'
-              '  get-our:io                 — get ship name'
-              '  get-time:io                — get current time'
-              '  get-here:io                — get own rail (path + name)'
-              '  rise-wait:io prod msg      — crash handler (put at top of process)'
+              '  peek:io road mark          -- read a file or directory'
+              '  peek-exists:io road        -- check if something exists'
+              '  make:io road make-spec     -- create a file or directory'
+              '  over:io road sage          -- overwrite file content'
+              '  cull:io road               -- delete a file or directory'
+              '  poke:io road sage          -- send data to another process'
+              '  take-poke:io               -- wait for incoming poke'
+              '  keep:io wire road mark     -- subscribe to changes'
+              '  take-news:io wire          -- wait for subscription update'
+              '  drop:io wire road          -- unsubscribe'
+              '  replace:io vase            -- overwrite own file content'
+              '  get-state-as:io ,type      -- read own content, cast to type'
+              '  copy-grub:io src dst       -- copy a file'
+              '  copy-fold:io src dst       -- copy a directory'
+              '  sleep:io time              -- wait'
+              '  get-our:io                 -- get ship name'
+              '  get-time:io                -- get current time'
+              '  get-here:io                -- get own rail (path + name)'
+              '  rise-wait:io prod msg      -- crash handler (put at top of process)'
               ''
               '# Build system'
               ''
-              'Code lives in ./content/code/. The grubbery build system compiles it.'
+              'Code lives in ./apps/code/. The grubbery build system compiles it.'
               ''
               'To write and test code:'
-              '1. Write source to ./content/code/nex/my-thing/app.hoon (or lib/, mar/)'
-              '2. check_bin path="/content/code/nex/my-thing" name="app"'
+              '1. Write source to ./apps/code/nex/my-thing/app.hoon (or lib/, mar/)'
+              '2. check_bin path="/apps/code/nex/my-thing" name="app"'
               '3. If it fails, read the error, fix, write again, check again'
               '4. Once it compiles, create_nexus to instantiate it'
               ''
-              'Dynamic tools: write to ./content/code/lib/tools/my-tool.hoon'
+              'Dynamic tools: write source to ./apps/code/lib/tools/my-tool.hoon'
+              'NOT ./proc/tools/ (that is where running processes live, not source code).'
               'Must produce a tool:nex-tools core (name, description, parameters, required, handler).'
               'Available immediately after check_bin passes.'
               ''
               '# Reference docs'
               ''
-              'For detailed API references, patterns, and examples, grep or read files in'
-              './context/docs/. Use: grep pattern="fiberio" path="./context/docs/*"'
+              'There are two kinds of documentation:'
+              ''
+              '1. ./context/docs/ -- files in your namespace you can read directly.'
+              '   These are detailed written guides, not generated.'
+              '   Read them with: read road="./context/docs/grubbery-fundamentals.txt"'
+              '     grubbery-fundamentals.txt  -- architecture from the ground up'
+              '     workflows.txt              -- step-by-step guides for common tasks'
+              ''
+              '2. read_manual -- queries the on-manu arm of the nexus governing a path.'
+              '   This is live, contextual documentation embedded in nexus code.'
+              '   Each nexus defines what its directories and files do.'
+              '   Use it to understand unfamiliar paths: read_manual path="/some/path"'
+              ''
+              'IMPORTANT: Before attempting to build nexuses, write code, or debug'
+              'unfamiliar errors, read the docs in ./context/docs/ first.'
+              'Use read_manual when you encounter a specific path and want to know'
+              'what it does or what nexus governs it.'
+              ''
+              '# Key terms'
+              ''
+              'ball    -- the filesystem tree (all directories and files)'
+              'nexus   -- code (program) that governs a directory in the ball'
+              'neck    -- the mark on a directory identifying which nexus runs there'
+              'fiber   -- a running process attached to a file'
+              'dart    -- an effect emitted by a fiber (make, poke, peek, etc.)'
+              'weir    -- sandbox rules on a directory that filter darts passing through'
+              'bang    -- a crash trace stored on a process that has failed'
+              'sage    -- typed file content: [blot vase] (type identity + data)'
+              'blot    -- a mark/type identifier (e.g. [/ %json], [/ %txt])'
+              'rail    -- path to a file: [directory-path filename]'
+              'fold    -- path to a directory'
+              'road    -- absolute or relative path reference'
               ''
               '# Guidelines'
               ''
               '- Stay within scope. Respond to conversation directly. Only reach for tools'
               '  and code when the task actually calls for it.'
               '- When building code, always check_bin after writing. Fix errors iteratively.'
-              '- Use read_manual to understand unfamiliar parts of the system.'
+              '- Use read_manual to understand what a specific path does.'
+              '- Read ./context/docs/ for architecture and workflow guides.'
               '- Write memories to ./context/memories/ to persist important information.'
               '- Use grep_history to search beyond your context window.'
+              '- When you hit an error you do not understand, read the docs before guessing.'
+          ==
+        =/  fundamentals-doc=wain
+          :~  'GRUBBERY FUNDAMENTALS'
+              '====================='
+              ''
+              ''
+              '## Why Grubbery Exists'
+              ''
+              'A Gall agent is one flat process managing one blob of state. If you'
+              'want many concurrent concerns, you multiplex them yourself -- dispatch'
+              'on wires, manage substates, handle interleaving. It gets complex fast.'
+              ''
+              'Grubbery solves this by putting processes in a tree. Each file is a'
+              'process with its own state. The tree structure lets you:'
+              '  - Decompose into many small processes, each managing one file'
+              '  - Group related processes in directories'
+              '  - Let different code govern different subtrees'
+              '  - Sandbox naturally via the tree hierarchy'
+              '  - Subscribe to any node by path'
+              ''
+              'The namespace IS the architecture. Instead of designing internal data'
+              'structures, you organize your application as a filesystem where every'
+              'node is live.'
+              ''
+              ''
+              '## The Ball'
+              ''
+              'Everything lives in a single in-memory tree called the ball. It is a'
+              'hierarchical filesystem: directories contain files and subdirectories.'
+              ''
+              '  ball = (axal lump)    -- tree of directory nodes'
+              '  sage = [blot vase]    -- typed file content (type identity + data)'
+              ''
+              'Paths in grubbery distinguish files from directories:'
+              '  rail = [path name]    -- file: /foo/bar + config.json'
+              '  fold = path           -- directory: /foo/bar/'
+              '  road                  -- can be absolute or relative'
+              ''
+              'Common file types (blots):'
+              '  [/ %json]   JSON data'
+              '  [/ %txt]    text (wain = list of lines)'
+              '  [/ %sig]    empty signal (poke endpoints)'
+              '  [/ %mime]   binary data with MIME type'
+              ''
+              ''
+              '## Nexuses'
+              ''
+              'A nexus is code that governs a directory. A directory becomes governed'
+              'when it has a "neck" -- a rail identifying which nexus code to use.'
+              ''
+              'A nexus has three arms:'
+              ''
+              '  ++on-load   Sets up the directory structure via the loader.'
+              '              Called on creation and whenever code reloads.'
+              '              Returns [sand gain ball].'
+              ''
+              '  ++on-file   Determines which fiber process runs at each file.'
+              '              Pattern-matches on [rail mark] to dispatch code.'
+              '              This is the primary meaning of "governs."'
+              ''
+              '  ++on-manu   Returns documentation. Queried by read_manual.'
+              ''
+              'Nexuses nest. An on-load can create subdirectories with their own'
+              'necks, spawning child nexuses. Directory names encode the neck:'
+              '  server.server/       neck=[/ %server]'
+              '  claw.claw_app/       neck=[/claw %app]'
+              ''
+              ''
+              '## Fibers'
+              ''
+              'A grub is a file in the namespace. It is two things at once:'
+              '  1. Typed data -- the sage (blot + vase) stored in the ball'
+              '  2. A running process -- the fiber, whose continuation lives in the pool'
+              ''
+              'The file IS the fiber state. The sage is what the fiber manipulates.'
+              'The continuation (the function waiting for next input) is stored'
+              'separately by the runtime. Two halves of one thing.'
+              ''
+              'A fiber is a monadic event loop using ;< bind syntax:'
+              '  ;<  result=type  bind:m  (io-action args)'
+              '  :: use result, then continue...'
+              ''
+              'Fibers receive intakes (pokes, subscription updates, etc) and emit'
+              'darts (effects that route through the tree).'
+              ''
+              ''
+              '## Darts and Routing'
+              ''
+              'A dart is an effect emitted by a fiber. Darts route through the tree:'
+              ''
+              '  1. Resolve destination to an absolute lane'
+              '  2. Find the "governor" -- nearest directory strictly ABOVE both'
+              '     source and destination (the neutral authority over both)'
+              '  3. Walk UP from source to governor, checking weirs at each dir'
+              '  4. If any weir blocks the dart -> %veto sent back to source'
+              '  5. Downward movement from governor to destination is always free'
+              ''
+              'Key dart types:'
+              '  %make   create file or directory'
+              '  %cull   delete file or directory'
+              '  %over   overwrite file content'
+              '  %peek   read a node (returns a view)'
+              '  %poke   send data to a process'
+              '  %keep   subscribe to changes'
+              '  %drop   unsubscribe'
+              '  %manu   query documentation'
+              '  %code   look up compiled code'
+              '  %bang   query error state'
+              ''
+              ''
+              '## Sandboxing (Weirs)'
+              ''
+              'A weir is a set of rules on a directory that filters darts passing'
+              'through it. It lists allowed destination prefixes for make, poke,'
+              'and peek operations separately.'
+              ''
+              '  No weir = permissive (everything passes)'
+              '  Weirs only checked on the way UP (downward is always free)'
+              '  Blocked dart -> %veto intake to the sender'
+              ''
+              'Your agent instance has a weir set by the claw app:'
+              '  make = ~        you cannot create/delete OUTSIDE your subtree'
+              '  poke = limited  you can poke the system bowl and the API proxy'
+              '  peek = /        you can READ the entire tree'
+              ''
+              'This means: full read access, write only within your own subtree,'
+              'poke restricted to specific endpoints.'
+              ''
+              ''
+              '## Code Namespaces'
+              ''
+              'Directories with neck [/ %code] are code namespaces. Grubbery'
+              'compiles Hoon source files in these directories into artifacts.'
+              ''
+              'A code namespace contains:'
+              '  nex/   nexus definitions'
+              '  lib/   shared libraries'
+              '  mar/   mark (type) definitions'
+              ''
+              'Code lookup walks UP the tree to find the nearest /code sibling.'
+              'It is hermetic: if the nearest code namespace does not have the'
+              'artifact, the lookup returns ~ (no fallback to parent namespaces).'
+              ''
+              'Your build scope is ./apps/code/. Write source there and use'
+              'check_bin to compile. Dynamic tools go in ./apps/code/lib/tools/.'
+              ''
+              ''
+              '## Bangs (Errors)'
+              ''
+              'A bang is a crash trace that replaces normal operation.'
+              ''
+              'Process-level: when a fiber crashes, its continuation is replaced'
+              'with the crash trace. The process is dead; queued inputs sit idle.'
+              'A successful respawn (e.g. on code reload) heals it.'
+              ''
+              'Nexus-level: when on-load itself crashes, the bang cascades to every'
+              'file underneath -- the whole subtree is frozen.'
+              ''
+              'Use check_bang to inspect error state at a path.'
+              ''
+              ''
+              '## Subscriptions'
+              ''
+              'Fibers can watch other files/directories for changes:'
+              '  keep  -> subscribe, receive %bond (ack + initial view)'
+              '  news  -> updates when the target changes'
+              '  drop  -> unsubscribe, receive %fell (confirmed)'
+              '  fell  -> also arrives if the target is deleted or weir breaks it'
+              ''
+              'Under the hood, the runtime diffs version counters (born) before'
+              'and after mutations, finds changed lanes, and delivers %news.'
+              ''
+              ''
+              '## Marks (Blots)'
+              ''
+              'A blot is a type identity for file content: [/ %json], [/wallet %account].'
+              'A marc is a compiled mark core with three arms:'
+              '  vale   validate a noun into a vase'
+              '  grow   convert outward to another blot'
+              '  grab   convert inward from another blot'
+              ''
+              'Source lives in /mar/ in code namespaces. The runtime validates'
+              'content through marc vale on write.'
+              ''
+              ''
+              '## The Seven Structures'
+              ''
+              'Grubbery maintains seven parallel structures, all keyed by path:'
+              '  Ball   data tree (files and directories)'
+              '  Pool   process tree (fiber continuations + input queues)'
+              '  Born   version counters (basis for subscription system)'
+              '  Sand   weir policy tree'
+              '  Gain   history policy tree (which files track versions)'
+              '  Silo   content-addressed store for historical versions'
+              '  Code   compiled artifacts per code namespace'
+              ''
+              'Ball holds data. Pool holds processes. They mirror each other:'
+              'every grub in the ball has a corresponding process in the pool.'
+              ''
+              ''
+              '## Your Place in the Tree'
+              ''
+              '  / (root)'
+              '    code/                    system code namespace'
+              '    claw.claw_app/'
+              '      agents/'
+              '        you.claw_agent/      your instance'
+              '          config.json'
+              '          main.sig           your event loop'
+              '          context/'
+              '            conversations/'
+              '            prompts/'
+              '            memories/'
+              '            docs/            these docs'
+              '          apps/'
+              '            code/            YOUR build scope'
+              '          tools/             running tool processes'
+              '          children/          sub-agent instances'
+              ''
+              'You are a fiber process at main.sig, governed by the claw agent'
+              'nexus. Your filesystem is real and persistent. Files survive across'
+              'sessions. Code you write in ./apps/code/ gets compiled. Nexuses you'
+              'create in ./apps/ are live programs. Everything is scoped to your'
+              'subtree -- nothing you build outlives your agent instance.'
+          ==
+        =/  workflows-doc=wain
+          :~  'COMMON WORKFLOWS'
+              '================'
+              ''
+              ''
+              '## Two spaces, two purposes'
+              ''
+              './apps/ is your application space:'
+              '  ./apps/code/          source code (nexus defs, libs, marks, tools)'
+              '  ./apps/my-thing/      running nexus instances you create'
+              ''
+              './children/ is for sub-agents:'
+              '  spawn_task creates temporary claw agent instances here'
+              '  These are other AIs handling subtasks, NOT custom programs'
+              ''
+              'You NEVER modify your own nexus code -- it is authored by the developer,'
+              'compiled in the parent code namespace, and governs you from above.'
+              ''
+              ''
+              '## Writing a dynamic tool'
+              ''
+              'A tool is a .hoon file producing a tool:nex-tools core.'
+              ''
+              '1. write road="./apps/code/lib/tools/my-tool.hoon" mark="hoon"'
+              '2. check_bin code_road="./apps/code/" path="/lib/tools" name="my-tool"'
+              '3. Read errors, fix, rewrite, check again until it compiles'
+              '4. Once compiled, the tool is live -- no restart needed'
+              ''
+              'The filename can be anything -- the tool is registered by its ++name arm,'
+              'not the filename. But convention is to match (with hyphens in filename,'
+              'underscores in name).'
+              ''
+              'A tool core has these arms:'
+              '  ++name         @t cord, the tool name users call'
+              '  ++description  @t cord, what it does'
+              '  ++parameters   (map @t parameter-def:tools), input params'
+              '  ++required     (list @t), which params are required'
+              '  ++handler      tool-handler:tools, fiber that runs on invocation'
+              ''
+              'The handler receives tool-state (with args map) via get-state-as:io'
+              'and returns a tool-result (%text or %error).'
+              ''
+              '### Tips'
+              ''
+              '- Always import the tools library first:'
+              '    /<  tools  /lib/nex/tools.hoon'
+              '    ^-  tool:tools'
+              '  This gives you tool-state:tools, tool-result:tools, parameter-def:tools.'
+              ''
+              '- For entropy use get-entropy:io (returns @uvJ).'
+              '  For current time use get-now:io (returns @da).'
+              '  Do NOT use get-bowl:io -- the sandbox blocks it.'
+              ''
+              '- Read args from the tool-state args map:'
+              '    ;<  st=tool-state:tools  bind:m  (get-state-as:io ,tool-state:tools)'
+              '    =/  val  (~(get by args.st) <cord-key>)'
+              '  JSON numbers: ?>(?=(%n -.j) (rash p.j dem)) gives @ud'
+              '  JSON strings: ?>(?=(%s -.j) p.j) gives @t'
+              '  JSON booleans: ?>(?=(%b -.j) p.j) gives ?'
+              ''
+              '- Write tool files with mark="hoon" so they compile as Hoon source.'
+              '  Without mark, files store as raw mime and will not compile.'
+              ''
+              '- Read existing tools in ./apps/code/lib/tools/ for reference.'
+              '  Also read ./apps/code/lib/nex/tools.hoon for the type definitions.'
+              ''
+              ''
+              '## Building a custom nexus'
+              ''
+              '1. Write the nexus source:'
+              '   write path="./apps/code/nex/my-thing/app.hoon"'
+              '   Must produce a nexus:nexus core (on-load, on-file, on-manu).'
+              ''
+              '2. Compile:'
+              '   check_bin path="./apps/code/nex/my-thing" name="app"'
+              '   Fix errors iteratively until it builds.'
+              ''
+              '3. Instantiate:'
+              '   create_nexus name="my-instance" code="my-thing/app"'
+              '   Creates ./apps/my-instance/ with a neck pointing to your code.'
+              '   on-load runs and sets up its filesystem.'
+              ''
+              '4. Interact:'
+              '   Use write/read on files in ./apps/my-instance/'
+              '   The instance is a live program with its own processes.'
+              ''
+              'The code arg in create_nexus is the path within your code namespace'
+              '(./apps/code/nex/), NOT a filesystem path.'
+              ''
+              ''
+              '## Common mistakes'
+              ''
+              '- Writing source to ./proc/tools/ -- that holds running tool PROCESSES,'
+              '  not source code. Source goes in ./apps/code/lib/tools/.'
+              ''
+              '- Manually writing files into nexus instances. Use create_nexus to'
+              '  instantiate, then interact through its own files.'
+              ''
+              '- Confusing the three layers: ball = data, nexus = code, fiber ='
+              '  process. You are a fiber, governed by a nexus, in the ball.'
+              ''
+              '- check_bin takes a directory path + file stem, not a file path.'
+              '  E.g. path="./apps/code/nex/foo" name="app".'
+              ''
+              '- Writing the wrong type to a typed file. Files have typed content'
+              '  (sage = blot + vase). Type mismatches crash.'
+              ''
+              '- Trying to poke or create outside your subtree. Your weir blocks'
+              '  it -- you will get a %veto. Use check_bang to inspect errors.'
           ==
         =/  default-conv=json  [%a ~]
         =/  code-dir=ball:tarball  [`[~ `[/ %code] ~] ~]
@@ -196,16 +590,19 @@
             [%fall %& [/context/prompts %'main.txt'] %.n [~ [/ %txt] !>(default-prompt)]]
             [%fall %| /context/memories [~ ~] [~ ~] empty-dir:loader]
             [%fall %| /context/docs [~ ~] [~ ~] empty-dir:loader]
-            ::  /content: nexus content
-            [%fall %| /content [~ ~] [~ ~] empty-dir:loader]
-            ::  /content/code: claw's own build scope
-            [%fall %| /content/code [~ ~] [~ ~] code-dir]
-            [%fall %| /content/code/nex [~ ~] [~ ~] empty-dir:loader]
-            [%fall %| /content/code/lib [~ ~] [~ ~] empty-dir:loader]
-            [%fall %| /content/code/lib/tools [~ ~] [~ ~] empty-dir:loader]
-            [%fall %| /content/code/mar [~ ~] [~ ~] empty-dir:loader]
-            ::  /tools: tool execution
-            [%fall %| /tools [~ ~] [~ ~] empty-dir:loader]
+            [%over %& [/context/docs %'grubbery-fundamentals.txt'] %.n [~ [/ %txt] !>(fundamentals-doc)]]
+            [%over %& [/context/docs %'workflows.txt'] %.n [~ [/ %txt] !>(workflows-doc)]]
+            ::  /apps: applications and code
+            [%fall %| /apps [~ ~] [~ ~] empty-dir:loader]
+            ::  /apps/code: build scope for the AI's code
+            [%fall %| /apps/code [~ ~] [~ ~] code-dir]
+            [%fall %| /apps/code/nex [~ ~] [~ ~] empty-dir:loader]
+            [%fall %| /apps/code/lib [~ ~] [~ ~] empty-dir:loader]
+            [%fall %| /apps/code/lib/tools [~ ~] [~ ~] empty-dir:loader]
+            [%fall %| /apps/code/mar [~ ~] [~ ~] empty-dir:loader]
+            ::  /proc/tools: tool execution
+            [%fall %| /proc [~ ~] [~ ~] empty-dir:loader]
+            [%fall %| /proc/tools [~ ~] [~ ~] empty-dir:loader]
             ::  /children: spawned child nexuses
             [%fall %| /children [~ ~] [~ ~] empty-dir:loader]
             ::  ui
@@ -234,7 +631,7 @@
           ?.  ?=(%file -.view.main-event)  $
           =/  tst=tool-state:nex-tools  !<(tool-state:nex-tools q.sage.view.main-event)
           ?.  =(%done step.tst)  $
-          =/  tool-road=road:tarball  [%| 0 %& /tools tid]
+          =/  tool-road=road:tarball  [%| 0 %& /proc/tools tid]
           ;<  ~  bind:m  (drop:io /tool-done/[tid] tool-road)
           =/  result-text=@t  (extract-tool-result tst)
           ~&  >  ["%claw: deferred result for" tid]
@@ -244,7 +641,7 @@
           =/  proxy=@t
             =/  p  (get-str config 'api-proxy')
             ?:(=('' p) '../../apis/anthropic.sig' p)
-          =/  ctx-window=@ud  (get-num config 'context_window' 200.000)
+          =/  ctx-window=@ud  (get-num config 'context_window' 80.000)
           =/  msg-cap=@ud  (get-num config 'message_cap' 20.000)
           ;<  =convo  bind:m  (read-conv conv-key)
           =/  updated=^convo
@@ -288,7 +685,7 @@
             =/  proxy=@t
               =/  p  (get-str config 'api-proxy')
               ?:(=('' p) '../../apis/anthropic.sig' p)
-            =/  ctx-window=@ud  (get-num config 'context_window' 200.000)
+            =/  ctx-window=@ud  (get-num config 'context_window' 80.000)
             =/  msg-cap=@ud  (get-num config 'message_cap' 20.000)
             ::  read conversation, append user message
             ;<  =convo  bind:m  (read-conv conv-key)
@@ -308,20 +705,22 @@
           ==
         ==
         ==
-          ::  /tools/*: tool execution
+          ::  /proc/tools/*: tool execution
           ::
-          [[%tools ~] @]
+          [[%proc %tools ~] @]
         ;<  ~  bind:m  (rise-tool prod)
         ;<  st=tool-state:nex-tools  bind:m
           (get-state-as:io ,tool-state:nex-tools)
         ?:  =(%done step.st)  (pure:m ~)
         ::  tool execution
-        =/  tl=(unit tool:nex-tools)  (~(get by builtins) tool.st)
-        ?~  tl
+        ;<  got=(each tool:nex-tools tang)  bind:m
+          (await-tool tool.st)
+        ?:  ?=(%| -.got)
           =/  result-data=json
             (pairs:enjs:format ~[['type' s+'error'] ['message' s+(crip "Unknown tool: {(trip tool.st)}")]])
           (replace:io !>(`tool-state:nex-tools`[tool.st args.st %done data.st `result-data]))
-        ;<  result=tool-result:nex-tools  bind:m  handler.u.tl
+        =/  tl=tool:nex-tools  p.got
+        ;<  result=tool-result:nex-tools  bind:m  handler.tl
         =/  result-json=json
           ?-  -.result
             %text   (pairs:enjs:format ~[['type' s+'text'] ['text' s+text.result]])
@@ -543,16 +942,16 @@
       [name:summarize-tool summarize-tool]
   ==
 ::
-::  +get-tools: return built-in tools merged with dynamic tools from content/code/lib/tools
+::  +get-tools: return built-in tools merged with dynamic tools from apps/code/lib/tools
 ::
 ++  get-tools
   =/  m  (fiber:fiber:nexus ,(map @t tool:nex-tools))
   ^-  form:m
   ::  start with built-in tools
   =/  result=(map @t tool:nex-tools)  builtins
-  ::  merge dynamic tools from content/code/lib/tools
+  ::  merge dynamic tools from apps/code/lib/tools
   ;<  src-seen=seen:nexus  bind:m
-    (peek:io [%& %| /content/code/lib/tools] ~)
+    (peek:io [%| 0 %| /apps/code/lib/tools] ~)
   ?.  ?=([%& %ball *] src-seen)
     (pure:m result)
   ?~  fil.ball.p.src-seen
@@ -564,28 +963,46 @@
   ?~  names  (pure:m result)
   =/  name=@ta  i.names
   ;<  res=built:nexus  bind:m
-    (get-code-full:io [%& %& /content/code/lib/tools name])
+    (get-code-full:io [%| 0 %& /apps/code/lib/tools name])
   ?.  ?=(%vase -.res)  $(names t.names)
   =/  got=(each tool:nex-tools tang)
     (mule |.(!<(tool:nex-tools vase.res)))
   ?.  ?=(%& -.got)  $(names t.names)
   $(names t.names, result (~(put by result) name:p.got p.got))
 ::
-::  +await-tool: look up a compiled tool handler by name
+::  +await-tool: look up a tool by name -- builtins first, then dynamic
+::
+::  Discovers dynamic tools the same way +get-tools does, but uses
+::  %| 2 offsets because tool fibers run from /proc/tools/{tid}.
 ::
 ++  await-tool
-  |=  st=tool-state:nex-tools
+  |=  tool=@t
   =/  m  (fiber:fiber:nexus ,(each tool:nex-tools tang))
   ^-  form:m
-  =/  file-name=@ta
-    (crip (turn (trip tool.st) |=(c=@t ?:(=(c '_') '-' c))))
+  =/  builtin=(unit tool:nex-tools)  (~(get by builtins) tool)
+  ?^  builtin  (pure:m &+u.builtin)
+  ::  discover dynamic tools from apps/code/lib/tools
+  ;<  src-seen=seen:nexus  bind:m
+    (peek:io [%| 2 %| /apps/code/lib/tools] ~)
+  ?.  ?=([%& %ball *] src-seen)
+    (pure:m [%| ~[leaf+"tool not found: {(trip tool)}"]])
+  ?~  fil.ball.p.src-seen
+    (pure:m [%| ~[leaf+"tool not found: {(trip tool)}"]])
+  =/  names=(list @ta)
+    %+  turn  ~(tap by contents.u.fil.ball.p.src-seen)
+    |=([name=@ta *] (strip-hoon name))
+  |-
+  ?~  names
+    (pure:m [%| ~[leaf+"tool not found: {(trip tool)}"]])
+  =/  name=@ta  i.names
   ;<  res=built:nexus  bind:m
-    (get-code-full:io [%& %& /content/code/lib/tools file-name])
-  ?.  ?=(%vase -.res)
-    (pure:m [%| ?:(?=(%tang -.res) tang.res ~[leaf+"not a vase"])])
+    (get-code-full:io [%| 2 %& /apps/code/lib/tools name])
+  ?.  ?=(%vase -.res)  $(names t.names)
   =/  got=(each tool:nex-tools tang)
     (mule |.(!<(tool:nex-tools vase.res)))
-  (pure:m got)
+  ?.  ?=(%& -.got)  $(names t.names)
+  ?.  =(tool name:p.got)  $(names t.names)
+  (pure:m &+p.got)
 ::
 ::  +rise-tool: handle tool process crash
 ::
@@ -688,7 +1105,7 @@
     (snoc body-pairs ['tools' (tools-to-json tools)])
   =/  payload=json  (pairs:enjs:format body-pairs)
   ~&  >  ["%claw: sending to" model]
-  ::  poke the anthropic proxy — it adds auth and makes the HTTP call
+  ::  poke the anthropic proxy -- it adds auth and makes the HTTP call
   =/  proxy-road=road:tarball  (cord-to-road:tarball proxy)
   ~&  >>  ["%claw: proxy road" proxy-road]
   ~&  >>  ["%claw: about to poke proxy"]
@@ -735,9 +1152,9 @@
 ::  +run-tool-calls: execute tool calls via /tools grubs
 ::
 ::  Waits for each tool to reach %ack or %done (whichever comes first).
-::  If %ack, the tool is still running — re-subscribes on /tool-done/[tid]
+::  If %ack, the tool is still running -- re-subscribes on /tool-done/[tid]
 ::  so main.sig's event loop picks up the eventual %done.
-::  If %done, the tool completed synchronously — subscription dropped.
+::  If %done, the tool completed synchronously -- subscription dropped.
 ::
 ++  run-tool-calls
   |=  [calls=(list content-block) conv-key=@t]
@@ -754,13 +1171,13 @@
   =/  ts=tool-state:nex-tools
     [name.call tool-args %start ~ ~]
   =/  tid=@ta  id.call
-  =/  tool-road=road:tarball  [%| 0 %& /tools tid]
+  =/  tool-road=road:tarball  [%| 0 %& /proc/tools tid]
   ;<  *  bind:m  (keep:io /tool-wait/[tid] tool-road ~)
   ;<  ~  bind:m  (make:io tool-road |+[%.n [[/ %tool-state] !>(ts)] ~])
   ;<  [result-text=@t more=?]  bind:m  (await-tool-ack tid)
   ;<  ~  bind:m  (drop:io /tool-wait/[tid] tool-road)
   ?:  more
-    ::  tool ack'd but still running — subscribe on /tool-done for main loop
+    ::  tool ack'd but still running -- subscribe on /tool-done for main loop
     ;<  *  bind:m  (keep:io /tool-done/[tid] tool-road ~)
     $(calls t.calls, results [[id.call result-text] results])
   $(calls t.calls, results [[id.call result-text] results])
@@ -954,12 +1371,24 @@
     =/  tok=@ud  (entry-tokens i.rev)
     ?:  (gth tok budget)  kept
     $(rev t.rev, kept [i.rev kept], budget (sub budget tok))
+  ::  drop orphaned tool entries at start of window
+  ::  window must start with a %msg to avoid dangling tool_result/tool_use
+  =/  windowed=^convo
+    |-
+    ?~  windowed  ~
+    ?:  ?=(%msg -.i.windowed)  windowed
+    $(windowed t.windowed)
   =/  skipped=@ud  (sub total (lent windowed))
   =/  skipped-tokens=@ud
     %+  roll  (scag skipped convo)
     |=  [e=entry acc=@ud]
     (add acc (entry-tokens e))
   =/  window-start=@ud  skipped
+  =/  window-count=@ud  (lent windowed)
+  =/  window-tokens=@ud
+    %+  roll  windowed
+    |=  [e=entry acc=@ud]
+    (add acc (entry-tokens e))
   =/  prefix=(unit json)
     ?:  =(0 skipped)  ~
     =/  note=@t
@@ -971,8 +1400,14 @@
         (a-co:co skipped-tokens)
         " tokens) not shown, covering messages 0-"
         (a-co:co (dec skipped))
-        ". Current window starts at message "
+        ". Current window shows "
+        (a-co:co window-count)
+        " messages (est. "
+        (a-co:co window-tokens)
+        " tokens), messages "
         (a-co:co window-start)
+        "-"
+        (a-co:co (dec total))
         ".]"
       ==
     `(pairs:enjs:format ~[['role' s+'user'] ['content' s+note]])
@@ -1169,7 +1604,7 @@
             ;label.cfg-label: Model
             ;input#cfg-model(type "text", placeholder "claude-sonnet-4-20250514");
             ;label.cfg-label: Context window (tokens)
-            ;input#cfg-window(type "number", placeholder "200000");
+            ;input#cfg-window(type "number", placeholder "80000");
             ;label.cfg-label: Message cap (tokens)
             ;input#cfg-msgcap(type "number", placeholder "20000");
             ;div#cfg-status;
@@ -1376,7 +1811,7 @@
       .then(function(r) \{ return r.json() })
       .then(function(j) \{
         cfgModel.value = j['model'] || '';
-        cfgWindow.value = j['context_window'] || 200000;
+        cfgWindow.value = j['context_window'] || 80000;
         cfgMsgcap.value = j['message_cap'] || 20000;
       }).catch(function() \{});
     cfgBack.classList.add('open');
@@ -1391,7 +1826,7 @@
   };
 
   document.getElementById('cfg-save').onclick = async function() \{
-    var cfg = \{'model': cfgModel.value, 'context_window': parseInt(cfgWindow.value) || 200000, 'message_cap': parseInt(cfgMsgcap.value) || 20000};
+    var cfg = \{'model': cfgModel.value, 'context_window': parseInt(cfgWindow.value) || 80000, 'message_cap': parseInt(cfgMsgcap.value) || 20000};
     var r = await fetch(API + '/over/' + BALL + '/config.json?mark=json', \{
       method: 'POST',
       headers: \{'Content-Type': 'application/json'},
@@ -1420,9 +1855,9 @@
 ::
 ::  +agent-road: adjust a road so relative paths resolve from the agent root
 ::
-::  Tools run at /tools/{tid}, one level below the agent. The LLM thinks
+::  Tools run at /proc/tools/{tid}, two levels below the agent. The LLM thinks
 ::  in terms of the agent directory, so ./foo should mean agent-root/foo,
-::  not /tools/{tid}/foo. This prepends ../ to relative roads.
+::  not /proc/tools/{tid}/foo. This prepends ../../ to relative roads.
 ::
 ++  agent-road
   |=  raw=@t
@@ -1431,10 +1866,10 @@
   =/  adjusted=@t
     ::  only adjust ./ (agent-relative), not ../ (already traversing)
     ?:  =("./" (scag 2 t))
-      (crip (weld "../" (slag 2 t)))
-    ::  bare ../ paths: add one more level to account for tool depth
+      (crip (weld "../../" (slag 2 t)))
+    ::  bare ../ paths: add two more levels to account for tool depth
     ?:  =(".." (scag 2 t))
-      (crip (weld "../" t))
+      (crip (weld "../../" t))
     raw
   (cord-to-road:tarball adjusted)
 ::
@@ -1447,12 +1882,12 @@
     ^~  %-  crip
     ;:  weld
       "List files and subdirectories at a path in this nexus. "
-      "Accepts a road string: absolute (/tools/) or "
+      "Accepts a road string: absolute (/proc/tools/) or "
       "relative (./context/, ../). Trailing slash for directories."
     ==
   ++  parameters
     ^-  (map @t parameter-def:nex-tools)
-    (malt ~[['road' [%string 'Road to a directory (e.g. "/", "./context/", "/tools/")']]])
+    (malt ~[['road' [%string 'Road to a directory (e.g. "/", "./context/", "./apps/")']]])
   ++  required  ~['road']
   ++  handler
     ^-  tool-handler:nex-tools
@@ -1536,7 +1971,7 @@
       ?:(=(0 lim) after (scag lim after))
     =/  end=@ud  (add start (lent sliced))
     =/  header=tape
-      "[lines {<(add start 1)>}-{<end>} of {<total>}]\0a"
+      "[mark: {(spud (snoc path.p.sage.p.seen name.p.sage.p.seen))}] [lines {<(add start 1)>}-{<end>} of {<total>}]\0a"
     =/  numbered=tape
       %-  zing
       =/  n=@ud  (add start 1)
@@ -1556,16 +1991,18 @@
     ;:  weld
       "Write a file in this nexus. "
       "Accepts a road string pointing to a file: "
-      "absolute (/config.json) or relative (./content/code/lib/tools/my-tool.hoon). "
+      "absolute (/config.json) or relative (./apps/code/lib/tools/my-tool.hoon). "
       "Creates the file if it doesn't exist, overwrites if it does. "
-      "Mark is inferred from filename extension. "
+      "Set mark to store as a specific mark (e.g. \"hoon\", \"/wallet/account\"). "
+      "Without mark, stores as raw mime. "
       "Content is passed through mime conversion."
     ==
   ++  parameters
     ^-  (map @t parameter-def:nex-tools)
     %-  malt
-    :~  ['road' [%string 'Road to a file (e.g. "/config.json", "./content/code/lib/tools/foo.hoon")']]
+    :~  ['road' [%string 'Road to a file (e.g. "./config.json", "./apps/code/lib/tools/foo.hoon")']]
         ['content' [%string 'Text content to write']]
+        ['mark' [%string 'Target mark as a blot path (e.g. "hoon", "/wallet/account"). Omit to store as mime.']]
     ==
   ++  required  ~['road' 'content']
   ++  handler
@@ -1577,13 +2014,24 @@
       (pure:m [%error 'Missing required argument: road'])
     ?~  content=(get-arg st 'content')
       (pure:m [%error 'Missing required argument: content'])
+    =/  dest-mark=(unit @tas)
+      ?~  mk=(get-arg st 'mark')  ~
+      ?:  =('' u.mk)  ~
+      ::  parse as blot path, extract name
+      =/  pax=path
+        ?:  =('/' (end 3 u.mk))  (stab u.mk)
+        (stab (cat 3 '/' u.mk))
+      ?~  pax  ~
+      `(rear pax)
     =/  road=road:tarball  (agent-road u.raw)
     =/  src-mime=mime  [/text/plain (as-octs:mimes:html u.content)]
     ;<  exists=?  bind:m  (peek-exists:io road)
     ?:  exists
+      ?^  dest-mark
+        (pure:m [%error 'Cannot change mark of existing file. Delete it first, then recreate with the desired mark.'])
       ;<  ~  bind:m  (over:io road [[/ %mime] !>(src-mime)])
       (pure:m [%text (crip "Wrote {(trip u.raw)}")])
-    ;<  ~  bind:m  (make:io road |+[%.n [[/ %mime] !>(src-mime)] ~])
+    ;<  ~  bind:m  (make:io road |+[%.n [[/ %mime] !>(src-mime)] dest-mark])
     (pure:m [%text (crip "Created {(trip u.raw)}")])
   --
 ::
@@ -1815,7 +2263,7 @@
       (pure:m [%error (crip "Not a directory or not found: {(trip u.raw)}")])
     =/  weir=weir:nexus  (fall fil.sand.p.dir-seen [~ ~ ~])
     ?:  &(=(~ make.weir) =(~ poke.weir) =(~ peek.weir))
-      (pure:m [%text (crip "No weir at {(trip u.raw)} — unrestricted")])
+      (pure:m [%text (crip "No weir at {(trip u.raw)} -- unrestricted")])
     =/  render
       |=  roads=(set road:tarball)
       ^-  tape
@@ -1845,7 +2293,7 @@
     %-  malt
     :~  ['road' [%string 'Road to the directory to add the rule to']]
         ['category' [%string 'Rule category: "write", "poke", or "read"']]
-        ['allow_road' [%string 'Road to allow (e.g. "/" for root, "/tools/" for tools dir)']]
+        ['allow_road' [%string 'Road to allow (e.g. "/" for root, "./apps/" for apps dir)']]
     ==
   ++  required  ~['road' 'category' 'allow_road']
   ++  handler
@@ -1945,14 +2393,14 @@
     ;:  weld
       "Check if a build artifact compiled successfully. "
       "Provide the code namespace road and artifact name. "
-      "Example: code_road='/content/code/lib/tools/' name='my-tool' "
+      "Example: code_road='/apps/code/lib/tools/' name='my-tool' "
       "to check a compiled tool. Returns the error tang "
       "if compilation failed, or confirms success."
     ==
   ++  parameters
     ^-  (map @t parameter-def:nex-tools)
     %-  malt
-    :~  ['code_road' [%string 'Road to code directory (e.g. "/content/code/lib/tools/", "./code/lib/")']]
+    :~  ['code_road' [%string 'Road to code directory (e.g. "/apps/code/lib/tools/", "./code/lib/")']]
         ['name' [%string 'Artifact name (e.g. "my-tool")']]
     ==
   ++  required  ~['code_road' 'name']
@@ -1976,7 +2424,7 @@
     ?:  ?=(%vase -.res)
       (pure:m [%text (crip "OK: {(trip u.raw)}{(trip u.nam)} compiled successfully")])
     ?.  ?=(%tang -.res)
-      (pure:m [%text (crip "OK: {(trip u.raw)}{(trip u.nam)} — non-vase artifact")])
+      (pure:m [%text (crip "OK: {(trip u.raw)}{(trip u.nam)} -- non-vase artifact")])
     =/  rendered=tape
       %-  zing
       %+  turn  (flop tang.res)
@@ -1998,7 +2446,7 @@
     ==
   ++  parameters
     ^-  (map @t parameter-def:nex-tools)
-    (malt ~[['road' [%string 'Road to check (e.g. "/", "/content/code/", "./code/")']]])
+    (malt ~[['road' [%string 'Road to check (e.g. "/", "/apps/code/", "./code/")']]])
   ++  required  ~['road']
   ++  handler
     ^-  tool-handler:nex-tools
@@ -2033,7 +2481,7 @@
       `"\0a{(trip name)}: BANGED\0a{rendered}"
     =.  out  (weld out file-out)
     ?:  =('' (crip out))
-      (pure:m [%text (crip "OK: {(trip u.raw)} — no errors")])
+      (pure:m [%text (crip "OK: {(trip u.raw)} -- no errors")])
     (pure:m [%text (crip out)])
   --
 ::
@@ -2070,13 +2518,13 @@
       :~  ['status' s+status]
           ['result' s+u.result]
       ==
-    =/  road=road:tarball  (cord-to-road:tarball '../../result.json')
+    =/  road=road:tarball  (agent-road './result.json')
     ;<  exists=?  bind:m  (peek-exists:io road)
     ?:  exists
       ;<  ~  bind:m  (over:io road [[/ %json] !>(result-json)])
-      (pure:m [%text 'Finished — result.json updated'])
+      (pure:m [%text 'Finished -- result.json updated'])
     ;<  ~  bind:m  (make:io road |+[%.n [[/ %json] !>(result-json)] ~])
-    (pure:m [%text 'Finished — result.json written'])
+    (pure:m [%text 'Finished -- result.json written'])
   --
 ::
 ++  await-child-result
@@ -2084,7 +2532,7 @@
   =/  m  (fiber:fiber:nexus ,tool-result:nex-tools)
   ^-  form:m
   =/  result-road=road:tarball
-    (cord-to-road:tarball (crip "{pfx}/result.json"))
+    (agent-road (crip "{pfx}/result.json"))
   ::  drop any stale subscription from a previous run, then subscribe fresh
   ;<  ~  bind:m  (drop:io /spawn-result result-road)
   ;<  *  bind:m  (keep:io /spawn-result result-road ~)
@@ -2143,7 +2591,7 @@
     =/  m  (fiber:fiber:nexus ,tool-result:nex-tools)
     ^-  form:m
     ;<  st=tool-state:nex-tools  bind:m  (get-state-as:io ,tool-state:nex-tools)
-    ::  if resuming from ack, skip creation — just re-subscribe and wait
+    ::  if resuming from ack, skip creation -- just re-subscribe and wait
     ?:  =(%ack step.st)
       =/  pfx=tape
         =/  d=json  data.st
@@ -2164,11 +2612,11 @@
     =/  code=@t  (fall (get-arg st 'code') '/claw/agent')
     =/  tid=@ta  (crip (cass:so (trip u.name)))
     =/  tid-t=tape  (trip tid)
-    ::  create child nexus (relative from tool proc: ../../children/{name}/)
-    =/  pfx=tape  "../../children/{tid-t}"
-    =/  child-road=road:tarball  (cord-to-road:tarball (crip "{pfx}/"))
+    ::  create child nexus (agent-road adjusts for tool depth)
+    =/  pfx=tape  "./children/{tid-t}"
+    =/  child-road=road:tarball  (agent-road (crip "{pfx}/"))
     ::  check if child already exists
-    ;<  exists=?  bind:m  (peek-exists:io (cord-to-road:tarball (crip "{pfx}/main.sig")))
+    ;<  exists=?  bind:m  (peek-exists:io (agent-road (crip "{pfx}/main.sig")))
     ?:  exists
       (pure:m [%error (crip "Child '{tid-t}' already exists. Use a unique name.")])
     =/  code-pax=path  (stab code)
@@ -2180,12 +2628,12 @@
     ::  read parent config (../../config.json from tool proc)
     ;<  parent-config=json  bind:m
       =/  m  (fiber:fiber:nexus ,json)
-      =/  road=road:tarball  (cord-to-road:tarball '../../config.json')
+      =/  road=road:tarball  (agent-road './config.json')
       ;<  =seen:nexus  bind:m  (peek:io road ~)
       ?.  ?=([%& %file *] seen)  (pure:m *json)
       (pure:m (fall (mole |.(!<(json q.sage.p.seen))) *json))
     =/  child-config-road=road:tarball
-      (cord-to-road:tarball (crip "{pfx}/config.json"))
+      (agent-road (crip "{pfx}/config.json"))
     ;<  cfg-exists=?  bind:m  (peek-exists:io child-config-road)
     ;<  ~  bind:m
       ?:  cfg-exists
@@ -2199,14 +2647,14 @@
         "When you have completed your work, you MUST call the `finish` tool "
         "with your result text in the `result` parameter.\0a"
         "This is the ONLY way to return your result to the parent. "
-        "Do not just respond with text — call `finish`.\0a"
+        "Do not just respond with text -- call `finish`.\0a"
       ==
     =/  full-prompt=@t
       =/  user-prompt=(unit @t)  (get-arg st 'prompt')
       ?~  user-prompt  base-instructions
       (crip "{(trip base-instructions)}\0a{(trip u.user-prompt)}")
     =/  prompt-road=road:tarball
-      (cord-to-road:tarball (crip "{pfx}/context/prompts/task.txt"))
+      (agent-road (crip "{pfx}/context/prompts/task.txt"))
     =/  prompt-wain=wain  (to-wain:format full-prompt)
     ;<  ~  bind:m
       =/  m  (fiber:fiber:nexus ,~)
@@ -2218,10 +2666,10 @@
     =/  msg-json=json
       (pairs:enjs:format ~[['action' s+'message'] ['content' s+u.message]])
     =/  child-sig-road=road:tarball
-      (cord-to-road:tarball (crip "{pfx}/main.sig"))
+      (agent-road (crip "{pfx}/main.sig"))
     ;<  ~  bind:m
       (send-dart:io [%node /spawn-task child-sig-road %poke [[/ %json] !>(msg-json)]])
-    ::  ack — store pfx in data so we can resume on restart
+    ::  ack -- store pfx in data so we can resume on restart
     =/  ack-data=json
       %-  pairs:enjs:format
       :~  ['type' s+'text']

@@ -74,7 +74,8 @@
   ::  Reload root nexus (hardcoded — after code compile so child nexuses build)
   ~&  >>  "on-init: reload-nexus-at"
   =^  root-cards  state  abet:(reload-nexus-at:hc / root)
-  ::  Build all code namespaces (after nexus reload so on-loads have created them)
+  ::  Purge stale code namespaces, then register new ones
+  =.  code  purge-stale-code:hc
   =^  code-cards  state  abet:(build-new-code-namespaces:hc / ball)
   =^  spawn-cards  state  abet:(spawn-all-files:hc / ball)
   ~&  >>  "on-init: sync-dill"
@@ -114,7 +115,8 @@
     ::  Reload root nexus (hardcoded — runs on every app reload, after code compile)
     ~&  >>  "on-load: reload-nexus-at"
     =^  root-cards  state  abet:(reload-nexus-at:hc / root)
-    ::  Build all code namespaces (after nexus reload so on-loads have created them)
+    ::  Purge stale code namespaces, then register new ones
+    =.  code  purge-stale-code:hc
     =^  code-cards  state  abet:(build-new-code-namespaces:hc / ball)
     =^  spawn-cards  state  abet:(spawn-all-files:hc / ball)
     ~&  >>  "on-load: sync-dill"
@@ -405,6 +407,18 @@
   =^  [here=rail:tarball =take:fiber:nexus]  takes  ~(get to takes)
   =.  this  (process-take here take)
   $(this this)
+::  Purge code map entries whose paths no longer exist as code nexuses.
+::
+++  purge-stale-code
+  ^-  (map path lode:nexus)
+  =/  keys=(list path)  ~(tap in ~(key by code))
+  |-
+  ?~  keys  code
+  =/  node=(unit lump:tarball)  (~(get of ball) i.keys)
+  ?:  ?&(?=(^ node) ?=(^ neck.u.node) =([/ %code] u.neck.u.node))
+    $(keys t.keys)
+  ~&  >  "purge-stale-code: {(spud i.keys)}"
+  $(keys t.keys, code (~(del by code) i.keys))
 ::  Put subtree into sand at path
 ::
 ++  put-sub-sand
