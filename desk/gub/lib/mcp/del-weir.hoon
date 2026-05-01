@@ -13,6 +13,7 @@
       ['category' [%string 'Rule category: "write", "poke", or "read"']]
       ['road_path' [%string 'Road path to remove']]
       ['road_type' [%string 'Road type: "dir" or "file"']]
+      ['steps_up' [%string 'Steps up for relative road (e.g. "1"). Omit for absolute road.']]
   ==
 ++  required  ~['path' 'category' 'road_path']
 ++  handler
@@ -32,13 +33,26 @@
     ?~  rt=(~(get jo:json-utils [%o args.st]) /'road_type')  'dir'
     ?.  ?=([%s *] u.rt)  'dir'
     p.u.rt
-  =/  pax=path  (stab road-path)
+  =/  steps-up=(unit @ud)
+    ?~  su=(~(get jo:json-utils [%o args.st]) /'steps_up')  ~
+    ?.  ?=([%s *] u.su)  ~
+    `(rash p.u.su dem)
+  =/  pax=path
+    =/  t=tape  (trip road-path)
+    (stab (crip ?:(&(!=(~ t) =('/' (rear t))) (snip t) t)))
   =/  del-road=road:tarball
+    ?^  steps-up
+      ?:  =('file' road-type)
+        ?~  pax  [%| u.steps-up %| /]
+        [%| u.steps-up %& (snip `path`pax) (rear pax)]
+      [%| u.steps-up %| pax]
     ?:  =('file' road-type)
       ?~  pax  [%& %| /]
       [%& %& (snip `path`pax) (rear pax)]
     [%& %| pax]
-  =/  dir-pax=path  (stab weir-path)
+  =/  dir-pax=path
+    =/  t=tape  (trip weir-path)
+    (stab (crip ?:(&(!=(~ t) =('/' (rear t))) (snip t) t)))
   ;<  dir-seen=seen:nexus  bind:m  (peek:io [%& %| dir-pax] ~)
   =/  cur=weir:nexus
     ?.  ?=([%& %ball *] dir-seen)  [~ ~ ~]

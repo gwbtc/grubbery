@@ -5,7 +5,7 @@
 ^-  tool:tools
 |%
 ++  name  'add_weir'
-++  description  'Add a sandbox (weir) rule to a directory. Categories: write, poke, read. Road types: dir, file.'
+++  description  'Add a sandbox (weir) rule to a directory. Categories: write, poke, read. Road types: dir, file. Use steps_up for relative roads.'
 ++  parameters
   ^-  (map @t parameter-def:tools)
   %-  ~(gas by *(map @t parameter-def:tools))
@@ -13,6 +13,7 @@
       ['category' [%string 'Rule category: "write", "poke", or "read"']]
       ['road_path' [%string 'Allowed road path (e.g. "/")']]
       ['road_type' [%string 'Road type: "dir" or "file"']]
+      ['steps_up' [%string 'Steps up for relative road (e.g. "1" means ../, "0" means ./). Omit for absolute road.']]
   ==
 ++  required  ~['path' 'category' 'road_path']
 ++  handler
@@ -32,13 +33,28 @@
     ?~  rt=(~(get jo:json-utils [%o args.st]) /'road_type')  'dir'
     ?.  ?=([%s *] u.rt)  'dir'
     p.u.rt
-  =/  pax=path  (stab road-path)
+  =/  steps-up=(unit @ud)
+    ?~  su=(~(get jo:json-utils [%o args.st]) /'steps_up')  ~
+    ?.  ?=([%s *] u.su)  ~
+    `(rash p.u.su dem)
+  =/  pax=path
+    =/  t=tape  (trip road-path)
+    (stab (crip ?:(&(!=(~ t) =('/' (rear t))) (snip t) t)))
   =/  new-road=road:tarball
+    ?^  steps-up
+      ::  relative road (bend): steps up + lane
+      ?:  =('file' road-type)
+        ?~  pax  [%| u.steps-up %| /]
+        [%| u.steps-up %& (snip `path`pax) (rear pax)]
+      [%| u.steps-up %| pax]
+    ::  absolute road
     ?:  =('file' road-type)
       ?~  pax  [%& %| /]
       [%& %& (snip `path`pax) (rear pax)]
     [%& %| pax]
-  =/  dir-pax=path  (stab weir-path)
+  =/  dir-pax=path
+    =/  t=tape  (trip weir-path)
+    (stab (crip ?:(&(!=(~ t) =('/' (rear t))) (snip t) t)))
   ;<  dir-seen=seen:nexus  bind:m  (peek:io [%& %| dir-pax] ~)
   =/  cur=weir:nexus
     ?.  ?=([%& %ball *] dir-seen)  [~ ~ ~]
