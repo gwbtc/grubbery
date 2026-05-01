@@ -39,7 +39,9 @@
     `(rash p.u.su dem)
   =/  pax=path
     =/  t=tape  (trip road-path)
-    (stab (crip ?:(&(!=(~ t) =('/' (rear t))) (snip t) t)))
+    =/  clean=tape  ?:(&(!=(~ t) =('/' (rear t))) (snip t) t)
+    ?~  clean  /
+    (stab (crip clean))
   =/  new-road=road:tarball
     ?^  steps-up
       ::  relative road (bend): steps up + lane
@@ -54,7 +56,9 @@
     [%& %| pax]
   =/  dir-pax=path
     =/  t=tape  (trip weir-path)
-    (stab (crip ?:(&(!=(~ t) =('/' (rear t))) (snip t) t)))
+    =/  clean=tape  ?:(&(!=(~ t) =('/' (rear t))) (snip t) t)
+    ?~  clean  /
+    (stab (crip clean))
   ;<  dir-seen=seen:nexus  bind:m  (peek:io [%& %| dir-pax] ~)
   =/  cur=weir:nexus
     ?.  ?=([%& %ball *] dir-seen)  [~ ~ ~]

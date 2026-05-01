@@ -20,6 +20,11 @@
   ?:  ?=(%| -.parsed)
     (pure:m [%error 'Missing or invalid argument: path'])
   =/  weir-path=@t  p.parsed
-  ;<  ~  bind:m  (sand:io [%& %| (stab weir-path)] ~)
+  =/  dir-pax=path
+    =/  t=tape  (trip weir-path)
+    =/  clean=tape  ?:(&(!=(~ t) =('/' (rear t))) (snip t) t)
+    ?~  clean  /
+    (stab (crip clean))
+  ;<  ~  bind:m  (sand:io [%& %| dir-pax] ~)
   (pure:m [%text (crip "Cleared weir from {(trip weir-path)}")])
 --
