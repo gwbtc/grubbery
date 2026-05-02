@@ -68,13 +68,6 @@
   ::  Ensure root lump with hardcoded neck (root nexus from lib, not code)
   =/  lmp=lump:tarball  (fall fil.ball *lump:tarball)
   =.  ball  ball(fil `lmp(neck `[/ %root]))
-  ::  Write /sys/bowl/ virtual files
-  =.  ball
-    (~(put ba:tarball ball) [/sys/bowl %our] [~ [/ %ship] !>(our.bowl)])
-  =.  ball
-    (~(put ba:tarball ball) [/sys/bowl %now] [~ [/ %time] !>(now.bowl)])
-  =.  ball
-    (~(put ba:tarball ball) [/sys/bowl %eny] [~ [/ %entropy] !>(eny.bowl)])
   ::  Compile code from Clay
   ~&  >>  "on-init: sync-gub"
   =^  gub-cards  state  abet:sync-gub:hc
@@ -116,11 +109,6 @@
       %0
     ::  Restore all state
     =.  state  old
-    ::  Write /sys/bowl/ virtual files — backfill on load
-    =.  ball
-      (~(put ba:tarball ball) [/sys/bowl %our] [~ [/ %ship] !>(our.bowl)])
-    =.  ball
-      (~(put ba:tarball ball) [/sys/bowl %eny] [~ [/ %entropy] !>(eny.bowl)])
     ::  Compile code from Clay (cascades nexus on-loads)
     ~&  >>  "on-load: sync-gub"
     =^  gub-cards  state  abet:sync-gub:hc
