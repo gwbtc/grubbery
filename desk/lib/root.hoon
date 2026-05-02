@@ -12,7 +12,6 @@
     %+  spin:loader  [sand gain ball]
     :~  (ver-row:loader 1)
         [%load %| / / same-fold:loader]
-        [%fall %& [/sys %'main.sig'] %.n [~ [/ %sig] !>(~)]]
         ::  child nexuses
         [%fall %| /'server.server' [~ ~] [~ ~] [`[~ `[/ %server] ~] ~]]
         [%fall %| /'counter.counter' [~ ~] [~ ~] [`[~ `[/ %counter] ~] ~]]
@@ -43,11 +42,7 @@
   |=  =prod:fiber:nexus
   =/  m  (fiber:fiber:nexus ,~)
   ^-  process:fiber:nexus
-  ?+    rail  stay:m
-      [[%sys ~] %'main.sig']
-    ;<  ~  bind:m  (rise-wait:io prod "%sys /main: failed, poke to restart")
-    stay:m
-  ==
+  stay:m
 ++  on-manu
   |=  =mana:nexus
   ^-  @t
@@ -75,7 +70,7 @@
 
       SYSTEM:
         sys/               System internals — build compiler, terminal logs,
-                           cryptographic keys, root main process.
+                           cryptographic keys, virtual bowl files.
         config/            User configuration and credentials.
       """
         [%sys ~]
@@ -89,9 +84,6 @@
         jael/           Cryptographic key storage. History retained.
                         private-keys.jael-private-keys — ship private keys.
                         public-keys.jael-public-keys-result — PKI cache.
-
-      FILES:
-        main.sig        Root system process. Mark: sig.
       """
         [%config ~]
       %-  crip
@@ -110,7 +102,6 @@
       %|
     ?+  rail.p.mana  'File under the root nexus.'
       [~ %'ver.ud']         'Schema version counter. Mark: ud. Incremented on structural migrations in on-load.'
-      [[%sys ~] %'main.sig']  'Root system process. Mark: sig. Manages system-level coordination.'
     ==
   ==
 --
