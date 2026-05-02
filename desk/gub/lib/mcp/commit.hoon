@@ -44,9 +44,9 @@
     ;<  ~  bind:m
       (replace:io !>([tool.st args.st %committing commit-data ~]))
     ;<  *  bind:m  (keep:io /dill/logs [%& %& /sys/dill %'logs.dill-told'] ~)
-    ;<  =bowl:nexus  bind:m  get-bowl:io
+    ;<  now=@da  bind:m  get-time:io
     ;<  ~  bind:m
-      (send-card:io %pass /commit-timeout %arvo %b %wait (add now.bowl timeout))
+      (send-card:io %pass /commit-timeout %arvo %b %wait (add now timeout))
     ;<  ~  bind:m  (gall-poke-our:io %hood kiln-commit+!>([mount-point %.n]))
     ;<  ~  bind:m  collect-logs:tools
     ;<  ~  bind:m  (drop:io /dill/logs [%& %& /sys/dill %'logs.dill-told'])

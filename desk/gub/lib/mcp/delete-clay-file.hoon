@@ -45,9 +45,10 @@
     ?~  pax
       (pure:m [%error 'Empty path'])
     ::  Verify file exists before deleting
-    ;<  =bowl:nexus  bind:m  get-bowl:io
+    ;<  our=@p  bind:m  get-our:io
+    ;<  now=@da  bind:m  get-time:io
     ;<  =riot:clay  bind:m
-      (warp:io our.bowl dek ~ %sing %x da+now.bowl pax)
+      (warp:io our dek ~ %sing %x da+now pax)
     ?~  riot
       (pure:m [%error (crip "File not found: {(trip file-path)}")])
     ;<  initial=cass:clay  bind:m  (do-scry:io cass:clay /cw/[dek])
@@ -61,9 +62,9 @@
     ;<  ~  bind:m
       (replace:io !>([tool.st args.st %deleting write-data ~]))
     ;<  *  bind:m  (keep:io /dill/logs [%& %& /sys/dill %'logs.dill-told'] ~)
-    ;<  =bowl:nexus  bind:m  get-bowl:io
+    ;<  now=@da  bind:m  get-time:io
     ;<  ~  bind:m
-      (send-card:io %pass /commit-timeout %arvo %b %wait (add now.bowl ~s30))
+      (send-card:io %pass /commit-timeout %arvo %b %wait (add now ~s30))
     ;<  ~  bind:m
       (gall-poke-our:io %hood kiln-info+!>(["" `[dek %& [pax %del ~]~]]))
     ;<  ~  bind:m  collect-logs:tools

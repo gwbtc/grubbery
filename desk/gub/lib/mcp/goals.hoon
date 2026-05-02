@@ -120,8 +120,8 @@
     ?~  store-name
       (pure:m [%error 'Missing required argument: store'])
     =/  name=@ta  u.store-name
-    ;<  =bowl:nexus  bind:m  get-bowl:io
-    =/  store=goal-store:goals  (create-store:goals now.bowl)
+    ;<  now=@da  bind:m  get-time:io
+    =/  store=goal-store:goals  (create-store:goals now)
     ;<  ~  bind:m
       (make:io (store-road name) |+[%.n [[/ %goal-store] !>(store)] `%goal-store])
     (pure:m [%text (crip "Created store: {(trip name)}")])
@@ -224,7 +224,6 @@
       (pure:m [%error 'Missing or invalid action arguments'])
     =/  act-type=@t  -.p.act-parsed
     =/  act=action:goals  +.p.act-parsed
-    ;<  =bowl:nexus  bind:m  get-bowl:io
     ;<  ~  bind:m
       (poke:io (store-road u.store-name) [[/ %goal-action] !>(act)])
     (pure:m [%text (crip "Applied {(trip act-type)}")])

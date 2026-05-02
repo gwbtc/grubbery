@@ -125,9 +125,9 @@
     ::  Subscribe to session for updates
     ;<  *  bind:m  (keep:io /watch ses-road ~)
     ::  Set timeout
-    ;<  =bowl:nexus  bind:m  get-bowl:io
+    ;<  now=@da  bind:m  get-time:io
     ;<  ~  bind:m
-      (send-card:io %pass /timeout %arvo %b %wait (add now.bowl (mul ~s1 timeout)))
+      (send-card:io %pass /timeout %arvo %b %wait (add now (mul ~s1 timeout)))
     ::  Wait until we see a prompt in a blit batch that comes AFTER our command
     =/  batches=@ud  0
     |-

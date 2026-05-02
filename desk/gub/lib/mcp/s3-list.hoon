@@ -22,7 +22,7 @@
     ?.  ?=([%s *] u.pj)  ''
     p.u.pj
   ;<  creds=s3-creds:tools  bind:m  read-s3-creds:tools
-  ;<  =bowl:nexus  bind:m  get-bowl:io
+  ;<  now=@da  bind:m  get-time:io
   =/  query-string=@t  (build-list-query:s3:tools prefix)
   =/  [amz-date=@t payload-hash=@t authorization=@t]
     %:  build-signature:s3:tools
@@ -35,7 +35,7 @@
       ''
       query-string
       ~
-      now.bowl
+      now
     ==
   =/  url=@t  (build-url:s3:tools endpoint.creds bucket.creds '' `query-string)
   =/  headers=(list [@t @t])  (build-headers:s3:tools 'GET' payload-hash amz-date authorization)

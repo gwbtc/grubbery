@@ -517,7 +517,7 @@
               ''
               '- For entropy use get-entropy:io (returns @uvJ).'
               '  For current time use get-now:io (returns @da).'
-              '  Do NOT use get-bowl:io -- the sandbox blocks it.'
+              '  For location use get-here:io (returns rail:tarball).'
               ''
               '- Read args from the tool-state args map:'
               '    ;<  st=tool-state:tools  bind:m  (get-state-as:io ,tool-state:tools)'
@@ -603,9 +603,13 @@
             ::  /proc/tools: tool execution
             [%fall %| /proc [~ ~] [~ ~] empty-dir:loader]
             [%fall %| /proc/tools [~ ~] [~ ~] empty-dir:loader]
+            ::  /channels.json: map of conv name to channel road (relative to parent app)
+            [%fall %& [/ %'channels.json'] %.n [~ [/ %json] !>([%o ~])]]
             ::  /children: spawned child nexuses
             [%fall %| /children [~ ~] [~ ~] empty-dir:loader]
             ::  ui
+            [%fall %| /ui/sse [~ ~] [~ ~] empty-dir:loader]
+            [%over %& [/ui/sse %'convs.html'] %.n [~ [/ %manx] !>((convs-fragment "" ~['main']))]]
             [%over %& [/ %'page.html'] %.n [~ [/ %manx] !>((chat-page "" ~['main']))]]
         ==
       ==
@@ -640,7 +644,7 @@
           =/  model=@t  (get-str config 'model')
           =/  proxy=@t
             =/  p  (get-str config 'api-proxy')
-            ?:(=('' p) '../../apis/anthropic.sig' p)
+            ?:(=('' p) '../../apis/anthropic.json' p)
           =/  ctx-window=@ud  (get-num config 'context_window' 80.000)
           =/  msg-cap=@ud  (get-num config 'message_cap' 20.000)
           ;<  =convo  bind:m  (read-conv conv-key)
@@ -649,6 +653,7 @@
           ;<  ~  bind:m  (write-conv conv-key updated)
           ;<  tools=(map @t tool:nex-tools)  bind:m  get-tools
           ;<  final=^convo  bind:m  (agent-turn conv-key model proxy ctx-window msg-cap updated tools)
+          ;<  ~  bind:m  (forward-to-channel conv-key final updated)
           $
             %poke
           ~&  >>  ["%claw poke from:" from.main-event]
@@ -684,7 +689,7 @@
             =/  model=@t  (get-str config 'model')
             =/  proxy=@t
               =/  p  (get-str config 'api-proxy')
-              ?:(=('' p) '../../apis/anthropic.sig' p)
+              ?:(=('' p) '../../apis/anthropic.json' p)
             =/  ctx-window=@ud  (get-num config 'context_window' 80.000)
             =/  msg-cap=@ud  (get-num config 'message_cap' 20.000)
             ::  read conversation, append user message
@@ -695,12 +700,60 @@
             ;<  tools=(map @t tool:nex-tools)  bind:m  get-tools
             ::  enter agent turn loop
             ;<  final=^convo  bind:m  (agent-turn conv-key model proxy ctx-window msg-cap updated tools)
+            ;<  ~  bind:m  (forward-to-channel conv-key final updated)
             $
           ::
               %'clear'
             =/  conv-key=@t  (fall (bind (~(get by p.jon) 'conversation') |=(=json ?>(?=(%s -.json) p.json))) 'main')
             ;<  ~  bind:m  (write-conv conv-key ~)
             ~&  >  "%claw: conversation cleared"
+            $
+          ::
+              %'new-conv'
+            =/  conv-key=@t
+              (fall (bind (~(get by p.jon) 'name') |=(=json ?>(?=(%s -.json) p.json))) '')
+            ?:  =('' conv-key)  $
+            ;<  ~  bind:m  (write-conv conv-key ~)
+            ~&  >  ["%claw: created conversation" conv-key]
+            $
+          ::
+              %'delete-conv'
+            =/  conv-key=@t
+              (fall (bind (~(get by p.jon) 'name') |=(=json ?>(?=(%s -.json) p.json))) '')
+            ?:  |(=('' conv-key) =(conv-key 'main'))  $
+            =/  conv-road=road:tarball
+              (cord-to-road:tarball (crip "./context/conversations/{(trip conv-key)}.json"))
+            ;<  ~  bind:m  (cull:io conv-road)
+            ~&  >  ["%claw: deleted conversation" conv-key]
+            $
+          ::
+              %'link-channel'
+            ::  {"action": "link-channel", "conversation": "foo", "channel": "telegram/main-bot"}
+            ~&  >>  "%claw: link-channel action received"
+            =/  conv-key=@t
+              (fall (bind (~(get by p.jon) 'conversation') |=(=json ?>(?=(%s -.json) p.json))) '')
+            =/  chan-road=@t
+              (fall (bind (~(get by p.jon) 'channel') |=(=json ?>(?=(%s -.json) p.json))) '')
+            ~&  >>  ["%claw: link-channel" conv-key chan-road]
+            ?:  |(=('' conv-key) =('' chan-road))  $
+            ;<  channels=json  bind:m  read-channels
+            ~&  >>  ["%claw: current channels" channels]
+            =/  updated=json
+              [%o (~(put by ?>(?=(%o -.channels) p.channels)) conv-key s+chan-road)]
+            ;<  ~  bind:m  (write-channels updated)
+            ~&  >  ["%claw: linked" conv-key "to channel" chan-road]
+            $
+          ::
+              %'unlink-channel'
+            ::  {"action": "unlink-channel", "conversation": "foo"}
+            =/  conv-key=@t
+              (fall (bind (~(get by p.jon) 'conversation') |=(=json ?>(?=(%s -.json) p.json))) '')
+            ?:  =('' conv-key)  $
+            ;<  channels=json  bind:m  read-channels
+            =/  updated=json
+              [%o (~(del by ?>(?=(%o -.channels) p.channels)) conv-key)]
+            ;<  ~  bind:m  (write-channels updated)
+            ~&  >  ["%claw: unlinked" conv-key "from channel"]
             $
           ==
         ==
@@ -727,6 +780,23 @@
             %error  (pairs:enjs:format ~[['type' s+'error'] ['message' s+message.result]])
           ==
         (replace:io !>(`tool-state:nex-tools`[tool.st args.st %done data.st `result-json]))
+          ::  /ui/sse/convs.html: live conv list fragment
+          ::
+          [[%ui %sse ~] %'convs.html']
+        ;<  ~  bind:m  (rise-wait:io prod "%claw sse/convs: failed")
+        ;<  here=rail:tarball  bind:m  get-here:io
+        =/  ball-id=tape
+          %-  zing
+          %+  join  "/"
+          ^-  (list tape)
+          (turn (scag (sub (lent path.here) 2) path.here) trip)
+        ;<  init=view:nexus  bind:m
+          (keep:io /convs (cord-to-road:tarball '../../context/conversations/') ~)
+        ;<  ~  bind:m  (replace:io !>((convs-fragment ball-id (read-conv-names init))))
+        |-
+        ;<  upd=view:nexus  bind:m  (take-news:io /convs)
+        ;<  ~  bind:m  (replace:io !>((convs-fragment ball-id (read-conv-names upd))))
+        $
           ::  /page.html: rendered chat page
           ::
           [~ %'page.html']
@@ -760,6 +830,7 @@
           %|
         ?+  rail.p.mana  'File under claw.'
           [~ %'config.json']     'LLM config: model selection.'
+          [~ %'channels.json']   'Map of conversation name to channel road (relative to parent app).'
           [~ %'main.sig']        'Poke handler for config and messages.'
           [~ %'page.html']       'Chat interface.'
         ==
@@ -900,6 +971,107 @@
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
   (over:io (cord-to-road:tarball './config.json') [[/ %json] !>(updated)])
+::
+++  read-channels
+  =/  m  (fiber:fiber:nexus ,json)
+  ^-  form:m
+  =/  road=road:tarball  (cord-to-road:tarball './channels.json')
+  ;<  =seen:nexus  bind:m  (peek:io road ~)
+  ?.  ?=([%& %file *] seen)  (pure:m [%o ~])
+  (pure:m (fall (mole |.(!<(json q.sage.p.seen))) [%o ~]))
+::
+++  write-channels
+  |=  updated=json
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  (over:io (cord-to-road:tarball './channels.json') [[/ %json] !>(updated)])
+::
+++  join-texts
+  |=  texts=(list @t)
+  ^-  @t
+  ?~  texts  ''
+  =/  acc=tape  (trip i.texts)
+  |-
+  ?~  t.texts  (crip acc)
+  $(t.texts t.t.texts, acc (weld acc (weld "\0a\0a" (trip i.t.texts))))
+::
+::  render a bend as a relative path string for cord-to-road
+::
+++  render-bend
+  |=  =bend:tarball
+  ^-  tape
+  =/  ups=tape
+    ?:  =(0 p.bend)  "./"
+    %-  zing
+    %+  turn  (gulf 1 p.bend)
+    |=(* "../")
+  ?-  -.q.bend
+      %&
+    =/  dir=tape  (segments path.p.q.bend)
+    :(weld ups dir "/" (trip name.p.q.bend))
+      %|
+    =/  dir=tape  (segments p.q.bend)
+    ?:  =(~ p.q.bend)  ups
+    (weld ups dir)
+  ==
+::
+++  segments
+  |=  =path
+  ^-  tape
+  ?~  path  ""
+  =/  first=tape  (trip i.path)
+  |-
+  ?~  t.path  first
+  =/  next=tape  (trip i.t.path)
+  $(t.path t.t.path, first :(weld first "/" next))
+::
+::  +forward-to-channel: if conv has a linked channel, send new assistant msgs
+::
+++  forward-to-channel
+  |=  [conv-key=@t final=convo before=convo]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  ~&  >>  ["%claw forward: conv-key" conv-key "before-len" (lent before) "final-len" (lent final)]
+  ;<  channels=json  bind:m  read-channels
+  ~&  >>  ["%claw forward: channels.json" channels]
+  ?.  ?=(%o -.channels)
+    ~&  >>  "%claw forward: channels not an object, bailing"
+    (pure:m ~)
+  =/  chan-val=(unit json)  (~(get by p.channels) conv-key)
+  ~&  >>  ["%claw forward: lookup" conv-key "got" chan-val]
+  ?~  chan-val
+    ~&  >>  "%claw forward: no channel for this conv"
+    (pure:m ~)
+  ?.  ?=(%s -.u.chan-val)  (pure:m ~)
+  =/  chan-name=@t  p.u.chan-val
+  ::  extract new assistant messages (final has more entries than before)
+  =/  new-entries=(list entry)  (slag (lent before) final)
+  =/  texts=(list @t)
+    %+  murn  new-entries
+    |=  =entry
+    ?.  ?=(%msg -.entry)  ~
+    ?.  =('assistant' role.entry)  ~
+    `content.entry
+  ?~  texts  (pure:m ~)
+  =/  combined=@t  (join-texts texts)
+  ::  find parent /claw/app to resolve channel path
+  ;<  ~  bind:m  (send-dart:io %here /here)
+  ;<  =here:nexus  bind:m  (take-here-raw:io /here)
+  =/  app-res=(unit bend:tarball)  (find-in-here:io here `[/claw %app])
+  ?~  app-res
+    ~&  >>>  "%claw: can't find parent app for channel forward"
+    (pure:m ~)
+  =/  app-prefix=tape  (render-bend u.app-res)
+  =/  send-road=road:tarball
+    (cord-to-road:tarball (crip "{app-prefix}/channels/{(trip chan-name)}/send.sig"))
+  =/  send-body=json
+    (pairs:enjs:format ~[['text' s+combined]])
+  ~&  >  ["%claw: forwarding to channel" chan-name]
+  ~&  >  ["%claw: app-prefix" app-prefix]
+  ~&  >  ["%claw: send-road" send-road]
+  ;<  ~  bind:m  (poke:io send-road [/ %json] !>(send-body))
+  ~&  >  "%claw: channel poke succeeded"
+  (pure:m ~)
 ::
 ::  +strip-hoon: remove .hoon suffix from filename
 ::
@@ -1571,6 +1743,19 @@
     `(crip (scag (sub (lent t) 5) t))
   (sort names aor)
 ::
+++  convs-fragment
+  |=  [ball-id=tape convs=(list @ta)]
+  ^-  manx
+  ;div(id "sse-convs")
+    ;*  %+  turn  convs
+        |=  c=@ta
+        =/  n=tape  (trip c)
+        ;div.conv-item(data-conv n)
+          ;span.conv-name(onclick "switchConv('{n}')"): {n}
+          ;span.conv-del(onclick "deleteConv('{n}')"): ×
+        ==
+  ==
+::
 ++  chat-page
   |=  [ball-id=tape convs=(list @ta)]
   ^-  manx
@@ -1590,6 +1775,7 @@
             ;h1: claw
             ;div.f3.mono.s-2: AI agent nexus
           ==
+          ;button#channels-btn.hdr-btn: channels
           ;button#config-btn.hdr-btn: config
         ==
         ;div#cfg-backdrop
@@ -1610,13 +1796,30 @@
             ;div#cfg-status;
           ==
         ==
+        ;div#ch-backdrop
+          ;div#ch-modal
+            ;div#ch-header
+              ;span: Channels
+              ;div
+                ;button#ch-save.hdr-btn: save
+                ;button#ch-close.hdr-btn: close
+              ==
+            ==
+            ;textarea#ch-editor(rows "10", style "width:100%;font-family:monospace;font-size:12px;background:#1a1a2e;color:#e0e0e0;border:1px solid #333;border-radius:4px;padding:8px;resize:vertical;");
+            ;div#ch-status;
+          ==
+        ==
         ;div#layout
           ;div#sidebar
+            ;button#new-conv-btn(onclick "newConv()"): + new chat
             ;div#conv-list
               ;*  %+  turn  convs
                   |=  c=@ta
                   =/  n=tape  (trip c)
-                  ;div.conv-item(data-conv n, onclick "switchConv('{n}')"): {n}
+                  ;div.conv-item(data-conv n)
+                    ;span.conv-name(onclick "switchConv('{n}')"): {n}
+                    ;span.conv-del(onclick "deleteConv('{n}')"): ×
+                  ==
             ==
           ==
           ;div#main
@@ -1645,10 +1848,24 @@
   #header \{ padding: 12px 16px; border-bottom: 1px solid #333; flex-shrink: 0; }
   #header h1 \{ font-size: 20px; font-weight: 700; }
   #layout \{ display: flex; flex: 1; overflow: hidden; }
-  #sidebar \{ width: 180px; border-right: 1px solid #333; overflow-y: auto; flex-shrink: 0; padding: 8px 0; }
-  .conv-item \{ padding: 8px 12px; cursor: pointer; font-size: 13px; color: #888; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-left: 2px solid transparent; }
-  .conv-item:hover \{ color: #eee; background: #1a1a1a; }
-  .conv-item.active \{ color: #60a5fa; border-left-color: #2563eb; background: #1a1a2e; }
+  #sidebar \{ width: 180px; border-right: 1px solid #333; overflow-y: auto; flex-shrink: 0; padding: 8px 0; display: flex; flex-direction: column; }
+  #new-conv-btn \{ margin: 4px 8px 8px; padding: 6px 10px; border-radius: 6px; border: 1px solid #333; background: none; color: #888; font-size: 12px; cursor: pointer; }
+  #new-conv-btn:hover \{ color: #eee; border-color: #666; }
+  #conv-list \{ flex: 1; overflow-y: auto; }
+  .conv-item \{ display: flex; justify-content: space-between; align-items: center; padding: 0 4px 0 0; border-left: 2px solid transparent; }
+  .conv-item:hover \{ background: #1a1a1a; }
+  .conv-item.active \{ border-left-color: #2563eb; background: #1a1a2e; }
+  .conv-name \{ flex: 1; padding: 8px 12px; cursor: pointer; font-size: 13px; color: #888; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .conv-item:hover .conv-name \{ color: #eee; }
+  .conv-item.active .conv-name \{ color: #60a5fa; }
+  .conv-del \{ display: none; font-size: 14px; color: #555; cursor: pointer; padding: 4px 6px; }
+  .conv-item:hover .conv-del \{ display: block; }
+  .conv-del:hover \{ color: #f87171; }
+  .conv-chan \{ display: none; font-size: 11px; color: #555; cursor: pointer; padding: 4px 4px; }
+  .conv-item:hover .conv-chan \{ display: block; }
+  .conv-chan:hover \{ color: #60a5fa; }
+  .conv-chan.linked \{ display: block; color: #4ade80; }
+  .conv-chan.linked:hover \{ color: #f87171; }
   #main \{ flex: 1; display: flex; flex-direction: column; overflow: hidden; max-width: 700px; margin: 0 auto; padding: 0 16px; }
   #messages \{ flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding: 8px 0; }
   .msg \{ padding: 8px 12px; border-radius: 8px; max-width: 85%; white-space: pre-wrap; word-wrap: break-word; font-size: 14px; line-height: 1.5; }
@@ -1656,6 +1873,7 @@
   .msg.assistant \{ background: #222; border: 1px solid #333; align-self: flex-start; }
   .msg.system \{ background: #1a1a2e; border: 1px solid #333; align-self: center; font-size: 12px; color: #888; }
   .msg.pending \{ opacity: 0.5; }
+  .empty \{ color: #555; font-size: 14px; padding: 40px 0; text-align: center; }
   #prompt-form \{ flex-shrink: 0; padding: 12px 0; border-top: 1px solid #333; }
   .input-row \{ display: flex; gap: 8px; }
   #input \{ flex: 1; padding: 10px 14px; border-radius: 8px; border: 1px solid #333; background: #1a1a1a; color: #eee; font-size: 14px; outline: none; }
@@ -1668,12 +1886,12 @@
   #header \{ display: flex; justify-content: space-between; align-items: flex-start; }
   .hdr-btn \{ font-size: 11px; padding: 4px 10px; border-radius: 4px; border: 1px solid #444; background: none; color: #888; cursor: pointer; }
   .hdr-btn:hover \{ color: #eee; border-color: #666; }
-  #cfg-backdrop \{ display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); z-index: 100; }
-  #cfg-backdrop.open \{ display: flex; align-items: center; justify-content: center; }
-  #cfg-modal \{ background: #1a1a1a; border: 1px solid #333; border-radius: 8px; width: 90%; max-width: 400px; padding: 20px; }
-  #cfg-header \{ display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
-  #cfg-header span \{ font-size: 14px; font-weight: 600; }
-  #cfg-header div \{ display: flex; gap: 6px; }
+  #cfg-backdrop, #ch-backdrop \{ display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); z-index: 100; }
+  #cfg-backdrop.open, #ch-backdrop.open \{ display: flex; align-items: center; justify-content: center; }
+  #cfg-modal, #ch-modal \{ background: #1a1a1a; border: 1px solid #333; border-radius: 8px; width: 90%; max-width: 400px; padding: 20px; }
+  #cfg-header, #ch-header \{ display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+  #cfg-header span, #ch-header span \{ font-size: 14px; font-weight: 600; }
+  #cfg-header div, #ch-header div \{ display: flex; gap: 6px; }
   .cfg-label \{ display: block; font-size: 12px; color: #888; margin: 12px 0 4px; }
   #cfg-model, #cfg-window, #cfg-msgcap \{ width: 100%; padding: 8px 10px; border-radius: 6px; border: 1px solid #333; background: #111; color: #eee; font-size: 13px; font-family: monospace; outline: none; box-sizing: border-box; }
   #cfg-model:focus, #cfg-window:focus, #cfg-msgcap:focus \{ border-color: #2563eb; }
@@ -1689,6 +1907,10 @@
   function renderMessages(entries) \{
     var el = document.getElementById('messages');
     el.innerHTML = '';
+    if (!entries || !entries.length) \{
+      el.innerHTML = '<div class="empty">No messages yet</div>';
+      return;
+    }
     for (var i = 0; i < entries.length; i++) \{
       var e = entries[i];
       var div = document.createElement('div');
@@ -1745,6 +1967,80 @@
     connectSSE();
   }
 
+  function newConv() \{
+    var n = prompt('Conversation name:');
+    if (!n) return;
+    n = n.trim().replace(/[^a-z0-9_-]/gi, '-').toLowerCase();
+    if (!n) return;
+    fetch(API + '/poke/' + BALL + '/main.sig?mark=json', \{
+      method: 'POST',
+      headers: \{'Content-Type': 'application/json'},
+      body: JSON.stringify(\{action: 'new-conv', name: n})
+    });
+    setTimeout(function() \{ switchConv(n); }, 300);
+  }
+
+  function deleteConv(n) \{
+    if (n === 'main') return;
+    if (!confirm('Delete conversation ' + n + '?')) return;
+    fetch(API + '/poke/' + BALL + '/main.sig?mark=json', \{
+      method: 'POST',
+      headers: \{'Content-Type': 'application/json'},
+      body: JSON.stringify(\{action: 'delete-conv', name: n})
+    });
+    if (curConv === n) switchConv('main');
+  }
+
+  var channels = \{};
+
+  function loadChannels() \{
+    return fetch(API + '/file/' + BALL + '/channels.json?mark=json')
+      .then(function(r) \{ return r.json() })
+      .then(function(j) \{ channels = j || \{}; decorateConvs(); })
+      .catch(function() \{});
+  }
+
+  function decorateConvs() \{
+    document.querySelectorAll('.conv-item').forEach(function(el) \{
+      var name = el.dataset.conv;
+      var btn = el.querySelector('.conv-chan');
+      if (!btn) \{
+        btn = document.createElement('span');
+        btn.className = 'conv-chan';
+        btn.onclick = function(e) \{ e.stopPropagation(); toggleChannel(name); };
+        el.querySelector('.conv-del').before(btn);
+      }
+      if (channels[name]) \{
+        btn.className = 'conv-chan linked';
+        btn.textContent = '#';
+        btn.title = channels[name];
+      } else \{
+        btn.className = 'conv-chan';
+        btn.textContent = '#';
+        btn.title = 'Link to channel';
+      }
+    });
+  }
+
+  function toggleChannel(name) \{
+    if (channels[name]) \{
+      if (!confirm('Unlink ' + name + ' from channel ' + channels[name] + '?')) return;
+      fetch(API + '/poke/' + BALL + '/main.sig?mark=json', \{
+        method: 'POST',
+        headers: \{'Content-Type': 'application/json'},
+        body: JSON.stringify(\{action: 'unlink-channel', conversation: name})
+      }).then(function() \{ return loadChannels(); });
+    } else \{
+      var ch = prompt('Channel path (e.g. telegram/main-bot):');
+      if (!ch) return;
+      fetch(API + '/poke/' + BALL + '/main.sig?mark=json', \{
+        method: 'POST',
+        headers: \{'Content-Type': 'application/json'},
+        body: JSON.stringify(\{action: 'link-channel', conversation: name, channel: ch})
+      }).then(function() \{ return loadChannels(); });
+    }
+  }
+
   // mark initial active conversation
   var first = document.querySelector('.conv-item[data-conv="main"]') || document.querySelector('.conv-item');
   if (first) first.classList.add('active');
@@ -1786,9 +2082,65 @@
     }
   }
 
+  // SSE for conv list updates
+  var convCtrl = null;
+  var convRdr = null;
+
+  async function connectConvSSE() \{
+    if (convRdr) try \{ convRdr.cancel(); } catch(e) \{}
+    if (convCtrl) convCtrl.abort();
+    convCtrl = new AbortController();
+    try \{
+      var r = await fetch(API + '/keep/' + BALL + '/ui/sse?mark=txt', \{
+        headers: \{Accept: 'text/event-stream'},
+        signal: convCtrl.signal
+      });
+      convRdr = r.body.getReader();
+      var dec = new TextDecoder();
+      var buf = '';
+      while (true) \{
+        var chunk = await convRdr.read();
+        if (chunk.done) break;
+        buf += dec.decode(chunk.value, \{stream: true});
+        var parts = buf.split('\\n\\n');
+        buf = parts.pop();
+        for (var i = 0; i < parts.length; i++) \{
+          if (!parts[i].trim()) continue;
+          var ev = '', data = '', ls = parts[i].split('\\n');
+          for (var j = 0; j < ls.length; j++) \{
+            if (ls[j].indexOf('event: ') === 0) ev = ls[j].slice(7);
+            else if (ls[j].indexOf('data: ') === 0) data += ls[j].slice(6);
+          }
+          if (!ev) continue;
+          var sp = ev.indexOf(' ');
+          if (sp < 0) continue;
+          var act = ev.slice(0, sp);
+          if (act === 'old') continue;
+          if (!data) continue;
+          var tmp = document.createElement('div');
+          tmp.innerHTML = data;
+          var frag = tmp.firstElementChild;
+          if (frag && frag.id === 'sse-convs') \{
+            var el = document.getElementById('conv-list');
+            if (el) \{
+              el.innerHTML = frag.innerHTML;
+              var a = el.querySelector('[data-conv="' + curConv + '"]');
+              if (a) a.classList.add('active');
+              decorateConvs();
+            }
+          }
+        }
+      }
+    } catch(e) \{
+      if (e.name !== 'AbortError') setTimeout(connectConvSSE, 2000);
+    }
+  }
+
   window.addEventListener('beforeunload', function() \{
     if (sseRdr) try \{ sseRdr.cancel(); } catch(e) \{}
     if (sseCtrl) sseCtrl.abort();
+    if (convRdr) try \{ convRdr.cancel(); } catch(e) \{}
+    if (convCtrl) convCtrl.abort();
   });
 
   // Load initial conversation
@@ -1797,6 +2149,8 @@
     .then(renderMessages)
     .catch(function() \{});
   connectSSE();
+  connectConvSSE();
+  loadChannels();
 
   // Config modal
   var cfgBack = document.getElementById('cfg-backdrop');
@@ -1838,6 +2192,45 @@
     } else \{
       cfgStatus.textContent = 'Save failed';
       cfgStatus.style.color = '#f87171';
+    }
+  };
+
+  var chBack = document.getElementById('ch-backdrop');
+  var chEditor = document.getElementById('ch-editor');
+  var chStatus = document.getElementById('ch-status');
+
+  document.getElementById('channels-btn').onclick = function() \{
+    chStatus.textContent = '';
+    fetch(API + '/file/' + BALL + '/channels.json?mark=json')
+      .then(function(r) \{ return r.text() })
+      .then(function(t) \{ chEditor.value = t; })
+      .catch(function() \{ chEditor.value = '\{}'; });
+    chBack.classList.add('open');
+  };
+
+  document.getElementById('ch-close').onclick = function() \{
+    chBack.classList.remove('open');
+  };
+
+  chBack.onclick = function(e) \{
+    if (e.target === chBack) chBack.classList.remove('open');
+  };
+
+  document.getElementById('ch-save').onclick = async function() \{
+    try \{ JSON.parse(chEditor.value); } catch(e) \{
+      chStatus.textContent = 'Invalid JSON'; chStatus.style.color = '#f87171'; return;
+    }
+    var r = await fetch(API + '/over/' + BALL + '/channels.json?mark=json', \{
+      method: 'POST',
+      headers: \{'Content-Type': 'application/json'},
+      body: chEditor.value
+    });
+    if (r.ok) \{
+      chStatus.textContent = 'Saved';
+      loadChannels();
+      setTimeout(function() \{ chBack.classList.remove('open'); }, 600);
+    } else \{
+      chStatus.textContent = 'Save failed'; chStatus.style.color = '#f87171';
     }
   };
   """

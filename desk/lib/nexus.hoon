@@ -59,15 +59,11 @@
 +$  filt  (unit ?)      :: filter result (see above)
 +$  jump  ?(%sysc %make %poke %peek)  :: dart category for filtering
 ::
-+$  bowl
-  $:  now=@da
-      our=@p
-      eny=@uvJ
-      wex=boat:gall
++$  pant  (list [dir=@ta neck=(unit neck:tarball)])
++$  here  [=pant name=@ta root=?]
++$  soup
+  $:  wex=boat:gall
       sup=bitt:gall
-      here=rail:tarball
-      dap=dude:gall
-      byk=beak
   ==
 ::
 +$  gain  (axal (map @ta ?))
@@ -117,11 +113,13 @@
 +$  mury  [=rail:tarball =mark]          :: file query: rail + mark
 +$  mana  (each fold:tarball mury)       :: directory or file query
 ::
+::
 +$  dart
   $%  [%sysc =card:agent:gall]  :: regular card
       [%node =wire road=road:tarball =load]
       [%scry =wire scry=(unit scry)]
-      [%bowl =wire]
+      [%here =wire]
+      [%soup =wire]              :: filtered wex/sup for this process
       [%kept =wire]              :: see your own outgoing subscriptions
       [%manu =wire =neck:tarball =mana]  :: direct docs query to a known nexus
   ==
@@ -172,7 +170,8 @@
         :: messages from gall and arvo
         ::
         [%scry =wire =vase]
-        [%bowl =wire =bowl]
+        [%here =wire =here]
+        [%soup =wire =soup]
         [%arvo =wire sign=sign-arvo]
         [%agent =wire =sign:agent:gall]
         [%watch =path]
@@ -270,7 +269,7 @@
     ++  take
       =|  darts=(list dart) :: effects
       =|  done=(list took)  :: consumed takes for acking
-      |=  [=bowl state=vase =proc]
+      |=  [state=vase =proc]
       ^-  [(list dart) (list took) vase _proc result]
       =^  =^take  next.proc  ~(get to next.proc)
       |-  :: recursion point so take can be replaced

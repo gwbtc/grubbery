@@ -27,8 +27,9 @@
       ?+    rail  stay:m
           [~ %'main.sig']
         ;<  ~  bind:m  (rise-wait:io prod "%explorer /main: failed, poke to restart")
-        ~&  >  "%explorer /main: binding /grubbery/ball"
+        ~&  >  "%explorer /main: binding /grubbery/ball and /grubbery/split"
         ;<  ~  bind:m  (bind-http:nex-server [~ /grubbery/ball])
+        ;<  ~  bind:m  (bind-http:nex-server [~ /grubbery/split])
         ~&  >  "%explorer /main: ready"
         (http-dispatch:nex-server %explorer)
           [[%requests ~] @]
@@ -41,6 +42,10 @@
           (pure:m ~)
         ~&  >  [%explorer-request eyre-id url.request.req]
         =/  [site=path args=quay:eyre]  (parse-url:http-utils url.request.req)
+        ?:  ?=([%grubbery %split *] site)
+          =/  bod=octs  (manx-to-octs:server render-split)
+          ;<  ~  bind:m  (send-simple:srv eyre-id (mime-response:http-utils [/text/html bod]))
+          (pure:m ~)
         =/  raw-path=path
           ?.  ?=([%grubbery %ball *] site)  ~
           t.t.site
@@ -395,15 +400,15 @@
     =/  s  (~(dip of sand.p.initial-seen) watch-path)
     fil.s
   ;<  *  bind:m  (keep:io /ball [%& %| ~] ~)
-  ;<  =bowl:nexus  bind:m  get-bowl:io
-  ;<  ~  bind:m  (send-wait:io (add now.bowl ~s30))
+  ;<  now=@da  bind:m  get-time:io
+  ;<  ~  bind:m  (send-wait:io (add now ~s30))
   |-
   ;<  nw=news-or-wake:io  bind:m  (take-news-or-wake:io /ball)
   ?-    -.nw
       %wake
     ;<  ~  bind:m  (send-data:srv eyre-id `sse-keep-alive:http-utils)
-    ;<  =bowl:nexus  bind:m  get-bowl:io
-    ;<  ~  bind:m  (send-wait:io (add now.bowl ~s30))
+    ;<  now=@da  bind:m  get-time:io
+    ;<  ~  bind:m  (send-wait:io (add now ~s30))
     $
       %news
     ?.  ?=([%ball *] view.nw)  $
@@ -430,7 +435,7 @@
       ?~  ns  ~
       ?.  ?=(%| -.u.ns)  ~
       `p.u.ns
-    ;<  =bowl:nexus  bind:m  get-bowl:io
+    ;<  now=@da  bind:m  get-time:io
     ::  Only build tubes for marks of files that changed in watched dir
     =/  changed-blots=(set blot:tarball)
       %-  ~(gas in *(set blot:tarball))
@@ -496,7 +501,7 @@
           ?~  fil.par  ""
           =/  ct=(unit content:tarball)  (~(get by contents.u.fil.par) item)
           ?~  ct  ""
-          (en-xml:html (render-grub-row item u.ct url-prefix watch-path par-born now.bowl conversions code-namespace ~))
+          (en-xml:html (render-grub-row item u.ct url-prefix watch-path par-born now conversions code-namespace ~))
         =/  sub=(unit ball:tarball)  (~(get by dir.par) item)
         ?~  sub  ""
         (en-xml:html (render-dir-row item u.sub url-prefix ~))
@@ -999,7 +1004,118 @@
   });
   '''
 ::
+++  render-split
+  ^-  manx
+  ;html
+    ;head
+      ;title: grubbery split view
+      ;meta(charset "utf-8");
+      ;link(rel "icon", href "data:,");
+      ;style
+        ; * { box-sizing: border-box; margin: 0; padding: 0; }
+        ; html, body { height: 100%; font-family: monospace; }
+        ; .split-header { display: flex; height: 32px; background: #f6f8fa; border-bottom: 1px solid #ccc; }
+        ; .pane-bar { display: flex; align-items: center; padding: 0 6px; gap: 4px; }
+        ; .pane-bar.left { flex: 1; border-right: 1px solid #ccc; }
+        ; .pane-bar.right { flex: 1; }
+        ; .pane-bar input { flex: 1; font-family: monospace; font-size: 12px; border: 1px solid #ccc; padding: 2px 6px; min-width: 0; }
+        ; .pane-bar button { background: none; border: 1px solid #ccc; cursor: pointer; font-family: monospace; font-size: 12px; padding: 2px 6px; }
+        ; .pane-bar button:hover { background: #e1e4e8; }
+        ; .split-container { display: flex; height: calc(100% - 32px); }
+        ; .split-container iframe { border: none; height: 100%; }
+        ; #left-frame { flex: 1; border-right: 1px solid #ccc; }
+        ; #right-frame { flex: 1; }
+      ==
+    ==
+    ;body
+      ;div.split-header
+        ;div.pane-bar.left
+          ;button(onclick "goBack('left-frame')"): ←
+          ;button(onclick "goFwd('left-frame')"): →
+          ;input#left-url(type "text", value "/grubbery/ball", placeholder "/grubbery/ball/...", onkeydown "if(event.key==='Enter')navLeft()");
+          ;button(onclick "navLeft()"): go
+          ;button(onclick "mirrorRight()"): mirror →
+        ==
+        ;div.pane-bar.right
+          ;button(onclick "goBack('right-frame')"): ←
+          ;button(onclick "goFwd('right-frame')"): →
+          ;input#right-url(type "text", value "/grubbery/ball", placeholder "/grubbery/ball/...", onkeydown "if(event.key==='Enter')navRight()");
+          ;button(onclick "navRight()"): go
+          ;button(onclick "mirrorLeft()"): mirror ←
+        ==
+      ==
+      ;div#split.split-container
+        ;iframe#left-frame(src "/grubbery/ball");
+        ;iframe#right-frame(src "/grubbery/ball");
+      ==
+      ;script: {(trip split-script)}
+    ==
+  ==
 ::
+++  split-script
+  ^-  @t
+  '''
+  var hist = { 'left-frame': [], 'right-frame': [] };
+  var fwd  = { 'left-frame': [], 'right-frame': [] };
+  function navTo(id, inputId, url) {
+    var f = document.getElementById(id);
+    try { var cur = f.contentWindow.location.href; if (cur && cur !== 'about:blank') hist[id].push(cur); } catch(e) {}
+    fwd[id] = [];
+    f.src = url;
+    document.getElementById(inputId).value = url;
+  }
+  function navLeft() {
+    var url = document.getElementById('left-url').value.trim();
+    if (url) navTo('left-frame', 'left-url', url);
+  }
+  function navRight() {
+    var url = document.getElementById('right-url').value.trim();
+    if (url) navTo('right-frame', 'right-url', url);
+  }
+  function mirrorLeft() {
+    try {
+      var loc = document.getElementById('left-frame').contentWindow.location.href;
+      navTo('right-frame', 'right-url', loc);
+    } catch(e) {}
+  }
+  function mirrorRight() {
+    try {
+      var loc = document.getElementById('right-frame').contentWindow.location.href;
+      navTo('left-frame', 'left-url', loc);
+    } catch(e) {}
+  }
+  function goBack(id) {
+    if (!hist[id].length) return;
+    var inputId = id === 'left-frame' ? 'left-url' : 'right-url';
+    var f = document.getElementById(id);
+    try { var cur = f.contentWindow.location.href; if (cur && cur !== 'about:blank') fwd[id].push(cur); } catch(e) {}
+    var prev = hist[id].pop();
+    f.src = prev;
+    document.getElementById(inputId).value = prev;
+  }
+  function goFwd(id) {
+    if (!fwd[id].length) return;
+    var inputId = id === 'left-frame' ? 'left-url' : 'right-url';
+    var f = document.getElementById(id);
+    try { var cur = f.contentWindow.location.href; if (cur && cur !== 'about:blank') hist[id].push(cur); } catch(e) {}
+    var next = fwd[id].pop();
+    f.src = next;
+    document.getElementById(inputId).value = next;
+  }
+  function trackFrame(id, inputId) {
+    var frame = document.getElementById(id);
+    frame.addEventListener('load', function() {
+      try {
+        var loc = frame.contentWindow.location.href;
+        if (loc && loc !== 'about:blank') {
+          document.getElementById(inputId).value = loc;
+        }
+      } catch(e) {}
+    });
+  }
+  trackFrame('left-frame', 'left-url');
+  trackFrame('right-frame', 'right-url');
+  '''
 ::
 ++  render-tang
   |=  =tang

@@ -30,7 +30,7 @@
   =/  [s3-key=@t dest-path=@t]  p.parsed
   =/  pax=path  (stab dest-path)
   ;<  creds=s3-creds:tools  bind:m  read-s3-creds:tools
-  ;<  =bowl:nexus  bind:m  get-bowl:io
+  ;<  now=@da  bind:m  get-time:io
   =/  [amz-date=@t payload-hash=@t authorization=@t]
     %:  build-signature:s3:tools
       'GET'
@@ -42,7 +42,7 @@
       s3-key
       ''
       ~
-      now.bowl
+      now
     ==
   =/  url=@t  (build-url:s3:tools endpoint.creds bucket.creds s3-key ~)
   =/  headers=(list [@t @t])  (build-headers:s3:tools 'GET' payload-hash amz-date authorization)

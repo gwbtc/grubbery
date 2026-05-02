@@ -541,7 +541,8 @@
       (peek:io (cord-to-road:tarball './custom-prompt.txt') `%txt)
     ;<  weir-seen=seen:nexus  bind:m
       (peek:io (cord-to-road:tarball './weir.txt') `%txt)
-    ;<  =bowl:nexus  bind:m  get-bowl:io
+    ;<  our=@p  bind:m  get-our:io
+    ;<  now=@da  bind:m  get-time:io
     =/  custom=@t
       ?.  ?=([%& %file *] custom-seen)  ''
       =/  =wain  !<(wain q.sage.p.custom-seen)
@@ -561,7 +562,7 @@
       ?.  ?=([%& %file *] weir-seen)  ''
       =/  =wain  !<(wain q.sage.p.weir-seen)
       ?~(wain '' (of-wain:format wain))
-    =/  ship=@t  (scot %p our.bowl)
+    =/  ship=@t  (scot %p our)
     =/  msg-count=@t  (crip (a-co:co (lent (tap:mon messages.msg))))
     =/  system=(unit @t)
       :-  ~
@@ -570,7 +571,7 @@
           '\0a\0aLIVE CONTEXT: Ship: '
           ship
           '. Current time: '
-          (scot %da now.bowl)
+          (scot %da now)
           '. Messages in conversation: '
           msg-count
           '.'

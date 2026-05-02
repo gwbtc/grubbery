@@ -12,15 +12,21 @@
       =/  =ver:loader  (get-ver:loader ball)
       ?+  ver  !!
           ?(~ [~ %0])
-        =/  default-config=json
-          (pairs:enjs:format ~[['api-key' s+'']])
+        =/  default-api=json
+          %-  pairs:enjs:format
+          :~  ['api-key' s+'']
+              ['url' s+'https://api.anthropic.com/v1/messages']
+          ==
         %+  spin:loader  [sand gain ball]
         :~  (ver-row:loader 0)
             [%fall %& [/ %'main.sig'] %.n [~ [/ %sig] !>(~)]]
-            [%fall %& [/ %'config.json'] %.n [~ [/ %json] !>(default-config)]]
             [%fall %| /apis [~ ~] [~ ~] empty-dir:loader]
-            [%fall %& [/apis %'anthropic.sig'] %.n [~ [/ %sig] !>(~)]]
-            [%fall %| /agents [~ ~] [~ ~] empty-dir:loader]
+            [%fall %& [/apis %'anthropic.json'] %.n [~ [/ %json] !>(default-api)]]
+            =/  agents-weir=weir:nexus
+              :+  ~
+                (sy ~[&+|+/sys/bowl |+[1 |+/apis] |+[1 |+/channels]])
+              (sy ~[&+|+/])
+            [%fall %| /agents [`agents-weir ~] [~ ~] empty-dir:loader]
             [%fall %| /channels [~ ~] [~ ~] empty-dir:loader]
             [%fall %| /ui/sse [~ ~] [~ ~] empty-dir:loader]
             [%over %& [/ui/sse %'agents.html'] %.n [~ [/ %manx] !>((agents-fragment "" ~))]]
@@ -37,15 +43,15 @@
       ^-  process:fiber:nexus
       ?+    rail  stay:m
         ::
-          [[%apis ~] %'anthropic.sig']
+          [[%apis ~] %'anthropic.json']
         ;<  ~  bind:m  (rise-wait:io prod "%claw/app anthropic proxy: failed")
         |-
         ;<  [=from:fiber:nexus =sage:tarball]  bind:m  take-poke-from:io
         ::  payload is the Anthropic API request body JSON
         =/  payload=json  (fall (mole |.(!<(json q.sage))) *json)
         ?~  payload  $
-        ::  read API key from our config
-        =/  cfg-road=road:tarball  (cord-to-road:tarball '../config.json')
+        ::  read config from own file
+        =/  cfg-road=road:tarball  (cord-to-road:tarball './anthropic.json')
         ;<  =seen:nexus  bind:m  (peek:io cfg-road ~)
         =/  cfg=json
           ?.  ?=([%& %file *] seen)  *json
@@ -53,10 +59,18 @@
         =/  api-key=@t
           ?.  ?=(%o -.cfg)  ''
           (fall (bind (~(get by p.cfg) 'api-key') |=(=json ?>(?=(%s -.json) p.json))) '')
+        =/  api-url=@t
+          ?.  ?=(%o -.cfg)  ''
+          (fall (bind (~(get by p.cfg) 'url') |=(=json ?>(?=(%s -.json) p.json))) '')
         ?:  =('' api-key)
           ~&  >>>  "%claw/app: anthropic proxy: no api-key in config"
           ;<  ~  bind:m
             (poke:io (from-to-road from) [/ %json] !>((pairs:enjs:format ~[['error' s+'no api-key configured']])))
+          $
+        ?:  =('' api-url)
+          ~&  >>>  "%claw/app: anthropic proxy: no url in config"
+          ;<  ~  bind:m
+            (poke:io (from-to-road from) [/ %json] !>((pairs:enjs:format ~[['error' s+'no url configured']])))
           $
         ::  build HTTP request
         =/  body-cord=@t  (en:json:html payload)
@@ -67,7 +81,7 @@
           ==
         ~&  >  "%claw/app: anthropic proxy: sending request"
         ;<  ~  bind:m
-          (send-request:io [%'POST' 'https://api.anthropic.com/v1/messages' hed `(as-octs:mimes:html body-cord)])
+          (send-request:io [%'POST' api-url hed `(as-octs:mimes:html body-cord)])
         ;<  resp=client-response:iris  bind:m  take-http-response
         ::  extract response body and poke back as JSON
         =/  resp-json=json
@@ -80,9 +94,9 @@
         ::
           [~ %'page.html']
         ;<  ~  bind:m  (rise-wait:io prod "%claw/app page: failed")
-        ;<  =bowl:nexus  bind:m  get-bowl:io
+        ;<  here=rail:tarball  bind:m  get-here:io
         =/  ball-id=tape
-          (zing (join "/" ^-((list tape) (turn path.here.bowl trip))))
+          (zing (join "/" ^-((list tape) (turn path.here trip))))
         ;<  agents=view:nexus  bind:m
           (keep:io /agents (cord-to-road:tarball './agents/') ~)
         ;<  channels=view:nexus  bind:m
@@ -100,8 +114,8 @@
         ::
           [[%ui %sse ~] %'agents.html']
         ;<  ~  bind:m  (rise-wait:io prod "%claw/app sse/agents: failed")
-        ;<  =bowl:nexus  bind:m  get-bowl:io
-        =/  ball-id=tape  (trip (snag 0 path.here.bowl))
+        ;<  here=rail:tarball  bind:m  get-here:io
+        =/  ball-id=tape  (trip (snag 0 path.here))
         ;<  init=view:nexus  bind:m
           (keep:io /agents (cord-to-road:tarball '../../agents/') ~)
         ;<  ~  bind:m  (replace:io !>((agents-fragment ball-id (read-agents init))))
@@ -112,8 +126,8 @@
         ::
           [[%ui %sse ~] %'channels.html']
         ;<  ~  bind:m  (rise-wait:io prod "%claw/app sse/channels: failed")
-        ;<  =bowl:nexus  bind:m  get-bowl:io
-        =/  ball-id=tape  (trip (snag 0 path.here.bowl))
+        ;<  here=rail:tarball  bind:m  get-here:io
+        =/  ball-id=tape  (trip (snag 0 path.here))
         ;<  init=view:nexus  bind:m
           (keep:io /channels (cord-to-road:tarball '../../channels/') ~)
         ;<  ~  bind:m  (replace:io !>((channels-fragment ball-id (read-agents init))))
@@ -124,7 +138,6 @@
         ::
           [~ %'main.sig']
         ;<  ~  bind:m  (rise-wait:io prod "%claw/app main: failed")
-        ;<  =bowl:nexus  bind:m  get-bowl:io
         |-
         ;<  [=from:fiber:nexus =sage:tarball]  bind:m  take-poke-from:io
         =/  jon=json  (fall (mole |.(!<(json q.sage))) *json)
@@ -140,15 +153,11 @@
           =/  agent-road=road:tarball
             (cord-to-road:tarball (crip "./agents/{(trip name)}/"))
           =/  new-ball=ball:tarball  [`[~ `[/claw %agent] ~] ~]
-          =/  =weir:nexus
-            :+  ~
-              (sy ~[&+|+/sys/bowl |+[2 |+/apis]])
-            (sy ~[&+|+/])
-          =/  new-sand=sand:nexus  [`weir ~]
-          ;<  ~  bind:m  (make:io agent-road &+[new-sand *gain:nexus new-ball])
+          ;<  ~  bind:m  (make:io agent-road &+[*sand:nexus *gain:nexus new-ball])
           ::  write proxy path into agent config so children inherit it
+          ;<  here=rail:tarball  bind:m  get-here:io
           =/  proxy-path=tape
-            "{(spud path.here.bowl)}/apis/anthropic.sig"
+            "{(spud path.here)}/apis/anthropic.json"
           =/  agent-cfg=json
             %-  pairs:enjs:format
             :~  ['model' s+'claude-sonnet-4-20250514']
@@ -173,13 +182,11 @@
             %'create-channel'
           =/  name=@t
             (fall (bind (~(get by p.jon) 'name') |=(=json ?>(?=(%s -.json) p.json))) '')
-          =/  agent=@t
-            (fall (bind (~(get by p.jon) 'agent') |=(=json ?>(?=(%s -.json) p.json))) '')
           =/  source=@t
             (fall (bind (~(get by p.jon) 'source') |=(=json ?>(?=(%s -.json) p.json))) '')
           =/  chat-id=@t
             (fall (bind (~(get by p.jon) 'chat-id') |=(=json ?>(?=(%s -.json) p.json))) '')
-          ?:  |(=('' name) =('' agent) =('' source) =('' chat-id))
+          ?:  |(=('' name) =('' source) =('' chat-id))
             ~&  >>>  "%claw/app: create-channel missing fields"
             $
           =/  chan-road=road:tarball
@@ -187,8 +194,7 @@
           ::  bake config into initial ball so relay has it at start
           =/  chan-cfg=json
             %-  pairs:enjs:format
-            :~  ['agent' s+(crip "../../agents/{(trip agent)}")]
-                ['source' s+source]
+            :~  ['source' s+source]
                 ['chat-id' s+chat-id]
             ==
           =/  cfg-content=content:tarball  [~ [/ %json] !>(chan-cfg)]
@@ -196,9 +202,9 @@
             [`[~ `[/claw %channel] (malt ~[['config.json' cfg-content]])] ~]
           =/  =weir:nexus
             :+  ~
-              ::  poke: agent main.sig + bot send.sig
+              ::  poke: bot send.sig
               (sy ~[&+|+/])
-            ::  peek: agent convos + bot messages
+            ::  peek: bot messages
             (sy ~[&+|+/])
           =/  new-sand=sand:nexus  [`weir ~]
           ;<  ~  bind:m  (make:io chan-road &+[new-sand *gain:nexus new-ball])
@@ -226,17 +232,20 @@
           %-  crip
           ;:  weld
             "CLAW AGENT CONTAINER\0a\0a"
-            "Manages claw agent nexuses in /agents/.\0a"
-            "Each agent runs /claw/agent code with a read-only weir.\0a\0a"
-            "Poke main.sig with JSON to create/delete agents:\0a"
+            "Manages claw agent nexuses in /agents/ and channels in /channels/.\0a"
+            "Each agent runs /claw/agent code with a read-only weir.\0a"
+            "Channels exist independently; agents link to them via channels.json.\0a\0a"
+            "Poke main.sig with JSON:\0a"
             "  \{\"action\": \"create\", \"name\": \"my-agent\"}\0a"
-            "  \{\"action\": \"delete\", \"name\": \"my-agent\"}\0a\0a"
+            "  \{\"action\": \"delete\", \"name\": \"my-agent\"}\0a"
+            "  \{\"action\": \"create-channel\", \"name\": \"tg\", \"source\": \"...\", \"chat-id\": \"...\"}\0a"
+            "  \{\"action\": \"delete-channel\", \"name\": \"tg\"}\0a\0a"
             "API proxies in /apis/ handle HTTP for sandboxed agents.\0a"
           ==
             [%agents ~]
           'Agent nexuses. Each subdirectory is a claw agent with /claw/agent code.'
             [%apis ~]
-          'API proxies. Agents poke these to make HTTP requests through the sandbox.'
+          'API proxies and config. Each file holds its config (key, url) and acts as a proxy endpoint.'
             [%ui %sse ~]
           'SSE fragments for live dashboard updates.'
         ==
@@ -246,10 +255,8 @@
           'Management process. Poke with JSON to create or delete agents.'
             [~ %'page.html']
           'Dashboard page. Lists all agents with links to their UIs.'
-            [~ %'config.json']
-          'Container config. Stores API keys used by proxies.'
-            [[%apis ~] %'anthropic.sig']
-          'Anthropic API proxy. Poke with request body JSON, get response JSON back.'
+            [[%apis ~] %'anthropic.json']
+          'Anthropic API proxy and config. Contains api-key and url. Poke with request body JSON, get response JSON back.'
             [[%ui %sse ~] %'agents.html']
           'Agent list HTML fragment for SSE live updates.'
         ==
@@ -336,6 +343,8 @@
             ==
             ;label.cfg-label: API Key
             ;input#cfg-key(type "password", placeholder "sk-ant-...");
+            ;label.cfg-label: URL
+            ;input#cfg-url(type "text", placeholder "https://api.anthropic.com/v1/messages");
             ;div#cfg-status;
           ==
         ==
@@ -357,11 +366,10 @@
         ==
         ;div#channel-create
           ;div.channel-row
-            ;input#ch-name(type "text", placeholder "channel name", autocomplete "off");
-            ;input#ch-agent(type "text", placeholder "agent (e.g. test)", autocomplete "off");
+            ;input#ch-name(type "text", placeholder "channel path (e.g. telegram/main-bot)", autocomplete "off");
+            ;input#ch-source(type "text", placeholder "source (e.g. telegram.telegram/bots/main)", autocomplete "off");
           ==
           ;div.channel-row
-            ;input#ch-source(type "text", placeholder "telegram bot path", autocomplete "off");
             ;input#ch-chatid(type "text", placeholder "chat id", autocomplete "off");
           ==
           ;button#ch-create-btn(onclick "createChannel()"): + new channel
@@ -444,6 +452,8 @@
   .cfg-label \{ display: block; font-size: 12px; color: #888; margin: 12px 0 4px; }
   #cfg-key \{ width: 100%; padding: 8px 10px; border-radius: 6px; border: 1px solid #333; background: #111; color: #eee; font-size: 13px; font-family: monospace; outline: none; box-sizing: border-box; }
   #cfg-key:focus \{ border-color: #2563eb; }
+  #cfg-url \{ width: 100%; padding: 8px 10px; border-radius: 6px; border: 1px solid #333; background: #111; color: #eee; font-size: 13px; font-family: monospace; outline: none; box-sizing: border-box; }
+  #cfg-url:focus \{ border-color: #2563eb; }
   #cfg-status \{ margin-top: 10px; font-size: 12px; color: #4ade80; }
   #create-bar \{ display: flex; gap: 8px; margin-bottom: 16px; }
   #agent-name \{ flex: 1; padding: 10px 14px; border-radius: 8px; border: 1px solid #333; background: #1a1a1a; color: #eee; font-size: 14px; outline: none; }
@@ -501,18 +511,16 @@
 
   function createChannel() \{
     var name = document.getElementById('ch-name').value.trim();
-    var agent = document.getElementById('ch-agent').value.trim();
     var source = document.getElementById('ch-source').value.trim();
     var chatId = document.getElementById('ch-chatid').value.trim();
-    if (!name || !agent || !source || !chatId) \{ alert('All fields required'); return; }
+    if (!name || !source || !chatId) \{ alert('All fields required'); return; }
     document.getElementById('ch-name').value = '';
-    document.getElementById('ch-agent').value = '';
     document.getElementById('ch-source').value = '';
     document.getElementById('ch-chatid').value = '';
     fetch(API + '/poke/' + BALL + '/main.sig?mark=json', \{
       method: 'POST',
       headers: \{'Content-Type': 'application/json'},
-      body: JSON.stringify(\{action: 'create-channel', name: name, agent: agent, source: source, 'chat-id': chatId})
+      body: JSON.stringify(\{action: 'create-channel', name: name, source: source, 'chat-id': chatId})
     });
   }
 
@@ -530,14 +538,16 @@
   // Config modal
   var cfgBack = document.getElementById('cfg-backdrop');
   var cfgKey = document.getElementById('cfg-key');
+  var cfgUrl = document.getElementById('cfg-url');
   var cfgStatus = document.getElementById('cfg-status');
 
   document.getElementById('config-btn').onclick = function() \{
     cfgStatus.textContent = '';
-    fetch(API + '/file/' + BALL + '/config.json?mark=json')
+    fetch(API + '/file/' + BALL + '/apis/anthropic.json?mark=json')
       .then(function(r) \{ return r.json() })
       .then(function(j) \{
         cfgKey.value = j['api-key'] || '';
+        cfgUrl.value = j['url'] || '';
       }).catch(function() \{});
     cfgBack.classList.add('open');
   };
@@ -551,8 +561,8 @@
   };
 
   document.getElementById('cfg-save').onclick = async function() \{
-    var cfg = \{'api-key': cfgKey.value};
-    var r = await fetch(API + '/over/' + BALL + '/config.json?mark=json', \{
+    var cfg = \{'api-key': cfgKey.value, 'url': cfgUrl.value};
+    var r = await fetch(API + '/over/' + BALL + '/apis/anthropic.json?mark=json', \{
       method: 'POST',
       headers: \{'Content-Type': 'application/json'},
       body: JSON.stringify(cfg)

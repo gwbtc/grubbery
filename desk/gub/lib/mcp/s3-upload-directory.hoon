@@ -55,7 +55,7 @@
       (path-to-s3-key:s3:tools relative-path)
     (crip "{(trip s3-prefix)}/{(trip (path-to-s3-key:s3:tools relative-path))}")
   ;<  creds=s3-creds:tools  bind:m  read-s3-creds:tools
-  ;<  =bowl:nexus  bind:m  get-bowl:io
+  ;<  now=@da  bind:m  get-time:io
   =/  [amz-date=@t payload-hash=@t authorization=@t]
     %:  build-signature:s3:tools
       'PUT'
@@ -67,7 +67,7 @@
       s3-key
       ''
       `text
-      now.bowl
+      now
     ==
   =/  url=@t  (build-url:s3:tools endpoint.creds bucket.creds s3-key ~)
   =/  headers=(list [@t @t])  (build-headers:s3:tools 'PUT' payload-hash amz-date authorization)

@@ -59,8 +59,8 @@
           ::
           [[%ui ~] %'main.sig']
         ;<  ~  bind:m  (rise-wait:io prod "%counter /ui/main: failed")
-        ;<  =bowl:nexus  bind:m  get-bowl:io
-        =/  prefix=path  (url-prefix (snip path.here.bowl))
+        ;<  here=rail:tarball  bind:m  get-here:io
+        =/  prefix=path  (url-prefix (snip path.here))
         ;<  ~  bind:m  (bind-http:nex-server [~ prefix])
         (http-dispatch:nex-server %counter)
           ::  /ui/requests/*: individual request handlers
@@ -73,8 +73,8 @@
         ?.  =(src our)
           ;<  ~  bind:m  (send-simple:srv eyre-id [[403 ~] `(as-octs:mimes:html 'Forbidden')])
           (pure:m ~)
-        ;<  =bowl:nexus  bind:m  get-bowl:io
-        =/  prefix=path  (url-prefix (snip (snip path.here.bowl)))
+        ;<  here=rail:tarball  bind:m  get-here:io
+        =/  prefix=path  (url-prefix (snip (snip path.here)))
         =/  site=path  site:(parse-url:http-utils url.request.req)
         =/  suffix=path  (slag (lent prefix) site)
         ::  Serve counter page from view grub

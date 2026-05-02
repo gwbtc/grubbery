@@ -210,12 +210,12 @@
               %'add-output'
             =/  address=@t  (so:dejs:format (need (~(get by p.jon) 'address')))
             =/  amount=@ud  (ni:dejs:format (need (~(get by p.jon) 'amount')))
-            ;<  =bowl:nexus  bind:m  get-bowl:io
+            ;<  now=@da  bind:m  get-time:io
             ;<  existing=(unit transaction:drft)  bind:m  read-draft-file
             =/  dr=transaction:drft
               ?~  existing
-                [~ ~ ~ `%random now.bowl now.bowl]
-              u.existing(modified now.bowl)
+                [~ ~ ~ `%random now now]
+              u.existing(modified now)
             =.  outputs.dr  (snoc outputs.dr [address amount])
             ;<  ~  bind:m  (write-draft dr)
             $
@@ -224,8 +224,8 @@
             =/  idx=@ud  (ni:dejs:format (need (~(get by p.jon) 'index')))
             ;<  existing=(unit transaction:drft)  bind:m  read-draft-file
             ?~  existing  $
-            ;<  =bowl:nexus  bind:m  get-bowl:io
-            =/  dr=transaction:drft  u.existing(modified now.bowl)
+            ;<  now=@da  bind:m  get-time:io
+            =/  dr=transaction:drft  u.existing(modified now)
             =.  outputs.dr  (oust [idx 1] outputs.dr)
             ;<  ~  bind:m  (write-draft dr)
             $
@@ -241,12 +241,12 @@
               %'set-change-config'
             =/  fee-rate=@ud  (ni:dejs:format (need (~(get by p.jon) 'fee-rate')))
             =/  chg-addr=@t  (so:dejs:format (need (~(get by p.jon) 'change-address')))
-            ;<  =bowl:nexus  bind:m  get-bowl:io
+            ;<  now=@da  bind:m  get-time:io
             ;<  existing=(unit transaction:drft)  bind:m  read-draft-file
             =/  dr=transaction:drft
               ?~  existing
-                [~ ~ ~ `%random now.bowl now.bowl]
-              u.existing(modified now.bowl)
+                [~ ~ ~ `%random now now]
+              u.existing(modified now)
             =.  change.dr  `[fee-rate chg-addr]
             ;<  ~  bind:m  (write-draft dr)
             $
@@ -254,9 +254,9 @@
               %'clear-change-config'
             ;<  existing=(unit transaction:drft)  bind:m  read-draft-file
             ?~  existing  $
-            ;<  =bowl:nexus  bind:m  get-bowl:io
+            ;<  now=@da  bind:m  get-time:io
             =.  change.u.existing  ~
-            ;<  ~  bind:m  (write-draft u.existing(modified now.bowl))
+            ;<  ~  bind:m  (write-draft u.existing(modified now))
             $
           ::
               %'set-auto-select-mode'
@@ -265,12 +265,12 @@
               ?:  =('disabled' mode-text)  ~
               ?:  =('largest-first' mode-text)  `%largest-first
               `%random
-            ;<  =bowl:nexus  bind:m  get-bowl:io
+            ;<  now=@da  bind:m  get-time:io
             ;<  existing=(unit transaction:drft)  bind:m  read-draft-file
             =/  dr=transaction:drft
               ?~  existing
-                [~ ~ ~ new-auto now.bowl now.bowl]
-              u.existing(auto-select new-auto, modified now.bowl)
+                [~ ~ ~ new-auto now now]
+              u.existing(auto-select new-auto, modified now)
             ;<  ~  bind:m  (write-draft dr)
             $
           ::
@@ -297,8 +297,8 @@
             =/  total-outputs=@ud  (sum-outputs:drft outputs.u.existing)
             ?:  =(0 total-outputs)
               ::  nothing to fund, clear inputs
-              ;<  =bowl:nexus  bind:m  get-bowl:io
-              ;<  ~  bind:m  (write-draft u.existing(inputs ~, modified now.bowl))
+              ;<  now=@da  bind:m  get-time:io
+              ;<  ~  bind:m  (write-draft u.existing(inputs ~, modified now))
               $
             ::  calculate output vbytes for selection
             =/  output-vbytes=@ud
@@ -323,8 +323,8 @@
               |=  s=utxo-input:drft
               =/  match  (skim utxos |=(u=utxo-input:drft &(=(txid.u txid.s) =(vout.u vout.s))))
               ?>(?=(^ match) i.match)
-            ;<  =bowl:nexus  bind:m  get-bowl:io
-            ;<  ~  bind:m  (write-draft u.existing(inputs selected, modified now.bowl))
+            ;<  now=@da  bind:m  get-time:io
+            ;<  ~  bind:m  (write-draft u.existing(inputs selected, modified now))
             $
           ::
               %'add-input'
@@ -332,12 +332,12 @@
             =/  utxo-vout=@ud  (ni:dejs:format (need (~(get by p.jon) 'utxo-vout')))
             =/  utxo-value=@ud  (ni:dejs:format (need (~(get by p.jon) 'utxo-value')))
             =/  utxo-spend=@t  (so:dejs:format (need (~(get by p.jon) 'utxo-spend')))
-            ;<  =bowl:nexus  bind:m  get-bowl:io
+            ;<  now=@da  bind:m  get-time:io
             ;<  existing=(unit transaction:drft)  bind:m  read-draft-file
             =/  dr=transaction:drft
               ?~  existing
-                [~ ~ ~ `%random now.bowl now.bowl]
-              u.existing(modified now.bowl)
+                [~ ~ ~ `%random now now]
+              u.existing(modified now)
             =/  spend=spend:fees  ;;(spend:fees (slav %tas utxo-spend))
             =/  new-input=utxo-input:drft  [utxo-txid utxo-vout utxo-value spend]
             =.  inputs.dr  (snoc inputs.dr new-input)
@@ -349,12 +349,12 @@
             =/  utxo-vout=@ud  (ni:dejs:format (need (~(get by p.jon) 'utxo-vout')))
             ;<  existing=(unit transaction:drft)  bind:m  read-draft-file
             ?~  existing  $
-            ;<  =bowl:nexus  bind:m  get-bowl:io
+            ;<  now=@da  bind:m  get-time:io
             =.  inputs.u.existing
               %+  skip  inputs.u.existing
               |=  input=utxo-input:drft
               &(=(txid.input utxo-txid) =(vout.input utxo-vout))
-            ;<  ~  bind:m  (write-draft u.existing(modified now.bowl))
+            ;<  ~  bind:m  (write-draft u.existing(modified now))
             $
           ::
               %'build-transaction'
@@ -545,9 +545,9 @@
         ~&  >  [%refresh %fetching addr=addr.u.dat]
         ;<  ~  bind:m  (send-request:io [%'GET' addr-url ~[['Accept' 'application/json']] ~])
         ;<  info-resp=client-response:iris  bind:m  take-http
-        ;<  =bowl:nexus  bind:m  get-bowl:io
+        ;<  now=@da  bind:m  get-time:io
         =/  info=(unit address-info)
-          (parse-info-response info-resp now.bowl)
+          (parse-info-response info-resp now)
         ::  fetch UTXOs
         =/  utxo-url=@t  (crip (weld (weld base (trip addr.u.dat)) "/utxo"))
         ;<  ~  bind:m  (send-request:io [%'GET' utxo-url ~[['Accept' 'application/json']] ~])
@@ -883,8 +883,8 @@
   ?~  tx-count  (pure:m ~)
   ?~  funded    (pure:m ~)
   ?~  spent     (pure:m ~)
-  ;<  =bowl:nexus  bind:m  get-bowl:io
-  (pure:m `[u.tx-count u.funded u.spent now.bowl])
+  ;<  now=@da  bind:m  get-time:io
+  (pure:m `[u.tx-count u.funded u.spent now])
 ::  +take-http: simple HTTP response handler for non-cancellable requests
 ::
 ++  take-http

@@ -97,9 +97,9 @@
               %'add-wallet-from-entropy'
             =/  wallet-name=@t
               (~(dog jo:json-utils jon) /wallet-name so:dejs:format)
-            ;<  =bowl:nexus  bind:m  get-bowl:io
+            ;<  eny=@uvJ  bind:m  get-entropy:io
             =/  seed-phrase=cord
-              (gen-seed:seed-phrases eny.bowl %128)
+              (gen-seed:seed-phrases eny %128)
             =/  pubkey=@ux  (seed-to-pubkey [%t seed-phrase])
             =/  wallet-key=@ta  (crip (hexn:http-utils pubkey))
             =/  wal=wallet-data  [wallet-name [%t seed-phrase] pubkey ~]
@@ -151,7 +151,6 @@
           ::
           [[%ui ~] %'http.sig']
         ;<  ~  bind:m  (rise-wait:io prod "%wallet /ui/http: failed")
-        ;<  =bowl:nexus  bind:m  get-bowl:io
         =/  prefix=path  /groundwire/wallet
         ;<  ~  bind:m  (bind-http:nex-server [~ prefix])
         (http-dispatch:nex-server %wallet)
@@ -193,11 +192,11 @@
             (pure:m ~)
           ;<  recv=addr-mop  bind:m  (load-addr-mop acct-key active-network.u.acct %recv)
           ;<  chng=addr-mop  bind:m  (load-addr-mop acct-key active-network.u.acct %chng)
-          ;<  =bowl:nexus  bind:m  get-bowl:io
+          ;<  now=@da  bind:m  get-time:io
           ;<  [scan=?(%active %paused %none) progress=(unit scan-progress:acct-ui)]  bind:m
             (load-scan-state acct-key)
           ;<  wal-name=@t  bind:m  (load-wallet-name wallet.u.acct)
-          ;<  ~  bind:m  (send-html eyre-id (detail-page:acct-ui u.acct recv chng now.bowl scan progress ~ wal-name))
+          ;<  ~  bind:m  (send-html eyre-id (detail-page:acct-ui u.acct recv chng now scan progress ~ wal-name))
           (pure:m ~)
         ::  route: /a/<account-key>/send → send page
         ?:  ?=([%a @ %send ~] suffix)
@@ -208,10 +207,10 @@
             (pure:m ~)
           ;<  recv=addr-mop  bind:m  (load-addr-mop acct-key active-network.u.acct %recv)
           ;<  chng=addr-mop  bind:m  (load-addr-mop acct-key active-network.u.acct %chng)
-          ;<  =bowl:nexus  bind:m  get-bowl:io
+          ;<  now=@da  bind:m  get-time:io
           ;<  dr=(unit transaction:drft)  bind:m  (load-draft acct-key)
           ;<  wal-name=@t  bind:m  (load-wallet-name wallet.u.acct)
-          ;<  ~  bind:m  (send-html eyre-id (send-page:acct-ui u.acct recv chng dr now.bowl wal-name))
+          ;<  ~  bind:m  (send-html eyre-id (send-page:acct-ui u.acct recv chng dr now wal-name))
           (pure:m ~)
         ::  route: /a/<account-key>/send/stream → SSE for send page
         ?:  ?=([%a @ %send %stream ~] suffix)
@@ -520,15 +519,15 @@
   =/  acct-road=road:tarball
     (cord-to-road:tarball (crip "../../accounts/{(trip acct-key)}/"))
   ;<  *  bind:m  (keep:io /acct-stream acct-road ~)
-  ;<  =bowl:nexus  bind:m  get-bowl:io
-  ;<  ~  bind:m  (send-wait:io (add now.bowl ~s30))
+  ;<  now=@da  bind:m  get-time:io
+  ;<  ~  bind:m  (send-wait:io (add now ~s30))
   |-
   ;<  nw=news-or-wake:io  bind:m  (take-news-or-wake:io /acct-stream)
   ?-    -.nw
       %wake
     ;<  ~  bind:m  (send-data:srv eyre-id `sse-keep-alive:http-utils)
-    ;<  =bowl:nexus  bind:m  get-bowl:io
-    ;<  ~  bind:m  (send-wait:io (add now.bowl ~s30))
+    ;<  now=@da  bind:m  get-time:io
+    ;<  ~  bind:m  (send-wait:io (add now ~s30))
     $
       %news
     ::  reload all account data and re-render fragments
@@ -536,7 +535,7 @@
     ?~  acct  $
     ;<  recv=addr-mop  bind:m  (load-addr-mop acct-key active-network.u.acct %recv)
     ;<  chng=addr-mop  bind:m  (load-addr-mop acct-key active-network.u.acct %chng)
-    ;<  =bowl:nexus  bind:m  get-bowl:io
+    ;<  now=@da  bind:m  get-time:io
     ;<  [scan=?(%active %paused %none) progress=(unit scan-progress:acct-ui)]  bind:m
       (load-scan-state acct-key)
     ::  send granular fragments to preserve scroll position
@@ -551,8 +550,8 @@
       (send-sse-fragment eyre-id 'account-summary-wrap' (account-summary-ui:acct-ui recv chng))
     ;<  ~  bind:m
       (send-sse-fragment eyre-id 'scan-status-wrap' (scan-status-ui:acct-ui scan progress))
-    ;<  ~  bind:m  (send-addr-rows eyre-id u.acct %recv recv now.bowl)
-    ;<  ~  bind:m  (send-addr-rows eyre-id u.acct %chng chng now.bowl)
+    ;<  ~  bind:m  (send-addr-rows eyre-id u.acct %recv recv now)
+    ;<  ~  bind:m  (send-addr-rows eyre-id u.acct %chng chng now)
     ;<  ~  bind:m
       (send-sse-fragment eyre-id 'receiving-derive' (derive-button:acct-ui "receiving" recv))
     ;<  ~  bind:m
@@ -578,15 +577,15 @@
   =/  acct-road=road:tarball
     (cord-to-road:tarball (crip "../../accounts/{(trip acct-key)}/"))
   ;<  *  bind:m  (keep:io /send-stream acct-road ~)
-  ;<  =bowl:nexus  bind:m  get-bowl:io
-  ;<  ~  bind:m  (send-wait:io (add now.bowl ~s30))
+  ;<  now=@da  bind:m  get-time:io
+  ;<  ~  bind:m  (send-wait:io (add now ~s30))
   |-
   ;<  nw=news-or-wake:io  bind:m  (take-news-or-wake:io /send-stream)
   ?-    -.nw
       %wake
     ;<  ~  bind:m  (send-data:srv eyre-id `sse-keep-alive:http-utils)
-    ;<  =bowl:nexus  bind:m  get-bowl:io
-    ;<  ~  bind:m  (send-wait:io (add now.bowl ~s30))
+    ;<  now=@da  bind:m  get-time:io
+    ;<  ~  bind:m  (send-wait:io (add now ~s30))
     $
       %news
     ;<  acct=(unit account-data)  bind:m  (load-account acct-key)
@@ -666,15 +665,15 @@
   =/  acct-road=road:tarball
     (cord-to-road:tarball (crip "../../accounts/{(trip acct-key)}/"))
   ;<  *  bind:m  (keep:io /addr-stream acct-road ~)
-  ;<  =bowl:nexus  bind:m  get-bowl:io
-  ;<  ~  bind:m  (send-wait:io (add now.bowl ~s30))
+  ;<  now=@da  bind:m  get-time:io
+  ;<  ~  bind:m  (send-wait:io (add now ~s30))
   |-
   ;<  nw=news-or-wake:io  bind:m  (take-news-or-wake:io /addr-stream)
   ?-    -.nw
       %wake
     ;<  ~  bind:m  (send-data:srv eyre-id `sse-keep-alive:http-utils)
-    ;<  =bowl:nexus  bind:m  get-bowl:io
-    ;<  ~  bind:m  (send-wait:io (add now.bowl ~s30))
+    ;<  now=@da  bind:m  get-time:io
+    ;<  ~  bind:m  (send-wait:io (add now ~s30))
     $
       %news
     ::  reload address data and re-render live content

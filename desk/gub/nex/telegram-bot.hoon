@@ -169,9 +169,11 @@
           ::  /send.sig: accept pokes to send messages as the bot
           ::
           [~ %'send.sig']
+        ~&  >  "%telegram-bot send.sig: on-file triggered"
         ;<  ~  bind:m  (rise-wait:io prod "%telegram-bot send: failed")
         |-
         ;<  =sage:tarball  bind:m  take-poke:io
+        ~&  >  ["%telegram-bot send.sig: got poke, mark" name.p.sage]
         ?.  ?=(%json name.p.sage)  $
         =/  req=json  !<(json q.sage)
         ?.  ?=([%o *] req)  $
@@ -219,8 +221,8 @@
           ::
           [[%ui %sse ~] %'data.html']
         ;<  ~  bind:m  (rise-wait:io prod "%telegram-bot sse: failed")
-        ;<  =bowl:nexus  bind:m  get-bowl:io
-        =/  ball-id=tape  (trip (snag 0 path.here.bowl))
+        ;<  here=rail:tarball  bind:m  get-here:io
+        =/  ball-id=tape  (trip (snag 0 path.here))
         ;<  init=view:nexus  bind:m
           (keep:io /msgs (cord-to-road:tarball '../../messages/') ~)
         =/  chat-data=[(map @t @t) (list json)]  (view-to-chat-data init)
@@ -235,12 +237,12 @@
           [[%ui ~] %'chat.html']
         ;<  ~  bind:m  (rise-wait:io prod "%telegram-bot chat: failed")
         ::  compute base path for API calls
-        ;<  =bowl:nexus  bind:m  get-bowl:io
+        ;<  here=rail:tarball  bind:m  get-here:io
         =/  base=tape
-          ::  path.here.bowl keys already contain dots for necks
+          ::  path.here keys already contain dots for necks
           ::  e.g. /telegram.telegram/bots/claude-1/ui
           ::  snip /ui, then join with /
-          =/  pax=path  (snip path.here.bowl)
+          =/  pax=path  (snip path.here)
           =/  acc=tape  ""
           |-
           ?~  pax  acc

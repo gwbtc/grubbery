@@ -1,14 +1,20 @@
-::  channel nexus: bridges external chat sources to claw agents
+::  channel nexus: standard messaging channel with pluggable source  ::
 ::
-::  Config: /config.json with fields:
-::    agent:   road to the agent (e.g. "../agents/test")
-::    source:  road to telegram-bot (e.g. "/telegram.telegram/bots/main")
-::    chat-id: telegram chat ID to bridge
+::  Standard API:
+::    inbox.json  -- append-only list of inbound messages (channel writes)
+::    send.sig    -- poke endpoint for outbound messages (agent pokes)
+::    config.json -- source-specific config
+::    relay.sig   -- internal fiber bridging source to inbox
 ::
-::  The relay watches the telegram-bot's message file for new incoming
-::  messages, pokes the agent with each one, then watches the agent's
-::  conversation file for assistant responses and sends them back via
-::  the telegram-bot's send.sig.
+::  Inbox message format:
+::    [{"text": "...", "from": "...", "ts": "..."}]
+::
+::  Send message format (poke send.sig with json):
+::    {"text": "..."}
+::
+::  Config (telegram source):
+::    source:  road to telegram-bot (relative to parent /claw/app)
+::    chat-id: telegram chat ID
 ::
 =<  ^-  nexus:nexus
     |%
@@ -18,8 +24,7 @@
       =/  =ver:loader  (get-ver:loader ball)
       =/  default-config=json
         %-  pairs:enjs:format
-        :~  ['agent' s+'']
-            ['source' s+'']
+        :~  ['source' s+'']
             ['chat-id' s+'']
         ==
       ?+  ver  !!
@@ -27,7 +32,9 @@
         %+  spin:loader  [sand gain ball]
         :~  (ver-row:loader 0)
             [%fall %& [/ %'config.json'] %.n [~ [/ %json] !>(default-config)]]
-            [%fall %& [/ %'relay.sig'] %.n [~ [/ %sig] !>(~)]]
+            [%fall %& [/ %'inbox.json'] %.n [~ [/ %json] !>([%a ~])]]
+            [%over %& [/ %'send.sig'] %.n [~ [/ %sig] !>(~)]]
+            [%over %& [/ %'relay.sig'] %.n [~ [/ %sig] !>(~)]]
         ==
       ==
     ::
@@ -38,52 +45,104 @@
       =/  m  (fiber:fiber:nexus ,~)
       ^-  process:fiber:nexus
       ?+    rail  stay:m
-          ::  /relay.sig: bridge between telegram-bot and agent
+          ::  /send.sig: outbound message handler
+          ::  agent pokes here with {"text": "..."}, forwards to source
+          ::
+          [~ %'send.sig']
+        ~&  >  "%channel send.sig: on-file triggered"
+        ;<  ~  bind:m  (rise-wait:io prod "%channel send: failed")
+        ;<  ~  bind:m  (send-dart:io %here /here)
+        ;<  =here:nexus  bind:m  (take-here-raw:io /here)
+        =/  app-res=(unit bend:tarball)  (find-in-here:io here `[/claw %app])
+        ?~  app-res
+          ~&  >>>  "%channel send: cannot find parent /claw/app"
+          stay:m
+        =/  app-bend=bend:tarball  u.app-res
+        ;<  cfg=channel-config  bind:m  read-config
+        ?:  |(=('' source.cfg) =('' chat-id.cfg))
+          ~&  >>>  "%channel send: missing config"
+          stay:m
+        =/  source-prefix=tape
+          =/  src=tape  (trip source.cfg)
+          ?:  &(!=(~ src) =('/' (snag 0 src)))  src
+          "{(render-bend app-bend)}{src}"
+        =/  bot-send=road:tarball
+          (cord-to-road:tarball (crip "{source-prefix}/send.sig"))
+        |-
+        ;<  =sage:tarball  bind:m  take-poke:io
+        =/  jon=json  (fall (mole |.(!<(json q.sage))) *json)
+        ?.  ?=(%o -.jon)
+          ~&  >>>  "%channel send: expected json object"
+          $
+        =/  text=(unit json)  (~(get by p.jon) 'text')
+        ?.  ?=([~ %s *] text)
+          ~&  >>>  "%channel send: missing text field"
+          $
+        =/  send-body=json
+          %-  pairs:enjs:format
+          :~  ['message' u.text]
+              ['chat_id' s+chat-id.cfg]
+          ==
+        ~&  >  ["%channel send: forwarding to source" source-prefix]
+        ~&  >  ["%channel send: bot-send road" bot-send]
+        ~&  >  ["%channel send: payload" send-body]
+        ;<  ~  bind:m  (poke:io bot-send [/ %json] !>(send-body))
+        $
+          ::  /relay.sig: bridge source inbound messages to inbox
           ::
           [~ %'relay.sig']
         ;<  ~  bind:m  (rise-wait:io prod "%channel relay: failed")
-        ;<  cfg=channel-config  bind:m  read-config
-        ?:  |(=('' agent.cfg) =('' source.cfg) =('' chat-id.cfg))
-          ~&  >>>  "%channel: missing config fields"
+        ;<  ~  bind:m  (send-dart:io %here /here)
+        ;<  =here:nexus  bind:m  (take-here-raw:io /here)
+        =/  app-res=(unit bend:tarball)  (find-in-here:io here `[/claw %app])
+        ?~  app-res
+          ~&  >>>  "%channel relay: cannot find parent /claw/app"
           stay:m
-        ::  roads to the external endpoints
-        =/  agent-main=road:tarball
-          (cord-to-road:tarball (crip "{(trip agent.cfg)}/main.sig"))
-        =/  agent-conv=road:tarball
-          (cord-to-road:tarball (crip "{(trip agent.cfg)}/context/conversations/telegram-{(trip chat-id.cfg)}.json"))
+        =/  app-bend=bend:tarball  u.app-res
+        ~&  >  ["%channel relay: found parent app at" app-bend]
+        ;<  cfg=channel-config  bind:m  read-config
+        ?:  |(=('' source.cfg) =('' chat-id.cfg))
+          ~&  >>>  "%channel relay: missing config fields"
+          stay:m
+        ::  resolve source roads relative to parent app
+        =/  source-prefix=tape
+          =/  src=tape  (trip source.cfg)
+          ?:  &(!=(~ src) =('/' (snag 0 src)))  src
+          "{(render-bend app-bend)}{src}"
         =/  bot-msgs=road:tarball
-          (cord-to-road:tarball (crip "{(trip source.cfg)}/messages/{(trip chat-id.cfg)}.json"))
-        =/  bot-send=road:tarball
-          (cord-to-road:tarball (crip "{(trip source.cfg)}/send.sig"))
-        ::  read initial state
+          (cord-to-road:tarball (crip "{source-prefix}/messages/{(trip chat-id.cfg)}.json"))
+        ::  watch source messages
         ;<  bot-view=view:nexus  bind:m  (keep:io /bot-msgs bot-msgs ~)
         =/  seen-count=@ud  (count-incoming bot-view)
-        ~&  >  ["%channel: started, seen" seen-count "messages"]
-        ::  also watch the agent conversation for responses
-        ;<  conv-view=view:nexus  bind:m  (keep:io /agent-conv agent-conv ~)
-        =/  last-reply=@ud  (count-assistant conv-view)
-        ~&  >  ["%channel: agent has" last-reply "replies"]
+        ~&  >  ["%channel relay: started, seen" seen-count "messages"]
         |-
-        ;<  [tag=?(%bot %conv) =view:nexus]  bind:m
-          (take-either /bot-msgs /agent-conv)
-        ?-    tag
-            %bot
-          ::  new telegram messages arrived
-          =/  new-count=@ud  (count-incoming view)
-          =/  new-msgs=(list @t)  (get-incoming-after view seen-count)
-          ~&  >  ["%channel: new messages" (lent new-msgs)]
-          =.  seen-count  new-count
-          ;<  ~  bind:m  (forward-to-agent new-msgs agent-main chat-id.cfg)
-          $
-        ::
-            %conv
-          ::  agent conversation updated — check for new assistant messages
-          =/  new-reply-count=@ud  (count-assistant view)
-          =/  new-replies=(list @t)  (get-assistant-after view last-reply)
-          =.  last-reply  new-reply-count
-          ;<  ~  bind:m  (send-to-telegram new-replies bot-send chat-id.cfg)
-          $
-        ==
+        ;<  upd=view:nexus  bind:m  (take-news:io /bot-msgs)
+        =/  new-count=@ud  (count-incoming upd)
+        =/  new-msgs=(list [text=@t from=@t])
+          (get-incoming-after upd seen-count)
+        =.  seen-count  new-count
+        ?~  new-msgs  $
+        ~&  >  ["%channel relay: new messages" (lent new-msgs)]
+        ::  append to inbox
+        ;<  now=@da  bind:m  get-time:io
+        =/  inbox-road=road:tarball  (cord-to-road:tarball './inbox.json')
+        ;<  cur-seen=seen:nexus  bind:m  (peek:io inbox-road ~)
+        =/  cur-inbox=(list json)
+          ?.  ?=([%& %file *] cur-seen)  ~
+          =/  j=json  (fall (mole |.(!<(json q.sage.p.cur-seen))) *json)
+          ?.  ?=(%a -.j)  ~
+          p.j
+        =/  new-entries=(list json)
+          %+  turn  new-msgs
+          |=  [text=@t from=@t]
+          %-  pairs:enjs:format
+          :~  ['text' s+text]
+              ['from' s+from]
+              ['ts' s+(scot %da now)]
+          ==
+        =/  updated=json  [%a (weld cur-inbox new-entries)]
+        ;<  ~  bind:m  (over:io inbox-road [[/ %json] !>(updated)])
+        $
       ==
     ::
     ++  on-manu
@@ -93,12 +152,14 @@
           %&
         ?+  p.mana  'Channel instance.'
             ~
-          'Chat channel. Bridges an external source (telegram, etc) to a claw agent.'
+          'Chat channel with standard API. Bridges external sources to claw agents.'
         ==
           %|
         ?+  rail.p.mana  'File under channel.'
-          [~ %'config.json']  'Channel config: agent, source, chat-id.'
-          [~ %'relay.sig']    'Relay process bridging messages.'
+          [~ %'config.json']  'Channel config: source road (relative to /claw/app) and chat-id.'
+          [~ %'inbox.json']   'Append-only inbound message list. Subscribe here for new messages.'
+          [~ %'send.sig']     'Poke with {"text": "..."} to send outbound messages via source.'
+          [~ %'relay.sig']    'Internal relay: watches source, writes to inbox.'
         ==
       ==
     --
@@ -106,8 +167,7 @@
 |%
 ::
 +$  channel-config
-  $:  agent=@t
-      source=@t
+  $:  source=@t
       chat-id=@t
   ==
 ::
@@ -117,50 +177,50 @@
   =/  road=road:tarball  (cord-to-road:tarball './config.json')
   ;<  =seen:nexus  bind:m  (peek:io road `%json)
   ?.  ?=([%& %file *] seen)
-    (pure:m ['' '' ''])
+    (pure:m ['' ''])
   =/  cfg=json  (fall (mole |.(!<(json q.sage.p.seen))) *json)
   ?.  ?=(%o -.cfg)
-    (pure:m ['' '' ''])
+    (pure:m ['' ''])
   =/  get
     |=  key=@t
     ^-  @t
     =/  v  (~(get by p.cfg) key)
     ?.  ?=([~ %s *] v)  ''
     p.u.v
-  (pure:m [(get 'agent') (get 'source') (get 'chat-id')])
+  (pure:m [(get 'source') (get 'chat-id')])
 ::
-::  forward a list of messages to the agent
+::  render a bend as a relative road string
 ::
-++  forward-to-agent
-  |=  [msgs=(list @t) agent-main=road:tarball chat-id=@t]
-  =/  m  (fiber:fiber:nexus ,~)
-  ^-  form:m
-  ?~  msgs  (pure:m ~)
-  =/  poke-body=json
-    %-  pairs:enjs:format
-    :~  ['action' s+'message']
-        ['content' s+i.msgs]
-        ['conversation' s+(crip "telegram-{(trip chat-id)}")]
-    ==
-  ~&  >  ["%channel: forwarding to agent:" i.msgs]
-  ;<  ~  bind:m  (poke:io agent-main [/ %json] !>(poke-body))
-  $(msgs t.msgs)
+::  render a bend as a relative path string for cord-to-road
+::  e.g. bend [2 %| /foo/bar/] -> "../../foo/bar/"
 ::
-::  send a list of replies to telegram
+++  render-bend
+  |=  =bend:tarball
+  ^-  tape
+  =/  ups=tape
+    ?:  =(0 p.bend)  "./"
+    %-  zing
+    %+  turn  (gulf 1 p.bend)
+    |=(* "../")
+  ?-  -.q.bend
+      %&
+    =/  dir=tape  (segments path.p.q.bend)
+    :(weld ups dir "/" (trip name.p.q.bend))
+      %|
+    =/  dir=tape  (segments p.q.bend)
+    ?:  =(~ p.q.bend)  ups
+    (weld ups dir)
+  ==
 ::
-++  send-to-telegram
-  |=  [replies=(list @t) bot-send=road:tarball chat-id=@t]
-  =/  m  (fiber:fiber:nexus ,~)
-  ^-  form:m
-  ?~  replies  (pure:m ~)
-  =/  send-body=json
-    %-  pairs:enjs:format
-    :~  ['message' s+i.replies]
-        ['chat_id' s+chat-id]
-    ==
-  ~&  >  ["%channel: sending reply to telegram:" i.replies]
-  ;<  ~  bind:m  (poke:io bot-send [/ %json] !>(send-body))
-  $(replies t.replies)
+++  segments
+  |=  =path
+  ^-  tape
+  ?~  path  ""
+  =/  first=tape  (trip i.path)
+  |-
+  ?~  t.path  first
+  =/  next=tape  (trip i.t.path)
+  $(t.path t.t.path, first :(weld first "/" next))
 ::
 ::  count incoming (non-bot) messages in a telegram message file view
 ::
@@ -175,27 +235,14 @@
   ?:  ?=([~ %s %'out'] dir)  acc
   +(acc)
 ::
-::  count assistant messages in an agent conversation view
-::
-++  count-assistant
-  |=  =view:nexus
-  ^-  @ud
-  =/  entries=(list json)  (extract-conv view)
-  %+  roll  entries
-  |=  [entry=json acc=@ud]
-  ?.  ?=([%o *] entry)  acc
-  =/  role  (~(get by p.entry) 'role')
-  ?.  ?=([~ %s %'assistant'] role)  acc
-  +(acc)
-::
-::  get incoming messages after a given count
+::  get incoming messages after a given count, with sender info
 ::
 ++  get-incoming-after
   |=  [=view:nexus skip=@ud]
-  ^-  (list @t)
+  ^-  (list [text=@t from=@t])
   =/  msgs=(list json)  (extract-msgs view)
   =/  idx=@ud  0
-  =/  acc=(list @t)  ~
+  =/  acc=(list [text=@t from=@t])  ~
   |-
   ?~  msgs  (flop acc)
   =/  msg=json  i.msgs
@@ -204,36 +251,18 @@
   =/  dir  (~(get by p.msg) 'dir')
   ?:  ?=([~ %s %'out'] dir)
     $(msgs t.msgs)
-  ::  this is an incoming message
   ?:  (lth idx skip)
     $(msgs t.msgs, idx +(idx))
   =/  text  (~(get by p.msg) 'text')
   ?.  ?=([~ %s *] text)
     $(msgs t.msgs, idx +(idx))
-  $(msgs t.msgs, idx +(idx), acc [p.u.text acc])
-::
-::  get assistant messages after a given count
-::
-++  get-assistant-after
-  |=  [=view:nexus skip=@ud]
-  ^-  (list @t)
-  =/  entries=(list json)  (extract-conv view)
-  =/  idx=@ud  0
-  =/  acc=(list @t)  ~
-  |-
-  ?~  entries  (flop acc)
-  =/  entry=json  i.entries
-  ?.  ?=([%o *] entry)
-    $(entries t.entries)
-  =/  role  (~(get by p.entry) 'role')
-  ?.  ?=([~ %s %'assistant'] role)
-    $(entries t.entries)
-  ?:  (lth idx skip)
-    $(entries t.entries, idx +(idx))
-  =/  content  (~(get by p.entry) 'content')
-  ?.  ?=([~ %s *] content)
-    $(entries t.entries, idx +(idx))
-  $(entries t.entries, idx +(idx), acc [p.u.content acc])
+  =/  from=@t
+    =/  f  (~(get by p.msg) 'from')
+    ?:  ?=([~ %s *] f)  p.u.f
+    =/  fn  (~(get by p.msg) 'from_name')
+    ?:  ?=([~ %s *] fn)  p.u.fn
+    'unknown'
+  $(msgs t.msgs, idx +(idx), acc [[p.u.text from] acc])
 ::
 ::  extract messages list from a telegram message file view
 ::
@@ -247,30 +276,4 @@
   =/  v  (~(get by p.dat) 'messages')
   ?.  ?=([~ %a *] v)  ~
   p.u.v
-::
-::  extract entries from an agent conversation view
-::
-++  extract-conv
-  |=  =view:nexus
-  ^-  (list json)
-  ?.  ?=([%file *] view)  ~
-  =/  dat=json  (fall (mole |.(!<(json q.sage.view))) *json)
-  ?.  ?=([%a *] dat)  ~
-  p.dat
-::
-::  take news from either of two wires
-::
-++  take-either
-  |=  [a=wire b=wire]
-  =/  m  (fiber:fiber:nexus ,[?(%bot %conv) view:nexus])
-  ^-  form:m
-  |=  input:fiber:nexus
-  :+  ~  state
-  ?+  in  [%skip ~]
-      ~  [%wait ~]
-      [~ %news * *]
-    ?:  =(a wire.u.in)  [%done %bot view.u.in]
-    ?:  =(b wire.u.in)  [%done %conv view.u.in]
-    [%skip ~]
-  ==
 --

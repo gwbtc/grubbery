@@ -46,24 +46,24 @@
     ;<  ~  bind:m  (rise-wait:io prod "%bowl now: failed")
     |-
     ;<  [=from:fiber:nexus =sage:tarball]  bind:m  take-poke-from:io
-    ;<  =bowl:nexus  bind:m  get-bowl:io
-    ;<  ~  bind:m  (poke:io (from-to-road from) [/ %da] !>(now.bowl))
+    ;<  now=@da  bind:m  get-time:io
+    ;<  ~  bind:m  (poke:io (from-to-road from) [/ %da] !>(now))
     $
     ::
       [~ %'our.sig']
     ;<  ~  bind:m  (rise-wait:io prod "%bowl our: failed")
     |-
     ;<  [=from:fiber:nexus =sage:tarball]  bind:m  take-poke-from:io
-    ;<  =bowl:nexus  bind:m  get-bowl:io
-    ;<  ~  bind:m  (poke:io (from-to-road from) [/ %p] !>(our.bowl))
+    ;<  our=@p  bind:m  get-our:io
+    ;<  ~  bind:m  (poke:io (from-to-road from) [/ %p] !>(our))
     $
     ::
       [~ %'eny.sig']
     ;<  ~  bind:m  (rise-wait:io prod "%bowl eny: failed")
     |-
     ;<  [=from:fiber:nexus =sage:tarball]  bind:m  take-poke-from:io
-    ;<  =bowl:nexus  bind:m  get-bowl:io
-    ;<  ~  bind:m  (poke:io (from-to-road from) [/ %uv] !>(eny.bowl))
+    ;<  eny=@uvJ  bind:m  get-entropy:io
+    ;<  ~  bind:m  (poke:io (from-to-road from) [/ %uv] !>(eny))
     $
     ::
       [~ %'here.sig']
@@ -71,12 +71,12 @@
     |-
     ;<  [=from:fiber:nexus =sage:tarball]  bind:m  take-poke-from:io
     ::  resolve caller's location from the return address
-    ;<  =bowl:nexus  bind:m  get-bowl:io
+    ;<  here=rail:tarball  bind:m  get-here:io
     =/  from-road=road:tarball  (from-to-road from)
     =/  caller-lane=(unit lane:tarball)
-      (lane-from-road:tarball [%& here.bowl] from-road)
+      (lane-from-road:tarball [%& here] from-road)
     =/  caller-here=rail:tarball
-      ?~  caller-lane  here.bowl
+      ?~  caller-lane  here
       ?>  ?=(%& -.u.caller-lane)
       p.u.caller-lane
     ;<  ~  bind:m  (poke:io from-road [/ %bowl-here] !>(caller-here))

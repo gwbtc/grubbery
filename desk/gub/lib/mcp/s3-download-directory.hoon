@@ -30,7 +30,7 @@
   =/  [s3-prefix=@t dest-path=@t]  p.parsed
   =/  pax=path  (stab dest-path)
   ;<  creds=s3-creds:tools  bind:m  read-s3-creds:tools
-  ;<  =bowl:nexus  bind:m  get-bowl:io
+  ;<  now=@da  bind:m  get-time:io
   =/  query-string=@t  (build-list-query:s3:tools s3-prefix)
   =/  [amz-date=@t payload-hash=@t authorization=@t]
     %:  build-signature:s3:tools
@@ -43,7 +43,7 @@
       ''
       query-string
       ~
-      now.bowl
+      now
     ==
   =/  url=@t  (build-url:s3:tools endpoint.creds bucket.creds '' `query-string)
   =/  headers=(list [@t @t])  (build-headers:s3:tools 'GET' payload-hash amz-date authorization)
@@ -66,7 +66,7 @@
   =/  s3-key=@t  i.files
   =/  filename=@ta  (extract-filename:s3:tools s3-key)
   =/  ext=(unit @ta)  (parse-extension:tarball filename)
-  ;<  =bowl:nexus  bind:m  get-bowl:io
+  ;<  now=@da  bind:m  get-time:io
   =/  [ld-amz-date=@t ld-payload-hash=@t ld-authorization=@t]
     %:  build-signature:s3:tools
       'GET'
@@ -78,7 +78,7 @@
       s3-key
       ''
       ~
-      now.bowl
+      now
     ==
   =/  dl-url=@t  (build-url:s3:tools endpoint.creds bucket.creds s3-key ~)
   =/  dl-headers=(list [@t @t])  (build-headers:s3:tools 'GET' ld-payload-hash ld-amz-date ld-authorization)

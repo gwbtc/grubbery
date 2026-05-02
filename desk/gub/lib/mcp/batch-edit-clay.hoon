@@ -45,7 +45,8 @@
     ?~  edit-list
       (pure:m [%error 'edits array is empty'])
     =/  dek=@tas  (slav %tas desk)
-    ;<  =bowl:nexus  bind:m  get-bowl:io
+    ;<  our=@p  bind:m  get-our:io
+    ;<  now=@da  bind:m  get-time:io
     =/  instructions=(list [pax=path mark=@tas content=@t])  ~
     =/  file-names=(list @t)  ~
     =/  remaining=(list json)  edit-list
@@ -68,9 +69,9 @@
       ;<  ~  bind:m
         (replace:io !>([tool.st args.st %batch-editing write-data ~]))
       ;<  *  bind:m  (keep:io /dill/logs [%& %& /sys/dill %'logs.dill-told'] ~)
-      ;<  =bowl:nexus  bind:m  get-bowl:io
+      ;<  now=@da  bind:m  get-time:io
       ;<  ~  bind:m
-        (send-card:io %pass /commit-timeout %arvo %b %wait (add now.bowl ~s30))
+        (send-card:io %pass /commit-timeout %arvo %b %wait (add now ~s30))
       ;<  ~  bind:m
         (gall-poke-our:io %hood kiln-info+!>(["" `[dek %& ins]]))
       ;<  ~  bind:m  collect-logs:tools
@@ -102,7 +103,7 @@
       (pure:m [%error (crip "empty path in edit")])
     =/  mark=@tas  (rear pax)
     ;<  =riot:clay  bind:m
-      (warp:io our.bowl dek ~ %sing %x da+now.bowl pax)
+      (warp:io our dek ~ %sing %x da+now pax)
     ?~  riot
       (pure:m [%error (crip "File not found: {(trip file-path.u.parsed)}")])
     =/  =tang  (pretty-file:pretty-file:tools !<(noun q.r.u.riot))

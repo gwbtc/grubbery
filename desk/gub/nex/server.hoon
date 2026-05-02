@@ -67,8 +67,8 @@
       ~&  >  "%server /main: ready"
       |-
       ;<  [=from:fiber:nexus =sage:tarball]  bind:m  take-poke-from:io
+      ;<  here=rail:tarball  bind:m  get-here:io
       ;<  st=server-state:nex-server  bind:m  (get-state-as:io server-state:nex-server)
-      ;<  =bowl:nexus  bind:m  get-bowl:io
       ?+    name.p.sage  $
           ::  Server action: bind, unbind, reset, send
           ::
@@ -82,7 +82,7 @@
           ::  Otherwise, resolve the target bend relative to the sender.
           ::
           =/  sender-rail=rail:tarball
-            (resolve-rail:nex-server here.bowl p.from)
+            (resolve-rail:nex-server here p.from)
           =/  handler-rail=rail:tarball
             ?~  target.act  sender-rail
             (resolve-rail:nex-server sender-rail u.target.act)
@@ -150,7 +150,7 @@
             ::  Forward cancel to sender so it can clean up
             ?.  ?=(%& -.from)  $
             =/  sender-rail=rail:tarball
-              (resolve-rail:nex-server here.bowl p.from)
+              (resolve-rail:nex-server here p.from)
             =/  =road:tarball  [%& %& sender-rail]
             ;<  ~  bind:m  (poke:io road [[/ %handle-http-cancel] !>(eyre-id.act)])
             $
@@ -162,7 +162,7 @@
             ~&  >  [%server-external-from eyre-id.act]
             $
           =/  sender-rail=rail:tarball
-            (resolve-rail:nex-server here.bowl p.from)
+            (resolve-rail:nex-server here p.from)
           ?.  =(sender-rail u.expected-rail)
             ~&  >  [%server-unauthorized eyre-id.act sender-rail u.expected-rail]
             $
@@ -787,8 +787,8 @@
       (send-old-dir eyre-id root born.init / mark-param)
     ==
   ::  Start keep-alive timer
-  ;<  =bowl:nexus  bind:m  get-bowl:io
-  ;<  ~  bind:m  (send-wait:io (add now.bowl ~s30))
+  ;<  now=@da  bind:m  get-time:io
+  ;<  ~  bind:m  (send-wait:io (add now ~s30))
   ::  Event loop
   |-
   ;<  nw=news-or-wake:io  bind:m  (take-news-or-wake:io /keep)
@@ -796,8 +796,8 @@
       %wake
     ;<  ~  bind:m
       (send-cards:io [(give-sse-keep-alive:http-utils eyre-id) ~])
-    ;<  =bowl:nexus  bind:m  get-bowl:io
-    ;<  ~  bind:m  (send-wait:io (add now.bowl ~s30))
+    ;<  now=@da  bind:m  get-time:io
+    ;<  ~  bind:m  (send-wait:io (add now ~s30))
     $
   ::
       %news

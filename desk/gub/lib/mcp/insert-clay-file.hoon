@@ -59,9 +59,9 @@
     ;<  ~  bind:m
       (replace:io !>([tool.st args.st %inserting write-data ~]))
     ;<  *  bind:m  (keep:io /dill/logs [%& %& /sys/dill %'logs.dill-told'] ~)
-    ;<  =bowl:nexus  bind:m  get-bowl:io
+    ;<  now=@da  bind:m  get-time:io
     ;<  ~  bind:m
-      (send-card:io %pass /commit-timeout %arvo %b %wait (add now.bowl ~s30))
+      (send-card:io %pass /commit-timeout %arvo %b %wait (add now ~s30))
     ;<  ~  bind:m
       (gall-poke-our:io %hood kiln-info+!>(["" `[dek %& [pax %ins mark !>(content)]~]]))
     ;<  ~  bind:m  collect-logs:tools

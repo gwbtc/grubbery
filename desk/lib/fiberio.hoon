@@ -13,7 +13,8 @@
   ?-  -.dart
     %sysc  ~[leaf+"vetoed syscall"]
     %scry  ~[leaf+"vetoed scry on wire {(spud wire.dart)}"]
-    %bowl  ~[leaf+"vetoed bowl request on wire {(spud wire.dart)}"]
+    %here  ~[leaf+"vetoed here request on wire {(spud wire.dart)}"]
+    %soup  ~[leaf+"vetoed soup request on wire {(spud wire.dart)}"]
     %kept  ~[leaf+"vetoed kept request on wire {(spud wire.dart)}"]
     %node  ~[leaf+"vetoed node operation on wire {(spud wire.dart)}"]
     %manu  ~[leaf+"vetoed manu request on wire {(spud wire.dart)}"]
@@ -103,15 +104,25 @@
   |=  input
   [~ state %done in]
 ::
-++  get-bowl
-  =/  m  (fiber ,bowl:nexus)
-  ^-  form:m
-  ;<  ~  bind:m  (send-dart %bowl /bowl)
-  (take-bowl /bowl)
+++  find-in-here
+  |=  [=here:nexus target=(unit neck:tarball)]
+  ^-  (unit bend:tarball)
+  ::  Scan pant from nearest ancestor (end) for matching neck.
+  ::  Returns bend: steps up from grub + directory lane.
+  =/  rev=pant:nexus  (flop pant.here)
+  =/  steps=@ud  1
+  |-
+  ?~  rev  ~
+  ?~  neck.i.rev  $(rev t.rev, steps +(steps))
+  ?:  ?&  ?=(^ target)
+          !=(u.target u.neck.i.rev)
+      ==
+    $(rev t.rev, steps +(steps))
+  `[steps %| [dir.i.rev ~]]
 ::
-++  take-bowl
+++  take-here-raw
   |=  =wire
-  =/  m  (fiber ,bowl:nexus)
+  =/  m  (fiber ,here:nexus)
   ^-  form:m
   |=  input
   :+  ~  state
@@ -119,29 +130,17 @@
       ~  [%wait ~]
       [~ %veto *]
     [%fail (veto-error dart.u.in)]
-      [~ %bowl * *]
+      [~ %here * *]
     ?.  =(wire wire.u.in)
       [%skip ~]
-    [%done bowl.u.in]
+    [%done here.u.in]
   ==
 ::
-::  Try %bowl dart; return %& bowl on success, %| tang on veto
-::
-++  try-bowl
-  =/  m  (fiber ,(each bowl:nexus tang))
-  ^-  form:m
-  ;<  ~  bind:m  (send-dart %bowl /try-bowl)
-  |=  input
-  :+  ~  state
-  ?+  in  [%skip ~]
-      ~  [%wait ~]
-      [~ %veto *]
-    [%done |+(veto-error dart.u.in)]
-      [~ %bowl * *]
-    ?.  =(/try-bowl wire.u.in)
-      [%skip ~]
-    [%done &+bowl.u.in]
-  ==
+++  coerce-here
+  |=  =here:nexus
+  ^-  rail:tarball
+  ?>  root.here
+  [(turn pant.here |=([dir=@ta *] dir)) name.here]
 ::
 ++  get-kept
   =/  m  (fiber ,kept:nexus)
@@ -1053,71 +1052,86 @@
   |=  for=@dr
   =/  m  (fiber ,~)
   ^-  form:m
-  ;<  =bowl:nexus  bind:m  get-bowl
-  (wait (add now.bowl for))
-::  Convenience bowl accessors
-::
-::  Try %bowl dart first; if vetoed, fall back to /sys/bowl/ oracle
+  ;<  now=@da  bind:m  get-time
+  (wait (add now for))
+::  Convenience accessors
 ::
 ++  get-our
   =/  m  (fiber ,ship)
   ^-  form:m
-  ;<  res=(each bowl:nexus tang)  bind:m  try-bowl
-  ?:  ?=(%& -.res)  (pure:m our.p.res)
-  ;<  ~  bind:m  (poke [&+&+[/sys/bowl %'our.sig']] [/ %sig] !>(~))
-  ;<  =sage:tarball  bind:m  take-poke
-  (pure:m !<(@p q.sage))
+  ;<  =seen:nexus  bind:m  (peek [%& %& /sys/bowl %our] ~)
+  ?.  ?=([%& %file *] seen)
+    (pure:m *ship)
+  (pure:m !<(ship q.sage.p.seen))
 ::
 ++  get-time
   =/  m  (fiber ,@da)
   ^-  form:m
-  ;<  res=(each bowl:nexus tang)  bind:m  try-bowl
-  ?:  ?=(%& -.res)  (pure:m now.p.res)
-  ;<  ~  bind:m  (poke [&+&+[/sys/bowl %'now.sig']] [/ %sig] !>(~))
-  ;<  =sage:tarball  bind:m  take-poke
-  (pure:m !<(@da q.sage))
+  ;<  =seen:nexus  bind:m  (peek [%& %& /sys/bowl %now] ~)
+  ?.  ?=([%& %file *] seen)
+    (pure:m *@da)
+  (pure:m !<(@da q.sage.p.seen))
 ::
 ++  get-entropy
   =/  m  (fiber ,@uvJ)
   ^-  form:m
-  ;<  res=(each bowl:nexus tang)  bind:m  try-bowl
-  ?:  ?=(%& -.res)  (pure:m eny.p.res)
-  ;<  ~  bind:m  (poke [&+&+[/sys/bowl %'eny.sig']] [/ %sig] !>(~))
-  ;<  =sage:tarball  bind:m  take-poke
-  (pure:m !<(@uvJ q.sage))
+  ;<  =seen:nexus  bind:m  (peek [%& %& /sys/bowl %eny] ~)
+  ?.  ?=([%& %file *] seen)
+    (pure:m *@uvJ)
+  (pure:m !<(@uvJ q.sage.p.seen))
 ::
 ++  get-here
   =/  m  (fiber ,rail:tarball)
   ^-  form:m
-  ;<  res=(each bowl:nexus tang)  bind:m  try-bowl
-  ?:  ?=(%& -.res)  (pure:m here.p.res)
-  ;<  ~  bind:m  (poke [&+&+[/sys/bowl %'here.sig']] [/ %sig] !>(~))
-  ;<  =sage:tarball  bind:m  take-poke
-  (pure:m !<(rail:tarball q.sage))
+  ;<  ~  bind:m  (send-dart %here /here)
+  ;<  =here:nexus  bind:m  (take-here-raw /here)
+  (pure:m (coerce-here here))
+::
+++  dap  %grubbery
 ::
 ++  get-agent
   =/  m  (fiber ,dude:gall)
   ^-  form:m
-  ;<  =bowl:nexus  bind:m  get-bowl
-  (pure:m dap.bowl)
+  (pure:m dap)
 ::
 ++  get-beak
   =/  m  (fiber ,beak)
   ^-  form:m
-  ;<  =bowl:nexus  bind:m  get-bowl
-  (pure:m byk.bowl)
+  ;<  our=@p  bind:m  get-our
+  ;<  now=@da  bind:m  get-time
+  (pure:m [our %grubbery da+now])
 ::
 ++  get-desk
   =/  m  (fiber ,desk)
   ^-  form:m
-  ;<  =bowl:nexus  bind:m  get-bowl
-  (pure:m q.byk.bowl)
+  (pure:m %grubbery)
 ::
 ++  get-case
   =/  m  (fiber ,case)
   ^-  form:m
-  ;<  =bowl:nexus  bind:m  get-bowl
-  (pure:m r.byk.bowl)
+  ;<  now=@da  bind:m  get-time
+  (pure:m da+now)
+::
+++  get-soup
+  =/  m  (fiber ,soup:nexus)
+  ^-  form:m
+  ;<  ~  bind:m  (send-dart %soup /soup)
+  (take-soup /soup)
+::
+++  take-soup
+  |=  =wire
+  =/  m  (fiber ,soup:nexus)
+  ^-  form:m
+  |=  input
+  :+  ~  state
+  ?+  in  [%skip ~]
+      ~  [%wait ~]
+      [~ %veto *]
+    [%fail (veto-error dart.u.in)]
+      [~ %soup * *]
+    ?.  =(wire wire.u.in)  [%skip ~]
+    [%done soup.u.in]
+  ==
 ::  HTTP client (iris) helpers
 ::
 ++  cancel-request

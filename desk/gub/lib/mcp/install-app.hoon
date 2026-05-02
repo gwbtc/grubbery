@@ -24,11 +24,11 @@
     (pure:m [%error 'Missing or invalid argument: desk'])
   =/  desk=@t  p.parsed
   =/  dek=@tas  (slav %tas desk)
-  ;<  =bowl:nexus  bind:m  get-bowl:io
+  ;<  our=@p  bind:m  get-our:io
   =/  src=@p
     ?~  ship-json=(~(get jo:json-utils [%o args.st]) /ship)
-      our.bowl
-    ?.  ?=([%s *] u.ship-json)  our.bowl
+      our
+    ?.  ?=([%s *] u.ship-json)  our
     (slav %p p.u.ship-json)
   ;<  ~  bind:m  (gall-poke-our:io %hood kiln-install+!>([dek src dek]))
   (pure:m [%text (crip "Installing %{(trip dek)} from {<src>}")])

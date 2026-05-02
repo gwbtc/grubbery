@@ -201,8 +201,8 @@
             %goal-create-store
           =/  name=@ta  !<(@ta q.sage)
           ~&  >  [%goals-main %creating name]
-          ;<  =bowl:nexus  bind:m  get-bowl:io
-          =/  store=goal-store:goals  (create-store:goals now.bowl)
+          ;<  now=@da  bind:m  get-time:io
+          =/  store=goal-store:goals  (create-store:goals now)
           =/  fname=@ta  (store-fname name)
           ;<  ~  bind:m
             (make:io [%| 0 %& /store fname] |+[%.n [[/ %goal-store] !>(store)] `%goal-store])
@@ -223,8 +223,8 @@
               %'create-store'
             =/  name=@ta  (~(dog jo:json-utils jon) /name so:dejs:format)
             ~&  >  [%goals-main %creating name]
-            ;<  =bowl:nexus  bind:m  get-bowl:io
-            =/  store=goal-store:goals  (create-store:goals now.bowl)
+            ;<  now=@da  bind:m  get-time:io
+            =/  store=goal-store:goals  (create-store:goals now)
             =/  fname=@ta  (store-fname name)
             ;<  ~  bind:m
               (make:io [%| 0 %& /store fname] |+[%.n [[/ %goal-store] !>(store)] `%goal-store])
@@ -237,7 +237,7 @@
               %'goal-action'
             =/  store-name=@ta  (~(dog jo:json-utils jon) /store so:dejs:format)
             =/  act-name=@t  (~(dog jo:json-utils jon) /type so:dejs:format)
-            ;<  =bowl:nexus  bind:m  get-bowl:io
+            ;<  now=@da  bind:m  get-time:io
             =/  act=action:goals
               ?+    act-name  ~|([%unknown-goal-action act-name] !!)
                   %'create'
@@ -310,18 +310,18 @@
           $
         =/  act=action:goals  !<(action:goals q.sage)
         ;<  store=goal-store:goals  bind:m  (get-state-as:io ,goal-store:goals)
-        ;<  =bowl:nexus  bind:m  get-bowl:io
+        ;<  now=@da  bind:m  get-time:io
         ::  auto-generate ID for create with empty id
         =/  act=action:goals
           ?.  ?=(%create -.act)  act
           ?.  =('' id.act)  act
-          =/  n=@da  now.bowl
+          =/  n=@da  now
           |-
           =/  gid=@ta  (crip (scow %uv `@uv`(mug n)))
           ?.  (~(has by store) gid)
             act(id gid)
           $(n (add n ~s0..0001))
-        =/  result  (apply:goals store act now.bowl)
+        =/  result  (apply:goals store act now)
         ;<  ~  bind:m  (replace:io !>(-.result))
         ~&  >  [%goals-store store-name %applied -.act]
         $

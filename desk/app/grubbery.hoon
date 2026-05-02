@@ -68,6 +68,13 @@
   ::  Ensure root lump with hardcoded neck (root nexus from lib, not code)
   =/  lmp=lump:tarball  (fall fil.ball *lump:tarball)
   =.  ball  ball(fil `lmp(neck `[/ %root]))
+  ::  Write /sys/bowl/ virtual files
+  =.  ball
+    (~(put ba:tarball ball) [/sys/bowl %our] [~ [/ %ship] !>(our.bowl)])
+  =.  ball
+    (~(put ba:tarball ball) [/sys/bowl %now] [~ [/ %time] !>(now.bowl)])
+  =.  ball
+    (~(put ba:tarball ball) [/sys/bowl %eny] [~ [/ %entropy] !>(eny.bowl)])
   ::  Compile code from Clay
   ~&  >>  "on-init: sync-gub"
   =^  gub-cards  state  abet:sync-gub:hc
@@ -109,6 +116,11 @@
       %0
     ::  Restore all state
     =.  state  old
+    ::  Write /sys/bowl/ virtual files — backfill on load
+    =.  ball
+      (~(put ba:tarball ball) [/sys/bowl %our] [~ [/ %ship] !>(our.bowl)])
+    =.  ball
+      (~(put ba:tarball ball) [/sys/bowl %eny] [~ [/ %entropy] !>(eny.bowl)])
     ::  Compile code from Clay (cascades nexus on-loads)
     ~&  >>  "on-load: sync-gub"
     =^  gub-cards  state  abet:sync-gub:hc
@@ -231,7 +243,7 @@
     ~&  >  [%grubbery %set-jael-source rl]
     =.  jael-source  `rl
     ::  Tell jael to listen to us
-    :-  [%pass /jael-listen %arvo %j %listen ~ [%| dap.bowl]]~
+    :-  [%pass /jael-listen %arvo %j %listen ~ [%| %grubbery]]~
     this
   ==
 ::
@@ -1469,6 +1481,7 @@
   ?~  here-path  ~
   $(here-path (snip `path`here-path))
 ::
+::
 ++  build-spool
   |=  here=rail:tarball
   ^-  (unit spool:fiber:nexus)
@@ -1489,6 +1502,9 @@
 ++  process-dart
   |=  [here=rail:tarball =dart:nexus]
   ^+  this
+  ::  %here does its own permission checks — skip weir pre-check
+  ?:  ?=(%here -.dart)
+    (handle-dart here dart ~)
   =/  [=jump:nexus dest=(unit lane:tarball)]  (dart-to-dest here dart)
   =/  =filt:nexus  (allowed jump here dest)
   ?+    filt  (handle-dart here dart filt)
@@ -1515,7 +1531,7 @@
 ++  dart-to-dest
   |=  [here=rail:tarball =dart:nexus]
   ^-  [jump:nexus (unit lane:tarball)]
-  ?+    -.dart  [%sysc ~]          :: %sysc, %scry, %bowl target system
+  ?+    -.dart  [%sysc ~]          :: %sysc, %scry, %here target system
       %node                        :: %node darts target a file/dir
     =/  dest-lane=(unit lane:tarball)  (lane-from-road:tarball [%& here] road.dart)
     :_  dest-lane
@@ -1644,6 +1660,26 @@
       (enqu-take here (sys-give /over) ~ %over wire.dart ~)
       ::
         %peek
+      ::  Refresh /sys/bowl/ virtual files on every peek
+      =.  ball
+        (~(put ba:tarball ball) [/sys/bowl %our] [~ [/ %ship] !>(our.bowl)])
+      =/  now-existing=(unit content:tarball)
+        (~(get ba:tarball ball) /sys/bowl %now)
+      =/  now-val=@da
+        ?~  now-existing  now.bowl
+        =/  prev=@da  !<(@da q.sage.u.now-existing)
+        ?:  (gte prev now.bowl)
+          (add prev (div ~s1 1.000))
+        now.bowl
+      =.  ball
+        (~(put ba:tarball ball) [/sys/bowl %now] [~ [/ %time] !>(now-val)])
+      =/  eny-existing=(unit content:tarball)
+        (~(get ba:tarball ball) /sys/bowl %eny)
+      =/  eny-val=@uvJ
+        ?~  eny-existing  eny.bowl
+        (shaz (cat 3 eny.bowl !<(@uvJ q.sage.u.eny-existing)))
+      =.  ball
+        (~(put ba:tarball ball) [/sys/bowl %eny] [~ [/ %entropy] !>(eny-val)])
       ::  Peek at dest - directory returns ball+sand, file returns cage
       ::  Returns %none if directory doesn't exist or has no lump
       ::  ver: if set, read historical version from hist via silo
@@ -1935,9 +1971,14 @@
       !>(.^(mold.u.scry.dart i.pat (scot %p our.bowl) i.t.pat (scot %da now.bowl) t.t.pat))
     (enqu-take here (sys-give /scry) ~ %scry wire.dart res)
     ::
-      %bowl
-    ::  Request bowl - build and enqueue
-    (enqu-take here (sys-give /bowl) ~ %bowl wire.dart (make-bowl here))
+      %here
+    ::  Request location — walk up, reveal as much as allowed
+    =/  loc=here:nexus  (walk-here here)
+    (enqu-take here (sys-give /here) ~ %here wire.dart loc)
+    ::
+      %soup
+    ::  Request filtered wex/sup for this process
+    (enqu-take here (sys-give /soup) ~ %soup wire.dart (make-soup here))
     ::
       %kept
     ::  Return this grub's outgoing subscriptions, relativized
@@ -2020,10 +2061,9 @@
   ?~  file-data  this  :: file doesn't exist
   =/  fil-state=vase  q.sage.u.file-data
   ::  Build bowl for this process (with filtered wex/sup)
-  =/  =bowl:nexus  (make-bowl here)
   ::  Run the evaluator (mule to catch hard crashes like !< mismatches)
   =/  eval-res=(each [darts=(list dart:nexus) done=(list took:eval:fiber:nexus) new-state=vase new-proc=proc:fiber:nexus res=result:eval:fiber:nexus] tang)
-    (mule |.((take:eval:fiber:nexus bowl fil-state proc)))
+    (mule |.((take:eval:fiber:nexus fil-state proc)))
   ?:  ?=(%| -.eval-res)
     ~&  >>  "process-take: eval crashed, banging {(spud (snoc path.here name.here))}"
     (bang-file here p.eval-res)
@@ -2209,11 +2249,37 @@
   =.  this  (notify old-born)
   ::  Re-check subscriptions from watchers under this weir
   (audit-weir dest)
+::  Walk up from a grub's rail, revealing path segments while allowed.
+::  Pant is in path order (outermost-first).
 ::
-++  make-bowl
+++  walk-here
   |=  here=rail:tarball
-  ^-  bowl:nexus
-  ::  Filter wex to only include outgoing subscriptions for this process
+  ^-  here:nexus
+  =/  remaining=path  path.here
+  =|  =pant:nexus
+  |-
+  ?~  remaining
+    ::  At root — check if allowed to peek root
+    =/  =filt:nexus  (allowed %peek here `[%| /])
+    [pant name.here !?=([~ %|] filt)]
+  =/  ancestor=path  (snip `path`remaining)
+  =/  dir=@ta  (rear remaining)
+  ::  Can this grub peek this ancestor directory?
+  =/  =filt:nexus  (allowed %peek here `[%| remaining])
+  ?:  ?=([~ %|] filt)
+    ::  Blocked — return what we have so far
+    [pant name.here %.n]
+  ::  Allowed — look up neck from ball's lump at this path
+  =/  sub=(unit ball:tarball)  (~(dap ba:tarball ball) remaining)
+  =/  neck=(unit neck:tarball)
+    ?~  sub  ~
+    ?~  fil.u.sub  ~
+    neck.u.fil.u.sub
+  $(remaining ancestor, pant [[dir neck] pant])
+::
+++  make-soup
+  |=  here=rail:tarball
+  ^-  soup:nexus
   =/  here-path=path  (snoc path.here name.here)
   =/  filtered-wex=boat:gall
     %-  ~(gas by *boat:gall)
@@ -2224,7 +2290,6 @@
     =/  proc-path=^path  (snoc path.proc-rail name.proc-rail)
     ?.  =(proc-path here-path)  ~
     [~ [orig-wire ship term] acked path]
-  ::  Filter sup to only include incoming subscriptions for this process
   =/  filtered-sup=bitt:gall
     %-  ~(gas by *bitt:gall)
     %+  murn  ~(tap by sup.bowl)
@@ -2234,7 +2299,7 @@
     =/  proc-path=^path  (snoc path.proc-rail name.proc-rail)
     ?.  =(proc-path here-path)  ~
     [~ duct ship sub]
-  [now our eny filtered-wex filtered-sup here dap byk]:[bowl .]
+  [filtered-wex filtered-sup]
 ::  Sandboxing / weir filtering
 ::
 ::  The "governor" is the nearest directory strictly ABOVE both source
@@ -2853,7 +2918,7 @@
 ++  sync-gub
   ^+  this
   ~&  >  "sync-gub: start"
-  =/  pax=path  /(scot %p our.bowl)/[q.byk.bowl]/(scot %da now.bowl)
+  =/  pax=path  /(scot %p our.bowl)/grubbery/(scot %da now.bowl)
   ::  Build the target ball for /code/
   =/  files=(list path)  .^((list path) %ct (weld pax /gub))
   =/  new-src=ball:tarball

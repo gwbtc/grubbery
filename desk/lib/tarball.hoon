@@ -906,6 +906,67 @@
   =/  data  ?~(data.i.tar 0^0 u.data.i.tar)
   $(tar t.tar, octs (octs-rap octs head data ~))
 ::
+++  oct-to-ud
+  |=  t=@t
+  ^-  @ud
+  =/  =tape  (trip t)
+  =/  clean=^tape  (skim tape |=(c=@t &((gte c '0') (lte c '7'))))
+  =|  acc=@ud
+  |-
+  ?~  clean  acc
+  $(acc (add (sub i.clean '0') (mul 8 acc)), clean t.clean)
+::
+++  decode-header
+  |=  block=octs
+  ^-  (unit tarball-header)
+  ?>  =(512 p.block)
+  ::  empty block (all zeros) signals end of archive
+  ?:  =(0 q.block)  ~
+  =/  get  |=([off=@ud len=@ud] `@t`(cut 3 [off len] q.block))
+  :-  ~
+  :*  (get 0 100)       :: name
+      (get 100 8)        :: mode
+      (get 108 8)        :: uid
+      (get 116 8)        :: gid
+      (get 124 12)       :: size
+      (get 136 12)       :: mtime
+      (get 156 1)        :: typeflag
+      (get 157 100)      :: linkname
+      (get 265 32)       :: uname
+      (get 297 32)       :: gname
+      (get 329 8)        :: devmajor
+      (get 337 8)        :: devminor
+      (get 345 155)      :: prefix
+  ==
+::
+++  decode-tarball
+  |=  data=octs
+  ^-  tarball
+  =|  entries=tarball
+  =/  pos=@ud  0
+  |-
+  ::  need at least 512 bytes for a header
+  ?:  (lth (sub p.data pos) 512)
+    (flop entries)
+  =/  header-block=octs  [512 (cut 3 [pos 512] q.data)]
+  =/  header=(unit tarball-header)  (decode-header header-block)
+  ?~  header
+    ::  empty header = end of archive
+    (flop entries)
+  =/  file-size=@ud  (oct-to-ud size.u.header)
+  ::  data follows header, padded to 512-byte boundary
+  =/  data-start=@ud  (add pos 512)
+  =/  padded-size=@ud
+    ?:  =(0 file-size)  0
+    (mul 512 (div (add file-size 511) 512))
+  =/  file-data=(unit octs)
+    ?:  =(0 file-size)  ~
+    `[file-size (cut 3 [data-start file-size] q.data)]
+  %=  $
+    pos  (add data-start padded-size)
+    entries  [[u.header file-data] entries]
+  ==
+::
 ++  split-path
   |=  =path
   ^-  [prefix=^path name=^path]
