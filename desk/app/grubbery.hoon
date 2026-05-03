@@ -1545,6 +1545,9 @@
     ::  Emit gall card directly (with wrapped wire/paths)
     ::  Exception: /http-response/ paths go to eyre unwrapped
     =/  =card  card.dart
+    ?:  ?=([%pass * %arvo %i %request *] card)
+      ~&  >>>  ["%grubbery HTTP OUT:" (spud (snoc path.here name.here)) method.request.q.card url.request.q.card]
+      (emit-card card(p (wrap-wire here p.card)))
     ?+    card  (emit-card card)
         [%pass *]
       (emit-card card(p (wrap-wire here p.card)))

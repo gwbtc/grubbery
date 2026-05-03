@@ -49,10 +49,11 @@
           ::  agent pokes here with {"text": "..."}, forwards to source
           ::
           [~ %'send.sig']
-        ~&  >  "%channel send.sig: on-file triggered"
+        ~&  >>  "%channel send.sig: fiber starting"
         ;<  ~  bind:m  (rise-wait:io prod "%channel send: failed")
         ;<  ~  bind:m  (send-dart:io %here /here)
         ;<  =here:nexus  bind:m  (take-here-raw:io /here)
+        ~&  >>  ["%channel send: here" here]
         =/  app-res=(unit bend:tarball)  (find-in-here:io here `[/claw %app])
         ?~  app-res
           ~&  >>>  "%channel send: cannot find parent /claw/app"
@@ -91,9 +92,11 @@
           ::  /relay.sig: bridge source inbound messages to inbox
           ::
           [~ %'relay.sig']
+        ~&  >>  "%channel relay: fiber starting"
         ;<  ~  bind:m  (rise-wait:io prod "%channel relay: failed")
         ;<  ~  bind:m  (send-dart:io %here /here)
         ;<  =here:nexus  bind:m  (take-here-raw:io /here)
+        ~&  >>  ["%channel relay: here" here]
         =/  app-res=(unit bend:tarball)  (find-in-here:io here `[/claw %app])
         ?~  app-res
           ~&  >>>  "%channel relay: cannot find parent /claw/app"
@@ -101,6 +104,7 @@
         =/  app-bend=bend:tarball  u.app-res
         ~&  >  ["%channel relay: found parent app at" app-bend]
         ;<  cfg=channel-config  bind:m  read-config
+        ~&  >>  ["%channel relay: config" source.cfg chat-id.cfg]
         ?:  |(=('' source.cfg) =('' chat-id.cfg))
           ~&  >>>  "%channel relay: missing config fields"
           stay:m
@@ -109,20 +113,28 @@
           =/  src=tape  (trip source.cfg)
           ?:  &(!=(~ src) =('/' (snag 0 src)))  src
           "{(render-bend app-bend)}{src}"
+        ~&  >>  ["%channel relay: source-prefix" source-prefix]
         =/  bot-msgs=road:tarball
           (cord-to-road:tarball (crip "{source-prefix}/messages/{(trip chat-id.cfg)}.json"))
+        ~&  >>  ["%channel relay: subscribing to" bot-msgs]
         ::  watch source messages
         ;<  bot-view=view:nexus  bind:m  (keep:io /bot-msgs bot-msgs ~)
+        ~&  >>  ["%channel relay: initial view" -.bot-view]
         =/  seen-count=@ud  (count-incoming bot-view)
-        ~&  >  ["%channel relay: started, seen" seen-count "messages"]
+        ~&  >>  ["%channel relay: started, seen" seen-count "messages"]
         |-
+        ~&  >>  "%channel relay: waiting for take-news..."
         ;<  upd=view:nexus  bind:m  (take-news:io /bot-msgs)
+        ~&  >>  ["%channel relay: got news!" -.upd]
         =/  new-count=@ud  (count-incoming upd)
+        ~&  >>  ["%channel relay: new-count" new-count "seen-count" seen-count]
         =/  new-msgs=(list [text=@t from=@t])
           (get-incoming-after upd seen-count)
         =.  seen-count  new-count
-        ?~  new-msgs  $
-        ~&  >  ["%channel relay: new messages" (lent new-msgs)]
+        ?~  new-msgs
+          ~&  >>  "%channel relay: no new incoming msgs after filter"
+          $
+        ~&  >>>  ["%channel relay: NEW MESSAGES" (lent new-msgs)]
         ::  append to inbox
         ;<  now=@da  bind:m  get-time:io
         =/  inbox-road=road:tarball  (cord-to-road:tarball './inbox.json')
@@ -141,7 +153,9 @@
               ['ts' s+(scot %da now)]
           ==
         =/  updated=json  [%a (weld cur-inbox new-entries)]
+        ~&  >>>  ["%channel relay: writing" (lent new-entries) "entries to inbox"]
         ;<  ~  bind:m  (over:io inbox-road [[/ %json] !>(updated)])
+        ~&  >>>  "%channel relay: inbox updated!"
         $
       ==
     ::

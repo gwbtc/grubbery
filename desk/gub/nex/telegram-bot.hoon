@@ -70,6 +70,7 @@
         =/  results=(unit json)  (~(get by p.resp) 'result')
         ?.  ?=([~ %a *] results)  $
         ?~  p.u.results  $
+        ~&  >>  ["%telegram-bot: got" (lent p.u.results) "updates from getUpdates"]
         ::  process updates, extract messages
         ::
         =/  new-messages=(list json)
@@ -114,6 +115,7 @@
           ==
         ::  compute new offset: max update_id + 1
         ::
+        ~&  >>  ["%telegram-bot: extracted" (lent new-messages) "new messages total"]
         =/  new-offset=@ud
           =/  max-id=@ud  0
           =/  updates=(list json)  p.u.results
@@ -159,6 +161,7 @@
             ?.  ?=([~ %s *] v)  cid
             ?:  =('' p.u.v)  cid
             p.u.v
+          ~&  >>  ["%telegram-bot: writing" (lent msgs) "msgs to chat" cid chat-name]
           ;<  ~  bind:m  (write-chat-file cid chat-name (weld old-msgs msgs))
           $(chat-list t.chat-list)
         ::  update offset

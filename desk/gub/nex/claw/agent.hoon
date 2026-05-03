@@ -28,7 +28,7 @@
               '  Fiber = a running process attached to a file. Your event loop.'
               ''
               'You are a fiber process running inside a claw agent nexus. Your nexus owns'
-              'a directory in the ball with all your files: conversations, prompts, code,'
+              'a directory in the ball with all your files: chat, prompts, code,'
               'tools, and children. Everything is persistent across sessions.'
               ''
               'IMPORTANT: You have reference documentation in your filesystem at ./context/docs/.'
@@ -45,8 +45,8 @@
               '  ./main.sig                 -- your event loop (pokes arrive here)'
               '  ./page.html                -- your web UI'
               '  ./context/'
+              '    chat.json               -- conversation log'
               '    prompts/                 -- system prompt files (concatenated alphabetically)'
-              '    conversations/           -- conversation logs (main.json, etc.)'
               '    memories/                -- persistent notes you write to remember things'
               '    docs/                    -- YOUR REFERENCE DOCS. Read these! (see above)'
               '  ./apps/                    -- your applications and code'
@@ -57,7 +57,7 @@
               '      mar/                   -- mark definitions'
               '  ./proc/tools/              -- active tool processes (DO NOT write source here)'
               '  ./children/                -- spawned child nexuses'
-              '  ./result.json              -- write here to return results to a parent task'
+              '  ./outbox.json              -- append-only log; finish tool writes here'
               ''
               '# Tools overview'
               ''
@@ -103,7 +103,7 @@
               '  The child gets its own conversation, runs the task, and returns the result.'
               '  Different from create_nexus: spawn_task creates another claw agent, while'
               '  create_nexus instantiates custom nexus code you wrote.'
-              '- finish: write result.json to return results to a parent (used by spawned tasks).'
+              '- finish: append to outbox.json to return results to a parent (used by spawned tasks).'
               ''
               '## Sandbox (weir)'
               'Weirs restrict what darts (effects) can pass through a directory.'
@@ -451,7 +451,7 @@
               '          config.json'
               '          main.sig           your event loop'
               '          context/'
-              '            conversations/'
+              '            chat.json       conversation log'
               '            prompts/'
               '            memories/'
               '            docs/            these docs'
@@ -582,10 +582,9 @@
         :~  (ver-row:loader 0)
             [%fall %& [/ %'config.json'] %.n [~ [/ %json] !>(default-config)]]
             [%over %& [/ %'main.sig'] %.n [~ [/ %sig] !>(~)]]
-            ::  /context: conversations and memory
+            ::  /context: chat and memory
             [%fall %| /context [~ ~] [~ ~] empty-dir:loader]
-            [%fall %| /context/conversations [~ ~] [~ ~] empty-dir:loader]
-            [%fall %& [/context/conversations %'main.json'] %.n [~ [/ %json] !>(default-conv)]]
+            [%fall %& [/context %'chat.json'] %.n [~ [/ %json] !>(default-conv)]]
             [%fall %| /context/prompts [~ ~] [~ ~] empty-dir:loader]
             [%fall %& [/context/prompts %'main.txt'] %.n [~ [/ %txt] !>(default-prompt)]]
             [%fall %| /context/memories [~ ~] [~ ~] empty-dir:loader]
@@ -603,14 +602,15 @@
             ::  /proc/tools: tool execution
             [%fall %| /proc [~ ~] [~ ~] empty-dir:loader]
             [%fall %| /proc/tools [~ ~] [~ ~] empty-dir:loader]
-            ::  /channels.json: map of conv name to channel road (relative to parent app)
-            [%fall %& [/ %'channels.json'] %.n [~ [/ %json] !>([%o ~])]]
+            ::  /channels.json: channel road for forwarding (relative to parent app)
+            [%fall %& [/ %'channels.json'] %.n [~ [/ %json] !>(s+'')]]
+            ::  /outbox.json: append-only result log
+            [%fall %& [/ %'outbox.json'] %.n [~ [/ %json] !>([%a ~])]]
             ::  /children: spawned child nexuses
             [%fall %| /children [~ ~] [~ ~] empty-dir:loader]
             ::  ui
-            [%fall %| /ui/sse [~ ~] [~ ~] empty-dir:loader]
-            [%over %& [/ui/sse %'convs.html'] %.n [~ [/ %manx] !>((convs-fragment "" ~['main']))]]
-            [%over %& [/ %'page.html'] %.n [~ [/ %manx] !>((chat-page "" ~['main']))]]
+            [%over %& [/ %'page.html'] %.n [~ [/ %manx] !>((chat-page ""))]]
+            [%over %& [/ %'status.json'] %.n [~ [/ %json] !>((pairs:enjs:format ~[['loading' b+%.n]]))]]
         ==
       ==
     ::
@@ -631,7 +631,9 @@
         ?-    -.main-event
             %news
           ::  deferred tool result arrived via subscription
-          =/  tid=@ta  ?>(?=(^ wire.main-event) i.wire.main-event)
+          ::  only handle /tool-done/* wires; ignore stale news from other subs
+          ?.  ?=([%'tool-done' @ ~] wire.main-event)  $
+          =/  tid=@ta  i.t.wire.main-event
           ?.  ?=(%file -.view.main-event)  $
           =/  tst=tool-state:nex-tools  !<(tool-state:nex-tools q.sage.view.main-event)
           ?.  =(%done step.tst)  $
@@ -639,21 +641,20 @@
           ;<  ~  bind:m  (drop:io /tool-done/[tid] tool-road)
           =/  result-text=@t  (extract-tool-result tst)
           ~&  >  ["%claw: deferred result for" tid]
-          =/  conv-key=@t  'main'
           ;<  config=json  bind:m  read-config
           =/  model=@t  (get-str config 'model')
-          =/  proxy=@t
+          =/  api-name=@t
             =/  p  (get-str config 'api-proxy')
-            ?:(=('' p) '../../apis/anthropic.json' p)
+            ?:(=('' p) 'anthropic' p)
           =/  ctx-window=@ud  (get-num config 'context_window' 80.000)
           =/  msg-cap=@ud  (get-num config 'message_cap' 20.000)
-          ;<  =convo  bind:m  (read-conv conv-key)
+          ;<  =convo  bind:m  read-chat
           =/  updated=^convo
             (snoc convo [%msg 'user' (crip "[spawn_task result]: {(trip result-text)}")])
-          ;<  ~  bind:m  (write-conv conv-key updated)
+          ;<  ~  bind:m  (write-chat updated)
           ;<  tools=(map @t tool:nex-tools)  bind:m  get-tools
-          ;<  final=^convo  bind:m  (agent-turn conv-key model proxy ctx-window msg-cap updated tools)
-          ;<  ~  bind:m  (forward-to-channel conv-key final updated)
+          ;<  final=^convo  bind:m  (agent-turn model api-name ctx-window msg-cap updated tools)
+          ;<  ~  bind:m  (forward-to-channel final updated)
           $
             %poke
           ~&  >>  ["%claw poke from:" from.main-event]
@@ -667,6 +668,11 @@
           =/  act=@t  (fall (bind (~(get by p.jon) 'action') |=(=json ?>(?=(%s -.json) p.json))) '')
           ~&  >>  ["%claw poke action:" act]
           ?+    act  $
+              %'interrupt'
+            ::  consumed by await-call-or-interrupt when in-flight; no-op otherwise
+            ~&  >  "%claw: interrupt (no request in-flight)"
+            $
+          ::
               %'set-model'
             =/  model=@t  (fall (bind (~(get by p.jon) 'model') |=(=json ?>(?=(%s -.json) p.json))) '')
             ;<  config=json  bind:m  read-config
@@ -678,82 +684,47 @@
           ::
               %'message'
             =/  content=@t  (fall (bind (~(get by p.jon) 'content') |=(=json ?>(?=(%s -.json) p.json))) '')
-            =/  conv-key=@t  (fall (bind (~(get by p.jon) 'conversation') |=(=json ?>(?=(%s -.json) p.json))) 'main')
-            ~&  >>  ["%claw message: conv" conv-key "content" content]
+            ~&  >>  ["%claw message:" content]
             ?:  =('' content)  $
-            ;<  finished=?  bind:m  (peek-exists:io (cord-to-road:tarball './result.json'))
-            ?:  finished
+            ;<  outbox=(list json)  bind:m  read-outbox
+            ?:  !=(~ outbox)
               ~&  >  "%claw: nexus finished, ignoring message"
               $
             ;<  config=json  bind:m  read-config
             =/  model=@t  (get-str config 'model')
-            =/  proxy=@t
+            =/  api-name=@t
               =/  p  (get-str config 'api-proxy')
-              ?:(=('' p) '../../apis/anthropic.json' p)
+              ?:(=('' p) 'anthropic' p)
             =/  ctx-window=@ud  (get-num config 'context_window' 80.000)
             =/  msg-cap=@ud  (get-num config 'message_cap' 20.000)
-            ::  read conversation, append user message
-            ;<  =convo  bind:m  (read-conv conv-key)
+            ::  read chat, append user message
+            ;<  =convo  bind:m  read-chat
             =/  updated=^convo  (snoc convo [%msg 'user' content])
-            ;<  ~  bind:m  (write-conv conv-key updated)
+            ;<  ~  bind:m  (write-chat updated)
             ::  discover tools
             ;<  tools=(map @t tool:nex-tools)  bind:m  get-tools
             ::  enter agent turn loop
-            ;<  final=^convo  bind:m  (agent-turn conv-key model proxy ctx-window msg-cap updated tools)
-            ;<  ~  bind:m  (forward-to-channel conv-key final updated)
+            ;<  final=^convo  bind:m  (agent-turn model api-name ctx-window msg-cap updated tools)
+            ;<  ~  bind:m  (forward-to-channel final updated)
             $
           ::
               %'clear'
-            =/  conv-key=@t  (fall (bind (~(get by p.jon) 'conversation') |=(=json ?>(?=(%s -.json) p.json))) 'main')
-            ;<  ~  bind:m  (write-conv conv-key ~)
-            ~&  >  "%claw: conversation cleared"
-            $
-          ::
-              %'new-conv'
-            =/  conv-key=@t
-              (fall (bind (~(get by p.jon) 'name') |=(=json ?>(?=(%s -.json) p.json))) '')
-            ?:  =('' conv-key)  $
-            ;<  ~  bind:m  (write-conv conv-key ~)
-            ~&  >  ["%claw: created conversation" conv-key]
-            $
-          ::
-              %'delete-conv'
-            =/  conv-key=@t
-              (fall (bind (~(get by p.jon) 'name') |=(=json ?>(?=(%s -.json) p.json))) '')
-            ?:  |(=('' conv-key) =(conv-key 'main'))  $
-            =/  conv-road=road:tarball
-              (cord-to-road:tarball (crip "./context/conversations/{(trip conv-key)}.json"))
-            ;<  ~  bind:m  (cull:io conv-road)
-            ~&  >  ["%claw: deleted conversation" conv-key]
+            ;<  ~  bind:m  (write-chat ~)
+            ~&  >  "%claw: chat cleared"
             $
           ::
               %'link-channel'
-            ::  {"action": "link-channel", "conversation": "foo", "channel": "telegram/main-bot"}
-            ~&  >>  "%claw: link-channel action received"
-            =/  conv-key=@t
-              (fall (bind (~(get by p.jon) 'conversation') |=(=json ?>(?=(%s -.json) p.json))) '')
+            ::  {"action": "link-channel", "channel": "telegram/main-bot"}
             =/  chan-road=@t
               (fall (bind (~(get by p.jon) 'channel') |=(=json ?>(?=(%s -.json) p.json))) '')
-            ~&  >>  ["%claw: link-channel" conv-key chan-road]
-            ?:  |(=('' conv-key) =('' chan-road))  $
-            ;<  channels=json  bind:m  read-channels
-            ~&  >>  ["%claw: current channels" channels]
-            =/  updated=json
-              [%o (~(put by ?>(?=(%o -.channels) p.channels)) conv-key s+chan-road)]
-            ;<  ~  bind:m  (write-channels updated)
-            ~&  >  ["%claw: linked" conv-key "to channel" chan-road]
+            ?:  =('' chan-road)  $
+            ;<  ~  bind:m  (write-channels s+chan-road)
+            ~&  >  ["%claw: linked to channel" chan-road]
             $
           ::
               %'unlink-channel'
-            ::  {"action": "unlink-channel", "conversation": "foo"}
-            =/  conv-key=@t
-              (fall (bind (~(get by p.jon) 'conversation') |=(=json ?>(?=(%s -.json) p.json))) '')
-            ?:  =('' conv-key)  $
-            ;<  channels=json  bind:m  read-channels
-            =/  updated=json
-              [%o (~(del by ?>(?=(%o -.channels) p.channels)) conv-key)]
-            ;<  ~  bind:m  (write-channels updated)
-            ~&  >  ["%claw: unlinked" conv-key "from channel"]
+            ;<  ~  bind:m  (write-channels s+'')
+            ~&  >  "%claw: unlinked from channel"
             $
           ==
         ==
@@ -780,23 +751,6 @@
             %error  (pairs:enjs:format ~[['type' s+'error'] ['message' s+message.result]])
           ==
         (replace:io !>(`tool-state:nex-tools`[tool.st args.st %done data.st `result-json]))
-          ::  /ui/sse/convs.html: live conv list fragment
-          ::
-          [[%ui %sse ~] %'convs.html']
-        ;<  ~  bind:m  (rise-wait:io prod "%claw sse/convs: failed")
-        ;<  here=rail:tarball  bind:m  get-here:io
-        =/  ball-id=tape
-          %-  zing
-          %+  join  "/"
-          ^-  (list tape)
-          (turn (scag (sub (lent path.here) 2) path.here) trip)
-        ;<  init=view:nexus  bind:m
-          (keep:io /convs (cord-to-road:tarball '../../context/conversations/') ~)
-        ;<  ~  bind:m  (replace:io !>((convs-fragment ball-id (read-conv-names init))))
-        |-
-        ;<  upd=view:nexus  bind:m  (take-news:io /convs)
-        ;<  ~  bind:m  (replace:io !>((convs-fragment ball-id (read-conv-names upd))))
-        $
           ::  /page.html: rendered chat page
           ::
           [~ %'page.html']
@@ -807,15 +761,8 @@
           %+  join  "/"
           ^-  (list tape)
           (turn path.here trip)
-        ;<  convs=view:nexus  bind:m
-          (keep:io /convs (cord-to-road:tarball './context/conversations/') ~)
-        =/  conv-names=(list @ta)  (read-conv-names convs)
-        ;<  ~  bind:m  (replace:io !>((chat-page ball-id conv-names)))
-        |-
-        ;<  upd=view:nexus  bind:m  (take-news:io /convs)
-        =/  conv-names=(list @ta)  (read-conv-names upd)
-        ;<  ~  bind:m  (replace:io !>((chat-page ball-id conv-names)))
-        $
+        ;<  ~  bind:m  (replace:io !>((chat-page ball-id)))
+        stay:m
       ==
     ::
     ++  on-manu
@@ -830,9 +777,10 @@
           %|
         ?+  rail.p.mana  'File under claw.'
           [~ %'config.json']     'LLM config: model selection.'
-          [~ %'channels.json']   'Map of conversation name to channel road (relative to parent app).'
+          [~ %'channels.json']   'Channel road for forwarding assistant messages.'
           [~ %'main.sig']        'Poke handler for config and messages.'
           [~ %'page.html']       'Chat interface.'
+          [~ %'status.json']     'Loading state: {loading: true/false}.'
         ==
       ==
     --
@@ -870,6 +818,24 @@
   ?~  val  default
   ?.  ?=(%n -.u.val)  default
   (fall (rush p.u.val dem) default)
+::
+++  resolve-proxy
+  |=  api-name=@t
+  =/  m  (fiber:fiber:nexus ,road:tarball)
+  ^-  form:m
+  ?:  =('' api-name)
+    (pure:m (cord-to-road:tarball ''))
+  ;<  ~  bind:m  (send-dart:io %here /resolve-proxy)
+  ;<  =here:nexus  bind:m  (take-here-raw:io /resolve-proxy)
+  =/  app-bend=(unit bend:tarball)
+    (find-in-here:io here `[/claw %app])
+  ?~  app-bend
+    ~&  >>>  "%claw: couldn't find /claw/app ancestor"
+    (pure:m (cord-to-road:tarball ''))
+  ::  find-in-here counts from pant which includes root name,
+  ::  but fiber paths don't include root, so subtract 1
+  =/  steps=@ud  (dec p.u.app-bend)
+  (pure:m [%| steps %& [~[%apis api-name] %'main.sig']])
 ::
 +$  main-event
   $%  [%poke =from:fiber:nexus =sage:tarball]
@@ -972,19 +938,38 @@
   ^-  form:m
   (over:io (cord-to-road:tarball './config.json') [[/ %json] !>(updated)])
 ::
-++  read-channels
-  =/  m  (fiber:fiber:nexus ,json)
+++  read-outbox
+  =/  m  (fiber:fiber:nexus ,(list json))
+  ^-  form:m
+  =/  road=road:tarball  (cord-to-road:tarball './outbox.json')
+  ;<  =seen:nexus  bind:m  (peek:io road ~)
+  ?.  ?=([%& %file *] seen)  (pure:m ~)
+  =/  jon=json  (fall (mole |.(!<(json q.sage.p.seen))) *json)
+  ?.  ?=(%a -.jon)  (pure:m ~)
+  (pure:m p.jon)
+::
+++  read-channel
+  =/  m  (fiber:fiber:nexus ,@t)
   ^-  form:m
   =/  road=road:tarball  (cord-to-road:tarball './channels.json')
   ;<  =seen:nexus  bind:m  (peek:io road ~)
-  ?.  ?=([%& %file *] seen)  (pure:m [%o ~])
-  (pure:m (fall (mole |.(!<(json q.sage.p.seen))) [%o ~]))
+  ?.  ?=([%& %file *] seen)  (pure:m '')
+  =/  jon=json  (fall (mole |.(!<(json q.sage.p.seen))) *json)
+  ?.  ?=(%s -.jon)  (pure:m '')
+  (pure:m p.jon)
 ::
 ++  write-channels
   |=  updated=json
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
   (over:io (cord-to-road:tarball './channels.json') [[/ %json] !>(updated)])
+::
+++  set-loading
+  |=  on=?
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  =/  status=json  (pairs:enjs:format ~[['loading' b+on]])
+  (over:io (cord-to-road:tarball './status.json') [[/ %json] !>(status)])
 ::
 ++  join-texts
   |=  texts=(list @t)
@@ -1028,22 +1013,11 @@
 ::  +forward-to-channel: if conv has a linked channel, send new assistant msgs
 ::
 ++  forward-to-channel
-  |=  [conv-key=@t final=convo before=convo]
+  |=  [final=convo before=convo]
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
-  ~&  >>  ["%claw forward: conv-key" conv-key "before-len" (lent before) "final-len" (lent final)]
-  ;<  channels=json  bind:m  read-channels
-  ~&  >>  ["%claw forward: channels.json" channels]
-  ?.  ?=(%o -.channels)
-    ~&  >>  "%claw forward: channels not an object, bailing"
-    (pure:m ~)
-  =/  chan-val=(unit json)  (~(get by p.channels) conv-key)
-  ~&  >>  ["%claw forward: lookup" conv-key "got" chan-val]
-  ?~  chan-val
-    ~&  >>  "%claw forward: no channel for this conv"
-    (pure:m ~)
-  ?.  ?=(%s -.u.chan-val)  (pure:m ~)
-  =/  chan-name=@t  p.u.chan-val
+  ;<  chan-name=@t  bind:m  read-channel
+  ?:  =('' chan-name)  (pure:m ~)
   ::  extract new assistant messages (final has more entries than before)
   =/  new-entries=(list entry)  (slag (lent before) final)
   =/  texts=(list @t)
@@ -1225,7 +1199,7 @@
 ::  sends prompt to API, handles tool_use responses, loops until end_turn
 ::
 ++  agent-turn
-  |=  [conv-key=@t model=@t proxy=@t ctx-window=@ud msg-cap=@ud =convo tools=(map @t tool:nex-tools)]
+  |=  [model=@t api-name=@t ctx-window=@ud msg-cap=@ud =convo tools=(map @t tool:nex-tools)]
   =/  m  (fiber:fiber:nexus ,^convo)
   ^-  form:m
   ~&  >>  "%claw agent-turn: start"
@@ -1277,25 +1251,48 @@
     (snoc body-pairs ['tools' (tools-to-json tools)])
   =/  payload=json  (pairs:enjs:format body-pairs)
   ~&  >  ["%claw: sending to" model]
-  ::  poke the anthropic proxy -- it adds auth and makes the HTTP call
-  =/  proxy-road=road:tarball  (cord-to-road:tarball proxy)
-  ~&  >>  ["%claw: proxy road" proxy-road]
-  ~&  >>  ["%claw: about to poke proxy"]
-  ;<  ~  bind:m  (poke:io proxy-road [/ %json] !>(payload))
-  ~&  >>  ["%claw: poke sent, waiting for response"]
-  ;<  =sage:tarball  bind:m  take-poke:io
-  ~&  >>  ["%claw: got response, mark:" name.p.sage]
-  =/  resp-json=json  (fall (mole |.(!<(json q.sage))) *json)
+  ::  call the api proxy via calls/ pattern
+  ;<  proxy=road:tarball  bind:m  (resolve-proxy api-name)
+  ;<  eny=@uvJ  bind:m  get-entropy:io
+  =/  call-id=@t  (scot %uv (end [3 8] eny))
+  =/  main-road=road:tarball  proxy
+  =/  call-road=road:tarball
+    ::  same bend as proxy but targeting calls/{id}.json instead of main.sig
+    ?>  ?=(%| -.proxy)
+    =/  steps=@ud  p.p.proxy
+    ^-  road:tarball
+    [%| steps %& [~[%apis api-name %calls] (crip "{(trip call-id)}.json")]]
+  ::  subscribe to call file before it exists
+  ;<  *  bind:m  (keep:io /api-call call-road ~)
+  ::  poke main.sig to create the call
+  =/  poke-body=json
+    (pairs:enjs:format ~[['id' s+call-id] ['body' payload]])
+  ;<  ~  bind:m  (poke:io main-road [/ %json] !>(poke-body))
+  ~&  >>  ["%claw: call" call-id "created, waiting for response"]
+  ::  set loading status
+  ;<  ~  bind:m  (set-loading %.y)
+  ::  wait for news with status=done, or interrupt poke
+  ;<  resp=(unit json)  bind:m  (await-call-or-interrupt /api-call)
+  ::  clear loading status
+  ;<  ~  bind:m  (set-loading %.n)
+  ::  drop subscription
+  ;<  ~  bind:m  (drop:io /api-call call-road)
+  ::  handle interrupt
+  ?~  resp
+    ~&  >  "%claw: interrupted"
+    =/  int-convo=^convo  (snoc convo [%msg 'assistant' '[interrupted]'])
+    ;<  ~  bind:m  (write-chat int-convo)
+    (pure:m int-convo)
   ::  parse API response from JSON
-  =/  parsed=(unit api-response)  (parse-json-response resp-json)
+  =/  parsed=(unit api-response)  (parse-json-response u.resp)
   ?~  parsed
     =/  raw=@t
-      ?:  =(*json resp-json)  'empty response (vase extraction failed)'
-      =/  full=tape  (trip (en:json:html resp-json))
+      ?:  =(*json u.resp)  'empty response (vase extraction failed)'
+      =/  full=tape  (trip (en:json:html u.resp))
       (crip ?:((lth (lent full) 200) full (weld (scag 200 full) "...")))
     =/  err-msg=@t  (crip "Error: failed to parse API response: {(trip raw)}")
     =/  err-convo=^convo  (snoc convo [%msg 'assistant' err-msg])
-    ;<  ~  bind:m  (write-conv conv-key err-convo)
+    ;<  ~  bind:m  (write-chat err-convo)
     (pure:m err-convo)
   ::  append all content blocks as entries
   =/  updated=^convo
@@ -1309,16 +1306,16 @@
   =/  calls=(list content-block)
     (skim content-blocks.u.parsed |=(=content-block ?=(%tool-use -.content-block)))
   ?~  calls
-    ;<  ~  bind:m  (write-conv conv-key updated)
+    ;<  ~  bind:m  (write-chat updated)
     (pure:m updated)
   ::  execute tools, append results
   ~&  >  ["%claw: executing" (lent calls) "tool calls"]
-  ;<  results=(list [@t @t])  bind:m  (run-tool-calls calls conv-key)
+  ;<  results=(list [@t @t])  bind:m  (run-tool-calls calls)
   =/  with-results=^convo
     %+  roll  results
     |=  [[id=@t result=@t] acc=_updated]
     (snoc acc [%tool-result id result])
-  ;<  ~  bind:m  (write-conv conv-key with-results)
+  ;<  ~  bind:m  (write-chat with-results)
   $(convo with-results)
 ::
 ::  +run-tool-calls: execute tool calls via /tools grubs
@@ -1329,7 +1326,7 @@
 ::  If %done, the tool completed synchronously -- subscription dropped.
 ::
 ++  run-tool-calls
-  |=  [calls=(list content-block) conv-key=@t]
+  |=  calls=(list content-block)
   =/  m  (fiber:fiber:nexus ,(list [@t @t]))
   ^-  form:m
   =/  results=(list [@t @t])  ~
@@ -1339,7 +1336,7 @@
   ?>  ?=(%tool-use -.call)
   =/  tool-args=(map @t json)
     ?.  ?=(%o -.input.call)  ~
-    (~(put by p.input.call) '_conv_key' s+conv-key)
+    p.input.call
   =/  ts=tool-state:nex-tools
     [name.call tool-args %start ~ ~]
   =/  tid=@ta  id.call
@@ -1386,6 +1383,41 @@
     (crip "ERROR: {(trip err)}")
   (fall (bind (~(get by p.u.update.st) 'text') |=(j=json ?>(?=(%s -.j) p.j))) '')
 ::
+::  +await-call-or-interrupt: wait for call response OR interrupt poke
+::
+::  Returns (some json) on API response, ~ on interrupt.
+::  Listens for both news on the call subscription wire and interrupt pokes.
+::
+++  await-call-or-interrupt
+  |=  =wire
+  =/  m  (fiber:fiber:nexus ,(unit json))
+  ^-  form:m
+  |=  input:fiber:nexus
+  :+  ~  state
+  ?+  in  [%skip ~]
+      ~  [%wait ~]
+      [~ %veto *]
+    [%fail (veto-error:io dart.u.in)]
+    ::  interrupt poke — return ~
+    ::
+      [~ %poke * *]
+    =/  jon=json  (fall (mole |.(!<(json q.sage.u.in))) *json)
+    ?.  ?=(%o -.jon)  [%skip ~]
+    =/  act=(unit json)  (~(get by p.jon) 'action')
+    ?.  ?=([~ %s %'interrupt'] act)  [%skip ~]
+    [%done ~]
+    ::  news on call subscription — check for status=done
+    ::
+      [~ %news * *]
+    ?.  =(wire wire.u.in)  [%skip ~]
+    ?.  ?=(%file -.view.u.in)  [%skip ~]
+    =/  jon=json  (fall (mole |.(!<(json q.sage.view.u.in))) *json)
+    ?.  ?=(%o -.jon)  [%skip ~]
+    =/  status=(unit json)  (~(get by p.jon) 'status')
+    ?.  ?=([~ %s %'done'] status)  [%skip ~]
+    =/  resp=json  (fall (~(get by p.jon) 'response') [%o ~])
+    [%done `resp]
+  ==
 ::
 ::  API response types
 ::
@@ -1445,29 +1477,21 @@
     ~
   `[stop blocks]
 ::
-++  read-conv
-  |=  key=@t
+++  read-chat
   =/  m  (fiber:fiber:nexus ,convo)
   ^-  form:m
-  =/  road=road:tarball  (cord-to-road:tarball (crip "./context/conversations/{(trip key)}.json"))
-  ;<  exists=?  bind:m  (peek-exists:io road)
-  ?.  exists  (pure:m ~)
+  =/  road=road:tarball  (cord-to-road:tarball './context/chat.json')
   ;<  =seen:nexus  bind:m  (peek:io road ~)
   ?.  ?=([%& %file *] seen)  (pure:m ~)
   =/  jon=json  (fall (mole |.(!<(json q.sage.p.seen))) *json)
   (pure:m (parse-convo jon))
 ::
-::
-++  write-conv
-  |=  [key=@t =convo]
+++  write-chat
+  |=  =convo
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
-  =/  road=road:tarball  (cord-to-road:tarball (crip "./context/conversations/{(trip key)}.json"))
-  =/  jon=json  (convo-to-json convo)
-  ;<  exists=?  bind:m  (peek-exists:io road)
-  ?:  exists
-    (over:io road [[/ %json] !>(jon)])
-  (make:io road |+[%.n [[/ %json] !>(jon)] ~])
+  =/  road=road:tarball  (cord-to-road:tarball './context/chat.json')
+  (over:io road [[/ %json] !>((convo-to-json convo))])
 ::
 ++  parse-convo
   |=  jon=json
@@ -1728,36 +1752,9 @@
   (max 1 (div chars 4))
 ::
 ::
-++  read-conv-names
-  |=  =view:nexus
-  ^-  (list @ta)
-  ?.  ?=(%ball -.view)  ~
-  ?~  fil.ball.view  ~
-  =/  files=(list @ta)  ~(tap in ~(key by contents.u.fil.ball.view))
-  =/  names=(list @ta)
-    %+  murn  files
-    |=  f=@ta
-    ^-  (unit @ta)
-    =/  t=tape  (trip f)
-    ?.  =(".json" (slag (sub (lent t) 5) t))  ~
-    `(crip (scag (sub (lent t) 5) t))
-  (sort names aor)
-::
-++  convs-fragment
-  |=  [ball-id=tape convs=(list @ta)]
-  ^-  manx
-  ;div(id "sse-convs")
-    ;*  %+  turn  convs
-        |=  c=@ta
-        =/  n=tape  (trip c)
-        ;div.conv-item(data-conv n)
-          ;span.conv-name(onclick "switchConv('{n}')"): {n}
-          ;span.conv-del(onclick "deleteConv('{n}')"): ×
-        ==
-  ==
 ::
 ++  chat-page
-  |=  [ball-id=tape convs=(list @ta)]
+  |=  ball-id=tape
   ^-  manx
   ;html
     ;head
@@ -1775,8 +1772,10 @@
             ;h1: claw
             ;div.f3.mono.s-2: AI agent nexus
           ==
-          ;button#channels-btn.hdr-btn: channels
-          ;button#config-btn.hdr-btn: config
+          ;div
+            ;button#clear-btn.hdr-btn: clear
+            ;button#config-btn.hdr-btn: config
+          ==
         ==
         ;div#cfg-backdrop
           ;div#cfg-modal
@@ -1793,42 +1792,21 @@
             ;input#cfg-window(type "number", placeholder "80000");
             ;label.cfg-label: Message cap (tokens)
             ;input#cfg-msgcap(type "number", placeholder "20000");
+            ;label.cfg-label: API proxy (e.g. anthropic)
+            ;input#cfg-proxy(type "text", placeholder "anthropic");
+            ;label.cfg-label: Channel (e.g. telegram/main-bot)
+            ;input#cfg-channel(type "text", placeholder "leave empty for none");
             ;div#cfg-status;
           ==
         ==
-        ;div#ch-backdrop
-          ;div#ch-modal
-            ;div#ch-header
-              ;span: Channels
-              ;div
-                ;button#ch-save.hdr-btn: save
-                ;button#ch-close.hdr-btn: close
-              ==
-            ==
-            ;textarea#ch-editor(rows "10", style "width:100%;font-family:monospace;font-size:12px;background:#1a1a2e;color:#e0e0e0;border:1px solid #333;border-radius:4px;padding:8px;resize:vertical;");
-            ;div#ch-status;
-          ==
-        ==
-        ;div#layout
-          ;div#sidebar
-            ;button#new-conv-btn(onclick "newConv()"): + new chat
-            ;div#conv-list
-              ;*  %+  turn  convs
-                  |=  c=@ta
-                  =/  n=tape  (trip c)
-                  ;div.conv-item(data-conv n)
-                    ;span.conv-name(onclick "switchConv('{n}')"): {n}
-                    ;span.conv-del(onclick "deleteConv('{n}')"): ×
-                  ==
-            ==
-          ==
-          ;div#main
-            ;div#messages;
-            ;form#prompt-form(onsubmit "sendMessage(event)")
-              ;div.input-row
-                ;input#input(type "text", placeholder "Say something...", autocomplete "off");
-                ;button(type "submit"): Send
-              ==
+        ;div#main
+          ;div#messages;
+          ;div#loading;
+          ;form#prompt-form(onsubmit "sendMessage(event)")
+            ;div.input-row
+              ;input#input(type "text", placeholder "Say something...", autocomplete "off");
+              ;button#stop-btn(type "button"): Stop
+              ;button(type "submit"): Send
             ==
           ==
         ==
@@ -1845,28 +1823,10 @@
   * \{ margin: 0; padding: 0; box-sizing: border-box; }
   body \{ font-family: -apple-system, system-ui, sans-serif; background: #111; color: #eee; height: 100vh; }
   #app \{ display: flex; flex-direction: column; height: 100vh; }
-  #header \{ padding: 12px 16px; border-bottom: 1px solid #333; flex-shrink: 0; }
+  #header \{ padding: 12px 16px; border-bottom: 1px solid #333; flex-shrink: 0; display: flex; justify-content: space-between; align-items: flex-start; }
   #header h1 \{ font-size: 20px; font-weight: 700; }
-  #layout \{ display: flex; flex: 1; overflow: hidden; }
-  #sidebar \{ width: 180px; border-right: 1px solid #333; overflow-y: auto; flex-shrink: 0; padding: 8px 0; display: flex; flex-direction: column; }
-  #new-conv-btn \{ margin: 4px 8px 8px; padding: 6px 10px; border-radius: 6px; border: 1px solid #333; background: none; color: #888; font-size: 12px; cursor: pointer; }
-  #new-conv-btn:hover \{ color: #eee; border-color: #666; }
-  #conv-list \{ flex: 1; overflow-y: auto; }
-  .conv-item \{ display: flex; justify-content: space-between; align-items: center; padding: 0 4px 0 0; border-left: 2px solid transparent; }
-  .conv-item:hover \{ background: #1a1a1a; }
-  .conv-item.active \{ border-left-color: #2563eb; background: #1a1a2e; }
-  .conv-name \{ flex: 1; padding: 8px 12px; cursor: pointer; font-size: 13px; color: #888; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .conv-item:hover .conv-name \{ color: #eee; }
-  .conv-item.active .conv-name \{ color: #60a5fa; }
-  .conv-del \{ display: none; font-size: 14px; color: #555; cursor: pointer; padding: 4px 6px; }
-  .conv-item:hover .conv-del \{ display: block; }
-  .conv-del:hover \{ color: #f87171; }
-  .conv-chan \{ display: none; font-size: 11px; color: #555; cursor: pointer; padding: 4px 4px; }
-  .conv-item:hover .conv-chan \{ display: block; }
-  .conv-chan:hover \{ color: #60a5fa; }
-  .conv-chan.linked \{ display: block; color: #4ade80; }
-  .conv-chan.linked:hover \{ color: #f87171; }
-  #main \{ flex: 1; display: flex; flex-direction: column; overflow: hidden; max-width: 700px; margin: 0 auto; padding: 0 16px; }
+  #header > div \{ display: flex; gap: 6px; }
+  #main \{ flex: 1; display: flex; flex-direction: column; overflow: hidden; max-width: 700px; width: 100%; margin: 0 auto; padding: 0 16px; }
   #messages \{ flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding: 8px 0; }
   .msg \{ padding: 8px 12px; border-radius: 8px; max-width: 85%; white-space: pre-wrap; word-wrap: break-word; font-size: 14px; line-height: 1.5; }
   .msg.user \{ background: #2563eb; color: white; align-self: flex-end; }
@@ -1883,19 +1843,25 @@
   .f3 \{ color: #888; }
   .mono \{ font-family: monospace; }
   .s-2 \{ font-size: 12px; }
-  #header \{ display: flex; justify-content: space-between; align-items: flex-start; }
   .hdr-btn \{ font-size: 11px; padding: 4px 10px; border-radius: 4px; border: 1px solid #444; background: none; color: #888; cursor: pointer; }
   .hdr-btn:hover \{ color: #eee; border-color: #666; }
-  #cfg-backdrop, #ch-backdrop \{ display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); z-index: 100; }
-  #cfg-backdrop.open, #ch-backdrop.open \{ display: flex; align-items: center; justify-content: center; }
-  #cfg-modal, #ch-modal \{ background: #1a1a1a; border: 1px solid #333; border-radius: 8px; width: 90%; max-width: 400px; padding: 20px; }
-  #cfg-header, #ch-header \{ display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
-  #cfg-header span, #ch-header span \{ font-size: 14px; font-weight: 600; }
-  #cfg-header div, #ch-header div \{ display: flex; gap: 6px; }
+  #cfg-backdrop \{ display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); z-index: 100; }
+  #cfg-backdrop.open \{ display: flex; align-items: center; justify-content: center; }
+  #cfg-modal \{ background: #1a1a1a; border: 1px solid #333; border-radius: 8px; width: 90%; max-width: 400px; padding: 20px; }
+  #cfg-header \{ display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+  #cfg-header span \{ font-size: 14px; font-weight: 600; }
+  #cfg-header div \{ display: flex; gap: 6px; }
   .cfg-label \{ display: block; font-size: 12px; color: #888; margin: 12px 0 4px; }
-  #cfg-model, #cfg-window, #cfg-msgcap \{ width: 100%; padding: 8px 10px; border-radius: 6px; border: 1px solid #333; background: #111; color: #eee; font-size: 13px; font-family: monospace; outline: none; box-sizing: border-box; }
-  #cfg-model:focus, #cfg-window:focus, #cfg-msgcap:focus \{ border-color: #2563eb; }
+  #cfg-model, #cfg-window, #cfg-msgcap, #cfg-proxy, #cfg-channel \{ width: 100%; padding: 8px 10px; border-radius: 6px; border: 1px solid #333; background: #111; color: #eee; font-size: 13px; font-family: monospace; outline: none; box-sizing: border-box; }
+  #cfg-model:focus, #cfg-window:focus, #cfg-msgcap:focus, #cfg-proxy:focus, #cfg-channel:focus \{ border-color: #2563eb; }
   #cfg-status \{ margin-top: 10px; font-size: 12px; color: #4ade80; }
+  #loading \{ height: 2px; background: transparent; overflow: hidden; flex-shrink: 0; }
+  #loading.active \{ background: #333; }
+  #loading.active::after \{ content: ''; display: block; height: 100%; width: 30%; background: #2563eb; animation: slide 1s ease-in-out infinite; }
+  @keyframes slide \{ 0% \{ transform: translateX(-100%); } 100% \{ transform: translateX(400%); } }
+  #stop-btn \{ display: none; background: none; color: #f87171; border: 1px solid #f87171; padding: 10px 16px; }
+  #stop-btn:hover \{ background: rgba(248,113,113,0.1); }
+  #stop-btn.active \{ display: block; }
   """
 ::
 ++  script-text
@@ -1914,10 +1880,7 @@
     for (var i = 0; i < entries.length; i++) \{
       var e = entries[i];
       var div = document.createElement('div');
-      if (e.type === 'sum') \{
-        div.className = 'msg system';
-        div.textContent = e.content || '[summary pending]';
-      } else if (e.type === 'tool_use') \{
+      if (e.type === 'tool_use') \{
         div.className = 'msg system';
         div.textContent = '[tool] ' + e.name;
       } else if (e.type === 'tool_result') \{
@@ -1936,7 +1899,6 @@
     el.scrollTop = el.scrollHeight;
   }
 
-  var curConv = 'main';
   var sseCtrl = null;
   var sseRdr = null;
 
@@ -1949,108 +1911,81 @@
     fetch(API + '/poke/' + BALL + '/main.sig?mark=json', \{
       method: 'POST',
       headers: \{'Content-Type': 'application/json'},
-      body: JSON.stringify(\{action: 'message', content: text, conversation: curConv})
+      body: JSON.stringify(\{action: 'message', content: text})
     });
   }
 
-  function switchConv(key) \{
-    curConv = key;
-    var items = document.querySelectorAll('.conv-item');
-    items.forEach(function(el) \{
-      el.classList.toggle('active', el.dataset.conv === key);
-    });
-    document.getElementById('messages').innerHTML = '';
-    fetch(API + '/file/' + BALL + '/context/conversations/' + key + '.json?mark=json')
-      .then(function(r) \{ return r.json() })
-      .then(renderMessages)
-      .catch(function() \{});
-    connectSSE();
-  }
-
-  function newConv() \{
-    var n = prompt('Conversation name:');
-    if (!n) return;
-    n = n.trim().replace(/[^a-z0-9_-]/gi, '-').toLowerCase();
-    if (!n) return;
+  document.getElementById('clear-btn').onclick = function() \{
+    if (!confirm('Clear chat?')) return;
     fetch(API + '/poke/' + BALL + '/main.sig?mark=json', \{
       method: 'POST',
       headers: \{'Content-Type': 'application/json'},
-      body: JSON.stringify(\{action: 'new-conv', name: n})
+      body: JSON.stringify(\{action: 'clear'})
     });
-    setTimeout(function() \{ switchConv(n); }, 300);
-  }
+  };
 
-  function deleteConv(n) \{
-    if (n === 'main') return;
-    if (!confirm('Delete conversation ' + n + '?')) return;
+  // config modal
+  document.getElementById('config-btn').onclick = function() \{
+    fetch(API + '/file/' + BALL + '/config.json?mark=json')
+      .then(function(r) \{ return r.json() })
+      .then(function(cfg) \{
+        document.getElementById('cfg-model').value = cfg.model || '';
+        document.getElementById('cfg-proxy').value = cfg['api-proxy'] || 'anthropic';
+        document.getElementById('cfg-window').value = cfg.context_window || '80000';
+        document.getElementById('cfg-msgcap').value = cfg.message_cap || '20000';
+      }).catch(function() \{});
+    fetch(API + '/file/' + BALL + '/channels.json?mark=json')
+      .then(function(r) \{ return r.json() })
+      .then(function(ch) \{
+        document.getElementById('cfg-channel').value = (typeof ch === 'string') ? ch : '';
+      }).catch(function() \{});
+    document.getElementById('cfg-backdrop').classList.add('open');
+  };
+  document.getElementById('cfg-close').onclick = function() \{
+    document.getElementById('cfg-backdrop').classList.remove('open');
+  };
+  document.getElementById('cfg-save').onclick = function() \{
+    var model = document.getElementById('cfg-model').value.trim();
+    var proxy = document.getElementById('cfg-proxy').value.trim() || 'anthropic';
+    var win = parseInt(document.getElementById('cfg-window').value) || 80000;
+    var cap = parseInt(document.getElementById('cfg-msgcap').value) || 20000;
+    var channel = document.getElementById('cfg-channel').value.trim();
     fetch(API + '/poke/' + BALL + '/main.sig?mark=json', \{
       method: 'POST',
       headers: \{'Content-Type': 'application/json'},
-      body: JSON.stringify(\{action: 'delete-conv', name: n})
+      body: JSON.stringify(\{action: 'set-model', model: model})
     });
-    if (curConv === n) switchConv('main');
-  }
-
-  var channels = \{};
-
-  function loadChannels() \{
-    return fetch(API + '/file/' + BALL + '/channels.json?mark=json')
-      .then(function(r) \{ return r.json() })
-      .then(function(j) \{ channels = j || \{}; decorateConvs(); })
-      .catch(function() \{});
-  }
-
-  function decorateConvs() \{
-    document.querySelectorAll('.conv-item').forEach(function(el) \{
-      var name = el.dataset.conv;
-      var btn = el.querySelector('.conv-chan');
-      if (!btn) \{
-        btn = document.createElement('span');
-        btn.className = 'conv-chan';
-        btn.onclick = function(e) \{ e.stopPropagation(); toggleChannel(name); };
-        el.querySelector('.conv-del').before(btn);
-      }
-      if (channels[name]) \{
-        btn.className = 'conv-chan linked';
-        btn.textContent = '#';
-        btn.title = channels[name];
-      } else \{
-        btn.className = 'conv-chan';
-        btn.textContent = '#';
-        btn.title = 'Link to channel';
-      }
+    fetch(API + '/over/' + BALL + '/config.json?mark=json', \{
+      method: 'POST',
+      headers: \{'Content-Type': 'application/json'},
+      body: JSON.stringify(\{model: model, 'api-proxy': proxy, context_window: win, message_cap: cap})
     });
-  }
-
-  function toggleChannel(name) \{
-    if (channels[name]) \{
-      if (!confirm('Unlink ' + name + ' from channel ' + channels[name] + '?')) return;
+    if (channel) \{
       fetch(API + '/poke/' + BALL + '/main.sig?mark=json', \{
         method: 'POST',
         headers: \{'Content-Type': 'application/json'},
-        body: JSON.stringify(\{action: 'unlink-channel', conversation: name})
-      }).then(function() \{ return loadChannels(); });
+        body: JSON.stringify(\{action: 'link-channel', channel: channel})
+      });
     } else \{
-      var ch = prompt('Channel path (e.g. telegram/main-bot):');
-      if (!ch) return;
       fetch(API + '/poke/' + BALL + '/main.sig?mark=json', \{
         method: 'POST',
         headers: \{'Content-Type': 'application/json'},
-        body: JSON.stringify(\{action: 'link-channel', conversation: name, channel: ch})
-      }).then(function() \{ return loadChannels(); });
+        body: JSON.stringify(\{action: 'unlink-channel'})
+      });
     }
-  }
-
-  // mark initial active conversation
-  var first = document.querySelector('.conv-item[data-conv="main"]') || document.querySelector('.conv-item');
-  if (first) first.classList.add('active');
+    document.getElementById('cfg-status').textContent = 'saved';
+    setTimeout(function() \{
+      document.getElementById('cfg-status').textContent = '';
+      document.getElementById('cfg-backdrop').classList.remove('open');
+    }, 800);
+  };
 
   async function connectSSE() \{
     if (sseRdr) try \{ sseRdr.cancel(); } catch(e) \{}
     if (sseCtrl) sseCtrl.abort();
     sseCtrl = new AbortController();
     try \{
-      var r = await fetch(API + '/keep/' + BALL + '/context/conversations/' + curConv + '.json?mark=json', \{
+      var r = await fetch(API + '/keep/' + BALL + '/context/chat.json?mark=json', \{
         headers: \{Accept: 'text/event-stream'},
         signal: sseCtrl.signal
       });
@@ -2082,157 +2017,47 @@
     }
   }
 
-  // SSE for conv list updates
-  var convCtrl = null;
-  var convRdr = null;
-
-  async function connectConvSSE() \{
-    if (convRdr) try \{ convRdr.cancel(); } catch(e) \{}
-    if (convCtrl) convCtrl.abort();
-    convCtrl = new AbortController();
-    try \{
-      var r = await fetch(API + '/keep/' + BALL + '/ui/sse?mark=txt', \{
-        headers: \{Accept: 'text/event-stream'},
-        signal: convCtrl.signal
-      });
-      convRdr = r.body.getReader();
-      var dec = new TextDecoder();
-      var buf = '';
-      while (true) \{
-        var chunk = await convRdr.read();
-        if (chunk.done) break;
-        buf += dec.decode(chunk.value, \{stream: true});
-        var parts = buf.split('\\n\\n');
-        buf = parts.pop();
-        for (var i = 0; i < parts.length; i++) \{
-          if (!parts[i].trim()) continue;
-          var ev = '', data = '', ls = parts[i].split('\\n');
-          for (var j = 0; j < ls.length; j++) \{
-            if (ls[j].indexOf('event: ') === 0) ev = ls[j].slice(7);
-            else if (ls[j].indexOf('data: ') === 0) data += ls[j].slice(6);
-          }
-          if (!ev) continue;
-          var sp = ev.indexOf(' ');
-          if (sp < 0) continue;
-          var act = ev.slice(0, sp);
-          if (act === 'old') continue;
-          if (!data) continue;
-          var tmp = document.createElement('div');
-          tmp.innerHTML = data;
-          var frag = tmp.firstElementChild;
-          if (frag && frag.id === 'sse-convs') \{
-            var el = document.getElementById('conv-list');
-            if (el) \{
-              el.innerHTML = frag.innerHTML;
-              var a = el.querySelector('[data-conv="' + curConv + '"]');
-              if (a) a.classList.add('active');
-              decorateConvs();
-            }
-          }
-        }
-      }
-    } catch(e) \{
-      if (e.name !== 'AbortError') setTimeout(connectConvSSE, 2000);
-    }
-  }
-
   window.addEventListener('beforeunload', function() \{
     if (sseRdr) try \{ sseRdr.cancel(); } catch(e) \{}
     if (sseCtrl) sseCtrl.abort();
-    if (convRdr) try \{ convRdr.cancel(); } catch(e) \{}
-    if (convCtrl) convCtrl.abort();
   });
 
-  // Load initial conversation
-  fetch(API + '/file/' + BALL + '/context/conversations/main.json?mark=json')
+  // Stop button
+  var stopBtn = document.getElementById('stop-btn');
+  stopBtn.onclick = function() \{
+    fetch(API + '/poke/' + BALL + '/main.sig?mark=json', \{
+      method: 'POST',
+      headers: \{'Content-Type': 'application/json'},
+      body: JSON.stringify(\{action: 'interrupt'})
+    });
+  };
+
+  // Status SSE
+  function connectStatusSSE() \{
+    var es = new EventSource(API + '/keep/' + BALL + '/status.json?mark=json');
+    es.addEventListener('upd status.json', function(e) \{
+      try \{
+        var s = JSON.parse(e.data);
+        var ld = document.getElementById('loading');
+        if (s.loading) \{
+          ld.classList.add('active');
+          stopBtn.classList.add('active');
+        } else \{
+          ld.classList.remove('active');
+          stopBtn.classList.remove('active');
+        }
+      } catch(x) \{}
+    });
+    es.onerror = function() \{ es.close(); setTimeout(connectStatusSSE, 2000); };
+  }
+
+  // Load chat
+  fetch(API + '/file/' + BALL + '/context/chat.json?mark=json')
     .then(function(r) \{ return r.json() })
     .then(renderMessages)
     .catch(function() \{});
   connectSSE();
-  connectConvSSE();
-  loadChannels();
-
-  // Config modal
-  var cfgBack = document.getElementById('cfg-backdrop');
-  var cfgModel = document.getElementById('cfg-model');
-  var cfgWindow = document.getElementById('cfg-window');
-  var cfgMsgcap = document.getElementById('cfg-msgcap');
-  var cfgStatus = document.getElementById('cfg-status');
-
-  document.getElementById('config-btn').onclick = function() \{
-    cfgStatus.textContent = '';
-    fetch(API + '/file/' + BALL + '/config.json?mark=json')
-      .then(function(r) \{ return r.json() })
-      .then(function(j) \{
-        cfgModel.value = j['model'] || '';
-        cfgWindow.value = j['context_window'] || 80000;
-        cfgMsgcap.value = j['message_cap'] || 20000;
-      }).catch(function() \{});
-    cfgBack.classList.add('open');
-  };
-
-  document.getElementById('cfg-close').onclick = function() \{
-    cfgBack.classList.remove('open');
-  };
-
-  cfgBack.onclick = function(e) \{
-    if (e.target === cfgBack) cfgBack.classList.remove('open');
-  };
-
-  document.getElementById('cfg-save').onclick = async function() \{
-    var cfg = \{'model': cfgModel.value, 'context_window': parseInt(cfgWindow.value) || 80000, 'message_cap': parseInt(cfgMsgcap.value) || 20000};
-    var r = await fetch(API + '/over/' + BALL + '/config.json?mark=json', \{
-      method: 'POST',
-      headers: \{'Content-Type': 'application/json'},
-      body: JSON.stringify(cfg)
-    });
-    if (r.ok) \{
-      cfgStatus.textContent = 'Saved';
-      setTimeout(function() \{ cfgBack.classList.remove('open'); }, 600);
-    } else \{
-      cfgStatus.textContent = 'Save failed';
-      cfgStatus.style.color = '#f87171';
-    }
-  };
-
-  var chBack = document.getElementById('ch-backdrop');
-  var chEditor = document.getElementById('ch-editor');
-  var chStatus = document.getElementById('ch-status');
-
-  document.getElementById('channels-btn').onclick = function() \{
-    chStatus.textContent = '';
-    fetch(API + '/file/' + BALL + '/channels.json?mark=json')
-      .then(function(r) \{ return r.text() })
-      .then(function(t) \{ chEditor.value = t; })
-      .catch(function() \{ chEditor.value = '\{}'; });
-    chBack.classList.add('open');
-  };
-
-  document.getElementById('ch-close').onclick = function() \{
-    chBack.classList.remove('open');
-  };
-
-  chBack.onclick = function(e) \{
-    if (e.target === chBack) chBack.classList.remove('open');
-  };
-
-  document.getElementById('ch-save').onclick = async function() \{
-    try \{ JSON.parse(chEditor.value); } catch(e) \{
-      chStatus.textContent = 'Invalid JSON'; chStatus.style.color = '#f87171'; return;
-    }
-    var r = await fetch(API + '/over/' + BALL + '/channels.json?mark=json', \{
-      method: 'POST',
-      headers: \{'Content-Type': 'application/json'},
-      body: chEditor.value
-    });
-    if (r.ok) \{
-      chStatus.textContent = 'Saved';
-      loadChannels();
-      setTimeout(function() \{ chBack.classList.remove('open'); }, 600);
-    } else \{
-      chStatus.textContent = 'Save failed'; chStatus.style.color = '#f87171';
-    }
-  };
+  connectStatusSSE();
   """
   ==
 
@@ -2315,7 +2140,7 @@
     ^~  %-  crip
     ;:  weld
       "Read a file from this nexus. Paths are relative to the agent root "
-      "(e.g. ./config.json, ./context/conversations/main.json) or absolute. "
+      "(e.g. ./config.json, ./context/chat.json) or absolute. "
       "Use offset/limit to read a specific line range from large files."
     ==
   ++  parameters
@@ -2886,7 +2711,7 @@
     ^~  %-  crip
     ;:  weld
       "Signal that this nexus has completed its task. "
-      "Writes result.json at the nexus root, which closes "
+      "Appends to outbox.json at the nexus root, which closes "
       "the conversation and makes the result available to "
       "a parent nexus. Once finished, no more messages are accepted."
     ==
@@ -2911,44 +2736,50 @@
       :~  ['status' s+status]
           ['result' s+u.result]
       ==
-    =/  road=road:tarball  (agent-road './result.json')
-    ;<  exists=?  bind:m  (peek-exists:io road)
-    ?:  exists
-      ;<  ~  bind:m  (over:io road [[/ %json] !>(result-json)])
-      (pure:m [%text 'Finished -- result.json updated'])
-    ;<  ~  bind:m  (make:io road |+[%.n [[/ %json] !>(result-json)] ~])
-    (pure:m [%text 'Finished -- result.json written'])
+    =/  road=road:tarball  (agent-road './outbox.json')
+    ;<  cur=(list json)  bind:m  read-outbox
+    =/  updated=json  [%a (snoc cur result-json)]
+    ;<  ~  bind:m  (over:io road [[/ %json] !>(updated)])
+    (pure:m [%text 'Finished -- result appended to outbox.json'])
   --
 ::
 ++  await-child-result
   |=  pfx=tape
   =/  m  (fiber:fiber:nexus ,tool-result:nex-tools)
   ^-  form:m
-  =/  result-road=road:tarball
-    (agent-road (crip "{pfx}/result.json"))
+  =/  outbox-road=road:tarball
+    (agent-road (crip "{pfx}/outbox.json"))
   ::  drop any stale subscription from a previous run, then subscribe fresh
-  ;<  ~  bind:m  (drop:io /spawn-result result-road)
-  ;<  *  bind:m  (keep:io /spawn-result result-road ~)
-  ::  check if result already exists before waiting
-  ;<  =seen:nexus  bind:m  (peek:io result-road ~)
-  ?:  ?=([%& %file *] seen)
-    =/  result-json=json  (fall (mole |.(!<(json q.sage.p.seen))) *json)
-    ;<  ~  bind:m  (drop:io /spawn-result result-road)
-    (extract-child-result result-json)
+  ;<  ~  bind:m  (drop:io /spawn-result outbox-road)
+  ;<  *  bind:m  (keep:io /spawn-result outbox-road ~)
+  ::  check if outbox already has entries before waiting
+  ;<  =seen:nexus  bind:m  (peek:io outbox-road ~)
+  =/  existing=(list json)
+    ?.  ?=([%& %file *] seen)  ~
+    =/  outbox=json  (fall (mole |.(!<(json q.sage.p.seen))) *json)
+    ?.  ?=(%a -.outbox)  ~
+    p.outbox
+  ?^  existing
+    ;<  ~  bind:m  (drop:io /spawn-result outbox-road)
+    (extract-child-result (rear existing))
   |-
   ;<  nw=news-or-wake:io  bind:m  (take-news-or-wake:io /spawn-result)
   ?:  ?=(%wake -.nw)  $
   ?.  ?=(%file -.view.nw)  $
-  =/  result-json=json  (fall (mole |.(!<(json q.sage.view.nw))) *json)
-  ;<  ~  bind:m  (drop:io /spawn-result result-road)
-  (extract-child-result result-json)
+  =/  outbox=json  (fall (mole |.(!<(json q.sage.view.nw))) *json)
+  ?.  ?&  ?=(%a -.outbox)
+          !=(~ p.outbox)
+      ==
+    $
+  ;<  ~  bind:m  (drop:io /spawn-result outbox-road)
+  (extract-child-result (rear p.outbox))
 ::
 ++  extract-child-result
   |=  jon=json
   =/  m  (fiber:fiber:nexus ,tool-result:nex-tools)
   ^-  form:m
-  ?~  jon  (pure:m [%error 'spawn_task: child result.json is empty'])
-  ?.  ?=(%o -.jon)  (pure:m [%error 'spawn_task: child result.json is not an object'])
+  ?~  jon  (pure:m [%error 'spawn_task: child outbox entry is empty'])
+  ?.  ?=(%o -.jon)  (pure:m [%error 'spawn_task: child outbox entry is not an object'])
   =/  status=@t
     (fall (bind (~(get by p.jon) 'status') |=(j=json ?>(?=(%s -.j) p.j))) 'unknown')
   =/  result=@t
@@ -3219,9 +3050,7 @@
   ++  parameters
     ^-  (map @t parameter-def:nex-tools)
     %-  malt
-    :~  ['query' [%string 'Substring to search for (case-insensitive)']]
-        ['conversation' [%string 'Conversation key (default: "main")']]
-    ==
+    ~[['query' [%string 'Substring to search for (case-insensitive)']]]
   ++  required  ~['query']
   ++  handler
     ^-  tool-handler:nex-tools
@@ -3231,16 +3060,10 @@
     ?~  raw=(get-arg st 'query')
       (pure:m [%error 'Missing required argument: query'])
     =/  query=tape  (cass (trip u.raw))
-    =/  conv-key=@t
-      (fall (get-arg st '_conv_key') (fall (get-arg st 'conversation') 'main'))
-    =/  conv-road=road:tarball
-      (agent-road (crip "./context/conversations/{(trip conv-key)}.json"))
-    ;<  exists=?  bind:m  (peek-exists:io conv-road)
-    ?.  exists
-      (pure:m [%text (crip "Conversation '{(trip conv-key)}' not found.")])
+    =/  conv-road=road:tarball  (agent-road './context/chat.json')
     ;<  =seen:nexus  bind:m  (peek:io conv-road ~)
     ?.  ?=([%& %file *] seen)
-      (pure:m [%text (crip "Could not read conversation '{(trip conv-key)}'.")])
+      (pure:m [%text 'Could not read chat.'])
     =/  jon=json  (fall (mole |.(!<(json q.sage.p.seen))) *json)
     =/  conv=convo  (parse-convo jon)
     =/  results=tape  ~
@@ -3366,16 +3189,10 @@
     =/  user-prompt=@t
       (fall (get-arg st 'prompt') 'Provide a concise chronological summary of what happened.')
     ::  read conversation
-    =/  conv-key=@t
-      (fall (get-arg st '_conv_key') 'main')
-    =/  conv-road=road:tarball
-      (agent-road (crip "./context/conversations/{(trip conv-key)}.json"))
-    ;<  exists=?  bind:m  (peek-exists:io conv-road)
-    ?.  exists
-      (pure:m [%error (crip "Conversation '{(trip conv-key)}' not found.")])
+    =/  conv-road=road:tarball  (agent-road './context/chat.json')
     ;<  =seen:nexus  bind:m  (peek:io conv-road ~)
     ?.  ?=([%& %file *] seen)
-      (pure:m [%error 'Could not read conversation.'])
+      (pure:m [%error 'Could not read chat.'])
     =/  jon=json  (fall (mole |.(!<(json q.sage.p.seen))) *json)
     =/  full=convo  (parse-convo jon)
     ::  slice the range
@@ -3405,11 +3222,9 @@
     =/  model=@t
       =/  m  (get-str config 'model')
       ?:(=('' m) 'claude-sonnet-4-20250514' m)
-    =/  proxy=@t
+    =/  api-name=@t
       =/  p  (get-str config 'api-proxy')
-      ?:(=('' p) '' p)
-    ?:  =('' proxy)
-      (pure:m [%error 'No api-proxy configured. Set it in config.json.'])
+      ?:(=('' p) 'anthropic' p)
     ::  build request: single user message with transcript
     =/  payload=json
       %-  pairs:enjs:format
@@ -3443,8 +3258,8 @@
               ==
           ==
       ==
-    =/  proxy-road=road:tarball  (agent-road proxy)
-    ;<  ~  bind:m  (poke:io proxy-road [/ %json] !>(payload))
+    ;<  proxy=road:tarball  bind:m  (resolve-proxy api-name)
+    ;<  ~  bind:m  (poke:io proxy [/ %json] !>(payload))
     ;<  =sage:tarball  bind:m  take-poke:io
     =/  resp=json  (fall (mole |.(!<(json q.sage))) *json)
     =/  parsed=(unit api-response)  (parse-json-response resp)

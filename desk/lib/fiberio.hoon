@@ -1088,6 +1088,7 @@
   (pure:m (coerce-here here))
 ::
 ++  dap  %grubbery
+++  dek  %grubbery
 ::
 ++  get-agent
   =/  m  (fiber ,dude:gall)
@@ -1099,12 +1100,12 @@
   ^-  form:m
   ;<  our=@p  bind:m  get-our
   ;<  now=@da  bind:m  get-time
-  (pure:m [our %grubbery da+now])
+  (pure:m [our dek da+now])
 ::
 ++  get-desk
   =/  m  (fiber ,desk)
   ^-  form:m
-  (pure:m %grubbery)
+  (pure:m dek)
 ::
 ++  get-case
   =/  m  (fiber ,case)
