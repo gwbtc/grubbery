@@ -610,7 +610,7 @@
             [%fall %| /children [~ ~] [~ ~] empty-dir:loader]
             ::  ui
             [%over %& [/ %'page.html'] %.n [~ [/ %manx] !>((chat-page ""))]]
-            [%over %& [/ %'status.json'] %.n [~ [/ %json] !>((pairs:enjs:format ~[['loading' b+%.n]]))]]
+            [%over %& [/ %'status.json'] %.n [~ [/ %json] !>((pairs:enjs:format ~[['state' s+'idle']]))]]
         ==
       ==
     ::
@@ -654,6 +654,7 @@
           ;<  ~  bind:m  (write-chat updated)
           ;<  tools=(map @t tool:nex-tools)  bind:m  get-tools
           ;<  final=^convo  bind:m  (agent-turn model api-name ctx-window msg-cap updated tools)
+          ;<  ~  bind:m  (set-status [%idle ~])
           ;<  ~  bind:m  (forward-to-channel final updated)
           $
             %poke
@@ -669,8 +670,26 @@
           ~&  >>  ["%claw poke action:" act]
           ?+    act  $
               %'interrupt'
-            ::  consumed by await-call-or-interrupt when in-flight; no-op otherwise
-            ~&  >  "%claw: interrupt (no request in-flight)"
+            ::  when inside await-call-or-interrupt, this poke is consumed there.
+            ::  when we reach here, it means we're in the main event loop —
+            ::  check for a deferred tool to kill.
+            =/  tool-id=@t
+              (fall (bind (~(get by p.jon) 'id') |=(=json ?>(?=(%s -.json) p.json))) '')
+            ?:  =('' tool-id)
+              ~&  >  "%claw: interrupt (no request in-flight)"
+              $
+            ::  kill deferred tool proc
+            =/  tid=@ta  (slav %tas tool-id)
+            =/  tool-road=road:tarball  [%| 0 %& /proc/tools tid]
+            ;<  ~  bind:m  (drop:io /tool-done/[tid] tool-road)
+            ;<  ~  bind:m  (cull:io tool-road)
+            ~&  >  ["%claw: killed deferred tool" tid]
+            ;<  ~  bind:m  (set-status [%idle ~])
+            ::  append interrupted marker to chat
+            ;<  =convo  bind:m  read-chat
+            =/  updated=^convo
+              (snoc convo [%tool-result tool-id '[tool interrupted by user]'])
+            ;<  ~  bind:m  (write-chat updated)
             $
           ::
               %'set-model'
@@ -705,6 +724,7 @@
             ;<  tools=(map @t tool:nex-tools)  bind:m  get-tools
             ::  enter agent turn loop
             ;<  final=^convo  bind:m  (agent-turn model api-name ctx-window msg-cap updated tools)
+            ;<  ~  bind:m  (set-status [%idle ~])
             ;<  ~  bind:m  (forward-to-channel final updated)
             $
           ::
@@ -798,6 +818,13 @@
 ::  a conversation is an ordered list of entries
 ::
 +$  convo  (list entry)
+::  agent status for UI
+::
++$  agent-status
+  $%  [%idle ~]
+      [%api ~]
+      [%tool id=@ta]
+  ==
 ::
 ::
 ++  get-str
@@ -964,11 +991,16 @@
   ^-  form:m
   (over:io (cord-to-road:tarball './channels.json') [[/ %json] !>(updated)])
 ::
-++  set-loading
-  |=  on=?
+++  set-status
+  |=  st=agent-status
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
-  =/  status=json  (pairs:enjs:format ~[['loading' b+on]])
+  =/  status=json
+    ?-  -.st
+      %idle  (pairs:enjs:format ~[['state' s+'idle']])
+      %api   (pairs:enjs:format ~[['state' s+'api']])
+      %tool  (pairs:enjs:format ~[['state' s+'tool'] ['id' s+id.st]])
+    ==
   (over:io (cord-to-road:tarball './status.json') [[/ %json] !>(status)])
 ::
 ++  join-texts
@@ -1269,12 +1301,9 @@
     (pairs:enjs:format ~[['id' s+call-id] ['body' payload]])
   ;<  ~  bind:m  (poke:io main-road [/ %json] !>(poke-body))
   ~&  >>  ["%claw: call" call-id "created, waiting for response"]
-  ::  set loading status
-  ;<  ~  bind:m  (set-loading %.y)
+  ;<  ~  bind:m  (set-status [%api ~])
   ::  wait for news with status=done, or interrupt poke
   ;<  resp=(unit json)  bind:m  (await-call-or-interrupt /api-call)
-  ::  clear loading status
-  ;<  ~  bind:m  (set-loading %.n)
   ::  drop subscription
   ;<  ~  bind:m  (drop:io /api-call call-road)
   ::  handle interrupt
@@ -1341,6 +1370,7 @@
     [name.call tool-args %start ~ ~]
   =/  tid=@ta  id.call
   =/  tool-road=road:tarball  [%| 0 %& /proc/tools tid]
+  ;<  ~  bind:m  (set-status [%tool tid])
   ;<  *  bind:m  (keep:io /tool-wait/[tid] tool-road ~)
   ;<  ~  bind:m  (make:io tool-road |+[%.n [[/ %tool-state] !>(ts)] ~])
   ;<  [result-text=@t more=?]  bind:m  (await-tool-ack tid)
@@ -2024,12 +2054,23 @@
 
   // Stop button
   var stopBtn = document.getElementById('stop-btn');
+  var currentStatus = \{state: 'idle'};
   stopBtn.onclick = function() \{
-    fetch(API + '/poke/' + BALL + '/main.sig?mark=json', \{
-      method: 'POST',
-      headers: \{'Content-Type': 'application/json'},
-      body: JSON.stringify(\{action: 'interrupt'})
-    });
+    if (currentStatus.state === 'idle') return;
+    if (currentStatus.state === 'tool') \{
+      if (!confirm('Abort tool? This may leave state inconsistent.')) return;
+      fetch(API + '/poke/' + BALL + '/main.sig?mark=json', \{
+        method: 'POST',
+        headers: \{'Content-Type': 'application/json'},
+        body: JSON.stringify(\{action: 'interrupt', id: currentStatus.id})
+      });
+    } else \{
+      fetch(API + '/poke/' + BALL + '/main.sig?mark=json', \{
+        method: 'POST',
+        headers: \{'Content-Type': 'application/json'},
+        body: JSON.stringify(\{action: 'interrupt'})
+      });
+    }
   };
 
   // Status SSE
@@ -2038,13 +2079,16 @@
     es.addEventListener('upd status.json', function(e) \{
       try \{
         var s = JSON.parse(e.data);
+        currentStatus = s;
         var ld = document.getElementById('loading');
-        if (s.loading) \{
+        if (s.state !== 'idle') \{
           ld.classList.add('active');
           stopBtn.classList.add('active');
+          stopBtn.textContent = s.state === 'tool' ? 'abort' : 'stop';
         } else \{
           ld.classList.remove('active');
           stopBtn.classList.remove('active');
+          stopBtn.textContent = 'stop';
         }
       } catch(x) \{}
     });
@@ -2056,6 +2100,18 @@
     .then(function(r) \{ return r.json() })
     .then(renderMessages)
     .catch(function() \{});
+  // Load current status
+  fetch(API + '/file/' + BALL + '/status.json?mark=json')
+    .then(function(r) \{ return r.json() })
+    .then(function(s) \{
+      currentStatus = s;
+      var ld = document.getElementById('loading');
+      if (s.state !== 'idle') \{
+        ld.classList.add('active');
+        stopBtn.classList.add('active');
+        stopBtn.textContent = s.state === 'tool' ? 'abort' : 'stop';
+      }
+    }).catch(function() \{});
   connectSSE();
   connectStatusSSE();
   """
@@ -2761,7 +2817,11 @@
     p.outbox
   ?^  existing
     ;<  ~  bind:m  (drop:io /spawn-result outbox-road)
-    (extract-child-result (rear existing))
+    ;<  result=tool-result:nex-tools  bind:m  (extract-child-result (rear existing))
+    ::  clean up child nexus
+    ;<  ~  bind:m  (cull:io (agent-road (crip "{pfx}/")))
+    ~&  >  ["%claw: spawn_task cleaned up" pfx]
+    (pure:m result)
   |-
   ;<  nw=news-or-wake:io  bind:m  (take-news-or-wake:io /spawn-result)
   ?:  ?=(%wake -.nw)  $
@@ -2772,7 +2832,11 @@
       ==
     $
   ;<  ~  bind:m  (drop:io /spawn-result outbox-road)
-  (extract-child-result (rear p.outbox))
+  ;<  result=tool-result:nex-tools  bind:m  (extract-child-result (rear p.outbox))
+  ::  clean up child nexus
+  ;<  ~  bind:m  (cull:io (agent-road (crip "{pfx}/")))
+  ~&  >  ["%claw: spawn_task cleaned up" pfx]
+  (pure:m result)
 ::
 ++  extract-child-result
   |=  jon=json
