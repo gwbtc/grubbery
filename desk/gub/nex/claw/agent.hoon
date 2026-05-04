@@ -58,7 +58,7 @@
               '  ./proc/tools/              -- active tool processes (DO NOT write source here)'
               '  ./children/                -- spawned child nexuses'
               '  ./about.txt                -- your self-description (visible to other agents)'
-              '  ./outbox.json              -- append-only log; finish tool writes here'
+              '  ./outbox.json              -- append-only log; outbox tool writes here'
               ''
               '# Tools overview'
               ''
@@ -104,7 +104,7 @@
               '  The child gets its own conversation, runs the task, and returns the result.'
               '  Different from create_nexus: spawn_task creates another claw agent, while'
               '  create_nexus instantiates custom nexus code you wrote.'
-              '- finish: append to outbox.json to return results to a parent (used by spawned tasks).'
+              '- outbox: append to outbox.json to return results to a parent (used by spawned tasks).'
               ''
               '## Sandbox (weir)'
               'Weirs restrict what darts (effects) can pass through a directory.'
@@ -1117,7 +1117,7 @@
       [name:add-weir-tool add-weir-tool]
       [name:del-weir-tool del-weir-tool]
       [name:clear-weir-tool clear-weir-tool]
-      [name:finish-tool finish-tool]
+      [name:outbox-tool outbox-tool]
       [name:spawn-task-tool spawn-task-tool]
       [name:grep-files-tool grep-files-tool]
       [name:glob-files-tool glob-files-tool]
@@ -2822,17 +2822,16 @@
     (pure:m [%text (crip out)])
   --
 ::
-++  finish-tool
+++  outbox-tool
   ^-  tool:nex-tools
   |%
-  ++  name  'finish'
+  ++  name  'outbox'
   ++  description
     ^~  %-  crip
     ;:  weld
-      "Signal that this nexus has completed its task. "
-      "Appends to outbox.json at the nexus root, which closes "
-      "the conversation and makes the result available to "
-      "a parent nexus. Once finished, no more messages are accepted."
+      "Append a result to outbox.json. "
+      "Used to return results to a parent (spawned tasks) or post updates. "
+      "Once written, no more messages are accepted."
     ==
   ++  parameters
     ^-  (map @t parameter-def:nex-tools)
@@ -2995,10 +2994,10 @@
       %-  crip
       ;:  weld
         "You are running as a subtask of a parent nexus.\0a"
-        "When you have completed your work, you MUST call the `finish` tool "
+        "When you have completed your work, you MUST call the `outbox` tool "
         "with your result text in the `result` parameter.\0a"
         "This is the ONLY way to return your result to the parent. "
-        "Do not just respond with text -- call `finish`.\0a"
+        "Do not just respond with text -- call `outbox`.\0a"
       ==
     =/  full-prompt=@t
       =/  user-prompt=(unit @t)  (get-arg st 'prompt')
