@@ -57,6 +57,7 @@
               '      mar/                   -- mark definitions'
               '  ./proc/tools/              -- active tool processes (DO NOT write source here)'
               '  ./children/                -- spawned child nexuses'
+              '  ./about.txt                -- your self-description (visible to other agents)'
               '  ./outbox.json              -- append-only log; finish tool writes here'
               ''
               '# Tools overview'
@@ -604,6 +605,11 @@
             [%fall %| /proc/tools [~ ~] [~ ~] empty-dir:loader]
             ::  /channels.json: channel road for forwarding (relative to parent app)
             [%fall %& [/ %'channels.json'] %.n [~ [/ %json] !>(s+'')]]
+            ::  /about.txt: self-description visible to other agents
+            =/  default-about=wain
+              :~  'A general-purpose claw agent. No specific role assigned yet.'
+              ==
+            [%fall %& [/ %'about.txt'] %.n [~ [/ %txt] !>(default-about)]]
             ::  /outbox.json: append-only result log
             [%fall %& [/ %'outbox.json'] %.n [~ [/ %json] !>([%a ~])]]
             ::  /children: spawned child nexuses
@@ -1118,6 +1124,8 @@
       [name:grep-history-tool grep-history-tool]
       [name:recall-messages-tool recall-messages-tool]
       [name:summarize-tool summarize-tool]
+      [name:list-agents-tool list-agents-tool]
+      [name:search-agents-tool search-agents-tool]
   ==
 ::
 ::  +get-tools: return built-in tools merged with dynamic tools from apps/code/lib/tools
@@ -1804,6 +1812,7 @@
           ==
           ;div
             ;button#clear-btn.hdr-btn: clear
+            ;button#about-btn.hdr-btn: about
             ;button#config-btn.hdr-btn: config
           ==
         ==
@@ -1827,6 +1836,19 @@
             ;label.cfg-label: Channel (e.g. telegram/main-bot)
             ;input#cfg-channel(type "text", placeholder "leave empty for none");
             ;div#cfg-status;
+          ==
+        ==
+        ;div#abt-backdrop
+          ;div#abt-modal
+            ;div#abt-header
+              ;span: About
+              ;div
+                ;button#abt-save.hdr-btn: save
+                ;button#abt-close.hdr-btn: close
+              ==
+            ==
+            ;textarea#abt-text(rows "6", placeholder "Describe this agent...", style "width:100%;font-family:monospace;font-size:12px;border:1px solid #333;border-radius:6px;padding:10px;resize:vertical;background:#111;color:#eee;outline:none;");
+            ;div#abt-status;
           ==
         ==
         ;div#main
@@ -1889,6 +1911,14 @@
   #loading.active \{ background: #333; }
   #loading.active::after \{ content: ''; display: block; height: 100%; width: 30%; background: #2563eb; animation: slide 1s ease-in-out infinite; }
   @keyframes slide \{ 0% \{ transform: translateX(-100%); } 100% \{ transform: translateX(400%); } }
+  #abt-backdrop \{ display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); z-index: 100; }
+  #abt-backdrop.open \{ display: flex; align-items: center; justify-content: center; }
+  #abt-modal \{ background: #1a1a1a; border: 1px solid #333; border-radius: 8px; width: 90%; max-width: 400px; padding: 20px; }
+  #abt-header \{ display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+  #abt-header span \{ font-size: 14px; font-weight: 600; }
+  #abt-header div \{ display: flex; gap: 6px; }
+  #abt-status \{ margin-top: 10px; font-size: 12px; color: #4ade80; }
+  #abt-text:focus \{ border-color: #2563eb; }
   #stop-btn \{ display: none; background: none; color: #f87171; border: 1px solid #f87171; padding: 10px 16px; }
   #stop-btn:hover \{ background: rgba(248,113,113,0.1); }
   #stop-btn.active \{ display: block; }
@@ -2008,6 +2038,39 @@
       document.getElementById('cfg-status').textContent = '';
       document.getElementById('cfg-backdrop').classList.remove('open');
     }, 800);
+  };
+
+  // about modal
+  document.getElementById('about-btn').onclick = function() \{
+    fetch(API + '/file/' + BALL + '/about.txt?mark=txt')
+      .then(function(r) \{ return r.text() })
+      .then(function(t) \{ document.getElementById('abt-text').value = t; })
+      .catch(function() \{ document.getElementById('abt-text').value = ''; });
+    document.getElementById('abt-status').textContent = '';
+    document.getElementById('abt-backdrop').classList.add('open');
+  };
+  document.getElementById('abt-close').onclick = function() \{
+    document.getElementById('abt-backdrop').classList.remove('open');
+  };
+  document.getElementById('abt-backdrop').onclick = function(e) \{
+    if (e.target === this) this.classList.remove('open');
+  };
+  document.getElementById('abt-save').onclick = async function() \{
+    var text = document.getElementById('abt-text').value;
+    var r = await fetch(API + '/over/' + BALL + '/about.txt?mark=txt', \{
+      method: 'POST',
+      headers: \{'Content-Type': 'text/plain'},
+      body: text
+    });
+    var st = document.getElementById('abt-status');
+    if (r.ok) \{
+      st.textContent = 'saved';
+      st.style.color = '#4ade80';
+      setTimeout(function() \{ document.getElementById('abt-backdrop').classList.remove('open'); }, 800);
+    } else \{
+      st.textContent = 'save failed';
+      st.style.color = '#f87171';
+    }
   };
 
   async function connectSSE() \{
@@ -3349,5 +3412,115 @@
         " total]\0a"
       ==
     (pure:m [%text (crip :(weld (trip header) (trip text)))])
+  --
+::
+++  list-agents-tool
+  ^-  tool:nex-tools
+  |%
+  ++  name  'list_agents'
+  ++  description
+    ^~  %-  crip
+    ;:  weld
+      "List all sibling agents and their about.txt descriptions. "
+      "Returns each agent's name and self-description so you can "
+      "find the right agent to talk to for a task."
+    ==
+  ++  parameters  *(map @t parameter-def:nex-tools)
+  ++  required  *(list @t)
+  ++  handler
+    ^-  tool-handler:nex-tools
+    =/  m  (fiber:fiber:nexus ,tool-result:nex-tools)
+    ^-  form:m
+    ;<  st=tool-state:nex-tools  bind:m  (get-state-as:io ,tool-state:nex-tools)
+    ;<  here=rail:tarball  bind:m  get-here:io
+    ::  path is .../agents/[name]/proc/tools; agent name is 3rd from end
+    =/  self-name=@ta
+      =/  p=path  path.here
+      =/  l=@  (lent p)
+      ?:  (lth l 3)  *@ta
+      (snag (sub l 3) p)
+    ::  peek at ../  (agents dir from agent root)
+    =/  agents-road=road:tarball  (agent-road '../')
+    ;<  =seen:nexus  bind:m  (peek:io agents-road ~)
+    ?.  ?=([%& %ball *] seen)
+      (pure:m [%error 'Could not read agents directory'])
+    =/  names=(list @ta)
+      (sort ~(tap in ~(key by dir.ball.p.seen)) aor)
+    =/  out=(list tape)  ~
+    |-
+    ?~  names
+      ?~  out
+        (pure:m [%text 'No agents found.'])
+      (pure:m [%text (crip (zing (flop out)))])
+    =/  name=@ta  i.names
+    =/  about-road=road:tarball
+      (agent-road (crip "../{(trip name)}/about.txt"))
+    ;<  about-seen=seen:nexus  bind:m  (peek:io about-road ~)
+    =/  about=tape
+      ?.  ?=([%& %file *] about-seen)  "(no about.txt)"
+      =/  wn=(each wain tang)  (mule |.(!<(wain q.sage.p.about-seen)))
+      ?.  ?=(%& -.wn)  "(unreadable)"
+      (trip (of-wain:format p.wn))
+    =/  tag=tape  ?:(=(name self-name) " [self]" "")
+    =/  line=tape  "{(trip name)}{tag}: {about}\0a"
+    $(names t.names, out [line out])
+  --
+::
+++  search-agents-tool
+  ^-  tool:nex-tools
+  |%
+  ++  name  'search_agents'
+  ++  description
+    ^~  %-  crip
+    ;:  weld
+      "Search sibling agents' about.txt files for a keyword. "
+      "Returns matching agents with their descriptions. "
+      "Use this to find an agent with specific capabilities."
+    ==
+  ++  parameters
+    ^-  (map @t parameter-def:nex-tools)
+    (malt ~[['query' [%string 'Keyword to search for in agent descriptions']]])
+  ++  required  ~['query']
+  ++  handler
+    ^-  tool-handler:nex-tools
+    =/  m  (fiber:fiber:nexus ,tool-result:nex-tools)
+    ^-  form:m
+    ;<  st=tool-state:nex-tools  bind:m  (get-state-as:io ,tool-state:nex-tools)
+    ?~  query=(get-arg st 'query')
+      (pure:m [%error 'Missing required argument: query'])
+    ;<  here=rail:tarball  bind:m  get-here:io
+    =/  self-name=@ta
+      =/  p=path  path.here
+      =/  l=@  (lent p)
+      ?:  (lth l 3)  *@ta
+      (snag (sub l 3) p)
+    =/  needle=tape  (cass:so (trip u.query))
+    =/  agents-road=road:tarball  (agent-road '../')
+    ;<  =seen:nexus  bind:m  (peek:io agents-road ~)
+    ?.  ?=([%& %ball *] seen)
+      (pure:m [%error 'Could not read agents directory'])
+    =/  names=(list @ta)
+      (sort ~(tap in ~(key by dir.ball.p.seen)) aor)
+    =/  out=(list tape)  ~
+    |-
+    ?~  names
+      ?~  out
+        (pure:m [%text (crip "No agents matching '{(trip u.query)}'.")])
+      (pure:m [%text (crip (zing (flop out)))])
+    =/  name=@ta  i.names
+    =/  about-road=road:tarball
+      (agent-road (crip "../{(trip name)}/about.txt"))
+    ;<  about-seen=seen:nexus  bind:m  (peek:io about-road ~)
+    =/  about=tape
+      ?.  ?=([%& %file *] about-seen)  ""
+      =/  wn=(each wain tang)  (mule |.(!<(wain q.sage.p.about-seen)))
+      ?.  ?=(%& -.wn)  ""
+      (trip (of-wain:format p.wn))
+    ::  case-insensitive match
+    ?.  !=(~ (find needle (cass:so about)))
+      $(names t.names)
+    =/  tag=tape  ?:(=(name self-name) " [self]" "")
+    =/  line=tape  "{(trip name)}{tag}: {about}\0a"
+    $(names t.names, out [line out])
   --
 --
