@@ -3524,40 +3524,32 @@
   ++  description
     ^~  %-  crip
     ;:  weld
-      "Summarize a range of conversation messages by sending them to the LLM. "
+      "Summarize conversation messages by sending them to the LLM. "
+      "Accepts one or more message ranges (e.g. '0-5,20-30,50-60'). "
+      "Gaps between ranges are visible to the LLM via index numbers. "
       "Use grep_history first to identify relevant message indices. "
       "Always specify what kind of summary you need in the prompt: "
       "process (step-by-step what happened), decisions (choices and reasoning), "
-      "technical (tools/code/configs), or action-items (what's next)."
+      "technical (tools/code/configs), or action-items (what's next). "
+      "Summaries are saved to /summaries/ for future reference."
     ==
   ++  parameters
     ^-  (map @t parameter-def:nex-tools)
     %-  malt
     ^-  (list [@t parameter-def:nex-tools])
-    :~  ['from' [%number 'Start message index (inclusive)']]
-        ['to' [%number 'End message index (inclusive)']]
+    :~  ['ranges' [%string 'Message ranges: "0-5" or "0-5,20-30,50-60"']]
         ['prompt' [%string 'What kind of summary: process, decisions, technical, action-items, or custom instruction']]
     ==
-  ++  required  ~['from' 'to']
+  ++  required  ~['ranges']
   ++  handler
     ^-  tool-handler:nex-tools
     =/  m  (fiber:fiber:nexus ,tool-result:nex-tools)
     ^-  form:m
     ;<  st=tool-state:nex-tools  bind:m  (get-state-as:io ,tool-state:nex-tools)
-    =/  from=@ud
-      =/  v  (~(get by args.st) 'from')
-      ?~  v  0
-      ?:  ?=(%n -.u.v)  (fall (rush p.u.v dem) 0)
-      ?:  ?=(%s -.u.v)  (fall (rush p.u.v dem) 0)
-      0
-    =/  to=@ud
-      =/  v  (~(get by args.st) 'to')
-      ?~  v  0
-      ?:  ?=(%n -.u.v)  (fall (rush p.u.v dem) 0)
-      ?:  ?=(%s -.u.v)  (fall (rush p.u.v dem) 0)
-      0
-    ?:  (gth from to)
-      (pure:m [%error '"from" must be <= "to"'])
+    =/  ranges-raw=@t  (fall (get-arg st 'ranges') '')
+    =/  ranges=(list [@ud @ud])  (parse-ranges ranges-raw)
+    ?~  ranges
+      (pure:m [%error 'Could not parse ranges. Use format: "0-5" or "0-5,20-30"'])
     =/  user-prompt=@t
       (fall (get-arg st 'prompt') 'Provide a concise chronological summary of what happened.')
     ::  read conversation
@@ -3569,24 +3561,22 @@
       (pure:m [%error 'Could not read chat.'])
     =/  jon=json  (fall (mole |.(!<(json q.sage.p.seen))) *json)
     =/  full=convo  (parse-convo jon)
-    ::  slice the range
-    =/  sliced=convo  (scag (add (sub to from) 1) (slag from full))
-    ?:  =(~ sliced)
-      (pure:m [%error 'No messages in specified range.'])
-    ::  flatten slice into plain text transcript
+    ::  slice all ranges and build transcript
     =/  transcript=tape
       %-  zing
-      =/  idx=@ud  from
-      |-
-      ?~  sliced  ~
-      =/  e=entry  i.sliced
-      =/  line=tape
-        ?-  -.e
-          %msg          :(weld "[" (a-co:co idx) "] " (trip role.e) ": " (trip content.e) "\0a")
-          %tool-use     :(weld "[" (a-co:co idx) "] tool_use: " (trip name.e) "\0a")
-          %tool-result  :(weld "[" (a-co:co idx) "] tool_result: " (trip content.e) "\0a")
-        ==
-      [line $(sliced t.sliced, idx +(idx))]
+      %+  turn  ranges
+      |=  [from=@ud to=@ud]
+      (render-range full from to)
+    ?:  =(~ transcript)
+      (pure:m [%error 'No messages in specified ranges.'])
+    ::  build ranges label for header
+    =/  ranges-label=tape
+      %-  zing
+      %+  join  ","
+      ^-  (list tape)
+      %+  turn  ranges
+      |=  [from=@ud to=@ud]
+      "{(a-co:co from)}-{(a-co:co to)}"
     ::  read config for model + proxy
     =/  cfg-road=road:tarball  (agent-road './config.json')
     ;<  cfg-seen=seen:nexus  bind:m  (peek:io cfg-road ~)
@@ -3599,7 +3589,7 @@
     =/  api-name=@t
       =/  p  (get-str config 'api-proxy')
       ?:(=('' p) 'anthropic' p)
-    ::  build request: single user message with transcript
+    ::  build request
     =/  payload=json
       %-  pairs:enjs:format
       :~  ['model' s+model]
@@ -3609,13 +3599,10 @@
           %-  crip
           =/  total=@ud  (lent full)
           ;:  weld
-            "You are summarizing messages "
-            (a-co:co from)
-            "-"
-            (a-co:co to)
-            " from a larger conversation ("
-            (a-co:co total)
-            " messages total). This is a slice, not the full exchange.\0a\0a"
+            "You are summarizing selected message ranges [{ranges-label}] "
+            "from a conversation with {(a-co:co total)} messages total. "
+            "Gaps in indices mean messages were skipped. "
+            "Focus on the provided messages only.\0a\0a"
             "Rules:\0a"
             "- Use third-person perspective (never first-person)\0a"
             "- Be chronological and concrete\0a"
@@ -3658,16 +3645,93 @@
     =/  header=@t
       %-  crip
       ;:  weld
-        "[Summary of messages "
-        (a-co:co from)
-        "-"
-        (a-co:co to)
-        " from "
+        "[Summary of messages [{ranges-label}] from "
         (a-co:co (lent full))
         " total]\0a"
       ==
-    (pure:m [%text (crip :(weld (trip header) (trip text)))])
+    =/  summary-text=@t  (crip :(weld (trip header) (trip text)))
+    ::  save to /summaries/
+    =/  sum-id=@t  (scot %uv (end [3 8] eny))
+    =/  sum-json=json
+      %-  pairs:enjs:format
+      :~  ['ranges' s+ranges-raw]
+          ['prompt' s+user-prompt]
+          ['summary' s+summary-text]
+      ==
+    ;<  sum-dir=road:tarball  bind:m
+      (ancestor-road:io [/claw %agent] [%| /chats/[chat-name]/summaries])
+    ;<  dir-exists=?  bind:m  (peek-exists:io sum-dir)
+    ;<  ~  bind:m
+      ?.  dir-exists
+        (make:io sum-dir &+[*sand:nexus *gain:nexus [~ ~]])
+      (pure:(fiber:fiber:nexus ,~) ~)
+    =/  sum-file=@ta  (crip "{(trip sum-id)}.json")
+    ;<  sum-road=road:tarball  bind:m
+      (ancestor-road:io [/claw %agent] [%& /chats/[chat-name]/summaries sum-file])
+    ;<  ~  bind:m  (make:io sum-road |+[%.n [[/ %json] !>(sum-json)] ~])
+    (pure:m [%text summary-text])
   --
+::
+::  +render-range: render a slice of convo as indexed transcript
+::
+++  render-range
+  |=  [full=convo from=@ud to=@ud]
+  ^-  tape
+  =/  sliced=convo  (scag (add (sub to from) 1) (slag from full))
+  %-  zing
+  =/  idx=@ud  from
+  |-
+  ?~  sliced  ~
+  =/  e=entry  i.sliced
+  =/  line=tape
+    ?-  -.e
+      %msg          :(weld "[" (a-co:co idx) "] " (trip role.e) ": " (trip content.e) "\0a")
+      %tool-use     :(weld "[" (a-co:co idx) "] tool_use: " (trip name.e) "\0a")
+      %tool-result  :(weld "[" (a-co:co idx) "] tool_result: " (trip content.e) "\0a")
+    ==
+  [line $(sliced t.sliced, idx +(idx))]
+::
+::  +parse-ranges: parse "0-5,20-30" into (list [@ud @ud])
+::
+++  parse-ranges
+  |=  raw=@t
+  ^-  (list [@ud @ud])
+  =/  t=tape  (trip raw)
+  ::  strip whitespace
+  =.  t  (skip t |=(c=@t =(c ' ')))
+  ?~  t  ~
+  %+  murn
+    (split-on t ',')
+  |=  seg=tape
+  ^-  (unit [@ud @ud])
+  =/  parts=(list tape)  (split-on seg '-')
+  ?+  (lent parts)  ~
+      %1
+    =/  n=(unit @ud)  (rush (crip (snag 0 parts)) dem)
+    ?~  n  ~
+    `[u.n u.n]
+      %2
+    =/  a=(unit @ud)  (rush (crip (snag 0 parts)) dem)
+    =/  b=(unit @ud)  (rush (crip (snag 1 parts)) dem)
+    ?~  a  ~
+    ?~  b  ~
+    ?:  (gth u.a u.b)  ~
+    `[u.a u.b]
+  ==
+::
+::  +split-on: split tape on a character
+::
+++  split-on
+  |=  [t=tape c=@t]
+  ^-  (list tape)
+  =/  acc=(list tape)  ~
+  =/  cur=tape  ~
+  |-
+  ?~  t
+    (flop [(flop cur) acc])
+  ?:  =(i.t c)
+    $(t t.t, acc [(flop cur) acc], cur ~)
+  $(t t.t, cur [i.t cur])
 ::
 ::  +await-sum-call: wait for API call to reach status=done, return response
 ::
