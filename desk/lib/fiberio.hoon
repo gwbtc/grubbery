@@ -106,11 +106,12 @@
 ::
 ++  find-in-here
   |=  [=here:nexus target=(unit neck:tarball)]
-  ^-  (unit bend:tarball)
+  ^-  (unit @ud)
   ::  Scan pant from nearest ancestor (end) for matching neck.
-  ::  Returns bend: steps up from grub + directory lane.
+  ::  Returns steps up from grub to ancestor nexus.
+  ::  Value is directly usable as bend step count in lane-from-bend.
   =/  rev=pant:nexus  (flop pant.here)
-  =/  steps=@ud  1
+  =/  steps=@ud  0
   |-
   ?~  rev  ~
   ?~  neck.i.rev  $(rev t.rev, steps +(steps))
@@ -118,7 +119,24 @@
           !=(u.target u.neck.i.rev)
       ==
     $(rev t.rev, steps +(steps))
-  `[steps %| [dir.i.rev ~]]
+  `steps
+::  +ancestor-road: resolve a lane relative to an ancestor nexus
+::
+::  Finds the nearest ancestor with the given code-id (e.g. [/claw %agent])
+::  via find-in-here, then builds a road to the given lane within it.
+::  Works from any depth — no hardcoded offsets needed.
+::
+++  ancestor-road
+  |=  [code-id=[=path name=@tas] =lane:tarball]
+  =/  m  (fiber ,road:tarball)
+  ^-  form:m
+  ;<  ~  bind:m  (send-dart %here /ancestor)
+  ;<  =here:nexus  bind:m  (take-here-raw /ancestor)
+  =/  steps=(unit @ud)  (find-in-here here `code-id)
+  ?~  steps
+    ~&  >>>  ["fiberio: couldn't find ancestor" code-id]
+    (pure:m [%& lane])
+  (pure:m [%| u.steps lane])
 ::
 ++  take-here-raw
   |=  =wire

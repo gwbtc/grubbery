@@ -4,9 +4,9 @@
 |%
 +$  neck      rail                :: a nexus identity (directory-level mark)
 +$  blot      rail                :: a mark identity (hierarchical)
-+$  bars      [a=blot b=blot]    :: blot pair for conversions
-+$  sage      (pair blot vase)   :: grubbery cage: blot-typed content
-+$  bask      (pair blot noun)  :: grubbery page: blot-typed noun
++$  bars      [a=blot b=blot]     :: blot pair for conversions
++$  sage      (pair blot vase)    :: grubbery cage: blot-typed content
++$  bask      (pair blot noun)    :: grubbery page: blot-typed noun
 +$  metadata  (map @t @t)
 ::  Compiled mark core: built once from mark source, used for vale + tubes
 ::

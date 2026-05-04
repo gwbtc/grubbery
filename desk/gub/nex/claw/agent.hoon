@@ -643,7 +643,7 @@
           ?.  ?=(%file -.view.main-event)  $
           =/  tst=tool-state:nex-tools  !<(tool-state:nex-tools q.sage.view.main-event)
           ?.  =(%done step.tst)  $
-          =/  tool-road=road:tarball  [%| 0 %& /proc/tools tid]
+          ;<  tool-road=road:tarball  bind:m  (ancestor-road:io [/claw %agent] [%& /proc/tools tid])
           ;<  ~  bind:m  (drop:io /tool-done/[tid] tool-road)
           =/  result-text=@t  (extract-tool-result tst)
           ~&  >  ["%claw: deferred result for" tid]
@@ -686,7 +686,7 @@
               $
             ::  kill deferred tool proc
             =/  tid=@ta  (slav %tas tool-id)
-            =/  tool-road=road:tarball  [%| 0 %& /proc/tools tid]
+            ;<  tool-road=road:tarball  bind:m  (ancestor-road:io [/claw %agent] [%& /proc/tools tid])
             ;<  ~  bind:m  (drop:io /tool-done/[tid] tool-road)
             ;<  ~  bind:m  (cull:io tool-road)
             ~&  >  ["%claw: killed deferred tool" tid]
@@ -858,17 +858,7 @@
   ^-  form:m
   ?:  =('' api-name)
     (pure:m (cord-to-road:tarball ''))
-  ;<  ~  bind:m  (send-dart:io %here /resolve-proxy)
-  ;<  =here:nexus  bind:m  (take-here-raw:io /resolve-proxy)
-  =/  app-bend=(unit bend:tarball)
-    (find-in-here:io here `[/claw %app])
-  ?~  app-bend
-    ~&  >>>  "%claw: couldn't find /claw/app ancestor"
-    (pure:m (cord-to-road:tarball ''))
-  ::  find-in-here counts from pant which includes root name,
-  ::  but fiber paths don't include root, so subtract 1
-  =/  steps=@ud  (dec p.u.app-bend)
-  (pure:m [%| steps %& [~[%apis api-name] %'main.sig']])
+  (ancestor-road:io [/claw %app] [%& /apis/[api-name] %'main.sig'])
 ::
 +$  main-event
   $%  [%poke =from:fiber:nexus =sage:tarball]
@@ -894,7 +884,7 @@
 ++  read-prompts
   =/  m  (fiber:fiber:nexus ,@t)
   ^-  form:m
-  =/  prompts-road=road:tarball  (cord-to-road:tarball './context/prompts/')
+  ;<  prompts-road=road:tarball  bind:m  (ancestor-road:io [/claw %agent] [%| /context/prompts])
   ;<  =seen:nexus  bind:m  (peek:io prompts-road ~)
   ?.  ?=([%& %ball *] seen)
     (pure:m '')
@@ -914,7 +904,7 @@
       (turn ordered trip)
     (pure:m (crip out))
   =/  name=@ta  i.names
-  =/  file-road=road:tarball  (cord-to-road:tarball (crip "./context/prompts/{(trip name)}"))
+  ;<  file-road=road:tarball  bind:m  (ancestor-road:io [/claw %agent] [%& /context/prompts name])
   ;<  file-seen=seen:nexus  bind:m  (peek:io file-road ~)
   ?.  ?=([%& %file *] file-seen)
     $(names t.names)
@@ -927,7 +917,7 @@
 ++  read-memories
   =/  m  (fiber:fiber:nexus ,@t)
   ^-  form:m
-  =/  mem-road=road:tarball  (cord-to-road:tarball './context/memories/')
+  ;<  mem-road=road:tarball  bind:m  (ancestor-road:io [/claw %agent] [%| /context/memories])
   ;<  =seen:nexus  bind:m  (peek:io mem-road ~)
   ?.  ?=([%& %ball *] seen)
     (pure:m '')
@@ -947,7 +937,7 @@
       (turn ordered trip)
     (pure:m (crip out))
   =/  name=@ta  i.names
-  =/  file-road=road:tarball  (cord-to-road:tarball (crip "./context/memories/{(trip name)}"))
+  ;<  file-road=road:tarball  bind:m  (ancestor-road:io [/claw %agent] [%& /context/memories name])
   ;<  file-seen=seen:nexus  bind:m  (peek:io file-road ~)
   ?.  ?=([%& %file *] file-seen)
     $(names t.names)
@@ -960,7 +950,7 @@
 ++  read-config
   =/  m  (fiber:fiber:nexus ,json)
   ^-  form:m
-  =/  road=road:tarball  (cord-to-road:tarball './config.json')
+  ;<  road=road:tarball  bind:m  (ancestor-road:io [/claw %agent] [%& / %'config.json'])
   ;<  =seen:nexus  bind:m  (peek:io road ~)
   ?.  ?=([%& %file *] seen)  (pure:m *json)
   (pure:m (fall (mole |.(!<(json q.sage.p.seen))) *json))
@@ -969,12 +959,13 @@
   |=  updated=json
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
-  (over:io (cord-to-road:tarball './config.json') [[/ %json] !>(updated)])
+  ;<  road=road:tarball  bind:m  (ancestor-road:io [/claw %agent] [%& / %'config.json'])
+  (over:io road [[/ %json] !>(updated)])
 ::
 ++  read-outbox
   =/  m  (fiber:fiber:nexus ,(list json))
   ^-  form:m
-  =/  road=road:tarball  (cord-to-road:tarball './outbox.json')
+  ;<  road=road:tarball  bind:m  (ancestor-road:io [/claw %agent] [%& / %'outbox.json'])
   ;<  =seen:nexus  bind:m  (peek:io road ~)
   ?.  ?=([%& %file *] seen)  (pure:m ~)
   =/  jon=json  (fall (mole |.(!<(json q.sage.p.seen))) *json)
@@ -984,7 +975,7 @@
 ++  read-channel
   =/  m  (fiber:fiber:nexus ,@t)
   ^-  form:m
-  =/  road=road:tarball  (cord-to-road:tarball './channels.json')
+  ;<  road=road:tarball  bind:m  (ancestor-road:io [/claw %agent] [%& / %'channels.json'])
   ;<  =seen:nexus  bind:m  (peek:io road ~)
   ?.  ?=([%& %file *] seen)  (pure:m '')
   =/  jon=json  (fall (mole |.(!<(json q.sage.p.seen))) *json)
@@ -995,7 +986,8 @@
   |=  updated=json
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
-  (over:io (cord-to-road:tarball './channels.json') [[/ %json] !>(updated)])
+  ;<  road=road:tarball  bind:m  (ancestor-road:io [/claw %agent] [%& / %'channels.json'])
+  (over:io road [[/ %json] !>(updated)])
 ::
 ++  set-status
   |=  st=agent-status
@@ -1007,7 +999,8 @@
       %api   (pairs:enjs:format ~[['state' s+'api']])
       %tool  (pairs:enjs:format ~[['state' s+'tool'] ['id' s+id.st]])
     ==
-  (over:io (cord-to-road:tarball './status.json') [[/ %json] !>(status)])
+  ;<  road=road:tarball  bind:m  (ancestor-road:io [/claw %agent] [%& / %'status.json'])
+  (over:io road [[/ %json] !>(status)])
 ::
 ++  join-texts
   |=  texts=(list @t)
@@ -1017,36 +1010,6 @@
   |-
   ?~  t.texts  (crip acc)
   $(t.texts t.t.texts, acc (weld acc (weld "\0a\0a" (trip i.t.texts))))
-::
-::  render a bend as a relative path string for cord-to-road
-::
-++  render-bend
-  |=  =bend:tarball
-  ^-  tape
-  =/  ups=tape
-    ?:  =(0 p.bend)  "./"
-    %-  zing
-    %+  turn  (gulf 1 p.bend)
-    |=(* "../")
-  ?-  -.q.bend
-      %&
-    =/  dir=tape  (segments path.p.q.bend)
-    :(weld ups dir "/" (trip name.p.q.bend))
-      %|
-    =/  dir=tape  (segments p.q.bend)
-    ?:  =(~ p.q.bend)  ups
-    (weld ups dir)
-  ==
-::
-++  segments
-  |=  =path
-  ^-  tape
-  ?~  path  ""
-  =/  first=tape  (trip i.path)
-  |-
-  ?~  t.path  first
-  =/  next=tape  (trip i.t.path)
-  $(t.path t.t.path, first :(weld first "/" next))
 ::
 ::  +forward-to-channel: if conv has a linked channel, send new assistant msgs
 ::
@@ -1066,23 +1029,12 @@
     `content.entry
   ?~  texts  (pure:m ~)
   =/  combined=@t  (join-texts texts)
-  ::  find parent /claw/app to resolve channel path
-  ;<  ~  bind:m  (send-dart:io %here /here)
-  ;<  =here:nexus  bind:m  (take-here-raw:io /here)
-  =/  app-res=(unit bend:tarball)  (find-in-here:io here `[/claw %app])
-  ?~  app-res
-    ~&  >>>  "%claw: can't find parent app for channel forward"
-    (pure:m ~)
-  =/  app-prefix=tape  (render-bend u.app-res)
-  =/  send-road=road:tarball
-    (cord-to-road:tarball (crip "{app-prefix}/channels/{(trip chan-name)}/send.sig"))
+  ;<  send-road=road:tarball  bind:m
+    (ancestor-road:io [/claw %app] [%& /channels/[chan-name] %'send.sig'])
   =/  send-body=json
     (pairs:enjs:format ~[['text' s+combined]])
   ~&  >  ["%claw: forwarding to channel" chan-name]
-  ~&  >  ["%claw: app-prefix" app-prefix]
-  ~&  >  ["%claw: send-road" send-road]
   ;<  ~  bind:m  (poke:io send-road [/ %json] !>(send-body))
-  ~&  >  "%claw: channel poke succeeded"
   (pure:m ~)
 ::
 ::  +strip-hoon: remove .hoon suffix from filename
@@ -1136,8 +1088,8 @@
   ::  start with built-in tools
   =/  result=(map @t tool:nex-tools)  builtins
   ::  merge dynamic tools from apps/code/lib/tools
-  ;<  src-seen=seen:nexus  bind:m
-    (peek:io [%| 0 %| /apps/code/lib/tools] ~)
+  ;<  tools-dir=road:tarball  bind:m  (ancestor-road:io [/claw %agent] [%| /apps/code/lib/tools])
+  ;<  src-seen=seen:nexus  bind:m  (peek:io tools-dir ~)
   ?.  ?=([%& %ball *] src-seen)
     (pure:m result)
   ?~  fil.ball.p.src-seen
@@ -1148,8 +1100,8 @@
   |-
   ?~  names  (pure:m result)
   =/  name=@ta  i.names
-  ;<  res=built:nexus  bind:m
-    (get-code-full:io [%| 0 %& /apps/code/lib/tools name])
+  ;<  tool-road=road:tarball  bind:m  (ancestor-road:io [/claw %agent] [%& /apps/code/lib/tools name])
+  ;<  res=built:nexus  bind:m  (get-code-full:io tool-road)
   ?.  ?=(%vase -.res)  $(names t.names)
   =/  got=(each tool:nex-tools tang)
     (mule |.(!<(tool:nex-tools vase.res)))
@@ -1158,8 +1110,8 @@
 ::
 ::  +await-tool: look up a tool by name -- builtins first, then dynamic
 ::
-::  Discovers dynamic tools the same way +get-tools does, but uses
-::  %| 2 offsets because tool fibers run from /proc/tools/{tid}.
+::  Discovers dynamic tools the same way +get-tools does, using
+::  ancestor-road so it works from any depth.
 ::
 ++  await-tool
   |=  tool=@t
@@ -1168,8 +1120,8 @@
   =/  builtin=(unit tool:nex-tools)  (~(get by builtins) tool)
   ?^  builtin  (pure:m &+u.builtin)
   ::  discover dynamic tools from apps/code/lib/tools
-  ;<  src-seen=seen:nexus  bind:m
-    (peek:io [%| 2 %| /apps/code/lib/tools] ~)
+  ;<  tools-dir=road:tarball  bind:m  (ancestor-road:io [/claw %agent] [%| /apps/code/lib/tools])
+  ;<  src-seen=seen:nexus  bind:m  (peek:io tools-dir ~)
   ?.  ?=([%& %ball *] src-seen)
     (pure:m [%| ~[leaf+"tool not found: {(trip tool)}"]])
   ?~  fil.ball.p.src-seen
@@ -1181,8 +1133,8 @@
   ?~  names
     (pure:m [%| ~[leaf+"tool not found: {(trip tool)}"]])
   =/  name=@ta  i.names
-  ;<  res=built:nexus  bind:m
-    (get-code-full:io [%| 2 %& /apps/code/lib/tools name])
+  ;<  tool-road=road:tarball  bind:m  (ancestor-road:io [/claw %agent] [%& /apps/code/lib/tools name])
+  ;<  res=built:nexus  bind:m  (get-code-full:io tool-road)
   ?.  ?=(%vase -.res)  $(names t.names)
   =/  got=(each tool:nex-tools tang)
     (mule |.(!<(tool:nex-tools vase.res)))
@@ -1377,7 +1329,7 @@
   =/  ts=tool-state:nex-tools
     [name.call tool-args %start ~ ~]
   =/  tid=@ta  id.call
-  =/  tool-road=road:tarball  [%| 0 %& /proc/tools tid]
+  ;<  tool-road=road:tarball  bind:m  (ancestor-road:io [/claw %agent] [%& /proc/tools tid])
   ;<  ~  bind:m  (set-status [%tool tid])
   ;<  *  bind:m  (keep:io /tool-wait/[tid] tool-road ~)
   ;<  ~  bind:m  (make:io tool-road |+[%.n [[/ %tool-state] !>(ts)] ~])
@@ -1518,7 +1470,7 @@
 ++  read-chat
   =/  m  (fiber:fiber:nexus ,convo)
   ^-  form:m
-  =/  road=road:tarball  (cord-to-road:tarball './context/chat.json')
+  ;<  road=road:tarball  bind:m  (ancestor-road:io [/claw %agent] [%& /context %'chat.json'])
   ;<  =seen:nexus  bind:m  (peek:io road ~)
   ?.  ?=([%& %file *] seen)  (pure:m ~)
   =/  jon=json  (fall (mole |.(!<(json q.sage.p.seen))) *json)
@@ -1528,7 +1480,7 @@
   |=  =convo
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
-  =/  road=road:tarball  (cord-to-road:tarball './context/chat.json')
+  ;<  road=road:tarball  bind:m  (ancestor-road:io [/claw %agent] [%& /context %'chat.json'])
   (over:io road [[/ %json] !>((convo-to-json convo))])
 ::
 ++  parse-convo
@@ -3062,8 +3014,9 @@
     =/  pat-path=(unit @t)  (get-arg st 'path')
     =/  pat-name=(unit @t)  (get-arg st 'name')
     =/  pat-mark=(unit @t)  (get-arg st 'mark')
-    ::  browse agent root (one level up from tool grub)
-    ;<  =seen:nexus  bind:m  (peek:io [%| 1 %| ~] ~)
+    ::  browse agent root
+    ;<  agent-root=road:tarball  bind:m  (ancestor-road:io [/claw %agent] [%| /])
+    ;<  =seen:nexus  bind:m  (peek:io agent-root ~)
     ?.  ?=([%& %ball *] seen)
       (pure:m [%error 'Could not read ball'])
     =/  candidates=(list [rail:tarball content:tarball])
@@ -3088,8 +3041,8 @@
     =/  label=tape
       =/  pax=tape  ?~(path.rail "/" (trip (spat path.rail)))
       "{pax}/{(trip name.rail)}"
-    ;<  file-seen=seen:nexus  bind:m
-      (peek:io [%| 1 %& path.rail name.rail] ~)
+    ;<  file-road=road:tarball  bind:m  (ancestor-road:io [/claw %agent] [%& rail])
+    ;<  file-seen=seen:nexus  bind:m  (peek:io file-road ~)
     ?.  ?=([%& %file *] file-seen)
       $(candidates t.candidates)
     ;<  =mime  bind:m  (sage-to-mime:io sage.p.file-seen)
@@ -3135,7 +3088,8 @@
     =/  pat-path=(unit @t)  (get-arg st 'path')
     =/  pat-name=(unit @t)  (get-arg st 'name')
     =/  pat-mark=(unit @t)  (get-arg st 'mark')
-    ;<  =seen:nexus  bind:m  (peek:io [%| 1 %| ~] ~)
+    ;<  agent-root=road:tarball  bind:m  (ancestor-road:io [/claw %agent] [%| /])
+    ;<  =seen:nexus  bind:m  (peek:io agent-root ~)
     ?.  ?=([%& %ball *] seen)
       (pure:m [%error 'Could not read ball'])
     =/  matches=(list [rail:tarball @tas])

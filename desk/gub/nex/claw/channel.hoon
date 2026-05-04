@@ -51,24 +51,13 @@
           [~ %'send.sig']
         ~&  >>  "%channel send.sig: fiber starting"
         ;<  ~  bind:m  (rise-wait:io prod "%channel send: failed")
-        ;<  ~  bind:m  (send-dart:io %here /here)
-        ;<  =here:nexus  bind:m  (take-here-raw:io /here)
-        ~&  >>  ["%channel send: here" here]
-        =/  app-res=(unit bend:tarball)  (find-in-here:io here `[/claw %app])
-        ?~  app-res
-          ~&  >>>  "%channel send: cannot find parent /claw/app"
-          stay:m
-        =/  app-bend=bend:tarball  u.app-res
         ;<  cfg=channel-config  bind:m  read-config
         ?:  |(=('' source.cfg) =('' chat-id.cfg))
           ~&  >>>  "%channel send: missing config"
           stay:m
-        =/  source-prefix=tape
-          =/  src=tape  (trip source.cfg)
-          ?:  &(!=(~ src) =('/' (snag 0 src)))  src
-          "{(render-bend app-bend)}{src}"
-        =/  bot-send=road:tarball
-          (cord-to-road:tarball (crip "{source-prefix}/send.sig"))
+        =/  source-fold=path  (source-to-fold source.cfg)
+        ;<  bot-send=road:tarball  bind:m
+          (ancestor-road:io [/claw %app] [%& source-fold %'send.sig'])
         |-
         ;<  =sage:tarball  bind:m  take-poke:io
         =/  jon=json  (fall (mole |.(!<(json q.sage))) *json)
@@ -84,9 +73,7 @@
           :~  ['message' u.text]
               ['chat_id' s+chat-id.cfg]
           ==
-        ~&  >  ["%channel send: forwarding to source" source-prefix]
-        ~&  >  ["%channel send: bot-send road" bot-send]
-        ~&  >  ["%channel send: payload" send-body]
+        ~&  >  ["%channel send: forwarding via" source-fold]
         ;<  ~  bind:m  (poke:io bot-send [/ %json] !>(send-body))
         $
           ::  /relay.sig: bridge source inbound messages to inbox
@@ -94,28 +81,15 @@
           [~ %'relay.sig']
         ~&  >>  "%channel relay: fiber starting"
         ;<  ~  bind:m  (rise-wait:io prod "%channel relay: failed")
-        ;<  ~  bind:m  (send-dart:io %here /here)
-        ;<  =here:nexus  bind:m  (take-here-raw:io /here)
-        ~&  >>  ["%channel relay: here" here]
-        =/  app-res=(unit bend:tarball)  (find-in-here:io here `[/claw %app])
-        ?~  app-res
-          ~&  >>>  "%channel relay: cannot find parent /claw/app"
-          stay:m
-        =/  app-bend=bend:tarball  u.app-res
-        ~&  >  ["%channel relay: found parent app at" app-bend]
         ;<  cfg=channel-config  bind:m  read-config
         ~&  >>  ["%channel relay: config" source.cfg chat-id.cfg]
         ?:  |(=('' source.cfg) =('' chat-id.cfg))
           ~&  >>>  "%channel relay: missing config fields"
           stay:m
-        ::  resolve source roads relative to parent app
-        =/  source-prefix=tape
-          =/  src=tape  (trip source.cfg)
-          ?:  &(!=(~ src) =('/' (snag 0 src)))  src
-          "{(render-bend app-bend)}{src}"
-        ~&  >>  ["%channel relay: source-prefix" source-prefix]
-        =/  bot-msgs=road:tarball
-          (cord-to-road:tarball (crip "{source-prefix}/messages/{(trip chat-id.cfg)}.json"))
+        =/  msg-file=@ta  (crip "{(trip chat-id.cfg)}.json")
+        ;<  bot-msgs=road:tarball  bind:m
+        =/  source-fold=path  (source-to-fold source.cfg)
+          (ancestor-road:io [/claw %app] [%& (weld source-fold /messages) msg-file])
         ~&  >>  ["%channel relay: subscribing to" bot-msgs]
         ::  watch source messages
         ;<  bot-view=view:nexus  bind:m  (keep:io /bot-msgs bot-msgs ~)
@@ -203,38 +177,17 @@
     p.u.v
   (pure:m [(get 'source') (get 'chat-id')])
 ::
-::  render a bend as a relative road string
+::  parse source config string to a fold (path within ancestor)
 ::
-::  render a bend as a relative path string for cord-to-road
-::  e.g. bend [2 %| /foo/bar/] -> "../../foo/bar/"
-::
-++  render-bend
-  |=  =bend:tarball
-  ^-  tape
-  =/  ups=tape
-    ?:  =(0 p.bend)  "./"
-    %-  zing
-    %+  turn  (gulf 1 p.bend)
-    |=(* "../")
-  ?-  -.q.bend
-      %&
-    =/  dir=tape  (segments path.p.q.bend)
-    :(weld ups dir "/" (trip name.p.q.bend))
-      %|
-    =/  dir=tape  (segments p.q.bend)
-    ?:  =(~ p.q.bend)  ups
-    (weld ups dir)
-  ==
-::
-++  segments
-  |=  =path
-  ^-  tape
-  ?~  path  ""
-  =/  first=tape  (trip i.path)
-  |-
-  ?~  t.path  first
-  =/  next=tape  (trip i.t.path)
-  $(t.path t.t.path, first :(weld first "/" next))
+++  source-to-fold
+  |=  src=@t
+  ^-  path
+  =/  t=tape  (trip src)
+  ?~  t  /
+  =/  pax=path
+    %+  scan  t
+    (more fas (cook crip (star ;~(less fas next))))
+  (skip pax |=(s=@ta =('' s)))
 ::
 ::  count incoming (non-bot) messages in a telegram message file view
 ::
