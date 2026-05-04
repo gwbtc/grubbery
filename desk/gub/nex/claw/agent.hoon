@@ -3634,15 +3634,7 @@
       (render-range full from to)
     ?:  =(~ transcript)
       (pure:m [%error 'No messages in specified ranges.'])
-    ::  build ranges label for header
-    =/  ranges-label=tape
-      %-  zing
-      %+  join  ","
-      ^-  (list tape)
-      %+  turn  ranges
-      |=  [from=@ud to=@ud]
-      "{(a-co:co from)}-{(a-co:co to)}"
-    ::  read config for model + proxy
+    ::  read config for model + proxy + context window
     =/  cfg-road=road:tarball  (agent-road './config.json')
     ;<  cfg-seen=seen:nexus  bind:m  (peek:io cfg-road ~)
     =/  config=json
@@ -3654,6 +3646,21 @@
     =/  api-name=@t
       =/  p  (get-str config 'api-proxy')
       ?:(=('' p) 'anthropic' p)
+    =/  ctx-window=@ud  (get-num config 'context_window' 80.000)
+    ::  truncate transcript to context window (~4 chars/token)
+    =/  max-chars=@ud  (mul ctx-window 4)
+    =/  truncated=?  (gth (lent transcript) max-chars)
+    =?  transcript  truncated  (scag max-chars transcript)
+    ::  build ranges label for header
+    =/  ranges-label=tape
+      %-  zing
+      %+  join  ","
+      ^-  (list tape)
+      %+  turn  ranges
+      |=  [from=@ud to=@ud]
+      "{(a-co:co from)}-{(a-co:co to)}"
+    =?  ranges-label  truncated
+      "{ranges-label} (TRUNCATED to ~{(a-co:co ctx-window)} tokens)"
     ::  build request
     =/  payload=json
       %-  pairs:enjs:format
