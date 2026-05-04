@@ -42,23 +42,25 @@
               '# Your filesystem'
               ''
               '  ./config.json              -- config (model, api-proxy, context_window, message_cap)'
-              '  ./main.sig                 -- your event loop (pokes arrive here)'
               '  ./page.html                -- your web UI'
-              '  ./context/'
-              '    chat.json               -- conversation log'
+              '  ./about.txt                -- your self-description (visible to other agents)'
+              '  ./channels.json            -- channel forwarding config'
+              '  ./context/                 -- shared context (across all chats)'
               '    prompts/                 -- system prompt files (concatenated alphabetically)'
               '    memories/                -- persistent notes you write to remember things'
               '    docs/                    -- YOUR REFERENCE DOCS. Read these! (see above)'
+              '  ./chats/main/              -- your primary chat instance'
+              '    chat.json               -- conversation log + event loop (pokes arrive here)'
+              '    outbox.json             -- append-only log; outbox tool writes here'
+              '    status.json             -- current status (idle/api/tool)'
+              '  ./proc/tools/              -- active tool processes (DO NOT write source here)'
               '  ./apps/                    -- your applications and code'
               '    code/                    -- your build scope (compiled by the grubbery build system)'
               '      nex/                   -- nexus source code'
               '      lib/                   -- libraries'
               '        tools/               -- dynamic tool definitions (.hoon files)'
               '      mar/                   -- mark definitions'
-              '  ./proc/tools/              -- active tool processes (DO NOT write source here)'
               '  ./children/                -- spawned child nexuses'
-              '  ./about.txt                -- your self-description (visible to other agents)'
-              '  ./outbox.json              -- append-only log; outbox tool writes here'
               ''
               '# Tools overview'
               ''
@@ -582,10 +584,19 @@
         %+  spin:loader  [sand gain ball]
         :~  (ver-row:loader 0)
             [%fall %& [/ %'config.json'] %.n [~ [/ %json] !>(default-config)]]
+            ::  /main.sig: chat lifecycle + message routing
             [%over %& [/ %'main.sig'] %.n [~ [/ %sig] !>(~)]]
-            ::  /context: chat and memory
+            ::  /chats/main: primary chat instance
+            [%fall %| /chats [~ ~] [~ ~] empty-dir:loader]
+            [%fall %| /chats/main [~ ~] [~ ~] empty-dir:loader]
+            [%fall %& [/chats/main %'chat.json'] %.n [~ [/ %json] !>(default-conv)]]
+            [%fall %& [/chats/main %'outbox.json'] %.n [~ [/ %json] !>([%a ~])]]
+            [%over %& [/chats/main %'status.json'] %.n [~ [/ %json] !>((pairs:enjs:format ~[['state' s+'idle']]))]]
+            ::  /proc/tools: tool execution (flat, [chat]_[tid] naming)
+            [%fall %| /proc [~ ~] [~ ~] empty-dir:loader]
+            [%fall %| /proc/tools [~ ~] [~ ~] empty-dir:loader]
+            ::  /context: shared prompts, memories, docs
             [%fall %| /context [~ ~] [~ ~] empty-dir:loader]
-            [%fall %& [/context %'chat.json'] %.n [~ [/ %json] !>(default-conv)]]
             [%fall %| /context/prompts [~ ~] [~ ~] empty-dir:loader]
             [%fall %& [/context/prompts %'main.txt'] %.n [~ [/ %txt] !>(default-prompt)]]
             [%fall %| /context/memories [~ ~] [~ ~] empty-dir:loader]
@@ -594,15 +605,13 @@
             [%over %& [/context/docs %'workflows.txt'] %.n [~ [/ %txt] !>(workflows-doc)]]
             ::  /apps: applications and code
             [%fall %| /apps [~ ~] [~ ~] empty-dir:loader]
-            ::  /apps/code: build scope for the AI's code
             [%fall %| /apps/code [~ ~] [~ ~] code-dir]
             [%fall %| /apps/code/nex [~ ~] [~ ~] empty-dir:loader]
             [%fall %| /apps/code/lib [~ ~] [~ ~] empty-dir:loader]
             [%fall %| /apps/code/lib/tools [~ ~] [~ ~] empty-dir:loader]
             [%fall %| /apps/code/mar [~ ~] [~ ~] empty-dir:loader]
-            ::  /proc/tools: tool execution
-            [%fall %| /proc [~ ~] [~ ~] empty-dir:loader]
-            [%fall %| /proc/tools [~ ~] [~ ~] empty-dir:loader]
+            ::  /chats.json: manifest of active chats
+            [%fall %& [/ %'chats.json'] %.n [~ [/ %json] !>([%a ~[s+'main']])]]
             ::  /channels.json: channel road for forwarding (relative to parent app)
             [%fall %& [/ %'channels.json'] %.n [~ [/ %json] !>(s+'')]]
             ::  /about.txt: self-description visible to other agents
@@ -610,13 +619,10 @@
               :~  'A general-purpose claw agent. No specific role assigned yet.'
               ==
             [%fall %& [/ %'about.txt'] %.n [~ [/ %txt] !>(default-about)]]
-            ::  /outbox.json: append-only result log
-            [%fall %& [/ %'outbox.json'] %.n [~ [/ %json] !>([%a ~])]]
             ::  /children: spawned child nexuses
             [%fall %| /children [~ ~] [~ ~] empty-dir:loader]
             ::  ui
             [%over %& [/ %'page.html'] %.n [~ [/ %manx] !>((chat-page ""))]]
-            [%over %& [/ %'status.json'] %.n [~ [/ %json] !>((pairs:enjs:format ~[['state' s+'idle']]))]]
         ==
       ==
     ::
@@ -627,10 +633,107 @@
       =/  m  (fiber:fiber:nexus ,~)
       ^-  process:fiber:nexus
       ?+    rail  stay:m
-          ::  /main.sig: config pokes
+          ::  /main.sig: chat lifecycle + message routing
           ::
           [~ %'main.sig']
-        ;<  ~  bind:m  (rise-wait:io prod "%claw main: failed")
+        ;<  ~  bind:m  (rise-wait:io prod "%claw main.sig: failed")
+        ::  rebuild chats.json from /chats/ directory on every startup
+        ;<  chats-dir=road:tarball  bind:m
+          (ancestor-road:io [/claw %agent] [%| /chats])
+        ;<  =seen:nexus  bind:m  (peek:io chats-dir ~)
+        =/  names=(list @t)
+          ?.  ?=([%& %ball *] seen)  ~['main']
+          =/  dirs=(list @ta)  ~(tap in ~(key by dir.ball.p.seen))
+          ?~  dirs  ~['main']
+          (sort dirs aor)
+        =/  manifest=json  [%a (turn names |=(n=@t s+n))]
+        ;<  chats-road=road:tarball  bind:m
+          (ancestor-road:io [/claw %agent] [%& / %'chats.json'])
+        ;<  exists=?  bind:m  (peek-exists:io chats-road)
+        ;<  ~  bind:m
+          ?:  exists
+            (over:io chats-road [[/ %json] !>(manifest)])
+          (make:io chats-road |+[%.n [[/ %json] !>(manifest)] ~])
+        |-
+        ;<  =sage:tarball  bind:m  take-poke:io
+        =/  jon=json  (fall (mole |.(!<(json q.sage))) *json)
+        ?.  ?=(%o -.jon)  $
+        =/  act=@t  (get-str jon 'action')
+        ?+    act  $
+            %'create-chat'
+          =/  chat-name=@ta
+            (fall (bind (~(get by p.jon) 'name') |=(=json ?>(?=(%s -.json) p.json))) '')
+          ?:  =('' chat-name)
+            ~&  >>>  "%claw main.sig: create-chat missing name"
+            $
+          ::  check if chat already exists
+          ;<  chat-road=road:tarball  bind:m
+            (ancestor-road:io [/claw %agent] [%& /chats/[chat-name] %'chat.json'])
+          ;<  exists=?  bind:m  (peek-exists:io chat-road)
+          ?:  exists
+            ~&  >>>  ["%claw main.sig: chat already exists" chat-name]
+            $
+          ~&  >  ["%claw main.sig: creating chat" chat-name]
+          ::  create /chats/[name]/ directory
+          ;<  chat-dir=road:tarball  bind:m
+            (ancestor-road:io [/claw %agent] [%| /chats/[chat-name]])
+          ;<  ~  bind:m  (make:io chat-dir &+[*sand:nexus *gain:nexus [~ ~]])
+          ::  create chat.json (empty convo)
+          ;<  ~  bind:m  (make:io chat-road |+[%.n [[/ %json] !>([%a ~])] ~])
+          ::  create outbox.json
+          ;<  outbox-road=road:tarball  bind:m
+            (ancestor-road:io [/claw %agent] [%& /chats/[chat-name] %'outbox.json'])
+          ;<  ~  bind:m  (make:io outbox-road |+[%.n [[/ %json] !>([%a ~])] ~])
+          ::  create status.json
+          =/  idle=json  (pairs:enjs:format ~[['state' s+'idle']])
+          ;<  status-road=road:tarball  bind:m
+            (ancestor-road:io [/claw %agent] [%& /chats/[chat-name] %'status.json'])
+          ;<  ~  bind:m  (make:io status-road |+[%.n [[/ %json] !>(idle)] ~])
+          ::  update chats.json manifest
+          ;<  chat-list=(list @t)  bind:m  read-chat-list
+          ;<  ~  bind:m  (write-chat-list (snoc chat-list chat-name))
+          ~&  >  ["%claw main.sig: chat created" chat-name]
+          $
+        ::
+            %'delete-chat'
+          =/  chat-name=@ta
+            (fall (bind (~(get by p.jon) 'name') |=(=json ?>(?=(%s -.json) p.json))) '')
+          ?:  =('' chat-name)
+            ~&  >>>  "%claw main.sig: delete-chat missing name"
+            $
+          ?:  =(%main chat-name)
+            ~&  >>>  "%claw main.sig: cannot delete main chat"
+            $
+          ~&  >  ["%claw main.sig: deleting chat" chat-name]
+          ;<  chat-dir=road:tarball  bind:m
+            (ancestor-road:io [/claw %agent] [%| /chats/[chat-name]])
+          ;<  ~  bind:m  (cull:io chat-dir)
+          ::  TODO: clean up orphaned tool files in /proc/tools/ prefixed with chat-name
+          ::  update chats.json manifest
+          ;<  chat-list=(list @t)  bind:m  read-chat-list
+          ;<  ~  bind:m  (write-chat-list (skip chat-list |=(n=@t =(n chat-name))))
+          ~&  >  ["%claw main.sig: chat deleted" chat-name]
+          $
+        ::
+            %'message'
+          =/  chat=@t  (get-str jon 'chat')
+          =/  content=@t  (get-str jon 'content')
+          ?:  |(=('' chat) =('' content))
+            ~&  >>>  "%claw main.sig: message missing chat or content"
+            $
+          =/  chat-name=@ta  (crip (cass:so (trip chat)))
+          =/  msg=json
+            (pairs:enjs:format ~[['action' s+'message'] ['content' s+content]])
+          ;<  chat-road=road:tarball  bind:m
+            (ancestor-road:io [/claw %agent] [%& /chats/[chat-name] %'chat.json'])
+          ;<  ~  bind:m  (poke:io chat-road [/ %json] !>(msg))
+          $
+        ==
+          ::  /chats/*/chat.json: per-chat event loop
+          ::
+          [[%chats @ ~] %'chat.json']
+        =/  chat-name=@ta  i.t.path.rail
+        ;<  ~  bind:m  (rise-wait:io prod "%claw chat: failed")
         |-
         ;<  =main-event  bind:m  take-main-event
         ~&  >>  ["%claw main.sig: got event" -.main-event]
@@ -643,7 +746,8 @@
           ?.  ?=(%file -.view.main-event)  $
           =/  tst=tool-state:nex-tools  !<(tool-state:nex-tools q.sage.view.main-event)
           ?.  =(%done step.tst)  $
-          ;<  tool-road=road:tarball  bind:m  (ancestor-road:io [/claw %agent] [%& /proc/tools tid])
+          =/  tool-file=@ta  (crip "{(trip chat-name)}_{(trip tid)}")
+          ;<  tool-road=road:tarball  bind:m  (ancestor-road:io [/claw %agent] [%& /proc/tools tool-file])
           ;<  ~  bind:m  (drop:io /tool-done/[tid] tool-road)
           =/  result-text=@t  (extract-tool-result tst)
           ~&  >  ["%claw: deferred result for" tid]
@@ -659,8 +763,8 @@
             (snoc convo [%msg 'user' (crip "[spawn_task result]: {(trip result-text)}")])
           ;<  ~  bind:m  (write-chat updated)
           ;<  tools=(map @t tool:nex-tools)  bind:m  get-tools
-          ;<  final=^convo  bind:m  (agent-turn model api-name ctx-window msg-cap updated tools)
-          ;<  ~  bind:m  (set-status [%idle ~])
+          ;<  final=^convo  bind:m  (agent-turn chat-name model api-name ctx-window msg-cap updated tools)
+          ;<  ~  bind:m  (set-status chat-name [%idle ~])
           ;<  ~  bind:m  (forward-to-channel final updated)
           $
             %poke
@@ -686,11 +790,12 @@
               $
             ::  kill deferred tool proc
             =/  tid=@ta  (slav %tas tool-id)
-            ;<  tool-road=road:tarball  bind:m  (ancestor-road:io [/claw %agent] [%& /proc/tools tid])
+            =/  tool-file=@ta  (crip "{(trip chat-name)}_{(trip tid)}")
+            ;<  tool-road=road:tarball  bind:m  (ancestor-road:io [/claw %agent] [%& /proc/tools tool-file])
             ;<  ~  bind:m  (drop:io /tool-done/[tid] tool-road)
             ;<  ~  bind:m  (cull:io tool-road)
             ~&  >  ["%claw: killed deferred tool" tid]
-            ;<  ~  bind:m  (set-status [%idle ~])
+            ;<  ~  bind:m  (set-status chat-name [%idle ~])
             ::  append interrupted marker to chat
             ;<  =convo  bind:m  read-chat
             =/  updated=^convo
@@ -711,7 +816,7 @@
             =/  content=@t  (fall (bind (~(get by p.jon) 'content') |=(=json ?>(?=(%s -.json) p.json))) '')
             ~&  >>  ["%claw message:" content]
             ?:  =('' content)  $
-            ;<  outbox=(list json)  bind:m  read-outbox
+            ;<  outbox=(list json)  bind:m  (read-outbox chat-name)
             ?:  !=(~ outbox)
               ~&  >  "%claw: nexus finished, ignoring message"
               $
@@ -729,8 +834,8 @@
             ::  discover tools
             ;<  tools=(map @t tool:nex-tools)  bind:m  get-tools
             ::  enter agent turn loop
-            ;<  final=^convo  bind:m  (agent-turn model api-name ctx-window msg-cap updated tools)
-            ;<  ~  bind:m  (set-status [%idle ~])
+            ;<  final=^convo  bind:m  (agent-turn chat-name model api-name ctx-window msg-cap updated tools)
+            ;<  ~  bind:m  (set-status chat-name [%idle ~])
             ;<  ~  bind:m  (forward-to-channel final updated)
             $
           ::
@@ -755,7 +860,7 @@
           ==
         ==
         ==
-          ::  /proc/tools/*: tool execution
+          ::  /proc/tools/*: tool execution ([chat]_[tid] naming)
           ::
           [[%proc %tools ~] @]
         ;<  ~  bind:m  (rise-tool prod)
@@ -802,11 +907,13 @@
         ==
           %|
         ?+  rail.p.mana  'File under claw.'
-          [~ %'config.json']     'LLM config: model selection.'
-          [~ %'channels.json']   'Channel road for forwarding assistant messages.'
-          [~ %'main.sig']        'Poke handler for config and messages.'
-          [~ %'page.html']       'Chat interface.'
-          [~ %'status.json']     'Loading state: {loading: true/false}.'
+          [~ %'config.json']                   'LLM config: model selection.'
+          [~ %'channels.json']                 'Channel road for forwarding assistant messages.'
+          [~ %'main.sig']                      'Chat lifecycle (create/delete) + message routing.'
+          [~ %'page.html']                     'Chat interface.'
+          [[%chats @ ~] %'chat.json']          'Chat conversation log + event loop. Pokes arrive here.'
+          [[%chats @ ~] %'status.json']        'Chat status: idle/api/tool.'
+          [[%chats @ ~] %'outbox.json']        'Append-only result log.'
         ==
       ==
     --
@@ -963,9 +1070,10 @@
   (over:io road [[/ %json] !>(updated)])
 ::
 ++  read-outbox
+  |=  chat-name=@ta
   =/  m  (fiber:fiber:nexus ,(list json))
   ^-  form:m
-  ;<  road=road:tarball  bind:m  (ancestor-road:io [/claw %agent] [%& / %'outbox.json'])
+  ;<  road=road:tarball  bind:m  (ancestor-road:io [/claw %agent] [%& /chats/[chat-name] %'outbox.json'])
   ;<  =seen:nexus  bind:m  (peek:io road ~)
   ?.  ?=([%& %file *] seen)  (pure:m ~)
   =/  jon=json  (fall (mole |.(!<(json q.sage.p.seen))) *json)
@@ -989,8 +1097,25 @@
   ;<  road=road:tarball  bind:m  (ancestor-road:io [/claw %agent] [%& / %'channels.json'])
   (over:io road [[/ %json] !>(updated)])
 ::
+++  read-chat-list
+  =/  m  (fiber:fiber:nexus ,(list @t))
+  ^-  form:m
+  ;<  road=road:tarball  bind:m  (ancestor-road:io [/claw %agent] [%& / %'chats.json'])
+  ;<  =seen:nexus  bind:m  (peek:io road ~)
+  ?.  ?=([%& %file *] seen)  (pure:m ~['main'])
+  =/  jon=json  (fall (mole |.(!<(json q.sage.p.seen))) *json)
+  ?.  ?=(%a -.jon)  (pure:m ~['main'])
+  (pure:m (murn p.jon |=(j=json ?.(?=(%s -.j) ~ `p.j))))
+::
+++  write-chat-list
+  |=  names=(list @t)
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  ;<  road=road:tarball  bind:m  (ancestor-road:io [/claw %agent] [%& / %'chats.json'])
+  (over:io road [[/ %json] !>([%a (turn names |=(n=@t s+n))])])
+::
 ++  set-status
-  |=  st=agent-status
+  |=  [chat-name=@ta st=agent-status]
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
   =/  status=json
@@ -999,7 +1124,7 @@
       %api   (pairs:enjs:format ~[['state' s+'api']])
       %tool  (pairs:enjs:format ~[['state' s+'tool'] ['id' s+id.st]])
     ==
-  ;<  road=road:tarball  bind:m  (ancestor-road:io [/claw %agent] [%& / %'status.json'])
+  ;<  road=road:tarball  bind:m  (ancestor-road:io [/claw %agent] [%& /chats/[chat-name] %'status.json'])
   (over:io road [[/ %json] !>(status)])
 ::
 ++  join-texts
@@ -1047,6 +1172,20 @@
   ?.  (gth len 5)  name
   ?.  =(".hoon" (slag (sub len 5) t))  name
   (crip (scag (sub len 5) t))
+::
+::  +get-tool-chat-name: extract chat name from tool filename
+::
+::  Tool files are named [chat]_[tid]. @ta can't contain '_',
+::  so splitting on first '_' reliably gives the chat name.
+::  Falls back to 'main' if no underscore found.
+::
+++  get-tool-chat-name
+  |=  =rail:tarball
+  ^-  @ta
+  =/  t=tape  (trip name.rail)
+  =/  idx=(unit @ud)  (find "_" t)
+  ?~  idx  %main
+  (crip (scag u.idx t))
 ::
 ::  built-in tools map
 ::
@@ -1191,7 +1330,7 @@
 ::  sends prompt to API, handles tool_use responses, loops until end_turn
 ::
 ++  agent-turn
-  |=  [model=@t api-name=@t ctx-window=@ud msg-cap=@ud =convo tools=(map @t tool:nex-tools)]
+  |=  [chat-name=@ta model=@t api-name=@t ctx-window=@ud msg-cap=@ud =convo tools=(map @t tool:nex-tools)]
   =/  m  (fiber:fiber:nexus ,^convo)
   ^-  form:m
   ~&  >>  "%claw agent-turn: start"
@@ -1261,7 +1400,7 @@
     (pairs:enjs:format ~[['id' s+call-id] ['body' payload]])
   ;<  ~  bind:m  (poke:io main-road [/ %json] !>(poke-body))
   ~&  >>  ["%claw: call" call-id "created, waiting for response"]
-  ;<  ~  bind:m  (set-status [%api ~])
+  ;<  ~  bind:m  (set-status chat-name [%api ~])
   ::  wait for news with status=done, or interrupt poke
   ;<  resp=(unit json)  bind:m  (await-call-or-interrupt /api-call)
   ::  drop subscription
@@ -1299,7 +1438,7 @@
     (pure:m updated)
   ::  execute tools, append results
   ~&  >  ["%claw: executing" (lent calls) "tool calls"]
-  ;<  results=(list [@t @t])  bind:m  (run-tool-calls calls)
+  ;<  results=(list [@t @t])  bind:m  (run-tool-calls chat-name calls)
   =/  with-results=^convo
     %+  roll  results
     |=  [[id=@t result=@t] acc=_updated]
@@ -1315,7 +1454,7 @@
 ::  If %done, the tool completed synchronously -- subscription dropped.
 ::
 ++  run-tool-calls
-  |=  calls=(list content-block)
+  |=  [chat-name=@ta calls=(list content-block)]
   =/  m  (fiber:fiber:nexus ,(list [@t @t]))
   ^-  form:m
   =/  results=(list [@t @t])  ~
@@ -1329,8 +1468,9 @@
   =/  ts=tool-state:nex-tools
     [name.call tool-args %start ~ ~]
   =/  tid=@ta  id.call
-  ;<  tool-road=road:tarball  bind:m  (ancestor-road:io [/claw %agent] [%& /proc/tools tid])
-  ;<  ~  bind:m  (set-status [%tool tid])
+  =/  tool-file=@ta  (crip "{(trip chat-name)}_{(trip tid)}")
+  ;<  tool-road=road:tarball  bind:m  (ancestor-road:io [/claw %agent] [%& /proc/tools tool-file])
+  ;<  ~  bind:m  (set-status chat-name [%tool tid])
   ;<  *  bind:m  (keep:io /tool-wait/[tid] tool-road ~)
   ;<  ~  bind:m  (make:io tool-road |+[%.n [[/ %tool-state] !>(ts)] ~])
   ;<  [result-text=@t more=?]  bind:m  (await-tool-ack tid)
@@ -1470,18 +1610,14 @@
 ++  read-chat
   =/  m  (fiber:fiber:nexus ,convo)
   ^-  form:m
-  ;<  road=road:tarball  bind:m  (ancestor-road:io [/claw %agent] [%& /context %'chat.json'])
-  ;<  =seen:nexus  bind:m  (peek:io road ~)
-  ?.  ?=([%& %file *] seen)  (pure:m ~)
-  =/  jon=json  (fall (mole |.(!<(json q.sage.p.seen))) *json)
+  ;<  jon=json  bind:m  (get-state-as:io ,json)
   (pure:m (parse-convo jon))
 ::
 ++  write-chat
   |=  =convo
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
-  ;<  road=road:tarball  bind:m  (ancestor-road:io [/claw %agent] [%& /context %'chat.json'])
-  (over:io road [[/ %json] !>((convo-to-json convo))])
+  (replace:io !>((convo-to-json convo)))
 ::
 ++  parse-convo
   |=  jon=json
@@ -1803,14 +1939,20 @@
             ;div#abt-status;
           ==
         ==
-        ;div#main
-          ;div#messages;
-          ;div#loading;
-          ;form#prompt-form(onsubmit "sendMessage(event)")
-            ;div.input-row
-              ;input#input(type "text", placeholder "Say something...", autocomplete "off");
-              ;button#stop-btn(type "button"): Stop
-              ;button(type "submit"): Send
+        ;div#body
+          ;div#sidebar
+            ;div#chat-list;
+            ;button#new-chat-btn: + new chat
+          ==
+          ;div#main
+            ;div#messages;
+            ;div#loading;
+            ;form#prompt-form(onsubmit "sendMessage(event)")
+              ;div.input-row
+                ;input#input(type "text", placeholder "Say something...", autocomplete "off");
+                ;button#stop-btn(type "button"): Stop
+                ;button(type "submit"): Send
+              ==
             ==
           ==
         ==
@@ -1830,6 +1972,8 @@
   #header \{ padding: 12px 16px; border-bottom: 1px solid #333; flex-shrink: 0; display: flex; justify-content: space-between; align-items: flex-start; }
   #header h1 \{ font-size: 20px; font-weight: 700; }
   #header > div \{ display: flex; gap: 6px; }
+  #body \{ flex: 1; display: flex; overflow: hidden; }
+  #sidebar \{ width: 160px; flex-shrink: 0; border-right: 1px solid #222; display: flex; flex-direction: column; padding: 8px 0; overflow-y: auto; }
   #main \{ flex: 1; display: flex; flex-direction: column; overflow: hidden; max-width: 700px; width: 100%; margin: 0 auto; padding: 0 16px; }
   #messages \{ flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding: 8px 0; }
   .msg \{ padding: 8px 12px; border-radius: 8px; max-width: 85%; white-space: pre-wrap; word-wrap: break-word; font-size: 14px; line-height: 1.5; }
@@ -1874,13 +2018,22 @@
   #stop-btn \{ display: none; background: none; color: #f87171; border: 1px solid #f87171; padding: 10px 16px; }
   #stop-btn:hover \{ background: rgba(248,113,113,0.1); }
   #stop-btn.active \{ display: block; }
+  #chat-list \{ flex: 1; display: flex; flex-direction: column; gap: 2px; }
+  .chat-item \{ font-size: 13px; padding: 6px 12px; color: #888; cursor: pointer; display: flex; justify-content: space-between; align-items: center; border-radius: 4px; margin: 0 6px; }
+  .chat-item:hover \{ color: #eee; background: #1a1a1a; }
+  .chat-item.active \{ color: #eee; background: #1a1a2e; cursor: default; }
+  .chat-del \{ font-size: 14px; color: #444; cursor: pointer; line-height: 1; opacity: 0; }
+  .chat-item:hover .chat-del \{ opacity: 1; }
+  .chat-del:hover \{ color: #f87171; }
+  #new-chat-btn \{ font-size: 12px; padding: 6px 12px; margin: 4px 6px; border-radius: 4px; border: 1px dashed #333; background: none; color: #555; cursor: pointer; text-align: left; }
+  #new-chat-btn:hover \{ color: #888; border-color: #555; background: none; }
   """
 ::
 ++  script-text
   |=  ball-id=tape
   ^-  tape
   ;:  weld
-    "var API = '/grubbery/api';\0avar BALL = '{ball-id}';\0a"
+    "var API = '/grubbery/api';\0avar BALL = '{ball-id}';\0avar CHAT = new URLSearchParams(location.search).get('chat') || 'main';\0a"
   """
   function renderMessages(entries) \{
     var el = document.getElementById('messages');
@@ -1920,7 +2073,7 @@
     var text = input.value.trim();
     if (!text) return;
     input.value = '';
-    fetch(API + '/poke/' + BALL + '/main.sig?mark=json', \{
+    fetch(API + '/poke/' + BALL + '/chats/' + CHAT + '/chat.json?mark=json', \{
       method: 'POST',
       headers: \{'Content-Type': 'application/json'},
       body: JSON.stringify(\{action: 'message', content: text})
@@ -1929,7 +2082,7 @@
 
   document.getElementById('clear-btn').onclick = function() \{
     if (!confirm('Clear chat?')) return;
-    fetch(API + '/poke/' + BALL + '/main.sig?mark=json', \{
+    fetch(API + '/poke/' + BALL + '/chats/' + CHAT + '/chat.json?mark=json', \{
       method: 'POST',
       headers: \{'Content-Type': 'application/json'},
       body: JSON.stringify(\{action: 'clear'})
@@ -1962,7 +2115,7 @@
     var win = parseInt(document.getElementById('cfg-window').value) || 80000;
     var cap = parseInt(document.getElementById('cfg-msgcap').value) || 20000;
     var channel = document.getElementById('cfg-channel').value.trim();
-    fetch(API + '/poke/' + BALL + '/main.sig?mark=json', \{
+    fetch(API + '/poke/' + BALL + '/chats/' + CHAT + '/chat.json?mark=json', \{
       method: 'POST',
       headers: \{'Content-Type': 'application/json'},
       body: JSON.stringify(\{action: 'set-model', model: model})
@@ -1973,13 +2126,13 @@
       body: JSON.stringify(\{model: model, 'api-proxy': proxy, context_window: win, message_cap: cap})
     });
     if (channel) \{
-      fetch(API + '/poke/' + BALL + '/main.sig?mark=json', \{
+      fetch(API + '/poke/' + BALL + '/chats/' + CHAT + '/chat.json?mark=json', \{
         method: 'POST',
         headers: \{'Content-Type': 'application/json'},
         body: JSON.stringify(\{action: 'link-channel', channel: channel})
       });
     } else \{
-      fetch(API + '/poke/' + BALL + '/main.sig?mark=json', \{
+      fetch(API + '/poke/' + BALL + '/chats/' + CHAT + '/chat.json?mark=json', \{
         method: 'POST',
         headers: \{'Content-Type': 'application/json'},
         body: JSON.stringify(\{action: 'unlink-channel'})
@@ -2030,7 +2183,7 @@
     if (sseCtrl) sseCtrl.abort();
     sseCtrl = new AbortController();
     try \{
-      var r = await fetch(API + '/keep/' + BALL + '/context/chat.json?mark=json', \{
+      var r = await fetch(API + '/keep/' + BALL + '/chats/' + CHAT + '/chat.json?mark=json', \{
         headers: \{Accept: 'text/event-stream'},
         signal: sseCtrl.signal
       });
@@ -2065,6 +2218,8 @@
   window.addEventListener('beforeunload', function() \{
     if (sseRdr) try \{ sseRdr.cancel(); } catch(e) \{}
     if (sseCtrl) sseCtrl.abort();
+    if (statusEs) statusEs.close();
+    if (chatListEs) chatListEs.close();
   });
 
   // Stop button
@@ -2074,13 +2229,13 @@
     if (currentStatus.state === 'idle') return;
     if (currentStatus.state === 'tool') \{
       if (!confirm('Abort tool? This may leave state inconsistent.')) return;
-      fetch(API + '/poke/' + BALL + '/main.sig?mark=json', \{
+      fetch(API + '/poke/' + BALL + '/chats/' + CHAT + '/chat.json?mark=json', \{
         method: 'POST',
         headers: \{'Content-Type': 'application/json'},
         body: JSON.stringify(\{action: 'interrupt', id: currentStatus.id})
       });
     } else \{
-      fetch(API + '/poke/' + BALL + '/main.sig?mark=json', \{
+      fetch(API + '/poke/' + BALL + '/chats/' + CHAT + '/chat.json?mark=json', \{
         method: 'POST',
         headers: \{'Content-Type': 'application/json'},
         body: JSON.stringify(\{action: 'interrupt'})
@@ -2089,9 +2244,11 @@
   };
 
   // Status SSE
+  var statusEs = null;
   function connectStatusSSE() \{
-    var es = new EventSource(API + '/keep/' + BALL + '/status.json?mark=json');
-    es.addEventListener('upd status.json', function(e) \{
+    if (statusEs) statusEs.close();
+    statusEs = new EventSource(API + '/keep/' + BALL + '/chats/' + CHAT + '/status.json?mark=json');
+    statusEs.addEventListener('upd status.json', function(e) \{
       try \{
         var s = JSON.parse(e.data);
         currentStatus = s;
@@ -2107,16 +2264,16 @@
         }
       } catch(x) \{}
     });
-    es.onerror = function() \{ es.close(); setTimeout(connectStatusSSE, 2000); };
+    statusEs.onerror = function() \{ statusEs.close(); statusEs = null; setTimeout(connectStatusSSE, 2000); };
   }
 
   // Load chat
-  fetch(API + '/file/' + BALL + '/context/chat.json?mark=json')
+  fetch(API + '/file/' + BALL + '/chats/' + CHAT + '/chat.json?mark=json')
     .then(function(r) \{ return r.json() })
     .then(renderMessages)
     .catch(function() \{});
   // Load current status
-  fetch(API + '/file/' + BALL + '/status.json?mark=json')
+  fetch(API + '/file/' + BALL + '/chats/' + CHAT + '/status.json?mark=json')
     .then(function(r) \{ return r.json() })
     .then(function(s) \{
       currentStatus = s;
@@ -2129,6 +2286,94 @@
     }).catch(function() \{});
   connectSSE();
   connectStatusSSE();
+
+  // Chat list via SSE
+  var chatListEs = null;
+  var pendingNav = null;
+
+  function renderChatList(names, skipCache) \{
+    if (!Array.isArray(names) || !names.length) names = ['main'];
+    if (!skipCache) try \{ sessionStorage.setItem('claw-chats', JSON.stringify(names)); } catch(x) \{}
+    // navigate after create/delete if pending
+    if (pendingNav) \{
+      var target = pendingNav;
+      if (target.charAt(0) === '+' && names.indexOf(target.slice(1)) >= 0) \{
+        pendingNav = null;
+        location.search = '?chat=' + target.slice(1);
+        return;
+      }
+      if (target.charAt(0) === '-' && names.indexOf(target.slice(1)) < 0) \{
+        pendingNav = null;
+        if (target.slice(1) === CHAT) \{ location.search = '?chat=main'; return; }
+      }
+    }
+    var el = document.getElementById('chat-list');
+    el.innerHTML = '';
+    for (var i = 0; i < names.length; i++) \{
+      var name = names[i];
+      var item = document.createElement('div');
+      item.className = 'chat-item' + (name === CHAT ? ' active' : '');
+      var label = document.createElement('span');
+      label.textContent = name;
+      item.appendChild(label);
+      if (name !== CHAT) \{
+        item.setAttribute('data-chat', name);
+        item.onclick = function() \{ location.search = '?chat=' + this.getAttribute('data-chat'); };
+      }
+      if (name !== 'main') \{
+        var del = document.createElement('span');
+        del.className = 'chat-del';
+        del.textContent = String.fromCharCode(215);
+        del.setAttribute('data-chat', name);
+        del.onclick = function(e) \{
+          e.stopPropagation();
+          var n = this.getAttribute('data-chat');
+          if (!confirm('Delete chat "' + n + '"?')) return;
+          pendingNav = '-' + n;
+          fetch(API + '/poke/' + BALL + '/main.sig?mark=json', \{
+            method: 'POST',
+            headers: \{'Content-Type': 'application/json'},
+            body: JSON.stringify(\{action: 'delete-chat', name: n})
+          });
+        };
+        item.appendChild(del);
+      }
+      el.appendChild(item);
+    }
+  }
+
+  function connectChatListSSE() \{
+    if (chatListEs) chatListEs.close();
+    chatListEs = new EventSource(API + '/keep/' + BALL + '/chats.json?mark=json');
+    chatListEs.addEventListener('upd chats.json', function(e) \{
+      try \{ renderChatList(JSON.parse(e.data)); } catch(x) \{}
+    });
+    chatListEs.onerror = function() \{
+      chatListEs.close();
+      chatListEs = null;
+      setTimeout(connectChatListSSE, 2000);
+    };
+  }
+
+  document.getElementById('new-chat-btn').onclick = function() \{
+    var name = prompt('Chat name (lowercase, no spaces):');
+    if (!name) return;
+    name = name.toLowerCase().replace(/[^a-z0-9\\-]/g, '-').replace(/^-|-$/g, '');
+    if (!name) return;
+    pendingNav = '+' + name;
+    fetch(API + '/poke/' + BALL + '/main.sig?mark=json', \{
+      method: 'POST',
+      headers: \{'Content-Type': 'application/json'},
+      body: JSON.stringify(\{action: 'create-chat', name: name})
+    });
+  };
+
+  try \{ var cached = JSON.parse(sessionStorage.getItem('claw-chats')); if (cached) renderChatList(cached, true); } catch(x) \{}
+  fetch(API + '/file/' + BALL + '/chats.json?mark=json')
+    .then(function(r) \{ return r.json() })
+    .then(function(d) \{ renderChatList(d); })
+    .catch(function() \{ if (!sessionStorage.getItem('claw-chats')) renderChatList(['main']); });
+  connectChatListSSE();
   """
   ==
 
@@ -2144,9 +2389,9 @@
 ::
 ::  +agent-road: adjust a road so relative paths resolve from the agent root
 ::
-::  Tools run at /proc/tools/{tid}, two levels below the agent. The LLM thinks
+::  Tools run at /proc/tools/[tid], two levels below the agent. The LLM thinks
 ::  in terms of the agent directory, so ./foo should mean agent-root/foo,
-::  not /proc/tools/{tid}/foo. This prepends ../../ to relative roads.
+::  not /proc/tools/[tid]/foo. This prepends ../../ to relative roads.
 ::
 ++  agent-road
   |=  raw=@t
@@ -2806,8 +3051,10 @@
       :~  ['status' s+status]
           ['result' s+u.result]
       ==
-    =/  road=road:tarball  (agent-road './outbox.json')
-    ;<  cur=(list json)  bind:m  read-outbox
+    ;<  here=rail:tarball  bind:m  get-here:io
+    =/  chat-name=@ta  (get-tool-chat-name here)
+    =/  road=road:tarball  (agent-road (crip "./chats/{(trip chat-name)}/outbox.json"))
+    ;<  cur=(list json)  bind:m  (read-outbox chat-name)
     =/  updated=json  [%a (snoc cur result-json)]
     ;<  ~  bind:m  (over:io road [[/ %json] !>(updated)])
     (pure:m [%text 'Finished -- result appended to outbox.json'])
@@ -2818,7 +3065,7 @@
   =/  m  (fiber:fiber:nexus ,tool-result:nex-tools)
   ^-  form:m
   =/  outbox-road=road:tarball
-    (agent-road (crip "{pfx}/outbox.json"))
+    (agent-road (crip "{pfx}/chats/main/outbox.json"))
   ::  drop any stale subscription from a previous run, then subscribe fresh
   ;<  ~  bind:m  (drop:io /spawn-result outbox-road)
   ;<  *  bind:m  (keep:io /spawn-result outbox-road ~)
@@ -2918,7 +3165,7 @@
     =/  pfx=tape  "./children/{tid-t}"
     =/  child-road=road:tarball  (agent-road (crip "{pfx}/"))
     ::  check if child already exists
-    ;<  exists=?  bind:m  (peek-exists:io (agent-road (crip "{pfx}/main.sig")))
+    ;<  exists=?  bind:m  (peek-exists:io (agent-road (crip "{pfx}/chats/main/chat.json")))
     ?:  exists
       (pure:m [%error (crip "Child '{tid-t}' already exists. Use a unique name.")])
     =/  code-pax=path  (stab code)
@@ -2968,7 +3215,7 @@
     =/  msg-json=json
       (pairs:enjs:format ~[['action' s+'message'] ['content' s+u.message]])
     =/  child-sig-road=road:tarball
-      (agent-road (crip "{pfx}/main.sig"))
+      (agent-road (crip "{pfx}/chats/main/chat.json"))
     ;<  ~  bind:m
       (send-dart:io [%node /spawn-task child-sig-road %poke [[/ %json] !>(msg-json)]])
     ::  ack -- store pfx in data so we can resume on restart
@@ -3140,7 +3387,9 @@
     ?~  raw=(get-arg st 'query')
       (pure:m [%error 'Missing required argument: query'])
     =/  query=tape  (cass (trip u.raw))
-    =/  conv-road=road:tarball  (agent-road './context/chat.json')
+    ;<  here=rail:tarball  bind:m  get-here:io
+    =/  chat-name=@ta  (get-tool-chat-name here)
+    =/  conv-road=road:tarball  (agent-road (crip "./chats/{(trip chat-name)}/chat.json"))
     ;<  =seen:nexus  bind:m  (peek:io conv-road ~)
     ?.  ?=([%& %file *] seen)
       (pure:m [%text 'Could not read chat.'])
@@ -3269,7 +3518,9 @@
     =/  user-prompt=@t
       (fall (get-arg st 'prompt') 'Provide a concise chronological summary of what happened.')
     ::  read conversation
-    =/  conv-road=road:tarball  (agent-road './context/chat.json')
+    ;<  here=rail:tarball  bind:m  get-here:io
+    =/  chat-name=@ta  (get-tool-chat-name here)
+    =/  conv-road=road:tarball  (agent-road (crip "./chats/{(trip chat-name)}/chat.json"))
     ;<  =seen:nexus  bind:m  (peek:io conv-road ~)
     ?.  ?=([%& %file *] seen)
       (pure:m [%error 'Could not read chat.'])
