@@ -734,11 +734,55 @@
           [[%chats @ ~] %'chat.json']
         =/  chat-name=@ta  i.t.path.rail
         ;<  ~  bind:m  (rise-wait:io prod "%claw chat: failed")
+        ::  if main chat, subscribe to channel inbox
+        ;<  chan-seen=@ud  bind:m  (init-channel-sub chat-name)
         |-
         ;<  =main-event  bind:m  take-main-event
         ~&  >>  ["%claw main.sig: got event" -.main-event]
         ?-    -.main-event
             %news
+          ::  channel inbox: new messages from linked channel
+          ?:  ?=([%'chan-inbox' ~] wire.main-event)
+            ?.  ?=(%file -.view.main-event)  $
+            =/  j=json  (fall (mole |.(!<(json q.sage.view.main-event))) *json)
+            =/  msgs=(list json)
+              ?.  ?=(%a -.j)  ~
+              p.j
+            =/  new-count=@ud  (lent msgs)
+            ?:  (lte new-count chan-seen)  $
+            =/  new-msgs=(list json)  (slag chan-seen msgs)
+            =.  chan-seen  new-count
+            =/  texts=(list [from=@t text=@t])
+              %+  murn  new-msgs
+              |=  m=json
+              ?.  ?=(%o -.m)  ~
+              =/  text  (~(get by p.m) 'text')
+              =/  from  (~(get by p.m) 'from')
+              ?.  ?=([~ %s *] text)  ~
+              `[(fall (bind from |=(j=json ?>(?=(%s -.j) p.j))) 'unknown') p.u.text]
+            ?~  texts  $
+            ~&  >  ["%claw: channel inbound" (lent texts) "messages"]
+            ;<  config=json  bind:m  read-config
+            =/  model=@t  (get-str config 'model')
+            =/  api-name=@t
+              =/  p  (get-str config 'api-proxy')
+              ?:(=('' p) 'anthropic' p)
+            =/  ctx-window=@ud  (get-num config 'context_window' 80.000)
+            =/  msg-cap=@ud  (get-num config 'message_cap' 20.000)
+            ;<  =convo  bind:m  read-chat
+            =/  combined=@t
+              %-  crip
+              %-  zing
+              %+  turn  texts
+              |=  [from=@t text=@t]
+              "[{(trip from)} via channel]: {(trip text)}\0a"
+            =/  updated=^convo  (snoc convo [%msg 'user' combined])
+            ;<  ~  bind:m  (write-chat updated)
+            ;<  tools=(map @t tool:nex-tools)  bind:m  get-tools
+            ;<  final=^convo  bind:m  (agent-turn chat-name model api-name ctx-window msg-cap updated tools)
+            ;<  ~  bind:m  (set-status chat-name [%idle ~])
+            ;<  ~  bind:m  (forward-to-channel chat-name final updated)
+            $
           ::  deferred tool result arrived via subscription
           ::  only handle /tool-done/* wires; ignore stale news from other subs
           ?.  ?=([%'tool-done' @ ~] wire.main-event)  $
@@ -765,7 +809,7 @@
           ;<  tools=(map @t tool:nex-tools)  bind:m  get-tools
           ;<  final=^convo  bind:m  (agent-turn chat-name model api-name ctx-window msg-cap updated tools)
           ;<  ~  bind:m  (set-status chat-name [%idle ~])
-          ;<  ~  bind:m  (forward-to-channel final updated)
+          ;<  ~  bind:m  (forward-to-channel chat-name final updated)
           $
             %poke
           ~&  >>  ["%claw poke from:" from.main-event]
@@ -836,7 +880,7 @@
             ::  enter agent turn loop
             ;<  final=^convo  bind:m  (agent-turn chat-name model api-name ctx-window msg-cap updated tools)
             ;<  ~  bind:m  (set-status chat-name [%idle ~])
-            ;<  ~  bind:m  (forward-to-channel final updated)
+            ;<  ~  bind:m  (forward-to-channel chat-name final updated)
             $
           ::
               %'clear'
@@ -1095,6 +1139,25 @@
   ?.  ?=(%a -.jon)  (pure:m ~)
   (pure:m p.jon)
 ::
+++  init-channel-sub
+  |=  chat-name=@ta
+  =/  m  (fiber:fiber:nexus ,@ud)
+  ^-  form:m
+  ?.  =(%main chat-name)  (pure:m 0)
+  ;<  chan-name=@t  bind:m  read-channel
+  ?:  =('' chan-name)  (pure:m 0)
+  =/  chan-fold=path  (cord-to-path chan-name)
+  ;<  inbox-road=road:tarball  bind:m
+    (ancestor-road:io [/claw %app] [%& (weld /channels chan-fold) %'inbox.json'])
+  ;<  inbox-view=view:nexus  bind:m  (keep:io /chan-inbox inbox-road ~)
+  =/  cnt=@ud
+    ?.  ?=(%file -.inbox-view)  0
+    =/  j=json  (fall (mole |.(!<(json q.sage.inbox-view))) *json)
+    ?.  ?=(%a -.j)  0
+    (lent p.j)
+  ~&  >>  ["%claw: channel inbox subscribed, seen" cnt]
+  (pure:m cnt)
+::
 ++  read-channel
   =/  m  (fiber:fiber:nexus ,@t)
   ^-  form:m
@@ -1154,9 +1217,10 @@
 ::  +forward-to-channel: if conv has a linked channel, send new assistant msgs
 ::
 ++  forward-to-channel
-  |=  [final=convo before=convo]
+  |=  [chat-name=@ta final=convo before=convo]
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
+  ?.  =(%main chat-name)  (pure:m ~)
   ;<  chan-name=@t  bind:m  read-channel
   ?:  =('' chan-name)  (pure:m ~)
   ::  extract new assistant messages (final has more entries than before)
@@ -1169,8 +1233,9 @@
     `content.entry
   ?~  texts  (pure:m ~)
   =/  combined=@t  (join-texts texts)
+  =/  chan-fold=path  (cord-to-path chan-name)
   ;<  send-road=road:tarball  bind:m
-    (ancestor-road:io [/claw %app] [%& /channels/[chan-name] %'send.sig'])
+    (ancestor-road:io [/claw %app] [%& (weld /channels chan-fold) %'send.sig'])
   =/  send-body=json
     (pairs:enjs:format ~[['text' s+combined]])
   ~&  >  ["%claw: forwarding to channel" chan-name]
@@ -3671,6 +3736,18 @@
     ;<  ~  bind:m  (make:io sum-road |+[%.n [[/ %json] !>(sum-json)] ~])
     (pure:m [%text summary-text])
   --
+::
+::  +cord-to-path: split "foo/bar/baz" into /foo/bar/baz
+::
+++  cord-to-path
+  |=  src=@t
+  ^-  path
+  =/  t=tape  (trip src)
+  ?~  t  /
+  =/  pax=path
+    %+  scan  t
+    (more fas (cook crip (star ;~(less fas next))))
+  (skip pax |=(s=@ta =('' s)))
 ::
 ::  +render-range: render a slice of convo as indexed transcript
 ::
