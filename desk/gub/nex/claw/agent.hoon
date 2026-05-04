@@ -622,7 +622,7 @@
             ::  /children: spawned child nexuses
             [%fall %| /children [~ ~] [~ ~] empty-dir:loader]
             ::  ui
-            [%over %& [/ %'page.html'] %.n [~ [/ %manx] !>((chat-page ""))]]
+            [%over %& [/ %'page.html'] %.n [~ [/ %manx] !>((chat-page "" ""))]]
         ==
       ==
     ::
@@ -892,7 +892,22 @@
           %+  join  "/"
           ^-  (list tape)
           (turn path.here trip)
-        ;<  ~  bind:m  (replace:io !>((chat-page ball-id)))
+        ;<  app-road=road:tarball  bind:m
+          (ancestor-road:io [/claw %app] [%& / %'page.html'])
+        =/  app-url=tape
+          ?:  ?=([%| * %& *] app-road)
+          =/  steps=@ud  p.p.app-road
+          =/  base=path  (scag (sub (lent path.here) steps) path.here)
+          =/  rel-path=path  path.p.q.p.app-road
+          =/  full=path  (weld base rel-path)
+          =/  pax=tape
+            %-  zing
+            %+  join  "/"
+            ^-  (list tape)
+            (turn full trip)
+          "/grubbery/ball/{pax}/{(trip name.p.q.p.app-road)}"
+          ""
+        ;<  ~  bind:m  (replace:io !>((chat-page ball-id app-url)))
         stay:m
       ==
     ::
@@ -1422,7 +1437,7 @@
     =/  err-convo=^convo  (snoc convo [%msg 'assistant' err-msg])
     ;<  ~  bind:m  (write-chat err-convo)
     (pure:m err-convo)
-  ::  append all content blocks as entries
+  ::  append all content blocks incrementally
   =/  updated=^convo
     %+  roll  content-blocks.u.parsed
     |=  [=content-block acc=_convo]
@@ -1430,21 +1445,19 @@
         %text      (snoc acc [%msg 'assistant' text.content-block])
         %tool-use  (snoc acc [%tool-use id.content-block name.content-block input.content-block])
     ==
+  ;<  ~  bind:m  (write-chat updated)
   ::  if end_turn or no tool calls, we're done
   =/  calls=(list content-block)
     (skim content-blocks.u.parsed |=(=content-block ?=(%tool-use -.content-block)))
   ?~  calls
-    ;<  ~  bind:m  (write-chat updated)
     (pure:m updated)
-  ::  execute tools, append results
+  ::  execute tools, append results incrementally
   ~&  >  ["%claw: executing" (lent calls) "tool calls"]
-  ;<  results=(list [@t @t])  bind:m  (run-tool-calls chat-name calls)
-  =/  with-results=^convo
-    %+  roll  results
-    |=  [[id=@t result=@t] acc=_updated]
-    (snoc acc [%tool-result id result])
-  ;<  ~  bind:m  (write-chat with-results)
-  $(convo with-results)
+  ;<  result=(unit ^convo)  bind:m  (run-tool-calls chat-name updated calls)
+  ?~  result
+    ::  interrupted during tool execution — exit turn
+    (pure:m updated)
+  $(convo u.result)
 ::
 ::  +run-tool-calls: execute tool calls via /tools grubs
 ::
@@ -1454,12 +1467,11 @@
 ::  If %done, the tool completed synchronously -- subscription dropped.
 ::
 ++  run-tool-calls
-  |=  [chat-name=@ta calls=(list content-block)]
-  =/  m  (fiber:fiber:nexus ,(list [@t @t]))
+  |=  [chat-name=@ta =convo calls=(list content-block)]
+  =/  m  (fiber:fiber:nexus ,(unit ^convo))
   ^-  form:m
-  =/  results=(list [@t @t])  ~
   |-
-  ?~  calls  (pure:m (flop results))
+  ?~  calls  (pure:m `convo)
   =/  call=content-block  i.calls
   ?>  ?=(%tool-use -.call)
   =/  tool-args=(map @t json)
@@ -1473,13 +1485,26 @@
   ;<  ~  bind:m  (set-status chat-name [%tool tid])
   ;<  *  bind:m  (keep:io /tool-wait/[tid] tool-road ~)
   ;<  ~  bind:m  (make:io tool-road |+[%.n [[/ %tool-state] !>(ts)] ~])
-  ;<  [result-text=@t more=?]  bind:m  (await-tool-ack tid)
+  ;<  ack=(unit [@t ?])  bind:m  (await-tool-ack tid)
   ;<  ~  bind:m  (drop:io /tool-wait/[tid] tool-road)
+  ?~  ack
+    ::  interrupted — kill tool, write marker, return
+    ;<  ~  bind:m  (cull:io tool-road)
+    ~&  >  ["%claw: tool interrupted" tid]
+    =/  updated=^convo  (snoc convo [%tool-result id.call '[tool interrupted by user]'])
+    ;<  ~  bind:m  (write-chat updated)
+    ;<  ~  bind:m  (set-status chat-name [%idle ~])
+    (pure:m ~)
+  =/  result-text=@t  -.u.ack
+  =/  more=?  +.u.ack
+  ::  append result to convo and write immediately
+  =/  updated=^convo  (snoc convo [%tool-result id.call result-text])
+  ;<  ~  bind:m  (write-chat updated)
   ?:  more
     ::  tool ack'd but still running -- subscribe on /tool-done for main loop
     ;<  *  bind:m  (keep:io /tool-done/[tid] tool-road ~)
-    $(calls t.calls, results [[id.call result-text] results])
-  $(calls t.calls, results [[id.call result-text] results])
+    $(calls t.calls, convo updated)
+  $(calls t.calls, convo updated)
 ::
 ::  +await-tool-ack: wait for tool grub to reach %ack or %done
 ::
@@ -1488,17 +1513,33 @@
 ::
 ++  await-tool-ack
   |=  tid=@ta
-  =/  m  (fiber:fiber:nexus ,[@t ?])
+  =/  m  (fiber:fiber:nexus ,(unit [@t ?]))
   ^-  form:m
-  |-
-  ;<  nw=news-or-wake:io  bind:m  (take-news-or-wake:io /tool-wait/[tid])
-  ?:  ?=(%wake -.nw)  $
-  ?.  ?=(%file -.view.nw)  $
-  =/  st=tool-state:nex-tools  !<(tool-state:nex-tools q.sage.view.nw)
-  ?:  =(%ack step.st)
-    (pure:m [(extract-tool-result st) %.y])
-  ?.  =(%done step.st)  $
-  (pure:m [(extract-tool-result st) %.n])
+  |=  input:fiber:nexus
+  :+  ~  state
+  ?+  in  [%skip ~]
+      ~  [%wait ~]
+      [~ %veto *]
+    [%fail (veto-error:io dart.u.in)]
+    ::  interrupt poke — return ~
+    ::
+      [~ %poke * *]
+    =/  jon=json  (fall (mole |.(!<(json q.sage.u.in))) *json)
+    ?.  ?=(%o -.jon)  [%skip ~]
+    =/  act=(unit json)  (~(get by p.jon) 'action')
+    ?.  ?=([~ %s %'interrupt'] act)  [%skip ~]
+    [%done ~]
+    ::  news on tool subscription
+    ::
+      [~ %news * *]
+    ?.  =(/tool-wait/[tid] wire.u.in)  [%skip ~]
+    ?.  ?=(%file -.view.u.in)  [%skip ~]
+    =/  st=tool-state:nex-tools  !<(tool-state:nex-tools q.sage.view.u.in)
+    ?:  =(%ack step.st)
+      [%done `[(extract-tool-result st) %.y]]
+    ?.  =(%done step.st)  [%skip ~]
+    [%done `[(extract-tool-result st) %.n]]
+  ==
 ::
 ::  +extract-tool-result: pull text from tool-state update
 ::
@@ -1880,7 +1921,7 @@
 ::
 ::
 ++  chat-page
-  |=  ball-id=tape
+  |=  [ball-id=tape app-url=tape]
   ^-  manx
   ;html
     ;head
@@ -1895,7 +1936,9 @@
       ;div#app
         ;div#header
           ;div
-            ;h1: claw
+            ;h1
+              ;a(href "{app-url}", style "color: inherit; text-decoration: none;"): claw
+            ==
             ;div.f3.mono.s-2: AI agent nexus
           ==
           ;div
@@ -3589,10 +3632,18 @@
               ==
           ==
       ==
-    ;<  proxy=road:tarball  bind:m  (resolve-proxy api-name)
-    ;<  ~  bind:m  (poke:io proxy [/ %json] !>(payload))
-    ;<  =sage:tarball  bind:m  take-poke:io
-    =/  resp=json  (fall (mole |.(!<(json q.sage))) *json)
+    ;<  proxy=road:tarball  bind:m
+      (ancestor-road:io [/claw %app] [%& /apis/[api-name] %'main.sig'])
+    ;<  eny=@uvJ  bind:m  get-entropy:io
+    =/  call-id=@t  (scot %uv (end [3 8] eny))
+    ;<  call-road=road:tarball  bind:m
+      (ancestor-road:io [/claw %app] [%& /apis/[api-name]/calls (crip "{(trip call-id)}.json")])
+    ;<  *  bind:m  (keep:io /sum-call call-road ~)
+    =/  poke-body=json
+      (pairs:enjs:format ~[['id' s+call-id] ['body' payload]])
+    ;<  ~  bind:m  (poke:io proxy [/ %json] !>(poke-body))
+    ;<  resp=json  bind:m  (await-sum-call /sum-call)
+    ;<  ~  bind:m  (drop:io /sum-call call-road)
     =/  parsed=(unit api-response)  (parse-json-response resp)
     ?~  parsed
       (pure:m [%error 'Failed to parse API response.'])
@@ -3617,6 +3668,21 @@
       ==
     (pure:m [%text (crip :(weld (trip header) (trip text)))])
   --
+::
+::  +await-sum-call: wait for API call to reach status=done, return response
+::
+++  await-sum-call
+  |=  =wire
+  =/  m  (fiber:fiber:nexus ,json)
+  ^-  form:m
+  |-
+  ;<  upd=view:nexus  bind:m  (take-news:io wire)
+  ?.  ?=([%file *] upd)  $
+  =/  j=json  (fall (mole |.(!<(json q.sage.upd))) *json)
+  ?.  ?=(%o -.j)  $
+  =/  status=(unit json)  (~(get by p.j) 'status')
+  ?.  ?=([~ %s %'done'] status)  $
+  (pure:m (fall (~(get by p.j) 'response') [%o ~]))
 ::
 ++  list-agents-tool
   ^-  tool:nex-tools
