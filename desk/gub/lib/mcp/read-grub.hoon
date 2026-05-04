@@ -9,7 +9,7 @@
 ++  parameters
   ^-  (map @t parameter-def:tools)
   %-  ~(gas by *(map @t parameter-def:tools))
-  :~  ['path' [%string 'Directory path (e.g. "/config/creds")']]
+  :~  ['path' [%string 'Directory path (e.g. "/mcp.mcp")']]
       ['name' [%string 'Grub filename (e.g. "telegram.json")']]
   ==
 ++  required  ~['path' 'name']

@@ -531,7 +531,7 @@
     =/  api-key=@t  (jget-t cfg 'api_key' '')
     ?:  =('' api-key)
       ~&  >>>  %claude-no-api-key
-      ;<  ~  bind:m  (append-to-msgs msg-road 'user' '<error>No API key set. Add your Anthropic API key in /config/creds or /claude.claude/config.json</error>')
+      ;<  ~  bind:m  (append-to-msgs msg-road 'user' '<error>No API key set. Add api_key to config.json.</error>')
       (pure:m ~)
     =/  model=@t       (jget-t cfg 'model' 'claude-sonnet-4-20250514')
     =/  max-tokens=@ud  (jget-n cfg 'max_tokens' 4.096)

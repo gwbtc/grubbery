@@ -320,13 +320,13 @@
       endpoint=@t
       bucket=@t
   ==
-::  Read S3 credentials from config/creds/s3
+::  Read S3 credentials from mcp nexus
 ::
 ++  read-s3-creds
   =/  m  (fiber:fiber:nexus ,s3-creds)
   ^-  form:m
   ;<  creds-seen=seen:nexus  bind:m
-    (peek:io [%& %& /config/creds 's3'] ~)
+    (peek:io [%& %& /'mcp.mcp' %'s3.json'] `%json)
   ?.  ?=([%& %file *] creds-seen)
     ~|  %s3-creds-not-found
     !!

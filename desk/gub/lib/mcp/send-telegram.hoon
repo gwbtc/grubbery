@@ -5,7 +5,7 @@
 ^-  tool:tools
 |%
 ++  name  'send_telegram'
-++  description  'Send a Telegram message. Requires config/creds/telegram with bot-token and chat-id.'
+++  description  'Send a Telegram message. Uses first bot from /telegram.telegram/bots/.'
 ++  parameters
   ^-  (map @t parameter-def:tools)
   (malt ~[['message' [%string 'Message to send']]])
@@ -20,11 +20,11 @@
   ?:  ?=(%| -.parsed)
     (pure:m [%error 'Missing or invalid argument: message'])
   =/  message=@t  p.parsed
-  ::  Read telegram config from ball
+  ::  Read telegram creds from telegram nexus
   ;<  creds-seen=seen:nexus  bind:m
-    (peek:io [%& %& /config/creds 'telegram'] ~)
+    (peek:io [%& %& /'telegram.telegram' %'creds.json'] `%json)
   ?.  ?=([%& %file *] creds-seen)
-    (pure:m [%error 'Telegram credentials not configured. Create config/creds/telegram with bot-token and chat-id.'])
+    (pure:m [%error 'No telegram creds. Create /telegram.telegram/creds.json with bot-token and chat-id.'])
   =/  jon=json  !<(json q.sage.p.creds-seen)
   =/  creds-parsed=(each [@t @t] tang)
     %-  mule  |.

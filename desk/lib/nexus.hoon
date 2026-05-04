@@ -510,7 +510,11 @@
   ++  bump-file
     |=  here=rail:tarball
     ^-  born
-    =/  sok=sack  (need (get here))
+    =/  got=(unit sack)  (get here)
+    ?~  got
+      ~|  ["bump-file: missing rail" here]
+      !!
+    =/  sok=sack  u.got
     =.  born.old  (put here [proc.sok life.sok (next-cass file.sok) hist.sok])
     (bump-dir path.here)
   ::  Bump weir cass of directory node and propagate fold cass up

@@ -10,6 +10,9 @@
 ::  Poke sync.sig to trigger a re-fetch.
 ::
 /<  zlib  /lib/zlib.hoon
+/<  bs  /lib/bytestream.hoon
+/<  git-bundle  /lib/git/bundle.hoon
+/<  git-repo  /lib/git/repository.hoon
 =<  ^-  nexus:nexus
     |%
     ++  on-load
@@ -28,6 +31,7 @@
             [%fall %& [/ %'config.json'] %.n [~ [/ %json] !>(default-config)]]
             [%fall %& [/ %'sync.sig'] %.n [~ [/ %sig] !>(~)]]
             [%over %& [/ %'page.html'] %.n [~ [/ %manx] !>((github-page '' '' 'main' ~))]]
+            [%fall %& [/ %'import.sig'] %.n [~ [/ %sig] !>(~)]]
             [%fall %| /tree [~ ~] [~ ~] empty-dir:loader]
         ==
       ==
@@ -39,6 +43,21 @@
       =/  m  (fiber:fiber:nexus ,~)
       ^-  process:fiber:nexus
       ?+    rail  stay:m
+          ::  /import.sig: bundle import — poke with octs to parse
+          ::
+          [~ %'import.sig']
+        ;<  ~  bind:m  (rise-wait:io prod "%github import: failed")
+        ~&  >>  "%github: bundle import ready"
+        |-
+        ;<  poke=*  bind:m  take-poke:io
+        ~&  >>  "%github: import poke received"
+        =/  bun=bundle:git-bundle
+          (read:git-bundle (from-octs:bs ;;(octs poke)))
+        =/  repo=repository:git-repo
+          (~(clone-from-bundle git-repo *repository:git-repo) bun)
+        ~&  >>  ["%github: bundle parsed" count.pack.bun "objects"]
+        ~&  >>  ["%github: refs" (turn refs.header.bun |=([p=* q=*] p))]
+        $
           ::  /page.html: watches config + tree, re-renders
           ::
           [~ %'page.html']
@@ -365,49 +384,145 @@
     %nix   /text/plain
   ==
 ::
+++  page-css
+  ^-  tape
+  %-  zing
+  ^-  (list tape)
+  :~  "*\{box-sizing:border-box}"
+      "body\{font-family:-apple-system,system-ui,monospace;max-width:720px;"
+      "margin:0 auto;padding:2rem;color:#1a1a1a}"
+      ".muted\{opacity:.5}"
+      ".row\{margin-bottom:.75rem}"
+      ".row label\{display:block;font-size:.8rem;margin-bottom:.2rem;opacity:.6}"
+      "input,select\{width:100%;padding:.4rem .6rem;border:1px solid #ccc;"
+      "border-radius:4px;font:inherit}"
+      ".branch-row\{display:flex;gap:.5rem}"
+      ".branch-row select\{flex:1}"
+      ".branch-row input\{width:140px;flex:none}"
+      ".actions\{display:flex;gap:.5rem;margin:1rem 0}"
+      ".btn\{padding:.4rem 1rem;border:1px solid #ccc;border-radius:4px;"
+      "background:#fff;font:inherit;cursor:pointer}"
+      ".btn:hover\{background:#f5f5f5}"
+      ".btn.primary\{background:#1a1a1a;color:#fff;border-color:#1a1a1a}"
+      ".btn.primary:hover\{background:#333}"
+      ".commit\{padding:.3rem 0;font-size:.85rem;border-bottom:1px solid #eee}"
+      ".commit code\{color:#0969da;margin-right:.4rem}"
+      ".file\{padding:.15rem 0;font-size:.8rem}"
+      "h2\{font-size:1rem;margin-top:1.5rem}"
+  ==
+::
+++  page-script
+  |=  [api=@t repo=@t ref=@t]
+  ^-  tape
+  %-  zing
+  ^-  (list tape)
+  :~  "var A='{(trip api)}';"
+      "var R='{(trip repo)}';"
+      "var F='{(trip ref)}';"
+      ::  save config
+      "document.getElementById('save').onclick=function()\{"
+      "var r=document.getElementById('repo').value;"
+      "var f=document.getElementById('ref').value;"
+      "fetch(A.replace('/file/','/over/')+'/config.json?mark=json',"
+      "\{method:'POST',headers:\{'Content-Type':'application/json'},"
+      "body:JSON.stringify(\{repo:r,ref:f})})"
+      "};"
+      ::  sync
+      "document.getElementById('sync').onclick=function()\{"
+      "fetch(A.replace('/file/','/poke/')+'/sync.sig',"
+      "\{method:'POST',headers:\{'Content-Type':'text/plain'},body:'sync'})"
+      "};"
+      ::  branch select updates ref input
+      "document.getElementById('branches').onchange=function()\{"
+      "document.getElementById('ref').value=this.value"
+      "};"
+      ::  fetch branches + commits from github api
+      "if(R)\{"
+      "var G='https://api.github.com/repos/'+R;"
+      "fetch(G+'/branches?per_page=30')"
+      ".then(function(r)\{return r.json()})"
+      ".then(function(bs)\{"
+      "var s=document.getElementById('branches');"
+      "if(!s||!Array.isArray(bs))return;"
+      "s.innerHTML='';"
+      "bs.forEach(function(b)\{"
+      "var o=document.createElement('option');"
+      "o.value=b.name;o.textContent=b.name;"
+      "if(b.name===F)o.selected=true;"
+      "s.appendChild(o)"
+      "})"
+      "}).catch(function()\{});"
+      "fetch(G+'/commits?sha='+encodeURIComponent(F)+'&per_page=15')"
+      ".then(function(r)\{return r.json()})"
+      ".then(function(cs)\{"
+      "var d=document.getElementById('commits');"
+      "if(!d||!Array.isArray(cs))return;"
+      "d.innerHTML='';"
+      "cs.forEach(function(c)\{"
+      "var e=document.createElement('div');"
+      "e.className='commit';"
+      "var co=document.createElement('code');"
+      "co.textContent=c.sha.substring(0,7);"
+      "e.appendChild(co);"
+      "var msg=(c.commit.message||'').split('\\n')[0];"
+      "e.appendChild(document.createTextNode(msg+' '));"
+      "var sp=document.createElement('span');"
+      "sp.className='muted';"
+      "var who=c.commit.author?c.commit.author.name:'';"
+      "sp.textContent='\\u2014 '+who;"
+      "e.appendChild(sp);"
+      "d.appendChild(e)"
+      "})"
+      "}).catch(function()\{});"
+      "}"
+  ==
+::
 ++  github-page
   |=  [api=@t repo=@t ref=@t files=(list @t)]
   ^-  manx
   ;html
     ;head
-      ;title: GitHub Clone
+      ;title: {?:(=('' repo) "GitHub" "{(trip repo)}")}
       ;meta(charset "utf-8");
       ;meta(name "viewport", content "width=device-width, initial-scale=1");
       ;style
-        ;+  ;/  "body \{ font-family: monospace; max-width: 700px; margin: 0 auto; padding: 2rem; } .muted \{ opacity: 0.5; } .mb1 \{ margin-bottom: 0.5rem; } .mb2 \{ margin-bottom: 1rem; } .p2 \{ padding: 0.5rem; } .b1 \{ border: 1px solid #ccc; } .br1 \{ border-radius: 4px; } .hover:hover \{ background: #eee; } .pointer \{ cursor: pointer; } .s9 \{ font-size: 0.8rem; } .file \{ padding: 0.2rem 0; } .w100 \{ width: 100%; box-sizing: border-box; }"
+        ;+  ;/  page-css
       ==
     ==
     ;body
-      ;h1: GitHub Clone
-      ;div.mb2
+      ;h1: {?:(=('' repo) "GitHub Clone" (trip repo))}
+      ;div.row
         ;label: Repository (owner/repo)
-        ;input#repo.w100.p2.b1.br1.mb1(type "text", value "{(trip repo)}", placeholder "urbit/urbit");
+        ;input#repo(type "text", value "{(trip repo)}", placeholder "urbit/urbit");
       ==
-      ;div.mb2
-        ;label: Ref (branch / tag / sha)
-        ;input#ref.w100.p2.b1.br1.mb1(type "text", value "{(trip ref)}", placeholder "main");
+      ;div.row
+        ;label: Branch / Ref
+        ;div.branch-row
+          ;select#branches
+            ;option(value "{(trip ref)}"): {(trip ref)}
+          ==
+          ;input#ref(type "text", value "{(trip ref)}", placeholder "sha or tag");
+        ==
       ==
-      ;div.mb2
-        ;button#save.p2.b1.br1.hover.pointer.mb1: Save Config
-        ;+  ;/  " "
-        ;button#sync.p2.b1.br1.hover.pointer.mb1: Sync Now
+      ;div.actions
+        ;button#save.btn: Save Config
+        ;button#sync.btn.primary: Sync Now
+      ==
+      ;h2: Commits
+      ;div#commits
+        ;span.muted: {?:(=('' repo) "Enter a repo above" "Loading...")}
       ==
       ;h2: Files ({(scow %ud (lent files))})
       ;div#files
         ;*  ?~  files
-              =/  empty=manx  ;span.muted: No files synced.
+              =/  empty=manx  ;span.muted: No files synced yet.
               ~[empty]
             %+  turn  files
             |=  name=@t
-            ;div.file.s9: {(trip name)}
+            ;div.file: {(trip name)}
       ==
       ;script
-        ;+  ;/
-          ;:  weld
-            "var S='{(trip api)}';"
-            "document.getElementById('save').onclick=function()\{var r=document.getElementById('repo').value;var f=document.getElementById('ref').value;var j=JSON.stringify(\{repo:r,ref:f});var u=S.replace('/file/','/over/')+'/config.json?mark=json';fetch(u,\{method:'POST',headers:\{'Content-Type':'application/json'},body:j})};"
-            "document.getElementById('sync').onclick=function()\{var u=S.replace('/file/','/poke/')+'/sync.sig';fetch(u,\{method:'POST',headers:\{'Content-Type':'text/plain'},body:'sync'})};"
-          ==
+        ;+  ;/  (page-script api repo ref)
       ==
     ==
   ==

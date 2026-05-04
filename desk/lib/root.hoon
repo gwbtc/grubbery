@@ -6,11 +6,11 @@
 ++  on-load
   |=  [=sand:nexus =gain:nexus =ball:tarball]
   ^-  [sand:nexus gain:nexus ball:tarball]
-  =/  =ver:loader  (get-ver:loader ball)
+  =/  =ver:loader  ~  :: (get-ver:loader ball)
   ?+  ver  !!
-      ?(~ [~ %0] [~ %1])
+      ?(~ [~ %0])
     %+  spin:loader  [sand gain ball]
-    :~  (ver-row:loader 1)
+    :~  (ver-row:loader 0)
         [%load %| / / same-fold:loader]
         ::  child nexuses
         [%fall %| /'server.server' [~ ~] [~ ~] [`[~ `[/ %server] ~] ~]]
@@ -23,16 +23,15 @@
         [%fall %| /'goals.goals' [~ ~] [~ ~] [`[~ `[/ %goals] ~] ~]]
         [%fall %| /'mcp.mcp' [~ ~] [~ ~] [`[~ `[/ %mcp] ~] ~]]
         [%fall %| /'wallet.wallet_app' [~ ~] [~ ~] [`[~ `[/wallet %app] ~] ~]]
-        [%fall %| /'indexer.indexer_app' [~ ~] [~ ~] [`[~ `[/indexer %app] ~] ~]]
+        :: [%fall %| /'indexer.indexer_app' [~ ~] [~ ~] [`[~ `[/indexer %app] ~] ~]]
         :: [%fall %| /'groundwire.groundwire' [~ ~] [~ ~] [`[~ `[/ %groundwire] ~] ~]]
-        ::  config
-        [%fall %| /config/creds [~ ~] [~ ~] empty-dir:loader]
         ::  system internals — populated by app/grubbery.hoon before
         ::  on-load runs. Must be preserved or the framework breaks.
         [%fall %| /code [~ ~] [~ ~] [`[~ `[/ %code] ~] ~]]
-        [%fall %| /sys/bowl [~ ~] [~ ~] [`[~ `[/ %bowl] ~] ~]]
+        [%fall %| /sys/bowl [~ ~] [~ ~] empty-dir:loader]
         [%fall %| /sys/clay [~ ~] [~ ~] empty-dir:loader]
         [%fall %| /sys/dill [~ ~] [~ ~] empty-dir:loader]
+        [%fall %| /sys/gall [~ ~] [~ ~] empty-dir:loader]
         [%fall %| /sys/jael [~ ~] [~ ~] empty-dir:loader]
     ==
   ==
@@ -71,7 +70,6 @@
       SYSTEM:
         sys/               System internals — build compiler, terminal logs,
                            cryptographic keys, virtual bowl files.
-        config/            User configuration and credentials.
       """
         [%sys ~]
       %-  crip
@@ -85,19 +83,6 @@
                         private-keys.jael-private-keys — ship private keys.
                         public-keys.jael-public-keys-result — PKI cache.
       """
-        [%config ~]
-      %-  crip
-      """
-      config/ — User configuration.
-
-      SUBDIRECTORIES:
-        creds/          API keys and service credentials. Files here are
-                        read by nexuses that need them (e.g. claude reads
-                        config.json for its API key, MCP tools read
-                        telegram tokens, S3 keys, etc).
-      """
-        [%config %creds ~]
-      'Credentials store. Service API keys and tokens. Files are read by nexuses on demand.'
     ==
       %|
     ?+  rail.p.mana  'File under the root nexus.'
