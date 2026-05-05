@@ -16,7 +16,6 @@
         [%fall %| /'server.server' [~ ~] [~ ~] [`[~ `[/ %server] ~] ~]]
         [%fall %| /'counter.counter' [~ ~] [~ ~] [`[~ `[/ %counter] ~] ~]]
         [%fall %| /'explorer.explorer' [~ ~] [~ ~] [`[~ `[/ %explorer] ~] ~]]
-        [%fall %| /'peers.peers' [~ ~] [~ ~] [`[~ `[/ %peers] ~] ~]]
         [%fall %| /'claude.claude' [~ ~] [~ ~] [`[~ `[/ %claude] ~] ~]]
         [%fall %| /'oneshot.oneshot' [~ ~] [~ ~] [`[~ `[/ %oneshot] ~] ~]]
         [%fall %| /'telegram.telegram' [~ ~] [~ ~] [`[~ `[/ %telegram] ~] ~]]
@@ -25,16 +24,9 @@
         [%fall %| /'wallet.wallet_app' [~ ~] [~ ~] [`[~ `[/wallet %app] ~] ~]]
         :: [%fall %| /'indexer.indexer_app' [~ ~] [~ ~] [`[~ `[/indexer %app] ~] ~]]
         :: [%fall %| /'groundwire.groundwire' [~ ~] [~ ~] [`[~ `[/ %groundwire] ~] ~]]
-        ::  system internals — populated by app/grubbery.hoon before
-        ::  on-load runs. Must be preserved or the framework breaks.
-        [%fall %| /code [~ ~] [~ ~] [`[~ `[/ %code] ~] ~]]
-        [%fall %| /sys/bowl [~ ~] [~ ~] empty-dir:loader]
-        [%fall %| /sys/clay [~ ~] [~ ~] empty-dir:loader]
-        [%fall %| /sys/dill [~ ~] [~ ~] empty-dir:loader]
-        [%fall %| /sys/gall [~ ~] [~ ~] empty-dir:loader]
-        [%fall %| /sys/jael [~ ~] [~ ~] empty-dir:loader]
     ==
   ==
+::
 ++  on-file
   |=  [=rail:tarball mak=mark]
   ^-  spool:fiber:nexus
@@ -42,6 +34,7 @@
   =/  m  (fiber:fiber:nexus ,~)
   ^-  process:fiber:nexus
   stay:m
+::
 ++  on-manu
   |=  =mana:nexus
   ^-  @t
@@ -63,7 +56,6 @@
         mcp.mcp/           MCP (Model Context Protocol) JSON-RPC tool server.
         explorer.explorer/ Web-based tarball file browser.
         counter.counter/   Auto-incrementing counters with live UI.
-        peers.peers/       External ship gateway with role-based access control.
         wallet.wallet_app/ Bitcoin wallet management with per-wallet nexuses.
         indexer.indexer_app/ Bitcoind block cache. Polls RPC, caches blocks.
 
@@ -82,7 +74,35 @@
         jael/           Cryptographic key storage. History retained.
                         private-keys.jael-private-keys — ship private keys.
                         public-keys.jael-public-keys-result — PKI cache.
+        peer/           Foreign ship management. Runtime-owned.
+                        Weirs recompute atomically on usergroup changes.
+                        ships/~ship/ship.sig — virtual grub per foreign ship.
       """
+        [%sys %peer ~]
+      %-  crip
+      """
+      sys/peer/ — Foreign ship management (runtime-owned).
+
+      Foreign pokes are emitted as darts from ship.sig, filtered by
+      the weir on the ship's directory. Weirs are computed from
+      usergroups and recompute atomically on any change.
+
+      SUBDIRECTORIES:
+        usergroups/who/   Group membership. Each file is a (set @p).
+                          Nested paths supported (e.g. /who/acme/eng).
+        usergroups/how/   Weir templates per group. Each file is a weir.
+                          /how/public applies to ALL foreign ships.
+        ships/            Per-ship directories, created lazily.
+                          Each has a ship.sig grub and a computed weir.
+      """
+        [%sys %peer %usergroups ~]
+      'Usergroup definitions. /who/ has membership sets (set @p), /how/ has weir templates. Groups control what foreign ships can access.'
+        [%sys %peer %usergroups %who ~]
+      'Group membership. Each file contains a (set @p). Nested paths supported.'
+        [%sys %peer %usergroups %how ~]
+      'Weir templates per group. Each file contains a weir:nexus. /how/public applies to all ships.'
+        [%sys %peer %ships ~]
+      'Per-ship directories. Created lazily on first foreign poke. Each contains ship.sig with a weir computed from usergroups.'
     ==
       %|
     ?+  rail.p.mana  'File under the root nexus.'

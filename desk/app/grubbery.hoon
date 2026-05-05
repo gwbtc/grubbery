@@ -84,6 +84,8 @@
   =^  clay-cards  state  abet:sync-clay:hc
   ~&  >>  "on-init: sync-jael"
   =^  jael-cards  state  abet:sync-jael:hc
+  ~&  >>  "on-init: sync-peer"
+  =^  peer-cards  state  abet:sync-peer:hc
   ~&  >>  "on-init: done"
   :_  this
   ;:  weld
@@ -94,6 +96,7 @@
     dill-cards
     clay-cards
     jael-cards
+    peer-cards
     cards
   ==
 ::
@@ -125,6 +128,8 @@
     =^  clay-cards  state  abet:sync-clay:hc
     ~&  >>  "on-load: sync-jael"
     =^  jael-cards  state  abet:sync-jael:hc
+    ~&  >>  "on-load: sync-peer"
+    =^  peer-cards  state  abet:sync-peer:hc
     ~&  >>  "on-load: done"
     :_  this
     ;:  weld
@@ -135,6 +140,7 @@
       dill-cards
       clay-cards
       jael-cards
+      peer-cards
       cards
     ==
   ==
@@ -147,12 +153,26 @@
     =+  !<(=action:nexus vas)
     ?-    +<.action
         %poke
-      ::  All pokes route through /peers.peers/main.sig gateway
+      ::  Foreign pokes: pretend ship.sig emitted a poke dart.
+      ::  The dart travels up through /sys/peer/ships/~src/ weir,
+      ::  using the normal process-dart codepath.
+      ::  Our ship: route directly (no weir, no peer directory).
       ?>  ?=(%& -.dest.action)
-      =/  =give:nexus  [|+[src sap]:bowl wire.action]
-      =^  cards  state
-        abet:(poke:hc give [/'peers.peers' %'main.sig'] [[/ %poke-in] !>([p.dest.action bask.action])])
-      [cards this]
+      ?:  =(src our):bowl
+        =/  =give:nexus  [|+[src sap]:bowl wire.action]
+        =^  cards  state
+          abet:(poke:hc give p.dest.action [p.bask.action !>(q.bask.action)])
+        [cards this]
+      ::  Foreign poke — ensure ship dir + weir, emit dart as ship.sig
+      =/  ship-ta=@ta  (scot %p src.bowl)
+      =^  peer-cards  state
+        abet:(ensure-peer-ship:hc src.bowl)
+      =/  ship-rail=rail:tarball  [/sys/peer/ships/[ship-ta] %'ship.sig']
+      =/  =sage:tarball  [p.bask.action !>(q.bask.action)]
+      =/  =dart:nexus  [%node /peer [%& &+p.dest.action] [%poke sage]]
+      =^  dart-cards  state
+        abet:(process-dart:hc ship-rail dart)
+      [(weld peer-cards dart-cards) this]
       ::
         %make
       ?>  =(src our):bowl
@@ -184,9 +204,9 @@
     ==
     ::  HTTP request from eyre: forward to /server.server/main.server-state
     ::
-    ::  NOTE: HTTP requests go directly to /server.server/main.server-state, bypassing /peers.peers.
-    ::  Eyre gestures at treating them as "from a ship" via src.bowl —
-    ::  this feels misleading.
+    ::  NOTE: HTTP requests go directly to /server.server/main.server-state,
+    ::  bypassing /sys/peer/ships weir checks. Eyre gestures at treating
+    ::  them as "from a ship" via src.bowl — this feels misleading.
     ::
       %handle-http-request
     =+  !<([eyre-id=@ta req=inbound-request:eyre] vas)
@@ -206,11 +226,13 @@
     ::  Mount a Clay desk into /sys/clay/[desk]
     ?>  =(src our):bowl
     =/  dek=desk  !<(desk vas)
-    =?  ball  =(~ (~(get of ball) /sys/clay/[dek]))
-      (~(put of ball) /sys/clay/[dek] [~ ~ ~])
-    =^  cards  state
+    =/  old=ball:tarball  (~(dip ba:tarball ball) /sys/clay/[dek])
+    =/  new=ball:tarball  old(fil `(fall fil.old *lump:tarball))
+    =^  dir-cards  state
+      abet:(load-ball-changes:hc /sys/clay/[dek] old new)
+    =^  sync-cards  state
       abet:(sync-clay-desk:hc dek)
-    [cards this]
+    [(weld dir-cards sync-cards) this]
       ::
       %unmount-desk
     ::  Unmount a Clay desk from /sys/clay/[desk]
@@ -1497,7 +1519,11 @@
   =/  =filt:nexus  (allowed jump here dest)
   ?+    filt  (handle-dart here dart filt)
       [~ %|]
-    ::  Vetoed - send %veto intake back to source
+    ::  Vetoed — crash for foreign ship darts (gall nacks the sender),
+    ::  send %veto intake back to source for internal darts.
+    ?:  ?=([%sys %peer %ships @ ~] path.here)
+      ~|  [%peer-vetoed name.here dest]
+      !!
     (enqu-take here (sys-give /veto) ~ %veto dart)
     ::
       [~ %&]
@@ -1506,8 +1532,18 @@
     ::  Peek results are clammed inside handle-dart (data flows back)
     ?.  ?=([%node * * ?(%poke %over) *] dart)
       (handle-dart here dart filt)
-    =/  clammed=(each sage:tarball tang)  (clam-sage path.here sage.load.dart)
+    ::  Clam using destination's code nexus, not source's
+    =/  clam-pax=path
+      ?~  dest  path.here
+      ?-  -.u.dest
+        %&  path.p.u.dest
+        %|  p.u.dest
+      ==
+    =/  clammed=(each sage:tarball tang)  (clam-sage clam-pax sage.load.dart)
     ?:  ?=(%| -.clammed)
+      ?:  ?=([%sys %peer %ships @ ~] path.here)
+        ~|  [%peer-clam-failed name.here dest]
+        !!
       (enqu-take here (sys-give /veto) ~ %veto dart)
     (handle-dart here dart(sage.load p.clammed) filt)
   ==
@@ -1652,6 +1688,8 @@
       ::
         %peek
       ::  Refresh /sys/bowl/ virtual files on every peek
+      ::  NOTE: these use raw ball puts intentionally — save-file would
+      ::  bump born, notifying watchers, which peek again → infinite loop.
       =.  ball
         (~(put ba:tarball ball) [/sys/bowl %our] [~ [/ %ship] !>(our.bowl)])
       =/  now-existing=(unit content:tarball)
@@ -2471,14 +2509,14 @@
 ++  sync-clay
   ^+  this
   ~&  >>  "sync-clay: start"
-  ::  Ensure /sys/clay directory exists
-  =?  ball  =(~ (~(get of ball) /sys/clay))
-    (~(put of ball) /sys/clay [~ ~ ~])
-  ::  Ensure default desks have directories
-  =?  ball  =(~ (~(get of ball) /sys/clay/base))
-    (~(put of ball) /sys/clay/base [~ ~ ~])
-  =?  ball  =(~ (~(get of ball) /sys/clay/grubbery))
-    (~(put of ball) /sys/clay/grubbery [~ ~ ~])
+  ::  Ensure /sys/clay directory structure exists (properly tracked)
+  =/  old=ball:tarball  (~(dip ba:tarball ball) /sys/clay)
+  =/  new=ball:tarball  old(fil `(fall fil.old *lump:tarball))
+  =?  new  =(~ (~(get of new) /base))
+    (~(put of new) /base [~ ~ ~])
+  =?  new  =(~ (~(get of new) /grubbery))
+    (~(put of new) /grubbery [~ ~ ~])
+  =.  this  (load-ball-changes /sys/clay old new)
   ::  Sync all desks listed as kids of /sys/clay/
   =/  dek=(list desk)  (~(lss ba:tarball ball) /sys/clay)
   |-  ^+  this
@@ -3047,9 +3085,10 @@
 ::
 ++  sync-jael
   ^+  this
-  ::  Create jael directory
-  =?  ball  =(~ (~(get of ball) /sys/jael))
-    (~(put of ball) /sys/jael [~ ~ ~])
+  ::  Ensure jael directory exists (properly tracked via load-ball-changes)
+  =/  old=ball:tarball  (~(dip ba:tarball ball) /sys/jael)
+  =/  new=ball:tarball  old(fil `(fall fil.old *lump:tarball))
+  =.  this  (load-ball-changes /sys/jael old new)
   ::  Create grubs and subscribe
   =.  this
     (save-file [/sys/jael %'private-keys.jael-private-keys'] [~ [/ %jael-private-keys] !>(*[life (map life ring)])])
@@ -3068,6 +3107,142 @@
   |=  =public-keys-result:jael
   ^+  this
   (save-file [/sys/jael %'public-keys.jael-public-keys-result'] [~ [/ %jael-public-keys-result] !>(public-keys-result)])
+::  /sys/peer: runtime-owned peer infrastructure
+::
+::  Creates /sys/peer/ directory structure for foreign ship management.
+::  Usergroups (who/how) are user-writable, runtime-validated.
+::  Ship directories are created lazily on first foreign poke.
+::  Weirs recompute atomically on any usergroup change.
+::
+++  sync-peer
+  ^+  this
+  ::  Ensure peer directory structure exists (properly tracked)
+  =/  old=ball:tarball  (~(dip ba:tarball ball) /sys/peer)
+  =/  new=ball:tarball  old(fil `(fall fil.old *lump:tarball))
+  =?  new  =(~ (~(get of new) /usergroups))
+    (~(put of new) /usergroups [~ ~ ~])
+  =?  new  =(~ (~(get of new) /usergroups/who))
+    (~(put of new) /usergroups/who [~ ~ ~])
+  =?  new  =(~ (~(get of new) /usergroups/how))
+    (~(put of new) /usergroups/how [~ ~ ~])
+  =?  new  =(~ (~(get of new) /ships))
+    (~(put of new) /ships [~ ~ ~])
+  (load-ball-changes /sys/peer old new)
+::  Ensure /sys/peer/ships/~ship/ exists with ship.sig and computed weir.
+::  Our ship gets no weir (full access). Foreign ships get weir from usergroups.
+::
+++  ensure-peer-ship
+  |=  src=@p
+  ^+  this
+  =/  ship-ta=@ta  (scot %p src)
+  =/  ship-dir=path  /sys/peer/ships/[ship-ta]
+  ::  Already exists?
+  ?.  =(~ (~(get of ball) ship-dir))
+    this
+  ::  Create directory + ship.sig grub (properly tracked)
+  =/  old=ball:tarball  (~(dip ba:tarball ball) ship-dir)
+  =/  new=ball:tarball  old(fil `(fall fil.old *lump:tarball))
+  =.  new  (~(put ba:tarball new) [/ %'ship.sig'] [~ [/ %sig] !>(~)])
+  =.  this  (load-ball-changes ship-dir old new)
+  =/  ship-rail=rail:tarball  [ship-dir %'ship.sig']
+  =.  this  (spawn-proc ship-rail [%load ~])
+  ::  Set weir (our ship gets none — full access)
+  ?:  =(src our.bowl)  this
+  =/  =weir:nexus  (compute-peer-weir src)
+  (set-weir ship-dir `weir)
+::  Compute weir for a ship from usergroup data.
+::  Union of all group weirs the ship belongs to, plus public weir.
+::
+++  read-peer-tree
+  |*  [dir=@ta =mold]
+  ^-  (map rail:tarball mold)
+  =/  sub=ball:tarball
+    (~(dip ba:tarball ball) /sys/peer/usergroups/[dir])
+  %-  ~(gas by *(map rail:tarball mold))
+  %+  murn  ~(tap ba:tarball sub)
+  |=  [=rail:tarball =content:tarball]
+  ^-  (unit [rail:tarball mold])
+  =/  res  (mule |.(!<(mold q.sage.content)))
+  ?:(?=(%| -.res) ~ `[rail p.res])
+::  Build reverse index: ship → group rails
+::
+++  build-peer-src
+  |=  who=(map rail:tarball (set @p))
+  ^-  (map @p (set rail:tarball))
+  =/  groups=(list [rail:tarball (set @p)])  ~(tap by who)
+  =|  acc=(map @p (set rail:tarball))
+  |-
+  ?~  groups  acc
+  =/  [=rail:tarball members=(set @p)]  i.groups
+  =/  ships=(list @p)  ~(tap in members)
+  =.  acc
+    |-
+    ?~  ships  acc
+    =/  existing=(set rail:tarball)  (fall (~(get by acc) i.ships) ~)
+    $(ships t.ships, acc (~(put by acc) i.ships (~(put in existing) rail)))
+  $(groups t.groups)
+::  Union two weirs
+::
+++  union-weirs
+  |=  [a=weir:nexus b=weir:nexus]
+  ^-  weir:nexus
+  :+  (~(uni in make.a) make.b)
+    (~(uni in poke.a) poke.b)
+  (~(uni in peek.a) peek.b)
+::  Compute weir for a ship from usergroup data.
+::  Union of all group weirs the ship belongs to, plus public weir.
+::
+++  compute-peer-weir
+  |=  =ship
+  ^-  weir:nexus
+  =/  who=(map rail:tarball (set @p))  (read-peer-tree %who (set @p))
+  =/  how=(map rail:tarball weir:nexus)  (read-peer-tree %how weir:nexus)
+  (compute-peer-weir-from ship (build-peer-src who) how)
+::
+++  compute-peer-weir-from
+  |=  [=ship src=(map @p (set rail:tarball)) how=(map rail:tarball weir:nexus)]
+  ^-  weir:nexus
+  =/  public-weir=weir:nexus
+    (fall (~(get by how) [/ %public]) *weir:nexus)
+  =/  ship-rails=(set rail:tarball)
+    (fall (~(get by src) ship) ~)
+  =/  ship-weir=weir:nexus
+    %+  roll  ~(tap in ship-rails)
+    |=  [=rail:tarball acc=weir:nexus]
+    (union-weirs acc (fall (~(get by how) rail) *weir:nexus))
+  (union-weirs ship-weir public-weir)
+::  Recompute weirs for all foreign ship directories.
+::  Called when usergroup data changes. Lazily creates ship dirs
+::  for ships in usergroups that don't have dirs yet.
+::
+++  recompute-peer-weirs
+  ^+  this
+  =/  who=(map rail:tarball (set @p))  (read-peer-tree %who (set @p))
+  =/  how=(map rail:tarball weir:nexus)  (read-peer-tree %how weir:nexus)
+  =/  src=(map @p (set rail:tarball))  (build-peer-src who)
+  ::  Collect all ships from usergroups + existing ship dirs
+  =/  all-members=(set @p)
+    %-  ~(gas in *(set @p))
+    %-  zing
+    %+  turn  ~(val by who)
+    |=  members=(set @p)
+    ~(tap in members)
+  =/  ships-ball=ball:tarball
+    (~(dip ba:tarball ball) /sys/peer/ships)
+  =/  existing=(set @p)
+    %-  ~(gas in *(set @p))
+    %+  murn  ~(tap in ~(key by dir.ships-ball))
+    |=(name=@ta (slaw %p name))
+  =/  all-ships=(list @p)  ~(tap in (~(uni in all-members) existing))
+  |-
+  ?~  all-ships  this
+  =/  =ship  i.all-ships
+  ?:  =(ship our.bowl)
+    $(all-ships t.all-ships)
+  =.  this  (ensure-peer-ship ship)
+  =/  =weir:nexus  (compute-peer-weir-from ship src how)
+  =.  this  (set-weir /sys/peer/ships/[(scot %p ship)] `weir)
+  $(all-ships t.all-ships)
 ::  Save file state and bump ONLY if content actually changed.
 ::  This is the ONLY correct way to update file state.
 ::  Invariant: file aeon changes iff file content changes.
@@ -3093,9 +3268,15 @@
     |-  ?:  (~(has by code) pax)  `pax
     ?~  pax  ~
     $(pax (snip `path`pax))
-  ?~  cod  this
-  ~&  >>>  "save-file: triggering build-code from {(spud (snoc path.here name.here))}"
-  (build-code u.cod)
+  =.  this
+    ?~  cod  this
+    ~&  >>>  "save-file: triggering build-code from {(spud (snoc path.here name.here))}"
+    (build-code u.cod)
+  ::  Recompute peer weirs if usergroup data changed
+  ?.  ?=([%sys %peer %usergroups *] path.here)
+    this
+  ~&  >>  "save-file: usergroup changed, recomputing peer weirs"
+  recompute-peer-weirs
 ::
 ++  wrap-wire
   |=  [here=rail:tarball =wire]
