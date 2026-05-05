@@ -86,6 +86,8 @@
   =^  jael-cards  state  abet:sync-jael:hc
   ~&  >>  "on-init: sync-peer"
   =^  peer-cards  state  abet:sync-peer:hc
+  ~&  >>  "on-init: sync-gall"
+  =^  gall-cards  state  abet:sync-gall:hc
   ~&  >>  "on-init: done"
   :_  this
   ;:  weld
@@ -97,6 +99,7 @@
     clay-cards
     jael-cards
     peer-cards
+    gall-cards
     cards
   ==
 ::
@@ -130,6 +133,8 @@
     =^  jael-cards  state  abet:sync-jael:hc
     ~&  >>  "on-load: sync-peer"
     =^  peer-cards  state  abet:sync-peer:hc
+    ~&  >>  "on-load: sync-gall"
+    =^  gall-cards  state  abet:sync-gall:hc
     ~&  >>  "on-load: done"
     :_  this
     ;:  weld
@@ -141,6 +146,7 @@
       clay-cards
       jael-cards
       peer-cards
+      gall-cards
       cards
     ==
   ==
@@ -255,6 +261,22 @@
     ::  Tell jael to listen to us
     :-  [%pass /jael-listen %arvo %j %listen ~ [%| %grubbery]]~
     this
+      ::
+      %gall-watch
+    ::  Subscribe to a gall agent, materialize at /sys/gall/
+    ?>  =(src our):bowl
+    =+  !<([=ship agent=dude:gall =path] vas)
+    =^  cards  state
+      abet:(gall-sub:hc ship agent path)
+    [cards this]
+      ::
+      %gall-leave
+    ::  Unsubscribe from a materialized gall subscription
+    ?>  =(src our):bowl
+    =+  !<([=ship agent=dude:gall =path] vas)
+    =^  cards  state
+      abet:(gall-unsub:hc ship agent path)
+    [cards this]
   ==
 ::
 ++  on-watch
@@ -374,6 +396,10 @@
 ++  on-agent
   |=  [=wire =sign:agent:gall]
   ^-  (quip card _this)
+  ?:  ?=([%gall-sub *] wire)
+    =^  cards  state
+      abet:(take-gall-sub:hc t.wire sign)
+    [cards this]
   =^  cards  state
     abet:(take-agent:hc wire sign)
   [cards this]
@@ -3107,6 +3133,174 @@
   |=  =public-keys-result:jael
   ^+  this
   (save-file [/sys/jael %'public-keys.jael-public-keys-result'] [~ [/ %jael-public-keys-result] !>(public-keys-result)])
+::  /sys/gall: materialized gall subscriptions
+::
+::  Poke %grubbery with %gall-watch to subscribe to a gall agent.
+::  Incoming facts are validated via marc and materialized as files.
+::  Any grub can peek or watch the materialized data.
+::
+::  Poke format:
+::    %gall-watch  [ship=@p agent=dude:gall path=path]
+::    %gall-leave  [ship=@p agent=dude:gall path=path]
+::
+::  Directory structure per subscription:
+::    /sys/gall/[ship]/[agent]/[path...]/
+::      data         latest fact (blot from incoming cage mark)
+::      live         loob: %.y when subscribed, %.n on kick/nack
+::
+::  Behavior:
+::    - On %fact: look up marc for cage mark in /code/mar, validate,
+::      save-file to data. Skip if no marc found.
+::    - On %kick: set live to %.n, auto-resubscribe, set live to
+::      %.y on successful %watch-ack.
+::    - On %watch-ack with error: set live to %.n, don't retry.
+::    - All files are gained (history retained in silo).
+::    - Wire format: /gall-sub/{ship}/{agent}/{path...}
+::
+::
+++  gall-sub-dir
+  |=  [=ship agent=dude:gall =path]
+  ^-  ^path
+  (weld /sys/gall/[(scot %p ship)]/[agent] path)
+::
+++  gall-sub-wire
+  |=  [=ship agent=dude:gall =path]
+  ^-  wire
+  (weld /gall-sub/[(scot %p ship)]/[agent] path)
+::  Subscribe to a gall agent, materialize at /sys/gall/
+::
+++  gall-sub
+  |=  [=ship agent=dude:gall =path]
+  ^+  this
+  =/  dir=^path  (gall-sub-dir ship agent path)
+  =/  wir=wire   (gall-sub-wire ship agent path)
+  ::  Ensure directory exists
+  =/  old=ball:tarball  (~(dip ba:tarball ball) dir)
+  =/  new=ball:tarball  old(fil `(fall fil.old *lump:tarball))
+  =.  this  (load-ball-changes dir old new)
+  ::  Create live file (%.y = subscribing)
+  =.  this  (save-file [dir %live] [~ [/ %loob] !>(%.y)])
+  =.  gain  (set-gain [dir %live] %.y)
+  ::  Subscribe
+  ~&  >  "gall-sub: subscribing to {<ship>}/{(trip agent)}/{(spud path)}"
+  (emit-card [%pass wir %agent [ship agent] %watch path])
+::  Unsubscribe from a materialized gall subscription
+::
+++  gall-unsub
+  |=  [=ship agent=dude:gall =path]
+  ^+  this
+  =/  dir=^path  (gall-sub-dir ship agent path)
+  =/  wir=wire   (gall-sub-wire ship agent path)
+  ~&  >  "gall-unsub: leaving {<ship>}/{(trip agent)}/{(spud path)}"
+  =.  this  (emit-card [%pass wir %agent [ship agent] %leave ~])
+  ::  Delete the subscription tree
+  (cull-ball-changes dir (~(dip ba:tarball ball) dir))
+::  Handle signs from materialized gall subscriptions
+::
+++  take-gall-sub
+  |=  [wir=wire =sign:agent:gall]
+  ^+  this
+  ::  Parse wire: /[ship]/[agent]/[path...]
+  ?>  ?=([@ @ *] wir)
+  =/  =ship  (slav %p i.wir)
+  =/  agent=dude:gall  i.t.wir
+  =/  =path  t.t.wir
+  =/  dir=^path  (gall-sub-dir ship agent path)
+  ?-    -.sign
+      %poke-ack
+    ~&  >>>  "gall-sub: unexpected poke-ack on sub wire"
+    this
+  ::
+      %watch-ack
+    ?~  p.sign
+      ::  Success — set live to %.y
+      ~&  >  "gall-sub: watch-ack ok {<ship>}/{(trip agent)}/{(spud path)}"
+      (save-file [dir %live] [~ [/ %loob] !>(%.y)])
+    ::  Failed — set live to %.n, don't retry
+    ~&  >>>  "gall-sub: watch-ack failed {<ship>}/{(trip agent)}/{(spud path)}"
+    %-  (slog u.p.sign)
+    (save-file [dir %live] [~ [/ %loob] !>(%.n)])
+  ::
+      %fact
+    ::  Validate via marc, save to data
+    =/  mar=@tas  p.cage.sign
+    =/  =blot:tarball  [/ mar]
+    =/  vale=(unit $-(* vase))
+      =/  res=(unit built:nexus)  (get-built / (weld /mar path.blot) name.blot)
+      ?~  res  ~
+      ?.  ?=(%vase -.u.res)  ~
+      (mole |.(vale:!<(marc:tarball vase.u.res)))
+    ?~  vale
+      ::  No marc — fall back to page (original mark + raw noun)
+      ~&  >  "gall-sub: no marc for {<mar>}, storing as page"
+      =.  this  (save-file [dir %data] [~ [/ %page] !>(`[p=@tas q=*]`[mar q.q.cage.sign])])
+      =.  gain  (set-gain [dir %data] %.y)
+      this
+    =/  old=(unit content:tarball)
+      (~(get ba:tarball ball) [dir %data])
+    =/  old-vase=(unit vase)  ?~(old ~ `q.sage.u.old)
+    =/  res=(each vase tang)
+      (validate-vase u.vale old-vase q.cage.sign %.n)
+    ?.  ?=(%& -.res)
+      ~&  >>>  "gall-sub: vale failed for {<mar>}"
+      this
+    =.  this  (save-file [dir %data] [~ [/ mar] p.res])
+    =.  gain  (set-gain [dir %data] %.y)
+    this
+  ::
+      %kick
+    ::  Set live to %.n, auto-resubscribe
+    ~&  >  "gall-sub: kicked from {<ship>}/{(trip agent)}/{(spud path)}, resubscribing"
+    =.  this  (save-file [dir %live] [~ [/ %loob] !>(%.n)])
+    (emit-card [%pass (gall-sub-wire ship agent path) %agent [ship agent] %watch path])
+  ==
+::  Resubscribe all existing gall subs on reload
+::
+++  sync-gall
+  ^+  this
+  =/  old=ball:tarball  (~(dip ba:tarball ball) /sys/gall)
+  =/  new=ball:tarball  old(fil `(fall fil.old *lump:tarball))
+  =.  this  (load-ball-changes /sys/gall old new)
+  ::  Walk existing subscriptions and resubscribe
+  =/  ships=(list [@ta ball:tarball])  ~(tap by dir.old)
+  |-
+  ?~  ships  this
+  =/  [ship-ta=@ta ship-ball=ball:tarball]  i.ships
+  =/  agents=(list [@ta ball:tarball])  ~(tap by dir.ship-ball)
+  =.  this
+    |-
+    ?~  agents  this
+    =/  [agent-ta=@ta agent-ball=ball:tarball]  i.agents
+    ::  Each subdirectory under the agent is a subscription path
+    ::  Reconstruct the path from nested dirs, or handle flat case
+    =.  this  (resub-gall-tree ship-ta agent-ta / agent-ball)
+    $(agents t.agents)
+  $(ships t.ships)
+::  Recursively find subscription leaves (dirs with a 'live' file)
+::  and resubscribe them.
+::
+++  resub-gall-tree
+  |=  [ship-ta=@ta agent-ta=@ta pax=path sub=ball:tarball]
+  ^+  this
+  ::  If this dir has a live file, it's a subscription leaf — resubscribe
+  =/  has-live=?
+    ?&  ?=(^ fil.sub)
+        (~(has by contents.u.fil.sub) %live)
+    ==
+  =.  this
+    ?.  has-live  this
+    =/  =ship  (slav %p ship-ta)
+    =/  agent=dude:gall  agent-ta
+    =/  wir=wire  (gall-sub-wire ship agent pax)
+    ~&  >  "sync-gall: resubscribing {<ship>}/{(trip agent)}/{(spud pax)}"
+    (emit-card [%pass wir %agent [ship agent] %watch pax])
+  ::  Recurse into subdirectories
+  =/  kids=(list [@ta ball:tarball])  ~(tap by dir.sub)
+  |-
+  ?~  kids  this
+  =.  this  ^$(pax (snoc pax -.i.kids), sub +.i.kids)
+  $(kids t.kids)
+::
 ::  /sys/peer: runtime-owned peer infrastructure
 ::
 ::  Creates /sys/peer/ directory structure for foreign ship management.
