@@ -2,7 +2,7 @@
 ::
 ::  Ported from hoon-git.
 ::
-/<  bs  /lib/bytestream.hoon
+::  uses bytestream from sut (Clay-compiled, jetted)
 /<  *  /lib/git/hash.hoon
 =>  |%
 ::
@@ -58,7 +58,7 @@
 ++  raw-to-octs
   |=  rob=raw-object
   ^-  octs
-  %-  can-octs:bs
+  %-  can-octs:bytestream
   :~  (as-octs:mimes:html type.rob)
       [1 ' ']
       (as-octs:mimes:html (crip ((d-co:co 1) size.rob)))
@@ -83,17 +83,17 @@
   ^-  raw-object
   ?>  ?=(%tree -.dir)
   =+  dir=tree-dir.dir
-  =|  data=bays:bs
+  =|  data=bays:bytestream
   |-
   ?~  dir
-    [%tree size=(size:bs data) (to-octs:bs data)]
-  =.  data  %+  append-octs:bs  data
-    (as-octt:bs (print-octal mode.i.dir))
-  =.  data  %+  append-octs:bs  data
+    [%tree size=(size:bytestream data) (to-octs:bytestream data)]
+  =.  data  %+  append-octs:bytestream  data
+    (as-octt:bytestream (print-octal mode.i.dir))
+  =.  data  %+  append-octs:bytestream  data
     [1 ' ']
-  =.  data  %+  append-octs:bs  data
-    (as-octs:bs name.i.dir)
-  =.  data  (append-byte:bs data 0x0)
+  =.  data  %+  append-octs:bytestream  data
+    (as-octs:bytestream name.i.dir)
+  =.  data  (append-byte:bytestream data 0x0)
   =.  data  (append-hash data hal hash.i.dir)
   $(dir t.dir)
 ++  commit-to-raw
@@ -137,7 +137,7 @@
 ++  raw-from-octs
   |=  =octs
   ^-  raw-object
-  =/  pin  (find-byte:bs 0x0 (from-octs:bs octs))
+  =/  pin  (find-byte:bytestream 0x0 (from-octs:bytestream octs))
   ?~  pin
     ~|  "Object is corrupted: no header terminator found"  !!
   =/  txt  (trip (cut 3 [0 u.pin] q.octs))
@@ -154,9 +154,9 @@
         %tree    %tree
         %tag  !!
     ==
-  =/  sea=bays:bs  (from-octs:bs octs)
+  =/  sea=bays:bytestream  (from-octs:bytestream octs)
   =/  data
-    (peek-octs-end:bs (seek-to:bs +(u.pin) sea))
+    (peek-octs-end:bytestream (seek-to:bytestream +(u.pin) sea))
   [type size data]
 ++  parse-raw
   |=  [hal=hash-algo rob=raw-object]
@@ -186,17 +186,17 @@
   |=  [hal=hash-algo rob=raw-object]
   ^-  object
   ?>  ?=(%tree type.rob)
-  =/  sea=bays:bs  (from-octs:bs data.rob)
+  =/  sea=bays:bytestream  (from-octs:bytestream data.rob)
   =+  hash-bytes=(hash-bytes hal)
   =/  tes=(list tree-entry)  ~
   |-
-  ?:  (is-empty:bs sea)
+  ?:  (is-empty:bytestream sea)
     tree+[size.rob tes]
-  =/  pin  (find-byte:bs 0x0 sea)
+  =/  pin  (find-byte:bytestream 0x0 sea)
   ?~  pin  !!
   =^  tex=(unit octs)  sea
-    (read-octs-until-maybe:bs u.pin sea)
-  =.  sea  (skip-byte:bs sea)
+    (read-octs-until-maybe:bytestream u.pin sea)
+  =.  sea  (skip-byte:bytestream sea)
   ?~  tex
     ~|  "Corrupted tree object: invalid tree entry"  !!
   =^  hash=(unit hash)  sea

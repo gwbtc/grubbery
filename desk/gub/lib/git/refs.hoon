@@ -2,8 +2,8 @@
 ::
 ::  Ported from hoon-git.
 ::
+::  uses bytestream from sut (Clay-compiled, jetted)
 /<  *  /lib/git/hash.hoon
-/<  bytestream  /lib/bytestream.hoon
 =>  |%
 +$  refname  $+(refname (list @t))
 +$  ref  $@(hash [%symref =refname])

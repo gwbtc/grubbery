@@ -48,6 +48,16 @@
       ?>  (has:store q.ref)
       (~(put of refs) ref)
   ==
+++  clone-from-pack
+  |=  [=pack:git-pack ref-list=(list [=hash =refname])]
+  ^-  repository
+  =.  repo  (add-pack:store pack)
+  %=  repo
+    refs
+    %+  roll  ref-list
+      |=  [[=hash =refname] =^refs]
+      (~(put of refs) [refname hash])
+  ==
 ++  remote
   |%
   ++  get-url

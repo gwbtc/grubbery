@@ -2,8 +2,7 @@
 ::
 ::  Ported from hoon-git.
 ::
-/<  bs  /lib/bytestream.hoon
-/<  z  /lib/zlib.hoon
+::  uses bytestream + zlib from sut (Clay-compiled, jetted)
 /<  *  /lib/git/hash.hoon
 /<  *  /lib/git/object.hoon
 =>  |%
@@ -27,17 +26,17 @@
               count=@ud
               index=pack-index
               end-pos=@ud
-              stream=bays:bs
+              stream=bays:bytestream
           ==
 +$  store-raw-get  $-(hash (unit raw-object))
 --
 =>  |%
 ++  read
-  |=  sea=bays:bs
+  |=  sea=bays:bytestream
   ^-  pack
   (read-thin sea |=(* !!))
 ++  read-thin
-  |=  [sea=bays:bs get=store-raw-get]
+  |=  [sea=bays:bytestream get=store-raw-get]
   ^-  pack
   =+  start=pos.sea
   =^  header=pack-header  sea  (read-header sea)
@@ -55,17 +54,17 @@
   pack(pos.stream beg-pos)
 ::
 ++  read-header
-  |=  sea=bays:bs
-  ^-  [pack-header bays:bs]
-  =^  sig  sea  (read-octs-maybe:bs 4 sea)
+  |=  sea=bays:bytestream
+  ^-  [pack-header bays:bytestream]
+  =^  sig  sea  (read-octs-maybe:bytestream 4 sea)
   ?~  sig
     ~|  "Pack file is corrupted: no signature found"  !!
   ?.  =(q.u.sig 'PACK')
     ~|  "Pack file is corrupted: invalid signature {<`@t`q.u.sig>} ({<p.u.sig>} bytes)"  !!
-  =^  version  sea  (read-octs-maybe:bs 4 sea)
+  =^  version  sea  (read-octs-maybe:bytestream 4 sea)
   ?~  version
     ~|  "Pack file is corrupted: no version found"  !!
-  =^  count  sea  (read-octs-maybe:bs 4 sea)
+  =^  count  sea  (read-octs-maybe:bytestream 4 sea)
   ?~  count
     ~|  "Pack file is corrupted: no object count found"  !!
   =+  ver=(rev 3 4 q.u.version)
@@ -85,7 +84,7 @@
       |=  [rob=raw-object =_pack]
       %=  pack
         stream
-          %+  write-octs:bs  stream.pack
+          %+  write-octs:bytestream  stream.pack
             (raw-to-octs rob)
         index
           =+  hash=(hash-raw %sha-1 rob)
@@ -97,7 +96,7 @@
   =+  sea=stream.pack
   =+  end-pos=pos.sea
   =+  hash=(hash-octs-sha-1 data.sea)
-  =.  sea  (append-octs:bs sea [20 hash])
+  =.  sea  (append-octs:bytestream sea [20 hash])
   pack(stream sea(pos start))
 ::
 ++  pack-hash-bytes
@@ -115,10 +114,10 @@
 ::
 ++  index
   |=  $:  header=pack-header
-          sea=bays:bs
+          sea=bays:bytestream
           get=store-raw-get
       ==
-  ^-  [[pack (list raw-object)] bays:bs]
+  ^-  [[pack (list raw-object)] bays:bytestream]
   =+  start=pos.sea
   =|  count=@ud
   =/  step=@ud
@@ -133,7 +132,7 @@
     ?.  (lth count count.header)
       :_  sea
       [index miss]
-    ?:  (is-empty:bs sea)
+    ?:  (is-empty:bytestream sea)
       ~|  "Expected {<count.header>} objects ({<count>} processed)"
         !!
     ~?  >  =(0 (mod count step))
@@ -164,13 +163,13 @@
   :_  sea
   :_  miss
   :-  (pack-hash-algo header)
-  [count.header index end-pos=pos.sea (seek-to:bs start sea)]
+  [count.header index end-pos=pos.sea (seek-to:bytestream start sea)]
 ::
 ++  resolve-raw-object-miss
   |=  $:  pob=pack-object
           index=pack-index
           cache=pack-cache
-          sea=bays:bs
+          sea=bays:bytestream
           get=store-raw-get
       ==
   ^-  [raw-object (unit raw-object)]
@@ -181,7 +180,7 @@
   |=  $:  delta=pack-delta-object
           index=pack-index
           cache=pack-cache
-          sea=bays:bs
+          sea=bays:bytestream
           get=store-raw-get
       ==
   ^-  [raw-object (unit raw-object)]
@@ -202,7 +201,7 @@
             $(store t.store)
           ?^  cob
             u.cob
-          -:(read-pack-object (seek-to:bs pos sea))
+          -:(read-pack-object (seek-to:bytestream pos sea))
         %ref-delta
           =/  pos=(unit @ud)
             (get:pack-on index hash.pob)
@@ -216,7 +215,7 @@
             $(store t.store)
           ?^  cob
             u.cob
-          -:(read-pack-object (seek-to:bs u.pos sea))
+          -:(read-pack-object (seek-to:bytestream u.pos sea))
       ==
     ?:  ?=(pack-delta-object kob)
       $(chain [kob chain])
@@ -229,7 +228,7 @@
   |=  $:  pob=pack-object
           index=pack-index
           cache=pack-cache
-          sea=bays:bs
+          sea=bays:bytestream
           get=store-raw-get
       ==
   ^-  raw-object
@@ -237,7 +236,7 @@
 ++  resolve-delta-chain
   |=  $:  base=raw-object
           chain=(list pack-delta-object)
-          sea=bays:bs
+          sea=bays:bytestream
       ==
   ^-  raw-object
   |-
@@ -251,43 +250,43 @@
 ++  expand-delta-object
   |=  [base=raw-object delta=pack-delta-object]
   ^-  raw-object
-  =/  sea=bays:bs  (from-octs:bs octs.delta)
+  =/  sea=bays:bytestream  (from-octs:bytestream octs.delta)
   =^  biz=@ud  sea  (read-object-size sea)
   =^  siz=@ud  sea  (read-object-size sea)
   ?>  =(size.base biz)
   =|  data=octs
   =<
   |-
-  ?:  (is-empty:bs sea)
+  ?:  (is-empty:bytestream sea)
     ?>  =(p.data siz)
     [type.base p.data data]
-  =^  bat  sea  (read-byte:bs sea)
+  =^  bat  sea  (read-byte:bytestream sea)
   ?:  =(0x0 bat)
     ~|  "+expand-delta-object: reserved instruction 0x0"  !!
   =^  chunk  sea
     ?:  =(0 (dis bat 0x80))
       (add-data bat sea)
     (copy-data bat sea)
-  $(data (cat-octs:bs data chunk))
+  $(data (cat-octs:bytestream data chunk))
   ::
   |%
   ++  add-data
-    |=  [bat=@uxD sea=bays:bs]
-    ^-  [octs bays:bs]
+    |=  [bat=@uxD sea=bays:bytestream]
+    ^-  [octs bays:bytestream]
     =+  siz=(dis bat 0x7f)
-    (read-octs:bs siz sea)
+    (read-octs:bytestream siz sea)
   ++  read-cp-param
-    |=  [var=@D [bat=@D bit=@D shift=@ud] sea=bays:bs]
-    ^-  [@D bays:bs]
+    |=  [var=@D [bat=@D bit=@D shift=@ud] sea=bays:bytestream]
+    ^-  [@D bays:bytestream]
     ?:  =(0 (dis bat bit))
       :_  sea
       var
-    =^  byt  sea  (read-byte:bs sea)
+    =^  byt  sea  (read-byte:bytestream sea)
     :_  sea
     (add var (lsh [3 shift] byt))
   ++  copy-data
-    |=  [bat=@D sea=bays:bs]
-    ^-  [octs bays:bs]
+    |=  [bat=@D sea=bays:bytestream]
+    ^-  [octs bays:bytestream]
     =|  offset=@ud
     =|  size=@ud
     =^  oft  sea
@@ -320,17 +319,17 @@
 ::
 ++  read-with-index
   |=  [=pack =hash]
-  ^-  [pack-object bays:bs]
+  ^-  [pack-object bays:bytestream]
   =+  pin=(got:pack-on index.pack hash)
-  (read-pack-object (seek-to:bs pin stream.pack))
+  (read-pack-object (seek-to:bytestream pin stream.pack))
 ++  read-pack-object
-  |=  sea=bays:bs
-  ^-  [pack-object bays:bs]
+  |=  sea=bays:bytestream
+  ^-  [pack-object bays:bytestream]
   =+  pos=pos.sea
   =^  [type=pack-object-type size=@ud]  sea
     (read-pack-object-header sea)
   ?+  type
-    =^  data=octs  sea  (decompress-zlib:z sea)
+    =^  data=octs  sea  (decompress-zlib:zlib sea)
     ?.  =(p.data size)
       ~|  "Object is corrupted: size mismatch (stated {<size>}b uncompressed {<p.data>}b)"  !!
     :_  sea
@@ -343,33 +342,33 @@
   ==
 ::
 ++  read-object-ref
-  |=  [pos=@ud sea=bays:bs]
-  ^-  [pack-delta-object bays:bs]
+  |=  [pos=@ud sea=bays:bytestream]
+  ^-  [pack-delta-object bays:bytestream]
   =^  =hash  sea  (read-hash sea)
-  =^  =octs  sea  (decompress-zlib:z sea)
+  =^  =octs  sea  (decompress-zlib:zlib sea)
   :_  sea
   [%ref-delta pos hash octs]
 ++  read-hash
-  |=  sea=bays:bs
-  ^-  [hash bays:bs]
-  =^  octs  sea  (read-octs:bs 20 sea)
+  |=  sea=bays:bytestream
+  ^-  [hash bays:bytestream]
+  =^  octs  sea  (read-octs:bytestream 20 sea)
   :_  sea
   q:octs
 ++  read-object-ofs
-  |=  [pos=@ud sea=bays:bs]
-  ^-  [pack-delta-object bays:bs]
+  |=  [pos=@ud sea=bays:bytestream]
+  ^-  [pack-delta-object bays:bytestream]
   =^  base-offset=@ud  sea  (read-offset sea)
   ?<  |(=(0 base-offset) (gte base-offset pos))
-  =^  dat  sea  (decompress-zlib:z sea)
+  =^  dat  sea  (decompress-zlib:zlib sea)
   :_  sea
   [%ofs-delta pos base-offset dat]
 ::
 ++  read-offset
-  |=  sea=bays:bs
-  ^-  [@ud bays:bs]
+  |=  sea=bays:bytestream
+  ^-  [@ud bays:bytestream]
   =+  fet=0
   |-
-  =^  bat  sea  (read-byte:bs sea)
+  =^  bat  sea  (read-byte:bytestream sea)
   =+  tef=(add (lsh [0 7] fet) (dis 0x7f bat))
   ?:  =(0 (dis 0x80 bat))
     :_  sea
@@ -377,9 +376,9 @@
   $(fet +(tef))
 ::
 ++  read-pack-object-header
-  |=  sea=bays:bs
-  ^-  [pack-object-header bays:bs]
-  =^  bat  sea  (read-byte:bs sea)
+  |=  sea=bays:bytestream
+  ^-  [pack-object-header bays:bytestream]
+  =^  bat  sea  (read-byte:bytestream sea)
   =+  tap=(dis (rsh [2 1] bat) 0x7)
   =/  typ  (to-object-type tap)
   ?~  typ
@@ -394,12 +393,12 @@
   [u.typ siz]
 ::
 ++  read-object-size
-  |=  sea=bays:bs
-  ^-  [@ud bays:bs]
+  |=  sea=bays:bytestream
+  ^-  [@ud bays:bytestream]
   =|  bits=@ud
   =|  size=@ud
   |-
-  =^  bat  sea  (read-byte:bs sea)
+  =^  bat  sea  (read-byte:bytestream sea)
   ?:  =(0 (dis bat 0x80))
     :_  sea
     (add size (lsh [0 bits] bat))
@@ -434,7 +433,7 @@
   =+  pin=(get:pack-on index.pak hax)
   ?~  pin
     ~
-  =+  sea=(seek-to:bs u.pin stream.pak)
+  =+  sea=(seek-to:bytestream u.pin stream.pak)
   =^  pob  sea  (read-pack-object sea)
   `(resolve-raw-object pob index.pak *pack-cache sea |=(* !!))
 ++  get-raw-thin
@@ -443,7 +442,7 @@
   =+  pin=(get:pack-on index.pak hax)
   ?~  pin
     ~
-  =+  sea=(seek-to:bs u.pin stream.pak)
+  =+  sea=(seek-to:bytestream u.pin stream.pak)
   =^  pob  sea  (read-pack-object sea)
   `(resolve-raw-object pob index.pak *pack-cache sea get)
 ++  get
@@ -459,7 +458,7 @@
     ~
   =+  offset=u.pin
   |-
-  =/  sea  (seek-to:bs offset stream.pak)
+  =/  sea  (seek-to:bytestream offset stream.pak)
   =^  header=pack-object-header  sea
     (read-pack-object-header sea)
   ?:  ?=(object-header header)
@@ -471,7 +470,7 @@
   ^-  raw-object
   =+  pin=(get:pack-on index.pak hax)
   ?~  pin  !!
-  =+  sea=(seek-to:bs u.pin stream.pak)
+  =+  sea=(seek-to:bytestream u.pin stream.pak)
   =^  pob=pack-object  sea  (read-pack-object sea)
   (resolve-raw-object pob index.pak *pack-cache sea |=(* !!))
 ++  got

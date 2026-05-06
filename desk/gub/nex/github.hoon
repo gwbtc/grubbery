@@ -1,18 +1,20 @@
-::  github nexus: clone a public repo into the namespace
+::  github nexus: clone a public repo via git smart HTTP
 ::
 ::  Config: /config.json with fields:
 ::    repo:   owner/repo (e.g. "urbit/urbit")
 ::    ref:    branch, tag, or commit sha (e.g. "main")
 ::
-::  The sync process fetches a tarball from GitHub, decompresses it,
-::  and writes each file into /tree/ as raw mime.
+::  Git data lives in the /repo sub-nexus. On clone, we write
+::  pack + index + refs + HEAD into /repo, then reload it.
+::  The repo nexus's on-load atomically checks out the tree.
 ::
 ::  Poke sync.sig to trigger a re-fetch.
+::  Poke checkout.sig with a commit hash to checkout.
 ::
-/<  zlib  /lib/zlib.hoon
-/<  bs  /lib/bytestream.hoon
 /<  git-bundle  /lib/git/bundle.hoon
+/<  git-pack  /lib/git/pack.hoon
 /<  git-repo  /lib/git/repository.hoon
+/<  git-transport  /lib/git/transport.hoon
 =<  ^-  nexus:nexus
     |%
     ++  on-load
@@ -22,7 +24,7 @@
       =/  default-config=json
         %-  pairs:enjs:format
         :~  ['repo' s+'']
-            ['ref' s+'main']
+            ['ref' s+'']
         ==
       ?+  ver  !!
           ?(~ [~ %0])
@@ -30,9 +32,14 @@
         :~  (ver-row:loader 0)
             [%fall %& [/ %'config.json'] %.n [~ [/ %json] !>(default-config)]]
             [%fall %& [/ %'sync.sig'] %.n [~ [/ %sig] !>(~)]]
-            [%over %& [/ %'page.html'] %.n [~ [/ %manx] !>((github-page '' '' 'main' ~))]]
+            [%fall %& [/ %'checkout.sig'] %.n [~ [/ %sig] !>(~)]]
+            [%fall %& [/ %'commit.sig'] %.n [~ [/ %sig] !>(~)]]
             [%fall %& [/ %'import.sig'] %.n [~ [/ %sig] !>(~)]]
-            [%fall %| /tree [~ ~] [~ ~] empty-dir:loader]
+            [%fall %| /ui [~ ~] [~ ~] empty-dir:loader]
+            [%fall %& [/ui %'status.json'] %.n [~ [/ %json] !>((pairs:enjs:format ~[['status' s+'idle']]))]]
+            [%fall %& [/ui %'commit.json'] %.n [~ [/ %json] !>([%a ~])]]
+            [%over %& [/ %'page.html'] %.n [~ [/ %manx] !>((github-page '' '' '' ~ ~ [%a ~] [%o ~]))]]
+            [%fall %| /repo [~ ~] [~ ~] [`[~ `[/github %repo] ~] ~]]
         ==
       ==
     ::
@@ -52,13 +59,13 @@
         ;<  poke=*  bind:m  take-poke:io
         ~&  >>  "%github: import poke received"
         =/  bun=bundle:git-bundle
-          (read:git-bundle (from-octs:bs ;;(octs poke)))
+          (read:git-bundle (from-octs:bytestream ;;(octs poke)))
         =/  repo=repository:git-repo
           (~(clone-from-bundle git-repo *repository:git-repo) bun)
         ~&  >>  ["%github: bundle parsed" count.pack.bun "objects"]
         ~&  >>  ["%github: refs" (turn refs.header.bun |=([p=* q=*] p))]
         $
-          ::  /page.html: watches config + tree, re-renders
+          ::  /page.html: watches config + repo data, re-renders
           ::
           [~ %'page.html']
         ;<  ~  bind:m  (rise-wait:io prod "%github /page: failed")
@@ -68,10 +75,21 @@
         ;<  init-cfg=view:nexus  bind:m
           (keep:io /cfg (cord-to-road:tarball './config.json') `%json)
         ;<  init-tree=view:nexus  bind:m
-          (keep:io /tree (cord-to-road:tarball './tree/') ~)
+          (keep:io /tree (cord-to-road:tarball './repo/tree/') ~)
+        ;<  init-status=view:nexus  bind:m
+          (keep:io /status (cord-to-road:tarball './ui/status.json') `%json)
+        ;<  init-branches=view:nexus  bind:m
+          (keep:io /branches (cord-to-road:tarball './repo/branches.json') `%json)
+        ;<  init-commits=view:nexus  bind:m
+          (keep:io /commits (cord-to-road:tarball './repo/commits.json') `%json)
+        ;<  init-current=view:nexus  bind:m
+          (keep:io /current (cord-to-road:tarball './repo/current.json') `%json)
         =/  cfg=github-config  (view-to-config init-cfg)
         =/  files=(list @t)  (view-to-files init-tree)
-        ;<  ~  bind:m  (replace:io !>((github-page api repo.cfg ref.cfg files)))
+        =/  branches=(list @t)  (view-to-branches init-branches)
+        =/  commits=json  (view-to-json init-commits)
+        =/  current=json  (view-to-json init-current)
+        ;<  ~  bind:m  (replace:io !>((github-page api repo.cfg ref.cfg branches files commits current)))
         |-
         ;<  evt=page-event  bind:m  take-page-event
         ?-    -.evt
@@ -79,48 +97,162 @@
             %news
           =?  cfg  =(/cfg wire.evt)  (view-to-config view.evt)
           =?  files  =(/tree wire.evt)  (view-to-files view.evt)
-          ;<  ~  bind:m  (replace:io !>((github-page api repo.cfg ref.cfg files)))
+          =?  branches  =(/branches wire.evt)  (view-to-branches view.evt)
+          =?  commits  =(/commits wire.evt)  (view-to-json view.evt)
+          =?  current  =(/current wire.evt)  (view-to-json view.evt)
+          ;<  ~  bind:m  (replace:io !>((github-page api repo.cfg ref.cfg branches files commits current)))
           $
         ==
+          ::  /checkout.sig: checkout a specific commit by hash
+          ::
+          [~ %'checkout.sig']
+        ;<  ~  bind:m  (rise-wait:io prod "%github checkout: failed")
+        |-
+        ;<  =sage:tarball  bind:m  take-poke:io
+        =/  hash-text=@t  (of-wain:format !<(wain q.sage))
+        ~&  >>  ["%github: checkout poke" hash-text]
+        ;<  ~  bind:m  (set-status 'syncing')
+        ::  write new HEAD and reload repo
+        ;<  ~  bind:m  (write-head hash-text)
+        ;<  ~  bind:m  (reload:io (cord-to-road:tarball './repo/'))
+        ;<  ~  bind:m  (set-status 'idle')
+        $
+          ::  /commit.sig: compute diff for a commit
+          ::
+          [~ %'commit.sig']
+        ;<  ~  bind:m  (rise-wait:io prod "%github commit: failed")
+        |-
+        ;<  =sage:tarball  bind:m  take-poke:io
+        =/  hash-text=@t  (of-wain:format !<(wain q.sage))
+        ~&  >>  ["%github: diff for" hash-text]
+        =/  target-hash=(unit @ux)
+          (rust (trip hash-text) parse-hash-sha-1:git-transport)
+        ?~  target-hash
+          ~&  >>>  "%github: invalid commit hash"
+          $
+        ;<  repo=repository:git-repo  bind:m  load-repo-from-ns
+        =/  sto  store:~(. git-repo repo)
+        =/  com=(unit commit:git-repo)  (get-commit:sto u.target-hash)
+        ?~  com
+          ~&  >>>  "%github: commit not found"
+          $
+        ::  get parent tree for diff (~ for first commit)
+        =/  parent-tree=(unit @ux)
+          ?~  parents.u.com  ~
+          =/  par=(unit commit:git-repo)  (get-commit:sto i.parents.u.com)
+          ?~  par  ~
+          `tree.u.par
+        =/  get-tree=$-(@ux (unit tree-dir:git-repo))
+          |=(h=@ux (get-tree:sto h))
+        =/  get-blob=$-(@ux (unit octs))
+          |=(h=@ux (get-blob:sto h))
+        =/  changes=(list tree-change:git-transport)
+          ?~  parent-tree
+            ::  first commit: all files are additions
+            =/  top-tree=(unit tree-dir:git-repo)  (get-tree tree.u.com)
+            ?~  top-tree  ~
+            %+  turn  (all-blobs:git-transport get-tree / u.top-tree)
+            |=([p=path h=@ux] `tree-change:git-transport`[%add p h])
+          (diff-trees:git-transport get-tree u.parent-tree tree.u.com)
+        ~&  >>  ["%github: diff" (lent changes) "files changed"]
+        =/  result=json
+          %-  pairs:enjs:format
+          :~  ['hash' s+hash-text]
+              ['short' s+(crip (scag 7 (trip hash-text)))]
+              ['message' s+(crip message.u.com)]
+              ['author' s+(crip name.author.u.com)]
+              ['files' (build-diff-json get-blob changes)]
+          ==
+        ;<  ~  bind:m
+          (over:io (cord-to-road:tarball './ui/commit.json') [[/ %json] !>(result)])
+        $
+          ::  /sync.sig: clone or re-checkout
           ::
           [~ %'sync.sig']
         ;<  ~  bind:m  (rise-wait:io prod "%github sync: failed")
         ~&  >>  "%github: sync fiber started, waiting for poke"
-        ::  on load/reload, just wait for a poke before syncing
         ;<  *  bind:m  take-poke:io
-        ~&  >>  "%github: poke received, starting sync"
         |-
         ;<  cfg=github-config  bind:m  read-config
-        ~&  >>  ["%github: config loaded" repo.cfg ref.cfg]
         ?:  =('' repo.cfg)
           ~&  >>>  "%github: no repo configured"
           ;<  *  bind:m  take-poke:io
           $
-        ~&  >>  ["%github: syncing" repo.cfg ref.cfg]
-        ::  fetch tarball from github API
-        ~&  >>  "%github: fetching tarball..."
-        ;<  tar-gz=octs  bind:m  (fetch-tarball repo.cfg ref.cfg)
-        ~&  >>  ["%github: downloaded" p.tar-gz "bytes"]
-        ::  decompress gzip
-        ~&  >>  "%github: decompressing..."
-        =/  tar=octs  (decompress-octs-gzip:zlib tar-gz)
-        ~&  >>  ["%github: decompressed to" p.tar "bytes"]
-        ::  parse tar archive
-        ~&  >>  "%github: parsing tar..."
-        =/  entries=tarball:tarball  (decode-tarball:tarball tar)
-        ~&  >>  ["%github: found" (lent entries) "entries"]
-        ::  clear existing tree
-        ~&  >>  "%github: culling old tree..."
-        ;<  ~  bind:m  (cull:io (cord-to-road:tarball './tree/'))
-        ~&  >>  "%github: building ball from entries..."
-        ::  build full ball from tar entries, write in one shot
-        =/  tree=ball:tarball  (entries-to-ball entries)
-        ~&  >>  "%github: writing ball to namespace..."
+        ;<  ~  bind:m  (set-status 'syncing')
+        ::  check if pack exists in repo sub-nexus
+        ;<  has-pack=?  bind:m
+          (peek-exists:io (cord-to-road:tarball './repo/pack.dat'))
+        ?:  has-pack
+          ::  pack cached — just update HEAD + ref and reload
+          ~&  >>  "%github: cached pack, switching ref"
+          =/  active-ref=@t  ?:(=('' ref.cfg) 'main' ref.cfg)
+          ;<  ref-hash=@t  bind:m  (resolve-ref ref.cfg)
+          ;<  ~  bind:m  (write-head ref-hash)
+          ;<  ~  bind:m  (write-ref active-ref)
+          ;<  ~  bind:m  (reload:io (cord-to-road:tarball './repo/'))
+          ;<  ~  bind:m
+            (over:io (cord-to-road:tarball './config.json') [[/ %json] !>((pairs:enjs:format ~[['repo' s+repo.cfg] ['ref' s+ref.cfg]]))])
+          ;<  ~  bind:m  (set-status 'idle')
+          ;<  *  bind:m  take-poke:io
+          $
+        ::  full clone
+        ~&  >>  "%github: cloning..."
+        ;<  disc=discovery:git-transport  bind:m
+          (fetch-discovery repo.cfg)
+        ~&  >>  ["%github: found" (lent refs.disc) "refs"]
+        =?  ref.cfg  =('' ref.cfg)
+          (fall (default-branch:git-transport caps.disc) 'main')
         ;<  ~  bind:m
-          (make:io (cord-to-road:tarball './tree/') &+[*sand:nexus *gain:nexus tree])
-        ~&  >>  "%github: sync complete"
+          (over:io (cord-to-road:tarball './config.json') [[/ %json] !>((pairs:enjs:format ~[['repo' s+repo.cfg] ['ref' s+ref.cfg]]))])
+        ~&  >>  "%github: fetching pack..."
+        =/  want-hashes=(list @ux)
+          (turn refs.disc |=(r=git-ref:git-transport hash.r))
+        ;<  pack-body=octs  bind:m
+          (fetch-pack repo.cfg (build-want:git-transport want-hashes ~['side-band-64k' 'ofs-delta'] ~))
+        ~&  >>  ["%github: pack received" p.pack-body "bytes"]
+        =/  pack-data=octs
+          (extract-pack:git-transport pack-body %.y)
+        ~&  >>  "%github: parsing pack..."
+        =/  =pack:git-pack
+          (read:git-pack (from-octs:bytestream pack-data))
+        ~&  >>  ["%github: unpacked" count.pack "objects"]
+        =/  repo=repository:git-repo
+          (~(clone-from-pack git-repo *repository:git-repo) pack refs.disc)
+        ::  build index text
+        ?<  ?=(~ archive.object-store.repo)
+        =/  pak=pack:git-pack  i.archive.object-store.repo
+        =/  all-entries=(list [key=hash:git-repo val=@ud])
+          (tap:pack-on:git-pack index.pak)
+        =/  idx-text=tape
+          %-  zing
+          %+  turn  all-entries
+          |=  [key=hash:git-repo val=@ud]
+          "{(print-hash-sha-1:git-transport key)} {(a-co:co val)}\0a"
+        ::  build refs json
+        =/  refs-json=json
+          %-  pairs:enjs:format
+          %+  murn  refs.disc
+          |=  r=git-ref:git-transport
+          ^-  (unit [@t json])
+          ?.  =(`(list @t)`~['refs' 'heads'] (scag 2 refname.r))  ~
+          =/  branch-name=@t
+            (crip (join:git-transport '/' (turn (slag 2 refname.r) trip)))
+          `[branch-name s+(crip (print-hash-sha-1:git-transport hash.r))]
+        ::  resolve HEAD hash
+        =/  active-ref=@t  ?:(=('' ref.cfg) 'main' ref.cfg)
+        =/  ref-hash=(unit @ux)
+          =+  got=(get:refs:~(. git-repo repo) ~[active-ref])
+          ?^  got  got
+          (get:refs:~(. git-repo repo) ~['refs' 'heads' active-ref])
+        =/  head-hash=@ux  (fall ref-hash 0x0)
+        =/  head-text=@t  (crip (print-hash-sha-1:git-transport head-hash))
+        ~&  >>  ["%github: saving to repo nexus"]
+        ::  write all repo data then reload
+        ;<  ~  bind:m  (save-repo pack-data idx-text refs-json head-text active-ref)
+        ;<  ~  bind:m  (reload:io (cord-to-road:tarball './repo/'))
+        ~&  >>  "%github: reload triggered"
+        ;<  ~  bind:m  (set-status 'idle')
         ;<  *  bind:m  take-poke:io
-        ~&  >>  "%github: re-sync poke received"
         $
       ==
     ::
@@ -137,6 +269,8 @@
         ?+  rail.p.mana  'File under github.'
           [~ %'config.json']  'GitHub config: repo (owner/repo), ref (branch/tag/sha).'
           [~ %'sync.sig']     'Poke to trigger sync.'
+          [~ %'checkout.sig']  'Poke with commit hash to checkout.'
+          [~ %'commit.sig']   'Poke with commit hash to compute diff.'
           [~ %'page.html']    'Dashboard page. Shows config, sync button, file tree.'
         ==
       ==
@@ -164,139 +298,275 @@
     =/  v  (~(get by p.cfg) key)
     ?.  ?=([~ %s *] v)  default
     ?:(=('' p.u.v) default p.u.v)
-  (pure:m [(get 'repo' '') (get 'ref' 'main')])
+  (pure:m [(get 'repo' '') (get 'ref' '')])
 ::
-::  fetch tarball, following one redirect
+::  +write-repo-file: write or create a file in the repo sub-nexus
 ::
-++  fetch-tarball
-  |=  [repo=@t ref=@t]
+++  write-repo-file
+  |=  [=road:tarball =sage:tarball]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  ;<  exists=?  bind:m  (peek-exists:io road)
+  ?:  exists
+    (over:io road sage)
+  (make:io road |+[%.n sage ~])
+::
+::  +save-repo: write pack + index + refs + HEAD + ref into repo sub-nexus
+::
+++  save-repo
+  |=  [pack-data=octs idx-text=tape refs-json=json head-text=@t ref-name=@t]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  =/  idx-octs=octs  (as-octt:bytestream idx-text)
+  =/  head-octs=octs  (as-octt:bytestream (trip head-text))
+  =/  ref-octs=octs  (as-octt:bytestream (trip ref-name))
+  ;<  ~  bind:m
+    (write-repo-file (cord-to-road:tarball './repo/pack.dat') [[/ %mime] !>([/application/octet-stream pack-data])])
+  ;<  ~  bind:m
+    (write-repo-file (cord-to-road:tarball './repo/pack.idx') [[/ %mime] !>([/text/plain idx-octs])])
+  ;<  ~  bind:m
+    (write-repo-file (cord-to-road:tarball './repo/refs.json') [[/ %json] !>(refs-json)])
+  ;<  ~  bind:m
+    (write-repo-file (cord-to-road:tarball './repo/HEAD') [[/ %mime] !>([/text/plain head-octs])])
+  ;<  ~  bind:m
+    (write-repo-file (cord-to-road:tarball './repo/ref') [[/ %mime] !>([/text/plain ref-octs])])
+  (pure:m ~)
+::
+::  +write-head: update HEAD in repo sub-nexus
+::
+++  write-head
+  |=  hash-text=@t
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  =/  head-octs=octs  (as-octt:bytestream (trip hash-text))
+  (over:io (cord-to-road:tarball './repo/HEAD') [[/ %mime] !>([/text/plain head-octs])])
+::
+::  +write-ref: update ref (branch name) in repo sub-nexus
+::
+++  write-ref
+  |=  ref-name=@t
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  =/  ref-octs=octs  (as-octt:bytestream (trip ref-name))
+  (over:io (cord-to-road:tarball './repo/ref') [[/ %mime] !>([/text/plain ref-octs])])
+::
+::  +resolve-ref: read ref hash from repo's refs.json
+::
+++  resolve-ref
+  |=  ref=@t
+  =/  m  (fiber:fiber:nexus ,@t)
+  ^-  form:m
+  =/  road=road:tarball  (cord-to-road:tarball './repo/refs.json')
+  ;<  =seen:nexus  bind:m  (peek:io road `%json)
+  ?.  ?=([%& %file *] seen)
+    ~&  >>>  "%github: no refs.json found"
+    (pure:m '')
+  =/  j=json  (fall (mole |.(!<(json q.sage.p.seen))) *json)
+  ?.  ?=(%o -.j)
+    (pure:m '')
+  =/  active=@t  ?:(=('' ref) 'main' ref)
+  =/  hash-json=(unit json)  (~(get by p.j) active)
+  ?.  ?=([~ %s *] hash-json)
+    ~&  >>>  ["%github: ref not found in refs.json:" active]
+    (pure:m '')
+  (pure:m p.u.hash-json)
+::
+++  set-status
+  |=  s=@t
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  (over:io (cord-to-road:tarball './ui/status.json') [[/ %json] !>((pairs:enjs:format ~[['status' s+s]]))])
+::
+::  +load-repo-from-ns: rebuild git repository from ./repo/ namespace files
+::
+++  load-repo-from-ns
+  =/  m  (fiber:fiber:nexus ,repository:git-repo)
+  ^-  form:m
+  ;<  pack-seen=seen:nexus  bind:m  (peek:io (cord-to-road:tarball './repo/pack.dat') `%mime)
+  ?.  ?=([%& %file *] pack-seen)
+    ~|  "%github: no pack data"  !!
+  =/  pack-mim=mime  !<(mime q.sage.p.pack-seen)
+  ;<  idx-seen=seen:nexus  bind:m  (peek:io (cord-to-road:tarball './repo/pack.idx') `%mime)
+  ?.  ?=([%& %file *] idx-seen)
+    ~|  "%github: no pack index"  !!
+  =/  idx-mim=mime  !<(mime q.sage.p.idx-seen)
+  =/  idx-text=tape  (trip q.q.idx-mim)
+  =/  idx=pack-index:git-pack
+    (rebuild-index (split:git-transport idx-text `@t`10))
+  =/  entries=(list [key=hash:git-repo val=@ud])
+    (tap:pack-on:git-pack idx)
+  =/  sea=bays:bytestream  (from-octs:bytestream q.pack-mim)
+  =/  pak=pack:git-pack
+    [%sha-1 (lent entries) idx p.q.pack-mim sea]
+  ;<  refs-seen=seen:nexus  bind:m  (peek:io (cord-to-road:tarball './repo/refs.json') `%json)
+  =/  built-refs=(axal ref:git-repo)
+    ?.  ?=([%& %file *] refs-seen)  [~ ~]
+    =/  j=json  (fall (mole |.(!<(json q.sage.p.refs-seen))) *json)
+    ?.  ?=(%o -.j)  [~ ~]
+    %+  roll  ~(tap by p.j)
+    |=  [[name=@t hash-cord=json] r=(axal ref:git-repo)]
+    ?.  ?=(%s -.hash-cord)  r
+    =/  h=(unit @ux)
+      (rust (trip p.hash-cord) parse-hash-sha-1:git-transport)
+    ?~  h  r
+    (~(put of r) [~['refs' 'heads' name] u.h])
+  =/  repo=repository:git-repo
+    [%sha-1 [~ ~[pak]] built-refs ~ ~]
+  (pure:m repo)
+::
+::  +rebuild-index: parse index text lines into pack-index
+::
+++  rebuild-index
+  |=  lines=(list tape)
+  ^-  pack-index:git-pack
+  =|  idx=pack-index:git-pack
+  |-
+  ?~  lines  idx
+  =/  line=tape  i.lines
+  ?:  =(~ line)  $(lines t.lines)
+  =/  parts=(list tape)  (split:git-transport line ' ')
+  ?.  =((lent parts) 2)  $(lines t.lines)
+  =/  hex=tape  (snag 0 parts)
+  =/  off=tape  (snag 1 parts)
+  =/  h=hash:git-repo  (scan hex parse-hash-sha-1:git-transport)
+  =/  o=@ud  (scan off dum:ag)
+  $(lines t.lines, idx (put:pack-on:git-pack idx h o))
+::
+::  +build-diff-json: convert tree changes to JSON with line-level diffs
+::
+++  build-diff-json
+  |=  [get-blob=$-(@ux (unit octs)) changes=(list tree-change:git-transport)]
+  ^-  json
+  :-  %a
+  %+  turn  changes
+  |=  c=tree-change:git-transport
+  ^-  json
+  ?-    -.c
+      %add
+    =/  blob=(unit octs)  (get-blob hash.c)
+    =/  lines=wain  ?~(blob ~ (to-wain:format q.u.blob))
+    %-  pairs:enjs:format
+    :~  ['path' s+(spat path.c)]
+        ['status' s+'add']
+        ['lines' [%a (turn lines |=(l=@t (pairs:enjs:format ~[['t' s+'add'] ['v' s+l]])))]]
+    ==
+  ::
+      %del
+    =/  blob=(unit octs)  (get-blob hash.c)
+    =/  lines=wain  ?~(blob ~ (to-wain:format q.u.blob))
+    %-  pairs:enjs:format
+    :~  ['path' s+(spat path.c)]
+        ['status' s+'del']
+        ['lines' [%a (turn lines |=(l=@t (pairs:enjs:format ~[['t' s+'del'] ['v' s+l]])))]]
+    ==
+  ::
+      %mod
+    =/  old-blob=(unit octs)  (get-blob old.c)
+    =/  new-blob=(unit octs)  (get-blob new.c)
+    =/  old-lines=wain  ?~(old-blob ~ (to-wain:format q.u.old-blob))
+    =/  new-lines=wain  ?~(new-blob ~ (to-wain:format q.u.new-blob))
+    =/  diff=(urge:clay cord)
+      (lusk:differ old-lines new-lines (loss:differ old-lines new-lines))
+    %-  pairs:enjs:format
+    :~  ['path' s+(spat path.c)]
+        ['status' s+'mod']
+        ['lines' (urge-to-json old-lines diff)]
+    ==
+  ==
+::
+::  +urge-to-json: convert (urge:clay cord) diff to JSON line array with types
+::
+++  urge-to-json
+  |=  [old=wain urg=(urge:clay cord)]
+  ^-  json
+  =|  pos=@ud
+  =|  acc=(list json)
+  |-
+  ?~  urg  [%a acc]
+  ?-    -.i.urg
+      %&
+    =/  ctx=(list @t)  (swag [pos p.i.urg] old)
+    =/  ctx-json=(list json)
+      (turn ctx |=(l=@t (pairs:enjs:format ~[['t' s+'ctx'] ['v' s+l]])))
+    $(urg t.urg, pos (add pos p.i.urg), acc (weld acc ctx-json))
+  ::
+      %|
+    =/  del-json=(list json)
+      (turn (flop p.i.urg) |=(l=@t (pairs:enjs:format ~[['t' s+'del'] ['v' s+l]])))
+    =/  add-json=(list json)
+      (turn (flop q.i.urg) |=(l=@t (pairs:enjs:format ~[['t' s+'add'] ['v' s+l]])))
+    %=  $
+      urg  t.urg
+      pos  (add pos (lent p.i.urg))
+      acc  (weld acc (weld del-json add-json))
+    ==
+  ==
+::
+::  +fetch-with-redirect: GET a URL, follow one redirect
+::
+++  fetch-with-redirect
+  |=  [=request:http]
   =/  m  (fiber:fiber:nexus ,octs)
   ^-  form:m
-  =/  url=@t
-    (rap 3 ~['https://api.github.com/repos/' repo '/tarball/' ref])
-  =/  =request:http
-    :^  %'GET'  url
-      :~  ['Accept' 'application/vnd.github+json']
-          ['User-Agent' 'grubbery']
-      ==
-    ~
   ;<  ~  bind:m  (send-request:io request)
   ;<  =client-response:iris  bind:m  take-client-response:io
   ?.  ?=(%finished -.client-response)
-    ~|  "%github: fetch failed (not finished)"  !!
+    ~|  "%github: request failed (not finished)"  !!
   =/  status  status-code.response-header.client-response
-  ~&  >  ["%github: initial status" status]
   ?:  ?|  =(status 301)
           =(status 302)
           =(status 307)
       ==
     =/  location=(unit @t)
-      %-  ~(get by (malt headers.response-header.client-response))
-      'location'
+      (~(get by (malt headers.response-header.client-response)) 'location')
     ?~  location
       ~|  "%github: redirect without location header"  !!
-    ~&  >  ["%github: following redirect to" u.location]
-    =/  =request:http
-      :^  %'GET'  u.location
-        ~[['User-Agent' 'grubbery']]
-      ~
-    ;<  ~  bind:m  (send-request:io request)
+    =/  redir=request:http
+      [%'GET' u.location ~[['User-Agent' 'grubbery']] ~]
+    ;<  ~  bind:m  (send-request:io redir)
     ;<  =client-response:iris  bind:m  take-client-response:io
     ?.  ?=(%finished -.client-response)
-      ~|  "%github: redirect fetch failed"  !!
-    =/  redir-status  status-code.response-header.client-response
-    ?.  =(200 redir-status)
-      ~&  >>>  ["%github: redirect returned status" redir-status]
-      ?~  full-file.client-response
-        ~|  "%github: error (no body)"  !!
-      ~&  >>>  ["%github: body" `@t`q.data.u.full-file.client-response]
+      ~|  "%github: redirect failed"  !!
+    ?.  =(200 status-code.response-header.client-response)
       ~|  "%github: non-200 after redirect"  !!
     ?~  full-file.client-response
       ~|  "%github: empty response after redirect"  !!
     (pure:m data.u.full-file.client-response)
-  ::  direct response (200)
   ?.  =(200 status)
     ~|  "%github: unexpected status {<status>}"  !!
   ?~  full-file.client-response
     ~|  "%github: empty response"  !!
   (pure:m data.u.full-file.client-response)
 ::
-::  strip the top-level directory github adds to tarballs
-::  (e.g. "owner-repo-abc1234/src/foo.hoon" -> "src/foo.hoon")
+::  +fetch-discovery: GET /info/refs for a repo
 ::
-++  strip-prefix
-  |=  name=@t
-  ^-  @t
-  =/  =tape  (trip name)
-  ::  find first '/'
-  =/  idx=@ud  0
-  |-
-  ?~  tape  name
-  ?:  =(i.tape '/')
-    ?~  t.tape  ''
-    (crip t.tape)
-  $(tape t.tape, idx +(idx))
+++  fetch-discovery
+  |=  repo=@t
+  =/  m  (fiber:fiber:nexus ,discovery:git-transport)
+  ^-  form:m
+  =/  url=@t
+    (rap 3 ~['https://github.com/' repo '.git/info/refs?service=git-upload-pack'])
+  =/  =request:http
+    [%'GET' url ~[['User-Agent' 'grubbery']] ~]
+  ;<  body=octs  bind:m  (fetch-with-redirect request)
+  (pure:m (parse-discovery:git-transport body))
 ::
-::  build a ball tree from tar entries (pure data, no darts)
+::  +fetch-pack: POST /git-upload-pack for a repo
 ::
-++  entries-to-ball
-  |=  entries=tarball:tarball
-  ^-  ball:tarball
-  =|  tree=ball:tarball
-  |-
-  ?~  entries  tree
-  =/  header  header.i.entries
-  =/  name=@t  (strip-prefix name.header)
-  ::  skip empty names and the root directory itself
-  ?:  |(=('' name) =(0 (met 3 name)))
-    $(entries t.entries)
-  ::  skip directories (typeflag '5') and non-regular files
-  =/  tf=@t  typeflag.header
-  ?:  ?|  =(tf '5')
-          =(tf 'g')
-          =(tf 'x')
+++  fetch-pack
+  |=  [repo=@t want-body=octs]
+  =/  m  (fiber:fiber:nexus ,octs)
+  ^-  form:m
+  =/  url=@t
+    (rap 3 ~['https://github.com/' repo '.git/git-upload-pack'])
+  =/  =request:http
+    :^  %'POST'  url
+      :~  ['Content-Type' 'application/x-git-upload-pack-request']
+          ['User-Agent' 'grubbery']
       ==
-    $(entries t.entries)
-  ::  skip entries with no data
-  ?~  data.i.entries
-    $(entries t.entries)
-  =/  content-type=path  (guess-mime name)
-  =/  =mime  [content-type u.data.i.entries]
-  =/  =content:tarball  [*metadata:tarball [/ %mime] !>(mime)]
-  =/  segs=(list @t)  (segments name)
-  =.  tree  (insert-file tree segs content)
-  $(entries t.entries)
-::
-++  segments
-  |=  name=@t
-  ^-  (list @ta)
-  =/  =tape  (trip name)
-  =|  acc=(list @ta)
-  =|  seg=^tape
-  |-
-  ?~  tape
-    ?~  seg  (flop acc)
-    (flop [(crip (flop seg)) acc])
-  ?:  =(i.tape '/')
-    ?~  seg  $(tape t.tape)
-    $(tape t.tape, acc [(crip (flop seg)) acc], seg ~)
-  $(tape t.tape, seg [i.tape seg])
-::
-++  insert-file
-  |=  [tree=ball:tarball segs=(list @ta) =content:tarball]
-  ^-  ball:tarball
-  ?~  segs  tree
-  ?~  t.segs
-    ::  leaf: insert file into lump at this level
-    =/  =lump:tarball
-      (fall fil.tree [*metadata:tarball ~ ~])
-    =.  contents.lump  (~(put by contents.lump) i.segs content)
-    tree(fil `lump)
-  ::  branch: recurse into subdirectory
-  =/  kid=ball:tarball
-    (fall (~(get by dir.tree) i.segs) [~ ~])
-  =.  kid  $(tree kid, segs t.segs)
-  tree(dir (~(put by dir.tree) i.segs kid))
+    `want-body
+  ;<  body=octs  bind:m  (fetch-with-redirect request)
+  (pure:m body)
 ::
 +$  page-event
   $%  [%news =wire =view:nexus]
@@ -328,7 +598,21 @@
     =/  v  (~(get by p.cfg) key)
     ?.  ?=([~ %s *] v)  default
     ?:(=('' p.u.v) default p.u.v)
-  [(get 'repo' '') (get 'ref' 'main')]
+  [(get 'repo' '') (get 'ref' '')]
+::
+++  view-to-branches
+  |=  =view:nexus
+  ^-  (list @t)
+  ?.  ?=([%file *] view)  ~
+  =/  j=json  (fall (mole |.(!<(json q.sage.view))) *json)
+  ?.  ?=(%a -.j)  ~
+  (murn p.j |=(v=json ?.(?=(%s -.v) ~ `p.v)))
+::
+++  view-to-json
+  |=  =view:nexus
+  ^-  json
+  ?.  ?=([%file *] view)  [%a ~]
+  (fall (mole |.(!<(json q.sage.view))) [%a ~])
 ::
 ++  view-to-files
   |=  =view:nexus
@@ -353,62 +637,152 @@
     (collect-files sub-prefix sub)
   (weld file-names dir-files)
 ::
-++  guess-mime
-  |=  filename=@t
-  ^-  path
-  =/  ext=@t
-    =/  =tape  (trip filename)
-    =/  idx=(unit @ud)  (find "." (flop tape))
-    ?~  idx  ''
-    (crip (slag (sub (lent tape) u.idx) tape))
-  ?+  ext  /application/octet-stream
-    %hoon  /text/plain
-    %txt   /text/plain
-    %md    /text/plain
-    %json  /application/json
-    %html  /text/html
-    %css   /text/css
-    %js    /application/javascript
-    %ts    /text/plain
-    %py    /text/plain
-    %rs    /text/plain
-    %c     /text/plain
-    %h     /text/plain
-    %go    /text/plain
-    %toml  /text/plain
-    %yaml  /text/plain
-    %yml   /text/plain
-    %xml   /text/xml
-    %svg   /image/'svg+xml'
-    %sh    /text/plain
-    %nix   /text/plain
-  ==
-::
 ++  page-css
   ^-  tape
   %-  zing
   ^-  (list tape)
-  :~  "*\{box-sizing:border-box}"
-      "body\{font-family:-apple-system,system-ui,monospace;max-width:720px;"
-      "margin:0 auto;padding:2rem;color:#1a1a1a}"
-      ".muted\{opacity:.5}"
-      ".row\{margin-bottom:.75rem}"
-      ".row label\{display:block;font-size:.8rem;margin-bottom:.2rem;opacity:.6}"
-      "input,select\{width:100%;padding:.4rem .6rem;border:1px solid #ccc;"
-      "border-radius:4px;font:inherit}"
-      ".branch-row\{display:flex;gap:.5rem}"
-      ".branch-row select\{flex:1}"
-      ".branch-row input\{width:140px;flex:none}"
-      ".actions\{display:flex;gap:.5rem;margin:1rem 0}"
-      ".btn\{padding:.4rem 1rem;border:1px solid #ccc;border-radius:4px;"
-      "background:#fff;font:inherit;cursor:pointer}"
-      ".btn:hover\{background:#f5f5f5}"
+  :~  "*\{box-sizing:border-box;margin:0;padding:0}"
+      "body\{font-family:-apple-system,system-ui,monospace;color:#1a1a1a;"
+      "font-size:14px;line-height:1.5;height:100vh}"
+      ::  -- setup screen (no files yet) --
+      ".setup\{display:flex;align-items:center;justify-content:center;"
+      "height:100vh;flex-direction:column;gap:1rem}"
+      ".setup h1\{font-size:1.2rem;font-weight:500}"
+      ".setup .form\{display:flex;flex-direction:column;gap:.5rem;width:320px}"
+      ".setup label\{font-size:12px;opacity:.5}"
+      ".setup input\{padding:.4rem .6rem;border:1px solid #ccc;"
+      "border-radius:3px;font:inherit;font-size:14px;width:100%}"
+      ".setup .row\{display:flex;gap:.5rem}"
+      ".setup .row input\{flex:1}"
+      ::  -- browser screen (files present) --
+      ".browser\{display:flex;flex-direction:column;height:100vh}"
+      ".toolbar\{display:flex;gap:.5rem;padding:.4rem .75rem;"
+      "border-bottom:1px solid #e0e0e0;align-items:center;"
+      "background:#fafafa;flex-shrink:0}"
+      ".toolbar input\{padding:.3rem .5rem;border:1px solid #ccc;"
+      "border-radius:3px;font:inherit;font-size:13px}"
+      ".toolbar .repo\{flex:1;min-width:160px}"
+      ".toolbar select.ref\{padding:.3rem .5rem;border:1px solid #ccc;"
+      "border-radius:3px;font:inherit;font-size:13px;max-width:200px}"
+      ".btn\{padding:.3rem .75rem;border:1px solid #ccc;border-radius:3px;"
+      "background:#fff;font:inherit;font-size:13px;cursor:pointer;"
+      "white-space:nowrap}"
+      ".btn:hover\{background:#f0f0f0}"
       ".btn.primary\{background:#1a1a1a;color:#fff;border-color:#1a1a1a}"
       ".btn.primary:hover\{background:#333}"
-      ".commit\{padding:.3rem 0;font-size:.85rem;border-bottom:1px solid #eee}"
-      ".commit code\{color:#0969da;margin-right:.4rem}"
-      ".file\{padding:.15rem 0;font-size:.8rem}"
-      "h2\{font-size:1rem;margin-top:1.5rem}"
+      ".btn:disabled\{opacity:.4;cursor:default}"
+      ".info\{font-size:12px;opacity:.4;margin-left:auto}"
+      ".panes\{display:flex;flex:1;overflow:hidden}"
+      ".tree-pane\{width:260px;min-width:0;border-right:1px solid #e0e0e0;"
+      "overflow-y:auto;padding:.25rem 0;flex-shrink:0;"
+      "transition:width .15s}"
+      ".tree-pane.collapsed\{width:0;padding:0;border:0;overflow:hidden}"
+      ".toggle-tree\{background:none;border:none;border-right:1px solid #e0e0e0;"
+      "cursor:pointer;padding:0 6px;font-size:16px;opacity:.4;"
+      "flex-shrink:0}"
+      ".toggle-tree:hover\{opacity:.7;background:#f5f5f5}"
+      ".content-pane\{flex:1;overflow-y:auto;padding:1rem}"
+      ::  -- tree --
+      ".dir\{cursor:pointer;user-select:none}"
+      ".dir-label\{display:flex;align-items:center;padding:2px 8px}"
+      ".dir-label:hover\{background:#f0f0f0}"
+      ".dir-label .arrow\{width:14px;font-size:9px;flex-shrink:0;"
+      "transition:transform .1s}"
+      ".dir-label .arrow.open\{transform:rotate(90deg)}"
+      ".dir-children\{display:none}"
+      ".dir.open>.dir-children\{display:block}"
+      ".file\{padding:2px 8px;cursor:pointer;font-size:13px}"
+      ".file:hover\{background:#f0f0f0}"
+      ".file.active\{background:#e8f0fe}"
+      ::  -- file viewer --
+      ".file-view .path\{font-size:12px;opacity:.4;margin-bottom:.75rem}"
+      ".file-view pre\{white-space:pre-wrap;word-break:break-all;"
+      "font-size:13px;line-height:1.6}"
+      ".placeholder\{opacity:.3;padding:3rem;text-align:center}"
+      ".syncing\{display:flex;align-items:center;gap:8px;padding:8px 10px;"
+      "font-size:13px;opacity:.5}"
+      "@keyframes spin\{to\{transform:rotate(360deg)}}"
+      ".spinner\{display:inline-block;width:14px;height:14px;"
+      "border:2px solid #ccc;border-top-color:#333;border-radius:50%;"
+      "animation:spin .6s linear infinite}"
+      ::  -- commit log --
+      ".commit-pane\{border-top:1px solid #e0e0e0;max-height:220px;"
+      "overflow-y:auto;flex-shrink:0}"
+      ".commit-pane .header\{display:flex;align-items:center;"
+      "padding:6px 12px;font-size:12px;font-weight:600;"
+      "background:#fafafa;border-bottom:1px solid #e0e0e0;"
+      "cursor:pointer;user-select:none;position:sticky;top:0;z-index:1}"
+      ".commit-pane .header .arrow\{margin-right:6px;font-size:9px;"
+      "transition:transform .1s}"
+      ".commit-pane .header .arrow.open\{transform:rotate(90deg)}"
+      ".commit-pane.collapsed .commit-list\{display:none}"
+      ".commit-entry\{display:flex;align-items:baseline;gap:8px;"
+      "padding:4px 12px;font-size:12px;cursor:pointer;"
+      "border-bottom:1px solid #f0f0f0}"
+      ".commit-entry:hover\{background:#f5f8ff}"
+      ".commit-entry.active\{background:#e8f0fe}"
+      ".commit-entry.head\{background:#f0fdf4}"
+      ".commit-entry.head .hash:after\{content:'HEAD';margin-left:4px;"
+      "font-size:10px;background:#1a7f37;color:#fff;padding:0 4px;"
+      "border-radius:3px;font-family:-apple-system,system-ui,sans-serif}"
+      ".commit-entry .hash\{font-family:monospace;color:#0969da;"
+      "flex-shrink:0}"
+      ".commit-entry .msg\{flex:1;overflow:hidden;"
+      "text-overflow:ellipsis;white-space:nowrap}"
+      ".commit-entry .author\{opacity:.5;flex-shrink:0}"
+      ".head-bar\{display:flex;align-items:center;gap:8px;"
+      "padding:3px 12px;border-bottom:1px solid #e0e0e0;"
+      "background:#f0fdf4;font-size:12px;cursor:pointer;flex-shrink:0}"
+      ".head-bar:hover\{background:#dcfce7}"
+      ".head-bar .hash\{font-family:monospace;color:#1a7f37;font-weight:600}"
+      ".head-bar .msg\{opacity:.7;overflow:hidden;"
+      "text-overflow:ellipsis;white-space:nowrap}"
+      ".head-bar .badge\{font-size:10px;background:#1a7f37;color:#fff;"
+      "padding:0 4px;border-radius:3px;flex-shrink:0}"
+      ".commit-popup\{position:fixed;top:0;left:0;right:0;bottom:0;"
+      "background:rgba(0,0,0,.3);display:flex;align-items:center;"
+      "justify-content:center;z-index:100}"
+      ".commit-popup .card\{background:#fff;border-radius:6px;padding:1rem;"
+      "max-width:560px;width:90%;max-height:80vh;overflow-y:auto;"
+      "box-shadow:0 4px 24px rgba(0,0,0,.15)}"
+      ".commit-popup .card h3\{font-size:14px;margin-bottom:.5rem}"
+      ".commit-popup .card .meta\{font-size:12px;margin-bottom:.75rem;"
+      "border-collapse:collapse;width:100%}"
+      ".commit-popup .card .meta td\{padding:2px 8px 2px 0;vertical-align:top}"
+      ".commit-popup .card .meta td:first-child\{opacity:.5;white-space:nowrap;"
+      "font-weight:500;width:90px}"
+      ".commit-popup .card .meta code\{font-size:11px;background:#f5f5f5;"
+      "padding:1px 4px;border-radius:2px;word-break:break-all}"
+      ".commit-popup .card .body\{font-size:13px;white-space:pre-wrap;"
+      "line-height:1.6;font-family:monospace}"
+      ".commit-popup .card .close\{float:right;background:none;border:none;"
+      "font-size:18px;cursor:pointer;opacity:.4;padding:0 4px}"
+      ".commit-popup .card .close:hover\{opacity:.8}"
+      ::  -- diff view --
+      ".diff-view\{font-size:13px}"
+      ".diff-header\{padding:0 0 .75rem;display:flex;align-items:center;gap:8px}"
+      ".diff-header .hash\{font-family:monospace;color:#0969da;font-weight:600}"
+      ".diff-header .msg\{opacity:.7}"
+      ".diff-file\{margin-bottom:1rem;border:1px solid #e0e0e0;"
+      "border-radius:4px;overflow:hidden}"
+      ".diff-file-header\{padding:6px 12px;background:#f6f8fa;"
+      "border-bottom:1px solid #e0e0e0;font-size:12px;"
+      "display:flex;align-items:center;gap:8px;cursor:pointer}"
+      ".diff-file-header:hover\{background:#eef1f5}"
+      ".diff-file-header .badge\{font-size:10px;padding:0 4px;"
+      "border-radius:3px;color:#fff;flex-shrink:0}"
+      ".badge-add\{background:#1a7f37}"
+      ".badge-del\{background:#cf222e}"
+      ".badge-mod\{background:#9a6700}"
+      ".diff-lines\{font-family:monospace;font-size:12px;line-height:1.5;"
+      "overflow-x:auto;display:none}"
+      ".diff-file.open .diff-lines\{display:block}"
+      ".diff-line\{padding:0 12px;white-space:pre-wrap;word-break:break-all}"
+      ".diff-line.ctx\{background:#fff}"
+      ".diff-line.add\{background:#e6ffec}"
+      ".diff-line.del\{background:#ffebe9}"
+      ".diff-line .pre\{opacity:.4;display:inline-block;width:12px;"
+      "text-align:center;margin-right:4px;user-select:none}"
   ==
 ::
 ++  page-script
@@ -419,70 +793,295 @@
   :~  "var A='{(trip api)}';"
       "var R='{(trip repo)}';"
       "var F='{(trip ref)}';"
-      ::  save config
-      "document.getElementById('save').onclick=function()\{"
+      "var _files=window._FILES||[];"
+      ::  sync: save config then poke sync
+      "function doSync()\{"
       "var r=document.getElementById('repo').value;"
-      "var f=document.getElementById('ref').value;"
+      "var sel=document.getElementById('ref');"
+      "var f=sel?(sel.value||''):(''||'');"
+      "if(!r)\{return}"
+      "var btns=document.querySelectorAll('.btn.primary');"
+      "btns.forEach(function(b)\{b.disabled=true;b.textContent='Syncing...'});"
       "fetch(A.replace('/file/','/over/')+'/config.json?mark=json',"
       "\{method:'POST',headers:\{'Content-Type':'application/json'},"
       "body:JSON.stringify(\{repo:r,ref:f})})"
-      "};"
-      ::  sync
-      "document.getElementById('sync').onclick=function()\{"
-      "fetch(A.replace('/file/','/poke/')+'/sync.sig',"
+      ".then(function()\{"
+      "return fetch(A.replace('/file/','/poke/')+'/sync.sig',"
       "\{method:'POST',headers:\{'Content-Type':'text/plain'},body:'sync'})"
-      "};"
-      ::  branch select updates ref input
-      "document.getElementById('branches').onchange=function()\{"
-      "document.getElementById('ref').value=this.value"
-      "};"
-      ::  fetch branches + commits from github api
-      "if(R)\{"
-      "var G='https://api.github.com/repos/'+R;"
-      "fetch(G+'/branches?per_page=30')"
-      ".then(function(r)\{return r.json()})"
-      ".then(function(bs)\{"
-      "var s=document.getElementById('branches');"
-      "if(!s||!Array.isArray(bs))return;"
-      "s.innerHTML='';"
-      "bs.forEach(function(b)\{"
-      "var o=document.createElement('option');"
-      "o.value=b.name;o.textContent=b.name;"
-      "if(b.name===F)o.selected=true;"
-      "s.appendChild(o)"
-      "})"
-      "}).catch(function()\{});"
-      "fetch(G+'/commits?sha='+encodeURIComponent(F)+'&per_page=15')"
-      ".then(function(r)\{return r.json()})"
-      ".then(function(cs)\{"
-      "var d=document.getElementById('commits');"
-      "if(!d||!Array.isArray(cs))return;"
-      "d.innerHTML='';"
-      "cs.forEach(function(c)\{"
-      "var e=document.createElement('div');"
-      "e.className='commit';"
-      "var co=document.createElement('code');"
-      "co.textContent=c.sha.substring(0,7);"
-      "e.appendChild(co);"
-      "var msg=(c.commit.message||'').split('\\n')[0];"
-      "e.appendChild(document.createTextNode(msg+' '));"
-      "var sp=document.createElement('span');"
-      "sp.className='muted';"
-      "var who=c.commit.author?c.commit.author.name:'';"
-      "sp.textContent='\\u2014 '+who;"
-      "e.appendChild(sp);"
-      "d.appendChild(e)"
-      "})"
-      "}).catch(function()\{});"
-      "}"
+      "}).catch(function()\{"
+      "btns.forEach(function(b)\{b.textContent='Sync';b.disabled=false})"
+      "})}"
+      ::  branch switch: changing dropdown triggers sync
+      "var refSel=document.getElementById('ref');"
+      "if(refSel)\{refSel.onchange=doSync}"
+      ::  build tree from flat file list
+      "function buildTree(files)\{"
+      "var root=\{_f:[],_d:\{}};"
+      "files.forEach(function(f)\{"
+      "var p=f.split('/'),n=root;"
+      "for(var i=0;i<p.length-1;i++)\{"
+      "if(!n._d[p[i]])n._d[p[i]]=\{_f:[],_d:\{}};"
+      "n=n._d[p[i]]}n._f.push(p[p.length-1])"
+      "});return root}"
+      ::  render tree into DOM
+      "function renderTree(node,el,depth,prefix)\{"
+      "var dirs=Object.keys(node._d).sort();"
+      "dirs.forEach(function(d)\{"
+      "var div=document.createElement('div');div.className='dir';"
+      "var label=document.createElement('div');"
+      "label.className='dir-label';"
+      "label.style.paddingLeft=(8+depth*14)+'px';"
+      "label.innerHTML='<span class=\"arrow\">\\u25b6</span> '+d+'/';"
+      "label.onclick=function()\{"
+      "div.classList.toggle('open');"
+      "label.querySelector('.arrow').classList.toggle('open')};"
+      "div.appendChild(label);"
+      "var ch=document.createElement('div');ch.className='dir-children';"
+      "renderTree(node._d[d],ch,depth+1,prefix+d+'/');"
+      "div.appendChild(ch);el.appendChild(div)});"
+      "node._f.sort().forEach(function(f)\{"
+      "var fe=document.createElement('div');fe.className='file';"
+      "fe.style.paddingLeft=(22+depth*14)+'px';"
+      "fe.textContent=f;"
+      "fe.onclick=function()\{viewFile(prefix+f,fe)};"
+      "el.appendChild(fe)})}"
+      ::  view file content
+      "function viewFile(path,el)\{"
+      "document.querySelectorAll('.file.active').forEach("
+      "function(e)\{e.classList.remove('active')});"
+      "document.querySelectorAll('.commit-entry.active').forEach("
+      "function(e)\{e.classList.remove('active')});"
+      "if(el)el.classList.add('active');"
+      "var pane=document.getElementById('content');"
+      "pane.innerHTML='<div class=\"file-view\">"
+      "<div class=\"path\">'+path+'</div>"
+      "<pre>Loading...</pre></div>';"
+      "fetch(A+'/repo/tree/'+path).then(function(r)\{"
+      "if(!r.ok)throw new Error(r.status);"
+      "var ct=r.headers.get('content-type')||'';"
+      "if(ct.indexOf('text')>=0||ct.indexOf('json')>=0"
+      "||ct.indexOf('javascript')>=0)"
+      "return r.text().then(function(t)\{"
+      "pane.querySelector('pre').textContent=t});"
+      "pane.querySelector('pre').textContent='[binary '+ct+']'"
+      "}).catch(function(e)\{"
+      "pane.querySelector('pre').textContent='Error: '+e.message})}"
+      ::  bind sync buttons (setup + toolbar)
+      "document.querySelectorAll('.btn.primary').forEach("
+      "function(b)\{b.onclick=doSync});"
+      ::  sidebar toggle
+      "var tgl=document.getElementById('toggle-tree');"
+      "var tpane=document.getElementById('tree-pane');"
+      "if(tgl&&tpane)\{tgl.onclick=function()\{"
+      "tpane.classList.toggle('collapsed')}}"
+      ::  render tree if files exist
+      "var tp=document.getElementById('tree');"
+      "if(tp&&_files.length)\{"
+      "renderTree(buildTree(_files),tp,0,'')}"
+      ::  SSE: watch status.json for syncing indicator
+      "var SK=A.replace('/file/','/keep/')+'/ui/status.json';"
+      "function watchStatus()\{"
+      "fetch(SK+'?mark=json',\{headers:\{Accept:'text/event-stream'}})"
+      ".then(function(r)\{"
+      "var rd=r.body.getReader(),dec=new TextDecoder(),buf='';"
+      "function pump()\{"
+      "rd.read().then(function(res)\{"
+      "if(res.done)return;"
+      "buf+=dec.decode(res.value,\{stream:true});"
+      "var ps=buf.split('\\n\\n');buf=ps.pop();"
+      "for(var i=0;i<ps.length;i++)\{"
+      "if(!ps[i].trim())continue;"
+      "var ls=ps[i].split('\\n'),data='';"
+      "for(var j=0;j<ls.length;j++)\{"
+      "if(ls[j].indexOf('data: ')===0)data+=ls[j].slice(6)}"
+      "try\{var st=JSON.parse(data);"
+      "var el=document.getElementById('syncing');"
+      "if(st.status==='syncing')\{"
+      "var btns=document.querySelectorAll('.btn.primary');"
+      "btns.forEach(function(b)\{b.disabled=true;b.textContent='Syncing...'});"
+      "if(!el)\{"
+      "var s=document.createElement('div');s.id='syncing';"
+      "s.className='syncing';"
+      "s.innerHTML='<span class=\"spinner\"></span> syncing...';"
+      "var tp=document.getElementById('tree')||document.getElementById('content');"
+      "if(tp)tp.parentNode.insertBefore(s,tp)}}"
+      "if(st.status==='idle'&&el)\{"
+      "el.remove();setTimeout(function()\{location.reload()},1500)}"
+      "}catch(e)\{}}pump()}).catch(function()\{})}"
+      "pump()})"
+      ".catch(function()\{setTimeout(watchStatus,3000)})}"
+      "watchStatus();"
+      ::  SSE: watch repo tree for changes
+      "var K=A.replace('/file/','/keep/')+'/repo/tree';"
+      "function watchTree()\{"
+      "var _r;"
+      "fetch(K+'?mark=txt',\{headers:\{Accept:'text/event-stream'}})"
+      ".then(function(r)\{"
+      "var rd=r.body.getReader(),dec=new TextDecoder(),buf='';"
+      "function pump()\{"
+      "rd.read().then(function(res)\{"
+      "if(res.done)return;"
+      "buf+=dec.decode(res.value,\{stream:true});"
+      "var ps=buf.split('\\n\\n');buf=ps.pop();"
+      "for(var i=0;i<ps.length;i++)\{"
+      "if(!ps[i].trim())continue;"
+      "var ls=ps[i].split('\\n'),ev='';"
+      "for(var j=0;j<ls.length;j++)\{"
+      "if(ls[j].indexOf('event: ')===0)ev=ls[j].slice(7)}"
+      "if(ev&&ev.indexOf('old ')!==0)\{"
+      "clearTimeout(_r);"
+      "_r=setTimeout(function()\{location.reload()},1500)}}"
+      "pump()}).catch(function()\{})}"
+      "pump()})"
+      ".catch(function()\{setTimeout(watchTree,3000)})}"
+      "watchTree();"
+      ::  commit log toggle + render
+      "var cpane=document.getElementById('commit-pane');"
+      "var ctgl=document.getElementById('commit-toggle');"
+      "if(ctgl)\{ctgl.onclick=function()\{"
+      "cpane.classList.toggle('collapsed');"
+      "ctgl.querySelector('.arrow').classList.toggle('open')}}"
+      "function renderCommits()\{"
+      "var cl=document.getElementById('commit-list');"
+      "if(!cl||!window._COMMITS||!window._COMMITS.length)return;"
+      "cl.innerHTML='';"
+      "var cur=window._CURRENT||window._COMMITS[0].hash;"
+      "var curCommit=window._COMMITS.find(function(c)\{return c.hash===cur})||window._COMMITS[0];"
+      "var hb=document.getElementById('head-bar');"
+      "if(hb)\{"
+      "hb.innerHTML='<span class=\"badge\">HEAD</span>"
+      "<span class=\"hash\">'+curCommit.short+'</span>"
+      "<span class=\"msg\">'+curCommit.message+'</span>';"
+      "hb.onclick=function()\{showCommitPopup(curCommit)}}"
+      "window._COMMITS.forEach(function(c,i)\{"
+      "var d=document.createElement('div');"
+      "d.className='commit-entry'+(c.hash===cur?' head':'');"
+      "d.innerHTML='<span class=\"hash\">'+c.short+'</span>"
+      "<span class=\"msg\">'+c.message+'</span>"
+      "<span class=\"author\">'+c.author+'</span>';"
+      "d.onclick=function()\{"
+      "document.querySelectorAll('.commit-entry.active').forEach("
+      "function(e)\{e.classList.remove('active')});"
+      "d.classList.add('active');"
+      "viewCommitDiff(c.hash)};"
+      "cl.appendChild(d)});"
+      "if(window._COMMITS.length>=50)\{"
+      "var m=document.createElement('div');"
+      "m.style.cssText='padding:6px 12px;font-size:11px;opacity:.4;text-align:center;border-top:1px solid #e0e0e0';"
+      "m.textContent='older commits not shown...';"
+      "cl.appendChild(m)}}"
+      "function checkoutCommit(hash)\{"
+      "var btns=document.querySelectorAll('.btn.primary');"
+      "btns.forEach(function(b)\{b.disabled=true;b.textContent='Loading...'});"
+      "fetch(A.replace('/file/','/poke/')+'/checkout.sig?mark=txt',"
+      "\{method:'POST',headers:\{'Content-Type':'text/plain'},body:hash})"
+      ".catch(function()\{"
+      "btns.forEach(function(b)\{b.textContent='Sync';b.disabled=false})})}"
+      "function showCommitPopup(c)\{"
+      "var bg=document.createElement('div');bg.className='commit-popup';"
+      "var rows='';"
+      "rows+='<tr><td>commit</td><td><code>'+c.hash+'</code></td></tr>';"
+      "if(c.tree)rows+='<tr><td>tree</td><td><code>'+c.tree+'</code></td></tr>';"
+      "if(c.parents&&c.parents.length)"
+      "rows+='<tr><td>parent'+(c.parents.length>1?'s':'')+'</td><td><code>'+c.parents.join('<br>')+'</code></td></tr>';"
+      "var ae=c.authorEmail?' &lt;'+c.authorEmail+'&gt;':'';"
+      "rows+='<tr><td>author</td><td><b>'+c.author+'</b>'+ae+'</td></tr>';"
+      "if(c.date)rows+='<tr><td>authored</td><td>'+new Date(c.date).toLocaleString()+'</td></tr>';"
+      "if(c.committer&&c.committer!==c.author)\{"
+      "var ce=c.committerEmail?' &lt;'+c.committerEmail+'&gt;':'';"
+      "rows+='<tr><td>committer</td><td><b>'+c.committer+'</b>'+ce+'</td></tr>'}"
+      "if(c.commitDate)rows+='<tr><td>committed</td><td>'+new Date(c.commitDate).toLocaleString()+'</td></tr>';"
+      "var body=(c.body||c.message||'').trim();"
+      "var title=body.split('\\n')[0];"
+      "var rest=body.split('\\n').slice(1).join('\\n').trim();"
+      "bg.innerHTML='<div class=\"card\">"
+      "<button class=\"close\">&times;</button>"
+      "<h3>'+title+'</h3>"
+      "<table class=\"meta\">'+rows+'</table>"
+      "'+( rest?'<div class=\"body\">'+rest+'</div>':'' )+'</div>';"
+      "bg.querySelector('.close').onclick=function()\{bg.remove()};"
+      "bg.onclick=function(e)\{if(e.target===bg)bg.remove()};"
+      "document.body.appendChild(bg)}"
+      "renderCommits();"
+      ::  diff view: poke commit.sig, watch commit.json, render
+      "function viewCommitDiff(hash)\{"
+      "document.querySelectorAll('.file.active').forEach("
+      "function(e)\{e.classList.remove('active')});"
+      "var pane=document.getElementById('content');"
+      "pane.innerHTML='<div class=\"placeholder\">"
+      "<span class=\"spinner\"></span> computing diff...</div>';"
+      "fetch(A.replace('/file/','/poke/')+'/commit.sig?mark=txt',"
+      "\{method:'POST',headers:\{'Content-Type':'text/plain'},body:hash})}"
+      ::
+      "function escHtml(s)\{"
+      "return s.replace(/&/g,'\\&amp;').replace(/</g,'\\&lt;')"
+      ".replace(/>/g,'\\&gt;')}"
+      ::
+      "function clearDiff()\{"
+      "var pane=document.getElementById('content');"
+      "pane.innerHTML='<div class=\"placeholder\">select a file</div>';"
+      "document.querySelectorAll('.commit-entry.active').forEach("
+      "function(e)\{e.classList.remove('active')})}"
+      ::
+      "function renderDiff(d)\{"
+      "var pane=document.getElementById('content');"
+      "var h='<div class=\"diff-view\">';"
+      "h+='<div class=\"diff-header\">';"
+      "h+='<button class=\"btn\" style=\"font-size:11px\""
+      " onclick=\"clearDiff()\">\\u2190 files</button>';"
+      "h+='<span class=\"hash\">'+d.short+'</span>';"
+      "h+='<span class=\"msg\">'+escHtml(d.message)+'</span>';"
+      "h+='<span style=\"opacity:.5\">'+escHtml(d.author)+'</span>';"
+      "h+='<button class=\"btn\" style=\"margin-left:auto;font-size:11px\""
+      " onclick=\"checkoutCommit(\\x27'+d.hash+'\\x27)\">checkout</button>';"
+      "h+='</div>';"
+      "if(!d.files||!d.files.length)\{"
+      "h+='<div class=\"placeholder\">no file changes</div>'}"
+      "else\{d.files.forEach(function(f)\{"
+      "var bc=f.status==='add'?'badge-add':"
+      "f.status==='del'?'badge-del':'badge-mod';"
+      "h+='<div class=\"diff-file open\">';"
+      "h+='<div class=\"diff-file-header\" onclick=\"this.parentNode.classList.toggle(\\x27open\\x27)\">';"
+      "h+='<span class=\"badge '+bc+'\">'+f.status+'</span>';"
+      "h+=escHtml(f.path)+'</div>';"
+      "h+='<div class=\"diff-lines\">';"
+      "if(f.lines)\{f.lines.forEach(function(l)\{"
+      "var pre=l.t==='add'?'+':l.t==='del'?'-':' ';"
+      "h+='<div class=\"diff-line '+l.t+'\">"
+      "<span class=\"pre\">'+pre+'</span>'+escHtml(l.v)+'</div>'})}"
+      "h+='</div></div>'})}"
+      "h+='</div>';pane.innerHTML=h}"
+      ::  SSE: watch commit.json for diff results
+      "var CK=A.replace('/file/','/keep/')+'/ui/commit.json';"
+      "function watchCommit()\{"
+      "fetch(CK+'?mark=json',\{headers:\{Accept:'text/event-stream'}})"
+      ".then(function(r)\{"
+      "var rd=r.body.getReader(),dec=new TextDecoder(),buf='';"
+      "function pump()\{"
+      "rd.read().then(function(res)\{"
+      "if(res.done)return;"
+      "buf+=dec.decode(res.value,\{stream:true});"
+      "var ps=buf.split('\\n\\n');buf=ps.pop();"
+      "for(var i=0;i<ps.length;i++)\{"
+      "if(!ps[i].trim())continue;"
+      "var ls=ps[i].split('\\n'),ev='',data='';"
+      "for(var j=0;j<ls.length;j++)\{"
+      "if(ls[j].indexOf('event: ')===0)ev=ls[j].slice(7);"
+      "if(ls[j].indexOf('data: ')===0)data+=ls[j].slice(6)}"
+      "if(ev&&ev.indexOf('old ')!==0&&data)\{"
+      "try\{renderDiff(JSON.parse(data))}catch(e)\{}}}"
+      "pump()}).catch(function()\{})}pump()})"
+      ".catch(function()\{setTimeout(watchCommit,3000)})}"
+      "watchCommit();"
   ==
 ::
 ++  github-page
-  |=  [api=@t repo=@t ref=@t files=(list @t)]
+  |=  [api=@t repo=@t ref=@t branches=(list @t) files=(list @t) commits=json current=json]
   ^-  manx
+  =/  has-files=?  !=(~ files)
   ;html
     ;head
-      ;title: {?:(=('' repo) "GitHub" "{(trip repo)}")}
+      ;title: {?:(=('' repo) "github" "{(trip repo)}")}
       ;meta(charset "utf-8");
       ;meta(name "viewport", content "width=device-width, initial-scale=1");
       ;style
@@ -490,40 +1089,90 @@
       ==
     ==
     ;body
-      ;h1: {?:(=('' repo) "GitHub Clone" (trip repo))}
-      ;div.row
-        ;label: Repository (owner/repo)
-        ;input#repo(type "text", value "{(trip repo)}", placeholder "urbit/urbit");
-      ==
-      ;div.row
-        ;label: Branch / Ref
-        ;div.branch-row
-          ;select#branches
-            ;option(value "{(trip ref)}"): {(trip ref)}
+      ;*  ?:  has-files
+            ::  -- browser mode --
+            :~  ;div.browser
+                  ;div.toolbar
+                    ;input.repo(id "repo", type "text", value "{(trip repo)}", placeholder "owner/repo");
+                    ;select.ref(id "ref")
+                      ;*  %+  turn  branches
+                          |=  b=@t
+                          ?:  =(b ref)
+                            ;option(value "{(trip b)}", selected ""): {(trip b)}
+                          ;option(value "{(trip b)}"): {(trip b)}
+                    ==
+                    ;button.btn.primary(id "sync"): Sync
+                    ;span.info: {(scow %ud (lent files))} files
+                  ==
+                  ;div.head-bar(id "head-bar");
+                  ;div.panes
+                    ;button.toggle-tree(id "toggle-tree"): |||
+                    ;div.tree-pane(id "tree-pane")
+                      ;div(id "tree");
+                    ==
+                    ;div.content-pane(id "content")
+                      ;div.placeholder: select a file
+                    ==
+                  ==
+                  ;div.commit-pane(id "commit-pane")
+                    ;div.header(id "commit-toggle")
+                      ;span.arrow.open: ▶
+
+                      ;+  ;/  "commits"
+                    ==
+                    ;div.commit-list(id "commit-list");
+                  ==
+                ==
+            ==
+          ::  -- setup mode --
+          :~  ;div.setup
+                ;h1: github clone
+                ;div.form
+                  ;label: repository
+                  ;input(id "repo", type "text", value "{(trip repo)}", placeholder "owner/repo", autocomplete "off");
+                  ;button.btn.primary(id "sync", style "margin-top:.5rem"): Clone
+                ==
+              ==
           ==
-          ;input#ref(type "text", value "{(trip ref)}", placeholder "sha or tag");
-        ==
+      ;script
+        ;+  ;/  (files-json files)
       ==
-      ;div.actions
-        ;button#save.btn: Save Config
-        ;button#sync.btn.primary: Sync Now
+      ;script
+        ;+  ;/  (commits-json commits)
       ==
-      ;h2: Commits
-      ;div#commits
-        ;span.muted: {?:(=('' repo) "Enter a repo above" "Loading...")}
-      ==
-      ;h2: Files ({(scow %ud (lent files))})
-      ;div#files
-        ;*  ?~  files
-              =/  empty=manx  ;span.muted: No files synced yet.
-              ~[empty]
-            %+  turn  files
-            |=  name=@t
-            ;div.file: {(trip name)}
+      ;script
+        ;+  ;/  (current-json current)
       ==
       ;script
         ;+  ;/  (page-script api repo ref)
       ==
     ==
   ==
+::
+++  files-json
+  |=  fiz=(list @t)
+  ^-  tape
+  ?~  fiz  "window._FILES=[];"
+  =/  head=tape  (weld "'" (weld (trip i.fiz) "'"))
+  =/  rest=tape
+    %-  zing
+    %+  turn  t.fiz
+    |=(f=@t (weld ",'" (weld (trip f) "'")))
+  (weld "window._FILES=[" (weld head (weld rest "];")))
+::
+++  commits-json
+  |=  j=json
+  ^-  tape
+  ?.  ?=(%a -.j)  "window._COMMITS=[];"
+  (weld "window._COMMITS=" (weld (trip (en:json:html j)) ";"))
+::
+++  current-json
+  |=  j=json
+  ^-  tape
+  ?.  ?=(%o -.j)  "window._CURRENT='';"
+  =/  h=(unit json)  (~(get by p.j) 'hash')
+  ?~  h  "window._CURRENT='';"
+  ?.  ?=(%s -.u.h)  "window._CURRENT='';"
+  (weld "window._CURRENT='" (weld (trip p.u.h) "';"))
+  ::
 --

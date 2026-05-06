@@ -2,7 +2,7 @@
 ::
 ::  Ported from hoon-git.
 ::
-/<  bs  /lib/bytestream.hoon
+::  uses bytestream from sut (Clay-compiled, jetted)
 |%
 +$  hash  @ux
 +$  hash-algo
@@ -82,25 +82,25 @@
   (bass 16 (stun [haz haz] six:ab))
 ++  parse-hash-sha-256  !!
 ++  read-hash
-  |=  [hal=hash-algo sea=bays:bs]
-  ^-  [hash bays:bs]
-  (read-msb:bs (hash-bytes hal) sea)
+  |=  [hal=hash-algo sea=bays:bytestream]
+  ^-  [hash bays:bytestream]
+  (read-msb:bytestream (hash-bytes hal) sea)
 ++  read-hash-maybe
-  |=  [hal=hash-algo sea=bays:bs]
-  ^-  [(unit hash) bays:bs]
-  (read-msb-maybe:bs (hash-bytes hal) sea)
+  |=  [hal=hash-algo sea=bays:bytestream]
+  ^-  [(unit hash) bays:bytestream]
+  (read-msb-maybe:bytestream (hash-bytes hal) sea)
 ++  write-hash
-  |=  [sea=bays:bs hal=hash-algo =hash]
-  ^-  bays:bs
+  |=  [sea=bays:bytestream hal=hash-algo =hash]
+  ^-  bays:bytestream
   =/  data
     =+  (hash-bytes hal)
     [- (rev 3 - hash)]
-  (write-octs:bs sea data)
+  (write-octs:bytestream sea data)
 ++  append-hash
-  |=  [sea=bays:bs hal=hash-algo =hash]
-  ^-  bays:bs
+  |=  [sea=bays:bytestream hal=hash-algo =hash]
+  ^-  bays:bytestream
   =/  data
     =+  (hash-bytes hal)
     [- (rev 3 - hash)]
-  (append-octs:bs sea data)
+  (append-octs:bytestream sea data)
 --

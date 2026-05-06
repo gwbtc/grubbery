@@ -1,4 +1,4 @@
-=>  |%
+|%
 ::  $bays: bytestream
 ::
 ::    .pos: relative cursor into .data
@@ -20,6 +20,31 @@
               =bays
           ==
 --
+::    bytestream: read and write sequence of bytes
+::
+::  A bytestream is a pair of a cursor and octs data.
+::  The cursor points at the next byte to be read or written.
+::
+::  There are three families of functions: for reading,
+::  writing and appending to a bytestream. they operate
+::  upon three kinds of data: a singular byte, a sequence of
+::  bytes (octs), or a text (cord).
+::
+::  A combined operation of reading from a source bytestream
+::  and writing the resulting data to a target bytestream is called
+::  a 'write-read'.
+::
+::  A write or append to a bytestream always succeeds.
+::  A read can fail if the source bytestream is exhausted:
+::  reading arms either crash on failure, or return a unit (maybe).
+::
+::  Each read advances the cursor by a corresponding
+::  number of bytes read; peek functions do not advance the stream.
+::
+::  Each write advances the cursor by a corresponding
+::  number of bytes written; append functions do not advance the stream.
+::
+~%  %bytestream-v0  ..part  ~
 |%
 ::    Utilities
 ::

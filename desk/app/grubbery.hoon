@@ -1,7 +1,7 @@
 /-  spider
 /+  default-agent, dbug, tarball, nexus,
     server, multipart, http-utils, html-utils, json-utils,
-    marks, build, fiberio, loader, cram, pretty-file, root
+    marks, build, fiberio, loader, cram, pretty-file, zlib, bytestream, root
 /=  t-  /tests/nexus
 /=  t-  /tests/tarball
 /=  t-  /tests/build
@@ -46,6 +46,8 @@
             html-utils=html-utils
             json-utils=json-utils
             pretty-file=pretty-file
+            bytestream=bytestream
+            zlib=zlib
             io=fiberio
             cram=cram
         ==
