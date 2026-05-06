@@ -32,6 +32,7 @@
         :~  (ver-row:loader 0)
             [%fall %& [/ %'config.json'] %.n [~ [/ %json] !>(default-config)]]
             [%fall %& [/ %'sync.sig'] %.n [~ [/ %sig] !>(~)]]
+            [%fall %& [/ %'switch.sig'] %.n [~ [/ %sig] !>(~)]]
             [%fall %& [/ %'checkout.sig'] %.n [~ [/ %sig] !>(~)]]
             [%fall %& [/ %'commit.sig'] %.n [~ [/ %sig] !>(~)]]
             [%fall %& [/ %'import.sig'] %.n [~ [/ %sig] !>(~)]]
@@ -117,6 +118,30 @@
         ;<  ~  bind:m  (reload:io (cord-to-road:tarball './repo/'))
         ;<  ~  bind:m  (set-status 'idle')
         $
+          ::  /switch.sig: switch branch locally (no remote fetch)
+          ::
+          [~ %'switch.sig']
+        ;<  ~  bind:m  (rise-wait:io prod "%github switch: failed")
+        |-
+        ;<  *  bind:m  take-poke:io
+        ;<  cfg=github-config  bind:m  read-config
+        ?:  =('' repo.cfg)  $
+        ;<  has-pack=?  bind:m
+          (peek-exists:io (cord-to-road:tarball './repo/pack.dat'))
+        ?.  has-pack
+          ~&  >>>  "%github: no pack cached, use sync"
+          $
+        ~&  >>  ["%github: switching to" ref.cfg]
+        ;<  ~  bind:m  (set-status 'syncing')
+        =/  active-ref=@t  ?:(=('' ref.cfg) 'main' ref.cfg)
+        ;<  ref-hash=@t  bind:m  (resolve-ref ref.cfg)
+        ;<  ~  bind:m  (write-head ref-hash)
+        ;<  ~  bind:m  (write-ref active-ref)
+        ;<  ~  bind:m  (reload:io (cord-to-road:tarball './repo/'))
+        ;<  ~  bind:m
+          (over:io (cord-to-road:tarball './config.json') [[/ %json] !>((pairs:enjs:format ~[['repo' s+repo.cfg] ['ref' s+ref.cfg]]))])
+        ;<  ~  bind:m  (set-status 'idle')
+        $
           ::  /commit.sig: compute diff for a commit
           ::
           [~ %'commit.sig']
@@ -179,22 +204,7 @@
           ;<  *  bind:m  take-poke:io
           $
         ;<  ~  bind:m  (set-status 'syncing')
-        ::  check if pack exists in repo sub-nexus
-        ;<  has-pack=?  bind:m
-          (peek-exists:io (cord-to-road:tarball './repo/pack.dat'))
-        ?:  has-pack
-          ::  pack cached — just update HEAD + ref and reload
-          ~&  >>  "%github: cached pack, switching ref"
-          =/  active-ref=@t  ?:(=('' ref.cfg) 'main' ref.cfg)
-          ;<  ref-hash=@t  bind:m  (resolve-ref ref.cfg)
-          ;<  ~  bind:m  (write-head ref-hash)
-          ;<  ~  bind:m  (write-ref active-ref)
-          ;<  ~  bind:m  (reload:io (cord-to-road:tarball './repo/'))
-          ;<  ~  bind:m
-            (over:io (cord-to-road:tarball './config.json') [[/ %json] !>((pairs:enjs:format ~[['repo' s+repo.cfg] ['ref' s+ref.cfg]]))])
-          ;<  ~  bind:m  (set-status 'idle')
-          ;<  *  bind:m  take-poke:io
-          $
+        ::  always fetch from remote
         ::  full clone
         ~&  >>  "%github: cloning..."
         ;<  disc=discovery:git-transport  bind:m
@@ -268,7 +278,8 @@
           %|
         ?+  rail.p.mana  'File under github.'
           [~ %'config.json']  'GitHub config: repo (owner/repo), ref (branch/tag/sha).'
-          [~ %'sync.sig']     'Poke to trigger sync.'
+          [~ %'sync.sig']     'Poke to fetch from remote.'
+          [~ %'switch.sig']   'Poke to switch branch locally.'
           [~ %'checkout.sig']  'Poke with commit hash to checkout.'
           [~ %'commit.sig']   'Poke with commit hash to compute diff.'
           [~ %'page.html']    'Dashboard page. Shows config, sync button, file tree.'
@@ -794,14 +805,14 @@
       "var R='{(trip repo)}';"
       "var F='{(trip ref)}';"
       "var _files=window._FILES||[];"
-      ::  sync: save config then poke sync
-      "function doSync()\{"
+      ::  fetch: pull latest from remote
+      "function doFetch()\{"
       "var r=document.getElementById('repo').value;"
       "var sel=document.getElementById('ref');"
       "var f=sel?(sel.value||''):(''||'');"
       "if(!r)\{return}"
-      "var btns=document.querySelectorAll('.btn.primary');"
-      "btns.forEach(function(b)\{b.disabled=true;b.textContent='Syncing...'});"
+      "var btn=document.getElementById('fetch-btn');"
+      "if(btn)\{btn.disabled=true;btn.textContent='\\u21bb'}"
       "fetch(A.replace('/file/','/over/')+'/config.json?mark=json',"
       "\{method:'POST',headers:\{'Content-Type':'application/json'},"
       "body:JSON.stringify(\{repo:r,ref:f})})"
@@ -809,11 +820,26 @@
       "return fetch(A.replace('/file/','/poke/')+'/sync.sig',"
       "\{method:'POST',headers:\{'Content-Type':'text/plain'},body:'sync'})"
       "}).catch(function()\{"
-      "btns.forEach(function(b)\{b.textContent='Sync';b.disabled=false})"
+      "if(btn)\{btn.disabled=false}"
       "})}"
-      ::  branch switch: changing dropdown triggers sync
+      ::  branch switch: local only
+      "function doSwitch()\{"
+      "var r=document.getElementById('repo').value;"
+      "var sel=document.getElementById('ref');"
+      "var f=sel?(sel.value||''):(''||'');"
+      "if(!r)\{return}"
+      "if(sel)\{sel.disabled=true}"
+      "fetch(A.replace('/file/','/over/')+'/config.json?mark=json',"
+      "\{method:'POST',headers:\{'Content-Type':'application/json'},"
+      "body:JSON.stringify(\{repo:r,ref:f})})"
+      ".then(function()\{"
+      "return fetch(A.replace('/file/','/poke/')+'/switch.sig',"
+      "\{method:'POST',headers:\{'Content-Type':'text/plain'},body:'switch'})"
+      "}).catch(function()\{"
+      "if(sel)\{sel.disabled=false}"
+      "})}"
       "var refSel=document.getElementById('ref');"
-      "if(refSel)\{refSel.onchange=doSync}"
+      "if(refSel)\{refSel.onchange=doSwitch}"
       ::  build tree from flat file list
       "function buildTree(files)\{"
       "var root=\{_f:[],_d:\{}};"
@@ -866,9 +892,11 @@
       "pane.querySelector('pre').textContent='[binary '+ct+']'"
       "}).catch(function(e)\{"
       "pane.querySelector('pre').textContent='Error: '+e.message})}"
-      ::  bind sync buttons (setup + toolbar)
+      ::  bind fetch button + setup clone button
+      "var fb=document.getElementById('fetch-btn');"
+      "if(fb)\{fb.onclick=doFetch}"
       "document.querySelectorAll('.btn.primary').forEach("
-      "function(b)\{b.onclick=doSync});"
+      "function(b)\{b.onclick=doFetch});"
       ::  sidebar toggle
       "var tgl=document.getElementById('toggle-tree');"
       "var tpane=document.getElementById('tree-pane');"
@@ -897,8 +925,8 @@
       "try\{var st=JSON.parse(data);"
       "var el=document.getElementById('syncing');"
       "if(st.status==='syncing')\{"
-      "var btns=document.querySelectorAll('.btn.primary');"
-      "btns.forEach(function(b)\{b.disabled=true;b.textContent='Syncing...'});"
+      "var fb=document.getElementById('fetch-btn');"
+      "if(fb)\{fb.disabled=true}"
       "if(!el)\{"
       "var s=document.createElement('div');s.id='syncing';"
       "s.className='syncing';"
@@ -971,12 +999,9 @@
       "m.textContent='older commits not shown...';"
       "cl.appendChild(m)}}"
       "function checkoutCommit(hash)\{"
-      "var btns=document.querySelectorAll('.btn.primary');"
-      "btns.forEach(function(b)\{b.disabled=true;b.textContent='Loading...'});"
       "fetch(A.replace('/file/','/poke/')+'/checkout.sig?mark=txt',"
       "\{method:'POST',headers:\{'Content-Type':'text/plain'},body:hash})"
-      ".catch(function()\{"
-      "btns.forEach(function(b)\{b.textContent='Sync';b.disabled=false})})}"
+      ".catch(function()\{})}"
       "function showCommitPopup(c)\{"
       "var bg=document.createElement('div');bg.className='commit-popup';"
       "var rows='';"
@@ -1101,7 +1126,7 @@
                             ;option(value "{(trip b)}", selected ""): {(trip b)}
                           ;option(value "{(trip b)}"): {(trip b)}
                     ==
-                    ;button.btn.primary(id "sync"): Sync
+                    ;button.btn(id "fetch-btn", title "Fetch from remote"): ↻
                     ;span.info: {(scow %ud (lent files))} files
                   ==
                   ;div.head-bar(id "head-bar");
