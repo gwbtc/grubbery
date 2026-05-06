@@ -2505,9 +2505,11 @@
     =/  in-new=?  (~(has in new-names) name)
     =.  this
       ?:  &(in-new !in-old)
-        ::  New file: record in silo/hist (born already init'd by diff-balls)
+        ::  New file: stamp mtime, record in silo/hist
+        =/  content=content:tarball  (~(got by new-files) name)
+        =.  ball  (~(put ba:tarball ball) [here name] content(metadata (~(put by metadata.content) 'mtime' (da-oct:tarball now.bowl))))
         =/  sok=sack:nexus  (need (get-born [here name]))
-        (record-hist [here name] sage:(~(got by new-files) name) `file.sok)
+        (record-hist [here name] sage.content `file.sok)
       ?:  &(in-old !in-new)
         ::  Deleted file: drop silo refs
         =/  sok=(unit sack:nexus)  (get-born [here name])
@@ -2518,6 +2520,8 @@
       =/  old-content=content:tarball  (~(got by old-files) name)
       =/  new-content=content:tarball  (~(got by new-files) name)
       ?.  =(sage.old-content sage.new-content)
+        ::  Changed file: stamp mtime
+        =.  ball  (~(put ba:tarball ball) [here name] new-content(metadata (~(put by metadata.new-content) 'mtime' (da-oct:tarball now.bowl))))
         =/  sok=sack:nexus  (need (get-born [here name]))
         (record-hist [here name] sage.new-content `file.sok)
       this
@@ -3450,11 +3454,16 @@
   =.  this  ?^((get-born here) this (init-born here))
   ::  Only bump if content actually changed
   =/  old=(unit content:tarball)  (~(get ba:tarball ball) here)
-  =.  ball  (~(put ba:tarball ball) here new-content)
   ?:  ?&  ?=(^ old)
           =(sage.u.old sage.new-content)
       ==
+    ::  same content — write metadata-only update (no bump)
+    =.  ball  (~(put ba:tarball ball) here new-content)
     this
+  ::  content changed — stamp mtime and write
+  =.  new-content
+    new-content(metadata (~(put by metadata.new-content) 'mtime' (da-oct:tarball now.bowl)))
+  =.  ball  (~(put ba:tarball ball) here new-content)
   ::  Record content in silo and hist
   =.  this  (record-hist here sage.new-content ~)
   =.  this  (bump-file here)

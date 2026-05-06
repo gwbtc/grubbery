@@ -103,7 +103,7 @@
     ^-  (unit octs)
     =+  obj=(get hash)
     ?~  obj  ~
-    ?>  ?=(%blob -.u.obj)
+    ?.  ?=(%blob -.u.obj)  ~
     (some data.u.obj)
   ++  got
     |=  =hash

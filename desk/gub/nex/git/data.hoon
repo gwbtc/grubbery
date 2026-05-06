@@ -7,16 +7,18 @@
 ::    pack.dat              raw pack bytes (mime)
 ::    pack.idx              index: "hex-hash offset\n" per line (mime)
 ::    HEAD                  commit hash to checkout (mime text)
-::    ref                   branch name for commit log (mime text)
-::    refs.json             {"branch": "hash", ...} (json)
+::    ref                   current branch name (mime text)
+::    refs/heads/<branch>   local branch ref (mime, hash text)
+::    refs/remotes/origin/<branch>  remote tracking ref (mime, hash text)
 ::    commit-request.json   if present, create commit from current tree/
 ::    objects/              loose git objects (persisted across reloads)
+::    INDEX                 git index: "mode hash\tpath\n" per entry
 ::
 ::  Ball layout (outputs — built by on-load):
-::    tree/          checked out files
-::    commits.json   commit log from HEAD (50 max)
-::    branches.json  branch name list
-::    current.json   {"hash": "<HEAD>"}
+::    tree/               checked out files
+::    ui/commits.json     commit log from branch tip (50 max)
+::    ui/branches.json    branch name list
+::    ui/current.json     {"hash": "<HEAD>"}
 ::
 /<  git-obj  /lib/git/object.hoon
 /<  git-pack  /lib/git/pack.hoon
@@ -56,15 +58,57 @@
         (tap:pack-on:git-pack idx)
       =/  pak=pack:git-pack
         [%sha-1 (lent entries) idx p.q.pack-mim sea]
-      ::  read refs from refs.json
+      ::  read refs from refs/ namespace
       =/  built-refs=(axal ref:git-repo)
-        (read-refs-from-json ball)
+        (read-refs-from-ns ball)
       ::  read loose objects from objects/ dir
       =/  loose=(map hash:git-repo object:git-obj)
         (read-loose-from-ball ball)
       =/  repo=repository:git-repo
         [%sha-1 [loose ~[pak]] built-refs ~ ~]
       =/  sto  store:~(. git-repo repo)
+      ::
+      ::  === add request handling ===
+      ::  if add-request.json exists, stage files into INDEX
+      ::
+      =/  add-req=(unit json)  (read-add-request ball)
+      ?^  add-req
+        ~&  >>  "%git/data: add request found"
+        ?>  ?=(%o -.u.add-req)
+        =/  req-map=(map @t json)  p.u.add-req
+        =/  current-tree=ball:tarball
+          (fall (~(get by dir.ball) 'tree') [~ ~])
+        =/  old-idx=(map path [hash:git-repo mtime=@t])  (read-index ball)
+        ::  determine which files to stage
+        =/  add-all=?
+          =/  a  (~(get by req-map) 'all')
+          ?+  a  %.y
+            [~ %b %.y]  %.y
+            [~ %b %.n]  %.n
+          ==
+        =/  add-paths=(unit (set path))
+          ?.  add-all
+            =/  p  (~(get by req-map) 'paths')
+            ?.  ?=([~ %a *] p)  ~
+            :-  ~
+            %-  silt
+            %+  turn  p.u.p
+            |=  j=json
+            ?.  ?=(%s -.j)  /
+            (stab p.j)
+          ~
+        =/  add-result=[idx=(map path [hash:git-repo mtime=@t]) new-loose=(map hash:git-repo object:git-obj)]
+          ?~  add-paths
+            ::  add all
+            (git-add current-tree old-idx)
+          ::  add specific paths only
+          (git-add-paths current-tree old-idx u.add-paths)
+        ::  write only new loose objects (existing ones already in ball)
+        =.  ball  (write-loose-to-ball ball new-loose.add-result)
+        =.  ball  (write-index ball idx.add-result)
+        =.  ball  (~(del ba:tarball ball) / %'add-request.json')
+        ~&  >>  "%git/data: staged files"
+        [sand gain ball]
       ::
       ::  === commit request handling ===
       ::  if commit-request.json exists, create a local commit
@@ -73,43 +117,80 @@
       =/  commit-req=(unit json)  (read-commit-request ball)
       ?^  commit-req
         ~&  >>  "%git/data: commit request found"
-        =/  current-tree=ball:tarball
-          (fall (~(get by dir.ball) 'tree') [~ ~])
-        =/  result=[new-hash=hash:git-repo new-loose=(map hash:git-repo object:git-obj)]
-          (build-commit-from-tree current-tree u.commit-hash u.commit-req)
-        ~&  >>  ["%git/data: commit created" (scag 7 (print-hash-sha-1:git-transport new-hash.result))]
-        ::  merge new loose objects into existing
+        ::  read index as-is (staging is done by add-request)
+        =/  full-idx=(map path [hash:git-repo mtime=@t])  (read-index ball)
+        =/  idx=(map path hash:git-repo)  (idx-hashes full-idx)
+        =/  parent-com=(unit commit:git-repo)  (get-commit:sto u.commit-hash)
+        =/  parent-tree-hash=hash:git-repo
+          ?~(parent-com 0x0 tree.u.parent-com)
+        =/  commit-result
+          (git-commit idx parent-tree-hash u.commit-hash u.commit-req)
+        ?~  commit-result
+          ~&  >>  "%git/data: no changes, skipping commit"
+          =.  ball  (~(del ba:tarball ball) / %'commit-request.json')
+          [sand gain ball]
+        ::  merge new loose objects
         =/  all-loose=(map hash:git-repo object:git-obj)
-          (~(uni by loose) new-loose.result)
-        ::  update repo with new loose objects
+          (~(uni by loose) new-loose.u.commit-result)
         =.  repo  repo(loose.object-store all-loose)
         =.  sto  store:~(. git-repo repo)
         ::  update HEAD
-        =/  new-head-text=tape  (print-hash-sha-1:git-transport new-hash.result)
+        =/  new-head-text=tape  (print-hash-sha-1:git-transport new-hash.u.commit-result)
         =.  ball
           %+  ~(put ba:tarball ball)  [/ %'HEAD']
           [~ [/ %mime] !>([/text/plain (as-octt:bytestream new-head-text)])]
-        ::  persist ALL loose objects (old + new)
-        =.  ball  (write-loose-to-ball ball all-loose)
+        ::  update local branch ref (refs/heads/<branch>)
+        =/  ref-content=(unit content:tarball)
+          (~(get ba:tarball ball) [/ %'ref'])
+        =?  ball  ?=(^ ref-content)
+          =/  ref-mim=mime  !<(mime q.sage.u.ref-content)
+          =/  ref-name=@ta  (crip (trip q.q.ref-mim))
+          =/  hash-octs=octs  (as-octt:bytestream new-head-text)
+          %+  ~(put ba:tarball ball)  [/refs/heads ref-name]
+          [~ [/ %mime] !>([/text/plain hash-octs])]
+        ::  append reflog entry
+        =?  ball  ?=(^ ref-content)
+          =/  ref-mim=mime  !<(mime q.sage.u.ref-content)
+          =/  ref-name=@ta  (crip (trip q.q.ref-mim))
+          =/  old-hex=tape  (print-hash-sha-1:git-transport u.commit-hash)
+          =/  msg=tape
+            ?.  ?=(%o -.u.commit-req)  "commit"
+            =/  m  (~(get by p.u.commit-req) 'message')
+            ?.  ?=([~ %s *] m)  "commit"
+            "commit: {(trip p.u.m)}"
+          (append-reflog ball ref-name old-hex new-head-text msg)
+        ::  persist only new loose objects (existing ones already in ball)
+        =.  ball  (write-loose-to-ball ball new-loose.u.commit-result)
         ::  clear commit request
         =.  ball  (~(del ba:tarball ball) / %'commit-request.json')
         ::  rebuild outputs with new HEAD
-        =/  new-commits=json  (build-commit-log sto new-hash.result 50)
+        =/  ref-labels=(map hash:git-repo (list @t))  (build-ref-labels ball)
+        =/  new-commits=json  (build-commit-log sto new-hash.u.commit-result 50 ref-labels)
         =/  branches=json  (build-branch-list ball)
         =/  new-hex=@t  (crip new-head-text)
-        =/  new-current=json  (pairs:enjs:format ~[['hash' s+new-hex]])
-        ::  keep tree/ as-is (it's what we just committed)
+        =/  branch-name=@t
+          ?~  ref-content  ''
+          =/  ref-mim=mime  !<(mime q.sage.u.ref-content)
+          (crip (trip q.q.ref-mim))
+        =/  new-current=json  (build-current ball new-hex branch-name)
         =.  ball
-          (~(put ba:tarball ball) [/ %'commits.json'] [~ [/ %json] !>(new-commits)])
+          (~(put ba:tarball ball) [/ui %'commits.json'] [~ [/ %json] !>(new-commits)])
         =.  ball
-          (~(put ba:tarball ball) [/ %'branches.json'] [~ [/ %json] !>(branches)])
+          (~(put ba:tarball ball) [/ui %'branches.json'] [~ [/ %json] !>(branches)])
         =.  ball
-          (~(put ba:tarball ball) [/ %'current.json'] [~ [/ %json] !>(new-current)])
+          (~(put ba:tarball ball) [/ui %'current.json'] [~ [/ %json] !>(new-current)])
         [sand gain ball]
       ::
       ::  === normal checkout ===
       ::
-      =/  com=commit:git-repo  (got-commit:sto u.commit-hash)
+      =/  com-maybe=(unit commit:git-repo)  (get-commit:sto u.commit-hash)
+      ?~  com-maybe
+        ::  HEAD points to unreachable commit (stale loose objects?)
+        ::  clear objects/ and bail — next sync will restore
+        ~&  >>>  "%git/data: HEAD not found in store, clearing stale objects"
+        =.  ball  ball(dir (~(del by dir.ball) 'objects'))
+        [sand gain ball]
+      =/  com=commit:git-repo  u.com-maybe
       ~&  >>  ["%git/data: checkout" (scag 7 head-text)]
       =/  get-tree=$-(@ux (unit tree-dir:git-repo))
         |=(h=@ux (get-tree:sto h))
@@ -120,36 +201,35 @@
         (checkout:git-transport get-tree get-blob tree.com)
       ~&  >>  ["%git/data: checked out" (lent files) "files"]
       =/  tree-ball=ball:tarball  (files-to-ball files)
+      ::  build index from commit tree (path -> blob-hash flat map)
+      =/  idx=(map path [hash:git-repo mtime=@t])
+        (build-index-from-tree get-tree tree.com)
+      =.  ball  (write-index ball idx)
       ::  build derived data — commit log from branch tip, not HEAD
       =/  ref-content=(unit content:tarball)
         (~(get ba:tarball ball) [/ %'ref'])
       =/  log-start=hash:git-repo
         ?~  ref-content  u.commit-hash
         =/  ref-mim=mime  !<(mime q.sage.u.ref-content)
-        =/  ref-name=@t  (crip (trip q.q.ref-mim))
-        =/  refs-j=(unit content:tarball)
-          (~(get ba:tarball ball) [/ %'refs.json'])
-        ?~  refs-j  u.commit-hash
-        =/  j=json  !<(json q.sage.u.refs-j)
-        ?.  ?=(%o -.j)  u.commit-hash
-        =/  branch-hash=(unit json)  (~(get by p.j) ref-name)
-        ?~  branch-hash  u.commit-hash
-        ?.  ?=(%s -.u.branch-hash)  u.commit-hash
-        =/  h=(unit @ux)
-          (rust (trip p.u.branch-hash) parse-hash-sha-1:git-transport)
-        (fall h u.commit-hash)
-      =/  commits=json  (build-commit-log sto log-start 50)
+        =/  ref-name=@ta  (crip (trip q.q.ref-mim))
+        (fall (read-ref-file ball /refs/heads ref-name) u.commit-hash)
+      =/  ref-labels=(map hash:git-repo (list @t))  (build-ref-labels ball)
+      =/  commits=json  (build-commit-log sto log-start 50 ref-labels)
       =/  branches=json  (build-branch-list ball)
       =/  hex=@t  (crip head-text)
-      =/  current=json  (pairs:enjs:format ~[['hash' s+hex]])
+      =/  branch-name=@t
+        ?~  ref-content  ''
+        =/  ref-mim=mime  !<(mime q.sage.u.ref-content)
+        (crip (trip q.q.ref-mim))
+      =/  current=json  (build-current ball hex branch-name)
       ::  write outputs into ball (preserving inputs)
       =.  ball  ball(dir (~(put by dir.ball) 'tree' tree-ball))
       =.  ball
-        (~(put ba:tarball ball) [/ %'commits.json'] [~ [/ %json] !>(commits)])
+        (~(put ba:tarball ball) [/ui %'commits.json'] [~ [/ %json] !>(commits)])
       =.  ball
-        (~(put ba:tarball ball) [/ %'branches.json'] [~ [/ %json] !>(branches)])
+        (~(put ba:tarball ball) [/ui %'branches.json'] [~ [/ %json] !>(branches)])
       =.  ball
-        (~(put ba:tarball ball) [/ %'current.json'] [~ [/ %json] !>(current)])
+        (~(put ba:tarball ball) [/ui %'current.json'] [~ [/ %json] !>(current)])
       [sand gain ball]
     ::
     ++  on-file
@@ -174,13 +254,45 @@
           [~ %'pack.dat']   'Raw git pack bytes.'
           [~ %'pack.idx']   'Pack index: hash->offset map.'
           [~ %'HEAD']       'Target commit hash for checkout.'
-          [~ %'ref']        'Branch name for commit log.'
-          [~ %'refs.json']  'Branch refs: name->hash.'
+          [~ %'ref']        'Current branch name.'
         ==
       ==
     --
 ::
 |%
+::  +append-reflog: append an entry to the reflog for a branch
+::
+::    Format: "old-hash new-hash message\n" per entry.
+::    Stored at logs/heads/<branch> as mime.
+::
+++  append-reflog
+  |=  [=ball:tarball branch=@ta old-hex=tape new-hex=tape msg=tape]
+  ^-  ball:tarball
+  =/  entry=tape  "{old-hex} {new-hex} {msg}\0a"
+  =/  log-path=path  /logs/heads
+  =/  existing=(unit content:tarball)
+    (~(get ba:tarball ball) [log-path branch])
+  =/  old-text=tape
+    ?~  existing  ""
+    =/  m=mime  !<(mime q.sage.u.existing)
+    (trip q.q.m)
+  =/  new-text=tape  (weld old-text entry)
+  =/  new-octs=octs  (as-octt:bytestream new-text)
+  %+  ~(put ba:tarball ball)  [log-path branch]
+  [~ [/ %mime] !>([/text/plain new-octs])]
+::
+::  +read-add-request: check for add-request.json
+::
+++  read-add-request
+  |=  =ball:tarball
+  ^-  (unit json)
+  =/  req=(unit content:tarball)
+    (~(get ba:tarball ball) [/ %'add-request.json'])
+  ?~  req  ~
+  =/  j=json  (fall (mole |.(!<(json q.sage.u.req))) *json)
+  ?.  ?=(%o -.j)  ~
+  `j
+::
 ::  +read-commit-request: check for commit-request.json
 ::
 ++  read-commit-request
@@ -210,10 +322,8 @@
   =/  h=(unit hash:git-repo)
     (rust (trip name) parse-hash-sha-1:git-transport)
   ?~  h  acc
-  =/  raw-data=octs
-    =/  m=mime  !<(mime q.sage.content)
-    q.m
-  =/  raw=raw-object:git-obj  (raw-from-octs:git-obj raw-data)
+  =/  m=mime  !<(mime q.sage.content)
+  =/  raw=raw-object:git-obj  (raw-from-octs:git-obj q.m)
   =/  obj=object:git-obj  (parse-raw:git-obj %sha-1 raw)
   (~(put by acc) u.h obj)
 ::
@@ -235,15 +345,218 @@
     (insert-file b ~[name] content)
   ball(dir (~(put by dir.ball) 'objects' obj-ball))
 ::
-::  +build-commit-from-tree: create git commit from ball tree/ state
+::  +build-index-from-tree: walk commit tree, return flat path->blob-hash
 ::
-::    Walks the tree/ directory, creates blob + tree objects,
-::    creates a commit object pointing at the root tree + parent.
-::    Returns the new commit hash and all new loose objects.
+::    Populates the git index on checkout. Walks tree recursively,
+::    records each blob's path and hash. Skips gitlinks.
 ::
-++  build-commit-from-tree
-  |=  [tree-ball=ball:tarball parent=hash:git-repo req=json]
-  ^-  [hash:git-repo (map hash:git-repo object:git-obj)]
+++  build-index-from-tree
+  |=  [get-tree=$-(hash:git-repo (unit tree-dir:git-repo)) tree-hash=hash:git-repo]
+  ^-  (map path [hash:git-repo mtime=@t])
+  =/  tree=(unit tree-dir:git-repo)  (get-tree tree-hash)
+  ?~  tree  ~
+  (walk-tree-for-index get-tree / u.tree)
+::
+++  walk-tree-for-index
+  |=  [get-tree=$-(hash:git-repo (unit tree-dir:git-repo)) here=path dir=tree-dir:git-repo]
+  ^-  (map path [hash:git-repo mtime=@t])
+  %+  roll  dir
+  |=  [ent=tree-entry:git-obj acc=(map path [hash:git-repo mtime=@t])]
+  ?:  (is-gitlink:git-obj ent)  acc
+  ?:  (is-dir:git-obj ent)
+    =/  sub=(unit tree-dir:git-repo)  (get-tree hash.ent)
+    ?~  sub  acc
+    (~(uni by acc) (walk-tree-for-index get-tree (snoc here name.ent) u.sub))
+  (~(put by acc) (snoc here name.ent) [hash.ent ''])
+::
+::  +write-index: serialize index as flat file into ball
+::
+::    Format: "mode hash mtime\tpath\n" per entry
+::    mtime is optional — missing means no cached mtime.
+::    Stored as INDEX mime file.
+::
+++  write-index
+  |=  [=ball:tarball idx=(map path [hash:git-repo mtime=@t])]
+  ^-  ball:tarball
+  =/  lines=tape
+    %-  zing
+    %+  turn  ~(tap by idx)
+    |=  [=path h=hash:git-repo mtime=@t]
+    =/  hex=tape  (print-hash-sha-1:git-transport h)
+    =/  pax=tape  (zing (join "/" (turn path trip)))
+    =/  mt=tape  (trip mtime)
+    "100644 {hex} {mt}\09{pax}\0a"
+  =/  idx-octs=octs  (as-octt:bytestream lines)
+  %+  ~(put ba:tarball ball)  [/ %'INDEX']
+  [~ [/ %mime] !>([/application/octet-stream idx-octs])]
+::
+::  +read-index: parse INDEX file back to path->[hash mtime] map
+::
+++  read-index
+  |=  =ball:tarball
+  ^-  (map path [hash:git-repo mtime=@t])
+  =/  idx-content=(unit content:tarball)
+    (~(get ba:tarball ball) [/ %'INDEX'])
+  ?~  idx-content  ~
+  =/  m=mime  !<(mime q.sage.u.idx-content)
+  ?:  =(0 p.q.m)  ~
+  =/  lines=(list tape)
+    (split:git-transport (trip q.q.m) `@t`10)
+  %+  roll  lines
+  |=  [line=tape acc=(map path [hash:git-repo mtime=@t])]
+  ?:  =(~ line)  acc
+  ::  parse: "mode hash mtime\tpath"
+  =/  tab=(unit @ud)  (find "\09" line)
+  ?~  tab  acc
+  =/  pax=path
+    (turn (split:git-transport (slag +(u.tab) line) '/') crip)
+  ::  hash is chars 7-46 (after "100644 ")
+  =/  hex=tape  (swag [7 40] line)
+  =/  h=(unit @ux)  (rust hex parse-hash-sha-1:git-transport)
+  ?~  h  acc
+  ::  mtime is chars 48 to tab (after "100644 " + 40-char hash + " ")
+  =/  mt=@t  (crip (swag [48 (sub u.tab 48)] line))
+  (~(put by acc) pax [u.h mt])
+::
+::  +idx-hashes: extract just path->hash from index (drop mtime)
+::
+++  idx-hashes
+  |=  idx=(map path [hash:git-repo mtime=@t])
+  ^-  (map path hash:git-repo)
+  %-  ~(run by idx)
+  |=([h=hash:git-repo m=@t] h)
+::
+::  +git-add: walk working tree, hash blobs, update index
+::
+::    For each file in tree/: check mtime against index cache.
+::    If mtime matches, skip (unchanged). If different or new,
+::    hash as git blob, create loose object, update index.
+::    Returns updated index + new loose objects.
+::
+++  git-add
+  |=  [tree-ball=ball:tarball old-idx=(map path [hash:git-repo mtime=@t])]
+  ^-  [idx=(map path [hash:git-repo mtime=@t]) new-loose=(map hash:git-repo object:git-obj)]
+  =|  new-loose=(map hash:git-repo object:git-obj)
+  =/  new-idx=(map path [hash:git-repo mtime=@t])  old-idx
+  =/  working=(list [=path data=octs mtime=@t])
+    (ball-to-files-mt tree-ball /)
+  ::  prune deleted files: remove index entries not in working tree
+  =/  working-paths=(set path)
+    (silt (turn working |=([=path *] path)))
+  =.  new-idx
+    %-  ~(rep by new-idx)
+    |=  [[p=path h=hash:git-repo m=@t] acc=(map path [hash:git-repo mtime=@t])]
+    ?.  (~(has in working-paths) p)  acc
+    (~(put by acc) p [h m])
+  ::  add/update files
+  |-
+  ?~  working  [new-idx new-loose]
+  =/  file-mtime=@t  mtime.i.working
+  ::  fast path: if mtime matches index, skip hashing
+  =/  old-entry=(unit [hash:git-repo mtime=@t])  (~(get by new-idx) path.i.working)
+  ?:  &(?=(^ old-entry) !=('' +.u.old-entry) =(+.u.old-entry file-mtime))
+    $(working t.working)
+  ::  mtime changed or new file — hash the blob
+  =/  data=octs  data.i.working
+  =/  blob=object:git-obj  [%blob p.data data]
+  =/  blob-hash=hash:git-repo  (hash-obj:git-obj %sha-1 blob)
+  ?:  &(?=(^ old-entry) =(-.u.old-entry blob-hash))
+    ::  hash same despite mtime change — update mtime only
+    $(working t.working, new-idx (~(put by new-idx) path.i.working [blob-hash file-mtime]))
+  ::  new or changed — store blob, update index
+  %=  $
+    new-loose  (~(put by new-loose) blob-hash blob)
+    new-idx    (~(put by new-idx) path.i.working [blob-hash file-mtime])
+    working    t.working
+  ==
+::
+::  +git-add-paths: stage specific paths from working tree into index
+::
+::    Only touches files whose paths are in the given set.
+::    Adds/updates them if present in tree/, removes from index if not.
+::
+++  git-add-paths
+  |=  [tree-ball=ball:tarball old-idx=(map path [hash:git-repo mtime=@t]) paths=(set path)]
+  ^-  [idx=(map path [hash:git-repo mtime=@t]) new-loose=(map hash:git-repo object:git-obj)]
+  =|  new-loose=(map hash:git-repo object:git-obj)
+  =/  new-idx=(map path [hash:git-repo mtime=@t])  old-idx
+  =/  working=(list [=path data=octs mtime=@t])
+    (ball-to-files-mt tree-ball /)
+  =/  working-map=(map path [octs @t])
+    (malt (turn working |=([=path data=octs mtime=@t] [path data mtime])))
+  =/  todo=(list path)  ~(tap in paths)
+  |-
+  ?~  todo  [new-idx new-loose]
+  =/  pax=path  i.todo
+  =/  file-data=(unit [octs @t])  (~(get by working-map) pax)
+  ?~  file-data
+    ::  file not in working tree — remove from index
+    $(todo t.todo, new-idx (~(del by new-idx) pax))
+  ::  file exists — hash and stage
+  =/  data=octs  -.u.file-data
+  =/  file-mtime=@t  +.u.file-data
+  =/  blob=object:git-obj  [%blob p.data data]
+  =/  blob-hash=hash:git-repo  (hash-obj:git-obj %sha-1 blob)
+  =/  old-entry=(unit [hash:git-repo mtime=@t])  (~(get by new-idx) pax)
+  ?:  &(?=(^ old-entry) =(-.u.old-entry blob-hash))
+    ::  unchanged hash — update mtime
+    $(todo t.todo, new-idx (~(put by new-idx) pax [blob-hash file-mtime]))
+  %=  $
+    new-loose  (~(put by new-loose) blob-hash blob)
+    new-idx    (~(put by new-idx) pax [blob-hash file-mtime])
+    todo       t.todo
+  ==
+::
+::  +ball-to-files: flatten ball tree to list of [path octs]
+::
+++  ball-to-files
+  |=  [=ball:tarball here=path]
+  ^-  (list [=path data=octs])
+  =/  files=(list [=path data=octs])
+    ?~  fil.ball  ~
+    %+  turn  ~(tap by contents.u.fil.ball)
+    |=  [name=@t =content:tarball]
+    =/  m=mime  !<(mime q.sage.content)
+    [(snoc here name) q.m]
+  =/  sub-files=(list [=path data=octs])
+    %-  zing
+    %+  turn  ~(tap by dir.ball)
+    |=  [name=@t sub=ball:tarball]
+    (ball-to-files sub (snoc here name))
+  (weld files sub-files)
+::
+::  +ball-to-files-mt: flatten ball tree with mtime from metadata
+::
+++  ball-to-files-mt
+  |=  [=ball:tarball here=path]
+  ^-  (list [=path data=octs mtime=@t])
+  =/  files=(list [=path data=octs mtime=@t])
+    ?~  fil.ball  ~
+    %+  turn  ~(tap by contents.u.fil.ball)
+    |=  [name=@t =content:tarball]
+    =/  m=mime  !<(mime q.sage.content)
+    =/  mt=@t  (fall (~(get by metadata.content) 'mtime') '')
+    [(snoc here name) q.m mt]
+  =/  sub-files=(list [=path data=octs mtime=@t])
+    %-  zing
+    %+  turn  ~(tap by dir.ball)
+    |=  [name=@t sub=ball:tarball]
+    (ball-to-files-mt sub (snoc here name))
+  (weld files sub-files)
+::
+::  +git-commit: build trees from index, create commit object
+::
+::    Reads the index (path -> blob-hash), groups entries by directory,
+::    builds tree objects bottom-up. Compares root tree hash to parent.
+::    Returns ~ if nothing changed. Never touches tree/.
+::
+++  git-commit
+  |=  $:  idx=(map path hash:git-repo)
+          parent-tree-hash=hash:git-repo
+          parent=hash:git-repo
+          req=json
+      ==
+  ^-  (unit [new-hash=hash:git-repo new-loose=(map hash:git-repo object:git-obj)])
   ?.  ?=(%o -.req)  !!
   =/  get-str
     |=  [key=@t default=@t]
@@ -258,10 +571,12 @@
     =/  d  (~(get by p.req) 'date')
     ?.  ?=([~ %s *] d)  *@da
     (fall (slaw %da p.u.d) *@da)
+  ::  build tree objects from index entries
   =|  new-loose=(map hash:git-repo object:git-obj)
-  ::  recursively walk ball tree to create blob + tree objects
   =^  root-hash=hash:git-repo  new-loose
-    (ball-to-git-objects tree-ball new-loose)
+    (build-trees-from-index idx new-loose)
+  ::  bail if root tree matches parent — nothing changed
+  ?:  =(root-hash parent-tree-hash)  ~
   ::  create commit object
   =/  com=commit:git-obj
     :_  message
@@ -274,50 +589,64 @@
         ~
     ==
   =/  com-obj=object:git-obj  [%commit 0 com]
-  ::  fix up size via raw serialization
   =/  raw=raw-object:git-obj  (obj-to-raw:git-obj %sha-1 com-obj)
   =.  size.com-obj  size.raw
   =/  com-hash=hash:git-repo  (hash-raw:git-obj %sha-1 raw)
   =.  new-loose  (~(put by new-loose) com-hash com-obj)
-  [com-hash new-loose]
+  `[com-hash new-loose]
 ::
-::  +ball-to-git-objects: recursively walk ball dir, create blob/tree objects
+::  +build-trees-from-index: group index entries by directory, build trees
 ::
-::    Returns root tree hash and all created objects.
+::    Takes the flat index (path -> blob-hash) and reconstructs the
+::    git tree hierarchy. Each directory becomes a tree object.
+::    Returns root tree hash + all tree objects as loose.
 ::
-++  ball-to-git-objects
-  |=  [=ball:tarball loose=(map hash:git-repo object:git-obj)]
+++  build-trees-from-index
+  |=  [idx=(map path hash:git-repo) loose=(map hash:git-repo object:git-obj)]
   ^-  [hash:git-repo (map hash:git-repo object:git-obj)]
+  ::  group entries by first path segment
+  =/  entries=(list [=path h=hash:git-repo])  ~(tap by idx)
+  (build-tree-at / entries loose)
+::
+++  build-tree-at
+  |=  [here=path entries=(list [=path h=hash:git-repo]) loose=(map hash:git-repo object:git-obj)]
+  ^-  [hash:git-repo (map hash:git-repo object:git-obj)]
+  ::  separate blobs (files in this dir) from subtrees (files in subdirs)
+  =/  depth=@ud  (lent here)
   =|  tree-entries=(list tree-entry:git-obj)
-  ::  first: process files (blobs)
-  =/  files=(list [name=@t =content:tarball])
-    ?~(fil.ball ~ ~(tap by contents.u.fil.ball))
+  =|  subdirs=(map @ta (list [=path h=hash:git-repo]))
+  =/  todo=_entries  entries
   |-
-  ?^  files
-    =/  data=octs
-      =/  m=mime  !<(mime q.sage.content.i.files)
-      q.m
-    =/  blob=object:git-obj  [%blob p.data data]
-    =/  blob-hash=hash:git-repo  (hash-obj:git-obj %sha-1 blob)
+  ?^  todo
+    =/  rel=path  (slag depth path.i.todo)
+    ?~  rel  $(todo t.todo)
+    ?~  t.rel
+      ::  file directly in this directory
+      %=  $
+        tree-entries  [[i.rel 0x81a4 h.i.todo] tree-entries]
+        todo  t.todo
+      ==
+    ::  file in a subdirectory — group by first segment
+    =/  dir-name=@ta  i.rel
+    =/  existing=(list [=path h=hash:git-repo])
+      (fall (~(get by subdirs) dir-name) ~)
     %=  $
-      loose  (~(put by loose) blob-hash blob)
-      tree-entries  [[name.i.files 0x81a4 blob-hash] tree-entries]
-      files  t.files
+      subdirs  (~(put by subdirs) dir-name [i.todo existing])
+      todo  t.todo
     ==
-  ::  second: process subdirectories (recursive)
-  =/  subdirs=(list [name=@t sub=ball:tarball])
-    ~(tap by dir.ball)
+  ::  recursively build each subdirectory tree
+  =/  sub-list=(list [@ta (list [=path h=hash:git-repo])])
+    ~(tap by subdirs)
   |-
-  ?^  subdirs
+  ?^  sub-list
     =^  sub-hash=hash:git-repo  loose
-      ^$(ball sub.i.subdirs, tree-entries ~, files ~)
+      (build-tree-at (snoc here -.i.sub-list) +.i.sub-list loose)
     %=  $
-      tree-entries  [[name.i.subdirs 0x4.0000 sub-hash] tree-entries]
-      subdirs  t.subdirs
+      tree-entries  [[-.i.sub-list 0x4000 sub-hash] tree-entries]
+      sub-list  t.sub-list
     ==
-  ::  sort entries by name (git requirement)
-  =.  tree-entries
-    (sort tree-entries |=([a=tree-entry:git-obj b=tree-entry:git-obj] (lth name.a name.b)))
+  ::  sort entries (git byte-string comparison)
+  =.  tree-entries  (sort tree-entries git-entry-lth)
   ::  create tree object
   =/  tree=object:git-obj  [%tree 0 tree-entries]
   =/  raw=raw-object:git-obj  (obj-to-raw:git-obj %sha-1 tree)
@@ -326,23 +655,59 @@
   =.  loose  (~(put by loose) tree-hash tree)
   [tree-hash loose]
 ::
-::  +read-refs-from-json: parse refs.json into axal
 ::
-++  read-refs-from-json
+::  +read-ref-file: read a single ref hash from refs/<subdir>/<name>
+::
+++  read-ref-file
+  |=  [=ball:tarball dir=path name=@ta]
+  ^-  (unit hash:git-repo)
+  =/  content=(unit content:tarball)
+    (~(get ba:tarball ball) [dir name])
+  ?~  content  ~
+  =/  m=mime  !<(mime q.sage.u.content)
+  ?:  =(0 p.q.m)  ~
+  (rust (trip q.q.m) parse-hash-sha-1:git-transport)
+::
+::  +read-hash-from-content: extract a hash from a mime content entry
+::
+++  read-hash-from-content
+  |=  =content:tarball
+  ^-  (unit hash:git-repo)
+  =/  m=mime  !<(mime q.sage.content)
+  ?:  =(0 p.q.m)  ~
+  (rust (trip q.q.m) parse-hash-sha-1:git-transport)
+::
+::  +get-sub-ball: walk into a ball by path
+::
+++  get-sub-ball
+  |=  [=ball:tarball =path]
+  ^-  ball:tarball
+  ?~  path  ball
+  =/  sub=(unit ball:tarball)  (~(get by dir.ball) i.path)
+  ?~  sub  [~ ~]
+  $(ball u.sub, path t.path)
+::
+::  +read-refs-from-ns: read all refs from refs/ namespace
+::
+++  read-refs-from-ns
   |=  =ball:tarball
   ^-  (axal ref:git-repo)
-  =/  refs-content=(unit content:tarball)
-    (~(get ba:tarball ball) [/ %'refs.json'])
-  ?~  refs-content  [~ ~]
-  =/  j=json  !<(json q.sage.u.refs-content)
-  ?.  ?=(%o -.j)  [~ ~]
-  %+  roll  ~(tap by p.j)
-  |=  [[name=@t hash-cord=json] r=(axal ref:git-repo)]
-  ?.  ?=(%s -.hash-cord)  r
-  =/  h=(unit @ux)
-    (rust (trip p.hash-cord) parse-hash-sha-1:git-transport)
+  =/  result=(axal ref:git-repo)  [~ ~]
+  =/  heads-sub=ball:tarball  (get-sub-ball ball /refs/heads)
+  =.  result
+    ?~  fil.heads-sub  result
+    %+  roll  ~(tap by contents.u.fil.heads-sub)
+    |=  [[name=@t =content:tarball] r=(axal ref:git-repo)]
+    =/  h=(unit @ux)  (read-hash-from-content content)
+    ?~  h  r
+    (~(put of r) [~['refs' 'heads' name] u.h])
+  =/  remote-sub=ball:tarball  (get-sub-ball ball /refs/remotes/origin)
+  ?~  fil.remote-sub  result
+  %+  roll  ~(tap by contents.u.fil.remote-sub)
+  |=  [[name=@t =content:tarball] r=(axal ref:git-repo)]
+  =/  h=(unit @ux)  (read-hash-from-content content)
   ?~  h  r
-  (~(put of r) [~['refs' 'heads' name] u.h])
+  (~(put of r) [~['refs' 'remotes' 'origin' name] u.h])
 ::
 ::  +rebuild-index: parse index text lines into pack-index
 ::
@@ -365,7 +730,11 @@
 ::  +build-commit-log: walk parent chain, return JSON array
 ::
 ++  build-commit-log
-  |=  [sto=_store:~(. git-repo *repository:git-repo) start=hash:git-repo max=@ud]
+  |=  $:  sto=_store:~(. git-repo *repository:git-repo)
+          start=hash:git-repo
+          max=@ud
+          labels=(map hash:git-repo (list @t))
+      ==
   ^-  json
   =|  acc=(list json)
   =|  count=@ud
@@ -385,6 +754,8 @@
   =/  tree-hex=@t  (crip (print-hash-sha-1:git-transport tree.u.com))
   =/  parent-hashes=(list json)
     (turn parents.u.com |=(p=@ux s+(crip (print-hash-sha-1:git-transport p))))
+  =/  refs-json=(list json)
+    (turn (fall (~(get by labels) h) ~) |=(r=@t s+r))
   =/  entry=json
     %-  pairs:enjs:format
     :~  ['hash' s+hex]
@@ -399,6 +770,7 @@
         ['commitDate' (time:enjs:format date.commit-time.u.com)]
         ['tree' s+tree-hex]
         ['parents' [%a parent-hashes]]
+        ['refs' [%a refs-json]]
     ==
   ?~  parents.u.com  [%a (flop [entry acc])]
   $(h i.parents.u.com, count +(count), acc [entry acc])
@@ -410,17 +782,73 @@
   ?~  idx  t
   (scag u.idx t)
 ::
-::  +build-branch-list: extract branch names from refs.json
+::  +build-branch-list: list branch names from refs/heads/
+::
+::  +build-ref-labels: build hash -> label list map from all refs
+::
+++  build-ref-labels
+  |=  =ball:tarball
+  ^-  (map hash:git-repo (list @t))
+  =|  result=(map hash:git-repo (list @t))
+  ::  helper: add a label to the map for a given hash
+  =*  add-label
+    |=  [r=(map hash:git-repo (list @t)) h=hash:git-repo label=@t]
+    (~(put by r) h (snoc (fall (~(get by r) h) ~) label))
+  ::  add HEAD
+  =/  head-content=(unit content:tarball)
+    (~(get ba:tarball ball) [/ %'HEAD'])
+  =?  result  ?=(^ head-content)
+    =/  h=(unit @ux)
+      (rust (trip q.q:!<(mime q.sage.u.head-content)) parse-hash-sha-1:git-transport)
+    ?~  h  result
+    (add-label result u.h 'HEAD')
+  ::  add local branches (refs/heads/*)
+  =/  heads=ball:tarball  (get-sub-ball ball /refs/heads)
+  =?  result  ?=(^ fil.heads)
+    =/  entries=(list [@t content:tarball])  ~(tap by contents.u.fil.heads)
+    |-
+    ?~  entries  result
+    =/  h=(unit @ux)  (read-hash-from-content +.i.entries)
+    =?  result  ?=(^ h)
+      (add-label result u.h (crip "refs/heads/{(trip -.i.entries)}"))
+    $(entries t.entries)
+  ::  add remote tracking (refs/remotes/origin/*)
+  =/  remotes=ball:tarball  (get-sub-ball ball /refs/remotes/origin)
+  =?  result  ?=(^ fil.remotes)
+    =/  entries=(list [@t content:tarball])  ~(tap by contents.u.fil.remotes)
+    |-
+    ?~  entries  result
+    =/  h=(unit @ux)  (read-hash-from-content +.i.entries)
+    =?  result  ?=(^ h)
+      (add-label result u.h (crip "refs/remotes/origin/{(trip -.i.entries)}"))
+    $(entries t.entries)
+  result
+::
+::  +build-current: build current.json with HEAD, branch, and remote tracking info
+::
+++  build-current
+  |=  [=ball:tarball head-hex=@t branch=@t]
+  ^-  json
+  =/  remote-hash=(unit hash:git-repo)
+    ?:  =('' branch)  ~
+    (read-ref-file ball /refs/remotes/origin (crip (trip branch)))
+  =/  remote-hex=@t
+    ?~  remote-hash  ''
+    (crip (print-hash-sha-1:git-transport u.remote-hash))
+  %-  pairs:enjs:format
+  :~  ['hash' s+head-hex]
+      ['branch' s+branch]
+      ['remote' s+remote-hex]
+  ==
+::
+::  +build-branch-list: list branch names from refs/heads/
 ::
 ++  build-branch-list
   |=  =ball:tarball
   ^-  json
-  =/  refs-content=(unit content:tarball)
-    (~(get ba:tarball ball) [/ %'refs.json'])
-  ?~  refs-content  [%a ~]
-  =/  j=json  !<(json q.sage.u.refs-content)
-  ?.  ?=(%o -.j)  [%a ~]
-  [%a (turn ~(tap in ~(key by p.j)) |=(n=@t s+n))]
+  =/  heads=ball:tarball  (get-sub-ball ball /refs/heads)
+  ?~  fil.heads  [%a ~]
+  [%a (turn ~(tap in ~(key by contents.u.fil.heads)) |=(n=@t s+n))]
 ::
 ::  +files-to-ball: convert checkout output to ball tree
 ::
@@ -487,4 +915,23 @@
     %sh    /text/plain
     %nix   /text/plain
   ==
+::
+::  +git-entry-lth: git tree entry sort comparator
+::
+::    Git sorts entries by name bytes, appending "/" for directories.
+::
+++  git-entry-lth
+  |=  [a=tree-entry:git-obj b=tree-entry:git-obj]
+  ^-  ?
+  =/  an=tape  (weld (trip name.a) ?:(=(mode.a 0x4000) "/" ""))
+  =/  bn=tape  (weld (trip name.b) ?:(=(mode.b 0x4000) "/" ""))
+  (tape-lth an bn)
+::
+++  tape-lth
+  |=  [a=tape b=tape]
+  ^-  ?
+  ?~  a  ?=(^ b)
+  ?~  b  %.n
+  ?:  =(i.a i.b)  $(a t.a, b t.b)
+  (lth `@`i.a `@`i.b)
 --

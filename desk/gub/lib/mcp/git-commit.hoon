@@ -34,9 +34,13 @@
   ?:  ?=(%| -.pax-parsed)
     (pure:m [%error p.pax-parsed])
   =/  pax=path  p.pax-parsed
-  ::  poke commit.sig with message as wain
-  =/  =road:tarball  [%& %& [pax %'commit.sig']]
+  ::  stage all files first (git add -A)
+  =/  add-rd=road:tarball  [%& %& [(weld pax /actions) %'add.sig']]
+  =/  add-req=json  (pairs:enjs:format ~[['all' b+%.y]])
+  ;<  ~  bind:m  (poke:io add-rd [[/ %json] !>(add-req)])
+  ::  then commit from index
+  =/  commit-rd=road:tarball  [%& %& [(weld pax /actions) %'commit.sig']]
   =/  msg-wain=wain  (to-wain:format message)
-  ;<  ~  bind:m  (poke:io road [[/ %txt] !>(msg-wain)])
+  ;<  ~  bind:m  (poke:io commit-rd [[/ %txt] !>(msg-wain)])
   (pure:m [%text (cat 3 'Commit triggered: ' message)])
 --

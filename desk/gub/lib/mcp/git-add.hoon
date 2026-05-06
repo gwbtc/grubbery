@@ -1,16 +1,17 @@
 /<  tools  /lib/nex/tools.hoon
-::  git-push: push local commits to GitHub via the repo nexus
+::  git-add: stage files in a git/repo nexus
 ::
 !:
 ^-  tool:tools
 |%
-++  name  'git-push'
+++  name  'git-add'
 ++  description
-  'Push local git commits to GitHub. Pokes push.sig on the git/repo nexus.'
+  'Stage files in a git/repo nexus. Pokes add.sig. Use paths for selective staging, or omit for add-all.'
 ++  parameters
   ^-  (map @t parameter-def:tools)
   %-  ~(gas by *(map @t parameter-def:tools))
   :~  ['path' [%string 'Path to git/repo nexus (e.g. "/git.git_repo")']]
+      ['paths' [%string 'JSON array of file paths to stage (omit for all)']]
   ==
 ++  required  ~['path']
 ++  handler
@@ -30,7 +31,16 @@
   ?:  ?=(%| -.pax-parsed)
     (pure:m [%error p.pax-parsed])
   =/  pax=path  p.pax-parsed
-  =/  =road:tarball  [%& %& [(weld pax /actions) %'push.sig']]
-  ;<  ~  bind:m  (poke:io road [[/ %sig] !>(~)])
-  (pure:m [%text 'Push triggered.'])
+  ::  build add request json
+  =/  paths-str=@t  (get-str 'paths' '')
+  =/  req=json
+    ?:  =('' paths-str)
+      (pairs:enjs:format ~[['all' b+%.y]])
+    =/  parsed=(unit json)  (de:json:html paths-str)
+    ?~  parsed  (pairs:enjs:format ~[['all' b+%.y]])
+    ?.  ?=(%a -.u.parsed)  (pairs:enjs:format ~[['all' b+%.y]])
+    (pairs:enjs:format ~[['all' b+%.n] ['paths' u.parsed]])
+  =/  =road:tarball  [%& %& [(weld pax /actions) %'add.sig']]
+  ;<  ~  bind:m  (poke:io road [[/ %json] !>(req)])
+  (pure:m [%text 'Files staged.'])
 --

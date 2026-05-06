@@ -118,7 +118,7 @@
   =/  sub=(unit ball:tarball)  (~(dap ba:tarball root) tree-path)
   ?:  ?=(^ sub)
     ?:  ?&(?=(^ download-param) =(u.download-param 'tar'))
-      (serve-tarball eyre-id tree-path u.sub (~(dip of root-born) tree-path))
+      (serve-tarball eyre-id tree-path u.sub)
     ;<  now=@da  bind:m  get-time:io
     ;<  conversions=(map bars:tarball tube:clay)  bind:m
       (get-blot-conversions-shallow:io u.sub)
@@ -355,15 +355,14 @@
 ::  Serve a directory as a tarball download
 ::
 ++  serve-tarball
-  |=  [eyre-id=@ta tree-path=path b=ball:tarball sub-born=born:nexus]
+  |=  [eyre-id=@ta tree-path=path b=ball:tarball]
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
-  =/  stamped=ball:tarball  (stamp-mtimes:nexus sub-born b)
   ;<  now=@da  bind:m  get-time:io
   ;<  conversions=(map bars:tarball tube:clay)  bind:m
-    (get-blot-conversions:io stamped)
+    (get-blot-conversions:io b)
   =/  tar=tarball:tarball
-    (~(make-tarball gen:tarball [now conversions]) tree-path stamped)
+    (~(make-tarball gen:tarball [now conversions]) tree-path b)
   =/  tar-data=octs  (encode-tarball:tarball tar)
   =/  dir-name=tape
     ?~(tree-path "root" (trip (rear tree-path)))

@@ -191,7 +191,7 @@
   ?~  pin
     ~|  "Object is corrupted: no header terminator found"  !!
   =/  txt  (trip (cut 3 [0 u.pin] q.octs))
-  =/  hed  (rust txt ;~(plug sym ;~(pfix ace dip:ag)))
+  =/  hed  (rust txt ;~(plug sym ;~(pfix ace dim:ag)))
   ?~  hed
     ~|  "Object is corrupted: invalid header"  !!
   =+  [type=@tas size=@ud]=u.hed

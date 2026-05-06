@@ -469,13 +469,11 @@
   =/  sub=(unit ball:tarball)  (~(dap ba:tarball root) api-path)
   ?~  sub
     (send-error eyre-id 404 'Not found')
-  =/  sub-born=born:nexus  (~(dip of born.p.root-seen) api-path)
-  =/  stamped=ball:tarball  (stamp-mtimes:nexus sub-born u.sub)
   ;<  now=@da  bind:m  get-time:io
   ;<  conversions=(map bars:tarball tube:clay)  bind:m
-    (get-blot-conversions:io stamped)
+    (get-blot-conversions:io u.sub)
   =/  tar=tarball:tarball
-    (~(make-tarball gen:tarball [now conversions]) api-path stamped)
+    (~(make-tarball gen:tarball [now conversions]) api-path u.sub)
   =/  tar-data=octs  (encode-tarball:tarball tar)
   =/  dir-name=tape
     ?~(api-path "root" (trip (rear api-path)))
