@@ -1,4 +1,4 @@
-::  github/repo nexus: git object store + atomic checkout
+::  git/data nexus: git object store + atomic checkout
 ::
 ::  Stores pack data, index, refs, HEAD. On reload, checks out
 ::  the tree at HEAD and builds commit log + branch list.
@@ -61,7 +61,7 @@
       =/  sto  store:~(. git-repo repo)
       ::  resolve HEAD -> commit -> tree
       =/  com=commit:git-repo  (got-commit:sto u.commit-hash)
-      ~&  >>  ["%repo: checkout" (scag 7 head-text)]
+      ~&  >>  ["%git/data: checkout" (scag 7 head-text)]
       =/  get-tree=$-(@ux (unit tree-dir:git-repo))
         |=(h=@ux (get-tree:sto h))
       =/  get-blob=$-(@ux (unit octs))
@@ -69,7 +69,7 @@
       ::  checkout tree
       =/  files=(list [path octs])
         (checkout:git-transport get-tree get-blob tree.com)
-      ~&  >>  ["%repo: checked out" (lent files) "files"]
+      ~&  >>  ["%git/data: checked out" (lent files) "files"]
       =/  tree-ball=ball:tarball  (files-to-ball files)
       ::  build derived data — commit log from branch tip, not HEAD
       =/  ref-content=(unit content:tarball)
@@ -121,7 +121,7 @@
           'Git object store. Stores pack, index, refs. Checkout via reload.'
         ==
           %|
-        ?+  rail.p.mana  'File under repo.'
+        ?+  rail.p.mana  'File under git/data.'
           [~ %'pack.dat']   'Raw git pack bytes.'
           [~ %'pack.idx']   'Pack index: hash->offset map.'
           [~ %'HEAD']       'Target commit hash for checkout.'
