@@ -157,7 +157,7 @@
             ?.  ?=(%o -.u.commit-req)  "commit"
             =/  m  (~(get by p.u.commit-req) 'message')
             ?.  ?=([~ %s *] m)  "commit"
-            "commit: {(trip p.u.m)}"
+            "commit: {(take-first-line (trip p.u.m))}"
           (append-reflog ball ref-name old-hex new-head-text msg)
         ::  persist only new loose objects (existing ones already in ball)
         =.  ball  (write-loose-to-ball ball new-loose.u.commit-result)
