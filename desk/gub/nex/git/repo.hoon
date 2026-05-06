@@ -35,10 +35,10 @@
             [%fall %& [/ %'sync.sig'] %.n [~ [/ %sig] !>(~)]]
             [%fall %& [/ %'switch.sig'] %.n [~ [/ %sig] !>(~)]]
             [%fall %& [/ %'checkout.sig'] %.n [~ [/ %sig] !>(~)]]
+            [%fall %& [/ %'diff.sig'] %.n [~ [/ %sig] !>(~)]]
             [%fall %& [/ %'commit.sig'] %.n [~ [/ %sig] !>(~)]]
             [%fall %& [/ %'import.sig'] %.n [~ [/ %sig] !>(~)]]
             [%fall %& [/ %'push.sig'] %.n [~ [/ %sig] !>(~)]]
-            [%fall %& [/ %'push.json'] %.n [~ [/ %json] !>([%o ~])]]
             [%fall %| /ui [~ ~] [~ ~] empty-dir:loader]
             [%fall %& [/ui %'status.json'] %.n [~ [/ %json] !>((pairs:enjs:format ~[['status' s+'idle']]))]]
             [%fall %& [/ui %'commit.json'] %.n [~ [/ %json] !>([%a ~])]]
@@ -145,10 +145,10 @@
           (over:io (cord-to-road:tarball './config.json') [[/ %json] !>((pairs:enjs:format ~[['repo' s+repo.cfg] ['ref' s+ref.cfg] ['token' s+token.cfg]]))])
         ;<  ~  bind:m  (set-status 'idle')
         $
-          ::  /commit.sig: compute diff for a commit
+          ::  /diff.sig: compute diff for a commit
           ::
-          [~ %'commit.sig']
-        ;<  ~  bind:m  (rise-wait:io prod "%git/repo commit: failed")
+          [~ %'diff.sig']
+        ;<  ~  bind:m  (rise-wait:io prod "%git/repo diff: failed")
         |-
         ;<  =sage:tarball  bind:m  take-poke:io
         =/  hash-text=@t  (of-wain:format !<(wain q.sage))
@@ -193,6 +193,34 @@
           ==
         ;<  ~  bind:m
           (over:io (cord-to-road:tarball './ui/commit.json') [[/ %json] !>(result)])
+        $
+          ::  /commit.sig: create a local git commit from current tree state
+          ::
+          [~ %'commit.sig']
+        ;<  ~  bind:m  (rise-wait:io prod "%git/repo commit: failed")
+        |-
+        ;<  =sage:tarball  bind:m  take-poke:io
+        =/  message=@t  (of-wain:format !<(wain q.sage))
+        ?:  =('' message)
+          ~&  >>>  "%git/repo commit: empty message"
+          $
+        ~&  >>  ["%git/repo: committing:" message]
+        ;<  cfg=repo-config  bind:m  read-config
+        ::  build commit-request.json
+        ;<  now=@da  bind:m  get-time:io
+        =/  req=json
+          %-  pairs:enjs:format
+          :~  ['message' s+message]
+              ['author_name' s+'grubbery']
+              ['author_email' s+'grubbery@urbit.org']
+              ['date' s+(scot %da now)]
+          ==
+        ::  write commit-request.json into data nexus
+        ;<  ~  bind:m
+          (write-repo-file (cord-to-road:tarball './data/commit-request.json') [[/ %json] !>(req)])
+        ::  reload data to trigger commit creation
+        ;<  ~  bind:m  (reload:io (cord-to-road:tarball './data/'))
+        ~&  >>  "%git/repo: commit created"
         $
           ::  /sync.sig: clone or re-checkout
           ::
@@ -451,7 +479,8 @@
           [~ %'sync.sig']     'Poke to fetch from remote.'
           [~ %'switch.sig']   'Poke to switch branch locally.'
           [~ %'checkout.sig']  'Poke with commit hash to checkout.'
-          [~ %'commit.sig']   'Poke with commit hash to compute diff.'
+          [~ %'diff.sig']     'Poke with commit hash to compute diff.'
+          [~ %'commit.sig']   'Poke with commit message to create local commit.'
           [~ %'push.sig']     'Poke to push files to GitHub via REST API.'
           [~ %'push.json']    'Push request: {message, files: [{path, content}]}.'
           [~ %'page.html']    'Dashboard page. Shows config, sync button, file tree.'
@@ -1264,7 +1293,7 @@
       "var pane=document.getElementById('content');"
       "pane.innerHTML='<div class=\"placeholder\">"
       "<span class=\"spinner\"></span> computing diff...</div>';"
-      "fetch(A.replace('/file/','/poke/')+'/commit.sig?mark=txt',"
+      "fetch(A.replace('/file/','/poke/')+'/diff.sig?mark=txt',"
       "\{method:'POST',headers:\{'Content-Type':'text/plain'},body:hash})}"
       ::
       "function escHtml(s)\{"

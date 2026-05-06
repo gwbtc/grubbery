@@ -97,10 +97,60 @@
   =.  data  (append-hash data hal hash.i.dir)
   $(dir t.dir)
 ++  commit-to-raw
-  |=  [hal=hash-algo commit=object]
+  |=  [hal=hash-algo com=object]
   ^-  raw-object
-  ?>  ?=(%commit -.commit)
-  *raw-object
+  ?>  ?=(%commit -.com)
+  =|  data=bays:bytestream
+  ::  tree <hash>\n
+  =.  data  (append-octs:bytestream data (as-octt:bytestream "tree "))
+  =.  data  (append-octs:bytestream data (as-octt:bytestream (print-hash hal tree.commit.com)))
+  =.  data  (append-byte:bytestream data 0xa)
+  ::  parent <hash>\n  (0 or more)
+  =.  data
+    %+  roll  parents.commit.com
+    |=  [p=hash d=_data]
+    =.  d  (append-octs:bytestream d (as-octt:bytestream "parent "))
+    =.  d  (append-octs:bytestream d (as-octt:bytestream (print-hash hal p)))
+    (append-byte:bytestream d 0xa)
+  ::  author <name> <<email>> <timestamp> <zone>\n
+  =.  data  (append-octs:bytestream data (as-octt:bytestream "author "))
+  =.  data  (append-octs:bytestream data (as-octt:bytestream (format-person author.commit.com)))
+  =.  data  (append-octs:bytestream data (as-octt:bytestream " "))
+  =.  data  (append-octs:bytestream data (as-octt:bytestream (format-time author-time.commit.com)))
+  =.  data  (append-byte:bytestream data 0xa)
+  ::  committer <name> <<email>> <timestamp> <zone>\n
+  =.  data  (append-octs:bytestream data (as-octt:bytestream "committer "))
+  =.  data  (append-octs:bytestream data (as-octt:bytestream (format-person committer.commit.com)))
+  =.  data  (append-octs:bytestream data (as-octt:bytestream " "))
+  =.  data  (append-octs:bytestream data (as-octt:bytestream (format-time commit-time.commit.com)))
+  =.  data  (append-byte:bytestream data 0xa)
+  ::  \n<message>
+  =.  data  (append-byte:bytestream data 0xa)
+  =.  data  (append-octs:bytestream data (as-octt:bytestream message.commit.com))
+  =/  body=octs  (to-octs:bytestream data)
+  [%commit p.body body]
+::
+++  format-person
+  |=  p=commit-person
+  ^-  tape
+  "{name.p} <{email.p}>"
+::
+++  format-time
+  |=  ct=commit-time
+  ^-  tape
+  =/  unix=@ud
+    ?:  (lth date.ct ~1970.1.1)  0
+    (div (sub date.ct ~1970.1.1) ~s1)
+  =/  zone-sign=tape  ?:(-.zone.ct "+" "-")
+  =/  zone-secs=@ud  (div +.zone.ct ~s1)
+  =/  zone-hrs=@ud  (div zone-secs 3.600)
+  =/  zone-min=@ud  (div (mod zone-secs 3.600) 60)
+  "{((d-co:co 1) unix)} {zone-sign}{(pad-2 zone-hrs)}{(pad-2 zone-min)}"
+::
+++  pad-2
+  |=  n=@ud
+  ^-  tape
+  ?:((lth n 10) "0{((d-co:co 1) n)}" ((d-co:co 1) n))
 ++  obj-to-raw
   |=  [hal=hash-algo obj=object]
   ^-  raw-object
