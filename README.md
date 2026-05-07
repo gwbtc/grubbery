@@ -21,3 +21,5 @@ A tree-shaped manager for stateful long-running processes on Urbit.
 **Dart** — an effect yielded by a fiber. Darts are the fiber's way of interacting with the world: making new grubs, poking files, peeking at state, subscribing to directories, sending gall cards, and so on.
 
 **Intake** — an event received by a fiber. Intakes are responses to darts (peek results, poke acks), external inputs (incoming pokes, subscription updates), or lifecycle events (process start, restart after failure).
+
+...
