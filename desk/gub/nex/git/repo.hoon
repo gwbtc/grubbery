@@ -40,11 +40,15 @@
             [%fall %& [/actions %'add.sig'] %.n [~ [/ %sig] !>(~)]]
             [%fall %& [/actions %'commit.sig'] %.n [~ [/ %sig] !>(~)]]
             [%fall %& [/actions %'import.sig'] %.n [~ [/ %sig] !>(~)]]
+            [%fall %& [/actions %'branch.sig'] %.n [~ [/ %sig] !>(~)]]
+            [%fall %& [/actions %'delete-branch.sig'] %.n [~ [/ %sig] !>(~)]]
+            [%fall %& [/actions %'stash.sig'] %.n [~ [/ %sig] !>(~)]]
+            [%fall %& [/actions %'stash-pop.sig'] %.n [~ [/ %sig] !>(~)]]
             [%fall %& [/actions %'push.sig'] %.n [~ [/ %sig] !>(~)]]
             [%fall %| /ui [~ ~] [~ ~] empty-dir:loader]
             [%fall %& [/ui %'status.json'] %.n [~ [/ %json] !>((pairs:enjs:format ~[['status' s+'idle']]))]]
             [%fall %& [/ui %'commit.json'] %.n [~ [/ %json] !>([%a ~])]]
-            [%over %& [/ %'page.html'] %.n [~ [/ %manx] !>((repo-page '' '' '' ~ ~ [%a ~] [%o ~]))]]
+            [%over %& [/ %'page.html'] %.n [~ [/ %manx] !>((repo-page '' '' '' ~ ~ [%a ~] [%o ~] clean-status))]]
             [%fall %| /data [~ ~] [~ ~] [`[~ `[/git %data] ~] ~]]
         ==
       ==
@@ -56,6 +60,98 @@
       =/  m  (fiber:fiber:nexus ,~)
       ^-  process:fiber:nexus
       ?+    rail  stay:m
+          ::  /actions/branch.sig: create a new branch at HEAD
+          ::
+          [[%actions ~] %'branch.sig']
+        ;<  ~  bind:m  (rise-wait:io prod "%git/repo branch: failed")
+        |-
+        ;<  poke-sage=sage:tarball  bind:m  take-poke:io
+        =/  branch=@t  (of-wain:format !<(wain q.poke-sage))
+        ?:  =('' branch)
+          ~&  >>>  "%git/repo: branch requires a name"
+          $
+        ::  resolve current HEAD to a commit hash
+        ;<  head-hash=@t  bind:m  resolve-head
+        ?:  =('' head-hash)
+          ~&  >>>  "%git/repo: no HEAD to branch from"
+          $
+        ::  check branch doesn't already exist
+        ;<  exists-rd=road:tarball  bind:m
+          (ancestor-road:io [/git %repo] [%& /data/refs/heads (crip (trip branch))])
+        ;<  exists=?  bind:m  (peek-exists:io exists-rd)
+        ?:  exists
+          ~&  >>>  ["%git/repo: branch already exists:" branch]
+          $
+        ::  create refs/heads/<branch> pointing to HEAD
+        =/  ref-octs=octs  (as-octt:bytestream (trip head-hash))
+        ;<  ref-rd=road:tarball  bind:m
+          (ancestor-road:io [/git %repo] [%& /data/refs/heads (crip (trip branch))])
+        ;<  ~  bind:m  (over:io ref-rd [[/ %mime] !>([/text/plain ref-octs])])
+        ~&  >>  ["%git/repo: created branch" branch "at" head-hash]
+        ::  reload data to rebuild branch list
+        ;<  data-rd=road:tarball  bind:m  (ancestor-road:io [/git %repo] [%| /data])
+        ;<  ~  bind:m  (reload:io data-rd)
+        $
+          ::
+          ::  /actions/delete-branch.sig: delete a local branch
+          ::
+          [[%actions ~] %'delete-branch.sig']
+        ;<  ~  bind:m  (rise-wait:io prod "%git/repo delete-branch: failed")
+        |-
+        ;<  poke-sage=sage:tarball  bind:m  take-poke:io
+        =/  branch=@t  (of-wain:format !<(wain q.poke-sage))
+        ?:  =('' branch)
+          ~&  >>>  "%git/repo: delete-branch requires a name"
+          $
+        ::  read current branch from HEAD to prevent deleting active branch
+        ;<  current-branch=@t  bind:m  read-head-branch
+        ?:  =(branch current-branch)
+          ~&  >>>  ["%git/repo: cannot delete current branch:" branch]
+          $
+        ::  delete refs/heads/<branch>
+        ;<  del-rd=road:tarball  bind:m
+          (ancestor-road:io [/git %repo] [%& /data/refs/heads (crip (trip branch))])
+        ;<  exists=?  bind:m  (peek-exists:io del-rd)
+        ?.  exists
+          ~&  >>>  ["%git/repo: branch not found:" branch]
+          $
+        ;<  ~  bind:m  (drop:io /delete-branch del-rd)
+        ~&  >>  ["%git/repo: deleted branch" branch]
+        ::  reload data to rebuild branch list
+        ;<  data-rd=road:tarball  bind:m  (ancestor-road:io [/git %repo] [%| /data])
+        ;<  ~  bind:m  (reload:io data-rd)
+        $
+          ::
+          ::  /actions/stash.sig: stash dirty index and reset to HEAD
+          ::
+          [[%actions ~] %'stash.sig']
+        ;<  ~  bind:m  (rise-wait:io prod "%git/repo stash: failed")
+        |-
+        ;<  *  bind:m  take-poke:io
+        ~&  >>  "%git/repo: stashing"
+        ::  write stash-request.sig into data ball, reload
+        ;<  req-rd=road:tarball  bind:m
+          (ancestor-road:io [/git %repo] [%& /data %'stash-request.sig'])
+        ;<  ~  bind:m  (write-repo-file req-rd [[/ %sig] !>(~)])
+        ;<  data-rd=road:tarball  bind:m  (ancestor-road:io [/git %repo] [%| /data])
+        ;<  ~  bind:m  (reload:io data-rd)
+        $
+          ::
+          ::  /actions/stash-pop.sig: pop the most recent stash
+          ::
+          [[%actions ~] %'stash-pop.sig']
+        ;<  ~  bind:m  (rise-wait:io prod "%git/repo stash-pop: failed")
+        |-
+        ;<  *  bind:m  take-poke:io
+        ~&  >>  "%git/repo: popping stash"
+        ::  write stash-pop-request.sig into data ball, reload
+        ;<  req-rd=road:tarball  bind:m
+          (ancestor-road:io [/git %repo] [%& /data %'stash-pop-request.sig'])
+        ;<  ~  bind:m  (write-repo-file req-rd [[/ %sig] !>(~)])
+        ;<  data-rd=road:tarball  bind:m  (ancestor-road:io [/git %repo] [%| /data])
+        ;<  ~  bind:m  (reload:io data-rd)
+        $
+          ::
           ::  /actions/import.sig: bundle import — poke with octs to parse
           ::
           [[%actions ~] %'import.sig']
@@ -96,12 +192,16 @@
         ;<  current-rd=road:tarball  bind:m
           (ancestor-road:io [/git %repo] [%& /data/ui %'current.json'])
         ;<  init-current=view:nexus  bind:m  (keep:io /current current-rd `%json)
+        ;<  status-rd=road:tarball  bind:m
+          (ancestor-road:io [/git %repo] [%& /data/ui %'status.json'])
+        ;<  init-status=view:nexus  bind:m  (keep:io /status status-rd `%json)
         =/  cfg=repo-config  (view-to-config init-cfg)
         =/  files=(list @t)  (view-to-files init-tree)
         =/  branches=(list @t)  (view-to-branches init-branches)
         =/  commits=json  (view-to-json init-commits)
         =/  current=json  (view-to-json init-current)
-        ;<  ~  bind:m  (replace:io !>((repo-page api repo.cfg ref.cfg branches files commits current)))
+        =/  status=json   (view-to-json init-status)
+        ;<  ~  bind:m  (replace:io !>((repo-page api repo.cfg ref.cfg branches files commits current status)))
         |-
         ;<  evt=page-event  bind:m  take-page-event
         ?-    -.evt
@@ -112,7 +212,8 @@
           =?  branches  =(/branches wire.evt)  (view-to-branches view.evt)
           =?  commits  =(/commits wire.evt)  (view-to-json view.evt)
           =?  current  =(/current wire.evt)  (view-to-json view.evt)
-          ;<  ~  bind:m  (replace:io !>((repo-page api repo.cfg ref.cfg branches files commits current)))
+          =?  status   =(/status wire.evt)   (view-to-json view.evt)
+          ;<  ~  bind:m  (replace:io !>((repo-page api repo.cfg ref.cfg branches files commits current status)))
           $
         ==
           ::  /actions/checkout.sig: checkout a specific commit by hash
@@ -122,6 +223,22 @@
         |-
         ;<  =sage:tarball  bind:m  take-poke:io
         =/  hash-text=@t  (of-wain:format !<(wain q.sage))
+        ::  block checkout if working tree is dirty
+        ;<  status-rd=road:tarball  bind:m
+          (ancestor-road:io [/git %repo] [%& /data/ui %'status.json'])
+        ;<  status-seen=seen:nexus  bind:m  (peek:io status-rd `%json)
+        =/  is-clean=?
+          ?.  ?=([%.y *] status-seen)  %.y
+          =/  status-json=json  (view-to-json p.status-seen)
+          ?.  ?=(%o -.status-json)  %.y
+          =/  cl  (~(get by p.status-json) 'clean')
+          ?+  cl  %.n
+            [~ %b %.y]  %.y
+          ==
+        ?.  is-clean
+          ~&  >>>  "%git/repo: checkout blocked — working tree is dirty"
+          ~&  >>>  "commit or reset your changes first"
+          $
         ~&  >>  ["%git/repo: checkout poke" hash-text]
         ;<  ~  bind:m  (set-status 'syncing')
         ::  write new HEAD and reload repo
@@ -130,30 +247,44 @@
         ;<  ~  bind:m  (reload:io data-rd)
         ;<  ~  bind:m  (set-status 'idle')
         $
-          ::  /actions/switch.sig: switch branch locally (no remote fetch)
+          ::  /actions/switch.sig: switch branch locally
+          ::
+          ::  poke with branch name (text). Reads refs/heads/<branch>,
+          ::  updates HEAD + ref, reloads data nexus for checkout.
           ::
           [[%actions ~] %'switch.sig']
         ;<  ~  bind:m  (rise-wait:io prod "%git/repo switch: failed")
         |-
-        ;<  *  bind:m  take-poke:io
-        ;<  cfg=repo-config  bind:m  read-config
-        ?:  =('' repo.cfg)  $
-        ;<  pack-rd=road:tarball  bind:m  (ancestor-road:io [/git %repo] [%& /data %'pack.dat'])
-        ;<  has-pack=?  bind:m  (peek-exists:io pack-rd)
-        ?.  has-pack
-          ~&  >>>  "%git/repo: no pack cached, use sync"
+        ;<  =sage:tarball  bind:m  take-poke:io
+        =/  branch=@t  (text-from-sage sage)
+        ?:  =('' branch)
+          ~&  >>>  "%git/repo: switch requires a branch name"
           $
-        ~&  >>  ["%git/repo: switching to" ref.cfg]
+        ::  block if dirty
+        ;<  status-rd=road:tarball  bind:m
+          (ancestor-road:io [/git %repo] [%& /data/ui %'status.json'])
+        ;<  status-seen=seen:nexus  bind:m  (peek:io status-rd `%json)
+        =/  is-clean=?
+          ?.  ?=([%.y *] status-seen)  %.y
+          =/  status-json=json  (view-to-json p.status-seen)
+          ?.  ?=(%o -.status-json)  %.y
+          =/  cl  (~(get by p.status-json) 'clean')
+          ?+  cl  %.n
+            [~ %b %.y]  %.y
+          ==
+        ?.  is-clean
+          ~&  >>>  "%git/repo: switch blocked — working tree is dirty"
+          $
+        ::  resolve branch ref
+        ;<  ref-hash=@t  bind:m  (resolve-ref branch)
+        ?:  =('' ref-hash)
+          ~&  >>>  ["%git/repo: branch not found:" branch]
+          $
+        ~&  >>  ["%git/repo: switching to" branch]
         ;<  ~  bind:m  (set-status 'syncing')
-        =/  active-ref=@t  ?:(=('' ref.cfg) 'main' ref.cfg)
-        ;<  ref-hash=@t  bind:m  (resolve-ref ref.cfg)
-        ;<  ~  bind:m  (write-head ref-hash)
-        ;<  ~  bind:m  (write-ref active-ref)
+        ;<  ~  bind:m  (write-head (crip "ref: refs/heads/{(trip branch)}"))
         ;<  data-rd=road:tarball  bind:m  (ancestor-road:io [/git %repo] [%| /data])
         ;<  ~  bind:m  (reload:io data-rd)
-        ;<  cfg-rd=road:tarball  bind:m  (ancestor-road:io [/git %repo] [%& / %'config.json'])
-        ;<  ~  bind:m
-          (over:io cfg-rd [[/ %json] !>((pairs:enjs:format ~[['repo' s+repo.cfg] ['ref' s+ref.cfg] ['token' s+token.cfg]]))])
         ;<  ~  bind:m  (set-status 'idle')
         $
           ::  /actions/diff.sig: compute diff for a commit
@@ -581,6 +712,10 @@
           [[%actions ~] %'diff.sig']     'Poke with commit hash to compute diff.'
           [[%actions ~] %'add.sig']      'Stage files. Poke with json {all: true} or {paths: [...]}.'
           [[%actions ~] %'commit.sig']   'Poke with commit message to create local commit.'
+          [[%actions ~] %'branch.sig']   'Poke with branch name to create at HEAD.'
+          [[%actions ~] %'delete-branch.sig']  'Poke with branch name to delete.'
+          [[%actions ~] %'stash.sig']          'Poke to stash dirty index and reset to HEAD.'
+          [[%actions ~] %'stash-pop.sig']      'Poke to pop the most recent stash.'
           [[%actions ~] %'push.sig']     'Poke to push files to GitHub via REST API.'
           [~ %'push.json']    'Push request: {message, files: [{path, content}]}.'
           [~ %'page.html']    'Dashboard page. Shows config, sync button, file tree.'
@@ -625,7 +760,7 @@
     (over:io road sage)
   (make:io road |+[%.n sage ~])
 ::
-::  +save-repo: write pack + index + refs + HEAD + ref into repo sub-nexus
+::  +save-repo: write pack + index + refs + HEAD into repo sub-nexus
 ::
 ++  save-repo
   |=  $:  pack-data=octs
@@ -637,16 +772,14 @@
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
   =/  idx-octs=octs  (as-octt:bytestream idx-text)
-  =/  head-octs=octs  (as-octt:bytestream (trip head-text))
-  =/  ref-octs=octs  (as-octt:bytestream (trip ref-name))
+  ::  HEAD = "ref: refs/heads/<branch>"
+  =/  head-octs=octs  (as-octt:bytestream "ref: refs/heads/{(trip ref-name)}")
   ;<  rd1=road:tarball  bind:m  (ancestor-road:io [/git %repo] [%& /data %'pack.dat'])
   ;<  ~  bind:m  (write-repo-file rd1 [[/ %mime] !>([/application/octet-stream pack-data])])
   ;<  rd2=road:tarball  bind:m  (ancestor-road:io [/git %repo] [%& /data %'pack.idx'])
   ;<  ~  bind:m  (write-repo-file rd2 [[/ %mime] !>([/text/plain idx-octs])])
   ;<  rd4=road:tarball  bind:m  (ancestor-road:io [/git %repo] [%& /data %'HEAD'])
   ;<  ~  bind:m  (write-repo-file rd4 [[/ %mime] !>([/text/plain head-octs])])
-  ;<  rd5=road:tarball  bind:m  (ancestor-road:io [/git %repo] [%& /data %'ref'])
-  ;<  ~  bind:m  (write-repo-file rd5 [[/ %mime] !>([/text/plain ref-octs])])
   ::  write individual ref files — both local and remote tracking
   |-
   ?~  branch-refs  (pure:m ~)
@@ -663,23 +796,58 @@
 ::
 ::  +write-head: update HEAD in repo sub-nexus
 ::
+::    For a branch: writes "ref: refs/heads/<branch>"
+::    For detached: writes raw commit hash
+::
 ++  write-head
-  |=  hash-text=@t
+  |=  value=@t
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
-  =/  head-octs=octs  (as-octt:bytestream (trip hash-text))
+  =/  head-octs=octs  (as-octt:bytestream (trip value))
   ;<  rd=road:tarball  bind:m  (ancestor-road:io [/git %repo] [%& /data %'HEAD'])
   (over:io rd [[/ %mime] !>([/text/plain head-octs])])
 ::
-::  +write-ref: update ref (branch name) in repo sub-nexus
+::  +resolve-head: read HEAD, follow ref if symbolic, return commit hash
 ::
-++  write-ref
-  |=  ref-name=@t
-  =/  m  (fiber:fiber:nexus ,~)
+++  resolve-head
+  =/  m  (fiber:fiber:nexus ,@t)
   ^-  form:m
-  =/  ref-octs=octs  (as-octt:bytestream (trip ref-name))
-  ;<  rd=road:tarball  bind:m  (ancestor-road:io [/git %repo] [%& /data %'ref'])
-  (over:io rd [[/ %mime] !>([/text/plain ref-octs])])
+  ;<  head-rd=road:tarball  bind:m
+    (ancestor-road:io [/git %repo] [%& /data %'HEAD'])
+  ;<  head-seen=seen:nexus  bind:m  (peek:io head-rd `%mime)
+  ?.  ?=([%.y %file *] head-seen)
+    (pure:m '')
+  =/  head-mim=mime  !<(mime q.sage.p.head-seen)
+  =/  head-text=tape  (trip q.q.head-mim)
+  ?.  =("ref: " (scag 5 head-text))
+    ::  raw hash (detached HEAD)
+    (pure:m (crip head-text))
+  ::  symbolic ref — extract branch and resolve
+  =/  ref-path=tape  (slag 5 head-text)
+  =/  branch=@t
+    ?.  =("refs/heads/" (scag 11 ref-path))
+      (crip ref-path)
+    (crip (slag 11 ref-path))
+  (resolve-ref branch)
+::
+::  +read-head-branch: return current branch name, or '' if detached
+::
+++  read-head-branch
+  =/  m  (fiber:fiber:nexus ,@t)
+  ^-  form:m
+  ;<  head-rd=road:tarball  bind:m
+    (ancestor-road:io [/git %repo] [%& /data %'HEAD'])
+  ;<  head-seen=seen:nexus  bind:m  (peek:io head-rd `%mime)
+  ?.  ?=([%.y %file *] head-seen)
+    (pure:m '')
+  =/  head-mim=mime  !<(mime q.sage.p.head-seen)
+  =/  head-text=tape  (trip q.q.head-mim)
+  ?.  =("ref: " (scag 5 head-text))
+    (pure:m '')
+  =/  ref-path=tape  (slag 5 head-text)
+  ?.  =("refs/heads/" (scag 11 ref-path))
+    (pure:m (crip ref-path))
+  (pure:m (crip (slag 11 ref-path)))
 ::
 ::  +resolve-ref: read ref hash from refs/heads/<branch>
 ::
@@ -1051,6 +1219,14 @@
     ?.  ?=([~ %s *] v)  default
     ?:(=('' p.u.v) default p.u.v)
   [(get 'repo' '') (get 'ref' '') (get 'token' '')]
+::  +text-from-sage: extract text from a poke sage (wain or mime)
+::
+++  text-from-sage
+  |=  =sage:tarball
+  ^-  @t
+  ?:  =([/ %mime] p.sage)
+    q.q:!<(mime q.sage)
+  (of-wain:format !<(wain q.sage))
 ::
 ++  view-to-branches
   |=  =view:nexus
@@ -1191,6 +1367,16 @@
       "text-overflow:ellipsis;white-space:nowrap}"
       ".head-bar .badge\{font-size:10px;background:#1a7f37;color:#fff;"
       "padding:0 4px;border-radius:3px;flex-shrink:0}"
+      ".status-bar\{display:none;align-items:center;gap:6px;"
+      "padding:4px 12px;border-bottom:1px solid #e0e0e0;"
+      "background:#fffbeb;font-size:12px;flex-shrink:0;cursor:pointer}"
+      ".status-bar:hover\{background:#fef3c7}"
+      ".status-bar.dirty,.status-bar.sync\{display:flex}"
+      ".status-bar .staged\{color:#1a7f37;font-weight:500}"
+      ".status-bar .unstaged\{color:#9a6700;font-weight:500}"
+      ".status-bar .untracked\{color:#656d76;font-weight:500}"
+      ".status-bar .ahead-behind\{opacity:.6;font-size:11px}"
+      ".status-bar .files\{opacity:.6;font-size:11px}"
       ".commit-popup\{position:fixed;top:0;left:0;right:0;bottom:0;"
       "background:rgba(0,0,0,.3);display:flex;align-items:center;"
       "justify-content:center;z-index:100}"
@@ -1263,20 +1449,15 @@
       "}).catch(function()\{"
       "if(btn)\{btn.disabled=false}"
       "})}"
-      ::  branch switch: local only
+      ::  branch switch: local only — just poke switch.sig
       "function doSwitch()\{"
-      "var r=document.getElementById('repo').value;"
       "var sel=document.getElementById('ref');"
       "var f=sel?(sel.value||''):(''||'');"
-      "if(!r)\{return}"
+      "if(!f)\{return}"
       "if(sel)\{sel.disabled=true}"
-      "fetch(A.replace('/file/','/over/')+'/config.json?mark=json',"
-      "\{method:'POST',headers:\{'Content-Type':'application/json'},"
-      "body:JSON.stringify(\{repo:r,ref:f})})"
-      ".then(function()\{"
-      "return fetch(A.replace('/file/','/poke/')+'/actions/switch.sig',"
-      "\{method:'POST',headers:\{'Content-Type':'text/plain'},body:'switch'})"
-      "}).catch(function()\{"
+      "fetch(A.replace('/file/','/poke/')+'/actions/switch.sig',"
+      "\{method:'POST',headers:\{'Content-Type':'text/plain'},body:f})"
+      ".catch(function()\{"
       "if(sel)\{sel.disabled=false}"
       "})}"
       "var refSel=document.getElementById('ref');"
@@ -1483,6 +1664,84 @@
       "bg.onclick=function(e)\{if(e.target===bg)bg.remove()};"
       "document.body.appendChild(bg)}"
       "renderCommits();"
+      ::  status bar + popup
+      "function renderStatus()\{"
+      "var sb=document.getElementById('status-bar');"
+      "if(!sb||!window._STATUS)return;"
+      "var s=window._STATUS;"
+      "if(s.clean&&!s.ahead&&!s.behind)\{sb.className='status-bar';sb.innerHTML='';return}"
+      "sb.className=s.clean?'status-bar sync':'status-bar dirty';"
+      "var ns=s.staged?s.staged.length:0;"
+      "var nu=s.unstaged?s.unstaged.length:0;"
+      "var nt=s.untracked?s.untracked.length:0;"
+      "var parts=[];"
+      "if(ns)parts.push('<span class=\"staged\">'+ns+' staged</span>');"
+      "if(nu)parts.push('<span class=\"unstaged\">'+nu+' modified</span>');"
+      "if(nt)parts.push('<span class=\"untracked\">'+nt+' untracked</span>');"
+      "var h=parts.join(' | ');"
+      "if(s.ahead||s.behind)\{"
+      "h+='<span class=\"ahead-behind\">';"
+      "if(s.ahead)h+=' \\u2191'+s.ahead;"
+      "if(s.behind)h+=' \\u2193'+s.behind;"
+      "h+='</span>'}"
+      "sb.innerHTML=h;sb.onclick=showStatusPopup}"
+      "function showStatusPopup()\{"
+      "var s=window._STATUS;if(!s)return;"
+      "var CI=window._CURRENT||\{hash:'',branch:'',remote:''};"
+      "var bg=document.createElement('div');"
+      "bg.className='commit-popup';"
+      "var h='<div class=\"card\">';"
+      "h+='<button class=\"close\">&times;</button>';"
+      "h+='<h3>status</h3>';"
+      "h+='<table class=\"meta\">';"
+      "h+='<tr><td>branch</td><td><b>'+CI.branch+'</b></td></tr>';"
+      "if(CI.remote)\{"
+      "h+='<tr><td>remote</td><td><code>'+CI.remote.slice(0,7)+'</code>';"
+      "if(s.ahead)h+=' \\u2191'+s.ahead;"
+      "if(s.behind)h+=' \\u2193'+s.behind;"
+      "h+='</td></tr>'}"
+      "h+='</table>';"
+      ::  staged files
+      "if(s.staged&&s.staged.length)\{"
+      "h+='<div style=\"margin:.75rem 0 .25rem;font-size:12px;font-weight:600;"
+      "color:#1a7f37\">Staged ('+s.staged.length+')</div>';"
+      "h+='<div style=\"font-size:12px;font-family:monospace\">';"
+      "s.staged.forEach(function(f)\{"
+      "var bc=f.status==='new'?'badge-add':f.status==='deleted'?'badge-del':'badge-mod';"
+      "h+='<div style=\"padding:2px 0\"><span class=\"badge '+bc+"
+      "'\" style=\"font-size:10px;padding:0 4px;border-radius:3px;"
+      "color:#fff;margin-right:6px\">'+f.status+'</span>'+f.path+'</div>'});"
+      "h+='</div>'}"
+      ::  unstaged files
+      "if(s.unstaged&&s.unstaged.length)\{"
+      "h+='<div style=\"margin:.75rem 0 .25rem;font-size:12px;font-weight:600;"
+      "color:#9a6700\">Unstaged ('+s.unstaged.length+')</div>';"
+      "h+='<div style=\"font-size:12px;font-family:monospace\">';"
+      "s.unstaged.forEach(function(f)\{"
+      "var bc=f.status==='new'?'badge-add':f.status==='deleted'?'badge-del':'badge-mod';"
+      "h+='<div style=\"padding:2px 0\"><span class=\"badge '+bc+"
+      "'\" style=\"font-size:10px;padding:0 4px;border-radius:3px;"
+      "color:#fff;margin-right:6px\">'+f.status+'</span>'+f.path+'</div>'});"
+      "h+='</div>'}"
+      ::  untracked files
+      "if(s.untracked&&s.untracked.length)\{"
+      "h+='<div style=\"margin:.75rem 0 .25rem;font-size:12px;font-weight:600;"
+      "color:#656d76\">Untracked ('+s.untracked.length+')</div>';"
+      "h+='<div style=\"font-size:12px;font-family:monospace\">';"
+      "s.untracked.forEach(function(f)\{"
+      "h+='<div style=\"padding:2px 0\"><span class=\"badge badge-add\""
+      " style=\"font-size:10px;padding:0 4px;border-radius:3px;"
+      "color:#fff;margin-right:6px\">new</span>'+f.path+'</div>'});"
+      "h+='</div>'}"
+      ::  clean state
+      "if(s.clean)h+='<div style=\"padding:1rem;opacity:.4;text-align:center\">"
+      "working tree clean</div>';"
+      "h+='</div>';"
+      "bg.innerHTML=h;"
+      "bg.querySelector('.close').onclick=function()\{bg.remove()};"
+      "bg.onclick=function(e)\{if(e.target===bg)bg.remove()};"
+      "document.body.appendChild(bg)}"
+      "renderStatus();"
       ::  diff view: poke commit.sig, watch commit.json, render
       "function viewCommitDiff(hash)\{"
       "document.querySelectorAll('.file.active').forEach("
@@ -1556,7 +1815,12 @@
   ==
 ::
 ++  repo-page
-  |=  [api=@t repo=@t ref=@t branches=(list @t) files=(list @t) commits=json current=json]
+  |=  [api=@t repo=@t ref=@t branches=(list @t) files=(list @t) commits=json current=json status=json]
+  =/  cur-branch=@t
+    ?.  ?=(%o -.current)  ref
+    =/  v=(unit json)  (~(get by p.current) 'branch')
+    ?.  ?=([~ %s *] v)  ref
+    ?:(=('' p.u.v) ref p.u.v)
   ^-  manx
   =/  has-files=?  !=(~ files)
   ;html
@@ -1577,7 +1841,7 @@
                     ;select.ref(id "ref")
                       ;*  %+  turn  branches
                           |=  b=@t
-                          ?:  =(b ref)
+                          ?:  =(b cur-branch)
                             ;option(value "{(trip b)}", selected ""): {(trip b)}
                           ;option(value "{(trip b)}"): {(trip b)}
                     ==
@@ -1585,6 +1849,7 @@
                     ;span.info: {(scow %ud (lent files))} files
                   ==
                   ;div.head-bar(id "head-bar");
+                  ;div.status-bar(id "status-bar");
                   ;div.panes
                     ;button.toggle-tree(id "toggle-tree"): |||
                     ;div.tree-pane(id "tree-pane")
@@ -1624,6 +1889,9 @@
         ;+  ;/  (current-json current)
       ==
       ;script
+        ;+  ;/  (status-json status)
+      ==
+      ;script
         ;+  ;/  (page-script api repo ref)
       ==
     ==
@@ -1645,6 +1913,16 @@
   ^-  tape
   ?.  ?=(%a -.j)  "window._COMMITS=[];"
   (weld "window._COMMITS=" (weld (trip (en:json:html j)) ";"))
+::
+++  clean-status
+  ^-  json
+  (pairs:enjs:format ~[['clean' b+%.y] ['staged' [%a ~]] ['unstaged' [%a ~]]])
+::
+++  status-json
+  |=  j=json
+  ^-  tape
+  =/  raw=tape  (trip (en:json:html j))
+  "window._STATUS={raw};"
 ::
 ++  current-json
   |=  j=json
