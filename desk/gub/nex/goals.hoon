@@ -358,18 +358,6 @@
       ==
     --
 |%
-++  take-poke-from
-  =/  m  (fiber:fiber:nexus ,[from=from:fiber:nexus =sage:tarball])
-  ^-  form:m
-  |=  =input:fiber:nexus
-  :+  ~  state.input
-  ?+  in.input  [%skip ~]
-      ~  [%wait ~]
-      [~ %veto *]
-    [%fail (veto-error:io dart.u.in.input)]
-      [~ %poke * *]
-    [%done [from sage]:u.in.input]
-  ==
 ::  store-fname: build filename from store name (e.g. 'test' -> 'test.goal-store')
 ::
 ++  store-fname

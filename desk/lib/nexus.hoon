@@ -777,6 +777,56 @@
   =.  result
     (~(uni in result) (diff-born-at (snoc here i.all-kids) old-kid new-kid mode))
   $(all-kids t.all-kids)
+::  +changed-lanes: diff two balls, return set of changed lanes
+::
+::  Compares content directly (not born metadata).
+::  Returns lanes for all added, changed, and deleted files,
+::  plus folds for directories that appeared or disappeared.
+::
+++  changed-lanes
+  |=  [old=ball:tarball new=ball:tarball]
+  ^-  (set lane:tarball)
+  (changed-lanes-at / old new)
+::
+++  changed-lanes-at
+  |=  [here=fold:tarball old=ball:tarball new=ball:tarball]
+  ^-  (set lane:tarball)
+  =|  result=(set lane:tarball)
+  =/  old-files=(map @ta content:tarball)
+    ?~(fil.old ~ contents.u.fil.old)
+  =/  new-files=(map @ta content:tarball)
+    ?~(fil.new ~ contents.u.fil.new)
+  =/  all-names=(list @ta)
+    ~(tap in (~(uni in ~(key by old-files)) ~(key by new-files)))
+  =.  result
+    |-  ^-  (set lane:tarball)
+    ?~  all-names  result
+    =/  in-old  (~(has by old-files) i.all-names)
+    =/  in-new  (~(has by new-files) i.all-names)
+    =/  file-changed=?
+      ?:  &(in-new !in-old)  %.y                :: added
+      ?:  &(in-old !in-new)  %.y                :: deleted
+      ?&  in-old  in-new
+          !=(sage:(~(got by old-files) i.all-names) sage:(~(got by new-files) i.all-names))
+      ==                                         :: changed
+    =?  result  file-changed
+      (~(put in result) &+[here i.all-names])
+    $(all-names t.all-names)
+  ::  dir appeared or disappeared
+  =/  old-exists=?  |(?=(^ fil.old) !=(~ dir.old))
+  =/  new-exists=?  |(?=(^ fil.new) !=(~ dir.new))
+  =?  result  !=(old-exists new-exists)
+    (~(put in result) |+here)
+  ::  recurse into subdirs
+  =/  all-kids=(list @ta)
+    ~(tap in (~(uni in ~(key by dir.old)) ~(key by dir.new)))
+  |-  ^-  (set lane:tarball)
+  ?~  all-kids  result
+  =/  kid-old=ball:tarball  (fall (~(get by dir.old) i.all-kids) *ball:tarball)
+  =/  kid-new=ball:tarball  (fall (~(get by dir.new) i.all-kids) *ball:tarball)
+  =.  result
+    (~(uni in result) (changed-lanes-at (snoc here i.all-kids) kid-old kid-new))
+  $(all-kids t.all-kids)
 ::  External action type for pokes
 ::
 +$  action
