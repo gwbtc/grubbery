@@ -13,8 +13,10 @@
         =/  default-config=json
           %-  pairs:enjs:format
           :~  ['model' s+'claude-sonnet-4-20250514']
+              ['api-proxy' s+'anthropic']
               ['context_window' (numb:enjs:format 80.000)]
               ['message_cap' (numb:enjs:format 20.000)]
+              ['channel' s+'']
           ==
         =/  default-prompt=wain
           :~  'You are an AI assistant running inside the grubbery system on an Urbit ship.'
@@ -41,10 +43,9 @@
               ''
               '# Your filesystem'
               ''
-              '  ./config.json              -- config (model, api-proxy, context_window, message_cap)'
+              '  ./config.json              -- config (model, api-proxy, context_window, message_cap, channel)'
               '  ./page.html                -- your web UI'
               '  ./about.txt                -- your self-description (visible to other agents)'
-              '  ./channels.json            -- channel forwarding config'
               '  ./context/                 -- shared context (across all chats)'
               '    prompts/                 -- system prompt files (concatenated alphabetically)'
               '    memories/                -- persistent notes you write to remember things'
@@ -610,10 +611,9 @@
             [%fall %| /apps/code/lib [~ ~] [~ ~] empty-dir:loader]
             [%fall %| /apps/code/lib/tools [~ ~] [~ ~] empty-dir:loader]
             [%fall %| /apps/code/mar [~ ~] [~ ~] empty-dir:loader]
-            ::  /chats.json: manifest of active chats
-            [%fall %& [/ %'chats.json'] %.n [~ [/ %json] !>([%a ~[s+'main']])]]
-            ::  /channels.json: channel road for forwarding (relative to parent app)
-            [%fall %& [/ %'channels.json'] %.n [~ [/ %json] !>(s+'')]]
+            ::  /ui/chats.json: manifest of active chats
+            [%fall %| /ui [~ ~] [~ ~] empty-dir:loader]
+            [%fall %& [/ui %'chats.json'] %.n [~ [/ %json] !>([%a ~[s+'main']])]]
             ::  /about.txt: self-description visible to other agents
             =/  default-about=wain
               :~  'A general-purpose claw agent. No specific role assigned yet.'
@@ -648,7 +648,7 @@
           (sort dirs aor)
         =/  manifest=json  [%a (turn names |=(n=@t s+n))]
         ;<  chats-road=road:tarball  bind:m
-          (ancestor-road:io [/claw %agent] [%& / %'chats.json'])
+          (ancestor-road:io [/claw %agent] [%& /ui %'chats.json'])
         ;<  exists=?  bind:m  (peek-exists:io chats-road)
         ;<  ~  bind:m
           ?:  exists
@@ -734,8 +734,8 @@
           [[%chats @ ~] %'chat.json']
         =/  chat-name=@ta  i.t.path.rail
         ;<  ~  bind:m  (rise-wait:io prod "%claw chat: failed")
-        ::  if main chat, subscribe to channel inbox
-        ;<  chan-seen=@ud  bind:m  (init-channel-sub chat-name)
+        ::  if main chat, watch config and subscribe to channel inbox
+        ;<  [cur-chan=@t chan-seen=@ud]  bind:m  (init-channel-sub chat-name)
         |-
         ;<  =main-event  bind:m  take-main-event
         ~&  >>  ["%claw main.sig: got event" -.main-event]
@@ -782,6 +782,38 @@
             ;<  final=^convo  bind:m  (agent-turn chat-name model api-name ctx-window msg-cap updated tools)
             ;<  ~  bind:m  (set-status chat-name [%idle ~])
             ;<  ~  bind:m  (forward-to-channel chat-name final updated)
+            $
+          ::  config changed: check if channel field changed
+          ?:  ?=([%cfg ~] wire.main-event)
+            ?.  =(%main chat-name)  $
+            ;<  config=json  bind:m  read-config
+            =/  new-chan=@t  (get-str config 'channel')
+            ?:  =(new-chan cur-chan)  $
+            ~&  >  ["%claw: channel changed" cur-chan "=>" new-chan]
+            ::  drop old subscription if any
+            ;<  ~  bind:m
+              ?:  =('' cur-chan)  (pure:m ~)
+              =/  old-fold=path  (cord-to-path cur-chan)
+              ;<  old-road=road:tarball  bind:m
+                (ancestor-road:io [/claw %app] [%& (weld /channels old-fold) %'inbox.json'])
+              (drop:io /chan-inbox old-road)
+            ::  subscribe to new channel if any
+            ?:  =('' new-chan)
+              =.  cur-chan  ''
+              =.  chan-seen  0
+              $
+            =/  new-fold=path  (cord-to-path new-chan)
+            ;<  new-road=road:tarball  bind:m
+              (ancestor-road:io [/claw %app] [%& (weld /channels new-fold) %'inbox.json'])
+            ;<  inbox-view=view:nexus  bind:m  (keep:io /chan-inbox new-road ~)
+            =/  cnt=@ud
+              ?.  ?=(%file -.inbox-view)  0
+              =/  j=json  (fall (mole |.(!<(json q.sage.inbox-view))) *json)
+              ?.  ?=(%a -.j)  0
+              (lent p.j)
+            ~&  >>  ["%claw: subscribed to new channel, seen" cnt]
+            =.  cur-chan  new-chan
+            =.  chan-seen  cnt
             $
           ::  deferred tool result arrived via subscription
           ::  only handle /tool-done/* wires; ignore stale news from other subs
@@ -849,6 +881,9 @@
           ::
               %'set-model'
             =/  model=@t  (fall (bind (~(get by p.jon) 'model') |=(=json ?>(?=(%s -.json) p.json))) '')
+            ?:  =('' model)
+              ~&  >>>  "%claw: ignoring empty model"
+              $
             ;<  config=json  bind:m  read-config
             =/  updated=json
               [%o (~(put by ?>(?=(%o -.config) p.config)) 'model' s+model)]
@@ -893,12 +928,18 @@
             =/  chan-road=@t
               (fall (bind (~(get by p.jon) 'channel') |=(=json ?>(?=(%s -.json) p.json))) '')
             ?:  =('' chan-road)  $
-            ;<  ~  bind:m  (write-channels s+chan-road)
+            ;<  config=json  bind:m  read-config
+            =/  updated=json
+              [%o (~(put by ?>(?=(%o -.config) p.config)) 'channel' s+chan-road)]
+            ;<  ~  bind:m  (write-config updated)
             ~&  >  ["%claw: linked to channel" chan-road]
             $
           ::
               %'unlink-channel'
-            ;<  ~  bind:m  (write-channels s+'')
+            ;<  config=json  bind:m  read-config
+            =/  updated=json
+              [%o (~(put by ?>(?=(%o -.config) p.config)) 'channel' s+'')]
+            ;<  ~  bind:m  (write-config updated)
             ~&  >  "%claw: unlinked from channel"
             $
           ==
@@ -966,8 +1007,7 @@
         ==
           %|
         ?+  rail.p.mana  'File under claw.'
-          [~ %'config.json']                   'LLM config: model selection.'
-          [~ %'channels.json']                 'Channel road for forwarding assistant messages.'
+          [~ %'config.json']                   'Agent config: model, api-proxy, context_window, message_cap, channel.'
           [~ %'main.sig']                      'Chat lifecycle (create/delete) + message routing.'
           [~ %'page.html']                     'Chat interface.'
           [[%chats @ ~] %'chat.json']          'Chat conversation log + event loop. Pokes arrive here.'
@@ -1141,11 +1181,14 @@
 ::
 ++  init-channel-sub
   |=  chat-name=@ta
-  =/  m  (fiber:fiber:nexus ,@ud)
+  =/  m  (fiber:fiber:nexus ,[@t @ud])
   ^-  form:m
-  ?.  =(%main chat-name)  (pure:m 0)
+  ?.  =(%main chat-name)  (pure:m ['' 0])
+  ::  watch config for channel changes
+  ;<  cfg-road=road:tarball  bind:m  (ancestor-road:io [/claw %agent] [%& / %'config.json'])
+  ;<  *  bind:m  (keep:io /cfg cfg-road ~)
   ;<  chan-name=@t  bind:m  read-channel
-  ?:  =('' chan-name)  (pure:m 0)
+  ?:  =('' chan-name)  (pure:m ['' 0])
   =/  chan-fold=path  (cord-to-path chan-name)
   ;<  inbox-road=road:tarball  bind:m
     (ancestor-road:io [/claw %app] [%& (weld /channels chan-fold) %'inbox.json'])
@@ -1156,29 +1199,18 @@
     ?.  ?=(%a -.j)  0
     (lent p.j)
   ~&  >>  ["%claw: channel inbox subscribed, seen" cnt]
-  (pure:m cnt)
+  (pure:m [chan-name cnt])
 ::
 ++  read-channel
   =/  m  (fiber:fiber:nexus ,@t)
   ^-  form:m
-  ;<  road=road:tarball  bind:m  (ancestor-road:io [/claw %agent] [%& / %'channels.json'])
-  ;<  =seen:nexus  bind:m  (peek:io road ~)
-  ?.  ?=([%& %file *] seen)  (pure:m '')
-  =/  jon=json  (fall (mole |.(!<(json q.sage.p.seen))) *json)
-  ?.  ?=(%s -.jon)  (pure:m '')
-  (pure:m p.jon)
-::
-++  write-channels
-  |=  updated=json
-  =/  m  (fiber:fiber:nexus ,~)
-  ^-  form:m
-  ;<  road=road:tarball  bind:m  (ancestor-road:io [/claw %agent] [%& / %'channels.json'])
-  (over:io road [[/ %json] !>(updated)])
+  ;<  config=json  bind:m  read-config
+  (pure:m (get-str config 'channel'))
 ::
 ++  read-chat-list
   =/  m  (fiber:fiber:nexus ,(list @t))
   ^-  form:m
-  ;<  road=road:tarball  bind:m  (ancestor-road:io [/claw %agent] [%& / %'chats.json'])
+  ;<  road=road:tarball  bind:m  (ancestor-road:io [/claw %agent] [%& /ui %'chats.json'])
   ;<  =seen:nexus  bind:m  (peek:io road ~)
   ?.  ?=([%& %file *] seen)  (pure:m ~['main'])
   =/  jon=json  (fall (mole |.(!<(json q.sage.p.seen))) *json)
@@ -1189,7 +1221,7 @@
   |=  names=(list @t)
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
-  ;<  road=road:tarball  bind:m  (ancestor-road:io [/claw %agent] [%& / %'chats.json'])
+  ;<  road=road:tarball  bind:m  (ancestor-road:io [/claw %agent] [%& /ui %'chats.json'])
   (over:io road [[/ %json] !>([%a (turn names |=(n=@t s+n))])])
 ::
 ++  set-status
@@ -1427,7 +1459,7 @@
   =/  runtime-ctx=@t
     %-  crip
     ;:  weld
-      "Current time (UTC): {(en:datetime-local:iso-8601 now)}\0a"
+      ::  "Current time (UTC): {(en:datetime-local:iso-8601 now)}\0a"
       "Ship: {(scow %p our)}\0a"
       "Location: {(spud (snoc path.here name.here))}"
     ==
@@ -1452,10 +1484,16 @@
   =/  api-msgs-list=(list json)  (assemble convo effective-window msg-cap)
   ::  build API request body
   =/  api-msgs=json  [%a api-msgs-list]
+  =/  sys-block=json
+    %-  pairs:enjs:format
+    :~  ['type' s+'text']
+        ['text' s+sys-prompt]
+        ['cache_control' (pairs:enjs:format ~[['type' s+'ephemeral']])]
+    ==
   =/  body-pairs=(list [@t json])
     :~  ['model' s+model]
         ['max_tokens' (numb:enjs:format 4.096)]
-        ['system' s+sys-prompt]
+        ['system' [%a ~[sys-block]]]
         ['messages' api-msgs]
     ==
   =?  body-pairs  !=(~ tools)
@@ -2206,11 +2244,7 @@
         document.getElementById('cfg-proxy').value = cfg['api-proxy'] || 'anthropic';
         document.getElementById('cfg-window').value = cfg.context_window || '80000';
         document.getElementById('cfg-msgcap').value = cfg.message_cap || '20000';
-      }).catch(function() \{});
-    fetch(API + '/file/' + BALL + '/channels.json?mark=json')
-      .then(function(r) \{ return r.json() })
-      .then(function(ch) \{
-        document.getElementById('cfg-channel').value = (typeof ch === 'string') ? ch : '';
+        document.getElementById('cfg-channel').value = cfg.channel || '';
       }).catch(function() \{});
     document.getElementById('cfg-backdrop').classList.add('open');
   };
@@ -2218,34 +2252,16 @@
     document.getElementById('cfg-backdrop').classList.remove('open');
   };
   document.getElementById('cfg-save').onclick = function() \{
-    var model = document.getElementById('cfg-model').value.trim();
+    var model = document.getElementById('cfg-model').value.trim() || 'claude-sonnet-4-20250514';
     var proxy = document.getElementById('cfg-proxy').value.trim() || 'anthropic';
     var win = parseInt(document.getElementById('cfg-window').value) || 80000;
     var cap = parseInt(document.getElementById('cfg-msgcap').value) || 20000;
     var channel = document.getElementById('cfg-channel').value.trim();
-    fetch(API + '/poke/' + BALL + '/chats/' + CHAT + '/chat.json?mark=json', \{
-      method: 'POST',
-      headers: \{'Content-Type': 'application/json'},
-      body: JSON.stringify(\{action: 'set-model', model: model})
-    });
     fetch(API + '/over/' + BALL + '/config.json?mark=json', \{
       method: 'POST',
       headers: \{'Content-Type': 'application/json'},
-      body: JSON.stringify(\{model: model, 'api-proxy': proxy, context_window: win, message_cap: cap})
+      body: JSON.stringify(\{model: model, 'api-proxy': proxy, context_window: win, message_cap: cap, channel: channel})
     });
-    if (channel) \{
-      fetch(API + '/poke/' + BALL + '/chats/' + CHAT + '/chat.json?mark=json', \{
-        method: 'POST',
-        headers: \{'Content-Type': 'application/json'},
-        body: JSON.stringify(\{action: 'link-channel', channel: channel})
-      });
-    } else \{
-      fetch(API + '/poke/' + BALL + '/chats/' + CHAT + '/chat.json?mark=json', \{
-        method: 'POST',
-        headers: \{'Content-Type': 'application/json'},
-        body: JSON.stringify(\{action: 'unlink-channel'})
-      });
-    }
     document.getElementById('cfg-status').textContent = 'saved';
     setTimeout(function() \{
       document.getElementById('cfg-status').textContent = '';
@@ -2452,7 +2468,7 @@
 
   function connectChatListSSE() \{
     if (chatListEs) chatListEs.close();
-    chatListEs = new EventSource(API + '/keep/' + BALL + '/chats.json?mark=json');
+    chatListEs = new EventSource(API + '/keep/' + BALL + '/ui/chats.json?mark=json');
     chatListEs.addEventListener('upd chats.json', function(e) \{
       try \{ renderChatList(JSON.parse(e.data)); } catch(x) \{}
     });
@@ -2477,7 +2493,7 @@
   };
 
   try \{ var cached = JSON.parse(sessionStorage.getItem('claw-chats')); if (cached) renderChatList(cached, true); } catch(x) \{}
-  fetch(API + '/file/' + BALL + '/chats.json?mark=json')
+  fetch(API + '/file/' + BALL + '/ui/chats.json?mark=json')
     .then(function(r) \{ return r.json() })
     .then(function(d) \{ renderChatList(d); })
     .catch(function() \{ if (!sessionStorage.getItem('claw-chats')) renderChatList(['main']); });
