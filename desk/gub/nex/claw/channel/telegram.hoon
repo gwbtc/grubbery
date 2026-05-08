@@ -153,22 +153,33 @@
         ;<  =sage:tarball  bind:m  take-poke:io
         =/  jon=json  (fall (mole |.(!<(json q.sage))) *json)
         ?.  ?=(%o -.jon)  $
+        =/  action=(unit json)  (~(get by p.jon) 'action')
+        ::  typing: enter typing loop, re-send every 4s until next poke
+        ?:  =([~ s+'typing'] action)
+          ;<  ~  bind:m  (send-typing bot-token.cfg chat-id.cfg)
+          ;<  now=@da  bind:m  get-time:io
+          ;<  ~  bind:m  (send-wait:io (add now ~s4))
+          |-
+          ;<  result=poke-or-wake  bind:m  take-poke-or-wake
+          ?-    -.result
+              %wake
+            ;<  ~  bind:m  (send-typing bot-token.cfg chat-id.cfg)
+            ;<  now=@da  bind:m  get-time:io
+            ;<  ~  bind:m  (send-wait:io (add now ~s4))
+            $
+              %poke
+            ::  got a real poke while typing — send message and return to main loop
+            =/  jon=json  (fall (mole |.(!<(json q.p.result))) *json)
+            ?.  ?=(%o -.jon)  ^$
+            =/  text=(unit json)  (~(get by p.jon) 'text')
+            ?.  ?=([~ %s *] text)  ^$
+            ;<  ~  bind:m  (send-msg bot-token.cfg chat-id.cfg p.u.text)
+            ^$
+          ==
+        ::  normal message send
         =/  text=(unit json)  (~(get by p.jon) 'text')
         ?.  ?=([~ %s *] text)  $
-        ~&  >>  ["%tg-channel send:" p.u.text]
-        =/  url=@t
-          (rap 3 ~['https://api.telegram.org/bot' bot-token.cfg '/sendMessage'])
-        =/  req-body=@t
-          (rap 3 ~['chat_id=' chat-id.cfg '&text=' p.u.text])
-        =/  =request:http
-          :*  %'POST'
-              url
-              ~[['content-type' 'application/x-www-form-urlencoded']]
-              `(as-octs:mimes:html req-body)
-          ==
-        ;<  ~  bind:m  (send-request:io request)
-        ;<  =client-response:iris  bind:m  take-client-response:io
-        ~&  >>  "%tg-channel send: done"
+        ;<  ~  bind:m  (send-msg bot-token.cfg chat-id.cfg p.u.text)
         $
       ==
     ::
@@ -197,6 +208,72 @@
   $:  bot-token=@t
       chat-id=@t
   ==
+::
++$  poke-or-wake
+  $%  [%poke p=sage:tarball]
+      [%wake ~]
+  ==
+::
+::  +take-poke-or-wake: race a poke against a timer wake
+::
+++  take-poke-or-wake
+  =/  m  (fiber:fiber:nexus ,poke-or-wake)
+  ^-  form:m
+  |=  input:fiber:nexus
+  :+  ~  state
+  ?+  in  [%skip ~]
+      ~  [%wait ~]
+      [~ %veto *]
+    [%fail (veto-error:io dart.u.in)]
+      [~ %poke * *]
+    [%done %poke sage.u.in]
+      [~ %arvo [%wait @ ~] %behn %wake *]
+    ?~  error.sign.u.in
+      [%done %wake ~]
+    [%skip ~]
+  ==
+::
+::  +send-typing: fire sendChatAction typing
+::
+++  send-typing
+  |=  [bot-token=@t chat-id=@t]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  =/  url=@t
+    (rap 3 ~['https://api.telegram.org/bot' bot-token '/sendChatAction'])
+  =/  req-body=@t
+    (rap 3 ~['chat_id=' chat-id '&action=typing'])
+  =/  =request:http
+    :*  %'POST'
+        url
+        ~[['content-type' 'application/x-www-form-urlencoded']]
+        `(as-octs:mimes:html req-body)
+    ==
+  ;<  ~  bind:m  (send-request:io request)
+  ;<  =client-response:iris  bind:m  take-client-response:io
+  (pure:m ~)
+::
+::  +send-msg: send a text message via telegram bot API
+::
+++  send-msg
+  |=  [bot-token=@t chat-id=@t text=@t]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  ~&  >>  ["%tg-channel send:" text]
+  =/  url=@t
+    (rap 3 ~['https://api.telegram.org/bot' bot-token '/sendMessage'])
+  =/  req-body=@t
+    (rap 3 ~['chat_id=' chat-id '&text=' text])
+  =/  =request:http
+    :*  %'POST'
+        url
+        ~[['content-type' 'application/x-www-form-urlencoded']]
+        `(as-octs:mimes:html req-body)
+    ==
+  ;<  ~  bind:m  (send-request:io request)
+  ;<  =client-response:iris  bind:m  take-client-response:io
+  ~&  >>  "%tg-channel send: done"
+  (pure:m ~)
 ::
 ++  read-config
   =/  m  (fiber:fiber:nexus ,tg-config)

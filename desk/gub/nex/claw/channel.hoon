@@ -64,6 +64,19 @@
         ?.  ?=(%o -.jon)
           ~&  >>>  "%channel send: expected json object"
           $
+        ::  pass through typing indicator directly to source
+        =/  action=(unit json)  (~(get by p.jon) 'action')
+        ?:  ?&  ?=([~ %s *] action)
+                =('typing' p.u.action)
+            ==
+          =/  typing-body=json
+            %-  pairs:enjs:format
+            :~  ['action' s+'typing']
+                ['chat_id' s+chat-id.cfg]
+            ==
+          ;<  ~  bind:m  (poke:io bot-send [/ %json] !>(typing-body))
+          $
+        ::  handle normal message send
         =/  text=(unit json)  (~(get by p.jon) 'text')
         ?.  ?=([~ %s *] text)
           ~&  >>>  "%channel send: missing text field"

@@ -1246,6 +1246,23 @@
   ?~  t.texts  (crip acc)
   $(t.texts t.t.texts, acc (weld acc (weld "\0a\0a" (trip i.t.texts))))
 ::
+::  +signal-typing: send typing indicator to linked channel
+::
+++  signal-typing
+  |=  chat-name=@ta
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  ?.  =(%main chat-name)  (pure:m ~)
+  ;<  chan-name=@t  bind:m  read-channel
+  ?:  =('' chan-name)  (pure:m ~)
+  =/  chan-fold=path  (cord-to-path chan-name)
+  ;<  send-road=road:tarball  bind:m
+    (ancestor-road:io [/claw %app] [%& (weld /channels chan-fold) %'send.sig'])
+  =/  typing-body=json
+    (pairs:enjs:format ~[['action' s+'typing']])
+  ;<  ~  bind:m  (poke:io send-road [/ %json] !>(typing-body))
+  (pure:m ~)
+::
 ::  +forward-to-channel: if conv has a linked channel, send new assistant msgs
 ::
 ++  forward-to-channel
@@ -1499,6 +1516,8 @@
   =?  body-pairs  !=(~ tools)
     (snoc body-pairs ['tools' (tools-to-json tools)])
   =/  payload=json  (pairs:enjs:format body-pairs)
+  ::  signal typing to linked channel
+  ;<  ~  bind:m  (signal-typing chat-name)
   ~&  >  ["%claw: sending to" model]
   ::  call the api proxy via calls/ pattern
   ;<  proxy=road:tarball  bind:m  (resolve-proxy api-name)
