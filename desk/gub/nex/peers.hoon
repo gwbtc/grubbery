@@ -1,0 +1,435 @@
+::  peers nexus: usergroup + ship management
+::
+::  Binds /grubbery/peers/ via nex-server.
+::  Server-renders HTML from /sys/peer/ data.
+::  POST handlers for create/delete/edit operations.
+::
+/<  nex-server  /lib/nex/server.hoon
+=<  ^-  nexus:nexus
+    |%
+    ++  on-load
+      |=  [=sand:nexus =gain:nexus =ball:tarball]
+      ^-  [sand:nexus gain:nexus ball:tarball]
+      =/  =ver:loader  (get-ver:loader ball)
+      ?+  ver  !!
+          ?(~ [~ %0])
+        %+  spin:loader  [sand gain ball]
+        :~  (ver-row:loader 0)
+            [%fall %& [/ %'main.sig'] %.n [~ [/ %sig] !>(~)]]
+            [%fall %| /requests [~ ~] [~ ~] empty-dir:loader]
+        ==
+      ==
+    ::
+    ++  on-file
+      |=  [=rail:tarball =mark]
+      ^-  spool:fiber:nexus
+      |=  =prod:fiber:nexus
+      =/  m  (fiber:fiber:nexus ,~)
+      ^-  process:fiber:nexus
+      ?+    rail  stay:m
+          [~ %'main.sig']
+        ;<  ~  bind:m  (rise-wait:io prod "%peers /main: failed")
+        ;<  ~  bind:m  (bind-http:nex-server [~ /grubbery/peers])
+        (http-dispatch:nex-server %peers)
+          [[%requests ~] @]
+        ;<  ~  bind:m  (rise-wait:io prod "%peers /requests: failed")
+        =/  eyre-id=@ta  name.rail
+        ;<  [src=@p req=inbound-request:eyre]  bind:m  (get-state-as:io ,[src=@p inbound-request:eyre])
+        ;<  our=@p  bind:m  get-our:io
+        ?.  =(src our)
+          ;<  ~  bind:m  (send-simple:srv eyre-id [[403 ~] `(as-octs:mimes:html 'Forbidden')])
+          (pure:m ~)
+        =/  [site=path args=quay:eyre]  (parse-url:http-utils url.request.req)
+        =/  suffix=path  (slag 2 site)  :: strip /grubbery/peers
+        ?:  =('POST' method.request.req)
+          (handle-post eyre-id suffix req)
+        (handle-get eyre-id suffix)
+      ==
+    ::
+    ++  on-manu
+      |=  =mana:nexus
+      ^-  @t
+      ?-    -.mana
+          %&
+        ?+  p.mana  'Directory under peers.'
+            ~
+          'Peer management UI. Usergroups and ship permissions at /grubbery/peers/.'
+            [%requests ~]
+          'Per-request HTTP fibers.'
+        ==
+          %|
+        ?+  rail.p.mana  'File under peers.'
+          [~ %'main.sig']  'HTTP binding process for /grubbery/peers/.'
+        ==
+      ==
+    --
+::
+|%
+++  srv  ~(. res:nex-server [%| 1 %& ~ %'main.sig'])
+++  peer-base  /sys/peer
+::
+++  abs-file
+  |=  [=path name=@ta]
+  ^-  road:tarball
+  [%& %& [(weld peer-base path) name]]
+::
+++  abs-dir
+  |=  =path
+  ^-  road:tarball
+  [%& %| (weld peer-base path)]
+::
+::  HTTP handlers
+::
+++  handle-get
+  |=  [eyre-id=@ta suffix=path]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  ::  read all peer data
+  ;<  who-seen=seen:nexus  bind:m  (peek:io (abs-dir /usergroups/who) ~)
+  ;<  how-seen=seen:nexus  bind:m  (peek:io (abs-dir /usergroups/how) ~)
+  ;<  ships-seen=seen:nexus  bind:m  (peek:io (abs-dir /ships) ~)
+  =/  who-ball=ball:tarball
+    ?.  ?=([%& %ball *] who-seen)  [~ ~]
+    ball.p.who-seen
+  =/  how-ball=ball:tarball
+    ?.  ?=([%& %ball *] how-seen)  [~ ~]
+    ball.p.how-seen
+  =/  groups=(list group-info)  (read-groups who-ball how-ball)
+  =/  ships=(list @ta)
+    ?.  ?=([%& %ball *] ships-seen)  ~
+    (sort ~(tap in ~(key by dir.ball.p.ships-seen)) aor)
+  =/  page=manx  (render-page groups ships suffix)
+  =/  bod=octs  (as-octs:mimes:html (crip (en-xml:html page)))
+  ;<  ~  bind:m  (send-simple:srv eyre-id (mime-response:http-utils [/text/html bod]))
+  (pure:m ~)
+::
+++  handle-post
+  |=  [eyre-id=@ta suffix=path req=inbound-request:eyre]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  =/  body=@t
+    ?~  body.request.req  ''
+    q.u.body.request.req
+  ?+    suffix
+    ;<  ~  bind:m  (send-simple:srv eyre-id [[404 ~] `(as-octs:mimes:html 'Not found')])
+    (pure:m ~)
+  ::
+      [%create ~]
+    =/  name=@t  body
+    ?:  =('' name)
+      (redirect eyre-id)
+    =/  nam=@ta  (crip (trip name))
+    =/  who-road=road:tarball  (abs-file /usergroups/who nam)
+    =/  how-road=road:tarball  (abs-file /usergroups/how nam)
+    ;<  *  bind:m  (make-soft:io who-road |+[%.n [[/ %ships] !>(*(set @p))] ~])
+    ;<  *  bind:m  (make-soft:io how-road |+[%.n [[/ %weir] !>(*weir:nexus)] ~])
+    (redirect eyre-id)
+  ::
+      [%delete ~]
+    =/  nam=@ta  (crip (trip body))
+    ;<  *  bind:m  (cull-soft:io (abs-file /usergroups/who nam))
+    ;<  *  bind:m  (cull-soft:io (abs-file /usergroups/how nam))
+    (redirect eyre-id)
+  ::
+      [%members ~]
+    ::  body = "name\0amember1\0amember2..."
+    =/  lines=(list @t)  (split-lines body)
+    ?~  lines  (redirect eyre-id)
+    =/  nam=@ta  (crip (trip i.lines))
+    =/  ships=(set @p)
+      %-  ~(gas in *(set @p))
+      (murn t.lines |=(t=@t (slaw %p t)))
+    ;<  ~  bind:m  (over:io (abs-file /usergroups/who nam) [[/ %ships] !>(ships)])
+    (redirect eyre-id)
+  ::
+      [%permissions ~]
+    ::  body = "name\0amake:path1,path2\0apoke:path1\0apeek:path1"
+    =/  lines=(list @t)  (split-lines body)
+    ?~  lines  (redirect eyre-id)
+    =/  nam=@ta  (crip (trip i.lines))
+    =/  =weir:nexus  (parse-weir-lines t.lines)
+    ;<  ~  bind:m  (over:io (abs-file /usergroups/how nam) [[/ %weir] !>(weir)])
+    (redirect eyre-id)
+  ==
+::
+++  redirect
+  |=  eyre-id=@ta
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  =/  hed=response-header:http  [303 ~[['location' '/grubbery/peers/']]]
+  ;<  ~  bind:m  (send-header:srv eyre-id hed)
+  ;<  ~  bind:m  (send-data:srv eyre-id ~)
+  (pure:m ~)
+::
+::  Data reading
+::
++$  group-info
+  $:  name=@ta
+      members=(set @p)
+      =weir:nexus
+  ==
+::
+++  read-groups
+  |=  [who-ball=ball:tarball how-ball=ball:tarball]
+  ^-  (list group-info)
+  =/  who-names=(list @ta)
+    ?~  fil.who-ball  ~
+    (sort ~(tap in ~(key by contents.u.fil.who-ball)) aor)
+  %+  turn  who-names
+  |=  name=@ta
+  :+  name
+    (read-who who-ball name)
+  (read-how how-ball name)
+::
+++  read-who
+  |=  [=ball:tarball name=@ta]
+  ^-  (set @p)
+  ?~  fil.ball  ~
+  =/  c=(unit content:tarball)  (~(get by contents.u.fil.ball) name)
+  ?~  c  ~
+  =/  res  (mule |.(!<((set @p) q.sage.u.c)))
+  ?:(?=(%| -.res) ~ p.res)
+::
+++  read-how
+  |=  [=ball:tarball name=@ta]
+  ^-  weir:nexus
+  ?~  fil.ball  *weir:nexus
+  =/  c=(unit content:tarball)  (~(get by contents.u.fil.ball) name)
+  ?~  c  *weir:nexus
+  =/  res  (mule |.(!<(weir:nexus q.sage.u.c)))
+  ?:(?=(%| -.res) *weir:nexus p.res)
+::
+::  Parsing helpers
+::
+++  split-lines
+  |=  t=@t
+  ^-  (list @t)
+  =/  tape=(list @)  (trip t)
+  =|  acc=(list @t)
+  =|  cur=(list @)
+  |-
+  ?~  tape  (flop [(crip (flop cur)) acc])
+  ?:  =(i.tape 10)
+    $(tape t.tape, acc [(crip (flop cur)) acc], cur ~)
+  $(tape t.tape, cur [i.tape cur])
+::
+++  parse-road-text
+  |=  t=@t
+  ^-  road:tarball
+  =/  pax=path  (fall (rush t stap) /)
+  ?~  pax  [%& %| /]
+  =/  last=tape  (trip (rear pax))
+  ?~  (find "." last)
+    [%& %| pax]
+  [%& %& (snip `path`pax) (rear pax)]
+::
+++  road-to-text
+  |=  =road:tarball
+  ^-  tape
+  ?-  -.road
+      %&
+    ?-  -.p.road
+      %&  "{(spud path.p.p.road)}/{(trip name.p.p.road)}"
+      %|  (spud p.p.road)
+    ==
+      %|
+    ?-  -.q.p.road
+      %&  "{(spud path.p.q.p.road)}/{(trip name.p.q.p.road)}"
+      %|  (spud p.q.p.road)
+    ==
+  ==
+::
+++  parse-weir-lines
+  |=  lines=(list @t)
+  ^-  weir:nexus
+  =|  mk=(set road:tarball)
+  =|  pk=(set road:tarball)
+  =|  pe=(set road:tarball)
+  |-
+  ?~  lines  [mk pk pe]
+  =/  line=tape  (trip i.lines)
+  ?:  =("make:" (scag 5 line))
+    =/  roads=(list road:tarball)
+      (turn (split-commas (crip (slag 5 line))) parse-road-text)
+    $(lines t.lines, mk (~(uni in mk) (silt roads)))
+  ?:  =("poke:" (scag 5 line))
+    =/  roads=(list road:tarball)
+      (turn (split-commas (crip (slag 5 line))) parse-road-text)
+    $(lines t.lines, pk (~(uni in pk) (silt roads)))
+  ?:  =("peek:" (scag 5 line))
+    =/  roads=(list road:tarball)
+      (turn (split-commas (crip (slag 5 line))) parse-road-text)
+    $(lines t.lines, pe (~(uni in pe) (silt roads)))
+  $(lines t.lines)
+::
+++  split-commas
+  |=  t=@t
+  ^-  (list @t)
+  =/  tape=(list @)  (trip t)
+  =|  acc=(list @t)
+  =|  cur=(list @)
+  |-
+  ?~  tape
+    =/  s=@t  (crip (flop cur))
+    ?:(=('' s) (flop acc) (flop [s acc]))
+  ?:  =(i.tape ',')
+    $(tape t.tape, acc [(crip (flop cur)) acc], cur ~)
+  $(tape t.tape, cur [i.tape cur])
+::
+::  HTML rendering
+::
+++  render-page
+  |=  [groups=(list group-info) ships=(list @ta) suffix=path]
+  ^-  manx
+  ;html
+    ;head
+      ;title: Peers
+      ;meta(charset "utf-8");
+      ;style
+        ;+  ;/  %-  trip  %-  crip
+          ;:  weld
+            "* \{ margin:0; padding:0; box-sizing:border-box; }"
+            "body \{ font-family:monospace; max-width:720px; margin:0 auto; padding:2rem; background:#fafafa; color:#111; }"
+            "h1 \{ font-size:1.4rem; margin-bottom:1.5rem; }"
+            "h2 \{ font-size:1rem; margin-bottom:.5rem; color:#555; }"
+            ".group \{ background:#fff; border:1px solid #ddd; border-radius:6px; padding:1rem; margin-bottom:1rem; }"
+            ".group-hdr \{ display:flex; align-items:center; gap:.75rem; margin-bottom:.75rem; }"
+            ".group-hdr strong \{ font-size:.95rem; }"
+            ".group-hdr .count \{ color:#888; font-size:.8rem; }"
+            ".members \{ display:flex; flex-wrap:wrap; gap:4px; margin-bottom:.75rem; }"
+            ".ship \{ background:#eef; border:1px solid #ccd; border-radius:3px; padding:1px 6px; font-size:.75rem; }"
+            ".perms \{ font-size:.75rem; color:#666; }"
+            ".perms span \{ display:inline-block; background:#f0f0f0; border-radius:3px; padding:1px 5px; margin:1px; }"
+            "label \{ display:block; font-size:.7rem; color:#888; text-transform:uppercase; margin-top:.5rem; margin-bottom:.25rem; }"
+            "textarea \{ width:100%; font-family:monospace; font-size:.8rem; padding:.5rem; border:1px solid #ccc; border-radius:4px; resize:vertical; min-height:2.5rem; }"
+            "button \{ font-family:monospace; font-size:.8rem; padding:.25rem .75rem; border:1px solid #ccc; border-radius:4px; background:#fff; cursor:pointer; }"
+            "button:hover \{ background:#eee; }"
+            ".btn-red \{ color:#c44; border-color:#c44; }"
+            ".btn-red:hover \{ background:#fdd; }"
+            ".btn-grn \{ color:#2a2; border-color:#2a2; }"
+            ".btn-grn:hover \{ background:#dfd; }"
+            ".actions \{ display:flex; gap:.5rem; margin-top:.5rem; }"
+            ".create-form \{ display:flex; gap:.5rem; margin-bottom:1.5rem; }"
+            ".create-form input \{ font-family:monospace; font-size:.85rem; padding:.25rem .5rem; border:1px solid #ccc; border-radius:4px; }"
+            ".ships-section \{ margin-top:2rem; }"
+            ".ship-list \{ display:flex; flex-wrap:wrap; gap:4px; }"
+            ".empty \{ color:#999; font-size:.85rem; }"
+          ==
+      ==
+    ==
+    ;body
+      ;h1: Peers
+      ::  create group form
+      ;div(class "create-form")
+        ;input(id "new-name", type "text", placeholder "group name");
+        ;button(class "btn-grn", onclick "createGroup()"): + New Group
+      ==
+      ::  groups
+      ;div
+        ;*  (render-groups groups)
+      ==
+      ::  ships
+      ;div(class "ships-section")
+        ;h2: Ships ({(a-co:co (lent ships))})
+        ;div(class "ship-list")
+          ;*  (render-ships ships)
+        ==
+      ==
+      ;script
+        ;+  ;/  %-  trip  %-  crip
+          ;:  weld
+            "var BASE='/grubbery/peers/';\0a"
+            "function createGroup()\{\0a"
+            "  var n=document.getElementById('new-name').value.trim();\0a"
+            "  if(!n) return;\0a"
+            "  fetch(BASE+'create',\{method:'POST',body:n}).then(()=>location.reload());\0a"
+            "}\0a"
+            "function deleteGroup(name)\{\0a"
+            "  if(!confirm('Delete group '+name+'?')) return;\0a"
+            "  fetch(BASE+'delete',\{method:'POST',body:name}).then(()=>location.reload());\0a"
+            "}\0a"
+            "function saveMembers(name)\{\0a"
+            "  var ta=document.getElementById('mem-'+name);\0a"
+            "  var lines=ta.value.split('\\n').map(s=>s.trim()).filter(s=>s);\0a"
+            "  fetch(BASE+'members',\{method:'POST',body:name+'\\n'+lines.join('\\n')}).then(()=>location.reload());\0a"
+            "}\0a"
+            "function savePerms(name)\{\0a"
+            "  var mk=document.getElementById('make-'+name).value.trim();\0a"
+            "  var pk=document.getElementById('poke-'+name).value.trim();\0a"
+            "  var pe=document.getElementById('peek-'+name).value.trim();\0a"
+            "  var body=name;\0a"
+            "  if(mk) body+='\\nmake:'+mk;\0a"
+            "  if(pk) body+='\\npoke:'+pk;\0a"
+            "  if(pe) body+='\\npeek:'+pe;\0a"
+            "  fetch(BASE+'permissions',\{method:'POST',body:body}).then(()=>location.reload());\0a"
+            "}\0a"
+          ==
+      ==
+    ==
+  ==
+::
+++  render-groups
+  |=  groups=(list group-info)
+  ^-  marl
+  ?~  groups
+    =/  m=manx  ;span(class "empty"): No usergroups
+    ~[m]
+  (turn groups render-group)
+::
+++  render-ships
+  |=  ships=(list @ta)
+  ^-  marl
+  ?~  ships
+    =/  m=manx  ;span(class "empty"): No ships
+    ~[m]
+  %+  turn  ships
+  |=  s=@ta
+  ^-  manx
+  ;span(class "ship"): {(trip s)}
+::
+++  render-group
+  |=  =group-info
+  ^-  manx
+  =/  n=tape  (trip name.group-info)
+  =/  mem-list=(list @p)  (sort ~(tap in members.group-info) aor)
+  =/  mem-text=tape
+    %+  join  "\0a"
+    (turn mem-list |=(s=@p (trip (scot %p s))))
+  =/  make-text=tape
+    %+  join  ","
+    (turn ~(tap in make.weir.group-info) road-to-text)
+  =/  poke-text=tape
+    %+  join  ","
+    (turn ~(tap in poke.weir.group-info) road-to-text)
+  =/  peek-text=tape
+    %+  join  ","
+    (turn ~(tap in peek.weir.group-info) road-to-text)
+  ;div(class "group")
+    ;div(class "group-hdr")
+      ;strong: {n}
+      ;span(class "count"): {(a-co:co (lent mem-list))} members
+      ;button(class "btn-red", onclick "deleteGroup('{n}')"):  x
+    ==
+    ;label: Members (one ~ship per line)
+    ;textarea(id "mem-{n}", rows "3"): {mem-text}
+    ;div(class "actions")
+      ;button(class "btn-grn", onclick "saveMembers('{n}')"): Save Members
+    ==
+    ;label: Make permissions (comma-separated paths)
+    ;input(id "make-{n}", type "text", value "{make-text}", style "width:100%;font-family:monospace;font-size:.8rem;padding:.25rem .5rem;border:1px solid #ccc;border-radius:4px;");
+    ;label: Poke permissions
+    ;input(id "poke-{n}", type "text", value "{poke-text}", style "width:100%;font-family:monospace;font-size:.8rem;padding:.25rem .5rem;border:1px solid #ccc;border-radius:4px;");
+    ;label: Peek permissions
+    ;input(id "peek-{n}", type "text", value "{peek-text}", style "width:100%;font-family:monospace;font-size:.8rem;padding:.25rem .5rem;border:1px solid #ccc;border-radius:4px;");
+    ;div(class "actions")
+      ;button(class "btn-grn", onclick "savePerms('{n}')"): Save Permissions
+    ==
+  ==
+::
+++  join
+  |=  [del=tape ts=(list tape)]
+  ^-  tape
+  ?~  ts  ~
+  ?~  t.ts  i.ts
+  :(weld i.ts del $(ts t.ts))
+--
