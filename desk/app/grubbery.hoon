@@ -1644,16 +1644,18 @@
       ::  Create file or directory.
       ::  If mark is set on a file make, convert the cage to the
       ::  destination mark via cached tube before storing.
-      =/  =make:nexus
-        ?.  ?=(%| -.make.load.dart)
-          make.load.dart
-        ?~  mark.p.make.load.dart
-          make.load.dart
-        ?:  =(name.p.sage.p.make.load.dart u.mark.p.make.load.dart)
-          make.load.dart
-        =/  =tube:clay  (get-tube cod [p.sage.p.make.load.dart [/ u.mark.p.make.load.dart]])
-        make.load.dart(sage.p [[/ u.mark.p.make.load.dart] (tube q.sage.p.make.load.dart)])
-      =/  res=(each _this tang)  (mule |.((^make u.dest-lane make)))
+      =/  res=(each _this tang)
+        %-  mule  |.
+        =/  =make:nexus
+          ?.  ?=(%| -.make.load.dart)
+            make.load.dart
+          ?~  mark.p.make.load.dart
+            make.load.dart
+          ?:  =(name.p.sage.p.make.load.dart u.mark.p.make.load.dart)
+            make.load.dart
+          =/  =tube:clay  (get-tube cod [p.sage.p.make.load.dart [/ u.mark.p.make.load.dart]])
+          make.load.dart(sage.p [[/ u.mark.p.make.load.dart] (tube q.sage.p.make.load.dart)])
+        (^make u.dest-lane make)
       ?-  -.res
         %&  (enqu-take:p.res here (sys-give /made) ~ %made wire.dart ~)
         %|  (enqu-take here (sys-give /made) ~ %made wire.dart `p.res)
