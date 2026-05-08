@@ -402,9 +402,7 @@
           ;<  *  bind:m  take-poke:io
           $
         ;<  ~  bind:m  (set-status 'syncing')
-        ::  always fetch from remote
-        ::  full clone
-        ~&  >>  "%git/repo: cloning..."
+        ::  discover remote refs
         ;<  disc=discovery:git-transport  bind:m
           (fetch-discovery repo.cfg)
         ~&  >>  ["%git/repo: found" (lent refs.disc) "refs"]
@@ -414,54 +412,89 @@
           (ancestor-road:io [/git %repo] [%& / %'config.json'])
         ;<  ~  bind:m
           (over:io sync-cfg-rd [[/ %json] !>((pairs:enjs:format ~[['repo' s+repo.cfg] ['ref' s+ref.cfg] ['token' s+token.cfg]]))])
-        ~&  >>  "%git/repo: fetching pack..."
-        =/  want-hashes=(list @ux)
-          (turn refs.disc |=(r=git-ref:git-transport hash.r))
-        ;<  pack-body=octs  bind:m
-          (fetch-pack repo.cfg (build-want:git-transport want-hashes ~['side-band-64k' 'ofs-delta'] ~))
-        ~&  >>  ["%git/repo: pack received" p.pack-body "bytes"]
-        =/  pack-data=octs
-          (extract-pack:git-transport pack-body %.y)
-        ~&  >>  "%git/repo: parsing pack..."
-        =/  =pack:git-pack
-          (read:git-pack (from-octs:bytestream pack-data))
-        ~&  >>  ["%git/repo: unpacked" count.pack "objects"]
-        =/  repo=repository:git-repo
-          (~(clone-from-pack git-repo *repository:git-repo) pack refs.disc)
-        ::  build index text
-        ?<  ?=(~ archive.object-store.repo)
-        =/  pak=pack:git-pack  i.archive.object-store.repo
-        =/  all-entries=(list [key=hash:git-repo val=@ud])
-          (tap:pack-on:git-pack index.pak)
-        =/  idx-text=tape
-          %-  zing
-          %+  turn  all-entries
-          |=  [key=hash:git-repo val=@ud]
-          "{(print-hash-sha-1:git-transport key)} {(a-co:co val)}\0a"
-        ::  extract branch refs
-        =/  branch-refs=(list [name=@t hash=hash:git-repo])
-          %+  murn  refs.disc
-          |=  r=git-ref:git-transport
-          ?.  =(`(list @t)`~['refs' 'heads'] (scag 2 refname.r))  ~
-          =/  branch-name=@t
-            (crip (join:git-transport '/' (turn (slag 2 refname.r) trip)))
-          `[branch-name hash.r]
-        ::  resolve HEAD hash
-        =/  active-ref=@t  ?:(=('' ref.cfg) 'main' ref.cfg)
-        =/  ref-hash=(unit @ux)
-          =+  got=(get:refs:~(. git-repo repo) ~[active-ref])
-          ?^  got  got
-          (get:refs:~(. git-repo repo) ~['refs' 'heads' active-ref])
-        =/  head-hash=@ux  (fall ref-hash 0x0)
-        =/  head-text=@t  (crip (print-hash-sha-1:git-transport head-hash))
-        ~&  >>  ["%git/repo: saving to data nexus"]
-        ::  write all repo data then reload
-        ;<  ~  bind:m  (save-repo pack-data idx-text branch-refs head-text active-ref)
-        ;<  sync-data-rd=road:tarball  bind:m
-          (ancestor-road:io [/git %repo] [%| /data])
-        ;<  ~  bind:m  (reload:io sync-data-rd)
-        ~&  >>  "%git/repo: reload triggered"
-        ;<  ~  bind:m  (set-status 'idle')
+        ::  check if we already have packs (incremental vs full clone)
+        ;<  repo-result=(unit repository:git-repo)  bind:m  load-repo-maybe
+        ?^  repo-result
+          ::  === incremental fetch ===
+          ~&  >>  "%git/repo: incremental fetch..."
+          =/  repo=repository:git-repo  u.repo-result
+          ::  collect all known hashes as haves
+          =/  have-hashes=(list @ux)
+            %+  roll  archive.object-store.repo
+            |=  [=pack:git-pack acc=(list @ux)]
+            (weld (turn (tap:pack-on:git-pack index.pack) head) acc)
+          =/  have-set=(set @ux)  (silt have-hashes)
+          ::  compute wants: remote ref hashes we don't have
+          =/  want-hashes=(list @ux)
+            %+  murn  refs.disc
+            |=  r=git-ref:git-transport
+            ?:  (~(has in have-set) hash.r)  ~
+            `hash.r
+          ?~  want-hashes
+            ~&  >>  "%git/repo: already up to date"
+            ;<  ~  bind:m  (set-status 'idle')
+            ;<  *  bind:m  take-poke:io
+            $
+          ~&  >>  ["%git/repo: fetching" (lent want-hashes) "new objects"]
+          ;<  pack-body=octs  bind:m
+            (fetch-pack repo.cfg (build-want:git-transport want-hashes ~['side-band-64k' 'ofs-delta'] ~ have-hashes))
+          ~&  >>  ["%git/repo: pack received" p.pack-body "bytes"]
+          =/  new-pack-data=octs
+            (extract-pack:git-transport pack-body %.y)
+          ~&  >>  ["%git/repo: extracted" p.new-pack-data "bytes"]
+          ?:  =(0 p.new-pack-data)
+            ~&  >>  "%git/repo: empty pack, already up to date"
+            ;<  ~  bind:m  (update-refs disc ref.cfg)
+            ;<  sync-data-rd=road:tarball  bind:m
+              (ancestor-road:io [/git %repo] [%| /data])
+            ;<  ~  bind:m  (reload:io sync-data-rd)
+            ;<  ~  bind:m  (set-status 'idle')
+            ;<  *  bind:m  take-poke:io
+            $
+          ::  parse new pack to build its index
+          =/  new-pack=pack:git-pack
+            (read:git-pack (from-octs:bytestream new-pack-data))
+          ~&  >>  ["%git/repo: unpacked" count.new-pack "new objects"]
+          ::  build index text for new pack
+          =/  new-entries=(list [key=hash:git-repo val=@ud])
+            (tap:pack-on:git-pack index.new-pack)
+          =/  idx-text=tape
+            %-  zing
+            %+  turn  new-entries
+            |=  [key=hash:git-repo val=@ud]
+            "{(print-hash-sha-1:git-transport key)} {(a-co:co val)}\0a"
+          ::  next pack number = count of existing packs
+          =/  pack-num=@ud  (lent archive.object-store.repo)
+          ::  extract branch refs
+          =/  branch-refs=(list [name=@t hash=hash:git-repo])
+            %+  murn  refs.disc
+            |=  r=git-ref:git-transport
+            ?.  =(`(list @t)`~['refs' 'heads'] (scag 2 refname.r))  ~
+            =/  branch-name=@t
+              (crip (join:git-transport '/' (turn (slag 2 refname.r) trip)))
+            `[branch-name hash.r]
+          ::  resolve HEAD
+          =/  active-ref=@t  ?:(=('' ref.cfg) 'main' ref.cfg)
+          =/  head-hash=@ux
+            =/  match=(unit hash:git-repo)
+              %-  ~(rep by (malt branch-refs))
+              |=  [[name=@t =hash:git-repo] found=(unit hash:git-repo)]
+              ?^  found  found
+              ?:  =(name active-ref)  `hash
+              ~
+            (fall match 0x0)
+          =/  head-text=@t  (crip (print-hash-sha-1:git-transport head-hash))
+          ~&  >>  ["%git/repo: saving as pack-" pack-num]
+          ;<  ~  bind:m  (save-repo new-pack-data idx-text pack-num branch-refs head-text active-ref)
+          ;<  sync-data-rd=road:tarball  bind:m
+            (ancestor-road:io [/git %repo] [%| /data])
+          ;<  ~  bind:m  (reload:io sync-data-rd)
+          ~&  >>  "%git/repo: incremental fetch complete"
+          ;<  ~  bind:m  (set-status 'idle')
+          ;<  *  bind:m  take-poke:io
+          $
+        ::  === full clone ===
+        ;<  ~  bind:m  (do-full-clone cfg disc)
         ;<  *  bind:m  take-poke:io
         $
           ::  /actions/push.sig: push files to GitHub via REST API
@@ -760,11 +793,95 @@
     (over:io road sage)
   (make:io road |+[%.n sage ~])
 ::
+::  +do-full-clone: full clone from discovery
+::
+++  do-full-clone
+  |=  [cfg=repo-config disc=discovery:git-transport]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  ~&  >>  "%git/repo: full clone..."
+  ~&  >>  "%git/repo: fetching pack..."
+  =/  want-hashes=(list @ux)
+    (turn refs.disc |=(r=git-ref:git-transport hash.r))
+  ;<  pack-body=octs  bind:m
+    (fetch-pack repo.cfg (build-want:git-transport want-hashes ~['side-band-64k' 'ofs-delta'] ~ ~))
+  ~&  >>  ["%git/repo: pack received" p.pack-body "bytes"]
+  =/  pack-data=octs
+    (extract-pack:git-transport pack-body %.y)
+  ~&  >>  "%git/repo: parsing pack..."
+  =/  =pack:git-pack
+    (read:git-pack (from-octs:bytestream pack-data))
+  ~&  >>  ["%git/repo: unpacked" count.pack "objects"]
+  =/  repo=repository:git-repo
+    (~(clone-from-pack git-repo *repository:git-repo) pack refs.disc)
+  ::  build index text
+  ?<  ?=(~ archive.object-store.repo)
+  =/  pak=pack:git-pack  i.archive.object-store.repo
+  =/  all-entries=(list [key=hash:git-repo val=@ud])
+    (tap:pack-on:git-pack index.pak)
+  =/  idx-text=tape
+    %-  zing
+    %+  turn  all-entries
+    |=  [key=hash:git-repo val=@ud]
+    "{(print-hash-sha-1:git-transport key)} {(a-co:co val)}\0a"
+  ::  extract branch refs
+  =/  branch-refs=(list [name=@t hash=hash:git-repo])
+    %+  murn  refs.disc
+    |=  r=git-ref:git-transport
+    ?.  =(`(list @t)`~['refs' 'heads'] (scag 2 refname.r))  ~
+    =/  branch-name=@t
+      (crip (join:git-transport '/' (turn (slag 2 refname.r) trip)))
+    `[branch-name hash.r]
+  ::  resolve HEAD hash
+  =/  active-ref=@t  ?:(=('' ref.cfg) 'main' ref.cfg)
+  =/  ref-hash=(unit @ux)
+    =+  got=(get:refs:~(. git-repo repo) ~[active-ref])
+    ?^  got  got
+    (get:refs:~(. git-repo repo) ~['refs' 'heads' active-ref])
+  =/  head-hash=@ux  (fall ref-hash 0x0)
+  =/  head-text=@t  (crip (print-hash-sha-1:git-transport head-hash))
+  ~&  >>  "%git/repo: saving to data nexus"
+  ::  clear old packs before writing fresh clone
+  ;<  packs-rd=road:tarball  bind:m  (ancestor-road:io [/git %repo] [%| /data/packs])
+  ;<  *  bind:m  (cull-soft:io packs-rd)
+  ;<  ~  bind:m  (save-repo pack-data idx-text 0 branch-refs head-text active-ref)
+  ;<  sync-data-rd=road:tarball  bind:m
+    (ancestor-road:io [/git %repo] [%| /data])
+  ;<  ~  bind:m  (reload:io sync-data-rd)
+  ~&  >>  "%git/repo: clone complete"
+  (set-status 'idle')
+::
+::  +update-refs: write updated remote refs without touching pack
+::
+++  update-refs
+  |=  [disc=discovery:git-transport active-ref=@t]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  =/  branch-refs=(list [name=@t hash=hash:git-repo])
+    %+  murn  refs.disc
+    |=  r=git-ref:git-transport
+    ?.  =(`(list @t)`~['refs' 'heads'] (scag 2 refname.r))  ~
+    =/  branch-name=@t
+      (crip (join:git-transport '/' (turn (slag 2 refname.r) trip)))
+    `[branch-name hash.r]
+  |-
+  ?~  branch-refs  (pure:m ~)
+  =/  hash-text=tape  (print-hash-sha-1:git-transport hash.i.branch-refs)
+  =/  hash-octs=octs  (as-octt:bytestream hash-text)
+  =/  bname=@ta  (crip (trip name.i.branch-refs))
+  ;<  remote-rd=road:tarball  bind:m
+    (ancestor-road:io [/git %repo] [%& /data/refs/remotes/origin bname])
+  ;<  ~  bind:m  (write-repo-file remote-rd [[/ %mime] !>([/text/plain hash-octs])])
+  $(branch-refs t.branch-refs)
+::
 ::  +save-repo: write pack + index + refs + HEAD into repo sub-nexus
+::
+::  pack-num is the pack slot to write (0 for full clone, N for incremental)
 ::
 ++  save-repo
   |=  $:  pack-data=octs
           idx-text=tape
+          pack-num=@ud
           branch-refs=(list [name=@t hash=hash:git-repo])
           head-text=@t
           ref-name=@t
@@ -772,11 +889,13 @@
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
   =/  idx-octs=octs  (as-octt:bytestream idx-text)
+  =/  pack-name=@ta  (crip "pack-{(a-co:co pack-num)}.pack")
+  =/  idx-name=@ta  (crip "pack-{(a-co:co pack-num)}.idx")
   ::  HEAD = "ref: refs/heads/<branch>"
   =/  head-octs=octs  (as-octt:bytestream "ref: refs/heads/{(trip ref-name)}")
-  ;<  rd1=road:tarball  bind:m  (ancestor-road:io [/git %repo] [%& /data %'pack.dat'])
+  ;<  rd1=road:tarball  bind:m  (ancestor-road:io [/git %repo] [%& /data/packs pack-name])
   ;<  ~  bind:m  (write-repo-file rd1 [[/ %mime] !>([/application/octet-stream pack-data])])
-  ;<  rd2=road:tarball  bind:m  (ancestor-road:io [/git %repo] [%& /data %'pack.idx'])
+  ;<  rd2=road:tarball  bind:m  (ancestor-road:io [/git %repo] [%& /data/packs idx-name])
   ;<  ~  bind:m  (write-repo-file rd2 [[/ %mime] !>([/text/plain idx-octs])])
   ;<  rd4=road:tarball  bind:m  (ancestor-road:io [/git %repo] [%& /data %'HEAD'])
   ;<  ~  bind:m  (write-repo-file rd4 [[/ %mime] !>([/text/plain head-octs])])
@@ -872,44 +991,42 @@
   ;<  rd=road:tarball  bind:m  (ancestor-road:io [/git %repo] [%& /ui %'status.json'])
   (over:io rd [[/ %json] !>((pairs:enjs:format ~[['status' s+s]]))])
 ::
-::  +load-repo-from-ns: rebuild git repository from ./data/ namespace files
+::  +load-repo-maybe: rebuild repository from ./data/ if packs exist
 ::
-++  load-repo-from-ns
-  =/  m  (fiber:fiber:nexus ,repository:git-repo)
+::  Returns ~ if no packs found (triggers full clone).
+::
+++  load-repo-maybe
+  =/  m  (fiber:fiber:nexus ,(unit repository:git-repo))
   ^-  form:m
-  ;<  pack-road=road:tarball  bind:m  (ancestor-road:io [/git %repo] [%& /data %'pack.dat'])
-  ;<  pack-seen=seen:nexus  bind:m  (peek:io pack-road `%mime)
-  ?.  ?=([%& %file *] pack-seen)
-    ~|  "%git/repo: no pack data"  !!
-  =/  pack-mim=mime  !<(mime q.sage.p.pack-seen)
-  ;<  idx-road=road:tarball  bind:m  (ancestor-road:io [/git %repo] [%& /data %'pack.idx'])
-  ;<  idx-seen=seen:nexus  bind:m  (peek:io idx-road `%mime)
-  ?.  ?=([%& %file *] idx-seen)
-    ~|  "%git/repo: no pack index"  !!
-  =/  idx-mim=mime  !<(mime q.sage.p.idx-seen)
-  =/  idx-text=tape  (trip q.q.idx-mim)
-  =/  idx=pack-index:git-pack
-    (rebuild-index (split:git-transport idx-text `@t`10))
-  =/  entries=(list [key=hash:git-repo val=@ud])
-    (tap:pack-on:git-pack idx)
-  =/  sea=bays:bytestream  (from-octs:bytestream q.pack-mim)
-  =/  pak=pack:git-pack
-    [%sha-1 (lent entries) idx p.q.pack-mim sea]
+  ;<  packs-road=road:tarball  bind:m  (ancestor-road:io [/git %repo] [%| /data/packs])
+  ;<  packs-seen=seen:nexus  bind:m  (peek:io packs-road ~)
+  ?.  ?=([%& %ball *] packs-seen)  (pure:m ~)
+  =/  archive=(list pack:git-pack)
+    (load-packs-from-ball ball.p.packs-seen)
+  ?~  archive  (pure:m ~)
   ;<  heads-road=road:tarball  bind:m
     (ancestor-road:io [/git %repo] [%| /data/refs/heads])
   ;<  heads-seen=seen:nexus  bind:m  (peek:io heads-road ~)
   =/  built-refs=(axal ref:git-repo)
     ?.  ?=([%& %ball *] heads-seen)  [~ ~]
     (refs-from-ball ball.p.heads-seen ~['refs' 'heads'])
-  ::  read loose objects from ./data/objects/ directory
   ;<  obj-road=road:tarball  bind:m  (ancestor-road:io [/git %repo] [%| /data/objects])
   ;<  obj-seen=seen:nexus  bind:m  (peek:io obj-road ~)
   =/  loose=(map hash:git-repo object:git-obj)
     ?.  ?=([%& %ball *] obj-seen)  ~
     (read-loose-from-ball ball.p.obj-seen)
   =/  repo=repository:git-repo
-    [%sha-1 [loose ~[pak]] built-refs ~ ~]
-  (pure:m repo)
+    [%sha-1 [loose archive] built-refs ~ ~]
+  (pure:m `repo)
+::
+::  +load-repo-from-ns: rebuild git repository from ./data/ namespace files
+::
+++  load-repo-from-ns
+  =/  m  (fiber:fiber:nexus ,repository:git-repo)
+  ^-  form:m
+  ;<  result=(unit repository:git-repo)  bind:m  load-repo-maybe
+  ?~  result  ~|("%git/repo: no pack data" !!)
+  (pure:m u.result)
 ::
 ::  +refs-from-ball: read ref files from a ball directory into axal
 ::
@@ -941,6 +1058,44 @@
   =/  raw=raw-object:git-obj  (raw-from-octs:git-obj q.m)
   =/  obj=object:git-obj  (parse-raw:git-obj %sha-1 raw)
   (~(put by acc) u.h obj)
+::
+::  +load-packs-from-ball: read all pack-N.pack + pack-N.idx pairs from a packs ball
+::
+++  load-packs-from-ball
+  |=  =ball:tarball
+  ^-  (list pack:git-pack)
+  ?~  fil.ball  ~
+  =/  all-files=(list @ta)  ~(tap in ~(key by contents.u.fil.ball))
+  =/  pack-nums=(list @ud)
+    %+  murn  all-files
+    |=  name=@ta
+    =/  t=tape  (trip name)
+    ?.  =("pack-" (scag 5 t))  ~
+    ?.  =(".pack" (slag (sub (lent t) 5) t))  ~
+    =/  num-text=tape  (slag 5 (scag (sub (lent t) 5) t))
+    (rust num-text dem)
+  =/  sorted=(list @ud)  (sort pack-nums lth)
+  %+  murn  sorted
+  |=  n=@ud
+  ^-  (unit pack:git-pack)
+  =/  pack-name=@ta  (crip "pack-{(a-co:co n)}.pack")
+  =/  idx-name=@ta  (crip "pack-{(a-co:co n)}.idx")
+  =/  pack-content=(unit content:tarball)
+    (~(get by contents.u.fil.ball) pack-name)
+  =/  idx-content=(unit content:tarball)
+    (~(get by contents.u.fil.ball) idx-name)
+  ?~  pack-content  ~
+  ?~  idx-content  ~
+  =/  pack-mim=mime  !<(mime q.sage.u.pack-content)
+  ?:  =(0 p.q.pack-mim)  ~
+  =/  idx-mim=mime  !<(mime q.sage.u.idx-content)
+  =/  idx-text=tape  (trip q.q.idx-mim)
+  =/  idx=pack-index:git-pack
+    (rebuild-index (split:git-transport idx-text `@t`10))
+  =/  sea=bays:bytestream  (from-octs:bytestream q.pack-mim)
+  =/  entries=(list [key=hash:git-repo val=@ud])
+    (tap:pack-on:git-pack idx)
+  `[%sha-1 (lent entries) idx p.q.pack-mim sea]
 ::
 ++  rebuild-index
   |=  lines=(list tape)
@@ -1034,11 +1189,13 @@
   |=  [=request:http]
   =/  m  (fiber:fiber:nexus ,octs)
   ^-  form:m
+  ~&  >  ["%git/repo: HTTP" method.request url.request]
   ;<  ~  bind:m  (send-request:io request)
   ;<  =client-response:iris  bind:m  take-client-response:io
   ?.  ?=(%finished -.client-response)
     ~|  "%git/repo: request failed (not finished)"  !!
   =/  status  status-code.response-header.client-response
+  ~&  >  ["%git/repo: HTTP response" status]
   ?:  ?|  =(status 301)
           =(status 302)
           =(status 307)
@@ -1047,6 +1204,7 @@
       (~(get by (malt headers.response-header.client-response)) 'location')
     ?~  location
       ~|  "%git/repo: redirect without location header"  !!
+    ~&  >  ["%git/repo: following redirect to" u.location]
     =/  redir=request:http
       [%'GET' u.location ~[['User-Agent' 'grubbery']] ~]
     ;<  ~  bind:m  (send-request:io redir)
@@ -1054,11 +1212,13 @@
     ?.  ?=(%finished -.client-response)
       ~|  "%git/repo: redirect failed"  !!
     ?.  =(200 status-code.response-header.client-response)
+      ~&  >>>  ["%git/repo: redirect status" status-code.response-header.client-response]
       ~|  "%git/repo: non-200 after redirect"  !!
     ?~  full-file.client-response
       ~|  "%git/repo: empty response after redirect"  !!
     (pure:m data.u.full-file.client-response)
   ?.  =(200 status)
+    ~&  >>>  ["%git/repo: HTTP failed" status method.request url.request]
     ~|  "%git/repo: unexpected status {<status>}"  !!
   ?~  full-file.client-response
     ~|  "%git/repo: empty response"  !!

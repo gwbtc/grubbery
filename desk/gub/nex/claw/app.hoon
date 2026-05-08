@@ -122,6 +122,7 @@
                 ['api-proxy' s+'anthropic']
                 ['context_window' (numb:enjs:format 80.000)]
                 ['message_cap' (numb:enjs:format 20.000)]
+                ['channel' s+'']
             ==
           =/  cfg-road=road:tarball
             (cord-to-road:tarball (crip "./agents/{(trip name)}/config.json"))

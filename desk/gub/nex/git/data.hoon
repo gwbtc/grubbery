@@ -4,8 +4,8 @@
 ::  the tree at HEAD and builds commit log + branch list.
 ::
 ::  Ball layout (inputs — written by parent):
-::    pack.dat              raw pack bytes (mime)
-::    pack.idx              index: "hex-hash offset\n" per line (mime)
+::    packs/pack-N.pack     raw pack bytes (mime), N = 0, 1, 2, ...
+::    packs/pack-N.idx      pack index: "hex-hash offset\n" per line (mime)
 ::    HEAD                  "ref: refs/heads/<branch>" or raw hash (detached)
 ::    refs/heads/<branch>   local branch ref (mime, hash text)
 ::    refs/remotes/origin/<branch>  remote tracking ref (mime, hash text)
@@ -31,31 +31,14 @@
     ++  on-load
       |=  [=sand:nexus =gain:nexus =ball:tarball]
       ^-  [sand:nexus gain:nexus ball:tarball]
-      ::  check for pack data
-      =/  pack-content=(unit content:tarball)
-        (~(get ba:tarball ball) [/ %'pack.dat'])
-      ?~  pack-content  [sand gain ball]
-      =/  pack-mim=mime  !<(mime q.sage.u.pack-content)
-      ?:  =(0 p.q.pack-mim)  [sand gain ball]
+      ::  load all packs from packs/ directory
+      =/  archive=(list pack:git-pack)  (load-packs ball)
+      ?~  archive  [sand gain ball]
       ::  check for HEAD
       =/  parsed-head=(unit [branch=(unit @t) hash=@ux])
         (parse-head ball)
       ?~  parsed-head  [sand gain ball]
       =/  commit-hash=@ux  hash.u.parsed-head
-      ::  check for index
-      =/  idx-content=(unit content:tarball)
-        (~(get ba:tarball ball) [/ %'pack.idx'])
-      ?~  idx-content  [sand gain ball]
-      =/  idx-mim=mime  !<(mime q.sage.u.idx-content)
-      =/  idx-text=tape  (trip q.q.idx-mim)
-      ::  rebuild pack from index (no full reparse)
-      =/  idx=pack-index:git-pack
-        (rebuild-index (split:git-transport idx-text `@t`10))
-      =/  sea=bays:bytestream  (from-octs:bytestream q.pack-mim)
-      =/  entries=(list [key=hash:git-repo val=@ud])
-        (tap:pack-on:git-pack idx)
-      =/  pak=pack:git-pack
-        [%sha-1 (lent entries) idx p.q.pack-mim sea]
       ::  read refs from refs/ namespace
       =/  built-refs=(axal ref:git-repo)
         (read-refs-from-ns ball)
@@ -63,7 +46,7 @@
       =/  loose=(map hash:git-repo object:git-obj)
         (read-loose-from-ball ball)
       =/  repo=repository:git-repo
-        [%sha-1 [loose ~[pak]] built-refs ~ ~]
+        [%sha-1 [loose archive] built-refs ~ ~]
       =/  sto  store:~(. git-repo repo)
       ::
       ::  === stash request handling ===
@@ -330,8 +313,6 @@
         ==
           %|
         ?+  rail.p.mana  'File under git/data.'
-          [~ %'pack.dat']   'Raw git pack bytes.'
-          [~ %'pack.idx']   'Pack index: hash->offset map.'
           [~ %'HEAD']       'Git HEAD: "ref: refs/heads/<branch>" or raw commit hash (detached).'
           [~ %'stash-request.sig']      'Poke to stash dirty index and reset to HEAD.'
           [~ %'stash-pop-request.sig']  'Poke to pop the most recent stash.'
@@ -860,6 +841,53 @@
   =/  h=(unit @ux)  (read-hash-from-content content)
   ?~  h  r
   (~(put of r) [~['refs' 'remotes' 'origin' name] u.h])
+::
+::  +load-packs: read all pack-N.pack + pack-N.idx pairs from packs/ directory
+::
+::  Returns packs in order (pack-0 first). Empty list if no packs found.
+::
+++  load-packs
+  |=  =ball:tarball
+  ^-  (list pack:git-pack)
+  ::  get packs/ subdirectory from ball
+  =/  packs-ball=(unit ball:tarball)
+    (~(get by dir.ball) 'packs')
+  ?~  packs-ball  ~
+  ::  find all .pack files — extract N from "pack-N.pack"
+  =/  packs-dir=ball:tarball  u.packs-ball
+  ?~  fil.packs-dir  ~
+  =/  all-files=(list @ta)  ~(tap in ~(key by contents.u.fil.packs-dir))
+  =/  pack-nums=(list @ud)
+    %+  murn  all-files
+    |=  name=@ta
+    =/  t=tape  (trip name)
+    ?.  =("pack-" (scag 5 t))  ~
+    ?.  =(".pack" (slag (sub (lent t) 5) t))  ~
+    =/  num-text=tape  (slag 5 (scag (sub (lent t) 5) t))
+    (rust num-text dem)
+  =/  sorted=(list @ud)  (sort pack-nums lth)
+  ::  load each pack+idx pair
+  %+  murn  sorted
+  |=  n=@ud
+  ^-  (unit pack:git-pack)
+  =/  pack-name=@ta  (crip "pack-{(a-co:co n)}.pack")
+  =/  idx-name=@ta  (crip "pack-{(a-co:co n)}.idx")
+  =/  pack-content=(unit content:tarball)
+    (~(get ba:tarball packs-dir) [/ pack-name])
+  =/  idx-content=(unit content:tarball)
+    (~(get ba:tarball packs-dir) [/ idx-name])
+  ?~  pack-content  ~
+  ?~  idx-content  ~
+  =/  pack-mim=mime  !<(mime q.sage.u.pack-content)
+  ?:  =(0 p.q.pack-mim)  ~
+  =/  idx-mim=mime  !<(mime q.sage.u.idx-content)
+  =/  idx-text=tape  (trip q.q.idx-mim)
+  =/  idx=pack-index:git-pack
+    (rebuild-index (split:git-transport idx-text `@t`10))
+  =/  sea=bays:bytestream  (from-octs:bytestream q.pack-mim)
+  =/  entries=(list [key=hash:git-repo val=@ud])
+    (tap:pack-on:git-pack idx)
+  `[%sha-1 (lent entries) idx p.q.pack-mim sea]
 ::
 ::  +rebuild-index: parse index text lines into pack-index
 ::

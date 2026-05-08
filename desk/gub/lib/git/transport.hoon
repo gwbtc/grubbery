@@ -93,7 +93,7 @@
 ::    done\n
 ::
 ++  build-want
-  |=  [wants=(list hash) caps=(list @t) depth=(unit @ud)]
+  |=  [wants=(list hash) caps=(list @t) depth=(unit @ud) haves=(list hash)]
   ^-  octs
   ?>  ?=(^ wants)
   =/  sea=bays:bytestream  *bays:bytestream
@@ -115,8 +115,13 @@
   ::  deepen for shallow clone
   =?  sea  ?=(^ depth)
     (append-pkt sea (weld "deepen " (weld ((d-co:co 1) u.depth) "\0a")))
-  ::  flush
+  ::  flush separates wants from haves
   =.  sea  (append-octs:bytestream sea [4 '0000'])
+  ::  have lines for incremental fetch
+  =.  sea
+    %+  roll  haves
+    |=  [h=hash s=_sea]
+    (append-pkt s (weld "have " (weld (print-hash-sha-1 h) "\0a")))
   ::  done
   =.  sea  (append-pkt sea "done\0a")
   (to-octs:bytestream sea)
@@ -131,16 +136,17 @@
   |=  [body=octs sideband=?]
   ^-  octs
   =/  pos=@ud  0
-  ::  skip pkt-lines until we find NAK (shallow lines, flushes, etc)
+  ::  skip pkt-lines until we find NAK or ACK (shallow lines, flushes, etc)
   |-
   =^  pkt=(unit octs)  pos  (read-pkt pos body)
   ?~  pkt  $  :: skip flush, keep looking
   =/  line=tape  (trip q.u.pkt)
   ?.  ?|  =("NAK" (scag 3 line))
           =("NAK\0a" (scag 4 line))
+          =("ACK" (scag 3 line))
       ==
     $
-  ::  after NAK: detect format from actual data
+  ::  after NAK/ACK: detect format from actual data
   ::  if next 4 bytes are "PACK" signature, it's raw (no sideband)
   =/  next-4=@  (cut 3 [pos 4] q.body)
   ?:  =(next-4 'PACK')
