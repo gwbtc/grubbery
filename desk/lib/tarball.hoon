@@ -428,6 +428,21 @@
     ::  Append remaining path
     (weld resolved-base pax)
   ==
+::  Split a tape on '/', filtering empty segments
+::
+++  split-on-slash
+  |=  t=tape
+  ^-  (list tape)
+  =|  acc=(list tape)
+  =|  cur=tape
+  |-
+  ?~  t
+    ?~  cur  (flop acc)
+    (flop [(flop cur) acc])
+  ?:  =(i.t '/')
+    ?~  cur  $(t t.t)
+    $(t t.t, acc [(flop cur) acc], cur ~)
+  $(t t.t, cur [i.t cur])
 ::  Process multipart file uploads into ball
 ::
 ++  from-parts
@@ -447,9 +462,11 @@
     ?~  file.file-part
       %uploaded-file
     u.file.file-part
-  ::  Parse filename as path (prepend '/' for stap)
+  ::  Split filename on '/' to get path segments.
+  ::  Can't use stap — it rejects valid filenames like .gitignore.
   =/  filename-path=path
-    (rash (crip (weld "/" (trip filename-raw))) stap)
+    =/  segs=(list tape)  (split-on-slash (trip filename-raw))
+    (turn segs |=(s=tape (crip s)))
   ::  Split into parent directory and filename
   =/  [file-parent=path file-name=@ta]
     ?~  filename-path

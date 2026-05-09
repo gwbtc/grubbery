@@ -403,7 +403,6 @@
   ::  Build ball from multipart using from-parts
   =/  new=ball:tarball
     (from-parts:tarball *ball:tarball ~ u.parts now conversions)
-  ~&  >  [%upload-result (ball-to-tree:tarball new)]
   ::  Make each top-level entry: files then directories
   =/  files=(list [@ta content:tarball])
     ?~  fil.new  ~
