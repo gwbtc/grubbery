@@ -135,8 +135,8 @@
   =/  js=tape
     ;:  weld
       "var P=window.location.pathname;"
-      "var API=P.replace('/ball/','/api/file/').replace('/ui/views/page.html','/counters');"
-      "var KEEP=P.replace('/ball/','/api/keep/').replace('/ui/views/page.html','/counters');"
+      "var API,KEEP;"
+      "if(P.indexOf('/ball/')>=0)\{API=P.replace('/ball/','/api/file/').replace('/ui/views/page.html','/counters');KEEP=P.replace('/ball/','/api/keep/').replace('/ui/views/page.html','/counters')}else\{API='/grubbery/api/file/apps/counter.counter/counters';KEEP='/grubbery/api/keep/apps/counter.counter/counters'}"
       "document.getElementById('create').onclick=function()\{fetch(API+'/'+Date.now().toString(36)+'?mark=ud',\{method:'PUT',headers:\{'Content-Type':'text/plain'},body:'0'})};"
       "function removeCounter(n)\{var e=document.getElementById('c-'+n);if(e)e.remove();if(!document.querySelector('.counter'))document.getElementById('counters').textContent='No counters'}"
       "function deleteCounter(n)\{fetch(API+'/'+n,\{method:'DELETE'});removeCounter(n)}"

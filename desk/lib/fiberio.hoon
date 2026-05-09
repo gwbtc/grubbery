@@ -1395,12 +1395,16 @@
   ^-  form:m
   (eyre-poke [%unbind binding])
 ::
+++  server-road  `road:tarball`[%& %& /sys/eyre %'state.server-state']
+::
 ++  eyre-poke
   |=  act=eyre-action:nexus
   =/  m  (fiber ,~)
   ^-  form:m
-  (gall-poke-our dap [%eyre-action !>(act)])
+  (poke server-road [[/ %eyre-action] !>(act)])
 ::  HTTP response helpers, parameterized on dispatcher road.
+::  Sends route through the dispatcher (main.sig) so the server fiber
+::  sees from=main.sig for cancel-back on orphaned connections.
 ::  Usage: =/  srv  ~(. http-res:io [%| 1 %& ~ %'main.sig'])
 ::         (send-simple:srv eyre-id payload)
 ::
@@ -1410,7 +1414,7 @@
     |=  [eyre-id=@ta =eyre-update:nexus]
     =/  m  (fiber ,~)
     ^-  form:m
-    (eyre-poke [%send eyre-id eyre-update])
+    (poke main [[/ %eyre-action] !>(`eyre-action:nexus`[%send eyre-id eyre-update])])
   ::
   ++  send-simple
     |=  [eyre-id=@ta =simple-payload:http]
@@ -1456,6 +1460,9 @@
     =/  eyre-id=@ta  !<(@ta q.sage)
     ~&  >  [label %cancel eyre-id]
     ;<  ~  bind:m  (cull [%| 0 %& /requests eyre-id])
+    $
+      %eyre-action
+    ;<  ~  bind:m  (poke server-road sage)
     $
   ==
 ::  +resolve-bend: resolve a fiber bend to an absolute rail
