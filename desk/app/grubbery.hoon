@@ -1739,6 +1739,13 @@
         (shaz (cat 3 eny.bowl !<(@uvJ q.sage.u.eny-existing)))
       =.  ball
         (~(put ba:tarball ball) [/sys/bowl %eny] [~ [/ %entropy] !>(eny-val)])
+      ::  Ensure born entries exist for bowl files (no bump, no notify)
+      =?  born  =(~ (~(get bo:nexus now.bowl [born ball]) /sys/bowl %our))
+        (~(init bo:nexus now.bowl [born ball]) /sys/bowl %our)
+      =?  born  =(~ (~(get bo:nexus now.bowl [born ball]) /sys/bowl %now))
+        (~(init bo:nexus now.bowl [born ball]) /sys/bowl %now)
+      =?  born  =(~ (~(get bo:nexus now.bowl [born ball]) /sys/bowl %eny))
+        (~(init bo:nexus now.bowl [born ball]) /sys/bowl %eny)
       ::  Peek at dest - directory returns ball+sand, file returns cage
       ::  Returns %none if directory doesn't exist or has no lump
       ::  ver: if set, read historical version from hist via silo

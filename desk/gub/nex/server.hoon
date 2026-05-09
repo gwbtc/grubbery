@@ -67,7 +67,7 @@
       ~&  >  "%server /main: ready"
       |-
       ;<  [=from:fiber:nexus =sage:tarball]  bind:m  take-poke-from:io
-      ;<  here=rail:tarball  bind:m  get-here:io
+      ;<  here=rail:tarball  bind:m  get-here-abs:io
       ;<  st=server-state:nex-server  bind:m  (get-state-as:io server-state:nex-server)
       ?+    name.p.sage  $
           ::  Server action: bind, unbind, reset, send

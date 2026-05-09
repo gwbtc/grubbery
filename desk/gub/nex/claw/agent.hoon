@@ -182,7 +182,8 @@
               '  sleep:io time              -- wait'
               '  get-our:io                 -- get ship name'
               '  get-time:io                -- get current time'
-              '  get-here:io                -- get own rail (path + name)'
+              '  get-here:io                -- get own location (here:nexus)'
+              '  get-here:io            -- get absolute rail (crashes if blocked)'
               '  rise-wait:io prod msg      -- crash handler (put at top of process)'
               ''
               '# Build system'
@@ -971,7 +972,7 @@
           ::
           [~ %'page.html']
         ;<  ~  bind:m  (rise-wait:io prod "%claw page: failed")
-        ;<  here=rail:tarball  bind:m  get-here:io
+        ;<  here=rail:tarball  bind:m  get-here-abs:io
         =/  ball-id=tape
           %-  zing
           %+  join  "/"
@@ -1471,7 +1472,7 @@
   ~&  >>  ["%claw agent-turn: got time" now]
   ;<  our=ship  bind:m  get-our:io
   ~&  >>  "%claw agent-turn: got our"
-  ;<  here=rail:tarball  bind:m  get-here:io
+  ;<  here=rail:tarball  bind:m  get-here-abs:io
   ~&  >>  "%claw agent-turn: got here"
   =/  runtime-ctx=@t
     %-  crip
@@ -3194,7 +3195,7 @@
       :~  ['status' s+status]
           ['result' s+u.result]
       ==
-    ;<  here=rail:tarball  bind:m  get-here:io
+    ;<  here=rail:tarball  bind:m  get-here-abs:io
     =/  chat-name=@ta  (get-tool-chat-name here)
     =/  road=road:tarball  (agent-road (crip "./chats/{(trip chat-name)}/outbox.json"))
     ;<  cur=(list json)  bind:m  (read-outbox chat-name)
@@ -3530,7 +3531,7 @@
     ?~  raw=(get-arg st 'query')
       (pure:m [%error 'Missing required argument: query'])
     =/  query=tape  (cass (trip u.raw))
-    ;<  here=rail:tarball  bind:m  get-here:io
+    ;<  here=rail:tarball  bind:m  get-here-abs:io
     =/  chat-name=@ta  (get-tool-chat-name here)
     =/  conv-road=road:tarball  (agent-road (crip "./chats/{(trip chat-name)}/chat.json"))
     ;<  =seen:nexus  bind:m  (peek:io conv-road ~)
@@ -3653,7 +3654,7 @@
     =/  user-prompt=@t
       (fall (get-arg st 'prompt') 'Provide a concise chronological summary of what happened.')
     ::  read conversation
-    ;<  here=rail:tarball  bind:m  get-here:io
+    ;<  here=rail:tarball  bind:m  get-here-abs:io
     =/  chat-name=@ta  (get-tool-chat-name here)
     =/  conv-road=road:tarball  (agent-road (crip "./chats/{(trip chat-name)}/chat.json"))
     ;<  =seen:nexus  bind:m  (peek:io conv-road ~)
@@ -3885,7 +3886,7 @@
     =/  m  (fiber:fiber:nexus ,tool-result:nex-tools)
     ^-  form:m
     ;<  st=tool-state:nex-tools  bind:m  (get-state-as:io ,tool-state:nex-tools)
-    ;<  here=rail:tarball  bind:m  get-here:io
+    ;<  here=rail:tarball  bind:m  get-here-abs:io
     ::  path is .../agents/[name]/proc/tools; agent name is 3rd from end
     =/  self-name=@ta
       =/  p=path  path.here
@@ -3941,7 +3942,7 @@
     ;<  st=tool-state:nex-tools  bind:m  (get-state-as:io ,tool-state:nex-tools)
     ?~  query=(get-arg st 'query')
       (pure:m [%error 'Missing required argument: query'])
-    ;<  here=rail:tarball  bind:m  get-here:io
+    ;<  here=rail:tarball  bind:m  get-here-abs:io
     =/  self-name=@ta
       =/  p=path  path.here
       =/  l=@  (lent p)

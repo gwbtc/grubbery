@@ -127,7 +127,7 @@
     ::  so we resolve it with our own `here` rail to get the absolute path.
     ;<  font=(unit bend:tarball)  bind:m
       (get-font:io [%& %| tree-path])
-    ;<  here=rail:tarball  bind:m  get-here:io
+    ;<  here=rail:tarball  bind:m  get-here-abs:io
     =/  code-namespace=(unit path)
       ?~  font  ~
       =/  ns=(unit lane:tarball)
@@ -500,7 +500,7 @@
     ::  The bend is relative to this fiber, so resolve with `here`.
     ;<  font=(unit bend:tarball)  bind:m
       (get-font:io [%& %| watch-path])
-    ;<  here=rail:tarball  bind:m  get-here:io
+    ;<  here=rail:tarball  bind:m  get-here-abs:io
     =/  code-namespace=(unit path)
       ?~  font  ~
       =/  ns=(unit lane:tarball)
@@ -1355,12 +1355,12 @@
     ;td: {(format-size p.q.mime)}
     ;td: {mtime-display}
     ;td
-      ;button(type "button", onclick "renameItem('grub','{display-name}')"): Rename
-      ;button(type "button", onclick "moveItem('grub','{display-name}')"): Move
-      ;button(type "button", onclick "copyItem('grub','{display-name}')"): Copy
       ;a/"{file-url}"(download display-name)
         ;button(type "button"): Download
       ==
+      ;button(type "button", onclick "renameItem('grub','{display-name}')"): Rename
+      ;button(type "button", onclick "moveItem('grub','{display-name}')"): Move
+      ;button(type "button", onclick "copyItem('grub','{display-name}')"): Copy
       ;form.del-form(method "POST", action url-prefix)
         ;input(type "hidden", name "action", value "delete-grub");
         ;input(type "hidden", name "filename", value (trip name));

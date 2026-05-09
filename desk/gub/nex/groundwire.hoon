@@ -36,7 +36,7 @@
             [%over %& [/ %'reg-tester.sig'] %.n [~ [/ %sig] !>(~)]]
             [%fall %| /ui/sse [~ ~] [~ ~] empty-dir:loader]
             [%over %& [/ui/sse %'stats.html'] %.n [~ [/ %manx] !>(;div;)]]
-            [%over %& [/ %'page.html'] %.n [~ [/ %manx] !>((btc-page ;div; ~ ~))]]
+            [%over %& [/ %'page.html'] %.n [~ [/ %manx] !>((btc-page "" ;div; ~ ~))]]
         ==
       ==
     ::
@@ -54,7 +54,7 @@
         ::  Register as jael PKI source on startup
         ;<  our=@p  bind:m  get-our:io
         ;<  =dude:gall  bind:m  get-agent:io
-        ;<  self=rail:tarball  bind:m  get-here:io
+        ;<  self=rail:tarball  bind:m  get-here-abs:io
         ;<  ~  bind:m
           %-  send-cards:io
           =/  src=rail:tarball  [path.self %'udiffs.urb-udiffs']
@@ -650,6 +650,8 @@
           ::
           [~ %'page.html']
         ;<  ~  bind:m  (rise-wait:io prod "%groundwire /page: failed")
+        ;<  here=rail:tarball  bind:m  get-here-abs:io
+        =/  nexus-root=tape  (spud path.here)
         ;<  sse=view:nexus  bind:m
           (keep:io /sse (cord-to-road:tarball './ui/sse/') ~)
         ;<  seeds=view:nexus  bind:m
@@ -657,7 +659,7 @@
         ;<  points=view:nexus  bind:m
           (keep:io /points (cord-to-road:tarball './points/') ~)
         ;<  ~  bind:m
-          (replace:io !>((btc-page (extract-sse-manx sse 'stats.html') (extract-ships seeds) (extract-points points))))
+          (replace:io !>((btc-page nexus-root (extract-sse-manx sse 'stats.html') (extract-ships seeds) (extract-points points))))
         |-
         ;<  [tag=?(%sse %seeds %points) =view:nexus]  bind:m
           (take-any-news /sse /seeds /points)
@@ -665,7 +667,7 @@
         =?  seeds   =(tag %seeds)   view
         =?  points  =(tag %points)  view
         ;<  ~  bind:m
-          (replace:io !>((btc-page (extract-sse-manx sse 'stats.html') (extract-ships seeds) (extract-points points))))
+          (replace:io !>((btc-page nexus-root (extract-sse-manx sse 'stats.html') (extract-ships seeds) (extract-points points))))
         $
       ==
     ++  on-manu
@@ -1390,10 +1392,10 @@
 ::  which is refreshed over a single SSE connection on the browser.
 ::
 ++  btc-page
-  |=  [stats=manx ships=(list @p) known-points=(list @p)]
+  |=  [nexus-root=tape stats=manx ships=(list @p) known-points=(list @p)]
   ^-  manx
-  =/  sse=tape       "/grubbery/api/keep/groundwire.groundwire/ui/sse?mark=txt"
-  =/  reg-poke=tape  "/grubbery/api/poke/groundwire.groundwire/reg-tester.sig?mark=json"
+  =/  sse=tape       "/grubbery/api/keep{nexus-root}/ui/sse?mark=txt"
+  =/  reg-poke=tape  "/grubbery/api/poke{nexus-root}/reg-tester.sig?mark=json"
   =/  sorted-ships=(list @p)  (sort ships lth)
   =/  sorted-points=(list @p)  (sort known-points lth)
   =/  point-options=(list manx)

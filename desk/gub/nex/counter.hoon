@@ -12,7 +12,7 @@
         %+  spin:loader  [sand gain ball]
         :~  (ver-row:loader 0)
             [%fall %| /counters [~ ~] [~ ~] empty-dir:loader]
-            [%over %& [/ui/views %'page.html'] %.n [~ [/ %manx] !>((counter-page ~))]]
+            [%over %& [/ui/views %'page.html'] %.n [~ [/ %manx] !>((counter-page ~ ~))]]
             [%fall %& [/ui %'main.sig'] %.n [~ [/ %sig] !>(~)]]
             [%fall %| /ui/requests [~ ~] [~ ~] empty-dir:loader]
         ==
@@ -38,6 +38,8 @@
           ::
           [[%ui %views ~] %'page.html']
         ;<  ~  bind:m  (rise-wait:io prod "%counter /ui/views/page: failed")
+        ;<  here=rail:tarball  bind:m  get-here-abs:io
+        =/  nexus-root=path  (snip (snip path.here))
         ;<  init=view:nexus  bind:m
           (keep:io /ctrs (cord-to-road:tarball '../../counters/') ~)
         |-
@@ -49,17 +51,15 @@
           |=  [name=@ta =content:tarball]
           ?.  ?=(%ud name.p.sage.content)  ~
           `[name !<(@ud q.sage.content)]
-        =/  page=manx  (counter-page counters)
+        =/  page=manx  (counter-page counters nexus-root)
         ;<  ~  bind:m  (replace:io !>(page))
         $
-          ::  /ui/main.sig: bind /grubbery/counters/ as a separate HTTP
-          ::  endpoint and dispatch requests into /ui/requests/.
-          ::  Nexuses can bind their own endpoints independently of
-          ::  the central /grubbery/api.
+          ::  /ui/main.sig: bind HTTP endpoint and dispatch requests
+          ::  into /ui/requests/. URL derived from tree position.
           ::
           [[%ui ~] %'main.sig']
         ;<  ~  bind:m  (rise-wait:io prod "%counter /ui/main: failed")
-        ;<  here=rail:tarball  bind:m  get-here:io
+        ;<  here=rail:tarball  bind:m  get-here-abs:io
         =/  prefix=path  (url-prefix (snip path.here))
         ;<  ~  bind:m  (bind-http:nex-server [~ prefix])
         (http-dispatch:nex-server %counter)
@@ -73,7 +73,7 @@
         ?.  =(src our)
           ;<  ~  bind:m  (send-simple:srv eyre-id [[403 ~] `(as-octs:mimes:html 'Forbidden')])
           (pure:m ~)
-        ;<  here=rail:tarball  bind:m  get-here:io
+        ;<  here=rail:tarball  bind:m  get-here-abs:io
         =/  prefix=path  (url-prefix (snip (snip path.here)))
         =/  site=path  site:(parse-url:http-utils url.request.req)
         =/  suffix=path  (slag (lent prefix) site)
@@ -131,8 +131,7 @@
       ==
     --
 |%
-::  Derive URL prefix from nexus root path
-::  e.g. / -> /grubbery/counters, /foo -> /grubbery/counters/foo
+::  URL prefix for the counter's own HTTP endpoint
 ::
 ++  url-prefix
   |=  root=path
@@ -143,10 +142,11 @@
 ++  srv  ~(. res:nex-server [%| 1 %& ~ %'main.sig'])
 ::
 ++  counter-page
-  |=  counters=(list [@ta @ud])
+  |=  [counters=(list [@ta @ud]) nexus-root=path]
   ^-  manx
-  =/  api=tape  "/grubbery/api/file/counter.counter/counters"
-  =/  keep=tape  "/grubbery/api/keep/counter.counter/counters"
+  =/  root=tape  (spud nexus-root)
+  =/  api=tape  "/grubbery/api/file{root}/counters"
+  =/  keep=tape  "/grubbery/api/keep{root}/counters"
   =/  js=tape
     ;:  weld
       "var API='{api}';"

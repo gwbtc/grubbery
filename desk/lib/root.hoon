@@ -12,19 +12,15 @@
     %+  spin:loader  [sand gain ball]
     :~  (ver-row:loader 0)
         [%load %| / / same-fold:loader]
+        [%fall %| /apps [~ ~] [~ ~] [`[~ ~ ~] ~]]
+        [%fall %| /docs [~ ~] [~ ~] [`[~ ~ ~] ~]]
         ::  child nexuses
+        ::
         [%fall %| /'server.server' [~ ~] [~ ~] [`[~ `[/ %server] ~] ~]]
-        [%fall %| /'counter.counter' [~ ~] [~ ~] [`[~ `[/ %counter] ~] ~]]
-        [%fall %| /'explorer.explorer' [~ ~] [~ ~] [`[~ `[/ %explorer] ~] ~]]
-        [%fall %| /'claude.claude' [~ ~] [~ ~] [`[~ `[/ %claude] ~] ~]]
-        [%fall %| /'oneshot.oneshot' [~ ~] [~ ~] [`[~ `[/ %oneshot] ~] ~]]
-        [%fall %| /'telegram.telegram' [~ ~] [~ ~] [`[~ `[/ %telegram] ~] ~]]
-        [%fall %| /'goals.goals' [~ ~] [~ ~] [`[~ `[/ %goals] ~] ~]]
-        [%fall %| /'mcp.mcp' [~ ~] [~ ~] [`[~ `[/ %mcp] ~] ~]]
-        [%fall %| /'peers.peers' [~ ~] [~ ~] [`[~ `[/ %peers] ~] ~]]
-        [%fall %| /'wallet.wallet_app' [~ ~] [~ ~] [`[~ `[/wallet %app] ~] ~]]
-        :: [%fall %| /'indexer.indexer_app' [~ ~] [~ ~] [`[~ `[/indexer %app] ~] ~]]
-        :: [%fall %| /'groundwire.groundwire' [~ ~] [~ ~] [`[~ `[/ %groundwire] ~] ~]]
+        [%fall %| /apps/'counter.counter' [~ ~] [~ ~] [`[~ `[/ %counter] ~] ~]]
+        [%fall %| /apps/'explorer.explorer' [~ ~] [~ ~] [`[~ `[/ %explorer] ~] ~]]
+        [%fall %| /apps/'mcp.mcp' [~ ~] [~ ~] [`[~ `[/ %mcp] ~] ~]]
+        [%fall %| /apps/'peers.peers' [~ ~] [~ ~] [`[~ `[/ %peers] ~] ~]]
     ==
   ==
 ::

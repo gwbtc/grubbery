@@ -59,6 +59,10 @@
 +$  filt  (unit ?)      :: filter result (see above)
 +$  jump  ?(%sysc %make %poke %peek)  :: dart category for filtering
 ::
+::  pant: ancestry list from outermost dir to innermost, each with
+::  its optional neck. here: grub's location in the tree. root=%.y
+::  means the walk reached the tarball root; root=%.n means a weir
+::  blocked visibility before reaching root (pant is truncated).
 +$  pant  (list [dir=@ta neck=(unit neck:tarball)])
 +$  here  [=pant name=@ta root=?]
 +$  soup

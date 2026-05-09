@@ -26,7 +26,7 @@
         %+  spin:loader  [sand gain ball]
         :~  (ver-row:loader 0)
             [%over %& [/ %'main.sig'] %.n [~ [/ %sig] !>(~)]]
-            [%over %& [/ %'page.html'] %.n [~ [/ %manx] !>((wallet-page ~))]]
+            [%over %& [/ %'page.html'] %.n [~ [/ %manx] !>((wallet-page "" ~))]]
             [%fall %| /wallets [~ ~] [~ ~] empty-dir:loader]
             [%fall %| /accounts [~ ~] [~ ~] empty-dir:loader]
             [%fall %| /ui/sse [~ ~] [~ ~] empty-dir:loader]
@@ -125,14 +125,16 @@
           ::
           [~ %'page.html']
         ;<  ~  bind:m  (rise-wait:io prod "%wallet /page: failed")
+        ;<  here=rail:tarball  bind:m  get-here-abs:io
+        =/  nexus-root=tape  (spud path.here)
         ;<  init=view:nexus  bind:m
           (keep:io /wallets (cord-to-road:tarball './wallets/') ~)
         =/  wals=(list wallet-data)  (view-to-wallets init)
-        ;<  ~  bind:m  (replace:io !>((wallet-page wals)))
+        ;<  ~  bind:m  (replace:io !>((wallet-page nexus-root wals)))
         |-
         ;<  upd=view:nexus  bind:m  (take-news:io /wallets)
         =/  wals=(list wallet-data)  (view-to-wallets upd)
-        ;<  ~  bind:m  (replace:io !>((wallet-page wals)))
+        ;<  ~  bind:m  (replace:io !>((wallet-page nexus-root wals)))
         $
           ::  /ui/sse/wallets.html: wallet list HTML fragment for SSE
           ::
@@ -164,14 +166,17 @@
         ?.  =(src our)
           ;<  ~  bind:m  (send-simple:srv eyre-id [[403 ~] `(as-octs:mimes:html 'Forbidden')])
           (pure:m ~)
+        ;<  here=rail:tarball  bind:m  get-here-abs:io
+        =/  nexus-root=tape  (spud (snip (snip path.here)))
         =/  site=path  site:(parse-url:http-utils url.request.req)
+        =/  prefix=path  /groundwire/wallet
         =/  suffix=path
-          %+  skip  (slag (lent /groundwire/wallet) site)
+          %+  skip  (slag (lent prefix) site)
           |=(s=@ta =('' s))
         ::  route: / → wallet list page
         ?~  suffix
           ;<  wals=(list wallet-data)  bind:m  load-wallets
-          ;<  ~  bind:m  (send-html eyre-id (wallet-page wals))
+          ;<  ~  bind:m  (send-html eyre-id (wallet-page nexus-root wals))
           (pure:m ~)
         ::  route: /w/<wallet-key>/ → wallet detail page
         ?:  ?&  ?=([%w @ *] suffix)
@@ -247,7 +252,7 @@
             (pure:m ~)
           =/  akh=tape  (trip i.t.suffix)
           ;<  txs=tx-map  bind:m  (load-txs acct-key active-network.u.acct)
-          ;<  ~  bind:m  (send-html eyre-id (addr-detail-page idx u.dat chain-tag u.acct akh txs))
+          ;<  ~  bind:m  (send-html eyre-id (addr-detail-page nexus-root idx u.dat chain-tag u.acct akh txs))
           (pure:m ~)
         ::  route: /a/<account-key>/tx/<txid> → transaction detail
         ?:  ?=([%a @ %tx @ ~] suffix)
@@ -773,16 +778,16 @@
   :(weld (scag 8 full) "..." (slag (sub len 8) full))
 ::
 ++  mk-acct-base
-  |=  akh=tape
+  |=  [nexus-root=tape akh=tape]
   ^-  tape
-  "wallet.wallet_app/accounts/{akh}.wallet_account"
+  "{(slag 1 nexus-root)}/accounts/{akh}.wallet_account"
 ::  +addr-detail-page: render address detail from inline data
 ::
 ++  addr-detail-page
-  |=  [idx=@ud dat=address-data chain-tag=?(%recv %chng) acct=account-data akh=tape txs=tx-map]
+  |=  [nexus-root=tape idx=@ud dat=address-data chain-tag=?(%recv %chng) acct=account-data akh=tape txs=tx-map]
   ^-  manx
   =/  network  active-network.acct
-  =/  acct-base=tape  (mk-acct-base akh)
+  =/  acct-base=tape  (mk-acct-base nexus-root akh)
   =/  addr-text=tape  (trip addr.dat)
   =/  chain-label=tape
     ?:(?=(%recv chain-tag) "Receiving" "Change")
@@ -1438,7 +1443,7 @@
 ::  page rendering
 ::
 ++  wallet-page
-  |=  wals=(list wallet-data)
+  |=  [nexus-root=tape wals=(list wallet-data)]
   ^-  manx
   ;html
     ;head
@@ -1468,7 +1473,7 @@
       ==
       ;+  delete-modal
       ;script
-        ;+  ;/  script-text
+        ;+  ;/  (script-text nexus-root)
       ==
     ==
   ==
@@ -1738,10 +1743,12 @@
   """
 ::
 ++  script-text
+  |=  nexus-root=tape
   ^-  tape
+  ;:  weld
+  "var API = '/' + window.location.pathname.split('/')[1] + '/'+'api';\0a"
+  "var BASE = '{(slag 1 nexus-root)}';\0a"
   """
-  var API = '/' + window.location.pathname.split('/')[1] + '/'+'api';
-  var BASE = 'wallet.wallet_app';
 
   function poke(body, cb) \{
     var url = API + '/'+'poke/' + BASE + '/'+'main.sig?mark=json';
@@ -1927,4 +1934,5 @@
   });
   connectSSE();
   """
+  ==
 --

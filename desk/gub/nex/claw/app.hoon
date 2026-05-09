@@ -41,9 +41,8 @@
         ::
           [~ %'page.html']
         ;<  ~  bind:m  (rise-wait:io prod "%claw/app page: failed")
-        ;<  here=rail:tarball  bind:m  get-here:io
-        =/  ball-id=tape
-          (zing (join "/" ^-((list tape) (turn path.here trip))))
+        ;<  here=rail:tarball  bind:m  get-here-abs:io
+        =/  ball-id=tape  (path-to-ball-id path.here)
         ;<  agents=view:nexus  bind:m
           (keep:io /agents (cord-to-road:tarball './agents/') ~)
         ;<  channels=view:nexus  bind:m
@@ -64,8 +63,8 @@
         ::
           [[%ui %sse ~] %'agents.html']
         ;<  ~  bind:m  (rise-wait:io prod "%claw/app sse/agents: failed")
-        ;<  here=rail:tarball  bind:m  get-here:io
-        =/  ball-id=tape  (trip (snag 0 path.here))
+        ;<  here=rail:tarball  bind:m  get-here-abs:io
+        =/  ball-id=tape  (path-to-ball-id (snip (snip path.here)))
         ;<  init=view:nexus  bind:m
           (keep:io /agents (cord-to-road:tarball '../../agents/') ~)
         ;<  ~  bind:m  (replace:io !>((agents-fragment ball-id (read-names init))))
@@ -76,8 +75,8 @@
         ::
           [[%ui %sse ~] %'channels.html']
         ;<  ~  bind:m  (rise-wait:io prod "%claw/app sse/channels: failed")
-        ;<  here=rail:tarball  bind:m  get-here:io
-        =/  ball-id=tape  (trip (snag 0 path.here))
+        ;<  here=rail:tarball  bind:m  get-here-abs:io
+        =/  ball-id=tape  (path-to-ball-id (snip (snip path.here)))
         ;<  init=view:nexus  bind:m
           (keep:io /channels (cord-to-road:tarball '../../channels/') ~)
         ;<  ~  bind:m  (replace:io !>((channels-fragment ball-id (read-entities init))))
@@ -88,8 +87,8 @@
         ::
           [[%ui %sse ~] %'apis.html']
         ;<  ~  bind:m  (rise-wait:io prod "%claw/app sse/apis: failed")
-        ;<  here=rail:tarball  bind:m  get-here:io
-        =/  ball-id=tape  (trip (snag 0 path.here))
+        ;<  here=rail:tarball  bind:m  get-here-abs:io
+        =/  ball-id=tape  (path-to-ball-id (snip (snip path.here)))
         ;<  init=view:nexus  bind:m
           (keep:io /apis (cord-to-road:tarball '../../apis/') ~)
         ;<  ~  bind:m  (replace:io !>((apis-fragment ball-id (read-entities init))))
@@ -232,6 +231,12 @@
     --
 ::
 |%
+::  +path-to-ball-id: join a path into a slash-separated tape for URLs
+::
+++  path-to-ball-id
+  |=  =path
+  ^-  tape
+  (zing (join "/" ^-((list tape) (turn path trip))))
 ::
 ::  +read-names: extract top-level names from a directory view
 ::

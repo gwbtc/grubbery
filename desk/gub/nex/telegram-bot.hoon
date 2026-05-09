@@ -224,7 +224,7 @@
           ::
           [[%ui %sse ~] %'data.html']
         ;<  ~  bind:m  (rise-wait:io prod "%telegram-bot sse: failed")
-        ;<  here=rail:tarball  bind:m  get-here:io
+        ;<  here=rail:tarball  bind:m  get-here-abs:io
         =/  ball-id=tape  (trip (snag 0 path.here))
         ;<  init=view:nexus  bind:m
           (keep:io /msgs (cord-to-road:tarball '../../messages/') ~)
@@ -240,7 +240,7 @@
           [[%ui ~] %'chat.html']
         ;<  ~  bind:m  (rise-wait:io prod "%telegram-bot chat: failed")
         ::  compute base path for API calls
-        ;<  here=rail:tarball  bind:m  get-here:io
+        ;<  here=rail:tarball  bind:m  get-here-abs:io
         =/  base=tape
           ::  path.here keys already contain dots for necks
           ::  e.g. /telegram.telegram/bots/claude-1/ui

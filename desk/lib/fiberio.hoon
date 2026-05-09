@@ -1099,10 +1099,16 @@
   (pure:m !<(@uvJ q.sage.p.seen))
 ::
 ++  get-here
-  =/  m  (fiber ,rail:tarball)
+  =/  m  (fiber ,here:nexus)
   ^-  form:m
   ;<  ~  bind:m  (send-dart %here /here)
-  ;<  =here:nexus  bind:m  (take-here-raw /here)
+  (take-here-raw /here)
+::  +get-here-abs: get absolute rail, crashes if blocked from root
+::
+++  get-here-abs
+  =/  m  (fiber ,rail:tarball)
+  ^-  form:m
+  ;<  =here:nexus  bind:m  get-here
   (pure:m (coerce-here here))
 ::
 ++  dap  %grubbery

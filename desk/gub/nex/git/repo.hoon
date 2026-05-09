@@ -171,7 +171,7 @@
           ::
           [~ %'page.html']
         ;<  ~  bind:m  (rise-wait:io prod "%git/repo /page: failed")
-        ;<  here=rail:tarball  bind:m  get-here:io
+        ;<  here=rail:tarball  bind:m  get-here-abs:io
         =/  api=@t
           (crip "/grubbery/api/file{(spud path.here)}")
         ;<  cfg-rd=road:tarball  bind:m
