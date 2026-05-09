@@ -11,7 +11,7 @@
         %+  spin:loader  [sand gain ball]
         :~  (ver-row:loader 0)
             [%fall %| /counters [~ ~] [~ ~] empty-dir:loader]
-            [%over %& [/ui/views %'page.html'] %.n [~ [/ %manx] !>((counter-page ~ ~))]]
+            [%over %& [/ui/views %'page.html'] %.n [~ [/ %manx] !>((counter-page ~))]]
             [%fall %& [/ui %'main.sig'] %.n [~ [/ %sig] !>(~)]]
             [%fall %| /ui/requests [~ ~] [~ ~] empty-dir:loader]
         ==
@@ -37,8 +37,6 @@
           ::
           [[%ui %views ~] %'page.html']
         ;<  ~  bind:m  (rise-wait:io prod "%counter /ui/views/page: failed")
-        ;<  here=rail:tarball  bind:m  get-here-abs:io
-        =/  nexus-root=path  (snip (snip path.here))
         ;<  init=view:nexus  bind:m
           (keep:io /ctrs (cord-to-road:tarball '../../counters/') ~)
         |-
@@ -50,7 +48,7 @@
           |=  [name=@ta =content:tarball]
           ?.  ?=(%ud name.p.sage.content)  ~
           `[name !<(@ud q.sage.content)]
-        =/  page=manx  (counter-page counters nexus-root)
+        =/  page=manx  (counter-page counters)
         ;<  ~  bind:m  (replace:io !>(page))
         $
           ::  /ui/main.sig: bind HTTP endpoint and dispatch requests
@@ -58,9 +56,7 @@
           ::
           [[%ui ~] %'main.sig']
         ;<  ~  bind:m  (rise-wait:io prod "%counter /ui/main: failed")
-        ;<  here=rail:tarball  bind:m  get-here-abs:io
-        =/  prefix=path  (url-prefix (snip path.here))
-        ;<  ~  bind:m  (bind-http:io [~ prefix])
+        ;<  ~  bind:m  (bind-http:io [~ /grubbery/counters])
         (http-dispatch:io %counter)
           ::  /ui/requests/*: individual request handlers
           ::
@@ -72,8 +68,7 @@
         ?.  =(src our)
           ;<  ~  bind:m  (send-simple:srv eyre-id [[403 ~] `(as-octs:mimes:html 'Forbidden')])
           (pure:m ~)
-        ;<  here=rail:tarball  bind:m  get-here-abs:io
-        =/  prefix=path  (url-prefix (snip (snip path.here)))
+        =/  prefix=path  /grubbery/counters
         =/  site=path  site:(parse-url:http-utils url.request.req)
         =/  suffix=path  (slag (lent prefix) site)
         ::  Serve counter page from view grub
@@ -130,26 +125,18 @@
       ==
     --
 |%
-::  URL prefix for the counter's own HTTP endpoint
-::
-++  url-prefix
-  |=  root=path
-  ^-  path
-  /grubbery/counters
 ::  HTTP response door (road from /ui/requests/* to /ui/main.sig)
 ::
 ++  srv  ~(. http-res:io [%| 1 %& ~ %'main.sig'])
 ::
 ++  counter-page
-  |=  [counters=(list [@ta @ud]) nexus-root=path]
+  |=  counters=(list [@ta @ud])
   ^-  manx
-  =/  root=tape  (spud nexus-root)
-  =/  api=tape  "/grubbery/api/file{root}/counters"
-  =/  keep=tape  "/grubbery/api/keep{root}/counters"
   =/  js=tape
     ;:  weld
-      "var API='{api}';"
-      "var KEEP='{keep}';"
+      "var P=window.location.pathname;"
+      "var API=P.replace('/ball/','/api/file/').replace('/ui/views/page.html','/counters');"
+      "var KEEP=P.replace('/ball/','/api/keep/').replace('/ui/views/page.html','/counters');"
       "document.getElementById('create').onclick=function()\{fetch(API+'/'+Date.now().toString(36)+'?mark=ud',\{method:'PUT',headers:\{'Content-Type':'text/plain'},body:'0'})};"
       "function removeCounter(n)\{var e=document.getElementById('c-'+n);if(e)e.remove();if(!document.querySelector('.counter'))document.getElementById('counters').textContent='No counters'}"
       "function deleteCounter(n)\{fetch(API+'/'+n,\{method:'DELETE'});removeCounter(n)}"
