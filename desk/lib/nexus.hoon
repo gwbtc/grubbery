@@ -127,6 +127,30 @@
       [%kept =wire]              :: see your own outgoing subscriptions
       [%manu =wire =neck:tarball =mana]  :: direct docs query to a known nexus
   ==
+::  Eyre action: poke payload for HTTP binding/response operations.
+::  Nexuses poke %grubbery with %eyre-action to register bindings
+::  and send HTTP responses.
+::
++$  eyre-action
+  $%  [%bind =binding:eyre handler=rail:tarball]
+      [%unbind =binding:eyre]
+      [%send eyre-id=@ta =eyre-update]
+  ==
+::
++$  eyre-update
+  $%  [%header =response-header:http]
+      [%data data=(unit octs)]
+      [%kick ~]
+      [%simple =simple-payload:http]
+  ==
+::  Eyre state: binding registry + active connection tracking.
+::  Stored as a grub at /sys/eyre/state.server-state.
+::
++$  server-state
+  $:  %0
+      bindings=(map binding:eyre rail:tarball)
+      conns=(map @ta binding:eyre)
+  ==
 ::
 ++  fiber
   |%

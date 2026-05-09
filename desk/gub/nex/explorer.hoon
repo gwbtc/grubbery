@@ -1,7 +1,6 @@
 ::  explorer nexus: tarball tree browser
 ::
 /<  feather  /lib/feather.hoon
-/<  nex-server  /lib/nex/server.hoon
 /<  iso-8601  /lib/iso-8601.hoon
 =<  ^-  nexus:nexus
     |%
@@ -28,10 +27,10 @@
           [~ %'main.sig']
         ;<  ~  bind:m  (rise-wait:io prod "%explorer /main: failed, poke to restart")
         ~&  >  "%explorer /main: binding /grubbery/ball and /grubbery/split"
-        ;<  ~  bind:m  (bind-http:nex-server [~ /grubbery/ball])
-        ;<  ~  bind:m  (bind-http:nex-server [~ /grubbery/split])
+        ;<  ~  bind:m  (bind-http:io [~ /grubbery/ball])
+        ;<  ~  bind:m  (bind-http:io [~ /grubbery/split])
         ~&  >  "%explorer /main: ready"
-        (http-dispatch:nex-server %explorer)
+        (http-dispatch:io %explorer)
           [[%requests ~] @]
         ;<  ~  bind:m  (rise-wait:io prod "%explorer /requests: failed, poke to restart")
         =/  eyre-id=@ta  name.rail
@@ -106,7 +105,7 @@
 |%
 ::  HTTP response door (road from /explorer.explorer/requests/* to /explorer.explorer/main.sig)
 ::
-++  srv  ~(. res:nex-server [%| 1 %& ~ %'main.sig'])
+++  srv  ~(. http-res:io [%| 1 %& ~ %'main.sig'])
 ::  Handle GET requests
 ::
 ++  handle-get

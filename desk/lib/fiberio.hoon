@@ -1375,4 +1375,100 @@
   ^-  form:m
   ;<  ~  bind:m  (copy-fold src dst)
   (cull src)
+::
+::  HTTP BINDING + RESPONSE PRIMITIVES
+::
+::  +bind-http: register an eyre binding, sender is the handler.
+::  Resolves caller's absolute position as the handler rail.
+::
+++  bind-http
+  |=  =binding:eyre
+  =/  m  (fiber ,~)
+  ^-  form:m
+  ;<  here=rail:tarball  bind:m  get-here-abs
+  (eyre-poke [%bind binding here])
+::  +unbind-http: remove a binding
+::
+++  unbind-http
+  |=  =binding:eyre
+  =/  m  (fiber ,~)
+  ^-  form:m
+  (eyre-poke [%unbind binding])
+::
+++  eyre-poke
+  |=  act=eyre-action:nexus
+  =/  m  (fiber ,~)
+  ^-  form:m
+  (gall-poke-our dap [%eyre-action !>(act)])
+::  HTTP response helpers, parameterized on dispatcher road.
+::  Usage: =/  srv  ~(. http-res:io [%| 1 %& ~ %'main.sig'])
+::         (send-simple:srv eyre-id payload)
+::
+++  http-res
+  |_  main=road:tarball
+  ++  send
+    |=  [eyre-id=@ta =eyre-update:nexus]
+    =/  m  (fiber ,~)
+    ^-  form:m
+    (eyre-poke [%send eyre-id eyre-update])
+  ::
+  ++  send-simple
+    |=  [eyre-id=@ta =simple-payload:http]
+    =/  m  (fiber ,~)
+    ^-  form:m
+    (send eyre-id %simple simple-payload)
+  ::
+  ++  send-header
+    |=  [eyre-id=@ta =response-header:http]
+    =/  m  (fiber ,~)
+    ^-  form:m
+    (send eyre-id %header response-header)
+  ::
+  ++  send-data
+    |=  [eyre-id=@ta data=(unit octs)]
+    =/  m  (fiber ,~)
+    ^-  form:m
+    (send eyre-id %data data)
+  ::
+  ++  send-kick
+    |=  eyre-id=@ta
+    =/  m  (fiber ,~)
+    ^-  form:m
+    (send eyre-id %kick ~)
+  --
+::  Standard HTTP dispatcher loop for nexuses with /requests/ sub-dir.
+::  Spawns per-request processes, forwards responses, handles cancels.
+::
+++  http-dispatch
+  |=  label=@tas
+  =/  m  (fiber ,~)
+  ^-  form:m
+  |-
+  ;<  [=from:fiber:nexus =sage:tarball]  bind:m  take-poke-from
+  ?+    name.p.sage  $
+      %handle-http-request
+    =/  [eyre-id=@ta src=@p req=inbound-request:eyre]
+      !<([eyre-id=@ta @p inbound-request:eyre] q.sage)
+    ~&  >  [label %dispatch eyre-id url.request.req]
+    ;<  ~  bind:m  (make [%| 0 %& /requests eyre-id] |+[%.n [[/ %http-request] !>([src req])] ~])
+    $
+      %handle-http-cancel
+    =/  eyre-id=@ta  !<(@ta q.sage)
+    ~&  >  [label %cancel eyre-id]
+    ;<  ~  bind:m  (cull [%| 0 %& /requests eyre-id])
+    $
+  ==
+::  +resolve-bend: resolve a fiber bend to an absolute rail
+::
+++  resolve-bend
+  |=  [here=rail:tarball =bend:fiber:nexus]
+  ^-  rail:tarball
+  =/  base=path  path.here
+  =/  up=@ud  p.bend
+  =/  resolved=path
+    |-
+    ?:  =(0 up)  base
+    ?~  base  ~
+    $(up (dec up), base (snip `path`base))
+  [(weld resolved path.q.bend) name.q.bend]
 --

@@ -30,6 +30,7 @@
       =code:nexus
       jael-source=(unit rail:tarball)
   ==
++$  server-state  server-state:nexus
 ++  kel  21.000.000 :: start big; burn many at once
 ++  sut
   :: Need to determine how much actually needs to be in here...
@@ -90,6 +91,8 @@
   =^  peer-cards  state  abet:sync-peer:hc
   ~&  >>  "on-init: sync-gall"
   =^  gall-cards  state  abet:sync-gall:hc
+  ~&  >>  "on-init: sync-eyre"
+  =^  eyre-cards  state  abet:sync-eyre:hc
   ~&  >>  "on-init: done"
   :_  this
   ;:  weld
@@ -102,6 +105,7 @@
     jael-cards
     peer-cards
     gall-cards
+    eyre-cards
     cards
   ==
 ::
@@ -137,6 +141,8 @@
     =^  peer-cards  state  abet:sync-peer:hc
     ~&  >>  "on-load: sync-gall"
     =^  gall-cards  state  abet:sync-gall:hc
+    ~&  >>  "on-load: sync-eyre"
+    =^  eyre-cards  state  abet:sync-eyre:hc
     ~&  >>  "on-load: done"
     :_  this
     ;:  weld
@@ -149,6 +155,7 @@
       jael-cards
       peer-cards
       gall-cards
+      eyre-cards
       cards
     ==
   ==
@@ -210,17 +217,20 @@
         abet:(reload-nexus:hc p.dest.action)
       [cards this]
     ==
-    ::  HTTP request from eyre: forward to /server.server/main.server-state
-    ::
-    ::  NOTE: HTTP requests go directly to /server.server/main.server-state,
-    ::  bypassing /sys/peer/ships weir checks. Eyre gestures at treating
-    ::  them as "from a ship" via src.bowl — this feels misleading.
+    ::  HTTP request from eyre: dispatch inline
     ::
       %handle-http-request
     =+  !<([eyre-id=@ta req=inbound-request:eyre] vas)
-    =/  =give:nexus  [|+[src sap]:bowl /[eyre-id]]
     =^  cards  state
-      abet:(poke:hc give [/'server.server' %'main.server-state'] [[/ %handle-http-request] !>([eyre-id src.bowl req])])
+      abet:(dispatch-http:hc eyre-id src.bowl req)
+    [cards this]
+    ::  Eyre action: binding/response operations from nexus fibers
+    ::
+      %eyre-action
+    ?>  =(src our):bowl
+    =+  !<(=eyre-action:nexus vas)
+    =^  cards  state
+      abet:(handle-eyre-action:hc eyre-action)
     [cards this]
       ::
       %refresh-sessions
@@ -326,9 +336,8 @@
     [~ this]
       [%http-response @ ~]
     =/  eyre-id=@ta  i.t.path
-    =/  =give:nexus  [|+[src sap]:bowl /cancel/[eyre-id]]
     =^  cards  state
-      abet:(poke:hc give [/'server.server' %'main.server-state'] [[/ %handle-http-cancel] !>(eyre-id)])
+      abet:(cancel-http:hc eyre-id)
     [cards this]
       [%proc ^]
     =^  cards  state
@@ -437,6 +446,8 @@
     =^  cards  state
       abet:(save-file:hc [/sys/jael %'private-keys.jael-private-keys'] [~ [/ %jael-private-keys] !>([life.sign vein.sign])])
     [cards this]
+  ?:  ?=(?([%eyre ~] [%eyre-bind ~]) wire)
+    `this
   =^  cards  state
     abet:(take-arvo:hc wire sign)
   [cards this]
@@ -3452,6 +3463,165 @@
   =/  =weir:nexus  (compute-peer-weir-from ship src how)
   =.  this  (set-weir /sys/peer/ships/[(scot %p ship)] `weir)
   $(all-ships t.all-ships)
+::  /sys/eyre: HTTP binding state + request dispatch
+::
+::  Eyre state (bindings + connections) lives as a grub at
+::  /sys/eyre/state.server-state. Cleared on every reload since
+::  nexuses re-bind on startup and connections are ephemeral.
+::
+++  eyre-rail  ^~([/sys/eyre %'state.server-state'])
+::
+++  get-server-state
+  ^-  server-state
+  =/  ct=(unit content:tarball)
+    (~(get ba:tarball ball) eyre-rail)
+  ?~  ct  *server-state
+  !<(server-state q.sage.u.ct)
+::
+++  put-server-state
+  |=  st=server-state
+  ^+  this
+  this(ball (~(put ba:tarball ball) eyre-rail [~ [/ %server-state] !>(st)]))
+::
+++  sync-eyre
+  ^+  this
+  ::  Ensure /sys/eyre directory structure exists
+  =/  old=ball:tarball  (~(dip ba:tarball ball) /sys/eyre)
+  =/  new=ball:tarball  old(fil `(fall fil.old *lump:tarball))
+  =?  new  =(~ (~(get of new) /requests))
+    (~(put of new) /requests [~ ~ ~])
+  =.  this  (load-ball-changes /sys/eyre old new)
+  ::  Initialize eyre state (bindings clear on reload; nexuses re-bind)
+  =.  this  (put-server-state *server-state)
+  ::  Ensure born entry for state file
+  =?  born  =(~ (~(get bo:nexus now.bowl [born ball]) eyre-rail))
+    (~(init bo:nexus now.bowl [born ball]) eyre-rail)
+  ::  Register /grubbery/api with eyre
+  (emit-card [%pass /eyre %arvo %e %connect [~ /grubbery/api] dap.bowl])
+::
+++  dispatch-http
+  |=  [eyre-id=@ta src=@p req=inbound-request:eyre]
+  ^+  this
+  =/  [site=path args=quay:eyre]  (parse-url:http-utils url.request.req)
+  ::  Ball API: spawn request fiber at /sys/eyre/requests/
+  ?:  ?=([%grubbery %api *] site)
+    ~&  >  [%eyre-api eyre-id url.request.req]
+    (make [%& /sys/eyre/requests eyre-id] |+[%.n [[/ %http-request] !>([src req])] ~])
+  ::  Binding match: find handler, forward request
+  =/  st=server-state  get-server-state
+  =/  match=(unit [=binding:eyre handler=rail:tarball])
+    (find-eyre-binding bindings.st site)
+  ?~  match
+    ~&  >  [%eyre-no-binding site]
+    %-  emit-cards
+    (give-simple-payload:app:server eyre-id [[404 ~] `(as-octs:mimes:html 'Not Found')])
+  ~&  >  [%eyre-dispatch binding.u.match handler.u.match]
+  =.  conns.st  (~(put by conns.st) eyre-id binding.u.match)
+  =.  this  (put-server-state st)
+  ::  Forward request to handler
+  =/  =give:nexus  [|+[src /eyre] /[eyre-id]]
+  (poke give handler.u.match [[/ %handle-http-request] !>([eyre-id src req])])
+::
+++  cancel-http
+  |=  eyre-id=@ta
+  ^+  this
+  ~&  >  [%eyre-cancel eyre-id]
+  =/  st=server-state  get-server-state
+  =/  conn-binding=(unit binding:eyre)  (~(get by conns.st) eyre-id)
+  =.  conns.st  (~(del by conns.st) eyre-id)
+  =.  this  (put-server-state st)
+  ::  No binding = ball API request — cull the request fiber
+  ?~  conn-binding
+    (cull [%& /sys/eyre/requests eyre-id])
+  ::  Bound request — forward cancel to handler
+  =/  handler=(unit rail:tarball)  (~(get by bindings.st) u.conn-binding)
+  ?~  handler  this
+  =/  =give:nexus  [|+[our.bowl /eyre] /cancel/[eyre-id]]
+  (poke give u.handler [[/ %handle-http-cancel] !>(eyre-id)])
+::
+++  handle-eyre-action
+  |=  act=eyre-action:nexus
+  ^+  this
+  =/  st=server-state  get-server-state
+  ?-    -.act
+      %bind
+    ~&  >  [%eyre-bind binding.act handler.act]
+    =.  bindings.st  (~(put by bindings.st) binding.act handler.act)
+    =.  this  (put-server-state st)
+    (emit-card [%pass /eyre-bind %arvo %e %connect binding.act dap.bowl])
+  ::
+      %unbind
+    ~&  >  [%eyre-unbind binding.act]
+    =/  orphans=(list @ta)
+      %+  murn  ~(tap by conns.st)
+      |=  [eid=@ta =binding:eyre]
+      ?.  =(binding binding.act)  ~
+      `eid
+    =.  this
+      %-  emit-cards
+      %+  turn  orphans
+      |=  eid=@ta
+      ^-  card
+      [%give %kick ~[/http-response/[eid]] ~]
+    =.  conns.st
+      %-  ~(gas by *(map @ta binding:eyre))
+      %+  skip  ~(tap by conns.st)
+      |=  [eid=@ta =binding:eyre]
+      =(binding binding.act)
+    =.  bindings.st  (~(del by bindings.st) binding.act)
+    (put-server-state st)
+  ::
+      %send
+    =/  conn-binding=(unit binding:eyre)
+      (~(get by conns.st) eyre-id.act)
+    ?~  conn-binding
+      ~&  >  [%eyre-unknown-connection eyre-id.act]
+      this
+    =/  cards=(list card)
+      (eyre-response-cards eyre-id.act eyre-update.act)
+    ?:  ?=(?(%kick %simple) -.eyre-update.act)
+      =.  conns.st  (~(del by conns.st) eyre-id.act)
+      =.  this  (put-server-state st)
+      (emit-cards cards)
+    (emit-cards cards)
+  ==
+::
+++  eyre-response-cards
+  |=  [eyre-id=@ta upd=eyre-update:nexus]
+  ^-  (list card)
+  ?-    -.upd
+      %header
+    [%give %fact ~[/http-response/[eyre-id]] http-response-header+!>(response-header.upd)]~
+      %data
+    [%give %fact ~[/http-response/[eyre-id]] http-response-data+!>(data.upd)]~
+      %kick
+    [%give %kick ~[/http-response/[eyre-id]] ~]~
+      %simple
+    (give-simple-payload:app:server eyre-id simple-payload.upd)
+  ==
+::
+++  find-eyre-binding
+  |=  [bindings=(map binding:eyre rail:tarball) site=path]
+  ^-  (unit [=binding:eyre handler=rail:tarball])
+  =|  best=(unit [=binding:eyre handler=rail:tarball])
+  =/  entries=(list [=binding:eyre handler=rail:tarball])
+    ~(tap by bindings)
+  |-
+  ?~  entries  best
+  =/  suffix=(unit path)
+    =+  [prefix=path.binding.i.entries full=site]
+    |-  ^-  (unit path)
+    ?~  prefix  `full
+    ?~  full    ~
+    ?.  =(i.prefix i.full)  ~
+    $(prefix t.prefix, full t.full)
+  ?~  suffix
+    $(entries t.entries)
+  ?~  best  $(best `i.entries, entries t.entries)
+  ?:  (gth (lent path.binding.i.entries) (lent path.binding.u.best))
+    $(best `i.entries, entries t.entries)
+  $(entries t.entries)
+::
 ::  Save file state and bump ONLY if content actually changed.
 ::  This is the ONLY correct way to update file state.
 ::  Invariant: file aeon changes iff file content changes.

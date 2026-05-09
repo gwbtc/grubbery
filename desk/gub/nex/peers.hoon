@@ -1,10 +1,9 @@
 ::  peers nexus: usergroup + ship management
 ::
-::  Binds /grubbery/peers/ via nex-server.
+::  Binds /grubbery/peers/ via fiberio.
 ::  Server-renders HTML from /sys/peer/ data.
 ::  POST handlers for create/delete/edit operations.
 ::
-/<  nex-server  /lib/nex/server.hoon
 =<  ^-  nexus:nexus
     |%
     ++  on-load
@@ -29,8 +28,8 @@
       ?+    rail  stay:m
           [~ %'main.sig']
         ;<  ~  bind:m  (rise-wait:io prod "%peers /main: failed")
-        ;<  ~  bind:m  (bind-http:nex-server [~ /grubbery/peers])
-        (http-dispatch:nex-server %peers)
+        ;<  ~  bind:m  (bind-http:io [~ /grubbery/peers])
+        (http-dispatch:io %peers)
           [[%requests ~] @]
         ;<  ~  bind:m  (rise-wait:io prod "%peers /requests: failed")
         =/  eyre-id=@ta  name.rail
@@ -65,7 +64,7 @@
     --
 ::
 |%
-++  srv  ~(. res:nex-server [%| 1 %& ~ %'main.sig'])
+++  srv  ~(. http-res:io [%| 1 %& ~ %'main.sig'])
 ++  peer-base  /sys/peer
 ::
 ++  abs-file

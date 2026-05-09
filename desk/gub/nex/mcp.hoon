@@ -5,11 +5,10 @@
 ::    /requests/{id}    parse HTTP, route protocol vs tools/call
 ::    /tools/{id}       tool execution grub (mark %tool-state)
 ::
-/<  nex-server  /lib/nex/server.hoon
 /<  nex-mcp     /lib/nex/mcp.hoon
 /<  nex-tools   /lib/nex/tools.hoon
 =>  |%
-    ++  srv  ~(. res:nex-server [%| 1 %& ~ %'main.sig'])
+    ++  srv  ~(. http-res:io [%| 1 %& ~ %'main.sig'])
     ::  On crash, write error to tool state so MCP returns it.
     ::  On normal startup, continue.
     ::
@@ -107,9 +106,9 @@
   ?+    rail  stay:m
       [~ %'main.sig']
     ;<  ~  bind:m  (rise-wait:io prod "%mcp /main: failed")
-    ;<  ~  bind:m  (bind-http:nex-server [~ /grubbery/mcp])
+    ;<  ~  bind:m  (bind-http:io [~ /grubbery/mcp])
     ~&  >  "%mcp /main: ready, bound /grubbery/mcp"
-    (http-dispatch:nex-server %mcp)
+    (http-dispatch:io %mcp)
       ::  /requests/{eyre-id}: parse HTTP, dispatch
       ::
       [[%requests ~] @]

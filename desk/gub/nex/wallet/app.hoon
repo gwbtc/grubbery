@@ -7,7 +7,6 @@
 /<  bip32         /lib/bip32.hoon
 /<  seed-phrases  /lib/seed-phrases.hoon
 /<  bech32        /lib/bech32.hoon
-/<  nex-server    /lib/nex/server.hoon
 /<  acct-ui       /lib/wallet-account-ui.hoon
 /<  drft          /lib/tx/draft.hoon
 =,  wt
@@ -154,8 +153,8 @@
           [[%ui ~] %'http.sig']
         ;<  ~  bind:m  (rise-wait:io prod "%wallet /ui/http: failed")
         =/  prefix=path  /groundwire/wallet
-        ;<  ~  bind:m  (bind-http:nex-server [~ prefix])
-        (http-dispatch:nex-server %wallet)
+        ;<  ~  bind:m  (bind-http:io [~ prefix])
+        (http-dispatch:io %wallet)
           ::  /ui/requests/*: individual HTTP request handlers
           ::
           [[%ui %requests ~] @]
@@ -324,7 +323,7 @@
 |%
 ::  HTTP response helpers — road from /ui/requests/* to /ui/http.sig
 ::
-++  srv  ~(. res:nex-server [%| 1 %& ~ %'http.sig'])
+++  srv  ~(. http-res:io [%| 1 %& ~ %'http.sig'])
 ::
 ++  send-html
   |=  [eyre-id=@ta page=manx]

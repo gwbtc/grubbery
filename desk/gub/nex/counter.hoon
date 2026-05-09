@@ -1,6 +1,5 @@
 ::  counter nexus: many auto-incrementing counters identified by @da
 ::
-/<  nex-server  /lib/nex/server.hoon
 =<  ^-  nexus:nexus
     |%
     ++  on-load
@@ -61,8 +60,8 @@
         ;<  ~  bind:m  (rise-wait:io prod "%counter /ui/main: failed")
         ;<  here=rail:tarball  bind:m  get-here-abs:io
         =/  prefix=path  (url-prefix (snip path.here))
-        ;<  ~  bind:m  (bind-http:nex-server [~ prefix])
-        (http-dispatch:nex-server %counter)
+        ;<  ~  bind:m  (bind-http:io [~ prefix])
+        (http-dispatch:io %counter)
           ::  /ui/requests/*: individual request handlers
           ::
           [[%ui %requests ~] @]
@@ -136,10 +135,10 @@
 ++  url-prefix
   |=  root=path
   ^-  path
-  (weld /grubbery/counters root)
+  /grubbery/counters
 ::  HTTP response door (road from /ui/requests/* to /ui/main.sig)
 ::
-++  srv  ~(. res:nex-server [%| 1 %& ~ %'main.sig'])
+++  srv  ~(. http-res:io [%| 1 %& ~ %'main.sig'])
 ::
 ++  counter-page
   |=  [counters=(list [@ta @ud]) nexus-root=path]

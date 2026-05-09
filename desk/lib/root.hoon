@@ -1,6 +1,6 @@
 ::  Root nexus — hardcoded in app/grubbery.hoon, not loaded from code namespace.
 ::
-/+  nexus, tarball, loader, io=fiberio
+/+  nexus, tarball, loader, io=fiberio, ball-api, http-utils
 ^-  nexus:nexus
 |%
 ++  on-load
@@ -14,9 +14,12 @@
         [%load %| / / same-fold:loader]
         [%fall %| /apps [~ ~] [~ ~] [`[~ ~ ~] ~]]
         [%fall %| /docs [~ ~] [~ ~] [`[~ ~ ~] ~]]
+        ::  /sys/eyre: runtime-managed HTTP state + request fibers
+        ::
+        [%fall %| /sys/eyre [~ ~] [~ ~] [`[~ ~ ~] ~]]
+        [%fall %| /sys/eyre/requests [~ ~] [~ ~] [`[~ ~ ~] ~]]
         ::  child nexuses
         ::
-        [%fall %| /'server.server' [~ ~] [~ ~] [`[~ `[/ %server] ~] ~]]
         [%fall %| /apps/'counter.counter' [~ ~] [~ ~] [`[~ `[/ %counter] ~] ~]]
         [%fall %| /apps/'explorer.explorer' [~ ~] [~ ~] [`[~ `[/ %explorer] ~] ~]]
         [%fall %| /apps/'mcp.mcp' [~ ~] [~ ~] [`[~ `[/ %mcp] ~] ~]]
@@ -30,7 +33,14 @@
   |=  =prod:fiber:nexus
   =/  m  (fiber:fiber:nexus ,~)
   ^-  process:fiber:nexus
-  stay:m
+  ?+    rail  stay:m
+      [[%sys %eyre %requests ~] @]
+    ;<  ~  bind:m  (rise-wait:io prod "%eyre /requests: failed")
+    =/  eyre-id=@ta  name.rail
+    ;<  [src=@p req=inbound-request:eyre]  bind:m  (get-state-as:io ,[src=@p inbound-request:eyre])
+    =/  [site=path args=quay:eyre]  (parse-url:http-utils url.request.req)
+    (dispatch:ball-api eyre-id src req site args)
+  ==
 ::
 ++  on-manu
   |=  =mana:nexus
@@ -44,12 +54,10 @@
       GRUBBERY ROOT — top-level tarball
 
       The root nexus bootstraps all system nexuses and user data.
-      Each subdirectory with a neck (e.g. server.server/) is a child
+      Each subdirectory with a neck (e.g. counter.counter/) is a child
       nexus managed by its own nex/ file.
 
       NEXUSES:
-        server.server/     HTTP gateway. Routes requests to handler nexuses.
-        claude.claude/     AI chat via Anthropic API.
         mcp.mcp/           MCP (Model Context Protocol) JSON-RPC tool server.
         explorer.explorer/ Web-based tarball file browser.
         counter.counter/   Auto-incrementing counters with live UI.
@@ -58,7 +66,7 @@
 
       SYSTEM:
         sys/               System internals — build compiler, terminal logs,
-                           cryptographic keys, virtual bowl files.
+                           cryptographic keys, virtual bowl files, eyre state.
       """
         [%sys ~]
       %-  crip
@@ -68,6 +76,7 @@
       SUBDIRECTORIES:
         code/           Compiled marks, nexuses, daises, tubes, and libraries.
         dill/           Terminal I/O logs. Mark: dill-told. History retained.
+        eyre/           HTTP binding state and request fibers.
         jael/           Cryptographic key storage. History retained.
                         private-keys.jael-private-keys — ship private keys.
                         public-keys.jael-public-keys-result — PKI cache.
@@ -75,6 +84,22 @@
                         Weirs recompute atomically on usergroup changes.
                         ships/~ship/ship.sig — virtual grub per foreign ship.
       """
+        [%sys %eyre ~]
+      %-  crip
+      """
+      sys/eyre/ — HTTP binding state and request fibers.
+
+      FILES:
+        state.server-state    Active bindings and connection tracking.
+                            Runtime-managed, cleared on reload.
+
+      DIRECTORIES:
+        requests/           Per-request fibers for /grubbery/api/ endpoints.
+                            Each inbound API request spawns a short-lived
+                            fiber here, cleaned up on response or disconnect.
+      """
+        [%sys %eyre %requests ~]
+      'Active HTTP request fibers. Each inbound API request spawns a fiber here; cleaned up on completion or client disconnect.'
         [%sys %peer ~]
       %-  crip
       """

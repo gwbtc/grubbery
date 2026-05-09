@@ -1,47 +1,37 @@
-::  server-state: mark for server nexus state
+::  server-state: HTTP binding registry + active connections
 ::
-/<  nex-server  /lib/nex/server.hoon
-!: :: turn on stack trace
-|_  state=server-state:nex-server
+|_  st=server-state:nexus
 ++  grow
   |%
-  ++  noun  state
+  ++  noun  st
   ++  json
     ^-  ^json
-    =/  bindings-list=(list [=binding:eyre handler=rail:tarball])
-      ~(tap by bindings.state)
-    =/  connections-list=(list [@ta =binding:eyre])
-      ~(tap by connections.state)
     %-  pairs:enjs:format
-    :~  :-  'bindings'
+    :~  ['version' (numb:enjs:format 0)]
+        ['binding-count' (numb:enjs:format ~(wyt by bindings.st))]
+        :-  'bindings'
         :-  %a
-        %+  turn  bindings-list
+        %+  turn  ~(tap by bindings.st)
         |=  [=binding:eyre handler=rail:tarball]
         %-  pairs:enjs:format
-        :~  ['site' ?~(site.binding s+'~' s+u.site.binding)]
+        :~  ['site' ?~(site.binding ~ s+u.site.binding)]
             ['path' s+(spat path.binding)]
-            :-  'handler'
-            %-  pairs:enjs:format
-            :~  ['path' s+(spat path.handler)]
-                ['name' s+name.handler]
-            ==
+            ['handler' s+(spat (snoc path.handler name.handler))]
         ==
-      ::
-        :-  'connections'
+        ['conn-count' (numb:enjs:format ~(wyt by conns.st))]
+        :-  'conns'
         :-  %a
-        %+  turn  connections-list
+        %+  turn  ~(tap by conns.st)
         |=  [eyre-id=@ta =binding:eyre]
         %-  pairs:enjs:format
         :~  ['eyre-id' s+eyre-id]
-            ['site' ?~(site.binding s+'~' s+u.site.binding)]
             ['path' s+(spat path.binding)]
         ==
     ==
-  ++  mime  [/application/json (as-octs:mimes:html -:txt)]
-  ++  txt   [(en:json:html json)]~
+  ++  mime  [/application/json (as-octs:mimes:html (en:json:html json))]
   --
 ++  grab
   |%
-  ++  noun  server-state:nex-server
+  ++  noun  server-state:nexus
   --
 --
