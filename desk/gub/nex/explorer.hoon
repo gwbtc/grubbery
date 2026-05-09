@@ -294,6 +294,80 @@
     ;<  ~  bind:m  (reload:io [%& %| tree-path])
     ;<  ~  bind:m  (send-simple:srv eyre-id [[303 ~[['location' (crip redirect-url)]]] ~])
     (pure:m ~)
+  ::
+      %'rename-grub'
+    =/  filename=@t  (fall (get-key:kv:html-utils 'filename' args) '')
+    =/  newname=@t  (fall (get-key:kv:html-utils 'newname' args) '')
+    ?:  |(=('' filename) =('' newname))
+      ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'Missing filename or newname')])
+      (pure:m ~)
+    ;<  ~  bind:m  (move-grub:io [%& %& tree-path filename] [%& %& tree-path newname])
+    ;<  ~  bind:m  (send-simple:srv eyre-id [[303 ~[['location' (crip redirect-url)]]] ~])
+    (pure:m ~)
+  ::
+      %'rename-folder'
+    =/  foldername=@t  (fall (get-key:kv:html-utils 'foldername' args) '')
+    =/  newname=@t  (fall (get-key:kv:html-utils 'newname' args) '')
+    ?:  |(=('' foldername) =('' newname))
+      ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'Missing foldername or newname')])
+      (pure:m ~)
+    ;<  ~  bind:m  (move-fold:io [%& %| (snoc tree-path foldername)] [%& %| (snoc tree-path newname)])
+    ;<  ~  bind:m  (send-simple:srv eyre-id [[303 ~[['location' (crip redirect-url)]]] ~])
+    (pure:m ~)
+  ::
+      %'move-grub'
+    =/  filename=@t  (fall (get-key:kv:html-utils 'filename' args) '')
+    =/  dest=@t  (fall (get-key:kv:html-utils 'dest' args) '')
+    ?:  |(=('' filename) =('' dest))
+      ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'Missing filename or dest')])
+      (pure:m ~)
+    =/  dest-path=path  (stab dest)
+    ?~  dest-path
+      ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'Invalid dest path')])
+      (pure:m ~)
+    =/  dst-dir=path  (snip `path`dest-path)
+    =/  dst-name=@ta  (rear dest-path)
+    ;<  ~  bind:m  (move-grub:io [%& %& tree-path filename] [%& %& dst-dir dst-name])
+    ;<  ~  bind:m  (send-simple:srv eyre-id [[303 ~[['location' (crip redirect-url)]]] ~])
+    (pure:m ~)
+  ::
+      %'move-folder'
+    =/  foldername=@t  (fall (get-key:kv:html-utils 'foldername' args) '')
+    =/  dest=@t  (fall (get-key:kv:html-utils 'dest' args) '')
+    ?:  |(=('' foldername) =('' dest))
+      ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'Missing foldername or dest')])
+      (pure:m ~)
+    =/  dest-path=path  (stab dest)
+    ;<  ~  bind:m  (move-fold:io [%& %| (snoc tree-path foldername)] [%& %| dest-path])
+    ;<  ~  bind:m  (send-simple:srv eyre-id [[303 ~[['location' (crip redirect-url)]]] ~])
+    (pure:m ~)
+  ::
+      %'copy-grub'
+    =/  filename=@t  (fall (get-key:kv:html-utils 'filename' args) '')
+    =/  dest=@t  (fall (get-key:kv:html-utils 'dest' args) '')
+    ?:  |(=('' filename) =('' dest))
+      ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'Missing filename or dest')])
+      (pure:m ~)
+    =/  dest-path=path  (stab dest)
+    ?~  dest-path
+      ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'Invalid dest path')])
+      (pure:m ~)
+    =/  dst-dir=path  (snip `path`dest-path)
+    =/  dst-name=@ta  (rear dest-path)
+    ;<  ~  bind:m  (copy-grub:io [%& %& tree-path filename] [%& %& dst-dir dst-name])
+    ;<  ~  bind:m  (send-simple:srv eyre-id [[303 ~[['location' (crip redirect-url)]]] ~])
+    (pure:m ~)
+  ::
+      %'copy-folder'
+    =/  foldername=@t  (fall (get-key:kv:html-utils 'foldername' args) '')
+    =/  dest=@t  (fall (get-key:kv:html-utils 'dest' args) '')
+    ?:  |(=('' foldername) =('' dest))
+      ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'Missing foldername or dest')])
+      (pure:m ~)
+    =/  dest-path=path  (stab dest)
+    ;<  ~  bind:m  (copy-fold:io [%& %| (snoc tree-path foldername)] [%& %| dest-path])
+    ;<  ~  bind:m  (send-simple:srv eyre-id [[303 ~[['location' (crip redirect-url)]]] ~])
+    (pure:m ~)
   ==
 ::  Handle multipart file upload
 ::
@@ -988,6 +1062,38 @@
     });
     window.addEventListener('beforeunload', function() { es.close(); });
   })();
+  function doAction(action, params) {
+    var form = document.createElement('form');
+    form.method = 'POST';
+    form.action = location.pathname;
+    var a = document.createElement('input');
+    a.type = 'hidden'; a.name = 'action'; a.value = action;
+    form.appendChild(a);
+    for (var k in params) {
+      var i = document.createElement('input');
+      i.type = 'hidden'; i.name = k; i.value = params[k];
+      form.appendChild(i);
+    }
+    document.body.appendChild(form);
+    form.submit();
+  }
+  function renameItem(type, name) {
+    var n = prompt('New name for ' + name + ':', name);
+    if (!n || n === name) return;
+    doAction('rename-' + type, type === 'grub' ? {filename: name, newname: n} : {foldername: name, newname: n});
+  }
+  function moveItem(type, name) {
+    var cur = location.pathname.replace('/grubbery/ball', '') || '/';
+    var d = prompt('Move ' + name + ' to (full path):', cur + (cur === '/' ? '' : '/') + name);
+    if (!d) return;
+    doAction('move-' + type, type === 'grub' ? {filename: name, dest: d} : {foldername: name, dest: d});
+  }
+  function copyItem(type, name) {
+    var cur = location.pathname.replace('/grubbery/ball', '') || '/';
+    var d = prompt('Copy ' + name + ' to (full path):', cur + (cur === '/' ? '' : '/') + name);
+    if (!d) return;
+    doAction('copy-' + type, type === 'grub' ? {filename: name, dest: d} : {foldername: name, dest: d});
+  }
   function showBoom(el) {
     var pre = el.dataset.tang;
     var ov = document.getElementById('boom-overlay');
@@ -1152,6 +1258,9 @@
       ;a/"{dir-url}?download=tar"
         ;button(type "button"): Download
       ==
+      ;button(type "button", onclick "renameItem('folder','{(trip name)}')"): Rename
+      ;button(type "button", onclick "moveItem('folder','{(trip name)}')"): Move
+      ;button(type "button", onclick "copyItem('folder','{(trip name)}')"): Copy
       ;form.del-form(method "POST", action url-prefix)
         ;input(type "hidden", name "action", value "delete-folder");
         ;input(type "hidden", name "foldername", value (trip name));
@@ -1246,6 +1355,9 @@
     ;td: {(format-size p.q.mime)}
     ;td: {mtime-display}
     ;td
+      ;button(type "button", onclick "renameItem('grub','{display-name}')"): Rename
+      ;button(type "button", onclick "moveItem('grub','{display-name}')"): Move
+      ;button(type "button", onclick "copyItem('grub','{display-name}')"): Copy
       ;a/"{file-url}"(download display-name)
         ;button(type "button"): Download
       ==

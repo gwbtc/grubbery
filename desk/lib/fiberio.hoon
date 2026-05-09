@@ -1353,4 +1353,20 @@
   ?.  ?=([%& %ball *] seen)
     ~|(%copy-fold-src-not-found !!)
   (make dst &+[sand.p.seen gain.p.seen ball.p.seen])
+::  +move-grub: move a file from src to dst (copy + delete)
+::
+++  move-grub
+  |=  [src=road:tarball dst=road:tarball]
+  =/  m  (fiber ,~)
+  ^-  form:m
+  ;<  ~  bind:m  (copy-grub src dst)
+  (cull src)
+::  +move-fold: move a directory from src to dst (copy + delete)
+::
+++  move-fold
+  |=  [src=road:tarball dst=road:tarball]
+  =/  m  (fiber ,~)
+  ^-  form:m
+  ;<  ~  bind:m  (copy-fold src dst)
+  (cull src)
 --
