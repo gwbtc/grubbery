@@ -1,7 +1,7 @@
 ::  peers nexus: usergroup + ship management
 ::
 ::  Binds /grubbery/peers/ via fiberio.
-::  Server-renders HTML from /sys/peer/ data.
+::  Server-renders HTML from /sys/ames/ data.
 ::  POST handlers for create/delete/edit operations.
 ::
 =<  ^-  nexus:nexus
@@ -65,7 +65,7 @@
 ::
 |%
 ++  srv  ~(. http-res:io [%| 1 %& ~ %'main.sig'])
-++  peer-base  /sys/peer
+++  peer-base  /sys/ames
 ::
 ++  abs-file
   |=  [=path name=@ta]
@@ -84,16 +84,12 @@
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
   ::  read all peer data
-  ;<  who-seen=seen:nexus  bind:m  (peek:io (abs-dir /usergroups/who) ~)
-  ;<  how-seen=seen:nexus  bind:m  (peek:io (abs-dir /usergroups/how) ~)
+  ;<  ug-seen=seen:nexus  bind:m  (peek:io (abs-dir /usergroups) ~)
   ;<  ships-seen=seen:nexus  bind:m  (peek:io (abs-dir /ships) ~)
-  =/  who-ball=ball:tarball
-    ?.  ?=([%& %ball *] who-seen)  [~ ~]
-    ball.p.who-seen
-  =/  how-ball=ball:tarball
-    ?.  ?=([%& %ball *] how-seen)  [~ ~]
-    ball.p.how-seen
-  =/  groups=(list group-info)  (read-groups who-ball how-ball)
+  =/  ug-ball=ball:tarball
+    ?.  ?=([%& %ball *] ug-seen)  [~ ~]
+    ball.p.ug-seen
+  =/  groups=(list group-info)  (read-groups ug-ball)
   =/  ships=(list @ta)
     ?.  ?=([%& %ball *] ships-seen)  ~
     (sort ~(tap in ~(key by dir.ball.p.ships-seen)) aor)
@@ -118,16 +114,15 @@
     ?:  =('' name)
       (redirect eyre-id)
     =/  nam=@ta  (crip (trip name))
-    =/  who-road=road:tarball  (abs-file /usergroups/who nam)
-    =/  how-road=road:tarball  (abs-file /usergroups/how nam)
+    =/  who-road=road:tarball  (abs-file /usergroups/[nam] %'who.ships')
+    =/  how-road=road:tarball  (abs-file /usergroups/[nam] %'how.weir')
     ;<  *  bind:m  (make-soft:io who-road |+[%.n [[/ %ships] !>(*(set @p))] ~])
     ;<  *  bind:m  (make-soft:io how-road |+[%.n [[/ %weir] !>(*weir:nexus)] ~])
     (redirect eyre-id)
   ::
       [%delete ~]
     =/  nam=@ta  (crip (trip body))
-    ;<  *  bind:m  (cull-soft:io (abs-file /usergroups/who nam))
-    ;<  *  bind:m  (cull-soft:io (abs-file /usergroups/how nam))
+    ;<  *  bind:m  (cull-soft:io (abs-dir /usergroups/[nam]))
     (redirect eyre-id)
   ::
       [%members ~]
@@ -138,7 +133,7 @@
     =/  ships=(set @p)
       %-  ~(gas in *(set @p))
       (murn t.lines |=(t=@t (slaw %p t)))
-    ;<  ~  bind:m  (over:io (abs-file /usergroups/who nam) [[/ %ships] !>(ships)])
+    ;<  ~  bind:m  (over:io (abs-file /usergroups/[nam] %'who.ships') [[/ %ships] !>(ships)])
     (redirect eyre-id)
   ::
       [%permissions ~]
@@ -147,7 +142,7 @@
     ?~  lines  (redirect eyre-id)
     =/  nam=@ta  (crip (trip i.lines))
     =/  =weir:nexus  (parse-weir-lines t.lines)
-    ;<  ~  bind:m  (over:io (abs-file /usergroups/how nam) [[/ %weir] !>(weir)])
+    ;<  ~  bind:m  (over:io (abs-file /usergroups/[nam] %'how.weir') [[/ %weir] !>(weir)])
     (redirect eyre-id)
   ==
 ::
@@ -169,34 +164,24 @@
   ==
 ::
 ++  read-groups
-  |=  [who-ball=ball:tarball how-ball=ball:tarball]
+  |=  ug-ball=ball:tarball
   ^-  (list group-info)
-  =/  who-names=(list @ta)
-    ?~  fil.who-ball  ~
-    (sort ~(tap in ~(key by contents.u.fil.who-ball)) aor)
-  %+  turn  who-names
+  =/  names=(list @ta)
+    (sort ~(tap in ~(key by dir.ug-ball)) aor)
+  %+  murn  names
   |=  name=@ta
-  :+  name
-    (read-who who-ball name)
-  (read-how how-ball name)
-::
-++  read-who
-  |=  [=ball:tarball name=@ta]
-  ^-  (set @p)
-  ?~  fil.ball  ~
-  =/  c=(unit content:tarball)  (~(get by contents.u.fil.ball) name)
-  ?~  c  ~
-  =/  res  (mule |.(!<((set @p) q.sage.u.c)))
-  ?:(?=(%| -.res) ~ p.res)
-::
-++  read-how
-  |=  [=ball:tarball name=@ta]
-  ^-  weir:nexus
-  ?~  fil.ball  *weir:nexus
-  =/  c=(unit content:tarball)  (~(get by contents.u.fil.ball) name)
-  ?~  c  *weir:nexus
-  =/  res  (mule |.(!<(weir:nexus q.sage.u.c)))
-  ?:(?=(%| -.res) *weir:nexus p.res)
+  ^-  (unit group-info)
+  =/  grp=ball:tarball  (~(dip ba:tarball ug-ball) /[name])
+  =/  who-c=(unit content:tarball)  (~(get ba:tarball grp) [/ %'who.ships'])
+  =/  how-c=(unit content:tarball)  (~(get ba:tarball grp) [/ %'how.weir'])
+  ?~  who-c  ~
+  =/  who-res  (mule |.(!<((set @p) q.sage.u.who-c)))
+  =/  members=(set @p)  ?:(?=(%| -.who-res) ~ p.who-res)
+  =/  =weir:nexus
+    ?~  how-c  *weir:nexus
+    =/  res  (mule |.(!<(weir:nexus q.sage.u.how-c)))
+    ?:(?=(%| -.res) *weir:nexus p.res)
+  `[name members weir]
 ::
 ::  Parsing helpers
 ::

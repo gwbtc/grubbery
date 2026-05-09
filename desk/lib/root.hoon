@@ -205,7 +205,7 @@
             jael/           Cryptographic key storage. History retained.
                             private-keys.jael-private-keys — ship private keys.
                             public-keys.jael-public-keys-result — PKI cache.
-            peer/           Foreign ship management. Runtime-owned.
+            ames/           Foreign ship management. Runtime-owned.
                             Weirs recompute atomically on usergroup changes.
                             ships/~ship/ship.sig — virtual grub per foreign ship.
           """
@@ -225,30 +225,26 @@
           """
             [%sys %eyre %requests ~]
           'Active HTTP request fibers. Each inbound API request spawns a fiber here; cleaned up on completion or client disconnect.'
-            [%sys %peer ~]
+            [%sys %ames ~]
           %-  crip
           """
-          sys/peer/ — Foreign ship management (runtime-owned).
+          sys/ames/ — Foreign ship management (runtime-owned).
 
           Foreign pokes are emitted as darts from ship.sig, filtered by
           the weir on the ship's directory. Weirs are computed from
           usergroups and recompute atomically on any change.
 
           SUBDIRECTORIES:
-            usergroups/who/   Group membership. Each file is a (set @p).
-                              Nested paths supported (e.g. /who/acme/eng).
-            usergroups/how/   Weir templates per group. Each file is a weir.
-                              /how/public applies to ALL foreign ships.
+            usergroups/       Per-group directories. Each contains:
+                                who.ships — group membership (set @p).
+                                how.weir  — weir template for the group.
+                              The 'public' group applies to ALL foreign ships.
             ships/            Per-ship directories, created lazily.
                               Each has a ship.sig grub and a computed weir.
           """
-            [%sys %peer %usergroups ~]
-          'Usergroup definitions. /who/ has membership sets (set @p), /how/ has weir templates. Groups control what foreign ships can access.'
-            [%sys %peer %usergroups %who ~]
-          'Group membership. Each file contains a (set @p). Nested paths supported.'
-            [%sys %peer %usergroups %how ~]
-          'Weir templates per group. Each file contains a weir:nexus. /how/public applies to all ships.'
-            [%sys %peer %ships ~]
+            [%sys %ames %usergroups ~]
+          'Per-group directories. Each group is a directory containing who.ships (members) and how.weir (permissions).'
+            [%sys %ames %ships ~]
           'Per-ship directories. Created lazily on first foreign poke. Each contains ship.sig with a weir computed from usergroups.'
         ==
           %|
