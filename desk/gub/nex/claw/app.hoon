@@ -17,12 +17,10 @@
             [%fall %& [/ %'main.sig'] %.n [~ [/ %sig] !>(~)]]
             [%fall %| /apis [~ ~] [~ ~] empty-dir:loader]
             [%fall %| /apis/anthropic [~ ~] [~ ~] [`[~ `[/claw/api %anthropic] ~] ~]]
-            =/  agents-weir=weir:nexus
-              :+  ~
-                (sy ~[&+|+/sys/bowl |+[1 |+/apis] |+[1 |+/channels]])
-              (sy ~[&+|+/])
-            [%fall %| /agents [`agents-weir ~] [~ ~] empty-dir:loader]
+            [%fall %| /agents [~ ~] [~ ~] empty-dir:loader]
+            [%fall %| /agents/main [`main-agent-weir ~] [~ ~] [`[~ `[/claw %agent] ~] ~]]
             [%fall %| /channels [~ ~] [~ ~] empty-dir:loader]
+            [%fall %| /channels/telegram/main-bot [~ ~] [~ ~] [`[~ `[/claw/channel %telegram] ~] ~]]
             [%fall %| /ui/sse [~ ~] [~ ~] empty-dir:loader]
             [%over %& [/ui/sse %'agents.html'] %.n [~ [/ %manx] !>((agents-fragment "" ~))]]
             [%over %& [/ui/sse %'channels.html'] %.n [~ [/ %manx] !>((channels-fragment "" ~))]]
@@ -114,7 +112,8 @@
           =/  agent-road=road:tarball
             (cord-to-road:tarball (crip "./agents/{(trip name)}/"))
           =/  new-ball=ball:tarball  [`[~ `[/claw %agent] ~] ~]
-          ;<  ~  bind:m  (make:io agent-road &+[*sand:nexus *gain:nexus new-ball])
+          =/  new-sand=sand:nexus  [`agents-weir ~]
+          ;<  ~  bind:m  (make:io agent-road &+[new-sand *gain:nexus new-ball])
           =/  agent-cfg=json
             %-  pairs:enjs:format
             :~  ['model' s+'claude-sonnet-4-20250514']
@@ -231,6 +230,21 @@
     --
 ::
 |%
+::  +agents-weir: weir for individual agent at ./agents/{name}/
+::  2 steps up = claw app root, then /apis or /channels.
+::
+++  agents-weir
+  ^-  weir:nexus
+  :+  ~
+    (sy ~[&+[%| /sys/bowl] |+[2 |+/apis] |+[2 |+/channels]])
+  (sy ~[&+[%| /]])
+::  +main-agent-weir: agents-weir + make/poke on /agents
+::
+++  main-agent-weir
+  ^-  weir:nexus
+  :+  (sy ~[|+[2 |+/agents]])
+    (sy ~[&+[%| /sys/bowl] |+[2 |+/apis] |+[2 |+/channels] |+[2 |+/agents]])
+  (sy ~[&+[%| /]])
 ::  +path-to-ball-id: join a path into a slash-separated tape for URLs
 ::
 ++  path-to-ball-id
