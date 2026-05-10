@@ -2,6 +2,7 @@
 ::
 /<  nex-tools     /lib/nex/tools.hoon
 /<  iso-8601      /lib/iso-8601.hoon
+/<  cron          /lib/cron.hoon
 =<  ^-  nexus:nexus
     |%
     ++  on-load
@@ -55,6 +56,7 @@
               '    outbox.json             -- append-only log; outbox tool writes here'
               '    status.json             -- current status (idle/api/tool)'
               '  ./proc/tools/              -- active tool processes (DO NOT write source here)'
+              '  ./proc/cron/               -- active cron job processes (managed by cron_add/remove)'
               '  ./apps/                    -- your applications and code'
               '    code/                    -- your build scope (compiled by the grubbery build system)'
               '      nex/                   -- nexus source code'
@@ -116,6 +118,12 @@
               'A "veto" error means a weir somewhere along the path blocked your operation.'
               '- read_weir: see sandbox permissions for a directory'
               '- add_weir / del_weir / clear_weir: manage sandbox rules'
+              ''
+              '## Cron jobs'
+              '- cron_add: schedule a recurring message to a chat using cron expressions'
+              '  Format: "min hour dom month dow" (e.g. "0 9 * * *" for daily 9am UTC)'
+              '- cron_list: list all active cron jobs'
+              '- cron_remove: remove a cron job by ID'
               ''
               '# Building nexuses'
               ''
@@ -597,6 +605,7 @@
             ::  /proc/tools: tool execution (flat, [chat]_[tid] naming)
             [%fall %| /proc [~ ~] [~ ~] empty-dir:loader]
             [%fall %| /proc/tools [~ ~] [~ ~] empty-dir:loader]
+            [%fall %| /proc/cron [~ ~] [~ ~] empty-dir:loader]
             ::  /context: shared prompts, memories, docs
             [%fall %| /context [~ ~] [~ ~] empty-dir:loader]
             [%fall %| /context/prompts [~ ~] [~ ~] empty-dir:loader]
@@ -968,6 +977,40 @@
             %error  (pairs:enjs:format ~[['type' s+'error'] ['message' s+message.result]])
           ==
         (replace:io !>(`tool-state:nex-tools`[tool.st args.st %done data.st `result-json]))
+          ::  /proc/cron/*: cron job fiber (schedule + fire loop)
+          ::
+          [[%proc %cron ~] @]
+        ;<  ~  bind:m  (rise-wait:io prod "%claw cron: failed")
+        ;<  st=json  bind:m  (get-state-as:io ,json)
+        ?.  ?=(%o -.st)  stay:m
+        =/  schedule=@t
+          (fall (bind (~(get by p.st) 'schedule') |=(=json ?>(?=(%s -.json) p.json))) '')
+        =/  chat=@t
+          (fall (bind (~(get by p.st) 'chat') |=(=json ?>(?=(%s -.json) p.json))) '')
+        =/  message=@t
+          (fall (bind (~(get by p.st) 'message') |=(=json ?>(?=(%s -.json) p.json))) '')
+        ?:  |(=('' schedule) =('' chat) =('' message))
+          ~&  >>>  "%claw cron: missing schedule, chat, or message"
+          stay:m
+        |-
+        ;<  now=@da  bind:m  get-time:io
+        =/  next=(unit @da)  (next-cron-fire:cron schedule now)
+        ?~  next
+          ~&  >>>  "%claw cron: invalid schedule {(trip schedule)}"
+          stay:m
+        ~&  >  "%claw cron: waiting until {(scow %da u.next)}"
+        ;<  timer-road=road:tarball  bind:m
+          (ancestor-road:io [/claw %app] [%& / %'timer.timer-state'])
+        ;<  ~  bind:m
+          (poke:io timer-road [[/ %timer-set] !>(`[wire @da]`[/cron u.next])])
+        ;<  *  bind:m  take-poke:io
+        ~&  >  "%claw cron: firing to chat {(trip chat)}"
+        =/  msg=json
+          (pairs:enjs:format ~[['action' s+'message'] ['content' s+message]])
+        ;<  chat-road=road:tarball  bind:m
+          (ancestor-road:io [/claw %agent] [%& /chats/[(crip (cass:so (trip chat)))] %'chat.json'])
+        ;<  ~  bind:m  (poke:io chat-road [/ %json] !>(msg))
+        $
           ::  /page.html: rendered chat page
           ::
           [~ %'page.html']
@@ -1347,6 +1390,9 @@
       [name:summarize-tool summarize-tool]
       [name:list-agents-tool list-agents-tool]
       [name:search-agents-tool search-agents-tool]
+      [name:cron-add-tool cron-add-tool]
+      [name:cron-list-tool cron-list-tool]
+      [name:cron-remove-tool cron-remove-tool]
   ==
 ::
 ::  +get-tools: return built-in tools merged with dynamic tools from apps/code/lib/tools
@@ -3976,5 +4022,136 @@
     =/  tag=tape  ?:(=(name self-name) " [self]" "")
     =/  line=tape  "{(trip name)}{tag}: {about}\0a"
     $(names t.names, out [line out])
+  --
+::
+++  cron-add-tool
+  ^-  tool:nex-tools
+  |%
+  ++  name  'cron_add'
+  ++  description
+    ^~  %-  crip
+    ;:  weld
+      "Add a scheduled cron job. The job fires a message to a chat on a "
+      "recurring schedule. Cron format: 'min hour dom month dow' "
+      "(e.g. '0 9 * * *' for daily at 9am, '*/5 * * * *' for every 5 min). "
+      "dow: 0=Sun..6=Sat."
+    ==
+  ++  parameters
+    ^-  (map @t parameter-def:nex-tools)
+    %-  malt
+    :~  ['schedule' [%string 'Cron expression (5 fields: min hour dom month dow)']]
+        ['chat' [%string 'Target chat name to send the message to']]
+        ['message' [%string 'Message content to send when the cron fires']]
+        ['id' [%string 'Optional job ID (auto-generated if omitted)']]
+    ==
+  ++  required  ~['schedule' 'chat' 'message']
+  ++  handler
+    ^-  tool-handler:nex-tools
+    =/  m  (fiber:fiber:nexus ,tool-result:nex-tools)
+    ^-  form:m
+    ;<  st=tool-state:nex-tools  bind:m  (get-state-as:io ,tool-state:nex-tools)
+    ?~  schedule=(get-arg st 'schedule')
+      (pure:m [%error 'Missing required argument: schedule'])
+    ?~  chat=(get-arg st 'chat')
+      (pure:m [%error 'Missing required argument: chat'])
+    ?~  message=(get-arg st 'message')
+      (pure:m [%error 'Missing required argument: message'])
+    ::  validate cron expression
+    ;<  now=@da  bind:m  get-time:io
+    =/  next=(unit @da)  (next-cron-fire:cron u.schedule now)
+    ?~  next
+      (pure:m [%error (crip "Invalid cron expression: {(trip u.schedule)}")])
+    ::  generate or use provided ID
+    =/  job-id=@ta
+      =/  raw=(unit @t)  (get-arg st 'id')
+      ?^  raw  (crip (cass:so (trip u.raw)))
+      (scot %uv (mix now (mug u.schedule)))
+    ::  create proc/cron/{id} with state
+    =/  cron-state=json
+      %-  pairs:enjs:format
+      :~  ['schedule' s+u.schedule]
+          ['chat' s+u.chat]
+          ['message' s+u.message]
+      ==
+    ;<  cron-road=road:tarball  bind:m
+      (ancestor-road:io [/claw %agent] [%& /proc/cron job-id])
+    ;<  ~  bind:m  (make:io cron-road |+[%.n [[/ %json] !>(cron-state)] ~])
+    =/  msg=@t
+      %-  crip
+      ;:  weld
+        "Cron job '{(trip job-id)}' created.\0a"
+        "Schedule: {(trip u.schedule)}\0a"
+        "Chat: {(trip u.chat)}\0a"
+        "Next fire: {(scow %da u.next)}"
+      ==
+    (pure:m [%text msg])
+  --
+::
+++  cron-list-tool
+  ^-  tool:nex-tools
+  |%
+  ++  name  'cron_list'
+  ++  description  'List all active cron jobs with their schedules, target chats, and messages.'
+  ++  parameters  *(map @t parameter-def:nex-tools)
+  ++  required  *(list @t)
+  ++  handler
+    ^-  tool-handler:nex-tools
+    =/  m  (fiber:fiber:nexus ,tool-result:nex-tools)
+    ^-  form:m
+    ;<  st=tool-state:nex-tools  bind:m  (get-state-as:io ,tool-state:nex-tools)
+    ;<  cron-road=road:tarball  bind:m
+      (ancestor-road:io [/claw %agent] [%| /proc/cron])
+    ;<  =seen:nexus  bind:m  (peek:io cron-road ~)
+    ?.  ?=([%& %ball *] seen)
+      (pure:m [%text 'No cron jobs.'])
+    ?~  fil.ball.p.seen
+      (pure:m [%text 'No cron jobs.'])
+    =/  jobs=(list [@ta *])  ~(tap by contents.u.fil.ball.p.seen)
+    =/  out=(list tape)  ~
+    |-
+    ?~  jobs
+      ?~  out
+        (pure:m [%text 'No cron jobs.'])
+      (pure:m [%text (crip (zing (flop out)))])
+    =/  [job-name=@ta *]  i.jobs
+    =/  job-road=road:tarball
+      (agent-road (crip "./proc/cron/{(trip job-name)}"))
+    ;<  job-seen=seen:nexus  bind:m  (peek:io job-road `%json)
+    =/  line=tape
+      ?.  ?=([%& %file *] job-seen)
+        "{(trip job-name)}: (unreadable)\0a"
+      =/  j=json  (fall (mole |.(!<(json q.sage.p.job-seen))) *json)
+      ?.  ?=(%o -.j)  "{(trip job-name)}: (invalid state)\0a"
+      =/  sched=@t  (fall (bind (~(get by p.j) 'schedule') |=(=json ?>(?=(%s -.json) p.json))) '?')
+      =/  chat=@t   (fall (bind (~(get by p.j) 'chat') |=(=json ?>(?=(%s -.json) p.json))) '?')
+      =/  msg=@t    (fall (bind (~(get by p.j) 'message') |=(=json ?>(?=(%s -.json) p.json))) '?')
+      "{(trip job-name)}: [{(trip sched)}] -> {(trip chat)} \"{(trip (end 3^60 msg))}\"\0a"
+    $(jobs t.jobs, out [line out])
+  --
+::
+++  cron-remove-tool
+  ^-  tool:nex-tools
+  |%
+  ++  name  'cron_remove'
+  ++  description  'Remove a cron job by its ID. Use cron_list to see active jobs.'
+  ++  parameters
+    ^-  (map @t parameter-def:nex-tools)
+    (malt ~[['id' [%string 'The cron job ID to remove']]])
+  ++  required  ~['id']
+  ++  handler
+    ^-  tool-handler:nex-tools
+    =/  m  (fiber:fiber:nexus ,tool-result:nex-tools)
+    ^-  form:m
+    ;<  st=tool-state:nex-tools  bind:m  (get-state-as:io ,tool-state:nex-tools)
+    ?~  id=(get-arg st 'id')
+      (pure:m [%error 'Missing required argument: id'])
+    =/  job-id=@ta  (crip (cass:so (trip u.id)))
+    ;<  cron-road=road:tarball  bind:m
+      (ancestor-road:io [/claw %agent] [%& /proc/cron job-id])
+    ;<  exists=?  bind:m  (peek-exists:io cron-road)
+    ?.  exists
+      (pure:m [%error (crip "Cron job not found: {(trip job-id)}")])
+    ;<  ~  bind:m  (cull:io cron-road)
+    (pure:m [%text (crip "Cron job '{(trip job-id)}' removed.")])
   --
 --

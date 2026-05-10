@@ -16,7 +16,7 @@
     %here  ~[leaf+"vetoed here request on wire {(spud wire.dart)}"]
     %soup  ~[leaf+"vetoed soup request on wire {(spud wire.dart)}"]
     %kept  ~[leaf+"vetoed kept request on wire {(spud wire.dart)}"]
-    %node  ~[leaf+"vetoed node operation on wire {(spud wire.dart)}"]
+    %node  ~[leaf+"vetoed node operation on wire {(spud wire.dart)} dest {<road.dart>} load {<-.load.dart>}"]
     %manu  ~[leaf+"vetoed manu request on wire {(spud wire.dart)}"]
   ==
 ::

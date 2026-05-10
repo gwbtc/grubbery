@@ -106,6 +106,36 @@
 ::  HTTP response door (road from /explorer.explorer/requests/* to /explorer.explorer/main.sig)
 ::
 ++  srv  ~(. http-res:io [%| 1 %& ~ %'main.sig'])
+++  split-fas
+  |=  t=@t
+  ^-  path
+  =/  chars=tape  (trip t)
+  =|  [seg=tape out=path]
+  |-  ^-  path
+  ?~  chars
+    ?~  seg  (flop out)
+    (flop [(crip seg) out])
+  ?:  =(i.chars '/')
+    ?~  seg  $(chars t.chars)
+    $(chars t.chars, seg ~, out [(crip seg) out])
+  $(chars t.chars, seg (snoc seg i.chars))
+::  +parse-road-input: parse "../../foo/bar" into a proper road
+::  Counts leading "../" as relative steps, remainder as the lane.
+::
+++  parse-road-input
+  |=  [road-path=@t road-type=@t]
+  ^-  road:tarball
+  =/  segs=path  (split-fas road-path)
+  =/  ups=@ud  0
+  |-
+  ?:  &(?=(^ segs) =(%'..' i.segs))
+    $(segs t.segs, ups +(ups))
+  =/  =lane:tarball
+    ?:  =('file' road-type)
+      ?~  segs  [%| /]
+      [%& (snip `path`segs) (rear segs)]
+    [%| segs]
+  ?:(=(0 ups) &+lane |+[ups lane])
 ::  Handle GET requests
 ::
 ++  handle-get
@@ -239,13 +269,7 @@
     ?:  |(=('' category) =('' road-path))
       ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'Missing fields')])
       (pure:m ~)
-    =/  pax=path  (stab road-path)
-    =/  new-road=road:tarball
-      ?:  =('file' road-type)
-        ?~  pax
-          [%& %| /]
-        [%& %& (snip `path`pax) (rear pax)]
-      [%& %| pax]
+    =/  new-road=road:tarball  (parse-road-input road-path road-type)
     =/  dir-sand=sand:nexus  (~(dip of root-sand) tree-path)
     =/  cur=weir:nexus  (fall fil.dir-sand [~ ~ ~])
     =/  new=weir:nexus
@@ -265,13 +289,7 @@
     ?:  =('' category)
       ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'Missing category')])
       (pure:m ~)
-    =/  pax=path  (stab road-path)
-    =/  del-road=road:tarball
-      ?:  =('file' road-type)
-        ?~  pax
-          [%& %| /]
-        [%& %& (snip `path`pax) (rear pax)]
-      [%& %| pax]
+    =/  del-road=road:tarball  (parse-road-input road-path road-type)
     =/  dir-sand=sand:nexus  (~(dip of root-sand) tree-path)
     =/  cur=weir:nexus  (fall fil.dir-sand [~ ~ ~])
     =/  new=weir:nexus
@@ -889,10 +907,11 @@
   ^-  tape
   ?-    -.lane
       %&
-    =/  dir=tape  (trip (spat path.p.lane))
-    "{dir}/{(trip name.p.lane)}"
+    ?~  path.p.lane
+      "/{(trip name.p.lane)}"
+    "{(trip (spat path.p.lane))}/{(trip name.p.lane)}"
       %|
-    ?~(p.lane "/" (trip (spat p.lane)))
+    ?~(p.lane "/" "{(trip (spat p.lane))}/")
   ==
 ::
 ++  render-dir
