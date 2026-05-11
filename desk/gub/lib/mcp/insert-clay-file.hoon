@@ -48,7 +48,7 @@
     ?~  pax
       (pure:m [%error 'Empty path'])
     =/  mark=@tas  (rear pax)
-    ;<  initial=cass:clay  bind:m  (do-scry:io cass:clay /cw/[dek])
+    ;<  initial=cass:clay  bind:m  (scry:io cass:clay /cw/[dek])
     =/  write-data=json
       %-  pairs:enjs:format
       :~  ['initial-ud' (numb:enjs:format ud.initial)]

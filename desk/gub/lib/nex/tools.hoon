@@ -90,7 +90,7 @@
     (~(dog jo:json-utils data) /initial-ud ni:dejs:format)
   =/  log-texts=(list @t)
     (~(dug jo:json-utils data) /logs (ar:dejs:format so:dejs:format) ~)
-  ;<  final=cass:clay  bind:m  (do-scry:io cass:clay /cw/[mount-point])
+  ;<  final=cass:clay  bind:m  (scry:io cass:clay /cw/[mount-point])
   =/  result=tape
     %+  weld  "Initial version: {<initial-ud>}\0a"
     %+  weld  "Final version: {<ud.final>}\0a"
@@ -115,7 +115,7 @@
   =/  log-texts=(list @t)
     (~(dug jo:json-utils data) /logs (ar:dejs:format so:dejs:format) ~)
   =/  dek=@tas  (slav %tas desk)
-  ;<  final=cass:clay  bind:m  (do-scry:io cass:clay /cw/[dek])
+  ;<  final=cass:clay  bind:m  (scry:io cass:clay /cw/[dek])
   =/  has-errors=?
     %+  lien  log-texts
     |=(t=@t !=(~ (find "ERROR" (trip t))))

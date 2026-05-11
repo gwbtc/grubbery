@@ -28,12 +28,10 @@
   ?~  dek
     (pure:m [%error (crip "Invalid desk name: {(trip u.desk)}")])
   =/  pax=path  (stab u.file-path)
-  ;<  our=@p  bind:m  get-our:io
-  ;<  now=@da  bind:m  get-time:io
-  =/  has=?  .^(? %cu (weld /(scot %p our)/[u.dek]/(scot %da now) pax))
+  ;<  has=?  bind:m  (scry:io ? (weld /cu/[u.dek] pax))
   ?.  has
     (pure:m [%error 'File not found'])
-  =/  =vase  .^(vase %cr (weld /(scot %p our)/[u.dek]/(scot %da now) pax))
+  ;<  =vase  bind:m  (scry:io vase (weld /cr/[u.dek] pax))
   =/  =tang  (pretty-file:pretty-file:tools !<(noun vase))
   =/  =wain
     %-  zing

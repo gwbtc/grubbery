@@ -49,12 +49,10 @@
     ?~  pax
       (pure:m [%error 'Empty path'])
     =/  mark=@tas  (rear pax)
-    ;<  our=@p  bind:m  get-our:io
-    ;<  now=@da  bind:m  get-time:io
-    =/  has=?  .^(? %cu (weld /(scot %p our)/[dek]/(scot %da now) pax))
+    ;<  has=?  bind:m  (scry:io ? (weld /cu/[dek] pax))
     ?.  has
       (pure:m [%error (crip "File not found: {(trip file-path)}")])
-    =/  =vase  .^(vase %cr (weld /(scot %p our)/[dek]/(scot %da now) pax))
+    ;<  =vase  bind:m  (scry:io vase (weld /cr/[dek] pax))
     =/  =tang  (pretty-file:pretty-file:tools !<(noun vase))
     =/  =wain
       %-  zing
@@ -72,7 +70,7 @@
     =/  before=tape  (scag u.idx text)
     =/  after=tape  (slag (add u.idx (lent old-tape)) text)
     =/  result=@t  (crip (zing ~[before new-tape after]))
-    ;<  initial=cass:clay  bind:m  (do-scry:io cass:clay /cw/[dek])
+    ;<  initial=cass:clay  bind:m  (scry:io cass:clay /cw/[dek])
     =/  write-data=json
       %-  pairs:enjs:format
       :~  ['initial-ud' (numb:enjs:format ud.initial)]

@@ -54,7 +54,7 @@
     ?~  remaining
       ?~  instructions
         (pure:m [%error 'no valid edits to apply'])
-      ;<  initial=cass:clay  bind:m  (do-scry:io cass:clay /cw/[dek])
+      ;<  initial=cass:clay  bind:m  (scry:io cass:clay /cw/[dek])
       =/  ins=(list [path %ins @tas vase])
         %+  turn  (flop instructions)
         |=  [pax=path mark=@tas content=@t]
@@ -102,10 +102,10 @@
     ?~  pax
       (pure:m [%error (crip "empty path in edit")])
     =/  mark=@tas  (rear pax)
-    =/  has=?  .^(? %cu (weld /(scot %p our)/[dek]/(scot %da now) pax))
+    ;<  has=?  bind:m  (scry:io ? (weld /cu/[dek] pax))
     ?.  has
       (pure:m [%error (crip "File not found: {(trip file-path.u.parsed)}")])
-    =/  =vase  .^(vase %cr (weld /(scot %p our)/[dek]/(scot %da now) pax))
+    ;<  =vase  bind:m  (scry:io vase (weld /cr/[dek] pax))
     =/  =tang  (pretty-file:pretty-file:tools !<(noun vase))
     =/  =wain
       %-  zing
