@@ -999,10 +999,8 @@
           ~&  >>>  "%claw cron: invalid schedule {(trip schedule)}"
           stay:m
         ~&  >  "%claw cron: waiting until {(scow %da u.next)}"
-        ;<  timer-road=road:tarball  bind:m
-          (ancestor-road:io [/claw %app] [%& / %'timer.timer-state'])
         ;<  ~  bind:m
-          (poke:io timer-road [[/ %timer-set] !>(`[wire @da]`[/cron u.next])])
+          (poke:io &+&+[/sys/behn %'main.timer-state'] [[/ %timer-set] !>(`[wire @da]`[/cron u.next])])
         ;<  *  bind:m  take-poke:io
         ~&  >  "%claw cron: firing to chat {(trip chat)}"
         =/  msg=json
@@ -1125,6 +1123,8 @@
       [~ %veto *]
     [%fail (veto-error:io dart.u.in)]
       [~ %poke * *]
+    ?:  =([/ %timer-wake] p.sage.u.in)
+      [%skip ~]
     [%done %poke [from sage]:u.in]
       [~ %news * *]
     [%done %news [wire view]:u.in]

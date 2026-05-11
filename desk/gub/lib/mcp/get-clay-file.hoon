@@ -30,11 +30,11 @@
   =/  pax=path  (stab u.file-path)
   ;<  our=@p  bind:m  get-our:io
   ;<  now=@da  bind:m  get-time:io
-  ;<  =riot:clay  bind:m
-    (warp:io our u.dek ~ %sing %x da+now pax)
-  ?~  riot
+  =/  has=?  .^(? %cu (weld /(scot %p our)/[u.dek]/(scot %da now) pax))
+  ?.  has
     (pure:m [%error 'File not found'])
-  =/  =tang  (pretty-file:pretty-file:tools !<(noun q.r.u.riot))
+  =/  =vase  .^(vase %cr (weld /(scot %p our)/[u.dek]/(scot %da now) pax))
+  =/  =tang  (pretty-file:pretty-file:tools !<(noun vase))
   =/  =wain
     %-  zing
     %+  turn  tang

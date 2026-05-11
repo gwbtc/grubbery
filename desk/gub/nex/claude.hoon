@@ -998,20 +998,17 @@
     ::  Interrupt poke — consumed, returns ~
     ::
       [~ %poke * *]
+    ?:  =([/ %http-response] p.sage.u.in)
+      =/  resp=client-response:iris  !<(client-response:iris q.sage.u.in)
+      ?:  ?=(%cancel -.resp)  [%done ~]
+      ?>  ?=(%finished -.resp)
+      =/  body=@t
+        ?~(full-file.resp '' q.data.u.full-file.resp)
+      [%done `body]
     =/  =action  !<(action q.sage.u.in)
     ?.  ?=(%interrupt -.action)
       [%skip ~]
     [%done ~]
-    ::  HTTP response — extract body, return (some body)
-    ::
-      [~ %arvo [%request ~] %iris %http-response %cancel *]
-    [%done ~]
-      [~ %arvo [%request ~] %iris %http-response %finished *]
-    =/  =client-response:iris  client-response.sign.u.in
-    ?>  ?=(%finished -.client-response)
-    =/  body=@t
-      ?~(full-file.client-response '' q.data.u.full-file.client-response)
-    [%done `body]
   ==
 ::
 ++  set-live

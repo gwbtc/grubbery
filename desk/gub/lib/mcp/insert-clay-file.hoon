@@ -61,7 +61,7 @@
     ;<  *  bind:m  (keep:io /dill/logs [%& %& /sys/dill %'logs.dill-told'] ~)
     ;<  now=@da  bind:m  get-time:io
     ;<  ~  bind:m
-      (send-card:io %pass /commit-timeout %arvo %b %wait (add now ~s30))
+      (set-timer:io /commit-timeout (add now ~s30))
     ;<  ~  bind:m
       (gall-poke-our:io %hood kiln-info+!>(["" `[dek %& [pax %ins mark !>(content)]~]]))
     ;<  ~  bind:m  collect-logs:tools

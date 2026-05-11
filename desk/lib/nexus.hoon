@@ -144,13 +144,29 @@
       [%simple =simple-payload:http]
   ==
 ::  Eyre state: binding registry + active connection tracking.
-::  Stored as a grub at /sys/eyre/state.server-state.
+::  Stored as a grub at /sys/eyre/main.server-state.
 ::
 +$  server-state
   $:  %0
       bindings=(map binding:eyre rail:tarball)
       conns=(map @ta binding:eyre)
   ==
+::  Timer service state.
+::  Stored as a grub at /sys/behn/main.timer-state.
+::
++$  timer-state
+  [%0 timers=(map [=rail:tarball =wire] @da)]
+::  Iris HTTP client service state.
+::  Stored as a grub at /sys/iris/main.iris-state.
+::
++$  iris-state
+  [%0 requests=(map wire [sender=rail:tarball url=@t])]
+::  Clay desk sync service state.
+::  Stored as a grub at /sys/clay/main.clay-state.
+::  Desk mirrors live at /sys/clay/desks/[desk]/.
+::
++$  clay-state
+  [%0 desks=(set desk)]
 ::
 ++  fiber
   |%

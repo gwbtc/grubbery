@@ -818,11 +818,12 @@
       ~  [%wait ~]
       [~ %veto *]
     [%fail (veto-error:io dart.u.in)]
-      [~ %arvo [%request ~] %iris %http-response %cancel *]
-    [%fail leaf+"http-request-cancelled" ~]
-      [~ %arvo [%request ~] %iris %http-response %finished *]
-    [%done %http client-response.sign.u.in]
       [~ %poke * *]
+    ?:  =([/ %http-response] p.sage.u.in)
+      =/  resp=client-response:iris  !<(client-response:iris q.sage.u.in)
+      ?:  ?=(%cancel -.resp)
+        [%fail leaf+"http-request-cancelled" ~]
+      [%done %http resp]
     =/  res=(unit json)  (mole |.(!<(json q.sage.u.in)))
     ?~  res  [%skip ~]
     ?.  ?=([%o *] u.res)  [%skip ~]
@@ -894,8 +895,10 @@
   :+  ~  state
   ?+  in  [%skip ~]
       ~  [%wait ~]
-      [~ %arvo [%request ~] %iris %http-response %finished *]
-    [%done client-response.sign.u.in]
+      [~ %poke * *]
+    ?.  =([/ %http-response] p.sage.u.in)  [%skip ~]
+    =/  resp=client-response:iris  !<(client-response:iris q.sage.u.in)
+    [%done resp]
   ==
 ::  +parse-info-response: extract address-info from HTTP response (non-fiber)
 ::

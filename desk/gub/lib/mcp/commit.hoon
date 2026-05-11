@@ -43,12 +43,17 @@
       ==
     ;<  ~  bind:m
       (replace:io !>([tool.st args.st %committing commit-data ~]))
+    ~&  >>  "%commit: subscribing to dill logs"
     ;<  *  bind:m  (keep:io /dill/logs [%& %& /sys/dill %'logs.dill-told'] ~)
     ;<  now=@da  bind:m  get-time:io
+    ~&  >>  "%commit: setting timeout timer"
     ;<  ~  bind:m
-      (send-card:io %pass /commit-timeout %arvo %b %wait (add now timeout))
+      (set-timer:io /commit-timeout (add now timeout))
+    ~&  >>  "%commit: poking hood"
     ;<  ~  bind:m  (gall-poke-our:io %hood kiln-commit+!>([mount-point %.n]))
+    ~&  >>  "%commit: collecting logs"
     ;<  ~  bind:m  collect-logs:tools
+    ~&  >>  "%commit: done collecting"
     ;<  ~  bind:m  (drop:io /dill/logs [%& %& /sys/dill %'logs.dill-told'])
     ;<  st=tool-state:tools  bind:m  (get-state-as:io ,tool-state:tools)
     (finish-commit:tools args.st data.st)

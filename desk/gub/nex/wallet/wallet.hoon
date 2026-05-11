@@ -474,8 +474,10 @@
   :+  ~  state
   ?+  in  [%skip ~]
       ~  [%wait ~]
-      [~ %arvo [%request ~] %iris %http-response %finished *]
-    [%done client-response.sign.u.in]
+      [~ %poke * *]
+    ?.  =([/ %http-response] p.sage.u.in)  [%skip ~]
+    =/  resp=client-response:iris  !<(client-response:iris q.sage.u.in)
+    [%done resp]
   ==
 ::
 ++  disc-parse-tx-count

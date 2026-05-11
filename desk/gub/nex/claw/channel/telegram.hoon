@@ -152,7 +152,7 @@
         |-
         ;<  =sage:tarball  bind:m  take-poke:io
         =/  jon=json  (fall (mole |.(!<(json q.sage))) *json)
-        ?.  ?=(%o -.jon)  $
+        ?.  ?=([%o *] jon)  $
         =/  action=(unit json)  (~(get by p.jon) 'action')
         ::  typing: enter typing loop, re-send every 4s until next poke
         ?:  =([~ s+'typing'] action)
@@ -226,11 +226,9 @@
       [~ %veto *]
     [%fail (veto-error:io dart.u.in)]
       [~ %poke * *]
-    [%done %poke sage.u.in]
-      [~ %arvo [%wait @ ~] %behn %wake *]
-    ?~  error.sign.u.in
+    ?:  =([/ %timer-wake] p.sage.u.in)
       [%done %wake ~]
-    [%skip ~]
+    [%done %poke sage.u.in]
   ==
 ::
 ::  +send-typing: fire sendChatAction typing

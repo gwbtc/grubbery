@@ -8,7 +8,7 @@
 ++  description
   ^~  %-  crip
   ;:  weld
-    "Mount a Clay desk into the grubbery ball at /sys/clay/[desk]. "
+    "Mount a Clay desk into the grubbery ball at /sys/clay/desks/[desk]. "
     "Files are synced and kept up to date as the desk changes."
   ==
 ++  parameters
@@ -27,6 +27,6 @@
   =/  desk=@t  p.parsed
   =/  dek=@tas  (slav %tas desk)
   ;<  ~  bind:m
-    (gall-poke-our:io %grubbery mount-desk+!>(dek))
-  (pure:m [%text (crip "Mounted %{(trip dek)} to /sys/clay/{(trip dek)}")])
+    (poke:io &+&+[/sys/clay %'main.clay-state'] [[/ %mount-desk] !>(dek)])
+  (pure:m [%text (crip "Mounted %{(trip dek)} to /sys/clay/desks/{(trip dek)}")])
 --

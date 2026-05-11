@@ -16,6 +16,7 @@
   ?.  =(src our)
     (send-error eyre-id 403 'Forbidden')
   ?>  ?=([%grubbery %api *] site)
+  ~&  >>  ["%ball-api: dispatch" method.request.req site]
   =/  rest=path  t.t.site
   ::  Route by first segment: file, kids, tree, tar, dir
   ?~  rest
@@ -269,11 +270,13 @@
   =/  mime-sage=sage:tarball  [[/ %mime] !>(`mime`[/application/octet-stream u.body])]
   ;<  converted=(unit sage:tarball)  bind:m  (maybe-convert eyre-id mime-sage mark-param)
   ?~  converted  (pure:m ~)
+  ~&  >>  ["%ball-api: serve-post" op road p.u.converted]
   ;<  ~  bind:m
     ?-  op
       %poke  (poke:io road u.converted)
       %over  (over:io road u.converted)
     ==
+  ~&  >>  "%ball-api: serve-post done"
   (send-ok eyre-id 'OK')
 ::  +serve-file-cull: DELETE /file — delete file
 ::

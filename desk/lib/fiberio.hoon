@@ -258,22 +258,6 @@
     [%done path.u.in]
   ==
 ::
-++  take-arvo
-  |=  =wire
-  =/  m  (fiber ,sign-arvo)
-  ^-  form:m
-  |=  input
-  :+  ~  state
-  ?+  in  [%skip ~]
-      ~  [%wait ~]
-      [~ %veto *]
-    [%fail (veto-error dart.u.in)]
-      [~ %arvo * *]
-    ?.  =(wire wire.u.in)
-      [%skip ~]
-    [%done sign.u.in]
-  ==
-::
 ++  take-agent
   |=  =wire
   =/  m  (fiber ,sign:agent:gall)
@@ -668,7 +652,25 @@
       [%skip ~]
     [%done view.u.in]
   ==
-::  Scry helper
+::  Scry via /sys/scry/ runtime service
+::
+++  scry
+  |*  [=mold =path]
+  =/  m  (fiber ,mold)
+  ^-  form:m
+  ;<  ~  bind:m
+    (poke &+&+[/sys/scry %'main.sig'] [[/ %scry-request] !>(`^path`path)])
+  |=  input
+  :+  ~  state
+  ?+  in  [%skip ~]
+      ~  [%wait ~]
+      [~ %veto *]
+    [%fail (veto-error dart.u.in)]
+      [~ %poke * *]
+    ?.  =([/ %scry-response] p.sage.u.in)  [%skip ~]
+    [%done !<(mold q.sage.u.in)]
+  ==
+::  Scry helper (legacy — uses %scry dart, prefer scry:io)
 ::
 ++  do-scry
   |*  [=mold =path]
@@ -686,16 +688,6 @@
       [%skip ~]
     [%done !<(mold vase.u.in)]
   ==
-::  Clay operations
-::
-++  warp
-  |=  [=ship =riff:clay]
-  =/  m  (fiber ,riot:clay)
-  ^-  form:m
-  ;<  ~  bind:m  (send-card %pass /warp %arvo %c %warp ship riff)
-  ;<  =sign-arvo  bind:m  (take-arvo /warp)
-  ?>  ?=([%clay %writ *] sign-arvo)
-  (pure:m +>.sign-arvo)
 ::  +get-code: peek the code (bins) slice at a road
 ::
 ++  get-code
@@ -1031,15 +1023,20 @@
   ^-  form:m
   =/  =card:agent:gall  [%pass wire %agent dock %leave ~]
   (send-card card)
-::  Timer helpers
+::  Timer helpers — poke /sys/behn/main.timer-state, receive timer-wake back
+::
+++  set-timer
+  |=  [=wire until=@da]
+  =/  m  (fiber ,~)
+  ^-  form:m
+  ~&  >>  ["%behn: set-timer" wire until]
+  (poke &+&+[/sys/behn %'main.timer-state'] [[/ %timer-set] !>(`[^wire @da]`[wire until])])
 ::
 ++  send-wait
   |=  until=@da
   =/  m  (fiber ,~)
   ^-  form:m
-  =/  =card:agent:gall
-    [%pass /wait/(scot %da until) %arvo %b %wait until]
-  (send-card card)
+  (set-timer /wait/(scot %da until) until)
 ::
 ++  take-wake
   |=  until=(unit @da)
@@ -1051,12 +1048,13 @@
       ~  [%wait ~]
       [~ %veto *]
     [%fail (veto-error dart.u.in)]
-      [~ %arvo [%wait @ ~] %behn %wake *]
-    ?.  |(?=(~ until) =(`u.until (slaw %da i.t.wire.u.in)))
+      [~ %poke * *]
+    ?.  =([/ %timer-wake] p.sage.u.in)
       [%skip ~]
-    ?~  error.sign.u.in
-      [%done ~]
-    [%fail %timer-error u.error.sign.u.in]
+    =/  wak=path  !<(path q.sage.u.in)
+    ?.  |(?=(~ until) =(`/wait/(scot %da u.until) wak))
+      [%skip ~]
+    [%done ~]
   ==
 ::
 ++  wait
@@ -1114,10 +1112,6 @@
 ++  dap  %grubbery
 ++  dek  %grubbery
 ::
-++  get-agent
-  =/  m  (fiber ,dude:gall)
-  ^-  form:m
-  (pure:m dap)
 ::
 ++  get-beak
   =/  m  (fiber ,beak)
@@ -1158,18 +1152,13 @@
     [%done soup.u.in]
   ==
 ::  HTTP client (iris) helpers
-::
-++  cancel-request
-  |=  =wire
-  =/  m  (fiber ,~)
-  ^-  form:m
-  (send-card %pass wire %arvo %i %cancel-request ~)
+::  Requests go through /sys/iris/ runtime service.
 ::
 ++  send-request
   |=  =request:http
   =/  m  (fiber ,~)
   ^-  form:m
-  (send-card %pass /request %arvo %i %request request *outbound-config:iris)
+  (poke &+&+[/sys/iris %'main.iris-state'] [[/ %http-request] !>(request)])
 ::
 ++  take-client-response
   =/  m  (fiber ,client-response:iris)
@@ -1180,10 +1169,12 @@
       ~  [%wait ~]
       [~ %veto *]
     [%fail (veto-error dart.u.in)]
-      [~ %arvo [%request ~] %iris %http-response %cancel *]
-    [%fail leaf+"http-request-cancelled" ~]
-      [~ %arvo [%request ~] %iris %http-response %finished *]
-    [%done client-response.sign.u.in]
+      [~ %poke * *]
+    ?.  =([/ %http-response] p.sage.u.in)  [%skip ~]
+    =/  resp=client-response:iris  !<(client-response:iris q.sage.u.in)
+    ?:  ?=(%cancel -.resp)
+      [%fail leaf+"http-request-cancelled" ~]
+    [%done resp]
   ==
 ::
 ++  extract-body
@@ -1298,10 +1289,10 @@
     ?.  =(news-wire wire.u.in)
       [%skip ~]
     [%done %news view.u.in]
-      [~ %arvo [%wait @ ~] %behn %wake *]
-    ?~  error.sign.u.in
-      [%done %wake ~]
-    [%fail %timer-error u.error.sign.u.in]
+      [~ %poke * *]
+    ?.  =([/ %timer-wake] p.sage.u.in)
+      [%skip ~]
+    [%done %wake ~]
   ==
 ::  Clay file helpers
 ::
@@ -1395,7 +1386,7 @@
   ^-  form:m
   (eyre-poke [%unbind binding])
 ::
-++  server-road  `road:tarball`[%& %& /sys/eyre %'state.server-state']
+++  server-road  `road:tarball`[%& %& /sys/eyre %'main.server-state']
 ::
 ++  eyre-poke
   |=  act=eyre-action:nexus

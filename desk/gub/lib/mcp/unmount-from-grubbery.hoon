@@ -9,7 +9,7 @@
   ^~  %-  crip
   ;:  weld
     "Unmount a Clay desk from the grubbery ball. "
-    "Removes /sys/clay/[desk] and cancels the Clay subscription."
+    "Removes /sys/clay/desks/[desk] and cancels the Clay subscription."
   ==
 ++  parameters
   ^-  (map @t parameter-def:tools)
@@ -27,6 +27,6 @@
   =/  desk=@t  p.parsed
   =/  dek=@tas  (slav %tas desk)
   ;<  ~  bind:m
-    (gall-poke-our:io %grubbery unmount-desk+!>(dek))
-  (pure:m [%text (crip "Unmounted %{(trip dek)} from /sys/clay/{(trip dek)}")])
+    (poke:io &+&+[/sys/clay %'main.clay-state'] [[/ %unmount-desk] !>(dek)])
+  (pure:m [%text (crip "Unmounted %{(trip dek)} from /sys/clay/desks/{(trip dek)}")])
 --

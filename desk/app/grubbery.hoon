@@ -220,7 +220,7 @@
     ::
       %handle-http-request
     =+  !<([eyre-id=@ta req=inbound-request:eyre] vas)
-    =/  server-rail=rail:tarball  [/sys/eyre %'state.server-state']
+    =/  server-rail=rail:tarball  [/sys/eyre %'main.server-state']
     =/  =give:nexus  [|+[src.bowl /eyre] /[eyre-id]]
     =^  cards  state
       abet:(poke:hc give server-rail [[/ %handle-http-request] !>([eyre-id src.bowl req])])
@@ -233,27 +233,6 @@
       abet:sync-dill:hc
     [cards this]
       ::
-      %mount-desk
-    ::  Mount a Clay desk into /sys/clay/[desk]
-    ?>  =(src our):bowl
-    =/  dek=desk  !<(desk vas)
-    =/  old=ball:tarball  (~(dip ba:tarball ball) /sys/clay/[dek])
-    =/  new=ball:tarball  old(fil `(fall fil.old *lump:tarball))
-    =^  dir-cards  state
-      abet:(load-ball-changes:hc /sys/clay/[dek] old new)
-    =^  sync-cards  state
-      abet:(sync-clay-desk:hc dek)
-    [(weld dir-cards sync-cards) this]
-      ::
-      %unmount-desk
-    ::  Unmount a Clay desk from /sys/clay/[desk]
-    ?>  =(src our):bowl
-    =/  dek=desk  !<(desk vas)
-    ?>  !=(dek %grubbery)
-    ?>  !=(dek %base)
-    =^  cards  state
-      abet:(unmount-clay-desk:hc dek)
-    [cards this]
       ::
       %set-jael-source
     ::  Set the rail whose file backs jael PKI subscriptions.
@@ -329,7 +308,7 @@
     [~ this]
       [%http-response @ ~]
     =/  eyre-id=@ta  i.t.path
-    =/  server-rail=rail:tarball  [/sys/eyre %'state.server-state']
+    =/  server-rail=rail:tarball  [/sys/eyre %'main.server-state']
     =/  =give:nexus  [|+[our.bowl /eyre] /cancel/[eyre-id]]
     =^  cards  state
       abet:(poke:hc give server-rail [[/ %handle-http-cancel] !>(eyre-id)])
@@ -440,6 +419,16 @@
     ?>  ?=([%jael %private-keys *] sign)
     =^  cards  state
       abet:(save-file:hc [/sys/jael %'private-keys.jael-private-keys'] [~ [/ %jael-private-keys] !>([life.sign vein.sign])])
+    [cards this]
+  ?:  ?=([%behn %timer @ *] wire)
+    ?>  ?=([%behn %wake *] sign)
+    =^  cards  state
+      abet:(handle-timer-wake:hc t.t.wire error.sign)
+    [cards this]
+  ?:  ?=([%iris %request @ *] wire)
+    ?>  ?=([%iris %http-response *] sign)
+    =^  cards  state
+      abet:(handle-iris-response:hc t.t.wire client-response.sign)
     [cards this]
   ?:  ?=(?([%eyre ~] [%eyre-bind ~] [%eyre-api ~]) wire)
     `this
@@ -1575,6 +1564,7 @@
       ==
     =/  clammed=(each sage:tarball tang)  (clam-sage clam-pax sage.load.dart)
     ?:  ?=(%| -.clammed)
+      ~&  >>>  ["%process-dart: clam failed" clam-pax p.sage.load.dart]
       ?:  ?=([%sys %ames %ships @ ~] path.here)
         ~|  [%peer-clam-failed name.here dest]
         !!
@@ -1615,9 +1605,6 @@
     ::  Emit gall card directly (with wrapped wire/paths)
     ::  Exception: /http-response/ paths go to eyre unwrapped
     =/  =card  card.dart
-    ?:  ?=([%pass * %arvo %i %request *] card)
-      ~&  >>>  ["%grubbery HTTP OUT:" (spud (snoc path.here name.here)) method.request.q.card url.request.q.card]
-      (emit-card card(p (wrap-wire here p.card)))
     ?+    card  (emit-card card)
         [%pass *]
       (emit-card card(p (wrap-wire here p.card)))
@@ -1642,6 +1629,39 @@
       ::  Poke destination must be a file
       ?>  ?=(%& -.u.dest-lane)
       =/  dest=rail:tarball  p.u.dest-lane
+      ::  Runtime-hooked: intercept timer-set pokes to /sys/behn/
+      ~&  >>  ["%handle-dart poke:" dest p.sage.load.dart]
+      ?:  ?&  =([/sys/behn %'main.timer-state'] dest)
+              =([/ %timer-set] p.sage.load.dart)
+          ==
+        ~&  >>  ["%behn: intercepted timer-set from" here]
+        =.  this  (handle-timer-set here wire.dart q.sage.load.dart)
+        (enqu-take here (sys-give /behn) ~ %pack wire.dart ~)
+      ::  Runtime-hooked: intercept http-request pokes to /sys/iris/
+      ?:  ?&  =([/sys/iris %'main.iris-state'] dest)
+              =([/ %http-request] p.sage.load.dart)
+          ==
+        =.  this  (handle-iris-request here wire.dart q.sage.load.dart)
+        (enqu-take here (sys-give /iris) ~ %pack wire.dart ~)
+      ::  Runtime-hooked: intercept mount/unmount pokes to /sys/clay/
+      ?:  =([/sys/clay %'main.clay-state'] dest)
+        ?:  =([/ %mount-desk] p.sage.load.dart)
+          =/  dek=desk  !<(desk q.sage.load.dart)
+          =.  this  (handle-clay-mount dek)
+          (enqu-take here (sys-give /clay) ~ %pack wire.dart ~)
+        ?:  =([/ %unmount-desk] p.sage.load.dart)
+          =/  dek=desk  !<(desk q.sage.load.dart)
+          =.  this  (handle-clay-unmount dek)
+          (enqu-take here (sys-give /clay) ~ %pack wire.dart ~)
+        ::  Unknown poke to clay-state, pass through normally
+        =/  rel=from:fiber:nexus  (relativize-from:nexus dest &+here)
+        (enqu-take dest [&+here wire.dart] ~ %poke rel sage.load.dart)
+      ::  Runtime-hooked: intercept scry-request pokes to /sys/scry/
+      ?:  ?&  =([/sys/scry %'main.sig'] dest)
+              =([/ %scry-request] p.sage.load.dart)
+          ==
+        =.  this  (handle-scry-request here wire.dart q.sage.load.dart)
+        (enqu-take here (sys-give /scry) ~ %pack wire.dart ~)
       ::  Poke with return address (relativize source for fiber intake)
       =/  rel=from:fiber:nexus  (relativize-from:nexus dest &+here)
       (enqu-take dest [&+here wire.dart] ~ %poke rel sage.load.dart)
@@ -2551,21 +2571,25 @@
   =/  new-kid=ball:tarball  (fall (~(get by dir.new-ball) i.kids) *ball:tarball)
   =.  this  ^$(here (snoc here i.kids), old-ball old-kid, new-ball new-kid)
   $(kids t.kids)
-::  Mirror Clay desks to /sys/clay/[desk]/
+::  Mirror Clay desks to /sys/clay/desks/[desk]/
 ::
 ++  sync-clay
   ^+  this
   ~&  >>  "sync-clay: start"
-  ::  Ensure /sys/clay directory structure exists (properly tracked)
-  =/  old=ball:tarball  (~(dip ba:tarball ball) /sys/clay)
+  ::  Ensure /sys/clay/desks directory structure exists (properly tracked)
+  =/  old=ball:tarball  (~(dip ba:tarball ball) /sys/clay/desks)
   =/  new=ball:tarball  old(fil `(fall fil.old *lump:tarball))
   =?  new  =(~ (~(get of new) /base))
     (~(put of new) /base [~ ~ ~])
   =?  new  =(~ (~(get of new) /grubbery))
     (~(put of new) /grubbery [~ ~ ~])
-  =.  this  (load-ball-changes /sys/clay old new)
-  ::  Sync all desks listed as kids of /sys/clay/
-  =/  dek=(list desk)  (~(lss ba:tarball ball) /sys/clay)
+  =.  this  (load-ball-changes /sys/clay/desks old new)
+  ::  Sync all desks listed as kids of /sys/clay/desks/
+  =/  dek=(list desk)  (~(lss ba:tarball ball) /sys/clay/desks)
+  ::  Update clay-state with synced desks
+  =/  clay-rail=rail:tarball  [/sys/clay %'main.clay-state']
+  =/  st=clay-state:nexus  [%0 (silt dek)]
+  =.  this  (save-file clay-rail [~ [/ %clay-state] !>(st)])
   |-  ^+  this
   ?~  dek  this
   $(dek t.dek, this (sync-clay-desk i.dek))
@@ -2573,7 +2597,7 @@
 ++  sync-clay-desk
   |=  dek=desk
   ^+  this
-  =/  base=path  /sys/clay/[dek]
+  =/  base=path  /sys/clay/desks/[dek]
   =/  pax=path   /(scot %p our.bowl)/[dek]/(scot %da now.bowl)
   ::  Scry for all file paths in desk
   ::  Each path is like /app/foo/hoon where last element is mark
@@ -3034,7 +3058,7 @@
   =/  res=_this  (build-code /code)
   ~&  >  "sync-gub: build-code done"
   res
-::  List all files mirrored under a /sys/clay/[desk] path
+::  List all files mirrored under a /sys/clay/desks/[desk] path
 ::  Returns Clay-style paths (like /app/foo/hoon) with mark as last element
 ::
 ++  list-clay-files
@@ -3099,7 +3123,7 @@
   |=  dek=desk
   ^+  this
   =.  this  (emit-card [%pass /clay-desk/[dek] %arvo %c %warp our.bowl dek ~])
-  (cull [%| /sys/clay/[dek]])
+  (cull [%| /sys/clay/desks/[dek]])
 ::  Subscribe to dill logs and sessions, create grubs for both.
 ::
 ++  sync-dill
@@ -3480,7 +3504,7 @@
     (~(put of new) /requests [~ ~ ~])
   =.  this  (load-ball-changes /sys/eyre old new)
   ::  Ensure born entry for state file so the server fiber spawns
-  =/  =rail:tarball  [/sys/eyre %'state.server-state']
+  =/  =rail:tarball  [/sys/eyre %'main.server-state']
   =?  born  =(~ (~(get bo:nexus now.bowl [born ball]) rail))
     (~(init bo:nexus now.bowl [born ball]) rail)
   this
@@ -3557,6 +3581,161 @@
   =/  cur=(unit sack:nexus)  (get-born here)
   ?.  ?&(?=(^ cur) =(lif ud.life.u.cur))  this
   (enqu-take here (sys-give /arvo) ~ %arvo wire sign)
+::
+::  /sys/behn/ runtime timer service
+::  Intercepts timer-set pokes and behn wakes — no fiber needed.
+::
+++  handle-timer-set
+  |=  [sender=rail:tarball =wire vaz=vase]
+  ^+  this
+  =/  req=[=^wire when=@da]  !<([^wire @da] vaz)
+  =/  timer-rail=rail:tarball  [/sys/behn %'main.timer-state']
+  ::  Read current state
+  =/  old=(unit content:tarball)  (~(get ba:tarball ball) timer-rail)
+  =/  st=timer-state:nexus
+    ?~  old  [%0 ~]
+    !<(timer-state:nexus q.sage.u.old)
+  ~&  >  ["%behn: set" wire.req when.req]
+  ::  Update state
+  =.  timers.st  (~(put by timers.st) [sender wire.req] when.req)
+  =.  this  (save-file timer-rail [~ [/ %timer-state] !>(st)])
+  ::  Build behn wire: /behn/timer/{da}/{path-len}/{path...}/{name}/{wire...}
+  =/  timer-wire=^wire
+    :-  %behn
+    :-  %timer
+    :-  (scot %da when.req)
+    :-  (scot %ud (lent path.sender))
+    (weld path.sender [name.sender wire.req])
+  ::  Emit %wait card directly (not proc-wrapped)
+  (emit-card [%pass timer-wire %arvo %b %wait when.req])
+::
+++  handle-timer-wake
+  |=  [segs=wire error=(unit tang)]
+  ^+  this
+  ?^  error
+    ~&  >>>  ["%behn: timer error" u.error]
+    this
+  ::  Decode wire: {da}/{path-len}/{path...}/{name}/{wire...}
+  ?>  ?=(^ segs)
+  =/  when=@da  (slav %da i.segs)
+  =/  rest=wire  t.segs
+  ?>  ?=(^ rest)
+  =/  path-len=@ud  (slav %ud i.rest)
+  =/  from-path=path  (scag path-len t.rest)
+  =/  rest2=wire  (slag path-len t.rest)
+  ?>  ?=(^ rest2)
+  =/  from-name=@ta  i.rest2
+  =/  req-wire=wire  t.rest2
+  =/  sender=rail:tarball  [from-path from-name]
+  ~&  >  ["%behn: firing" req-wire "sender:" sender]
+  ::  Remove from state
+  =/  timer-rail=rail:tarball  [/sys/behn %'main.timer-state']
+  =/  old=(unit content:tarball)  (~(get ba:tarball ball) timer-rail)
+  =/  st=timer-state:nexus
+    ?~  old  [%0 ~]
+    !<(timer-state:nexus q.sage.u.old)
+  =.  timers.st  (~(del by timers.st) [sender req-wire])
+  =.  this  (save-file timer-rail [~ [/ %timer-state] !>(st)])
+  ::  Poke sender back with timer-wake
+  ~&  >  ["%behn: enqueueing timer-wake to" sender]
+  =/  rel=from:fiber:nexus  (relativize-from:nexus sender &+timer-rail)
+  (enqu-take sender (sys-give /behn) ~ %poke rel [[/ %timer-wake] !>(req-wire)])
+::
+::  /sys/iris/ runtime HTTP client service
+::  Intercepts http-request pokes and iris responses — no fiber needed.
+::
+++  handle-iris-request
+  |=  [sender=rail:tarball =wire vaz=vase]
+  ^+  this
+  =/  =request:http  !<(request:http vaz)
+  =/  iris-rail=rail:tarball  [/sys/iris %'main.iris-state']
+  ::  Build iris wire: /iris/request/{path-len}/{path...}/{name}/{wire...}
+  =/  iris-wire=path
+    :-  %iris
+    :-  %request
+    :-  (scot %ud (lent path.sender))
+    (weld path.sender [name.sender wire])
+  ::  Update state
+  =/  old=(unit content:tarball)  (~(get ba:tarball ball) iris-rail)
+  =/  st=iris-state:nexus
+    ?~  old  [%0 ~]
+    !<(iris-state:nexus q.sage.u.old)
+  =.  requests.st  (~(put by requests.st) iris-wire [sender url.request])
+  =.  this  (save-file iris-rail [~ [/ %iris-state] !>(st)])
+  ::  Emit iris request card
+  (emit-card [%pass iris-wire %arvo %i %request request *outbound-config:iris])
+::
+++  handle-iris-response
+  |=  [segs=wire =client-response:iris]
+  ^+  this
+  ::  Decode wire: {path-len}/{path...}/{name}/{wire...}
+  ?>  ?=(^ segs)
+  =/  path-len=@ud  (slav %ud i.segs)
+  =/  from-path=path  (scag path-len t.segs)
+  =/  rest=wire  (slag path-len t.segs)
+  ?>  ?=(^ rest)
+  =/  from-name=@ta  i.rest
+  =/  req-wire=wire  t.rest
+  =/  sender=rail:tarball  [from-path from-name]
+  ::  Remove from state
+  =/  iris-rail=rail:tarball  [/sys/iris %'main.iris-state']
+  =/  iris-wire=path  [%iris %request segs]
+  =/  old=(unit content:tarball)  (~(get ba:tarball ball) iris-rail)
+  =/  st=iris-state:nexus
+    ?~  old  [%0 ~]
+    !<(iris-state:nexus q.sage.u.old)
+  =.  requests.st  (~(del by requests.st) iris-wire)
+  =.  this  (save-file iris-rail [~ [/ %iris-state] !>(st)])
+  ::  Poke sender back with http-response
+  =/  rel=from:fiber:nexus  (relativize-from:nexus sender &+iris-rail)
+  (enqu-take sender (sys-give /iris) ~ %poke rel [[/ %http-response] !>(client-response)])
+::
+::  /sys/clay/ runtime desk sync service
+::  Intercepts mount/unmount pokes — no fiber needed.
+::
+++  handle-clay-mount
+  |=  dek=desk
+  ^+  this
+  =/  clay-rail=rail:tarball  [/sys/clay %'main.clay-state']
+  =/  old=(unit content:tarball)  (~(get ba:tarball ball) clay-rail)
+  =/  st=clay-state:nexus
+    ?~  old  [%0 ~]
+    !<(clay-state:nexus q.sage.u.old)
+  =.  desks.st  (~(put in desks.st) dek)
+  =.  this  (save-file clay-rail [~ [/ %clay-state] !>(st)])
+  ::  Ensure directory exists
+  =/  old-ball=ball:tarball  (~(dip ba:tarball ball) /sys/clay/desks/[dek])
+  =/  new-ball=ball:tarball  old-ball(fil `(fall fil.old-ball *lump:tarball))
+  =.  this  (load-ball-changes /sys/clay/desks/[dek] old-ball new-ball)
+  (sync-clay-desk dek)
+::
+++  handle-clay-unmount
+  |=  dek=desk
+  ^+  this
+  ?>  !=(dek %grubbery)
+  ?>  !=(dek %base)
+  =/  clay-rail=rail:tarball  [/sys/clay %'main.clay-state']
+  =/  old=(unit content:tarball)  (~(get ba:tarball ball) clay-rail)
+  =/  st=clay-state:nexus
+    ?~  old  [%0 ~]
+    !<(clay-state:nexus q.sage.u.old)
+  =.  desks.st  (~(del in desks.st) dek)
+  =.  this  (save-file clay-rail [~ [/ %clay-state] !>(st)])
+  (unmount-clay-desk dek)
+::
+::  /sys/scry/ runtime scry service
+::  Intercepts scry-request pokes — does .^ and pokes sender back.
+::
+++  handle-scry-request
+  |=  [sender=rail:tarball =wire vaz=vase]
+  ^+  this
+  =/  pat=path  !<(path vaz)
+  =/  scry-rail=rail:tarball  [/sys/scry %'main.sig']
+  ?>  ?=([@ @ *] pat)
+  =/  res=vase
+    !>(.^(* i.pat (scot %p our.bowl) i.t.pat (scot %da now.bowl) t.t.pat))
+  =/  rel=from:fiber:nexus  (relativize-from:nexus sender &+scry-rail)
+  (enqu-take sender (sys-give /scry) ~ %poke rel [[/ %scry-response] res])
 ::
 ++  take-agent
   |=  [wir=wire =sign:agent:gall]

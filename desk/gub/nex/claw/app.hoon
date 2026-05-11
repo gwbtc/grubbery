@@ -21,7 +21,6 @@
             [%fall %| /agents/main [`main-agent-weir ~] [~ ~] [`[~ `[/claw %agent] ~] ~]]
             [%fall %| /channels [~ ~] [~ ~] empty-dir:loader]
             [%fall %| /channels/telegram/main-bot [~ ~] [~ ~] [`[~ `[/claw/channel %telegram] ~] ~]]
-            [%fall %& [/ %'timer.timer-state'] %.n [~ [/ %timer-state] !>(*timer-state)]]
             [%fall %| /ui/sse [~ ~] [~ ~] empty-dir:loader]
             [%over %& [/ui/sse %'agents.html'] %.n [~ [/ %manx] !>((agents-fragment "" ~))]]
             [%over %& [/ui/sse %'channels.html'] %.n [~ [/ %manx] !>((channels-fragment "" ~))]]
@@ -181,41 +180,6 @@
           ;<  ~  bind:m  (cull:io (cord-to-road:tarball (crip "./apis/{(trip name)}/")))
           $
         ==
-        ::
-          ::  timer.timer-state: timer service fiber
-          ::
-          [~ %'timer.timer-state']
-        ;<  ~  bind:m  (rise-wait:io prod "%claw/app timer: failed")
-        ;<  st=timer-state  bind:m  (get-state-as:io ,timer-state)
-        |-
-        ;<  ev=timer-event  bind:m  take-timer-event
-        ?-    -.ev
-            %set
-          ;<  here=rail:tarball  bind:m  get-here-abs:io
-          ?>  ?=(%& -.from.ev)
-          =/  abs=rail:tarball  (resolve-bend:io here p.from.ev)
-          ~&  >  ["%timers: set" wire.ev when.ev]
-          =.  timers.st  (~(put by timers.st) [abs wire.ev] when.ev)
-          ;<  ~  bind:m  (replace:io !>(st))
-          ::  build behn wire: /timer/{da}/{path-len}/{path...}/{name}/{wire-len}/{wire...}
-          ::
-          =/  timer-wire=wire
-            :-  %timer
-            :-  (scot %da when.ev)
-            :-  (scot %ud (lent path.abs))
-            (weld path.abs [name.abs (scot %ud (lent wire.ev)) wire.ev])
-          =/  =card:agent:gall
-            [%pass timer-wire %arvo %b %wait when.ev]
-          ;<  ~  bind:m  (send-card:io card)
-          $
-            %wake
-          ~&  >  ["%timers: firing" wire.ev]
-          =.  timers.st  (~(del by timers.st) [rail.ev wire.ev])
-          ;<  ~  bind:m  (replace:io !>(st))
-          ;<  ~  bind:m
-            (poke:io &+&+rail.ev [[/ %timer-wake] !>(wire.ev)])
-          $
-        ==
       ==
     ::
     ++  on-manu
@@ -266,60 +230,19 @@
     --
 ::
 |%
-::  +timer-state: persisted timer service state
-::
-+$  timer-state  [%0 timers=(map [=rail:tarball =wire] @da)]
-::  +timer-event: events the timer fiber handles
-::
-+$  timer-event
-  $%  [%set =from:fiber:nexus =wire when=@da]
-      [%wake when=@da =rail:tarball =wire]
-  ==
-::  +take-timer-event: multiplex pokes (timer-set) and arvo wakes
-::
-++  take-timer-event
-  =/  m  (fiber:fiber:nexus ,timer-event)
-  ^-  form:m
-  |=  input:fiber:nexus
-  :+  ~  state
-  ?+  in  [%skip ~]
-      ~  [%wait ~]
-      [~ %veto *]
-    [%fail (veto-error:io dart.u.in)]
-      [~ %poke * *]
-    =/  req=[=wire when=@da]  !<([wire @da] q.sage.u.in)
-    [%done %set from.u.in wire.req when.req]
-      [~ %arvo [%timer @ *] %behn %wake *]
-    ?^  error.sign.u.in
-      [%fail %timer-error u.error.sign.u.in]
-    ::  decode from behn wire: /timer/{da}/{path-len}/{path...}/{name}/{wire-len}/{wire...}
-    ::
-    =/  when=@da  (slav %da i.t.wire.u.in)
-    =/  segs=path  t.t.wire.u.in
-    ?>  ?=(^ segs)
-    =/  path-len=@ud  (slav %ud i.segs)
-    =/  from-path=path  (scag path-len t.segs)
-    =/  rest=path  (slag path-len t.segs)
-    ?>  ?=([@ @ *] rest)
-    =/  from-name=@ta  i.rest
-    =/  wire-len=@ud  (slav %ud i.t.rest)
-    =/  req-wire=path  (scag wire-len t.t.rest)
-    [%done %wake when [from-path from-name] req-wire]
-  ==
 ::  +agents-weir: weir for individual agent at ./agents/{name}/
-::  2 steps up = claw app root, then /apis, /channels, or timer file.
 ::
 ++  agents-weir
   ^-  weir:nexus
   :+  ~
-    (sy ~[&+[%| /sys/bowl] |+[2 |+/apis] |+[2 |+/channels] |+[2 &+[/ %'timer.timer-state']]])
+    (sy ~[&+[%| /sys/bowl] |+[2 |+/apis] |+[2 |+/channels] &+[%& /sys/behn %'main.timer-state']])
   (sy ~[&+[%| /]])
 ::  +main-agent-weir: agents-weir + make/poke on /agents
 ::
 ++  main-agent-weir
   ^-  weir:nexus
   :+  (sy ~[|+[2 |+/agents]])
-    (sy ~[&+[%| /sys/bowl] |+[2 |+/apis] |+[2 |+/channels] |+[2 |+/agents] |+[2 &+[/ %'timer.timer-state']]])
+    (sy ~[&+[%| /sys/bowl] |+[2 |+/apis] |+[2 |+/channels] |+[2 |+/agents] &+[%& /sys/behn %'main.timer-state']])
   (sy ~[&+[%| /]])
 ::  +path-to-ball-id: join a path into a slash-separated tape for URLs
 ::

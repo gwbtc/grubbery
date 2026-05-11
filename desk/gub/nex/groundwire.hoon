@@ -53,12 +53,11 @@
         ;<  ~  bind:m  (rise-wait:io prod "%groundwire /height: process failed")
         ::  Register as jael PKI source on startup
         ;<  our=@p  bind:m  get-our:io
-        ;<  =dude:gall  bind:m  get-agent:io
         ;<  self=rail:tarball  bind:m  get-here-abs:io
         ;<  ~  bind:m
           %-  send-cards:io
           =/  src=rail:tarball  [path.self %'udiffs.urb-udiffs']
-          [%pass /jael-src %agent [our dude] %poke %set-jael-source !>(src)]~
+          [%pass /jael-src %agent [our dap:io] %poke %set-jael-source !>(src)]~
         ::
         ;<  cfg-seen=seen:nexus  bind:m
           (peek:io [%| 1 %& / %'config.json'] `%json)

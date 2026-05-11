@@ -47,9 +47,8 @@
     ::  Verify file exists before deleting
     ;<  our=@p  bind:m  get-our:io
     ;<  now=@da  bind:m  get-time:io
-    ;<  =riot:clay  bind:m
-      (warp:io our dek ~ %sing %x da+now pax)
-    ?~  riot
+    =/  has=?  .^(? %cu (weld /(scot %p our)/[dek]/(scot %da now) pax))
+    ?.  has
       (pure:m [%error (crip "File not found: {(trip file-path)}")])
     ;<  initial=cass:clay  bind:m  (do-scry:io cass:clay /cw/[dek])
     =/  write-data=json
@@ -64,7 +63,7 @@
     ;<  *  bind:m  (keep:io /dill/logs [%& %& /sys/dill %'logs.dill-told'] ~)
     ;<  now=@da  bind:m  get-time:io
     ;<  ~  bind:m
-      (send-card:io %pass /commit-timeout %arvo %b %wait (add now ~s30))
+      (set-timer:io /commit-timeout (add now ~s30))
     ;<  ~  bind:m
       (gall-poke-our:io %hood kiln-info+!>(["" `[dek %& [pax %del ~]~]]))
     ;<  ~  bind:m  collect-logs:tools

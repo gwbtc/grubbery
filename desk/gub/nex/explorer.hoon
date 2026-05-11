@@ -123,18 +123,20 @@
 ::  Counts leading "../" as relative steps, remainder as the lane.
 ::
 ++  parse-road-input
-  |=  [road-path=@t road-type=@t]
+  |=  road-path=@t
   ^-  road:tarball
+  =/  raw=tape  (trip road-path)
+  =/  is-dir=?  &(?=(^ raw) =('/' (rear raw)))
   =/  segs=path  (split-fas road-path)
   =/  ups=@ud  0
   |-
   ?:  &(?=(^ segs) =(%'..' i.segs))
     $(segs t.segs, ups +(ups))
   =/  =lane:tarball
-    ?:  =('file' road-type)
-      ?~  segs  [%| /]
-      [%& (snip `path`segs) (rear segs)]
-    [%| segs]
+    ?:  is-dir
+      [%| segs]
+    ?~  segs  [%| /]
+    [%& (snip `path`segs) (rear segs)]
   ?:(=(0 ups) &+lane |+[ups lane])
 ::  Handle GET requests
 ::
@@ -265,11 +267,10 @@
       %'add-weir-road'
     =/  category=@t  (fall (get-key:kv:html-utils 'category' args) '')
     =/  road-path=@t  (fall (get-key:kv:html-utils 'road-path' args) '')
-    =/  road-type=@t  (fall (get-key:kv:html-utils 'road-type' args) '')
     ?:  |(=('' category) =('' road-path))
       ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'Missing fields')])
       (pure:m ~)
-    =/  new-road=road:tarball  (parse-road-input road-path road-type)
+    =/  new-road=road:tarball  (parse-road-input road-path)
     =/  dir-sand=sand:nexus  (~(dip of root-sand) tree-path)
     =/  cur=weir:nexus  (fall fil.dir-sand [~ ~ ~])
     =/  new=weir:nexus
@@ -285,11 +286,10 @@
       %'del-weir-road'
     =/  category=@t  (fall (get-key:kv:html-utils 'category' args) '')
     =/  road-path=@t  (fall (get-key:kv:html-utils 'road-path' args) '')
-    =/  road-type=@t  (fall (get-key:kv:html-utils 'road-type' args) '')
     ?:  =('' category)
       ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'Missing category')])
       (pure:m ~)
-    =/  del-road=road:tarball  (parse-road-input road-path road-type)
+    =/  del-road=road:tarball  (parse-road-input road-path)
     =/  dir-sand=sand:nexus  (~(dip of root-sand) tree-path)
     =/  cur=weir:nexus  (fall fil.dir-sand [~ ~ ~])
     =/  new=weir:nexus
@@ -754,11 +754,7 @@
                   ;option(value "poke"): poke
                   ;option(value "read"): read
                 ==
-                ;select(name "road-type")
-                  ;option(value "dir"): dir
-                  ;option(value "file"): file
-                ==
-                ;input(type "text", name "road-path", placeholder "/path", required "");
+                ;input(type "text", name "road-path", placeholder "/path or /path/", required "");
                 ;input(type "hidden", name "action", value "add-weir-road");
                 ;button(type "submit"): Add
               ==
@@ -852,15 +848,13 @@
     %+  turn  ~(tap in roads)
     |=  =road:tarball
     ^-  manx
-    =/  display=tape  (render-road road)
-    =/  [road-path=tape road-type=tape]  (road-to-form road)
+    =/  road-path=tape  (road-to-form road)
     ;span.weir-road-item
-      ;span.weir-roads: {display}
+      ;span.weir-roads: {road-path}
       ;form.del-form(method "POST", action url-prefix)
         ;input(type "hidden", name "action", value "del-weir-road");
         ;input(type "hidden", name "category", value label);
         ;input(type "hidden", name "road-path", value road-path);
-        ;input(type "hidden", name "road-type", value road-type);
         ;button.weir-del(type "submit"): x
       ==
     ==
@@ -888,18 +882,14 @@
 ::
 ++  road-to-form
   |=  =road:tarball
-  ^-  [path=tape type=tape]
+  ^-  tape
   ?-    -.road
-      %&
-    ?-  -.p.road
-      %&  [(trip (spat (snoc path.p.p.road name.p.p.road))) "file"]
-      %|  [(trip (spat p.p.road)) "dir"]
-    ==
+      %&  (render-lane p.road)
       %|
-    ?-  -.q.p.road
-      %&  [(trip (spat (snoc path.p.q.p.road name.p.q.p.road))) "file"]
-      %|  [(trip (spat p.q.p.road)) "dir"]
-    ==
+    =/  prefix=tape  (zing (reap p.p.road "../"))
+    =/  lane=tape  (render-lane q.p.road)
+    =/  trimmed=tape  ?:(&(?=(^ lane) =(i.lane '/')) t.lane lane)
+    "{prefix}{trimmed}"
   ==
 ::
 ++  render-lane

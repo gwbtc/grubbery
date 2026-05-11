@@ -17,8 +17,24 @@
             ::  /sys/eyre: HTTP server state + request fibers
             ::
             [%fall %| /sys/eyre [~ ~] [~ ~] [`[~ ~ ~] ~]]
-            [%fall %& [/sys/eyre %'state.server-state'] %.n [~ [/ %server-state] !>(*server-state:nexus)]]
+            [%fall %& [/sys/eyre %'main.server-state'] %.n [~ [/ %server-state] !>(*server-state:nexus)]]
             [%fall %| /sys/eyre/requests [~ ~] [~ ~] [`[~ ~ ~] ~]]
+            ::  /sys/behn: timer service
+            ::
+            [%fall %| /sys/behn [~ ~] [~ ~] [`[~ ~ ~] ~]]
+            [%fall %& [/sys/behn %'main.timer-state'] %.n [~ [/ %timer-state] !>(*timer-state:nexus)]]
+            ::  /sys/iris: HTTP client service
+            ::
+            [%fall %| /sys/iris [~ ~] [~ ~] [`[~ ~ ~] ~]]
+            [%fall %& [/sys/iris %'main.iris-state'] %.n [~ [/ %iris-state] !>(*iris-state:nexus)]]
+            ::  /sys/clay: desk sync service (state + desks/ subdir)
+            ::
+            [%fall %& [/sys/clay %'main.clay-state'] %.n [~ [/ %clay-state] !>(*clay-state:nexus)]]
+            [%fall %| /sys/clay/desks [~ ~] [~ ~] [`[~ ~ ~] ~]]
+            ::  /sys/scry: scry service
+            ::
+            [%fall %| /sys/scry [~ ~] [~ ~] [`[~ ~ ~] ~]]
+            [%fall %& [/sys/scry %'main.sig'] %.n [~ [/ %sig] !>(~)]]
             ::  child nexuses
             ::
             [%fall %| /apps/'counter.counter' [~ ~] [~ ~] [`[~ `[/ %counter] ~] ~]]
@@ -35,18 +51,15 @@
       =/  m  (fiber:fiber:nexus ,~)
       ^-  process:fiber:nexus
       ?+    rail  stay:m
-          ::  /sys/eyre/state.server-state: HTTP server fiber
+          ::  /sys/eyre/main.server-state: HTTP server fiber
           ::  Manages bindings, dispatches requests, proxies responses.
           ::
-          [[%sys %eyre ~] %'state.server-state']
+          [[%sys %eyre ~] %'main.server-state']
         ;<  ~  bind:m  (rise-wait:io prod "%eyre /state: failed")
-        ::  Clear state on reload — nexuses re-bind on startup
-        ;<  ~  bind:m  (replace:io !>(*server-state:nexus))
         ::  Register /grubbery/api with eyre
-        ;<  =dude:gall  bind:m  get-agent:io
         ;<  ~  bind:m
           %-  send-cards:io
-          [%pass /eyre-api %arvo %e %connect [~ /grubbery/api] dude]~
+          [%pass /eyre-api %arvo %e %connect [~ /grubbery/api] dap:io]~
         ::  Server loop
         |-
         ;<  [=from:fiber:nexus =sage:tarball]  bind:m  take-poke-from:io
@@ -62,10 +75,9 @@
             ~&  >  [%eyre-bind binding.act handler.act]
             =.  bindings.st  (~(put by bindings.st) binding.act handler.act)
             ;<  ~  bind:m  (replace:io !>(st))
-            ;<  =dude:gall  bind:m  get-agent:io
             ;<  ~  bind:m
               %-  send-cards:io
-              [%pass /eyre-bind %arvo %e %connect binding.act dude]~
+              [%pass /eyre-bind %arvo %e %connect binding.act dap:io]~
             $
           ::
               %unbind
@@ -165,6 +177,29 @@
         ;<  [src=@p req=inbound-request:eyre]  bind:m  (get-state-as:io ,[src=@p inbound-request:eyre])
         =/  [site=path args=quay:eyre]  (parse-url:http-utils url.request.req)
         (dispatch:ball-api eyre-id src req site args)
+        ::
+          ::  /sys/behn/main.timer-state: runtime-hooked (no fiber)
+          ::  Timer pokes intercepted in app/grubbery.hoon handle-dart.
+          ::  Behn wakes handled in app/grubbery.hoon on-arvo.
+          ::
+          [[%sys %behn ~] %'main.timer-state']
+        stay:m
+          ::  /sys/iris/main.iris-state: runtime-hooked (no fiber)
+          ::  HTTP request pokes intercepted in app/grubbery.hoon handle-dart.
+          ::  Iris responses handled in app/grubbery.hoon on-arvo.
+          ::
+          [[%sys %iris ~] %'main.iris-state']
+        stay:m
+          ::  /sys/clay/main.clay-state: runtime-hooked (no fiber)
+          ::  Mount/unmount pokes intercepted in app/grubbery.hoon handle-dart.
+          ::
+          [[%sys %clay ~] %'main.clay-state']
+        stay:m
+          ::  /sys/scry/main.sig: runtime-hooked (no fiber)
+          ::  Scry request pokes intercepted in app/grubbery.hoon handle-dart.
+          ::
+          [[%sys %scry ~] %'main.sig']
+        stay:m
       ==
     ::
     ++  on-manu
@@ -215,7 +250,7 @@
           sys/eyre/ — HTTP binding state and request fibers.
 
           FILES:
-            state.server-state    Active bindings and connection tracking.
+            main.server-state    Active bindings and connection tracking.
                                 Runtime-managed, cleared on reload.
 
           DIRECTORIES:
@@ -225,6 +260,16 @@
           """
             [%sys %eyre %requests ~]
           'Active HTTP request fibers. Each inbound API request spawns a fiber here; cleaned up on completion or client disconnect.'
+            [%sys %behn ~]
+          %-  crip
+          """
+          sys/behn/ — Timer service.
+
+          FILES:
+            main.timer-state    Timer proxy. Receives timer-set pokes from
+                                sandboxed fibers, proxies to behn, pokes back
+                                timer-wake when fired.
+          """
             [%sys %ames ~]
           %-  crip
           """
@@ -250,13 +295,16 @@
           %|
         ?+  rail.p.mana  'File under the root nexus.'
             [~ %'ver.ud']         'Schema version counter. Mark: ud. Incremented on structural migrations in on-load.'
-            [[%sys %eyre ~] %'state.server-state']  'HTTP server state. Manages bindings, dispatches requests, proxies responses.'
+            [[%sys %eyre ~] %'main.server-state']  'HTTP server state. Manages bindings, dispatches requests, proxies responses.'
+            [[%sys %behn ~] %'main.timer-state']  'Timer proxy. Receives timer-set pokes, forwards to behn, pokes back timer-wake on fire.'
         ==
       ==
     --
 ::  Helper arms for the server fiber
 ::
 |%
+::  Eyre helpers
+::
 ++  eyre-response-cards
   |=  [eyre-id=@ta upd=eyre-update:nexus]
   ^-  (list card:agent:gall)

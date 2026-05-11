@@ -150,12 +150,10 @@
   :+  ~  state
   ?+  in  [%skip ~]
       ~  [%wait ~]
-      [~ %arvo [%wait @ ~] %behn %wake *]
-    ?.  =(`until (slaw %da i.t.wire.u.in))
+      [~ %poke * *]
+    ?.  =([/ %timer-wake] p.sage.u.in)
       [%skip ~]
-    ?~  error.sign.u.in
-      [%done ~]
-    [%done `u.error.sign.u.in]
+    [%done ~]
   ==
 ::  Collect dill logs with debounce: returns ~1s after last log.
 ::  Each log spawns a quiet timer tagged with log count. If 1s passes
@@ -174,10 +172,16 @@
   :+  ~  state
   ?+  in  [%skip ~]
       ~  [%wait ~]
-      [~ %arvo [%commit-timeout ~] %behn %wake *]
-    [%done %timeout ~]
-      [~ %arvo [%commit-quiet @ ~] %behn %wake *]
-    [%done %quiet (slav %ud i.t.wire.u.in)]
+      [~ %poke * *]
+    ?.  =([/ %timer-wake] p.sage.u.in)
+      [%skip ~]
+    =/  wak=wire  !<(wire q.sage.u.in)
+    ?+  wak  [%skip ~]
+        [%commit-timeout ~]
+      [%done %timeout ~]
+        [%commit-quiet @ ~]
+      [%done %quiet (slav %ud i.t.wak)]
+    ==
       [~ %news [%dill %logs ~] *]
     ?.  ?=([%file *] view.u.in)  [%skip ~]
     ?.  ?=(%dill-told name.p.sage.view.u.in)  [%skip ~]
@@ -209,7 +213,7 @@
     ;<  ~  bind:m  (replace:io !>([tool.st args.st step.st new-data ~]))
     ;<  now=@da  bind:m  get-time:io
     ;<  ~  bind:m
-      (send-card:io %pass /commit-quiet/(scot %ud new-count) %arvo %b %wait (add now ~s1))
+      (set-timer:io /commit-quiet/(scot %ud new-count) (add now ~s1))
     $
   ==
 ::  Format a dill told to text
