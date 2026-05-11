@@ -1635,11 +1635,9 @@
       ?>  ?=(%& -.u.dest-lane)
       =/  dest=rail:tarball  p.u.dest-lane
       ::  Runtime-hooked: intercept timer-set pokes to /sys/behn/
-      ~&  >>  ["%handle-dart poke:" dest p.sage.load.dart]
       ?:  ?&  =([/sys/behn %'main.timer-state'] dest)
               =([/ %timer-set] p.sage.load.dart)
           ==
-        ~&  >>  ["%behn: intercepted timer-set from" here]
         =.  this  (handle-timer-set here wire.dart q.sage.load.dart)
         (enqu-take here (sys-give /behn) ~ %pack wire.dart ~)
       ::  Runtime-hooked: intercept pokes to /sys/ namespace services
@@ -3578,7 +3576,6 @@
   =/  st=timer-state:nexus
     ?~  old  [%0 ~]
     !<(timer-state:nexus q.sage.u.old)
-  ~&  >  ["%behn: set" wire.req when.req]
   ::  Update state
   =.  timers.st  (~(put by timers.st) [sender wire.req] when.req)
   =.  this  (save-file timer-rail [~ [/ %timer-state] !>(st)])
@@ -3610,7 +3607,6 @@
   =/  from-name=@ta  i.rest2
   =/  req-wire=wire  t.rest2
   =/  sender=rail:tarball  [from-path from-name]
-  ~&  >  ["%behn: firing" req-wire "sender:" sender]
   ::  Remove from state
   =/  timer-rail=rail:tarball  [/sys/behn %'main.timer-state']
   =/  old=(unit content:tarball)  (~(get ba:tarball ball) timer-rail)
@@ -3620,7 +3616,6 @@
   =.  timers.st  (~(del by timers.st) [sender req-wire])
   =.  this  (save-file timer-rail [~ [/ %timer-state] !>(st)])
   ::  Poke sender back with timer-wake
-  ~&  >  ["%behn: enqueueing timer-wake to" sender]
   =/  rel=from:fiber:nexus  (relativize-from:nexus sender &+timer-rail)
   (enqu-take sender (sys-give /behn) ~ %poke rel [[/ %timer-wake] !>(req-wire)])
 ::

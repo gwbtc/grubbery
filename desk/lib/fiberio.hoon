@@ -947,84 +947,12 @@
     ?~  err  [%done ~]
     [%fail %poke-failed u.err]
   ==
-::
-++  gall-watch
-  |=  [=wire =dock =path]
-  =/  m  (fiber ,~)
-  ^-  form:m
-  =/  =card:agent:gall  [%pass wire %agent dock %watch path]
-  ;<  ~  bind:m  (send-card card)
-  (take-watch-ack wire)
-::
-++  take-watch-ack
-  |=  =wire
-  =/  m  (fiber ,~)
-  ^-  form:m
-  |=  input
-  :+  ~  state
-  ?+  in  [%skip ~]
-      ~  [%wait ~]
-      [~ %veto *]
-    [%fail (veto-error dart.u.in)]
-      [~ %agent * *]
-    ?.  =(wire wire.u.in)
-      [%skip ~]
-    ?.  ?=(%watch-ack -.sign.u.in)
-      [%skip ~]
-    ?~  p.sign.u.in
-      [%done ~]
-    [%fail %watch-failed u.p.sign.u.in]
-  ==
-::
-++  take-fact
-  |=  =wire
-  =/  m  (fiber ,cage)
-  ^-  form:m
-  |=  input
-  :+  ~  state
-  ?+  in  [%skip ~]
-      ~  [%wait ~]
-      [~ %veto *]
-    [%fail (veto-error dart.u.in)]
-      [~ %agent * *]
-    ?.  =(wire wire.u.in)
-      [%skip ~]
-    ?.  ?=(%fact -.sign.u.in)
-      [%skip ~]
-    [%done cage.sign.u.in]
-  ==
-::
-++  take-kick
-  |=  =wire
-  =/  m  (fiber ,~)
-  ^-  form:m
-  |=  input
-  :+  ~  state
-  ?+  in  [%skip ~]
-      ~  [%wait ~]
-      [~ %veto *]
-    [%fail (veto-error dart.u.in)]
-      [~ %agent * *]
-    ?.  =(wire wire.u.in)
-      [%skip ~]
-    ?.  ?=(%kick -.sign.u.in)
-      [%skip ~]
-    [%done ~]
-  ==
-::
-++  gall-leave
-  |=  [=wire =dock]
-  =/  m  (fiber ,~)
-  ^-  form:m
-  =/  =card:agent:gall  [%pass wire %agent dock %leave ~]
-  (send-card card)
 ::  Timer helpers — poke /sys/behn/main.timer-state, receive timer-wake back
 ::
 ++  set-timer
   |=  [=wire until=@da]
   =/  m  (fiber ,~)
   ^-  form:m
-  ~&  >>  ["%behn: set-timer" wire until]
   (poke &+&+[/sys/behn %'main.timer-state'] [[/ %timer-set] !>(`[^wire @da]`[wire until])])
 ::
 ++  send-wait

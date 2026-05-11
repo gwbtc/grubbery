@@ -154,7 +154,6 @@
             ::
             %handle-http-cancel
           =/  eyre-id=@ta  !<(@ta q.sage)
-          ~&  >  [%eyre-cancel eyre-id]
           =/  conn-binding=(unit binding:eyre)  (~(get by conns.st) eyre-id)
           =.  conns.st  (~(del by conns.st) eyre-id)
           ;<  ~  bind:m  (replace:io !>(st))

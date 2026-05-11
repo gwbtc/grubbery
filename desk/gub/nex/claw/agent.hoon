@@ -711,9 +711,6 @@
           ?:  =('' chat-name)
             ~&  >>>  "%claw main.sig: delete-chat missing name"
             $
-          ?:  =(%main chat-name)
-            ~&  >>>  "%claw main.sig: cannot delete main chat"
-            $
           ~&  >  ["%claw main.sig: deleting chat" chat-name]
           ;<  chat-dir=road:tarball  bind:m
             (ancestor-road:io [/claw %agent] [%| /chats/[chat-name]])
@@ -2510,24 +2507,22 @@
         item.setAttribute('data-chat', name);
         item.onclick = function() \{ location.search = '?chat=' + this.getAttribute('data-chat'); };
       }
-      if (name !== 'main') \{
-        var del = document.createElement('span');
-        del.className = 'chat-del';
-        del.textContent = String.fromCharCode(215);
-        del.setAttribute('data-chat', name);
-        del.onclick = function(e) \{
-          e.stopPropagation();
-          var n = this.getAttribute('data-chat');
-          if (!confirm('Delete chat "' + n + '"?')) return;
-          pendingNav = '-' + n;
-          fetch(API + '/poke/' + BALL + '/main.sig?mark=json', \{
-            method: 'POST',
-            headers: \{'Content-Type': 'application/json'},
-            body: JSON.stringify(\{action: 'delete-chat', name: n})
-          });
-        };
-        item.appendChild(del);
-      }
+      var del = document.createElement('span');
+      del.className = 'chat-del';
+      del.textContent = String.fromCharCode(215);
+      del.setAttribute('data-chat', name);
+      del.onclick = function(e) \{
+        e.stopPropagation();
+        var n = this.getAttribute('data-chat');
+        if (!confirm('Delete chat "' + n + '"?')) return;
+        pendingNav = '-' + n;
+        fetch(API + '/poke/' + BALL + '/main.sig?mark=json', \{
+          method: 'POST',
+          headers: \{'Content-Type': 'application/json'},
+          body: JSON.stringify(\{action: 'delete-chat', name: n})
+        });
+      };
+      item.appendChild(del);
       el.appendChild(item);
     }
   }
