@@ -47,7 +47,7 @@
     =/  dek=@tas  (slav %tas desk)
     ;<  our=@p  bind:m  get-our:io
     ;<  now=@da  bind:m  get-time:io
-    =/  instructions=(list [pax=path mark=@tas content=@t])  ~
+    =/  instructions=(list [pax=path mark=@tas blob=*])  ~
     =/  file-names=(list @t)  ~
     =/  remaining=(list json)  edit-list
     |-
@@ -55,10 +55,10 @@
       ?~  instructions
         (pure:m [%error 'no valid edits to apply'])
       ;<  initial=cass:clay  bind:m  (scry:io cass:clay /cw/[dek])
-      =/  ins=(list [path %ins @tas @t])
+      =/  ins=(list [path %ins @tas *])
         %+  turn  (flop instructions)
-        |=  [pax=path mark=@tas content=@t]
-        [pax %ins mark content]
+        |=  [pax=path mark=@tas blob=*]
+        [pax %ins mark blob]
       =/  write-data=json
         %-  pairs:enjs:format
         :~  ['initial-ud' (numb:enjs:format ud.initial)]
@@ -102,6 +102,8 @@
     ?~  pax
       (pure:m [%error (crip "empty path in edit")])
     =/  mark=@tas  (rear pax)
+    ?.  ?=(?(%hoon %json %html %css %js %md %txt) mark)
+      (pure:m [%error (crip "Unsupported mark: %{(trip mark)}. Use hoon, json, html, css, js, md, or txt.")])
     ;<  has=?  bind:m  (scry:io ? (weld /cu/[dek] pax))
     ?.  has
       (pure:m [%error (crip "File not found: {(trip file-path.u.parsed)}")])
@@ -123,9 +125,10 @@
     =/  before=tape  (scag u.idx text)
     =/  after=tape  (slag (add u.idx (lent old-tape)) text)
     =/  result=@t  (crip (zing ~[before new-tape after]))
+    =/  blob=*  ?:(?=(%txt mark) (to-wain:format result) result)
     %=  $
       remaining     t.remaining
-      instructions  [[pax mark result] instructions]
+      instructions  [[pax mark blob] instructions]
       file-names    [file-path.u.parsed file-names]
     ==
       %batch-editing

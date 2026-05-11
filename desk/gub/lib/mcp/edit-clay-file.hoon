@@ -49,6 +49,8 @@
     ?~  pax
       (pure:m [%error 'Empty path'])
     =/  mark=@tas  (rear pax)
+    ?.  ?=(?(%hoon %json %html %css %js %md %txt) mark)
+      (pure:m [%error (crip "Unsupported mark: %{(trip mark)}. Use hoon, json, html, css, js, md, or txt.")])
     ;<  has=?  bind:m  (scry:io ? (weld /cu/[dek] pax))
     ?.  has
       (pure:m [%error (crip "File not found: {(trip file-path)}")])
@@ -85,7 +87,8 @@
     ;<  ~  bind:m
       (set-timer:io /commit-timeout (add now ~s30))
     ;<  ~  bind:m
-      (clay-info:io dek [pax %ins mark result]~)
+      =/  blob=*  ?:(?=(%txt mark) (to-wain:format result) result)
+      (clay-info:io dek [pax %ins mark blob]~)
     ;<  ~  bind:m  collect-logs:tools
     ;<  ~  bind:m  (drop:io /dill/logs [%& %& /sys/dill %'logs.dill-told'])
     ;<  st=tool-state:tools  bind:m  (get-state-as:io ,tool-state:tools)
