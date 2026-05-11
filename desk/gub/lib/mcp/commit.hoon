@@ -50,7 +50,7 @@
     ;<  ~  bind:m
       (set-timer:io /commit-timeout (add now timeout))
     ~&  >>  "%commit: poking hood"
-    ;<  ~  bind:m  (gall-poke-our:io %hood kiln-commit+!>([mount-point %.n]))
+    ;<  ~  bind:m  (gall-poke-our:io %hood kiln-commit+[mount-point %.n])
     ~&  >>  "%commit: collecting logs"
     ;<  ~  bind:m  collect-logs:tools
     ~&  >>  "%commit: done collecting"

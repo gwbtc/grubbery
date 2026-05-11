@@ -30,6 +30,6 @@
       our
     ?.  ?=([%s *] u.ship-json)  our
     (slav %p p.u.ship-json)
-  ;<  ~  bind:m  (gall-poke-our:io %hood kiln-install+!>([dek src dek]))
+  ;<  ~  bind:m  (gall-poke-our:io %hood kiln-install+[dek src dek])
   (pure:m [%text (crip "Installing %{(trip dek)} from {<src>}")])
 --

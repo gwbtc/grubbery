@@ -21,6 +21,6 @@
     (pure:m [%error 'Missing or invalid argument: agent'])
   =/  agent=@t  p.parsed
   =/  agt=@tas  (slav %tas agent)
-  ;<  ~  bind:m  (gall-poke-our:io %hood kiln-nuke+!>([agt %.y]))
+  ;<  ~  bind:m  (gall-poke-our:io %hood kiln-nuke+[agt %.y])
   (pure:m [%text (crip "Nuked %{(trip agt)}")])
 --

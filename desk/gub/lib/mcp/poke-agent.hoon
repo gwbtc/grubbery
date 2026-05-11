@@ -35,7 +35,7 @@
     =/  lines=wall  (zing (turn (flop p.res) |=(=tank (wash [0 80] tank))))
     (pure:m [%error (crip "Bad hoon expression:\0a{(of-wall:format lines)}")])
   ;<  err=(unit tang)  bind:m
-    (gall-poke-or-nack:io agt mar^p.res)
+    (gall-poke-or-nack:io agt mar^q.p.res)
   ?^  err
     =/  lines=wall  (zing (turn (flop u.err) |=(=tank (wash [0 80] tank))))
     (pure:m [%error (crip "Poke nacked:\0a{(of-wall:format lines)}")])

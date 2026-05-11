@@ -922,11 +922,11 @@
 ::  Gall agent operations (via /sys/gall/ runtime service)
 ::
 ++  gall-poke
-  |=  [=dock =cage]
+  |=  [=dock =page]
   =/  m  (fiber ,~)
   ^-  form:m
   ;<  ~  bind:m
-    (poke &+&+[/sys/gall %'main.sig'] [[/ %gall-poke] !>([dock cage])])
+    (poke &+&+[/sys/gall %'main.sig'] [[/ %gall-poke] !>([dock page])])
   |=  input
   :+  ~  state
   ?+  in  [%skip ~]
@@ -1183,20 +1183,20 @@
 ::  Poke our own ship
 ::
 ++  gall-poke-our
-  |=  [=dude:gall =cage]
+  |=  [=dude:gall =page]
   =/  m  (fiber ,~)
   ^-  form:m
   ;<  our=@p  bind:m  get-our
-  (gall-poke [our dude] cage)
+  (gall-poke [our dude] page)
 ::  Poke our own ship, returning nack as (unit tang) instead of crashing
 ::
 ++  gall-poke-or-nack
-  |=  [=dude:gall =cage]
+  |=  [=dude:gall =page]
   =/  m  (fiber ,(unit tang))
   ^-  form:m
   ;<  our=@p  bind:m  get-our
   ;<  ~  bind:m
-    (poke &+&+[/sys/gall %'main.sig'] [[/ %gall-poke] !>([[our dude] cage])])
+    (poke &+&+[/sys/gall %'main.sig'] [[/ %gall-poke] !>([[our dude] page])])
   |=  input
   :+  ~  state
   ?+  in  [%skip ~]

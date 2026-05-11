@@ -24,6 +24,6 @@
   ;<  our=@p  bind:m  get-our:io
   ;<  now=@da  bind:m  get-time:io
   ;<  ~  bind:m
-    (gall-poke-our:io %hood kiln-mount+!>([/(scot %p our)/[dek]/(scot %da now) dek]))
+    (gall-poke-our:io %hood kiln-mount+[/(scot %p our)/[dek]/(scot %da now) dek])
   (pure:m [%text (crip "Mounted %{(trip dek)}")])
 --

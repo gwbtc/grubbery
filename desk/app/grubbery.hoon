@@ -3788,13 +3788,23 @@
 ++  handle-gall-poke
   |=  [sender=rail:tarball =wire vaz=vase]
   ^+  this
-  =/  [=dock =cage]  !<([dock cage] vaz)
+  =/  [=dock =page]  !<([dock page] vaz)
+  ::  Clam noun through mark: try our desk, then destination agent's desk
+  =/  bek=path  /(scot %p our.bowl)/[q.byk.bowl]/(scot %da now.bowl)
+  =/  our-dais=(unit dais:clay)
+    (mole |.(.^(dais:clay %cb (weld bek /[p.page]))))
+  =/  =dais:clay
+    ?^  our-dais  u.our-dais
+    =/  dek=desk
+      .^(desk %gd /(scot %p p.dock)/[q.dock]/(scot %da now.bowl)/$)
+    .^(dais:clay %cb /(scot %p our.bowl)/[dek]/(scot %da now.bowl)/[p.page])
+  =/  =vase  (vale:dais q.page)
   ::  Encode sender in wire: /gall-poke/{path-len}/{path...}/{name}/{wire...}
   =/  gall-wire=path
     :-  %gall-poke
     :-  (scot %ud (lent path.sender))
     (weld path.sender [name.sender wire])
-  (emit-card [%pass gall-wire %agent dock %poke cage])
+  (emit-card [%pass gall-wire %agent dock %poke p.page vase])
 ::
 ++  take-gall-poke
   |=  [segs=wire =sign:agent:gall]

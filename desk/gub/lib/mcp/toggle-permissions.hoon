@@ -30,7 +30,7 @@
   =/  dek=@tas  (slav %tas desk)
   =/  pax=path  (stab path-text)
   ;<  ~  bind:m
-    (gall-poke-our:io %hood kiln-permission+!>([dek pax pub]))
+    (gall-poke-our:io %hood kiln-permission+[dek pax pub])
   =/  status=tape  ?:(pub "public" "private")
   (pure:m [%text (crip "Set %{(trip dek)}{(spud pax)} to {status}")])
 --

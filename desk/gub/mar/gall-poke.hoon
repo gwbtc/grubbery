@@ -1,9 +1,9 @@
-::  gall-poke: mark for agent poke payload [dock cage]
+::  gall-poke: mark for agent poke payload [dock page]
 ::
-|_  val=[dock cage]
+|_  val=[dock page]
 ++  grab
   |%
-  ++  noun  [dock cage]
+  ++  noun  [dock page]
   --
 ++  grow
   |%
