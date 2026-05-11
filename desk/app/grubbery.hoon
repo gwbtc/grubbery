@@ -381,6 +381,11 @@
 ++  on-agent
   |=  [=wire =sign:agent:gall]
   ^-  (quip card _this)
+  ?:  ?=([%gall-poke *] wire)
+    ?>  ?=(%poke-ack -.sign)
+    =^  cards  state
+      abet:(take-gall-poke:hc t.wire sign)
+    [cards this]
   ?:  ?=([%gall-sub *] wire)
     =^  cards  state
       abet:(take-gall-sub:hc t.wire sign)
@@ -3185,7 +3190,7 @@
 ++  gall-sub-dir
   |=  [=ship agent=dude:gall =path]
   ^-  ^path
-  (weld /sys/gall/[(scot %p ship)]/[agent] path)
+  (weld /sys/gall/subs/[(scot %p ship)]/[agent] path)
 ::
 ++  gall-sub-wire
   |=  [=ship agent=dude:gall =path]
@@ -3285,8 +3290,9 @@
   =/  old=ball:tarball  (~(dip ba:tarball ball) /sys/gall)
   =/  new=ball:tarball  old(fil `(fall fil.old *lump:tarball))
   =.  this  (load-ball-changes /sys/gall old new)
-  ::  Walk existing subscriptions and resubscribe
-  =/  ships=(list [@ta ball:tarball])  ~(tap by dir.old)
+  ::  Walk existing subscriptions under /sys/gall/subs/
+  =/  subs=ball:tarball  (~(gut by dir.old) %subs *ball:tarball)
+  =/  ships=(list [@ta ball:tarball])  ~(tap by dir.subs)
   |-
   ?~  ships  this
   =/  [ship-ta=@ta ship-ball=ball:tarball]  i.ships
@@ -3295,8 +3301,6 @@
     |-
     ?~  agents  this
     =/  [agent-ta=@ta agent-ball=ball:tarball]  i.agents
-    ::  Each subdirectory under the agent is a subscription path
-    ::  Reconstruct the path from nested dirs, or handle flat case
     =.  this  (resub-gall-tree ship-ta agent-ta / agent-ball)
     $(agents t.agents)
   $(ships t.ships)
@@ -3650,6 +3654,11 @@
       `(enqu-take here (sys-give /clay) ~ %pack wir ~)
     ~  :: unknown clay poke, fall through
   ::
+      %gall
+    ?.  =([/ %gall-poke] p.sage)  ~
+    =.  this  (handle-gall-poke here wir q.sage)
+    `(enqu-take here (sys-give /gall) ~ %pack wir ~)
+  ::
       %dill
     ?.  =([/ %dill-belt] p.sage)  ~
     =/  [session=@tas =belt:dill]  !<([@tas belt:dill] q.sage)
@@ -3772,6 +3781,37 @@
     .^(noun %cx (scot %p our.bowl) %base (scot %da now.bowl) path)
   =.  this  (emit-card [%pass /new-desk %arvo (new-desk:cloy dek ~ files)])
   (emit-card [%pass /desk-bill %arvo %c %info dek %& [/desk/bill %ins bill+!>(~[dek])]~])
+::
+::  /sys/gall/ runtime agent poke service
+::  Intercepts gall-poke, emits %agent card, routes poke-ack back.
+::
+++  handle-gall-poke
+  |=  [sender=rail:tarball =wire vaz=vase]
+  ^+  this
+  =/  [=dock =cage]  !<([dock cage] vaz)
+  ::  Encode sender in wire: /gall-poke/{path-len}/{path...}/{name}/{wire...}
+  =/  gall-wire=path
+    :-  %gall-poke
+    :-  (scot %ud (lent path.sender))
+    (weld path.sender [name.sender wire])
+  (emit-card [%pass gall-wire %agent dock %poke cage])
+::
+++  take-gall-poke
+  |=  [segs=wire =sign:agent:gall]
+  ^+  this
+  ::  Decode wire: {path-len}/{path...}/{name}/{wire...}
+  ?>  ?=(^ segs)
+  =/  path-len=@ud  (slav %ud i.segs)
+  =/  from-path=path  (scag path-len t.segs)
+  =/  rest=wire  (slag path-len t.segs)
+  ?>  ?=(^ rest)
+  =/  sender=rail:tarball  [from-path i.rest]
+  =/  req-wire=wire  t.rest
+  ::  Route poke-ack back to sender
+  ?>  ?=(%poke-ack -.sign)
+  =/  ack-sage=sage:tarball  [[/ %poke-ack] !>(p.sign)]
+  =/  rel=from:fiber:nexus  (relativize-from:nexus sender &+[/sys/gall %'main.sig'])
+  (enqu-take sender (sys-give /gall) ~ %poke rel ack-sage)
 ::
 ::  /sys/scry/ runtime scry service
 ::  Intercepts scry-request pokes — does .^ and pokes sender back.

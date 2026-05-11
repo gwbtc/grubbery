@@ -919,34 +919,25 @@
   ?:  ?=(%| -.extracted)
     (pure:m [/application/x-urb-jam (as-octs:mimes:html (jam q.sage))])
   (pure:m p.extracted)
-::  Gall agent operations (via syscalls)
+::  Gall agent operations (via /sys/gall/ runtime service)
 ::
 ++  gall-poke
   |=  [=dock =cage]
   =/  m  (fiber ,~)
   ^-  form:m
-  =/  =card:agent:gall  [%pass /poke %agent dock %poke cage]
-  ;<  ~  bind:m  (send-card card)
-  (take-gall-poke-ack /poke)
-::
-++  take-gall-poke-ack
-  |=  =wire
-  =/  m  (fiber ,~)
-  ^-  form:m
+  ;<  ~  bind:m
+    (poke &+&+[/sys/gall %'main.sig'] [[/ %gall-poke] !>([dock cage])])
   |=  input
   :+  ~  state
   ?+  in  [%skip ~]
       ~  [%wait ~]
       [~ %veto *]
     [%fail (veto-error dart.u.in)]
-      [~ %agent * *]
-    ?.  =(wire wire.u.in)
-      [%skip ~]
-    ?.  ?=(%poke-ack -.sign.u.in)
-      [%skip ~]
-    ?~  p.sign.u.in
-      [%done ~]
-    [%fail %poke-failed u.p.sign.u.in]
+      [~ %poke * *]
+    ?.  =([/ %poke-ack] p.sage.u.in)  [%skip ~]
+    =/  err=(unit tang)  !<((unit tang) q.sage.u.in)
+    ?~  err  [%done ~]
+    [%fail %poke-failed u.err]
   ==
 ::
 ++  gall-watch
@@ -1204,20 +1195,17 @@
   =/  m  (fiber ,(unit tang))
   ^-  form:m
   ;<  our=@p  bind:m  get-our
-  =/  =card:agent:gall  [%pass /poke %agent [our dude] %poke cage]
-  ;<  ~  bind:m  (send-card card)
+  ;<  ~  bind:m
+    (poke &+&+[/sys/gall %'main.sig'] [[/ %gall-poke] !>([[our dude] cage])])
   |=  input
   :+  ~  state
   ?+  in  [%skip ~]
       ~  [%wait ~]
       [~ %veto *]
     [%fail (veto-error dart.u.in)]
-      [~ %agent * *]
-    ?.  =(/poke wire.u.in)
-      [%skip ~]
-    ?.  ?=(%poke-ack -.sign.u.in)
-      [%skip ~]
-    [%done p.sign.u.in]
+      [~ %poke * *]
+    ?.  =([/ %poke-ack] p.sage.u.in)  [%skip ~]
+    [%done !<((unit tang) q.sage.u.in)]
   ==
 ::
 ++  give-response-header

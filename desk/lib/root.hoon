@@ -205,6 +205,11 @@
           ::
           [[%sys %dill ~] %'main.sig']
         stay:m
+          ::  /sys/gall/main.sig: runtime-hooked (no fiber)
+          ::  Agent pokes intercepted in app/grubbery.hoon handle-dart.
+          ::
+          [[%sys %gall ~] %'main.sig']
+        stay:m
       ==
     ::
     ++  on-manu
