@@ -118,10 +118,8 @@
       (replace:io !>([tool.st args.st %running run-data ~]))
     ::  Send the command as belt input + return
     =/  chars=(list @c)  (tuba (trip command))
-    ;<  ~  bind:m
-      (send-card:io %pass /dojo %arvo %d %shot session %belt [%txt chars])
-    ;<  ~  bind:m
-      (send-card:io %pass /dojo-ret %arvo %d %shot session %belt [%ret ~])
+    ;<  ~  bind:m  (send-belt:io session %txt chars)
+    ;<  ~  bind:m  (send-belt:io session %ret ~)
     ::  Subscribe to session for updates
     ;<  *  bind:m  (keep:io /watch ses-road ~)
     ::  Set timeout

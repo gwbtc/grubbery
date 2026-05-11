@@ -1637,31 +1637,10 @@
         ~&  >>  ["%behn: intercepted timer-set from" here]
         =.  this  (handle-timer-set here wire.dart q.sage.load.dart)
         (enqu-take here (sys-give /behn) ~ %pack wire.dart ~)
-      ::  Runtime-hooked: intercept http-request pokes to /sys/iris/
-      ?:  ?&  =([/sys/iris %'main.iris-state'] dest)
-              =([/ %http-request] p.sage.load.dart)
-          ==
-        =.  this  (handle-iris-request here wire.dart q.sage.load.dart)
-        (enqu-take here (sys-give /iris) ~ %pack wire.dart ~)
-      ::  Runtime-hooked: intercept mount/unmount pokes to /sys/clay/
-      ?:  =([/sys/clay %'main.clay-state'] dest)
-        ?:  =([/ %mount-desk] p.sage.load.dart)
-          =/  dek=desk  !<(desk q.sage.load.dart)
-          =.  this  (handle-clay-mount dek)
-          (enqu-take here (sys-give /clay) ~ %pack wire.dart ~)
-        ?:  =([/ %unmount-desk] p.sage.load.dart)
-          =/  dek=desk  !<(desk q.sage.load.dart)
-          =.  this  (handle-clay-unmount dek)
-          (enqu-take here (sys-give /clay) ~ %pack wire.dart ~)
-        ::  Unknown poke to clay-state, pass through normally
-        =/  rel=from:fiber:nexus  (relativize-from:nexus dest &+here)
-        (enqu-take dest [&+here wire.dart] ~ %poke rel sage.load.dart)
-      ::  Runtime-hooked: intercept scry-request pokes to /sys/scry/
-      ?:  ?&  =([/sys/scry %'main.sig'] dest)
-              =([/ %scry-request] p.sage.load.dart)
-          ==
-        =.  this  (handle-scry-request here wire.dart q.sage.load.dart)
-        (enqu-take here (sys-give /scry) ~ %pack wire.dart ~)
+      ::  Runtime-hooked: intercept pokes to /sys/ namespace services
+      =/  sys=(unit _this)
+        (handle-sys-poke dest here wire.dart sage.load.dart)
+      ?^  sys  u.sys
       ::  Poke with return address (relativize source for fiber intake)
       =/  rel=from:fiber:nexus  (relativize-from:nexus dest &+here)
       (enqu-take dest [&+here wire.dart] ~ %poke rel sage.load.dart)
@@ -3641,6 +3620,48 @@
   =/  rel=from:fiber:nexus  (relativize-from:nexus sender &+timer-rail)
   (enqu-take sender (sys-give /behn) ~ %poke rel [[/ %timer-wake] !>(req-wire)])
 ::
+::  /sys/ namespace service dispatch
+::  Intercepts pokes to /sys/ rails before they reach fibers.
+::  Returns ~ to fall through to normal poke handling.
+::
+++  handle-sys-poke
+  |=  [dest=rail:tarball here=rail:tarball wir=path =sage:tarball]
+  ^-  (unit _this)
+  ?.  ?=([%sys @ *] path.dest)  ~
+  =/  service=@tas  i.t.path.dest
+  ?+  service  ~
+      %iris
+    ?.  =([/ %http-request] p.sage)  ~
+    =.  this  (handle-iris-request here wir q.sage)
+    `(enqu-take here (sys-give /iris) ~ %pack wir ~)
+  ::
+      %clay
+    ?:  =([/ %mount-desk] p.sage)
+      =/  dek=desk  !<(desk q.sage)
+      =.  this  (handle-clay-mount dek)
+      `(enqu-take here (sys-give /clay) ~ %pack wir ~)
+    ?:  =([/ %unmount-desk] p.sage)
+      =/  dek=desk  !<(desk q.sage)
+      =.  this  (handle-clay-unmount dek)
+      `(enqu-take here (sys-give /clay) ~ %pack wir ~)
+    ?:  =([/ %new-desk] p.sage)
+      =/  dek=desk  !<(desk q.sage)
+      =.  this  (handle-clay-new-desk dek)
+      `(enqu-take here (sys-give /clay) ~ %pack wir ~)
+    ~  :: unknown clay poke, fall through
+  ::
+      %dill
+    ?.  =([/ %dill-belt] p.sage)  ~
+    =/  [session=@tas =belt:dill]  !<([@tas belt:dill] q.sage)
+    =.  this  (emit-card [%pass /dill/belt %arvo %d %shot session %belt belt])
+    `(enqu-take here (sys-give /dill) ~ %pack wir ~)
+  ::
+      %scry
+    ?.  =([/ %scry-request] p.sage)  ~
+    =.  this  (handle-scry-request here wir q.sage)
+    `(enqu-take here (sys-give /scry) ~ %pack wir ~)
+  ==
+::
 ::  /sys/iris/ runtime HTTP client service
 ::  Intercepts http-request pokes and iris responses — no fiber needed.
 ::
@@ -3722,6 +3743,35 @@
   =.  desks.st  (~(del in desks.st) dek)
   =.  this  (save-file clay-rail [~ [/ %clay-state] !>(st)])
   (unmount-clay-desk dek)
+::
+++  handle-clay-new-desk
+  |=  dek=desk
+  ^+  this
+  =/  base-paths=(list path)
+    :~  /sys/kelvin
+        /mar/bill/hoon
+        /mar/hoon/hoon
+        /mar/mime/hoon
+        /mar/noun/hoon
+        /mar/kelvin/hoon
+        /lib/dbug/hoon
+        /lib/default-agent/hoon
+        /lib/verb/hoon
+        /sur/verb/hoon
+    ==
+  =/  files=(map path page:clay)
+    %-  ~(gas by *(map path page:clay))
+    :-  :-  /app/[dek]/hoon
+        :-  %hoon
+        .^(noun %cx (scot %p our.bowl) %base (scot %da now.bowl) /lib/skeleton/hoon)
+    %+  turn  base-paths
+    |=  =path
+    ^-  [^path page:clay]
+    :-  path
+    :-  (rear path)
+    .^(noun %cx (scot %p our.bowl) %base (scot %da now.bowl) path)
+  =.  this  (emit-card [%pass /new-desk %arvo (new-desk:cloy dek ~ files)])
+  (emit-card [%pass /desk-bill %arvo %c %info dek %& [/desk/bill %ins bill+!>(~[dek])]~])
 ::
 ::  /sys/scry/ runtime scry service
 ::  Intercepts scry-request pokes — does .^ and pokes sender back.

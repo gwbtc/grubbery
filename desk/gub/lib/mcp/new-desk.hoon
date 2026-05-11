@@ -27,43 +27,6 @@
     (pure:m [%error 'Missing or invalid argument: desk'])
   =/  desk=@t  p.parsed
   =/  dek=@tas  (slav %tas desk)
-  ::  Scry default files from %base
-  =/  base-paths=(list path)
-    :~  /sys/kelvin
-        /mar/bill/hoon
-        /mar/hoon/hoon
-        /mar/mime/hoon
-        /mar/noun/hoon
-        /mar/kelvin/hoon
-        /lib/dbug/hoon
-        /lib/default-agent/hoon
-        /lib/verb/hoon
-        /sur/verb/hoon
-    ==
-  =/  n  (fiber:fiber:nexus ,(list [path page:clay]))
-  =/  fetch-files
-    |=  paths=(list path)
-    ^-  form:n
-    ?~  paths  (pure:n ~)
-    =/  pax=path  i.paths
-    ;<  dat=noun  bind:n  (scry:io noun (weld /cx/base pax))
-    ;<  rest=(list [path page:clay])  bind:n  $(paths t.paths)
-    (pure:n [[pax (rear pax) dat] rest])
-  ;<  base-files=(list [path page:clay])  bind:m
-    (fetch-files base-paths)
-  ::  Agent template from skeleton
-  ;<  skel=noun  bind:m  (scry:io noun /cx/base/lib/skeleton/hoon)
-  =/  files=(map path page:clay)
-    %-  ~(gas by *(map path page:clay))
-    [[/app/[dek]/hoon %hoon skel] base-files]
-  ::  Create desk with new-desk:cloy
-  ;<  ~  bind:m
-    (send-card:io %pass /new-desk %arvo (new-desk:cloy dek ~ files))
-  ::  Write desk.bill so the agent starts
-  ;<  ~  bind:m
-    %:  send-card:io
-      %pass  /desk-bill  %arvo
-      %c  %info  dek  %&  :~  [/desk/bill %ins bill+!>(~[dek])]
-    ==  ==
+  ;<  ~  bind:m  (create-desk:io dek)
   (pure:m [%text (crip "Created desk %{(trip dek)}")])
 --

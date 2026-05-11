@@ -200,6 +200,11 @@
           ::
           [[%sys %scry ~] %'main.sig']
         stay:m
+          ::  /sys/dill/main.sig: runtime-hooked (no fiber)
+          ::  Belt pokes intercepted in app/grubbery.hoon handle-dart.
+          ::
+          [[%sys %dill ~] %'main.sig']
+        stay:m
       ==
     ::
     ++  on-manu

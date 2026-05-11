@@ -670,24 +670,20 @@
     ?.  =([/ %scry-response] p.sage.u.in)  [%skip ~]
     [%done !<(mold q.sage.u.in)]
   ==
-::  Scry helper (legacy — uses %scry dart, prefer scry:io)
+::  Create a new desk via /sys/clay/ runtime service
 ::
-++  do-scry
-  |*  [=mold =path]
-  =/  m  (fiber ,mold)
+++  create-desk
+  |=  dek=desk
+  =/  m  (fiber ,~)
   ^-  form:m
-  ;<  ~  bind:m  (send-dart %scry /scry `[mold path])
-  |=  input
-  :+  ~  state
-  ?+  in  [%skip ~]
-      ~  [%wait ~]
-      [~ %veto *]
-    [%fail (veto-error dart.u.in)]
-      [~ %scry * *]
-    ?.  =(/scry wire.u.in)
-      [%skip ~]
-    [%done !<(mold vase.u.in)]
-  ==
+  (poke &+&+[/sys/clay %'main.clay-state'] [[/ %new-desk] !>(dek)])
+::  Send a belt to a dill session via /sys/dill/ runtime service
+::
+++  send-belt
+  |=  [session=@tas =belt:dill]
+  =/  m  (fiber ,~)
+  ^-  form:m
+  (poke &+&+[/sys/dill %'main.sig'] [[/ %dill-belt] !>([session belt])])
 ::  +get-code: peek the code (bins) slice at a road
 ::
 ++  get-code
