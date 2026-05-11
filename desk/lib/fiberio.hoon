@@ -677,6 +677,14 @@
   =/  m  (fiber ,~)
   ^-  form:m
   (poke &+&+[/sys/clay %'main.clay-state'] [[/ %new-desk] !>(dek)])
+::  Write/delete files in a Clay desk via /sys/clay/ runtime service.
+::  No vases — the runtime clams through marks on the destination desk.
+::
+++  clay-info
+  |=  [dek=desk changes=(list [path ?([%ins @tas *] [%del ~])])]
+  =/  m  (fiber ,~)
+  ^-  form:m
+  (poke &+&+[/sys/clay %'main.clay-state'] [[/ %clay-info] !>([dek changes])])
 ::  Send a belt to a dill session via /sys/dill/ runtime service
 ::
 ++  send-belt

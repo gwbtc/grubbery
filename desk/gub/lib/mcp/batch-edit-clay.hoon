@@ -55,10 +55,10 @@
       ?~  instructions
         (pure:m [%error 'no valid edits to apply'])
       ;<  initial=cass:clay  bind:m  (scry:io cass:clay /cw/[dek])
-      =/  ins=(list [path %ins @tas vase])
+      =/  ins=(list [path %ins @tas @t])
         %+  turn  (flop instructions)
         |=  [pax=path mark=@tas content=@t]
-        [pax %ins mark !>(content)]
+        [pax %ins mark content]
       =/  write-data=json
         %-  pairs:enjs:format
         :~  ['initial-ud' (numb:enjs:format ud.initial)]
@@ -73,7 +73,7 @@
       ;<  ~  bind:m
         (set-timer:io /commit-timeout (add now ~s30))
       ;<  ~  bind:m
-        (gall-poke-our:io %hood kiln-info+["" `[dek %& ins]])
+        (clay-info:io dek ins)
       ;<  ~  bind:m  collect-logs:tools
       ;<  ~  bind:m  (drop:io /dill/logs [%& %& /sys/dill %'logs.dill-told'])
       ;<  st=tool-state:tools  bind:m  (get-state-as:io ,tool-state:tools)

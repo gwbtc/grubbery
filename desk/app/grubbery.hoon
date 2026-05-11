@@ -3652,6 +3652,11 @@
       =/  dek=desk  !<(desk q.sage)
       =.  this  (handle-clay-new-desk dek)
       `(enqu-take here (sys-give /clay) ~ %pack wir ~)
+    ?:  =([/ %clay-info] p.sage)
+      =/  [dek=desk changes=(list [path ?([%ins @tas *] [%del ~])])]
+        !<([desk (list [path ?([%ins @tas *] [%del ~])])] q.sage)
+      =.  this  (handle-clay-info dek changes)
+      `(enqu-take here (sys-give /clay) ~ %pack wir ~)
     ~  :: unknown clay poke, fall through
   ::
       %gall
@@ -3781,6 +3786,23 @@
     .^(noun %cx (scot %p our.bowl) %base (scot %da now.bowl) path)
   =.  this  (emit-card [%pass /new-desk %arvo (new-desk:cloy dek ~ files)])
   (emit-card [%pass /desk-bill %arvo %c %info dek %& [/desk/bill %ins bill+!>(~[dek])]~])
+::
+::  /sys/clay/ runtime file write service
+::  Takes [desk changes] with pages, clams through marks, emits %c %info.
+::
+++  handle-clay-info
+  |=  [dek=desk changes=(list [path ?([%ins @tas *] [%del ~])])]
+  ^+  this
+  =/  mis=(list [path miso:clay])
+    %+  turn  changes
+    |=  [pax=path change=?([%ins @tas *] [%del ~])]
+    ^-  [path miso:clay]
+    ?-  -.change
+        %del  [pax %del ~]
+        %ins
+      [pax %ins +<.change !>(+>.change)]
+    ==
+  (emit-card [%pass /clay-info %arvo %c %info dek %& mis])
 ::
 ::  /sys/gall/ runtime agent poke service
 ::  Intercepts gall-poke, emits %agent card, routes poke-ack back.
