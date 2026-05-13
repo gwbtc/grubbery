@@ -216,14 +216,30 @@
         abet:(reload-nexus:hc p.dest.action)
       [cards this]
     ==
-    ::  HTTP request from eyre: forward to server fiber
+    ::  HTTP request from eyre: route directly
     ::
       %handle-http-request
     =+  !<([eyre-id=@ta req=inbound-request:eyre] vas)
-    =/  server-rail=rail:tarball  [/sys/eyre %'main.server-state']
+    =/  [site=path args=quay:eyre]  (parse-url:http-utils url.request.req)
+    ::  Ball API: spawn request fiber at /sys/eyre/requests/{eyre-id}
+    ?:  ?=([%grubbery %api *] site)
+      ~&  >  [%eyre-api eyre-id url.request.req]
+      =^  cards  state
+        abet:(make:hc [%& /sys/eyre/requests eyre-id] [%| %.n [[/ %http-request] !>([src.bowl req])] ~])
+      [cards this]
+    ::  Binding match: find handler, forward request
+    =/  st=server-state:nexus  get-server-state:hc
+    =/  match=(unit [=binding:eyre handler=rail:tarball])
+      (find-eyre-binding:hc bindings.st site)
+    ?~  match
+      ~&  >  [%eyre-no-binding site]
+      :_  this
+      (give-simple-payload:app:server eyre-id [[404 ~] `(as-octs:mimes:html 'Not Found')])
+    ~&  >  [%eyre-dispatch binding.u.match handler.u.match]
     =/  =give:nexus  [|+[src.bowl /eyre] /[eyre-id]]
+    =/  new-st  st(conns (~(put by conns.st) eyre-id binding.u.match))
     =^  cards  state
-      abet:(poke:hc give server-rail [[/ %handle-http-request] !>([eyre-id src.bowl req])])
+      abet:(poke:(save-server-state:hc new-st) give handler.u.match [[/ %handle-http-request] !>([eyre-id src.bowl req])])
     [cards this]
       ::
       %refresh-sessions
@@ -308,10 +324,20 @@
     [~ this]
       [%http-response @ ~]
     =/  eyre-id=@ta  i.t.path
-    =/  server-rail=rail:tarball  [/sys/eyre %'main.server-state']
+    =/  st=server-state:nexus  get-server-state:hc
+    =/  conn-binding=(unit binding:eyre)  (~(get by conns.st) eyre-id)
+    ::  No binding = ball API request — cull request fiber
+    ?~  conn-binding
+      =^  cards  state
+        abet:(cull-if-exists:hc [%& /sys/eyre/requests eyre-id])
+      [cards this]
+    ::  Bound request — update conns, forward cancel to handler
+    =/  new-st  st(conns (~(del by conns.st) eyre-id))
+    =/  handler=rail:tarball
+      (fall (~(get by bindings.new-st) u.conn-binding) *rail:tarball)
     =/  =give:nexus  [|+[our.bowl /eyre] /cancel/[eyre-id]]
     =^  cards  state
-      abet:(poke:hc give server-rail [[/ %handle-http-cancel] !>(eyre-id)])
+      abet:(poke:(save-server-state:hc new-st) give handler [[/ %handle-http-cancel] !>(eyre-id)])
     [cards this]
       [%proc ^]
     =^  cards  state
@@ -1535,7 +1561,8 @@
   =/  nex-res=(each nexus:nexus tang)  (build-nexus path.here q.u.nex-info)
   ?:  ?=(%| -.nex-res)  ~
   ::  Call on-file with rail relative to nexus location
-  `(on-file:p.nex-res (relativize-rail:tarball p.u.nex-info here) mark)
+  =/  rel=rail:tarball  (relativize-rail:tarball p.u.nex-info here)
+  `(on-file:p.nex-res rel mark)
 ::
 ++  process-dart
   |=  [here=rail:tarball =dart:nexus]
@@ -2139,7 +2166,6 @@
   =/  eval-res=(each [darts=(list dart:nexus) done=(list took:eval:fiber:nexus) new-state=vase new-proc=proc:fiber:nexus res=result:eval:fiber:nexus] tang)
     (mule |.((take:eval:fiber:nexus fil-state proc)))
   ?:  ?=(%| -.eval-res)
-    ~&  >>  "process-take: eval crashed, banging {(spud (snoc path.here name.here))}"
     (bang-file here p.eval-res)
   =/  [darts=(list dart:nexus) done=(list took:eval:fiber:nexus) new-state=vase new-proc=proc:fiber:nexus res=result:eval:fiber:nexus]
     p.eval-res
@@ -3489,6 +3515,49 @@
   =?  born  =(~ (~(get bo:nexus now.bowl [born ball]) rail))
     (~(init bo:nexus now.bowl [born ball]) rail)
   this
+::
+::  /sys/eyre: read/write server state, find bindings
+::
+++  get-server-state
+  ^-  server-state:nexus
+  =/  eyre-rail=rail:tarball  [/sys/eyre %'main.server-state']
+  =/  old=(unit content:tarball)  (~(get ba:tarball ball) eyre-rail)
+  ?~  old  *server-state:nexus
+  !<(server-state:nexus q.sage.u.old)
+::
+++  save-server-state
+  |=  st=server-state:nexus
+  ^+  this
+  (save-file [/sys/eyre %'main.server-state'] [~ [/ %server-state] !>(st)])
+::
+++  find-eyre-binding
+  |=  [bindings=(map binding:eyre rail:tarball) site=path]
+  ^-  (unit [=binding:eyre handler=rail:tarball])
+  =|  best=(unit [=binding:eyre handler=rail:tarball])
+  =/  entries=(list [=binding:eyre handler=rail:tarball])
+    ~(tap by bindings)
+  |-
+  ?~  entries  best
+  =/  suffix=(unit path)
+    =+  [prefix=path.binding.i.entries full=site]
+    |-  ^-  (unit path)
+    ?~  prefix  `full
+    ?~  full    ~
+    ?.  =(i.prefix i.full)  ~
+    $(prefix t.prefix, full t.full)
+  ?~  suffix
+    $(entries t.entries)
+  ?~  best  $(best `i.entries, entries t.entries)
+  ?:  (gth (lent path.binding.i.entries) (lent path.binding.u.best))
+    $(best `i.entries, entries t.entries)
+  $(entries t.entries)
+::
+++  cull-if-exists
+  |=  dest=lane:tarball
+  ^+  this
+  ?>  ?=(%& -.dest)
+  ?~  (~(get ba:tarball ball) p.dest)  this
+  (cull dest)
 ::
 ::  Save file state and bump ONLY if content actually changed.
 ::  This is the ONLY correct way to update file state.

@@ -1143,50 +1143,6 @@
     ?.  =([/ %poke-ack] p.sage.u.in)  [%skip ~]
     [%done !<((unit tang) q.sage.u.in)]
   ==
-::
-++  give-response-header
-  |=  [eyre-id=@ta =response-header:http]
-  =/  m  (fiber ,~)
-  ^-  form:m
-  (send-card (give-response-header:hu eyre-id response-header))
-::
-++  give-response-data
-  |=  [eyre-id=@ta data=(unit octs)]
-  =/  m  (fiber ,~)
-  ^-  form:m
-  (send-card (give-response-data:hu eyre-id data))
-::
-++  give-simple-payload
-  |=  [eyre-id=@ta =simple-payload:http]
-  =/  m  (fiber ,~)
-  ^-  form:m
-  %-  send-cards
-  (give-simple-payload:app:server eyre-id simple-payload)
-::
-++  kick-eyre
-  |=  eyre-id=@ta
-  =/  m  (fiber ,~)
-  ^-  form:m
-  (send-card (kick-eyre-sub:hu eyre-id))
-::  SSE helpers
-::
-++  give-sse-header
-  |=  eyre-id=@ta
-  =/  m  (fiber ,~)
-  ^-  form:m
-  (send-card (give-sse-header:hu eyre-id))
-::
-++  give-sse-event
-  |=  [eyre-id=@ta =sse-event:hu]
-  =/  m  (fiber ,~)
-  ^-  form:m
-  (send-card (give-sse-event:hu eyre-id sse-event))
-::
-++  give-sse-keep-alive
-  |=  eyre-id=@ta
-  =/  m  (fiber ,~)
-  ^-  form:m
-  (send-card (give-sse-keep-alive:hu eyre-id))
 ::  +take-news-or-wake: wait for subscription news or timer wake
 ::
 ::    Use this in SSE loops to multiplex between data events and
