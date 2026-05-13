@@ -975,7 +975,7 @@
     ?.  =([/ %timer-wake] p.sage.u.in)
       [%skip ~]
     =/  wak=path  !<(path q.sage.u.in)
-    ?.  |(?=(~ until) =(`/wait/(scot %da u.until) wak))
+    ?.  |(?=(~ until) ?&(?=([%wait @ ~] wak) =(u.until (slav %da i.t.wak))))
       [%skip ~]
     [%done ~]
   ==
