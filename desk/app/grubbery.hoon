@@ -310,10 +310,6 @@
       |=([=ship *] =(ship u.who))
     :_  this
     [%give %fact ~ %azimuth-udiffs !>(filtered)]~
-      [%proc @ *]
-    =^  cards  state
-      abet:(take-watch:hc path)
-    [cards this]
   ==
 ::
 ++  on-leave
@@ -338,10 +334,6 @@
     =/  =give:nexus  [|+[our.bowl /eyre] /cancel/[eyre-id]]
     =^  cards  state
       abet:(poke:(save-server-state:hc new-st) give handler [[/ %handle-http-cancel] !>(eyre-id)])
-    [cards this]
-      [%proc ^]
-    =^  cards  state
-      abet:(take-leave:hc path)
     [cards this]
   ==
 ::
@@ -416,9 +408,8 @@
     =^  cards  state
       abet:(take-gall-sub:hc t.wire sign)
     [cards this]
-  =^  cards  state
-    abet:(take-agent:hc wire sign)
-  [cards this]
+  ~&  >>>  "on-agent: unhandled wire {<wire>}"
+  `this
 ::
 ++  on-arvo
   |=  [=wire sign=sign-arvo]
@@ -463,9 +454,8 @@
     [cards this]
   ?:  ?=(?([%eyre ~] [%eyre-bind ~] [%eyre-api ~]) wire)
     `this
-  =^  cards  state
-    abet:(take-arvo:hc wire sign)
-  [cards this]
+  ~&  >>>  "on-arvo: unhandled wire {<wire>}"
+  `this
 ::
 ++  on-fail   on-fail:def
 --
@@ -1232,44 +1222,6 @@
   =.  this  ^$(here (snoc here kid-name), new +.i.kids)
   $(kids t.kids)
 ::
-:: TODO: handle outgoing keens
-::
-::  Clean up subscriptions for a file (%file) or subtree (%tree)
-::
-++  clean
-  |=  [=path mode=?(%file %tree)]
-  ^+  this
-  ::  Leave outgoing subscriptions (wex)
-  ::
-  =.  this
-    %-  emit-cards
-    %+  murn  ~(tap by wex.bowl)
-    |=  [[=wire =ship =term] *]
-    ^-  (unit card)
-    ?.  ?=([%proc @ *] wire)  ~
-    =/  [proc-rail=rail:tarball @ ^path]  (unwrap-wire wire)
-    =/  proc-path=^path  (snoc path.proc-rail name.proc-rail)
-    ?.  ?-  mode
-          %file  =(proc-path path)
-          %tree  =((scag (lent path) proc-path) path)
-        ==
-      ~
-    [~ %pass wire %agent [ship term] %leave ~]
-  ::  Kick incoming subscribers (sup)
-  ::
-  %-  emit-cards
-  %+  murn  ~(tap by sup.bowl)
-  |=  [=duct =ship pat=^path]
-  ^-  (unit card)
-  ?.  ?=([%proc @ *] pat)  ~
-  =/  [proc-rail=rail:tarball sub=^path]  (unwrap-watch-path pat)
-  =/  proc-path=^path  (snoc path.proc-rail name.proc-rail)
-  ?.  ?-  mode
-        %file  =(proc-path path)
-        %tree  =((scag (lent path) proc-path) path)
-      ==
-    ~
-  [~ %give %kick ~[pat] ~]
 ::  =subs: Subscription management
 ::
 ::  Axal helpers for fwd/rev indices
@@ -1605,13 +1557,13 @@
   ==
 ::  Extract jump category and destination from a dart for weir filtering.
 ::  Returns [jump dest] where:
-::    - jump: the filter category (%sysc, %make, %poke, %peek)
-::    - dest: absolute destination path, or ~ for syscalls
+::    - jump: the filter category (%make, %poke, %peek)
+::    - dest: absolute destination lane, or ~ for system darts
 ::
 ++  dart-to-dest
   |=  [here=rail:tarball =dart:nexus]
   ^-  [jump:nexus (unit lane:tarball)]
-  ?+    -.dart  [%sysc ~]          :: %sysc, %scry, %here target system
+  ?+    -.dart  [%peek ~]          :: system darts: no dest, always allowed
       %node                        :: %node darts target a file/dir
     =/  dest-lane=(unit lane:tarball)  (lane-from-road:tarball [%& here] road.dart)
     :_  dest-lane
@@ -1625,7 +1577,7 @@
     ==
     ::
       %manu
-    [%sysc ~]  :: direct: no path to check, bypasses weir
+    [%peek ~]  :: direct: no dest, bypasses weir
   ==
 ::
 ++  handle-dart
@@ -1633,22 +1585,6 @@
   ^+  this
   =/  cod=path  path.here
   ?-    -.dart
-      %sysc
-    ::  Emit gall card directly (with wrapped wire/paths)
-    ::  Exception: /http-response/ paths go to eyre unwrapped
-    =/  =card  card.dart
-    ?+    card  (emit-card card)
-        [%pass *]
-      (emit-card card(p (wrap-wire here p.card)))
-        [%give ?(%fact %kick) *]
-      =/  wrapped=(list path)
-        %+  turn  paths.p.card
-        |=  p=path
-        ?:  ?=([%http-response *] p)
-          p  :: don't wrap http-response paths
-        (wrap-watch-path here p)
-      (emit-card card(paths.p wrapped))
-    ==
     ::
       %node
     ::  Send load to another path
@@ -2066,26 +2002,12 @@
       (mule |.((on-manu:p.nex-res mana.dart)))
     (enqu-take here (sys-give /manu) ~ %manu wire.dart manu-res)
     ::
-      %scry
-    ?~  scry.dart
-      ::  Null scry returns agent state
-      (enqu-take here (sys-give /scry) ~ %scry wire.dart !>(state))
-    ::  Do the scry and enqueue result
-    ::  Path format: /vane/desk/rest... -> /vane/~ship/desk/~date/rest...
-    =/  pat=path  path.u.scry.dart
-    ?>  ?=([@ @ *] pat)
-    =/  res=vase
-      !>(.^(mold.u.scry.dart i.pat (scot %p our.bowl) i.t.pat (scot %da now.bowl) t.t.pat))
-    (enqu-take here (sys-give /scry) ~ %scry wire.dart res)
     ::
       %here
     ::  Request location — walk up, reveal as much as allowed
     =/  loc=here:nexus  (walk-here here)
     (enqu-take here (sys-give /here) ~ %here wire.dart loc)
     ::
-      %soup
-    ::  Request filtered wex/sup for this process
-    (enqu-take here (sys-give /soup) ~ %soup wire.dart (make-soup here))
     ::
       %kept
     ::  Return this grub's outgoing subscriptions, relativized
@@ -2201,7 +2123,6 @@
     ::
     =.  this  (nack-poke-takes here next.new-proc err)
     =.  this  (nack-poke-takes here skip.new-proc err)
-    =.  this  (clean (snoc path.here name.here) %file)
     (delete path.here name.here)
       %fail
     ::  Process failed - don't save state, restart. Subs survive (wires still route).
@@ -2307,8 +2228,6 @@
     =.  this  (cull-ball-changes dest-path sub)
     ::  Nack all queued pokes in subtree
     =.  this  (nack-pool dest-path (~(dip of pool) dest-path) ~[leaf+"culled"])
-    ::  Clean gall subscriptions for subtree
-    =.  this  (clean dest-path %tree)
     ::  Remove from pool
     =.  pool  (~(lop of pool) dest-path)
     this
@@ -2319,8 +2238,6 @@
     =/  dest-path=path  (rail-to-path:tarball dest-rail)
     ::  Nack queued pokes for this file
     =.  this  (nack-pool dest-path (~(dip of pool) dest-path) ~[leaf+"culled"])
-    ::  Clean subscriptions for this file
-    =.  this  (clean dest-path %file)
     ::  Bump and remove from pool and ball
     (delete path.dest-rail name.dest-rail)
   ==
@@ -2383,29 +2300,6 @@
     neck.u.fil.u.sub
   $(remaining ancestor, pant [[dir neck] pant])
 ::
-++  make-soup
-  |=  here=rail:tarball
-  ^-  soup:nexus
-  =/  here-path=path  (snoc path.here name.here)
-  =/  filtered-wex=boat:gall
-    %-  ~(gas by *boat:gall)
-    %+  murn  ~(tap by wex.bowl)
-    |=  [[=wire =ship =term] acked=? =path]
-    ?.  ?=([%proc @ *] wire)  ~
-    =/  [proc-rail=rail:tarball @ orig-wire=^wire]  (unwrap-wire wire)
-    =/  proc-path=^path  (snoc path.proc-rail name.proc-rail)
-    ?.  =(proc-path here-path)  ~
-    [~ [orig-wire ship term] acked path]
-  =/  filtered-sup=bitt:gall
-    %-  ~(gas by *bitt:gall)
-    %+  murn  ~(tap by sup.bowl)
-    |=  [=duct =ship =path]
-    ?.  ?=([%proc @ *] path)  ~
-    =/  [proc-rail=rail:tarball sub=^path]  (unwrap-watch-path path)
-    =/  proc-path=^path  (snoc path.proc-rail name.proc-rail)
-    ?.  =(proc-path here-path)  ~
-    [~ duct ship sub]
-  [filtered-wex filtered-sup]
 ::  Sandboxing / weir filtering
 ::
 ::  The "governor" is the nearest directory strictly ABOVE both source
@@ -2439,7 +2333,7 @@
   |=  [=jump:nexus here=rail:tarball dest=(unit lane:tarball)]
   ^-  filt:nexus
   =/  gov=(unit fold:tarball)  (nearest-governor here dest)
-  ::  For syscalls, use root as dummy dest (syscalls get blocked by any weir anyway)
+  ::  System darts have dest=~; use root as dummy dest (no weir match = pass)
   =/  dest-lane=lane:tarball  (fall dest [%| /])
   =|  =filt:nexus
   |-
@@ -3602,38 +3496,6 @@
   ~&  >>  "save-file: usergroup changed, recomputing peer weirs"
   recompute-peer-weirs
 ::
-++  wrap-wire
-  |=  [here=rail:tarball =wire]
-  ^+  wire
-  =/  =sack:nexus  (need (get-born here))
-  =/  here-path=path  (snoc path.here name.here)
-  ;:  weld
-    /proc/(scot %ud (lent here-path))
-    here-path
-    /(scot %ud ud.life.sack)
-    wire
-  ==
-::
-++  unwrap-wire
-  |=  =wire
-  ^-  [rail:tarball @ud ^wire]
-  ?>  ?=([%proc @ *] wire)
-  =/  len=@ud  (slav %ud i.t.wire)
-  =/  here-path=path  (scag len t.t.wire)
-  ?>  ?=(^ here-path)
-  =/  here=rail:tarball  [(snip `path`here-path) (rear here-path)]
-  =/  rest=^wire  (slag len t.t.wire)
-  ?>  ?=(^ rest)
-  =/  lif=@ud  (slav %ud i.rest)
-  [here lif t.rest]
-::
-++  take-arvo
-  |=  [wir=wire sign=sign-arvo]
-  ^+  this
-  =/  [here=rail:tarball lif=@ud =wire]  (unwrap-wire wir)
-  =/  cur=(unit sack:nexus)  (get-born here)
-  ?.  ?&(?=(^ cur) =(lif ud.life.u.cur))  this
-  (enqu-take here (sys-give /arvo) ~ %arvo wire sign)
 ::
 ::  /sys/behn/ runtime timer service
 ::  Intercepts timer-set pokes and behn wakes — no fiber needed.
@@ -3987,41 +3849,4 @@
     !>(.^(* i.pat (scot %p our.bowl) i.t.pat (scot %da now.bowl) t.t.pat))
   =/  rel=from:fiber:nexus  (relativize-from:nexus sender &+scry-rail)
   (enqu-take sender (sys-give /scry) ~ %poke rel [[/ %scry-response] res])
-::
-++  take-agent
-  |=  [wir=wire =sign:agent:gall]
-  ^+  this
-  =/  [here=rail:tarball lif=@ud =wire]  (unwrap-wire wir)
-  =/  cur=(unit sack:nexus)  (get-born here)
-  ?.  ?&(?=(^ cur) =(lif ud.life.u.cur))  this
-  (enqu-take here (sys-give /agent) ~ %agent wire sign)
-::  Unwrap incoming watch/leave paths
-::
-++  unwrap-watch-path
-  |=  pat=path
-  ^-  [rail:tarball path]
-  ?>  ?=([%proc @ *] pat)
-  =/  len=@ud  (slav %ud i.t.pat)
-  =/  here-path  (scag len t.t.pat)
-  ?>  ?=(^ here-path)
-  =/  here=rail:tarball  [(snip `(list @ta)`here-path) (rear here-path)]
-  [here (slag len t.t.pat)]
-::
-++  wrap-watch-path
-  |=  [here=rail:tarball =path]
-  ^+  path
-  =/  here-path=^path  (snoc path.here name.here)
-  (weld /proc/(scot %ud (lent here-path)) (weld here-path path))
-::
-++  take-watch
-  |=  pat=path
-  ^+  this
-  =/  [here=rail:tarball sub=path]  (unwrap-watch-path pat)
-  (enqu-take here (sys-give /watch) ~ %watch sub)
-::
-++  take-leave
-  |=  pat=path
-  ^+  this
-  =/  [here=rail:tarball sub=path]  (unwrap-watch-path pat)
-  (enqu-take here (sys-give /leave) ~ %leave sub)
 --

@@ -170,12 +170,6 @@
     !>  `filt:nexus`~
   !>  (filter:nexus %poke /here |+/a/b/c ~)
 ::
-++  test-filter-syscall-blocked
-  ::  Syscalls are always blocked by any weir
-  =/  =weir:nexus  [make=~ poke=~ peek=~]
-  %+  expect-eq
-    !>  `filt:nexus`[~ |]
-  !>  (filter:nexus %sysc /here |+/a/b/c `weir)
 ::
 ++  test-filter-poke-allowed
   ::  Poke to allowed destination

@@ -31,7 +31,6 @@
 +$  prov  [src=@p sap=path]         :: external provenance
 +$  from  (each rail:tarball prov)  :: source: [%& rail] internal grub or [%| prov] external
 +$  give  [=from =wire]             :: return address (from is always a grub)
-+$  scry  [=mold =path]
 +$  take  [here=rail:tarball take:fiber]  :: localized input (here is always a grub)
 ::  SANDBOXING
 ::
@@ -57,7 +56,7 @@
   ==
 +$  sand  (axal weir)   :: weir at each directory in the tree
 +$  filt  (unit ?)      :: filter result (see above)
-+$  jump  ?(%sysc %make %poke %peek)  :: dart category for filtering
++$  jump  ?(%make %poke %peek)  :: dart category for filtering
 ::
 ::  pant: ancestry list from outermost dir to innermost, each with
 ::  its optional neck. here: grub's location in the tree. root=%.y
@@ -65,10 +64,6 @@
 ::  blocked visibility before reaching root (pant is truncated).
 +$  pant  (list [dir=@ta neck=(unit neck:tarball)])
 +$  here  [=pant name=@ta root=?]
-+$  soup
-  $:  wex=boat:gall
-      sup=bitt:gall
-  ==
 ::
 +$  gain  (axal (map @ta ?))
 +$  make  (each [=sand =gain =ball:tarball] [gain=? =sage:tarball mark=(unit mark)])
@@ -119,11 +114,8 @@
 ::
 ::
 +$  dart
-  $%  [%sysc =card:agent:gall]  :: regular card
-      [%node =wire road=road:tarball =load]
-      [%scry =wire scry=(unit scry)]
+  $%  [%node =wire road=road:tarball =load]
       [%here =wire]
-      [%soup =wire]              :: filtered wex/sup for this process
       [%kept =wire]              :: see your own outgoing subscriptions
       [%manu =wire =neck:tarball =mana]  :: direct docs query to a known nexus
   ==
@@ -211,15 +203,7 @@
         [%veto =dart] :: notify that a dart was sandboxed
         [%code =wire res=(each bins built)]  :: bins subtree or single artifact
         [%font =wire res=(unit bend:tarball)]  :: bend to governing /code namespace
-        :: messages from gall and arvo
-        ::
-        [%scry =wire =vase]
         [%here =wire =here]
-        [%soup =wire =soup]
-        [%arvo =wire sign=sign-arvo]
-        [%agent =wire =sign:agent:gall]
-        [%watch =path]
-        [%leave =path]
     ==
   ::
   +$  input
@@ -980,8 +964,6 @@
   |=  [=jump =fold:tarball dest=lane:tarball weir=(unit weir)]
   ^-  filt
   ?~  weir  ~                       :: no weir = no filter (permissive)
-  ?:  ?=(%sysc jump)
-    [~ |]                           :: weirs always block syscalls
   :-  ~
   ?-  jump
     %make  (filter-roads fold dest ~(tap in make.u.weir))

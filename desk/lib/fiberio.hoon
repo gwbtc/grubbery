@@ -11,10 +11,7 @@
   |=  =dart
   ^-  tang
   ?-  -.dart
-    %sysc  ~[leaf+"vetoed syscall"]
-    %scry  ~[leaf+"vetoed scry on wire {(spud wire.dart)}"]
     %here  ~[leaf+"vetoed here request on wire {(spud wire.dart)}"]
-    %soup  ~[leaf+"vetoed soup request on wire {(spud wire.dart)}"]
     %kept  ~[leaf+"vetoed kept request on wire {(spud wire.dart)}"]
     %node  ~[leaf+"vetoed node operation on wire {(spud wire.dart)} dest {<road.dart>} load {<-.load.dart>}"]
     %manu  ~[leaf+"vetoed manu request on wire {(spud wire.dart)}"]
@@ -33,17 +30,6 @@
   ^-  form:m
   (send-darts dart ~)
 ::
-++  send-card
-  |=  =card:agent:gall
-  =/  m  (fiber ,~)
-  ^-  form:m
-  (send-dart %sysc card)
-::
-++  send-cards
-  |=  cards=(list card:agent:gall)
-  =/  m  (fiber ,~)
-  ^-  form:m
-  (send-darts (turn cards |=(=card:agent:gall [%sysc card])))
 ::
 ++  trace
   |=  =tang
@@ -232,47 +218,7 @@
     [%done [from sage]:u.in]
   ==
 ::
-++  take-watch
-  =/  m  (fiber ,path)
-  ^-  form:m
-  |=  input
-  :+  ~  state
-  ?+  in  [%skip ~]
-      ~  [%wait ~]
-      [~ %veto *]
-    [%fail (veto-error dart.u.in)]
-      [~ %watch *]
-    [%done path.u.in]
-  ==
 ::
-++  take-leave
-  =/  m  (fiber ,path)
-  ^-  form:m
-  |=  input
-  :+  ~  state
-  ?+  in  [%skip ~]
-      ~  [%wait ~]
-      [~ %veto *]
-    [%fail (veto-error dart.u.in)]
-      [~ %leave *]
-    [%done path.u.in]
-  ==
-::
-++  take-agent
-  |=  =wire
-  =/  m  (fiber ,sign:agent:gall)
-  ^-  form:m
-  |=  input
-  :+  ~  state
-  ?+  in  [%skip ~]
-      ~  [%wait ~]
-      [~ %veto *]
-    [%fail (veto-error dart.u.in)]
-      [~ %agent * *]
-    ?.  =(wire wire.u.in)
-      [%skip ~]
-    [%done sign.u.in]
-  ==
 ::
 ++  take-made
   |=  =wire
@@ -1054,26 +1000,6 @@
   ;<  now=@da  bind:m  get-time
   (pure:m da+now)
 ::
-++  get-soup
-  =/  m  (fiber ,soup:nexus)
-  ^-  form:m
-  ;<  ~  bind:m  (send-dart %soup /soup)
-  (take-soup /soup)
-::
-++  take-soup
-  |=  =wire
-  =/  m  (fiber ,soup:nexus)
-  ^-  form:m
-  |=  input
-  :+  ~  state
-  ?+  in  [%skip ~]
-      ~  [%wait ~]
-      [~ %veto *]
-    [%fail (veto-error dart.u.in)]
-      [~ %soup * *]
-    ?.  =(wire wire.u.in)  [%skip ~]
-    [%done soup.u.in]
-  ==
 ::  HTTP client (iris) helpers
 ::  Requests go through /sys/iris/ runtime service.
 ::
