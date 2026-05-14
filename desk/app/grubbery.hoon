@@ -3257,7 +3257,8 @@
     (~(put of new) /usergroups [~ ~ ~])
   =?  new  =(~ (~(get of new) /ships))
     (~(put of new) /ships [~ ~ ~])
-  (load-ball-changes /sys/ames old new)
+  =.  this  (load-ball-changes /sys/ames old new)
+  (ensure-peer-ship our.bowl)
 ::  Ensure /sys/ames/ships/~ship/ exists with ship.sig and computed weir.
 ::  Our ship gets no weir (full access). Foreign ships get weir from usergroups.
 ::
