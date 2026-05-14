@@ -3751,16 +3751,32 @@
   |=  [sender=rail:tarball =wire vaz=vase]
   ^+  this
   =/  [=dock =page]  !<([dock page] vaz)
-  ::  Clam noun through mark: try our desk, then destination agent's desk
-  =/  bek=path  /(scot %p our.bowl)/[q.byk.bowl]/(scot %da now.bowl)
-  =/  our-dais=(unit dais:clay)
-    (mole |.(.^(dais:clay %cb (weld bek /[p.page]))))
-  =/  =dais:clay
-    ?^  our-dais  u.our-dais
-    =/  dek=desk
-      .^(desk %gd /(scot %p p.dock)/[q.dock]/(scot %da now.bowl)/$)
-    .^(dais:clay %cb /(scot %p our.bowl)/[dek]/(scot %da now.bowl)/[p.page])
-  =/  =vase  (vale:dais q.page)
+  ::  Clam noun through mark: resolve via code nexus marcs
+  ::  Split mark on hyphens (like Clay +segments) to find matching file
+  =/  dek=desk
+    .^(desk %gd /(scot %p p.dock)/[q.dock]/(scot %da now.bowl)/$)
+  =/  segs=(list path)  (segments:clay p.page)
+  =/  marc-res=(unit built:nexus)
+    |-
+    ?~  segs  ~
+    =/  seg=path  i.segs
+    =/  dir=path  (snip seg)
+    =/  nam=@ta   (rear seg)
+    ::  Try /mar/clay/[desk]/ then /mar/clay/base/
+    =/  res=(unit built:nexus)
+      (get-built / (weld /mar/clay/[dek] dir) nam)
+    ?^  res  res
+    =/  res=(unit built:nexus)
+      (get-built / (weld /mar/clay/base dir) nam)
+    ?^  res  res
+    $(segs t.segs)
+  =/  =marc:tarball
+    ?~  marc-res
+      ~|([%marc-not-found p.page dek] !!)
+    ?.  ?=(%vase -.u.marc-res)
+      ~|([%marc-failed p.page dek] !!)
+    !<(marc:tarball vase.u.marc-res)
+  =/  =vase  (vale:marc q.page)
   ::  Encode sender in wire: /gall-poke/{path-len}/{path...}/{name}/{wire...}
   =/  gall-wire=path
     :-  %gall-poke
