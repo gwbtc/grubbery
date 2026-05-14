@@ -1667,6 +1667,12 @@
           ==
         =.  this  (handle-timer-set here wire.dart q.sage.load.dart)
         (enqu-take here (sys-give /behn) ~ %pack wire.dart ~)
+      ::  Runtime-hooked: intercept eyre-action pokes to /sys/eyre/
+      ?:  ?&  =([/sys/eyre %'main.server-state'] dest)
+              =([/ %eyre-action] p.sage.load.dart)
+          ==
+        =.  this  (handle-eyre-action here wire.dart q.sage.load.dart)
+        (enqu-take here (sys-give /eyre) ~ %pack wire.dart ~)
       ::  Runtime-hooked: intercept pokes to /sys/ namespace services
       =/  sys=(unit _this)
         (handle-sys-poke dest here wire.dart sage.load.dart)
@@ -3500,7 +3506,7 @@
   =/  =weir:nexus  (compute-peer-weir-from ship src how)
   =.  this  (set-weir /sys/ames/ships/[(scot %p ship)] `weir)
   $(all-ships t.all-ships)
-::  /sys/eyre: ensure directory structure + server fiber born entry
+::  /sys/eyre: ensure directory structure + register /grubbery/api
 ::
 ++  sync-eyre
   ^+  this
@@ -3510,11 +3516,8 @@
   =?  new  =(~ (~(get of new) /requests))
     (~(put of new) /requests [~ ~ ~])
   =.  this  (load-ball-changes /sys/eyre old new)
-  ::  Ensure born entry for state file so the server fiber spawns
-  =/  =rail:tarball  [/sys/eyre %'main.server-state']
-  =?  born  =(~ (~(get bo:nexus now.bowl [born ball]) rail))
-    (~(init bo:nexus now.bowl [born ball]) rail)
-  this
+  ::  Register /grubbery/api with eyre
+  (emit-card [%pass /eyre-api %arvo %e %connect [~ /grubbery/api] dap.bowl])
 ::
 ::  /sys/eyre: read/write server state, find bindings
 ::
@@ -3687,6 +3690,70 @@
   ::  Poke sender back with timer-wake
   =/  rel=from:fiber:nexus  (relativize-from:nexus sender &+timer-rail)
   (enqu-take sender (sys-give /behn) ~ %poke rel [[/ %timer-wake] !>(req-wire)])
+::
+++  eyre-response-cards
+  |=  [eyre-id=@ta upd=eyre-update:nexus]
+  ^-  (list card)
+  ?-    -.upd
+      %header
+    [%give %fact ~[/http-response/[eyre-id]] http-response-header+!>(response-header.upd)]~
+      %data
+    [%give %fact ~[/http-response/[eyre-id]] http-response-data+!>(data.upd)]~
+      %kick
+    [%give %kick ~[/http-response/[eyre-id]] ~]~
+      %simple
+    (give-simple-payload:app:server eyre-id simple-payload.upd)
+  ==
+::
+::  /sys/eyre/ runtime HTTP service
+::  Intercepts eyre-action pokes — no fiber needed.
+::
+++  handle-eyre-action
+  |=  [sender=rail:tarball =wire vaz=vase]
+  ^+  this
+  =/  act=eyre-action:nexus  !<(eyre-action:nexus vaz)
+  =/  st=server-state:nexus  get-server-state
+  ?-    -.act
+      %bind
+    =.  bindings.st  (~(put by bindings.st) binding.act handler.act)
+    =.  this  (save-server-state st)
+    (emit-card [%pass /eyre-bind %arvo %e %connect binding.act dap.bowl])
+  ::
+      %unbind
+    =/  orphans=(list @ta)
+      %+  murn  ~(tap by conns.st)
+      |=  [eid=@ta =binding:eyre]
+      ?.  =(binding binding.act)  ~
+      `eid
+    =.  this
+      %-  emit-cards
+      %+  turn  orphans
+      |=  eid=@ta
+      ^-  card
+      [%give %kick ~[/http-response/[eid]] ~]
+    =.  conns.st
+      %-  ~(gas by *(map @ta binding:eyre))
+      %+  skip  ~(tap by conns.st)
+      |=  [eid=@ta =binding:eyre]
+      =(binding binding.act)
+    =.  bindings.st  (~(del by bindings.st) binding.act)
+    (save-server-state st)
+  ::
+      %send
+    =/  conn-binding=(unit binding:eyre)
+      (~(get by conns.st) eyre-id.act)
+    ?~  conn-binding
+      ::  Unknown connection — poke sender back with cancel
+      =/  rel=from:fiber:nexus  (relativize-from:nexus sender &+[/sys/eyre %'main.server-state'])
+      (enqu-take sender (sys-give /eyre) ~ %poke rel [[/ %handle-http-cancel] !>(eyre-id.act)])
+    =/  crds=(list card)
+      (eyre-response-cards eyre-id.act eyre-update.act)
+    ?:  ?=(?(%kick %simple) -.eyre-update.act)
+      =.  conns.st  (~(del by conns.st) eyre-id.act)
+      =.  this  (save-server-state st)
+      (emit-cards crds)
+    (emit-cards crds)
+  ==
 ::
 ::  /sys/ namespace service dispatch
 ::  Intercepts pokes to /sys/ rails before they reach fibers.
