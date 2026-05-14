@@ -123,50 +123,6 @@
             ;<  ~  bind:m  (send-cards:io cards)
             $
           ==
-            ::  Incoming HTTP request from eyre
-            ::
-            %handle-http-request
-          =/  [eyre-id=@ta src=@p req=inbound-request:eyre]
-            !<([eyre-id=@ta @p inbound-request:eyre] q.sage)
-          =/  [site=path args=quay:eyre]  (parse-url:http-utils url.request.req)
-          ::  Ball API: dispatch to /requests/{eyre-id} fiber
-          ?:  ?=([%grubbery %api *] site)
-            ~&  >  [%eyre-api eyre-id url.request.req]
-            ;<  ~  bind:m
-              (make:io [%| 0 %& /requests eyre-id] |+[%.n [[/ %http-request] !>([src req])] ~])
-            $
-          ::  Binding match: find handler, forward request
-          =/  match=(unit [=binding:eyre handler=rail:tarball])
-            (find-eyre-binding bindings.st site)
-          ?~  match
-            ~&  >  [%eyre-no-binding site]
-            ;<  ~  bind:m
-              %-  send-cards:io
-              (give-simple-payload:app:server eyre-id [[404 ~] `(as-octs:mimes:html 'Not Found')])
-            $
-          ~&  >  [%eyre-dispatch binding.u.match handler.u.match]
-          =.  conns.st  (~(put by conns.st) eyre-id binding.u.match)
-          ;<  ~  bind:m  (replace:io !>(st))
-          ;<  ~  bind:m
-            (poke:io [%& %& handler.u.match] [[/ %handle-http-request] !>([eyre-id src req])])
-          $
-            ::  Client disconnected (eyre on-leave)
-            ::
-            %handle-http-cancel
-          =/  eyre-id=@ta  !<(@ta q.sage)
-          =/  conn-binding=(unit binding:eyre)  (~(get by conns.st) eyre-id)
-          =.  conns.st  (~(del by conns.st) eyre-id)
-          ;<  ~  bind:m  (replace:io !>(st))
-          ::  No binding = ball API request — cull the request fiber
-          ?~  conn-binding
-            ;<  *  bind:m  (cull-soft:io [%| 0 %& /requests eyre-id])
-            $
-          ::  Bound request — forward cancel to handler
-          =/  handler=rail:tarball
-            (fall (~(get by bindings.st) u.conn-binding) *rail:tarball)
-          ;<  ~  bind:m
-            (poke:io [%& %& handler] [[/ %handle-http-cancel] !>(eyre-id)])
-          $
         ==
           ::  /sys/eyre/requests/*: ball API request fibers
           ::
@@ -327,26 +283,4 @@
       %simple
     (give-simple-payload:app:server eyre-id simple-payload.upd)
   ==
-::
-++  find-eyre-binding
-  |=  [bindings=(map binding:eyre rail:tarball) site=path]
-  ^-  (unit [=binding:eyre handler=rail:tarball])
-  =|  best=(unit [=binding:eyre handler=rail:tarball])
-  =/  entries=(list [=binding:eyre handler=rail:tarball])
-    ~(tap by bindings)
-  |-
-  ?~  entries  best
-  =/  suffix=(unit path)
-    =+  [prefix=path.binding.i.entries full=site]
-    |-  ^-  (unit path)
-    ?~  prefix  `full
-    ?~  full    ~
-    ?.  =(i.prefix i.full)  ~
-    $(prefix t.prefix, full t.full)
-  ?~  suffix
-    $(entries t.entries)
-  ?~  best  $(best `i.entries, entries t.entries)
-  ?:  (gth (lent path.binding.i.entries) (lent path.binding.u.best))
-    $(best `i.entries, entries t.entries)
-  $(entries t.entries)
 --
