@@ -3740,15 +3740,13 @@
     (save-server-state st)
   ::
       %send
-    =/  conn-binding=(unit binding:eyre)
-      (~(get by conns.st) eyre-id.act)
-    ?~  conn-binding
-      ::  Unknown connection — poke sender back with cancel
-      =/  rel=from:fiber:nexus  (relativize-from:nexus sender &+[/sys/eyre %'main.server-state'])
-      (enqu-take sender (sys-give /eyre) ~ %poke rel [[/ %handle-http-cancel] !>(eyre-id.act)])
     =/  crds=(list card)
       (eyre-response-cards eyre-id.act eyre-update.act)
+    =/  conn-binding=(unit binding:eyre)
+      (~(get by conns.st) eyre-id.act)
     ?:  ?=(?(%kick %simple) -.eyre-update.act)
+      ?~  conn-binding
+        (emit-cards crds)
       =.  conns.st  (~(del by conns.st) eyre-id.act)
       =.  this  (save-server-state st)
       (emit-cards crds)

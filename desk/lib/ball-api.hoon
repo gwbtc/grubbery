@@ -6,6 +6,9 @@
 /+  nexus, tarball, server, multipart, http-utils, html-utils,
     json-utils, zlib, bytestream, io=fiberio
 |%
+::  HTTP response helper — pokes /sys/eyre/main.server-state
+::
+++  srv  ~(. http-res:io &+&+[/sys/eyre %'main.server-state'])
 ::  +dispatch: entry point for request fibers
 ::
 ++  dispatch
@@ -66,32 +69,28 @@
   |=  [eyre-id=@ta code=@ud msg=@t]
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
-  %-  send-cards:io
-  (give-simple-payload:app:server eyre-id [[code ~] `(as-octs:mimes:html msg)])
+  (send-simple:srv eyre-id [[code ~] `(as-octs:mimes:html msg)])
 ::  +send-ok: respond with 200 and message
 ::
 ++  send-ok
   |=  [eyre-id=@ta msg=@t]
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
-  %-  send-cards:io
-  (give-simple-payload:app:server eyre-id [[200 ~] `(as-octs:mimes:html msg)])
+  (send-simple:srv eyre-id [[200 ~] `(as-octs:mimes:html msg)])
 ::  +send-created: respond with 201 Created
 ::
 ++  send-created
   |=  eyre-id=@ta
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
-  %-  send-cards:io
-  (give-simple-payload:app:server eyre-id [[201 ~] `(as-octs:mimes:html 'Created')])
+  (send-simple:srv eyre-id [[201 ~] `(as-octs:mimes:html 'Created')])
 ::  +send-mime: respond with 200 and mime body
 ::
 ++  send-mime
   |=  [eyre-id=@ta =mime]
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
-  %-  send-cards:io
-  (give-simple-payload:app:server eyre-id (mime-response:http-utils mime))
+  (send-simple:srv eyre-id (mime-response:http-utils mime))
 ::  +maybe-convert: optionally convert cage through ?mark= param
 ::    Returns ~ on error (error response already sent).
 ::
@@ -118,8 +117,7 @@
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
   =/  bod=octs  (as-octs:mimes:html (en:json:html json))
-  %-  send-cards:io
-  (give-simple-payload:app:server eyre-id (mime-response:http-utils [/application/json bod]))
+  (send-simple:srv eyre-id (mime-response:http-utils [/application/json bod]))
 ::  +peek-root: peek the root ball
 ::
 ++  peek-root
@@ -211,8 +209,7 @@
     :~  ['content-type' 'application/x-tar']
         ['content-disposition' (crip "attachment; filename=\"{dir-name}.tar\"")]
     ==
-  %-  send-cards:io
-  (give-simple-payload:app:server eyre-id [[200 headers] `tar-data])
+  (send-simple:srv eyre-id [[200 headers] `tar-data])
 ::  +serve-file-make: PUT /file — create file
 ::
 ++  serve-file-make
@@ -362,9 +359,7 @@
           ['created' [%a (turn (flop created) |=(n=@t s+n))]]
       ==
     =/  bod=octs  (as-octs:mimes:html (en:json:html response))
-    %-  send-cards:io
-    %+  give-simple-payload:app:server  eyre-id
-    [[201 ~[['content-type' 'application/json']]] `bod]
+    (send-simple:srv eyre-id [[201 ~[['content-type' 'application/json']]] `bod])
   =/  [field-name=@t file-part=part:multipart]  i.remaining
   ?.  =('file' field-name)
     $(remaining t.remaining)
@@ -481,7 +476,7 @@
   =/  mark-param=(unit @t)  (get-key:kv:html-utils 'mark' args)
   ::  Send SSE response header
   ;<  ~  bind:m
-    (send-cards:io [(give-sse-header:http-utils eyre-id) ~])
+    (send-header:srv eyre-id sse-header:http-utils)
   ::  Determine road: check if api-path points to a file
   =/  file-road=(unit road:tarball)
     ?~  api-path  ~
@@ -510,7 +505,7 @@
       ;<  body=@t  bind:m  (sage-to-txt sage.init mark-param)
       =/  data=wain  (to-wain:format body)
       =/  =sse-event:http-utils  [`id `event-name data]
-      (send-cards:io [(give-sse-event:http-utils eyre-id sse-event) ~])
+      (send-data:srv eyre-id `(sse-encode:http-utils ~[sse-event]))
     ::  Directory — send "old" for each file
         [%ball *]
       =/  root=ball:tarball  ball.init
@@ -525,7 +520,7 @@
   ?-    -.nw
       %wake
     ;<  ~  bind:m
-      (send-cards:io [(give-sse-keep-alive:http-utils eyre-id) ~])
+      (send-data:srv eyre-id `sse-keep-alive:http-utils)
     ;<  now=@da  bind:m  get-time:io
     ;<  ~  bind:m  (send-wait:io (add now ~s30))
     $
@@ -544,7 +539,7 @@
       =/  data=wain  (to-wain:format body)
       =/  =sse-event:http-utils  [`id `event-name data]
       ;<  ~  bind:m
-        (send-cards:io [(give-sse-event:http-utils eyre-id sse-event) ~])
+        (send-data:srv eyre-id `(sse-encode:http-utils ~[sse-event]))
       $
     ::  Directory changed — diff born to find changed lanes
         [%ball *]
@@ -586,7 +581,7 @@
         =/  event-name=@t  (crip "del {(trip lane-path)}")
         =/  =sse-event:http-utils  [`id `event-name ~['']]
         ;<  ~  bind:m
-          (send-cards:io [(give-sse-event:http-utils eyre-id sse-event) ~])
+          (send-data:srv eyre-id `(sse-encode:http-utils ~[sse-event]))
         $(lanes t.lanes)
       ::  File exists — new or upd
       =/  action=@t  ?~(old-sack 'new' 'upd')
@@ -596,7 +591,7 @@
       =/  data=wain  (to-wain:format body)
       =/  =sse-event:http-utils  [`id `event-name data]
       ;<  ~  bind:m
-        (send-cards:io [(give-sse-event:http-utils eyre-id sse-event) ~])
+        (send-data:srv eyre-id `(sse-encode:http-utils ~[sse-event]))
       $(lanes t.lanes)
     ==
   ==
@@ -626,7 +621,7 @@
     =/  data=wain  (to-wain:format body)
     =/  =sse-event:http-utils  [`id `event-name data]
     ;<  ~  bind:m
-      (send-cards:io [(give-sse-event:http-utils eyre-id sse-event) ~])
+      (send-data:srv eyre-id `(sse-encode:http-utils ~[sse-event]))
     $(files t.files)
   ::  Recurse into subdirectories
   =/  dirs=(list [@ta ball:tarball])  ~(tap by dir.b)
