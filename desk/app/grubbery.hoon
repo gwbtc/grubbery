@@ -12,7 +12,8 @@
 /=  m-  /mar/born
 /=  m-  /mar/subs
 /=  m-  /mar/gain
-/=  m-  /mar/grubbery-action
+/=  m-  /mar/grubbery-load
+/=  m-  /mar/grubbery-intake
 ::
 |%
 +$  versioned-state
@@ -164,8 +165,8 @@
   |=  [mak=mark vas=vase]
   ^-  (quip card _this)
   ?+    mak  (on-poke:def mak vas)
-      %grubbery-action
-    =+  !<(=action:nexus vas)
+      %grubbery-load
+    =+  !<(req=load:remote:nexus vas)
     ::  All actions route through /sys/ames/ships/[src]/ as a dart
     ::  from ship.sig.  Our ship has no weir (full access); foreign
     ::  ships get weir from usergroups.
@@ -174,19 +175,20 @@
       abet:(ensure-peer-ship:hc src.bowl)
     =/  ship-rail=rail:tarball  [/sys/ames/ships/[ship-ta] %'ship.sig']
     =/  =load:nexus
-      ?-  +<.action
-        %poke  [%poke p.bask.action !>(q.bask.action)]
+      ?-  +<.req
+        %poke  [%poke p.bask.req !>(q.bask.req)]
           %make
         =/  m=make:nexus
-          ?:  ?=(%& -.make.action)
-            &+[sand.p.make.action gain.p.make.action ball.p.make.action]
-          |+[gain.p.make.action [p.bask.p.make.action !>(`*`q.bask.p.make.action)] mark.p.make.action]
+          ?:  ?=(%& -.make.req)
+            &+[sand.p.make.req gain.p.make.req ball.p.make.req]
+          |+[gain.p.make.req [p.bask.p.make.req !>(`*`q.bask.p.make.req)] mark.p.make.req]
         [%make m]
         %cull  [%cull ~]
-        %sand  [%sand weir.action]
+        %sand  [%sand weir.req]
         %load  [%load ~]
+        %peek  [%peek mark.req ~ %.y]
       ==
-    =/  =dart:nexus  [%node /peer [%& dest.action] load]
+    =/  =dart:nexus  [%node /peer [%& dest.req] load]
     =^  dart-cards  state
       abet:(process-dart:hc ship-rail dart)
     [(weld peer-cards dart-cards) this]

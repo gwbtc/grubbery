@@ -856,21 +856,27 @@
   =.  result
     (~(uni in result) (changed-lanes-at (snoc here i.all-kids) kid-old kid-new))
   $(all-kids t.all-kids)
-::  External action type for pokes
+::  Cross-ship load/intake types
+::  Mirrors internal dart load / fiber intake pattern.
 ::
-++  action
-  =<  action
+++  remote
   |%
-  +$  action
+  +$  load
     $:  [=wire dest=lane:tarball]
         $%  [%make =make]
             [%cull ~]
             [%sand weir=(unit weir)]
             [%load ~]
             [%poke =bask:tarball]
+            [%peek mark=(unit mark)]
         ==
     ==
   +$  make  (each [=sand =gain =ball:tarball] [gain=? =bask:tarball mark=(unit mark)])
+  +$  intake
+    $:  =wire
+        $%  [%peek ~] :: TBD
+        ==
+    ==
   --
 +$  ack  (unit tang)
 ::

@@ -9,7 +9,7 @@
   ^~  %-  crip
   ;:  weld
     "Create a file on a remote ship's grubbery. "
-    "Sends a %grubbery-action %make poke to the target ship."
+    "Sends a %grubbery-load %make poke to the target ship."
   ==
 ++  parameters
   ^-  (map @t parameter-def:tools)
@@ -50,10 +50,10 @@
     ?~  pax  ~
     `(rear pax)
   =/  =mime  [/text/plain (as-octs:mimes:html u.content-raw)]
-  =/  =make:action:nexus  |+[%.n [[/ %mime] mime] dest-mark]
-  =/  =action:nexus
+  =/  =make:remote:nexus  |+[%.n [[/ %mime] mime] dest-mark]
+  =/  req=load:remote:nexus
     [[/remote-make %& pax nam] %make make]
   ;<  ~  bind:m
-    (gall-poke:io [target %grubbery] grubbery-action+action)
+    (gall-poke:io [target %grubbery] grubbery-load+req)
   (pure:m [%text (crip "Created {(trip u.path-raw)}/{(trip nam)} on {(trip u.ship-raw)}")])
 --
