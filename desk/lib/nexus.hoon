@@ -10,6 +10,7 @@
 +$  deps  (map rail:tarball (set rail:tarball))
 +$  bins  (axal (map @ta built))
 +$  lode  [=keys =deps =bins]
+::  TODO: replace all `mark` with `blot` (rail-based mark paths)
 ::  TODO: each code nexus compiles independently, so identical libraries
 ::  in different nexuses are recompiled and stored separately. A global
 ::  refcounted cache keyed by build hash (like Clay's +flow across desks)
@@ -857,15 +858,20 @@
   $(all-kids t.all-kids)
 ::  External action type for pokes
 ::
-+$  action
-  $:  [=wire dest=lane:tarball]
-      $%  [%make =make]
-          [%cull ~]
-          [%sand weir=(unit weir)]
-          [%load ~]
-          [%poke =bask:tarball]
-      ==
-  ==
+++  action
+  =<  action
+  |%
+  +$  action
+    $:  [=wire dest=lane:tarball]
+        $%  [%make =make]
+            [%cull ~]
+            [%sand weir=(unit weir)]
+            [%load ~]
+            [%poke =bask:tarball]
+        ==
+    ==
+  +$  make  (each [=sand =gain =ball:tarball] [gain=? =bask:tarball mark=(unit mark)])
+  --
 +$  ack  (unit tang)
 ::
 :: ++  deaf

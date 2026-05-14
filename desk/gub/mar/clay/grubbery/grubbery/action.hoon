@@ -1,8 +1,7 @@
-::  grubbery-action: unified action mark for grubbery pokes
+::  grubbery-action marc: unified action mark for grubbery pokes
 ::
 /+  nexus
 |_  axn=action:nexus
-++  grad  %noun
 ++  grow
   |%
   ++  noun  axn

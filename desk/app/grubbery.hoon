@@ -12,6 +12,7 @@
 /=  m-  /mar/born
 /=  m-  /mar/subs
 /=  m-  /mar/gain
+/=  m-  /mar/grubbery-action
 ::
 |%
 +$  versioned-state
@@ -165,57 +166,30 @@
   ?+    mak  (on-poke:def mak vas)
       %grubbery-action
     =+  !<(=action:nexus vas)
-    ?-    +<.action
-        %poke
-      ::  Foreign pokes: pretend ship.sig emitted a poke dart.
-      ::  The dart travels up through /sys/ames/ships/~src/ weir,
-      ::  using the normal process-dart codepath.
-      ::  Our ship: route directly (no weir, no peer directory).
-      ?>  ?=(%& -.dest.action)
-      ?:  =(src our):bowl
-        =/  =give:nexus  [|+[src sap]:bowl wire.action]
-        =^  cards  state
-          abet:(poke:hc give p.dest.action [p.bask.action !>(q.bask.action)])
-        [cards this]
-      ::  Foreign poke — ensure ship dir + weir, emit dart as ship.sig
-      =/  ship-ta=@ta  (scot %p src.bowl)
-      =^  peer-cards  state
-        abet:(ensure-peer-ship:hc src.bowl)
-      =/  ship-rail=rail:tarball  [/sys/ames/ships/[ship-ta] %'ship.sig']
-      =/  =sage:tarball  [p.bask.action !>(q.bask.action)]
-      =/  =dart:nexus  [%node /peer [%& &+p.dest.action] [%poke sage]]
-      =^  dart-cards  state
-        abet:(process-dart:hc ship-rail dart)
-      [(weld peer-cards dart-cards) this]
-      ::
-        %make
-      ?>  =(src our):bowl
-      =^  cards  state
-        abet:(make:hc [dest make]:action)
-      [cards this]
-      ::
-        %cull
-      ?>  =(src our):bowl
-      =^  cards  state
-        abet:(cull:hc dest.action)
-      [cards this]
-      ::
-        %sand
-      ?>  =(src our):bowl
-      ::  Sand destination must be a directory
-      ?>  ?=(%| -.dest.action)
-      =^  cards  state
-        abet:(set-weir:hc [p.dest.action weir.action])
-      [cards this]
-      ::
-        %load
-      ?>  =(src our):bowl
-      ::  Load destination must be a directory
-      ?>  ?=(%| -.dest.action)
-      =^  cards  state
-        abet:(reload-nexus:hc p.dest.action)
-      [cards this]
-    ==
+    ::  All actions route through /sys/ames/ships/[src]/ as a dart
+    ::  from ship.sig.  Our ship has no weir (full access); foreign
+    ::  ships get weir from usergroups.
+    =/  ship-ta=@ta  (scot %p src.bowl)
+    =^  peer-cards  state
+      abet:(ensure-peer-ship:hc src.bowl)
+    =/  ship-rail=rail:tarball  [/sys/ames/ships/[ship-ta] %'ship.sig']
+    =/  =load:nexus
+      ?-  +<.action
+        %poke  [%poke p.bask.action !>(q.bask.action)]
+          %make
+        =/  m=make:nexus
+          ?:  ?=(%& -.make.action)
+            &+[sand.p.make.action gain.p.make.action ball.p.make.action]
+          |+[gain.p.make.action [p.bask.p.make.action !>(`*`q.bask.p.make.action)] mark.p.make.action]
+        [%make m]
+        %cull  [%cull ~]
+        %sand  [%sand weir.action]
+        %load  [%load ~]
+      ==
+    =/  =dart:nexus  [%node /peer [%& dest.action] load]
+    =^  dart-cards  state
+      abet:(process-dart:hc ship-rail dart)
+    [(weld peer-cards dart-cards) this]
     ::  HTTP request from eyre: route directly
     ::
       %handle-http-request
@@ -1534,26 +1508,34 @@
     (enqu-take here (sys-give /veto) ~ %veto dart)
     ::
       [~ %&]
-    ::  Allowed but should clam vases crossing sandbox boundary
-    ::  (make darts don't need clamming - they go through validate-sage anyway)
-    ::  Peek results are clammed inside handle-dart (data flows back)
-    ?.  ?=([%node * * ?(%poke %over) *] dart)
+    ::  Clam vases crossing sandbox boundary.
+    ::  Peek results are clammed inside handle-dart (data flows back).
+    ?.  ?=(%node -.dart)
       (handle-dart here dart filt)
-    ::  Clam using destination's code nexus, not source's
     =/  clam-pax=path
       ?~  dest  path.here
       ?-  -.u.dest
         %&  path.p.u.dest
         %|  p.u.dest
       ==
-    =/  clammed=(each sage:tarball tang)  (clam-sage clam-pax sage.load.dart)
-    ?:  ?=(%| -.clammed)
-      ~&  >>>  ["%process-dart: clam failed" clam-pax p.sage.load.dart]
-      ?:  ?=([%sys %ames %ships @ ~] path.here)
-        ~|  [%peer-clam-failed name.here dest]
-        !!
-      (enqu-take here (sys-give /veto) ~ %veto dart)
-    (handle-dart here dart(sage.load p.clammed) filt)
+    ?+    -.load.dart  (handle-dart here dart filt)
+        ?(%poke %over)
+      =/  clammed=(each sage:tarball tang)  (clam-sage clam-pax sage.load.dart)
+      ?:  ?=(%| -.clammed)
+        ?:  ?=([%sys %ames %ships @ ~] path.here)
+          ~|  [%peer-clam-failed name.here dest]  !!
+        (enqu-take here (sys-give /veto) ~ %veto dart)
+      (handle-dart here dart(sage.load p.clammed) filt)
+        %make
+      ?.  ?=(%| -.make.load.dart)
+        (handle-dart here dart filt)
+      =/  clammed=(each sage:tarball tang)  (clam-sage clam-pax sage.p.make.load.dart)
+      ?:  ?=(%| -.clammed)
+        ?:  ?=([%sys %ames %ships @ ~] path.here)
+          ~|  [%peer-clam-failed name.here dest]  !!
+        (enqu-take here (sys-give /veto) ~ %veto dart)
+      (handle-dart here dart(sage.p.make.load p.clammed) filt)
+    ==
   ==
 ::  Extract jump category and destination from a dart for weir filtering.
 ::  Returns [jump dest] where:
@@ -1635,7 +1617,11 @@
         (^make u.dest-lane make)
       ?-  -.res
         %&  (enqu-take:p.res here (sys-give /made) ~ %made wire.dart ~)
-        %|  (enqu-take here (sys-give /made) ~ %made wire.dart `p.res)
+          %|
+        ::  Runtime services (/sys/) crash on make failure
+        ?:  =(/sys (scag 1 path.here))
+          (mean p.res)
+        (enqu-take here (sys-give /made) ~ %made wire.dart `p.res)
       ==
       ::
         %cull
@@ -1643,7 +1629,10 @@
       =/  res=(each _this tang)  (mule |.((cull u.dest-lane)))
       ?-  -.res
         %&  (enqu-take:p.res here (sys-give /gone) ~ %gone wire.dart ~)
-        %|  (enqu-take here (sys-give /gone) ~ %gone wire.dart `p.res)
+          %|
+        ?:  =(/sys (scag 1 path.here))
+          (mean p.res)
+        (enqu-take here (sys-give /gone) ~ %gone wire.dart `p.res)
       ==
       ::
         %sand
@@ -3751,32 +3740,36 @@
   |=  [sender=rail:tarball =wire vaz=vase]
   ^+  this
   =/  [=dock =page]  !<([dock page] vaz)
-  ::  Clam noun through mark: resolve via code nexus marcs
-  ::  Split mark on hyphens (like Clay +segments) to find matching file
-  =/  dek=desk
-    .^(desk %gd /(scot %p p.dock)/[q.dock]/(scot %da now.bowl)/$)
-  =/  segs=(list path)  (segments:clay p.page)
-  =/  marc-res=(unit built:nexus)
-    |-
-    ?~  segs  ~
-    =/  seg=path  i.segs
-    =/  dir=path  (snip seg)
-    =/  nam=@ta   (rear seg)
-    ::  Try /mar/clay/[desk]/ then /mar/clay/base/
-    =/  res=(unit built:nexus)
-      (get-built / (weld /mar/clay/[dek] dir) nam)
-    ?^  res  res
-    =/  res=(unit built:nexus)
-      (get-built / (weld /mar/clay/base dir) nam)
-    ?^  res  res
-    $(segs t.segs)
-  =/  =marc:tarball
-    ?~  marc-res
-      ~|([%marc-not-found p.page dek] !!)
-    ?.  ?=(%vase -.u.marc-res)
-      ~|([%marc-failed p.page dek] !!)
-    !<(marc:tarball vase.u.marc-res)
-  =/  =vase  (vale:marc q.page)
+  ::  Remote pokes: wrap noun as-is, remote gall validates on arrival
+  ::  Local pokes: clam through code nexus marc
+  =/  =vase
+    ?.  =(our.bowl p.dock)
+      !>(`*`q.page)
+    ::  Split mark on hyphens (like Clay +segments) to find matching file
+    =/  dek=desk
+      .^(desk %gd /(scot %p p.dock)/[q.dock]/(scot %da now.bowl)/$)
+    =/  segs=(list path)  (segments:clay p.page)
+    =/  marc-res=(unit built:nexus)
+      |-
+      ?~  segs  ~
+      =/  seg=path  i.segs
+      =/  dir=path  (snip seg)
+      =/  nam=@ta   (rear seg)
+      ::  Try /mar/clay/[desk]/ then /mar/clay/base/
+      =/  res=(unit built:nexus)
+        (get-built / (weld /mar/clay/[dek] dir) nam)
+      ?^  res  res
+      =/  res=(unit built:nexus)
+        (get-built / (weld /mar/clay/base dir) nam)
+      ?^  res  res
+      $(segs t.segs)
+    =/  =marc:tarball
+      ?~  marc-res
+        ~|([%marc-not-found p.page dek] !!)
+      ?.  ?=(%vase -.u.marc-res)
+        ~|([%marc-failed p.page dek] !!)
+      !<(marc:tarball vase.u.marc-res)
+    (vale:marc q.page)
   ::  Encode sender in wire: /gall-poke/{path-len}/{path...}/{name}/{wire...}
   =/  gall-wire=path
     :-  %gall-poke
