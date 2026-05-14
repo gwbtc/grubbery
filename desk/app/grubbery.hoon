@@ -1597,19 +1597,19 @@
       ::  Poke destination must be a file
       ?>  ?=(%& -.u.dest-lane)
       =/  dest=rail:tarball  p.u.dest-lane
-      ::  Runtime-hooked: intercept timer-set pokes to /sys/behn/
+      ::  /sys/behn/ timer service: intercept timer-set pokes
       ?:  ?&  =([/sys/behn %'main.timer-state'] dest)
               =([/ %timer-set] p.sage.load.dart)
           ==
         =.  this  (handle-timer-set here wire.dart q.sage.load.dart)
         (enqu-take here (sys-give /behn) ~ %pack wire.dart ~)
-      ::  Runtime-hooked: intercept eyre-action pokes to /sys/eyre/
+      ::  /sys/eyre/ HTTP service: intercept eyre-action pokes
       ?:  ?&  =([/sys/eyre %'main.server-state'] dest)
               =([/ %eyre-action] p.sage.load.dart)
           ==
         =.  this  (handle-eyre-action here wire.dart q.sage.load.dart)
         (enqu-take here (sys-give /eyre) ~ %pack wire.dart ~)
-      ::  Runtime-hooked: intercept pokes to /sys/ namespace services
+      ::  /sys/ namespace services: general dispatch
       =/  sys=(unit _this)
         (handle-sys-poke dest here wire.dart sage.load.dart)
       ?^  sys  u.sys
@@ -3496,9 +3496,64 @@
   ~&  >>  "save-file: usergroup changed, recomputing peer weirs"
   recompute-peer-weirs
 ::
+::  /sys/ namespace services
+::  Grubs interact with vanes through /sys/ namespace pokes.
+::  The agent intercepts these pokes, translates them to arvo
+::  cards, and routes responses back to the sender.
 ::
-::  /sys/behn/ runtime timer service
-::  Intercepts timer-set pokes and behn wakes — no fiber needed.
+::  /sys/ service dispatch
+::  Intercepts pokes to /sys/ rails before they reach fibers.
+::  Returns ~ to fall through to normal poke handling.
+::
+++  handle-sys-poke
+  |=  [dest=rail:tarball here=rail:tarball wir=path =sage:tarball]
+  ^-  (unit _this)
+  ?.  ?=([%sys @ *] path.dest)  ~
+  =/  service=@tas  i.t.path.dest
+  ?+  service  ~
+      %clay
+    ?:  =([/ %mount-desk] p.sage)
+      =/  dek=desk  !<(desk q.sage)
+      =.  this  (handle-clay-mount dek)
+      `(enqu-take here (sys-give /clay) ~ %pack wir ~)
+    ?:  =([/ %unmount-desk] p.sage)
+      =/  dek=desk  !<(desk q.sage)
+      =.  this  (handle-clay-unmount dek)
+      `(enqu-take here (sys-give /clay) ~ %pack wir ~)
+    ?:  =([/ %new-desk] p.sage)
+      =/  dek=desk  !<(desk q.sage)
+      =.  this  (handle-clay-new-desk dek)
+      `(enqu-take here (sys-give /clay) ~ %pack wir ~)
+    ?:  =([/ %clay-info] p.sage)
+      =/  [dek=desk changes=(list [path ?([%ins @tas *] [%del ~])])]
+        !<([desk (list [path ?([%ins @tas *] [%del ~])])] q.sage)
+      =.  this  (handle-clay-info dek changes)
+      `(enqu-take here (sys-give /clay) ~ %pack wir ~)
+    ~  :: unknown clay poke, fall through
+  ::
+      %dill
+    ?.  =([/ %dill-belt] p.sage)  ~
+    =/  [session=@tas =belt:dill]  !<([@tas belt:dill] q.sage)
+    =.  this  (emit-card [%pass /dill/belt %arvo %d %shot session %belt belt])
+    `(enqu-take here (sys-give /dill) ~ %pack wir ~)
+  ::
+      %gall
+    ?.  =([/ %gall-poke] p.sage)  ~
+    =.  this  (handle-gall-poke here wir q.sage)
+    `(enqu-take here (sys-give /gall) ~ %pack wir ~)
+  ::
+      %iris
+    ?.  =([/ %http-request] p.sage)  ~
+    =.  this  (handle-iris-request here wir q.sage)
+    `(enqu-take here (sys-give /iris) ~ %pack wir ~)
+  ::
+      %scry
+    ?.  =([/ %scry-request] p.sage)  ~
+    =.  this  (handle-scry-request here wir q.sage)
+    `(enqu-take here (sys-give /scry) ~ %pack wir ~)
+  ==
+::
+::  /sys/behn/ timer service
 ::
 ++  handle-timer-set
   |=  [sender=rail:tarball =wire vaz=vase]
@@ -3520,7 +3575,6 @@
     :-  (scot %da when.req)
     :-  (scot %ud (lent path.sender))
     (weld path.sender [name.sender wire.req])
-  ::  Emit %wait card directly (not proc-wrapped)
   (emit-card [%pass timer-wire %arvo %b %wait when.req])
 ::
 ++  handle-timer-wake
@@ -3553,171 +3607,7 @@
   =/  rel=from:fiber:nexus  (relativize-from:nexus sender &+timer-rail)
   (enqu-take sender (sys-give /behn) ~ %poke rel [[/ %timer-wake] !>(req-wire)])
 ::
-++  eyre-response-cards
-  |=  [eyre-id=@ta upd=eyre-update:nexus]
-  ^-  (list card)
-  ?-    -.upd
-      %header
-    [%give %fact ~[/http-response/[eyre-id]] http-response-header+!>(response-header.upd)]~
-      %data
-    [%give %fact ~[/http-response/[eyre-id]] http-response-data+!>(data.upd)]~
-      %kick
-    [%give %kick ~[/http-response/[eyre-id]] ~]~
-      %simple
-    (give-simple-payload:app:server eyre-id simple-payload.upd)
-  ==
-::
-::  /sys/eyre/ runtime HTTP service
-::  Intercepts eyre-action pokes — no fiber needed.
-::
-++  handle-eyre-action
-  |=  [sender=rail:tarball =wire vaz=vase]
-  ^+  this
-  =/  act=eyre-action:nexus  !<(eyre-action:nexus vaz)
-  =/  st=server-state:nexus  get-server-state
-  ?-    -.act
-      %bind
-    =.  bindings.st  (~(put by bindings.st) binding.act handler.act)
-    =.  this  (save-server-state st)
-    (emit-card [%pass /eyre-bind %arvo %e %connect binding.act dap.bowl])
-  ::
-      %unbind
-    =/  orphans=(list @ta)
-      %+  murn  ~(tap by conns.st)
-      |=  [eid=@ta =binding:eyre]
-      ?.  =(binding binding.act)  ~
-      `eid
-    =.  this
-      %-  emit-cards
-      %+  turn  orphans
-      |=  eid=@ta
-      ^-  card
-      [%give %kick ~[/http-response/[eid]] ~]
-    =.  conns.st
-      %-  ~(gas by *(map @ta binding:eyre))
-      %+  skip  ~(tap by conns.st)
-      |=  [eid=@ta =binding:eyre]
-      =(binding binding.act)
-    =.  bindings.st  (~(del by bindings.st) binding.act)
-    (save-server-state st)
-  ::
-      %send
-    =/  crds=(list card)
-      (eyre-response-cards eyre-id.act eyre-update.act)
-    =/  conn-binding=(unit binding:eyre)
-      (~(get by conns.st) eyre-id.act)
-    ?:  ?=(?(%kick %simple) -.eyre-update.act)
-      ?~  conn-binding
-        (emit-cards crds)
-      =.  conns.st  (~(del by conns.st) eyre-id.act)
-      =.  this  (save-server-state st)
-      (emit-cards crds)
-    (emit-cards crds)
-  ==
-::
-::  /sys/ namespace service dispatch
-::  Intercepts pokes to /sys/ rails before they reach fibers.
-::  Returns ~ to fall through to normal poke handling.
-::
-++  handle-sys-poke
-  |=  [dest=rail:tarball here=rail:tarball wir=path =sage:tarball]
-  ^-  (unit _this)
-  ?.  ?=([%sys @ *] path.dest)  ~
-  =/  service=@tas  i.t.path.dest
-  ?+  service  ~
-      %iris
-    ?.  =([/ %http-request] p.sage)  ~
-    =.  this  (handle-iris-request here wir q.sage)
-    `(enqu-take here (sys-give /iris) ~ %pack wir ~)
-  ::
-      %clay
-    ?:  =([/ %mount-desk] p.sage)
-      =/  dek=desk  !<(desk q.sage)
-      =.  this  (handle-clay-mount dek)
-      `(enqu-take here (sys-give /clay) ~ %pack wir ~)
-    ?:  =([/ %unmount-desk] p.sage)
-      =/  dek=desk  !<(desk q.sage)
-      =.  this  (handle-clay-unmount dek)
-      `(enqu-take here (sys-give /clay) ~ %pack wir ~)
-    ?:  =([/ %new-desk] p.sage)
-      =/  dek=desk  !<(desk q.sage)
-      =.  this  (handle-clay-new-desk dek)
-      `(enqu-take here (sys-give /clay) ~ %pack wir ~)
-    ?:  =([/ %clay-info] p.sage)
-      =/  [dek=desk changes=(list [path ?([%ins @tas *] [%del ~])])]
-        !<([desk (list [path ?([%ins @tas *] [%del ~])])] q.sage)
-      =.  this  (handle-clay-info dek changes)
-      `(enqu-take here (sys-give /clay) ~ %pack wir ~)
-    ~  :: unknown clay poke, fall through
-  ::
-      %gall
-    ?.  =([/ %gall-poke] p.sage)  ~
-    =.  this  (handle-gall-poke here wir q.sage)
-    `(enqu-take here (sys-give /gall) ~ %pack wir ~)
-  ::
-      %dill
-    ?.  =([/ %dill-belt] p.sage)  ~
-    =/  [session=@tas =belt:dill]  !<([@tas belt:dill] q.sage)
-    =.  this  (emit-card [%pass /dill/belt %arvo %d %shot session %belt belt])
-    `(enqu-take here (sys-give /dill) ~ %pack wir ~)
-  ::
-      %scry
-    ?.  =([/ %scry-request] p.sage)  ~
-    =.  this  (handle-scry-request here wir q.sage)
-    `(enqu-take here (sys-give /scry) ~ %pack wir ~)
-  ==
-::
-::  /sys/iris/ runtime HTTP client service
-::  Intercepts http-request pokes and iris responses — no fiber needed.
-::
-++  handle-iris-request
-  |=  [sender=rail:tarball =wire vaz=vase]
-  ^+  this
-  =/  =request:http  !<(request:http vaz)
-  =/  iris-rail=rail:tarball  [/sys/iris %'main.iris-state']
-  ::  Build iris wire: /iris/request/{path-len}/{path...}/{name}/{wire...}
-  =/  iris-wire=path
-    :-  %iris
-    :-  %request
-    :-  (scot %ud (lent path.sender))
-    (weld path.sender [name.sender wire])
-  ::  Update state
-  =/  old=(unit content:tarball)  (~(get ba:tarball ball) iris-rail)
-  =/  st=iris-state:nexus
-    ?~  old  [%0 ~]
-    !<(iris-state:nexus q.sage.u.old)
-  =.  requests.st  (~(put by requests.st) iris-wire [sender url.request])
-  =.  this  (save-file iris-rail [~ [/ %iris-state] !>(st)])
-  ::  Emit iris request card
-  (emit-card [%pass iris-wire %arvo %i %request request *outbound-config:iris])
-::
-++  handle-iris-response
-  |=  [segs=wire =client-response:iris]
-  ^+  this
-  ::  Decode wire: {path-len}/{path...}/{name}/{wire...}
-  ?>  ?=(^ segs)
-  =/  path-len=@ud  (slav %ud i.segs)
-  =/  from-path=path  (scag path-len t.segs)
-  =/  rest=wire  (slag path-len t.segs)
-  ?>  ?=(^ rest)
-  =/  from-name=@ta  i.rest
-  =/  req-wire=wire  t.rest
-  =/  sender=rail:tarball  [from-path from-name]
-  ::  Remove from state
-  =/  iris-rail=rail:tarball  [/sys/iris %'main.iris-state']
-  =/  iris-wire=path  [%iris %request segs]
-  =/  old=(unit content:tarball)  (~(get ba:tarball ball) iris-rail)
-  =/  st=iris-state:nexus
-    ?~  old  [%0 ~]
-    !<(iris-state:nexus q.sage.u.old)
-  =.  requests.st  (~(del by requests.st) iris-wire)
-  =.  this  (save-file iris-rail [~ [/ %iris-state] !>(st)])
-  ::  Poke sender back with http-response
-  =/  rel=from:fiber:nexus  (relativize-from:nexus sender &+iris-rail)
-  (enqu-take sender (sys-give /iris) ~ %poke rel [[/ %http-response] !>(client-response)])
-::
-::  /sys/clay/ runtime desk sync service
-::  Intercepts mount/unmount pokes — no fiber needed.
+::  /sys/clay/ desk sync service
 ::
 ++  handle-clay-mount
   |=  dek=desk
@@ -3778,8 +3668,7 @@
   =.  this  (emit-card [%pass /new-desk %arvo (new-desk:cloy dek ~ files)])
   (emit-card [%pass /desk-bill %arvo %c %info dek %& [/desk/bill %ins bill+!>(~[dek])]~])
 ::
-::  /sys/clay/ runtime file write service
-::  Takes [desk changes] with pages, clams through marks, emits %c %info.
+::  /sys/clay/ file write service
 ::
 ++  handle-clay-info
   |=  [dek=desk changes=(list [path ?([%ins @tas *] [%del ~])])]
@@ -3795,8 +3684,68 @@
     ==
   (emit-card [%pass /clay-info %arvo %c %info dek %& mis])
 ::
-::  /sys/gall/ runtime agent poke service
-::  Intercepts gall-poke, emits %agent card, routes poke-ack back.
+::  /sys/eyre/ HTTP server service
+::
+++  eyre-response-cards
+  |=  [eyre-id=@ta upd=eyre-update:nexus]
+  ^-  (list card)
+  ?-    -.upd
+      %header
+    [%give %fact ~[/http-response/[eyre-id]] http-response-header+!>(response-header.upd)]~
+      %data
+    [%give %fact ~[/http-response/[eyre-id]] http-response-data+!>(data.upd)]~
+      %kick
+    [%give %kick ~[/http-response/[eyre-id]] ~]~
+      %simple
+    (give-simple-payload:app:server eyre-id simple-payload.upd)
+  ==
+::
+++  handle-eyre-action
+  |=  [sender=rail:tarball =wire vaz=vase]
+  ^+  this
+  =/  act=eyre-action:nexus  !<(eyre-action:nexus vaz)
+  =/  st=server-state:nexus  get-server-state
+  ?-    -.act
+      %bind
+    =.  bindings.st  (~(put by bindings.st) binding.act handler.act)
+    =.  this  (save-server-state st)
+    (emit-card [%pass /eyre-bind %arvo %e %connect binding.act dap.bowl])
+  ::
+      %unbind
+    =/  orphans=(list @ta)
+      %+  murn  ~(tap by conns.st)
+      |=  [eid=@ta =binding:eyre]
+      ?.  =(binding binding.act)  ~
+      `eid
+    =.  this
+      %-  emit-cards
+      %+  turn  orphans
+      |=  eid=@ta
+      ^-  card
+      [%give %kick ~[/http-response/[eid]] ~]
+    =.  conns.st
+      %-  ~(gas by *(map @ta binding:eyre))
+      %+  skip  ~(tap by conns.st)
+      |=  [eid=@ta =binding:eyre]
+      =(binding binding.act)
+    =.  bindings.st  (~(del by bindings.st) binding.act)
+    (save-server-state st)
+  ::
+      %send
+    =/  crds=(list card)
+      (eyre-response-cards eyre-id.act eyre-update.act)
+    =/  conn-binding=(unit binding:eyre)
+      (~(get by conns.st) eyre-id.act)
+    ?:  ?=(?(%kick %simple) -.eyre-update.act)
+      ?~  conn-binding
+        (emit-cards crds)
+      =.  conns.st  (~(del by conns.st) eyre-id.act)
+      =.  this  (save-server-state st)
+      (emit-cards crds)
+    (emit-cards crds)
+  ==
+::
+::  /sys/gall/ agent poke service
 ::
 ++  handle-gall-poke
   |=  [sender=rail:tarball =wire vaz=vase]
@@ -3836,8 +3785,54 @@
   =/  rel=from:fiber:nexus  (relativize-from:nexus sender &+[/sys/gall %'main.sig'])
   (enqu-take sender (sys-give /gall) ~ %poke rel ack-sage)
 ::
-::  /sys/scry/ runtime scry service
-::  Intercepts scry-request pokes — does .^ and pokes sender back.
+::  /sys/iris/ HTTP client service
+::
+++  handle-iris-request
+  |=  [sender=rail:tarball =wire vaz=vase]
+  ^+  this
+  =/  =request:http  !<(request:http vaz)
+  =/  iris-rail=rail:tarball  [/sys/iris %'main.iris-state']
+  ::  Build iris wire: /iris/request/{path-len}/{path...}/{name}/{wire...}
+  =/  iris-wire=path
+    :-  %iris
+    :-  %request
+    :-  (scot %ud (lent path.sender))
+    (weld path.sender [name.sender wire])
+  ::  Update state
+  =/  old=(unit content:tarball)  (~(get ba:tarball ball) iris-rail)
+  =/  st=iris-state:nexus
+    ?~  old  [%0 ~]
+    !<(iris-state:nexus q.sage.u.old)
+  =.  requests.st  (~(put by requests.st) iris-wire [sender url.request])
+  =.  this  (save-file iris-rail [~ [/ %iris-state] !>(st)])
+  (emit-card [%pass iris-wire %arvo %i %request request *outbound-config:iris])
+::
+++  handle-iris-response
+  |=  [segs=wire =client-response:iris]
+  ^+  this
+  ::  Decode wire: {path-len}/{path...}/{name}/{wire...}
+  ?>  ?=(^ segs)
+  =/  path-len=@ud  (slav %ud i.segs)
+  =/  from-path=path  (scag path-len t.segs)
+  =/  rest=wire  (slag path-len t.segs)
+  ?>  ?=(^ rest)
+  =/  from-name=@ta  i.rest
+  =/  req-wire=wire  t.rest
+  =/  sender=rail:tarball  [from-path from-name]
+  ::  Remove from state
+  =/  iris-rail=rail:tarball  [/sys/iris %'main.iris-state']
+  =/  iris-wire=path  [%iris %request segs]
+  =/  old=(unit content:tarball)  (~(get ba:tarball ball) iris-rail)
+  =/  st=iris-state:nexus
+    ?~  old  [%0 ~]
+    !<(iris-state:nexus q.sage.u.old)
+  =.  requests.st  (~(del by requests.st) iris-wire)
+  =.  this  (save-file iris-rail [~ [/ %iris-state] !>(st)])
+  ::  Poke sender back with http-response
+  =/  rel=from:fiber:nexus  (relativize-from:nexus sender &+iris-rail)
+  (enqu-take sender (sys-give /iris) ~ %poke rel [[/ %http-response] !>(client-response)])
+::
+::  /sys/scry/ scry service
 ::
 ++  handle-scry-request
   |=  [sender=rail:tarball =wire vaz=vase]
