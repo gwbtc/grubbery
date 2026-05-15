@@ -20,7 +20,7 @@
       ==
     ::
     ++  on-file
-      |=  [=rail:tarball =mark]
+      |=  [=rail:tarball =blot:tarball]
       ^-  spool:fiber:nexus
       |=  =prod:fiber:nexus
       =/  m  (fiber:fiber:nexus ,~)

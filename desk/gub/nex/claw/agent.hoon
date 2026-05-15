@@ -637,7 +637,7 @@
       ==
     ::
     ++  on-file
-      |=  [=rail:tarball =mark]
+      |=  [=rail:tarball =blot:tarball]
       ^-  spool:fiber:nexus
       |=  =prod:fiber:nexus
       =/  m  (fiber:fiber:nexus ,~)
@@ -2733,24 +2733,24 @@
       (pure:m [%error 'Missing required argument: road'])
     ?~  content=(get-arg st 'content')
       (pure:m [%error 'Missing required argument: content'])
-    =/  dest-mark=(unit @tas)
+    =/  dest-blot=(unit blot:tarball)
       ?~  mk=(get-arg st 'mark')  ~
       ?:  =('' u.mk)  ~
-      ::  parse as blot path, extract name
+      ::  parse as blot path
       =/  pax=path
         ?:  =('/' (end 3 u.mk))  (stab u.mk)
         (stab (cat 3 '/' u.mk))
       ?~  pax  ~
-      `(rear pax)
+      `[(snip pax) (rear pax)]
     =/  road=road:tarball  (agent-road u.raw)
     =/  src-mime=mime  [/text/plain (as-octs:mimes:html u.content)]
     ;<  exists=?  bind:m  (peek-exists:io road)
     ?:  exists
-      ?^  dest-mark
-        (pure:m [%error 'Cannot change mark of existing file. Delete it first, then recreate with the desired mark.'])
+      ?^  dest-blot
+        (pure:m [%error 'Cannot change blot of existing file. Delete it first, then recreate with the desired blot.'])
       ;<  ~  bind:m  (over:io road [[/ %mime] !>(src-mime)])
       (pure:m [%text (crip "Wrote {(trip u.raw)}")])
-    ;<  ~  bind:m  (make:io road |+[%.n [[/ %mime] !>(src-mime)] dest-mark])
+    ;<  ~  bind:m  (make:io road |+[%.n [[/ %mime] !>(src-mime)] dest-blot])
     (pure:m [%text (crip "Created {(trip u.raw)}")])
   --
 ::
@@ -4111,7 +4111,7 @@
     =/  [job-name=@ta *]  i.jobs
     =/  job-road=road:tarball
       (agent-road (crip "./proc/cron/{(trip job-name)}"))
-    ;<  job-seen=seen:nexus  bind:m  (peek:io job-road `%json)
+    ;<  job-seen=seen:nexus  bind:m  (peek:io job-road `[/ %json])
     =/  line=tape
       ?.  ?=([%& %file *] job-seen)
         "{(trip job-name)}: (unreadable)\0a"

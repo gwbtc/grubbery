@@ -34,7 +34,7 @@
       ==
     ::
     ++  on-file
-      |=  [=rail:tarball =mark]
+      |=  [=rail:tarball =blot:tarball]
       ^-  spool:fiber:nexus
       |=  =prod:fiber:nexus
       =/  m  (fiber:fiber:nexus ,~)
@@ -340,7 +340,7 @@
   ;<  exists=?  bind:m  (peek-exists:io file-road)
   ?:  exists
     (over:io file-road [[/ %mime] !>(file-mime)])
-  =/  ext=(unit @ta)  (parse-extension:tarball filename)
+  =/  ext=(unit blot:tarball)  (bind (parse-extension:tarball filename) |=(e=@ta [/ e]))
   ;<  err=(unit tang)  bind:m
     (make-soft:io file-road |+[%.n [[/ %mime] !>(file-mime)] ext])
   ?~  err  (pure:m ~)

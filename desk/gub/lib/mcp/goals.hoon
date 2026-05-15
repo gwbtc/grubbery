@@ -123,7 +123,7 @@
     ;<  now=@da  bind:m  get-time:io
     =/  store=goal-store:goals  (create-store:goals now)
     ;<  ~  bind:m
-      (make:io (store-road name) |+[%.n [[/ %goal-store] !>(store)] `%goal-store])
+      (make:io (store-road name) |+[%.n [[/ %goal-store] !>(store)] `[/ %goal-store]])
     (pure:m [%text (crip "Created store: {(trip name)}")])
   ::
       %'delete-store'

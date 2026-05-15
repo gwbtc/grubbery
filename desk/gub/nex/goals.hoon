@@ -182,7 +182,7 @@
       ==
     ::
     ++  on-file
-      |=  [=rail:tarball =mark]
+      |=  [=rail:tarball =blot:tarball]
       ^-  spool:fiber:nexus
       |=  =prod:fiber:nexus
       =/  m  (fiber:fiber:nexus ,~)
@@ -205,7 +205,7 @@
           =/  store=goal-store:goals  (create-store:goals now)
           =/  fname=@ta  (store-fname name)
           ;<  ~  bind:m
-            (make:io [%| 0 %& /store fname] |+[%.n [[/ %goal-store] !>(store)] `%goal-store])
+            (make:io [%| 0 %& /store fname] |+[%.n [[/ %goal-store] !>(store)] `[/ %goal-store]])
           $
             %goal-delete-store
           =/  name=@ta  !<(@ta q.sage)
@@ -227,7 +227,7 @@
             =/  store=goal-store:goals  (create-store:goals now)
             =/  fname=@ta  (store-fname name)
             ;<  ~  bind:m
-              (make:io [%| 0 %& /store fname] |+[%.n [[/ %goal-store] !>(store)] `%goal-store])
+              (make:io [%| 0 %& /store fname] |+[%.n [[/ %goal-store] !>(store)] `[/ %goal-store]])
             $
               %'delete-store'
             =/  name=@ta  (~(dog jo:json-utils jon) /name so:dejs:format)
@@ -299,7 +299,7 @@
           ::  /store/*.goal-store: per-store process
           ::
           [[%store ~] @]
-        ?>  ?=(%goal-store mark)
+        ?>  ?=([/ %goal-store] blot)
         ;<  ~  bind:m  (rise-wait:io prod "%goals /store: failed, poke to restart")
         =/  store-name=@ta  (store-name-from-fname name.rail)
         ~&  >  [%goals-store store-name %ready]

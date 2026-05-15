@@ -41,7 +41,7 @@
       ==
     ::
     ++  on-file
-      |=  [=rail:tarball =mark]
+      |=  [=rail:tarball =blot:tarball]
       ^-  spool:fiber:nexus
       |=  =prod:fiber:nexus
       =/  m  (fiber:fiber:nexus ,~)
@@ -60,7 +60,7 @@
           [%pass /jael-src %agent [our dap:io] %poke %set-jael-source !>(src)]~
         ::
         ;<  cfg-seen=seen:nexus  bind:m
-          (peek:io [%| 1 %& / %'config.json'] `%json)
+          (peek:io [%| 1 %& / %'config.json'] `[/ %json])
         =/  [url=@t auth=@t]  (read-config cfg-seen)
         |-
         =/  req=request:http
@@ -95,7 +95,7 @@
           [~ %'urb-state.urb-state']
         ;<  ~  bind:m  (rise-wait:io prod "%groundwire /urb-state: failed")
         ;<  cfg-seen=seen:nexus  bind:m
-          (peek:io (cord-to-road:tarball './config.json') `%json)
+          (peek:io (cord-to-road:tarball './config.json') `[/ %json])
         =/  [url=@t auth=@t]  (read-config cfg-seen)
         ;<  urb-state=state:urb  bind:m  (get-state-as:io ,state:urb)
         =/  processed=@ud  num.block-id.urb-state
@@ -300,7 +300,7 @@
           (pure:m [sd twk.w utxo.w])
         =.  sed.args  resolved-sed
         ;<  cfg-seen=seen:nexus  bind:m
-          (peek:io [%| 1 %& / %'config.json'] `%json)
+          (peek:io [%| 1 %& / %'config.json'] `[/ %json])
         =/  [url=@t auth=@t]  (read-config cfg-seen)
         =/  batch=(list single:skim-sotx:urb)
           ?:  ?=([%batch *] many.args)  bat.many.args
@@ -1222,7 +1222,7 @@
   =/  new-lines=wain  (trace-block:btc-rpc blk reveals-count)
   ?~  new-lines  (pure:m ~)
   =/  trace-road=road:tarball  (cord-to-road:tarball './trace.txt')
-  ;<  prev-seen=seen:nexus  bind:m  (peek:io trace-road `%txt)
+  ;<  prev-seen=seen:nexus  bind:m  (peek:io trace-road `[/ %txt])
   =/  prev-lines=wain
     ?:  ?=([%& %file *] prev-seen)  !<(wain q.sage.p.prev-seen)
     ~

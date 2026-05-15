@@ -31,7 +31,7 @@
       ==
     ::
     ++  on-file
-      |=  [=rail:tarball =mark]
+      |=  [=rail:tarball =blot:tarball]
       ^-  spool:fiber:nexus
       |=  =prod:fiber:nexus
       =/  m  (fiber:fiber:nexus ,~)
@@ -523,7 +523,7 @@
   ;<  msg=messages  bind:m  (read-msgs msg-road)
     ::  read config for API key
     ;<  cfg-seen=seen:nexus  bind:m
-      (peek:io (cord-to-road:tarball './config.json') `%json)
+      (peek:io (cord-to-road:tarball './config.json') `[/ %json])
     =/  cfg=json
       ?.  ?=([%& %file *] cfg-seen)
         (need (de:json:html '{}'))
@@ -538,9 +538,9 @@
     =/  max-messages=@ud  (jget-n cfg 'max_messages' 50)
     ::  build system prompt
     ;<  custom-seen=seen:nexus  bind:m
-      (peek:io (cord-to-road:tarball './custom-prompt.txt') `%txt)
+      (peek:io (cord-to-road:tarball './custom-prompt.txt') `[/ %txt])
     ;<  weir-seen=seen:nexus  bind:m
-      (peek:io (cord-to-road:tarball './weir.txt') `%txt)
+      (peek:io (cord-to-road:tarball './weir.txt') `[/ %txt])
     ;<  our=@p  bind:m  get-our:io
     ;<  now=@da  bind:m  get-time:io
     =/  custom=@t
@@ -1402,7 +1402,7 @@
   |=  msg-road=road:tarball
   =/  m  (fiber:fiber:nexus ,messages)
   ^-  form:m
-  ;<  seen=seen:nexus  bind:m  (peek:io msg-road `%claude-messages)
+  ;<  seen=seen:nexus  bind:m  (peek:io msg-road `[/ %claude-messages])
   ?.  ?=([%& %file *] seen)
     (pure:m `messages`[%0 *((mop @ud message) lth)])
   (pure:m !<(messages q.sage.p.seen))

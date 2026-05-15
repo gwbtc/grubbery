@@ -181,12 +181,12 @@
         =/  m=make:nexus
           ?:  ?=(%& -.make.req)
             &+[sand.p.make.req gain.p.make.req ball.p.make.req]
-          |+[gain.p.make.req [p.bask.p.make.req !>(`*`q.bask.p.make.req)] mark.p.make.req]
+          |+[gain.p.make.req [p.bask.p.make.req !>(`*`q.bask.p.make.req)] blot.p.make.req]
         [%make m]
         %cull  [%cull ~]
         %sand  [%sand weir.req]
         %load  [%load ~]
-        %peek  [%peek mark.req ~ %.y]
+        %peek  [%peek blot.req ~ %.y]
       ==
     =/  =dart:nexus  [%node /peer [%& dest.req] load]
     =^  dart-cards  state
@@ -1281,11 +1281,11 @@
 ::  Add subscription: watcher subscribes to target with wire
 ::
 ++  sub-put
-  |=  [target=lane:tarball watcher=rail:tarball =wire mark=(unit mark)]
+  |=  [target=lane:tarball watcher=rail:tarball =wire blot=(unit blot:tarball)]
   ^+  this
-  ::  Add to forward index: target → (watcher → [wire mark])
+  ::  Add to forward index: target → (watcher → [wire blot])
   =/  watchers=subscribers:nexus  (fwd-get target)
-  =.  fwd.subs  (fwd-set target (~(put by watchers) watcher [wire mark]))
+  =.  fwd.subs  (fwd-set target (~(put by watchers) watcher [wire blot]))
   ::  Add to reverse index: watcher → targets
   =/  targets=subscriptions:nexus  (rev-get watcher)
   =.  rev.subs  (rev-set watcher (~(put in targets) target))
@@ -1323,11 +1323,11 @@
   ::  If the jael-source file changed, give udiffs to gall subscribers
   =.  this  (maybe-give-jael changed)
   ::  For each watched lane, find subscribers and send news
-  =/  watched=(list [target=lane:tarball watchers=(map rail:tarball [=wire mark=(unit mark)])])
+  =/  watched=(list [target=lane:tarball watchers=(map rail:tarball [=wire blot=(unit blot:tarball)])])
     tap-fwd
   |-
   ?~  watched  this
-  =/  [target=lane:tarball watchers=(map rail:tarball [=wire mark=(unit mark)])]  i.watched
+  =/  [target=lane:tarball watchers=(map rail:tarball [=wire blot=(unit blot:tarball)])]  i.watched
   ::  Find all changed lanes that are inside this target (or equal to target)
   =/  relevant=(set lane:tarball)
     %-  ~(gas in *(set lane:tarball))
@@ -1368,16 +1368,16 @@
       ?~  sub-ball  [%none ~]
       [%ball (~(dip of sand) p.target) (~(dip of gain) p.target) (~(dip of born) p.target) u.sub-ball]
     ==
-  ::  Send to each watcher, converting file view if mark is set
+  ::  Send to each watcher, converting file view if blot is set
   =.  this
     %-  ~(rep by watchers)
-    |=  [[watcher=rail:tarball =wire mark=(unit mark)] acc=_this]
+    |=  [[watcher=rail:tarball =wire blot=(unit blot:tarball)] acc=_this]
     =/  watcher-view=view:nexus
-      ?~  mark  view
+      ?~  blot  view
       ?.  ?=(%file -.view)  view
-      ?:  =(name.p.sage.view u.mark)  view  :: already correct mark
-      =/  =tube:clay  (get-tube path.watcher [p.sage.view [/ u.mark]])
-      view(sage [[/ u.mark] (tube q.sage.view)])
+      ?:  =(p.sage.view u.blot)  view  :: already correct blot
+      =/  =tube:clay  (get-tube path.watcher [p.sage.view u.blot])
+      view(sage [u.blot (tube q.sage.view)])
     (enqu-take:acc watcher (sys-give:acc /news) ~ %news wire watcher-view)
   $(watched t.watched)
 ::  If the jael-source rail changed, give %azimuth-udiffs to gall subs.
@@ -1413,7 +1413,7 @@
 ++  fell-sub
   |=  [target=lane:tarball watcher=rail:tarball]
   ^+  this
-  =/  val=[=wire mark=(unit mark)]  (~(got by (fwd-get target)) watcher)
+  =/  val=[=wire blot=(unit blot:tarball)]  (~(got by (fwd-get target)) watcher)
   =.  this  (sub-del target watcher)
   (enqu-take watcher (sys-give /fell) ~ %fell wire.val)
 ::  Re-check subscriptions after weir change: fell any that are now blocked
@@ -1480,8 +1480,8 @@
   ::  Get the file from the ball - must exist
   =/  file-data=(unit content:tarball)  (~(get ba:tarball ball) path.here name.here)
   ?~  file-data  ~
-  ::  Extract mark from the sage
-  =/  =mark  name.p.sage.u.file-data
+  ::  Extract blot from the sage
+  =/  =blot:tarball  p.sage.u.file-data
   ::  Find the nearest parent nexus
   =/  nex-info=(unit (pair path neck:tarball))  (find-nearest-nexus here)
   ?~  nex-info  ~
@@ -1490,7 +1490,7 @@
   ?:  ?=(%| -.nex-res)  ~
   ::  Call on-file with rail relative to nexus location
   =/  rel=rail:tarball  (relativize-rail:tarball p.u.nex-info here)
-  `(on-file:p.nex-res rel mark)
+  `(on-file:p.nex-res rel blot)
 ::
 ++  process-dart
   |=  [here=rail:tarball =dart:nexus]
@@ -1610,12 +1610,12 @@
         =/  =make:nexus
           ?.  ?=(%| -.make.load.dart)
             make.load.dart
-          ?~  mark.p.make.load.dart
+          ?~  blot.p.make.load.dart
             make.load.dart
-          ?:  =(name.p.sage.p.make.load.dart u.mark.p.make.load.dart)
+          ?:  =(p.sage.p.make.load.dart u.blot.p.make.load.dart)
             make.load.dart
-          =/  =tube:clay  (get-tube cod [p.sage.p.make.load.dart [/ u.mark.p.make.load.dart]])
-          make.load.dart(sage.p [[/ u.mark.p.make.load.dart] (tube q.sage.p.make.load.dart)])
+          =/  =tube:clay  (get-tube cod [p.sage.p.make.load.dart u.blot.p.make.load.dart])
+          make.load.dart(sage.p [u.blot.p.make.load.dart (tube q.sage.p.make.load.dart)])
         (^make u.dest-lane make)
       ?-  -.res
         %&  (enqu-take:p.res here (sys-give /made) ~ %made wire.dart ~)
@@ -1764,9 +1764,9 @@
           p.res
         ::  Apply mark conversion if requested
         =/  result=sage:tarball
-          ?~  mark.load.dart  clammed
-          ?:  =(name.p.clammed u.mark.load.dart)  clammed
-          =/  =tube:clay  (get-tube cod [[/ name.p.clammed] [/ u.mark.load.dart]])
+          ?~  blot.load.dart  clammed
+          ?:  =(p.clammed u.blot.load.dart)  clammed
+          =/  =tube:clay  (get-tube cod [p.clammed u.blot.load.dart])
           [p.clammed (tube q.clammed)]
         (enqu-take here (sys-give /peek) ~ %peek wire.dart %& %file sk (lookup-gain dest) result)
       ==
@@ -1850,7 +1850,7 @@
       ::
         %keep
       ::  Subscribe to changes at dest (uses peek permission)
-      =.  this  (sub-put u.dest-lane here wire.dart mark.load.dart)
+      =.  this  (sub-put u.dest-lane here wire.dart blot.load.dart)
       ::  Construct initial view of the watched lane
       =/  =view:nexus
         ?-  -.u.dest-lane
@@ -1872,10 +1872,10 @@
           [%ball (~(dip of sand) dest) (~(dip of gain) dest) (~(dip of born) dest) u.sub-ball]
         ==
       ::  Apply mark conversion if requested
-      =?  view  &(?=(^ mark.load.dart) ?=(%file -.view))
-        ?:  =(name.p.sage.view u.mark.load.dart)  view
-        =/  =tube:clay  (get-tube cod [p.sage.view [/ u.mark.load.dart]])
-        view(sage [[/ u.mark.load.dart] (tube q.sage.view)])
+      =?  view  &(?=(^ blot.load.dart) ?=(%file -.view))
+        ?:  =(p.sage.view u.blot.load.dart)  view
+        =/  =tube:clay  (get-tube cod [p.sage.view u.blot.load.dart])
+        view(sage [u.blot.load.dart (tube q.sage.view)])
       (enqu-take here (sys-give /bond) ~ %bond wire.dart &+view)
       ::
         %drop
@@ -1972,11 +1972,11 @@
             %&
           ?~  rel-path
             [%& ~]
-          =/  =mark
+          =/  =blot:tarball
             =/  content=(unit content:tarball)
               (~(get ba:tarball ball) path.p.u.dest-lane name.p.u.dest-lane)
-            (fall (bind content |=(c=content:tarball name.p.sage.c)) %$)
-          [%| [(snip `path`rel-path) (rear rel-path)] mark]
+            (fall (bind content |=(c=content:tarball p.sage.c)) *blot:tarball)
+          [%| [(snip `path`rel-path) (rear rel-path)] blot]
         ==
       =/  manu-res=(each @t tang)
         (mule |.((on-manu:p.nex-res mana)))

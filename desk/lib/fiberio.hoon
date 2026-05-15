@@ -305,19 +305,19 @@
   (take-pack /poke)
 ::
 ++  peek
-  |=  [=road:tarball mark=(unit mark)]
+  |=  [=road:tarball blot=(unit blot:tarball)]
   =/  m  (fiber ,seen:nexus)
   ^-  form:m
-  ;<  ~  bind:m  (send-dart %node /peek road %peek mark ~ %.n)
+  ;<  ~  bind:m  (send-dart %node /peek road %peek blot ~ %.n)
   (take-peek /peek)
 ::
 ::  Peek at a historical version of a file
 ::
 ++  peek-at
-  |=  [=road:tarball mark=(unit mark) =case:nexus]
+  |=  [=road:tarball blot=(unit blot:tarball) =case:nexus]
   =/  m  (fiber ,seen:nexus)
   ^-  form:m
-  ;<  ~  bind:m  (send-dart %node /peek road %peek mark `case %.n)
+  ;<  ~  bind:m  (send-dart %node /peek road %peek blot `case %.n)
   (take-peek /peek)
 ::
 ::  Check if a target (file or directory) exists at a road.
@@ -540,10 +540,10 @@
 ::  Subscription operations: keep, drop
 ::
 ++  keep
-  |=  [=wire =road:tarball mark=(unit mark)]
+  |=  [=wire =road:tarball blot=(unit blot:tarball)]
   =/  m  (fiber ,view:nexus)
   ^-  form:m
-  ;<  ~  bind:m  (send-dart %node wire road %keep mark)
+  ;<  ~  bind:m  (send-dart %node wire road %keep blot)
   (take-bond wire)
 ::
 ++  drop

@@ -18,7 +18,7 @@
       ==
     ::
     ++  on-file
-      |=  [=rail:tarball =mark]
+      |=  [=rail:tarball =blot:tarball]
       ^-  spool:fiber:nexus
       |=  =prod:fiber:nexus
       =/  m  (fiber:fiber:nexus ,~)
@@ -72,7 +72,7 @@
         =/  site=path  site:(parse-url:http-utils url.request.req)
         =/  suffix=path  (slag (lent prefix) site)
         ::  Serve counter page from view grub
-        ;<  =seen:nexus  bind:m  (peek:io [%| 2 %& /ui/views %'page.html'] `%mime)
+        ;<  =seen:nexus  bind:m  (peek:io [%| 2 %& /ui/views %'page.html'] `[/ %mime])
         ?.  ?=([%& %file *] seen)
           ;<  ~  bind:m  (send-simple:srv eyre-id [[500 ~] `(as-octs:mimes:html 'View not ready')])
           (pure:m ~)

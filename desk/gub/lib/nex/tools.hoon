@@ -330,7 +330,7 @@
   =/  m  (fiber:fiber:nexus ,s3-creds)
   ^-  form:m
   ;<  creds-seen=seen:nexus  bind:m
-    (peek:io [%& %& /'mcp.mcp' %'s3.json'] `%json)
+    (peek:io [%& %& /'mcp.mcp' %'s3.json'] `[/ %json])
   ?.  ?=([%& %file *] creds-seen)
     ~|  %s3-creds-not-found
     !!

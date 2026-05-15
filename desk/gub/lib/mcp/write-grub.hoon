@@ -42,16 +42,16 @@
     ?.  ?=([%s *] u.ct)  ~
     ?:  =('' p.u.ct)  ~
     `p.u.ct
-  =/  dest-mark=(unit @tas)
+  =/  dest-blot=(unit blot:tarball)
     ?~  mk=(~(get jo:json-utils [%o args.st]) /mark)  ~
     ?.  ?=([%s *] u.mk)  ~
     ?:  =('' p.u.mk)  ~
-    ::  parse as blot path, extract name
+    ::  parse as blot path
     =/  pax=path
       ?:  =('/' (end 3 p.u.mk))  (stab p.u.mk)
       (stab (cat 3 '/' p.u.mk))
     ?~  pax  ~
-    `(rear pax)
+    `[(snip pax) (rear pax)]
   =/  file-path=@t  u.file-path
   =/  file-name=@t  u.file-name
   =/  content=@t  u.content-raw
@@ -74,14 +74,14 @@
   =/  src-mime=mime  [/text/plain (as-octs:mimes:html content)]
   ;<  exists=?  bind:m  (peek-exists:io road)
   ?:  exists
-    ?^  dest-mark
-      (pure:m [%error 'Cannot change mark of existing file. Delete it first, then recreate with the desired mark.'])
-    ::  Existing file: %over converts mime to file's mark via warm tube
+    ?^  dest-blot
+      (pure:m [%error 'Cannot change blot of existing file. Delete it first, then recreate with the desired blot.'])
+    ::  Existing file: %over converts mime to file's blot via warm tube
     ;<  ~  bind:m  (over:io road [[/ %mime] !>(src-mime)])
     (pure:m [%text (crip "Wrote {(trip file-path)}/{(trip file-name)}")])
-  ::  New file: pass dest-mark so runtime converts mime before storing.
-  ::  If no mark specified, stores as mime.
-  ;<  ~  bind:m  (make:io road |+[%.n [[/ %mime] !>(src-mime)] dest-mark])
-  =/  mark-msg=tape  ?~(dest-mark "mime" (trip u.dest-mark))
-  (pure:m [%text (crip "Created {(trip file-path)}/{(trip file-name)} [{mark-msg}]")])
+  ::  New file: pass dest-blot so runtime converts mime before storing.
+  ::  If no blot specified, stores as mime.
+  ;<  ~  bind:m  (make:io road |+[%.n [[/ %mime] !>(src-mime)] dest-blot])
+  =/  blot-msg=tape  ?~(dest-blot "mime" (spud (rail-to-path:tarball u.dest-blot)))
+  (pure:m [%text (crip "Created {(trip file-path)}/{(trip file-name)} [{blot-msg}]")])
 --

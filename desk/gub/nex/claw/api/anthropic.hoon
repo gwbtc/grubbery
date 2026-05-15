@@ -68,7 +68,7 @@
       ==
     ::
     ++  on-file
-      |=  [=rail:tarball =mark]
+      |=  [=rail:tarball =blot:tarball]
       ^-  spool:fiber:nexus
       |=  =prod:fiber:nexus
       =/  m  (fiber:fiber:nexus ,~)
@@ -234,7 +234,7 @@
     p.u.req
   ::  read current usage
   =/  usage-road=road:tarball  (cord-to-road:tarball '../usage.json')
-  ;<  usage-seen=seen:nexus  bind:m  (peek:io usage-road `%json)
+  ;<  usage-seen=seen:nexus  bind:m  (peek:io usage-road `[/ %json])
   =/  cur=json
     ?.  ?=([%& %file *] usage-seen)  [%o ~]
     (fall (mole |.(!<(json q.sage.p.usage-seen))) [%o ~])

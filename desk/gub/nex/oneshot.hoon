@@ -37,7 +37,7 @@
       ==
     ::
     ++  on-file
-      |=  [=rail:tarball =mark]
+      |=  [=rail:tarball =blot:tarball]
       ^-  spool:fiber:nexus
       |=  =prod:fiber:nexus
       =/  m  (fiber:fiber:nexus ,~)
@@ -250,7 +250,7 @@
   =/  m  (fiber:fiber:nexus ,json)
   ^-  form:m
   ;<  =seen:nexus  bind:m
-    (peek:io (cord-to-road:tarball rel) `%json)
+    (peek:io (cord-to-road:tarball rel) `[/ %json])
   ?.  ?=([%& %file *] seen)
     (pure:m ~)
   (pure:m !<(json q.sage.p.seen))
@@ -259,7 +259,7 @@
   =/  m  (fiber:fiber:nexus ,claude-config:oneshot)
   ^-  form:m
   ;<  =seen:nexus  bind:m
-    (peek:io (cord-to-road:tarball './config/claude.json') `%json)
+    (peek:io (cord-to-road:tarball './config/claude.json') `[/ %json])
   ?.  ?=([%& %file *] seen)
     (pure:m ['' 'claude-sonnet-4-20250514' 4.096])
   =/  cfg=json  !<(json q.sage.p.seen)
@@ -283,7 +283,7 @@
   =/  m  (fiber:fiber:nexus ,@t)
   ^-  form:m
   ;<  =seen:nexus  bind:m
-    (peek:io (cord-to-road:tarball './config/brave.json') `%json)
+    (peek:io (cord-to-road:tarball './config/brave.json') `[/ %json])
   ?.  ?=([%& %file *] seen)
     (pure:m '')
   =/  cfg=json  !<(json q.sage.p.seen)

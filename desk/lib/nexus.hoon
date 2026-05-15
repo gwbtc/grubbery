@@ -10,7 +10,6 @@
 +$  deps  (map rail:tarball (set rail:tarball))
 +$  bins  (axal (map @ta built))
 +$  lode  [=keys =deps =bins]
-::  TODO: replace all `mark` with `blot` (rail-based mark paths)
 ::  TODO: each code nexus compiles independently, so identical libraries
 ::  in different nexuses are recompiled and stored separately. A global
 ::  refcounted cache keyed by build hash (like Clay's +flow across desks)
@@ -67,7 +66,7 @@
 +$  here  [=pant name=@ta root=?]
 ::
 +$  gain  (axal (map @ta ?))
-+$  make  (each [=sand =gain =ball:tarball] [gain=? =sage:tarball mark=(unit mark)])
++$  make  (each [=sand =gain =ball:tarball] [gain=? =sage:tarball blot=(unit blot:tarball)])
 +$  kept  (set bend:tarball)
 ::
 +$  view
@@ -93,12 +92,12 @@
       [%sand weir=(unit weir)]  :: set weir
       [%load ~]                 :: trigger on-load for a nexus (folds only)
       [%gain flag=?]            :: set gain flag (recursive on directories)
-      [%peek mark=(unit mark) case=(unit case) clam=?]
+      [%peek blot=(unit blot:tarball) case=(unit case) clam=?]
                                        :: read a grub
-                                       :: mark: convert file sage to this mark
+                                       :: blot: convert file sage to this blot
                                        :: case: if set, read historical version
-      [%keep mark=(unit mark)]  :: subscribe to changes at dest (grub or ball per road)
-                                       :: mark: if set, convert file sage in news
+      [%keep blot=(unit blot:tarball)]  :: subscribe to changes at dest (grub or ball per road)
+                                       :: blot: if set, convert file sage in news
       [%drop ~]                 :: unsubscribe from dest
       [%lose =lose]             :: drop hist entries, decrement silo refs
       [%seek =lobe:clay]        :: find all [rail cass] pairs with this hash
@@ -110,7 +109,7 @@
   ==
 ::  manu types — documentation query
 ::
-+$  mury  [=rail:tarball =mark]          :: file query: rail + mark
++$  mury  [=rail:tarball =blot:tarball]   :: file query: rail + blot
 +$  mana  (each fold:tarball mury)       :: directory or file query
 ::
 ::
@@ -394,7 +393,7 @@
 +$  bangs  [bang=(unit tang) err=(map @ta (unit tang))]
 ::  Internal subscriptions: process watches tree locations
 ::
-+$  subscribers    (map rail:tarball [=wire mark=(unit mark)])
++$  subscribers    (map rail:tarball [=wire blot=(unit blot:tarball)])
 +$  subscriptions  (set lane:tarball)
 ::  fwd: "who is watching this lane?" → watcher + wire for routing
 ::  rev: "what is this process watching?" → for cleanup on death
@@ -868,10 +867,10 @@
             [%sand weir=(unit weir)]
             [%load ~]
             [%poke =bask:tarball]
-            [%peek mark=(unit mark)]
+            [%peek blot=(unit blot:tarball)]
         ==
     ==
-  +$  make  (each [=sand =gain =ball:tarball] [gain=? =bask:tarball mark=(unit mark)])
+  +$  make  (each [=sand =gain =ball:tarball] [gain=? =bask:tarball blot=(unit blot:tarball)])
   +$  intake
     $:  =wire
         $%  [%peek ~] :: TBD
@@ -1014,7 +1013,7 @@
   ::   is a responsibility of the programmer.
   ::
   ++  on-file
-    |~  [rail:tarball mark]
+    |~  [rail:tarball blot:tarball]
     *spool:fiber :: define spool (initializer) for grub at rail
   :: manual page for a grub or directory. returns documentation text.
   ::

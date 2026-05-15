@@ -54,7 +54,7 @@
       ==
     ::
     ++  on-file
-      |=  [=rail:tarball =mark]
+      |=  [=rail:tarball =blot:tarball]
       ^-  spool:fiber:nexus
       |=  =prod:fiber:nexus
       =/  m  (fiber:fiber:nexus ,~)
@@ -176,25 +176,25 @@
           (crip "/grubbery/api/file{(spud path.here)}")
         ;<  cfg-rd=road:tarball  bind:m
           (ancestor-road:io [/git %repo] [%& / %'config.json'])
-        ;<  init-cfg=view:nexus  bind:m  (keep:io /cfg cfg-rd `%json)
+        ;<  init-cfg=view:nexus  bind:m  (keep:io /cfg cfg-rd `[/ %json])
         ;<  tree-rd=road:tarball  bind:m
           (ancestor-road:io [/git %repo] [%| /data/tree])
         ;<  init-tree=view:nexus  bind:m  (keep:io /tree tree-rd ~)
         ;<  status-rd=road:tarball  bind:m
           (ancestor-road:io [/git %repo] [%& /ui %'status.json'])
-        ;<  init-status=view:nexus  bind:m  (keep:io /status status-rd `%json)
+        ;<  init-status=view:nexus  bind:m  (keep:io /status status-rd `[/ %json])
         ;<  branches-rd=road:tarball  bind:m
           (ancestor-road:io [/git %repo] [%& /data/ui %'branches.json'])
-        ;<  init-branches=view:nexus  bind:m  (keep:io /branches branches-rd `%json)
+        ;<  init-branches=view:nexus  bind:m  (keep:io /branches branches-rd `[/ %json])
         ;<  commits-rd=road:tarball  bind:m
           (ancestor-road:io [/git %repo] [%& /data/ui %'commits.json'])
-        ;<  init-commits=view:nexus  bind:m  (keep:io /commits commits-rd `%json)
+        ;<  init-commits=view:nexus  bind:m  (keep:io /commits commits-rd `[/ %json])
         ;<  current-rd=road:tarball  bind:m
           (ancestor-road:io [/git %repo] [%& /data/ui %'current.json'])
-        ;<  init-current=view:nexus  bind:m  (keep:io /current current-rd `%json)
+        ;<  init-current=view:nexus  bind:m  (keep:io /current current-rd `[/ %json])
         ;<  status-rd=road:tarball  bind:m
           (ancestor-road:io [/git %repo] [%& /data/ui %'status.json'])
-        ;<  init-status=view:nexus  bind:m  (keep:io /status status-rd `%json)
+        ;<  init-status=view:nexus  bind:m  (keep:io /status status-rd `[/ %json])
         =/  cfg=repo-config  (view-to-config init-cfg)
         =/  files=(list @t)  (view-to-files init-tree)
         =/  branches=(list @t)  (view-to-branches init-branches)
@@ -226,7 +226,7 @@
         ::  block checkout if working tree is dirty
         ;<  status-rd=road:tarball  bind:m
           (ancestor-road:io [/git %repo] [%& /data/ui %'status.json'])
-        ;<  status-seen=seen:nexus  bind:m  (peek:io status-rd `%json)
+        ;<  status-seen=seen:nexus  bind:m  (peek:io status-rd `[/ %json])
         =/  is-clean=?
           ?.  ?=([%.y *] status-seen)  %.y
           =/  status-json=json  (view-to-json p.status-seen)
@@ -263,7 +263,7 @@
         ::  block if dirty
         ;<  status-rd=road:tarball  bind:m
           (ancestor-road:io [/git %repo] [%& /data/ui %'status.json'])
-        ;<  status-seen=seen:nexus  bind:m  (peek:io status-rd `%json)
+        ;<  status-seen=seen:nexus  bind:m  (peek:io status-rd `[/ %json])
         =/  is-clean=?
           ?.  ?=([%.y *] status-seen)  %.y
           =/  status-json=json  (view-to-json p.status-seen)
@@ -519,7 +519,7 @@
         ;<  local-ref=@t  bind:m  (resolve-ref ref.cfg)
         ;<  remote-rd=road:tarball  bind:m
           (ancestor-road:io [/git %repo] [%& /data/refs/remotes/origin (crip (trip branch))])
-        ;<  remote-seen=seen:nexus  bind:m  (peek:io remote-rd `%mime)
+        ;<  remote-seen=seen:nexus  bind:m  (peek:io remote-rd `[/ %mime])
         =/  remote-ref=@t
           ?.  ?=([%& %file *] remote-seen)  ''
           =/  mim=mime  !<(mime q.sage.p.remote-seen)
@@ -768,7 +768,7 @@
   =/  m  (fiber:fiber:nexus ,repo-config)
   ^-  form:m
   ;<  road=road:tarball  bind:m  (ancestor-road:io [/git %repo] [%& / %'config.json'])
-  ;<  =seen:nexus  bind:m  (peek:io road `%json)
+  ;<  =seen:nexus  bind:m  (peek:io road `[/ %json])
   ?.  ?=([%& %file *] seen)
     (pure:m ['' 'main' ''])
   =/  cfg=json  (fall (mole |.(!<(json q.sage.p.seen))) *json)
@@ -933,7 +933,7 @@
   ^-  form:m
   ;<  head-rd=road:tarball  bind:m
     (ancestor-road:io [/git %repo] [%& /data %'HEAD'])
-  ;<  head-seen=seen:nexus  bind:m  (peek:io head-rd `%mime)
+  ;<  head-seen=seen:nexus  bind:m  (peek:io head-rd `[/ %mime])
   ?.  ?=([%.y %file *] head-seen)
     (pure:m '')
   =/  head-mim=mime  !<(mime q.sage.p.head-seen)
@@ -956,7 +956,7 @@
   ^-  form:m
   ;<  head-rd=road:tarball  bind:m
     (ancestor-road:io [/git %repo] [%& /data %'HEAD'])
-  ;<  head-seen=seen:nexus  bind:m  (peek:io head-rd `%mime)
+  ;<  head-seen=seen:nexus  bind:m  (peek:io head-rd `[/ %mime])
   ?.  ?=([%.y %file *] head-seen)
     (pure:m '')
   =/  head-mim=mime  !<(mime q.sage.p.head-seen)
@@ -977,7 +977,7 @@
   =/  active=@ta  ?:(=('' ref) 'main' (crip (trip ref)))
   ;<  road=road:tarball  bind:m
     (ancestor-road:io [/git %repo] [%& /data/refs/heads active])
-  ;<  =seen:nexus  bind:m  (peek:io road `%mime)
+  ;<  =seen:nexus  bind:m  (peek:io road `[/ %mime])
   ?.  ?=([%& %file *] seen)
     ~&  >>>  ["%git/repo: ref not found:" active]
     (pure:m '')

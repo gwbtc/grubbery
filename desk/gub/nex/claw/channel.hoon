@@ -39,7 +39,7 @@
       ==
     ::
     ++  on-file
-      |=  [=rail:tarball =mark]
+      |=  [=rail:tarball =blot:tarball]
       ^-  spool:fiber:nexus
       |=  =prod:fiber:nexus
       =/  m  (fiber:fiber:nexus ,~)
@@ -176,7 +176,7 @@
   =/  m  (fiber:fiber:nexus ,channel-config)
   ^-  form:m
   =/  road=road:tarball  (cord-to-road:tarball './config.json')
-  ;<  =seen:nexus  bind:m  (peek:io road `%json)
+  ;<  =seen:nexus  bind:m  (peek:io road `[/ %json])
   ?.  ?=([%& %file *] seen)
     (pure:m ['' ''])
   =/  cfg=json  (fall (mole |.(!<(json q.sage.p.seen))) *json)

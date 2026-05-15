@@ -40,7 +40,7 @@
     (pure:m [%error p.pax-parsed])
   =/  pax=path  p.pax-parsed
   =/  nam=@ta  u.name-raw
-  =/  dest-mark=(unit mark)
+  =/  dest-blot=(unit blot:tarball)
     ?~  mk=(~(get jo:json-utils [%o args.st]) /mark)  ~
     ?.  ?=([%s *] u.mk)  ~
     ?:  =('' p.u.mk)  ~
@@ -48,9 +48,9 @@
       ?:  =('/' (end 3 p.u.mk))  (stab p.u.mk)
       (stab (cat 3 '/' p.u.mk))
     ?~  pax  ~
-    `(rear pax)
+    `[(snip pax) (rear pax)]
   =/  =mime  [/text/plain (as-octs:mimes:html u.content-raw)]
-  =/  =make:remote:nexus  |+[%.n [[/ %mime] mime] dest-mark]
+  =/  =make:remote:nexus  |+[%.n [[/ %mime] mime] dest-blot]
   =/  req=load:remote:nexus
     [[/remote-make %& pax nam] %make make]
   ;<  ~  bind:m

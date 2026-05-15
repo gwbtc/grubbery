@@ -22,7 +22,7 @@
   =/  message=@t  p.parsed
   ::  Read telegram creds from telegram nexus
   ;<  creds-seen=seen:nexus  bind:m
-    (peek:io [%& %& /'telegram.telegram' %'creds.json'] `%json)
+    (peek:io [%& %& /'telegram.telegram' %'creds.json'] `[/ %json])
   ?.  ?=([%& %file *] creds-seen)
     (pure:m [%error 'No telegram creds. Create /telegram.telegram/creds.json with bot-token and chat-id.'])
   =/  jon=json  !<(json q.sage.p.creds-seen)

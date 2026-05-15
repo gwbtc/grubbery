@@ -39,7 +39,7 @@
       ==
     ::
     ++  on-file
-      |=  [=rail:tarball =mark]
+      |=  [=rail:tarball =blot:tarball]
       ^-  spool:fiber:nexus
       |=  =prod:fiber:nexus
       =/  m  (fiber:fiber:nexus ,~)
@@ -51,7 +51,7 @@
         ;<  ~  bind:m  (rise-wait:io prod "%indexer /poller: failed")
         ::  read config
         ;<  cfg-seen=seen:nexus  bind:m
-          (peek:io (cord-to-road:tarball './config.json') `%json)
+          (peek:io (cord-to-road:tarball './config.json') `[/ %json])
         =/  [url=@t auth=@t interval=@dr]  (read-config cfg-seen)
         |-
         ::  fetch current block count

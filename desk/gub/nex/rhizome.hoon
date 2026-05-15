@@ -26,7 +26,7 @@
       ==
     ::
     ++  on-file
-      |=  [=rail:tarball =mark]
+      |=  [=rail:tarball =blot:tarball]
       ^-  spool:fiber:nexus
       |=  =prod:fiber:nexus
       =/  m  (fiber:fiber:nexus ,~)
@@ -58,7 +58,7 @@
           =/  mname=@ta  (note-to-meta-name fname)
           =/  link-name=@ta  (fname-to-link fname)
           ;<  ~  bind:m
-            (make:io (meta-road mname) |+[%.n [[/ %json] !>((meta-json (~(gut by fwd) fname ~) (~(gut by back) link-name ~)))] `%json])
+            (make:io (meta-road mname) |+[%.n [[/ %json] !>((meta-json (~(gut by fwd) fname ~) (~(gut by back) link-name ~)))] `[/ %json]])
           $(creates t.creates)
         ~&  >  "%rhizome /main: indexed {<~(wyt by notes)>} notes"
         ::  main loop
@@ -90,7 +90,7 @@
           ?-    -.i.ops
               %create
             ;<  ~  bind:m
-              (make:io (meta-road mname.i.ops) |+[%.n [[/ %json] !>(json.i.ops)] `%json])
+              (make:io (meta-road mname.i.ops) |+[%.n [[/ %json] !>(json.i.ops)] `[/ %json]])
             $(ops t.ops)
               %update
             ;<  ~  bind:m

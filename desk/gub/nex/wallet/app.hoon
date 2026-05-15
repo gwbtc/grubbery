@@ -40,7 +40,7 @@
       ==
     ::
     ++  on-file
-      |=  [=rail:tarball =mark]
+      |=  [=rail:tarball =blot:tarball]
       ^-  spool:fiber:nexus
       |=  =prod:fiber:nexus
       =/  m  (fiber:fiber:nexus ,~)
@@ -339,7 +339,7 @@
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
   =/  =road:tarball  (cord-to-road:tarball road-cord)
-  ;<  =seen:nexus  bind:m  (peek:io road `%mime)
+  ;<  =seen:nexus  bind:m  (peek:io road `[/ %mime])
   ?.  ?=([%& %file *] seen)
     (send-simple:srv eyre-id [[404 ~] `(as-octs:mimes:html 'Page not found')])
   =/  =mime  !<(mime q.sage.p.seen)

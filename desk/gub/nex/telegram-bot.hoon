@@ -31,7 +31,7 @@
       ==
     ::
     ++  on-file
-      |=  [=rail:tarball =mark]
+      |=  [=rail:tarball =blot:tarball]
       ^-  spool:fiber:nexus
       |=  =prod:fiber:nexus
       =/  m  (fiber:fiber:nexus ,~)
@@ -300,7 +300,7 @@
   =/  m  (fiber:fiber:nexus ,@t)
   ^-  form:m
   ;<  =seen:nexus  bind:m
-    (peek:io (cord-to-road:tarball './config.json') `%json)
+    (peek:io (cord-to-road:tarball './config.json') `[/ %json])
   ?.  ?=([%& %file *] seen)
     (pure:m '')
   =/  cfg=json  !<(json q.sage.p.seen)
@@ -314,7 +314,7 @@
   =/  m  (fiber:fiber:nexus ,@ud)
   ^-  form:m
   ;<  =seen:nexus  bind:m
-    (peek:io (cord-to-road:tarball './offset.ud') `%ud)
+    (peek:io (cord-to-road:tarball './offset.ud') `[/ %ud])
   ?.  ?=([%& %file *] seen)
     (pure:m 0)
   (pure:m !<(@ud q.sage.p.seen))
@@ -324,7 +324,7 @@
   =/  m  (fiber:fiber:nexus ,json)
   ^-  form:m
   ;<  =seen:nexus  bind:m
-    (peek:io (cord-to-road:tarball (rap 3 ~['./messages/' cid '.json'])) `%json)
+    (peek:io (cord-to-road:tarball (rap 3 ~['./messages/' cid '.json'])) `[/ %json])
   ?.  ?=([%& %file *] seen)
     (pure:m [%o ~])
   (pure:m !<(json q.sage.p.seen))
