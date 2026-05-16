@@ -689,13 +689,7 @@
   |-
   ?~  keys
     =/  dest=path  (text-to-path local-path.bridge-entry)
-    =/  dest-name=@ta  (rear dest)
-    =/  dest-ext=(unit @ta)  (parse-extension:tarball dest-name)
-    =/  root-neck=(unit neck:tarball)
-      (bind dest-ext ext-to-neck:tarball)
-    =/  =lump:tarball  (fall fil.ball [~ ~ ~])
-    =/  root-ball=ball:tarball
-      ball(fil `lump(neck root-neck))
+    =/  root-ball=ball:tarball  ball
     =/  local-road=road:tarball  [%& %| dest]
     ;<  exists=?  bind:m  (peek-exists:io local-road)
     ;<  ~  bind:m  ?.  exists  (pure:m ~)
@@ -734,18 +728,7 @@
         [blot !>(`mime`[mtype body])]
     ==
   =/  =content:tarball  [~ sage]
-  ::  set necks on directories with extensions
-  =/  nb=ball:tarball
-    =/  segs=path  rel-path
-    =/  built=path  /
-    |-
-    ?~  segs  ball
-    =/  seg=@ta  i.segs
-    =/  dext=(unit @ta)  (parse-extension:tarball seg)
-    ?~  dext  $(segs t.segs, built (snoc built seg))
-    =/  nec=neck:tarball  (ext-to-neck:tarball u.dext)
-    $(segs t.segs, built (snoc built seg), ball (~(mkd ba:tarball ball) (snoc built seg) ~ `nec))
-  $(keys t.keys, pulled +(pulled), ball (~(put ba:tarball nb) [rel-path filename] content))
+  $(keys t.keys, pulled +(pulled), ball (~(put ba:tarball ball) [rel-path filename] content))
 ::
 ::  sync push helpers
 ::
