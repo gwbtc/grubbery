@@ -2893,7 +2893,8 @@
     $(dir-remaining t.dir-remaining)
   ~&  >  "reload-changed-nexuses: reloading {(spud (weld path.neck ~[name.neck]))} at {(spud dest)}"
   =.  this  (reload-nexus-at dest p.nex-res)
-  =.  this  (spawn-all-files dest (~(dip ba:tarball ball) dest))
+  =/  reload-ball=ball:tarball  (~(dip ba:tarball ball) dest)
+  =.  this  (spawn-all-files dest reload-ball)
   $(dir-remaining t.dir-remaining)
 ::  Validate a compiled artifact based on its source path.
 ::

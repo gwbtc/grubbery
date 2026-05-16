@@ -409,8 +409,22 @@
 ::  life: incremented on grub creation (not updates; survives deletion)
 ::  file: incremented on content change
 ::
-+$  tote  [weir=cass:clay fold=cass:clay]
-+$  sack  [proc=cass:clay life=cass:clay file=cass:clay hist=((mop cass:clay lobe:clay) cor)]
+:: fold level version information
+::
++$  tote
+  $:  weir=cass:clay
+      fold=cass:clay
+      :: hist=((mop cass:clay lobe:clay) cor)
+  ==
+:: grub level version information
+::
++$  sack
+  $:  proc=cass:clay :: incremented on process spawn/restart
+      life=cass:clay :: incremented on grub creation; not updates
+      file=cass:clay :: incremented on content change
+      hist=((mop cass:clay lobe:clay) cor)
+  ==
+::
 +$  born  (axal [=tote bags=(map @ta sack)])
 +$  silo  (map lobe:clay [refs=@ud =bask:tarball])
 ++  cor   |=([a=cass:clay b=cass:clay] (lth ud.a ud.b))

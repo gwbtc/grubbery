@@ -43,6 +43,7 @@
             [%fall %& [/ %'log.json'] %.n [~ [/ %json] !>([%a ~])]]
             [%fall %& [/ %'browse.json'] %.n [~ [/ %json] !>([%o ~])]]
             [%fall %& [/ %'sync-status.json'] %.n [~ [/ %json] !>([%a ~])]]
+            [%fall %| /sync [~ ~] [~ ~] empty-dir:loader]
             [%over %& [/ %'page.html'] %.n [~ [/ %html] !>((manx-to-html (bridge-page ~)))]]
         ==
       ==
