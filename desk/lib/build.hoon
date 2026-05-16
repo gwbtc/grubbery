@@ -40,21 +40,15 @@
       keys=(map rail:tarball @uv)
   ==
 ::  +bins-to-cache: reconstruct input-keyed build-cache
-::  Joins keys (rail→input-ckey) through refs (stem→content-ckey)
-::  to global bins (content-ckey→built) to produce input-ckey→vase.
+::  Looks up each input ckey directly in bins.
 ::
 ++  bins-to-cache
-  |=  [=keys:nexus =refs:nexus =bins:nexus]
+  |=  [=keys:nexus =bins:nexus]
   ^-  build-cache
   %+  roll  ~(tap by keys)
   |=  [[=rail:tarball input-ckey=@uv] acc=build-cache]
   ?:  (~(has by acc) input-ckey)  acc
-  =/  stem=@ta  (strip-hoon name.rail)
-  =/  node=(unit (map @ta @uv))  (~(get of refs) path.rail)
-  ?~  node  acc
-  =/  content-ckey=(unit @uv)  (~(get by u.node) stem)
-  ?~  content-ckey  acc
-  =/  entry=(unit [refs=@ud =built:nexus])  (~(get by bins) u.content-ckey)
+  =/  entry=(unit [refs=@ud =built:nexus])  (~(get by bins) input-ckey)
   ?~  entry  acc
   ?.  ?=(%vase -.built.u.entry)  acc
   (~(put by acc) input-ckey vase.built.u.entry)
