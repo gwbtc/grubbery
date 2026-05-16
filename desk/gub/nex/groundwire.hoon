@@ -35,8 +35,8 @@
             [%over %& [/ %'rpc.sig'] %.n [~ [/ %sig] !>(~)]]
             [%over %& [/ %'reg-tester.sig'] %.n [~ [/ %sig] !>(~)]]
             [%fall %| /ui/sse [~ ~] [~ ~] empty-dir:loader]
-            [%over %& [/ui/sse %'stats.html'] %.n [~ [/ %manx] !>(;div;)]]
-            [%over %& [/ %'page.html'] %.n [~ [/ %manx] !>((btc-page "" ;div; ~ ~))]]
+            [%over %& [/ui/sse %'stats.html'] %.n [~ [/ %html] !>((crip (en-xml:html ;div;)))]]
+            [%over %& [/ %'page.html'] %.n [~ [/ %html] !>((crip (en-xml:html (btc-page "" ;div; ~ ~))))]]
         ==
       ==
     ::
@@ -634,7 +634,7 @@
           (keep:io /u (cord-to-road:tarball '../../urb-state.urb-state') ~)
         ;<  ~  bind:m
           %-  replace:io
-          !>((stats-fragment (extract-ud height) (extract-urb urb)))
+          !>((crip (en-xml:html (stats-fragment (extract-ud height) (extract-urb urb)))))
         |-
         ;<  [tag=?(%h %u) =view:nexus]  bind:m
           (take-stats-news /h /u)
@@ -642,7 +642,7 @@
         =?  urb     =(tag %u)  view
         ;<  ~  bind:m
           %-  replace:io
-          !>((stats-fragment (extract-ud height) (extract-urb urb)))
+          !>((crip (en-xml:html (stats-fragment (extract-ud height) (extract-urb urb)))))
         $
           ::  /page.html: static shell with reg-tester forms. Re-renders
           ::  when SSE fragments or seeds directory change.
@@ -658,7 +658,7 @@
         ;<  points=view:nexus  bind:m
           (keep:io /points (cord-to-road:tarball './points/') ~)
         ;<  ~  bind:m
-          (replace:io !>((btc-page nexus-root (extract-sse-manx sse 'stats.html') (extract-ships seeds) (extract-points points))))
+          (replace:io !>((crip (en-xml:html (btc-page nexus-root (extract-sse-manx sse 'stats.html') (extract-ships seeds) (extract-points points))))))
         |-
         ;<  [tag=?(%sse %seeds %points) =view:nexus]  bind:m
           (take-any-news /sse /seeds /points)
@@ -666,7 +666,7 @@
         =?  seeds   =(tag %seeds)   view
         =?  points  =(tag %points)  view
         ;<  ~  bind:m
-          (replace:io !>((btc-page nexus-root (extract-sse-manx sse 'stats.html') (extract-ships seeds) (extract-points points))))
+          (replace:io !>((crip (en-xml:html (btc-page nexus-root (extract-sse-manx sse 'stats.html') (extract-ships seeds) (extract-points points))))))
         $
       ==
     ++  on-manu
@@ -762,7 +762,7 @@
   =/  =lump:tarball  (fall fil.ball.view *lump:tarball)
   =/  ct=(unit content:tarball)  (~(get by contents.lump) name)
   ?~  ct  ;div;
-  (fall (mole |.(!<(manx q.sage.u.ct))) ;div;)
+  (fall (mole |.((need (de-xml:html !<(@t q.sage.u.ct))))) ;div;)
 ::
 ::  Extract ship names from a kept wallets directory view.
 ::

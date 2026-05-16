@@ -14,7 +14,7 @@
         %+  spin:loader  [sand gain ball]
         :~  (ver-row:loader 0)
             [%fall %& [/ %'main.sig'] %.n [~ [/ %sig] !>(~)]]
-            [%over %& [/ui %'manage.html'] %.n [~ [/ %manx] !>((manage-page ~))]]
+            [%over %& [/ui %'manage.html'] %.n [~ [/ %html] !>((crip (en-xml:html (manage-page ~))))]]
             [%fall %| /bots [~ ~] [~ ~] empty-dir:loader]
         ==
       ==
@@ -97,11 +97,11 @@
         ;<  init=view:nexus  bind:m
           (keep:io /bots [%| 1 %| /bots] ~)
         =/  bot-names=(list @ta)  (view-to-bot-names init)
-        ;<  ~  bind:m  (replace:io !>((manage-page bot-names)))
+        ;<  ~  bind:m  (replace:io !>((crip (en-xml:html (manage-page bot-names)))))
         |-
         ;<  upd=view:nexus  bind:m  (take-news:io /bots)
         =/  bot-names=(list @ta)  (view-to-bot-names upd)
-        ;<  ~  bind:m  (replace:io !>((manage-page bot-names)))
+        ;<  ~  bind:m  (replace:io !>((crip (en-xml:html (manage-page bot-names)))))
         $
       ==
     ::

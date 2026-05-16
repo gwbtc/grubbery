@@ -25,8 +25,8 @@
             [%fall %& [/ %'poller.sig'] %.n [~ [/ %sig] !>(~)]]
             [%fall %| /messages [~ ~] [~ ~] empty-dir:loader]
             [%fall %| /ui/sse [~ ~] [~ ~] empty-dir:loader]
-            [%over %& [/ui/sse %'data.html'] %.n [~ [/ %manx] !>((sse-data ~ ~))]]
-            [%over %& [/ui %'chat.html'] %.n [~ [/ %manx] !>((chat-page "" *(map @t @t) *(list json)))]]
+            [%over %& [/ui/sse %'data.html'] %.n [~ [/ %html] !>((crip (en-xml:html (sse-data ~ ~))))]]
+            [%over %& [/ui %'chat.html'] %.n [~ [/ %html] !>((crip (en-xml:html (chat-page "" *(map @t @t) *(list json)))))]]
         ==
       ==
     ::
@@ -229,11 +229,11 @@
         ;<  init=view:nexus  bind:m
           (keep:io /msgs (cord-to-road:tarball '../../messages/') ~)
         =/  chat-data=[(map @t @t) (list json)]  (view-to-chat-data init)
-        ;<  ~  bind:m  (replace:io !>((sse-data -.chat-data +.chat-data)))
+        ;<  ~  bind:m  (replace:io !>((crip (en-xml:html (sse-data -.chat-data +.chat-data)))))
         |-
         ;<  upd=view:nexus  bind:m  (take-news:io /msgs)
         =/  chat-data=[(map @t @t) (list json)]  (view-to-chat-data upd)
-        ;<  ~  bind:m  (replace:io !>((sse-data -.chat-data +.chat-data)))
+        ;<  ~  bind:m  (replace:io !>((crip (en-xml:html (sse-data -.chat-data +.chat-data)))))
         $
           ::  /ui/chat.html: live chat view
           ::
@@ -256,12 +256,12 @@
           (keep:io /msgs [%| 1 %| /messages] ~)
         =/  chat-data=[(map @t @t) (list json)]  (view-to-chat-data init)
         ;<  ~  bind:m
-          (replace:io !>((chat-page base -.chat-data +.chat-data)))
+          (replace:io !>((crip (en-xml:html (chat-page base -.chat-data +.chat-data)))))
         |-
         ;<  upd=view:nexus  bind:m  (take-news:io /msgs)
         =/  chat-data=[(map @t @t) (list json)]  (view-to-chat-data upd)
         ;<  ~  bind:m
-          (replace:io !>((chat-page base -.chat-data +.chat-data)))
+          (replace:io !>((crip (en-xml:html (chat-page base -.chat-data +.chat-data)))))
         $
       ==
     ::

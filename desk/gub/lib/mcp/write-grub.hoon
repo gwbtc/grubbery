@@ -51,7 +51,7 @@
       ?:  =('/' (end 3 p.u.mk))  (stab p.u.mk)
       (stab (cat 3 '/' p.u.mk))
     ?~  pax  ~
-    `[(snip pax) (rear pax)]
+    `[(snip `path`pax) (rear pax)]
   =/  file-path=@t  u.file-path
   =/  file-name=@t  u.file-name
   =/  content=@t  u.content-raw

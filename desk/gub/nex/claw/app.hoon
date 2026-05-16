@@ -22,10 +22,10 @@
             [%fall %| /channels [~ ~] [~ ~] empty-dir:loader]
             [%fall %| /channels/telegram/main-bot [~ ~] [~ ~] [`[~ `[/claw/channel %telegram] ~] ~]]
             [%fall %| /ui/sse [~ ~] [~ ~] empty-dir:loader]
-            [%over %& [/ui/sse %'agents.html'] %.n [~ [/ %manx] !>((agents-fragment "" ~))]]
-            [%over %& [/ui/sse %'channels.html'] %.n [~ [/ %manx] !>((channels-fragment "" ~))]]
-            [%over %& [/ui/sse %'apis.html'] %.n [~ [/ %manx] !>((apis-fragment "" ~))]]
-            [%over %& [/ %'page.html'] %.n [~ [/ %manx] !>((dashboard-page "" ~ ~ ~))]]
+            [%over %& [/ui/sse %'agents.html'] %.n [~ [/ %html] !>((crip (en-xml:html (agents-fragment "" ~))))]]
+            [%over %& [/ui/sse %'channels.html'] %.n [~ [/ %html] !>((crip (en-xml:html (channels-fragment "" ~))))]]
+            [%over %& [/ui/sse %'apis.html'] %.n [~ [/ %html] !>((crip (en-xml:html (apis-fragment "" ~))))]]
+            [%over %& [/ %'page.html'] %.n [~ [/ %html] !>((crip (en-xml:html (dashboard-page "" ~ ~ ~))))]]
         ==
       ==
     ::
@@ -48,7 +48,7 @@
         ;<  apis=view:nexus  bind:m
           (keep:io /apis (cord-to-road:tarball './apis/') ~)
         ;<  ~  bind:m
-          (replace:io !>((dashboard-page ball-id (read-names agents) (read-entities channels) (read-entities apis))))
+          (replace:io !>((crip (en-xml:html (dashboard-page ball-id (read-names agents) (read-entities channels) (read-entities apis))))))
         |-
         ;<  [tag=?(%agents %channels %apis) =view:nexus]  bind:m
           (take-any-news /agents /channels /apis)
@@ -56,7 +56,7 @@
         =?  channels  =(tag %channels)  view
         =?  apis      =(tag %apis)      view
         ;<  ~  bind:m
-          (replace:io !>((dashboard-page ball-id (read-names agents) (read-entities channels) (read-entities apis))))
+          (replace:io !>((crip (en-xml:html (dashboard-page ball-id (read-names agents) (read-entities channels) (read-entities apis))))))
         $
         ::
           [[%ui %sse ~] %'agents.html']
@@ -65,10 +65,10 @@
         =/  ball-id=tape  (path-to-ball-id (snip (snip path.here)))
         ;<  init=view:nexus  bind:m
           (keep:io /agents (cord-to-road:tarball '../../agents/') ~)
-        ;<  ~  bind:m  (replace:io !>((agents-fragment ball-id (read-names init))))
+        ;<  ~  bind:m  (replace:io !>((crip (en-xml:html (agents-fragment ball-id (read-names init))))))
         |-
         ;<  upd=view:nexus  bind:m  (take-news:io /agents)
-        ;<  ~  bind:m  (replace:io !>((agents-fragment ball-id (read-names upd))))
+        ;<  ~  bind:m  (replace:io !>((crip (en-xml:html (agents-fragment ball-id (read-names upd))))))
         $
         ::
           [[%ui %sse ~] %'channels.html']
@@ -77,10 +77,10 @@
         =/  ball-id=tape  (path-to-ball-id (snip (snip path.here)))
         ;<  init=view:nexus  bind:m
           (keep:io /channels (cord-to-road:tarball '../../channels/') ~)
-        ;<  ~  bind:m  (replace:io !>((channels-fragment ball-id (read-entities init))))
+        ;<  ~  bind:m  (replace:io !>((crip (en-xml:html (channels-fragment ball-id (read-entities init))))))
         |-
         ;<  upd=view:nexus  bind:m  (take-news:io /channels)
-        ;<  ~  bind:m  (replace:io !>((channels-fragment ball-id (read-entities upd))))
+        ;<  ~  bind:m  (replace:io !>((crip (en-xml:html (channels-fragment ball-id (read-entities upd))))))
         $
         ::
           [[%ui %sse ~] %'apis.html']
@@ -89,10 +89,10 @@
         =/  ball-id=tape  (path-to-ball-id (snip (snip path.here)))
         ;<  init=view:nexus  bind:m
           (keep:io /apis (cord-to-road:tarball '../../apis/') ~)
-        ;<  ~  bind:m  (replace:io !>((apis-fragment ball-id (read-entities init))))
+        ;<  ~  bind:m  (replace:io !>((crip (en-xml:html (apis-fragment ball-id (read-entities init))))))
         |-
         ;<  upd=view:nexus  bind:m  (take-news:io /apis)
-        ;<  ~  bind:m  (replace:io !>((apis-fragment ball-id (read-entities upd))))
+        ;<  ~  bind:m  (replace:io !>((crip (en-xml:html (apis-fragment ball-id (read-entities upd))))))
         $
         ::
           [~ %'main.sig']

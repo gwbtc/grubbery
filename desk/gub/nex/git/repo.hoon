@@ -48,7 +48,7 @@
             [%fall %| /ui [~ ~] [~ ~] empty-dir:loader]
             [%fall %& [/ui %'status.json'] %.n [~ [/ %json] !>((pairs:enjs:format ~[['status' s+'idle']]))]]
             [%fall %& [/ui %'commit.json'] %.n [~ [/ %json] !>([%a ~])]]
-            [%over %& [/ %'page.html'] %.n [~ [/ %manx] !>((repo-page '' '' '' ~ ~ [%a ~] [%o ~] clean-status))]]
+            [%over %& [/ %'page.html'] %.n [~ [/ %html] !>((crip (en-xml:html (repo-page '' '' '' ~ ~ [%a ~] [%o ~] clean-status))))]]
             [%fall %| /data [~ ~] [~ ~] [`[~ `[/git %data] ~] ~]]
         ==
       ==
@@ -201,7 +201,7 @@
         =/  commits=json  (view-to-json init-commits)
         =/  current=json  (view-to-json init-current)
         =/  status=json   (view-to-json init-status)
-        ;<  ~  bind:m  (replace:io !>((repo-page api repo.cfg ref.cfg branches files commits current status)))
+        ;<  ~  bind:m  (replace:io !>((crip (en-xml:html (repo-page api repo.cfg ref.cfg branches files commits current status)))))
         |-
         ;<  evt=page-event  bind:m  take-page-event
         ?-    -.evt
@@ -213,7 +213,7 @@
           =?  commits  =(/commits wire.evt)  (view-to-json view.evt)
           =?  current  =(/current wire.evt)  (view-to-json view.evt)
           =?  status   =(/status wire.evt)   (view-to-json view.evt)
-          ;<  ~  bind:m  (replace:io !>((repo-page api repo.cfg ref.cfg branches files commits current status)))
+          ;<  ~  bind:m  (replace:io !>((crip (en-xml:html (repo-page api repo.cfg ref.cfg branches files commits current status)))))
           $
         ==
           ::  /actions/checkout.sig: checkout a specific commit by hash

@@ -1511,6 +1511,9 @@
     ::
       [~ %&]
     ::  Clam vases crossing sandbox boundary.
+    ::  TODO: clam ALL incoming vases, not just at weir boundaries.
+    ::  Clamming is cheap (cached vale gate), kills evil vases, and lets
+    ::  all downstream code trust the data unconditionally.
     ::  Peek results are clammed inside handle-dart (data flows back).
     ?.  ?=(%node -.dart)
       (handle-dart here dart filt)

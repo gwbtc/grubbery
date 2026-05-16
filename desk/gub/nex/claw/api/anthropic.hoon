@@ -63,7 +63,7 @@
             [%fall %& [/ %'rates.json'] %.n [~ [/ %json] !>(default-rates)]]
             [%fall %& [/ %'usage.json'] %.n [~ [/ %json] !>(default-usage)]]
             [%fall %| /calls [~ ~] [~ ~] empty-dir:loader]
-            [%over %& [/ %'page.html'] %.n [~ [/ %manx] !>(usage-page)]]
+            [%over %& [/ %'page.html'] %.n [~ [/ %html] !>((crip (en-xml:html usage-page)))]]
         ==
       ==
     ::

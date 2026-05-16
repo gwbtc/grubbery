@@ -11,7 +11,7 @@
         %+  spin:loader  [sand gain ball]
         :~  (ver-row:loader 0)
             [%fall %| /counters [~ ~] [~ ~] empty-dir:loader]
-            [%over %& [/ui/views %'page.html'] %.n [~ [/ %manx] !>((counter-page ~))]]
+            [%over %& [/ui/views %'page.html'] %.n [~ [/ %html] !>((crip (en-xml:html (counter-page ~))))]]
             [%fall %& [/ui %'main.sig'] %.n [~ [/ %sig] !>(~)]]
             [%fall %| /ui/requests [~ ~] [~ ~] empty-dir:loader]
         ==
@@ -49,7 +49,7 @@
           ?.  ?=(%ud name.p.sage.content)  ~
           `[name !<(@ud q.sage.content)]
         =/  page=manx  (counter-page counters)
-        ;<  ~  bind:m  (replace:io !>(page))
+        ;<  ~  bind:m  (replace:io !>((crip (en-xml:html page))))
         $
           ::  /ui/main.sig: bind HTTP endpoint and dispatch requests
           ::  into /ui/requests/. URL derived from tree position.

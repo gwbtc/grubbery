@@ -29,7 +29,7 @@
             [%fall %& [/ %'config.json'] %.n [~ [/ %json] !>(default-config)]]
             [%fall %& [/ %'mounts.json'] %.n [~ [/ %json] !>([%o ~])]]
             [%fall %| /mounts [~ ~] [~ ~] empty-dir:loader]
-            [%over %& [/ %'page.html'] %.n [~ [/ %manx] !>(s3-page)]]
+            [%over %& [/ %'page.html'] %.n [~ [/ %html] !>((crip (en-xml:html s3-page)))]]
         ==
       ==
     ::
@@ -369,7 +369,7 @@
   ;<  ~  bind:m
     ?:  exists
       (over:io file-road [[/ %mime] !>(file-mime)])
-    =/  ext=(unit @ta)  (parse-extension:tarball filename)
+    =/  ext=(unit blot:tarball)  (bind (parse-extension:tarball filename) |=(e=@ta [/ e]))
     ;<  err=(unit tang)  bind:m
       (make-soft:io file-road |+[%.n [[/ %mime] !>(file-mime)] ext])
     ?~  err  (pure:m ~)

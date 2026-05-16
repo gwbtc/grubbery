@@ -48,7 +48,7 @@
       ?:  =('/' (end 3 p.u.mk))  (stab p.u.mk)
       (stab (cat 3 '/' p.u.mk))
     ?~  pax  ~
-    `[(snip pax) (rear pax)]
+    `[(snip `path`pax) (rear pax)]
   =/  =mime  [/text/plain (as-octs:mimes:html u.content-raw)]
   =/  =make:remote:nexus  |+[%.n [[/ %mime] mime] dest-blot]
   =/  req=load:remote:nexus

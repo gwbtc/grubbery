@@ -632,7 +632,7 @@
             ::  /children: spawned child nexuses
             [%fall %| /children [~ ~] [~ ~] empty-dir:loader]
             ::  ui
-            [%over %& [/ %'page.html'] %.n [~ [/ %manx] !>((chat-page "" ""))]]
+            [%over %& [/ %'page.html'] %.n [~ [/ %html] !>((crip (en-xml:html (chat-page "" ""))))]]
         ==
       ==
     ::
@@ -1031,7 +1031,7 @@
             (turn full trip)
           "/grubbery/ball/{pax}/{(trip name.p.q.p.app-road)}"
           ""
-        ;<  ~  bind:m  (replace:io !>((chat-page ball-id app-url)))
+        ;<  ~  bind:m  (replace:io !>((crip (en-xml:html (chat-page ball-id app-url)))))
         stay:m
       ==
     ::
@@ -2741,7 +2741,7 @@
         ?:  =('/' (end 3 u.mk))  (stab u.mk)
         (stab (cat 3 '/' u.mk))
       ?~  pax  ~
-      `[(snip pax) (rear pax)]
+      `[(snip `path`pax) (rear pax)]
     =/  road=road:tarball  (agent-road u.raw)
     =/  src-mime=mime  [/text/plain (as-octs:mimes:html u.content)]
     ;<  exists=?  bind:m  (peek-exists:io road)

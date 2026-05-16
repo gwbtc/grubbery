@@ -600,7 +600,7 @@
   ?:  =(ct *content:tarball)  [%.n ct]
   ?:  =([/ %boom] p.sage.ct)  [%.n ct]
   =/  acct=account-data  !<(account-data q.sage.ct)
-  [%.n [~ [/ %manx] !>((detail-page:acct-ui acct *addr-mop *addr-mop *@da %none ~ ~ ''))]]
+  [%.n [~ [/ %html] !>((crip (en-xml:html (detail-page:acct-ui acct *addr-mop *addr-mop *@da %none ~ ~ ''))))]]
 ::
 ++  extract-account
   |=  =view:nexus

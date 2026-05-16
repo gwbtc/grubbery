@@ -19,7 +19,7 @@
         %+  spin:loader  [sand gain ball]
         :~  (ver-row:loader 0)
             [%fall %& [/ %'main.sig'] %.n [~ [/ %sig] !>(~)]]
-            [%fall %& [/ %'page.html'] %.n [~ [/ %manx] !>(;div:"rhizome loading...")]]
+            [%fall %& [/ %'page.html'] %.n [~ [/ %html] !>((crip (en-xml:html ;div:"rhizome loading...")))]]
             [%fall %| /vault [~ ~] [~ ~] empty-dir:loader]
             [%fall %| /metadata [~ ~] [~ ~] empty-dir:loader]
         ==
@@ -114,7 +114,7 @@
           %-  ~(run by notes)
           |=(txt=@t (extract-wiki-links txt))
         =/  back=back-index  (invert-index fwd)
-        ;<  ~  bind:m  (replace:io !>((rhizome-page notes fwd back)))
+        ;<  ~  bind:m  (replace:io !>((crip (en-xml:html (rhizome-page notes fwd back)))))
         |-
         ;<  upd=view:nexus  bind:m  (take-news:io /vault)
         =/  notes=(map @ta @t)  (files-from-ball (ball-from-view upd))
@@ -122,7 +122,7 @@
           %-  ~(run by notes)
           |=(txt=@t (extract-wiki-links txt))
         =/  back=back-index  (invert-index fwd)
-        ;<  ~  bind:m  (replace:io !>((rhizome-page notes fwd back)))
+        ;<  ~  bind:m  (replace:io !>((crip (en-xml:html (rhizome-page notes fwd back)))))
         $
           ::
           ::  metadata/*.json: accept metadata updates from main.sig

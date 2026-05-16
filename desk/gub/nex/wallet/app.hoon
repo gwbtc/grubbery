@@ -25,11 +25,11 @@
         %+  spin:loader  [sand gain ball]
         :~  (ver-row:loader 0)
             [%over %& [/ %'main.sig'] %.n [~ [/ %sig] !>(~)]]
-            [%over %& [/ %'page.html'] %.n [~ [/ %manx] !>((wallet-page "" ~))]]
+            [%over %& [/ %'page.html'] %.n [~ [/ %html] !>((crip (en-xml:html (wallet-page "" ~))))]]
             [%fall %| /wallets [~ ~] [~ ~] empty-dir:loader]
             [%fall %| /accounts [~ ~] [~ ~] empty-dir:loader]
             [%fall %| /ui/sse [~ ~] [~ ~] empty-dir:loader]
-            [%over %& [/ui/sse %'wallets.html'] %.n [~ [/ %manx] !>((wallet-list-html ~))]]
+            [%over %& [/ui/sse %'wallets.html'] %.n [~ [/ %html] !>((crip (en-xml:html (wallet-list-html ~))))]]
             [%fall %& [/ui %'http.sig'] %.n [~ [/ %sig] !>(~)]]
             [%fall %| /ui/requests [~ ~] [~ ~] empty-dir:loader]
             [%fall %| (snoc /wallets wal-dir) [~ ~] [~ ~] wal-ball]
@@ -129,11 +129,11 @@
         ;<  init=view:nexus  bind:m
           (keep:io /wallets (cord-to-road:tarball './wallets/') ~)
         =/  wals=(list wallet-data)  (view-to-wallets init)
-        ;<  ~  bind:m  (replace:io !>((wallet-page nexus-root wals)))
+        ;<  ~  bind:m  (replace:io !>((crip (en-xml:html (wallet-page nexus-root wals)))))
         |-
         ;<  upd=view:nexus  bind:m  (take-news:io /wallets)
         =/  wals=(list wallet-data)  (view-to-wallets upd)
-        ;<  ~  bind:m  (replace:io !>((wallet-page nexus-root wals)))
+        ;<  ~  bind:m  (replace:io !>((crip (en-xml:html (wallet-page nexus-root wals)))))
         $
           ::  /ui/sse/wallets.html: wallet list HTML fragment for SSE
           ::
@@ -142,11 +142,11 @@
         ;<  init=view:nexus  bind:m
           (keep:io /wallets (cord-to-road:tarball '../../wallets/') ~)
         =/  wals=(list wallet-data)  (view-to-wallets init)
-        ;<  ~  bind:m  (replace:io !>((wallet-list-html wals)))
+        ;<  ~  bind:m  (replace:io !>((crip (en-xml:html (wallet-list-html wals)))))
         |-
         ;<  upd=view:nexus  bind:m  (take-news:io /wallets)
         =/  wals=(list wallet-data)  (view-to-wallets upd)
-        ;<  ~  bind:m  (replace:io !>((wallet-list-html wals)))
+        ;<  ~  bind:m  (replace:io !>((crip (en-xml:html (wallet-list-html wals)))))
         $
           ::  /ui/http.sig: bind /groundwire/wallet/ and dispatch requests
           ::

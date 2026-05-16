@@ -24,8 +24,8 @@
             [%fall %& [/ %'main.claude-registry'] %.n [~ [/ %claude-registry] !>(`registry`[%0 0 ~ %.y])]]
             ::  always overwritten
             [%over %& [/ %'weir.txt'] %.n [~ [/ %txt] !>(`wain`~['No weir set.'])]]
-            [%over %& [/ui %'chat.html'] %.n [~ [/ %manx] !>((chat-page ~))]]
-            [%over %& [/ui/sse %'last-message.html'] %.n [~ [/ %manx] !>(*manx)]]
+            [%over %& [/ui %'chat.html'] %.n [~ [/ %html] !>((crip (en-xml:html (chat-page ~))))]]
+            [%over %& [/ui/sse %'last-message.html'] %.n [~ [/ %html] !>((crip (en-xml:html *manx)))]]
             [%over %& [/ui/sse %'status.json'] %.n [~ [/ %json] !>((pairs:enjs:format ~[['loading' b+%.n] ['live' b+%.y]]))]]
         ==
       ==
@@ -101,13 +101,13 @@
         ?.  ?=([%file *] init)  $
         =/  msg=messages  !<(messages q.sage.init)
         =/  page=manx  (chat-page (tap:mon messages.msg))
-        ;<  ~  bind:m  (replace:io !>(page))
+        ;<  ~  bind:m  (replace:io !>((crip (en-xml:html page))))
         |-
         ;<  upd=view:nexus  bind:m  (take-news:io /msgs)
         ?.  ?=([%file *] upd)  $
         =/  msg=messages  !<(messages q.sage.upd)
         =/  page=manx  (chat-page (tap:mon messages.msg))
-        ;<  ~  bind:m  (replace:io !>(page))
+        ;<  ~  bind:m  (replace:io !>((crip (en-xml:html page))))
         $
       ::  /ui/sse/last-message.html — watches messages, emits last as HTML
       ::
@@ -119,14 +119,14 @@
         =/  msg=messages  !<(messages q.sage.init)
         =/  last=(unit [key=@ud val=message])  (ram:mon messages.msg)
         =/  init-manx=manx  ?~(last *manx (msg-to-manx val.u.last))
-        ;<  ~  bind:m  (replace:io !>(init-manx))
+        ;<  ~  bind:m  (replace:io !>((crip (en-xml:html init-manx))))
         |-
         ;<  upd=view:nexus  bind:m  (take-news:io /msgs)
         ?.  ?=([%file *] upd)  $
         =/  msg=messages  !<(messages q.sage.upd)
         =/  last=(unit [key=@ud val=message])  (ram:mon messages.msg)
         ?~  last  $
-        ;<  ~  bind:m  (replace:io !>((msg-to-manx val.u.last)))
+        ;<  ~  bind:m  (replace:io !>((crip (en-xml:html (msg-to-manx val.u.last)))))
         $
       ::  /ui/sse/status.json — loading state, updated by message fiber
       ::

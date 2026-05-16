@@ -176,7 +176,7 @@
         %+  spin:loader  [sand gain ball]
         :~  (ver-row:loader 1)
             [%fall %& [/ %'main.sig'] %.n [~ [/ %sig] !>(~)]]
-            [%fall %& [/ %'page.html'] %.n [~ [/ %manx] !>((goals-page ~ ~))]]
+            [%fall %& [/ %'page.html'] %.n [~ [/ %html] !>((crip (en-xml:html (goals-page ~ ~))))]]
             [%fall %| /store [~ ~] [~ ~] empty-dir:loader]
         ==
       ==
@@ -288,18 +288,18 @@
         =/  stores=(map @ta goal-store:goals)
           (view-to-stores init)
         =/  store-names=(list @ta)  (sort ~(tap in ~(key by stores)) aor)
-        ;<  ~  bind:m  (replace:io !>((goals-page store-names stores)))
+        ;<  ~  bind:m  (replace:io !>((crip (en-xml:html (goals-page store-names stores)))))
         |-
         ;<  upd=view:nexus  bind:m  (take-news:io /stores)
         =/  stores=(map @ta goal-store:goals)
           (view-to-stores upd)
         =/  store-names=(list @ta)  (sort ~(tap in ~(key by stores)) aor)
-        ;<  ~  bind:m  (replace:io !>((goals-page store-names stores)))
+        ;<  ~  bind:m  (replace:io !>((crip (en-xml:html (goals-page store-names stores)))))
         $
           ::  /store/*.goal-store: per-store process
           ::
           [[%store ~] @]
-        ?>  ?=([/ %goal-store] blot)
+        ?:  !=(name.blot %goal-store)  stay:m
         ;<  ~  bind:m  (rise-wait:io prod "%goals /store: failed, poke to restart")
         =/  store-name=@ta  (store-name-from-fname name.rail)
         ~&  >  [%goals-store store-name %ready]

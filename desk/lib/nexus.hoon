@@ -415,6 +415,12 @@
 +$  silo  (map lobe:clay [refs=@ud =bask:tarball])
 ++  cor   |=([a=cass:clay b=cass:clay] (lth ud.a ud.b))
 ++  on-hist  ((on cass:clay lobe:clay) cor)
+:: tree entry
+::
++$  tren
+  $:  fil=(map @ta lobe:clay)
+      dir=(map @ta [=lobe:clay weir=(unit weir)])
+  ==
 ::  Resolve a hist case to a lobe from the hist mop
 ::  %ud: exact match on revision number
 ::  %da: latest entry with da <= target date

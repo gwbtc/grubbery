@@ -31,8 +31,8 @@
             [%fall %& [/ %'result.json'] %.n [~ [/ %json] !>((pairs:enjs:format ~[['status' s+'idle']]))]]
             [%fall %& [/ %'briefing.json'] %.n [~ [/ %json] !>((pairs:enjs:format ~[['step' s+'idle']]))]]
             [%fall %& [/ %'main.sig'] %.n [~ [/ %sig] !>(~)]]
-            [%over %& [/ui %'page.html'] %.n [~ [/ %manx] !>((oneshot-page '' ~))]]
-            [%over %& [/ui %'briefing.html'] %.n [~ [/ %manx] !>(briefing-page)]]
+            [%over %& [/ui %'page.html'] %.n [~ [/ %html] !>((crip (en-xml:html (oneshot-page '' ~))))]]
+            [%over %& [/ui %'briefing.html'] %.n [~ [/ %html] !>((crip (en-xml:html briefing-page)))]]
         ==
       ==
     ::
@@ -191,13 +191,13 @@
           ?.  ?=([%file *] init)  ''
           (render-result !<(json q.sage.init))
         ;<  req=json  bind:m  (read-request '../request.json')
-        ;<  ~  bind:m  (replace:io !>((oneshot-page res req)))
+        ;<  ~  bind:m  (replace:io !>((crip (en-xml:html (oneshot-page res req)))))
         |-
         ;<  upd=view:nexus  bind:m  (take-news:io /res)
         ?.  ?=([%file *] upd)  $
         =/  res=@t  (render-result !<(json q.sage.upd))
         ;<  req=json  bind:m  (read-request '../request.json')
-        ;<  ~  bind:m  (replace:io !>((oneshot-page res req)))
+        ;<  ~  bind:m  (replace:io !>((crip (en-xml:html (oneshot-page res req)))))
         $
           ::  /ui/briefing.html: watches briefing.json for live progress
           ::
@@ -208,12 +208,12 @@
         =/  state=json
           ?.  ?=([%file *] init)  ~
           !<(json q.sage.init)
-        ;<  ~  bind:m  (replace:io !>((briefing-page-live state)))
+        ;<  ~  bind:m  (replace:io !>((crip (en-xml:html (briefing-page-live state)))))
         |-
         ;<  upd=view:nexus  bind:m  (take-news:io /brf)
         ?.  ?=([%file *] upd)  $
         =/  state=json  !<(json q.sage.upd)
-        ;<  ~  bind:m  (replace:io !>((briefing-page-live state)))
+        ;<  ~  bind:m  (replace:io !>((crip (en-xml:html (briefing-page-live state)))))
         $
       ==
     ::
