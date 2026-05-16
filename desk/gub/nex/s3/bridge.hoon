@@ -717,15 +717,16 @@
   =/  rel-path=path  (key-to-path rel)
   =/  ext=(unit @ta)  (parse-extension:tarball filename)
   =/  =blot:tarball  ?~(ext [/ %mime] (ext-to-blot u.ext))
-  =/  kind=(unit ?(%text %wain %mime))  (known-mark blot)
-  ?~  kind  $(keys t.keys)
+  =/  kind=?(%text %wain %mime)
+    (fall (known-mark blot) %mime)
+  =?  blot  =(%mime kind)  [/ %mime]
   ;<  resp=client-response:iris  bind:m  (s3-request cfg 'GET' key '' ~)
   ?.  ?=(%finished -.resp)  $(keys t.keys)
   ?~  full-file.resp  $(keys t.keys)
   =/  body=octs  data.u.full-file.resp
   =/  ct=(unit @t)  (extract-content-type headers.response-header.resp)
   =/  =sage:tarball
-    ?-  u.kind
+    ?-  kind
       %text  [blot !>(q.body)]
       %wain  [blot !>((to-wain:format q.body))]
       %mime
