@@ -2711,13 +2711,13 @@
     =.  lode  [~ ~ new-refs]
     =.  code  (~(put by code) cod lode)
     this
-  ::  Reconstruct cache from global bins
-  =/  old-cache=build-cache:build  (bins-to-cache:build bins)
+  ::  Reconstruct cache: join keys→refs→bins
+  =/  old-cache=build-cache:build  (bins-to-cache:build keys.lode refs.lode bins)
   ~&  >  "build-code: compiling..."
   ::  Single compilation pass: marks, libs, nexuses (hoon only)
   =/  res=build-out:build  (build-all:build sut src-ball old-cache)
   ~&  >  "build-code: compiled {<~(wyt by results.res)>} results"
-  ::  Build refs from results + mime files
+  ::  Build refs + builds map, content-addressed via (sham built)
   ::  Seed with mime files
   =/  [new-refs=refs:nexus builds=(map @uv built:nexus)]
     %+  roll  mime-files

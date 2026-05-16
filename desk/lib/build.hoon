@@ -39,16 +39,25 @@
       deps=(map rail:tarball (set rail:tarball))
       keys=(map rail:tarball @uv)
   ==
-::  +bins-to-cache: extract vases from global bins as build-cache
+::  +bins-to-cache: reconstruct input-keyed build-cache
+::  Joins keys (rail→input-ckey) through refs (stem→content-ckey)
+::  to global bins (content-ckey→built) to produce input-ckey→vase.
 ::
 ++  bins-to-cache
-  |=  =bins:nexus
+  |=  [=keys:nexus =refs:nexus =bins:nexus]
   ^-  build-cache
-  %-  ~(gas by *build-cache)
-  %+  murn  ~(tap by bins)
-  |=  [key=@uv [* =built:nexus]]
-  ?.  ?=(%vase -.built)  ~
-  `[key vase.built]
+  %+  roll  ~(tap by keys)
+  |=  [[=rail:tarball input-ckey=@uv] acc=build-cache]
+  ?:  (~(has by acc) input-ckey)  acc
+  =/  stem=@ta  (strip-hoon name.rail)
+  =/  node=(unit (map @ta @uv))  (~(get of refs) path.rail)
+  ?~  node  acc
+  =/  content-ckey=(unit @uv)  (~(get by u.node) stem)
+  ?~  content-ckey  acc
+  =/  entry=(unit [refs=@ud =built:nexus])  (~(get by bins) u.content-ckey)
+  ?~  entry  acc
+  ?.  ?=(%vase -.built.u.entry)  acc
+  (~(put by acc) input-ckey vase.built.u.entry)
 ::  +parse-imports: extract /<  imports from source text
 ::
 ::    Returns list of imports and remaining source (as cord).

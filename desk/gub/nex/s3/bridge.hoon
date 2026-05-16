@@ -697,6 +697,9 @@
     =/  root-ball=ball:tarball
       ball(fil `lump(neck root-neck))
     =/  local-road=road:tarball  [%& %| dest]
+    ;<  exists=?  bind:m  (peek-exists:io local-road)
+    ;<  ~  bind:m  ?.  exists  (pure:m ~)
+                   (cull:io local-road)
     ;<  ~  bind:m  (make:io local-road &+[*sand:nexus *gain:nexus root-ball])
     ;<  ~  bind:m
       (log-msg 'info' (crip "Pulled {<pulled>} files for #{(trip id.bridge-entry)}"))
@@ -1352,8 +1355,14 @@
     }
     updateSyncUI();
   }
-  function pull(id) \{ poke(\{action: 'pull', id: id}); }
-  function pullAll() \{ poke(\{action: 'pull-all'}); }
+  function pull(id) \{
+    if (!confirm('Pull will overwrite everything at the local path. Continue?')) return;
+    poke(\{action: 'pull', id: id});
+  }
+  function pullAll() \{
+    if (!confirm('Pull All will overwrite all local paths. Continue?')) return;
+    poke(\{action: 'pull-all'});
+  }
   function syncAll() \{ poke(\{action: 'sync-all'}); }
   function unsyncAll() \{ poke(\{action: 'unsync-all'}); }
 

@@ -432,7 +432,8 @@
   :: speculative git-like content-addressed storage
   ::
   +$  tree
-    $:  fil=(map @ta lobe:clay)
+    $:  nek=(unit neck:tarball)
+        fil=(map @ta lobe:clay)
         dir=(map @ta [=lobe:clay weir=(unit weir)])
     ==
   +$  ject
