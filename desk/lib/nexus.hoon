@@ -8,12 +8,9 @@
   ==
 +$  keys  (map rail:tarball @uv)
 +$  deps  (map rail:tarball (set rail:tarball))
-+$  bins  (axal (map @ta built))
-+$  lode  [=keys =deps =bins]
-::  TODO: each code nexus compiles independently, so identical libraries
-::  in different nexuses are recompiled and stored separately. A global
-::  refcounted cache keyed by build hash (like Clay's +flow across desks)
-::  would let nexuses share compiled artifacts and skip redundant builds.
++$  refs  (axal (map @ta @uv))
++$  lode  [=keys =deps =refs]
++$  bins  (map @uv [refs=@ud =built])
 +$  code  (map fold:tarball lode)
 ::  The ball (tarball) is WYSIWYG: fully materialized, no dedup.
 ::  Every file is stored inline. To deduplicate, make references
@@ -201,7 +198,7 @@
         [%fell =wire]                 :: subscription canceled (weir change, deletion, etc)
         [%news =wire =view] :: state notification
         [%veto =dart] :: notify that a dart was sandboxed
-        [%code =wire res=(each bins built)]  :: bins subtree or single artifact
+        [%code =wire res=(each (axal (map @ta built)) built)]  :: code subtree or single artifact
         [%font =wire res=(unit bend:tarball)]  :: bend to governing /code namespace
         [%here =wire =here]
     ==

@@ -39,22 +39,16 @@
       deps=(map rail:tarball (set rail:tarball))
       keys=(map rail:tarball @uv)
   ==
-::  +bins-to-cache: reconstruct build-cache from bins axal + keys
+::  +bins-to-cache: extract vases from global bins as build-cache
 ::
 ++  bins-to-cache
-  |=  [=bins:nexus keys=(map rail:tarball @uv)]
+  |=  =bins:nexus
   ^-  build-cache
-  %+  roll  ~(tap by keys)
-  |=  [[=rail:tarball ckey=@uv] acc=build-cache]
-  ?:  (~(has by acc) ckey)  acc
-  =/  stem=@ta  (strip-hoon name.rail)
-  =/  node=(unit (map @ta built:nexus))
-    (~(get of bins) path.rail)
-  ?~  node  acc
-  =/  entry=(unit built:nexus)  (~(get by u.node) stem)
-  ?~  entry  acc
-  ?.  ?=(%vase -.u.entry)  acc
-  (~(put by acc) ckey vase.u.entry)
+  %-  ~(gas by *build-cache)
+  %+  murn  ~(tap by bins)
+  |=  [key=@uv [* =built:nexus]]
+  ?.  ?=(%vase -.built)  ~
+  `[key vase.built]
 ::  +parse-imports: extract /<  imports from source text
 ::
 ::    Returns list of imports and remaining source (as cord).

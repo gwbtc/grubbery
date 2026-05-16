@@ -690,7 +690,7 @@
 ::
 ++  get-code-tree
   |=  =road:tarball
-  =/  m  (fiber ,bins:nexus)
+  =/  m  (fiber ,(axal (map @ta built:nexus)))
   ^-  form:m
   ;<  ~  bind:m  (send-dart %node /code road %code ~)
   |=  input

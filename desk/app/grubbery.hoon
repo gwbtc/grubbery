@@ -30,6 +30,7 @@
       =silo:nexus
       =gain:nexus
       =code:nexus
+      =bins:nexus
       jael-source=(unit rail:tarball)
   ==
 ++  kel  21.000.000 :: start big; burn many at once
@@ -79,7 +80,7 @@
   ~&  >>  "on-init: reload-nexus-at"
   =^  root-cards  state  abet:(reload-nexus-at:hc / root)
   ::  Purge stale code namespaces, then register new ones
-  =.  code  purge-stale-code:hc
+  =^  code  bins  purge-stale-code:hc
   =^  code-cards  state  abet:(build-new-code-namespaces:hc / ball)
   =^  spawn-cards  state  abet:(spawn-all-files:hc / ball)
   ~&  >>  "on-init: sync-dill"
@@ -129,7 +130,7 @@
     ~&  >>  "on-load: reload-nexus-at"
     =^  root-cards  state  abet:(reload-nexus-at:hc / root)
     ::  Purge stale code namespaces, then register new ones
-    =.  code  purge-stale-code:hc
+    =^  code  bins  purge-stale-code:hc
     =^  code-cards  state  abet:(build-new-code-namespaces:hc / ball)
     =^  spawn-cards  state  abet:(spawn-all-files:hc / ball)
     ~&  >>  "on-load: sync-dill"
@@ -452,14 +453,16 @@
 ::  Purge code map entries whose paths no longer exist as code nexuses.
 ::
 ++  purge-stale-code
-  ^-  (map path lode:nexus)
+  ^-  [code:nexus bins:nexus]
   =/  keys=(list path)  ~(tap in ~(key by code))
   |-
-  ?~  keys  code
+  ?~  keys  [code bins]
   =/  node=(unit lump:tarball)  (~(get of ball) i.keys)
   ?:  ?&(?=(^ node) ?=(^ neck.u.node) =([/ %code] u.neck.u.node))
     $(keys t.keys)
   ~&  >  "purge-stale-code: {(spud i.keys)}"
+  =/  old-lode=lode:nexus  (~(got by code) i.keys)
+  =.  bins  (refs-dec refs.old-lode)
   $(keys t.keys, code (~(del by code) i.keys))
 ::  Put subtree into sand at path
 ::
@@ -679,13 +682,15 @@
   =/  ns=(unit fold:tarball)  (find-code-ns pax)
   ?~  ns  ~
   =/  lod=lode:nexus  (~(got by code) u.ns)
-  =/  node=(unit (map @ta built:nexus))
-    (~(get of bins.lod) path)
-  =/  hit=(unit built:nexus)
+  =/  node=(unit (map @ta @uv))
+    (~(get of refs.lod) path)
+  =/  ckey=(unit @uv)
     ?~  node  ~
     (~(get by u.node) name)
-  ?~  hit  ~
-  `[u.ns [path name] u.hit]
+  ?~  ckey  ~
+  =/  entry=(unit [refs=@ud =built:nexus])  (~(get by bins) u.ckey)
+  ?~  entry  ~
+  `[u.ns [path name] built.u.entry]
 ::
 ++  find-built
   |=  [pax=path =path name=@ta]
@@ -1808,8 +1813,19 @@
           (enqu-take here (sys-give /code) ~ %code wire.dart |+[%tang ~[leaf+"code: no code nexus at {(spud dest)}"]])
         =/  =lode:nexus  (~(got by code) u.nex)
         =/  inner=fold:tarball  (slag (lent u.nex) dest)
-        =/  sub-bins=bins:nexus  (~(dip of bins.lode) inner)
-        (enqu-take here (sys-give /code) ~ %code wire.dart &+sub-bins)
+        =/  sub-refs=refs:nexus  (~(dip of refs.lode) inner)
+        =/  materialized=(axal (map @ta built:nexus))
+          %+  roll  ~(tap of sub-refs)
+          |=  [[pax=path node=(map @ta @uv)] acc=(axal (map @ta built:nexus))]
+          =/  resolved=(map @ta built:nexus)
+            %-  ~(gas by *(map @ta built:nexus))
+            %+  murn  ~(tap by node)
+            |=  [nam=@ta key=@uv]
+            =/  entry=(unit [refs=@ud =built:nexus])  (~(get by bins) key)
+            ?~  entry  ~
+            `[nam built.u.entry]
+          (~(put of acc) pax resolved)
+        (enqu-take here (sys-give /code) ~ %code wire.dart &+materialized)
         ::
           %&
         =/  dest=rail:tarball  p.u.dest-lane
@@ -1822,10 +1838,14 @@
           (enqu-take here (sys-give /code) ~ %code wire.dart |+[%tang ~[leaf+"code: no code nexus at {(spud path.dest)}"]])
         =/  =lode:nexus  (~(got by code) u.nex)
         =/  inner=path  (slag (lent u.nex) path.dest)
-        =/  node=(unit (map @ta built:nexus))  (~(get of bins.lode) inner)
+        =/  node=(unit (map @ta @uv))  (~(get of refs.lode) inner)
         =/  hit=(unit built:nexus)
           ?~  node  ~
-          (~(get by u.node) name.dest)
+          =/  ckey=(unit @uv)  (~(get by u.node) name.dest)
+          ?~  ckey  ~
+          =/  entry=(unit [refs=@ud =built:nexus])  (~(get by bins) u.ckey)
+          ?~  entry  ~
+          `built.u.entry
         ?^  hit
           (enqu-take here (sys-give /code) ~ %code wire.dart |+u.hit)
         ::  Tube requests: /tub/from/to — resolve via marc grow gate
@@ -2589,6 +2609,35 @@
   =.  this  ^$(here (snoc here -.i.kids), bol +.i.kids)
   $(kids t.kids)
 ::
+::  +refs-inc: increment refcounts for all ckeys in a refs axal
+::  For new ckeys, stores the built value from the provided map.
+::
+++  refs-inc
+  |=  [=refs:nexus builds=(map @uv built:nexus)]
+  ^-  bins:nexus
+  %+  roll  ~(tap of refs)
+  |=  [[* node=(map @ta @uv)] acc=_bins]
+  %+  roll  ~(tap by node)
+  |=  [[* ckey=@uv] inner-acc=_acc]
+  =/  existing=(unit [refs=@ud =built:nexus])  (~(get by inner-acc) ckey)
+  ?^  existing
+    (~(put by inner-acc) ckey u.existing(refs +(refs.u.existing)))
+  =/  =built:nexus  (~(got by builds) ckey)
+  (~(put by inner-acc) ckey [1 built])
+::  +refs-dec: decrement refcounts for all entries in a refs axal
+::
+++  refs-dec
+  |=  =refs:nexus
+  ^-  bins:nexus
+  %+  roll  ~(tap of refs)
+  |=  [[* node=(map @ta @uv)] acc=_bins]
+  %+  roll  ~(tap by node)
+  |=  [[* ckey=@uv] inner-acc=_acc]
+  =/  entry=(unit [refs=@ud =built:nexus])  (~(get by inner-acc) ckey)
+  ?~  entry  inner-acc
+  ?:  (lte refs.u.entry 1)
+    (~(del by inner-acc) ckey)
+  (~(put by inner-acc) ckey u.entry(refs (dec refs.u.entry)))
 ::  Compile a code nexus into its lode in the code map.
 ::  Purges non-hoon files from the code nexus.
 ::
@@ -2636,7 +2685,7 @@
   =.  ball  (~(put of ball) cod code-lump(neck `[/ %code]))
   ::  Get or create lode for this code nexus
   =/  =lode:nexus  (fall (~(get by code) cod) *lode:nexus)
-  =/  old-bins=bins:nexus  bins.lode
+  =/  old-refs=refs:nexus  refs.lode
   ::  Kelvin mismatch: every file becomes a crash
   ?.  kel-ok
     ~&  >>>  "build-code: kelvin mismatch in {(spud cod)}"
@@ -2646,40 +2695,43 @@
           leaf+"  code nexus declares: {<(waft-to-wefts:clay waft)>}"
           leaf+"  grubbery expects: [%grubbery {<kel>}]"
       ==
-    ~&  >>>  "build-code: building tang bins for {<(lent all-files)>} files"
-    =/  hoon-count=@ud  0
-    =/  new-bins=bins:nexus
+    ~&  >>>  "build-code: building tang refs for {<(lent all-files)>} files"
+    =/  [new-refs=refs:nexus builds=(map @uv built:nexus)]
       %+  roll  all-files
-      |=  [[=rail:tarball =content:tarball] acc=bins:nexus]
-      ?.  =([/ %hoon] p.sage.content)  acc
+      |=  [[=rail:tarball =content:tarball] [acc=refs:nexus bld=(map @uv built:nexus)]]
+      ?.  =([/ %hoon] p.sage.content)  [acc bld]
       =/  stem=@ta  (strip-hoon:build name.rail)
-      =/  node=(map @ta built:nexus)
-        (fall (~(get of acc) path.rail) *(map @ta built:nexus))
-      (~(put of acc) path.rail (~(put by node) stem [%tang err]))
-    ~&  >>>  "build-code: tang bins built"
-    =.  lode  [~ ~ new-bins]
+      =/  =built:nexus  [%tang err]
+      =/  ckey=@uv  (sham built)
+      =/  node=(map @ta @uv)
+        (fall (~(get of acc) path.rail) *(map @ta @uv))
+      [(~(put of acc) path.rail (~(put by node) stem ckey)) (~(put by bld) ckey built)]
+    =.  bins  (refs-inc new-refs builds)
+    =.  bins  (refs-dec old-refs)
+    =.  lode  [~ ~ new-refs]
     =.  code  (~(put by code) cod lode)
-    ~&  >>>  "build-code: kelvin mismatch done, returning"
     this
-  ::  Reconstruct cache from bins + keys
-  =/  old-cache=build-cache:build  (bins-to-cache:build bins.lode keys.lode)
+  ::  Reconstruct cache from global bins
+  =/  old-cache=build-cache:build  (bins-to-cache:build bins)
   ~&  >  "build-code: compiling..."
   ::  Single compilation pass: marks, libs, nexuses (hoon only)
   =/  res=build-out:build  (build-all:build sut src-ball old-cache)
   ~&  >  "build-code: compiled {<~(wyt by results.res)>} results"
-  ::  Build bins axal from results + mime files
-  ::  Seed bins with mime files
-  =/  new-bins=bins:nexus
+  ::  Build refs from results + mime files
+  ::  Seed with mime files
+  =/  [new-refs=refs:nexus builds=(map @uv built:nexus)]
     %+  roll  mime-files
-    |=  [[=rail:tarball =content:tarball] acc=bins:nexus]
+    |=  [[=rail:tarball =content:tarball] [acc=refs:nexus bld=(map @uv built:nexus)]]
     =/  =mime  !<(mime q.sage.content)
-    =/  node=(map @ta built:nexus)
-      (fall (~(get of acc) path.rail) *(map @ta built:nexus))
-    (~(put of acc) path.rail (~(put by node) name.rail [%mime mime]))
+    =/  =built:nexus  [%mime mime]
+    =/  ckey=@uv  (sham built)
+    =/  node=(map @ta @uv)
+      (fall (~(get of acc) path.rail) *(map @ta @uv))
+    [(~(put of acc) path.rail (~(put by node) name.rail ckey)) (~(put by bld) ckey built)]
   ::  Add compiled hoon results
-  =.  new-bins
+  =^  new-refs  builds
     %+  roll  ~(tap by results.res)
-    |=  [[=rail:tarball =build-result:build] acc=_new-bins]
+    |=  [[=rail:tarball =build-result:build] [acc=_new-refs bld=_builds]]
     =/  stem=@ta  (strip-hoon:build name.rail)
     =/  =built:nexus
       ?:  ?=(%| -.build-result)
@@ -2691,23 +2743,24 @@
         ~&  >>  "validate-build failed: {(spud (snoc path.rail name.rail))}"
         [%tang u.val-err]
       [%vase p.build-result]
-    =/  node=(map @ta built:nexus)
-      (fall (~(get of acc) path.rail) *(map @ta built:nexus))
-    (~(put of acc) path.rail (~(put by node) stem built))
-  ::  Update build state
-  ::  Note: /mar entries in results are already marcs (built in build.hoon)
-  ~&  >  "build-code: updating lode"
-  =/  old-keys=keys:nexus  keys.lode
-  =.  lode  [keys.res deps.res new-bins]
+    =/  ckey=@uv  (sham built)
+    =/  node=(map @ta @uv)
+      (fall (~(get of acc) path.rail) *(map @ta @uv))
+    [(~(put of acc) path.rail (~(put by node) stem ckey)) (~(put by bld) ckey built)]
+  ::  Update global bins: increment new, decrement old
+  =.  bins  (refs-inc new-refs builds)
+  ::  Decrement old refs, update lode
+  =.  bins  (refs-dec old-refs)
+  =.  lode  [keys.res deps.res new-refs]
   =.  code  (~(put by code) cod lode)
   ::  Validate marks: clam existing grubs through changed marks
   ~&  >  "build-code: validate-marks"
-  =^  new-bins  this  (validate-marks cod old-bins new-bins)
+  =^  new-refs  this  (validate-marks cod old-refs new-refs)
   =/  upd-lode=lode:nexus  (fall (~(get by code) cod) *lode:nexus)
-  =.  code  (~(put by code) cod upd-lode(bins new-bins))
+  =.  code  (~(put by code) cod upd-lode(refs new-refs))
   ::  Reload nexuses whose compiled code changed
   ~&  >  "build-code: reload-changed-nexuses"
-  =.  this  (reload-changed-nexuses cod old-keys keys.res old-bins new-bins)
+  =.  this  (reload-changed-nexuses cod old-refs new-refs)
   ~&  >  "build-code: done"
   this
 ::  Validate marks: for each changed mark in bin/mar/, build a vale gate
@@ -2763,29 +2816,31 @@
 ::  On failure, downgrades the mark to .tang in new-bin.
 ::
 ++  validate-marks
-  |=  [cod=path old-bins=bins:nexus new-bins=bins:nexus]
-  ^+  [new-bins this]
-  ::  Walk /mar subtree to find all [blot built] pairs
-  =/  mar-sub=bins:nexus  (~(dip of new-bins) /mar)
-  =/  old-sub=bins:nexus  (~(dip of old-bins) /mar)
-  =/  all-new=(list [pax=path node=(map @ta built:nexus)])
+  |=  [cod=path old-refs=refs:nexus new-refs=refs:nexus]
+  ^+  [new-refs this]
+  ::  Walk /mar subtree to find changed marks by comparing ckeys
+  =/  mar-sub=refs:nexus  (~(dip of new-refs) /mar)
+  =/  old-sub=refs:nexus  (~(dip of old-refs) /mar)
+  =/  all-new=(list [pax=path node=(map @ta @uv)])
     ~(tap of mar-sub)
-  ::  Find changed blots (any change — vase, tang, etc)
+  ::  Find changed blots (ckey differs or newly added)
   =/  changed=(list [=blot:tarball =built:nexus])
     %-  zing
     %+  turn  all-new
-    |=  [pax=path node=(map @ta built:nexus)]
+    |=  [pax=path node=(map @ta @uv)]
     %+  murn  ~(tap by node)
-    |=  [nam=@ta =built:nexus]
-    =/  old-node=(map @ta built:nexus)
-      (fall (~(get of old-sub) pax) *(map @ta built:nexus))
-    =/  old=(unit built:nexus)  (~(get by old-node) nam)
-    ?:  =(old `built)  ~
-    `[[pax nam] built]
+    |=  [nam=@ta ckey=@uv]
+    =/  old-node=(map @ta @uv)
+      (fall (~(get of old-sub) pax) *(map @ta @uv))
+    =/  old-key=(unit @uv)  (~(get by old-node) nam)
+    ?:  =(old-key `ckey)  ~
+    =/  entry=(unit [refs=@ud =built:nexus])  (~(get by bins) ckey)
+    ?~  entry  ~
+    `[[pax nam] built.u.entry]
   ::  Process each changed mark
   =/  remaining=_changed  changed
   |-
-  ?~  remaining  [new-bins this]
+  ?~  remaining  [new-refs this]
   =/  [=blot:tarball =built:nexus]  i.remaining
   =/  nam=@tas  (rail-to-arm:tarball blot)
   ::  Find all grubs with this mark, including booms with matching inner mark
@@ -2837,32 +2892,26 @@
 ::  apply the results (like reload-nexus). Crashes if any on-load fails.
 ::
 ++  reload-changed-nexuses
-  |=  [cod=path old-keys=keys:nexus new-keys=keys:nexus old-bins=bins:nexus new-bins=bins:nexus]
+  |=  [cod=path old-refs=refs:nexus new-refs=refs:nexus]
   ^+  this
-  ::  Find nexuses in /nex whose content hash changed
-  =/  nex-sub=bins:nexus  (~(dip of new-bins) /nex)
-  =/  old-sub=bins:nexus  (~(dip of old-bins) /nex)
-  =/  all-new=(list [pax=path node=(map @ta built:nexus)])
+  ::  Find nexuses in /nex whose ckey changed
+  =/  nex-sub=refs:nexus  (~(dip of new-refs) /nex)
+  =/  old-sub=refs:nexus  (~(dip of old-refs) /nex)
+  =/  all-new=(list [pax=path node=(map @ta @uv)])
     ~(tap of nex-sub)
   =/  changed=(list [=neck:tarball =built:nexus])
     %-  zing
     %+  turn  all-new
-    |=  [pax=path node=(map @ta built:nexus)]
+    |=  [pax=path node=(map @ta @uv)]
     %+  murn  ~(tap by node)
-    |=  [nam=@ta =built:nexus]
-    =/  =rail:tarball  [(weld /nex pax) nam]
-    =/  key-rail=rail:tarball  [path.rail (cat 3 nam '.hoon')]
-    =/  old-key=(unit @uv)  (~(get by old-keys) key-rail)
-    =/  new-key=(unit @uv)  (~(get by new-keys) key-rail)
-    =/  old-node=(map @ta built:nexus)
-      (fall (~(get of old-sub) pax) *(map @ta built:nexus))
-    =/  old-built=(unit built:nexus)  (~(get by old-node) nam)
-    ::  same key = no change (but ~ = ~ means "both missing", not "same")
-    ?:  ?&  =(old-key new-key)
-            ?=(^ old-key)
-        ==
-      ~
-    `[[pax nam] built]
+    |=  [nam=@ta ckey=@uv]
+    =/  old-node=(map @ta @uv)
+      (fall (~(get of old-sub) pax) *(map @ta @uv))
+    =/  old-ckey=(unit @uv)  (~(get by old-node) nam)
+    ?:  =(old-ckey `ckey)  ~
+    =/  entry=(unit [refs=@ud =built:nexus])  (~(get by bins) ckey)
+    ?~  entry  ~
+    `[[pax nam] built.u.entry]
   ::  Process each changed nexus
   =/  remaining=_changed  changed
   |-
