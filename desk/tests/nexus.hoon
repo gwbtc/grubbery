@@ -275,7 +275,7 @@
   =/  new-born=born:nexus  (init:b [/a/b %file])
   =/  b2  (make-bo-with now new-born)
   %+  expect-eq
-    !>  `(unit sack:nexus)``[[0 now] [0 now] [0 now] ~]
+    !>  `(unit sack:nexus)``[[0 now] [0 now] ~]
   !>  (get:b2 [/a/b %file])
 ::
 ++  test-bo-bump-proc-increments
@@ -779,8 +779,8 @@
     !>  ~(wyt by blobs.silo3)
   ::  Oldest entry maps to lobe1
     %+  expect-eq
-      !>  `(unit [lobe:clay blot:tarball])`(get:on-hist:sack:nexus hist3 cass1)
-    !>  `(unit [lobe:clay blot:tarball])``[lobe1 [/ %txt]]
+      !>  `(unit pace:sack:nexus)`(get:on-hist:sack:nexus hist3 cass1)
+    !>  `(unit pace:sack:nexus)``[%file `[lobe1 [/ %txt]]]
   ==
 ::
 ++  test-si-record-no-keep-replaces
@@ -796,9 +796,9 @@
   =/  [lobe2=lobe:clay silo2=silo:nexus hist2=_hist]
     (~(record si:nexus silo1) q.page2 p.page2 cass2 %.n cass1 hist1)
   ;:  weld
-    ::  Only 1 entry in hist (latest)
+    ::  2 entries in hist (tombstone + new)
     %+  expect-eq
-      !>  `@ud`1
+      !>  `@ud`2
     !>  (lent (tap:on-hist:sack:nexus hist2))
   ::  Old page dropped from silo
     %+  expect-eq
@@ -874,11 +874,11 @@
 ::
 ++  make-hist
   |=  entries=(list [ud=@ud da=@da =lobe:clay =blot:tarball])
-  ^-  ((mop cass:clay ,[lobe:clay blot:tarball]) cor:nexus)
-  =/  hist=((mop cass:clay ,[lobe:clay blot:tarball]) cor:nexus)  ~
+  ^-  ((mop cass:clay pace:sack:nexus) cor:nexus)
+  =/  hist=((mop cass:clay pace:sack:nexus) cor:nexus)  ~
   |-
   ?~  entries  hist
-  $(entries t.entries, hist (put:on-hist:sack:nexus hist [ud.i.entries da.i.entries] [lobe.i.entries blot.i.entries]))
+  $(entries t.entries, hist (put:on-hist:sack:nexus hist [ud.i.entries da.i.entries] [%file `[lobe.i.entries blot.i.entries]]))
 ::
 ++  test-resolve-case-ud-exact
   ::  %ud finds exact revision number
@@ -887,7 +887,7 @@
   =/  lobe3=lobe:clay  `@uvI`(sham 'ccc')
   =/  hist  (make-hist ~[[1 ~2024.1.1 lobe1 [/ %txt]] [2 ~2024.1.2 lobe2 [/ %txt]] [3 ~2024.1.3 lobe3 [/ %txt]]])
   %+  expect-eq
-    !>  [lobe2 [/ %txt]]
+    !>  [%file `[lobe2 [/ %txt]]]
   !>  (resolve-case:nexus [%ud 2] hist)
 ::
 ++  test-resolve-case-ud-first
@@ -896,7 +896,7 @@
   =/  lobe2=lobe:clay  `@uvI`(sham 'bbb')
   =/  hist  (make-hist ~[[1 ~2024.1.1 lobe1 [/ %txt]] [2 ~2024.1.2 lobe2 [/ %txt]]])
   %+  expect-eq
-    !>  [lobe1 [/ %txt]]
+    !>  [%file `[lobe1 [/ %txt]]]
   !>  (resolve-case:nexus [%ud 1] hist)
 ::
 ++  test-resolve-case-ud-last
@@ -906,14 +906,14 @@
   =/  lobe3=lobe:clay  `@uvI`(sham 'ccc')
   =/  hist  (make-hist ~[[1 ~2024.1.1 lobe1 [/ %txt]] [2 ~2024.1.2 lobe2 [/ %txt]] [3 ~2024.1.3 lobe3 [/ %txt]]])
   %+  expect-eq
-    !>  [lobe3 [/ %txt]]
+    !>  [%file `[lobe3 [/ %txt]]]
   !>  (resolve-case:nexus [%ud 3] hist)
 ::
 ++  test-resolve-case-ud-not-found
   ::  %ud crashes on missing revision
   =/  lobe1=lobe:clay  `@uvI`(sham 'aaa')
   =/  hist  (make-hist ~[[1 ~2024.1.1 lobe1 [/ %txt]]])
-  =/  res=(each [lobe:clay blot:tarball] tang)
+  =/  res=(each pace:sack:nexus tang)
     (mule |.((resolve-case:nexus [%ud 99] hist)))
   %+  expect-eq
     !>  %.y
@@ -925,7 +925,7 @@
   =/  lobe2=lobe:clay  `@uvI`(sham 'bbb')
   =/  hist  (make-hist ~[[1 ~2024.1.1 lobe1 [/ %txt]] [2 ~2024.1.2 lobe2 [/ %txt]]])
   %+  expect-eq
-    !>  [lobe2 [/ %txt]]
+    !>  [%file `[lobe2 [/ %txt]]]
   !>  (resolve-case:nexus [%da ~2024.1.2] hist)
 ::
 ++  test-resolve-case-da-between
@@ -936,7 +936,7 @@
   =/  hist  (make-hist ~[[1 ~2024.1.1 lobe1 [/ %txt]] [2 ~2024.3.1 lobe2 [/ %txt]] [3 ~2024.6.1 lobe3 [/ %txt]]])
   ::  Date between entry 1 and 2 should return lobe1
   %+  expect-eq
-    !>  [lobe1 [/ %txt]]
+    !>  [%file `[lobe1 [/ %txt]]]
   !>  (resolve-case:nexus [%da ~2024.2.1] hist)
 ::
 ++  test-resolve-case-da-after-all
@@ -945,14 +945,14 @@
   =/  lobe2=lobe:clay  `@uvI`(sham 'bbb')
   =/  hist  (make-hist ~[[1 ~2024.1.1 lobe1 [/ %txt]] [2 ~2024.3.1 lobe2 [/ %txt]]])
   %+  expect-eq
-    !>  [lobe2 [/ %txt]]
+    !>  [%file `[lobe2 [/ %txt]]]
   !>  (resolve-case:nexus [%da ~2025.1.1] hist)
 ::
 ++  test-resolve-case-da-before-all
   ::  %da before all entries crashes
   =/  lobe1=lobe:clay  `@uvI`(sham 'aaa')
   =/  hist  (make-hist ~[[1 ~2024.6.1 lobe1 [/ %txt]]])
-  =/  res=(each [lobe:clay blot:tarball] tang)
+  =/  res=(each pace:sack:nexus tang)
     (mule |.((resolve-case:nexus [%da ~2024.1.1] hist)))
   %+  expect-eq
     !>  %.y
@@ -960,8 +960,8 @@
 ::
 ++  test-resolve-case-da-empty
   ::  %da on empty hist crashes
-  =/  hist=((mop cass:clay ,[lobe:clay blot:tarball]) cor:nexus)  ~
-  =/  res=(each [lobe:clay blot:tarball] tang)
+  =/  hist=((mop cass:clay pace:sack:nexus) cor:nexus)  ~
+  =/  res=(each pace:sack:nexus tang)
     (mule |.((resolve-case:nexus [%da ~2024.1.1] hist)))
   %+  expect-eq
     !>  %.y
@@ -969,8 +969,8 @@
 ::
 ++  test-resolve-case-ud-empty
   ::  %ud on empty hist crashes
-  =/  hist=((mop cass:clay ,[lobe:clay blot:tarball]) cor:nexus)  ~
-  =/  res=(each [lobe:clay blot:tarball] tang)
+  =/  hist=((mop cass:clay pace:sack:nexus) cor:nexus)  ~
+  =/  res=(each pace:sack:nexus tang)
     (mule |.((resolve-case:nexus [%ud 1] hist)))
   %+  expect-eq
     !>  %.y
@@ -993,9 +993,9 @@
 ++  make-grub-born
   |=  [dir=path name=@ta =lobe:clay =blot:tarball file-cass=cass:clay]
   ^-  born:nexus
-  =/  hist=((mop cass:clay ,[lobe:clay blot:tarball]) cor:nexus)
-    (put:on-hist:sack:nexus ~ file-cass [lobe blot])
-  =/  sok=sack:nexus  [[0 ~2024.1.1] [0 ~2024.1.1] file-cass hist]
+  =/  hist=((mop cass:clay pace:sack:nexus) cor:nexus)
+    (put:on-hist:sack:nexus ~ file-cass [%file `[lobe blot]])
+  =/  sok=sack:nexus  [[0 ~2024.1.1] file-cass hist]
   =/  node=[tote:nexus (map @ta sack:nexus)]
     [[[0 ~2024.1.1] ~] (~(put by *(map @ta sack:nexus)) name sok)]
   (~(put of *born:nexus) dir node)
@@ -1053,8 +1053,8 @@
   =/  new-cass=cass:clay  [2 ~2024.1.2]
   =/  born1-node  (need (get-node born1 /))
   =/  sok=sack:nexus  (~(got by bags.born1-node) %myfile)
-  =/  new-hist=((mop cass:clay ,[lobe:clay blot:tarball]) cor:nexus)
-    (put:on-hist:sack:nexus hist.sok new-cass [lobe2 [/ %txt]])
+  =/  new-hist=((mop cass:clay pace:sack:nexus) cor:nexus)
+    (put:on-hist:sack:nexus hist.sok new-cass [%file `[lobe2 [/ %txt]]])
   =/  born2=born:nexus
     (~(put of born1) / born1-node(bags (~(put by bags.born1-node) %myfile sok(file new-cass, hist new-hist))))
   =/  [born3=born:nexus silo2=silo:nexus]
@@ -1116,9 +1116,9 @@
 ++  add-grub
   |=  [=born:nexus dir=path name=@ta =lobe:clay =blot:tarball file-cass=cass:clay]
   ^-  born:nexus
-  =/  hist=((mop cass:clay ,[lobe:clay blot:tarball]) cor:nexus)
-    (put:on-hist:sack:nexus ~ file-cass [lobe blot])
-  =/  sok=sack:nexus  [[0 ~2024.1.1] [0 ~2024.1.1] file-cass hist]
+  =/  hist=((mop cass:clay pace:sack:nexus) cor:nexus)
+    (put:on-hist:sack:nexus ~ file-cass [%file `[lobe blot]])
+  =/  sok=sack:nexus  [[0 ~2024.1.1] file-cass hist]
   =/  sub=born:nexus  (~(dip of born) dir)
   =/  node=[=tote:nexus bags=(map @ta sack:nexus)]
     (fall fil.sub [[[0 ~2024.1.1] ~] ~])

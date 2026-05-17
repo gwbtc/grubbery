@@ -403,7 +403,6 @@
 ::  Prevents stale responses and enables subscription ordering.
 ::
 ::  proc: incremented on process spawn/restart
-::  life: incremented on grub creation (not updates; survives deletion)
 ::  file: incremented on content change
 ::
 :: fold level version information
@@ -411,24 +410,28 @@
 ++  tote
   =<  tote
   |%
+  +$  pace  lobe:clay
   +$  tote
     $:  fold=cass:clay
-        hist=((mop cass:clay lobe:clay) cor)
+        hist=((mop cass:clay pace) cor)
     ==
-  ++  on-hist  ((on cass:clay lobe:clay) cor)
+  ++  on-hist  ((on cass:clay pace) cor)
   --
 :: grub level version information
 ::
 ++  sack
   =<  sack
   |%
+  +$  pace
+    $%  [%file p=(unit [=lobe:clay =blot:tarball])]
+        [%tomb ~]
+    ==
   +$  sack
     $:  proc=cass:clay :: incremented on process spawn/restart
-        life=cass:clay :: incremented on grub creation; not updates
         file=cass:clay :: incremented on content change
-        hist=((mop cass:clay ,[lobe:clay blot:tarball]) cor)
+        hist=((mop cass:clay pace) cor)
     ==
-  ++  on-hist  ((on cass:clay ,[lobe:clay blot:tarball]) cor)
+  ++  on-hist  ((on cass:clay pace) cor)
   --
 ::
 +$  born  (axal [=tote bags=(map @ta sack)])
@@ -453,11 +456,11 @@
 ::  %da: latest entry with da <= target date
 ::
 ++  resolve-case
-  |=  [cas=case hist=((mop cass:clay ,[lobe:clay blot:tarball]) cor)]
-  ^-  [lobe:clay blot:tarball]
+  |=  [cas=case hist=((mop cass:clay pace:sack) cor)]
+  ^-  pace:sack
   ?-    -.cas
       %ud
-    =/  entries=(list [key=cass:clay val=[lobe:clay blot:tarball]])
+    =/  entries=(list [key=cass:clay val=pace:sack])
       (tap:on-hist:sack hist)
     |-
     ?~  entries  ~|(%hist-version-not-found !!)
@@ -465,10 +468,10 @@
       val.i.entries
     $(entries t.entries)
       %da
-    =/  entries=(list [key=cass:clay val=[lobe:clay blot:tarball]])
+    =/  entries=(list [key=cass:clay val=pace:sack])
       (tap:on-hist:sack hist)
     ::  tap gives ascending order; find latest entry with da <= target
-    =/  best=(unit [lobe:clay blot:tarball])  ~
+    =/  best=(unit pace:sack)  ~
     |-
     ?~  entries
       ?~  best  ~|(%hist-version-not-found !!)
@@ -494,13 +497,16 @@
   =/  nek=(unit neck:tarball)
     =/  sub-ball=ball:tarball  (~(dip of ball) dir)
     ?~(fil.sub-ball ~ neck.u.fil.sub-ball)
-  ::  fil: each grub's current [lobe blot] from hist
+  ::  fil: each grub's current [lobe blot] from hist (skip deleted/tombed)
   =/  fil=(map @ta [lobe:clay blot:tarball])
-    %-  ~(urn by bags.node)
-    |=  [name=@ta =sack]
-    =/  val=(unit [lobe:clay blot:tarball])
+    %-  ~(rep by bags.node)
+    |=  [[name=@ta =sack] out=(map @ta [lobe:clay blot:tarball])]
+    =/  val=(unit pace:^sack)
       (get:on-hist:^sack hist.sack file.sack)
-    (fall val [*lobe:clay *blot:tarball])
+    ?~  val  out
+    ?.  ?=(%file -.u.val)  out
+    ?~  p.u.val  out
+    (~(put by out) name [lobe.u.p.u.val blot.u.p.u.val])
   ::  dir: each child's latest tree lobe + weir
   =/  sub-sand=^sand  (~(dip of sand) dir)
   =/  dir-map=(map @ta [lobe:clay weir=(unit weir)])
@@ -599,23 +605,22 @@
     =/  nex-da=@da
       ?:((lth da.cass now) now +(da.cass))
     [+(ud.cass) nex-da]
-  ::  Init born for new file — bump life if sack exists (re-creation),
-  ::  otherwise start life at 1.
+  ::  Init born for new file — reuse existing sack if present (re-creation)
   ::
   ++  init
     |=  here=rail:tarball
     ^-  born
     =/  existing=(unit sack)  (get here)
     ?~  existing
-      (put here [[0 now] [0 now] [0 now] ~])
-    (put here [proc.u.existing (next-cass life.u.existing) file.u.existing hist.u.existing])
+      (put here [[0 now] [0 now] ~])
+    (put here u.existing)
   ::  Bump proc cass (asserts born exists)
   ::
   ++  bump-proc
     |=  here=rail:tarball
     ^-  born
     =/  sok=sack  (need (get here))
-    (put here [(next-cass proc.sok) life.sok file.sok hist.sok])
+    (put here [(next-cass proc.sok) file.sok hist.sok])
   ::  Bump file cass (asserts born exists)
   ::
   ++  bump-file
@@ -626,7 +631,7 @@
       ~|  ["bump-file: missing rail" here]
       !!
     =/  sok=sack  u.got
-    (put here [proc.sok life.sok (next-cass file.sok) hist.sok])
+    (put here [proc.sok (next-cass file.sok) hist.sok])
   ::  Check if a ball node is an empty directory (exists but no files, no subdirs)
   ::
   ++  is-empty-dir
@@ -750,13 +755,16 @@
   ::  Drop refs for all lobes in a hist (grub-level, blobs).
   ::
   ++  drop-hist
-    |=  hist=((mop cass:clay ,[lobe:clay blot:tarball]) cor)
+    |=  hist=((mop cass:clay pace:sack) cor)
     ^-  ^silo
-    =/  entries=(list [key=cass:clay val=[lobe:clay blot:tarball]])
+    =/  entries=(list [key=cass:clay val=pace:sack])
       (tap:on-hist:sack hist)
     |-
     ?~  entries  silo
-    $(entries t.entries, silo (drop -.val.i.entries))
+    =/  pv=pace:sack  val.i.entries
+    ?.  ?=(%file -.pv)  $(entries t.entries)
+    ?~  p.pv  $(entries t.entries)
+    $(entries t.entries, silo (drop lobe.u.p.pv))
   ::  Insert tree, increment refcount if exists. Returns lobe and new silo.
   ::
   ::  Increment blob refcount by lobe (must exist).
@@ -834,19 +842,23 @@
   ::    gain only controls what happens live, not retroactively.
   ::
   ++  record
-    |=  [=noun =blot:tarball =cass:clay gain=? file=cass:clay hist=((mop cass:clay ,[lobe:clay blot:tarball]) cor)]
-    ^-  [lobe:clay ^silo ((mop cass:clay ,[lobe:clay blot:tarball]) cor)]
+    |=  [=noun =blot:tarball =cass:clay gain=? file=cass:clay hist=((mop cass:clay pace:sack) cor)]
+    ^-  [lobe:clay ^silo ((mop cass:clay pace:sack) cor)]
     =/  [=lobe:clay new-silo=^silo]  (put noun)
     ?:  gain
-      [lobe new-silo (put:on-hist:sack hist cass [lobe blot])]
-    ::  !gain: replace current live version only, preserve older history
-    =/  prev=(unit [lobe:clay blot:tarball])  (get:on-hist:sack hist file)
-    =?  new-silo  ?=(^ prev)
-      (~(drop si new-silo) -.u.prev)
-    =/  trimmed
+      [lobe new-silo (put:on-hist:sack hist cass [%file `[lobe blot]])]
+    ::  !gain: tombstone previous live version, append new
+    =/  prev=(unit pace:sack)  (get:on-hist:sack hist file)
+    =.  new-silo
+      ?~  prev  new-silo
+      =/  pv=pace:sack  u.prev
+      ?.  ?=(%file -.pv)  new-silo
+      ?~  p.pv  new-silo
+      (~(drop si new-silo) lobe.u.p.pv)
+    =/  tombed
       ?~  prev  hist
-      +:(del:on-hist:sack hist file)
-    [lobe new-silo (put:on-hist:sack trimmed cass [lobe blot])]
+      (put:on-hist:sack hist file [%tomb ~])
+    [lobe new-silo (put:on-hist:sack tombed cass [%file `[lobe blot]])]
   --
 ::  +stamp-mtimes: stamp born datetimes into ball metadata as mtime
 ::
@@ -873,11 +885,9 @@
 ::  +diff-born: compare two born trees and return set of changed lanes
 ::
 ::  Pure function: walks both trees, comparing totes and sacks.
-::  Four modes:
+::  Two modes:
 ::    %all   - compare everything (tote + bags)
 ::    %state - compare fold cass + file cass only (content changes)
-::    %weir  - compare weir cass only (sandbox changes)
-::    %proc  - compare proc cass only (process restarts)
 ::
 ++  diff-born
   |=  [old=born new=born]
@@ -889,18 +899,8 @@
   ^-  (set lane:tarball)
   (diff-born-at / old new %state)
 ::
-++  diff-born-weir
-  |=  [old=born new=born]
-  ^-  (set lane:tarball)
-  (diff-born-at / old new %weir)
-::
-++  diff-born-proc
-  |=  [old=born new=born]
-  ^-  (set lane:tarball)
-  (diff-born-at / old new %proc)
-::
 ++  diff-born-at
-  |=  [here=fold:tarball old=born new=born mode=?(%all %state %weir %proc)]
+  |=  [here=fold:tarball old=born new=born mode=?(%all %state)]
   ^-  (set lane:tarball)
   =|  result=(set lane:tarball)
   ::  Compare directory-level totes
@@ -910,14 +910,11 @@
     ?-  mode
       %all    !=(old-tote new-tote)
       %state  !=(fold.old-tote fold.new-tote)
-      %weir   !=(fold.old-tote fold.new-tote)
-      %proc   %.n
     ==
   =?  result  dir-changed
     (~(put in result) |+here)
-  ::  Compare bags (file sacks) — skip for weir-only mode
+  ::  Compare bags (file sacks)
   =.  result
-    ?:  ?=(%weir mode)  result
     =/  old-bags=(map @ta sack)  ?~(fil.old ~ bags.u.fil.old)
     =/  new-bags=(map @ta sack)  ?~(fil.new ~ bags.u.fil.new)
     =/  all-names=(list @ta)
@@ -927,9 +924,10 @@
     =/  old-sk=sack  (fall (~(get by old-bags) i.all-names) *sack)
     =/  new-sk=sack  (fall (~(get by new-bags) i.all-names) *sack)
     =/  sack-changed=?
-      ?:  ?=(%all mode)    !=(old-sk new-sk)
-      ?:  ?=(%state mode)  !=(file.old-sk file.new-sk)
-      !=(proc.old-sk proc.new-sk)
+      ?-  mode
+        %all    !=(old-sk new-sk)
+        %state  !=(file.old-sk file.new-sk)
+      ==
     =?  result  sack-changed
       (~(put in result) &+[here i.all-names])
     $(all-names t.all-names)
@@ -1222,12 +1220,20 @@
       :-  'hist'
       :-  %a
       %+  turn  (tap:on-hist:^sack hist.sack)
-      |=  [key=cass:clay =lobe:clay =blot:tarball]
+      |=  [key=cass:clay val=pace:^sack]
       %-  pairs:enjs:format
       :~  ['ud' (numb:enjs:format ud.key)]
           ['da' s+(scot %da da.key)]
-          ['lobe' s+(scot %uv lobe)]
-          ['blot' s+(rap 3 (spat path.blot) '' name.blot ~)]
+          :-  'pace'
+          ?-  -.val
+            %tomb  s+'tomb'
+            %file
+          ?~  p.val  s+'deleted'
+          %-  pairs:enjs:format
+          :~  ['lobe' s+(scot %uv lobe.u.p.val)]
+              ['blot' s+(rap 3 (spat path.blot.u.p.val) '' name.blot.u.p.val ~)]
+          ==
+          ==
       ==
   ==
 ::

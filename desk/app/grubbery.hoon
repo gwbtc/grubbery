@@ -524,13 +524,13 @@
   |=  [here=rail:tarball =lose:nexus]
   ^+  this
   =/  sk=sack:nexus  (need (get-born here))
-  =/  entries=(list [key=cass:clay val=[lobe:clay blot:tarball]])
+  =/  entries=(list [key=cass:clay val=pace:sack:nexus])
     (tap:on-hist:sack:nexus hist.sk)
-  =/  kept=(list [key=cass:clay val=[lobe:clay blot:tarball]])  ~
+  =/  kept=(list [key=cass:clay val=pace:sack:nexus])  ~
   |-
   ?~  entries
-    =/  new-hist=((mop cass:clay ,[lobe:clay blot:tarball]) cor:nexus)
-      *((mop cass:clay ,[lobe:clay blot:tarball]) cor:nexus)
+    =/  new-hist=((mop cass:clay pace:sack:nexus) cor:nexus)
+      *((mop cass:clay pace:sack:nexus) cor:nexus)
     =.  new-hist
       |-
       ?~  kept  new-hist
@@ -551,8 +551,12 @@
       ==
     ==
   ?:  drop
-    =.  silo  (~(drop si:nexus silo) -.val.i.entries)
-    $(entries t.entries)
+    =.  silo
+      =/  pv=pace:sack:nexus  val.i.entries
+      ?.  ?=(%file -.pv)  silo
+      ?~  p.pv  silo
+      (~(drop si:nexus silo) lobe.u.p.pv)
+    $(entries t.entries, kept [[key.i.entries [%tomb ~]] kept])
   $(entries t.entries, kept [i.entries kept])
 ::  Find all [rail cass] pairs in a subtree whose hist contains a lobe
 ::
@@ -594,11 +598,13 @@
   (weld hits $(files t.files))
 ::
 ++  match-hist
-  |=  [here=rail:tarball hist=((mop cass:clay ,[lobe:clay blot:tarball]) cor:nexus) target=lobe:clay]
+  |=  [here=rail:tarball hist=((mop cass:clay pace:sack:nexus) cor:nexus) target=lobe:clay]
   ^-  (list [=rail:tarball =cass:clay])
   %+  murn  (tap:on-hist:sack:nexus hist)
-  |=  [key=cass:clay val=[lobe:clay blot:tarball]]
-  ?.  =(-.val target)  ~
+  |=  [key=cass:clay val=pace:sack:nexus]
+  ?.  ?=(%file -.val)  ~
+  ?~  p.val  ~
+  ?.  =(lobe.u.p.val target)  ~
   `[here key]
 ::
 ++  emit-card
@@ -956,10 +962,19 @@
     "no grub at {(spud (weld dir /[name]))}"
   ::  Clean up outgoing subscriptions from this file
   =.  this  (sub-wipe [dir name])
-  ::  Drop all silo refs from hist
+  ::  Tombstone all hist entries, append [%file ~] for deletion
   =/  sok=(unit sack:nexus)  (get-born [dir name])
   =?  silo  ?=(^ sok)
     (~(drop-hist si:nexus silo) hist.u.sok)
+  =?  born  ?=(^ sok)
+    =/  new-file=cass:clay  (~(next-cass bo:nexus now.bowl [born ball]) file.u.sok)
+    =/  entries=(list [key=cass:clay val=pace:sack:nexus])
+      (tap:on-hist:sack:nexus hist.u.sok)
+    =|  tombed=((mop cass:clay pace:sack:nexus) cor:nexus)
+    |-  ?^  entries
+      $(entries t.entries, tombed (put:on-hist:sack:nexus tombed key.i.entries [%tomb ~]))
+    =/  new-hist  (put:on-hist:sack:nexus tombed new-file [%file ~])
+    (~(put bo:nexus now.bowl [born ball]) [dir name] u.sok(file new-file, hist new-hist))
   ::  Remove from ball BEFORE notify so subscribers see deletion
   =.  ball  (~(del ba:tarball ball) dir name)
   =.  this  (bump-file [dir name])
@@ -1753,12 +1768,14 @@
         ::  Resolve source: historical bask from silo or current sage from ball
         =/  source=(unit sage:tarball)
           ?^  case.load.dart
-            =/  [=lobe:clay =blot:tarball]
+            =/  =pace:sack:nexus
               (resolve-case:nexus u.case.load.dart hist.sk)
-            =/  got=(unit noun)  (~(get si:nexus silo) lobe)
+            ?.  ?=(%file -.pace)  ~
+            ?~  p.pace  ~
+            =/  got=(unit noun)  (~(get si:nexus silo) lobe.u.p.pace)
             ?~  got  ~
             ::  Clam bask back to sage
-            =/  res=(each sage:tarball tang)  (clam-bask cod [blot u.got])
+            =/  res=(each sage:tarball tang)  (clam-bask cod [blot.u.p.pace u.got])
             ?:  ?=(%| -.res)  ~
             `p.res
           `sage.u.content
@@ -1920,11 +1937,11 @@
       =/  sk=(unit sack:nexus)  (get-born dest)
       ?~  sk
         (enqu-take here (sys-give /peep) ~ %peep wire.dart |+~[leaf+"no history for {(spud (snoc path.dest name.dest))}"])
-      =/  entries=(list [key=cass:clay val=[lobe:clay blot:tarball]])
+      =/  entries=(list [key=cass:clay val=pace:sack:nexus])
         (tap:on-hist:sack:nexus hist.u.sk)
       =/  hits=(list [cass:clay sage:tarball])
         %+  murn  entries
-        |=  [key=cass:clay val=[lobe:clay blot:tarball]]
+        |=  [key=cass:clay val=pace:sack:nexus]
         ^-  (unit [cass:clay sage:tarball])
         =/  match=?
           ?-    -.find.load.dart
@@ -1940,9 +1957,11 @@
             ==
           ==
         ?.  match  ~
-        =/  got=(unit noun)  (~(get si:nexus silo) -.val)
+        ?.  ?=(%file -.val)  ~
+        ?~  p.val  ~
+        =/  got=(unit noun)  (~(get si:nexus silo) lobe.u.p.val)
         ?~  got  ~
-        =/  res=(each sage:tarball tang)  (clam-bask cod [+.val u.got])
+        =/  res=(each sage:tarball tang)  (clam-bask cod [blot.u.p.val u.got])
         ?:  ?=(%| -.res)  ~
         `[key p.res]
       (enqu-take here (sys-give /peep) ~ %peep wire.dart &+hits)
