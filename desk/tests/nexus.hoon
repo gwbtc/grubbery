@@ -1016,7 +1016,8 @@
     %+  expect-eq  !>(`@ud`1)  !>(~(wyt by trees.new-silo))
   ::  Tree's fil should have our grub's lobe
     =/  tree-lobe=lobe:clay
-      (need (get:on-hist:tote:nexus hist.tote.node fold.tote.node))
+      =/  pv=pace:tote:nexus  (need (get:on-hist:tote:nexus hist.tote.node fold.tote.node))
+      ?>(?=(%fold -.pv) (need p.pv))
     =/  tree-entry  (~(got by trees.new-silo) tree-lobe)
     %+  expect-eq
       !>  `(unit [lobe:clay blot:tarball])``[lobe blot]
@@ -1083,10 +1084,12 @@
     %+  expect-eq  !>(`@ud`1)  !>(ud.fold.tote.root-node)
   ::  Root's tree should have /a's tree lobe in its dir map
     =/  root-tree-lobe=lobe:clay
-      (need (get:on-hist:tote:nexus hist.tote.root-node fold.tote.root-node))
+      =/  pv=pace:tote:nexus  (need (get:on-hist:tote:nexus hist.tote.root-node fold.tote.root-node))
+      ?>(?=(%fold -.pv) (need p.pv))
     =/  root-tree  tree:(~(got by trees.new-silo) root-tree-lobe)
     =/  a-tree-lobe=lobe:clay
-      (need (get:on-hist:tote:nexus hist.tote.a-node fold.tote.a-node))
+      =/  pv=pace:tote:nexus  (need (get:on-hist:tote:nexus hist.tote.a-node fold.tote.a-node))
+      ?>(?=(%fold -.pv) (need p.pv))
     %+  expect-eq
       !>  a-tree-lobe
     !>  lobe:(~(got by dir.root-tree) %a)
@@ -1105,7 +1108,8 @@
   ::  Root's tree should have /a's weir
   =/  root-node  (need (get-node new-born /))
   =/  root-tree-lobe=lobe:clay
-    (need (get:on-hist:tote:nexus hist.tote.root-node fold.tote.root-node))
+    =/  pv=pace:tote:nexus  (need (get:on-hist:tote:nexus hist.tote.root-node fold.tote.root-node))
+    ?>(?=(%fold -.pv) (need p.pv))
   =/  root-tree  tree:(~(got by trees.new-silo) root-tree-lobe)
   %+  expect-eq
     !>  `weir:nexus`weir
@@ -1137,7 +1141,8 @@
     (record-trees:nexus born *silo:nexus *sand:nexus *ball:tarball now /)
   =/  node  (need (get-node new-born /))
   =/  tree-lobe=lobe:clay
-    (need (get:on-hist:tote:nexus hist.tote.node fold.tote.node))
+    =/  pv=pace:tote:nexus  (need (get:on-hist:tote:nexus hist.tote.node fold.tote.node))
+    ?>(?=(%fold -.pv) (need p.pv))
   =/  =tree:silo:nexus  tree:(~(got by trees.new-silo) tree-lobe)
   ;:  weld
     ::  All 3 grubs in tree's fil
@@ -1166,7 +1171,8 @@
     (record-trees:nexus born *silo:nexus *sand:nexus *ball:tarball now /sub)
   =/  root-node  (need (get-node new-born /))
   =/  root-tree-lobe=lobe:clay
-    (need (get:on-hist:tote:nexus hist.tote.root-node fold.tote.root-node))
+    =/  pv=pace:tote:nexus  (need (get:on-hist:tote:nexus hist.tote.root-node fold.tote.root-node))
+    ?>(?=(%fold -.pv) (need p.pv))
   =/  root-tree  tree:(~(got by trees.new-silo) root-tree-lobe)
   ;:  weld
     ::  Root tree has the root grub in fil
@@ -1178,7 +1184,8 @@
     ::  /sub's tree has the child grub
     =/  sub-node  (need (get-node new-born /sub))
     =/  sub-tree-lobe=lobe:clay
-      (need (get:on-hist:tote:nexus hist.tote.sub-node fold.tote.sub-node))
+      =/  pv=pace:tote:nexus  (need (get:on-hist:tote:nexus hist.tote.sub-node fold.tote.sub-node))
+      ?>(?=(%fold -.pv) (need p.pv))
     =/  sub-tree  tree:(~(got by trees.new-silo) sub-tree-lobe)
     %+  expect-eq
       !>  `(unit [lobe:clay blot:tarball])``[lobe2 [/ %txt]]
@@ -1379,9 +1386,9 @@
   =/  [lobe1=lobe:clay silo1=silo:nexus]  (put-tree:s tree1)
   =/  s2  ~(. si:nexus silo1)
   =/  [lobe2=lobe:clay silo2=silo:nexus]  (put-tree:s2 tree2)
-  =/  hist=((mop cass:clay lobe:clay) cor:nexus)
+  =/  hist=((mop cass:clay pace:tote:nexus) cor:nexus)
     %-  put:on-hist:tote:nexus
-    [(put:on-hist:tote:nexus ~ [1 ~2024.1.1] lobe1) [2 ~2024.1.2] lobe2]
+    [(put:on-hist:tote:nexus ~ [1 ~2024.1.1] [%fold `lobe1]) [2 ~2024.1.2] [%fold `lobe2]]
   =/  silo3=silo:nexus  (~(drop-tote-hist si:nexus silo2) hist)
   %+  expect-eq  !>(`@ud`0)  !>(~(wyt by trees.silo3))
 --

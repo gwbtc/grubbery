@@ -410,7 +410,10 @@
 ++  tote
   =<  tote
   |%
-  +$  pace  lobe:clay
+  +$  pace
+    $%  [%fold p=(unit lobe:clay)]
+        [%tomb ~]
+    ==
   +$  tote
     $:  fold=cass:clay
         hist=((mop cass:clay pace) cor)
@@ -439,8 +442,6 @@
 ++  silo
   =<  silo
   |%
-  :: TODO: Consider refs from trees to blobs
-  ::
   +$  silo
     $:  blobs=(map lobe:clay [refs=@ud =noun])
         trees=(map lobe:clay [refs=@ud =tree])
@@ -515,9 +516,11 @@
     =/  kid-node=(unit [=tote bags=(map @ta sack)])  fil.kid
     =/  tree-lobe=lobe:clay
       ?~  kid-node  *lobe:clay
-      =/  got=(unit lobe:clay)
+      =/  got=(unit pace:tote)
         (get:on-hist:tote hist.tote.u.kid-node fold.tote.u.kid-node)
-      (fall got *lobe:clay)
+      ?~  got  *lobe:clay
+      ?.  ?=(%fold -.u.got)  *lobe:clay
+      (fall p.u.got *lobe:clay)
     =/  kid-weir=(unit weir)
       =/  kid-sand=(unit ^sand)  (~(get by dir.sub-sand) name)
       ?~  kid-sand  ~
@@ -527,8 +530,12 @@
   =/  =tree:^silo  [nek fil dir-map]
   =/  =lobe:clay  `@uvI`(sham tree)
   ::  Check if tree changed from current
-  =/  cur-lobe=(unit lobe:clay)
+  =/  cur-pace=(unit pace:tote)
     (get:on-hist:tote hist.tote.node fold.tote.node)
+  =/  cur-lobe=(unit lobe:clay)
+    ?~  cur-pace  ~
+    ?.  ?=(%fold -.u.cur-pace)  ~
+    p.u.cur-pace
   ?:  =(`lobe cur-lobe)
     [born silo]
   ::  Different — store tree, bump fold, record in tote hist
@@ -538,8 +545,8 @@
   =/  new-fold=cass:clay
     =/  nex-da=@da  ?:((lth da.fold.tote.node now) now +(da.fold.tote.node))
     [+(ud.fold.tote.node) nex-da]
-  =/  new-hist=((mop cass:clay lobe:clay) cor)
-    (put:on-hist:tote hist.tote.node new-fold lobe)
+  =/  new-hist=((mop cass:clay pace:tote) cor)
+    (put:on-hist:tote hist.tote.node new-fold [%fold `lobe])
   =.  born
     (~(put of born) dir node(fold.tote new-fold, hist.tote new-hist))
   ?~  dir  [born silo]
@@ -825,13 +832,16 @@
   ::  Drop refs for all lobes in a tote hist (fold-level, trees).
   ::
   ++  drop-tote-hist
-    |=  hist=((mop cass:clay lobe:clay) cor)
+    |=  hist=((mop cass:clay pace:tote) cor)
     ^-  ^silo
-    =/  entries=(list [key=cass:clay val=lobe:clay])
+    =/  entries=(list [key=cass:clay val=pace:tote])
       (tap:on-hist:tote hist)
     |-
     ?~  entries  silo
-    $(entries t.entries, silo (drop-tree val.i.entries))
+    =/  pv=pace:tote  val.i.entries
+    ?.  ?=(%fold -.pv)  $(entries t.entries)
+    ?~  p.pv  $(entries t.entries)
+    $(entries t.entries, silo (drop-tree u.p.pv))
   ::  Record a noun: insert into silo, update hist per gain flag.
   ::  Returns [lobe new-silo new-hist].
   ::
@@ -1249,11 +1259,17 @@
             :-  'hist'
             :-  %a
             %+  turn  (tap:on-hist:tote hist.tote.u.fil.b)
-            |=  [key=cass:clay =lobe:clay]
+            |=  [key=cass:clay val=pace:tote]
             %-  pairs:enjs:format
             :~  ['ud' (numb:enjs:format ud.key)]
                 ['da' s+(scot %da da.key)]
-                ['lobe' s+(scot %uv lobe)]
+                :-  'pace'
+                ?-  -.val
+                  %tomb  s+'tomb'
+                  %fold
+                ?~  p.val  s+'deleted'
+                s+(scot %uv u.p.val)
+                ==
             ==
         ==
         :-  'bags'
