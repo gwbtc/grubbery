@@ -431,14 +431,18 @@
   +$  silo  (map lobe:clay [refs=@ud =bask:tarball])
   :: speculative git-like content-addressed storage
   ::
+  +$  olis
+    $:  blobs=(map lobe:clay [refs=@ud =noun])
+        trees=(map lobe:clay [refs=@ud =tree])
+    ==
   +$  tree
     $:  nek=(unit neck:tarball)
-        fil=(map @ta lobe:clay)
+        fil=(map @ta [=lobe:clay =blot:tarball])
         dir=(map @ta [=lobe:clay weir=(unit weir)])
     ==
   +$  ject
     $%  [%tree =tree]
-        [%blob =bask:tarball]
+        [%blob =noun]
     ==
   --
 ::  Resolve a hist case to a lobe from the hist mop
