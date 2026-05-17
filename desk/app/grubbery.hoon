@@ -525,7 +525,7 @@
   ^+  this
   =/  sk=sack:nexus  (need (get-born here))
   =/  entries=(list [key=cass:clay val=[lobe:clay blot:tarball]])
-    (tap:on-hist:nexus hist.sk)
+    (tap:on-hist:sack:nexus hist.sk)
   =/  kept=(list [key=cass:clay val=[lobe:clay blot:tarball]])  ~
   |-
   ?~  entries
@@ -534,7 +534,7 @@
     =.  new-hist
       |-
       ?~  kept  new-hist
-      $(kept t.kept, new-hist (put:on-hist:nexus new-hist key.i.kept val.i.kept))
+      $(kept t.kept, new-hist (put:on-hist:sack:nexus new-hist key.i.kept val.i.kept))
     =.  born  (~(put bo:nexus now.bowl [born ball]) here sk(hist new-hist))
     this
   =/  drop=?
@@ -596,7 +596,7 @@
 ++  match-hist
   |=  [here=rail:tarball hist=((mop cass:clay ,[lobe:clay blot:tarball]) cor:nexus) target=lobe:clay]
   ^-  (list [=rail:tarball =cass:clay])
-  %+  murn  (tap:on-hist:nexus hist)
+  %+  murn  (tap:on-hist:sack:nexus hist)
   |=  [key=cass:clay val=[lobe:clay blot:tarball]]
   ?.  =(-.val target)  ~
   `[here key]
@@ -1921,7 +1921,7 @@
       ?~  sk
         (enqu-take here (sys-give /peep) ~ %peep wire.dart |+~[leaf+"no history for {(spud (snoc path.dest name.dest))}"])
       =/  entries=(list [key=cass:clay val=[lobe:clay blot:tarball]])
-        (tap:on-hist:nexus hist.u.sk)
+        (tap:on-hist:sack:nexus hist.u.sk)
       =/  hits=(list [cass:clay sage:tarball])
         %+  murn  entries
         |=  [key=cass:clay val=[lobe:clay blot:tarball]]
@@ -2263,7 +2263,7 @@
   ^+  this
   =?  this  !=(fil.old fil.new)
     =/  old-born=born:nexus  born
-    =.  born  (~(bump-weir bo:nexus now.bowl [born ball]) here)
+    =.  this  (record-trees here)
     (notify old-born)
   =/  all-kids=(list @ta)
     ~(tap in (~(uni in ~(key by dir.old)) ~(key by dir.new)))
@@ -2281,9 +2281,9 @@
   =/  old-sand=sand:nexus  sand
   =.  sand  ?~(weir (~(del of sand) dest) (~(put of sand) dest u.weir))
   ?:  =(old-sand sand)  this
-  ::  Bump weir cass in born for this directory
+  ::  Record tree (captures weir change), notify
   =/  old-born=born:nexus  born
-  =.  born  (~(bump-weir bo:nexus now.bowl [born ball]) dest)
+  =.  this  (record-trees dest)
   =.  this  (notify old-born)
   ::  Re-check subscriptions from watchers under this weir
   (audit-weir dest)
@@ -2396,7 +2396,18 @@
   ^+  this
   =/  old-born=born:nexus  born
   =.  born  (~(bump-file bo:nexus now.bowl [born ball]) here)
+  =.  this  (record-trees path.here)
   (notify old-born)
+::  Record tree objects from dir up to root into silo + tote hist.
+::  Only bumps fold when tree hash actually changes. Stops propagating
+::  when a level produces the same hash (nothing above can change).
+::
+++  record-trees
+  |=  dir=path
+  ^+  this
+  =/  [new-born=born:nexus new-silo=silo:nexus]
+    (record-trees:nexus born silo sand ball now.bowl dir)
+  this(born new-born, silo new-silo)
 ::  Record noun+blot in silo and append to hist on sack.
 ::
 ++  record-hist

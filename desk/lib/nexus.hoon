@@ -408,27 +408,36 @@
 ::
 :: fold level version information
 ::
-+$  tote
-  $:  weir=cass:clay
-      fold=cass:clay
-      hist=((mop cass:clay lobe:clay) cor)
-  ==
+++  tote
+  =<  tote
+  |%
+  +$  tote
+    $:  fold=cass:clay
+        hist=((mop cass:clay lobe:clay) cor)
+    ==
+  ++  on-hist  ((on cass:clay lobe:clay) cor)
+  --
 :: grub level version information
 ::
-+$  sack
-  $:  proc=cass:clay :: incremented on process spawn/restart
-      life=cass:clay :: incremented on grub creation; not updates
-      file=cass:clay :: incremented on content change
-      hist=((mop cass:clay ,[lobe:clay blot:tarball]) cor)
-  ==
+++  sack
+  =<  sack
+  |%
+  +$  sack
+    $:  proc=cass:clay :: incremented on process spawn/restart
+        life=cass:clay :: incremented on grub creation; not updates
+        file=cass:clay :: incremented on content change
+        hist=((mop cass:clay ,[lobe:clay blot:tarball]) cor)
+    ==
+  ++  on-hist  ((on cass:clay ,[lobe:clay blot:tarball]) cor)
+  --
 ::
 +$  born  (axal [=tote bags=(map @ta sack)])
 ++  cor   |=([a=cass:clay b=cass:clay] (lth ud.a ud.b))
-++  on-hist  ((on cass:clay ,[lobe:clay blot:tarball]) cor)
-++  on-tote-hist  ((on cass:clay lobe:clay) cor)
 ++  silo
   =<  silo
   |%
+  :: TODO: Consider refs from trees to blobs
+  ::
   +$  silo
     $:  blobs=(map lobe:clay [refs=@ud =noun])
         trees=(map lobe:clay [refs=@ud =tree])
@@ -449,7 +458,7 @@
   ?-    -.cas
       %ud
     =/  entries=(list [key=cass:clay val=[lobe:clay blot:tarball]])
-      (tap:on-hist hist)
+      (tap:on-hist:sack hist)
     |-
     ?~  entries  ~|(%hist-version-not-found !!)
     ?:  =(ud.key.i.entries p.cas)
@@ -457,7 +466,7 @@
     $(entries t.entries)
       %da
     =/  entries=(list [key=cass:clay val=[lobe:clay blot:tarball]])
-      (tap:on-hist hist)
+      (tap:on-hist:sack hist)
     ::  tap gives ascending order; find latest entry with da <= target
     =/  best=(unit [lobe:clay blot:tarball])  ~
     |-
@@ -469,20 +478,79 @@
       u.best
     $(entries t.entries, best `val.i.entries)
   ==
+::  +record-trees: Snapshot directory state into tree objects.
+::  Walks from dir up to root. At each level, builds a tree from
+::  grub hists (fil) and child tote hists (dir), content-addresses it,
+::  and only bumps fold if the hash changed. Stops propagating when
+::  a level produces the same hash.
+::
+++  record-trees
+  |=  [=born =silo =sand =ball:tarball now=@da dir=path]
+  ^-  [^born ^silo]
+  =/  sub-born=^born  (~(dip of born) dir)
+  =/  node=[=tote bags=(map @ta sack)]
+    (fall fil.sub-born [[[0 now] ~] ~])
+  ::  nek: nexus identity from ball at this directory
+  =/  nek=(unit neck:tarball)
+    =/  sub-ball=ball:tarball  (~(dip of ball) dir)
+    ?~(fil.sub-ball ~ neck.u.fil.sub-ball)
+  ::  fil: each grub's current [lobe blot] from hist
+  =/  fil=(map @ta [lobe:clay blot:tarball])
+    %-  ~(urn by bags.node)
+    |=  [name=@ta =sack]
+    =/  val=(unit [lobe:clay blot:tarball])
+      (get:on-hist:^sack hist.sack file.sack)
+    (fall val [*lobe:clay *blot:tarball])
+  ::  dir: each child's latest tree lobe + weir
+  =/  sub-sand=^sand  (~(dip of sand) dir)
+  =/  dir-map=(map @ta [lobe:clay weir=(unit weir)])
+    %-  ~(urn by dir.sub-born)
+    |=  [name=@ta kid=^born]
+    =/  kid-node=(unit [=tote bags=(map @ta sack)])  fil.kid
+    =/  tree-lobe=lobe:clay
+      ?~  kid-node  *lobe:clay
+      =/  got=(unit lobe:clay)
+        (get:on-hist:tote hist.tote.u.kid-node fold.tote.u.kid-node)
+      (fall got *lobe:clay)
+    =/  kid-weir=(unit weir)
+      =/  kid-sand=(unit ^sand)  (~(get by dir.sub-sand) name)
+      ?~  kid-sand  ~
+      fil.u.kid-sand
+    [tree-lobe kid-weir]
+  ::  Build tree object + hash
+  =/  =tree:^silo  [nek fil dir-map]
+  =/  =lobe:clay  `@uvI`(sham tree)
+  ::  Check if tree changed from current
+  =/  cur-lobe=(unit lobe:clay)
+    (get:on-hist:tote hist.tote.node fold.tote.node)
+  ?:  =(`lobe cur-lobe)
+    [born silo]
+  ::  Different — store tree, bump fold, record in tote hist
+  =/  [* new-silo=^silo]
+    (~(put-tree si silo) tree)
+  =.  silo  new-silo
+  =/  new-fold=cass:clay
+    =/  nex-da=@da  ?:((lth da.fold.tote.node now) now +(da.fold.tote.node))
+    [+(ud.fold.tote.node) nex-da]
+  =/  new-hist=((mop cass:clay lobe:clay) cor)
+    (put:on-hist:tote hist.tote.node new-fold lobe)
+  =.  born
+    (~(put of born) dir node(fold.tote new-fold, hist.tote new-hist))
+  ?~  dir  [born silo]
+  $(dir (snip `path`dir))
 ::  +bo: Pure operations on born (version tracking)
 ::
 ::  Structure: (axal [tote bags=(map @ta sack)])
-::    - tote = [weir=cass:clay fold=cass:clay]
+::    - tote = [fold=cass:clay hist=...]
 ::    - Each directory node has a tote and bags (grub sacks)
 ::    - sack = [proc=cass:clay file=cass:clay hist=((mop ...))]
 ::
 ::  Semantics:
 ::    - proc cass: bumped on process spawn/restart (stale detection + notifications)
 ::    - file cass: bumped on content change (notifications)
-::    - fold cass: bumped when ANY descendant changes (propagates up to root)
-::    - weir cass: bumped when weir changes at this directory
+::    - fold cass: bumped when tree recomputation yields difference
 ::
-::  All four trigger subscriber notifications via diff-born.
+::  All three trigger subscriber notifications via diff-born.
 ::
 ::  Lifecycle for new grub:
 ::    init      → [0 0]  (file exists)
@@ -512,7 +580,7 @@
     |=  [here=rail:tarball sok=sack]
     ^-  born
     =/  node=[=tote bags=(map @ta sack)]
-      (fall (~(get of born.old) path.here) [[[0 now] [0 now] ~] ~])
+      (fall (~(get of born.old) path.here) [[[0 now] ~] ~])
     (~(put of born.old) path.here node(bags (~(put by bags.node) name.here sok)))
   ::  Get dir cass
   ::
@@ -548,18 +616,7 @@
     ^-  born
     =/  sok=sack  (need (get here))
     (put here [(next-cass proc.sok) life.sok file.sok hist.sok])
-  ::  Bump dir cass and propagate up to root
-  ::
-  ++  bump-dir
-    |=  dir=fold:tarball
-    ^-  born
-    =/  node=[=tote bags=(map @ta sack)]
-      (fall (~(get of born.old) dir) [[[0 now] [0 now] ~] ~])
-    =/  new-cass=cass:clay  (next-cass fold.tote.node)
-    =.  born.old  (~(put of born.old) dir node(fold.tote new-cass))
-    ?~  dir  born.old
-    (bump-dir (snip `fold:tarball`dir))
-  ::  Bump file cass and propagate dir cass up to root (asserts born exists)
+  ::  Bump file cass (asserts born exists)
   ::
   ++  bump-file
     |=  here=rail:tarball
@@ -569,18 +626,7 @@
       ~|  ["bump-file: missing rail" here]
       !!
     =/  sok=sack  u.got
-    =.  born.old  (put here [proc.sok life.sok (next-cass file.sok) hist.sok])
-    (bump-dir path.here)
-  ::  Bump weir cass of directory node and propagate fold cass up
-  ::
-  ++  bump-weir
-    |=  dir=fold:tarball
-    ^-  born
-    =/  node=[=tote bags=(map @ta sack)]
-      (fall (~(get of born.old) dir) [[[0 now] [0 now] ~] ~])
-    =.  born.old
-      (~(put of born.old) dir node(weir.tote (next-cass weir.tote.node)))
-    (bump-dir dir)
+    (put here [proc.sok life.sok (next-cass file.sok) hist.sok])
   ::  Check if a ball node is an empty directory (exists but no files, no subdirs)
   ::
   ++  is-empty-dir
@@ -602,8 +648,8 @@
   ::  - New files (in new, not in old): init + bump
   ::  - Changed files (in both, content differs): bump
   ::  - Deleted files (in old, not in new): bump
-  ::  - Empty dir appears (no previous children): bump-dir
-  ::  - Empty dir disappears (no new children): bump-dir
+  ::  - Empty dir appears (no previous children): ensure born node
+  ::  - Empty dir disappears (no new children): ensure born node
   ::  - Recurse into all subdirs
   ::
   ++  diff-balls
@@ -645,12 +691,12 @@
     =/  new-exists=?  (dir-exists new-ball)
     =/  old-is-empty=?  (is-empty-dir old-ball)
     =/  new-is-empty=?  (is-empty-dir new-ball)
-    ::  Empty dir appears
+    ::  Empty dir appears — ensure node exists in born
     =?  born.old  &(new-is-empty !old-exists)
-      (bump-dir here)
-    ::  Empty dir disappears
+      (~(put of born.old) here (fall (~(get of born.old) here) [[[0 now] ~] ~]))
+    ::  Empty dir disappears — ensure node exists in born
     =?  born.old  &(old-is-empty !new-exists)
-      (bump-dir here)
+      (~(put of born.old) here (fall (~(get of born.old) here) [[[0 now] ~] ~]))
     ::  Recurse into all subdirs
     =/  all-kids=(set @ta)
       (~(uni in ~(key by dir.old-ball)) ~(key by dir.new-ball))
@@ -707,10 +753,20 @@
     |=  hist=((mop cass:clay ,[lobe:clay blot:tarball]) cor)
     ^-  ^silo
     =/  entries=(list [key=cass:clay val=[lobe:clay blot:tarball]])
-      (tap:on-hist hist)
+      (tap:on-hist:sack hist)
     |-
     ?~  entries  silo
     $(entries t.entries, silo (drop -.val.i.entries))
+  ::  Insert tree, increment refcount if exists. Returns lobe and new silo.
+  ::
+  ++  put-tree
+    |=  =tree:^silo
+    ^-  [lobe:clay ^silo]
+    =/  =lobe:clay  `@uvI`(sham tree)
+    =/  got  (~(get by trees.silo) lobe)
+    =/  refs=@ud  ?~(got 1 +(refs.u.got))
+    =/  new-trees  (~(put by trees.silo) lobe [refs tree])
+    [lobe [blobs.silo new-trees]]
   ::  Decrement tree refcount, delete if zero.
   ::
   ++  drop-tree
@@ -727,7 +783,7 @@
     |=  hist=((mop cass:clay lobe:clay) cor)
     ^-  ^silo
     =/  entries=(list [key=cass:clay val=lobe:clay])
-      (tap:on-tote-hist hist)
+      (tap:on-hist:tote hist)
     |-
     ?~  entries  silo
     $(entries t.entries, silo (drop-tree val.i.entries))
@@ -745,15 +801,15 @@
     ^-  [lobe:clay ^silo ((mop cass:clay ,[lobe:clay blot:tarball]) cor)]
     =/  [=lobe:clay new-silo=^silo]  (put noun)
     ?:  gain
-      [lobe new-silo (put:on-hist hist cass [lobe blot])]
+      [lobe new-silo (put:on-hist:sack hist cass [lobe blot])]
     ::  !gain: replace current live version only, preserve older history
-    =/  prev=(unit [lobe:clay blot:tarball])  (get:on-hist hist file)
+    =/  prev=(unit [lobe:clay blot:tarball])  (get:on-hist:sack hist file)
     =?  new-silo  ?=(^ prev)
       (~(drop si new-silo) -.u.prev)
     =/  trimmed
       ?~  prev  hist
-      +:(del:on-hist hist file)
-    [lobe new-silo (put:on-hist trimmed cass [lobe blot])]
+      +:(del:on-hist:sack hist file)
+    [lobe new-silo (put:on-hist:sack trimmed cass [lobe blot])]
   --
 ::  +stamp-mtimes: stamp born datetimes into ball metadata as mtime
 ::
@@ -817,7 +873,7 @@
     ?-  mode
       %all    !=(old-tote new-tote)
       %state  !=(fold.old-tote fold.new-tote)
-      %weir   !=(weir.old-tote weir.new-tote)
+      %weir   !=(fold.old-tote fold.new-tote)
       %proc   %.n
     ==
   =?  result  dir-changed
@@ -1128,7 +1184,7 @@
       ['file' (cass-to-json file.sack)]
       :-  'hist'
       :-  %a
-      %+  turn  (tap:on-hist hist.sack)
+      %+  turn  (tap:on-hist:^sack hist.sack)
       |=  [key=cass:clay =lobe:clay =blot:tarball]
       %-  pairs:enjs:format
       :~  ['ud' (numb:enjs:format ud.key)]
@@ -1146,11 +1202,10 @@
     %-  pairs:enjs:format
     :~  :-  'tote'
         %-  pairs:enjs:format
-        :~  ['weir' (cass-to-json weir.tote.u.fil.b)]
-            ['fold' (cass-to-json fold.tote.u.fil.b)]
+        :~  ['fold' (cass-to-json fold.tote.u.fil.b)]
             :-  'hist'
             :-  %a
-            %+  turn  (tap:on-tote-hist hist.tote.u.fil.b)
+            %+  turn  (tap:on-hist:tote hist.tote.u.fil.b)
             |=  [key=cass:clay =lobe:clay]
             %-  pairs:enjs:format
             :~  ['ud' (numb:enjs:format ud.key)]
