@@ -362,11 +362,11 @@
     ``gain+!>((~(dip of gain) here))
     ::
       [%x %peek %silo %lobe @ ~]
-    ::  Look up page in silo by lobe hash
+    ::  Look up noun in silo by lobe hash
     =/  =lobe:clay  (slav %uv i.t.t.t.t.path)
-    =/  got=(unit bask:tarball)  (~(get si:nexus silo) lobe)
+    =/  got=(unit noun)  (~(get si:nexus silo) lobe)
     ?~  got  [~ ~]
-    ``name.p.u.got^!>(q.u.got)
+    ``%noun^!>(u.got)
     ::
       [%x %peek %subs ~]
     ::  Internal subscriptions
@@ -524,12 +524,13 @@
   |=  [here=rail:tarball =lose:nexus]
   ^+  this
   =/  sk=sack:nexus  (need (get-born here))
-  =/  entries=(list [key=cass:clay val=lobe:clay])
+  =/  entries=(list [key=cass:clay val=[lobe:clay blot:tarball]])
     (tap:on-hist:nexus hist.sk)
-  =/  kept=(list [key=cass:clay val=lobe:clay])  ~
+  =/  kept=(list [key=cass:clay val=[lobe:clay blot:tarball]])  ~
   |-
   ?~  entries
-    =/  new-hist=((mop cass:clay lobe:clay) cor:nexus)  *((mop cass:clay lobe:clay) cor:nexus)
+    =/  new-hist=((mop cass:clay ,[lobe:clay blot:tarball]) cor:nexus)
+      *((mop cass:clay ,[lobe:clay blot:tarball]) cor:nexus)
     =.  new-hist
       |-
       ?~  kept  new-hist
@@ -550,7 +551,7 @@
       ==
     ==
   ?:  drop
-    =.  silo  (~(drop si:nexus silo) val.i.entries)
+    =.  silo  (~(drop si:nexus silo) -.val.i.entries)
     $(entries t.entries)
   $(entries t.entries, kept [i.entries kept])
 ::  Find all [rail cass] pairs in a subtree whose hist contains a lobe
@@ -593,11 +594,11 @@
   (weld hits $(files t.files))
 ::
 ++  match-hist
-  |=  [here=rail:tarball hist=((mop cass:clay lobe:clay) cor:nexus) target=lobe:clay]
+  |=  [here=rail:tarball hist=((mop cass:clay ,[lobe:clay blot:tarball]) cor:nexus) target=lobe:clay]
   ^-  (list [=rail:tarball =cass:clay])
   %+  murn  (tap:on-hist:nexus hist)
-  |=  [key=cass:clay val=lobe:clay]
-  ?.  =(val target)  ~
+  |=  [key=cass:clay val=[lobe:clay blot:tarball]]
+  ?.  =(-.val target)  ~
   `[here key]
 ::
 ++  emit-card
@@ -1752,12 +1753,12 @@
         ::  Resolve source: historical bask from silo or current sage from ball
         =/  source=(unit sage:tarball)
           ?^  case.load.dart
-            =/  =lobe:clay
+            =/  [=lobe:clay =blot:tarball]
               (resolve-case:nexus u.case.load.dart hist.sk)
-            =/  got=(unit bask:tarball)  (~(get si:nexus silo) lobe)
+            =/  got=(unit noun)  (~(get si:nexus silo) lobe)
             ?~  got  ~
             ::  Clam bask back to sage
-            =/  res=(each sage:tarball tang)  (clam-bask cod u.got)
+            =/  res=(each sage:tarball tang)  (clam-bask cod [blot u.got])
             ?:  ?=(%| -.res)  ~
             `p.res
           `sage.u.content
@@ -1919,11 +1920,11 @@
       =/  sk=(unit sack:nexus)  (get-born dest)
       ?~  sk
         (enqu-take here (sys-give /peep) ~ %peep wire.dart |+~[leaf+"no history for {(spud (snoc path.dest name.dest))}"])
-      =/  entries=(list [key=cass:clay val=lobe:clay])
+      =/  entries=(list [key=cass:clay val=[lobe:clay blot:tarball]])
         (tap:on-hist:nexus hist.u.sk)
       =/  hits=(list [cass:clay sage:tarball])
         %+  murn  entries
-        |=  [key=cass:clay val=lobe:clay]
+        |=  [key=cass:clay val=[lobe:clay blot:tarball]]
         ^-  (unit [cass:clay sage:tarball])
         =/  match=?
           ?-    -.find.load.dart
@@ -1939,9 +1940,9 @@
             ==
           ==
         ?.  match  ~
-        =/  got=(unit bask:tarball)  (~(get si:nexus silo) val)
+        =/  got=(unit noun)  (~(get si:nexus silo) -.val)
         ?~  got  ~
-        =/  res=(each sage:tarball tang)  (clam-bask cod u.got)
+        =/  res=(each sage:tarball tang)  (clam-bask cod [+.val u.got])
         ?:  ?=(%| -.res)  ~
         `[key p.res]
       (enqu-take here (sys-give /peep) ~ %peep wire.dart &+hits)
@@ -2396,7 +2397,7 @@
   =/  old-born=born:nexus  born
   =.  born  (~(bump-file bo:nexus now.bowl [born ball]) here)
   (notify old-born)
-::  Record bask in silo and append to hist on sack.
+::  Record noun+blot in silo and append to hist on sack.
 ::
 ++  record-hist
   |=  [here=rail:tarball =sage:tarball cas=(unit cass:clay)]
@@ -2406,9 +2407,8 @@
   =/  new-cass=cass:clay
     (fall cas (~(next-cass bo:nexus now.bowl [born ball]) file.sok))
   =/  gaining=?  (lookup-gain here)
-  =/  =bask:tarball  [p q.q]:sage
   =/  [=lobe:clay new-silo=silo:nexus new-hist=_hist.sok]
-    (~(record si:nexus silo) bask new-cass gaining file.sok hist.sok)
+    (~(record si:nexus silo) q.q.sage p.sage new-cass gaining file.sok hist.sok)
   =.  silo  new-silo
   =.  born  (~(put bo:nexus now.bowl [born ball]) here sok(hist new-hist))
   this

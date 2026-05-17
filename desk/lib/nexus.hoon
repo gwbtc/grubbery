@@ -411,7 +411,7 @@
 +$  tote
   $:  weir=cass:clay
       fold=cass:clay
-      :: hist=((mop cass:clay lobe:clay) cor)
+      hist=((mop cass:clay lobe:clay) cor)
   ==
 :: grub level version information
 ::
@@ -419,19 +419,17 @@
   $:  proc=cass:clay :: incremented on process spawn/restart
       life=cass:clay :: incremented on grub creation; not updates
       file=cass:clay :: incremented on content change
-      hist=((mop cass:clay lobe:clay) cor)
+      hist=((mop cass:clay ,[lobe:clay blot:tarball]) cor)
   ==
 ::
 +$  born  (axal [=tote bags=(map @ta sack)])
 ++  cor   |=([a=cass:clay b=cass:clay] (lth ud.a ud.b))
-++  on-hist  ((on cass:clay lobe:clay) cor)
+++  on-hist  ((on cass:clay ,[lobe:clay blot:tarball]) cor)
+++  on-tote-hist  ((on cass:clay lobe:clay) cor)
 ++  silo
   =<  silo
   |%
-  +$  silo  (map lobe:clay [refs=@ud =bask:tarball])
-  :: speculative git-like content-addressed storage
-  ::
-  +$  olis
+  +$  silo
     $:  blobs=(map lobe:clay [refs=@ud =noun])
         trees=(map lobe:clay [refs=@ud =tree])
     ==
@@ -440,30 +438,28 @@
         fil=(map @ta [=lobe:clay =blot:tarball])
         dir=(map @ta [=lobe:clay weir=(unit weir)])
     ==
-  +$  ject
-    $%  [%tree =tree]
-        [%blob =noun]
-    ==
   --
 ::  Resolve a hist case to a lobe from the hist mop
 ::  %ud: exact match on revision number
 ::  %da: latest entry with da <= target date
 ::
 ++  resolve-case
-  |=  [cas=case hist=((mop cass:clay lobe:clay) cor)]
-  ^-  lobe:clay
+  |=  [cas=case hist=((mop cass:clay ,[lobe:clay blot:tarball]) cor)]
+  ^-  [lobe:clay blot:tarball]
   ?-    -.cas
       %ud
-    =/  entries=(list [key=cass:clay val=lobe:clay])  (tap:on-hist hist)
+    =/  entries=(list [key=cass:clay val=[lobe:clay blot:tarball]])
+      (tap:on-hist hist)
     |-
     ?~  entries  ~|(%hist-version-not-found !!)
     ?:  =(ud.key.i.entries p.cas)
       val.i.entries
     $(entries t.entries)
       %da
-    =/  entries=(list [key=cass:clay val=lobe:clay])  (tap:on-hist hist)
+    =/  entries=(list [key=cass:clay val=[lobe:clay blot:tarball]])
+      (tap:on-hist hist)
     ::  tap gives ascending order; find latest entry with da <= target
-    =/  best=(unit lobe:clay)  ~
+    =/  best=(unit [lobe:clay blot:tarball])  ~
     |-
     ?~  entries
       ?~  best  ~|(%hist-version-not-found !!)
@@ -516,7 +512,7 @@
     |=  [here=rail:tarball sok=sack]
     ^-  born
     =/  node=[=tote bags=(map @ta sack)]
-      (fall (~(get of born.old) path.here) [[[0 now] [0 now]] ~])
+      (fall (~(get of born.old) path.here) [[[0 now] [0 now] ~] ~])
     (~(put of born.old) path.here node(bags (~(put by bags.node) name.here sok)))
   ::  Get dir cass
   ::
@@ -558,7 +554,7 @@
     |=  dir=fold:tarball
     ^-  born
     =/  node=[=tote bags=(map @ta sack)]
-      (fall (~(get of born.old) dir) [[[0 now] [0 now]] ~])
+      (fall (~(get of born.old) dir) [[[0 now] [0 now] ~] ~])
     =/  new-cass=cass:clay  (next-cass fold.tote.node)
     =.  born.old  (~(put of born.old) dir node(fold.tote new-cass))
     ?~  dir  born.old
@@ -581,7 +577,7 @@
     |=  dir=fold:tarball
     ^-  born
     =/  node=[=tote bags=(map @ta sack)]
-      (fall (~(get of born.old) dir) [[[0 now] [0 now]] ~])
+      (fall (~(get of born.old) dir) [[[0 now] [0 now] ~] ~])
     =.  born.old
       (~(put of born.old) dir node(weir.tote (next-cass weir.tote.node)))
     (bump-dir dir)
@@ -668,55 +664,74 @@
   --
 ::  +si: Pure operations on silo (content-addressed object store)
 ::
-::  Stores pages (mark + noun) rather than cages (mark + vase).
-::  Callers must clam on read to reconstruct the vase.
-::  This avoids stale types when marks evolve.
+::  Blobs store raw nouns. Callers pair with blot from tree/hist
+::  to interpret. Callers must clam on read to reconstruct typed data.
 ::
 ++  si
   |_  =silo
   ++  hash
-    |=  =bask:tarball
+    |=  =noun
     ^-  lobe:clay
-    `@uvI`(sham bask)
-  ::  Insert bask, increment refcount if exists. Returns lobe and new silo.
+    `@uvI`(sham noun)
+  ::  Insert noun, increment refcount if exists. Returns lobe and new silo.
   ::
   ++  put
-    |=  =bask:tarball
+    |=  =noun
     ^-  [lobe:clay ^silo]
-    =/  =lobe:clay  (hash bask)
-    =/  got  (~(get by silo) lobe)
+    =/  =lobe:clay  (hash noun)
+    =/  got  (~(get by blobs.silo) lobe)
     ?~  got
-      [lobe (~(put by silo) lobe [1 bask])]
-    [lobe (~(put by silo) lobe [+(refs.u.got) bask])]
+      [lobe silo(blobs (~(put by blobs.silo) lobe [1 noun]))]
+    [lobe silo(blobs (~(put by blobs.silo) lobe [+(refs.u.got) noun]))]
   ::  Decrement refcount, delete if zero.
   ::
   ++  drop
     |=  =lobe:clay
     ^-  ^silo
-    =/  got  (~(get by silo) lobe)
+    =/  got  (~(get by blobs.silo) lobe)
     ?~  got  silo
     ?:  (lte refs.u.got 1)
-      (~(del by silo) lobe)
-    (~(put by silo) lobe [refs=(dec refs.u.got) bask.u.got])
-  ::  Look up bask by lobe.
+      silo(blobs (~(del by blobs.silo) lobe))
+    silo(blobs (~(put by blobs.silo) lobe [refs=(dec refs.u.got) noun.u.got]))
+  ::  Look up noun by lobe.
   ::
   ++  get
     |=  =lobe:clay
-    ^-  (unit bask:tarball)
-    =/  got  (~(get by silo) lobe)
+    ^-  (unit noun)
+    =/  got  (~(get by blobs.silo) lobe)
     ?~  got  ~
-    `bask.u.got
-  ::  Drop refs for all lobes in a hist.
+    `noun.u.got
+  ::  Drop refs for all lobes in a hist (grub-level, blobs).
   ::
   ++  drop-hist
-    |=  hist=((mop cass:clay lobe:clay) cor)
+    |=  hist=((mop cass:clay ,[lobe:clay blot:tarball]) cor)
     ^-  ^silo
-    =/  entries=(list [key=cass:clay val=lobe:clay])
+    =/  entries=(list [key=cass:clay val=[lobe:clay blot:tarball]])
       (tap:on-hist hist)
     |-
     ?~  entries  silo
-    $(entries t.entries, silo (drop val.i.entries))
-  ::  Record a bask: insert into silo, update hist per gain flag.
+    $(entries t.entries, silo (drop -.val.i.entries))
+  ::  Decrement tree refcount, delete if zero.
+  ::
+  ++  drop-tree
+    |=  =lobe:clay
+    ^-  ^silo
+    =/  got  (~(get by trees.silo) lobe)
+    ?~  got  silo
+    ?:  (lte refs.u.got 1)
+      silo(trees (~(del by trees.silo) lobe))
+    silo(trees (~(put by trees.silo) lobe [refs=(dec refs.u.got) tree.u.got]))
+  ::  Drop refs for all lobes in a tote hist (fold-level, trees).
+  ::
+  ++  drop-tote-hist
+    |=  hist=((mop cass:clay lobe:clay) cor)
+    ^-  ^silo
+    =/  entries=(list [key=cass:clay val=lobe:clay])
+      (tap:on-tote-hist hist)
+    |-
+    ?~  entries  silo
+    $(entries t.entries, silo (drop-tree val.i.entries))
+  ::  Record a noun: insert into silo, update hist per gain flag.
   ::  Returns [lobe new-silo new-hist].
   ::
   ::  gain=%.y: append to hist, keeping full history.
@@ -726,19 +741,19 @@
   ::    gain only controls what happens live, not retroactively.
   ::
   ++  record
-    |=  [=bask:tarball =cass:clay gain=? file=cass:clay hist=((mop cass:clay lobe:clay) cor)]
-    ^-  [lobe:clay ^silo ((mop cass:clay lobe:clay) cor)]
-    =/  [=lobe:clay new-silo=^silo]  (put bask)
+    |=  [=noun =blot:tarball =cass:clay gain=? file=cass:clay hist=((mop cass:clay ,[lobe:clay blot:tarball]) cor)]
+    ^-  [lobe:clay ^silo ((mop cass:clay ,[lobe:clay blot:tarball]) cor)]
+    =/  [=lobe:clay new-silo=^silo]  (put noun)
     ?:  gain
-      [lobe new-silo (put:on-hist hist cass lobe)]
+      [lobe new-silo (put:on-hist hist cass [lobe blot])]
     ::  !gain: replace current live version only, preserve older history
-    =/  prev=(unit lobe:clay)  (get:on-hist hist file)
+    =/  prev=(unit [lobe:clay blot:tarball])  (get:on-hist hist file)
     =?  new-silo  ?=(^ prev)
-      (~(drop si new-silo) u.prev)
+      (~(drop si new-silo) -.u.prev)
     =/  trimmed
       ?~  prev  hist
       +:(del:on-hist hist file)
-    [lobe new-silo (put:on-hist trimmed cass lobe)]
+    [lobe new-silo (put:on-hist trimmed cass [lobe blot])]
   --
 ::  +stamp-mtimes: stamp born datetimes into ball metadata as mtime
 ::
@@ -1114,11 +1129,12 @@
       :-  'hist'
       :-  %a
       %+  turn  (tap:on-hist hist.sack)
-      |=  [key=cass:clay val=lobe:clay]
+      |=  [key=cass:clay =lobe:clay =blot:tarball]
       %-  pairs:enjs:format
       :~  ['ud' (numb:enjs:format ud.key)]
           ['da' s+(scot %da da.key)]
-          ['lobe' s+(scot %uv val)]
+          ['lobe' s+(scot %uv lobe)]
+          ['blot' s+(rap 3 (spat path.blot) '' name.blot ~)]
       ==
   ==
 ::
@@ -1132,6 +1148,15 @@
         %-  pairs:enjs:format
         :~  ['weir' (cass-to-json weir.tote.u.fil.b)]
             ['fold' (cass-to-json fold.tote.u.fil.b)]
+            :-  'hist'
+            :-  %a
+            %+  turn  (tap:on-tote-hist hist.tote.u.fil.b)
+            |=  [key=cass:clay =lobe:clay]
+            %-  pairs:enjs:format
+            :~  ['ud' (numb:enjs:format ud.key)]
+                ['da' s+(scot %da da.key)]
+                ['lobe' s+(scot %uv lobe)]
+            ==
         ==
         :-  'bags'
         [%o (~(run by bags.u.fil.b) sack-to-json)]
