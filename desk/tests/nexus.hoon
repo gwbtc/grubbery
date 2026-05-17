@@ -1204,6 +1204,46 @@
     !>  tree:(~(got by trees.new-silo) lobe)
   ==
 ::
+++  test-si-put-tree-bumps-blob-refs
+  ::  Inserting a tree that references blobs increments their refcounts
+  =/  s  ~(. si:nexus *silo:nexus)
+  =/  [blob-lobe=lobe:clay silo1=silo:nexus]  (put:s 'hello')
+  =/  =tree:silo:nexus
+    [~ (~(put by *(map @ta [lobe:clay blot:tarball])) %foo [blob-lobe / %txt]) ~]
+  =/  s2  ~(. si:nexus silo1)
+  =/  [* silo2=silo:nexus]  (put-tree:s2 tree)
+  ::  blob started at refs=1 from put, put-tree should bump to 2
+  %+  expect-eq  !>(`@ud`2)  !>(refs:(~(got by blobs.silo2) blob-lobe))
+::
+++  test-si-put-tree-bumps-child-tree-refs
+  ::  Inserting a tree that references child trees increments their refcounts
+  =/  s  ~(. si:nexus *silo:nexus)
+  =/  child=tree:silo:nexus  [~ ~ ~]
+  =/  [child-lobe=lobe:clay silo1=silo:nexus]  (put-tree:s child)
+  =/  parent=tree:silo:nexus
+    [~ ~ (~(put by *(map @ta [lobe:clay weir=(unit weir:nexus)])) %sub [child-lobe ~])]
+  =/  s2  ~(. si:nexus silo1)
+  =/  [* silo2=silo:nexus]  (put-tree:s2 parent)
+  ::  child started at refs=1, parent should bump to 2
+  %+  expect-eq  !>(`@ud`2)  !>(refs:(~(got by trees.silo2) child-lobe))
+::
+++  test-si-put-tree-duplicate-no-extra-bumps
+  ::  Inserting the same tree twice does NOT re-bump child refs
+  =/  s  ~(. si:nexus *silo:nexus)
+  =/  [blob-lobe=lobe:clay silo1=silo:nexus]  (put:s 'hello')
+  =/  =tree:silo:nexus
+    [~ (~(put by *(map @ta [lobe:clay blot:tarball])) %foo [blob-lobe / %txt]) ~]
+  =/  s2  ~(. si:nexus silo1)
+  =/  [=lobe:clay silo2=silo:nexus]  (put-tree:s2 tree)
+  =/  s3  ~(. si:nexus silo2)
+  =/  [* silo3=silo:nexus]  (put-tree:s3 tree)
+  ;:  weld
+    ::  tree refs=2
+    %+  expect-eq  !>(`@ud`2)  !>(refs:(~(got by trees.silo3) lobe))
+    ::  blob refs still 2 (not 3) — only first insert bumps children
+    %+  expect-eq  !>(`@ud`2)  !>(refs:(~(got by blobs.silo3) blob-lobe))
+  ==
+::
 ++  test-si-put-tree-duplicate-increments-refs
   ::  Inserting the same tree twice increments refcount
   =/  s  ~(. si:nexus *silo:nexus)
@@ -1247,6 +1287,82 @@
   =/  s2  ~(. si:nexus silo1)
   =/  silo2=silo:nexus  (drop-tree:s2 lobe)
   %+  expect-eq  !>(~)  !>((~(get by trees.silo2) lobe))
+::
+++  test-si-drop-tree-cascades-blobs
+  ::  Dropping a tree at zero decrements blob refs
+  =/  s  ~(. si:nexus *silo:nexus)
+  =/  [blob-lobe=lobe:clay silo1=silo:nexus]  (put:s 'hello')
+  =/  =tree:silo:nexus
+    [~ (~(put by *(map @ta [lobe:clay blot:tarball])) %foo [blob-lobe / %txt]) ~]
+  =/  s2  ~(. si:nexus silo1)
+  =/  [tree-lobe=lobe:clay silo2=silo:nexus]  (put-tree:s2 tree)
+  ::  blob is at refs=2 (put + put-tree bump). Drop tree → blob refs=1
+  =/  silo3=silo:nexus  (~(drop-tree si:nexus silo2) tree-lobe)
+  ;:  weld
+    %+  expect-eq  !>(~)  !>((~(get by trees.silo3) tree-lobe))
+    %+  expect-eq  !>(`@ud`1)  !>(refs:(~(got by blobs.silo3) blob-lobe))
+  ==
+::
+++  test-si-drop-tree-cascades-child-trees
+  ::  Dropping a parent tree at zero cascades to child trees
+  =/  s  ~(. si:nexus *silo:nexus)
+  =/  child=tree:silo:nexus  [~ ~ ~]
+  =/  [child-lobe=lobe:clay silo1=silo:nexus]  (put-tree:s child)
+  =/  parent=tree:silo:nexus
+    [~ ~ (~(put by *(map @ta [lobe:clay weir=(unit weir:nexus)])) %sub [child-lobe ~])]
+  =/  s2  ~(. si:nexus silo1)
+  =/  [parent-lobe=lobe:clay silo2=silo:nexus]  (put-tree:s2 parent)
+  ::  child is at refs=2. Drop parent → child refs=1
+  =/  silo3=silo:nexus  (~(drop-tree si:nexus silo2) parent-lobe)
+  ;:  weld
+    %+  expect-eq  !>(~)  !>((~(get by trees.silo3) parent-lobe))
+    %+  expect-eq  !>(`@ud`1)  !>(refs:(~(got by trees.silo3) child-lobe))
+  ==
+::
+++  test-si-drop-tree-deep-cascade
+  ::  Dropping a tree cascades through child tree to blob
+  =/  s  ~(. si:nexus *silo:nexus)
+  =/  [blob-lobe=lobe:clay silo1=silo:nexus]  (put:s 'data')
+  =/  child=tree:silo:nexus
+    [~ (~(put by *(map @ta [lobe:clay blot:tarball])) %f [blob-lobe / %txt]) ~]
+  =/  s2  ~(. si:nexus silo1)
+  =/  [child-lobe=lobe:clay silo2=silo:nexus]  (put-tree:s2 child)
+  =/  parent=tree:silo:nexus
+    [~ ~ (~(put by *(map @ta [lobe:clay weir=(unit weir:nexus)])) %sub [child-lobe ~])]
+  =/  s3  ~(. si:nexus silo2)
+  =/  [parent-lobe=lobe:clay silo3=silo:nexus]  (put-tree:s3 parent)
+  ::  blob: put(1) + child-put-tree(1) = 2
+  ::  child: put-tree(1) + parent-put-tree(1) = 2
+  ::  Drop parent → child goes to 1 (not zero, so no further cascade)
+  =/  silo4=silo:nexus  (~(drop-tree si:nexus silo3) parent-lobe)
+  ;:  weld
+    %+  expect-eq  !>(~)  !>((~(get by trees.silo4) parent-lobe))
+    %+  expect-eq  !>(`@ud`1)  !>(refs:(~(got by trees.silo4) child-lobe))
+    %+  expect-eq  !>(`@ud`2)  !>(refs:(~(got by blobs.silo4) blob-lobe))
+  ==
+::
+++  test-si-drop-tree-full-cascade-deletes-all
+  ::  When child tree is only referenced by parent, full cascade cleans everything
+  =/  s  ~(. si:nexus *silo:nexus)
+  =/  [blob-lobe=lobe:clay silo1=silo:nexus]  (put:s 'data')
+  =/  child=tree:silo:nexus
+    [~ (~(put by *(map @ta [lobe:clay blot:tarball])) %f [blob-lobe / %txt]) ~]
+  =/  s2  ~(. si:nexus silo1)
+  =/  [child-lobe=lobe:clay silo2=silo:nexus]  (put-tree:s2 child)
+  =/  parent=tree:silo:nexus
+    [~ ~ (~(put by *(map @ta [lobe:clay weir=(unit weir:nexus)])) %sub [child-lobe ~])]
+  =/  s3  ~(. si:nexus silo2)
+  =/  [parent-lobe=lobe:clay silo3=silo:nexus]  (put-tree:s3 parent)
+  ::  Drop child's extra ref so it's only held by parent
+  =/  silo4=silo:nexus  (~(drop-tree si:nexus silo3) child-lobe)
+  ::  Drop blob's extra ref so it's only held by child tree
+  =/  silo5=silo:nexus  (~(drop si:nexus silo4) blob-lobe)
+  ::  Now drop parent — should cascade and clean everything
+  =/  silo6=silo:nexus  (~(drop-tree si:nexus silo5) parent-lobe)
+  ;:  weld
+    %+  expect-eq  !>(`@ud`0)  !>(~(wyt by trees.silo6))
+    %+  expect-eq  !>(`@ud`0)  !>(~(wyt by blobs.silo6))
+  ==
 ::
 ++  test-si-drop-tree-missing-is-noop
   =/  s  ~(. si:nexus *silo:nexus)

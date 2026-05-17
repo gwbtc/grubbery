@@ -759,14 +759,43 @@
     $(entries t.entries, silo (drop -.val.i.entries))
   ::  Insert tree, increment refcount if exists. Returns lobe and new silo.
   ::
+  ::  Increment blob refcount by lobe (must exist).
+  ::
+  ++  bump-ref
+    |=  =lobe:clay
+    ^-  ^silo
+    =/  got  (~(get by blobs.silo) lobe)
+    ?~  got  silo
+    silo(blobs (~(put by blobs.silo) lobe [+(refs.u.got) noun.u.got]))
+  ::  Increment tree refcount by lobe (must exist).
+  ::
+  ++  bump-tree-ref
+    |=  =lobe:clay
+    ^-  ^silo
+    =/  got  (~(get by trees.silo) lobe)
+    ?~  got  silo
+    silo(trees (~(put by trees.silo) lobe [+(refs.u.got) tree.u.got]))
+  ::  Insert tree, increment refcount if exists. Returns lobe and new silo.
+  ::  On first insert, bumps refs on all referenced blobs and child trees.
+  ::
   ++  put-tree
     |=  =tree:^silo
     ^-  [lobe:clay ^silo]
     =/  =lobe:clay  `@uvI`(sham tree)
     =/  got  (~(get by trees.silo) lobe)
-    =/  refs=@ud  ?~(got 1 +(refs.u.got))
-    =/  new-trees  (~(put by trees.silo) lobe [refs tree])
-    [lobe [blobs.silo new-trees]]
+    ?^  got
+      [lobe silo(trees (~(put by trees.silo) lobe [+(refs.u.got) tree]))]
+    ::  new tree — store it, then bump refs on all children
+    =.  trees.silo  (~(put by trees.silo) lobe [1 tree])
+    =.  silo
+      %-  ~(rep by fil.tree)
+      |=  [[* =lobe:clay *] =_silo]
+      (~(bump-ref si silo) lobe)
+    =.  silo
+      %-  ~(rep by dir.tree)
+      |=  [[* =lobe:clay *] =_silo]
+      (~(bump-tree-ref si silo) lobe)
+    [lobe silo]
   ::  Decrement tree refcount, delete if zero.
   ::
   ++  drop-tree
@@ -774,9 +803,17 @@
     ^-  ^silo
     =/  got  (~(get by trees.silo) lobe)
     ?~  got  silo
-    ?:  (lte refs.u.got 1)
-      silo(trees (~(del by trees.silo) lobe))
-    silo(trees (~(put by trees.silo) lobe [refs=(dec refs.u.got) tree.u.got]))
+    ?.  (lte refs.u.got 1)
+      silo(trees (~(put by trees.silo) lobe [refs=(dec refs.u.got) tree.u.got]))
+    ::  refs hit zero — delete tree and cascade to children
+    =.  trees.silo  (~(del by trees.silo) lobe)
+    =.  silo
+      %-  ~(rep by fil.tree.u.got)
+      |=  [[* =lobe:clay *] =_silo]
+      (~(drop si silo) lobe)
+    %-  ~(rep by dir.tree.u.got)
+    |=  [[* =lobe:clay *] =_silo]
+    (~(drop-tree si silo) lobe)
   ::  Drop refs for all lobes in a tote hist (fold-level, trees).
   ::
   ++  drop-tote-hist
