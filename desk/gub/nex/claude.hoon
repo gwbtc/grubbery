@@ -1043,7 +1043,7 @@
     ?.  ?=([%& %file *] seen)
       (pure:m [(crip "ERROR: Not found: {(trip path.slot)}") ~])
     ;<  content=@t  bind:m  (sage-to-txt sage.p.seen)
-    (pure:m [content `ud.file.sack.p.seen])
+    (pure:m [content `(ver:sack:nexus sack.p.seen)])
   ::
       %'kids'
     ?.  ?=([%& %ball *] seen)
@@ -1117,7 +1117,7 @@
     (append-to-msgs msg-road 'user' (rap 3 ~['<api action="' act '" path="' api-path '">DELETED</api>']))
       %file
     ;<  content=@t  bind:m  (sage-to-txt sage.view)
-    =/  rev=@ud  ud.file.sack.view
+    =/  rev=@ud  (ver:sack:nexus sack.view)
     =/  rev-attr=@t  (crip " rev=\"{(a-co:co rev)}\"")
     (append-to-msgs msg-road 'user' (rap 3 ~['<api action="' act '" path="' api-path '"' rev-attr '>' content '</api>']))
       %ball

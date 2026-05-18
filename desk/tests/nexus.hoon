@@ -269,30 +269,24 @@
   !>  (get:b [/a/b %file])
 ::
 ++  test-bo-init-creates-zero-sack
-  ::  Init creates [0 0] sack for new file
+  ::  Init creates sack seeded with [%file ~] at [0 now]
   =/  now=@da  ~2024.1.1
   =/  b  (make-bo now)
   =/  new-born=born:nexus  (init:b [/a/b %file])
   =/  b2  (make-bo-with now new-born)
-  %+  expect-eq
-    !>  `(unit sack:nexus)``[[0 now] [0 now] ~]
-  !>  (get:b2 [/a/b %file])
+  =/  sok=(unit sack:nexus)  (get:b2 [/a/b %file])
+  ;:  weld
+    %+  expect-eq  !>(%.y)  !>(?=(^ sok))
+    %+  expect-eq  !>(`@ud`0)  !>((ver:sack:nexus (need sok)))
+    %+  expect-eq  !>(`@ud`1)  !>((lent (tap:on-hist:sack:nexus (need sok))))
+    %+  expect-eq
+      !>  `(unit pace:sack:nexus)`[~ %file ~]
+    !>  (get:on-hist:sack:nexus (need sok) [0 now])
+  ==
 ::
-++  test-bo-bump-proc-increments
-  ::  bump-proc increments proc cass
-  =/  now=@da  ~2024.1.1
-  =/  b  (make-bo now)
-  =/  born1=born:nexus  (init:b [/a %file])
-  =/  b2  (make-bo-with now born1)
-  =/  born2=born:nexus  (bump-proc:b2 [/a %file])
-  =/  b3  (make-bo-with now born2)
-  =/  sok=(unit sack:nexus)  (get:b3 [/a %file])
-  %+  expect-eq
-    !>  `@ud`1
-  !>  ud.proc:(need sok)
 ::
-++  test-bo-bump-file-increments
-  ::  bump-file increments file cass
+++  test-bo-bump-file-is-noop
+  ::  bump-file is a no-op (record-hist writes entries)
   =/  now=@da  ~2024.1.1
   =/  b  (make-bo now)
   =/  born1=born:nexus  (init:b [/a %file])
@@ -301,8 +295,8 @@
   =/  b3  (make-bo-with now born2)
   =/  sok=(unit sack:nexus)  (get:b3 [/a %file])
   %+  expect-eq
-    !>  `@ud`1
-  !>  ud.file:(need sok)
+    !>  `@ud`0
+  !>  (ver:sack:nexus (need sok))
 ::
 ::
 ::
@@ -390,7 +384,7 @@
   =/  sok=(unit sack:nexus)  (get:b5 [/a %file])
   %+  expect-eq
     !>  `@ud`3
-  !>  ud.file:(need sok)
+  !>  (ver:sack:nexus (need sok))
 ::
 ++  test-bo-two-files-independent
   ::  Two files in same dir have independent sacks
@@ -406,8 +400,8 @@
   =/  sok1=(unit sack:nexus)  (get:b4 [/a %file1])
   =/  sok2=(unit sack:nexus)  (get:b4 [/a %file2])
   ;:  weld
-    %+  expect-eq  !>(`@ud`1)  !>(ud.file:(need sok1))
-    %+  expect-eq  !>(`@ud`0)  !>(ud.file:(need sok2))
+    %+  expect-eq  !>(`@ud`1)  !>((ver:sack:nexus (need sok1)))
+    %+  expect-eq  !>(`@ud`0)  !>((ver:sack:nexus (need sok2)))
   ==
 ::
 ::
@@ -458,7 +452,7 @@
   =/  sok=(unit sack:nexus)  (get:b2 [/ %newfile])
   ;:  weld
     %+  expect-eq  !>(%.y)  !>(?=(^ sok))
-    %+  expect-eq  !>(`@ud`1)  !>(ud.file:(need sok))
+    %+  expect-eq  !>(`@ud`1)  !>((ver:sack:nexus (need sok)))
     %+  expect-eq  !>(%.y)  !>((~(has in bumped) &+[/ %newfile]))
   ==
 ::
@@ -477,7 +471,7 @@
   ::  File should be bumped
   =/  sok=(unit sack:nexus)  (get:b3 [/ %oldfile])
   ;:  weld
-    %+  expect-eq  !>(`@ud`1)  !>(ud.file:(need sok))
+    %+  expect-eq  !>(`@ud`1)  !>((ver:sack:nexus (need sok)))
     %+  expect-eq  !>(%.y)  !>((~(has in bumped) &+[/ %oldfile]))
   ==
 ::
@@ -496,7 +490,7 @@
   ::  File should be bumped
   =/  sok=(unit sack:nexus)  (get:b3 [/ %file])
   ;:  weld
-    %+  expect-eq  !>(`@ud`1)  !>(ud.file:(need sok))
+    %+  expect-eq  !>(`@ud`1)  !>((ver:sack:nexus (need sok)))
     %+  expect-eq  !>(%.y)  !>((~(has in bumped) &+[/ %file]))
   ==
 ::
@@ -514,7 +508,7 @@
   ::  File should NOT be bumped
   =/  sok=(unit sack:nexus)  (get:b3 [/ %file])
   ;:  weld
-    %+  expect-eq  !>(`@ud`0)  !>(ud.file:(need sok))
+    %+  expect-eq  !>(`@ud`0)  !>((ver:sack:nexus (need sok)))
     %+  expect-eq  !>(%.n)  !>((~(has in bumped) &+[/ %file]))
   ==
 ::
@@ -550,16 +544,16 @@
   =/  b5  (make-bo-with now born4)
   ;:  weld
     ::  new: init'd and bumped
-    %+  expect-eq  !>(`@ud`1)  !>(ud.file:(need (get:b5 [/ %new])))
+    %+  expect-eq  !>(`@ud`1)  !>((ver:sack:nexus (need (get:b5 [/ %new]))))
     %+  expect-eq  !>(%.y)  !>((~(has in bumped) &+[/ %new]))
     ::  deleted: bumped
-    %+  expect-eq  !>(`@ud`1)  !>(ud.file:(need (get:b5 [/ %deleted])))
+    %+  expect-eq  !>(`@ud`1)  !>((ver:sack:nexus (need (get:b5 [/ %deleted]))))
     %+  expect-eq  !>(%.y)  !>((~(has in bumped) &+[/ %deleted]))
     ::  changed: bumped
-    %+  expect-eq  !>(`@ud`1)  !>(ud.file:(need (get:b5 [/ %changed])))
+    %+  expect-eq  !>(`@ud`1)  !>((ver:sack:nexus (need (get:b5 [/ %changed]))))
     %+  expect-eq  !>(%.y)  !>((~(has in bumped) &+[/ %changed]))
     ::  unchanged: NOT bumped
-    %+  expect-eq  !>(`@ud`0)  !>(ud.file:(need (get:b5 [/ %unchanged])))
+    %+  expect-eq  !>(`@ud`0)  !>((ver:sack:nexus (need (get:b5 [/ %unchanged]))))
     %+  expect-eq  !>(%.n)  !>((~(has in bumped) &+[/ %unchanged]))
   ==
 ::
@@ -581,10 +575,10 @@
   =/  b3  (make-bo-with now born2)
   ;:  weld
     ::  oldfile: bumped (deleted)
-    %+  expect-eq  !>(`@ud`1)  !>(ud.file:(need (get:b3 [/sub %oldfile])))
+    %+  expect-eq  !>(`@ud`1)  !>((ver:sack:nexus (need (get:b3 [/sub %oldfile]))))
     %+  expect-eq  !>(%.y)  !>((~(has in bumped) &+[/sub %oldfile]))
     ::  newfile: init'd and bumped
-    %+  expect-eq  !>(`@ud`1)  !>(ud.file:(need (get:b3 [/sub %newfile])))
+    %+  expect-eq  !>(`@ud`1)  !>((ver:sack:nexus (need (get:b3 [/sub %newfile]))))
     %+  expect-eq  !>(%.y)  !>((~(has in bumped) &+[/sub %newfile]))
   ==
 ::
@@ -761,7 +755,7 @@
   =/  cass1=cass:clay  [1 ~2024.1.1]
   =/  cass2=cass:clay  [2 ~2024.1.2]
   =/  cass3=cass:clay  [3 ~2024.1.3]
-  =/  hist=_hist:*sack:nexus  ~
+  =/  hist=sack:nexus  ~
   =/  [lobe1=lobe:clay silo1=silo:nexus hist1=_hist]
     (~(record si:nexus *silo:nexus) q.page1 p.page1 cass1 %.y *cass:clay hist)
   =/  [lobe2=lobe:clay silo2=silo:nexus hist2=_hist]
@@ -790,7 +784,7 @@
   =/  page2=bask:tarball  [[/ %txt] 'second']
   =/  cass1=cass:clay  [1 ~2024.1.1]
   =/  cass2=cass:clay  [2 ~2024.1.2]
-  =/  hist=_hist:*sack:nexus  ~
+  =/  hist=sack:nexus  ~
   =/  [lobe1=lobe:clay silo1=silo:nexus hist1=_hist]
     (~(record si:nexus *silo:nexus) q.page1 p.page1 cass1 %.n *cass:clay hist)
   =/  [lobe2=lobe:clay silo2=silo:nexus hist2=_hist]
@@ -815,7 +809,7 @@
   =/  =bask:tarball  [[/ %txt] 'same']
   =/  cass1=cass:clay  [1 ~2024.1.1]
   =/  cass2=cass:clay  [2 ~2024.1.2]
-  =/  hist=_hist:*sack:nexus  ~
+  =/  hist=sack:nexus  ~
   =/  [lobe1=lobe:clay silo1=silo:nexus hist1=_hist]
     (~(record si:nexus *silo:nexus) q.bask p.bask cass1 %.n *cass:clay hist)
   =/  [lobe2=lobe:clay silo2=silo:nexus hist2=_hist]
@@ -836,7 +830,7 @@
   =/  page1=bask:tarball  [[/ %txt] 'aaa']
   =/  page2=bask:tarball  [[/ %txt] 'bbb']
   =/  page3=bask:tarball  [[/ %txt] 'ccc']
-  =/  hist=_hist:*sack:nexus  ~
+  =/  hist=sack:nexus  ~
   =/  [* silo1=silo:nexus hist1=_hist]
     (~(record si:nexus *silo:nexus) q.page1 p.page1 [1 ~2024.1.1] %.y *cass:clay hist)
   =/  [* silo2=silo:nexus hist2=_hist]
@@ -854,7 +848,7 @@
 ++  test-si-drop-hist-shared-refs
   ::  drop-hist with shared content only decrements, doesn't delete
   =/  =bask:tarball  [[/ %txt] 'shared']
-  =/  hist=_hist:*sack:nexus  ~
+  =/  hist=sack:nexus  ~
   ::  Record same page twice with keep (2 hist entries, same lobe, refs=2)
   =/  [=lobe:clay silo1=silo:nexus hist1=_hist]
     (~(record si:nexus *silo:nexus) q.bask p.bask [1 ~2024.1.1] %.y *cass:clay hist)
@@ -993,11 +987,11 @@
 ++  make-grub-born
   |=  [dir=path name=@ta =lobe:clay =blot:tarball file-cass=cass:clay]
   ^-  born:nexus
-  =/  hist=((mop cass:clay pace:sack:nexus) cor:nexus)
+  =/  sok=sack:nexus
     (put:on-hist:sack:nexus ~ file-cass [%file `[lobe blot]])
-  =/  sok=sack:nexus  [[0 ~2024.1.1] file-cass hist]
+  =/  zero=cass:clay  [0 ~2024.1.1]
   =/  node=[tote:nexus (map @ta sack:nexus)]
-    [[[0 ~2024.1.1] ~] (~(put by *(map @ta sack:nexus)) name sok)]
+    [(put:on-hist:tote:nexus ~ zero [%fold ~]) (~(put by *(map @ta sack:nexus)) name sok)]
   (~(put of *born:nexus) dir node)
 ::
 ++  test-record-trees-single-file
@@ -1011,12 +1005,12 @@
   ::  Fold should have bumped
   =/  node  (need (get-node new-born /))
   ;:  weld
-    %+  expect-eq  !>(`@ud`1)  !>(ud.fold.tote.node)
+    %+  expect-eq  !>(`@ud`1)  !>((ver:tote:nexus tote.node))
   ::  Tree should be in silo
     %+  expect-eq  !>(`@ud`1)  !>(~(wyt by trees.new-silo))
   ::  Tree's fil should have our grub's lobe
     =/  tree-lobe=lobe:clay
-      =/  pv=pace:tote:nexus  (need (get:on-hist:tote:nexus hist.tote.node fold.tote.node))
+      =/  pv=pace:tote:nexus  (need (get:on-hist:tote:nexus tote.node (need (top:tote:nexus tote.node))))
       ?>(?=(%fold -.pv) (need p.pv))
     =/  tree-entry  (~(got by trees.new-silo) tree-lobe)
     %+  expect-eq
@@ -1037,7 +1031,7 @@
   ::  Fold should still be 1, not 2
   =/  node  (need (get-node born2 /))
   ;:  weld
-    %+  expect-eq  !>(`@ud`1)  !>(ud.fold.tote.node)
+    %+  expect-eq  !>(`@ud`1)  !>((ver:tote:nexus tote.node))
   ::  Still only 1 tree in silo (not duplicated)
     %+  expect-eq  !>(`@ud`1)  !>(~(wyt by trees.silo2))
   ==
@@ -1054,16 +1048,16 @@
   =/  new-cass=cass:clay  [2 ~2024.1.2]
   =/  born1-node  (need (get-node born1 /))
   =/  sok=sack:nexus  (~(got by bags.born1-node) %myfile)
-  =/  new-hist=((mop cass:clay pace:sack:nexus) cor:nexus)
-    (put:on-hist:sack:nexus hist.sok new-cass [%file `[lobe2 [/ %txt]]])
+  =/  new-sok=sack:nexus
+    (put:on-hist:sack:nexus sok new-cass [%file `[lobe2 [/ %txt]]])
   =/  born2=born:nexus
-    (~(put of born1) / born1-node(bags (~(put by bags.born1-node) %myfile sok(file new-cass, hist new-hist))))
+    (~(put of born1) / born1-node(bags (~(put by bags.born1-node) %myfile new-sok)))
   =/  [born3=born:nexus silo2=silo:nexus]
     (record-trees:nexus born2 silo1 *sand:nexus *ball:tarball now /)
   ::  Fold should now be 2
   =/  node  (need (get-node born3 /))
   ;:  weld
-    %+  expect-eq  !>(`@ud`2)  !>(ud.fold.tote.node)
+    %+  expect-eq  !>(`@ud`2)  !>((ver:tote:nexus tote.node))
   ::  2 trees in silo (old and new)
     %+  expect-eq  !>(`@ud`2)  !>(~(wyt by trees.silo2))
   ==
@@ -1080,15 +1074,15 @@
   ::  / should also have fold=1 (parent got a tree too)
   =/  root-node  (need (get-node new-born /))
   ;:  weld
-    %+  expect-eq  !>(`@ud`1)  !>(ud.fold.tote.a-node)
-    %+  expect-eq  !>(`@ud`1)  !>(ud.fold.tote.root-node)
+    %+  expect-eq  !>(`@ud`1)  !>((ver:tote:nexus tote.a-node))
+    %+  expect-eq  !>(`@ud`1)  !>((ver:tote:nexus tote.root-node))
   ::  Root's tree should have /a's tree lobe in its dir map
     =/  root-tree-lobe=lobe:clay
-      =/  pv=pace:tote:nexus  (need (get:on-hist:tote:nexus hist.tote.root-node fold.tote.root-node))
+      =/  pv=pace:tote:nexus  (need (get:on-hist:tote:nexus tote.root-node (need (top:tote:nexus tote.root-node))))
       ?>(?=(%fold -.pv) (need p.pv))
     =/  root-tree  tree:(~(got by trees.new-silo) root-tree-lobe)
     =/  a-tree-lobe=lobe:clay
-      =/  pv=pace:tote:nexus  (need (get:on-hist:tote:nexus hist.tote.a-node fold.tote.a-node))
+      =/  pv=pace:tote:nexus  (need (get:on-hist:tote:nexus tote.a-node (need (top:tote:nexus tote.a-node))))
       ?>(?=(%fold -.pv) (need p.pv))
     %+  expect-eq
       !>  a-tree-lobe
@@ -1108,7 +1102,7 @@
   ::  Root's tree should have /a's weir
   =/  root-node  (need (get-node new-born /))
   =/  root-tree-lobe=lobe:clay
-    =/  pv=pace:tote:nexus  (need (get:on-hist:tote:nexus hist.tote.root-node fold.tote.root-node))
+    =/  pv=pace:tote:nexus  (need (get:on-hist:tote:nexus tote.root-node (need (top:tote:nexus tote.root-node))))
     ?>(?=(%fold -.pv) (need p.pv))
   =/  root-tree  tree:(~(got by trees.new-silo) root-tree-lobe)
   %+  expect-eq
@@ -1120,12 +1114,12 @@
 ++  add-grub
   |=  [=born:nexus dir=path name=@ta =lobe:clay =blot:tarball file-cass=cass:clay]
   ^-  born:nexus
-  =/  hist=((mop cass:clay pace:sack:nexus) cor:nexus)
+  =/  sok=sack:nexus
     (put:on-hist:sack:nexus ~ file-cass [%file `[lobe blot]])
-  =/  sok=sack:nexus  [[0 ~2024.1.1] file-cass hist]
   =/  sub=born:nexus  (~(dip of born) dir)
   =/  node=[=tote:nexus bags=(map @ta sack:nexus)]
-    (fall fil.sub [[[0 ~2024.1.1] ~] ~])
+    =/  zero=cass:clay  [0 ~2024.1.1]
+    (fall fil.sub [(put:on-hist:tote:nexus ~ zero [%fold ~]) ~])
   (~(put of born) dir node(bags (~(put by bags.node) name sok)))
 ::
 ++  test-record-trees-multi-file
@@ -1141,7 +1135,7 @@
     (record-trees:nexus born *silo:nexus *sand:nexus *ball:tarball now /)
   =/  node  (need (get-node new-born /))
   =/  tree-lobe=lobe:clay
-    =/  pv=pace:tote:nexus  (need (get:on-hist:tote:nexus hist.tote.node fold.tote.node))
+    =/  pv=pace:tote:nexus  (need (get:on-hist:tote:nexus tote.node (need (top:tote:nexus tote.node))))
     ?>(?=(%fold -.pv) (need p.pv))
   =/  =tree:silo:nexus  tree:(~(got by trees.new-silo) tree-lobe)
   ;:  weld
@@ -1171,7 +1165,7 @@
     (record-trees:nexus born *silo:nexus *sand:nexus *ball:tarball now /sub)
   =/  root-node  (need (get-node new-born /))
   =/  root-tree-lobe=lobe:clay
-    =/  pv=pace:tote:nexus  (need (get:on-hist:tote:nexus hist.tote.root-node fold.tote.root-node))
+    =/  pv=pace:tote:nexus  (need (get:on-hist:tote:nexus tote.root-node (need (top:tote:nexus tote.root-node))))
     ?>(?=(%fold -.pv) (need p.pv))
   =/  root-tree  tree:(~(got by trees.new-silo) root-tree-lobe)
   ;:  weld
@@ -1184,7 +1178,7 @@
     ::  /sub's tree has the child grub
     =/  sub-node  (need (get-node new-born /sub))
     =/  sub-tree-lobe=lobe:clay
-      =/  pv=pace:tote:nexus  (need (get:on-hist:tote:nexus hist.tote.sub-node fold.tote.sub-node))
+      =/  pv=pace:tote:nexus  (need (get:on-hist:tote:nexus tote.sub-node (need (top:tote:nexus tote.sub-node))))
       ?>(?=(%fold -.pv) (need p.pv))
     =/  sub-tree  tree:(~(got by trees.new-silo) sub-tree-lobe)
     %+  expect-eq

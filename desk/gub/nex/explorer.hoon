@@ -1294,7 +1294,9 @@
     ?~  node  "-"
     =/  sk=(unit sack:nexus)  (~(get by bags.u.node) name)
     ?~  sk  "-"
-    (en:datetime-local:iso-8601 da.file.u.sk)
+    =/  cas=(unit cass:clay)  (top:sack:nexus u.sk)
+    ?~  cas  "-"
+    (en:datetime-local:iso-8601 da.u.cas)
   =/  sag=sage:tarball  sage.content
   ?:  =(%symlink name.p.sag)
     =/  sym  !<(symlink:tarball q.sag)

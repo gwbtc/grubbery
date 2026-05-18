@@ -58,7 +58,7 @@
     (peek:io ses-road ~)
   ?.  ?=([%& %file *] seen)
     (pure:m [%error 'Session not found'])
-  =/  cur-ver=@ud  ud.file.sack.p.seen
+  =/  cur-ver=@ud  (ver:sack:nexus sack.p.seen)
   ::  Determine version range
   =/  range-from=@ud
     ?^  from  u.from

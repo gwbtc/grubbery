@@ -2227,7 +2227,7 @@
             ;div#loading;
             ;form#prompt-form(onsubmit "sendMessage(event)")
               ;div.input-row
-                ;input#input(type "text", placeholder "Say something...", autocomplete "off");
+                ;textarea#input(rows "1", placeholder "Say something...", autocomplete "off");
                 ;button#stop-btn(type "button"): Stop
                 ;button(type "submit"): Send
               ==
@@ -2262,7 +2262,7 @@
   .empty \{ color: #555; font-size: 14px; padding: 40px 0; text-align: center; }
   #prompt-form \{ flex-shrink: 0; padding: 12px 0; border-top: 1px solid #333; }
   .input-row \{ display: flex; gap: 8px; }
-  #input \{ flex: 1; padding: 10px 14px; border-radius: 8px; border: 1px solid #333; background: #1a1a1a; color: #eee; font-size: 14px; outline: none; }
+  #input \{ flex: 1; padding: 10px 14px; border-radius: 8px; border: 1px solid #333; background: #1a1a1a; color: #eee; font-size: 14px; outline: none; resize: none; overflow-y: hidden; font-family: inherit; line-height: 1.5; max-height: 200px; }
   #input:focus \{ border-color: #2563eb; }
   button \{ padding: 10px 20px; border-radius: 8px; border: none; background: #2563eb; color: white; font-size: 14px; cursor: pointer; }
   button:hover \{ background: #1d4ed8; }
@@ -2351,12 +2351,25 @@
     var text = input.value.trim();
     if (!text) return;
     input.value = '';
+    input.style.height = 'auto';
     fetch(API + '/poke/' + BALL + '/chats/' + CHAT + '/chat.json?mark=json', \{
       method: 'POST',
       headers: \{'Content-Type': 'application/json'},
       body: JSON.stringify(\{action: 'message', content: text})
     });
   }
+
+  var input = document.getElementById('input');
+  input.addEventListener('input', function() \{
+    this.style.height = 'auto';
+    this.style.height = Math.min(this.scrollHeight, 200) + 'px';
+  });
+  input.addEventListener('keydown', function(e) \{
+    if (e.key === 'Enter' && !e.shiftKey) \{
+      e.preventDefault();
+      sendMessage(e);
+    }
+  });
 
   document.getElementById('clear-btn').onclick = function() \{
     if (!confirm('Clear chat?')) return;
