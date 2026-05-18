@@ -869,8 +869,7 @@
 ++  bang-nexus
   |=  [dest=fold:tarball err=tang]
   ^+  this
-  ~&  >>>  "BANG nexus {(spud dest)}"
-  %-  (slog err)
+  %-  (slog [leaf+"BANG nexus {(spud dest)}" err])
   ::  Set bang on the pipe at dest
   =/  old=pipe:nexus  (fall (~(get of pool) dest) *pipe:nexus)
   =.  pool  (~(put of pool) dest old(bang `err))

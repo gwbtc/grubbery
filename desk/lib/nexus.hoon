@@ -10,8 +10,8 @@
 +$  deps  (map rail:tarball (set rail:tarball))
 +$  refs  (axal (map @ta @uv))
 +$  lode  [=keys =deps =refs]
-+$  bins  (map @uv [refs=@ud =built])
 +$  code  (map fold:tarball lode)
++$  bins  (map @uv [refs=@ud =built])
 ::  The ball (tarball) is WYSIWYG: fully materialized, no dedup.
 ::  Every file is stored inline. To deduplicate, make references
 ::  via path+cass rather than copying content.

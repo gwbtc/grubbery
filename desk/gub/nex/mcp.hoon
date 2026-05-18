@@ -211,6 +211,14 @@
       ?-  -.result
         %text   (pairs:enjs:format ~[['type' s+'text'] ['text' s+text.result]])
         %error  (pairs:enjs:format ~[['type' s+'error'] ['message' s+message.result]])
+        %mime
+      =/  media-type=@t  (mite-to-cord:nex-tools p.mime.result)
+      =/  b64=@t  (en:base64:mimes:html q.mime.result)
+      %-  pairs:enjs:format
+      :~  ['type' s+'mime']
+          ['media_type' s+media-type]
+          ['data' s+b64]
+      ==
       ==
     (replace:io !>(`tool-state:nex-tools`[tool.st args.st %done data.st `result-json]))
   ==

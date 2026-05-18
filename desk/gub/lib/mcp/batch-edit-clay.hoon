@@ -85,6 +85,7 @@
         (zing ~[acc "\0a" (trip f)])
       ?-  -.res
         %error  (pure:m res)
+        %mime   (pure:m res)
         %text   (pure:m [%text (crip (zing ~[(trip text.res) "\0aFiles edited:\0a" file-summary]))])
       ==
     =/  edit=json  i.remaining

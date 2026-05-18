@@ -832,7 +832,7 @@
           =/  tool-file=@ta  (crip "{(trip chat-name)}_{(trip tid)}")
           ;<  tool-road=road:tarball  bind:m  (ancestor-road:io [/claw %agent] [%& /proc/tools tool-file])
           ;<  ~  bind:m  (drop:io /tool-done/[tid] tool-road)
-          =/  result-text=@t  (extract-tool-result tst)
+          =/  res=extracted-result  (extract-tool-result tst)
           ~&  >  ["%claw: deferred result for" tid]
           ;<  config=json  bind:m  read-config
           =/  model=@t  (get-str config 'model')
@@ -843,7 +843,7 @@
           =/  msg-cap=@ud  (get-num config 'message_cap' 20.000)
           ;<  =convo  bind:m  read-chat
           =/  updated=^convo
-            (snoc convo [%msg 'user' (crip "[spawn_task result]: {(trip result-text)}")])
+            (snoc convo [%msg 'user' (crip "[spawn_task result]: {(trip text.res)}")])
           ;<  ~  bind:m  (write-chat updated)
           ;<  tools=(map @t tool:nex-tools)  bind:m  get-tools
           ;<  final=^convo  bind:m  (agent-turn chat-name model api-name ctx-window msg-cap updated tools)
@@ -972,6 +972,14 @@
           ?-  -.result
             %text   (pairs:enjs:format ~[['type' s+'text'] ['text' s+text.result]])
             %error  (pairs:enjs:format ~[['type' s+'error'] ['message' s+message.result]])
+            %mime
+          =/  media-type=@t  (mite-to-cord:nex-tools p.mime.result)
+          =/  b64=@t  (en:base64:mimes:html q.mime.result)
+          %-  pairs:enjs:format
+          :~  ['type' s+'mime']
+              ['media_type' s+media-type]
+              ['data' s+b64]
+          ==
           ==
         (replace:io !>(`tool-state:nex-tools`[tool.st args.st %done data.st `result-json]))
           ::  /proc/cron/*: cron job fiber (schedule + fire loop)
@@ -1065,6 +1073,7 @@
   $%  [%msg role=@t content=@t]
       [%tool-use id=@t name=@t input=json]
       [%tool-result tool-use-id=@t content=@t]
+      [%tool-result-media tool-use-id=@t text=@t media-type=@t data=@t]
   ==
 ::  a conversation is an ordered list of entries
 ::
@@ -1651,7 +1660,7 @@
   ;<  ~  bind:m  (set-status chat-name [%tool tid])
   ;<  *  bind:m  (keep:io /tool-wait/[tid] tool-road ~)
   ;<  ~  bind:m  (make:io tool-road |+[%.n [[/ %tool-state] !>(ts)] ~])
-  ;<  ack=(unit [@t ?])  bind:m  (await-tool-ack tid)
+  ;<  ack=(unit [extracted-result ?])  bind:m  (await-tool-ack tid)
   ;<  ~  bind:m  (drop:io /tool-wait/[tid] tool-road)
   ?~  ack
     ::  interrupted — kill tool, write marker, return
@@ -1661,10 +1670,13 @@
     ;<  ~  bind:m  (write-chat updated)
     ;<  ~  bind:m  (set-status chat-name [%idle ~])
     (pure:m ~)
-  =/  result-text=@t  -.u.ack
+  =/  res=extracted-result  -.u.ack
   =/  more=?  +.u.ack
   ::  append result to convo and write immediately
-  =/  updated=^convo  (snoc convo [%tool-result id.call result-text])
+  =/  updated=^convo
+    ?:  is-mime.res
+      (snoc convo [%tool-result-media id.call text.res media-type.res data.res])
+    (snoc convo [%tool-result id.call text.res])
   ;<  ~  bind:m  (write-chat updated)
   ?:  more
     ::  tool ack'd but still running -- subscribe on /tool-done for main loop
@@ -1679,7 +1691,7 @@
 ::
 ++  await-tool-ack
   |=  tid=@ta
-  =/  m  (fiber:fiber:nexus ,(unit [@t ?]))
+  =/  m  (fiber:fiber:nexus ,(unit [extracted-result ?]))
   ^-  form:m
   |=  input:fiber:nexus
   :+  ~  state
@@ -1709,16 +1721,24 @@
 ::
 ::  +extract-tool-result: pull text from tool-state update
 ::
+::  +extract-tool-result: pull result from tool-state update
+::  returns [text is-mime media-type b64-data]
+::
++$  extracted-result  [text=@t is-mime=? media-type=@t data=@t]
 ++  extract-tool-result
   |=  st=tool-state:nex-tools
-  ^-  @t
-  ?~  update.st  'tool returned no result'
-  ?.  ?=(%o -.u.update.st)  'tool returned no result'
+  ^-  extracted-result
+  ?~  update.st  ['tool returned no result' %.n '' '']
+  ?.  ?=(%o -.u.update.st)  ['tool returned no result' %.n '' '']
   =/  result-type=(unit json)  (~(get by p.u.update.st) 'type')
   ?:  ?=([~ %s %'error'] result-type)
     =/  err=@t  (fall (bind (~(get by p.u.update.st) 'message') |=(j=json ?>(?=(%s -.j) p.j))) 'unknown error')
-    (crip "ERROR: {(trip err)}")
-  (fall (bind (~(get by p.u.update.st) 'text') |=(j=json ?>(?=(%s -.j) p.j))) '')
+    [(crip "ERROR: {(trip err)}") %.n '' '']
+  ?:  ?=([~ %s %'mime'] result-type)
+    =/  media-type=@t  (fall (bind (~(get by p.u.update.st) 'media_type') |=(j=json ?>(?=(%s -.j) p.j))) '')
+    =/  b64=@t  (fall (bind (~(get by p.u.update.st) 'data') |=(j=json ?>(?=(%s -.j) p.j))) '')
+    [(crip "[binary: {(trip media-type)}]") %.y media-type b64]
+  [(fall (bind (~(get by p.u.update.st) 'text') |=(j=json ?>(?=(%s -.j) p.j))) '') %.n '' '']
 ::
 ::  +await-call-or-interrupt: wait for call response OR interrupt poke
 ::
@@ -1844,6 +1864,12 @@
     =/  tid=@t  (fall (bind (~(get by p.json) 'tool_use_id') |=(j=^json ?>(?=(%s -.j) p.j))) '')
     =/  content=@t  (fall (bind (~(get by p.json) 'content') |=(j=^json ?>(?=(%s -.j) p.j))) '')
     `[%tool-result tid content]
+  ?:  ?=([~ %'tool_result_media'] type)
+    =/  tid=@t  (fall (bind (~(get by p.json) 'tool_use_id') |=(j=^json ?>(?=(%s -.j) p.j))) '')
+    =/  text=@t  (fall (bind (~(get by p.json) 'text') |=(j=^json ?>(?=(%s -.j) p.j))) '')
+    =/  media-type=@t  (fall (bind (~(get by p.json) 'media_type') |=(j=^json ?>(?=(%s -.j) p.j))) '')
+    =/  b64=@t  (fall (bind (~(get by p.json) 'data') |=(j=^json ?>(?=(%s -.j) p.j))) '')
+    `[%tool-result-media tid text media-type b64]
   ::  default: message
   =/  role=(unit @t)  (bind (~(get by p.json) 'role') |=(j=^json ?>(?=(%s -.j) p.j)))
   =/  content=(unit @t)  (bind (~(get by p.json) 'content') |=(j=^json ?>(?=(%s -.j) p.j)))
@@ -1872,6 +1898,14 @@
     :~  ['type' s+'tool_result']
         ['tool_use_id' s+tool-use-id.entry]
         ['content' s+content.entry]
+    ==
+      %tool-result-media
+    %-  pairs:enjs:format
+    :~  ['type' s+'tool_result_media']
+        ['tool_use_id' s+tool-use-id.entry]
+        ['text' s+text.entry]
+        ['media_type' s+media-type.entry]
+        ['data' s+data.entry]
     ==
   ==
 ::
@@ -1995,7 +2029,38 @@
           ['content' s+txt]
       ==
     $(walk t.walk, pending-results [block pending-results])
+      %tool-result-media
+    =.  msgs  flush-tools
+    =.  pending-tools  ~
+    ::  multimodal: content is an array of blocks (text label + media)
+    =/  media-block=json
+      %-  pairs:enjs:format
+      :~  ['type' s+(media-block-type media-type.i.walk)]
+          :-  'source'
+          %-  pairs:enjs:format
+          :~  ['type' s+'base64']
+              ['media_type' s+media-type.i.walk]
+              ['data' s+data.i.walk]
+          ==
+      ==
+    =/  block=json
+      %-  pairs:enjs:format
+      :~  ['type' s+'tool_result']
+          ['tool_use_id' s+tool-use-id.i.walk]
+          ['content' [%a ~[media-block]]]
+      ==
+    $(walk t.walk, pending-results [block pending-results])
   ==
+::  +media-block-type: map media type cord to Claude content block type
+::  image/* -> 'image', application/pdf -> 'document'
+::
+++  media-block-type
+  |=  mt=@t
+  ^-  @t
+  =/  t=tape  (trip mt)
+  ?:  =("application/pdf" t)  'document'
+  ?:  ?=(^ (find "image/" t))  'image'
+  'document'
 ::
 ::  +cap-content: truncate content to char limit with note
 ::
@@ -2052,6 +2117,8 @@
         (weld "tool_use: " (trip name.e))
           %tool-result
         (weld "tool_result: " (trip content.e))
+          %tool-result-media
+        (weld "tool_result: " (trip text.e))
       ==
       "\0a"
     ==
@@ -2081,6 +2148,8 @@
         %msg          (met 3 content.entry)
         %tool-use     (add (met 3 name.entry) (met 3 (en:json:html input.entry)))
         %tool-result  (met 3 content.entry)
+        ::  images are roughly 1600 tokens per 1MB; estimate from base64 size
+        %tool-result-media  (max (met 3 text.entry) (div (met 3 data.entry) 800))
     ==
   (max 1 (div chars 4))
 ::
@@ -3591,15 +3660,17 @@
     =/  e=entry  i.walk
     =/  content=tape
       ?-  -.e
-          %msg          (trip content.e)
-          %tool-use     (weld "tool_use: " (trip name.e))
-          %tool-result  (trip content.e)
+          %msg                (trip content.e)
+          %tool-use           (weld "tool_use: " (trip name.e))
+          %tool-result        (trip content.e)
+          %tool-result-media  (trip text.e)
       ==
     =/  role=tape
       ?-  -.e
-          %msg          (trip role.e)
-          %tool-use     "assistant"
-          %tool-result  "tool_result"
+          %msg                (trip role.e)
+          %tool-use           "assistant"
+          %tool-result        "tool_result"
+          %tool-result-media  "tool_result"
       ==
     ::  search each line of content
     =/  lines=(list tape)  (to-lines content)
@@ -3846,9 +3917,10 @@
   =/  e=entry  i.sliced
   =/  line=tape
     ?-  -.e
-      %msg          :(weld "[" (a-co:co idx) "] " (trip role.e) ": " (trip content.e) "\0a")
-      %tool-use     :(weld "[" (a-co:co idx) "] tool_use: " (trip name.e) "\0a")
-      %tool-result  :(weld "[" (a-co:co idx) "] tool_result: " (trip content.e) "\0a")
+      %msg                :(weld "[" (a-co:co idx) "] " (trip role.e) ": " (trip content.e) "\0a")
+      %tool-use           :(weld "[" (a-co:co idx) "] tool_use: " (trip name.e) "\0a")
+      %tool-result        :(weld "[" (a-co:co idx) "] tool_result: " (trip content.e) "\0a")
+      %tool-result-media  :(weld "[" (a-co:co idx) "] tool_result: " (trip text.e) "\0a")
     ==
   [line $(sliced t.sliced, idx +(idx))]
 ::
