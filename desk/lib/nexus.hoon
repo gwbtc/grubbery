@@ -1,3 +1,4 @@
+/-  push
 /+  tarball
 |%
 +$  card  card:agent:gall
@@ -150,6 +151,22 @@
 ::
 +$  iris-state
   [%0 requests=(map wire [sender=rail:tarball url=@t])]
+::  Push notification service state.
+::  Stored as a grub at /sys/push/main.push-state.
+::
++$  push-sub  [=ship =subscription:push]
++$  push-state
+  $:  %0
+      config=(unit push-config:push)
+      subs=(map @ta push-sub)
+      inflight=(map wire rail:tarball)
+  ==
++$  push-action
+  $%  [%subscribe sub-id=@ta =ship =subscription:push]
+      [%unsubscribe sub-id=@ta]
+      [%send =push-send:push eny=@]
+      [%init eny=@ sub=@t]
+  ==
 ::  Clay desk sync service state.
 ::  Stored as a grub at /sys/clay/main.clay-state.
 ::  Desk mirrors live at /sys/clay/desks/[desk]/.

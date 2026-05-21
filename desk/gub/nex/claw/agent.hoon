@@ -923,6 +923,17 @@
             ;<  final=^convo  bind:m  (agent-turn chat-name model api-name ctx-window msg-cap updated tools)
             ;<  ~  bind:m  (set-status chat-name [%idle ~])
             ;<  ~  bind:m  (forward-to-channel chat-name final updated)
+            ::  Send push notification with last assistant message
+            =/  last-text=@t
+              =/  rev=^convo  (flop final)
+              |-
+              ?~  rev  'New message'
+              ?.  ?=(%msg -.i.rev)  $(rev t.rev)
+              ?.  =('assistant' role.i.rev)  $(rev t.rev)
+              (end [3 140] content.i.rev)
+            ~&  >  [%claw-push-sending %text last-text %chat chat-name]
+            ;<  ~  bind:m  (send-push:io [~ ~ ~ ['claw' last-text ~ ~ `chat-name]])
+            ~&  >  [%claw-push-sent %ok ~]
             $
           ::
               %'clear'
@@ -2663,6 +2674,36 @@
     .then(function(d) \{ renderChatList(d); })
     .catch(function() \{ if (!sessionStorage.getItem('claw-chats')) renderChatList(['main']); });
   connectChatListSSE();
+
+  // Push notification subscription
+  (function() \{
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+    navigator.serviceWorker.register('/grubbery/push/sw', \{scope: '/'}).then(function(reg) \{
+      return reg.pushManager.getSubscription().then(function(sub) \{
+        if (sub) return; // already subscribed
+        return fetch('/grubbery/push/vapid-key').then(function(r) \{ return r.json() }).then(function(key) \{
+          var raw = atob(key.replace(/-/g, '+').replace(/_/g, '/'));
+          var arr = new Uint8Array(raw.length);
+          for (var i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
+          return reg.pushManager.subscribe(\{
+            userVisibleOnly: true,
+            applicationServerKey: arr
+          });
+        }).then(function(sub) \{
+          var j = sub.toJSON();
+          return fetch('/grubbery/push/subscribe', \{
+            method: 'POST',
+            headers: \{'Content-Type': 'application/json'},
+            body: JSON.stringify(\{
+              endpoint: sub.endpoint,
+              p256dh: j.keys.p256dh,
+              auth: j.keys.auth
+            })
+          });
+        });
+      });
+    }).catch(function(e) \{ console.log('Push registration failed:', e); });
+  })();
   """
   ==
 

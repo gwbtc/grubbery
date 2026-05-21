@@ -1,5 +1,6 @@
 ::  fiberio: helper functions for nexus fibers
 ::
+/-  push
 /+  nexus, tarball, server, hu=http-utils
 |%
 ++  fiber   fiber:fiber:nexus
@@ -1042,6 +1043,24 @@
   ;<  ~                      bind:m  (send-request request)
   ;<  =client-response:iris  bind:m  take-client-response
   (extract-body client-response)
+::  Push notification helpers
+::  Sends via /sys/push/ runtime service.
+::
+++  push-road  `road:tarball`[%& %& /sys/push %'main.push-state']
+::
+++  send-push
+  |=  =push-send:push
+  =/  m  (fiber ,~)
+  ^-  form:m
+  ;<  eny=@uvJ  bind:m  get-entropy
+  (poke push-road [[/ %push-action] !>(`push-action:nexus`[%send push-send eny])])
+::
+++  init-push
+  |=  sub=@t
+  =/  m  (fiber ,~)
+  ^-  form:m
+  ;<  eny=@uvJ  bind:m  get-entropy
+  (poke push-road [[/ %push-action] !>(`push-action:nexus`[%init eny sub])])
 ::  Poke our own ship
 ::
 ++  gall-poke-our

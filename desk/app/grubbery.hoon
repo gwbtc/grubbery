@@ -1,7 +1,8 @@
-/-  spider
+/-  spider, push
 /+  default-agent, dbug, tarball, nexus,
     server, multipart, http-utils, html-utils, json-utils,
-    marks, build, fiberio, loader, cram, pretty-file, zlib, bytestream, root
+    marks, build, fiberio, loader, cram, pretty-file, zlib, bytestream, root,
+    web-push
 /=  t-  /tests/nexus
 /=  t-  /tests/tarball
 /=  t-  /tests/build
@@ -95,6 +96,8 @@
   =^  gall-cards  state  abet:sync-gall:hc
   ~&  >>  "on-init: sync-eyre"
   =^  eyre-cards  state  abet:sync-eyre:hc
+  ~&  >>  "on-init: sync-push"
+  =^  push-cards  state  abet:sync-push:hc
   ~&  >>  "on-init: done"
   :_  this
   ;:  weld
@@ -108,6 +111,7 @@
     peer-cards
     gall-cards
     eyre-cards
+    push-cards
     cards
   ==
 ::
@@ -145,6 +149,8 @@
     =^  gall-cards  state  abet:sync-gall:hc
     ~&  >>  "on-load: sync-eyre"
     =^  eyre-cards  state  abet:sync-eyre:hc
+    ~&  >>  "on-load: sync-push"
+    =^  push-cards  state  abet:sync-push:hc
     ~&  >>  "on-load: done"
     :_  this
     ;:  weld
@@ -158,6 +164,7 @@
       peer-cards
       gall-cards
       eyre-cards
+      push-cards
       cards
     ==
   ==
@@ -198,6 +205,11 @@
       %handle-http-request
     =+  !<([eyre-id=@ta req=inbound-request:eyre] vas)
     =/  [site=path args=quay:eyre]  (parse-url:http-utils url.request.req)
+    ::  Push notification endpoints
+    ?:  ?=([%grubbery %push *] site)
+      =^  cards  state
+        abet:(handle-push-http:hc eyre-id src.bowl req t.t.site args)
+      [cards this]
     ::  Ball API: spawn request fiber at /sys/eyre/requests/{eyre-id}
     ?:  ?=([%grubbery %api *] site)
       ~&  >  [%eyre-api eyre-id url.request.req]
@@ -428,6 +440,11 @@
     ?>  ?=([%iris %http-response *] sign)
     =^  cards  state
       abet:(handle-iris-response:hc t.t.wire client-response.sign)
+    [cards this]
+  ?:  ?=([%push %send @ *] wire)
+    ?>  ?=([%iris %http-response *] sign)
+    =^  cards  state
+      abet:(handle-push-response:hc t.t.wire client-response.sign)
     [cards this]
   ?:  ?=(?([%eyre ~] [%eyre-bind ~] [%eyre-api ~]) wire)
     `this
@@ -1623,6 +1640,12 @@
           ==
         =.  this  (handle-eyre-action here wire.dart q.sage.load.dart)
         (enqu-take here (sys-give /eyre) ~ %pack wire.dart ~)
+      ::  /sys/push/ push service: intercept push-action pokes
+      ?:  ?&  =([/sys/push %'main.push-state'] dest)
+              =([/ %push-action] p.sage.load.dart)
+          ==
+        =.  this  (handle-push-action here wire.dart q.sage.load.dart)
+        (enqu-take here (sys-give /push) ~ %pack wire.dart ~)
       ::  /sys/ namespace services: general dispatch
       =/  sys=(unit _this)
         (handle-sys-poke dest here wire.dart sage.load.dart)
@@ -3460,8 +3483,11 @@
   =?  new  =(~ (~(get of new) /requests))
     (~(put of new) /requests [~ ~ ~])
   =.  this  (load-ball-changes /sys/eyre old new)
-  ::  Register /grubbery/api with eyre
-  (emit-card [%pass /eyre-api %arvo %e %connect [~ /grubbery/api] dap.bowl])
+  ::  Register /grubbery/api and /grubbery/push with eyre
+  %-  emit-cards
+  :~  [%pass /eyre-api %arvo %e %connect [~ /grubbery/api] dap.bowl]
+      [%pass /eyre-push %arvo %e %connect [~ /grubbery/push] dap.bowl]
+  ==
 ::
 ::  /sys/eyre: read/write server state, find bindings
 ::
@@ -3498,6 +3524,222 @@
   ?:  (gth (lent path.binding.i.entries) (lent path.binding.u.best))
     $(best `i.entries, entries t.entries)
   $(entries t.entries)
+::  /sys/push: ensure directory structure
+::
+++  sync-push
+  ^+  this
+  =/  old=ball:tarball  (~(dip ba:tarball ball) /sys/push)
+  =/  new=ball:tarball  old(fil `(fall fil.old *lump:tarball))
+  =.  this  (load-ball-changes /sys/push old new)
+  ::  Auto-init VAPID keypair if not yet configured
+  =/  st=push-state:nexus  get-push-state
+  ?^  config.st  this
+  =/  sub=@t  (rap 3 ~['mailto:' (scot %p our.bowl) '@urbit.org'])
+  =/  new-config=push-config:push  (generate-vapid-keypair:web-push eny.bowl sub)
+  ~&  >>  "%push: generated VAPID keypair"
+  (save-push-state st(config `new-config))
+::
+::  /sys/push: read/write push state
+::
+++  get-push-state
+  ^-  push-state:nexus
+  =/  push-rail=rail:tarball  [/sys/push %'main.push-state']
+  =/  old=(unit content:tarball)  (~(get ba:tarball ball) push-rail)
+  ?~  old  *push-state:nexus
+  !<(push-state:nexus q.sage.u.old)
+::
+++  save-push-state
+  |=  st=push-state:nexus
+  ^+  this
+  (save-file [/sys/push %'main.push-state'] [~ [/ %push-state] !>(st)])
+::
+++  handle-push-action
+  |=  [sender=rail:tarball =wire vaz=vase]
+  ^+  this
+  =/  act=push-action:nexus  !<(push-action:nexus vaz)
+  =/  st=push-state:nexus  get-push-state
+  ?-    -.act
+      %init
+    ?^  config.st  this  :: already initialized
+    =/  new-config=push-config:push  (generate-vapid-keypair:web-push eny.act sub.act)
+    (save-push-state st(config `new-config))
+  ::
+      %subscribe
+    =.  subs.st  (~(put by subs.st) sub-id.act [ship.act subscription.act])
+    (save-push-state st)
+  ::
+      %unsubscribe
+    =.  subs.st  (~(del by subs.st) sub-id.act)
+    (save-push-state st)
+  ::
+      %send
+    ?~  config.st
+      ~&  >>>  "%push: no VAPID config, dropping notification"
+      this
+    =/  config=push-config:push  u.config.st
+    =/  msg=push-message:push  msg.push-send.act
+    =/  payload=octs  (message-to-json:web-push msg)
+    ::  Determine target subscriptions
+    =/  target-subs=(list [@ta push-sub:nexus])
+      %+  skim  ~(tap by subs.st)
+      |=  [id=@ta ps=push-sub:nexus]
+      ?:  (~(has in exclude.push-send.act) ship.ps)  %.n
+      ?:  =(~ targets.push-send.act)  %.y  :: empty = all
+      (~(has in targets.push-send.act) ship.ps)
+    ::  Send to each subscription
+    =/  unix-now=@ud  (div (sub now.bowl ~1970.1.1) ~s1)
+    =/  exp=@ud  (add unix-now 86.400)
+    |-
+    ?~  target-subs  this
+    =/  [sub-id=@ta ps=push-sub:nexus]  i.target-subs
+    =/  sub=subscription:push  subscription.ps
+    =/  req=request:http
+      (send-notification:web-push sub config payload exp eny.act)
+    ::  Build push wire: /push/send/{path-len}/{path...}/{name}/{sub-id}
+    =/  push-wire=path
+      :-  %push
+      :-  %send
+      :-  (scot %ud (lent path.sender))
+      (weld path.sender [name.sender sub-id ~])
+    =.  inflight.st  (~(put by inflight.st) push-wire sender)
+    =.  this  (save-push-state st)
+    =.  this  (emit-card [%pass push-wire %arvo %i %request req *outbound-config:iris])
+    $(target-subs t.target-subs)
+  ==
+::
+++  handle-push-response
+  |=  [segs=wire =client-response:iris]
+  ^+  this
+  =/  st=push-state:nexus  get-push-state
+  =/  push-wire=path  [%push %send segs]
+  =.  inflight.st  (~(del by inflight.st) push-wire)
+  ::  If push service returns 404/410, subscription is stale — remove it
+  ?:  ?=(%finished -.client-response)
+    =/  code=@ud  status-code.response-header.client-response
+    ?:  |(=(404 code) =(410 code))
+      ::  Extract sub-id from wire (last segment)
+      =/  sub-id=@ta  (rear segs)
+      ~&  >  [%push %removing-stale-sub sub-id code]
+      =.  subs.st  (~(del by subs.st) sub-id)
+      (save-push-state st)
+    (save-push-state st)
+  (save-push-state st)
+::
+++  handle-push-http
+  |=  [eyre-id=@ta src=@p req=inbound-request:eyre site=path args=quay:eyre]
+  ^+  this
+  =/  respond
+    |=  =simple-payload:http
+    ^+  this
+    (emit-cards (give-simple-payload:app:server eyre-id simple-payload))
+  =/  json-ok
+    |=  =json
+    =/  body=@t  (en:json:html json)
+    (respond [[200 ['content-type' 'application/json'] ~] `(as-octs:mimes:html body)])
+  ::  Serve service worker publicly (no auth required)
+  ?:  ?=([%sw ~] site)
+    =/  sw-js=@t
+      '''
+      self.addEventListener('push', function(event) {
+        const data = event.data ? event.data.json() : {};
+        const title = data.title || 'Notification';
+        const options = {
+          body: data.body || '',
+          icon: data.icon || '/grubbery/ball/favicon.svg',
+          tag: data.tag || 'default',
+          data: { url: data.url || '/grubbery/ball/' }
+        };
+        event.waitUntil(self.registration.showNotification(title, options));
+      });
+
+      self.addEventListener('notificationclick', function(event) {
+        event.notification.close();
+        const url = event.notification.data && event.notification.data.url;
+        if (url) {
+          event.waitUntil(clients.openWindow(url));
+        }
+      });
+      '''
+    (respond [[200 ['content-type' 'application/javascript'] ['service-worker-allowed' '/'] ~] `(as-octs:mimes:html sw-js)])
+  ::  All other push routes require authentication
+  ?.  authenticated.req
+    (respond [[403 ~] `(as-octs:mimes:html '"not authenticated"')])
+  ?+    site
+    (respond [[404 ~] `(as-octs:mimes:html '"not found"')])
+  ::
+      [%vapid-key ~]
+    ::  GET: return VAPID public key as base64url
+    =/  st=push-state:nexus  get-push-state
+    ?~  config.st
+      (respond [[503 ~] `(as-octs:mimes:html '"push not configured"')])
+    =/  pub-b64=@t
+      (en-base64url:web-push [65 (rev 3 65 public-key.u.config.st)])
+    (respond [[200 ['content-type' 'text/plain'] ~] `(as-octs:mimes:html pub-b64)])
+  ::
+      [%subscribe ~]
+    ::  POST: save browser push subscription
+    ?.  =(%'POST' method.request.req)
+      (respond [[405 ~] `(as-octs:mimes:html '"method not allowed"')])
+    ?~  body.request.req
+      (respond [[400 ~] `(as-octs:mimes:html '"missing body"')])
+    =/  jon=(unit json)  (de:json:html q.u.body.request.req)
+    ?~  jon
+      (respond [[400 ~] `(as-octs:mimes:html '"invalid json"')])
+    ?.  ?=(%o -.u.jon)
+      (respond [[400 ~] `(as-octs:mimes:html '"expected object"')])
+    =/  obj=(map @t json)  p.u.jon
+    =/  endpoint=(unit @t)
+      ?~  e=(~(get by obj) 'endpoint')  ~
+      ?.  ?=([~ %s *] e)  ~
+      `p.u.e
+    =/  p256dh=(unit @t)
+      ?~  k=(~(get by obj) 'p256dh')  ~
+      ?.  ?=([~ %s *] k)  ~
+      `p.u.k
+    =/  auth-key=(unit @t)
+      ?~  a=(~(get by obj) 'auth')  ~
+      ?.  ?=([~ %s *] a)  ~
+      `p.u.a
+    ?:  |(?=(~ endpoint) ?=(~ p256dh) ?=(~ auth-key))
+      (respond [[400 ~] `(as-octs:mimes:html '"missing endpoint, p256dh, or auth"')])
+    ::  Decode base64url keys to raw bytes
+    =/  p256dh-octs=(unit octs)  (de-base64url:web-push u.p256dh)
+    =/  auth-octs=(unit octs)    (de-base64url:web-push u.auth-key)
+    ?:  |(?=(~ p256dh-octs) ?=(~ auth-octs))
+      (respond [[400 ~] `(as-octs:mimes:html '"invalid key encoding"')])
+    ::  Convert to MSB-first atoms (crypto convention)
+    =/  p256dh-raw=@  (rev 3 p.u.p256dh-octs q.u.p256dh-octs)
+    =/  auth-raw=@    (rev 3 p.u.auth-octs q.u.auth-octs)
+    =/  sub=subscription:push  [u.endpoint p256dh-raw auth-raw]
+    ::  Generate sub-id from endpoint hash
+    =/  sub-id=@ta  (scot %uv (end [3 16] (shax u.endpoint)))
+    =/  st=push-state:nexus  get-push-state
+    =.  subs.st  (~(put by subs.st) sub-id [src sub])
+    =.  this  (save-push-state st)
+    (json-ok [%o (~(gas by *(map @t json)) ~[['ok' [%b %.y]] ['sub_id' [%s sub-id]]])])
+  ::
+      [%unsubscribe ~]
+    ::  POST: remove subscription
+    ?.  =(%'POST' method.request.req)
+      (respond [[405 ~] `(as-octs:mimes:html '"method not allowed"')])
+    ?~  body.request.req
+      (respond [[400 ~] `(as-octs:mimes:html '"missing body"')])
+    =/  jon=(unit json)  (de:json:html q.u.body.request.req)
+    ?~  jon
+      (respond [[400 ~] `(as-octs:mimes:html '"invalid json"')])
+    ?.  ?=(%o -.u.jon)
+      (respond [[400 ~] `(as-octs:mimes:html '"expected object"')])
+    =/  sub-id=(unit @t)
+      ?~  s=(~(get by p.u.jon) 'sub_id')  ~
+      ?.  ?=([~ %s *] s)  ~
+      `p.u.s
+    ?~  sub-id
+      (respond [[400 ~] `(as-octs:mimes:html '"missing sub_id"')])
+    =/  st=push-state:nexus  get-push-state
+    =.  subs.st  (~(del by subs.st) u.sub-id)
+    =.  this  (save-push-state st)
+    (json-ok [%o (~(gas by *(map @t json)) ~[['ok' [%b %.y]]])])
+  ==
 ::
 ++  cull-if-exists
   |=  dest=lane:tarball
