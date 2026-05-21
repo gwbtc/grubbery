@@ -107,7 +107,6 @@
       [~ %'main.sig']
     ;<  ~  bind:m  (rise-wait:io prod "%mcp /main: failed")
     ;<  ~  bind:m  (bind-http:io [~ /grubbery/mcp])
-    ~&  >  "%mcp /main: ready, bound /grubbery/mcp"
     (http-dispatch:io %mcp)
       ::  /requests/{eyre-id}: parse HTTP, dispatch
       ::

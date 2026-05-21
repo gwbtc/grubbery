@@ -961,23 +961,29 @@
     "no grub at {(spud (weld dir /[name]))}"
   ::  Clean up outgoing subscriptions from this file
   =.  this  (sub-wipe [dir name])
-  ::  Tombstone all hist entries, append [%file ~] for deletion
+  ::  Snapshot before mutations
+  =/  old-born=born:nexus  born
+  ::  Append [%file ~] for deletion; tombstone old entries unless gaining
   =/  sok=(unit sack:nexus)  (get-born [dir name])
-  =?  silo  ?=(^ sok)
+  =/  gaining=?  (lookup-gain [dir name])
+  =?  silo  &(?=(^ sok) !gaining)
     (~(drop-hist si:nexus silo) u.sok)
   =?  born  ?=(^ sok)
     =/  file-cass=cass:clay  (need (top:sack:nexus u.sok))
-    =/  new-file=cass:clay  (~(next-cass bo:nexus now.bowl [born ball]) file-cass)
-    =/  entries=(list [key=cass:clay val=pace:sack:nexus])
-      (tap:on-hist:sack:nexus u.sok)
-    =|  tombed=sack:nexus
-    |-  ?^  entries
-      $(entries t.entries, tombed (put:on-hist:sack:nexus tombed key.i.entries [%tomb ~]))
-    =/  new-sok=sack:nexus  (put:on-hist:sack:nexus tombed new-file [%file ~])
+    =/  new-cass=cass:clay  (~(next-cass bo:nexus now.bowl [born ball]) file-cass)
+    =/  base=sack:nexus
+      ?:  gaining  u.sok
+      =/  entries=(list [key=cass:clay val=pace:sack:nexus])
+        (tap:on-hist:sack:nexus u.sok)
+      =|  tombed=sack:nexus
+      |-  ?^  entries
+        $(entries t.entries, tombed (put:on-hist:sack:nexus tombed key.i.entries [%tomb ~]))
+      tombed
+    =/  new-sok=sack:nexus  (put:on-hist:sack:nexus base new-cass [%file ~])
     (~(put bo:nexus now.bowl [born ball]) [dir name] new-sok)
   ::  Remove from ball BEFORE notify so subscribers see deletion
   =.  ball  (~(del ba:tarball ball) dir name)
-  =.  this  (bump-file [dir name])
+  =.  this  (propagate old-born [dir name])
   =/  old=pipe:nexus  (fall (~(get of pool) dir) *pipe:nexus)
   =/  =pipe:nexus  old(proc (~(del by proc.old) name))
   =.  pool  (~(put of pool) dir pipe)
@@ -2398,11 +2404,9 @@
   this(born (~(init bo:nexus now.bowl [born ball]) here))
 ::
 ::
-++  bump-file
-  |=  here=rail:tarball
+++  propagate
+  |=  [old-born=born:nexus here=rail:tarball]
   ^+  this
-  =/  old-born=born:nexus  born
-  =.  born  (~(bump-file bo:nexus now.bowl [born ball]) here)
   =.  this  (record-trees path.here)
   (notify old-born)
 ::  Record tree objects from dir up to root into silo + tote hist.
@@ -2417,7 +2421,7 @@
   this(born new-born, silo new-silo)
 ::  Record noun+blot in silo and append to hist on sack.
 ::
-++  record-hist
+++  record
   |=  [here=rail:tarball =sage:tarball cas=(unit cass:clay)]
   ^+  this
   =/  sok=sack:nexus  (need (get-born here))
@@ -2431,14 +2435,13 @@
   =.  silo  new-silo
   =.  born  (~(put bo:nexus now.bowl [born ball]) here new-sok)
   this
-::  Diff two balls and bump all changes (new, changed, deleted files and empty dirs).
+::  Diff two balls and init born entries for new files and empty dirs.
 ::
 ++  diff-balls
   |=  [here=fold:tarball old-ball=ball:tarball new-ball=ball:tarball]
   ^+  this
   this(born (~(diff-balls bo:nexus now.bowl [born ball]) here old-ball new-ball))
 ::  Spawn processes and sync all changes when a ball is created/reloaded.
-::  Handles spawning files and bumping all changes (new, changed, deleted files, empty dirs).
 ::
 ++  load-ball-changes
   |=  [here=fold:tarball old-ball=ball:tarball new-ball=ball:tarball]
@@ -2446,7 +2449,7 @@
   ::  Write new sub-ball into main ball
   =.  ball  (~(pub ba:tarball ball) here new-ball)
   =/  old-born=born:nexus  born
-  ::  diff-balls (inits/bumps born), record silo/hist, then notify
+  ::  diff-balls (inits born for new files), record silo/hist, then notify
   =.  this  (diff-balls here old-ball new-ball)
   =.  this  (record-ball-changes here old-ball new-ball)
   (notify old-born)
@@ -2485,13 +2488,26 @@
         =/  content=content:tarball  (~(got by new-files) name)
         =.  ball  (~(put ba:tarball ball) [here name] content(metadata (~(put by metadata.content) 'mtime' (da-oct:tarball now.bowl))))
         =/  sok=sack:nexus  (need (get-born [here name]))
-        (record-hist [here name] sage.content `(need (top:sack:nexus sok)))
+        (record [here name] sage.content `(need (top:sack:nexus sok)))
       ?:  &(in-old !in-new)
-        ::  Deleted file: drop silo refs
+        ::  Deleted file: append [%file ~]; tombstone old entries unless gaining
         =/  sok=(unit sack:nexus)  (get-born [here name])
-        =?  silo  ?=(^ sok)
+        ?~  sok  this
+        =/  gaining=?  (lookup-gain [here name])
+        =?  silo  !gaining
           (~(drop-hist si:nexus silo) u.sok)
-        this
+        =/  file-cass=cass:clay  (need (top:sack:nexus u.sok))
+        =/  new-cass=cass:clay  (~(next-cass bo:nexus now.bowl [born ball]) file-cass)
+        =/  base=sack:nexus
+          ?:  gaining  u.sok
+          =/  entries=(list [key=cass:clay val=pace:sack:nexus])
+            (tap:on-hist:sack:nexus u.sok)
+          =|  tombed=sack:nexus
+          |-  ?^  entries
+            $(entries t.entries, tombed (put:on-hist:sack:nexus tombed key.i.entries [%tomb ~]))
+          tombed
+        =/  new-sok=sack:nexus  (put:on-hist:sack:nexus base new-cass [%file ~])
+        this(born (~(put bo:nexus now.bowl [born ball]) [here name] new-sok))
       ::  Both: record if changed
       =/  old-content=content:tarball  (~(got by old-files) name)
       =/  new-content=content:tarball  (~(got by new-files) name)
@@ -2499,7 +2515,7 @@
         ::  Changed file: stamp mtime
         =.  ball  (~(put ba:tarball ball) [here name] new-content(metadata (~(put by metadata.new-content) 'mtime' (da-oct:tarball now.bowl))))
         =/  sok=sack:nexus  (need (get-born [here name]))
-        (record-hist [here name] sage.new-content `(need (top:sack:nexus sok)))
+        (record [here name] sage.new-content `(need (top:sack:nexus sok)))
       this
     $(all-names t.all-names)
   ::  Recurse into subdirs
@@ -3511,9 +3527,10 @@
   =.  new-content
     new-content(metadata (~(put by metadata.new-content) 'mtime' (da-oct:tarball now.bowl)))
   =.  ball  (~(put ba:tarball ball) here new-content)
-  ::  Record content in silo and hist
-  =.  this  (record-hist here sage.new-content ~)
-  =.  this  (bump-file here)
+  ::  Snapshot, record, propagate, notify
+  =/  old-born=born:nexus  born
+  =.  this  (record here sage.new-content ~)
+  =.  this  (propagate old-born here)
   ::  Rebuild if change is inside a code nexus
   =/  cod=(unit path)
     =+  pax=path.here

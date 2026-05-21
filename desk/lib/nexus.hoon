@@ -640,12 +640,6 @@
       =/  zero=cass:clay  [0 now]
       (put here [[zero [%file ~]] ~ ~])
     (put here u.existing)
-  ::  Bump file cass (asserts born exists)
-  ::
-  ++  bump-file
-    |=  here=rail:tarball
-    ^-  born
-    born.old
   ::  Check if a ball node is an empty directory (exists but no files, no subdirs)
   ::
   ++  is-empty-dir
@@ -662,14 +656,16 @@
     |=  bol=ball:tarball
     ^-  ?
     |(?=(^ fil.bol) !=(~ dir.bol))
-  ::  Diff two balls and track all changes
+  ::  Diff two balls and ensure born entries for changes
   ::
-  ::  - New files (in new, not in old): init + bump
-  ::  - Changed files (in both, content differs): bump
-  ::  - Deleted files (in old, not in new): bump
+  ::  - New files (in new, not in old): init born entry
   ::  - Empty dir appears (no previous children): ensure born node
   ::  - Empty dir disappears (no new children): ensure born node
   ::  - Recurse into all subdirs
+  ::
+  ::  Note: actual sack/silo mutations happen in record-ball-changes
+  ::  in grubbery.hoon, not here. This only ensures born entries exist
+  ::  so that record can write to them.
   ::
   ++  diff-balls
     |=  [here=fold:tarball old-ball=ball:tarball new-ball=ball:tarball]
@@ -681,30 +677,12 @@
       ?~(fil.new-ball ~ contents.u.fil.new-ball)
     =/  old-names=(set @ta)  ~(key by old-files)
     =/  new-names=(set @ta)  ~(key by new-files)
-    ::  Process files: new, changed, deleted
-    =/  all-names=(list @ta)  ~(tap in (~(uni in old-names) new-names))
+    ::  Init born entries for new files
+    =/  new-only=(list @ta)  ~(tap in (~(dif in new-names) old-names))
     |-  ^-  born
-    ?^  all-names
-      =/  name=@ta  i.all-names
-      =/  in-old=?  (~(has in old-names) name)
-      =/  in-new=?  (~(has in new-names) name)
-      =.  born.old
-        ?:  &(in-new !in-old)
-          ::  New file: init then bump
-          =.  born.old  (init [here name])
-          (bump-file [here name])
-        ?:  &(in-old !in-new)
-          ::  Deleted file: bump
-          (bump-file [here name])
-        ::  File in both: check if changed
-        =/  old-content=content:tarball  (~(got by old-files) name)
-        =/  new-content=content:tarball  (~(got by new-files) name)
-        ?.  =(sage.old-content sage.new-content)
-          ::  Changed: bump
-          (bump-file [here name])
-        ::  No change
-        born.old
-      $(all-names t.all-names)
+    ?^  new-only
+      =.  born.old  (init [here i.new-only])
+      $(new-only t.new-only)
     ::  Handle empty dir edge cases
     =/  old-exists=?  (dir-exists old-ball)
     =/  new-exists=?  (dir-exists new-ball)

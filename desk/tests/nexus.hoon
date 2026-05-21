@@ -285,21 +285,6 @@
   ==
 ::
 ::
-++  test-bo-bump-file-is-noop
-  ::  bump-file is a no-op (record-hist writes entries)
-  =/  now=@da  ~2024.1.1
-  =/  b  (make-bo now)
-  =/  born1=born:nexus  (init:b [/a %file])
-  =/  b2  (make-bo-with now born1)
-  =/  born2=born:nexus  (bump-file:b2 [/a %file])
-  =/  b3  (make-bo-with now born2)
-  =/  sok=(unit sack:nexus)  (get:b3 [/a %file])
-  %+  expect-eq
-    !>  `@ud`0
-  !>  (ver:sack:nexus (need sok))
-::
-::
-::
 ++  test-bo-next-cass-increments-ud
   ::  next-cass increments ud
   =/  now=@da  ~2024.1.1
@@ -369,23 +354,6 @@
     !>  %.n
   !>  (dir-exists:b *ball:tarball)
 ::
-++  test-bo-multiple-bumps-increment
-  ::  Multiple bump-file calls increment cass each time
-  =/  now=@da  ~2024.1.1
-  =/  b  (make-bo now)
-  =/  born1=born:nexus  (init:b [/a %file])
-  =/  b2  (make-bo-with now born1)
-  =/  born2=born:nexus  (bump-file:b2 [/a %file])
-  =/  b3  (make-bo-with now born2)
-  =/  born3=born:nexus  (bump-file:b3 [/a %file])
-  =/  b4  (make-bo-with now born3)
-  =/  born4=born:nexus  (bump-file:b4 [/a %file])
-  =/  b5  (make-bo-with now born4)
-  =/  sok=(unit sack:nexus)  (get:b5 [/a %file])
-  %+  expect-eq
-    !>  `@ud`3
-  !>  (ver:sack:nexus (need sok))
-::
 ++  test-bo-two-files-independent
   ::  Two files in same dir have independent sacks
   =/  now=@da  ~2024.1.1
@@ -394,13 +362,11 @@
   =/  b2  (make-bo-with now born1)
   =/  born2=born:nexus  (init:b2 [/a %file2])
   =/  b3  (make-bo-with now born2)
-  =/  born3=born:nexus  (bump-file:b3 [/a %file1])
-  =/  b4  (make-bo-with now born3)
-  ::  file1 was bumped, file2 wasn't
-  =/  sok1=(unit sack:nexus)  (get:b4 [/a %file1])
-  =/  sok2=(unit sack:nexus)  (get:b4 [/a %file2])
+  ::  Both files init'd, both at ver 0
+  =/  sok1=(unit sack:nexus)  (get:b3 [/a %file1])
+  =/  sok2=(unit sack:nexus)  (get:b3 [/a %file2])
   ;:  weld
-    %+  expect-eq  !>(`@ud`1)  !>((ver:sack:nexus (need sok1)))
+    %+  expect-eq  !>(`@ud`0)  !>((ver:sack:nexus (need sok1)))
     %+  expect-eq  !>(`@ud`0)  !>((ver:sack:nexus (need sok2)))
   ==
 ::
@@ -439,7 +405,7 @@
   [`[~ ~ contents] ~]
 ::
 ++  test-bo-diff-balls-new-file
-  ::  diff-balls: new file gets init + bump
+  ::  diff-balls: new file gets init'd (born entry created)
   =/  now=@da  ~2024.1.1
   =/  b  (make-bo now)
   =/  old-ball=ball:tarball  *ball:tarball
@@ -448,16 +414,16 @@
   =/  born1=born:nexus  (diff-balls:b / old-ball new-ball)
   =/  bumped=(set lane:tarball)  (diff-born:nexus pre born1)
   =/  b2  (make-bo-with now born1)
-  ::  File should be init'd and bumped
+  ::  File should be init'd (born entry exists at ver 0)
   =/  sok=(unit sack:nexus)  (get:b2 [/ %newfile])
   ;:  weld
     %+  expect-eq  !>(%.y)  !>(?=(^ sok))
-    %+  expect-eq  !>(`@ud`1)  !>((ver:sack:nexus (need sok)))
+    %+  expect-eq  !>(`@ud`0)  !>((ver:sack:nexus (need sok)))
     %+  expect-eq  !>(%.y)  !>((~(has in bumped) &+[/ %newfile]))
   ==
 ::
 ++  test-bo-diff-balls-deleted-file
-  ::  diff-balls: deleted file gets bumped
+  ::  diff-balls: deleted file not touched (record-ball-changes handles it)
   =/  now=@da  ~2024.1.1
   =/  b  (make-bo now)
   ::  Pre-init the file that will be "deleted"
@@ -467,16 +433,11 @@
   =/  new-ball=ball:tarball  *ball:tarball
   =/  born2=born:nexus  (diff-balls:b2 / old-ball new-ball)
   =/  bumped=(set lane:tarball)  (diff-born:nexus born1 born2)
-  =/  b3  (make-bo-with now born2)
-  ::  File should be bumped
-  =/  sok=(unit sack:nexus)  (get:b3 [/ %oldfile])
-  ;:  weld
-    %+  expect-eq  !>(`@ud`1)  !>((ver:sack:nexus (need sok)))
-    %+  expect-eq  !>(%.y)  !>((~(has in bumped) &+[/ %oldfile]))
-  ==
+  ::  diff-balls doesn't mutate born for deletions
+  %+  expect-eq  !>(`@ud`0)  !>(~(wyt in bumped))
 ::
 ++  test-bo-diff-balls-changed-file
-  ::  diff-balls: changed file gets bumped
+  ::  diff-balls: changed file not touched (record-ball-changes handles it)
   =/  now=@da  ~2024.1.1
   =/  b  (make-bo now)
   ::  Pre-init the file
@@ -486,13 +447,8 @@
   =/  new-ball=ball:tarball  (make-ball-with-content %file 'new content')
   =/  born2=born:nexus  (diff-balls:b2 / old-ball new-ball)
   =/  bumped=(set lane:tarball)  (diff-born:nexus born1 born2)
-  =/  b3  (make-bo-with now born2)
-  ::  File should be bumped
-  =/  sok=(unit sack:nexus)  (get:b3 [/ %file])
-  ;:  weld
-    %+  expect-eq  !>(`@ud`1)  !>((ver:sack:nexus (need sok)))
-    %+  expect-eq  !>(%.y)  !>((~(has in bumped) &+[/ %file]))
-  ==
+  ::  diff-balls doesn't mutate born for changes
+  %+  expect-eq  !>(`@ud`0)  !>(~(wyt in bumped))
 ::
 ++  test-bo-diff-balls-unchanged-file
   ::  diff-balls: unchanged file not bumped
@@ -513,7 +469,7 @@
   ==
 ::
 ++  test-bo-diff-balls-mixed
-  ::  diff-balls: mix of new, deleted, changed, unchanged
+  ::  diff-balls: only inits new files; changed/deleted/unchanged untouched
   =/  now=@da  ~2024.1.1
   =/  b  (make-bo now)
   ::  Pre-init files that exist in old
@@ -543,22 +499,17 @@
   =/  bumped=(set lane:tarball)  (diff-born:nexus born3 born4)
   =/  b5  (make-bo-with now born4)
   ;:  weld
-    ::  new: init'd and bumped
-    %+  expect-eq  !>(`@ud`1)  !>((ver:sack:nexus (need (get:b5 [/ %new]))))
+    ::  new: init'd (born entry created)
+    %+  expect-eq  !>(%.y)  !>(?=(^ (get:b5 [/ %new])))
     %+  expect-eq  !>(%.y)  !>((~(has in bumped) &+[/ %new]))
-    ::  deleted: bumped
-    %+  expect-eq  !>(`@ud`1)  !>((ver:sack:nexus (need (get:b5 [/ %deleted]))))
-    %+  expect-eq  !>(%.y)  !>((~(has in bumped) &+[/ %deleted]))
-    ::  changed: bumped
-    %+  expect-eq  !>(`@ud`1)  !>((ver:sack:nexus (need (get:b5 [/ %changed]))))
-    %+  expect-eq  !>(%.y)  !>((~(has in bumped) &+[/ %changed]))
-    ::  unchanged: NOT bumped
-    %+  expect-eq  !>(`@ud`0)  !>((ver:sack:nexus (need (get:b5 [/ %unchanged]))))
+    ::  deleted/changed/unchanged: not touched by diff-balls
+    %+  expect-eq  !>(%.n)  !>((~(has in bumped) &+[/ %deleted]))
+    %+  expect-eq  !>(%.n)  !>((~(has in bumped) &+[/ %changed]))
     %+  expect-eq  !>(%.n)  !>((~(has in bumped) &+[/ %unchanged]))
   ==
 ::
 ++  test-bo-diff-balls-nested
-  ::  diff-balls: recurses into subdirectories
+  ::  diff-balls: recurses into subdirectories, inits new files
   =/  now=@da  ~2024.1.1
   =/  b  (make-bo now)
   ::  Pre-init file in subdir
@@ -574,11 +525,10 @@
   =/  bumped=(set lane:tarball)  (diff-born:nexus born1 born2)
   =/  b3  (make-bo-with now born2)
   ;:  weld
-    ::  oldfile: bumped (deleted)
-    %+  expect-eq  !>(`@ud`1)  !>((ver:sack:nexus (need (get:b3 [/sub %oldfile]))))
-    %+  expect-eq  !>(%.y)  !>((~(has in bumped) &+[/sub %oldfile]))
-    ::  newfile: init'd and bumped
-    %+  expect-eq  !>(`@ud`1)  !>((ver:sack:nexus (need (get:b3 [/sub %newfile]))))
+    ::  oldfile: not touched (deletion handled by record-ball-changes)
+    %+  expect-eq  !>(%.n)  !>((~(has in bumped) &+[/sub %oldfile]))
+    ::  newfile: init'd
+    %+  expect-eq  !>(%.y)  !>(?=(^ (get:b3 [/sub %newfile])))
     %+  expect-eq  !>(%.y)  !>((~(has in bumped) &+[/sub %newfile]))
   ==
 ::
