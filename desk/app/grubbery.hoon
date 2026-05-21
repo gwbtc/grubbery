@@ -3573,9 +3573,7 @@
     (save-push-state st)
   ::
       %send
-    ?~  config.st
-      ~&  >>>  "%push: no VAPID config, dropping notification"
-      this
+    ?~  config.st  this
     =/  config=push-config:push  u.config.st
     =/  msg=push-message:push  msg.push-send.act
     =/  payload=octs  (message-to-json:web-push msg)
@@ -3619,7 +3617,6 @@
     ?:  |(=(404 code) =(410 code))
       ::  Extract sub-id from wire (last segment)
       =/  sub-id=@ta  (rear segs)
-      ~&  >  [%push %removing-stale-sub sub-id code]
       =.  subs.st  (~(del by subs.st) sub-id)
       (save-push-state st)
     (save-push-state st)
@@ -3640,10 +3637,12 @@
   ?:  ?=([%sw ~] site)
     =/  sw-js=@t
       '''
+      self.addEventListener('install', function(e) { self.skipWaiting(); });
+      self.addEventListener('activate', function(e) { e.waitUntil(clients.claim()); });
       self.addEventListener('push', function(event) {
-        const data = event.data ? event.data.json() : {};
-        const title = data.title || 'Notification';
-        const options = {
+        var data = event.data ? event.data.json() : {};
+        var title = data.title || 'Notification';
+        var options = {
           body: data.body || '',
           icon: data.icon || '/grubbery/ball/favicon.svg',
           tag: data.tag || 'default',
@@ -3716,7 +3715,8 @@
     =/  st=push-state:nexus  get-push-state
     =.  subs.st  (~(put by subs.st) sub-id [src sub])
     =.  this  (save-push-state st)
-    (json-ok [%o (~(gas by *(map @t json)) ~[['ok' [%b %.y]] ['sub_id' [%s sub-id]]])])
+    =/  body=@t  (en:json:html [%o (~(gas by *(map @t json)) ~[['ok' [%b %.y]] ['sub_id' [%s sub-id]]])])
+    (emit-cards (give-simple-payload:app:server eyre-id [[200 ['content-type' 'application/json'] ~] `(as-octs:mimes:html body)]))
   ::
       [%unsubscribe ~]
     ::  POST: remove subscription
@@ -3738,7 +3738,8 @@
     =/  st=push-state:nexus  get-push-state
     =.  subs.st  (~(del by subs.st) u.sub-id)
     =.  this  (save-push-state st)
-    (json-ok [%o (~(gas by *(map @t json)) ~[['ok' [%b %.y]]])])
+    =/  body=@t  (en:json:html [%o (~(gas by *(map @t json)) ~[['ok' [%b %.y]]])])
+    (emit-cards (give-simple-payload:app:server eyre-id [[200 ['content-type' 'application/json'] ~] `(as-octs:mimes:html body)]))
   ==
 ::
 ++  cull-if-exists

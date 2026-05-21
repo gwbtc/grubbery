@@ -931,9 +931,7 @@
               ?.  ?=(%msg -.i.rev)  $(rev t.rev)
               ?.  =('assistant' role.i.rev)  $(rev t.rev)
               (end [3 140] content.i.rev)
-            ~&  >  [%claw-push-sending %text last-text %chat chat-name]
             ;<  ~  bind:m  (send-push:io [~ ~ ~ ['claw' last-text ~ ~ `chat-name]])
-            ~&  >  [%claw-push-sent %ok ~]
             $
           ::
               %'clear'
@@ -2717,7 +2715,7 @@
         headers: \{'Content-Type': 'application/json'},
         body: JSON.stringify(\{endpoint: sub.endpoint, p256dh: p256dh, auth: auth})
       });
-    } catch(e) \{ console.log('Push registration failed:', e); }
+    } catch(e) \{ console.error('[push]', e); }
   })();
   """
   ==
