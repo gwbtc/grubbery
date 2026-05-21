@@ -2177,6 +2177,7 @@
             ;div.f3.mono.s-2: AI agent nexus
           ==
           ;div
+            ;button#menu-btn(onclick "toggleSidebar()"): ☰
             ;button#clear-btn.hdr-btn: clear
             ;button#about-btn.hdr-btn: about
             ;button#config-btn.hdr-btn: config
@@ -2222,6 +2223,7 @@
             ;div#chat-list;
             ;button#new-chat-btn: + new chat
           ==
+          ;div#sidebar-overlay(onclick "toggleSidebar()");
           ;div#main
             ;div#messages;
             ;div#loading;
@@ -2305,6 +2307,21 @@
   .chat-del:hover \{ color: #f87171; }
   #new-chat-btn \{ font-size: 12px; padding: 6px 12px; margin: 4px 6px; border-radius: 4px; border: 1px dashed #333; background: none; color: #555; cursor: pointer; text-align: left; }
   #new-chat-btn:hover \{ color: #888; border-color: #555; background: none; }
+  #menu-btn \{ display: none; font-size: 18px; padding: 4px 8px; border-radius: 4px; border: 1px solid #444; background: none; color: #888; cursor: pointer; line-height: 1; }
+  #menu-btn:hover \{ color: #eee; border-color: #666; }
+  #sidebar-overlay \{ display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 49; }
+  #sidebar-overlay.open \{ display: block; }
+  @media (max-width: 600px) \{
+    #menu-btn \{ display: block; }
+    #sidebar \{ position: fixed; top: 0; left: 0; bottom: 0; width: 220px; z-index: 50; background: #111; border-right: 1px solid #333; transform: translateX(-100%); transition: transform 0.2s ease; padding-top: 16px; }
+    #sidebar.open \{ transform: translateX(0); }
+    #main \{ padding: 0 10px; max-width: 100%; }
+    .msg \{ max-width: 95%; font-size: 13px; }
+    #header \{ padding: 10px 12px; }
+    #header > div \{ flex-wrap: wrap; gap: 4px; }
+    #input \{ font-size: 16px; }
+    .input-row button \{ padding: 10px 14px; }
+  }
   """
 ::
 ++  script-text
@@ -2313,6 +2330,11 @@
   ;:  weld
     "var API = '/grubbery/api';\0avar BALL = '{ball-id}';\0avar CHAT = new URLSearchParams(location.search).get('chat') || 'main';\0a"
   """
+  function toggleSidebar() \{
+    document.getElementById('sidebar').classList.toggle('open');
+    document.getElementById('sidebar-overlay').classList.toggle('open');
+  }
+
   function renderMessages(entries) \{
     var el = document.getElementById('messages');
     el.innerHTML = '';

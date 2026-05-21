@@ -359,6 +359,17 @@
           ".rate-hdr .r-model \{ flex: 2; }"
           ".rate-hdr .r-price \{ flex: 1; }"
           ".rate-hdr .r-del \{ width: 24px; }"
+          "@media (max-width: 600px) \{"
+          "  #header \{ flex-direction: column; gap: 6px; }"
+          "  #header > div \{ flex-wrap: wrap; }"
+          "  #content \{ padding: 12px; }"
+          "  .stats \{ grid-template-columns: repeat(2, 1fr); gap: 8px; }"
+          "  .stat .value \{ font-size: 18px; }"
+          "  table \{ display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; }"
+          "  thead \{ min-width: 600px; display: table; width: 100%; }"
+          "  tbody \{ min-width: 600px; display: table; width: 100%; }"
+          "  td, th \{ padding: 6px 6px; font-size: 12px; }"
+          "}"
         ==
       ==
     ==

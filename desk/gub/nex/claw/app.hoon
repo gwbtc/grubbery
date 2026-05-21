@@ -515,6 +515,14 @@
   .section-header \{ margin-top: 20px; margin-bottom: 8px; }
   .section-title \{ font-size: 13px; font-weight: 600; color: #888; text-transform: uppercase; letter-spacing: 0.05em; }
   #cfg-json:focus \{ border-color: #2563eb; }
+  @media (max-width: 600px) \{
+    #app \{ padding: 12px; }
+    .create-bar \{ flex-wrap: wrap; }
+    .create-type \{ width: 100%; }
+    .entity-card, .agent-card \{ flex-direction: column; align-items: flex-start; gap: 8px; }
+    .card-actions \{ align-self: flex-end; }
+    #header \{ flex-direction: column; gap: 4px; }
+  }
   """
 ::
 ++  script-text
