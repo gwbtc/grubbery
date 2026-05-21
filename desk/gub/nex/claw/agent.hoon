@@ -2681,7 +2681,7 @@
     navigator.serviceWorker.register('/grubbery/push/sw', \{scope: '/'}).then(function(reg) \{
       return reg.pushManager.getSubscription().then(function(sub) \{
         if (sub) return; // already subscribed
-        return fetch('/grubbery/push/vapid-key').then(function(r) \{ return r.json() }).then(function(key) \{
+        return fetch('/grubbery/push/vapid-key').then(function(r) \{ return r.text() }).then(function(key) \{
           var raw = atob(key.replace(/-/g, '+').replace(/_/g, '/'));
           var arr = new Uint8Array(raw.length);
           for (var i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
