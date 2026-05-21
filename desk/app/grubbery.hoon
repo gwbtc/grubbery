@@ -33,6 +33,7 @@
       =code:nexus
       =bins:nexus
       jael-source=(unit rail:tarball)
+      vale=(map [lobe:clay @uv] (unit tang))
   ==
 ++  kel  21.000.000 :: start big; burn many at once
 ++  sut
@@ -641,33 +642,12 @@
   |=  =wire
   ^-  give:nexus
   [|+[our.bowl /gall/grubbery] wire]
-::  Validate a vase using a vale gate $-(* vase)
-::
-::  Assumes old vase was part of a chain of +validate-vase uses where the
-::  original was clammed
-::  Nest optimization: if old vase exists and types nest, reuse old type.
-::  Otherwise run vale to get canonical type.
-::
-::  force=%.y skips nest optimization (for reload when types may have changed)
+::  Validate a noun using a vale gate $-(* vase)
 ::
 ++  validate-vase
-  |=  [vale=$-(* vase) old=(unit vase) new=vase force=?]
+  |=  [vale=$-(* vase) noun=*]
   ^-  (each vase tang)
-  ?:  ?&  !force
-          ?=(^ old)
-          (~(nest ut p.u.old) | p.new)
-      ==
-    &+[p.u.old q.new]
-  =/  vale-result=(each vase tang)
-    (mule |.((vale q.new)))
-  ?:  ?=(%| -.vale-result)
-    =/  err=tang
-      :~  leaf+"vale failed"
-          leaf+"got:"
-          (skol p.new)
-      ==
-    |+(weld err p.vale-result)
-  &+p.vale-result
+  (mule |.((vale noun)))
 ::  Find the code nexus governing a given path.
 ::  Walks up ancestors, checking if any immediate child is in the code map.
 ::  Walk up the tree looking for a compiled artifact in code nexuses.
@@ -702,7 +682,7 @@
 ::
 ++  seek-built
   |=  [pax=path =path name=@ta]
-  ^-  (unit [namespace=fold:tarball source=rail:tarball =built:nexus])
+  ^-  (unit [namespace=fold:tarball source=rail:tarball ckey=@uv =built:nexus])
   =/  ns=(unit fold:tarball)  (find-code-ns pax)
   ?~  ns  ~
   =/  lod=lode:nexus  (~(got by code) u.ns)
@@ -714,7 +694,7 @@
   ?~  ckey  ~
   =/  entry=(unit [refs=@ud =built:nexus])  (~(get by bins) u.ckey)
   ?~  entry  ~
-  `[u.ns [path name] built.u.entry]
+  `[u.ns [path name] u.ckey built.u.entry]
 ::
 ++  find-built
   |=  [pax=path =path name=@ta]
@@ -749,12 +729,33 @@
 ++  get-vale
   |=  [pax=path =blot:tarball]
   ^-  $-(* vase)
-  =/  =marc:tarball  (get-marc pax blot)
-  |=  noun=*
-  =/  res=vase  (vale.marc noun)
-  :: assert output type is always consistent
-  ::
-  ?>(=(p.res type.marc) res)
+  vale:(get-marc pax blot)
+::
+::  Vale cache: check/store validation results by [lobe ckey].
+::  TODO: pass lobe from silo instead of hashing noun
+::
+::  Vale cache read: check if [lobe ckey] has been validated
+::
+++  vale-hit
+  |=  [lob=lobe:clay ckey=@uv]
+  ^-  (unit (unit tang))
+  (~(get by vale) [lob ckey])
+::  Vale cache write: store validation result
+::
+++  vale-put
+  |=  [lob=lobe:clay ckey=@uv res=(unit tang)]
+  ^+  this
+  this(vale (~(put by vale) [lob ckey] res))
+::  Cache a validation result by looking up the mark's ckey.
+::  No-op if the mark has no compiled artifact.
+::
+++  cache-validation
+  |=  [pax=path =blot:tarball noun=* res=(each vase tang)]
+  ^+  this
+  =/  lob=lobe:clay  (sham noun)
+  =/  built-res  (seek-built pax (weld /mar path.blot) name.blot)
+  ?~  built-res  this
+  (vale-put lob ckey.u.built-res ?:(?=(%& -.res) ~ `p.res))
 ::
 ++  get-tube
   |=  [pax=path =bars:tarball]
@@ -765,51 +766,50 @@
   (grab:(get-marc pax b.bars) a.bars)
 ::  Validate file content, looks up cached dais
 ::
-++  validate-new-sage
-  |=  [pax=path =blot:tarball old=(unit vase) new=vase force=?]
+++  validate-noun
+  |=  [pax=path =blot:tarball noun=*]
   ^-  (each vase tang)
   ::  Bootstrap marks — hardcoded like Clay's page-to-cage
   ?:  =([/ %boom] blot)
-    (mule |.(!>(;;([tang bask:tarball] q.new))))
+    (mule |.(!>(;;([tang bask:tarball] noun))))
   ?:  =([/ %hoon] blot)
-    (mule |.(!>(;;(@t q.new))))
+    (mule |.(!>(;;(@t noun))))
   ?:  =([/ %tang] blot)
-    (mule |.(!>(;;(tang q.new))))
+    (mule |.(!>(;;(tang noun))))
   ?:  =([/ %mime] blot)
-    (mule |.(!>(;;(mime q.new))))
+    (mule |.(!>(;;(mime noun))))
   ?:  =([/ %kelvin] blot)
-    (mule |.(!>(;;(waft:clay q.new))))
+    (mule |.(!>(;;(waft:clay noun))))
   =/  res=(unit built:nexus)  (get-built pax (weld /mar path.blot) name.blot)
   ?~  res
     =/  nam=@tas  (rail-to-arm:tarball blot)
-    |+~[leaf+"validate-new-sage: no marc for %{(trip nam)} at {(spud pax)}"]
+    |+~[leaf+"validate-noun: no marc for %{(trip nam)} at {(spud pax)}"]
   ?.  ?=(%vase -.u.res)
     =/  nam=@tas  (rail-to-arm:tarball blot)
-    |+~[leaf+"validate-new-sage: marc for %{(trip nam)} failed at {(spud pax)}"]
+    |+~[leaf+"validate-noun: marc for %{(trip nam)} failed at {(spud pax)}"]
   =/  nam=@tas  (rail-to-arm:tarball blot)
   =/  vale-res=(each $-(* vase) tang)
-    ~|  [%validate-new-sage %marc-extract-failed nam pax]
+    ~|  [%validate-noun %marc-extract-failed nam pax]
     %-  mule  |.
     vale:!<(marc:tarball vase.u.res)
   ?:  ?=(%| -.vale-res)
-    |+[leaf+"validate-new-sage: marc for %{(trip nam)} broke at {(spud pax)}" p.vale-res]
-  (validate-vase p.vale-res old new force)
-::  Clam a sage at sandbox boundary
+    |+[leaf+"validate-noun: marc for %{(trip nam)} broke at {(spud pax)}" p.vale-res]
+  (validate-vase p.vale-res noun)
+::  Validate a sage at sandbox boundary
 ::  Used when data crosses a weir filter from untrusted source.
-::  Always forces full validation (no nest optimization).
 ::
-++  clam-sage
+++  validate-sage
   |=  [pax=path =sage:tarball]
   ^-  (each sage:tarball tang)
   =/  result=(each vase tang)
-    (validate-new-sage pax p.sage ~ q.sage %.y)
+    (validate-noun pax p.sage q.q.sage)
   ?:  ?=(%| -.result)
     result
   &+[p.sage p.result]
-::  Clam a bask (blot + noun) into a sage.
+::  Validate a bask (blot + noun) into a sage.
 ::  Used when reading historical data from the silo.
 ::
-++  clam-bask
+++  validate-bask
   |=  [pax=path =bask:tarball]
   ^-  (each sage:tarball tang)
   ::  boom: unwrap inner bask and retry its mark
@@ -831,17 +831,11 @@
   &+[p.bask p.res]
 ::  Validate all cages in a ball subtree, crash on failure
 ::
-::  Always forces full dais validation (no nest optimization) because
-::  validate-ball is only called when installing a fresh subtree where
-::  the nest optimization wouldn't help anyway.
+::  Validates every file in the ball through its mark's vale gate.
 ::
 ++  validate-ball
   |=  [cod=path =ball:tarball]
   ^-  ball:tarball
-  ::  validate files at this level
-  ::  for each file, run validate-new-sage and crash if it fails
-  ::  rebuild contents map with validated vases
-  ::
   =|  here=path
   |-
   =/  validated-contents=(map @ta content:tarball)
@@ -853,14 +847,11 @@
     =/  [name=@ta =content:tarball]  i.files
     =/  res=(each vase tang)
       ~|  [%validate-ball name (weld cod here) p.sage.content]
-      (validate-new-sage cod p.sage.content ~ q.sage.content %.y)
+      (validate-noun cod p.sage.content q.q.sage.content)
     ?.  ?=(%& -.res)
       ~&  >>  "validate-ball: boom {(trip name)} (mark %{(trip name.p.sage.content)}) at {(spud (weld cod here))}"
       $(files t.files, out (~(put by out) name content(sage [[/ %boom] !>([p.res [p.sage.content q.q.sage.content]])])))
     $(files t.files, out (~(put by out) name content(sage [p.sage.content p.res])))
-  ::  recurse into subdirectories
-  ::  validate each child ball and rebuild dir map
-  ::
   =/  validated-dir=(map @ta ball:tarball)
     =/  kids=(list [@ta ball:tarball])  ~(tap by dir.ball)
     =|  out=(map @ta ball:tarball)
@@ -868,9 +859,6 @@
     ?~  kids  out
     =/  [name=@ta kid=ball:tarball]  i.kids
     $(kids t.kids, out (~(put by out) name ^$(here (snoc here name), ball kid)))
-  ::  build validated ball
-  ::  preserve fil metadata, swap in validated contents
-  ::
   :_  validated-dir
   ?~  fil.ball  ~
   `u.fil.ball(contents validated-contents)
@@ -1574,7 +1562,7 @@
       ==
     ?+    -.load.dart  (handle-dart here dart filt)
         ?(%poke %over)
-      =/  clammed=(each sage:tarball tang)  (clam-sage clam-pax sage.load.dart)
+      =/  clammed=(each sage:tarball tang)  (validate-sage clam-pax sage.load.dart)
       ?:  ?=(%| -.clammed)
         ?:  ?=([%sys %ames %ships @ ~] path.here)
           ~|  [%peer-clam-failed name.here dest]  !!
@@ -1583,7 +1571,7 @@
         %make
       ?.  ?=(%| -.make.load.dart)
         (handle-dart here dart filt)
-      =/  clammed=(each sage:tarball tang)  (clam-sage clam-pax sage.p.make.load.dart)
+      =/  clammed=(each sage:tarball tang)  (validate-sage clam-pax sage.p.make.load.dart)
       ?:  ?=(%| -.clammed)
         ?:  ?=([%sys %ames %ships @ ~] path.here)
           ~|  [%peer-clam-failed name.here dest]  !!
@@ -1733,8 +1721,9 @@
           sage.load.dart
         =/  =tube:clay  (get-tube cod [[/ name.new-blot] [/ name.old-blot]])
         [old-blot (tube q.sage.load.dart)]
-      =/  val=(each vase tang)
-        (validate-new-sage cod p.converted `q.sage.u.old q.converted %.n)
+      =/  val
+        (validate-noun cod p.converted q.q.converted)
+      =.  this  (cache-validation cod p.converted q.q.converted val)
       ?:  ?=(%| -.val)
         (enqu-take here (sys-give /over) ~ %over wire.dart `p.val)
       =/  new-content=content:tarball  u.old(sage [p.converted p.val])
@@ -1808,8 +1797,8 @@
             ?~  p.pace  ~
             =/  got=(unit noun)  (~(get si:nexus silo) lobe.u.p.pace)
             ?~  got  ~
-            ::  Clam bask back to sage
-            =/  res=(each sage:tarball tang)  (clam-bask cod [blot.u.p.pace u.got])
+            ::  Validate bask back to sage
+            =/  res  (validate-bask cod [blot.u.p.pace u.got])
             ?:  ?=(%| -.res)  ~
             `p.res
           `sage.u.content
@@ -1818,7 +1807,7 @@
         ::  Clam at weir boundary or by request
         =/  clammed=sage:tarball
           ?.  |(?=([~ %&] filt) clam.load.dart)  u.source
-          =/  res=(each sage:tarball tang)  (clam-sage cod u.source)
+          =/  res  (validate-sage cod u.source)
           ?:  ?=(%| -.res)
             ~|(%peek-clam-failed !!)
           p.res
@@ -1995,7 +1984,7 @@
         ?~  p.val  ~
         =/  got=(unit noun)  (~(get si:nexus silo) lobe.u.p.val)
         ?~  got  ~
-        =/  res=(each sage:tarball tang)  (clam-bask cod [blot.u.p.val u.got])
+        =/  res  (validate-bask cod [blot.u.p.val u.got])
         ?:  ?=(%| -.res)  ~
         `[key p.res]
       (enqu-take here (sys-give /peep) ~ %peep wire.dart &+hits)
@@ -2168,9 +2157,10 @@
   ::  Ack consumed pokes
   =.  this  (give-poke-signs here done)
   ::  Validate new state before handling result (runtime, no force)
-  ::  ~&  >  "process-result: validate-new-sage for %{(trip p.sage.u.file-data)} at {(spud (snoc path.here name.here))}"
-  =/  validated=(each vase tang)
-    (validate-new-sage path.here p.sage.u.file-data `fil-state new-state %.n)
+  ::  ~&  >  "process-result: validate-noun for %{(trip p.sage.u.file-data)} at {(spud (snoc path.here name.here))}"
+  =/  validated
+    (validate-noun path.here p.sage.u.file-data q.new-state)
+  =.  this  (cache-validation path.here p.sage.u.file-data q.new-state validated)
   ?:  ?=(%| -.validated)
     ::  Validation failed - bang the file (don't restart, infra is broken)
     ~&  >>  "process-take: validation failed, bang {(spud (snoc path.here name.here))}"
@@ -2262,9 +2252,10 @@
     ?^  existing-file
       ~|("file already exists at path" !!)
     ::  Validate the cage before storing (new file, no old content)
-    ::  ~&  >  "process-make: validate-new-sage for %{(trip p.sage.p.make)} at {(spud (snoc path.dest-rail name.dest-rail))}"
-    =/  validated=(each vase tang)
-      (validate-new-sage path.dest-rail p.sage.p.make ~ q.sage.p.make %.n)
+    ::  ~&  >  "process-make: validate-noun for %{(trip p.sage.p.make)} at {(spud (snoc path.dest-rail name.dest-rail))}"
+    =/  validated
+      (validate-noun path.dest-rail p.sage.p.make q.q.sage.p.make)
+    =.  this  (cache-validation path.dest-rail p.sage.p.make q.q.sage.p.make validated)
     ?:  ?=(%| -.validated)
       ~|("make failed: validation error" (mean p.validated))
     ::  Record gain flag if set
@@ -2622,9 +2613,8 @@
     ?~  vale
       ~&  [%sync-clay-skip-no-mark mar fyl]
       acc
-    =/  old-vase=(unit vase)  ?~(old ~ `q.sage.u.old)
     =/  res=(each vase tang)
-      (validate-vase:acc u.vale old-vase new-vase %.n)
+      (validate-vase:acc u.vale q.new-vase)
     ?.  ?=(%& -.res)
       ~&  [%sync-clay-vale-failed mar fyl]
       acc
@@ -2780,6 +2770,12 @@
   ::  Decrement old refs, update lode
   ~&  >  %refs-dec
   =.  bins  ~>(%bout (refs-dec old-refs))
+  ::  GC vale cache: drop entries whose marc ckey was removed from bins
+  =.  vale
+    %-  ~(gas by *(map [lobe:clay @uv] (unit tang)))
+    %+  skip  ~(tap by vale)
+    |=  [[* ckey=@uv] *]
+    !(~(has by bins) ckey)
   =.  lode  [keys.res deps.res new-refs]
   =.  code  (~(put by code) cod lode)
   ::  Validate marks: clam existing grubs through changed marks
@@ -2857,7 +2853,7 @@
   =/  all-new=(list [pax=path node=(map @ta @uv)])
     ~(tap of mar-sub)
   ::  Find changed blots (ckey differs or newly added)
-  =/  changed=(list [=blot:tarball =built:nexus])
+  =/  changed=(list [ckey=@uv =blot:tarball =built:nexus])
     %-  zing
     %+  turn  all-new
     |=  [pax=path node=(map @ta @uv)]
@@ -2869,12 +2865,12 @@
     ?:  =(old-key `ckey)  ~
     =/  entry=(unit [refs=@ud =built:nexus])  (~(get by bins) ckey)
     ?~  entry  ~
-    `[[pax nam] built.u.entry]
+    `[ckey [pax nam] built.u.entry]
   ::  Process each changed mark
   =/  remaining=_changed  changed
   |-
   ?~  remaining  [new-refs this]
-  =/  [=blot:tarball =built:nexus]  i.remaining
+  =/  [ckey=@uv =blot:tarball =built:nexus]  i.remaining
   =/  nam=@tas  (rail-to-arm:tarball blot)
   ::  Find all grubs with this mark, including booms with matching inner mark
   =/  grubs=(list [=rail:tarball =content:tarball])
@@ -2882,43 +2878,50 @@
     |=  [=rail:tarball =content:tarball]
     ?:  =(name.blot name.p.sage.content)  &
     ?.  =([/ %boom] p.sage.content)  |
-    =/  [* inner=bask:tarball]  ;;([tang bask:tarball] q.q.sage.content)
-    =(name.blot name.p.inner)
+    =/  boom-res=(each [tang bask:tarball] tang)
+      (mule |.(;;([tang bask:tarball] q.q.sage.content)))
+    ?:(?=(%| -.boom-res) | =(name.blot name.p.p.boom-res))
   ?~  grubs  $(remaining t.remaining)
-  ::  Get vale gate, or a crash gate if mark failed to compile
-  =/  vale=$-(* vase)
+  ::  Get marc, or skip if mark failed to compile
+  =/  marc-res=(each marc:tarball tang)
     ?.  ?=(%vase -.built)
-      |=(* (mean ?:(?=(%tang -.built) tang.built ~[leaf+"validate-marks: {(trip nam)} failed"])))
-    =/  marc-res=(each marc:tarball tang)
-      (mule |.(!<(marc:tarball vase.built)))
-    ?:(?=(%| -.marc-res) |=(* (mean p.marc-res)) vale.p.marc-res)
-  ::  Clam each grub; success restores cage, failure booms
-  =/  results=(list [=rail:tarball =content:tarball res=(each vase tang)])
-    %+  turn  grubs
-    |=  [=rail:tarball =content:tarball]
-    =/  noun=*
-      ?:  =([/ %boom] p.sage.content)
-        =/  [* =bask:tarball]  ;;([tang bask:tarball] q.q.sage.content)
-        q.bask
-      q.q.sage.content
-    =/  new=(each vase tang)  (mule |.((vale noun)))
-    ?:  ?=(%| -.new)  [rail content new]
-    [rail content (validate-vase vale `q.sage.content p.new %.n)]
+      |+?:(?=(%tang -.built) tang.built ~[leaf+"validate-marks: {(trip nam)} failed"])
+    (mule |.(!<(marc:tarball vase.built)))
+  ?:  ?=(%| -.marc-res)
+    ~&  >>  "validate-marks: {(trip nam)} marc failed"
+    $(remaining t.remaining)
+  ::  Validate each grub, threading state for cache
+  =/  grubs=(list [=rail:tarball =content:tarball])  grubs
+  =/  [n-ok=@ud n-boom=@ud]  [0 0]
   =.  this
-    %+  roll  results
-    |=  [[=rail:tarball =content:tarball res=(each vase tang)] acc=_this]
-    ?:  ?=(%& -.res)
-      (save-file:acc rail content(sage [p.sage.content p.res]))
-    ~&  >>  "validate-marks: boom {(spud (snoc path.rail name.rail))}"
+    |-
+    ?~  grubs  this
+    =/  [=rail:tarball =content:tarball]  i.grubs
     =/  noun=*
       ?:  =([/ %boom] p.sage.content)
-        =/  [* =bask:tarball]  ;;([tang bask:tarball] q.q.sage.content)
-        q.bask
+        =/  boom-res  (mule |.(;;([tang bask:tarball] q.q.sage.content)))
+        ?:(?=(%| -.boom-res) q.q.sage.content q.p.boom-res)
       q.q.sage.content
-    (save-file:acc rail content(sage [[/ %boom] !>([p.res [blot noun]])]))
-  =/  n-boom=@ud
-    (lent (skim results |=([* * res=(each vase tang)] ?=(%| -.res))))
-  ~&  >  "validate-marks: {(trip nam)} — {<(sub (lent grubs) n-boom)>} ok, {<n-boom>} boom"
+    ::  TODO: pass lobe instead of hashing noun
+    =/  lob=lobe:clay  (sham noun)
+    =/  hit  (vale-hit lob ckey)
+    =/  res=(each vase tang)
+      ?^  hit
+        ?~  u.hit  &+(vale:p.marc-res noun)
+        |+u.u.hit
+      (validate-vase vale:p.marc-res noun)
+    =?  this  ?=(~ hit)
+      (vale-put lob ckey ?:(?=(%& -.res) ~ `p.res))
+    ?:  ?=(%& -.res)
+      =.  this  (save-file rail content(sage [p.sage.content p.res]))
+      =.  n-ok  +(n-ok)
+      $(grubs t.grubs)
+    ~&  >>  "validate-marks: boom {(spud (snoc path.rail name.rail))}"
+    =.  this
+      (save-file rail content(sage [[/ %boom] !>([p.res [blot noun]])]))
+    =.  n-boom  +(n-boom)
+    $(grubs t.grubs)
+  ~&  >  "validate-marks: {(trip nam)} — {<n-ok>} ok, {<n-boom>} boom"
   $(remaining t.remaining)
 ::  Reload nexuses: for each changed nexus in bin/nex/, find all
 ::  directories using that neck, run on-load with the new code, and
@@ -3022,7 +3025,7 @@
       (~(put ba:tarball acc) [/ %'sys.kelvin'] [~ [/ %kelvin] !>(waft)])
     ?:  =(mar %hoon)
       =/  =vase  .^(vase %cr (weld pax fyl))
-      =/  val=(each ^vase tang)  (validate-new-sage /code [/ mar] ~ vase %.y)
+      =/  val=(each ^vase tang)  (validate-noun /code [/ mar] q.vase)
       ?.  ?=(%& -.val)
         ~&  >>>  "sync-gub: validation failed for {(trip name)}: {(trip (render-tang:build p.val))}"
         acc
@@ -3266,11 +3269,8 @@
       =.  this  (save-file [dir %data] [~ [/ %page] !>(`[p=@tas q=*]`[mar q.q.cage.sign])])
       =.  gain  (set-gain [dir %data] %.y)
       this
-    =/  old=(unit content:tarball)
-      (~(get ba:tarball ball) [dir %data])
-    =/  old-vase=(unit vase)  ?~(old ~ `q.sage.u.old)
     =/  res=(each vase tang)
-      (validate-vase u.vale old-vase q.cage.sign %.n)
+      (validate-vase u.vale q.q.cage.sign)
     ?.  ?=(%& -.res)
       ~&  >>>  "gall-sub: vale failed for {<mar>}"
       this
