@@ -746,11 +746,30 @@
   |=  [lob=lobe:clay ckey=@uv res=(unit tang)]
   ^+  this
   this(vale (~(put by vale) [lob ckey] res))
+::  Check vale cache for a prior validation result.
+::  Returns ~ on miss, [~ (each vase tang)] on hit.
+::  On cached success, reconstructs vase from marc type + noun.
+::
+++  check-vale-cache
+  |=  [pax=path =blot:tarball noun=*]
+  ^-  (unit (each vase tang))
+  =/  built-res  (seek-built pax (weld /mar path.blot) name.blot)
+  ?~  built-res  ~
+  =/  lob=lobe:clay  (sham noun)
+  =/  hit  (vale-hit lob ckey.u.built-res)
+  ?~  hit  ~
+  ?^  u.hit  `|+u.u.hit
+  ::  Cached success: reconstruct vase from marc type + noun
+  ?.  ?=(%vase -.built.u.built-res)  ~
+  =/  marc-res=(each marc:tarball tang)
+    (mule |.(!<(marc:tarball vase.built.u.built-res)))
+  ?.  ?=(%& -.marc-res)  ~
+  `&+[type:p.marc-res noun]
 ::  Cache a validation result by looking up the mark's ckey.
 ::  No-op if the mark has no compiled artifact.
 ::
 ++  cache-validation
-  |=  [pax=path =blot:tarball noun=* res=(each vase tang)]
+  |=  [pax=path =blot:tarball noun=* res=(each * tang)]
   ^+  this
   =/  lob=lobe:clay  (sham noun)
   =/  built-res  (seek-built pax (weld /mar path.blot) name.blot)
@@ -769,7 +788,23 @@
 ++  validate-noun
   |=  [pax=path =blot:tarball noun=*]
   ^-  (each vase tang)
-  ::  Bootstrap marks — hardcoded like Clay's page-to-cage
+  ::  Try compiled marc first — type:marc is the canonical type
+  =/  res=(unit built:nexus)  (get-built pax (weld /mar path.blot) name.blot)
+  ?^  res
+    ?.  ?=(%vase -.u.res)
+      =/  nam=@tas  (rail-to-arm:tarball blot)
+      |+~[leaf+"validate-noun: marc for %{(trip nam)} failed at {(spud pax)}"]
+    =/  nam=@tas  (rail-to-arm:tarball blot)
+    =/  marc-res=(each marc:tarball tang)
+      ~|  [%validate-noun %marc-extract-failed nam pax]
+      (mule |.(!<(marc:tarball vase.u.res)))
+    ?:  ?=(%| -.marc-res)
+      |+[leaf+"validate-noun: marc for %{(trip nam)} broke at {(spud pax)}" p.marc-res]
+    =/  val-res=(each vase tang)
+      (validate-vase vale:p.marc-res noun)
+    ?:  ?=(%| -.val-res)  val-res
+    &+[type:p.marc-res noun]
+  ::  No compiled marc — bootstrap fallback
   ?:  =([/ %boom] blot)
     (mule |.(!>(;;([tang bask:tarball] noun))))
   ?:  =([/ %hoon] blot)
@@ -780,21 +815,8 @@
     (mule |.(!>(;;(mime noun))))
   ?:  =([/ %kelvin] blot)
     (mule |.(!>(;;(waft:clay noun))))
-  =/  res=(unit built:nexus)  (get-built pax (weld /mar path.blot) name.blot)
-  ?~  res
-    =/  nam=@tas  (rail-to-arm:tarball blot)
-    |+~[leaf+"validate-noun: no marc for %{(trip nam)} at {(spud pax)}"]
-  ?.  ?=(%vase -.u.res)
-    =/  nam=@tas  (rail-to-arm:tarball blot)
-    |+~[leaf+"validate-noun: marc for %{(trip nam)} failed at {(spud pax)}"]
   =/  nam=@tas  (rail-to-arm:tarball blot)
-  =/  vale-res=(each $-(* vase) tang)
-    ~|  [%validate-noun %marc-extract-failed nam pax]
-    %-  mule  |.
-    vale:!<(marc:tarball vase.u.res)
-  ?:  ?=(%| -.vale-res)
-    |+[leaf+"validate-noun: marc for %{(trip nam)} broke at {(spud pax)}" p.vale-res]
-  (validate-vase p.vale-res noun)
+  |+~[leaf+"validate-noun: no marc for %{(trip nam)} at {(spud pax)}"]
 ::  Validate a sage at sandbox boundary
 ::  Used when data crosses a weir filter from untrusted source.
 ::
@@ -1562,7 +1584,15 @@
       ==
     ?+    -.load.dart  (handle-dart here dart filt)
         ?(%poke %over)
+      =/  cached  (check-vale-cache clam-pax p.sage.load.dart q.q.sage.load.dart)
+      ?^  cached
+        ?:  ?=(%| -.u.cached)
+          ?:  ?=([%sys %ames %ships @ ~] path.here)
+            ~|  [%peer-clam-failed name.here dest]  !!
+          (enqu-take here (sys-give /veto) ~ %veto dart)
+        (handle-dart here dart(sage.load [p.sage.load.dart p.u.cached]) filt)
       =/  clammed=(each sage:tarball tang)  (validate-sage clam-pax sage.load.dart)
+      =.  this  (cache-validation clam-pax p.sage.load.dart q.q.sage.load.dart clammed)
       ?:  ?=(%| -.clammed)
         ?:  ?=([%sys %ames %ships @ ~] path.here)
           ~|  [%peer-clam-failed name.here dest]  !!
@@ -1571,7 +1601,15 @@
         %make
       ?.  ?=(%| -.make.load.dart)
         (handle-dart here dart filt)
+      =/  cached  (check-vale-cache clam-pax p.sage.p.make.load.dart q.q.sage.p.make.load.dart)
+      ?^  cached
+        ?:  ?=(%| -.u.cached)
+          ?:  ?=([%sys %ames %ships @ ~] path.here)
+            ~|  [%peer-clam-failed name.here dest]  !!
+          (enqu-take here (sys-give /veto) ~ %veto dart)
+        (handle-dart here dart(sage.p.make.load [p.sage.p.make.load.dart p.u.cached]) filt)
       =/  clammed=(each sage:tarball tang)  (validate-sage clam-pax sage.p.make.load.dart)
+      =.  this  (cache-validation clam-pax p.sage.p.make.load.dart q.q.sage.p.make.load.dart clammed)
       ?:  ?=(%| -.clammed)
         ?:  ?=([%sys %ames %ships @ ~] path.here)
           ~|  [%peer-clam-failed name.here dest]  !!
@@ -1721,9 +1759,12 @@
           sage.load.dart
         =/  =tube:clay  (get-tube cod [[/ name.new-blot] [/ name.old-blot]])
         [old-blot (tube q.sage.load.dart)]
-      =/  val
+      =/  cached  (check-vale-cache cod p.converted q.q.converted)
+      =/  val=(each vase tang)
+        ?^  cached  u.cached
         (validate-noun cod p.converted q.q.converted)
-      =.  this  (cache-validation cod p.converted q.q.converted val)
+      =?  this  ?=(~ cached)
+        (cache-validation cod p.converted q.q.converted val)
       ?:  ?=(%| -.val)
         (enqu-take here (sys-give /over) ~ %over wire.dart `p.val)
       =/  new-content=content:tarball  u.old(sage [p.converted p.val])
@@ -2157,10 +2198,12 @@
   ::  Ack consumed pokes
   =.  this  (give-poke-signs here done)
   ::  Validate new state before handling result (runtime, no force)
-  ::  ~&  >  "process-result: validate-noun for %{(trip p.sage.u.file-data)} at {(spud (snoc path.here name.here))}"
-  =/  validated
+  =/  cached  (check-vale-cache path.here p.sage.u.file-data q.new-state)
+  =/  validated=(each vase tang)
+    ?^  cached  u.cached
     (validate-noun path.here p.sage.u.file-data q.new-state)
-  =.  this  (cache-validation path.here p.sage.u.file-data q.new-state validated)
+  =?  this  ?=(~ cached)
+    (cache-validation path.here p.sage.u.file-data q.new-state validated)
   ?:  ?=(%| -.validated)
     ::  Validation failed - bang the file (don't restart, infra is broken)
     ~&  >>  "process-take: validation failed, bang {(spud (snoc path.here name.here))}"
@@ -2252,10 +2295,12 @@
     ?^  existing-file
       ~|("file already exists at path" !!)
     ::  Validate the cage before storing (new file, no old content)
-    ::  ~&  >  "process-make: validate-noun for %{(trip p.sage.p.make)} at {(spud (snoc path.dest-rail name.dest-rail))}"
-    =/  validated
+    =/  cached  (check-vale-cache path.dest-rail p.sage.p.make q.q.sage.p.make)
+    =/  validated=(each vase tang)
+      ?^  cached  u.cached
       (validate-noun path.dest-rail p.sage.p.make q.q.sage.p.make)
-    =.  this  (cache-validation path.dest-rail p.sage.p.make q.q.sage.p.make validated)
+    =?  this  ?=(~ cached)
+      (cache-validation path.dest-rail p.sage.p.make q.q.sage.p.make validated)
     ?:  ?=(%| -.validated)
       ~|("make failed: validation error" (mean p.validated))
     ::  Record gain flag if set
@@ -2599,22 +2644,8 @@
     =/  new-vase=vase  .^(vase %cr (weld pax fyl))
     =/  old=(unit content:tarball)
       (~(get ba:tarball ball.acc) [dir name])
-    =/  vale=(unit $-(* vase))
-      ?:  ?=(?(%hoon %mime %kelvin) mar)
-        =/  dais=(unit dais:clay)
-          (mole |.(.^(dais:clay %cb (weld pax `path`/[mar]))))
-        ?~  dais  ~
-        `vale:u.dais
-      =/  =blot:tarball  [/ mar]
-      =/  res=(unit built:nexus)  (get-built / (weld /mar path.blot) name.blot)
-      ?~  res  ~
-      ?.  ?=(%vase -.u.res)  ~
-      (mole |.(vale:!<(marc:tarball vase.u.res)))
-    ?~  vale
-      ~&  [%sync-clay-skip-no-mark mar fyl]
-      acc
     =/  res=(each vase tang)
-      (validate-vase:acc u.vale q.new-vase)
+      (validate-noun:acc / [/ mar] q.new-vase)
     ?.  ?=(%& -.res)
       ~&  [%sync-clay-vale-failed mar fyl]
       acc
@@ -2872,6 +2903,11 @@
   ?~  remaining  [new-refs this]
   =/  [ckey=@uv =blot:tarball =built:nexus]  i.remaining
   =/  nam=@tas  (rail-to-arm:tarball blot)
+  ::  Skip bootstrap marks — these are hardcoded in validate-noun
+  ::  and can't meaningfully change. Re-validating all .hoon/.mime/etc
+  ::  files would cascade into build-code loops.
+  ?:  ?=(?(%hoon %boom %tang %mime %kelvin) nam)
+    $(remaining t.remaining)
   ::  Find all grubs with this mark, including booms with matching inner mark
   =/  grubs=(list [=rail:tarball =content:tarball])
     %+  skim  (governed-files cod)
@@ -2907,9 +2943,10 @@
     =/  hit  (vale-hit lob ckey)
     =/  res=(each vase tang)
       ?^  hit
-        ?~  u.hit  &+(vale:p.marc-res noun)
+        ?~  u.hit  &+[type:p.marc-res noun]
         |+u.u.hit
-      (validate-vase vale:p.marc-res noun)
+      =/  val  (validate-vase vale:p.marc-res noun)
+      ?:(?=(%| -.val) val &+[type:p.marc-res noun])
     =?  this  ?=(~ hit)
       (vale-put lob ckey ?:(?=(%& -.res) ~ `p.res))
     ?:  ?=(%& -.res)
@@ -3021,8 +3058,11 @@
     ::  sys.kelvin: store as kelvin mark at root
     ?:  =(%'sys.kelvin' name)
       =/  =vase  .^(vase %cr (weld pax fyl))
-      =/  =waft:clay  ;;(waft:clay q.vase)
-      (~(put ba:tarball acc) [/ %'sys.kelvin'] [~ [/ %kelvin] !>(waft)])
+      =/  val=(each ^vase tang)  (validate-noun /code [/ %kelvin] q.vase)
+      ?.  ?=(%& -.val)
+        ~&  >>>  "sync-gub: kelvin validation failed"
+        acc
+      (~(put ba:tarball acc) [/ %'sys.kelvin'] [~ [/ %kelvin] p.val])
     ?:  =(mar %hoon)
       =/  =vase  .^(vase %cr (weld pax fyl))
       =/  val=(each ^vase tang)  (validate-noun /code [/ mar] q.vase)
@@ -3030,11 +3070,15 @@
         ~&  >>>  "sync-gub: validation failed for {(trip name)}: {(trip (render-tang:build p.val))}"
         acc
       (~(put ba:tarball acc) [rel-dir name] [~ [/ mar] p.val])
-    ::  Non-hoon: convert to mime via tube, store as %mime grub
+    ::  Non-hoon: convert to mime via tube, validate as %mime
     =/  =vase  .^(vase %cr (weld pax fyl))
     =/  tub=tube:clay  .^(tube:clay %cc (weld pax /[mar]/mime))
     =/  =mime  !<(mime (tub vase))
-    (~(put ba:tarball acc) [rel-dir name] [~ [/ %mime] !>(mime)])
+    =/  val=(each ^vase tang)  (validate-noun /code [/ %mime] [p q]:mime)
+    ?.  ?=(%& -.val)
+      ~&  >>>  "sync-gub: mime validation failed for {(trip name)}"
+      acc
+    (~(put ba:tarball acc) [rel-dir name] [~ [/ %mime] p.val])
   ::  Get old ball at /code/
   =/  old-src=ball:tarball  (~(dip ba:tarball ball) /code)
   ::  Diff and bump src changes (born, silo, hist, notify)
