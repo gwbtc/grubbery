@@ -2675,34 +2675,49 @@
     .catch(function() \{ if (!sessionStorage.getItem('claw-chats')) renderChatList(['main']); });
   connectChatListSSE();
 
-  // Push notification subscription
-  (function() \{
+  // Push notification subscription (matches web-pusher pattern)
+  function urlB64ToUint8(b64) \{
+    var pad = '='.repeat((4 - b64.length % 4) % 4);
+    var raw = atob((b64 + pad).replace(/-/g, '+').replace(/_/g, '/'));
+    var arr = new Uint8Array(raw.length);
+    for (var i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
+    return arr;
+  }
+  function bufToB64Url(buf) \{
+    var bytes = new Uint8Array(buf);
+    var s = '';
+    for (var i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]);
+    return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  }
+  (async function() \{
     if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
-    navigator.serviceWorker.register('/grubbery/push/sw', \{scope: '/'}).then(function(reg) \{
-      return reg.pushManager.getSubscription().then(function(sub) \{
-        if (sub) return; // already subscribed
-        return fetch('/grubbery/push/vapid-key').then(function(r) \{ return r.text() }).then(function(key) \{
-          var raw = atob(key.replace(/-/g, '+').replace(/_/g, '/'));
-          var arr = new Uint8Array(raw.length);
-          for (var i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
-          return reg.pushManager.subscribe(\{
-            userVisibleOnly: true,
-            applicationServerKey: arr
-          });
-        }).then(function(sub) \{
-          var j = sub.toJSON();
-          return fetch('/grubbery/push/subscribe', \{
-            method: 'POST',
-            headers: \{'Content-Type': 'application/json'},
-            body: JSON.stringify(\{
-              endpoint: sub.endpoint,
-              p256dh: j.keys.p256dh,
-              auth: j.keys.auth
-            })
+    try \{
+      var reg = await navigator.serviceWorker.register('/grubbery/push/sw', \{scope: '/'});
+      if (!reg.active) \{
+        await new Promise(function(resolve) \{
+          var sw = reg.installing || reg.waiting;
+          if (!sw) return resolve();
+          sw.addEventListener('statechange', function() \{
+            if (sw.state === 'activated') resolve();
           });
         });
+      }
+      var sub = await reg.pushManager.getSubscription();
+      if (sub) return;
+      var resp = await fetch('/grubbery/push/vapid-key');
+      var vapidKey = await resp.text();
+      sub = await reg.pushManager.subscribe(\{
+        userVisibleOnly: true,
+        applicationServerKey: urlB64ToUint8(vapidKey)
       });
-    }).catch(function(e) \{ console.log('Push registration failed:', e); });
+      var p256dh = bufToB64Url(sub.getKey('p256dh'));
+      var auth = bufToB64Url(sub.getKey('auth'));
+      await fetch('/grubbery/push/subscribe', \{
+        method: 'POST',
+        headers: \{'Content-Type': 'application/json'},
+        body: JSON.stringify(\{endpoint: sub.endpoint, p256dh: p256dh, auth: auth})
+      });
+    } catch(e) \{ console.log('Push registration failed:', e); }
   })();
   """
   ==
