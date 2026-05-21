@@ -749,7 +749,12 @@
 ++  get-vale
   |=  [pax=path =blot:tarball]
   ^-  $-(* vase)
-  vale:(get-marc pax blot)
+  =/  =marc:tarball  (get-marc pax blot)
+  |=  noun=*
+  =/  res=vase  (vale.marc noun)
+  :: assert output type is always consistent
+  ::
+  ?>(=(p.res type.marc) res)
 ::
 ++  get-tube
   |=  [pax=path =bars:tarball]

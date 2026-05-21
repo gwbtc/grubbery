@@ -13,6 +13,7 @@
 +$  marc
   $_  ^?
   |%
+  ++  type  *^type
   ++  vale  |~(* *vase)
   ++  grow  |~(blot *tube:clay)
   ++  grab  |~(blot *tube:clay)
