@@ -2678,7 +2678,7 @@
   // Push notification subscription (matches web-pusher pattern)
   function urlB64ToUint8(b64) \{
     var pad = '='.repeat((4 - b64.length % 4) % 4);
-    var raw = atob((b64 + pad).replace(/-/g, '+').replace(/_/g, '/'));
+    var raw = atob((b64 + pad).split('-').join('+').split('_').join('/'));
     var arr = new Uint8Array(raw.length);
     for (var i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
     return arr;
@@ -2687,7 +2687,7 @@
     var bytes = new Uint8Array(buf);
     var s = '';
     for (var i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]);
-    return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    return btoa(s).split('+').join('-').split('/').join('_').split('=').join('');
   }
   (async function() \{
     if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
