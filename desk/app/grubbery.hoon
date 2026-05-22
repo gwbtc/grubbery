@@ -32,8 +32,8 @@
       =gain:nexus
       =code:nexus
       =bins:nexus
+      =vale:nexus
       jael-source=(unit rail:tarball)
-      vale=(map [lobe:clay @uv] (unit tang))
   ==
 ++  kel  21.000.000 :: start big; burn many at once
 ++  sut

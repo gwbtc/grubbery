@@ -460,6 +460,7 @@
   $%  [%leaf =leaf]
       [%tree =tree]
   ==
++$  vale  (map [lobe:clay @uv] (unit tang))
 +$  silo
   $:  nouns=(map lobe:clay [refs=@ud =noun])
       jects=(map lobe:clay [refs=@ud =ject])
