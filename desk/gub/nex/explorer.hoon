@@ -1289,12 +1289,12 @@
       ==
   ^-  manx
   =/  mtime-display=tape
-    =/  node=(unit [=tote:nexus bags=(map @ta sack:nexus)])
+    =/  node=(unit [fold=hist:nexus file=(map @ta hist:nexus)])
       (~(get of dir-born) ~)
     ?~  node  "-"
-    =/  sk=(unit sack:nexus)  (~(get by bags.u.node) name)
+    =/  sk=(unit hist:nexus)  (~(get by file.u.node) name)
     ?~  sk  "-"
-    =/  cas=(unit cass:clay)  (top:sack:nexus u.sk)
+    =/  cas=(unit cass:clay)  (top:hist:nexus u.sk)
     ?~  cas  "-"
     (en:datetime-local:iso-8601 da.u.cas)
   =/  sag=sage:tarball  sage.content

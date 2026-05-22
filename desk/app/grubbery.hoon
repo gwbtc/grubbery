@@ -541,18 +541,18 @@
 ++  drop-hist
   |=  [here=rail:tarball =lose:nexus]
   ^+  this
-  =/  sk=sack:nexus  (need (get-born here))
-  =/  entries=(list [key=cass:clay val=pace:sack:nexus])
-    (tap:on-hist:sack:nexus sk)
-  =/  kept=(list [key=cass:clay val=pace:sack:nexus])  ~
+  =/  sk=hist:nexus  (need (get-born here))
+  =/  entries=(list [key=cass:clay val=pace:hist:nexus])
+    (tap:hon:hist:nexus sk)
+  =/  kept=(list [key=cass:clay val=pace:hist:nexus])  ~
   |-
   ?~  entries
-    =/  new-hist=((mop cass:clay pace:sack:nexus) cor:nexus)
-      *((mop cass:clay pace:sack:nexus) cor:nexus)
+    =/  new-hist=((mop cass:clay pace:hist:nexus) cor:nexus)
+      *((mop cass:clay pace:hist:nexus) cor:nexus)
     =.  new-hist
       |-
       ?~  kept  new-hist
-      $(kept t.kept, new-hist (put:on-hist:sack:nexus new-hist key.i.kept val.i.kept))
+      $(kept t.kept, new-hist (put:hon:hist:nexus new-hist key.i.kept val.i.kept))
     =.  born  (~(put bo:nexus now.bowl [born ball]) here new-hist)
     this
   =/  drop=?
@@ -570,10 +570,10 @@
     ==
   ?:  drop
     =.  silo
-      =/  pv=pace:sack:nexus  val.i.entries
-      ?.  ?=(%file -.pv)  silo
+      =/  pv=pace:hist:nexus  val.i.entries
+      ?.  ?=(%live -.pv)  silo
       ?~  p.pv  silo
-      (~(drop si:nexus silo) lobe.u.p.pv)
+      (~(drop-ject si:nexus silo) u.p.pv)
     $(entries t.entries, kept [[key.i.entries [%tomb ~]] kept])
   $(entries t.entries, kept [i.entries kept])
 ::  Find all [rail cass] pairs in a subtree whose hist contains a lobe
@@ -584,45 +584,50 @@
   ?-    -.lane
       %&
     ::  Single file: check its hist
-    =/  node=(unit [=tote:nexus bags=(map @ta sack:nexus)])
+    =/  node=(unit [fold=hist:nexus file=(map @ta hist:nexus)])
       (~(get of born) path.p.lane)
     ?~  node  ~
-    =/  sk=(unit sack:nexus)  (~(get by bags.u.node) name.p.lane)
+    =/  sk=(unit hist:nexus)  (~(get by file.u.node) name.p.lane)
     ?~  sk  ~
     (match-hist p.lane u.sk target)
       %|
     ::  Directory: walk all files in born subtree
     =/  sub-born=born:nexus  (~(dip of born) p.lane)
-    =/  nodes=(list [pax=path =tote:nexus bags=(map @ta sack:nexus)])
+    =/  nodes=(list [pax=path fold=hist:nexus file=(map @ta hist:nexus)])
       ~(tap of sub-born)
     (seek-nodes p.lane nodes target)
   ==
 ::
 ++  seek-nodes
-  |=  [base=path nodes=(list [pax=path =tote:nexus bags=(map @ta sack:nexus)]) target=lobe:clay]
+  |=  [base=path nodes=(list [pax=path fold=hist:nexus file=(map @ta hist:nexus)]) target=lobe:clay]
   ^-  (list [=rail:tarball =cass:clay])
   ?~  nodes  ~
-  =/  files=(list [@ta sack:nexus])  ~(tap by bags.i.nodes)
+  =/  files=(list [@ta hist:nexus])  ~(tap by file.i.nodes)
   =/  hits=(list [=rail:tarball =cass:clay])
     (seek-files base pax.i.nodes files target)
   (weld hits $(nodes t.nodes))
 ::
 ++  seek-files
-  |=  [base=path pax=path files=(list [@ta sack:nexus]) target=lobe:clay]
+  |=  [base=path pax=path files=(list [@ta hist:nexus]) target=lobe:clay]
   ^-  (list [=rail:tarball =cass:clay])
   ?~  files  ~
   =/  hits=(list [=rail:tarball =cass:clay])
     (match-hist [(weld base pax) -.i.files] +.i.files target)
   (weld hits $(files t.files))
 ::
+::  match-hist: find hist entries whose leaf ject contains target noun-lobe
 ++  match-hist
-  |=  [here=rail:tarball hist=((mop cass:clay pace:sack:nexus) cor:nexus) target=lobe:clay]
+  |=  [here=rail:tarball hist=((mop cass:clay pace:hist:nexus) cor:nexus) target=lobe:clay]
   ^-  (list [=rail:tarball =cass:clay])
-  %+  murn  (tap:on-hist:sack:nexus hist)
-  |=  [key=cass:clay val=pace:sack:nexus]
-  ?.  ?=(%file -.val)  ~
+  %+  murn  (tap:hon:hist:nexus hist)
+  |=  [key=cass:clay val=pace:hist:nexus]
+  ?.  ?=(%live -.val)  ~
   ?~  p.val  ~
-  ?.  =(lobe.u.p.val target)  ~
+  =/  jot  (~(get by jects.silo) u.p.val)
+  ?~  jot  ~
+  =/  jt=ject:nexus  ject.u.jot
+  ?.  ?=(%leaf -.jt)  ~
+  ?.  =(lobe.leaf.jt target)  ~
   `[here key]
 ::
 ++  emit-card
@@ -892,7 +897,7 @@
   =/  =pipe:nexus  old(proc (~(put by proc.old) name.here proc))
   this(pool (~(put of pool) path.here pipe))
 ::  Bang a nexus directory — store tang, +stay all processes under it
-::  TODO: bang subscriptions via born. Add proc=cass:clay to $tote that bumps
+::  TODO: bang subscriptions via born. Add proc=cass:clay to fold hist that bumps
 ::  on any proc change (spawn, crash, bang, heal) under that directory.
 ::  Nexus bangs bump it too since they stay all procs. File-level healing is
 ::  implicit (successful spawn overwrites |+tang with &+process). Nexus-level
@@ -995,23 +1000,23 @@
   =.  this  (sub-wipe [dir name])
   ::  Snapshot before mutations
   =/  old-born=born:nexus  born
-  ::  Append [%file ~] for deletion; tombstone old entries unless gaining
-  =/  sok=(unit sack:nexus)  (get-born [dir name])
+  ::  Append [%live ~] for deletion; tombstone old entries unless gaining
+  =/  sok=(unit hist:nexus)  (get-born [dir name])
   =/  gaining=?  (lookup-gain [dir name])
   =?  silo  &(?=(^ sok) !gaining)
     (~(drop-hist si:nexus silo) u.sok)
   =?  born  ?=(^ sok)
-    =/  file-cass=cass:clay  (need (top:sack:nexus u.sok))
+    =/  file-cass=cass:clay  (need (top:hist:nexus u.sok))
     =/  new-cass=cass:clay  (~(next-cass bo:nexus now.bowl [born ball]) file-cass)
-    =/  base=sack:nexus
+    =/  base=hist:nexus
       ?:  gaining  u.sok
-      =/  entries=(list [key=cass:clay val=pace:sack:nexus])
-        (tap:on-hist:sack:nexus u.sok)
-      =|  tombed=sack:nexus
+      =/  entries=(list [key=cass:clay val=pace:hist:nexus])
+        (tap:hon:hist:nexus u.sok)
+      =|  tombed=hist:nexus
       |-  ?^  entries
-        $(entries t.entries, tombed (put:on-hist:sack:nexus tombed key.i.entries [%tomb ~]))
+        $(entries t.entries, tombed (put:hon:hist:nexus tombed key.i.entries [%tomb ~]))
       tombed
-    =/  new-sok=sack:nexus  (put:on-hist:sack:nexus base new-cass [%file ~])
+    =/  new-sok=hist:nexus  (put:hon:hist:nexus base new-cass [%live ~])
     (~(put bo:nexus now.bowl [born ball]) [dir name] new-sok)
   ::  Remove from ball BEFORE notify so subscribers see deletion
   =.  ball  (~(del ba:tarball ball) dir name)
@@ -1416,11 +1421,11 @@
       =/  content=(unit content:tarball)
         (~(get ba:tarball ball) path.p.target name.p.target)
       ?~  content  [%none ~]
-      =/  node=(unit [=tote:nexus bags=(map @ta sack:nexus)])
+      =/  node=(unit [fold=hist:nexus file=(map @ta hist:nexus)])
         (~(get of born) path.p.target)
-      =/  sk=sack:nexus
-        ?~  node  *sack:nexus
-        (fall (~(get by bags.u.node) name.p.target) *sack:nexus)
+      =/  sk=hist:nexus
+        ?~  node  *hist:nexus
+        (fall (~(get by file.u.node) name.p.target) *hist:nexus)
       [%file sk (lookup-gain p.target) sage.u.content]
         %|
       =/  sub-ball=(unit ball:tarball)  (~(dap ba:tarball ball) p.target)
@@ -1824,22 +1829,26 @@
           (~(get ba:tarball ball) path.dest name.dest)
         ?~  content
           (enqu-take here (sys-give /peek) ~ %peek wire.dart &+[%none ~])
-        =/  node=(unit [=tote:nexus bags=(map @ta sack:nexus)])
+        =/  node=(unit [fold=hist:nexus file=(map @ta hist:nexus)])
           (~(get of born) path.dest)
-        =/  sk=sack:nexus
-          ?~  node  *sack:nexus
-          (fall (~(get by bags.u.node) name.dest) *sack:nexus)
+        =/  sk=hist:nexus
+          ?~  node  *hist:nexus
+          (fall (~(get by file.u.node) name.dest) *hist:nexus)
         ::  Resolve source: historical bask from silo or current sage from ball
         =/  source=(unit sage:tarball)
           ?^  case.load.dart
-            =/  =pace:sack:nexus
+            =/  =pace:hist:nexus
               (resolve-case:nexus u.case.load.dart sk)
-            ?.  ?=(%file -.pace)  ~
+            ?.  ?=(%live -.pace)  ~
             ?~  p.pace  ~
-            =/  got=(unit noun)  (~(get si:nexus silo) lobe.u.p.pace)
+            =/  jot  (~(get by jects.silo) u.p.pace)
+            ?~  jot  ~
+            =/  jt=ject:nexus  ject.u.jot
+            ?.  ?=(%leaf -.jt)  ~
+            =/  got=(unit noun)  (~(get si:nexus silo) lobe.leaf.jt)
             ?~  got  ~
             ::  Validate bask back to sage
-            =/  res  (validate-bask cod [blot.u.p.pace u.got])
+            =/  res  (validate-bask cod [blot.leaf.jt u.got])
             ?:  ?=(%| -.res)  ~
             `p.res
           `sage.u.content
@@ -1964,11 +1973,11 @@
           =/  content=(unit content:tarball)
             (~(get ba:tarball ball) path.dest name.dest)
           ?~  content  [%none ~]
-          =/  node=(unit [=tote:nexus bags=(map @ta sack:nexus)])
+          =/  node=(unit [fold=hist:nexus file=(map @ta hist:nexus)])
             (~(get of born) path.dest)
-          =/  sk=sack:nexus
-            ?~  node  *sack:nexus
-            (fall (~(get by bags.u.node) name.dest) *sack:nexus)
+          =/  sk=hist:nexus
+            ?~  node  *hist:nexus
+            (fall (~(get by file.u.node) name.dest) *hist:nexus)
           [%file sk (lookup-gain dest) sage.u.content]
             %|
           =/  dest=fold:tarball  p.u.dest-lane
@@ -1998,14 +2007,14 @@
       ::  Query hist entries matching find spec, clam pages to cages
       ?>  ?=(%& -.u.dest-lane)
       =/  dest=rail:tarball  p.u.dest-lane
-      =/  sk=(unit sack:nexus)  (get-born dest)
+      =/  sk=(unit hist:nexus)  (get-born dest)
       ?~  sk
         (enqu-take here (sys-give /peep) ~ %peep wire.dart |+~[leaf+"no history for {(spud (snoc path.dest name.dest))}"])
-      =/  entries=(list [key=cass:clay val=pace:sack:nexus])
-        (tap:on-hist:sack:nexus u.sk)
+      =/  entries=(list [key=cass:clay val=pace:hist:nexus])
+        (tap:hon:hist:nexus u.sk)
       =/  hits=(list [cass:clay sage:tarball])
         %+  murn  entries
-        |=  [key=cass:clay val=pace:sack:nexus]
+        |=  [key=cass:clay val=pace:hist:nexus]
         ^-  (unit [cass:clay sage:tarball])
         =/  match=?
           ?-    -.find.load.dart
@@ -2021,11 +2030,15 @@
             ==
           ==
         ?.  match  ~
-        ?.  ?=(%file -.val)  ~
+        ?.  ?=(%live -.val)  ~
         ?~  p.val  ~
-        =/  got=(unit noun)  (~(get si:nexus silo) lobe.u.p.val)
+        =/  jot  (~(get by jects.silo) u.p.val)
+        ?~  jot  ~
+        =/  jt=ject:nexus  ject.u.jot
+        ?.  ?=(%leaf -.jt)  ~
+        =/  got=(unit noun)  (~(get si:nexus silo) lobe.leaf.jt)
         ?~  got  ~
-        =/  res  (validate-bask cod [blot.u.p.val u.got])
+        =/  res  (validate-bask cod [blot.leaf.jt u.got])
         ?:  ?=(%| -.res)  ~
         `[key p.res]
       (enqu-take here (sys-give /peep) ~ %peep wire.dart &+hits)
@@ -2454,7 +2467,7 @@
 ::
 ++  get-born
   |=  here=rail:tarball
-  ^-  (unit sack:nexus)
+  ^-  (unit hist:nexus)
   (~(get bo:nexus now.bowl [born ball]) here)
 ::
 ++  get-dir-cass
@@ -2473,7 +2486,7 @@
   ^+  this
   =.  this  (record-trees path.here)
   (notify old-born)
-::  Record tree objects from dir up to root into silo + tote hist.
+::  Record tree objects from dir up to root into silo + fold hist.
 ::  Only bumps fold when tree hash actually changes. Stops propagating
 ::  when a level produces the same hash (nothing above can change).
 ::
@@ -2483,18 +2496,18 @@
   =/  [new-born=born:nexus new-silo=silo:nexus]
     (record-trees:nexus born silo sand ball now.bowl dir)
   this(born new-born, silo new-silo)
-::  Record noun+blot in silo and append to hist on sack.
+::  Record noun+blot in silo and append to file hist.
 ::
 ++  record
   |=  [here=rail:tarball =sage:tarball cas=(unit cass:clay)]
   ^+  this
-  =/  sok=sack:nexus  (need (get-born here))
+  =/  sok=hist:nexus  (need (get-born here))
   ::  Use provided cass or compute next from current top of hist
-  =/  file-cass=cass:clay  (need (top:sack:nexus sok))
+  =/  file-cass=cass:clay  (need (top:hist:nexus sok))
   =/  new-cass=cass:clay
     (fall cas (~(next-cass bo:nexus now.bowl [born ball]) file-cass))
   =/  gaining=?  (lookup-gain here)
-  =/  [=lobe:clay new-silo=silo:nexus new-sok=sack:nexus]
+  =/  [=lobe:clay new-silo=silo:nexus new-sok=hist:nexus]
     (~(record si:nexus silo) q.q.sage p.sage new-cass gaining file-cass sok)
   =.  silo  new-silo
   =.  born  (~(put bo:nexus now.bowl [born ball]) here new-sok)
@@ -2551,26 +2564,26 @@
         ::  New file: stamp mtime, record in silo/hist
         =/  content=content:tarball  (~(got by new-files) name)
         =.  ball  (~(put ba:tarball ball) [here name] content(metadata (~(put by metadata.content) 'mtime' (da-oct:tarball now.bowl))))
-        =/  sok=sack:nexus  (need (get-born [here name]))
-        (record [here name] sage.content `(need (top:sack:nexus sok)))
+        =/  sok=hist:nexus  (need (get-born [here name]))
+        (record [here name] sage.content `(need (top:hist:nexus sok)))
       ?:  &(in-old !in-new)
-        ::  Deleted file: append [%file ~]; tombstone old entries unless gaining
-        =/  sok=(unit sack:nexus)  (get-born [here name])
+        ::  Deleted file: append [%live ~]; tombstone old entries unless gaining
+        =/  sok=(unit hist:nexus)  (get-born [here name])
         ?~  sok  this
         =/  gaining=?  (lookup-gain [here name])
         =?  silo  !gaining
           (~(drop-hist si:nexus silo) u.sok)
-        =/  file-cass=cass:clay  (need (top:sack:nexus u.sok))
+        =/  file-cass=cass:clay  (need (top:hist:nexus u.sok))
         =/  new-cass=cass:clay  (~(next-cass bo:nexus now.bowl [born ball]) file-cass)
-        =/  base=sack:nexus
+        =/  base=hist:nexus
           ?:  gaining  u.sok
-          =/  entries=(list [key=cass:clay val=pace:sack:nexus])
-            (tap:on-hist:sack:nexus u.sok)
-          =|  tombed=sack:nexus
+          =/  entries=(list [key=cass:clay val=pace:hist:nexus])
+            (tap:hon:hist:nexus u.sok)
+          =|  tombed=hist:nexus
           |-  ?^  entries
-            $(entries t.entries, tombed (put:on-hist:sack:nexus tombed key.i.entries [%tomb ~]))
+            $(entries t.entries, tombed (put:hon:hist:nexus tombed key.i.entries [%tomb ~]))
           tombed
-        =/  new-sok=sack:nexus  (put:on-hist:sack:nexus base new-cass [%file ~])
+        =/  new-sok=hist:nexus  (put:hon:hist:nexus base new-cass [%live ~])
         this(born (~(put bo:nexus now.bowl [born ball]) [here name] new-sok))
       ::  Both: record if changed
       =/  old-content=content:tarball  (~(got by old-files) name)
@@ -2578,8 +2591,8 @@
       ?.  =(sage.old-content sage.new-content)
         ::  Changed file: stamp mtime
         =.  ball  (~(put ba:tarball ball) [here name] new-content(metadata (~(put by metadata.new-content) 'mtime' (da-oct:tarball now.bowl))))
-        =/  sok=sack:nexus  (need (get-born [here name]))
-        (record [here name] sage.new-content `(need (top:sack:nexus sok)))
+        =/  sok=hist:nexus  (need (get-born [here name]))
+        (record [here name] sage.new-content `(need (top:hist:nexus sok)))
       this
     $(all-names t.all-names)
   ::  Recurse into subdirs
