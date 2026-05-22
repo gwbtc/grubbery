@@ -574,7 +574,13 @@
       ?.  ?=(%live -.pv)  silo
       ?~  p.pv  silo
       (~(drop-ject si:nexus silo) u.p.pv)
-    $(entries t.entries, kept [[key.i.entries [%tomb ~]] kept])
+    ::  if tombstoning the top, append a new [%live ~] wavefront
+    =/  new-kept  [[key.i.entries [%tomb ~]] kept]
+    ?.  =(key.i.entries (need (top:hist:nexus sk)))
+      $(entries t.entries, kept new-kept)
+    =/  new-cass=cass:clay
+      (~(next-cass bo:nexus now.bowl [born ball]) key.i.entries)
+    $(entries t.entries, kept [[new-cass [%live ~]] new-kept])
   $(entries t.entries, kept [i.entries kept])
 ::  Find all [rail cass] pairs in a subtree whose hist contains a lobe
 ::
