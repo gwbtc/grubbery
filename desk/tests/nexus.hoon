@@ -1144,7 +1144,7 @@
 ++  test-si-put-ject-new
   ::  Inserting a new tree returns lobe and silo with refs=1
   =/  s  ~(. si:nexus *silo:nexus)
-  =/  =tree:nexus  [~ ~ ~]
+  =/  =tree:nexus  [~ ~ ~ ~]
   =/  [=lobe:clay new-silo=silo:nexus]  (put-ject:s [%tree tree])
   ;:  weld
     %+  expect-eq
@@ -1161,9 +1161,9 @@
   =/  s  ~(. si:nexus *silo:nexus)
   =/  [noun-lobe=lobe:clay silo1=silo:nexus]  (put:s 'hello')
   =/  [leaf-lobe=lobe:clay silo2=silo:nexus]
-    (~(put-ject si:nexus silo1) [%leaf noun-lobe [[/ %txt] 0v0]])
+    (~(put-ject si:nexus silo1) [%leaf noun-lobe [[/ %txt] 0v0] ~])
   =/  =tree:nexus
-    [~ (~(put by *(map @ta lobe:clay)) %foo leaf-lobe) ~]
+    [~ (~(put by *(map @ta lobe:clay)) %foo leaf-lobe) ~ ~]
   =/  [* silo3=silo:nexus]  (~(put-ject si:nexus silo2) [%tree tree])
   ::  leaf started at refs=1, tree put-ject should bump to 2
   %+  expect-eq  !>(`@ud`2)  !>(refs:(~(got by jects.silo3) leaf-lobe))
@@ -1171,10 +1171,10 @@
 ++  test-si-put-ject-bumps-child-tree-refs
   ::  Inserting a tree that references child trees increments their refcounts
   =/  s  ~(. si:nexus *silo:nexus)
-  =/  child=tree:nexus  [~ ~ ~]
+  =/  child=tree:nexus  [~ ~ ~ ~]
   =/  [child-lobe=lobe:clay silo1=silo:nexus]  (put-ject:s [%tree child])
   =/  parent=tree:nexus
-    [~ ~ (~(put by *(map @ta [lobe:clay weir=(unit weir:nexus)])) %sub [child-lobe ~])]
+    [~ ~ (~(put by *(map @ta [lobe:clay weir=(unit weir:nexus)])) %sub [child-lobe ~]) ~]
   =/  s2  ~(. si:nexus silo1)
   =/  [* silo2=silo:nexus]  (put-ject:s2 [%tree parent])
   ::  child started at refs=1, parent should bump to 2
@@ -1185,9 +1185,9 @@
   =/  s  ~(. si:nexus *silo:nexus)
   =/  [noun-lobe=lobe:clay silo1=silo:nexus]  (put:s 'hello')
   =/  [leaf-lobe=lobe:clay silo2=silo:nexus]
-    (~(put-ject si:nexus silo1) [%leaf noun-lobe [[/ %txt] 0v0]])
+    (~(put-ject si:nexus silo1) [%leaf noun-lobe [[/ %txt] 0v0] ~])
   =/  =tree:nexus
-    [~ (~(put by *(map @ta lobe:clay)) %foo leaf-lobe) ~]
+    [~ (~(put by *(map @ta lobe:clay)) %foo leaf-lobe) ~ ~]
   =/  [=lobe:clay silo3=silo:nexus]  (~(put-ject si:nexus silo2) [%tree tree])
   =/  [* silo4=silo:nexus]  (~(put-ject si:nexus silo3) [%tree tree])
   ;:  weld
@@ -1200,7 +1200,7 @@
 ++  test-si-put-ject-duplicate-increments-refs
   ::  Inserting the same tree twice increments refcount
   =/  s  ~(. si:nexus *silo:nexus)
-  =/  =tree:nexus  [~ ~ ~]
+  =/  =tree:nexus  [~ ~ ~ ~]
   =/  [lobe1=lobe:clay silo1=silo:nexus]  (put-ject:s [%tree tree])
   =/  s2  ~(. si:nexus silo1)
   =/  [lobe2=lobe:clay silo2=silo:nexus]  (put-ject:s2 [%tree tree])
@@ -1212,9 +1212,9 @@
 ++  test-si-put-ject-different-content-different-lobe
   ::  Different trees produce different lobes
   =/  s  ~(. si:nexus *silo:nexus)
-  =/  tree1=tree:nexus  [~ ~ ~]
+  =/  tree1=tree:nexus  [~ ~ ~ ~]
   =/  tree2=tree:nexus
-    [~ (~(put by *(map @ta lobe:clay)) %foo `@uvI`(sham 'x')) ~]
+    [~ (~(put by *(map @ta lobe:clay)) %foo `@uvI`(sham 'x')) ~ ~]
   =/  [lobe1=lobe:clay silo1=silo:nexus]  (put-ject:s [%tree tree1])
   =/  s2  ~(. si:nexus silo1)
   =/  [lobe2=lobe:clay silo2=silo:nexus]  (put-ject:s2 [%tree tree2])
@@ -1225,7 +1225,7 @@
 ::
 ++  test-si-drop-ject-decrements-refs
   =/  s  ~(. si:nexus *silo:nexus)
-  =/  =tree:nexus  [~ ~ ~]
+  =/  =tree:nexus  [~ ~ ~ ~]
   =/  [=lobe:clay silo1=silo:nexus]  (put-ject:s [%tree tree])
   =/  s2  ~(. si:nexus silo1)
   =/  [* silo2=silo:nexus]  (put-ject:s2 [%tree tree])
@@ -1235,7 +1235,7 @@
 ::
 ++  test-si-drop-ject-deletes-at-zero
   =/  s  ~(. si:nexus *silo:nexus)
-  =/  =tree:nexus  [~ ~ ~]
+  =/  =tree:nexus  [~ ~ ~ ~]
   =/  [=lobe:clay silo1=silo:nexus]  (put-ject:s [%tree tree])
   =/  s2  ~(. si:nexus silo1)
   =/  silo2=silo:nexus  (drop-ject:s2 lobe)
@@ -1246,9 +1246,9 @@
   =/  s  ~(. si:nexus *silo:nexus)
   =/  [noun-lobe=lobe:clay silo1=silo:nexus]  (put:s 'hello')
   =/  [leaf-lobe=lobe:clay silo2=silo:nexus]
-    (~(put-ject si:nexus silo1) [%leaf noun-lobe [[/ %txt] 0v0]])
+    (~(put-ject si:nexus silo1) [%leaf noun-lobe [[/ %txt] 0v0] ~])
   =/  =tree:nexus
-    [~ (~(put by *(map @ta lobe:clay)) %foo leaf-lobe) ~]
+    [~ (~(put by *(map @ta lobe:clay)) %foo leaf-lobe) ~ ~]
   =/  [tree-lobe=lobe:clay silo3=silo:nexus]
     (~(put-ject si:nexus silo2) [%tree tree])
   ::  leaf is at refs=2 (own + tree bump). Drop tree → leaf refs=1
@@ -1261,10 +1261,10 @@
 ++  test-si-drop-ject-cascades-child-trees
   ::  Dropping a parent tree at zero cascades to child trees
   =/  s  ~(. si:nexus *silo:nexus)
-  =/  child=tree:nexus  [~ ~ ~]
+  =/  child=tree:nexus  [~ ~ ~ ~]
   =/  [child-lobe=lobe:clay silo1=silo:nexus]  (put-ject:s [%tree child])
   =/  parent=tree:nexus
-    [~ ~ (~(put by *(map @ta [lobe:clay weir=(unit weir:nexus)])) %sub [child-lobe ~])]
+    [~ ~ (~(put by *(map @ta [lobe:clay weir=(unit weir:nexus)])) %sub [child-lobe ~]) ~]
   =/  s2  ~(. si:nexus silo1)
   =/  [parent-lobe=lobe:clay silo2=silo:nexus]  (put-ject:s2 [%tree parent])
   ::  child is at refs=2. Drop parent → child refs=1
@@ -1279,13 +1279,13 @@
   =/  s  ~(. si:nexus *silo:nexus)
   =/  [noun-lobe=lobe:clay silo1=silo:nexus]  (put:s 'data')
   =/  [leaf-lobe=lobe:clay silo2=silo:nexus]
-    (~(put-ject si:nexus silo1) [%leaf noun-lobe [[/ %txt] 0v0]])
+    (~(put-ject si:nexus silo1) [%leaf noun-lobe [[/ %txt] 0v0] ~])
   =/  child=tree:nexus
-    [~ (~(put by *(map @ta lobe:clay)) %f leaf-lobe) ~]
+    [~ (~(put by *(map @ta lobe:clay)) %f leaf-lobe) ~ ~]
   =/  [child-lobe=lobe:clay silo3=silo:nexus]
     (~(put-ject si:nexus silo2) [%tree child])
   =/  parent=tree:nexus
-    [~ ~ (~(put by *(map @ta [lobe:clay weir=(unit weir:nexus)])) %sub [child-lobe ~])]
+    [~ ~ (~(put by *(map @ta [lobe:clay weir=(unit weir:nexus)])) %sub [child-lobe ~]) ~]
   =/  [parent-lobe=lobe:clay silo4=silo:nexus]
     (~(put-ject si:nexus silo3) [%tree parent])
   ::  leaf: own(1) + child-put-ject(1) = 2
@@ -1303,13 +1303,13 @@
   =/  s  ~(. si:nexus *silo:nexus)
   =/  [noun-lobe=lobe:clay silo1=silo:nexus]  (put:s 'data')
   =/  [leaf-lobe=lobe:clay silo2=silo:nexus]
-    (~(put-ject si:nexus silo1) [%leaf noun-lobe [[/ %txt] 0v0]])
+    (~(put-ject si:nexus silo1) [%leaf noun-lobe [[/ %txt] 0v0] ~])
   =/  child=tree:nexus
-    [~ (~(put by *(map @ta lobe:clay)) %f leaf-lobe) ~]
+    [~ (~(put by *(map @ta lobe:clay)) %f leaf-lobe) ~ ~]
   =/  [child-lobe=lobe:clay silo3=silo:nexus]
     (~(put-ject si:nexus silo2) [%tree child])
   =/  parent=tree:nexus
-    [~ ~ (~(put by *(map @ta [lobe:clay weir=(unit weir:nexus)])) %sub [child-lobe ~])]
+    [~ ~ (~(put by *(map @ta [lobe:clay weir=(unit weir:nexus)])) %sub [child-lobe ~]) ~]
   =/  [parent-lobe=lobe:clay silo4=silo:nexus]
     (~(put-ject si:nexus silo3) [%tree parent])
   ::  Drop child's extra ref so it's only held by parent
@@ -1332,9 +1332,9 @@
 ++  test-si-drop-hist-all-ject-refs
   ::  drop-hist removes all ject refs from silo
   =/  s  ~(. si:nexus *silo:nexus)
-  =/  tree1=tree:nexus  [~ ~ ~]
+  =/  tree1=tree:nexus  [~ ~ ~ ~]
   =/  tree2=tree:nexus
-    [~ (~(put by *(map @ta lobe:clay)) %a `@uvI`(sham 'y')) ~]
+    [~ (~(put by *(map @ta lobe:clay)) %a `@uvI`(sham 'y')) ~ ~]
   =/  [lobe1=lobe:clay silo1=silo:nexus]  (put-ject:s [%tree tree1])
   =/  s2  ~(. si:nexus silo1)
   =/  [lobe2=lobe:clay silo2=silo:nexus]  (put-ject:s2 [%tree tree2])

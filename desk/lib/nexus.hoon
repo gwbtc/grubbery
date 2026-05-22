@@ -450,11 +450,13 @@
 +$  leaf
   $:  =lobe:clay
       mark=[=blot:tarball ckey=@uv]
+      bang=(unit lobe:clay)
   ==
 +$  tree
   $:  nek=(unit [=neck:tarball ckey=@uv])
       fil=(map @ta lobe:clay)
       dir=(map @ta [=lobe:clay weir=(unit weir)])
+      bang=(unit lobe:clay)
   ==
 +$  ject
   $%  [%leaf =leaf]
@@ -561,7 +563,7 @@
       fil.u.kid-sand
     [tree-lobe kid-weir]
   ::  Build tree object + hash via ject
-  =/  =tree  [nek fil dir-map]
+  =/  =tree  [nek fil dir-map ~]
   =/  =lobe:clay  `@uvI`(sham [%tree tree])
   ::  Check if tree changed from current
   =/  fold-cas=(unit cass:clay)  (top-fold fold.node)
@@ -802,6 +804,8 @@
         %leaf
       ::  leaf references a noun — bump its refcount
       =.  silo  (~(bump-ref si silo) lobe.leaf.ject)
+      =?  silo  ?=(^ bang.leaf.ject)
+        (~(bump-ref si silo) u.bang.leaf.ject)
       [lobe silo]
         %tree
       =.  silo
@@ -812,6 +816,8 @@
         %-  ~(rep by dir.tree.ject)
         |=  [[* =lobe:clay *] =_silo]
         (~(bump-ject-ref si silo) lobe)
+      =?  silo  ?=(^ bang.tree.ject)
+        (~(bump-ref si silo) u.bang.tree.ject)
       [lobe silo]
     ==
   ::  Decrement ject refcount, delete if zero.
@@ -828,15 +834,20 @@
     =/  jt=ject  ject.u.got
     ?-  -.jt
         %leaf
-      (~(drop si silo) lobe.leaf.jt)
+      =.  silo  (~(drop si silo) lobe.leaf.jt)
+      ?~  bang.leaf.jt  silo
+      (~(drop si silo) u.bang.leaf.jt)
         %tree
       =.  silo
         %-  ~(rep by fil.tree.jt)
         |=  [[* =lobe:clay] =_silo]
         (~(drop-ject si silo) lobe)
-      %-  ~(rep by dir.tree.jt)
-      |=  [[* =lobe:clay *] =_silo]
-      (~(drop-ject si silo) lobe)
+      =.  silo
+        %-  ~(rep by dir.tree.jt)
+        |=  [[* =lobe:clay *] =_silo]
+        (~(drop-ject si silo) lobe)
+      ?~  bang.tree.jt  silo
+      (~(drop si silo) u.bang.tree.jt)
     ==
     ::  Record a noun: insert into silo, update hist per gain flag.
   ::  Returns [lobe new-silo new-hist].
@@ -860,7 +871,7 @@
     ::  Store noun, then wrap as leaf ject
     =/  [noun-lobe=lobe:clay new-silo=^silo]  (put noun)
     =/  [ject-lobe=lobe:clay newer-silo=^silo]
-      (~(put-ject si new-silo) [%leaf noun-lobe [blot ckey]])
+      (~(put-ject si new-silo) [%leaf noun-lobe [blot ckey] ~])
     ?:  gain
       [noun-lobe newer-silo (put:hon:^hist hist cass [%live `ject-lobe])]
     ::  !gain: tombstone previous live version, append new
