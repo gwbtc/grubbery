@@ -818,8 +818,8 @@
 ::
 ++  make-hist
   |=  entries=(list [ud=@ud da=@da =lobe:clay =blot:tarball])
-  ^-  ((mop cass:clay pace:hist:nexus) cor:nexus)
-  =/  hist=((mop cass:clay pace:hist:nexus) cor:nexus)  ~
+  ^-  hist:nexus
+  =/  =hist:nexus  ~
   |-
   ?~  entries  hist
   $(entries t.entries, hist (put:hon:hist:nexus hist [ud.i.entries da.i.entries] [%live `lobe.i.entries]))
@@ -904,7 +904,7 @@
 ::
 ++  test-resolve-case-da-empty
   ::  %da on empty hist crashes
-  =/  hist=((mop cass:clay pace:hist:nexus) cor:nexus)  ~
+  =/  =hist:nexus  ~
   =/  res=(each pace:hist:nexus tang)
     (mule |.((resolve-case:nexus [%da ~2024.1.1] hist)))
   %+  expect-eq
@@ -913,7 +913,7 @@
 ::
 ++  test-resolve-case-ud-empty
   ::  %ud on empty hist crashes
-  =/  hist=((mop cass:clay pace:hist:nexus) cor:nexus)  ~
+  =/  =hist:nexus  ~
   =/  res=(each pace:hist:nexus tang)
     (mule |.((resolve-case:nexus [%ud 1] hist)))
   %+  expect-eq
@@ -1338,7 +1338,7 @@
   =/  [lobe1=lobe:clay silo1=silo:nexus]  (put-ject:s [%tree tree1])
   =/  s2  ~(. si:nexus silo1)
   =/  [lobe2=lobe:clay silo2=silo:nexus]  (put-ject:s2 [%tree tree2])
-  =/  hist=((mop cass:clay pace:hist:nexus) cor:nexus)
+  =/  =hist:nexus
     %-  put:hon:hist:nexus
     [(put:hon:hist:nexus ~ [1 ~2024.1.1] [%live `lobe1]) [2 ~2024.1.2] [%live `lobe2]]
   =/  silo3=silo:nexus  (~(drop-hist si:nexus silo2) hist)

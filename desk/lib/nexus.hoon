@@ -431,6 +431,7 @@
 ++  hist
   =<  hist
   |%
+  ++  cor   |=([a=cass:clay b=cass:clay] (lth ud.a ud.b))
   +$  hist  ((mop cass:clay pace) cor)
   ++  hon    ((on cass:clay pace) cor)
   ++  top
@@ -446,7 +447,6 @@
   --
 ::
 +$  born  (axal [fold=hist file=(map @ta hist)])
-++  cor   |=([a=cass:clay b=cass:clay] (lth ud.a ud.b))
 +$  leaf
   $:  =blot:tarball
       =lobe:clay
@@ -469,7 +469,7 @@
 ::  %da: latest entry with da <= target date
 ::
 ++  resolve-case
-  |=  [cas=case hist=((mop cass:clay pace:hist) cor)]
+  |=  [cas=case =hist]
   ^-  pace:^hist
   ?-    -.cas
       %ud
@@ -507,8 +507,6 @@
   =/  boo  ~(. bo now [born ball])
   =/  top-fold  top:hist
   =/  top-hist  top:hist
-  =/  on-fold  hon:hist
-  =/  on-file  hon:hist
   =/  node=[fold=hist file=(map @ta hist)]
     (fall fil.sub-born default-node:boo)
   ::  nek: nexus identity from ball at this directory
@@ -521,7 +519,7 @@
     |=  [[name=@ta sk=hist] out=(map @ta lobe:clay)]
     =/  cas=(unit cass:clay)  (top-hist sk)
     ?~  cas  out
-    =/  val=(unit pace:hist)  (get:on-file sk u.cas)
+    =/  val=(unit pace:hist)  (get:hon:hist sk u.cas)
     ?~  val  out
     ?.  ?=(%live -.u.val)  out
     ?~  p.u.val  out
@@ -537,7 +535,7 @@
       =/  cas=(unit cass:clay)  (top-fold fold.u.kid-node)
       ?~  cas  *lobe:clay
       =/  got=(unit pace:hist)
-        (get:on-fold fold.u.kid-node u.cas)
+        (get:hon:hist fold.u.kid-node u.cas)
       ?~  got  *lobe:clay
       ?.  ?=(%live -.u.got)  *lobe:clay
       (fall p.u.got *lobe:clay)
@@ -553,7 +551,7 @@
   =/  fold-cas=(unit cass:clay)  (top-fold fold.node)
   =/  cur-pace=(unit pace:hist)
     ?~  fold-cas  ~
-    (get:on-fold fold.node u.fold-cas)
+    (get:hon:hist fold.node u.fold-cas)
   =/  cur-lobe=(unit lobe:clay)
     ?~  cur-pace  ~
     ?.  ?=(%live -.u.cur-pace)  ~
@@ -569,7 +567,7 @@
     =/  nex-da=@da  ?:((lth da.old-fold now) now +(da.old-fold))
     [+(ud.old-fold) nex-da]
   =/  new-fold=hist
-    (put:on-fold fold.node new-fold [%live `lobe])
+    (put:hon:hist fold.node new-fold [%live `lobe])
   =.  born
     (~(put of born) dir node(fold new-fold))
   ?~  dir  [born silo]
@@ -746,7 +744,7 @@
   ::  Drop refs for all ject lobes in a hist.
   ::
   ++  drop-hist
-    |=  hist=((mop cass:clay pace:hist) cor)
+    |=  =hist
     ^-  ^silo
     =/  entries=(list [key=cass:clay val=pace:^hist])
       (tap:hon:^hist hist)
@@ -834,8 +832,14 @@
   ::    gain only controls what happens live, not retroactively.
   ::
   ++  record
-    |=  [=noun =blot:tarball =cass:clay gain=? file=cass:clay hist=((mop cass:clay pace:hist) cor)]
-    ^-  [lobe:clay ^silo ((mop cass:clay pace:^hist) cor)]
+    |=  $:  =noun
+            =blot:tarball
+            =cass:clay
+            gain=?
+            file=cass:clay
+            =hist
+        ==
+    ^-  [lobe:clay ^silo ^hist]
     ::  Store noun, then wrap as leaf ject
     =/  [noun-lobe=lobe:clay new-silo=^silo]  (put noun)
     =/  [ject-lobe=lobe:clay newer-silo=^silo]
@@ -904,15 +908,13 @@
   |=  [here=fold:tarball old=born new=born mode=?(%all %state)]
   ^-  (set lane:tarball)
   =|  result=(set lane:tarball)
-  =/  on-fold  ((on cass:clay pace:hist) cor)
-  =/  on-file  ((on cass:clay pace:hist) cor)
   ::  Compare directory-level totes
   =/  old-fold=hist  ?~(fil.old *hist fold.u.fil.old)
   =/  new-fold=hist  ?~(fil.new *hist fold.u.fil.new)
   =/  dir-changed=?
     ?-  mode
       %all    !=(old-fold new-fold)
-      %state  !=((ram:on-fold old-fold) (ram:on-fold new-fold))
+      %state  !=((ram:hon:hist old-fold) (ram:hon:hist new-fold))
     ==
   =?  result  dir-changed
     (~(put in result) |+here)
@@ -929,7 +931,7 @@
     =/  file-changed=?
       ?-  mode
         %all    !=(old-sk new-sk)
-        %state  !=((ram:on-file old-sk) (ram:on-file new-sk))
+        %state  !=((ram:hon:hist old-sk) (ram:hon:hist new-sk))
       ==
     =?  result  file-changed
       (~(put in result) &+[here i.all-names])

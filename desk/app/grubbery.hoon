@@ -547,8 +547,7 @@
   =/  kept=(list [key=cass:clay val=pace:hist:nexus])  ~
   |-
   ?~  entries
-    =/  new-hist=((mop cass:clay pace:hist:nexus) cor:nexus)
-      *((mop cass:clay pace:hist:nexus) cor:nexus)
+    =|  new-hist=hist:nexus
     =.  new-hist
       |-
       ?~  kept  new-hist
@@ -623,7 +622,7 @@
 ::
 ::  match-hist: find hist entries whose leaf ject contains target noun-lobe
 ++  match-hist
-  |=  [here=rail:tarball hist=((mop cass:clay pace:hist:nexus) cor:nexus) target=lobe:clay]
+  |=  [here=rail:tarball =hist:nexus target=lobe:clay]
   ^-  (list [=rail:tarball =cass:clay])
   %+  murn  (tap:hon:hist:nexus hist)
   |=  [key=cass:clay val=pace:hist:nexus]
