@@ -1853,7 +1853,7 @@
             =/  got=(unit noun)  (~(get si:nexus silo) lobe.leaf.jt)
             ?~  got  ~
             ::  Validate bask back to sage
-            =/  res  (validate-bask cod [blot.leaf.jt u.got])
+            =/  res  (validate-bask cod [blot.mark.leaf.jt u.got])
             ?:  ?=(%| -.res)  ~
             `p.res
           `sage.u.content
@@ -2043,7 +2043,7 @@
         ?.  ?=(%leaf -.jt)  ~
         =/  got=(unit noun)  (~(get si:nexus silo) lobe.leaf.jt)
         ?~  got  ~
-        =/  res  (validate-bask cod [blot.leaf.jt u.got])
+        =/  res  (validate-bask cod [blot.mark.leaf.jt u.got])
         ?:  ?=(%| -.res)  ~
         `[key p.res]
       (enqu-take here (sys-give /peep) ~ %peep wire.dart &+hits)
@@ -2499,7 +2499,7 @@
   |=  dir=path
   ^+  this
   =/  [new-born=born:nexus new-silo=silo:nexus]
-    (record-trees:nexus born silo sand ball now.bowl dir)
+    (record-trees:nexus born silo sand code ball now.bowl dir)
   this(born new-born, silo new-silo)
 ::  Record noun+blot in silo and append to file hist.
 ::
@@ -2512,8 +2512,11 @@
   =/  new-cass=cass:clay
     (fall cas (~(next-cass bo:nexus now.bowl [born ball]) file-cass))
   =/  gaining=?  (lookup-gain here)
+  =/  marc-ckey=@uv
+    =/  res  (seek-built path.here (weld /mar path.p.sage) name.p.sage)
+    ?~(res 0v0 ckey.u.res)
   =/  [=lobe:clay new-silo=silo:nexus new-sok=hist:nexus]
-    (~(record si:nexus silo) q.q.sage p.sage new-cass gaining file-cass sok)
+    (~(record si:nexus silo) q.q.sage p.sage marc-ckey new-cass gaining file-cass sok)
   =.  silo  new-silo
   =.  born  (~(put bo:nexus now.bowl [born ball]) here new-sok)
   this

@@ -708,11 +708,11 @@
   =/  cass3=cass:clay  [3 ~2024.1.3]
   =/  hist=hist:nexus  ~
   =/  [lobe1=lobe:clay silo1=silo:nexus hist1=_hist]
-    (~(record si:nexus *silo:nexus) q.page1 p.page1 cass1 %.y *cass:clay hist)
+    (~(record si:nexus *silo:nexus) q.page1 p.page1 0v0 cass1 %.y *cass:clay hist)
   =/  [lobe2=lobe:clay silo2=silo:nexus hist2=_hist]
-    (~(record si:nexus silo1) q.page2 p.page2 cass2 %.y *cass:clay hist1)
+    (~(record si:nexus silo1) q.page2 p.page2 0v0 cass2 %.y *cass:clay hist1)
   =/  [lobe3=lobe:clay silo3=silo:nexus hist3=_hist]
-    (~(record si:nexus silo2) q.page3 p.page3 cass3 %.y *cass:clay hist2)
+    (~(record si:nexus silo2) q.page3 p.page3 0v0 cass3 %.y *cass:clay hist2)
   ;:  weld
     ::  All 3 entries in hist
     %+  expect-eq
@@ -736,9 +736,9 @@
   =/  cass2=cass:clay  [2 ~2024.1.2]
   =/  hist=hist:nexus  ~
   =/  [lobe1=lobe:clay silo1=silo:nexus hist1=_hist]
-    (~(record si:nexus *silo:nexus) q.page1 p.page1 cass1 %.n *cass:clay hist)
+    (~(record si:nexus *silo:nexus) q.page1 p.page1 0v0 cass1 %.n *cass:clay hist)
   =/  [lobe2=lobe:clay silo2=silo:nexus hist2=_hist]
-    (~(record si:nexus silo1) q.page2 p.page2 cass2 %.n cass1 hist1)
+    (~(record si:nexus silo1) q.page2 p.page2 0v0 cass2 %.n cass1 hist1)
   ;:  weld
     ::  2 entries in hist (tombstone + new)
     %+  expect-eq
@@ -761,9 +761,9 @@
   =/  cass2=cass:clay  [2 ~2024.1.2]
   =/  hist=hist:nexus  ~
   =/  [lobe1=lobe:clay silo1=silo:nexus hist1=_hist]
-    (~(record si:nexus *silo:nexus) q.bask p.bask cass1 %.n *cass:clay hist)
+    (~(record si:nexus *silo:nexus) q.bask p.bask 0v0 cass1 %.n *cass:clay hist)
   =/  [lobe2=lobe:clay silo2=silo:nexus hist2=_hist]
-    (~(record si:nexus silo1) q.bask p.bask cass2 %.n cass1 hist1)
+    (~(record si:nexus silo1) q.bask p.bask 0v0 cass2 %.n cass1 hist1)
   ;:  weld
     ::  Same lobe (content-addressed)
     %+  expect-eq
@@ -782,11 +782,11 @@
   =/  page3=bask:tarball  [[/ %txt] 'ccc']
   =/  hist=hist:nexus  ~
   =/  [* silo1=silo:nexus hist1=_hist]
-    (~(record si:nexus *silo:nexus) q.page1 p.page1 [1 ~2024.1.1] %.y *cass:clay hist)
+    (~(record si:nexus *silo:nexus) q.page1 p.page1 0v0 [1 ~2024.1.1] %.y *cass:clay hist)
   =/  [* silo2=silo:nexus hist2=_hist]
-    (~(record si:nexus silo1) q.page2 p.page2 [2 ~2024.1.2] %.y *cass:clay hist1)
+    (~(record si:nexus silo1) q.page2 p.page2 0v0 [2 ~2024.1.2] %.y *cass:clay hist1)
   =/  [* silo3=silo:nexus hist3=_hist]
-    (~(record si:nexus silo2) q.page3 p.page3 [3 ~2024.1.3] %.y *cass:clay hist2)
+    (~(record si:nexus silo2) q.page3 p.page3 0v0 [3 ~2024.1.3] %.y *cass:clay hist2)
   ::  3 entries in silo
   ?>  =(3 ~(wyt by nouns.silo3))
   ::  Drop all
@@ -801,9 +801,9 @@
   =/  hist=hist:nexus  ~
   ::  Record same page twice with keep (2 hist entries, same lobe, refs=2)
   =/  [=lobe:clay silo1=silo:nexus hist1=_hist]
-    (~(record si:nexus *silo:nexus) q.bask p.bask [1 ~2024.1.1] %.y *cass:clay hist)
+    (~(record si:nexus *silo:nexus) q.bask p.bask 0v0 [1 ~2024.1.1] %.y *cass:clay hist)
   =/  [* silo2=silo:nexus hist2=_hist]
-    (~(record si:nexus silo1) q.bask p.bask [2 ~2024.1.2] %.y *cass:clay hist1)
+    (~(record si:nexus silo1) q.bask p.bask 0v0 [2 ~2024.1.2] %.y *cass:clay hist1)
   ?>  =(1 refs:(~(got by nouns.silo2) lobe))
   ::  Drop all hist refs
   =/  silo3=silo:nexus  (~(drop-hist si:nexus silo2) hist2)
@@ -951,7 +951,7 @@
   =/  =blot:tarball  [/ %txt]
   =/  =born:nexus  (make-grub-born / %myfile lobe blot [1 now])
   =/  [new-born=born:nexus new-silo=silo:nexus]
-    (record-trees:nexus born *silo:nexus *sand:nexus *ball:tarball now /)
+    (record-trees:nexus born *silo:nexus *sand:nexus *code:nexus *ball:tarball now /)
   ::  Fold should have bumped
   =/  node  (need (get-node new-born /))
   ;:  weld
@@ -975,10 +975,10 @@
   =/  =lobe:clay  `@uvI`(sham 'hello')
   =/  =born:nexus  (make-grub-born / %myfile lobe [/ %txt] [1 now])
   =/  [born1=born:nexus silo1=silo:nexus]
-    (record-trees:nexus born *silo:nexus *sand:nexus *ball:tarball now /)
+    (record-trees:nexus born *silo:nexus *sand:nexus *code:nexus *ball:tarball now /)
   ::  Call again — nothing changed
   =/  [born2=born:nexus silo2=silo:nexus]
-    (record-trees:nexus born1 silo1 *sand:nexus *ball:tarball now /)
+    (record-trees:nexus born1 silo1 *sand:nexus *code:nexus *ball:tarball now /)
   ::  Fold should still be 1, not 2
   =/  node  (need (get-node born2 /))
   ;:  weld
@@ -993,7 +993,7 @@
   =/  lobe1=lobe:clay  `@uvI`(sham 'first')
   =/  =born:nexus  (make-grub-born / %myfile lobe1 [/ %txt] [1 now])
   =/  [born1=born:nexus silo1=silo:nexus]
-    (record-trees:nexus born *silo:nexus *sand:nexus *ball:tarball now /)
+    (record-trees:nexus born *silo:nexus *sand:nexus *code:nexus *ball:tarball now /)
   ::  Simulate file change: update hist with new lobe at new cass
   =/  lobe2=lobe:clay  `@uvI`(sham 'second')
   =/  new-cass=cass:clay  [2 ~2024.1.2]
@@ -1004,7 +1004,7 @@
   =/  born2=born:nexus
     (~(put of born1) / born1-node(file (~(put by file.born1-node) %myfile new-sok)))
   =/  [born3=born:nexus silo2=silo:nexus]
-    (record-trees:nexus born2 silo1 *sand:nexus *ball:tarball now /)
+    (record-trees:nexus born2 silo1 *sand:nexus *code:nexus *ball:tarball now /)
   ::  Fold should now be 2
   =/  node  (need (get-node born3 /))
   ;:  weld
@@ -1019,7 +1019,7 @@
   =/  =lobe:clay  `@uvI`(sham 'hello')
   =/  =born:nexus  (make-grub-born /a %myfile lobe [/ %txt] [1 now])
   =/  [new-born=born:nexus new-silo=silo:nexus]
-    (record-trees:nexus born *silo:nexus *sand:nexus *ball:tarball now /a)
+    (record-trees:nexus born *silo:nexus *sand:nexus *code:nexus *ball:tarball now /a)
   ::  /a should have fold=1
   =/  a-node  (need (get-node new-born /a))
   ::  / should also have fold=1 (parent got a tree too)
@@ -1049,7 +1049,7 @@
   =/  =weir:nexus  [make=~ poke=(sy ~[[%& [%| /a]]]) peek=~]
   =/  =sand:nexus  (~(put of *sand:nexus) /a weir)
   =/  [new-born=born:nexus new-silo=silo:nexus]
-    (record-trees:nexus born *silo:nexus sand *ball:tarball now /)
+    (record-trees:nexus born *silo:nexus sand *code:nexus *ball:tarball now /)
   ::  Root's tree should have /a's weir
   =/  root-node  (need (get-node new-born /))
   =/  root-tree-lobe=lobe:clay
@@ -1083,7 +1083,7 @@
   =.  born  (add-grub born / %beta lobe2 [/ %hoon] [1 now])
   =.  born  (add-grub born / %gamma lobe3 [/ %json] [1 now])
   =/  [new-born=born:nexus new-silo=silo:nexus]
-    (record-trees:nexus born *silo:nexus *sand:nexus *ball:tarball now /)
+    (record-trees:nexus born *silo:nexus *sand:nexus *code:nexus *ball:tarball now /)
   =/  node  (need (get-node new-born /))
   =/  tree-lobe=lobe:clay
     =/  pv=pace:hist:nexus  (need (get:hon:hist:nexus fold.node (need (top:hist:nexus fold.node))))
@@ -1113,7 +1113,7 @@
   =.  born  (add-grub born /sub %childfile lobe2 [/ %txt] [1 now])
   ::  Record from /sub up
   =/  [new-born=born:nexus new-silo=silo:nexus]
-    (record-trees:nexus born *silo:nexus *sand:nexus *ball:tarball now /sub)
+    (record-trees:nexus born *silo:nexus *sand:nexus *code:nexus *ball:tarball now /sub)
   =/  root-node  (need (get-node new-born /))
   =/  root-tree-lobe=lobe:clay
     =/  pv=pace:hist:nexus  (need (get:hon:hist:nexus fold.root-node (need (top:hist:nexus fold.root-node))))
@@ -1161,7 +1161,7 @@
   =/  s  ~(. si:nexus *silo:nexus)
   =/  [noun-lobe=lobe:clay silo1=silo:nexus]  (put:s 'hello')
   =/  [leaf-lobe=lobe:clay silo2=silo:nexus]
-    (~(put-ject si:nexus silo1) [%leaf [/ %txt] noun-lobe])
+    (~(put-ject si:nexus silo1) [%leaf noun-lobe [[/ %txt] 0v0]])
   =/  =tree:nexus
     [~ (~(put by *(map @ta lobe:clay)) %foo leaf-lobe) ~]
   =/  [* silo3=silo:nexus]  (~(put-ject si:nexus silo2) [%tree tree])
@@ -1185,7 +1185,7 @@
   =/  s  ~(. si:nexus *silo:nexus)
   =/  [noun-lobe=lobe:clay silo1=silo:nexus]  (put:s 'hello')
   =/  [leaf-lobe=lobe:clay silo2=silo:nexus]
-    (~(put-ject si:nexus silo1) [%leaf [/ %txt] noun-lobe])
+    (~(put-ject si:nexus silo1) [%leaf noun-lobe [[/ %txt] 0v0]])
   =/  =tree:nexus
     [~ (~(put by *(map @ta lobe:clay)) %foo leaf-lobe) ~]
   =/  [=lobe:clay silo3=silo:nexus]  (~(put-ject si:nexus silo2) [%tree tree])
@@ -1246,7 +1246,7 @@
   =/  s  ~(. si:nexus *silo:nexus)
   =/  [noun-lobe=lobe:clay silo1=silo:nexus]  (put:s 'hello')
   =/  [leaf-lobe=lobe:clay silo2=silo:nexus]
-    (~(put-ject si:nexus silo1) [%leaf [/ %txt] noun-lobe])
+    (~(put-ject si:nexus silo1) [%leaf noun-lobe [[/ %txt] 0v0]])
   =/  =tree:nexus
     [~ (~(put by *(map @ta lobe:clay)) %foo leaf-lobe) ~]
   =/  [tree-lobe=lobe:clay silo3=silo:nexus]
@@ -1279,7 +1279,7 @@
   =/  s  ~(. si:nexus *silo:nexus)
   =/  [noun-lobe=lobe:clay silo1=silo:nexus]  (put:s 'data')
   =/  [leaf-lobe=lobe:clay silo2=silo:nexus]
-    (~(put-ject si:nexus silo1) [%leaf [/ %txt] noun-lobe])
+    (~(put-ject si:nexus silo1) [%leaf noun-lobe [[/ %txt] 0v0]])
   =/  child=tree:nexus
     [~ (~(put by *(map @ta lobe:clay)) %f leaf-lobe) ~]
   =/  [child-lobe=lobe:clay silo3=silo:nexus]
@@ -1303,7 +1303,7 @@
   =/  s  ~(. si:nexus *silo:nexus)
   =/  [noun-lobe=lobe:clay silo1=silo:nexus]  (put:s 'data')
   =/  [leaf-lobe=lobe:clay silo2=silo:nexus]
-    (~(put-ject si:nexus silo1) [%leaf [/ %txt] noun-lobe])
+    (~(put-ject si:nexus silo1) [%leaf noun-lobe [[/ %txt] 0v0]])
   =/  child=tree:nexus
     [~ (~(put by *(map @ta lobe:clay)) %f leaf-lobe) ~]
   =/  [child-lobe=lobe:clay silo3=silo:nexus]

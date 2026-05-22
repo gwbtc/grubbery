@@ -448,11 +448,11 @@
 ::
 +$  born  (axal [fold=hist file=(map @ta hist)])
 +$  leaf
-  $:  =blot:tarball
-      =lobe:clay
+  $:  =lobe:clay
+      mark=[=blot:tarball ckey=@uv]
   ==
 +$  tree
-  $:  nek=(unit neck:tarball)
+  $:  nek=(unit [=neck:tarball ckey=@uv])
       fil=(map @ta lobe:clay)
       dir=(map @ta [=lobe:clay weir=(unit weir)])
   ==
@@ -502,7 +502,7 @@
 ::  a level produces the same hash.
 ::
 ++  record-trees
-  |=  [=born =silo =sand =ball:tarball now=@da dir=path]
+  |=  [=born =silo =sand =code =ball:tarball now=@da dir=path]
   ^-  [^born ^silo]
   =/  sub-born=^born  (~(dip of born) dir)
   =/  boo  ~(. bo now [born ball])
@@ -510,10 +510,25 @@
   =/  top-hist  top:hist
   =/  node=[fold=hist file=(map @ta hist)]
     (fall fil.sub-born default-node:boo)
-  ::  nek: nexus identity from ball at this directory
-  =/  nek=(unit neck:tarball)
+  ::  nek: nexus identity + ckey from ball at this directory
+  =/  nek=(unit [=neck:tarball ckey=@uv])
     =/  sub-ball=ball:tarball  (~(dip of ball) dir)
-    ?~(fil.sub-ball ~ neck.u.fil.sub-ball)
+    ?~  fil.sub-ball  ~
+    ?~  neck.u.fil.sub-ball  ~
+    =/  =neck:tarball  u.neck.u.fil.sub-ball
+    =/  nex-ns=(unit fold:tarball)
+      =/  pax=path  (weld dir path.neck)
+      |-
+      ?~  pax  ~
+      ?:  (~(has by code) pax)  `pax
+      $(pax (snip `path`pax))
+    =/  nex-ckey=@uv
+      ?~  nex-ns  0v0
+      =/  =lode  (~(got by code) u.nex-ns)
+      =/  node=(unit (map @ta @uv))  (~(get of refs.lode) (slag (lent u.nex-ns) (weld dir path.neck)))
+      ?~  node  0v0
+      (fall (~(get by u.node) name.neck) 0v0)
+    `[neck nex-ckey]
   ::  fil: each grub's current ject-lobe from hist (skip deleted/tombed)
   =/  fil=(map @ta lobe:clay)
     %-  ~(rep by file.node)
@@ -835,6 +850,7 @@
   ++  record
     |=  $:  =noun
             =blot:tarball
+            ckey=@uv
             =cass:clay
             gain=?
             file=cass:clay
@@ -844,7 +860,7 @@
     ::  Store noun, then wrap as leaf ject
     =/  [noun-lobe=lobe:clay new-silo=^silo]  (put noun)
     =/  [ject-lobe=lobe:clay newer-silo=^silo]
-      (~(put-ject si new-silo) [%leaf blot noun-lobe])
+      (~(put-ject si new-silo) [%leaf noun-lobe [blot ckey]])
     ?:  gain
       [noun-lobe newer-silo (put:hon:^hist hist cass [%live `ject-lobe])]
     ::  !gain: tombstone previous live version, append new
