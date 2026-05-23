@@ -50,7 +50,7 @@
     ?~  pax  ~
     `[(snip `path`pax) (rear pax)]
   =/  =mime  [/text/plain (as-octs:mimes:html u.content-raw)]
-  =/  =make:remote:nexus  |+[%.n [[/ %mime] mime] dest-blot]
+  =/  =make:remote:nexus  |+[[[/ %mime] mime] dest-blot]
   =/  req=load:remote:nexus
     [[/remote-make %& pax nam] %make make]
   ;<  ~  bind:m

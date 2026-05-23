@@ -7,15 +7,15 @@
 =<  ^-  nexus:nexus
     |%
     ++  on-load
-      |=  [=sand:nexus =gain:nexus =ball:tarball]
-      ^-  [sand:nexus gain:nexus ball:tarball]
+      |=  [=sand:nexus =ball:tarball]
+      ^-  [sand:nexus ball:tarball]
       =/  =ver:loader  (get-ver:loader ball)
       ?+  ver  !!
           ?(~ [~ %0])
-        %+  spin:loader  [sand gain ball]
+        %+  spin:loader  [sand ball]
         :~  (ver-row:loader 0)
-            [%fall %& [/ %'main.sig'] %.n [~ [/ %sig] !>(~)]]
-            [%fall %| /requests [~ ~] [~ ~] empty-dir:loader]
+            [%fall %& [/ %'main.sig'] [~ [/ %sig] !>(~)]]
+            [%fall %| /requests [~ ~] empty-dir:loader]
         ==
       ==
     ::
@@ -116,8 +116,8 @@
     =/  nam=@ta  (crip (trip name))
     =/  who-road=road:tarball  (abs-file /usergroups/[nam] %'who.ships')
     =/  how-road=road:tarball  (abs-file /usergroups/[nam] %'how.weir')
-    ;<  *  bind:m  (make-soft:io who-road |+[%.n [[/ %ships] !>(*(set @p))] ~])
-    ;<  *  bind:m  (make-soft:io how-road |+[%.n [[/ %weir] !>(*weir:nexus)] ~])
+    ;<  *  bind:m  (make-soft:io who-road |+[[[/ %ships] !>(*(set @p))] ~])
+    ;<  *  bind:m  (make-soft:io how-road |+[[[/ %weir] !>(*weir:nexus)] ~])
     (redirect eyre-id)
   ::
       [%delete ~]

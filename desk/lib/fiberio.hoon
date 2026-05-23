@@ -423,25 +423,6 @@
     [%fail %sand-failed u.err.u.in]
   ==
 ::
-++  gain
-  |=  [=road:tarball flag=?]
-  =/  m  (fiber ,~)
-  ^-  form:m
-  ;<  ~  bind:m  (send-dart %node /gain road %gain flag)
-  |=  input
-  :+  ~  state
-  ?+  in  [%skip ~]
-      ~  [%wait ~]
-      [~ %veto *]
-    [%fail (veto-error dart.u.in)]
-      [~ %gain * *]
-    ?.  =(/gain wire.u.in)
-      [%skip ~]
-    ?~  err.u.in
-      [%done ~]
-    [%fail %gain-failed u.err.u.in]
-  ==
-::
 ++  lose
   |=  [=road:tarball =lose:nexus]
   =/  m  (fiber ,~)
@@ -1158,7 +1139,7 @@
   ;<  =seen:nexus  bind:m  (peek src ~)
   ?.  ?=([%& %file *] seen)
     ~|(%copy-grub-src-not-found !!)
-  (make dst |+[%.n sage.p.seen ~])
+  (make dst |+[sage.p.seen ~])
 ::  +copy-fold: copy a directory from src to dst
 ::
 ++  copy-fold
@@ -1168,7 +1149,7 @@
   ;<  =seen:nexus  bind:m  (peek src ~)
   ?.  ?=([%& %ball *] seen)
     ~|(%copy-fold-src-not-found !!)
-  (make dst &+[sand.p.seen gain.p.seen ball.p.seen])
+  (make dst &+[sand.p.seen ball.p.seen])
 ::  +move-grub: move a file from src to dst (copy + delete)
 ::
 ++  move-grub
@@ -1264,7 +1245,7 @@
     =/  [eyre-id=@ta src=@p req=inbound-request:eyre]
       !<([eyre-id=@ta @p inbound-request:eyre] q.sage)
     ~&  >  [label %dispatch eyre-id url.request.req]
-    ;<  ~  bind:m  (make [%| 0 %& /requests eyre-id] |+[%.n [[/ %http-request] !>([src req])] ~])
+    ;<  ~  bind:m  (make [%| 0 %& /requests eyre-id] |+[[[/ %http-request] !>([src req])] ~])
     $
       %handle-http-cancel
     =/  eyre-id=@ta  !<(@ta q.sage)

@@ -5,15 +5,15 @@
 =<  ^-  nexus:nexus
     |%
     ++  on-load
-      |=  [=sand:nexus =gain:nexus =ball:tarball]
-      ^-  [sand:nexus gain:nexus ball:tarball]
+      |=  [=sand:nexus =ball:tarball]
+      ^-  [sand:nexus ball:tarball]
       =/  =ver:loader  (get-ver:loader ball)
       ?+  ver  !!
           ?(~ [~ %0])
-        %+  spin:loader  [sand gain ball]
+        %+  spin:loader  [sand ball]
         :~  (ver-row:loader 0)
-            [%fall %& [/ %'main.sig'] %.n [~ [/ %sig] !>(~)]]
-            [%fall %| /requests [~ ~] [~ ~] empty-dir:loader]
+            [%fall %& [/ %'main.sig'] [~ [/ %sig] !>(~)]]
+            [%fall %| /requests [~ ~] empty-dir:loader]
         ==
       ==
     ::
@@ -243,7 +243,7 @@
       (bind (parse-extension:tarball dir-name) ext-to-neck:tarball)
     =/  folder-path=path  (snoc tree-path dir-name)
     =/  new-ball=ball:tarball  [`[~ dir-neck ~] ~]
-    ;<  ~  bind:m  (make:io [%& %| folder-path] &+[[~ ~] [~ ~] new-ball])
+    ;<  ~  bind:m  (make:io [%& %| folder-path] &+[[~ ~] new-ball])
     ;<  ~  bind:m  (send-simple:srv eyre-id [[303 ~[['location' (crip redirect-url)]]] ~])
     (pure:m ~)
   ::
@@ -260,7 +260,7 @@
     ?~  sym
       ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'Invalid symlink target')])
       (pure:m ~)
-    ;<  ~  bind:m  (make:io [%& %& tree-path linkname] |+[%.n [[/ %symlink] !>(u.sym)] ~])
+    ;<  ~  bind:m  (make:io [%& %& tree-path linkname] |+[[[/ %symlink] !>(u.sym)] ~])
     ;<  ~  bind:m  (send-simple:srv eyre-id [[303 ~[['location' (crip redirect-url)]]] ~])
     (pure:m ~)
   ::
@@ -429,14 +429,14 @@
   ?^  files
     =/  [name=@ta =content:tarball]  i.files
     ;<  ~  bind:m
-      (make:io [%& %& tree-path name] |+[%.n sage.content ~])
+      (make:io [%& %& tree-path name] |+[sage.content ~])
     $(files t.files)
   =/  dirs=(list [@ta ball:tarball])  ~(tap by dir.new)
   |-
   ?^  dirs
     =/  [name=@ta sub=ball:tarball]  i.dirs
     ;<  ~  bind:m
-      (make:io [%& %| (snoc tree-path name)] &+[[~ ~] [~ ~] sub])
+      (make:io [%& %| (snoc tree-path name)] &+[[~ ~] sub])
     $(dirs t.dirs)
   =/  redirect-url=tape
     ?~(tree-path "/grubbery/ball" "/grubbery/ball{(trip (spat tree-path))}")

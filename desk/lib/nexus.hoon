@@ -63,14 +63,13 @@
 +$  pant  (list [dir=@ta neck=(unit neck:tarball)])
 +$  here  [=pant name=@ta root=?]
 ::
-+$  gain  (axal (map @ta ?))
-+$  make  (each [=sand =gain =ball:tarball] [gain=? =sage:tarball blot=(unit blot:tarball)])
++$  make  (each [=sand =ball:tarball] [=sage:tarball blot=(unit blot:tarball)])
 +$  kept  (set bend:tarball)
 ::
 +$  wave  (map lane:tarball cass:clay)
 +$  view
-  $%  [%ball =sand =gain =born ball=ball:tarball]
-      [%file =hist gain=? =sage:tarball]
+  $%  [%ball =sand =born ball=ball:tarball]
+      [%file =hist =sage:tarball]
       [%none ~]
   ==
 +$  seen  (each view tang)
@@ -90,7 +89,6 @@
       [%cull ~]                 :: delete grub or directory
       [%sand weir=(unit weir)]  :: set weir
       [%load ~]                 :: trigger on-load for a nexus (folds only)
-      [%gain flag=?]            :: set gain flag (recursive on directories)
       [%peek blot=(unit blot:tarball) case=(unit case) clam=?]
                                        :: read a grub
                                        :: blot: convert file sage to this blot
@@ -204,7 +202,6 @@
         [%pack =wire err=(unit tang)] :: response from poke; tang is generic if not allowed to peek
         [%sand =wire err=(unit tang)] :: response to sand
         [%load =wire err=(unit tang)] :: response to load
-        [%gain =wire err=(unit tang)] :: response to gain
         [%lost =wire err=(unit tang)] :: response to lose
         [%seek =wire res=(each (list [=rail:tarball =cass:clay]) tang)] :: response to seek
         [%peep =wire res=(each (list [=cass:clay =sage:tarball]) tang)] :: response to peep
@@ -850,22 +847,14 @@
       ?~  bang.tree.jt  silo
       (~(drop si silo) u.bang.tree.jt)
     ==
-    ::  Record a noun: insert into silo, update hist per gain flag.
+    ::  Record a noun: insert into silo, append to hist.
   ::  Returns [lobe new-silo new-hist].
-  ::
-  ::  gain=%.y: append to hist, keeping full history.
-  ::  gain=%.n: don't accumulate history. If the current live
-  ::    version (identified by the file cass) is in hist, drop its
-  ::    silo ref and remove it. Older history is preserved —
-  ::    gain only controls what happens live, not retroactively.
   ::
   ++  record
     |=  $:  =noun
             =blot:tarball
             ckey=@uv
             =cass:clay
-            gain=?
-            file=cass:clay
             =hist
         ==
     ^-  [lobe:clay ^silo ^hist]
@@ -873,20 +862,7 @@
     =/  [noun-lobe=lobe:clay new-silo=^silo]  (put noun)
     =/  [ject-lobe=lobe:clay newer-silo=^silo]
       (~(put-ject si new-silo) [%leaf noun-lobe [blot ckey] ~])
-    ?:  gain
-      [noun-lobe newer-silo (put:hon:^hist hist cass [%live `ject-lobe])]
-    ::  !gain: tombstone previous live version, append new
-    =/  prev=(unit pace:^hist)  (get:hon:^hist hist file)
-    =.  newer-silo
-      ?~  prev  newer-silo
-      =/  pv=pace:^hist  u.prev
-      ?.  ?=(%live -.pv)  newer-silo
-      ?~  p.pv  newer-silo
-      (~(drop-ject si newer-silo) u.p.pv)
-    =/  tombed
-      ?~  prev  hist
-      (put:hon:^hist hist file [%tomb ~])
-    [noun-lobe newer-silo (put:hon:^hist tombed cass [%live `ject-lobe])]
+    [noun-lobe newer-silo (put:hon:^hist hist cass [%live `ject-lobe])]
   --
 ::  +stamp-mtimes: stamp born datetimes into ball metadata as mtime
 ::
@@ -1083,7 +1059,7 @@
             [%peek blot=(unit blot:tarball)]
         ==
     ==
-  +$  make  (each [=sand =gain =ball:tarball] [gain=? =bask:tarball blot=(unit blot:tarball)])
+  +$  make  (each [=sand =ball:tarball] [=bask:tarball blot=(unit blot:tarball)])
   +$  intake
     $:  =wire
         $%  [%peek ~] :: TBD
@@ -1218,8 +1194,8 @@
   :: this nexus is initially created
   ::
   ++  on-load
-    |~  [sand gain ball:tarball]
-    [*sand *gain *ball:tarball]
+    |~  [sand ball:tarball]
+    [*sand *ball:tarball]
   :: every grub has a running process alongside its file content.
   :: processes should be able to recover proper operation based on
   ::   state alone, even when restarted. this is not guaranteed and
@@ -1356,17 +1332,6 @@
     (pairs:enjs:format ~[['dirs' subdirs]])
   %-  pairs:enjs:format
   :~  ['weir' (weir-to-json u.fil.s)]
-      ['dirs' subdirs]
-  ==
-::
-++  gain-to-json
-  |=  g=gain
-  ^-  json
-  =/  subdirs=json  [%o (~(run by dir.g) gain-to-json)]
-  ?~  fil.g
-    (pairs:enjs:format ~[['dirs' subdirs]])
-  %-  pairs:enjs:format
-  :~  ['node' [%o (~(run by u.fil.g) |=(f=? b+f))]]
       ['dirs' subdirs]
   ==
 --

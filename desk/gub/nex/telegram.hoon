@@ -6,16 +6,16 @@
 =<  ^-  nexus:nexus
     |%
     ++  on-load
-      |=  [=sand:nexus =gain:nexus =ball:tarball]
-      ^-  [sand:nexus gain:nexus ball:tarball]
+      |=  [=sand:nexus =ball:tarball]
+      ^-  [sand:nexus ball:tarball]
       =/  =ver:loader  (get-ver:loader ball)
       ?+  ver  !!
           ?(~ [~ %0])
-        %+  spin:loader  [sand gain ball]
+        %+  spin:loader  [sand ball]
         :~  (ver-row:loader 0)
-            [%fall %& [/ %'main.sig'] %.n [~ [/ %sig] !>(~)]]
-            [%over %& [/ui %'manage.html'] %.n [~ [/ %html] !>((crip (en-xml:html (manage-page ~))))]]
-            [%fall %| /bots [~ ~] [~ ~] empty-dir:loader]
+            [%fall %& [/ %'main.sig'] [~ [/ %sig] !>(~)]]
+            [%over %& [/ui %'manage.html'] [~ [/ %html] !>((crip (en-xml:html (manage-page ~))))]]
+            [%fall %| /bots [~ ~] empty-dir:loader]
         ==
       ==
     ::
@@ -71,7 +71,7 @@
             $
           =/  new-ball=ball:tarball  [`[~ `[/ %telegram-bot] ~] ~]
           ;<  ~  bind:m
-            (make:io [%| 0 %| /bots/[dir-name]] &+[*sand:nexus *gain:nexus new-ball])
+            (make:io [%| 0 %| /bots/[dir-name]] &+[*sand:nexus new-ball])
           ::  write the bot token into its config
           =/  cfg=json
             (pairs:enjs:format ~[['bot-token' s+bot-token]])

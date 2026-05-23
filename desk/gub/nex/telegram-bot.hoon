@@ -9,24 +9,24 @@
 =<  ^-  nexus:nexus
     |%
     ++  on-load
-      |=  [=sand:nexus =gain:nexus =ball:tarball]
-      ^-  [sand:nexus gain:nexus ball:tarball]
+      |=  [=sand:nexus =ball:tarball]
+      ^-  [sand:nexus ball:tarball]
       =/  =ver:loader  (get-ver:loader ball)
       =/  default-config=json
         %-  pairs:enjs:format
         ~[['bot-token' s+'']]
       ?+  ver  !!
           ?(~ [~ %0])
-        %+  spin:loader  [sand gain ball]
+        %+  spin:loader  [sand ball]
         :~  (ver-row:loader 0)
-            [%fall %& [/ %'config.json'] %.n [~ [/ %json] !>(default-config)]]
-            [%fall %& [/ %'offset.ud'] %.n [~ [/ %ud] !>(0)]]
-            [%fall %& [/ %'send.sig'] %.n [~ [/ %sig] !>(~)]]
-            [%fall %& [/ %'poller.sig'] %.n [~ [/ %sig] !>(~)]]
-            [%fall %| /messages [~ ~] [~ ~] empty-dir:loader]
-            [%fall %| /ui/sse [~ ~] [~ ~] empty-dir:loader]
-            [%over %& [/ui/sse %'data.html'] %.n [~ [/ %html] !>((crip (en-xml:html (sse-data ~ ~))))]]
-            [%over %& [/ui %'chat.html'] %.n [~ [/ %html] !>((crip (en-xml:html (chat-page "" *(map @t @t) *(list json)))))]]
+            [%fall %& [/ %'config.json'] [~ [/ %json] !>(default-config)]]
+            [%fall %& [/ %'offset.ud'] [~ [/ %ud] !>(0)]]
+            [%fall %& [/ %'send.sig'] [~ [/ %sig] !>(~)]]
+            [%fall %& [/ %'poller.sig'] [~ [/ %sig] !>(~)]]
+            [%fall %| /messages [~ ~] empty-dir:loader]
+            [%fall %| /ui/sse [~ ~] empty-dir:loader]
+            [%over %& [/ui/sse %'data.html'] [~ [/ %html] !>((crip (en-xml:html (sse-data ~ ~))))]]
+            [%over %& [/ui %'chat.html'] [~ [/ %html] !>((crip (en-xml:html (chat-page "" *(map @t @t) *(list json)))))]]
         ==
       ==
     ::
@@ -359,7 +359,7 @@
     (peek:io file-road ~)
   ?:  ?=([%& %file *] seen)
     (over:io file-road [[/ %json] !>(dat)])
-  (make:io file-road [%| gain=%.n [[/ %json] !>(dat)] ~])
+  (make:io file-road [%| [[/ %json] !>(dat)] ~])
 ::
 ::  Extract chat names and messages from the messages/ directory view.
 ::  Files live in fil.ball.view → contents (not dir, which is subdirs).

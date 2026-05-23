@@ -19,8 +19,8 @@
 =<  ^-  nexus:nexus
     |%
     ++  on-load
-      |=  [=sand:nexus =gain:nexus =ball:tarball]
-      ^-  [sand:nexus gain:nexus ball:tarball]
+      |=  [=sand:nexus =ball:tarball]
+      ^-  [sand:nexus ball:tarball]
       =/  =ver:loader  (get-ver:loader ball)
       =/  default-config=json
         %-  pairs:enjs:format
@@ -30,26 +30,26 @@
         ==
       ?+  ver  !!
           ?(~ [~ %0])
-        %+  spin:loader  [sand gain ball]
+        %+  spin:loader  [sand ball]
         :~  (ver-row:loader 0)
-            [%fall %& [/ %'config.json'] %.n [~ [/ %json] !>(default-config)]]
-            [%fall %& [/actions %'sync.sig'] %.n [~ [/ %sig] !>(~)]]
-            [%fall %& [/actions %'switch.sig'] %.n [~ [/ %sig] !>(~)]]
-            [%fall %& [/actions %'checkout.sig'] %.n [~ [/ %sig] !>(~)]]
-            [%fall %& [/actions %'diff.sig'] %.n [~ [/ %sig] !>(~)]]
-            [%fall %& [/actions %'add.sig'] %.n [~ [/ %sig] !>(~)]]
-            [%fall %& [/actions %'commit.sig'] %.n [~ [/ %sig] !>(~)]]
-            [%fall %& [/actions %'import.sig'] %.n [~ [/ %sig] !>(~)]]
-            [%fall %& [/actions %'branch.sig'] %.n [~ [/ %sig] !>(~)]]
-            [%fall %& [/actions %'delete-branch.sig'] %.n [~ [/ %sig] !>(~)]]
-            [%fall %& [/actions %'stash.sig'] %.n [~ [/ %sig] !>(~)]]
-            [%fall %& [/actions %'stash-pop.sig'] %.n [~ [/ %sig] !>(~)]]
-            [%fall %& [/actions %'push.sig'] %.n [~ [/ %sig] !>(~)]]
-            [%fall %| /ui [~ ~] [~ ~] empty-dir:loader]
-            [%fall %& [/ui %'status.json'] %.n [~ [/ %json] !>((pairs:enjs:format ~[['status' s+'idle']]))]]
-            [%fall %& [/ui %'commit.json'] %.n [~ [/ %json] !>([%a ~])]]
-            [%over %& [/ %'page.html'] %.n [~ [/ %html] !>((crip (en-xml:html (repo-page '' '' '' ~ ~ [%a ~] [%o ~] clean-status))))]]
-            [%fall %| /data [~ ~] [~ ~] [`[~ `[/git %data] ~] ~]]
+            [%fall %& [/ %'config.json'] [~ [/ %json] !>(default-config)]]
+            [%fall %& [/actions %'sync.sig'] [~ [/ %sig] !>(~)]]
+            [%fall %& [/actions %'switch.sig'] [~ [/ %sig] !>(~)]]
+            [%fall %& [/actions %'checkout.sig'] [~ [/ %sig] !>(~)]]
+            [%fall %& [/actions %'diff.sig'] [~ [/ %sig] !>(~)]]
+            [%fall %& [/actions %'add.sig'] [~ [/ %sig] !>(~)]]
+            [%fall %& [/actions %'commit.sig'] [~ [/ %sig] !>(~)]]
+            [%fall %& [/actions %'import.sig'] [~ [/ %sig] !>(~)]]
+            [%fall %& [/actions %'branch.sig'] [~ [/ %sig] !>(~)]]
+            [%fall %& [/actions %'delete-branch.sig'] [~ [/ %sig] !>(~)]]
+            [%fall %& [/actions %'stash.sig'] [~ [/ %sig] !>(~)]]
+            [%fall %& [/actions %'stash-pop.sig'] [~ [/ %sig] !>(~)]]
+            [%fall %& [/actions %'push.sig'] [~ [/ %sig] !>(~)]]
+            [%fall %| /ui [~ ~] empty-dir:loader]
+            [%fall %& [/ui %'status.json'] [~ [/ %json] !>((pairs:enjs:format ~[['status' s+'idle']]))]]
+            [%fall %& [/ui %'commit.json'] [~ [/ %json] !>([%a ~])]]
+            [%over %& [/ %'page.html'] [~ [/ %html] !>((crip (en-xml:html (repo-page '' '' '' ~ ~ [%a ~] [%o ~] clean-status))))]]
+            [%fall %| /data [~ ~] [`[~ `[/git %data] ~] ~]]
         ==
       ==
     ::
@@ -782,7 +782,7 @@
   ;<  exists=?  bind:m  (peek-exists:io road)
   ?:  exists
     (over:io road sage)
-  (make:io road |+[%.n sage ~])
+  (make:io road |+[sage ~])
 ::
 ::  +do-full-clone: full clone from discovery
 ::

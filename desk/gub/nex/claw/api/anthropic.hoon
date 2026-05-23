@@ -16,8 +16,8 @@
 =<  ^-  nexus:nexus
     |%
     ++  on-load
-      |=  [=sand:nexus =gain:nexus =ball:tarball]
-      ^-  [sand:nexus gain:nexus ball:tarball]
+      |=  [=sand:nexus =ball:tarball]
+      ^-  [sand:nexus ball:tarball]
       =/  =ver:loader  (get-ver:loader ball)
       =/  default-rates=json
         %-  pairs:enjs:format
@@ -56,14 +56,14 @@
         ==
       ?+  ver  !!
           ?(~ [~ %0])
-        %+  spin:loader  [sand gain ball]
+        %+  spin:loader  [sand ball]
         :~  (ver-row:loader 0)
-            [%fall %& [/ %'main.sig'] %.n [~ [/ %sig] !>(~)]]
-            [%fall %& [/ %'config.json'] %.n [~ [/ %json] !>(default-config)]]
-            [%fall %& [/ %'rates.json'] %.n [~ [/ %json] !>(default-rates)]]
-            [%fall %& [/ %'usage.json'] %.n [~ [/ %json] !>(default-usage)]]
-            [%fall %| /calls [~ ~] [~ ~] empty-dir:loader]
-            [%over %& [/ %'page.html'] %.n [~ [/ %html] !>((crip (en-xml:html usage-page)))]]
+            [%fall %& [/ %'main.sig'] [~ [/ %sig] !>(~)]]
+            [%fall %& [/ %'config.json'] [~ [/ %json] !>(default-config)]]
+            [%fall %& [/ %'rates.json'] [~ [/ %json] !>(default-rates)]]
+            [%fall %& [/ %'usage.json'] [~ [/ %json] !>(default-usage)]]
+            [%fall %| /calls [~ ~] empty-dir:loader]
+            [%over %& [/ %'page.html'] [~ [/ %html] !>((crip (en-xml:html usage-page)))]]
         ==
       ==
     ::
@@ -99,7 +99,7 @@
               ['request' u.body]
               ['from' s+caller]
           ==
-        ;<  ~  bind:m  (make:io call-road |+[%.n [[/ %json] !>(call-content)] ~])
+        ;<  ~  bind:m  (make:io call-road |+[[[/ %json] !>(call-content)] ~])
         $
           ::  /calls/[id].json: read request, make HTTP call, write response
           ::

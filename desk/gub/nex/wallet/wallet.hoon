@@ -17,18 +17,18 @@
 =<  ^-  nexus:nexus
     |%
     ++  on-load
-      |=  [=sand:nexus =gain:nexus =ball:tarball]
-      ^-  [sand:nexus gain:nexus ball:tarball]
+      |=  [=sand:nexus =ball:tarball]
+      ^-  [sand:nexus ball:tarball]
       =/  =ver:loader  (get-ver:loader ball)
       ?+  ver  !!
           ?(~ [~ %0])
-        %+  spin:loader  [sand gain ball]
+        %+  spin:loader  [sand ball]
         :~  (ver-row:loader 0)
             [%stay %& [/ %'main.wallet_wallet']]
-            [%fall %| /ui/sse [~ ~] [~ ~] empty-dir:loader]
-            [%over %& [/ui/sse %'accounts.html'] %.n [~ [/ %html] !>((crip (en-xml:html ;div;)))]]
-            [%over %& [/ui/sse %'error.html'] %.n [~ [/ %html] !>((crip (en-xml:html ;div;)))]]
-            [%over %& [/ui/sse %'loading.html'] %.n [~ [/ %html] !>((crip (en-xml:html ;div;)))]]
+            [%fall %| /ui/sse [~ ~] empty-dir:loader]
+            [%over %& [/ui/sse %'accounts.html'] [~ [/ %html] !>((crip (en-xml:html ;div;)))]]
+            [%over %& [/ui/sse %'error.html'] [~ [/ %html] !>((crip (en-xml:html ;div;)))]]
+            [%over %& [/ui/sse %'loading.html'] [~ [/ %html] !>((crip (en-xml:html ;div;)))]]
             [%load %& [/ %'main.wallet_wallet'] [/ %'page.html'] data-to-page]
         ==
       ==
@@ -134,7 +134,7 @@
               (~(put by *(map @ta content:tarball)) %'data.wallet_account' [~ [/wallet %account] !>(acct)])
             =/  acct-ball=ball:tarball  [`acct-lump ~]
             ;<  err=(unit tang)  bind:m
-              (make-soft:io [%| 2 %| (snoc /accounts acct-dir)] &+[*sand:nexus *gain:nexus acct-ball])
+              (make-soft:io [%| 2 %| (snoc /accounts acct-dir)] &+[*sand:nexus acct-ball])
 
             ?^  err
               ;<  ~  bind:m
@@ -195,7 +195,7 @@
                   ['account-idx' (numb:enjs:format 0)]
               ==
             ;<  ~  bind:m
-              (make:io (cord-to-road:tarball './proc/discover.json') |+[%.n [[/ %json] !>(disc-json)] ~])
+              (make:io (cord-to-road:tarball './proc/discover.json') |+[[[/ %json] !>(disc-json)] ~])
             $
           ::
               %'cancel-discovery'
@@ -272,7 +272,7 @@
           (~(put by *(map @ta content:tarball)) %'data.wallet_account' [~ [/wallet %account] !>(acct)])
         =/  acct-ball=ball:tarball  [`acct-lump ~]
         ;<  err=(unit tang)  bind:m
-          (make-soft:io [%| 3 %| (snoc /accounts acct-dir)] &+[*sand:nexus *gain:nexus acct-ball])
+          (make-soft:io [%| 3 %| (snoc /accounts acct-dir)] &+[*sand:nexus acct-ball])
         ?^  err
           ~&(>>> [%discover %account-create-failed] (pure:m ~))
         ::  update wallet accounts map
@@ -285,7 +285,7 @@
           %-  pairs:enjs:format
           ~[['phase' s+'recv'] ['idx' (numb:enjs:format 0)] ['gap' (numb:enjs:format 0)]]
         ;<  ~  bind:m
-          (make:io (cord-to-road:tarball (crip "../../../accounts/{(trip acct-dir)}/proc/scan.json")) |+[%.n [[/ %json] !>(scan-json)] ~])
+          (make:io (cord-to-road:tarball (crip "../../../accounts/{(trip acct-dir)}/proc/scan.json")) |+[[[/ %json] !>(scan-json)] ~])
         ::  continue to next account
         $(account-idx +(account-idx))
       ==
@@ -474,12 +474,12 @@
   (fall (mole |.((ni:dejs:format (~(got jo:json-utils p.parsed) /'chain_stats'/'tx_count')))) 0)
 ::
 ++  data-to-page
-  |=  [gn=? ct=content:tarball]
-  ^-  [? content:tarball]
-  ?:  =(ct *content:tarball)  [%.n ct]
-  ?:  =([/ %boom] p.sage.ct)  [%.n ct]
+  |=  ct=content:tarball
+  ^-  content:tarball
+  ?:  =(ct *content:tarball)  ct
+  ?:  =([/ %boom] p.sage.ct)  ct
   =/  wal=wallet-data  !<(wallet-data q.sage.ct)
-  [%.n [~ [/ %html] !>((crip (en-xml:html (detail-page wal ~ ;div; ;div;))))]]
+  [~ [/ %html] !>((crip (en-xml:html (detail-page wal ~ ;div; ;div;))))]
 ::
 ++  extract-wallet
   |=  =seen:nexus

@@ -5,8 +5,8 @@
 =<  ^-  nexus:nexus
     |%
     ++  on-load
-      |=  [=sand:nexus =gain:nexus =ball:tarball]
-      ^-  [sand:nexus gain:nexus ball:tarball]
+      |=  [=sand:nexus =ball:tarball]
+      ^-  [sand:nexus ball:tarball]
       =/  =ver:loader  (get-ver:loader ball)
       =/  default-config=json
         %-  pairs:enjs:format
@@ -16,17 +16,17 @@
         ==
       ?+  ver  !!
           ?(~ [~ %0])
-        %+  spin:loader  [sand gain ball]
+        %+  spin:loader  [sand ball]
         :~  (ver-row:loader 0)
-            [%fall %& [/ %'config.json'] %.n [~ [/ %json] !>(default-config)]]
-            [%fall %& [/ %'messages.claude-messages'] %.n [~ [/ %claude-messages] !>(`messages`[%0 *((mop @ud message) lth)])]]
-            [%fall %& [/ %'custom-prompt.txt'] %.n [~ [/ %txt] !>(*wain)]]
-            [%fall %& [/ %'main.claude-registry'] %.n [~ [/ %claude-registry] !>(`registry`[%0 0 ~ %.y])]]
+            [%fall %& [/ %'config.json'] [~ [/ %json] !>(default-config)]]
+            [%fall %& [/ %'messages.claude-messages'] [~ [/ %claude-messages] !>(`messages`[%0 *((mop @ud message) lth)])]]
+            [%fall %& [/ %'custom-prompt.txt'] [~ [/ %txt] !>(*wain)]]
+            [%fall %& [/ %'main.claude-registry'] [~ [/ %claude-registry] !>(`registry`[%0 0 ~ %.y])]]
             ::  always overwritten
-            [%over %& [/ %'weir.txt'] %.n [~ [/ %txt] !>(`wain`~['No weir set.'])]]
-            [%over %& [/ui %'chat.html'] %.n [~ [/ %html] !>((crip (en-xml:html (chat-page ~))))]]
-            [%over %& [/ui/sse %'last-message.html'] %.n [~ [/ %html] !>((crip (en-xml:html *manx)))]]
-            [%over %& [/ui/sse %'status.json'] %.n [~ [/ %json] !>((pairs:enjs:format ~[['loading' b+%.n] ['live' b+%.y]]))]]
+            [%over %& [/ %'weir.txt'] [~ [/ %txt] !>(`wain`~['No weir set.'])]]
+            [%over %& [/ui %'chat.html'] [~ [/ %html] !>((crip (en-xml:html (chat-page ~))))]]
+            [%over %& [/ui/sse %'last-message.html'] [~ [/ %html] !>((crip (en-xml:html *manx)))]]
+            [%over %& [/ui/sse %'status.json'] [~ [/ %json] !>((pairs:enjs:format ~[['loading' b+%.n] ['live' b+%.y]]))]]
         ==
       ==
     ::
@@ -772,9 +772,9 @@
   ::  writes
       %'make'
     =/  =mime  [/text/plain (as-octs:mimes:html body)]
-    (send-dart:io %node slot-wire road %make |+[%.n [[/ %mime] !>(mime)] ~])
+    (send-dart:io %node slot-wire road %make |+[[[/ %mime] !>(mime)] ~])
       %'dir'
-    (send-dart:io %node slot-wire road %make &+[*sand:nexus *gain:nexus `[~ ~ ~] ~])
+    (send-dart:io %node slot-wire road %make &+[*sand:nexus `[~ ~ ~] ~])
       %'over'
     =/  =mime  [/text/plain (as-octs:mimes:html body)]
     (send-dart:io %node slot-wire road %over [[/ %mime] !>(mime)])

@@ -29,15 +29,15 @@
 =<  ^-  nexus:nexus
     |%
     ++  on-load
-      |=  [=sand:nexus =gain:nexus =ball:tarball]
-      ^-  [sand:nexus gain:nexus ball:tarball]
+      |=  [=sand:nexus =ball:tarball]
+      ^-  [sand:nexus ball:tarball]
       ::  load all packs from packs/ directory
       =/  archive=(list pack:git-pack)  (load-packs ball)
-      ?~  archive  [sand gain ball]
+      ?~  archive  [sand ball]
       ::  check for HEAD
       =/  parsed-head=(unit [branch=(unit @t) hash=@ux])
         (parse-head ball)
-      ?~  parsed-head  [sand gain ball]
+      ?~  parsed-head  [sand ball]
       =/  commit-hash=@ux  hash.u.parsed-head
       ::  read refs from refs/ namespace
       =/  built-refs=(axal ref:git-repo)
@@ -67,7 +67,7 @@
         ?~  stash-result
           ~&  >>  "%git/data: nothing to stash (clean)"
           =.  ball  (~(del ba:tarball ball) / %'stash-request.sig')
-          [sand gain ball]
+          [sand ball]
         ::  merge loose objects
         =.  ball  (write-loose-to-ball ball new-loose.u.stash-result)
         ::  write refs/stash
@@ -98,7 +98,7 @@
         =.  ball  ball(dir (~(put by dir.ball) 'tree' tree-ball))
         =.  ball  (write-ui-outputs ball sto commit-hash parsed-head head-idx parent-tree-hash)
         ~&  >>  ["%git/data: stashed at" (scag 7 stash-hex)]
-        [sand gain ball]
+        [sand ball]
       ::
       ::  === stash pop request handling ===
       ::  read refs/stash commit, apply its tree to index, drop stash
@@ -112,12 +112,12 @@
         ?~  stash-hash
           ~&  >>>  "%git/data: no stash to pop"
           =.  ball  (~(del ba:tarball ball) / %'stash-pop-request.sig')
-          [sand gain ball]
+          [sand ball]
         =/  stash-com=(unit commit:git-repo)  (get-commit:sto u.stash-hash)
         ?~  stash-com
           ~&  >>>  "%git/data: stash commit not found in store"
           =.  ball  (~(del ba:tarball ball) / %'stash-pop-request.sig')
-          [sand gain ball]
+          [sand ball]
         ::  get HEAD commit tree for status comparison
         =/  head-com=(unit commit:git-repo)  (get-commit:sto commit-hash)
         =/  head-tree-hash=hash:git-repo
@@ -151,7 +151,7 @@
         ::  build UI outputs — status will show stash diff against HEAD
         =.  ball  (write-ui-outputs ball sto commit-hash parsed-head stash-idx head-tree-hash)
         ~&  >>  ["%git/data: popped stash" (scag 7 (print-hash-sha-1:git-transport u.stash-hash))]
-        [sand gain ball]
+        [sand ball]
       ::
       ::  === add request handling ===
       ::  if add-request.json exists, stage files into INDEX
@@ -195,7 +195,7 @@
         =.  ball
           (~(put ba:tarball ball) [/ui %'status.json'] [~ [/ %json] !>(status)])
         ~&  >>  "%git/data: staged files"
-        [sand gain ball]
+        [sand ball]
       ::
       ::  === commit request handling ===
       ::  if commit-request.json exists, create a local commit
@@ -215,7 +215,7 @@
         ?~  commit-result
           ~&  >>  "%git/data: no changes, skipping commit"
           =.  ball  (~(del ba:tarball ball) / %'commit-request.json')
-          [sand gain ball]
+          [sand ball]
         ::  merge new loose objects
         =/  all-loose=(map hash:git-repo object:git-obj)
           (~(uni by loose) new-loose.u.commit-result)
@@ -262,7 +262,7 @@
           (~(put ba:tarball ball) [/ui %'current.json'] [~ [/ %json] !>(new-current)])
         =.  ball
           (~(put ba:tarball ball) [/ui %'status.json'] [~ [/ %json] !>(new-status)])
-        [sand gain ball]
+        [sand ball]
       ::
       ::  === normal checkout ===
       ::
@@ -272,7 +272,7 @@
         ::  clear objects/ and bail — next sync will restore
         ~&  >>>  "%git/data: HEAD not found in store, clearing stale objects"
         =.  ball  ball(dir (~(del by dir.ball) 'objects'))
-        [sand gain ball]
+        [sand ball]
       =/  com=commit:git-repo  u.com-maybe
       =/  head-text=tape  (print-hash-sha-1:git-transport commit-hash)
       ~&  >>  ["%git/data: checkout" (scag 7 head-text)]
@@ -292,7 +292,7 @@
       ::  write tree into ball BEFORE computing status
       =.  ball  ball(dir (~(put by dir.ball) 'tree' tree-ball))
       =.  ball  (write-ui-outputs ball sto commit-hash parsed-head idx tree.com)
-      [sand gain ball]
+      [sand ball]
     ::
     ++  on-file
       |=  [=rail:tarball =blot:tarball]

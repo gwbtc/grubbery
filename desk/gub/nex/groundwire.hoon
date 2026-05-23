@@ -14,29 +14,29 @@
 =<  ^-  nexus:nexus
     |%
     ++  on-load
-      |=  [=sand:nexus =gain:nexus =ball:tarball]
-      ^-  [sand:nexus gain:nexus ball:tarball]
+      |=  [=sand:nexus =ball:tarball]
+      ^-  [sand:nexus ball:tarball]
       =/  =ver:loader  (get-ver:loader ball)
       ?+  ver  !!
           ?(~ [~ %0])
-        %+  spin:loader  [sand gain ball]
+        %+  spin:loader  [sand ball]
         :~  (ver-row:loader 0)
-            [%fall %& [/ %'config.json'] %.n [~ [/ %json] !>(default-config)]]
-            [%fall %& [/ %'height.ud'] %.n [~ [/ %ud] !>(`@ud`0)]]
-            [%fall %& [/ %'urb-state.urb-state'] %.y [~ [/ %urb-state] !>(*state:urb)]]
-            [%fall %& [/ %'latest.json'] %.n [~ [/ %json] !>((pairs:enjs:format ~))]]
-            [%fall %& [/ %'udiffs.urb-udiffs'] %.y [~ [/ %urb-udiffs] !>(*udiffs:point:jael)]]
-            [%fall %| /events [~ ~] [~ ~] empty-dir:loader]
-            [%fall %& [/events %'main.urb-event'] %.y [~ [/ %urb-event] !>(~)]]
-            [%fall %| /events/ships [~ ~] [~ ~] empty-dir:loader]
-            [%fall %& [/ %'trace.txt'] %.n [~ [/ %txt] !>(*wain)]]
-            [%fall %| /wallets [~ ~] [~ ~] empty-dir:loader]
-            [%fall %| /points [~ ~] [~ ~] empty-dir:loader]
-            [%over %& [/ %'rpc.sig'] %.n [~ [/ %sig] !>(~)]]
-            [%over %& [/ %'reg-tester.sig'] %.n [~ [/ %sig] !>(~)]]
-            [%fall %| /ui/sse [~ ~] [~ ~] empty-dir:loader]
-            [%over %& [/ui/sse %'stats.html'] %.n [~ [/ %html] !>((crip (en-xml:html ;div;)))]]
-            [%over %& [/ %'page.html'] %.n [~ [/ %html] !>((crip (en-xml:html (btc-page "" ;div; ~ ~))))]]
+            [%fall %& [/ %'config.json'] [~ [/ %json] !>(default-config)]]
+            [%fall %& [/ %'height.ud'] [~ [/ %ud] !>(`@ud`0)]]
+            [%fall %& [/ %'urb-state.urb-state'] [~ [/ %urb-state] !>(*state:urb)]]
+            [%fall %& [/ %'latest.json'] [~ [/ %json] !>((pairs:enjs:format ~))]]
+            [%fall %& [/ %'udiffs.urb-udiffs'] [~ [/ %urb-udiffs] !>(*udiffs:point:jael)]]
+            [%fall %| /events [~ ~] empty-dir:loader]
+            [%fall %& [/events %'main.urb-event'] [~ [/ %urb-event] !>(~)]]
+            [%fall %| /events/ships [~ ~] empty-dir:loader]
+            [%fall %& [/ %'trace.txt'] [~ [/ %txt] !>(*wain)]]
+            [%fall %| /wallets [~ ~] empty-dir:loader]
+            [%fall %| /points [~ ~] empty-dir:loader]
+            [%over %& [/ %'rpc.sig'] [~ [/ %sig] !>(~)]]
+            [%over %& [/ %'reg-tester.sig'] [~ [/ %sig] !>(~)]]
+            [%fall %| /ui/sse [~ ~] empty-dir:loader]
+            [%over %& [/ui/sse %'stats.html'] [~ [/ %html] !>((crip (en-xml:html ;div;)))]]
+            [%over %& [/ %'page.html'] [~ [/ %html] !>((crip (en-xml:html (btc-page "" ;div; ~ ~))))]]
         ==
       ==
     ::
@@ -89,8 +89,8 @@
           ::  Watches /height.ud for tip updates, fetches and processes
           ::  blocks through urb-core, and replace:io's its own state.
           ::  The cursor is num.block-id inside the state — no separate
-          ::  processed.ud file needed. gain is on so anything can
-          ::  keep:io this file for live PKI updates.
+          ::  processed.ud file needed. anything can keep:io this
+          ::  file for live PKI updates.
           ::
           [~ %'urb-state.urb-state']
         ;<  ~  bind:m  (rise-wait:io prod "%groundwire /urb-state: failed")
@@ -487,7 +487,7 @@
           ;<  ~  bind:m
             ?:  ?=([%& %file *] wal-seen)
               (over:io wal-road wal-sage)
-            (make:io wal-road [%| gain=%.n wal-sage ~])
+            (make:io wal-road [%| wal-sage ~])
           ~&  >  [%reg-tester %saved-wallet spawn-ship]
           $(batch t.batch, cur-utxo `final-utxo)
         ::
@@ -677,7 +677,7 @@
 
           Maintains urb protocol PKI state by scanning Bitcoin blocks.
           The walker fiber at /urb-state.urb-state owns the PKI state
-          and uses replace:io — gain is on so anything can keep:io it
+          and uses replace:io — anything can keep:io it
           for live updates. Per-ship point files live under /points/.
 
           FILES:
@@ -1227,7 +1227,7 @@
 ::
 ::  Emit each sotx observed in an urb-block as a urb-event.
 ::  Writes to events/main.urb-event (global stream) and
-::  events/ships/<ship>.urb-event (per-ship). All gain-enabled.
+::  events/ships/<ship>.urb-event (per-ship).
 ::  Iterates txs → inputs → sots in order.
 ::
 ++  emit-events
@@ -1259,7 +1259,7 @@
       ;<  ~  bind:m
         ?:  ?=([%& %file *] ship-seen)
           (over:io ship-road evt-sage)
-        (make:io ship-road [%| gain=%.y evt-sage ~])
+        (make:io ship-road [%| evt-sage ~])
       $(sots t.sots)
     $(ins t.ins)
   $(txs t.txs)
@@ -1362,7 +1362,7 @@
   ;<  ~  bind:m
     ?:  ?=([%& %file *] seen)
       (over:io road [[/ %json] !>(pt-json)])
-    (make:io road [%| gain=%.n [[/ %json] !>(pt-json)] ~])
+    (make:io road [%| [[/ %json] !>(pt-json)] ~])
   $(ships t.ships)
 ::
 ::  Fiber helper: generatetoaddress N <addr>, ignoring result.

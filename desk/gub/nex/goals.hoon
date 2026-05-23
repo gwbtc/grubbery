@@ -168,16 +168,16 @@
 =<  ^-  nexus:nexus
     |%
     ++  on-load
-      |=  [=sand:nexus =gain:nexus =ball:tarball]
-      ^-  [sand:nexus gain:nexus ball:tarball]
+      |=  [=sand:nexus =ball:tarball]
+      ^-  [sand:nexus ball:tarball]
       =/  =ver:loader  (get-ver:loader ball)
       ?+  ver  !!
           ?(~ [~ %0] [~ %1])
-        %+  spin:loader  [sand gain ball]
+        %+  spin:loader  [sand ball]
         :~  (ver-row:loader 1)
-            [%fall %& [/ %'main.sig'] %.n [~ [/ %sig] !>(~)]]
-            [%fall %& [/ %'page.html'] %.n [~ [/ %html] !>((crip (en-xml:html (goals-page ~ ~))))]]
-            [%fall %| /store [~ ~] [~ ~] empty-dir:loader]
+            [%fall %& [/ %'main.sig'] [~ [/ %sig] !>(~)]]
+            [%fall %& [/ %'page.html'] [~ [/ %html] !>((crip (en-xml:html (goals-page ~ ~))))]]
+            [%fall %| /store [~ ~] empty-dir:loader]
         ==
       ==
     ::
@@ -205,7 +205,7 @@
           =/  store=goal-store:goals  (create-store:goals now)
           =/  fname=@ta  (store-fname name)
           ;<  ~  bind:m
-            (make:io [%| 0 %& /store fname] |+[%.n [[/ %goal-store] !>(store)] `[/ %goal-store]])
+            (make:io [%| 0 %& /store fname] |+[[[/ %goal-store] !>(store)] `[/ %goal-store]])
           $
             %goal-delete-store
           =/  name=@ta  !<(@ta q.sage)
@@ -227,7 +227,7 @@
             =/  store=goal-store:goals  (create-store:goals now)
             =/  fname=@ta  (store-fname name)
             ;<  ~  bind:m
-              (make:io [%| 0 %& /store fname] |+[%.n [[/ %goal-store] !>(store)] `[/ %goal-store]])
+              (make:io [%| 0 %& /store fname] |+[[[/ %goal-store] !>(store)] `[/ %goal-store]])
             $
               %'delete-store'
             =/  name=@ta  (~(dog jo:json-utils jon) /name so:dejs:format)

@@ -697,8 +697,8 @@
     !>  (hash:s 'hello')
   !>  (hash:s 'hello')
 ::
-++  test-si-record-keep-accumulates
-  ::  record with keep=%.y accumulates history entries
+++  test-si-record-accumulates
+  ::  record accumulates history entries
   =/  s  ~(. si:nexus *silo:nexus)
   =/  page1=bask:tarball  [[/ %txt] 'first']
   =/  page2=bask:tarball  [[/ %txt] 'second']
@@ -708,11 +708,11 @@
   =/  cass3=cass:clay  [3 ~2024.1.3]
   =/  hist=hist:nexus  ~
   =/  [lobe1=lobe:clay silo1=silo:nexus hist1=_hist]
-    (~(record si:nexus *silo:nexus) q.page1 p.page1 0v0 cass1 %.y *cass:clay hist)
+    (~(record si:nexus *silo:nexus) q.page1 p.page1 0v0 cass1 hist)
   =/  [lobe2=lobe:clay silo2=silo:nexus hist2=_hist]
-    (~(record si:nexus silo1) q.page2 p.page2 0v0 cass2 %.y *cass:clay hist1)
+    (~(record si:nexus silo1) q.page2 p.page2 0v0 cass2 hist1)
   =/  [lobe3=lobe:clay silo3=silo:nexus hist3=_hist]
-    (~(record si:nexus silo2) q.page3 p.page3 0v0 cass3 %.y *cass:clay hist2)
+    (~(record si:nexus silo2) q.page3 p.page3 0v0 cass3 hist2)
   ;:  weld
     ::  All 3 entries in hist
     %+  expect-eq
@@ -727,8 +727,8 @@
     %+  expect-eq  !>(%.y)  !>(?=([~ %live [~ @]] oldest-pace))
   ==
 ::
-++  test-si-record-no-keep-replaces
-  ::  record with gain=%.n replaces current live version, drops old ref
+++  test-si-record-two-versions
+  ::  recording two versions keeps both in history and silo
   =/  s  ~(. si:nexus *silo:nexus)
   =/  page1=bask:tarball  [[/ %txt] 'first']
   =/  page2=bask:tarball  [[/ %txt] 'second']
@@ -736,43 +736,42 @@
   =/  cass2=cass:clay  [2 ~2024.1.2]
   =/  hist=hist:nexus  ~
   =/  [lobe1=lobe:clay silo1=silo:nexus hist1=_hist]
-    (~(record si:nexus *silo:nexus) q.page1 p.page1 0v0 cass1 %.n *cass:clay hist)
+    (~(record si:nexus *silo:nexus) q.page1 p.page1 0v0 cass1 hist)
   =/  [lobe2=lobe:clay silo2=silo:nexus hist2=_hist]
-    (~(record si:nexus silo1) q.page2 p.page2 0v0 cass2 %.n cass1 hist1)
+    (~(record si:nexus silo1) q.page2 p.page2 0v0 cass2 hist1)
   ;:  weld
-    ::  2 entries in hist (tombstone + new)
+    ::  2 entries in hist (both live)
     %+  expect-eq
       !>  `@ud`2
     !>  (lent (tap:hon:hist:nexus hist2))
-  ::  Old page dropped from silo
+  ::  Both pages in silo
     %+  expect-eq
-      !>  ~
-    !>  (~(get by nouns.silo2) lobe1)
-  ::  New page in silo
+      !>  %.y
+    !>  ?=(^ (~(get by nouns.silo2) lobe1))
     %+  expect-eq
       !>  %.y
     !>  ?=(^ (~(get by nouns.silo2) lobe2))
   ==
 ::
-++  test-si-record-no-keep-same-content
-  ::  record with gain=%.n and same content: refcount stays at 1
+++  test-si-record-same-content-deduplicates
+  ::  record with same content: same lobe, noun refcounted
   =/  =bask:tarball  [[/ %txt] 'same']
   =/  cass1=cass:clay  [1 ~2024.1.1]
   =/  cass2=cass:clay  [2 ~2024.1.2]
   =/  hist=hist:nexus  ~
   =/  [lobe1=lobe:clay silo1=silo:nexus hist1=_hist]
-    (~(record si:nexus *silo:nexus) q.bask p.bask 0v0 cass1 %.n *cass:clay hist)
+    (~(record si:nexus *silo:nexus) q.bask p.bask 0v0 cass1 hist)
   =/  [lobe2=lobe:clay silo2=silo:nexus hist2=_hist]
-    (~(record si:nexus silo1) q.bask p.bask 0v0 cass2 %.n cass1 hist1)
+    (~(record si:nexus silo1) q.bask p.bask 0v0 cass2 hist1)
   ;:  weld
     ::  Same lobe (content-addressed)
     %+  expect-eq
       !>  lobe1
     !>  lobe2
-  ::  Still in silo — noun refs=1 (one leaf ject owns it)
+  ::  Still in silo with refs
     %+  expect-eq
-      !>  `@ud`1
-    !>  refs:(~(got by nouns.silo2) lobe1)
+      !>  %.y
+    !>  ?=(^ (~(get by nouns.silo2) lobe1))
   ==
 ::
 ++  test-si-drop-hist-all-refs
@@ -782,11 +781,11 @@
   =/  page3=bask:tarball  [[/ %txt] 'ccc']
   =/  hist=hist:nexus  ~
   =/  [* silo1=silo:nexus hist1=_hist]
-    (~(record si:nexus *silo:nexus) q.page1 p.page1 0v0 [1 ~2024.1.1] %.y *cass:clay hist)
+    (~(record si:nexus *silo:nexus) q.page1 p.page1 0v0 [1 ~2024.1.1] hist)
   =/  [* silo2=silo:nexus hist2=_hist]
-    (~(record si:nexus silo1) q.page2 p.page2 0v0 [2 ~2024.1.2] %.y *cass:clay hist1)
+    (~(record si:nexus silo1) q.page2 p.page2 0v0 [2 ~2024.1.2] hist1)
   =/  [* silo3=silo:nexus hist3=_hist]
-    (~(record si:nexus silo2) q.page3 p.page3 0v0 [3 ~2024.1.3] %.y *cass:clay hist2)
+    (~(record si:nexus silo2) q.page3 p.page3 0v0 [3 ~2024.1.3] hist2)
   ::  3 entries in silo
   ?>  =(3 ~(wyt by nouns.silo3))
   ::  Drop all
@@ -801,10 +800,9 @@
   =/  hist=hist:nexus  ~
   ::  Record same page twice with keep (2 hist entries, same lobe, refs=2)
   =/  [=lobe:clay silo1=silo:nexus hist1=_hist]
-    (~(record si:nexus *silo:nexus) q.bask p.bask 0v0 [1 ~2024.1.1] %.y *cass:clay hist)
+    (~(record si:nexus *silo:nexus) q.bask p.bask 0v0 [1 ~2024.1.1] hist)
   =/  [* silo2=silo:nexus hist2=_hist]
-    (~(record si:nexus silo1) q.bask p.bask 0v0 [2 ~2024.1.2] %.y *cass:clay hist1)
-  ?>  =(1 refs:(~(got by nouns.silo2) lobe))
+    (~(record si:nexus silo1) q.bask p.bask 0v0 [2 ~2024.1.2] hist1)
   ::  Drop all hist refs
   =/  silo3=silo:nexus  (~(drop-hist si:nexus silo2) hist2)
   ::  Lobe gone (ject drops to 0, cascades to noun)

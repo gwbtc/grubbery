@@ -4,8 +4,8 @@
 =<  ^-  nexus:nexus
     |%
     ++  on-load
-      |=  [=sand:nexus =gain:nexus =ball:tarball]
-      ^-  [sand:nexus gain:nexus ball:tarball]
+      |=  [=sand:nexus =ball:tarball]
+      ^-  [sand:nexus ball:tarball]
       =/  =ver:loader  (get-ver:loader ball)
       =/  default-claude=json
         %-  pairs:enjs:format
@@ -22,17 +22,17 @@
         [k s+v]
       ?+  ver  !!
           ?(~ [~ %0])
-        %+  spin:loader  [sand gain ball]
+        %+  spin:loader  [sand ball]
         :~  (ver-row:loader 0)
-            [%fall %& [/config %'claude.json'] %.n [~ [/ %json] !>(default-claude)]]
-            [%fall %& [/config %'brave.json'] %.n [~ [/ %json] !>(default-brave)]]
-            [%over %& [/ %'descs.json'] %.n [~ [/ %json] !>(default-descs)]]
-            [%fall %& [/ %'request.json'] %.n [~ [/ %json] !>((pairs:enjs:format ~))]]
-            [%fall %& [/ %'result.json'] %.n [~ [/ %json] !>((pairs:enjs:format ~[['status' s+'idle']]))]]
-            [%fall %& [/ %'briefing.json'] %.n [~ [/ %json] !>((pairs:enjs:format ~[['step' s+'idle']]))]]
-            [%fall %& [/ %'main.sig'] %.n [~ [/ %sig] !>(~)]]
-            [%over %& [/ui %'page.html'] %.n [~ [/ %html] !>((crip (en-xml:html (oneshot-page '' ~))))]]
-            [%over %& [/ui %'briefing.html'] %.n [~ [/ %html] !>((crip (en-xml:html briefing-page)))]]
+            [%fall %& [/config %'claude.json'] [~ [/ %json] !>(default-claude)]]
+            [%fall %& [/config %'brave.json'] [~ [/ %json] !>(default-brave)]]
+            [%over %& [/ %'descs.json'] [~ [/ %json] !>(default-descs)]]
+            [%fall %& [/ %'request.json'] [~ [/ %json] !>((pairs:enjs:format ~))]]
+            [%fall %& [/ %'result.json'] [~ [/ %json] !>((pairs:enjs:format ~[['status' s+'idle']]))]]
+            [%fall %& [/ %'briefing.json'] [~ [/ %json] !>((pairs:enjs:format ~[['step' s+'idle']]))]]
+            [%fall %& [/ %'main.sig'] [~ [/ %sig] !>(~)]]
+            [%over %& [/ui %'page.html'] [~ [/ %html] !>((crip (en-xml:html (oneshot-page '' ~))))]]
+            [%over %& [/ui %'briefing.html'] [~ [/ %html] !>((crip (en-xml:html briefing-page)))]]
         ==
       ==
     ::

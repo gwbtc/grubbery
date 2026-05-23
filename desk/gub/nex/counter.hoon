@@ -3,17 +3,17 @@
 =<  ^-  nexus:nexus
     |%
     ++  on-load
-      |=  [=sand:nexus =gain:nexus =ball:tarball]
-      ^-  [sand:nexus gain:nexus ball:tarball]
+      |=  [=sand:nexus =ball:tarball]
+      ^-  [sand:nexus ball:tarball]
       =/  =ver:loader  (get-ver:loader ball)
       ?+  ver  !!
           ?(~ [~ %0])
-        %+  spin:loader  [sand gain ball]
+        %+  spin:loader  [sand ball]
         :~  (ver-row:loader 0)
-            [%fall %| /counters [~ ~] [~ ~] empty-dir:loader]
-            [%over %& [/ui/views %'page.html'] %.n [~ [/ %html] !>((crip (en-xml:html (counter-page ~))))]]
-            [%fall %& [/ui %'main.sig'] %.n [~ [/ %sig] !>(~)]]
-            [%fall %| /ui/requests [~ ~] [~ ~] empty-dir:loader]
+            [%fall %| /counters [~ ~] empty-dir:loader]
+            [%over %& [/ui/views %'page.html'] [~ [/ %html] !>((crip (en-xml:html (counter-page ~))))]]
+            [%fall %& [/ui %'main.sig'] [~ [/ %sig] !>(~)]]
+            [%fall %| /ui/requests [~ ~] empty-dir:loader]
         ==
       ==
     ::

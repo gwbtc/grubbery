@@ -34,14 +34,8 @@
   ^-  sand:nexus
   [`weir ~]
 ::
-++  mk-gain-file
-  ::  gain tree with a single file flag
-  |=  [name=@ta flag=?]
-  ^-  gain:nexus
-  [`(~(put by *(map @ta ?)) name flag) ~]
-::
 ::  ==========================================
-::  put-sand / put-gain / put-ball tests
+::  put-sand / put-ball tests
 ::  ==========================================
 ::
 ++  test-put-ball-root
@@ -84,93 +78,44 @@
     !>  child
   !>  sub
 ::
-++  test-put-gain-root
-  ::  put-gain at / replaces the gain
-  =/  parent=gain:nexus  *gain:nexus
-  =/  child=gain:nexus  (mk-gain-file %foo %.y)
-  =/  result  (put-gain:loader parent / child)
-  %+  expect-eq
-    !>  child
-  !>  result
-::
-::  ==========================================
-::  set-file-gain / get-file-gain tests
-::  ==========================================
-::
-++  test-gain-roundtrip
-  ::  set then get returns the flag
-  =/  gn=gain:nexus  *gain:nexus
-  =/  gn  (set-file-gain:loader gn [/a %foo] %.y)
-  %+  expect-eq
-    !>  %.y
-  !>  (get-file-gain:loader gn [/a %foo])
-::
-++  test-gain-default-false
-  ::  get on unset rail returns false
-  =/  gn=gain:nexus  *gain:nexus
-  %+  expect-eq
-    !>  %.n
-  !>  (get-file-gain:loader gn [/a %foo])
-::
-++  test-gain-two-files
-  ::  two files in same dir have independent flags
-  =/  gn=gain:nexus  *gain:nexus
-  =/  gn  (set-file-gain:loader gn [/a %foo] %.y)
-  =/  gn  (set-file-gain:loader gn [/a %bar] %.n)
-  ;:  weld
-    %+  expect-eq  !>(%.y)  !>((get-file-gain:loader gn [/a %foo]))
-    %+  expect-eq  !>(%.n)  !>((get-file-gain:loader gn [/a %bar]))
-  ==
-::
 ::  ==========================================
 ::  spin: %over %& — always overwrite file
 ::  ==========================================
 ::
 ++  test-over-file-into-empty
   ::  over file into empty ball places file
-  =/  old  [*sand:nexus *gain:nexus *ball:tarball]
+  =/  old  [*sand:nexus *ball:tarball]
   =/  rows=(list row:loader)
-    ~[[%over %& [/a %foo] %.y (mk-content 'hello')]]
-  =/  [=sand:nexus =gain:nexus =ball:tarball]  (spin:loader old rows)
-  =/  got  (~(get ba:tarball ball) /a %foo)
-  ;:  weld
-    %+  expect-eq
-      !>  `(mk-content 'hello')
-    !>  got
-    %+  expect-eq  !>(%.y)  !>((get-file-gain:loader gain [/a %foo]))
-  ==
+    ~[[%over %& [/a %foo] (mk-content 'hello')]]
+  =/  [=sand:nexus =ball:tarball]  (spin:loader old rows)
+  %+  expect-eq
+    !>  `(mk-content 'hello')
+  !>  (~(get ba:tarball ball) /a %foo)
 ::
 ++  test-over-file-replaces
   ::  over file replaces existing content
   =/  old-ball=ball:tarball  (~(put ba:tarball *ball:tarball) [/a %foo] (mk-content 'old'))
-  =/  old-gain=gain:nexus  (set-file-gain:loader *gain:nexus [/a %foo] %.y)
-  =/  old  [*sand:nexus old-gain old-ball]
+  =/  old  [*sand:nexus old-ball]
   =/  rows=(list row:loader)
-    ~[[%over %& [/a %foo] %.n (mk-content 'new')]]
-  =/  [=sand:nexus =gain:nexus =ball:tarball]  (spin:loader old rows)
-  =/  got  (~(get ba:tarball ball) /a %foo)
-  ;:  weld
-    %+  expect-eq
-      !>  `(mk-content 'new')
-    !>  got
-    ::  gain flag was changed to false
-    %+  expect-eq  !>(%.n)  !>((get-file-gain:loader gain [/a %foo]))
-  ==
+    ~[[%over %& [/a %foo] (mk-content 'new')]]
+  =/  [=sand:nexus =ball:tarball]  (spin:loader old rows)
+  %+  expect-eq
+    !>  `(mk-content 'new')
+  !>  (~(get ba:tarball ball) /a %foo)
 ::
 ::  ==========================================
 ::  spin: %over %| — always overwrite directory
 ::  ==========================================
 ::
 ++  test-over-dir-into-empty
-  ::  over dir places sand, gain, and ball at path
+  ::  over dir places sand and ball at path
   =/  =weir:nexus  [make=~ poke=~ peek=~]
   =/  child-sand=sand:nexus  (mk-sand-1 weir)
-  =/  child-gain=gain:nexus  (mk-gain-file %foo %.y)
   =/  child-ball=ball:tarball  (mk-ball-1 %foo 'hi')
-  =/  old  [*sand:nexus *gain:nexus *ball:tarball]
+  =/  old  [*sand:nexus *ball:tarball]
   =/  rows=(list row:loader)
-    ~[[%over %| /sub child-sand child-gain child-ball]]
-  =/  [=sand:nexus =gain:nexus =ball:tarball]  (spin:loader old rows)
+    ~[[%over %| /sub child-sand child-ball]]
+  =/  [=sand:nexus =ball:tarball]  (spin:loader old rows)
   =/  got  (~(get ba:tarball ball) /sub %foo)
   ;:  weld
     %+  expect-eq
@@ -187,10 +132,10 @@
 ::
 ++  test-fall-file-uses-default
   ::  fall file with no existing uses default content
-  =/  old  [*sand:nexus *gain:nexus *ball:tarball]
+  =/  old  [*sand:nexus *ball:tarball]
   =/  rows=(list row:loader)
-    ~[[%fall %& [/a %foo] %.y (mk-content 'default')]]
-  =/  [=sand:nexus =gain:nexus =ball:tarball]  (spin:loader old rows)
+    ~[[%fall %& [/a %foo] (mk-content 'default')]]
+  =/  [=sand:nexus =ball:tarball]  (spin:loader old rows)
   =/  got  (~(get ba:tarball ball) /a %foo)
   %+  expect-eq
     !>  `(mk-content 'default')
@@ -200,10 +145,10 @@
   ::  fall file with existing keeps old content
   =/  old-ball=ball:tarball
     (~(put ba:tarball *ball:tarball) [/a %foo] (mk-content 'existing'))
-  =/  old  [*sand:nexus *gain:nexus old-ball]
+  =/  old  [*sand:nexus old-ball]
   =/  rows=(list row:loader)
-    ~[[%fall %& [/a %foo] %.y (mk-content 'default')]]
-  =/  [=sand:nexus =gain:nexus =ball:tarball]  (spin:loader old rows)
+    ~[[%fall %& [/a %foo] (mk-content 'default')]]
+  =/  [=sand:nexus =ball:tarball]  (spin:loader old rows)
   =/  got  (~(get ba:tarball ball) /a %foo)
   %+  expect-eq
     !>  `(mk-content 'existing')
@@ -214,33 +159,30 @@
 ::  ==========================================
 ::
 ++  test-fall-dir-uses-default
-  ::  fall dir with no existing uses default sand/gain/ball
+  ::  fall dir with no existing uses default sand/ball
   =/  child-sand=sand:nexus  *sand:nexus
-  =/  child-gain=gain:nexus  *gain:nexus
   =/  child-ball=ball:tarball  (mk-ball-1 %foo 'default')
-  =/  old  [*sand:nexus *gain:nexus *ball:tarball]
+  =/  old  [*sand:nexus *ball:tarball]
   =/  rows=(list row:loader)
-    ~[[%fall %| /sub child-sand child-gain child-ball]]
-  =/  [=sand:nexus =gain:nexus =ball:tarball]  (spin:loader old rows)
+    ~[[%fall %| /sub child-sand child-ball]]
+  =/  [=sand:nexus =ball:tarball]  (spin:loader old rows)
   =/  got  (~(get ba:tarball ball) /sub %foo)
   %+  expect-eq
     !>  `(mk-content 'default')
   !>  got
 ::
 ++  test-fall-dir-keeps-existing
-  ::  fall dir with existing keeps old ball (and old sand/gain)
+  ::  fall dir with existing keeps old ball (and old sand)
   =/  old-sub-ball=ball:tarball  (mk-ball-1 %foo 'existing')
   =/  old-ball=ball:tarball  (put-ball:loader *ball:tarball /sub old-sub-ball)
   =/  old-sub-sand=sand:nexus  *sand:nexus
   =/  old-sand=sand:nexus  (put-sand:loader *sand:nexus /sub old-sub-sand)
-  =/  old-sub-gain=gain:nexus  *gain:nexus
-  =/  old-gain=gain:nexus  (put-gain:loader *gain:nexus /sub old-sub-gain)
-  =/  old  [old-sand old-gain old-ball]
+  =/  old  [old-sand old-ball]
   ::  provide different defaults
   =/  def-ball=ball:tarball  (mk-ball-1 %foo 'default')
   =/  rows=(list row:loader)
-    ~[[%fall %| /sub *sand:nexus *gain:nexus def-ball]]
-  =/  [=sand:nexus =gain:nexus =ball:tarball]  (spin:loader old rows)
+    ~[[%fall %| /sub *sand:nexus def-ball]]
+  =/  [=sand:nexus =ball:tarball]  (spin:loader old rows)
   =/  got  (~(get ba:tarball ball) /sub %foo)
   ::  should get old content, not default
   %+  expect-eq
@@ -255,16 +197,13 @@
   ::  load file extracts old content, runs transform, places at new rail
   =/  old-ball=ball:tarball
     (~(put ba:tarball *ball:tarball) [/old %data] (mk-content 'raw'))
-  =/  old-gain=gain:nexus
-    (set-file-gain:loader *gain:nexus [/old %data] %.n)
-  =/  old  [*sand:nexus old-gain old-ball]
+  =/  old  [*sand:nexus old-ball]
   =/  my-load=file-load:loader
-    |=  [gn=? ct=content:tarball]
-    ::  toggle gain and uppercase the mark
-    [!gn ct]
+    |=  ct=content:tarball
+    ct
   =/  rows=(list row:loader)
     ~[[%load %& [/old %data] [/new %data] my-load]]
-  =/  [=sand:nexus =gain:nexus =ball:tarball]  (spin:loader old rows)
+  =/  [=sand:nexus =ball:tarball]  (spin:loader old rows)
   ;:  weld
     ::  old location should NOT be in new ball (unspecified = dropped)
     %+  expect-eq
@@ -274,19 +213,17 @@
     %+  expect-eq
       !>  `(mk-content 'raw')
     !>  (~(get ba:tarball ball) /new %data)
-    ::  gain was toggled
-    %+  expect-eq  !>(%.y)  !>((get-file-gain:loader gain [/new %data]))
   ==
 ::
 ++  test-load-file-missing-uses-bunt
   ::  load file with missing source uses bunt content
-  =/  old  [*sand:nexus *gain:nexus *ball:tarball]
+  =/  old  [*sand:nexus *ball:tarball]
   =/  my-load=file-load:loader
-    |=  [gn=? ct=content:tarball]
-    [%.y (mk-content 'fallback')]
+    |=  ct=content:tarball
+    (mk-content 'fallback')
   =/  rows=(list row:loader)
     ~[[%load %& [/nope %gone] [/new %file] my-load]]
-  =/  [=sand:nexus =gain:nexus =ball:tarball]  (spin:loader old rows)
+  =/  [=sand:nexus =ball:tarball]  (spin:loader old rows)
   %+  expect-eq
     !>  `(mk-content 'fallback')
   !>  (~(get ba:tarball ball) /new %file)
@@ -299,14 +236,13 @@
   ::  load dir extracts old subtree, runs transform, places at new path
   =/  old-sub-ball=ball:tarball  (mk-ball-1 %foo 'original')
   =/  old-ball=ball:tarball  (put-ball:loader *ball:tarball /src old-sub-ball)
-  =/  old  [*sand:nexus *gain:nexus old-ball]
+  =/  old  [*sand:nexus old-ball]
   =/  my-fold=fold-load:loader
-    |=  [sd=sand:nexus gn=gain:nexus bl=ball:tarball]
-    ::  pass through unchanged
-    [sd gn bl]
+    |=  [sd=sand:nexus bl=ball:tarball]
+    [sd bl]
   =/  rows=(list row:loader)
     ~[[%load %| /src /dst my-fold]]
-  =/  [=sand:nexus =gain:nexus =ball:tarball]  (spin:loader old rows)
+  =/  [=sand:nexus =ball:tarball]  (spin:loader old rows)
   ;:  weld
     ::  old location not in new
     %+  expect-eq
@@ -327,11 +263,11 @@
   =/  old-ball=ball:tarball
     =/  b  (~(put ba:tarball *ball:tarball) [/a %keep] (mk-content 'keep'))
     (~(put ba:tarball b) [/a %drop] (mk-content 'drop'))
-  =/  old  [*sand:nexus *gain:nexus old-ball]
+  =/  old  [*sand:nexus old-ball]
   ::  only mention %keep
   =/  rows=(list row:loader)
-    ~[[%fall %& [/a %keep] %.n (mk-content 'default')]]
-  =/  [=sand:nexus =gain:nexus =ball:tarball]  (spin:loader old rows)
+    ~[[%fall %& [/a %keep] (mk-content 'default')]]
+  =/  [=sand:nexus =ball:tarball]  (spin:loader old rows)
   ;:  weld
     ::  keep is present (kept from old)
     %+  expect-eq
@@ -349,13 +285,13 @@
 ::
 ++  test-multiple-rows
   ::  multiple rows build up the new state incrementally
-  =/  old  [*sand:nexus *gain:nexus *ball:tarball]
+  =/  old  [*sand:nexus *ball:tarball]
   =/  rows=(list row:loader)
-    :~  [%over %& [/a %one] %.y (mk-content 'first')]
-        [%over %& [/a %two] %.n (mk-content 'second')]
-        [%over %& [/b %three] %.y (mk-content 'third')]
+    :~  [%over %& [/a %one] (mk-content 'first')]
+        [%over %& [/a %two] (mk-content 'second')]
+        [%over %& [/b %three] (mk-content 'third')]
     ==
-  =/  [=sand:nexus =gain:nexus =ball:tarball]  (spin:loader old rows)
+  =/  [=sand:nexus =ball:tarball]  (spin:loader old rows)
   ;:  weld
     %+  expect-eq
       !>  `(mk-content 'first')
@@ -366,10 +302,6 @@
     %+  expect-eq
       !>  `(mk-content 'third')
     !>  (~(get ba:tarball ball) /b %three)
-    ::  gain flags
-    %+  expect-eq  !>(%.y)  !>((get-file-gain:loader gain [/a %one]))
-    %+  expect-eq  !>(%.n)  !>((get-file-gain:loader gain [/a %two]))
-    %+  expect-eq  !>(%.y)  !>((get-file-gain:loader gain [/b %three]))
   ==
 ::
 ::  ==========================================
@@ -380,43 +312,29 @@
   ::  no rows = everything dropped
   =/  old-ball=ball:tarball
     (~(put ba:tarball *ball:tarball) [/a %foo] (mk-content 'bye'))
-  =/  old  [*sand:nexus *gain:nexus old-ball]
-  =/  [=sand:nexus =gain:nexus =ball:tarball]  (spin:loader old ~)
+  =/  old  [*sand:nexus old-ball]
+  =/  [=sand:nexus =ball:tarball]  (spin:loader old ~)
   ;:  weld
     %+  expect-eq  !>(*sand:nexus)  !>(sand)
-    %+  expect-eq  !>(*gain:nexus)  !>(gain)
     %+  expect-eq  !>(*ball:tarball)  !>(ball)
   ==
 ::
 ::  ==========================================
-::  spin: root sand/gain behavior
+::  spin: root sand behavior
 ::  ==========================================
 ::
 ++  test-spin-zeros-root-sand
   ::  spin starts with empty sand — old root sand is NOT preserved
   =/  =weir:nexus  [make=~ poke=(sy ~[[%& [%| /]]]) peek=~]
   =/  old-sand=sand:nexus  [`weir ~]
-  =/  old  [old-sand *gain:nexus *ball:tarball]
+  =/  old  [old-sand *ball:tarball]
   =/  rows=(list row:loader)
-    ~[[%over %& [/ %foo] %.n (mk-content 'x')]]
-  =/  [=sand:nexus =gain:nexus =ball:tarball]  (spin:loader old rows)
+    ~[[%over %& [/ %foo] (mk-content 'x')]]
+  =/  [=sand:nexus =ball:tarball]  (spin:loader old rows)
   ::  root sand is wiped — this is the current behavior
   %+  expect-eq
     !>  `(unit weir:nexus)`~
   !>  fil.sand
-::
-++  test-spin-zeros-root-gain
-  ::  spin starts with empty gain — old root gain flags are NOT preserved
-  =/  old-gain=gain:nexus  (set-file-gain:loader *gain:nexus [/ %existing] %.y)
-  =/  old  [*sand:nexus old-gain *ball:tarball]
-  =/  rows=(list row:loader)
-    ~[[%over %& [/ %foo] %.n (mk-content 'x')]]
-  =/  [=sand:nexus =gain:nexus =ball:tarball]  (spin:loader old rows)
-  ::  gain for %existing is gone — only %foo exists
-  ;:  weld
-    %+  expect-eq  !>(%.n)  !>((get-file-gain:loader gain [/ %existing]))
-    %+  expect-eq  !>(%.n)  !>((get-file-gain:loader gain [/ %foo]))
-  ==
 ::
 ::  ==========================================
 ::  spin vs imperative: server on-load scenario
@@ -429,21 +347,15 @@
     =/  b  (~(put ba:tarball *ball:tarball) [/ %'ver.ud'] [~ [/ %ud] !>(0)])
     (~(put ba:tarball b) [/ %'main.server-state'] server-ct)
   =/  old-sand=sand:nexus  [`[make=~ poke=(sy ~[[%& [%| /]]]) peek=~] ~]
-  =/  old-gain=gain:nexus  (set-file-gain:loader *gain:nexus [/ %'ver.ud'] %.n)
-  ::  imperative: modify ball in place, preserve sand/gain
   =/  ball=ball:tarball  old-ball
   =.  ball  (~(put ba:tarball ball) [/ %'ver.ud'] [~ [/ %ud] !>(0)])
   =/  existing  (~(get ba:tarball ball) [/ %'main.server-state'])
   =?  ball  =(~ existing)
     (~(put ba:tarball ball) [/ %'main.server-state'] [~ [/ %server-state] !>('fresh')])
-  ::  imperative preserves sand and gain
   ;:  weld
     %+  expect-eq
       !>  old-sand
-    !>  old-sand  :: sand passed through unchanged
-    %+  expect-eq
-      !>  old-gain
-    !>  old-gain  :: gain passed through unchanged
+    !>  old-sand
     %+  expect-eq
       !>  `server-ct
     !>  (~(get ba:tarball ball) [/ %'main.server-state'])
@@ -456,12 +368,10 @@
     =/  b  (~(put ba:tarball *ball:tarball) [/ %'ver.ud'] [~ [/ %ud] !>(0)])
     (~(put ba:tarball b) [/ %'main.server-state'] server-ct)
   =/  old-sand=sand:nexus  [`[make=~ poke=(sy ~[[%& [%| /]]]) peek=~] ~]
-  =/  old-gain=gain:nexus  (set-file-gain:loader *gain:nexus [/ %'ver.ud'] %.n)
-  ::  spin: build new from old
-  =/  [=sand:nexus =gain:nexus =ball:tarball]
-    %+  spin:loader  [old-sand old-gain old-ball]
-    :~  [%over %& [/ %'ver.ud'] %.n [~ [/ %ud] !>(0)]]
-        [%fall %& [/ %'main.server-state'] %.n [~ [/ %server-state] !>('fresh')]]
+  =/  [=sand:nexus =ball:tarball]
+    %+  spin:loader  [old-sand old-ball]
+    :~  [%over %& [/ %'ver.ud'] [~ [/ %ud] !>(0)]]
+        [%fall %& [/ %'main.server-state'] [~ [/ %server-state] !>('fresh')]]
     ==
   ;:  weld
     ::  ball content is correct
@@ -472,10 +382,6 @@
     %+  expect-eq
       !>  `(unit weir:nexus)`~
     !>  fil.sand
-    ::  AND: old gain flag for ver.ud is gone (overwritten by row's %.n)
-    %+  expect-eq
-      !>  %.n
-    !>  (get-file-gain:loader gain [/ %'ver.ud'])
   ==
 ::
 ::  ==========================================

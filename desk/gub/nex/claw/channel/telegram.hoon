@@ -13,8 +13,8 @@
 =<  ^-  nexus:nexus
     |%
     ++  on-load
-      |=  [=sand:nexus =gain:nexus =ball:tarball]
-      ^-  [sand:nexus gain:nexus ball:tarball]
+      |=  [=sand:nexus =ball:tarball]
+      ^-  [sand:nexus ball:tarball]
       =/  =ver:loader  (get-ver:loader ball)
       =/  default-config=json
         %-  pairs:enjs:format
@@ -23,12 +23,12 @@
         ==
       ?+  ver  !!
           ?(~ [~ %0])
-        %+  spin:loader  [sand gain ball]
+        %+  spin:loader  [sand ball]
         :~  (ver-row:loader 0)
-            [%fall %& [/ %'config.json'] %.n [~ [/ %json] !>(default-config)]]
-            [%fall %& [/ %'inbox.json'] %.n [~ [/ %json] !>([%a ~])]]
-            [%fall %& [/ %'send.sig'] %.n [~ [/ %sig] !>(~)]]
-            [%fall %& [/ %'poller.sig'] %.n [~ [/ %sig] !>(~)]]
+            [%fall %& [/ %'config.json'] [~ [/ %json] !>(default-config)]]
+            [%fall %& [/ %'inbox.json'] [~ [/ %json] !>([%a ~])]]
+            [%fall %& [/ %'send.sig'] [~ [/ %sig] !>(~)]]
+            [%fall %& [/ %'poller.sig'] [~ [/ %sig] !>(~)]]
         ==
       ==
     ::

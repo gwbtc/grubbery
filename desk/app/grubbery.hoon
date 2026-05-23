@@ -12,7 +12,6 @@
 /=  m-  /mar/sand
 /=  m-  /mar/born
 /=  m-  /mar/subs
-/=  m-  /mar/gain
 /=  m-  /mar/grubbery-load
 /=  m-  /mar/grubbery-intake
 ::
@@ -24,12 +23,11 @@
 +$  state-0
   $:  %0
       =ball:tarball
-      =pool:nexus
       =sand:nexus
       =born:nexus
-      =subs:nexus
       =silo:nexus
-      =gain:nexus
+      =subs:nexus
+      =pool:nexus
       =code:nexus
       =bins:nexus
       =vale:nexus
@@ -189,8 +187,8 @@
           %make
         =/  m=make:nexus
           ?:  ?=(%& -.make.req)
-            &+[sand.p.make.req gain.p.make.req ball.p.make.req]
-          |+[gain.p.make.req [p.bask.p.make.req !>(`*`q.bask.p.make.req)] blot.p.make.req]
+            &+[sand.p.make.req ball.p.make.req]
+          |+[[p.bask.p.make.req !>(`*`q.bask.p.make.req)] blot.p.make.req]
         [%make m]
         %cull  [%cull ~]
         %sand  [%sand weir.req]
@@ -215,7 +213,7 @@
     ?:  ?=([%grubbery %api *] site)
       ~&  >  [%eyre-api eyre-id url.request.req]
       =^  cards  state
-        abet:(make:hc [%& /sys/eyre/requests eyre-id] [%| %.n [[/ %http-request] !>([src.bowl req])] ~])
+        abet:(make:hc [%& /sys/eyre/requests eyre-id] [%| [[/ %http-request] !>([src.bowl req])] ~])
       [cards this]
     ::  Binding match: find handler, forward request
     =/  st=server-state:nexus  get-server-state:hc
@@ -369,11 +367,6 @@
     =/  here=^path  t.t.t.path
     ``born+!>((~(dip of born) here))
     ::
-      [%x %peek %gain *]
-    ::  Gain (history retention flags) subtree
-    =/  here=^path  t.t.t.path
-    ``gain+!>((~(dip of gain) here))
-    ::
       [%x %peek %silo %lobe @ ~]
     ::  Look up noun in silo by lobe hash
     =/  =lobe:clay  (slav %uv i.t.t.t.t.path)
@@ -490,52 +483,6 @@
   ?~  pax  sub
   =/  kid  (~(gut by dir.snd) i.pax *sand:nexus)
   snd(dir (~(put by dir.snd) i.pax $(snd kid, pax t.pax)))
-::
-++  put-sub-gain
-  |=  [gn=gain:nexus pax=path sub=gain:nexus]
-  ^-  gain:nexus
-  ?~  pax  sub
-  =/  kid  (~(gut by dir.gn) i.pax *gain:nexus)
-  gn(dir (~(put by dir.gn) i.pax $(gn kid, pax t.pax)))
-::  Look up gain flag for a file (rail)
-::
-++  lookup-gain
-  |=  here=rail:tarball
-  ^-  ?
-  =/  node=(unit (map @ta ?))  (~(get of gain) path.here)
-  ?~  node  %.n
-  (fall (~(get by u.node) name.here) %.n)
-::  Set gain flag for a file
-::
-++  set-gain
-  |=  [here=rail:tarball flag=?]
-  ^-  gain:nexus
-  =/  node=(map @ta ?)  (fall (~(get of gain) path.here) ~)
-  (~(put of gain) path.here (~(put by node) name.here flag))
-::  Set gain for a lane: single file or recursive on directory
-::
-++  set-gain-lane
-  |=  [=lane:tarball flag=?]
-  ^+  this
-  ?-    -.lane
-      %&
-    ::  File: set gain for single rail
-    =.  gain  (set-gain p.lane flag)
-    this
-      %|
-    ::  Directory: set gain for all files in subtree
-    =/  sub-ball=ball:tarball  (~(dip ba:tarball ball) p.lane)
-    =/  lumps=(list [pax=path =lump:tarball])  ~(tap of sub-ball)
-    |-
-    ?~  lumps  this
-    =/  files=(list @ta)  ~(tap in ~(key by contents.lump.i.lumps))
-    =.  this
-      |-
-      ?~  files  this
-      =.  gain  (set-gain [(weld p.lane pax.i.lumps) i.files] flag)
-      $(files t.files)
-    $(lumps t.lumps)
-  ==
 ::  Drop hist entries matching a lose spec, decrementing silo refs
 ::
 ++  drop-hist
@@ -1005,23 +952,12 @@
   =.  this  (sub-wipe [dir name])
   ::  Snapshot before mutations
   =/  old-born=born:nexus  born
-  ::  Append [%live ~] for deletion; tombstone old entries unless gaining
+  ::  Append [%live ~] for deletion
   =/  sok=(unit hist:nexus)  (get-born [dir name])
-  =/  gaining=?  (lookup-gain [dir name])
-  =?  silo  &(?=(^ sok) !gaining)
-    (~(drop-hist si:nexus silo) u.sok)
   =?  born  ?=(^ sok)
     =/  file-cass=cass:clay  (need (top:hist:nexus u.sok))
     =/  new-cass=cass:clay  (~(next-cass bo:nexus now.bowl [born ball]) file-cass)
-    =/  base=hist:nexus
-      ?:  gaining  u.sok
-      =/  entries=(list [key=cass:clay val=pace:hist:nexus])
-        (tap:hon:hist:nexus u.sok)
-      =|  tombed=hist:nexus
-      |-  ?^  entries
-        $(entries t.entries, tombed (put:hon:hist:nexus tombed key.i.entries [%tomb ~]))
-      tombed
-    =/  new-sok=hist:nexus  (put:hon:hist:nexus base new-cass [%live ~])
+    =/  new-sok=hist:nexus  (put:hon:hist:nexus u.sok new-cass [%live ~])
     (~(put bo:nexus now.bowl [born ball]) [dir name] new-sok)
   ::  Remove from ball BEFORE notify so subscribers see deletion
   =.  ball  (~(del ba:tarball ball) dir name)
@@ -1111,8 +1047,8 @@
 ::  Run nexus on-loads top-down recursively
 ::
 ++  run-on-loads
-  |=  [here=fold:tarball sub-sand=sand:nexus sub-gain=gain:nexus sub-ball=ball:tarball]
-  ^-  [sand:nexus gain:nexus ball:tarball]
+  |=  [here=fold:tarball sub-sand=sand:nexus sub-ball=ball:tarball]
+  ^-  [sand:nexus ball:tarball]
   ::  Check if this node has a nexus (skip on compile failure during boot)
   =/  nex=(unit nexus:nexus)
     ?~  fil.sub-ball  ~
@@ -1131,30 +1067,27 @@
   =/  parent-weir=(unit weir:nexus)  fil.sub-sand
   =/  parent-neck=(unit neck:tarball)
     ?~(fil.sub-ball ~ neck.u.fil.sub-ball)
-  =/  [upd-sand=sand:nexus upd-gain=gain:nexus upd-ball=ball:tarball]
-    ?~  nex  [sub-sand sub-gain sub-ball]
-    (on-load:u.nex sub-sand sub-gain sub-ball)
+  =/  [upd-sand=sand:nexus upd-ball=ball:tarball]
+    ?~  nex  [sub-sand sub-ball]
+    (on-load:u.nex sub-sand sub-ball)
   ::  Enforce parent weir on sand and parent neck on ball.
   ::  A nexus cannot change its own sandboxing or its own identity.
   ::
   =/  restored-lump=lump:tarball
     (fall fil.upd-ball *lump:tarball)
   =:  sub-sand  upd-sand(fil parent-weir)
-      sub-gain  upd-gain
       sub-ball  upd-ball(fil `restored-lump(neck parent-neck))
   ==
   ::  Recurse into subdirectories
   =/  kids=(list [@ta ball:tarball])  ~(tap by dir.sub-ball)
   |-
-  ?~  kids  [sub-sand sub-gain sub-ball]
+  ?~  kids  [sub-sand sub-ball]
   =/  kid-name=@ta  -.i.kids
   =/  kid-ball=ball:tarball  +.i.kids
   =/  kid-sand=sand:nexus  (~(dip of sub-sand) /[kid-name])
-  =/  kid-gain=gain:nexus  (~(dip of sub-gain) /[kid-name])
-  =/  [new-kid-sand=sand:nexus new-kid-gain=gain:nexus new-kid-ball=ball:tarball]
-    ^$(here (snoc here kid-name), sub-sand kid-sand, sub-gain kid-gain, sub-ball kid-ball)
+  =/  [new-kid-sand=sand:nexus new-kid-ball=ball:tarball]
+    ^$(here (snoc here kid-name), sub-sand kid-sand, sub-ball kid-ball)
   =.  sub-sand  (put-sub-sand sub-sand /[kid-name] new-kid-sand)
-  =.  sub-gain  (put-sub-gain sub-gain /[kid-name] new-kid-gain)
   =.  dir.sub-ball  (~(put by dir.sub-ball) kid-name new-kid-ball)
   $(kids t.kids)
 ::  Reload a single nexus at dest (re-run on-load)
@@ -1183,32 +1116,29 @@
   =/  old-sub=ball:tarball  (~(dip ba:tarball ball) dest)
   =/  sub-ball=ball:tarball  old-sub
   =/  sub-sand=sand:nexus  (~(dip of sand) dest)
-  =/  sub-gain=gain:nexus  (~(dip of gain) dest)
   =/  parent-weir=(unit weir:nexus)  fil.sub-sand
   =/  parent-neck=(unit neck:tarball)  ?~(fil.sub-ball ~ neck.u.fil.sub-ball)
   ::  Clear all bangs under this nexus before reloading
   ::  (reload will re-bang anything that still fails)
   =.  pool  (clear-bangs-under dest)
   ::  Run on-load (may crash)
-  =/  load-res=(each [sand:nexus gain:nexus ball:tarball] tang)
-    (mule |.((on-load:nex sub-sand sub-gain sub-ball)))
+  =/  load-res=(each [sand:nexus ball:tarball] tang)
+    (mule |.((on-load:nex sub-sand sub-ball)))
   ?:  ?=(%| -.load-res)
     ::  on-load crashed — bang this nexus, stay all processes
     ~&  >>  "reload-nexus-at: bang at {(spud dest)}"
     (bang-nexus dest p.load-res)
-  =/  [upd-sand=sand:nexus upd-gain=gain:nexus upd-ball=ball:tarball]
+  =/  [upd-sand=sand:nexus upd-ball=ball:tarball]
     p.load-res
   ::  Enforce parent weir on sand and parent neck on ball
   =/  restored-lump=lump:tarball  (fall fil.upd-ball *lump:tarball)
   =/  new-sand=sand:nexus    upd-sand(fil parent-weir)
-  =/  new-gain=gain:nexus    upd-gain
   =/  new-ball=ball:tarball  upd-ball(fil `restored-lump(neck parent-neck))
   ::  Validate marks in the new ball — failures become /boom blots so
   ::  bad marks surface as inspectable files rather than downstream bangs.
   =.  new-ball  ~|([%validate-ball-reload dest] (validate-ball dest new-ball))
   ::  Put results back — load-ball-changes writes ball and does bookkeeping
   =.  sand  (put-sub-sand sand dest new-sand)
-  =.  gain  (put-sub-gain gain dest new-gain)
   =.  this  (load-ball-changes dest old-sub new-ball)
   =.  this  (bump-weir-changes dest sub-sand new-sand)
   =.  this  (audit-weir dest)
@@ -1621,7 +1551,7 @@
       ?(%peek %keep %drop %seek %peep %manu %bang %code %font)  %peek  :: read operations
       %poke                       %poke
         $?  %make  %cull  %sand  %load
-            %over  %gain  %lose
+            %over  %lose
         ==
       %make  :: all modify tree structure
     ==
@@ -1803,8 +1733,7 @@
         =/  sub-born=born:nexus  (~(dip of born) dest)
         =?  u.sub-ball  |(?=([~ %&] filt) clam.load.dart)
           (validate-ball cod u.sub-ball)
-        =/  sub-gain=gain:nexus  (~(dip of gain) dest)
-        (enqu-take here (sys-give /peek) ~ %peek wire.dart %& %ball sub-sand sub-gain sub-born u.sub-ball)
+        (enqu-take here (sys-give /peek) ~ %peek wire.dart %& %ball sub-sand sub-born u.sub-ball)
         ::
           %&
         =/  dest=rail:tarball  p.u.dest-lane
@@ -1850,7 +1779,7 @@
           ?:  =(p.clammed u.blot.load.dart)  clammed
           =/  =tube:clay  (get-tube cod [p.clammed u.blot.load.dart])
           [p.clammed (tube q.clammed)]
-        (enqu-take here (sys-give /peek) ~ %peek wire.dart %& %file sk (lookup-gain dest) result)
+        (enqu-take here (sys-give /peek) ~ %peek wire.dart %& %file sk result)
       ==
       ::
         %bang
@@ -2004,15 +1933,6 @@
         ?:  ?=(%| -.res)  ~
         `[key p.res]
       (enqu-take here (sys-give /peep) ~ %peep wire.dart &+hits)
-      ::
-        %gain
-      ::  Set gain flag. Recursive on directories, single file on rails.
-      =/  res=(each _this tang)
-        (mule |.((set-gain-lane u.dest-lane flag.load.dart)))
-      ?-  -.res
-        %&  (enqu-take:p.res here (sys-give /gain) ~ %gain wire.dart ~)
-        %|  (enqu-take here (sys-give /gain) ~ %gain wire.dart `p.res)
-      ==
       ::
         %lose
       ::  Drop hist entries and decrement silo refs
@@ -2228,32 +2148,28 @@
   ^+  this
   ?-    -.dest
       %|
-    ::  Make directory - payload must be [sand gain ball]
+    ::  Make directory - payload must be [sand ball]
     ?>  ?=(%& -.make)
     =/  dest-path=fold:tarball  p.dest
     =/  new-sand=sand:nexus  sand.p.make
-    =/  new-gain=gain:nexus  gain.p.make
     =/  new-ball=ball:tarball  ball.p.make
     ::  Assert nothing exists at path
     =/  existing=ball:tarball  (~(dip ba:tarball ball) dest-path)
     ?:  |(?=(^ fil.existing) !=(~ dir.existing))
       ~|("path is not empty" !!)
-    ::  Put new sand, gain, and ball at path
+    ::  Put new sand and ball at path
     =.  sand  (put-sub-sand sand dest-path new-sand)
-    =.  gain  (put-sub-gain gain dest-path new-gain)
     =.  ball  (~(pub ba:tarball ball) dest-path new-ball)
-    ::  Run on-loads top-down (may modify sand, ball, and gain)
-    =/  [rol-sand=sand:nexus rol-gain=gain:nexus rol-ball=ball:tarball]
-      (run-on-loads dest-path new-sand new-gain new-ball)
+    ::  Run on-loads top-down (may modify sand and ball)
+    =/  [rol-sand=sand:nexus rol-ball=ball:tarball]
+      (run-on-loads dest-path new-sand new-ball)
     =:  new-sand  rol-sand
-        new-gain  rol-gain
         new-ball  rol-ball
     ==
     ::  Validate all cages in loaded ball
     =/  validated=ball:tarball  ~|(%validate-ball-make (validate-ball dest-path new-ball))
-    ::  Put the final sand, gain, and ball back
+    ::  Put the final sand and ball back
     =.  sand  (put-sub-sand sand dest-path new-sand)
-    =.  gain  (put-sub-gain gain dest-path new-gain)
     ::  Sync all changes (old is empty) and spawn processes
     =.  this  (load-ball-changes dest-path *ball:tarball validated)
     ::  Register and build any code namespaces in the new ball
@@ -2278,10 +2194,6 @@
       (cache-validation path.dest-rail p.sage.p.make q.q.sage.p.make validated)
     ?:  ?=(%| -.validated)
       ~|("make failed: validation error" (mean p.validated))
-    ::  Record gain flag if set
-    =?  this  gain.p.make
-      =.  gain  (set-gain dest-rail %.y)
-      this
     ::  Save initial state (bumps file aeon since old content is ~)
     =.  this  (save-file dest-rail [~ p.sage.p.make p.validated])
     ::  Spawn process (needs file in ball for build-spool)
@@ -2468,12 +2380,11 @@
   =/  file-cass=cass:clay  (need (top:hist:nexus sok))
   =/  new-cass=cass:clay
     (fall cas (~(next-cass bo:nexus now.bowl [born ball]) file-cass))
-  =/  gaining=?  (lookup-gain here)
   =/  marc-ckey=@uv
     =/  res  (seek-built path.here (weld /mar path.p.sage) name.p.sage)
     ?~(res 0v0 ckey.u.res)
   =/  [=lobe:clay new-silo=silo:nexus new-sok=hist:nexus]
-    (~(record si:nexus silo) q.q.sage p.sage marc-ckey new-cass gaining file-cass sok)
+    (~(record si:nexus silo) q.q.sage p.sage marc-ckey new-cass sok)
   =.  silo  new-silo
   =.  born  (~(put bo:nexus now.bowl [born ball]) here new-sok)
   this
@@ -2532,23 +2443,12 @@
         =/  sok=hist:nexus  (need (get-born [here name]))
         (record [here name] sage.content `(need (top:hist:nexus sok)))
       ?:  &(in-old !in-new)
-        ::  Deleted file: append [%live ~]; tombstone old entries unless gaining
+        ::  Deleted file: append [%live ~]
         =/  sok=(unit hist:nexus)  (get-born [here name])
         ?~  sok  this
-        =/  gaining=?  (lookup-gain [here name])
-        =?  silo  !gaining
-          (~(drop-hist si:nexus silo) u.sok)
         =/  file-cass=cass:clay  (need (top:hist:nexus u.sok))
         =/  new-cass=cass:clay  (~(next-cass bo:nexus now.bowl [born ball]) file-cass)
-        =/  base=hist:nexus
-          ?:  gaining  u.sok
-          =/  entries=(list [key=cass:clay val=pace:hist:nexus])
-            (tap:hon:hist:nexus u.sok)
-          =|  tombed=hist:nexus
-          |-  ?^  entries
-            $(entries t.entries, tombed (put:hon:hist:nexus tombed key.i.entries [%tomb ~]))
-          tombed
-        =/  new-sok=hist:nexus  (put:hon:hist:nexus base new-cass [%live ~])
+        =/  new-sok=hist:nexus  (put:hon:hist:nexus u.sok new-cass [%live ~])
         this(born (~(put bo:nexus now.bowl [born ball]) [here name] new-sok))
       ::  Both: record if changed
       =/  old-content=content:tarball  (~(got by old-files) name)
@@ -3140,7 +3040,6 @@
   ^+  this
   ::  Create dill/logs grub and subscribe
   =.  this  (save-file [/sys/dill %'logs.dill-told'] [~ [/ %dill-told] !>(*told:dill)])
-  =.  gain  (set-gain [/sys/dill %'logs.dill-told'] %.y)
   =.  this  (emit-card [%pass /dill/logs %arvo %d %logs `~])
   ::  Scry for sessions
   =/  sessions=(list @tas)
@@ -3154,11 +3053,10 @@
     |=  ses=@ta
     ?:  (~(has in new) ses)  ~
     `[%pass /dill/session/[ses] %arvo %d %shot ses %flee ~]
-  ::  Create grubs and subscribe, with gain enabled
+  ::  Create grubs and subscribe
   =.  this
     %+  roll  sessions
     |=  [ses=@tas acc=_this]
-    =.  gain.acc  (set-gain:acc [/sys/dill/sessions ses] %.y)
     (save-file:acc [/sys/dill/sessions ses] [~ [/ %dill-blit] !>(*(list blit:dill))])
   %-  emit-cards
   %+  turn  sessions
@@ -3173,10 +3071,8 @@
   ::  Create grubs and subscribe
   =.  this
     (save-file [/sys/jael %'private-keys.jael-private-keys'] [~ [/ %jael-private-keys] !>(*[life (map life ring)])])
-  =.  gain  (set-gain [/sys/jael %'private-keys.jael-private-keys'] %.y)
   =.  this
     (save-file [/sys/jael %'public-keys.jael-public-keys-result'] [~ [/ %jael-public-keys-result] !>(*public-keys-result:jael)])
-  =.  gain  (set-gain [/sys/jael %'public-keys.jael-public-keys-result'] %.y)
   ::  Subscribe to private keys
   =.  this
     (emit-card [%pass /jael/private %arvo %j %private-keys ~])
@@ -3209,7 +3105,7 @@
 ::    - On %kick: set live to %.n, auto-resubscribe, set live to
 ::      %.y on successful %watch-ack.
 ::    - On %watch-ack with error: set live to %.n, don't retry.
-::    - All files are gained (history retained in silo).
+::    - All files retain history in silo.
 ::    - Wire format: /gall-sub/{ship}/{agent}/{path...}
 ::
 ::
@@ -3235,7 +3131,6 @@
   =.  this  (load-ball-changes dir old new)
   ::  Create live file (%.y = subscribing)
   =.  this  (save-file [dir %live] [~ [/ %loob] !>(%.y)])
-  =.  gain  (set-gain [dir %live] %.y)
   ::  Subscribe
   ~&  >  "gall-sub: subscribing to {<ship>}/{(trip agent)}/{(spud path)}"
   (emit-card [%pass wir %agent [ship agent] %watch path])
@@ -3288,17 +3183,13 @@
     ?~  vale
       ::  No marc — fall back to page (original mark + raw noun)
       ~&  >  "gall-sub: no marc for {<mar>}, storing as page"
-      =.  this  (save-file [dir %data] [~ [/ %page] !>(`[p=@tas q=*]`[mar q.q.cage.sign])])
-      =.  gain  (set-gain [dir %data] %.y)
-      this
+      (save-file [dir %data] [~ [/ %page] !>(`[p=@tas q=*]`[mar q.q.cage.sign])])
     =/  res=(each vase tang)
       (validate-vase u.vale q.q.cage.sign)
     ?.  ?=(%& -.res)
       ~&  >>>  "gall-sub: vale failed for {<mar>}"
       this
-    =.  this  (save-file [dir %data] [~ [/ mar] p.res])
-    =.  gain  (set-gain [dir %data] %.y)
-    this
+    (save-file [dir %data] [~ [/ mar] p.res])
   ::
       %kick
     ::  Set live to %.n, auto-resubscribe

@@ -7,25 +7,25 @@
 =<  ^-  nexus:nexus
     |%
     ++  on-load
-      |=  [=sand:nexus =gain:nexus =ball:tarball]
-      ^-  [sand:nexus gain:nexus ball:tarball]
+      |=  [=sand:nexus =ball:tarball]
+      ^-  [sand:nexus ball:tarball]
       =/  =ver:loader  (get-ver:loader ball)
       ?+  ver  !!
           ?(~ [~ %0])
-        %+  spin:loader  [sand gain ball]
+        %+  spin:loader  [sand ball]
         :~  (ver-row:loader 0)
-            [%fall %& [/ %'main.sig'] %.n [~ [/ %sig] !>(~)]]
-            [%fall %| /apis [~ ~] [~ ~] empty-dir:loader]
-            [%fall %| /apis/anthropic [~ ~] [~ ~] [`[~ `[/claw/api %anthropic] ~] ~]]
-            [%fall %| /agents [~ ~] [~ ~] empty-dir:loader]
-            [%fall %| /agents/main [`main-agent-weir ~] [~ ~] [`[~ `[/claw %agent] ~] ~]]
-            [%fall %| /channels [~ ~] [~ ~] empty-dir:loader]
-            [%fall %| /channels/telegram/main-bot [~ ~] [~ ~] [`[~ `[/claw/channel %telegram] ~] ~]]
-            [%fall %| /ui/sse [~ ~] [~ ~] empty-dir:loader]
-            [%over %& [/ui/sse %'agents.html'] %.n [~ [/ %html] !>((crip (en-xml:html (agents-fragment "" ~))))]]
-            [%over %& [/ui/sse %'channels.html'] %.n [~ [/ %html] !>((crip (en-xml:html (channels-fragment "" ~))))]]
-            [%over %& [/ui/sse %'apis.html'] %.n [~ [/ %html] !>((crip (en-xml:html (apis-fragment "" ~))))]]
-            [%over %& [/ %'page.html'] %.n [~ [/ %html] !>((crip (en-xml:html (dashboard-page "" ~ ~ ~))))]]
+            [%fall %& [/ %'main.sig'] [~ [/ %sig] !>(~)]]
+            [%fall %| /apis [~ ~] empty-dir:loader]
+            [%fall %| /apis/anthropic [~ ~] [`[~ `[/claw/api %anthropic] ~] ~]]
+            [%fall %| /agents [~ ~] empty-dir:loader]
+            [%fall %| /agents/main [`main-agent-weir ~] [`[~ `[/claw %agent] ~] ~]]
+            [%fall %| /channels [~ ~] empty-dir:loader]
+            [%fall %| /channels/telegram/main-bot [~ ~] [`[~ `[/claw/channel %telegram] ~] ~]]
+            [%fall %| /ui/sse [~ ~] empty-dir:loader]
+            [%over %& [/ui/sse %'agents.html'] [~ [/ %html] !>((crip (en-xml:html (agents-fragment "" ~))))]]
+            [%over %& [/ui/sse %'channels.html'] [~ [/ %html] !>((crip (en-xml:html (channels-fragment "" ~))))]]
+            [%over %& [/ui/sse %'apis.html'] [~ [/ %html] !>((crip (en-xml:html (apis-fragment "" ~))))]]
+            [%over %& [/ %'page.html'] [~ [/ %html] !>((crip (en-xml:html (dashboard-page "" ~ ~ ~))))]]
         ==
       ==
     ::
@@ -104,7 +104,7 @@
             (cord-to-road:tarball (crip "./agents/{(trip name)}/"))
           =/  new-ball=ball:tarball  [`[~ `[/claw %agent] ~] ~]
           =/  new-sand=sand:nexus  [`agents-weir ~]
-          ;<  ~  bind:m  (make:io agent-road &+[new-sand *gain:nexus new-ball])
+          ;<  ~  bind:m  (make:io agent-road &+[new-sand new-ball])
           =/  agent-cfg=json
             %-  pairs:enjs:format
             :~  ['model' s+'claude-sonnet-4-20250514']
@@ -139,7 +139,7 @@
             (cord-to-road:tarball (crip "./channels/{(trip name)}/"))
           =/  neck=neck:tarball  [/claw/channel (slav %tas chan-type)]
           =/  new-ball=ball:tarball  [`[~ `neck ~] ~]
-          ;<  ~  bind:m  (make:io chan-road &+[*sand:nexus *gain:nexus new-ball])
+          ;<  ~  bind:m  (make:io chan-road &+[*sand:nexus new-ball])
           $
         ::
             %'delete-channel'
@@ -161,7 +161,7 @@
             (cord-to-road:tarball (crip "./apis/{(trip name)}/"))
           =/  neck=neck:tarball  [/claw/api (slav %tas api-type)]
           =/  new-ball=ball:tarball  [`[~ `neck ~] ~]
-          ;<  ~  bind:m  (make:io api-road &+[*sand:nexus *gain:nexus new-ball])
+          ;<  ~  bind:m  (make:io api-road &+[*sand:nexus new-ball])
           $
         ::
             %'delete-api'

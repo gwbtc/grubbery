@@ -82,19 +82,19 @@
 ^-  nexus:nexus
 |%
 ++  on-load
-  |=  [=sand:nexus =gain:nexus =ball:tarball]
-  ^-  [sand:nexus gain:nexus ball:tarball]
+  |=  [=sand:nexus =ball:tarball]
+  ^-  [sand:nexus ball:tarball]
   =/  =ver:loader  (get-ver:loader ball)
   ?+  ver  !!
       ?(~ [~ %0])
-    %+  spin:loader  [sand gain ball]
+    %+  spin:loader  [sand ball]
     :~  (ver-row:loader 1)
-        [%fall %& [/ %'main.sig'] %.n [~ [/ %sig] !>(~)]]
-        [%fall %| /requests [~ ~] [~ ~] empty-dir:loader]
-        [%fall %| /tools [~ ~] [~ ~] empty-dir:loader]
+        [%fall %& [/ %'main.sig'] [~ [/ %sig] !>(~)]]
+        [%fall %| /requests [~ ~] empty-dir:loader]
+        [%fall %| /tools [~ ~] empty-dir:loader]
     ==
       [~ %1]
-    [sand gain ball]
+    [sand ball]
   ==
 ::
 ++  on-file
@@ -155,7 +155,7 @@
         ;<  *  bind:m
           (keep:io /watch tool-road ~)
         ?.  exists
-          (make:io tool-road |+[%.n [[/ %tool-state] !>(ts)] ~])
+          (make:io tool-road |+[[[/ %tool-state] !>(ts)] ~])
         (pure:m ~)
       ::  Wait for tool to finish
       |-

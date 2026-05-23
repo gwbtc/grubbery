@@ -1,7 +1,7 @@
 ::  mar/urb-udiffs.hoon
 ::
 ::  Mark for urb PKI udiffs — non-invertible diffs emitted per block.
-::  Stored in a gain-enabled file so subscribers get live updates.
+::  Stored in a file so subscribers get live updates.
 ::
 |_  =udiffs:point:jael
 ++  grow

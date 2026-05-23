@@ -18,17 +18,17 @@
 =<  ^-  nexus:nexus
     |%
     ++  on-load
-      |=  [=sand:nexus =gain:nexus =ball:tarball]
-      ^-  [sand:nexus gain:nexus ball:tarball]
+      |=  [=sand:nexus =ball:tarball]
+      ^-  [sand:nexus ball:tarball]
       =/  =ver:loader  (get-ver:loader ball)
       ?+  ver  !!
           ?(~ [~ %0])
-        %+  spin:loader  [sand gain ball]
+        %+  spin:loader  [sand ball]
         :~  (ver-row:loader 0)
             [%stay %& [/ %'data.wallet_account']]
-          [%over %& [/ %'main.sig'] %.n [~ [/ %sig] !>(~)]]
-          [%fall %| /addresses [~ ~] [~ ~] empty-dir:loader]
-          [%fall %| /proc [~ ~] [~ ~] empty-dir:loader]
+          [%over %& [/ %'main.sig'] [~ [/ %sig] !>(~)]]
+          [%fall %| /addresses [~ ~] empty-dir:loader]
+          [%fall %| /proc [~ ~] empty-dir:loader]
           [%stay %& [/proc %'scan.json']]
         ==
       ==
@@ -100,7 +100,7 @@
                   ['index' (numb:enjs:format next-idx)]
               ==
             ;<  ~  bind:m
-              (make:io proc-road |+[%.n [[/ %json] !>(proc-json)] ~])
+              (make:io proc-road |+[[[/ %json] !>(proc-json)] ~])
             $
           ::
               %'delete-address'
@@ -150,7 +150,7 @@
                   ['gap' (numb:enjs:format 0)]
               ==
             ;<  ~  bind:m
-              (make:io (cord-to-road:tarball './proc/scan.json') |+[%.n [[/ %json] !>(proc-json)] ~])
+              (make:io (cord-to-road:tarball './proc/scan.json') |+[[[/ %json] !>(proc-json)] ~])
             $
           ::
               %'pause-scan'
@@ -202,7 +202,7 @@
               ==
             ~&  >  [%refresh %spawning proc-name]
             ;<  ~  bind:m
-              (make:io proc-road |+[%.n [[/ %json] !>(proc-json)] ~])
+              (make:io proc-road |+[[[/ %json] !>(proc-json)] ~])
             $
           ::
           ::  === Draft transaction actions ===
@@ -596,12 +596,12 @@
 ::
 |%
 ++  data-to-page
-  |=  [gn=? ct=content:tarball]
-  ^-  [? content:tarball]
-  ?:  =(ct *content:tarball)  [%.n ct]
-  ?:  =([/ %boom] p.sage.ct)  [%.n ct]
+  |=  ct=content:tarball
+  ^-  content:tarball
+  ?:  =(ct *content:tarball)  ct
+  ?:  =([/ %boom] p.sage.ct)  ct
   =/  acct=account-data  !<(account-data q.sage.ct)
-  [%.n [~ [/ %html] !>((crip (en-xml:html (detail-page:acct-ui acct *addr-mop *addr-mop *@da %none ~ ~ ''))))]]
+  [~ [/ %html] !>((crip (en-xml:html (detail-page:acct-ui acct *addr-mop *addr-mop *@da %none ~ ~ ''))))]
 ::
 ++  extract-account
   |=  =seen:nexus
@@ -633,7 +633,7 @@
   ;<  exists=?  bind:m  (peek-exists:io road)
   ?:  exists
     (over:io road [[/wallet %draft] !>(dr)])
-  (make:io road |+[%.n [[/wallet %draft] !>(dr)] ~])
+  (make:io road |+[[[/wallet %draft] !>(dr)] ~])
 ::
 ++  read-wallet-name
   |=  wallet-fp=@ux
@@ -753,7 +753,7 @@
     ~&  >>  [%write-mop %overwriting]
     (over:io road [[/wallet %addresses] !>(mop)])
   ~&  >>  [%write-mop %creating]
-  (make:io road |+[%.n [[/wallet %addresses] !>(mop)] ~])
+  (make:io road |+[[[/wallet %addresses] !>(mop)] ~])
 ::  +txs-road: compute road to the tx-map file
 ::
 ++  txs-road
@@ -782,7 +782,7 @@
   ;<  exists=?  bind:m  (peek-exists:io road)
   ?:  exists
     (over:io road [[/wallet %txs] !>(txs)])
-  (make:io road |+[%.n [[/wallet %txs] !>(txs)] ~])
+  (make:io road |+[[[/wallet %txs] !>(txs)] ~])
 ::  +ensure-net-dir: create network dir + empty mop files if needed
 ::
 ++  ensure-net-dir
@@ -1042,7 +1042,7 @@
   ^-  form:m
   =/  marker-json=json  (pairs:enjs:format ~[['paused' b+%.y]])
   ;<  ~  bind:m
-    (make:io (cord-to-road:tarball '../scan-paused.json') |+[%.n [[/ %json] !>(marker-json)] ~])
+    (make:io (cord-to-road:tarball '../scan-paused.json') |+[[[/ %json] !>(marker-json)] ~])
   |-
   ;<  resumed=?  bind:m  take-pause-event
   ?.  resumed  $

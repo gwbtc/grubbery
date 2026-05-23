@@ -21,8 +21,8 @@
 =<  ^-  nexus:nexus
     |%
     ++  on-load
-      |=  [=sand:nexus =gain:nexus =ball:tarball]
-      ^-  [sand:nexus gain:nexus ball:tarball]
+      |=  [=sand:nexus =ball:tarball]
+      ^-  [sand:nexus ball:tarball]
       =/  =ver:loader  (get-ver:loader ball)
       =/  default-creds=json
         %-  pairs:enjs:format
@@ -34,17 +34,17 @@
         ==
       ?+  ver  !!
           ?(~ [~ %0])
-        %+  spin:loader  [sand gain ball]
+        %+  spin:loader  [sand ball]
         :~  (ver-row:loader 0)
-            [%fall %& [/ %'main.sig'] %.n [~ [/ %sig] !>(~)]]
-            [%fall %& [/ %'creds.json'] %.n [~ [/ %json] !>(default-creds)]]
-            [%fall %& [/ %'source.json'] %.n [~ [/ %json] !>(s+'')]]
-            [%fall %& [/ %'mapping.json'] %.n [~ [/ %json] !>([%a ~])]]
-            [%fall %& [/ %'log.json'] %.n [~ [/ %json] !>([%a ~])]]
-            [%fall %& [/ %'browse.json'] %.n [~ [/ %json] !>([%o ~])]]
-            [%fall %& [/ %'sync-status.json'] %.n [~ [/ %json] !>([%a ~])]]
-            [%fall %| /sync [~ ~] [~ ~] empty-dir:loader]
-            [%over %& [/ %'page.html'] %.n [~ [/ %html] !>((manx-to-html (bridge-page ~)))]]
+            [%fall %& [/ %'main.sig'] [~ [/ %sig] !>(~)]]
+            [%fall %& [/ %'creds.json'] [~ [/ %json] !>(default-creds)]]
+            [%fall %& [/ %'source.json'] [~ [/ %json] !>(s+'')]]
+            [%fall %& [/ %'mapping.json'] [~ [/ %json] !>([%a ~])]]
+            [%fall %& [/ %'log.json'] [~ [/ %json] !>([%a ~])]]
+            [%fall %& [/ %'browse.json'] [~ [/ %json] !>([%o ~])]]
+            [%fall %& [/ %'sync-status.json'] [~ [/ %json] !>([%a ~])]]
+            [%fall %| /sync [~ ~] empty-dir:loader]
+            [%over %& [/ %'page.html'] [~ [/ %html] !>((manx-to-html (bridge-page ~)))]]
         ==
       ==
     ::
@@ -474,7 +474,7 @@
   ?:  exists
     ;<  ~  bind:m  (log-msg 'warn' (crip "Sync #{(trip id)}: already synced"))
     (pure:m ~)
-  ;<  ~  bind:m  (make:io rd |+[%.n [[/ %json] !>([%o ~])] ~])
+  ;<  ~  bind:m  (make:io rd |+[[[/ %json] !>([%o ~])] ~])
   ;<  ~  bind:m  (log-msg 'info' (crip "Sync #{(trip id)} started"))
   (update-sync-status id %.y)
 ::
@@ -696,7 +696,7 @@
     ;<  exists=?  bind:m  (peek-exists:io local-road)
     ;<  ~  bind:m  ?.  exists  (pure:m ~)
                    (cull:io local-road)
-    ;<  ~  bind:m  (make:io local-road &+[*sand:nexus *gain:nexus root-ball])
+    ;<  ~  bind:m  (make:io local-road &+[*sand:nexus root-ball])
     ;<  ~  bind:m
       (log-msg 'info' (crip "Pulled {<pulled>} files for #{(trip id.bridge-entry)}"))
     (pure:m ~)

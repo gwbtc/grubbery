@@ -226,11 +226,10 @@
   ?:  exists
     (send-error eyre-id 409 'Already exists')
   =/  mark-param=(unit @t)  (get-key:kv:html-utils 'mark' args)
-  =/  gain=?  =('true' (fall (get-key:kv:html-utils 'gain' args) ''))
   =/  mime-sage=sage:tarball  [[/ %mime] !>(`mime`[/application/octet-stream u.body])]
   ;<  converted=(unit sage:tarball)  bind:m  (maybe-convert eyre-id mime-sage mark-param)
   ?~  converted  (pure:m ~)
-  ;<  ~  bind:m  (make:io road [%| gain u.converted ~])
+  ;<  ~  bind:m  (make:io road [%| u.converted ~])
   (send-created eyre-id)
 ::  +serve-dir-make: PUT /dir — create directory
 ::
@@ -247,7 +246,7 @@
   ?:  exists
     (send-error eyre-id 409 'Already exists')
   =/  init-ball=ball:tarball  [`[~ ~ ~] ~]
-  ;<  ~  bind:m  (make:io road &+[[~ ~] [~ ~] init-ball])
+  ;<  ~  bind:m  (make:io road &+[[~ ~] init-ball])
   (send-created eyre-id)
 ::  +serve-post: POST /poke, /over — send dart to file
 ::
@@ -315,7 +314,7 @@
   ;<  exists=?  bind:m  (peek-exists:io dir-road)
   ?.  exists
     ;<  ~  bind:m
-      (make:io dir-road &+[[~ ~] [~ ~] `[~ ~ ~] ~])
+      (make:io dir-road &+[[~ ~] `[~ ~ ~] ~])
     (ensure-parents next t.segments)
   (ensure-parents next t.segments)
 ::  +serve-upload: POST /upload — multipart file/directory upload
@@ -398,7 +397,7 @@
   ?:  exists
     ;<  ~  bind:m  (over:io road final-sage)
     $(remaining t.remaining, created [filename-raw created])
-  ;<  ~  bind:m  (make:io road |+[%.n final-sage ~])
+  ;<  ~  bind:m  (make:io road |+[final-sage ~])
   $(remaining t.remaining, created [filename-raw created])
 ::  +serve-sand-peek: GET /sand — directory permissions as JSON
 ::

@@ -13,8 +13,8 @@
 =<  ^-  nexus:nexus
     |%
     ++  on-load
-      |=  [=sand:nexus =gain:nexus =ball:tarball]
-      ^-  [sand:nexus gain:nexus ball:tarball]
+      |=  [=sand:nexus =ball:tarball]
+      ^-  [sand:nexus ball:tarball]
       =/  =ver:loader  (get-ver:loader ball)
       ?+  ver  !!
           ?(~ [~ %0])
@@ -22,20 +22,20 @@
           (make-dev-wallet 'Dev Wallet' [%t 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about'] %testnet4)
         =/  [fau-wal-dir=@ta fau-wal-ball=ball:tarball fau-acct-dir=@ta fau-acct-ball=ball:tarball]
           (make-dev-wallet 'Fauceted Wallet' [%t 'injury idea term fox crop movie type critic hello inquiry lottery agree'] %testnet3)
-        %+  spin:loader  [sand gain ball]
+        %+  spin:loader  [sand ball]
         :~  (ver-row:loader 0)
-            [%over %& [/ %'main.sig'] %.n [~ [/ %sig] !>(~)]]
-            [%over %& [/ %'page.html'] %.n [~ [/ %html] !>((crip (en-xml:html (wallet-page "" ~))))]]
-            [%fall %| /wallets [~ ~] [~ ~] empty-dir:loader]
-            [%fall %| /accounts [~ ~] [~ ~] empty-dir:loader]
-            [%fall %| /ui/sse [~ ~] [~ ~] empty-dir:loader]
-            [%over %& [/ui/sse %'wallets.html'] %.n [~ [/ %html] !>((crip (en-xml:html (wallet-list-html ~))))]]
-            [%fall %& [/ui %'http.sig'] %.n [~ [/ %sig] !>(~)]]
-            [%fall %| /ui/requests [~ ~] [~ ~] empty-dir:loader]
-            [%fall %| (snoc /wallets wal-dir) [~ ~] [~ ~] wal-ball]
-            [%fall %| (snoc /accounts acct-dir) [~ ~] [~ ~] acct-ball]
-            [%fall %| (snoc /wallets fau-wal-dir) [~ ~] [~ ~] fau-wal-ball]
-            [%fall %| (snoc /accounts fau-acct-dir) [~ ~] [~ ~] fau-acct-ball]
+            [%over %& [/ %'main.sig'] [~ [/ %sig] !>(~)]]
+            [%over %& [/ %'page.html'] [~ [/ %html] !>((crip (en-xml:html (wallet-page "" ~))))]]
+            [%fall %| /wallets [~ ~] empty-dir:loader]
+            [%fall %| /accounts [~ ~] empty-dir:loader]
+            [%fall %| /ui/sse [~ ~] empty-dir:loader]
+            [%over %& [/ui/sse %'wallets.html'] [~ [/ %html] !>((crip (en-xml:html (wallet-list-html ~))))]]
+            [%fall %& [/ui %'http.sig'] [~ [/ %sig] !>(~)]]
+            [%fall %| /ui/requests [~ ~] empty-dir:loader]
+            [%fall %| (snoc /wallets wal-dir) [~ ~] wal-ball]
+            [%fall %| (snoc /accounts acct-dir) [~ ~] acct-ball]
+            [%fall %| (snoc /wallets fau-wal-dir) [~ ~] fau-wal-ball]
+            [%fall %| (snoc /accounts fau-acct-dir) [~ ~] fau-acct-ball]
         ==
       ==
     ::
@@ -91,7 +91,7 @@
               (~(put by *(map @ta content:tarball)) %'main.wallet_wallet' [~ [/wallet %wallet] !>(wal)])
             =/  wal-ball=ball:tarball  [`wal-lump ~]
             ;<  ~  bind:m
-              (make:io [%| 0 %| (snoc /wallets wallet-dir)] &+[*sand:nexus *gain:nexus wal-ball])
+              (make:io [%| 0 %| (snoc /wallets wallet-dir)] &+[*sand:nexus wal-ball])
             $
               %'add-wallet-from-entropy'
             =/  wallet-name=@t
@@ -108,7 +108,7 @@
               (~(put by *(map @ta content:tarball)) %'main.wallet_wallet' [~ [/wallet %wallet] !>(wal)])
             =/  wal-ball=ball:tarball  [`wal-lump ~]
             ;<  ~  bind:m
-              (make:io [%| 0 %| (snoc /wallets wallet-dir)] &+[*sand:nexus *gain:nexus wal-ball])
+              (make:io [%| 0 %| (snoc /wallets wallet-dir)] &+[*sand:nexus wal-ball])
             $
               %'remove-wallet'
             =/  pubkey=@t

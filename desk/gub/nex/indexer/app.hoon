@@ -18,8 +18,8 @@
 =<  ^-  nexus:nexus
     |%
     ++  on-load
-      |=  [=sand:nexus =gain:nexus =ball:tarball]
-      ^-  [sand:nexus gain:nexus ball:tarball]
+      |=  [=sand:nexus =ball:tarball]
+      ^-  [sand:nexus ball:tarball]
       =/  =ver:loader  (get-ver:loader ball)
       ?+  ver  !!
           ?(~ [~ %0] [~ %1])
@@ -29,12 +29,12 @@
               ['auth' s+'Basic dXJiaXQ6dXJiaXQxMjM=']
               ['poll-interval' s+'~s5']
           ==
-        %+  spin:loader  [sand gain ball]
+        %+  spin:loader  [sand ball]
         :~  (ver-row:loader 1)
-            [%fall %& [/ %'config.json'] %.n [~ [/ %json] !>(default-config)]]
-            [%fall %& [/ %'tip.ud'] %.n [~ [/ %ud] !>(`@ud`0)]]
-            [%over %& [/ %'poller.sig'] %.n [~ [/ %sig] !>(~)]]
-            [%fall %| /blocks [~ ~] [~ ~] empty-dir:loader]
+            [%fall %& [/ %'config.json'] [~ [/ %json] !>(default-config)]]
+            [%fall %& [/ %'tip.ud'] [~ [/ %ud] !>(`@ud`0)]]
+            [%over %& [/ %'poller.sig'] [~ [/ %sig] !>(~)]]
+            [%fall %| /blocks [~ ~] empty-dir:loader]
         ==
       ==
     ::
@@ -249,7 +249,7 @@
   =/  block-ball=ball:tarball
     [`block-lump (~(put by *(map @ta ball:tarball)) %txs [`txs-lump ~])]
   ;<  *  bind:m
-    (make-soft:io (cord-to-road:tarball (cat 3 './blocks/' (cat 3 height-dir '/'))) &+[*sand:nexus *gain:nexus block-ball])
+    (make-soft:io (cord-to-road:tarball (cat 3 './blocks/' (cat 3 height-dir '/'))) &+[*sand:nexus block-ball])
   (pure:m ~)
 ::
 ++  tx-to-json

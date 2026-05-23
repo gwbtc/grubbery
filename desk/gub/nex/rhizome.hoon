@@ -11,17 +11,17 @@
 =<  ^-  nexus:nexus
     |%
     ++  on-load
-      |=  [=sand:nexus =gain:nexus =ball:tarball]
-      ^-  [sand:nexus gain:nexus ball:tarball]
+      |=  [=sand:nexus =ball:tarball]
+      ^-  [sand:nexus ball:tarball]
       =/  =ver:loader  (get-ver:loader ball)
       ?+  ver  !!
           ?(~ [~ %0])
-        %+  spin:loader  [sand gain ball]
+        %+  spin:loader  [sand ball]
         :~  (ver-row:loader 0)
-            [%fall %& [/ %'main.sig'] %.n [~ [/ %sig] !>(~)]]
-            [%fall %& [/ %'page.html'] %.n [~ [/ %html] !>((crip (en-xml:html ;div:"rhizome loading...")))]]
-            [%fall %| /vault [~ ~] [~ ~] empty-dir:loader]
-            [%fall %| /metadata [~ ~] [~ ~] empty-dir:loader]
+            [%fall %& [/ %'main.sig'] [~ [/ %sig] !>(~)]]
+            [%fall %& [/ %'page.html'] [~ [/ %html] !>((crip (en-xml:html ;div:"rhizome loading...")))]]
+            [%fall %| /vault [~ ~] empty-dir:loader]
+            [%fall %| /metadata [~ ~] empty-dir:loader]
         ==
       ==
     ::
@@ -59,7 +59,7 @@
           =/  mname=@ta  (note-to-meta-name fname)
           =/  link-name=@ta  (fname-to-link fname)
           ;<  ~  bind:m
-            (make:io (meta-road mname) |+[%.n [[/ %json] !>((meta-json (~(gut by fwd) fname ~) (~(gut by back) link-name ~)))] `[/ %json]])
+            (make:io (meta-road mname) |+[[[/ %json] !>((meta-json (~(gut by fwd) fname ~) (~(gut by back) link-name ~)))] `[/ %json]])
           $(creates t.creates)
         ~&  >  "%rhizome /main: indexed {<~(wyt by notes)>} notes"
         ::  main loop
@@ -92,7 +92,7 @@
           ?-    -.i.ops
               %create
             ;<  ~  bind:m
-              (make:io (meta-road mname.i.ops) |+[%.n [[/ %json] !>(json.i.ops)] `[/ %json]])
+              (make:io (meta-road mname.i.ops) |+[[[/ %json] !>(json.i.ops)] `[/ %json]])
             $(ops t.ops)
               %update
             ;<  ~  bind:m
