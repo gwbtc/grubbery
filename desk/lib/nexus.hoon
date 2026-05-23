@@ -67,6 +67,7 @@
 +$  make  (each [=sand =gain =ball:tarball] [gain=? =sage:tarball blot=(unit blot:tarball)])
 +$  kept  (set bend:tarball)
 ::
++$  wave  (map lane:tarball cass:clay)
 +$  view
   $%  [%ball =sand =gain =born ball=ball:tarball]
       [%file =hist gain=? =sage:tarball]
@@ -211,9 +212,9 @@
         [%bang =wire res=(each bangs (unit tang))]  :: directory bangs or file error
         [%over =wire err=(unit tang)] :: response to over (content overwrite)
         [%writ ~] :: notify grub its file was externally modified by %over
-        [%bond =wire now=seen] :: subscription ack with initial view
+        [%bond =wire =wave] :: subscription ack with initial wavefront
         [%fell =wire]                 :: subscription canceled (weir change, deletion, etc)
-        [%news =wire =view] :: state notification
+        [%news =wire =wave] :: wavefront update: changed lanes + versions
         [%veto =dart] :: notify that a dart was sandboxed
         [%code =wire res=(each (axal (map @ta built)) built)]  :: code subtree or single artifact
         [%font =wire res=(unit bend:tarball)]  :: bend to governing /code namespace
@@ -915,6 +916,29 @@
     content(metadata (~(put by metadata.content) 'mtime' (da-oct:tarball da.u.cas)))
   =.  b  (~(put of b) pax lmp)
   $(lumps t.lumps)
+::  +wave-from-born: build wavefront from born for a set of lanes
+::  Looks up the latest cass for each lane in born.
+::
+++  wave-from-born
+  |=  [=born lanes=(set lane:tarball)]
+  ^-  wave
+  %-  ~(rep in lanes)
+  |=  [=lane:tarball acc=wave]
+  =/  node=(unit [fold=hist file=(map @ta hist)])
+    ?-  -.lane
+      %|  (~(get of born) p.lane)
+      %&  (~(get of born) path.p.lane)
+    ==
+  ?~  node  acc
+  =/  sk=hist
+    ?-  -.lane
+      %|  fold.u.node
+      %&  (fall (~(get by file.u.node) name.p.lane) *hist)
+    ==
+  =/  cas=(unit cass:clay)  (top:hist sk)
+  ?~  cas  acc
+  (~(put by acc) lane u.cas)
+::
 ::  +diff-born: compare two born trees and return set of changed lanes
 ::
 ::  Pure function: walks both trees, comparing totes and sacks.

@@ -1419,35 +1419,13 @@
     ==
   ::  Skip if nothing relevant changed
   ?:  =(~ relevant)  $(watched t.watched)
-  ::  Get current view of target
-  =/  =view:nexus
-    ?-    -.target
-        %&
-      =/  content=(unit content:tarball)
-        (~(get ba:tarball ball) path.p.target name.p.target)
-      ?~  content  [%none ~]
-      =/  node=(unit [fold=hist:nexus file=(map @ta hist:nexus)])
-        (~(get of born) path.p.target)
-      =/  sk=hist:nexus
-        ?~  node  *hist:nexus
-        (fall (~(get by file.u.node) name.p.target) *hist:nexus)
-      [%file sk (lookup-gain p.target) sage.u.content]
-        %|
-      =/  sub-ball=(unit ball:tarball)  (~(dap ba:tarball ball) p.target)
-      ?~  sub-ball  [%none ~]
-      [%ball (~(dip of sand) p.target) (~(dip of gain) p.target) (~(dip of born) p.target) u.sub-ball]
-    ==
-  ::  Send to each watcher, converting file view if blot is set
+  ::  Build wavefront for relevant lanes
+  =/  =wave:nexus  (wave-from-born:nexus born relevant)
+  ::  Send wavefront to each watcher
   =.  this
     %-  ~(rep by watchers)
     |=  [[watcher=rail:tarball =wire blot=(unit blot:tarball)] acc=_this]
-    =/  watcher-view=view:nexus
-      ?~  blot  view
-      ?.  ?=(%file -.view)  view
-      ?:  =(p.sage.view u.blot)  view  :: already correct blot
-      =/  =tube:clay  (get-tube path.watcher [p.sage.view u.blot])
-      view(sage [u.blot (tube q.sage.view)])
-    (enqu-take:acc watcher (sys-give:acc /news) ~ %news wire watcher-view)
+    (enqu-take:acc watcher (sys-give:acc /news) ~ %news wire wave)
   $(watched t.watched)
 ::  If the jael-source rail changed, give %azimuth-udiffs to gall subs.
 ::  Sends on / (all udiffs) and on /(scot %p ship) (filtered per ship).
@@ -1970,32 +1948,10 @@
         %keep
       ::  Subscribe to changes at dest (uses peek permission)
       =.  this  (sub-put u.dest-lane here wire.dart blot.load.dart)
-      ::  Construct initial view of the watched lane
-      =/  =view:nexus
-        ?-  -.u.dest-lane
-            %&
-          =/  dest=rail:tarball  p.u.dest-lane
-          =/  content=(unit content:tarball)
-            (~(get ba:tarball ball) path.dest name.dest)
-          ?~  content  [%none ~]
-          =/  node=(unit [fold=hist:nexus file=(map @ta hist:nexus)])
-            (~(get of born) path.dest)
-          =/  sk=hist:nexus
-            ?~  node  *hist:nexus
-            (fall (~(get by file.u.node) name.dest) *hist:nexus)
-          [%file sk (lookup-gain dest) sage.u.content]
-            %|
-          =/  dest=fold:tarball  p.u.dest-lane
-          =/  sub-ball=(unit ball:tarball)  (~(dap ba:tarball ball) dest)
-          ?~  sub-ball  [%none ~]
-          [%ball (~(dip of sand) dest) (~(dip of gain) dest) (~(dip of born) dest) u.sub-ball]
-        ==
-      ::  Apply mark conversion if requested
-      =?  view  &(?=(^ blot.load.dart) ?=(%file -.view))
-        ?:  =(p.sage.view u.blot.load.dart)  view
-        =/  =tube:clay  (get-tube cod [p.sage.view u.blot.load.dart])
-        view(sage [u.blot.load.dart (tube q.sage.view)])
-      (enqu-take here (sys-give /bond) ~ %bond wire.dart &+view)
+      ::  Build initial wavefront for the watched lane
+      =/  =wave:nexus
+        (wave-from-born:nexus born (~(put in *(set lane:tarball)) u.dest-lane))
+      (enqu-take here (sys-give /bond) ~ %bond wire.dart wave)
       ::
         %drop
       ::  Unsubscribe from dest

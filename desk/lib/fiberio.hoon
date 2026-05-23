@@ -542,7 +542,7 @@
 ::
 ++  keep
   |=  [=wire =road:tarball blot=(unit blot:tarball)]
-  =/  m  (fiber ,view:nexus)
+  =/  m  (fiber ,wave:nexus)
   ^-  form:m
   ;<  ~  bind:m  (send-dart %node wire road %keep blot)
   (take-bond wire)
@@ -556,7 +556,7 @@
 ::
 ++  take-bond
   |=  =wire
-  =/  m  (fiber ,view:nexus)
+  =/  m  (fiber ,wave:nexus)
   ^-  form:m
   |=  input
   :+  ~  state
@@ -567,9 +567,7 @@
       [~ %bond * *]
     ?.  =(wire wire.u.in)
       [%skip ~]
-    ?:  ?=(%& -.now.u.in)
-      [%done p.now.u.in]
-    [%fail %keep-failed p.now.u.in]
+    [%done wave.u.in]
   ==
 ::
 ++  take-fell
@@ -588,7 +586,7 @@
 ::
 ++  take-news
   |=  =wire
-  =/  m  (fiber ,view:nexus)
+  =/  m  (fiber ,wave:nexus)
   ^-  form:m
   |=  input
   :+  ~  state
@@ -597,7 +595,7 @@
       [~ %news * *]
     ?.  =(wire wire.u.in)
       [%skip ~]
-    [%done view.u.in]
+    [%done wave.u.in]
   ==
 ::  Scry via /sys/scry/ runtime service
 ::
@@ -1094,7 +1092,7 @@
 ::    keep-alive timers. Returns %news with the update data, or
 ::    %wake when the timer fires.
 +$  news-or-wake
-  $%  [%news =view:nexus]
+  $%  [%news =wave:nexus]
       [%wake ~]
   ==
 ::
@@ -1109,7 +1107,7 @@
       [~ %news * *]
     ?.  =(news-wire wire.u.in)
       [%skip ~]
-    [%done %news view.u.in]
+    [%done %news wave.u.in]
       [~ %poke * *]
     ?.  =([/ %timer-wake] p.sage.u.in)
       [%skip ~]
