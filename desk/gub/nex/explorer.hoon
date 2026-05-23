@@ -500,13 +500,14 @@
     ;<  ~  bind:m  (send-wait:io (add now ~s30))
     $
       %news
-    ?.  ?=([%ball *] view.nw)  $
-    =/  root=ball:tarball  ball.view.nw
-    =/  root-born=born:nexus  born.view.nw
-    =/  root-sand=sand:nexus  sand.view.nw
+    ;<  =seen:nexus  bind:m  (peek:io [%& %| ~] ~)
+    ?.  ?=([%& %ball *] seen)  $
+    =/  root=ball:tarball  ball.p.seen
+    =/  root-born=born:nexus  born.p.seen
+    =/  root-sand=sand:nexus  sand.p.seen
     =/  watch-sand=sand:nexus  (~(dip of root-sand) watch-path)
     =/  new-weir=(unit weir:nexus)  fil.watch-sand
-    =/  what=(set lane:tarball)  (diff-born-state:nexus prev-born root-born)
+    =/  what=(set lane:tarball)  ~(key by wave.nw)
     =.  prev-born  root-born
     =/  par=ball:tarball  (~(dip ba:tarball root) watch-path)
     =/  par-born=born:nexus  (~(dip of root-born) watch-path)

@@ -105,18 +105,20 @@
           (ancestor-road:io [/claw %app] [%& (weld source-fold /messages) msg-file])
         ~&  >>  ["%channel relay: subscribing to" bot-msgs]
         ::  watch source messages
-        ;<  bot-view=view:nexus  bind:m  (keep:io /bot-msgs bot-msgs ~)
-        ~&  >>  ["%channel relay: initial view" -.bot-view]
-        =/  seen-count=@ud  (count-incoming bot-view)
+        ;<  *  bind:m  (keep:io /bot-msgs bot-msgs ~)
+        ;<  bot-seen=seen:nexus  bind:m  (peek:io bot-msgs ~)
+        ~&  >>  ["%channel relay: initial seen" -.bot-seen]
+        =/  seen-count=@ud  (count-incoming bot-seen)
         ~&  >>  ["%channel relay: started, seen" seen-count "messages"]
         |-
         ~&  >>  "%channel relay: waiting for take-news..."
-        ;<  upd=view:nexus  bind:m  (take-news:io /bot-msgs)
-        ~&  >>  ["%channel relay: got news!" -.upd]
-        =/  new-count=@ud  (count-incoming upd)
+        ;<  *  bind:m  (take-news:io /bot-msgs)
+        ;<  upd-seen=seen:nexus  bind:m  (peek:io bot-msgs ~)
+        ~&  >>  ["%channel relay: got news!" -.upd-seen]
+        =/  new-count=@ud  (count-incoming upd-seen)
         ~&  >>  ["%channel relay: new-count" new-count "seen-count" seen-count]
         =/  new-msgs=(list [text=@t from=@t])
-          (get-incoming-after upd seen-count)
+          (get-incoming-after upd-seen seen-count)
         =.  seen-count  new-count
         ?~  new-msgs
           ~&  >>  "%channel relay: no new incoming msgs after filter"
@@ -205,9 +207,9 @@
 ::  count incoming (non-bot) messages in a telegram message file view
 ::
 ++  count-incoming
-  |=  =view:nexus
+  |=  =seen:nexus
   ^-  @ud
-  =/  msgs=(list json)  (extract-msgs view)
+  =/  msgs=(list json)  (extract-msgs seen)
   %+  roll  msgs
   |=  [msg=json acc=@ud]
   ?.  ?=([%o *] msg)  acc
@@ -218,9 +220,9 @@
 ::  get incoming messages after a given count, with sender info
 ::
 ++  get-incoming-after
-  |=  [=view:nexus skip=@ud]
+  |=  [=seen:nexus skip=@ud]
   ^-  (list [text=@t from=@t])
-  =/  msgs=(list json)  (extract-msgs view)
+  =/  msgs=(list json)  (extract-msgs seen)
   =/  idx=@ud  0
   =/  acc=(list [text=@t from=@t])  ~
   |-
@@ -247,10 +249,10 @@
 ::  extract messages list from a telegram message file view
 ::
 ++  extract-msgs
-  |=  =view:nexus
+  |=  =seen:nexus
   ^-  (list json)
-  ?.  ?=([%file *] view)  ~
-  =/  dat=json  (fall (mole |.(!<(json q.sage.view))) *json)
+  ?.  ?=([%& %file *] seen)  ~
+  =/  dat=json  (fall (mole |.(!<(json q.sage.p.seen))) *json)
   ?:  ?=([%a *] dat)  p.dat
   ?.  ?=([%o *] dat)  ~
   =/  v  (~(get by p.dat) 'messages')

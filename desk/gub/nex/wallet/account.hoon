@@ -487,9 +487,10 @@
           [[%proc ~] %'scan.json']
         ;<  ~  bind:m  (rise-wait:io prod "%scan: failed")
         =/  data-road=road:tarball  (cord-to-road:tarball '../data.wallet_account')
-        ;<  cur=view:nexus  bind:m
+        ;<  cur=wave:nexus  bind:m
           (keep:io /acct (cord-to-road:tarball '../') ~)
-        =/  acct=(unit account-data)  (extract-account cur)
+        ;<  acct-seen=seen:nexus  bind:m  (peek:io (cord-to-road:tarball '../') ~)
+        =/  acct=(unit account-data)  (extract-account acct-seen)
         ?~  acct  (pure:m ~)
         ::  read existing progress to resume where we left off
         ;<  prev-state=vase  bind:m  get-state:io
@@ -603,10 +604,10 @@
   [%.n [~ [/ %html] !>((crip (en-xml:html (detail-page:acct-ui acct *addr-mop *addr-mop *@da %none ~ ~ ''))))]]
 ::
 ++  extract-account
-  |=  =view:nexus
+  |=  =seen:nexus
   ^-  (unit account-data)
-  ?.  ?=([%ball *] view)  ~
-  =/  =lump:tarball  (fall fil.ball.view *lump:tarball)
+  ?.  ?=([%& %ball *] seen)  ~
+  =/  =lump:tarball  (fall fil.ball.p.seen *lump:tarball)
   =/  ct=(unit content:tarball)  (~(get by contents.lump) 'data.wallet_account')
   ?~  ct  ~
   ?.  ?=(%account name.p.sage.u.ct)  ~
@@ -698,10 +699,10 @@
 ::  +extract-mops: pull recv and chng addr-mops from a ball view
 ::
 ++  extract-mops
-  |=  [=view:nexus network=?(%main %testnet3 %testnet4 %signet %regtest)]
+  |=  [=seen:nexus network=?(%main %testnet3 %testnet4 %signet %regtest)]
   ^-  [recv=addr-mop chng=addr-mop]
-  ?.  ?=([%ball *] view)  [*addr-mop *addr-mop]
-  =/  addrs-ball=(unit ball:tarball)  (~(get by dir.ball.view) 'addresses')
+  ?.  ?=([%& %ball *] seen)  [*addr-mop *addr-mop]
+  =/  addrs-ball=(unit ball:tarball)  (~(get by dir.ball.p.seen) 'addresses')
   ?~  addrs-ball  [*addr-mop *addr-mop]
   =/  net-ball=(unit ball:tarball)  (~(get by dir.u.addrs-ball) ;;(@ta network))
   ?~  net-ball  [*addr-mop *addr-mop]

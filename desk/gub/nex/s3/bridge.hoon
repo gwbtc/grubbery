@@ -60,11 +60,11 @@
         ;<  ~  bind:m  (rise-wait:io prod "%s3-bridge page: failed")
         ;<  map-rd=road:tarball  bind:m
           (ancestor-road:io [/s3 %bridge] [%& / %'mapping.json'])
-        ;<  mappings=view:nexus  bind:m  (keep:io /mapping map-rd ~)
-        ;<  ~  bind:m  (replace:io !>((manx-to-html (bridge-page (read-bridges mappings)))))
+        ;<  mappings=wave:nexus  bind:m  (keep:io /mapping map-rd ~)
         |-
-        ;<  upd=view:nexus  bind:m  (take-news:io /mapping)
-        ;<  ~  bind:m  (replace:io !>((manx-to-html (bridge-page (read-bridges upd)))))
+        ;<  =seen:nexus  bind:m  (peek:io map-rd ~)
+        ;<  ~  bind:m  (replace:io !>((manx-to-html (bridge-page (read-bridges seen)))))
+        ;<  upd=wave:nexus  bind:m  (take-news:io /mapping)
         $
         ::
           [~ %'main.sig']
@@ -239,12 +239,12 @@
             stay:m
           ;<  map-rd=road:tarball  bind:m
             (ancestor-road:io [/s3 %bridge] [%& / %'mapping.json'])
-          ;<  init=view:nexus  bind:m  (keep:io /source-sync map-rd ~)
+          ;<  init=wave:nexus  bind:m  (keep:io /source-sync map-rd ~)
           ;<  creds=s3-creds  bind:m  read-creds
           ;<  ~  bind:m  (push-source creds)
           ;<  ~  bind:m  (log-msg 'info' (crip "Source sync started, watching mapping.json -> {(trip src)}"))
           |-
-          ;<  upd=view:nexus  bind:m  (take-news:io /source-sync)
+          ;<  upd=wave:nexus  bind:m  (take-news:io /source-sync)
           ;<  creds=s3-creds  bind:m  read-creds
           ;<  ~  bind:m  (push-source creds)
           ;<  ~  bind:m  (log-msg 'info' 'Source sync: pushed mapping.json')
@@ -265,16 +265,18 @@
           ;<  ~  bind:m  (log-msg 'error' (crip "Sync #{(trip id)}: local path overlaps this bridge's namespace"))
           stay:m
         =/  local-road=road:tarball  [%& %| (text-to-path local-path.entry)]
-        ;<  init=view:nexus  bind:m  (keep:io /sync local-road ~)
-        =/  current=(map @t @ud)  (ball-file-mugs init entry)
+        ;<  init=wave:nexus  bind:m  (keep:io /sync local-road ~)
+        ;<  init-seen=seen:nexus  bind:m  (peek:io local-road ~)
+        =/  current=(map @t @ud)  (ball-file-mugs init-seen entry)
         ;<  ~  bind:m  (push-changed creds entry current ~)
         ;<  ~  bind:m
           (log-msg 'info' (crip "Sync #{(trip id)} watching {(trip local-path.entry)} ({<~(wyt by current)>} files)"))
         =/  known=(map @t @ud)  current
         |-
-        ;<  upd=view:nexus  bind:m  (take-news:io /sync)
+        ;<  upd=wave:nexus  bind:m  (take-news:io /sync)
+        ;<  sync-seen=seen:nexus  bind:m  (peek:io local-road ~)
         ;<  creds=s3-creds  bind:m  read-creds
-        =/  now=(map @t @ud)  (ball-file-mugs upd entry)
+        =/  now=(map @t @ud)  (ball-file-mugs sync-seen entry)
         =/  changed=(list @t)
           %+  murn  ~(tap by now)
           |=  [key=@t mug=@ud]
@@ -289,7 +291,7 @@
           `key
         ?:  &(=(~ changed) =(~ deleted))
           $(known now)
-        ;<  ~  bind:m  (push-keys creds entry changed upd)
+        ;<  ~  bind:m  (push-keys creds entry changed sync-seen)
         ;<  ~  bind:m  (delete-keys creds deleted)
         ;<  ~  bind:m
           (log-msg 'info' (crip "Sync #{(trip id)}: {<(lent changed)>} updated, {<(lent deleted)>} deleted"))
@@ -531,11 +533,11 @@
   (over:io rd [[/ %json] !>([%a new])])
 ::
 ++  read-bridges
-  |=  =view:nexus
+  |=  =seen:nexus
   ^-  (list bridge-entry)
-  ?.  ?=(%file -.view)  ~
+  ?.  ?=([%& %file *] seen)  ~
   =/  jon=json
-    (fall (mole |.(!<(json q.sage.view))) [%a ~])
+    (fall (mole |.(!<(json q.sage.p.seen))) [%a ~])
   ?.  ?=(%a -.jon)  ~
   %+  murn  p.jon
   |=  j=json
@@ -735,11 +737,11 @@
 ::  Build map of s3-key -> mug from a namespace view
 ::
 ++  ball-file-mugs
-  |=  [=view:nexus =bridge-entry]
+  |=  [=seen:nexus =bridge-entry]
   ^-  (map @t @ud)
-  ?.  ?=(%ball -.view)  ~
+  ?.  ?=([%& %ball *] seen)  ~
   =/  files=(list [=rail:tarball =content:tarball])
-    (list-ball-files ball.view (text-to-path local-path.bridge-entry))
+    (list-ball-files ball.p.seen (text-to-path local-path.bridge-entry))
   %-  malt
   %+  murn  files
   |=  [=rail:tarball =content:tarball]
@@ -754,12 +756,12 @@
 ::  Push only specific keys from a view
 ::
 ++  push-keys
-  |=  [cfg=s3-creds =bridge-entry keys=(list @t) =view:nexus]
+  |=  [cfg=s3-creds =bridge-entry keys=(list @t) =seen:nexus]
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
-  ?.  ?=(%ball -.view)  (pure:m ~)
+  ?.  ?=([%& %ball *] seen)  (pure:m ~)
   =/  files=(list [=rail:tarball =content:tarball])
-    (list-ball-files ball.view (text-to-path local-path.bridge-entry))
+    (list-ball-files ball.p.seen (text-to-path local-path.bridge-entry))
   =/  key-set=(set @t)  (silt keys)
   =/  remaining=(list [rail:tarball content:tarball])
     %+  skim  files

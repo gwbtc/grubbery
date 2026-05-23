@@ -1419,8 +1419,8 @@
     ==
   ::  Skip if nothing relevant changed
   ?:  =(~ relevant)  $(watched t.watched)
-  ::  Build wavefront for relevant lanes
-  =/  =wave:nexus  (wave-from-born:nexus born relevant)
+  ::  Build wavefront for relevant lanes, relativized to target
+  =/  =wave:nexus  (relativize-wave:nexus target (wave-from-born:nexus born relevant))
   ::  Send wavefront to each watcher
   =.  this
     %-  ~(rep by watchers)
@@ -1948,9 +1948,10 @@
         %keep
       ::  Subscribe to changes at dest (uses peek permission)
       =.  this  (sub-put u.dest-lane here wire.dart blot.load.dart)
-      ::  Build initial wavefront for the watched lane
+      ::  Build initial wavefront for the watched lane, relativized
       =/  =wave:nexus
-        (wave-from-born:nexus born (~(put in *(set lane:tarball)) u.dest-lane))
+        %-  relativize-wave:nexus
+        [u.dest-lane (wave-from-born:nexus born (~(put in *(set lane:tarball)) u.dest-lane))]
       (enqu-take here (sys-give /bond) ~ %bond wire.dart wave)
       ::
         %drop

@@ -44,52 +44,35 @@
           ::
           [~ %'page.html']
         ;<  ~  bind:m  (rise-wait:io prod "%wallet detail: failed")
-        ;<  data=view:nexus  bind:m
-          (keep:io /data (cord-to-road:tarball './') ~)
-        ;<  accts=view:nexus  bind:m
-          (keep:io /accts (cord-to-road:tarball '../../accounts/') ~)
-        ;<  sse=view:nexus  bind:m
-          (keep:io /sse (cord-to-road:tarball './ui/sse/') ~)
-        =/  wal=(unit wallet-data)  (extract-wallet data)
-        =/  acct-list=(list account-data)  (extract-accounts accts wal)
-        ?~  wal  stay:m
-        =/  err=manx   (extract-sse-manx sse 'error.html')
-        =/  load=manx  (extract-sse-manx sse 'loading.html')
-        ;<  ~  bind:m  (replace:io !>((crip (en-xml:html (detail-page u.wal acct-list err load)))))
+        ;<  *  bind:m  (keep:io /data (cord-to-road:tarball './') ~)
+        ;<  *  bind:m  (keep:io /accts (cord-to-road:tarball '../../accounts/') ~)
+        ;<  *  bind:m  (keep:io /sse (cord-to-road:tarball './ui/sse/') ~)
         |-
-        ;<  [tag=?(%data %accts %sse) =view:nexus]  bind:m
-          (take-any-news /data /accts /sse)
-        =?  data   =(tag %data)   view
-        =?  accts  =(tag %accts)  view
-        =?  sse    =(tag %sse)    view
+        ;<  data=seen:nexus  bind:m  (peek:io (cord-to-road:tarball './') ~)
+        ;<  accts=seen:nexus  bind:m  (peek:io (cord-to-road:tarball '../../accounts/') ~)
+        ;<  sse=seen:nexus  bind:m  (peek:io (cord-to-road:tarball './ui/sse/') ~)
         =/  wal=(unit wallet-data)  (extract-wallet data)
         =/  acct-list=(list account-data)  (extract-accounts accts wal)
         ?~  wal  stay:m
         =/  err=manx   (extract-sse-manx sse 'error.html')
         =/  load=manx  (extract-sse-manx sse 'loading.html')
         ;<  ~  bind:m  (replace:io !>((crip (en-xml:html (detail-page u.wal acct-list err load)))))
+        ;<  [* *]  bind:m  (take-any-news /data /accts /sse)
         $
           ::  /ui/sse/accounts.html: rendered account list for SSE
           ::
           [[%ui %sse ~] %'accounts.html']
         ;<  ~  bind:m  (rise-wait:io prod "%wallet /ui/sse: failed")
-        ;<  data=view:nexus  bind:m
-          (keep:io /data (cord-to-road:tarball '../../') ~)
-        ;<  accts=view:nexus  bind:m
-          (keep:io /accts (cord-to-road:tarball '../../../../accounts/') ~)
-        =/  wal=(unit wallet-data)  (extract-wallet data)
-        =/  acct-list=(list account-data)  (extract-accounts accts wal)
-        ?~  wal  stay:m
-        ;<  ~  bind:m  (replace:io !>((crip (en-xml:html (accounts-fragment acct-list)))))
+        ;<  *  bind:m  (keep:io /data (cord-to-road:tarball '../../') ~)
+        ;<  *  bind:m  (keep:io /accts (cord-to-road:tarball '../../../../accounts/') ~)
         |-
-        ;<  [tag=?(%data %accts) =view:nexus]  bind:m
-          (take-either-news /data /accts)
-        =?  data   =(tag %data)   view
-        =?  accts  =(tag %accts)  view
+        ;<  data=seen:nexus  bind:m  (peek:io (cord-to-road:tarball '../../') ~)
+        ;<  accts=seen:nexus  bind:m  (peek:io (cord-to-road:tarball '../../../../accounts/') ~)
         =/  wal=(unit wallet-data)  (extract-wallet data)
         =/  acct-list=(list account-data)  (extract-accounts accts wal)
         ?~  wal  stay:m
         ;<  ~  bind:m  (replace:io !>((crip (en-xml:html (accounts-fragment acct-list)))))
+        ;<  [* *]  bind:m  (take-either-news /data /accts)
         $
           ::  /main.wallet_wallet: wallet data + poke handler
           ::
@@ -232,9 +215,9 @@
           ::
           [[%proc ~] %'discover.json']
         ;<  ~  bind:m  (rise-wait:io prod "%discover: failed")
-        ;<  wal-view=view:nexus  bind:m
-          (keep:io /wal (cord-to-road:tarball '../') ~)
-        =/  wal=(unit wallet-data)  (extract-wallet wal-view)
+        ;<  *  bind:m  (keep:io /wal (cord-to-road:tarball '../') ~)
+        ;<  wal-seen=seen:nexus  bind:m  (peek:io (cord-to-road:tarball '../') ~)
+        =/  wal=(unit wallet-data)  (extract-wallet wal-seen)
         ?~  wal  (pure:m ~)
         ::  read progress from proc state
         ;<  prev-state=vase  bind:m  get-state:io
@@ -329,38 +312,38 @@
 |%
 ++  take-either-news
   |=  [a=wire b=wire]
-  =/  m  (fiber:fiber:nexus ,[?(%data %accts) view:nexus])
+  =/  m  (fiber:fiber:nexus ,[?(%data %accts) wave:nexus])
   ^-  form:m
   |=  input:fiber:nexus
   :+  ~  state
   ?+  in  [%skip ~]
       ~  [%wait ~]
       [~ %news * *]
-    ?:  =(a wire.u.in)  [%done %data view.u.in]
-    ?:  =(b wire.u.in)  [%done %accts view.u.in]
+    ?:  =(a wire.u.in)  [%done %data wave.u.in]
+    ?:  =(b wire.u.in)  [%done %accts wave.u.in]
     [%skip ~]
   ==
 ::
 ++  take-any-news
   |=  [a=wire b=wire c=wire]
-  =/  m  (fiber:fiber:nexus ,[?(%data %accts %sse) view:nexus])
+  =/  m  (fiber:fiber:nexus ,[?(%data %accts %sse) wave:nexus])
   ^-  form:m
   |=  input:fiber:nexus
   :+  ~  state
   ?+  in  [%skip ~]
       ~  [%wait ~]
       [~ %news * *]
-    ?:  =(a wire.u.in)  [%done %data view.u.in]
-    ?:  =(b wire.u.in)  [%done %accts view.u.in]
-    ?:  =(c wire.u.in)  [%done %sse view.u.in]
+    ?:  =(a wire.u.in)  [%done %data wave.u.in]
+    ?:  =(b wire.u.in)  [%done %accts wave.u.in]
+    ?:  =(c wire.u.in)  [%done %sse wave.u.in]
     [%skip ~]
   ==
 ::
 ++  extract-sse-manx
-  |=  [=view:nexus name=@ta]
+  |=  [=seen:nexus name=@ta]
   ^-  manx
-  ?.  ?=([%ball *] view)  ;div;
-  =/  =lump:tarball  (fall fil.ball.view *lump:tarball)
+  ?.  ?=([%& %ball *] seen)  ;div;
+  =/  =lump:tarball  (fall fil.ball.p.seen *lump:tarball)
   =/  ct=(unit content:tarball)  (~(get by contents.lump) name)
   ?~  ct  ;div;
   =/  result=(unit manx)  (mole |.((need (de-xml:html !<(@t q.sage.u.ct)))))
@@ -499,21 +482,21 @@
   [%.n [~ [/ %html] !>((crip (en-xml:html (detail-page wal ~ ;div; ;div;))))]]
 ::
 ++  extract-wallet
-  |=  =view:nexus
+  |=  =seen:nexus
   ^-  (unit wallet-data)
-  ?.  ?=([%ball *] view)  ~
-  =/  =lump:tarball  (fall fil.ball.view *lump:tarball)
+  ?.  ?=([%& %ball *] seen)  ~
+  =/  =lump:tarball  (fall fil.ball.p.seen *lump:tarball)
   =/  ct=(unit content:tarball)  (~(get by contents.lump) 'main.wallet_wallet')
   ?~  ct  ~
   ?.  ?=(%wallet name.p.sage.u.ct)  ~
   (mole |.(!<(wallet-data q.sage.u.ct)))
 ::
 ++  extract-accounts
-  |=  [=view:nexus wal=(unit wallet-data)]
+  |=  [=seen:nexus wal=(unit wallet-data)]
   ^-  (list account-data)
   ?~  wal  ~
-  ?.  ?=([%ball *] view)  ~
-  %+  murn  ~(tap by dir.ball.view)
+  ?.  ?=([%& %ball *] seen)  ~
+  %+  murn  ~(tap by dir.ball.p.seen)
   |=  [name=@ta sub=ball:tarball]
   =/  sub-lump=lump:tarball  (fall fil.sub *lump:tarball)
   =/  ct=(unit content:tarball)  (~(get by contents.sub-lump) 'data.wallet_account')

@@ -185,35 +185,30 @@
           ::
           [[%ui ~] %'page.html']
         ;<  ~  bind:m  (rise-wait:io prod "%oneshot page: failed")
-        ;<  init=view:nexus  bind:m
+        ;<  init=wave:nexus  bind:m
           (keep:io /res (cord-to-road:tarball '../result.json') ~)
-        =/  res=@t
-          ?.  ?=([%file *] init)  ''
-          (render-result !<(json q.sage.init))
-        ;<  req=json  bind:m  (read-request '../request.json')
-        ;<  ~  bind:m  (replace:io !>((crip (en-xml:html (oneshot-page res req)))))
         |-
-        ;<  upd=view:nexus  bind:m  (take-news:io /res)
-        ?.  ?=([%file *] upd)  $
-        =/  res=@t  (render-result !<(json q.sage.upd))
+        ;<  =seen:nexus  bind:m  (peek:io (cord-to-road:tarball '../result.json') ~)
+        =/  res=@t
+          ?.  ?=([%& %file *] seen)  ''
+          (render-result !<(json q.sage.p.seen))
         ;<  req=json  bind:m  (read-request '../request.json')
         ;<  ~  bind:m  (replace:io !>((crip (en-xml:html (oneshot-page res req)))))
+        ;<  upd=wave:nexus  bind:m  (take-news:io /res)
         $
           ::  /ui/briefing.html: watches briefing.json for live progress
           ::
           [[%ui ~] %'briefing.html']
         ;<  ~  bind:m  (rise-wait:io prod "%briefing page: failed")
-        ;<  init=view:nexus  bind:m
+        ;<  init=wave:nexus  bind:m
           (keep:io /brf (cord-to-road:tarball '../briefing.json') ~)
-        =/  state=json
-          ?.  ?=([%file *] init)  ~
-          !<(json q.sage.init)
-        ;<  ~  bind:m  (replace:io !>((crip (en-xml:html (briefing-page-live state)))))
         |-
-        ;<  upd=view:nexus  bind:m  (take-news:io /brf)
-        ?.  ?=([%file *] upd)  $
-        =/  state=json  !<(json q.sage.upd)
+        ;<  =seen:nexus  bind:m  (peek:io (cord-to-road:tarball '../briefing.json') ~)
+        =/  state=json
+          ?.  ?=([%& %file *] seen)  ~
+          !<(json q.sage.p.seen)
         ;<  ~  bind:m  (replace:io !>((crip (en-xml:html (briefing-page-live state)))))
+        ;<  upd=wave:nexus  bind:m  (take-news:io /brf)
         $
       ==
     ::

@@ -37,13 +37,14 @@
           ::
           [[%ui %views ~] %'page.html']
         ;<  ~  bind:m  (rise-wait:io prod "%counter /ui/views/page: failed")
-        ;<  init=view:nexus  bind:m
+        ;<  init=wave:nexus  bind:m
           (keep:io /ctrs (cord-to-road:tarball '../../counters/') ~)
         |-
-        ;<  upd=view:nexus  bind:m  (take-news:io /ctrs)
-        ?.  ?=([%ball *] upd)  $
+        ;<  upd=wave:nexus  bind:m  (take-news:io /ctrs)
+        ;<  =seen:nexus  bind:m  (peek:io (cord-to-road:tarball '../../counters/') ~)
+        ?.  ?=([%& %ball *] seen)  $
         =/  counters=(list [@ta @ud])
-          =/  =lump:tarball  (fall fil.ball.upd *lump:tarball)
+          =/  =lump:tarball  (fall fil.ball.p.seen *lump:tarball)
           %+  murn  ~(tap by contents.lump)
           |=  [name=@ta =content:tarball]
           ?.  ?=(%ud name.p.sage.content)  ~

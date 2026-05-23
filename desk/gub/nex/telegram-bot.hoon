@@ -226,14 +226,13 @@
         ;<  ~  bind:m  (rise-wait:io prod "%telegram-bot sse: failed")
         ;<  here=rail:tarball  bind:m  get-here-abs:io
         =/  ball-id=tape  (trip (snag 0 path.here))
-        ;<  init=view:nexus  bind:m
-          (keep:io /msgs (cord-to-road:tarball '../../messages/') ~)
-        =/  chat-data=[(map @t @t) (list json)]  (view-to-chat-data init)
-        ;<  ~  bind:m  (replace:io !>((crip (en-xml:html (sse-data -.chat-data +.chat-data)))))
+        =/  msgs-road=road:tarball  (cord-to-road:tarball '../../messages/')
+        ;<  *  bind:m  (keep:io /msgs msgs-road ~)
         |-
-        ;<  upd=view:nexus  bind:m  (take-news:io /msgs)
-        =/  chat-data=[(map @t @t) (list json)]  (view-to-chat-data upd)
+        ;<  =seen:nexus  bind:m  (peek:io msgs-road ~)
+        =/  chat-data=[(map @t @t) (list json)]  (view-to-chat-data seen)
         ;<  ~  bind:m  (replace:io !>((crip (en-xml:html (sse-data -.chat-data +.chat-data)))))
+        ;<  *  bind:m  (take-news:io /msgs)
         $
           ::  /ui/chat.html: live chat view
           ::
@@ -252,16 +251,14 @@
           =/  seg=tape  (trip i.pax)
           ?~  acc  $(pax t.pax, acc seg)
           $(pax t.pax, acc (weld acc (weld "/" seg)))
-        ;<  init=view:nexus  bind:m
-          (keep:io /msgs [%| 1 %| /messages] ~)
-        =/  chat-data=[(map @t @t) (list json)]  (view-to-chat-data init)
-        ;<  ~  bind:m
-          (replace:io !>((crip (en-xml:html (chat-page base -.chat-data +.chat-data)))))
+        =/  msgs-road=road:tarball  [%| 1 %| /messages]
+        ;<  *  bind:m  (keep:io /msgs msgs-road ~)
         |-
-        ;<  upd=view:nexus  bind:m  (take-news:io /msgs)
-        =/  chat-data=[(map @t @t) (list json)]  (view-to-chat-data upd)
+        ;<  =seen:nexus  bind:m  (peek:io msgs-road ~)
+        =/  chat-data=[(map @t @t) (list json)]  (view-to-chat-data seen)
         ;<  ~  bind:m
           (replace:io !>((crip (en-xml:html (chat-page base -.chat-data +.chat-data)))))
+        ;<  *  bind:m  (take-news:io /msgs)
         $
       ==
     ::
@@ -368,12 +365,12 @@
 ::  Files live in fil.ball.view → contents (not dir, which is subdirs).
 ::
 ++  view-to-chat-data
-  |=  =view:nexus
+  |=  =seen:nexus
   ^-  [(map @t @t) (list json)]
-  ?.  ?=([%ball *] view)  [~ ~]
-  ?~  fil.ball.view  [~ ~]
+  ?.  ?=([%& %ball *] seen)  [~ ~]
+  ?~  fil.ball.p.seen  [~ ~]
   =/  files=(list [key=@ta =content:tarball])
-    ~(tap by contents.u.fil.ball.view)
+    ~(tap by contents.u.fil.ball.p.seen)
   %+  roll  files
   |=  [[key=@ta =content:tarball] chats=(map @t @t) msgs=(list json)]
   ?.  ?=(%json name.p.sage.content)  [chats msgs]

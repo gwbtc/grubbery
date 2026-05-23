@@ -99,11 +99,12 @@
         =/  [url=@t auth=@t]  (read-config cfg-seen)
         ;<  urb-state=state:urb  bind:m  (get-state-as:io ,state:urb)
         =/  processed=@ud  num.block-id.urb-state
-        ;<  init=view:nexus  bind:m
-          (keep:io /t (cord-to-road:tarball './height.ud') ~)
+        =/  height-road=road:tarball  (cord-to-road:tarball './height.ud')
+        ;<  *  bind:m  (keep:io /t height-road ~)
+        ;<  init-seen=seen:nexus  bind:m  (peek:io height-road ~)
         =/  tip=@ud
-          ?.  ?=([%file *] init)  0
-          =/  res=(each @ud tang)  (mule |.(!<(@ud q.sage.init)))
+          ?.  ?=([%& %file *] init-seen)  0
+          =/  res=(each @ud tang)  (mule |.(!<(@ud q.sage.p.init-seen)))
           ?:(?=(%& -.res) p.res 0)
         |-
         ::  chain reset detection: if tip < processed, the chain was
@@ -117,9 +118,10 @@
           $
         ::  caught up — wait for the tip poller to advance
         ?:  (lte tip processed)
-          ;<  upd=view:nexus  bind:m  (take-news:io /t)
-          ?.  ?=([%file *] upd)  $
-          =/  new-tip=@ud  !<(@ud q.sage.upd)
+          ;<  *  bind:m  (take-news:io /t)
+          ;<  upd-seen=seen:nexus  bind:m  (peek:io height-road ~)
+          ?.  ?=([%& %file *] upd-seen)  $
+          =/  new-tip=@ud  !<(@ud q.sage.p.upd-seen)
           $(tip new-tip)
         ::  fetch the hash of the next block
         =/  next=@ud  +(processed)
@@ -628,21 +630,17 @@
           ::
           [[%ui %sse ~] %'stats.html']
         ;<  ~  bind:m  (rise-wait:io prod "%groundwire /ui/sse/stats: failed")
-        ;<  height=view:nexus  bind:m
-          (keep:io /h (cord-to-road:tarball '../../height.ud') ~)
-        ;<  urb=view:nexus  bind:m
-          (keep:io /u (cord-to-road:tarball '../../urb-state.urb-state') ~)
-        ;<  ~  bind:m
-          %-  replace:io
-          !>((crip (en-xml:html (stats-fragment (extract-ud height) (extract-urb urb)))))
+        =/  h-road=road:tarball  (cord-to-road:tarball '../../height.ud')
+        =/  u-road=road:tarball  (cord-to-road:tarball '../../urb-state.urb-state')
+        ;<  *  bind:m  (keep:io /h h-road ~)
+        ;<  *  bind:m  (keep:io /u u-road ~)
         |-
-        ;<  [tag=?(%h %u) =view:nexus]  bind:m
-          (take-stats-news /h /u)
-        =?  height  =(tag %h)  view
-        =?  urb     =(tag %u)  view
+        ;<  h-seen=seen:nexus  bind:m  (peek:io h-road ~)
+        ;<  u-seen=seen:nexus  bind:m  (peek:io u-road ~)
         ;<  ~  bind:m
           %-  replace:io
-          !>((crip (en-xml:html (stats-fragment (extract-ud height) (extract-urb urb)))))
+          !>((crip (en-xml:html (stats-fragment (extract-ud h-seen) (extract-urb u-seen)))))
+        ;<  *  bind:m  (take-stats-news /h /u)
         $
           ::  /page.html: static shell with reg-tester forms. Re-renders
           ::  when SSE fragments or seeds directory change.
@@ -651,22 +649,19 @@
         ;<  ~  bind:m  (rise-wait:io prod "%groundwire /page: failed")
         ;<  here=rail:tarball  bind:m  get-here-abs:io
         =/  nexus-root=tape  (spud path.here)
-        ;<  sse=view:nexus  bind:m
-          (keep:io /sse (cord-to-road:tarball './ui/sse/') ~)
-        ;<  seeds=view:nexus  bind:m
-          (keep:io /seeds (cord-to-road:tarball './wallets/') ~)
-        ;<  points=view:nexus  bind:m
-          (keep:io /points (cord-to-road:tarball './points/') ~)
-        ;<  ~  bind:m
-          (replace:io !>((crip (en-xml:html (btc-page nexus-root (extract-sse-manx sse 'stats.html') (extract-ships seeds) (extract-points points))))))
+        =/  sse-road=road:tarball  (cord-to-road:tarball './ui/sse/')
+        =/  seeds-road=road:tarball  (cord-to-road:tarball './wallets/')
+        =/  points-road=road:tarball  (cord-to-road:tarball './points/')
+        ;<  *  bind:m  (keep:io /sse sse-road ~)
+        ;<  *  bind:m  (keep:io /seeds seeds-road ~)
+        ;<  *  bind:m  (keep:io /points points-road ~)
         |-
-        ;<  [tag=?(%sse %seeds %points) =view:nexus]  bind:m
-          (take-any-news /sse /seeds /points)
-        =?  sse     =(tag %sse)     view
-        =?  seeds   =(tag %seeds)   view
-        =?  points  =(tag %points)  view
+        ;<  sse-seen=seen:nexus  bind:m  (peek:io sse-road ~)
+        ;<  seeds-seen=seen:nexus  bind:m  (peek:io seeds-road ~)
+        ;<  points-seen=seen:nexus  bind:m  (peek:io points-road ~)
         ;<  ~  bind:m
-          (replace:io !>((crip (en-xml:html (btc-page nexus-root (extract-sse-manx sse 'stats.html') (extract-ships seeds) (extract-points points))))))
+          (replace:io !>((crip (en-xml:html (btc-page nexus-root (extract-sse-manx sse-seen 'stats.html') (extract-ships seeds-seen) (extract-points points-seen))))))
+        ;<  *  bind:m  (take-any-news /sse /seeds /points)
         $
       ==
     ++  on-manu
@@ -723,15 +718,15 @@
 ::
 ++  take-stats-news
   |=  [h=wire u=wire]
-  =/  m  (fiber:fiber:nexus ,[?(%h %u) view:nexus])
+  =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
   |=  input:fiber:nexus
   :+  ~  state
   ?+  in  [%skip ~]
       ~  [%wait ~]
       [~ %news * *]
-    ?:  =(h wire.u.in)  [%done %h view.u.in]
-    ?:  =(u wire.u.in)  [%done %u view.u.in]
+    ?:  =(h wire.u.in)  [%done ~]
+    ?:  =(u wire.u.in)  [%done ~]
     [%skip ~]
   ==
 ::
@@ -739,27 +734,27 @@
 ::  or mismatched shape.
 ::
 ++  extract-ud
-  |=  =view:nexus
+  |=  =seen:nexus
   ^-  @ud
-  ?.  ?=([%file *] view)  0
-  (fall (mole |.(!<(@ud q.sage.view))) 0)
+  ?.  ?=([%& %file *] seen)  0
+  (fall (mole |.(!<(@ud q.sage.p.seen))) 0)
 ::
 ::  Extract a urb state:urb from a kept urb-state file view.
 ::
 ++  extract-urb
-  |=  =view:nexus
+  |=  =seen:nexus
   ^-  state:urb
-  ?.  ?=([%file *] view)  *state:urb
-  (fall (mole |.(!<(state:urb q.sage.view))) *state:urb)
+  ?.  ?=([%& %file *] seen)  *state:urb
+  (fall (mole |.(!<(state:urb q.sage.p.seen))) *state:urb)
 ::
 ::  Extract a named manx fragment from a kept sse directory view,
 ::  defaulting to an empty div.
 ::
 ++  extract-sse-manx
-  |=  [=view:nexus name=@ta]
+  |=  [=seen:nexus name=@ta]
   ^-  manx
-  ?.  ?=([%ball *] view)  ;div;
-  =/  =lump:tarball  (fall fil.ball.view *lump:tarball)
+  ?.  ?=([%& %ball *] seen)  ;div;
+  =/  =lump:tarball  (fall fil.ball.p.seen *lump:tarball)
   =/  ct=(unit content:tarball)  (~(get by contents.lump) name)
   ?~  ct  ;div;
   (fall (mole |.((need (de-xml:html !<(@t q.sage.u.ct))))) ;div;)
@@ -767,10 +762,10 @@
 ::  Extract ship names from a kept wallets directory view.
 ::
 ++  extract-ships
-  |=  =view:nexus
+  |=  =seen:nexus
   ^-  (list @p)
-  ?.  ?=([%ball *] view)  ~
-  =/  =lump:tarball  (fall fil.ball.view *lump:tarball)
+  ?.  ?=([%& %ball *] seen)  ~
+  =/  =lump:tarball  (fall fil.ball.p.seen *lump:tarball)
   %+  murn  ~(tap by contents.lump)
   |=  [name=@ta =content:tarball]
   ?.  ?=(%urb-wallet name.p.sage.content)  ~
@@ -781,10 +776,10 @@
 ::  Extract ship names from a kept points directory view.
 ::
 ++  extract-points
-  |=  =view:nexus
+  |=  =seen:nexus
   ^-  (list @p)
-  ?.  ?=([%ball *] view)  ~
-  =/  =lump:tarball  (fall fil.ball.view *lump:tarball)
+  ?.  ?=([%& %ball *] seen)  ~
+  =/  =lump:tarball  (fall fil.ball.p.seen *lump:tarball)
   %+  murn  ~(tap by contents.lump)
   |=  [name=@ta =content:tarball]
   ?.  ?=(%json name.p.sage.content)  ~
@@ -796,16 +791,16 @@
 ::
 ++  take-any-news
   |=  [a=wire b=wire c=wire]
-  =/  m  (fiber:fiber:nexus ,[?(%sse %seeds %points) view:nexus])
+  =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
   |=  input:fiber:nexus
   :+  ~  state
   ?+  in  [%skip ~]
       ~  [%wait ~]
       [~ %news * *]
-    ?:  =(a wire.u.in)  [%done %sse view.u.in]
-    ?:  =(b wire.u.in)  [%done %seeds view.u.in]
-    ?:  =(c wire.u.in)  [%done %points view.u.in]
+    ?:  =(a wire.u.in)  [%done ~]
+    ?:  =(b wire.u.in)  [%done ~]
+    ?:  =(c wire.u.in)  [%done ~]
     [%skip ~]
   ==
 ::

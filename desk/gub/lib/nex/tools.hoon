@@ -163,7 +163,7 @@
 +$  commit-event
   $%  [%timeout ~]
       [%quiet count=@ud]
-      [%log =told:dill]
+      [%log =wave:nexus]
   ==
 ::
 ++  take-commit-event
@@ -184,9 +184,7 @@
       [%done %quiet (slav %ud i.t.wak)]
     ==
       [~ %news [%dill %logs ~] *]
-    ?.  ?=([%file *] view.u.in)  [%skip ~]
-    ?.  ?=(%dill-told name.p.sage.view.u.in)  [%skip ~]
-    [%done %log !<(told:dill q.sage.view.u.in)]
+    [%done %log wave.u.in]
   ==
 ::
 ++  collect-logs
@@ -204,10 +202,15 @@
       $  :: stale timer, keep waiting
     (pure:m ~)
       %log
+    ;<  dill-seen=seen:nexus  bind:m  (peek:io [%& %& /sys/dill %'logs.dill-told'] ~)
+    =/  log-text=tape
+      ?.  ?=([%& %file *] dill-seen)  ""
+      ?.  ?=(%dill-told name.p.sage.p.dill-seen)  ""
+      (format-told !<(told:dill q.sage.p.dill-seen))
+    ?:  =(~ log-text)  $
     ;<  st=tool-state  bind:m  (get-state-as:io ,tool-state)
     =/  logs=(list json)
       (~(dug jo:json-utils data.st) /logs (ar:dejs:format same:dejs:format) ~)
-    =/  log-text=tape  (format-told told.commit-event)
     =/  new-data=json
       (~(put jo:json-utils data.st) /logs a+[s+(crip log-text) logs])
     =/  new-count=@ud  +((lent logs))

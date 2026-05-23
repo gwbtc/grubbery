@@ -41,9 +41,10 @@
           [~ %'main.sig']
         ;<  ~  bind:m  (rise-wait:io prod "%rhizome /main: failed")
         ~&  >  "%rhizome /main: starting"
-        ;<  init=view:nexus  bind:m
+        ;<  init=wave:nexus  bind:m
           (keep:io /vault (cord-to-road:tarball './vault/') ~)
-        =/  old-ball=ball:tarball  (ball-from-view init)
+        ;<  =seen:nexus  bind:m  (peek:io (cord-to-road:tarball './vault/') ~)
+        =/  old-ball=ball:tarball  (ball-from-seen seen)
         =/  notes=(map @ta @t)  (files-from-ball old-ball)
         =/  fwd=fwd-index
           %-  ~(run by notes)
@@ -63,8 +64,9 @@
         ~&  >  "%rhizome /main: indexed {<~(wyt by notes)>} notes"
         ::  main loop
         |-
-        ;<  upd=view:nexus  bind:m  (take-news:io /vault)
-        =/  new-ball=ball:tarball  (ball-from-view upd)
+        ;<  upd=wave:nexus  bind:m  (take-news:io /vault)
+        ;<  =seen:nexus  bind:m  (peek:io (cord-to-road:tarball './vault/') ~)
+        =/  new-ball=ball:tarball  (ball-from-seen seen)
         =/  changed=(set @ta)
           (file-names-from-lanes (changed-lanes:nexus old-ball new-ball))
         =/  new-notes=(map @ta @t)  (files-from-ball new-ball)
@@ -107,17 +109,19 @@
           ::
           [~ %'page.html']
         ;<  ~  bind:m  (rise-wait:io prod "%rhizome /page: failed")
-        ;<  vault-view=view:nexus  bind:m
+        ;<  vault-wave=wave:nexus  bind:m
           (keep:io /vault (cord-to-road:tarball './vault/') ~)
-        =/  notes=(map @ta @t)  (files-from-ball (ball-from-view vault-view))
+        ;<  vault-seen=seen:nexus  bind:m  (peek:io (cord-to-road:tarball './vault/') ~)
+        =/  notes=(map @ta @t)  (files-from-ball (ball-from-seen vault-seen))
         =/  fwd=fwd-index
           %-  ~(run by notes)
           |=(txt=@t (extract-wiki-links txt))
         =/  back=back-index  (invert-index fwd)
         ;<  ~  bind:m  (replace:io !>((crip (en-xml:html (rhizome-page notes fwd back)))))
         |-
-        ;<  upd=view:nexus  bind:m  (take-news:io /vault)
-        =/  notes=(map @ta @t)  (files-from-ball (ball-from-view upd))
+        ;<  upd=wave:nexus  bind:m  (take-news:io /vault)
+        ;<  vault-seen=seen:nexus  bind:m  (peek:io (cord-to-road:tarball './vault/') ~)
+        =/  notes=(map @ta @t)  (files-from-ball (ball-from-seen vault-seen))
         =/  fwd=fwd-index
           %-  ~(run by notes)
           |=(txt=@t (extract-wiki-links txt))
@@ -229,13 +233,13 @@
   =/  existing=(set @ta)  (~(gut by out) i.tgts ~)
   $(tgts t.tgts, out (~(put by out) i.tgts (~(put in existing) src)))
 ::
-::  ball-from-view: extract ball from a view
+::  ball-from-seen: extract ball from a peek result
 ::
-++  ball-from-view
-  |=  =view:nexus
+++  ball-from-seen
+  |=  =seen:nexus
   ^-  ball:tarball
-  ?.  ?=([%ball *] view)  *ball:tarball
-  ball.view
+  ?.  ?=([%& %ball *] seen)  *ball:tarball
+  ball.p.seen
 ::
 ::  files-from-ball: recursively extract txt files from a ball
 ::  returns map of relative paths (e.g. 'cooking/pasta.md') to text

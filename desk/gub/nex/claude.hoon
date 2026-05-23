@@ -85,48 +85,41 @@
       ::
           [~ %'weir.txt']
         ;<  ~  bind:m  (rise-wait:io prod "%claude weir: failed")
-        ;<  init=view:nexus  bind:m
+        ;<  init=wave:nexus  bind:m
           (keep:io /weir (cord-to-road:tarball '../') ~)
-        ;<  ~  bind:m  (replace:io !>((render-weir init)))
         |-
-        ;<  upd=view:nexus  bind:m  (take-news:io /weir)
-        ;<  ~  bind:m  (replace:io !>((render-weir upd)))
+        ;<  =seen:nexus  bind:m  (peek:io (cord-to-road:tarball '../') ~)
+        ;<  ~  bind:m  (replace:io !>((render-weir seen)))
+        ;<  upd=wave:nexus  bind:m  (take-news:io /weir)
         $
       ::  /ui/chat.html — watches messages, renders page
       ::
           [[%ui ~] %'chat.html']
         ;<  ~  bind:m  (rise-wait:io prod "%claude page: failed")
-        ;<  init=view:nexus  bind:m
+        ;<  init=wave:nexus  bind:m
           (keep:io /msgs (cord-to-road:tarball '../messages.claude-messages') ~)
-        ?.  ?=([%file *] init)  $
-        =/  msg=messages  !<(messages q.sage.init)
-        =/  page=manx  (chat-page (tap:mon messages.msg))
-        ;<  ~  bind:m  (replace:io !>((crip (en-xml:html page))))
         |-
-        ;<  upd=view:nexus  bind:m  (take-news:io /msgs)
-        ?.  ?=([%file *] upd)  $
-        =/  msg=messages  !<(messages q.sage.upd)
+        ;<  =seen:nexus  bind:m  (peek:io (cord-to-road:tarball '../messages.claude-messages') ~)
+        ?.  ?=([%& %file *] seen)  $
+        =/  msg=messages  !<(messages q.sage.p.seen)
         =/  page=manx  (chat-page (tap:mon messages.msg))
         ;<  ~  bind:m  (replace:io !>((crip (en-xml:html page))))
+        ;<  upd=wave:nexus  bind:m  (take-news:io /msgs)
         $
       ::  /ui/sse/last-message.html — watches messages, emits last as HTML
       ::
           [[%ui %sse ~] %'last-message.html']
         ;<  ~  bind:m  (rise-wait:io prod "%claude sse: failed")
-        ;<  init=view:nexus  bind:m
+        ;<  init=wave:nexus  bind:m
           (keep:io /msgs (cord-to-road:tarball '../../messages.claude-messages') ~)
-        ?.  ?=([%file *] init)  $
-        =/  msg=messages  !<(messages q.sage.init)
-        =/  last=(unit [key=@ud val=message])  (ram:mon messages.msg)
-        =/  init-manx=manx  ?~(last *manx (msg-to-manx val.u.last))
-        ;<  ~  bind:m  (replace:io !>((crip (en-xml:html init-manx))))
         |-
-        ;<  upd=view:nexus  bind:m  (take-news:io /msgs)
-        ?.  ?=([%file *] upd)  $
-        =/  msg=messages  !<(messages q.sage.upd)
+        ;<  =seen:nexus  bind:m  (peek:io (cord-to-road:tarball '../../messages.claude-messages') ~)
+        ?.  ?=([%& %file *] seen)  $
+        =/  msg=messages  !<(messages q.sage.p.seen)
         =/  last=(unit [key=@ud val=message])  (ram:mon messages.msg)
         ?~  last  $
         ;<  ~  bind:m  (replace:io !>((crip (en-xml:html (msg-to-manx val.u.last)))))
+        ;<  upd=wave:nexus  bind:m  (take-news:io /msgs)
         $
       ::  /ui/sse/status.json — loading state, updated by message fiber
       ::
@@ -462,13 +455,8 @@
       ~&  >>>  [%claude-stale-bond wire.ev]
       $
     =/  [id=@ud =slot]  u.id-slot
-    ?:  ?=(%| -.now.ev)
-      ;<  ~  bind:m  (clear-slot id)
-      ;<  ~  bind:m  (append-msg msg-road slot 'ERROR: Subscription failed' ~)
-      ?.  live.reg  $
-      ;<  ~  bind:m  (claude-turn msg-road)
-      $
-    ;<  ~  bind:m  (format-view msg-road path.slot p.now.ev %.y)
+    ;<  =seen:nexus  bind:m  (peek:io (cord-to-road:tarball path.slot) ~)
+    ;<  ~  bind:m  (format-seen msg-road path.slot seen %.y)
     ?.  live.reg  $
     ;<  ~  bind:m  (claude-turn msg-road)
     $
@@ -484,7 +472,8 @@
     ?:  =(action.slot 'drop')
       ~&  >  [%claude-news-after-drop path.slot]
       $
-    ;<  ~  bind:m  (format-view msg-road path.slot view.ev %.n)
+    ;<  =seen:nexus  bind:m  (peek:io (cord-to-road:tarball path.slot) ~)
+    ;<  ~  bind:m  (format-seen msg-road path.slot seen %.n)
     ?.  live.reg  $
     ;<  ~  bind:m  (claude-turn msg-road)
     $
@@ -822,8 +811,8 @@
       [%pack =wire err=(unit tang)]
       [%sand =wire err=(unit tang)]
       [%manu =wire res=(each @t tang)]
-      [%bond =wire now=(each view:nexus tang)]
-      [%news =wire =view:nexus]
+      [%bond =wire =wave:nexus]
+      [%news =wire =wave:nexus]
       [%fell =wire]
       [%veto =dart:nexus]
   ==
@@ -845,8 +834,8 @@
       [~ %pack * *]   [%done %pack wire.u.in err.u.in]
       [~ %sand * *]   [%done %sand wire.u.in err.u.in]
       [~ %manu * *]   [%done %manu wire.u.in res.u.in]
-      [~ %bond * *]   [%done %bond wire.u.in now.u.in]
-      [~ %news * *]   [%done %news wire.u.in view.u.in]
+      [~ %bond * *]   [%done %bond wire.u.in wave.u.in]
+      [~ %news * *]   [%done %news wire.u.in wave.u.in]
       [~ %fell *]     [%done %fell wire.u.in]
       [~ %veto *]     [%done %veto dart.u.in]
   ==
@@ -1105,23 +1094,25 @@
   ;<  ~  bind:m  (append-msg msg-road slot result ~)
   ?.  live  (pure:m ~)
   (claude-turn msg-road)
-::  Format a view (file or ball) as messages — used by bond and news
+::  Format a peek result as messages — used by bond and news
 ::
-++  format-view
-  |=  [msg-road=road:tarball api-path=@t =view:nexus is-bond=?]
+++  format-seen
+  |=  [msg-road=road:tarball api-path=@t =seen:nexus is-bond=?]
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
   =/  act=@t  ?:(is-bond 'bond' 'keep')
-  ?-    -.view
+  ?.  ?=(%& -.seen)
+    (append-to-msgs msg-road 'user' (rap 3 ~['<api action="' act '" path="' api-path '">ERROR</api>']))
+  ?-    -.p.seen
       %none
     (append-to-msgs msg-road 'user' (rap 3 ~['<api action="' act '" path="' api-path '">DELETED</api>']))
       %file
-    ;<  content=@t  bind:m  (sage-to-txt sage.view)
-    =/  rev=@ud  (ver:hist:nexus hist.view)
+    ;<  content=@t  bind:m  (sage-to-txt sage.p.seen)
+    =/  rev=@ud  (ver:hist:nexus hist.p.seen)
     =/  rev-attr=@t  (crip " rev=\"{(a-co:co rev)}\"")
     (append-to-msgs msg-road 'user' (rap 3 ~['<api action="' act '" path="' api-path '"' rev-attr '>' content '</api>']))
       %ball
-    (walk-ball msg-road api-path act ball.view /)
+    (walk-ball msg-road api-path act ball.p.seen /)
   ==
 ::  Walk a ball recursively, sending a message per file
 ::
@@ -1151,10 +1142,10 @@
   $(dirs t.dirs)
 ::
 ++  render-weir
-  |=  v=view:nexus
+  |=  =seen:nexus
   ^-  wain
-  ?.  ?=([%ball *] v)  ~['No weir set.']
-  =/  =weir:nexus  (fall fil.sand.v *weir:nexus)
+  ?.  ?=([%& %ball *] seen)  ~['No weir set.']
+  =/  =weir:nexus  (fall fil.sand.p.seen *weir:nexus)
   ?:  =(*weir:nexus weir)  ~['No weir set.']
   ~[(crip "PERMISSIONS (weir): {(trip (en:json:html (weir-to-json:nexus weir)))}")]
 ::

@@ -161,9 +161,10 @@
       |-
       ;<  nw=news-or-wake:io  bind:m  (take-news-or-wake:io /watch)
       ?:  ?=(%wake -.nw)  $
-      ?.  ?=(%file -.view.nw)  $
+      ;<  =seen:nexus  bind:m  (peek:io tool-road ~)
+      ?.  ?=([%& %file *] seen)  $
       =/  st=tool-state:nex-tools
-        !<(tool-state:nex-tools q.sage.view.nw)
+        !<(tool-state:nex-tools q.sage.p.seen)
       ?.  =(%done step.st)  $
       ?~  update.st  $
       ::  Done — build JSON-RPC response from update

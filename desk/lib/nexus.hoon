@@ -939,6 +939,26 @@
   ?~  cas  acc
   (~(put by acc) lane u.cas)
 ::
+::  +relativize-wave: make wave lanes relative to a subscription target
+::
+::  Strips the target prefix from each lane's path so subscribers see
+::  paths relative to what they subscribed to.
+::
+++  relativize-wave
+  |=  [target=lane:tarball =wave]
+  ^-  ^wave
+  =/  prefix=path
+    ?-(-.target %| p.target, %& path.p.target)
+  %-  ~(rep by wave)
+  |=  [[=lane:tarball =cass:clay] acc=^wave]
+  =/  lane-path=path
+    ?-(-.lane %| p.lane, %& path.p.lane)
+  =/  rel=(unit path)  (decap:tarball prefix lane-path)
+  ?~  rel  (~(put by acc) lane cass)
+  =/  rel-lane=lane:tarball
+    ?-(-.lane %| [%| u.rel], %& [%& u.rel name.p.lane])
+  (~(put by acc) rel-lane cass)
+::
 ::  +diff-born: compare two born trees and return set of changed lanes
 ::
 ::  Pure function: walks both trees, comparing totes and sacks.

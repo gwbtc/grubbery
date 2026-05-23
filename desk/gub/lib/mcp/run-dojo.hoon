@@ -133,13 +133,14 @@
       ::  Timeout — re-read state (has checkpointed pre-vers) and read results
       ;<  st=tool-state:tools  bind:m  (get-state-as:io ,tool-state:tools)
       (read-results st)
-    ?.  ?=([%file *] view.nw)  $
-    ?.  ?=(%dill-blit name.p.sage.view.nw)  $
+    ;<  =seen:nexus  bind:m  (peek:io ses-road ~)
+    ?.  ?=([%& %file *] seen)  $
+    ?.  ?=(%dill-blit name.p.sage.p.seen)  $
     =.  batches  +(batches)
     ::  Skip the first batch (command echo) — wait for result + prompt
     ?.  (gth batches 1)  $
     =/  blits=(list blit:dill)
-      !<((list blit:dill) q.sage.view.nw)
+      !<((list blit:dill) q.sage.p.seen)
     =/  rendered=@t  (render-blits:clurd blits wid)
     =/  txt=tape  (trip rendered)
     ::  Check for prompt at end of this batch

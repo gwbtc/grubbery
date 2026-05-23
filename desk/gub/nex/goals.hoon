@@ -283,18 +283,15 @@
           ::
           [~ %'page.html']
         ;<  ~  bind:m  (rise-wait:io prod "%goals /page: failed")
-        ;<  init=view:nexus  bind:m
+        ;<  init=wave:nexus  bind:m
           (keep:io /stores (cord-to-road:tarball './store/') ~)
-        =/  stores=(map @ta goal-store:goals)
-          (view-to-stores init)
-        =/  store-names=(list @ta)  (sort ~(tap in ~(key by stores)) aor)
-        ;<  ~  bind:m  (replace:io !>((crip (en-xml:html (goals-page store-names stores)))))
         |-
-        ;<  upd=view:nexus  bind:m  (take-news:io /stores)
+        ;<  =seen:nexus  bind:m  (peek:io (cord-to-road:tarball './store/') ~)
         =/  stores=(map @ta goal-store:goals)
-          (view-to-stores upd)
+          (seen-to-stores seen)
         =/  store-names=(list @ta)  (sort ~(tap in ~(key by stores)) aor)
         ;<  ~  bind:m  (replace:io !>((crip (en-xml:html (goals-page store-names stores)))))
+        ;<  upd=wave:nexus  bind:m  (take-news:io /stores)
         $
           ::  /store/*.goal-store: per-store process
           ::
@@ -375,13 +372,13 @@
 ::  Peek a store file, return the goal-store
 ::  Extract stores from a view (directory subscription)
 ::
-++  view-to-stores
-  |=  =view:nexus
+++  seen-to-stores
+  |=  =seen:nexus
   ^-  (map @ta goal-store:goals)
-  ?.  ?=([%ball *] view)  ~
-  ?~  fil.ball.view  ~
+  ?.  ?=([%& %ball *] seen)  ~
+  ?~  fil.ball.p.seen  ~
   =/  entries=(list [@ta content:tarball])
-    ~(tap by contents.u.fil.ball.view)
+    ~(tap by contents.u.fil.ball.p.seen)
   =/  out=(map @ta goal-store:goals)  ~
   |-
   ?~  entries  out

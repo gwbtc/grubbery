@@ -126,27 +126,23 @@
         ;<  ~  bind:m  (rise-wait:io prod "%wallet /page: failed")
         ;<  here=rail:tarball  bind:m  get-here-abs:io
         =/  nexus-root=tape  (spud path.here)
-        ;<  init=view:nexus  bind:m
-          (keep:io /wallets (cord-to-road:tarball './wallets/') ~)
-        =/  wals=(list wallet-data)  (view-to-wallets init)
-        ;<  ~  bind:m  (replace:io !>((crip (en-xml:html (wallet-page nexus-root wals)))))
+        ;<  *  bind:m  (keep:io /wallets (cord-to-road:tarball './wallets/') ~)
         |-
-        ;<  upd=view:nexus  bind:m  (take-news:io /wallets)
-        =/  wals=(list wallet-data)  (view-to-wallets upd)
+        ;<  wals-seen=seen:nexus  bind:m  (peek:io (cord-to-road:tarball './wallets/') ~)
+        =/  wals=(list wallet-data)  (view-to-wallets wals-seen)
         ;<  ~  bind:m  (replace:io !>((crip (en-xml:html (wallet-page nexus-root wals)))))
+        ;<  *  bind:m  (take-news:io /wallets)
         $
           ::  /ui/sse/wallets.html: wallet list HTML fragment for SSE
           ::
           [[%ui %sse ~] %'wallets.html']
         ;<  ~  bind:m  (rise-wait:io prod "%wallet /ui/sse/wallets: failed")
-        ;<  init=view:nexus  bind:m
-          (keep:io /wallets (cord-to-road:tarball '../../wallets/') ~)
-        =/  wals=(list wallet-data)  (view-to-wallets init)
-        ;<  ~  bind:m  (replace:io !>((crip (en-xml:html (wallet-list-html wals)))))
+        ;<  *  bind:m  (keep:io /wallets (cord-to-road:tarball '../../wallets/') ~)
         |-
-        ;<  upd=view:nexus  bind:m  (take-news:io /wallets)
-        =/  wals=(list wallet-data)  (view-to-wallets upd)
+        ;<  wals-seen=seen:nexus  bind:m  (peek:io (cord-to-road:tarball '../../wallets/') ~)
+        =/  wals=(list wallet-data)  (view-to-wallets wals-seen)
         ;<  ~  bind:m  (replace:io !>((crip (en-xml:html (wallet-list-html wals)))))
+        ;<  *  bind:m  (take-news:io /wallets)
         $
           ::  /ui/http.sig: bind /groundwire/wallet/ and dispatch requests
           ::
@@ -360,8 +356,7 @@
   =/  m  (fiber:fiber:nexus ,(list wallet-data))
   ^-  form:m
   ;<  =seen:nexus  bind:m  (peek:io (cord-to-road:tarball '../../wallets/') ~)
-  ?.  ?=(%& -.seen)  (pure:m ~)
-  (pure:m (view-to-wallets p.seen))
+  (pure:m (view-to-wallets seen))
 ::
 ::  +load-addr-mop: read an addr-mop file from an account ball
 ::
@@ -1391,10 +1386,10 @@
   [p.name seed fingerprint ~]
 ::
 ++  view-to-wallets
-  |=  =view:nexus
+  |=  =seen:nexus
   ^-  (list wallet-data)
-  ?.  ?=([%ball *] view)  ~
-  %+  murn  ~(tap by dir.ball.view)
+  ?.  ?=([%& %ball *] seen)  ~
+  %+  murn  ~(tap by dir.ball.p.seen)
   |=  [name=@ta sub=ball:tarball]
   =/  sub-lump=lump:tarball  (fall fil.sub *lump:tarball)
   =/  ct=(unit content:tarball)  (~(get by contents.sub-lump) 'main.wallet_wallet')

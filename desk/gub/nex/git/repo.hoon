@@ -176,46 +176,39 @@
           (crip "/grubbery/api/file{(spud path.here)}")
         ;<  cfg-rd=road:tarball  bind:m
           (ancestor-road:io [/git %repo] [%& / %'config.json'])
-        ;<  init-cfg=view:nexus  bind:m  (keep:io /cfg cfg-rd `[/ %json])
+        ;<  *  bind:m  (keep:io /cfg cfg-rd `[/ %json])
         ;<  tree-rd=road:tarball  bind:m
           (ancestor-road:io [/git %repo] [%| /data/tree])
-        ;<  init-tree=view:nexus  bind:m  (keep:io /tree tree-rd ~)
+        ;<  *  bind:m  (keep:io /tree tree-rd ~)
         ;<  status-rd=road:tarball  bind:m
           (ancestor-road:io [/git %repo] [%& /ui %'status.json'])
-        ;<  init-status=view:nexus  bind:m  (keep:io /status status-rd `[/ %json])
+        ;<  *  bind:m  (keep:io /status status-rd `[/ %json])
         ;<  branches-rd=road:tarball  bind:m
           (ancestor-road:io [/git %repo] [%& /data/ui %'branches.json'])
-        ;<  init-branches=view:nexus  bind:m  (keep:io /branches branches-rd `[/ %json])
+        ;<  *  bind:m  (keep:io /branches branches-rd `[/ %json])
         ;<  commits-rd=road:tarball  bind:m
           (ancestor-road:io [/git %repo] [%& /data/ui %'commits.json'])
-        ;<  init-commits=view:nexus  bind:m  (keep:io /commits commits-rd `[/ %json])
+        ;<  *  bind:m  (keep:io /commits commits-rd `[/ %json])
         ;<  current-rd=road:tarball  bind:m
           (ancestor-road:io [/git %repo] [%& /data/ui %'current.json'])
-        ;<  init-current=view:nexus  bind:m  (keep:io /current current-rd `[/ %json])
-        ;<  status-rd=road:tarball  bind:m
-          (ancestor-road:io [/git %repo] [%& /data/ui %'status.json'])
-        ;<  init-status=view:nexus  bind:m  (keep:io /status status-rd `[/ %json])
-        =/  cfg=repo-config  (view-to-config init-cfg)
-        =/  files=(list @t)  (view-to-files init-tree)
-        =/  branches=(list @t)  (view-to-branches init-branches)
-        =/  commits=json  (view-to-json init-commits)
-        =/  current=json  (view-to-json init-current)
-        =/  status=json   (view-to-json init-status)
-        ;<  ~  bind:m  (replace:io !>((crip (en-xml:html (repo-page api repo.cfg ref.cfg branches files commits current status)))))
+        ;<  *  bind:m  (keep:io /current current-rd `[/ %json])
         |-
+        ;<  cfg-s=seen:nexus  bind:m  (peek:io cfg-rd `[/ %json])
+        ;<  tree-s=seen:nexus  bind:m  (peek:io tree-rd ~)
+        ;<  status-s=seen:nexus  bind:m  (peek:io status-rd `[/ %json])
+        ;<  branches-s=seen:nexus  bind:m  (peek:io branches-rd `[/ %json])
+        ;<  commits-s=seen:nexus  bind:m  (peek:io commits-rd `[/ %json])
+        ;<  current-s=seen:nexus  bind:m  (peek:io current-rd `[/ %json])
+        =/  cfg=repo-config  (view-to-config cfg-s)
+        =/  files=(list @t)  (view-to-files tree-s)
+        =/  branches=(list @t)  (view-to-branches branches-s)
+        =/  commits=json  (view-to-json commits-s)
+        =/  current=json  (view-to-json current-s)
+        =/  status=json   (view-to-json status-s)
+        ;<  ~  bind:m  (replace:io !>((crip (en-xml:html (repo-page api repo.cfg ref.cfg branches files commits current status)))))
         ;<  evt=page-event  bind:m  take-page-event
-        ?-    -.evt
-            %fell  $
-            %news
-          =?  cfg  =(/cfg wire.evt)  (view-to-config view.evt)
-          =?  files  =(/tree wire.evt)  (view-to-files view.evt)
-          =?  branches  =(/branches wire.evt)  (view-to-branches view.evt)
-          =?  commits  =(/commits wire.evt)  (view-to-json view.evt)
-          =?  current  =(/current wire.evt)  (view-to-json view.evt)
-          =?  status   =(/status wire.evt)   (view-to-json view.evt)
-          ;<  ~  bind:m  (replace:io !>((crip (en-xml:html (repo-page api repo.cfg ref.cfg branches files commits current status)))))
-          $
-        ==
+        ?:  ?=(%fell -.evt)  $
+        $
           ::  /actions/checkout.sig: checkout a specific commit by hash
           ::
           [[%actions ~] %'checkout.sig']
@@ -228,8 +221,7 @@
           (ancestor-road:io [/git %repo] [%& /data/ui %'status.json'])
         ;<  status-seen=seen:nexus  bind:m  (peek:io status-rd `[/ %json])
         =/  is-clean=?
-          ?.  ?=([%.y *] status-seen)  %.y
-          =/  status-json=json  (view-to-json p.status-seen)
+          =/  status-json=json  (view-to-json status-seen)
           ?.  ?=(%o -.status-json)  %.y
           =/  cl  (~(get by p.status-json) 'clean')
           ?+  cl  %.n
@@ -265,8 +257,7 @@
           (ancestor-road:io [/git %repo] [%& /data/ui %'status.json'])
         ;<  status-seen=seen:nexus  bind:m  (peek:io status-rd `[/ %json])
         =/  is-clean=?
-          ?.  ?=([%.y *] status-seen)  %.y
-          =/  status-json=json  (view-to-json p.status-seen)
+          =/  status-json=json  (view-to-json status-seen)
           ?.  ?=(%o -.status-json)  %.y
           =/  cl  (~(get by p.status-json) 'clean')
           ?+  cl  %.n
@@ -1349,7 +1340,7 @@
   ?:(=('/' i.t) (crip t.t) (crip t))
 ::
 +$  page-event
-  $%  [%news =wire =view:nexus]
+  $%  [%news =wire =wave:nexus]
       [%fell =wire]
   ==
 ::
@@ -1361,16 +1352,16 @@
   ?+  in.input  [%skip ~]
       ~  [%wait ~]
       [~ %news * *]
-    [%done %news [wire view]:u.in.input]
+    [%done %news [wire wave]:u.in.input]
       [~ %fell *]
     [%done %fell wire.u.in.input]
   ==
 ::
 ++  view-to-config
-  |=  =view:nexus
+  |=  =seen:nexus
   ^-  repo-config
-  ?.  ?=([%file *] view)  ['' 'main' '']
-  =/  cfg=json  (fall (mole |.(!<(json q.sage.view))) *json)
+  ?.  ?=([%& %file *] seen)  ['' 'main' '']
+  =/  cfg=json  (fall (mole |.(!<(json q.sage.p.seen))) *json)
   ?.  ?=(%o -.cfg)  ['' 'main' '']
   =/  get
     |=  [key=@t default=@t]
@@ -1389,24 +1380,24 @@
   (of-wain:format !<(wain q.sage))
 ::
 ++  view-to-branches
-  |=  =view:nexus
+  |=  =seen:nexus
   ^-  (list @t)
-  ?.  ?=([%file *] view)  ~
-  =/  j=json  (fall (mole |.(!<(json q.sage.view))) *json)
+  ?.  ?=([%& %file *] seen)  ~
+  =/  j=json  (fall (mole |.(!<(json q.sage.p.seen))) *json)
   ?.  ?=(%a -.j)  ~
   (murn p.j |=(v=json ?.(?=(%s -.v) ~ `p.v)))
 ::
 ++  view-to-json
-  |=  =view:nexus
+  |=  =seen:nexus
   ^-  json
-  ?.  ?=([%file *] view)  [%a ~]
-  (fall (mole |.(!<(json q.sage.view))) [%a ~])
+  ?.  ?=([%& %file *] seen)  [%a ~]
+  (fall (mole |.(!<(json q.sage.p.seen))) [%a ~])
 ::
 ++  view-to-files
-  |=  =view:nexus
+  |=  =seen:nexus
   ^-  (list @t)
-  ?.  ?=([%ball *] view)  ~
-  (collect-files '' ball.view)
+  ?.  ?=([%& %ball *] seen)  ~
+  (collect-files '' ball.p.seen)
 ::
 ++  collect-files
   |=  [prefix=@t =ball:tarball]

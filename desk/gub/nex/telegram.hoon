@@ -94,14 +94,13 @@
           ::
           [[%ui ~] %'manage.html']
         ;<  ~  bind:m  (rise-wait:io prod "%telegram manage: failed")
-        ;<  init=view:nexus  bind:m
+        ;<  init=wave:nexus  bind:m
           (keep:io /bots [%| 1 %| /bots] ~)
-        =/  bot-names=(list @ta)  (view-to-bot-names init)
-        ;<  ~  bind:m  (replace:io !>((crip (en-xml:html (manage-page bot-names)))))
         |-
-        ;<  upd=view:nexus  bind:m  (take-news:io /bots)
-        =/  bot-names=(list @ta)  (view-to-bot-names upd)
+        ;<  =seen:nexus  bind:m  (peek:io [%| 1 %| /bots] ~)
+        =/  bot-names=(list @ta)  (seen-to-bot-names seen)
         ;<  ~  bind:m  (replace:io !>((crip (en-xml:html (manage-page bot-names)))))
+        ;<  upd=wave:nexus  bind:m  (take-news:io /bots)
         $
       ==
     ::
@@ -131,11 +130,11 @@
     --
 |%
 ::
-++  view-to-bot-names
-  |=  =view:nexus
+++  seen-to-bot-names
+  |=  =seen:nexus
   ^-  (list @ta)
-  ?.  ?=([%ball *] view)  ~
-  ~(tap in ~(key by dir.ball.view))
+  ?.  ?=([%& %ball *] seen)  ~
+  ~(tap in ~(key by dir.ball.p.seen))
 ::
 ++  manage-page
   |=  bots=(list @ta)

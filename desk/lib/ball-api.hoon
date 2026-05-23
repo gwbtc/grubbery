@@ -487,30 +487,29 @@
   =/  =road:tarball
     ?:  is-file  (need file-road)
     [%& %| api-path]
-  ::  Subscribe to changes — bond returns initial view
-  ;<  init=view:nexus  bind:m  (keep:io /keep road ~)
-  =/  prev-born=born:nexus
-    ?.  ?=([%ball *] init)  *born:nexus
-    born.init
+  ::  Subscribe to changes — bond returns initial wavefront
+  ;<  init=wave:nexus  bind:m  (keep:io /keep road ~)
   ::  Send "old" events for initial state
   ;<  ~  bind:m
-    ?+  init  (pure:m ~)
-    ::  Single file — send one "old" event
-        [%file *]
-      =/  file-name=@t
-        ?~  api-path  '/'
-        (rear api-path)
-      =/  id=@t  (scot %ud (ver:hist:nexus hist.init))
-      =/  event-name=@t  (crip "old {(trip file-name)}")
-      ;<  body=@t  bind:m  (sage-to-txt sage.init mark-param)
-      =/  data=wain  (to-wain:format body)
-      =/  =sse-event:http-utils  [`id `event-name data]
+    =/  lanes=(list [=lane:tarball =cass:clay])  ~(tap by init)
+    |-
+    ?~  lanes  (pure:m ~)
+    ?:  ?=(%| -.lane.i.lanes)  $(lanes t.lanes)
+    ::  wave lanes are relative to subscription — resolve to absolute for peek
+    =/  file-road=road:tarball  [%& %& (weld api-path path.p.lane.i.lanes) name.p.lane.i.lanes]
+    ;<  =seen:nexus  bind:m  (peek:io file-road ~)
+    ?.  ?=([%& %file *] seen)  $(lanes t.lanes)
+    =/  lane-path=@t  (spat (snoc path.p.lane.i.lanes name.p.lane.i.lanes))
+    =/  id=@t  (scot %ud ud.cass.i.lanes)
+    =/  event-name=@t  (crip "old {(trip lane-path)}")
+    ;<  body=@t  bind:m  (sage-to-txt sage.p.seen mark-param)
+    =/  data=wain  (to-wain:format body)
+    =/  =sse-event:http-utils  [`id `event-name data]
+    ;<  ~  bind:m
       (send-data:srv eyre-id `(sse-encode:http-utils ~[sse-event]))
-    ::  Directory — send "old" for each file
-        [%ball *]
-      =/  root=ball:tarball  ball.init
-      (send-old-dir eyre-id root born.init / mark-param)
-    ==
+    $(lanes t.lanes)
+  ::  Track seen lanes for new vs upd detection
+  =/  prev=wave:nexus  init
   ::  Start keep-alive timer
   ;<  now=@da  bind:m  get-time:io
   ;<  ~  bind:m  (send-wait:io (add now ~s30))
@@ -526,74 +525,32 @@
     $
   ::
       %news
-    ?+    view.nw  $
-    ::  Single file changed
-        [%file *]
-      =/  =sage:tarball  sage.view.nw
-      =/  id=@t  (scot %ud (ver:hist:nexus hist.view.nw))
-      =/  file-name=@t
-        ?~  api-path  '/'
-        (rear api-path)
-      =/  event-name=@t  (crip "upd {(trip file-name)}")
-      ;<  body=@t  bind:m  (sage-to-txt sage mark-param)
-      =/  data=wain  (to-wain:format body)
-      =/  =sse-event:http-utils  [`id `event-name data]
-      ;<  ~  bind:m
-        (send-data:srv eyre-id `(sse-encode:http-utils ~[sse-event]))
-      $
-    ::  Directory changed — diff born to find changed lanes
-        [%ball *]
-      =/  root=ball:tarball  ball.view.nw
-      =/  root-born=born:nexus  born.view.nw
-      =/  what=(set lane:tarball)  (diff-born-state:nexus prev-born root-born)
-      =/  old-born=born:nexus  prev-born
-      =.  prev-born  root-born
-      =/  lanes=(list lane:tarball)  ~(tap in what)
-      |-
-      ?~  lanes  ^$
-      ::  Skip directory lanes (TBD)
-      ?:  ?=(%| -.i.lanes)
-        $(lanes t.lanes)
-      ::  Lanes are relative to the subscribed subtree
-      =/  file-path=path  path.p.i.lanes
-      =/  file-name=@ta  name.p.i.lanes
-      =/  lane-path=@t  (spat (snoc file-path file-name))
-      ::  Get file cass from new born for event ID
-      =/  sub-born=born:nexus  (~(dip of root-born) file-path)
-      =/  file-hist=(unit hist:nexus)
-        ?~  fil.sub-born  ~
-        (~(get by file.u.fil.sub-born) file-name)
-      =/  id=@t
-        ?~  file-hist  '0'
-        (scot %ud (ver:hist:nexus u.file-hist))
-      ::  Check if lane existed in old born
-      =/  old-sub=born:nexus  (~(dip of old-born) file-path)
-      =/  old-hist=(unit hist:nexus)
-        ?~  fil.old-sub  ~
-        (~(get by file.u.fil.old-sub) file-name)
-      ::  Get file content from the ball
-      =/  sub=ball:tarball  (~(dip ba:tarball root) file-path)
-      =/  ct=(unit content:tarball)
-        ?~  fil.sub  ~
-        (~(get by contents.u.fil.sub) file-name)
-      ?~  ct
-        ::  File gone — send delete event
-        =/  event-name=@t  (crip "del {(trip lane-path)}")
-        =/  =sse-event:http-utils  [`id `event-name ~['']]
-        ;<  ~  bind:m
-          (send-data:srv eyre-id `(sse-encode:http-utils ~[sse-event]))
-        $(lanes t.lanes)
-      ::  File exists — new or upd
-      =/  action=@t  ?~(old-hist 'new' 'upd')
+    =/  lanes=(list [=lane:tarball =cass:clay])  ~(tap by wave.nw)
+    =.  prev  (~(uni by prev) wave.nw)
+    |-
+    ?~  lanes  ^$
+    ?:  ?=(%| -.lane.i.lanes)  $(lanes t.lanes)
+    ::  wave lanes are relative to subscription — resolve to absolute for peek
+    =/  file-road=road:tarball  [%& %& (weld api-path path.p.lane.i.lanes) name.p.lane.i.lanes]
+    ;<  =seen:nexus  bind:m  (peek:io file-road ~)
+    =/  lane-path=@t  (spat (snoc path.p.lane.i.lanes name.p.lane.i.lanes))
+    =/  id=@t  (scot %ud ud.cass.i.lanes)
+    ?:  ?=([%& %file *] seen)
+      =/  was-known=?  (~(has by prev) lane.i.lanes)
+      =/  action=@t  ?:(was-known 'upd' 'new')
       =/  event-name=@t  (crip "{(trip action)} {(trip lane-path)}")
-      =/  =sage:tarball  sage.u.ct
-      ;<  body=@t  bind:m  (sage-to-txt sage mark-param)
+      ;<  body=@t  bind:m  (sage-to-txt sage.p.seen mark-param)
       =/  data=wain  (to-wain:format body)
       =/  =sse-event:http-utils  [`id `event-name data]
       ;<  ~  bind:m
         (send-data:srv eyre-id `(sse-encode:http-utils ~[sse-event]))
       $(lanes t.lanes)
-    ==
+    ::  File gone — send delete event
+    =/  event-name=@t  (crip "del {(trip lane-path)}")
+    =/  =sse-event:http-utils  [`id `event-name ~['']]
+    ;<  ~  bind:m
+      (send-data:srv eyre-id `(sse-encode:http-utils ~[sse-event]))
+    $(lanes t.lanes)
   ==
 ::  +send-old-dir: send "old" SSE events for all files in a ball
 ::

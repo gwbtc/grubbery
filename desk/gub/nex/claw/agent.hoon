@@ -750,8 +750,13 @@
             %news
           ::  channel inbox: new messages from linked channel
           ?:  ?=([%'chan-inbox' ~] wire.main-event)
-            ?.  ?=(%file -.view.main-event)  $
-            =/  j=json  (fall (mole |.(!<(json q.sage.view.main-event))) *json)
+            ?:  =('' cur-chan)  $
+            =/  chan-fold=path  (cord-to-path cur-chan)
+            ;<  inbox-road=road:tarball  bind:m
+              (ancestor-road:io [/claw %app] [%& (weld /channels chan-fold) %'inbox.json'])
+            ;<  =seen:nexus  bind:m  (peek:io inbox-road ~)
+            ?.  ?=([%& %file *] seen)  $
+            =/  j=json  (fall (mole |.(!<(json q.sage.p.seen))) *json)
             =/  msgs=(list json)
               ?.  ?=(%a -.j)  ~
               p.j
@@ -812,10 +817,11 @@
             =/  new-fold=path  (cord-to-path new-chan)
             ;<  new-road=road:tarball  bind:m
               (ancestor-road:io [/claw %app] [%& (weld /channels new-fold) %'inbox.json'])
-            ;<  inbox-view=view:nexus  bind:m  (keep:io /chan-inbox new-road ~)
+            ;<  *  bind:m  (keep:io /chan-inbox new-road ~)
+            ;<  inbox-seen=seen:nexus  bind:m  (peek:io new-road ~)
             =/  cnt=@ud
-              ?.  ?=(%file -.inbox-view)  0
-              =/  j=json  (fall (mole |.(!<(json q.sage.inbox-view))) *json)
+              ?.  ?=([%& %file *] inbox-seen)  0
+              =/  j=json  (fall (mole |.(!<(json q.sage.p.inbox-seen))) *json)
               ?.  ?=(%a -.j)  0
               (lent p.j)
             ~&  >>  ["%claw: subscribed to new channel, seen" cnt]
@@ -826,11 +832,12 @@
           ::  only handle /tool-done/* wires; ignore stale news from other subs
           ?.  ?=([%'tool-done' @ ~] wire.main-event)  $
           =/  tid=@ta  i.t.wire.main-event
-          ?.  ?=(%file -.view.main-event)  $
-          =/  tst=tool-state:nex-tools  !<(tool-state:nex-tools q.sage.view.main-event)
-          ?.  =(%done step.tst)  $
           =/  tool-file=@ta  (crip "{(trip chat-name)}_{(trip tid)}")
           ;<  tool-road=road:tarball  bind:m  (ancestor-road:io [/claw %agent] [%& /proc/tools tool-file])
+          ;<  tool-seen=seen:nexus  bind:m  (peek:io tool-road ~)
+          ?.  ?=([%& %file *] tool-seen)  $
+          =/  tst=tool-state:nex-tools  !<(tool-state:nex-tools q.sage.p.tool-seen)
+          ?.  =(%done step.tst)  $
           ;<  ~  bind:m  (drop:io /tool-done/[tid] tool-road)
           =/  res=extracted-result  (extract-tool-result tst)
           ~&  >  ["%claw: deferred result for" tid]
@@ -1125,7 +1132,7 @@
 ::
 +$  main-event
   $%  [%poke =from:fiber:nexus =sage:tarball]
-      [%news =wire =view:nexus]
+      [%news =wire =wave:nexus]
   ==
 ::
 ++  take-main-event
@@ -1142,7 +1149,7 @@
       [%skip ~]
     [%done %poke [from sage]:u.in]
       [~ %news * *]
-    [%done %news [wire view]:u.in]
+    [%done %news [wire wave]:u.in]
   ==
 ::
 ::
@@ -1251,10 +1258,11 @@
   =/  chan-fold=path  (cord-to-path chan-name)
   ;<  inbox-road=road:tarball  bind:m
     (ancestor-road:io [/claw %app] [%& (weld /channels chan-fold) %'inbox.json'])
-  ;<  inbox-view=view:nexus  bind:m  (keep:io /chan-inbox inbox-road ~)
+  ;<  *  bind:m  (keep:io /chan-inbox inbox-road ~)
+  ;<  inbox-seen=seen:nexus  bind:m  (peek:io inbox-road ~)
   =/  cnt=@ud
-    ?.  ?=(%file -.inbox-view)  0
-    =/  j=json  (fall (mole |.(!<(json q.sage.inbox-view))) *json)
+    ?.  ?=([%& %file *] inbox-seen)  0
+    =/  j=json  (fall (mole |.(!<(json q.sage.p.inbox-seen))) *json)
     ?.  ?=(%a -.j)  0
     (lent p.j)
   ~&  >>  ["%claw: channel inbox subscribed, seen" cnt]
@@ -1601,7 +1609,7 @@
   ~&  >>  ["%claw: call" call-id "created, waiting for response"]
   ;<  ~  bind:m  (set-status chat-name [%api ~])
   ::  wait for news with status=done, or interrupt poke
-  ;<  resp=(unit json)  bind:m  (await-call-or-interrupt /api-call)
+  ;<  resp=(unit json)  bind:m  (await-call-or-interrupt /api-call call-road)
   ::  drop subscription
   ;<  ~  bind:m  (drop:io /api-call call-road)
   ::  handle interrupt
@@ -1669,7 +1677,7 @@
   ;<  ~  bind:m  (set-status chat-name [%tool tid])
   ;<  *  bind:m  (keep:io /tool-wait/[tid] tool-road ~)
   ;<  ~  bind:m  (make:io tool-road |+[%.n [[/ %tool-state] !>(ts)] ~])
-  ;<  ack=(unit [extracted-result ?])  bind:m  (await-tool-ack tid)
+  ;<  ack=(unit [extracted-result ?])  bind:m  (await-tool-ack tid tool-road)
   ;<  ~  bind:m  (drop:io /tool-wait/[tid] tool-road)
   ?~  ack
     ::  interrupted — kill tool, write marker, return
@@ -1699,8 +1707,23 @@
 ::  is still running and will eventually reach %done.
 ::
 ++  await-tool-ack
-  |=  tid=@ta
+  |=  [tid=@ta tool-road=road:tarball]
   =/  m  (fiber:fiber:nexus ,(unit [extracted-result ?]))
+  ^-  form:m
+  |-
+  ;<  raw=(unit ?)  bind:m  (take-tool-signal tid)
+  ?~  raw  (pure:m ~)  :: interrupted
+  ;<  =seen:nexus  bind:m  (peek:io tool-road ~)
+  ?.  ?=([%& %file *] seen)  $
+  =/  st=tool-state:nex-tools  !<(tool-state:nex-tools q.sage.p.seen)
+  ?:  =(%ack step.st)
+    (pure:m `[(extract-tool-result st) %.y])
+  ?.  =(%done step.st)  $
+  (pure:m `[(extract-tool-result st) %.n])
+::
+++  take-tool-signal
+  |=  tid=@ta
+  =/  m  (fiber:fiber:nexus ,(unit ?))
   ^-  form:m
   |=  input:fiber:nexus
   :+  ~  state
@@ -1708,24 +1731,15 @@
       ~  [%wait ~]
       [~ %veto *]
     [%fail (veto-error:io dart.u.in)]
-    ::  interrupt poke — return ~
-    ::
       [~ %poke * *]
     =/  jon=json  (fall (mole |.(!<(json q.sage.u.in))) *json)
     ?.  ?=(%o -.jon)  [%skip ~]
     =/  act=(unit json)  (~(get by p.jon) 'action')
     ?.  ?=([~ %s %'interrupt'] act)  [%skip ~]
     [%done ~]
-    ::  news on tool subscription
-    ::
       [~ %news * *]
     ?.  =(/tool-wait/[tid] wire.u.in)  [%skip ~]
-    ?.  ?=(%file -.view.u.in)  [%skip ~]
-    =/  st=tool-state:nex-tools  !<(tool-state:nex-tools q.sage.view.u.in)
-    ?:  =(%ack step.st)
-      [%done `[(extract-tool-result st) %.y]]
-    ?.  =(%done step.st)  [%skip ~]
-    [%done `[(extract-tool-result st) %.n]]
+    [%done `%.y]
   ==
 ::
 ::  +extract-tool-result: pull text from tool-state update
@@ -1755,8 +1769,24 @@
 ::  Listens for both news on the call subscription wire and interrupt pokes.
 ::
 ++  await-call-or-interrupt
-  |=  =wire
+  |=  [=wire call-road=road:tarball]
   =/  m  (fiber:fiber:nexus ,(unit json))
+  ^-  form:m
+  |-
+  ;<  got=?  bind:m  (take-news-or-interrupt wire)
+  ?.  got  (pure:m ~)  :: interrupted
+  ;<  =seen:nexus  bind:m  (peek:io call-road ~)
+  ?.  ?=([%& %file *] seen)  $
+  =/  jon=json  (fall (mole |.(!<(json q.sage.p.seen))) *json)
+  ?.  ?=(%o -.jon)  $
+  =/  status=(unit json)  (~(get by p.jon) 'status')
+  ?.  ?=([~ %s %'done'] status)  $
+  =/  resp=json  (fall (~(get by p.jon) 'response') [%o ~])
+  (pure:m `resp)
+::
+++  take-news-or-interrupt
+  |=  =wire
+  =/  m  (fiber:fiber:nexus ,?)
   ^-  form:m
   |=  input:fiber:nexus
   :+  ~  state
@@ -1764,25 +1794,15 @@
       ~  [%wait ~]
       [~ %veto *]
     [%fail (veto-error:io dart.u.in)]
-    ::  interrupt poke — return ~
-    ::
       [~ %poke * *]
     =/  jon=json  (fall (mole |.(!<(json q.sage.u.in))) *json)
     ?.  ?=(%o -.jon)  [%skip ~]
     =/  act=(unit json)  (~(get by p.jon) 'action')
     ?.  ?=([~ %s %'interrupt'] act)  [%skip ~]
-    [%done ~]
-    ::  news on call subscription — check for status=done
-    ::
+    [%done %.n]
       [~ %news * *]
     ?.  =(wire wire.u.in)  [%skip ~]
-    ?.  ?=(%file -.view.u.in)  [%skip ~]
-    =/  jon=json  (fall (mole |.(!<(json q.sage.view.u.in))) *json)
-    ?.  ?=(%o -.jon)  [%skip ~]
-    =/  status=(unit json)  (~(get by p.jon) 'status')
-    ?.  ?=([~ %s %'done'] status)  [%skip ~]
-    =/  resp=json  (fall (~(get by p.jon) 'response') [%o ~])
-    [%done `resp]
+    [%done %.y]
   ==
 ::
 ::  API response types
@@ -3429,8 +3449,9 @@
   |-
   ;<  nw=news-or-wake:io  bind:m  (take-news-or-wake:io /spawn-result)
   ?:  ?=(%wake -.nw)  $
-  ?.  ?=(%file -.view.nw)  $
-  =/  outbox=json  (fall (mole |.(!<(json q.sage.view.nw))) *json)
+  ;<  =seen:nexus  bind:m  (peek:io outbox-road ~)
+  ?.  ?=([%& %file *] seen)  $
+  =/  outbox=json  (fall (mole |.(!<(json q.sage.p.seen))) *json)
   ?.  ?&  ?=(%a -.outbox)
           !=(~ p.outbox)
       ==
@@ -3938,7 +3959,7 @@
     =/  poke-body=json
       (pairs:enjs:format ~[['id' s+call-id] ['body' payload]])
     ;<  ~  bind:m  (poke:io proxy [/ %json] !>(poke-body))
-    ;<  resp=json  bind:m  (await-sum-call /sum-call)
+    ;<  resp=json  bind:m  (await-sum-call /sum-call call-road)
     ;<  ~  bind:m  (drop:io /sum-call call-road)
     =/  parsed=(unit api-response)  (parse-json-response resp)
     ?~  parsed
@@ -4058,13 +4079,14 @@
 ::  +await-sum-call: wait for API call to reach status=done, return response
 ::
 ++  await-sum-call
-  |=  =wire
+  |=  [=wire call-road=road:tarball]
   =/  m  (fiber:fiber:nexus ,json)
   ^-  form:m
   |-
-  ;<  upd=view:nexus  bind:m  (take-news:io wire)
-  ?.  ?=([%file *] upd)  $
-  =/  j=json  (fall (mole |.(!<(json q.sage.upd))) *json)
+  ;<  *  bind:m  (take-news:io wire)
+  ;<  =seen:nexus  bind:m  (peek:io call-road ~)
+  ?.  ?=([%& %file *] seen)  $
+  =/  j=json  (fall (mole |.(!<(json q.sage.p.seen))) *json)
   ?.  ?=(%o -.j)  $
   =/  status=(unit json)  (~(get by p.j) 'status')
   ?.  ?=([~ %s %'done'] status)  $
