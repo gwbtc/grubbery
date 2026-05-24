@@ -48,7 +48,6 @@
 ::    [~ |]   filtered and blocked (veto the dart)
 ::
 +$  weir  weir:tarball
-+$  sand  (axal weir)   :: weir at each directory in the tree
 +$  filt  (unit ?)      :: filter result (see above)
 +$  jump  ?(%make %poke %peek)  :: dart category for filtering
 ::
@@ -1286,17 +1285,6 @@
   %-  pairs:enjs:format
   :~  ['node' node-json]
       ['dirs' kids-json]
-  ==
-::
-++  sand-to-json
-  |=  s=sand
-  ^-  json
-  =/  subdirs=json  [%o (~(run by dir.s) sand-to-json)]
-  ?~  fil.s
-    (pairs:enjs:format ~[['dirs' subdirs]])
-  %-  pairs:enjs:format
-  :~  ['weir' (weir-to-json u.fil.s)]
-      ['dirs' subdirs]
   ==
 ::
 ++  ball-weirs-to-json

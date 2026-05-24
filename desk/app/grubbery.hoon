@@ -22,7 +22,6 @@
 +$  state-0
   $:  %0
       =ball:tarball
-      =sand:nexus
       =born:nexus
       =silo:nexus
       =subs:nexus
@@ -356,11 +355,6 @@
     =/  sub=ball:tarball  (~(dip ba:tarball ball) here)
     ``tree+!>((ball-to-tree:tarball sub))
     ::
-      [%x %peek %sand *]
-    ::  Sand (weir tree from ball) subtree
-    =/  here=^path  t.t.t.path
-    =/  sub=ball:tarball  (~(dip ba:tarball ball) here)
-    ``sand+!>((ball-to-sand sub))
     ::
       [%x %peek %born *]
     ::  Born (version tracking) subtree
@@ -475,13 +469,6 @@
   =/  old-lode=lode:nexus  (~(got by code) i.keys)
   =.  bins  (refs-dec refs.old-lode)
   $(keys t.keys, code (~(del by code) i.keys))
-::  Extract weir tree from ball (for backward-compat sand scry)
-::
-++  ball-to-sand
-  |=  b=ball:tarball
-  ^-  sand:nexus
-  :-  ?~(fil.b ~ weir.u.fil.b)
-  (~(run by dir.b) ball-to-sand)
 ::  Drop hist entries matching a lose spec, decrementing silo refs
 ::
 ++  drop-hist
