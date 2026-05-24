@@ -783,7 +783,7 @@
     |-  ^-  (set blot:tarball)
     ?~  entries  blots
     =*  content  q.i.entries
-    $(entries t.entries, blots (~(put in blots) p.sage.content))
+    $(entries t.entries, blots (~(put in blots) p.content))
   =/  subdirs=(list (pair @ta ball:tarball))  ~(tap by dir.ball)
   |-  ^-  (set blot:tarball)
   ?~  subdirs  blots
@@ -801,7 +801,7 @@
   |-  ^-  (set blot:tarball)
   ?~  entries  blots
   =*  ct  q.i.entries
-  $(entries t.entries, blots (~(put in blots) p.sage.ct))
+  $(entries t.entries, blots (~(put in blots) p.ct))
 ::  +build-blot-conversions: build conversions map for a set of blots
 ::
 ++  build-blot-conversions
@@ -1149,7 +1149,7 @@
   ;<  =seen:nexus  bind:m  (peek src ~)
   ?.  ?=([%& %ball *] seen)
     ~|(%copy-fold-src-not-found !!)
-  (make dst &+[sand.p.seen ball.p.seen])
+  (make dst &+ball.p.seen)
 ::  +move-grub: move a file from src to dst (copy + delete)
 ::
 ++  move-grub

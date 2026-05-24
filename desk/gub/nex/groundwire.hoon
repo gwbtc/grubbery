@@ -14,29 +14,29 @@
 =<  ^-  nexus:nexus
     |%
     ++  on-load
-      |=  [=sand:nexus =ball:tarball]
-      ^-  [sand:nexus ball:tarball]
+      |=  =ball:tarball
+      ^-  ball:tarball
       =/  =ver:loader  (get-ver:loader ball)
       ?+  ver  !!
           ?(~ [~ %0])
-        %+  spin:loader  [sand ball]
+        %+  spin:loader  ball
         :~  (ver-row:loader 0)
-            [%fall %& [/ %'config.json'] [~ [/ %json] !>(default-config)]]
-            [%fall %& [/ %'height.ud'] [~ [/ %ud] !>(`@ud`0)]]
-            [%fall %& [/ %'urb-state.urb-state'] [~ [/ %urb-state] !>(*state:urb)]]
-            [%fall %& [/ %'latest.json'] [~ [/ %json] !>((pairs:enjs:format ~))]]
-            [%fall %& [/ %'udiffs.urb-udiffs'] [~ [/ %urb-udiffs] !>(*udiffs:point:jael)]]
-            [%fall %| /events [~ ~] empty-dir:loader]
-            [%fall %& [/events %'main.urb-event'] [~ [/ %urb-event] !>(~)]]
-            [%fall %| /events/ships [~ ~] empty-dir:loader]
-            [%fall %& [/ %'trace.txt'] [~ [/ %txt] !>(*wain)]]
-            [%fall %| /wallets [~ ~] empty-dir:loader]
-            [%fall %| /points [~ ~] empty-dir:loader]
-            [%over %& [/ %'rpc.sig'] [~ [/ %sig] !>(~)]]
-            [%over %& [/ %'reg-tester.sig'] [~ [/ %sig] !>(~)]]
-            [%fall %| /ui/sse [~ ~] empty-dir:loader]
-            [%over %& [/ui/sse %'stats.html'] [~ [/ %html] !>((crip (en-xml:html ;div;)))]]
-            [%over %& [/ %'page.html'] [~ [/ %html] !>((crip (en-xml:html (btc-page "" ;div; ~ ~))))]]
+            [%fall %& [/ %'config.json'] [[/ %json] !>(default-config)]]
+            [%fall %& [/ %'height.ud'] [[/ %ud] !>(`@ud`0)]]
+            [%fall %& [/ %'urb-state.urb-state'] [[/ %urb-state] !>(*state:urb)]]
+            [%fall %& [/ %'latest.json'] [[/ %json] !>((pairs:enjs:format ~))]]
+            [%fall %& [/ %'udiffs.urb-udiffs'] [[/ %urb-udiffs] !>(*udiffs:point:jael)]]
+            [%fall %| /events empty-dir:loader]
+            [%fall %& [/events %'main.urb-event'] [[/ %urb-event] !>(~)]]
+            [%fall %| /events/ships empty-dir:loader]
+            [%fall %& [/ %'trace.txt'] [[/ %txt] !>(*wain)]]
+            [%fall %| /wallets empty-dir:loader]
+            [%fall %| /points empty-dir:loader]
+            [%over %& [/ %'rpc.sig'] [[/ %sig] !>(~)]]
+            [%over %& [/ %'reg-tester.sig'] [[/ %sig] !>(~)]]
+            [%fall %| /ui/sse empty-dir:loader]
+            [%over %& [/ui/sse %'stats.html'] [[/ %html] !>((crip (en-xml:html ;div;)))]]
+            [%over %& [/ %'page.html'] [[/ %html] !>((crip (en-xml:html (btc-page "" ;div; ~ ~))))]]
         ==
       ==
     ::
@@ -757,7 +757,7 @@
   =/  =lump:tarball  (fall fil.ball.p.seen *lump:tarball)
   =/  ct=(unit content:tarball)  (~(get by contents.lump) name)
   ?~  ct  ;div;
-  (fall (mole |.((need (de-xml:html !<(@t q.sage.u.ct))))) ;div;)
+  (fall (mole |.((need (de-xml:html !<(@t q.u.ct))))) ;div;)
 ::
 ::  Extract ship names from a kept wallets directory view.
 ::
@@ -768,7 +768,7 @@
   =/  =lump:tarball  (fall fil.ball.p.seen *lump:tarball)
   %+  murn  ~(tap by contents.lump)
   |=  [name=@ta =content:tarball]
-  ?.  ?=(%urb-wallet name.p.sage.content)  ~
+  ?.  ?=(%urb-wallet name.p.content)  ~
   =/  raw=tape  (trip name)
   =/  ext=tape  ".urb-wallet"
   (slaw %p (crip (scag (sub (lent raw) (lent ext)) raw)))
@@ -782,7 +782,7 @@
   =/  =lump:tarball  (fall fil.ball.p.seen *lump:tarball)
   %+  murn  ~(tap by contents.lump)
   |=  [name=@ta =content:tarball]
-  ?.  ?=(%json name.p.sage.content)  ~
+  ?.  ?=(%json name.p.content)  ~
   =/  raw=tape  (trip name)
   =/  ext=tape  ".json"
   (slaw %p (crip (scag (sub (lent raw) (lent ext)) raw)))

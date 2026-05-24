@@ -18,8 +18,8 @@
 =<  ^-  nexus:nexus
     |%
     ++  on-load
-      |=  [=sand:nexus =ball:tarball]
-      ^-  [sand:nexus ball:tarball]
+      |=  =ball:tarball
+      ^-  ball:tarball
       =/  =ver:loader  (get-ver:loader ball)
       ?+  ver  !!
           ?(~ [~ %0] [~ %1])
@@ -29,12 +29,12 @@
               ['auth' s+'Basic dXJiaXQ6dXJiaXQxMjM=']
               ['poll-interval' s+'~s5']
           ==
-        %+  spin:loader  [sand ball]
+        %+  spin:loader  ball
         :~  (ver-row:loader 1)
-            [%fall %& [/ %'config.json'] [~ [/ %json] !>(default-config)]]
-            [%fall %& [/ %'tip.ud'] [~ [/ %ud] !>(`@ud`0)]]
-            [%over %& [/ %'poller.sig'] [~ [/ %sig] !>(~)]]
-            [%fall %| /blocks [~ ~] empty-dir:loader]
+            [%fall %& [/ %'config.json'] [[/ %json] !>(default-config)]]
+            [%fall %& [/ %'tip.ud'] [[/ %ud] !>(`@ud`0)]]
+            [%over %& [/ %'poller.sig'] [[/ %sig] !>(~)]]
+            [%fall %| /blocks empty-dir:loader]
         ==
       ==
     ::
@@ -240,16 +240,16 @@
     =/  txid-hex=@t  (render-hex-octs:btc-rpc 32^id.t)
     =/  fname=@ta  (cat 3 txid-hex '.json')
     =/  tx-json=json  (tx-to-json t)
-    [fname [~ [/ %json] !>(tx-json)]]
+    [fname [[/ %json] !>(tx-json)]]
   =/  txs-lump=lump:tarball  [~ ~ tx-map]
   ::  assemble block ball: header.json in lump, txs/ as subdir
   =/  header-contents=(map @ta content:tarball)
-    (~(put by *(map @ta content:tarball)) %'header.json' [~ [/ %json] !>(header-json)])
+    (~(put by *(map @ta content:tarball)) %'header.json' [[/ %json] !>(header-json)])
   =/  block-lump=lump:tarball  [~ ~ header-contents]
   =/  block-ball=ball:tarball
     [`block-lump (~(put by *(map @ta ball:tarball)) %txs [`txs-lump ~])]
   ;<  *  bind:m
-    (make-soft:io (cord-to-road:tarball (cat 3 './blocks/' (cat 3 height-dir '/'))) &+[*sand:nexus block-ball])
+    (make-soft:io (cord-to-road:tarball (cat 3 './blocks/' (cat 3 height-dir '/'))) &+block-ball)
   (pure:m ~)
 ::
 ++  tx-to-json

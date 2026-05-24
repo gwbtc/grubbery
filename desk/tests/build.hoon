@@ -531,8 +531,8 @@
   ::  Finds %hoon files, ignores others
   =/  =ball:tarball
     =/  b=ball:tarball  *ball:tarball
-    =.  b  (~(put ba:tarball b) [/ %'foo.hoon'] [~ [[/ %hoon] !>('|=(a=@ a)')]])
-    =.  b  (~(put ba:tarball b) [/ %'data.json'] [~ [[/ %json] !>(*json)]])
+    =.  b  (~(put ba:tarball b) [/ %'foo.hoon'] [[/ %hoon] !>('|=(a=@ a)')])
+    =.  b  (~(put ba:tarball b) [/ %'data.json'] [[/ %json] !>(*json)])
     b
   =/  sources  (find-hoon-sources:build ball)
   ;:  weld
@@ -555,9 +555,9 @@
 ++  test-find-hoon-sources-nested
   ::  Finds hoon files in subdirectories
   =/  =ball:tarball  *ball:tarball
-  =.  ball  (~(put ba:tarball ball) [/lib %'foo.hoon'] [~ [[/ %hoon] !>('1')]])
-  =.  ball  (~(put ba:tarball ball) [/lib/deep %'bar.hoon'] [~ [[/ %hoon] !>('2')]])
-  =.  ball  (~(put ba:tarball ball) [/ %'top.hoon'] [~ [[/ %hoon] !>('3')]])
+  =.  ball  (~(put ba:tarball ball) [/lib %'foo.hoon'] [[/ %hoon] !>('1')])
+  =.  ball  (~(put ba:tarball ball) [/lib/deep %'bar.hoon'] [[/ %hoon] !>('2')])
+  =.  ball  (~(put ba:tarball ball) [/ %'top.hoon'] [[/ %hoon] !>('3')])
   =/  sources  (find-hoon-sources:build ball)
   %+  expect-eq
     !>  3
@@ -570,7 +570,7 @@
 ++  test-build-all-single-file
   ::  Single hoon file with no imports compiles
   =/  =ball:tarball
-    (~(put ba:tarball *ball:tarball) [/ %'foo.hoon'] [~ [[/ %hoon] !>('|=(a=@ +(a))')]])
+    (~(put ba:tarball *ball:tarball) [/ %'foo.hoon'] [[/ %hoon] !>('|=(a=@ +(a))')])
   =/  res  (build-all:build !>(~) ball *build-cache:build)
   =/  foo-res  (~(get by results.res) [/ %'foo.hoon'])
   (expect !>(=(%.y ?=([~ %& *] foo-res))))
@@ -578,7 +578,7 @@
 ++  test-build-all-syntax-error
   ::  Bad syntax produces a tang error
   =/  =ball:tarball
-    (~(put ba:tarball *ball:tarball) [/ %'bad.hoon'] [~ [[/ %hoon] !>('|=(')]])
+    (~(put ba:tarball *ball:tarball) [/ %'bad.hoon'] [[/ %hoon] !>('|=(')])
   =/  res  (build-all:build !>(~) ball *build-cache:build)
   =/  bad-res  (~(get by results.res) [/ %'bad.hoon'])
   (expect !>(=(%.y ?=([~ %| *] bad-res))))
@@ -587,9 +587,9 @@
   ::  File B imports file A; B can use A's gate
   =/  =ball:tarball  *ball:tarball
   =.  ball
-    (~(put ba:tarball ball) [/lib %'add1.hoon'] [~ [[/ %hoon] !>('|=(a=@ +(a))')]])
+    (~(put ba:tarball ball) [/lib %'add1.hoon'] [[/ %hoon] !>('|=(a=@ +(a))')])
   =.  ball
-    (~(put ba:tarball ball) [/ %'main.hoon'] [~ [[/ %hoon] !>('/<  add1  /lib/add1.hoon\0a(add1 5)')]])
+    (~(put ba:tarball ball) [/ %'main.hoon'] [[/ %hoon] !>('/<  add1  /lib/add1.hoon\0a(add1 5)')])
   =/  res  (build-all:build !>(~) ball *build-cache:build)
   =/  main-res  (~(get by results.res) [/ %'main.hoon'])
   (expect !>(=(%.y ?=([~ %& *] main-res))))
@@ -597,7 +597,7 @@
 ++  test-build-all-missing-dep
   ::  Import pointing to nonexistent file → error
   =/  =ball:tarball
-    (~(put ba:tarball *ball:tarball) [/ %'main.hoon'] [~ [[/ %hoon] !>('/<  missing  /lib/nope.hoon\0a~')]])
+    (~(put ba:tarball *ball:tarball) [/ %'main.hoon'] [[/ %hoon] !>('/<  missing  /lib/nope.hoon\0a~')])
   =/  res  (build-all:build !>(~) ball *build-cache:build)
   =/  main-res  (~(get by results.res) [/ %'main.hoon'])
   (expect !>(=(%.y ?=([~ %| *] main-res))))
@@ -605,7 +605,7 @@
 ++  test-build-all-cache-hit
   ::  Second build with same content uses cache
   =/  =ball:tarball
-    (~(put ba:tarball *ball:tarball) [/ %'foo.hoon'] [~ [[/ %hoon] !>('|=(a=@ +(a))')]])
+    (~(put ba:tarball *ball:tarball) [/ %'foo.hoon'] [[/ %hoon] !>('|=(a=@ +(a))')])
   =/  res1  (build-all:build !>(~) ball *build-cache:build)
   =/  res2  (build-all:build !>(~) ball cache.res1)
   =/  foo1  (~(got by results.res1) [/ %'foo.hoon'])
@@ -622,10 +622,10 @@
 ++  test-build-all-cache-miss
   ::  Changing source content causes cache miss (different result)
   =/  ball1=ball:tarball
-    (~(put ba:tarball *ball:tarball) [/ %'foo.hoon'] [~ [[/ %hoon] !>('|=(a=@ +(a))')]])
+    (~(put ba:tarball *ball:tarball) [/ %'foo.hoon'] [[/ %hoon] !>('|=(a=@ +(a))')])
   =/  res1  (build-all:build !>(~) ball1 *build-cache:build)
   =/  ball2=ball:tarball
-    (~(put ba:tarball *ball:tarball) [/ %'foo.hoon'] [~ [[/ %hoon] !>('|=(a=@ +(+(a)))')]])
+    (~(put ba:tarball *ball:tarball) [/ %'foo.hoon'] [[/ %hoon] !>('|=(a=@ +(+(a)))')])
   =/  res2  (build-all:build !>(~) ball2 cache.res1)
   =/  foo1  (~(got by results.res1) [/ %'foo.hoon'])
   =/  foo2  (~(got by results.res2) [/ %'foo.hoon'])
@@ -638,9 +638,9 @@
   ::  Two files importing each other → circular dependency errors
   =/  =ball:tarball  *ball:tarball
   =.  ball
-    (~(put ba:tarball ball) [/ %'a.hoon'] [~ [[/ %hoon] !>('/<  b  ./b.hoon\0a~')]])
+    (~(put ba:tarball ball) [/ %'a.hoon'] [[/ %hoon] !>('/<  b  ./b.hoon\0a~')])
   =.  ball
-    (~(put ba:tarball ball) [/ %'b.hoon'] [~ [[/ %hoon] !>('/<  a  ./a.hoon\0a~')]])
+    (~(put ba:tarball ball) [/ %'b.hoon'] [[/ %hoon] !>('/<  a  ./a.hoon\0a~')])
   =/  res  (build-all:build !>(~) ball *build-cache:build)
   =/  a-res  (~(get by results.res) [/ %'a.hoon'])
   =/  b-res  (~(get by results.res) [/ %'b.hoon'])
@@ -653,9 +653,9 @@
   ::  If a dep fails, dependents get dep-failed error
   =/  =ball:tarball  *ball:tarball
   =.  ball
-    (~(put ba:tarball ball) [/lib %'bad.hoon'] [~ [[/ %hoon] !>('|=(')]])
+    (~(put ba:tarball ball) [/lib %'bad.hoon'] [[/ %hoon] !>('|=(')])
   =.  ball
-    (~(put ba:tarball ball) [/ %'main.hoon'] [~ [[/ %hoon] !>('/<  bad  /lib/bad.hoon\0a(bad 1)')]])
+    (~(put ba:tarball ball) [/ %'main.hoon'] [[/ %hoon] !>('/<  bad  /lib/bad.hoon\0a(bad 1)')])
   =/  res  (build-all:build !>(~) ball *build-cache:build)
   =/  bad-res  (~(get by results.res) [/lib %'bad.hoon'])
   =/  main-res  (~(get by results.res) [/ %'main.hoon'])
@@ -668,11 +668,11 @@
   ::  a→b→c: three-level chain compiles correctly
   =/  =ball:tarball  *ball:tarball
   =.  ball
-    (~(put ba:tarball ball) [/lib %'c.hoon'] [~ [[/ %hoon] !>('|=(a=@ +(a))')]])
+    (~(put ba:tarball ball) [/lib %'c.hoon'] [[/ %hoon] !>('|=(a=@ +(a))')])
   =.  ball
-    (~(put ba:tarball ball) [/lib %'b.hoon'] [~ [[/ %hoon] !>('/<  c  /lib/c.hoon\0a|=(a=@ (c a))')]])
+    (~(put ba:tarball ball) [/lib %'b.hoon'] [[/ %hoon] !>('/<  c  /lib/c.hoon\0a|=(a=@ (c a))')])
   =.  ball
-    (~(put ba:tarball ball) [/ %'a.hoon'] [~ [[/ %hoon] !>('/<  b  /lib/b.hoon\0a(b 5)')]])
+    (~(put ba:tarball ball) [/ %'a.hoon'] [[/ %hoon] !>('/<  b  /lib/b.hoon\0a(b 5)')])
   =/  res  (build-all:build !>(~) ball *build-cache:build)
   =/  a-res  (~(get by results.res) [/ %'a.hoon'])
   =/  b-res  (~(get by results.res) [/lib %'b.hoon'])
@@ -687,13 +687,13 @@
   ::  a→b, a→c, b→d, c→d: diamond compiles, d built once
   =/  =ball:tarball  *ball:tarball
   =.  ball
-    (~(put ba:tarball ball) [/lib %'d.hoon'] [~ [[/ %hoon] !>('|=(a=@ +(a))')]])
+    (~(put ba:tarball ball) [/lib %'d.hoon'] [[/ %hoon] !>('|=(a=@ +(a))')])
   =.  ball
-    (~(put ba:tarball ball) [/lib %'b.hoon'] [~ [[/ %hoon] !>('/<  d  /lib/d.hoon\0a|=(a=@ (d a))')]])
+    (~(put ba:tarball ball) [/lib %'b.hoon'] [[/ %hoon] !>('/<  d  /lib/d.hoon\0a|=(a=@ (d a))')])
   =.  ball
-    (~(put ba:tarball ball) [/lib %'c.hoon'] [~ [[/ %hoon] !>('/<  d  /lib/d.hoon\0a|=(a=@ (d (d a)))')]])
+    (~(put ba:tarball ball) [/lib %'c.hoon'] [[/ %hoon] !>('/<  d  /lib/d.hoon\0a|=(a=@ (d (d a)))')])
   =.  ball
-    (~(put ba:tarball ball) [/ %'a.hoon'] [~ [[/ %hoon] !>('/<  b  /lib/b.hoon\0a/<  c  /lib/c.hoon\0a[(b 1) (c 1)]')]])
+    (~(put ba:tarball ball) [/ %'a.hoon'] [[/ %hoon] !>('/<  b  /lib/b.hoon\0a/<  c  /lib/c.hoon\0a[(b 1) (c 1)]')])
   =/  res  (build-all:build !>(~) ball *build-cache:build)
   =/  a-res  (~(get by results.res) [/ %'a.hoon'])
   ;:  weld
@@ -710,10 +710,10 @@
 ++  test-build-all-keys-change-on-source-change
   ::  When source changes, the key for that file must change
   =/  ball1=ball:tarball
-    (~(put ba:tarball *ball:tarball) [/ %'foo.hoon'] [~ [[/ %hoon] !>('|=(a=@ +(a))')]])
+    (~(put ba:tarball *ball:tarball) [/ %'foo.hoon'] [[/ %hoon] !>('|=(a=@ +(a))')])
   =/  res1  (build-all:build !>(~) ball1 *build-cache:build)
   =/  ball2=ball:tarball
-    (~(put ba:tarball *ball:tarball) [/ %'foo.hoon'] [~ [[/ %hoon] !>('|=(a=@ +(+(a)))')]])
+    (~(put ba:tarball *ball:tarball) [/ %'foo.hoon'] [[/ %hoon] !>('|=(a=@ +(+(a)))')])
   =/  res2  (build-all:build !>(~) ball2 cache.res1)
   =/  key1  (~(get by keys.res1) [/ %'foo.hoon'])
   =/  key2  (~(get by keys.res2) [/ %'foo.hoon'])
@@ -728,7 +728,7 @@
 ++  test-build-all-keys-stable-on-same-source
   ::  When source is identical, the key must be the same
   =/  =ball:tarball
-    (~(put ba:tarball *ball:tarball) [/ %'foo.hoon'] [~ [[/ %hoon] !>('|=(a=@ +(a))')]])
+    (~(put ba:tarball *ball:tarball) [/ %'foo.hoon'] [[/ %hoon] !>('|=(a=@ +(a))')])
   =/  res1  (build-all:build !>(~) ball *build-cache:build)
   =/  res2  (build-all:build !>(~) ball cache.res1)
   %+  expect-eq
@@ -738,13 +738,13 @@
 ++  test-build-all-keys-change-on-dep-change
   ::  When a dependency's source changes, the dependent's key must change
   =/  ball1=ball:tarball  *ball:tarball
-  =.  ball1  (~(put ba:tarball ball1) [/lib %'dep.hoon'] [~ [[/ %hoon] !>('|=(a=@ +(a))')]])
-  =.  ball1  (~(put ba:tarball ball1) [/ %'main.hoon'] [~ [[/ %hoon] !>('/<  dep  /lib/dep.hoon\0a(dep 5)')]])
+  =.  ball1  (~(put ba:tarball ball1) [/lib %'dep.hoon'] [[/ %hoon] !>('|=(a=@ +(a))')])
+  =.  ball1  (~(put ba:tarball ball1) [/ %'main.hoon'] [[/ %hoon] !>('/<  dep  /lib/dep.hoon\0a(dep 5)')])
   =/  res1  (build-all:build !>(~) ball1 *build-cache:build)
   ::  change dep source
   =/  ball2=ball:tarball  *ball:tarball
-  =.  ball2  (~(put ba:tarball ball2) [/lib %'dep.hoon'] [~ [[/ %hoon] !>('|=(a=@ +(+(a)))')]])
-  =.  ball2  (~(put ba:tarball ball2) [/ %'main.hoon'] [~ [[/ %hoon] !>('/<  dep  /lib/dep.hoon\0a(dep 5)')]])
+  =.  ball2  (~(put ba:tarball ball2) [/lib %'dep.hoon'] [[/ %hoon] !>('|=(a=@ +(+(a)))')])
+  =.  ball2  (~(put ba:tarball ball2) [/ %'main.hoon'] [[/ %hoon] !>('/<  dep  /lib/dep.hoon\0a(dep 5)')])
   =/  res2  (build-all:build !>(~) ball2 cache.res1)
   =/  main-key1  (~(get by keys.res1) [/ %'main.hoon'])
   =/  main-key2  (~(get by keys.res2) [/ %'main.hoon'])
@@ -760,7 +760,7 @@
 ++  test-build-all-no-key-for-failed-build
   ::  When compilation fails, no key should be in the key map
   =/  =ball:tarball
-    (~(put ba:tarball *ball:tarball) [/ %'bad.hoon'] [~ [[/ %hoon] !>('|=(')]])
+    (~(put ba:tarball *ball:tarball) [/ %'bad.hoon'] [[/ %hoon] !>('|=(')])
   =/  res  (build-all:build !>(~) ball *build-cache:build)
   %+  expect-eq
     !>  ~
@@ -769,12 +769,12 @@
 ++  test-build-all-key-appears-after-fix
   ::  File fails, then source is fixed — key should appear
   =/  ball1=ball:tarball
-    (~(put ba:tarball *ball:tarball) [/ %'foo.hoon'] [~ [[/ %hoon] !>('|=(')]])
+    (~(put ba:tarball *ball:tarball) [/ %'foo.hoon'] [[/ %hoon] !>('|=(')])
   =/  res1  (build-all:build !>(~) ball1 *build-cache:build)
   =/  key1  (~(get by keys.res1) [/ %'foo.hoon'])
   ::  fix the source
   =/  ball2=ball:tarball
-    (~(put ba:tarball *ball:tarball) [/ %'foo.hoon'] [~ [[/ %hoon] !>('|=(a=@ a)')]])
+    (~(put ba:tarball *ball:tarball) [/ %'foo.hoon'] [[/ %hoon] !>('|=(a=@ a)')])
   =/  res2  (build-all:build !>(~) ball2 cache.res1)
   =/  key2  (~(get by keys.res2) [/ %'foo.hoon'])
   ;:  weld
@@ -788,16 +788,16 @@
   ::  Simulates the exact bug: file changes, fails, then fixed version
   ::  should have different key from original
   =/  ball-v1=ball:tarball
-    (~(put ba:tarball *ball:tarball) [/ %'foo.hoon'] [~ [[/ %hoon] !>('|=(a=@ +(a))')]])
+    (~(put ba:tarball *ball:tarball) [/ %'foo.hoon'] [[/ %hoon] !>('|=(a=@ +(a))')])
   =/  res-v1  (build-all:build !>(~) ball-v1 *build-cache:build)
   =/  key-v1  (~(got by keys.res-v1) [/ %'foo.hoon'])
   ::  v2: source changes but has syntax error
   =/  ball-v2=ball:tarball
-    (~(put ba:tarball *ball:tarball) [/ %'foo.hoon'] [~ [[/ %hoon] !>('|=(a=@ +(+(')]])
+    (~(put ba:tarball *ball:tarball) [/ %'foo.hoon'] [[/ %hoon] !>('|=(a=@ +(+(')])
   =/  res-v2  (build-all:build !>(~) ball-v2 cache.res-v1)
   ::  v3: fixed version with different logic
   =/  ball-v3=ball:tarball
-    (~(put ba:tarball *ball:tarball) [/ %'foo.hoon'] [~ [[/ %hoon] !>('|=(a=@ +(+(a)))')]])
+    (~(put ba:tarball *ball:tarball) [/ %'foo.hoon'] [[/ %hoon] !>('|=(a=@ +(+(a)))')])
   =/  res-v3  (build-all:build !>(~) ball-v3 cache.res-v2)
   =/  key-v3  (~(got by keys.res-v3) [/ %'foo.hoon'])
   ::  v1 and v3 keys must differ (source is different)
@@ -809,8 +809,8 @@
   ::  and must append .hoon to look up keys. This test documents that
   ::  keys.res uses .hoon names, NOT stripped stems.
   =/  =ball:tarball  *ball:tarball
-  =.  ball  (~(put ba:tarball ball) [/lib %'dep.hoon'] [~ [[/ %hoon] !>('|=(a=@ +(a))')]])
-  =.  ball  (~(put ba:tarball ball) [/nex %'app.hoon'] [~ [[/ %hoon] !>('/<  dep  /lib/dep.hoon\0a|=(a=@ (dep a))')]])
+  =.  ball  (~(put ba:tarball ball) [/lib %'dep.hoon'] [[/ %hoon] !>('|=(a=@ +(a))')])
+  =.  ball  (~(put ba:tarball ball) [/nex %'app.hoon'] [[/ %hoon] !>('/<  dep  /lib/dep.hoon\0a|=(a=@ (dep a))')])
   =/  res  (build-all:build !>(~) ball *build-cache:build)
   ::  key-map has entry via .hoon name
   =/  key-via-hoon  (~(get by keys.res) [/nex %'app.hoon'])

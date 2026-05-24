@@ -11,17 +11,17 @@
 =<  ^-  nexus:nexus
     |%
     ++  on-load
-      |=  [=sand:nexus =ball:tarball]
-      ^-  [sand:nexus ball:tarball]
+      |=  =ball:tarball
+      ^-  ball:tarball
       =/  =ver:loader  (get-ver:loader ball)
       ?+  ver  !!
           ?(~ [~ %0])
-        %+  spin:loader  [sand ball]
+        %+  spin:loader  ball
         :~  (ver-row:loader 0)
-            [%fall %& [/ %'main.sig'] [~ [/ %sig] !>(~)]]
-            [%fall %& [/ %'page.html'] [~ [/ %html] !>((crip (en-xml:html ;div:"rhizome loading...")))]]
-            [%fall %| /vault [~ ~] empty-dir:loader]
-            [%fall %| /metadata [~ ~] empty-dir:loader]
+            [%fall %& [/ %'main.sig'] [[/ %sig] !>(~)]]
+            [%fall %& [/ %'page.html'] [[/ %html] !>((crip (en-xml:html ;div:"rhizome loading...")))]]
+            [%fall %| /vault empty-dir:loader]
+            [%fall %| /metadata empty-dir:loader]
         ==
       ==
     ::
@@ -258,9 +258,9 @@
     =/  =lump:tarball  (fall fil.ball *lump:tarball)
     %-  ~(rep by contents.lump)
     |=  [[name=@ta =content:tarball] acc=(map @ta @t)]
-    ?.  =(%txt name.p.sage.content)  acc
+    ?.  =(%txt name.p.content)  acc
     =/  key=@ta  ?:(=('' prefix) name (crip "{(trip prefix)}/{(trip name)}"))
-    (~(put by acc) key (of-wain:format !<(wain q.sage.content)))
+    (~(put by acc) key (of-wain:format !<(wain q.content)))
   ::  recurse into subdirectories
   =/  kids=(list [@ta ball:tarball])  ~(tap by dir.ball)
   |-  ^-  (map @ta @t)

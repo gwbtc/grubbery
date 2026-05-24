@@ -20,7 +20,7 @@
 ::  A "grub" is the entity that lives at a rail: its file content and
 ::  its running process, considered as one thing. You create, delete,
 ::  poke, and watch grubs. When the distinction matters, "file" means
-::  the data (content + metadata) and "process" means the running fiber.
+::  the data (content) and "process" means the running fiber.
 ::
 ::  Grubs live in directories. Directories hold grubs and other
 ::  directories, may have a neck identifying a nexus, and may have a weir
@@ -47,11 +47,7 @@
 ::    [~ &]   filtered and allowed (should clam vases)
 ::    [~ |]   filtered and blocked (veto the dart)
 ::
-+$  weir
-  $:  make=(set road:tarball)  :: allowed destinations for %make, %cull, %sand
-      poke=(set road:tarball)  :: allowed destinations for %poke
-      peek=(set road:tarball)  :: allowed destinations for %peek
-  ==
++$  weir  weir:tarball
 +$  sand  (axal weir)   :: weir at each directory in the tree
 +$  filt  (unit ?)      :: filter result (see above)
 +$  jump  ?(%make %poke %peek)  :: dart category for filtering
@@ -63,12 +59,12 @@
 +$  pant  (list [dir=@ta neck=(unit neck:tarball)])
 +$  here  [=pant name=@ta root=?]
 ::
-+$  make  (each [=sand =ball:tarball] [=sage:tarball blot=(unit blot:tarball)])
++$  make  (each ball:tarball [=sage:tarball blot=(unit blot:tarball)])
 +$  kept  (set bend:tarball)
 ::
 +$  wave  (map lane:tarball cass:clay)
 +$  view
-  $%  [%ball =sand =born ball=ball:tarball]
+  $%  [%ball =born ball=ball:tarball]
       [%file =hist =sage:tarball]
       [%none ~]
   ==
@@ -500,7 +496,7 @@
 ::  a level produces the same hash.
 ::
 ++  record-trees
-  |=  [=born =silo =sand =code =ball:tarball now=@da dir=path]
+  |=  [=born =silo =code =ball:tarball now=@da dir=path]
   ^-  [^born ^silo]
   =/  sub-born=^born  (~(dip of born) dir)
   =/  boo  ~(. bo now [born ball])
@@ -539,7 +535,7 @@
     ?~  p.u.val  out
     (~(put by out) name u.p.u.val)
   ::  dir: each child's latest tree lobe + weir
-  =/  sub-sand=^sand  (~(dip of sand) dir)
+  =/  sub-ball=ball:tarball  (~(dip of ball) dir)
   =/  dir-map=(map @ta [lobe:clay weir=(unit weir)])
     %-  ~(urn by dir.sub-born)
     |=  [name=@ta kid=^born]
@@ -554,9 +550,10 @@
       ?.  ?=(%live -.u.got)  *lobe:clay
       (fall p.u.got *lobe:clay)
     =/  kid-weir=(unit weir)
-      =/  kid-sand=(unit ^sand)  (~(get by dir.sub-sand) name)
-      ?~  kid-sand  ~
-      fil.u.kid-sand
+      =/  kid-ball=(unit ball:tarball)  (~(get by dir.sub-ball) name)
+      ?~  kid-ball  ~
+      ?~  fil.u.kid-ball  ~
+      weir.u.fil.u.kid-ball
     [tree-lobe kid-weir]
   ::  Build tree object + hash via ject
   =/  =tree  [nek fil dir-map]
@@ -853,34 +850,12 @@
       (~(put-ject si new-silo) [%leaf noun-lobe [blot ckey]])
     [noun-lobe newer-silo (put:hon:^hist hist cass [%live `ject-lobe])]
   --
-::  +stamp-mtimes: stamp born datetimes into ball metadata as mtime
+::  +stamp-mtimes: no-op (metadata removed from content)
 ::
 ++  stamp-mtimes
   |=  [=born b=ball:tarball]
   ^-  ball:tarball
-  =/  lumps  ~(tap of b)
-  =/  top-fold  top:hist
-  =/  top-hist  top:hist
-  |-
-  ?~  lumps  b
-  =/  [pax=path lmp=lump:tarball]  i.lumps
-  =/  node=(unit [fold=hist file=(map @ta hist)])
-    (~(get of born) pax)
-  ?~  node  $(lumps t.lumps)
-  =.  metadata.lmp
-    =/  cas=(unit cass:clay)  (top-fold fold.u.node)
-    ?~  cas  metadata.lmp
-    (~(put by metadata.lmp) 'mtime' (da-oct:tarball da.u.cas))
-  =.  contents.lmp
-    %-  ~(urn by contents.lmp)
-    |=  [name=@ta =content:tarball]
-    =/  sk=(unit hist)  (~(get by file.u.node) name)
-    ?~  sk  content
-    =/  cas=(unit cass:clay)  (top-hist u.sk)
-    ?~  cas  content
-    content(metadata (~(put by metadata.content) 'mtime' (da-oct:tarball da.u.cas)))
-  =.  b  (~(put of b) pax lmp)
-  $(lumps t.lumps)
+  b
 ::  +wave-from-born: build wavefront from born for a set of lanes
 ::  Looks up the latest cass for each lane in born.
 ::
@@ -1013,7 +988,7 @@
       ?:  &(in-new !in-old)  %.y                :: added
       ?:  &(in-old !in-new)  %.y                :: deleted
       ?&  in-old  in-new
-          !=(sage:(~(got by old-files) i.all-names) sage:(~(got by new-files) i.all-names))
+          !=((~(got by old-files) i.all-names) (~(got by new-files) i.all-names))
       ==                                         :: changed
     =?  result  file-changed
       (~(put in result) &+[here i.all-names])
@@ -1048,7 +1023,7 @@
             [%peek blot=(unit blot:tarball)]
         ==
     ==
-  +$  make  (each [=sand =ball:tarball] [=bask:tarball blot=(unit blot:tarball)])
+  +$  make  (each ball:tarball [=bask:tarball blot=(unit blot:tarball)])
   +$  intake
     $:  =wire
         $%  [%peek ~] :: TBD
@@ -1183,8 +1158,8 @@
   :: this nexus is initially created
   ::
   ++  on-load
-    |~  [sand ball:tarball]
-    [*sand *ball:tarball]
+    |~  ball:tarball
+    *ball:tarball
   :: every grub has a running process alongside its file content.
   :: processes should be able to recover proper operation based on
   ::   state alone, even when restarted. this is not guaranteed and
@@ -1321,6 +1296,18 @@
     (pairs:enjs:format ~[['dirs' subdirs]])
   %-  pairs:enjs:format
   :~  ['weir' (weir-to-json u.fil.s)]
+      ['dirs' subdirs]
+  ==
+::
+++  ball-weirs-to-json
+  |=  b=ball:tarball
+  ^-  json
+  =/  subdirs=json  [%o (~(run by dir.b) ball-weirs-to-json)]
+  =/  weir=(unit weir)  ?~(fil.b ~ weir.u.fil.b)
+  ?~  weir
+    (pairs:enjs:format ~[['dirs' subdirs]])
+  %-  pairs:enjs:format
+  :~  ['weir' (weir-to-json u.weir)]
       ['dirs' subdirs]
   ==
 --

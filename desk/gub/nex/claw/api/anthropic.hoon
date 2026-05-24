@@ -16,8 +16,8 @@
 =<  ^-  nexus:nexus
     |%
     ++  on-load
-      |=  [=sand:nexus =ball:tarball]
-      ^-  [sand:nexus ball:tarball]
+      |=  =ball:tarball
+      ^-  ball:tarball
       =/  =ver:loader  (get-ver:loader ball)
       =/  default-rates=json
         %-  pairs:enjs:format
@@ -56,14 +56,14 @@
         ==
       ?+  ver  !!
           ?(~ [~ %0])
-        %+  spin:loader  [sand ball]
+        %+  spin:loader  ball
         :~  (ver-row:loader 0)
-            [%fall %& [/ %'main.sig'] [~ [/ %sig] !>(~)]]
-            [%fall %& [/ %'config.json'] [~ [/ %json] !>(default-config)]]
-            [%fall %& [/ %'rates.json'] [~ [/ %json] !>(default-rates)]]
-            [%fall %& [/ %'usage.json'] [~ [/ %json] !>(default-usage)]]
-            [%fall %| /calls [~ ~] empty-dir:loader]
-            [%over %& [/ %'page.html'] [~ [/ %html] !>((crip (en-xml:html usage-page)))]]
+            [%fall %& [/ %'main.sig'] [[/ %sig] !>(~)]]
+            [%fall %& [/ %'config.json'] [[/ %json] !>(default-config)]]
+            [%fall %& [/ %'rates.json'] [[/ %json] !>(default-rates)]]
+            [%fall %& [/ %'usage.json'] [[/ %json] !>(default-usage)]]
+            [%fall %| /calls empty-dir:loader]
+            [%over %& [/ %'page.html'] [[/ %html] !>((crip (en-xml:html usage-page)))]]
         ==
       ==
     ::

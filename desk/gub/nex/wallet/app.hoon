@@ -13,8 +13,8 @@
 =<  ^-  nexus:nexus
     |%
     ++  on-load
-      |=  [=sand:nexus =ball:tarball]
-      ^-  [sand:nexus ball:tarball]
+      |=  =ball:tarball
+      ^-  ball:tarball
       =/  =ver:loader  (get-ver:loader ball)
       ?+  ver  !!
           ?(~ [~ %0])
@@ -22,20 +22,20 @@
           (make-dev-wallet 'Dev Wallet' [%t 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about'] %testnet4)
         =/  [fau-wal-dir=@ta fau-wal-ball=ball:tarball fau-acct-dir=@ta fau-acct-ball=ball:tarball]
           (make-dev-wallet 'Fauceted Wallet' [%t 'injury idea term fox crop movie type critic hello inquiry lottery agree'] %testnet3)
-        %+  spin:loader  [sand ball]
+        %+  spin:loader  ball
         :~  (ver-row:loader 0)
-            [%over %& [/ %'main.sig'] [~ [/ %sig] !>(~)]]
-            [%over %& [/ %'page.html'] [~ [/ %html] !>((crip (en-xml:html (wallet-page "" ~))))]]
-            [%fall %| /wallets [~ ~] empty-dir:loader]
-            [%fall %| /accounts [~ ~] empty-dir:loader]
-            [%fall %| /ui/sse [~ ~] empty-dir:loader]
-            [%over %& [/ui/sse %'wallets.html'] [~ [/ %html] !>((crip (en-xml:html (wallet-list-html ~))))]]
-            [%fall %& [/ui %'http.sig'] [~ [/ %sig] !>(~)]]
-            [%fall %| /ui/requests [~ ~] empty-dir:loader]
-            [%fall %| (snoc /wallets wal-dir) [~ ~] wal-ball]
-            [%fall %| (snoc /accounts acct-dir) [~ ~] acct-ball]
-            [%fall %| (snoc /wallets fau-wal-dir) [~ ~] fau-wal-ball]
-            [%fall %| (snoc /accounts fau-acct-dir) [~ ~] fau-acct-ball]
+            [%over %& [/ %'main.sig'] [[/ %sig] !>(~)]]
+            [%over %& [/ %'page.html'] [[/ %html] !>((crip (en-xml:html (wallet-page "" ~))))]]
+            [%fall %| /wallets empty-dir:loader]
+            [%fall %| /accounts empty-dir:loader]
+            [%fall %| /ui/sse empty-dir:loader]
+            [%over %& [/ui/sse %'wallets.html'] [[/ %html] !>((crip (en-xml:html (wallet-list-html ~))))]]
+            [%fall %& [/ui %'http.sig'] [[/ %sig] !>(~)]]
+            [%fall %| /ui/requests empty-dir:loader]
+            [%fall %| (snoc /wallets wal-dir) wal-ball]
+            [%fall %| (snoc /accounts acct-dir) acct-ball]
+            [%fall %| (snoc /wallets fau-wal-dir) fau-wal-ball]
+            [%fall %| (snoc /accounts fau-acct-dir) fau-acct-ball]
         ==
       ==
     ::
@@ -86,12 +86,12 @@
             =/  wallet-key=@ta  (crip (hexn:http-utils pubkey))
             =/  wal=wallet-data  [wallet-name u.sd pubkey ~]
             =/  wallet-dir=@ta  (cat 3 wallet-key '.wallet_wallet')
-            =/  wal-lump=lump:tarball
-              :+  ~  `[/wallet %wallet]
-              (~(put by *(map @ta content:tarball)) %'main.wallet_wallet' [~ [/wallet %wallet] !>(wal)])
+            =/  wal-contents=(map @ta content:tarball)
+              (~(put by *(map @ta content:tarball)) %'main.wallet_wallet' [[/wallet %wallet] !>(wal)])
+            =/  wal-lump=lump:tarball  [`[/wallet %wallet] ~ wal-contents]
             =/  wal-ball=ball:tarball  [`wal-lump ~]
             ;<  ~  bind:m
-              (make:io [%| 0 %| (snoc /wallets wallet-dir)] &+[*sand:nexus wal-ball])
+              (make:io [%| 0 %| (snoc /wallets wallet-dir)] &+wal-ball)
             $
               %'add-wallet-from-entropy'
             =/  wallet-name=@t
@@ -103,12 +103,12 @@
             =/  wallet-key=@ta  (crip (hexn:http-utils pubkey))
             =/  wal=wallet-data  [wallet-name [%t seed-phrase] pubkey ~]
             =/  wallet-dir=@ta  (cat 3 wallet-key '.wallet_wallet')
-            =/  wal-lump=lump:tarball
-              :+  ~  `[/wallet %wallet]
-              (~(put by *(map @ta content:tarball)) %'main.wallet_wallet' [~ [/wallet %wallet] !>(wal)])
+            =/  wal-contents=(map @ta content:tarball)
+              (~(put by *(map @ta content:tarball)) %'main.wallet_wallet' [[/wallet %wallet] !>(wal)])
+            =/  wal-lump=lump:tarball  [`[/wallet %wallet] ~ wal-contents]
             =/  wal-ball=ball:tarball  [`wal-lump ~]
             ;<  ~  bind:m
-              (make:io [%| 0 %| (snoc /wallets wallet-dir)] &+[*sand:nexus wal-ball])
+              (make:io [%| 0 %| (snoc /wallets wallet-dir)] &+wal-ball)
             $
               %'remove-wallet'
             =/  pubkey=@t
@@ -1323,23 +1323,23 @@
   =/  wdir=@ta  (cat 3 (crip (hexn:http-utils fp)) '.wallet_wallet')
   =/  adir=@ta  (cat 3 (crip (hexn:http-utils apk)) '.wallet_account')
   =/  net-dir=@ta  ;;(@ta network)
-  =/  acct-lump=lump:tarball
-    :+  ~  `[/wallet %account]
-    (~(put by *(map @ta content:tarball)) %'data.wallet_account' [~ [/wallet %account] !>(acct)])
+  =/  acct-contents=(map @ta content:tarball)
+    (~(put by *(map @ta content:tarball)) %'data.wallet_account' [[/wallet %account] !>(acct)])
+  =/  acct-lump=lump:tarball  [`[/wallet %account] ~ acct-contents]
   ::  build addresses/[network]/ ball with recv + chng mop files
   =/  chain-lump=lump:tarball
-    :+  ~  ~
+    :-  ~  :-  ~
     %-  ~(gas by *(map @ta content:tarball))
-    :~  ['recv.wallet_addresses' [~ [/wallet %addresses] !>(recv-mop)]]
-        ['chng.wallet_addresses' [~ [/wallet %addresses] !>(*addr-mop)]]
-        ['txs.wallet_txs' [~ [/wallet %txs] !>(*tx-map)]]
+    :~  ['recv.wallet_addresses' [[/wallet %addresses] !>(recv-mop)]]
+        ['chng.wallet_addresses' [[/wallet %addresses] !>(*addr-mop)]]
+        ['txs.wallet_txs' [[/wallet %txs] !>(*tx-map)]]
     ==
   =/  net-ball=ball:tarball  [`chain-lump ~]
   =/  addr-dir=ball:tarball  [~ (~(put by *(map @ta ball:tarball)) net-dir net-ball)]
   =/  acct-ball=ball:tarball
     [`acct-lump (~(put by *(map @ta ball:tarball)) 'addresses' addr-dir)]
   :^  wdir
-    :-  `[~ `[/wallet %wallet] (~(put by *(map @ta content:tarball)) %'main.wallet_wallet' [~ [/wallet %wallet] !>(wal)])]
+    :-  `[`[/wallet %wallet] ~ (~(put by *(map @ta content:tarball)) %'main.wallet_wallet' [[/wallet %wallet] !>(wal)])]
     ~
   adir
   acct-ball
@@ -1394,8 +1394,8 @@
   =/  sub-lump=lump:tarball  (fall fil.sub *lump:tarball)
   =/  ct=(unit content:tarball)  (~(get by contents.sub-lump) 'main.wallet_wallet')
   ?~  ct  ~
-  ?.  ?=(%wallet name.p.sage.u.ct)  ~
-  (mole |.(!<(wallet-data q.sage.u.ct)))
+  ?.  ?=(%wallet name.p.u.ct)  ~
+  (mole |.(!<(wallet-data q.u.ct)))
 ::
 ++  seed-to-cord
   |=  =seed

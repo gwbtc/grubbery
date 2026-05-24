@@ -21,8 +21,8 @@
 =<  ^-  nexus:nexus
     |%
     ++  on-load
-      |=  [=sand:nexus =ball:tarball]
-      ^-  [sand:nexus ball:tarball]
+      |=  =ball:tarball
+      ^-  ball:tarball
       =/  =ver:loader  (get-ver:loader ball)
       =/  default-creds=json
         %-  pairs:enjs:format
@@ -34,17 +34,17 @@
         ==
       ?+  ver  !!
           ?(~ [~ %0])
-        %+  spin:loader  [sand ball]
+        %+  spin:loader  ball
         :~  (ver-row:loader 0)
-            [%fall %& [/ %'main.sig'] [~ [/ %sig] !>(~)]]
-            [%fall %& [/ %'creds.json'] [~ [/ %json] !>(default-creds)]]
-            [%fall %& [/ %'source.json'] [~ [/ %json] !>(s+'')]]
-            [%fall %& [/ %'mapping.json'] [~ [/ %json] !>([%a ~])]]
-            [%fall %& [/ %'log.json'] [~ [/ %json] !>([%a ~])]]
-            [%fall %& [/ %'browse.json'] [~ [/ %json] !>([%o ~])]]
-            [%fall %& [/ %'sync-status.json'] [~ [/ %json] !>([%a ~])]]
-            [%fall %| /sync [~ ~] empty-dir:loader]
-            [%over %& [/ %'page.html'] [~ [/ %html] !>((manx-to-html (bridge-page ~)))]]
+            [%fall %& [/ %'main.sig'] [[/ %sig] !>(~)]]
+            [%fall %& [/ %'creds.json'] [[/ %json] !>(default-creds)]]
+            [%fall %& [/ %'source.json'] [[/ %json] !>(s+'')]]
+            [%fall %& [/ %'mapping.json'] [[/ %json] !>([%a ~])]]
+            [%fall %& [/ %'log.json'] [[/ %json] !>([%a ~])]]
+            [%fall %& [/ %'browse.json'] [[/ %json] !>([%o ~])]]
+            [%fall %& [/ %'sync-status.json'] [[/ %json] !>([%a ~])]]
+            [%fall %| /sync empty-dir:loader]
+            [%over %& [/ %'page.html'] [[/ %html] !>((manx-to-html (bridge-page ~)))]]
         ==
       ==
     ::
@@ -632,14 +632,14 @@
 ++  serialize-for-s3
   |=  =content:tarball
   ^-  (unit @t)
-  =/  kind=(unit ?(%text %wain %mime))  (known-mark p.sage.content)
+  =/  kind=(unit ?(%text %wain %mime))  (known-mark p.content)
   ?~  kind  ~
   =/  res=(each @t tang)
     %-  mule  |.
     ?-  u.kind
-      %text  !<(@t q.sage.content)
-      %wain  (of-wain:format !<(wain q.sage.content))
-      %mime  q.q:!<(mime q.sage.content)
+      %text  !<(@t q.content)
+      %wain  (of-wain:format !<(wain q.content))
+      %mime  q.q:!<(mime q.content)
     ==
   ?:(?=(%& -.res) `p.res ~)
 ::
@@ -696,7 +696,7 @@
     ;<  exists=?  bind:m  (peek-exists:io local-road)
     ;<  ~  bind:m  ?.  exists  (pure:m ~)
                    (cull:io local-road)
-    ;<  ~  bind:m  (make:io local-road &+[*sand:nexus root-ball])
+    ;<  ~  bind:m  (make:io local-road &+root-ball)
     ;<  ~  bind:m
       (log-msg 'info' (crip "Pulled {<pulled>} files for #{(trip id.bridge-entry)}"))
     (pure:m ~)
@@ -729,8 +729,7 @@
         =/  mtype=path  (determine-mime-type:tarball ct filename)
         [blot !>(`mime`[mtype body])]
     ==
-  =/  =content:tarball  [~ sage]
-  $(keys t.keys, pulled +(pulled), ball (~(put ba:tarball ball) [rel-path filename] content))
+  $(keys t.keys, pulled +(pulled), ball (~(put ba:tarball ball) [rel-path filename] sage))
 ::
 ::  sync push helpers
 ::
@@ -745,13 +744,13 @@
   %-  malt
   %+  murn  files
   |=  [=rail:tarball =content:tarball]
-  =/  kind=(unit ?(%text %wain %mime))  (known-mark p.sage.content)
+  =/  kind=(unit ?(%text %wain %mime))  (known-mark p.content)
   ?~  kind  ~
   =/  rel-path=path
     =/  base=path  (text-to-path local-path.bridge-entry)
     (slag (lent base) path.rail)
   =/  s3-key=@t  (build-s3-key s3-prefix.bridge-entry rel-path name.rail)
-  `[s3-key (mug q.sage.content)]
+  `[s3-key (mug q.content)]
 ::
 ::  Push only specific keys from a view
 ::

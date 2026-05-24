@@ -7,7 +7,7 @@
 +$  bars      [a=blot b=blot]     :: blot pair for conversions
 +$  sage      (pair blot vase)    :: grubbery cage: blot-typed content
 +$  bask      (pair blot noun)    :: grubbery page: blot-typed noun
-+$  metadata  (map @t @t)
++$  metadata  (map @t @t)          :: used only for tar export headers
 ::  Compiled mark core: built once from mark source, used for vale + tubes
 ::
 +$  marc
@@ -43,8 +43,13 @@
 ::  Symlink: untyped path reference (resolved at lookup time)
 ::
 +$  symlink   (each path (pair @ud path))
-+$  content   [=metadata =sage]
-+$  lump      [=metadata neck=(unit neck) contents=(map @ta content)]
++$  content   sage
++$  weir
+  $:  make=(set road)  :: allowed destinations for %make, %cull, %sand
+      poke=(set road)  :: allowed destinations for %poke
+      peek=(set road)  :: allowed destinations for %peek
+  ==
++$  lump      [neck=(unit neck) weir=(unit weir) contents=(map @ta content)]
 +$  ball      (axal lump)
 :: simple descriptive file tree
 ::
@@ -494,11 +499,7 @@
     =/  updated-base=ball
       ?^  dir-exists
         base
-      =/  dir-metadata=(map @t @t)
-        %-  ~(gas by *(map @t @t))
-        :~  ['mtime' (da-oct now)]
-        ==
-      (~(mkd ba base) dir-path dir-metadata dir-neck)
+      (~(mkd ba base) dir-path dir-neck)
     $(base updated-base, current-path dir-path, file-parent t.file-parent)
   ::  Parse filename to extract extension
   =/  parsed=(unit [ext=(unit @ta) pax=path])
@@ -514,21 +515,15 @@
     ?~  ext.u.parsed
       browser-type
     (fall (ext-to-mime u.ext.u.parsed) browser-type)
-  ::  Create file content with metadata
-  =/  file-size=@ud  (met 3 body.file-part)
-  =/  file-metadata=(map @t @t)
-    %-  ~(gas by *(map @t @t))
-    :~  ['mtime' (da-oct now)]
-        ['size' (scot %ud file-size)]
-    ==
   ::  Try to convert to sage, otherwise store as %mime sage
+  =/  file-size=@ud  (met 3 body.file-part)
   =/  file-mime=mime  [mime-type [file-size body.file-part]]
   =/  maybe-sage=(unit sage)  (mime-to-sage conversions file-name file-mime)
   ::  Keep full filename as-is (no extension stripping)
   =/  [store-name=@ta file-content=content]
     ?~  maybe-sage
-      [file-name [file-metadata [[/ %mime] !>(file-mime)]]]
-    [file-name [file-metadata u.maybe-sage]]
+      [file-name [[/ %mime] !>(file-mime)]]
+    [file-name u.maybe-sage]
   ::  Add file to base with explicit directories
   =/  new-base=ball
     (~(put ba base-with-dirs) [full-parent store-name] file-content)
@@ -542,7 +537,7 @@
   ?~  fil.b  ~
   :-  ~
   :-  neck.u.fil.b
-  (~(run by contents.u.fil.b) |=(c=content p.sage.c))
+  (~(run by contents.u.fil.b) |=(c=content p.c))
 ::  Convert tree to json
 ::
 ++  tree-to-json
@@ -639,24 +634,23 @@
   ++  got-sage
     |=  =rail
     ^-  sage
-    =/  c=content  (got rail)
-    sage.c
+    (got rail)
   ::  Get a file as mime (crash if not found or not a mime sage)
   ::
   ++  got-file
     |=  =rail
     ^-  mime
     =/  c=content  (got rail)
-    ?.  =([/ %mime] p.sage.c)
+    ?.  =([/ %mime] p.c)
       ~|("not a mime file: {(spud (snoc path.rail name.rail))}" !!)
-    !<(mime q.sage.c)
+    !<(mime q.c)
   ::  Get a symlink (crash if not found or not a symlink)
   ::
   ++  got-symlink
     |=  =rail
     ^-  symlink
     =/  c=content  (got rail)
-    =/  maybe-sym=(unit symlink)  (sage-to-symlink sage.c)
+    =/  maybe-sym=(unit symlink)  (sage-to-symlink c)
     ?~  maybe-sym
       ~|("not a symlink: {(spud (snoc path.rail name.rail))}" !!)
     u.maybe-sym
@@ -673,7 +667,7 @@
     ^-  (unit a)
     ?~  may=(get rail)
       ~
-    `!<(a q.sage.u.may)
+    `!<(a q.u.may)
   ::  Count total content items across all directories
   ::
   ++  wyt
@@ -735,14 +729,14 @@
     |=  pax=path
     ^-  ball
     (~(lop of b) pax)
-  ::  Make directory at path with metadata and optional neck.
+  ::  Make directory at path with optional neck.
   ::  Ensures all intermediate directories have lumps.
   ::
   ++  mkd
-    |=  [pax=path met=metadata nec=(unit neck)]
+    |=  [pax=path nec=(unit neck)]
     ^-  ball
     ?~  pax
-      b(fil `[met nec ~])
+      b(fil `[nec ~ ~])
     ::  creating subdir: name must not collide with file name
     ~|  [%name-collision %dir-vs-file i.pax]
     ?<  ?&  ?=(^ fil.b)
@@ -750,7 +744,7 @@
         ==
     =/  kid=ball  (~(gut by dir.b) i.pax *ball)
     =/  filled=ball  ?^(fil.kid kid kid(fil `[~ ~ ~]))
-    b(dir (~(put by dir.b) i.pax (~(mkd ba filled) t.pax met nec)))
+    b(dir (~(put by dir.b) i.pax (~(mkd ba filled) t.pax nec)))
   ::  Put a ball (subtree) at path, replacing any existing subtree.
   ::  Ensures all intermediate directories have lumps.
   ::  Crashes if path collides with existing file.
@@ -1079,11 +1073,11 @@
     ^-  tarball-entry
     =/  [prefix=^path name=^path]  (split-path path)
     ::  Check if this is a symlink sage
-    =/  maybe-sym=(unit symlink)  (sage-to-symlink sage.content)
+    =/  maybe-sym=(unit symlink)  (sage-to-symlink content)
     ?^  maybe-sym
       ::  It's a symlink
       =/  sym-metadata=metadata
-        %-  ~(gas by metadata.content)
+        %-  ~(gas by *(map @t @t))
         :~  ['typeflag' '2']
             ['prefix' (rsh [3 1] (spat prefix))]
             ['name' (rsh [3 1] (spat name))]
@@ -1091,9 +1085,9 @@
         ==
       (generate-entry sym-metadata ~)
     ::  Regular file
-    =/  =mime  (sage-to-mime sage.content)
+    =/  =mime  (sage-to-mime content)
     =/  sage-metadata=metadata
-      %-  ~(gas by metadata.content)
+      %-  ~(gas by *(map @t @t))
       :~  ['typeflag' '0']
           ['prefix' (rsh [3 1] (spat prefix))]
           ['name' (rsh [3 1] (spat name))]
@@ -1110,7 +1104,7 @@
       %+  weld
         ?~  path
           ~
-        [(make-directory-entry path metadata.u.fil.ball) ~]
+        [(make-directory-entry path ~) ~]
       %+  turn  exportable
       |=  [name=@ta =content]
       (make-content-entry (snoc path name) content)

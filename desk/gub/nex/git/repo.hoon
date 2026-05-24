@@ -19,8 +19,8 @@
 =<  ^-  nexus:nexus
     |%
     ++  on-load
-      |=  [=sand:nexus =ball:tarball]
-      ^-  [sand:nexus ball:tarball]
+      |=  =ball:tarball
+      ^-  ball:tarball
       =/  =ver:loader  (get-ver:loader ball)
       =/  default-config=json
         %-  pairs:enjs:format
@@ -30,26 +30,26 @@
         ==
       ?+  ver  !!
           ?(~ [~ %0])
-        %+  spin:loader  [sand ball]
+        %+  spin:loader  ball
         :~  (ver-row:loader 0)
-            [%fall %& [/ %'config.json'] [~ [/ %json] !>(default-config)]]
-            [%fall %& [/actions %'sync.sig'] [~ [/ %sig] !>(~)]]
-            [%fall %& [/actions %'switch.sig'] [~ [/ %sig] !>(~)]]
-            [%fall %& [/actions %'checkout.sig'] [~ [/ %sig] !>(~)]]
-            [%fall %& [/actions %'diff.sig'] [~ [/ %sig] !>(~)]]
-            [%fall %& [/actions %'add.sig'] [~ [/ %sig] !>(~)]]
-            [%fall %& [/actions %'commit.sig'] [~ [/ %sig] !>(~)]]
-            [%fall %& [/actions %'import.sig'] [~ [/ %sig] !>(~)]]
-            [%fall %& [/actions %'branch.sig'] [~ [/ %sig] !>(~)]]
-            [%fall %& [/actions %'delete-branch.sig'] [~ [/ %sig] !>(~)]]
-            [%fall %& [/actions %'stash.sig'] [~ [/ %sig] !>(~)]]
-            [%fall %& [/actions %'stash-pop.sig'] [~ [/ %sig] !>(~)]]
-            [%fall %& [/actions %'push.sig'] [~ [/ %sig] !>(~)]]
-            [%fall %| /ui [~ ~] empty-dir:loader]
-            [%fall %& [/ui %'status.json'] [~ [/ %json] !>((pairs:enjs:format ~[['status' s+'idle']]))]]
-            [%fall %& [/ui %'commit.json'] [~ [/ %json] !>([%a ~])]]
-            [%over %& [/ %'page.html'] [~ [/ %html] !>((crip (en-xml:html (repo-page '' '' '' ~ ~ [%a ~] [%o ~] clean-status))))]]
-            [%fall %| /data [~ ~] [`[~ `[/git %data] ~] ~]]
+            [%fall %& [/ %'config.json'] [[/ %json] !>(default-config)]]
+            [%fall %& [/actions %'sync.sig'] [[/ %sig] !>(~)]]
+            [%fall %& [/actions %'switch.sig'] [[/ %sig] !>(~)]]
+            [%fall %& [/actions %'checkout.sig'] [[/ %sig] !>(~)]]
+            [%fall %& [/actions %'diff.sig'] [[/ %sig] !>(~)]]
+            [%fall %& [/actions %'add.sig'] [[/ %sig] !>(~)]]
+            [%fall %& [/actions %'commit.sig'] [[/ %sig] !>(~)]]
+            [%fall %& [/actions %'import.sig'] [[/ %sig] !>(~)]]
+            [%fall %& [/actions %'branch.sig'] [[/ %sig] !>(~)]]
+            [%fall %& [/actions %'delete-branch.sig'] [[/ %sig] !>(~)]]
+            [%fall %& [/actions %'stash.sig'] [[/ %sig] !>(~)]]
+            [%fall %& [/actions %'stash-pop.sig'] [[/ %sig] !>(~)]]
+            [%fall %& [/actions %'push.sig'] [[/ %sig] !>(~)]]
+            [%fall %| /ui empty-dir:loader]
+            [%fall %& [/ui %'status.json'] [[/ %json] !>((pairs:enjs:format ~[['status' s+'idle']]))]]
+            [%fall %& [/ui %'commit.json'] [[/ %json] !>([%a ~])]]
+            [%over %& [/ %'page.html'] [[/ %html] !>((crip (en-xml:html (repo-page '' '' '' ~ ~ [%a ~] [%o ~] clean-status))))]]
+            [%fall %| /data [`[`[/git %data] ~ ~] ~]]
         ==
       ==
     ::
@@ -1027,7 +1027,7 @@
   ?~  fil.ball  [~ ~]
   %+  roll  ~(tap by contents.u.fil.ball)
   |=  [[name=@t =content:tarball] r=(axal ref:git-repo)]
-  =/  m=mime  !<(mime q.sage.content)
+  =/  m=mime  !<(mime q.content)
   ?:  =(0 p.q.m)  r
   =/  h=(unit @ux)
     (rust (trip q.q.m) parse-hash-sha-1:git-transport)
@@ -1045,7 +1045,7 @@
   =/  h=(unit hash:git-repo)
     (rust (trip name) parse-hash-sha-1:git-transport)
   ?~  h  acc
-  =/  m=mime  !<(mime q.sage.content)
+  =/  m=mime  !<(mime q.content)
   =/  raw=raw-object:git-obj  (raw-from-octs:git-obj q.m)
   =/  obj=object:git-obj  (parse-raw:git-obj %sha-1 raw)
   (~(put by acc) u.h obj)
@@ -1077,9 +1077,9 @@
     (~(get by contents.u.fil.ball) idx-name)
   ?~  pack-content  ~
   ?~  idx-content  ~
-  =/  pack-mim=mime  !<(mime q.sage.u.pack-content)
+  =/  pack-mim=mime  !<(mime q.u.pack-content)
   ?:  =(0 p.q.pack-mim)  ~
-  =/  idx-mim=mime  !<(mime q.sage.u.idx-content)
+  =/  idx-mim=mime  !<(mime q.u.idx-content)
   =/  idx-text=tape  (trip q.q.idx-mim)
   =/  idx=pack-index:git-pack
     (rebuild-index (split:git-transport idx-text `@t`10))

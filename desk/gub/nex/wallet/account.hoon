@@ -18,17 +18,17 @@
 =<  ^-  nexus:nexus
     |%
     ++  on-load
-      |=  [=sand:nexus =ball:tarball]
-      ^-  [sand:nexus ball:tarball]
+      |=  =ball:tarball
+      ^-  ball:tarball
       =/  =ver:loader  (get-ver:loader ball)
       ?+  ver  !!
           ?(~ [~ %0])
-        %+  spin:loader  [sand ball]
+        %+  spin:loader  ball
         :~  (ver-row:loader 0)
             [%stay %& [/ %'data.wallet_account']]
-          [%over %& [/ %'main.sig'] [~ [/ %sig] !>(~)]]
-          [%fall %| /addresses [~ ~] empty-dir:loader]
-          [%fall %| /proc [~ ~] empty-dir:loader]
+          [%over %& [/ %'main.sig'] [[/ %sig] !>(~)]]
+          [%fall %| /addresses empty-dir:loader]
+          [%fall %| /proc empty-dir:loader]
           [%stay %& [/proc %'scan.json']]
         ==
       ==
@@ -599,9 +599,9 @@
   |=  ct=content:tarball
   ^-  content:tarball
   ?:  =(ct *content:tarball)  ct
-  ?:  =([/ %boom] p.sage.ct)  ct
-  =/  acct=account-data  !<(account-data q.sage.ct)
-  [~ [/ %html] !>((crip (en-xml:html (detail-page:acct-ui acct *addr-mop *addr-mop *@da %none ~ ~ ''))))]
+  ?:  =([/ %boom] p.ct)  ct
+  =/  acct=account-data  !<(account-data q.ct)
+  [[/ %html] !>((crip (en-xml:html (detail-page:acct-ui acct *addr-mop *addr-mop *@da %none ~ ~ ''))))]
 ::
 ++  extract-account
   |=  =seen:nexus
@@ -610,8 +610,8 @@
   =/  =lump:tarball  (fall fil.ball.p.seen *lump:tarball)
   =/  ct=(unit content:tarball)  (~(get by contents.lump) 'data.wallet_account')
   ?~  ct  ~
-  ?.  ?=(%account name.p.sage.u.ct)  ~
-  (mole |.(!<(account-data q.sage.u.ct)))
+  ?.  ?=(%account name.p.u.ct)  ~
+  (mole |.(!<(account-data q.u.ct)))
 ::
 ++  read-draft-file
   =/  m  (fiber:fiber:nexus ,(unit transaction:drft))
@@ -710,11 +710,11 @@
   =/  recv=addr-mop
     =/  ct=(unit content:tarball)  (~(get by contents.u.fil.u.net-ball) 'recv.wallet_addresses')
     ?~  ct  *addr-mop
-    (fall (mole |.(!<(addr-mop q.sage.u.ct))) *addr-mop)
+    (fall (mole |.(!<(addr-mop q.u.ct))) *addr-mop)
   =/  chng=addr-mop
     =/  ct=(unit content:tarball)  (~(get by contents.u.fil.u.net-ball) 'chng.wallet_addresses')
     ?~  ct  *addr-mop
-    (fall (mole |.(!<(addr-mop q.sage.u.ct))) *addr-mop)
+    (fall (mole |.(!<(addr-mop q.u.ct))) *addr-mop)
   [recv chng]
 ::  +addr-road: compute road to a chain's mop file
 ::

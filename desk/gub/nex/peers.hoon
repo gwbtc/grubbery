@@ -7,15 +7,15 @@
 =<  ^-  nexus:nexus
     |%
     ++  on-load
-      |=  [=sand:nexus =ball:tarball]
-      ^-  [sand:nexus ball:tarball]
+      |=  =ball:tarball
+      ^-  ball:tarball
       =/  =ver:loader  (get-ver:loader ball)
       ?+  ver  !!
           ?(~ [~ %0])
-        %+  spin:loader  [sand ball]
+        %+  spin:loader  ball
         :~  (ver-row:loader 0)
-            [%fall %& [/ %'main.sig'] [~ [/ %sig] !>(~)]]
-            [%fall %| /requests [~ ~] empty-dir:loader]
+            [%fall %& [/ %'main.sig'] [[/ %sig] !>(~)]]
+            [%fall %| /requests empty-dir:loader]
         ==
       ==
     ::
@@ -175,11 +175,11 @@
   =/  who-c=(unit content:tarball)  (~(get ba:tarball grp) [/ %'who.ships'])
   =/  how-c=(unit content:tarball)  (~(get ba:tarball grp) [/ %'how.weir'])
   ?~  who-c  ~
-  =/  who-res  (mule |.(!<((set @p) q.sage.u.who-c)))
+  =/  who-res  (mule |.(!<((set @p) q.u.who-c)))
   =/  members=(set @p)  ?:(?=(%| -.who-res) ~ p.who-res)
   =/  =weir:nexus
     ?~  how-c  *weir:nexus
-    =/  res  (mule |.(!<(weir:nexus q.sage.u.how-c)))
+    =/  res  (mule |.(!<(weir:nexus q.u.how-c)))
     ?:(?=(%| -.res) *weir:nexus p.res)
   `[name members weir]
 ::

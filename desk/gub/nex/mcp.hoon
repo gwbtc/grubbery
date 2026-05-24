@@ -82,19 +82,19 @@
 ^-  nexus:nexus
 |%
 ++  on-load
-  |=  [=sand:nexus =ball:tarball]
-  ^-  [sand:nexus ball:tarball]
+  |=  =ball:tarball
+  ^-  ball:tarball
   =/  =ver:loader  (get-ver:loader ball)
   ?+  ver  !!
       ?(~ [~ %0])
-    %+  spin:loader  [sand ball]
+    %+  spin:loader  ball
     :~  (ver-row:loader 1)
-        [%fall %& [/ %'main.sig'] [~ [/ %sig] !>(~)]]
-        [%fall %| /requests [~ ~] empty-dir:loader]
-        [%fall %| /tools [~ ~] empty-dir:loader]
+        [%fall %& [/ %'main.sig'] [[/ %sig] !>(~)]]
+        [%fall %| /requests empty-dir:loader]
+        [%fall %| /tools empty-dir:loader]
     ==
       [~ %1]
-    [sand ball]
+    ball
   ==
 ::
 ++  on-file

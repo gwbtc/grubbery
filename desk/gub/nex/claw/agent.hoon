@@ -6,8 +6,8 @@
 =<  ^-  nexus:nexus
     |%
     ++  on-load
-      |=  [=sand:nexus =ball:tarball]
-      ^-  [sand:nexus ball:tarball]
+      |=  =ball:tarball
+      ^-  ball:tarball
       =/  =ver:loader  (get-ver:loader ball)
       ?+  ver  !!
           ?(~ [~ %0])
@@ -130,8 +130,8 @@
               'A nexus is Hoon code that produces a `nexus:nexus` core with three arms:'
               ''
               '## on-load: initialize the filesystem'
-              '  |=  [=sand:nexus =ball:tarball]'
-              '  ^-  [sand:nexus ball:tarball]'
+              '  |=  =ball:tarball'
+              '  ^-  ball:tarball'
               ''
               'Called when the nexus is created or its code changes. Use the loader to'
               'set up files and directories. Key loader operations:'
@@ -308,7 +308,7 @@
               ''
               '  ++on-load   Sets up the directory structure via the loader.'
               '              Called on creation and whenever code reloads.'
-              '              Returns [sand ball].'
+              '              Returns ball.'
               ''
               '  ++on-file   Determines which fiber process runs at each file.'
               '              Pattern-matches on [rail mark] to dispatch code.'
@@ -590,49 +590,49 @@
               '  it -- you will get a %veto. Use check_bang to inspect errors.'
           ==
         =/  default-conv=json  [%a ~]
-        =/  code-dir=ball:tarball  [`[~ `[/ %code] ~] ~]
-        %+  spin:loader  [sand ball]
+        =/  code-dir=ball:tarball  [`[`[/ %code] ~ ~] ~]
+        %+  spin:loader  ball
         :~  (ver-row:loader 0)
-            [%fall %& [/ %'config.json'] [~ [/ %json] !>(default-config)]]
+            [%fall %& [/ %'config.json'] [[/ %json] !>(default-config)]]
             ::  /main.sig: chat lifecycle + message routing
-            [%over %& [/ %'main.sig'] [~ [/ %sig] !>(~)]]
+            [%over %& [/ %'main.sig'] [[/ %sig] !>(~)]]
             ::  /chats/main: primary chat instance
-            [%fall %| /chats [~ ~] empty-dir:loader]
-            [%fall %| /chats/main [~ ~] empty-dir:loader]
-            [%fall %& [/chats/main %'chat.json'] [~ [/ %json] !>(default-conv)]]
-            [%fall %& [/chats/main %'outbox.json'] [~ [/ %json] !>([%a ~])]]
-            [%over %& [/chats/main %'status.json'] [~ [/ %json] !>((pairs:enjs:format ~[['state' s+'idle']]))]]
+            [%fall %| /chats empty-dir:loader]
+            [%fall %| /chats/main empty-dir:loader]
+            [%fall %& [/chats/main %'chat.json'] [[/ %json] !>(default-conv)]]
+            [%fall %& [/chats/main %'outbox.json'] [[/ %json] !>([%a ~])]]
+            [%over %& [/chats/main %'status.json'] [[/ %json] !>((pairs:enjs:format ~[['state' s+'idle']]))]]
             ::  /proc/tools: tool execution (flat, [chat]_[tid] naming)
-            [%fall %| /proc [~ ~] empty-dir:loader]
-            [%fall %| /proc/tools [~ ~] empty-dir:loader]
-            [%fall %| /proc/cron [~ ~] empty-dir:loader]
+            [%fall %| /proc empty-dir:loader]
+            [%fall %| /proc/tools empty-dir:loader]
+            [%fall %| /proc/cron empty-dir:loader]
             ::  /context: shared prompts, memories, docs
-            [%fall %| /context [~ ~] empty-dir:loader]
-            [%fall %| /context/prompts [~ ~] empty-dir:loader]
-            [%fall %& [/context/prompts %'main.txt'] [~ [/ %txt] !>(default-prompt)]]
-            [%fall %| /context/memories [~ ~] empty-dir:loader]
-            [%fall %| /context/docs [~ ~] empty-dir:loader]
-            [%over %& [/context/docs %'grubbery-fundamentals.txt'] [~ [/ %txt] !>(fundamentals-doc)]]
-            [%over %& [/context/docs %'workflows.txt'] [~ [/ %txt] !>(workflows-doc)]]
+            [%fall %| /context empty-dir:loader]
+            [%fall %| /context/prompts empty-dir:loader]
+            [%fall %& [/context/prompts %'main.txt'] [[/ %txt] !>(default-prompt)]]
+            [%fall %| /context/memories empty-dir:loader]
+            [%fall %| /context/docs empty-dir:loader]
+            [%over %& [/context/docs %'grubbery-fundamentals.txt'] [[/ %txt] !>(fundamentals-doc)]]
+            [%over %& [/context/docs %'workflows.txt'] [[/ %txt] !>(workflows-doc)]]
             ::  /apps: applications and code
-            [%fall %| /apps [~ ~] empty-dir:loader]
-            [%fall %| /apps/code [~ ~] code-dir]
-            [%fall %| /apps/code/nex [~ ~] empty-dir:loader]
-            [%fall %| /apps/code/lib [~ ~] empty-dir:loader]
-            [%fall %| /apps/code/lib/tools [~ ~] empty-dir:loader]
-            [%fall %| /apps/code/mar [~ ~] empty-dir:loader]
+            [%fall %| /apps empty-dir:loader]
+            [%fall %| /apps/code code-dir]
+            [%fall %| /apps/code/nex empty-dir:loader]
+            [%fall %| /apps/code/lib empty-dir:loader]
+            [%fall %| /apps/code/lib/tools empty-dir:loader]
+            [%fall %| /apps/code/mar empty-dir:loader]
             ::  /ui/chats.json: manifest of active chats
-            [%fall %| /ui [~ ~] empty-dir:loader]
-            [%fall %& [/ui %'chats.json'] [~ [/ %json] !>([%a ~[s+'main']])]]
+            [%fall %| /ui empty-dir:loader]
+            [%fall %& [/ui %'chats.json'] [[/ %json] !>([%a ~[s+'main']])]]
             ::  /about.txt: self-description visible to other agents
             =/  default-about=wain
               :~  'A general-purpose claw agent. No specific role assigned yet.'
               ==
-            [%fall %& [/ %'about.txt'] [~ [/ %txt] !>(default-about)]]
+            [%fall %& [/ %'about.txt'] [[/ %txt] !>(default-about)]]
             ::  /children: spawned child nexuses
-            [%fall %| /children [~ ~] empty-dir:loader]
+            [%fall %| /children empty-dir:loader]
             ::  ui
-            [%over %& [/ %'page.html'] [~ [/ %html] !>((crip (en-xml:html (chat-page "" ""))))]]
+            [%over %& [/ %'page.html'] [[/ %html] !>((crip (en-xml:html (chat-page "" ""))))]]
         ==
       ==
     ::
@@ -687,7 +687,7 @@
           ::  create /chats/[name]/ directory
           ;<  chat-dir=road:tarball  bind:m
             (ancestor-road:io [/claw %agent] [%| /chats/[chat-name]])
-          ;<  ~  bind:m  (make:io chat-dir &+[*sand:nexus [~ ~]])
+          ;<  ~  bind:m  (make:io chat-dir &+[~ ~])
           ::  create chat.json (empty convo)
           ;<  ~  bind:m  (make:io chat-road |+[[[/ %json] !>([%a ~])] ~])
           ::  create outbox.json
@@ -2801,7 +2801,7 @@
     =/  files=(list [@ta @tas])
       ?~  fil.ball.p.seen  ~
       %+  turn  ~(tap by contents.u.fil.ball.p.seen)
-      |=([n=@ta c=content:tarball] [n name.p.sage.c])
+      |=([n=@ta c=content:tarball] [n name.p.c])
     =/  dir-text=tape
       ?~  sub-dirs  ""
       (zing (turn sub-dirs |=(d=@ta "\0a  {(trip d)}/")))
@@ -3030,7 +3030,7 @@
       (pure:m [%error 'Missing required argument: road'])
     =/  road=road:tarball  (agent-road u.raw)
     =/  new-ball=ball:tarball  [`[~ ~ ~] ~]
-    ;<  ~  bind:m  (make:io road &+[*sand:nexus new-ball])
+    ;<  ~  bind:m  (make:io road &+new-ball)
     (pure:m [%text (crip "Created directory {(trip u.raw)}")])
   --
 ::
@@ -3066,8 +3066,8 @@
     ?~  code-pax
       (pure:m [%error 'Code path cannot be empty'])
     =/  code-rail=rail:tarball  [(snip `path`code-pax) (rear code-pax)]
-    =/  new-ball=ball:tarball  [`[~ `code-rail ~] ~]
-    ;<  ~  bind:m  (make:io road &+[*sand:nexus new-ball])
+    =/  new-ball=ball:tarball  [`[`code-rail ~ ~] ~]
+    ;<  ~  bind:m  (make:io road &+new-ball)
     (pure:m [%text (crip "Created nexus {(trip u.raw)} with code {(trip u.code-raw)}")])
   --
 ::
@@ -3158,7 +3158,7 @@
     ;<  dir-seen=seen:nexus  bind:m  (peek:io dir-road ~)
     ?.  ?=([%& %ball *] dir-seen)
       (pure:m [%error (crip "Not a directory or not found: {(trip u.raw)}")])
-    =/  weir=weir:nexus  (fall fil.sand.p.dir-seen [~ ~ ~])
+    =/  weir=weir:nexus  (fall ?~(fil.ball.p.dir-seen ~ weir.u.fil.ball.p.dir-seen) [~ ~ ~])
     ?:  &(=(~ make.weir) =(~ poke.weir) =(~ peek.weir))
       (pure:m [%text (crip "No weir at {(trip u.raw)} -- unrestricted")])
     =/  render
@@ -3209,7 +3209,7 @@
     ;<  dir-seen=seen:nexus  bind:m  (peek:io dir-road ~)
     =/  cur=weir:nexus
       ?.  ?=([%& %ball *] dir-seen)  [~ ~ ~]
-      (fall fil.sand.p.dir-seen [~ ~ ~])
+      (fall ?~(fil.ball.p.dir-seen ~ weir.u.fil.ball.p.dir-seen) [~ ~ ~])
     =/  new=weir:nexus
       ?+  u.cat  cur
         %'write'  cur(make (~(put in make.cur) allow-road))
@@ -3249,7 +3249,7 @@
     ;<  dir-seen=seen:nexus  bind:m  (peek:io dir-road ~)
     =/  cur=weir:nexus
       ?.  ?=([%& %ball *] dir-seen)  [~ ~ ~]
-      (fall fil.sand.p.dir-seen [~ ~ ~])
+      (fall ?~(fil.ball.p.dir-seen ~ weir.u.fil.ball.p.dir-seen) [~ ~ ~])
     =/  new=weir:nexus
       ?+  u.cat  cur
         %'write'  cur(make (~(del in make.cur) del-road))
@@ -3536,8 +3536,8 @@
     ?~  code-pax
       (pure:m [%error 'Code path cannot be empty'])
     =/  code-rail=rail:tarball  [(snip `path`code-pax) (rear code-pax)]
-    =/  new-ball=ball:tarball  [`[~ `code-rail ~] ~]
-    ;<  ~  bind:m  (make:io child-road &+[*sand:nexus new-ball])
+    =/  new-ball=ball:tarball  [`[`code-rail ~ ~] ~]
+    ;<  ~  bind:m  (make:io child-road &+new-ball)
     ::  read parent config (../../config.json from tool proc)
     ;<  parent-config=json  bind:m
       =/  m  (fiber:fiber:nexus ,json)
@@ -3635,7 +3635,7 @@
       |=  [=rail:tarball =content:tarball]
       =/  fp=tape  ?~(path.rail "/" (trip (spat path.rail)))
       =/  fn=tape  (trip name.rail)
-      =/  fm=tape  (trip name.p.sage.content)
+      =/  fm=tape  (trip name.p.content)
       ?&  ?~(pat-path %.y (glob-match:nex-tools (trip u.pat-path) fp))
           ?~(pat-name %.y (glob-match:nex-tools (trip u.pat-name) fn))
           ?~(pat-mark %.y (glob-match:nex-tools (trip u.pat-mark) fm))
@@ -3708,13 +3708,13 @@
       |=  [=rail:tarball =content:tarball]
       =/  fp=tape  ?~(path.rail "/" (trip (spat path.rail)))
       =/  fn=tape  (trip name.rail)
-      =/  fm=tape  (trip name.p.sage.content)
+      =/  fm=tape  (trip name.p.content)
       ?.  ?&  ?~(pat-path %.y (glob-match:nex-tools (trip u.pat-path) fp))
               ?~(pat-name %.y (glob-match:nex-tools (trip u.pat-name) fn))
               ?~(pat-mark %.y (glob-match:nex-tools (trip u.pat-mark) fm))
           ==
         ~
-      `[rail name.p.sage.content]
+      `[rail name.p.content]
     ?~  matches
       (pure:m [%text 'No matches found'])
     =/  result=tape
@@ -3993,7 +3993,7 @@
     ;<  dir-exists=?  bind:m  (peek-exists:io sum-dir)
     ;<  ~  bind:m
       ?.  dir-exists
-        (make:io sum-dir &+[*sand:nexus [~ ~]])
+        (make:io sum-dir &+[~ ~])
       (pure:(fiber:fiber:nexus ,~) ~)
     =/  sum-file=@ta  (crip "{(trip sum-id)}.json")
     ;<  sum-road=road:tarball  bind:m

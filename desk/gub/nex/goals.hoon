@@ -168,16 +168,16 @@
 =<  ^-  nexus:nexus
     |%
     ++  on-load
-      |=  [=sand:nexus =ball:tarball]
-      ^-  [sand:nexus ball:tarball]
+      |=  =ball:tarball
+      ^-  ball:tarball
       =/  =ver:loader  (get-ver:loader ball)
       ?+  ver  !!
           ?(~ [~ %0] [~ %1])
-        %+  spin:loader  [sand ball]
+        %+  spin:loader  ball
         :~  (ver-row:loader 1)
-            [%fall %& [/ %'main.sig'] [~ [/ %sig] !>(~)]]
-            [%fall %& [/ %'page.html'] [~ [/ %html] !>((crip (en-xml:html (goals-page ~ ~))))]]
-            [%fall %| /store [~ ~] empty-dir:loader]
+            [%fall %& [/ %'main.sig'] [[/ %sig] !>(~)]]
+            [%fall %& [/ %'page.html'] [[/ %html] !>((crip (en-xml:html (goals-page ~ ~))))]]
+            [%fall %| /store empty-dir:loader]
         ==
       ==
     ::
@@ -383,8 +383,8 @@
   |-
   ?~  entries  out
   =/  [fname=@ta ct=content:tarball]  i.entries
-  ?.  =(%goal-store name.p.sage.ct)  $(entries t.entries)
-  =/  store=goal-store:goals  !<(goal-store:goals q.sage.ct)
+  ?.  =(%goal-store name.p.ct)  $(entries t.entries)
+  =/  store=goal-store:goals  !<(goal-store:goals q.ct)
   =/  sname=@ta  (store-name-from-fname fname)
   $(entries t.entries, out (~(put by out) sname store))
 ::  Render the full goals page

@@ -5,8 +5,8 @@
 =<  ^-  nexus:nexus
     |%
     ++  on-load
-      |=  [=sand:nexus =ball:tarball]
-      ^-  [sand:nexus ball:tarball]
+      |=  =ball:tarball
+      ^-  ball:tarball
       =/  =ver:loader  (get-ver:loader ball)
       =/  default-config=json
         %-  pairs:enjs:format
@@ -16,17 +16,17 @@
         ==
       ?+  ver  !!
           ?(~ [~ %0])
-        %+  spin:loader  [sand ball]
+        %+  spin:loader  ball
         :~  (ver-row:loader 0)
-            [%fall %& [/ %'config.json'] [~ [/ %json] !>(default-config)]]
-            [%fall %& [/ %'messages.claude-messages'] [~ [/ %claude-messages] !>(`messages`[%0 *((mop @ud message) lth)])]]
-            [%fall %& [/ %'custom-prompt.txt'] [~ [/ %txt] !>(*wain)]]
-            [%fall %& [/ %'main.claude-registry'] [~ [/ %claude-registry] !>(`registry`[%0 0 ~ %.y])]]
+            [%fall %& [/ %'config.json'] [[/ %json] !>(default-config)]]
+            [%fall %& [/ %'messages.claude-messages'] [[/ %claude-messages] !>(`messages`[%0 *((mop @ud message) lth)])]]
+            [%fall %& [/ %'custom-prompt.txt'] [[/ %txt] !>(*wain)]]
+            [%fall %& [/ %'main.claude-registry'] [[/ %claude-registry] !>(`registry`[%0 0 ~ %.y])]]
             ::  always overwritten
-            [%over %& [/ %'weir.txt'] [~ [/ %txt] !>(`wain`~['No weir set.'])]]
-            [%over %& [/ui %'chat.html'] [~ [/ %html] !>((crip (en-xml:html (chat-page ~))))]]
-            [%over %& [/ui/sse %'last-message.html'] [~ [/ %html] !>((crip (en-xml:html *manx)))]]
-            [%over %& [/ui/sse %'status.json'] [~ [/ %json] !>((pairs:enjs:format ~[['loading' b+%.n] ['live' b+%.y]]))]]
+            [%over %& [/ %'weir.txt'] [[/ %txt] !>(`wain`~['No weir set.'])]]
+            [%over %& [/ui %'chat.html'] [[/ %html] !>((crip (en-xml:html (chat-page ~))))]]
+            [%over %& [/ui/sse %'last-message.html'] [[/ %html] !>((crip (en-xml:html *manx)))]]
+            [%over %& [/ui/sse %'status.json'] [[/ %json] !>((pairs:enjs:format ~[['loading' b+%.n] ['live' b+%.y]]))]]
         ==
       ==
     ::
@@ -774,7 +774,7 @@
     =/  =mime  [/text/plain (as-octs:mimes:html body)]
     (send-dart:io %node slot-wire road %make |+[[[/ %mime] !>(mime)] ~])
       %'dir'
-    (send-dart:io %node slot-wire road %make &+[*sand:nexus `[~ ~ ~] ~])
+    (send-dart:io %node slot-wire road %make &+[`[~ ~ ~] ~])
       %'over'
     =/  =mime  [/text/plain (as-octs:mimes:html body)]
     (send-dart:io %node slot-wire road %over [[/ %mime] !>(mime)])
@@ -1056,12 +1056,12 @@
       %'sand'
     ?.  ?=([%& %ball *] seen)
       (pure:m [(crip "ERROR: Not found: {(trip path.slot)}") ~])
-    (pure:m [(en:json:html (sand-to-json:nexus sand.p.seen)) ~])
+    (pure:m [(en:json:html (ball-weirs-to-json:nexus ball.p.seen)) ~])
   ::
       %'weir'
     ?.  ?=([%& %ball *] seen)
       (pure:m [(crip "ERROR: Not found: {(trip path.slot)}") ~])
-    =/  =weir:nexus  (fall fil.sand.p.seen *weir:nexus)
+    =/  =weir:nexus  (fall ?~(fil.ball.p.seen ~ weir.u.fil.ball.p.seen) *weir:nexus)
     (pure:m [(en:json:html (weir-to-json:nexus weir)) ~])
   ==
 ::  Handle ack response (make, over, cull, poke, diff, sand)
@@ -1128,7 +1128,7 @@
     ?~  files  (pure:m ~)
     =/  [file-name=@ta =content:tarball]  i.files
     =/  lane-path=@t  (spat (snoc here file-name))
-    ;<  content-text=@t  bind:m  (sage-to-txt sage.content)
+    ;<  content-text=@t  bind:m  (sage-to-txt content)
     =/  msg=@t
       (rap 3 ~['<api action="' act '" path="' lane-path '">' content-text '</api>'])
     ;<  ~  bind:m  (append-to-msgs msg-road 'user' msg)
@@ -1145,7 +1145,7 @@
   |=  =seen:nexus
   ^-  wain
   ?.  ?=([%& %ball *] seen)  ~['No weir set.']
-  =/  =weir:nexus  (fall fil.sand.p.seen *weir:nexus)
+  =/  =weir:nexus  (fall ?~(fil.ball.p.seen ~ weir.u.fil.ball.p.seen) *weir:nexus)
   ?:  =(*weir:nexus weir)  ~['No weir set.']
   ~[(crip "PERMISSIONS (weir): {(trip (en:json:html (weir-to-json:nexus weir)))}")]
 ::

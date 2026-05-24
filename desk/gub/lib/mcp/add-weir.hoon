@@ -62,8 +62,7 @@
   ;<  dir-seen=seen:nexus  bind:m  (peek:io [%& %| dir-pax] ~)
   =/  cur=weir:nexus
     ?.  ?=([%& %ball *] dir-seen)  [~ ~ ~]
-    =/  dir-sand=sand:nexus  sand.p.dir-seen
-    (fall fil.dir-sand [~ ~ ~])
+    (fall ?~(fil.ball.p.dir-seen ~ weir.u.fil.ball.p.dir-seen) [~ ~ ~])
   =/  new=weir:nexus
     ?+  category  cur
       %'write'  cur(make (~(put in make.cur) new-road))

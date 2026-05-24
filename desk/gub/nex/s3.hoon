@@ -10,8 +10,8 @@
 =<  ^-  nexus:nexus
     |%
     ++  on-load
-      |=  [=sand:nexus =ball:tarball]
-      ^-  [sand:nexus ball:tarball]
+      |=  =ball:tarball
+      ^-  ball:tarball
       =/  =ver:loader  (get-ver:loader ball)
       =/  default-config=json
         %-  pairs:enjs:format
@@ -23,13 +23,13 @@
         ==
       ?+  ver  !!
           ?(~ [~ %0])
-        %+  spin:loader  [sand ball]
+        %+  spin:loader  ball
         :~  (ver-row:loader 0)
-            [%fall %& [/ %'main.json'] [~ [/ %json] !>((pairs:enjs:format ~[['status' s+'idle']]))]]
-            [%fall %& [/ %'config.json'] [~ [/ %json] !>(default-config)]]
-            [%fall %& [/ %'mounts.json'] [~ [/ %json] !>([%o ~])]]
-            [%fall %| /mounts [~ ~] empty-dir:loader]
-            [%over %& [/ %'page.html'] [~ [/ %html] !>((crip (en-xml:html s3-page)))]]
+            [%fall %& [/ %'main.json'] [[/ %json] !>((pairs:enjs:format ~[['status' s+'idle']]))]]
+            [%fall %& [/ %'config.json'] [[/ %json] !>(default-config)]]
+            [%fall %& [/ %'mounts.json'] [[/ %json] !>([%o ~])]]
+            [%fall %| /mounts empty-dir:loader]
+            [%over %& [/ %'page.html'] [[/ %html] !>((crip (en-xml:html s3-page)))]]
         ==
       ==
     ::
@@ -90,7 +90,7 @@
             ;<  exists=?  bind:m  (peek-exists:io mount-road)
             ;<  *  bind:m
               ?.  exists
-                (make-soft:io mount-road &+[*sand:nexus `ball:tarball`[~ ~]])
+                (make-soft:io mount-road &+*ball:tarball)
               (pure:m ~)
             %-  replace:io  !>
             %-  pairs:enjs:format

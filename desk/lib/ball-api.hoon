@@ -146,7 +146,7 @@
     (~(get by contents.u.fil.parent-ball) name)
   ?~  content-data
     (send-error eyre-id 404 'Not found')
-  =/  =sage:tarball  sage.u.content-data
+  =/  =sage:tarball  u.content-data
   =/  mark-param=(unit @t)  (get-key:kv:html-utils 'mark' args)
   ;<  converted=(unit sage:tarball)  bind:m  (maybe-convert eyre-id sage mark-param)
   ?~  converted  (pure:m ~)
@@ -246,7 +246,7 @@
   ?:  exists
     (send-error eyre-id 409 'Already exists')
   =/  init-ball=ball:tarball  [`[~ ~ ~] ~]
-  ;<  ~  bind:m  (make:io road &+[[~ ~] init-ball])
+  ;<  ~  bind:m  (make:io road &+init-ball)
   (send-created eyre-id)
 ::  +serve-post: POST /poke, /over — send dart to file
 ::
@@ -314,7 +314,7 @@
   ;<  exists=?  bind:m  (peek-exists:io dir-road)
   ?.  exists
     ;<  ~  bind:m
-      (make:io dir-road &+[[~ ~] `[~ ~ ~] ~])
+      (make:io dir-road &+[`[~ ~ ~] ~])
     (ensure-parents next t.segments)
   (ensure-parents next t.segments)
 ::  +serve-upload: POST /upload — multipart file/directory upload
@@ -408,7 +408,7 @@
   ;<  dir-seen=seen:nexus  bind:m  (peek:io [%& %| api-path] ~)
   ?.  ?=([%& %ball *] dir-seen)
     (send-error eyre-id 404 'Not found')
-  (send-json eyre-id (sand-to-json:nexus sand.p.dir-seen))
+  (send-json eyre-id (ball-weirs-to-json:nexus ball.p.dir-seen))
 ::  +serve-weir-peek: GET /weir — single directory weir as JSON
 ::
 ++  serve-weir-peek
@@ -418,7 +418,7 @@
   ;<  dir-seen=seen:nexus  bind:m  (peek:io [%& %| api-path] ~)
   ?.  ?=([%& %ball *] dir-seen)
     (send-error eyre-id 404 'Not found')
-  =/  =weir:nexus  (fall fil.sand.p.dir-seen *weir:nexus)
+  =/  =weir:nexus  (fall ?~(fil.ball.p.dir-seen ~ weir.u.fil.ball.p.dir-seen) *weir:nexus)
   (send-json eyre-id (weir-to-json:nexus weir))
 ::  +serve-weir-put: PUT /weir — replace weir from JSON body
 ::
@@ -573,7 +573,7 @@
       ?~  file-hist  '0'
       (scot %ud (ver:hist:nexus u.file-hist))
     =/  event-name=@t  (crip "old {(trip lane-path)}")
-    ;<  body=@t  bind:m  (sage-to-txt sage.content mark-param)
+    ;<  body=@t  bind:m  (sage-to-txt content mark-param)
     =/  data=wain  (to-wain:format body)
     =/  =sse-event:http-utils  [`id `event-name data]
     ;<  ~  bind:m

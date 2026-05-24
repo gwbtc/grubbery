@@ -57,7 +57,7 @@
     |=  [=rail:tarball =content:tarball]
     =/  file-path=tape  ?~(path.rail "/" (trip (spat path.rail)))
     =/  file-name=tape  (trip name.rail)
-    =/  file-mark=tape  (trip name.p.sage.content)
+    =/  file-mark=tape  (trip name.p.content)
     ?&  ?~(pat-path %.y (glob-match:tools (trip u.pat-path) file-path))
         ?~(pat-name %.y (glob-match:tools (trip u.pat-name) file-name))
         ?~(pat-mark %.y (glob-match:tools (trip u.pat-mark) file-mark))

@@ -6,16 +6,16 @@
 =<  ^-  nexus:nexus
     |%
     ++  on-load
-      |=  [=sand:nexus =ball:tarball]
-      ^-  [sand:nexus ball:tarball]
+      |=  =ball:tarball
+      ^-  ball:tarball
       =/  =ver:loader  (get-ver:loader ball)
       ?+  ver  !!
           ?(~ [~ %0])
-        %+  spin:loader  [sand ball]
+        %+  spin:loader  ball
         :~  (ver-row:loader 0)
-            [%fall %& [/ %'main.sig'] [~ [/ %sig] !>(~)]]
-            [%over %& [/ui %'manage.html'] [~ [/ %html] !>((crip (en-xml:html (manage-page ~))))]]
-            [%fall %| /bots [~ ~] empty-dir:loader]
+            [%fall %& [/ %'main.sig'] [[/ %sig] !>(~)]]
+            [%over %& [/ui %'manage.html'] [[/ %html] !>((crip (en-xml:html (manage-page ~))))]]
+            [%fall %| /bots empty-dir:loader]
         ==
       ==
     ::
@@ -69,9 +69,9 @@
           ?.  ?=([%& %none *] seen)
             ~&  >>  [%telegram-bot-already-exists dir-name]
             $
-          =/  new-ball=ball:tarball  [`[~ `[/ %telegram-bot] ~] ~]
+          =/  new-ball=ball:tarball  [`[`[/ %telegram-bot] ~ ~] ~]
           ;<  ~  bind:m
-            (make:io [%| 0 %| /bots/[dir-name]] &+[*sand:nexus new-ball])
+            (make:io [%| 0 %| /bots/[dir-name]] &+new-ball)
           ::  write the bot token into its config
           =/  cfg=json
             (pairs:enjs:format ~[['bot-token' s+bot-token]])

@@ -3,17 +3,17 @@
 =<  ^-  nexus:nexus
     |%
     ++  on-load
-      |=  [=sand:nexus =ball:tarball]
-      ^-  [sand:nexus ball:tarball]
+      |=  =ball:tarball
+      ^-  ball:tarball
       =/  =ver:loader  (get-ver:loader ball)
       ?+  ver  !!
           ?(~ [~ %0])
-        %+  spin:loader  [sand ball]
+        %+  spin:loader  ball
         :~  (ver-row:loader 0)
-            [%fall %| /counters [~ ~] empty-dir:loader]
-            [%over %& [/ui/views %'page.html'] [~ [/ %html] !>((crip (en-xml:html (counter-page ~))))]]
-            [%fall %& [/ui %'main.sig'] [~ [/ %sig] !>(~)]]
-            [%fall %| /ui/requests [~ ~] empty-dir:loader]
+            [%fall %| /counters empty-dir:loader]
+            [%over %& [/ui/views %'page.html'] [[/ %html] !>((crip (en-xml:html (counter-page ~))))]]
+            [%fall %& [/ui %'main.sig'] [[/ %sig] !>(~)]]
+            [%fall %| /ui/requests empty-dir:loader]
         ==
       ==
     ::
@@ -47,8 +47,8 @@
           =/  =lump:tarball  (fall fil.ball.p.seen *lump:tarball)
           %+  murn  ~(tap by contents.lump)
           |=  [name=@ta =content:tarball]
-          ?.  ?=(%ud name.p.sage.content)  ~
-          `[name !<(@ud q.sage.content)]
+          ?.  ?=(%ud name.p.content)  ~
+          `[name !<(@ud q.content)]
         =/  page=manx  (counter-page counters)
         ;<  ~  bind:m  (replace:io !>((crip (en-xml:html page))))
         $

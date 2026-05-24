@@ -309,7 +309,7 @@
   ::  is-empty-dir returns true for empty dir
   =/  b  (make-bo ~2024.1.1)
   ::  ball is [fil=(unit lump) dir=(map @ta ball)]
-  ::  lump is [=metadata neck=(unit neck) contents=(map @ta content)]
+  ::  lump is [neck=(unit neck) weir=(unit weir) contents=(map @ta content)]
   =/  empty-ball=ball:tarball  [`[~ ~ ~] ~]  :: lump with no contents, no subdirs
   %+  expect-eq
     !>  %.y
@@ -318,7 +318,7 @@
 ++  test-bo-is-empty-dir-false-has-files
   ::  is-empty-dir returns false if has files
   =/  b  (make-bo ~2024.1.1)
-  =/  has-file=ball:tarball  [`[~ ~ (~(put by *(map @ta content:tarball)) %foo [~ [[/ %txt] !>('hi')]])] ~]
+  =/  has-file=ball:tarball  [`[~ ~ (~(put by *(map @ta content:tarball)) %foo [[/ %txt] !>('hi')])] ~]
   %+  expect-eq
     !>  %.n
   !>  (is-empty-dir:b has-file)
@@ -392,7 +392,7 @@
   =/  contents=(map @ta content:tarball)
     %-  ~(gas by *(map @ta content:tarball))
     %+  turn  files
-    |=(f=@ta [f [~ [/ %txt] !>('test')]])
+    |=(f=@ta [f [[/ %txt] !>('test')]])
   [`[~ ~ contents] ~]
 ::
 ::  Helper to make a ball with a file with specific content
@@ -401,7 +401,7 @@
   |=  [name=@ta content=@t]
   ^-  ball:tarball
   =/  contents=(map @ta content:tarball)
-    (~(put by *(map @ta content:tarball)) name [~ [[/ %txt] !>(content)]])
+    (~(put by *(map @ta content:tarball)) name [[/ %txt] !>(content)])
   [`[~ ~ contents] ~]
 ::
 ++  test-bo-diff-balls-new-file
@@ -482,17 +482,17 @@
   ::  Old: deleted, changed, unchanged
   =/  old-contents=(map @ta content:tarball)
     %-  ~(gas by *(map @ta content:tarball))
-    :~  [%deleted [~ [[/ %txt] !>('del')]]]
-        [%changed [~ [[/ %txt] !>('old')]]]
-        [%unchanged [~ [[/ %txt] !>('same')]]]
+    :~  [%deleted [[/ %txt] !>('del')]]
+        [%changed [[/ %txt] !>('old')]]
+        [%unchanged [[/ %txt] !>('same')]]
     ==
   =/  old-ball=ball:tarball  [`[~ ~ old-contents] ~]
   ::  New: new, changed, unchanged
   =/  new-contents=(map @ta content:tarball)
     %-  ~(gas by *(map @ta content:tarball))
-    :~  [%new [~ [[/ %txt] !>('new')]]]
-        [%changed [~ [[/ %txt] !>('different')]]]
-        [%unchanged [~ [[/ %txt] !>('same')]]]
+    :~  [%new [[/ %txt] !>('new')]]
+        [%changed [[/ %txt] !>('different')]]
+        [%unchanged [[/ %txt] !>('same')]]
     ==
   =/  new-ball=ball:tarball  [`[~ ~ new-contents] ~]
   =/  born4=born:nexus  (diff-balls:b4 / old-ball new-ball)
@@ -949,7 +949,7 @@
   =/  =blot:tarball  [/ %txt]
   =/  =born:nexus  (make-grub-born / %myfile lobe blot [1 now])
   =/  [new-born=born:nexus new-silo=silo:nexus]
-    (record-trees:nexus born *silo:nexus *sand:nexus *code:nexus *ball:tarball now /)
+    (record-trees:nexus born *silo:nexus *code:nexus *ball:tarball now /)
   ::  Fold should have bumped
   =/  node  (need (get-node new-born /))
   ;:  weld
@@ -973,10 +973,10 @@
   =/  =lobe:clay  `@uvI`(sham 'hello')
   =/  =born:nexus  (make-grub-born / %myfile lobe [/ %txt] [1 now])
   =/  [born1=born:nexus silo1=silo:nexus]
-    (record-trees:nexus born *silo:nexus *sand:nexus *code:nexus *ball:tarball now /)
+    (record-trees:nexus born *silo:nexus *code:nexus *ball:tarball now /)
   ::  Call again — nothing changed
   =/  [born2=born:nexus silo2=silo:nexus]
-    (record-trees:nexus born1 silo1 *sand:nexus *code:nexus *ball:tarball now /)
+    (record-trees:nexus born1 silo1 *code:nexus *ball:tarball now /)
   ::  Fold should still be 1, not 2
   =/  node  (need (get-node born2 /))
   ;:  weld
@@ -991,7 +991,7 @@
   =/  lobe1=lobe:clay  `@uvI`(sham 'first')
   =/  =born:nexus  (make-grub-born / %myfile lobe1 [/ %txt] [1 now])
   =/  [born1=born:nexus silo1=silo:nexus]
-    (record-trees:nexus born *silo:nexus *sand:nexus *code:nexus *ball:tarball now /)
+    (record-trees:nexus born *silo:nexus *code:nexus *ball:tarball now /)
   ::  Simulate file change: update hist with new lobe at new cass
   =/  lobe2=lobe:clay  `@uvI`(sham 'second')
   =/  new-cass=cass:clay  [2 ~2024.1.2]
@@ -1002,7 +1002,7 @@
   =/  born2=born:nexus
     (~(put of born1) / born1-node(file (~(put by file.born1-node) %myfile new-sok)))
   =/  [born3=born:nexus silo2=silo:nexus]
-    (record-trees:nexus born2 silo1 *sand:nexus *code:nexus *ball:tarball now /)
+    (record-trees:nexus born2 silo1 *code:nexus *ball:tarball now /)
   ::  Fold should now be 2
   =/  node  (need (get-node born3 /))
   ;:  weld
@@ -1017,7 +1017,7 @@
   =/  =lobe:clay  `@uvI`(sham 'hello')
   =/  =born:nexus  (make-grub-born /a %myfile lobe [/ %txt] [1 now])
   =/  [new-born=born:nexus new-silo=silo:nexus]
-    (record-trees:nexus born *silo:nexus *sand:nexus *code:nexus *ball:tarball now /a)
+    (record-trees:nexus born *silo:nexus *code:nexus *ball:tarball now /a)
   ::  /a should have fold=1
   =/  a-node  (need (get-node new-born /a))
   ::  / should also have fold=1 (parent got a tree too)
@@ -1039,15 +1039,15 @@
   ==
 ::
 ++  test-record-trees-weir-in-tree
-  ::  record-trees captures weir from sand in tree's dir map
+  ::  record-trees captures weir from ball lump in tree's dir map
   =/  now=@da  ~2024.1.1
   =/  =lobe:clay  `@uvI`(sham 'hello')
   =/  =born:nexus  (make-grub-born /a %myfile lobe [/ %txt] [1 now])
-  ::  Set up sand with a weir on /a
+  ::  Set up ball with a weir on /a (via lump weir field)
   =/  =weir:nexus  [make=~ poke=(sy ~[[%& [%| /a]]]) peek=~]
-  =/  =sand:nexus  (~(put of *sand:nexus) /a weir)
+  =/  =ball:tarball  (~(put of *ball:tarball) /a [~ `weir ~])
   =/  [new-born=born:nexus new-silo=silo:nexus]
-    (record-trees:nexus born *silo:nexus sand *code:nexus *ball:tarball now /)
+    (record-trees:nexus born *silo:nexus *code:nexus ball now /)
   ::  Root's tree should have /a's weir
   =/  root-node  (need (get-node new-born /))
   =/  root-tree-lobe=lobe:clay
@@ -1081,7 +1081,7 @@
   =.  born  (add-grub born / %beta lobe2 [/ %hoon] [1 now])
   =.  born  (add-grub born / %gamma lobe3 [/ %json] [1 now])
   =/  [new-born=born:nexus new-silo=silo:nexus]
-    (record-trees:nexus born *silo:nexus *sand:nexus *code:nexus *ball:tarball now /)
+    (record-trees:nexus born *silo:nexus *code:nexus *ball:tarball now /)
   =/  node  (need (get-node new-born /))
   =/  tree-lobe=lobe:clay
     =/  pv=pace:hist:nexus  (need (get:hon:hist:nexus fold.node (need (top:hist:nexus fold.node))))
@@ -1111,7 +1111,7 @@
   =.  born  (add-grub born /sub %childfile lobe2 [/ %txt] [1 now])
   ::  Record from /sub up
   =/  [new-born=born:nexus new-silo=silo:nexus]
-    (record-trees:nexus born *silo:nexus *sand:nexus *code:nexus *ball:tarball now /sub)
+    (record-trees:nexus born *silo:nexus *code:nexus *ball:tarball now /sub)
   =/  root-node  (need (get-node new-born /))
   =/  root-tree-lobe=lobe:clay
     =/  pv=pace:hist:nexus  (need (get:hon:hist:nexus fold.root-node (need (top:hist:nexus fold.root-node))))
