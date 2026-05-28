@@ -163,7 +163,7 @@
             %+  turn  counters
             |=  [name=@ta val=@ud]
             =/  n=tape  (trip name)
-            =/  v=tape  (scow %ud val)
+            =/  v=tape  (a-co:co val)
             ;div.counter.fc.fh.g2.p2.b1.br1.jcsb(id "c-{n}")
               ;div.fc-col
                 ;span.s7.bold: {v}
