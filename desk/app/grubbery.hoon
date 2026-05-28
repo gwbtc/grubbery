@@ -1721,7 +1721,7 @@
         =/  dest=rail:tarball  p.u.dest-lane
         =/  content=(unit content:tarball)
           (~(get ba:tarball ball) path.dest name.dest)
-        ?~  content
+        ?:  &(?=(~ content) ?=(~ case.load.dart))
           (enqu-take here (sys-give /peek) ~ %peek wire.dart &+[%none ~])
         =/  node=(unit [fold=hist:nexus file=(map @ta hist:nexus)])
           (~(get of born) path.dest)
@@ -1745,6 +1745,7 @@
             =/  res  (validate-bask cod [blot.mark.leaf.jt u.got])
             ?:  ?=(%| -.res)  ~
             `p.res
+          ?~  content  ~
           `u.content
         ?~  source
           (enqu-take here (sys-give /peek) ~ %peek wire.dart &+[%none ~])

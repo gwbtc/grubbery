@@ -1773,9 +1773,15 @@
   =/  m  (fiber:fiber:nexus ,(unit json))
   ^-  form:m
   |-
-  ;<  got=?  bind:m  (take-news-or-interrupt wire)
-  ?.  got  (pure:m ~)  :: interrupted
-  ;<  =seen:nexus  bind:m  (peek:io call-road ~)
+  ;<  got=(unit wave:nexus)  bind:m  (take-news-or-interrupt wire)
+  ?~  got  (pure:m ~)  :: interrupted
+  ::  peek at the historical version from the wave (file may be deleted)
+  =/  cas=(unit cass:clay)
+    =/  lanes=(list [=lane:tarball =cass:clay])  ~(tap by u.got)
+    ?~  lanes  ~
+    `cass.i.lanes
+  ?~  cas  $
+  ;<  =seen:nexus  bind:m  (peek-at:io call-road ~ [%ud ud.u.cas])
   ?.  ?=([%& %file *] seen)  $
   =/  jon=json  (fall (mole |.(!<(json q.sage.p.seen))) *json)
   ?.  ?=(%o -.jon)  $
@@ -1786,7 +1792,7 @@
 ::
 ++  take-news-or-interrupt
   |=  =wire
-  =/  m  (fiber:fiber:nexus ,?)
+  =/  m  (fiber:fiber:nexus ,(unit wave:nexus))
   ^-  form:m
   |=  input:fiber:nexus
   :+  ~  state
@@ -1799,10 +1805,10 @@
     ?.  ?=(%o -.jon)  [%skip ~]
     =/  act=(unit json)  (~(get by p.jon) 'action')
     ?.  ?=([~ %s %'interrupt'] act)  [%skip ~]
-    [%done %.n]
+    [%done ~]
       [~ %news * *]
     ?.  =(wire wire.u.in)  [%skip ~]
-    [%done %.y]
+    [%done `wave.u.in]
   ==
 ::
 ::  API response types
@@ -2568,7 +2574,7 @@
   function connectStatusSSE() \{
     if (statusEs) statusEs.close();
     statusEs = new EventSource(API + '/keep/' + BALL + '/chats/' + CHAT + '/status.json?mark=json');
-    statusEs.addEventListener('upd status.json', function(e) \{
+    statusEs.addEventListener('upd /status.json', function(e) \{
       try \{
         var s = JSON.parse(e.data);
         currentStatus = s;
@@ -2663,7 +2669,7 @@
   function connectChatListSSE() \{
     if (chatListEs) chatListEs.close();
     chatListEs = new EventSource(API + '/keep/' + BALL + '/ui/chats.json?mark=json');
-    chatListEs.addEventListener('upd chats.json', function(e) \{
+    chatListEs.addEventListener('upd /chats.json', function(e) \{
       try \{ renderChatList(JSON.parse(e.data)); } catch(x) \{}
     });
     chatListEs.onerror = function() \{

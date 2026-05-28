@@ -486,6 +486,9 @@
   =/  =road:tarball
     ?:  is-file  (need file-road)
     [%& %| api-path]
+  ::  Base dir for reconstructing absolute roads from relative wave lanes.
+  ::  For file subscriptions, api-path includes the filename — strip it.
+  =/  base-dir=path  ?:(is-file (snip `path`api-path) api-path)
   ::  Subscribe to changes — bond returns initial wavefront
   ;<  init=wave:nexus  bind:m  (keep:io /keep road ~)
   ::  Send "old" events for initial state
@@ -495,7 +498,7 @@
     ?~  lanes  (pure:m ~)
     ?:  ?=(%| -.lane.i.lanes)  $(lanes t.lanes)
     ::  wave lanes are relative to subscription — resolve to absolute for peek
-    =/  file-road=road:tarball  [%& %& (weld api-path path.p.lane.i.lanes) name.p.lane.i.lanes]
+    =/  file-road=road:tarball  [%& %& (weld base-dir path.p.lane.i.lanes) name.p.lane.i.lanes]
     ;<  =seen:nexus  bind:m  (peek:io file-road ~)
     ?.  ?=([%& %file *] seen)  $(lanes t.lanes)
     =/  lane-path=@t  (spat (snoc path.p.lane.i.lanes name.p.lane.i.lanes))
@@ -530,7 +533,7 @@
     ?~  lanes  ^$
     ?:  ?=(%| -.lane.i.lanes)  $(lanes t.lanes)
     ::  wave lanes are relative to subscription — resolve to absolute for peek
-    =/  file-road=road:tarball  [%& %& (weld api-path path.p.lane.i.lanes) name.p.lane.i.lanes]
+    =/  file-road=road:tarball  [%& %& (weld base-dir path.p.lane.i.lanes) name.p.lane.i.lanes]
     ;<  =seen:nexus  bind:m  (peek:io file-road ~)
     =/  lane-path=@t  (spat (snoc path.p.lane.i.lanes name.p.lane.i.lanes))
     =/  id=@t  (scot %ud ud.cass.i.lanes)
