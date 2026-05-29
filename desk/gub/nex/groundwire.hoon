@@ -721,7 +721,7 @@
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
   |=  input:fiber:nexus
-  :+  ~  state
+  :+  ~  q.state
   ?+  in  [%skip ~]
       ~  [%wait ~]
       [~ %news * *]
@@ -794,7 +794,7 @@
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
   |=  input:fiber:nexus
-  :+  ~  state
+  :+  ~  q.state
   ?+  in  [%skip ~]
       ~  [%wait ~]
       [~ %news * *]

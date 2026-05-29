@@ -220,7 +220,7 @@
   =/  m  (fiber:fiber:nexus ,poke-or-wake)
   ^-  form:m
   |=  input:fiber:nexus
-  :+  ~  state
+  :+  ~  q.state
   ?+  in  [%skip ~]
       ~  [%wait ~]
       [~ %veto *]

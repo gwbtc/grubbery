@@ -148,7 +148,7 @@
   =/  until=@da  (add now for)
   ;<  ~  bind:m  (send-wait:io until)
   |=  input:fiber:nexus
-  :+  ~  state
+  :+  ~  q.state
   ?+  in  [%skip ~]
       ~  [%wait ~]
       [~ %poke * *]
@@ -170,7 +170,7 @@
   =/  m  (fiber:fiber:nexus ,commit-event)
   ^-  form:m
   |=  input:fiber:nexus
-  :+  ~  state
+  :+  ~  q.state
   ?+  in  [%skip ~]
       ~  [%wait ~]
       [~ %poke * *]

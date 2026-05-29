@@ -615,7 +615,7 @@
   =/  m  (fiber:fiber:nexus ,client-response:iris)
   ^-  form:m
   |=  input:fiber:nexus
-  :+  ~  state
+  :+  ~  q.state
   ?+  in  [%skip ~]
       ~  [%wait ~]
       [~ %veto *]

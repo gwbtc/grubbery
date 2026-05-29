@@ -23,7 +23,7 @@
   =/  m  (fiber ,~)
   ^-  form:m
   |=  input
-  [darts state %done ~]
+  [darts q.state %done ~]
 ::
 ++  send-dart
   |=  =dart
@@ -41,20 +41,20 @@
 ++  fiber-fail
   |=  err=tang
   |=  input
-  [~ state %fail err]
+  [~ q.state %fail err]
 ::
 ++  get-state
   =/  m  (fiber ,vase)
   ^-  form:m
   |=  input
-  [~ state %done state]
+  [~ q.state %done state]
 ::
 ++  get-state-as
   |*  a=mold
   =/  m  (fiber ,a)
   ^-  form:m
   |=  input
-  [~ state %done !<(a state)] :: ;;(a q.state)
+  [~ q.state %done ;;(a q.state)]
 ::
 ++  gut-state-as
   |*  a=mold
@@ -64,8 +64,8 @@
   |=  input
   =/  res  (mule |.(;;(a q.state)))
   ?-  -.res
-    %&  [~ state %done p.res]
-    %|  [~ state %done (gut p.res)]
+    %&  [~ q.state %done p.res]
+    %|  [~ q.state %done (gut p.res)]
   ==
 ::
 ++  replace
@@ -74,7 +74,7 @@
   ^-  form:m
   |=  input
   ^-  output:m
-  [~ new %done ~]
+  [~ q.new %done ~]
 ::
 ++  transform
   |=  f=$-(vase vase)
@@ -82,14 +82,14 @@
   ^-  form:m
   |=  input
   ^-  output:m
-  [~ (f state) %done ~]
+  [~ q:(f state) %done ~]
 ::  Wait for any input and return it for manual switching
 ::
 ++  get-input
   =/  m  (fiber ,(unit intake))
   ^-  form:m
   |=  input
-  [~ state %done in]
+  [~ q.state %done in]
 ::
 ++  find-in-here
   |=  [=here:nexus target=(unit neck:tarball)]
@@ -130,7 +130,7 @@
   =/  m  (fiber ,here:nexus)
   ^-  form:m
   |=  input
-  :+  ~  state
+  :+  ~  q.state
   ?+  in  [%skip ~]
       ~  [%wait ~]
       [~ %veto *]
@@ -158,7 +158,7 @@
   =/  m  (fiber ,kept:nexus)
   ^-  form:m
   |=  input
-  :+  ~  state
+  :+  ~  q.state
   ?+  in  [%skip ~]
       ~  [%wait ~]
       [~ %veto *]
@@ -189,7 +189,7 @@
   =/  m  (fiber ,sage:tarball)
   ^-  form:m
   |=  input
-  :+  ~  state
+  :+  ~  q.state
   ?+  in  [%skip ~]
       ~  [%wait ~]
       [~ %veto *]
@@ -210,7 +210,7 @@
   =/  m  (fiber ,[from:fiber:nexus sage:tarball])
   ^-  form:m
   |=  input
-  :+  ~  state
+  :+  ~  q.state
   ?+  in  [%skip ~]
       ~  [%wait ~]
       [~ %veto *]
@@ -226,7 +226,7 @@
   =/  m  (fiber ,~)
   ^-  form:m
   |=  input
-  :+  ~  state
+  :+  ~  q.state
   ?+  in  [%skip ~]
       ~  [%wait ~]
       [~ %veto *]
@@ -244,7 +244,7 @@
   =/  m  (fiber ,~)
   ^-  form:m
   |=  input
-  :+  ~  state
+  :+  ~  q.state
   ?+  in  [%skip ~]
       ~  [%wait ~]
       [~ %veto *]
@@ -262,7 +262,7 @@
   =/  m  (fiber ,seen:nexus)
   ^-  form:m
   |=  input
-  :+  ~  state
+  :+  ~  q.state
   ?+  in  [%skip ~]
       ~  [%wait ~]
       [~ %veto *]
@@ -287,7 +287,7 @@
   ^-  form:m
   ;<  ~  bind:m  (send-dart %node /make road %make make)
   |=  input
-  :+  ~  state
+  :+  ~  q.state
   ?+  in  [%skip ~]
       ~  [%wait ~]
       [~ %veto *]
@@ -353,7 +353,7 @@
   =/  m  (fiber ,@t)
   ^-  form:m
   |=  input
-  :+  ~  state
+  :+  ~  q.state
   ?+  in  [%skip ~]
       ~  [%wait ~]
       [~ %veto *]
@@ -372,7 +372,7 @@
   ^-  form:m
   ;<  ~  bind:m  (send-dart %node /cull road %cull ~)
   |=  input
-  :+  ~  state
+  :+  ~  q.state
   ?+  in  [%skip ~]
       ~  [%wait ~]
       [~ %veto *]
@@ -393,7 +393,7 @@
   ^-  form:m
   ;<  ~  bind:m  (send-dart %node /cull road %cull ~)
   |=  input
-  :+  ~  state
+  :+  ~  q.state
   ?+  in  [%skip ~]
       ~  [%wait ~]
       [~ %veto *]
@@ -410,7 +410,7 @@
   ^-  form:m
   ;<  ~  bind:m  (send-dart %node /sand road %sand weir)
   |=  input
-  :+  ~  state
+  :+  ~  q.state
   ?+  in  [%skip ~]
       ~  [%wait ~]
       [~ %veto *]
@@ -429,7 +429,7 @@
   ^-  form:m
   ;<  ~  bind:m  (send-dart %node /lose road %lose lose)
   |=  input
-  :+  ~  state
+  :+  ~  q.state
   ?+  in  [%skip ~]
       ~  [%wait ~]
       [~ %veto *]
@@ -448,7 +448,7 @@
   ^-  form:m
   ;<  ~  bind:m  (send-dart %node /seek road %seek lobe)
   |=  input
-  :+  ~  state
+  :+  ~  q.state
   ?+  in  [%skip ~]
       ~  [%wait ~]
       [~ %veto *]
@@ -465,7 +465,7 @@
   ^-  form:m
   ;<  ~  bind:m  (send-dart %node /peep road %peep find)
   |=  input
-  :+  ~  state
+  :+  ~  q.state
   ?+  in  [%skip ~]
       ~  [%wait ~]
       [~ %veto *]
@@ -488,7 +488,7 @@
   =/  m  (fiber ,~)
   ^-  form:m
   |=  input
-  :+  ~  state
+  :+  ~  q.state
   ?+  in  [%skip ~]
       ~  [%wait ~]
       [~ %veto *]
@@ -507,7 +507,7 @@
   ^-  form:m
   ;<  ~  bind:m  (send-dart %node /load road %load ~)
   |=  input
-  :+  ~  state
+  :+  ~  q.state
   ?+  in  [%skip ~]
       ~  [%wait ~]
       [~ %veto *]
@@ -540,7 +540,7 @@
   =/  m  (fiber ,wave:nexus)
   ^-  form:m
   |=  input
-  :+  ~  state
+  :+  ~  q.state
   ?+  in  [%skip ~]
       ~  [%wait ~]
       [~ %veto *]
@@ -556,7 +556,7 @@
   =/  m  (fiber ,~)
   ^-  form:m
   |=  input
-  :+  ~  state
+  :+  ~  q.state
   ?+  in  [%skip ~]
       ~  [%wait ~]
       [~ %fell *]
@@ -570,7 +570,7 @@
   =/  m  (fiber ,wave:nexus)
   ^-  form:m
   |=  input
-  :+  ~  state
+  :+  ~  q.state
   ?+  in  [%skip ~]
       ~  [%wait ~]
       [~ %news * *]
@@ -587,7 +587,7 @@
   ;<  ~  bind:m
     (poke &+&+[/sys/scry %'main.sig'] [[/ %scry-request] `^path`path])
   |=  input
-  :+  ~  state
+  :+  ~  q.state
   ?+  in  [%skip ~]
       ~  [%wait ~]
       [~ %veto *]
@@ -632,7 +632,7 @@
   =/  m  (fiber ,(unit vase))
   ^-  form:m
   |=  input
-  :+  ~  state
+  :+  ~  q.state
   ?+  in  [%skip ~]
       ~  [%wait ~]
       [~ %veto *]
@@ -654,7 +654,7 @@
   ^-  form:m
   ;<  ~  bind:m  (send-dart %node /code road %code ~)
   |=  input
-  :+  ~  state
+  :+  ~  q.state
   ?+  in  [%skip ~]
       ~  [%wait ~]
       [~ %veto *]
@@ -674,7 +674,7 @@
   ^-  form:m
   ;<  ~  bind:m  (send-dart %node /code road %code ~)
   |=  input
-  :+  ~  state
+  :+  ~  q.state
   ?+  in  [%skip ~]
       ~  [%wait ~]
       [~ %veto *]
@@ -694,7 +694,7 @@
   ^-  form:m
   ;<  ~  bind:m  (send-dart %node /bang road %bang ~)
   |=  input
-  :+  ~  state
+  :+  ~  q.state
   ?+  in  [%skip ~]
       ~  [%wait ~]
       [~ %veto *]
@@ -713,7 +713,7 @@
   ^-  form:m
   ;<  ~  bind:m  (send-dart %node /font road %font ~)
   |=  input
-  :+  ~  state
+  :+  ~  q.state
   ?+  in  [%skip ~]
       ~  [%wait ~]
       [~ %veto *]
@@ -862,7 +862,7 @@
   ;<  ~  bind:m
     (poke &+&+[/sys/gall %'main.sig'] [[/ %gall-poke] [dock page]])
   |=  input
-  :+  ~  state
+  :+  ~  q.state
   ?+  in  [%skip ~]
       ~  [%wait ~]
       [~ %veto *]
@@ -892,7 +892,7 @@
   =/  m  (fiber ,~)
   ^-  form:m
   |=  input
-  :+  ~  state
+  :+  ~  q.state
   ?+  in  [%skip ~]
       ~  [%wait ~]
       [~ %veto *]
@@ -993,7 +993,7 @@
   =/  m  (fiber ,client-response:iris)
   ^-  form:m
   |=  input
-  :+  ~  state
+  :+  ~  q.state
   ?+  in  [%skip ~]
       ~  [%wait ~]
       [~ %veto *]
@@ -1058,7 +1058,7 @@
   ;<  ~  bind:m
     (poke &+&+[/sys/gall %'main.sig'] [[/ %gall-poke] [[our dude] page]])
   |=  input
-  :+  ~  state
+  :+  ~  q.state
   ?+  in  [%skip ~]
       ~  [%wait ~]
       [~ %veto *]
@@ -1082,7 +1082,7 @@
   =/  m  (fiber ,news-or-wake)
   ^-  form:m
   |=  input
-  :+  ~  state
+  :+  ~  q.state
   ?+  in  [%skip ~]
       ~  [%wait ~]
       [~ %news * *]

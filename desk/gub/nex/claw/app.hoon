@@ -453,7 +453,7 @@
   =/  m  (fiber:fiber:nexus ,[?(%agents %channels %apis) wave:nexus])
   ^-  form:m
   |=  input:fiber:nexus
-  :+  ~  state
+  :+  ~  q.state
   ?+  in  [%skip ~]
       ~  [%wait ~]
       [~ %news * *]

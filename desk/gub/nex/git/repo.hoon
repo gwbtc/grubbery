@@ -1348,7 +1348,7 @@
   =/  m  (fiber:fiber:nexus ,page-event)
   ^-  form:m
   |=  =input:fiber:nexus
-  :+  ~  state.input
+  :+  ~  q.state.input
   ?+  in.input  [%skip ~]
       ~  [%wait ~]
       [~ %news * *]

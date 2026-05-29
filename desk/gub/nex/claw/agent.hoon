@@ -1139,7 +1139,7 @@
   =/  m  (fiber:fiber:nexus ,main-event)
   ^-  form:m
   |=  input:fiber:nexus
-  :+  ~  state
+  :+  ~  q.state
   ?+  in  [%skip ~]
       ~  [%wait ~]
       [~ %veto *]
@@ -1726,7 +1726,7 @@
   =/  m  (fiber:fiber:nexus ,(unit ?))
   ^-  form:m
   |=  input:fiber:nexus
-  :+  ~  state
+  :+  ~  q.state
   ?+  in  [%skip ~]
       ~  [%wait ~]
       [~ %veto *]
@@ -1795,7 +1795,7 @@
   =/  m  (fiber:fiber:nexus ,(unit wave:nexus))
   ^-  form:m
   |=  input:fiber:nexus
-  :+  ~  state
+  :+  ~  q.state
   ?+  in  [%skip ~]
       ~  [%wait ~]
       [~ %veto *]

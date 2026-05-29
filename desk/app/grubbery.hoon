@@ -898,7 +898,7 @@
   |=  [here=rail:tarball err=tang]
   ^+  this
   ~&  >>>  "BANG file {(spud (snoc path.here name.here))}"
-  :: %-  (slog err) often too big
+  %-  (slog (scag 10 err))
   =/  =pipe:nexus  (fall (~(get of pool) path.here) *pipe:nexus)
   =/  old=(unit proc:fiber:nexus)  (~(get by proc.pipe) name.here)
   =/  =proc:fiber:nexus
@@ -1027,13 +1027,13 @@
   ==
 ::
 ++  give-poke-sign
-  |=  [here=rail:tarball =took:eval:fiber:nexus]
+  |=  [here=rail:tarball =took:eval]
   ^+  this
   ?.  ?=([~ %poke *] in.take.took)  this
   (give-poke-ack here from.give.take.took wire.give.take.took err.took)
 ::
 ++  give-poke-signs
-  |=  [here=rail:tarball done=(list took:eval:fiber:nexus)]
+  |=  [here=rail:tarball done=(list took:eval)]
   ^+  this
   ?~  done  this
   =.  this  (give-poke-sign here i.done)
@@ -2055,6 +2055,127 @@
   =.  this  (store-proc here proc)
   (process-do-next here)
 ::
+++  clam-output
+  |=  [here=rail:tarball =blot:tarball old=vase new=*]
+  ^-  (each [vase _this] tang)
+  ?:  =(new q.old)  [%& old this]
+  =/  cached  (check-vale-cache path.here blot new)
+  =/  res=(each vase tang)
+    ?^  cached  u.cached
+    (validate-noun path.here blot new)
+  =.  this  (cache-validation path.here blot new res)
+  ?:  ?=(%& -.res)
+    [%& p.res this]
+  [%| p.res]
+::
+++  eval
+  |%
+  ++  output  (output-raw:fiber:nexus ,~)
+  +$  result
+    $%  [%next ~]
+        [%fail err=tang]
+        [%done ~]
+    ==
+  +$  took  [=take:fiber:nexus err=(unit tang)]
+  ++  take
+    =|  darts=(list dart:nexus)
+    =|  done=(list took)
+    |=  [here=rail:tarball state=vase =proc:fiber:nexus]
+    ^-  [(list dart:nexus) (list took) vase proc:fiber:nexus result _this]
+  =/  =blot:tarball
+    =/  file-data=(unit content:tarball)
+      (~(get ba:tarball ball) path.here name.here)
+    ?~  file-data  [/ %noun]
+    p.u.file-data
+  =^  =take:fiber:nexus  next.proc  ~(get to next.proc)
+  |-
+  =/  res=(each output tang)
+    ?>  ?=(%& -.process.proc)
+    (mule |.((p.process.proc state in.take)))
+  ?:  ?=(%| -.res)
+    =/  =tang  [leaf+"crash" p.res]
+    :*  darts
+        :_(done [take `tang])
+        state
+        proc
+        [%fail tang]
+        this
+    ==
+  =/  =output  p.res
+  =/  clam=(each [vase _this] tang)
+    ?:  ?=(?(%fail %skip) -.next.output)  [%& state this]
+    (clam-output here blot state state.output)
+  ?:  ?=(%| -.clam)
+    (mean [leaf+"state validation failed at {(spud (snoc path.here name.here))}"]~)
+  =.  this  +.p.clam
+  =/  val=vase  -.p.clam
+  ?-    -.next.output
+      %fail
+    :*  darts
+        :_(done [take `err.next.output])
+        state
+        proc
+        [%fail err.next.output]
+        this
+    ==
+      %done
+    :*  (weld darts darts.output)
+        :_(done [take ~])
+        val
+        proc
+        [%done ~]
+        this
+    ==
+      %cont
+    %=  $
+      darts         (weld darts darts.output)
+      done          :_(done [take ~])
+      state         val
+      next.proc     (~(gas to next.proc) ~(tap to skip.proc))
+      skip.proc     ~
+      process.proc  &+self.next.output
+      take          [give.take ~]
+    ==
+      %wait
+    =.  darts  (weld darts darts.output)
+    =.  done   :_(done [take ~])
+    ?.  =(~ next.proc)
+      =^  top  next.proc  ~(get to next.proc)
+      %=  $
+        take       top
+        state      val
+      ==
+    :*  darts
+        done
+        val
+        proc
+        [%next ~]
+        this
+    ==
+      %skip
+    ?:  =(~ in.take)
+      =/  =tang  [leaf+"cannot skip null input" ~]
+      :*  darts
+          :_(done [take `tang])
+          state
+          proc
+          [%fail tang]
+          this
+      ==
+    =.  skip.proc  (~(put to skip.proc) take)
+    ?.  =(~ next.proc)
+      =^  top  next.proc  ~(get to next.proc)
+      $(take top)
+    :*  darts
+        done
+        state
+        proc
+        [%next ~]
+        this
+    ==
+  ==
+  --
+::
 ++  process-do-next
   |=  here=rail:tarball
   ^+  this
@@ -2068,38 +2189,28 @@
     (~(get ba:tarball ball) path.here name.here)
   ?~  file-data  this  :: file doesn't exist
   =/  fil-state=vase  q.u.file-data
-  ::  Build bowl for this process (with filtered wex/sup)
   ::  Run the evaluator (mule to catch hard crashes like !< mismatches)
-  =/  eval-res=(each [darts=(list dart:nexus) done=(list took:eval:fiber:nexus) new-state=vase new-proc=proc:fiber:nexus res=result:eval:fiber:nexus] tang)
-    (mule |.((take:eval:fiber:nexus fil-state proc)))
+  =/  eval-res=(each [darts=(list dart:nexus) done=(list took:eval) new-state=vase new-proc=proc:fiber:nexus res=result:eval core=_this] tang)
+    (mule |.((take:eval here fil-state proc)))
   ?:  ?=(%| -.eval-res)
     (bang-file here p.eval-res)
-  =/  [darts=(list dart:nexus) done=(list took:eval:fiber:nexus) new-state=vase new-proc=proc:fiber:nexus res=result:eval:fiber:nexus]
+  =/  [darts=(list dart:nexus) done=(list took:eval) new-state=vase new-proc=proc:fiber:nexus res=result:eval core=_this]
     p.eval-res
+  ::  Restore core with updated vale cache
+  =.  this  core
   ::  Process darts (emit cards or enqueue takes)
   =.  this  (process-darts here darts)
   ::  Ack consumed pokes
   =.  this  (give-poke-signs here done)
-  ::  Validate new state before handling result (runtime, no force)
-  =/  cached  (check-vale-cache path.here p.u.file-data q.new-state)
-  =/  validated=(each vase tang)
-    ?^  cached  u.cached
-    (validate-noun path.here p.u.file-data q.new-state)
-  =?  this  ?=(~ cached)
-    (cache-validation path.here p.u.file-data q.new-state validated)
-  ?:  ?=(%| -.validated)
-    ::  Validation failed - bang the file (don't restart, infra is broken)
-    ~&  >>  "process-take: validation failed, bang {(spud (snoc path.here name.here))}"
-    (bang-file here p.validated)
-  ::  Validation passed - handle result normally
+  ::  State already validated inside eval loop
   ?-    -.res
       %next
     ::  Save state (bumps aeon only if content changed)
-    =.  this  (save-file here [p.u.file-data p.validated])
+    =.  this  (save-file here [p.u.file-data new-state])
     (store-proc here new-proc)
       %done
     ::  Save final state so subscribers see it, then delete
-    =.  this  (save-file here [p.u.file-data p.validated])
+    =.  this  (save-file here [p.u.file-data new-state])
     =/  err=tang  ~[leaf+"process completed"]
     :: only nack-pokes when we're done
     ::

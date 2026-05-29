@@ -814,7 +814,7 @@
   =/  m  (fiber:fiber:nexus ,scan-event)
   ^-  form:m
   |=  input:fiber:nexus
-  :+  ~  state
+  :+  ~  q.state
   ?+  in  [%skip ~]
       ~  [%wait ~]
       [~ %veto *]
@@ -893,7 +893,7 @@
   =/  m  (fiber:fiber:nexus ,client-response:iris)
   ^-  form:m
   |=  input:fiber:nexus
-  :+  ~  state
+  :+  ~  q.state
   ?+  in  [%skip ~]
       ~  [%wait ~]
       [~ %poke * *]
@@ -1023,7 +1023,7 @@
   =/  m  (fiber:fiber:nexus ,?)
   ^-  form:m
   |=  input:fiber:nexus
-  :+  ~  state
+  :+  ~  q.state
   ?+  in  [%skip ~]
       ~  [%wait ~]
       [~ %veto *]

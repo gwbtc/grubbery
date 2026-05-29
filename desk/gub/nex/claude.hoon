@@ -820,7 +820,7 @@
   =/  m  (fiber:fiber:nexus ,main-event)
   ^-  form:m
   |=  input:fiber:nexus
-  :+  ~  state
+  :+  ~  q.state
   ?+  in  [%skip ~]
       ~  [%wait ~]
       [~ %poke * *]
@@ -981,7 +981,7 @@
   =/  m  (fiber:fiber:nexus ,(unit @t))
   ^-  form:m
   |=  input:fiber:nexus
-  :+  ~  state
+  :+  ~  q.state
   ?+  in  [%skip ~]
       ~  [%wait ~]
     ::  Interrupt poke — consumed, returns ~

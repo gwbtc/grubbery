@@ -229,9 +229,9 @@
   ::
   ++  output-raw
     |*  value=mold
-    $~  [~ *vase %done *value]
+    $~  [~ * %done *value]
     $:  darts=(list dart)
-        state=vase
+        state=*
         $=  next
         $%  [%wait ~] :: process intake and await next
             [%skip ~] :: queue intake and await next
@@ -260,15 +260,15 @@
       ^-  form
       |=  input
       ^-  output
-      [~ state %done value]
+      [~ q.state %done value]
     :: do nothing - forever
     ::
     ++  stay
       ^-  form
       |=  input
       ^-  output
-      ?~  in  [~ state %wait ~]
-      [~ state %skip ~]
+      ?~  in  [~ q.state %wait ~]
+      [~ q.state %skip ~]
     ::
     ++  bind
       |*  b=mold
@@ -285,112 +285,6 @@
         %cont  [%cont ..$(m-b self.next.b-res)]
         %fail  [%fail err.next.b-res]
         %done  [%cont (fun value.next.b-res)]
-      ==
-    --
-  :: evaluation engine for the main state and continuation monad
-  ::
-  ++  eval
-    |%
-    ++  output  (output-raw ,~)
-    ::
-    +$  result
-      $%  [%next ~]
-          [%fail err=tang]
-          [%done ~]
-      ==
-    ::
-    +$  took  [=^take err=(unit tang)]
-    ::
-    ++  take
-      =|  darts=(list dart) :: effects
-      =|  done=(list took)  :: consumed takes for acking
-      |=  [state=vase =proc]
-      ^-  [(list dart) (list took) vase _proc result]
-      =^  =^take  next.proc  ~(get to next.proc)
-      |-  :: recursion point so take can be replaced
-      =/  res=(each output tang)
-        :: TODO: jet +hoss? 
-        ::       should use hoss
-        ::       but double compute and double slogs sucks
-        ::
-        ?>  ?=(%& -.process.proc)
-        (mule |.((p.process.proc state in.take)))
-      ?:  ?=(%| -.res)
-        =/  =tang  [leaf+"crash" p.res]
-        :-  darts :: no output darts on failure
-        :-  :_(done [take `tang])
-        :-  state :: no output state on failure
-        :-  proc
-        [%fail tang]
-      =/  =output  p.res
-      ?-    -.next.output
-          %fail
-        :-  darts :: no output darts on failure
-        :-  :_(done [take `err.next.output])
-        :-  state :: no output state on failure
-        :-  proc
-        [%fail err.next.output]
-        ::
-          %done
-        :-  (weld darts darts.output)
-        :-  :_(done [take ~])
-        :-  state.output
-        :-  proc
-        [%done ~]
-        ::
-          %cont
-        %=  $
-          darts         (weld darts darts.output)
-          done          :_(done [take ~])
-          state         state.output
-          next.proc     (~(gas to next.proc) ~(tap to skip.proc))
-          skip.proc     ~
-          process.proc  &+self.next.output
-          take          [give.take ~]
-        ==
-        ::
-          %wait
-        =.  darts  (weld darts darts.output)
-        =.  done   :_(done [take ~])
-        ?.  =(~ next.proc)
-          :: recurse on queued input
-          ::
-          =^  top  next.proc  ~(get to next.proc)
-          %=  $
-            take       top
-            state      state.output
-          ==
-        :: await input
-        ::
-        :-  darts
-        :-  done
-        :-  state.output
-        :-  proc
-        [%next ~]
-        ::
-          %skip
-        ?:  =(~ in.take)
-          :: can't %skip a ~ input
-          ::
-          =/  =tang  [leaf+"cannot skip null input" ~]
-          :-  darts :: no output darts on failure
-          :-  :_(done [take `tang])
-          :-  state :: no output state on failure
-          :-  proc
-          [%fail tang]
-        :: skip input - NOT added to done
-        ::
-        =.  skip.proc  (~(put to skip.proc) take)
-        ?.  =(~ next.proc)
-          :: recurse on queued input
-          ::
-          =^  top  next.proc  ~(get to next.proc)
-          $(take top)
-        :-  darts :: %skips can't send effects
-        :-  done
-        :-  state :: %skips can't change state
-        :-  proc
-        [%next ~]
       ==
     --
   --
