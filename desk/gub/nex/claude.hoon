@@ -762,11 +762,11 @@
     %-  append-to-msgs  :+  msg-road  'user'
     (rap 3 ~['<api action="' act '" path="' api-path '">ERROR: Unknown action. Valid: file, kids, tree, sand, weir, manu, keep, drop, make, over, rmf, dir, rmd, poke, diff, setweir, rmweir</api>'])
   ::  reads
-      %'file'   (send-dart:io %node slot-wire road %peek ~ ~ %.n)
-      %'kids'   (send-dart:io %node slot-wire road %peek ~ ~ %.n)
-      %'tree'   (send-dart:io %node slot-wire road %peek ~ ~ %.n)
-      %'sand'   (send-dart:io %node slot-wire road %peek ~ ~ %.n)
-      %'weir'   (send-dart:io %node slot-wire road %peek ~ ~ %.n)
+      %'file'   (send-dart:io %node slot-wire road %peek ~ ~)
+      %'kids'   (send-dart:io %node slot-wire road %peek ~ ~)
+      %'tree'   (send-dart:io %node slot-wire road %peek ~ ~)
+      %'sand'   (send-dart:io %node slot-wire road %peek ~ ~)
+      %'weir'   (send-dart:io %node slot-wire road %peek ~ ~)
   ::  manu
       %'manu'   (send-dart:io %node slot-wire road %manu ~)
   ::  writes

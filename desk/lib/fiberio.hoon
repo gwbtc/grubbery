@@ -987,7 +987,7 @@
   |=  =request:http
   =/  m  (fiber ,~)
   ^-  form:m
-  (poke &+&+[/sys/iris %'main.iris-state'] [[/ %http-request] request])
+  (poke &+&+[/sys/iris %'main.iris-state'] [[/ %iris-request] request])
 ::
 ++  take-client-response
   =/  m  (fiber ,client-response:iris)

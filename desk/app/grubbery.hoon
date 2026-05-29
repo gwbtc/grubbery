@@ -796,7 +796,7 @@
 ::
 ++  validate-ball
   |=  [cod=path =ball:tarball]
-  ^-  ball:tarball
+  ^-  [ball:tarball _this]
   =|  here=path
   |-
   =/  validated-contents=(map @ta content:tarball)
@@ -806,9 +806,13 @@
     |-
     ?~  files  out
     =/  [name=@ta =content:tarball]  i.files
+    =/  cached  (check-vale-cache cod p.content q.q.content)
     =/  res=(each vase tang)
+      ?^  cached  u.cached
       ~|  [%validate-ball name (weld cod here) p.content]
       (validate-noun cod p.content q.q.content)
+    =?  this  ?=(~ cached)
+      (cache-validation cod p.content q.q.content res)
     ?.  ?=(%& -.res)
       ~&  >>  "validate-ball: boom {(trip name)} (mark %{(trip name.p.content)}) at {(spud (weld cod here))}"
       $(files t.files, out (~(put by out) name [[/ %boom] !>([p.res [p.content q.q.content]])]))
@@ -819,10 +823,12 @@
     |-
     ?~  kids  out
     =/  [name=@ta kid=ball:tarball]  i.kids
-    $(kids t.kids, out (~(put by out) name ^$(here (snoc here name), ball kid)))
-  :_  validated-dir
-  ?~  fil.ball  ~
-  `u.fil.ball(contents validated-contents)
+    =^  validated-kid  this  ^$(here (snoc here name), ball kid)
+    $(kids t.kids, out (~(put by out) name validated-kid))
+  :-  :_  validated-dir
+      ?~  fil.ball  ~
+      `u.fil.ball(contents validated-contents)
+  this
 ::  Validate all basks in a bole subtree, producing a ball
 ::
 ::  Converts each bask (blot + noun) to sage (blot + vase) via validate-bask.
@@ -1709,8 +1715,8 @@
         ?~  sub-ball
           (enqu-take here (sys-give /peek) ~ %peek wire.dart &+[%none ~])
         =/  sub-born=born:nexus  (~(dip of born) dest)
-        =.  u.sub-ball  (validate-ball cod u.sub-ball)
-        (enqu-take here (sys-give /peek) ~ %peek wire.dart %& %ball sub-born u.sub-ball)
+        =^  vball  this  (validate-ball cod u.sub-ball)
+        (enqu-take here (sys-give /peek) ~ %peek wire.dart %& %ball sub-born vball)
         ::
           %&
         =/  dest=rail:tarball  p.u.dest-lane
@@ -1746,10 +1752,15 @@
           (enqu-take here (sys-give /peek) ~ %peek wire.dart &+[%none ~])
         ::  Validate peek result
         =/  clammed=sage:tarball
-          =/  res  (validate-sage cod u.source)
-          ?:  ?=(%| -.res)
+          =/  cached  (check-vale-cache cod p.u.source q.q.u.source)
+          =/  validated=(each vase tang)
+            ?^  cached  u.cached
+            (validate-noun cod p.u.source q.q.u.source)
+          =?  this  ?=(~ cached)
+            (cache-validation cod p.u.source q.q.u.source validated)
+          ?:  ?=(%| -.validated)
             ~|(%peek-clam-failed !!)
-          p.res
+          [p.u.source p.validated]
         ::  Apply mark conversion if requested
         =/  result=sage:tarball
           ?~  blot.load.dart  clammed
@@ -2141,7 +2152,7 @@
     =/  new-ball=ball:tarball
       (run-on-loads dest-path new-ball)
     ::  Re-validate after on-loads
-    =/  validated=ball:tarball  ~|(%validate-ball-make (validate-ball dest-path new-ball))
+    =^  validated=ball:tarball  this  ~|(%validate-ball-make (validate-ball dest-path new-ball))
     ::  Sync all changes (old is empty) and spawn processes
     =.  this  (load-ball-changes dest-path *ball:tarball validated)
     ::  Register and build any code namespaces in the new ball
@@ -3750,7 +3761,7 @@
     `(enqu-take here (sys-give /gall) ~ %pack wir ~)
   ::
       %iris
-    ?.  =([/ %http-request] p.sage)  ~
+    ?.  =([/ %iris-request] p.sage)  ~
     =.  this  (handle-iris-request here wir q.sage)
     `(enqu-take here (sys-give /iris) ~ %pack wir ~)
   ::

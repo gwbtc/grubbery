@@ -229,7 +229,7 @@
   =/  mime-sage=sage:tarball  [[/ %mime] !>(`mime`[/application/octet-stream u.body])]
   ;<  converted=(unit sage:tarball)  bind:m  (maybe-convert eyre-id mime-sage mark-param)
   ?~  converted  (pure:m ~)
-  ;<  ~  bind:m  (make:io road [%| u.converted ~])
+  ;<  ~  bind:m  (make:io road [%| [p.u.converted q.q.u.converted] ~])
   (send-created eyre-id)
 ::  +serve-dir-make: PUT /dir — create directory
 ::
