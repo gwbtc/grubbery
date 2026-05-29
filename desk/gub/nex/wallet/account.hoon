@@ -100,7 +100,7 @@
                   ['index' (numb:enjs:format next-idx)]
               ==
             ;<  ~  bind:m
-              (make:io proc-road |+[[[/ %json] !>(proc-json)] ~])
+              (make:io proc-road |+[[[/ %json] proc-json] ~])
             $
           ::
               %'delete-address'
@@ -150,7 +150,7 @@
                   ['gap' (numb:enjs:format 0)]
               ==
             ;<  ~  bind:m
-              (make:io (cord-to-road:tarball './proc/scan.json') |+[[[/ %json] !>(proc-json)] ~])
+              (make:io (cord-to-road:tarball './proc/scan.json') |+[[[/ %json] proc-json] ~])
             $
           ::
               %'pause-scan'
@@ -202,7 +202,7 @@
               ==
             ~&  >  [%refresh %spawning proc-name]
             ;<  ~  bind:m
-              (make:io proc-road |+[[[/ %json] !>(proc-json)] ~])
+              (make:io proc-road |+[[[/ %json] proc-json] ~])
             $
           ::
           ::  === Draft transaction actions ===
@@ -633,7 +633,7 @@
   ;<  exists=?  bind:m  (peek-exists:io road)
   ?:  exists
     (over:io road [[/wallet %draft] !>(dr)])
-  (make:io road |+[[[/wallet %draft] !>(dr)] ~])
+  (make:io road |+[[[/wallet %draft] dr] ~])
 ::
 ++  read-wallet-name
   |=  wallet-fp=@ux
@@ -753,7 +753,7 @@
     ~&  >>  [%write-mop %overwriting]
     (over:io road [[/wallet %addresses] !>(mop)])
   ~&  >>  [%write-mop %creating]
-  (make:io road |+[[[/wallet %addresses] !>(mop)] ~])
+  (make:io road |+[[[/wallet %addresses] mop] ~])
 ::  +txs-road: compute road to the tx-map file
 ::
 ++  txs-road
@@ -782,7 +782,7 @@
   ;<  exists=?  bind:m  (peek-exists:io road)
   ?:  exists
     (over:io road [[/wallet %txs] !>(txs)])
-  (make:io road |+[[[/wallet %txs] !>(txs)] ~])
+  (make:io road |+[[[/wallet %txs] txs] ~])
 ::  +ensure-net-dir: create network dir + empty mop files if needed
 ::
 ++  ensure-net-dir
@@ -1042,7 +1042,7 @@
   ^-  form:m
   =/  marker-json=json  (pairs:enjs:format ~[['paused' b+%.y]])
   ;<  ~  bind:m
-    (make:io (cord-to-road:tarball '../scan-paused.json') |+[[[/ %json] !>(marker-json)] ~])
+    (make:io (cord-to-road:tarball '../scan-paused.json') |+[[[/ %json] marker-json] ~])
   |-
   ;<  resumed=?  bind:m  take-pause-event
   ?.  resumed  $

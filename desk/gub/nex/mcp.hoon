@@ -155,7 +155,7 @@
         ;<  *  bind:m
           (keep:io /watch tool-road ~)
         ?.  exists
-          (make:io tool-road |+[[[/ %tool-state] !>(ts)] ~])
+          (make:io tool-road |+[[[/ %tool-state] ts] ~])
         (pure:m ~)
       ::  Wait for tool to finish
       |-

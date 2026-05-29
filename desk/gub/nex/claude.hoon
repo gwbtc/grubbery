@@ -772,7 +772,7 @@
   ::  writes
       %'make'
     =/  =mime  [/text/plain (as-octs:mimes:html body)]
-    (send-dart:io %node slot-wire road %make |+[[[/ %mime] !>(mime)] ~])
+    (send-dart:io %node slot-wire road %make |+[[[/ %mime] mime] ~])
       %'dir'
     (send-dart:io %node slot-wire road %make &+[`[~ ~ ~] ~])
       %'over'

@@ -86,12 +86,12 @@
             =/  wallet-key=@ta  (crip (hexn:http-utils pubkey))
             =/  wal=wallet-data  [wallet-name u.sd pubkey ~]
             =/  wallet-dir=@ta  (cat 3 wallet-key '.wallet_wallet')
-            =/  wal-contents=(map @ta content:tarball)
-              (~(put by *(map @ta content:tarball)) %'main.wallet_wallet' [[/wallet %wallet] !>(wal)])
-            =/  wal-lump=lump:tarball  [`[/wallet %wallet] ~ wal-contents]
-            =/  wal-ball=ball:tarball  [`wal-lump ~]
+            =/  wal-contents=(map @ta bask:tarball)
+              (~(put by *(map @ta bask:tarball)) %'main.wallet_wallet' [[/wallet %wallet] wal])
+            =/  wal-pulp=pulp:tarball  [`[/wallet %wallet] ~ wal-contents]
+            =/  wal-bole=bole:tarball  [`wal-pulp ~]
             ;<  ~  bind:m
-              (make:io [%| 0 %| (snoc /wallets wallet-dir)] &+wal-ball)
+              (make:io [%| 0 %| (snoc /wallets wallet-dir)] &+wal-bole)
             $
               %'add-wallet-from-entropy'
             =/  wallet-name=@t
@@ -103,12 +103,12 @@
             =/  wallet-key=@ta  (crip (hexn:http-utils pubkey))
             =/  wal=wallet-data  [wallet-name [%t seed-phrase] pubkey ~]
             =/  wallet-dir=@ta  (cat 3 wallet-key '.wallet_wallet')
-            =/  wal-contents=(map @ta content:tarball)
-              (~(put by *(map @ta content:tarball)) %'main.wallet_wallet' [[/wallet %wallet] !>(wal)])
-            =/  wal-lump=lump:tarball  [`[/wallet %wallet] ~ wal-contents]
-            =/  wal-ball=ball:tarball  [`wal-lump ~]
+            =/  wal-contents=(map @ta bask:tarball)
+              (~(put by *(map @ta bask:tarball)) %'main.wallet_wallet' [[/wallet %wallet] wal])
+            =/  wal-pulp=pulp:tarball  [`[/wallet %wallet] ~ wal-contents]
+            =/  wal-bole=bole:tarball  [`wal-pulp ~]
             ;<  ~  bind:m
-              (make:io [%| 0 %| (snoc /wallets wallet-dir)] &+wal-ball)
+              (make:io [%| 0 %| (snoc /wallets wallet-dir)] &+wal-bole)
             $
               %'remove-wallet'
             =/  pubkey=@t

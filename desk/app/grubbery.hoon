@@ -183,11 +183,7 @@
       ?-  +<.req
         %poke  [%poke p.bask.req !>(q.bask.req)]
           %make
-        =/  m=make:nexus
-          ?:  ?=(%& -.make.req)
-            &+p.make.req
-          |+[[p.bask.p.make.req !>(`*`q.bask.p.make.req)] blot.p.make.req]
-        [%make m]
+        [%make make.req]
         %cull  [%cull ~]
         %sand  [%sand weir.req]
         %load  [%load ~]
@@ -211,7 +207,7 @@
     ?:  ?=([%grubbery %api *] site)
       ~&  >  [%eyre-api eyre-id url.request.req]
       =^  cards  state
-        abet:(make:hc [%& /sys/eyre/requests eyre-id] [%| [[/ %http-request] !>([src.bowl req])] ~])
+        abet:(make:hc [%& /sys/eyre/requests eyre-id] [%| [[/ %http-request] [src.bowl req]] ~])
       [cards this]
     ::  Binding match: find handler, forward request
     =/  st=server-state:nexus  get-server-state:hc
@@ -1539,22 +1535,8 @@
         (enqu-take here (sys-give /veto) ~ %veto dart)
       (handle-dart here dart(sage.load p.clammed) filt)
         %make
-      ?.  ?=(%| -.make.load.dart)
-        (handle-dart here dart filt)
-      =/  cached  (check-vale-cache clam-pax p.sage.p.make.load.dart q.q.sage.p.make.load.dart)
-      ?^  cached
-        ?:  ?=(%| -.u.cached)
-          ?:  ?=([%sys %ames %ships @ ~] path.here)
-            ~|  [%peer-clam-failed name.here dest]  !!
-          (enqu-take here (sys-give /veto) ~ %veto dart)
-        (handle-dart here dart(sage.p.make.load [p.sage.p.make.load.dart p.u.cached]) filt)
-      =/  clammed=(each sage:tarball tang)  (validate-sage clam-pax sage.p.make.load.dart)
-      =.  this  (cache-validation clam-pax p.sage.p.make.load.dart q.q.sage.p.make.load.dart clammed)
-      ?:  ?=(%| -.clammed)
-        ?:  ?=([%sys %ames %ships @ ~] path.here)
-          ~|  [%peer-clam-failed name.here dest]  !!
-        (enqu-take here (sys-give /veto) ~ %veto dart)
-      (handle-dart here dart(sage.p.make.load p.clammed) filt)
+      ::  Makes carry bask (untyped) — validation happens in ++make
+      (handle-dart here dart filt)
     ==
   ==
 ::  Extract jump category and destination from a dart for weir filtering.
@@ -1627,20 +1609,11 @@
       ::
         %make
       ::  Create file or directory.
-      ::  If mark is set on a file make, convert the cage to the
-      ::  destination mark via cached tube before storing.
+      ::  If mark is set on a file make, convert the content via
+      ::  cached tube before storing.
+      =/  mak=make:nexus  make.load.dart
       =/  res=(each _this tang)
-        %-  mule  |.
-        =/  =make:nexus
-          ?.  ?=(%| -.make.load.dart)
-            make.load.dart
-          ?~  blot.p.make.load.dart
-            make.load.dart
-          ?:  =(p.sage.p.make.load.dart u.blot.p.make.load.dart)
-            make.load.dart
-          =/  =tube:clay  (get-tube cod [p.sage.p.make.load.dart u.blot.p.make.load.dart])
-          make.load.dart(sage.p [u.blot.p.make.load.dart (tube q.sage.p.make.load.dart)])
-        (^make u.dest-lane make)
+        (mule |.((make u.dest-lane mak)))
       ?-  -.res
         %&  (enqu-take:p.res here (sys-give /made) ~ %made wire.dart ~)
           %|
@@ -2170,20 +2143,22 @@
   ^+  this
   ?-    -.dest
       %|
-    ::  Make directory - payload must be ball
+    ::  Make directory - payload must be bole
     ?>  ?=(%& -.make)
     =/  dest-path=fold:tarball  p.dest
-    =/  new-ball=ball:tarball  p.make
+    =/  new-bole=bole:tarball  p.make
     ::  Assert nothing exists at path
     =/  existing=ball:tarball  (~(dip ba:tarball ball) dest-path)
     ?:  |(?=(^ fil.existing) !=(~ dir.existing))
       ~|("path is not empty" !!)
-    ::  Put new ball at path
+    ::  Validate bole to ball
+    =/  new-ball=ball:tarball  (validate-bole dest-path new-bole)
+    ::  Put validated ball at path
     =.  ball  (~(pub ba:tarball ball) dest-path new-ball)
     ::  Run on-loads top-down (may modify ball)
     =/  new-ball=ball:tarball
       (run-on-loads dest-path new-ball)
-    ::  Validate all cages in loaded ball
+    ::  Re-validate after on-loads
     =/  validated=ball:tarball  ~|(%validate-ball-make (validate-ball dest-path new-ball))
     ::  Sync all changes (old is empty) and spawn processes
     =.  this  (load-ball-changes dest-path *ball:tarball validated)
@@ -2192,25 +2167,35 @@
     (spawn-all-files dest-path validated)
     ::
       %&
-    ::  Make file - payload must be cage
+    ::  Make file - payload must be bask
     ?>  ?=(%| -.make)
     =/  dest-rail=rail:tarball  p.dest
+    ::  Convert mark if blot override is set
+    =/  =bask:tarball
+      ?.  ?&  ?=(^ blot.p.make)
+              !=(p.bask.p.make u.blot.p.make)
+          ==
+        bask.p.make
+      =/  src=(each vase tang)  (validate-noun path.dest-rail p.bask.p.make q.bask.p.make)
+      ?:  ?=(%| -.src)  ~|("make: source validation failed" (mean p.src))
+      =/  =tube:clay  (get-tube path.dest-rail [p.bask.p.make u.blot.p.make])
+      [u.blot.p.make q:(tube p.src)]
     ::  Assert file doesn't already exist
     =/  existing-file=(unit content:tarball)
       (~(get ba:tarball ball) path.dest-rail name.dest-rail)
     ?^  existing-file
       ~|("file already exists at path" !!)
-    ::  Validate the cage before storing (new file, no old content)
-    =/  cached  (check-vale-cache path.dest-rail p.sage.p.make q.q.sage.p.make)
+    ::  Validate the bask before storing
+    =/  cached  (check-vale-cache path.dest-rail p.bask q.bask)
     =/  validated=(each vase tang)
       ?^  cached  u.cached
-      (validate-noun path.dest-rail p.sage.p.make q.q.sage.p.make)
+      (validate-noun path.dest-rail p.bask q.bask)
     =?  this  ?=(~ cached)
-      (cache-validation path.dest-rail p.sage.p.make q.q.sage.p.make validated)
+      (cache-validation path.dest-rail p.bask q.bask validated)
     ?:  ?=(%| -.validated)
       ~|("make failed: validation error" (mean p.validated))
     ::  Save initial state (bumps file aeon since old content is ~)
-    =.  this  (save-file dest-rail [p.sage.p.make p.validated])
+    =.  this  (save-file dest-rail [p.bask p.validated])
     ::  Spawn process (needs file in ball for build-spool)
     (spawn-proc dest-rail [%make ~])
   ==

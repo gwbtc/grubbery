@@ -487,7 +487,7 @@
           ;<  ~  bind:m
             ?:  ?=([%& %file *] wal-seen)
               (over:io wal-road wal-sage)
-            (make:io wal-road [%| wal-sage ~])
+            (make:io wal-road [%| [p.wal-sage q.q.wal-sage] ~])
           ~&  >  [%reg-tester %saved-wallet spawn-ship]
           $(batch t.batch, cur-utxo `final-utxo)
         ::
@@ -1259,7 +1259,7 @@
       ;<  ~  bind:m
         ?:  ?=([%& %file *] ship-seen)
           (over:io ship-road evt-sage)
-        (make:io ship-road [%| evt-sage ~])
+        (make:io ship-road [%| [p.evt-sage q.q.evt-sage] ~])
       $(sots t.sots)
     $(ins t.ins)
   $(txs t.txs)
@@ -1362,7 +1362,7 @@
   ;<  ~  bind:m
     ?:  ?=([%& %file *] seen)
       (over:io road [[/ %json] !>(pt-json)])
-    (make:io road [%| [[/ %json] !>(pt-json)] ~])
+    (make:io road [%| [[/ %json] pt-json] ~])
   $(ships t.ships)
 ::
 ::  Fiber helper: generatetoaddress N <addr>, ignoring result.

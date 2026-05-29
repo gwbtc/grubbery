@@ -58,7 +58,7 @@
 +$  pant  (list [dir=@ta neck=(unit neck:tarball)])
 +$  here  [=pant name=@ta root=?]
 ::
-+$  make  (each ball:tarball [=sage:tarball blot=(unit blot:tarball)])
++$  make  (each bole:tarball [=bask:tarball blot=(unit blot:tarball)])
 +$  kept  (set bend:tarball)
 ::
 +$  wave  (map lane:tarball cass:clay)

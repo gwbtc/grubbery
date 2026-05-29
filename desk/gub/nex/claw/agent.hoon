@@ -663,7 +663,7 @@
         ;<  ~  bind:m
           ?:  exists
             (over:io chats-road [[/ %json] !>(manifest)])
-          (make:io chats-road |+[[[/ %json] !>(manifest)] ~])
+          (make:io chats-road |+[[[/ %json] manifest] ~])
         |-
         ;<  =sage:tarball  bind:m  take-poke:io
         =/  jon=json  (fall (mole |.(!<(json q.sage))) *json)
@@ -689,16 +689,16 @@
             (ancestor-road:io [/claw %agent] [%| /chats/[chat-name]])
           ;<  ~  bind:m  (make:io chat-dir &+[~ ~])
           ::  create chat.json (empty convo)
-          ;<  ~  bind:m  (make:io chat-road |+[[[/ %json] !>([%a ~])] ~])
+          ;<  ~  bind:m  (make:io chat-road |+[[[/ %json] [%a ~]] ~])
           ::  create outbox.json
           ;<  outbox-road=road:tarball  bind:m
             (ancestor-road:io [/claw %agent] [%& /chats/[chat-name] %'outbox.json'])
-          ;<  ~  bind:m  (make:io outbox-road |+[[[/ %json] !>([%a ~])] ~])
+          ;<  ~  bind:m  (make:io outbox-road |+[[[/ %json] [%a ~]] ~])
           ::  create status.json
           =/  idle=json  (pairs:enjs:format ~[['state' s+'idle']])
           ;<  status-road=road:tarball  bind:m
             (ancestor-road:io [/claw %agent] [%& /chats/[chat-name] %'status.json'])
-          ;<  ~  bind:m  (make:io status-road |+[[[/ %json] !>(idle)] ~])
+          ;<  ~  bind:m  (make:io status-road |+[[[/ %json] idle] ~])
           ::  update chats.json manifest
           ;<  chat-list=(list @t)  bind:m  read-chat-list
           ;<  ~  bind:m  (write-chat-list (snoc chat-list chat-name))
@@ -1676,7 +1676,7 @@
   ;<  tool-road=road:tarball  bind:m  (ancestor-road:io [/claw %agent] [%& /proc/tools tool-file])
   ;<  ~  bind:m  (set-status chat-name [%tool tid])
   ;<  *  bind:m  (keep:io /tool-wait/[tid] tool-road ~)
-  ;<  ~  bind:m  (make:io tool-road |+[[[/ %tool-state] !>(ts)] ~])
+  ;<  ~  bind:m  (make:io tool-road |+[[[/ %tool-state] ts] ~])
   ;<  ack=(unit [extracted-result ?])  bind:m  (await-tool-ack tid tool-road)
   ;<  ~  bind:m  (drop:io /tool-wait/[tid] tool-road)
   ?~  ack
@@ -2934,7 +2934,7 @@
         (pure:m [%error 'Cannot change blot of existing file. Delete it first, then recreate with the desired blot.'])
       ;<  ~  bind:m  (over:io road [[/ %mime] !>(src-mime)])
       (pure:m [%text (crip "Wrote {(trip u.raw)}")])
-    ;<  ~  bind:m  (make:io road |+[[[/ %mime] !>(src-mime)] dest-blot])
+    ;<  ~  bind:m  (make:io road |+[[[/ %mime] src-mime] dest-blot])
     (pure:m [%text (crip "Created {(trip u.raw)}")])
   --
 ::
@@ -3036,7 +3036,7 @@
       (pure:m [%error 'Missing required argument: road'])
     =/  road=road:tarball  (agent-road u.raw)
     =/  new-ball=ball:tarball  [`[~ ~ ~] ~]
-    ;<  ~  bind:m  (make:io road &+new-ball)
+    ;<  ~  bind:m  (make:io road &+(ball-to-bole:tarball new-ball))
     (pure:m [%text (crip "Created directory {(trip u.raw)}")])
   --
 ::
@@ -3073,7 +3073,7 @@
       (pure:m [%error 'Code path cannot be empty'])
     =/  code-rail=rail:tarball  [(snip `path`code-pax) (rear code-pax)]
     =/  new-ball=ball:tarball  [`[`code-rail ~ ~] ~]
-    ;<  ~  bind:m  (make:io road &+new-ball)
+    ;<  ~  bind:m  (make:io road &+(ball-to-bole:tarball new-ball))
     (pure:m [%text (crip "Created nexus {(trip u.raw)} with code {(trip u.code-raw)}")])
   --
 ::
@@ -3543,7 +3543,7 @@
       (pure:m [%error 'Code path cannot be empty'])
     =/  code-rail=rail:tarball  [(snip `path`code-pax) (rear code-pax)]
     =/  new-ball=ball:tarball  [`[`code-rail ~ ~] ~]
-    ;<  ~  bind:m  (make:io child-road &+new-ball)
+    ;<  ~  bind:m  (make:io child-road &+(ball-to-bole:tarball new-ball))
     ::  read parent config (../../config.json from tool proc)
     ;<  parent-config=json  bind:m
       =/  m  (fiber:fiber:nexus ,json)
@@ -3557,7 +3557,7 @@
     ;<  ~  bind:m
       ?:  cfg-exists
         (over:io child-config-road [[/ %json] !>(parent-config)])
-      (make:io child-config-road |+[[[/ %json] !>(parent-config)] ~])
+      (make:io child-config-road |+[[[/ %json] parent-config] ~])
     ::  write task prompt with finish instructions
     =/  base-instructions=@t
       %-  crip
@@ -3580,7 +3580,7 @@
       ;<  pex=?  bind:m  (peek-exists:io prompt-road)
       ?:  pex
         (over:io prompt-road [[/ %txt] !>(prompt-wain)])
-      (make:io prompt-road |+[[[/ %txt] !>(prompt-wain)] ~])
+      (make:io prompt-road |+[[[/ %txt] prompt-wain] ~])
     ::  poke child with message
     =/  msg-json=json
       (pairs:enjs:format ~[['action' s+'message'] ['content' s+u.message]])
@@ -4004,7 +4004,7 @@
     =/  sum-file=@ta  (crip "{(trip sum-id)}.json")
     ;<  sum-road=road:tarball  bind:m
       (ancestor-road:io [/claw %agent] [%& /chats/[chat-name]/summaries sum-file])
-    ;<  ~  bind:m  (make:io sum-road |+[[[/ %json] !>(sum-json)] ~])
+    ;<  ~  bind:m  (make:io sum-road |+[[[/ %json] sum-json] ~])
     (pure:m [%text summary-text])
   --
 ::
@@ -4259,7 +4259,7 @@
       ==
     ;<  cron-road=road:tarball  bind:m
       (ancestor-road:io [/claw %agent] [%& /proc/cron job-id])
-    ;<  ~  bind:m  (make:io cron-road |+[[[/ %json] !>(cron-state)] ~])
+    ;<  ~  bind:m  (make:io cron-road |+[[[/ %json] cron-state] ~])
     =/  msg=@t
       %-  crip
       ;:  weld

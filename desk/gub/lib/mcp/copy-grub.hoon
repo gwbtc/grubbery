@@ -39,6 +39,6 @@
   ?:  exists
     ;<  ~  bind:m  (over:io dst-road sage.p.seen)
     (pure:m [%text (crip "Copied {(trip u.src-path)}/{(trip u.src-name)} -> {(trip u.dst-path)}/{(trip dn)}")])
-  ;<  ~  bind:m  (make:io dst-road |+[sage.p.seen ~])
+  ;<  ~  bind:m  (make:io dst-road |+[[p.sage.p.seen q.q.sage.p.seen] ~])
   (pure:m [%text (crip "Copied {(trip u.src-path)}/{(trip u.src-name)} -> {(trip u.dst-path)}/{(trip dn)}")])
 --

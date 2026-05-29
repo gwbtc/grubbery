@@ -195,7 +195,7 @@
                   ['account-idx' (numb:enjs:format 0)]
               ==
             ;<  ~  bind:m
-              (make:io (cord-to-road:tarball './proc/discover.json') |+[[[/ %json] !>(disc-json)] ~])
+              (make:io (cord-to-road:tarball './proc/discover.json') |+[[[/ %json] disc-json] ~])
             $
           ::
               %'cancel-discovery'
@@ -285,7 +285,7 @@
           %-  pairs:enjs:format
           ~[['phase' s+'recv'] ['idx' (numb:enjs:format 0)] ['gap' (numb:enjs:format 0)]]
         ;<  ~  bind:m
-          (make:io (cord-to-road:tarball (crip "../../../accounts/{(trip acct-dir)}/proc/scan.json")) |+[[[/ %json] !>(scan-json)] ~])
+          (make:io (cord-to-road:tarball (crip "../../../accounts/{(trip acct-dir)}/proc/scan.json")) |+[[[/ %json] scan-json] ~])
         ::  continue to next account
         $(account-idx +(account-idx))
       ==

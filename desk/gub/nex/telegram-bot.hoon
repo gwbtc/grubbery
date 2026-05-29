@@ -359,7 +359,7 @@
     (peek:io file-road ~)
   ?:  ?=([%& %file *] seen)
     (over:io file-road [[/ %json] !>(dat)])
-  (make:io file-road [%| [[/ %json] !>(dat)] ~])
+  (make:io file-road [%| [[/ %json] dat] ~])
 ::
 ::  Extract chat names and messages from the messages/ directory view.
 ::  Files live in fil.ball.view → contents (not dir, which is subdirs).

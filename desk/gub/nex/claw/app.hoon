@@ -103,7 +103,7 @@
           =/  agent-road=road:tarball
             (cord-to-road:tarball (crip "./agents/{(trip name)}/"))
           =/  new-ball=ball:tarball  [`[`[/claw %agent] `agents-weir ~] ~]
-          ;<  ~  bind:m  (make:io agent-road &+new-ball)
+          ;<  ~  bind:m  (make:io agent-road &+(ball-to-bole:tarball new-ball))
           =/  agent-cfg=json
             %-  pairs:enjs:format
             :~  ['model' s+'claude-sonnet-4-20250514']
@@ -138,7 +138,7 @@
             (cord-to-road:tarball (crip "./channels/{(trip name)}/"))
           =/  neck=neck:tarball  [/claw/channel (slav %tas chan-type)]
           =/  new-ball=ball:tarball  [`[`neck ~ ~] ~]
-          ;<  ~  bind:m  (make:io chan-road &+new-ball)
+          ;<  ~  bind:m  (make:io chan-road &+(ball-to-bole:tarball new-ball))
           $
         ::
             %'delete-channel'
@@ -160,7 +160,7 @@
             (cord-to-road:tarball (crip "./apis/{(trip name)}/"))
           =/  neck=neck:tarball  [/claw/api (slav %tas api-type)]
           =/  new-ball=ball:tarball  [`[`neck ~ ~] ~]
-          ;<  ~  bind:m  (make:io api-road &+new-ball)
+          ;<  ~  bind:m  (make:io api-road &+(ball-to-bole:tarball new-ball))
           $
         ::
             %'delete-api'

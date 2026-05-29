@@ -69,6 +69,6 @@
   ?:  exists
     ;<  ~  bind:m  (over:io road [[/ %mime] !>(file-mime)])
     (pure:m [%text (crip "Downloaded s3://{(trip s3-key)} to {(trip dest-path)}/{(trip filename)}")])
-  ;<  ~  bind:m  (make:io road |+[[[/ %mime] !>(file-mime)] (bind ext |=(e=@ta [/ e]))])
+  ;<  ~  bind:m  (make:io road |+[[[/ %mime] file-mime] (bind ext |=(e=@ta [/ e]))])
   (pure:m [%text (crip "Downloaded s3://{(trip s3-key)} to {(trip dest-path)}/{(trip filename)}")])
 --

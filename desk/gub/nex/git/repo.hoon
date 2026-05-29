@@ -132,7 +132,7 @@
         ::  write stash-request.sig into data ball, reload
         ;<  req-rd=road:tarball  bind:m
           (ancestor-road:io [/git %repo] [%& /data %'stash-request.sig'])
-        ;<  ~  bind:m  (write-repo-file req-rd [[/ %sig] !>(~)])
+        ;<  ~  bind:m  (write-repo-file req-rd [[/ %sig] ~])
         ;<  data-rd=road:tarball  bind:m  (ancestor-road:io [/git %repo] [%| /data])
         ;<  ~  bind:m  (reload:io data-rd)
         $
@@ -147,7 +147,7 @@
         ::  write stash-pop-request.sig into data ball, reload
         ;<  req-rd=road:tarball  bind:m
           (ancestor-road:io [/git %repo] [%& /data %'stash-pop-request.sig'])
-        ;<  ~  bind:m  (write-repo-file req-rd [[/ %sig] !>(~)])
+        ;<  ~  bind:m  (write-repo-file req-rd [[/ %sig] ~])
         ;<  data-rd=road:tarball  bind:m  (ancestor-road:io [/git %repo] [%| /data])
         ;<  ~  bind:m  (reload:io data-rd)
         $
@@ -345,7 +345,7 @@
         ~&  >>  "%git/repo: staging files"
         ::  write add-request.json into data nexus
         ;<  req-rd=road:tarball  bind:m  (ancestor-road:io [/git %repo] [%& /data %'add-request.json'])
-        ;<  ~  bind:m  (write-repo-file req-rd [[/ %json] !>(req)])
+        ;<  ~  bind:m  (write-repo-file req-rd [[/ %json] req])
         ::  reload data to process add
         ;<  data-rd=road:tarball  bind:m  (ancestor-road:io [/git %repo] [%| /data])
         ;<  ~  bind:m  (reload:io data-rd)
@@ -374,7 +374,7 @@
           ==
         ::  write commit-request.json into data nexus
         ;<  req-rd=road:tarball  bind:m  (ancestor-road:io [/git %repo] [%& /data %'commit-request.json'])
-        ;<  ~  bind:m  (write-repo-file req-rd [[/ %json] !>(req)])
+        ;<  ~  bind:m  (write-repo-file req-rd [[/ %json] req])
         ::  reload data to trigger commit creation
         ;<  data-rd=road:tarball  bind:m  (ancestor-road:io [/git %repo] [%| /data])
         ;<  ~  bind:m  (reload:io data-rd)
@@ -568,7 +568,7 @@
           ;<  track-rd=road:tarball  bind:m
             (ancestor-road:io [/git %repo] [%& /data/refs/remotes/origin (crip (trip branch))])
           =/  track-octs=octs  (as-octt:bytestream (trip parent-sha))
-          ;<  ~  bind:m  (write-repo-file track-rd [[/ %mime] !>([/text/plain track-octs])])
+          ;<  ~  bind:m  (write-repo-file track-rd [[/ %mime] [/text/plain track-octs]])
           ::  reload data to refresh UI
           ;<  data-rd=road:tarball  bind:m
             (ancestor-road:io [/git %repo] [%| /data])
@@ -776,13 +776,13 @@
 ::  +write-repo-file: write or create a file in the repo sub-nexus
 ::
 ++  write-repo-file
-  |=  [=road:tarball =sage:tarball]
+  |=  [=road:tarball =bask:tarball]
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
   ;<  exists=?  bind:m  (peek-exists:io road)
   ?:  exists
-    (over:io road sage)
-  (make:io road |+[sage ~])
+    (over:io road [p.bask !>(q.bask)])
+  (make:io road |+[bask ~])
 ::
 ::  +do-full-clone: full clone from discovery
 ::
@@ -862,7 +862,7 @@
   =/  bname=@ta  (crip (trip name.i.branch-refs))
   ;<  remote-rd=road:tarball  bind:m
     (ancestor-road:io [/git %repo] [%& /data/refs/remotes/origin bname])
-  ;<  ~  bind:m  (write-repo-file remote-rd [[/ %mime] !>([/text/plain hash-octs])])
+  ;<  ~  bind:m  (write-repo-file remote-rd [[/ %mime] [/text/plain hash-octs]])
   $(branch-refs t.branch-refs)
 ::
 ::  +save-repo: write pack + index + refs + HEAD into repo sub-nexus
@@ -885,11 +885,11 @@
   ::  HEAD = "ref: refs/heads/<branch>"
   =/  head-octs=octs  (as-octt:bytestream "ref: refs/heads/{(trip ref-name)}")
   ;<  rd1=road:tarball  bind:m  (ancestor-road:io [/git %repo] [%& /data/packs pack-name])
-  ;<  ~  bind:m  (write-repo-file rd1 [[/ %mime] !>([/application/octet-stream pack-data])])
+  ;<  ~  bind:m  (write-repo-file rd1 [[/ %mime] [/application/octet-stream pack-data]])
   ;<  rd2=road:tarball  bind:m  (ancestor-road:io [/git %repo] [%& /data/packs idx-name])
-  ;<  ~  bind:m  (write-repo-file rd2 [[/ %mime] !>([/text/plain idx-octs])])
+  ;<  ~  bind:m  (write-repo-file rd2 [[/ %mime] [/text/plain idx-octs]])
   ;<  rd4=road:tarball  bind:m  (ancestor-road:io [/git %repo] [%& /data %'HEAD'])
-  ;<  ~  bind:m  (write-repo-file rd4 [[/ %mime] !>([/text/plain head-octs])])
+  ;<  ~  bind:m  (write-repo-file rd4 [[/ %mime] [/text/plain head-octs]])
   ::  write individual ref files — both local and remote tracking
   |-
   ?~  branch-refs  (pure:m ~)
@@ -898,10 +898,10 @@
   =/  bname=@ta  (crip (trip name.i.branch-refs))
   ;<  head-rd=road:tarball  bind:m
     (ancestor-road:io [/git %repo] [%& /data/refs/heads bname])
-  ;<  ~  bind:m  (write-repo-file head-rd [[/ %mime] !>([/text/plain hash-octs])])
+  ;<  ~  bind:m  (write-repo-file head-rd [[/ %mime] [/text/plain hash-octs]])
   ;<  remote-rd=road:tarball  bind:m
     (ancestor-road:io [/git %repo] [%& /data/refs/remotes/origin bname])
-  ;<  ~  bind:m  (write-repo-file remote-rd [[/ %mime] !>([/text/plain hash-octs])])
+  ;<  ~  bind:m  (write-repo-file remote-rd [[/ %mime] [/text/plain hash-octs]])
   $(branch-refs t.branch-refs)
 ::
 ::  +write-head: update HEAD in repo sub-nexus
@@ -915,7 +915,7 @@
   ^-  form:m
   =/  head-octs=octs  (as-octt:bytestream (trip value))
   ;<  rd=road:tarball  bind:m  (ancestor-road:io [/git %repo] [%& /data %'HEAD'])
-  (over:io rd [[/ %mime] !>([/text/plain head-octs])])
+  (over:io rd [[/ %mime] [/text/plain head-octs]])
 ::
 ::  +resolve-head: read HEAD, follow ref if symbolic, return commit hash
 ::

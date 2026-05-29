@@ -71,7 +71,7 @@
             $
           =/  new-ball=ball:tarball  [`[`[/ %telegram-bot] ~ ~] ~]
           ;<  ~  bind:m
-            (make:io [%| 0 %| /bots/[dir-name]] &+new-ball)
+            (make:io [%| 0 %| /bots/[dir-name]] &+(ball-to-bole:tarball new-ball))
           ::  write the bot token into its config
           =/  cfg=json
             (pairs:enjs:format ~[['bot-token' s+bot-token]])

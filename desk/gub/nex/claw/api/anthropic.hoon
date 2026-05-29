@@ -99,7 +99,7 @@
               ['request' u.body]
               ['from' s+caller]
           ==
-        ;<  ~  bind:m  (make:io call-road |+[[[/ %json] !>(call-content)] ~])
+        ;<  ~  bind:m  (make:io call-road |+[[[/ %json] call-content] ~])
         $
           ::  /calls/[id].json: read request, make HTTP call, write response
           ::

@@ -205,7 +205,7 @@
           =/  store=goal-store:goals  (create-store:goals now)
           =/  fname=@ta  (store-fname name)
           ;<  ~  bind:m
-            (make:io [%| 0 %& /store fname] |+[[[/ %goal-store] !>(store)] `[/ %goal-store]])
+            (make:io [%| 0 %& /store fname] |+[[[/ %goal-store] store] `[/ %goal-store]])
           $
             %goal-delete-store
           =/  name=@ta  !<(@ta q.sage)
@@ -227,7 +227,7 @@
             =/  store=goal-store:goals  (create-store:goals now)
             =/  fname=@ta  (store-fname name)
             ;<  ~  bind:m
-              (make:io [%| 0 %& /store fname] |+[[[/ %goal-store] !>(store)] `[/ %goal-store]])
+              (make:io [%| 0 %& /store fname] |+[[[/ %goal-store] store] `[/ %goal-store]])
             $
               %'delete-store'
             =/  name=@ta  (~(dog jo:json-utils jon) /name so:dejs:format)

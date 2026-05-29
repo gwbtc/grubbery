@@ -37,7 +37,7 @@
   ?:  exists
     ;<  ~  bind:m  (over:io src-road [[/ %mime] !>(src-mime)])
     (do-check bin-road pax nam)
-  ;<  ~  bind:m  (make:io src-road |+[[[/ %mime] !>(src-mime)] `[/ %hoon]])
+  ;<  ~  bind:m  (make:io src-road |+[[[/ %mime] src-mime] `[/ %hoon]])
   (do-check bin-road pax nam)
 ::
 ++  replace

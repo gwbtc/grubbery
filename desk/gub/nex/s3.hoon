@@ -345,7 +345,7 @@
     (make-soft:io file-road |+[[[/ %mime] !>(file-mime)] ext])
   ?~  err  (pure:m ~)
   ::  mark not found, retry as plain mime
-  (make:io file-road |+[[[/ %mime] !>(file-mime)] ~])
+  (make:io file-road |+[[[/ %mime] file-mime] ~])
 ::
 ++  do-pull
   |=  [cfg=s3-config key=@t name=@t]
@@ -373,7 +373,7 @@
     ;<  err=(unit tang)  bind:m
       (make-soft:io file-road |+[[[/ %mime] !>(file-mime)] ext])
     ?~  err  (pure:m ~)
-    (make:io file-road |+[[[/ %mime] !>(file-mime)] ~])
+    (make:io file-road |+[[[/ %mime] file-mime] ~])
   %-  replace:io  !>
   %-  pairs:enjs:format
   :~  ['status' s+'done']

@@ -474,7 +474,7 @@
   ?:  exists
     ;<  ~  bind:m  (log-msg 'warn' (crip "Sync #{(trip id)}: already synced"))
     (pure:m ~)
-  ;<  ~  bind:m  (make:io rd |+[[[/ %json] !>([%o ~])] ~])
+  ;<  ~  bind:m  (make:io rd |+[[[/ %json] [%o ~]] ~])
   ;<  ~  bind:m  (log-msg 'info' (crip "Sync #{(trip id)} started"))
   (update-sync-status id %.y)
 ::
@@ -696,7 +696,7 @@
     ;<  exists=?  bind:m  (peek-exists:io local-road)
     ;<  ~  bind:m  ?.  exists  (pure:m ~)
                    (cull:io local-road)
-    ;<  ~  bind:m  (make:io local-road &+root-ball)
+    ;<  ~  bind:m  (make:io local-road &+(ball-to-bole:tarball root-ball))
     ;<  ~  bind:m
       (log-msg 'info' (crip "Pulled {<pulled>} files for #{(trip id.bridge-entry)}"))
     (pure:m ~)
