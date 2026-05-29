@@ -169,14 +169,14 @@
     |%
     ++  on-load
       |=  =ball:tarball
-      ^-  ball:tarball
+      ^-  bole:tarball
       =/  =ver:loader  (get-ver:loader ball)
       ?+  ver  !!
           ?(~ [~ %0] [~ %1])
         %+  spin:loader  ball
         :~  (ver-row:loader 1)
-            [%fall %& [/ %'main.sig'] [[/ %sig] !>(~)]]
-            [%fall %& [/ %'page.html'] [[/ %html] !>((crip (en-xml:html (goals-page ~ ~))))]]
+            [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
+            [%fall %& [/ %'page.html'] [[/ %html] (crip (en-xml:html (goals-page ~ ~)))]]
             [%fall %| /store empty-dir:loader]
         ==
       ==

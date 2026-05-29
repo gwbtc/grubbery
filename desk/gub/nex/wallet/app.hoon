@@ -14,7 +14,7 @@
     |%
     ++  on-load
       |=  =ball:tarball
-      ^-  ball:tarball
+      ^-  bole:tarball
       =/  =ver:loader  (get-ver:loader ball)
       ?+  ver  !!
           ?(~ [~ %0])
@@ -24,18 +24,18 @@
           (make-dev-wallet 'Fauceted Wallet' [%t 'injury idea term fox crop movie type critic hello inquiry lottery agree'] %testnet3)
         %+  spin:loader  ball
         :~  (ver-row:loader 0)
-            [%over %& [/ %'main.sig'] [[/ %sig] !>(~)]]
-            [%over %& [/ %'page.html'] [[/ %html] !>((crip (en-xml:html (wallet-page "" ~))))]]
+            [%over %& [/ %'main.sig'] [[/ %sig] ~]]
+            [%over %& [/ %'page.html'] [[/ %html] (crip (en-xml:html (wallet-page "" ~)))]]
             [%fall %| /wallets empty-dir:loader]
             [%fall %| /accounts empty-dir:loader]
             [%fall %| /ui/sse empty-dir:loader]
-            [%over %& [/ui/sse %'wallets.html'] [[/ %html] !>((crip (en-xml:html (wallet-list-html ~))))]]
-            [%fall %& [/ui %'http.sig'] [[/ %sig] !>(~)]]
+            [%over %& [/ui/sse %'wallets.html'] [[/ %html] (crip (en-xml:html (wallet-list-html ~)))]]
+            [%fall %& [/ui %'http.sig'] [[/ %sig] ~]]
             [%fall %| /ui/requests empty-dir:loader]
-            [%fall %| (snoc /wallets wal-dir) wal-ball]
-            [%fall %| (snoc /accounts acct-dir) acct-ball]
-            [%fall %| (snoc /wallets fau-wal-dir) fau-wal-ball]
-            [%fall %| (snoc /accounts fau-acct-dir) fau-acct-ball]
+            [%fall %| (snoc /wallets wal-dir) (ball-to-bole:tarball wal-ball)]
+            [%fall %| (snoc /accounts acct-dir) (ball-to-bole:tarball acct-ball)]
+            [%fall %| (snoc /wallets fau-wal-dir) (ball-to-bole:tarball fau-wal-ball)]
+            [%fall %| (snoc /accounts fau-acct-dir) (ball-to-bole:tarball fau-acct-ball)]
         ==
       ==
     ::

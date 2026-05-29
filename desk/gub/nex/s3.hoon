@@ -11,7 +11,7 @@
     |%
     ++  on-load
       |=  =ball:tarball
-      ^-  ball:tarball
+      ^-  bole:tarball
       =/  =ver:loader  (get-ver:loader ball)
       =/  default-config=json
         %-  pairs:enjs:format
@@ -25,11 +25,11 @@
           ?(~ [~ %0])
         %+  spin:loader  ball
         :~  (ver-row:loader 0)
-            [%fall %& [/ %'main.json'] [[/ %json] !>((pairs:enjs:format ~[['status' s+'idle']]))]]
-            [%fall %& [/ %'config.json'] [[/ %json] !>(default-config)]]
-            [%fall %& [/ %'mounts.json'] [[/ %json] !>([%o ~])]]
+            [%fall %& [/ %'main.json'] [[/ %json] (pairs:enjs:format ~[['status' s+'idle']])]]
+            [%fall %& [/ %'config.json'] [[/ %json] default-config]]
+            [%fall %& [/ %'mounts.json'] [[/ %json] [%o ~]]]
             [%fall %| /mounts empty-dir:loader]
-            [%over %& [/ %'page.html'] [[/ %html] !>((crip (en-xml:html s3-page)))]]
+            [%over %& [/ %'page.html'] [[/ %html] (crip (en-xml:html s3-page))]]
         ==
       ==
     ::

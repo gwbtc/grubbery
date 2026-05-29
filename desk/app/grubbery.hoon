@@ -827,6 +827,40 @@
   :_  validated-dir
   ?~  fil.ball  ~
   `u.fil.ball(contents validated-contents)
+::  Validate all basks in a bole subtree, producing a ball
+::
+::  Converts each bask (blot + noun) to sage (blot + vase) via validate-bask.
+::  Used after on-load returns a bole.
+::
+++  validate-bole
+  |=  [cod=path =bole:tarball]
+  ^-  ball:tarball
+  =|  here=path
+  |-
+  =/  validated-contents=(map @ta content:tarball)
+    ?~  fil.bole  ~
+    =/  files=(list [@ta bask:tarball])  ~(tap by contents.u.fil.bole)
+    =|  out=(map @ta content:tarball)
+    |-
+    ?~  files  out
+    =/  [name=@ta =bask:tarball]  i.files
+    =/  res=(each sage:tarball tang)
+      ~|  [%validate-bole name (weld cod here) p.bask]
+      (validate-bask (weld cod here) bask)
+    ?.  ?=(%& -.res)
+      ~&  >>  "validate-bole: boom {(trip name)} at {(spud (weld cod here))}"
+      $(files t.files, out (~(put by out) name [[/ %boom] !>([p.res bask])]))
+    $(files t.files, out (~(put by out) name p.res))
+  =/  validated-dir=(map @ta ball:tarball)
+    =/  kids=(list [@ta bole:tarball])  ~(tap by dir.bole)
+    =|  out=(map @ta ball:tarball)
+    |-
+    ?~  kids  out
+    =/  [name=@ta kid=bole:tarball]  i.kids
+    $(kids t.kids, out (~(put by out) name ^$(here (snoc here name), bole kid)))
+  :_  validated-dir
+  ?~  fil.bole  ~
+  `[neck.u.fil.bole weir.u.fil.bole validated-contents]
 ::
 ++  store-proc
   |=  [here=rail:tarball =proc:fiber:nexus]
@@ -959,7 +993,8 @@
     $(pax (snip `path`pax))
   ?~  cod  this
   ~&  >>>  "delete: triggering build-code from {(spud dir)}"
-  (build-code u.cod)
+  =.  this  (build-code u.cod)
+  this
 ::  Send ack/nack back to poke source
 ::  - Internal (%&): enqueue %pack intake to source path
 ::  - External (%|): emit gall card
@@ -1057,7 +1092,10 @@
     ?~(fil.sub-ball ~ neck.u.fil.sub-ball)
   =/  upd-ball=ball:tarball
     ?~  nex  sub-ball
-    (on-load:u.nex sub-ball)
+    =/  =bole:tarball  (on-load:u.nex sub-ball)
+    =/  restored-pulp=pulp:tarball  (fall fil.bole *pulp:tarball)
+    =.  bole  bole(fil `restored-pulp(neck parent-neck, weir parent-weir))
+    (validate-bole here bole)
   ::  Enforce parent weir and parent neck on ball.
   ::  A nexus cannot change its own sandboxing or its own identity.
   ::
@@ -1107,20 +1145,21 @@
   ::  (reload will re-bang anything that still fails)
   =.  pool  (clear-bangs-under dest)
   ::  Run on-load (may crash)
-  =/  load-res=(each ball:tarball tang)
+  =/  load-res=(each bole:tarball tang)
     (mule |.((on-load:nex sub-ball)))
   ?:  ?=(%| -.load-res)
     ::  on-load crashed — bang this nexus, stay all processes
     ~&  >>  "reload-nexus-at: bang at {(spud dest)}"
     (bang-nexus dest p.load-res)
-  =/  upd-ball=ball:tarball  p.load-res
-  ::  Enforce parent weir and parent neck on ball
-  =/  restored-lump=lump:tarball  (fall fil.upd-ball *lump:tarball)
-  =/  new-ball=ball:tarball
-    upd-ball(fil `restored-lump(neck parent-neck, weir parent-weir))
-  ::  Validate marks in the new ball — failures become /boom blots so
+  =/  upd-bole=bole:tarball  p.load-res
+  ::  Enforce parent weir and parent neck on bole
+  =/  restored-pulp=pulp:tarball  (fall fil.upd-bole *pulp:tarball)
+  =.  upd-bole
+    upd-bole(fil `restored-pulp(neck parent-neck, weir parent-weir))
+  ::  Validate bole to ball — failures become /boom blots so
   ::  bad marks surface as inspectable files rather than downstream bangs.
-  =.  new-ball  ~|([%validate-ball-reload dest] (validate-ball dest new-ball))
+  =/  new-ball=ball:tarball
+    ~|([%validate-bole-reload dest] (validate-bole dest upd-bole))
   ::  Put results back — load-ball-changes writes ball and does bookkeeping
   =.  this  (load-ball-changes dest old-sub new-ball)
   =.  this  (bump-weir-changes dest old-sub new-ball)
@@ -2547,7 +2586,8 @@
     ?:  (~(has by code) here)  this
     ::  register and build
     ~&  >  "register-code-namespace: {(spud here)}"
-    (build-code here)
+    =.  this  (build-code here)
+    this
   ::  recurse into children
   =/  kids=(list [@ta ball:tarball])  ~(tap by dir.bol)
   |-
@@ -2949,9 +2989,9 @@
   ~&  >  "sync-gub: load-ball-changes done"
   ::  Compile
   ~&  >  "sync-gub: build-code start"
-  =/  res=_this  (build-code /code)
+  =.  this  (build-code /code)
   ~&  >  "sync-gub: build-code done"
-  res
+  this
 ::  List all files mirrored under a /sys/clay/desks/[desk] path
 ::  Returns Clay-style paths (like /app/foo/hoon) with mark as last element
 ::
@@ -3667,7 +3707,15 @@
       ==
     ::  same content — no bump
     this
-  ::  content changed — write
+  ::  Types may differ structurally (e.g. %hold context) but nest
+  ::  identically. If blot and data match and types nest, keep the
+  ::  old content to avoid false-change rebuild cascades.
+  ?:  ?&  ?=(^ old)
+          =(p.u.old p.new-content)
+          =(q.q.u.old q.q.new-content)
+          (~(nest ut p.q.u.old) | p.q.new-content)
+      ==
+    this
   =.  ball  (~(put ba:tarball ball) here new-content)
   ::  Snapshot, record, propagate, notify
   =/  old-born=born:nexus  born
@@ -3681,7 +3729,6 @@
     $(pax (snip `path`pax))
   =.  this
     ?~  cod  this
-    ~&  >>>  "save-file: triggering build-code from {(spud (snoc path.here name.here))}"
     (build-code u.cod)
   ::  Recompute peer weirs if usergroup data changed
   ?.  ?=([%sys %ames %usergroups *] path.here)

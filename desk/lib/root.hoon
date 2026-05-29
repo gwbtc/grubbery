@@ -5,7 +5,7 @@
 |%
 ++  on-load
   |=  =ball:tarball
-  ^-  ball:tarball
+  ^-  bole:tarball
   =/  =ver:loader  ~  :: (get-ver:loader ball)
   ?+  ver  !!
       ?(~ [~ %0])
@@ -17,24 +17,24 @@
         ::  /sys/eyre: HTTP server state + request fibers
         ::
         [%fall %| /sys/eyre [`[~ ~ ~] ~]]
-        [%fall %& [/sys/eyre %'main.server-state'] [[/ %server-state] !>(*server-state:nexus)]]
+        [%fall %& [/sys/eyre %'main.server-state'] [[/ %server-state] *server-state:nexus]]
         [%fall %| /sys/eyre/requests [`[~ ~ ~] ~]]
         ::  /sys/behn: timer service
         ::
         [%fall %| /sys/behn [`[~ ~ ~] ~]]
-        [%fall %& [/sys/behn %'main.timer-state'] [[/ %timer-state] !>(*timer-state:nexus)]]
+        [%fall %& [/sys/behn %'main.timer-state'] [[/ %timer-state] *timer-state:nexus]]
         ::  /sys/iris: HTTP client service
         ::
         [%fall %| /sys/iris [`[~ ~ ~] ~]]
-        [%fall %& [/sys/iris %'main.iris-state'] [[/ %iris-state] !>(*iris-state:nexus)]]
+        [%fall %& [/sys/iris %'main.iris-state'] [[/ %iris-state] *iris-state:nexus]]
         ::  /sys/clay: desk sync service (state + desks/ subdir)
         ::
-        [%fall %& [/sys/clay %'main.clay-state'] [[/ %clay-state] !>(*clay-state:nexus)]]
+        [%fall %& [/sys/clay %'main.clay-state'] [[/ %clay-state] *clay-state:nexus]]
         [%fall %| /sys/clay/desks [`[~ ~ ~] ~]]
         ::  /sys/scry: scry service
         ::
         [%fall %| /sys/scry [`[~ ~ ~] ~]]
-        [%fall %& [/sys/scry %'main.sig'] [[/ %sig] !>(~)]]
+        [%fall %& [/sys/scry %'main.sig'] [[/ %sig] ~]]
         ::  child nexuses
         ::
         [%fall %| /apps/'counter.counter' [`[`[/ %counter] ~ ~] ~]]

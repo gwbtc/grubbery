@@ -4,15 +4,15 @@
     |%
     ++  on-load
       |=  =ball:tarball
-      ^-  ball:tarball
+      ^-  bole:tarball
       =/  =ver:loader  (get-ver:loader ball)
       ?+  ver  !!
           ?(~ [~ %0])
         %+  spin:loader  ball
         :~  (ver-row:loader 0)
             [%fall %| /counters empty-dir:loader]
-            [%over %& [/ui/views %'page.html'] [[/ %html] !>((crip (en-xml:html (counter-page ~))))]]
-            [%fall %& [/ui %'main.sig'] [[/ %sig] !>(~)]]
+            [%over %& [/ui/views %'page.html'] [[/ %html] (crip (en-xml:html (counter-page ~)))]]
+            [%fall %& [/ui %'main.sig'] [[/ %sig] ~]]
             [%fall %| /ui/requests empty-dir:loader]
         ==
       ==

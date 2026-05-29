@@ -18,7 +18,7 @@
     |%
     ++  on-load
       |=  =ball:tarball
-      ^-  ball:tarball
+      ^-  bole:tarball
       =/  =ver:loader  (get-ver:loader ball)
       ?+  ver  !!
           ?(~ [~ %0])
@@ -26,9 +26,9 @@
         :~  (ver-row:loader 0)
             [%stay %& [/ %'main.wallet_wallet']]
             [%fall %| /ui/sse empty-dir:loader]
-            [%over %& [/ui/sse %'accounts.html'] [[/ %html] !>((crip (en-xml:html ;div;)))]]
-            [%over %& [/ui/sse %'error.html'] [[/ %html] !>((crip (en-xml:html ;div;)))]]
-            [%over %& [/ui/sse %'loading.html'] [[/ %html] !>((crip (en-xml:html ;div;)))]]
+            [%over %& [/ui/sse %'accounts.html'] [[/ %html] (crip (en-xml:html ;div;))]]
+            [%over %& [/ui/sse %'error.html'] [[/ %html] (crip (en-xml:html ;div;))]]
+            [%over %& [/ui/sse %'loading.html'] [[/ %html] (crip (en-xml:html ;div;))]]
             [%load %& [/ %'main.wallet_wallet'] [/ %'page.html'] data-to-page]
         ==
       ==
@@ -474,12 +474,12 @@
   (fall (mole |.((ni:dejs:format (~(got jo:json-utils p.parsed) /'chain_stats'/'tx_count')))) 0)
 ::
 ++  data-to-page
-  |=  ct=content:tarball
-  ^-  content:tarball
-  ?:  =(ct *content:tarball)  ct
-  ?:  =([/ %boom] p.ct)  ct
-  =/  wal=wallet-data  !<(wallet-data q.ct)
-  [[/ %html] !>((crip (en-xml:html (detail-page wal ~ ;div; ;div;))))]
+  |=  bsk=bask:tarball
+  ^-  bask:tarball
+  ?:  =(bsk *bask:tarball)  bsk
+  ?:  =([/ %boom] p.bsk)  bsk
+  =/  wal=wallet-data  ;;(wallet-data q.bsk)
+  [[/ %html] (crip (en-xml:html (detail-page wal ~ ;div; ;div;)))]
 ::
 ++  extract-wallet
   |=  =seen:nexus

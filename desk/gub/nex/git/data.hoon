@@ -30,7 +30,8 @@
     |%
     ++  on-load
       |=  =ball:tarball
-      ^-  ball:tarball
+      ^-  bole:tarball
+      %-  ball-to-bole:tarball
       ::  load all packs from packs/ directory
       =/  archive=(list pack:git-pack)  (load-packs ball)
       ?~  archive  ball

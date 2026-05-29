@@ -1158,7 +1158,7 @@
   ::
   ++  on-load
     |~  ball:tarball
-    *ball:tarball
+    *bole:tarball
   :: every grub has a running process alongside its file content.
   :: processes should be able to recover proper operation based on
   ::   state alone, even when restarted. this is not guaranteed and

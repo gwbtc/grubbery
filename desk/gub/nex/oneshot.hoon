@@ -5,7 +5,7 @@
     |%
     ++  on-load
       |=  =ball:tarball
-      ^-  ball:tarball
+      ^-  bole:tarball
       =/  =ver:loader  (get-ver:loader ball)
       =/  default-claude=json
         %-  pairs:enjs:format
@@ -24,15 +24,15 @@
           ?(~ [~ %0])
         %+  spin:loader  ball
         :~  (ver-row:loader 0)
-            [%fall %& [/config %'claude.json'] [[/ %json] !>(default-claude)]]
-            [%fall %& [/config %'brave.json'] [[/ %json] !>(default-brave)]]
-            [%over %& [/ %'descs.json'] [[/ %json] !>(default-descs)]]
-            [%fall %& [/ %'request.json'] [[/ %json] !>((pairs:enjs:format ~))]]
-            [%fall %& [/ %'result.json'] [[/ %json] !>((pairs:enjs:format ~[['status' s+'idle']]))]]
-            [%fall %& [/ %'briefing.json'] [[/ %json] !>((pairs:enjs:format ~[['step' s+'idle']]))]]
-            [%fall %& [/ %'main.sig'] [[/ %sig] !>(~)]]
-            [%over %& [/ui %'page.html'] [[/ %html] !>((crip (en-xml:html (oneshot-page '' ~))))]]
-            [%over %& [/ui %'briefing.html'] [[/ %html] !>((crip (en-xml:html briefing-page)))]]
+            [%fall %& [/config %'claude.json'] [[/ %json] default-claude]]
+            [%fall %& [/config %'brave.json'] [[/ %json] default-brave]]
+            [%over %& [/ %'descs.json'] [[/ %json] default-descs]]
+            [%fall %& [/ %'request.json'] [[/ %json] (pairs:enjs:format ~)]]
+            [%fall %& [/ %'result.json'] [[/ %json] (pairs:enjs:format ~[['status' s+'idle']])]]
+            [%fall %& [/ %'briefing.json'] [[/ %json] (pairs:enjs:format ~[['step' s+'idle']])]]
+            [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
+            [%over %& [/ui %'page.html'] [[/ %html] (crip (en-xml:html (oneshot-page '' ~)))]]
+            [%over %& [/ui %'briefing.html'] [[/ %html] (crip (en-xml:html briefing-page))]]
         ==
       ==
     ::

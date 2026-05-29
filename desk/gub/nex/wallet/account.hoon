@@ -19,14 +19,14 @@
     |%
     ++  on-load
       |=  =ball:tarball
-      ^-  ball:tarball
+      ^-  bole:tarball
       =/  =ver:loader  (get-ver:loader ball)
       ?+  ver  !!
           ?(~ [~ %0])
         %+  spin:loader  ball
         :~  (ver-row:loader 0)
             [%stay %& [/ %'data.wallet_account']]
-          [%over %& [/ %'main.sig'] [[/ %sig] !>(~)]]
+          [%over %& [/ %'main.sig'] [[/ %sig] ~]]
           [%fall %| /addresses empty-dir:loader]
           [%fall %| /proc empty-dir:loader]
           [%stay %& [/proc %'scan.json']]

@@ -19,7 +19,7 @@
     |%
     ++  on-load
       |=  =ball:tarball
-      ^-  ball:tarball
+      ^-  bole:tarball
       =/  =ver:loader  (get-ver:loader ball)
       ?+  ver  !!
           ?(~ [~ %0] [~ %1])
@@ -31,9 +31,9 @@
           ==
         %+  spin:loader  ball
         :~  (ver-row:loader 1)
-            [%fall %& [/ %'config.json'] [[/ %json] !>(default-config)]]
-            [%fall %& [/ %'tip.ud'] [[/ %ud] !>(`@ud`0)]]
-            [%over %& [/ %'poller.sig'] [[/ %sig] !>(~)]]
+            [%fall %& [/ %'config.json'] [[/ %json] default-config]]
+            [%fall %& [/ %'tip.ud'] [[/ %ud] 0]]
+            [%over %& [/ %'poller.sig'] [[/ %sig] ~]]
             [%fall %| /blocks empty-dir:loader]
         ==
       ==

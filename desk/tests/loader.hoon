@@ -6,10 +6,23 @@
 ::  Helpers
 ::  ==========================================
 ::
+++  mk-bask
+  |=  txt=@t
+  ^-  bask:tarball
+  [[/ %txt] txt]
+::
 ++  mk-content
   |=  txt=@t
   ^-  content:tarball
   [[/ %txt] !>(txt)]
+::
+++  mk-bole-1
+  ::  bole with one file at root
+  |=  [name=@ta txt=@t]
+  ^-  bole:tarball
+  =/  contents=(map @ta bask:tarball)
+    (~(put by *(map @ta bask:tarball)) name (mk-bask txt))
+  [`[~ ~ contents] ~]
 ::
 ++  mk-ball-1
   ::  ball with one file at root
@@ -19,36 +32,28 @@
     (~(put by *(map @ta content:tarball)) name (mk-content txt))
   [`[~ ~ contents] ~]
 ::
-++  mk-ball-2
-  ::  ball with two files at root
-  |=  [n1=@ta t1=@t n2=@ta t2=@t]
-  ^-  ball:tarball
-  =/  contents=(map @ta content:tarball)
-    %-  ~(gas by *(map @ta content:tarball))
-    ~[[n1 (mk-content t1)] [n2 (mk-content t2)]]
-  [`[~ ~ contents] ~]
 ::
 ::  ==========================================
-::  put-ball tests
+::  put-bole tests
 ::  ==========================================
 ::
-++  test-put-ball-root
-  ::  put-ball at / replaces the ball
-  =/  parent=ball:tarball  *ball:tarball
-  =/  child=ball:tarball  (mk-ball-1 %foo 'hi')
-  =/  result  (put-ball:loader parent / child)
+++  test-put-bole-root
+  ::  put-bole at / replaces the bole
+  =/  parent=bole:tarball  *bole:tarball
+  =/  child=bole:tarball  (mk-bole-1 %foo 'hi')
+  =/  result  (put-bole:loader parent / child)
   %+  expect-eq
     !>  child
   !>  result
 ::
-++  test-put-ball-nested
-  ::  put-ball at /sub places child in subdir
-  =/  parent=ball:tarball  *ball:tarball
-  =/  child=ball:tarball  (mk-ball-1 %foo 'hi')
-  =/  result  (put-ball:loader parent /sub child)
-  =/  got  (~(get ba:tarball result) /sub %foo)
+++  test-put-bole-nested
+  ::  put-bole at /sub places child in subdir
+  =/  parent=bole:tarball  *bole:tarball
+  =/  child=bole:tarball  (mk-bole-1 %foo 'hi')
+  =/  result  (put-bole:loader parent /sub child)
+  =/  got  (~(get bo:tarball result) /sub %foo)
   %+  expect-eq
-    !>  `(mk-content 'hi')
+    !>  `(mk-bask 'hi')
   !>  got
 ::
 ::  ==========================================
@@ -59,37 +64,37 @@
   ::  over file into empty ball places file
   =/  old  *ball:tarball
   =/  rows=(list row:loader)
-    ~[[%over %& [/a %foo] (mk-content 'hello')]]
-  =/  =ball:tarball  (spin:loader old rows)
+    ~[[%over %& [/a %foo] (mk-bask 'hello')]]
+  =/  =bole:tarball  (spin:loader old rows)
   %+  expect-eq
-    !>  `(mk-content 'hello')
-  !>  (~(get ba:tarball ball) /a %foo)
+    !>  `(mk-bask 'hello')
+  !>  (~(get bo:tarball bole) /a %foo)
 ::
 ++  test-over-file-replaces
   ::  over file replaces existing content
   =/  old=ball:tarball
     (~(put ba:tarball *ball:tarball) [/a %foo] (mk-content 'old'))
   =/  rows=(list row:loader)
-    ~[[%over %& [/a %foo] (mk-content 'new')]]
-  =/  =ball:tarball  (spin:loader old rows)
+    ~[[%over %& [/a %foo] (mk-bask 'new')]]
+  =/  =bole:tarball  (spin:loader old rows)
   %+  expect-eq
-    !>  `(mk-content 'new')
-  !>  (~(get ba:tarball ball) /a %foo)
+    !>  `(mk-bask 'new')
+  !>  (~(get bo:tarball bole) /a %foo)
 ::
 ::  ==========================================
 ::  spin: %over %| — always overwrite directory
 ::  ==========================================
 ::
 ++  test-over-dir-into-empty
-  ::  over dir places ball at path
-  =/  child-ball=ball:tarball  (mk-ball-1 %foo 'hi')
+  ::  over dir places bole at path
+  =/  child-bole=bole:tarball  (mk-bole-1 %foo 'hi')
   =/  old  *ball:tarball
   =/  rows=(list row:loader)
-    ~[[%over %| /sub child-ball]]
-  =/  =ball:tarball  (spin:loader old rows)
-  =/  got  (~(get ba:tarball ball) /sub %foo)
+    ~[[%over %| /sub child-bole]]
+  =/  =bole:tarball  (spin:loader old rows)
+  =/  got  (~(get bo:tarball bole) /sub %foo)
   %+  expect-eq
-    !>  `(mk-content 'hi')
+    !>  `(mk-bask 'hi')
   !>  got
 ::
 ::  ==========================================
@@ -100,23 +105,23 @@
   ::  fall file with no existing uses default content
   =/  old  *ball:tarball
   =/  rows=(list row:loader)
-    ~[[%fall %& [/a %foo] (mk-content 'default')]]
-  =/  =ball:tarball  (spin:loader old rows)
-  =/  got  (~(get ba:tarball ball) /a %foo)
+    ~[[%fall %& [/a %foo] (mk-bask 'default')]]
+  =/  =bole:tarball  (spin:loader old rows)
+  =/  got  (~(get bo:tarball bole) /a %foo)
   %+  expect-eq
-    !>  `(mk-content 'default')
+    !>  `(mk-bask 'default')
   !>  got
 ::
 ++  test-fall-file-keeps-existing
-  ::  fall file with existing keeps old content
+  ::  fall file with existing keeps old content (as bask)
   =/  old=ball:tarball
     (~(put ba:tarball *ball:tarball) [/a %foo] (mk-content 'existing'))
   =/  rows=(list row:loader)
-    ~[[%fall %& [/a %foo] (mk-content 'default')]]
-  =/  =ball:tarball  (spin:loader old rows)
-  =/  got  (~(get ba:tarball ball) /a %foo)
+    ~[[%fall %& [/a %foo] (mk-bask 'default')]]
+  =/  =bole:tarball  (spin:loader old rows)
+  =/  got  (~(get bo:tarball bole) /a %foo)
   %+  expect-eq
-    !>  `(mk-content 'existing')
+    !>  `(mk-bask 'existing')
   !>  got
 ::
 ::  ==========================================
@@ -124,30 +129,31 @@
 ::  ==========================================
 ::
 ++  test-fall-dir-uses-default
-  ::  fall dir with no existing uses default ball
-  =/  child-ball=ball:tarball  (mk-ball-1 %foo 'default')
+  ::  fall dir with no existing uses default bole
+  =/  child-bole=bole:tarball  (mk-bole-1 %foo 'default')
   =/  old  *ball:tarball
   =/  rows=(list row:loader)
-    ~[[%fall %| /sub child-ball]]
-  =/  =ball:tarball  (spin:loader old rows)
-  =/  got  (~(get ba:tarball ball) /sub %foo)
+    ~[[%fall %| /sub child-bole]]
+  =/  =bole:tarball  (spin:loader old rows)
+  =/  got  (~(get bo:tarball bole) /sub %foo)
   %+  expect-eq
-    !>  `(mk-content 'default')
+    !>  `(mk-bask 'default')
   !>  got
 ::
 ++  test-fall-dir-keeps-existing
-  ::  fall dir with existing keeps old ball
-  =/  old-sub-ball=ball:tarball  (mk-ball-1 %foo 'existing')
-  =/  old=ball:tarball  (put-ball:loader *ball:tarball /sub old-sub-ball)
+  ::  fall dir with existing keeps old ball (converted to bole)
+  =/  old=ball:tarball
+    =/  sub=ball:tarball  (mk-ball-1 %foo 'existing')
+    [~ (~(put by *(map @ta ball:tarball)) %sub sub)]
   ::  provide different defaults
-  =/  def-ball=ball:tarball  (mk-ball-1 %foo 'default')
+  =/  def-bole=bole:tarball  (mk-bole-1 %foo 'default')
   =/  rows=(list row:loader)
-    ~[[%fall %| /sub def-ball]]
-  =/  =ball:tarball  (spin:loader old rows)
-  =/  got  (~(get ba:tarball ball) /sub %foo)
-  ::  should get old content, not default
+    ~[[%fall %| /sub def-bole]]
+  =/  =bole:tarball  (spin:loader old rows)
+  =/  got  (~(get bo:tarball bole) /sub %foo)
+  ::  should get old content (as bask), not default
   %+  expect-eq
-    !>  `(mk-content 'existing')
+    !>  `(mk-bask 'existing')
   !>  got
 ::
 ::  ==========================================
@@ -159,34 +165,34 @@
   =/  old=ball:tarball
     (~(put ba:tarball *ball:tarball) [/old %data] (mk-content 'raw'))
   =/  my-load=file-load:loader
-    |=  ct=content:tarball
-    ct
+    |=  bsk=bask:tarball
+    bsk
   =/  rows=(list row:loader)
     ~[[%load %& [/old %data] [/new %data] my-load]]
-  =/  =ball:tarball  (spin:loader old rows)
+  =/  =bole:tarball  (spin:loader old rows)
   ;:  weld
-    ::  old location should NOT be in new ball (unspecified = dropped)
+    ::  old location should NOT be in new bole (unspecified = dropped)
     %+  expect-eq
       !>  ~
-    !>  (~(get ba:tarball ball) /old %data)
+    !>  (~(get bo:tarball bole) /old %data)
     ::  new location has the content
     %+  expect-eq
-      !>  `(mk-content 'raw')
-    !>  (~(get ba:tarball ball) /new %data)
+      !>  `(mk-bask 'raw')
+    !>  (~(get bo:tarball bole) /new %data)
   ==
 ::
 ++  test-load-file-missing-uses-bunt
   ::  load file with missing source uses bunt content
   =/  old  *ball:tarball
   =/  my-load=file-load:loader
-    |=  ct=content:tarball
-    (mk-content 'fallback')
+    |=  bsk=bask:tarball
+    (mk-bask 'fallback')
   =/  rows=(list row:loader)
     ~[[%load %& [/nope %gone] [/new %file] my-load]]
-  =/  =ball:tarball  (spin:loader old rows)
+  =/  =bole:tarball  (spin:loader old rows)
   %+  expect-eq
-    !>  `(mk-content 'fallback')
-  !>  (~(get ba:tarball ball) /new %file)
+    !>  `(mk-bask 'fallback')
+  !>  (~(get bo:tarball bole) /new %file)
 ::
 ::  ==========================================
 ::  spin: %load %| — directory migration
@@ -194,23 +200,24 @@
 ::
 ++  test-load-dir-transforms
   ::  load dir extracts old subtree, runs transform, places at new path
-  =/  old-sub-ball=ball:tarball  (mk-ball-1 %foo 'original')
-  =/  old=ball:tarball  (put-ball:loader *ball:tarball /src old-sub-ball)
+  =/  old=ball:tarball
+    =/  sub=ball:tarball  (mk-ball-1 %foo 'original')
+    [~ (~(put by *(map @ta ball:tarball)) %src sub)]
   =/  my-fold=fold-load:loader
-    |=  bl=ball:tarball
+    |=  bl=bole:tarball
     bl
   =/  rows=(list row:loader)
     ~[[%load %| /src /dst my-fold]]
-  =/  =ball:tarball  (spin:loader old rows)
+  =/  =bole:tarball  (spin:loader old rows)
   ;:  weld
     ::  old location not in new
     %+  expect-eq
       !>  ~
-    !>  (~(get ba:tarball ball) /src %foo)
+    !>  (~(get bo:tarball bole) /src %foo)
     ::  new location has the content
     %+  expect-eq
-      !>  `(mk-content 'original')
-    !>  (~(get ba:tarball ball) /dst %foo)
+      !>  `(mk-bask 'original')
+    !>  (~(get bo:tarball bole) /dst %foo)
   ==
 ::
 ::  ==========================================
@@ -224,17 +231,17 @@
     (~(put ba:tarball b) [/a %drop] (mk-content 'drop'))
   ::  only mention %keep
   =/  rows=(list row:loader)
-    ~[[%fall %& [/a %keep] (mk-content 'default')]]
-  =/  =ball:tarball  (spin:loader old rows)
+    ~[[%fall %& [/a %keep] (mk-bask 'default')]]
+  =/  =bole:tarball  (spin:loader old rows)
   ;:  weld
-    ::  keep is present (kept from old)
+    ::  keep is present (kept from old, as bask)
     %+  expect-eq
-      !>  `(mk-content 'keep')
-    !>  (~(get ba:tarball ball) /a %keep)
+      !>  `(mk-bask 'keep')
+    !>  (~(get bo:tarball bole) /a %keep)
     ::  drop is gone
     %+  expect-eq
       !>  ~
-    !>  (~(get ba:tarball ball) /a %drop)
+    !>  (~(get bo:tarball bole) /a %drop)
   ==
 ::
 ::  ==========================================
@@ -245,21 +252,21 @@
   ::  multiple rows build up the new state incrementally
   =/  old  *ball:tarball
   =/  rows=(list row:loader)
-    :~  [%over %& [/a %one] (mk-content 'first')]
-        [%over %& [/a %two] (mk-content 'second')]
-        [%over %& [/b %three] (mk-content 'third')]
+    :~  [%over %& [/a %one] (mk-bask 'first')]
+        [%over %& [/a %two] (mk-bask 'second')]
+        [%over %& [/b %three] (mk-bask 'third')]
     ==
-  =/  =ball:tarball  (spin:loader old rows)
+  =/  =bole:tarball  (spin:loader old rows)
   ;:  weld
     %+  expect-eq
-      !>  `(mk-content 'first')
-    !>  (~(get ba:tarball ball) /a %one)
+      !>  `(mk-bask 'first')
+    !>  (~(get bo:tarball bole) /a %one)
     %+  expect-eq
-      !>  `(mk-content 'second')
-    !>  (~(get ba:tarball ball) /a %two)
+      !>  `(mk-bask 'second')
+    !>  (~(get bo:tarball bole) /a %two)
     %+  expect-eq
-      !>  `(mk-content 'third')
-    !>  (~(get ba:tarball ball) /b %three)
+      !>  `(mk-bask 'third')
+    !>  (~(get bo:tarball bole) /b %three)
   ==
 ::
 ::  ==========================================
@@ -270,8 +277,8 @@
   ::  no rows = everything dropped
   =/  old=ball:tarball
     (~(put ba:tarball *ball:tarball) [/a %foo] (mk-content 'bye'))
-  =/  =ball:tarball  (spin:loader old ~)
-  %+  expect-eq  !>(*ball:tarball)  !>(ball)
+  =/  =bole:tarball  (spin:loader old ~)
+  %+  expect-eq  !>(*bole:tarball)  !>(bole)
 ::
 ::  ==========================================
 ::  spin vs imperative: server on-load scenario
@@ -279,18 +286,21 @@
 ::
 ++  test-server-scenario-imperative
   ::  simulate server on-load imperative style on existing ball
-  =/  server-ct=content:tarball  [[/ %server-state] !>('state-data')]
+  =/  server-bsk=bask:tarball  [[/ %server-state] 'state-data']
   =/  old-ball=ball:tarball
     =/  b  (~(put ba:tarball *ball:tarball) [/ %'ver.ud'] [[/ %ud] !>(0)])
-    (~(put ba:tarball b) [/ %'main.server-state'] server-ct)
-  =/  ball=ball:tarball  old-ball
-  =.  ball  (~(put ba:tarball ball) [/ %'ver.ud'] [[/ %ud] !>(0)])
-  =/  existing  (~(get ba:tarball ball) [/ %'main.server-state'])
-  =?  ball  =(~ existing)
-    (~(put ba:tarball ball) [/ %'main.server-state'] [[/ %server-state] !>('fresh')])
+    (~(put ba:tarball b) [/ %'main.server-state'] [[/ %server-state] !>('state-data')])
+  ::  build bole imperatively
+  =/  =bole:tarball  *bole:tarball
+  =.  bole  (~(put bo:tarball bole) [/ %'ver.ud'] [[/ %ud] 0])
+  =/  existing  (~(get ba:tarball old-ball) [/ %'main.server-state'])
+  =?  bole  =(~ existing)
+    (~(put bo:tarball bole) [/ %'main.server-state'] [[/ %server-state] 'fresh'])
+  ::  existing was present, so we should use existing (as bask)
+  =.  bole  (~(put bo:tarball bole) [/ %'main.server-state'] server-bsk)
   %+  expect-eq
-    !>  `server-ct
-  !>  (~(get ba:tarball ball) [/ %'main.server-state'])
+    !>  `server-bsk
+  !>  (~(get bo:tarball bole) [/ %'main.server-state'])
 ::
 ++  test-server-scenario-spin
   ::  simulate server on-load with spin on existing ball
@@ -298,18 +308,18 @@
   =/  old-ball=ball:tarball
     =/  b  (~(put ba:tarball *ball:tarball) [/ %'ver.ud'] [[/ %ud] !>(0)])
     (~(put ba:tarball b) [/ %'main.server-state'] server-ct)
-  =/  =ball:tarball
+  =/  =bole:tarball
     %+  spin:loader  old-ball
-    :~  [%over %& [/ %'ver.ud'] [[/ %ud] !>(0)]]
-        [%fall %& [/ %'main.server-state'] [[/ %server-state] !>('fresh')]]
+    :~  [%over %& [/ %'ver.ud'] [[/ %ud] 0]]
+        [%fall %& [/ %'main.server-state'] [[/ %server-state] 'fresh']]
     ==
   ;:  weld
-    ::  ball content is correct
+    ::  bole content is correct (existing kept, as bask)
     %+  expect-eq
-      !>  `server-ct
-    !>  (~(get ba:tarball ball) [/ %'main.server-state'])
+      !>  `[[/ %server-state] 'state-data']
+    !>  (~(get bo:tarball bole) [/ %'main.server-state'])
     %+  expect-eq
-      !>  `[[/ %ud] !>(0)]
-    !>  (~(get ba:tarball ball) [/ %'ver.ud'])
+      !>  `[[/ %ud] 0]
+    !>  (~(get bo:tarball bole) [/ %'ver.ud'])
   ==
 --

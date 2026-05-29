@@ -83,18 +83,18 @@
 |%
 ++  on-load
   |=  =ball:tarball
-  ^-  ball:tarball
+  ^-  bole:tarball
   =/  =ver:loader  (get-ver:loader ball)
   ?+  ver  !!
       ?(~ [~ %0])
     %+  spin:loader  ball
     :~  (ver-row:loader 1)
-        [%fall %& [/ %'main.sig'] [[/ %sig] !>(~)]]
+        [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
         [%fall %| /requests empty-dir:loader]
         [%fall %| /tools empty-dir:loader]
     ==
       [~ %1]
-    ball
+    (ball-to-bole:tarball ball)
   ==
 ::
 ++  on-file

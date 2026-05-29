@@ -20,7 +20,7 @@
     |%
     ++  on-load
       |=  =ball:tarball
-      ^-  ball:tarball
+      ^-  bole:tarball
       =/  =ver:loader  (get-ver:loader ball)
       =/  default-config=json
         %-  pairs:enjs:format
@@ -31,10 +31,10 @@
           ?(~ [~ %0])
         %+  spin:loader  ball
         :~  (ver-row:loader 0)
-            [%fall %& [/ %'config.json'] [[/ %json] !>(default-config)]]
-            [%fall %& [/ %'inbox.json'] [[/ %json] !>([%a ~])]]
-            [%over %& [/ %'send.sig'] [[/ %sig] !>(~)]]
-            [%over %& [/ %'relay.sig'] [[/ %sig] !>(~)]]
+            [%fall %& [/ %'config.json'] [[/ %json] default-config]]
+            [%fall %& [/ %'inbox.json'] [[/ %json] [%a ~]]]
+            [%over %& [/ %'send.sig'] [[/ %sig] ~]]
+            [%over %& [/ %'relay.sig'] [[/ %sig] ~]]
         ==
       ==
     ::

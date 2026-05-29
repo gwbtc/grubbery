@@ -12,14 +12,14 @@
     |%
     ++  on-load
       |=  =ball:tarball
-      ^-  ball:tarball
+      ^-  bole:tarball
       =/  =ver:loader  (get-ver:loader ball)
       ?+  ver  !!
           ?(~ [~ %0])
         %+  spin:loader  ball
         :~  (ver-row:loader 0)
-            [%fall %& [/ %'main.sig'] [[/ %sig] !>(~)]]
-            [%fall %& [/ %'page.html'] [[/ %html] !>((crip (en-xml:html ;div:"rhizome loading...")))]]
+            [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
+            [%fall %& [/ %'page.html'] [[/ %html] (crip (en-xml:html ;div:"rhizome loading..."))]]
             [%fall %| /vault empty-dir:loader]
             [%fall %| /metadata empty-dir:loader]
         ==

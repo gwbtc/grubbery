@@ -1,7 +1,7 @@
 ::  loader: declarative on-load schema for nexuses
 ::
 ::  Instead of imperative =?/=. chains, declare a list of rows that
-::  describe what the new ball should contain. Anything
+::  describe what the new bole should contain. Anything
 ::  not listed is dropped — no explicit deletions needed.
 ::
 ::  IMPORTANT: since unspecified paths are not carried over, any files
@@ -16,18 +16,18 @@
 ::
 /+  tarball, nexus
 |%
-+$  file-load  $-(content:tarball content:tarball)
-+$  fold-load  $-(ball:tarball ball:tarball)
-++  same-file  |=(content:tarball +<)
-++  same-fold  |=(ball:tarball +<)
++$  file-load  $-(bask:tarball bask:tarball)
++$  fold-load  $-(bole:tarball bole:tarball)
+++  same-file  |=(bask:tarball +<)
+++  same-fold  |=(bole:tarball +<)
 ::
 +$  row
   $%  [%stay %& =rail:tarball]
       [%stay %| =path]
-      [%fall %& =rail:tarball =content:tarball]
-      [%fall %| =path =ball:tarball]
-      [%over %& =rail:tarball =content:tarball]
-      [%over %| =path =ball:tarball]
+      [%fall %& =rail:tarball =bask:tarball]
+      [%fall %| =path =bole:tarball]
+      [%over %& =rail:tarball =bask:tarball]
+      [%over %| =path =bole:tarball]
       [%load %& from=rail:tarball to=rail:tarball =file-load]
       [%load %| from=fold:tarball to=fold:tarball =fold-load]
   ==
@@ -51,73 +51,77 @@
 ++  ver-row
   |=  ver=@ud
   ^-  row
-  [%over %& [/ %'ver.ud'] [[/ %ud] !>(ver)]]
-::  +put-ball: place a sub-ball at a path
+  [%over %& [/ %'ver.ud'] [[/ %ud] ver]]
+::  +put-bole: place a sub-bole at a path
 ::
-++  put-ball
-  |=  [parent=ball:tarball pax=path child=ball:tarball]
-  ^-  ball:tarball
+++  put-bole
+  |=  [parent=bole:tarball pax=path child=bole:tarball]
+  ^-  bole:tarball
   ?~  pax  child
-  =/  kid  (~(gut by dir.parent) i.pax *ball:tarball)
+  =/  kid  (~(gut by dir.parent) i.pax *bole:tarball)
   parent(dir (~(put by dir.parent) i.pax $(parent kid, pax t.pax)))
-::  +spin: apply a list of rows, building new ball from old
+::  +spin: apply a list of rows, building new bole from old ball
 ::
 ++  spin
   |=  [old=ball:tarball rows=(list row)]
-  ^-  ball:tarball
-  =/  new-ball=ball:tarball  *ball:tarball
+  ^-  bole:tarball
+  =/  new=bole:tarball  *bole:tarball
   |-
-  ?~  rows  new-ball
+  ?~  rows  new
   ?-    i.rows
       [%stay %& *]
     =/  old-content=(unit content:tarball)
       (~(get ba:tarball old) rail.i.rows)
     ?~  old-content  $(rows t.rows)
-    =.  new-ball  (~(put ba:tarball new-ball) rail.i.rows u.old-content)
+    =.  new
+      (~(put bo:tarball new) rail.i.rows [p.u.old-content q.q.u.old-content])
     $(rows t.rows)
   ::
       [%stay %| *]
     =/  old-ball=(unit ball:tarball)
       (~(dap ba:tarball old) path.i.rows)
     ?~  old-ball  $(rows t.rows)
-    =.  new-ball  (put-ball new-ball path.i.rows u.old-ball)
+    =.  new  (put-bole new path.i.rows (ball-to-bole:tarball u.old-ball))
     $(rows t.rows)
   ::
       [%fall %& *]
     =/  old-content=(unit content:tarball)
       (~(get ba:tarball old) rail.i.rows)
-    =.  new-ball
-      (~(put ba:tarball new-ball) rail.i.rows (fall old-content content.i.rows))
+    =/  bsk=bask:tarball
+      ?~  old-content  bask.i.rows
+      [p.u.old-content q.q.u.old-content]
+    =.  new  (~(put bo:tarball new) rail.i.rows bsk)
     $(rows t.rows)
   ::
       [%fall %| *]
     =/  old-ball=(unit ball:tarball)
       (~(dap ba:tarball old) path.i.rows)
-    =.  new-ball
-      (put-ball new-ball path.i.rows (fall old-ball ball.i.rows))
+    =.  new
+      (put-bole new path.i.rows ?~(old-ball bole.i.rows (ball-to-bole:tarball u.old-ball)))
     $(rows t.rows)
   ::
       [%over %& *]
-    =.  new-ball
-      (~(put ba:tarball new-ball) rail.i.rows content.i.rows)
+    =.  new  (~(put bo:tarball new) rail.i.rows bask.i.rows)
     $(rows t.rows)
   ::
       [%over %| *]
-    =.  new-ball  (put-ball new-ball path.i.rows ball.i.rows)
+    =.  new  (put-bole new path.i.rows bole.i.rows)
     $(rows t.rows)
   ::
       [%load %& *]
     =/  old-content=(unit content:tarball)
       (~(get ba:tarball old) from.i.rows)
-    =/  out=content:tarball
-      (file-load.i.rows (fall old-content *content:tarball))
-    =.  new-ball  (~(put ba:tarball new-ball) to.i.rows out)
+    =/  old-bask=bask:tarball
+      ?~  old-content  *bask:tarball
+      [p.u.old-content q.q.u.old-content]
+    =/  out=bask:tarball  (file-load.i.rows old-bask)
+    =.  new  (~(put bo:tarball new) to.i.rows out)
     $(rows t.rows)
   ::
       [%load %| *]
     =/  sub-ball=ball:tarball  (~(dip ba:tarball old) from.i.rows)
-    =/  out-ball=ball:tarball  (fold-load.i.rows sub-ball)
-    =.  new-ball  (put-ball new-ball to.i.rows out-ball)
+    =/  out=bole:tarball  (fold-load.i.rows (ball-to-bole:tarball sub-ball))
+    =.  new  (put-bole new to.i.rows out)
     $(rows t.rows)
   ==
 --

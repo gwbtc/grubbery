@@ -51,6 +51,8 @@
   ==
 +$  lump      [neck=(unit neck) weir=(unit weir) contents=(map @ta content)]
 +$  ball      (axal lump)
++$  pulp      [neck=(unit neck) weir=(unit weir) contents=(map @ta bask)]
++$  bole      (axal pulp)
 :: simple descriptive file tree
 ::
 +$  node  [neck=(unit neck) files=(map @ta blot)]
@@ -530,6 +532,14 @@
   $(parts t.parts, base new-base)
 ::  Convert ball to tree (structure with marks, no content)
 ::
+++  ball-to-bole
+  |=  b=ball
+  ^-  bole
+  :_  (~(run by dir.b) ball-to-bole)
+  ?~  fil.b  ~
+  :-  ~
+  [neck.u.fil.b weir.u.fil.b (~(run by contents.u.fil.b) |=(=sage [p.sage q.q.sage]))]
+::
 ++  ball-to-tree
   |=  b=ball
   ^-  tree
@@ -794,6 +804,31 @@
     ?~  kids  %.y
     ?.  ^$(b i.kids)  %.n
     $(kids t.kids)
+  --
+::
+++  bo
+  |_  b=bole
+  ++  get
+    |=  =rail
+    ^-  (unit bask)
+    ?~  nod=(~(get of b) path.rail)
+      ~
+    (~(get by contents.u.nod) name.rail)
+  ++  put
+    |=  [=rail c=bask]
+    ^-  bole
+    ?~  path.rail
+      ~|  [%name-collision %file-vs-dir name.rail]
+      ?<  (~(has by dir.b) name.rail)
+      =/  plp=pulp  (fall fil.b [~ ~ ~])
+      b(fil `plp(contents (~(put by contents.plp) name.rail c)))
+    ~|  [%name-collision %dir-vs-file i.path.rail]
+    ?<  ?&  ?=(^ fil.b)
+            (~(has by contents.u.fil.b) i.path.rail)
+        ==
+    =/  kid=bole  (~(gut by dir.b) i.path.rail *bole)
+    =/  filled=bole  ?^(fil.kid kid kid(fil `[~ ~ ~]))
+    b(dir (~(put by dir.b) i.path.rail (~(put bo filled) [t.path.rail name.rail] c)))
   --
 ::  Tarball encoding utilities
 ::

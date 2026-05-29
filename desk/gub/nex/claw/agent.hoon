@@ -7,7 +7,7 @@
     |%
     ++  on-load
       |=  =ball:tarball
-      ^-  ball:tarball
+      ^-  bole:tarball
       =/  =ver:loader  (get-ver:loader ball)
       ?+  ver  !!
           ?(~ [~ %0])
@@ -590,18 +590,18 @@
               '  it -- you will get a %veto. Use check_bang to inspect errors.'
           ==
         =/  default-conv=json  [%a ~]
-        =/  code-dir=ball:tarball  [`[`[/ %code] ~ ~] ~]
+        =/  code-dir=bole:tarball  [`[`[/ %code] ~ ~] ~]
         %+  spin:loader  ball
         :~  (ver-row:loader 0)
-            [%fall %& [/ %'config.json'] [[/ %json] !>(default-config)]]
+            [%fall %& [/ %'config.json'] [[/ %json] default-config]]
             ::  /main.sig: chat lifecycle + message routing
-            [%over %& [/ %'main.sig'] [[/ %sig] !>(~)]]
+            [%over %& [/ %'main.sig'] [[/ %sig] ~]]
             ::  /chats/main: primary chat instance
             [%fall %| /chats empty-dir:loader]
             [%fall %| /chats/main empty-dir:loader]
-            [%fall %& [/chats/main %'chat.json'] [[/ %json] !>(default-conv)]]
-            [%fall %& [/chats/main %'outbox.json'] [[/ %json] !>([%a ~])]]
-            [%over %& [/chats/main %'status.json'] [[/ %json] !>((pairs:enjs:format ~[['state' s+'idle']]))]]
+            [%fall %& [/chats/main %'chat.json'] [[/ %json] default-conv]]
+            [%fall %& [/chats/main %'outbox.json'] [[/ %json] [%a ~]]]
+            [%over %& [/chats/main %'status.json'] [[/ %json] (pairs:enjs:format ~[['state' s+'idle']])]]
             ::  /proc/tools: tool execution (flat, [chat]_[tid] naming)
             [%fall %| /proc empty-dir:loader]
             [%fall %| /proc/tools empty-dir:loader]
@@ -609,11 +609,11 @@
             ::  /context: shared prompts, memories, docs
             [%fall %| /context empty-dir:loader]
             [%fall %| /context/prompts empty-dir:loader]
-            [%fall %& [/context/prompts %'main.txt'] [[/ %txt] !>(default-prompt)]]
+            [%fall %& [/context/prompts %'main.txt'] [[/ %txt] default-prompt]]
             [%fall %| /context/memories empty-dir:loader]
             [%fall %| /context/docs empty-dir:loader]
-            [%over %& [/context/docs %'grubbery-fundamentals.txt'] [[/ %txt] !>(fundamentals-doc)]]
-            [%over %& [/context/docs %'workflows.txt'] [[/ %txt] !>(workflows-doc)]]
+            [%over %& [/context/docs %'grubbery-fundamentals.txt'] [[/ %txt] fundamentals-doc]]
+            [%over %& [/context/docs %'workflows.txt'] [[/ %txt] workflows-doc]]
             ::  /apps: applications and code
             [%fall %| /apps empty-dir:loader]
             [%fall %| /apps/code code-dir]
@@ -623,16 +623,16 @@
             [%fall %| /apps/code/mar empty-dir:loader]
             ::  /ui/chats.json: manifest of active chats
             [%fall %| /ui empty-dir:loader]
-            [%fall %& [/ui %'chats.json'] [[/ %json] !>([%a ~[s+'main']])]]
+            [%fall %& [/ui %'chats.json'] [[/ %json] [%a ~[s+'main']]]]
             ::  /about.txt: self-description visible to other agents
             =/  default-about=wain
               :~  'A general-purpose claw agent. No specific role assigned yet.'
               ==
-            [%fall %& [/ %'about.txt'] [[/ %txt] !>(default-about)]]
+            [%fall %& [/ %'about.txt'] [[/ %txt] default-about]]
             ::  /children: spawned child nexuses
             [%fall %| /children empty-dir:loader]
             ::  ui
-            [%over %& [/ %'page.html'] [[/ %html] !>((crip (en-xml:html (chat-page "" ""))))]]
+            [%over %& [/ %'page.html'] [[/ %html] (crip (en-xml:html (chat-page "" "")))]]
         ==
       ==
     ::
