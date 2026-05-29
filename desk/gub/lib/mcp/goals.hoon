@@ -225,7 +225,7 @@
     =/  act-type=@t  -.p.act-parsed
     =/  act=action:goals  +.p.act-parsed
     ;<  ~  bind:m
-      (poke:io (store-road u.store-name) [[/ %goal-action] !>(act)])
+      (poke:io (store-road u.store-name) [[/ %goal-action] act])
     (pure:m [%text (crip "Applied {(trip act-type)}")])
   ::
       ::  list: show all goals in a store

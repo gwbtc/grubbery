@@ -41,6 +41,6 @@
     ?.  ?=(%a -.u.parsed)  (pairs:enjs:format ~[['all' b+%.y]])
     (pairs:enjs:format ~[['all' b+%.n] ['paths' u.parsed]])
   =/  =road:tarball  [%& %& [(weld pax /actions) %'add.sig']]
-  ;<  ~  bind:m  (poke:io road [[/ %json] !>(req)])
+  ;<  ~  bind:m  (poke:io road [[/ %json] req])
   (pure:m [%text 'Files staged.'])
 --

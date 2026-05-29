@@ -112,8 +112,8 @@
             ::  clear error + show loading
             =/  err-road=road:tarball   (cord-to-road:tarball './ui/sse/error.html')
             =/  load-road=road:tarball  (cord-to-road:tarball './ui/sse/loading.html')
-            ;<  ~  bind:m  (over:io err-road [[/ %html] !>((crip (en-xml:html ;div;)))])
-            ;<  ~  bind:m  (over:io load-road [[/ %html] !>((crip (en-xml:html loading-bar)))])
+            ;<  ~  bind:m  (over:io err-road [[/ %html] (crip (en-xml:html ;div;))])
+            ;<  ~  bind:m  (over:io load-road [[/ %html] (crip (en-xml:html loading-bar))])
             ;<  ~  bind:m  (sleep:io `@dr`(div ~s1 10))
             ::  derive account key from master seed
             =/  network=?(%main %testnet3 %testnet4 %signet %regtest)
@@ -138,12 +138,12 @@
 
             ?^  err
               ;<  ~  bind:m
-                (over:io load-road [[/ %html] !>((crip (en-xml:html ;div;)))])
+                (over:io load-road [[/ %html] (crip (en-xml:html ;div;))])
               ;<  ~  bind:m
-                (over:io err-road [[/ %html] !>((crip (en-xml:html (render-error u.err))))])
+                (over:io err-road [[/ %html] (crip (en-xml:html (render-error u.err)))])
               $
             ::  clear loading + update wallet accounts map
-            ;<  ~  bind:m  (over:io load-road [[/ %html] !>((crip (en-xml:html ;div;)))])
+            ;<  ~  bind:m  (over:io load-road [[/ %html] (crip (en-xml:html ;div;))])
             =/  acct-path=account:wt  [[%.y purpose] [%.y coin-type] [%.y account-idx]]
             =.  wal  wal(accounts (~(put by accounts.wal) acct-path acct-pubkey))
             ;<  ~  bind:m  (replace:io !>(wal))
@@ -156,20 +156,20 @@
             ::  clear error + show loading
             =/  err-road=road:tarball   (cord-to-road:tarball './ui/sse/error.html')
             =/  load-road=road:tarball  (cord-to-road:tarball './ui/sse/loading.html')
-            ;<  ~  bind:m  (over:io err-road [[/ %html] !>((crip (en-xml:html ;div;)))])
-            ;<  ~  bind:m  (over:io load-road [[/ %html] !>((crip (en-xml:html loading-bar)))])
+            ;<  ~  bind:m  (over:io err-road [[/ %html] (crip (en-xml:html ;div;))])
+            ;<  ~  bind:m  (over:io load-road [[/ %html] (crip (en-xml:html loading-bar))])
             ;<  ~  bind:m  (sleep:io `@dr`(div ~s1 10))
             ;<  err=(unit tang)  bind:m
               (cull-soft:io [%| 2 %| (snoc /accounts acct-dir)])
 
             ?^  err
               ;<  ~  bind:m
-                (over:io load-road [[/ %html] !>((crip (en-xml:html ;div;)))])
+                (over:io load-road [[/ %html] (crip (en-xml:html ;div;))])
               ;<  ~  bind:m
-                (over:io err-road [[/ %html] !>((crip (en-xml:html (render-error u.err))))])
+                (over:io err-road [[/ %html] (crip (en-xml:html (render-error u.err)))])
               $
             ::  clear loading + remove from wallet accounts map
-            ;<  ~  bind:m  (over:io load-road [[/ %html] !>((crip (en-xml:html ;div;)))])
+            ;<  ~  bind:m  (over:io load-road [[/ %html] (crip (en-xml:html ;div;))])
             =.  wal
               %=  wal
                 accounts
@@ -202,12 +202,12 @@
             ;<  *  bind:m
               (cull-soft:io (cord-to-road:tarball './proc/discover.json'))
             =/  load-road=road:tarball  (cord-to-road:tarball './ui/sse/loading.html')
-            ;<  ~  bind:m  (over:io load-road [[/ %html] !>((crip (en-xml:html ;div;)))])
+            ;<  ~  bind:m  (over:io load-road [[/ %html] (crip (en-xml:html ;div;))])
             $
           ::
               %'clear-error'
             =/  err-road=road:tarball  (cord-to-road:tarball './ui/sse/error.html')
-            ;<  ~  bind:m  (over:io err-road [[/ %html] !>((crip (en-xml:html ;div;)))])
+            ;<  ~  bind:m  (over:io err-road [[/ %html] (crip (en-xml:html ;div;))])
             $
           ==
         ==
@@ -244,7 +244,7 @@
         ;<  ~  bind:m  (replace:io !>(prog))
         ::  show progress in loading bar
         ;<  ~  bind:m
-          (over:io load-road [[/ %html] !>((crip (en-xml:html (discover-loading purpose coin-type account-idx))))])
+          (over:io load-road [[/ %html] (crip (en-xml:html (discover-loading purpose coin-type account-idx)))])
         ::  derive xprv for this account index
         =/  master  (from-seed:bip32 (seed-to-bytes seed.u.wal))
         =/  pax=tape
@@ -258,7 +258,7 @@
           (discover-check-chain xprv script-type network 1)
         ::  no activity = discovery complete
         ?.  |(recv-active chng-active)
-          ;<  ~  bind:m  (over:io load-road [[/ %html] !>((crip (en-xml:html ;div;)))])
+          ;<  ~  bind:m  (over:io load-road [[/ %html] (crip (en-xml:html ;div;))])
           (pure:m ~)
         ::  account has activity — create it
         =/  acct-name=@t  (crip "Account {(scow %ud account-idx)}")
@@ -279,7 +279,7 @@
         =/  acct-path=account:wt  [[%.y purpose] [%.y coin-type] [%.y account-idx]]
         =.  u.wal  u.wal(accounts (~(put by accounts.u.wal) acct-path acct-pubkey))
         ;<  ~  bind:m
-          (over:io (cord-to-road:tarball '../main.wallet_wallet') [[/wallet %wallet] !>(u.wal)])
+          (over:io (cord-to-road:tarball '../main.wallet_wallet') [[/wallet %wallet] u.wal])
         ::  kick off full scan on the new account
         =/  scan-json=json
           %-  pairs:enjs:format

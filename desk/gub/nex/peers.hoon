@@ -133,7 +133,7 @@
     =/  ships=(set @p)
       %-  ~(gas in *(set @p))
       (murn t.lines |=(t=@t (slaw %p t)))
-    ;<  ~  bind:m  (over:io (abs-file /usergroups/[nam] %'who.ships') [[/ %ships] !>(ships)])
+    ;<  ~  bind:m  (over:io (abs-file /usergroups/[nam] %'who.ships') [[/ %ships] ships])
     (redirect eyre-id)
   ::
       [%permissions ~]
@@ -142,7 +142,7 @@
     ?~  lines  (redirect eyre-id)
     =/  nam=@ta  (crip (trip i.lines))
     =/  =weir:nexus  (parse-weir-lines t.lines)
-    ;<  ~  bind:m  (over:io (abs-file /usergroups/[nam] %'how.weir') [[/ %weir] !>(weir)])
+    ;<  ~  bind:m  (over:io (abs-file /usergroups/[nam] %'how.weir') [[/ %weir] weir])
     (redirect eyre-id)
   ==
 ::

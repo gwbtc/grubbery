@@ -43,7 +43,7 @@
   ::  Write source to ball mirror
   ;<  exists=?  bind:m  (peek-exists:io road)
   ?:  exists
-    ;<  ~  bind:m  (over:io road [[/ %hoon] !>(source)])
+    ;<  ~  bind:m  (over:io road [[/ %hoon] source])
     (pure:m [%text (crip "Source written: /code/lib/mcp/{(trip file-name)}. Use check_bin to verify compilation.")])
   ;<  ~  bind:m  (make:io road |+[[[/ %hoon] source] ~])
   (pure:m [%text (crip "Source written: /code/lib/mcp/{(trip file-name)}. Use check_bin to verify compilation.")])

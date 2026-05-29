@@ -167,7 +167,7 @@
         ::  update offset
         ::
         =/  offset-road=road:tarball  (cord-to-road:tarball './offset.ud')
-        ;<  ~  bind:m  (over:io offset-road [[/ %ud] !>(new-offset)])
+        ;<  ~  bind:m  (over:io offset-road [[/ %ud] new-offset])
         $(offset new-offset)
           ::  /send.sig: accept pokes to send messages as the bot
           ::
@@ -358,7 +358,7 @@
   ;<  =seen:nexus  bind:m
     (peek:io file-road ~)
   ?:  ?=([%& %file *] seen)
-    (over:io file-road [[/ %json] !>(dat)])
+    (over:io file-road [[/ %json] dat])
   (make:io file-road [%| [[/ %json] dat] ~])
 ::
 ::  Extract chat names and messages from the messages/ directory view.

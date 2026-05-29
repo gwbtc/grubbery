@@ -269,8 +269,8 @@
   ~&  >>  ["%ball-api: serve-post" op road p.u.converted]
   ;<  ~  bind:m
     ?-  op
-      %poke  (poke:io road u.converted)
-      %over  (over:io road u.converted)
+      %poke  (poke:io road [p.u.converted q.q.u.converted])
+      %over  (over:io road [p.u.converted q.q.u.converted])
     ==
   ~&  >>  "%ball-api: serve-post done"
   (send-ok eyre-id 'OK')
@@ -395,9 +395,9 @@
   =/  =road:tarball  [%& %& full-path file-name]
   ;<  exists=?  bind:m  (peek-exists:io road)
   ?:  exists
-    ;<  ~  bind:m  (over:io road final-sage)
+    ;<  ~  bind:m  (over:io road [p.final-sage q.q.final-sage])
     $(remaining t.remaining, created [filename-raw created])
-  ;<  ~  bind:m  (make:io road |+[final-sage ~])
+  ;<  ~  bind:m  (make:io road |+[[p.final-sage q.q.final-sage] ~])
   $(remaining t.remaining, created [filename-raw created])
 ::  +serve-sand-peek: GET /sand — directory permissions as JSON
 ::

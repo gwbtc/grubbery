@@ -224,7 +224,7 @@
     |=([n=@t p=@t] [n s+p])
   ;<  rd=road:tarball  bind:m
     (ancestor-road:io [/ %s3] [%& / %'mounts.json'])
-  (over:io rd [[/ %json] !>([%o (malt entries)])])
+  (over:io rd [[/ %json] [%o (malt entries)]])
 ::
 ++  get-str
   |=  [jon=json key=@t]
@@ -339,10 +339,10 @@
     (ancestor-road:io [/ %s3] [%& full-path filename])
   ;<  exists=?  bind:m  (peek-exists:io file-road)
   ?:  exists
-    (over:io file-road [[/ %mime] !>(file-mime)])
+    (over:io file-road [[/ %mime] file-mime])
   =/  ext=(unit blot:tarball)  (bind (parse-extension:tarball filename) |=(e=@ta [/ e]))
   ;<  err=(unit tang)  bind:m
-    (make-soft:io file-road |+[[[/ %mime] !>(file-mime)] ext])
+    (make-soft:io file-road |+[[[/ %mime] file-mime] ext])
   ?~  err  (pure:m ~)
   ::  mark not found, retry as plain mime
   (make:io file-road |+[[[/ %mime] file-mime] ~])
@@ -368,10 +368,10 @@
   ;<  exists=?  bind:m  (peek-exists:io file-road)
   ;<  ~  bind:m
     ?:  exists
-      (over:io file-road [[/ %mime] !>(file-mime)])
+      (over:io file-road [[/ %mime] file-mime])
     =/  ext=(unit blot:tarball)  (bind (parse-extension:tarball filename) |=(e=@ta [/ e]))
     ;<  err=(unit tang)  bind:m
-      (make-soft:io file-road |+[[[/ %mime] !>(file-mime)] ext])
+      (make-soft:io file-road |+[[[/ %mime] file-mime] ext])
     ?~  err  (pure:m ~)
     (make:io file-road |+[[[/ %mime] file-mime] ~])
   %-  replace:io  !>

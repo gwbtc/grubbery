@@ -74,7 +74,7 @@
             :~  ['action' s+'typing']
                 ['chat_id' s+chat-id.cfg]
             ==
-          ;<  ~  bind:m  (poke:io bot-send [/ %json] !>(typing-body))
+          ;<  ~  bind:m  (poke:io bot-send [/ %json] typing-body)
           $
         ::  handle normal message send
         =/  text=(unit json)  (~(get by p.jon) 'text')
@@ -87,7 +87,7 @@
               ['chat_id' s+chat-id.cfg]
           ==
         ~&  >  ["%channel send: forwarding via" source-fold]
-        ;<  ~  bind:m  (poke:io bot-send [/ %json] !>(send-body))
+        ;<  ~  bind:m  (poke:io bot-send [/ %json] send-body)
         $
           ::  /relay.sig: bridge source inbound messages to inbox
           ::
@@ -143,7 +143,7 @@
           ==
         =/  updated=json  [%a (weld cur-inbox new-entries)]
         ~&  >>>  ["%channel relay: writing" (lent new-entries) "entries to inbox"]
-        ;<  ~  bind:m  (over:io inbox-road [[/ %json] !>(updated)])
+        ;<  ~  bind:m  (over:io inbox-road [[/ %json] updated])
         ~&  >>>  "%channel relay: inbox updated!"
         $
       ==

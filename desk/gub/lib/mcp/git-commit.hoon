@@ -37,10 +37,10 @@
   ::  stage all files first (git add -A)
   =/  add-rd=road:tarball  [%& %& [(weld pax /actions) %'add.sig']]
   =/  add-req=json  (pairs:enjs:format ~[['all' b+%.y]])
-  ;<  ~  bind:m  (poke:io add-rd [[/ %json] !>(add-req)])
+  ;<  ~  bind:m  (poke:io add-rd [[/ %json] add-req])
   ::  then commit from index
   =/  commit-rd=road:tarball  [%& %& [(weld pax /actions) %'commit.sig']]
   =/  msg-wain=wain  (to-wain:format message)
-  ;<  ~  bind:m  (poke:io commit-rd [[/ %txt] !>(msg-wain)])
+  ;<  ~  bind:m  (poke:io commit-rd [[/ %txt] msg-wain])
   (pure:m [%text (cat 3 'Commit triggered: ' message)])
 --

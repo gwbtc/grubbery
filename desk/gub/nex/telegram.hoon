@@ -77,7 +77,7 @@
             (pairs:enjs:format ~[['bot-token' s+bot-token]])
           =/  cfg-road=road:tarball
             (cord-to-road:tarball (rap 3 ~['./bots/' dir-name '/config.json']))
-          ;<  ~  bind:m  (over:io cfg-road [[/ %json] !>(cfg)])
+          ;<  ~  bind:m  (over:io cfg-road [[/ %json] cfg])
           $
         ::
             %delete

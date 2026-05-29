@@ -42,7 +42,7 @@
     %-  poke:io
     :*  (cord-to-road:tarball './groundwire.groundwire')
         [/ `@ta`'reg-tester.sig']
-        !>(poke-json)
+        poke-json
     ==
   (pure:m [%text (crip "spawn poke sent (sed={((d-co:co 1) sed)}). watch the walker — it'll mine funding + 100 maturity + reveals + 8 confirmation blocks.")])
 --

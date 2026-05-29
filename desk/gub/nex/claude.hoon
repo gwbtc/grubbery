@@ -596,7 +596,7 @@
     ;<  reg=registry  bind:m  (get-state-as:io ,registry)
     =/  loading-on=json   (pairs:enjs:format ~[['loading' b+%.y] ['live' b+live.reg]])
     =/  loading-off=json  (pairs:enjs:format ~[['loading' b+%.n] ['live' b+live.reg]])
-    ;<  ~  bind:m  (over:io status-road [[/ %json] !>(loading-on)])
+    ;<  ~  bind:m  (over:io status-road [[/ %json] loading-on])
     =/  =request:http
       :^  %'POST'  'https://api.anthropic.com/v1/messages'
         :~  ['content-type' 'application/json']
@@ -605,7 +605,7 @@
         ==
       `(as-octs:mimes:html body-cord)
     ;<  response=(unit @t)  bind:m  (fetch-or-interrupt request)
-    ;<  ~  bind:m  (over:io status-road [[/ %json] !>(loading-off)])
+    ;<  ~  bind:m  (over:io status-road [[/ %json] loading-off])
     ?~  response
       ~&  >  %claude-interrupted
       ;<  ~  bind:m  (set-live %.n)
@@ -1008,7 +1008,7 @@
   ;<  ~  bind:m  (replace:io !>(`registry`reg(live flag)))
   =/  status-road=road:tarball  (cord-to-road:tarball './ui/sse/status.json')
   =/  =json  (pairs:enjs:format ~[['loading' b+%.n] ['live' b+flag]])
-  (over:io status-road [[/ %json] !>(json)])
+  (over:io status-road [[/ %json] json])
 ::
 ++  append-msg
   |=  [msg-road=road:tarball =slot result=@t rev=(unit @ud)]
@@ -1403,7 +1403,7 @@
   |=  [msg-road=road:tarball role=@t content=@t]
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
-  (poke:io msg-road [[/ %claude-action] !>(`action`[%add role content])])
+  (poke:io msg-road [[/ %claude-action] `action`[%add role content]])
 ::  Extract inner text from an XML tag like <error>text</error>
 ::
 ++  extract-inner

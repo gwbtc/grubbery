@@ -35,6 +35,6 @@
   =/  pax=path  p.pax-parsed
   =/  rd=road:tarball  [%& %& [(weld pax /actions) %'switch.sig']]
   =/  msg-wain=wain  (to-wain:format branch)
-  ;<  ~  bind:m  (poke:io rd [[/ %txt] !>(msg-wain)])
+  ;<  ~  bind:m  (poke:io rd [[/ %txt] msg-wain])
   (pure:m [%text (cat 3 'Switched to branch: ' branch)])
 --

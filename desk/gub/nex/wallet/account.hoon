@@ -139,7 +139,7 @@
             ;<  ~  bind:m  (ensure-net-dir new-network)
             =/  updated=account-data  u.acct(active-network new-network)
             ;<  ~  bind:m
-              (over:io (cord-to-road:tarball './data.wallet_account') [[/wallet %account] !>(updated)])
+              (over:io (cord-to-road:tarball './data.wallet_account') [[/wallet %account] updated])
             $
           ::
               %'full-scan'
@@ -632,7 +632,7 @@
   =/  road=road:tarball  (cord-to-road:tarball './data.wallet_draft')
   ;<  exists=?  bind:m  (peek-exists:io road)
   ?:  exists
-    (over:io road [[/wallet %draft] !>(dr)])
+    (over:io road [[/wallet %draft] dr])
   (make:io road |+[[[/wallet %draft] dr] ~])
 ::
 ++  read-wallet-name
@@ -751,7 +751,7 @@
   ~&  >>  [%write-mop %exists exists]
   ?:  exists
     ~&  >>  [%write-mop %overwriting]
-    (over:io road [[/wallet %addresses] !>(mop)])
+    (over:io road [[/wallet %addresses] mop])
   ~&  >>  [%write-mop %creating]
   (make:io road |+[[[/wallet %addresses] mop] ~])
 ::  +txs-road: compute road to the tx-map file
@@ -781,7 +781,7 @@
   =/  road=road:tarball  (txs-road base network)
   ;<  exists=?  bind:m  (peek-exists:io road)
   ?:  exists
-    (over:io road [[/wallet %txs] !>(txs)])
+    (over:io road [[/wallet %txs] txs])
   (make:io road |+[[[/wallet %txs] txs] ~])
 ::  +ensure-net-dir: create network dir + empty mop files if needed
 ::

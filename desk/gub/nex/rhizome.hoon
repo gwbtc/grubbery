@@ -96,7 +96,7 @@
             $(ops t.ops)
               %update
             ;<  ~  bind:m
-              (poke:io (meta-road mname.i.ops) [[/ %json] !>(json.i.ops)])
+              (poke:io (meta-road mname.i.ops) [[/ %json] json.i.ops])
             $(ops t.ops)
               %delete
             ;<  ~  bind:m

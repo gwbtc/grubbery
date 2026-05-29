@@ -35,7 +35,7 @@
   =/  src-mime=mime  [/text/plain (as-octs:mimes:html content)]
   ;<  exists=?  bind:m  (peek-exists:io src-road)
   ?:  exists
-    ;<  ~  bind:m  (over:io src-road [[/ %mime] !>(src-mime)])
+    ;<  ~  bind:m  (over:io src-road [[/ %mime] src-mime])
     (do-check bin-road pax nam)
   ;<  ~  bind:m  (make:io src-road |+[[[/ %mime] src-mime] `[/ %hoon]])
   (do-check bin-road pax nam)

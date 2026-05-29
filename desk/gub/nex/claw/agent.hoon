@@ -176,9 +176,9 @@
               '  peek:io road mark          -- read a file or directory'
               '  peek-exists:io road        -- check if something exists'
               '  make:io road make-spec     -- create a file or directory'
-              '  over:io road sage          -- overwrite file content'
+              '  over:io road bask          -- overwrite file content'
               '  cull:io road               -- delete a file or directory'
-              '  poke:io road sage          -- send data to another process'
+              '  poke:io road bask          -- send data to another process'
               '  take-poke:io               -- wait for incoming poke'
               '  keep:io wire road mark     -- subscribe to changes'
               '  take-news:io wire          -- wait for subscription update'
@@ -662,7 +662,7 @@
         ;<  exists=?  bind:m  (peek-exists:io chats-road)
         ;<  ~  bind:m
           ?:  exists
-            (over:io chats-road [[/ %json] !>(manifest)])
+            (over:io chats-road [[/ %json] manifest])
           (make:io chats-road |+[[[/ %json] manifest] ~])
         |-
         ;<  =sage:tarball  bind:m  take-poke:io
@@ -733,7 +733,7 @@
             (pairs:enjs:format ~[['action' s+'message'] ['content' s+content]])
           ;<  chat-road=road:tarball  bind:m
             (ancestor-road:io [/claw %agent] [%& /chats/[chat-name] %'chat.json'])
-          ;<  ~  bind:m  (poke:io chat-road [/ %json] !>(msg))
+          ;<  ~  bind:m  (poke:io chat-road [/ %json] msg)
           $
         ==
           ::  /chats/*/chat.json: per-chat event loop
@@ -1021,14 +1021,14 @@
           stay:m
         ~&  >  "%claw cron: waiting until {(scow %da u.next)}"
         ;<  ~  bind:m
-          (poke:io &+&+[/sys/behn %'main.timer-state'] [[/ %timer-set] !>(`[wire @da]`[/cron u.next])])
+          (poke:io &+&+[/sys/behn %'main.timer-state'] [[/ %timer-set] `[wire @da]`[/cron u.next]])
         ;<  *  bind:m  take-poke:io
         ~&  >  "%claw cron: firing to chat {(trip chat)}"
         =/  msg=json
           (pairs:enjs:format ~[['action' s+'message'] ['content' s+message]])
         ;<  chat-road=road:tarball  bind:m
           (ancestor-road:io [/claw %agent] [%& /chats/[(crip (cass:so (trip chat)))] %'chat.json'])
-        ;<  ~  bind:m  (poke:io chat-road [/ %json] !>(msg))
+        ;<  ~  bind:m  (poke:io chat-road [/ %json] msg)
         $
           ::  /page.html: rendered chat page
           ::
@@ -1232,7 +1232,7 @@
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
   ;<  road=road:tarball  bind:m  (ancestor-road:io [/claw %agent] [%& / %'config.json'])
-  (over:io road [[/ %json] !>(updated)])
+  (over:io road [[/ %json] updated])
 ::
 ++  read-outbox
   |=  chat-name=@ta
@@ -1289,7 +1289,7 @@
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
   ;<  road=road:tarball  bind:m  (ancestor-road:io [/claw %agent] [%& /ui %'chats.json'])
-  (over:io road [[/ %json] !>([%a (turn names |=(n=@t s+n))])])
+  (over:io road [[/ %json] [%a (turn names |=(n=@t s+n))]])
 ::
 ++  set-status
   |=  [chat-name=@ta st=agent-status]
@@ -1302,7 +1302,7 @@
       %tool  (pairs:enjs:format ~[['state' s+'tool'] ['id' s+id.st]])
     ==
   ;<  road=road:tarball  bind:m  (ancestor-road:io [/claw %agent] [%& /chats/[chat-name] %'status.json'])
-  (over:io road [[/ %json] !>(status)])
+  (over:io road [[/ %json] status])
 ::
 ++  join-texts
   |=  texts=(list @t)
@@ -1327,7 +1327,7 @@
     (ancestor-road:io [/claw %app] [%& (weld /channels chan-fold) %'send.sig'])
   =/  typing-body=json
     (pairs:enjs:format ~[['action' s+'typing']])
-  ;<  ~  bind:m  (poke:io send-road [/ %json] !>(typing-body))
+  ;<  ~  bind:m  (poke:io send-road [/ %json] typing-body)
   (pure:m ~)
 ::
 ::  +forward-to-channel: if conv has a linked channel, send new assistant msgs
@@ -1355,7 +1355,7 @@
   =/  send-body=json
     (pairs:enjs:format ~[['text' s+combined]])
   ~&  >  ["%claw: forwarding to channel" chan-name]
-  ;<  ~  bind:m  (poke:io send-road [/ %json] !>(send-body))
+  ;<  ~  bind:m  (poke:io send-road [/ %json] send-body)
   (pure:m ~)
 ::
 ::  +strip-hoon: remove .hoon suffix from filename
@@ -1605,7 +1605,7 @@
   ::  poke main.sig to create the call
   =/  poke-body=json
     (pairs:enjs:format ~[['id' s+call-id] ['body' payload]])
-  ;<  ~  bind:m  (poke:io main-road [/ %json] !>(poke-body))
+  ;<  ~  bind:m  (poke:io main-road [/ %json] poke-body)
   ~&  >>  ["%claw: call" call-id "created, waiting for response"]
   ;<  ~  bind:m  (set-status chat-name [%api ~])
   ::  wait for news with status=done, or interrupt poke
@@ -2932,7 +2932,7 @@
     ?:  exists
       ?^  dest-blot
         (pure:m [%error 'Cannot change blot of existing file. Delete it first, then recreate with the desired blot.'])
-      ;<  ~  bind:m  (over:io road [[/ %mime] !>(src-mime)])
+      ;<  ~  bind:m  (over:io road [[/ %mime] src-mime])
       (pure:m [%text (crip "Wrote {(trip u.raw)}")])
     ;<  ~  bind:m  (make:io road |+[[[/ %mime] src-mime] dest-blot])
     (pure:m [%text (crip "Created {(trip u.raw)}")])
@@ -2993,7 +2993,7 @@
         (pure:m [%error 'old_string cannot be empty'])
       ==
     =/  new-mime=^mime  [/text/plain (as-octs:mimes:html (crip p.result))]
-    ;<  ~  bind:m  (over:io road [[/ %mime] !>(new-mime)])
+    ;<  ~  bind:m  (over:io road [[/ %mime] new-mime])
     (pure:m [%text (crip "Edited {(trip u.raw)}")])
   --
 ::
@@ -3425,7 +3425,7 @@
     =/  road=road:tarball  (agent-road (crip "./chats/{(trip chat-name)}/outbox.json"))
     ;<  cur=(list json)  bind:m  (read-outbox chat-name)
     =/  updated=json  [%a (snoc cur result-json)]
-    ;<  ~  bind:m  (over:io road [[/ %json] !>(updated)])
+    ;<  ~  bind:m  (over:io road [[/ %json] updated])
     (pure:m [%text 'Finished -- result appended to outbox.json'])
   --
 ::
@@ -3556,7 +3556,7 @@
     ;<  cfg-exists=?  bind:m  (peek-exists:io child-config-road)
     ;<  ~  bind:m
       ?:  cfg-exists
-        (over:io child-config-road [[/ %json] !>(parent-config)])
+        (over:io child-config-road [[/ %json] parent-config])
       (make:io child-config-road |+[[[/ %json] parent-config] ~])
     ::  write task prompt with finish instructions
     =/  base-instructions=@t
@@ -3579,7 +3579,7 @@
       =/  m  (fiber:fiber:nexus ,~)
       ;<  pex=?  bind:m  (peek-exists:io prompt-road)
       ?:  pex
-        (over:io prompt-road [[/ %txt] !>(prompt-wain)])
+        (over:io prompt-road [[/ %txt] prompt-wain])
       (make:io prompt-road |+[[[/ %txt] prompt-wain] ~])
     ::  poke child with message
     =/  msg-json=json
@@ -3964,7 +3964,7 @@
     ;<  *  bind:m  (keep:io /sum-call call-road ~)
     =/  poke-body=json
       (pairs:enjs:format ~[['id' s+call-id] ['body' payload]])
-    ;<  ~  bind:m  (poke:io proxy [/ %json] !>(poke-body))
+    ;<  ~  bind:m  (poke:io proxy [/ %json] poke-body)
     ;<  resp=json  bind:m  (await-sum-call /sum-call call-road)
     ;<  ~  bind:m  (drop:io /sum-call call-road)
     =/  parsed=(unit api-response)  (parse-json-response resp)

@@ -86,7 +86,7 @@
         =/  ref-octs=octs  (as-octt:bytestream (trip head-hash))
         ;<  ref-rd=road:tarball  bind:m
           (ancestor-road:io [/git %repo] [%& /data/refs/heads (crip (trip branch))])
-        ;<  ~  bind:m  (over:io ref-rd [[/ %mime] !>([/text/plain ref-octs])])
+        ;<  ~  bind:m  (over:io ref-rd [[/ %mime] [/text/plain ref-octs]])
         ~&  >>  ["%git/repo: created branch" branch "at" head-hash]
         ::  reload data to rebuild branch list
         ;<  data-rd=road:tarball  bind:m  (ancestor-road:io [/git %repo] [%| /data])
@@ -325,7 +325,7 @@
               ['files' (build-diff-json get-blob changes)]
           ==
         ;<  commit-rd=road:tarball  bind:m  (ancestor-road:io [/git %repo] [%& /ui %'commit.json'])
-        ;<  ~  bind:m  (over:io commit-rd [[/ %json] !>(result)])
+        ;<  ~  bind:m  (over:io commit-rd [[/ %json] result])
         $
           ::  /actions/add.sig: stage files into index
           ::
@@ -402,7 +402,7 @@
         ;<  sync-cfg-rd=road:tarball  bind:m
           (ancestor-road:io [/git %repo] [%& / %'config.json'])
         ;<  ~  bind:m
-          (over:io sync-cfg-rd [[/ %json] !>((pairs:enjs:format ~[['repo' s+repo.cfg] ['ref' s+ref.cfg] ['token' s+token.cfg]]))])
+          (over:io sync-cfg-rd [[/ %json] (pairs:enjs:format ~[['repo' s+repo.cfg] ['ref' s+ref.cfg] ['token' s+token.cfg]])])
         ::  check if we already have packs (incremental vs full clone)
         ;<  repo-result=(unit repository:git-repo)  bind:m  load-repo-maybe
         ?^  repo-result
@@ -781,7 +781,7 @@
   ^-  form:m
   ;<  exists=?  bind:m  (peek-exists:io road)
   ?:  exists
-    (over:io road [p.bask !>(q.bask)])
+    (over:io road bask)
   (make:io road |+[bask ~])
 ::
 ::  +do-full-clone: full clone from discovery
@@ -980,7 +980,7 @@
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
   ;<  rd=road:tarball  bind:m  (ancestor-road:io [/git %repo] [%& /ui %'status.json'])
-  (over:io rd [[/ %json] !>((pairs:enjs:format ~[['status' s+s]]))])
+  (over:io rd [[/ %json] (pairs:enjs:format ~[['status' s+s]])])
 ::
 ::  +load-repo-maybe: rebuild repository from ./data/ if packs exist
 ::

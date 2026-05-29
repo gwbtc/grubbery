@@ -275,7 +275,7 @@
                 ((om:dejs:format same:dejs:format) data-jon)
               ==
             ;<  ~  bind:m
-              (poke:io [%| 0 %& /store (store-fname store-name)] [[/ %goal-action] !>(act)])
+              (poke:io [%| 0 %& /store (store-fname store-name)] [[/ %goal-action] act])
             $
           ==
         ==

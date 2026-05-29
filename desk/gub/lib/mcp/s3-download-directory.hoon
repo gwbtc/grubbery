@@ -98,7 +98,7 @@
   =/  road=road:tarball  [%& %& pax filename]
   ;<  exists=?  bind:m  (peek-exists:io road)
   ?:  exists
-    ;<  ~  bind:m  (over:io road [[/ %mime] !>(file-mime)])
+    ;<  ~  bind:m  (over:io road [[/ %mime] file-mime])
     $(files t.files, downloaded +(downloaded))
   ;<  ~  bind:m  (make:io road |+[[[/ %mime] file-mime] (bind ext |=(e=@ta [/ e]))])
   $(files t.files, downloaded +(downloaded))

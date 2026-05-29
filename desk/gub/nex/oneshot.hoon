@@ -62,7 +62,7 @@
           ?.  ?=([~ %s *] v)  'call'
           p.u.v
         ?:  =(action 'save')
-          ;<  ~  bind:m  (over:io request-road [[/ %json] !>(req)])
+          ;<  ~  bind:m  (over:io request-road [[/ %json] req])
           $
         ?:  =(action 'search')
           =/  query=@t
@@ -71,15 +71,15 @@
             p.u.v
           ?:  =('' query)  $
           ;<  ~  bind:m
-            (over:io result-road [[/ %json] !>((pairs:enjs:format ~[['status' s+'loading']]))])
+            (over:io result-road [[/ %json] (pairs:enjs:format ~[['status' s+'loading']])])
           ;<  brave-key=@t  bind:m  read-brave-key
           ?:  =('' brave-key)
             ;<  ~  bind:m
-              (over:io result-road [[/ %json] !>((pairs:enjs:format ~[['status' s+'error'] ['error' s+'No Brave API key configured']]))])
+              (over:io result-road [[/ %json] (pairs:enjs:format ~[['status' s+'error'] ['error' s+'No Brave API key configured']])])
             $
           ;<  results=@t  bind:m  (~(web search:oneshot brave-key) query)
           ;<  ~  bind:m
-            (over:io result-road [[/ %json] !>((pairs:enjs:format ~[['status' s+'ok'] ['output' s+results] ['mark' s+'search']]))])
+            (over:io result-road [[/ %json] (pairs:enjs:format ~[['status' s+'ok'] ['output' s+results] ['mark' s+'search']])])
           $
         ?:  =(action 'brief')
           =/  topic=@t
@@ -91,34 +91,34 @@
           ::  step 1: generating queries
           ::
           ;<  ~  bind:m
-            (over:io brief-road [[/ %json] !>((pairs:enjs:format ~[['step' s+'generating-queries'] ['topic' s+topic]]))])
+            (over:io brief-road [[/ %json] (pairs:enjs:format ~[['step' s+'generating-queries'] ['topic' s+topic]])])
           ;<  cfg=claude-config:oneshot  bind:m  read-claude-config
           ?:  =('' api-key.cfg)
             ;<  ~  bind:m
-              (over:io brief-road [[/ %json] !>((pairs:enjs:format ~[['step' s+'error'] ['error' s+'No API key configured']]))])
+              (over:io brief-road [[/ %json] (pairs:enjs:format ~[['step' s+'error'] ['error' s+'No API key configured']])])
             $
           ;<  brave-key=@t  bind:m  read-brave-key
           ?:  =('' brave-key)
             ;<  ~  bind:m
-              (over:io brief-road [[/ %json] !>((pairs:enjs:format ~[['step' s+'error'] ['error' s+'No Brave API key configured']]))])
+              (over:io brief-road [[/ %json] (pairs:enjs:format ~[['step' s+'error'] ['error' s+'No Brave API key configured']])])
             $
           =/  brfng  ~(. briefing:oneshot [cfg brave-key])
           ;<  queries=(list @t)  bind:m  (generate-queries:brfng topic)
           ?~  queries
             ;<  ~  bind:m
-              (over:io brief-road [[/ %json] !>((pairs:enjs:format ~[['step' s+'error'] ['error' s+'No queries generated']]))])
+              (over:io brief-road [[/ %json] (pairs:enjs:format ~[['step' s+'error'] ['error' s+'No queries generated']])])
             $
           ::  step 2: searching (show queries)
           ::
           =/  query-json=json  [%a (turn queries |=(q=@t s+q))]
           =/  total=@t  (crip (a-co:co (lent queries)))
           ;<  ~  bind:m
-            (over:io brief-road [[/ %json] !>((pairs:enjs:format ~[['step' s+'searching'] ['topic' s+topic] ['queries' query-json] ['completed' s+'0'] ['total' s+total]]))])
+            (over:io brief-road [[/ %json] (pairs:enjs:format ~[['step' s+'searching'] ['topic' s+topic] ['queries' query-json] ['completed' s+'0'] ['total' s+total]])])
           ;<  research=@t  bind:m  (run-searches:brfng queries)
           ::  step 3: synthesizing
           ::
           ;<  ~  bind:m
-            (over:io brief-road [[/ %json] !>((pairs:enjs:format ~[['step' s+'synthesizing'] ['topic' s+topic] ['queries' query-json] ['research' s+research]]))])
+            (over:io brief-road [[/ %json] (pairs:enjs:format ~[['step' s+'synthesizing'] ['topic' s+topic] ['queries' query-json] ['research' s+research]])])
           ;<  =result:oneshot  bind:m
             (synthesize:brfng topic research [%txt 'Write a clear, analytical briefing.'])
           ::  done
@@ -133,7 +133,7 @@
                   ['briefing' s+raw.p.result]
               ==
             ~[['step' s+'error'] ['topic' s+topic] ['error' s+'Synthesis failed']]
-          ;<  ~  bind:m  (over:io brief-road [[/ %json] !>(resp)])
+          ;<  ~  bind:m  (over:io brief-road [[/ %json] resp])
           $
         ::  extract fields
         =/  system=@t
@@ -154,15 +154,15 @@
           p.u.v
         ?:  =('' prompt)  $
         ::  save request, set loading state
-        ;<  ~  bind:m  (over:io request-road [[/ %json] !>(req)])
+        ;<  ~  bind:m  (over:io request-road [[/ %json] req])
         ;<  ~  bind:m
-          (over:io result-road [[/ %json] !>((pairs:enjs:format ~[['status' s+'loading']]))])
+          (over:io result-road [[/ %json] (pairs:enjs:format ~[['status' s+'loading']])])
         ::  read config
         ;<  cfg=claude-config:oneshot  bind:m  read-claude-config
         ?:  =('' api-key.cfg)
           ~&  >>>  %oneshot-no-api-key
           ;<  ~  bind:m
-            (over:io result-road [[/ %json] !>((pairs:enjs:format ~[['status' s+'error'] ['error' s+'No API key configured']]))])
+            (over:io result-road [[/ %json] (pairs:enjs:format ~[['status' s+'error'] ['error' s+'No API key configured']])])
           $
         ;<  =result:oneshot  bind:m
           (~(call agent:oneshot cfg) [system prompt [out-mark out-desc]])
@@ -179,7 +179,7 @@
                 ==
             %|  ~[['status' s+'error'] ['error' s+p.p.result]]
           ==
-        ;<  ~  bind:m  (over:io result-road [[/ %json] !>(resp)])
+        ;<  ~  bind:m  (over:io result-road [[/ %json] resp])
         $
           ::  /ui/page.html: watches result.json, peeks request.json on render
           ::

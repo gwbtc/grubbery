@@ -181,13 +181,13 @@
     =/  ship-rail=rail:tarball  [/sys/ames/ships/[ship-ta] %'ship.sig']
     =/  =load:nexus
       ?-  +<.req
-        %poke  [%poke p.bask.req !>(q.bask.req)]
+        %poke  [%poke bask.req]
           %make
         [%make make.req]
         %cull  [%cull ~]
         %sand  [%sand weir.req]
         %load  [%load ~]
-        %peek  [%peek blot.req ~ %.y]
+        %peek  [%peek blot.req ~]
       ==
     =/  =dart:nexus  [%node /peer [%& dest.req] load]
     =^  dart-cards  state
@@ -1505,39 +1505,9 @@
     (enqu-take here (sys-give /veto) ~ %veto dart)
     ::
       [~ %&]
-    ::  Clam vases crossing sandbox boundary.
-    ::  TODO: clam ALL incoming vases, not just at weir boundaries.
-    ::  Clamming is cheap (cached vale gate), kills evil vases, and lets
-    ::  all downstream code trust the data unconditionally.
-    ::  Peek results are clammed inside handle-dart (data flows back).
-    ?.  ?=(%node -.dart)
-      (handle-dart here dart filt)
-    =/  clam-pax=path
-      ?~  dest  path.here
-      ?-  -.u.dest
-        %&  path.p.u.dest
-        %|  p.u.dest
-      ==
-    ?+    -.load.dart  (handle-dart here dart filt)
-        ?(%poke %over)
-      =/  cached  (check-vale-cache clam-pax p.sage.load.dart q.q.sage.load.dart)
-      ?^  cached
-        ?:  ?=(%| -.u.cached)
-          ?:  ?=([%sys %ames %ships @ ~] path.here)
-            ~|  [%peer-clam-failed name.here dest]  !!
-          (enqu-take here (sys-give /veto) ~ %veto dart)
-        (handle-dart here dart(sage.load [p.sage.load.dart p.u.cached]) filt)
-      =/  clammed=(each sage:tarball tang)  (validate-sage clam-pax sage.load.dart)
-      =.  this  (cache-validation clam-pax p.sage.load.dart q.q.sage.load.dart clammed)
-      ?:  ?=(%| -.clammed)
-        ?:  ?=([%sys %ames %ships @ ~] path.here)
-          ~|  [%peer-clam-failed name.here dest]  !!
-        (enqu-take here (sys-give /veto) ~ %veto dart)
-      (handle-dart here dart(sage.load p.clammed) filt)
-        %make
-      ::  Makes carry bask (untyped) — validation happens in ++make
-      (handle-dart here dart filt)
-    ==
+    ::  Weir boundary allowed — validation happens in handler for all dart types.
+    ::  Peek results are validated inside handle-dart (data flows back).
+    (handle-dart here dart filt)
   ==
 ::  Extract jump category and destination from a dart for weir filtering.
 ::  Returns [jump dest] where:
@@ -1581,31 +1551,43 @@
       ::  Poke destination must be a file
       ?>  ?=(%& -.u.dest-lane)
       =/  dest=rail:tarball  p.u.dest-lane
+      ::  Validate poke bask → sage
+      =/  cached  (check-vale-cache path.dest p.bask.load.dart q.bask.load.dart)
+      =/  validated=(each vase tang)
+        ?^  cached  u.cached
+        (validate-noun path.dest p.bask.load.dart q.bask.load.dart)
+      =?  this  ?=(~ cached)
+        (cache-validation path.dest p.bask.load.dart q.bask.load.dart validated)
+      ?:  ?=(%| -.validated)
+        ?:  ?=([%sys %ames %ships @ ~] path.here)
+          ~|  [%peer-clam-failed name.here dest]  !!
+        (enqu-take here (sys-give /veto) ~ %veto dart)
+      =/  =sage:tarball  [p.bask.load.dart p.validated]
       ::  /sys/behn/ timer service: intercept timer-set pokes
       ?:  ?&  =([/sys/behn %'main.timer-state'] dest)
-              =([/ %timer-set] p.sage.load.dart)
+              =([/ %timer-set] p.sage)
           ==
-        =.  this  (handle-timer-set here wire.dart q.sage.load.dart)
+        =.  this  (handle-timer-set here wire.dart q.sage)
         (enqu-take here (sys-give /behn) ~ %pack wire.dart ~)
       ::  /sys/eyre/ HTTP service: intercept eyre-action pokes
       ?:  ?&  =([/sys/eyre %'main.server-state'] dest)
-              =([/ %eyre-action] p.sage.load.dart)
+              =([/ %eyre-action] p.sage)
           ==
-        =.  this  (handle-eyre-action here wire.dart q.sage.load.dart)
+        =.  this  (handle-eyre-action here wire.dart q.sage)
         (enqu-take here (sys-give /eyre) ~ %pack wire.dart ~)
       ::  /sys/push/ push service: intercept push-action pokes
       ?:  ?&  =([/sys/push %'main.push-state'] dest)
-              =([/ %push-action] p.sage.load.dart)
+              =([/ %push-action] p.sage)
           ==
-        =.  this  (handle-push-action here wire.dart q.sage.load.dart)
+        =.  this  (handle-push-action here wire.dart q.sage)
         (enqu-take here (sys-give /push) ~ %pack wire.dart ~)
       ::  /sys/ namespace services: general dispatch
       =/  sys=(unit _this)
-        (handle-sys-poke dest here wire.dart sage.load.dart)
+        (handle-sys-poke dest here wire.dart sage)
       ?^  sys  u.sys
       ::  Poke with return address (relativize source for fiber intake)
       =/  rel=from:fiber:nexus  (relativize-from:nexus dest &+here)
-      (enqu-take dest [&+here wire.dart] ~ %poke rel sage.load.dart)
+      (enqu-take dest [&+here wire.dart] ~ %poke rel sage)
       ::
         %make
       ::  Create file or directory.
@@ -1663,24 +1645,26 @@
       ?~  old
         (enqu-take here (sys-give /over) ~ %over wire.dart `~[leaf+"file not found: {(spud (snoc path.dest name.dest))}"])
       =/  old-blot=blot:tarball  p.u.old
-      =/  new-blot=blot:tarball  p.sage.load.dart
+      =/  new-blot=blot:tarball  p.bask.load.dart
       ?:  =([/ %boom] old-blot)
         ~&  >>>  "over: target file is boomed: {(spud (snoc path.dest name.dest))}"
         (enqu-take here (sys-give /over) ~ %over wire.dart `~[leaf+"over: target file is boomed, fix the mark and reload: {(spud (snoc path.dest name.dest))}"])
-      =/  converted=sage:tarball
+      =/  =bask:tarball
         ?:  =(old-blot new-blot)
-          sage.load.dart
+          bask.load.dart
+        =/  src=(each vase tang)  (validate-noun cod p.bask.load.dart q.bask.load.dart)
+        ?:  ?=(%| -.src)  ~|("over: source validation failed" (mean p.src))
         =/  =tube:clay  (get-tube cod [[/ name.new-blot] [/ name.old-blot]])
-        [old-blot (tube q.sage.load.dart)]
-      =/  cached  (check-vale-cache cod p.converted q.q.converted)
+        [old-blot q:(tube p.src)]
+      =/  cached  (check-vale-cache cod p.bask q.bask)
       =/  val=(each vase tang)
         ?^  cached  u.cached
-        (validate-noun cod p.converted q.q.converted)
+        (validate-noun cod p.bask q.bask)
       =?  this  ?=(~ cached)
-        (cache-validation cod p.converted q.q.converted val)
+        (cache-validation cod p.bask q.bask val)
       ?:  ?=(%| -.val)
         (enqu-take here (sys-give /over) ~ %over wire.dart `p.val)
-      =/  new-content=content:tarball  [p.converted p.val]
+      =/  new-content=content:tarball  [p.bask p.val]
       =.  this  (save-file dest new-content)
       =.  this  (enqu-take dest (sys-give /writ) ~ %writ ~)
       (enqu-take here (sys-give /over) ~ %over wire.dart ~)
@@ -1725,8 +1709,7 @@
         ?~  sub-ball
           (enqu-take here (sys-give /peek) ~ %peek wire.dart &+[%none ~])
         =/  sub-born=born:nexus  (~(dip of born) dest)
-        =?  u.sub-ball  |(?=([~ %&] filt) clam.load.dart)
-          (validate-ball cod u.sub-ball)
+        =.  u.sub-ball  (validate-ball cod u.sub-ball)
         (enqu-take here (sys-give /peek) ~ %peek wire.dart %& %ball sub-born u.sub-ball)
         ::
           %&
@@ -1761,9 +1744,8 @@
           `u.content
         ?~  source
           (enqu-take here (sys-give /peek) ~ %peek wire.dart &+[%none ~])
-        ::  Clam at weir boundary or by request
+        ::  Validate peek result
         =/  clammed=sage:tarball
-          ?.  |(?=([~ %&] filt) clam.load.dart)  u.source
           =/  res  (validate-sage cod u.source)
           ?:  ?=(%| -.res)
             ~|(%peek-clam-failed !!)

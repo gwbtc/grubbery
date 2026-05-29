@@ -175,7 +175,7 @@
             ==
           ;<  brd=road:tarball  bind:m
             (ancestor-road:io [/s3 %bridge] [%& / %'browse.json'])
-          ;<  ~  bind:m  (over:io brd [[/ %json] !>(browse-jon)])
+          ;<  ~  bind:m  (over:io brd [[/ %json] browse-jon])
           ;<  ~  bind:m  (log-msg 'info' (crip "Browsed bucket: {<(lent keys)>} objects"))
           $
             ::
@@ -403,7 +403,7 @@
   =/  jon=json  (fall (de:json:html body) [%a ~])
   ;<  rd=road:tarball  bind:m
     (ancestor-road:io [/s3 %bridge] [%& / %'mapping.json'])
-  ;<  ~  bind:m  (over:io rd [[/ %json] !>(jon)])
+  ;<  ~  bind:m  (over:io rd [[/ %json] jon])
   ;<  ~  bind:m  (log-msg 'info' (crip "Pulled mapping source from {(trip src)}"))
   (pure:m ~)
 ::
@@ -461,7 +461,7 @@
     ==
   ;<  rd=road:tarball  bind:m
     (ancestor-road:io [/s3 %bridge] [%& / %'mapping.json'])
-  (over:io rd [[/ %json] !>(jon)])
+  (over:io rd [[/ %json] jon])
 ::
 ++  sync-mapping
   |=  id=@t
@@ -508,7 +508,7 @@
     ?:  add  (~(put in existing) id)
     (~(del in existing) id)
   =/  jon=json  [%a (turn ~(tap in updated) |=(t=@t s+t))]
-  (over:io rd [[/ %json] !>(jon)])
+  (over:io rd [[/ %json] jon])
 ::
 ++  log-msg
   |=  [level=@t message=@t]
@@ -530,7 +530,7 @@
     ?.  ?=(%a -.jon)  ~
     p.jon
   =/  new=(list json)  (scag 50 ^-((list json) [entry existing]))
-  (over:io rd [[/ %json] !>([%a new])])
+  (over:io rd [[/ %json] [%a new]])
 ::
 ++  read-bridges
   |=  =seen:nexus

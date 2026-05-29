@@ -114,7 +114,7 @@
             ==
           =/  cfg-road=road:tarball
             (cord-to-road:tarball (crip "./agents/{(trip name)}/config.json"))
-          ;<  ~  bind:m  (over:io cfg-road [[/ %json] !>(agent-cfg)])
+          ;<  ~  bind:m  (over:io cfg-road [[/ %json] agent-cfg])
           $
         ::
             %'delete'

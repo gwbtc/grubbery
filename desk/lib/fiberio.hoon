@@ -299,17 +299,17 @@
   ==
 ::
 ++  poke
-  |=  [=road:tarball =sage:tarball]
+  |=  [=road:tarball =bask:tarball]
   =/  m  (fiber ,~)
   ^-  form:m
-  ;<  ~  bind:m  (send-dart %node /poke road %poke sage)
+  ;<  ~  bind:m  (send-dart %node /poke road %poke bask)
   (take-pack /poke)
 ::
 ++  peek
   |=  [=road:tarball blot=(unit blot:tarball)]
   =/  m  (fiber ,seen:nexus)
   ^-  form:m
-  ;<  ~  bind:m  (send-dart %node /peek road %peek blot ~ %.n)
+  ;<  ~  bind:m  (send-dart %node /peek road %peek blot ~)
   (take-peek /peek)
 ::
 ::  Peek at a historical version of a file
@@ -318,7 +318,7 @@
   |=  [=road:tarball blot=(unit blot:tarball) =case:nexus]
   =/  m  (fiber ,seen:nexus)
   ^-  form:m
-  ;<  ~  bind:m  (send-dart %node /peek road %peek blot `case %.n)
+  ;<  ~  bind:m  (send-dart %node /peek road %peek blot `case)
   (take-peek /peek)
 ::
 ::  Check if a target (file or directory) exists at a road.
@@ -477,10 +477,10 @@
   ==
 ::
 ++  over
-  |=  [=road:tarball =sage:tarball]
+  |=  [=road:tarball =bask:tarball]
   =/  m  (fiber ,~)
   ^-  form:m
-  ;<  ~  bind:m  (send-dart %node /over road %over sage)
+  ;<  ~  bind:m  (send-dart %node /over road %over bask)
   (take-over /over)
 ::
 ++  take-over
@@ -585,7 +585,7 @@
   =/  m  (fiber ,mold)
   ^-  form:m
   ;<  ~  bind:m
-    (poke &+&+[/sys/scry %'main.sig'] [[/ %scry-request] !>(`^path`path)])
+    (poke &+&+[/sys/scry %'main.sig'] [[/ %scry-request] `^path`path])
   |=  input
   :+  ~  state
   ?+  in  [%skip ~]
@@ -602,7 +602,7 @@
   |=  dek=desk
   =/  m  (fiber ,~)
   ^-  form:m
-  (poke &+&+[/sys/clay %'main.clay-state'] [[/ %new-desk] !>(dek)])
+  (poke &+&+[/sys/clay %'main.clay-state'] [[/ %new-desk] dek])
 ::  Write/delete files in a Clay desk via /sys/clay/ runtime service.
 ::  No vases — the runtime clams through marks on the destination desk.
 ::
@@ -610,14 +610,14 @@
   |=  [dek=desk changes=(list [path ?([%ins @tas *] [%del ~])])]
   =/  m  (fiber ,~)
   ^-  form:m
-  (poke &+&+[/sys/clay %'main.clay-state'] [[/ %clay-info] !>([dek changes])])
+  (poke &+&+[/sys/clay %'main.clay-state'] [[/ %clay-info] [dek changes]])
 ::  Send a belt to a dill session via /sys/dill/ runtime service
 ::
 ++  send-belt
   |=  [session=@tas =belt:dill]
   =/  m  (fiber ,~)
   ^-  form:m
-  (poke &+&+[/sys/dill %'main.sig'] [[/ %dill-belt] !>([session belt])])
+  (poke &+&+[/sys/dill %'main.sig'] [[/ %dill-belt] [session belt]])
 ::  +get-code: peek the code (bins) slice at a road
 ::
 ++  get-code
@@ -860,7 +860,7 @@
   =/  m  (fiber ,~)
   ^-  form:m
   ;<  ~  bind:m
-    (poke &+&+[/sys/gall %'main.sig'] [[/ %gall-poke] !>([dock page])])
+    (poke &+&+[/sys/gall %'main.sig'] [[/ %gall-poke] [dock page]])
   |=  input
   :+  ~  state
   ?+  in  [%skip ~]
@@ -879,7 +879,7 @@
   |=  [=wire until=@da]
   =/  m  (fiber ,~)
   ^-  form:m
-  (poke &+&+[/sys/behn %'main.timer-state'] [[/ %timer-set] !>(`[^wire @da]`[wire until])])
+  (poke &+&+[/sys/behn %'main.timer-state'] [[/ %timer-set] `[^wire @da]`[wire until]])
 ::
 ++  send-wait
   |=  until=@da
@@ -987,7 +987,7 @@
   |=  =request:http
   =/  m  (fiber ,~)
   ^-  form:m
-  (poke &+&+[/sys/iris %'main.iris-state'] [[/ %http-request] !>(request)])
+  (poke &+&+[/sys/iris %'main.iris-state'] [[/ %http-request] request])
 ::
 ++  take-client-response
   =/  m  (fiber ,client-response:iris)
@@ -1032,14 +1032,14 @@
   =/  m  (fiber ,~)
   ^-  form:m
   ;<  eny=@uvJ  bind:m  get-entropy
-  (poke push-road [[/ %push-action] !>(`push-action:nexus`[%send push-send eny])])
+  (poke push-road [[/ %push-action] `push-action:nexus`[%send push-send eny]])
 ::
 ++  init-push
   |=  sub=@t
   =/  m  (fiber ,~)
   ^-  form:m
   ;<  eny=@uvJ  bind:m  get-entropy
-  (poke push-road [[/ %push-action] !>(`push-action:nexus`[%init eny sub])])
+  (poke push-road [[/ %push-action] `push-action:nexus`[%init eny sub]])
 ::  Poke our own ship
 ::
 ++  gall-poke-our
@@ -1056,7 +1056,7 @@
   ^-  form:m
   ;<  our=@p  bind:m  get-our
   ;<  ~  bind:m
-    (poke &+&+[/sys/gall %'main.sig'] [[/ %gall-poke] !>([[our dude] page])])
+    (poke &+&+[/sys/gall %'main.sig'] [[/ %gall-poke] [[our dude] page]])
   |=  input
   :+  ~  state
   ?+  in  [%skip ~]
@@ -1192,7 +1192,7 @@
   |=  act=eyre-action:nexus
   =/  m  (fiber ,~)
   ^-  form:m
-  (poke server-road [[/ %eyre-action] !>(act)])
+  (poke server-road [[/ %eyre-action] act])
 ::  HTTP response helpers, parameterized on dispatcher road.
 ::  Sends route through the dispatcher (main.sig) so the server fiber
 ::  sees from=main.sig for cancel-back on orphaned connections.
@@ -1205,7 +1205,7 @@
     |=  [eyre-id=@ta =eyre-update:nexus]
     =/  m  (fiber ,~)
     ^-  form:m
-    (poke main [[/ %eyre-action] !>(`eyre-action:nexus`[%send eyre-id eyre-update])])
+    (poke main [[/ %eyre-action] `eyre-action:nexus`[%send eyre-id eyre-update]])
   ::
   ++  send-simple
     |=  [eyre-id=@ta =simple-payload:http]
@@ -1253,7 +1253,7 @@
     ;<  ~  bind:m  (cull [%| 0 %& /requests eyre-id])
     $
       %eyre-action
-    ;<  ~  bind:m  (poke server-road sage)
+    ;<  ~  bind:m  (poke server-road [p.sage q.q.sage])
     $
   ==
 ::  +resolve-bend: resolve a fiber bend to an absolute rail

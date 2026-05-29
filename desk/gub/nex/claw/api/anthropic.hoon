@@ -267,7 +267,7 @@
         ['requests' (numb:enjs:format (add 1 (get-num cur 'requests')))]
         ['calls' new-calls]
     ==
-  ;<  ~  bind:m  (over:io usage-road [/ %json] !>(new))
+  ;<  ~  bind:m  (over:io usage-road [/ %json] new)
   (pure:m ~)
 ::
 ::  +from-to-cord: convert poke source to a readable identifier

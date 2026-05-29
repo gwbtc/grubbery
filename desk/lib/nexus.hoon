@@ -78,13 +78,13 @@
   ==
 +$  find  lose
 +$  load
-  $%  [%poke =sage:tarball]      :: poke a grub
-      [%make =make]                    :: create grub or directory
-      [%over =sage:tarball]     :: overwrite grub content (runtime mark conversion)
+  $%  [%poke =bask:tarball]     :: poke a grub
+      [%make =make]             :: create grub or directory
+      [%over =bask:tarball]     :: overwrite grub content (runtime mark conversion)
       [%cull ~]                 :: delete grub or directory
       [%sand weir=(unit weir)]  :: set weir
       [%load ~]                 :: trigger on-load for a nexus (folds only)
-      [%peek blot=(unit blot:tarball) case=(unit case) clam=?]
+      [%peek blot=(unit blot:tarball) case=(unit case)]
                                        :: read a grub
                                        :: blot: convert file sage to this blot
                                        :: case: if set, read historical version

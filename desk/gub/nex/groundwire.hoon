@@ -155,7 +155,7 @@
             ;<  ~  bind:m  (replace:io !>(urb-state))
             =/  height-road=road:tarball
               (cord-to-road:tarball './height.ud')
-            ;<  ~  bind:m  (over:io height-road [[/ %ud] !>(`@ud`0)])
+            ;<  ~  bind:m  (over:io height-road [[/ %ud] `@ud`0])
             =.  tip  0
             $
           ~&  >  [%groundwire-walker %no-hash next body]
@@ -230,7 +230,7 @@
         =/  udiffs-road=road:tarball  (cord-to-road:tarball './udiffs.urb-udiffs')
         ;<  ~  bind:m
           ?~  uds  (pure:m ~)
-          (over:io udiffs-road [[/ %urb-udiffs] !>(uds)])
+          (over:io udiffs-road [[/ %urb-udiffs] uds])
         ::  publish latest block summary
         ::
         =/  latest-road=road:tarball  (cord-to-road:tarball './latest.json')
@@ -241,7 +241,7 @@
               ['reward' (numb:enjs:format reward.blk)]
               ['txs' (numb:enjs:format (lent txs.blk))]
           ==
-        ;<  ~  bind:m  (over:io latest-road [[/ %json] !>(latest-jon)])
+        ;<  ~  bind:m  (over:io latest-road [[/ %json] latest-jon])
         ::  update our own state — this is the cursor AND the PKI
         ::
         =.  urb-state  new-urb-state
@@ -319,8 +319,8 @@
             ?~  cur-utxo     (pure:m ~)
             =/  wal-road=road:tarball
               (cord-to-road:tarball (cat 3 './wallets/' (cat 3 (scot %p u.acting.args) '.urb-wallet')))
-            =/  wal-sage=sage:tarball  [[/ %urb-wallet] !>([[%uw sed.args] resolved-twk cur-utxo])]
-            (over:io wal-road wal-sage)
+            =/  wal-bask=bask:tarball  [[/ %urb-wallet] [[%uw sed.args] resolved-twk cur-utxo]]
+            (over:io wal-road wal-bask)
           ^$
         =*  sot  i.batch
         ~&  >  [%reg-tester %dispatch -.sot]
@@ -482,12 +482,12 @@
           =/  final-utxo=utxo:unv  [`outpoint:gw`[reveal-txid 0] reveal-out]
           =/  wal-road=road:tarball
             (cord-to-road:tarball (cat 3 './wallets/' (cat 3 (scot %p spawn-ship) '.urb-wallet')))
-          =/  wal-sage=sage:tarball  [[/ %urb-wallet] !>([[%uw sed.args] twk `final-utxo])]
+          =/  wal-bask=bask:tarball  [[/ %urb-wallet] [[%uw sed.args] twk `final-utxo]]
           ;<  wal-seen=seen:nexus  bind:m  (peek:io wal-road ~)
           ;<  ~  bind:m
             ?:  ?=([%& %file *] wal-seen)
-              (over:io wal-road wal-sage)
-            (make:io wal-road [%| [p.wal-sage q.q.wal-sage] ~])
+              (over:io wal-road wal-bask)
+            (make:io wal-road [%| wal-bask ~])
           ~&  >  [%reg-tester %saved-wallet spawn-ship]
           $(batch t.batch, cur-utxo `final-utxo)
         ::
@@ -1222,7 +1222,7 @@
     ?:  ?=([%& %file *] prev-seen)  !<(wain q.sage.p.prev-seen)
     ~
   =/  combined=wain  (weld prev-lines new-lines)
-  ;<  ~  bind:m  (over:io trace-road [[/ %txt] !>(combined)])
+  ;<  ~  bind:m  (over:io trace-road [[/ %txt] combined])
   (pure:m ~)
 ::
 ::  Emit each sotx observed in an urb-block as a urb-event.
@@ -1249,17 +1249,17 @@
       ?~  sots  (pure:m ~)
       =/  evt=(unit [height=@ud txid=@ux =ship =sotx:urb os=(list output:tx:btc)])
         `[height.ublk id.tx ship.sot.i.sots sot.i.sots os.tx]
-      =/  evt-sage=sage:tarball  [[/ %urb-event] !>(evt)]
+      =/  evt-bask=bask:tarball  [[/ %urb-event] evt]
       ::  write to global stream
-      ;<  ~  bind:m  (over:io main-road evt-sage)
+      ;<  ~  bind:m  (over:io main-road evt-bask)
       ::  write to per-ship file (create on first event)
       =/  ship-road=road:tarball
         (cord-to-road:tarball (cat 3 './events/ships/' (cat 3 (scot %p ship.sot.i.sots) '.urb-event')))
       ;<  ship-seen=seen:nexus  bind:m  (peek:io ship-road ~)
       ;<  ~  bind:m
         ?:  ?=([%& %file *] ship-seen)
-          (over:io ship-road evt-sage)
-        (make:io ship-road [%| [p.evt-sage q.q.evt-sage] ~])
+          (over:io ship-road evt-bask)
+        (make:io ship-road [%| evt-bask ~])
       $(sots t.sots)
     $(ins t.ins)
   $(txs t.txs)
@@ -1361,7 +1361,7 @@
   ;<  =seen:nexus  bind:m  (peek:io road ~)
   ;<  ~  bind:m
     ?:  ?=([%& %file *] seen)
-      (over:io road [[/ %json] !>(pt-json)])
+      (over:io road [[/ %json] pt-json])
     (make:io road [%| [[/ %json] pt-json] ~])
   $(ships t.ships)
 ::

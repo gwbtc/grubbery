@@ -76,7 +76,7 @@
           $
         ::  update tip file
         =/  tip-road=road:tarball  (cord-to-road:tarball './tip.ud')
-        ;<  ~  bind:m  (over:io tip-road [[/ %ud] !>(u.tip)])
+        ;<  ~  bind:m  (over:io tip-road [[/ %ud] u.tip])
         ::  check what we've already cached
         ;<  blocks-seen=seen:nexus  bind:m
           (peek:io (cord-to-road:tarball './blocks/') ~)
@@ -120,7 +120,7 @@
           ::  block height out of range — chain may have reset
           ?:  ?=(^ (find "out of range" (trip hash-body)))
             ~&  >  [%indexer %chain-reset-detected next]
-            ;<  ~  bind:m  (over:io tip-road [[/ %ud] !>(`@ud`0)])
+            ;<  ~  bind:m  (over:io tip-road [[/ %ud] `@ud`0])
             ^$
           ~&  >  [%indexer %no-hash next]
           ;<  ~  bind:m  (sleep:io ~s2)

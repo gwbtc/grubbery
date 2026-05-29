@@ -27,6 +27,6 @@
   =/  desk=@t  p.parsed
   =/  dek=@tas  (slav %tas desk)
   ;<  ~  bind:m
-    (poke:io &+&+[/sys/clay %'main.clay-state'] [[/ %unmount-desk] !>(dek)])
+    (poke:io &+&+[/sys/clay %'main.clay-state'] [[/ %unmount-desk] dek])
   (pure:m [%text (crip "Unmounted %{(trip dek)} from /sys/clay/desks/{(trip dek)}")])
 --

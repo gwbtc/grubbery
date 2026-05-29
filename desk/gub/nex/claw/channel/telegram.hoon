@@ -138,7 +138,7 @@
               ['ts' s+(scot %da now)]
           ==
         =/  updated=json  [%a (weld cur-inbox new-entries)]
-        ;<  ~  bind:m  (over:io inbox-road [[/ %json] !>(updated)])
+        ;<  ~  bind:m  (over:io inbox-road [[/ %json] updated])
         ~&  >>  ["%tg-channel: inbox updated," (lent new-entries) "new"]
         $
           ::  /send.sig: send outbound messages via telegram API
