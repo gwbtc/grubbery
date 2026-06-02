@@ -116,7 +116,7 @@
   ;<  =seen:nexus  bind:m  (peek:io src-road ~)
   ?.  ?=([%& %file *] seen)
     (pure:m [%error (crip "File not found: {(trip pax)}/{(trip nam)}.hoon")])
-  =/  current=@t  !<(@t q.sage.p.seen)
+  =/  current=@t  !<(@t (need-vase:tarball sang.p.seen))
   =/  result=(unit tape)
     (replace (trip current) (trip u.old-string) (trip u.new-string))
   ?~  result

@@ -146,7 +146,7 @@
     (~(get by contents.u.fil.parent-ball) name)
   ?~  content-data
     (send-error eyre-id 404 'Not found')
-  =/  =sage:tarball  u.content-data
+  =/  =sage:tarball  (need-sage:tarball u.content-data)
   =/  mark-param=(unit @t)  (get-key:kv:html-utils 'mark' args)
   ;<  converted=(unit sage:tarball)  bind:m  (maybe-convert eyre-id sage mark-param)
   ?~  converted  (pure:m ~)
@@ -504,7 +504,7 @@
     =/  lane-path=@t  (spat (snoc path.p.lane.i.lanes name.p.lane.i.lanes))
     =/  id=@t  (scot %ud ud.cass.i.lanes)
     =/  event-name=@t  (crip "old {(trip lane-path)}")
-    ;<  body=@t  bind:m  (sage-to-txt sage.p.seen mark-param)
+    ;<  body=@t  bind:m  (sage-to-txt (need-sage:tarball sang.p.seen) mark-param)
     =/  data=wain  (to-wain:format body)
     =/  =sse-event:http-utils  [`id `event-name data]
     ;<  ~  bind:m
@@ -541,7 +541,7 @@
       =/  was-known=?  (~(has by prev) lane.i.lanes)
       =/  action=@t  ?:(was-known 'upd' 'new')
       =/  event-name=@t  (crip "{(trip action)} {(trip lane-path)}")
-      ;<  body=@t  bind:m  (sage-to-txt sage.p.seen mark-param)
+      ;<  body=@t  bind:m  (sage-to-txt (need-sage:tarball sang.p.seen) mark-param)
       =/  data=wain  (to-wain:format body)
       =/  =sse-event:http-utils  [`id `event-name data]
       ;<  ~  bind:m
@@ -576,7 +576,7 @@
       ?~  file-hist  '0'
       (scot %ud (ver:hist:nexus u.file-hist))
     =/  event-name=@t  (crip "old {(trip lane-path)}")
-    ;<  body=@t  bind:m  (sage-to-txt content mark-param)
+    ;<  body=@t  bind:m  (sage-to-txt (need-sage:tarball content) mark-param)
     =/  data=wain  (to-wain:format body)
     =/  =sse-event:http-utils  [`id `event-name data]
     ;<  ~  bind:m

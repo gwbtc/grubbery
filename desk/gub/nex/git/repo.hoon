@@ -762,7 +762,7 @@
   ;<  =seen:nexus  bind:m  (peek:io road `[/ %json])
   ?.  ?=([%& %file *] seen)
     (pure:m ['' 'main' ''])
-  =/  cfg=json  (fall (mole |.(!<(json q.sage.p.seen))) *json)
+  =/  cfg=json  (fall (mole |.(!<(json (need-vase:tarball sang.p.seen)))) *json)
   ?.  ?=(%o -.cfg)
     (pure:m ['' 'main' ''])
   =/  get
@@ -972,7 +972,7 @@
   ?.  ?=([%& %file *] seen)
     ~&  >>>  ["%git/repo: ref not found:" active]
     (pure:m '')
-  =/  mim=mime  !<(mime q.sage.p.seen)
+  =/  mim=mime  !<(mime (need-vase:tarball sang.p.seen))
   (pure:m (crip (trip q.q.mim)))
 ::
 ++  set-status
@@ -1027,7 +1027,7 @@
   ?~  fil.ball  [~ ~]
   %+  roll  ~(tap by contents.u.fil.ball)
   |=  [[name=@t =content:tarball] r=(axal ref:git-repo)]
-  =/  m=mime  !<(mime q.content)
+  =/  m=mime  !<(mime (need-vase:tarball content))
   ?:  =(0 p.q.m)  r
   =/  h=(unit @ux)
     (rust (trip q.q.m) parse-hash-sha-1:git-transport)
@@ -1045,7 +1045,7 @@
   =/  h=(unit hash:git-repo)
     (rust (trip name) parse-hash-sha-1:git-transport)
   ?~  h  acc
-  =/  m=mime  !<(mime q.content)
+  =/  m=mime  !<(mime (need-vase:tarball content))
   =/  raw=raw-object:git-obj  (raw-from-octs:git-obj q.m)
   =/  obj=object:git-obj  (parse-raw:git-obj %sha-1 raw)
   (~(put by acc) u.h obj)
@@ -1361,7 +1361,7 @@
   |=  =seen:nexus
   ^-  repo-config
   ?.  ?=([%& %file *] seen)  ['' 'main' '']
-  =/  cfg=json  (fall (mole |.(!<(json q.sage.p.seen))) *json)
+  =/  cfg=json  (fall (mole |.(!<(json (need-vase:tarball sang.p.seen)))) *json)
   ?.  ?=(%o -.cfg)  ['' 'main' '']
   =/  get
     |=  [key=@t default=@t]
@@ -1383,7 +1383,7 @@
   |=  =seen:nexus
   ^-  (list @t)
   ?.  ?=([%& %file *] seen)  ~
-  =/  j=json  (fall (mole |.(!<(json q.sage.p.seen))) *json)
+  =/  j=json  (fall (mole |.(!<(json (need-vase:tarball sang.p.seen)))) *json)
   ?.  ?=(%a -.j)  ~
   (murn p.j |=(v=json ?.(?=(%s -.v) ~ `p.v)))
 ::
@@ -1391,7 +1391,7 @@
   |=  =seen:nexus
   ^-  json
   ?.  ?=([%& %file *] seen)  [%a ~]
-  (fall (mole |.(!<(json q.sage.p.seen))) [%a ~])
+  (fall (mole |.(!<(json (need-vase:tarball sang.p.seen)))) [%a ~])
 ::
 ++  view-to-files
   |=  =seen:nexus

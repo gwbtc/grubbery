@@ -186,7 +186,7 @@
   ;<  cfg-seen=seen:nexus  bind:m  (peek:io cfg-road ~)
   =/  jon=json
     ?.  ?=([%& %file *] cfg-seen)  [%o ~]
-    (fall (mole |.(!<(json q.sage.p.cfg-seen))) [%o ~])
+    (fall (mole |.(!<(json (need-vase:tarball sang.p.cfg-seen)))) [%o ~])
   ?.  ?=(%o -.jon)
     (pure:m *s3-config)
   %-  pure:m
@@ -205,7 +205,7 @@
   ;<  seen=seen:nexus  bind:m  (peek:io rd ~)
   =/  jon=json
     ?.  ?=([%& %file *] seen)  [%o ~]
-    (fall (mole |.(!<(json q.sage.p.seen))) [%o ~])
+    (fall (mole |.(!<(json (need-vase:tarball sang.p.seen)))) [%o ~])
   ?.  ?=(%o -.jon)
     (pure:m *(map @t @t))
   %-  pure:m

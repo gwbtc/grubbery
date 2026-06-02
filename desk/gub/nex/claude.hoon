@@ -101,7 +101,7 @@
         |-
         ;<  =seen:nexus  bind:m  (peek:io (cord-to-road:tarball '../messages.claude-messages') ~)
         ?.  ?=([%& %file *] seen)  $
-        =/  msg=messages  !<(messages q.sage.p.seen)
+        =/  msg=messages  !<(messages (need-vase:tarball sang.p.seen))
         =/  page=manx  (chat-page (tap:mon messages.msg))
         ;<  ~  bind:m  (replace:io !>((crip (en-xml:html page))))
         ;<  upd=wave:nexus  bind:m  (take-news:io /msgs)
@@ -115,7 +115,7 @@
         |-
         ;<  =seen:nexus  bind:m  (peek:io (cord-to-road:tarball '../../messages.claude-messages') ~)
         ?.  ?=([%& %file *] seen)  $
-        =/  msg=messages  !<(messages q.sage.p.seen)
+        =/  msg=messages  !<(messages (need-vase:tarball sang.p.seen))
         =/  last=(unit [key=@ud val=message])  (ram:mon messages.msg)
         ?~  last  $
         ;<  ~  bind:m  (replace:io !>((crip (en-xml:html (msg-to-manx val.u.last)))))
@@ -1031,7 +1031,7 @@
       %'file'
     ?.  ?=([%& %file *] seen)
       (pure:m [(crip "ERROR: Not found: {(trip path.slot)}") ~])
-    ;<  content=@t  bind:m  (sage-to-txt sage.p.seen)
+    ;<  content=@t  bind:m  (sage-to-txt (need-sage:tarball sang.p.seen))
     (pure:m [content `(ver:hist:nexus hist.p.seen)])
   ::
       %'kids'
@@ -1107,7 +1107,7 @@
       %none
     (append-to-msgs msg-road 'user' (rap 3 ~['<api action="' act '" path="' api-path '">DELETED</api>']))
       %file
-    ;<  content=@t  bind:m  (sage-to-txt sage.p.seen)
+    ;<  content=@t  bind:m  (sage-to-txt (need-sage:tarball sang.p.seen))
     =/  rev=@ud  (ver:hist:nexus hist.p.seen)
     =/  rev-attr=@t  (crip " rev=\"{(a-co:co rev)}\"")
     (append-to-msgs msg-road 'user' (rap 3 ~['<api action="' act '" path="' api-path '"' rev-attr '>' content '</api>']))
@@ -1396,7 +1396,7 @@
   ;<  seen=seen:nexus  bind:m  (peek:io msg-road `[/ %claude-messages])
   ?.  ?=([%& %file *] seen)
     (pure:m `messages`[%0 *((mop @ud message) lth)])
-  (pure:m !<(messages q.sage.p.seen))
+  (pure:m !<(messages (need-vase:tarball sang.p.seen)))
 ::  Append a message to the messages file via poke
 ::
 ++  append-to-msgs

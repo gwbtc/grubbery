@@ -164,7 +164,7 @@
       ;<  =seen:nexus  bind:m  (peek:io tool-road ~)
       ?.  ?=([%& %file *] seen)  $
       =/  st=tool-state:nex-tools
-        !<(tool-state:nex-tools q.sage.p.seen)
+        !<(tool-state:nex-tools (need-vase:tarball sang.p.seen))
       ?.  =(%done step.st)  $
       ?~  update.st  $
       ::  Done — build JSON-RPC response from update

@@ -300,7 +300,7 @@
     (peek:io (cord-to-road:tarball './config.json') `[/ %json])
   ?.  ?=([%& %file *] seen)
     (pure:m '')
-  =/  cfg=json  !<(json q.sage.p.seen)
+  =/  cfg=json  !<(json (need-vase:tarball sang.p.seen))
   ?.  ?=(%o -.cfg)
     (pure:m '')
   =/  v  (~(get by p.cfg) 'bot-token')
@@ -314,7 +314,7 @@
     (peek:io (cord-to-road:tarball './offset.ud') `[/ %ud])
   ?.  ?=([%& %file *] seen)
     (pure:m 0)
-  (pure:m !<(@ud q.sage.p.seen))
+  (pure:m !<(@ud (need-vase:tarball sang.p.seen)))
 ::
 ++  read-chat-file
   |=  cid=@t
@@ -324,7 +324,7 @@
     (peek:io (cord-to-road:tarball (rap 3 ~['./messages/' cid '.json'])) `[/ %json])
   ?.  ?=([%& %file *] seen)
     (pure:m [%o ~])
-  (pure:m !<(json q.sage.p.seen))
+  (pure:m !<(json (need-vase:tarball sang.p.seen)))
 ::
 ++  get-chat-name
   |=  [dat=json default=@t]
@@ -374,7 +374,7 @@
   %+  roll  files
   |=  [[key=@ta =content:tarball] chats=(map @t @t) msgs=(list json)]
   ?.  ?=(%json name.p.content)  [chats msgs]
-  =/  dat=json  !<(json q.content)
+  =/  dat=json  !<(json (need-vase:tarball content))
   ::  handle old format: [%a msgs] — derive chat-id from first message
   ?:  ?=([%a *] dat)
     =/  old-msgs=(list json)  p.dat

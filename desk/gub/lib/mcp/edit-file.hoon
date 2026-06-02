@@ -47,9 +47,9 @@
     (lookup-grub:tools pax file-name)
   ?.  ?=([%& %file *] seen)
     (pure:m [%error (crip "Not found: {(trip file-path)}/{(trip file-name)}")])
-  =/  original-mark=@tas  name.p.sage.p.seen
+  =/  original-mark=@tas  name.p.sang.p.seen
   ::  Convert to text via mime
-  ;<  =mime  bind:m  (sage-to-mime:io sage.p.seen)
+  ;<  =mime  bind:m  (sage-to-mime:io (need-sage:tarball sang.p.seen))
   =/  txt=tape  (trip q.q.mime)
   ::  Do replacement
   =/  result=(each tape @tas)

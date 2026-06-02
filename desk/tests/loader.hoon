@@ -14,7 +14,7 @@
 ++  mk-content
   |=  txt=@t
   ^-  content:tarball
-  [[/ %txt] !>(txt)]
+  [[/ %txt] %& !>(txt)]
 ::
 ++  mk-bole-1
   ::  bole with one file at root
@@ -288,8 +288,8 @@
   ::  simulate server on-load imperative style on existing ball
   =/  server-bsk=bask:tarball  [[/ %server-state] 'state-data']
   =/  old-ball=ball:tarball
-    =/  b  (~(put ba:tarball *ball:tarball) [/ %'ver.ud'] [[/ %ud] !>(0)])
-    (~(put ba:tarball b) [/ %'main.server-state'] [[/ %server-state] !>('state-data')])
+    =/  b  (~(put ba:tarball *ball:tarball) [/ %'ver.ud'] [[/ %ud] %& !>(0)])
+    (~(put ba:tarball b) [/ %'main.server-state'] [[/ %server-state] %& !>('state-data')])
   ::  build bole imperatively
   =/  =bole:tarball  *bole:tarball
   =.  bole  (~(put bo:tarball bole) [/ %'ver.ud'] [[/ %ud] 0])
@@ -304,9 +304,9 @@
 ::
 ++  test-server-scenario-spin
   ::  simulate server on-load with spin on existing ball
-  =/  server-ct=content:tarball  [[/ %server-state] !>('state-data')]
+  =/  server-ct=content:tarball  [[/ %server-state] %& !>('state-data')]
   =/  old-ball=ball:tarball
-    =/  b  (~(put ba:tarball *ball:tarball) [/ %'ver.ud'] [[/ %ud] !>(0)])
+    =/  b  (~(put ba:tarball *ball:tarball) [/ %'ver.ud'] [[/ %ud] %& !>(0)])
     (~(put ba:tarball b) [/ %'main.server-state'] server-ct)
   =/  =bole:tarball
     %+  spin:loader  old-ball

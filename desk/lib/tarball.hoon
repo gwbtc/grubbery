@@ -6,8 +6,19 @@
 +$  blot      rail                :: a mark identity (hierarchical)
 +$  bars      [a=blot b=blot]     :: blot pair for conversions
 +$  sage      (pair blot vase)    :: grubbery cage: blot-typed content
++$  boom      [=tang =noun]
++$  reus      (each vase boom)
++$  sang      (pair blot reus)    :: grubbery content: blot + typed vase or error
 +$  bask      (pair blot noun)    :: grubbery page: blot-typed noun
 +$  metadata  (map @t @t)          :: used only for tar export headers
+::  sang helpers
+::
+++  need-sage  |=(=sang ^-(sage ?>(?=(%& -.q.sang) [p.sang p.q.sang])))
+++  need-vase  |=(=sang ^-(vase ?>(?=(%& -.q.sang) p.q.sang)))
+++  is-boom    |=(=sang ^-(? ?=(%| -.q.sang)))
+++  sang-noun  |=(=sang ^-(noun ?-(-.q.sang %& q.p.q.sang, %| noun.p.q.sang)))
+++  sage-to-sang  |=(=sage ^-(sang [p.sage %& q.sage]))
+++  bask-to-sang  |=([=bask err=tang] ^-(sang [p.bask %| [err q.bask]]))
 ::  Compiled mark core: built once from mark source, used for vale + tubes
 ::
 +$  marc
@@ -43,7 +54,7 @@
 ::  Symlink: untyped path reference (resolved at lookup time)
 ::
 +$  symlink   (each path (pair @ud path))
-+$  content   sage
++$  content   sang
 +$  weir
   $:  make=(set road)  :: allowed destinations for %make, %cull, %sand
       poke=(set road)  :: allowed destinations for %poke
@@ -524,8 +535,8 @@
   ::  Keep full filename as-is (no extension stripping)
   =/  [store-name=@ta file-content=content]
     ?~  maybe-sage
-      [file-name [[/ %mime] !>(file-mime)]]
-    [file-name u.maybe-sage]
+      [file-name (sage-to-sang [[/ %mime] !>(file-mime)])]
+    [file-name (sage-to-sang u.maybe-sage)]
   ::  Add file to base with explicit directories
   =/  new-base=ball
     (~(put ba base-with-dirs) [full-parent store-name] file-content)
@@ -538,7 +549,7 @@
   :_  (~(run by dir.b) ball-to-bole)
   ?~  fil.b  ~
   :-  ~
-  [neck.u.fil.b weir.u.fil.b (~(run by contents.u.fil.b) |=(=sage [p.sage q.q.sage]))]
+  [neck.u.fil.b weir.u.fil.b (~(run by contents.u.fil.b) |=(c=content [p.c (sang-noun c)]))]
 ::
 ++  ball-to-tree
   |=  b=ball
@@ -644,23 +655,23 @@
   ++  got-sage
     |=  =rail
     ^-  sage
-    (got rail)
+    (need-sage (got rail))
   ::  Get a file as mime (crash if not found or not a mime sage)
   ::
   ++  got-file
     |=  =rail
     ^-  mime
-    =/  c=content  (got rail)
-    ?.  =([/ %mime] p.c)
+    =/  =sage  (got-sage rail)
+    ?.  =([/ %mime] p.sage)
       ~|("not a mime file: {(spud (snoc path.rail name.rail))}" !!)
-    !<(mime q.c)
+    !<(mime q.sage)
   ::  Get a symlink (crash if not found or not a symlink)
   ::
   ++  got-symlink
     |=  =rail
     ^-  symlink
-    =/  c=content  (got rail)
-    =/  maybe-sym=(unit symlink)  (sage-to-symlink c)
+    =/  =sage  (got-sage rail)
+    =/  maybe-sym=(unit symlink)  (sage-to-symlink sage)
     ?~  maybe-sym
       ~|("not a symlink: {(spud (snoc path.rail name.rail))}" !!)
     u.maybe-sym
@@ -670,14 +681,15 @@
     |*  [=rail a=mold]
     ^-  a
     !<(a q:(got-sage rail))
-  ::  Get sage as unit (returns ~ if not found)
+  ::  Get sage as unit (returns ~ if not found, ~ if boomed)
   ::
   ++  get-sage-as
     |*  [=rail a=mold]
     ^-  (unit a)
     ?~  may=(get rail)
       ~
-    `!<(a q.u.may)
+    ?.  ?=(%& -.q.u.may)  ~
+    `!<(a q.p.q.u.may)
   ::  Count total content items across all directories
   ::
   ++  wyt
@@ -1107,8 +1119,12 @@
     |=  [=path =content]
     ^-  tarball-entry
     =/  [prefix=^path name=^path]  (split-path path)
+    ::  Boomed files: skip (can't export error state)
+    ?:  (is-boom content)
+      (generate-entry (~(gas by *(map @t @t)) ~[['typeflag' '0'] ['prefix' (rsh [3 1] (spat prefix))] ['name' (rsh [3 1] (spat name))]]) ~)
+    =/  =sage  (need-sage content)
     ::  Check if this is a symlink sage
-    =/  maybe-sym=(unit symlink)  (sage-to-symlink content)
+    =/  maybe-sym=(unit symlink)  (sage-to-symlink sage)
     ?^  maybe-sym
       ::  It's a symlink
       =/  sym-metadata=metadata
@@ -1120,7 +1136,7 @@
         ==
       (generate-entry sym-metadata ~)
     ::  Regular file
-    =/  =mime  (sage-to-mime content)
+    =/  =mime  (sage-to-mime sage)
     =/  sage-metadata=metadata
       %-  ~(gas by *(map @t @t))
       :~  ['typeflag' '0']

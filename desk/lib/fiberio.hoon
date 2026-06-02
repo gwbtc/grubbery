@@ -927,7 +927,7 @@
   ;<  =seen:nexus  bind:m  (peek [%& %& /sys/bowl %our] ~)
   ?.  ?=([%& %file *] seen)
     (pure:m *ship)
-  (pure:m !<(ship q.sage.p.seen))
+  (pure:m !<(ship (need-vase:tarball sang.p.seen)))
 ::
 ++  get-time
   =/  m  (fiber ,@da)
@@ -935,7 +935,7 @@
   ;<  =seen:nexus  bind:m  (peek [%& %& /sys/bowl %now] ~)
   ?.  ?=([%& %file *] seen)
     (pure:m *@da)
-  (pure:m !<(@da q.sage.p.seen))
+  (pure:m !<(@da (need-vase:tarball sang.p.seen)))
 ::
 ++  get-entropy
   =/  m  (fiber ,@uvJ)
@@ -943,7 +943,7 @@
   ;<  =seen:nexus  bind:m  (peek [%& %& /sys/bowl %eny] ~)
   ?.  ?=([%& %file *] seen)
     (pure:m *@uvJ)
-  (pure:m !<(@uvJ q.sage.p.seen))
+  (pure:m !<(@uvJ (need-vase:tarball sang.p.seen)))
 ::
 ++  get-here
   =/  m  (fiber ,here:nexus)
@@ -1139,7 +1139,7 @@
   ;<  =seen:nexus  bind:m  (peek src ~)
   ?.  ?=([%& %file *] seen)
     ~|(%copy-grub-src-not-found !!)
-  (make dst |+[sage.p.seen ~])
+  (make dst |+[[p.sang.p.seen (sang-noun:tarball sang.p.seen)] ~])
 ::  +copy-fold: copy a directory from src to dst
 ::
 ++  copy-fold

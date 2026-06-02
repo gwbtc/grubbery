@@ -756,7 +756,7 @@
               (ancestor-road:io [/claw %app] [%& (weld /channels chan-fold) %'inbox.json'])
             ;<  =seen:nexus  bind:m  (peek:io inbox-road ~)
             ?.  ?=([%& %file *] seen)  $
-            =/  j=json  (fall (mole |.(!<(json q.sage.p.seen))) *json)
+            =/  j=json  (fall (mole |.(!<(json (need-vase:tarball sang.p.seen)))) *json)
             =/  msgs=(list json)
               ?.  ?=(%a -.j)  ~
               p.j
@@ -1225,7 +1225,7 @@
   ;<  road=road:tarball  bind:m  (ancestor-road:io [/claw %agent] [%& / %'config.json'])
   ;<  =seen:nexus  bind:m  (peek:io road ~)
   ?.  ?=([%& %file *] seen)  (pure:m *json)
-  (pure:m (fall (mole |.(!<(json q.sage.p.seen))) *json))
+  (pure:m (fall (mole |.(!<(json (need-vase:tarball sang.p.seen)))) *json))
 ::
 ++  write-config
   |=  updated=json
@@ -1241,7 +1241,7 @@
   ;<  road=road:tarball  bind:m  (ancestor-road:io [/claw %agent] [%& /chats/[chat-name] %'outbox.json'])
   ;<  =seen:nexus  bind:m  (peek:io road ~)
   ?.  ?=([%& %file *] seen)  (pure:m ~)
-  =/  jon=json  (fall (mole |.(!<(json q.sage.p.seen))) *json)
+  =/  jon=json  (fall (mole |.(!<(json (need-vase:tarball sang.p.seen)))) *json)
   ?.  ?=(%a -.jon)  (pure:m ~)
   (pure:m p.jon)
 ::
@@ -1280,7 +1280,7 @@
   ;<  road=road:tarball  bind:m  (ancestor-road:io [/claw %agent] [%& /ui %'chats.json'])
   ;<  =seen:nexus  bind:m  (peek:io road ~)
   ?.  ?=([%& %file *] seen)  (pure:m ~['main'])
-  =/  jon=json  (fall (mole |.(!<(json q.sage.p.seen))) *json)
+  =/  jon=json  (fall (mole |.(!<(json (need-vase:tarball sang.p.seen)))) *json)
   ?.  ?=(%a -.jon)  (pure:m ~['main'])
   (pure:m (murn p.jon |=(j=json ?.(?=(%s -.j) ~ `p.j))))
 ::
@@ -1715,7 +1715,7 @@
   ?~  raw  (pure:m ~)  :: interrupted
   ;<  =seen:nexus  bind:m  (peek:io tool-road ~)
   ?.  ?=([%& %file *] seen)  $
-  =/  st=tool-state:nex-tools  !<(tool-state:nex-tools q.sage.p.seen)
+  =/  st=tool-state:nex-tools  !<(tool-state:nex-tools (need-vase:tarball sang.p.seen))
   ?:  =(%ack step.st)
     (pure:m `[(extract-tool-result st) %.y])
   ?.  =(%done step.st)  $
@@ -1783,7 +1783,7 @@
   ?~  cas  $
   ;<  =seen:nexus  bind:m  (peek-at:io call-road ~ [%ud ud.u.cas])
   ?.  ?=([%& %file *] seen)  $
-  =/  jon=json  (fall (mole |.(!<(json q.sage.p.seen))) *json)
+  =/  jon=json  (fall (mole |.(!<(json (need-vase:tarball sang.p.seen)))) *json)
   ?.  ?=(%o -.jon)  $
   =/  status=(unit json)  (~(get by p.jon) 'status')
   ?.  ?=([~ %s %'done'] status)  $
@@ -2864,7 +2864,7 @@
       ::  no range specified, return full file
       (render-grub-content:nex-tools seen)
     ::  range read: convert to text and slice by lines
-    ;<  =mime  bind:m  (sage-to-mime:io sage.p.seen)
+    ;<  =mime  bind:m  (sage-to-mime:io (need-sage:tarball sang.p.seen))
     =/  text=tape  (trip ;;(@t q.q.mime))
     =/  lines=(list tape)  (to-lines text)
     =/  total=@ud  (lent lines)
@@ -2874,7 +2874,7 @@
       ?:(=(0 lim) after (scag lim after))
     =/  end=@ud  (add start (lent sliced))
     =/  header=tape
-      "[mark: {(spud (snoc path.p.sage.p.seen name.p.sage.p.seen))}] [lines {<(add start 1)>}-{<end>} of {<total>}]\0a"
+      "[mark: {(spud (snoc path.p.sang.p.seen name.p.sang.p.seen))}] [lines {<(add start 1)>}-{<end>} of {<total>}]\0a"
     =/  numbered=tape
       %-  zing
       =/  n=@ud  (add start 1)
@@ -2978,7 +2978,7 @@
     ;<  =seen:nexus  bind:m  (peek:io road ~)
     ?.  ?=([%& %file *] seen)
       (pure:m [%error (crip "Not found: {(trip u.raw)}")])
-    ;<  =mime  bind:m  (sage-to-mime:io sage.p.seen)
+    ;<  =mime  bind:m  (sage-to-mime:io (need-sage:tarball sang.p.seen))
     =/  txt=tape  (trip q.q.mime)
     =/  result=(each tape @tas)
       (tape-replace:nex-tools txt (trip u.old) (trip u.new) replace-all)
@@ -3442,7 +3442,7 @@
   ;<  =seen:nexus  bind:m  (peek:io outbox-road ~)
   =/  existing=(list json)
     ?.  ?=([%& %file *] seen)  ~
-    =/  outbox=json  (fall (mole |.(!<(json q.sage.p.seen))) *json)
+    =/  outbox=json  (fall (mole |.(!<(json (need-vase:tarball sang.p.seen)))) *json)
     ?.  ?=(%a -.outbox)  ~
     p.outbox
   ?^  existing
@@ -3457,7 +3457,7 @@
   ?:  ?=(%wake -.nw)  $
   ;<  =seen:nexus  bind:m  (peek:io outbox-road ~)
   ?.  ?=([%& %file *] seen)  $
-  =/  outbox=json  (fall (mole |.(!<(json q.sage.p.seen))) *json)
+  =/  outbox=json  (fall (mole |.(!<(json (need-vase:tarball sang.p.seen)))) *json)
   ?.  ?&  ?=(%a -.outbox)
           !=(~ p.outbox)
       ==
@@ -3550,7 +3550,7 @@
       =/  road=road:tarball  (agent-road './config.json')
       ;<  =seen:nexus  bind:m  (peek:io road ~)
       ?.  ?=([%& %file *] seen)  (pure:m *json)
-      (pure:m (fall (mole |.(!<(json q.sage.p.seen))) *json))
+      (pure:m (fall (mole |.(!<(json (need-vase:tarball sang.p.seen)))) *json))
     =/  child-config-road=road:tarball
       (agent-road (crip "{pfx}/config.json"))
     ;<  cfg-exists=?  bind:m  (peek-exists:io child-config-road)
@@ -3763,7 +3763,7 @@
     ;<  =seen:nexus  bind:m  (peek:io conv-road ~)
     ?.  ?=([%& %file *] seen)
       (pure:m [%text 'Could not read chat.'])
-    =/  jon=json  (fall (mole |.(!<(json q.sage.p.seen))) *json)
+    =/  jon=json  (fall (mole |.(!<(json (need-vase:tarball sang.p.seen)))) *json)
     =/  conv=convo  (parse-convo jon)
     =/  results=tape  ~
     =/  idx=@ud  0
@@ -3888,7 +3888,7 @@
     ;<  =seen:nexus  bind:m  (peek:io conv-road ~)
     ?.  ?=([%& %file *] seen)
       (pure:m [%error 'Could not read chat.'])
-    =/  jon=json  (fall (mole |.(!<(json q.sage.p.seen))) *json)
+    =/  jon=json  (fall (mole |.(!<(json (need-vase:tarball sang.p.seen)))) *json)
     =/  full=convo  (parse-convo jon)
     ::  slice all ranges and build transcript
     =/  transcript=tape
@@ -4092,7 +4092,7 @@
   ;<  *  bind:m  (take-news:io wire)
   ;<  =seen:nexus  bind:m  (peek:io call-road ~)
   ?.  ?=([%& %file *] seen)  $
-  =/  j=json  (fall (mole |.(!<(json q.sage.p.seen))) *json)
+  =/  j=json  (fall (mole |.(!<(json (need-vase:tarball sang.p.seen)))) *json)
   ?.  ?=(%o -.j)  $
   =/  status=(unit json)  (~(get by p.j) 'status')
   ?.  ?=([~ %s %'done'] status)  $

@@ -43,7 +43,7 @@
   ^-  ver
   =/  ct=(unit content:tarball)  (~(get ba:tarball ball) [/ %'ver.ud'])
   ?~  ct  ~
-  `!<(@ud q.u.ct)
+  `!<(@ud (need-vase:tarball u.ct))
 ::  +ver-row: convenience row to set the version file
 ::
 ++  empty-dir  [`[~ ~ ~] ~]
@@ -74,7 +74,7 @@
       (~(get ba:tarball old) rail.i.rows)
     ?~  old-content  $(rows t.rows)
     =.  new
-      (~(put bo:tarball new) rail.i.rows [p.u.old-content q.q.u.old-content])
+      (~(put bo:tarball new) rail.i.rows [p.u.old-content (sang-noun:tarball u.old-content)])
     $(rows t.rows)
   ::
       [%stay %| *]
@@ -89,7 +89,7 @@
       (~(get ba:tarball old) rail.i.rows)
     =/  bsk=bask:tarball
       ?~  old-content  bask.i.rows
-      [p.u.old-content q.q.u.old-content]
+      [p.u.old-content (sang-noun:tarball u.old-content)]
     =.  new  (~(put bo:tarball new) rail.i.rows bsk)
     $(rows t.rows)
   ::
@@ -113,7 +113,7 @@
       (~(get ba:tarball old) from.i.rows)
     =/  old-bask=bask:tarball
       ?~  old-content  *bask:tarball
-      [p.u.old-content q.q.u.old-content]
+      [p.u.old-content (sang-noun:tarball u.old-content)]
     =/  out=bask:tarball  (file-load.i.rows old-bask)
     =.  new  (~(put bo:tarball new) to.i.rows out)
     $(rows t.rows)

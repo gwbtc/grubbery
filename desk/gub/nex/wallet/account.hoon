@@ -599,9 +599,9 @@
   |=  ct=content:tarball
   ^-  content:tarball
   ?:  =(ct *content:tarball)  ct
-  ?:  =([/ %boom] p.ct)  ct
-  =/  acct=account-data  !<(account-data q.ct)
-  [[/ %html] !>((crip (en-xml:html (detail-page:acct-ui acct *addr-mop *addr-mop *@da %none ~ ~ ''))))]
+  ?:  (is-boom:tarball ct)  ct
+  =/  acct=account-data  !<(account-data (need-vase:tarball ct))
+  [[/ %html] %& !>((crip (en-xml:html (detail-page:acct-ui acct *addr-mop *addr-mop *@da %none ~ ~ ''))))]
 ::
 ++  extract-account
   |=  =seen:nexus
@@ -623,7 +623,7 @@
   ;<  seen=seen:nexus  bind:m  (peek:io draft-road ~)
   ?.  ?=(%& -.seen)  (pure:m ~)
   ?.  ?=([%file *] p.seen)  (pure:m ~)
-  (pure:m (mole |.(!<(transaction:drft q.sage.p.seen))))
+  (pure:m (mole |.(!<(transaction:drft (need-vase:tarball sang.p.seen)))))
 ::
 ++  write-draft
   |=  dr=transaction:drft
@@ -647,7 +647,7 @@
   ;<  seen=seen:nexus  bind:m  (peek:io wal-road ~)
   ?.  ?=(%& -.seen)  (pure:m '')
   ?.  ?=([%file *] p.seen)  (pure:m '')
-  =/  wal=(unit wallet-data)  (mole |.(!<(wallet-data q.sage.p.seen)))
+  =/  wal=(unit wallet-data)  (mole |.(!<(wallet-data (need-vase:tarball sang.p.seen))))
   ?~  wal  (pure:m '')
   (pure:m name.u.wal)
 ::
@@ -736,7 +736,7 @@
   ;<  seen=seen:nexus  bind:m  (peek:io road ~)
   ~&  >>  [%read-mop %seen-type ?=([%& %file *] seen)]
   ?.  ?=([%& %file *] seen)  ~&(>>> [%read-mop %not-file-node] (pure:m *addr-mop))
-  =/  result=addr-mop  (fall (mole |.(!<(addr-mop q.sage.p.seen))) *addr-mop)
+  =/  result=addr-mop  (fall (mole |.(!<(addr-mop (need-vase:tarball sang.p.seen)))) *addr-mop)
   ~&  >>  [%read-mop %ok size=(lent (tap:((on @ud address-data) gth) result))]
   (pure:m result)
 ::  +write-mop: fiber that writes a mop file (creates dir structure if needed)
@@ -771,7 +771,7 @@
   ?.  exists  (pure:m *tx-map)
   ;<  seen=seen:nexus  bind:m  (peek:io road ~)
   ?.  ?=([%& %file *] seen)  (pure:m *tx-map)
-  (pure:m (fall (mole |.(!<(tx-map q.sage.p.seen))) *tx-map))
+  (pure:m (fall (mole |.(!<(tx-map (need-vase:tarball sang.p.seen)))) *tx-map))
 ::  +write-txs: fiber that writes the tx-map file
 ::
 ++  write-txs

@@ -201,7 +201,7 @@
   ;<  =seen:nexus  bind:m  (peek:io road ~)
   ?.  ?=([%& %file *] seen)
     (pure:m ['' ''])
-  =/  cfg=json  (fall (mole |.(!<(json q.sage.p.seen))) *json)
+  =/  cfg=json  (fall (mole |.(!<(json (need-vase:tarball sang.p.seen)))) *json)
   ?.  ?=(%o -.cfg)
     (pure:m ['' ''])
   =/  get
@@ -237,7 +237,7 @@
   ;<  usage-seen=seen:nexus  bind:m  (peek:io usage-road `[/ %json])
   =/  cur=json
     ?.  ?=([%& %file *] usage-seen)  [%o ~]
-    (fall (mole |.(!<(json q.sage.p.usage-seen))) [%o ~])
+    (fall (mole |.(!<(json (need-vase:tarball sang.p.usage-seen)))) [%o ~])
   ?.  ?=(%o -.cur)  (pure:m ~)
   ::  build call entry + updated call log
   =/  old-calls=(list json)

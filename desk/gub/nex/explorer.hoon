@@ -428,7 +428,7 @@
   ?^  files
     =/  [name=@ta =content:tarball]  i.files
     ;<  ~  bind:m
-      (make:io [%& %& tree-path name] |+[[p.content q.q.content] ~])
+      (make:io [%& %& tree-path name] |+[[p.content (sang-noun:tarball content)] ~])
     $(files t.files)
   =/  dirs=(list [@ta ball:tarball])  ~(tap by dir.new)
   |-

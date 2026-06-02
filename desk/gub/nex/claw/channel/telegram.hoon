@@ -126,7 +126,7 @@
         ;<  cur-seen=seen:nexus  bind:m  (peek:io inbox-road ~)
         =/  cur-inbox=(list json)
           ?.  ?=([%& %file *] cur-seen)  ~
-          =/  j=json  (fall (mole |.(!<(json q.sage.p.cur-seen))) *json)
+          =/  j=json  (fall (mole |.(!<(json (need-vase:tarball sang.p.cur-seen)))) *json)
           ?.  ?=(%a -.j)  ~
           p.j
         =/  new-entries=(list json)
@@ -280,7 +280,7 @@
   ;<  =seen:nexus  bind:m  (peek:io road `[/ %json])
   ?.  ?=([%& %file *] seen)
     (pure:m ['' ''])
-  =/  cfg=json  (fall (mole |.(!<(json q.sage.p.seen))) *json)
+  =/  cfg=json  (fall (mole |.(!<(json (need-vase:tarball sang.p.seen)))) *json)
   ?.  ?=(%o -.cfg)
     (pure:m ['' ''])
   =/  get

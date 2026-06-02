@@ -291,7 +291,7 @@
   |=  [=rail:tarball =content:tarball]
   ?.  =([/ %hoon] p.content)  ~
   ?.  (has-hoon-ext name.rail)  ~
-  `[rail !<(@t q.content)]
+  `[rail !<(@t (need-vase:tarball content))]
 ::  +has-hoon-ext: check if filename ends in .hoon
 ::
 ++  has-hoon-ext
@@ -364,7 +364,7 @@
     %+  murn  ~(tap ba:tarball ball)
     |=  [=rail:tarball =content:tarball]
     ?.  =([/ %mime] p.content)  ~
-    `[rail q.content]
+    `[rail (need-vase:tarball content)]
   ::  Phase 1: Parse and resolve all sources
   ::
   =/  prep
@@ -518,7 +518,7 @@
             %+  murn  ~(tap ba:tarball sub)
             |=  [=rail:tarball =content:tarball]
             ?.  =([/ %mime] p.content)  ~
-            `[path.rail name.rail !<(mime q.content)]
+            `[path.rail name.rail !<(mime (need-vase:tarball content))]
           |=  [[pax=path nam=@ta mym=mime] acc=(axal (map @ta mime))]
           =/  nod=(map @ta mime)
             (fall (~(get of acc) pax) *(map @ta mime))

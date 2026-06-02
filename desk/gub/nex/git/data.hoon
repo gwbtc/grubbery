@@ -76,7 +76,7 @@
         =/  stash-octs=octs  (as-octt:bytestream stash-hex)
         =.  ball
           %+  ~(put ba:tarball ball)  [/refs %'stash']
-          [[/ %mime] !>([/text/plain stash-octs])]
+          [[/ %mime] %& !>([/text/plain stash-octs])]
         ::  append stash reflog
         =/  old-stash-hex=tape
           =/  old=(unit hash:git-repo)  (read-ref-file ball /refs 'stash')
@@ -146,7 +146,7 @@
           =/  prev-hex=tape  (print-hash-sha-1:git-transport u.prev.pop-result)
           =/  prev-octs=octs  (as-octt:bytestream prev-hex)
           %+  ~(put ba:tarball ball)  [/refs %'stash']
-          [[/ %mime] !>([/text/plain prev-octs])]
+          [[/ %mime] %& !>([/text/plain prev-octs])]
         ::  clear request
         =.  ball  (~(del ba:tarball ball) / %'stash-pop-request.sig')
         ::  build UI outputs — status will show stash diff against HEAD
@@ -194,7 +194,7 @@
           (idx-hashes (build-index-from-tree get-tree tree.u.parent-com))
         =/  status=json  (build-status ball idx.add-result head-tree-idx)
         =.  ball
-          (~(put ba:tarball ball) [/ui %'status.json'] [[/ %json] !>(status)])
+          (~(put ba:tarball ball) [/ui %'status.json'] [[/ %json] %& !>(status)])
         ~&  >>  "%git/data: staged files"
         ball
       ::
@@ -229,11 +229,11 @@
         ::  on a branch — update refs/heads/<branch>, HEAD stays symbolic
         =?  ball  ?=(^ branch.u.parsed-head)
           %+  ~(put ba:tarball ball)  [/refs/heads (crip (trip u.branch.u.parsed-head))]
-          [[/ %mime] !>([/text/plain hash-octs])]
+          [[/ %mime] %& !>([/text/plain hash-octs])]
         ::  detached HEAD — update HEAD hash directly
         =?  ball  ?=(~ branch.u.parsed-head)
           %+  ~(put ba:tarball ball)  [/ %'HEAD']
-          [[/ %mime] !>([/text/plain hash-octs])]
+          [[/ %mime] %& !>([/text/plain hash-octs])]
         ::  append reflog if on a branch
         =?  ball  ?=(^ branch.u.parsed-head)
           =/  old-hex=tape  (print-hash-sha-1:git-transport commit-hash)
@@ -256,13 +256,13 @@
         ::  after commit, HEAD tree = index, so staged is clean
         =/  new-status=json  (build-status ball full-idx idx)
         =.  ball
-          (~(put ba:tarball ball) [/ui %'commits.json'] [[/ %json] !>(new-commits)])
+          (~(put ba:tarball ball) [/ui %'commits.json'] [[/ %json] %& !>(new-commits)])
         =.  ball
-          (~(put ba:tarball ball) [/ui %'branches.json'] [[/ %json] !>(branches)])
+          (~(put ba:tarball ball) [/ui %'branches.json'] [[/ %json] %& !>(branches)])
         =.  ball
-          (~(put ba:tarball ball) [/ui %'current.json'] [[/ %json] !>(new-current)])
+          (~(put ba:tarball ball) [/ui %'current.json'] [[/ %json] %& !>(new-current)])
         =.  ball
-          (~(put ba:tarball ball) [/ui %'status.json'] [[/ %json] !>(new-status)])
+          (~(put ba:tarball ball) [/ui %'status.json'] [[/ %json] %& !>(new-status)])
         ball
       ::
       ::  === normal checkout ===
@@ -341,7 +341,7 @@
   =/  new-text=tape  (weld old-text entry)
   =/  new-octs=octs  (as-octt:bytestream new-text)
   %+  ~(put ba:tarball ball)  [log-path branch]
-  [[/ %mime] !>([/text/plain new-octs])]
+  [[/ %mime] %& !>([/text/plain new-octs])]
 ::
 ++  append-stash-reflog
   |=  [=ball:tarball old-hex=tape new-hex=tape msg=tape]
@@ -356,7 +356,7 @@
   =/  new-text=tape  (weld old-text entry)
   =/  new-octs=octs  (as-octt:bytestream new-text)
   %+  ~(put ba:tarball ball)  [/logs %'stash']
-  [[/ %mime] !>([/text/plain new-octs])]
+  [[/ %mime] %& !>([/text/plain new-octs])]
 ::
 ++  pop-stash-reflog
   |=  =ball:tarball
@@ -385,7 +385,7 @@
   =/  new-octs=octs  (as-octt:bytestream new-text)
   :-  prev-hash
   %+  ~(put ba:tarball ball)  [/logs %'stash']
-  [[/ %mime] !>([/text/plain new-octs])]
+  [[/ %mime] %& !>([/text/plain new-octs])]
 ::
 ::  +parse-head: read HEAD file and return branch or detached hash
 ::
@@ -459,7 +459,7 @@
   =/  h=(unit hash:git-repo)
     (rust (trip name) parse-hash-sha-1:git-transport)
   ?~  h  acc
-  =/  m=mime  !<(mime q.content)
+  =/  m=mime  !<(mime (need-vase:tarball content))
   =/  raw=raw-object:git-obj  (raw-from-octs:git-obj q.m)
   =/  obj=object:git-obj  (parse-raw:git-obj %sha-1 raw)
   (~(put by acc) u.h obj)
@@ -476,7 +476,7 @@
   =/  name=@t  (crip (print-hash-sha-1:git-transport hash.i.entries))
   =/  raw=raw-object:git-obj  (obj-to-raw:git-obj %sha-1 obj.i.entries)
   =/  raw-octs=octs  (raw-to-octs:git-obj raw)
-  =/  =content:tarball  [[/ %mime] !>([/application/octet-stream raw-octs])]
+  =/  =content:tarball  [[/ %mime] %& !>([/application/octet-stream raw-octs])]
   $(entries t.entries, ball (~(put ba:tarball ball) [/objects name] content))
 ::
 ::  +build-index-from-tree: walk commit tree, return flat path->blob-hash
@@ -522,7 +522,7 @@
     "100644 {hex} {mt}\09{pax}\0a"
   =/  idx-octs=octs  (as-octt:bytestream lines)
   %+  ~(put ba:tarball ball)  [/ %'INDEX']
-  [[/ %mime] !>([/application/octet-stream idx-octs])]
+  [[/ %mime] %& !>([/application/octet-stream idx-octs])]
 ::
 ::  +read-index: parse INDEX file back to path->[hash mtime] map
 ::
@@ -650,7 +650,7 @@
     ?~  fil.ball  ~
     %+  turn  ~(tap by contents.u.fil.ball)
     |=  [name=@t =content:tarball]
-    =/  m=mime  !<(mime q.content)
+    =/  m=mime  !<(mime (need-vase:tarball content))
     [(snoc here name) q.m]
   =/  sub-files=(list [=path data=octs])
     %-  zing
@@ -668,7 +668,7 @@
     ?~  fil.ball  ~
     %+  turn  ~(tap by contents.u.fil.ball)
     |=  [name=@t =content:tarball]
-    =/  m=mime  !<(mime q.content)
+    =/  m=mime  !<(mime (need-vase:tarball content))
     [(snoc here name) q.m '']
   =/  sub-files=(list [=path data=octs mtime=@t])
     %-  zing
@@ -806,7 +806,7 @@
 ++  read-hash-from-content
   |=  =content:tarball
   ^-  (unit hash:git-repo)
-  =/  m=mime  !<(mime q.content)
+  =/  m=mime  !<(mime (need-vase:tarball content))
   ?:  =(0 p.q.m)  ~
   (rust (trip q.q.m) parse-hash-sha-1:git-transport)
 ::
@@ -1035,13 +1035,13 @@
     (idx-hashes (build-index-from-tree get-tree head-tree-hash))
   =/  status=json  (build-status ball idx head-tree-idx)
   =.  ball
-    (~(put ba:tarball ball) [/ui %'commits.json'] [[/ %json] !>(commits)])
+    (~(put ba:tarball ball) [/ui %'commits.json'] [[/ %json] %& !>(commits)])
   =.  ball
-    (~(put ba:tarball ball) [/ui %'branches.json'] [[/ %json] !>(branches)])
+    (~(put ba:tarball ball) [/ui %'branches.json'] [[/ %json] %& !>(branches)])
   =.  ball
-    (~(put ba:tarball ball) [/ui %'current.json'] [[/ %json] !>(current)])
+    (~(put ba:tarball ball) [/ui %'current.json'] [[/ %json] %& !>(current)])
   =.  ball
-    (~(put ba:tarball ball) [/ui %'status.json'] [[/ %json] !>(status)])
+    (~(put ba:tarball ball) [/ui %'status.json'] [[/ %json] %& !>(status)])
   ball
 ::
 ::  +build-current: build current.json with HEAD, branch, and remote tracking info
@@ -1202,7 +1202,7 @@
   =/  dir=path  (snip `path`file-path)
   =/  content-type=path  (guess-mime name)
   =/  =mime  [content-type data.i.files]
-  =/  =content:tarball  [[/ %mime] !>(mime)]
+  =/  =content:tarball  [[/ %mime] %& !>(mime)]
   =/  segs=(list @t)
     ?~  dir  ~[name]
     (weld dir ~[name])

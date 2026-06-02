@@ -64,7 +64,7 @@
 +$  wave  (map lane:tarball cass:clay)
 +$  view
   $%  [%ball =born ball=ball:tarball]
-      [%file =hist =sage:tarball]
+      [%file =hist =sang:tarball]
       [%none ~]
   ==
 +$  seen  (each view tang)

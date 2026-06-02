@@ -198,7 +198,7 @@
   ^-  [url=@t auth=@t interval=@dr]
   =/  fallback=[url=@t auth=@t interval=@dr]  ['http://localhost:18443/' 'Basic dXJiaXQ6dXJiaXQxMjM=' ~s5]
   ?.  ?=([%& %file *] seen)  fallback
-  =/  jon  !<(json q.sage.p.seen)
+  =/  jon  !<(json (need-vase:tarball sang.p.seen))
   ?.  ?=([%o *] jon)  fallback
   =/  url=@t
     =/  u=(unit json)  (~(get by p.jon) 'url')
@@ -240,11 +240,11 @@
     =/  txid-hex=@t  (render-hex-octs:btc-rpc 32^id.t)
     =/  fname=@ta  (cat 3 txid-hex '.json')
     =/  tx-json=json  (tx-to-json t)
-    [fname [[/ %json] !>(tx-json)]]
+    [fname [[/ %json] %& !>(tx-json)]]
   =/  txs-lump=lump:tarball  [~ ~ tx-map]
   ::  assemble block ball: header.json in lump, txs/ as subdir
   =/  header-contents=(map @ta content:tarball)
-    (~(put by *(map @ta content:tarball)) %'header.json' [[/ %json] !>(header-json)])
+    (~(put by *(map @ta content:tarball)) %'header.json' [[/ %json] %& !>(header-json)])
   =/  block-lump=lump:tarball  [~ ~ header-contents]
   =/  block-ball=ball:tarball
     [`block-lump (~(put by *(map @ta ball:tarball)) %txs [`txs-lump ~])]

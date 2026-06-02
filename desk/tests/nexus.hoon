@@ -318,7 +318,7 @@
 ++  test-bo-is-empty-dir-false-has-files
   ::  is-empty-dir returns false if has files
   =/  b  (make-bo ~2024.1.1)
-  =/  has-file=ball:tarball  [`[~ ~ (~(put by *(map @ta content:tarball)) %foo [[/ %txt] !>('hi')])] ~]
+  =/  has-file=ball:tarball  [`[~ ~ (~(put by *(map @ta content:tarball)) %foo [[/ %txt] %& !>('hi')])] ~]
   %+  expect-eq
     !>  %.n
   !>  (is-empty-dir:b has-file)
@@ -392,7 +392,7 @@
   =/  contents=(map @ta content:tarball)
     %-  ~(gas by *(map @ta content:tarball))
     %+  turn  files
-    |=(f=@ta [f [[/ %txt] !>('test')]])
+    |=(f=@ta [f [[/ %txt] %& !>('test')]])
   [`[~ ~ contents] ~]
 ::
 ::  Helper to make a ball with a file with specific content
@@ -401,7 +401,7 @@
   |=  [name=@ta content=@t]
   ^-  ball:tarball
   =/  contents=(map @ta content:tarball)
-    (~(put by *(map @ta content:tarball)) name [[/ %txt] !>(content)])
+    (~(put by *(map @ta content:tarball)) name [[/ %txt] %& !>(content)])
   [`[~ ~ contents] ~]
 ::
 ++  test-bo-diff-balls-new-file
@@ -482,17 +482,17 @@
   ::  Old: deleted, changed, unchanged
   =/  old-contents=(map @ta content:tarball)
     %-  ~(gas by *(map @ta content:tarball))
-    :~  [%deleted [[/ %txt] !>('del')]]
-        [%changed [[/ %txt] !>('old')]]
-        [%unchanged [[/ %txt] !>('same')]]
+    :~  [%deleted [[/ %txt] %& !>('del')]]
+        [%changed [[/ %txt] %& !>('old')]]
+        [%unchanged [[/ %txt] %& !>('same')]]
     ==
   =/  old-ball=ball:tarball  [`[~ ~ old-contents] ~]
   ::  New: new, changed, unchanged
   =/  new-contents=(map @ta content:tarball)
     %-  ~(gas by *(map @ta content:tarball))
-    :~  [%new [[/ %txt] !>('new')]]
-        [%changed [[/ %txt] !>('different')]]
-        [%unchanged [[/ %txt] !>('same')]]
+    :~  [%new [[/ %txt] %& !>('new')]]
+        [%changed [[/ %txt] %& !>('different')]]
+        [%unchanged [[/ %txt] %& !>('same')]]
     ==
   =/  new-ball=ball:tarball  [`[~ ~ new-contents] ~]
   =/  born4=born:nexus  (diff-balls:b4 / old-ball new-ball)

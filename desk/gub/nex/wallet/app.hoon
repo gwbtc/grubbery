@@ -338,7 +338,7 @@
   ;<  =seen:nexus  bind:m  (peek:io road `[/ %mime])
   ?.  ?=([%& %file *] seen)
     (send-simple:srv eyre-id [[404 ~] `(as-octs:mimes:html 'Page not found')])
-  =/  =mime  !<(mime q.sage.p.seen)
+  =/  =mime  !<(mime (need-vase:tarball sang.p.seen))
   (send-simple:srv eyre-id (mime-response:http-utils mime))
 ::  +load-account: peek account data by key
 ::
@@ -350,7 +350,7 @@
     (cord-to-road:tarball (crip "../../accounts/{(trip acct-key)}/data.wallet_account"))
   ;<  =seen:nexus  bind:m  (peek:io road ~)
   ?.  ?=([%& %file *] seen)  (pure:m ~)
-  (pure:m (mole |.(!<(account-data q.sage.p.seen))))
+  (pure:m (mole |.(!<(account-data (need-vase:tarball sang.p.seen)))))
 ::
 ++  load-wallets
   =/  m  (fiber:fiber:nexus ,(list wallet-data))
@@ -370,7 +370,7 @@
   ?.  exists  (pure:m *addr-mop)
   ;<  =seen:nexus  bind:m  (peek:io road ~)
   ?.  ?=([%& %file *] seen)  (pure:m *addr-mop)
-  (pure:m (fall (mole |.(!<(addr-mop q.sage.p.seen))) *addr-mop))
+  (pure:m (fall (mole |.(!<(addr-mop (need-vase:tarball sang.p.seen)))) *addr-mop))
 ::  +load-txs: load tx-map from an account's network directory (app-level)
 ::
 ++  load-txs
@@ -383,7 +383,7 @@
   ?.  exists  (pure:m *tx-map)
   ;<  =seen:nexus  bind:m  (peek:io road ~)
   ?.  ?=([%& %file *] seen)  (pure:m *tx-map)
-  (pure:m (fall (mole |.(!<(tx-map q.sage.p.seen))) *tx-map))
+  (pure:m (fall (mole |.(!<(tx-map (need-vase:tarball sang.p.seen)))) *tx-map))
 ::  +load-scan-state: peek scan process file and paused marker
 ::
 ++  load-scan-state
@@ -396,7 +396,7 @@
   ?.  scan-exists  (pure:m [%none ~])
   ;<  =seen:nexus  bind:m  (peek:io scan-road ~)
   ?.  ?=([%& %file *] seen)  (pure:m [%none ~])
-  =/  jon=json  (fall (mole |.(!<(json q.sage.p.seen))) *json)
+  =/  jon=json  (fall (mole |.(!<(json (need-vase:tarball sang.p.seen)))) *json)
   =/  progress=scan-progress:acct-ui
     ?.  ?=([%o *] jon)  ['' 0 0]
     =/  phase=(unit json)  (~(get by p.jon) 'phase')
@@ -426,7 +426,7 @@
   ?.  exists  (pure:m '')
   ;<  =seen:nexus  bind:m  (peek:io road ~)
   ?.  ?=([%& %file *] seen)  (pure:m '')
-  =/  wal=(unit wallet-data)  (mole |.(!<(wallet-data q.sage.p.seen)))
+  =/  wal=(unit wallet-data)  (mole |.(!<(wallet-data (need-vase:tarball sang.p.seen))))
   ?~  wal  (pure:m '')
   (pure:m name.u.wal)
 ::  +load-draft: peek draft transaction from account
@@ -441,7 +441,7 @@
   ?.  exists  (pure:m ~)
   ;<  =seen:nexus  bind:m  (peek:io road ~)
   ?.  ?=([%& %file *] seen)  (pure:m ~)
-  (pure:m (mole |.(!<(transaction:drft q.sage.p.seen))))
+  (pure:m (mole |.(!<(transaction:drft (need-vase:tarball sang.p.seen)))))
 ::  +send-sse-fragment: send a single SSE fragment targeting a DOM element
 ::
 ++  send-sse-fragment

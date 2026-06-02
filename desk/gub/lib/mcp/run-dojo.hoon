@@ -135,12 +135,12 @@
       (read-results st)
     ;<  =seen:nexus  bind:m  (peek:io ses-road ~)
     ?.  ?=([%& %file *] seen)  $
-    ?.  ?=(%dill-blit name.p.sage.p.seen)  $
+    ?.  ?=(%dill-blit name.p.sang.p.seen)  $
     =.  batches  +(batches)
     ::  Skip the first batch (command echo) — wait for result + prompt
     ?.  (gth batches 1)  $
     =/  blits=(list blit:dill)
-      !<((list blit:dill) q.sage.p.seen)
+      !<((list blit:dill) (need-vase:tarball sang.p.seen))
     =/  rendered=@t  (render-blits:clurd blits wid)
     =/  txt=tape  (trip rendered)
     ::  Check for prompt at end of this batch

@@ -365,7 +365,7 @@
   ;<  =seen:nexus  bind:m  (peek:io rd ~)
   =/  jon=json
     ?.  ?=([%& %file *] seen)  [%o ~]
-    (fall (mole |.(!<(json q.sage.p.seen))) [%o ~])
+    (fall (mole |.(!<(json (need-vase:tarball sang.p.seen)))) [%o ~])
   ?.  ?=(%o -.jon)  (pure:m *s3-creds)
   %-  pure:m
   :*  (get-str jon 'access_key')
@@ -382,7 +382,7 @@
     (ancestor-road:io [/s3 %bridge] [%& / %'source.json'])
   ;<  =seen:nexus  bind:m  (peek:io rd ~)
   ?.  ?=([%& %file *] seen)  (pure:m '')
-  =/  jon=json  (fall (mole |.(!<(json q.sage.p.seen))) s+'')
+  =/  jon=json  (fall (mole |.(!<(json (need-vase:tarball sang.p.seen)))) s+'')
   ?.  ?=(%s -.jon)  (pure:m '')
   (pure:m p.jon)
 ::
@@ -417,7 +417,7 @@
     (ancestor-road:io [/s3 %bridge] [%& / %'mapping.json'])
   ;<  =seen:nexus  bind:m  (peek:io rd ~)
   ?.  ?=([%& %file *] seen)  (pure:m ~)
-  =/  jon=json  (fall (mole |.(!<(json q.sage.p.seen))) [%a ~])
+  =/  jon=json  (fall (mole |.(!<(json (need-vase:tarball sang.p.seen)))) [%a ~])
   =/  body=@t  (en:json:html jon)
   ;<  resp=client-response:iris  bind:m  (s3-request cfg 'PUT' src '' `body)
   ?.  ?=(%finished -.resp)
@@ -434,7 +434,7 @@
   ;<  =seen:nexus  bind:m  (peek:io rd ~)
   =/  jon=json
     ?.  ?=([%& %file *] seen)  [%a ~]
-    (fall (mole |.(!<(json q.sage.p.seen))) [%a ~])
+    (fall (mole |.(!<(json (need-vase:tarball sang.p.seen)))) [%a ~])
   ?.  ?=(%a -.jon)  (pure:m ~)
   %-  pure:m
   %+  murn  p.jon
@@ -500,7 +500,7 @@
   ;<  =seen:nexus  bind:m  (peek:io rd ~)
   =/  existing=(set @t)
     ?.  ?=([%& %file *] seen)  ~
-    =/  jon=json  (fall (mole |.(!<(json q.sage.p.seen))) [%a ~])
+    =/  jon=json  (fall (mole |.(!<(json (need-vase:tarball sang.p.seen)))) [%a ~])
     ?.  ?=(%a -.jon)  ~
     %-  ~(gas in *(set @t))
     (murn p.jon |=(j=json ?.(?=(%s -.j) ~ `p.j)))
@@ -526,7 +526,7 @@
   ;<  =seen:nexus  bind:m  (peek:io rd ~)
   =/  existing=(list json)
     ?.  ?=([%& %file *] seen)  ~
-    =/  jon=json  (fall (mole |.(!<(json q.sage.p.seen))) [%a ~])
+    =/  jon=json  (fall (mole |.(!<(json (need-vase:tarball sang.p.seen)))) [%a ~])
     ?.  ?=(%a -.jon)  ~
     p.jon
   =/  new=(list json)  (scag 50 ^-((list json) [entry existing]))
@@ -537,7 +537,7 @@
   ^-  (list bridge-entry)
   ?.  ?=([%& %file *] seen)  ~
   =/  jon=json
-    (fall (mole |.(!<(json q.sage.p.seen))) [%a ~])
+    (fall (mole |.(!<(json (need-vase:tarball sang.p.seen)))) [%a ~])
   ?.  ?=(%a -.jon)  ~
   %+  murn  p.jon
   |=  j=json
@@ -636,10 +636,11 @@
   ?~  kind  ~
   =/  res=(each @t tang)
     %-  mule  |.
+    =/  =vase  (need-vase:tarball content)
     ?-  u.kind
-      %text  !<(@t q.content)
-      %wain  (of-wain:format !<(wain q.content))
-      %mime  q.q:!<(mime q.content)
+      %text  !<(@t vase)
+      %wain  (of-wain:format !<(wain vase))
+      %mime  q.q:!<(mime vase)
     ==
   ?:(?=(%& -.res) `p.res ~)
 ::
@@ -750,7 +751,7 @@
     =/  base=path  (text-to-path local-path.bridge-entry)
     (slag (lent base) path.rail)
   =/  s3-key=@t  (build-s3-key s3-prefix.bridge-entry rel-path name.rail)
-  `[s3-key (mug q.content)]
+  `[s3-key (mug (sang-noun:tarball content))]
 ::
 ::  Push only specific keys from a view
 ::

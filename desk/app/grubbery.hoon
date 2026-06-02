@@ -277,7 +277,7 @@
       (~(get ba:tarball ball) u.jael-source)
     ?~  content  `this
     :_  this
-    [%give %fact ~ %azimuth-udiffs q.u.content]~
+    [%give %fact ~ %azimuth-udiffs (need-vase:tarball u.content)]~
       ::  Jael subscribes on /(scot %p ship) for per-ship udiffs
       [@ ~]
     ?~  jael-source  (on-watch:def path)
@@ -286,7 +286,7 @@
     =/  content=(unit content:tarball)
       (~(get ba:tarball ball) u.jael-source)
     ?~  content  `this
-    =+  !<(uds=udiffs:point:jael q.u.content)
+    =+  !<(uds=udiffs:point:jael (need-vase:tarball u.content))
     =/  filtered=udiffs:point:jael
       %+  skim  uds
       |=([=ship *] =(ship u.who))
@@ -333,7 +333,7 @@
       (~(get ba:tarball ball) dir name)
     ?~  content
       [~ ~]
-    ``[name.p.u.content q.u.content]
+    ``[name.p.u.content (need-vase:tarball u.content)]
     ::
       [%x %peek %kids *]
     ::  File names at path
@@ -390,13 +390,13 @@
   ?:  ?=([%dill %logs ~] wire)
     ?>  ?=([%dill %logs *] sign)
     =^  cards  state
-      abet:(save-file:hc [/sys/dill %'logs.dill-told'] [[/ %dill-told] !>(told.sign)])
+      abet:(save-file:hc [/sys/dill %'logs.dill-told'] [[/ %dill-told] %& !>(told.sign)])
     [cards this]
   ?:  ?=([%dill %session @ ~] wire)
     ?>  ?=([%dill %blit *] sign)
     =/  ses=@tas  i.t.t.wire
     =^  cards  state
-      abet:(save-file:hc [/sys/dill/sessions ses] [[/ %dill-blit] !>(p.sign)])
+      abet:(save-file:hc [/sys/dill/sessions ses] [[/ %dill-blit] %& !>(p.sign)])
     [cards this]
   ?:  ?=([%clay-desk @ ~] wire)
     ~&  >>  "on-arvo: clay writ on wire {<wire>}"
@@ -413,7 +413,7 @@
   ?:  ?=([%jael %private ~] wire)
     ?>  ?=([%jael %private-keys *] sign)
     =^  cards  state
-      abet:(save-file:hc [/sys/jael %'private-keys.jael-private-keys'] [[/ %jael-private-keys] !>([life.sign vein.sign])])
+      abet:(save-file:hc [/sys/jael %'private-keys.jael-private-keys'] [[/ %jael-private-keys] %& !>([life.sign vein.sign])])
     [cards this]
   ?:  ?=([%behn %timer @ *] wire)
     ?>  ?=([%behn %wake *] sign)
@@ -767,6 +767,22 @@
   ?:  ?=(%| -.result)
     result
   &+[p.sage p.result]
+::  Validate sang: if good, re-validate vase; if boom, try to heal
+::
+++  validate-sang
+  |=  [pax=path =sang:tarball]
+  ^-  sang:tarball
+  ?:  ?=(%| -.q.sang)
+    ::  Try to heal: validate the raw noun through its original mark
+    =/  noun=*  noun.p.q.sang
+    =/  res=(each vase tang)  (validate-noun pax p.sang noun)
+    ?:  ?=(%| -.res)  sang  :: still broken, keep as-is
+    [p.sang %& p.res]       :: healed!
+  =/  noun=*  q.p.q.sang
+  =/  res=(each vase tang)  (validate-noun pax p.sang noun)
+  ?:  ?=(%| -.res)
+    [p.sang %| [p.res noun]]
+  [p.sang %& p.res]
 ::  Validate a bask (blot + noun) into a sage.
 ::  Used when reading historical data from the silo.
 ::
@@ -806,17 +822,18 @@
     |-
     ?~  files  out
     =/  [name=@ta =content:tarball]  i.files
-    =/  cached  (check-vale-cache cod p.content q.q.content)
+    =/  noun=*  (sang-noun:tarball content)
+    =/  cached  (check-vale-cache cod p.content noun)
     =/  res=(each vase tang)
       ?^  cached  u.cached
       ~|  [%validate-ball name (weld cod here) p.content]
-      (validate-noun cod p.content q.q.content)
+      (validate-noun cod p.content noun)
     =?  this  ?=(~ cached)
-      (cache-validation cod p.content q.q.content res)
+      (cache-validation cod p.content noun res)
     ?.  ?=(%& -.res)
       ~&  >>  "validate-ball: boom {(trip name)} (mark %{(trip name.p.content)}) at {(spud (weld cod here))}"
-      $(files t.files, out (~(put by out) name [[/ %boom] !>([p.res [p.content q.q.content]])]))
-    $(files t.files, out (~(put by out) name [p.content p.res]))
+      $(files t.files, out (~(put by out) name [p.content %| [p.res noun]]))
+    $(files t.files, out (~(put by out) name [p.content %& p.res]))
   =/  validated-dir=(map @ta ball:tarball)
     =/  kids=(list [@ta ball:tarball])  ~(tap by dir.ball)
     =|  out=(map @ta ball:tarball)
@@ -851,8 +868,8 @@
       (validate-bask (weld cod here) bask)
     ?.  ?=(%& -.res)
       ~&  >>  "validate-bole: boom {(trip name)} at {(spud (weld cod here))}"
-      $(files t.files, out (~(put by out) name [[/ %boom] !>([p.res bask])]))
-    $(files t.files, out (~(put by out) name p.res))
+      $(files t.files, out (~(put by out) name [p.bask %| [p.res q.bask]]))
+    $(files t.files, out (~(put by out) name (sage-to-sang:tarball p.res)))
   =/  validated-dir=(map @ta ball:tarball)
     =/  kids=(list [@ta bole:tarball])  ~(tap by dir.bole)
     =|  out=(map @ta ball:tarball)
@@ -1393,7 +1410,7 @@
   =/  content=(unit content:tarball)
     (~(get ba:tarball ball) u.jael-source)
   ?~  content  this
-  =+  !<(uds=udiffs:point:jael q.u.content)
+  =+  !<(uds=udiffs:point:jael (need-vase:tarball u.content))
   ?:  =(~ uds)  this
   ::  Give full batch on /
   =.  cards
@@ -1652,7 +1669,7 @@
         (enqu-take here (sys-give /over) ~ %over wire.dart `~[leaf+"file not found: {(spud (snoc path.dest name.dest))}"])
       =/  old-blot=blot:tarball  p.u.old
       =/  new-blot=blot:tarball  p.bask.load.dart
-      ?:  =([/ %boom] old-blot)
+      ?:  (is-boom:tarball u.old)
         ~&  >>>  "over: target file is boomed: {(spud (snoc path.dest name.dest))}"
         (enqu-take here (sys-give /over) ~ %over wire.dart `~[leaf+"over: target file is boomed, fix the mark and reload: {(spud (snoc path.dest name.dest))}"])
       =/  =bask:tarball
@@ -1670,7 +1687,7 @@
         (cache-validation cod p.bask q.bask val)
       ?:  ?=(%| -.val)
         (enqu-take here (sys-give /over) ~ %over wire.dart `p.val)
-      =/  new-content=content:tarball  [p.bask p.val]
+      =/  new-content=content:tarball  [p.bask %& p.val]
       =.  this  (save-file dest new-content)
       =.  this  (enqu-take dest (sys-give /writ) ~ %writ ~)
       (enqu-take here (sys-give /over) ~ %over wire.dart ~)
@@ -1680,24 +1697,24 @@
       ::  NOTE: these use raw ball puts intentionally — save-file would
       ::  bump born, notifying watchers, which peek again → infinite loop.
       =.  ball
-        (~(put ba:tarball ball) [/sys/bowl %our] [[/ %ship] !>(our.bowl)])
+        (~(put ba:tarball ball) [/sys/bowl %our] [[/ %ship] %& !>(our.bowl)])
       =/  now-existing=(unit content:tarball)
         (~(get ba:tarball ball) /sys/bowl %now)
       =/  now-val=@da
         ?~  now-existing  now.bowl
-        =/  prev=@da  !<(@da q.u.now-existing)
+        =/  prev=@da  !<(@da (need-vase:tarball u.now-existing))
         ?:  (gte prev now.bowl)
           (add prev (div ~s1 1.000))
         now.bowl
       =.  ball
-        (~(put ba:tarball ball) [/sys/bowl %now] [[/ %time] !>(now-val)])
+        (~(put ba:tarball ball) [/sys/bowl %now] [[/ %time] %& !>(now-val)])
       =/  eny-existing=(unit content:tarball)
         (~(get ba:tarball ball) /sys/bowl %eny)
       =/  eny-val=@uvJ
         ?~  eny-existing  eny.bowl
-        (shaz (cat 3 eny.bowl !<(@uvJ q.u.eny-existing)))
+        (shaz (cat 3 eny.bowl !<(@uvJ (need-vase:tarball u.eny-existing))))
       =.  ball
-        (~(put ba:tarball ball) [/sys/bowl %eny] [[/ %entropy] !>(eny-val)])
+        (~(put ba:tarball ball) [/sys/bowl %eny] [[/ %entropy] %& !>(eny-val)])
       ::  Ensure born entries exist for bowl files (no bump, no notify)
       =?  born  =(~ (~(get bo:nexus now.bowl [born ball]) /sys/bowl %our))
         (~(init bo:nexus now.bowl [born ball]) /sys/bowl %our)
@@ -1729,8 +1746,8 @@
         =/  sk=hist:nexus
           ?~  node  *hist:nexus
           (fall (~(get by file.u.node) name.dest) *hist:nexus)
-        ::  Resolve source: historical bask from silo or current sage from ball
-        =/  source=(unit sage:tarball)
+        ::  Resolve source: historical bask from silo or current sang from ball
+        =/  source=(unit sang:tarball)
           ?^  case.load.dart
             =/  =pace:hist:nexus
               (resolve-case:nexus u.case.load.dart sk)
@@ -1742,31 +1759,36 @@
             ?.  ?=(%leaf -.jt)  ~
             =/  got=(unit noun)  (~(get si:nexus silo) lobe.leaf.jt)
             ?~  got  ~
-            ::  Validate bask back to sage
+            ::  Validate bask back to sang
             =/  res  (validate-bask cod [blot.mark.leaf.jt u.got])
-            ?:  ?=(%| -.res)  ~
-            `p.res
+            ?:  ?=(%| -.res)
+              `[blot.mark.leaf.jt %| [p.res u.got]]
+            `(sage-to-sang:tarball p.res)
           ?~  content  ~
           `u.content
         ?~  source
           (enqu-take here (sys-give /peek) ~ %peek wire.dart &+[%none ~])
+        ::  Boom content passes through as-is
+        ?:  (is-boom:tarball u.source)
+          (enqu-take here (sys-give /peek) ~ %peek wire.dart %& %file sk u.source)
         ::  Validate peek result
+        =/  =sage:tarball  (need-sage:tarball u.source)
         =/  clammed=sage:tarball
-          =/  cached  (check-vale-cache cod p.u.source q.q.u.source)
+          =/  cached  (check-vale-cache cod p.sage q.q.sage)
           =/  validated=(each vase tang)
             ?^  cached  u.cached
-            (validate-noun cod p.u.source q.q.u.source)
+            (validate-noun cod p.sage q.q.sage)
           =?  this  ?=(~ cached)
-            (cache-validation cod p.u.source q.q.u.source validated)
+            (cache-validation cod p.sage q.q.sage validated)
           ?:  ?=(%| -.validated)
             ~|(%peek-clam-failed !!)
-          [p.u.source p.validated]
+          [p.sage p.validated]
         ::  Apply mark conversion if requested
-        =/  result=sage:tarball
-          ?~  blot.load.dart  clammed
-          ?:  =(p.clammed u.blot.load.dart)  clammed
+        =/  result=sang:tarball
+          ?~  blot.load.dart  (sage-to-sang:tarball clammed)
+          ?:  =(p.clammed u.blot.load.dart)  (sage-to-sang:tarball clammed)
           =/  =tube:clay  (get-tube cod [p.clammed u.blot.load.dart])
-          [p.clammed (tube q.clammed)]
+          (sage-to-sang:tarball [p.clammed (tube q.clammed)])
         (enqu-take here (sys-give /peek) ~ %peek wire.dart %& %file sk result)
       ==
       ::
@@ -2188,7 +2210,7 @@
   =/  file-data=(unit content:tarball)
     (~(get ba:tarball ball) path.here name.here)
   ?~  file-data  this  :: file doesn't exist
-  =/  fil-state=vase  q.u.file-data
+  =/  fil-state=vase  (need-vase:tarball u.file-data)
   ::  Run the evaluator (mule to catch hard crashes like !< mismatches)
   =/  eval-res=(each [darts=(list dart:nexus) done=(list took:eval) new-state=vase new-proc=proc:fiber:nexus res=result:eval core=_this] tang)
     (mule |.((take:eval here fil-state proc)))
@@ -2206,11 +2228,11 @@
   ?-    -.res
       %next
     ::  Save state (bumps aeon only if content changed)
-    =.  this  (save-file here [p.u.file-data new-state])
+    =.  this  (save-file here [p.u.file-data %& new-state])
     (store-proc here new-proc)
       %done
     ::  Save final state so subscribers see it, then delete
-    =.  this  (save-file here [p.u.file-data new-state])
+    =.  this  (save-file here [p.u.file-data %& new-state])
     =/  err=tang  ~[leaf+"process completed"]
     :: only nack-pokes when we're done
     ::
@@ -2299,7 +2321,7 @@
     ?:  ?=(%| -.validated)
       ~|("make failed: validation error" (mean p.validated))
     ::  Save initial state (bumps file aeon since old content is ~)
-    =.  this  (save-file dest-rail [p.bask p.validated])
+    =.  this  (save-file dest-rail [p.bask %& p.validated])
     ::  Spawn process (needs file in ball for build-spool)
     (spawn-proc dest-rail [%make ~])
   ==
@@ -2485,7 +2507,7 @@
 ::  Record noun+blot in silo and append to file hist.
 ::
 ++  record
-  |=  [here=rail:tarball =sage:tarball cas=(unit cass:clay)]
+  |=  [here=rail:tarball =sang:tarball cas=(unit cass:clay)]
   ^+  this
   =/  sok=hist:nexus  (need (get-born here))
   ::  Use provided cass or compute next from current top of hist
@@ -2493,10 +2515,10 @@
   =/  new-cass=cass:clay
     (fall cas (~(next-cass bo:nexus now.bowl [born ball]) file-cass))
   =/  marc-ckey=@uv
-    =/  res  (seek-built path.here (weld /mar path.p.sage) name.p.sage)
+    =/  res  (seek-built path.here (weld /mar path.p.sang) name.p.sang)
     ?~(res 0v0 ckey.u.res)
   =/  [=lobe:clay new-silo=silo:nexus new-sok=hist:nexus]
-    (~(record si:nexus silo) q.q.sage p.sage marc-ckey new-cass sok)
+    (~(record si:nexus silo) (sang-noun:tarball sang) p.sang marc-ckey new-cass sok)
   =.  silo  new-silo
   =.  born  (~(put bo:nexus now.bowl [born ball]) here new-sok)
   this
@@ -2600,7 +2622,7 @@
   ::  Update clay-state with synced desks
   =/  clay-rail=rail:tarball  [/sys/clay %'main.clay-state']
   =/  st=clay-state:nexus  [%0 (silt dek)]
-  =.  this  (save-file clay-rail [[/ %clay-state] !>(st)])
+  =.  this  (save-file clay-rail [[/ %clay-state] %& !>(st)])
   |-  ^+  this
   ?~  dek  this
   $(dek t.dek, this (sync-clay-desk i.dek))
@@ -2639,7 +2661,7 @@
     ?.  ?=(%& -.res)
       ~&  [%sync-clay-vale-failed mar fyl]
       acc
-    (save-file:acc [dir name] [[/ mar] p.res])
+    (save-file:acc [dir name] [[/ mar] %& p.res])
   ::  Delete files that no longer exist in Clay
   =/  removed=(list path)
     %+  skim  ~(tap in old-files)
@@ -2759,7 +2781,7 @@
     ~>  %bout
     %+  roll  mime-files
     |=  [[=rail:tarball =content:tarball] [acc=refs:nexus bld=(map @uv built:nexus)]]
-    =/  =mime  !<(mime q.content)
+    =/  =mime  !<(mime (need-vase:tarball content))
     =/  =built:nexus  [%mime mime]
     =/  ckey=@uv  (sham built)
     =/  node=(map @ta @uv)
@@ -2899,15 +2921,11 @@
   ::  files would cascade into build-code loops.
   ?:  ?=(?(%hoon %boom %tang %mime %kelvin) nam)
     $(remaining t.remaining)
-  ::  Find all grubs with this mark, including booms with matching inner mark
+  ::  Find all grubs with this mark (booms share the original blot)
   =/  grubs=(list [=rail:tarball =content:tarball])
     %+  skim  (governed-files cod)
     |=  [=rail:tarball =content:tarball]
-    ?:  =(name.blot name.p.content)  &
-    ?.  =([/ %boom] p.content)  |
-    =/  boom-res=(each [tang bask:tarball] tang)
-      (mule |.(;;([tang bask:tarball] q.q.content)))
-    ?:(?=(%| -.boom-res) | =(name.blot name.p.p.boom-res))
+    =(name.blot name.p.content)
   ?~  grubs  $(remaining t.remaining)
   ::  Get marc, or skip if mark failed to compile
   =/  marc-res=(each marc:tarball tang)
@@ -2924,11 +2942,7 @@
     |-
     ?~  grubs  this
     =/  [=rail:tarball =content:tarball]  i.grubs
-    =/  noun=*
-      ?:  =([/ %boom] p.content)
-        =/  boom-res  (mule |.(;;([tang bask:tarball] q.q.content)))
-        ?:(?=(%| -.boom-res) q.q.content q.p.boom-res)
-      q.q.content
+    =/  noun=*  (sang-noun:tarball content)
     ::  TODO: pass lobe instead of hashing noun
     =/  lob=lobe:clay  (sham noun)
     =/  hit  (vale-hit lob ckey)
@@ -2941,12 +2955,12 @@
     =?  this  ?=(~ hit)
       (vale-put lob ckey ?:(?=(%& -.res) ~ `p.res))
     ?:  ?=(%& -.res)
-      =.  this  (save-file rail [p.content p.res])
+      =.  this  (save-file rail [p.content %& p.res])
       =.  n-ok  +(n-ok)
       $(grubs t.grubs)
     ~&  >>  "validate-marks: boom {(spud (snoc path.rail name.rail))}"
     =.  this
-      (save-file rail [[/ %boom] !>([p.res [blot noun]])])
+      (save-file rail [blot %| [p.res noun]])
     =.  n-boom  +(n-boom)
     $(grubs t.grubs)
   ~&  >  "validate-marks: {(trip nam)} — {<n-ok>} ok, {<n-boom>} boom"
@@ -3053,14 +3067,14 @@
       ?.  ?=(%& -.val)
         ~&  >>>  "sync-gub: kelvin validation failed"
         acc
-      (~(put ba:tarball acc) [/ %'sys.kelvin'] [[/ %kelvin] p.val])
+      (~(put ba:tarball acc) [/ %'sys.kelvin'] [[/ %kelvin] %& p.val])
     ?:  =(mar %hoon)
       =/  =vase  .^(vase %cr (weld pax fyl))
       =/  val=(each ^vase tang)  (validate-noun /code [/ mar] q.vase)
       ?.  ?=(%& -.val)
         ~&  >>>  "sync-gub: validation failed for {(trip name)}: {(trip (render-tang:build p.val))}"
         acc
-      (~(put ba:tarball acc) [rel-dir name] [[/ mar] p.val])
+      (~(put ba:tarball acc) [rel-dir name] [[/ mar] %& p.val])
     ::  Non-hoon: convert to mime via tube, validate as %mime
     =/  =vase  .^(vase %cr (weld pax fyl))
     =/  tub=tube:clay  .^(tube:clay %cc (weld pax /[mar]/mime))
@@ -3069,7 +3083,7 @@
     ?.  ?=(%& -.val)
       ~&  >>>  "sync-gub: mime validation failed for {(trip name)}"
       acc
-    (~(put ba:tarball acc) [rel-dir name] [[/ %mime] p.val])
+    (~(put ba:tarball acc) [rel-dir name] [[/ %mime] %& p.val])
   ::  Get old ball at /code/
   =/  old-src=ball:tarball  (~(dip ba:tarball ball) /code)
   ::  Diff and bump src changes (born, silo, hist, notify)
@@ -3152,7 +3166,7 @@
 ++  sync-dill
   ^+  this
   ::  Create dill/logs grub and subscribe
-  =.  this  (save-file [/sys/dill %'logs.dill-told'] [[/ %dill-told] !>(*told:dill)])
+  =.  this  (save-file [/sys/dill %'logs.dill-told'] [[/ %dill-told] %& !>(*told:dill)])
   =.  this  (emit-card [%pass /dill/logs %arvo %d %logs `~])
   ::  Scry for sessions
   =/  sessions=(list @tas)
@@ -3170,7 +3184,7 @@
   =.  this
     %+  roll  sessions
     |=  [ses=@tas acc=_this]
-    (save-file:acc [/sys/dill/sessions ses] [[/ %dill-blit] !>(*(list blit:dill))])
+    (save-file:acc [/sys/dill/sessions ses] [[/ %dill-blit] %& !>(*(list blit:dill))])
   %-  emit-cards
   %+  turn  sessions
   |=(ses=@tas [%pass /dill/session/[ses] %arvo %d %shot ses %view ~])
@@ -3183,9 +3197,9 @@
   =.  this  (load-ball-changes /sys/jael old new)
   ::  Create grubs and subscribe
   =.  this
-    (save-file [/sys/jael %'private-keys.jael-private-keys'] [[/ %jael-private-keys] !>(*[life (map life ring)])])
+    (save-file [/sys/jael %'private-keys.jael-private-keys'] [[/ %jael-private-keys] %& !>(*[life (map life ring)])])
   =.  this
-    (save-file [/sys/jael %'public-keys.jael-public-keys-result'] [[/ %jael-public-keys-result] !>(*public-keys-result:jael)])
+    (save-file [/sys/jael %'public-keys.jael-public-keys-result'] [[/ %jael-public-keys-result] %& !>(*public-keys-result:jael)])
   ::  Subscribe to private keys
   =.  this
     (emit-card [%pass /jael/private %arvo %j %private-keys ~])
@@ -3196,7 +3210,7 @@
 ++  on-jael-public
   |=  =public-keys-result:jael
   ^+  this
-  (save-file [/sys/jael %'public-keys.jael-public-keys-result'] [[/ %jael-public-keys-result] !>(public-keys-result)])
+  (save-file [/sys/jael %'public-keys.jael-public-keys-result'] [[/ %jael-public-keys-result] %& !>(public-keys-result)])
 ::  /sys/gall: materialized gall subscriptions
 ::
 ::  Poke %grubbery with %gall-watch to subscribe to a gall agent.
@@ -3243,7 +3257,7 @@
   =/  new=ball:tarball  old(fil `(fall fil.old *lump:tarball))
   =.  this  (load-ball-changes dir old new)
   ::  Create live file (%.y = subscribing)
-  =.  this  (save-file [dir %live] [[/ %loob] !>(%.y)])
+  =.  this  (save-file [dir %live] [[/ %loob] %& !>(%.y)])
   ::  Subscribe
   ~&  >  "gall-sub: subscribing to {<ship>}/{(trip agent)}/{(spud path)}"
   (emit-card [%pass wir %agent [ship agent] %watch path])
@@ -3278,11 +3292,11 @@
     ?~  p.sign
       ::  Success — set live to %.y
       ~&  >  "gall-sub: watch-ack ok {<ship>}/{(trip agent)}/{(spud path)}"
-      (save-file [dir %live] [[/ %loob] !>(%.y)])
+      (save-file [dir %live] [[/ %loob] %& !>(%.y)])
     ::  Failed — set live to %.n, don't retry
     ~&  >>>  "gall-sub: watch-ack failed {<ship>}/{(trip agent)}/{(spud path)}"
     %-  (slog u.p.sign)
-    (save-file [dir %live] [[/ %loob] !>(%.n)])
+    (save-file [dir %live] [[/ %loob] %& !>(%.n)])
   ::
       %fact
     ::  Validate via marc, save to data
@@ -3296,18 +3310,18 @@
     ?~  vale
       ::  No marc — fall back to page (original mark + raw noun)
       ~&  >  "gall-sub: no marc for {<mar>}, storing as page"
-      (save-file [dir %data] [[/ %page] !>(`[p=@tas q=*]`[mar q.q.cage.sign])])
+      (save-file [dir %data] [[/ %page] %& !>(`[p=@tas q=*]`[mar q.q.cage.sign])])
     =/  res=(each vase tang)
       (validate-vase u.vale q.q.cage.sign)
     ?.  ?=(%& -.res)
       ~&  >>>  "gall-sub: vale failed for {<mar>}"
       this
-    (save-file [dir %data] [[/ mar] p.res])
+    (save-file [dir %data] [[/ mar] %& p.res])
   ::
       %kick
     ::  Set live to %.n, auto-resubscribe
     ~&  >  "gall-sub: kicked from {<ship>}/{(trip agent)}/{(spud path)}, resubscribing"
-    =.  this  (save-file [dir %live] [[/ %loob] !>(%.n)])
+    =.  this  (save-file [dir %live] [[/ %loob] %& !>(%.n)])
     (emit-card [%pass (gall-sub-wire ship agent path) %agent [ship agent] %watch path])
   ==
 ::  Resubscribe all existing gall subs on reload
@@ -3387,7 +3401,7 @@
   ::  Create directory + ship.sig grub (properly tracked)
   =/  old=ball:tarball  (~(dip ba:tarball ball) ship-dir)
   =/  new=ball:tarball  old(fil `(fall fil.old *lump:tarball))
-  =.  new  (~(put ba:tarball new) [/ %'ship.sig'] [[/ %sig] !>(~)])
+  =.  new  (~(put ba:tarball new) [/ %'ship.sig'] [[/ %sig] %& !>(~)])
   =.  this  (load-ball-changes ship-dir old new)
   =/  ship-rail=rail:tarball  [ship-dir %'ship.sig']
   =.  this  (spawn-proc ship-rail [%load ~])
@@ -3409,7 +3423,7 @@
   =/  grp=ball:tarball  (~(dip ba:tarball ug) /[name])
   =/  c=(unit content:tarball)  (~(get ba:tarball grp) [/ %'who.ships'])
   ?~  c  ~
-  =/  res  (mule |.(!<((set @p) q.u.c)))
+  =/  res  (mule |.(!<((set @p) (need-vase:tarball u.c))))
   ?:(?=(%| -.res) ~ `[name p.res])
 ::
 ++  read-peer-how
@@ -3423,7 +3437,7 @@
   =/  grp=ball:tarball  (~(dip ba:tarball ug) /[name])
   =/  c=(unit content:tarball)  (~(get ba:tarball grp) [/ %'how.weir'])
   ?~  c  ~
-  =/  res  (mule |.(!<(weir:nexus q.u.c)))
+  =/  res  (mule |.(!<(weir:nexus (need-vase:tarball u.c))))
   ?:(?=(%| -.res) ~ `[name p.res])
 ::  Build reverse index: ship → group names
 ::
@@ -3527,12 +3541,12 @@
   =/  eyre-rail=rail:tarball  [/sys/eyre %'main.server-state']
   =/  old=(unit content:tarball)  (~(get ba:tarball ball) eyre-rail)
   ?~  old  *server-state:nexus
-  !<(server-state:nexus q.u.old)
+  !<(server-state:nexus (need-vase:tarball u.old))
 ::
 ++  save-server-state
   |=  st=server-state:nexus
   ^+  this
-  (save-file [/sys/eyre %'main.server-state'] [[/ %server-state] !>(st)])
+  (save-file [/sys/eyre %'main.server-state'] [[/ %server-state] %& !>(st)])
 ::
 ++  find-eyre-binding
   |=  [bindings=(map binding:eyre rail:tarball) site=path]
@@ -3577,12 +3591,12 @@
   =/  push-rail=rail:tarball  [/sys/push %'main.push-state']
   =/  old=(unit content:tarball)  (~(get ba:tarball ball) push-rail)
   ?~  old  *push-state:nexus
-  !<(push-state:nexus q.u.old)
+  !<(push-state:nexus (need-vase:tarball u.old))
 ::
 ++  save-push-state
   |=  st=push-state:nexus
   ^+  this
-  (save-file [/sys/push %'main.push-state'] [[/ %push-state] !>(st)])
+  (save-file [/sys/push %'main.push-state'] [[/ %push-state] %& !>(st)])
 ::
 ++  handle-push-action
   |=  [sender=rail:tarball =wire vaz=vase]
@@ -3801,8 +3815,10 @@
   ::  old content to avoid false-change rebuild cascades.
   ?:  ?&  ?=(^ old)
           =(p.u.old p.new-content)
-          =(q.q.u.old q.q.new-content)
-          (~(nest ut p.q.u.old) | p.q.new-content)
+          ?=(%& -.q.u.old)
+          ?=(%& -.q.new-content)
+          =(q.p.q.u.old q.p.q.new-content)
+          (~(nest ut p.p.q.u.old) | p.p.q.new-content)
       ==
     this
   =.  ball  (~(put ba:tarball ball) here new-content)
@@ -3893,10 +3909,10 @@
   =/  old=(unit content:tarball)  (~(get ba:tarball ball) timer-rail)
   =/  st=timer-state:nexus
     ?~  old  [%0 ~]
-    !<(timer-state:nexus q.u.old)
+    !<(timer-state:nexus (need-vase:tarball u.old))
   ::  Update state
   =.  timers.st  (~(put by timers.st) [sender wire.req] when.req)
-  =.  this  (save-file timer-rail [[/ %timer-state] !>(st)])
+  =.  this  (save-file timer-rail [[/ %timer-state] %& !>(st)])
   ::  Build behn wire: /behn/timer/{da}/{path-len}/{path...}/{name}/{wire...}
   =/  timer-wire=^wire
     :-  %behn
@@ -3929,9 +3945,9 @@
   =/  old=(unit content:tarball)  (~(get ba:tarball ball) timer-rail)
   =/  st=timer-state:nexus
     ?~  old  [%0 ~]
-    !<(timer-state:nexus q.u.old)
+    !<(timer-state:nexus (need-vase:tarball u.old))
   =.  timers.st  (~(del by timers.st) [sender req-wire])
-  =.  this  (save-file timer-rail [[/ %timer-state] !>(st)])
+  =.  this  (save-file timer-rail [[/ %timer-state] %& !>(st)])
   ::  Poke sender back with timer-wake
   =/  rel=from:fiber:nexus  (relativize-from:nexus sender &+timer-rail)
   (enqu-take sender (sys-give /behn) ~ %poke rel [[/ %timer-wake] !>(req-wire)])
@@ -3945,9 +3961,9 @@
   =/  old=(unit content:tarball)  (~(get ba:tarball ball) clay-rail)
   =/  st=clay-state:nexus
     ?~  old  [%0 ~]
-    !<(clay-state:nexus q.u.old)
+    !<(clay-state:nexus (need-vase:tarball u.old))
   =.  desks.st  (~(put in desks.st) dek)
-  =.  this  (save-file clay-rail [[/ %clay-state] !>(st)])
+  =.  this  (save-file clay-rail [[/ %clay-state] %& !>(st)])
   ::  Ensure directory exists
   =/  old-ball=ball:tarball  (~(dip ba:tarball ball) /sys/clay/desks/[dek])
   =/  new-ball=ball:tarball  old-ball(fil `(fall fil.old-ball *lump:tarball))
@@ -3963,9 +3979,9 @@
   =/  old=(unit content:tarball)  (~(get ba:tarball ball) clay-rail)
   =/  st=clay-state:nexus
     ?~  old  [%0 ~]
-    !<(clay-state:nexus q.u.old)
+    !<(clay-state:nexus (need-vase:tarball u.old))
   =.  desks.st  (~(del in desks.st) dek)
-  =.  this  (save-file clay-rail [[/ %clay-state] !>(st)])
+  =.  this  (save-file clay-rail [[/ %clay-state] %& !>(st)])
   (unmount-clay-desk dek)
 ::
 ++  handle-clay-new-desk
@@ -4151,9 +4167,9 @@
   =/  old=(unit content:tarball)  (~(get ba:tarball ball) iris-rail)
   =/  st=iris-state:nexus
     ?~  old  [%0 ~]
-    !<(iris-state:nexus q.u.old)
+    !<(iris-state:nexus (need-vase:tarball u.old))
   =.  requests.st  (~(put by requests.st) iris-wire [sender url.request])
-  =.  this  (save-file iris-rail [[/ %iris-state] !>(st)])
+  =.  this  (save-file iris-rail [[/ %iris-state] %& !>(st)])
   (emit-card [%pass iris-wire %arvo %i %request request *outbound-config:iris])
 ::
 ++  handle-iris-response
@@ -4174,9 +4190,9 @@
   =/  old=(unit content:tarball)  (~(get ba:tarball ball) iris-rail)
   =/  st=iris-state:nexus
     ?~  old  [%0 ~]
-    !<(iris-state:nexus q.u.old)
+    !<(iris-state:nexus (need-vase:tarball u.old))
   =.  requests.st  (~(del by requests.st) iris-wire)
-  =.  this  (save-file iris-rail [[/ %iris-state] !>(st)])
+  =.  this  (save-file iris-rail [[/ %iris-state] %& !>(st)])
   ::  Poke sender back with http-response
   =/  rel=from:fiber:nexus  (relativize-from:nexus sender &+iris-rail)
   (enqu-take sender (sys-give /iris) ~ %poke rel [[/ %http-response] !>(client-response)])

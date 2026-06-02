@@ -260,7 +260,7 @@
     |=  [[name=@ta =content:tarball] acc=(map @ta @t)]
     ?.  =(%txt name.p.content)  acc
     =/  key=@ta  ?:(=('' prefix) name (crip "{(trip prefix)}/{(trip name)}"))
-    (~(put by acc) key (of-wain:format !<(wain q.content)))
+    (~(put by acc) key (of-wain:format !<(wain (need-vase:tarball content))))
   ::  recurse into subdirectories
   =/  kids=(list [@ta ball:tarball])  ~(tap by dir.ball)
   |-  ^-  (map @ta @t)

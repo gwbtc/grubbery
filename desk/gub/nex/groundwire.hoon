@@ -737,7 +737,7 @@
   |=  =seen:nexus
   ^-  @ud
   ?.  ?=([%& %file *] seen)  0
-  (fall (mole |.(!<(@ud q.sage.p.seen))) 0)
+  (fall (mole |.(!<(@ud (need-vase:tarball sang.p.seen)))) 0)
 ::
 ::  Extract a urb state:urb from a kept urb-state file view.
 ::
@@ -745,7 +745,7 @@
   |=  =seen:nexus
   ^-  state:urb
   ?.  ?=([%& %file *] seen)  *state:urb
-  (fall (mole |.(!<(state:urb q.sage.p.seen))) *state:urb)
+  (fall (mole |.(!<(state:urb (need-vase:tarball sang.p.seen)))) *state:urb)
 ::
 ::  Extract a named manx fragment from a kept sse directory view,
 ::  defaulting to an empty div.
@@ -821,7 +821,7 @@
   ^-  [url=@t auth=@t]
   =/  fallback  [url='http://localhost:18443/' auth='Basic Yml0Y29pbnJwYzpiaXRjb2lucnBj']
   ?.  ?=([%& %file *] seen)  fallback
-  =/  jon  !<(json q.sage.p.seen)
+  =/  jon  !<(json (need-vase:tarball sang.p.seen))
   ?.  ?=([%o *] jon)  fallback
   =/  url=@t
     =/  u=(unit json)  (~(get by p.jon) 'url')

@@ -31,7 +31,7 @@
     (peek:io (store-road name) ~)
   ?.  ?=([%& %file *] seen)
     ~|(%store-not-found !!)
-  (pure:m !<(goal-store:goals q.sage.p.seen))
+  (pure:m !<(goal-store:goals (need-vase:tarball sang.p.seen)))
 ::  parse a node-id from json fields
 ::
 ++  parse-nid

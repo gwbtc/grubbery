@@ -191,7 +191,7 @@
         ;<  =seen:nexus  bind:m  (peek:io (cord-to-road:tarball '../result.json') ~)
         =/  res=@t
           ?.  ?=([%& %file *] seen)  ''
-          (render-result !<(json q.sage.p.seen))
+          (render-result !<(json (need-vase:tarball sang.p.seen)))
         ;<  req=json  bind:m  (read-request '../request.json')
         ;<  ~  bind:m  (replace:io !>((crip (en-xml:html (oneshot-page res req)))))
         ;<  upd=wave:nexus  bind:m  (take-news:io /res)
@@ -206,7 +206,7 @@
         ;<  =seen:nexus  bind:m  (peek:io (cord-to-road:tarball '../briefing.json') ~)
         =/  state=json
           ?.  ?=([%& %file *] seen)  ~
-          !<(json q.sage.p.seen)
+          !<(json (need-vase:tarball sang.p.seen))
         ;<  ~  bind:m  (replace:io !>((crip (en-xml:html (briefing-page-live state)))))
         ;<  upd=wave:nexus  bind:m  (take-news:io /brf)
         $
@@ -248,7 +248,7 @@
     (peek:io (cord-to-road:tarball rel) `[/ %json])
   ?.  ?=([%& %file *] seen)
     (pure:m ~)
-  (pure:m !<(json q.sage.p.seen))
+  (pure:m !<(json (need-vase:tarball sang.p.seen)))
 ::
 ++  read-claude-config
   =/  m  (fiber:fiber:nexus ,claude-config:oneshot)
@@ -257,7 +257,7 @@
     (peek:io (cord-to-road:tarball './config/claude.json') `[/ %json])
   ?.  ?=([%& %file *] seen)
     (pure:m ['' 'claude-sonnet-4-20250514' 4.096])
-  =/  cfg=json  !<(json q.sage.p.seen)
+  =/  cfg=json  !<(json (need-vase:tarball sang.p.seen))
   ?.  ?=(%o -.cfg)
     (pure:m ['' 'claude-sonnet-4-20250514' 4.096])
   =/  api-key=@t
@@ -281,7 +281,7 @@
     (peek:io (cord-to-road:tarball './config/brave.json') `[/ %json])
   ?.  ?=([%& %file *] seen)
     (pure:m '')
-  =/  cfg=json  !<(json q.sage.p.seen)
+  =/  cfg=json  !<(json (need-vase:tarball sang.p.seen))
   ?.  ?=(%o -.cfg)
     (pure:m '')
   =/  v  (~(get by p.cfg) 'api_key')

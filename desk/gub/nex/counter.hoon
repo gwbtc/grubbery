@@ -48,7 +48,7 @@
           %+  murn  ~(tap by contents.lump)
           |=  [name=@ta =content:tarball]
           ?.  ?=(%ud name.p.content)  ~
-          `[name !<(@ud q.content)]
+          `[name !<(@ud (need-vase:tarball content))]
         =/  page=manx  (counter-page counters)
         ;<  ~  bind:m  (replace:io !>((crip (en-xml:html page))))
         $
@@ -77,7 +77,7 @@
         ?.  ?=([%& %file *] seen)
           ;<  ~  bind:m  (send-simple:srv eyre-id [[500 ~] `(as-octs:mimes:html 'View not ready')])
           (pure:m ~)
-        =/  =mime  !<(mime q.sage.p.seen)
+        =/  =mime  !<(mime (need-vase:tarball sang.p.seen))
         ;<  ~  bind:m  (send-simple:srv eyre-id (mime-response:http-utils mime))
         (pure:m ~)
       ==

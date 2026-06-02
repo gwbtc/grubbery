@@ -205,8 +205,8 @@
     ;<  dill-seen=seen:nexus  bind:m  (peek:io [%& %& /sys/dill %'logs.dill-told'] ~)
     =/  log-text=tape
       ?.  ?=([%& %file *] dill-seen)  ""
-      ?.  ?=(%dill-told name.p.sage.p.dill-seen)  ""
-      (format-told !<(told:dill q.sage.p.dill-seen))
+      ?.  ?=(%dill-told name.p.sang.p.dill-seen)  ""
+      (format-told !<(told:dill (need-vase:tarball sang.p.dill-seen)))
     ?:  =(~ log-text)  $
     ;<  st=tool-state  bind:m  (get-state-as:io ,tool-state)
     =/  logs=(list json)
@@ -301,7 +301,7 @@
   =/  m  (fiber:fiber:nexus ,tool-result)
   ^-  form:m
   ?>  ?=([%& %file *] seen)
-  =/  =sage:tarball  sage.p.seen
+  =/  =sage:tarball  (need-sage:tarball sang.p.seen)
   =/  blot-text=@t
     (crip "[mark: {(spud (snoc path.p.sage name.p.sage))}]")
   ;<  result=tool-result  bind:m
@@ -391,7 +391,7 @@
   ?.  ?=([%& %file *] creds-seen)
     ~|  %s3-creds-not-found
     !!
-  =/  jon=json  !<(json q.sage.p.creds-seen)
+  =/  jon=json  !<(json (need-vase:tarball sang.p.creds-seen))
   =/  creds=s3-creds
     %.  jon
     %-  ot:dejs:format
