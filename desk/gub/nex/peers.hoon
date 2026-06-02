@@ -172,8 +172,8 @@
   |=  name=@ta
   ^-  (unit group-info)
   =/  grp=ball:tarball  (~(dip ba:tarball ug-ball) /[name])
-  =/  who-c=(unit content:tarball)  (~(get ba:tarball grp) [/ %'who.ships'])
-  =/  how-c=(unit content:tarball)  (~(get ba:tarball grp) [/ %'how.weir'])
+  =/  who-c=(unit sang:tarball)  (~(get ba:tarball grp) [/ %'who.ships'])
+  =/  how-c=(unit sang:tarball)  (~(get ba:tarball grp) [/ %'how.weir'])
   ?~  who-c  ~
   =/  who-res  (mule |.(!<((set @p) q.u.who-c)))
   =/  members=(set @p)  ?:(?=(%| -.who-res) ~ p.who-res)

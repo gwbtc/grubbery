@@ -13,7 +13,7 @@
 ::
 ++  mk-content
   |=  txt=@t
-  ^-  content:tarball
+  ^-  sang:tarball
   [[/ %txt] %& !>(txt)]
 ::
 ++  mk-bole-1
@@ -28,8 +28,8 @@
   ::  ball with one file at root
   |=  [name=@ta txt=@t]
   ^-  ball:tarball
-  =/  contents=(map @ta content:tarball)
-    (~(put by *(map @ta content:tarball)) name (mk-content txt))
+  =/  contents=(map @ta sang:tarball)
+    (~(put by *(map @ta sang:tarball)) name (mk-content txt))
   [`[~ ~ contents] ~]
 ::
 ::
@@ -304,7 +304,7 @@
 ::
 ++  test-server-scenario-spin
   ::  simulate server on-load with spin on existing ball
-  =/  server-ct=content:tarball  [[/ %server-state] %& !>('state-data')]
+  =/  server-ct=sang:tarball  [[/ %server-state] %& !>('state-data')]
   =/  old-ball=ball:tarball
     =/  b  (~(put ba:tarball *ball:tarball) [/ %'ver.ud'] [[/ %ud] %& !>(0)])
     (~(put ba:tarball b) [/ %'main.server-state'] server-ct)

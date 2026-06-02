@@ -36,9 +36,6 @@
 +$  lane  (each rail fold)        :: [%& rail] file or [%| fold] directory
 +$  bend  (pair @ud lane)         :: relative: steps up + destination lane
 +$  road  (each lane bend)        :: [%& lane] absolute or [%| bend] relative
-::
-::  TODO: consider nexus-relative roads
-::
 ::  A road variant that resolves relative to nexus boundaries (necks)
 ::  instead of directory depth. Would eliminate the %| N offset footgun.
 ::
@@ -54,13 +51,12 @@
 ::  Symlink: untyped path reference (resolved at lookup time)
 ::
 +$  symlink   (each path (pair @ud path))
-+$  content   sang
 +$  weir
   $:  make=(set road)  :: allowed destinations for %make, %cull, %sand
       poke=(set road)  :: allowed destinations for %poke
       peek=(set road)  :: allowed destinations for %peek
   ==
-+$  lump      [neck=(unit neck) weir=(unit weir) contents=(map @ta content)]
++$  lump      [neck=(unit neck) weir=(unit weir) contents=(map @ta sang)]
 +$  ball      (axal lump)
 +$  pulp      [neck=(unit neck) weir=(unit weir) contents=(map @ta bask)]
 +$  bole      (axal pulp)
@@ -533,7 +529,7 @@
   =/  file-mime=mime  [mime-type [file-size body.file-part]]
   =/  maybe-sage=(unit sage)  (mime-to-sage conversions file-name file-mime)
   ::  Keep full filename as-is (no extension stripping)
-  =/  [store-name=@ta file-content=content]
+  =/  [store-name=@ta file-content=sang]
     ?~  maybe-sage
       [file-name (sage-to-sang [[/ %mime] !>(file-mime)])]
     [file-name (sage-to-sang u.maybe-sage)]
@@ -549,7 +545,7 @@
   :_  (~(run by dir.b) ball-to-bole)
   ?~  fil.b  ~
   :-  ~
-  [neck.u.fil.b weir.u.fil.b (~(run by contents.u.fil.b) |=(c=content [p.c (sang-noun c)]))]
+  [neck.u.fil.b weir.u.fil.b (~(run by contents.u.fil.b) |=(c=sang [p.c (sang-noun c)]))]
 ::
 ++  ball-to-tree
   |=  b=ball
@@ -558,7 +554,7 @@
   ?~  fil.b  ~
   :-  ~
   :-  neck.u.fil.b
-  (~(run by contents.u.fil.b) |=(c=content p.c))
+  (~(run by contents.u.fil.b) |=(c=sang p.c))
 ::  Convert tree to json
 ::
 ++  tree-to-json
@@ -584,7 +580,7 @@
   ::
   ++  get
     |=  =rail
-    ^-  (unit content)
+    ^-  (unit sang)
     ?~  nod=(~(get of b) path.rail)
       ~
     (~(get by contents.u.nod) name.rail)
@@ -593,7 +589,7 @@
   ::  Crashes if name collides with existing directory.
   ::
   ++  put
-    |=  [=rail c=content]
+    |=  [=rail c=sang]
     ^-  ball
     ?~  path.rail
       ::  at target dir: file name must not collide with subdir name
@@ -648,7 +644,7 @@
   ::  Get with default
   ::
   ++  gut
-    |=  [=rail default=content]
+    |=  [=rail default=sang]
     (fall (get rail) default)
   ::  Get a sage (crash if not found)
   ::
@@ -697,20 +693,20 @@
     %+  roll  ~(tap of b)
     |=  [[pax=path lmp=lump] acc=@ud]
     (add acc ~(wyt by contents.lmp))
-  ::  Convert entire ball to flat list of [rail content] pairs
+  ::  Convert entire ball to flat list of [rail sang] pairs
   ::
   ++  tap
-    ^-  (list [rail content])
+    ^-  (list [rail sang])
     %-  zing
     %+  turn  ~(tap of b)
     |=  [pax=path lmp=lump]
     %+  turn  ~(tap by contents.lmp)
-    |=  [name=@ta c=content]
+    |=  [name=@ta c=sang]
     [[pax name] c]
   ::  Apply function to all content items
   ::
   ++  run
-    |=  fn=$-(content content)
+    |=  fn=$-(sang sang)
     ^-  ball
     %+  roll  ~(tap of b)
     |=  [[pax=path lmp=lump] acc=ball]
@@ -718,10 +714,10 @@
   ::  Insert list of content items
   ::
   ++  gas
-    |=  items=(list [rail content])
+    |=  items=(list [rail sang])
     ^-  ball
     %+  roll  items
-    |=  [[=rail c=content] acc=ball]
+    |=  [[=rail c=sang] acc=ball]
     (~(put ba acc) rail c)
   ::  Reduce over all content items
   ::
@@ -732,18 +728,18 @@
   ::  Check if all content items match predicate
   ::
   ++  all
-    |=  fn=$-(content ?)
+    |=  fn=$-(sang ?)
     ^-  ?
     %+  levy  tap
-    |=  [=rail c=content]
+    |=  [=rail c=sang]
     (fn c)
   ::  Check if any content item matches predicate
   ::
   ++  any
-    |=  fn=$-(content ?)
+    |=  fn=$-(sang ?)
     ^-  ?
     %+  lien  tap
-    |=  [=rail c=content]
+    |=  [=rail c=sang]
     (fn c)
   ::  Delete entire subtree at path
   ::
@@ -1116,7 +1112,7 @@
     (generate-entry metadata ~)
   ::
   ++  make-content-entry
-    |=  [=path =content]
+    |=  [=path content=sang]
     ^-  tarball-entry
     =/  [prefix=^path name=^path]  (split-path path)
     ::  Boomed files: skip (can't export error state)
@@ -1151,13 +1147,13 @@
     =/  tar-entries=tarball
       ?~  fil.ball
         ~
-      =/  exportable=(list [@ta content])  ~(tap by contents.u.fil.ball)
+      =/  exportable=(list [@ta sang])  ~(tap by contents.u.fil.ball)
       %+  weld
         ?~  path
           ~
         [(make-directory-entry path ~) ~]
       %+  turn  exportable
-      |=  [name=@ta =content]
+      |=  [name=@ta content=sang]
       (make-content-entry (snoc path name) content)
     =/  directories  ~(tap by dir.ball)
     |-

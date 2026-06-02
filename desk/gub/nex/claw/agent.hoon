@@ -2807,7 +2807,7 @@
     =/  files=(list [@ta @tas])
       ?~  fil.ball.p.seen  ~
       %+  turn  ~(tap by contents.u.fil.ball.p.seen)
-      |=([n=@ta c=content:tarball] [n name.p.c])
+      |=([n=@ta c=sang:tarball] [n name.p.c])
     =/  dir-text=tape
       ?~  sub-dirs  ""
       (zing (turn sub-dirs |=(d=@ta "\0a  {(trip d)}/")))
@@ -3636,12 +3636,12 @@
     ;<  =seen:nexus  bind:m  (peek:io agent-root ~)
     ?.  ?=([%& %ball *] seen)
       (pure:m [%error 'Could not read ball'])
-    =/  candidates=(list [rail:tarball content:tarball])
+    =/  candidates=(list [rail:tarball sang:tarball])
       %+  skim  ~(tap ba:tarball ball.p.seen)
-      |=  [=rail:tarball =content:tarball]
+      |=  [=rail:tarball =sang:tarball]
       =/  fp=tape  ?~(path.rail "/" (trip (spat path.rail)))
       =/  fn=tape  (trip name.rail)
-      =/  fm=tape  (trip name.p.content)
+      =/  fm=tape  (trip name.p.sang)
       ?&  ?~(pat-path %.y (glob-match:nex-tools (trip u.pat-path) fp))
           ?~(pat-name %.y (glob-match:nex-tools (trip u.pat-name) fn))
           ?~(pat-mark %.y (glob-match:nex-tools (trip u.pat-mark) fm))
@@ -3654,7 +3654,7 @@
         (pure:m [%text 'No matches found'])
       =/  out=tape  (zing (flop results))
       (pure:m [%text (crip "Found {<total>} matches:{out}")])
-    =/  [=rail:tarball =content:tarball]  i.candidates
+    =/  [=rail:tarball =sang:tarball]  i.candidates
     =/  label=tape
       =/  pax=tape  ?~(path.rail "/" (trip (spat path.rail)))
       "{pax}/{(trip name.rail)}"
@@ -3711,16 +3711,16 @@
       (pure:m [%error 'Could not read ball'])
     =/  matches=(list [rail:tarball @tas])
       %+  murn  ~(tap ba:tarball ball.p.seen)
-      |=  [=rail:tarball =content:tarball]
+      |=  [=rail:tarball =sang:tarball]
       =/  fp=tape  ?~(path.rail "/" (trip (spat path.rail)))
       =/  fn=tape  (trip name.rail)
-      =/  fm=tape  (trip name.p.content)
+      =/  fm=tape  (trip name.p.sang)
       ?.  ?&  ?~(pat-path %.y (glob-match:nex-tools (trip u.pat-path) fp))
               ?~(pat-name %.y (glob-match:nex-tools (trip u.pat-name) fn))
               ?~(pat-mark %.y (glob-match:nex-tools (trip u.pat-mark) fm))
           ==
         ~
-      `[rail name.p.content]
+      `[rail name.p.sang]
     ?~  matches
       (pure:m [%text 'No matches found'])
     =/  result=tape

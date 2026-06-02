@@ -41,7 +41,7 @@
 ++  get-ver
   |=  =ball:tarball
   ^-  ver
-  =/  ct=(unit content:tarball)  (~(get ba:tarball ball) [/ %'ver.ud'])
+  =/  ct=(unit sang:tarball)  (~(get ba:tarball ball) [/ %'ver.ud'])
   ?~  ct  ~
   `!<(@ud (need-vase:tarball u.ct))
 ::  +ver-row: convenience row to set the version file
@@ -70,7 +70,7 @@
   ?~  rows  new
   ?-    i.rows
       [%stay %& *]
-    =/  old-content=(unit content:tarball)
+    =/  old-content=(unit sang:tarball)
       (~(get ba:tarball old) rail.i.rows)
     ?~  old-content  $(rows t.rows)
     =.  new
@@ -85,7 +85,7 @@
     $(rows t.rows)
   ::
       [%fall %& *]
-    =/  old-content=(unit content:tarball)
+    =/  old-content=(unit sang:tarball)
       (~(get ba:tarball old) rail.i.rows)
     =/  bsk=bask:tarball
       ?~  old-content  bask.i.rows
@@ -109,7 +109,7 @@
     $(rows t.rows)
   ::
       [%load %& *]
-    =/  old-content=(unit content:tarball)
+    =/  old-content=(unit sang:tarball)
       (~(get ba:tarball old) from.i.rows)
     =/  old-bask=bask:tarball
       ?~  old-content  *bask:tarball

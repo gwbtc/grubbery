@@ -129,8 +129,8 @@
             =/  acct-pubkey=@ux  public-key:derived
             =/  acct-key=@ta  (crip (hexn:http-utils acct-pubkey))
             =/  acct-dir=@ta  (cat 3 acct-key '.wallet_account')
-            =/  acct-contents=(map @ta content:tarball)
-              (~(put by *(map @ta content:tarball)) %'data.wallet_account' [[/wallet %account] !>(acct)])
+            =/  acct-contents=(map @ta sang:tarball)
+              (~(put by *(map @ta sang:tarball)) %'data.wallet_account' [[/wallet %account] !>(acct)])
             =/  acct-lump=lump:tarball  [`[/wallet %account] ~ acct-contents]
             =/  acct-ball=ball:tarball  [`acct-lump ~]
             ;<  err=(unit tang)  bind:m
@@ -267,8 +267,8 @@
         =/  acct-pubkey=@ux  public-key:derived
         =/  acct-key=@ta  (crip (hexn:http-utils acct-pubkey))
         =/  acct-dir=@ta  (cat 3 acct-key '.wallet_account')
-        =/  acct-contents=(map @ta content:tarball)
-          (~(put by *(map @ta content:tarball)) %'data.wallet_account' [[/wallet %account] !>(acct)])
+        =/  acct-contents=(map @ta sang:tarball)
+          (~(put by *(map @ta sang:tarball)) %'data.wallet_account' [[/wallet %account] !>(acct)])
         =/  acct-lump=lump:tarball  [`[/wallet %account] ~ acct-contents]
         =/  acct-ball=ball:tarball  [`acct-lump ~]
         ;<  err=(unit tang)  bind:m
@@ -344,7 +344,7 @@
   ^-  manx
   ?.  ?=([%& %ball *] seen)  ;div;
   =/  =lump:tarball  (fall fil.ball.p.seen *lump:tarball)
-  =/  ct=(unit content:tarball)  (~(get by contents.lump) name)
+  =/  ct=(unit sang:tarball)  (~(get by contents.lump) name)
   ?~  ct  ;div;
   =/  result=(unit manx)  (mole |.((need (de-xml:html !<(@t q.u.ct)))))
   (fall result ;div;)
@@ -486,7 +486,7 @@
   ^-  (unit wallet-data)
   ?.  ?=([%& %ball *] seen)  ~
   =/  =lump:tarball  (fall fil.ball.p.seen *lump:tarball)
-  =/  ct=(unit content:tarball)  (~(get by contents.lump) 'main.wallet_wallet')
+  =/  ct=(unit sang:tarball)  (~(get by contents.lump) 'main.wallet_wallet')
   ?~  ct  ~
   ?.  ?=(%wallet name.p.u.ct)  ~
   (mole |.(!<(wallet-data q.u.ct)))
@@ -499,7 +499,7 @@
   %+  murn  ~(tap by dir.ball.p.seen)
   |=  [name=@ta sub=ball:tarball]
   =/  sub-lump=lump:tarball  (fall fil.sub *lump:tarball)
-  =/  ct=(unit content:tarball)  (~(get by contents.sub-lump) 'data.wallet_account')
+  =/  ct=(unit sang:tarball)  (~(get by contents.sub-lump) 'data.wallet_account')
   ?~  ct  ~
   ?.  ?=(%account name.p.u.ct)  ~
   =/  acct=(unit account-data)  (mole |.(!<(account-data q.u.ct)))

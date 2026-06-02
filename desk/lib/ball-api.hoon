@@ -141,7 +141,7 @@
   =/  parent=path  (snip `path`api-path)
   =/  name=@ta  (rear api-path)
   =/  parent-ball=ball:tarball  (~(dip ba:tarball u.root) parent)
-  =/  content-data=(unit content:tarball)
+  =/  content-data=(unit sang:tarball)
     ?~  fil.parent-ball  ~
     (~(get by contents.u.fil.parent-ball) name)
   ?~  content-data
@@ -563,10 +563,10 @@
   ::  Send "old" for files in this directory
   ;<  ~  bind:m
     ?~  fil.b  (pure:m ~)
-    =/  files=(list [@ta content:tarball])  ~(tap by contents.u.fil.b)
+    =/  files=(list [@ta sang:tarball])  ~(tap by contents.u.fil.b)
     |-
     ?~  files  (pure:m ~)
-    =/  [file-name=@ta =content:tarball]  i.files
+    =/  [file-name=@ta =sang:tarball]  i.files
     =/  lane-path=@t  (spat (snoc here file-name))
     =/  sub-born=born:nexus  (~(dip of born) here)
     =/  file-hist=(unit hist:nexus)
@@ -576,7 +576,7 @@
       ?~  file-hist  '0'
       (scot %ud (ver:hist:nexus u.file-hist))
     =/  event-name=@t  (crip "old {(trip lane-path)}")
-    ;<  body=@t  bind:m  (sage-to-txt (need-sage:tarball content) mark-param)
+    ;<  body=@t  bind:m  (sage-to-txt (need-sage:tarball sang) mark-param)
     =/  data=wain  (to-wain:format body)
     =/  =sse-event:http-utils  [`id `event-name data]
     ;<  ~  bind:m

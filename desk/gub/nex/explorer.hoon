@@ -180,7 +180,7 @@
   =/  parent=path  (snip `path`tree-path)
   =/  name=@ta  (rear tree-path)
   =/  parent-ball=ball:tarball  (~(dip ba:tarball root) parent)
-  =/  content-data=(unit content:tarball)
+  =/  content-data=(unit sang:tarball)
     ?~  fil.parent-ball  ~
     (find-grub name u.fil.parent-ball)
   ?~  content-data
@@ -421,14 +421,14 @@
   =/  new=ball:tarball
     (from-parts:tarball *ball:tarball ~ u.parts now conversions)
   ::  Make each top-level entry: files then directories
-  =/  files=(list [@ta content:tarball])
+  =/  files=(list [@ta sang:tarball])
     ?~  fil.new  ~
     ~(tap by contents.u.fil.new)
   |-
   ?^  files
-    =/  [name=@ta =content:tarball]  i.files
+    =/  [name=@ta =sang:tarball]  i.files
     ;<  ~  bind:m
-      (make:io [%& %& tree-path name] |+[[p.content (sang-noun:tarball content)] ~])
+      (make:io [%& %& tree-path name] |+[[p.sang (sang-noun:tarball sang)] ~])
     $(files t.files)
   =/  dirs=(list [@ta ball:tarball])  ~(tap by dir.new)
   |-
@@ -465,7 +465,7 @@
 ::
 ++  find-grub
   |=  [seg=@ta =lump:tarball]
-  ^-  (unit content:tarball)
+  ^-  (unit sang:tarball)
   (~(get by contents.lump) seg)
 ::  Handle SSE stream: subscribe to root, push change events
 ::
@@ -533,7 +533,7 @@
       ?.  ?=(%& -.lane)  ~
       ?.  =(path.p.lane watch-path)  ~
       ?~  fil.par  ~
-      =/  ct=(unit content:tarball)  (~(get by contents.u.fil.par) name.p.lane)
+      =/  ct=(unit sang:tarball)  (~(get by contents.u.fil.par) name.p.lane)
       ?~  ct  ~
       `p.u.ct
     ;<  conversions=(map bars:tarball tube:clay)  bind:m
@@ -587,7 +587,7 @@
       =/  row-html=tape
         ?:  is-file
           ?~  fil.par  ""
-          =/  ct=(unit content:tarball)  (~(get by contents.u.fil.par) item)
+          =/  ct=(unit sang:tarball)  (~(get by contents.u.fil.par) item)
           ?~  ct  ""
           (en-xml:html (render-grub-row item u.ct url-prefix watch-path par-born now conversions code-namespace ~))
         =/  sub=(unit ball:tarball)  (~(get by dir.par) item)
@@ -928,7 +928,7 @@
     ?~  pax  "/"
     (trip (spat pax))
   =/  kids  dir.b
-  =/  file-contents=(map @ta content:tarball)
+  =/  file-contents=(map @ta sang:tarball)
     ?~  fil.b  ~
     contents.u.fil.b
   =/  subdirs=(list @ta)  ~(tap in ~(key by kids))
@@ -990,7 +990,7 @@
           %+  turn  files
           |=  name=@ta
           ^-  manx
-          =/  =content:tarball  (~(got by file-contents) name)
+          =/  =sang:tarball  (~(got by file-contents) name)
           =/  file-bang=(unit tang)  (fall (~(get by file-bangs) name) ~)
           (render-grub-row name content url-prefix pax b-born now conversions code-namespace file-bang)
         rows
@@ -1275,7 +1275,7 @@
 ::
 ++  render-grub-row
   |=  $:  name=@ta
-          =content:tarball
+          =sang:tarball
           url-prefix=tape
           pax=path
           dir-born=born:nexus

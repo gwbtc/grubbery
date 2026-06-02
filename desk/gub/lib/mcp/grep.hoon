@@ -52,12 +52,12 @@
   ?.  ?=([%& %ball *] seen)
     (pure:m [%error 'Could not read ball'])
   ::  Flatten and filter by metadata patterns
-  =/  candidates=(list [rail:tarball content:tarball])
+  =/  candidates=(list [rail:tarball sang:tarball])
     %+  skim  ~(tap ba:tarball ball.p.seen)
-    |=  [=rail:tarball =content:tarball]
+    |=  [=rail:tarball =sang:tarball]
     =/  file-path=tape  ?~(path.rail "/" (trip (spat path.rail)))
     =/  file-name=tape  (trip name.rail)
-    =/  file-mark=tape  (trip name.p.content)
+    =/  file-mark=tape  (trip name.p.sang)
     ?&  ?~(pat-path %.y (glob-match:tools (trip u.pat-path) file-path))
         ?~(pat-name %.y (glob-match:tools (trip u.pat-name) file-name))
         ?~(pat-mark %.y (glob-match:tools (trip u.pat-mark) file-mark))
@@ -71,7 +71,7 @@
       (pure:m [%text 'No matches found'])
     =/  out=tape  (zing (flop results))
     (pure:m [%text (crip "Found {<total-matches>} matches:{out}")])
-  =/  [=rail:tarball =content:tarball]  i.candidates
+  =/  [=rail:tarball =sang:tarball]  i.candidates
   =/  file-label=tape
     =/  pax=tape  ?~(path.rail "/" (trip (spat path.rail)))
     "{pax}/{(trip name.rail)}"

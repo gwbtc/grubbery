@@ -755,7 +755,7 @@
   ^-  manx
   ?.  ?=([%& %ball *] seen)  ;div;
   =/  =lump:tarball  (fall fil.ball.p.seen *lump:tarball)
-  =/  ct=(unit content:tarball)  (~(get by contents.lump) name)
+  =/  ct=(unit sang:tarball)  (~(get by contents.lump) name)
   ?~  ct  ;div;
   (fall (mole |.((need (de-xml:html !<(@t q.u.ct))))) ;div;)
 ::
@@ -767,8 +767,8 @@
   ?.  ?=([%& %ball *] seen)  ~
   =/  =lump:tarball  (fall fil.ball.p.seen *lump:tarball)
   %+  murn  ~(tap by contents.lump)
-  |=  [name=@ta =content:tarball]
-  ?.  ?=(%urb-wallet name.p.content)  ~
+  |=  [name=@ta =sang:tarball]
+  ?.  ?=(%urb-wallet name.p.sang)  ~
   =/  raw=tape  (trip name)
   =/  ext=tape  ".urb-wallet"
   (slaw %p (crip (scag (sub (lent raw) (lent ext)) raw)))
@@ -781,8 +781,8 @@
   ?.  ?=([%& %ball *] seen)  ~
   =/  =lump:tarball  (fall fil.ball.p.seen *lump:tarball)
   %+  murn  ~(tap by contents.lump)
-  |=  [name=@ta =content:tarball]
-  ?.  ?=(%json name.p.content)  ~
+  |=  [name=@ta =sang:tarball]
+  ?.  ?=(%json name.p.sang)  ~
   =/  raw=tape  (trip name)
   =/  ext=tape  ".json"
   (slaw %p (crip (scag (sub (lent raw) (lent ext)) raw)))

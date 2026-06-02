@@ -1123,10 +1123,10 @@
   ::  Files in this directory
   ;<  ~  bind:m
     ?~  fil.b  (pure:m ~)
-    =/  files=(list [@ta content:tarball])  ~(tap by contents.u.fil.b)
+    =/  files=(list [@ta sang:tarball])  ~(tap by contents.u.fil.b)
     |-
     ?~  files  (pure:m ~)
-    =/  [file-name=@ta =content:tarball]  i.files
+    =/  [file-name=@ta =sang:tarball]  i.files
     =/  lane-path=@t  (spat (snoc here file-name))
     ;<  content-text=@t  bind:m  (sage-to-txt content)
     =/  msg=@t

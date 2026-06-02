@@ -288,10 +288,10 @@
   ^-  source-map
   %-  ~(gas by *source-map)
   %+  murn  ~(tap ba:tarball ball)
-  |=  [=rail:tarball =content:tarball]
-  ?.  =([/ %hoon] p.content)  ~
+  |=  [=rail:tarball =sang:tarball]
+  ?.  =([/ %hoon] p.sang)  ~
   ?.  (has-hoon-ext name.rail)  ~
-  `[rail !<(@t (need-vase:tarball content))]
+  `[rail !<(@t (need-vase:tarball sang))]
 ::  +has-hoon-ext: check if filename ends in .hoon
 ::
 ++  has-hoon-ext
@@ -362,9 +362,9 @@
   =/  mimes=(map rail:tarball vase)
     %-  ~(gas by *(map rail:tarball vase))
     %+  murn  ~(tap ba:tarball ball)
-    |=  [=rail:tarball =content:tarball]
-    ?.  =([/ %mime] p.content)  ~
-    `[rail (need-vase:tarball content)]
+    |=  [=rail:tarball =sang:tarball]
+    ?.  =([/ %mime] p.sang)  ~
+    `[rail (need-vase:tarball sang)]
   ::  Phase 1: Parse and resolve all sources
   ::
   =/  prep
@@ -516,9 +516,9 @@
         =/  axl=(axal (map @ta mime))
           %+  roll
             %+  murn  ~(tap ba:tarball sub)
-            |=  [=rail:tarball =content:tarball]
-            ?.  =([/ %mime] p.content)  ~
-            `[path.rail name.rail !<(mime (need-vase:tarball content))]
+            |=  [=rail:tarball =sang:tarball]
+            ?.  =([/ %mime] p.sang)  ~
+            `[path.rail name.rail !<(mime (need-vase:tarball sang))]
           |=  [[pax=path nam=@ta mym=mime] acc=(axal (map @ta mime))]
           =/  nod=(map @ta mime)
             (fall (~(get of acc) pax) *(map @ta mime))

@@ -257,10 +257,10 @@
   =.  out
     =/  =lump:tarball  (fall fil.ball *lump:tarball)
     %-  ~(rep by contents.lump)
-    |=  [[name=@ta =content:tarball] acc=(map @ta @t)]
-    ?.  =(%txt name.p.content)  acc
+    |=  [[name=@ta =sang:tarball] acc=(map @ta @t)]
+    ?.  =(%txt name.p.sang)  acc
     =/  key=@ta  ?:(=('' prefix) name (crip "{(trip prefix)}/{(trip name)}"))
-    (~(put by acc) key (of-wain:format !<(wain (need-vase:tarball content))))
+    (~(put by acc) key (of-wain:format !<(wain (need-vase:tarball sang))))
   ::  recurse into subdirectories
   =/  kids=(list [@ta ball:tarball])  ~(tap by dir.ball)
   |-  ^-  (map @ta @t)

@@ -46,9 +46,9 @@
         =/  counters=(list [@ta @ud])
           =/  =lump:tarball  (fall fil.ball.p.seen *lump:tarball)
           %+  murn  ~(tap by contents.lump)
-          |=  [name=@ta =content:tarball]
-          ?.  ?=(%ud name.p.content)  ~
-          `[name !<(@ud (need-vase:tarball content))]
+          |=  [name=@ta =sang:tarball]
+          ?.  ?=(%ud name.p.sang)  ~
+          `[name !<(@ud (need-vase:tarball sang))]
         =/  page=manx  (counter-page counters)
         ;<  ~  bind:m  (replace:io !>((crip (en-xml:html page))))
         $

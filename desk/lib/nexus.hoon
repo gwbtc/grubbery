@@ -572,9 +572,9 @@
     |=  [here=fold:tarball old-ball=ball:tarball new-ball=ball:tarball]
     ^-  born
     ::  Get file maps at this level
-    =/  old-files=(map @ta content:tarball)
+    =/  old-files=(map @ta sang:tarball)
       ?~(fil.old-ball ~ contents.u.fil.old-ball)
-    =/  new-files=(map @ta content:tarball)
+    =/  new-files=(map @ta sang:tarball)
       ?~(fil.new-ball ~ contents.u.fil.new-ball)
     =/  old-names=(set @ta)  ~(key by old-files)
     =/  new-names=(set @ta)  ~(key by new-files)
@@ -866,9 +866,9 @@
   |=  [here=fold:tarball old=ball:tarball new=ball:tarball]
   ^-  (set lane:tarball)
   =|  result=(set lane:tarball)
-  =/  old-files=(map @ta content:tarball)
+  =/  old-files=(map @ta sang:tarball)
     ?~(fil.old ~ contents.u.fil.old)
-  =/  new-files=(map @ta content:tarball)
+  =/  new-files=(map @ta sang:tarball)
     ?~(fil.new ~ contents.u.fil.new)
   =/  all-names=(list @ta)
     ~(tap in (~(uni in ~(key by old-files)) ~(key by new-files)))

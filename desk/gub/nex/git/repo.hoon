@@ -1026,8 +1026,8 @@
   ^-  (axal ref:git-repo)
   ?~  fil.ball  [~ ~]
   %+  roll  ~(tap by contents.u.fil.ball)
-  |=  [[name=@t =content:tarball] r=(axal ref:git-repo)]
-  =/  m=mime  !<(mime (need-vase:tarball content))
+  |=  [[name=@t =sang:tarball] r=(axal ref:git-repo)]
+  =/  m=mime  !<(mime (need-vase:tarball sang))
   ?:  =(0 p.q.m)  r
   =/  h=(unit @ux)
     (rust (trip q.q.m) parse-hash-sha-1:git-transport)
@@ -1038,14 +1038,14 @@
   |=  =ball:tarball
   ^-  (map hash:git-repo object:git-obj)
   ?~  fil.ball  ~
-  =/  entries=(list [name=@t =content:tarball])
+  =/  entries=(list [name=@t =sang:tarball])
     ~(tap by contents.u.fil.ball)
   %+  roll  entries
-  |=  [[name=@t =content:tarball] acc=(map hash:git-repo object:git-obj)]
+  |=  [[name=@t =sang:tarball] acc=(map hash:git-repo object:git-obj)]
   =/  h=(unit hash:git-repo)
     (rust (trip name) parse-hash-sha-1:git-transport)
   ?~  h  acc
-  =/  m=mime  !<(mime (need-vase:tarball content))
+  =/  m=mime  !<(mime (need-vase:tarball sang))
   =/  raw=raw-object:git-obj  (raw-from-octs:git-obj q.m)
   =/  obj=object:git-obj  (parse-raw:git-obj %sha-1 raw)
   (~(put by acc) u.h obj)
@@ -1071,15 +1071,15 @@
   ^-  (unit pack:git-pack)
   =/  pack-name=@ta  (crip "pack-{(a-co:co n)}.pack")
   =/  idx-name=@ta  (crip "pack-{(a-co:co n)}.idx")
-  =/  pack-content=(unit content:tarball)
+  =/  pack-content=(unit sang:tarball)
     (~(get by contents.u.fil.ball) pack-name)
-  =/  idx-content=(unit content:tarball)
+  =/  idx-content=(unit sang:tarball)
     (~(get by contents.u.fil.ball) idx-name)
   ?~  pack-content  ~
   ?~  idx-content  ~
-  =/  pack-mim=mime  !<(mime q.u.pack-content)
+  =/  pack-mim=mime  !<(mime (need-vase:tarball u.pack-content))
   ?:  =(0 p.q.pack-mim)  ~
-  =/  idx-mim=mime  !<(mime q.u.idx-content)
+  =/  idx-mim=mime  !<(mime (need-vase:tarball u.idx-content))
   =/  idx-text=tape  (trip q.q.idx-mim)
   =/  idx=pack-index:git-pack
     (rebuild-index (split:git-transport idx-text `@t`10))

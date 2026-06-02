@@ -377,12 +377,12 @@
   ^-  (map @ta goal-store:goals)
   ?.  ?=([%& %ball *] seen)  ~
   ?~  fil.ball.p.seen  ~
-  =/  entries=(list [@ta content:tarball])
+  =/  entries=(list [@ta sang:tarball])
     ~(tap by contents.u.fil.ball.p.seen)
   =/  out=(map @ta goal-store:goals)  ~
   |-
   ?~  entries  out
-  =/  [fname=@ta ct=content:tarball]  i.entries
+  =/  [fname=@ta ct=sang:tarball]  i.entries
   ?.  =(%goal-store name.p.ct)  $(entries t.entries)
   =/  store=goal-store:goals  !<(goal-store:goals q.ct)
   =/  sname=@ta  (store-name-from-fname fname)

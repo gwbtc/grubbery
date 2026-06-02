@@ -630,13 +630,13 @@
 ::  Returns ~ for unknown marks (caller should skip)
 ::
 ++  serialize-for-s3
-  |=  =content:tarball
+  |=  =sang:tarball
   ^-  (unit @t)
-  =/  kind=(unit ?(%text %wain %mime))  (known-mark p.content)
+  =/  kind=(unit ?(%text %wain %mime))  (known-mark p.sang)
   ?~  kind  ~
   =/  res=(each @t tang)
     %-  mule  |.
-    =/  =vase  (need-vase:tarball content)
+    =/  =vase  (need-vase:tarball sang)
     ?-  u.kind
       %text  !<(@t vase)
       %wain  (of-wain:format !<(wain vase))
@@ -740,18 +740,18 @@
   |=  [=seen:nexus =bridge-entry]
   ^-  (map @t @ud)
   ?.  ?=([%& %ball *] seen)  ~
-  =/  files=(list [=rail:tarball =content:tarball])
+  =/  files=(list [=rail:tarball =sang:tarball])
     (list-ball-files ball.p.seen (text-to-path local-path.bridge-entry))
   %-  malt
   %+  murn  files
-  |=  [=rail:tarball =content:tarball]
-  =/  kind=(unit ?(%text %wain %mime))  (known-mark p.content)
+  |=  [=rail:tarball =sang:tarball]
+  =/  kind=(unit ?(%text %wain %mime))  (known-mark p.sang)
   ?~  kind  ~
   =/  rel-path=path
     =/  base=path  (text-to-path local-path.bridge-entry)
     (slag (lent base) path.rail)
   =/  s3-key=@t  (build-s3-key s3-prefix.bridge-entry rel-path name.rail)
-  `[s3-key (mug (sang-noun:tarball content))]
+  `[s3-key (mug (sang-noun:tarball sang))]
 ::
 ::  Push only specific keys from a view
 ::
@@ -760,12 +760,12 @@
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
   ?.  ?=([%& %ball *] seen)  (pure:m ~)
-  =/  files=(list [=rail:tarball =content:tarball])
+  =/  files=(list [=rail:tarball =sang:tarball])
     (list-ball-files ball.p.seen (text-to-path local-path.bridge-entry))
   =/  key-set=(set @t)  (silt keys)
-  =/  remaining=(list [rail:tarball content:tarball])
+  =/  remaining=(list [rail:tarball sang:tarball])
     %+  skim  files
-    |=  [=rail:tarball =content:tarball]
+    |=  [=rail:tarball =sang:tarball]
     =/  rel-path=path
       =/  base=path  (text-to-path local-path.bridge-entry)
       (slag (lent base) path.rail)
@@ -773,7 +773,7 @@
     (~(has in key-set) s3-key)
   |-
   ?~  remaining  (pure:m ~)
-  =/  [=rail:tarball =content:tarball]  i.remaining
+  =/  [=rail:tarball =sang:tarball]  i.remaining
   =/  rel-path=path
     =/  base=path  (text-to-path local-path.bridge-entry)
     (slag (lent base) path.rail)
@@ -792,11 +792,11 @@
   =/  local-road=road:tarball  [%& %| (text-to-path local-path.bridge-entry)]
   ;<  =seen:nexus  bind:m  (peek:io local-road ~)
   ?.  ?=([%& %ball *] seen)  (pure:m ~)
-  =/  files=(list [=rail:tarball =content:tarball])
+  =/  files=(list [=rail:tarball =sang:tarball])
     (list-ball-files ball.p.seen (text-to-path local-path.bridge-entry))
   |-
   ?~  files  (pure:m ~)
-  =/  [=rail:tarball =content:tarball]  i.files
+  =/  [=rail:tarball =sang:tarball]  i.files
   =/  rel-path=path
     =/  base=path  (text-to-path local-path.bridge-entry)
     (slag (lent base) path.rail)
@@ -818,13 +818,13 @@
 ::
 ++  list-ball-files
   |=  [=ball:tarball base=path]
-  ^-  (list [rail:tarball content:tarball])
-  =/  acc=(list [rail:tarball content:tarball])  ~
+  ^-  (list [rail:tarball sang:tarball])
+  =/  acc=(list [rail:tarball sang:tarball])  ~
   =?  acc  ?=(^ fil.ball)
-    =/  fils=(list [@ta content:tarball])  ~(tap by contents.u.fil.ball)
+    =/  fils=(list [@ta sang:tarball])  ~(tap by contents.u.fil.ball)
     %+  weld  acc
     %+  turn  fils
-    |=([name=@ta =content:tarball] [[base name] content])
+    |=([name=@ta =sang:tarball] [[base name] content])
   =/  dirs=(list [@ta ball:tarball])  ~(tap by dir.ball)
   |-
   ?~  dirs  acc

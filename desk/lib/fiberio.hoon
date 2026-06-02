@@ -778,7 +778,7 @@
   ^-  (set blot:tarball)
   =/  blots=(set blot:tarball)  ~
   =?  blots  ?=(^ fil.ball)
-    =/  entries=(list (pair @ta content:tarball))
+    =/  entries=(list (pair @ta sang:tarball))
       ~(tap by contents.u.fil.ball)
     |-  ^-  (set blot:tarball)
     ?~  entries  blots
@@ -795,7 +795,7 @@
   |=  =ball:tarball
   ^-  (set blot:tarball)
   ?~  fil.ball  ~
-  =/  entries=(list (pair @ta content:tarball))
+  =/  entries=(list (pair @ta sang:tarball))
     ~(tap by contents.u.fil.ball)
   =/  blots=(set blot:tarball)  ~
   |-  ^-  (set blot:tarball)
