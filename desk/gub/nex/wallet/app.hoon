@@ -86,9 +86,9 @@
             =/  wallet-key=@ta  (crip (hexn:http-utils pubkey))
             =/  wal=wallet-data  [wallet-name u.sd pubkey ~]
             =/  wallet-dir=@ta  (cat 3 wallet-key '.wallet_wallet')
-            =/  wal-contents=(map @ta bask:tarball)
-              (~(put by *(map @ta bask:tarball)) %'main.wallet_wallet' [[/wallet %wallet] wal])
-            =/  wal-pulp=pulp:tarball  [`[/wallet %wallet] ~ wal-contents]
+            =/  wal-contents=(map @ta [=bask:tarball gain=?])
+              (~(put by *(map @ta [=bask:tarball gain=?])) %'main.wallet_wallet' [[[/wallet %wallet] wal] %.n])
+            =/  wal-pulp=pulp:tarball  [`[/wallet %wallet] ~ %.n wal-contents]
             =/  wal-bole=bole:tarball  [`wal-pulp ~]
             ;<  ~  bind:m
               (make:io [%| 0 %| (snoc /wallets wallet-dir)] &+wal-bole)
@@ -103,9 +103,9 @@
             =/  wallet-key=@ta  (crip (hexn:http-utils pubkey))
             =/  wal=wallet-data  [wallet-name [%t seed-phrase] pubkey ~]
             =/  wallet-dir=@ta  (cat 3 wallet-key '.wallet_wallet')
-            =/  wal-contents=(map @ta bask:tarball)
-              (~(put by *(map @ta bask:tarball)) %'main.wallet_wallet' [[/wallet %wallet] wal])
-            =/  wal-pulp=pulp:tarball  [`[/wallet %wallet] ~ wal-contents]
+            =/  wal-contents=(map @ta [=bask:tarball gain=?])
+              (~(put by *(map @ta [=bask:tarball gain=?])) %'main.wallet_wallet' [[[/wallet %wallet] wal] %.n])
+            =/  wal-pulp=pulp:tarball  [`[/wallet %wallet] ~ %.n wal-contents]
             =/  wal-bole=bole:tarball  [`wal-pulp ~]
             ;<  ~  bind:m
               (make:io [%| 0 %| (snoc /wallets wallet-dir)] &+wal-bole)
@@ -1323,23 +1323,23 @@
   =/  wdir=@ta  (cat 3 (crip (hexn:http-utils fp)) '.wallet_wallet')
   =/  adir=@ta  (cat 3 (crip (hexn:http-utils apk)) '.wallet_account')
   =/  net-dir=@ta  ;;(@ta network)
-  =/  acct-contents=(map @ta sang:tarball)
-    (~(put by *(map @ta sang:tarball)) %'data.wallet_account' [[/wallet %account] %& !>(acct)])
-  =/  acct-lump=lump:tarball  [`[/wallet %account] ~ acct-contents]
+  =/  acct-contents=(map @ta [=sang:tarball gain=?])
+    (~(put by *(map @ta [=sang:tarball gain=?])) %'data.wallet_account' [[[/wallet %account] %& !>(acct)] %.n])
+  =/  acct-lump=lump:tarball  [`[/wallet %account] ~ %.n acct-contents]
   ::  build addresses/[network]/ ball with recv + chng mop files
   =/  chain-lump=lump:tarball
-    :-  ~  :-  ~
-    %-  ~(gas by *(map @ta sang:tarball))
-    :~  ['recv.wallet_addresses' [[/wallet %addresses] %& !>(recv-mop)]]
-        ['chng.wallet_addresses' [[/wallet %addresses] %& !>(*addr-mop)]]
-        ['txs.wallet_txs' [[/wallet %txs] %& !>(*tx-map)]]
+    :-  ~  :-  ~  :-  %.n
+    %-  ~(gas by *(map @ta [=sang:tarball gain=?]))
+    :~  ['recv.wallet_addresses' [[[/wallet %addresses] %& !>(recv-mop)] %.n]]
+        ['chng.wallet_addresses' [[[/wallet %addresses] %& !>(*addr-mop)] %.n]]
+        ['txs.wallet_txs' [[[/wallet %txs] %& !>(*tx-map)] %.n]]
     ==
   =/  net-ball=ball:tarball  [`chain-lump ~]
   =/  addr-dir=ball:tarball  [~ (~(put by *(map @ta ball:tarball)) net-dir net-ball)]
   =/  acct-ball=ball:tarball
     [`acct-lump (~(put by *(map @ta ball:tarball)) 'addresses' addr-dir)]
   :^  wdir
-    :-  `[`[/wallet %wallet] ~ (~(put by *(map @ta sang:tarball)) %'main.wallet_wallet' [[/wallet %wallet] %& !>(wal)])]
+    :-  `[`[/wallet %wallet] ~ %.n (~(put by *(map @ta [=sang:tarball gain=?])) %'main.wallet_wallet' [[[/wallet %wallet] %& !>(wal)] %.n])]
     ~
   adir
   acct-ball
@@ -1392,10 +1392,10 @@
   %+  murn  ~(tap by dir.ball.p.seen)
   |=  [name=@ta sub=ball:tarball]
   =/  sub-lump=lump:tarball  (fall fil.sub *lump:tarball)
-  =/  ct=(unit sang:tarball)  (~(get by contents.sub-lump) 'main.wallet_wallet')
+  =/  ct=(unit [=sang:tarball gain=?])  (~(get by contents.sub-lump) 'main.wallet_wallet')
   ?~  ct  ~
-  ?.  ?=(%wallet name.p.u.ct)  ~
-  (mole |.(!<(wallet-data (need-vase:tarball u.ct))))
+  ?.  ?=(%wallet name.p.sang.u.ct)  ~
+  (mole |.(!<(wallet-data (need-vase:tarball sang.u.ct))))
 ::
 ++  seed-to-cord
   |=  =seed

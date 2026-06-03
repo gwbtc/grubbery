@@ -56,9 +56,9 @@
       poke=(set road)  :: allowed destinations for %poke
       peek=(set road)  :: allowed destinations for %peek
   ==
-+$  lump      [neck=(unit neck) weir=(unit weir) contents=(map @ta sang)]
++$  lump      [neck=(unit neck) weir=(unit weir) gain=? contents=(map @ta [=sang gain=?])]
 +$  ball      (axal lump)
-+$  pulp      [neck=(unit neck) weir=(unit weir) contents=(map @ta bask)]
++$  pulp      [neck=(unit neck) weir=(unit weir) gain=? contents=(map @ta [=bask gain=?])]
 +$  bole      (axal pulp)
 :: simple descriptive file tree
 ::
@@ -545,7 +545,9 @@
   :_  (~(run by dir.b) ball-to-bole)
   ?~  fil.b  ~
   :-  ~
-  [neck.u.fil.b weir.u.fil.b (~(run by contents.u.fil.b) |=(c=sang [p.c (sang-noun c)]))]
+  :+  neck.u.fil.b  weir.u.fil.b
+  :-  gain.u.fil.b
+  (~(run by contents.u.fil.b) |=([c=sang gain=?] [[p.c (sang-noun c)] gain]))
 ::
 ++  ball-to-tree
   |=  b=ball
@@ -554,7 +556,7 @@
   ?~  fil.b  ~
   :-  ~
   :-  neck.u.fil.b
-  (~(run by contents.u.fil.b) |=(c=sang p.c))
+  (~(run by contents.u.fil.b) |=([c=sang *] p.c))
 ::  Convert tree to json
 ::
 ++  tree-to-json
@@ -583,7 +585,9 @@
     ^-  (unit sang)
     ?~  nod=(~(get of b) path.rail)
       ~
-    (~(get by contents.u.nod) name.rail)
+    =/  got  (~(get by contents.u.nod) name.rail)
+    ?~  got  ~
+    `sang.u.got
   ::  Put a content item at rail (directory path + filename).
   ::  Ensures all directories along the path have lumps.
   ::  Crashes if name collides with existing directory.
@@ -595,15 +599,15 @@
       ::  at target dir: file name must not collide with subdir name
       ~|  [%name-collision %file-vs-dir name.rail]
       ?<  (~(has by dir.b) name.rail)
-      =/  lmp=lump  (fall fil.b [~ ~ ~])
-      b(fil `lmp(contents (~(put by contents.lmp) name.rail c)))
+      =/  lmp=lump  (fall fil.b [~ ~ %.n ~])
+      b(fil `lmp(contents (~(put by contents.lmp) name.rail [c %.n])))
     ::  creating subdir: name must not collide with file name
     ~|  [%name-collision %dir-vs-file i.path.rail]
     ?<  ?&  ?=(^ fil.b)
             (~(has by contents.u.fil.b) i.path.rail)
         ==
     =/  kid=ball  (~(gut by dir.b) i.path.rail *ball)
-    =/  filled=ball  ?^(fil.kid kid kid(fil `[~ ~ ~]))
+    =/  filled=ball  ?^(fil.kid kid kid(fil `[~ ~ %.n ~]))
     b(dir (~(put by dir.b) i.path.rail (~(put ba filled) [t.path.rail name.rail] c)))
   ::  Touch a file: update mtime, propagate mtime up to parents
   ::  Check if a content item exists
@@ -701,8 +705,8 @@
     %+  turn  ~(tap of b)
     |=  [pax=path lmp=lump]
     %+  turn  ~(tap by contents.lmp)
-    |=  [name=@ta c=sang]
-    [[pax name] c]
+    |=  [name=@ta =sang gain=?]
+    [[pax name] sang]
   ::  Apply function to all content items
   ::
   ++  run
@@ -710,7 +714,11 @@
     ^-  ball
     %+  roll  ~(tap of b)
     |=  [[pax=path lmp=lump] acc=ball]
-    (~(put of acc) pax lmp(contents (~(run by contents.lmp) fn)))
+    %-  ~(put of acc)
+    :-  pax
+    %=  lmp
+      contents  (~(run by contents.lmp) |=([=sang gain=?] [(fn sang) gain]))
+    ==
   ::  Insert list of content items
   ::
   ++  gas
@@ -754,14 +762,14 @@
     |=  [pax=path nec=(unit neck)]
     ^-  ball
     ?~  pax
-      b(fil `[nec ~ ~])
+      b(fil `[nec ~ %.n ~])
     ::  creating subdir: name must not collide with file name
     ~|  [%name-collision %dir-vs-file i.pax]
     ?<  ?&  ?=(^ fil.b)
             (~(has by contents.u.fil.b) i.pax)
         ==
     =/  kid=ball  (~(gut by dir.b) i.pax *ball)
-    =/  filled=ball  ?^(fil.kid kid kid(fil `[~ ~ ~]))
+    =/  filled=ball  ?^(fil.kid kid kid(fil `[~ ~ %.n ~]))
     b(dir (~(put by dir.b) i.pax (~(mkd ba filled) t.pax nec)))
   ::  Put a ball (subtree) at path, replacing any existing subtree.
   ::  Ensures all intermediate directories have lumps.
@@ -779,7 +787,7 @@
             (~(has by contents.u.fil.b) i.pax)
         ==
     =/  kid=ball  (~(gut by dir.b) i.pax *ball)
-    =/  filled=ball  ?^(fil.kid kid kid(fil `[~ ~ ~]))
+    =/  filled=ball  ?^(fil.kid kid kid(fil `[~ ~ %.n ~]))
     b(dir (~(put by dir.b) i.pax $(b filled, pax t.pax)))
   ::  Descend to subdirectory as new ball
   ::
@@ -821,21 +829,23 @@
     ^-  (unit bask)
     ?~  nod=(~(get of b) path.rail)
       ~
-    (~(get by contents.u.nod) name.rail)
+    =/  got  (~(get by contents.u.nod) name.rail)
+    ?~  got  ~
+    `bask.u.got
   ++  put
     |=  [=rail c=bask]
     ^-  bole
     ?~  path.rail
       ~|  [%name-collision %file-vs-dir name.rail]
       ?<  (~(has by dir.b) name.rail)
-      =/  plp=pulp  (fall fil.b [~ ~ ~])
-      b(fil `plp(contents (~(put by contents.plp) name.rail c)))
+      =/  plp=pulp  (fall fil.b [~ ~ %.n ~])
+      b(fil `plp(contents (~(put by contents.plp) name.rail [c %.n])))
     ~|  [%name-collision %dir-vs-file i.path.rail]
     ?<  ?&  ?=(^ fil.b)
             (~(has by contents.u.fil.b) i.path.rail)
         ==
     =/  kid=bole  (~(gut by dir.b) i.path.rail *bole)
-    =/  filled=bole  ?^(fil.kid kid kid(fil `[~ ~ ~]))
+    =/  filled=bole  ?^(fil.kid kid kid(fil `[~ ~ %.n ~]))
     b(dir (~(put by dir.b) i.path.rail (~(put bo filled) [t.path.rail name.rail] c)))
   --
 ::  Tarball encoding utilities
@@ -1147,14 +1157,14 @@
     =/  tar-entries=tarball
       ?~  fil.ball
         ~
-      =/  exportable=(list [@ta sang])  ~(tap by contents.u.fil.ball)
+      =/  exportable=(list [@ta [=sang gain=?]])  ~(tap by contents.u.fil.ball)
       %+  weld
         ?~  path
           ~
         [(make-directory-entry path ~) ~]
       %+  turn  exportable
-      |=  [name=@ta content=sang]
-      (make-content-entry (snoc path name) content)
+      |=  [name=@ta =sang gain=?]
+      (make-content-entry (snoc path name) sang)
     =/  directories  ~(tap by dir.ball)
     |-
     ?~  directories

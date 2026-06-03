@@ -1,6 +1,7 @@
-::::  /hoon/hoon/mar
+::::  Bootstrap mark — compiled into the runtime before build-code runs.
+  ::  This file exists for reference only; the runtime uses a hardcoded
+  ::  version and build-code skips it.
   ::
-::
 =,  eyre
 |_  own=@t
 ::

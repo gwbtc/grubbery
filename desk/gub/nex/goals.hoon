@@ -377,14 +377,14 @@
   ^-  (map @ta goal-store:goals)
   ?.  ?=([%& %ball *] seen)  ~
   ?~  fil.ball.p.seen  ~
-  =/  entries=(list [@ta sang:tarball])
+  =/  entries=(list [@ta [=sang:tarball gain=?]])
     ~(tap by contents.u.fil.ball.p.seen)
   =/  out=(map @ta goal-store:goals)  ~
   |-
   ?~  entries  out
-  =/  [fname=@ta ct=sang:tarball]  i.entries
-  ?.  =(%goal-store name.p.ct)  $(entries t.entries)
-  =/  store=goal-store:goals  !<(goal-store:goals (need-vase:tarball ct))
+  =/  [fname=@ta =sang:tarball gain=?]  i.entries
+  ?.  =(%goal-store name.p.sang)  $(entries t.entries)
+  =/  store=goal-store:goals  !<(goal-store:goals (need-vase:tarball sang))
   =/  sname=@ta  (store-name-from-fname fname)
   $(entries t.entries, out (~(put by out) sname store))
 ::  Render the full goals page

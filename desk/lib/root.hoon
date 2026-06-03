@@ -12,35 +12,35 @@
     %+  spin:loader  ball
     :~  (ver-row:loader 0)
         [%load %| / / same-fold:loader]
-        [%fall %| /apps [`[~ ~ ~] ~]]
-        [%fall %| /docs [`[~ ~ ~] ~]]
+        [%fall %| /apps [`[~ ~ %.n ~] ~]]
+        [%fall %| /docs [`[~ ~ %.n ~] ~]]
         ::  /sys/eyre: HTTP server state + request fibers
         ::
-        [%fall %| /sys/eyre [`[~ ~ ~] ~]]
+        [%fall %| /sys/eyre [`[~ ~ %.n ~] ~]]
         [%fall %& [/sys/eyre %'main.server-state'] [[/ %server-state] *server-state:nexus]]
-        [%fall %| /sys/eyre/requests [`[~ ~ ~] ~]]
+        [%fall %| /sys/eyre/requests [`[~ ~ %.n ~] ~]]
         ::  /sys/behn: timer service
         ::
-        [%fall %| /sys/behn [`[~ ~ ~] ~]]
+        [%fall %| /sys/behn [`[~ ~ %.n ~] ~]]
         [%fall %& [/sys/behn %'main.timer-state'] [[/ %timer-state] *timer-state:nexus]]
         ::  /sys/iris: HTTP client service
         ::
-        [%fall %| /sys/iris [`[~ ~ ~] ~]]
+        [%fall %| /sys/iris [`[~ ~ %.n ~] ~]]
         [%fall %& [/sys/iris %'main.iris-state'] [[/ %iris-state] *iris-state:nexus]]
         ::  /sys/clay: desk sync service (state + desks/ subdir)
         ::
         [%fall %& [/sys/clay %'main.clay-state'] [[/ %clay-state] *clay-state:nexus]]
-        [%fall %| /sys/clay/desks [`[~ ~ ~] ~]]
+        [%fall %| /sys/clay/desks [`[~ ~ %.n ~] ~]]
         ::  /sys/scry: scry service
         ::
-        [%fall %| /sys/scry [`[~ ~ ~] ~]]
+        [%fall %| /sys/scry [`[~ ~ %.n ~] ~]]
         [%fall %& [/sys/scry %'main.sig'] [[/ %sig] ~]]
         ::  child nexuses
         ::
-        [%fall %| /apps/'counter.counter' [`[`[/ %counter] ~ ~] ~]]
-        [%fall %| /apps/'explorer.explorer' [`[`[/ %explorer] ~ ~] ~]]
-        [%fall %| /apps/'mcp.mcp' [`[`[/ %mcp] ~ ~] ~]]
-        [%fall %| /apps/'peers.peers' [`[`[/ %peers] ~ ~] ~]]
+        [%fall %| /apps/'counter.counter' [`[`[/ %counter] ~ %.n ~] ~]]
+        [%fall %| /apps/'explorer.explorer' [`[`[/ %explorer] ~ %.n ~] ~]]
+        [%fall %| /apps/'mcp.mcp' [`[`[/ %mcp] ~ %.n ~] ~]]
+        [%fall %| /apps/'peers.peers' [`[`[/ %peers] ~ %.n ~] ~]]
     ==
   ==
 ::

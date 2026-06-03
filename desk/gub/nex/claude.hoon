@@ -774,7 +774,7 @@
     =/  =mime  [/text/plain (as-octs:mimes:html body)]
     (send-dart:io %node slot-wire road %make |+[[[/ %mime] mime] ~])
       %'dir'
-    (send-dart:io %node slot-wire road %make &+[`[~ ~ ~] ~])
+    (send-dart:io %node slot-wire road %make &+[`[~ ~ %.n ~] ~])
       %'over'
     =/  =mime  [/text/plain (as-octs:mimes:html body)]
     (send-dart:io %node slot-wire road %over [[/ %mime] !>(mime)])
@@ -1123,10 +1123,10 @@
   ::  Files in this directory
   ;<  ~  bind:m
     ?~  fil.b  (pure:m ~)
-    =/  files=(list [@ta sang:tarball])  ~(tap by contents.u.fil.b)
+    =/  files=(list [@ta [=sang:tarball gain=?]])  ~(tap by contents.u.fil.b)
     |-
     ?~  files  (pure:m ~)
-    =/  [file-name=@ta =sang:tarball]  i.files
+    =/  [file-name=@ta [=sang:tarball gain=?]]  i.files
     =/  lane-path=@t  (spat (snoc here file-name))
     ;<  content-text=@t  bind:m  (sage-to-txt (need-sage:tarball sang))
     =/  msg=@t

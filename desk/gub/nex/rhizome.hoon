@@ -257,7 +257,7 @@
   =.  out
     =/  =lump:tarball  (fall fil.ball *lump:tarball)
     %-  ~(rep by contents.lump)
-    |=  [[name=@ta =sang:tarball] acc=(map @ta @t)]
+    |=  [[name=@ta =sang:tarball gain=?] acc=(map @ta @t)]
     ?.  =(%txt name.p.sang)  acc
     =/  key=@ta  ?:(=('' prefix) name (crip "{(trip prefix)}/{(trip name)}"))
     (~(put by acc) key (of-wain:format !<(wain (need-vase:tarball sang))))

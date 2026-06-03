@@ -821,10 +821,10 @@
   ^-  (list [rail:tarball sang:tarball])
   =/  acc=(list [rail:tarball sang:tarball])  ~
   =?  acc  ?=(^ fil.ball)
-    =/  fils=(list [@ta sang:tarball])  ~(tap by contents.u.fil.ball)
+    =/  fils=(list [@ta [=sang:tarball gain=?]])  ~(tap by contents.u.fil.ball)
     %+  weld  acc
     %+  turn  fils
-    |=([name=@ta =sang:tarball] [[base name] sang])
+    |=([name=@ta =sang:tarball gain=?] [[base name] sang])
   =/  dirs=(list [@ta ball:tarball])  ~(tap by dir.ball)
   |-
   ?~  dirs  acc

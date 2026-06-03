@@ -778,12 +778,11 @@
   ^-  (set blot:tarball)
   =/  blots=(set blot:tarball)  ~
   =?  blots  ?=(^ fil.ball)
-    =/  entries=(list (pair @ta sang:tarball))
+    =/  entries=(list [@ta [=sang:tarball gain=?]])
       ~(tap by contents.u.fil.ball)
     |-  ^-  (set blot:tarball)
     ?~  entries  blots
-    =*  content  q.i.entries
-    $(entries t.entries, blots (~(put in blots) p.content))
+    $(entries t.entries, blots (~(put in blots) p.sang.i.entries))
   =/  subdirs=(list (pair @ta ball:tarball))  ~(tap by dir.ball)
   |-  ^-  (set blot:tarball)
   ?~  subdirs  blots
@@ -795,13 +794,12 @@
   |=  =ball:tarball
   ^-  (set blot:tarball)
   ?~  fil.ball  ~
-  =/  entries=(list (pair @ta sang:tarball))
+  =/  entries=(list [@ta [=sang:tarball gain=?]])
     ~(tap by contents.u.fil.ball)
   =/  blots=(set blot:tarball)  ~
   |-  ^-  (set blot:tarball)
   ?~  entries  blots
-  =*  ct  q.i.entries
-  $(entries t.entries, blots (~(put in blots) p.ct))
+  $(entries t.entries, blots (~(put in blots) p.sang.i.entries))
 ::  +build-blot-conversions: build conversions map for a set of blots
 ::
 ++  build-blot-conversions

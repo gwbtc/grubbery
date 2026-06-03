@@ -20,17 +20,17 @@
   ::  bole with one file at root
   |=  [name=@ta txt=@t]
   ^-  bole:tarball
-  =/  contents=(map @ta bask:tarball)
-    (~(put by *(map @ta bask:tarball)) name (mk-bask txt))
-  [`[~ ~ contents] ~]
+  =/  contents=(map @ta [=bask:tarball gain=?])
+    (~(put by *(map @ta [=bask:tarball gain=?])) name [(mk-bask txt) %.n])
+  [`[~ ~ %.n contents] ~]
 ::
 ++  mk-ball-1
   ::  ball with one file at root
   |=  [name=@ta txt=@t]
   ^-  ball:tarball
-  =/  contents=(map @ta sang:tarball)
-    (~(put by *(map @ta sang:tarball)) name (mk-content txt))
-  [`[~ ~ contents] ~]
+  =/  contents=(map @ta [=sang:tarball gain=?])
+    (~(put by *(map @ta [=sang:tarball gain=?])) name [(mk-content txt) %.n])
+  [`[~ ~ %.n contents] ~]
 ::
 ::
 ::  ==========================================

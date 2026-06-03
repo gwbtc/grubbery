@@ -129,9 +129,9 @@
             =/  acct-pubkey=@ux  public-key:derived
             =/  acct-key=@ta  (crip (hexn:http-utils acct-pubkey))
             =/  acct-dir=@ta  (cat 3 acct-key '.wallet_account')
-            =/  acct-contents=(map @ta sang:tarball)
-              (~(put by *(map @ta sang:tarball)) %'data.wallet_account' [[/wallet %account] %& !>(acct)])
-            =/  acct-lump=lump:tarball  [`[/wallet %account] ~ acct-contents]
+            =/  acct-contents=(map @ta [=sang:tarball gain=?])
+              (~(put by *(map @ta [=sang:tarball gain=?])) %'data.wallet_account' [[[/wallet %account] %& !>(acct)] %.n])
+            =/  acct-lump=lump:tarball  [`[/wallet %account] ~ %.n acct-contents]
             =/  acct-ball=ball:tarball  [`acct-lump ~]
             ;<  err=(unit tang)  bind:m
               (make-soft:io [%| 2 %| (snoc /accounts acct-dir)] &+acct-ball)
@@ -267,9 +267,9 @@
         =/  acct-pubkey=@ux  public-key:derived
         =/  acct-key=@ta  (crip (hexn:http-utils acct-pubkey))
         =/  acct-dir=@ta  (cat 3 acct-key '.wallet_account')
-        =/  acct-contents=(map @ta sang:tarball)
-          (~(put by *(map @ta sang:tarball)) %'data.wallet_account' [[/wallet %account] %& !>(acct)])
-        =/  acct-lump=lump:tarball  [`[/wallet %account] ~ acct-contents]
+        =/  acct-contents=(map @ta [=sang:tarball gain=?])
+          (~(put by *(map @ta [=sang:tarball gain=?])) %'data.wallet_account' [[[/wallet %account] %& !>(acct)] %.n])
+        =/  acct-lump=lump:tarball  [`[/wallet %account] ~ %.n acct-contents]
         =/  acct-ball=ball:tarball  [`acct-lump ~]
         ;<  err=(unit tang)  bind:m
           (make-soft:io [%| 3 %| (snoc /accounts acct-dir)] &+acct-ball)
@@ -344,9 +344,9 @@
   ^-  manx
   ?.  ?=([%& %ball *] seen)  ;div;
   =/  =lump:tarball  (fall fil.ball.p.seen *lump:tarball)
-  =/  ct=(unit sang:tarball)  (~(get by contents.lump) name)
+  =/  ct=(unit [=sang:tarball gain=?])  (~(get by contents.lump) name)
   ?~  ct  ;div;
-  =/  result=(unit manx)  (mole |.((need (de-xml:html !<(@t (need-vase:tarball u.ct))))))
+  =/  result=(unit manx)  (mole |.((need (de-xml:html !<(@t (need-vase:tarball sang.u.ct))))))
   (fall result ;div;)
 ::
 ++  loading-bar
@@ -486,10 +486,10 @@
   ^-  (unit wallet-data)
   ?.  ?=([%& %ball *] seen)  ~
   =/  =lump:tarball  (fall fil.ball.p.seen *lump:tarball)
-  =/  ct=(unit sang:tarball)  (~(get by contents.lump) 'main.wallet_wallet')
+  =/  ct=(unit [=sang:tarball gain=?])  (~(get by contents.lump) 'main.wallet_wallet')
   ?~  ct  ~
-  ?.  ?=(%wallet name.p.u.ct)  ~
-  (mole |.(!<(wallet-data (need-vase:tarball u.ct))))
+  ?.  ?=(%wallet name.p.sang.u.ct)  ~
+  (mole |.(!<(wallet-data (need-vase:tarball sang.u.ct))))
 ::
 ++  extract-accounts
   |=  [=seen:nexus wal=(unit wallet-data)]
@@ -499,10 +499,10 @@
   %+  murn  ~(tap by dir.ball.p.seen)
   |=  [name=@ta sub=ball:tarball]
   =/  sub-lump=lump:tarball  (fall fil.sub *lump:tarball)
-  =/  ct=(unit sang:tarball)  (~(get by contents.sub-lump) 'data.wallet_account')
+  =/  ct=(unit [=sang:tarball gain=?])  (~(get by contents.sub-lump) 'data.wallet_account')
   ?~  ct  ~
-  ?.  ?=(%account name.p.u.ct)  ~
-  =/  acct=(unit account-data)  (mole |.(!<(account-data (need-vase:tarball u.ct))))
+  ?.  ?=(%account name.p.sang.u.ct)  ~
+  =/  acct=(unit account-data)  (mole |.(!<(account-data (need-vase:tarball sang.u.ct))))
   ?~  acct  ~
   ?.  =(wallet.u.acct fingerprint.u.wal)  ~
   acct

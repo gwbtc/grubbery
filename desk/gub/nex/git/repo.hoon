@@ -49,7 +49,7 @@
             [%fall %& [/ui %'status.json'] [[/ %json] (pairs:enjs:format ~[['status' s+'idle']])]]
             [%fall %& [/ui %'commit.json'] [[/ %json] [%a ~]]]
             [%over %& [/ %'page.html'] [[/ %html] (crip (en-xml:html (repo-page '' '' '' ~ ~ [%a ~] [%o ~] clean-status)))]]
-            [%fall %| /data [`[`[/git %data] ~ ~] ~]]
+            [%fall %| /data [`[`[/git %data] ~ %.n ~] ~]]
         ==
       ==
     ::
@@ -1026,7 +1026,7 @@
   ^-  (axal ref:git-repo)
   ?~  fil.ball  [~ ~]
   %+  roll  ~(tap by contents.u.fil.ball)
-  |=  [[name=@t =sang:tarball] r=(axal ref:git-repo)]
+  |=  [[name=@t =sang:tarball gain=?] r=(axal ref:git-repo)]
   =/  m=mime  !<(mime (need-vase:tarball sang))
   ?:  =(0 p.q.m)  r
   =/  h=(unit @ux)
@@ -1038,10 +1038,10 @@
   |=  =ball:tarball
   ^-  (map hash:git-repo object:git-obj)
   ?~  fil.ball  ~
-  =/  entries=(list [name=@t =sang:tarball])
+  =/  entries=(list [name=@t =sang:tarball gain=?])
     ~(tap by contents.u.fil.ball)
   %+  roll  entries
-  |=  [[name=@t =sang:tarball] acc=(map hash:git-repo object:git-obj)]
+  |=  [[name=@t =sang:tarball gain=?] acc=(map hash:git-repo object:git-obj)]
   =/  h=(unit hash:git-repo)
     (rust (trip name) parse-hash-sha-1:git-transport)
   ?~  h  acc
@@ -1071,15 +1071,15 @@
   ^-  (unit pack:git-pack)
   =/  pack-name=@ta  (crip "pack-{(a-co:co n)}.pack")
   =/  idx-name=@ta  (crip "pack-{(a-co:co n)}.idx")
-  =/  pack-content=(unit sang:tarball)
+  =/  pack-content=(unit [=sang:tarball gain=?])
     (~(get by contents.u.fil.ball) pack-name)
-  =/  idx-content=(unit sang:tarball)
+  =/  idx-content=(unit [=sang:tarball gain=?])
     (~(get by contents.u.fil.ball) idx-name)
   ?~  pack-content  ~
   ?~  idx-content  ~
-  =/  pack-mim=mime  !<(mime (need-vase:tarball u.pack-content))
+  =/  pack-mim=mime  !<(mime (need-vase:tarball sang.u.pack-content))
   ?:  =(0 p.q.pack-mim)  ~
-  =/  idx-mim=mime  !<(mime (need-vase:tarball u.idx-content))
+  =/  idx-mim=mime  !<(mime (need-vase:tarball sang.u.idx-content))
   =/  idx-text=tape  (trip q.q.idx-mim)
   =/  idx=pack-index:git-pack
     (rebuild-index (split:git-transport idx-text `@t`10))

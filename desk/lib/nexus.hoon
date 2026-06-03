@@ -88,6 +88,8 @@
                                        :: blot: if set, convert file sage in news
       [%drop ~]                 :: unsubscribe from dest
       [%lose =lose]             :: drop hist entries, decrement silo refs
+      [%gain flag=?]            :: set gain flag (recursive on directories)
+      [%firm ~]                 :: promote current %temp entry to %firm
       [%seek =lobe:clay]        :: find all [rail cass] pairs with this hash
       [%peep =find]
       [%manu ~]                 :: docs for this path (road resolves nexus + query)
@@ -194,6 +196,8 @@
         [%sand =wire err=(unit tang)] :: response to sand
         [%load =wire err=(unit tang)] :: response to load
         [%lost =wire err=(unit tang)] :: response to lose
+        [%gain =wire err=(unit tang)] :: response to gain
+        [%held =wire err=(unit tang)] :: response to firm
         [%seek =wire res=(each (list [=rail:tarball =cass:clay]) tang)] :: response to seek
         [%peep =wire res=(each (list [=cass:clay =sage:tarball]) tang)] :: response to peep
         [%manu =wire res=(each @t tang)] :: response to manu
@@ -308,7 +312,8 @@
 :: version history for files and directories
 ::
 +$  pace
-  $%  [%live p=(unit lobe:clay)]
+  $%  [%firm p=(unit lobe:clay)]
+      [%temp p=(unit lobe:clay)]
       [%tomb ~]
   ==
 ++  hist
@@ -333,9 +338,11 @@
 +$  leaf
   $:  =lobe:clay
       mark=[=blot:tarball ckey=@uv]
+      gain=?
   ==
 +$  tree
   $:  nek=(unit [=neck:tarball ckey=@uv])
+      gain=?
       fil=(map @ta lobe:clay)
       dir=(map @ta [=lobe:clay weir=(unit weir)])
   ==
@@ -399,7 +406,7 @@
     ?~  fold-top  ~
     =/  got=(unit pace:hist)  (get:hon:hist fold.node u.fold-top)
     ?~  got  ~
-    ?.  ?=(%live -.u.got)  ~
+    ?:  ?=(%tomb -.u.got)  ~
     ?~  p.u.got  ~
     =/  jot  (~(get by jects.silo) u.p.u.got)
     ?~  jot  ~
@@ -431,7 +438,7 @@
     ?~  cas  out
     =/  val=(unit pace:hist)  (get:hon:hist sk u.cas)
     ?~  val  out
-    ?.  ?=(%live -.u.val)  out
+    ?:  ?=(%tomb -.u.val)  out
     ?~  p.u.val  out
     (~(put by out) name u.p.u.val)
   ::  dir: each child's latest tree lobe + weir from existing tree
@@ -446,7 +453,7 @@
       =/  got=(unit pace:hist)
         (get:hon:hist fold.u.kid-node u.cas)
       ?~  got  *lobe:clay
-      ?.  ?=(%live -.u.got)  *lobe:clay
+      ?:  ?=(%tomb -.u.got)  *lobe:clay
       (fall p.u.got *lobe:clay)
     =/  kid-weir=(unit weir)
       ?~  existing-tree  ~
@@ -455,7 +462,8 @@
       weir.u.entry
     [tree-lobe kid-weir]
   ::  Build tree object + store via put-tree
-  =/  =tree  [nek fil dir-map]
+  =/  tree-gain=?  ?~(existing-tree %.n gain.u.existing-tree)
+  =/  =tree  [nek tree-gain fil dir-map]
   =/  [changed=? new-born=^born new-silo=^silo]
     (put-tree born silo now dir node tree)
   ?.  changed  [born silo]
@@ -475,7 +483,7 @@
       ?~  fold-cas  ~
       (get:hon:hist fold.node u.fold-cas)
     ?~  cur-pace  ~
-    ?.  ?=(%live -.u.cur-pace)  ~
+    ?:  ?=(%tomb -.u.cur-pace)  ~
     p.u.cur-pace
   ?:  =(`lobe cur-lobe)
     [%.n born silo]
@@ -486,8 +494,9 @@
   =/  new-fold=cass:clay
     =/  nex-da=@da  ?:((lth da.old-fold now) now +(da.old-fold))
     [+(ud.old-fold) nex-da]
+  =/  =pace:hist  ?:(gain.tree [%firm `lobe] [%temp `lobe])
   =/  new-hist=hist
-    (put:hon:hist fold.node new-fold [%live `lobe])
+    (put:hon:hist fold.node new-fold pace)
   =.  born  (~(put of born) dir node(fold new-hist))
   [%.y born silo]
 ::  +bo: Pure operations on born (version tracking)
@@ -509,7 +518,7 @@
   ++  default-node
     ^-  [fold=hist file=(map @ta hist)]
     =/  zero=cass:clay  [0 now]
-    [[[zero [%live ~]] ~ ~] ~]
+    [[[zero [%temp ~]] ~ ~] ~]
   ::  Get hist for a file
   ::
   ++  get
@@ -553,7 +562,7 @@
     =/  existing=(unit hist)  (get here)
     ?~  existing
       =/  zero=cass:clay  [0 now]
-      (put here [[zero [%live ~]] ~ ~])
+      (put here [[zero [%temp ~]] ~ ~])
     (put here u.existing)
   ::  Check if a ball node is an empty directory (exists but no files, no subdirs)
   ::
@@ -586,9 +595,9 @@
     |=  [here=fold:tarball old-ball=ball:tarball new-ball=ball:tarball]
     ^-  born
     ::  Get file maps at this level
-    =/  old-files=(map @ta sang:tarball)
+    =/  old-files=(map @ta [=sang:tarball gain=?])
       ?~(fil.old-ball ~ contents.u.fil.old-ball)
-    =/  new-files=(map @ta sang:tarball)
+    =/  new-files=(map @ta [=sang:tarball gain=?])
       ?~(fil.new-ball ~ contents.u.fil.new-ball)
     =/  old-names=(set @ta)  ~(key by old-files)
     =/  new-names=(set @ta)  ~(key by new-files)
@@ -669,7 +678,7 @@
     |-
     ?~  entries  silo
     =/  pv=pace:^hist  val.i.entries
-    ?.  ?=(%live -.pv)  $(entries t.entries)
+    ?:  ?=(%tomb -.pv)  $(entries t.entries)
     ?~  p.pv  $(entries t.entries)
     $(entries t.entries, silo (drop-ject u.p.pv))
   ::  Increment noun refcount by lobe (must exist).
@@ -740,22 +749,40 @@
       |=  [[* =lobe:clay *] =_silo]
       (~(drop-ject si silo) lobe)
     ==
-    ::  Record a noun: insert into silo, append to hist.
+    ::  Record a noun: insert into silo, update hist.
   ::  Returns [lobe new-silo new-hist].
+  ::
+  ::  gain=%.y: entry is %firm (permanent until explicitly tombed).
+  ::  gain=%.n: entry is %temp (dropped on next write).
   ::
   ++  record
     |=  $:  =noun
             =blot:tarball
             ckey=@uv
+            gain=?
             =cass:clay
+            file-cass=cass:clay
             =hist
         ==
     ^-  [lobe:clay ^silo ^hist]
     ::  Store noun, then wrap as leaf ject
     =/  [noun-lobe=lobe:clay new-silo=^silo]  (put noun)
     =/  [ject-lobe=lobe:clay newer-silo=^silo]
-      (~(put-ject si new-silo) [%leaf noun-lobe [blot ckey]])
-    [noun-lobe newer-silo (put:hon:^hist hist cass [%live `ject-lobe])]
+      (~(put-ject si new-silo) [%leaf noun-lobe [blot ckey] gain])
+    ::  If previous version was %temp, drop its silo refs and
+    ::  tombstone it. %firm entries survive untouched.
+    =/  prev-pace=(unit pace:^hist)  (get:hon:^hist hist file-cass)
+    =.  newer-silo
+      ?~  prev-pace  newer-silo
+      ?.  ?=(%temp -.u.prev-pace)  newer-silo
+      ?~  p.u.prev-pace  newer-silo
+      (~(drop-ject si newer-silo) u.p.u.prev-pace)
+    =/  tombed-hist=^hist
+      ?~  prev-pace  hist
+      ?.  ?=(%temp -.u.prev-pace)  hist
+      (put:hon:^hist hist file-cass [%tomb ~])
+    =/  =pace:^hist  ?:(gain [%firm `ject-lobe] [%temp `ject-lobe])
+    [noun-lobe newer-silo (put:hon:^hist tombed-hist cass pace)]
   --
 ::  +stamp-mtimes: no-op (metadata removed from content)
 ::
@@ -880,9 +907,9 @@
   |=  [here=fold:tarball old=ball:tarball new=ball:tarball]
   ^-  (set lane:tarball)
   =|  result=(set lane:tarball)
-  =/  old-files=(map @ta sang:tarball)
+  =/  old-files=(map @ta [=sang:tarball gain=?])
     ?~(fil.old ~ contents.u.fil.old)
-  =/  new-files=(map @ta sang:tarball)
+  =/  new-files=(map @ta [=sang:tarball gain=?])
     ?~(fil.new ~ contents.u.fil.new)
   =/  all-names=(list @ta)
     ~(tap in (~(uni in ~(key by old-files)) ~(key by new-files)))
@@ -1150,9 +1177,12 @@
           :-  'pace'
           ?-  -.val
             %tomb  s+'tomb'
-            %live
+            %firm
           ?~  p.val  s+'deleted'
-          s+(scot %uv u.p.val)
+          s+(cat 3 'firm+' (scot %uv u.p.val))
+            %temp
+          ?~  p.val  s+'deleted'
+          s+(cat 3 'temp+' (scot %uv u.p.val))
           ==
       ==
   ==
@@ -1176,9 +1206,12 @@
                 :-  'pace'
                 ?-  -.val
                   %tomb  s+'tomb'
-                  %live
+                  %firm
                 ?~  p.val  s+'deleted'
-                s+(scot %uv u.p.val)
+                s+(cat 3 'firm+' (scot %uv u.p.val))
+                  %temp
+                ?~  p.val  s+'deleted'
+                s+(cat 3 'temp+' (scot %uv u.p.val))
                 ==
             ==
         ==

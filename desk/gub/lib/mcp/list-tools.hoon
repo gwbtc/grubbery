@@ -78,7 +78,7 @@
     (pure:m [%error 'No tool sources found'])
   =/  src-names=(list @ta)
     %+  turn  ~(tap by contents.u.fil.ball.p.src-seen)
-    |=([n=@ta *] (strip-hoon n))
+    |=([n=@ta [=sang:tarball gain=?]] (strip-hoon n))
   ::  Look up each compiled tool from bins
   =/  all-tools=(list tool:tools)  ~
   |-

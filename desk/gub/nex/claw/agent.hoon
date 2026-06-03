@@ -590,7 +590,7 @@
               '  it -- you will get a %veto. Use check_bang to inspect errors.'
           ==
         =/  default-conv=json  [%a ~]
-        =/  code-dir=bole:tarball  [`[`[/ %code] ~ ~] ~]
+        =/  code-dir=bole:tarball  [`[`[/ %code] ~ %.n ~] ~]
         %+  spin:loader  ball
         :~  (ver-row:loader 0)
             [%fall %& [/ %'config.json'] [[/ %json] default-config]]
@@ -1434,7 +1434,7 @@
     (pure:m result)
   =/  names=(list @ta)
     %+  turn  ~(tap by contents.u.fil.ball.p.src-seen)
-    |=([name=@ta *] (strip-hoon name))
+    |=([name=@ta [=sang:tarball gain=?]] (strip-hoon name))
   |-
   ?~  names  (pure:m result)
   =/  name=@ta  i.names
@@ -1466,7 +1466,7 @@
     (pure:m [%| ~[leaf+"tool not found: {(trip tool)}"]])
   =/  names=(list @ta)
     %+  turn  ~(tap by contents.u.fil.ball.p.src-seen)
-    |=([name=@ta *] (strip-hoon name))
+    |=([name=@ta [=sang:tarball gain=?]] (strip-hoon name))
   |-
   ?~  names
     (pure:m [%| ~[leaf+"tool not found: {(trip tool)}"]])
@@ -2807,7 +2807,7 @@
     =/  files=(list [@ta @tas])
       ?~  fil.ball.p.seen  ~
       %+  turn  ~(tap by contents.u.fil.ball.p.seen)
-      |=([n=@ta c=sang:tarball] [n name.p.c])
+      |=([n=@ta [c=sang:tarball gain=?]] [n name.p.c])
     =/  dir-text=tape
       ?~  sub-dirs  ""
       (zing (turn sub-dirs |=(d=@ta "\0a  {(trip d)}/")))
@@ -3035,7 +3035,7 @@
     ?~  raw=(get-arg st 'road')
       (pure:m [%error 'Missing required argument: road'])
     =/  road=road:tarball  (agent-road u.raw)
-    =/  new-ball=ball:tarball  [`[~ ~ ~] ~]
+    =/  new-ball=ball:tarball  [`[~ ~ %.n ~] ~]
     ;<  ~  bind:m  (make:io road &+(ball-to-bole:tarball new-ball))
     (pure:m [%text (crip "Created directory {(trip u.raw)}")])
   --
@@ -3072,7 +3072,7 @@
     ?~  code-pax
       (pure:m [%error 'Code path cannot be empty'])
     =/  code-rail=rail:tarball  [(snip `path`code-pax) (rear code-pax)]
-    =/  new-ball=ball:tarball  [`[`code-rail ~ ~] ~]
+    =/  new-ball=ball:tarball  [`[`code-rail ~ %.n ~] ~]
     ;<  ~  bind:m  (make:io road &+(ball-to-bole:tarball new-ball))
     (pure:m [%text (crip "Created nexus {(trip u.raw)} with code {(trip u.code-raw)}")])
   --
@@ -3542,7 +3542,7 @@
     ?~  code-pax
       (pure:m [%error 'Code path cannot be empty'])
     =/  code-rail=rail:tarball  [(snip `path`code-pax) (rear code-pax)]
-    =/  new-ball=ball:tarball  [`[`code-rail ~ ~] ~]
+    =/  new-ball=ball:tarball  [`[`code-rail ~ %.n ~] ~]
     ;<  ~  bind:m  (make:io child-road &+(ball-to-bole:tarball new-ball))
     ::  read parent config (../../config.json from tool proc)
     ;<  parent-config=json  bind:m
@@ -4290,7 +4290,7 @@
       (pure:m [%text 'No cron jobs.'])
     ?~  fil.ball.p.seen
       (pure:m [%text 'No cron jobs.'])
-    =/  jobs=(list [@ta *])  ~(tap by contents.u.fil.ball.p.seen)
+    =/  jobs=(list [@ta [=sang:tarball gain=?]])  ~(tap by contents.u.fil.ball.p.seen)
     =/  out=(list tape)  ~
     |-
     ?~  jobs

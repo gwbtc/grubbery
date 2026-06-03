@@ -141,12 +141,12 @@
   =/  parent=path  (snip `path`api-path)
   =/  name=@ta  (rear api-path)
   =/  parent-ball=ball:tarball  (~(dip ba:tarball u.root) parent)
-  =/  content-data=(unit sang:tarball)
+  =/  content-data=(unit [=sang:tarball gain=?])
     ?~  fil.parent-ball  ~
     (~(get by contents.u.fil.parent-ball) name)
   ?~  content-data
     (send-error eyre-id 404 'Not found')
-  =/  =sage:tarball  (need-sage:tarball u.content-data)
+  =/  =sage:tarball  (need-sage:tarball sang.u.content-data)
   =/  mark-param=(unit @t)  (get-key:kv:html-utils 'mark' args)
   ;<  converted=(unit sage:tarball)  bind:m  (maybe-convert eyre-id sage mark-param)
   ?~  converted  (pure:m ~)
@@ -245,7 +245,7 @@
   ;<  exists=?  bind:m  (peek-exists:io road)
   ?:  exists
     (send-error eyre-id 409 'Already exists')
-  =/  init-ball=ball:tarball  [`[~ ~ ~] ~]
+  =/  init-ball=ball:tarball  [`[~ ~ %.n ~] ~]
   ;<  ~  bind:m  (make:io road &+init-ball)
   (send-created eyre-id)
 ::  +serve-post: POST /poke, /over — send dart to file
@@ -314,7 +314,7 @@
   ;<  exists=?  bind:m  (peek-exists:io dir-road)
   ?.  exists
     ;<  ~  bind:m
-      (make:io dir-road &+[`[~ ~ ~] ~])
+      (make:io dir-road &+[`[~ ~ %.n ~] ~])
     (ensure-parents next t.segments)
   (ensure-parents next t.segments)
 ::  +serve-upload: POST /upload — multipart file/directory upload
@@ -563,10 +563,10 @@
   ::  Send "old" for files in this directory
   ;<  ~  bind:m
     ?~  fil.b  (pure:m ~)
-    =/  files=(list [@ta sang:tarball])  ~(tap by contents.u.fil.b)
+    =/  files=(list [@ta [=sang:tarball gain=?]])  ~(tap by contents.u.fil.b)
     |-
     ?~  files  (pure:m ~)
-    =/  [file-name=@ta =sang:tarball]  i.files
+    =/  [file-name=@ta =sang:tarball gain=?]  i.files
     =/  lane-path=@t  (spat (snoc here file-name))
     =/  sub-born=born:nexus  (~(dip of born) here)
     =/  file-hist=(unit hist:nexus)

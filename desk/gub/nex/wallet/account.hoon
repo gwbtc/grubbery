@@ -608,10 +608,10 @@
   ^-  (unit account-data)
   ?.  ?=([%& %ball *] seen)  ~
   =/  =lump:tarball  (fall fil.ball.p.seen *lump:tarball)
-  =/  ct=(unit sang:tarball)  (~(get by contents.lump) 'data.wallet_account')
+  =/  ct=(unit [=sang:tarball gain=?])  (~(get by contents.lump) 'data.wallet_account')
   ?~  ct  ~
-  ?.  ?=(%account name.p.u.ct)  ~
-  (mole |.(!<(account-data (need-vase:tarball u.ct))))
+  ?.  ?=(%account name.p.sang.u.ct)  ~
+  (mole |.(!<(account-data (need-vase:tarball sang.u.ct))))
 ::
 ++  read-draft-file
   =/  m  (fiber:fiber:nexus ,(unit transaction:drft))
@@ -708,13 +708,13 @@
   ?~  net-ball  [*addr-mop *addr-mop]
   ?~  fil.u.net-ball  [*addr-mop *addr-mop]
   =/  recv=addr-mop
-    =/  ct=(unit sang:tarball)  (~(get by contents.u.fil.u.net-ball) 'recv.wallet_addresses')
+    =/  ct=(unit [=sang:tarball gain=?])  (~(get by contents.u.fil.u.net-ball) 'recv.wallet_addresses')
     ?~  ct  *addr-mop
-    (fall (mole |.(!<(addr-mop (need-vase:tarball u.ct)))) *addr-mop)
+    (fall (mole |.(!<(addr-mop (need-vase:tarball sang.u.ct)))) *addr-mop)
   =/  chng=addr-mop
-    =/  ct=(unit sang:tarball)  (~(get by contents.u.fil.u.net-ball) 'chng.wallet_addresses')
+    =/  ct=(unit [=sang:tarball gain=?])  (~(get by contents.u.fil.u.net-ball) 'chng.wallet_addresses')
     ?~  ct  *addr-mop
-    (fall (mole |.(!<(addr-mop (need-vase:tarball u.ct)))) *addr-mop)
+    (fall (mole |.(!<(addr-mop (need-vase:tarball sang.u.ct)))) *addr-mop)
   [recv chng]
 ::  +addr-road: compute road to a chain's mop file
 ::

@@ -46,7 +46,7 @@
   `!<(@ud (need-vase:tarball u.ct))
 ::  +ver-row: convenience row to set the version file
 ::
-++  empty-dir  [`[~ ~ ~] ~]
+++  empty-dir  [`[~ ~ %.n ~] ~]
 ::
 ++  ver-row
   |=  ver=@ud

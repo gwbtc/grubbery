@@ -1,5 +1,8 @@
-::  /boom mark: error-wrapped grub content
-::  stores [tang bask] where bask is [blot noun]
+::  Bootstrap mark — compiled into the runtime before build-code runs.
+::  This file exists for reference only; the runtime uses a hardcoded
+::  version and build-code skips it.
+::
+::  /boom: error-wrapped grub content, stores [tang bask]
 ::
 =,  format
 |_  [err=tang =bask:tarball]

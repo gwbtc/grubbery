@@ -755,9 +755,9 @@
   ^-  manx
   ?.  ?=([%& %ball *] seen)  ;div;
   =/  =lump:tarball  (fall fil.ball.p.seen *lump:tarball)
-  =/  ct=(unit sang:tarball)  (~(get by contents.lump) name)
+  =/  ct=(unit [=sang:tarball gain=?])  (~(get by contents.lump) name)
   ?~  ct  ;div;
-  (fall (mole |.((need (de-xml:html !<(@t (need-vase:tarball u.ct)))))) ;div;)
+  (fall (mole |.((need (de-xml:html !<(@t (need-vase:tarball sang.u.ct)))))) ;div;)
 ::
 ::  Extract ship names from a kept wallets directory view.
 ::
@@ -767,7 +767,7 @@
   ?.  ?=([%& %ball *] seen)  ~
   =/  =lump:tarball  (fall fil.ball.p.seen *lump:tarball)
   %+  murn  ~(tap by contents.lump)
-  |=  [name=@ta =sang:tarball]
+  |=  [name=@ta =sang:tarball gain=?]
   ?.  ?=(%urb-wallet name.p.sang)  ~
   =/  raw=tape  (trip name)
   =/  ext=tape  ".urb-wallet"
@@ -781,7 +781,7 @@
   ?.  ?=([%& %ball *] seen)  ~
   =/  =lump:tarball  (fall fil.ball.p.seen *lump:tarball)
   %+  murn  ~(tap by contents.lump)
-  |=  [name=@ta =sang:tarball]
+  |=  [name=@ta =sang:tarball gain=?]
   ?.  ?=(%json name.p.sang)  ~
   =/  raw=tape  (trip name)
   =/  ext=tape  ".json"

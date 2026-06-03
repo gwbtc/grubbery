@@ -180,13 +180,13 @@
   =/  parent=path  (snip `path`tree-path)
   =/  name=@ta  (rear tree-path)
   =/  parent-ball=ball:tarball  (~(dip ba:tarball root) parent)
-  =/  content-data=(unit sang:tarball)
+  =/  content-data=(unit [=sang:tarball gain=?])
     ?~  fil.parent-ball  ~
     (find-grub name u.fil.parent-ball)
   ?~  content-data
     ;<  ~  bind:m  (send-simple:srv eyre-id [[404 ~] `(as-octs:mimes:html 'Not found')])
     (pure:m ~)
-  =/  =sage:tarball  (need-sage:tarball u.content-data)
+  =/  =sage:tarball  (need-sage:tarball sang.u.content-data)
   =/  pretty-param=(unit @t)  (get-key:kv:html-utils 'pretty' args)
   ?^  pretty-param
     ::  ?pretty: render noun as text instead of binary download
@@ -241,7 +241,7 @@
     =/  dir-neck=(unit neck:tarball)
       (bind (parse-extension:tarball dir-name) ext-to-neck:tarball)
     =/  folder-path=path  (snoc tree-path dir-name)
-    =/  new-ball=ball:tarball  [`[dir-neck ~ ~] ~]
+    =/  new-ball=ball:tarball  [`[dir-neck ~ %.n ~] ~]
     ;<  ~  bind:m  (make:io [%& %| folder-path] &+(ball-to-bole:tarball new-ball))
     ;<  ~  bind:m  (send-simple:srv eyre-id [[303 ~[['location' (crip redirect-url)]]] ~])
     (pure:m ~)
@@ -421,12 +421,12 @@
   =/  new=ball:tarball
     (from-parts:tarball *ball:tarball ~ u.parts now conversions)
   ::  Make each top-level entry: files then directories
-  =/  files=(list [@ta sang:tarball])
+  =/  files=(list [@ta [=sang:tarball gain=?]])
     ?~  fil.new  ~
     ~(tap by contents.u.fil.new)
   |-
   ?^  files
-    =/  [name=@ta =sang:tarball]  i.files
+    =/  [name=@ta =sang:tarball gain=?]  i.files
     ;<  ~  bind:m
       (make:io [%& %& tree-path name] |+[[p.sang (sang-noun:tarball sang)] ~])
     $(files t.files)
@@ -465,7 +465,7 @@
 ::
 ++  find-grub
   |=  [seg=@ta =lump:tarball]
-  ^-  (unit sang:tarball)
+  ^-  (unit [=sang:tarball gain=?])
   (~(get by contents.lump) seg)
 ::  Handle SSE stream: subscribe to root, push change events
 ::
@@ -533,9 +533,9 @@
       ?.  ?=(%& -.lane)  ~
       ?.  =(path.p.lane watch-path)  ~
       ?~  fil.par  ~
-      =/  ct=(unit sang:tarball)  (~(get by contents.u.fil.par) name.p.lane)
+      =/  ct=(unit [=sang:tarball gain=?])  (~(get by contents.u.fil.par) name.p.lane)
       ?~  ct  ~
-      `p.u.ct
+      `p.sang.u.ct
     ;<  conversions=(map bars:tarball tube:clay)  bind:m
       (build-blot-conversions:io changed-blots)
     =/  lanes=(list lane:tarball)  ~(tap in what)
@@ -587,9 +587,9 @@
       =/  row-html=tape
         ?:  is-file
           ?~  fil.par  ""
-          =/  ct=(unit sang:tarball)  (~(get by contents.u.fil.par) item)
+          =/  ct=(unit [=sang:tarball gain=?])  (~(get by contents.u.fil.par) item)
           ?~  ct  ""
-          (en-xml:html (render-grub-row item u.ct url-prefix watch-path par-born now conversions code-namespace ~))
+          (en-xml:html (render-grub-row item sang.u.ct url-prefix watch-path par-born now conversions code-namespace ~))
         =/  sub=(unit ball:tarball)  (~(get by dir.par) item)
         ?~  sub  ""
         (en-xml:html (render-dir-row item u.sub url-prefix ~))
@@ -928,7 +928,7 @@
     ?~  pax  "/"
     (trip (spat pax))
   =/  kids  dir.b
-  =/  file-contents=(map @ta sang:tarball)
+  =/  file-contents=(map @ta [=sang:tarball gain=?])
     ?~  fil.b  ~
     contents.u.fil.b
   =/  subdirs=(list @ta)  ~(tap in ~(key by kids))
@@ -990,7 +990,7 @@
           %+  turn  files
           |=  name=@ta
           ^-  manx
-          =/  =sang:tarball  (~(got by file-contents) name)
+          =/  [=sang:tarball gain=?]  (~(got by file-contents) name)
           =/  file-bang=(unit tang)  (fall (~(get by file-bangs) name) ~)
           (render-grub-row name sang url-prefix pax b-born now conversions code-namespace file-bang)
         rows

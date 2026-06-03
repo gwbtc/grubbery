@@ -1866,7 +1866,7 @@
   ::  (bypassing put which would crash)
   =/  bad-ball=ball:tarball
     :_  (my [%foo *ball:tarball] ~)  :: dir has 'foo'
-    `[~ ~ (my [%foo c] ~)]            :: fil.contents has 'foo'
+    `[~ ~ %.n (my [%foo [c %.n]] ~)]  :: fil.contents has 'foo'
   ::  pub should crash when given this bad ball
   %-  expect-fail
   |.((~(pub ba:tarball b) / bad-ball))
@@ -1878,10 +1878,10 @@
   ::  Create a valid outer ball with an invalid nested ball
   =/  bad-nested=ball:tarball
     :_  (my [%bar *ball:tarball] ~)  :: dir has 'bar'
-    `[~ ~ (my [%bar c] ~)]            :: fil.contents has 'bar'
+    `[~ ~ %.n (my [%bar [c %.n]] ~)]  :: fil.contents has 'bar'
   =/  bad-ball=ball:tarball
     :_  (my [%child bad-nested] ~)   :: nest bad ball under /child
-    `[~ ~ ~]                         :: root is valid
+    `[~ ~ %.n ~]                     :: root is valid
   %-  expect-fail
   |.((~(pub ba:tarball b) / bad-ball))
 ::

@@ -48,7 +48,7 @@
         (pure:m ~)
       =/  names=(list @ta)
         %+  turn  ~(tap by contents.u.fil.ball.p.src-seen)
-        |=([name=@ta *] (strip-hoon name))
+        |=([name=@ta [=sang:tarball gain=?]] (strip-hoon name))
       =/  result=(map @t tool:nex-tools)  ~
       |-
       ?~  names  (pure:m result)

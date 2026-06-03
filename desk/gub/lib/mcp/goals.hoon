@@ -142,7 +142,7 @@
     =/  suf=tape  ".goal-store"
     =/  names=(list @ta)
       %+  murn  ~(tap by contents.u.fil.ball.p.seen)
-      |=  [fname=@ta *]
+      |=  [fname=@ta [=sang:tarball gain=?]]
       =/  full=tape  (trip fname)
       ?.  (gte (lent full) (lent suf))  ~
       ?.  =((slag (sub (lent full) (lent suf)) full) suf)  ~
