@@ -882,14 +882,13 @@
   =/  hit  (vale-hit lob ckey)
   =/  entry  (~(get by bins) ckey)
   ?~  entry
-    ~&  >>>  [%peek-grub-no-bins blot ckey bins-size=~(wyt by bins)]
-    !!
+    `[blot %| [~[leaf+"peek-grub: mark not in bins {<blot>} ckey={<ckey>}"] u.raw]]
   ?.  ?=(%vase -.built.u.entry)
-    ~|([%peek-grub-not-vase blot ckey] !!)
+    `[blot %| [~[leaf+"peek-grub: bins entry not a vase {<blot>} ckey={<ckey>}"] u.raw]]
   =/  marc-res=(each marc:tarball tang)
     (mule |.(!<(marc:tarball vase.built.u.entry)))
   ?:  ?=(%| -.marc-res)
-    ~|([%peek-grub-marc-fail blot ckey] !!)
+    `[blot %| [(weld ~[leaf+"peek-grub: marc extraction failed {<blot>}"] p.marc-res) u.raw]]
   ?^  hit
     ::  Cache hit: valid → reconstruct vase from marc type
     ?^  u.hit  `[blot %| [u.u.hit u.raw]]
