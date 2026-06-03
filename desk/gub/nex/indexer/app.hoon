@@ -232,24 +232,24 @@
         ['reward' (numb:enjs:format reward.blk)]
     ==
   ::  build txs directory: lump with one json content entry per tx
-  =/  tx-map=(map @ta [=sang:tarball gain=?])
-    %-  ~(gas by *(map @ta [=sang:tarball gain=?]))
+  =/  tx-map=(map @ta [=sang:tarball gain=? bang=(unit tang)])
+    %-  ~(gas by *(map @ta [=sang:tarball gain=? bang=(unit tang)]))
     %+  turn  txs.blk
     |=  t=tx:btc
-    ^-  [@ta [=sang:tarball gain=?]]
+    ^-  [@ta [=sang:tarball gain=? bang=(unit tang)]]
     =/  txid-hex=@t  (render-hex-octs:btc-rpc 32^id.t)
     =/  fname=@ta  (cat 3 txid-hex '.json')
     =/  tx-json=json  (tx-to-json t)
-    [fname [[/ %json] %& !>(tx-json)] %.n]
-  =/  txs-lump=lump:tarball  [~ ~ %.n tx-map]
+    [fname [[/ %json] %& !>(tx-json)] %.n ~]
+  =/  txs-lump=lump:tarball  [~ ~ %.n ~ tx-map]
   ::  assemble block ball: header.json in lump, txs/ as subdir
-  =/  header-contents=(map @ta [=sang:tarball gain=?])
-    (~(put by *(map @ta [=sang:tarball gain=?])) %'header.json' [[[/ %json] %& !>(header-json)] %.n])
-  =/  block-lump=lump:tarball  [~ ~ %.n header-contents]
+  =/  header-contents=(map @ta [=sang:tarball gain=? bang=(unit tang)])
+    (~(put by *(map @ta [=sang:tarball gain=? bang=(unit tang)])) %'header.json' [[[/ %json] %& !>(header-json)] %.n ~])
+  =/  block-lump=lump:tarball  [~ ~ %.n ~ header-contents]
   =/  block-ball=ball:tarball
     [`block-lump (~(put by *(map @ta ball:tarball)) %txs [`txs-lump ~])]
   ;<  *  bind:m
-    (make-soft:io (cord-to-road:tarball (cat 3 './blocks/' (cat 3 height-dir '/'))) &+block-ball)
+    (make-soft:io (cord-to-road:tarball (cat 3 './blocks/' (cat 3 height-dir '/'))) &+(ball-to-bole:tarball block-ball))
   (pure:m ~)
 ::
 ++  tx-to-json

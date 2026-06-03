@@ -1026,7 +1026,7 @@
   ^-  (axal ref:git-repo)
   ?~  fil.ball  [~ ~]
   %+  roll  ~(tap by contents.u.fil.ball)
-  |=  [[name=@t =sang:tarball gain=?] r=(axal ref:git-repo)]
+  |=  [[name=@t =sang:tarball gain=? bang=(unit tang)] r=(axal ref:git-repo)]
   =/  m=mime  !<(mime (need-vase:tarball sang))
   ?:  =(0 p.q.m)  r
   =/  h=(unit @ux)
@@ -1038,10 +1038,10 @@
   |=  =ball:tarball
   ^-  (map hash:git-repo object:git-obj)
   ?~  fil.ball  ~
-  =/  entries=(list [name=@t =sang:tarball gain=?])
+  =/  entries=(list [name=@t =sang:tarball gain=? bang=(unit tang)])
     ~(tap by contents.u.fil.ball)
   %+  roll  entries
-  |=  [[name=@t =sang:tarball gain=?] acc=(map hash:git-repo object:git-obj)]
+  |=  [[name=@t =sang:tarball gain=? bang=(unit tang)] acc=(map hash:git-repo object:git-obj)]
   =/  h=(unit hash:git-repo)
     (rust (trip name) parse-hash-sha-1:git-transport)
   ?~  h  acc
@@ -1071,9 +1071,9 @@
   ^-  (unit pack:git-pack)
   =/  pack-name=@ta  (crip "pack-{(a-co:co n)}.pack")
   =/  idx-name=@ta  (crip "pack-{(a-co:co n)}.idx")
-  =/  pack-content=(unit [=sang:tarball gain=?])
+  =/  pack-content=(unit [=sang:tarball gain=? bang=(unit tang)])
     (~(get by contents.u.fil.ball) pack-name)
-  =/  idx-content=(unit [=sang:tarball gain=?])
+  =/  idx-content=(unit [=sang:tarball gain=? bang=(unit tang)])
     (~(get by contents.u.fil.ball) idx-name)
   ?~  pack-content  ~
   ?~  idx-content  ~

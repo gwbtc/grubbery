@@ -762,11 +762,11 @@
     %-  append-to-msgs  :+  msg-road  'user'
     (rap 3 ~['<api action="' act '" path="' api-path '">ERROR: Unknown action. Valid: file, kids, tree, sand, weir, manu, keep, drop, make, over, rmf, dir, rmd, poke, diff, setweir, rmweir</api>'])
   ::  reads
-      %'file'   (send-dart:io %node slot-wire road %peek ~ ~)
-      %'kids'   (send-dart:io %node slot-wire road %peek ~ ~)
-      %'tree'   (send-dart:io %node slot-wire road %peek ~ ~)
-      %'sand'   (send-dart:io %node slot-wire road %peek ~ ~)
-      %'weir'   (send-dart:io %node slot-wire road %peek ~ ~)
+      %'file'   (send-dart:io %node slot-wire road %peek ~ ~ %.y)
+      %'kids'   (send-dart:io %node slot-wire road %peek ~ ~ %.y)
+      %'tree'   (send-dart:io %node slot-wire road %peek ~ ~ %.y)
+      %'sand'   (send-dart:io %node slot-wire road %peek ~ ~ %.y)
+      %'weir'   (send-dart:io %node slot-wire road %peek ~ ~ %.y)
   ::  manu
       %'manu'   (send-dart:io %node slot-wire road %manu ~)
   ::  writes
@@ -1123,10 +1123,10 @@
   ::  Files in this directory
   ;<  ~  bind:m
     ?~  fil.b  (pure:m ~)
-    =/  files=(list [@ta [=sang:tarball gain=?]])  ~(tap by contents.u.fil.b)
+    =/  files=(list [@ta [=sang:tarball gain=? bang=(unit tang)]])  ~(tap by contents.u.fil.b)
     |-
     ?~  files  (pure:m ~)
-    =/  [file-name=@ta [=sang:tarball gain=?]]  i.files
+    =/  [file-name=@ta [=sang:tarball gain=? bang=(unit tang)]]  i.files
     =/  lane-path=@t  (spat (snoc here file-name))
     ;<  content-text=@t  bind:m  (sage-to-txt (need-sage:tarball sang))
     =/  msg=@t

@@ -21,6 +21,7 @@
 ++  bask-to-sang  |=([=bask err=tang] ^-(sang [p.bask %| [err q.bask]]))
 ::  Compiled mark core: built once from mark source, used for vale + tubes
 ::
+::
 +$  marc
   $_  ^?
   |%
@@ -56,9 +57,20 @@
       poke=(set road)  :: allowed destinations for %poke
       peek=(set road)  :: allowed destinations for %peek
   ==
-+$  lump      [neck=(unit neck) weir=(unit weir) gain=? contents=(map @ta [=sang gain=?])]
++$  lump
+  $:  neck=(unit neck)
+      weir=(unit weir)
+      gain=?
+      bang=(unit tang)
+      contents=(map @ta [=sang gain=? bang=(unit tang)])
+  ==
 +$  ball      (axal lump)
-+$  pulp      [neck=(unit neck) weir=(unit weir) gain=? contents=(map @ta [=bask gain=?])]
++$  pulp
+  $:  neck=(unit neck)
+      weir=(unit weir)
+      gain=?
+      contents=(map @ta [=bask gain=?])
+  ==
 +$  bole      (axal pulp)
 :: simple descriptive file tree
 ::
@@ -547,7 +559,7 @@
   :-  ~
   :+  neck.u.fil.b  weir.u.fil.b
   :-  gain.u.fil.b
-  (~(run by contents.u.fil.b) |=([c=sang gain=?] [[p.c (sang-noun c)] gain]))
+  (~(run by contents.u.fil.b) |=([c=sang gain=? *] [[p.c (sang-noun c)] gain]))
 ::
 ++  ball-to-tree
   |=  b=ball
@@ -599,15 +611,15 @@
       ::  at target dir: file name must not collide with subdir name
       ~|  [%name-collision %file-vs-dir name.rail]
       ?<  (~(has by dir.b) name.rail)
-      =/  lmp=lump  (fall fil.b [~ ~ %.n ~])
-      b(fil `lmp(contents (~(put by contents.lmp) name.rail [c %.n])))
+      =/  lmp=lump  (fall fil.b [~ ~ %.n ~ ~])
+      b(fil `lmp(contents (~(put by contents.lmp) name.rail [c %.n ~])))
     ::  creating subdir: name must not collide with file name
     ~|  [%name-collision %dir-vs-file i.path.rail]
     ?<  ?&  ?=(^ fil.b)
             (~(has by contents.u.fil.b) i.path.rail)
         ==
     =/  kid=ball  (~(gut by dir.b) i.path.rail *ball)
-    =/  filled=ball  ?^(fil.kid kid kid(fil `[~ ~ %.n ~]))
+    =/  filled=ball  ?^(fil.kid kid kid(fil `[~ ~ %.n ~ ~]))
     b(dir (~(put by dir.b) i.path.rail (~(put ba filled) [t.path.rail name.rail] c)))
   ::  Touch a file: update mtime, propagate mtime up to parents
   ::  Check if a content item exists
@@ -705,7 +717,7 @@
     %+  turn  ~(tap of b)
     |=  [pax=path lmp=lump]
     %+  turn  ~(tap by contents.lmp)
-    |=  [name=@ta =sang gain=?]
+    |=  [name=@ta =sang gain=? bang=(unit tang)]
     [[pax name] sang]
   ::  Apply function to all content items
   ::
@@ -717,7 +729,7 @@
     %-  ~(put of acc)
     :-  pax
     %=  lmp
-      contents  (~(run by contents.lmp) |=([=sang gain=?] [(fn sang) gain]))
+      contents  (~(run by contents.lmp) |=([=sang gain=? bang=(unit tang)] [(fn sang) gain bang]))
     ==
   ::  Insert list of content items
   ::
@@ -762,14 +774,14 @@
     |=  [pax=path nec=(unit neck)]
     ^-  ball
     ?~  pax
-      b(fil `[nec ~ %.n ~])
+      b(fil `[nec ~ %.n ~ ~])
     ::  creating subdir: name must not collide with file name
     ~|  [%name-collision %dir-vs-file i.pax]
     ?<  ?&  ?=(^ fil.b)
             (~(has by contents.u.fil.b) i.pax)
         ==
     =/  kid=ball  (~(gut by dir.b) i.pax *ball)
-    =/  filled=ball  ?^(fil.kid kid kid(fil `[~ ~ %.n ~]))
+    =/  filled=ball  ?^(fil.kid kid kid(fil `[~ ~ %.n ~ ~]))
     b(dir (~(put by dir.b) i.pax (~(mkd ba filled) t.pax nec)))
   ::  Put a ball (subtree) at path, replacing any existing subtree.
   ::  Ensures all intermediate directories have lumps.
@@ -787,7 +799,7 @@
             (~(has by contents.u.fil.b) i.pax)
         ==
     =/  kid=ball  (~(gut by dir.b) i.pax *ball)
-    =/  filled=ball  ?^(fil.kid kid kid(fil `[~ ~ %.n ~]))
+    =/  filled=ball  ?^(fil.kid kid kid(fil `[~ ~ %.n ~ ~]))
     b(dir (~(put by dir.b) i.pax $(b filled, pax t.pax)))
   ::  Descend to subdirectory as new ball
   ::
@@ -1157,13 +1169,13 @@
     =/  tar-entries=tarball
       ?~  fil.ball
         ~
-      =/  exportable=(list [@ta [=sang gain=?]])  ~(tap by contents.u.fil.ball)
+      =/  exportable=(list [@ta [=sang gain=? bang=(unit tang)]])  ~(tap by contents.u.fil.ball)
       %+  weld
         ?~  path
           ~
         [(make-directory-entry path ~) ~]
       %+  turn  exportable
-      |=  [name=@ta =sang gain=?]
+      |=  [name=@ta =sang gain=? bang=(unit tang)]
       (make-content-entry (snoc path name) sang)
     =/  directories  ~(tap by dir.ball)
     |-

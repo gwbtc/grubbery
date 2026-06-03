@@ -361,7 +361,6 @@
               '  %drop   unsubscribe'
               '  %manu   query documentation'
               '  %code   look up compiled code'
-              '  %bang   query error state'
               ''
               ''
               '## Sandboxing (Weirs)'
@@ -1434,7 +1433,7 @@
     (pure:m result)
   =/  names=(list @ta)
     %+  turn  ~(tap by contents.u.fil.ball.p.src-seen)
-    |=([name=@ta [=sang:tarball gain=?]] (strip-hoon name))
+    |=([name=@ta [=sang:tarball gain=? bang=(unit tang)]] (strip-hoon name))
   |-
   ?~  names  (pure:m result)
   =/  name=@ta  i.names
@@ -1466,7 +1465,7 @@
     (pure:m [%| ~[leaf+"tool not found: {(trip tool)}"]])
   =/  names=(list @ta)
     %+  turn  ~(tap by contents.u.fil.ball.p.src-seen)
-    |=([name=@ta [=sang:tarball gain=?]] (strip-hoon name))
+    |=([name=@ta [=sang:tarball gain=? bang=(unit tang)]] (strip-hoon name))
   |-
   ?~  names
     (pure:m [%| ~[leaf+"tool not found: {(trip tool)}"]])
@@ -2807,7 +2806,7 @@
     =/  files=(list [@ta @tas])
       ?~  fil.ball.p.seen  ~
       %+  turn  ~(tap by contents.u.fil.ball.p.seen)
-      |=([n=@ta [c=sang:tarball gain=?]] [n name.p.c])
+      |=([n=@ta [c=sang:tarball gain=? bang=(unit tang)]] [n name.p.c])
     =/  dir-text=tape
       ?~  sub-dirs  ""
       (zing (turn sub-dirs |=(d=@ta "\0a  {(trip d)}/")))
@@ -3035,8 +3034,8 @@
     ?~  raw=(get-arg st 'road')
       (pure:m [%error 'Missing required argument: road'])
     =/  road=road:tarball  (agent-road u.raw)
-    =/  new-ball=ball:tarball  [`[~ ~ %.n ~] ~]
-    ;<  ~  bind:m  (make:io road &+(ball-to-bole:tarball new-ball))
+    =/  new-bole=bole:tarball  [`[~ ~ %.n ~] ~]
+    ;<  ~  bind:m  (make:io road &+new-bole)
     (pure:m [%text (crip "Created directory {(trip u.raw)}")])
   --
 ::
@@ -3072,8 +3071,8 @@
     ?~  code-pax
       (pure:m [%error 'Code path cannot be empty'])
     =/  code-rail=rail:tarball  [(snip `path`code-pax) (rear code-pax)]
-    =/  new-ball=ball:tarball  [`[`code-rail ~ %.n ~] ~]
-    ;<  ~  bind:m  (make:io road &+(ball-to-bole:tarball new-ball))
+    =/  new-bole=bole:tarball  [`[`code-rail ~ %.n ~] ~]
+    ;<  ~  bind:m  (make:io road &+new-bole)
     (pure:m [%text (crip "Created nexus {(trip u.raw)} with code {(trip u.code-raw)}")])
   --
 ::
@@ -3359,28 +3358,24 @@
     ?~  raw=(get-arg st 'road')
       (pure:m [%error 'Missing required argument: road'])
     =/  road=road:tarball  (agent-road u.raw)
-    ;<  res=(each bangs:nexus (unit tang))  bind:m  (get-bang:io road)
-    ?:  ?=(%| -.res)
-      ?~  p.res
-        (pure:m [%error (crip "Path not found: {(trip u.raw)}")])
-      =/  rendered=tape
-        (zing (turn (flop u.p.res) |=(=tank (weld ~(ram re tank) "\0a"))))
-      (pure:m [%error (crip "Query failed:\0a{rendered}")])
-    =/  =bangs:nexus  p.res
+    ;<  =seen:nexus  bind:m  (peek:io road ~)
+    ?.  ?=([%& %ball *] seen)
+      (pure:m [%error (crip "Path not found: {(trip u.raw)}")])
+    =/  nexus-bang=(unit tang)  ?~(fil.ball.p.seen ~ bang.u.fil.ball.p.seen)
     =/  out=tape  ""
-    =?  out  ?=(^ bang.bangs)
+    =?  out  ?=(^ nexus-bang)
       =/  rendered=tape
-        (zing (turn (flop u.bang.bangs) |=(=tank (weld ~(ram re tank) "\0a"))))
+        (zing (turn (flop u.nexus-bang) |=(=tank (weld ~(ram re tank) "\0a"))))
       "NEXUS BANG:\0a{rendered}"
-    =/  errs=(list [@ta (unit tang)])  ~(tap by err.bangs)
     =/  file-out=tape
+      ?~  fil.ball.p.seen  ""
       %-  zing
-      %+  murn  errs
-      |=  [name=@ta err=(unit tang)]
+      %+  murn  ~(tap by contents.u.fil.ball.p.seen)
+      |=  [name=@ta =sang:tarball gain=? bang=(unit tang)]
       ^-  (unit tape)
-      ?~  err  ~
+      ?~  bang  ~
       =/  rendered=tape
-        (zing (turn (flop u.err) |=(=tank (weld ~(ram re tank) "\0a"))))
+        (zing (turn (flop u.bang) |=(=tank (weld ~(ram re tank) "\0a"))))
       `"\0a{(trip name)}: BANGED\0a{rendered}"
     =.  out  (weld out file-out)
     ?:  =('' (crip out))
@@ -3542,8 +3537,8 @@
     ?~  code-pax
       (pure:m [%error 'Code path cannot be empty'])
     =/  code-rail=rail:tarball  [(snip `path`code-pax) (rear code-pax)]
-    =/  new-ball=ball:tarball  [`[`code-rail ~ %.n ~] ~]
-    ;<  ~  bind:m  (make:io child-road &+(ball-to-bole:tarball new-ball))
+    =/  new-bole=bole:tarball  [`[`code-rail ~ %.n ~] ~]
+    ;<  ~  bind:m  (make:io child-road &+new-bole)
     ::  read parent config (../../config.json from tool proc)
     ;<  parent-config=json  bind:m
       =/  m  (fiber:fiber:nexus ,json)
@@ -4290,7 +4285,7 @@
       (pure:m [%text 'No cron jobs.'])
     ?~  fil.ball.p.seen
       (pure:m [%text 'No cron jobs.'])
-    =/  jobs=(list [@ta [=sang:tarball gain=?]])  ~(tap by contents.u.fil.ball.p.seen)
+    =/  jobs=(list [@ta [=sang:tarball gain=? bang=(unit tang)]])  ~(tap by contents.u.fil.ball.p.seen)
     =/  out=(list tape)  ~
     |-
     ?~  jobs

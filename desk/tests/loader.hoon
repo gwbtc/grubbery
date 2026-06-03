@@ -28,9 +28,9 @@
   ::  ball with one file at root
   |=  [name=@ta txt=@t]
   ^-  ball:tarball
-  =/  contents=(map @ta [=sang:tarball gain=?])
-    (~(put by *(map @ta [=sang:tarball gain=?])) name [(mk-content txt) %.n])
-  [`[~ ~ %.n contents] ~]
+  =/  contents=(map @ta [=sang:tarball gain=? bang=(unit tang)])
+    (~(put by *(map @ta [=sang:tarball gain=? bang=(unit tang)])) name [(mk-content txt) %.n ~])
+  [`[~ ~ %.n ~ contents] ~]
 ::
 ::
 ::  ==========================================

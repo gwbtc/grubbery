@@ -1323,23 +1323,23 @@
   =/  wdir=@ta  (cat 3 (crip (hexn:http-utils fp)) '.wallet_wallet')
   =/  adir=@ta  (cat 3 (crip (hexn:http-utils apk)) '.wallet_account')
   =/  net-dir=@ta  ;;(@ta network)
-  =/  acct-contents=(map @ta [=sang:tarball gain=?])
-    (~(put by *(map @ta [=sang:tarball gain=?])) %'data.wallet_account' [[[/wallet %account] %& !>(acct)] %.n])
-  =/  acct-lump=lump:tarball  [`[/wallet %account] ~ %.n acct-contents]
+  =/  acct-contents=(map @ta [=sang:tarball gain=? bang=(unit tang)])
+    (~(put by *(map @ta [=sang:tarball gain=? bang=(unit tang)])) %'data.wallet_account' [[[/wallet %account] %& !>(acct)] %.n ~])
+  =/  acct-lump=lump:tarball  [`[/wallet %account] ~ %.n ~ acct-contents]
   ::  build addresses/[network]/ ball with recv + chng mop files
   =/  chain-lump=lump:tarball
-    :-  ~  :-  ~  :-  %.n
-    %-  ~(gas by *(map @ta [=sang:tarball gain=?]))
-    :~  ['recv.wallet_addresses' [[[/wallet %addresses] %& !>(recv-mop)] %.n]]
-        ['chng.wallet_addresses' [[[/wallet %addresses] %& !>(*addr-mop)] %.n]]
-        ['txs.wallet_txs' [[[/wallet %txs] %& !>(*tx-map)] %.n]]
+    :-  ~  :-  ~  :-  %.n  :-  ~
+    %-  ~(gas by *(map @ta [=sang:tarball gain=? bang=(unit tang)]))
+    :~  ['recv.wallet_addresses' [[[/wallet %addresses] %& !>(recv-mop)] %.n ~]]
+        ['chng.wallet_addresses' [[[/wallet %addresses] %& !>(*addr-mop)] %.n ~]]
+        ['txs.wallet_txs' [[[/wallet %txs] %& !>(*tx-map)] %.n ~]]
     ==
   =/  net-ball=ball:tarball  [`chain-lump ~]
   =/  addr-dir=ball:tarball  [~ (~(put by *(map @ta ball:tarball)) net-dir net-ball)]
   =/  acct-ball=ball:tarball
     [`acct-lump (~(put by *(map @ta ball:tarball)) 'addresses' addr-dir)]
   :^  wdir
-    :-  `[`[/wallet %wallet] ~ %.n (~(put by *(map @ta [=sang:tarball gain=?])) %'main.wallet_wallet' [[[/wallet %wallet] %& !>(wal)] %.n])]
+    :-  `[`[/wallet %wallet] ~ %.n ~ (~(put by *(map @ta [=sang:tarball gain=? bang=(unit tang)])) %'main.wallet_wallet' [[[/wallet %wallet] %& !>(wal)] %.n ~])]
     ~
   adir
   acct-ball
@@ -1392,7 +1392,7 @@
   %+  murn  ~(tap by dir.ball.p.seen)
   |=  [name=@ta sub=ball:tarball]
   =/  sub-lump=lump:tarball  (fall fil.sub *lump:tarball)
-  =/  ct=(unit [=sang:tarball gain=?])  (~(get by contents.sub-lump) 'main.wallet_wallet')
+  =/  ct=(unit [=sang:tarball gain=? bang=(unit tang)])  (~(get by contents.sub-lump) 'main.wallet_wallet')
   ?~  ct  ~
   ?.  ?=(%wallet name.p.sang.u.ct)  ~
   (mole |.(!<(wallet-data (need-vase:tarball sang.u.ct))))

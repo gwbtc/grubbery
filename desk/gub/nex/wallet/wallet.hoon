@@ -129,12 +129,12 @@
             =/  acct-pubkey=@ux  public-key:derived
             =/  acct-key=@ta  (crip (hexn:http-utils acct-pubkey))
             =/  acct-dir=@ta  (cat 3 acct-key '.wallet_account')
-            =/  acct-contents=(map @ta [=sang:tarball gain=?])
-              (~(put by *(map @ta [=sang:tarball gain=?])) %'data.wallet_account' [[[/wallet %account] %& !>(acct)] %.n])
-            =/  acct-lump=lump:tarball  [`[/wallet %account] ~ %.n acct-contents]
+            =/  acct-contents=(map @ta [=sang:tarball gain=? bang=(unit tang)])
+              (~(put by *(map @ta [=sang:tarball gain=? bang=(unit tang)])) %'data.wallet_account' [[[/wallet %account] %& !>(acct)] %.n ~])
+            =/  acct-lump=lump:tarball  [`[/wallet %account] ~ %.n ~ acct-contents]
             =/  acct-ball=ball:tarball  [`acct-lump ~]
             ;<  err=(unit tang)  bind:m
-              (make-soft:io [%| 2 %| (snoc /accounts acct-dir)] &+acct-ball)
+              (make-soft:io [%| 2 %| (snoc /accounts acct-dir)] &+(ball-to-bole:tarball acct-ball))
 
             ?^  err
               ;<  ~  bind:m
@@ -267,12 +267,12 @@
         =/  acct-pubkey=@ux  public-key:derived
         =/  acct-key=@ta  (crip (hexn:http-utils acct-pubkey))
         =/  acct-dir=@ta  (cat 3 acct-key '.wallet_account')
-        =/  acct-contents=(map @ta [=sang:tarball gain=?])
-          (~(put by *(map @ta [=sang:tarball gain=?])) %'data.wallet_account' [[[/wallet %account] %& !>(acct)] %.n])
-        =/  acct-lump=lump:tarball  [`[/wallet %account] ~ %.n acct-contents]
+        =/  acct-contents=(map @ta [=sang:tarball gain=? bang=(unit tang)])
+          (~(put by *(map @ta [=sang:tarball gain=? bang=(unit tang)])) %'data.wallet_account' [[[/wallet %account] %& !>(acct)] %.n ~])
+        =/  acct-lump=lump:tarball  [`[/wallet %account] ~ %.n ~ acct-contents]
         =/  acct-ball=ball:tarball  [`acct-lump ~]
         ;<  err=(unit tang)  bind:m
-          (make-soft:io [%| 3 %| (snoc /accounts acct-dir)] &+acct-ball)
+          (make-soft:io [%| 3 %| (snoc /accounts acct-dir)] &+(ball-to-bole:tarball acct-ball))
         ?^  err
           ~&(>>> [%discover %account-create-failed] (pure:m ~))
         ::  update wallet accounts map
@@ -344,7 +344,7 @@
   ^-  manx
   ?.  ?=([%& %ball *] seen)  ;div;
   =/  =lump:tarball  (fall fil.ball.p.seen *lump:tarball)
-  =/  ct=(unit [=sang:tarball gain=?])  (~(get by contents.lump) name)
+  =/  ct=(unit [=sang:tarball gain=? bang=(unit tang)])  (~(get by contents.lump) name)
   ?~  ct  ;div;
   =/  result=(unit manx)  (mole |.((need (de-xml:html !<(@t (need-vase:tarball sang.u.ct))))))
   (fall result ;div;)
@@ -477,7 +477,7 @@
   |=  bsk=bask:tarball
   ^-  bask:tarball
   ?:  =(bsk *bask:tarball)  bsk
-  ?:  =([/ %boom] p.bsk)  bsk
+  ?.  =([/wallet %wallet] p.bsk)  bsk
   =/  wal=wallet-data  ;;(wallet-data q.bsk)
   [[/ %html] (crip (en-xml:html (detail-page wal ~ ;div; ;div;)))]
 ::
@@ -486,7 +486,7 @@
   ^-  (unit wallet-data)
   ?.  ?=([%& %ball *] seen)  ~
   =/  =lump:tarball  (fall fil.ball.p.seen *lump:tarball)
-  =/  ct=(unit [=sang:tarball gain=?])  (~(get by contents.lump) 'main.wallet_wallet')
+  =/  ct=(unit [=sang:tarball gain=? bang=(unit tang)])  (~(get by contents.lump) 'main.wallet_wallet')
   ?~  ct  ~
   ?.  ?=(%wallet name.p.sang.u.ct)  ~
   (mole |.(!<(wallet-data (need-vase:tarball sang.u.ct))))
@@ -499,7 +499,7 @@
   %+  murn  ~(tap by dir.ball.p.seen)
   |=  [name=@ta sub=ball:tarball]
   =/  sub-lump=lump:tarball  (fall fil.sub *lump:tarball)
-  =/  ct=(unit [=sang:tarball gain=?])  (~(get by contents.sub-lump) 'data.wallet_account')
+  =/  ct=(unit [=sang:tarball gain=? bang=(unit tang)])  (~(get by contents.sub-lump) 'data.wallet_account')
   ?~  ct  ~
   ?.  ?=(%account name.p.sang.u.ct)  ~
   =/  acct=(unit account-data)  (mole |.(!<(account-data (need-vase:tarball sang.u.ct))))

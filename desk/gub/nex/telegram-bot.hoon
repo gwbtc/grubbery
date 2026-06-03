@@ -369,10 +369,10 @@
   ^-  [(map @t @t) (list json)]
   ?.  ?=([%& %ball *] seen)  [~ ~]
   ?~  fil.ball.p.seen  [~ ~]
-  =/  files=(list [key=@ta [=sang:tarball gain=?]])
+  =/  files=(list [key=@ta [=sang:tarball gain=? bang=(unit tang)]])
     ~(tap by contents.u.fil.ball.p.seen)
   %+  roll  files
-  |=  [[key=@ta =sang:tarball gain=?] chats=(map @t @t) msgs=(list json)]
+  |=  [[key=@ta =sang:tarball gain=? bang=(unit tang)] chats=(map @t @t) msgs=(list json)]
   ?.  ?=(%json name.p.sang)  [chats msgs]
   =/  dat=json  !<(json (need-vase:tarball sang))
   ::  handle old format: [%a msgs] — derive chat-id from first message

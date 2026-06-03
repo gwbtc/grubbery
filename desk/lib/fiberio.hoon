@@ -309,7 +309,16 @@
   |=  [=road:tarball blot=(unit blot:tarball)]
   =/  m  (fiber ,seen:nexus)
   ^-  form:m
-  ;<  ~  bind:m  (send-dart %node /peek road %peek blot ~)
+  ;<  ~  bind:m  (send-dart %node /peek road %peek blot ~ %.y)
+  (take-peek /peek)
+::
+::  Shallow peek: files at this level, subdir names only (no recursion)
+::
+++  peek-shallow
+  |=  [=road:tarball blot=(unit blot:tarball)]
+  =/  m  (fiber ,seen:nexus)
+  ^-  form:m
+  ;<  ~  bind:m  (send-dart %node /peek road %peek blot ~ %.n)
   (take-peek /peek)
 ::
 ::  Peek at a historical version of a file
@@ -318,7 +327,7 @@
   |=  [=road:tarball blot=(unit blot:tarball) =case:nexus]
   =/  m  (fiber ,seen:nexus)
   ^-  form:m
-  ;<  ~  bind:m  (send-dart %node /peek road %peek blot `case)
+  ;<  ~  bind:m  (send-dart %node /peek road %peek blot `case %.y)
   (take-peek /peek)
 ::
 ::  Check if a target (file or directory) exists at a road.
@@ -686,24 +695,6 @@
       [%skip ~]
     [%done p.res.u.in]
   ==
-::  +get-bang: query error state at a road
-::
-++  get-bang
-  |=  =road:tarball
-  =/  m  (fiber ,(each bangs:nexus (unit tang)))
-  ^-  form:m
-  ;<  ~  bind:m  (send-dart %node /bang road %bang ~)
-  |=  input
-  :+  ~  q.state
-  ?+  in  [%skip ~]
-      ~  [%wait ~]
-      [~ %veto *]
-    [%fail (veto-error dart.u.in)]
-      [~ %bang * *]
-    ?.  =(/bang wire.u.in)
-      [%skip ~]
-    [%done res.u.in]
-  ==
 ::  +get-font: find code responsible for a node
 ::  Returns bend to code namespace (relative to asker) + source rail within
 ::
@@ -778,7 +769,7 @@
   ^-  (set blot:tarball)
   =/  blots=(set blot:tarball)  ~
   =?  blots  ?=(^ fil.ball)
-    =/  entries=(list [@ta [=sang:tarball gain=?]])
+    =/  entries=(list [@ta [=sang:tarball gain=? bang=(unit tang)]])
       ~(tap by contents.u.fil.ball)
     |-  ^-  (set blot:tarball)
     ?~  entries  blots
@@ -794,7 +785,7 @@
   |=  =ball:tarball
   ^-  (set blot:tarball)
   ?~  fil.ball  ~
-  =/  entries=(list [@ta [=sang:tarball gain=?]])
+  =/  entries=(list [@ta [=sang:tarball gain=? bang=(unit tang)]])
     ~(tap by contents.u.fil.ball)
   =/  blots=(set blot:tarball)  ~
   |-  ^-  (set blot:tarball)
@@ -1147,7 +1138,7 @@
   ;<  =seen:nexus  bind:m  (peek src ~)
   ?.  ?=([%& %ball *] seen)
     ~|(%copy-fold-src-not-found !!)
-  (make dst &+ball.p.seen)
+  (make dst &+(ball-to-bole:tarball ball.p.seen))
 ::  +move-grub: move a file from src to dst (copy + delete)
 ::
 ++  move-grub

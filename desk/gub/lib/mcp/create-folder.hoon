@@ -27,7 +27,7 @@
   =/  [parent-path=@t folder-name=@t]  p.parsed
   =/  dir-name=@ta  folder-name
   =/  folder-path=path  (snoc (stab parent-path) dir-name)
-  =/  new-ball=ball:tarball  [`[~ ~ %.n ~] ~]
-  ;<  ~  bind:m  (make:io [%& %| folder-path] &+(ball-to-bole:tarball new-ball))
+  =/  new-bole=bole:tarball  [`[~ ~ %.n ~] ~]
+  ;<  ~  bind:m  (make:io [%& %| folder-path] &+new-bole)
   (pure:m [%text (crip "Created folder {(spud folder-path)}")])
 --

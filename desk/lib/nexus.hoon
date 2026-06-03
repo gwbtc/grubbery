@@ -80,10 +80,11 @@
       [%cull ~]                 :: delete grub or directory
       [%sand weir=(unit weir)]  :: set weir
       [%load ~]                 :: trigger on-load for a nexus (folds only)
-      [%peek blot=(unit blot:tarball) case=(unit case)]
+      [%peek blot=(unit blot:tarball) case=(unit case) deep=?]
                                        :: read a grub
                                        :: blot: convert file sage to this blot
                                        :: case: if set, read historical version
+                                       :: deep: %.y recurse subdirs, %.n shallow (dir names only)
       [%keep blot=(unit blot:tarball)]  :: subscribe to changes at dest (grub or ball per road)
                                        :: blot: if set, convert file sage in news
       [%drop ~]                 :: unsubscribe from dest
@@ -93,7 +94,6 @@
       [%seek =lobe:clay]        :: find all [rail cass] pairs with this hash
       [%peep =find]
       [%manu ~]                 :: docs for this path (road resolves nexus + query)
-      [%bang ~]                 :: query error state at dest
       [%code ~]                 :: look up compiled artifacts at dest
       [%font ~]                 :: find code responsible for dest node
   ==
@@ -201,7 +201,6 @@
         [%seek =wire res=(each (list [=rail:tarball =cass:clay]) tang)] :: response to seek
         [%peep =wire res=(each (list [=cass:clay =sage:tarball]) tang)] :: response to peep
         [%manu =wire res=(each @t tang)] :: response to manu
-        [%bang =wire res=(each bangs (unit tang))]  :: directory bangs or file error
         [%over =wire err=(unit tang)] :: response to over (content overwrite)
         [%writ ~] :: notify grub its file was externally modified by %over
         [%bond =wire =wave] :: subscription ack with initial wavefront
@@ -291,7 +290,6 @@
 ::
 +$  pipe   [bang=(unit tang) proc=(map @ta proc:fiber)]
 +$  pool   (axal pipe)
-+$  bangs  [bang=(unit tang) err=(map @ta (unit tang))]
 ::  Internal subscriptions: process watches tree locations
 ::
 +$  subscribers    (map rail:tarball [=wire blot=(unit blot:tarball)])
@@ -339,10 +337,12 @@
   $:  =lobe:clay
       mark=[=blot:tarball ckey=@uv]
       gain=?
+      bang=(unit lobe:clay)
   ==
 +$  tree
   $:  nek=(unit [=neck:tarball ckey=@uv])
       gain=?
+      bang=(unit lobe:clay)
       fil=(map @ta lobe:clay)
       dir=(map @ta [=lobe:clay weir=(unit weir)])
   ==
@@ -463,7 +463,8 @@
     [tree-lobe kid-weir]
   ::  Build tree object + store via put-tree
   =/  tree-gain=?  ?~(existing-tree %.n gain.u.existing-tree)
-  =/  =tree  [nek tree-gain fil dir-map]
+  =/  tree-bang=(unit lobe:clay)  ?~(existing-tree ~ bang.u.existing-tree)
+  =/  =tree  [nek tree-gain tree-bang fil dir-map]
   =/  [changed=? new-born=^born new-silo=^silo]
     (put-tree born silo now dir node tree)
   ?.  changed  [born silo]
@@ -489,14 +490,18 @@
     [%.n born silo]
   =/  [* new-silo=^silo]
     (~(put-ject si silo) [%tree tree])
-  =.  silo  new-silo
+  ::  Tombstone previous %temp fold entry
+  =/  [tombed-silo=^silo tombed-fold=hist]
+    ?~  fold-cas  [new-silo fold.node]
+    (~(tomb-temp si new-silo) fold.node u.fold-cas)
+  =.  silo  tombed-silo
   =/  old-fold=cass:clay  (fall fold-cas [0 now])
   =/  new-fold=cass:clay
     =/  nex-da=@da  ?:((lth da.old-fold now) now +(da.old-fold))
     [+(ud.old-fold) nex-da]
   =/  =pace:hist  ?:(gain.tree [%firm `lobe] [%temp `lobe])
   =/  new-hist=hist
-    (put:hon:hist fold.node new-fold pace)
+    (put:hon:hist tombed-fold new-fold pace)
   =.  born  (~(put of born) dir node(fold new-hist))
   [%.y born silo]
 ::  +bo: Pure operations on born (version tracking)
@@ -595,9 +600,9 @@
     |=  [here=fold:tarball old-ball=ball:tarball new-ball=ball:tarball]
     ^-  born
     ::  Get file maps at this level
-    =/  old-files=(map @ta [=sang:tarball gain=?])
+    =/  old-files=(map @ta [=sang:tarball gain=? bang=(unit tang)])
       ?~(fil.old-ball ~ contents.u.fil.old-ball)
-    =/  new-files=(map @ta [=sang:tarball gain=?])
+    =/  new-files=(map @ta [=sang:tarball gain=? bang=(unit tang)])
       ?~(fil.new-ball ~ contents.u.fil.new-ball)
     =/  old-names=(set @ta)  ~(key by old-files)
     =/  new-names=(set @ta)  ~(key by new-files)
@@ -711,10 +716,11 @@
     =.  jects.silo  (~(put by jects.silo) lobe [1 ject])
     ?-  -.ject
         %leaf
-      ::  leaf references a noun — bump its refcount
       =.  silo  (~(bump-ref si silo) lobe.leaf.ject)
+      =?  silo  ?=(^ bang.leaf.ject)  (~(bump-ref si silo) u.bang.leaf.ject)
       [lobe silo]
         %tree
+      =?  silo  ?=(^ bang.tree.ject)  (~(bump-ref si silo) u.bang.tree.ject)
       =.  silo
         %-  ~(rep by fil.tree.ject)
         |=  [[* =lobe:clay] =_silo]
@@ -739,8 +745,10 @@
     =/  jt=ject  ject.u.got
     ?-  -.jt
         %leaf
-      (~(drop si silo) lobe.leaf.jt)
+      =.  silo  (~(drop si silo) lobe.leaf.jt)
+      ?~(bang.leaf.jt silo (~(drop si silo) u.bang.leaf.jt))
         %tree
+      =?  silo  ?=(^ bang.tree.jt)  (~(drop si silo) u.bang.tree.jt)
       =.  silo
         %-  ~(rep by fil.tree.jt)
         |=  [[* =lobe:clay] =_silo]
@@ -749,7 +757,68 @@
       |=  [[* =lobe:clay *] =_silo]
       (~(drop-ject si silo) lobe)
     ==
-    ::  Record a noun: insert into silo, update hist.
+  ::  Set bang on an existing ject.  Stores the tang as a noun,
+  ::  builds a new ject with bang=`tang-lobe, drops the old ject,
+  ::  and returns the new ject lobe.
+  ::
+  ++  set-bang
+    |=  [old-lobe=lobe:clay err=tang]
+    ^-  [lobe:clay ^silo]
+    =/  got  (~(get by jects.silo) old-lobe)
+    ?~  got  [old-lobe silo]
+    ::  store tang noun in silo
+    =/  [tang-lobe=lobe:clay mid-silo=^silo]  (~(put si silo) err)
+    ::  build new ject with bang set
+    =/  new-ject=ject
+      ?-  -.ject.u.got
+        %leaf  [%leaf leaf.ject.u.got(bang `tang-lobe)]
+        %tree  [%tree tree.ject.u.got(bang `tang-lobe)]
+      ==
+    =/  [new-lobe=lobe:clay fin-silo=^silo]
+      (~(put-ject si mid-silo) new-ject)
+    ::  drop old ject ref
+    =.  fin-silo  (~(drop-ject si fin-silo) old-lobe)
+    [new-lobe fin-silo]
+  ::  Clear bang on an existing ject.  Builds a new ject with bang=~,
+  ::  drops the old ject and the old bang noun ref.
+  ::  Returns ~ if ject has no bang or doesn't exist.
+  ::
+  ++  clear-bang
+    |=  old-lobe=lobe:clay
+    ^-  (unit [lobe=lobe:clay =^silo])
+    =/  got  (~(get by jects.silo) old-lobe)
+    ?~  got  ~
+    =/  old-bang=(unit lobe:clay)
+      ?-  -.ject.u.got
+        %leaf  bang.leaf.ject.u.got
+        %tree  bang.tree.ject.u.got
+      ==
+    ?~  old-bang  ~  :: no bang to clear
+    ::  build new ject with bang cleared
+    =/  new-ject=ject
+      ?-  -.ject.u.got
+        %leaf  [%leaf leaf.ject.u.got(bang ~)]
+        %tree  [%tree tree.ject.u.got(bang ~)]
+      ==
+    =/  [new-lobe=lobe:clay mid-silo=^silo]
+      (~(put-ject si silo) new-ject)
+    ::  drop old ject ref (cascades to drop old bang noun ref)
+    =.  mid-silo  (~(drop-ject si mid-silo) old-lobe)
+    `[new-lobe mid-silo]
+  ::  Tombstone previous %temp entry in hist, dropping silo refs.
+  ::  %firm entries are left untouched.
+  ::
+  ++  tomb-temp
+    |=  [=hist prev-cas=cass:clay]
+    ^-  [^silo ^hist]
+    =/  prev-pace=(unit pace:^hist)  (get:hon:^hist hist prev-cas)
+    ?~  prev-pace  [silo hist]
+    ?.  ?=(%temp -.u.prev-pace)  [silo hist]
+    =.  silo
+      ?~  p.u.prev-pace  silo
+      (~(drop-ject si silo) u.p.u.prev-pace)
+    [silo (put:hon:^hist hist prev-cas [%tomb ~])]
+  ::  Record a noun: insert into silo, update hist.
   ::  Returns [lobe new-silo new-hist].
   ::
   ::  gain=%.y: entry is %firm (permanent until explicitly tombed).
@@ -765,24 +834,24 @@
             =hist
         ==
     ^-  [lobe:clay ^silo ^hist]
+    ::  Carry over bang from previous leaf ject (sticky until cleared)
+    =/  prev-bang=(unit lobe:clay)
+      =/  prev-pace=(unit pace:^hist)  (get:hon:^hist hist file-cass)
+      ?~  prev-pace  ~
+      ?:  ?=(%tomb -.u.prev-pace)  ~
+      ?~  p.u.prev-pace  ~
+      =/  got  (~(get by jects.silo) u.p.u.prev-pace)
+      ?~  got  ~
+      ?.  ?=(%leaf -.ject.u.got)  ~
+      bang.leaf.ject.u.got
     ::  Store noun, then wrap as leaf ject
     =/  [noun-lobe=lobe:clay new-silo=^silo]  (put noun)
     =/  [ject-lobe=lobe:clay newer-silo=^silo]
-      (~(put-ject si new-silo) [%leaf noun-lobe [blot ckey] gain])
-    ::  If previous version was %temp, drop its silo refs and
-    ::  tombstone it. %firm entries survive untouched.
-    =/  prev-pace=(unit pace:^hist)  (get:hon:^hist hist file-cass)
-    =.  newer-silo
-      ?~  prev-pace  newer-silo
-      ?.  ?=(%temp -.u.prev-pace)  newer-silo
-      ?~  p.u.prev-pace  newer-silo
-      (~(drop-ject si newer-silo) u.p.u.prev-pace)
-    =/  tombed-hist=^hist
-      ?~  prev-pace  hist
-      ?.  ?=(%temp -.u.prev-pace)  hist
-      (put:hon:^hist hist file-cass [%tomb ~])
+      (~(put-ject si new-silo) [%leaf noun-lobe [blot ckey] gain prev-bang])
+    =/  [tombed-silo=^silo tombed-hist=^hist]
+      (~(tomb-temp si newer-silo) hist file-cass)
     =/  =pace:^hist  ?:(gain [%firm `ject-lobe] [%temp `ject-lobe])
-    [noun-lobe newer-silo (put:hon:^hist tombed-hist cass pace)]
+    [noun-lobe tombed-silo (put:hon:^hist tombed-hist cass pace)]
   --
 ::  +stamp-mtimes: no-op (metadata removed from content)
 ::
@@ -907,9 +976,9 @@
   |=  [here=fold:tarball old=ball:tarball new=ball:tarball]
   ^-  (set lane:tarball)
   =|  result=(set lane:tarball)
-  =/  old-files=(map @ta [=sang:tarball gain=?])
+  =/  old-files=(map @ta [=sang:tarball gain=? bang=(unit tang)])
     ?~(fil.old ~ contents.u.fil.old)
-  =/  new-files=(map @ta [=sang:tarball gain=?])
+  =/  new-files=(map @ta [=sang:tarball gain=? bang=(unit tang)])
     ?~(fil.new ~ contents.u.fil.new)
   =/  all-names=(list @ta)
     ~(tap in (~(uni in ~(key by old-files)) ~(key by new-files)))

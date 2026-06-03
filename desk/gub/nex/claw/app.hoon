@@ -102,7 +102,7 @@
           ?:  =('' name)  $
           =/  agent-road=road:tarball
             (cord-to-road:tarball (crip "./agents/{(trip name)}/"))
-          =/  new-ball=ball:tarball  [`[`[/claw %agent] `agents-weir %.n ~] ~]
+          =/  new-ball=ball:tarball  [`[`[/claw %agent] `agents-weir %.n ~ ~] ~]
           ;<  ~  bind:m  (make:io agent-road &+(ball-to-bole:tarball new-ball))
           =/  agent-cfg=json
             %-  pairs:enjs:format
@@ -137,7 +137,7 @@
           =/  chan-road=road:tarball
             (cord-to-road:tarball (crip "./channels/{(trip name)}/"))
           =/  neck=neck:tarball  [/claw/channel (slav %tas chan-type)]
-          =/  new-ball=ball:tarball  [`[`neck ~ %.n ~] ~]
+          =/  new-ball=ball:tarball  [`[`neck ~ %.n ~ ~] ~]
           ;<  ~  bind:m  (make:io chan-road &+(ball-to-bole:tarball new-ball))
           $
         ::
@@ -159,7 +159,7 @@
           =/  api-road=road:tarball
             (cord-to-road:tarball (crip "./apis/{(trip name)}/"))
           =/  neck=neck:tarball  [/claw/api (slav %tas api-type)]
-          =/  new-ball=ball:tarball  [`[`neck ~ %.n ~] ~]
+          =/  new-ball=ball:tarball  [`[`neck ~ %.n ~ ~] ~]
           ;<  ~  bind:m  (make:io api-road &+(ball-to-bole:tarball new-ball))
           $
         ::

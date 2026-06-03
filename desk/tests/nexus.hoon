@@ -310,7 +310,7 @@
   =/  b  (make-bo ~2024.1.1)
   ::  ball is [fil=(unit lump) dir=(map @ta ball)]
   ::  lump is [neck=(unit neck) weir=(unit weir) contents=(map @ta content)]
-  =/  empty-ball=ball:tarball  [`[~ ~ %.n ~] ~]  :: lump with no contents, no subdirs
+  =/  empty-ball=ball:tarball  [`[~ ~ %.n ~ ~] ~]  :: lump with no contents, no subdirs
   %+  expect-eq
     !>  %.y
   !>  (is-empty-dir:b empty-ball)
@@ -318,7 +318,7 @@
 ++  test-bo-is-empty-dir-false-has-files
   ::  is-empty-dir returns false if has files
   =/  b  (make-bo ~2024.1.1)
-  =/  has-file=ball:tarball  [`[~ ~ %.n (~(put by *(map @ta [=sang:tarball gain=?])) %foo [[[/ %txt] %& !>('hi')] %.n])] ~]
+  =/  has-file=ball:tarball  [`[~ ~ %.n ~ (~(put by *(map @ta [=sang:tarball gain=? bang=(unit tang)])) %foo [[[/ %txt] %& !>('hi')] %.n ~])] ~]
   %+  expect-eq
     !>  %.n
   !>  (is-empty-dir:b has-file)
@@ -326,7 +326,7 @@
 ++  test-bo-is-empty-dir-false-has-subdirs
   ::  is-empty-dir returns false if has subdirectories
   =/  b  (make-bo ~2024.1.1)
-  =/  has-subdir=ball:tarball  [`[~ ~ %.n ~] (~(put by *(map @ta ball:tarball)) %sub *ball:tarball)]
+  =/  has-subdir=ball:tarball  [`[~ ~ %.n ~ ~] (~(put by *(map @ta ball:tarball)) %sub *ball:tarball)]
   %+  expect-eq
     !>  %.n
   !>  (is-empty-dir:b has-subdir)
@@ -334,7 +334,7 @@
 ++  test-bo-dir-exists-with-lump
   ::  dir-exists returns true if has lump
   =/  b  (make-bo ~2024.1.1)
-  =/  has-lump=ball:tarball  [`[~ ~ %.n ~] ~]
+  =/  has-lump=ball:tarball  [`[~ ~ %.n ~ ~] ~]
   %+  expect-eq
     !>  %.y
   !>  (dir-exists:b has-lump)
@@ -389,20 +389,20 @@
 ++  make-ball-with-files
   |=  files=(list @ta)
   ^-  ball:tarball
-  =/  contents=(map @ta [=sang:tarball gain=?])
-    %-  ~(gas by *(map @ta [=sang:tarball gain=?]))
+  =/  contents=(map @ta [=sang:tarball gain=? bang=(unit tang)])
+    %-  ~(gas by *(map @ta [=sang:tarball gain=? bang=(unit tang)]))
     %+  turn  files
-    |=(f=@ta [f [[[/ %txt] %& !>('test')] %.n]])
-  [`[~ ~ %.n contents] ~]
+    |=(f=@ta [f [[[/ %txt] %& !>('test')] %.n ~]])
+  [`[~ ~ %.n ~ contents] ~]
 ::
 ::  Helper to make a ball with a file with specific content
 ::
 ++  make-ball-with-content
   |=  [name=@ta content=@t]
   ^-  ball:tarball
-  =/  contents=(map @ta [=sang:tarball gain=?])
-    (~(put by *(map @ta [=sang:tarball gain=?])) name [[[/ %txt] %& !>(content)] %.n])
-  [`[~ ~ %.n contents] ~]
+  =/  contents=(map @ta [=sang:tarball gain=? bang=(unit tang)])
+    (~(put by *(map @ta [=sang:tarball gain=? bang=(unit tang)])) name [[[/ %txt] %& !>(content)] %.n ~])
+  [`[~ ~ %.n ~ contents] ~]
 ::
 ++  test-bo-diff-balls-new-file
   ::  diff-balls: new file gets init'd (born entry created)
@@ -480,21 +480,21 @@
   =/  born3=born:nexus  (init:b3 [/ %unchanged])
   =/  b4  (make-bo-with now born3)
   ::  Old: deleted, changed, unchanged
-  =/  old-contents=(map @ta [=sang:tarball gain=?])
-    %-  ~(gas by *(map @ta [=sang:tarball gain=?]))
-    :~  [%deleted [[[/ %txt] %& !>('del')] %.n]]
-        [%changed [[[/ %txt] %& !>('old')] %.n]]
-        [%unchanged [[[/ %txt] %& !>('same')] %.n]]
+  =/  old-contents=(map @ta [=sang:tarball gain=? bang=(unit tang)])
+    %-  ~(gas by *(map @ta [=sang:tarball gain=? bang=(unit tang)]))
+    :~  [%deleted [[[/ %txt] %& !>('del')] %.n ~]]
+        [%changed [[[/ %txt] %& !>('old')] %.n ~]]
+        [%unchanged [[[/ %txt] %& !>('same')] %.n ~]]
     ==
-  =/  old-ball=ball:tarball  [`[~ ~ %.n old-contents] ~]
+  =/  old-ball=ball:tarball  [`[~ ~ %.n ~ old-contents] ~]
   ::  New: new, changed, unchanged
-  =/  new-contents=(map @ta [=sang:tarball gain=?])
-    %-  ~(gas by *(map @ta [=sang:tarball gain=?]))
-    :~  [%new [[[/ %txt] %& !>('new')] %.n]]
-        [%changed [[[/ %txt] %& !>('different')] %.n]]
-        [%unchanged [[[/ %txt] %& !>('same')] %.n]]
+  =/  new-contents=(map @ta [=sang:tarball gain=? bang=(unit tang)])
+    %-  ~(gas by *(map @ta [=sang:tarball gain=? bang=(unit tang)]))
+    :~  [%new [[[/ %txt] %& !>('new')] %.n ~]]
+        [%changed [[[/ %txt] %& !>('different')] %.n ~]]
+        [%unchanged [[[/ %txt] %& !>('same')] %.n ~]]
     ==
-  =/  new-ball=ball:tarball  [`[~ ~ %.n new-contents] ~]
+  =/  new-ball=ball:tarball  [`[~ ~ %.n ~ new-contents] ~]
   =/  born4=born:nexus  (diff-balls:b4 / old-ball new-ball)
   =/  bumped=(set lane:tarball)  (diff-born:nexus born3 born4)
   =/  b5  (make-bo-with now born4)
@@ -537,7 +537,7 @@
   =/  now=@da  ~2024.1.1
   =/  b  (make-bo now)
   =/  old-ball=ball:tarball  *ball:tarball
-  =/  new-ball=ball:tarball  [`[~ ~ %.n ~] ~]  :: empty dir (lump, no contents)
+  =/  new-ball=ball:tarball  [`[~ ~ %.n ~ ~] ~]  :: empty dir (lump, no contents)
   =/  born1=born:nexus  (diff-balls:b / old-ball new-ball)
   =/  bumped=(set lane:tarball)  (diff-born:nexus *born:nexus born1)
   ::  Root dir should be bumped
@@ -549,7 +549,7 @@
   ::  diff-balls: empty dir disappearing gets bumped
   =/  now=@da  ~2024.1.1
   =/  b  (make-bo now)
-  =/  old-ball=ball:tarball  [`[~ ~ %.n ~] ~]  :: empty dir
+  =/  old-ball=ball:tarball  [`[~ ~ %.n ~ ~] ~]  :: empty dir
   =/  new-ball=ball:tarball  *ball:tarball
   =/  born1=born:nexus  (diff-balls:b / old-ball new-ball)
   =/  bumped=(set lane:tarball)  (diff-born:nexus *born:nexus born1)
@@ -1123,7 +1123,7 @@
 ++  test-si-put-ject-new
   ::  Inserting a new tree returns lobe and silo with refs=1
   =/  s  ~(. si:nexus *silo:nexus)
-  =/  =tree:nexus  [~ %.n ~ ~]
+  =/  =tree:nexus  [~ %.n ~ ~ ~]
   =/  [=lobe:clay new-silo=silo:nexus]  (put-ject:s [%tree tree])
   ;:  weld
     %+  expect-eq
@@ -1140,9 +1140,9 @@
   =/  s  ~(. si:nexus *silo:nexus)
   =/  [noun-lobe=lobe:clay silo1=silo:nexus]  (put:s 'hello')
   =/  [leaf-lobe=lobe:clay silo2=silo:nexus]
-    (~(put-ject si:nexus silo1) [%leaf noun-lobe [[/ %txt] 0v0] %.n])
+    (~(put-ject si:nexus silo1) [%leaf noun-lobe [[/ %txt] 0v0] %.n ~])
   =/  =tree:nexus
-    [~ %.n (~(put by *(map @ta lobe:clay)) %foo leaf-lobe) ~]
+    [~ %.n ~ (~(put by *(map @ta lobe:clay)) %foo leaf-lobe) ~]
   =/  [* silo3=silo:nexus]  (~(put-ject si:nexus silo2) [%tree tree])
   ::  leaf started at refs=1, tree put-ject should bump to 2
   %+  expect-eq  !>(`@ud`2)  !>(refs:(~(got by jects.silo3) leaf-lobe))
@@ -1150,10 +1150,10 @@
 ++  test-si-put-ject-bumps-child-tree-refs
   ::  Inserting a tree that references child trees increments their refcounts
   =/  s  ~(. si:nexus *silo:nexus)
-  =/  child=tree:nexus  [~ %.n ~ ~]
+  =/  child=tree:nexus  [~ %.n ~ ~ ~]
   =/  [child-lobe=lobe:clay silo1=silo:nexus]  (put-ject:s [%tree child])
   =/  parent=tree:nexus
-    [~ %.n ~ (~(put by *(map @ta [lobe:clay weir=(unit weir:nexus)])) %sub [child-lobe ~])]
+    [~ %.n ~ ~ (~(put by *(map @ta [lobe:clay weir=(unit weir:nexus)])) %sub [child-lobe ~])]
   =/  s2  ~(. si:nexus silo1)
   =/  [* silo2=silo:nexus]  (put-ject:s2 [%tree parent])
   ::  child started at refs=1, parent should bump to 2
@@ -1164,9 +1164,9 @@
   =/  s  ~(. si:nexus *silo:nexus)
   =/  [noun-lobe=lobe:clay silo1=silo:nexus]  (put:s 'hello')
   =/  [leaf-lobe=lobe:clay silo2=silo:nexus]
-    (~(put-ject si:nexus silo1) [%leaf noun-lobe [[/ %txt] 0v0] %.n])
+    (~(put-ject si:nexus silo1) [%leaf noun-lobe [[/ %txt] 0v0] %.n ~])
   =/  =tree:nexus
-    [~ %.n (~(put by *(map @ta lobe:clay)) %foo leaf-lobe) ~]
+    [~ %.n ~ (~(put by *(map @ta lobe:clay)) %foo leaf-lobe) ~]
   =/  [=lobe:clay silo3=silo:nexus]  (~(put-ject si:nexus silo2) [%tree tree])
   =/  [* silo4=silo:nexus]  (~(put-ject si:nexus silo3) [%tree tree])
   ;:  weld
@@ -1179,7 +1179,7 @@
 ++  test-si-put-ject-duplicate-increments-refs
   ::  Inserting the same tree twice increments refcount
   =/  s  ~(. si:nexus *silo:nexus)
-  =/  =tree:nexus  [~ %.n ~ ~]
+  =/  =tree:nexus  [~ %.n ~ ~ ~]
   =/  [lobe1=lobe:clay silo1=silo:nexus]  (put-ject:s [%tree tree])
   =/  s2  ~(. si:nexus silo1)
   =/  [lobe2=lobe:clay silo2=silo:nexus]  (put-ject:s2 [%tree tree])
@@ -1191,9 +1191,9 @@
 ++  test-si-put-ject-different-content-different-lobe
   ::  Different trees produce different lobes
   =/  s  ~(. si:nexus *silo:nexus)
-  =/  tree1=tree:nexus  [~ %.n ~ ~]
+  =/  tree1=tree:nexus  [~ %.n ~ ~ ~]
   =/  tree2=tree:nexus
-    [~ %.n (~(put by *(map @ta lobe:clay)) %foo `@uvI`(sham 'x')) ~]
+    [~ %.n ~ (~(put by *(map @ta lobe:clay)) %foo `@uvI`(sham 'x')) ~]
   =/  [lobe1=lobe:clay silo1=silo:nexus]  (put-ject:s [%tree tree1])
   =/  s2  ~(. si:nexus silo1)
   =/  [lobe2=lobe:clay silo2=silo:nexus]  (put-ject:s2 [%tree tree2])
@@ -1204,7 +1204,7 @@
 ::
 ++  test-si-drop-ject-decrements-refs
   =/  s  ~(. si:nexus *silo:nexus)
-  =/  =tree:nexus  [~ %.n ~ ~]
+  =/  =tree:nexus  [~ %.n ~ ~ ~]
   =/  [=lobe:clay silo1=silo:nexus]  (put-ject:s [%tree tree])
   =/  s2  ~(. si:nexus silo1)
   =/  [* silo2=silo:nexus]  (put-ject:s2 [%tree tree])
@@ -1214,7 +1214,7 @@
 ::
 ++  test-si-drop-ject-deletes-at-zero
   =/  s  ~(. si:nexus *silo:nexus)
-  =/  =tree:nexus  [~ %.n ~ ~]
+  =/  =tree:nexus  [~ %.n ~ ~ ~]
   =/  [=lobe:clay silo1=silo:nexus]  (put-ject:s [%tree tree])
   =/  s2  ~(. si:nexus silo1)
   =/  silo2=silo:nexus  (drop-ject:s2 lobe)
@@ -1225,9 +1225,9 @@
   =/  s  ~(. si:nexus *silo:nexus)
   =/  [noun-lobe=lobe:clay silo1=silo:nexus]  (put:s 'hello')
   =/  [leaf-lobe=lobe:clay silo2=silo:nexus]
-    (~(put-ject si:nexus silo1) [%leaf noun-lobe [[/ %txt] 0v0] %.n])
+    (~(put-ject si:nexus silo1) [%leaf noun-lobe [[/ %txt] 0v0] %.n ~])
   =/  =tree:nexus
-    [~ %.n (~(put by *(map @ta lobe:clay)) %foo leaf-lobe) ~]
+    [~ %.n ~ (~(put by *(map @ta lobe:clay)) %foo leaf-lobe) ~]
   =/  [tree-lobe=lobe:clay silo3=silo:nexus]
     (~(put-ject si:nexus silo2) [%tree tree])
   ::  leaf is at refs=2 (own + tree bump). Drop tree → leaf refs=1
@@ -1240,10 +1240,10 @@
 ++  test-si-drop-ject-cascades-child-trees
   ::  Dropping a parent tree at zero cascades to child trees
   =/  s  ~(. si:nexus *silo:nexus)
-  =/  child=tree:nexus  [~ %.n ~ ~]
+  =/  child=tree:nexus  [~ %.n ~ ~ ~]
   =/  [child-lobe=lobe:clay silo1=silo:nexus]  (put-ject:s [%tree child])
   =/  parent=tree:nexus
-    [~ %.n ~ (~(put by *(map @ta [lobe:clay weir=(unit weir:nexus)])) %sub [child-lobe ~])]
+    [~ %.n ~ ~ (~(put by *(map @ta [lobe:clay weir=(unit weir:nexus)])) %sub [child-lobe ~])]
   =/  s2  ~(. si:nexus silo1)
   =/  [parent-lobe=lobe:clay silo2=silo:nexus]  (put-ject:s2 [%tree parent])
   ::  child is at refs=2. Drop parent → child refs=1
@@ -1258,13 +1258,13 @@
   =/  s  ~(. si:nexus *silo:nexus)
   =/  [noun-lobe=lobe:clay silo1=silo:nexus]  (put:s 'data')
   =/  [leaf-lobe=lobe:clay silo2=silo:nexus]
-    (~(put-ject si:nexus silo1) [%leaf noun-lobe [[/ %txt] 0v0] %.n])
+    (~(put-ject si:nexus silo1) [%leaf noun-lobe [[/ %txt] 0v0] %.n ~])
   =/  child=tree:nexus
-    [~ %.n (~(put by *(map @ta lobe:clay)) %f leaf-lobe) ~]
+    [~ %.n ~ (~(put by *(map @ta lobe:clay)) %f leaf-lobe) ~]
   =/  [child-lobe=lobe:clay silo3=silo:nexus]
     (~(put-ject si:nexus silo2) [%tree child])
   =/  parent=tree:nexus
-    [~ %.n ~ (~(put by *(map @ta [lobe:clay weir=(unit weir:nexus)])) %sub [child-lobe ~])]
+    [~ %.n ~ ~ (~(put by *(map @ta [lobe:clay weir=(unit weir:nexus)])) %sub [child-lobe ~])]
   =/  [parent-lobe=lobe:clay silo4=silo:nexus]
     (~(put-ject si:nexus silo3) [%tree parent])
   ::  leaf: own(1) + child-put-ject(1) = 2
@@ -1282,13 +1282,13 @@
   =/  s  ~(. si:nexus *silo:nexus)
   =/  [noun-lobe=lobe:clay silo1=silo:nexus]  (put:s 'data')
   =/  [leaf-lobe=lobe:clay silo2=silo:nexus]
-    (~(put-ject si:nexus silo1) [%leaf noun-lobe [[/ %txt] 0v0] %.n])
+    (~(put-ject si:nexus silo1) [%leaf noun-lobe [[/ %txt] 0v0] %.n ~])
   =/  child=tree:nexus
-    [~ %.n (~(put by *(map @ta lobe:clay)) %f leaf-lobe) ~]
+    [~ %.n ~ (~(put by *(map @ta lobe:clay)) %f leaf-lobe) ~]
   =/  [child-lobe=lobe:clay silo3=silo:nexus]
     (~(put-ject si:nexus silo2) [%tree child])
   =/  parent=tree:nexus
-    [~ %.n ~ (~(put by *(map @ta [lobe:clay weir=(unit weir:nexus)])) %sub [child-lobe ~])]
+    [~ %.n ~ ~ (~(put by *(map @ta [lobe:clay weir=(unit weir:nexus)])) %sub [child-lobe ~])]
   =/  [parent-lobe=lobe:clay silo4=silo:nexus]
     (~(put-ject si:nexus silo3) [%tree parent])
   ::  Drop child's extra ref so it's only held by parent
@@ -1311,9 +1311,9 @@
 ++  test-si-drop-hist-all-ject-refs
   ::  drop-hist removes all ject refs from silo
   =/  s  ~(. si:nexus *silo:nexus)
-  =/  tree1=tree:nexus  [~ %.n ~ ~]
+  =/  tree1=tree:nexus  [~ %.n ~ ~ ~]
   =/  tree2=tree:nexus
-    [~ %.n (~(put by *(map @ta lobe:clay)) %a `@uvI`(sham 'y')) ~]
+    [~ %.n ~ (~(put by *(map @ta lobe:clay)) %a `@uvI`(sham 'y')) ~]
   =/  [lobe1=lobe:clay silo1=silo:nexus]  (put-ject:s [%tree tree1])
   =/  s2  ~(. si:nexus silo1)
   =/  [lobe2=lobe:clay silo2=silo:nexus]  (put-ject:s2 [%tree tree2])

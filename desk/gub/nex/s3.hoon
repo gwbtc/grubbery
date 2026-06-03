@@ -90,7 +90,7 @@
             ;<  exists=?  bind:m  (peek-exists:io mount-road)
             ;<  *  bind:m
               ?.  exists
-                (make-soft:io mount-road &+*ball:tarball)
+                (make-soft:io mount-road &+*bole:tarball)
               (pure:m ~)
             %-  replace:io  !>
             %-  pairs:enjs:format

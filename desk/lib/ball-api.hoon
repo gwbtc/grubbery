@@ -141,7 +141,7 @@
   =/  parent=path  (snip `path`api-path)
   =/  name=@ta  (rear api-path)
   =/  parent-ball=ball:tarball  (~(dip ba:tarball u.root) parent)
-  =/  content-data=(unit [=sang:tarball gain=?])
+  =/  content-data=(unit [=sang:tarball gain=? bang=(unit tang)])
     ?~  fil.parent-ball  ~
     (~(get by contents.u.fil.parent-ball) name)
   ?~  content-data
@@ -245,8 +245,8 @@
   ;<  exists=?  bind:m  (peek-exists:io road)
   ?:  exists
     (send-error eyre-id 409 'Already exists')
-  =/  init-ball=ball:tarball  [`[~ ~ %.n ~] ~]
-  ;<  ~  bind:m  (make:io road &+init-ball)
+  =/  init-bole=bole:tarball  [`[~ ~ %.n ~] ~]
+  ;<  ~  bind:m  (make:io road &+init-bole)
   (send-created eyre-id)
 ::  +serve-post: POST /poke, /over — send dart to file
 ::
@@ -563,10 +563,10 @@
   ::  Send "old" for files in this directory
   ;<  ~  bind:m
     ?~  fil.b  (pure:m ~)
-    =/  files=(list [@ta [=sang:tarball gain=?]])  ~(tap by contents.u.fil.b)
+    =/  files=(list [@ta [=sang:tarball gain=? bang=(unit tang)]])  ~(tap by contents.u.fil.b)
     |-
     ?~  files  (pure:m ~)
-    =/  [file-name=@ta =sang:tarball gain=?]  i.files
+    =/  [file-name=@ta =sang:tarball gain=? bang=(unit tang)]  i.files
     =/  lane-path=@t  (spat (snoc here file-name))
     =/  sub-born=born:nexus  (~(dip of born) here)
     =/  file-hist=(unit hist:nexus)

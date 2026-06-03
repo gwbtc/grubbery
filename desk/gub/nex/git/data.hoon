@@ -452,10 +452,10 @@
     (~(get by dir.ball) 'objects')
   ?~  obj-dir  ~
   ?~  fil.u.obj-dir  ~
-  =/  entries=(list [name=@t =sang:tarball gain=?])
+  =/  entries=(list [name=@t =sang:tarball gain=? bang=(unit tang)])
     ~(tap by contents.u.fil.u.obj-dir)
   %+  roll  entries
-  |=  [[name=@t =sang:tarball gain=?] acc=(map hash:git-repo object:git-obj)]
+  |=  [[name=@t =sang:tarball gain=? bang=(unit tang)] acc=(map hash:git-repo object:git-obj)]
   =/  h=(unit hash:git-repo)
     (rust (trip name) parse-hash-sha-1:git-transport)
   ?~  h  acc
@@ -649,7 +649,7 @@
   =/  files=(list [=path data=octs])
     ?~  fil.ball  ~
     %+  turn  ~(tap by contents.u.fil.ball)
-    |=  [name=@t =sang:tarball gain=?]
+    |=  [name=@t =sang:tarball gain=? bang=(unit tang)]
     =/  m=mime  !<(mime (need-vase:tarball sang))
     [(snoc here name) q.m]
   =/  sub-files=(list [=path data=octs])
@@ -667,7 +667,7 @@
   =/  files=(list [=path data=octs mtime=@t])
     ?~  fil.ball  ~
     %+  turn  ~(tap by contents.u.fil.ball)
-    |=  [name=@t =sang:tarball gain=?]
+    |=  [name=@t =sang:tarball gain=? bang=(unit tang)]
     =/  m=mime  !<(mime (need-vase:tarball sang))
     [(snoc here name) q.m '']
   =/  sub-files=(list [=path data=octs mtime=@t])
@@ -830,14 +830,14 @@
   =.  result
     ?~  fil.heads-sub  result
     %+  roll  ~(tap by contents.u.fil.heads-sub)
-    |=  [[name=@t =sang:tarball gain=?] r=(axal ref:git-repo)]
+    |=  [[name=@t =sang:tarball gain=? bang=(unit tang)] r=(axal ref:git-repo)]
     =/  h=(unit @ux)  (read-hash-from-content sang)
     ?~  h  r
     (~(put of r) [~['refs' 'heads' name] u.h])
   =/  remote-sub=ball:tarball  (get-sub-ball ball /refs/remotes/origin)
   ?~  fil.remote-sub  result
   %+  roll  ~(tap by contents.u.fil.remote-sub)
-  |=  [[name=@t =sang:tarball gain=?] r=(axal ref:git-repo)]
+  |=  [[name=@t =sang:tarball gain=? bang=(unit tang)] r=(axal ref:git-repo)]
   =/  h=(unit @ux)  (read-hash-from-content sang)
   ?~  h  r
   (~(put of r) [~['refs' 'remotes' 'origin' name] u.h])
@@ -985,7 +985,7 @@
   ::  add local branches (refs/heads/*)
   =/  heads=ball:tarball  (get-sub-ball ball /refs/heads)
   =?  result  ?=(^ fil.heads)
-    =/  entries=(list [@t [=sang:tarball gain=?]])  ~(tap by contents.u.fil.heads)
+    =/  entries=(list [@t [=sang:tarball gain=? bang=(unit tang)]])  ~(tap by contents.u.fil.heads)
     |-
     ?~  entries  result
     =/  h=(unit @ux)  (read-hash-from-content sang.+.i.entries)
@@ -995,7 +995,7 @@
   ::  add remote tracking (refs/remotes/origin/*)
   =/  remotes=ball:tarball  (get-sub-ball ball /refs/remotes/origin)
   =?  result  ?=(^ fil.remotes)
-    =/  entries=(list [@t [=sang:tarball gain=?]])  ~(tap by contents.u.fil.remotes)
+    =/  entries=(list [@t [=sang:tarball gain=? bang=(unit tang)]])  ~(tap by contents.u.fil.remotes)
     |-
     ?~  entries  result
     =/  h=(unit @ux)  (read-hash-from-content sang.+.i.entries)
@@ -1215,8 +1215,8 @@
   ?~  segs  tree
   ?~  t.segs
     =/  =lump:tarball
-      (fall fil.tree [~ ~ %.n ~])
-    =.  contents.lump  (~(put by contents.lump) i.segs [sang %.n])
+      (fall fil.tree [~ ~ %.n ~ ~])
+    =.  contents.lump  (~(put by contents.lump) i.segs [sang %.n ~])
     tree(fil `lump)
   =/  kid=ball:tarball
     (fall (~(get by dir.tree) i.segs) [~ ~])

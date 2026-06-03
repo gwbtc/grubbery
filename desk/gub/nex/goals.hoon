@@ -377,12 +377,12 @@
   ^-  (map @ta goal-store:goals)
   ?.  ?=([%& %ball *] seen)  ~
   ?~  fil.ball.p.seen  ~
-  =/  entries=(list [@ta [=sang:tarball gain=?]])
+  =/  entries=(list [@ta [=sang:tarball gain=? bang=(unit tang)]])
     ~(tap by contents.u.fil.ball.p.seen)
   =/  out=(map @ta goal-store:goals)  ~
   |-
   ?~  entries  out
-  =/  [fname=@ta =sang:tarball gain=?]  i.entries
+  =/  [fname=@ta =sang:tarball gain=? bang=(unit tang)]  i.entries
   ?.  =(%goal-store name.p.sang)  $(entries t.entries)
   =/  store=goal-store:goals  !<(goal-store:goals (need-vase:tarball sang))
   =/  sname=@ta  (store-name-from-fname fname)

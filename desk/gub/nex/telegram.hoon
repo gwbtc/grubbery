@@ -69,7 +69,7 @@
           ?.  ?=([%& %none *] seen)
             ~&  >>  [%telegram-bot-already-exists dir-name]
             $
-          =/  new-ball=ball:tarball  [`[`[/ %telegram-bot] ~ %.n ~] ~]
+          =/  new-ball=ball:tarball  [`[`[/ %telegram-bot] ~ %.n ~ ~] ~]
           ;<  ~  bind:m
             (make:io [%| 0 %| /bots/[dir-name]] &+(ball-to-bole:tarball new-ball))
           ::  write the bot token into its config

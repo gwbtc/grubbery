@@ -301,18 +301,18 @@
   =/  m  (fiber:fiber:nexus ,tool-result)
   ^-  form:m
   ?>  ?=([%& %file *] seen)
+  ::  1. boom (validation failure): render error tang
+  ?:  ?=(%| -.q.sang.p.seen)
+    =/  =boom:tarball  p.q.sang.p.seen
+    =/  rendered=tape
+      %-  zing
+      %+  turn  (flop tang.boom)
+      |=(=tank (weld ~(ram re tank) "\0a"))
+    (pure:m [%error (crip "BOOM (mark %{(trip name.p.sang.p.seen)})\0a{rendered}")])
   =/  =sage:tarball  (need-sage:tarball sang.p.seen)
   =/  blot-text=@t
     (crip "[mark: {(spud (snoc path.p.sage name.p.sage))}]")
   ;<  result=tool-result  bind:m
-    ::  1. boom: always render as error
-    ?:  =(%boom name.p.sage)
-      =/  [err=tang mar=@tas data=*]  !<([tang @tas *] q.sage)
-      =/  rendered=tape
-        %-  zing
-        %+  turn  (flop err)
-        |=(=tank (weld ~(ram re tank) "\0a"))
-      (pure:m [%error (crip "BOOM (mark %{(trip mar)})\0a{rendered}")])
     ::  2. known text blots: render as text directly
     ?:  (is-text-blot name.p.sage)
       ?+  name.p.sage

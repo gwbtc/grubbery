@@ -7,6 +7,7 @@
     ++  on-load
       |=  =ball:tarball
       ^-  bole:tarball
+      ~&  >  [%explorer-on-load %ver (get-ver:loader ball)]
       =/  =ver:loader  (get-ver:loader ball)
       ?+  ver  !!
           ?(~ [~ %0])
@@ -55,16 +56,26 @@
             ?~  p  ~
             (stab u.p)
           (handle-stream eyre-id req watch-path)
-        ;<  root-seen=seen:nexus  bind:m  (peek:io [%& %| ~] ~)
-        ?.  ?=([%& %ball *] root-seen)
-          ;<  ~  bind:m  (send-simple:srv eyre-id [[500 ~] `(as-octs:mimes:html 'Peek failed')])
-          (pure:m ~)
-        =/  root=ball:tarball  ball.p.root-seen
-        =/  root-born=born:nexus  born.p.root-seen
-        =/  tree-path=path  (resolve-url-path raw-path root)
+        ~&  >  %explorer-dispatch-start
+        ;<  dir-seen=seen:nexus  bind:m  (peek-shallow:io [%& %| raw-path] ~)
+        ~&  >  %explorer-peek-done
+        ?.  ?=([%& %ball *] dir-seen)
+          ::  Not a directory — try parent for file view
+          ?~  raw-path
+            ;<  ~  bind:m  (send-simple:srv eyre-id [[404 ~] `(as-octs:mimes:html 'Not found')])
+            (pure:m ~)
+          =/  parent=path  (snip `path`raw-path)
+          ;<  par-seen=seen:nexus  bind:m  (peek-shallow:io [%& %| parent] ~)
+          ?.  ?=([%& %ball *] par-seen)
+            ;<  ~  bind:m  (send-simple:srv eyre-id [[404 ~] `(as-octs:mimes:html 'Not found')])
+            (pure:m ~)
+          ?:  =('POST' method.request.req)
+            (handle-post eyre-id raw-path ball.p.par-seen req)
+          (handle-get eyre-id raw-path %.n ball.p.par-seen born.p.par-seen args)
         ?:  =('POST' method.request.req)
-          (handle-post eyre-id tree-path root req)
-        (handle-get eyre-id tree-path root root-born args)
+          (handle-post eyre-id raw-path ball.p.dir-seen req)
+        ~&  >  %explorer-handle-get-start
+        (handle-get eyre-id raw-path %.y ball.p.dir-seen born.p.dir-seen args)
       ==
     ++  on-manu
       |=  =mana:nexus
@@ -140,21 +151,20 @@
 ::  Handle GET requests
 ::
 ++  handle-get
-  |=  [eyre-id=@ta tree-path=path root=ball:tarball root-born=born:nexus args=(list [key=@t value=@t])]
+  |=  [eyre-id=@ta tree-path=path is-dir=? ball=ball:tarball ball-born=born:nexus args=(list [key=@t value=@t])]
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
   ~&  >  [%explorer-peek tree-path]
   =/  download-param=(unit @t)  (get-key:kv:html-utils 'download' args)
-  =/  sub=(unit ball:tarball)  (~(dap ba:tarball root) tree-path)
-  ?:  ?=(^ sub)
+  ?:  is-dir
     ?:  ?&(?=(^ download-param) =(u.download-param 'tar'))
-      (serve-tarball eyre-id tree-path u.sub)
+      (serve-tarball eyre-id tree-path ball)
+    ~&  >  %explorer-get-time
     ;<  now=@da  bind:m  get-time:io
+    ~&  >  %explorer-get-conversions
     ;<  conversions=(map bars:tarball tube:clay)  bind:m
-      (get-blot-conversions-shallow:io u.sub)
-    ::  Resolve governing /code namespace for blot & nexus links.
-    ::  get-font returns a bend relative to this fiber's location,
-    ::  so we resolve it with our own `here` rail to get the absolute path.
+      (get-blot-conversions-shallow:io ball)
+    ~&  >  %explorer-get-font
     ;<  font=(unit bend:tarball)  bind:m
       (get-font:io [%& %| tree-path])
     ;<  here=rail:tarball  bind:m  get-here-abs:io
@@ -165,26 +175,25 @@
       ?~  ns  ~
       ?.  ?=(%| -.u.ns)  ~
       `p.u.ns
-    ::  Get bang state for this directory
-    ;<  bang-res=(each bangs:nexus (unit tang))  bind:m
-      (get-bang:io [%& %| tree-path])
-    =/  dir-bangs=bangs:nexus
-      ?:(?=(%& -.bang-res) p.bang-res *bangs:nexus)
-    =/  bod=octs  (manx-to-octs:server (render-dir tree-path root root-born now conversions code-namespace dir-bangs))
+    ~&  >  %explorer-render-dir
+    =/  bod=octs  (manx-to-octs:server (render-dir tree-path ball ball-born now conversions code-namespace))
+    ~&  >  %explorer-send
     ;<  ~  bind:m  (send-simple:srv eyre-id (mime-response:http-utils [/text/html bod]))
     (pure:m ~)
-  ::  Not a directory — try as grub
+  ::  File view — ball is the parent directory
   ?~  tree-path
     ;<  ~  bind:m  (send-simple:srv eyre-id [[404 ~] `(as-octs:mimes:html 'Not found')])
     (pure:m ~)
-  =/  parent=path  (snip `path`tree-path)
   =/  name=@ta  (rear tree-path)
-  =/  parent-ball=ball:tarball  (~(dip ba:tarball root) parent)
-  =/  content-data=(unit [=sang:tarball gain=?])
-    ?~  fil.parent-ball  ~
-    (find-grub name u.fil.parent-ball)
+  =/  content-data=(unit [=sang:tarball gain=? bang=(unit tang)])
+    ?~  fil.ball  ~
+    (find-grub name u.fil.ball)
   ?~  content-data
     ;<  ~  bind:m  (send-simple:srv eyre-id [[404 ~] `(as-octs:mimes:html 'Not found')])
+    (pure:m ~)
+  ?:  (is-boom:tarball sang.u.content-data)
+    ~&  >>  [%explorer-file-boomed (rear tree-path)]
+    ;<  ~  bind:m  (send-simple:srv eyre-id [[500 ~] `(as-octs:mimes:html 'File is boomed')])
     (pure:m ~)
   =/  =sage:tarball  (need-sage:tarball sang.u.content-data)
   =/  pretty-param=(unit @t)  (get-key:kv:html-utils 'pretty' args)
@@ -241,7 +250,7 @@
     =/  dir-neck=(unit neck:tarball)
       (bind (parse-extension:tarball dir-name) ext-to-neck:tarball)
     =/  folder-path=path  (snoc tree-path dir-name)
-    =/  new-ball=ball:tarball  [`[dir-neck ~ %.n ~] ~]
+    =/  new-ball=ball:tarball  [`[dir-neck ~ %.n ~ ~] ~]
     ;<  ~  bind:m  (make:io [%& %| folder-path] &+(ball-to-bole:tarball new-ball))
     ;<  ~  bind:m  (send-simple:srv eyre-id [[303 ~[['location' (crip redirect-url)]]] ~])
     (pure:m ~)
@@ -421,12 +430,12 @@
   =/  new=ball:tarball
     (from-parts:tarball *ball:tarball ~ u.parts now conversions)
   ::  Make each top-level entry: files then directories
-  =/  files=(list [@ta [=sang:tarball gain=?]])
+  =/  files=(list [@ta [=sang:tarball gain=? bang=(unit tang)]])
     ?~  fil.new  ~
     ~(tap by contents.u.fil.new)
   |-
   ?^  files
-    =/  [name=@ta =sang:tarball gain=?]  i.files
+    =/  [name=@ta =sang:tarball gain=? bang=(unit tang)]  i.files
     ;<  ~  bind:m
       (make:io [%& %& tree-path name] |+[[p.sang (sang-noun:tarball sang)] ~])
     $(files t.files)
@@ -465,7 +474,7 @@
 ::
 ++  find-grub
   |=  [seg=@ta =lump:tarball]
-  ^-  (unit [=sang:tarball gain=?])
+  ^-  (unit [=sang:tarball gain=? bang=(unit tang)])
   (~(get by contents.lump) seg)
 ::  Handle SSE stream: subscribe to root, push change events
 ::
@@ -533,7 +542,7 @@
       ?.  ?=(%& -.lane)  ~
       ?.  =(path.p.lane watch-path)  ~
       ?~  fil.par  ~
-      =/  ct=(unit [=sang:tarball gain=?])  (~(get by contents.u.fil.par) name.p.lane)
+      =/  ct=(unit [=sang:tarball gain=? bang=(unit tang)])  (~(get by contents.u.fil.par) name.p.lane)
       ?~  ct  ~
       `p.sang.u.ct
     ;<  conversions=(map bars:tarball tube:clay)  bind:m
@@ -587,7 +596,7 @@
       =/  row-html=tape
         ?:  is-file
           ?~  fil.par  ""
-          =/  ct=(unit [=sang:tarball gain=?])  (~(get by contents.u.fil.par) item)
+          =/  ct=(unit [=sang:tarball gain=? bang=(unit tang)])  (~(get by contents.u.fil.par) item)
           ?~  ct  ""
           (en-xml:html (render-grub-row item sang.u.ct url-prefix watch-path par-born now conversions code-namespace ~))
         =/  sub=(unit ball:tarball)  (~(get by dir.par) item)
@@ -905,16 +914,13 @@
 ::
 ++  render-dir
   |=  $:  pax=path
-          root=ball:tarball
-          root-born=born:nexus
+          b=ball:tarball
+          b-born=born:nexus
           now=@da
           conversions=(map bars:tarball tube:clay)
           code-namespace=(unit path)
-          =bangs:nexus
       ==
   ^-  manx
-  =/  b=ball:tarball  (~(dip ba:tarball root) pax)
-  =/  b-born=born:nexus  (~(dip of root-born) pax)
   =/  dir-weir=(unit weir:nexus)  ?~(fil.b ~ weir.u.fil.b)
   ::  Nexus source link: combines the governing /code namespace
   ::  with the directory's neck rail to form a URL to the .hoon source.
@@ -928,15 +934,14 @@
     ?~  pax  "/"
     (trip (spat pax))
   =/  kids  dir.b
-  =/  file-contents=(map @ta [=sang:tarball gain=?])
+  =/  file-contents=(map @ta [=sang:tarball gain=? bang=(unit tang)])
     ?~  fil.b  ~
     contents.u.fil.b
   =/  subdirs=(list @ta)  ~(tap in ~(key by kids))
   =/  files=(list @ta)  ~(tap in ~(key by file-contents))
   =/  url-prefix=tape  (build-url pax)
   ::  Error state at this level
-  =/  nexus-bang=(unit tang)  bang.bangs
-  =/  file-bangs=(map @ta (unit tang))  err.bangs
+  =/  nexus-bang=(unit tang)  ?~(fil.b ~ bang.u.fil.b)
   ;html
     ;+  (page-head "Index of {path-display}")
     ;body
@@ -982,17 +987,16 @@
           |=  name=@ta
           ^-  manx
           =/  sub=ball:tarball  (~(got by kids) name)
-          ::  TODO: query sub-directory bang state
-          (render-dir-row name sub url-prefix ~)
+          =/  sub-bang=(unit tang)  ?~(fil.sub ~ bang.u.fil.sub)
+          (render-dir-row name sub url-prefix sub-bang)
         ::  Grubs
         =.  rows
           %+  weld  rows
           %+  turn  files
           |=  name=@ta
           ^-  manx
-          =/  [=sang:tarball gain=?]  (~(got by file-contents) name)
-          =/  file-bang=(unit tang)  (fall (~(get by file-bangs) name) ~)
-          (render-grub-row name sang url-prefix pax b-born now conversions code-namespace file-bang)
+          =/  [=sang:tarball gain=? bang=(unit tang)]  (~(got by file-contents) name)
+          (render-grub-row name sang url-prefix pax b-born now conversions code-namespace bang)
         rows
       ==
       ;div#boom-overlay.boom-modal-overlay
