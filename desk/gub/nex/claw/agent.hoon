@@ -821,7 +821,7 @@
             ;<  inbox-seen=seen:nexus  bind:m  (peek:io new-road ~)
             =/  cnt=@ud
               ?.  ?=([%& %file *] inbox-seen)  0
-              =/  j=json  (fall (mole |.(!<(json q.sage.p.inbox-seen))) *json)
+              =/  j=json  (fall (mole |.(!<(json (need-vase:tarball sang.p.inbox-seen)))) *json)
               ?.  ?=(%a -.j)  0
               (lent p.j)
             ~&  >>  ["%claw: subscribed to new channel, seen" cnt]
@@ -836,7 +836,7 @@
           ;<  tool-road=road:tarball  bind:m  (ancestor-road:io [/claw %agent] [%& /proc/tools tool-file])
           ;<  tool-seen=seen:nexus  bind:m  (peek:io tool-road ~)
           ?.  ?=([%& %file *] tool-seen)  $
-          =/  tst=tool-state:nex-tools  !<(tool-state:nex-tools q.sage.p.tool-seen)
+          =/  tst=tool-state:nex-tools  !<(tool-state:nex-tools (need-vase:tarball sang.p.tool-seen))
           ?.  =(%done step.tst)  $
           ;<  ~  bind:m  (drop:io /tool-done/[tid] tool-road)
           =/  res=extracted-result  (extract-tool-result tst)
@@ -1180,7 +1180,7 @@
   ;<  file-seen=seen:nexus  bind:m  (peek:io file-road ~)
   ?.  ?=([%& %file *] file-seen)
     $(names t.names)
-  ;<  =mime  bind:m  (sage-to-mime:io sage.p.file-seen)
+  ;<  =mime  bind:m  (sage-to-mime:io (need-sage:tarball sang.p.file-seen))
   =/  txt=@t  (crip (trip q.q.mime))
   ?:  =('' txt)
     $(names t.names)
@@ -1213,7 +1213,7 @@
   ;<  file-seen=seen:nexus  bind:m  (peek:io file-road ~)
   ?.  ?=([%& %file *] file-seen)
     $(names t.names)
-  ;<  =mime  bind:m  (sage-to-mime:io sage.p.file-seen)
+  ;<  =mime  bind:m  (sage-to-mime:io (need-sage:tarball sang.p.file-seen))
   =/  txt=@t  (crip (trip q.q.mime))
   ?:  =('' txt)
     $(names t.names)
@@ -1262,7 +1262,7 @@
   ;<  inbox-seen=seen:nexus  bind:m  (peek:io inbox-road ~)
   =/  cnt=@ud
     ?.  ?=([%& %file *] inbox-seen)  0
-    =/  j=json  (fall (mole |.(!<(json q.sage.p.inbox-seen))) *json)
+    =/  j=json  (fall (mole |.(!<(json (need-vase:tarball sang.p.inbox-seen)))) *json)
     ?.  ?=(%a -.j)  0
     (lent p.j)
   ~&  >>  ["%claw: channel inbox subscribed, seen" cnt]
@@ -3662,7 +3662,7 @@
     ;<  file-seen=seen:nexus  bind:m  (peek:io file-road ~)
     ?.  ?=([%& %file *] file-seen)
       $(candidates t.candidates)
-    ;<  =mime  bind:m  (sage-to-mime:io sage.p.file-seen)
+    ;<  =mime  bind:m  (sage-to-mime:io (need-sage:tarball sang.p.file-seen))
     =/  text=tape  (trip ;;(@t q.q.mime))
     =/  lines=(list tape)  (to-lines text)
     =/  line-num=@ud  1
@@ -3903,7 +3903,7 @@
     ;<  cfg-seen=seen:nexus  bind:m  (peek:io cfg-road ~)
     =/  config=json
       ?.  ?=([%& %file *] cfg-seen)  *json
-      (fall (mole |.(!<(json q.sage.p.cfg-seen))) *json)
+      (fall (mole |.(!<(json (need-vase:tarball sang.p.cfg-seen)))) *json)
     =/  model=@t
       =/  m  (get-str config 'model')
       ?:(=('' m) 'claude-sonnet-4-20250514' m)
@@ -4142,7 +4142,7 @@
     ;<  about-seen=seen:nexus  bind:m  (peek:io about-road ~)
     =/  about=tape
       ?.  ?=([%& %file *] about-seen)  "(no about.txt)"
-      =/  wn=(each wain tang)  (mule |.(!<(wain q.sage.p.about-seen)))
+      =/  wn=(each wain tang)  (mule |.(!<(wain (need-vase:tarball sang.p.about-seen))))
       ?.  ?=(%& -.wn)  "(unreadable)"
       (trip (of-wain:format p.wn))
     =/  tag=tape  ?:(=(name self-name) " [self]" "")
@@ -4197,7 +4197,7 @@
     ;<  about-seen=seen:nexus  bind:m  (peek:io about-road ~)
     =/  about=tape
       ?.  ?=([%& %file *] about-seen)  ""
-      =/  wn=(each wain tang)  (mule |.(!<(wain q.sage.p.about-seen)))
+      =/  wn=(each wain tang)  (mule |.(!<(wain (need-vase:tarball sang.p.about-seen))))
       ?.  ?=(%& -.wn)  ""
       (trip (of-wain:format p.wn))
     ::  case-insensitive match
@@ -4304,7 +4304,7 @@
     =/  line=tape
       ?.  ?=([%& %file *] job-seen)
         "{(trip job-name)}: (unreadable)\0a"
-      =/  j=json  (fall (mole |.(!<(json q.sage.p.job-seen))) *json)
+      =/  j=json  (fall (mole |.(!<(json (need-vase:tarball sang.p.job-seen)))) *json)
       ?.  ?=(%o -.j)  "{(trip job-name)}: (invalid state)\0a"
       =/  sched=@t  (fall (bind (~(get by p.j) 'schedule') |=(=json ?>(?=(%s -.json) p.json))) '?')
       =/  chat=@t   (fall (bind (~(get by p.j) 'chat') |=(=json ?>(?=(%s -.json) p.json))) '?')

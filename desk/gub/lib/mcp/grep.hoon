@@ -80,7 +80,7 @@
     (peek:io [%& %& path.rail name.rail] ~)
   ?.  ?=([%& %file *] file-seen)
     $(candidates t.candidates)
-  ;<  =mime  bind:m  (sage-to-mime:io sage.p.file-seen)
+  ;<  =mime  bind:m  (sage-to-mime:io (need-sage:tarball sang.p.file-seen))
   =/  text=tape  (trip ;;(@t q.q.mime))
   ::  Split into lines and search
   =/  lines=(list tape)

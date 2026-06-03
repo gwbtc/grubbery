@@ -253,13 +253,13 @@
 ::
 ++  make-bo
   |=  now=@da
-  ~(. bo:nexus now [*born:nexus *ball:tarball])
+  ~(. bo:nexus now *born:nexus)
 ::
 ::  Helper to create bo with existing born
 ::
 ++  make-bo-with
   |=  [now=@da =born:nexus]
-  ~(. bo:nexus now [born *ball:tarball])
+  ~(. bo:nexus now born)
 ::
 ++  test-bo-get-empty
   ::  Get from empty born returns ~
@@ -949,7 +949,7 @@
   =/  =blot:tarball  [/ %txt]
   =/  =born:nexus  (make-grub-born / %myfile lobe blot [1 now])
   =/  [new-born=born:nexus new-silo=silo:nexus]
-    (record-trees:nexus born *silo:nexus *code:nexus *ball:tarball now /)
+    (record-trees:nexus born *silo:nexus *code:nexus now /)
   ::  Fold should have bumped
   =/  node  (need (get-node new-born /))
   ;:  weld
@@ -973,10 +973,10 @@
   =/  =lobe:clay  `@uvI`(sham 'hello')
   =/  =born:nexus  (make-grub-born / %myfile lobe [/ %txt] [1 now])
   =/  [born1=born:nexus silo1=silo:nexus]
-    (record-trees:nexus born *silo:nexus *code:nexus *ball:tarball now /)
+    (record-trees:nexus born *silo:nexus *code:nexus now /)
   ::  Call again — nothing changed
   =/  [born2=born:nexus silo2=silo:nexus]
-    (record-trees:nexus born1 silo1 *code:nexus *ball:tarball now /)
+    (record-trees:nexus born1 silo1 *code:nexus now /)
   ::  Fold should still be 1, not 2
   =/  node  (need (get-node born2 /))
   ;:  weld
@@ -991,7 +991,7 @@
   =/  lobe1=lobe:clay  `@uvI`(sham 'first')
   =/  =born:nexus  (make-grub-born / %myfile lobe1 [/ %txt] [1 now])
   =/  [born1=born:nexus silo1=silo:nexus]
-    (record-trees:nexus born *silo:nexus *code:nexus *ball:tarball now /)
+    (record-trees:nexus born *silo:nexus *code:nexus now /)
   ::  Simulate file change: update hist with new lobe at new cass
   =/  lobe2=lobe:clay  `@uvI`(sham 'second')
   =/  new-cass=cass:clay  [2 ~2024.1.2]
@@ -1002,7 +1002,7 @@
   =/  born2=born:nexus
     (~(put of born1) / born1-node(file (~(put by file.born1-node) %myfile new-sok)))
   =/  [born3=born:nexus silo2=silo:nexus]
-    (record-trees:nexus born2 silo1 *code:nexus *ball:tarball now /)
+    (record-trees:nexus born2 silo1 *code:nexus now /)
   ::  Fold should now be 2
   =/  node  (need (get-node born3 /))
   ;:  weld
@@ -1017,7 +1017,7 @@
   =/  =lobe:clay  `@uvI`(sham 'hello')
   =/  =born:nexus  (make-grub-born /a %myfile lobe [/ %txt] [1 now])
   =/  [new-born=born:nexus new-silo=silo:nexus]
-    (record-trees:nexus born *silo:nexus *code:nexus *ball:tarball now /a)
+    (record-trees:nexus born *silo:nexus *code:nexus now /a)
   ::  /a should have fold=1
   =/  a-node  (need (get-node new-born /a))
   ::  / should also have fold=1 (parent got a tree too)
@@ -1038,25 +1038,6 @@
     !>  lobe:(~(got by dir.root-tree) %a)
   ==
 ::
-++  test-record-trees-weir-in-tree
-  ::  record-trees captures weir from ball lump in tree's dir map
-  =/  now=@da  ~2024.1.1
-  =/  =lobe:clay  `@uvI`(sham 'hello')
-  =/  =born:nexus  (make-grub-born /a %myfile lobe [/ %txt] [1 now])
-  ::  Set up ball with a weir on /a (via lump weir field)
-  =/  =weir:nexus  [make=~ poke=(sy ~[[%& [%| /a]]]) peek=~]
-  =/  =ball:tarball  (~(put of *ball:tarball) /a [~ `weir ~])
-  =/  [new-born=born:nexus new-silo=silo:nexus]
-    (record-trees:nexus born *silo:nexus *code:nexus ball now /)
-  ::  Root's tree should have /a's weir
-  =/  root-node  (need (get-node new-born /))
-  =/  root-tree-lobe=lobe:clay
-    =/  pv=pace:hist:nexus  (need (get:hon:hist:nexus fold.root-node (need (top:hist:nexus fold.root-node))))
-    ?>(?=(%live -.pv) (need p.pv))
-  =/  root-tree  =+(jt=ject:(~(got by jects.new-silo) root-tree-lobe) ?>(?=(%tree -.jt) tree.jt))
-  %+  expect-eq
-    !>  `weir:nexus`weir
-  !>  (need weir:(~(got by dir.root-tree) %a))
 ::
 ::  Helper: add a grub to an existing born
 ::
@@ -1081,7 +1062,7 @@
   =.  born  (add-grub born / %beta lobe2 [/ %hoon] [1 now])
   =.  born  (add-grub born / %gamma lobe3 [/ %json] [1 now])
   =/  [new-born=born:nexus new-silo=silo:nexus]
-    (record-trees:nexus born *silo:nexus *code:nexus *ball:tarball now /)
+    (record-trees:nexus born *silo:nexus *code:nexus now /)
   =/  node  (need (get-node new-born /))
   =/  tree-lobe=lobe:clay
     =/  pv=pace:hist:nexus  (need (get:hon:hist:nexus fold.node (need (top:hist:nexus fold.node))))
@@ -1111,7 +1092,7 @@
   =.  born  (add-grub born /sub %childfile lobe2 [/ %txt] [1 now])
   ::  Record from /sub up
   =/  [new-born=born:nexus new-silo=silo:nexus]
-    (record-trees:nexus born *silo:nexus *code:nexus *ball:tarball now /sub)
+    (record-trees:nexus born *silo:nexus *code:nexus now /sub)
   =/  root-node  (need (get-node new-born /))
   =/  root-tree-lobe=lobe:clay
     =/  pv=pace:hist:nexus  (need (get:hon:hist:nexus fold.root-node (need (top:hist:nexus fold.root-node))))

@@ -175,11 +175,11 @@
   =/  who-c=(unit sang:tarball)  (~(get ba:tarball grp) [/ %'who.ships'])
   =/  how-c=(unit sang:tarball)  (~(get ba:tarball grp) [/ %'how.weir'])
   ?~  who-c  ~
-  =/  who-res  (mule |.(!<((set @p) q.u.who-c)))
+  =/  who-res  (mule |.(!<((set @p) (need-vase:tarball u.who-c))))
   =/  members=(set @p)  ?:(?=(%| -.who-res) ~ p.who-res)
   =/  =weir:nexus
     ?~  how-c  *weir:nexus
-    =/  res  (mule |.(!<(weir:nexus q.u.how-c)))
+    =/  res  (mule |.(!<(weir:nexus (need-vase:tarball u.how-c))))
     ?:(?=(%| -.res) *weir:nexus p.res)
   `[name members weir]
 ::

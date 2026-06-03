@@ -1324,22 +1324,22 @@
   =/  adir=@ta  (cat 3 (crip (hexn:http-utils apk)) '.wallet_account')
   =/  net-dir=@ta  ;;(@ta network)
   =/  acct-contents=(map @ta sang:tarball)
-    (~(put by *(map @ta sang:tarball)) %'data.wallet_account' [[/wallet %account] !>(acct)])
+    (~(put by *(map @ta sang:tarball)) %'data.wallet_account' [[/wallet %account] %& !>(acct)])
   =/  acct-lump=lump:tarball  [`[/wallet %account] ~ acct-contents]
   ::  build addresses/[network]/ ball with recv + chng mop files
   =/  chain-lump=lump:tarball
     :-  ~  :-  ~
     %-  ~(gas by *(map @ta sang:tarball))
-    :~  ['recv.wallet_addresses' [[/wallet %addresses] !>(recv-mop)]]
-        ['chng.wallet_addresses' [[/wallet %addresses] !>(*addr-mop)]]
-        ['txs.wallet_txs' [[/wallet %txs] !>(*tx-map)]]
+    :~  ['recv.wallet_addresses' [[/wallet %addresses] %& !>(recv-mop)]]
+        ['chng.wallet_addresses' [[/wallet %addresses] %& !>(*addr-mop)]]
+        ['txs.wallet_txs' [[/wallet %txs] %& !>(*tx-map)]]
     ==
   =/  net-ball=ball:tarball  [`chain-lump ~]
   =/  addr-dir=ball:tarball  [~ (~(put by *(map @ta ball:tarball)) net-dir net-ball)]
   =/  acct-ball=ball:tarball
     [`acct-lump (~(put by *(map @ta ball:tarball)) 'addresses' addr-dir)]
   :^  wdir
-    :-  `[`[/wallet %wallet] ~ (~(put by *(map @ta sang:tarball)) %'main.wallet_wallet' [[/wallet %wallet] !>(wal)])]
+    :-  `[`[/wallet %wallet] ~ (~(put by *(map @ta sang:tarball)) %'main.wallet_wallet' [[/wallet %wallet] %& !>(wal)])]
     ~
   adir
   acct-ball
@@ -1395,7 +1395,7 @@
   =/  ct=(unit sang:tarball)  (~(get by contents.sub-lump) 'main.wallet_wallet')
   ?~  ct  ~
   ?.  ?=(%wallet name.p.u.ct)  ~
-  (mole |.(!<(wallet-data q.u.ct)))
+  (mole |.(!<(wallet-data (need-vase:tarball u.ct))))
 ::
 ++  seed-to-cord
   |=  =seed

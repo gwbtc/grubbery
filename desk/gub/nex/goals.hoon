@@ -384,7 +384,7 @@
   ?~  entries  out
   =/  [fname=@ta ct=sang:tarball]  i.entries
   ?.  =(%goal-store name.p.ct)  $(entries t.entries)
-  =/  store=goal-store:goals  !<(goal-store:goals q.ct)
+  =/  store=goal-store:goals  !<(goal-store:goals (need-vase:tarball ct))
   =/  sname=@ta  (store-name-from-fname fname)
   $(entries t.entries, out (~(put by out) sname store))
 ::  Render the full goals page

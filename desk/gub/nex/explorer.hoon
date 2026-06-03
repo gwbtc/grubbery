@@ -186,7 +186,7 @@
   ?~  content-data
     ;<  ~  bind:m  (send-simple:srv eyre-id [[404 ~] `(as-octs:mimes:html 'Not found')])
     (pure:m ~)
-  =/  =sage:tarball  u.content-data
+  =/  =sage:tarball  (need-sage:tarball u.content-data)
   =/  pretty-param=(unit @t)  (get-key:kv:html-utils 'pretty' args)
   ?^  pretty-param
     ::  ?pretty: render noun as text instead of binary download
@@ -992,7 +992,7 @@
           ^-  manx
           =/  =sang:tarball  (~(got by file-contents) name)
           =/  file-bang=(unit tang)  (fall (~(get by file-bangs) name) ~)
-          (render-grub-row name content url-prefix pax b-born now conversions code-namespace file-bang)
+          (render-grub-row name sang url-prefix pax b-born now conversions code-namespace file-bang)
         rows
       ==
       ;div#boom-overlay.boom-modal-overlay
@@ -1294,7 +1294,7 @@
     =/  cas=(unit cass:clay)  (top:hist:nexus u.sk)
     ?~  cas  "-"
     (en:datetime-local:iso-8601 da.u.cas)
-  =/  sag=sage:tarball  content
+  =/  sag=sage:tarball  (need-sage:tarball sang)
   ?:  =(%symlink name.p.sag)
     =/  sym  !<(symlink:tarball q.sag)
     =/  target-display=tape  (trip (encode-symlink:tarball sym))

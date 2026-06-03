@@ -104,7 +104,7 @@
         ;<  init-seen=seen:nexus  bind:m  (peek:io height-road ~)
         =/  tip=@ud
           ?.  ?=([%& %file *] init-seen)  0
-          =/  res=(each @ud tang)  (mule |.(!<(@ud q.sage.p.init-seen)))
+          =/  res=(each @ud tang)  (mule |.(!<(@ud (need-vase:tarball sang.p.init-seen))))
           ?:(?=(%& -.res) p.res 0)
         |-
         ::  chain reset detection: if tip < processed, the chain was
@@ -121,7 +121,7 @@
           ;<  *  bind:m  (take-news:io /t)
           ;<  upd-seen=seen:nexus  bind:m  (peek:io height-road ~)
           ?.  ?=([%& %file *] upd-seen)  $
-          =/  new-tip=@ud  !<(@ud q.sage.p.upd-seen)
+          =/  new-tip=@ud  !<(@ud (need-vase:tarball sang.p.upd-seen))
           $(tip new-tip)
         ::  fetch the hash of the next block
         =/  next=@ud  +(processed)
@@ -297,7 +297,7 @@
           ;<  wal-seen=seen:nexus  bind:m  (peek:io wal-road ~)
           ?.  ?=([%& %file *] wal-seen)
             ~&  >>>  [%reg-tester %no-wallet-for-ship u.acting.args]  !!
-          =/  w  !<([seed=$%([%t =@t] [%uw =@uw] [%ux =@ux]) twk=@ utxo=(unit utxo:unv)] q.sage.p.wal-seen)
+          =/  w  !<([seed=$%([%t =@t] [%uw =@uw] [%ux =@ux]) twk=@ utxo=(unit utxo:unv)] (need-vase:tarball sang.p.wal-seen))
           =/  sd=@uw  ?-(-.seed.w %uw uw.seed.w, %ux `@uw`ux.seed.w, %t `@uw`(need (rush t.seed.w dem)))
           (pure:m [sd twk.w utxo.w])
         =.  sed.args  resolved-sed
@@ -757,7 +757,7 @@
   =/  =lump:tarball  (fall fil.ball.p.seen *lump:tarball)
   =/  ct=(unit sang:tarball)  (~(get by contents.lump) name)
   ?~  ct  ;div;
-  (fall (mole |.((need (de-xml:html !<(@t q.u.ct))))) ;div;)
+  (fall (mole |.((need (de-xml:html !<(@t (need-vase:tarball u.ct)))))) ;div;)
 ::
 ::  Extract ship names from a kept wallets directory view.
 ::
@@ -1219,7 +1219,7 @@
   =/  trace-road=road:tarball  (cord-to-road:tarball './trace.txt')
   ;<  prev-seen=seen:nexus  bind:m  (peek:io trace-road `[/ %txt])
   =/  prev-lines=wain
-    ?:  ?=([%& %file *] prev-seen)  !<(wain q.sage.p.prev-seen)
+    ?:  ?=([%& %file *] prev-seen)  !<(wain (need-vase:tarball sang.p.prev-seen))
     ~
   =/  combined=wain  (weld prev-lines new-lines)
   ;<  ~  bind:m  (over:io trace-road [[/ %txt] combined])

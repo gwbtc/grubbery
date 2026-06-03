@@ -62,7 +62,7 @@
             ?.  ?=(%& -.acct-seen)  $
             ?.  ?=([%file *] p.acct-seen)  $
             =/  acct=(unit account-data)
-              (mole |.(!<(account-data q.sage.p.acct-seen)))
+              (mole |.(!<(account-data (need-vase:tarball sang.p.acct-seen))))
             ?~  acct  $
             =/  is-change=?  =(chain 'change')
             =/  chain-tag=?(%recv %chng)  ?:(is-change %chng %recv)
@@ -115,7 +115,7 @@
             ?.  ?=(%& -.acct-seen)  $
             ?.  ?=([%file *] p.acct-seen)  $
             =/  acct=(unit account-data)
-              (mole |.(!<(account-data q.sage.p.acct-seen)))
+              (mole |.(!<(account-data (need-vase:tarball sang.p.acct-seen))))
             ?~  acct  $
             ;<  mop=addr-mop  bind:m  (read-mop "." active-network.u.acct chain-tag)
             =/  updated=addr-mop
@@ -133,7 +133,7 @@
             ?.  ?=(%& -.acct-seen)  $
             ?.  ?=([%file *] p.acct-seen)  $
             =/  acct=(unit account-data)
-              (mole |.(!<(account-data q.sage.p.acct-seen)))
+              (mole |.(!<(account-data (need-vase:tarball sang.p.acct-seen))))
             ?~  acct  $
             ::  ensure address dir exists for the new network
             ;<  ~  bind:m  (ensure-net-dir new-network)
@@ -186,7 +186,7 @@
               (peek:io (cord-to-road:tarball './data.wallet_account') ~)
             ?.  ?=([%& %file *] acct-seen)  $
             =/  acct=(unit account-data)
-              (mole |.(!<(account-data q.sage.p.acct-seen)))
+              (mole |.(!<(account-data (need-vase:tarball sang.p.acct-seen))))
             ?~  acct  $
             ::  spawn refresh process file
             =/  net=@ta  ;;(@ta active-network.u.acct)
@@ -280,7 +280,7 @@
             ?.  ?=(%& -.acct-seen)  $
             ?.  ?=([%file *] p.acct-seen)  $
             =/  acct=(unit account-data)
-              (mole |.(!<(account-data q.sage.p.acct-seen)))
+              (mole |.(!<(account-data (need-vase:tarball sang.p.acct-seen))))
             ?~  acct  $
             ;<  existing=(unit transaction:drft)  bind:m  read-draft-file
             ?~  existing  $
@@ -365,7 +365,7 @@
             ?.  ?=(%& -.acct-seen)  $
             ?.  ?=([%file *] p.acct-seen)  $
             =/  acct=(unit account-data)
-              (mole |.(!<(account-data q.sage.p.acct-seen)))
+              (mole |.(!<(account-data (need-vase:tarball sang.p.acct-seen))))
             ?~  acct
               ~&  >>>  "account data not found"
               $
@@ -611,7 +611,7 @@
   =/  ct=(unit sang:tarball)  (~(get by contents.lump) 'data.wallet_account')
   ?~  ct  ~
   ?.  ?=(%account name.p.u.ct)  ~
-  (mole |.(!<(account-data q.u.ct)))
+  (mole |.(!<(account-data (need-vase:tarball u.ct))))
 ::
 ++  read-draft-file
   =/  m  (fiber:fiber:nexus ,(unit transaction:drft))
@@ -710,11 +710,11 @@
   =/  recv=addr-mop
     =/  ct=(unit sang:tarball)  (~(get by contents.u.fil.u.net-ball) 'recv.wallet_addresses')
     ?~  ct  *addr-mop
-    (fall (mole |.(!<(addr-mop q.u.ct))) *addr-mop)
+    (fall (mole |.(!<(addr-mop (need-vase:tarball u.ct)))) *addr-mop)
   =/  chng=addr-mop
     =/  ct=(unit sang:tarball)  (~(get by contents.u.fil.u.net-ball) 'chng.wallet_addresses')
     ?~  ct  *addr-mop
-    (fall (mole |.(!<(addr-mop q.u.ct))) *addr-mop)
+    (fall (mole |.(!<(addr-mop (need-vase:tarball u.ct)))) *addr-mop)
   [recv chng]
 ::  +addr-road: compute road to a chain's mop file
 ::

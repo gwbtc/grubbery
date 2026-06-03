@@ -13,10 +13,6 @@
 +$  lode  [=keys =deps =refs]
 +$  code  (map fold:tarball lode)
 +$  bins  (map @uv [refs=@ud =built])
-::  The ball (tarball) is WYSIWYG: fully materialized, no dedup.
-::  Every file is stored inline. To deduplicate, make references
-::  via path+cass rather than copying content.
-::
 ::  A "grub" is the entity that lives at a rail: its file content and
 ::  its running process, considered as one thing. You create, delete,
 ::  poke, and watch grubs. When the distinction matters, "file" means
@@ -389,20 +385,31 @@
 ::  a level produces the same hash.
 ::
 ++  record-trees
-  |=  [=born =silo =code =ball:tarball now=@da dir=path]
+  |=  [=born =silo =code now=@da dir=path]
   ^-  [^born ^silo]
   =/  sub-born=^born  (~(dip of born) dir)
-  =/  boo  ~(. bo now [born ball])
+  =/  boo  ~(. bo now born)
   =/  top-fold  top:hist
   =/  top-hist  top:hist
   =/  node=[fold=hist file=(map @ta hist)]
     (fall fil.sub-born default-node:boo)
-  ::  nek: nexus identity + ckey from ball at this directory
+  ::  existing tree ject from silo (for neck + child weirs)
+  =/  existing-tree=(unit tree)
+    =/  fold-top=(unit cass:clay)  (top-fold fold.node)
+    ?~  fold-top  ~
+    =/  got=(unit pace:hist)  (get:hon:hist fold.node u.fold-top)
+    ?~  got  ~
+    ?.  ?=(%live -.u.got)  ~
+    ?~  p.u.got  ~
+    =/  jot  (~(get by jects.silo) u.p.u.got)
+    ?~  jot  ~
+    ?.  ?=(%tree -.ject.u.jot)  ~
+    `tree.ject.u.jot
+  ::  nek: nexus identity + ckey from existing tree ject
   =/  nek=(unit [=neck:tarball ckey=@uv])
-    =/  sub-ball=ball:tarball  (~(dip of ball) dir)
-    ?~  fil.sub-ball  ~
-    ?~  neck.u.fil.sub-ball  ~
-    =/  =neck:tarball  u.neck.u.fil.sub-ball
+    ?~  existing-tree  ~
+    ?~  nek.u.existing-tree  ~
+    =/  =neck:tarball  neck.u.nek.u.existing-tree
     =/  nex-ns=(unit fold:tarball)
       =/  pax=path  (weld dir path.neck)
       |-
@@ -427,8 +434,7 @@
     ?.  ?=(%live -.u.val)  out
     ?~  p.u.val  out
     (~(put by out) name u.p.u.val)
-  ::  dir: each child's latest tree lobe + weir
-  =/  sub-ball=ball:tarball  (~(dip of ball) dir)
+  ::  dir: each child's latest tree lobe + weir from existing tree
   =/  dir-map=(map @ta [lobe:clay weir=(unit weir)])
     %-  ~(urn by dir.sub-born)
     |=  [name=@ta kid=^born]
@@ -443,39 +449,47 @@
       ?.  ?=(%live -.u.got)  *lobe:clay
       (fall p.u.got *lobe:clay)
     =/  kid-weir=(unit weir)
-      =/  kid-ball=(unit ball:tarball)  (~(get by dir.sub-ball) name)
-      ?~  kid-ball  ~
-      ?~  fil.u.kid-ball  ~
-      weir.u.fil.u.kid-ball
+      ?~  existing-tree  ~
+      =/  entry  (~(get by dir.u.existing-tree) name)
+      ?~  entry  ~
+      weir.u.entry
     [tree-lobe kid-weir]
-  ::  Build tree object + hash via ject
+  ::  Build tree object + store via put-tree
   =/  =tree  [nek fil dir-map]
+  =/  [changed=? new-born=^born new-silo=^silo]
+    (put-tree born silo now dir node tree)
+  ?.  changed  [born silo]
+  ?~  dir  [new-born new-silo]
+  $(born new-born, silo new-silo, dir (snip `path`dir))
+::  +put-tree: store a tree ject at dir, update born fold hist.
+::  Returns [changed born silo].
+::
+++  put-tree
+  |=  [=born =silo now=@da dir=path node=[fold=hist file=(map @ta hist)] =tree]
+  ^-  [changed=? ^born ^silo]
   =/  =lobe:clay  `@uvI`(sham [%tree tree])
-  ::  Check if tree changed from current
+  =/  top-fold  top:hist
   =/  fold-cas=(unit cass:clay)  (top-fold fold.node)
-  =/  cur-pace=(unit pace:hist)
-    ?~  fold-cas  ~
-    (get:hon:hist fold.node u.fold-cas)
   =/  cur-lobe=(unit lobe:clay)
+    =/  cur-pace=(unit pace:hist)
+      ?~  fold-cas  ~
+      (get:hon:hist fold.node u.fold-cas)
     ?~  cur-pace  ~
     ?.  ?=(%live -.u.cur-pace)  ~
     p.u.cur-pace
   ?:  =(`lobe cur-lobe)
-    [born silo]
-  ::  Different — store tree ject
+    [%.n born silo]
   =/  [* new-silo=^silo]
     (~(put-ject si silo) [%tree tree])
   =.  silo  new-silo
-  =/  old-fold=cass:clay  (need fold-cas)
+  =/  old-fold=cass:clay  (fall fold-cas [0 now])
   =/  new-fold=cass:clay
     =/  nex-da=@da  ?:((lth da.old-fold now) now +(da.old-fold))
     [+(ud.old-fold) nex-da]
-  =/  new-fold=hist
+  =/  new-hist=hist
     (put:hon:hist fold.node new-fold [%live `lobe])
-  =.  born
-    (~(put of born) dir node(fold new-fold))
-  ?~  dir  [born silo]
-  $(dir (snip `path`dir))
+  =.  born  (~(put of born) dir node(fold new-hist))
+  [%.y born silo]
 ::  +bo: Pure operations on born (version tracking)
 ::
 ::  Structure: (axal [fold=hist file=(map @ta hist)])
@@ -489,7 +503,7 @@
 ::    - Weir cass bumps on weir change at that directory
 ::
 ++  bo
-  |_  [now=@da old=[=born =ball:tarball]]
+  |_  [now=@da old=born]
   ::  Default node with initial hist entry
   ::
   ++  default-node
@@ -502,7 +516,7 @@
     |=  here=rail:tarball
     ^-  (unit hist)
     =/  node=(unit [fold=hist file=(map @ta hist)])
-      (~(get of born.old) path.here)
+      (~(get of old) path.here)
     ?~  node  ~
     (~(get by file.u.node) name.here)
   ::  Put hist for a file
@@ -511,8 +525,8 @@
     |=  [here=rail:tarball sok=hist]
     ^-  born
     =/  node=[fold=hist file=(map @ta hist)]
-      (fall (~(get of born.old) path.here) default-node)
-    (~(put of born.old) path.here node(file (~(put by file.node) name.here sok)))
+      (fall (~(get of old) path.here) default-node)
+    (~(put of old) path.here node(file (~(put by file.node) name.here sok)))
   ::  Get dir cass
   ::
   ++  get-dir-cass
@@ -520,7 +534,7 @@
     ^-  (unit cass:clay)
     =/  top-fold  top:hist
     =/  node=(unit [fold=hist file=(map @ta hist)])
-      (~(get of born.old) dir)
+      (~(get of old) dir)
     ?~  node  ~
     (top-fold fold.u.node)
   ::  Next cass value (increment ud, update da)
@@ -582,7 +596,7 @@
     =/  new-only=(list @ta)  ~(tap in (~(dif in new-names) old-names))
     |-  ^-  born
     ?^  new-only
-      =.  born.old  (init [here i.new-only])
+      =.  old  (init [here i.new-only])
       $(new-only t.new-only)
     ::  Handle empty dir edge cases
     =/  old-exists=?  (dir-exists old-ball)
@@ -590,20 +604,20 @@
     =/  old-is-empty=?  (is-empty-dir old-ball)
     =/  new-is-empty=?  (is-empty-dir new-ball)
     ::  Empty dir appears — ensure node exists in born
-    =?  born.old  &(new-is-empty !old-exists)
-      (~(put of born.old) here (fall (~(get of born.old) here) default-node))
+    =?  old  &(new-is-empty !old-exists)
+      (~(put of old) here (fall (~(get of old) here) default-node))
     ::  Empty dir disappears — ensure node exists in born
-    =?  born.old  &(old-is-empty !new-exists)
-      (~(put of born.old) here (fall (~(get of born.old) here) default-node))
+    =?  old  &(old-is-empty !new-exists)
+      (~(put of old) here (fall (~(get of old) here) default-node))
     ::  Recurse into all subdirs
     =/  all-kids=(set @ta)
       (~(uni in ~(key by dir.old-ball)) ~(key by dir.new-ball))
     =/  kids=(list @ta)  ~(tap in all-kids)
     |-  ^-  born
-    ?~  kids  born.old
+    ?~  kids  old
     =/  kid-old=ball:tarball  (fall (~(get by dir.old-ball) i.kids) *ball:tarball)
     =/  kid-new=ball:tarball  (fall (~(get by dir.new-ball) i.kids) *ball:tarball)
-    =.  born.old  (diff-balls (snoc here i.kids) kid-old kid-new)
+    =.  old  (diff-balls (snoc here i.kids) kid-old kid-new)
     $(kids t.kids)
   --
 ::  +si: Pure operations on silo (content-addressed object store)

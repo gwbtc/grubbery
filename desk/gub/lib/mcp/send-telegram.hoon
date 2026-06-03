@@ -25,7 +25,7 @@
     (peek:io [%& %& /'telegram.telegram' %'creds.json'] `[/ %json])
   ?.  ?=([%& %file *] creds-seen)
     (pure:m [%error 'No telegram creds. Create /telegram.telegram/creds.json with bot-token and chat-id.'])
-  =/  jon=json  !<(json q.sage.p.creds-seen)
+  =/  jon=json  !<(json (need-vase:tarball sang.p.creds-seen))
   =/  creds-parsed=(each [@t @t] tang)
     %-  mule  |.
     :-  (~(dog jo:json-utils jon) /bot-token so:dejs:format)

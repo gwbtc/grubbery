@@ -516,7 +516,7 @@
     =/  cfg=json
       ?.  ?=([%& %file *] cfg-seen)
         (need (de:json:html '{}'))
-      !<(json q.sage.p.cfg-seen)
+      !<(json (need-vase:tarball sang.p.cfg-seen))
     =/  api-key=@t  (jget-t cfg 'api_key' '')
     ?:  =('' api-key)
       ~&  >>>  %claude-no-api-key
@@ -534,7 +534,7 @@
     ;<  now=@da  bind:m  get-time:io
     =/  custom=@t
       ?.  ?=([%& %file *] custom-seen)  ''
-      =/  =wain  !<(wain q.sage.p.custom-seen)
+      =/  =wain  !<(wain (need-vase:tarball sang.p.custom-seen))
       ?~(wain '' (of-wain:format wain))
     ::  Registry state rendered to text for system prompt
     ;<  reg=registry  bind:m  (get-state-as:io ,registry)
@@ -549,7 +549,7 @@
     =/  reg-text=@t  (of-wain:format reg-wain)
     =/  weir-text=@t
       ?.  ?=([%& %file *] weir-seen)  ''
-      =/  =wain  !<(wain q.sage.p.weir-seen)
+      =/  =wain  !<(wain (need-vase:tarball sang.p.weir-seen))
       ?~(wain '' (of-wain:format wain))
     =/  ship=@t  (scot %p our)
     =/  msg-count=@t  (crip (a-co:co (lent (tap:mon messages.msg))))
@@ -1128,7 +1128,7 @@
     ?~  files  (pure:m ~)
     =/  [file-name=@ta =sang:tarball]  i.files
     =/  lane-path=@t  (spat (snoc here file-name))
-    ;<  content-text=@t  bind:m  (sage-to-txt content)
+    ;<  content-text=@t  bind:m  (sage-to-txt (need-sage:tarball sang))
     =/  msg=@t
       (rap 3 ~['<api action="' act '" path="' lane-path '">' content-text '</api>'])
     ;<  ~  bind:m  (append-to-msgs msg-road 'user' msg)

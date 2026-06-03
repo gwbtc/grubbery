@@ -32,7 +32,7 @@
     (peek:io [%& %& /['indexer.indexer_app'] %'tip.ud'] ~)
   =/  tip=@ud
     ?.  ?=([%& %file *] tip-seen)  0
-    =/  res  (mole |.(!<(@ud q.sage.p.tip-seen)))
+    =/  res  (mole |.(!<(@ud (need-vase:tarball sang.p.tip-seen))))
     ?~  res  0
     u.res
   ::  read blocks directory
@@ -73,7 +73,7 @@
   ?.  ?=([%& %file *] header-seen)
     %-  pure:m
     [%text (of-wain:format (snoc status (rap 3 ~['block ' (crip ((d-co:co 1) u.h)) ': not cached'])))]
-  =/  header-json=json  !<(json q.sage.p.header-seen)
+  =/  header-json=json  !<(json (need-vase:tarball sang.p.header-seen))
   ::  read txs dir
   ;<  txs-seen=seen:nexus  bind:m
     (peek:io [%& %| /['indexer.indexer_app']/blocks/[height-dir]/txs] ~)

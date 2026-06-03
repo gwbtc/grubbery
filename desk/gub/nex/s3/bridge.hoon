@@ -730,7 +730,7 @@
         =/  mtype=path  (determine-mime-type:tarball ct filename)
         [blot !>(`mime`[mtype body])]
     ==
-  $(keys t.keys, pulled +(pulled), ball (~(put ba:tarball ball) [rel-path filename] sage))
+  $(keys t.keys, pulled +(pulled), ball (~(put ba:tarball ball) [rel-path filename] (sage-to-sang:tarball sage)))
 ::
 ::  sync push helpers
 ::
@@ -778,7 +778,7 @@
     =/  base=path  (text-to-path local-path.bridge-entry)
     (slag (lent base) path.rail)
   =/  s3-key=@t  (build-s3-key s3-prefix.bridge-entry rel-path name.rail)
-  =/  body=(unit @t)  (serialize-for-s3 content)
+  =/  body=(unit @t)  (serialize-for-s3 sang)
   ?~  body  $(remaining t.remaining)
   ;<  resp=client-response:iris  bind:m  (s3-request cfg 'PUT' s3-key '' body)
   $(remaining t.remaining)
@@ -801,7 +801,7 @@
     =/  base=path  (text-to-path local-path.bridge-entry)
     (slag (lent base) path.rail)
   =/  s3-key=@t  (build-s3-key s3-prefix.bridge-entry rel-path name.rail)
-  =/  body=(unit @t)  (serialize-for-s3 content)
+  =/  body=(unit @t)  (serialize-for-s3 sang)
   ?~  body  $(files t.files)
   ;<  resp=client-response:iris  bind:m  (s3-request cfg 'PUT' s3-key '' body)
   $(files t.files)
@@ -824,7 +824,7 @@
     =/  fils=(list [@ta sang:tarball])  ~(tap by contents.u.fil.ball)
     %+  weld  acc
     %+  turn  fils
-    |=([name=@ta =sang:tarball] [[base name] content])
+    |=([name=@ta =sang:tarball] [[base name] sang])
   =/  dirs=(list [@ta ball:tarball])  ~(tap by dir.ball)
   |-
   ?~  dirs  acc

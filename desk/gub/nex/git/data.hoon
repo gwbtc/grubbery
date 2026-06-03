@@ -336,7 +336,7 @@
     (~(get ba:tarball ball) [log-path branch])
   =/  old-text=tape
     ?~  existing  ""
-    =/  m=mime  !<(mime q.u.existing)
+    =/  m=mime  !<(mime (need-vase:tarball u.existing))
     (trip q.q.m)
   =/  new-text=tape  (weld old-text entry)
   =/  new-octs=octs  (as-octt:bytestream new-text)
@@ -351,7 +351,7 @@
     (~(get ba:tarball ball) [/logs %'stash'])
   =/  old-text=tape
     ?~  existing  ""
-    =/  m=mime  !<(mime q.u.existing)
+    =/  m=mime  !<(mime (need-vase:tarball u.existing))
     (trip q.q.m)
   =/  new-text=tape  (weld old-text entry)
   =/  new-octs=octs  (as-octt:bytestream new-text)
@@ -364,7 +364,7 @@
   =/  existing=(unit sang:tarball)
     (~(get ba:tarball ball) [/logs %'stash'])
   ?~  existing  [~ ball]
-  =/  text=tape  (trip q.q:!<(mime q.u.existing))
+  =/  text=tape  (trip q.q:!<(mime (need-vase:tarball u.existing)))
   ::  split on newlines, drop empty, drop last entry
   =/  lines=(list @t)
     %+  skip  (to-wain:format (crip text))
@@ -399,7 +399,7 @@
   =/  head-content=(unit sang:tarball)
     (~(get ba:tarball ball) [/ %'HEAD'])
   ?~  head-content  ~
-  =/  head-mim=mime  !<(mime q.u.head-content)
+  =/  head-mim=mime  !<(mime (need-vase:tarball u.head-content))
   =/  head-text=tape  (trip q.q.head-mim)
   ?:  =("ref: " (scag 5 head-text))
     ::  symbolic ref — extract branch name and resolve
@@ -426,7 +426,7 @@
   =/  req=(unit sang:tarball)
     (~(get ba:tarball ball) [/ %'add-request.json'])
   ?~  req  ~
-  =/  j=json  (fall (mole |.(!<(json q.u.req))) *json)
+  =/  j=json  (fall (mole |.(!<(json (need-vase:tarball u.req)))) *json)
   ?.  ?=(%o -.j)  ~
   `j
 ::
@@ -438,7 +438,7 @@
   =/  req=(unit sang:tarball)
     (~(get ba:tarball ball) [/ %'commit-request.json'])
   ?~  req  ~
-  =/  j=json  (fall (mole |.(!<(json q.u.req))) *json)
+  =/  j=json  (fall (mole |.(!<(json (need-vase:tarball u.req)))) *json)
   ?.  ?=(%o -.j)  ~
   ?:  =(~ p.j)  ~
   `j
@@ -532,7 +532,7 @@
   =/  idx-content=(unit sang:tarball)
     (~(get ba:tarball ball) [/ %'INDEX'])
   ?~  idx-content  ~
-  =/  m=mime  !<(mime q.u.idx-content)
+  =/  m=mime  !<(mime (need-vase:tarball u.idx-content))
   ?:  =(0 p.q.m)  ~
   =/  lines=(list tape)
     (split:git-transport (trip q.q.m) `@t`10)
@@ -797,7 +797,7 @@
   =/  content=(unit sang:tarball)
     (~(get ba:tarball ball) [dir name])
   ?~  content  ~
-  =/  m=mime  !<(mime q.u.content)
+  =/  m=mime  !<(mime (need-vase:tarball u.content))
   ?:  =(0 p.q.m)  ~
   (rust (trip q.q.m) parse-hash-sha-1:git-transport)
 ::
@@ -831,14 +831,14 @@
     ?~  fil.heads-sub  result
     %+  roll  ~(tap by contents.u.fil.heads-sub)
     |=  [[name=@t =sang:tarball] r=(axal ref:git-repo)]
-    =/  h=(unit @ux)  (read-hash-from-content content)
+    =/  h=(unit @ux)  (read-hash-from-content sang)
     ?~  h  r
     (~(put of r) [~['refs' 'heads' name] u.h])
   =/  remote-sub=ball:tarball  (get-sub-ball ball /refs/remotes/origin)
   ?~  fil.remote-sub  result
   %+  roll  ~(tap by contents.u.fil.remote-sub)
   |=  [[name=@t =sang:tarball] r=(axal ref:git-repo)]
-  =/  h=(unit @ux)  (read-hash-from-content content)
+  =/  h=(unit @ux)  (read-hash-from-content sang)
   ?~  h  r
   (~(put of r) [~['refs' 'remotes' 'origin' name] u.h])
 ::
@@ -878,9 +878,9 @@
     (~(get ba:tarball packs-dir) [/ idx-name])
   ?~  pack-content  ~
   ?~  idx-content  ~
-  =/  pack-mim=mime  !<(mime q.u.pack-content)
+  =/  pack-mim=mime  !<(mime (need-vase:tarball u.pack-content))
   ?:  =(0 p.q.pack-mim)  ~
-  =/  idx-mim=mime  !<(mime q.u.idx-content)
+  =/  idx-mim=mime  !<(mime (need-vase:tarball u.idx-content))
   =/  idx-text=tape  (trip q.q.idx-mim)
   =/  idx=pack-index:git-pack
     (rebuild-index (split:git-transport idx-text `@t`10))
@@ -979,7 +979,7 @@
     (~(get ba:tarball ball) [/ %'HEAD'])
   =?  result  ?=(^ head-content)
     =/  h=(unit @ux)
-      (rust (trip q.q:!<(mime q.u.head-content)) parse-hash-sha-1:git-transport)
+      (rust (trip q.q:!<(mime (need-vase:tarball u.head-content))) parse-hash-sha-1:git-transport)
     ?~  h  result
     (add-label result u.h 'HEAD')
   ::  add local branches (refs/heads/*)

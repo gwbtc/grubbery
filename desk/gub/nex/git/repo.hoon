@@ -513,7 +513,7 @@
         ;<  remote-seen=seen:nexus  bind:m  (peek:io remote-rd `[/ %mime])
         =/  remote-ref=@t
           ?.  ?=([%& %file *] remote-seen)  ''
-          =/  mim=mime  !<(mime q.sage.p.remote-seen)
+          =/  mim=mime  !<(mime (need-vase:tarball sang.p.remote-seen))
           (crip (trip q.q.mim))
         ?:  =(local-ref remote-ref)
           ~&  >>  "%git/repo push: nothing to push"
@@ -927,7 +927,7 @@
   ;<  head-seen=seen:nexus  bind:m  (peek:io head-rd `[/ %mime])
   ?.  ?=([%.y %file *] head-seen)
     (pure:m '')
-  =/  head-mim=mime  !<(mime q.sage.p.head-seen)
+  =/  head-mim=mime  !<(mime (need-vase:tarball sang.p.head-seen))
   =/  head-text=tape  (trip q.q.head-mim)
   ?.  =("ref: " (scag 5 head-text))
     ::  raw hash (detached HEAD)
@@ -950,7 +950,7 @@
   ;<  head-seen=seen:nexus  bind:m  (peek:io head-rd `[/ %mime])
   ?.  ?=([%.y %file *] head-seen)
     (pure:m '')
-  =/  head-mim=mime  !<(mime q.sage.p.head-seen)
+  =/  head-mim=mime  !<(mime (need-vase:tarball sang.p.head-seen))
   =/  head-text=tape  (trip q.q.head-mim)
   ?.  =("ref: " (scag 5 head-text))
     (pure:m '')
