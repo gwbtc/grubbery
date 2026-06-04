@@ -2,7 +2,7 @@
   title+'Grubbery'
   info+'Content-addressed tarball system.'
   color+0x8b.4513
-  image+'https://raw.githubusercontent.com/gwbtc/grubbery/99c2503877d76f16d3fe59b66e43858f2812d57d/grub.png'
+  image+'https://raw.githubusercontent.com/gwbtc/grubbery/39a144c/grub.png'
   base+'grubbery'
   site+/grubbery/ball
   version+[0 1 0]
