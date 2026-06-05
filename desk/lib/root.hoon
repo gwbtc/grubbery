@@ -37,6 +37,7 @@
         [%fall %& [/sys/scry %'main.sig'] [[/ %sig] ~]]
         ::  child nexuses
         ::
+        [%fall %| /apps/'tiles.tiles' [`[`[/ %tiles] ~ %.n ~] ~]]
         [%fall %| /apps/'counter.counter' [`[`[/ %counter] ~ %.n ~] ~]]
         [%fall %| /apps/'explorer.explorer' [`[`[/ %explorer] ~ %.n ~] ~]]
         [%fall %| /apps/'mcp.mcp' [`[`[/ %mcp] ~ %.n ~] ~]]
