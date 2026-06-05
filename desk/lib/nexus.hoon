@@ -443,24 +443,23 @@
     (~(put by out) name u.p.u.val)
   ::  dir: each child's latest tree lobe + weir from existing tree
   =/  dir-map=(map @ta [lobe:clay weir=(unit weir)])
-    %-  ~(urn by dir.sub-born)
-    |=  [name=@ta kid=^born]
+    %-  ~(rep by dir.sub-born)
+    |=  [[name=@ta kid=^born] out=(map @ta [lobe:clay weir=(unit weir)])]
     =/  kid-node=(unit [fold=hist file=(map @ta hist)])  fil.kid
-    =/  tree-lobe=lobe:clay
-      ?~  kid-node  *lobe:clay
-      =/  cas=(unit cass:clay)  (top-fold fold.u.kid-node)
-      ?~  cas  *lobe:clay
-      =/  got=(unit pace:hist)
-        (get:hon:hist fold.u.kid-node u.cas)
-      ?~  got  *lobe:clay
-      ?:  ?=(%tomb -.u.got)  *lobe:clay
-      (fall p.u.got *lobe:clay)
+    ?~  kid-node  out
+    =/  cas=(unit cass:clay)  (top-fold fold.u.kid-node)
+    ?~  cas  out
+    =/  got=(unit pace:hist)
+      (get:hon:hist fold.u.kid-node u.cas)
+    ?~  got  out
+    ?:  ?=(%tomb -.u.got)  out
+    ?~  p.u.got  out
     =/  kid-weir=(unit weir)
       ?~  existing-tree  ~
       =/  entry  (~(get by dir.u.existing-tree) name)
       ?~  entry  ~
       weir.u.entry
-    [tree-lobe kid-weir]
+    (~(put by out) name [u.p.u.got kid-weir])
   ::  Build tree object + store via put-tree
   =/  tree-gain=?  ?~(existing-tree %.n gain.u.existing-tree)
   =/  tree-bang=(unit lobe:clay)  ?~(existing-tree ~ bang.u.existing-tree)
@@ -569,70 +568,6 @@
       =/  zero=cass:clay  [0 now]
       (put here [[zero [%temp ~]] ~ ~])
     (put here u.existing)
-  ::  Check if a ball node is an empty directory (exists but no files, no subdirs)
-  ::
-  ++  is-empty-dir
-    |=  =ball:tarball
-    ^-  ?
-    ?&  ?=(^ fil.ball)
-        =(~ contents.u.fil.ball)
-        =(~ dir.ball)
-    ==
-  ::  Check if a directory exists in a ball (has lump or has children)
-  ::  (technically has lump should be enough to identify it)
-  ::
-  ++  dir-exists
-    |=  bol=ball:tarball
-    ^-  ?
-    |(?=(^ fil.bol) !=(~ dir.bol))
-  ::  Diff two balls and ensure born entries for changes
-  ::
-  ::  - New files (in new, not in old): init born entry
-  ::  - Empty dir appears (no previous children): ensure born node
-  ::  - Empty dir disappears (no new children): ensure born node
-  ::  - Recurse into all subdirs
-  ::
-  ::  Note: actual hist/silo mutations happen in record-ball-changes
-  ::  in grubbery.hoon, not here. This only ensures born entries exist
-  ::  so that record can write to them.
-  ::
-  ++  diff-balls
-    |=  [here=fold:tarball old-ball=ball:tarball new-ball=ball:tarball]
-    ^-  born
-    ::  Get file maps at this level
-    =/  old-files=(map @ta [=sang:tarball gain=? bang=(unit tang)])
-      ?~(fil.old-ball ~ contents.u.fil.old-ball)
-    =/  new-files=(map @ta [=sang:tarball gain=? bang=(unit tang)])
-      ?~(fil.new-ball ~ contents.u.fil.new-ball)
-    =/  old-names=(set @ta)  ~(key by old-files)
-    =/  new-names=(set @ta)  ~(key by new-files)
-    ::  Init born entries for new files
-    =/  new-only=(list @ta)  ~(tap in (~(dif in new-names) old-names))
-    |-  ^-  born
-    ?^  new-only
-      =.  old  (init [here i.new-only])
-      $(new-only t.new-only)
-    ::  Handle empty dir edge cases
-    =/  old-exists=?  (dir-exists old-ball)
-    =/  new-exists=?  (dir-exists new-ball)
-    =/  old-is-empty=?  (is-empty-dir old-ball)
-    =/  new-is-empty=?  (is-empty-dir new-ball)
-    ::  Empty dir appears — ensure node exists in born
-    =?  old  &(new-is-empty !old-exists)
-      (~(put of old) here (fall (~(get of old) here) default-node))
-    ::  Empty dir disappears — ensure node exists in born
-    =?  old  &(old-is-empty !new-exists)
-      (~(put of old) here (fall (~(get of old) here) default-node))
-    ::  Recurse into all subdirs
-    =/  all-kids=(set @ta)
-      (~(uni in ~(key by dir.old-ball)) ~(key by dir.new-ball))
-    =/  kids=(list @ta)  ~(tap in all-kids)
-    |-  ^-  born
-    ?~  kids  old
-    =/  kid-old=ball:tarball  (fall (~(get by dir.old-ball) i.kids) *ball:tarball)
-    =/  kid-new=ball:tarball  (fall (~(get by dir.new-ball) i.kids) *ball:tarball)
-    =.  old  (diff-balls (snoc here i.kids) kid-old kid-new)
-    $(kids t.kids)
   --
 ::  +si: Pure operations on silo (content-addressed object store)
 ::
