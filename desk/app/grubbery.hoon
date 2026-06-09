@@ -69,16 +69,16 @@
   ^-  (quip card _this)
   ::  Seed bootstrap marcs into bins before any code compilation
   =^  bootstrap-cards  state  abet:bootstrap-marcs:hc
-  ::  Compile code from Clay
-  =^  gub-cards  state  abet:sync-gub:hc
-  ::  Bootstrap root tree.  Must run AFTER sync-gub so born has /code —
-  ::  otherwise the root tree has no /code child, root on-load gets an
-  ::  empty /code, and load-ball-changes clobbers the %code neck.
+  ::  Bootstrap root tree with /code namespace stub.
+  ::  Must run BEFORE sync-gub so sync-gub fills /code rather than
+  ::  the root bole stomping /code's files after the fact.
   =/  root-bole=bole:tarball
     :-  `[`[/ %root] ~ %.n ~]
     (malt ~[[%code [`[`[/ %code] ~ %.n ~] ~]]])
   =^  root-tree-cards  state
     abet:(load-ball-changes:hc / root-bole)
+  ::  Compile code from Clay — fills /code with sources and compiles
+  =^  gub-cards  state  abet:sync-gub:hc
   ::  Reload root nexus (after code compile so child nexuses can build)
   =^  root-cards  state  abet:(reload-nexus-at:hc / root)
   ::  Purge stale code namespaces, then register new ones
