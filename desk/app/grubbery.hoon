@@ -3009,7 +3009,19 @@
   =/  [=lobe:clay new-silo=silo:nexus new-sok=hist:nexus]
     (~(record si:nexus silo) raw p.bask marc-ckey gain new-cass file-cass sok)
   =.  silo  new-silo
-  this(born (~(put bo:nexus now.bowl born) here new-sok))
+  =.  born  (~(put bo:nexus now.bowl born) here new-sok)
+  ::  Populate vale cache so reads never miss
+  ?:  =(marc-ckey 0v0)  this
+  =/  entry  (~(get by bins) marc-ckey)
+  ?~  entry  this
+  ?.  ?=(%vase -.built.u.entry)  this
+  =/  marc-res=(each marc:tarball tang)
+    (mule |.(!<(marc:tarball vase.built.u.entry)))
+  ?:  ?=(%| -.marc-res)
+    (vale-put lobe marc-ckey `p.marc-res)
+  =/  res=(each vase tang)
+    (mule |.((vale:p.marc-res raw)))
+  (vale-put lobe marc-ckey ?:(?=(%| -.res) `p.res ~))
 ::  Sync a bole into the namespace.  One function for make, reload, and
 ::  cull (cull = empty bole).  Bottom-up walk: children settle before
 ::  parent builds its tree.  New bole is sole source of truth.
