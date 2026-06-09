@@ -432,6 +432,25 @@
     [%fail %sand-failed u.err.u.in]
   ==
 ::
+++  gain
+  |=  [=road:tarball flag=?]
+  =/  m  (fiber ,~)
+  ^-  form:m
+  ;<  ~  bind:m  (send-dart %node /gain road %gain flag)
+  |=  input
+  :+  ~  q.state
+  ?+  in  [%skip ~]
+      ~  [%wait ~]
+      [~ %veto *]
+    [%fail (veto-error dart.u.in)]
+      [~ %gain * *]
+    ?.  =(/gain wire.u.in)
+      [%skip ~]
+    ?~  err.u.in
+      [%done ~]
+    [%fail %gain-failed u.err.u.in]
+  ==
+::
 ++  lose
   |=  [=road:tarball =lose:nexus]
   =/  m  (fiber ,~)

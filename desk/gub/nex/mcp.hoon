@@ -155,13 +155,19 @@
         ;<  *  bind:m
           (keep:io /watch tool-road ~)
         ?.  exists
-          (make:io tool-road |+[[[/ %tool-state] ts] ~])
+          ;<  ~  bind:m  (make:io tool-road |+[[[/ %tool-state] ts] ~])
+          (gain:io tool-road %.y)
         (pure:m ~)
       ::  Wait for tool to finish
       |-
       ;<  nw=news-or-wake:io  bind:m  (take-news-or-wake:io /watch)
       ?:  ?=(%wake -.nw)  $
-      ;<  =seen:nexus  bind:m  (peek:io tool-road ~)
+      =/  cas=(unit cass:clay)
+        =/  lanes=(list [=lane:tarball =cass:clay])  ~(tap by wave.nw)
+        ?~  lanes  ~
+        `cass.i.lanes
+      ?~  cas  $
+      ;<  =seen:nexus  bind:m  (peek-at:io tool-road ~ [%ud ud.u.cas])
       ?.  ?=([%& %file *] seen)  $
       =/  st=tool-state:nex-tools
         !<(tool-state:nex-tools (need-vase:tarball sang.p.seen))

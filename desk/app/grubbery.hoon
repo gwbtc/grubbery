@@ -74,7 +74,9 @@
   ::  Bootstrap root tree.  Must run AFTER sync-gub so born has /code —
   ::  otherwise the root tree has no /code child, root on-load gets an
   ::  empty /code, and load-ball-changes clobbers the %code neck.
-  =/  root-bole=bole:tarball  [`[`[/ %root] ~ %.n ~] ~]
+  =/  root-bole=bole:tarball
+    :-  `[`[/ %root] ~ %.n ~]
+    (malt ~[[%code [`[`[/ %code] ~ %.n ~] ~]]])
   =^  root-tree-cards  state
     abet:(load-ball-changes:hc / root-bole)
   ::  Reload root nexus (after code compile so child nexuses can build)
@@ -1378,13 +1380,16 @@
   =.  this  (sub-wipe [dir name])
   ::  Snapshot before mutations
   =/  old-born=born:nexus  born
-  ::  Append [%temp ~] for deletion
+  ::  Tomb previous %temp entry, then append [%temp ~] for deletion
   =/  sok=(unit hist:nexus)  (get-born [dir name])
-  =?  born  ?=(^ sok)
+  =.  this
+    ?.  ?=(^ sok)  this
     =/  file-cass=cass:clay  (need (top:hist:nexus u.sok))
+    =/  [tombed-silo=silo:nexus tombed-hist=hist:nexus]
+      (~(tomb-temp si:nexus silo) u.sok file-cass)
     =/  new-cass=cass:clay  (~(next-cass bo:nexus now.bowl born) file-cass)
-    =/  new-sok=hist:nexus  (put:hon:hist:nexus u.sok new-cass [%temp ~])
-    (~(put bo:nexus now.bowl born) [dir name] new-sok)
+    =/  new-sok=hist:nexus  (put:hon:hist:nexus tombed-hist new-cass [%temp ~])
+    this(silo tombed-silo, born (~(put bo:nexus now.bowl born) [dir name] new-sok))
   =.  this  (propagate old-born [dir name])
   =/  old=pipe:nexus  (fall (~(get of pool) dir) *pipe:nexus)
   =/  =pipe:nexus  old(proc (~(del by proc.old) name))
