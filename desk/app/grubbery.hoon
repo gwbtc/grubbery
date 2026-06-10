@@ -3018,10 +3018,12 @@
   =/  marc-res=(each marc:tarball tang)
     (mule |.(!<(marc:tarball vase.built.u.entry)))
   ?:  ?=(%| -.marc-res)
-    (vale-put lobe marc-ckey `p.marc-res)
+    ~|([%record-marc-broken p.bask path.here name.here] !!)
   =/  res=(each vase tang)
     (mule |.((vale:p.marc-res raw)))
-  (vale-put lobe marc-ckey ?:(?=(%| -.res) `p.res ~))
+  ?:  ?=(%| -.res)
+    ~|([%record-vale-failed p.bask path.here name.here] !!)
+  (vale-put lobe marc-ckey ~)
 ::  Sync a bole into the namespace.  One function for make, reload, and
 ::  cull (cull = empty bole).  Bottom-up walk: children settle before
 ::  parent builds its tree.  New bole is sole source of truth.
