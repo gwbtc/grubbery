@@ -1,7 +1,7 @@
 |_  val=[p=@tas q=*]
 ++  grab
   |%
-  ++  noun  [p=@tas q=*]
+  ++  noun  ,[p=@tas q=*]
   --
 ++  grow
   |%

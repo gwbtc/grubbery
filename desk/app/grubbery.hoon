@@ -2937,11 +2937,8 @@
   ::  Reached governor - stop (don't check its weir)
   ?:  &(?=(^ gov) =(path.here u.gov))
     filt
-  ::  Check weir at current location
-  =/  weir-sub  (peek-ball-now path.here)
-  =/  weir-here=(unit weir:nexus)
-    ?~  fil.weir-sub  ~
-    weir.u.fil.weir-sub
+  ::  Check weir at current location (stored on parent's tree dir entry)
+  =/  weir-here=(unit weir:nexus)  (peek-weir path.here)
   =/  next=filt:nexus
     (next-filt:nexus filt (filter:nexus jump path.here dest-lane weir-here))
   ?:  ?=([~ %|] next)
@@ -2950,6 +2947,31 @@
   ?~  path.here
     next
   $(filt next, path.here (snip `fold:tarball`path.here))
+::  Read weir for a directory from its parent's tree ject dir entry.
+::  A directory's weir is owned by its parent, not by itself.
+::
+++  peek-weir
+  |=  here=fold:tarball
+  ^-  (unit weir:nexus)
+  ?~  here  ~
+  =/  parent=path  (snip `path`here)
+  =/  child-name=@ta  (rear here)
+  =/  parent-born=born:nexus  (~(dip of born) parent)
+  ?~  fil.parent-born  ~
+  =/  fold-top=(unit cass:clay)
+    (top:hist:nexus fold.u.fil.parent-born)
+  ?~  fold-top  ~
+  =/  got=(unit pace:hist:nexus)
+    (get:hon:hist:nexus fold.u.fil.parent-born u.fold-top)
+  ?~  got  ~
+  ?:  ?=(%tomb -.u.got)  ~
+  ?~  p.u.got  ~
+  =/  jot  (~(get by jects.silo) u.p.u.got)
+  ?~  jot  ~
+  ?.  ?=(%tree -.ject.u.jot)  ~
+  =/  entry  (~(get by dir.tree.ject.u.jot) child-name)
+  ?~  entry  ~
+  weir.u.entry
 ::  =born: Thin wrappers around ++bo in lib/nexus.hoon
 ::  See ++bo for documentation of semantics and invariants.
 ::

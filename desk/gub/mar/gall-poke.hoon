@@ -3,7 +3,7 @@
 |_  val=[dock page]
 ++  grab
   |%
-  ++  noun  [dock page]
+  ++  noun  ,[dock page]
   --
 ++  grow
   |%
