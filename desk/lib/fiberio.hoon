@@ -309,7 +309,7 @@
   |=  [=road:tarball blot=(unit blot:tarball)]
   =/  m  (fiber ,seen:nexus)
   ^-  form:m
-  ;<  ~  bind:m  (send-dart %node /peek road %peek blot ~ %.y ~)
+  ;<  ~  bind:m  (send-dart %node /peek road %peek ~ blot ~ %.y)
   (take-peek /peek)
 ::
 ::  Shallow peek: files at this level, subdir names only (no recursion)
@@ -318,7 +318,7 @@
   |=  [=road:tarball blot=(unit blot:tarball)]
   =/  m  (fiber ,seen:nexus)
   ^-  form:m
-  ;<  ~  bind:m  (send-dart %node /peek road %peek blot ~ %.n ~)
+  ;<  ~  bind:m  (send-dart %node /peek road %peek ~ blot ~ %.n)
   (take-peek /peek)
 ::
 ::  Peek at a historical version of a file
@@ -327,7 +327,7 @@
   |=  [=road:tarball blot=(unit blot:tarball) =case:nexus]
   =/  m  (fiber ,seen:nexus)
   ^-  form:m
-  ;<  ~  bind:m  (send-dart %node /peek road %peek blot `case %.y ~)
+  ;<  ~  bind:m  (send-dart %node /peek road %peek ~ blot `case %.y)
   (take-peek /peek)
 ::
 ::  Peek a remote ship. Emits a local peek dart with ship set.
@@ -338,7 +338,7 @@
   |=  [=road:tarball =@p case=(unit case:nexus)]
   =/  m  (fiber ,seen:nexus)
   ^-  form:m
-  ;<  ~  bind:m  (send-dart %node /peek road %peek ~ case %.y `p)
+  ;<  ~  bind:m  (send-dart %node /peek road %peek `p ~ case %.y)
   (take-peek /peek)
 ::
 ::  Check if a target (file or directory) exists at a road.

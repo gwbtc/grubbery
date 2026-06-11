@@ -205,7 +205,9 @@
       =/  refs=(set lobe:clay)
         ?:  ?=(%tomb -.pace)  ~
         ?~  p.pace  ~
-        (~(reachable si:nexus silo) u.p.pace)
+        ?:  deep.req
+          (~(reachable si:nexus silo) u.p.pace)
+        (~(reachable-shallow si:nexus silo) u.p.pace)
       ~&  >  [%peek-resolved pace=-.pace refs=~(wyt in refs)]
       =/  resp=intake:remote:nexus
         [wire.req %snap dest-lane pace refs]
@@ -579,7 +581,11 @@
       =/  =pace:hist:nexus  val.u.got
       ?:  ?=(%tomb -.pace)  &+[%none ~]
       ?~  p.pace  &+[%none ~]
-      &+[%ball sub-born (peek-ball u.p.pace)]
+      =/  sub-ball
+        ?:  deep.pk
+          (peek-ball u.p.pace)
+        (peek-ball-shallow u.p.pace)
+      &+[%ball sub-born sub-ball]
         %&
       ::  File: read content from silo via pace
       =/  r=rail:tarball  p.dest.pk
@@ -2379,9 +2385,9 @@
         =/  key=[rail:tarball wire]  [here wire.dart]
         =.  peeks
           %+  ~(put by peeks)  key
-          [target u.dest-lane ~]
+          [target u.dest-lane deep.load.dart ~]
         =/  req=load:remote:nexus
-          [[wire.dart u.dest-lane] %peek case.load.dart]
+          [[wire.dart u.dest-lane] %peek case.load.dart deep.load.dart]
         =.  cards
           :_  cards
           [%pass /peek/[(scot %p target)] %agent [target %grubbery] %poke grubbery-load+!>(req)]

@@ -80,12 +80,12 @@
       [%cull ~]                 :: delete grub or directory
       [%sand weir=(unit weir)]  :: set weir
       [%load ~]                 :: trigger on-load for a nexus (folds only)
-      [%peek blot=(unit blot:tarball) case=(unit case) deep=? ship=(unit @p)]
+      [%peek ship=(unit @p) blot=(unit blot:tarball) case=(unit case) deep=?]
                                        :: read a grub
+                                       :: ship: if set, peek a remote ship (cross-ship)
                                        :: blot: convert file sage to this blot
                                        :: case: if set, read historical version
                                        :: deep: %.y recurse subdirs, %.n shallow
-                                       :: ship: if set, peek a remote ship (cross-ship)
       [%keep blot=(unit blot:tarball)]  :: subscribe to changes at dest (grub or ball per road)
                                        :: blot: if set, convert file sage in news
       [%drop ~]                 :: unsubscribe from dest
@@ -724,6 +724,38 @@
         (turn ~(val by dir.tree.jt) |=([=lobe:clay *] lobe))
       $(queue (weld t.queue (weld fil-lobes dir-lobes)))
     ==
+  ::  Shallow reachable: like +reachable but doesn't recurse into
+  ::  subdirectory lobes. Collects the root tree ject, its files'
+  ::  leaf jects + nouns, but treats dir lobes as opaque.
+  ::
+  ++  reachable-shallow
+    |=  root=lobe:clay
+    ^-  (set lobe:clay)
+    =/  seen=(set lobe:clay)  (sy ~[root])
+    =/  got  (~(get by jects.silo) root)
+    ?~  got  seen
+    =/  jt=ject  ject.u.got
+    ?-  -.jt
+        %leaf
+      =.  seen  (~(put in seen) lobe.leaf.jt)
+      =?  seen  ?=(^ bang.leaf.jt)  (~(put in seen) u.bang.leaf.jt)
+      seen
+        %tree
+      =?  seen  ?=(^ bang.tree.jt)  (~(put in seen) u.bang.tree.jt)
+      ::  Include file lobes and their leaf contents
+      =/  fil-entries=(list [name=@ta =lobe:clay])
+        ~(tap by fil.tree.jt)
+      |-
+      ?~  fil-entries  seen
+      =/  fl=lobe:clay  lobe.i.fil-entries
+      =.  seen  (~(put in seen) fl)
+      =/  fgot  (~(get by jects.silo) fl)
+      =?  seen  &(?=(^ fgot) ?=(%leaf -.ject.u.fgot))
+        (~(put in seen) lobe.leaf.ject.u.fgot)
+      =?  seen  &(?=(^ fgot) ?=(%leaf -.ject.u.fgot) ?=(^ bang.leaf.ject.u.fgot))
+        (~(put in seen) u.bang.leaf.ject.u.fgot)
+      $(fil-entries t.fil-entries)
+    ==
   ::  Set bang on an existing ject.  Stores the tang as a noun,
   ::  builds a new ject with bang=`tang-lobe, drops the old ject,
   ::  and returns the new ject lobe.
@@ -1005,7 +1037,7 @@
             [%load ~]
             [%poke =bask:tarball]
             [%over =bask:tarball]
-            [%peek case=(unit case)]
+            [%peek case=(unit case) deep=?]
             [%want haves=(set lobe:clay)]
         ==
     ==
@@ -1023,7 +1055,7 @@
   ::  snap is ~ until %snap response arrives with pace + refs.
   ::
   +$  snap   [=pace refs=(set lobe:clay)]
-  +$  peek   [ship=@p dest=lane:tarball snap=(unit snap)]
+  +$  peek   [ship=@p dest=lane:tarball deep=? snap=(unit snap)]
   +$  peeks  (map [rail:tarball wire] peek)
   --
 +$  ack  (unit tang)
