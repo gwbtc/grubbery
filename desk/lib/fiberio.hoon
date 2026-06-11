@@ -342,11 +342,12 @@
     ?-  -.road
         %|  road  :: relative roads pass through as-is
         %&
+      =/  prefix=path  /sys/ames/ships/[(scot %p p)]/root
       ?-  -.p.road
           %&  :: file: [path name] → /sys/ames/ships/[ship]/root/[path] name
-        [%& %& (weld /sys/ames/ships/[(scot %p p)] /root path.p.p.road) name.p.p.road]
+        [%& %& (weld prefix path.p.p.road) name.p.p.road]
           %|  :: dir: path → /sys/ames/ships/[ship]/root/[path]
-        [%& %| (weld /sys/ames/ships/[(scot %p p)] /root p.p.road)]
+        [%& %| (weld prefix p.p.road)]
       ==
     ==
   ;<  ~  bind:m  (send-dart %node /peek remote-road %peek ~ case %.y)

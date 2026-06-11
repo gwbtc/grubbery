@@ -177,40 +177,43 @@
     ~&  >  [%grubbery-load +<.req src=src.bowl]
     ?:  ?=(%peek +<.req)
       =/  dest-lane=lane:tarball  dest.req
-      =/  =pace:hist:nexus
-        ?-  -.dest-lane
-            %&
-          =/  r=rail:tarball  p.dest-lane
-          =/  node=(unit [fold=hist:nexus file=(map @ta hist:nexus)])
-            (~(get of born) path.r)
-          ?~  node  [%tomb ~]
-          =/  sk=hist:nexus
-            (fall (~(get by file.u.node) name.r) *hist:nexus)
-          ?~  case.req
-            =/  cas=(unit cass:clay)  (top:hist:nexus sk)
-            ?~  cas  [%tomb ~]
-            (fall (get:hon:hist:nexus sk u.cas) [%tomb ~])
-          (resolve-case:nexus u.case.req sk)
-            %|
-          =/  dest=fold:tarball  p.dest-lane
-          =/  sub-born=born:nexus  (~(dip of born) dest)
-          ?~  fil.sub-born  [%tomb ~]
-          =/  sk=hist:nexus  fold.u.fil.sub-born
-          ?~  case.req
-            =/  cas=(unit cass:clay)  (top:hist:nexus sk)
-            ?~  cas  [%tomb ~]
-            (fall (get:hon:hist:nexus sk u.cas) [%tomb ~])
-          (resolve-case:nexus u.case.req sk)
-        ==
-      =/  refs=(set lobe:clay)
-        ?:  ?=(%tomb -.pace)  ~
-        ?~  p.pace  ~
-        ?:  deep.req
-          (~(reachable si:nexus silo) u.p.pace)
-        (~(reachable-shallow si:nexus silo) u.p.pace)
-      ~&  >  [%peek-resolved pace=-.pace refs=~(wyt in refs)]
+      =/  snap=(unit snap:remote:nexus)
+        =/  pace=(unit pace:hist:nexus)
+          ?-  -.dest-lane
+              %&
+            =/  r=rail:tarball  p.dest-lane
+            =/  node=(unit [fold=hist:nexus file=(map @ta hist:nexus)])
+              (~(get of born) path.r)
+            ?~  node  ~
+            =/  sk=hist:nexus
+              (fall (~(get by file.u.node) name.r) *hist:nexus)
+            ?~  case.req
+              =/  cas=(unit cass:clay)  (top:hist:nexus sk)
+              ?~  cas  ~
+              (get:hon:hist:nexus sk u.cas)
+            `(resolve-case:nexus u.case.req sk)
+              %|
+            =/  dest=fold:tarball  p.dest-lane
+            =/  sub-born=born:nexus  (~(dip of born) dest)
+            ?~  fil.sub-born  ~
+            =/  sk=hist:nexus  fold.u.fil.sub-born
+            ?~  case.req
+              =/  cas=(unit cass:clay)  (top:hist:nexus sk)
+              ?~  cas  ~
+              (get:hon:hist:nexus sk u.cas)
+            `(resolve-case:nexus u.case.req sk)
+          ==
+        ?~  pace  ~
+        =/  refs=(set lobe:clay)
+          ?:  ?=(%tomb -.u.pace)  ~
+          ?~  p.u.pace  ~
+          ?:  deep.req
+            (~(reachable si:nexus silo) u.p.u.pace)
+          (~(reachable-shallow si:nexus silo) u.p.u.pace)
+        `[u.pace refs]
+      ~&  >  [%peek-resolved snap=?~(snap %none -.pace.u.snap) refs=?~(snap 0 ~(wyt in refs.u.snap))]
       =/  resp=intake:remote:nexus
-        [wire.req %snap dest-lane pace refs]
+        [wire.req %snap dest-lane snap]
       :_  this
       %+  weld  peer-cards
       ^-  (list card)
@@ -533,11 +536,12 @@
 ::  This is pure data — independent of who asked for it.
 ::
 ++  record-afar
-  |=  [ship=@p dest=lane:tarball =pace:hist:nexus]
+  |=  [ship=@p dest=lane:tarball snap=(unit snap:remote:nexus)]
   ^+  afar
+  ?~  snap  afar  :: nothing to record
   =/  remote-born=born:nexus
     (fall (~(get by afar) ship) *born:nexus)
-  (~(put by afar) ship (put-pace remote-born dest pace))
+  (~(put by afar) ship (put-pace remote-born dest pace.u.snap))
 ::  +discharge-peeks: sweep staged peeks, discharge any whose refs
 ::  are fully present in the local silo. Discharge means the grub
 ::  can now read the content it asked for — notify and remove.
@@ -602,6 +606,7 @@
       =/  sk=hist:nexus
         ?~  node  *hist:nexus
         (fall (~(get by file.u.node) name.r) *hist:nexus)
+      ::  TODO: apply blot conversion here once discharge has cod access
       &+[%file sk [blot.mark.leaf.jt %| [~ u.got]]]
     ==
   =.  this  (enqu-take rail.key (sys-give /peek) ~ %peek wire.key seen)
@@ -621,19 +626,22 @@
     ::  3. Diff refs against silo and request missing lobes.
     ::  4. Discharge any peeks that can already be fulfilled.
     ::
-    =.  afar  (record-afar src dest.resp pace.resp)
-    =/  snap=snap:remote:nexus  [pace.resp refs.resp]
+    =.  afar  (record-afar src dest.resp snap.resp)
     =.  peeks
       %-  ~(run by peeks)
       |=  pk=peek:remote:nexus
       ?.  &(=(ship.pk src) =(dest.pk dest.resp))
         pk
-      pk(snap `snap)
+      pk(snap snap.resp)
+    ?~  snap.resp
+      ::  Nothing exists at dest — discharge immediately with %none
+      ~&  >  [%snap-not-found dest=dest.resp]
+      discharge-peeks
     =/  have=(set lobe:clay)
       (~(uni in ~(key by jects.silo)) ~(key by nouns.silo))
     =/  missing=(set lobe:clay)
-      (~(dif in refs.resp) have)
-    ~&  >  [%snap-processed refs=~(wyt in refs.resp) have=~(wyt in have) missing=~(wyt in missing)]
+      (~(dif in refs.u.snap.resp) have)
+    ~&  >  [%snap-processed refs=~(wyt in refs.u.snap.resp) have=~(wyt in have) missing=~(wyt in missing)]
     ?:  =(~ missing)
       ::  All refs already in silo — discharge immediately
       ~&  >  %snap-all-refs-present-discharging
@@ -2395,7 +2403,7 @@
         =/  key=[rail:tarball wire]  [here wire.dart]
         =.  peeks
           %+  ~(put by peeks)  key
-          [target real-dest deep.load.dart ~]
+          [target real-dest deep.load.dart blot.load.dart ~]
         =/  req=load:remote:nexus
           [[wire.dart real-dest] %peek case.load.dart deep.load.dart]
         =.  cards

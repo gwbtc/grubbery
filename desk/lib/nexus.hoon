@@ -1046,7 +1046,7 @@
   ::
   +$  intake
     $:  =wire
-        $%  [%snap dest=lane:tarball =pace refs=(set lobe:clay)]
+        $%  [%snap dest=lane:tarball snap=(unit snap)]
             [%data =silo]
         ==
     ==
@@ -1055,7 +1055,7 @@
   ::  snap is ~ until %snap response arrives with pace + refs.
   ::
   +$  snap   [=pace refs=(set lobe:clay)]
-  +$  peek   [ship=@p dest=lane:tarball deep=? snap=(unit snap)]
+  +$  peek   [ship=@p dest=lane:tarball deep=? blot=(unit blot:tarball) snap=(unit snap)]
   +$  peeks  (map [rail:tarball wire] peek)
   --
 +$  ack  (unit tang)
