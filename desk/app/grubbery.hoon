@@ -139,6 +139,7 @@
     =^  dill-cards   state  abet:sync-dill:hc
     =^  clay-cards   state  abet:sync-clay:hc
     =^  jael-cards   state  abet:sync-jael:hc
+    =^  bowl-cards   state  abet:sync-bowl:hc
     =^  peer-cards   state  abet:sync-peer:hc
     =^  gall-cards   state  abet:sync-gall:hc
     =^  eyre-cards   state  abet:sync-eyre:hc
@@ -154,6 +155,7 @@
       dill-cards
       clay-cards
       jael-cards
+      bowl-cards
       peer-cards
       gall-cards
       eyre-cards
