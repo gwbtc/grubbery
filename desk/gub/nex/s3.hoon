@@ -10,8 +10,8 @@
 =<  ^-  nexus:nexus
     |%
     ++  on-load
-      |=  [=sand:nexus =gain:nexus =ball:tarball]
-      ^-  [sand:nexus gain:nexus ball:tarball]
+      |=  =ball:tarball
+      ^-  bole:tarball
       =/  =ver:loader  (get-ver:loader ball)
       =/  default-config=json
         %-  pairs:enjs:format
@@ -23,13 +23,13 @@
         ==
       ?+  ver  !!
           ?(~ [~ %0])
-        %+  spin:loader  [sand gain ball]
+        %+  spin:loader  ball
         :~  (ver-row:loader 0)
-            [%fall %& [/ %'main.json'] %.n [~ [/ %json] !>((pairs:enjs:format ~[['status' s+'idle']]))]]
-            [%fall %& [/ %'config.json'] %.n [~ [/ %json] !>(default-config)]]
-            [%fall %& [/ %'mounts.json'] %.n [~ [/ %json] !>([%o ~])]]
-            [%fall %| /mounts [~ ~] [~ ~] empty-dir:loader]
-            [%over %& [/ %'page.html'] %.n [~ [/ %html] !>((crip (en-xml:html s3-page)))]]
+            [%fall %& [/ %'main.json'] [[/ %json] (pairs:enjs:format ~[['status' s+'idle']])]]
+            [%fall %& [/ %'config.json'] [[/ %json] default-config]]
+            [%fall %& [/ %'mounts.json'] [[/ %json] [%o ~]]]
+            [%fall %| /mounts empty-dir:loader]
+            [%over %& [/ %'page.html'] [[/ %html] (crip (en-xml:html s3-page))]]
         ==
       ==
     ::
@@ -90,7 +90,7 @@
             ;<  exists=?  bind:m  (peek-exists:io mount-road)
             ;<  *  bind:m
               ?.  exists
-                (make-soft:io mount-road &+[*sand:nexus *gain:nexus `ball:tarball`[~ ~]])
+                (make-soft:io mount-road &+*bole:tarball)
               (pure:m ~)
             %-  replace:io  !>
             %-  pairs:enjs:format
@@ -186,7 +186,7 @@
   ;<  cfg-seen=seen:nexus  bind:m  (peek:io cfg-road ~)
   =/  jon=json
     ?.  ?=([%& %file *] cfg-seen)  [%o ~]
-    (fall (mole |.(!<(json q.sage.p.cfg-seen))) [%o ~])
+    (fall (mole |.(!<(json (need-vase:tarball sang.p.cfg-seen)))) [%o ~])
   ?.  ?=(%o -.jon)
     (pure:m *s3-config)
   %-  pure:m
@@ -205,7 +205,7 @@
   ;<  seen=seen:nexus  bind:m  (peek:io rd ~)
   =/  jon=json
     ?.  ?=([%& %file *] seen)  [%o ~]
-    (fall (mole |.(!<(json q.sage.p.seen))) [%o ~])
+    (fall (mole |.(!<(json (need-vase:tarball sang.p.seen)))) [%o ~])
   ?.  ?=(%o -.jon)
     (pure:m *(map @t @t))
   %-  pure:m
@@ -224,7 +224,7 @@
     |=([n=@t p=@t] [n s+p])
   ;<  rd=road:tarball  bind:m
     (ancestor-road:io [/ %s3] [%& / %'mounts.json'])
-  (over:io rd [[/ %json] !>([%o (malt entries)])])
+  (over:io rd [[/ %json] [%o (malt entries)]])
 ::
 ++  get-str
   |=  [jon=json key=@t]
@@ -339,13 +339,13 @@
     (ancestor-road:io [/ %s3] [%& full-path filename])
   ;<  exists=?  bind:m  (peek-exists:io file-road)
   ?:  exists
-    (over:io file-road [[/ %mime] !>(file-mime)])
+    (over:io file-road [[/ %mime] file-mime])
   =/  ext=(unit blot:tarball)  (bind (parse-extension:tarball filename) |=(e=@ta [/ e]))
   ;<  err=(unit tang)  bind:m
-    (make-soft:io file-road |+[%.n [[/ %mime] !>(file-mime)] ext])
+    (make-soft:io file-road |+[[[/ %mime] file-mime] ext])
   ?~  err  (pure:m ~)
   ::  mark not found, retry as plain mime
-  (make:io file-road |+[%.n [[/ %mime] !>(file-mime)] ~])
+  (make:io file-road |+[[[/ %mime] file-mime] ~])
 ::
 ++  do-pull
   |=  [cfg=s3-config key=@t name=@t]
@@ -368,12 +368,12 @@
   ;<  exists=?  bind:m  (peek-exists:io file-road)
   ;<  ~  bind:m
     ?:  exists
-      (over:io file-road [[/ %mime] !>(file-mime)])
+      (over:io file-road [[/ %mime] file-mime])
     =/  ext=(unit blot:tarball)  (bind (parse-extension:tarball filename) |=(e=@ta [/ e]))
     ;<  err=(unit tang)  bind:m
-      (make-soft:io file-road |+[%.n [[/ %mime] !>(file-mime)] ext])
+      (make-soft:io file-road |+[[[/ %mime] file-mime] ext])
     ?~  err  (pure:m ~)
-    (make:io file-road |+[%.n [[/ %mime] !>(file-mime)] ~])
+    (make:io file-road |+[[[/ %mime] file-mime] ~])
   %-  replace:io  !>
   %-  pairs:enjs:format
   :~  ['status' s+'done']

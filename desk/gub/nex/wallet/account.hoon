@@ -18,17 +18,17 @@
 =<  ^-  nexus:nexus
     |%
     ++  on-load
-      |=  [=sand:nexus =gain:nexus =ball:tarball]
-      ^-  [sand:nexus gain:nexus ball:tarball]
+      |=  =ball:tarball
+      ^-  bole:tarball
       =/  =ver:loader  (get-ver:loader ball)
       ?+  ver  !!
           ?(~ [~ %0])
-        %+  spin:loader  [sand gain ball]
+        %+  spin:loader  ball
         :~  (ver-row:loader 0)
             [%stay %& [/ %'data.wallet_account']]
-          [%over %& [/ %'main.sig'] %.n [~ [/ %sig] !>(~)]]
-          [%fall %| /addresses [~ ~] [~ ~] empty-dir:loader]
-          [%fall %| /proc [~ ~] [~ ~] empty-dir:loader]
+          [%over %& [/ %'main.sig'] [[/ %sig] ~]]
+          [%fall %| /addresses empty-dir:loader]
+          [%fall %| /proc empty-dir:loader]
           [%stay %& [/proc %'scan.json']]
         ==
       ==
@@ -62,7 +62,7 @@
             ?.  ?=(%& -.acct-seen)  $
             ?.  ?=([%file *] p.acct-seen)  $
             =/  acct=(unit account-data)
-              (mole |.(!<(account-data q.sage.p.acct-seen)))
+              (mole |.(!<(account-data (need-vase:tarball sang.p.acct-seen))))
             ?~  acct  $
             =/  is-change=?  =(chain 'change')
             =/  chain-tag=?(%recv %chng)  ?:(is-change %chng %recv)
@@ -100,7 +100,7 @@
                   ['index' (numb:enjs:format next-idx)]
               ==
             ;<  ~  bind:m
-              (make:io proc-road |+[%.n [[/ %json] !>(proc-json)] ~])
+              (make:io proc-road |+[[[/ %json] proc-json] ~])
             $
           ::
               %'delete-address'
@@ -115,7 +115,7 @@
             ?.  ?=(%& -.acct-seen)  $
             ?.  ?=([%file *] p.acct-seen)  $
             =/  acct=(unit account-data)
-              (mole |.(!<(account-data q.sage.p.acct-seen)))
+              (mole |.(!<(account-data (need-vase:tarball sang.p.acct-seen))))
             ?~  acct  $
             ;<  mop=addr-mop  bind:m  (read-mop "." active-network.u.acct chain-tag)
             =/  updated=addr-mop
@@ -133,13 +133,13 @@
             ?.  ?=(%& -.acct-seen)  $
             ?.  ?=([%file *] p.acct-seen)  $
             =/  acct=(unit account-data)
-              (mole |.(!<(account-data q.sage.p.acct-seen)))
+              (mole |.(!<(account-data (need-vase:tarball sang.p.acct-seen))))
             ?~  acct  $
             ::  ensure address dir exists for the new network
             ;<  ~  bind:m  (ensure-net-dir new-network)
             =/  updated=account-data  u.acct(active-network new-network)
             ;<  ~  bind:m
-              (over:io (cord-to-road:tarball './data.wallet_account') [[/wallet %account] !>(updated)])
+              (over:io (cord-to-road:tarball './data.wallet_account') [[/wallet %account] updated])
             $
           ::
               %'full-scan'
@@ -150,7 +150,7 @@
                   ['gap' (numb:enjs:format 0)]
               ==
             ;<  ~  bind:m
-              (make:io (cord-to-road:tarball './proc/scan.json') |+[%.n [[/ %json] !>(proc-json)] ~])
+              (make:io (cord-to-road:tarball './proc/scan.json') |+[[[/ %json] proc-json] ~])
             $
           ::
               %'pause-scan'
@@ -186,7 +186,7 @@
               (peek:io (cord-to-road:tarball './data.wallet_account') ~)
             ?.  ?=([%& %file *] acct-seen)  $
             =/  acct=(unit account-data)
-              (mole |.(!<(account-data q.sage.p.acct-seen)))
+              (mole |.(!<(account-data (need-vase:tarball sang.p.acct-seen))))
             ?~  acct  $
             ::  spawn refresh process file
             =/  net=@ta  ;;(@ta active-network.u.acct)
@@ -202,7 +202,7 @@
               ==
             ~&  >  [%refresh %spawning proc-name]
             ;<  ~  bind:m
-              (make:io proc-road |+[%.n [[/ %json] !>(proc-json)] ~])
+              (make:io proc-road |+[[[/ %json] proc-json] ~])
             $
           ::
           ::  === Draft transaction actions ===
@@ -280,7 +280,7 @@
             ?.  ?=(%& -.acct-seen)  $
             ?.  ?=([%file *] p.acct-seen)  $
             =/  acct=(unit account-data)
-              (mole |.(!<(account-data q.sage.p.acct-seen)))
+              (mole |.(!<(account-data (need-vase:tarball sang.p.acct-seen))))
             ?~  acct  $
             ;<  existing=(unit transaction:drft)  bind:m  read-draft-file
             ?~  existing  $
@@ -365,7 +365,7 @@
             ?.  ?=(%& -.acct-seen)  $
             ?.  ?=([%file *] p.acct-seen)  $
             =/  acct=(unit account-data)
-              (mole |.(!<(account-data q.sage.p.acct-seen)))
+              (mole |.(!<(account-data (need-vase:tarball sang.p.acct-seen))))
             ?~  acct
               ~&  >>>  "account data not found"
               $
@@ -487,9 +487,10 @@
           [[%proc ~] %'scan.json']
         ;<  ~  bind:m  (rise-wait:io prod "%scan: failed")
         =/  data-road=road:tarball  (cord-to-road:tarball '../data.wallet_account')
-        ;<  cur=view:nexus  bind:m
+        ;<  cur=wave:nexus  bind:m
           (keep:io /acct (cord-to-road:tarball '../') ~)
-        =/  acct=(unit account-data)  (extract-account cur)
+        ;<  acct-seen=seen:nexus  bind:m  (peek:io (cord-to-road:tarball '../') ~)
+        =/  acct=(unit account-data)  (extract-account acct-seen)
         ?~  acct  (pure:m ~)
         ::  read existing progress to resume where we left off
         ;<  prev-state=vase  bind:m  get-state:io
@@ -595,22 +596,22 @@
 ::
 |%
 ++  data-to-page
-  |=  [gn=? ct=content:tarball]
-  ^-  [? content:tarball]
-  ?:  =(ct *content:tarball)  [%.n ct]
-  ?:  =([/ %boom] p.sage.ct)  [%.n ct]
-  =/  acct=account-data  !<(account-data q.sage.ct)
-  [%.n [~ [/ %html] !>((crip (en-xml:html (detail-page:acct-ui acct *addr-mop *addr-mop *@da %none ~ ~ ''))))]]
+  |=  ct=sang:tarball
+  ^-  sang:tarball
+  ?:  =(ct *sang:tarball)  ct
+  ?:  (is-boom:tarball ct)  ct
+  =/  acct=account-data  !<(account-data (need-vase:tarball ct))
+  [[/ %html] %& !>((crip (en-xml:html (detail-page:acct-ui acct *addr-mop *addr-mop *@da %none ~ ~ ''))))]
 ::
 ++  extract-account
-  |=  =view:nexus
+  |=  =seen:nexus
   ^-  (unit account-data)
-  ?.  ?=([%ball *] view)  ~
-  =/  =lump:tarball  (fall fil.ball.view *lump:tarball)
-  =/  ct=(unit content:tarball)  (~(get by contents.lump) 'data.wallet_account')
+  ?.  ?=([%& %ball *] seen)  ~
+  =/  =lump:tarball  (fall fil.ball.p.seen *lump:tarball)
+  =/  ct=(unit [=sang:tarball gain=? bang=(unit tang)])  (~(get by contents.lump) 'data.wallet_account')
   ?~  ct  ~
-  ?.  ?=(%account name.p.sage.u.ct)  ~
-  (mole |.(!<(account-data q.sage.u.ct)))
+  ?.  ?=(%account name.p.sang.u.ct)  ~
+  (mole |.(!<(account-data (need-vase:tarball sang.u.ct))))
 ::
 ++  read-draft-file
   =/  m  (fiber:fiber:nexus ,(unit transaction:drft))
@@ -622,7 +623,7 @@
   ;<  seen=seen:nexus  bind:m  (peek:io draft-road ~)
   ?.  ?=(%& -.seen)  (pure:m ~)
   ?.  ?=([%file *] p.seen)  (pure:m ~)
-  (pure:m (mole |.(!<(transaction:drft q.sage.p.seen))))
+  (pure:m (mole |.(!<(transaction:drft (need-vase:tarball sang.p.seen)))))
 ::
 ++  write-draft
   |=  dr=transaction:drft
@@ -631,8 +632,8 @@
   =/  road=road:tarball  (cord-to-road:tarball './data.wallet_draft')
   ;<  exists=?  bind:m  (peek-exists:io road)
   ?:  exists
-    (over:io road [[/wallet %draft] !>(dr)])
-  (make:io road |+[%.n [[/wallet %draft] !>(dr)] ~])
+    (over:io road [[/wallet %draft] dr])
+  (make:io road |+[[[/wallet %draft] dr] ~])
 ::
 ++  read-wallet-name
   |=  wallet-fp=@ux
@@ -646,7 +647,7 @@
   ;<  seen=seen:nexus  bind:m  (peek:io wal-road ~)
   ?.  ?=(%& -.seen)  (pure:m '')
   ?.  ?=([%file *] p.seen)  (pure:m '')
-  =/  wal=(unit wallet-data)  (mole |.(!<(wallet-data q.sage.p.seen)))
+  =/  wal=(unit wallet-data)  (mole |.(!<(wallet-data (need-vase:tarball sang.p.seen))))
   ?~  wal  (pure:m '')
   (pure:m name.u.wal)
 ::
@@ -698,22 +699,22 @@
 ::  +extract-mops: pull recv and chng addr-mops from a ball view
 ::
 ++  extract-mops
-  |=  [=view:nexus network=?(%main %testnet3 %testnet4 %signet %regtest)]
+  |=  [=seen:nexus network=?(%main %testnet3 %testnet4 %signet %regtest)]
   ^-  [recv=addr-mop chng=addr-mop]
-  ?.  ?=([%ball *] view)  [*addr-mop *addr-mop]
-  =/  addrs-ball=(unit ball:tarball)  (~(get by dir.ball.view) 'addresses')
+  ?.  ?=([%& %ball *] seen)  [*addr-mop *addr-mop]
+  =/  addrs-ball=(unit ball:tarball)  (~(get by dir.ball.p.seen) 'addresses')
   ?~  addrs-ball  [*addr-mop *addr-mop]
   =/  net-ball=(unit ball:tarball)  (~(get by dir.u.addrs-ball) ;;(@ta network))
   ?~  net-ball  [*addr-mop *addr-mop]
   ?~  fil.u.net-ball  [*addr-mop *addr-mop]
   =/  recv=addr-mop
-    =/  ct=(unit content:tarball)  (~(get by contents.u.fil.u.net-ball) 'recv.wallet_addresses')
+    =/  ct=(unit [=sang:tarball gain=? bang=(unit tang)])  (~(get by contents.u.fil.u.net-ball) 'recv.wallet_addresses')
     ?~  ct  *addr-mop
-    (fall (mole |.(!<(addr-mop q.sage.u.ct))) *addr-mop)
+    (fall (mole |.(!<(addr-mop (need-vase:tarball sang.u.ct)))) *addr-mop)
   =/  chng=addr-mop
-    =/  ct=(unit content:tarball)  (~(get by contents.u.fil.u.net-ball) 'chng.wallet_addresses')
+    =/  ct=(unit [=sang:tarball gain=? bang=(unit tang)])  (~(get by contents.u.fil.u.net-ball) 'chng.wallet_addresses')
     ?~  ct  *addr-mop
-    (fall (mole |.(!<(addr-mop q.sage.u.ct))) *addr-mop)
+    (fall (mole |.(!<(addr-mop (need-vase:tarball sang.u.ct)))) *addr-mop)
   [recv chng]
 ::  +addr-road: compute road to a chain's mop file
 ::
@@ -735,7 +736,7 @@
   ;<  seen=seen:nexus  bind:m  (peek:io road ~)
   ~&  >>  [%read-mop %seen-type ?=([%& %file *] seen)]
   ?.  ?=([%& %file *] seen)  ~&(>>> [%read-mop %not-file-node] (pure:m *addr-mop))
-  =/  result=addr-mop  (fall (mole |.(!<(addr-mop q.sage.p.seen))) *addr-mop)
+  =/  result=addr-mop  (fall (mole |.(!<(addr-mop (need-vase:tarball sang.p.seen)))) *addr-mop)
   ~&  >>  [%read-mop %ok size=(lent (tap:((on @ud address-data) gth) result))]
   (pure:m result)
 ::  +write-mop: fiber that writes a mop file (creates dir structure if needed)
@@ -750,9 +751,9 @@
   ~&  >>  [%write-mop %exists exists]
   ?:  exists
     ~&  >>  [%write-mop %overwriting]
-    (over:io road [[/wallet %addresses] !>(mop)])
+    (over:io road [[/wallet %addresses] mop])
   ~&  >>  [%write-mop %creating]
-  (make:io road |+[%.n [[/wallet %addresses] !>(mop)] ~])
+  (make:io road |+[[[/wallet %addresses] mop] ~])
 ::  +txs-road: compute road to the tx-map file
 ::
 ++  txs-road
@@ -770,7 +771,7 @@
   ?.  exists  (pure:m *tx-map)
   ;<  seen=seen:nexus  bind:m  (peek:io road ~)
   ?.  ?=([%& %file *] seen)  (pure:m *tx-map)
-  (pure:m (fall (mole |.(!<(tx-map q.sage.p.seen))) *tx-map))
+  (pure:m (fall (mole |.(!<(tx-map (need-vase:tarball sang.p.seen)))) *tx-map))
 ::  +write-txs: fiber that writes the tx-map file
 ::
 ++  write-txs
@@ -780,8 +781,8 @@
   =/  road=road:tarball  (txs-road base network)
   ;<  exists=?  bind:m  (peek-exists:io road)
   ?:  exists
-    (over:io road [[/wallet %txs] !>(txs)])
-  (make:io road |+[%.n [[/wallet %txs] !>(txs)] ~])
+    (over:io road [[/wallet %txs] txs])
+  (make:io road |+[[[/wallet %txs] txs] ~])
 ::  +ensure-net-dir: create network dir + empty mop files if needed
 ::
 ++  ensure-net-dir
@@ -813,7 +814,7 @@
   =/  m  (fiber:fiber:nexus ,scan-event)
   ^-  form:m
   |=  input:fiber:nexus
-  :+  ~  state
+  :+  ~  q.state
   ?+  in  [%skip ~]
       ~  [%wait ~]
       [~ %veto *]
@@ -892,7 +893,7 @@
   =/  m  (fiber:fiber:nexus ,client-response:iris)
   ^-  form:m
   |=  input:fiber:nexus
-  :+  ~  state
+  :+  ~  q.state
   ?+  in  [%skip ~]
       ~  [%wait ~]
       [~ %poke * *]
@@ -1022,7 +1023,7 @@
   =/  m  (fiber:fiber:nexus ,?)
   ^-  form:m
   |=  input:fiber:nexus
-  :+  ~  state
+  :+  ~  q.state
   ?+  in  [%skip ~]
       ~  [%wait ~]
       [~ %veto *]
@@ -1041,7 +1042,7 @@
   ^-  form:m
   =/  marker-json=json  (pairs:enjs:format ~[['paused' b+%.y]])
   ;<  ~  bind:m
-    (make:io (cord-to-road:tarball '../scan-paused.json') |+[%.n [[/ %json] !>(marker-json)] ~])
+    (make:io (cord-to-road:tarball '../scan-paused.json') |+[[[/ %json] marker-json] ~])
   |-
   ;<  resumed=?  bind:m  take-pause-event
   ?.  resumed  $

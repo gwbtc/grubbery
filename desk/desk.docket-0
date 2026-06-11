@@ -1,0 +1,11 @@
+:~
+  title+'Grubbery'
+  info+'Content-addressed tarball system.'
+  color+0x8b.4513
+  image+'https://raw.githubusercontent.com/gwbtc/grubbery/39a144c/grub.png'
+  base+'grubbery'
+  site+/apps/grubbery
+  version+[0 1 0]
+  website+'https://github.com/gwbtc/grubbery'
+  license+'MIT'
+==

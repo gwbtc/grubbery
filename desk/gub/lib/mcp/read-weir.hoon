@@ -30,10 +30,10 @@
       ;<  dir-seen=seen:nexus  bind:m  (peek:io [%& %| dir-pax] ~)
       ?.  ?=([%& %ball *] dir-seen)
         (pure:m [%text 'No directory found at that path'])
-      =/  =sand:nexus  sand.p.dir-seen
-      ?~  fil.sand
+      =/  weir-here=(unit weir:nexus)  ?~(fil.ball.p.dir-seen ~ weir.u.fil.ball.p.dir-seen)
+      ?~  weir-here
         (pure:m [%text (crip "Weir at {(trip weir-path)}: NONE (unrestricted)")])
-      =/  w=weir:nexus  u.fil.sand
+      =/  w=weir:nexus  u.weir-here
       =/  out=tape
         ;:  weld
           "Weir at {(trip weir-path)}:\0a"

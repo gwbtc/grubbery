@@ -1,7 +1,7 @@
 ::  mar/urb-event.hoon
 ::
 ::  Mark for a single urb protocol event observed on-chain.
-::  Stored in gain-enabled files — subscribers see each event
+::  Stored in files — subscribers see each event
 ::  as it flows through. Includes tx outputs for UTXO derivation.
 ::  ~ when no event has been recorded yet.
 ::

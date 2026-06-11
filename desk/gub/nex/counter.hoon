@@ -3,17 +3,17 @@
 =<  ^-  nexus:nexus
     |%
     ++  on-load
-      |=  [=sand:nexus =gain:nexus =ball:tarball]
-      ^-  [sand:nexus gain:nexus ball:tarball]
+      |=  =ball:tarball
+      ^-  bole:tarball
       =/  =ver:loader  (get-ver:loader ball)
       ?+  ver  !!
           ?(~ [~ %0])
-        %+  spin:loader  [sand gain ball]
+        %+  spin:loader  ball
         :~  (ver-row:loader 0)
-            [%fall %| /counters [~ ~] [~ ~] empty-dir:loader]
-            [%over %& [/ui/views %'page.html'] %.n [~ [/ %html] !>((crip (en-xml:html (counter-page ~))))]]
-            [%fall %& [/ui %'main.sig'] %.n [~ [/ %sig] !>(~)]]
-            [%fall %| /ui/requests [~ ~] [~ ~] empty-dir:loader]
+            [%fall %| /counters empty-dir:loader]
+            [%over %& [/ui/views %'page.html'] [[/ %html] (crip (en-xml:html (counter-page ~)))]]
+            [%fall %& [/ui %'main.sig'] [[/ %sig] ~]]
+            [%fall %| /ui/requests empty-dir:loader]
         ==
       ==
     ::
@@ -37,17 +37,18 @@
           ::
           [[%ui %views ~] %'page.html']
         ;<  ~  bind:m  (rise-wait:io prod "%counter /ui/views/page: failed")
-        ;<  init=view:nexus  bind:m
+        ;<  init=wave:nexus  bind:m
           (keep:io /ctrs (cord-to-road:tarball '../../counters/') ~)
         |-
-        ;<  upd=view:nexus  bind:m  (take-news:io /ctrs)
-        ?.  ?=([%ball *] upd)  $
+        ;<  upd=wave:nexus  bind:m  (take-news:io /ctrs)
+        ;<  =seen:nexus  bind:m  (peek:io (cord-to-road:tarball '../../counters/') ~)
+        ?.  ?=([%& %ball *] seen)  $
         =/  counters=(list [@ta @ud])
-          =/  =lump:tarball  (fall fil.ball.upd *lump:tarball)
+          =/  =lump:tarball  (fall fil.ball.p.seen *lump:tarball)
           %+  murn  ~(tap by contents.lump)
-          |=  [name=@ta =content:tarball]
-          ?.  ?=(%ud name.p.sage.content)  ~
-          `[name !<(@ud q.sage.content)]
+          |=  [name=@ta =sang:tarball gain=? bang=(unit tang)]
+          ?.  ?=(%ud name.p.sang)  ~
+          `[name !<(@ud (need-vase:tarball sang))]
         =/  page=manx  (counter-page counters)
         ;<  ~  bind:m  (replace:io !>((crip (en-xml:html page))))
         $
@@ -76,7 +77,7 @@
         ?.  ?=([%& %file *] seen)
           ;<  ~  bind:m  (send-simple:srv eyre-id [[500 ~] `(as-octs:mimes:html 'View not ready')])
           (pure:m ~)
-        =/  =mime  !<(mime q.sage.p.seen)
+        =/  =mime  !<(mime (need-vase:tarball sang.p.seen))
         ;<  ~  bind:m  (send-simple:srv eyre-id (mime-response:http-utils mime))
         (pure:m ~)
       ==
@@ -162,7 +163,7 @@
             %+  turn  counters
             |=  [name=@ta val=@ud]
             =/  n=tape  (trip name)
-            =/  v=tape  (scow %ud val)
+            =/  v=tape  (a-co:co val)
             ;div.counter.fc.fh.g2.p2.b1.br1.jcsb(id "c-{n}")
               ;div.fc-col
                 ;span.s7.bold: {v}

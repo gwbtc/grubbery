@@ -170,7 +170,7 @@
   ?~  names
     ~&  >  "timezones were successfully loaded!"
     ~
-  ~&  >>  "loading timezone [{(numb idx)}/{(numb total)}]: {(trip i.names)}"
+  ::  ~&  >>  "loading timezone [{(numb idx)}/{(numb total)}]: {(trip i.names)}"
   :_  $(idx +(idx), names t.names)
   :-  i.names
   %+  gas:zon  *zone

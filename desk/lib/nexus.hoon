@@ -1,3 +1,4 @@
+/-  push
 /+  tarball
 |%
 +$  card  card:agent:gall
@@ -10,16 +11,12 @@
 +$  deps  (map rail:tarball (set rail:tarball))
 +$  refs  (axal (map @ta @uv))
 +$  lode  [=keys =deps =refs]
-+$  bins  (map @uv [refs=@ud =built])
 +$  code  (map fold:tarball lode)
-::  The ball (tarball) is WYSIWYG: fully materialized, no dedup.
-::  Every file is stored inline. To deduplicate, make references
-::  via path+cass rather than copying content.
-::
++$  bins  (map @uv [refs=@ud =built])
 ::  A "grub" is the entity that lives at a rail: its file content and
 ::  its running process, considered as one thing. You create, delete,
 ::  poke, and watch grubs. When the distinction matters, "file" means
-::  the data (content + metadata) and "process" means the running fiber.
+::  the data (content) and "process" means the running fiber.
 ::
 ::  Grubs live in directories. Directories hold grubs and other
 ::  directories, may have a neck identifying a nexus, and may have a weir
@@ -46,12 +43,7 @@
 ::    [~ &]   filtered and allowed (should clam vases)
 ::    [~ |]   filtered and blocked (veto the dart)
 ::
-+$  weir
-  $:  make=(set road:tarball)  :: allowed destinations for %make, %cull, %sand
-      poke=(set road:tarball)  :: allowed destinations for %poke
-      peek=(set road:tarball)  :: allowed destinations for %peek
-  ==
-+$  sand  (axal weir)   :: weir at each directory in the tree
++$  weir  weir:tarball
 +$  filt  (unit ?)      :: filter result (see above)
 +$  jump  ?(%make %poke %peek)  :: dart category for filtering
 ::
@@ -62,13 +54,13 @@
 +$  pant  (list [dir=@ta neck=(unit neck:tarball)])
 +$  here  [=pant name=@ta root=?]
 ::
-+$  gain  (axal (map @ta ?))
-+$  make  (each [=sand =gain =ball:tarball] [gain=? =sage:tarball blot=(unit blot:tarball)])
++$  make  (each bole:tarball [=bask:tarball blot=(unit blot:tarball)])
 +$  kept  (set bend:tarball)
 ::
++$  wave  (map lane:tarball cass:clay)
 +$  view
-  $%  [%ball =sand =gain =born ball=ball:tarball]
-      [%file =sack gain=? =sage:tarball]
+  $%  [%ball =born ball=ball:tarball]
+      [%file =hist =sang:tarball]
       [%none ~]
   ==
 +$  seen  (each view tang)
@@ -82,25 +74,27 @@
   ==
 +$  find  lose
 +$  load
-  $%  [%poke =sage:tarball]      :: poke a grub
-      [%make =make]                    :: create grub or directory
-      [%over =sage:tarball]     :: overwrite grub content (runtime mark conversion)
+  $%  [%poke =bask:tarball]     :: poke a grub
+      [%make =make]             :: create grub or directory
+      [%over =bask:tarball]     :: overwrite grub content (runtime mark conversion)
       [%cull ~]                 :: delete grub or directory
       [%sand weir=(unit weir)]  :: set weir
       [%load ~]                 :: trigger on-load for a nexus (folds only)
-      [%gain flag=?]            :: set gain flag (recursive on directories)
-      [%peek blot=(unit blot:tarball) case=(unit case) clam=?]
+      [%peek blot=(unit blot:tarball) case=(unit case) deep=?]
                                        :: read a grub
                                        :: blot: convert file sage to this blot
                                        :: case: if set, read historical version
+                                       :: deep: %.y recurse subdirs, %.n shallow
+                                       :: remote: dest under /sys/ames/ships/[ship]/root/
       [%keep blot=(unit blot:tarball)]  :: subscribe to changes at dest (grub or ball per road)
                                        :: blot: if set, convert file sage in news
       [%drop ~]                 :: unsubscribe from dest
       [%lose =lose]             :: drop hist entries, decrement silo refs
+      [%gain flag=?]            :: set gain flag (recursive on directories)
+      [%firm ~]                 :: promote current %temp entry to %firm
       [%seek =lobe:clay]        :: find all [rail cass] pairs with this hash
       [%peep =find]
       [%manu ~]                 :: docs for this path (road resolves nexus + query)
-      [%bang ~]                 :: query error state at dest
       [%code ~]                 :: look up compiled artifacts at dest
       [%font ~]                 :: find code responsible for dest node
   ==
@@ -150,6 +144,22 @@
 ::
 +$  iris-state
   [%0 requests=(map wire [sender=rail:tarball url=@t])]
+::  Push notification service state.
+::  Stored as a grub at /sys/push/main.push-state.
+::
++$  push-sub  [=ship =subscription:push]
++$  push-state
+  $:  %0
+      config=(unit push-config:push)
+      subs=(map @ta push-sub)
+      inflight=(map wire rail:tarball)
+  ==
++$  push-action
+  $%  [%subscribe sub-id=@ta =ship =subscription:push]
+      [%unsubscribe sub-id=@ta]
+      [%send =push-send:push eny=@]
+      [%init eny=@ sub=@t]
+  ==
 ::  Clay desk sync service state.
 ::  Stored as a grub at /sys/clay/main.clay-state.
 ::  Desk mirrors live at /sys/clay/desks/[desk]/.
@@ -186,17 +196,17 @@
         [%pack =wire err=(unit tang)] :: response from poke; tang is generic if not allowed to peek
         [%sand =wire err=(unit tang)] :: response to sand
         [%load =wire err=(unit tang)] :: response to load
-        [%gain =wire err=(unit tang)] :: response to gain
         [%lost =wire err=(unit tang)] :: response to lose
+        [%gain =wire err=(unit tang)] :: response to gain
+        [%held =wire err=(unit tang)] :: response to firm
         [%seek =wire res=(each (list [=rail:tarball =cass:clay]) tang)] :: response to seek
         [%peep =wire res=(each (list [=cass:clay =sage:tarball]) tang)] :: response to peep
         [%manu =wire res=(each @t tang)] :: response to manu
-        [%bang =wire res=(each bangs (unit tang))]  :: directory bangs or file error
         [%over =wire err=(unit tang)] :: response to over (content overwrite)
         [%writ ~] :: notify grub its file was externally modified by %over
-        [%bond =wire now=seen] :: subscription ack with initial view
+        [%bond =wire =wave] :: subscription ack with initial wavefront
         [%fell =wire]                 :: subscription canceled (weir change, deletion, etc)
-        [%news =wire =view] :: state notification
+        [%news =wire =wave] :: wavefront update: changed lanes + versions
         [%veto =dart] :: notify that a dart was sandboxed
         [%code =wire res=(each (axal (map @ta built)) built)]  :: code subtree or single artifact
         [%font =wire res=(unit bend:tarball)]  :: bend to governing /code namespace
@@ -219,9 +229,9 @@
   ::
   ++  output-raw
     |*  value=mold
-    $~  [~ *vase %done *value]
+    $~  [~ * %done *value]
     $:  darts=(list dart)
-        state=vase
+        state=*
         $=  next
         $%  [%wait ~] :: process intake and await next
             [%skip ~] :: queue intake and await next
@@ -250,15 +260,15 @@
       ^-  form
       |=  input
       ^-  output
-      [~ state %done value]
+      [~ q.state %done value]
     :: do nothing - forever
     ::
     ++  stay
       ^-  form
       |=  input
       ^-  output
-      ?~  in  [~ state %wait ~]
-      [~ state %skip ~]
+      ?~  in  [~ q.state %wait ~]
+      [~ q.state %skip ~]
     ::
     ++  bind
       |*  b=mold
@@ -277,117 +287,10 @@
         %done  [%cont (fun value.next.b-res)]
       ==
     --
-  :: evaluation engine for the main state and continuation monad
-  ::
-  ++  eval
-    |%
-    ++  output  (output-raw ,~)
-    ::
-    +$  result
-      $%  [%next ~]
-          [%fail err=tang]
-          [%done ~]
-      ==
-    ::
-    +$  took  [=^take err=(unit tang)]
-    ::
-    ++  take
-      =|  darts=(list dart) :: effects
-      =|  done=(list took)  :: consumed takes for acking
-      |=  [state=vase =proc]
-      ^-  [(list dart) (list took) vase _proc result]
-      =^  =^take  next.proc  ~(get to next.proc)
-      |-  :: recursion point so take can be replaced
-      =/  res=(each output tang)
-        :: TODO: jet +hoss? 
-        ::       should use hoss
-        ::       but double compute and double slogs sucks
-        ::
-        ?>  ?=(%& -.process.proc)
-        (mule |.((p.process.proc state in.take)))
-      ?:  ?=(%| -.res)
-        =/  =tang  [leaf+"crash" p.res]
-        :-  darts :: no output darts on failure
-        :-  :_(done [take `tang])
-        :-  state :: no output state on failure
-        :-  proc
-        [%fail tang]
-      =/  =output  p.res
-      ?-    -.next.output
-          %fail
-        :-  darts :: no output darts on failure
-        :-  :_(done [take `err.next.output])
-        :-  state :: no output state on failure
-        :-  proc
-        [%fail err.next.output]
-        ::
-          %done
-        :-  (weld darts darts.output)
-        :-  :_(done [take ~])
-        :-  state.output
-        :-  proc
-        [%done ~]
-        ::
-          %cont
-        %=  $
-          darts         (weld darts darts.output)
-          done          :_(done [take ~])
-          state         state.output
-          next.proc     (~(gas to next.proc) ~(tap to skip.proc))
-          skip.proc     ~
-          process.proc  &+self.next.output
-          take          [give.take ~]
-        ==
-        ::
-          %wait
-        =.  darts  (weld darts darts.output)
-        =.  done   :_(done [take ~])
-        ?.  =(~ next.proc)
-          :: recurse on queued input
-          ::
-          =^  top  next.proc  ~(get to next.proc)
-          %=  $
-            take       top
-            state      state.output
-          ==
-        :: await input
-        ::
-        :-  darts
-        :-  done
-        :-  state.output
-        :-  proc
-        [%next ~]
-        ::
-          %skip
-        ?:  =(~ in.take)
-          :: can't %skip a ~ input
-          ::
-          =/  =tang  [leaf+"cannot skip null input" ~]
-          :-  darts :: no output darts on failure
-          :-  :_(done [take `tang])
-          :-  state :: no output state on failure
-          :-  proc
-          [%fail tang]
-        :: skip input - NOT added to done
-        ::
-        =.  skip.proc  (~(put to skip.proc) take)
-        ?.  =(~ next.proc)
-          :: recurse on queued input
-          ::
-          =^  top  next.proc  ~(get to next.proc)
-          $(take top)
-        :-  darts :: %skips can't send effects
-        :-  done
-        :-  state :: %skips can't change state
-        :-  proc
-        [%next ~]
-      ==
-    --
   --
 ::
 +$  pipe   [bang=(unit tang) proc=(map @ta proc:fiber)]
 +$  pool   (axal pipe)
-+$  bangs  [bang=(unit tang) err=(map @ta (unit tang))]
 ::  Internal subscriptions: process watches tree locations
 ::
 +$  subscribers    (map rail:tarball [=wire blot=(unit blot:tarball)])
@@ -403,63 +306,77 @@
 ::  Prevents stale responses and enables subscription ordering.
 ::
 ::  proc: incremented on process spawn/restart
-::  life: incremented on grub creation (not updates; survives deletion)
 ::  file: incremented on content change
 ::
-:: fold level version information
+:: version history for files and directories
 ::
-+$  tote
-  $:  weir=cass:clay
-      fold=cass:clay
-      :: hist=((mop cass:clay lobe:clay) cor)
++$  pace
+  $%  [%firm p=(unit lobe:clay)]
+      [%temp p=(unit lobe:clay)]
+      [%tomb ~]
   ==
-:: grub level version information
-::
-+$  sack
-  $:  proc=cass:clay :: incremented on process spawn/restart
-      life=cass:clay :: incremented on grub creation; not updates
-      file=cass:clay :: incremented on content change
-      hist=((mop cass:clay lobe:clay) cor)
-  ==
-::
-+$  born  (axal [=tote bags=(map @ta sack)])
-++  cor   |=([a=cass:clay b=cass:clay] (lth ud.a ud.b))
-++  on-hist  ((on cass:clay lobe:clay) cor)
-++  silo
-  =<  silo
+++  hist
+  =<  hist
   |%
-  +$  silo  (map lobe:clay [refs=@ud =bask:tarball])
-  :: speculative git-like content-addressed storage
-  ::
-  +$  tree
-    $:  nek=(unit neck:tarball)
-        fil=(map @ta lobe:clay)
-        dir=(map @ta [=lobe:clay weir=(unit weir)])
-    ==
-  +$  ject
-    $%  [%tree =tree]
-        [%blob =bask:tarball]
-    ==
+  ++  cor   |=([a=cass:clay b=cass:clay] (lth ud.a ud.b))
+  +$  hist  ((mop cass:clay pace) cor)
+  ++  hon    ((on cass:clay pace) cor)
+  ++  top
+    |=  =hist
+    ^-  (unit cass:clay)
+    =/  got=(unit [key=cass:clay val=pace])  (ram:hon hist)
+    ?~  got  ~
+    `key.u.got
+  ++  ver
+    |=  =hist
+    ^-  @ud
+    ud:(need (top hist))
   --
+::
++$  born  (axal [fold=hist file=(map @ta hist)])
++$  leaf
+  $:  =lobe:clay
+      mark=[=blot:tarball ckey=@uv]
+      gain=?
+      bang=(unit lobe:clay)
+  ==
++$  tree
+  $:  nek=(unit [=neck:tarball ckey=@uv])
+      gain=?
+      bang=(unit lobe:clay)
+      fil=(map @ta lobe:clay)
+      dir=(map @ta [=lobe:clay weir=(unit weir)])
+  ==
++$  ject
+  $%  [%leaf =leaf]
+      [%tree =tree]
+  ==
++$  vale  (map [lobe:clay @uv] (unit tang))
++$  silo
+  $:  nouns=(map lobe:clay [refs=@ud =noun])
+      jects=(map lobe:clay [refs=@ud =ject])
+  ==
 ::  Resolve a hist case to a lobe from the hist mop
 ::  %ud: exact match on revision number
 ::  %da: latest entry with da <= target date
 ::
 ++  resolve-case
-  |=  [cas=case hist=((mop cass:clay lobe:clay) cor)]
-  ^-  lobe:clay
+  |=  [cas=case =hist]
+  ^-  pace:^hist
   ?-    -.cas
       %ud
-    =/  entries=(list [key=cass:clay val=lobe:clay])  (tap:on-hist hist)
+    =/  entries=(list [key=cass:clay val=pace:^hist])
+      (tap:hon:^hist hist)
     |-
     ?~  entries  ~|(%hist-version-not-found !!)
     ?:  =(ud.key.i.entries p.cas)
       val.i.entries
     $(entries t.entries)
       %da
-    =/  entries=(list [key=cass:clay val=lobe:clay])  (tap:on-hist hist)
+    =/  entries=(list [key=cass:clay val=pace:^hist])
+      (tap:hon:^hist hist)
     ::  tap gives ascending order; find latest entry with da <= target
-    =/  best=(unit lobe:clay)  ~
+    =/  best=(unit pace:^hist)  ~
     |-
     ?~  entries
       ?~  best  ~|(%hist-version-not-found !!)
@@ -469,60 +386,171 @@
       u.best
     $(entries t.entries, best `val.i.entries)
   ==
+::  +record-trees: Snapshot directory state into tree objects.
+::  Walks from dir up to root. At each level, builds a tree from
+::  grub hists (fil) and child fold hists (dir), content-addresses it,
+::  and only bumps fold if the hash changed. Stops propagating when
+::  a level produces the same hash.
+::
+++  record-trees
+  |=  [=born =silo =code now=@da dir=path]
+  ^-  [^born ^silo]
+  =/  sub-born=^born  (~(dip of born) dir)
+  =/  boo  ~(. bo now born)
+  =/  top-fold  top:hist
+  =/  top-hist  top:hist
+  =/  node=[fold=hist file=(map @ta hist)]
+    (fall fil.sub-born default-node:boo)
+  ::  existing tree ject from silo (for neck + child weirs)
+  =/  existing-tree=(unit tree)
+    =/  fold-top=(unit cass:clay)  (top-fold fold.node)
+    ?~  fold-top  ~
+    =/  got=(unit pace:hist)  (get:hon:hist fold.node u.fold-top)
+    ?~  got  ~
+    ?:  ?=(%tomb -.u.got)  ~
+    ?~  p.u.got  ~
+    =/  jot  (~(get by jects.silo) u.p.u.got)
+    ?~  jot  ~
+    ?.  ?=(%tree -.ject.u.jot)  ~
+    `tree.ject.u.jot
+  ::  nek: nexus identity + ckey from existing tree ject
+  =/  nek=(unit [=neck:tarball ckey=@uv])
+    ?~  existing-tree  ~
+    ?~  nek.u.existing-tree  ~
+    =/  =neck:tarball  neck.u.nek.u.existing-tree
+    =/  nex-ns=(unit fold:tarball)
+      =/  pax=path  (weld dir path.neck)
+      |-
+      ?~  pax  ~
+      ?:  (~(has by code) pax)  `pax
+      $(pax (snip `path`pax))
+    =/  nex-ckey=@uv
+      ?~  nex-ns  0v0
+      =/  =lode  (~(got by code) u.nex-ns)
+      =/  node=(unit (map @ta @uv))  (~(get of refs.lode) (slag (lent u.nex-ns) (weld dir path.neck)))
+      ?~  node  0v0
+      (fall (~(get by u.node) name.neck) 0v0)
+    `[neck nex-ckey]
+  ::  fil: each grub's current ject-lobe from hist (skip deleted/tombed)
+  =/  fil=(map @ta lobe:clay)
+    %-  ~(rep by file.node)
+    |=  [[name=@ta sk=hist] out=(map @ta lobe:clay)]
+    =/  cas=(unit cass:clay)  (top-hist sk)
+    ?~  cas  out
+    =/  val=(unit pace:hist)  (get:hon:hist sk u.cas)
+    ?~  val  out
+    ?:  ?=(%tomb -.u.val)  out
+    ?~  p.u.val  out
+    (~(put by out) name u.p.u.val)
+  ::  dir: each child's latest tree lobe + weir from existing tree
+  =/  dir-map=(map @ta [lobe:clay weir=(unit weir)])
+    %-  ~(rep by dir.sub-born)
+    |=  [[name=@ta kid=^born] out=(map @ta [lobe:clay weir=(unit weir)])]
+    =/  kid-node=(unit [fold=hist file=(map @ta hist)])  fil.kid
+    ?~  kid-node  out
+    =/  cas=(unit cass:clay)  (top-fold fold.u.kid-node)
+    ?~  cas  out
+    =/  got=(unit pace:hist)
+      (get:hon:hist fold.u.kid-node u.cas)
+    ?~  got  out
+    ?:  ?=(%tomb -.u.got)  out
+    ?~  p.u.got  out
+    =/  kid-weir=(unit weir)
+      ?~  existing-tree  ~
+      =/  entry  (~(get by dir.u.existing-tree) name)
+      ?~  entry  ~
+      weir.u.entry
+    (~(put by out) name [u.p.u.got kid-weir])
+  ::  Build tree object + store via put-tree
+  =/  tree-gain=?  ?~(existing-tree %.n gain.u.existing-tree)
+  =/  tree-bang=(unit lobe:clay)  ?~(existing-tree ~ bang.u.existing-tree)
+  =/  =tree  [nek tree-gain tree-bang fil dir-map]
+  =/  [changed=? new-born=^born new-silo=^silo]
+    (put-tree born silo now dir node tree)
+  ?.  changed  [born silo]
+  ?~  dir  [new-born new-silo]
+  $(born new-born, silo new-silo, dir (snip `path`dir))
+::  +put-tree: store a tree ject at dir, update born fold hist.
+::  Returns [changed born silo].
+::
+++  put-tree
+  |=  [=born =silo now=@da dir=path node=[fold=hist file=(map @ta hist)] =tree]
+  ^-  [changed=? ^born ^silo]
+  =/  =lobe:clay  `@uvI`(sham [%tree tree])
+  =/  top-fold  top:hist
+  =/  fold-cas=(unit cass:clay)  (top-fold fold.node)
+  =/  cur-lobe=(unit lobe:clay)
+    =/  cur-pace=(unit pace:hist)
+      ?~  fold-cas  ~
+      (get:hon:hist fold.node u.fold-cas)
+    ?~  cur-pace  ~
+    ?:  ?=(%tomb -.u.cur-pace)  ~
+    p.u.cur-pace
+  ?:  =(`lobe cur-lobe)
+    [%.n born silo]
+  =/  [* new-silo=^silo]
+    (~(put-ject si silo) [%tree tree])
+  ::  Tombstone previous %temp fold entry
+  =/  [tombed-silo=^silo tombed-fold=hist]
+    ?~  fold-cas  [new-silo fold.node]
+    (~(tomb-temp si new-silo) fold.node u.fold-cas)
+  =.  silo  tombed-silo
+  =/  old-fold=cass:clay  (fall fold-cas [0 now])
+  =/  new-fold=cass:clay
+    =/  nex-da=@da  ?:((lth da.old-fold now) now +(da.old-fold))
+    [+(ud.old-fold) nex-da]
+  =/  =pace:hist  ?:(gain.tree [%firm `lobe] [%temp `lobe])
+  =/  new-hist=hist
+    (put:hon:hist tombed-fold new-fold pace)
+  =.  born  (~(put of born) dir node(fold new-hist))
+  [%.y born silo]
 ::  +bo: Pure operations on born (version tracking)
 ::
-::  Structure: (axal [tote bags=(map @ta sack)])
-::    - tote = [weir=cass:clay fold=cass:clay]
-::    - Each directory node has a tote and bags (grub sacks)
-::    - sack = [proc=cass:clay file=cass:clay hist=((mop ...))]
-::
-::  Semantics:
-::    - proc cass: bumped on process spawn/restart (stale detection + notifications)
-::    - file cass: bumped on content change (notifications)
-::    - fold cass: bumped when ANY descendant changes (propagates up to root)
-::    - weir cass: bumped when weir changes at this directory
-::
-::  All four trigger subscriber notifications via diff-born.
-::
-::  Lifecycle for new grub:
-::    init      → [0 0]  (file exists)
-::    bump-proc → [1 0]  (process spawned)
-::    bump-file → [1 1]  (first content saved)
+::  Structure: (axal [fold=hist file=(map @ta hist)])
+::    - fold and file hists are both mops keyed by cass:clay
+::    - top of hist = current version; (top:hist fold) / (top:hist file)
 ::
 ::  Invariants:
 ::    - Born records are NEVER deleted (high-water mark for ordering)
-::    - File cass bumps IFF content changes
-::    - Fold cass bumps on any descendant change
+::    - Sack hist bumps IFF content changes
+::    - Tote hist bumps on any descendant change (fold)
 ::    - Weir cass bumps on weir change at that directory
 ::
 ++  bo
-  |_  [now=@da old=[=born =ball:tarball]]
-  ::  Get sack for a file
+  |_  [now=@da old=born]
+  ::  Default node with initial hist entry
+  ::
+  ++  default-node
+    ^-  [fold=hist file=(map @ta hist)]
+    =/  zero=cass:clay  [0 now]
+    [[[zero [%temp ~]] ~ ~] ~]
+  ::  Get hist for a file
   ::
   ++  get
     |=  here=rail:tarball
-    ^-  (unit sack)
-    =/  node=(unit [=tote bags=(map @ta sack)])
-      (~(get of born.old) path.here)
+    ^-  (unit hist)
+    =/  node=(unit [fold=hist file=(map @ta hist)])
+      (~(get of old) path.here)
     ?~  node  ~
-    (~(get by bags.u.node) name.here)
-  ::  Put sack for a file
+    (~(get by file.u.node) name.here)
+  ::  Put hist for a file
   ::
   ++  put
-    |=  [here=rail:tarball sok=sack]
+    |=  [here=rail:tarball sok=hist]
     ^-  born
-    =/  node=[=tote bags=(map @ta sack)]
-      (fall (~(get of born.old) path.here) [[[0 now] [0 now]] ~])
-    (~(put of born.old) path.here node(bags (~(put by bags.node) name.here sok)))
+    =/  node=[fold=hist file=(map @ta hist)]
+      (fall (~(get of old) path.here) default-node)
+    (~(put of old) path.here node(file (~(put by file.node) name.here sok)))
   ::  Get dir cass
   ::
   ++  get-dir-cass
     |=  dir=fold:tarball
     ^-  (unit cass:clay)
-    =/  node=(unit [=tote bags=(map @ta sack)])
-      (~(get of born.old) dir)
+    =/  top-fold  top:hist
+    =/  node=(unit [fold=hist file=(map @ta hist)])
+      (~(get of old) dir)
     ?~  node  ~
-    `fold.tote.u.node
+    (top-fold fold.u.node)
   ::  Next cass value (increment ud, update da)
   ::
   ++  next-cass
@@ -531,241 +559,354 @@
     =/  nex-da=@da
       ?:((lth da.cass now) now +(da.cass))
     [+(ud.cass) nex-da]
-  ::  Init born for new file — bump life if sack exists (re-creation),
-  ::  otherwise start life at 1.
+  ::  Init born for new file — reuse existing hist if present (re-creation)
   ::
   ++  init
     |=  here=rail:tarball
     ^-  born
-    =/  existing=(unit sack)  (get here)
+    =/  existing=(unit hist)  (get here)
     ?~  existing
-      (put here [[0 now] [0 now] [0 now] ~])
-    (put here [proc.u.existing (next-cass life.u.existing) file.u.existing hist.u.existing])
-  ::  Bump proc cass (asserts born exists)
-  ::
-  ++  bump-proc
-    |=  here=rail:tarball
-    ^-  born
-    =/  sok=sack  (need (get here))
-    (put here [(next-cass proc.sok) life.sok file.sok hist.sok])
-  ::  Bump dir cass and propagate up to root
-  ::
-  ++  bump-dir
-    |=  dir=fold:tarball
-    ^-  born
-    =/  node=[=tote bags=(map @ta sack)]
-      (fall (~(get of born.old) dir) [[[0 now] [0 now]] ~])
-    =/  new-cass=cass:clay  (next-cass fold.tote.node)
-    =.  born.old  (~(put of born.old) dir node(fold.tote new-cass))
-    ?~  dir  born.old
-    (bump-dir (snip `fold:tarball`dir))
-  ::  Bump file cass and propagate dir cass up to root (asserts born exists)
-  ::
-  ++  bump-file
-    |=  here=rail:tarball
-    ^-  born
-    =/  got=(unit sack)  (get here)
-    ?~  got
-      ~|  ["bump-file: missing rail" here]
-      !!
-    =/  sok=sack  u.got
-    =.  born.old  (put here [proc.sok life.sok (next-cass file.sok) hist.sok])
-    (bump-dir path.here)
-  ::  Bump weir cass of directory node and propagate fold cass up
-  ::
-  ++  bump-weir
-    |=  dir=fold:tarball
-    ^-  born
-    =/  node=[=tote bags=(map @ta sack)]
-      (fall (~(get of born.old) dir) [[[0 now] [0 now]] ~])
-    =.  born.old
-      (~(put of born.old) dir node(weir.tote (next-cass weir.tote.node)))
-    (bump-dir dir)
-  ::  Check if a ball node is an empty directory (exists but no files, no subdirs)
-  ::
-  ++  is-empty-dir
-    |=  =ball:tarball
-    ^-  ?
-    ?&  ?=(^ fil.ball)
-        =(~ contents.u.fil.ball)
-        =(~ dir.ball)
-    ==
-  ::  Check if a directory exists in a ball (has lump or has children)
-  ::  (technically has lump should be enough to identify it)
-  ::
-  ++  dir-exists
-    |=  bol=ball:tarball
-    ^-  ?
-    |(?=(^ fil.bol) !=(~ dir.bol))
-  ::  Diff two balls and track all changes
-  ::
-  ::  - New files (in new, not in old): init + bump
-  ::  - Changed files (in both, content differs): bump
-  ::  - Deleted files (in old, not in new): bump
-  ::  - Empty dir appears (no previous children): bump-dir
-  ::  - Empty dir disappears (no new children): bump-dir
-  ::  - Recurse into all subdirs
-  ::
-  ++  diff-balls
-    |=  [here=fold:tarball old-ball=ball:tarball new-ball=ball:tarball]
-    ^-  born
-    ::  Get file maps at this level
-    =/  old-files=(map @ta content:tarball)
-      ?~(fil.old-ball ~ contents.u.fil.old-ball)
-    =/  new-files=(map @ta content:tarball)
-      ?~(fil.new-ball ~ contents.u.fil.new-ball)
-    =/  old-names=(set @ta)  ~(key by old-files)
-    =/  new-names=(set @ta)  ~(key by new-files)
-    ::  Process files: new, changed, deleted
-    =/  all-names=(list @ta)  ~(tap in (~(uni in old-names) new-names))
-    |-  ^-  born
-    ?^  all-names
-      =/  name=@ta  i.all-names
-      =/  in-old=?  (~(has in old-names) name)
-      =/  in-new=?  (~(has in new-names) name)
-      =.  born.old
-        ?:  &(in-new !in-old)
-          ::  New file: init then bump
-          =.  born.old  (init [here name])
-          (bump-file [here name])
-        ?:  &(in-old !in-new)
-          ::  Deleted file: bump
-          (bump-file [here name])
-        ::  File in both: check if changed
-        =/  old-content=content:tarball  (~(got by old-files) name)
-        =/  new-content=content:tarball  (~(got by new-files) name)
-        ?.  =(sage.old-content sage.new-content)
-          ::  Changed: bump
-          (bump-file [here name])
-        ::  No change
-        born.old
-      $(all-names t.all-names)
-    ::  Handle empty dir edge cases
-    =/  old-exists=?  (dir-exists old-ball)
-    =/  new-exists=?  (dir-exists new-ball)
-    =/  old-is-empty=?  (is-empty-dir old-ball)
-    =/  new-is-empty=?  (is-empty-dir new-ball)
-    ::  Empty dir appears
-    =?  born.old  &(new-is-empty !old-exists)
-      (bump-dir here)
-    ::  Empty dir disappears
-    =?  born.old  &(old-is-empty !new-exists)
-      (bump-dir here)
-    ::  Recurse into all subdirs
-    =/  all-kids=(set @ta)
-      (~(uni in ~(key by dir.old-ball)) ~(key by dir.new-ball))
-    =/  kids=(list @ta)  ~(tap in all-kids)
-    |-  ^-  born
-    ?~  kids  born.old
-    =/  kid-old=ball:tarball  (fall (~(get by dir.old-ball) i.kids) *ball:tarball)
-    =/  kid-new=ball:tarball  (fall (~(get by dir.new-ball) i.kids) *ball:tarball)
-    =.  born.old  (diff-balls (snoc here i.kids) kid-old kid-new)
-    $(kids t.kids)
+      =/  zero=cass:clay  [0 now]
+      (put here [[zero [%temp ~]] ~ ~])
+    (put here u.existing)
   --
 ::  +si: Pure operations on silo (content-addressed object store)
 ::
-::  Stores pages (mark + noun) rather than cages (mark + vase).
-::  Callers must clam on read to reconstruct the vase.
-::  This avoids stale types when marks evolve.
+::  Nouns store raw data. Callers pair with blot from ject/hist
+::  to interpret. Callers must clam on read to reconstruct typed data.
 ::
 ++  si
   |_  =silo
   ++  hash
-    |=  =bask:tarball
+    |=  =noun
     ^-  lobe:clay
-    `@uvI`(sham bask)
-  ::  Insert bask, increment refcount if exists. Returns lobe and new silo.
+    `@uvI`(sham noun)
+  ::  Insert noun, increment refcount if exists. Returns lobe and new silo.
   ::
   ++  put
-    |=  =bask:tarball
+    |=  =noun
     ^-  [lobe:clay ^silo]
-    =/  =lobe:clay  (hash bask)
-    =/  got  (~(get by silo) lobe)
+    =/  =lobe:clay  (hash noun)
+    =/  got  (~(get by nouns.silo) lobe)
     ?~  got
-      [lobe (~(put by silo) lobe [1 bask])]
-    [lobe (~(put by silo) lobe [+(refs.u.got) bask])]
+      [lobe silo(nouns (~(put by nouns.silo) lobe [0 noun]))]
+    [lobe silo]
   ::  Decrement refcount, delete if zero.
   ::
   ++  drop
     |=  =lobe:clay
     ^-  ^silo
-    =/  got  (~(get by silo) lobe)
+    =/  got  (~(get by nouns.silo) lobe)
     ?~  got  silo
     ?:  (lte refs.u.got 1)
-      (~(del by silo) lobe)
-    (~(put by silo) lobe [refs=(dec refs.u.got) bask.u.got])
-  ::  Look up bask by lobe.
+      silo(nouns (~(del by nouns.silo) lobe))
+    silo(nouns (~(put by nouns.silo) lobe [refs=(dec refs.u.got) noun.u.got]))
+  ::  Look up noun by lobe.
   ::
   ++  get
     |=  =lobe:clay
-    ^-  (unit bask:tarball)
-    =/  got  (~(get by silo) lobe)
+    ^-  (unit noun)
+    =/  got  (~(get by nouns.silo) lobe)
     ?~  got  ~
-    `bask.u.got
-  ::  Drop refs for all lobes in a hist.
+    `noun.u.got
+  ::  Drop refs for all ject lobes in a hist.
   ::
   ++  drop-hist
-    |=  hist=((mop cass:clay lobe:clay) cor)
+    |=  =hist
     ^-  ^silo
-    =/  entries=(list [key=cass:clay val=lobe:clay])
-      (tap:on-hist hist)
+    =/  entries=(list [key=cass:clay val=pace:^hist])
+      (tap:hon:^hist hist)
     |-
     ?~  entries  silo
-    $(entries t.entries, silo (drop val.i.entries))
-  ::  Record a bask: insert into silo, update hist per gain flag.
+    =/  pv=pace:^hist  val.i.entries
+    ?:  ?=(%tomb -.pv)  $(entries t.entries)
+    ?~  p.pv  $(entries t.entries)
+    $(entries t.entries, silo (drop-ject u.p.pv))
+  ::  Increment noun refcount by lobe (must exist).
+  ::
+  ++  bump-ref
+    |=  =lobe:clay
+    ^-  ^silo
+    =/  got  (~(get by nouns.silo) lobe)
+    ?~  got  silo
+    silo(nouns (~(put by nouns.silo) lobe [+(refs.u.got) noun.u.got]))
+  ::  Increment ject refcount by lobe (must exist).
+  ::
+  ++  bump-ject-ref
+    |=  =lobe:clay
+    ^-  ^silo
+    =/  got  (~(get by jects.silo) lobe)
+    ?~  got  silo
+    silo(jects (~(put by jects.silo) lobe [+(refs.u.got) ject.u.got]))
+  ::  Insert ject, increment refcount if exists.
+  ::  On first insert, bumps refs on all referenced nouns and child jects.
+  ::
+  ++  put-ject
+    |=  =ject
+    ^-  [lobe:clay ^silo]
+    =/  =lobe:clay  `@uvI`(sham ject)
+    =/  got  (~(get by jects.silo) lobe)
+    ?^  got
+      [lobe silo(jects (~(put by jects.silo) lobe [+(refs.u.got) ject]))]
+    ::  new ject — store it, then bump refs on children
+    =.  jects.silo  (~(put by jects.silo) lobe [1 ject])
+    ?-  -.ject
+        %leaf
+      =.  silo  (~(bump-ref si silo) lobe.leaf.ject)
+      =?  silo  ?=(^ bang.leaf.ject)  (~(bump-ref si silo) u.bang.leaf.ject)
+      [lobe silo]
+        %tree
+      =?  silo  ?=(^ bang.tree.ject)  (~(bump-ref si silo) u.bang.tree.ject)
+      =.  silo
+        %-  ~(rep by fil.tree.ject)
+        |=  [[* =lobe:clay] =_silo]
+        (~(bump-ject-ref si silo) lobe)
+      =.  silo
+        %-  ~(rep by dir.tree.ject)
+        |=  [[* =lobe:clay *] =_silo]
+        (~(bump-ject-ref si silo) lobe)
+      [lobe silo]
+    ==
+  ::  Decrement ject refcount, delete if zero.
+  ::
+  ++  drop-ject
+    |=  =lobe:clay
+    ^-  ^silo
+    =/  got  (~(get by jects.silo) lobe)
+    ?~  got  silo
+    ?.  (lte refs.u.got 1)
+      silo(jects (~(put by jects.silo) lobe [refs=(dec refs.u.got) ject.u.got]))
+    ::  refs hit zero — delete ject and cascade to children
+    =.  jects.silo  (~(del by jects.silo) lobe)
+    =/  jt=ject  ject.u.got
+    ?-  -.jt
+        %leaf
+      =.  silo  (~(drop si silo) lobe.leaf.jt)
+      ?~(bang.leaf.jt silo (~(drop si silo) u.bang.leaf.jt))
+        %tree
+      =?  silo  ?=(^ bang.tree.jt)  (~(drop si silo) u.bang.tree.jt)
+      =.  silo
+        %-  ~(rep by fil.tree.jt)
+        |=  [[* =lobe:clay] =_silo]
+        (~(drop-ject si silo) lobe)
+      %-  ~(rep by dir.tree.jt)
+      |=  [[* =lobe:clay *] =_silo]
+      (~(drop-ject si silo) lobe)
+    ==
+  ::  Collect all lobes reachable from a root ject lobe (transitive closure).
+  ::  Returns set of all ject lobes + noun lobes.
+  ::
+  ++  reachable
+    |=  root=lobe:clay
+    ^-  (set lobe:clay)
+    =|  seen=(set lobe:clay)
+    =|  queue=(list lobe:clay)
+    =.  queue  ~[root]
+    |-
+    ?~  queue  seen
+    =/  cur=lobe:clay  i.queue
+    ?:  (~(has in seen) cur)
+      $(queue t.queue)
+    =.  seen  (~(put in seen) cur)
+    =/  got  (~(get by jects.silo) cur)
+    ?~  got  $(queue t.queue)
+    =/  jt=ject  ject.u.got
+    ?-  -.jt
+        %leaf
+      =.  seen  (~(put in seen) lobe.leaf.jt)
+      =?  seen  ?=(^ bang.leaf.jt)  (~(put in seen) u.bang.leaf.jt)
+      $(queue t.queue)
+        %tree
+      =?  seen  ?=(^ bang.tree.jt)  (~(put in seen) u.bang.tree.jt)
+      =/  fil-lobes=(list lobe:clay)
+        (turn ~(val by fil.tree.jt) |=(=lobe:clay lobe))
+      =/  dir-lobes=(list lobe:clay)
+        (turn ~(val by dir.tree.jt) |=([=lobe:clay *] lobe))
+      $(queue (weld t.queue (weld fil-lobes dir-lobes)))
+    ==
+  ::  Shallow reachable: like +reachable but doesn't recurse into
+  ::  subdirectory lobes. Collects the root tree ject, its files'
+  ::  leaf jects + nouns, but treats dir lobes as opaque.
+  ::
+  ++  reachable-shallow
+    |=  root=lobe:clay
+    ^-  (set lobe:clay)
+    =/  seen=(set lobe:clay)  (sy ~[root])
+    =/  got  (~(get by jects.silo) root)
+    ?~  got  seen
+    =/  jt=ject  ject.u.got
+    ?-  -.jt
+        %leaf
+      =.  seen  (~(put in seen) lobe.leaf.jt)
+      =?  seen  ?=(^ bang.leaf.jt)  (~(put in seen) u.bang.leaf.jt)
+      seen
+        %tree
+      =?  seen  ?=(^ bang.tree.jt)  (~(put in seen) u.bang.tree.jt)
+      ::  Include file lobes and their leaf contents
+      =/  fil-entries=(list [name=@ta =lobe:clay])
+        ~(tap by fil.tree.jt)
+      |-
+      ?~  fil-entries  seen
+      =/  fl=lobe:clay  lobe.i.fil-entries
+      =.  seen  (~(put in seen) fl)
+      =/  fgot  (~(get by jects.silo) fl)
+      =?  seen  &(?=(^ fgot) ?=(%leaf -.ject.u.fgot))
+        (~(put in seen) lobe.leaf.ject.u.fgot)
+      =?  seen  &(?=(^ fgot) ?=(%leaf -.ject.u.fgot) ?=(^ bang.leaf.ject.u.fgot))
+        (~(put in seen) u.bang.leaf.ject.u.fgot)
+      $(fil-entries t.fil-entries)
+    ==
+  ::  Set bang on an existing ject.  Stores the tang as a noun,
+  ::  builds a new ject with bang=`tang-lobe, drops the old ject,
+  ::  and returns the new ject lobe.
+  ::
+  ++  set-bang
+    |=  [old-lobe=lobe:clay err=tang]
+    ^-  [lobe:clay ^silo]
+    =/  got  (~(get by jects.silo) old-lobe)
+    ?~  got  [old-lobe silo]
+    ::  store tang noun in silo
+    =/  [tang-lobe=lobe:clay mid-silo=^silo]  (~(put si silo) err)
+    ::  build new ject with bang set
+    =/  new-ject=ject
+      ?-  -.ject.u.got
+        %leaf  [%leaf leaf.ject.u.got(bang `tang-lobe)]
+        %tree  [%tree tree.ject.u.got(bang `tang-lobe)]
+      ==
+    =/  [new-lobe=lobe:clay fin-silo=^silo]
+      (~(put-ject si mid-silo) new-ject)
+    ::  drop old ject ref
+    =.  fin-silo  (~(drop-ject si fin-silo) old-lobe)
+    [new-lobe fin-silo]
+  ::  Clear bang on an existing ject.  Builds a new ject with bang=~,
+  ::  drops the old ject and the old bang noun ref.
+  ::  Returns ~ if ject has no bang or doesn't exist.
+  ::
+  ++  clear-bang
+    |=  old-lobe=lobe:clay
+    ^-  (unit [lobe=lobe:clay =^silo])
+    =/  got  (~(get by jects.silo) old-lobe)
+    ?~  got  ~
+    =/  old-bang=(unit lobe:clay)
+      ?-  -.ject.u.got
+        %leaf  bang.leaf.ject.u.got
+        %tree  bang.tree.ject.u.got
+      ==
+    ?~  old-bang  ~  :: no bang to clear
+    ::  build new ject with bang cleared
+    =/  new-ject=ject
+      ?-  -.ject.u.got
+        %leaf  [%leaf leaf.ject.u.got(bang ~)]
+        %tree  [%tree tree.ject.u.got(bang ~)]
+      ==
+    =/  [new-lobe=lobe:clay mid-silo=^silo]
+      (~(put-ject si silo) new-ject)
+    ::  drop old ject ref (cascades to drop old bang noun ref)
+    =.  mid-silo  (~(drop-ject si mid-silo) old-lobe)
+    `[new-lobe mid-silo]
+  ::  Tombstone previous %temp entry in hist, dropping silo refs.
+  ::  %firm entries are left untouched.
+  ::
+  ++  tomb-temp
+    |=  [=hist prev-cas=cass:clay]
+    ^-  [^silo ^hist]
+    =/  prev-pace=(unit pace:^hist)  (get:hon:^hist hist prev-cas)
+    ?~  prev-pace  [silo hist]
+    ?.  ?=(%temp -.u.prev-pace)  [silo hist]
+    =.  silo
+      ?~  p.u.prev-pace  silo
+      (~(drop-ject si silo) u.p.u.prev-pace)
+    [silo (put:hon:^hist hist prev-cas [%tomb ~])]
+  ::  Record a noun: insert into silo, update hist.
   ::  Returns [lobe new-silo new-hist].
   ::
-  ::  gain=%.y: append to hist, keeping full history.
-  ::  gain=%.n: don't accumulate history. If the current live
-  ::    version (identified by the file cass) is in hist, drop its
-  ::    silo ref and remove it. Older history is preserved —
-  ::    gain only controls what happens live, not retroactively.
+  ::  gain=%.y: entry is %firm (permanent until explicitly tombed).
+  ::  gain=%.n: entry is %temp (dropped on next write).
   ::
   ++  record
-    |=  [=bask:tarball =cass:clay gain=? file=cass:clay hist=((mop cass:clay lobe:clay) cor)]
-    ^-  [lobe:clay ^silo ((mop cass:clay lobe:clay) cor)]
-    =/  [=lobe:clay new-silo=^silo]  (put bask)
-    ?:  gain
-      [lobe new-silo (put:on-hist hist cass lobe)]
-    ::  !gain: replace current live version only, preserve older history
-    =/  prev=(unit lobe:clay)  (get:on-hist hist file)
-    =?  new-silo  ?=(^ prev)
-      (~(drop si new-silo) u.prev)
-    =/  trimmed
-      ?~  prev  hist
-      +:(del:on-hist hist file)
-    [lobe new-silo (put:on-hist trimmed cass lobe)]
+    |=  $:  =noun
+            =blot:tarball
+            ckey=@uv
+            gain=?
+            =cass:clay
+            file-cass=cass:clay
+            =hist
+        ==
+    ^-  [lobe:clay ^silo ^hist]
+    ::  Carry over bang from previous leaf ject (sticky until cleared)
+    =/  prev-bang=(unit lobe:clay)
+      =/  prev-pace=(unit pace:^hist)  (get:hon:^hist hist file-cass)
+      ?~  prev-pace  ~
+      ?:  ?=(%tomb -.u.prev-pace)  ~
+      ?~  p.u.prev-pace  ~
+      =/  got  (~(get by jects.silo) u.p.u.prev-pace)
+      ?~  got  ~
+      ?.  ?=(%leaf -.ject.u.got)  ~
+      bang.leaf.ject.u.got
+    ::  Store noun, then wrap as leaf ject
+    =/  [noun-lobe=lobe:clay new-silo=^silo]  (put noun)
+    =/  [ject-lobe=lobe:clay newer-silo=^silo]
+      (~(put-ject si new-silo) [%leaf noun-lobe [blot ckey] gain prev-bang])
+    =/  [tombed-silo=^silo tombed-hist=^hist]
+      (~(tomb-temp si newer-silo) hist file-cass)
+    =/  =pace:^hist  ?:(gain [%firm `ject-lobe] [%temp `ject-lobe])
+    [noun-lobe tombed-silo (put:hon:^hist tombed-hist cass pace)]
   --
-::  +stamp-mtimes: stamp born datetimes into ball metadata as mtime
+::  +stamp-mtimes: no-op (metadata removed from content)
 ::
 ++  stamp-mtimes
   |=  [=born b=ball:tarball]
   ^-  ball:tarball
-  =/  lumps  ~(tap of b)
-  |-
-  ?~  lumps  b
-  =/  [pax=path lmp=lump:tarball]  i.lumps
-  =/  node=(unit [=tote bags=(map @ta sack)])
-    (~(get of born) pax)
-  ?~  node  $(lumps t.lumps)
-  =.  metadata.lmp
-    (~(put by metadata.lmp) 'mtime' (da-oct:tarball da.fold.tote.u.node))
-  =.  contents.lmp
-    %-  ~(urn by contents.lmp)
-    |=  [name=@ta =content:tarball]
-    =/  sk=(unit sack)  (~(get by bags.u.node) name)
-    ?~  sk  content
-    content(metadata (~(put by metadata.content) 'mtime' (da-oct:tarball da.file.u.sk)))
-  =.  b  (~(put of b) pax lmp)
-  $(lumps t.lumps)
+  b
+::  +wave-from-born: build wavefront from born for a set of lanes
+::  Looks up the latest cass for each lane in born.
+::
+++  wave-from-born
+  |=  [=born lanes=(set lane:tarball)]
+  ^-  wave
+  %-  ~(rep in lanes)
+  |=  [=lane:tarball acc=wave]
+  =/  node=(unit [fold=hist file=(map @ta hist)])
+    ?-  -.lane
+      %|  (~(get of born) p.lane)
+      %&  (~(get of born) path.p.lane)
+    ==
+  ?~  node  acc
+  =/  sk=hist
+    ?-  -.lane
+      %|  fold.u.node
+      %&  (fall (~(get by file.u.node) name.p.lane) *hist)
+    ==
+  =/  cas=(unit cass:clay)  (top:hist sk)
+  ?~  cas  acc
+  (~(put by acc) lane u.cas)
+::
+::  +relativize-wave: make wave lanes relative to a subscription target
+::
+::  Strips the target prefix from each lane's path so subscribers see
+::  paths relative to what they subscribed to.
+::
+++  relativize-wave
+  |=  [target=lane:tarball =wave]
+  ^-  ^wave
+  =/  prefix=path
+    ?-(-.target %| p.target, %& path.p.target)
+  %-  ~(rep by wave)
+  |=  [[=lane:tarball =cass:clay] acc=^wave]
+  =/  lane-path=path
+    ?-(-.lane %| p.lane, %& path.p.lane)
+  =/  rel=(unit path)  (decap:tarball prefix lane-path)
+  ?~  rel  (~(put by acc) lane cass)
+  =/  rel-lane=lane:tarball
+    ?-(-.lane %| [%| u.rel], %& [%& u.rel name.p.lane])
+  (~(put by acc) rel-lane cass)
+::
 ::  +diff-born: compare two born trees and return set of changed lanes
 ::
 ::  Pure function: walks both trees, comparing totes and sacks.
-::  Four modes:
-::    %all   - compare everything (tote + bags)
+::  Two modes:
+::    %all   - compare everything (fold + file)
 ::    %state - compare fold cass + file cass only (content changes)
-::    %weir  - compare weir cass only (sandbox changes)
-::    %proc  - compare proc cass only (process restarts)
 ::
 ++  diff-born
   |=  [old=born new=born]
@@ -777,48 +918,36 @@
   ^-  (set lane:tarball)
   (diff-born-at / old new %state)
 ::
-++  diff-born-weir
-  |=  [old=born new=born]
-  ^-  (set lane:tarball)
-  (diff-born-at / old new %weir)
-::
-++  diff-born-proc
-  |=  [old=born new=born]
-  ^-  (set lane:tarball)
-  (diff-born-at / old new %proc)
-::
 ++  diff-born-at
-  |=  [here=fold:tarball old=born new=born mode=?(%all %state %weir %proc)]
+  |=  [here=fold:tarball old=born new=born mode=?(%all %state)]
   ^-  (set lane:tarball)
   =|  result=(set lane:tarball)
   ::  Compare directory-level totes
-  =/  old-tote=tote  ?~(fil.old *tote tote.u.fil.old)
-  =/  new-tote=tote  ?~(fil.new *tote tote.u.fil.new)
+  =/  old-fold=hist  ?~(fil.old *hist fold.u.fil.old)
+  =/  new-fold=hist  ?~(fil.new *hist fold.u.fil.new)
   =/  dir-changed=?
     ?-  mode
-      %all    !=(old-tote new-tote)
-      %state  !=(fold.old-tote fold.new-tote)
-      %weir   !=(weir.old-tote weir.new-tote)
-      %proc   %.n
+      %all    !=(old-fold new-fold)
+      %state  !=((ram:hon:hist old-fold) (ram:hon:hist new-fold))
     ==
   =?  result  dir-changed
     (~(put in result) |+here)
-  ::  Compare bags (file sacks) — skip for weir-only mode
+  ::  Compare file hists
   =.  result
-    ?:  ?=(%weir mode)  result
-    =/  old-bags=(map @ta sack)  ?~(fil.old ~ bags.u.fil.old)
-    =/  new-bags=(map @ta sack)  ?~(fil.new ~ bags.u.fil.new)
+    =/  old-file=(map @ta hist)  ?~(fil.old ~ file.u.fil.old)
+    =/  new-file=(map @ta hist)  ?~(fil.new ~ file.u.fil.new)
     =/  all-names=(list @ta)
-      ~(tap in (~(uni in ~(key by old-bags)) ~(key by new-bags)))
+      ~(tap in (~(uni in ~(key by old-file)) ~(key by new-file)))
     |-
     ?~  all-names  result
-    =/  old-sk=sack  (fall (~(get by old-bags) i.all-names) *sack)
-    =/  new-sk=sack  (fall (~(get by new-bags) i.all-names) *sack)
-    =/  sack-changed=?
-      ?:  ?=(%all mode)    !=(old-sk new-sk)
-      ?:  ?=(%state mode)  !=(file.old-sk file.new-sk)
-      !=(proc.old-sk proc.new-sk)
-    =?  result  sack-changed
+    =/  old-sk=hist  (fall (~(get by old-file) i.all-names) *hist)
+    =/  new-sk=hist  (fall (~(get by new-file) i.all-names) *hist)
+    =/  file-changed=?
+      ?-  mode
+        %all    !=(old-sk new-sk)
+        %state  !=((ram:hon:hist old-sk) (ram:hon:hist new-sk))
+      ==
+    =?  result  file-changed
       (~(put in result) &+[here i.all-names])
     $(all-names t.all-names)
   ::  Recurse into children
@@ -846,9 +975,9 @@
   |=  [here=fold:tarball old=ball:tarball new=ball:tarball]
   ^-  (set lane:tarball)
   =|  result=(set lane:tarball)
-  =/  old-files=(map @ta content:tarball)
+  =/  old-files=(map @ta [=sang:tarball gain=? bang=(unit tang)])
     ?~(fil.old ~ contents.u.fil.old)
-  =/  new-files=(map @ta content:tarball)
+  =/  new-files=(map @ta [=sang:tarball gain=? bang=(unit tang)])
     ?~(fil.new ~ contents.u.fil.new)
   =/  all-names=(list @ta)
     ~(tap in (~(uni in ~(key by old-files)) ~(key by new-files)))
@@ -861,7 +990,7 @@
       ?:  &(in-new !in-old)  %.y                :: added
       ?:  &(in-old !in-new)  %.y                :: deleted
       ?&  in-old  in-new
-          !=(sage:(~(got by old-files) i.all-names) sage:(~(got by new-files) i.all-names))
+          !=((~(got by old-files) i.all-names) (~(got by new-files) i.all-names))
       ==                                         :: changed
     =?  result  file-changed
       (~(put in result) &+[here i.all-names])
@@ -881,8 +1010,29 @@
   =.  result
     (~(uni in result) (changed-lanes-at (snoc here i.all-kids) kid-old kid-new))
   $(all-kids t.all-kids)
-::  Cross-ship load/intake types
-::  Mirrors internal dart load / fiber intake pattern.
+::  Cross-ship remote protocol
+::
+::  Load: outbound requests to a remote ship's grubbery.
+::  Simple operations (make/cull/sand/load/poke/over) route through
+::  the dart system as if they came from /sys/ames/ships/[ship]/ship.sig.
+::
+::  Peek: content-addressed read with have/want negotiation.
+::  Flow: peek → snap (pace + reachable refs) → want (missing lobes) → data (silo subset).
+::  The requesting ship tracks outstanding peeks in a +peeks map,
+::  keyed by [requester-rail wire]. When all refs are locally present
+::  in the silo, the peek is discharged: pace is written to +afar
+::  and the requesting grub is notified.
+::
+::  Keep: cross-ship subscriptions. Subscriber sends %keep, publisher
+::  registers in local subs with watcher=ship.sig. On changes, publisher
+::  pushes waves (lane→cass). Subscriber delivers %news to local grubs.
+::  Subscriber routes via /sys/ames/ships/[ship]/root/[path] namespace.
+::
+::  Intake: inbound responses from a remote ship.
+::  %snap delivers the resolved pace and reachable content hashes.
+::  %data delivers the silo subset (jects + nouns) for requested lobes.
+::  %bond delivers initial wave on subscription.
+::  %wave delivers ongoing wave updates.
 ::
 ++  remote
   |%
@@ -893,15 +1043,31 @@
             [%sand weir=(unit weir)]
             [%load ~]
             [%poke =bask:tarball]
-            [%peek blot=(unit blot:tarball)]
+            [%over =bask:tarball]
+            [%peek case=(unit case) deep=?]
+            [%keep ~]
+            [%drop ~]
+            [%want haves=(set lobe:clay)]
         ==
     ==
-  +$  make  (each [=sand =gain =ball:tarball] [gain=? =bask:tarball blot=(unit blot:tarball)])
+  +$  make  (each ball:tarball [=bask:tarball blot=(unit blot:tarball)])
+  ::  Inbound responses from remote peek negotiation
+  ::
   +$  intake
     $:  =wire
-        $%  [%peek ~] :: TBD
+        $%  [%snap dest=lane:tarball snap=(unit snap)]
+            [%data =silo]
+            [%bond dest=lane:tarball =wave]
+            [%wave dest=lane:tarball =wave]
         ==
     ==
+  ::  Staged peek state: tracks an outstanding cross-ship peek
+  ::  from initiation through negotiation to discharge.
+  ::  snap is ~ until %snap response arrives with pace + refs.
+  ::
+  +$  snap   [=pace refs=(set lobe:clay)]
+  +$  peek   [ship=@p dest=lane:tarball deep=? blot=(unit blot:tarball) snap=(unit snap)]
+  +$  peeks  (map [rail:tarball wire] peek)
   --
 +$  ack  (unit tang)
 ::
@@ -1031,8 +1197,8 @@
   :: this nexus is initially created
   ::
   ++  on-load
-    |~  [sand gain ball:tarball]
-    [*sand *gain *ball:tarball]
+    |~  ball:tarball
+    *bole:tarball
   :: every grub has a running process alongside its file content.
   :: processes should be able to recover proper operation based on
   ::   state alone, even when restarted. this is not guaranteed and
@@ -1101,20 +1267,28 @@
   ^-  json
   (pairs:enjs:format ~[['ud' (numb:enjs:format ud.cass)] ['da' s+(scot %da da.cass)]])
 ::
-++  sack-to-json
-  |=  =sack
+++  hist-to-json
+  |=  sk=hist
   ^-  json
   %-  pairs:enjs:format
-  :~  ['proc' (cass-to-json proc.sack)]
-      ['file' (cass-to-json file.sack)]
+  :~  ['file' (cass-to-json (need (top:hist sk)))]
       :-  'hist'
       :-  %a
-      %+  turn  (tap:on-hist hist.sack)
-      |=  [key=cass:clay val=lobe:clay]
+      %+  turn  (tap:hon:hist sk)
+      |=  [key=cass:clay val=pace:hist]
       %-  pairs:enjs:format
       :~  ['ud' (numb:enjs:format ud.key)]
           ['da' s+(scot %da da.key)]
-          ['lobe' s+(scot %uv val)]
+          :-  'pace'
+          ?-  -.val
+            %tomb  s+'tomb'
+            %firm
+          ?~  p.val  s+'deleted'
+          s+(cat 3 'firm+' (scot %uv u.p.val))
+            %temp
+          ?~  p.val  s+'deleted'
+          s+(cat 3 'temp+' (scot %uv u.p.val))
+          ==
       ==
   ==
 ::
@@ -1124,13 +1298,30 @@
   =/  node-json=json
     ?~  fil.b  ~
     %-  pairs:enjs:format
-    :~  :-  'tote'
+    :~  :-  'fold'
         %-  pairs:enjs:format
-        :~  ['weir' (cass-to-json weir.tote.u.fil.b)]
-            ['fold' (cass-to-json fold.tote.u.fil.b)]
+        :~  ['cass' (cass-to-json (need (top:hist fold.u.fil.b)))]
+            :-  'hist'
+            :-  %a
+            %+  turn  (tap:hon:hist fold.u.fil.b)
+            |=  [key=cass:clay val=pace:hist]
+            %-  pairs:enjs:format
+            :~  ['ud' (numb:enjs:format ud.key)]
+                ['da' s+(scot %da da.key)]
+                :-  'pace'
+                ?-  -.val
+                  %tomb  s+'tomb'
+                  %firm
+                ?~  p.val  s+'deleted'
+                s+(cat 3 'firm+' (scot %uv u.p.val))
+                  %temp
+                ?~  p.val  s+'deleted'
+                s+(cat 3 'temp+' (scot %uv u.p.val))
+                ==
+            ==
         ==
-        :-  'bags'
-        [%o (~(run by bags.u.fil.b) sack-to-json)]
+        :-  'file'
+        [%o (~(run by file.u.fil.b) hist-to-json)]
     ==
   =/  kids-json=json
     [%o (~(run by dir.b) |=(kid=born ^$(b kid)))]
@@ -1142,25 +1333,15 @@
       ['dirs' kids-json]
   ==
 ::
-++  sand-to-json
-  |=  s=sand
+++  ball-weirs-to-json
+  |=  b=ball:tarball
   ^-  json
-  =/  subdirs=json  [%o (~(run by dir.s) sand-to-json)]
-  ?~  fil.s
+  =/  subdirs=json  [%o (~(run by dir.b) ball-weirs-to-json)]
+  =/  weir=(unit weir)  ?~(fil.b ~ weir.u.fil.b)
+  ?~  weir
     (pairs:enjs:format ~[['dirs' subdirs]])
   %-  pairs:enjs:format
-  :~  ['weir' (weir-to-json u.fil.s)]
-      ['dirs' subdirs]
-  ==
-::
-++  gain-to-json
-  |=  g=gain
-  ^-  json
-  =/  subdirs=json  [%o (~(run by dir.g) gain-to-json)]
-  ?~  fil.g
-    (pairs:enjs:format ~[['dirs' subdirs]])
-  %-  pairs:enjs:format
-  :~  ['node' [%o (~(run by u.fil.g) |=(f=? b+f))]]
+  :~  ['weir' (weir-to-json u.weir)]
       ['dirs' subdirs]
   ==
 --

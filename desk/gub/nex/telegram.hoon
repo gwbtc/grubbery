@@ -6,16 +6,16 @@
 =<  ^-  nexus:nexus
     |%
     ++  on-load
-      |=  [=sand:nexus =gain:nexus =ball:tarball]
-      ^-  [sand:nexus gain:nexus ball:tarball]
+      |=  =ball:tarball
+      ^-  bole:tarball
       =/  =ver:loader  (get-ver:loader ball)
       ?+  ver  !!
           ?(~ [~ %0])
-        %+  spin:loader  [sand gain ball]
+        %+  spin:loader  ball
         :~  (ver-row:loader 0)
-            [%fall %& [/ %'main.sig'] %.n [~ [/ %sig] !>(~)]]
-            [%over %& [/ui %'manage.html'] %.n [~ [/ %html] !>((crip (en-xml:html (manage-page ~))))]]
-            [%fall %| /bots [~ ~] [~ ~] empty-dir:loader]
+            [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
+            [%over %& [/ui %'manage.html'] [[/ %html] (crip (en-xml:html (manage-page ~)))]]
+            [%fall %| /bots empty-dir:loader]
         ==
       ==
     ::
@@ -69,15 +69,15 @@
           ?.  ?=([%& %none *] seen)
             ~&  >>  [%telegram-bot-already-exists dir-name]
             $
-          =/  new-ball=ball:tarball  [`[~ `[/ %telegram-bot] ~] ~]
+          =/  new-ball=ball:tarball  [`[`[/ %telegram-bot] ~ %.n ~ ~] ~]
           ;<  ~  bind:m
-            (make:io [%| 0 %| /bots/[dir-name]] &+[*sand:nexus *gain:nexus new-ball])
+            (make:io [%| 0 %| /bots/[dir-name]] &+(ball-to-bole:tarball new-ball))
           ::  write the bot token into its config
           =/  cfg=json
             (pairs:enjs:format ~[['bot-token' s+bot-token]])
           =/  cfg-road=road:tarball
             (cord-to-road:tarball (rap 3 ~['./bots/' dir-name '/config.json']))
-          ;<  ~  bind:m  (over:io cfg-road [[/ %json] !>(cfg)])
+          ;<  ~  bind:m  (over:io cfg-road [[/ %json] cfg])
           $
         ::
             %delete
@@ -94,14 +94,13 @@
           ::
           [[%ui ~] %'manage.html']
         ;<  ~  bind:m  (rise-wait:io prod "%telegram manage: failed")
-        ;<  init=view:nexus  bind:m
+        ;<  init=wave:nexus  bind:m
           (keep:io /bots [%| 1 %| /bots] ~)
-        =/  bot-names=(list @ta)  (view-to-bot-names init)
-        ;<  ~  bind:m  (replace:io !>((crip (en-xml:html (manage-page bot-names)))))
         |-
-        ;<  upd=view:nexus  bind:m  (take-news:io /bots)
-        =/  bot-names=(list @ta)  (view-to-bot-names upd)
+        ;<  =seen:nexus  bind:m  (peek:io [%| 1 %| /bots] ~)
+        =/  bot-names=(list @ta)  (seen-to-bot-names seen)
         ;<  ~  bind:m  (replace:io !>((crip (en-xml:html (manage-page bot-names)))))
+        ;<  upd=wave:nexus  bind:m  (take-news:io /bots)
         $
       ==
     ::
@@ -131,11 +130,11 @@
     --
 |%
 ::
-++  view-to-bot-names
-  |=  =view:nexus
+++  seen-to-bot-names
+  |=  =seen:nexus
   ^-  (list @ta)
-  ?.  ?=([%ball *] view)  ~
-  ~(tap in ~(key by dir.ball.view))
+  ?.  ?=([%& %ball *] seen)  ~
+  ~(tap in ~(key by dir.ball.p.seen))
 ::
 ++  manage-page
   |=  bots=(list @ta)

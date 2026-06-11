@@ -45,15 +45,15 @@
   ?.  ?=([%& %ball *] seen)
     (pure:m [%error 'Could not read ball'])
   ::  Flatten ball to list of [rail content] pairs
-  =/  all-files=(list [rail:tarball content:tarball])
+  =/  all-files=(list [rail:tarball sang:tarball])
     ~(tap ba:tarball ball.p.seen)
   ::  Filter by patterns
   =/  matches=(list [rail:tarball @tas])
     %+  murn  all-files
-    |=  [=rail:tarball =content:tarball]
+    |=  [=rail:tarball =sang:tarball]
     =/  file-path=tape  ?~(path.rail "/" (trip (spat path.rail)))
     =/  file-name=tape  (trip name.rail)
-    =/  file-mark=tape  (trip name.p.sage.content)
+    =/  file-mark=tape  (trip name.p.sang)
     =/  path-ok=?
       ?~  pat-path  %.y
       (glob-match:tools (trip u.pat-path) file-path)
@@ -64,7 +64,7 @@
       ?~  pat-mark  %.y
       (glob-match:tools (trip u.pat-mark) file-mark)
     ?.  ?&(path-ok name-ok mark-ok)  ~
-    `[rail name.p.sage.content]
+    `[rail name.p.sang]
   ?~  matches
     (pure:m [%text 'No matches found'])
   =/  result=tape

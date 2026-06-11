@@ -17,7 +17,7 @@
       ;<  =seen:nexus  bind:m
         (peek:io [%& %& /'groundwire.groundwire' %'config.json'] ~)
       ?.  ?=([%& %file *] seen)  (pure:m fallback)
-      =/  jon  !<(json q.sage.p.seen)
+      =/  jon  !<(json (need-vase:tarball sang.p.seen))
       ?.  ?=([%o *] jon)  (pure:m fallback)
       =/  url=@t
         =/  u=(unit json)  (~(get by p.jon) 'url')
@@ -40,7 +40,7 @@
       ;<  =seen:nexus  bind:m
         (peek:io [%& %& /'groundwire.groundwire' %'height.ud'] ~)
       ?.  ?=([%& %file *] seen)  (pure:m ~)
-      (pure:m `!<(@ud q.sage.p.seen))
+      (pure:m `!<(@ud (need-vase:tarball sang.p.seen)))
     ::
     ::  Fiber helper: walk heights [from..to] calling getblockhash +
     ::  getblock verbosity=1, accumulate one line per block.

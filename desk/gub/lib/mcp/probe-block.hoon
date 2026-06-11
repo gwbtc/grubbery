@@ -42,7 +42,7 @@
       ;<  =seen:nexus  bind:m
         (peek:io [%& %& /'groundwire.groundwire' %'config.json'] ~)
       ?.  ?=([%& %file *] seen)  (pure:m fallback)
-      =/  jon  !<(json q.sage.p.seen)
+      =/  jon  !<(json (need-vase:tarball sang.p.seen))
       ?.  ?=([%o *] jon)  (pure:m fallback)
       =/  url=@t
         =/  u=(unit json)  (~(get by p.jon) 'url')
@@ -65,7 +65,7 @@
       ;<  =seen:nexus  bind:m
         (peek:io [%& %& /'groundwire.groundwire' %'latest.json'] ~)
       ?.  ?=([%& %file *] seen)  (pure:m ~)
-      =/  jon  !<(json q.sage.p.seen)
+      =/  jon  !<(json (need-vase:tarball sang.p.seen))
       ?.  ?=([%o *] jon)  (pure:m ~)
       =/  h=(unit json)  (~(get by p.jon) 'hash')
       ?~  h  (pure:m ~)

@@ -31,7 +31,7 @@
     (peek:io (store-road name) ~)
   ?.  ?=([%& %file *] seen)
     ~|(%store-not-found !!)
-  (pure:m !<(goal-store:goals q.sage.p.seen))
+  (pure:m !<(goal-store:goals (need-vase:tarball sang.p.seen)))
 ::  parse a node-id from json fields
 ::
 ++  parse-nid
@@ -123,7 +123,7 @@
     ;<  now=@da  bind:m  get-time:io
     =/  store=goal-store:goals  (create-store:goals now)
     ;<  ~  bind:m
-      (make:io (store-road name) |+[%.n [[/ %goal-store] !>(store)] `[/ %goal-store]])
+      (make:io (store-road name) |+[[[/ %goal-store] store] `[/ %goal-store]])
     (pure:m [%text (crip "Created store: {(trip name)}")])
   ::
       %'delete-store'
@@ -142,7 +142,7 @@
     =/  suf=tape  ".goal-store"
     =/  names=(list @ta)
       %+  murn  ~(tap by contents.u.fil.ball.p.seen)
-      |=  [fname=@ta *]
+      |=  [fname=@ta [=sang:tarball gain=? bang=(unit tang)]]
       =/  full=tape  (trip fname)
       ?.  (gte (lent full) (lent suf))  ~
       ?.  =((slag (sub (lent full) (lent suf)) full) suf)  ~
@@ -225,7 +225,7 @@
     =/  act-type=@t  -.p.act-parsed
     =/  act=action:goals  +.p.act-parsed
     ;<  ~  bind:m
-      (poke:io (store-road u.store-name) [[/ %goal-action] !>(act)])
+      (poke:io (store-road u.store-name) [[/ %goal-action] act])
     (pure:m [%text (crip "Applied {(trip act-type)}")])
   ::
       ::  list: show all goals in a store

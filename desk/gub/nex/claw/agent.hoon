@@ -6,8 +6,8 @@
 =<  ^-  nexus:nexus
     |%
     ++  on-load
-      |=  [=sand:nexus =gain:nexus =ball:tarball]
-      ^-  [sand:nexus gain:nexus ball:tarball]
+      |=  =ball:tarball
+      ^-  bole:tarball
       =/  =ver:loader  (get-ver:loader ball)
       ?+  ver  !!
           ?(~ [~ %0])
@@ -130,8 +130,8 @@
               'A nexus is Hoon code that produces a `nexus:nexus` core with three arms:'
               ''
               '## on-load: initialize the filesystem'
-              '  |=  [=sand:nexus =gain:nexus =ball:tarball]'
-              '  ^-  [sand:nexus gain:nexus ball:tarball]'
+              '  |=  =ball:tarball'
+              '  ^-  ball:tarball'
               ''
               'Called when the nexus is created or its code changes. Use the loader to'
               'set up files and directories. Key loader operations:'
@@ -176,9 +176,9 @@
               '  peek:io road mark          -- read a file or directory'
               '  peek-exists:io road        -- check if something exists'
               '  make:io road make-spec     -- create a file or directory'
-              '  over:io road sage          -- overwrite file content'
+              '  over:io road bask          -- overwrite file content'
               '  cull:io road               -- delete a file or directory'
-              '  poke:io road sage          -- send data to another process'
+              '  poke:io road bask          -- send data to another process'
               '  take-poke:io               -- wait for incoming poke'
               '  keep:io wire road mark     -- subscribe to changes'
               '  take-news:io wire          -- wait for subscription update'
@@ -308,7 +308,7 @@
               ''
               '  ++on-load   Sets up the directory structure via the loader.'
               '              Called on creation and whenever code reloads.'
-              '              Returns [sand gain ball].'
+              '              Returns ball.'
               ''
               '  ++on-file   Determines which fiber process runs at each file.'
               '              Pattern-matches on [rail mark] to dispatch code.'
@@ -361,7 +361,6 @@
               '  %drop   unsubscribe'
               '  %manu   query documentation'
               '  %code   look up compiled code'
-              '  %bang   query error state'
               ''
               ''
               '## Sandboxing (Weirs)'
@@ -590,49 +589,49 @@
               '  it -- you will get a %veto. Use check_bang to inspect errors.'
           ==
         =/  default-conv=json  [%a ~]
-        =/  code-dir=ball:tarball  [`[~ `[/ %code] ~] ~]
-        %+  spin:loader  [sand gain ball]
+        =/  code-dir=bole:tarball  [`[`[/ %code] ~ %.n ~] ~]
+        %+  spin:loader  ball
         :~  (ver-row:loader 0)
-            [%fall %& [/ %'config.json'] %.n [~ [/ %json] !>(default-config)]]
+            [%fall %& [/ %'config.json'] [[/ %json] default-config]]
             ::  /main.sig: chat lifecycle + message routing
-            [%over %& [/ %'main.sig'] %.n [~ [/ %sig] !>(~)]]
+            [%over %& [/ %'main.sig'] [[/ %sig] ~]]
             ::  /chats/main: primary chat instance
-            [%fall %| /chats [~ ~] [~ ~] empty-dir:loader]
-            [%fall %| /chats/main [~ ~] [~ ~] empty-dir:loader]
-            [%fall %& [/chats/main %'chat.json'] %.n [~ [/ %json] !>(default-conv)]]
-            [%fall %& [/chats/main %'outbox.json'] %.n [~ [/ %json] !>([%a ~])]]
-            [%over %& [/chats/main %'status.json'] %.n [~ [/ %json] !>((pairs:enjs:format ~[['state' s+'idle']]))]]
+            [%fall %| /chats empty-dir:loader]
+            [%fall %| /chats/main empty-dir:loader]
+            [%fall %& [/chats/main %'chat.json'] [[/ %json] default-conv]]
+            [%fall %& [/chats/main %'outbox.json'] [[/ %json] [%a ~]]]
+            [%over %& [/chats/main %'status.json'] [[/ %json] (pairs:enjs:format ~[['state' s+'idle']])]]
             ::  /proc/tools: tool execution (flat, [chat]_[tid] naming)
-            [%fall %| /proc [~ ~] [~ ~] empty-dir:loader]
-            [%fall %| /proc/tools [~ ~] [~ ~] empty-dir:loader]
-            [%fall %| /proc/cron [~ ~] [~ ~] empty-dir:loader]
+            [%fall %| /proc empty-dir:loader]
+            [%fall %| /proc/tools empty-dir:loader]
+            [%fall %| /proc/cron empty-dir:loader]
             ::  /context: shared prompts, memories, docs
-            [%fall %| /context [~ ~] [~ ~] empty-dir:loader]
-            [%fall %| /context/prompts [~ ~] [~ ~] empty-dir:loader]
-            [%fall %& [/context/prompts %'main.txt'] %.n [~ [/ %txt] !>(default-prompt)]]
-            [%fall %| /context/memories [~ ~] [~ ~] empty-dir:loader]
-            [%fall %| /context/docs [~ ~] [~ ~] empty-dir:loader]
-            [%over %& [/context/docs %'grubbery-fundamentals.txt'] %.n [~ [/ %txt] !>(fundamentals-doc)]]
-            [%over %& [/context/docs %'workflows.txt'] %.n [~ [/ %txt] !>(workflows-doc)]]
+            [%fall %| /context empty-dir:loader]
+            [%fall %| /context/prompts empty-dir:loader]
+            [%fall %& [/context/prompts %'main.txt'] [[/ %txt] default-prompt]]
+            [%fall %| /context/memories empty-dir:loader]
+            [%fall %| /context/docs empty-dir:loader]
+            [%over %& [/context/docs %'grubbery-fundamentals.txt'] [[/ %txt] fundamentals-doc]]
+            [%over %& [/context/docs %'workflows.txt'] [[/ %txt] workflows-doc]]
             ::  /apps: applications and code
-            [%fall %| /apps [~ ~] [~ ~] empty-dir:loader]
-            [%fall %| /apps/code [~ ~] [~ ~] code-dir]
-            [%fall %| /apps/code/nex [~ ~] [~ ~] empty-dir:loader]
-            [%fall %| /apps/code/lib [~ ~] [~ ~] empty-dir:loader]
-            [%fall %| /apps/code/lib/tools [~ ~] [~ ~] empty-dir:loader]
-            [%fall %| /apps/code/mar [~ ~] [~ ~] empty-dir:loader]
+            [%fall %| /apps empty-dir:loader]
+            [%fall %| /apps/code code-dir]
+            [%fall %| /apps/code/nex empty-dir:loader]
+            [%fall %| /apps/code/lib empty-dir:loader]
+            [%fall %| /apps/code/lib/tools empty-dir:loader]
+            [%fall %| /apps/code/mar empty-dir:loader]
             ::  /ui/chats.json: manifest of active chats
-            [%fall %| /ui [~ ~] [~ ~] empty-dir:loader]
-            [%fall %& [/ui %'chats.json'] %.n [~ [/ %json] !>([%a ~[s+'main']])]]
+            [%fall %| /ui empty-dir:loader]
+            [%fall %& [/ui %'chats.json'] [[/ %json] [%a ~[s+'main']]]]
             ::  /about.txt: self-description visible to other agents
             =/  default-about=wain
               :~  'A general-purpose claw agent. No specific role assigned yet.'
               ==
-            [%fall %& [/ %'about.txt'] %.n [~ [/ %txt] !>(default-about)]]
+            [%fall %& [/ %'about.txt'] [[/ %txt] default-about]]
             ::  /children: spawned child nexuses
-            [%fall %| /children [~ ~] [~ ~] empty-dir:loader]
+            [%fall %| /children empty-dir:loader]
             ::  ui
-            [%over %& [/ %'page.html'] %.n [~ [/ %html] !>((crip (en-xml:html (chat-page "" ""))))]]
+            [%over %& [/ %'page.html'] [[/ %html] (crip (en-xml:html (chat-page "" "")))]]
         ==
       ==
     ::
@@ -662,8 +661,8 @@
         ;<  exists=?  bind:m  (peek-exists:io chats-road)
         ;<  ~  bind:m
           ?:  exists
-            (over:io chats-road [[/ %json] !>(manifest)])
-          (make:io chats-road |+[%.n [[/ %json] !>(manifest)] ~])
+            (over:io chats-road [[/ %json] manifest])
+          (make:io chats-road |+[[[/ %json] manifest] ~])
         |-
         ;<  =sage:tarball  bind:m  take-poke:io
         =/  jon=json  (fall (mole |.(!<(json q.sage))) *json)
@@ -687,18 +686,18 @@
           ::  create /chats/[name]/ directory
           ;<  chat-dir=road:tarball  bind:m
             (ancestor-road:io [/claw %agent] [%| /chats/[chat-name]])
-          ;<  ~  bind:m  (make:io chat-dir &+[*sand:nexus *gain:nexus [~ ~]])
+          ;<  ~  bind:m  (make:io chat-dir &+[~ ~])
           ::  create chat.json (empty convo)
-          ;<  ~  bind:m  (make:io chat-road |+[%.n [[/ %json] !>([%a ~])] ~])
+          ;<  ~  bind:m  (make:io chat-road |+[[[/ %json] [%a ~]] ~])
           ::  create outbox.json
           ;<  outbox-road=road:tarball  bind:m
             (ancestor-road:io [/claw %agent] [%& /chats/[chat-name] %'outbox.json'])
-          ;<  ~  bind:m  (make:io outbox-road |+[%.n [[/ %json] !>([%a ~])] ~])
+          ;<  ~  bind:m  (make:io outbox-road |+[[[/ %json] [%a ~]] ~])
           ::  create status.json
           =/  idle=json  (pairs:enjs:format ~[['state' s+'idle']])
           ;<  status-road=road:tarball  bind:m
             (ancestor-road:io [/claw %agent] [%& /chats/[chat-name] %'status.json'])
-          ;<  ~  bind:m  (make:io status-road |+[%.n [[/ %json] !>(idle)] ~])
+          ;<  ~  bind:m  (make:io status-road |+[[[/ %json] idle] ~])
           ::  update chats.json manifest
           ;<  chat-list=(list @t)  bind:m  read-chat-list
           ;<  ~  bind:m  (write-chat-list (snoc chat-list chat-name))
@@ -733,7 +732,7 @@
             (pairs:enjs:format ~[['action' s+'message'] ['content' s+content]])
           ;<  chat-road=road:tarball  bind:m
             (ancestor-road:io [/claw %agent] [%& /chats/[chat-name] %'chat.json'])
-          ;<  ~  bind:m  (poke:io chat-road [/ %json] !>(msg))
+          ;<  ~  bind:m  (poke:io chat-road [/ %json] msg)
           $
         ==
           ::  /chats/*/chat.json: per-chat event loop
@@ -750,8 +749,13 @@
             %news
           ::  channel inbox: new messages from linked channel
           ?:  ?=([%'chan-inbox' ~] wire.main-event)
-            ?.  ?=(%file -.view.main-event)  $
-            =/  j=json  (fall (mole |.(!<(json q.sage.view.main-event))) *json)
+            ?:  =('' cur-chan)  $
+            =/  chan-fold=path  (cord-to-path cur-chan)
+            ;<  inbox-road=road:tarball  bind:m
+              (ancestor-road:io [/claw %app] [%& (weld /channels chan-fold) %'inbox.json'])
+            ;<  =seen:nexus  bind:m  (peek:io inbox-road ~)
+            ?.  ?=([%& %file *] seen)  $
+            =/  j=json  (fall (mole |.(!<(json (need-vase:tarball sang.p.seen)))) *json)
             =/  msgs=(list json)
               ?.  ?=(%a -.j)  ~
               p.j
@@ -812,10 +816,11 @@
             =/  new-fold=path  (cord-to-path new-chan)
             ;<  new-road=road:tarball  bind:m
               (ancestor-road:io [/claw %app] [%& (weld /channels new-fold) %'inbox.json'])
-            ;<  inbox-view=view:nexus  bind:m  (keep:io /chan-inbox new-road ~)
+            ;<  *  bind:m  (keep:io /chan-inbox new-road ~)
+            ;<  inbox-seen=seen:nexus  bind:m  (peek:io new-road ~)
             =/  cnt=@ud
-              ?.  ?=(%file -.inbox-view)  0
-              =/  j=json  (fall (mole |.(!<(json q.sage.inbox-view))) *json)
+              ?.  ?=([%& %file *] inbox-seen)  0
+              =/  j=json  (fall (mole |.(!<(json (need-vase:tarball sang.p.inbox-seen)))) *json)
               ?.  ?=(%a -.j)  0
               (lent p.j)
             ~&  >>  ["%claw: subscribed to new channel, seen" cnt]
@@ -826,13 +831,14 @@
           ::  only handle /tool-done/* wires; ignore stale news from other subs
           ?.  ?=([%'tool-done' @ ~] wire.main-event)  $
           =/  tid=@ta  i.t.wire.main-event
-          ?.  ?=(%file -.view.main-event)  $
-          =/  tst=tool-state:nex-tools  !<(tool-state:nex-tools q.sage.view.main-event)
-          ?.  =(%done step.tst)  $
           =/  tool-file=@ta  (crip "{(trip chat-name)}_{(trip tid)}")
           ;<  tool-road=road:tarball  bind:m  (ancestor-road:io [/claw %agent] [%& /proc/tools tool-file])
+          ;<  tool-seen=seen:nexus  bind:m  (peek:io tool-road ~)
+          ?.  ?=([%& %file *] tool-seen)  $
+          =/  tst=tool-state:nex-tools  !<(tool-state:nex-tools (need-vase:tarball sang.p.tool-seen))
+          ?.  =(%done step.tst)  $
           ;<  ~  bind:m  (drop:io /tool-done/[tid] tool-road)
-          =/  result-text=@t  (extract-tool-result tst)
+          =/  res=extracted-result  (extract-tool-result tst)
           ~&  >  ["%claw: deferred result for" tid]
           ;<  config=json  bind:m  read-config
           =/  model=@t  (get-str config 'model')
@@ -843,7 +849,7 @@
           =/  msg-cap=@ud  (get-num config 'message_cap' 20.000)
           ;<  =convo  bind:m  read-chat
           =/  updated=^convo
-            (snoc convo [%msg 'user' (crip "[spawn_task result]: {(trip result-text)}")])
+            (snoc convo [%msg 'user' (crip "[spawn_task result]: {(trip text.res)}")])
           ;<  ~  bind:m  (write-chat updated)
           ;<  tools=(map @t tool:nex-tools)  bind:m  get-tools
           ;<  final=^convo  bind:m  (agent-turn chat-name model api-name ctx-window msg-cap updated tools)
@@ -923,6 +929,15 @@
             ;<  final=^convo  bind:m  (agent-turn chat-name model api-name ctx-window msg-cap updated tools)
             ;<  ~  bind:m  (set-status chat-name [%idle ~])
             ;<  ~  bind:m  (forward-to-channel chat-name final updated)
+            ::  Send push notification with last assistant message
+            =/  last-text=@t
+              =/  rev=^convo  (flop final)
+              |-
+              ?~  rev  'New message'
+              ?.  ?=(%msg -.i.rev)  $(rev t.rev)
+              ?.  =('assistant' role.i.rev)  $(rev t.rev)
+              (end [3 140] content.i.rev)
+            ;<  ~  bind:m  (send-push:io [~ ~ ~ ['claw' last-text ~ ~ `chat-name]])
             $
           ::
               %'clear'
@@ -972,6 +987,14 @@
           ?-  -.result
             %text   (pairs:enjs:format ~[['type' s+'text'] ['text' s+text.result]])
             %error  (pairs:enjs:format ~[['type' s+'error'] ['message' s+message.result]])
+            %mime
+          =/  media-type=@t  (mite-to-cord:nex-tools p.mime.result)
+          =/  b64=@t  (en:base64:mimes:html q.mime.result)
+          %-  pairs:enjs:format
+          :~  ['type' s+'mime']
+              ['media_type' s+media-type]
+              ['data' s+b64]
+          ==
           ==
         (replace:io !>(`tool-state:nex-tools`[tool.st args.st %done data.st `result-json]))
           ::  /proc/cron/*: cron job fiber (schedule + fire loop)
@@ -997,14 +1020,14 @@
           stay:m
         ~&  >  "%claw cron: waiting until {(scow %da u.next)}"
         ;<  ~  bind:m
-          (poke:io &+&+[/sys/behn %'main.timer-state'] [[/ %timer-set] !>(`[wire @da]`[/cron u.next])])
+          (poke:io &+&+[/sys/behn %'main.timer-state'] [[/ %timer-set] `[wire @da]`[/cron u.next]])
         ;<  *  bind:m  take-poke:io
         ~&  >  "%claw cron: firing to chat {(trip chat)}"
         =/  msg=json
           (pairs:enjs:format ~[['action' s+'message'] ['content' s+message]])
         ;<  chat-road=road:tarball  bind:m
           (ancestor-road:io [/claw %agent] [%& /chats/[(crip (cass:so (trip chat)))] %'chat.json'])
-        ;<  ~  bind:m  (poke:io chat-road [/ %json] !>(msg))
+        ;<  ~  bind:m  (poke:io chat-road [/ %json] msg)
         $
           ::  /page.html: rendered chat page
           ::
@@ -1065,6 +1088,7 @@
   $%  [%msg role=@t content=@t]
       [%tool-use id=@t name=@t input=json]
       [%tool-result tool-use-id=@t content=@t]
+      [%tool-result-media tool-use-id=@t text=@t media-type=@t data=@t]
   ==
 ::  a conversation is an ordered list of entries
 ::
@@ -1107,14 +1131,14 @@
 ::
 +$  main-event
   $%  [%poke =from:fiber:nexus =sage:tarball]
-      [%news =wire =view:nexus]
+      [%news =wire =wave:nexus]
   ==
 ::
 ++  take-main-event
   =/  m  (fiber:fiber:nexus ,main-event)
   ^-  form:m
   |=  input:fiber:nexus
-  :+  ~  state
+  :+  ~  q.state
   ?+  in  [%skip ~]
       ~  [%wait ~]
       [~ %veto *]
@@ -1124,7 +1148,7 @@
       [%skip ~]
     [%done %poke [from sage]:u.in]
       [~ %news * *]
-    [%done %news [wire view]:u.in]
+    [%done %news [wire wave]:u.in]
   ==
 ::
 ::
@@ -1155,7 +1179,7 @@
   ;<  file-seen=seen:nexus  bind:m  (peek:io file-road ~)
   ?.  ?=([%& %file *] file-seen)
     $(names t.names)
-  ;<  =mime  bind:m  (sage-to-mime:io sage.p.file-seen)
+  ;<  =mime  bind:m  (sage-to-mime:io (need-sage:tarball sang.p.file-seen))
   =/  txt=@t  (crip (trip q.q.mime))
   ?:  =('' txt)
     $(names t.names)
@@ -1188,7 +1212,7 @@
   ;<  file-seen=seen:nexus  bind:m  (peek:io file-road ~)
   ?.  ?=([%& %file *] file-seen)
     $(names t.names)
-  ;<  =mime  bind:m  (sage-to-mime:io sage.p.file-seen)
+  ;<  =mime  bind:m  (sage-to-mime:io (need-sage:tarball sang.p.file-seen))
   =/  txt=@t  (crip (trip q.q.mime))
   ?:  =('' txt)
     $(names t.names)
@@ -1200,14 +1224,14 @@
   ;<  road=road:tarball  bind:m  (ancestor-road:io [/claw %agent] [%& / %'config.json'])
   ;<  =seen:nexus  bind:m  (peek:io road ~)
   ?.  ?=([%& %file *] seen)  (pure:m *json)
-  (pure:m (fall (mole |.(!<(json q.sage.p.seen))) *json))
+  (pure:m (fall (mole |.(!<(json (need-vase:tarball sang.p.seen)))) *json))
 ::
 ++  write-config
   |=  updated=json
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
   ;<  road=road:tarball  bind:m  (ancestor-road:io [/claw %agent] [%& / %'config.json'])
-  (over:io road [[/ %json] !>(updated)])
+  (over:io road [[/ %json] updated])
 ::
 ++  read-outbox
   |=  chat-name=@ta
@@ -1216,7 +1240,7 @@
   ;<  road=road:tarball  bind:m  (ancestor-road:io [/claw %agent] [%& /chats/[chat-name] %'outbox.json'])
   ;<  =seen:nexus  bind:m  (peek:io road ~)
   ?.  ?=([%& %file *] seen)  (pure:m ~)
-  =/  jon=json  (fall (mole |.(!<(json q.sage.p.seen))) *json)
+  =/  jon=json  (fall (mole |.(!<(json (need-vase:tarball sang.p.seen)))) *json)
   ?.  ?=(%a -.jon)  (pure:m ~)
   (pure:m p.jon)
 ::
@@ -1233,10 +1257,11 @@
   =/  chan-fold=path  (cord-to-path chan-name)
   ;<  inbox-road=road:tarball  bind:m
     (ancestor-road:io [/claw %app] [%& (weld /channels chan-fold) %'inbox.json'])
-  ;<  inbox-view=view:nexus  bind:m  (keep:io /chan-inbox inbox-road ~)
+  ;<  *  bind:m  (keep:io /chan-inbox inbox-road ~)
+  ;<  inbox-seen=seen:nexus  bind:m  (peek:io inbox-road ~)
   =/  cnt=@ud
-    ?.  ?=(%file -.inbox-view)  0
-    =/  j=json  (fall (mole |.(!<(json q.sage.inbox-view))) *json)
+    ?.  ?=([%& %file *] inbox-seen)  0
+    =/  j=json  (fall (mole |.(!<(json (need-vase:tarball sang.p.inbox-seen)))) *json)
     ?.  ?=(%a -.j)  0
     (lent p.j)
   ~&  >>  ["%claw: channel inbox subscribed, seen" cnt]
@@ -1254,7 +1279,7 @@
   ;<  road=road:tarball  bind:m  (ancestor-road:io [/claw %agent] [%& /ui %'chats.json'])
   ;<  =seen:nexus  bind:m  (peek:io road ~)
   ?.  ?=([%& %file *] seen)  (pure:m ~['main'])
-  =/  jon=json  (fall (mole |.(!<(json q.sage.p.seen))) *json)
+  =/  jon=json  (fall (mole |.(!<(json (need-vase:tarball sang.p.seen)))) *json)
   ?.  ?=(%a -.jon)  (pure:m ~['main'])
   (pure:m (murn p.jon |=(j=json ?.(?=(%s -.j) ~ `p.j))))
 ::
@@ -1263,7 +1288,7 @@
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
   ;<  road=road:tarball  bind:m  (ancestor-road:io [/claw %agent] [%& /ui %'chats.json'])
-  (over:io road [[/ %json] !>([%a (turn names |=(n=@t s+n))])])
+  (over:io road [[/ %json] [%a (turn names |=(n=@t s+n))]])
 ::
 ++  set-status
   |=  [chat-name=@ta st=agent-status]
@@ -1276,7 +1301,7 @@
       %tool  (pairs:enjs:format ~[['state' s+'tool'] ['id' s+id.st]])
     ==
   ;<  road=road:tarball  bind:m  (ancestor-road:io [/claw %agent] [%& /chats/[chat-name] %'status.json'])
-  (over:io road [[/ %json] !>(status)])
+  (over:io road [[/ %json] status])
 ::
 ++  join-texts
   |=  texts=(list @t)
@@ -1301,7 +1326,7 @@
     (ancestor-road:io [/claw %app] [%& (weld /channels chan-fold) %'send.sig'])
   =/  typing-body=json
     (pairs:enjs:format ~[['action' s+'typing']])
-  ;<  ~  bind:m  (poke:io send-road [/ %json] !>(typing-body))
+  ;<  ~  bind:m  (poke:io send-road [/ %json] typing-body)
   (pure:m ~)
 ::
 ::  +forward-to-channel: if conv has a linked channel, send new assistant msgs
@@ -1329,7 +1354,7 @@
   =/  send-body=json
     (pairs:enjs:format ~[['text' s+combined]])
   ~&  >  ["%claw: forwarding to channel" chan-name]
-  ;<  ~  bind:m  (poke:io send-road [/ %json] !>(send-body))
+  ;<  ~  bind:m  (poke:io send-road [/ %json] send-body)
   (pure:m ~)
 ::
 ::  +strip-hoon: remove .hoon suffix from filename
@@ -1408,7 +1433,7 @@
     (pure:m result)
   =/  names=(list @ta)
     %+  turn  ~(tap by contents.u.fil.ball.p.src-seen)
-    |=([name=@ta *] (strip-hoon name))
+    |=([name=@ta [=sang:tarball gain=? bang=(unit tang)]] (strip-hoon name))
   |-
   ?~  names  (pure:m result)
   =/  name=@ta  i.names
@@ -1440,7 +1465,7 @@
     (pure:m [%| ~[leaf+"tool not found: {(trip tool)}"]])
   =/  names=(list @ta)
     %+  turn  ~(tap by contents.u.fil.ball.p.src-seen)
-    |=([name=@ta *] (strip-hoon name))
+    |=([name=@ta [=sang:tarball gain=? bang=(unit tang)]] (strip-hoon name))
   |-
   ?~  names
     (pure:m [%| ~[leaf+"tool not found: {(trip tool)}"]])
@@ -1579,11 +1604,11 @@
   ::  poke main.sig to create the call
   =/  poke-body=json
     (pairs:enjs:format ~[['id' s+call-id] ['body' payload]])
-  ;<  ~  bind:m  (poke:io main-road [/ %json] !>(poke-body))
+  ;<  ~  bind:m  (poke:io main-road [/ %json] poke-body)
   ~&  >>  ["%claw: call" call-id "created, waiting for response"]
   ;<  ~  bind:m  (set-status chat-name [%api ~])
   ::  wait for news with status=done, or interrupt poke
-  ;<  resp=(unit json)  bind:m  (await-call-or-interrupt /api-call)
+  ;<  resp=(unit json)  bind:m  (await-call-or-interrupt /api-call call-road)
   ::  drop subscription
   ;<  ~  bind:m  (drop:io /api-call call-road)
   ::  handle interrupt
@@ -1650,8 +1675,8 @@
   ;<  tool-road=road:tarball  bind:m  (ancestor-road:io [/claw %agent] [%& /proc/tools tool-file])
   ;<  ~  bind:m  (set-status chat-name [%tool tid])
   ;<  *  bind:m  (keep:io /tool-wait/[tid] tool-road ~)
-  ;<  ~  bind:m  (make:io tool-road |+[%.n [[/ %tool-state] !>(ts)] ~])
-  ;<  ack=(unit [@t ?])  bind:m  (await-tool-ack tid)
+  ;<  ~  bind:m  (make:io tool-road |+[[[/ %tool-state] ts] ~])
+  ;<  ack=(unit [extracted-result ?])  bind:m  (await-tool-ack tid tool-road)
   ;<  ~  bind:m  (drop:io /tool-wait/[tid] tool-road)
   ?~  ack
     ::  interrupted — kill tool, write marker, return
@@ -1661,10 +1686,13 @@
     ;<  ~  bind:m  (write-chat updated)
     ;<  ~  bind:m  (set-status chat-name [%idle ~])
     (pure:m ~)
-  =/  result-text=@t  -.u.ack
+  =/  res=extracted-result  -.u.ack
   =/  more=?  +.u.ack
   ::  append result to convo and write immediately
-  =/  updated=^convo  (snoc convo [%tool-result id.call result-text])
+  =/  updated=^convo
+    ?:  is-mime.res
+      (snoc convo [%tool-result-media id.call text.res media-type.res data.res])
+    (snoc convo [%tool-result id.call text.res])
   ;<  ~  bind:m  (write-chat updated)
   ?:  more
     ::  tool ack'd but still running -- subscribe on /tool-done for main loop
@@ -1678,47 +1706,61 @@
 ::  is still running and will eventually reach %done.
 ::
 ++  await-tool-ack
+  |=  [tid=@ta tool-road=road:tarball]
+  =/  m  (fiber:fiber:nexus ,(unit [extracted-result ?]))
+  ^-  form:m
+  |-
+  ;<  raw=(unit ?)  bind:m  (take-tool-signal tid)
+  ?~  raw  (pure:m ~)  :: interrupted
+  ;<  =seen:nexus  bind:m  (peek:io tool-road ~)
+  ?.  ?=([%& %file *] seen)  $
+  =/  st=tool-state:nex-tools  !<(tool-state:nex-tools (need-vase:tarball sang.p.seen))
+  ?:  =(%ack step.st)
+    (pure:m `[(extract-tool-result st) %.y])
+  ?.  =(%done step.st)  $
+  (pure:m `[(extract-tool-result st) %.n])
+::
+++  take-tool-signal
   |=  tid=@ta
-  =/  m  (fiber:fiber:nexus ,(unit [@t ?]))
+  =/  m  (fiber:fiber:nexus ,(unit ?))
   ^-  form:m
   |=  input:fiber:nexus
-  :+  ~  state
+  :+  ~  q.state
   ?+  in  [%skip ~]
       ~  [%wait ~]
       [~ %veto *]
     [%fail (veto-error:io dart.u.in)]
-    ::  interrupt poke — return ~
-    ::
       [~ %poke * *]
     =/  jon=json  (fall (mole |.(!<(json q.sage.u.in))) *json)
     ?.  ?=(%o -.jon)  [%skip ~]
     =/  act=(unit json)  (~(get by p.jon) 'action')
     ?.  ?=([~ %s %'interrupt'] act)  [%skip ~]
     [%done ~]
-    ::  news on tool subscription
-    ::
       [~ %news * *]
     ?.  =(/tool-wait/[tid] wire.u.in)  [%skip ~]
-    ?.  ?=(%file -.view.u.in)  [%skip ~]
-    =/  st=tool-state:nex-tools  !<(tool-state:nex-tools q.sage.view.u.in)
-    ?:  =(%ack step.st)
-      [%done `[(extract-tool-result st) %.y]]
-    ?.  =(%done step.st)  [%skip ~]
-    [%done `[(extract-tool-result st) %.n]]
+    [%done `%.y]
   ==
 ::
 ::  +extract-tool-result: pull text from tool-state update
 ::
+::  +extract-tool-result: pull result from tool-state update
+::  returns [text is-mime media-type b64-data]
+::
++$  extracted-result  [text=@t is-mime=? media-type=@t data=@t]
 ++  extract-tool-result
   |=  st=tool-state:nex-tools
-  ^-  @t
-  ?~  update.st  'tool returned no result'
-  ?.  ?=(%o -.u.update.st)  'tool returned no result'
+  ^-  extracted-result
+  ?~  update.st  ['tool returned no result' %.n '' '']
+  ?.  ?=(%o -.u.update.st)  ['tool returned no result' %.n '' '']
   =/  result-type=(unit json)  (~(get by p.u.update.st) 'type')
   ?:  ?=([~ %s %'error'] result-type)
     =/  err=@t  (fall (bind (~(get by p.u.update.st) 'message') |=(j=json ?>(?=(%s -.j) p.j))) 'unknown error')
-    (crip "ERROR: {(trip err)}")
-  (fall (bind (~(get by p.u.update.st) 'text') |=(j=json ?>(?=(%s -.j) p.j))) '')
+    [(crip "ERROR: {(trip err)}") %.n '' '']
+  ?:  ?=([~ %s %'mime'] result-type)
+    =/  media-type=@t  (fall (bind (~(get by p.u.update.st) 'media_type') |=(j=json ?>(?=(%s -.j) p.j))) '')
+    =/  b64=@t  (fall (bind (~(get by p.u.update.st) 'data') |=(j=json ?>(?=(%s -.j) p.j))) '')
+    [(crip "[binary: {(trip media-type)}]") %.y media-type b64]
+  [(fall (bind (~(get by p.u.update.st) 'text') |=(j=json ?>(?=(%s -.j) p.j))) '') %.n '' '']
 ::
 ::  +await-call-or-interrupt: wait for call response OR interrupt poke
 ::
@@ -1726,34 +1768,46 @@
 ::  Listens for both news on the call subscription wire and interrupt pokes.
 ::
 ++  await-call-or-interrupt
-  |=  =wire
+  |=  [=wire call-road=road:tarball]
   =/  m  (fiber:fiber:nexus ,(unit json))
   ^-  form:m
+  |-
+  ;<  got=(unit wave:nexus)  bind:m  (take-news-or-interrupt wire)
+  ?~  got  (pure:m ~)  :: interrupted
+  ::  peek at the historical version from the wave (file may be deleted)
+  =/  cas=(unit cass:clay)
+    =/  lanes=(list [=lane:tarball =cass:clay])  ~(tap by u.got)
+    ?~  lanes  ~
+    `cass.i.lanes
+  ?~  cas  $
+  ;<  =seen:nexus  bind:m  (peek-at:io call-road ~ [%ud ud.u.cas])
+  ?.  ?=([%& %file *] seen)  $
+  =/  jon=json  (fall (mole |.(!<(json (need-vase:tarball sang.p.seen)))) *json)
+  ?.  ?=(%o -.jon)  $
+  =/  status=(unit json)  (~(get by p.jon) 'status')
+  ?.  ?=([~ %s %'done'] status)  $
+  =/  resp=json  (fall (~(get by p.jon) 'response') [%o ~])
+  (pure:m `resp)
+::
+++  take-news-or-interrupt
+  |=  =wire
+  =/  m  (fiber:fiber:nexus ,(unit wave:nexus))
+  ^-  form:m
   |=  input:fiber:nexus
-  :+  ~  state
+  :+  ~  q.state
   ?+  in  [%skip ~]
       ~  [%wait ~]
       [~ %veto *]
     [%fail (veto-error:io dart.u.in)]
-    ::  interrupt poke — return ~
-    ::
       [~ %poke * *]
     =/  jon=json  (fall (mole |.(!<(json q.sage.u.in))) *json)
     ?.  ?=(%o -.jon)  [%skip ~]
     =/  act=(unit json)  (~(get by p.jon) 'action')
     ?.  ?=([~ %s %'interrupt'] act)  [%skip ~]
     [%done ~]
-    ::  news on call subscription — check for status=done
-    ::
       [~ %news * *]
     ?.  =(wire wire.u.in)  [%skip ~]
-    ?.  ?=(%file -.view.u.in)  [%skip ~]
-    =/  jon=json  (fall (mole |.(!<(json q.sage.view.u.in))) *json)
-    ?.  ?=(%o -.jon)  [%skip ~]
-    =/  status=(unit json)  (~(get by p.jon) 'status')
-    ?.  ?=([~ %s %'done'] status)  [%skip ~]
-    =/  resp=json  (fall (~(get by p.jon) 'response') [%o ~])
-    [%done `resp]
+    [%done `wave.u.in]
   ==
 ::
 ::  API response types
@@ -1844,6 +1898,12 @@
     =/  tid=@t  (fall (bind (~(get by p.json) 'tool_use_id') |=(j=^json ?>(?=(%s -.j) p.j))) '')
     =/  content=@t  (fall (bind (~(get by p.json) 'content') |=(j=^json ?>(?=(%s -.j) p.j))) '')
     `[%tool-result tid content]
+  ?:  ?=([~ %'tool_result_media'] type)
+    =/  tid=@t  (fall (bind (~(get by p.json) 'tool_use_id') |=(j=^json ?>(?=(%s -.j) p.j))) '')
+    =/  text=@t  (fall (bind (~(get by p.json) 'text') |=(j=^json ?>(?=(%s -.j) p.j))) '')
+    =/  media-type=@t  (fall (bind (~(get by p.json) 'media_type') |=(j=^json ?>(?=(%s -.j) p.j))) '')
+    =/  b64=@t  (fall (bind (~(get by p.json) 'data') |=(j=^json ?>(?=(%s -.j) p.j))) '')
+    `[%tool-result-media tid text media-type b64]
   ::  default: message
   =/  role=(unit @t)  (bind (~(get by p.json) 'role') |=(j=^json ?>(?=(%s -.j) p.j)))
   =/  content=(unit @t)  (bind (~(get by p.json) 'content') |=(j=^json ?>(?=(%s -.j) p.j)))
@@ -1872,6 +1932,14 @@
     :~  ['type' s+'tool_result']
         ['tool_use_id' s+tool-use-id.entry]
         ['content' s+content.entry]
+    ==
+      %tool-result-media
+    %-  pairs:enjs:format
+    :~  ['type' s+'tool_result_media']
+        ['tool_use_id' s+tool-use-id.entry]
+        ['text' s+text.entry]
+        ['media_type' s+media-type.entry]
+        ['data' s+data.entry]
     ==
   ==
 ::
@@ -1995,7 +2063,38 @@
           ['content' s+txt]
       ==
     $(walk t.walk, pending-results [block pending-results])
+      %tool-result-media
+    =.  msgs  flush-tools
+    =.  pending-tools  ~
+    ::  multimodal: content is an array of blocks (text label + media)
+    =/  media-block=json
+      %-  pairs:enjs:format
+      :~  ['type' s+(media-block-type media-type.i.walk)]
+          :-  'source'
+          %-  pairs:enjs:format
+          :~  ['type' s+'base64']
+              ['media_type' s+media-type.i.walk]
+              ['data' s+data.i.walk]
+          ==
+      ==
+    =/  block=json
+      %-  pairs:enjs:format
+      :~  ['type' s+'tool_result']
+          ['tool_use_id' s+tool-use-id.i.walk]
+          ['content' [%a ~[media-block]]]
+      ==
+    $(walk t.walk, pending-results [block pending-results])
   ==
+::  +media-block-type: map media type cord to Claude content block type
+::  image/* -> 'image', application/pdf -> 'document'
+::
+++  media-block-type
+  |=  mt=@t
+  ^-  @t
+  =/  t=tape  (trip mt)
+  ?:  =("application/pdf" t)  'document'
+  ?:  ?=(^ (find "image/" t))  'image'
+  'document'
 ::
 ::  +cap-content: truncate content to char limit with note
 ::
@@ -2052,6 +2151,8 @@
         (weld "tool_use: " (trip name.e))
           %tool-result
         (weld "tool_result: " (trip content.e))
+          %tool-result-media
+        (weld "tool_result: " (trip text.e))
       ==
       "\0a"
     ==
@@ -2081,6 +2182,8 @@
         %msg          (met 3 content.entry)
         %tool-use     (add (met 3 name.entry) (met 3 (en:json:html input.entry)))
         %tool-result  (met 3 content.entry)
+        ::  images are roughly 1600 tokens per 1MB; estimate from base64 size
+        %tool-result-media  (max (met 3 text.entry) (div (met 3 data.entry) 800))
     ==
   (max 1 (div chars 4))
 ::
@@ -2108,6 +2211,7 @@
             ;div.f3.mono.s-2: AI agent nexus
           ==
           ;div
+            ;button#menu-btn(onclick "toggleSidebar()"): ☰
             ;button#clear-btn.hdr-btn: clear
             ;button#about-btn.hdr-btn: about
             ;button#config-btn.hdr-btn: config
@@ -2153,12 +2257,13 @@
             ;div#chat-list;
             ;button#new-chat-btn: + new chat
           ==
+          ;div#sidebar-overlay(onclick "toggleSidebar()");
           ;div#main
             ;div#messages;
             ;div#loading;
             ;form#prompt-form(onsubmit "sendMessage(event)")
               ;div.input-row
-                ;input#input(type "text", placeholder "Say something...", autocomplete "off");
+                ;textarea#input(rows "1", placeholder "Say something...", autocomplete "off");
                 ;button#stop-btn(type "button"): Stop
                 ;button(type "submit"): Send
               ==
@@ -2193,7 +2298,7 @@
   .empty \{ color: #555; font-size: 14px; padding: 40px 0; text-align: center; }
   #prompt-form \{ flex-shrink: 0; padding: 12px 0; border-top: 1px solid #333; }
   .input-row \{ display: flex; gap: 8px; }
-  #input \{ flex: 1; padding: 10px 14px; border-radius: 8px; border: 1px solid #333; background: #1a1a1a; color: #eee; font-size: 14px; outline: none; }
+  #input \{ flex: 1; padding: 10px 14px; border-radius: 8px; border: 1px solid #333; background: #1a1a1a; color: #eee; font-size: 14px; outline: none; resize: none; overflow-y: hidden; font-family: inherit; line-height: 1.5; max-height: 200px; }
   #input:focus \{ border-color: #2563eb; }
   button \{ padding: 10px 20px; border-radius: 8px; border: none; background: #2563eb; color: white; font-size: 14px; cursor: pointer; }
   button:hover \{ background: #1d4ed8; }
@@ -2236,6 +2341,21 @@
   .chat-del:hover \{ color: #f87171; }
   #new-chat-btn \{ font-size: 12px; padding: 6px 12px; margin: 4px 6px; border-radius: 4px; border: 1px dashed #333; background: none; color: #555; cursor: pointer; text-align: left; }
   #new-chat-btn:hover \{ color: #888; border-color: #555; background: none; }
+  #menu-btn \{ display: none; font-size: 18px; padding: 4px 8px; border-radius: 4px; border: 1px solid #444; background: none; color: #888; cursor: pointer; line-height: 1; }
+  #menu-btn:hover \{ color: #eee; border-color: #666; }
+  #sidebar-overlay \{ display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 49; }
+  #sidebar-overlay.open \{ display: block; }
+  @media (max-width: 600px) \{
+    #menu-btn \{ display: block; }
+    #sidebar \{ position: fixed; top: 0; left: 0; bottom: 0; width: 220px; z-index: 50; background: #111; border-right: 1px solid #333; transform: translateX(-100%); transition: transform 0.2s ease; padding-top: 16px; }
+    #sidebar.open \{ transform: translateX(0); }
+    #main \{ padding: 0 10px; max-width: 100%; }
+    .msg \{ max-width: 95%; font-size: 13px; }
+    #header \{ padding: 10px 12px; }
+    #header > div \{ flex-wrap: wrap; gap: 4px; }
+    #input \{ font-size: 16px; }
+    .input-row button \{ padding: 10px 14px; }
+  }
   """
 ::
 ++  script-text
@@ -2244,6 +2364,11 @@
   ;:  weld
     "var API = '/grubbery/api';\0avar BALL = '{ball-id}';\0avar CHAT = new URLSearchParams(location.search).get('chat') || 'main';\0a"
   """
+  function toggleSidebar() \{
+    document.getElementById('sidebar').classList.toggle('open');
+    document.getElementById('sidebar-overlay').classList.toggle('open');
+  }
+
   function renderMessages(entries) \{
     var el = document.getElementById('messages');
     el.innerHTML = '';
@@ -2282,12 +2407,25 @@
     var text = input.value.trim();
     if (!text) return;
     input.value = '';
+    input.style.height = 'auto';
     fetch(API + '/poke/' + BALL + '/chats/' + CHAT + '/chat.json?mark=json', \{
       method: 'POST',
       headers: \{'Content-Type': 'application/json'},
       body: JSON.stringify(\{action: 'message', content: text})
     });
   }
+
+  var input = document.getElementById('input');
+  input.addEventListener('input', function() \{
+    this.style.height = 'auto';
+    this.style.height = Math.min(this.scrollHeight, 200) + 'px';
+  });
+  input.addEventListener('keydown', function(e) \{
+    if (e.key === 'Enter' && !e.shiftKey) \{
+      e.preventDefault();
+      sendMessage(e);
+    }
+  });
 
   document.getElementById('clear-btn').onclick = function() \{
     if (!confirm('Clear chat?')) return;
@@ -2435,7 +2573,7 @@
   function connectStatusSSE() \{
     if (statusEs) statusEs.close();
     statusEs = new EventSource(API + '/keep/' + BALL + '/chats/' + CHAT + '/status.json?mark=json');
-    statusEs.addEventListener('upd status.json', function(e) \{
+    statusEs.addEventListener('upd /status.json', function(e) \{
       try \{
         var s = JSON.parse(e.data);
         currentStatus = s;
@@ -2530,7 +2668,7 @@
   function connectChatListSSE() \{
     if (chatListEs) chatListEs.close();
     chatListEs = new EventSource(API + '/keep/' + BALL + '/ui/chats.json?mark=json');
-    chatListEs.addEventListener('upd chats.json', function(e) \{
+    chatListEs.addEventListener('upd /chats.json', function(e) \{
       try \{ renderChatList(JSON.parse(e.data)); } catch(x) \{}
     });
     chatListEs.onerror = function() \{
@@ -2559,6 +2697,51 @@
     .then(function(d) \{ renderChatList(d); })
     .catch(function() \{ if (!sessionStorage.getItem('claw-chats')) renderChatList(['main']); });
   connectChatListSSE();
+
+  // Push notification subscription (matches web-pusher pattern)
+  function urlB64ToUint8(b64) \{
+    var pad = '='.repeat((4 - b64.length % 4) % 4);
+    var raw = atob((b64 + pad).split('-').join('+').split('_').join('/'));
+    var arr = new Uint8Array(raw.length);
+    for (var i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
+    return arr;
+  }
+  function bufToB64Url(buf) \{
+    var bytes = new Uint8Array(buf);
+    var s = '';
+    for (var i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]);
+    return btoa(s).split('+').join('-').split('/').join('_').split('=').join('');
+  }
+  (async function() \{
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+    try \{
+      var reg = await navigator.serviceWorker.register('/grubbery/push/sw', \{scope: '/'});
+      if (!reg.active) \{
+        await new Promise(function(resolve) \{
+          var sw = reg.installing || reg.waiting;
+          if (!sw) return resolve();
+          sw.addEventListener('statechange', function() \{
+            if (sw.state === 'activated') resolve();
+          });
+        });
+      }
+      var sub = await reg.pushManager.getSubscription();
+      if (sub) return;
+      var resp = await fetch('/grubbery/push/vapid-key');
+      var vapidKey = await resp.text();
+      sub = await reg.pushManager.subscribe(\{
+        userVisibleOnly: true,
+        applicationServerKey: urlB64ToUint8(vapidKey)
+      });
+      var p256dh = bufToB64Url(sub.getKey('p256dh'));
+      var auth = bufToB64Url(sub.getKey('auth'));
+      await fetch('/grubbery/push/subscribe', \{
+        method: 'POST',
+        headers: \{'Content-Type': 'application/json'},
+        body: JSON.stringify(\{endpoint: sub.endpoint, p256dh: p256dh, auth: auth})
+      });
+    } catch(e) \{ console.error('[push]', e); }
+  })();
   """
   ==
 
@@ -2623,7 +2806,7 @@
     =/  files=(list [@ta @tas])
       ?~  fil.ball.p.seen  ~
       %+  turn  ~(tap by contents.u.fil.ball.p.seen)
-      |=([n=@ta c=content:tarball] [n name.p.sage.c])
+      |=([n=@ta [c=sang:tarball gain=? bang=(unit tang)]] [n name.p.c])
     =/  dir-text=tape
       ?~  sub-dirs  ""
       (zing (turn sub-dirs |=(d=@ta "\0a  {(trip d)}/")))
@@ -2680,7 +2863,7 @@
       ::  no range specified, return full file
       (render-grub-content:nex-tools seen)
     ::  range read: convert to text and slice by lines
-    ;<  =mime  bind:m  (sage-to-mime:io sage.p.seen)
+    ;<  =mime  bind:m  (sage-to-mime:io (need-sage:tarball sang.p.seen))
     =/  text=tape  (trip ;;(@t q.q.mime))
     =/  lines=(list tape)  (to-lines text)
     =/  total=@ud  (lent lines)
@@ -2690,7 +2873,7 @@
       ?:(=(0 lim) after (scag lim after))
     =/  end=@ud  (add start (lent sliced))
     =/  header=tape
-      "[mark: {(spud (snoc path.p.sage.p.seen name.p.sage.p.seen))}] [lines {<(add start 1)>}-{<end>} of {<total>}]\0a"
+      "[mark: {(spud (snoc path.p.sang.p.seen name.p.sang.p.seen))}] [lines {<(add start 1)>}-{<end>} of {<total>}]\0a"
     =/  numbered=tape
       %-  zing
       =/  n=@ud  (add start 1)
@@ -2748,9 +2931,9 @@
     ?:  exists
       ?^  dest-blot
         (pure:m [%error 'Cannot change blot of existing file. Delete it first, then recreate with the desired blot.'])
-      ;<  ~  bind:m  (over:io road [[/ %mime] !>(src-mime)])
+      ;<  ~  bind:m  (over:io road [[/ %mime] src-mime])
       (pure:m [%text (crip "Wrote {(trip u.raw)}")])
-    ;<  ~  bind:m  (make:io road |+[%.n [[/ %mime] !>(src-mime)] dest-blot])
+    ;<  ~  bind:m  (make:io road |+[[[/ %mime] src-mime] dest-blot])
     (pure:m [%text (crip "Created {(trip u.raw)}")])
   --
 ::
@@ -2794,7 +2977,7 @@
     ;<  =seen:nexus  bind:m  (peek:io road ~)
     ?.  ?=([%& %file *] seen)
       (pure:m [%error (crip "Not found: {(trip u.raw)}")])
-    ;<  =mime  bind:m  (sage-to-mime:io sage.p.seen)
+    ;<  =mime  bind:m  (sage-to-mime:io (need-sage:tarball sang.p.seen))
     =/  txt=tape  (trip q.q.mime)
     =/  result=(each tape @tas)
       (tape-replace:nex-tools txt (trip u.old) (trip u.new) replace-all)
@@ -2809,7 +2992,7 @@
         (pure:m [%error 'old_string cannot be empty'])
       ==
     =/  new-mime=^mime  [/text/plain (as-octs:mimes:html (crip p.result))]
-    ;<  ~  bind:m  (over:io road [[/ %mime] !>(new-mime)])
+    ;<  ~  bind:m  (over:io road [[/ %mime] new-mime])
     (pure:m [%text (crip "Edited {(trip u.raw)}")])
   --
 ::
@@ -2851,8 +3034,8 @@
     ?~  raw=(get-arg st 'road')
       (pure:m [%error 'Missing required argument: road'])
     =/  road=road:tarball  (agent-road u.raw)
-    =/  new-ball=ball:tarball  [`[~ ~ ~] ~]
-    ;<  ~  bind:m  (make:io road &+[*sand:nexus *gain:nexus new-ball])
+    =/  new-bole=bole:tarball  [`[~ ~ %.n ~] ~]
+    ;<  ~  bind:m  (make:io road &+new-bole)
     (pure:m [%text (crip "Created directory {(trip u.raw)}")])
   --
 ::
@@ -2888,8 +3071,8 @@
     ?~  code-pax
       (pure:m [%error 'Code path cannot be empty'])
     =/  code-rail=rail:tarball  [(snip `path`code-pax) (rear code-pax)]
-    =/  new-ball=ball:tarball  [`[~ `code-rail ~] ~]
-    ;<  ~  bind:m  (make:io road &+[*sand:nexus *gain:nexus new-ball])
+    =/  new-bole=bole:tarball  [`[`code-rail ~ %.n ~] ~]
+    ;<  ~  bind:m  (make:io road &+new-bole)
     (pure:m [%text (crip "Created nexus {(trip u.raw)} with code {(trip u.code-raw)}")])
   --
 ::
@@ -2980,7 +3163,7 @@
     ;<  dir-seen=seen:nexus  bind:m  (peek:io dir-road ~)
     ?.  ?=([%& %ball *] dir-seen)
       (pure:m [%error (crip "Not a directory or not found: {(trip u.raw)}")])
-    =/  weir=weir:nexus  (fall fil.sand.p.dir-seen [~ ~ ~])
+    =/  weir=weir:nexus  (fall ?~(fil.ball.p.dir-seen ~ weir.u.fil.ball.p.dir-seen) [~ ~ ~])
     ?:  &(=(~ make.weir) =(~ poke.weir) =(~ peek.weir))
       (pure:m [%text (crip "No weir at {(trip u.raw)} -- unrestricted")])
     =/  render
@@ -3031,7 +3214,7 @@
     ;<  dir-seen=seen:nexus  bind:m  (peek:io dir-road ~)
     =/  cur=weir:nexus
       ?.  ?=([%& %ball *] dir-seen)  [~ ~ ~]
-      (fall fil.sand.p.dir-seen [~ ~ ~])
+      (fall ?~(fil.ball.p.dir-seen ~ weir.u.fil.ball.p.dir-seen) [~ ~ ~])
     =/  new=weir:nexus
       ?+  u.cat  cur
         %'write'  cur(make (~(put in make.cur) allow-road))
@@ -3071,7 +3254,7 @@
     ;<  dir-seen=seen:nexus  bind:m  (peek:io dir-road ~)
     =/  cur=weir:nexus
       ?.  ?=([%& %ball *] dir-seen)  [~ ~ ~]
-      (fall fil.sand.p.dir-seen [~ ~ ~])
+      (fall ?~(fil.ball.p.dir-seen ~ weir.u.fil.ball.p.dir-seen) [~ ~ ~])
     =/  new=weir:nexus
       ?+  u.cat  cur
         %'write'  cur(make (~(del in make.cur) del-road))
@@ -3175,28 +3358,24 @@
     ?~  raw=(get-arg st 'road')
       (pure:m [%error 'Missing required argument: road'])
     =/  road=road:tarball  (agent-road u.raw)
-    ;<  res=(each bangs:nexus (unit tang))  bind:m  (get-bang:io road)
-    ?:  ?=(%| -.res)
-      ?~  p.res
-        (pure:m [%error (crip "Path not found: {(trip u.raw)}")])
-      =/  rendered=tape
-        (zing (turn (flop u.p.res) |=(=tank (weld ~(ram re tank) "\0a"))))
-      (pure:m [%error (crip "Query failed:\0a{rendered}")])
-    =/  =bangs:nexus  p.res
+    ;<  =seen:nexus  bind:m  (peek:io road ~)
+    ?.  ?=([%& %ball *] seen)
+      (pure:m [%error (crip "Path not found: {(trip u.raw)}")])
+    =/  nexus-bang=(unit tang)  ?~(fil.ball.p.seen ~ bang.u.fil.ball.p.seen)
     =/  out=tape  ""
-    =?  out  ?=(^ bang.bangs)
+    =?  out  ?=(^ nexus-bang)
       =/  rendered=tape
-        (zing (turn (flop u.bang.bangs) |=(=tank (weld ~(ram re tank) "\0a"))))
+        (zing (turn (flop u.nexus-bang) |=(=tank (weld ~(ram re tank) "\0a"))))
       "NEXUS BANG:\0a{rendered}"
-    =/  errs=(list [@ta (unit tang)])  ~(tap by err.bangs)
     =/  file-out=tape
+      ?~  fil.ball.p.seen  ""
       %-  zing
-      %+  murn  errs
-      |=  [name=@ta err=(unit tang)]
+      %+  murn  ~(tap by contents.u.fil.ball.p.seen)
+      |=  [name=@ta =sang:tarball gain=? bang=(unit tang)]
       ^-  (unit tape)
-      ?~  err  ~
+      ?~  bang  ~
       =/  rendered=tape
-        (zing (turn (flop u.err) |=(=tank (weld ~(ram re tank) "\0a"))))
+        (zing (turn (flop u.bang) |=(=tank (weld ~(ram re tank) "\0a"))))
       `"\0a{(trip name)}: BANGED\0a{rendered}"
     =.  out  (weld out file-out)
     ?:  =('' (crip out))
@@ -3241,7 +3420,7 @@
     =/  road=road:tarball  (agent-road (crip "./chats/{(trip chat-name)}/outbox.json"))
     ;<  cur=(list json)  bind:m  (read-outbox chat-name)
     =/  updated=json  [%a (snoc cur result-json)]
-    ;<  ~  bind:m  (over:io road [[/ %json] !>(updated)])
+    ;<  ~  bind:m  (over:io road [[/ %json] updated])
     (pure:m [%text 'Finished -- result appended to outbox.json'])
   --
 ::
@@ -3258,7 +3437,7 @@
   ;<  =seen:nexus  bind:m  (peek:io outbox-road ~)
   =/  existing=(list json)
     ?.  ?=([%& %file *] seen)  ~
-    =/  outbox=json  (fall (mole |.(!<(json q.sage.p.seen))) *json)
+    =/  outbox=json  (fall (mole |.(!<(json (need-vase:tarball sang.p.seen)))) *json)
     ?.  ?=(%a -.outbox)  ~
     p.outbox
   ?^  existing
@@ -3271,8 +3450,9 @@
   |-
   ;<  nw=news-or-wake:io  bind:m  (take-news-or-wake:io /spawn-result)
   ?:  ?=(%wake -.nw)  $
-  ?.  ?=(%file -.view.nw)  $
-  =/  outbox=json  (fall (mole |.(!<(json q.sage.view.nw))) *json)
+  ;<  =seen:nexus  bind:m  (peek:io outbox-road ~)
+  ?.  ?=([%& %file *] seen)  $
+  =/  outbox=json  (fall (mole |.(!<(json (need-vase:tarball sang.p.seen)))) *json)
   ?.  ?&  ?=(%a -.outbox)
           !=(~ p.outbox)
       ==
@@ -3357,22 +3537,22 @@
     ?~  code-pax
       (pure:m [%error 'Code path cannot be empty'])
     =/  code-rail=rail:tarball  [(snip `path`code-pax) (rear code-pax)]
-    =/  new-ball=ball:tarball  [`[~ `code-rail ~] ~]
-    ;<  ~  bind:m  (make:io child-road &+[*sand:nexus *gain:nexus new-ball])
+    =/  new-bole=bole:tarball  [`[`code-rail ~ %.n ~] ~]
+    ;<  ~  bind:m  (make:io child-road &+new-bole)
     ::  read parent config (../../config.json from tool proc)
     ;<  parent-config=json  bind:m
       =/  m  (fiber:fiber:nexus ,json)
       =/  road=road:tarball  (agent-road './config.json')
       ;<  =seen:nexus  bind:m  (peek:io road ~)
       ?.  ?=([%& %file *] seen)  (pure:m *json)
-      (pure:m (fall (mole |.(!<(json q.sage.p.seen))) *json))
+      (pure:m (fall (mole |.(!<(json (need-vase:tarball sang.p.seen)))) *json))
     =/  child-config-road=road:tarball
       (agent-road (crip "{pfx}/config.json"))
     ;<  cfg-exists=?  bind:m  (peek-exists:io child-config-road)
     ;<  ~  bind:m
       ?:  cfg-exists
-        (over:io child-config-road [[/ %json] !>(parent-config)])
-      (make:io child-config-road |+[%.n [[/ %json] !>(parent-config)] ~])
+        (over:io child-config-road [[/ %json] parent-config])
+      (make:io child-config-road |+[[[/ %json] parent-config] ~])
     ::  write task prompt with finish instructions
     =/  base-instructions=@t
       %-  crip
@@ -3394,8 +3574,8 @@
       =/  m  (fiber:fiber:nexus ,~)
       ;<  pex=?  bind:m  (peek-exists:io prompt-road)
       ?:  pex
-        (over:io prompt-road [[/ %txt] !>(prompt-wain)])
-      (make:io prompt-road |+[%.n [[/ %txt] !>(prompt-wain)] ~])
+        (over:io prompt-road [[/ %txt] prompt-wain])
+      (make:io prompt-road |+[[[/ %txt] prompt-wain] ~])
     ::  poke child with message
     =/  msg-json=json
       (pairs:enjs:format ~[['action' s+'message'] ['content' s+u.message]])
@@ -3451,12 +3631,12 @@
     ;<  =seen:nexus  bind:m  (peek:io agent-root ~)
     ?.  ?=([%& %ball *] seen)
       (pure:m [%error 'Could not read ball'])
-    =/  candidates=(list [rail:tarball content:tarball])
+    =/  candidates=(list [rail:tarball sang:tarball])
       %+  skim  ~(tap ba:tarball ball.p.seen)
-      |=  [=rail:tarball =content:tarball]
+      |=  [=rail:tarball =sang:tarball]
       =/  fp=tape  ?~(path.rail "/" (trip (spat path.rail)))
       =/  fn=tape  (trip name.rail)
-      =/  fm=tape  (trip name.p.sage.content)
+      =/  fm=tape  (trip name.p.sang)
       ?&  ?~(pat-path %.y (glob-match:nex-tools (trip u.pat-path) fp))
           ?~(pat-name %.y (glob-match:nex-tools (trip u.pat-name) fn))
           ?~(pat-mark %.y (glob-match:nex-tools (trip u.pat-mark) fm))
@@ -3469,7 +3649,7 @@
         (pure:m [%text 'No matches found'])
       =/  out=tape  (zing (flop results))
       (pure:m [%text (crip "Found {<total>} matches:{out}")])
-    =/  [=rail:tarball =content:tarball]  i.candidates
+    =/  [=rail:tarball =sang:tarball]  i.candidates
     =/  label=tape
       =/  pax=tape  ?~(path.rail "/" (trip (spat path.rail)))
       "{pax}/{(trip name.rail)}"
@@ -3477,7 +3657,7 @@
     ;<  file-seen=seen:nexus  bind:m  (peek:io file-road ~)
     ?.  ?=([%& %file *] file-seen)
       $(candidates t.candidates)
-    ;<  =mime  bind:m  (sage-to-mime:io sage.p.file-seen)
+    ;<  =mime  bind:m  (sage-to-mime:io (need-sage:tarball sang.p.file-seen))
     =/  text=tape  (trip ;;(@t q.q.mime))
     =/  lines=(list tape)  (to-lines text)
     =/  line-num=@ud  1
@@ -3526,16 +3706,16 @@
       (pure:m [%error 'Could not read ball'])
     =/  matches=(list [rail:tarball @tas])
       %+  murn  ~(tap ba:tarball ball.p.seen)
-      |=  [=rail:tarball =content:tarball]
+      |=  [=rail:tarball =sang:tarball]
       =/  fp=tape  ?~(path.rail "/" (trip (spat path.rail)))
       =/  fn=tape  (trip name.rail)
-      =/  fm=tape  (trip name.p.sage.content)
+      =/  fm=tape  (trip name.p.sang)
       ?.  ?&  ?~(pat-path %.y (glob-match:nex-tools (trip u.pat-path) fp))
               ?~(pat-name %.y (glob-match:nex-tools (trip u.pat-name) fn))
               ?~(pat-mark %.y (glob-match:nex-tools (trip u.pat-mark) fm))
           ==
         ~
-      `[rail name.p.sage.content]
+      `[rail name.p.sang]
     ?~  matches
       (pure:m [%text 'No matches found'])
     =/  result=tape
@@ -3578,7 +3758,7 @@
     ;<  =seen:nexus  bind:m  (peek:io conv-road ~)
     ?.  ?=([%& %file *] seen)
       (pure:m [%text 'Could not read chat.'])
-    =/  jon=json  (fall (mole |.(!<(json q.sage.p.seen))) *json)
+    =/  jon=json  (fall (mole |.(!<(json (need-vase:tarball sang.p.seen)))) *json)
     =/  conv=convo  (parse-convo jon)
     =/  results=tape  ~
     =/  idx=@ud  0
@@ -3591,15 +3771,17 @@
     =/  e=entry  i.walk
     =/  content=tape
       ?-  -.e
-          %msg          (trip content.e)
-          %tool-use     (weld "tool_use: " (trip name.e))
-          %tool-result  (trip content.e)
+          %msg                (trip content.e)
+          %tool-use           (weld "tool_use: " (trip name.e))
+          %tool-result        (trip content.e)
+          %tool-result-media  (trip text.e)
       ==
     =/  role=tape
       ?-  -.e
-          %msg          (trip role.e)
-          %tool-use     "assistant"
-          %tool-result  "tool_result"
+          %msg                (trip role.e)
+          %tool-use           "assistant"
+          %tool-result        "tool_result"
+          %tool-result-media  "tool_result"
       ==
     ::  search each line of content
     =/  lines=(list tape)  (to-lines content)
@@ -3701,7 +3883,7 @@
     ;<  =seen:nexus  bind:m  (peek:io conv-road ~)
     ?.  ?=([%& %file *] seen)
       (pure:m [%error 'Could not read chat.'])
-    =/  jon=json  (fall (mole |.(!<(json q.sage.p.seen))) *json)
+    =/  jon=json  (fall (mole |.(!<(json (need-vase:tarball sang.p.seen)))) *json)
     =/  full=convo  (parse-convo jon)
     ::  slice all ranges and build transcript
     =/  transcript=tape
@@ -3716,7 +3898,7 @@
     ;<  cfg-seen=seen:nexus  bind:m  (peek:io cfg-road ~)
     =/  config=json
       ?.  ?=([%& %file *] cfg-seen)  *json
-      (fall (mole |.(!<(json q.sage.p.cfg-seen))) *json)
+      (fall (mole |.(!<(json (need-vase:tarball sang.p.cfg-seen)))) *json)
     =/  model=@t
       =/  m  (get-str config 'model')
       ?:(=('' m) 'claude-sonnet-4-20250514' m)
@@ -3777,8 +3959,8 @@
     ;<  *  bind:m  (keep:io /sum-call call-road ~)
     =/  poke-body=json
       (pairs:enjs:format ~[['id' s+call-id] ['body' payload]])
-    ;<  ~  bind:m  (poke:io proxy [/ %json] !>(poke-body))
-    ;<  resp=json  bind:m  (await-sum-call /sum-call)
+    ;<  ~  bind:m  (poke:io proxy [/ %json] poke-body)
+    ;<  resp=json  bind:m  (await-sum-call /sum-call call-road)
     ;<  ~  bind:m  (drop:io /sum-call call-road)
     =/  parsed=(unit api-response)  (parse-json-response resp)
     ?~  parsed
@@ -3812,12 +3994,12 @@
     ;<  dir-exists=?  bind:m  (peek-exists:io sum-dir)
     ;<  ~  bind:m
       ?.  dir-exists
-        (make:io sum-dir &+[*sand:nexus *gain:nexus [~ ~]])
+        (make:io sum-dir &+[~ ~])
       (pure:(fiber:fiber:nexus ,~) ~)
     =/  sum-file=@ta  (crip "{(trip sum-id)}.json")
     ;<  sum-road=road:tarball  bind:m
       (ancestor-road:io [/claw %agent] [%& /chats/[chat-name]/summaries sum-file])
-    ;<  ~  bind:m  (make:io sum-road |+[%.n [[/ %json] !>(sum-json)] ~])
+    ;<  ~  bind:m  (make:io sum-road |+[[[/ %json] sum-json] ~])
     (pure:m [%text summary-text])
   --
 ::
@@ -3846,9 +4028,10 @@
   =/  e=entry  i.sliced
   =/  line=tape
     ?-  -.e
-      %msg          :(weld "[" (a-co:co idx) "] " (trip role.e) ": " (trip content.e) "\0a")
-      %tool-use     :(weld "[" (a-co:co idx) "] tool_use: " (trip name.e) "\0a")
-      %tool-result  :(weld "[" (a-co:co idx) "] tool_result: " (trip content.e) "\0a")
+      %msg                :(weld "[" (a-co:co idx) "] " (trip role.e) ": " (trip content.e) "\0a")
+      %tool-use           :(weld "[" (a-co:co idx) "] tool_use: " (trip name.e) "\0a")
+      %tool-result        :(weld "[" (a-co:co idx) "] tool_result: " (trip content.e) "\0a")
+      %tool-result-media  :(weld "[" (a-co:co idx) "] tool_result: " (trip text.e) "\0a")
     ==
   [line $(sliced t.sliced, idx +(idx))]
 ::
@@ -3897,13 +4080,14 @@
 ::  +await-sum-call: wait for API call to reach status=done, return response
 ::
 ++  await-sum-call
-  |=  =wire
+  |=  [=wire call-road=road:tarball]
   =/  m  (fiber:fiber:nexus ,json)
   ^-  form:m
   |-
-  ;<  upd=view:nexus  bind:m  (take-news:io wire)
-  ?.  ?=([%file *] upd)  $
-  =/  j=json  (fall (mole |.(!<(json q.sage.upd))) *json)
+  ;<  *  bind:m  (take-news:io wire)
+  ;<  =seen:nexus  bind:m  (peek:io call-road ~)
+  ?.  ?=([%& %file *] seen)  $
+  =/  j=json  (fall (mole |.(!<(json (need-vase:tarball sang.p.seen)))) *json)
   ?.  ?=(%o -.j)  $
   =/  status=(unit json)  (~(get by p.j) 'status')
   ?.  ?=([~ %s %'done'] status)  $
@@ -3953,7 +4137,7 @@
     ;<  about-seen=seen:nexus  bind:m  (peek:io about-road ~)
     =/  about=tape
       ?.  ?=([%& %file *] about-seen)  "(no about.txt)"
-      =/  wn=(each wain tang)  (mule |.(!<(wain q.sage.p.about-seen)))
+      =/  wn=(each wain tang)  (mule |.(!<(wain (need-vase:tarball sang.p.about-seen))))
       ?.  ?=(%& -.wn)  "(unreadable)"
       (trip (of-wain:format p.wn))
     =/  tag=tape  ?:(=(name self-name) " [self]" "")
@@ -4008,7 +4192,7 @@
     ;<  about-seen=seen:nexus  bind:m  (peek:io about-road ~)
     =/  about=tape
       ?.  ?=([%& %file *] about-seen)  ""
-      =/  wn=(each wain tang)  (mule |.(!<(wain q.sage.p.about-seen)))
+      =/  wn=(each wain tang)  (mule |.(!<(wain (need-vase:tarball sang.p.about-seen))))
       ?.  ?=(%& -.wn)  ""
       (trip (of-wain:format p.wn))
     ::  case-insensitive match
@@ -4070,7 +4254,7 @@
       ==
     ;<  cron-road=road:tarball  bind:m
       (ancestor-road:io [/claw %agent] [%& /proc/cron job-id])
-    ;<  ~  bind:m  (make:io cron-road |+[%.n [[/ %json] !>(cron-state)] ~])
+    ;<  ~  bind:m  (make:io cron-road |+[[[/ %json] cron-state] ~])
     =/  msg=@t
       %-  crip
       ;:  weld
@@ -4101,7 +4285,7 @@
       (pure:m [%text 'No cron jobs.'])
     ?~  fil.ball.p.seen
       (pure:m [%text 'No cron jobs.'])
-    =/  jobs=(list [@ta *])  ~(tap by contents.u.fil.ball.p.seen)
+    =/  jobs=(list [@ta [=sang:tarball gain=? bang=(unit tang)]])  ~(tap by contents.u.fil.ball.p.seen)
     =/  out=(list tape)  ~
     |-
     ?~  jobs
@@ -4115,7 +4299,7 @@
     =/  line=tape
       ?.  ?=([%& %file *] job-seen)
         "{(trip job-name)}: (unreadable)\0a"
-      =/  j=json  (fall (mole |.(!<(json q.sage.p.job-seen))) *json)
+      =/  j=json  (fall (mole |.(!<(json (need-vase:tarball sang.p.job-seen)))) *json)
       ?.  ?=(%o -.j)  "{(trip job-name)}: (invalid state)\0a"
       =/  sched=@t  (fall (bind (~(get by p.j) 'schedule') |=(=json ?>(?=(%s -.json) p.json))) '?')
       =/  chat=@t   (fall (bind (~(get by p.j) 'chat') |=(=json ?>(?=(%s -.json) p.json))) '?')

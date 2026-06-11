@@ -31,6 +31,6 @@
     (pure:m [%error p.pax-parsed])
   =/  pax=path  p.pax-parsed
   =/  rd=road:tarball  [%& %& [(weld pax /actions) %'stash.sig']]
-  ;<  ~  bind:m  (poke:io rd [[/ %sig] !>(~)])
+  ;<  ~  bind:m  (poke:io rd [[/ %sig] ~])
   (pure:m [%text 'Stash requested'])
 --

@@ -141,12 +141,12 @@
   =/  parent=path  (snip `path`api-path)
   =/  name=@ta  (rear api-path)
   =/  parent-ball=ball:tarball  (~(dip ba:tarball u.root) parent)
-  =/  content-data=(unit content:tarball)
+  =/  content-data=(unit [=sang:tarball gain=? bang=(unit tang)])
     ?~  fil.parent-ball  ~
     (~(get by contents.u.fil.parent-ball) name)
   ?~  content-data
     (send-error eyre-id 404 'Not found')
-  =/  =sage:tarball  sage.u.content-data
+  =/  =sage:tarball  (need-sage:tarball sang.u.content-data)
   =/  mark-param=(unit @t)  (get-key:kv:html-utils 'mark' args)
   ;<  converted=(unit sage:tarball)  bind:m  (maybe-convert eyre-id sage mark-param)
   ?~  converted  (pure:m ~)
@@ -226,11 +226,10 @@
   ?:  exists
     (send-error eyre-id 409 'Already exists')
   =/  mark-param=(unit @t)  (get-key:kv:html-utils 'mark' args)
-  =/  gain=?  =('true' (fall (get-key:kv:html-utils 'gain' args) ''))
   =/  mime-sage=sage:tarball  [[/ %mime] !>(`mime`[/application/octet-stream u.body])]
   ;<  converted=(unit sage:tarball)  bind:m  (maybe-convert eyre-id mime-sage mark-param)
   ?~  converted  (pure:m ~)
-  ;<  ~  bind:m  (make:io road [%| gain u.converted ~])
+  ;<  ~  bind:m  (make:io road [%| [p.u.converted q.q.u.converted] ~])
   (send-created eyre-id)
 ::  +serve-dir-make: PUT /dir — create directory
 ::
@@ -246,8 +245,8 @@
   ;<  exists=?  bind:m  (peek-exists:io road)
   ?:  exists
     (send-error eyre-id 409 'Already exists')
-  =/  init-ball=ball:tarball  [`[~ ~ ~] ~]
-  ;<  ~  bind:m  (make:io road &+[[~ ~] [~ ~] init-ball])
+  =/  init-bole=bole:tarball  [`[~ ~ %.n ~] ~]
+  ;<  ~  bind:m  (make:io road &+init-bole)
   (send-created eyre-id)
 ::  +serve-post: POST /poke, /over — send dart to file
 ::
@@ -270,8 +269,8 @@
   ~&  >>  ["%ball-api: serve-post" op road p.u.converted]
   ;<  ~  bind:m
     ?-  op
-      %poke  (poke:io road u.converted)
-      %over  (over:io road u.converted)
+      %poke  (poke:io road [p.u.converted q.q.u.converted])
+      %over  (over:io road [p.u.converted q.q.u.converted])
     ==
   ~&  >>  "%ball-api: serve-post done"
   (send-ok eyre-id 'OK')
@@ -315,7 +314,7 @@
   ;<  exists=?  bind:m  (peek-exists:io dir-road)
   ?.  exists
     ;<  ~  bind:m
-      (make:io dir-road &+[[~ ~] [~ ~] `[~ ~ ~] ~])
+      (make:io dir-road &+[`[~ ~ %.n ~] ~])
     (ensure-parents next t.segments)
   (ensure-parents next t.segments)
 ::  +serve-upload: POST /upload — multipart file/directory upload
@@ -396,9 +395,9 @@
   =/  =road:tarball  [%& %& full-path file-name]
   ;<  exists=?  bind:m  (peek-exists:io road)
   ?:  exists
-    ;<  ~  bind:m  (over:io road final-sage)
+    ;<  ~  bind:m  (over:io road [p.final-sage q.q.final-sage])
     $(remaining t.remaining, created [filename-raw created])
-  ;<  ~  bind:m  (make:io road |+[%.n final-sage ~])
+  ;<  ~  bind:m  (make:io road |+[[p.final-sage q.q.final-sage] ~])
   $(remaining t.remaining, created [filename-raw created])
 ::  +serve-sand-peek: GET /sand — directory permissions as JSON
 ::
@@ -409,7 +408,7 @@
   ;<  dir-seen=seen:nexus  bind:m  (peek:io [%& %| api-path] ~)
   ?.  ?=([%& %ball *] dir-seen)
     (send-error eyre-id 404 'Not found')
-  (send-json eyre-id (sand-to-json:nexus sand.p.dir-seen))
+  (send-json eyre-id (ball-weirs-to-json:nexus ball.p.dir-seen))
 ::  +serve-weir-peek: GET /weir — single directory weir as JSON
 ::
 ++  serve-weir-peek
@@ -419,7 +418,7 @@
   ;<  dir-seen=seen:nexus  bind:m  (peek:io [%& %| api-path] ~)
   ?.  ?=([%& %ball *] dir-seen)
     (send-error eyre-id 404 'Not found')
-  =/  =weir:nexus  (fall fil.sand.p.dir-seen *weir:nexus)
+  =/  =weir:nexus  (fall ?~(fil.ball.p.dir-seen ~ weir.u.fil.ball.p.dir-seen) *weir:nexus)
   (send-json eyre-id (weir-to-json:nexus weir))
 ::  +serve-weir-put: PUT /weir — replace weir from JSON body
 ::
@@ -487,30 +486,32 @@
   =/  =road:tarball
     ?:  is-file  (need file-road)
     [%& %| api-path]
-  ::  Subscribe to changes — bond returns initial view
-  ;<  init=view:nexus  bind:m  (keep:io /keep road ~)
-  =/  prev-born=born:nexus
-    ?.  ?=([%ball *] init)  *born:nexus
-    born.init
+  ::  Base dir for reconstructing absolute roads from relative wave lanes.
+  ::  For file subscriptions, api-path includes the filename — strip it.
+  =/  base-dir=path  ?:(is-file (snip `path`api-path) api-path)
+  ::  Subscribe to changes — bond returns initial wavefront
+  ;<  init=wave:nexus  bind:m  (keep:io /keep road ~)
   ::  Send "old" events for initial state
   ;<  ~  bind:m
-    ?+  init  (pure:m ~)
-    ::  Single file — send one "old" event
-        [%file *]
-      =/  file-name=@t
-        ?~  api-path  '/'
-        (rear api-path)
-      =/  id=@t  (scot %ud ud.file.sack.init)
-      =/  event-name=@t  (crip "old {(trip file-name)}")
-      ;<  body=@t  bind:m  (sage-to-txt sage.init mark-param)
-      =/  data=wain  (to-wain:format body)
-      =/  =sse-event:http-utils  [`id `event-name data]
+    =/  lanes=(list [=lane:tarball =cass:clay])  ~(tap by init)
+    |-
+    ?~  lanes  (pure:m ~)
+    ?:  ?=(%| -.lane.i.lanes)  $(lanes t.lanes)
+    ::  wave lanes are relative to subscription — resolve to absolute for peek
+    =/  file-road=road:tarball  [%& %& (weld base-dir path.p.lane.i.lanes) name.p.lane.i.lanes]
+    ;<  =seen:nexus  bind:m  (peek:io file-road ~)
+    ?.  ?=([%& %file *] seen)  $(lanes t.lanes)
+    =/  lane-path=@t  (spat (snoc path.p.lane.i.lanes name.p.lane.i.lanes))
+    =/  id=@t  (scot %ud ud.cass.i.lanes)
+    =/  event-name=@t  (crip "old {(trip lane-path)}")
+    ;<  body=@t  bind:m  (sage-to-txt (need-sage:tarball sang.p.seen) mark-param)
+    =/  data=wain  (to-wain:format body)
+    =/  =sse-event:http-utils  [`id `event-name data]
+    ;<  ~  bind:m
       (send-data:srv eyre-id `(sse-encode:http-utils ~[sse-event]))
-    ::  Directory — send "old" for each file
-        [%ball *]
-      =/  root=ball:tarball  ball.init
-      (send-old-dir eyre-id root born.init / mark-param)
-    ==
+    $(lanes t.lanes)
+  ::  Track seen lanes for new vs upd detection
+  =/  prev=wave:nexus  init
   ::  Start keep-alive timer
   ;<  now=@da  bind:m  get-time:io
   ;<  ~  bind:m  (send-wait:io (add now ~s30))
@@ -526,74 +527,32 @@
     $
   ::
       %news
-    ?+    view.nw  $
-    ::  Single file changed
-        [%file *]
-      =/  =sage:tarball  sage.view.nw
-      =/  id=@t  (scot %ud ud.file.sack.view.nw)
-      =/  file-name=@t
-        ?~  api-path  '/'
-        (rear api-path)
-      =/  event-name=@t  (crip "upd {(trip file-name)}")
-      ;<  body=@t  bind:m  (sage-to-txt sage mark-param)
-      =/  data=wain  (to-wain:format body)
-      =/  =sse-event:http-utils  [`id `event-name data]
-      ;<  ~  bind:m
-        (send-data:srv eyre-id `(sse-encode:http-utils ~[sse-event]))
-      $
-    ::  Directory changed — diff born to find changed lanes
-        [%ball *]
-      =/  root=ball:tarball  ball.view.nw
-      =/  root-born=born:nexus  born.view.nw
-      =/  what=(set lane:tarball)  (diff-born-state:nexus prev-born root-born)
-      =/  old-born=born:nexus  prev-born
-      =.  prev-born  root-born
-      =/  lanes=(list lane:tarball)  ~(tap in what)
-      |-
-      ?~  lanes  ^$
-      ::  Skip directory lanes (TBD)
-      ?:  ?=(%| -.i.lanes)
-        $(lanes t.lanes)
-      ::  Lanes are relative to the subscribed subtree
-      =/  file-path=path  path.p.i.lanes
-      =/  file-name=@ta  name.p.i.lanes
-      =/  lane-path=@t  (spat (snoc file-path file-name))
-      ::  Get file cass from new born for event ID
-      =/  sub-born=born:nexus  (~(dip of root-born) file-path)
-      =/  file-sack=(unit sack:nexus)
-        ?~  fil.sub-born  ~
-        (~(get by bags.u.fil.sub-born) file-name)
-      =/  id=@t
-        ?~  file-sack  '0'
-        (scot %ud ud.file.u.file-sack)
-      ::  Check if lane existed in old born
-      =/  old-sub=born:nexus  (~(dip of old-born) file-path)
-      =/  old-sack=(unit sack:nexus)
-        ?~  fil.old-sub  ~
-        (~(get by bags.u.fil.old-sub) file-name)
-      ::  Get file content from the ball
-      =/  sub=ball:tarball  (~(dip ba:tarball root) file-path)
-      =/  ct=(unit content:tarball)
-        ?~  fil.sub  ~
-        (~(get by contents.u.fil.sub) file-name)
-      ?~  ct
-        ::  File gone — send delete event
-        =/  event-name=@t  (crip "del {(trip lane-path)}")
-        =/  =sse-event:http-utils  [`id `event-name ~['']]
-        ;<  ~  bind:m
-          (send-data:srv eyre-id `(sse-encode:http-utils ~[sse-event]))
-        $(lanes t.lanes)
-      ::  File exists — new or upd
-      =/  action=@t  ?~(old-sack 'new' 'upd')
+    =/  lanes=(list [=lane:tarball =cass:clay])  ~(tap by wave.nw)
+    =.  prev  (~(uni by prev) wave.nw)
+    |-
+    ?~  lanes  ^$
+    ?:  ?=(%| -.lane.i.lanes)  $(lanes t.lanes)
+    ::  wave lanes are relative to subscription — resolve to absolute for peek
+    =/  file-road=road:tarball  [%& %& (weld base-dir path.p.lane.i.lanes) name.p.lane.i.lanes]
+    ;<  =seen:nexus  bind:m  (peek:io file-road ~)
+    =/  lane-path=@t  (spat (snoc path.p.lane.i.lanes name.p.lane.i.lanes))
+    =/  id=@t  (scot %ud ud.cass.i.lanes)
+    ?:  ?=([%& %file *] seen)
+      =/  was-known=?  (~(has by prev) lane.i.lanes)
+      =/  action=@t  ?:(was-known 'upd' 'new')
       =/  event-name=@t  (crip "{(trip action)} {(trip lane-path)}")
-      =/  =sage:tarball  sage.u.ct
-      ;<  body=@t  bind:m  (sage-to-txt sage mark-param)
+      ;<  body=@t  bind:m  (sage-to-txt (need-sage:tarball sang.p.seen) mark-param)
       =/  data=wain  (to-wain:format body)
       =/  =sse-event:http-utils  [`id `event-name data]
       ;<  ~  bind:m
         (send-data:srv eyre-id `(sse-encode:http-utils ~[sse-event]))
       $(lanes t.lanes)
-    ==
+    ::  File gone — send delete event
+    =/  event-name=@t  (crip "del {(trip lane-path)}")
+    =/  =sse-event:http-utils  [`id `event-name ~['']]
+    ;<  ~  bind:m
+      (send-data:srv eyre-id `(sse-encode:http-utils ~[sse-event]))
+    $(lanes t.lanes)
   ==
 ::  +send-old-dir: send "old" SSE events for all files in a ball
 ::
@@ -604,20 +563,20 @@
   ::  Send "old" for files in this directory
   ;<  ~  bind:m
     ?~  fil.b  (pure:m ~)
-    =/  files=(list [@ta content:tarball])  ~(tap by contents.u.fil.b)
+    =/  files=(list [@ta [=sang:tarball gain=? bang=(unit tang)]])  ~(tap by contents.u.fil.b)
     |-
     ?~  files  (pure:m ~)
-    =/  [file-name=@ta =content:tarball]  i.files
+    =/  [file-name=@ta =sang:tarball gain=? bang=(unit tang)]  i.files
     =/  lane-path=@t  (spat (snoc here file-name))
     =/  sub-born=born:nexus  (~(dip of born) here)
-    =/  file-sack=(unit sack:nexus)
+    =/  file-hist=(unit hist:nexus)
       ?~  fil.sub-born  ~
-      (~(get by bags.u.fil.sub-born) file-name)
+      (~(get by file.u.fil.sub-born) file-name)
     =/  id=@t
-      ?~  file-sack  '0'
-      (scot %ud ud.file.u.file-sack)
+      ?~  file-hist  '0'
+      (scot %ud (ver:hist:nexus u.file-hist))
     =/  event-name=@t  (crip "old {(trip lane-path)}")
-    ;<  body=@t  bind:m  (sage-to-txt sage.content mark-param)
+    ;<  body=@t  bind:m  (sage-to-txt (need-sage:tarball sang) mark-param)
     =/  data=wain  (to-wain:format body)
     =/  =sse-event:http-utils  [`id `event-name data]
     ;<  ~  bind:m

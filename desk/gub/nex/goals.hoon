@@ -168,16 +168,16 @@
 =<  ^-  nexus:nexus
     |%
     ++  on-load
-      |=  [=sand:nexus =gain:nexus =ball:tarball]
-      ^-  [sand:nexus gain:nexus ball:tarball]
+      |=  =ball:tarball
+      ^-  bole:tarball
       =/  =ver:loader  (get-ver:loader ball)
       ?+  ver  !!
           ?(~ [~ %0] [~ %1])
-        %+  spin:loader  [sand gain ball]
+        %+  spin:loader  ball
         :~  (ver-row:loader 1)
-            [%fall %& [/ %'main.sig'] %.n [~ [/ %sig] !>(~)]]
-            [%fall %& [/ %'page.html'] %.n [~ [/ %html] !>((crip (en-xml:html (goals-page ~ ~))))]]
-            [%fall %| /store [~ ~] [~ ~] empty-dir:loader]
+            [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
+            [%fall %& [/ %'page.html'] [[/ %html] (crip (en-xml:html (goals-page ~ ~)))]]
+            [%fall %| /store empty-dir:loader]
         ==
       ==
     ::
@@ -205,7 +205,7 @@
           =/  store=goal-store:goals  (create-store:goals now)
           =/  fname=@ta  (store-fname name)
           ;<  ~  bind:m
-            (make:io [%| 0 %& /store fname] |+[%.n [[/ %goal-store] !>(store)] `[/ %goal-store]])
+            (make:io [%| 0 %& /store fname] |+[[[/ %goal-store] store] `[/ %goal-store]])
           $
             %goal-delete-store
           =/  name=@ta  !<(@ta q.sage)
@@ -227,7 +227,7 @@
             =/  store=goal-store:goals  (create-store:goals now)
             =/  fname=@ta  (store-fname name)
             ;<  ~  bind:m
-              (make:io [%| 0 %& /store fname] |+[%.n [[/ %goal-store] !>(store)] `[/ %goal-store]])
+              (make:io [%| 0 %& /store fname] |+[[[/ %goal-store] store] `[/ %goal-store]])
             $
               %'delete-store'
             =/  name=@ta  (~(dog jo:json-utils jon) /name so:dejs:format)
@@ -275,7 +275,7 @@
                 ((om:dejs:format same:dejs:format) data-jon)
               ==
             ;<  ~  bind:m
-              (poke:io [%| 0 %& /store (store-fname store-name)] [[/ %goal-action] !>(act)])
+              (poke:io [%| 0 %& /store (store-fname store-name)] [[/ %goal-action] act])
             $
           ==
         ==
@@ -283,18 +283,15 @@
           ::
           [~ %'page.html']
         ;<  ~  bind:m  (rise-wait:io prod "%goals /page: failed")
-        ;<  init=view:nexus  bind:m
+        ;<  init=wave:nexus  bind:m
           (keep:io /stores (cord-to-road:tarball './store/') ~)
-        =/  stores=(map @ta goal-store:goals)
-          (view-to-stores init)
-        =/  store-names=(list @ta)  (sort ~(tap in ~(key by stores)) aor)
-        ;<  ~  bind:m  (replace:io !>((crip (en-xml:html (goals-page store-names stores)))))
         |-
-        ;<  upd=view:nexus  bind:m  (take-news:io /stores)
+        ;<  =seen:nexus  bind:m  (peek:io (cord-to-road:tarball './store/') ~)
         =/  stores=(map @ta goal-store:goals)
-          (view-to-stores upd)
+          (seen-to-stores seen)
         =/  store-names=(list @ta)  (sort ~(tap in ~(key by stores)) aor)
         ;<  ~  bind:m  (replace:io !>((crip (en-xml:html (goals-page store-names stores)))))
+        ;<  upd=wave:nexus  bind:m  (take-news:io /stores)
         $
           ::  /store/*.goal-store: per-store process
           ::
@@ -375,19 +372,19 @@
 ::  Peek a store file, return the goal-store
 ::  Extract stores from a view (directory subscription)
 ::
-++  view-to-stores
-  |=  =view:nexus
+++  seen-to-stores
+  |=  =seen:nexus
   ^-  (map @ta goal-store:goals)
-  ?.  ?=([%ball *] view)  ~
-  ?~  fil.ball.view  ~
-  =/  entries=(list [@ta content:tarball])
-    ~(tap by contents.u.fil.ball.view)
+  ?.  ?=([%& %ball *] seen)  ~
+  ?~  fil.ball.p.seen  ~
+  =/  entries=(list [@ta [=sang:tarball gain=? bang=(unit tang)]])
+    ~(tap by contents.u.fil.ball.p.seen)
   =/  out=(map @ta goal-store:goals)  ~
   |-
   ?~  entries  out
-  =/  [fname=@ta ct=content:tarball]  i.entries
-  ?.  =(%goal-store name.p.sage.ct)  $(entries t.entries)
-  =/  store=goal-store:goals  !<(goal-store:goals q.sage.ct)
+  =/  [fname=@ta =sang:tarball gain=? bang=(unit tang)]  i.entries
+  ?.  =(%goal-store name.p.sang)  $(entries t.entries)
+  =/  store=goal-store:goals  !<(goal-store:goals (need-vase:tarball sang))
   =/  sname=@ta  (store-name-from-fname fname)
   $(entries t.entries, out (~(put by out) sname store))
 ::  Render the full goals page

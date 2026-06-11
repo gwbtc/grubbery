@@ -6,13 +6,26 @@
 +$  blot      rail                :: a mark identity (hierarchical)
 +$  bars      [a=blot b=blot]     :: blot pair for conversions
 +$  sage      (pair blot vase)    :: grubbery cage: blot-typed content
++$  boom      [=tang =noun]
++$  reus      (each vase boom)
++$  sang      (pair blot reus)    :: grubbery content: blot + typed vase or error
 +$  bask      (pair blot noun)    :: grubbery page: blot-typed noun
-+$  metadata  (map @t @t)
++$  metadata  (map @t @t)          :: used only for tar export headers
+::  sang helpers
+::
+++  need-sage  |=(=sang ^-(sage ?>(?=(%& -.q.sang) [p.sang p.q.sang])))
+++  need-vase  |=(=sang ^-(vase ?>(?=(%& -.q.sang) p.q.sang)))
+++  is-boom    |=(=sang ^-(? ?=(%| -.q.sang)))
+++  sang-noun  |=(=sang ^-(noun ?-(-.q.sang %& q.p.q.sang, %| noun.p.q.sang)))
+++  sage-to-sang  |=(=sage ^-(sang [p.sage %& q.sage]))
+++  bask-to-sang  |=([=bask err=tang] ^-(sang [p.bask %| [err q.bask]]))
 ::  Compiled mark core: built once from mark source, used for vale + tubes
+::
 ::
 +$  marc
   $_  ^?
   |%
+  ++  type  *^type
   ++  vale  |~(* *vase)
   ++  grow  |~(blot *tube:clay)
   ++  grab  |~(blot *tube:clay)
@@ -24,9 +37,6 @@
 +$  lane  (each rail fold)        :: [%& rail] file or [%| fold] directory
 +$  bend  (pair @ud lane)         :: relative: steps up + destination lane
 +$  road  (each lane bend)        :: [%& lane] absolute or [%| bend] relative
-::
-::  TODO: consider nexus-relative roads
-::
 ::  A road variant that resolves relative to nexus boundaries (necks)
 ::  instead of directory depth. Would eliminate the %| N offset footgun.
 ::
@@ -42,9 +52,26 @@
 ::  Symlink: untyped path reference (resolved at lookup time)
 ::
 +$  symlink   (each path (pair @ud path))
-+$  content   [=metadata =sage]
-+$  lump      [=metadata neck=(unit neck) contents=(map @ta content)]
++$  weir
+  $:  make=(set road)  :: allowed destinations for %make, %cull, %sand
+      poke=(set road)  :: allowed destinations for %poke
+      peek=(set road)  :: allowed destinations for %peek
+  ==
++$  lump
+  $:  neck=(unit neck)
+      weir=(unit weir)
+      gain=?
+      bang=(unit tang)
+      contents=(map @ta [=sang gain=? bang=(unit tang)])
+  ==
 +$  ball      (axal lump)
++$  pulp
+  $:  neck=(unit neck)
+      weir=(unit weir)
+      gain=?
+      contents=(map @ta [=bask gain=?])
+  ==
++$  bole      (axal pulp)
 :: simple descriptive file tree
 ::
 +$  node  [neck=(unit neck) files=(map @ta blot)]
@@ -493,11 +520,7 @@
     =/  updated-base=ball
       ?^  dir-exists
         base
-      =/  dir-metadata=(map @t @t)
-        %-  ~(gas by *(map @t @t))
-        :~  ['mtime' (da-oct now)]
-        ==
-      (~(mkd ba base) dir-path dir-metadata dir-neck)
+      (~(mkd ba base) dir-path dir-neck)
     $(base updated-base, current-path dir-path, file-parent t.file-parent)
   ::  Parse filename to extract extension
   =/  parsed=(unit [ext=(unit @ta) pax=path])
@@ -513,26 +536,30 @@
     ?~  ext.u.parsed
       browser-type
     (fall (ext-to-mime u.ext.u.parsed) browser-type)
-  ::  Create file content with metadata
-  =/  file-size=@ud  (met 3 body.file-part)
-  =/  file-metadata=(map @t @t)
-    %-  ~(gas by *(map @t @t))
-    :~  ['mtime' (da-oct now)]
-        ['size' (scot %ud file-size)]
-    ==
   ::  Try to convert to sage, otherwise store as %mime sage
+  =/  file-size=@ud  (met 3 body.file-part)
   =/  file-mime=mime  [mime-type [file-size body.file-part]]
   =/  maybe-sage=(unit sage)  (mime-to-sage conversions file-name file-mime)
   ::  Keep full filename as-is (no extension stripping)
-  =/  [store-name=@ta file-content=content]
+  =/  [store-name=@ta file-content=sang]
     ?~  maybe-sage
-      [file-name [file-metadata [[/ %mime] !>(file-mime)]]]
-    [file-name [file-metadata u.maybe-sage]]
+      [file-name (sage-to-sang [[/ %mime] !>(file-mime)])]
+    [file-name (sage-to-sang u.maybe-sage)]
   ::  Add file to base with explicit directories
   =/  new-base=ball
     (~(put ba base-with-dirs) [full-parent store-name] file-content)
   $(parts t.parts, base new-base)
 ::  Convert ball to tree (structure with marks, no content)
+::
+++  ball-to-bole
+  |=  b=ball
+  ^-  bole
+  :_  (~(run by dir.b) ball-to-bole)
+  ?~  fil.b  ~
+  :-  ~
+  :+  neck.u.fil.b  weir.u.fil.b
+  :-  gain.u.fil.b
+  (~(run by contents.u.fil.b) |=([c=sang gain=? *] [[p.c (sang-noun c)] gain]))
 ::
 ++  ball-to-tree
   |=  b=ball
@@ -541,7 +568,7 @@
   ?~  fil.b  ~
   :-  ~
   :-  neck.u.fil.b
-  (~(run by contents.u.fil.b) |=(c=content p.sage.c))
+  (~(run by contents.u.fil.b) |=([c=sang *] p.c))
 ::  Convert tree to json
 ::
 ++  tree-to-json
@@ -567,30 +594,32 @@
   ::
   ++  get
     |=  =rail
-    ^-  (unit content)
+    ^-  (unit sang)
     ?~  nod=(~(get of b) path.rail)
       ~
-    (~(get by contents.u.nod) name.rail)
+    =/  got  (~(get by contents.u.nod) name.rail)
+    ?~  got  ~
+    `sang.u.got
   ::  Put a content item at rail (directory path + filename).
   ::  Ensures all directories along the path have lumps.
   ::  Crashes if name collides with existing directory.
   ::
   ++  put
-    |=  [=rail c=content]
+    |=  [=rail c=sang]
     ^-  ball
     ?~  path.rail
       ::  at target dir: file name must not collide with subdir name
       ~|  [%name-collision %file-vs-dir name.rail]
       ?<  (~(has by dir.b) name.rail)
-      =/  lmp=lump  (fall fil.b [~ ~ ~])
-      b(fil `lmp(contents (~(put by contents.lmp) name.rail c)))
+      =/  lmp=lump  (fall fil.b [~ ~ %.n ~ ~])
+      b(fil `lmp(contents (~(put by contents.lmp) name.rail [c %.n ~])))
     ::  creating subdir: name must not collide with file name
     ~|  [%name-collision %dir-vs-file i.path.rail]
     ?<  ?&  ?=(^ fil.b)
             (~(has by contents.u.fil.b) i.path.rail)
         ==
     =/  kid=ball  (~(gut by dir.b) i.path.rail *ball)
-    =/  filled=ball  ?^(fil.kid kid kid(fil `[~ ~ ~]))
+    =/  filled=ball  ?^(fil.kid kid kid(fil `[~ ~ %.n ~ ~]))
     b(dir (~(put by dir.b) i.path.rail (~(put ba filled) [t.path.rail name.rail] c)))
   ::  Touch a file: update mtime, propagate mtime up to parents
   ::  Check if a content item exists
@@ -631,31 +660,30 @@
   ::  Get with default
   ::
   ++  gut
-    |=  [=rail default=content]
+    |=  [=rail default=sang]
     (fall (get rail) default)
   ::  Get a sage (crash if not found)
   ::
   ++  got-sage
     |=  =rail
     ^-  sage
-    =/  c=content  (got rail)
-    sage.c
+    (need-sage (got rail))
   ::  Get a file as mime (crash if not found or not a mime sage)
   ::
   ++  got-file
     |=  =rail
     ^-  mime
-    =/  c=content  (got rail)
-    ?.  =([/ %mime] p.sage.c)
+    =/  =sage  (got-sage rail)
+    ?.  =([/ %mime] p.sage)
       ~|("not a mime file: {(spud (snoc path.rail name.rail))}" !!)
-    !<(mime q.sage.c)
+    !<(mime q.sage)
   ::  Get a symlink (crash if not found or not a symlink)
   ::
   ++  got-symlink
     |=  =rail
     ^-  symlink
-    =/  c=content  (got rail)
-    =/  maybe-sym=(unit symlink)  (sage-to-symlink sage.c)
+    =/  =sage  (got-sage rail)
+    =/  maybe-sym=(unit symlink)  (sage-to-symlink sage)
     ?~  maybe-sym
       ~|("not a symlink: {(spud (snoc path.rail name.rail))}" !!)
     u.maybe-sym
@@ -665,14 +693,15 @@
     |*  [=rail a=mold]
     ^-  a
     !<(a q:(got-sage rail))
-  ::  Get sage as unit (returns ~ if not found)
+  ::  Get sage as unit (returns ~ if not found, ~ if boomed)
   ::
   ++  get-sage-as
     |*  [=rail a=mold]
     ^-  (unit a)
     ?~  may=(get rail)
       ~
-    `!<(a q.sage.u.may)
+    ?.  ?=(%& -.q.u.may)  ~
+    `!<(a q.p.q.u.may)
   ::  Count total content items across all directories
   ::
   ++  wyt
@@ -680,31 +709,35 @@
     %+  roll  ~(tap of b)
     |=  [[pax=path lmp=lump] acc=@ud]
     (add acc ~(wyt by contents.lmp))
-  ::  Convert entire ball to flat list of [rail content] pairs
+  ::  Convert entire ball to flat list of [rail sang] pairs
   ::
   ++  tap
-    ^-  (list [rail content])
+    ^-  (list [rail sang])
     %-  zing
     %+  turn  ~(tap of b)
     |=  [pax=path lmp=lump]
     %+  turn  ~(tap by contents.lmp)
-    |=  [name=@ta c=content]
-    [[pax name] c]
+    |=  [name=@ta =sang gain=? bang=(unit tang)]
+    [[pax name] sang]
   ::  Apply function to all content items
   ::
   ++  run
-    |=  fn=$-(content content)
+    |=  fn=$-(sang sang)
     ^-  ball
     %+  roll  ~(tap of b)
     |=  [[pax=path lmp=lump] acc=ball]
-    (~(put of acc) pax lmp(contents (~(run by contents.lmp) fn)))
+    %-  ~(put of acc)
+    :-  pax
+    %=  lmp
+      contents  (~(run by contents.lmp) |=([=sang gain=? bang=(unit tang)] [(fn sang) gain bang]))
+    ==
   ::  Insert list of content items
   ::
   ++  gas
-    |=  items=(list [rail content])
+    |=  items=(list [rail sang])
     ^-  ball
     %+  roll  items
-    |=  [[=rail c=content] acc=ball]
+    |=  [[=rail c=sang] acc=ball]
     (~(put ba acc) rail c)
   ::  Reduce over all content items
   ::
@@ -715,18 +748,18 @@
   ::  Check if all content items match predicate
   ::
   ++  all
-    |=  fn=$-(content ?)
+    |=  fn=$-(sang ?)
     ^-  ?
     %+  levy  tap
-    |=  [=rail c=content]
+    |=  [=rail c=sang]
     (fn c)
   ::  Check if any content item matches predicate
   ::
   ++  any
-    |=  fn=$-(content ?)
+    |=  fn=$-(sang ?)
     ^-  ?
     %+  lien  tap
-    |=  [=rail c=content]
+    |=  [=rail c=sang]
     (fn c)
   ::  Delete entire subtree at path
   ::
@@ -734,22 +767,22 @@
     |=  pax=path
     ^-  ball
     (~(lop of b) pax)
-  ::  Make directory at path with metadata and optional neck.
+  ::  Make directory at path with optional neck.
   ::  Ensures all intermediate directories have lumps.
   ::
   ++  mkd
-    |=  [pax=path met=metadata nec=(unit neck)]
+    |=  [pax=path nec=(unit neck)]
     ^-  ball
     ?~  pax
-      b(fil `[met nec ~])
+      b(fil `[nec ~ %.n ~ ~])
     ::  creating subdir: name must not collide with file name
     ~|  [%name-collision %dir-vs-file i.pax]
     ?<  ?&  ?=(^ fil.b)
             (~(has by contents.u.fil.b) i.pax)
         ==
     =/  kid=ball  (~(gut by dir.b) i.pax *ball)
-    =/  filled=ball  ?^(fil.kid kid kid(fil `[~ ~ ~]))
-    b(dir (~(put by dir.b) i.pax (~(mkd ba filled) t.pax met nec)))
+    =/  filled=ball  ?^(fil.kid kid kid(fil `[~ ~ %.n ~ ~]))
+    b(dir (~(put by dir.b) i.pax (~(mkd ba filled) t.pax nec)))
   ::  Put a ball (subtree) at path, replacing any existing subtree.
   ::  Ensures all intermediate directories have lumps.
   ::  Crashes if path collides with existing file.
@@ -766,7 +799,7 @@
             (~(has by contents.u.fil.b) i.pax)
         ==
     =/  kid=ball  (~(gut by dir.b) i.pax *ball)
-    =/  filled=ball  ?^(fil.kid kid kid(fil `[~ ~ ~]))
+    =/  filled=ball  ?^(fil.kid kid kid(fil `[~ ~ %.n ~ ~]))
     b(dir (~(put by dir.b) i.pax $(b filled, pax t.pax)))
   ::  Descend to subdirectory as new ball
   ::
@@ -799,6 +832,33 @@
     ?~  kids  %.y
     ?.  ^$(b i.kids)  %.n
     $(kids t.kids)
+  --
+::
+++  bo
+  |_  b=bole
+  ++  get
+    |=  =rail
+    ^-  (unit bask)
+    ?~  nod=(~(get of b) path.rail)
+      ~
+    =/  got  (~(get by contents.u.nod) name.rail)
+    ?~  got  ~
+    `bask.u.got
+  ++  put
+    |=  [=rail c=bask]
+    ^-  bole
+    ?~  path.rail
+      ~|  [%name-collision %file-vs-dir name.rail]
+      ?<  (~(has by dir.b) name.rail)
+      =/  plp=pulp  (fall fil.b [~ ~ %.n ~])
+      b(fil `plp(contents (~(put by contents.plp) name.rail [c %.n])))
+    ~|  [%name-collision %dir-vs-file i.path.rail]
+    ?<  ?&  ?=(^ fil.b)
+            (~(has by contents.u.fil.b) i.path.rail)
+        ==
+    =/  kid=bole  (~(gut by dir.b) i.path.rail *bole)
+    =/  filled=bole  ?^(fil.kid kid kid(fil `[~ ~ %.n ~]))
+    b(dir (~(put by dir.b) i.path.rail (~(put bo filled) [t.path.rail name.rail] c)))
   --
 ::  Tarball encoding utilities
 ::
@@ -1074,15 +1134,19 @@
     (generate-entry metadata ~)
   ::
   ++  make-content-entry
-    |=  [=path =content]
+    |=  [=path content=sang]
     ^-  tarball-entry
     =/  [prefix=^path name=^path]  (split-path path)
+    ::  Boomed files: skip (can't export error state)
+    ?:  (is-boom content)
+      (generate-entry (~(gas by *(map @t @t)) ~[['typeflag' '0'] ['prefix' (rsh [3 1] (spat prefix))] ['name' (rsh [3 1] (spat name))]]) ~)
+    =/  =sage  (need-sage content)
     ::  Check if this is a symlink sage
-    =/  maybe-sym=(unit symlink)  (sage-to-symlink sage.content)
+    =/  maybe-sym=(unit symlink)  (sage-to-symlink sage)
     ?^  maybe-sym
       ::  It's a symlink
       =/  sym-metadata=metadata
-        %-  ~(gas by metadata.content)
+        %-  ~(gas by *(map @t @t))
         :~  ['typeflag' '2']
             ['prefix' (rsh [3 1] (spat prefix))]
             ['name' (rsh [3 1] (spat name))]
@@ -1090,9 +1154,9 @@
         ==
       (generate-entry sym-metadata ~)
     ::  Regular file
-    =/  =mime  (sage-to-mime sage.content)
+    =/  =mime  (sage-to-mime sage)
     =/  sage-metadata=metadata
-      %-  ~(gas by metadata.content)
+      %-  ~(gas by *(map @t @t))
       :~  ['typeflag' '0']
           ['prefix' (rsh [3 1] (spat prefix))]
           ['name' (rsh [3 1] (spat name))]
@@ -1105,14 +1169,14 @@
     =/  tar-entries=tarball
       ?~  fil.ball
         ~
-      =/  exportable=(list [@ta content])  ~(tap by contents.u.fil.ball)
+      =/  exportable=(list [@ta [=sang gain=? bang=(unit tang)]])  ~(tap by contents.u.fil.ball)
       %+  weld
         ?~  path
           ~
-        [(make-directory-entry path metadata.u.fil.ball) ~]
+        [(make-directory-entry path ~) ~]
       %+  turn  exportable
-      |=  [name=@ta =content]
-      (make-content-entry (snoc path name) content)
+      |=  [name=@ta =sang gain=? bang=(unit tang)]
+      (make-content-entry (snoc path name) sang)
     =/  directories  ~(tap by dir.ball)
     |-
     ?~  directories

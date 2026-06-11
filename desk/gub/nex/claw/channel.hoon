@@ -19,8 +19,8 @@
 =<  ^-  nexus:nexus
     |%
     ++  on-load
-      |=  [=sand:nexus =gain:nexus =ball:tarball]
-      ^-  [sand:nexus gain:nexus ball:tarball]
+      |=  =ball:tarball
+      ^-  bole:tarball
       =/  =ver:loader  (get-ver:loader ball)
       =/  default-config=json
         %-  pairs:enjs:format
@@ -29,12 +29,12 @@
         ==
       ?+  ver  !!
           ?(~ [~ %0])
-        %+  spin:loader  [sand gain ball]
+        %+  spin:loader  ball
         :~  (ver-row:loader 0)
-            [%fall %& [/ %'config.json'] %.n [~ [/ %json] !>(default-config)]]
-            [%fall %& [/ %'inbox.json'] %.n [~ [/ %json] !>([%a ~])]]
-            [%over %& [/ %'send.sig'] %.n [~ [/ %sig] !>(~)]]
-            [%over %& [/ %'relay.sig'] %.n [~ [/ %sig] !>(~)]]
+            [%fall %& [/ %'config.json'] [[/ %json] default-config]]
+            [%fall %& [/ %'inbox.json'] [[/ %json] [%a ~]]]
+            [%over %& [/ %'send.sig'] [[/ %sig] ~]]
+            [%over %& [/ %'relay.sig'] [[/ %sig] ~]]
         ==
       ==
     ::
@@ -74,7 +74,7 @@
             :~  ['action' s+'typing']
                 ['chat_id' s+chat-id.cfg]
             ==
-          ;<  ~  bind:m  (poke:io bot-send [/ %json] !>(typing-body))
+          ;<  ~  bind:m  (poke:io bot-send [/ %json] typing-body)
           $
         ::  handle normal message send
         =/  text=(unit json)  (~(get by p.jon) 'text')
@@ -87,7 +87,7 @@
               ['chat_id' s+chat-id.cfg]
           ==
         ~&  >  ["%channel send: forwarding via" source-fold]
-        ;<  ~  bind:m  (poke:io bot-send [/ %json] !>(send-body))
+        ;<  ~  bind:m  (poke:io bot-send [/ %json] send-body)
         $
           ::  /relay.sig: bridge source inbound messages to inbox
           ::
@@ -105,18 +105,20 @@
           (ancestor-road:io [/claw %app] [%& (weld source-fold /messages) msg-file])
         ~&  >>  ["%channel relay: subscribing to" bot-msgs]
         ::  watch source messages
-        ;<  bot-view=view:nexus  bind:m  (keep:io /bot-msgs bot-msgs ~)
-        ~&  >>  ["%channel relay: initial view" -.bot-view]
-        =/  seen-count=@ud  (count-incoming bot-view)
+        ;<  *  bind:m  (keep:io /bot-msgs bot-msgs ~)
+        ;<  bot-seen=seen:nexus  bind:m  (peek:io bot-msgs ~)
+        ~&  >>  ["%channel relay: initial seen" -.bot-seen]
+        =/  seen-count=@ud  (count-incoming bot-seen)
         ~&  >>  ["%channel relay: started, seen" seen-count "messages"]
         |-
         ~&  >>  "%channel relay: waiting for take-news..."
-        ;<  upd=view:nexus  bind:m  (take-news:io /bot-msgs)
-        ~&  >>  ["%channel relay: got news!" -.upd]
-        =/  new-count=@ud  (count-incoming upd)
+        ;<  *  bind:m  (take-news:io /bot-msgs)
+        ;<  upd-seen=seen:nexus  bind:m  (peek:io bot-msgs ~)
+        ~&  >>  ["%channel relay: got news!" -.upd-seen]
+        =/  new-count=@ud  (count-incoming upd-seen)
         ~&  >>  ["%channel relay: new-count" new-count "seen-count" seen-count]
         =/  new-msgs=(list [text=@t from=@t])
-          (get-incoming-after upd seen-count)
+          (get-incoming-after upd-seen seen-count)
         =.  seen-count  new-count
         ?~  new-msgs
           ~&  >>  "%channel relay: no new incoming msgs after filter"
@@ -128,7 +130,7 @@
         ;<  cur-seen=seen:nexus  bind:m  (peek:io inbox-road ~)
         =/  cur-inbox=(list json)
           ?.  ?=([%& %file *] cur-seen)  ~
-          =/  j=json  (fall (mole |.(!<(json q.sage.p.cur-seen))) *json)
+          =/  j=json  (fall (mole |.(!<(json (need-vase:tarball sang.p.cur-seen)))) *json)
           ?.  ?=(%a -.j)  ~
           p.j
         =/  new-entries=(list json)
@@ -141,7 +143,7 @@
           ==
         =/  updated=json  [%a (weld cur-inbox new-entries)]
         ~&  >>>  ["%channel relay: writing" (lent new-entries) "entries to inbox"]
-        ;<  ~  bind:m  (over:io inbox-road [[/ %json] !>(updated)])
+        ;<  ~  bind:m  (over:io inbox-road [[/ %json] updated])
         ~&  >>>  "%channel relay: inbox updated!"
         $
       ==
@@ -179,7 +181,7 @@
   ;<  =seen:nexus  bind:m  (peek:io road `[/ %json])
   ?.  ?=([%& %file *] seen)
     (pure:m ['' ''])
-  =/  cfg=json  (fall (mole |.(!<(json q.sage.p.seen))) *json)
+  =/  cfg=json  (fall (mole |.(!<(json (need-vase:tarball sang.p.seen)))) *json)
   ?.  ?=(%o -.cfg)
     (pure:m ['' ''])
   =/  get
@@ -205,9 +207,9 @@
 ::  count incoming (non-bot) messages in a telegram message file view
 ::
 ++  count-incoming
-  |=  =view:nexus
+  |=  =seen:nexus
   ^-  @ud
-  =/  msgs=(list json)  (extract-msgs view)
+  =/  msgs=(list json)  (extract-msgs seen)
   %+  roll  msgs
   |=  [msg=json acc=@ud]
   ?.  ?=([%o *] msg)  acc
@@ -218,9 +220,9 @@
 ::  get incoming messages after a given count, with sender info
 ::
 ++  get-incoming-after
-  |=  [=view:nexus skip=@ud]
+  |=  [=seen:nexus skip=@ud]
   ^-  (list [text=@t from=@t])
-  =/  msgs=(list json)  (extract-msgs view)
+  =/  msgs=(list json)  (extract-msgs seen)
   =/  idx=@ud  0
   =/  acc=(list [text=@t from=@t])  ~
   |-
@@ -247,10 +249,10 @@
 ::  extract messages list from a telegram message file view
 ::
 ++  extract-msgs
-  |=  =view:nexus
+  |=  =seen:nexus
   ^-  (list json)
-  ?.  ?=([%file *] view)  ~
-  =/  dat=json  (fall (mole |.(!<(json q.sage.view))) *json)
+  ?.  ?=([%& %file *] seen)  ~
+  =/  dat=json  (fall (mole |.(!<(json (need-vase:tarball sang.p.seen)))) *json)
   ?:  ?=([%a *] dat)  p.dat
   ?.  ?=([%o *] dat)  ~
   =/  v  (~(get by p.dat) 'messages')

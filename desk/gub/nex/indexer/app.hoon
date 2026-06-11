@@ -18,8 +18,8 @@
 =<  ^-  nexus:nexus
     |%
     ++  on-load
-      |=  [=sand:nexus =gain:nexus =ball:tarball]
-      ^-  [sand:nexus gain:nexus ball:tarball]
+      |=  =ball:tarball
+      ^-  bole:tarball
       =/  =ver:loader  (get-ver:loader ball)
       ?+  ver  !!
           ?(~ [~ %0] [~ %1])
@@ -29,12 +29,12 @@
               ['auth' s+'Basic dXJiaXQ6dXJiaXQxMjM=']
               ['poll-interval' s+'~s5']
           ==
-        %+  spin:loader  [sand gain ball]
+        %+  spin:loader  ball
         :~  (ver-row:loader 1)
-            [%fall %& [/ %'config.json'] %.n [~ [/ %json] !>(default-config)]]
-            [%fall %& [/ %'tip.ud'] %.n [~ [/ %ud] !>(`@ud`0)]]
-            [%over %& [/ %'poller.sig'] %.n [~ [/ %sig] !>(~)]]
-            [%fall %| /blocks [~ ~] [~ ~] empty-dir:loader]
+            [%fall %& [/ %'config.json'] [[/ %json] default-config]]
+            [%fall %& [/ %'tip.ud'] [[/ %ud] 0]]
+            [%over %& [/ %'poller.sig'] [[/ %sig] ~]]
+            [%fall %| /blocks empty-dir:loader]
         ==
       ==
     ::
@@ -76,7 +76,7 @@
           $
         ::  update tip file
         =/  tip-road=road:tarball  (cord-to-road:tarball './tip.ud')
-        ;<  ~  bind:m  (over:io tip-road [[/ %ud] !>(u.tip)])
+        ;<  ~  bind:m  (over:io tip-road [[/ %ud] u.tip])
         ::  check what we've already cached
         ;<  blocks-seen=seen:nexus  bind:m
           (peek:io (cord-to-road:tarball './blocks/') ~)
@@ -120,7 +120,7 @@
           ::  block height out of range — chain may have reset
           ?:  ?=(^ (find "out of range" (trip hash-body)))
             ~&  >  [%indexer %chain-reset-detected next]
-            ;<  ~  bind:m  (over:io tip-road [[/ %ud] !>(`@ud`0)])
+            ;<  ~  bind:m  (over:io tip-road [[/ %ud] `@ud`0])
             ^$
           ~&  >  [%indexer %no-hash next]
           ;<  ~  bind:m  (sleep:io ~s2)
@@ -198,7 +198,7 @@
   ^-  [url=@t auth=@t interval=@dr]
   =/  fallback=[url=@t auth=@t interval=@dr]  ['http://localhost:18443/' 'Basic dXJiaXQ6dXJiaXQxMjM=' ~s5]
   ?.  ?=([%& %file *] seen)  fallback
-  =/  jon  !<(json q.sage.p.seen)
+  =/  jon  !<(json (need-vase:tarball sang.p.seen))
   ?.  ?=([%o *] jon)  fallback
   =/  url=@t
     =/  u=(unit json)  (~(get by p.jon) 'url')
@@ -232,24 +232,24 @@
         ['reward' (numb:enjs:format reward.blk)]
     ==
   ::  build txs directory: lump with one json content entry per tx
-  =/  tx-map=(map @ta content:tarball)
-    %-  ~(gas by *(map @ta content:tarball))
+  =/  tx-map=(map @ta [=sang:tarball gain=? bang=(unit tang)])
+    %-  ~(gas by *(map @ta [=sang:tarball gain=? bang=(unit tang)]))
     %+  turn  txs.blk
     |=  t=tx:btc
-    ^-  [@ta content:tarball]
+    ^-  [@ta [=sang:tarball gain=? bang=(unit tang)]]
     =/  txid-hex=@t  (render-hex-octs:btc-rpc 32^id.t)
     =/  fname=@ta  (cat 3 txid-hex '.json')
     =/  tx-json=json  (tx-to-json t)
-    [fname [~ [/ %json] !>(tx-json)]]
-  =/  txs-lump=lump:tarball  [~ ~ tx-map]
+    [fname [[/ %json] %& !>(tx-json)] %.n ~]
+  =/  txs-lump=lump:tarball  [~ ~ %.n ~ tx-map]
   ::  assemble block ball: header.json in lump, txs/ as subdir
-  =/  header-contents=(map @ta content:tarball)
-    (~(put by *(map @ta content:tarball)) %'header.json' [~ [/ %json] !>(header-json)])
-  =/  block-lump=lump:tarball  [~ ~ header-contents]
+  =/  header-contents=(map @ta [=sang:tarball gain=? bang=(unit tang)])
+    (~(put by *(map @ta [=sang:tarball gain=? bang=(unit tang)])) %'header.json' [[[/ %json] %& !>(header-json)] %.n ~])
+  =/  block-lump=lump:tarball  [~ ~ %.n ~ header-contents]
   =/  block-ball=ball:tarball
     [`block-lump (~(put by *(map @ta ball:tarball)) %txs [`txs-lump ~])]
   ;<  *  bind:m
-    (make-soft:io (cord-to-road:tarball (cat 3 './blocks/' (cat 3 height-dir '/'))) &+[*sand:nexus *gain:nexus block-ball])
+    (make-soft:io (cord-to-road:tarball (cat 3 './blocks/' (cat 3 height-dir '/'))) &+(ball-to-bole:tarball block-ball))
   (pure:m ~)
 ::
 ++  tx-to-json

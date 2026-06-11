@@ -66,9 +66,9 @@
     =/  src-mime=mime  [mtype (as-octs:mimes:html content)]
     ;<  exists=?  bind:m  (peek-exists:io road)
     ?:  exists
-      ;<  ~  bind:m  (over:io road [[/ %mime] !>(src-mime)])
+      ;<  ~  bind:m  (over:io road [[/ %mime] src-mime])
       (pure:m [%text (crip "Wrote {(trip file-path)}/{(trip file-name)} [{(trip u.content-type)}]")])
-    ;<  ~  bind:m  (make:io road |+[%.n [[/ %mime] !>(src-mime)] ~])
+    ;<  ~  bind:m  (make:io road |+[[[/ %mime] src-mime] ~])
     (pure:m [%text (crip "Created {(trip file-path)}/{(trip file-name)} [{(trip u.content-type)}]")])
   ::  Build mime cage from content
   =/  src-mime=mime  [/text/plain (as-octs:mimes:html content)]
@@ -77,11 +77,11 @@
     ?^  dest-blot
       (pure:m [%error 'Cannot change blot of existing file. Delete it first, then recreate with the desired blot.'])
     ::  Existing file: %over converts mime to file's blot via warm tube
-    ;<  ~  bind:m  (over:io road [[/ %mime] !>(src-mime)])
+    ;<  ~  bind:m  (over:io road [[/ %mime] src-mime])
     (pure:m [%text (crip "Wrote {(trip file-path)}/{(trip file-name)}")])
   ::  New file: pass dest-blot so runtime converts mime before storing.
   ::  If no blot specified, stores as mime.
-  ;<  ~  bind:m  (make:io road |+[%.n [[/ %mime] !>(src-mime)] dest-blot])
+  ;<  ~  bind:m  (make:io road |+[[[/ %mime] src-mime] dest-blot])
   =/  blot-msg=tape  ?~(dest-blot "mime" (spud (rail-to-path:tarball u.dest-blot)))
   (pure:m [%text (crip "Created {(trip file-path)}/{(trip file-name)} [{blot-msg}]")])
 --

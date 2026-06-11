@@ -9,24 +9,24 @@
 =<  ^-  nexus:nexus
     |%
     ++  on-load
-      |=  [=sand:nexus =gain:nexus =ball:tarball]
-      ^-  [sand:nexus gain:nexus ball:tarball]
+      |=  =ball:tarball
+      ^-  bole:tarball
       =/  =ver:loader  (get-ver:loader ball)
       =/  default-config=json
         %-  pairs:enjs:format
         ~[['bot-token' s+'']]
       ?+  ver  !!
           ?(~ [~ %0])
-        %+  spin:loader  [sand gain ball]
+        %+  spin:loader  ball
         :~  (ver-row:loader 0)
-            [%fall %& [/ %'config.json'] %.n [~ [/ %json] !>(default-config)]]
-            [%fall %& [/ %'offset.ud'] %.n [~ [/ %ud] !>(0)]]
-            [%fall %& [/ %'send.sig'] %.n [~ [/ %sig] !>(~)]]
-            [%fall %& [/ %'poller.sig'] %.n [~ [/ %sig] !>(~)]]
-            [%fall %| /messages [~ ~] [~ ~] empty-dir:loader]
-            [%fall %| /ui/sse [~ ~] [~ ~] empty-dir:loader]
-            [%over %& [/ui/sse %'data.html'] %.n [~ [/ %html] !>((crip (en-xml:html (sse-data ~ ~))))]]
-            [%over %& [/ui %'chat.html'] %.n [~ [/ %html] !>((crip (en-xml:html (chat-page "" *(map @t @t) *(list json)))))]]
+            [%fall %& [/ %'config.json'] [[/ %json] default-config]]
+            [%fall %& [/ %'offset.ud'] [[/ %ud] 0]]
+            [%fall %& [/ %'send.sig'] [[/ %sig] ~]]
+            [%fall %& [/ %'poller.sig'] [[/ %sig] ~]]
+            [%fall %| /messages empty-dir:loader]
+            [%fall %| /ui/sse empty-dir:loader]
+            [%over %& [/ui/sse %'data.html'] [[/ %html] (crip (en-xml:html (sse-data ~ ~)))]]
+            [%over %& [/ui %'chat.html'] [[/ %html] (crip (en-xml:html (chat-page "" *(map @t @t) *(list json))))]]
         ==
       ==
     ::
@@ -167,7 +167,7 @@
         ::  update offset
         ::
         =/  offset-road=road:tarball  (cord-to-road:tarball './offset.ud')
-        ;<  ~  bind:m  (over:io offset-road [[/ %ud] !>(new-offset)])
+        ;<  ~  bind:m  (over:io offset-road [[/ %ud] new-offset])
         $(offset new-offset)
           ::  /send.sig: accept pokes to send messages as the bot
           ::
@@ -226,14 +226,13 @@
         ;<  ~  bind:m  (rise-wait:io prod "%telegram-bot sse: failed")
         ;<  here=rail:tarball  bind:m  get-here-abs:io
         =/  ball-id=tape  (trip (snag 0 path.here))
-        ;<  init=view:nexus  bind:m
-          (keep:io /msgs (cord-to-road:tarball '../../messages/') ~)
-        =/  chat-data=[(map @t @t) (list json)]  (view-to-chat-data init)
-        ;<  ~  bind:m  (replace:io !>((crip (en-xml:html (sse-data -.chat-data +.chat-data)))))
+        =/  msgs-road=road:tarball  (cord-to-road:tarball '../../messages/')
+        ;<  *  bind:m  (keep:io /msgs msgs-road ~)
         |-
-        ;<  upd=view:nexus  bind:m  (take-news:io /msgs)
-        =/  chat-data=[(map @t @t) (list json)]  (view-to-chat-data upd)
+        ;<  =seen:nexus  bind:m  (peek:io msgs-road ~)
+        =/  chat-data=[(map @t @t) (list json)]  (view-to-chat-data seen)
         ;<  ~  bind:m  (replace:io !>((crip (en-xml:html (sse-data -.chat-data +.chat-data)))))
+        ;<  *  bind:m  (take-news:io /msgs)
         $
           ::  /ui/chat.html: live chat view
           ::
@@ -252,16 +251,14 @@
           =/  seg=tape  (trip i.pax)
           ?~  acc  $(pax t.pax, acc seg)
           $(pax t.pax, acc (weld acc (weld "/" seg)))
-        ;<  init=view:nexus  bind:m
-          (keep:io /msgs [%| 1 %| /messages] ~)
-        =/  chat-data=[(map @t @t) (list json)]  (view-to-chat-data init)
-        ;<  ~  bind:m
-          (replace:io !>((crip (en-xml:html (chat-page base -.chat-data +.chat-data)))))
+        =/  msgs-road=road:tarball  [%| 1 %| /messages]
+        ;<  *  bind:m  (keep:io /msgs msgs-road ~)
         |-
-        ;<  upd=view:nexus  bind:m  (take-news:io /msgs)
-        =/  chat-data=[(map @t @t) (list json)]  (view-to-chat-data upd)
+        ;<  =seen:nexus  bind:m  (peek:io msgs-road ~)
+        =/  chat-data=[(map @t @t) (list json)]  (view-to-chat-data seen)
         ;<  ~  bind:m
           (replace:io !>((crip (en-xml:html (chat-page base -.chat-data +.chat-data)))))
+        ;<  *  bind:m  (take-news:io /msgs)
         $
       ==
     ::
@@ -303,7 +300,7 @@
     (peek:io (cord-to-road:tarball './config.json') `[/ %json])
   ?.  ?=([%& %file *] seen)
     (pure:m '')
-  =/  cfg=json  !<(json q.sage.p.seen)
+  =/  cfg=json  !<(json (need-vase:tarball sang.p.seen))
   ?.  ?=(%o -.cfg)
     (pure:m '')
   =/  v  (~(get by p.cfg) 'bot-token')
@@ -317,7 +314,7 @@
     (peek:io (cord-to-road:tarball './offset.ud') `[/ %ud])
   ?.  ?=([%& %file *] seen)
     (pure:m 0)
-  (pure:m !<(@ud q.sage.p.seen))
+  (pure:m !<(@ud (need-vase:tarball sang.p.seen)))
 ::
 ++  read-chat-file
   |=  cid=@t
@@ -327,7 +324,7 @@
     (peek:io (cord-to-road:tarball (rap 3 ~['./messages/' cid '.json'])) `[/ %json])
   ?.  ?=([%& %file *] seen)
     (pure:m [%o ~])
-  (pure:m !<(json q.sage.p.seen))
+  (pure:m !<(json (need-vase:tarball sang.p.seen)))
 ::
 ++  get-chat-name
   |=  [dat=json default=@t]
@@ -361,23 +358,23 @@
   ;<  =seen:nexus  bind:m
     (peek:io file-road ~)
   ?:  ?=([%& %file *] seen)
-    (over:io file-road [[/ %json] !>(dat)])
-  (make:io file-road [%| gain=%.n [[/ %json] !>(dat)] ~])
+    (over:io file-road [[/ %json] dat])
+  (make:io file-road [%| [[/ %json] dat] ~])
 ::
 ::  Extract chat names and messages from the messages/ directory view.
 ::  Files live in fil.ball.view → contents (not dir, which is subdirs).
 ::
 ++  view-to-chat-data
-  |=  =view:nexus
+  |=  =seen:nexus
   ^-  [(map @t @t) (list json)]
-  ?.  ?=([%ball *] view)  [~ ~]
-  ?~  fil.ball.view  [~ ~]
-  =/  files=(list [key=@ta =content:tarball])
-    ~(tap by contents.u.fil.ball.view)
+  ?.  ?=([%& %ball *] seen)  [~ ~]
+  ?~  fil.ball.p.seen  [~ ~]
+  =/  files=(list [key=@ta [=sang:tarball gain=? bang=(unit tang)]])
+    ~(tap by contents.u.fil.ball.p.seen)
   %+  roll  files
-  |=  [[key=@ta =content:tarball] chats=(map @t @t) msgs=(list json)]
-  ?.  ?=(%json name.p.sage.content)  [chats msgs]
-  =/  dat=json  !<(json q.sage.content)
+  |=  [[key=@ta =sang:tarball gain=? bang=(unit tang)] chats=(map @t @t) msgs=(list json)]
+  ?.  ?=(%json name.p.sang)  [chats msgs]
+  =/  dat=json  !<(json (need-vase:tarball sang))
   ::  handle old format: [%a msgs] — derive chat-id from first message
   ?:  ?=([%a *] dat)
     =/  old-msgs=(list json)  p.dat

@@ -48,7 +48,7 @@
         (pure:m ~)
       =/  names=(list @ta)
         %+  turn  ~(tap by contents.u.fil.ball.p.src-seen)
-        |=([name=@ta *] (strip-hoon name))
+        |=([name=@ta [=sang:tarball gain=? bang=(unit tang)]] (strip-hoon name))
       =/  result=(map @t tool:nex-tools)  ~
       |-
       ?~  names  (pure:m result)
@@ -82,19 +82,19 @@
 ^-  nexus:nexus
 |%
 ++  on-load
-  |=  [=sand:nexus =gain:nexus =ball:tarball]
-  ^-  [sand:nexus gain:nexus ball:tarball]
+  |=  =ball:tarball
+  ^-  bole:tarball
   =/  =ver:loader  (get-ver:loader ball)
   ?+  ver  !!
       ?(~ [~ %0])
-    %+  spin:loader  [sand gain ball]
+    %+  spin:loader  ball
     :~  (ver-row:loader 1)
-        [%fall %& [/ %'main.sig'] %.n [~ [/ %sig] !>(~)]]
-        [%fall %| /requests [~ ~] [~ ~] empty-dir:loader]
-        [%fall %| /tools [~ ~] [~ ~] empty-dir:loader]
+        [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
+        [%fall %| /requests empty-dir:loader]
+        [%fall %| /tools empty-dir:loader]
     ==
       [~ %1]
-    [sand gain ball]
+    (ball-to-bole:tarball ball)
   ==
 ::
 ++  on-file
@@ -107,7 +107,6 @@
       [~ %'main.sig']
     ;<  ~  bind:m  (rise-wait:io prod "%mcp /main: failed")
     ;<  ~  bind:m  (bind-http:io [~ /grubbery/mcp])
-    ~&  >  "%mcp /main: ready, bound /grubbery/mcp"
     (http-dispatch:io %mcp)
       ::  /requests/{eyre-id}: parse HTTP, dispatch
       ::
@@ -156,15 +155,22 @@
         ;<  *  bind:m
           (keep:io /watch tool-road ~)
         ?.  exists
-          (make:io tool-road |+[%.n [[/ %tool-state] !>(ts)] ~])
+          ;<  ~  bind:m  (make:io tool-road |+[[[/ %tool-state] ts] ~])
+          (gain:io tool-road %.y)
         (pure:m ~)
       ::  Wait for tool to finish
       |-
       ;<  nw=news-or-wake:io  bind:m  (take-news-or-wake:io /watch)
       ?:  ?=(%wake -.nw)  $
-      ?.  ?=(%file -.view.nw)  $
+      =/  cas=(unit cass:clay)
+        =/  lanes=(list [=lane:tarball =cass:clay])  ~(tap by wave.nw)
+        ?~  lanes  ~
+        `cass.i.lanes
+      ?~  cas  $
+      ;<  =seen:nexus  bind:m  (peek-at:io tool-road ~ [%ud ud.u.cas])
+      ?.  ?=([%& %file *] seen)  $
       =/  st=tool-state:nex-tools
-        !<(tool-state:nex-tools q.sage.view.nw)
+        !<(tool-state:nex-tools (need-vase:tarball sang.p.seen))
       ?.  =(%done step.st)  $
       ?~  update.st  $
       ::  Done — build JSON-RPC response from update
@@ -211,6 +217,14 @@
       ?-  -.result
         %text   (pairs:enjs:format ~[['type' s+'text'] ['text' s+text.result]])
         %error  (pairs:enjs:format ~[['type' s+'error'] ['message' s+message.result]])
+        %mime
+      =/  media-type=@t  (mite-to-cord:nex-tools p.mime.result)
+      =/  b64=@t  (en:base64:mimes:html q.mime.result)
+      %-  pairs:enjs:format
+      :~  ['type' s+'mime']
+          ['media_type' s+media-type]
+          ['data' s+b64]
+      ==
       ==
     (replace:io !>(`tool-state:nex-tools`[tool.st args.st %done data.st `result-json]))
   ==

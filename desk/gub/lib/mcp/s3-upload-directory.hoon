@@ -44,7 +44,7 @@
     (peek:io [%& %& file-path filename] ~)
   ?.  ?=([%& %file *] file-seen)
     $(files-to-upload t.files-to-upload)
-  ;<  =mime  bind:m  (sage-to-mime:io sage.p.file-seen)
+  ;<  =mime  bind:m  (sage-to-mime:io (need-sage:tarball sang.p.file-seen))
   =/  text=@t  ;;(@t q.q.mime)
   =/  full-name=@ta  filename
   =/  relative-path=path

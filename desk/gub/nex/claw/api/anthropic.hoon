@@ -16,8 +16,8 @@
 =<  ^-  nexus:nexus
     |%
     ++  on-load
-      |=  [=sand:nexus =gain:nexus =ball:tarball]
-      ^-  [sand:nexus gain:nexus ball:tarball]
+      |=  =ball:tarball
+      ^-  bole:tarball
       =/  =ver:loader  (get-ver:loader ball)
       =/  default-rates=json
         %-  pairs:enjs:format
@@ -56,14 +56,14 @@
         ==
       ?+  ver  !!
           ?(~ [~ %0])
-        %+  spin:loader  [sand gain ball]
+        %+  spin:loader  ball
         :~  (ver-row:loader 0)
-            [%fall %& [/ %'main.sig'] %.n [~ [/ %sig] !>(~)]]
-            [%fall %& [/ %'config.json'] %.n [~ [/ %json] !>(default-config)]]
-            [%fall %& [/ %'rates.json'] %.n [~ [/ %json] !>(default-rates)]]
-            [%fall %& [/ %'usage.json'] %.n [~ [/ %json] !>(default-usage)]]
-            [%fall %| /calls [~ ~] [~ ~] empty-dir:loader]
-            [%over %& [/ %'page.html'] %.n [~ [/ %html] !>((crip (en-xml:html usage-page)))]]
+            [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
+            [%fall %& [/ %'config.json'] [[/ %json] default-config]]
+            [%fall %& [/ %'rates.json'] [[/ %json] default-rates]]
+            [%fall %& [/ %'usage.json'] [[/ %json] default-usage]]
+            [%fall %| /calls empty-dir:loader]
+            [%over %& [/ %'page.html'] [[/ %html] (crip (en-xml:html usage-page))]]
         ==
       ==
     ::
@@ -99,7 +99,7 @@
               ['request' u.body]
               ['from' s+caller]
           ==
-        ;<  ~  bind:m  (make:io call-road |+[%.n [[/ %json] !>(call-content)] ~])
+        ;<  ~  bind:m  (make:io call-road |+[[[/ %json] call-content] ~])
         $
           ::  /calls/[id].json: read request, make HTTP call, write response
           ::
@@ -201,7 +201,7 @@
   ;<  =seen:nexus  bind:m  (peek:io road ~)
   ?.  ?=([%& %file *] seen)
     (pure:m ['' ''])
-  =/  cfg=json  (fall (mole |.(!<(json q.sage.p.seen))) *json)
+  =/  cfg=json  (fall (mole |.(!<(json (need-vase:tarball sang.p.seen)))) *json)
   ?.  ?=(%o -.cfg)
     (pure:m ['' ''])
   =/  get
@@ -237,7 +237,7 @@
   ;<  usage-seen=seen:nexus  bind:m  (peek:io usage-road `[/ %json])
   =/  cur=json
     ?.  ?=([%& %file *] usage-seen)  [%o ~]
-    (fall (mole |.(!<(json q.sage.p.usage-seen))) [%o ~])
+    (fall (mole |.(!<(json (need-vase:tarball sang.p.usage-seen)))) [%o ~])
   ?.  ?=(%o -.cur)  (pure:m ~)
   ::  build call entry + updated call log
   =/  old-calls=(list json)
@@ -267,7 +267,7 @@
         ['requests' (numb:enjs:format (add 1 (get-num cur 'requests')))]
         ['calls' new-calls]
     ==
-  ;<  ~  bind:m  (over:io usage-road [/ %json] !>(new))
+  ;<  ~  bind:m  (over:io usage-road [/ %json] new)
   (pure:m ~)
 ::
 ::  +from-to-cord: convert poke source to a readable identifier
@@ -359,6 +359,17 @@
           ".rate-hdr .r-model \{ flex: 2; }"
           ".rate-hdr .r-price \{ flex: 1; }"
           ".rate-hdr .r-del \{ width: 24px; }"
+          "@media (max-width: 600px) \{"
+          "  #header \{ flex-direction: column; gap: 6px; }"
+          "  #header > div \{ flex-wrap: wrap; }"
+          "  #content \{ padding: 12px; }"
+          "  .stats \{ grid-template-columns: repeat(2, 1fr); gap: 8px; }"
+          "  .stat .value \{ font-size: 18px; }"
+          "  table \{ display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; }"
+          "  thead \{ min-width: 600px; display: table; width: 100%; }"
+          "  tbody \{ min-width: 600px; display: table; width: 100%; }"
+          "  td, th \{ padding: 6px 6px; font-size: 12px; }"
+          "}"
         ==
       ==
     ==
@@ -604,7 +615,7 @@
   =/  m  (fiber:fiber:nexus ,client-response:iris)
   ^-  form:m
   |=  input:fiber:nexus
-  :+  ~  state
+  :+  ~  q.state
   ?+  in  [%skip ~]
       ~  [%wait ~]
       [~ %veto *]

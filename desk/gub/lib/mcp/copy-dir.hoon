@@ -29,6 +29,6 @@
   ?.  ?=([%& %ball *] seen)
     (pure:m [%error (crip "Source not found or not a directory: {(trip u.src)}")])
   ::  create destination with source's ball subtree
-  ;<  ~  bind:m  (make:io dst-road &+[sand.p.seen gain.p.seen ball.p.seen])
+  ;<  ~  bind:m  (make:io dst-road &+(ball-to-bole:tarball ball.p.seen))
   (pure:m [%text (crip "Copied {(trip u.src)} -> {(trip u.dst)}")])
 --

@@ -7,25 +7,25 @@
 =<  ^-  nexus:nexus
     |%
     ++  on-load
-      |=  [=sand:nexus =gain:nexus =ball:tarball]
-      ^-  [sand:nexus gain:nexus ball:tarball]
+      |=  =ball:tarball
+      ^-  bole:tarball
       =/  =ver:loader  (get-ver:loader ball)
       ?+  ver  !!
           ?(~ [~ %0])
-        %+  spin:loader  [sand gain ball]
+        %+  spin:loader  ball
         :~  (ver-row:loader 0)
-            [%fall %& [/ %'main.sig'] %.n [~ [/ %sig] !>(~)]]
-            [%fall %| /apis [~ ~] [~ ~] empty-dir:loader]
-            [%fall %| /apis/anthropic [~ ~] [~ ~] [`[~ `[/claw/api %anthropic] ~] ~]]
-            [%fall %| /agents [~ ~] [~ ~] empty-dir:loader]
-            [%fall %| /agents/main [`main-agent-weir ~] [~ ~] [`[~ `[/claw %agent] ~] ~]]
-            [%fall %| /channels [~ ~] [~ ~] empty-dir:loader]
-            [%fall %| /channels/telegram/main-bot [~ ~] [~ ~] [`[~ `[/claw/channel %telegram] ~] ~]]
-            [%fall %| /ui/sse [~ ~] [~ ~] empty-dir:loader]
-            [%over %& [/ui/sse %'agents.html'] %.n [~ [/ %html] !>((crip (en-xml:html (agents-fragment "" ~))))]]
-            [%over %& [/ui/sse %'channels.html'] %.n [~ [/ %html] !>((crip (en-xml:html (channels-fragment "" ~))))]]
-            [%over %& [/ui/sse %'apis.html'] %.n [~ [/ %html] !>((crip (en-xml:html (apis-fragment "" ~))))]]
-            [%over %& [/ %'page.html'] %.n [~ [/ %html] !>((crip (en-xml:html (dashboard-page "" ~ ~ ~))))]]
+            [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
+            [%fall %| /apis empty-dir:loader]
+            [%fall %| /apis/anthropic [`[`[/claw/api %anthropic] ~ %.n ~] ~]]
+            [%fall %| /agents empty-dir:loader]
+            [%fall %| /agents/main [`[`[/claw %agent] `main-agent-weir %.n ~] ~]]
+            [%fall %| /channels empty-dir:loader]
+            [%fall %| /channels/telegram/main-bot [`[`[/claw/channel %telegram] ~ %.n ~] ~]]
+            [%fall %| /ui/sse empty-dir:loader]
+            [%over %& [/ui/sse %'agents.html'] [[/ %html] (crip (en-xml:html (agents-fragment "" ~)))]]
+            [%over %& [/ui/sse %'channels.html'] [[/ %html] (crip (en-xml:html (channels-fragment "" ~)))]]
+            [%over %& [/ui/sse %'apis.html'] [[/ %html] (crip (en-xml:html (apis-fragment "" ~)))]]
+            [%over %& [/ %'page.html'] [[/ %html] (crip (en-xml:html (dashboard-page "" ~ ~ ~)))]]
         ==
       ==
     ::
@@ -41,58 +41,49 @@
         ;<  ~  bind:m  (rise-wait:io prod "%claw/app page: failed")
         ;<  here=rail:tarball  bind:m  get-here-abs:io
         =/  ball-id=tape  (path-to-ball-id path.here)
-        ;<  agents=view:nexus  bind:m
-          (keep:io /agents (cord-to-road:tarball './agents/') ~)
-        ;<  channels=view:nexus  bind:m
-          (keep:io /channels (cord-to-road:tarball './channels/') ~)
-        ;<  apis=view:nexus  bind:m
-          (keep:io /apis (cord-to-road:tarball './apis/') ~)
-        ;<  ~  bind:m
-          (replace:io !>((crip (en-xml:html (dashboard-page ball-id (read-names agents) (read-entities channels) (read-entities apis))))))
+        ;<  *  bind:m  (keep:io /agents (cord-to-road:tarball './agents/') ~)
+        ;<  *  bind:m  (keep:io /channels (cord-to-road:tarball './channels/') ~)
+        ;<  *  bind:m  (keep:io /apis (cord-to-road:tarball './apis/') ~)
         |-
-        ;<  [tag=?(%agents %channels %apis) =view:nexus]  bind:m
-          (take-any-news /agents /channels /apis)
-        =?  agents    =(tag %agents)    view
-        =?  channels  =(tag %channels)  view
-        =?  apis      =(tag %apis)      view
+        ;<  agents=seen:nexus  bind:m  (peek:io (cord-to-road:tarball './agents/') ~)
+        ;<  channels=seen:nexus  bind:m  (peek:io (cord-to-road:tarball './channels/') ~)
+        ;<  apis=seen:nexus  bind:m  (peek:io (cord-to-road:tarball './apis/') ~)
         ;<  ~  bind:m
           (replace:io !>((crip (en-xml:html (dashboard-page ball-id (read-names agents) (read-entities channels) (read-entities apis))))))
+        ;<  [* *]  bind:m  (take-any-news /agents /channels /apis)
         $
         ::
           [[%ui %sse ~] %'agents.html']
         ;<  ~  bind:m  (rise-wait:io prod "%claw/app sse/agents: failed")
         ;<  here=rail:tarball  bind:m  get-here-abs:io
         =/  ball-id=tape  (path-to-ball-id (snip (snip path.here)))
-        ;<  init=view:nexus  bind:m
-          (keep:io /agents (cord-to-road:tarball '../../agents/') ~)
-        ;<  ~  bind:m  (replace:io !>((crip (en-xml:html (agents-fragment ball-id (read-names init))))))
+        ;<  *  bind:m  (keep:io /agents (cord-to-road:tarball '../../agents/') ~)
         |-
-        ;<  upd=view:nexus  bind:m  (take-news:io /agents)
-        ;<  ~  bind:m  (replace:io !>((crip (en-xml:html (agents-fragment ball-id (read-names upd))))))
+        ;<  agents=seen:nexus  bind:m  (peek:io (cord-to-road:tarball '../../agents/') ~)
+        ;<  ~  bind:m  (replace:io !>((crip (en-xml:html (agents-fragment ball-id (read-names agents))))))
+        ;<  *  bind:m  (take-news:io /agents)
         $
         ::
           [[%ui %sse ~] %'channels.html']
         ;<  ~  bind:m  (rise-wait:io prod "%claw/app sse/channels: failed")
         ;<  here=rail:tarball  bind:m  get-here-abs:io
         =/  ball-id=tape  (path-to-ball-id (snip (snip path.here)))
-        ;<  init=view:nexus  bind:m
-          (keep:io /channels (cord-to-road:tarball '../../channels/') ~)
-        ;<  ~  bind:m  (replace:io !>((crip (en-xml:html (channels-fragment ball-id (read-entities init))))))
+        ;<  *  bind:m  (keep:io /channels (cord-to-road:tarball '../../channels/') ~)
         |-
-        ;<  upd=view:nexus  bind:m  (take-news:io /channels)
-        ;<  ~  bind:m  (replace:io !>((crip (en-xml:html (channels-fragment ball-id (read-entities upd))))))
+        ;<  channels=seen:nexus  bind:m  (peek:io (cord-to-road:tarball '../../channels/') ~)
+        ;<  ~  bind:m  (replace:io !>((crip (en-xml:html (channels-fragment ball-id (read-entities channels))))))
+        ;<  *  bind:m  (take-news:io /channels)
         $
         ::
           [[%ui %sse ~] %'apis.html']
         ;<  ~  bind:m  (rise-wait:io prod "%claw/app sse/apis: failed")
         ;<  here=rail:tarball  bind:m  get-here-abs:io
         =/  ball-id=tape  (path-to-ball-id (snip (snip path.here)))
-        ;<  init=view:nexus  bind:m
-          (keep:io /apis (cord-to-road:tarball '../../apis/') ~)
-        ;<  ~  bind:m  (replace:io !>((crip (en-xml:html (apis-fragment ball-id (read-entities init))))))
+        ;<  *  bind:m  (keep:io /apis (cord-to-road:tarball '../../apis/') ~)
         |-
-        ;<  upd=view:nexus  bind:m  (take-news:io /apis)
-        ;<  ~  bind:m  (replace:io !>((crip (en-xml:html (apis-fragment ball-id (read-entities upd))))))
+        ;<  apis=seen:nexus  bind:m  (peek:io (cord-to-road:tarball '../../apis/') ~)
+        ;<  ~  bind:m  (replace:io !>((crip (en-xml:html (apis-fragment ball-id (read-entities apis))))))
+        ;<  *  bind:m  (take-news:io /apis)
         $
         ::
           [~ %'main.sig']
@@ -111,9 +102,8 @@
           ?:  =('' name)  $
           =/  agent-road=road:tarball
             (cord-to-road:tarball (crip "./agents/{(trip name)}/"))
-          =/  new-ball=ball:tarball  [`[~ `[/claw %agent] ~] ~]
-          =/  new-sand=sand:nexus  [`agents-weir ~]
-          ;<  ~  bind:m  (make:io agent-road &+[new-sand *gain:nexus new-ball])
+          =/  new-ball=ball:tarball  [`[`[/claw %agent] `agents-weir %.n ~ ~] ~]
+          ;<  ~  bind:m  (make:io agent-road &+(ball-to-bole:tarball new-ball))
           =/  agent-cfg=json
             %-  pairs:enjs:format
             :~  ['model' s+'claude-sonnet-4-20250514']
@@ -124,7 +114,7 @@
             ==
           =/  cfg-road=road:tarball
             (cord-to-road:tarball (crip "./agents/{(trip name)}/config.json"))
-          ;<  ~  bind:m  (over:io cfg-road [[/ %json] !>(agent-cfg)])
+          ;<  ~  bind:m  (over:io cfg-road [[/ %json] agent-cfg])
           $
         ::
             %'delete'
@@ -147,8 +137,8 @@
           =/  chan-road=road:tarball
             (cord-to-road:tarball (crip "./channels/{(trip name)}/"))
           =/  neck=neck:tarball  [/claw/channel (slav %tas chan-type)]
-          =/  new-ball=ball:tarball  [`[~ `neck ~] ~]
-          ;<  ~  bind:m  (make:io chan-road &+[*sand:nexus *gain:nexus new-ball])
+          =/  new-ball=ball:tarball  [`[`neck ~ %.n ~ ~] ~]
+          ;<  ~  bind:m  (make:io chan-road &+(ball-to-bole:tarball new-ball))
           $
         ::
             %'delete-channel'
@@ -169,8 +159,8 @@
           =/  api-road=road:tarball
             (cord-to-road:tarball (crip "./apis/{(trip name)}/"))
           =/  neck=neck:tarball  [/claw/api (slav %tas api-type)]
-          =/  new-ball=ball:tarball  [`[~ `neck ~] ~]
-          ;<  ~  bind:m  (make:io api-road &+[*sand:nexus *gain:nexus new-ball])
+          =/  new-ball=ball:tarball  [`[`neck ~ %.n ~ ~] ~]
+          ;<  ~  bind:m  (make:io api-road &+(ball-to-bole:tarball new-ball))
           $
         ::
             %'delete-api'
@@ -235,14 +225,14 @@
 ++  agents-weir
   ^-  weir:nexus
   :+  ~
-    (sy ~[&+[%| /sys/bowl] |+[2 |+/apis] |+[2 |+/channels] &+[%& /sys/behn %'main.timer-state']])
+    (sy ~[&+[%| /sys/bowl] |+[2 |+/apis] |+[2 |+/channels] &+[%& /sys/behn %'main.timer-state'] &+[%& /sys/push %'main.push-state']])
   (sy ~[&+[%| /]])
 ::  +main-agent-weir: agents-weir + make/poke on /agents
 ::
 ++  main-agent-weir
   ^-  weir:nexus
   :+  (sy ~[|+[2 |+/agents]])
-    (sy ~[&+[%| /sys/bowl] |+[2 |+/apis] |+[2 |+/channels] |+[2 |+/agents] &+[%& /sys/behn %'main.timer-state']])
+    (sy ~[&+[%| /sys/bowl] |+[2 |+/apis] |+[2 |+/channels] |+[2 |+/agents] &+[%& /sys/behn %'main.timer-state'] &+[%& /sys/push %'main.push-state']])
   (sy ~[&+[%| /]])
 ::  +path-to-ball-id: join a path into a slash-separated tape for URLs
 ::
@@ -254,20 +244,20 @@
 ::  +read-names: extract top-level names from a directory view
 ::
 ++  read-names
-  |=  =view:nexus
+  |=  =seen:nexus
   ^-  (list @ta)
-  ?.  ?=(%ball -.view)  ~
-  %+  turn  ~(tap by dir.ball.view)
+  ?.  ?=([%& %ball *] seen)  ~
+  %+  turn  ~(tap by dir.ball.p.seen)
   |=  [name=@ta *]  name
 ::
 ::  +read-entities: find nexus instances (balls with necks) in a tree
 ::    returns [name type] pairs like ['telegram/main-bot' 'telegram']
 ::
 ++  read-entities
-  |=  =view:nexus
+  |=  =seen:nexus
   ^-  (list [name=@ta type=@ta])
-  ?.  ?=(%ball -.view)  ~
-  (walk-ball ~ dir.ball.view)
+  ?.  ?=([%& %ball *] seen)  ~
+  (walk-ball ~ dir.ball.p.seen)
 ::
 ++  walk-ball
   |=  [prefix=path entries=(map @ta ball:tarball)]
@@ -460,16 +450,16 @@
 ::
 ++  take-any-news
   |=  [a=wire b=wire c=wire]
-  =/  m  (fiber:fiber:nexus ,[?(%agents %channels %apis) view:nexus])
+  =/  m  (fiber:fiber:nexus ,[?(%agents %channels %apis) wave:nexus])
   ^-  form:m
   |=  input:fiber:nexus
-  :+  ~  state
+  :+  ~  q.state
   ?+  in  [%skip ~]
       ~  [%wait ~]
       [~ %news * *]
-    ?:  =(a wire.u.in)  [%done %agents view.u.in]
-    ?:  =(b wire.u.in)  [%done %channels view.u.in]
-    ?:  =(c wire.u.in)  [%done %apis view.u.in]
+    ?:  =(a wire.u.in)  [%done %agents wave.u.in]
+    ?:  =(b wire.u.in)  [%done %channels wave.u.in]
+    ?:  =(c wire.u.in)  [%done %apis wave.u.in]
     [%skip ~]
   ==
 ::
@@ -515,6 +505,14 @@
   .section-header \{ margin-top: 20px; margin-bottom: 8px; }
   .section-title \{ font-size: 13px; font-weight: 600; color: #888; text-transform: uppercase; letter-spacing: 0.05em; }
   #cfg-json:focus \{ border-color: #2563eb; }
+  @media (max-width: 600px) \{
+    #app \{ padding: 12px; }
+    .create-bar \{ flex-wrap: wrap; }
+    .create-type \{ width: 100%; }
+    .entity-card, .agent-card \{ flex-direction: column; align-items: flex-start; gap: 8px; }
+    .card-actions \{ align-self: flex-end; }
+    #header \{ flex-direction: column; gap: 4px; }
+  }
   """
 ::
 ++  script-text

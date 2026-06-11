@@ -100,11 +100,11 @@
     ;<  pre=seen:nexus  bind:m  (peek:io ses-road ~)
     =/  pre-ver=@ud
       ?.  ?=([%& %file *] pre)  0
-      ud.file.sack.p.pre
+      (ver:hist:nexus hist.p.pre)
     ;<  pre-logs=seen:nexus  bind:m  (peek:io logs-road ~)
     =/  pre-log-ver=@ud
       ?.  ?=([%& %file *] pre-logs)  0
-      ud.file.sack.p.pre-logs
+      (ver:hist:nexus hist.p.pre-logs)
     ::  Checkpoint state before sending command
     =/  run-data=json
       %-  pairs:enjs:format
@@ -133,13 +133,14 @@
       ::  Timeout — re-read state (has checkpointed pre-vers) and read results
       ;<  st=tool-state:tools  bind:m  (get-state-as:io ,tool-state:tools)
       (read-results st)
-    ?.  ?=([%file *] view.nw)  $
-    ?.  ?=(%dill-blit name.p.sage.view.nw)  $
+    ;<  =seen:nexus  bind:m  (peek:io ses-road ~)
+    ?.  ?=([%& %file *] seen)  $
+    ?.  ?=(%dill-blit name.p.sang.p.seen)  $
     =.  batches  +(batches)
     ::  Skip the first batch (command echo) — wait for result + prompt
     ?.  (gth batches 1)  $
     =/  blits=(list blit:dill)
-      !<((list blit:dill) q.sage.view.nw)
+      !<((list blit:dill) (need-vase:tarball sang.p.seen))
     =/  rendered=@t  (render-blits:clurd blits wid)
     =/  txt=tape  (trip rendered)
     ::  Check for prompt at end of this batch

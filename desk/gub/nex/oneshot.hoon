@@ -4,8 +4,8 @@
 =<  ^-  nexus:nexus
     |%
     ++  on-load
-      |=  [=sand:nexus =gain:nexus =ball:tarball]
-      ^-  [sand:nexus gain:nexus ball:tarball]
+      |=  =ball:tarball
+      ^-  bole:tarball
       =/  =ver:loader  (get-ver:loader ball)
       =/  default-claude=json
         %-  pairs:enjs:format
@@ -22,17 +22,17 @@
         [k s+v]
       ?+  ver  !!
           ?(~ [~ %0])
-        %+  spin:loader  [sand gain ball]
+        %+  spin:loader  ball
         :~  (ver-row:loader 0)
-            [%fall %& [/config %'claude.json'] %.n [~ [/ %json] !>(default-claude)]]
-            [%fall %& [/config %'brave.json'] %.n [~ [/ %json] !>(default-brave)]]
-            [%over %& [/ %'descs.json'] %.n [~ [/ %json] !>(default-descs)]]
-            [%fall %& [/ %'request.json'] %.n [~ [/ %json] !>((pairs:enjs:format ~))]]
-            [%fall %& [/ %'result.json'] %.n [~ [/ %json] !>((pairs:enjs:format ~[['status' s+'idle']]))]]
-            [%fall %& [/ %'briefing.json'] %.n [~ [/ %json] !>((pairs:enjs:format ~[['step' s+'idle']]))]]
-            [%fall %& [/ %'main.sig'] %.n [~ [/ %sig] !>(~)]]
-            [%over %& [/ui %'page.html'] %.n [~ [/ %html] !>((crip (en-xml:html (oneshot-page '' ~))))]]
-            [%over %& [/ui %'briefing.html'] %.n [~ [/ %html] !>((crip (en-xml:html briefing-page)))]]
+            [%fall %& [/config %'claude.json'] [[/ %json] default-claude]]
+            [%fall %& [/config %'brave.json'] [[/ %json] default-brave]]
+            [%over %& [/ %'descs.json'] [[/ %json] default-descs]]
+            [%fall %& [/ %'request.json'] [[/ %json] (pairs:enjs:format ~)]]
+            [%fall %& [/ %'result.json'] [[/ %json] (pairs:enjs:format ~[['status' s+'idle']])]]
+            [%fall %& [/ %'briefing.json'] [[/ %json] (pairs:enjs:format ~[['step' s+'idle']])]]
+            [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
+            [%over %& [/ui %'page.html'] [[/ %html] (crip (en-xml:html (oneshot-page '' ~)))]]
+            [%over %& [/ui %'briefing.html'] [[/ %html] (crip (en-xml:html briefing-page))]]
         ==
       ==
     ::
@@ -62,7 +62,7 @@
           ?.  ?=([~ %s *] v)  'call'
           p.u.v
         ?:  =(action 'save')
-          ;<  ~  bind:m  (over:io request-road [[/ %json] !>(req)])
+          ;<  ~  bind:m  (over:io request-road [[/ %json] req])
           $
         ?:  =(action 'search')
           =/  query=@t
@@ -71,15 +71,15 @@
             p.u.v
           ?:  =('' query)  $
           ;<  ~  bind:m
-            (over:io result-road [[/ %json] !>((pairs:enjs:format ~[['status' s+'loading']]))])
+            (over:io result-road [[/ %json] (pairs:enjs:format ~[['status' s+'loading']])])
           ;<  brave-key=@t  bind:m  read-brave-key
           ?:  =('' brave-key)
             ;<  ~  bind:m
-              (over:io result-road [[/ %json] !>((pairs:enjs:format ~[['status' s+'error'] ['error' s+'No Brave API key configured']]))])
+              (over:io result-road [[/ %json] (pairs:enjs:format ~[['status' s+'error'] ['error' s+'No Brave API key configured']])])
             $
           ;<  results=@t  bind:m  (~(web search:oneshot brave-key) query)
           ;<  ~  bind:m
-            (over:io result-road [[/ %json] !>((pairs:enjs:format ~[['status' s+'ok'] ['output' s+results] ['mark' s+'search']]))])
+            (over:io result-road [[/ %json] (pairs:enjs:format ~[['status' s+'ok'] ['output' s+results] ['mark' s+'search']])])
           $
         ?:  =(action 'brief')
           =/  topic=@t
@@ -91,34 +91,34 @@
           ::  step 1: generating queries
           ::
           ;<  ~  bind:m
-            (over:io brief-road [[/ %json] !>((pairs:enjs:format ~[['step' s+'generating-queries'] ['topic' s+topic]]))])
+            (over:io brief-road [[/ %json] (pairs:enjs:format ~[['step' s+'generating-queries'] ['topic' s+topic]])])
           ;<  cfg=claude-config:oneshot  bind:m  read-claude-config
           ?:  =('' api-key.cfg)
             ;<  ~  bind:m
-              (over:io brief-road [[/ %json] !>((pairs:enjs:format ~[['step' s+'error'] ['error' s+'No API key configured']]))])
+              (over:io brief-road [[/ %json] (pairs:enjs:format ~[['step' s+'error'] ['error' s+'No API key configured']])])
             $
           ;<  brave-key=@t  bind:m  read-brave-key
           ?:  =('' brave-key)
             ;<  ~  bind:m
-              (over:io brief-road [[/ %json] !>((pairs:enjs:format ~[['step' s+'error'] ['error' s+'No Brave API key configured']]))])
+              (over:io brief-road [[/ %json] (pairs:enjs:format ~[['step' s+'error'] ['error' s+'No Brave API key configured']])])
             $
           =/  brfng  ~(. briefing:oneshot [cfg brave-key])
           ;<  queries=(list @t)  bind:m  (generate-queries:brfng topic)
           ?~  queries
             ;<  ~  bind:m
-              (over:io brief-road [[/ %json] !>((pairs:enjs:format ~[['step' s+'error'] ['error' s+'No queries generated']]))])
+              (over:io brief-road [[/ %json] (pairs:enjs:format ~[['step' s+'error'] ['error' s+'No queries generated']])])
             $
           ::  step 2: searching (show queries)
           ::
           =/  query-json=json  [%a (turn queries |=(q=@t s+q))]
           =/  total=@t  (crip (a-co:co (lent queries)))
           ;<  ~  bind:m
-            (over:io brief-road [[/ %json] !>((pairs:enjs:format ~[['step' s+'searching'] ['topic' s+topic] ['queries' query-json] ['completed' s+'0'] ['total' s+total]]))])
+            (over:io brief-road [[/ %json] (pairs:enjs:format ~[['step' s+'searching'] ['topic' s+topic] ['queries' query-json] ['completed' s+'0'] ['total' s+total]])])
           ;<  research=@t  bind:m  (run-searches:brfng queries)
           ::  step 3: synthesizing
           ::
           ;<  ~  bind:m
-            (over:io brief-road [[/ %json] !>((pairs:enjs:format ~[['step' s+'synthesizing'] ['topic' s+topic] ['queries' query-json] ['research' s+research]]))])
+            (over:io brief-road [[/ %json] (pairs:enjs:format ~[['step' s+'synthesizing'] ['topic' s+topic] ['queries' query-json] ['research' s+research]])])
           ;<  =result:oneshot  bind:m
             (synthesize:brfng topic research [%txt 'Write a clear, analytical briefing.'])
           ::  done
@@ -133,7 +133,7 @@
                   ['briefing' s+raw.p.result]
               ==
             ~[['step' s+'error'] ['topic' s+topic] ['error' s+'Synthesis failed']]
-          ;<  ~  bind:m  (over:io brief-road [[/ %json] !>(resp)])
+          ;<  ~  bind:m  (over:io brief-road [[/ %json] resp])
           $
         ::  extract fields
         =/  system=@t
@@ -154,15 +154,15 @@
           p.u.v
         ?:  =('' prompt)  $
         ::  save request, set loading state
-        ;<  ~  bind:m  (over:io request-road [[/ %json] !>(req)])
+        ;<  ~  bind:m  (over:io request-road [[/ %json] req])
         ;<  ~  bind:m
-          (over:io result-road [[/ %json] !>((pairs:enjs:format ~[['status' s+'loading']]))])
+          (over:io result-road [[/ %json] (pairs:enjs:format ~[['status' s+'loading']])])
         ::  read config
         ;<  cfg=claude-config:oneshot  bind:m  read-claude-config
         ?:  =('' api-key.cfg)
           ~&  >>>  %oneshot-no-api-key
           ;<  ~  bind:m
-            (over:io result-road [[/ %json] !>((pairs:enjs:format ~[['status' s+'error'] ['error' s+'No API key configured']]))])
+            (over:io result-road [[/ %json] (pairs:enjs:format ~[['status' s+'error'] ['error' s+'No API key configured']])])
           $
         ;<  =result:oneshot  bind:m
           (~(call agent:oneshot cfg) [system prompt [out-mark out-desc]])
@@ -179,41 +179,36 @@
                 ==
             %|  ~[['status' s+'error'] ['error' s+p.p.result]]
           ==
-        ;<  ~  bind:m  (over:io result-road [[/ %json] !>(resp)])
+        ;<  ~  bind:m  (over:io result-road [[/ %json] resp])
         $
           ::  /ui/page.html: watches result.json, peeks request.json on render
           ::
           [[%ui ~] %'page.html']
         ;<  ~  bind:m  (rise-wait:io prod "%oneshot page: failed")
-        ;<  init=view:nexus  bind:m
+        ;<  init=wave:nexus  bind:m
           (keep:io /res (cord-to-road:tarball '../result.json') ~)
-        =/  res=@t
-          ?.  ?=([%file *] init)  ''
-          (render-result !<(json q.sage.init))
-        ;<  req=json  bind:m  (read-request '../request.json')
-        ;<  ~  bind:m  (replace:io !>((crip (en-xml:html (oneshot-page res req)))))
         |-
-        ;<  upd=view:nexus  bind:m  (take-news:io /res)
-        ?.  ?=([%file *] upd)  $
-        =/  res=@t  (render-result !<(json q.sage.upd))
+        ;<  =seen:nexus  bind:m  (peek:io (cord-to-road:tarball '../result.json') ~)
+        =/  res=@t
+          ?.  ?=([%& %file *] seen)  ''
+          (render-result !<(json (need-vase:tarball sang.p.seen)))
         ;<  req=json  bind:m  (read-request '../request.json')
         ;<  ~  bind:m  (replace:io !>((crip (en-xml:html (oneshot-page res req)))))
+        ;<  upd=wave:nexus  bind:m  (take-news:io /res)
         $
           ::  /ui/briefing.html: watches briefing.json for live progress
           ::
           [[%ui ~] %'briefing.html']
         ;<  ~  bind:m  (rise-wait:io prod "%briefing page: failed")
-        ;<  init=view:nexus  bind:m
+        ;<  init=wave:nexus  bind:m
           (keep:io /brf (cord-to-road:tarball '../briefing.json') ~)
-        =/  state=json
-          ?.  ?=([%file *] init)  ~
-          !<(json q.sage.init)
-        ;<  ~  bind:m  (replace:io !>((crip (en-xml:html (briefing-page-live state)))))
         |-
-        ;<  upd=view:nexus  bind:m  (take-news:io /brf)
-        ?.  ?=([%file *] upd)  $
-        =/  state=json  !<(json q.sage.upd)
+        ;<  =seen:nexus  bind:m  (peek:io (cord-to-road:tarball '../briefing.json') ~)
+        =/  state=json
+          ?.  ?=([%& %file *] seen)  ~
+          !<(json (need-vase:tarball sang.p.seen))
         ;<  ~  bind:m  (replace:io !>((crip (en-xml:html (briefing-page-live state)))))
+        ;<  upd=wave:nexus  bind:m  (take-news:io /brf)
         $
       ==
     ::
@@ -253,7 +248,7 @@
     (peek:io (cord-to-road:tarball rel) `[/ %json])
   ?.  ?=([%& %file *] seen)
     (pure:m ~)
-  (pure:m !<(json q.sage.p.seen))
+  (pure:m !<(json (need-vase:tarball sang.p.seen)))
 ::
 ++  read-claude-config
   =/  m  (fiber:fiber:nexus ,claude-config:oneshot)
@@ -262,7 +257,7 @@
     (peek:io (cord-to-road:tarball './config/claude.json') `[/ %json])
   ?.  ?=([%& %file *] seen)
     (pure:m ['' 'claude-sonnet-4-20250514' 4.096])
-  =/  cfg=json  !<(json q.sage.p.seen)
+  =/  cfg=json  !<(json (need-vase:tarball sang.p.seen))
   ?.  ?=(%o -.cfg)
     (pure:m ['' 'claude-sonnet-4-20250514' 4.096])
   =/  api-key=@t
@@ -286,7 +281,7 @@
     (peek:io (cord-to-road:tarball './config/brave.json') `[/ %json])
   ?.  ?=([%& %file *] seen)
     (pure:m '')
-  =/  cfg=json  !<(json q.sage.p.seen)
+  =/  cfg=json  !<(json (need-vase:tarball sang.p.seen))
   ?.  ?=(%o -.cfg)
     (pure:m '')
   =/  v  (~(get by p.cfg) 'api_key')

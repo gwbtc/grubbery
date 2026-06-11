@@ -13,8 +13,8 @@
 =<  ^-  nexus:nexus
     |%
     ++  on-load
-      |=  [=sand:nexus =gain:nexus =ball:tarball]
-      ^-  [sand:nexus gain:nexus ball:tarball]
+      |=  =ball:tarball
+      ^-  bole:tarball
       =/  =ver:loader  (get-ver:loader ball)
       ?+  ver  !!
           ?(~ [~ %0])
@@ -22,20 +22,20 @@
           (make-dev-wallet 'Dev Wallet' [%t 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about'] %testnet4)
         =/  [fau-wal-dir=@ta fau-wal-ball=ball:tarball fau-acct-dir=@ta fau-acct-ball=ball:tarball]
           (make-dev-wallet 'Fauceted Wallet' [%t 'injury idea term fox crop movie type critic hello inquiry lottery agree'] %testnet3)
-        %+  spin:loader  [sand gain ball]
+        %+  spin:loader  ball
         :~  (ver-row:loader 0)
-            [%over %& [/ %'main.sig'] %.n [~ [/ %sig] !>(~)]]
-            [%over %& [/ %'page.html'] %.n [~ [/ %html] !>((crip (en-xml:html (wallet-page "" ~))))]]
-            [%fall %| /wallets [~ ~] [~ ~] empty-dir:loader]
-            [%fall %| /accounts [~ ~] [~ ~] empty-dir:loader]
-            [%fall %| /ui/sse [~ ~] [~ ~] empty-dir:loader]
-            [%over %& [/ui/sse %'wallets.html'] %.n [~ [/ %html] !>((crip (en-xml:html (wallet-list-html ~))))]]
-            [%fall %& [/ui %'http.sig'] %.n [~ [/ %sig] !>(~)]]
-            [%fall %| /ui/requests [~ ~] [~ ~] empty-dir:loader]
-            [%fall %| (snoc /wallets wal-dir) [~ ~] [~ ~] wal-ball]
-            [%fall %| (snoc /accounts acct-dir) [~ ~] [~ ~] acct-ball]
-            [%fall %| (snoc /wallets fau-wal-dir) [~ ~] [~ ~] fau-wal-ball]
-            [%fall %| (snoc /accounts fau-acct-dir) [~ ~] [~ ~] fau-acct-ball]
+            [%over %& [/ %'main.sig'] [[/ %sig] ~]]
+            [%over %& [/ %'page.html'] [[/ %html] (crip (en-xml:html (wallet-page "" ~)))]]
+            [%fall %| /wallets empty-dir:loader]
+            [%fall %| /accounts empty-dir:loader]
+            [%fall %| /ui/sse empty-dir:loader]
+            [%over %& [/ui/sse %'wallets.html'] [[/ %html] (crip (en-xml:html (wallet-list-html ~)))]]
+            [%fall %& [/ui %'http.sig'] [[/ %sig] ~]]
+            [%fall %| /ui/requests empty-dir:loader]
+            [%fall %| (snoc /wallets wal-dir) (ball-to-bole:tarball wal-ball)]
+            [%fall %| (snoc /accounts acct-dir) (ball-to-bole:tarball acct-ball)]
+            [%fall %| (snoc /wallets fau-wal-dir) (ball-to-bole:tarball fau-wal-ball)]
+            [%fall %| (snoc /accounts fau-acct-dir) (ball-to-bole:tarball fau-acct-ball)]
         ==
       ==
     ::
@@ -86,12 +86,12 @@
             =/  wallet-key=@ta  (crip (hexn:http-utils pubkey))
             =/  wal=wallet-data  [wallet-name u.sd pubkey ~]
             =/  wallet-dir=@ta  (cat 3 wallet-key '.wallet_wallet')
-            =/  wal-lump=lump:tarball
-              :+  ~  `[/wallet %wallet]
-              (~(put by *(map @ta content:tarball)) %'main.wallet_wallet' [~ [/wallet %wallet] !>(wal)])
-            =/  wal-ball=ball:tarball  [`wal-lump ~]
+            =/  wal-contents=(map @ta [=bask:tarball gain=?])
+              (~(put by *(map @ta [=bask:tarball gain=?])) %'main.wallet_wallet' [[[/wallet %wallet] wal] %.n])
+            =/  wal-pulp=pulp:tarball  [`[/wallet %wallet] ~ %.n wal-contents]
+            =/  wal-bole=bole:tarball  [`wal-pulp ~]
             ;<  ~  bind:m
-              (make:io [%| 0 %| (snoc /wallets wallet-dir)] &+[*sand:nexus *gain:nexus wal-ball])
+              (make:io [%| 0 %| (snoc /wallets wallet-dir)] &+wal-bole)
             $
               %'add-wallet-from-entropy'
             =/  wallet-name=@t
@@ -103,12 +103,12 @@
             =/  wallet-key=@ta  (crip (hexn:http-utils pubkey))
             =/  wal=wallet-data  [wallet-name [%t seed-phrase] pubkey ~]
             =/  wallet-dir=@ta  (cat 3 wallet-key '.wallet_wallet')
-            =/  wal-lump=lump:tarball
-              :+  ~  `[/wallet %wallet]
-              (~(put by *(map @ta content:tarball)) %'main.wallet_wallet' [~ [/wallet %wallet] !>(wal)])
-            =/  wal-ball=ball:tarball  [`wal-lump ~]
+            =/  wal-contents=(map @ta [=bask:tarball gain=?])
+              (~(put by *(map @ta [=bask:tarball gain=?])) %'main.wallet_wallet' [[[/wallet %wallet] wal] %.n])
+            =/  wal-pulp=pulp:tarball  [`[/wallet %wallet] ~ %.n wal-contents]
+            =/  wal-bole=bole:tarball  [`wal-pulp ~]
             ;<  ~  bind:m
-              (make:io [%| 0 %| (snoc /wallets wallet-dir)] &+[*sand:nexus *gain:nexus wal-ball])
+              (make:io [%| 0 %| (snoc /wallets wallet-dir)] &+wal-bole)
             $
               %'remove-wallet'
             =/  pubkey=@t
@@ -126,27 +126,23 @@
         ;<  ~  bind:m  (rise-wait:io prod "%wallet /page: failed")
         ;<  here=rail:tarball  bind:m  get-here-abs:io
         =/  nexus-root=tape  (spud path.here)
-        ;<  init=view:nexus  bind:m
-          (keep:io /wallets (cord-to-road:tarball './wallets/') ~)
-        =/  wals=(list wallet-data)  (view-to-wallets init)
-        ;<  ~  bind:m  (replace:io !>((crip (en-xml:html (wallet-page nexus-root wals)))))
+        ;<  *  bind:m  (keep:io /wallets (cord-to-road:tarball './wallets/') ~)
         |-
-        ;<  upd=view:nexus  bind:m  (take-news:io /wallets)
-        =/  wals=(list wallet-data)  (view-to-wallets upd)
+        ;<  wals-seen=seen:nexus  bind:m  (peek:io (cord-to-road:tarball './wallets/') ~)
+        =/  wals=(list wallet-data)  (view-to-wallets wals-seen)
         ;<  ~  bind:m  (replace:io !>((crip (en-xml:html (wallet-page nexus-root wals)))))
+        ;<  *  bind:m  (take-news:io /wallets)
         $
           ::  /ui/sse/wallets.html: wallet list HTML fragment for SSE
           ::
           [[%ui %sse ~] %'wallets.html']
         ;<  ~  bind:m  (rise-wait:io prod "%wallet /ui/sse/wallets: failed")
-        ;<  init=view:nexus  bind:m
-          (keep:io /wallets (cord-to-road:tarball '../../wallets/') ~)
-        =/  wals=(list wallet-data)  (view-to-wallets init)
-        ;<  ~  bind:m  (replace:io !>((crip (en-xml:html (wallet-list-html wals)))))
+        ;<  *  bind:m  (keep:io /wallets (cord-to-road:tarball '../../wallets/') ~)
         |-
-        ;<  upd=view:nexus  bind:m  (take-news:io /wallets)
-        =/  wals=(list wallet-data)  (view-to-wallets upd)
+        ;<  wals-seen=seen:nexus  bind:m  (peek:io (cord-to-road:tarball '../../wallets/') ~)
+        =/  wals=(list wallet-data)  (view-to-wallets wals-seen)
         ;<  ~  bind:m  (replace:io !>((crip (en-xml:html (wallet-list-html wals)))))
+        ;<  *  bind:m  (take-news:io /wallets)
         $
           ::  /ui/http.sig: bind /groundwire/wallet/ and dispatch requests
           ::
@@ -342,7 +338,7 @@
   ;<  =seen:nexus  bind:m  (peek:io road `[/ %mime])
   ?.  ?=([%& %file *] seen)
     (send-simple:srv eyre-id [[404 ~] `(as-octs:mimes:html 'Page not found')])
-  =/  =mime  !<(mime q.sage.p.seen)
+  =/  =mime  !<(mime (need-vase:tarball sang.p.seen))
   (send-simple:srv eyre-id (mime-response:http-utils mime))
 ::  +load-account: peek account data by key
 ::
@@ -354,14 +350,13 @@
     (cord-to-road:tarball (crip "../../accounts/{(trip acct-key)}/data.wallet_account"))
   ;<  =seen:nexus  bind:m  (peek:io road ~)
   ?.  ?=([%& %file *] seen)  (pure:m ~)
-  (pure:m (mole |.(!<(account-data q.sage.p.seen))))
+  (pure:m (mole |.(!<(account-data (need-vase:tarball sang.p.seen)))))
 ::
 ++  load-wallets
   =/  m  (fiber:fiber:nexus ,(list wallet-data))
   ^-  form:m
   ;<  =seen:nexus  bind:m  (peek:io (cord-to-road:tarball '../../wallets/') ~)
-  ?.  ?=(%& -.seen)  (pure:m ~)
-  (pure:m (view-to-wallets p.seen))
+  (pure:m (view-to-wallets seen))
 ::
 ::  +load-addr-mop: read an addr-mop file from an account ball
 ::
@@ -375,7 +370,7 @@
   ?.  exists  (pure:m *addr-mop)
   ;<  =seen:nexus  bind:m  (peek:io road ~)
   ?.  ?=([%& %file *] seen)  (pure:m *addr-mop)
-  (pure:m (fall (mole |.(!<(addr-mop q.sage.p.seen))) *addr-mop))
+  (pure:m (fall (mole |.(!<(addr-mop (need-vase:tarball sang.p.seen)))) *addr-mop))
 ::  +load-txs: load tx-map from an account's network directory (app-level)
 ::
 ++  load-txs
@@ -388,7 +383,7 @@
   ?.  exists  (pure:m *tx-map)
   ;<  =seen:nexus  bind:m  (peek:io road ~)
   ?.  ?=([%& %file *] seen)  (pure:m *tx-map)
-  (pure:m (fall (mole |.(!<(tx-map q.sage.p.seen))) *tx-map))
+  (pure:m (fall (mole |.(!<(tx-map (need-vase:tarball sang.p.seen)))) *tx-map))
 ::  +load-scan-state: peek scan process file and paused marker
 ::
 ++  load-scan-state
@@ -401,7 +396,7 @@
   ?.  scan-exists  (pure:m [%none ~])
   ;<  =seen:nexus  bind:m  (peek:io scan-road ~)
   ?.  ?=([%& %file *] seen)  (pure:m [%none ~])
-  =/  jon=json  (fall (mole |.(!<(json q.sage.p.seen))) *json)
+  =/  jon=json  (fall (mole |.(!<(json (need-vase:tarball sang.p.seen)))) *json)
   =/  progress=scan-progress:acct-ui
     ?.  ?=([%o *] jon)  ['' 0 0]
     =/  phase=(unit json)  (~(get by p.jon) 'phase')
@@ -431,7 +426,7 @@
   ?.  exists  (pure:m '')
   ;<  =seen:nexus  bind:m  (peek:io road ~)
   ?.  ?=([%& %file *] seen)  (pure:m '')
-  =/  wal=(unit wallet-data)  (mole |.(!<(wallet-data q.sage.p.seen)))
+  =/  wal=(unit wallet-data)  (mole |.(!<(wallet-data (need-vase:tarball sang.p.seen))))
   ?~  wal  (pure:m '')
   (pure:m name.u.wal)
 ::  +load-draft: peek draft transaction from account
@@ -446,7 +441,7 @@
   ?.  exists  (pure:m ~)
   ;<  =seen:nexus  bind:m  (peek:io road ~)
   ?.  ?=([%& %file *] seen)  (pure:m ~)
-  (pure:m (mole |.(!<(transaction:drft q.sage.p.seen))))
+  (pure:m (mole |.(!<(transaction:drft (need-vase:tarball sang.p.seen)))))
 ::  +send-sse-fragment: send a single SSE fragment targeting a DOM element
 ::
 ++  send-sse-fragment
@@ -1328,23 +1323,23 @@
   =/  wdir=@ta  (cat 3 (crip (hexn:http-utils fp)) '.wallet_wallet')
   =/  adir=@ta  (cat 3 (crip (hexn:http-utils apk)) '.wallet_account')
   =/  net-dir=@ta  ;;(@ta network)
-  =/  acct-lump=lump:tarball
-    :+  ~  `[/wallet %account]
-    (~(put by *(map @ta content:tarball)) %'data.wallet_account' [~ [/wallet %account] !>(acct)])
+  =/  acct-contents=(map @ta [=sang:tarball gain=? bang=(unit tang)])
+    (~(put by *(map @ta [=sang:tarball gain=? bang=(unit tang)])) %'data.wallet_account' [[[/wallet %account] %& !>(acct)] %.n ~])
+  =/  acct-lump=lump:tarball  [`[/wallet %account] ~ %.n ~ acct-contents]
   ::  build addresses/[network]/ ball with recv + chng mop files
   =/  chain-lump=lump:tarball
-    :+  ~  ~
-    %-  ~(gas by *(map @ta content:tarball))
-    :~  ['recv.wallet_addresses' [~ [/wallet %addresses] !>(recv-mop)]]
-        ['chng.wallet_addresses' [~ [/wallet %addresses] !>(*addr-mop)]]
-        ['txs.wallet_txs' [~ [/wallet %txs] !>(*tx-map)]]
+    :-  ~  :-  ~  :-  %.n  :-  ~
+    %-  ~(gas by *(map @ta [=sang:tarball gain=? bang=(unit tang)]))
+    :~  ['recv.wallet_addresses' [[[/wallet %addresses] %& !>(recv-mop)] %.n ~]]
+        ['chng.wallet_addresses' [[[/wallet %addresses] %& !>(*addr-mop)] %.n ~]]
+        ['txs.wallet_txs' [[[/wallet %txs] %& !>(*tx-map)] %.n ~]]
     ==
   =/  net-ball=ball:tarball  [`chain-lump ~]
   =/  addr-dir=ball:tarball  [~ (~(put by *(map @ta ball:tarball)) net-dir net-ball)]
   =/  acct-ball=ball:tarball
     [`acct-lump (~(put by *(map @ta ball:tarball)) 'addresses' addr-dir)]
   :^  wdir
-    :-  `[~ `[/wallet %wallet] (~(put by *(map @ta content:tarball)) %'main.wallet_wallet' [~ [/wallet %wallet] !>(wal)])]
+    :-  `[`[/wallet %wallet] ~ %.n ~ (~(put by *(map @ta [=sang:tarball gain=? bang=(unit tang)])) %'main.wallet_wallet' [[[/wallet %wallet] %& !>(wal)] %.n ~])]
     ~
   adir
   acct-ball
@@ -1391,16 +1386,16 @@
   [p.name seed fingerprint ~]
 ::
 ++  view-to-wallets
-  |=  =view:nexus
+  |=  =seen:nexus
   ^-  (list wallet-data)
-  ?.  ?=([%ball *] view)  ~
-  %+  murn  ~(tap by dir.ball.view)
+  ?.  ?=([%& %ball *] seen)  ~
+  %+  murn  ~(tap by dir.ball.p.seen)
   |=  [name=@ta sub=ball:tarball]
   =/  sub-lump=lump:tarball  (fall fil.sub *lump:tarball)
-  =/  ct=(unit content:tarball)  (~(get by contents.sub-lump) 'main.wallet_wallet')
+  =/  ct=(unit [=sang:tarball gain=? bang=(unit tang)])  (~(get by contents.sub-lump) 'main.wallet_wallet')
   ?~  ct  ~
-  ?.  ?=(%wallet name.p.sage.u.ct)  ~
-  (mole |.(!<(wallet-data q.sage.u.ct)))
+  ?.  ?=(%wallet name.p.sang.u.ct)  ~
+  (mole |.(!<(wallet-data (need-vase:tarball sang.u.ct))))
 ::
 ++  seed-to-cord
   |=  =seed

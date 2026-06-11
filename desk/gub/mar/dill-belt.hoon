@@ -3,7 +3,7 @@
 |_  val=[@tas belt:dill]
 ++  grab
   |%
-  ++  noun  [@tas belt:dill]
+  ++  noun  ,[@tas belt:dill]
   --
 ++  grow
   |%

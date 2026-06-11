@@ -14,29 +14,29 @@
 =<  ^-  nexus:nexus
     |%
     ++  on-load
-      |=  [=sand:nexus =gain:nexus =ball:tarball]
-      ^-  [sand:nexus gain:nexus ball:tarball]
+      |=  =ball:tarball
+      ^-  bole:tarball
       =/  =ver:loader  (get-ver:loader ball)
       ?+  ver  !!
           ?(~ [~ %0])
-        %+  spin:loader  [sand gain ball]
+        %+  spin:loader  ball
         :~  (ver-row:loader 0)
-            [%fall %& [/ %'config.json'] %.n [~ [/ %json] !>(default-config)]]
-            [%fall %& [/ %'height.ud'] %.n [~ [/ %ud] !>(`@ud`0)]]
-            [%fall %& [/ %'urb-state.urb-state'] %.y [~ [/ %urb-state] !>(*state:urb)]]
-            [%fall %& [/ %'latest.json'] %.n [~ [/ %json] !>((pairs:enjs:format ~))]]
-            [%fall %& [/ %'udiffs.urb-udiffs'] %.y [~ [/ %urb-udiffs] !>(*udiffs:point:jael)]]
-            [%fall %| /events [~ ~] [~ ~] empty-dir:loader]
-            [%fall %& [/events %'main.urb-event'] %.y [~ [/ %urb-event] !>(~)]]
-            [%fall %| /events/ships [~ ~] [~ ~] empty-dir:loader]
-            [%fall %& [/ %'trace.txt'] %.n [~ [/ %txt] !>(*wain)]]
-            [%fall %| /wallets [~ ~] [~ ~] empty-dir:loader]
-            [%fall %| /points [~ ~] [~ ~] empty-dir:loader]
-            [%over %& [/ %'rpc.sig'] %.n [~ [/ %sig] !>(~)]]
-            [%over %& [/ %'reg-tester.sig'] %.n [~ [/ %sig] !>(~)]]
-            [%fall %| /ui/sse [~ ~] [~ ~] empty-dir:loader]
-            [%over %& [/ui/sse %'stats.html'] %.n [~ [/ %html] !>((crip (en-xml:html ;div;)))]]
-            [%over %& [/ %'page.html'] %.n [~ [/ %html] !>((crip (en-xml:html (btc-page "" ;div; ~ ~))))]]
+            [%fall %& [/ %'config.json'] [[/ %json] default-config]]
+            [%fall %& [/ %'height.ud'] [[/ %ud] 0]]
+            [%fall %& [/ %'urb-state.urb-state'] [[/ %urb-state] *state:urb]]
+            [%fall %& [/ %'latest.json'] [[/ %json] (pairs:enjs:format ~)]]
+            [%fall %& [/ %'udiffs.urb-udiffs'] [[/ %urb-udiffs] *udiffs:point:jael]]
+            [%fall %| /events empty-dir:loader]
+            [%fall %& [/events %'main.urb-event'] [[/ %urb-event] ~]]
+            [%fall %| /events/ships empty-dir:loader]
+            [%fall %& [/ %'trace.txt'] [[/ %txt] *wain]]
+            [%fall %| /wallets empty-dir:loader]
+            [%fall %| /points empty-dir:loader]
+            [%over %& [/ %'rpc.sig'] [[/ %sig] ~]]
+            [%over %& [/ %'reg-tester.sig'] [[/ %sig] ~]]
+            [%fall %| /ui/sse empty-dir:loader]
+            [%over %& [/ui/sse %'stats.html'] [[/ %html] (crip (en-xml:html ;div;))]]
+            [%over %& [/ %'page.html'] [[/ %html] (crip (en-xml:html (btc-page "" ;div; ~ ~)))]]
         ==
       ==
     ::
@@ -89,8 +89,8 @@
           ::  Watches /height.ud for tip updates, fetches and processes
           ::  blocks through urb-core, and replace:io's its own state.
           ::  The cursor is num.block-id inside the state — no separate
-          ::  processed.ud file needed. gain is on so anything can
-          ::  keep:io this file for live PKI updates.
+          ::  processed.ud file needed. anything can keep:io this
+          ::  file for live PKI updates.
           ::
           [~ %'urb-state.urb-state']
         ;<  ~  bind:m  (rise-wait:io prod "%groundwire /urb-state: failed")
@@ -99,11 +99,12 @@
         =/  [url=@t auth=@t]  (read-config cfg-seen)
         ;<  urb-state=state:urb  bind:m  (get-state-as:io ,state:urb)
         =/  processed=@ud  num.block-id.urb-state
-        ;<  init=view:nexus  bind:m
-          (keep:io /t (cord-to-road:tarball './height.ud') ~)
+        =/  height-road=road:tarball  (cord-to-road:tarball './height.ud')
+        ;<  *  bind:m  (keep:io /t height-road ~)
+        ;<  init-seen=seen:nexus  bind:m  (peek:io height-road ~)
         =/  tip=@ud
-          ?.  ?=([%file *] init)  0
-          =/  res=(each @ud tang)  (mule |.(!<(@ud q.sage.init)))
+          ?.  ?=([%& %file *] init-seen)  0
+          =/  res=(each @ud tang)  (mule |.(!<(@ud (need-vase:tarball sang.p.init-seen))))
           ?:(?=(%& -.res) p.res 0)
         |-
         ::  chain reset detection: if tip < processed, the chain was
@@ -117,9 +118,10 @@
           $
         ::  caught up — wait for the tip poller to advance
         ?:  (lte tip processed)
-          ;<  upd=view:nexus  bind:m  (take-news:io /t)
-          ?.  ?=([%file *] upd)  $
-          =/  new-tip=@ud  !<(@ud q.sage.upd)
+          ;<  *  bind:m  (take-news:io /t)
+          ;<  upd-seen=seen:nexus  bind:m  (peek:io height-road ~)
+          ?.  ?=([%& %file *] upd-seen)  $
+          =/  new-tip=@ud  !<(@ud (need-vase:tarball sang.p.upd-seen))
           $(tip new-tip)
         ::  fetch the hash of the next block
         =/  next=@ud  +(processed)
@@ -153,7 +155,7 @@
             ;<  ~  bind:m  (replace:io !>(urb-state))
             =/  height-road=road:tarball
               (cord-to-road:tarball './height.ud')
-            ;<  ~  bind:m  (over:io height-road [[/ %ud] !>(`@ud`0)])
+            ;<  ~  bind:m  (over:io height-road [[/ %ud] `@ud`0])
             =.  tip  0
             $
           ~&  >  [%groundwire-walker %no-hash next body]
@@ -228,7 +230,7 @@
         =/  udiffs-road=road:tarball  (cord-to-road:tarball './udiffs.urb-udiffs')
         ;<  ~  bind:m
           ?~  uds  (pure:m ~)
-          (over:io udiffs-road [[/ %urb-udiffs] !>(uds)])
+          (over:io udiffs-road [[/ %urb-udiffs] uds])
         ::  publish latest block summary
         ::
         =/  latest-road=road:tarball  (cord-to-road:tarball './latest.json')
@@ -239,7 +241,7 @@
               ['reward' (numb:enjs:format reward.blk)]
               ['txs' (numb:enjs:format (lent txs.blk))]
           ==
-        ;<  ~  bind:m  (over:io latest-road [[/ %json] !>(latest-jon)])
+        ;<  ~  bind:m  (over:io latest-road [[/ %json] latest-jon])
         ::  update our own state — this is the cursor AND the PKI
         ::
         =.  urb-state  new-urb-state
@@ -295,7 +297,7 @@
           ;<  wal-seen=seen:nexus  bind:m  (peek:io wal-road ~)
           ?.  ?=([%& %file *] wal-seen)
             ~&  >>>  [%reg-tester %no-wallet-for-ship u.acting.args]  !!
-          =/  w  !<([seed=$%([%t =@t] [%uw =@uw] [%ux =@ux]) twk=@ utxo=(unit utxo:unv)] q.sage.p.wal-seen)
+          =/  w  !<([seed=$%([%t =@t] [%uw =@uw] [%ux =@ux]) twk=@ utxo=(unit utxo:unv)] (need-vase:tarball sang.p.wal-seen))
           =/  sd=@uw  ?-(-.seed.w %uw uw.seed.w, %ux `@uw`ux.seed.w, %t `@uw`(need (rush t.seed.w dem)))
           (pure:m [sd twk.w utxo.w])
         =.  sed.args  resolved-sed
@@ -317,8 +319,8 @@
             ?~  cur-utxo     (pure:m ~)
             =/  wal-road=road:tarball
               (cord-to-road:tarball (cat 3 './wallets/' (cat 3 (scot %p u.acting.args) '.urb-wallet')))
-            =/  wal-sage=sage:tarball  [[/ %urb-wallet] !>([[%uw sed.args] resolved-twk cur-utxo])]
-            (over:io wal-road wal-sage)
+            =/  wal-bask=bask:tarball  [[/ %urb-wallet] [[%uw sed.args] resolved-twk cur-utxo]]
+            (over:io wal-road wal-bask)
           ^$
         =*  sot  i.batch
         ~&  >  [%reg-tester %dispatch -.sot]
@@ -480,12 +482,12 @@
           =/  final-utxo=utxo:unv  [`outpoint:gw`[reveal-txid 0] reveal-out]
           =/  wal-road=road:tarball
             (cord-to-road:tarball (cat 3 './wallets/' (cat 3 (scot %p spawn-ship) '.urb-wallet')))
-          =/  wal-sage=sage:tarball  [[/ %urb-wallet] !>([[%uw sed.args] twk `final-utxo])]
+          =/  wal-bask=bask:tarball  [[/ %urb-wallet] [[%uw sed.args] twk `final-utxo]]
           ;<  wal-seen=seen:nexus  bind:m  (peek:io wal-road ~)
           ;<  ~  bind:m
             ?:  ?=([%& %file *] wal-seen)
-              (over:io wal-road wal-sage)
-            (make:io wal-road [%| gain=%.n wal-sage ~])
+              (over:io wal-road wal-bask)
+            (make:io wal-road [%| wal-bask ~])
           ~&  >  [%reg-tester %saved-wallet spawn-ship]
           $(batch t.batch, cur-utxo `final-utxo)
         ::
@@ -628,21 +630,17 @@
           ::
           [[%ui %sse ~] %'stats.html']
         ;<  ~  bind:m  (rise-wait:io prod "%groundwire /ui/sse/stats: failed")
-        ;<  height=view:nexus  bind:m
-          (keep:io /h (cord-to-road:tarball '../../height.ud') ~)
-        ;<  urb=view:nexus  bind:m
-          (keep:io /u (cord-to-road:tarball '../../urb-state.urb-state') ~)
-        ;<  ~  bind:m
-          %-  replace:io
-          !>((crip (en-xml:html (stats-fragment (extract-ud height) (extract-urb urb)))))
+        =/  h-road=road:tarball  (cord-to-road:tarball '../../height.ud')
+        =/  u-road=road:tarball  (cord-to-road:tarball '../../urb-state.urb-state')
+        ;<  *  bind:m  (keep:io /h h-road ~)
+        ;<  *  bind:m  (keep:io /u u-road ~)
         |-
-        ;<  [tag=?(%h %u) =view:nexus]  bind:m
-          (take-stats-news /h /u)
-        =?  height  =(tag %h)  view
-        =?  urb     =(tag %u)  view
+        ;<  h-seen=seen:nexus  bind:m  (peek:io h-road ~)
+        ;<  u-seen=seen:nexus  bind:m  (peek:io u-road ~)
         ;<  ~  bind:m
           %-  replace:io
-          !>((crip (en-xml:html (stats-fragment (extract-ud height) (extract-urb urb)))))
+          !>((crip (en-xml:html (stats-fragment (extract-ud h-seen) (extract-urb u-seen)))))
+        ;<  *  bind:m  (take-stats-news /h /u)
         $
           ::  /page.html: static shell with reg-tester forms. Re-renders
           ::  when SSE fragments or seeds directory change.
@@ -651,22 +649,19 @@
         ;<  ~  bind:m  (rise-wait:io prod "%groundwire /page: failed")
         ;<  here=rail:tarball  bind:m  get-here-abs:io
         =/  nexus-root=tape  (spud path.here)
-        ;<  sse=view:nexus  bind:m
-          (keep:io /sse (cord-to-road:tarball './ui/sse/') ~)
-        ;<  seeds=view:nexus  bind:m
-          (keep:io /seeds (cord-to-road:tarball './wallets/') ~)
-        ;<  points=view:nexus  bind:m
-          (keep:io /points (cord-to-road:tarball './points/') ~)
-        ;<  ~  bind:m
-          (replace:io !>((crip (en-xml:html (btc-page nexus-root (extract-sse-manx sse 'stats.html') (extract-ships seeds) (extract-points points))))))
+        =/  sse-road=road:tarball  (cord-to-road:tarball './ui/sse/')
+        =/  seeds-road=road:tarball  (cord-to-road:tarball './wallets/')
+        =/  points-road=road:tarball  (cord-to-road:tarball './points/')
+        ;<  *  bind:m  (keep:io /sse sse-road ~)
+        ;<  *  bind:m  (keep:io /seeds seeds-road ~)
+        ;<  *  bind:m  (keep:io /points points-road ~)
         |-
-        ;<  [tag=?(%sse %seeds %points) =view:nexus]  bind:m
-          (take-any-news /sse /seeds /points)
-        =?  sse     =(tag %sse)     view
-        =?  seeds   =(tag %seeds)   view
-        =?  points  =(tag %points)  view
+        ;<  sse-seen=seen:nexus  bind:m  (peek:io sse-road ~)
+        ;<  seeds-seen=seen:nexus  bind:m  (peek:io seeds-road ~)
+        ;<  points-seen=seen:nexus  bind:m  (peek:io points-road ~)
         ;<  ~  bind:m
-          (replace:io !>((crip (en-xml:html (btc-page nexus-root (extract-sse-manx sse 'stats.html') (extract-ships seeds) (extract-points points))))))
+          (replace:io !>((crip (en-xml:html (btc-page nexus-root (extract-sse-manx sse-seen 'stats.html') (extract-ships seeds-seen) (extract-points points-seen))))))
+        ;<  *  bind:m  (take-any-news /sse /seeds /points)
         $
       ==
     ++  on-manu
@@ -682,7 +677,7 @@
 
           Maintains urb protocol PKI state by scanning Bitcoin blocks.
           The walker fiber at /urb-state.urb-state owns the PKI state
-          and uses replace:io — gain is on so anything can keep:io it
+          and uses replace:io — anything can keep:io it
           for live updates. Per-ship point files live under /points/.
 
           FILES:
@@ -723,15 +718,15 @@
 ::
 ++  take-stats-news
   |=  [h=wire u=wire]
-  =/  m  (fiber:fiber:nexus ,[?(%h %u) view:nexus])
+  =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
   |=  input:fiber:nexus
-  :+  ~  state
+  :+  ~  q.state
   ?+  in  [%skip ~]
       ~  [%wait ~]
       [~ %news * *]
-    ?:  =(h wire.u.in)  [%done %h view.u.in]
-    ?:  =(u wire.u.in)  [%done %u view.u.in]
+    ?:  =(h wire.u.in)  [%done ~]
+    ?:  =(u wire.u.in)  [%done ~]
     [%skip ~]
   ==
 ::
@@ -739,41 +734,41 @@
 ::  or mismatched shape.
 ::
 ++  extract-ud
-  |=  =view:nexus
+  |=  =seen:nexus
   ^-  @ud
-  ?.  ?=([%file *] view)  0
-  (fall (mole |.(!<(@ud q.sage.view))) 0)
+  ?.  ?=([%& %file *] seen)  0
+  (fall (mole |.(!<(@ud (need-vase:tarball sang.p.seen)))) 0)
 ::
 ::  Extract a urb state:urb from a kept urb-state file view.
 ::
 ++  extract-urb
-  |=  =view:nexus
+  |=  =seen:nexus
   ^-  state:urb
-  ?.  ?=([%file *] view)  *state:urb
-  (fall (mole |.(!<(state:urb q.sage.view))) *state:urb)
+  ?.  ?=([%& %file *] seen)  *state:urb
+  (fall (mole |.(!<(state:urb (need-vase:tarball sang.p.seen)))) *state:urb)
 ::
 ::  Extract a named manx fragment from a kept sse directory view,
 ::  defaulting to an empty div.
 ::
 ++  extract-sse-manx
-  |=  [=view:nexus name=@ta]
+  |=  [=seen:nexus name=@ta]
   ^-  manx
-  ?.  ?=([%ball *] view)  ;div;
-  =/  =lump:tarball  (fall fil.ball.view *lump:tarball)
-  =/  ct=(unit content:tarball)  (~(get by contents.lump) name)
+  ?.  ?=([%& %ball *] seen)  ;div;
+  =/  =lump:tarball  (fall fil.ball.p.seen *lump:tarball)
+  =/  ct=(unit [=sang:tarball gain=? bang=(unit tang)])  (~(get by contents.lump) name)
   ?~  ct  ;div;
-  (fall (mole |.((need (de-xml:html !<(@t q.sage.u.ct))))) ;div;)
+  (fall (mole |.((need (de-xml:html !<(@t (need-vase:tarball sang.u.ct)))))) ;div;)
 ::
 ::  Extract ship names from a kept wallets directory view.
 ::
 ++  extract-ships
-  |=  =view:nexus
+  |=  =seen:nexus
   ^-  (list @p)
-  ?.  ?=([%ball *] view)  ~
-  =/  =lump:tarball  (fall fil.ball.view *lump:tarball)
+  ?.  ?=([%& %ball *] seen)  ~
+  =/  =lump:tarball  (fall fil.ball.p.seen *lump:tarball)
   %+  murn  ~(tap by contents.lump)
-  |=  [name=@ta =content:tarball]
-  ?.  ?=(%urb-wallet name.p.sage.content)  ~
+  |=  [name=@ta =sang:tarball gain=? bang=(unit tang)]
+  ?.  ?=(%urb-wallet name.p.sang)  ~
   =/  raw=tape  (trip name)
   =/  ext=tape  ".urb-wallet"
   (slaw %p (crip (scag (sub (lent raw) (lent ext)) raw)))
@@ -781,13 +776,13 @@
 ::  Extract ship names from a kept points directory view.
 ::
 ++  extract-points
-  |=  =view:nexus
+  |=  =seen:nexus
   ^-  (list @p)
-  ?.  ?=([%ball *] view)  ~
-  =/  =lump:tarball  (fall fil.ball.view *lump:tarball)
+  ?.  ?=([%& %ball *] seen)  ~
+  =/  =lump:tarball  (fall fil.ball.p.seen *lump:tarball)
   %+  murn  ~(tap by contents.lump)
-  |=  [name=@ta =content:tarball]
-  ?.  ?=(%json name.p.sage.content)  ~
+  |=  [name=@ta =sang:tarball gain=? bang=(unit tang)]
+  ?.  ?=(%json name.p.sang)  ~
   =/  raw=tape  (trip name)
   =/  ext=tape  ".json"
   (slaw %p (crip (scag (sub (lent raw) (lent ext)) raw)))
@@ -796,16 +791,16 @@
 ::
 ++  take-any-news
   |=  [a=wire b=wire c=wire]
-  =/  m  (fiber:fiber:nexus ,[?(%sse %seeds %points) view:nexus])
+  =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
   |=  input:fiber:nexus
-  :+  ~  state
+  :+  ~  q.state
   ?+  in  [%skip ~]
       ~  [%wait ~]
       [~ %news * *]
-    ?:  =(a wire.u.in)  [%done %sse view.u.in]
-    ?:  =(b wire.u.in)  [%done %seeds view.u.in]
-    ?:  =(c wire.u.in)  [%done %points view.u.in]
+    ?:  =(a wire.u.in)  [%done ~]
+    ?:  =(b wire.u.in)  [%done ~]
+    ?:  =(c wire.u.in)  [%done ~]
     [%skip ~]
   ==
 ::
@@ -826,7 +821,7 @@
   ^-  [url=@t auth=@t]
   =/  fallback  [url='http://localhost:18443/' auth='Basic Yml0Y29pbnJwYzpiaXRjb2lucnBj']
   ?.  ?=([%& %file *] seen)  fallback
-  =/  jon  !<(json q.sage.p.seen)
+  =/  jon  !<(json (need-vase:tarball sang.p.seen))
   ?.  ?=([%o *] jon)  fallback
   =/  url=@t
     =/  u=(unit json)  (~(get by p.jon) 'url')
@@ -1224,15 +1219,15 @@
   =/  trace-road=road:tarball  (cord-to-road:tarball './trace.txt')
   ;<  prev-seen=seen:nexus  bind:m  (peek:io trace-road `[/ %txt])
   =/  prev-lines=wain
-    ?:  ?=([%& %file *] prev-seen)  !<(wain q.sage.p.prev-seen)
+    ?:  ?=([%& %file *] prev-seen)  !<(wain (need-vase:tarball sang.p.prev-seen))
     ~
   =/  combined=wain  (weld prev-lines new-lines)
-  ;<  ~  bind:m  (over:io trace-road [[/ %txt] !>(combined)])
+  ;<  ~  bind:m  (over:io trace-road [[/ %txt] combined])
   (pure:m ~)
 ::
 ::  Emit each sotx observed in an urb-block as a urb-event.
 ::  Writes to events/main.urb-event (global stream) and
-::  events/ships/<ship>.urb-event (per-ship). All gain-enabled.
+::  events/ships/<ship>.urb-event (per-ship).
 ::  Iterates txs → inputs → sots in order.
 ::
 ++  emit-events
@@ -1254,17 +1249,17 @@
       ?~  sots  (pure:m ~)
       =/  evt=(unit [height=@ud txid=@ux =ship =sotx:urb os=(list output:tx:btc)])
         `[height.ublk id.tx ship.sot.i.sots sot.i.sots os.tx]
-      =/  evt-sage=sage:tarball  [[/ %urb-event] !>(evt)]
+      =/  evt-bask=bask:tarball  [[/ %urb-event] evt]
       ::  write to global stream
-      ;<  ~  bind:m  (over:io main-road evt-sage)
+      ;<  ~  bind:m  (over:io main-road evt-bask)
       ::  write to per-ship file (create on first event)
       =/  ship-road=road:tarball
         (cord-to-road:tarball (cat 3 './events/ships/' (cat 3 (scot %p ship.sot.i.sots) '.urb-event')))
       ;<  ship-seen=seen:nexus  bind:m  (peek:io ship-road ~)
       ;<  ~  bind:m
         ?:  ?=([%& %file *] ship-seen)
-          (over:io ship-road evt-sage)
-        (make:io ship-road [%| gain=%.y evt-sage ~])
+          (over:io ship-road evt-bask)
+        (make:io ship-road [%| evt-bask ~])
       $(sots t.sots)
     $(ins t.ins)
   $(txs t.txs)
@@ -1366,8 +1361,8 @@
   ;<  =seen:nexus  bind:m  (peek:io road ~)
   ;<  ~  bind:m
     ?:  ?=([%& %file *] seen)
-      (over:io road [[/ %json] !>(pt-json)])
-    (make:io road [%| gain=%.n [[/ %json] !>(pt-json)] ~])
+      (over:io road [[/ %json] pt-json])
+    (make:io road [%| [[/ %json] pt-json] ~])
   $(ships t.ships)
 ::
 ::  Fiber helper: generatetoaddress N <addr>, ignoring result.

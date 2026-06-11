@@ -31,6 +31,6 @@
     (pure:m [%error p.pax-parsed])
   =/  pax=path  p.pax-parsed
   =/  =road:tarball  [%& %& [(weld pax /actions) %'push.sig']]
-  ;<  ~  bind:m  (poke:io road [[/ %sig] !>(~)])
+  ;<  ~  bind:m  (poke:io road [[/ %sig] ~])
   (pure:m [%text 'Push triggered.'])
 --

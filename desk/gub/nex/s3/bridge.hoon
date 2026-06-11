@@ -21,8 +21,8 @@
 =<  ^-  nexus:nexus
     |%
     ++  on-load
-      |=  [=sand:nexus =gain:nexus =ball:tarball]
-      ^-  [sand:nexus gain:nexus ball:tarball]
+      |=  =ball:tarball
+      ^-  bole:tarball
       =/  =ver:loader  (get-ver:loader ball)
       =/  default-creds=json
         %-  pairs:enjs:format
@@ -34,17 +34,17 @@
         ==
       ?+  ver  !!
           ?(~ [~ %0])
-        %+  spin:loader  [sand gain ball]
+        %+  spin:loader  ball
         :~  (ver-row:loader 0)
-            [%fall %& [/ %'main.sig'] %.n [~ [/ %sig] !>(~)]]
-            [%fall %& [/ %'creds.json'] %.n [~ [/ %json] !>(default-creds)]]
-            [%fall %& [/ %'source.json'] %.n [~ [/ %json] !>(s+'')]]
-            [%fall %& [/ %'mapping.json'] %.n [~ [/ %json] !>([%a ~])]]
-            [%fall %& [/ %'log.json'] %.n [~ [/ %json] !>([%a ~])]]
-            [%fall %& [/ %'browse.json'] %.n [~ [/ %json] !>([%o ~])]]
-            [%fall %& [/ %'sync-status.json'] %.n [~ [/ %json] !>([%a ~])]]
-            [%fall %| /sync [~ ~] [~ ~] empty-dir:loader]
-            [%over %& [/ %'page.html'] %.n [~ [/ %html] !>((manx-to-html (bridge-page ~)))]]
+            [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
+            [%fall %& [/ %'creds.json'] [[/ %json] default-creds]]
+            [%fall %& [/ %'source.json'] [[/ %json] s+'']]
+            [%fall %& [/ %'mapping.json'] [[/ %json] [%a ~]]]
+            [%fall %& [/ %'log.json'] [[/ %json] [%a ~]]]
+            [%fall %& [/ %'browse.json'] [[/ %json] [%o ~]]]
+            [%fall %& [/ %'sync-status.json'] [[/ %json] [%a ~]]]
+            [%fall %| /sync empty-dir:loader]
+            [%over %& [/ %'page.html'] [[/ %html] (manx-to-html (bridge-page ~))]]
         ==
       ==
     ::
@@ -60,11 +60,11 @@
         ;<  ~  bind:m  (rise-wait:io prod "%s3-bridge page: failed")
         ;<  map-rd=road:tarball  bind:m
           (ancestor-road:io [/s3 %bridge] [%& / %'mapping.json'])
-        ;<  mappings=view:nexus  bind:m  (keep:io /mapping map-rd ~)
-        ;<  ~  bind:m  (replace:io !>((manx-to-html (bridge-page (read-bridges mappings)))))
+        ;<  mappings=wave:nexus  bind:m  (keep:io /mapping map-rd ~)
         |-
-        ;<  upd=view:nexus  bind:m  (take-news:io /mapping)
-        ;<  ~  bind:m  (replace:io !>((manx-to-html (bridge-page (read-bridges upd)))))
+        ;<  =seen:nexus  bind:m  (peek:io map-rd ~)
+        ;<  ~  bind:m  (replace:io !>((manx-to-html (bridge-page (read-bridges seen)))))
+        ;<  upd=wave:nexus  bind:m  (take-news:io /mapping)
         $
         ::
           [~ %'main.sig']
@@ -175,7 +175,7 @@
             ==
           ;<  brd=road:tarball  bind:m
             (ancestor-road:io [/s3 %bridge] [%& / %'browse.json'])
-          ;<  ~  bind:m  (over:io brd [[/ %json] !>(browse-jon)])
+          ;<  ~  bind:m  (over:io brd [[/ %json] browse-jon])
           ;<  ~  bind:m  (log-msg 'info' (crip "Browsed bucket: {<(lent keys)>} objects"))
           $
             ::
@@ -239,12 +239,12 @@
             stay:m
           ;<  map-rd=road:tarball  bind:m
             (ancestor-road:io [/s3 %bridge] [%& / %'mapping.json'])
-          ;<  init=view:nexus  bind:m  (keep:io /source-sync map-rd ~)
+          ;<  init=wave:nexus  bind:m  (keep:io /source-sync map-rd ~)
           ;<  creds=s3-creds  bind:m  read-creds
           ;<  ~  bind:m  (push-source creds)
           ;<  ~  bind:m  (log-msg 'info' (crip "Source sync started, watching mapping.json -> {(trip src)}"))
           |-
-          ;<  upd=view:nexus  bind:m  (take-news:io /source-sync)
+          ;<  upd=wave:nexus  bind:m  (take-news:io /source-sync)
           ;<  creds=s3-creds  bind:m  read-creds
           ;<  ~  bind:m  (push-source creds)
           ;<  ~  bind:m  (log-msg 'info' 'Source sync: pushed mapping.json')
@@ -265,16 +265,18 @@
           ;<  ~  bind:m  (log-msg 'error' (crip "Sync #{(trip id)}: local path overlaps this bridge's namespace"))
           stay:m
         =/  local-road=road:tarball  [%& %| (text-to-path local-path.entry)]
-        ;<  init=view:nexus  bind:m  (keep:io /sync local-road ~)
-        =/  current=(map @t @ud)  (ball-file-mugs init entry)
+        ;<  init=wave:nexus  bind:m  (keep:io /sync local-road ~)
+        ;<  init-seen=seen:nexus  bind:m  (peek:io local-road ~)
+        =/  current=(map @t @ud)  (ball-file-mugs init-seen entry)
         ;<  ~  bind:m  (push-changed creds entry current ~)
         ;<  ~  bind:m
           (log-msg 'info' (crip "Sync #{(trip id)} watching {(trip local-path.entry)} ({<~(wyt by current)>} files)"))
         =/  known=(map @t @ud)  current
         |-
-        ;<  upd=view:nexus  bind:m  (take-news:io /sync)
+        ;<  upd=wave:nexus  bind:m  (take-news:io /sync)
+        ;<  sync-seen=seen:nexus  bind:m  (peek:io local-road ~)
         ;<  creds=s3-creds  bind:m  read-creds
-        =/  now=(map @t @ud)  (ball-file-mugs upd entry)
+        =/  now=(map @t @ud)  (ball-file-mugs sync-seen entry)
         =/  changed=(list @t)
           %+  murn  ~(tap by now)
           |=  [key=@t mug=@ud]
@@ -289,7 +291,7 @@
           `key
         ?:  &(=(~ changed) =(~ deleted))
           $(known now)
-        ;<  ~  bind:m  (push-keys creds entry changed upd)
+        ;<  ~  bind:m  (push-keys creds entry changed sync-seen)
         ;<  ~  bind:m  (delete-keys creds deleted)
         ;<  ~  bind:m
           (log-msg 'info' (crip "Sync #{(trip id)}: {<(lent changed)>} updated, {<(lent deleted)>} deleted"))
@@ -363,7 +365,7 @@
   ;<  =seen:nexus  bind:m  (peek:io rd ~)
   =/  jon=json
     ?.  ?=([%& %file *] seen)  [%o ~]
-    (fall (mole |.(!<(json q.sage.p.seen))) [%o ~])
+    (fall (mole |.(!<(json (need-vase:tarball sang.p.seen)))) [%o ~])
   ?.  ?=(%o -.jon)  (pure:m *s3-creds)
   %-  pure:m
   :*  (get-str jon 'access_key')
@@ -380,7 +382,7 @@
     (ancestor-road:io [/s3 %bridge] [%& / %'source.json'])
   ;<  =seen:nexus  bind:m  (peek:io rd ~)
   ?.  ?=([%& %file *] seen)  (pure:m '')
-  =/  jon=json  (fall (mole |.(!<(json q.sage.p.seen))) s+'')
+  =/  jon=json  (fall (mole |.(!<(json (need-vase:tarball sang.p.seen)))) s+'')
   ?.  ?=(%s -.jon)  (pure:m '')
   (pure:m p.jon)
 ::
@@ -401,7 +403,7 @@
   =/  jon=json  (fall (de:json:html body) [%a ~])
   ;<  rd=road:tarball  bind:m
     (ancestor-road:io [/s3 %bridge] [%& / %'mapping.json'])
-  ;<  ~  bind:m  (over:io rd [[/ %json] !>(jon)])
+  ;<  ~  bind:m  (over:io rd [[/ %json] jon])
   ;<  ~  bind:m  (log-msg 'info' (crip "Pulled mapping source from {(trip src)}"))
   (pure:m ~)
 ::
@@ -415,7 +417,7 @@
     (ancestor-road:io [/s3 %bridge] [%& / %'mapping.json'])
   ;<  =seen:nexus  bind:m  (peek:io rd ~)
   ?.  ?=([%& %file *] seen)  (pure:m ~)
-  =/  jon=json  (fall (mole |.(!<(json q.sage.p.seen))) [%a ~])
+  =/  jon=json  (fall (mole |.(!<(json (need-vase:tarball sang.p.seen)))) [%a ~])
   =/  body=@t  (en:json:html jon)
   ;<  resp=client-response:iris  bind:m  (s3-request cfg 'PUT' src '' `body)
   ?.  ?=(%finished -.resp)
@@ -432,7 +434,7 @@
   ;<  =seen:nexus  bind:m  (peek:io rd ~)
   =/  jon=json
     ?.  ?=([%& %file *] seen)  [%a ~]
-    (fall (mole |.(!<(json q.sage.p.seen))) [%a ~])
+    (fall (mole |.(!<(json (need-vase:tarball sang.p.seen)))) [%a ~])
   ?.  ?=(%a -.jon)  (pure:m ~)
   %-  pure:m
   %+  murn  p.jon
@@ -459,7 +461,7 @@
     ==
   ;<  rd=road:tarball  bind:m
     (ancestor-road:io [/s3 %bridge] [%& / %'mapping.json'])
-  (over:io rd [[/ %json] !>(jon)])
+  (over:io rd [[/ %json] jon])
 ::
 ++  sync-mapping
   |=  id=@t
@@ -472,7 +474,7 @@
   ?:  exists
     ;<  ~  bind:m  (log-msg 'warn' (crip "Sync #{(trip id)}: already synced"))
     (pure:m ~)
-  ;<  ~  bind:m  (make:io rd |+[%.n [[/ %json] !>([%o ~])] ~])
+  ;<  ~  bind:m  (make:io rd |+[[[/ %json] [%o ~]] ~])
   ;<  ~  bind:m  (log-msg 'info' (crip "Sync #{(trip id)} started"))
   (update-sync-status id %.y)
 ::
@@ -498,7 +500,7 @@
   ;<  =seen:nexus  bind:m  (peek:io rd ~)
   =/  existing=(set @t)
     ?.  ?=([%& %file *] seen)  ~
-    =/  jon=json  (fall (mole |.(!<(json q.sage.p.seen))) [%a ~])
+    =/  jon=json  (fall (mole |.(!<(json (need-vase:tarball sang.p.seen)))) [%a ~])
     ?.  ?=(%a -.jon)  ~
     %-  ~(gas in *(set @t))
     (murn p.jon |=(j=json ?.(?=(%s -.j) ~ `p.j)))
@@ -506,7 +508,7 @@
     ?:  add  (~(put in existing) id)
     (~(del in existing) id)
   =/  jon=json  [%a (turn ~(tap in updated) |=(t=@t s+t))]
-  (over:io rd [[/ %json] !>(jon)])
+  (over:io rd [[/ %json] jon])
 ::
 ++  log-msg
   |=  [level=@t message=@t]
@@ -524,18 +526,18 @@
   ;<  =seen:nexus  bind:m  (peek:io rd ~)
   =/  existing=(list json)
     ?.  ?=([%& %file *] seen)  ~
-    =/  jon=json  (fall (mole |.(!<(json q.sage.p.seen))) [%a ~])
+    =/  jon=json  (fall (mole |.(!<(json (need-vase:tarball sang.p.seen)))) [%a ~])
     ?.  ?=(%a -.jon)  ~
     p.jon
   =/  new=(list json)  (scag 50 ^-((list json) [entry existing]))
-  (over:io rd [[/ %json] !>([%a new])])
+  (over:io rd [[/ %json] [%a new]])
 ::
 ++  read-bridges
-  |=  =view:nexus
+  |=  =seen:nexus
   ^-  (list bridge-entry)
-  ?.  ?=(%file -.view)  ~
+  ?.  ?=([%& %file *] seen)  ~
   =/  jon=json
-    (fall (mole |.(!<(json q.sage.view))) [%a ~])
+    (fall (mole |.(!<(json (need-vase:tarball sang.p.seen)))) [%a ~])
   ?.  ?=(%a -.jon)  ~
   %+  murn  p.jon
   |=  j=json
@@ -628,16 +630,17 @@
 ::  Returns ~ for unknown marks (caller should skip)
 ::
 ++  serialize-for-s3
-  |=  =content:tarball
+  |=  =sang:tarball
   ^-  (unit @t)
-  =/  kind=(unit ?(%text %wain %mime))  (known-mark p.sage.content)
+  =/  kind=(unit ?(%text %wain %mime))  (known-mark p.sang)
   ?~  kind  ~
   =/  res=(each @t tang)
     %-  mule  |.
+    =/  =vase  (need-vase:tarball sang)
     ?-  u.kind
-      %text  !<(@t q.sage.content)
-      %wain  (of-wain:format !<(wain q.sage.content))
-      %mime  q.q:!<(mime q.sage.content)
+      %text  !<(@t vase)
+      %wain  (of-wain:format !<(wain vase))
+      %mime  q.q:!<(mime vase)
     ==
   ?:(?=(%& -.res) `p.res ~)
 ::
@@ -694,7 +697,7 @@
     ;<  exists=?  bind:m  (peek-exists:io local-road)
     ;<  ~  bind:m  ?.  exists  (pure:m ~)
                    (cull:io local-road)
-    ;<  ~  bind:m  (make:io local-road &+[*sand:nexus *gain:nexus root-ball])
+    ;<  ~  bind:m  (make:io local-road &+(ball-to-bole:tarball root-ball))
     ;<  ~  bind:m
       (log-msg 'info' (crip "Pulled {<pulled>} files for #{(trip id.bridge-entry)}"))
     (pure:m ~)
@@ -727,43 +730,42 @@
         =/  mtype=path  (determine-mime-type:tarball ct filename)
         [blot !>(`mime`[mtype body])]
     ==
-  =/  =content:tarball  [~ sage]
-  $(keys t.keys, pulled +(pulled), ball (~(put ba:tarball ball) [rel-path filename] content))
+  $(keys t.keys, pulled +(pulled), ball (~(put ba:tarball ball) [rel-path filename] (sage-to-sang:tarball sage)))
 ::
 ::  sync push helpers
 ::
 ::  Build map of s3-key -> mug from a namespace view
 ::
 ++  ball-file-mugs
-  |=  [=view:nexus =bridge-entry]
+  |=  [=seen:nexus =bridge-entry]
   ^-  (map @t @ud)
-  ?.  ?=(%ball -.view)  ~
-  =/  files=(list [=rail:tarball =content:tarball])
-    (list-ball-files ball.view (text-to-path local-path.bridge-entry))
+  ?.  ?=([%& %ball *] seen)  ~
+  =/  files=(list [=rail:tarball =sang:tarball])
+    (list-ball-files ball.p.seen (text-to-path local-path.bridge-entry))
   %-  malt
   %+  murn  files
-  |=  [=rail:tarball =content:tarball]
-  =/  kind=(unit ?(%text %wain %mime))  (known-mark p.sage.content)
+  |=  [=rail:tarball =sang:tarball]
+  =/  kind=(unit ?(%text %wain %mime))  (known-mark p.sang)
   ?~  kind  ~
   =/  rel-path=path
     =/  base=path  (text-to-path local-path.bridge-entry)
     (slag (lent base) path.rail)
   =/  s3-key=@t  (build-s3-key s3-prefix.bridge-entry rel-path name.rail)
-  `[s3-key (mug q.sage.content)]
+  `[s3-key (mug (sang-noun:tarball sang))]
 ::
 ::  Push only specific keys from a view
 ::
 ++  push-keys
-  |=  [cfg=s3-creds =bridge-entry keys=(list @t) =view:nexus]
+  |=  [cfg=s3-creds =bridge-entry keys=(list @t) =seen:nexus]
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
-  ?.  ?=(%ball -.view)  (pure:m ~)
-  =/  files=(list [=rail:tarball =content:tarball])
-    (list-ball-files ball.view (text-to-path local-path.bridge-entry))
+  ?.  ?=([%& %ball *] seen)  (pure:m ~)
+  =/  files=(list [=rail:tarball =sang:tarball])
+    (list-ball-files ball.p.seen (text-to-path local-path.bridge-entry))
   =/  key-set=(set @t)  (silt keys)
-  =/  remaining=(list [rail:tarball content:tarball])
+  =/  remaining=(list [rail:tarball sang:tarball])
     %+  skim  files
-    |=  [=rail:tarball =content:tarball]
+    |=  [=rail:tarball =sang:tarball]
     =/  rel-path=path
       =/  base=path  (text-to-path local-path.bridge-entry)
       (slag (lent base) path.rail)
@@ -771,12 +773,12 @@
     (~(has in key-set) s3-key)
   |-
   ?~  remaining  (pure:m ~)
-  =/  [=rail:tarball =content:tarball]  i.remaining
+  =/  [=rail:tarball =sang:tarball]  i.remaining
   =/  rel-path=path
     =/  base=path  (text-to-path local-path.bridge-entry)
     (slag (lent base) path.rail)
   =/  s3-key=@t  (build-s3-key s3-prefix.bridge-entry rel-path name.rail)
-  =/  body=(unit @t)  (serialize-for-s3 content)
+  =/  body=(unit @t)  (serialize-for-s3 sang)
   ?~  body  $(remaining t.remaining)
   ;<  resp=client-response:iris  bind:m  (s3-request cfg 'PUT' s3-key '' body)
   $(remaining t.remaining)
@@ -790,16 +792,16 @@
   =/  local-road=road:tarball  [%& %| (text-to-path local-path.bridge-entry)]
   ;<  =seen:nexus  bind:m  (peek:io local-road ~)
   ?.  ?=([%& %ball *] seen)  (pure:m ~)
-  =/  files=(list [=rail:tarball =content:tarball])
+  =/  files=(list [=rail:tarball =sang:tarball])
     (list-ball-files ball.p.seen (text-to-path local-path.bridge-entry))
   |-
   ?~  files  (pure:m ~)
-  =/  [=rail:tarball =content:tarball]  i.files
+  =/  [=rail:tarball =sang:tarball]  i.files
   =/  rel-path=path
     =/  base=path  (text-to-path local-path.bridge-entry)
     (slag (lent base) path.rail)
   =/  s3-key=@t  (build-s3-key s3-prefix.bridge-entry rel-path name.rail)
-  =/  body=(unit @t)  (serialize-for-s3 content)
+  =/  body=(unit @t)  (serialize-for-s3 sang)
   ?~  body  $(files t.files)
   ;<  resp=client-response:iris  bind:m  (s3-request cfg 'PUT' s3-key '' body)
   $(files t.files)
@@ -816,13 +818,13 @@
 ::
 ++  list-ball-files
   |=  [=ball:tarball base=path]
-  ^-  (list [rail:tarball content:tarball])
-  =/  acc=(list [rail:tarball content:tarball])  ~
+  ^-  (list [rail:tarball sang:tarball])
+  =/  acc=(list [rail:tarball sang:tarball])  ~
   =?  acc  ?=(^ fil.ball)
-    =/  fils=(list [@ta content:tarball])  ~(tap by contents.u.fil.ball)
+    =/  fils=(list [@ta [=sang:tarball gain=? bang=(unit tang)]])  ~(tap by contents.u.fil.ball)
     %+  weld  acc
     %+  turn  fils
-    |=([name=@ta =content:tarball] [[base name] content])
+    |=([name=@ta =sang:tarball gain=? bang=(unit tang)] [[base name] sang])
   =/  dirs=(list [@ta ball:tarball])  ~(tap by dir.ball)
   |-
   ?~  dirs  acc

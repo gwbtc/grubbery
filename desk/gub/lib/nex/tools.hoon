@@ -10,6 +10,7 @@
 +$  tool-result
   $%  [%text text=@t]
       [%error message=@t]
+      [%mime =mime]
   ==
 ::  Tool process state: args + step tag + step-specific data.
 ::  Step tag acts like a head-tagged union — handlers switch on it.
@@ -147,7 +148,7 @@
   =/  until=@da  (add now for)
   ;<  ~  bind:m  (send-wait:io until)
   |=  input:fiber:nexus
-  :+  ~  state
+  :+  ~  q.state
   ?+  in  [%skip ~]
       ~  [%wait ~]
       [~ %poke * *]
@@ -162,14 +163,14 @@
 +$  commit-event
   $%  [%timeout ~]
       [%quiet count=@ud]
-      [%log =told:dill]
+      [%log =wave:nexus]
   ==
 ::
 ++  take-commit-event
   =/  m  (fiber:fiber:nexus ,commit-event)
   ^-  form:m
   |=  input:fiber:nexus
-  :+  ~  state
+  :+  ~  q.state
   ?+  in  [%skip ~]
       ~  [%wait ~]
       [~ %poke * *]
@@ -183,9 +184,7 @@
       [%done %quiet (slav %ud i.t.wak)]
     ==
       [~ %news [%dill %logs ~] *]
-    ?.  ?=([%file *] view.u.in)  [%skip ~]
-    ?.  ?=(%dill-told name.p.sage.view.u.in)  [%skip ~]
-    [%done %log !<(told:dill q.sage.view.u.in)]
+    [%done %log wave.u.in]
   ==
 ::
 ++  collect-logs
@@ -203,10 +202,15 @@
       $  :: stale timer, keep waiting
     (pure:m ~)
       %log
+    ;<  dill-seen=seen:nexus  bind:m  (peek:io [%& %& /sys/dill %'logs.dill-told'] ~)
+    =/  log-text=tape
+      ?.  ?=([%& %file *] dill-seen)  ""
+      ?.  ?=(%dill-told name.p.sang.p.dill-seen)  ""
+      (format-told !<(told:dill (need-vase:tarball sang.p.dill-seen)))
+    ?:  =(~ log-text)  $
     ;<  st=tool-state  bind:m  (get-state-as:io ,tool-state)
     =/  logs=(list json)
       (~(dug jo:json-utils data.st) /logs (ar:dejs:format same:dejs:format) ~)
-    =/  log-text=tape  (format-told told.commit-event)
     =/  new-data=json
       (~(put jo:json-utils data.st) /logs a+[s+(crip log-text) logs])
     =/  new-count=@ud  +((lent logs))
@@ -237,46 +241,99 @@
       %text
     "{p.log}\0a"
   ==
+::  Is this mark name known to be text-renderable directly?
 ::
-::  Render grub content as text for tool output
+++  is-text-blot
+  |=  name=@tas
+  ^-  ?
+  %-  ~(has in `(set @tas)`(sy ~[%json %txt %hoon %html %css %js %csv %xml %md %sig]))
+  name
+::  Is this mime media type representable as text?
+::
+++  is-text-mime
+  |=  =mite
+  ^-  ?
+  ?~  mite  %.n
+  ?:  =('text' i.mite)  %.y
+  ?.  =('application' i.mite)  %.n
+  ?~  t.mite  %.n
+  (~(has in (sy ~['json' 'xml' 'javascript' 'x-javascript' 'ecmascript'])) i.t.mite)
+::  Is this mime type supported as multimodal content by Claude?
+::
+++  is-multimodal-mime
+  |=  =mite
+  ^-  ?
+  ?~  mite  %.n
+  ?|  =('image' i.mite)
+      =([~['application' 'pdf']] mite)
+  ==
+::  Convert mite to media type cord (e.g. ~['image' 'png'] -> 'image/png')
+::
+++  mite-to-cord
+  |=  =mite
+  ^-  @t
+  (crip (zing (join "/" (turn mite trip))))
+::  Render mime content as a tool-result based on media type.
+::  Text types become %text, multimodal types become %mime,
+::  unsupported binary types fall back to text.
+::
+++  render-mime
+  |=  out=mime
+  ^-  tool-result
+  ?:  (is-text-mime p.out)
+    [%text (crip (trip q.q.out))]
+  ?:  (is-multimodal-mime p.out)
+    [%mime out]
+  ::  unsupported binary — best-effort text
+  [%text (crip (trip q.q.out))]
+::
+::  Render grub content for tool output.
+::
+::  Priority:
+::    1. boom → error with trace
+::    2. Known text blots → render as text directly
+::    3. /mime blot → check media type (text vs multimodal)
+::    4. Unknown blot → convert to mime, check media type
+::    5. No conversion → error
 ::
 ++  render-grub-content
   |=  =seen:nexus
   =/  m  (fiber:fiber:nexus ,tool-result)
   ^-  form:m
   ?>  ?=([%& %file *] seen)
-  =/  =sage:tarball  sage.p.seen
+  ::  1. boom (validation failure): render error tang
+  ?:  ?=(%| -.q.sang.p.seen)
+    =/  =boom:tarball  p.q.sang.p.seen
+    =/  rendered=tape
+      %-  zing
+      %+  turn  (flop tang.boom)
+      |=(=tank (weld ~(ram re tank) "\0a"))
+    (pure:m [%error (crip "BOOM (mark %{(trip name.p.sang.p.seen)})\0a{rendered}")])
+  =/  =sage:tarball  (need-sage:tarball sang.p.seen)
   =/  blot-text=@t
     (crip "[mark: {(spud (snoc path.p.sage name.p.sage))}]")
   ;<  result=tool-result  bind:m
-    ?+  name.p.sage
-      ::  Fallback: convert to mime via grubbery's marc system
-      ;<  convert=(unit tube:clay)  bind:m
-        (get-tube:io [%& %| /code] [p.sage [/ %mime]])
-      ?~  convert
-        (pure:m [%error (crip "No conversion from {(trip name.p.sage)} to mime")])
-      =/  result-vase=vase  (u.convert q.sage)
-      =/  out=mime  !<(mime result-vase)
-      (pure:m [%text (crip (trip q.q.out))])
-        %boom
-      =/  [err=tang mar=@tas data=*]  !<([tang @tas *] q.sage)
-      =/  rendered=tape
-        %-  zing
-        %+  turn  (flop err)
-        |=(=tank (weld ~(ram re tank) "\0a"))
-      %-  pure:m
-      [%error (crip "BOOM (mark %{(trip mar)})\0a{rendered}")]
-        %json
-      (pure:m [%text (en:json:html !<(json q.sage))])
-        %txt
-      (pure:m [%text (of-wain:format !<(wain q.sage))])
-        %hoon
-      (pure:m [%text !<(@t q.sage)])
-        %mime
-      =/  out=mime  !<(mime q.sage)
-      (pure:m [%text (crip (trip q.q.out))])
-    ==
+    ::  2. known text blots: render as text directly
+    ?:  (is-text-blot name.p.sage)
+      ?+  name.p.sage
+        (pure:m [%text !<(@t q.sage)])
+          %json  (pure:m [%text (en:json:html !<(json q.sage))])
+          %txt   (pure:m [%text (of-wain:format !<(wain q.sage))])
+          %hoon  (pure:m [%text !<(@t q.sage)])
+      ==
+    ::  3. /mime blot: check media type
+    ?:  =(%mime name.p.sage)
+      (pure:m (render-mime !<(mime q.sage)))
+    ::  4. unknown blot: convert to mime, then check media type
+    ;<  convert=(unit tube:clay)  bind:m
+      (get-tube:io [%& %| /code] [p.sage [/ %mime]])
+    ?~  convert
+      (pure:m [%error (crip "No conversion from {(trip name.p.sage)} to mime")])
+    =/  out=mime  !<(mime (u.convert q.sage))
+    (pure:m (render-mime out))
   ?:  ?=(%error -.result)  (pure:m result)
+  ?:  ?=(%mime -.result)
+    (pure:m [%mime mime.result])
   (pure:m [%text (crip "{(trip blot-text)}\0a{(trip text.result)}")])
 ::  Look up a grub by name — exact match
 ::  Returns [actual-grub-name seen]
@@ -334,7 +391,7 @@
   ?.  ?=([%& %file *] creds-seen)
     ~|  %s3-creds-not-found
     !!
-  =/  jon=json  !<(json q.sage.p.creds-seen)
+  =/  jon=json  !<(json (need-vase:tarball sang.p.creds-seen))
   =/  creds=s3-creds
     %.  jon
     %-  ot:dejs:format

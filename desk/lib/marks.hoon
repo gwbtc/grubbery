@@ -12,6 +12,7 @@
   |=  cor=vase
   ^-  marc:tarball
   |%
+  ++  type  p:(vale +6.q.cor)
   ++  vale  (build-vale cor)
   ++  grow  (build-grow cor)
   ++  grab  (build-grab cor)
