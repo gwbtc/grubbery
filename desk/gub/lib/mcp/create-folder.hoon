@@ -5,12 +5,13 @@
 ^-  tool:tools
 |%
 ++  name  'create_folder'
-++  description  'Create a folder in the grubbery ball.'
+++  description  'Create a folder in the grubbery ball. Optionally set a nexus to make it a managed namespace.'
 ++  parameters
   ^-  (map @t parameter-def:tools)
   %-  ~(gas by *(map @t parameter-def:tools))
   :~  ['path' [%string 'Parent directory path (e.g. "/")']]
       ['name' [%string 'Folder name']]
+      ['nexus' [%string 'Nexus type (e.g. "logbook.logbook", "claw.app"). Omit for a plain folder.']]
   ==
 ++  required  ~['path' 'name']
 ++  handler
@@ -25,9 +26,18 @@
   ?:  ?=(%| -.parsed)
     (pure:m [%error 'Missing or invalid required arguments (path, name)'])
   =/  [parent-path=@t folder-name=@t]  p.parsed
+  =/  nexus-raw=(unit @t)  (~(deg jo:json-utils [%o args.st]) /nexus so:dejs:format)
   =/  dir-name=@ta  folder-name
   =/  folder-path=path  (snoc (stab parent-path) dir-name)
-  =/  new-bole=bole:tarball  [`[~ ~ %.n ~] ~]
+  =/  nec=(unit neck:tarball)
+    ?~  nexus-raw  ~
+    =/  pax=path  (stab u.nexus-raw)
+    ?~  pax  ~
+    `[(snip `path`pax) (rear pax)]
+  =/  new-bole=bole:tarball  [`[nec ~ %.n ~] ~]
   ;<  ~  bind:m  (make:io [%& %| folder-path] &+new-bole)
-  (pure:m [%text (crip "Created folder {(spud folder-path)}")])
+  =/  msg=tape
+    ?~  nexus-raw  "Created folder {(spud folder-path)}"
+    "Created folder {(spud folder-path)} with nexus {(trip u.nexus-raw)}"
+  (pure:m [%text (crip msg)])
 --

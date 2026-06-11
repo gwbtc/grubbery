@@ -28,6 +28,7 @@
       =bins:nexus
       =vale:nexus
       afar=(map @p born:nexus)
+      =peeks:remote:nexus
       jael-source=(unit rail:tarball)
   ==
 ++  kel  21.000.000 :: start big; burn many at once
@@ -172,20 +173,93 @@
     =^  peer-cards  state
       abet:(ensure-peer-ship:hc src.bowl)
     =/  ship-rail=rail:tarball  [/sys/ames/ships/[ship-ta] %'ship.sig']
+    ::  %peek and %want bypass the dart system
+    ~&  >  [%grubbery-load +<.req src=src.bowl]
+    ?:  ?=(%peek +<.req)
+      =/  dest-lane=lane:tarball  dest.req
+      =/  =pace:hist:nexus
+        ?-  -.dest-lane
+            %&
+          =/  r=rail:tarball  p.dest-lane
+          =/  node=(unit [fold=hist:nexus file=(map @ta hist:nexus)])
+            (~(get of born) path.r)
+          ?~  node  [%tomb ~]
+          =/  sk=hist:nexus
+            (fall (~(get by file.u.node) name.r) *hist:nexus)
+          ?~  case.req
+            =/  cas=(unit cass:clay)  (top:hist:nexus sk)
+            ?~  cas  [%tomb ~]
+            (fall (get:hon:hist:nexus sk u.cas) [%tomb ~])
+          (resolve-case:nexus u.case.req sk)
+            %|
+          =/  dest=fold:tarball  p.dest-lane
+          =/  sub-born=born:nexus  (~(dip of born) dest)
+          ?~  fil.sub-born  [%tomb ~]
+          =/  sk=hist:nexus  fold.u.fil.sub-born
+          ?~  case.req
+            =/  cas=(unit cass:clay)  (top:hist:nexus sk)
+            ?~  cas  [%tomb ~]
+            (fall (get:hon:hist:nexus sk u.cas) [%tomb ~])
+          (resolve-case:nexus u.case.req sk)
+        ==
+      =/  refs=(set lobe:clay)
+        ?:  ?=(%tomb -.pace)  ~
+        ?~  p.pace  ~
+        (~(reachable si:nexus silo) u.p.pace)
+      ~&  >  [%peek-resolved pace=-.pace refs=~(wyt in refs)]
+      =/  resp=intake:remote:nexus
+        [wire.req %snap dest-lane pace refs]
+      :_  this
+      %+  weld  peer-cards
+      ^-  (list card)
+      :~  [%pass /peek/[(scot %p src.bowl)] %agent [src.bowl %grubbery] %poke grubbery-intake+!>(resp)]
+      ==
+    ?:  ?=(%want +<.req)
+      ~&  >  [%want-received-from src.bowl haves=~(wyt in haves.req)]
+      =/  send=silo:nexus
+        =/  wanted=(list lobe:clay)  ~(tap in haves.req)
+        =/  acc=silo:nexus  *silo:nexus
+        |-
+        ?~  wanted  acc
+        =/  cur=lobe:clay  i.wanted
+        =/  jot  (~(get by jects.silo) cur)
+        ?^  jot
+          $(wanted t.wanted, acc acc(jects (~(put by jects.acc) cur [0 ject.u.jot])))
+        =/  got  (~(get by nouns.silo) cur)
+        ?~  got  $(wanted t.wanted)
+        $(wanted t.wanted, acc acc(nouns (~(put by nouns.acc) cur [0 noun.u.got])))
+      ~&  >  [%want-sending nouns=~(wyt by nouns.send) jects=~(wyt by jects.send)]
+      =/  resp=intake:remote:nexus
+        [/want %data send]
+      ~&  >  [%want-responding-with-data nouns=~(wyt by nouns.send) jects=~(wyt by jects.send) to=src.bowl]
+      :_  this
+      %+  weld  peer-cards
+      ^-  (list card)
+      :~  [%pass /want/[(scot %p src.bowl)] %agent [src.bowl %grubbery] %poke grubbery-intake+!>(resp)]
+      ==
+    ::  All other actions route through dart system
     =/  =load:nexus
       ?-  +<.req
         %poke  [%poke bask.req]
+        %over  [%over bask.req]
           %make
         [%make ?:(?=(%& -.make.req) &+(ball-to-bole:tarball p.make.req) make.req)]
         %cull  [%cull ~]
         %sand  [%sand weir.req]
         %load  [%load ~]
-        %peek  [%peek blot.req ~ %.y]
       ==
     =/  =dart:nexus  [%node /peer [%& dest.req] load]
     =^  dart-cards  state
       abet:(process-dart:hc ship-rail dart)
     [(weld peer-cards dart-cards) this]
+    ::
+      %grubbery-intake
+    ~&  >  [%grubbery-intake-raw src=src.bowl]
+    =+  !<(resp=intake:remote:nexus vas)
+    ~&  >  [%grubbery-intake +<.resp src=src.bowl]
+    =^  cards  state
+      abet:(process-intake:hc src.bowl resp)
+    [cards this]
     ::  HTTP request from eyre: route directly
     ::
       %handle-http-request
@@ -361,6 +435,8 @@
     =^  cards  state
       abet:(take-gall-sub:hc t.wire sign)
     [cards this]
+  ?:  ?=(?([%peek *] [%want *]) wire)
+    `this
   ~&  >>>  "on-agent: unhandled wire {<wire>}"
   `this
 ::
@@ -423,6 +499,163 @@
 =|  takes=(qeu take:nexus)
 |_  =bowl:gall
 +*  this  .
+::  +put-pace: write a pace into a born tree at the given dest lane.
+::  Used to record remote peek results into afar.
+::
+++  put-pace
+  |=  [=born:nexus dest=lane:tarball =pace:hist:nexus]
+  ^-  born:nexus
+  ?-  -.dest
+      %&
+    =/  r=rail:tarball  p.dest
+    =/  node=[fold=hist:nexus file=(map @ta hist:nexus)]
+      (fall (~(get of born) path.r) default-node:~(. bo:nexus now.bowl born))
+    =/  sk=hist:nexus  (fall (~(get by file.node) name.r) *hist:nexus)
+    =/  top-cas=(unit cass:clay)  (top:hist:nexus sk)
+    =/  next-ud=@ud  ?~(top-cas 1 +(ud.u.top-cas))
+    =/  cas=cass:clay  [next-ud now.bowl]
+    =/  new-hist=hist:nexus  (put:hon:hist:nexus sk cas pace)
+    (~(put of born) path.r node(file (~(put by file.node) name.r new-hist)))
+      %|
+    =/  dir=path  p.dest
+    =/  node=[fold=hist:nexus file=(map @ta hist:nexus)]
+      (fall (~(get of born) dir) default-node:~(. bo:nexus now.bowl born))
+    =/  top-cas=(unit cass:clay)  (top:hist:nexus fold.node)
+    =/  next-ud=@ud  ?~(top-cas 1 +(ud.u.top-cas))
+    =/  cas=cass:clay  [next-ud now.bowl]
+    =/  new-fold=hist:nexus  (put:hon:hist:nexus fold.node cas pace)
+    (~(put of born) dir node(fold new-fold))
+  ==
+::  +record-afar: write a pace into afar for a remote ship.
+::  Records what we know about the remote ship's state at a path.
+::  This is pure data — independent of who asked for it.
+::
+++  record-afar
+  |=  [ship=@p dest=lane:tarball =pace:hist:nexus]
+  ^+  afar
+  =/  remote-born=born:nexus
+    (fall (~(get by afar) ship) *born:nexus)
+  (~(put by afar) ship (put-pace remote-born dest pace))
+::  +discharge-peeks: sweep staged peeks, discharge any whose refs
+::  are fully present in the local silo. Discharge means the grub
+::  can now read the content it asked for — notify and remove.
+::  afar is already populated by %snap; this is purely about
+::  peek fulfillment.
+::
+++  discharge-peeks
+  ^+  this
+  =/  entries=(list [[=rail:tarball =wire] =peek:remote:nexus])
+    ~(tap by peeks)
+  =/  have=(set lobe:clay)
+    (~(uni in ~(key by jects.silo)) ~(key by nouns.silo))
+  |-
+  ?~  entries  this
+  =/  [key=[=rail:tarball =wire] pk=peek:remote:nexus]  i.entries
+  ?~  snap.pk
+    ::  Still waiting for %snap — skip
+    $(entries t.entries)
+  =/  missing=(set lobe:clay)
+    (~(dif in refs.u.snap.pk) have)
+  ?.  =(~ missing)
+    ::  Not all refs present yet — skip
+    $(entries t.entries)
+  ::  All refs present — discharge: build view from afar+silo,
+  ::  send %peek intake to the requesting fiber.
+  ~&  >  [%peek-discharged ship.pk dest.pk]
+  =/  remote-born=born:nexus
+    (fall (~(get by afar) ship.pk) *born:nexus)
+  =/  =seen:nexus
+    ?-  -.dest.pk
+        %|
+      ::  Directory: build ball+born from remote born subtree
+      =/  dest=fold:tarball  p.dest.pk
+      =/  sub-born=born:nexus  (~(dip of remote-born) dest)
+      =/  node=(unit [fold=hist:nexus file=(map @ta hist:nexus)])
+        (~(get of remote-born) dest)
+      ?~  node  &+[%none ~]
+      =/  got=(unit [key=cass:clay val=pace:hist:nexus])
+        (ram:hon:hist:nexus fold.u.node)
+      ?~  got  &+[%none ~]
+      =/  =pace:hist:nexus  val.u.got
+      ?:  ?=(%tomb -.pace)  &+[%none ~]
+      ?~  p.pace  &+[%none ~]
+      &+[%ball sub-born (peek-ball u.p.pace)]
+        %&
+      ::  File: read content from silo via pace
+      =/  r=rail:tarball  p.dest.pk
+      ?:  ?=(%tomb -.pace.u.snap.pk)  &+[%none ~]
+      ?~  p.pace.u.snap.pk  &+[%none ~]
+      =/  jot  (~(get by jects.silo) u.p.pace.u.snap.pk)
+      ?~  jot  &+[%none ~]
+      =/  jt=ject:nexus  ject.u.jot
+      ?.  ?=(%leaf -.jt)  &+[%none ~]
+      =/  got=(unit noun)  (~(get si:nexus silo) lobe.leaf.jt)
+      ?~  got  &+[%none ~]
+      =/  node=(unit [fold=hist:nexus file=(map @ta hist:nexus)])
+        (~(get of remote-born) path.r)
+      =/  sk=hist:nexus
+        ?~  node  *hist:nexus
+        (fall (~(get by file.u.node) name.r) *hist:nexus)
+      &+[%file sk [blot.mark.leaf.jt %| [~ u.got]]]
+    ==
+  =.  this  (enqu-take rail.key (sys-give /peek) ~ %peek wire.key seen)
+  =.  peeks  (~(del by peeks) key)
+  $(entries t.entries)
+::  +process-intake: handle inbound cross-ship responses.
+::  %snap: record pace in afar, populate staged peeks, request missing lobes.
+::  %data: merge silo, discharge fulfilled peeks.
+::
+++  process-intake
+  |=  [src=@p resp=intake:remote:nexus]
+  ^+  this
+  ?-  +<.resp
+      %snap
+    ::  1. Record pace into afar — we now know this about the remote ship.
+    ::  2. Populate snap on staged peeks matching this ship+dest.
+    ::  3. Diff refs against silo and request missing lobes.
+    ::  4. Discharge any peeks that can already be fulfilled.
+    ::
+    =.  afar  (record-afar src dest.resp pace.resp)
+    =/  snap=snap:remote:nexus  [pace.resp refs.resp]
+    =.  peeks
+      %-  ~(run by peeks)
+      |=  pk=peek:remote:nexus
+      ?.  &(=(ship.pk src) =(dest.pk dest.resp))
+        pk
+      pk(snap `snap)
+    =/  have=(set lobe:clay)
+      (~(uni in ~(key by jects.silo)) ~(key by nouns.silo))
+    =/  missing=(set lobe:clay)
+      (~(dif in refs.resp) have)
+    ~&  >  [%snap-processed refs=~(wyt in refs.resp) have=~(wyt in have) missing=~(wyt in missing)]
+    ?:  =(~ missing)
+      ::  All refs already in silo — discharge immediately
+      ~&  >  %snap-all-refs-present-discharging
+      discharge-peeks
+    ::  Send %want for missing lobes
+    ~&  >  [%snap-sending-want missing=~(wyt in missing)]
+    =/  want-req=load:remote:nexus
+      [[/want %| /] %want missing]
+    =.  cards
+      :_  cards
+      [%pass /want/[(scot %p src)] %agent [src %grubbery] %poke grubbery-load+!>(want-req)]
+    this
+    ::
+      %data
+    ::  Received jects/nouns from remote. Merge into local silo,
+    ::  then discharge any staged peeks whose refs are now present.
+    ::
+    ~&  >  [%data-received-from src]
+    =/  got=silo:nexus  silo.resp
+    =.  nouns.silo
+      %-  ~(uni by nouns.silo)
+      (~(run by nouns.got) |=([refs=@ud =noun] [0 noun]))
+    =.  jects.silo
+      %-  ~(uni by jects.silo)
+      (~(run by jects.got) |=([refs=@ud =ject:nexus] [0 ject]))
+    ~&  >  [%peek-data-received nouns=~(wyt by nouns.got) jects=~(wyt by jects.got)]
+    discharge-peeks
+  ==
 ::
 ++  abet
   |-
@@ -2137,6 +2370,22 @@
       (enqu-take here (sys-give /over) ~ %over wire.dart ~)
       ::
         %peek
+      ::  Remote peek: stage the peek and send %peek load to remote ship.
+      ::  The fiber suspends until discharge-peeks sends the intake back.
+      ::
+      ?^  ship.load.dart
+        =/  target=@p  u.ship.load.dart
+        ?>  ?=(^ dest-lane)
+        =/  key=[rail:tarball wire]  [here wire.dart]
+        =.  peeks
+          %+  ~(put by peeks)  key
+          [target u.dest-lane ~]
+        =/  req=load:remote:nexus
+          [[wire.dart u.dest-lane] %peek case.load.dart]
+        =.  cards
+          :_  cards
+          [%pass /peek/[(scot %p target)] %agent [target %grubbery] %poke grubbery-load+!>(req)]
+        this
       ::  Refresh /sys/bowl/ virtual files on every peek
       ::  NOTE: uses record directly (no propagate) — save-file would
       ::  notify watchers, which peek again → infinite loop.

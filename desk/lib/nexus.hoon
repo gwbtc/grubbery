@@ -80,11 +80,12 @@
       [%cull ~]                 :: delete grub or directory
       [%sand weir=(unit weir)]  :: set weir
       [%load ~]                 :: trigger on-load for a nexus (folds only)
-      [%peek blot=(unit blot:tarball) case=(unit case) deep=?]
+      [%peek blot=(unit blot:tarball) case=(unit case) deep=? ship=(unit @p)]
                                        :: read a grub
                                        :: blot: convert file sage to this blot
                                        :: case: if set, read historical version
-                                       :: deep: %.y recurse subdirs, %.n shallow (dir names only)
+                                       :: deep: %.y recurse subdirs, %.n shallow
+                                       :: ship: if set, peek a remote ship (cross-ship)
       [%keep blot=(unit blot:tarball)]  :: subscribe to changes at dest (grub or ball per road)
                                        :: blot: if set, convert file sage in news
       [%drop ~]                 :: unsubscribe from dest
@@ -692,6 +693,37 @@
       |=  [[* =lobe:clay *] =_silo]
       (~(drop-ject si silo) lobe)
     ==
+  ::  Collect all lobes reachable from a root ject lobe (transitive closure).
+  ::  Returns set of all ject lobes + noun lobes.
+  ::
+  ++  reachable
+    |=  root=lobe:clay
+    ^-  (set lobe:clay)
+    =|  seen=(set lobe:clay)
+    =|  queue=(list lobe:clay)
+    =.  queue  ~[root]
+    |-
+    ?~  queue  seen
+    =/  cur=lobe:clay  i.queue
+    ?:  (~(has in seen) cur)
+      $(queue t.queue)
+    =.  seen  (~(put in seen) cur)
+    =/  got  (~(get by jects.silo) cur)
+    ?~  got  $(queue t.queue)
+    =/  jt=ject  ject.u.got
+    ?-  -.jt
+        %leaf
+      =.  seen  (~(put in seen) lobe.leaf.jt)
+      =?  seen  ?=(^ bang.leaf.jt)  (~(put in seen) u.bang.leaf.jt)
+      $(queue t.queue)
+        %tree
+      =?  seen  ?=(^ bang.tree.jt)  (~(put in seen) u.bang.tree.jt)
+      =/  fil-lobes=(list lobe:clay)
+        (turn ~(val by fil.tree.jt) |=(=lobe:clay lobe))
+      =/  dir-lobes=(list lobe:clay)
+        (turn ~(val by dir.tree.jt) |=([=lobe:clay *] lobe))
+      $(queue (weld t.queue (weld fil-lobes dir-lobes)))
+    ==
   ::  Set bang on an existing ject.  Stores the tang as a noun,
   ::  builds a new ject with bang=`tang-lobe, drops the old ject,
   ::  and returns the new ject lobe.
@@ -946,8 +978,22 @@
   =.  result
     (~(uni in result) (changed-lanes-at (snoc here i.all-kids) kid-old kid-new))
   $(all-kids t.all-kids)
-::  Cross-ship load/intake types
-::  Mirrors internal dart load / fiber intake pattern.
+::  Cross-ship remote protocol
+::
+::  Load: outbound requests to a remote ship's grubbery.
+::  Simple operations (make/cull/sand/load/poke/over) route through
+::  the dart system as if they came from /sys/ames/ships/[ship]/ship.sig.
+::
+::  Peek: content-addressed read with have/want negotiation.
+::  Flow: peek → snap (pace + reachable refs) → want (missing lobes) → data (silo subset).
+::  The requesting ship tracks outstanding peeks in a +peeks map,
+::  keyed by [requester-rail wire]. When all refs are locally present
+::  in the silo, the peek is discharged: pace is written to +afar
+::  and the requesting grub is notified.
+::
+::  Intake: inbound responses from a remote ship.
+::  %snap delivers the resolved pace and reachable content hashes.
+::  %data delivers the silo subset (jects + nouns) for requested lobes.
 ::
 ++  remote
   |%
@@ -958,15 +1004,27 @@
             [%sand weir=(unit weir)]
             [%load ~]
             [%poke =bask:tarball]
-            [%peek blot=(unit blot:tarball)]
+            [%over =bask:tarball]
+            [%peek case=(unit case)]
+            [%want haves=(set lobe:clay)]
         ==
     ==
   +$  make  (each ball:tarball [=bask:tarball blot=(unit blot:tarball)])
+  ::  Inbound responses from remote peek negotiation
+  ::
   +$  intake
     $:  =wire
-        $%  [%peek ~] :: TBD
+        $%  [%snap dest=lane:tarball =pace refs=(set lobe:clay)]
+            [%data =silo]
         ==
     ==
+  ::  Staged peek state: tracks an outstanding cross-ship peek
+  ::  from initiation through negotiation to discharge.
+  ::  snap is ~ until %snap response arrives with pace + refs.
+  ::
+  +$  snap   [=pace refs=(set lobe:clay)]
+  +$  peek   [ship=@p dest=lane:tarball snap=(unit snap)]
+  +$  peeks  (map [rail:tarball wire] peek)
   --
 +$  ack  (unit tang)
 ::
