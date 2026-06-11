@@ -12,6 +12,7 @@
 /=  m-  /mar/born
 /=  m-  /mar/subs
 /=  m-  /mar/grubbery-load
+/=  m-  /mar/grubbery-transfer
 /=  m-  /mar/grubbery-intake
 |%
 +$  versioned-state
@@ -177,10 +178,13 @@
     =^  peer-cards  state
       abet:(ensure-peer-ship:hc src.bowl)
     =/  ship-rail=rail:tarball  [/sys/ames/ships/[ship-ta] %'ship.sig']
-    ::  %peek and %want bypass the dart system
     ~&  >  [%grubbery-load +<.req src=src.bowl]
     ?:  ?=(%peek +<.req)
       =/  dest-lane=lane:tarball  dest.req
+      ::  Weir gate: simulate dart traversal from ship-rail to dest
+      ?:  ?=([~ %|] (allowed:hc %peek ship-rail `dest-lane))
+        ~&  >>  [%peek-vetoed src=src.bowl dest=dest-lane]
+        :_  this  peer-cards
       =/  snap=(unit snap:remote:nexus)
         =/  pace=(unit pace:hist:nexus)
           ?-  -.dest-lane
@@ -216,39 +220,20 @@
           (~(reachable-shallow si:nexus silo) u.p.u.pace)
         `[u.pace refs]
       ~&  >  [%peek-resolved snap=?~(snap %none -.pace.u.snap) refs=?~(snap 0 ~(wyt in refs.u.snap))]
-      =/  resp=intake:remote:nexus
+      =/  resp=transfer:remote:nexus
         [wire.req %snap dest-lane snap]
       :_  this
       %+  weld  peer-cards
       ^-  (list card)
-      :~  [%pass /peek/[(scot %p src.bowl)] %agent [src.bowl %grubbery] %poke grubbery-intake+!>(resp)]
-      ==
-    ?:  ?=(%want +<.req)
-      ~&  >  [%want-received-from src.bowl haves=~(wyt in haves.req)]
-      =/  send=silo:nexus
-        =/  wanted=(list lobe:clay)  ~(tap in haves.req)
-        =/  acc=silo:nexus  *silo:nexus
-        |-
-        ?~  wanted  acc
-        =/  cur=lobe:clay  i.wanted
-        =/  jot  (~(get by jects.silo) cur)
-        ?^  jot
-          $(wanted t.wanted, acc acc(jects (~(put by jects.acc) cur [0 ject.u.jot])))
-        =/  got  (~(get by nouns.silo) cur)
-        ?~  got  $(wanted t.wanted)
-        $(wanted t.wanted, acc acc(nouns (~(put by nouns.acc) cur [0 noun.u.got])))
-      ~&  >  [%want-sending nouns=~(wyt by nouns.send) jects=~(wyt by jects.send)]
-      =/  resp=intake:remote:nexus
-        [/want %data send]
-      ~&  >  [%want-responding-with-data nouns=~(wyt by nouns.send) jects=~(wyt by jects.send) to=src.bowl]
-      :_  this
-      %+  weld  peer-cards
-      ^-  (list card)
-      :~  [%pass /want/[(scot %p src.bowl)] %agent [src.bowl %grubbery] %poke grubbery-intake+!>(resp)]
+      :~  [%pass /peek/[(scot %p src.bowl)] %agent [src.bowl %grubbery] %poke grubbery-transfer+!>(resp)]
       ==
     ?:  ?=(%keep +<.req)
       ::  Remote subscribe: register src as watcher via ship.sig rail
       ~&  >  [%keep-received-from src.bowl dest=dest.req]
+      ::  Weir gate: simulate dart traversal from ship-rail to dest
+      ?:  ?=([~ %|] (allowed:hc %peek ship-rail `dest.req))
+        ~&  >>  [%keep-vetoed src=src.bowl dest=dest.req]
+        :_  this  peer-cards
       =/  watcher=rail:tarball  [/sys/ames/ships/[ship-ta] %'ship.sig']
       =^  cards  state
         abet:(keep:hc watcher dest.req wire.req)
@@ -275,6 +260,78 @@
     =^  dart-cards  state
       abet:(process-dart:hc ship-rail dart)
     [(weld peer-cards dart-cards) this]
+    ::
+      %grubbery-transfer
+    ::  Runtime-to-runtime content-addressed negotiation.
+    ::  Separate from grubbery-load (dart-like operations).
+    =+  !<(req=transfer:remote:nexus vas)
+    =/  ship-ta=@ta  (scot %p src.bowl)
+    =^  peer-cards  state
+      abet:(ensure-peer-ship:hc src.bowl)
+    =/  ship-rail=rail:tarball  [/sys/ames/ships/[ship-ta] %'ship.sig']
+    ~&  >  [%grubbery-transfer +<.req src=src.bowl]
+    ?:  ?=(?(%snap %data) +<.req)
+      ::  Inbound snap/data: process locally (no auth needed, we requested it)
+      =^  cards  state
+        abet:(process-transfer:hc src.bowl req)
+      [(weld peer-cards cards) this]
+    ::  %want: inbound content request — weir gate + containment
+    ?>  ?=(%want +<.req)
+    ~&  >  [%want-received-from src.bowl dest=dest.req haves=~(wyt in haves.req)]
+    ::  Weir gate: simulate dart traversal from ship-rail to dest
+    ?:  ?=([~ %|] (allowed:hc %peek ship-rail `dest.req))
+      ~&  >>  [%want-vetoed src=src.bowl dest=dest.req]
+      :_  this  peer-cards
+    ::  Containment: resolve refs at dest, only serve lobes reachable there
+    =/  allowed-refs=(set lobe:clay)
+      =/  pace=(unit pace:hist:nexus)
+        ?-  -.dest.req
+            %&
+          =/  r=rail:tarball  p.dest.req
+          =/  node=(unit [fold=hist:nexus file=(map @ta hist:nexus)])
+            (~(get of born) path.r)
+          ?~  node  ~
+          =/  sk=hist:nexus
+            (fall (~(get by file.u.node) name.r) *hist:nexus)
+          =/  cas=(unit cass:clay)  (top:hist:nexus sk)
+          ?~  cas  ~
+          (get:hon:hist:nexus sk u.cas)
+            %|
+          =/  dest=fold:tarball  p.dest.req
+          =/  sub-born=born:nexus  (~(dip of born) dest)
+          ?~  fil.sub-born  ~
+          =/  sk=hist:nexus  fold.u.fil.sub-born
+          =/  cas=(unit cass:clay)  (top:hist:nexus sk)
+          ?~  cas  ~
+          (get:hon:hist:nexus sk u.cas)
+        ==
+      ?~  pace  ~
+      ?:  ?=(%tomb -.u.pace)  ~
+      ?~  p.u.pace  ~
+      (~(reachable si:nexus silo) u.p.u.pace)
+    ::  Only serve lobes that are actually at the claimed dest
+    =/  send=silo:nexus
+      =/  wanted=(list lobe:clay)
+        ~(tap in (~(int in haves.req) allowed-refs))
+      =/  acc=silo:nexus  *silo:nexus
+      |-
+      ?~  wanted  acc
+      =/  cur=lobe:clay  i.wanted
+      =/  jot  (~(get by jects.silo) cur)
+      ?^  jot
+        $(wanted t.wanted, acc acc(jects (~(put by jects.acc) cur [0 ject.u.jot])))
+      =/  got  (~(get by nouns.silo) cur)
+      ?~  got  $(wanted t.wanted)
+      $(wanted t.wanted, acc acc(nouns (~(put by nouns.acc) cur [0 noun.u.got])))
+    ~&  >  [%want-sending nouns=~(wyt by nouns.send) jects=~(wyt by jects.send)]
+    =/  resp=transfer:remote:nexus
+      [/want %data send]
+    ~&  >  [%want-responding-with-data nouns=~(wyt by nouns.send) jects=~(wyt by jects.send) to=src.bowl]
+    :_  this
+    %+  weld  peer-cards
+    ^-  (list card)
+    :~  [%pass /want/[(scot %p src.bowl)] %agent [src.bowl %grubbery] %poke grubbery-transfer+!>(resp)]
+    ==
     ::
       %grubbery-intake
     ~&  >  [%grubbery-intake-raw src=src.bowl]
@@ -589,7 +646,7 @@
     $(entries t.entries)
   ::  All refs present — discharge: build view from afar+silo,
   ::  send %peek intake to the requesting fiber.
-  ~&  >  [%peek-discharged ship.pk dest.pk]
+  ~&  >  [%peek-discharged ship.pk dest.pk key=key peeks-remaining=~(wyt by peeks)]
   =/  remote-born=born:nexus
     (fall (~(get by afar) ship.pk) *born:nexus)
   =/  =seen:nexus
@@ -661,11 +718,19 @@
 ::  %snap: record pace in afar, populate staged peeks, request missing lobes.
 ::  %data: merge silo, discharge fulfilled peeks.
 ::
-++  process-intake
-  |=  [src=@p resp=intake:remote:nexus]
+++  process-transfer
+  |=  [src=@p resp=transfer:remote:nexus]
   ^+  this
   ?-  +<.resp
       %snap
+    ::  Solicitation check: only accept snaps we asked for
+    =/  solicited=?
+      %+  lien  ~(tap by peeks)
+      |=  [[* *] pk=peek:remote:nexus]
+      &(=(ship.pk src) =(dest.pk dest.resp))
+    ?.  solicited
+      ~&  >>  [%snap-unsolicited src=src dest=dest.resp]
+      this
     ::  1. Record pace into afar — we now know this about the remote ship.
     ::  2. Populate snap on staged peeks matching this ship+dest.
     ::  3. Diff refs against silo and request missing lobes.
@@ -693,28 +758,52 @@
       discharge-peeks
     ::  Send %want for missing lobes
     ~&  >  [%snap-sending-want missing=~(wyt in missing)]
-    =/  want-req=load:remote:nexus
-      [[/want %| /] %want missing]
+    =/  want-req=transfer:remote:nexus
+      [/want %want dest.resp missing]
     =.  cards
       :_  cards
-      [%pass /want/[(scot %p src)] %agent [src %grubbery] %poke grubbery-load+!>(want-req)]
+      [%pass /want/[(scot %p src)] %agent [src %grubbery] %poke grubbery-transfer+!>(want-req)]
+    this
+    ::
+      %want
+    ::  Inbound want — should not arrive here (handled in on-poke).
+    ~&  >>>  [%unexpected-want-in-process-transfer src]
     this
     ::
       %data
-    ::  Received jects/nouns from remote. Merge into local silo,
-    ::  then discharge any staged peeks whose refs are now present.
+    ::  Received jects/nouns from remote. Verify hashes, merge into
+    ::  local silo, then discharge any staged peeks whose refs are present.
     ::
     ~&  >  [%data-received-from src]
     =/  got=silo:nexus  silo.resp
-    =.  nouns.silo
-      %-  ~(uni by nouns.silo)
-      (~(run by nouns.got) |=([refs=@ud =noun] [0 noun]))
-    =.  jects.silo
-      %-  ~(uni by jects.silo)
-      (~(run by jects.got) |=([refs=@ud =ject:nexus] [0 ject]))
-    ~&  >  [%peek-data-received nouns=~(wyt by nouns.got) jects=~(wyt by jects.got)]
+    ::  Hash verification: only accept blobs whose content matches their lobe
+    =/  verified-nouns=(map lobe:clay [refs=@ud =noun])
+      %-  ~(gas by *(map lobe:clay [refs=@ud =noun]))
+      %+  murn  ~(tap by nouns.got)
+      |=  [=lobe:clay refs=@ud =noun]
+      ?.  =(lobe `@uvI`(sham noun))
+        ~&  >>  [%data-hash-mismatch %noun lobe]
+        ~
+      `[lobe 0 noun]
+    =/  verified-jects=(map lobe:clay [refs=@ud =ject:nexus])
+      %-  ~(gas by *(map lobe:clay [refs=@ud =ject:nexus]))
+      %+  murn  ~(tap by jects.got)
+      |=  [=lobe:clay refs=@ud =ject:nexus]
+      ?.  =(lobe `@uvI`(sham ject))
+        ~&  >>  [%data-hash-mismatch %ject lobe]
+        ~
+      `[lobe 0 ject]
+    =.  nouns.silo  (~(uni by nouns.silo) verified-nouns)
+    =.  jects.silo  (~(uni by jects.silo) verified-jects)
+    ~&  >  [%peek-data-received nouns=~(wyt by verified-nouns) jects=~(wyt by verified-jects)]
     discharge-peeks
-    ::
+  ==
+::  %bond/%wave: subscription events from remote watchers.
+::
+++  process-intake
+  |=  [src=@p resp=intake:remote:nexus]
+  ^+  this
+  ?-  +<.resp
       %bond
     ::  Initial wave from remote subscription. Translate dest back to
     ::  namespaced lane and deliver %bond to local watchers.

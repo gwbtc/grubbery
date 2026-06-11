@@ -1047,17 +1047,24 @@
             [%peek case=(unit case) deep=?]
             [%keep ~]
             [%drop ~]
-            [%want haves=(set lobe:clay)]
+        ==
+    ==
+  ::  Runtime-to-runtime content-addressed negotiation.
+  ::  Separate from load (dart-like ops) and intake (subscription events).
+  ::
+  +$  transfer
+    $:  =wire
+        $%  [%snap dest=lane:tarball snap=(unit snap)]
+            [%want dest=lane:tarball haves=(set lobe:clay)]
+            [%data =silo]
         ==
     ==
   +$  make  (each ball:tarball [=bask:tarball blot=(unit blot:tarball)])
-  ::  Inbound responses from remote peek negotiation
+  ::  Inbound subscription events from remote watchers.
   ::
   +$  intake
     $:  =wire
-        $%  [%snap dest=lane:tarball snap=(unit snap)]
-            [%data =silo]
-            [%bond dest=lane:tarball =wave]
+        $%  [%bond dest=lane:tarball =wave]
             [%wave dest=lane:tarball =wave]
         ==
     ==
