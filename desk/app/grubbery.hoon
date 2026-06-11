@@ -242,6 +242,20 @@
       ^-  (list card)
       :~  [%pass /want/[(scot %p src.bowl)] %agent [src.bowl %grubbery] %poke grubbery-intake+!>(resp)]
       ==
+    ?:  ?=(%keep +<.req)
+      ::  Remote subscribe: register src as watcher via ship.sig rail
+      ~&  >  [%keep-received-from src.bowl dest=dest.req]
+      =/  watcher=rail:tarball  [/sys/ames/ships/[ship-ta] %'ship.sig']
+      =^  cards  state
+        abet:(keep:hc watcher dest.req wire.req)
+      [(weld peer-cards cards) this]
+    ?:  ?=(%drop +<.req)
+      ::  Remote unsubscribe: remove src as watcher
+      ~&  >  [%drop-received-from src.bowl dest=dest.req]
+      =/  watcher=rail:tarball  [/sys/ames/ships/[ship-ta] %'ship.sig']
+      =^  cards  state
+        abet:(drop:hc watcher dest.req)
+      [(weld peer-cards cards) this]
     ::  All other actions route through dart system
     =/  =load:nexus
       ?-  +<.req
@@ -440,7 +454,11 @@
     =^  cards  state
       abet:(take-gall-sub:hc t.wire sign)
     [cards this]
-  ?:  ?=(?([%peek *] [%want *]) wire)
+  ::  TODO: handle %poke-ack failures on these wires — on nack,
+  ::  clean up staged peeks/subs and notify grub of failure.
+  ::  Currently success acks are fine to ignore (real response
+  ::  comes as a separate poke), but error acks leave state dangling.
+  ?:  ?=(?([%peek *] [%want *] [%keep *] [%drop *] [%wave *]) wire)
     `this
   ~&  >>>  "on-agent: unhandled wire {<wire>}"
   `this
@@ -613,6 +631,29 @@
   =.  peeks  (~(del by peeks) key)
   $(entries t.entries)
 ::  +process-intake: handle inbound cross-ship responses.
+::  +keep: register a remote watcher and send initial wave.
+::  Called when a remote ship sends %keep load.
+::
+++  keep
+  |=  [watcher=rail:tarball target=lane:tarball =wire]
+  ^+  this
+  =.  this  (sub-put target watcher wire ~)
+  =/  =wave:nexus
+    %-  relativize-wave:nexus
+    [target (wave-from-born:nexus born (~(put in *(set lane:tarball)) target))]
+  =/  resp=intake:remote:nexus
+    [wire %bond target wave]
+  =.  cards
+    :_  cards
+    =/  dest=@p  (slav %p (snag 3 path.watcher))
+    [%pass /keep/[(scot %p dest)] %agent [dest %grubbery] %poke grubbery-intake+!>(resp)]
+  this
+::  +drop: remove a remote watcher.
+::
+++  drop
+  |=  [watcher=rail:tarball target=lane:tarball]
+  ^+  this
+  (sub-del target watcher)
 ::  %snap: record pace in afar, populate staged peeks, request missing lobes.
 ::  %data: merge silo, discharge fulfilled peeks.
 ::
@@ -669,6 +710,36 @@
       (~(run by jects.got) |=([refs=@ud =ject:nexus] [0 ject]))
     ~&  >  [%peek-data-received nouns=~(wyt by nouns.got) jects=~(wyt by jects.got)]
     discharge-peeks
+    ::
+      %bond
+    ::  Initial wave from remote subscription. Translate dest back to
+    ::  namespaced lane and deliver %bond to local watchers.
+    ::
+    ~&  >  [%bond-received-from src dest=dest.resp]
+    =/  ns-lane=lane:tarball
+      =/  prefix=path  /sys/ames/ships/[(scot %p src)]/root
+      ?-(-.dest.resp %& [%& (weld prefix path.p.dest.resp) name.p.dest.resp], %| [%| (weld prefix p.dest.resp)])
+    =/  watchers=subscribers:nexus  (fwd-get ns-lane)
+    =.  this
+      %-  ~(rep by watchers)
+      |=  [[watcher=rail:tarball =wire blot=(unit blot:tarball)] acc=_this]
+      (enqu-take:acc watcher (sys-give:acc /bond) ~ %bond wire wave.resp)
+    this
+    ::
+      %wave
+    ::  Ongoing wave from remote subscription. Same as %bond but
+    ::  delivers %news to watchers.
+    ::
+    ~&  >  [%wave-received-from src dest=dest.resp]
+    =/  ns-lane=lane:tarball
+      =/  prefix=path  /sys/ames/ships/[(scot %p src)]/root
+      ?-(-.dest.resp %& [%& (weld prefix path.p.dest.resp) name.p.dest.resp], %| [%| (weld prefix p.dest.resp)])
+    =/  watchers=subscribers:nexus  (fwd-get ns-lane)
+    =.  this
+      %-  ~(rep by watchers)
+      |=  [[watcher=rail:tarball =wire blot=(unit blot:tarball)] acc=_this]
+      (enqu-take:acc watcher (sys-give:acc /news) ~ %news wire wave.resp)
+    this
   ==
 ::
 ++  abet
@@ -2063,6 +2134,16 @@
   =.  this
     %-  ~(rep by watchers)
     |=  [[watcher=rail:tarball =wire blot=(unit blot:tarball)] acc=_this]
+    ::  Remote watcher: poke wave to subscriber ship
+    ?:  ?=([%sys %ames %ships @ *] path.watcher)
+      =/  dest=@p  (slav %p i.t.t.t.path.watcher)
+      =/  resp=intake:remote:nexus
+        [wire %wave target wave]
+      =.  cards.acc
+        :_  cards.acc
+        [%pass /wave/[(scot %p dest)] %agent [dest %grubbery] %poke grubbery-intake+!>(resp)]
+      acc
+    ::  Local watcher: deliver directly
     (enqu-take:acc watcher (sys-give:acc /news) ~ %news wire wave)
   $(watched t.watched)
 ::  Handle jael on-watch: give initial udiffs on subscription.
@@ -2582,8 +2663,28 @@
       ::
         %keep
       ::  Subscribe to changes at dest (uses peek permission)
+      ?>  ?=(^ dest-lane)
+      =/  remote=(unit [@p lane:tarball])
+        =/  pax=path
+          ?-(-.u.dest-lane %& path.p.u.dest-lane, %| p.u.dest-lane)
+        ?.  ?=([%sys %ames %ships @ %root *] pax)
+          ~
+        =/  target=@p  (slav %p i.t.t.t.pax)
+        =/  real-path=path  t.t.t.t.t.pax
+        :-  ~  :-  target
+        ?-(-.u.dest-lane %& [%& real-path name.p.u.dest-lane], %| [%| real-path])
+      ?^  remote
+        ::  Remote subscribe: register locally and send %keep to remote
+        =/  [target=@p real-dest=lane:tarball]  u.remote
+        =.  this  (sub-put u.dest-lane here wire.dart blot.load.dart)
+        =/  req=load:remote:nexus
+          [[wire.dart real-dest] %keep ~]
+        =.  cards
+          :_  cards
+          [%pass /keep/[(scot %p target)] %agent [target %grubbery] %poke grubbery-load+!>(req)]
+        this
+      ::  Local subscribe
       =.  this  (sub-put u.dest-lane here wire.dart blot.load.dart)
-      ::  Build initial wavefront for the watched lane, relativized
       =/  =wave:nexus
         %-  relativize-wave:nexus
         [u.dest-lane (wave-from-born:nexus born (~(put in *(set lane:tarball)) u.dest-lane))]
@@ -2591,6 +2692,26 @@
       ::
         %drop
       ::  Unsubscribe from dest
+      ?>  ?=(^ dest-lane)
+      =/  remote=(unit [@p lane:tarball])
+        =/  pax=path
+          ?-(-.u.dest-lane %& path.p.u.dest-lane, %| p.u.dest-lane)
+        ?.  ?=([%sys %ames %ships @ %root *] pax)
+          ~
+        =/  target=@p  (slav %p i.t.t.t.pax)
+        =/  real-path=path  t.t.t.t.t.pax
+        :-  ~  :-  target
+        ?-(-.u.dest-lane %& [%& real-path name.p.u.dest-lane], %| [%| real-path])
+      ?^  remote
+        ::  Remote unsubscribe
+        =/  [target=@p real-dest=lane:tarball]  u.remote
+        =.  this  (sub-del u.dest-lane here)
+        =/  req=load:remote:nexus
+          [[wire.dart real-dest] %drop ~]
+        =.  cards
+          :_  cards
+          [%pass /drop/[(scot %p target)] %agent [target %grubbery] %poke grubbery-load+!>(req)]
+        this
       =.  this  (sub-del u.dest-lane here)
       (enqu-take here (sys-give /fell) ~ %fell wire.dart)
       ::
@@ -4314,8 +4435,9 @@
   =/  ship-born=born:nexus  (~(dip of born) ship-dir)
   ?.  =(~ fil.ship-born)
     this
-  ::  Create directory + ship.sig grub
+  ::  Create directory + ship.sig grub + /root namespace mirror
   =.  this  (ensure-dir ship-dir)
+  =.  this  (ensure-dir (weld ship-dir /root))
   =.  this  (save-file [ship-dir %'ship.sig'] [[/ %sig] %& !>(~)])
   =/  ship-rail=rail:tarball  [ship-dir %'ship.sig']
   =.  this  (spawn-proc ship-rail [%load ~])

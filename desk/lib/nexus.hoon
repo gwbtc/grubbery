@@ -1023,9 +1023,16 @@
 ::  in the silo, the peek is discharged: pace is written to +afar
 ::  and the requesting grub is notified.
 ::
+::  Keep: cross-ship subscriptions. Subscriber sends %keep, publisher
+::  registers in local subs with watcher=ship.sig. On changes, publisher
+::  pushes waves (lane→cass). Subscriber delivers %news to local grubs.
+::  Subscriber routes via /sys/ames/ships/[ship]/root/[path] namespace.
+::
 ::  Intake: inbound responses from a remote ship.
 ::  %snap delivers the resolved pace and reachable content hashes.
 ::  %data delivers the silo subset (jects + nouns) for requested lobes.
+::  %bond delivers initial wave on subscription.
+::  %wave delivers ongoing wave updates.
 ::
 ++  remote
   |%
@@ -1038,6 +1045,8 @@
             [%poke =bask:tarball]
             [%over =bask:tarball]
             [%peek case=(unit case) deep=?]
+            [%keep ~]
+            [%drop ~]
             [%want haves=(set lobe:clay)]
         ==
     ==
@@ -1048,6 +1057,8 @@
     $:  =wire
         $%  [%snap dest=lane:tarball snap=(unit snap)]
             [%data =silo]
+            [%bond dest=lane:tarball =wave]
+            [%wave dest=lane:tarball =wave]
         ==
     ==
   ::  Staged peek state: tracks an outstanding cross-ship peek
