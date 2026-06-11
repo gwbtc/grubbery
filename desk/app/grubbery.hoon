@@ -4440,7 +4440,22 @@
   =.  this  (ensure-dir /sys/ames)
   =.  this  (ensure-dir /sys/ames/usergroups)
   =.  this  (ensure-dir /sys/ames/ships)
+  =.  this  (ensure-public-group)
   (ensure-peer-ship our.bowl)
+::  Ensure /sys/ames/usergroups/public/ exists with who.ships and how.weir.
+::  The public group's weir applies to all foreign ships regardless of membership.
+::
+++  ensure-public-group
+  ^+  this
+  =/  pub-dir=path  /sys/ames/usergroups/public
+  =/  who-rail=rail:tarball  [pub-dir %'who.ships']
+  =/  how-rail=rail:tarball  [pub-dir %'how.weir']
+  =.  this  (ensure-dir pub-dir)
+  =?  this  =(~ (~(get bo:nexus now.bowl born) pub-dir %'who.ships'))
+    (save-file who-rail [[/ %ships] *(set @p)])
+  =?  this  =(~ (~(get bo:nexus now.bowl born) pub-dir %'how.weir'))
+    (save-file how-rail [[/ %weir] *weir:nexus])
+  this
 ::  Ensure /sys/ames/ships/~ship/ exists with ship.sig and computed weir.
 ::  Our ship gets no weir (full access). Foreign ships get weir from usergroups.
 ::
@@ -4449,13 +4464,15 @@
   ^+  this
   =/  ship-ta=@ta  (scot %p src)
   =/  ship-dir=path  /sys/ames/ships/[ship-ta]
+  =/  root-dir=path  (weld ship-dir /root)
+  ::  Always ensure /root exists (may be missing from older ships)
+  =.  this  (ensure-dir root-dir)
   ::  Already exists?
   =/  ship-born=born:nexus  (~(dip of born) ship-dir)
   ?.  =(~ fil.ship-born)
     this
-  ::  Create directory + ship.sig grub + /root namespace mirror
+  ::  Create directory + ship.sig grub
   =.  this  (ensure-dir ship-dir)
-  =.  this  (ensure-dir (weld ship-dir /root))
   =.  this  (save-file [ship-dir %'ship.sig'] [[/ %sig] %& !>(~)])
   =/  ship-rail=rail:tarball  [ship-dir %'ship.sig']
   =.  this  (spawn-proc ship-rail [%load ~])
