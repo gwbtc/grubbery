@@ -110,39 +110,40 @@
     (pure:m ~)
   ::
       [%create ~]
+    ~&  >  [%peers-create body=body]
     =/  name=@t  body
-    ?:  =('' name)
-      (redirect eyre-id)
-    =/  nam=@ta  (crip (trip name))
-    =/  who-road=road:tarball  (abs-file /usergroups/[nam] %'who.ships')
-    =/  how-road=road:tarball  (abs-file /usergroups/[nam] %'how.weir')
-    ;<  *  bind:m  (make-soft:io who-road |+[[[/ %ships] !>(*(set @p))] ~])
-    ;<  *  bind:m  (make-soft:io how-road |+[[[/ %weir] !>(*weir:nexus)] ~])
+    ?:  =('' name)  (redirect eyre-id)
+    =/  grp=path  (stab name)
+    =/  grp-dir=path  (weld /usergroups grp)
+    =/  who-road=road:tarball  (abs-file grp-dir %'who.ships')
+    =/  how-road=road:tarball  (abs-file grp-dir %'how.weir')
+    ;<  ~  bind:m  (make:io who-road |+[[[/ %ships] *(set @p)] ~])
+    ;<  ~  bind:m  (make:io how-road |+[[[/ %weir] *weir:nexus] ~])
     (redirect eyre-id)
   ::
       [%delete ~]
-    =/  nam=@ta  (crip (trip body))
-    ;<  *  bind:m  (cull-soft:io (abs-dir /usergroups/[nam]))
+    =/  grp=path  (stab body)
+    ;<  *  bind:m  (cull-soft:io (abs-dir (weld /usergroups grp)))
     (redirect eyre-id)
   ::
       [%members ~]
     ::  body = "name\0amember1\0amember2..."
     =/  lines=(list @t)  (split-lines body)
     ?~  lines  (redirect eyre-id)
-    =/  nam=@ta  (crip (trip i.lines))
+    =/  grp=path  (stab i.lines)
     =/  ships=(set @p)
       %-  ~(gas in *(set @p))
       (murn t.lines |=(t=@t (slaw %p t)))
-    ;<  ~  bind:m  (over:io (abs-file /usergroups/[nam] %'who.ships') [[/ %ships] ships])
+    ;<  ~  bind:m  (over:io (abs-file (weld /usergroups grp) %'who.ships') [[/ %ships] ships])
     (redirect eyre-id)
   ::
       [%permissions ~]
     ::  body = "name\0amake:path1,path2\0apoke:path1\0apeek:path1"
     =/  lines=(list @t)  (split-lines body)
     ?~  lines  (redirect eyre-id)
-    =/  nam=@ta  (crip (trip i.lines))
+    =/  grp=path  (stab i.lines)
     =/  =weir:nexus  (parse-weir-lines t.lines)
-    ;<  ~  bind:m  (over:io (abs-file /usergroups/[nam] %'how.weir') [[/ %weir] weir])
+    ;<  ~  bind:m  (over:io (abs-file (weld /usergroups grp) %'how.weir') [[/ %weir] weir])
     (redirect eyre-id)
   ==
 ::
@@ -391,7 +392,7 @@
 ++  render-group
   |=  =group-info
   ^-  manx
-  =/  n=tape  (trip name.group-info)
+  =/  n=tape  "/{(trip name.group-info)}"
   =/  is-public=?  =(%public name.group-info)
   =/  mem-list=(list @p)  (sort ~(tap in members.group-info) aor)
   =/  mem-text=tape

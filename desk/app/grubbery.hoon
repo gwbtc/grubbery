@@ -4417,7 +4417,8 @@
 ::
 ++  sync-bowl
   ^+  this
-  ::  seed /sys/bowl/ with initial values; peek handler refreshes on read
+  ::  seed /sys/bowl/ with save-file (proper silo entries + notify).
+  ::  no loop: explorer peeks at cass on news, not latest.
   =.  this  (ensure-dir /sys/bowl)
   =.  this  (save-file [/sys/bowl %our] [[/ %ship] %& !>(our.bowl)])
   =.  this  (save-file [/sys/bowl %now] [[/ %time] %& !>(now.bowl)])

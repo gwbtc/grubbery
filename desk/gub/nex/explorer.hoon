@@ -508,7 +508,11 @@
     ;<  ~  bind:m  (send-wait:io (add now ~s30))
     $
       %news
-    ;<  =seen:nexus  bind:m  (peek:io [%& %| ~] ~)
+    =/  max-cas=cass:clay
+      %+  roll  ~(val by wave.nw)
+      |=  [c=cass:clay best=cass:clay]
+      ?:((gth ud.c ud.best) c best)
+    ;<  =seen:nexus  bind:m  (peek-at:io [%& %| ~] ~ [%ud ud.max-cas])
     ?.  ?=([%& %ball *] seen)  $
     =/  root=ball:tarball  ball.p.seen
     =/  root-born=born:nexus  born.p.seen
@@ -532,7 +536,7 @@
       ?~  ns  ~
       ?.  ?=(%| -.u.ns)  ~
       `p.u.ns
-    ;<  now=@da  bind:m  get-time:io
+    =/  now=@da  da.max-cas
     ::  Only build tubes for marks of files that changed in watched dir
     =/  changed-blots=(set blot:tarball)
       %-  ~(gas in *(set blot:tarball))
