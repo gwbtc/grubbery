@@ -269,52 +269,63 @@
     ;head
       ;title: Peers
       ;meta(charset "utf-8");
+      ;meta(name "viewport", content "width=device-width, initial-scale=1");
       ;style
         ;+  ;/  %-  trip  %-  crip
           ;:  weld
             "* \{ margin:0; padding:0; box-sizing:border-box; }"
-            "body \{ font-family:monospace; max-width:720px; margin:0 auto; padding:2rem; background:#fafafa; color:#111; }"
-            "h1 \{ font-size:1.4rem; margin-bottom:1.5rem; }"
-            "h2 \{ font-size:1rem; margin-bottom:.5rem; color:#555; }"
-            ".group \{ background:#fff; border:1px solid #ddd; border-radius:6px; padding:1rem; margin-bottom:1rem; }"
-            ".group-hdr \{ display:flex; align-items:center; gap:.75rem; margin-bottom:.75rem; }"
-            ".group-hdr strong \{ font-size:.95rem; }"
-            ".group-hdr .count \{ color:#888; font-size:.8rem; }"
-            ".members \{ display:flex; flex-wrap:wrap; gap:4px; margin-bottom:.75rem; }"
-            ".ship \{ background:#eef; border:1px solid #ccd; border-radius:3px; padding:1px 6px; font-size:.75rem; }"
+            "body \{ font-family:monospace; max-width:720px; margin:0 auto; padding:1.5rem; background:#fafafa; color:#111; font-size:14px; }"
+            "h1 \{ font-size:1.3rem; margin-bottom:1.25rem; }"
+            ".group \{ background:#fff; border:1px solid #ddd; border-radius:6px; padding:.75rem; margin-bottom:.75rem; }"
+            ".group-hdr \{ display:flex; align-items:center; gap:.5rem; margin-bottom:.5rem; flex-wrap:wrap; }"
+            ".group-hdr strong \{ font-size:.9rem; word-break:break-all; }"
+            ".group-hdr .count \{ color:#888; font-size:.75rem; }"
+            ".ship \{ background:#eef; border:1px solid #ccd; border-radius:3px; padding:2px 6px; font-size:.75rem; word-break:break-all; }"
             ".perms \{ font-size:.75rem; color:#666; }"
-            ".perms span \{ display:inline-block; background:#f0f0f0; border-radius:3px; padding:1px 5px; margin:1px; }"
-            "label \{ display:block; font-size:.7rem; color:#888; text-transform:uppercase; margin-top:.5rem; margin-bottom:.25rem; }"
-            "textarea \{ width:100%; font-family:monospace; font-size:.8rem; padding:.5rem; border:1px solid #ccc; border-radius:4px; resize:vertical; min-height:2.5rem; }"
-            "button \{ font-family:monospace; font-size:.8rem; padding:.25rem .75rem; border:1px solid #ccc; border-radius:4px; background:#fff; cursor:pointer; }"
+            "label \{ display:block; font-size:.7rem; color:#888; text-transform:uppercase; margin-top:.5rem; margin-bottom:.2rem; }"
+            "textarea \{ width:100%; font-family:monospace; font-size:16px; padding:.4rem; border:1px solid #ccc; border-radius:4px; resize:vertical; min-height:2.5rem; }"
+            "input[type=text] \{ font-size:16px; }"
+            "button \{ font-family:monospace; font-size:.8rem; padding:.3rem .75rem; border:1px solid #ccc; border-radius:4px; background:#fff; cursor:pointer; -webkit-tap-highlight-color:transparent; }"
             "button:hover \{ background:#eee; }"
             ".btn-red \{ color:#c44; border-color:#c44; }"
             ".btn-red:hover \{ background:#fdd; }"
             ".btn-grn \{ color:#2a2; border-color:#2a2; }"
             ".btn-grn:hover \{ background:#dfd; }"
-            ".actions \{ display:flex; gap:.5rem; margin-top:.5rem; }"
-            ".create-form \{ display:flex; gap:.5rem; margin-bottom:1.5rem; }"
-            ".create-form input \{ font-family:monospace; font-size:.85rem; padding:.25rem .5rem; border:1px solid #ccc; border-radius:4px; }"
-            ".ships-section \{ margin-top:2rem; }"
+            ".actions \{ display:flex; gap:.5rem; margin-top:.5rem; flex-wrap:wrap; }"
+            ".create-form \{ display:flex; gap:.5rem; margin-bottom:1.25rem; flex-wrap:wrap; }"
+            ".create-form input \{ font-family:monospace; font-size:16px; padding:.3rem .5rem; border:1px solid #ccc; border-radius:4px; flex:1; min-width:0; }"
+            ".tabs \{ display:flex; gap:0; border-bottom:2px solid #ddd; margin-bottom:1rem; }"
+            ".tab \{ font-family:monospace; font-size:.85rem; padding:.5rem 1rem; border:none; background:none; cursor:pointer; color:#888; border-bottom:2px solid transparent; margin-bottom:-2px; -webkit-tap-highlight-color:transparent; }"
+            ".tab.active \{ color:#111; border-bottom-color:#111; }"
+            ".tab-content \{ display:none; }"
+            ".tab-content.active \{ display:block; }"
             ".ship-list \{ display:flex; flex-wrap:wrap; gap:4px; }"
             ".empty \{ color:#999; font-size:.85rem; }"
+            "@media(max-width:480px)\{"
+            "  body \{ padding:.75rem; }"
+            "  h1 \{ font-size:1.1rem; margin-bottom:1rem; }"
+            "  .group \{ padding:.6rem; }"
+            "  .tab \{ padding:.4rem .6rem; font-size:.8rem; }"
+            "}"
           ==
       ==
     ==
     ;body
       ;h1: Peers
-      ::  create group form
-      ;div(class "create-form")
-        ;input(id "new-name", type "text", placeholder "group name");
-        ;button(class "btn-grn", onclick "createGroup()"): + New Group
+      ;div(class "tabs")
+        ;button(class "tab active", onclick "switchTab('groups')"): Usergroups
+        ;button(class "tab", onclick "switchTab('ships')"): Ships ({(a-co:co (lent ships))})
       ==
-      ::  groups
-      ;div
-        ;*  (render-groups groups)
+      ;div(id "tab-groups", class "tab-content active")
+        ;div(class "create-form")
+          ;input(id "new-name", type "text", placeholder "/group/name");
+          ;button(class "btn-grn", onclick "createGroup()"): + New Group
+        ==
+        ;div
+          ;*  (render-groups groups)
+        ==
       ==
-      ::  ships
-      ;div(class "ships-section")
-        ;h2: Ships ({(a-co:co (lent ships))})
+      ;div(id "tab-ships", class "tab-content")
         ;div(class "ship-list")
           ;*  (render-ships ships)
         ==
@@ -322,6 +333,12 @@
       ;script
         ;+  ;/  %-  trip  %-  crip
           ;:  weld
+            "function switchTab(id)\{\0a"
+            "  document.querySelectorAll('.tab-content').forEach(e=>e.classList.remove('active'));\0a"
+            "  document.querySelectorAll('.tab').forEach(e=>e.classList.remove('active'));\0a"
+            "  document.getElementById('tab-'+id).classList.add('active');\0a"
+            "  event.target.classList.add('active');\0a"
+            "}\0a"
             "var BASE='/grubbery/peers/';\0a"
             "function createGroup()\{\0a"
             "  var n=document.getElementById('new-name').value.trim();\0a"
@@ -375,6 +392,7 @@
   |=  =group-info
   ^-  manx
   =/  n=tape  (trip name.group-info)
+  =/  is-public=?  =(%public name.group-info)
   =/  mem-list=(list @p)  (sort ~(tap in members.group-info) aor)
   =/  mem-text=tape
     %+  join  "\0a"
@@ -391,20 +409,27 @@
   ;div(class "group")
     ;div(class "group-hdr")
       ;strong: {n}
-      ;span(class "count"): {(a-co:co (lent mem-list))} members
-      ;button(class "btn-red", onclick "deleteGroup('{n}')"):  x
+      ;span(class "count"): {?:(is-public "all ships" "{(a-co:co (lent mem-list))} members")}
+      ;+  ?.  is-public
+            ;button(class "btn-red", onclick "deleteGroup('{n}')"):  x
+          ;span;
     ==
-    ;label: Members (one ~ship per line)
-    ;textarea(id "mem-{n}", rows "3"): {mem-text}
-    ;div(class "actions")
-      ;button(class "btn-grn", onclick "saveMembers('{n}')"): Save Members
-    ==
-    ;label: Make permissions (comma-separated paths)
-    ;input(id "make-{n}", type "text", value "{make-text}", style "width:100%;font-family:monospace;font-size:.8rem;padding:.25rem .5rem;border:1px solid #ccc;border-radius:4px;");
-    ;label: Poke permissions
-    ;input(id "poke-{n}", type "text", value "{poke-text}", style "width:100%;font-family:monospace;font-size:.8rem;padding:.25rem .5rem;border:1px solid #ccc;border-radius:4px;");
-    ;label: Peek permissions
-    ;input(id "peek-{n}", type "text", value "{peek-text}", style "width:100%;font-family:monospace;font-size:.8rem;padding:.25rem .5rem;border:1px solid #ccc;border-radius:4px;");
+    ;+  ?.  is-public
+          ;div
+            ;label: Members (one ~ship per line)
+            ;textarea(id "mem-{n}", rows "3"): {mem-text}
+            ;div(class "actions")
+              ;button(class "btn-grn", onclick "saveMembers('{n}')"): Save Members
+            ==
+          ==
+        ;span(class "perms"): Applies to all foreign ships
+    ;label: Permissions (comma-separated paths)
+    ;label: Make
+    ;input(id "make-{n}", type "text", value "{make-text}", style "width:100%;font-family:monospace;font-size:16px;padding:.3rem .5rem;border:1px solid #ccc;border-radius:4px;");
+    ;label: Poke
+    ;input(id "poke-{n}", type "text", value "{poke-text}", style "width:100%;font-family:monospace;font-size:16px;padding:.3rem .5rem;border:1px solid #ccc;border-radius:4px;");
+    ;label: Peek
+    ;input(id "peek-{n}", type "text", value "{peek-text}", style "width:100%;font-family:monospace;font-size:16px;padding:.3rem .5rem;border:1px solid #ccc;border-radius:4px;");
     ;div(class "actions")
       ;button(class "btn-grn", onclick "savePerms('{n}')"): Save Permissions
     ==

@@ -513,7 +513,7 @@
     =^  cards  state
       abet:(handle-push-response:hc t.t.wire client-response.sign)
     [cards this]
-  ?:  ?=(?([%eyre ~] [%eyre-bind ~] [%eyre-api ~]) wire)
+  ?:  ?=(?([%eyre ~] [%eyre-bind ~] [%eyre-api ~] [%eyre-push ~]) wire)
     `this
   ~&  >>>  "on-arvo: unhandled wire {<wire>}"
   `this
@@ -2495,31 +2495,25 @@
           :_  cards
           [%pass /peek/[(scot %p target)] %agent [target %grubbery] %poke grubbery-load+!>(req)]
         this
-      ::  Refresh /sys/bowl/ virtual files on every peek
-      ::  NOTE: uses record directly (no propagate) — save-file would
-      ::  notify watchers, which peek again → infinite loop.
-      ::  Ensure born entries exist first
-      =?  born  =(~ (~(get bo:nexus now.bowl born) /sys/bowl %our))
-        (~(init bo:nexus now.bowl born) /sys/bowl %our)
-      =?  born  =(~ (~(get bo:nexus now.bowl born) /sys/bowl %now))
-        (~(init bo:nexus now.bowl born) /sys/bowl %now)
-      =?  born  =(~ (~(get bo:nexus now.bowl born) /sys/bowl %eny))
-        (~(init bo:nexus now.bowl born) /sys/bowl %eny)
-      ::  Record bowl values to silo (skip propagate/notify)
-      =.  this  (record [/sys/bowl %our] [[/ %ship] our.bowl] %.n ~)
-      =/  now-existing  (peek-grub-now /sys/bowl %now)
-      =/  now-val=@da
-        ?~  now-existing  now.bowl
-        =/  prev=@da  ;;(@da (sang-noun:tarball u.now-existing))
-        ?:  (gte prev now.bowl)
-          (add prev (div ~s1 1.000))
-        now.bowl
-      =.  this  (record [/sys/bowl %now] [[/ %time] now-val] %.n ~)
-      =/  eny-existing  (peek-grub-now /sys/bowl %eny)
-      =/  eny-val=@uvJ
-        ?~  eny-existing  eny.bowl
-        (shaz (cat 3 eny.bowl ;;(@uvJ (sang-noun:tarball u.eny-existing))))
-      =.  this  (record [/sys/bowl %eny] [[/ %entropy] eny-val] %.n ~)
+      ::  Refresh /sys/bowl/ on peek-at-latest only.
+      ::  Peek-at-cass returns historical values from silo.
+      ::  This breaks the notify loop: save-file notifies → subscriber
+      ::  re-peeks at the notified cass → no refresh → no loop.
+      =?  this  =(~ case.load.dart)
+        =/  now-existing  (peek-grub-now /sys/bowl %now)
+        =/  now-val=@da
+          ?~  now-existing  now.bowl
+          =/  prev=@da  ;;(@da (sang-noun:tarball u.now-existing))
+          ?:  (gte prev now.bowl)
+            (add prev (div ~s1 1.000))
+          now.bowl
+        =/  eny-existing  (peek-grub-now /sys/bowl %eny)
+        =/  eny-val=@uvJ
+          ?~  eny-existing  eny.bowl
+          (shaz (cat 3 eny.bowl ;;(@uvJ (sang-noun:tarball u.eny-existing))))
+        =.  this  (save-file [/sys/bowl %our] [[/ %ship] %& !>(our.bowl)])
+        =.  this  (save-file [/sys/bowl %now] [[/ %time] %& !>(now-val)])
+        (save-file [/sys/bowl %eny] [[/ %entropy] %& !>(eny-val)])
       ::  Peek at dest - directory returns ball+born, file returns cage
       ::  Returns %none if directory doesn't exist or has no lump
       ::  ver: if set, read historical version from hist via silo
@@ -4423,17 +4417,11 @@
 ::
 ++  sync-bowl
   ^+  this
+  ::  seed /sys/bowl/ with initial values; peek handler refreshes on read
   =.  this  (ensure-dir /sys/bowl)
-  =?  born  =(~ (~(get bo:nexus now.bowl born) /sys/bowl %our))
-    (~(init bo:nexus now.bowl born) /sys/bowl %our)
-  =?  born  =(~ (~(get bo:nexus now.bowl born) /sys/bowl %now))
-    (~(init bo:nexus now.bowl born) /sys/bowl %now)
-  =?  born  =(~ (~(get bo:nexus now.bowl born) /sys/bowl %eny))
-    (~(init bo:nexus now.bowl born) /sys/bowl %eny)
-  =.  this  (record [/sys/bowl %our] [[/ %ship] our.bowl] %.n ~)
-  =.  this  (record [/sys/bowl %now] [[/ %time] now.bowl] %.n ~)
-  =.  this  (record [/sys/bowl %eny] [[/ %entropy] eny.bowl] %.n ~)
-  this
+  =.  this  (save-file [/sys/bowl %our] [[/ %ship] %& !>(our.bowl)])
+  =.  this  (save-file [/sys/bowl %now] [[/ %time] %& !>(now.bowl)])
+  (save-file [/sys/bowl %eny] [[/ %entropy] %& !>(eny.bowl)])
 ::
 ++  sync-peer
   ^+  this
