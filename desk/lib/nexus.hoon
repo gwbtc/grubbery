@@ -80,12 +80,12 @@
       [%cull ~]                 :: delete grub or directory
       [%sand weir=(unit weir)]  :: set weir
       [%load ~]                 :: trigger on-load for a nexus (folds only)
-      [%peek ship=(unit @p) blot=(unit blot:tarball) case=(unit case) deep=?]
+      [%peek blot=(unit blot:tarball) case=(unit case) deep=?]
                                        :: read a grub
-                                       :: ship: if set, peek a remote ship (cross-ship)
                                        :: blot: convert file sage to this blot
                                        :: case: if set, read historical version
                                        :: deep: %.y recurse subdirs, %.n shallow
+                                       :: remote: dest under /sys/ames/ships/[ship]/root/
       [%keep blot=(unit blot:tarball)]  :: subscribe to changes at dest (grub or ball per road)
                                        :: blot: if set, convert file sage in news
       [%drop ~]                 :: unsubscribe from dest

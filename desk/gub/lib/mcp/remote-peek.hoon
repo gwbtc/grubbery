@@ -1,6 +1,6 @@
 /<  tools  /lib/nex/tools.hoon
 ::  remote-peek: peek a file or directory on a remote grubbery.
-::  Emits a local %peek dart with the ship parameter set.
+::  Routes via /sys/ames/ships/[ship]/root/[path] namespace.
 ::  The grubbery handles cross-ship negotiation (snap/want/data)
 ::  and the fiber suspends until the peek is discharged.
 ::

@@ -2376,18 +2376,28 @@
       (enqu-take here (sys-give /over) ~ %over wire.dart ~)
       ::
         %peek
-      ::  Remote peek: stage the peek and send %peek load to remote ship.
+      ::  Remote peek: if dest is under /sys/ames/ships/[ship]/root/,
+      ::  stage the peek and send %peek load to the remote ship.
       ::  The fiber suspends until discharge-peeks sends the intake back.
       ::
-      ?^  ship.load.dart
-        =/  target=@p  u.ship.load.dart
-        ?>  ?=(^ dest-lane)
+      ?>  ?=(^ dest-lane)
+      =/  remote=(unit [@p lane:tarball])
+        =/  pax=path
+          ?-(-.u.dest-lane %& path.p.u.dest-lane, %| p.u.dest-lane)
+        ?.  ?=([%sys %ames %ships @ %root *] pax)
+          ~
+        =/  target=@p  (slav %p i.t.t.t.pax)
+        =/  real-path=path  t.t.t.t.t.pax
+        :-  ~  :-  target
+        ?-(-.u.dest-lane %& [%& real-path name.p.u.dest-lane], %| [%| real-path])
+      ?^  remote
+        =/  [target=@p real-dest=lane:tarball]  u.remote
         =/  key=[rail:tarball wire]  [here wire.dart]
         =.  peeks
           %+  ~(put by peeks)  key
-          [target u.dest-lane deep.load.dart ~]
+          [target real-dest deep.load.dart ~]
         =/  req=load:remote:nexus
-          [[wire.dart u.dest-lane] %peek case.load.dart deep.load.dart]
+          [[wire.dart real-dest] %peek case.load.dart deep.load.dart]
         =.  cards
           :_  cards
           [%pass /peek/[(scot %p target)] %agent [target %grubbery] %poke grubbery-load+!>(req)]

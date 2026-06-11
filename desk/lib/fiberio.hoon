@@ -309,7 +309,7 @@
   |=  [=road:tarball blot=(unit blot:tarball)]
   =/  m  (fiber ,seen:nexus)
   ^-  form:m
-  ;<  ~  bind:m  (send-dart %node /peek road %peek ~ blot ~ %.y)
+  ;<  ~  bind:m  (send-dart %node /peek road %peek blot ~ %.y)
   (take-peek /peek)
 ::
 ::  Shallow peek: files at this level, subdir names only (no recursion)
@@ -318,7 +318,7 @@
   |=  [=road:tarball blot=(unit blot:tarball)]
   =/  m  (fiber ,seen:nexus)
   ^-  form:m
-  ;<  ~  bind:m  (send-dart %node /peek road %peek ~ blot ~ %.n)
+  ;<  ~  bind:m  (send-dart %node /peek road %peek blot ~ %.n)
   (take-peek /peek)
 ::
 ::  Peek at a historical version of a file
@@ -327,18 +327,29 @@
   |=  [=road:tarball blot=(unit blot:tarball) =case:nexus]
   =/  m  (fiber ,seen:nexus)
   ^-  form:m
-  ;<  ~  bind:m  (send-dart %node /peek road %peek ~ blot `case %.y)
+  ;<  ~  bind:m  (send-dart %node /peek road %peek blot `case %.y)
   (take-peek /peek)
 ::
-::  Peek a remote ship. Emits a local peek dart with ship set.
-::  The grubbery handles cross-ship negotiation; the fiber suspends
-::  until the peek is discharged.
+::  Peek a remote ship. Constructs a road targeting
+::  /sys/ames/ships/[ship]/root/[path] so the grubbery routes
+::  the peek cross-ship via the namespace.
 ::
 ++  peek-remote
   |=  [=road:tarball =@p case=(unit case:nexus)]
   =/  m  (fiber ,seen:nexus)
   ^-  form:m
-  ;<  ~  bind:m  (send-dart %node /peek road %peek `p ~ case %.y)
+  =/  remote-road=road:tarball
+    ?-  -.road
+        %|  road  :: relative roads pass through as-is
+        %&
+      ?-  -.p.road
+          %&  :: file: [path name] → /sys/ames/ships/[ship]/root/[path] name
+        [%& %& (weld /sys/ames/ships/[(scot %p p)] /root path.p.p.road) name.p.p.road]
+          %|  :: dir: path → /sys/ames/ships/[ship]/root/[path]
+        [%& %| (weld /sys/ames/ships/[(scot %p p)] /root p.p.road)]
+      ==
+    ==
+  ;<  ~  bind:m  (send-dart %node /peek remote-road %peek ~ case %.y)
   (take-peek /peek)
 ::
 ::  Check if a target (file or directory) exists at a road.
