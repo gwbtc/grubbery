@@ -89,6 +89,7 @@
   =^  dill-cards  state  abet:sync-dill:hc
   =^  clay-cards  state  abet:sync-clay:hc
   =^  jael-cards  state  abet:sync-jael:hc
+  =^  bowl-cards  state  abet:sync-bowl:hc
   =^  peer-cards  state  abet:sync-peer:hc
   =^  gall-cards  state  abet:sync-gall:hc
   =^  eyre-cards  state  abet:sync-eyre:hc
@@ -105,6 +106,7 @@
     dill-cards
     clay-cards
     jael-cards
+    bowl-cards
     peer-cards
     gall-cards
     eyre-cards
@@ -4416,6 +4418,20 @@
 ::  Usergroups are per-group directories with who.ships and how.weir files.
 ::  Ship directories are created lazily on first foreign poke.
 ::  Weirs recompute atomically on any usergroup change.
+::
+++  sync-bowl
+  ^+  this
+  =.  this  (ensure-dir /sys/bowl)
+  =?  born  =(~ (~(get bo:nexus now.bowl born) /sys/bowl %our))
+    (~(init bo:nexus now.bowl born) /sys/bowl %our)
+  =?  born  =(~ (~(get bo:nexus now.bowl born) /sys/bowl %now))
+    (~(init bo:nexus now.bowl born) /sys/bowl %now)
+  =?  born  =(~ (~(get bo:nexus now.bowl born) /sys/bowl %eny))
+    (~(init bo:nexus now.bowl born) /sys/bowl %eny)
+  =.  this  (record [/sys/bowl %our] [[/ %ship] our.bowl] %.n ~)
+  =.  this  (record [/sys/bowl %now] [[/ %time] now.bowl] %.n ~)
+  =.  this  (record [/sys/bowl %eny] [[/ %entropy] eny.bowl] %.n ~)
+  this
 ::
 ++  sync-peer
   ^+  this
