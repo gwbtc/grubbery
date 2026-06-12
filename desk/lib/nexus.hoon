@@ -75,8 +75,7 @@
 +$  find  lose
 +$  load
   $%  [%poke =bask:tarball]     :: poke a grub
-      [%make =make]             :: create grub or directory
-      [%over =bask:tarball]     :: overwrite grub content (runtime mark conversion)
+      [%make force=? =make]     :: create grub or directory
       [%cull ~]                 :: delete grub or directory
       [%sand weir=(unit weir)]  :: set weir
       [%load ~]                 :: trigger on-load for a nexus (folds only)
@@ -202,8 +201,6 @@
         [%seek =wire res=(each (list [=rail:tarball =cass:clay]) tang)] :: response to seek
         [%peep =wire res=(each (list [=cass:clay =sage:tarball]) tang)] :: response to peep
         [%manu =wire res=(each @t tang)] :: response to manu
-        [%over =wire err=(unit tang)] :: response to over (content overwrite)
-        [%writ ~] :: notify grub its file was externally modified by %over
         [%bond =wire =wave] :: subscription ack with initial wave
         [%fell =wire]                 :: subscription canceled (weir change, deletion, etc)
         [%news =wire =wave] :: wave update: changed lanes + versions
@@ -1061,12 +1058,11 @@
   |%
   +$  load
     $:  [=wire dest=lane:tarball]
-        $%  [%make =make]
+        $%  [%make force=? =make]
             [%cull ~]
             [%sand weir=(unit weir)]
             [%load ~]
             [%poke =bask:tarball]
-            [%over =bask:tarball]
             [%peek case=(unit case) deep=?]
             [%keep ~]
             [%drop ~]
@@ -1082,7 +1078,7 @@
             [%data =silo]
         ==
     ==
-  +$  make  (each ball:tarball [=bask:tarball blot=(unit blot:tarball)])
+  +$  make  (each bole:tarball [=bask:tarball blot=(unit blot:tarball)])
   ::  Inbound subscription events from remote watchers.
   ::
   +$  intake

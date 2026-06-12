@@ -278,14 +278,14 @@
   |=  [=road:tarball =make:nexus]
   =/  m  (fiber ,~)
   ^-  form:m
-  ;<  ~  bind:m  (send-dart %node /make road %make make)
+  ;<  ~  bind:m  (send-dart %node /make road %make %.n make)
   (take-made /make)
 ::
 ++  make-soft
   |=  [=road:tarball =make:nexus]
   =/  m  (fiber ,(unit tang))
   ^-  form:m
-  ;<  ~  bind:m  (send-dart %node /make road %make make)
+  ;<  ~  bind:m  (send-dart %node /make road %make %.n make)
   |=  input
   :+  ~  q.state
   ?+  in  [%skip ~]
@@ -531,26 +531,8 @@
   |=  [=road:tarball =bask:tarball]
   =/  m  (fiber ,~)
   ^-  form:m
-  ;<  ~  bind:m  (send-dart %node /over road %over bask)
-  (take-over /over)
-::
-++  take-over
-  |=  =wire
-  =/  m  (fiber ,~)
-  ^-  form:m
-  |=  input
-  :+  ~  q.state
-  ?+  in  [%skip ~]
-      ~  [%wait ~]
-      [~ %veto *]
-    [%fail (veto-error dart.u.in)]
-      [~ %over * *]
-    ?.  =(wire wire.u.in)
-      [%skip ~]
-    ?~  err.u.in
-      [%done ~]
-    [%fail %over-failed u.err.u.in]
-  ==
+  ;<  ~  bind:m  (send-dart %node /make road %make %.y |+[bask ~])
+  (take-made /make)
 ::
 ++  reload
   |=  =road:tarball

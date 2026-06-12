@@ -419,9 +419,6 @@
       %made
     ;<  ~  bind:m  (handle-ack msg-road wire.ev err.ev slots.reg live.reg)
     $
-      %over
-    ;<  ~  bind:m  (handle-ack msg-road wire.ev err.ev slots.reg live.reg)
-    $
       %gone
     ;<  ~  bind:m  (handle-ack msg-road wire.ev err.ev slots.reg live.reg)
     $
@@ -772,12 +769,12 @@
   ::  writes
       %'make'
     =/  =mime  [/text/plain (as-octs:mimes:html body)]
-    (send-dart:io %node slot-wire road %make |+[[[/ %mime] mime] ~])
+    (send-dart:io %node slot-wire road %make %.n |+[[[/ %mime] mime] ~])
       %'dir'
-    (send-dart:io %node slot-wire road %make &+[`[~ ~ %.n ~] ~])
+    (send-dart:io %node slot-wire road %make %.n &+[`[~ ~ %.n ~] ~])
       %'over'
     =/  =mime  [/text/plain (as-octs:mimes:html body)]
-    (send-dart:io %node slot-wire road %over [[/ %mime] !>(mime)])
+    (send-dart:io %node slot-wire road %make %.y |+[[[/ %mime] !>(mime)] ~])
       %'rmf'   (send-dart:io %node slot-wire road %cull ~)
       %'rmd'   (send-dart:io %node slot-wire road %cull ~)
       %'poke'
@@ -785,7 +782,7 @@
     (send-dart:io %node slot-wire road %poke [[/ %mime] !>(mime)])
       %'diff'
     =/  =mime  [/text/plain (as-octs:mimes:html body)]
-    (send-dart:io %node slot-wire road %over [[/ %mime] !>(mime)])
+    (send-dart:io %node slot-wire road %make %.y |+[[[/ %mime] !>(mime)] ~])
       %'setweir'
     =/  jon=(unit json)  (de:json:html body)
     ?~  jon
@@ -806,7 +803,6 @@
   $%  [%poke =sage:tarball]
       [%peek =wire =seen:nexus]
       [%made =wire err=(unit tang)]
-      [%over =wire err=(unit tang)]
       [%gone =wire err=(unit tang)]
       [%pack =wire err=(unit tang)]
       [%sand =wire err=(unit tang)]
@@ -829,7 +825,6 @@
     [%done %poke sage.u.in]
       [~ %peek * *]   [%done %peek wire.u.in seen.u.in]
       [~ %made * *]   [%done %made wire.u.in err.u.in]
-      [~ %over * *]   [%done %over wire.u.in err.u.in]
       [~ %gone * *]   [%done %gone wire.u.in err.u.in]
       [~ %pack * *]   [%done %pack wire.u.in err.u.in]
       [~ %sand * *]   [%done %sand wire.u.in err.u.in]

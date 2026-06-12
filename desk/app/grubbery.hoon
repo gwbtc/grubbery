@@ -249,9 +249,8 @@
     =/  =load:nexus
       ?-  +<.req
         %poke  [%poke bask.req]
-        %over  [%over bask.req]
           %make
-        [%make ?:(?=(%& -.make.req) &+(ball-to-bole:tarball p.make.req) make.req)]
+        [%make force.req make.req]
         %cull  [%cull ~]
         %sand  [%sand weir.req]
         %load  [%load ~]
@@ -354,7 +353,7 @@
     ?:  ?=([%grubbery %api *] site)
       ~&  >  [%eyre-api eyre-id url.request.req ~(wyt by nouns.silo) ~(wyt by jects.silo)]
       =^  cards  state
-        abet:(make:hc [%& /sys/eyre/requests eyre-id] [%| [[/ %http-request] [src.bowl req]] ~])
+        abet:(make:hc [%& /sys/eyre/requests eyre-id] %.n [%| [[/ %http-request] [src.bowl req]] ~])
       [cards this]
     ::  Binding match: find handler, forward request
     =/  st=server-state:nexus  get-server-state:hc
@@ -2412,7 +2411,7 @@
       ?(%peek %keep %drop %seek %peep %manu %code %font)  %peek  :: read operations
       %poke                       %poke
         $?  %make  %cull  %sand  %load
-            %over  %lose  %gain  %firm
+            %lose  %gain  %firm
         ==
       %make  :: all modify tree structure
     ==
@@ -2482,7 +2481,7 @@
       ::  cached tube before storing.
       =/  mak=make:nexus  make.load.dart
       =/  res=(each _this tang)
-        (mule |.((make u.dest-lane mak)))
+        (mule |.((make u.dest-lane force.load.dart mak)))
       ?-  -.res
         %&  (enqu-take:p.res here (sys-give /made) ~ %made wire.dart ~)
           %|
@@ -2522,38 +2521,6 @@
         %&  (enqu-take:p.res here (sys-give /load) ~ %load wire.dart ~)
         %|  (enqu-take here (sys-give /load) ~ %load wire.dart `p.res)
       ==
-      ::
-        %over
-      ::  Overwrite grub content, converting mark via warm tube if needed
-      ?>  ?=(%& -.u.dest-lane)
-      =/  dest=rail:tarball  p.u.dest-lane
-      =/  old  (peek-grub-now path.dest name.dest)
-      ?~  old
-        (enqu-take here (sys-give /over) ~ %over wire.dart `~[leaf+"file not found: {(spud (snoc path.dest name.dest))}"])
-      =/  old-blot=blot:tarball  p.u.old
-      =/  new-blot=blot:tarball  p.bask.load.dart
-      ?:  (is-boom:tarball u.old)
-        ~&  >>>  "over: target file is boomed: {(spud (snoc path.dest name.dest))}"
-        (enqu-take here (sys-give /over) ~ %over wire.dart `~[leaf+"over: target file is boomed, fix the mark and reload: {(spud (snoc path.dest name.dest))}"])
-      =/  =bask:tarball
-        ?:  =(old-blot new-blot)
-          bask.load.dart
-        =/  src=(each vase tang)  (validate-noun cod p.bask.load.dart q.bask.load.dart)
-        ?:  ?=(%| -.src)  ~|("over: source validation failed" (mean p.src))
-        =/  =tube:clay  (get-tube cod [[/ name.new-blot] [/ name.old-blot]])
-        [old-blot q:(tube p.src)]
-      =/  cached  (check-vale-cache cod p.bask q.bask)
-      =/  val=(each vase tang)
-        ?^  cached  u.cached
-        (validate-noun cod p.bask q.bask)
-      =?  this  ?=(~ cached)
-        (cache-validation cod p.bask q.bask val)
-      ?:  ?=(%| -.val)
-        (enqu-take here (sys-give /over) ~ %over wire.dart `p.val)
-      =/  new-content=sang:tarball  [p.bask %& p.val]
-      =.  this  (save-file dest new-content)
-      =.  this  (enqu-take dest (sys-give /writ) ~ %writ ~)
-      (enqu-take here (sys-give /over) ~ %over wire.dart ~)
       ::
         %peek
       ::  Remote peek: if dest is under /sys/ames/ships/[ship]/root/,
@@ -3197,32 +3164,29 @@
   (enqu-take here give ~ %poke rel-from sage)
 ::
 ++  make
-  |=  [dest=lane:tarball =make:nexus]
+  |=  [dest=lane:tarball force=? =make:nexus]
   ^+  this
   ?-    -.dest
       %|
-    ::  Make directory - payload must be bole
+    ::  Make directory — sync bole into dest, fail if exists without force
     ?>  ?=(%& -.make)
     =/  dest-path=fold:tarball  p.dest
     =/  new-bole=bole:tarball  p.make
-    ::  Assert nothing exists at path
-    =/  existing  (peek-ball-now dest-path)
-    ?:  |(?=(^ fil.existing) !=(~ dir.existing))
-      ~|("path is not empty" !!)
-    ::  Run on-loads top-down (still uses ball internally)
-    =/  new-ball=ball:tarball
-      (run-on-loads dest-path (validate-bole dest-path new-bole))
-    =/  made=bole:tarball  (ball-to-bole:tarball new-ball)
-    ::  Sync all changes (old is empty) and spawn processes
-    =.  this  (load-ball-changes dest-path made)
-    ::  Register and build any code namespaces in the new bole
-    =.  this  (build-new-code-namespaces dest-path made)
-    (spawn-all-files dest-path made)
+    ?.  force
+      =/  existing=born:nexus  (~(dip of born) dest-path)
+      ?~  fil.existing  $(force %.y)
+      ~|("make failed: directory {(spud dest-path)} already exists" !!)
+    =.  this  (load-ball-changes dest-path new-bole)
+    =.  this  (build-new-code-namespaces dest-path new-bole)
+    (spawn-all-files dest-path new-bole)
     ::
       %&
-    ::  Make file - payload must be bask
+    ::  Make file — fail if exists without force
     ?>  ?=(%| -.make)
     =/  dest-rail=rail:tarball  p.dest
+    ?.  force
+      ?~  (get-born dest-rail)  $(force %.y)
+      ~|("make failed: file {(spud (snoc path.dest-rail name.dest-rail))} already exists" !!)
     ::  Convert mark if blot override is set
     =/  =bask:tarball
       ?.  ?&  ?=(^ blot.p.make)
@@ -3233,10 +3197,6 @@
       ?:  ?=(%| -.src)  ~|("make: source validation failed" (mean p.src))
       =/  =tube:clay  (get-tube path.dest-rail [p.bask.p.make u.blot.p.make])
       [u.blot.p.make q:(tube p.src)]
-    ::  Assert file doesn't already exist
-    =/  existing-file  (peek-grub-now path.dest-rail name.dest-rail)
-    ?^  existing-file
-      ~|("file already exists at path" !!)
     ::  Validate the bask before storing
     =/  cached  (check-vale-cache path.dest-rail p.bask q.bask)
     =/  validated=(each vase tang)
@@ -3246,9 +3206,8 @@
       (cache-validation path.dest-rail p.bask q.bask validated)
     ?:  ?=(%| -.validated)
       ~|("make failed: validation error" (mean p.validated))
-    ::  Save initial state (bumps file aeon since old content is ~)
     =.  this  (save-file dest-rail [p.bask %& p.validated])
-    ::  Spawn process (needs file in ball for build-spool)
+    ::  Spawn process (respawns if already exists via store-proc)
     (spawn-proc dest-rail [%make ~])
   ==
 ::
@@ -3589,6 +3548,16 @@
     =/  new-cass=cass:clay  (next-cass:boo u.file-cas)
     =/  new-sok=hist:nexus  (put:hon:hist:nexus u.sok new-cass [%temp ~])
     =.  born  (~(put bo:nexus now.bowl born) [here i.to-delete] new-sok)
+    ::  Nack queued inputs and remove process for deleted file
+    =/  del-rail=rail:tarball  [here i.to-delete]
+    =/  old-pipe=pipe:nexus  (fall (~(get of pool) here) *pipe:nexus)
+    =/  old-proc=(unit proc:fiber:nexus)  (~(get by proc.old-pipe) i.to-delete)
+    =?  this  ?=(^ old-proc)
+      =.  this  (nack-poke-takes del-rail next.u.old-proc ~[leaf+"deleted"])
+      (nack-poke-takes del-rail skip.u.old-proc ~[leaf+"deleted"])
+    =.  pool
+      =/  =pipe:nexus  old-pipe(proc (~(del by proc.old-pipe) i.to-delete))
+      (~(put of pool) here pipe)
     $(to-delete t.to-delete)
   ::  3. Build tree from settled born + update fold
   ::  If bole has no content here, delete the fold

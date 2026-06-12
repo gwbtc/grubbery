@@ -52,7 +52,7 @@
   =/  =noun  (to-wain:format u.content-raw)
   =/  =bask:tarball  [blot noun]
   =/  req=load:remote:nexus
-    [[/remote-over %& pax nam] %over bask]
+    [[/remote-over %& pax nam] %make %.y |+[bask ~]]
   ;<  ~  bind:m
     (gall-poke:io [target %grubbery] grubbery-load+req)
   (pure:m [%text (crip "Overwrote {(trip u.path-raw)}/{(trip nam)} on {(trip u.ship-raw)} with mark {(trip u.mark-raw)}")])

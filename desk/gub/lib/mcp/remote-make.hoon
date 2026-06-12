@@ -52,7 +52,7 @@
   =/  =mime  [/text/plain (as-octs:mimes:html u.content-raw)]
   =/  =make:remote:nexus  |+[[[/ %mime] mime] dest-blot]
   =/  req=load:remote:nexus
-    [[/remote-make %& pax nam] %make make]
+    [[/remote-make %& pax nam] %make %.n make]
   ;<  ~  bind:m
     (gall-poke:io [target %grubbery] grubbery-load+req)
   (pure:m [%text (crip "Created {(trip u.path-raw)}/{(trip nam)} on {(trip u.ship-raw)}")])
