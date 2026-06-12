@@ -163,9 +163,8 @@
       ;<  nw=news-or-wake:io  bind:m  (take-news-or-wake:io /watch)
       ?:  ?=(%wake -.nw)  $
       =/  cas=(unit cass:clay)
-        =/  lanes=(list [=lane:tarball =cass:clay])  ~(tap by wave.nw)
-        ?~  lanes  ~
-        `cass.i.lanes
+        ?~  fil.wave.nw  ~
+        `fold.u.fil.wave.nw
       ?~  cas  $
       ;<  =seen:nexus  bind:m  (peek-at:io tool-road ~ [%ud ud.u.cas])
       ?.  ?=([%& %file *] seen)  $

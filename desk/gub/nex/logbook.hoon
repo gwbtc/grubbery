@@ -79,12 +79,12 @@
   =/  prefix=path  /sys/ames/ships/[(scot %p target)]/root
   =/  remote-dir=road:tarball  [%& %| (weld prefix path.here)]
   ;<  =wave:nexus  bind:m  (keep:io /mirror remote-dir ~)
-  ~&  >  [%mirror-subscribed target entries=~(wyt by wave)]
+  ~&  >  [%mirror-subscribed target]
   =/  remote-file=road:tarball  [%& %& (weld prefix path.here) %'main.txt']
   ;<  ~  bind:m  (sync-remote remote-file)
   |-
   ;<  =wave:nexus  bind:m  (take-news:io /mirror)
-  ~&  >  [%mirror-news target changes=~(wyt by wave)]
+  ~&  >  [%mirror-news target]
   ;<  ~  bind:m  (sync-remote remote-file)
   $
 ::

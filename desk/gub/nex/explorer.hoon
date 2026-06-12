@@ -71,11 +71,11 @@
             (pure:m ~)
           ?:  =('POST' method.request.req)
             (handle-post eyre-id raw-path ball.p.par-seen req)
-          (handle-get eyre-id raw-path %.n ball.p.par-seen born.p.par-seen args)
+          (handle-get eyre-id raw-path %.n ball.p.par-seen wave.p.par-seen args)
         ?:  =('POST' method.request.req)
           (handle-post eyre-id raw-path ball.p.dir-seen req)
         ~&  >  %explorer-handle-get-start
-        (handle-get eyre-id raw-path %.y ball.p.dir-seen born.p.dir-seen args)
+        (handle-get eyre-id raw-path %.y ball.p.dir-seen wave.p.dir-seen args)
       ==
     ++  on-manu
       |=  =mana:nexus
@@ -151,7 +151,7 @@
 ::  Handle GET requests
 ::
 ++  handle-get
-  |=  [eyre-id=@ta tree-path=path is-dir=? ball=ball:tarball ball-born=born:nexus args=(list [key=@t value=@t])]
+  |=  [eyre-id=@ta tree-path=path is-dir=? ball=ball:tarball ball-wave=wave:nexus args=(list [key=@t value=@t])]
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
   ~&  >  [%explorer-peek tree-path]
@@ -176,7 +176,7 @@
       ?.  ?=(%| -.u.ns)  ~
       `p.u.ns
     ~&  >  %explorer-render-dir
-    =/  bod=octs  (manx-to-octs:server (render-dir tree-path ball ball-born now conversions code-namespace))
+    =/  bod=octs  (manx-to-octs:server (render-dir tree-path ball ball-wave now conversions code-namespace))
     ~&  >  %explorer-send
     ;<  ~  bind:m  (send-simple:srv eyre-id (mime-response:http-utils [/text/html bod]))
     (pure:m ~)
@@ -487,10 +487,10 @@
     (pure:m ~)
   ;<  ~  bind:m  (send-header:srv eyre-id sse-header:http-utils)
   ;<  initial-seen=seen:nexus  bind:m  (peek:io [%& %| ~] ~)
-  =/  prev-born=born:nexus
+  =/  prev-wave=wave:nexus
     ?.  ?&(?=(%& -.initial-seen) ?=(%ball -.p.initial-seen))
-      *born:nexus
-    born.p.initial-seen
+      *wave:nexus
+    wave.p.initial-seen
   =/  prev-weir=(unit weir:nexus)
     ?.  ?&(?=(%& -.initial-seen) ?=(%ball -.p.initial-seen))
       ~
@@ -508,20 +508,21 @@
     ;<  ~  bind:m  (send-wait:io (add now ~s30))
     $
       %news
+    =/  changes=(map lane:tarball cass:clay)  (diff-wave:nexus prev-wave wave.nw)
     =/  max-cas=cass:clay
-      %+  roll  ~(val by wave.nw)
+      %+  roll  ~(val by changes)
       |=  [c=cass:clay best=cass:clay]
       ?:((gth ud.c ud.best) c best)
     ;<  =seen:nexus  bind:m  (peek-at:io [%& %| ~] ~ [%ud ud.max-cas])
     ?.  ?=([%& %ball *] seen)  $
     =/  root=ball:tarball  ball.p.seen
-    =/  root-born=born:nexus  born.p.seen
+    =/  root-wave=wave:nexus  wave.p.seen
     =/  watch-ball=ball:tarball  (~(dip ba:tarball root) watch-path)
     =/  new-weir=(unit weir:nexus)  ?~(fil.watch-ball ~ weir.u.fil.watch-ball)
-    =/  what=(set lane:tarball)  ~(key by wave.nw)
-    =.  prev-born  root-born
+    =/  what=(set lane:tarball)  ~(key by changes)
+    =.  prev-wave  root-wave
     =/  par=ball:tarball  (~(dip ba:tarball root) watch-path)
-    =/  par-born=born:nexus  (~(dip of root-born) watch-path)
+    =/  par-wave=wave:nexus  (~(dip of root-wave) watch-path)
     =/  url-prefix=tape  (build-url watch-path)
     ::  Resolve governing /code namespace so SSE-pushed rows get
     ::  the same blot & nexus links as the initial page render.
@@ -602,7 +603,7 @@
           ?~  fil.par  ""
           =/  ct=(unit [=sang:tarball gain=? bang=(unit tang)])  (~(get by contents.u.fil.par) item)
           ?~  ct  ""
-          (en-xml:html (render-grub-row item sang.u.ct url-prefix watch-path par-born now conversions code-namespace ~))
+          (en-xml:html (render-grub-row item sang.u.ct url-prefix watch-path par-wave now conversions code-namespace ~))
         =/  sub=(unit ball:tarball)  (~(get by dir.par) item)
         ?~  sub  ""
         (en-xml:html (render-dir-row item u.sub url-prefix ~))
@@ -919,7 +920,7 @@
 ++  render-dir
   |=  $:  pax=path
           b=ball:tarball
-          b-born=born:nexus
+          b-wave=wave:nexus
           now=@da
           conversions=(map bars:tarball tube:clay)
           code-namespace=(unit path)
@@ -1000,7 +1001,7 @@
           |=  name=@ta
           ^-  manx
           =/  [=sang:tarball gain=? bang=(unit tang)]  (~(got by file-contents) name)
-          (render-grub-row name sang url-prefix pax b-born now conversions code-namespace bang)
+          (render-grub-row name sang url-prefix pax b-wave now conversions code-namespace bang)
         rows
       ==
       ;div#boom-overlay.boom-modal-overlay
@@ -1286,7 +1287,7 @@
           =sang:tarball
           url-prefix=tape
           pax=path
-          dir-born=born:nexus
+          dir-wave=wave:nexus
           now=@da
           conversions=(map bars:tarball tube:clay)
           code-namespace=(unit path)
@@ -1294,12 +1295,8 @@
       ==
   ^-  manx
   =/  mtime-display=tape
-    =/  node=(unit [fold=hist:nexus file=(map @ta hist:nexus)])
-      (~(get of dir-born) ~)
-    ?~  node  "-"
-    =/  sk=(unit hist:nexus)  (~(get by file.u.node) name)
-    ?~  sk  "-"
-    =/  cas=(unit cass:clay)  (top:hist:nexus u.sk)
+    ?~  fil.dir-wave  "-"
+    =/  cas=(unit cass:clay)  (~(get by file.u.fil.dir-wave) name)
     ?~  cas  "-"
     (en:datetime-local:iso-8601 da.u.cas)
   =/  sag=sage:tarball  (need-sage:tarball sang)

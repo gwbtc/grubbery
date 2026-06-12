@@ -668,7 +668,7 @@
         ?:  deep.pk
           (peek-ball u.p.pace)
         (peek-ball-shallow u.p.pace)
-      &+[%ball sub-born sub-ball]
+      &+[%ball (wave-from-born:nexus sub-born) sub-ball]
         %&
       ::  File: read content from silo via pace
       =/  r=rail:tarball  p.dest.pk
@@ -686,7 +686,7 @@
         ?~  node  *hist:nexus
         (fall (~(get by file.u.node) name.r) *hist:nexus)
       ::  TODO: apply blot conversion here once discharge has cod access
-      &+[%file sk [blot.mark.leaf.jt %| [~ u.got]]]
+      &+[%file (fall (top:hist:nexus sk) *cass:clay) [blot.mark.leaf.jt %| [~ u.got]]]
     ==
   =.  this  (enqu-take rail.key (sys-give /peek) ~ %peek wire.key seen)
   =.  peeks  (~(del by peeks) key)
@@ -699,9 +699,7 @@
   |=  [watcher=rail:tarball target=lane:tarball =wire]
   ^+  this
   =.  this  (sub-put target watcher wire ~)
-  =/  =wave:nexus
-    %-  relativize-wave:nexus
-    [target (wave-from-born:nexus born (~(put in *(set lane:tarball)) target))]
+  =/  =wave:nexus  (wave-at:nexus born target)
   =/  resp=intake:remote:nexus
     [wire %bond target wave]
   =.  cards
@@ -2222,7 +2220,7 @@
   ::  Skip if nothing relevant changed
   ?:  =(~ relevant)  $(watched t.watched)
   ::  Build wavefront for relevant lanes, relativized to target
-  =/  =wave:nexus  (relativize-wave:nexus target (wave-from-born:nexus born relevant))
+  =/  =wave:nexus  (wave-at:nexus born target)
   ::  Send wavefront to each watcher
   =.  this
     %-  ~(rep by watchers)
@@ -2617,7 +2615,7 @@
             (peek-ball-now dest)
           (peek-ball-shallow-now dest)
         =^  vball  this  (validate-ball cod sub-ball)
-        (enqu-take here (sys-give /peek) ~ %peek wire.dart %& %ball sub-born vball)
+        (enqu-take here (sys-give /peek) ~ %peek wire.dart %& %ball (wave-from-born:nexus sub-born) vball)
         ::
           %&
         =/  dest=rail:tarball  p.u.dest-lane
@@ -2653,7 +2651,7 @@
           (enqu-take here (sys-give /peek) ~ %peek wire.dart &+[%none ~])
         ::  Boom content passes through as-is
         ?:  (is-boom:tarball u.source)
-          (enqu-take here (sys-give /peek) ~ %peek wire.dart %& %file sk u.source)
+          (enqu-take here (sys-give /peek) ~ %peek wire.dart %& %file (fall (top:hist:nexus sk) *cass:clay) u.source)
         ::  Validate peek result
         =/  =sage:tarball  (need-sage:tarball u.source)
         =/  clammed=sage:tarball
@@ -2672,7 +2670,7 @@
           ?:  =(p.clammed u.blot.load.dart)  (sage-to-sang:tarball clammed)
           =/  =tube:clay  (get-tube cod [p.clammed u.blot.load.dart])
           (sage-to-sang:tarball [p.clammed (tube q.clammed)])
-        (enqu-take here (sys-give /peek) ~ %peek wire.dart %& %file sk result)
+        (enqu-take here (sys-give /peek) ~ %peek wire.dart %& %file (fall (top:hist:nexus sk) *cass:clay) result)
       ==
       ::
         %code
@@ -2772,9 +2770,7 @@
         this
       ::  Local subscribe
       =.  this  (sub-put u.dest-lane here wire.dart blot.load.dart)
-      =/  =wave:nexus
-        %-  relativize-wave:nexus
-        [u.dest-lane (wave-from-born:nexus born (~(put in *(set lane:tarball)) u.dest-lane))]
+      =/  =wave:nexus  (wave-at:nexus born u.dest-lane)
       (enqu-take here (sys-give /bond) ~ %bond wire.dart wave)
       ::
         %drop

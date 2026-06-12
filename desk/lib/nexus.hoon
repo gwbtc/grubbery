@@ -57,10 +57,10 @@
 +$  make  (each bole:tarball [=bask:tarball blot=(unit blot:tarball)])
 +$  kept  (set bend:tarball)
 ::
-+$  wave  (map lane:tarball cass:clay)
++$  wave  (axal [fold=cass:clay file=(map @ta cass:clay)])
 +$  view
-  $%  [%ball =born ball=ball:tarball]
-      [%file =hist =sang:tarball]
+  $%  [%ball =wave ball=ball:tarball]
+      [%file =cass:clay =sang:tarball]
       [%none ~]
   ==
 +$  seen  (each view tang)
@@ -204,9 +204,9 @@
         [%manu =wire res=(each @t tang)] :: response to manu
         [%over =wire err=(unit tang)] :: response to over (content overwrite)
         [%writ ~] :: notify grub its file was externally modified by %over
-        [%bond =wire =wave] :: subscription ack with initial wavefront
+        [%bond =wire =wave] :: subscription ack with initial wave
         [%fell =wire]                 :: subscription canceled (weir change, deletion, etc)
-        [%news =wire =wave] :: wavefront update: changed lanes + versions
+        [%news =wire =wave] :: wave update: changed lanes + versions
         [%veto =dart] :: notify that a dart was sandboxed
         [%code =wire res=(each (axal (map @ta built)) built)]  :: code subtree or single artifact
         [%font =wire res=(unit bend:tarball)]  :: bend to governing /code namespace
@@ -858,48 +858,71 @@
   |=  [=born b=ball:tarball]
   ^-  ball:tarball
   b
-::  +wave-from-born: build wavefront from born for a set of lanes
-::  Looks up the latest cass for each lane in born.
+::  +wave-from-born: build wave (axal of cass) from born (axal of hist)
 ::
 ++  wave-from-born
-  |=  [=born lanes=(set lane:tarball)]
+  |=  =born
   ^-  wave
-  %-  ~(rep in lanes)
-  |=  [=lane:tarball acc=wave]
-  =/  node=(unit [fold=hist file=(map @ta hist)])
-    ?-  -.lane
-      %|  (~(get of born) p.lane)
-      %&  (~(get of born) path.p.lane)
-    ==
-  ?~  node  acc
-  =/  sk=hist
-    ?-  -.lane
-      %|  fold.u.node
-      %&  (fall (~(get by file.u.node) name.p.lane) *hist)
-    ==
-  =/  cas=(unit cass:clay)  (top:hist sk)
-  ?~  cas  acc
-  (~(put by acc) lane u.cas)
+  =/  top-hist  top:hist
+  :-  ?~  fil.born  ~
+      :-  ~
+      :-  (fall (top-hist fold.u.fil.born) *cass:clay)
+      (~(run by file.u.fil.born) |=(sk=hist (fall (top-hist sk) *cass:clay)))
+  (~(run by dir.born) |=(kid=^born ^$(born kid)))
 ::
-::  +relativize-wave: make wave lanes relative to a subscription target
+::  +wave-at: build wave subtree at a target lane from born
+::  Used for subscription responses — returns the wave dipped to target.
 ::
-::  Strips the target prefix from each lane's path so subscribers see
-::  paths relative to what they subscribed to.
-::
-++  relativize-wave
-  |=  [target=lane:tarball =wave]
-  ^-  ^wave
-  =/  prefix=path
+++  wave-at
+  |=  [=born target=lane:tarball]
+  ^-  wave
+  =/  pax=path
     ?-(-.target %| p.target, %& path.p.target)
-  %-  ~(rep by wave)
-  |=  [[=lane:tarball =cass:clay] acc=^wave]
-  =/  lane-path=path
-    ?-(-.lane %| p.lane, %& path.p.lane)
-  =/  rel=(unit path)  (decap:tarball prefix lane-path)
-  ?~  rel  (~(put by acc) lane cass)
-  =/  rel-lane=lane:tarball
-    ?-(-.lane %| [%| u.rel], %& [%& u.rel name.p.lane])
-  (~(put by acc) rel-lane cass)
+  =/  sub-born=^born  (~(dip of born) pax)
+  (wave-from-born sub-born)
+::
+::  +diff-wave: compare two waves, return map of changed lanes with new cass
+::
+++  diff-wave
+  =|  here=path
+  =|  out=(map lane:tarball cass:clay)
+  |=  [old=wave new=wave]
+  ^-  (map lane:tarball cass:clay)
+  ::  Compare fold (directory-level version)
+  =/  old-fold=cass:clay  ?~(fil.old *cass:clay fold.u.fil.old)
+  =/  new-fold=cass:clay  ?~(fil.new *cass:clay fold.u.fil.new)
+  =?  out  !=(old-fold new-fold)
+    (~(put by out) [%| here] new-fold)
+  ::  Compare files
+  =/  old-file=(map @ta cass:clay)  ?~(fil.old ~ file.u.fil.old)
+  =/  new-file=(map @ta cass:clay)  ?~(fil.new ~ file.u.fil.new)
+  =/  all-names=(list @ta)
+    ~(tap in (~(uni in ~(key by old-file)) ~(key by new-file)))
+  =.  out
+    |-
+    ?~  all-names  out
+    =/  old-cas=cass:clay  (fall (~(get by old-file) i.all-names) *cass:clay)
+    =/  new-cas=cass:clay  (fall (~(get by new-file) i.all-names) *cass:clay)
+    =?  out  !=(old-cas new-cas)
+      (~(put by out) [%& here i.all-names] new-cas)
+    $(all-names t.all-names)
+  ::  Recurse into subdirectories
+  =/  all-kids=(list @ta)
+    ~(tap in (~(uni in ~(key by dir.old)) ~(key by dir.new)))
+  |-
+  ?~  all-kids  out
+  =/  old-kid=wave  (fall (~(get by dir.old) i.all-kids) *wave)
+  =/  new-kid=wave  (fall (~(get by dir.new) i.all-kids) *wave)
+  %=  $
+    all-kids  t.all-kids
+    out
+      %=  ^$
+        here  (snoc here i.all-kids)
+        old   old-kid
+        new   new-kid
+        out   out
+      ==
+  ==
 ::
 ::  +diff-born: compare two born trees and return set of changed lanes
 ::

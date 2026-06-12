@@ -100,11 +100,11 @@
     ;<  pre=seen:nexus  bind:m  (peek:io ses-road ~)
     =/  pre-ver=@ud
       ?.  ?=([%& %file *] pre)  0
-      (ver:hist:nexus hist.p.pre)
+      ud.cass.p.pre
     ;<  pre-logs=seen:nexus  bind:m  (peek:io logs-road ~)
     =/  pre-log-ver=@ud
       ?.  ?=([%& %file *] pre-logs)  0
-      (ver:hist:nexus hist.p.pre-logs)
+      ud.cass.p.pre-logs
     ::  Checkpoint state before sending command
     =/  run-data=json
       %-  pairs:enjs:format

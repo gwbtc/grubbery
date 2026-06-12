@@ -493,7 +493,7 @@
   ;<  init=wave:nexus  bind:m  (keep:io /keep road ~)
   ::  Send "old" events for initial state
   ;<  ~  bind:m
-    =/  lanes=(list [=lane:tarball =cass:clay])  ~(tap by init)
+    =/  lanes=(list [=lane:tarball =cass:clay])  ~(tap by (diff-wave:nexus *wave:nexus init))
     |-
     ?~  lanes  (pure:m ~)
     ?:  ?=(%| -.lane.i.lanes)  $(lanes t.lanes)
@@ -527,8 +527,9 @@
     $
   ::
       %news
-    =/  lanes=(list [=lane:tarball =cass:clay])  ~(tap by wave.nw)
-    =.  prev  (~(uni by prev) wave.nw)
+    =/  changes=(map lane:tarball cass:clay)  (diff-wave:nexus prev wave.nw)
+    =.  prev  wave.nw
+    =/  lanes=(list [=lane:tarball =cass:clay])  ~(tap by changes)
     |-
     ?~  lanes  ^$
     ?:  ?=(%| -.lane.i.lanes)  $(lanes t.lanes)
@@ -538,7 +539,11 @@
     =/  lane-path=@t  (spat (snoc path.p.lane.i.lanes name.p.lane.i.lanes))
     =/  id=@t  (scot %ud ud.cass.i.lanes)
     ?:  ?=([%& %file *] seen)
-      =/  was-known=?  (~(has by prev) lane.i.lanes)
+      =/  was-known=?
+        =/  node=(unit [fold=cass:clay file=(map @ta cass:clay)])
+          (~(get of prev) path.p.lane.i.lanes)
+        ?~  node  %.n
+        (~(has by file.u.node) name.p.lane.i.lanes)
       =/  action=@t  ?:(was-known 'upd' 'new')
       =/  event-name=@t  (crip "{(trip action)} {(trip lane-path)}")
       ;<  body=@t  bind:m  (sage-to-txt (need-sage:tarball sang.p.seen) mark-param)
