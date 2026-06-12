@@ -1776,9 +1776,10 @@
   ?~  got  (pure:m ~)  :: interrupted
   ::  peek at the historical version from the wave (file may be deleted)
   =/  cas=(unit cass:clay)
-    =/  lanes=(list [=lane:tarball =cass:clay])  ~(tap by u.got)
-    ?~  lanes  ~
-    `cass.i.lanes
+    ?~  fil.u.got  ~
+    =/  files=(list [@ta cass:clay])  ~(tap by file.u.fil.u.got)
+    ?~  files  ~
+    `+.i.files
   ?~  cas  $
   ;<  =seen:nexus  bind:m  (peek-at:io call-road ~ [%ud ud.u.cas])
   ?.  ?=([%& %file *] seen)  $

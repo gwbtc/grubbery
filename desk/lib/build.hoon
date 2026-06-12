@@ -472,9 +472,12 @@
     (turn ~(tap in my-deps) |=(d=rail:tarball (~(got by key-map) d)))
   ?:  dep-failed
     =/  ckey=@uv  (sham [sut-hash src-hash.fi (snoc path.rail name.rail) (sort dep-keys lth)])
+    =/  bad=(list rail:tarball)
+      %+  skim  ~(tap in my-deps)
+      |=(d=rail:tarball !?=([~ %& *] (~(get by results) d)))
     %=  $
       order.sort-res  t.order.sort-res
-      results  (~(put by results) rail [%| ~[leaf+"dep failed in {(spud (snoc path.rail name.rail))}"]])
+      results  (~(put by results) rail [%| [leaf+"dep failed in {(spud (snoc path.rail name.rail))}:" (turn bad |=(d=rail:tarball leaf+"{(spud (snoc path.d name.d))}"))]])
       key-map  (~(put by key-map) rail ckey)
     ==
   =/  ckey=@uv  (sham [sut-hash src-hash.fi (snoc path.rail name.rail) (sort dep-keys lth)])

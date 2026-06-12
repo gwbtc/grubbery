@@ -22,7 +22,7 @@
           %rift      (pairs:enjs:format ~[['type' s+'rift'] ['rift' (numb:enjs:format rift.dif)] ['boot' b+boot.dif]])
           %keys      (pairs:enjs:format ~[['type' s+'keys'] ['life' (numb:enjs:format life.dif)] ['boot' b+boot.dif]])
           %spon      (pairs:enjs:format ~[['type' s+'spon'] ['sponsor' ?~(sponsor.dif ~ s+(scot %p u.sponsor.dif))]])
-          %fief      (pairs:enjs:format ~[['type' s+'fief'] ['fief' b+?=(^ fief.dif)]])
+        ::  %fief      (pairs:enjs:format ~[['type' s+'fief'] ['fief' b+?=(^ fief.dif)]])
           %disavow   (pairs:enjs:format ~[['type' s+'disavow']])
         ==
     ==

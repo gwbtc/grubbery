@@ -3875,7 +3875,7 @@
     =/  =built:nexus
       ?:  ?=(%| -.build-result)
         ~&  >>>  "build-code: FAILED {(spud (snoc path.rail name.rail))}"
-        %-  (slog (flop p.build-result))
+        %-  (slog p.build-result)
         [%tang p.build-result]
       =/  val-err=(unit tang)  (validate-build rail p.build-result)
       ?^  val-err
