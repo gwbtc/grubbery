@@ -164,7 +164,7 @@
       ?:  ?=(%wake -.nw)  $
       =/  cas=(unit cass:clay)
         ?~  fil.wave.nw  ~
-        `fold.u.fil.wave.nw
+        (~(get by file.u.fil.wave.nw) tid)
       ?~  cas  $
       ;<  =seen:nexus  bind:m  (peek-at:io tool-road ~ [%ud ud.u.cas])
       ?.  ?=([%& %file *] seen)  $

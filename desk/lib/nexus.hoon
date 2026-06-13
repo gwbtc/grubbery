@@ -359,7 +359,7 @@
 ::
 ++  resolve-case
   |=  [cas=case =hist]
-  ^-  pace:^hist
+  ^-  [cass:clay pace:^hist]
   ?-    -.cas
       %ud
     =/  entries=(list [key=cass:clay val=pace:^hist])
@@ -367,13 +367,13 @@
     |-
     ?~  entries  ~|(%hist-version-not-found !!)
     ?:  =(ud.key.i.entries p.cas)
-      val.i.entries
+      [key.i.entries val.i.entries]
     $(entries t.entries)
       %da
     =/  entries=(list [key=cass:clay val=pace:^hist])
       (tap:hon:^hist hist)
     ::  tap gives ascending order; find latest entry with da <= target
-    =/  best=(unit pace:^hist)  ~
+    =/  best=(unit [cass:clay pace:^hist])  ~
     |-
     ?~  entries
       ?~  best  ~|(%hist-version-not-found !!)
@@ -381,7 +381,7 @@
     ?:  (gth da.key.i.entries p.cas)
       ?~  best  ~|(%hist-version-not-found !!)
       u.best
-    $(entries t.entries, best `val.i.entries)
+    $(entries t.entries, best `[key.i.entries val.i.entries])
   ==
 ::  +record-trees: Snapshot directory state into tree objects.
 ::  Walks from dir up to root. At each level, builds a tree from
@@ -1073,8 +1073,8 @@
   ::
   +$  transfer
     $:  =wire
-        $%  [%snap dest=lane:tarball snap=(unit snap)]
-            [%want dest=lane:tarball haves=(set lobe:clay)]
+        $%  [%snap dest=lane:tarball snap-id=@uvJ snap=(unit snap)]
+            [%want dest=lane:tarball snap-id=@uvJ]
             [%data =silo]
         ==
     ==
@@ -1091,9 +1091,10 @@
   ::  from initiation through negotiation to discharge.
   ::  snap is ~ until %snap response arrives with pace + refs.
   ::
-  +$  snap   [=pace refs=(set lobe:clay)]
-  +$  peek   [ship=@p dest=lane:tarball deep=? blot=(unit blot:tarball) snap=(unit snap)]
+  +$  snap   [=cass:clay =pace refs=(set lobe:clay)]
+  +$  peek   [ship=@p dest=lane:tarball deep=? blot=(unit blot:tarball) snap=(unit snap) snap-id=@uvJ]
   +$  peeks  (map [rail:tarball wire] peek)
+  +$  snaps  (map [@uvJ @p] [dest=lane:tarball refs=(set lobe:clay) expiry=@da])
   --
 +$  ack  (unit tang)
 ::
