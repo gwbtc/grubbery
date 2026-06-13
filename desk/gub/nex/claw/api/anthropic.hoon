@@ -125,7 +125,7 @@
           ~&  >>>  "%api/anthropic call: no api-key"
           =/  err=json
             (pairs:enjs:format ~[['status' s+'done'] ['response' (pairs:enjs:format ~[['error' s+'no api-key configured']])]])
-          ;<  ~  bind:m  (replace:io !>(err))
+          ;<  ~  bind:m  (replace:io err)
           (pure:m ~)
         ::  build and send HTTP request
         =/  body-cord=@t  (en:json:html u.request)
@@ -152,7 +152,7 @@
         =/  result=json
           (pairs:enjs:format ~[['status' s+'done'] ['response' resp-json]])
         ~&  >  "%api/anthropic call: writing response"
-        ;<  ~  bind:m  (replace:io !>(result))
+        ;<  ~  bind:m  (replace:io result)
         ::  done — fiber exits, file remains for caller to read and clean up
         (pure:m ~)
       ==

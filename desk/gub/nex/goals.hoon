@@ -290,7 +290,7 @@
         =/  stores=(map @ta goal-store:goals)
           (seen-to-stores seen)
         =/  store-names=(list @ta)  (sort ~(tap in ~(key by stores)) aor)
-        ;<  ~  bind:m  (replace:io !>((crip (en-xml:html (goals-page store-names stores)))))
+        ;<  ~  bind:m  (replace:io (crip (en-xml:html (goals-page store-names stores))))
         ;<  upd=wave:nexus  bind:m  (take-news:io /stores)
         $
           ::  /store/*.goal-store: per-store process
@@ -319,7 +319,7 @@
             act(id gid)
           $(n (add n ~s0..0001))
         =/  result  (apply:goals store act now)
-        ;<  ~  bind:m  (replace:io !>(-.result))
+        ;<  ~  bind:m  (replace:io -.result)
         ~&  >  [%goals-store store-name %applied -.act]
         $
       ==

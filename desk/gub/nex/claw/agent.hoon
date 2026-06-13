@@ -183,7 +183,7 @@
               '  keep:io wire road mark     -- subscribe to changes'
               '  take-news:io wire          -- wait for subscription update'
               '  drop:io wire road          -- unsubscribe'
-              '  replace:io vase            -- overwrite own file content'
+              '  replace:io noun            -- overwrite own file content'
               '  get-state-as:io ,type      -- read own content, cast to type'
               '  copy-grub:io src dst       -- copy a file'
               '  copy-fold:io src dst       -- copy a directory'
@@ -979,7 +979,7 @@
         ?:  ?=(%| -.got)
           =/  result-data=json
             (pairs:enjs:format ~[['type' s+'error'] ['message' s+(crip "Unknown tool: {(trip tool.st)}")]])
-          (replace:io !>(`tool-state:nex-tools`[tool.st args.st %done data.st `result-data]))
+          (replace:io `tool-state:nex-tools`[tool.st args.st %done data.st `result-data])
         =/  tl=tool:nex-tools  p.got
         ;<  result=tool-result:nex-tools  bind:m  handler.tl
         =/  result-json=json
@@ -995,7 +995,7 @@
               ['data' s+b64]
           ==
           ==
-        (replace:io !>(`tool-state:nex-tools`[tool.st args.st %done data.st `result-json]))
+        (replace:io `tool-state:nex-tools`[tool.st args.st %done data.st `result-json])
           ::  /proc/cron/*: cron job fiber (schedule + fire loop)
           ::
           [[%proc %cron ~] @]
@@ -1053,7 +1053,7 @@
             (turn full trip)
           "/grubbery/ball/{pax}/{(trip name.p.q.p.app-road)}"
           ""
-        ;<  ~  bind:m  (replace:io !>((crip (en-xml:html (chat-page ball-id app-url)))))
+        ;<  ~  bind:m  (replace:io (crip (en-xml:html (chat-page ball-id app-url))))
         stay:m
       ==
     ::
@@ -1496,8 +1496,8 @@
   ?:  ?=(%| -.new-vase)
     %-  (slog leaf+"%claw: crash handler failed to build vase" ~)
     =/  fallback=tool-state:nex-tools  ['' ~ %done ~ `(pairs:enjs:format ~[['type' s+'error'] ['message' s+'tool crashed and recovery failed']])]
-    (replace:io !>(fallback))
-  (replace:io p.new-vase)
+    (replace:io fallback)
+  (replace:io q.p.new-vase)
 ::
 ::  +tools-to-json: convert tool map to Anthropic tools array
 ::
@@ -1878,7 +1878,7 @@
   |=  =convo
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
-  (replace:io !>((convo-to-json convo)))
+  (replace:io (convo-to-json convo))
 ::
 ++  parse-convo
   |=  jon=json
@@ -3591,7 +3591,7 @@
           ['pfx' s+(crip pfx)]
       ==
     ;<  ~  bind:m
-      (replace:io !>(`tool-state:nex-tools`[tool.st args.st %ack ack-data `ack-data]))
+      (replace:io `tool-state:nex-tools`[tool.st args.st %ack ack-data `ack-data])
     ::  subscribe and wait for result
     (await-child-result pfx)
   --

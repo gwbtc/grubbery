@@ -57,7 +57,7 @@
           ['logs' a+~]
       ==
     ;<  ~  bind:m
-      (replace:io !>([tool.st args.st %deleting write-data ~]))
+      (replace:io [tool.st args.st %deleting write-data ~])
     ;<  *  bind:m  (keep:io /dill/logs [%& %& /sys/dill %'logs.dill-told'] ~)
     ;<  now=@da  bind:m  get-time:io
     ;<  ~  bind:m

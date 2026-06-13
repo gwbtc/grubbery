@@ -63,7 +63,7 @@
         ;<  mappings=wave:nexus  bind:m  (keep:io /mapping map-rd ~)
         |-
         ;<  =seen:nexus  bind:m  (peek:io map-rd ~)
-        ;<  ~  bind:m  (replace:io !>((manx-to-html (bridge-page (read-bridges seen)))))
+        ;<  ~  bind:m  (replace:io (manx-to-html (bridge-page (read-bridges seen))))
         ;<  upd=wave:nexus  bind:m  (take-news:io /mapping)
         $
         ::

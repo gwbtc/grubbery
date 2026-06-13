@@ -42,7 +42,7 @@
           ['logs' a+~]
       ==
     ;<  ~  bind:m
-      (replace:io !>([tool.st args.st %committing commit-data ~]))
+      (replace:io [tool.st args.st %committing commit-data ~])
     ~&  >>  "%commit: subscribing to dill logs"
     ;<  *  bind:m  (keep:io /dill/logs [%& %& /sys/dill %'logs.dill-told'] ~)
     ;<  now=@da  bind:m  get-time:io

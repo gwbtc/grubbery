@@ -214,7 +214,7 @@
     =/  new-data=json
       (~(put jo:json-utils data.st) /logs a+[s+(crip log-text) logs])
     =/  new-count=@ud  +((lent logs))
-    ;<  ~  bind:m  (replace:io !>([tool.st args.st step.st new-data ~]))
+    ;<  ~  bind:m  (replace:io [tool.st args.st step.st new-data ~])
     ;<  now=@da  bind:m  get-time:io
     ;<  ~  bind:m
       (set-timer:io /commit-quiet/(scot %ud new-count) (add now ~s1))

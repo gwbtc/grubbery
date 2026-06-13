@@ -31,7 +31,7 @@
         |-
         ;<  count=@ud  bind:m  (get-state-as:io ,@ud)
         ;<  ~  bind:m  (sleep:io ~s1)
-        ;<  ~  bind:m  (replace:io !>(+(count)))
+        ;<  ~  bind:m  (replace:io +(count))
         $
           ::  /ui/views/page.html: render full page HTML once, persist
           ::
@@ -50,7 +50,7 @@
           ?.  ?=(%ud name.p.sang)  ~
           `[name !<(@ud (need-vase:tarball sang))]
         =/  page=manx  (counter-page counters)
-        ;<  ~  bind:m  (replace:io !>((crip (en-xml:html page))))
+        ;<  ~  bind:m  (replace:io (crip (en-xml:html page)))
         $
           ::  /ui/main.sig: bind HTTP endpoint and dispatch requests
           ::  into /ui/requests/. URL derived from tree position.

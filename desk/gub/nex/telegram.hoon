@@ -99,7 +99,7 @@
         |-
         ;<  =seen:nexus  bind:m  (peek:io [%| 1 %| /bots] ~)
         =/  bot-names=(list @ta)  (seen-to-bot-names seen)
-        ;<  ~  bind:m  (replace:io !>((crip (en-xml:html (manage-page bot-names)))))
+        ;<  ~  bind:m  (replace:io (crip (en-xml:html (manage-page bot-names))))
         ;<  upd=wave:nexus  bind:m  (take-news:io /bots)
         $
       ==

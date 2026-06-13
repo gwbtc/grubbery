@@ -231,7 +231,7 @@
         |-
         ;<  =seen:nexus  bind:m  (peek:io msgs-road ~)
         =/  chat-data=[(map @t @t) (list json)]  (view-to-chat-data seen)
-        ;<  ~  bind:m  (replace:io !>((crip (en-xml:html (sse-data -.chat-data +.chat-data)))))
+        ;<  ~  bind:m  (replace:io (crip (en-xml:html (sse-data -.chat-data +.chat-data))))
         ;<  *  bind:m  (take-news:io /msgs)
         $
           ::  /ui/chat.html: live chat view
@@ -257,7 +257,7 @@
         ;<  =seen:nexus  bind:m  (peek:io msgs-road ~)
         =/  chat-data=[(map @t @t) (list json)]  (view-to-chat-data seen)
         ;<  ~  bind:m
-          (replace:io !>((crip (en-xml:html (chat-page base -.chat-data +.chat-data)))))
+          (replace:io (crip (en-xml:html (chat-page base -.chat-data +.chat-data))))
         ;<  *  bind:m  (take-news:io /msgs)
         $
       ==

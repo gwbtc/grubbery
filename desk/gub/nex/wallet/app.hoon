@@ -130,7 +130,7 @@
         |-
         ;<  wals-seen=seen:nexus  bind:m  (peek:io (cord-to-road:tarball './wallets/') ~)
         =/  wals=(list wallet-data)  (view-to-wallets wals-seen)
-        ;<  ~  bind:m  (replace:io !>((crip (en-xml:html (wallet-page nexus-root wals)))))
+        ;<  ~  bind:m  (replace:io (crip (en-xml:html (wallet-page nexus-root wals))))
         ;<  *  bind:m  (take-news:io /wallets)
         $
           ::  /ui/sse/wallets.html: wallet list HTML fragment for SSE
@@ -141,7 +141,7 @@
         |-
         ;<  wals-seen=seen:nexus  bind:m  (peek:io (cord-to-road:tarball '../../wallets/') ~)
         =/  wals=(list wallet-data)  (view-to-wallets wals-seen)
-        ;<  ~  bind:m  (replace:io !>((crip (en-xml:html (wallet-list-html wals)))))
+        ;<  ~  bind:m  (replace:io (crip (en-xml:html (wallet-list-html wals))))
         ;<  *  bind:m  (take-news:io /wallets)
         $
           ::  /ui/http.sig: bind /groundwire/wallet/ and dispatch requests

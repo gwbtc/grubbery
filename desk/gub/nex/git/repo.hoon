@@ -205,7 +205,7 @@
         =/  commits=json  (view-to-json commits-s)
         =/  current=json  (view-to-json current-s)
         =/  status=json   (view-to-json status-s)
-        ;<  ~  bind:m  (replace:io !>((crip (en-xml:html (repo-page api repo.cfg ref.cfg branches files commits current status)))))
+        ;<  ~  bind:m  (replace:io (crip (en-xml:html (repo-page api repo.cfg ref.cfg branches files commits current status))))
         ;<  evt=page-event  bind:m  take-page-event
         ?:  ?=(%fell -.evt)  $
         $

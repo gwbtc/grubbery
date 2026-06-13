@@ -1084,7 +1084,7 @@
         ['idx' (numb:enjs:format scan-idx)]
         ['gap' (numb:enjs:format gap)]
     ==
-  ;<  ~  bind:m  (replace:io !>(scan-prog))
+  ;<  ~  bind:m  (replace:io scan-prog)
   ::  write address with loading flag before fetch
   =/  loading-dat=address-data  [u.new-addr %.y ~ ~ ~]
   ;<  pre-mop=addr-mop  bind:m  (read-mop ".." network chain-tag)

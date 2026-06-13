@@ -1,10 +1,11 @@
 ::  mirror nexus: sync a single remote or local source into /data/
 ::
-::  config.json holds the source path as a JSON string:
+::  main.json holds the source config as a JSON string:
 ::    "~nec/apps/counter.counter/counters"   (remote)
 ::    "/apps/notes"                           (local)
 ::
-::  main.sig subscribes to source, mirrors into /data/.
+::  Poke main.json to change source. The fiber drops the current
+::  subscription and re-subscribes to the new one.
 ::
 =<  ^-  nexus:nexus
     |%
@@ -16,8 +17,7 @@
       ?(~ [~ %0])
     %+  spin:loader  ball
     :~  (ver-row:loader 0)
-        [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
-        [%fall %& [/ %'config.json'] [[/ %json] s+'']]
+        [%fall %& [/ %'main.json'] [[/ %json] s+'']]
         [%fall %| /data empty-dir:loader]
     ==
   ==
@@ -32,36 +32,64 @@
   =/  m  (fiber:fiber:nexus ,~)
   ^-  process:fiber:nexus
   ?+  rail  stay:m
-      [~ %'main.sig']
+      [~ %'main.json']
     ;<  ~  bind:m  (rise-wait:io prod "%mirror main: failed")
-    =/  cfg-road=road:tarball  [%| 0 %& / %'config.json']
-    ;<  =seen:nexus  bind:m  (peek:io cfg-road `[/ %json])
-    ?.  ?=([%& %file *] seen)
-      ~&  >>  %mirror-no-config
-      stay:m
-    =/  config=json  !<(json (need-vase:tarball sang.p.seen))
+    |-
+    ;<  config=json  bind:m  (get-state-as:io ,json)
     ?.  ?=(%s -.config)
-      ~&  >>  %mirror-config-not-string
-      stay:m
-    ?:  =('' p.config)
       ~&  >  %mirror-no-source-configured
-      stay:m
+      ;<  =sage:tarball  bind:m  take-poke:io
+      =/  new-config=json  !<(json q.sage)
+      ~&  >  [%mirror-poke-received new-config]
+      ;<  ~  bind:m  (replace:io new-config)
+      $
     =/  source-road=road:tarball  (parse-source p.config)
-    ~&  >  [%mirror-starting p.config]
+    ~&  >  [%mirror-subscribing p.config]
     ;<  init=wave:nexus  bind:m  (keep:io /src source-road ~)
     ~&  >  [%mirror-subscribed p.config]
-    ::  initial sync: diff against empty wave
+    ::  Initial sync: diff against empty wave
     ;<  ~  bind:m  (sync-changes source-road *wave:nexus init)
     =/  prev=wave:nexus  init
     |-
-    ;<  wav=wave:nexus  bind:m  (take-news:io /src)
-    ~&  >  %mirror-update
-    ;<  ~  bind:m  (sync-changes source-road prev wav)
-    =.  prev  wav
-    $
+    ;<  res=news-or-poke  bind:m  (take-news-or-poke /src)
+    ?-  -.res
+        %news
+      ~&  >  %mirror-update
+      ;<  ~  bind:m  (sync-changes source-road prev wave.res)
+      $(prev wave.res)
+        %poke
+      ::  Config change: replace state, drop old sub, restart
+      =/  new-config=json  !<(json q.sage.res)
+      ~&  >  [%mirror-config-change new-config]
+      ;<  ~  bind:m  (replace:io new-config)
+      ;<  ~  bind:m  (drop:io /src source-road)
+      ~&  >  [%mirror-dropped p.config]
+      ^$
+    ==
   ==
 --
 |%
++$  news-or-poke
+  $%  [%news =wave:nexus]
+      [%poke =sage:tarball]
+  ==
+++  take-news-or-poke
+  |=  news-wire=wire
+  =/  m  (fiber:fiber:nexus ,news-or-poke)
+  ^-  form:m
+  |=  input:fiber:nexus
+  :+  ~  q.state
+  ?+  in  [%skip ~]
+      ~  [%wait ~]
+      [~ %veto *]
+    [%fail (veto-error:io dart.u.in)]
+      [~ %news * *]
+    ?.  =(news-wire wire.u.in)
+      [%skip ~]
+    [%done %news wave.u.in]
+      [~ %poke * *]
+    [%done %poke sage.u.in]
+  ==
 ++  parse-source
   |=  src=@t
   ^-  road:tarball
@@ -79,14 +107,12 @@
   ^-  form:m
   =/  changes=(map lane:tarball cass:clay)  (diff-wave:nexus prev cur)
   =/  lanes=(list [=lane:tarball =cass:clay])  ~(tap by changes)
-  ~&  >  [%mirror-changes (lent lanes)]
+  ~&  >  [%mirror-changes (lent lanes) lanes=lanes]
   |-
   ?~  lanes  (pure:m ~)
   =/  =lane:tarball  lane.i.lanes
   ?:  ?=(%| -.lane)
-    ::  skip directory-level fold changes
     $(lanes t.lanes)
-  ::  file lane: peek source, over into /data/
   =/  base=path
     ?:  ?=([%& %| *] source-road)  p.p.source-road
     ?:  ?=([%| * %| *] source-road)  p.q.p.source-road
@@ -96,10 +122,9 @@
   ;<  =seen:nexus  bind:m  (peek:io src-road ~)
   ?.  ?=([%& %file *] seen)
     ~&  >>  [%mirror-file-not-found lane]
-    ::  file was deleted — cull it from /data/
     ;<  *  bind:m  (cull-soft:io dest-road)
     $(lanes t.lanes)
-  ~&  >  [%mirror-syncing-file name.p.lane]
+  ~&  >  [%mirror-syncing-file name.p.lane blot=p.sang.p.seen src-road dest-road]
   ;<  ~  bind:m  (over:io dest-road [p.sang.p.seen (sang-noun:tarball sang.p.seen)])
   $(lanes t.lanes)
 --

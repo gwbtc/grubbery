@@ -10,7 +10,7 @@
   ;:  weld
     "Search file contents in the grubbery ball for a string. "
     "Returns matching lines with file paths and line numbers. "
-    "Optionally filter which files to search by path, name, or mark pattern."
+    "Optionally filter which files to search by path, name, or blot pattern."
   ==
 ++  parameters
   ^-  (map @t parameter-def:tools)
@@ -18,7 +18,7 @@
   :~  ['pattern' [%string 'Text string to search for']]
       ['path' [%string 'Directory path pattern to filter files (e.g. "/config/*")']]
       ['name' [%string 'Filename pattern to filter (e.g. "*config*")']]
-      ['mark' [%string 'Mark/extension pattern to filter (e.g. "hoon", "txt")']]
+      ['blot' [%string 'Blot pattern to filter (e.g. "hoon", "txt")']]
   ==
 ++  required  ~['pattern']
 ++  handler
@@ -42,7 +42,7 @@
     ?:  =('' p.u.n)  ~
     `p.u.n
   =/  pat-mark=(unit @t)
-    ?~  mk=(~(get jo:json-utils [%o args.st]) /mark)  ~
+    ?~  mk=(~(get jo:json-utils [%o args.st]) /blot)  ~
     ?.  ?=([%s *] u.mk)  ~
     ?:  =('' p.u.mk)  ~
     `p.u.mk

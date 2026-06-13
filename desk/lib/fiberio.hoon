@@ -69,12 +69,12 @@
   ==
 ::
 ++  replace
-  |=  new=vase
+  |=  new=*
   =/  m  (fiber ,~)
   ^-  form:m
   |=  input
   ^-  output:m
-  [~ q.new %done ~]
+  [~ new %done ~]
 ::
 ++  transform
   |=  f=$-(vase vase)

@@ -193,7 +193,7 @@
           ?.  ?=([%& %file *] seen)  ''
           (render-result !<(json (need-vase:tarball sang.p.seen)))
         ;<  req=json  bind:m  (read-request '../request.json')
-        ;<  ~  bind:m  (replace:io !>((crip (en-xml:html (oneshot-page res req)))))
+        ;<  ~  bind:m  (replace:io (crip (en-xml:html (oneshot-page res req))))
         ;<  upd=wave:nexus  bind:m  (take-news:io /res)
         $
           ::  /ui/briefing.html: watches briefing.json for live progress
@@ -207,7 +207,7 @@
         =/  state=json
           ?.  ?=([%& %file *] seen)  ~
           !<(json (need-vase:tarball sang.p.seen))
-        ;<  ~  bind:m  (replace:io !>((crip (en-xml:html (briefing-page-live state)))))
+        ;<  ~  bind:m  (replace:io (crip (en-xml:html (briefing-page-live state))))
         ;<  upd=wave:nexus  bind:m  (take-news:io /brf)
         $
       ==

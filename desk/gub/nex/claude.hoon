@@ -60,7 +60,7 @@
           =/  top  (ram:mon messages.msg)
           ?~(top 0 +(key.u.top))
         =/  new=messages  msg(messages (put:mon messages.msg idx [role text]))
-        ;<  ~  bind:m  (replace:io !>(new))
+        ;<  ~  bind:m  (replace:io new)
         $
       ::  /main.claude-registry — THE process. Handles user messages, Claude API,
       ::  everything. Messages file is inert state written via poke:io.
@@ -89,7 +89,7 @@
           (keep:io /weir (cord-to-road:tarball '../') ~)
         |-
         ;<  =seen:nexus  bind:m  (peek:io (cord-to-road:tarball '../') ~)
-        ;<  ~  bind:m  (replace:io !>((render-weir seen)))
+        ;<  ~  bind:m  (replace:io (render-weir seen))
         ;<  upd=wave:nexus  bind:m  (take-news:io /weir)
         $
       ::  /ui/chat.html — watches messages, renders page
@@ -103,7 +103,7 @@
         ?.  ?=([%& %file *] seen)  $
         =/  msg=messages  !<(messages (need-vase:tarball sang.p.seen))
         =/  page=manx  (chat-page (tap:mon messages.msg))
-        ;<  ~  bind:m  (replace:io !>((crip (en-xml:html page))))
+        ;<  ~  bind:m  (replace:io (crip (en-xml:html page)))
         ;<  upd=wave:nexus  bind:m  (take-news:io /msgs)
         $
       ::  /ui/sse/last-message.html — watches messages, emits last as HTML
@@ -118,7 +118,7 @@
         =/  msg=messages  !<(messages (need-vase:tarball sang.p.seen))
         =/  last=(unit [key=@ud val=message])  (ram:mon messages.msg)
         ?~  last  $
-        ;<  ~  bind:m  (replace:io !>((crip (en-xml:html (msg-to-manx val.u.last)))))
+        ;<  ~  bind:m  (replace:io (crip (en-xml:html (msg-to-manx val.u.last))))
         ;<  upd=wave:nexus  bind:m  (take-news:io /msgs)
         $
       ::  /ui/sse/status.json — loading state, updated by message fiber
@@ -444,20 +444,7 @@
     ?.  live.reg  $
     ;<  ~  bind:m  (claude-turn msg-road)
     $
-  ::  Keep subscription acked — initial view
-  ::
-      %news
-    =/  id-slot  (get-slot wire.ev slots.reg)
-    ?~  id-slot
-      ~&  >>>  [%claude-stale-news wire.ev]
-      $
-    =/  [id=@ud =slot]  u.id-slot
-    ;<  =seen:nexus  bind:m  (peek:io (cord-to-road:tarball path.slot) ~)
-    ;<  ~  bind:m  (format-seen msg-road path.slot seen %.y)
-    ?.  live.reg  $
-    ;<  ~  bind:m  (claude-turn msg-road)
-    $
-  ::  Keep subscription update
+  ::  Subscription wave (initial or update)
   ::
       %news
     =/  id-slot  (get-slot wire.ev slots.reg)
@@ -470,7 +457,7 @@
       ~&  >  [%claude-news-after-drop path.slot]
       $
     ;<  =seen:nexus  bind:m  (peek:io (cord-to-road:tarball path.slot) ~)
-    ;<  ~  bind:m  (format-seen msg-road path.slot seen %.n)
+    ;<  ~  bind:m  (format-seen msg-road path.slot seen)
     ?.  live.reg  $
     ;<  ~  bind:m  (claude-turn msg-road)
     $
@@ -730,7 +717,7 @@
       (append-to-msgs msg-road 'user' (rap 3 ~['<api action="drop" path="' api-path '">Not subscribed to this path.</api>']))
     ::  Mark slot as "drop" so fell handler knows it was user-initiated
     ;<  ~  bind:m
-      (replace:io !>(`registry`reg(slots (~(put by slots.reg) u.keep-id ['drop' api-path]))))
+      (replace:io `registry`reg(slots (~(put by slots.reg) u.keep-id ['drop' api-path])))
     =/  keep-wire=wire  /slot/(scot %ud u.keep-id)
     (send-dart:io %node keep-wire road %drop ~)
   ::  keep — check for duplicate
@@ -745,17 +732,17 @@
     =/  id=@ud  nex.reg
     =/  slot-wire=wire  /slot/(scot %ud id)
     ;<  ~  bind:m
-      (replace:io !>(`registry`reg(nex +(id), slots (~(put by slots.reg) id [act api-path]))))
+      (replace:io `registry`reg(nex +(id), slots (~(put by slots.reg) id [act api-path])))
     (send-dart:io %node slot-wire road %keep ~)
   ::  All other actions — allocate slot, fire dart
   ::
   =/  id=@ud  nex.reg
   =/  slot-wire=wire  /slot/(scot %ud id)
   =/  new-reg=registry  reg(nex +(id), slots (~(put by slots.reg) id [act api-path]))
-  ;<  ~  bind:m  (replace:io !>(`registry`new-reg))
+  ;<  ~  bind:m  (replace:io `registry`new-reg)
   ?+    act
     ::  Unknown action — deregister and report error
-    ;<  ~  bind:m  (replace:io !>(`registry`new-reg(slots (~(del by slots.reg) id))))
+    ;<  ~  bind:m  (replace:io `registry`new-reg(slots (~(del by slots.reg) id)))
     %-  append-to-msgs  :+  msg-road  'user'
     (rap 3 ~['<api action="' act '" path="' api-path '">ERROR: Unknown action. Valid: file, kids, tree, sand, weir, manu, keep, drop, make, over, rmf, dir, rmd, poke, diff, setweir, rmweir</api>'])
   ::  reads
@@ -786,12 +773,12 @@
       %'setweir'
     =/  jon=(unit json)  (de:json:html body)
     ?~  jon
-      ;<  ~  bind:m  (replace:io !>(`registry`new-reg(slots (~(del by slots.reg) id))))
+      ;<  ~  bind:m  (replace:io `registry`new-reg(slots (~(del by slots.reg) id)))
       (append-to-msgs msg-road 'user' (rap 3 ~['<api action="setweir" path="' api-path '">ERROR: Invalid JSON body</api>']))
     =/  parsed=(each weir:nexus tang)
       (mule |.((weir-from-json:nexus u.jon)))
     ?:  ?=(%| -.parsed)
-      ;<  ~  bind:m  (replace:io !>(`registry`new-reg(slots (~(del by slots.reg) id))))
+      ;<  ~  bind:m  (replace:io `registry`new-reg(slots (~(del by slots.reg) id)))
       (append-to-msgs msg-road 'user' (rap 3 ~['<api action="setweir" path="' api-path '">ERROR: Invalid weir JSON</api>']))
     (send-dart:io %node slot-wire road %sand `p.parsed)
       %'rmweir'
@@ -962,7 +949,7 @@
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
   ;<  reg=registry  bind:m  (get-state-as:io ,registry)
-  (replace:io !>(`registry`reg(slots (~(del by slots.reg) id))))
+  (replace:io `registry`reg(slots (~(del by slots.reg) id)))
 ::  Fetch with interrupt: send HTTP request, wait for response OR interrupt poke.
 ::  Returns ~ on interrupt, (some body) on HTTP response.
 ::
@@ -998,7 +985,7 @@
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
   ;<  reg=registry  bind:m  (get-state-as:io ,registry)
-  ;<  ~  bind:m  (replace:io !>(`registry`reg(live flag)))
+  ;<  ~  bind:m  (replace:io `registry`reg(live flag))
   =/  status-road=road:tarball  (cord-to-road:tarball './ui/sse/status.json')
   =/  =json  (pairs:enjs:format ~[['loading' b+%.n] ['live' b+flag]])
   (over:io status-road [[/ %json] json])
@@ -1090,15 +1077,17 @@
 ::  Format a peek result as messages — used by bond and news
 ::
 ++  format-seen
-  |=  [msg-road=road:tarball api-path=@t =seen:nexus is-bond=?]
+  |=  [msg-road=road:tarball api-path=@t =seen:nexus]
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
-  =/  act=@t  ?:(is-bond 'bond' 'keep')
+  =/  act=@t  'keep'
   ?.  ?=(%& -.seen)
     (append-to-msgs msg-road 'user' (rap 3 ~['<api action="' act '" path="' api-path '">ERROR</api>']))
   ?-    -.p.seen
       %none
     (append-to-msgs msg-road 'user' (rap 3 ~['<api action="' act '" path="' api-path '">DELETED</api>']))
+      %miss
+    (append-to-msgs msg-road 'user' (rap 3 ~['<api action="' act '" path="' api-path '">MISS — data expired, retrying</api>']))
       %file
     ;<  content=@t  bind:m  (sage-to-txt (need-sage:tarball sang.p.seen))
     =/  rev=@ud  ud.cass.p.seen

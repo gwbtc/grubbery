@@ -18,7 +18,7 @@
       ['path' [%string 'Directory path on remote (e.g. "/hello")']]
       ['name' [%string 'Filename (e.g. "world")']]
       ['content' [%string 'Text content to write']]
-      ['mark' [%string 'Target mark (e.g. "hoon", "txt"). Omit to store as mime.']]
+      ['blot' [%string 'Target blot (e.g. "hoon", "txt"). Omit to store as mime.']]
   ==
 ++  required  ~['ship' 'path' 'name' 'content']
 ++  handler
@@ -41,7 +41,7 @@
   =/  pax=path  p.pax-parsed
   =/  nam=@ta  u.name-raw
   =/  dest-blot=(unit blot:tarball)
-    ?~  mk=(~(get jo:json-utils [%o args.st]) /mark)  ~
+    ?~  mk=(~(get jo:json-utils [%o args.st]) /blot)  ~
     ?.  ?=([%s *] u.mk)  ~
     ?:  =('' p.u.mk)  ~
     =/  pax=path

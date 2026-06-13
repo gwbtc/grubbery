@@ -9,8 +9,8 @@
   ^~  %-  crip
   ;:  weld
     "Write a text file to the grubbery ball. "
-    "Set mark to store as a specific mark (e.g. \"hoon\", \"/wallet/account\"). "
-    "Without mark, stores as raw mime. "
+    "Set blot to store as a specific blot (e.g. \"hoon\", \"/wallet/account\"). "
+    "Without blot, stores as raw mime. "
     "Set content_type to override the mime type (e.g. \"text/html\")."
   ==
 ++  parameters
@@ -20,7 +20,7 @@
       ['name' [%string 'Filename (e.g. "foo.hoon", "notes.txt", "config.json")']]
       ['content' [%string 'Text content to write']]
       ['content_type' [%string 'MIME content type (e.g. "text/html"). When set, stores as raw mime.']]
-      ['mark' [%string 'Target mark as a blot path (e.g. "hoon", "/wallet/account"). Omit to store as mime.']]
+      ['blot' [%string 'Target blot path (e.g. "hoon", "/wallet/account"). Omit to store as mime.']]
   ==
 ++  required  ~['path' 'name' 'content']
 ++  handler
@@ -43,7 +43,7 @@
     ?:  =('' p.u.ct)  ~
     `p.u.ct
   =/  dest-blot=(unit blot:tarball)
-    ?~  mk=(~(get jo:json-utils [%o args.st]) /mark)  ~
+    ?~  mk=(~(get jo:json-utils [%o args.st]) /blot)  ~
     ?.  ?=([%s *] u.mk)  ~
     ?:  =('' p.u.mk)  ~
     ::  parse as blot path

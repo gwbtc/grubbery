@@ -3039,7 +3039,14 @@
       ?:  ?=(?(%fail %skip) -.next.output)  [%& state this]
       (clam-output here blot state state.output)
     ?:  ?=(%| -.clam)
-      (mean [leaf+"state validation failed at {(spud (snoc path.here name.here))}"]~)
+      =/  =tang  [leaf+"state validation failed at {(spud (snoc path.here name.here))}"]~
+      :*  darts
+          :_(done [take `tang])
+          state
+          proc
+          [%fail tang]
+          this
+      ==
     =.  this  +.p.clam
     =/  val=vase  -.p.clam
     ?-    -.next.output
@@ -3193,7 +3200,15 @@
       ~|("make failed: directory {(spud dest-path)} already exists" !!)
     =.  this  (load-ball-changes dest-path new-bole)
     =.  this  (build-new-code-namespaces dest-path new-bole)
-    (spawn-all-files dest-path new-bole)
+    ::  Reload nexuses in the new bole (runs on-load, recurses children)
+    =/  sub-ball  (peek-ball-now dest-path)
+    =.  this
+      ?:  ?&(?=(^ fil.sub-ball) ?=(^ neck.u.fil.sub-ball) !=([/ %code] u.neck.u.fil.sub-ball))
+        =/  nex=(each nexus:nexus tang)
+          (build-nexus dest-path u.neck.u.fil.sub-ball)
+        ?:(?=(%| -.nex) (bang-nexus dest-path p.nex) (reload-nexus-at dest-path p.nex))
+      (reload-child-nexuses dest-path)
+    (spawn-all-files dest-path (peek-bole-now dest-path))
     ::
       %&
     ::  Make file — fail if exists without force

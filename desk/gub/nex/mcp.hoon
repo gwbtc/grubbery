@@ -23,7 +23,7 @@
       =/  err-msg=@t  (render-tang:build tang.prod)
       =/  result-data=json
         (pairs:enjs:format ~[['type' s+'error'] ['message' s+(crip "crash\0a{(trip err-msg)}")]])
-      (replace:io !>(`tool-state:nex-tools`[tool.st args.st %done data.st `result-data]))
+      (replace:io `tool-state:nex-tools`[tool.st args.st %done data.st `result-data])
     ::  Strip .hoon suffix from grub name
     ::
     ++  strip-hoon
@@ -209,7 +209,7 @@
       =/  err-msg=@t  (render-tang:build p.got)
       =/  result-data=json
         (pairs:enjs:format ~[['type' s+'error'] ['message' s+err-msg]])
-      (replace:io !>(`tool-state:nex-tools`[tool.st args.st %done data.st `result-data]))
+      (replace:io `tool-state:nex-tools`[tool.st args.st %done data.st `result-data])
     =/  tl=tool:nex-tools  p.got
     ;<  result=tool-result:nex-tools  bind:m  handler.tl
     =/  result-json=json
@@ -225,7 +225,7 @@
           ['data' s+b64]
       ==
       ==
-    (replace:io !>(`tool-state:nex-tools`[tool.st args.st %done data.st `result-json]))
+    (replace:io `tool-state:nex-tools`[tool.st args.st %done data.st `result-json])
   ==
 ++  on-manu
   |=  =mana:nexus

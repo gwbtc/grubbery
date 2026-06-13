@@ -82,7 +82,7 @@
         ?~  h
           ;<  ~  bind:m  (sleep:io ~s2)
           $
-        ;<  ~  bind:m  (replace:io !>(u.h))
+        ;<  ~  bind:m  (replace:io u.h)
         ;<  ~  bind:m  (sleep:io ~s2)
         $
           ::  /urb-state.urb-state: block walker + PKI state machine.
@@ -114,7 +114,7 @@
           ~&  >  [%groundwire-walker %chain-reset tip=tip processed=processed]
           =.  urb-state  *state:urb
           =.  processed  0
-          ;<  ~  bind:m  (replace:io !>(urb-state))
+          ;<  ~  bind:m  (replace:io urb-state)
           $
         ::  caught up — wait for the tip poller to advance
         ?:  (lte tip processed)
@@ -152,7 +152,7 @@
             ~&  >  [%groundwire-walker %chain-reset-detected next]
             =.  urb-state  *state:urb
             =.  processed  0
-            ;<  ~  bind:m  (replace:io !>(urb-state))
+            ;<  ~  bind:m  (replace:io urb-state)
             =/  height-road=road:tarball
               (cord-to-road:tarball './height.ud')
             ;<  ~  bind:m  (over:io height-road [[/ %ud] `@ud`0])
@@ -246,7 +246,7 @@
         ::
         =.  urb-state  new-urb-state
         =.  processed  next
-        ;<  ~  bind:m  (replace:io !>(urb-state))
+        ;<  ~  bind:m  (replace:io urb-state)
         $
           ::  /rpc.sig: poke receiver for RPC proxy actions.
           ::  Action "mine" does getnewaddress → generatetoaddress 1.
@@ -660,7 +660,7 @@
         ;<  seeds-seen=seen:nexus  bind:m  (peek:io seeds-road ~)
         ;<  points-seen=seen:nexus  bind:m  (peek:io points-road ~)
         ;<  ~  bind:m
-          (replace:io !>((crip (en-xml:html (btc-page nexus-root (extract-sse-manx sse-seen 'stats.html') (extract-ships seeds-seen) (extract-points points-seen))))))
+          (replace:io (crip (en-xml:html (btc-page nexus-root (extract-sse-manx sse-seen 'stats.html') (extract-ships seeds-seen) (extract-points points-seen)))))
         ;<  *  bind:m  (take-any-news /sse /seeds /points)
         $
       ==

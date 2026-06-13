@@ -1,5 +1,5 @@
 /<  tools  /lib/nex/tools.hoon
-::  glob: search for files in the grubbery ball by path, name, and/or mark
+::  glob: search for files in the grubbery ball by path, name, and/or blot
 ::
 !:
 ^-  tool:tools
@@ -8,7 +8,7 @@
 ++  description
   ^~  %-  crip
   ;:  weld
-    "Search for files in the grubbery ball by path, name, and/or mark. "
+    "Search for files in the grubbery ball by path, name, and/or blot. "
     "All patterns support * wildcards. All filters are optional; "
     "omitted filters match everything."
   ==
@@ -17,7 +17,7 @@
   %-  ~(gas by *(map @t parameter-def:tools))
   :~  ['path' [%string 'Directory path pattern (e.g. "/tools/*", "/config")']]
       ['name' [%string 'Filename pattern without extension (e.g. "config*", "*test*")']]
-      ['mark' [%string 'Mark/extension pattern (e.g. "hoon", "pdf", "mime")']]
+      ['blot' [%string 'Blot pattern (e.g. "hoon", "pdf", "mime")']]
   ==
 ++  required  ~
 ++  handler
@@ -36,7 +36,7 @@
     ?:  =('' p.u.n)  ~
     `p.u.n
   =/  pat-mark=(unit @t)
-    ?~  mk=(~(get jo:json-utils [%o args.st]) /mark)  ~
+    ?~  mk=(~(get jo:json-utils [%o args.st]) /blot)  ~
     ?.  ?=([%s *] u.mk)  ~
     ?:  =('' p.u.mk)  ~
     `p.u.mk

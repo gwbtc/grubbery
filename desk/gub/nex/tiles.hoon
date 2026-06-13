@@ -47,7 +47,7 @@
         |-
         ;<  =seen:nexus  bind:m  (peek:io (cord-to-road:tarball './tiles/') ~)
         =/  tiles=(list tile)  (read-tiles seen)
-        ;<  ~  bind:m  (replace:io !>((crip (en-xml:html (tiles-page ball-id tiles)))))
+        ;<  ~  bind:m  (replace:io (crip (en-xml:html (tiles-page ball-id tiles))))
         ;<  *  bind:m  (take-news:io /tiles)
         $
           ::  main.sig: bind HTTP and dispatch

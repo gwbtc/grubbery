@@ -49,6 +49,6 @@
   ::  Swap state to target tool's args and run handler
   =/  tl=tool:tools  p.got
   ;<  ~  bind:m
-    (replace:io !>(`tool-state:tools`[tool-name tool-args %start *json ~]))
+    (replace:io `tool-state:tools`[tool-name tool-args %start *json ~])
   handler.tl
 --

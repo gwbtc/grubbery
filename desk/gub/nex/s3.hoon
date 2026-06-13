@@ -49,7 +49,7 @@
         =/  op=@t  (get-str jon 'op')
         ?:  =('' op)  $
         ::  mark as working
-        ;<  ~  bind:m  (replace:io !>((pairs:enjs:format ~[['status' s+'working'] ['op' s+op]])))
+        ;<  ~  bind:m  (replace:io (pairs:enjs:format ~[['status' s+'working'] ['op' s+op]]))
         ::  read config
         ;<  cfg=s3-config  bind:m  read-config
         ?:  ?&  !=(op 'add-mount')
@@ -57,20 +57,20 @@
                 !=(op 'get-mounts')
                 |(=('' access-key.cfg) =('' secret-key.cfg) =('' bucket.cfg) =('' endpoint.cfg))
             ==
-          ;<  ~  bind:m  (replace:io !>((pairs:enjs:format ~[['status' s+'error'] ['error' s+'missing S3 credentials']])))
+          ;<  ~  bind:m  (replace:io (pairs:enjs:format ~[['status' s+'error'] ['error' s+'missing S3 credentials']]))
           $
         ::  read mounts
         ;<  mounts=(map @t @t)  bind:m  read-mounts
         ::  dispatch
         ;<  ~  bind:m
           ?+    op
-            (replace:io !>((pairs:enjs:format ~[['status' s+'error'] ['error' s+(crip "unknown op: {(trip op)}")]])))
+            (replace:io (pairs:enjs:format ~[['status' s+'error'] ['error' s+(crip "unknown op: {(trip op)}")]]))
             ::
               %'get-mounts'
             =/  entries=(list [@t json])
               %+  turn  ~(tap by mounts)
               |=([n=@t p=@t] [n s+p])
-            %-  replace:io  !>
+            %-  replace:io
             %-  pairs:enjs:format
             :~  ['status' s+'done']
                 ['op' s+'get-mounts']
@@ -81,7 +81,7 @@
             =/  name=@t  (get-str jon 'name')
             =/  prefix=@t  (get-str jon 'prefix')
             ?:  |(=('' name) =('' prefix))
-              (replace:io !>((pairs:enjs:format ~[['status' s+'error'] ['error' s+'name and prefix required']])))
+              (replace:io (pairs:enjs:format ~[['status' s+'error'] ['error' s+'name and prefix required']]))
             =/  new-mounts=(map @t @t)  (~(put by mounts) name prefix)
             ;<  ~  bind:m  (write-mounts new-mounts)
             ::  create mount directory
@@ -92,7 +92,7 @@
               ?.  exists
                 (make-soft:io mount-road &+*bole:tarball)
               (pure:m ~)
-            %-  replace:io  !>
+            %-  replace:io
             %-  pairs:enjs:format
             :~  ['status' s+'done']
                 ['op' s+'add-mount']
@@ -103,10 +103,10 @@
               %'remove-mount'
             =/  name=@t  (get-str jon 'name')
             ?:  =('' name)
-              (replace:io !>((pairs:enjs:format ~[['status' s+'error'] ['error' s+'name required']])))
+              (replace:io (pairs:enjs:format ~[['status' s+'error'] ['error' s+'name required']]))
             =/  new-mounts=(map @t @t)  (~(del by mounts) name)
             ;<  ~  bind:m  (write-mounts new-mounts)
-            %-  replace:io  !>
+            %-  replace:io
             %-  pairs:enjs:format
             :~  ['status' s+'done']
                 ['op' s+'remove-mount']
@@ -120,14 +120,14 @@
             =/  name=@t  (get-str jon 'name')
             =/  prefix=@t  (fall (~(get by mounts) name) '')
             ?:  =('' prefix)
-              (replace:io !>((pairs:enjs:format ~[['status' s+'error'] ['error' s+(crip "unknown mount: {(trip name)}")]])))
+              (replace:io (pairs:enjs:format ~[['status' s+'error'] ['error' s+(crip "unknown mount: {(trip name)}")]]))
             (do-list cfg prefix name)
             ::
               %refresh
             =/  name=@t  (get-str jon 'name')
             =/  prefix=@t  (fall (~(get by mounts) name) '')
             ?:  =('' prefix)
-              (replace:io !>((pairs:enjs:format ~[['status' s+'error'] ['error' s+(crip "unknown mount: {(trip name)}")]])))
+              (replace:io (pairs:enjs:format ~[['status' s+'error'] ['error' s+(crip "unknown mount: {(trip name)}")]]))
             (do-refresh cfg prefix name)
             ::
               %pull
@@ -135,7 +135,7 @@
             =/  key=@t  (get-str jon 'key')
             =/  prefix=@t  (fall (~(get by mounts) name) '')
             ?:  =('' prefix)
-              (replace:io !>((pairs:enjs:format ~[['status' s+'error'] ['error' s+(crip "unknown mount: {(trip name)}")]])))
+              (replace:io (pairs:enjs:format ~[['status' s+'error'] ['error' s+(crip "unknown mount: {(trip name)}")]]))
             (do-pull cfg key name)
             ::
               %delete
@@ -269,12 +269,12 @@
   =/  qs=@t  (build-list-query prefix)
   ;<  resp=client-response:iris  bind:m  (s3-request cfg 'GET' '' qs ~)
   ?.  ?=(%finished -.resp)
-    (replace:io !>((pairs:enjs:format ~[['status' s+'error'] ['error' s+'request failed']])))
+    (replace:io (pairs:enjs:format ~[['status' s+'error'] ['error' s+'request failed']]))
   ?~  full-file.resp
-    (replace:io !>((pairs:enjs:format ~[['status' s+'done'] ['op' s+'list'] ['name' s+name] ['keys' [%a ~]]])))
+    (replace:io (pairs:enjs:format ~[['status' s+'done'] ['op' s+'list'] ['name' s+name] ['keys' [%a ~]]]))
   =/  body=@t  q.data.u.full-file.resp
   =/  keys=(list @t)  (parse-list-response body)
-  %-  replace:io  !>
+  %-  replace:io
   %-  pairs:enjs:format
   :~  ['status' s+'done']
       ['op' s+'list']
@@ -291,16 +291,16 @@
   =/  qs=@t  (build-list-query prefix)
   ;<  resp=client-response:iris  bind:m  (s3-request cfg 'GET' '' qs ~)
   ?.  ?=(%finished -.resp)
-    (replace:io !>((pairs:enjs:format ~[['status' s+'error'] ['error' s+'list failed']])))
+    (replace:io (pairs:enjs:format ~[['status' s+'error'] ['error' s+'list failed']]))
   ?~  full-file.resp
-    (replace:io !>((pairs:enjs:format ~[['status' s+'done'] ['op' s+'refresh'] ['name' s+name] ['pulled' (numb:enjs:format 0)]])))
+    (replace:io (pairs:enjs:format ~[['status' s+'done'] ['op' s+'refresh'] ['name' s+name] ['pulled' (numb:enjs:format 0)]]))
   =/  body=@t  q.data.u.full-file.resp
   =/  keys=(list @t)  (parse-list-response body)
   ::  pull each object
   =/  pulled=@ud  0
   |-
   ?~  keys
-    %-  replace:io  !>
+    %-  replace:io
     %-  pairs:enjs:format
     :~  ['status' s+'done']
         ['op' s+'refresh']
@@ -353,9 +353,9 @@
   ^-  form:m
   ;<  resp=client-response:iris  bind:m  (s3-request cfg 'GET' key '' ~)
   ?.  ?=(%finished -.resp)
-    (replace:io !>((pairs:enjs:format ~[['status' s+'error'] ['error' s+'download failed']])))
+    (replace:io (pairs:enjs:format ~[['status' s+'error'] ['error' s+'download failed']]))
   ?~  full-file.resp
-    (replace:io !>((pairs:enjs:format ~[['status' s+'error'] ['error' s+'empty response']])))
+    (replace:io (pairs:enjs:format ~[['status' s+'error'] ['error' s+'empty response']]))
   =/  content=@t  q.data.u.full-file.resp
   =/  ct=(unit @t)  (extract-content-type headers.response-header.resp)
   =/  filename=@ta  (extract-filename key)
@@ -374,7 +374,7 @@
       (make-soft:io file-road |+[[[/ %mime] file-mime] ext])
     ?~  err  (pure:m ~)
     (make:io file-road |+[[[/ %mime] file-mime] ~])
-  %-  replace:io  !>
+  %-  replace:io
   %-  pairs:enjs:format
   :~  ['status' s+'done']
       ['op' s+'pull']
@@ -388,9 +388,9 @@
   ^-  form:m
   ;<  resp=client-response:iris  bind:m  (s3-request cfg 'DELETE' key '' ~)
   ?.  ?=(%finished -.resp)
-    (replace:io !>((pairs:enjs:format ~[['status' s+'error'] ['error' s+'delete failed']])))
+    (replace:io (pairs:enjs:format ~[['status' s+'error'] ['error' s+'delete failed']]))
   =/  code=@ud  status-code.response-header.resp
-  %-  replace:io  !>
+  %-  replace:io
   %-  pairs:enjs:format
   :~  ['status' s+'done']
       ['op' s+'delete']

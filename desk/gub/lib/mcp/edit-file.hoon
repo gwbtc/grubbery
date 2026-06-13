@@ -10,7 +10,7 @@
   ;:  weld
     "Edit a text file in the grubbery ball via exact string replacement. "
     "Fails if old_string is not found or is ambiguous (multiple matches). "
-    "Works with any mark that has a text/mime conversion."
+    "Works with any blot that has a text/mime conversion."
   ==
 ++  parameters
   ^-  (map @t parameter-def:tools)
@@ -64,7 +64,7 @@
         %empty-search
       (pure:m [%error 'old_string cannot be empty'])
     ==
-  ::  Send edited text back via %over — runtime handles mark conversion
+  ::  Send edited text back via %over — runtime handles blot conversion
   =/  new-mime=^mime  [/text/plain (as-octs:mimes:html (crip p.result))]
   =/  road=road:tarball  [%& %& pax grub-name]
   ;<  ~  bind:m  (over:io road [[/ %mime] new-mime])

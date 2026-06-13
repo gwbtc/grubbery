@@ -49,7 +49,7 @@
         ;<  channels=seen:nexus  bind:m  (peek:io (cord-to-road:tarball './channels/') ~)
         ;<  apis=seen:nexus  bind:m  (peek:io (cord-to-road:tarball './apis/') ~)
         ;<  ~  bind:m
-          (replace:io !>((crip (en-xml:html (dashboard-page ball-id (read-names agents) (read-entities channels) (read-entities apis))))))
+          (replace:io (crip (en-xml:html (dashboard-page ball-id (read-names agents) (read-entities channels) (read-entities apis)))))
         ;<  [* *]  bind:m  (take-any-news /agents /channels /apis)
         $
         ::
@@ -60,7 +60,7 @@
         ;<  *  bind:m  (keep:io /agents (cord-to-road:tarball '../../agents/') ~)
         |-
         ;<  agents=seen:nexus  bind:m  (peek:io (cord-to-road:tarball '../../agents/') ~)
-        ;<  ~  bind:m  (replace:io !>((crip (en-xml:html (agents-fragment ball-id (read-names agents))))))
+        ;<  ~  bind:m  (replace:io (crip (en-xml:html (agents-fragment ball-id (read-names agents)))))
         ;<  *  bind:m  (take-news:io /agents)
         $
         ::
@@ -71,7 +71,7 @@
         ;<  *  bind:m  (keep:io /channels (cord-to-road:tarball '../../channels/') ~)
         |-
         ;<  channels=seen:nexus  bind:m  (peek:io (cord-to-road:tarball '../../channels/') ~)
-        ;<  ~  bind:m  (replace:io !>((crip (en-xml:html (channels-fragment ball-id (read-entities channels))))))
+        ;<  ~  bind:m  (replace:io (crip (en-xml:html (channels-fragment ball-id (read-entities channels)))))
         ;<  *  bind:m  (take-news:io /channels)
         $
         ::
@@ -82,7 +82,7 @@
         ;<  *  bind:m  (keep:io /apis (cord-to-road:tarball '../../apis/') ~)
         |-
         ;<  apis=seen:nexus  bind:m  (peek:io (cord-to-road:tarball '../../apis/') ~)
-        ;<  ~  bind:m  (replace:io !>((crip (en-xml:html (apis-fragment ball-id (read-entities apis))))))
+        ;<  ~  bind:m  (replace:io (crip (en-xml:html (apis-fragment ball-id (read-entities apis)))))
         ;<  *  bind:m  (take-news:io /apis)
         $
         ::

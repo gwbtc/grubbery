@@ -115,7 +115,7 @@
           ['delay' (numb:enjs:format delay)]
       ==
     ;<  ~  bind:m
-      (replace:io !>([tool.st args.st %running run-data ~]))
+      (replace:io [tool.st args.st %running run-data ~])
     ::  Send the command as belt input + return
     =/  chars=(list @c)  (tuba (trip command))
     ;<  ~  bind:m  (send-belt:io session %txt chars)

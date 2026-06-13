@@ -33,7 +33,7 @@
           $
         =/  new-lines=wain  !<(wain q.sage)
         ;<  log=wain  bind:m  (get-state-as:io ,wain)
-        ;<  ~  bind:m  (replace:io !>((weld log new-lines)))
+        ;<  ~  bind:m  (replace:io (weld log new-lines))
         $
           ::  /mirror.sig: poke with ship name to mirror its logbook
           ::

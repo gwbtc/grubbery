@@ -56,7 +56,7 @@
         ?~  wal  stay:m
         =/  err=manx   (extract-sse-manx sse 'error.html')
         =/  load=manx  (extract-sse-manx sse 'loading.html')
-        ;<  ~  bind:m  (replace:io !>((crip (en-xml:html (detail-page u.wal acct-list err load)))))
+        ;<  ~  bind:m  (replace:io (crip (en-xml:html (detail-page u.wal acct-list err load))))
         ;<  [* *]  bind:m  (take-any-news /data /accts /sse)
         $
           ::  /ui/sse/accounts.html: rendered account list for SSE
@@ -71,7 +71,7 @@
         =/  wal=(unit wallet-data)  (extract-wallet data)
         =/  acct-list=(list account-data)  (extract-accounts accts wal)
         ?~  wal  stay:m
-        ;<  ~  bind:m  (replace:io !>((crip (en-xml:html (accounts-fragment acct-list)))))
+        ;<  ~  bind:m  (replace:io (crip (en-xml:html (accounts-fragment acct-list))))
         ;<  [* *]  bind:m  (take-either-news /data /accts)
         $
           ::  /main.wallet_wallet: wallet data + poke handler
@@ -146,7 +146,7 @@
             ;<  ~  bind:m  (over:io load-road [[/ %html] (crip (en-xml:html ;div;))])
             =/  acct-path=account:wt  [[%.y purpose] [%.y coin-type] [%.y account-idx]]
             =.  wal  wal(accounts (~(put by accounts.wal) acct-path acct-pubkey))
-            ;<  ~  bind:m  (replace:io !>(wal))
+            ;<  ~  bind:m  (replace:io wal)
             $
               %'remove-account'
             =/  acct-key=@t
@@ -177,7 +177,7 @@
                 %+  skip  ~(tap by accounts.wal)
                 |=([* pk=@ux] =(pk acct-pubkey))
               ==
-            ;<  ~  bind:m  (replace:io !>(wal))
+            ;<  ~  bind:m  (replace:io wal)
             $
               %'discover-accounts'
             =/  purpose-select=@t
@@ -241,7 +241,7 @@
               ['coin-type' (numb:enjs:format coin-type)]
               ['account-idx' (numb:enjs:format account-idx)]
           ==
-        ;<  ~  bind:m  (replace:io !>(prog))
+        ;<  ~  bind:m  (replace:io prog)
         ::  show progress in loading bar
         ;<  ~  bind:m
           (over:io load-road [[/ %html] (crip (en-xml:html (discover-loading purpose coin-type account-idx)))])

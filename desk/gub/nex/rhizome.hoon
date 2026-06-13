@@ -117,7 +117,7 @@
           %-  ~(run by notes)
           |=(txt=@t (extract-wiki-links txt))
         =/  back=back-index  (invert-index fwd)
-        ;<  ~  bind:m  (replace:io !>((crip (en-xml:html (rhizome-page notes fwd back)))))
+        ;<  ~  bind:m  (replace:io (crip (en-xml:html (rhizome-page notes fwd back))))
         |-
         ;<  upd=wave:nexus  bind:m  (take-news:io /vault)
         ;<  vault-seen=seen:nexus  bind:m  (peek:io (cord-to-road:tarball './vault/') ~)
@@ -126,7 +126,7 @@
           %-  ~(run by notes)
           |=(txt=@t (extract-wiki-links txt))
         =/  back=back-index  (invert-index fwd)
-        ;<  ~  bind:m  (replace:io !>((crip (en-xml:html (rhizome-page notes fwd back)))))
+        ;<  ~  bind:m  (replace:io (crip (en-xml:html (rhizome-page notes fwd back))))
         $
           ::
           ::  metadata/*.json: accept metadata updates from main.sig
@@ -136,7 +136,7 @@
         |-
         ;<  [=from:fiber:nexus =sage:tarball]  bind:m  take-poke-from:io
         ?.  =(%json name.p.sage)  $
-        ;<  ~  bind:m  (replace:io q.sage)
+        ;<  ~  bind:m  (replace:io q.q.sage)
         $
           ::
           ::  vault/*.md: passive notes, accept content pokes
@@ -145,7 +145,7 @@
         ;<  ~  bind:m  (rise-wait:io prod "%rhizome /vault: failed")
         |-
         ;<  [=from:fiber:nexus =sage:tarball]  bind:m  take-poke-from:io
-        ;<  ~  bind:m  (replace:io q.sage)
+        ;<  ~  bind:m  (replace:io q.q.sage)
         $
       ==
     ::
