@@ -446,10 +446,10 @@
     $
   ::  Keep subscription acked — initial view
   ::
-      %bond
+      %news
     =/  id-slot  (get-slot wire.ev slots.reg)
     ?~  id-slot
-      ~&  >>>  [%claude-stale-bond wire.ev]
+      ~&  >>>  [%claude-stale-news wire.ev]
       $
     =/  [id=@ud =slot]  u.id-slot
     ;<  =seen:nexus  bind:m  (peek:io (cord-to-road:tarball path.slot) ~)
@@ -807,7 +807,6 @@
       [%pack =wire err=(unit tang)]
       [%sand =wire err=(unit tang)]
       [%manu =wire res=(each @t tang)]
-      [%bond =wire =wave:nexus]
       [%news =wire =wave:nexus]
       [%fell =wire]
       [%veto =dart:nexus]
@@ -829,7 +828,6 @@
       [~ %pack * *]   [%done %pack wire.u.in err.u.in]
       [~ %sand * *]   [%done %sand wire.u.in err.u.in]
       [~ %manu * *]   [%done %manu wire.u.in res.u.in]
-      [~ %bond * *]   [%done %bond wire.u.in wave.u.in]
       [~ %news * *]   [%done %news wire.u.in wave.u.in]
       [~ %fell *]     [%done %fell wire.u.in]
       [~ %veto *]     [%done %veto dart.u.in]

@@ -62,6 +62,7 @@
   $%  [%ball =wave ball=ball:tarball]
       [%file =cass:clay =sang:tarball]
       [%none ~]
+      [%miss ~]
   ==
 +$  seen  (each view tang)
 :: dart payload
@@ -201,9 +202,8 @@
         [%seek =wire res=(each (list [=rail:tarball =cass:clay]) tang)] :: response to seek
         [%peep =wire res=(each (list [=cass:clay =sage:tarball]) tang)] :: response to peep
         [%manu =wire res=(each @t tang)] :: response to manu
-        [%bond =wire =wave] :: subscription ack with initial wave
         [%fell =wire]                 :: subscription canceled (weir change, deletion, etc)
-        [%news =wire =wave] :: wave update: changed lanes + versions
+        [%news =wire =wave] :: subscription wave (initial or update)
         [%veto =dart] :: notify that a dart was sandboxed
         [%code =wire res=(each (axal (map @ta built)) built)]  :: code subtree or single artifact
         [%font =wire res=(unit bend:tarball)]  :: bend to governing /code namespace
@@ -1051,7 +1051,7 @@
 ::  Intake: inbound responses from a remote ship.
 ::  %snap delivers the resolved pace and reachable content hashes.
 ::  %data delivers the silo subset (jects + nouns) for requested lobes.
-::  %bond delivers initial wave on subscription.
+::  Initial and ongoing waves both delivered as %news.
 ::  %wave delivers ongoing wave updates.
 ::
 ++  remote
@@ -1076,17 +1076,13 @@
         $%  [%snap dest=lane:tarball snap-id=@uvJ snap=(unit snap)]
             [%want dest=lane:tarball snap-id=@uvJ]
             [%data =silo]
+            [%miss ~]
         ==
     ==
   +$  make  (each bole:tarball [=bask:tarball blot=(unit blot:tarball)])
   ::  Inbound subscription events from remote watchers.
   ::
-  +$  intake
-    $:  =wire
-        $%  [%bond dest=lane:tarball =wave]
-            [%wave dest=lane:tarball =wave]
-        ==
-    ==
+  +$  intake  [=wire dest=lane:tarball =wave]
   ::  Staged peek state: tracks an outstanding cross-ship peek
   ::  from initiation through negotiation to discharge.
   ::  snap is ~ until %snap response arrives with pace + refs.

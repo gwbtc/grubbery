@@ -570,19 +570,7 @@
 ::
 ++  take-bond
   |=  =wire
-  =/  m  (fiber ,wave:nexus)
-  ^-  form:m
-  |=  input
-  :+  ~  q.state
-  ?+  in  [%skip ~]
-      ~  [%wait ~]
-      [~ %veto *]
-    [%fail (veto-error dart.u.in)]
-      [~ %bond * *]
-    ?.  =(wire wire.u.in)
-      [%skip ~]
-    [%done wave.u.in]
-  ==
+  (take-news wire)
 ::
 ++  take-fell
   |=  =wire

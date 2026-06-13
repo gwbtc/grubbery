@@ -306,7 +306,11 @@
     =/  pin  (~(get by snaps) pin-key)
     ?~  pin
       ~&  >>  [%want-unknown-snap-id snap-id.req src=src.bowl]
-      :_  this  peer-cards
+      =/  resp=transfer:remote:nexus  [/want %miss ~]
+      :_  this
+      %+  weld  peer-cards
+      ^-  (list card)
+      ~[[%pass /want/[(scot %p src.bowl)] %agent [src.bowl %grubbery] %poke grubbery-transfer+!>(resp)]]
     ~&  >  [%want-received-from src.bowl dest=dest.req snap-id=snap-id.req refs=~(wyt in refs.u.pin)]
     ::  Serve lobes from pinned refs (weir already checked at snap creation)
     =/  send=silo:nexus
@@ -334,9 +338,8 @@
     :(weld peer-cards ^-((list card) ~[[%pass timer-wire %arvo %b %rest expiry.u.pin]]) ^-((list card) ~[[%pass /want/[(scot %p src.bowl)] %agent [src.bowl %grubbery] %poke grubbery-transfer+!>(resp)]]))
     ::
       %grubbery-intake
-    ~&  >  [%grubbery-intake-raw src=src.bowl]
     =+  !<(resp=intake:remote:nexus vas)
-    ~&  >  [%grubbery-intake +<.resp src=src.bowl]
+    ~&  >  [%grubbery-intake src=src.bowl dest=dest.resp]
     =^  cards  state
       abet:(process-intake:hc src.bowl resp)
     [cards this]
@@ -706,7 +709,7 @@
   =.  this  (sub-put target watcher wire ~)
   =/  =wave:nexus  (wave-at:nexus born target)
   =/  resp=intake:remote:nexus
-    [wire %bond target wave]
+    [wire target wave]
   =.  cards
     :_  cards
     =/  dest=@p  (slav %p (snag 3 path.watcher))
@@ -809,11 +812,13 @@
         (~(put by jects.silo) lobe u.existing(refs +(refs.u.existing)))
       $(ject-entries t.ject-entries)
     ~&  >  [%peek-data-received nouns=~(wyt by nouns.got) jects=~(wyt by jects.got)]
-    ::  If we got nothing back, the snap likely expired — discharge
-    ::  affected peeks as %none so fibers don't hang forever.
-    ?.  &(=(~ nouns.got) =(~ jects.got))
-      discharge-peeks
-    ~&  >>  %peek-data-empty-discharging-as-none
+    discharge-peeks
+    ::
+      %miss
+    ::  Remote snap expired before want arrived. Discharge affected
+    ::  peeks as %miss so callers can retry.
+    ::
+    ~&  >>  [%miss-received-from src]
     =/  stale=(list [[=rail:tarball =wire] =peek:remote:nexus])
       %+  skim  ~(tap by peeks)
       |=  [[* *] pk=peek:remote:nexus]
@@ -821,46 +826,26 @@
     |-
     ?~  stale  this
     =/  [key=[=rail:tarball =wire] pk=peek:remote:nexus]  i.stale
-    =.  this  (enqu-take rail.key (sys-give /peek) ~ %peek wire.key &+[%none ~])
+    =.  this  (enqu-take rail.key (sys-give /peek) ~ %peek wire.key &+[%miss ~])
     =.  peeks  (~(del by peeks) key)
     $(stale t.stale)
   ==
-::  %bond/%wave: subscription events from remote watchers.
+::  Subscription wave from remote watcher. Translate dest back to
+::  namespaced lane and deliver %news to local watchers.
 ::
 ++  process-intake
   |=  [src=@p resp=intake:remote:nexus]
   ^+  this
-  ?-  +<.resp
-      %bond
-    ::  Initial wave from remote subscription. Translate dest back to
-    ::  namespaced lane and deliver %bond to local watchers.
-    ::
-    ~&  >  [%bond-received-from src dest=dest.resp]
-    =/  ns-lane=lane:tarball
-      =/  prefix=path  /sys/ames/ships/[(scot %p src)]/root
-      ?-(-.dest.resp %& [%& (weld prefix path.p.dest.resp) name.p.dest.resp], %| [%| (weld prefix p.dest.resp)])
-    =/  watchers=subscribers:nexus  (fwd-get ns-lane)
-    =.  this
-      %-  ~(rep by watchers)
-      |=  [[watcher=rail:tarball =wire blot=(unit blot:tarball)] acc=_this]
-      (enqu-take:acc watcher (sys-give:acc /bond) ~ %bond wire wave.resp)
-    this
-    ::
-      %wave
-    ::  Ongoing wave from remote subscription. Same as %bond but
-    ::  delivers %news to watchers.
-    ::
-    ~&  >  [%wave-received-from src dest=dest.resp]
-    =/  ns-lane=lane:tarball
-      =/  prefix=path  /sys/ames/ships/[(scot %p src)]/root
-      ?-(-.dest.resp %& [%& (weld prefix path.p.dest.resp) name.p.dest.resp], %| [%| (weld prefix p.dest.resp)])
-    =/  watchers=subscribers:nexus  (fwd-get ns-lane)
-    =.  this
-      %-  ~(rep by watchers)
-      |=  [[watcher=rail:tarball =wire blot=(unit blot:tarball)] acc=_this]
-      (enqu-take:acc watcher (sys-give:acc /news) ~ %news wire wave.resp)
-    this
-  ==
+  ~&  >  [%wave-received-from src dest=dest.resp]
+  =/  ns-lane=lane:tarball
+    =/  prefix=path  /sys/ames/ships/[(scot %p src)]/root
+    ?-(-.dest.resp %& [%& (weld prefix path.p.dest.resp) name.p.dest.resp], %| [%| (weld prefix p.dest.resp)])
+  =/  watchers=subscribers:nexus  (fwd-get ns-lane)
+  =.  this
+    %-  ~(rep by watchers)
+    |=  [[watcher=rail:tarball =wire blot=(unit blot:tarball)] acc=_this]
+    (enqu-take:acc watcher (sys-give:acc /news) ~ %news wire wave.resp)
+  this
 ::
 ++  abet
   |-
@@ -2258,7 +2243,7 @@
     ?:  ?=([%sys %ames %ships @ *] path.watcher)
       =/  dest=@p  (slav %p i.t.t.t.path.watcher)
       =/  resp=intake:remote:nexus
-        [wire %wave target wave]
+        [wire target wave]
       =.  cards.acc
         :_  cards.acc
         [%pass /wave/[(scot %p dest)] %agent [dest %grubbery] %poke grubbery-intake+!>(resp)]
@@ -2768,7 +2753,7 @@
       ::  Local subscribe
       =.  this  (sub-put u.dest-lane here wire.dart blot.load.dart)
       =/  =wave:nexus  (wave-at:nexus born u.dest-lane)
-      (enqu-take here (sys-give /bond) ~ %bond wire.dart wave)
+      (enqu-take here (sys-give /news) ~ %news wire.dart wave)
       ::
         %drop
       ::  Unsubscribe from dest
