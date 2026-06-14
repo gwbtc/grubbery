@@ -168,8 +168,8 @@
       [%skip ~]
     [%done kept.u.in]
   ==
-::  On %rise, log the error and wait for a poke to restart (expect %sig).
-::  On normal startup, continue immediately.
+::  On crash recovery (prod is [~ tang]), log the error and wait for a
+::  poke to restart (expect %sig). On clean start (prod is ~), continue.
 ::  Use at the top of a process to make it restartable:
 ::    ;<  ~  bind:m  (rise-wait prod "my-process: failed")
 ::    ::  startup code continues here
@@ -178,8 +178,8 @@
   |=  [=prod:fiber:nexus msg=tape]
   =/  m  (fiber ,~)
   ^-  form:m
-  ?.  ?=(%rise -.prod)  (pure:m ~)
-  %-  (slog leaf+msg tang.prod)
+  ?~  prod  (pure:m ~)
+  %-  (slog leaf+msg u.prod)
   ;<  =sage:tarball  bind:m  take-poke
   ?:  =([/ %sig] p.sage)
     (pure:m ~)

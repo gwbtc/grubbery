@@ -81,6 +81,7 @@
 ::
 ++  on-save
   ^-  vase
+  =.  pool  (bang-pool:hc pool)
   !>(state)
 ::
 ++  on-load
@@ -1535,6 +1536,23 @@
   ?~  fil.bole  ~
   `[neck.u.fil.bole weir.u.fil.bole gain.u.fil.bole ~ validated-contents]
 ::
+++  bang-pool
+  |=  =pool:nexus
+  ^-  pool:nexus
+  =/  new-fil=(unit pipe:nexus)
+    ?~  fil.pool  ~
+    =/  =pipe:nexus  u.fil.pool
+    :-  ~
+    %=  pipe
+      proc  %-  ~(run by proc.pipe)
+             |=  =proc:fiber:nexus
+             ?:  ?=(%| -.process.proc)  proc
+             proc(process |+~[leaf+"saving for reload"])
+    ==
+  =/  new-dir=(map @ta pool:nexus)
+    (~(run by dir.pool) bang-pool)
+  [new-fil new-dir]
+::
 ++  store-proc
   |=  [here=rail:tarball =proc:fiber:nexus]
   ^+  this
@@ -2022,7 +2040,7 @@
     =/  spool-res=(each spool:fiber:nexus tang)
       (mule |.((on-file:nxc rel blot)))
     =.  this  ?^((get-born file-rail) this (init-born file-rail))
-    =.  this  (spawn-proc-with file-rail [%load ~] spool-res)
+    =.  this  (spawn-proc-with file-rail ~ spool-res)
     $(files t.files)
   ::  Recurse into children
   =/  kids=(list [@ta bole:tarball])  ~(tap by dir.new)
@@ -3100,7 +3118,7 @@
     ?:  ?=(%| -.spool-res)
       (bang-file here p.spool-res)
     =/  proc-res=(each process:fiber:nexus tang)
-      (mule |.((p.spool-res [%rise err.res])))
+      (mule |.((p.spool-res `err.res)))
     ?:  ?=(%| -.proc-res)
       (bang-file here p.proc-res)
     =/  merged-skip=(qeu take:fiber:nexus)
@@ -3170,7 +3188,7 @@
       ~|("make failed: validation error" (mean p.validated))
     =.  this  (save-file dest-rail [p.bask %& p.validated])
     ::  Spawn process (respawns if already exists via store-proc)
-    (spawn-proc dest-rail [%make ~])
+    (spawn-proc dest-rail ~)
   ==
 ::
 ++  cull
@@ -4475,7 +4493,7 @@
   =?  this  =(~ (~(get bo:nexus now.bowl born) ship-dir %'ship.sig'))
     =/  ship-rail=rail:tarball  [ship-dir %'ship.sig']
     =.  this  (save-file ship-rail [[/ %sig] %& !>(~)])
-    (spawn-proc ship-rail [%load ~])
+    (spawn-proc ship-rail ~)
   ::  Set weir (our ship gets none — full access)
   ?:  =(src our.bowl)  this
   =/  =weir:nexus  (compute-peer-weir src)

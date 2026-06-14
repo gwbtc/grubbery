@@ -218,11 +218,7 @@
   +$  take  [=give in=(unit intake)]
   :: Three situations for process initialization
   ::
-  +$  prod
-    $%  [%make ~]     :: making new file
-        [%load ~]     :: nexus was reloaded
-        [%rise =tang] :: failed while running
-    ==
+  +$  prod  (unit tang)    :: ~ = clean start, [~ tang] = crash recovery
   ::
   ++  output-raw
     |*  value=mold

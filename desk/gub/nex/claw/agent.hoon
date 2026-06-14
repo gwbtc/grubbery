@@ -1484,11 +1484,11 @@
   |=  =prod:fiber:nexus
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
-  ?.  ?=(%rise -.prod)  (pure:m ~)
-  %-  (slog leaf+"%claw tool crashed" tang.prod)
+  ?~  prod  (pure:m ~)
+  %-  (slog leaf+"%claw tool crashed" u.prod)
   ;<  st=tool-state:nex-tools  bind:m
     (get-state-as:io ,tool-state:nex-tools)
-  =/  err-msg=@t  (render-tang:build tang.prod)
+  =/  err-msg=@t  (render-tang:build u.prod)
   =/  result-data=json
     (pairs:enjs:format ~[['type' s+'error'] ['message' s+(crip "crash\0a{(trip err-msg)}")]])
   =/  new-vase=(each vase tang)

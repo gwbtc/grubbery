@@ -16,11 +16,11 @@
       |=  =prod:fiber:nexus
       =/  m  (fiber:fiber:nexus ,~)
       ^-  form:m
-      ?.  ?=(%rise -.prod)  (pure:m ~)
-      %-  (slog leaf+"%mcp tool crashed" tang.prod)
+      ?~  prod  (pure:m ~)
+      %-  (slog leaf+"%mcp tool crashed" u.prod)
       ;<  st=tool-state:nex-tools  bind:m
         (get-state-as:io ,tool-state:nex-tools)
-      =/  err-msg=@t  (render-tang:build tang.prod)
+      =/  err-msg=@t  (render-tang:build u.prod)
       =/  result-data=json
         (pairs:enjs:format ~[['type' s+'error'] ['message' s+(crip "crash\0a{(trip err-msg)}")]])
       (replace:io `tool-state:nex-tools`[tool.st args.st %done data.st `result-data])

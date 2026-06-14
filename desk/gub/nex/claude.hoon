@@ -77,9 +77,7 @@
         ;<  ~  bind:m  (rise-wait:io prod "%claude: failed")
         =/  msg-road=road:tarball  (cord-to-road:tarball './messages.claude-messages')
         ::  On restart, just resume. Keeps and flights survive — wires still route.
-        ?:  ?=(%rise -.prod)
-          ~&  >  %claude-registry-reboot
-          (main-loop msg-road)
+        =?  .  ?=(^ prod)  ~&(> %claude-registry-reboot .)
         (main-loop msg-road)
       ::  /weir.txt — live view of parent directory weir
       ::
