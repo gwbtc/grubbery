@@ -69,51 +69,15 @@
 ::
 ++  on-init
   ^-  (quip card _this)
-  ::  Seed bootstrap marcs into bins before any code compilation
-  =^  bootstrap-cards  state  abet:bootstrap-marcs:hc
   ::  Bootstrap root tree with /code namespace stub.
   ::  Must run BEFORE sync-gub so sync-gub fills /code rather than
   ::  the root bole stomping /code's files after the fact.
   =/  root-bole=bole:tarball
     :-  `[`[/ %root] ~ %.n ~]
     (malt ~[[%code [`[`[/ %code] ~ %.n ~] ~]]])
-  =^  root-tree-cards  state
-    abet:(load-ball-changes:hc / root-bole)
-  ::  Compile code from Clay — fills /code with sources and compiles
-  =^  gub-cards  state  abet:sync-gub:hc
-  ::  Reload root nexus (after code compile so child nexuses can build)
-  =^  root-cards  state  abet:(reload-nexus-at:hc / root)
-  ::  Purge stale code namespaces, then register new ones
-  =^  purge-cards  state  abet:purge-stale-code:hc
-  =^  code-cards  state  abet:(build-new-code-namespaces:hc / (peek-bole-now:hc /))
-  =^  spawn-cards  state  abet:(spawn-all-files:hc / (peek-bole-now:hc /))
-  =^  dill-cards  state  abet:sync-dill:hc
-  =^  clay-cards  state  abet:sync-clay:hc
-  =^  jael-cards  state  abet:sync-jael:hc
-  =^  bowl-cards  state  abet:sync-bowl:hc
-  =^  peer-cards  state  abet:sync-peer:hc
-  =^  gall-cards  state  abet:sync-gall:hc
-  =^  eyre-cards  state  abet:sync-eyre:hc
-  =^  push-cards  state  abet:sync-push:hc
-  :_  this
-  ;:  weld
-    bootstrap-cards
-    root-tree-cards
-    root-cards
-    purge-cards
-    code-cards
-    spawn-cards
-    gub-cards
-    dill-cards
-    clay-cards
-    jael-cards
-    bowl-cards
-    peer-cards
-    gall-cards
-    eyre-cards
-    push-cards
-    cards
-  ==
+  =^  init-cards  state  abet:(load-ball-changes:hc / root-bole)
+  =^  start-cards  state  abet:cold-start:hc
+  :_(this (weld init-cards start-cards))
 ::
 ++  on-save
   ^-  vase
@@ -125,45 +89,9 @@
   =/  old  !<(versioned-state old-state)
   ?-    -.old
       %0
-    ::  Restore all state, clear transient snaps
     =.  state  old
-    =.  snaps  ~
-    ::  Seed bootstrap marcs into bins
-    =^  bootstrap-cards  state  abet:bootstrap-marcs:hc
-    ::  Compile code from Clay (cascades nexus on-loads)
-    =^  gub-cards    state  abet:sync-gub:hc
-    ::  Reload root nexus (hardcoded — runs on every app reload, after code compile)
-    =^  root-cards   state  abet:(reload-nexus-at:hc / root)
-    ::  Purge stale code namespaces, then register new ones
-    =^  purge-cards  state  abet:purge-stale-code:hc
-    =^  code-cards   state  abet:(build-new-code-namespaces:hc / (peek-bole-now:hc /))
-    =^  spawn-cards  state  abet:(spawn-all-files:hc / (peek-bole-now:hc /))
-    =^  dill-cards   state  abet:sync-dill:hc
-    =^  clay-cards   state  abet:sync-clay:hc
-    =^  jael-cards   state  abet:sync-jael:hc
-    =^  bowl-cards   state  abet:sync-bowl:hc
-    =^  peer-cards   state  abet:sync-peer:hc
-    =^  gall-cards   state  abet:sync-gall:hc
-    =^  eyre-cards   state  abet:sync-eyre:hc
-    =^  push-cards   state  abet:sync-push:hc
-    :_  this
-    ;:  weld
-      bootstrap-cards
-      root-cards
-      purge-cards
-      code-cards
-      spawn-cards
-      gub-cards
-      dill-cards
-      clay-cards
-      jael-cards
-      bowl-cards
-      peer-cards
-      gall-cards
-      eyre-cards
-      push-cards
-      cards
-    ==
+    =^  start-cards  state  abet:cold-start:hc
+    [start-cards this]
   ==
 ::
 ++  on-poke
@@ -602,6 +530,23 @@
 =|  takes=(qeu take:nexus)
 |_  =bowl:gall
 +*  this  .
+::
+++  cold-start
+  ^-  _this
+  =.  this  bootstrap-marcs
+  =.  this  sync-gub
+  =.  this  (reload-nexus-at / root)
+  =.  this  purge-stale-code
+  =.  this  (build-new-code-namespaces / (peek-bole-now /))
+  =.  this  (spawn-all-files / (peek-bole-now /))
+  =.  this  sync-dill
+  =.  this  sync-clay
+  =.  this  sync-jael
+  =.  this  sync-bowl
+  =.  this  sync-peer
+  =.  this  sync-gall
+  =.  this  sync-eyre
+  sync-push
 ::  +put-pace: write a pace into a born tree at the given dest lane.
 ::  Used to record remote peek results.
 ::
@@ -2435,6 +2380,21 @@
     [%peek ~]  :: direct: no dest, bypasses weir
   ==
 ::
+::  +resolve-remote: check if a lane is under /sys/ames/ships/ and
+::  extract the target ship and real (non-ames) dest lane.
+::
+++  resolve-remote
+  |=  =lane:tarball
+  ^-  (unit [@p lane:tarball])
+  =/  pax=path
+    ?-(-.lane %& path.p.lane, %| p.lane)
+  ?.  ?=([%sys %ames %ships @ %root *] pax)
+    ~
+  =/  target=@p  (slav %p i.t.t.t.pax)
+  =/  real-path=path  t.t.t.t.t.pax
+  :-  ~  :-  target
+  ?-(-.lane %& [%& real-path name.p.lane], %| [%| real-path])
+::
 ++  handle-dart
   |=  [here=rail:tarball =dart:nexus =filt:nexus]
   ^+  this
@@ -2500,7 +2460,6 @@
       ?-  -.res
         %&  (enqu-take:p.res here (sys-give /made) ~ %made wire.dart ~)
           %|
-        ::  Runtime services (/sys/) crash on make failure
         ?:  =(/sys (scag 1 path.here))
           (mean p.res)
         (enqu-take here (sys-give /made) ~ %made wire.dart `p.res)
@@ -2543,15 +2502,7 @@
       ::  The fiber suspends until discharge-peeks sends the intake back.
       ::
       ?>  ?=(^ dest-lane)
-      =/  remote=(unit [@p lane:tarball])
-        =/  pax=path
-          ?-(-.u.dest-lane %& path.p.u.dest-lane, %| p.u.dest-lane)
-        ?.  ?=([%sys %ames %ships @ %root *] pax)
-          ~
-        =/  target=@p  (slav %p i.t.t.t.pax)
-        =/  real-path=path  t.t.t.t.t.pax
-        :-  ~  :-  target
-        ?-(-.u.dest-lane %& [%& real-path name.p.u.dest-lane], %| [%| real-path])
+      =/  remote=(unit [@p lane:tarball])  (resolve-remote u.dest-lane)
       ?^  remote
         =/  [target=@p real-dest=lane:tarball]  u.remote
         =/  key=[rail:tarball wire]  [here wire.dart]
@@ -2731,15 +2682,7 @@
         %keep
       ::  Subscribe to changes at dest (uses peek permission)
       ?>  ?=(^ dest-lane)
-      =/  remote=(unit [@p lane:tarball])
-        =/  pax=path
-          ?-(-.u.dest-lane %& path.p.u.dest-lane, %| p.u.dest-lane)
-        ?.  ?=([%sys %ames %ships @ %root *] pax)
-          ~
-        =/  target=@p  (slav %p i.t.t.t.pax)
-        =/  real-path=path  t.t.t.t.t.pax
-        :-  ~  :-  target
-        ?-(-.u.dest-lane %& [%& real-path name.p.u.dest-lane], %| [%| real-path])
+      =/  remote=(unit [@p lane:tarball])  (resolve-remote u.dest-lane)
       ?^  remote
         ::  Remote subscribe: register locally and send %keep to remote
         =/  [target=@p real-dest=lane:tarball]  u.remote
@@ -2758,15 +2701,7 @@
         %drop
       ::  Unsubscribe from dest
       ?>  ?=(^ dest-lane)
-      =/  remote=(unit [@p lane:tarball])
-        =/  pax=path
-          ?-(-.u.dest-lane %& path.p.u.dest-lane, %| p.u.dest-lane)
-        ?.  ?=([%sys %ames %ships @ %root *] pax)
-          ~
-        =/  target=@p  (slav %p i.t.t.t.pax)
-        =/  real-path=path  t.t.t.t.t.pax
-        :-  ~  :-  target
-        ?-(-.u.dest-lane %& [%& real-path name.p.u.dest-lane], %| [%| real-path])
+      =/  remote=(unit [@p lane:tarball])  (resolve-remote u.dest-lane)
       ?^  remote
         ::  Remote unsubscribe
         =/  [target=@p real-dest=lane:tarball]  u.remote
