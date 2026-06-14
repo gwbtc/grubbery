@@ -701,6 +701,28 @@
       ; .boom-modal { background: #fff; border: 2px solid #cb2431; border-radius: 8px; padding: 16px; max-width: 80vw; max-height: 80vh; overflow: auto; min-width: 400px; }
       ; .boom-modal h3 { color: #cb2431; margin: 0 0 8px; }
       ; .boom-modal pre { white-space: pre-wrap; font-size: 12px; margin: 0; max-height: 60vh; overflow: auto; background: #ffeef0; padding: 8px; border-radius: 4px; }
+      ; .actions-cell { white-space: nowrap; }
+      ; .actions-cell button, .actions-cell .del-form button { padding: 4px 8px; }
+      ; @media (max-width: 768px) {
+      ;   body { margin: 10px; font-size: 14px; }
+      ;   h1 { font-size: 16px; }
+      ;   .col-blot, .col-mime, .col-mtime { display: none; }
+      ;   .actions-cell button, .actions-cell .del-form button { padding: 6px 10px; }
+      ;   .action-row { flex-wrap: wrap; }
+      ;   .action-row label { min-width: unset; width: 100%; margin-bottom: 4px; }
+      ;   .inline-form { flex-wrap: wrap; width: 100%; }
+      ;   .inline-form input[type="text"] { width: 100%; min-width: 0; }
+      ;   .info dt { float: none; width: auto; }
+      ;   .info dd { margin-left: 0; }
+      ;   table { font-size: 13px; }
+      ;   th, td { padding: 6px 4px; }
+      ;   .boom-modal { min-width: unset; width: 90vw; }
+      ; }
+      ; @media (max-width: 480px) {
+      ;   body { margin: 6px; }
+      ;   .actions-cell { display: flex; flex-wrap: wrap; gap: 4px; }
+      ;   .col-size { display: none; }
+      ; }
     ==
   ==
 ::
@@ -962,10 +984,10 @@
       ;table#listing(data-path (trip (spat pax)))
         ;tr
           ;th.sortable(data-col "0", onclick "sortTable(0)"): Name
-          ;th.sortable(data-col "1", onclick "sortTable(1)"): Blot
-          ;th.sortable(data-col "2", onclick "sortTable(2)"): Mime Type
+          ;th.sortable.col-blot(data-col "1", onclick "sortTable(1)"): Blot
+          ;th.sortable.col-mime(data-col "2", onclick "sortTable(2)"): Mime Type
           ;th.sortable(data-col "3", onclick "sortTable(3)"): Size
-          ;th.sortable(data-col "4", onclick "sortTable(4)"): Modified
+          ;th.sortable.col-mtime(data-col "4", onclick "sortTable(4)"): Modified
           ;th: Actions
         ==
         ;*
@@ -979,10 +1001,10 @@
             ;td
               ;a/"{parent-url}": ../
             ==
+            ;td.col-blot: -
+            ;td.col-mime: -
             ;td: -
-            ;td: -
-            ;td: -
-            ;td: -
+            ;td.col-mtime: -
             ;td: -
           ==
         ::  Subdirectories
@@ -1263,11 +1285,11 @@
           :~  ;span.boom-icon(data-tang rendered, onclick "showBoom(this)"): !
           ==
     ==
+    ;td.col-blot: -
+    ;td.col-mime: -
     ;td: -
-    ;td: -
-    ;td: -
-    ;td: -
-    ;td
+    ;td.col-mtime: -
+    ;td.actions-cell
       ;a/"{dir-url}?download=tar"
         ;button(type "button"): Download
       ==
@@ -1310,11 +1332,11 @@
         ;a/"{target-url}": {(trip name)}
         ;span.symlink-target:  -> {target-display}
       ==
-      ;td: symlink
+      ;td.col-blot: symlink
+      ;td.col-mime: -
       ;td: -
-      ;td: -
-      ;td: {mtime-display}
-      ;td
+      ;td.col-mtime: {mtime-display}
+      ;td.actions-cell
         ;form.del-form(method "POST", action url-prefix)
           ;input(type "hidden", name "action", value "delete-grub");
           ;input(type "hidden", name "filename", value (trip name));
@@ -1351,7 +1373,7 @@
           ==
     ==
     ::  Blot link: governing /code namespace + /mar/ + blot rail
-    ;td(class mark-class)
+    ;td.col-blot(class mark-class)
       ;*  =/  mark-url=(unit tape)
             ?~  code-namespace  ~
             =/  mar-path=path  (weld u.code-namespace (weld /mar (rail-to-path:tarball p.sag)))
@@ -1362,10 +1384,10 @@
           :~  ;a/"{u.mark-url}": {mark-name}
           ==
     ==
-    ;td: {mime-display}
+    ;td.col-mime: {mime-display}
     ;td: {(format-size p.q.mime)}
-    ;td: {mtime-display}
-    ;td
+    ;td.col-mtime: {mtime-display}
+    ;td.actions-cell
       ;a/"{file-url}"(download display-name)
         ;button(type "button"): Download
       ==
