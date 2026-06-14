@@ -1129,6 +1129,16 @@
   =/  built-res  (seek-built pax (weld /mar path.blot) name.blot)
   ?~  built-res  this
   (vale-put lob ckey.u.built-res ?:(?=(%& -.res) ~ `p.res))
+::  Validate a noun against its mark, using the cache if possible.
+::  Caches the result on miss. Returns validated vase or error tang.
+::
+++  validate-cached
+  |=  [pax=path =blot:tarball noun=*]
+  ^-  [(each vase tang) _this]
+  =/  cached  (check-vale-cache pax blot noun)
+  ?^  cached  [u.cached this]
+  =/  res=(each vase tang)  (validate-noun pax blot noun)
+  [res (cache-validation pax blot noun res)]
 ::
 ++  get-tube
   |=  [pax=path =bars:tarball]
@@ -1471,13 +1481,9 @@
     ?~  files  out
     =/  [name=@ta =sang:tarball gain=? bang=(unit tang)]  i.files
     =/  noun=*  (sang-noun:tarball sang)
-    =/  cached  (check-vale-cache cod p.sang noun)
-    =/  res=(each vase tang)
-      ?^  cached  u.cached
-      ~|  [%validate-ball name (weld cod here) p.sang]
-      (validate-noun cod p.sang noun)
-    =?  this  ?=(~ cached)
-      (cache-validation cod p.sang noun res)
+    ~|  [%validate-ball name (weld cod here) p.sang]
+    =^  res=(each vase tang)  this
+      (validate-cached cod p.sang noun)
     ?.  ?=(%& -.res)
       ~&  >>  "validate-ball: boom {(trip name)} (mark %{(trip name.p.sang)}) at {(spud (weld cod here))}"
       $(files t.files, out (~(put by out) name [[p.sang %| [p.res noun]] gain bang]))
@@ -2413,12 +2419,8 @@
       ?>  ?=(%& -.u.dest-lane)
       =/  dest=rail:tarball  p.u.dest-lane
       ::  Validate poke bask → sage
-      =/  cached  (check-vale-cache path.dest p.bask.load.dart q.bask.load.dart)
-      =/  validated=(each vase tang)
-        ?^  cached  u.cached
-        (validate-noun path.dest p.bask.load.dart q.bask.load.dart)
-      =?  this  ?=(~ cached)
-        (cache-validation path.dest p.bask.load.dart q.bask.load.dart validated)
+      =^  validated=(each vase tang)  this
+        (validate-cached path.dest p.bask.load.dart q.bask.load.dart)
       ?:  ?=(%| -.validated)
         ?:  ?=([%sys %ames %ships @ ~] path.here)
           ~|  [%peer-clam-failed name.here dest]  !!
@@ -2588,12 +2590,8 @@
         ::  Validate peek result
         =/  =sage:tarball  (need-sage:tarball u.source)
         =/  clammed=sage:tarball
-          =/  cached  (check-vale-cache cod p.sage q.q.sage)
-          =/  validated=(each vase tang)
-            ?^  cached  u.cached
-            (validate-noun cod p.sage q.q.sage)
-          =?  this  ?=(~ cached)
-            (cache-validation cod p.sage q.q.sage validated)
+          =^  validated=(each vase tang)  this
+            (validate-cached cod p.sage q.q.sage)
           ?:  ?=(%| -.validated)
             ~|(%peek-clam-failed !!)
           [p.sage p.validated]
@@ -2928,11 +2926,8 @@
   |=  [here=rail:tarball =blot:tarball old=vase new=*]
   ^-  (each [vase _this] tang)
   ?:  =(new q.old)  [%& old this]
-  =/  cached  (check-vale-cache path.here blot new)
-  =/  res=(each vase tang)
-    ?^  cached  u.cached
-    (validate-noun path.here blot new)
-  =.  this  (cache-validation path.here blot new res)
+  =^  res=(each vase tang)  this
+    (validate-cached path.here blot new)
   ?:  ?=(%& -.res)
     [%& p.res this]
   [%| p.res]
@@ -3169,12 +3164,8 @@
       =/  =tube:clay  (get-tube path.dest-rail [p.bask.p.make u.blot.p.make])
       [u.blot.p.make q:(tube p.src)]
     ::  Validate the bask before storing
-    =/  cached  (check-vale-cache path.dest-rail p.bask q.bask)
-    =/  validated=(each vase tang)
-      ?^  cached  u.cached
-      (validate-noun path.dest-rail p.bask q.bask)
-    =?  this  ?=(~ cached)
-      (cache-validation path.dest-rail p.bask q.bask validated)
+    =^  validated=(each vase tang)  this
+      (validate-cached path.dest-rail p.bask q.bask)
     ?:  ?=(%| -.validated)
       ~|("make failed: validation error" (mean p.validated))
     =.  this  (save-file dest-rail [p.bask %& p.validated])
