@@ -136,7 +136,8 @@
         |-
         ;<  [=from:fiber:nexus =sage:tarball]  bind:m  take-poke-from:io
         ?.  =(%json name.p.sage)  $
-        ;<  ~  bind:m  (replace:io q.q.sage)
+        =/  new-meta=json  !<(json q.sage)
+        ;<  ~  bind:m  (replace:io new-meta)
         $
           ::
           ::  vault/*.md: passive notes, accept content pokes
@@ -145,7 +146,8 @@
         ;<  ~  bind:m  (rise-wait:io prod "%rhizome /vault: failed")
         |-
         ;<  [=from:fiber:nexus =sage:tarball]  bind:m  take-poke-from:io
-        ;<  ~  bind:m  (replace:io q.q.sage)
+        =/  new-note=@t  !<(@t q.sage)
+        ;<  ~  bind:m  (replace:io new-note)
         $
       ==
     ::
