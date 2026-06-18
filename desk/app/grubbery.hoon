@@ -2383,16 +2383,13 @@
     =/  dest-lane=(unit lane:tarball)  (lane-from-road:tarball [%& here] road.dart)
     :_  dest-lane
     ?-  -.load.dart
-      ?(%peek %keep %drop %seek %peep %manu %code %font)  %peek  :: read operations
+      ?(%peek %keep %drop %seek %peep %code %font)  %peek  :: read operations
       %poke                       %poke
         $?  %make  %cull  %sand  %load
             %lose  %gain  %firm
         ==
       %make  :: all modify tree structure
     ==
-    ::
-      %manu
-    [%peek ~]  :: direct: no dest, bypasses weir
   ==
 ::
 ::  +resolve-remote: check if a lane is under /sys/ames/ships/ and
@@ -2797,57 +2794,7 @@
         %&  (enqu-take:p.res here (sys-give /firm) ~ %held wire.dart ~)
         %|  (enqu-take here (sys-give /firm) ~ %held wire.dart `p.res)
       ==
-      ::
-        %manu
-      ::  By road: resolve, find nearest nexus, relativize, call on-manu
-      =/  target-path=path
-        ?-(-.u.dest-lane %& (snoc path.p.u.dest-lane name.p.u.dest-lane), %| p.u.dest-lane)
-      ::  Walk up tree to find nearest covering nexus
-      =/  nex-info=(unit (pair path neck:tarball))
-        |-
-        =/  sub  (peek-ball-now target-path)
-        ?.  |(?=(^ fil.sub) !=(~ dir.sub))
-          ?~  target-path  ~
-          $(target-path (snip `path`target-path))
-        ?:  ?&(?=(^ fil.sub) ?=(^ neck.u.fil.sub))
-          `[target-path u.neck.u.fil.sub]
-        ?~  target-path  ~
-        $(target-path (snip `path`target-path))
-      ?~  nex-info
-        (enqu-take here (sys-give /manu) ~ %manu wire.dart |+~[leaf+"no nexus covers this path"])
-      ::  ~&  >  "process-manu-search: build-nexus {(trip q.u.nex-info)} at {(spud (snoc path.here name.here))}"
-      =/  nex-res=(each nexus:nexus tang)  (build-nexus cod q.u.nex-info)
-      ?:  ?=(%| -.nex-res)
-        (enqu-take here (sys-give /manu) ~ %manu wire.dart |+~[leaf+"nexus build failed: {(trip (rail-to-arm:tarball q.u.nex-info))}"])
-      ::  Relativize target path to nexus location
-      =/  rel-path=path  (slag (lent p.u.nex-info) target-path)
-      ::  Build query from relative path + lane type
-      =/  =mana:nexus
-        ?-    -.u.dest-lane
-            %|  [%& rel-path]
-            %&
-          ?~  rel-path
-            [%& ~]
-          =/  manu-content  (peek-grub-now path.p.u.dest-lane name.p.u.dest-lane)
-          =/  =blot:tarball
-            (fall (bind manu-content |=(c=sang:tarball p.c)) *blot:tarball)
-          [%| [(snip `path`rel-path) (rear rel-path)] blot]
-        ==
-      =/  manu-res=(each @t tang)
-        (mule |.((on-manu:p.nex-res mana)))
-      (enqu-take here (sys-give /manu) ~ %manu wire.dart manu-res)
     ==
-    ::
-      %manu
-    ::  Direct: build nexus from neck, call on-manu directly
-    ::  ~&  >  "process-manu-direct: build-nexus {(trip neck.dart)} at {(spud (snoc path.here name.here))}"
-    =/  nex-res=(each nexus:nexus tang)  (build-nexus cod neck.dart)
-    ?:  ?=(%| -.nex-res)
-      (enqu-take here (sys-give /manu) ~ %manu wire.dart |+~[leaf+"nexus not found: {(trip (rail-to-arm:tarball neck.dart))}"])
-    =/  manu-res=(each @t tang)
-      (mule |.((on-manu:p.nex-res mana.dart)))
-    (enqu-take here (sys-give /manu) ~ %manu wire.dart manu-res)
-    ::
     ::
       %here
     ::  Request location — walk up, reveal as much as allowed

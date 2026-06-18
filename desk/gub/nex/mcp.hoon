@@ -7,6 +7,7 @@
 ::
 /<  nex-mcp     /lib/nex/mcp.hoon
 /<  nex-tools   /lib/nex/tools.hoon
+/&  man  ../man/mcp/readme.md
 =>  |%
     ++  srv  ~(. http-res:io [%| 1 %& ~ %'main.sig'])
     ::  On crash, write error to tool state so MCP returns it.
@@ -92,6 +93,7 @@
         [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
         [%fall %| /requests empty-dir:loader]
         [%fall %| /tools empty-dir:loader]
+        [%over %& [/man %'readme.md'] [[/ %mime] man]]
     ==
       [~ %1]
     (ball-to-bole:tarball ball)
@@ -226,42 +228,5 @@
       ==
       ==
     (replace:io `tool-state:nex-tools`[tool.st args.st %done data.st `result-json])
-  ==
-++  on-manu
-  |=  =mana:nexus
-  ^-  @t
-  ?-    -.mana
-      %&
-    ?+  p.mana  'Subdirectory under the MCP nexus.'
-        ~
-      %-  crip
-      """
-      MCP NEXUS — Model Context Protocol JSON-RPC tool server
-
-      Exposes Hoon-defined tools to AI clients (Claude Code, etc.) via
-      the MCP JSON-RPC protocol. Tools are compiled by the standard
-      build pipeline (gub/lib/mcp/) and looked up from bins at runtime.
-
-      FILES:
-        main.sig            HTTP binding process. Registers /grubbery/mcp
-                            with the server, handles JSON-RPC dispatch.
-        ver.ud              Schema version.
-
-      DIRECTORIES:
-        tools/              Running tool instances. Each active tool call
-                            gets a fiber here (tool-state mark). Cleaned
-                            up on completion.
-        requests/           Per-request fibers for active HTTP connections.
-      """
-        [%tools ~]
-      'Running tool instances. Each active tool call gets a fiber here with its state (tool-state mark). Cleaned up on completion.'
-        [%requests ~]
-      'Per-request fibers for active MCP HTTP connections.'
-    ==
-      %|
-    ?+  rail.p.mana  'File under the MCP nexus.'
-      [~ %'main.sig']     'MCP HTTP binding process. Mark: sig. Registers /grubbery/mcp with the server, parses JSON-RPC requests, dispatches to tool fibers in /tools/.'
-      [~ %'ver.ud']       'Schema version counter. Mark: ud.'
-    ==
   ==
 --

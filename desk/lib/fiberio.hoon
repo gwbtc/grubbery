@@ -15,7 +15,6 @@
     %here  ~[leaf+"vetoed here request on wire {(spud wire.dart)}"]
     %kept  ~[leaf+"vetoed kept request on wire {(spud wire.dart)}"]
     %node  ~[leaf+"vetoed node operation on wire {(spud wire.dart)} dest {<road.dart>} load {<-.load.dart>}"]
-    %manu  ~[leaf+"vetoed manu request on wire {(spud wire.dart)}"]
   ==
 ::
 ++  send-darts
@@ -362,41 +361,6 @@
   ^-  form:m
   ;<  =seen:nexus  bind:m  (peek road ~)
   (pure:m ?&(?=(%& -.seen) !?=(%none -.p.seen)))
-::
-::  Direct manu: query a known nexus by neck
-::
-++  manu
-  |=  [=neck:tarball =mana:nexus]
-  =/  m  (fiber ,@t)
-  ^-  form:m
-  ;<  ~  bind:m  (send-dart %manu /manu neck mana)
-  (take-manu /manu)
-::  Road manu: query docs for a path (system resolves nexus)
-::
-++  manu-road
-  |=  =road:tarball
-  =/  m  (fiber ,@t)
-  ^-  form:m
-  ;<  ~  bind:m  (send-dart %node /manu road %manu ~)
-  (take-manu /manu)
-::
-++  take-manu
-  |=  =wire
-  =/  m  (fiber ,@t)
-  ^-  form:m
-  |=  input
-  :+  ~  q.state
-  ?+  in  [%skip ~]
-      ~  [%wait ~]
-      [~ %veto *]
-    [%fail (veto-error dart.u.in)]
-      [~ %manu * *]
-    ?.  =(wire wire.u.in)
-      [%skip ~]
-    ?:  ?=(%| -.res.u.in)
-      [%fail %manu-failed p.res.u.in]
-    [%done p.res.u.in]
-  ==
 ::
 ++  cull
   |=  =road:tarball

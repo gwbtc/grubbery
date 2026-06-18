@@ -18,6 +18,7 @@
 ::  page.html           -- control panel
 ::
 /<  *  /lib/s3.hoon
+/&  man  ../../man/s3/bridge/readme.md
 =<  ^-  nexus:nexus
     |%
     ++  on-load
@@ -45,6 +46,7 @@
             [%fall %& [/ %'sync-status.json'] [[/ %json] [%a ~]]]
             [%fall %| /sync empty-dir:loader]
             [%over %& [/ %'page.html'] [[/ %html] (manx-to-html (bridge-page ~))]]
+            [%over %& [/man %'readme.md'] [[/ %mime] man]]
         ==
       ==
     ::
@@ -296,27 +298,6 @@
         ;<  ~  bind:m
           (log-msg 'info' (crip "Sync #{(trip id)}: {<(lent changed)>} updated, {<(lent deleted)>} deleted"))
         $(known now)
-      ==
-    ::
-    ++  on-manu
-      |=  =mana:nexus
-      ^-  @t
-      ?-    -.mana
-          %&
-        ?+  p.mana  'S3 bridge sync directory.'
-            ~
-          'Bidirectional S3 sync. Pull from and push to S3 buckets.'
-        ==
-          %|
-        ?+  rail.p.mana  'S3 bridge file.'
-          [~ %'creds.json']             'S3 credentials (access_key, secret_key, region, bucket, endpoint).'
-          [~ %'source.json']            'S3 key for remote mapping source. Empty string = disabled.'
-          [~ %'mapping.json']            'Bridge definitions: id, s3-prefix, local-path.'
-          [~ %'log.json']               'Operation log: [{time, level, message}...], newest first, max 50.'
-          [~ %'browse.json']            'Cached S3 bucket listing with fetch timestamp.'
-          [~ %'main.sig']               'Poke with JSON {action} to pull/sync/unsync/add/delete/browse.'
-          [~ %'page.html']              'S3 bridge control panel.'
-        ==
       ==
     --
 ::

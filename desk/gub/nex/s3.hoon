@@ -7,6 +7,7 @@
 ::  page.html    -- control panel UI
 ::
 /<  *  /lib/s3.hoon
+/&  man  ../man/s3/readme.md
 =<  ^-  nexus:nexus
     |%
     ++  on-load
@@ -30,6 +31,7 @@
             [%fall %& [/ %'mounts.json'] [[/ %json] [%o ~]]]
             [%fall %| /mounts empty-dir:loader]
             [%over %& [/ %'page.html'] [[/ %html] (crip (en-xml:html s3-page))]]
+            [%over %& [/man %'readme.md'] [[/ %mime] man]]
         ==
       ==
     ::
@@ -144,26 +146,6 @@
             (do-delete cfg key name)
           ==
         $
-      ==
-    ::
-    ++  on-manu
-      |=  =mana:nexus
-      ^-  @t
-      ?-    -.mana
-          %&
-        ?+  p.mana  'Directory under S3 storage.'
-            ~
-          'S3-compatible object storage. Pull/push between S3 and the ball namespace.'
-            [%mounts ~]
-          'Mount directories, each synced to an S3 prefix.'
-        ==
-          %|
-        ?+  rail.p.mana  'File under S3 storage.'
-          [~ %'config.json']   'S3 credentials: access-key, secret-key, region, bucket, endpoint.'
-          [~ %'main.json']     'Poke with JSON {op, ...} to run S3 operations.'
-          [~ %'mounts.json']   'Map of mount name to S3 prefix.'
-          [~ %'page.html']     'S3 control panel.'
-        ==
       ==
     --
 ::

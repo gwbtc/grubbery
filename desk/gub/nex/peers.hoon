@@ -4,6 +4,7 @@
 ::  Server-renders HTML from /sys/ames/ data.
 ::  POST handlers for create/delete/edit operations.
 ::
+/&  man  ../man/peers/readme.md
 =<  ^-  nexus:nexus
     |%
     ++  on-load
@@ -16,6 +17,7 @@
         :~  (ver-row:loader 0)
             [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
             [%fall %| /requests empty-dir:loader]
+            [%over %& [/man %'readme.md'] [[/ %mime] man]]
         ==
       ==
     ::
@@ -43,23 +45,6 @@
         ?:  =('POST' method.request.req)
           (handle-post eyre-id suffix req)
         (handle-get eyre-id suffix)
-      ==
-    ::
-    ++  on-manu
-      |=  =mana:nexus
-      ^-  @t
-      ?-    -.mana
-          %&
-        ?+  p.mana  'Directory under peers.'
-            ~
-          'Peer management UI. Usergroups and ship permissions at /grubbery/peers/.'
-            [%requests ~]
-          'Per-request HTTP fibers.'
-        ==
-          %|
-        ?+  rail.p.mana  'File under peers.'
-          [~ %'main.sig']  'HTTP binding process for /grubbery/peers/.'
-        ==
       ==
     --
 ::

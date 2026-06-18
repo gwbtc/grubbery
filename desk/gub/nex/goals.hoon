@@ -1,3 +1,4 @@
+::
 ::  goals nexus: DAG-based goal tracking stores with web UI
 ::
 ::  /goals.goals/
@@ -165,6 +166,7 @@
 ::      real dependencies, not just preferred order.
 ::
 /<  goals       /lib/goals.hoon
+/&  man  ../man/goals/readme.md
 =<  ^-  nexus:nexus
     |%
     ++  on-load
@@ -178,6 +180,7 @@
             [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
             [%fall %& [/ %'page.html'] [[/ %html] (crip (en-xml:html (goals-page ~ ~)))]]
             [%fall %| /store empty-dir:loader]
+            [%over %& [/man %'readme.md'] [[/ %mime] man]]
         ==
       ==
     ::
@@ -322,36 +325,6 @@
         ;<  ~  bind:m  (replace:io -.result)
         ~&  >  [%goals-store store-name %applied -.act]
         $
-      ==
-    ++  on-manu
-      |=  =mana:nexus
-      ^-  @t
-      ?-    -.mana
-          %&
-        ?+  p.mana  'Subdirectory under the goals nexus.'
-            ~
-          %-  crip
-          """
-          GOALS NEXUS — DAG-based goal tracking with web UI
-
-          Manages goal stores, each containing a directed acyclic graph of
-          goals. Page at /grubbery/api/peek/goals.goals/page.html?mark=mime
-
-          FILES:
-            main.sig          Store management + JSON action routing.
-            page.html         Server-rendered goal view (manx).
-
-          DIRECTORIES:
-            store/            Goal stores (flat files).
-          """
-            [%store ~]
-          'Goal stores. Each file is an independent goal collection.'
-        ==
-          %|
-        ?+  rail.p.mana  'File under the goals nexus.'
-          [~ %'main.sig']   'Goals main process. Store management + JSON action routing.'
-          [~ %'page.html']  'Server-rendered goals page. Re-renders on store changes.'
-        ==
       ==
     --
 |%

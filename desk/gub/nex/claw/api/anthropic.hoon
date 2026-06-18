@@ -13,6 +13,7 @@
 ::    5. Fiber overwrites self with {status: "done", response: ...}
 ::    6. Caller gets news, reads response, drops subscription
 ::
+/&  man  ../../../man/claw/api/anthropic/readme.md
 =<  ^-  nexus:nexus
     |%
     ++  on-load
@@ -64,6 +65,7 @@
             [%fall %& [/ %'usage.json'] [[/ %json] default-usage]]
             [%fall %| /calls empty-dir:loader]
             [%over %& [/ %'page.html'] [[/ %html] (crip (en-xml:html usage-page))]]
+            [%over %& [/man %'readme.md'] [[/ %mime] man]]
         ==
       ==
     ::
@@ -155,35 +157,6 @@
         ;<  ~  bind:m  (replace:io result)
         ::  done — fiber exits, file remains for caller to read and clean up
         (pure:m ~)
-      ==
-    ::
-    ++  on-manu
-      |=  =mana:nexus
-      ^-  @t
-      ?-    -.mana
-          %&
-        ?+  p.mana  'Directory under the Anthropic API proxy.'
-            ~
-          %-  crip
-          ;:  weld
-            "ANTHROPIC API PROXY\0a\0a"
-            "Proxies requests to the Anthropic Messages API.\0a"
-            "Holds API key and URL in config.json.\0a\0a"
-            "Poke main.sig with \{\"id\": \"call-id\", \"body\": \{...api body...}}.\0a"
-            "Subscribe to calls/[id].json before poking to get the response.\0a"
-            "Response arrives as \{\"status\": \"done\", \"response\": \{...}}.\0a"
-          ==
-            [%calls ~]
-          'Per-request lifecycle files. Each call gets its own file and fiber.'
-        ==
-          %|
-        ?+  rail.p.mana  'File under the Anthropic API proxy.'
-          [~ %'config.json']   'API config: api-key, url, input-cost, output-cost (per million tokens).'
-          [~ %'main.sig']      'Poke with JSON (id + body) to create a call in calls/.'
-          [~ %'usage.json']    'Cumulative API usage: tokens, requests, cost. Auto-updated per call.'
-          [~ %'page.html']     'Usage dashboard UI.'
-          [[%calls ~] *]       'API call lifecycle file. Created by main.sig, runs HTTP, writes response.'
-        ==
       ==
     --
 ::

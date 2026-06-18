@@ -1,6 +1,7 @@
 ::  logbook nexus: accepts text pokes, appends to a log
 ::  mirror.sig subscribes to a remote ship's logbook and mirrors main.txt
 ::
+/&  man  ../man/logbook/readme.md
 =<  ^-  nexus:nexus
     |%
     ++  on-load
@@ -14,6 +15,7 @@
             [%fall %& [/ %'main.txt'] [[/ %txt] *wain]]
             [%fall %& [/ %'mirror.sig'] [[/ %sig] ~]]
             [%fall %| /mirrored empty-dir:loader]
+            [%over %& [/man %'readme.md'] [[/ %mime] man]]
         ==
       ==
     ::
@@ -47,26 +49,6 @@
         =/  target=@p  (slav %p (of-wain:format !<(wain q.sage)))
         ~&  >  [%mirror-starting target]
         (mirror-loop target)
-      ==
-    ::
-    ++  on-manu
-      |=  =mana:nexus
-      ^-  @t
-      ?-    -.mana
-          %&
-        ?+  p.mana  'File under logbook.'
-            ~
-          'Logbook: accepts txt pokes, appends lines to main.txt. Mirror grub for cross-ship mirroring.'
-            [%mirrored ~]
-          'Mirrored main.txt from a remote ship.'
-        ==
-          %|
-        ?+  rail.p.mana  'File under logbook.'
-            [~ %'main.txt']
-          'Log file. Poke with txt to append lines.'
-            [~ %'mirror.sig']
-          'Mirror process. Poke with ship name (e.g. ~nec) to start mirroring.'
-        ==
       ==
     --
 |%

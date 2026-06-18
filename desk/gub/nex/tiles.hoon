@@ -4,6 +4,7 @@
 ::    title, info, color, image, href
 ::  href can be absolute (https://...) or relative (/grubbery/ball/...)
 ::
+/&  man  ../man/tiles/readme.md
 =<  ^-  nexus:nexus
     |%
     ++  on-load
@@ -27,6 +28,7 @@
             [%over %& [/ %'page.html'] [[/ %html] (crip (en-xml:html (tiles-page "" ~)))]]
             [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
             [%fall %| /requests empty-dir:loader]
+            [%over %& [/man %'readme.md'] [[/ %mime] man]]
         ==
       ==
     ::
@@ -75,34 +77,6 @@
         =/  =mime  !<(mime (need-vase:tarball sang.p.seen))
         ;<  ~  bind:m  (send-simple:srv eyre-id (mime-response:http-utils mime))
         (pure:m ~)
-      ==
-    ::
-    ++  on-manu
-      |=  =mana:nexus
-      ^-  @t
-      ?-    -.mana
-          %&
-        ?+  p.mana  'Directory under the tiles nexus.'
-            ~
-          %-  crip
-          """
-          TILES - customizable launcher grid
-
-          Each tile is a JSON file under /tiles/ with fields:
-            title, info, color, image, href
-
-          Edit tiles through the web UI or directly as JSON files.
-          """
-            [%tiles ~]
-          'Tile definitions. Each file is a JSON object with title, info, color, image, href.'
-            [%requests ~]
-          'Per-request fibers for HTTP connections.'
-        ==
-          %|
-        ?+  rail.p.mana  'File under the tiles nexus.'
-            [~ %'main.sig']  'HTTP binding process. Serves the tile grid UI.'
-            [~ %'page.html']  'Rendered tile grid page. Re-rendered on tile changes.'
-        ==
       ==
     --
 |%

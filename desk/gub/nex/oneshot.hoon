@@ -1,6 +1,7 @@
 ::  oneshot nexus: playground for one-shot LLM composition
 ::
 /<  oneshot  /lib/oneshot.hoon
+/&  man  ../man/oneshot/readme.md
 =<  ^-  nexus:nexus
     |%
     ++  on-load
@@ -33,6 +34,7 @@
             [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
             [%over %& [/ui %'page.html'] [[/ %html] (crip (en-xml:html (oneshot-page '' ~)))]]
             [%over %& [/ui %'briefing.html'] [[/ %html] (crip (en-xml:html briefing-page))]]
+            [%over %& [/man %'readme.md'] [[/ %mime] man]]
         ==
       ==
     ::
@@ -210,33 +212,6 @@
         ;<  ~  bind:m  (replace:io (crip (en-xml:html (briefing-page-live state))))
         ;<  upd=wave:nexus  bind:m  (take-news:io /brf)
         $
-      ==
-    ::
-    ++  on-manu
-      |=  =mana:nexus
-      ^-  @t
-      ?-    -.mana
-          %&
-        ?+  p.mana  'Subdirectory under the oneshot nexus.'
-            ~
-          %-  crip
-          """
-          ONESHOT NEXUS — playground for one-shot LLM composition
-
-          Experimental nexus for building and testing composed one-shot
-          LLM call pipelines. Each call is independent with no chat history.
-
-          Poke /main.sig with %json containing system and prompt fields.
-          View UI at /ui/page.html.
-          """
-        ==
-          %|
-        ?+  rail.p.mana  'File under the oneshot nexus.'
-          [~ %'ver.ud']        'Schema version. Mark: ud.'
-          [~ %'descs.json']    'Mark format descriptions for LLM output constraining. Mark: json.'
-          [~ %'request.json']  'Saved request fields (system, prompt, mark, desc). Mark: json.'
-          [~ %'main.sig']      'Accepts JSON pokes with system/prompt/mark/desc, runs one-shot call.'
-        ==
       ==
     --
 |%

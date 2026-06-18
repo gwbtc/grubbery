@@ -16,6 +16,7 @@
 ::    source:  road to telegram-bot (relative to parent /claw/app)
 ::    chat-id: telegram chat ID
 ::
+/&  man  ../../man/claw/channel/readme.md
 =<  ^-  nexus:nexus
     |%
     ++  on-load
@@ -35,6 +36,7 @@
             [%fall %& [/ %'inbox.json'] [[/ %json] [%a ~]]]
             [%over %& [/ %'send.sig'] [[/ %sig] ~]]
             [%over %& [/ %'relay.sig'] [[/ %sig] ~]]
+            [%over %& [/man %'readme.md'] [[/ %mime] man]]
         ==
       ==
     ::
@@ -146,24 +148,6 @@
         ;<  ~  bind:m  (over:io inbox-road [[/ %json] updated])
         ~&  >>>  "%channel relay: inbox updated!"
         $
-      ==
-    ::
-    ++  on-manu
-      |=  =mana:nexus
-      ^-  @t
-      ?-    -.mana
-          %&
-        ?+  p.mana  'Channel instance.'
-            ~
-          'Chat channel with standard API. Bridges external sources to claw agents.'
-        ==
-          %|
-        ?+  rail.p.mana  'File under channel.'
-          [~ %'config.json']  'Channel config: source road (relative to /claw/app) and chat-id.'
-          [~ %'inbox.json']   'Append-only inbound message list. Subscribe here for new messages.'
-          [~ %'send.sig']     'Poke with {"text": "..."} to send outbound messages via source.'
-          [~ %'relay.sig']    'Internal relay: watches source, writes to inbox.'
-        ==
       ==
     --
 ::

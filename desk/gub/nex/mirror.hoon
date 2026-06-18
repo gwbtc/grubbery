@@ -7,6 +7,7 @@
 ::  Poke main.json to change source. The fiber drops the current
 ::  subscription and re-subscribes to the new one.
 ::
+/&  man  ../man/mirror/readme.md
 =<  ^-  nexus:nexus
     |%
 ++  on-load
@@ -19,12 +20,9 @@
     :~  (ver-row:loader 0)
         [%fall %& [/ %'main.json'] [[/ %json] s+'']]
         [%fall %| /data empty-dir:loader]
+        [%over %& [/man %'readme.md'] [[/ %mime] man]]
     ==
   ==
-++  on-manu
-  |=  =mana:nexus
-  ^-  @t
-  'Mirror nexus: sync a single source into /data/.'
 ++  on-file
   |=  [=rail:tarball =blot:tarball]
   ^-  spool:fiber:nexus

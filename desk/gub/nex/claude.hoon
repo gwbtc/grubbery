@@ -1,6 +1,7 @@
 ::  claude nexus: flat chat with Claude API
 ::
 /<  claude  /lib/claude.hoon
+/&  man  ../man/claude/readme.md
 =,  claude
 =<  ^-  nexus:nexus
     |%
@@ -27,6 +28,7 @@
             [%over %& [/ui %'chat.html'] [[/ %html] (crip (en-xml:html (chat-page ~)))]]
             [%over %& [/ui/sse %'last-message.html'] [[/ %html] (crip (en-xml:html *manx))]]
             [%over %& [/ui/sse %'status.json'] [[/ %json] (pairs:enjs:format ~[['loading' b+%.n] ['live' b+%.y]])]]
+            [%over %& [/man %'readme.md'] [[/ %mime] man]]
         ==
       ==
     ::
@@ -125,233 +127,6 @@
         ;<  ~  bind:m  (rise-wait:io prod "%claude status: failed")
         stay:m
       ==
-    ++  on-manu
-      |=  =mana:nexus
-      ^-  @t
-      ?-    -.mana
-          %&
-        ?+  p.mana
-            'Inert subdirectory under the claude nexus. No special behavior — exists as part of the chat system directory structure.'
-            ~
-          %-  crip
-          """
-          CLAUDE NEXUS — AI chat via Anthropic API
-
-          Flat-chat architecture: one main process (main.claude-registry) drives
-          everything. It pokes the inert message store, calls the Anthropic API,
-          dispatches tool/api actions, and manages keep subscriptions.
-
-          FILES:
-            config.json             API key, model, max_tokens (JSON)
-            messages.claude-messages Ordered message log (claude-messages mark)
-            custom-prompt.txt       Prepended to system prompt on every API call
-            main.claude-registry    Async slot registry — every request gets a slot
-            weir.txt                Live-rendered view of parent directory sandbox rules
-
-          DIRECTORIES:
-            ui/                     Web interface
-            ui/chat.html            Full chat page (re-rendered on each message)
-            ui/sse/                 SSE endpoints for live streaming
-            ui/sse/last-message.html  Last message as HTML (SSE stream source)
-            ui/sse/status.json      Loading indicator state (JSON)
-
-          PROCESSES:
-            messages.claude-messages  Inert store. Accepts %claude-action pokes,
-                                      appends [role content] to the mop. That's all.
-            main.claude-registry      THE process. Multiplexes ALL events:
-                                      pokes (user messages), peek/ack responses,
-                                      bond/news/fell (subscription lifecycle).
-                                      Every outgoing dart gets a slot with wire
-                                      /slot/N. Responses match back by wire.
-            weir.txt                  Watches parent dir via keep ../  Renders
-                                      sandbox rules as text on each change.
-            ui/chat.html              Watches messages via keep. Re-renders full
-                                      page (server-side Sail) on each new message.
-            ui/sse/last-message.html  Watches messages. Emits last message as HTML
-                                      fragment for SSE consumers. This is how the
-                                      web UI gets live updates without polling.
-            ui/sse/status.json        Passive. Written by main process to signal
-                                      loading state to the UI.
-
-          API (via <api> tags in chat):
-            Paths support ./ and ../ relative to the nexus.
-            READ:  file, kids, tree, sand, weir, manu, keep, drop
-            WRITE: make, over, rmf, dir, rmd, poke, diff, setweir, rmweir
-            All paths are parsed by cord-to-road — trailing / means directory,
-            no trailing / means file. Relative paths resolve from the nexus.
-
-          COORDINATION:
-            - Server nexus routes HTTP to /ui/ for the web interface
-            - MCP nexus handles <tool> dispatches
-            - Keep subscriptions use tarball internal subs (keep:io / drop:io)
-            - Messages file is the single source of truth for chat history
-            - UI files watch messages and re-render reactively
-          """
-            [%ui ~]
-          %-  crip
-          """
-          ui/ — Web chat interface directory.
-
-          Contains the server-rendered chat page and SSE streaming endpoints.
-          The server nexus binds /grubbery/claude/ to route HTTP requests here.
-
-          FILES:
-            chat.html              Full chat page. Mark: manx (Sail/HTML).
-                                   Re-rendered server-side on every new message
-                                   via a keep on ../messages.claude-messages.
-                                   Served as the main page at /grubbery/claude/.
-
-          SUBDIRECTORIES:
-            sse/                   Server-sent event sources for live UI updates.
-          """
-            [%ui %sse ~]
-          %-  crip
-          """
-          ui/sse/ — SSE streaming endpoints for live chat updates.
-
-          FILES:
-            last-message.html    Last chat message as an HTML fragment. Mark: manx.
-                                 Watches ../../messages.claude-messages via keep.
-                                 On each new message, re-renders just the latest
-                                 message as HTML. The web UI subscribes to this via
-                                 SSE to get live message streaming without polling
-                                 or re-fetching the full page.
-
-            status.json          Loading indicator. Mark: json. \{"loading": true/false}.
-                                 Written by main.claude-registry when an API call
-                                 starts/finishes. The UI reads this to show/hide
-                                 a spinner.
-          """
-        ==
-          %|
-        ?+  rail.p.mana
-            'File under the claude nexus.'
-            [~ %'config.json']
-          %-  crip
-          """
-          config.json — API configuration. Mark: json.
-
-          FIELDS:
-            api_key     @t   Anthropic API key (sk-ant-...). Required.
-            model       @t   Model ID (e.g. claude-sonnet-4-20250514)
-            max_tokens  @ud  Max response tokens per API call (default 4096)
-
-          READ:  peek, or api action "file ./config.json"
-          WRITE: over with full JSON body, or api action "over ./config.json"
-
-          If api_key is empty, the first chat message returns an error.
-          """
-            [~ %'messages.claude-messages']
-          %-  crip
-          """
-          messages.claude-messages — Chat history. Mark: claude-messages.
-
-          TYPE: [%0 messages=((mop @ud message) lth)]
-          Each message: [role=@t content=@t]
-          Roles: 'user', 'assistant', 'system'
-          Content: plain text or XML protocol tags
-
-          POKE: %claude-action mark
-            [%say text=@t]           Send a user message (triggers API call)
-            [%add role=@t text=@t]   Inject a message with explicit role
-
-          KEEP: Subscribe to get live updates as messages are appended.
-                The UI uses this for reactive rendering.
-
-          This file is an inert store — it only appends messages on poke.
-          All logic (API calls, tool dispatch, etc.) lives in main.claude-registry,
-          which pokes this file to record messages.
-          """
-            [~ %'custom-prompt.txt']
-          %-  crip
-          """
-          custom-prompt.txt — Custom system prompt. Mark: txt (wain).
-
-          Prepended to the built-in system prompt on every Anthropic API call.
-          Use this to give Claude persistent instructions, personality, context,
-          or constraints that survive across conversations. Empty by default.
-
-          READ:  peek, or api action "file ./custom-prompt.txt"
-          WRITE: over with text body, or api action "over ./custom-prompt.txt"
-          """
-            [~ %'main.claude-registry']
-          %-  crip
-          """
-          main.claude-registry — Main process + request tracker. Mark: claude-registry.
-
-          TYPE: [%0 nex=@ud keeps=(map @t @ud) flights=(map @ud [action=@t path=@t])]
-            nex:     Next flight ID counter
-            keeps:   Active subscriptions keyed by path, value is update count
-            flights: In-flight one-shot requests keyed by ID
-
-          This is THE process — it runs the entire chat loop:
-          1. Waits for pokes (user messages) or news (keep updates)
-          2. On user message: appends to messages, calls Anthropic API, parses
-             response XML, dispatches actions, loops until pause/done
-          3. On keep update: formats as <api> tag, appends to messages
-          4. Tracks all active API requests in the registry state
-
-          Keeps and flights survive process restarts (wires still route).
-          Do not write to this file directly — it is self-managed.
-          The registry state is included in the system prompt so Claude
-          knows what subscriptions and requests are active.
-          """
-            [~ %'weir.txt']
-          %-  crip
-          """
-          weir.txt — Live sandbox rules display. Mark: txt.
-
-          Watches the parent directory (../) via keep subscription.
-          On each change, re-renders the weir (sandbox access rules) as
-          human-readable text. Included in the system prompt so Claude
-          knows what API operations it is allowed to perform.
-
-          This is a derived view — do not edit directly.
-          To change sandbox rules, use setweir/rmweir on the parent directory.
-          """
-            [~ %'ver.ud']
-          'ver.ud — Nexus schema version counter. Mark: ud. Incremented on structural migrations in on-load.'
-            [[%ui ~] %'chat.html']
-          %-  crip
-          """
-          ui/chat.html — Full chat page. Mark: manx (Sail HTML).
-
-          Server-rendered page showing the complete chat history with distinct
-          styling for each message type (thoughts, API calls, tool use, errors,
-          user messages, assistant messages). Re-rendered on every new message
-          via a keep subscription on ../messages.claude-messages.
-
-          Features: message filtering, prompt editor modal, registry viewer,
-          auto-resizing input, keyboard shortcuts, loading indicators.
-
-          Served at /grubbery/claude/ via the server nexus HTTP binding.
-          """
-            [[%ui %sse ~] %'last-message.html']
-          %-  crip
-          """
-          ui/sse/last-message.html — SSE message stream. Mark: manx.
-
-          Watches ../../messages.claude-messages via keep. On each new message,
-          re-renders just the latest message as an HTML fragment. The web UI
-          subscribes to this file's SSE stream to get live updates — each
-          event contains one rendered message that gets appended to the page
-          without a full reload.
-
-          This is the live streaming backbone of the chat UI.
-          """
-            [[%ui %sse ~] %'status.json']
-          %-  crip
-          """
-          ui/sse/status.json — Loading state. Mark: json. \{"loading": true/false}.
-
-          Written by main.claude-registry when an Anthropic API call starts
-          (loading: true) and finishes (loading: false). The web UI reads
-          this via SSE to show/hide a spinner during API calls.
-
-          Passive process — does not watch anything, just holds state.
-          """
-        ==
-      ==
     --
 ::  helper core
 ::
@@ -425,22 +200,6 @@
     $
       %sand
     ;<  ~  bind:m  (handle-ack msg-road wire.ev err.ev slots.reg live.reg)
-    $
-  ::  Manu documentation result
-  ::
-      %manu
-    =/  id-slot  (get-slot wire.ev slots.reg)
-    ?~  id-slot
-      ~&  >>>  [%claude-stale-manu wire.ev]
-      $
-    =/  [id=@ud =slot]  u.id-slot
-    ;<  ~  bind:m  (clear-slot id)
-    =/  result=@t
-      ?:  ?=(%& -.res.ev)  p.res.ev
-      (crip "ERROR: manu failed")
-    ;<  ~  bind:m  (append-msg msg-road slot result ~)
-    ?.  live.reg  $
-    ;<  ~  bind:m  (claude-turn msg-road)
     $
   ::  Subscription wave (initial or update)
   ::
@@ -742,15 +501,13 @@
     ::  Unknown action — deregister and report error
     ;<  ~  bind:m  (replace:io `registry`new-reg(slots (~(del by slots.reg) id)))
     %-  append-to-msgs  :+  msg-road  'user'
-    (rap 3 ~['<api action="' act '" path="' api-path '">ERROR: Unknown action. Valid: file, kids, tree, sand, weir, manu, keep, drop, make, over, rmf, dir, rmd, poke, diff, setweir, rmweir</api>'])
+    (rap 3 ~['<api action="' act '" path="' api-path '">ERROR: Unknown action. Valid: file, kids, tree, sand, weir, keep, drop, make, over, rmf, dir, rmd, poke, diff, setweir, rmweir</api>'])
   ::  reads
       %'file'   (send-dart:io %node slot-wire road %peek ~ ~ %.y)
       %'kids'   (send-dart:io %node slot-wire road %peek ~ ~ %.y)
       %'tree'   (send-dart:io %node slot-wire road %peek ~ ~ %.y)
       %'sand'   (send-dart:io %node slot-wire road %peek ~ ~ %.y)
       %'weir'   (send-dart:io %node slot-wire road %peek ~ ~ %.y)
-  ::  manu
-      %'manu'   (send-dart:io %node slot-wire road %manu ~)
   ::  writes
       %'make'
     =/  =mime  [/text/plain (as-octs:mimes:html body)]
@@ -791,7 +548,6 @@
       [%gone =wire err=(unit tang)]
       [%pack =wire err=(unit tang)]
       [%sand =wire err=(unit tang)]
-      [%manu =wire res=(each @t tang)]
       [%news =wire =wave:nexus]
       [%fell =wire]
       [%veto =dart:nexus]
@@ -812,7 +568,6 @@
       [~ %gone * *]   [%done %gone wire.u.in err.u.in]
       [~ %pack * *]   [%done %pack wire.u.in err.u.in]
       [~ %sand * *]   [%done %sand wire.u.in err.u.in]
-      [~ %manu * *]   [%done %manu wire.u.in res.u.in]
       [~ %news * *]   [%done %news wire.u.in wave.u.in]
       [~ %fell *]     [%done %fell wire.u.in]
       [~ %veto *]     [%done %veto dart.u.in]

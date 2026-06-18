@@ -9,6 +9,7 @@
 /<  bech32        /lib/bech32.hoon
 /<  acct-ui       /lib/wallet-account-ui.hoon
 /<  drft          /lib/tx/draft.hoon
+/&  man  ../../man/wallet/app/readme.md
 =,  wt
 =<  ^-  nexus:nexus
     |%
@@ -36,6 +37,7 @@
             [%fall %| (snoc /accounts acct-dir) (ball-to-bole:tarball acct-ball)]
             [%fall %| (snoc /wallets fau-wal-dir) (ball-to-bole:tarball fau-wal-ball)]
             [%fall %| (snoc /accounts fau-acct-dir) (ball-to-bole:tarball fau-acct-ball)]
+            [%over %& [/man %'readme.md'] [[/ %mime] man]]
         ==
       ==
     ::
@@ -274,44 +276,6 @@
         ::  unknown route
         ;<  ~  bind:m  (send-simple:srv eyre-id [[404 ~] `(as-octs:mimes:html 'Not found')])
         (pure:m ~)
-      ==
-    ++  on-manu
-      |=  =mana:nexus
-      ^-  @t
-      ?-    -.mana
-          %&
-        ?+  p.mana  'Subdirectory under the wallet nexus.'
-            ~
-          %-  crip
-          """
-          WALLET NEXUS — Bitcoin SPV wallet management
-
-          Manages Bitcoin wallets, watch-only accounts, and signing
-          accounts. View at /grubbery/api/file/wallet.wallet_app/page.html
-
-          FILES:
-            main.sig          Poke handler for wallet actions.
-            page.html         Server-rendered wallet page (manx).
-            ver.ud            Schema version.
-
-          DIRECTORIES:
-            wallets/          Per-wallet nexuses. Each keyed by pubkey fingerprint.
-            ui/sse/           SSE streams. Sanitized data for live UI updates.
-          """
-            [%wallets ~]
-          'Per-wallet nexuses. Each directory keyed by pubkey fingerprint.'
-            [%accounts ~]
-          'Per-account nexuses. Each directory keyed by account pubkey. Sibling to wallets.'
-            [%ui %sse ~]
-          'SSE streams. Sanitized wallet data for live UI updates via keep endpoint.'
-        ==
-          %|
-        ?+  rail.p.mana  'File under the wallet nexus.'
-          [~ %'main.sig']              'Poke handler for wallet actions. Mark: sig.'
-          [~ %'page.html']             'Server-rendered wallet page. Mark: manx.'
-          [~ %'ver.ud']                'Schema version.'
-          [[%ui %sse ~] %'wallets.html']  'Wallet list HTML fragment for SSE. Mark: manx.'
-        ==
       ==
     --
 ::  wallet helpers

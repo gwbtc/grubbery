@@ -8,6 +8,7 @@
 ::    metadata/
 ::      <name>.json         backlink metadata per note
 ::
+/&  man  ../man/rhizome/readme.md
 =<  ^-  nexus:nexus
     |%
     ++  on-load
@@ -22,6 +23,7 @@
             [%fall %& [/ %'page.html'] [[/ %html] (crip (en-xml:html ;div:"rhizome loading..."))]]
             [%fall %| /vault empty-dir:loader]
             [%fall %| /metadata empty-dir:loader]
+            [%over %& [/man %'readme.md'] [[/ %mime] man]]
         ==
       ==
     ::
@@ -149,42 +151,6 @@
         =/  new-note=@t  !<(@t q.sage)
         ;<  ~  bind:m  (replace:io new-note)
         $
-      ==
-    ::
-    ++  on-manu
-      |=  =mana:nexus
-      ^-  @t
-      ?-    -.mana
-          %&
-        ?+  p.mana  'Subdirectory under the rhizome nexus.'
-            ~
-          %-  crip
-          """
-          RHIZOME NEXUS — wiki-linked markdown notes with backlink tracking
-
-          Store markdown notes in /vault/ with [[wiki links]]. The system
-          automatically parses links and maintains a /metadata/ directory
-          with forward links (links-to) and backlinks (linked-from) for
-          each note. Page at page.html renders the full index.
-
-          FILES:
-            main.sig          Vault watcher. Parses [[wiki links]], syncs metadata.
-            page.html         Rendered note index with backlinks (manx).
-
-          DIRECTORIES:
-            vault/            Markdown notes. Create .md files here.
-            metadata/         Auto-generated backlink metadata (JSON).
-          """
-            [%vault ~]
-          'Markdown notes with [[wiki links]]. Create .md files here.'
-            [%metadata ~]
-          'Auto-generated backlink metadata. One JSON file per note.'
-        ==
-          %|
-        ?+  rail.p.mana  'File under the rhizome nexus.'
-          [~ %'main.sig']   'Vault watcher. Parses wiki links and syncs metadata.'
-          [~ %'page.html']  'Rendered note index with backlinks.'
-        ==
       ==
     --
 ::

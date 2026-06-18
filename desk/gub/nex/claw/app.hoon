@@ -4,6 +4,7 @@
 ::  /claw/agent code with a read-only weir (peek everywhere, no
 ::  writes or pokes outside their own tree).
 ::
+/&  man  ../../man/claw/app/readme.md
 =<  ^-  nexus:nexus
     |%
     ++  on-load
@@ -26,6 +27,7 @@
             [%over %& [/ui/sse %'channels.html'] [[/ %html] (crip (en-xml:html (channels-fragment "" ~)))]]
             [%over %& [/ui/sse %'apis.html'] [[/ %html] (crip (en-xml:html (apis-fragment "" ~)))]]
             [%over %& [/ %'page.html'] [[/ %html] (crip (en-xml:html (dashboard-page "" ~ ~ ~)))]]
+            [%over %& [/man %'readme.md'] [[/ %mime] man]]
         ==
       ==
     ::
@@ -169,52 +171,6 @@
           ?:  =('' name)  $
           ;<  ~  bind:m  (cull:io (cord-to-road:tarball (crip "./apis/{(trip name)}/")))
           $
-        ==
-      ==
-    ::
-    ++  on-manu
-      |=  =mana:nexus
-      ^-  @t
-      ?-    -.mana
-          %&
-        ?+  p.mana  'Directory under the claw agent container.'
-            ~
-          %-  crip
-          ;:  weld
-            "CLAW AGENT CONTAINER\0a\0a"
-            "Manages claw agent nexuses in /agents/ and channels in /channels/.\0a"
-            "Each agent runs /claw/agent code with a read-only weir.\0a"
-            "Channels exist independently; agents link to them via their config.\0a\0a"
-            "Poke main.sig with JSON:\0a"
-            "  \{\"action\": \"create\", \"name\": \"my-agent\"}\0a"
-            "  \{\"action\": \"delete\", \"name\": \"my-agent\"}\0a"
-            "  \{\"action\": \"create-channel\", \"name\": \"tg\", \"type\": \"telegram\"}\0a"
-            "  \{\"action\": \"delete-channel\", \"name\": \"tg\"}\0a"
-            "  \{\"action\": \"create-api\", \"name\": \"openai\", \"type\": \"openai\"}\0a"
-            "  \{\"action\": \"delete-api\", \"name\": \"openai\"}\0a\0a"
-            "API proxy nexuses in /apis/ handle HTTP for sandboxed agents.\0a"
-          ==
-            [%agents ~]
-          'Agent nexuses. Each subdirectory is a claw agent with /claw/agent code.'
-            [%apis ~]
-          'API proxy nexuses. Each subdirectory is a proxy nexus (e.g. anthropic/).'
-            [%ui %sse ~]
-          'SSE fragments for live dashboard updates.'
-        ==
-          %|
-        ?+  rail.p.mana  'File under the claw agent container.'
-            [~ %'main.sig']
-          'Management process. Poke with JSON to create or delete agents.'
-            [~ %'page.html']
-          'Dashboard page. Lists all agents with links to their UIs.'
-            [[%apis ~] %'anthropic']
-          'Anthropic API proxy nexus. Contains config.json (api-key, url) and main.sig (poke endpoint).'
-            [[%ui %sse ~] %'agents.html']
-          'Agent list HTML fragment for SSE live updates.'
-            [[%ui %sse ~] %'channels.html']
-          'Channel list HTML fragment for SSE live updates.'
-            [[%ui %sse ~] %'apis.html']
-          'API list HTML fragment for SSE live updates.'
         ==
       ==
     --

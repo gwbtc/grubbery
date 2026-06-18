@@ -14,6 +14,7 @@
 ::
 /<  btc      /lib/sur/bitcoin.hoon
 /<  btc-rpc  /lib/btc-rpc.hoon
+/&  man  ../../man/indexer/app/readme.md
 =,  btc
 =<  ^-  nexus:nexus
     |%
@@ -35,6 +36,7 @@
             [%fall %& [/ %'tip.ud'] [[/ %ud] 0]]
             [%over %& [/ %'poller.sig'] [[/ %sig] ~]]
             [%fall %| /blocks empty-dir:loader]
+            [%over %& [/man %'readme.md'] [[/ %mime] man]]
         ==
       ==
     ::
@@ -155,39 +157,6 @@
         ::  write block into the ball
         ;<  ~  bind:m  (write-block next u.hash blk)
         $(next +(next))
-      ==
-    ::
-    ++  on-manu
-      |=  =mana:nexus
-      ^-  @t
-      ?-    -.mana
-          %&
-        ?+  p.mana  'Subdirectory under the indexer nexus.'
-            ~
-          %-  crip
-          """
-          INDEXER NEXUS — bitcoind block cache
-
-          Polls a bitcoind node and caches block data in the ball namespace.
-          Pure cache layer — no script-hash matching or account awareness.
-
-          FILES:
-            config.json       RPC connection settings (url, auth, poll-interval).
-            tip.ud            Current chain height from bitcoind.
-            poller.sig        Poll loop process.
-
-          DIRECTORIES:
-            blocks/           Cached block data keyed by height.
-          """
-            [%blocks ~]
-          'Cached block data. Each subdirectory is a block height containing header.json and txs/.'
-        ==
-          %|
-        ?+  rail.p.mana  'File under the indexer nexus.'
-          [~ %'config.json']    'RPC connection: url, auth, poll-interval.'
-          [~ %'tip.ud']         'Current chain height.'
-          [~ %'poller.sig']     'Poll loop process.'
-        ==
       ==
     --
 ::  indexer helpers

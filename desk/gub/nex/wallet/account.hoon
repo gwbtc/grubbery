@@ -14,6 +14,7 @@
 /<  txb           /lib/tx/build.hoon
 /<  bcu           /lib/bitcoin-utils.hoon
 /<  acct-ui       /lib/wallet-account-ui.hoon
+/&  man  ../../man/wallet/account/readme.md
 =,  wt
 =<  ^-  nexus:nexus
     |%
@@ -30,6 +31,7 @@
           [%fall %| /addresses empty-dir:loader]
           [%fall %| /proc empty-dir:loader]
           [%stay %& [/proc %'scan.json']]
+          [%over %& [/man %'readme.md'] [[/ %mime] man]]
         ==
       ==
     ::
@@ -573,23 +575,6 @@
         ;<  ~  bind:m  (write-txs ".." network merged)
         ~&  >  [%refresh %done network=network chain=chain-tag idx=idx info=?=(^ info) utxos=(lent new-utxos) txs=(lent new-txs)]
         (pure:m ~)
-      ==
-    ::
-    ++  on-manu
-      |=  =mana:nexus
-      ^-  @t
-      ?-    -.mana
-          %&
-        ?+  p.mana  'Subdirectory under this account.'
-            ~
-          'Individual BIP44 account. Derives and displays Bitcoin addresses.'
-        ==
-          %|
-        ?+  rail.p.mana  'File under this account.'
-          [~ %'data.wallet_account']  'Account data: name, xprv, script-type, addresses. Mark: account.'
-          [~ %'main.sig']      'Poke handler for account actions. Mark: sig.'
-          [~ %'ver.ud']        'Schema version.'
-        ==
       ==
     --
 ::  types and rendering

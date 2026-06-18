@@ -10,6 +10,7 @@
 ::    bot-token: telegram bot API token
 ::    chat-id:   telegram chat ID to bridge
 ::
+/&  man  ../../../man/claw/channel/telegram/readme.md
 =<  ^-  nexus:nexus
     |%
     ++  on-load
@@ -29,6 +30,7 @@
             [%fall %& [/ %'inbox.json'] [[/ %json] [%a ~]]]
             [%fall %& [/ %'send.sig'] [[/ %sig] ~]]
             [%fall %& [/ %'poller.sig'] [[/ %sig] ~]]
+            [%over %& [/man %'readme.md'] [[/ %mime] man]]
         ==
       ==
     ::
@@ -181,24 +183,6 @@
         ?.  ?=([~ %s *] text)  $
         ;<  ~  bind:m  (send-msg bot-token.cfg chat-id.cfg p.u.text)
         $
-      ==
-    ::
-    ++  on-manu
-      |=  =mana:nexus
-      ^-  @t
-      ?-    -.mana
-          %&
-        ?+  p.mana  'Telegram channel instance.'
-            ~
-          'Telegram channel. Polls getUpdates, writes inbox, sends via bot API.'
-        ==
-          %|
-        ?+  rail.p.mana  'File under telegram channel.'
-          [~ %'config.json']  'Channel config: bot-token and chat-id.'
-          [~ %'inbox.json']   'Append-only inbound message list.'
-          [~ %'send.sig']     'Poke with {"text": "..."} to send via telegram.'
-          [~ %'poller.sig']   'Long-polling loop for incoming messages.'
-        ==
       ==
     --
 ::

@@ -16,6 +16,7 @@
 /<  git-pack  /lib/git/pack.hoon
 /<  git-repo  /lib/git/repository.hoon
 /<  git-transport  /lib/git/transport.hoon
+/&  man  ../../man/git/repo/readme.md
 =<  ^-  nexus:nexus
     |%
     ++  on-load
@@ -50,6 +51,7 @@
             [%fall %& [/ui %'commit.json'] [[/ %json] [%a ~]]]
             [%over %& [/ %'page.html'] [[/ %html] (crip (en-xml:html (repo-page '' '' '' ~ ~ [%a ~] [%o ~] clean-status)))]]
             [%fall %| /data [`[`[/git %data] ~ %.n ~] ~]]
+            [%over %& [/man %'readme.md'] [[/ %mime] man]]
         ==
       ==
     ::
@@ -715,34 +717,6 @@
                 ['sha' s+(get-sha blob-resp)]
             ==
           $(changes-remaining t.changes-remaining, tree-entries [entry tree-entries])
-        ==
-      ==
-    ::
-    ++  on-manu
-      |=  =mana:nexus
-      ^-  @t
-      ?-    -.mana
-          %&
-        ?+  p.mana  'Git repo clone.'
-            ~
-          'Clone a public git repo into the namespace. Config: repo, ref.'
-        ==
-          %|
-        ?+  rail.p.mana  'File under git/repo.'
-          [~ %'config.json']  'Config: repo (owner/repo), ref (branch/tag/sha), token.'
-          [[%actions ~] %'sync.sig']     'Poke to fetch from remote.'
-          [[%actions ~] %'switch.sig']   'Poke to switch branch locally.'
-          [[%actions ~] %'checkout.sig']  'Poke with commit hash to checkout.'
-          [[%actions ~] %'diff.sig']     'Poke with commit hash to compute diff.'
-          [[%actions ~] %'add.sig']      'Stage files. Poke with json {all: true} or {paths: [...]}.'
-          [[%actions ~] %'commit.sig']   'Poke with commit message to create local commit.'
-          [[%actions ~] %'branch.sig']   'Poke with branch name to create at HEAD.'
-          [[%actions ~] %'delete-branch.sig']  'Poke with branch name to delete.'
-          [[%actions ~] %'stash.sig']          'Poke to stash dirty index and reset to HEAD.'
-          [[%actions ~] %'stash-pop.sig']      'Poke to pop the most recent stash.'
-          [[%actions ~] %'push.sig']     'Poke to push files to GitHub via REST API.'
-          [~ %'push.json']    'Push request: {message, files: [{path, content}]}.'
-          [~ %'page.html']    'Dashboard page. Shows config, sync button, file tree.'
         ==
       ==
     --

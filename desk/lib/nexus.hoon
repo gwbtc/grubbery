@@ -94,21 +94,13 @@
       [%firm ~]                 :: promote current %temp entry to %firm
       [%seek =lobe:clay]        :: find all [rail cass] pairs with this hash
       [%peep =find]
-      [%manu ~]                 :: docs for this path (road resolves nexus + query)
       [%code ~]                 :: look up compiled artifacts at dest
       [%font ~]                 :: find code responsible for dest node
   ==
-::  manu types — documentation query
-::
-+$  mury  [=rail:tarball =blot:tarball]   :: file query: rail + blot
-+$  mana  (each fold:tarball mury)       :: directory or file query
-::
-::
 +$  dart
   $%  [%node =wire road=road:tarball =load]
       [%here =wire]
       [%kept =wire]              :: see your own outgoing subscriptions
-      [%manu =wire =neck:tarball =mana]  :: direct docs query to a known nexus
   ==
 ::  Eyre action: poke payload for HTTP binding/response operations.
 ::  Nexuses poke %grubbery with %eyre-action to register bindings
@@ -201,7 +193,7 @@
         [%held =wire err=(unit tang)] :: response to firm
         [%seek =wire res=(each (list [=rail:tarball =cass:clay]) tang)] :: response to seek
         [%peep =wire res=(each (list [=cass:clay =sage:tarball]) tang)] :: response to peep
-        [%manu =wire res=(each @t tang)] :: response to manu
+
         [%fell =wire]                 :: subscription canceled (weir change, deletion, etc)
         [%news =wire =wave] :: subscription wave (initial or update)
         [%veto =dart] :: notify that a dart was sandboxed
@@ -1239,11 +1231,6 @@
   ++  on-file
     |~  [rail:tarball blot:tarball]
     *spool:fiber :: define spool (initializer) for grub at rail
-  :: manual page for a grub or directory. returns documentation text.
-  ::
-  ++  on-manu
-    |~  mana
-    *@t
   --
 ::  JSON conversion helpers
 ::

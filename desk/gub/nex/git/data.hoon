@@ -26,12 +26,14 @@
 /<  git-pack  /lib/git/pack.hoon
 /<  git-repo  /lib/git/repository.hoon
 /<  git-transport  /lib/git/transport.hoon
+/&  man  ../../man/git/data/readme.md
 =<  ^-  nexus:nexus
     |%
     ++  on-load
       |=  =ball:tarball
       ^-  bole:tarball
       %-  ball-to-bole:tarball
+      =.  ball  (~(put ba:tarball ball) [/man %'readme.md'] [[/ %mime] %& !>(man)])
       ::  load all packs from packs/ directory
       =/  archive=(list pack:git-pack)  (load-packs ball)
       ?~  archive  ball
@@ -302,23 +304,6 @@
       =/  m  (fiber:fiber:nexus ,~)
       ^-  process:fiber:nexus
       stay:m
-    ::
-    ++  on-manu
-      |=  =mana:nexus
-      ^-  @t
-      ?-    -.mana
-          %&
-        ?+  p.mana  'Git repository data.'
-            ~
-          'Git object store. Stores pack, index, refs. Checkout via reload.'
-        ==
-          %|
-        ?+  rail.p.mana  'File under git/data.'
-          [~ %'HEAD']       'Git HEAD: "ref: refs/heads/<branch>" or raw commit hash (detached).'
-          [~ %'stash-request.sig']      'Poke to stash dirty index and reset to HEAD.'
-          [~ %'stash-pop-request.sig']  'Poke to pop the most recent stash.'
-        ==
-      ==
     --
 ::
 |%

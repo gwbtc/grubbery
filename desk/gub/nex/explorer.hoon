@@ -2,6 +2,7 @@
 ::
 /<  feather  /lib/feather.hoon
 /<  iso-8601  /lib/iso-8601.hoon
+/&  man  ../man/explorer/readme.md
 =<  ^-  nexus:nexus
     |%
     ++  on-load
@@ -15,6 +16,7 @@
         :~  (ver-row:loader 0)
             [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
             [%fall %| /requests empty-dir:loader]
+            [%over %& [/man %'readme.md'] [[/ %mime] man]]
         ==
       ==
     ::
@@ -76,39 +78,6 @@
           (handle-post eyre-id raw-path ball.p.dir-seen req)
         ~&  >  %explorer-handle-get-start
         (handle-get eyre-id raw-path %.y ball.p.dir-seen wave.p.dir-seen args)
-      ==
-    ++  on-manu
-      |=  =mana:nexus
-      ^-  @t
-      ?-    -.mana
-          %&
-        ?+  p.mana  'Subdirectory under the explorer nexus.'
-            ~
-          %-  crip
-          """
-          EXPLORER NEXUS — web-based tarball file browser
-
-          Serves directory listings and file contents over HTTP with a
-          full CRUD interface: create, delete, upload, rename, and symlink.
-          Streams live directory changes via SSE so the browser updates
-          without polling.
-
-          FILES:
-            main.sig            HTTP binding process. Registers /grubbery/
-                                with the server nexus.
-            ver.ud              Schema version.
-
-          DIRECTORIES:
-            requests/           Per-request fibers for active HTTP connections.
-          """
-            [%requests ~]
-          'Active HTTP request fibers. Each inbound request spawns a fiber here; cleaned up on completion.'
-        ==
-          %|
-        ?+  rail.p.mana  'File under the explorer nexus.'
-          [~ %'main.sig']  'Explorer HTTP binding process. Mark: sig. Registers URL prefix with the server nexus and dispatches inbound requests to per-request fibers in /requests/.'
-          [~ %'ver.ud']    'Schema version counter. Mark: ud.'
-        ==
       ==
     --
 ::

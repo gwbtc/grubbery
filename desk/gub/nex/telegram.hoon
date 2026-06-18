@@ -3,6 +3,7 @@
 ::    Each subdirectory is a telegram-bot nexus instance.
 ::    UI at /ui/manage.html for adding/deleting bots.
 ::
+/&  man  ../man/telegram/readme.md
 =<  ^-  nexus:nexus
     |%
     ++  on-load
@@ -16,6 +17,7 @@
             [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
             [%over %& [/ui %'manage.html'] [[/ %html] (crip (en-xml:html (manage-page ~)))]]
             [%fall %| /bots empty-dir:loader]
+            [%over %& [/man %'readme.md'] [[/ %mime] man]]
         ==
       ==
     ::
@@ -102,30 +104,6 @@
         ;<  ~  bind:m  (replace:io (crip (en-xml:html (manage-page bot-names))))
         ;<  upd=wave:nexus  bind:m  (take-news:io /bots)
         $
-      ==
-    ::
-    ++  on-manu
-      |=  =mana:nexus
-      ^-  @t
-      ?-    -.mana
-          %&
-        ?+  p.mana  'A telegram-bot instance.'
-            ~
-          %-  crip
-          """
-          TELEGRAM — parent nexus for Telegram bots
-
-          Each subdirectory is a telegram-bot nexus instance with its own
-          config, message log, and polling loop.
-
-          Manage bots at /ui/manage.html.
-          """
-        ==
-          %|
-        ?+  rail.p.mana  'File under the telegram nexus.'
-          [~ %'main.sig']              'Handles add/delete bot pokes.'
-          [[%ui ~] %'manage.html']     'Bot management UI.'
-        ==
       ==
     --
 |%

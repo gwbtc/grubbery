@@ -1,5 +1,6 @@
 ::  counter nexus: many auto-incrementing counters identified by @da
 ::
+/&  man  ../man/counter/readme.md
 =<  ^-  nexus:nexus
     |%
     ++  on-load
@@ -14,6 +15,7 @@
             [%over %& [/ui/views %'page.html'] [[/ %html] (crip (en-xml:html (counter-page ~)))]]
             [%fall %& [/ui %'main.sig'] [[/ %sig] ~]]
             [%fall %| /ui/requests empty-dir:loader]
+            [%over %& [/man %'readme.md'] [[/ %mime] man]]
         ==
       ==
     ::
@@ -80,49 +82,6 @@
         =/  =mime  !<(mime (need-vase:tarball sang.p.seen))
         ;<  ~  bind:m  (send-simple:srv eyre-id (mime-response:http-utils mime))
         (pure:m ~)
-      ==
-    ++  on-manu
-      |=  =mana:nexus
-      ^-  @t
-      ?-    -.mana
-          %&
-        ?+  p.mana  'Subdirectory under the counter nexus.'
-            ~
-          %-  crip
-          """
-          COUNTER NEXUS — auto-incrementing counters with live web UI
-
-          A simple demo nexus. Each counter is a file in /counters/ holding
-          a @ud value. Poke a counter to increment it. The web UI at
-          /ui/ renders all counters and streams updates via SSE.
-
-          FILES:
-            ver.ud              Schema version.
-
-          DIRECTORIES:
-            counters/           Counter storage. Each file is a @ud. Poke to
-                                increment. Keyed by @da timestamp on creation.
-            ui/                 Web interface with SSE streaming.
-            ui/views/           Server-rendered HTML pages.
-            ui/views/page.html  Full counter page. Mark: manx. Re-rendered
-                                when counters change.
-            ui/requests/        Per-request fibers for HTTP connections.
-          """
-            [%counters ~]
-          'Counter storage. Each file holds a @ud value. Poke to increment. New counters are keyed by @da timestamp.'
-            [%ui ~]
-          'Counter web UI. Serves HTML page with live SSE updates when counters change.'
-            [%ui %views ~]
-          'Server-rendered HTML views for the counter UI.'
-            [%ui %requests ~]
-          'Per-request fibers for active HTTP connections to the counter UI.'
-        ==
-          %|
-        ?+  rail.p.mana  'File under the counter nexus.'
-          [~ %'ver.ud']                    'Schema version counter. Mark: ud.'
-          [[%ui ~] %'main.sig']            'Counter UI HTTP binding process. Mark: sig. Registers with the server nexus and dispatches requests.'
-          [[%ui %views ~] %'page.html']    'Full counter page. Mark: manx (Sail HTML). Re-rendered on counter changes.'
-        ==
       ==
     --
 |%

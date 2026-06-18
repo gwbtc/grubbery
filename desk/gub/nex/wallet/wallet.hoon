@@ -13,6 +13,7 @@
 /<  bip32         /lib/bip32.hoon
 /<  bip39         /lib/bip39.hoon
 /<  bech32        /lib/bech32.hoon
+/&  man  ../../man/wallet/wallet/readme.md
 =,  wt
 =<  ^-  nexus:nexus
     |%
@@ -30,6 +31,7 @@
             [%over %& [/ui/sse %'error.html'] [[/ %html] (crip (en-xml:html ;div;))]]
             [%over %& [/ui/sse %'loading.html'] [[/ %html] (crip (en-xml:html ;div;))]]
             [%load %& [/ %'main.wallet_wallet'] [/ %'page.html'] data-to-page]
+            [%over %& [/man %'readme.md'] [[/ %mime] man]]
         ==
       ==
     ::
@@ -288,23 +290,6 @@
           (make:io (cord-to-road:tarball (crip "../../../accounts/{(trip acct-dir)}/proc/scan.json")) |+[[[/ %json] scan-json] ~])
         ::  continue to next account
         $(account-idx +(account-idx))
-      ==
-    ::
-    ++  on-manu
-      |=  =mana:nexus
-      ^-  @t
-      ?-    -.mana
-          %&
-        ?+  p.mana  'Subdirectory under this wallet.'
-            ~
-          'Individual Bitcoin wallet. Contains wallet data and rendered detail page.'
-        ==
-          %|
-        ?+  rail.p.mana  'File under this wallet.'
-          [~ %'main.wallet_wallet']   'Wallet data + poke handler: name, seed, fingerprint, accounts.'
-          [~ %'page.html']            'Rendered wallet detail page. Mark: manx.'
-          [~ %'ver.ud']               'Schema version.'
-        ==
       ==
     --
 ::  types and rendering

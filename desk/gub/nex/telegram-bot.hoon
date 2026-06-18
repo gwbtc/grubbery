@@ -6,6 +6,7 @@
 ::    Each message file: {"name": "...", "chat-id": "...", "messages": [...]}
 ::    Config: /config.json with bot-token field.
 ::
+/&  man  ../man/telegram-bot/readme.md
 =<  ^-  nexus:nexus
     |%
     ++  on-load
@@ -27,6 +28,7 @@
             [%fall %| /ui/sse empty-dir:loader]
             [%over %& [/ui/sse %'data.html'] [[/ %html] (crip (en-xml:html (sse-data ~ ~)))]]
             [%over %& [/ui %'chat.html'] [[/ %html] (crip (en-xml:html (chat-page "" *(map @t @t) *(list json))))]]
+            [%over %& [/man %'readme.md'] [[/ %mime] man]]
         ==
       ==
     ::
@@ -260,35 +262,6 @@
           (replace:io (crip (en-xml:html (chat-page base -.chat-data +.chat-data))))
         ;<  *  bind:m  (take-news:io /msgs)
         $
-      ==
-    ::
-    ++  on-manu
-      |=  =mana:nexus
-      ^-  @t
-      ?-    -.mana
-          %&
-        ?+  p.mana  'Subdirectory under the telegram-bot nexus.'
-            ~
-          %-  crip
-          """
-          TELEGRAM BOT — chat interface for a single Telegram bot
-
-          Long-polls Telegram's getUpdates API and maintains per-chat
-          message logs in messages/[chat-id].json.
-
-          Each file: \{"name": "...", "chat-id": "...", "messages": [...]}
-
-          Configure /config.json with bot-token.
-          View chat at /ui/chat.html.
-          """
-        ==
-          %|
-        ?+  rail.p.mana  'File under the telegram-bot nexus.'
-          [~ %'offset.ud']           'Telegram update offset. Mark: ud.'
-          [~ %'config.json']         'Bot config: bot-token. Mark: json.'
-          [~ %'send.sig']            'Accepts JSON pokes with chat_id and message. Sends as bot.'
-          [~ %'poller.sig']          'Long-polling loop for incoming messages.'
-        ==
       ==
     --
 |%

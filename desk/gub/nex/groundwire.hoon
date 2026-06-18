@@ -10,6 +10,7 @@
 /<  unv       /lib/unv.hoon
 /<  b173      /lib/bip/b173.hoon
 /<  bip32     /lib/bip32.hoon
+/&  man  ../man/groundwire/readme.md
 =,  btc
 =<  ^-  nexus:nexus
     |%
@@ -37,6 +38,7 @@
             [%fall %| /ui/sse empty-dir:loader]
             [%over %& [/ui/sse %'stats.html'] [[/ %html] (crip (en-xml:html ;div;))]]
             [%over %& [/ %'page.html'] [[/ %html] (crip (en-xml:html (btc-page "" ;div; ~ ~)))]]
+            [%over %& [/man %'readme.md'] [[/ %mime] man]]
         ==
       ==
     ::
@@ -663,52 +665,6 @@
           (replace:io (crip (en-xml:html (btc-page nexus-root (extract-sse-manx sse-seen 'stats.html') (extract-ships seeds-seen) (extract-points points-seen)))))
         ;<  *  bind:m  (take-any-news /sse /seeds /points)
         $
-      ==
-    ++  on-manu
-      |=  =mana:nexus
-      ^-  @t
-      ?-    -.mana
-          %&
-        ?+  p.mana  'Subdirectory under the bitcoind nexus.'
-            ~
-          %-  crip
-          """
-          BITCOIND NEXUS — Bitcoin PKI state machine with live web UI
-
-          Maintains urb protocol PKI state by scanning Bitcoin blocks.
-          The walker fiber at /urb-state.urb-state owns the PKI state
-          and uses replace:io — anything can keep:io it
-          for live updates. Per-ship point files live under /points/.
-
-          FILES:
-            config.json              RPC connection settings (url, auth).
-            height.ud                Tip poller — polls getblockcount every 2s.
-            urb-state.urb-state      Walker + PKI state. Cursor is
-                                     num.block-id inside the state.
-                                     Gain on — subscribable.
-            points/                  Per-ship point files. Gain on.
-            latest.json              Last processed block summary.
-            rpc.sig                  RPC proxy poke receiver.
-            reg-tester.sig           Spawn/test poke receiver.
-            page.html                Dashboard shell.
-
-          Usage from the browser:
-            GET  /grubbery/api/file/groundwire.groundwire/page.html
-            SSE  /grubbery/api/keep/groundwire.groundwire/urb-state.urb-state?mark=json
-            POKE /grubbery/api/poke/groundwire.groundwire/reg-tester.sig?mark=json
-          """
-        ==
-          %|
-        ?+  rail.p.mana  'File under the bitcoind nexus.'
-          [~ %'ver.ud']                  'Schema version. Mark: ud.'
-          [~ %'config.json']             'RPC connection settings (url, auth). Mark: json.'
-          [~ %'height.ud']               'Tip poller. Mark: ud. Polls every 2s.'
-          [~ %'urb-state.urb-state']     'Walker + PKI state. Gain on. Mark: urb-state.'
-          [~ %'latest.json']             'Last processed block summary. Mark: json.'
-          [~ %'rpc.sig']                 'RPC proxy poke receiver. Mark: sig.'
-          [~ %'reg-tester.sig']          'Spawn/test poke receiver. Mark: sig.'
-          [~ %'page.html']              'Dashboard shell. Mark: manx.'
-        ==
       ==
     --
 |%

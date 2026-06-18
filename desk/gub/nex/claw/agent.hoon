@@ -3,6 +3,7 @@
 /<  nex-tools     /lib/nex/tools.hoon
 /<  iso-8601      /lib/iso-8601.hoon
 /<  cron          /lib/cron.hoon
+/&  man  ../../man/claw/agent/readme.md
 =<  ^-  nexus:nexus
     |%
     ++  on-load
@@ -38,9 +39,7 @@
               'READ THESE FIRST when you need to understand the system, write code, or debug.'
               '  read road="./context/docs/grubbery-fundamentals.txt"  -- full architecture'
               '  read road="./context/docs/workflows.txt"              -- step-by-step guides'
-              'These are files YOU can read. They are NOT the same as read_manual.'
-              'read_manual queries live nexus documentation for a specific path.'
-              'The docs in ./context/docs/ are comprehensive written guides for you.'
+              'These are files YOU can read -- comprehensive written guides for you.'
               ''
               '# Your filesystem'
               ''
@@ -94,9 +93,8 @@
               '- check_bang: read the error state of a process. Every fiber process can crash;'
               '  when it does, the crash trace is stored as its "bang." This tool reads that.'
               '  A bang means the process at that path has crashed and needs fixing.'
-              '- read_manual: query the on-manu arm of the nexus governing a path.'
-              '  Returns live documentation embedded in nexus code about what a path does.'
-              '  Different from ./context/docs/ which are static reference guides you read directly.'
+              '- man pages: each nexus has a /man/readme.md file with documentation.'
+              '  Read them with: read road="/some/path/man/readme.md"'
               '- read_font: find which code namespace (./apps/code/) is responsible for'
               '  compiling the code that governs a given path.'
               ''
@@ -163,11 +161,9 @@
               '  :: re-render on change'
               '  $'
               ''
-              '## on-manu: documentation'
-              '  |=  =mana:nexus'
-              '  ^-  @t'
-              ''
-              'Returns documentation strings for paths and files. Queried by read_manual.'
+              '## /man/ directory: documentation'
+              'Each nexus has a /man/readme.md file with documentation.'
+              'Read with: read road="/path/to/nexus/man/readme.md"'
               ''
               '# Key fiberio operations'
               ''
@@ -219,15 +215,13 @@
               '     grubbery-fundamentals.txt  -- architecture from the ground up'
               '     workflows.txt              -- step-by-step guides for common tasks'
               ''
-              '2. read_manual -- queries the on-manu arm of the nexus governing a path.'
-              '   This is live, contextual documentation embedded in nexus code.'
-              '   Each nexus defines what its directories and files do.'
-              '   Use it to understand unfamiliar paths: read_manual path="/some/path"'
+              '2. /man/readme.md -- each nexus has a man page in its /man/ directory.'
+              '   Read with: read road="/path/to/nexus/man/readme.md"'
               ''
               'IMPORTANT: Before attempting to build nexuses, write code, or debug'
               'unfamiliar errors, read the docs in ./context/docs/ first.'
-              'Use read_manual when you encounter a specific path and want to know'
-              'what it does or what nexus governs it.'
+              'Read man pages when you encounter a specific path and want to know'
+              'what it does: read road="/path/to/nexus/man/readme.md"'
               ''
               '# Key terms'
               ''
@@ -249,7 +243,7 @@
               '- Stay within scope. Respond to conversation directly. Only reach for tools'
               '  and code when the task actually calls for it.'
               '- When building code, always check_bin after writing. Fix errors iteratively.'
-              '- Use read_manual to understand what a specific path does.'
+              '- Read /man/readme.md in a nexus directory to understand what it does.'
               '- Read ./context/docs/ for architecture and workflow guides.'
               '- Write memories to ./context/memories/ to persist important information.'
               '- Use grep_history to search beyond your context window.'
@@ -314,7 +308,7 @@
               '              Pattern-matches on [rail mark] to dispatch code.'
               '              This is the primary meaning of "governs."'
               ''
-              '  ++on-manu   Returns documentation. Queried by read_manual.'
+              '  /man/       Directory containing readme.md documentation.'
               ''
               'Nexuses nest. An on-load can create subdirectories with their own'
               'necks, spawning child nexuses. Directory names encode the neck:'
@@ -359,7 +353,7 @@
               '  %poke   send data to a process'
               '  %keep   subscribe to changes'
               '  %drop   unsubscribe'
-              '  %manu   query documentation'
+              '  /man/   documentation directory (readme.md)'
               '  %code   look up compiled code'
               ''
               ''
@@ -548,7 +542,7 @@
               ''
               '1. Write the nexus source:'
               '   write path="./apps/code/nex/my-thing/app.hoon"'
-              '   Must produce a nexus:nexus core (on-load, on-file, on-manu).'
+              '   Must produce a nexus:nexus core (on-load, on-file).'
               ''
               '2. Compile:'
               '   check_bin path="./apps/code/nex/my-thing" name="app"'
@@ -631,6 +625,7 @@
             [%fall %| /children empty-dir:loader]
             ::  ui
             [%over %& [/ %'page.html'] [[/ %html] (crip (en-xml:html (chat-page "" "")))]]
+            [%over %& [/man %'readme.md'] [[/ %mime] man]]
         ==
       ==
     ::
@@ -1056,26 +1051,6 @@
         ;<  ~  bind:m  (replace:io (crip (en-xml:html (chat-page ball-id app-url))))
         stay:m
       ==
-    ::
-    ++  on-manu
-      |=  =mana:nexus
-      ^-  @t
-      ?-    -.mana
-          %&
-        ?+  p.mana  'Subdirectory under claw.'
-            ~
-          'AI agent nexus. Chat with LLMs, build sub-nexuses.'
-        ==
-          %|
-        ?+  rail.p.mana  'File under claw.'
-          [~ %'config.json']                   'Agent config: model, api-proxy, context_window, message_cap, channel.'
-          [~ %'main.sig']                      'Chat lifecycle (create/delete) + message routing.'
-          [~ %'page.html']                     'Chat interface.'
-          [[%chats @ ~] %'chat.json']          'Chat conversation log + event loop. Pokes arrive here.'
-          [[%chats @ ~] %'status.json']        'Chat status: idle/api/tool.'
-          [[%chats @ ~] %'outbox.json']        'Append-only result log.'
-        ==
-      ==
     --
 ::
 ::  types and helpers
@@ -1396,7 +1371,6 @@
       [name:delete-nexus-tool delete-nexus-tool]
       [name:check-bin-tool check-bin-tool]
       [name:check-bang-tool check-bang-tool]
-      [name:read-manual-tool read-manual-tool]
       [name:read-font-tool read-font-tool]
       [name:read-weir-tool read-weir-tool]
       [name:add-weir-tool add-weir-tool]
@@ -3095,29 +3069,6 @@
     =/  road=road:tarball  (agent-road u.raw)
     ;<  ~  bind:m  (cull:io road)
     (pure:m [%text (crip "Deleted nexus {(trip u.raw)}")])
-  --
-::
-++  read-manual-tool
-  ^-  tool:nex-tools
-  |%
-  ++  name  'read_manual'
-  ++  description  'Look up on-manu documentation for any path. Use to understand what a directory or file does.'
-  ++  parameters
-    ^-  (map @t parameter-def:nex-tools)
-    (malt ~[['road' [%string 'Road to look up docs for']]])
-  ++  required  ~['road']
-  ++  handler
-    ^-  tool-handler:nex-tools
-    =/  m  (fiber:fiber:nexus ,tool-result:nex-tools)
-    ^-  form:m
-    ;<  st=tool-state:nex-tools  bind:m  (get-state-as:io ,tool-state:nex-tools)
-    ?~  raw=(get-arg st 'road')
-      (pure:m [%error 'Missing required argument: road'])
-    =/  road=road:tarball  (agent-road u.raw)
-    ;<  doc=@t  bind:m  (manu-road:io road)
-    ?:  =('' doc)
-      (pure:m [%text (crip "No documentation found for {(trip u.raw)}")])
-    (pure:m [%text doc])
   --
 ::
 ++  read-font-tool
