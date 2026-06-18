@@ -7,7 +7,7 @@
       [%tang =tang]
       [%mime =mime]
   ==
-+$  keys  (map rail:tarball @uv)
++$  keys  (map rail:tarball [in=@uv out=@uv])
 +$  deps  (map rail:tarball (set rail:tarball))
 +$  refs  (axal (map @ta @uv))
 +$  lode  [=keys =deps =refs]

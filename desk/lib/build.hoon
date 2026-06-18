@@ -40,18 +40,18 @@
       keys=(map rail:tarball @uv)
   ==
 ::  +bins-to-cache: reconstruct input-keyed build-cache
-::  Looks up each input ckey directly in bins.
+::  Uses input key for cache lookup, output key for bins lookup.
 ::
 ++  bins-to-cache
   |=  [=keys:nexus =bins:nexus]
   ^-  build-cache
   %+  roll  ~(tap by keys)
-  |=  [[=rail:tarball input-ckey=@uv] acc=build-cache]
-  ?:  (~(has by acc) input-ckey)  acc
-  =/  entry=(unit [refs=@ud =built:nexus])  (~(get by bins) input-ckey)
+  |=  [[=rail:tarball in=@uv out=@uv] acc=build-cache]
+  ?:  (~(has by acc) in)  acc
+  =/  entry=(unit [refs=@ud =built:nexus])  (~(get by bins) out)
   ?~  entry  acc
   ?.  ?=(%vase -.built.u.entry)  acc
-  (~(put by acc) input-ckey vase.built.u.entry)
+  (~(put by acc) in vase.built.u.entry)
 ::  +parse-imports: extract /<  imports from source text
 ::
 ::    Returns list of imports and remaining source (as cord).

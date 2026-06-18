@@ -3766,58 +3766,74 @@
   =.  code.acc  (~(put by code.acc) /code lode)
   acc
 ::  Compile a code nexus into its lode in the code map.
-::  Purges non-hoon files from the code nexus.
 ::
 ++  build-code
   |=  cod=path
   ^+  this
   ~&  >  "build-code: start {(spud cod)}"
-  =/  src-ball  (peek-ball-now cod)
-  ::  Force the 4 foundational mark sources into every code nexus.
-  ::  These marks (%hoon %tang %mime %kelvin) must always be present
-  ::  and cannot be overridden — they are the bedrock the build system
-  ::  needs to validate and compile everything else.
+  ::  1. Source: get ball, force foundational marks
   ::
+  =/  src-ball  (peek-ball-now cod)
+  =.  src-ball  (force-foundational-marks cod src-ball)
+  ::  2. Compile: reconstruct cache, run build-all
+  ::
+  =/  =lode:nexus   (fall (~(get by code) cod) *lode:nexus)
+  =/  old-refs       refs.lode
+  =/  old-cache      ~>(%bout (bins-to-cache:build keys.lode bins))
+  =/  res            ~>(%bout (build-all:build sut src-ball old-cache))
+  ~&  >  "build-code: compiled {<~(wyt by results.res)>} results"
+  ::  3. Index: compute output ckeys, build keys/refs/builds
+  ::
+  =/  [new-keys=keys:nexus new-refs=refs:nexus builds=(map @uv built:nexus)]
+    ~>  %bout
+    (index-results res lode src-ball)
+  ::  4. Update bins: increment new refs, decrement old
+  ::
+  =.  bins  ~>(%bout (refs-inc new-refs builds))
+  =.  bins  ~>(%bout (refs-dec old-refs))
+  ::  5. GC vale cache: drop entries whose marc was removed
+  ::
+  =.  vale  (gc-vale-cache vale bins)
+  ::  6. Store lode
+  ::
+  =.  lode  [new-keys deps.res new-refs]
+  =.  code  (~(put by code) cod lode)
+  ::  7. Validate marks: re-clam grubs through changed marks
+  ::
+  =^  new-refs  this
+    ~>  %bout
+    (validate-marks cod old-refs new-refs)
+  =.  code
+    =/  upd=lode:nexus  (fall (~(get by code) cod) *lode:nexus)
+    (~(put by code) cod upd(refs new-refs))
+  ::  8. Reload nexuses whose compiled code changed
+  ::
+  =.  this
+    ~>  %bout
+    (reload-changed-nexuses cod old-refs new-refs)
+  ~&  >  "build-code: done"
+  this
+::
+++  force-foundational-marks
+  |=  [cod=path src-ball=ball:tarball]
+  ^-  ball:tarball
   =/  pax=path  /(scot %p our.bowl)/grubbery/(scot %da now.bowl)
-  =.  src-ball
-    %+  roll  `(list @ta)`~[%hoon %tang %mime %kelvin]
-    |=  [nam=@ta acc=_src-ball]
-    =/  src=vase  .^(vase %cr (weld pax /gub/mar/[nam]/hoon))
-    =/  val=(each vase tang)  (validate-noun cod [/ %hoon] q.src)
-    ?.  ?=(%& -.val)  acc
-    (~(put ba:tarball acc) [/mar (cat 3 nam '.hoon')] [[/ %hoon] %& p.val])
-  ::  Separate hoon and non-hoon files
+  %+  roll  `(list @ta)`~[%hoon %tang %mime %kelvin]
+  |=  [nam=@ta acc=_src-ball]
+  =/  src=vase  .^(vase %cr (weld pax /gub/mar/[nam]/hoon))
+  =/  val=(each vase tang)  (validate-noun cod [/ %hoon] q.src)
+  ?.  ?=(%& -.val)  acc
+  (~(put ba:tarball acc) [/mar (cat 3 nam '.hoon')] [[/ %hoon] %& p.val])
+::
+++  index-results
+  |=  [res=build-out:build =lode:nexus src-ball=ball:tarball]
+  ^-  [keys:nexus refs:nexus (map @uv built:nexus)]
   =/  all-files=(list [=rail:tarball =sang:tarball])
     ~(tap ba:tarball src-ball)
-  ~&  >  "build-code: {<(lent all-files)>} files"
-  =/  hoon-ball=ball:tarball
-    %+  roll  all-files
-    |=  [[=rail:tarball =sang:tarball] acc=_src-ball]
-    ?.  =(p.sang %hoon)
-      (~(del ba:tarball acc) path.rail name.rail)
-    acc
+  ::  Seed with mime files
   =/  mime-files=(list [=rail:tarball =sang:tarball])
     (skim all-files |=([* =sang:tarball] =([/ %mime] p.sang)))
-  ::  Get or create lode for this code nexus
-  =/  =lode:nexus  (fall (~(get by code) cod) *lode:nexus)
-  =/  old-refs=refs:nexus  refs.lode
-  ::  Reconstruct cache: join keys→refs→bins
-  ~&  >  %bins-to-cache
-  =/  old-cache=build-cache:build
-    ~>  %bout
-    (bins-to-cache:build keys.lode bins)
-  ~&  >  "build-code: compiling..."
-  ::  Single compilation pass: marks, libs, nexuses (hoon only)
-  ~&  >  %build-all
-  =/  res=build-out:build
-    ~>  %bout
-    (build-all:build sut src-ball old-cache)
-  ~&  >  "build-code: compiled {<~(wyt by results.res)>} results"
-  ~&  >  %sham-and-refs
-  ::  Build refs + builds map, keyed by input ckey
-  ::  Seed with mime files
-  =/  [new-refs=refs:nexus builds=(map @uv built:nexus)]
-    ~>  %bout
+  =/  [refs=refs:nexus builds=(map @uv built:nexus)]
     %+  roll  mime-files
     |=  [[=rail:tarball =sang:tarball] [acc=refs:nexus bld=(map @uv built:nexus)]]
     =/  =mime  !<(mime (need-vase:tarball sang))
@@ -3827,11 +3843,11 @@
       (fall (~(get of acc) path.rail) *(map @ta @uv))
     [(~(put of acc) path.rail (~(put by node) name.rail ckey)) (~(put by bld) ckey built)]
   ::  Add compiled hoon results
-  ~&  >  %sham-hoon-results
-  =^  new-refs  builds
-    ~>  %bout
+  =/  [new-keys=keys:nexus refs=_refs builds=_builds]
     %+  roll  ~(tap by results.res)
-    |=  [[=rail:tarball =build-result:build] [acc=_new-refs bld=_builds]]
+    |=  $:  [=rail:tarball =build-result:build]
+            [kz=keys:nexus acc=_refs bld=_builds]
+        ==
     =/  stem=@ta  (strip-hoon:build name.rail)
     =/  =built:nexus
       ?:  ?=(%| -.build-result)
@@ -3843,38 +3859,26 @@
         ~&  >>  "validate-build failed: {(spud (snoc path.rail name.rail))}"
         [%tang u.val-err]
       [%vase p.build-result]
-    =/  ckey=@uv  (~(got by keys.res) rail)
+    =/  in-ckey=@uv  (~(got by keys.res) rail)
+    =/  out-ckey=@uv
+      =/  old=(unit [in=@uv out=@uv])  (~(get by keys.lode) rail)
+      ?:  ?&(?=(^ old) =(in.u.old in-ckey))
+        out.u.old
+      (sham built)
     =/  node=(map @ta @uv)
       (fall (~(get of acc) path.rail) *(map @ta @uv))
-    [(~(put of acc) path.rail (~(put by node) stem ckey)) (~(put by bld) ckey built)]
-  ::  Update global bins: increment new, decrement old
-  ~&  >  %refs-inc
-  =.  bins  ~>(%bout (refs-inc new-refs builds))
-  ::  Decrement old refs, update lode
-  ~&  >  %refs-dec
-  =.  bins  ~>(%bout (refs-dec old-refs))
-  ::  GC vale cache: drop entries whose marc ckey was removed from bins
-  =.  vale
-    %-  ~(gas by *(map [lobe:clay @uv] (unit tang)))
-    %+  skip  ~(tap by vale)
-    |=  [[* ckey=@uv] *]
-    !(~(has by bins) ckey)
-  =.  lode  [keys.res deps.res new-refs]
-  =.  code  (~(put by code) cod lode)
-  ::  Validate marks: clam existing grubs through changed marks
-  ~&  >  %validate-marks
-  =^  new-refs  this
-    ~>  %bout
-    (validate-marks cod old-refs new-refs)
-  =/  upd-lode=lode:nexus  (fall (~(get by code) cod) *lode:nexus)
-  =.  code  (~(put by code) cod upd-lode(refs new-refs))
-  ::  Reload nexuses whose compiled code changed
-  ~&  >  %reload-changed-nexuses
-  =.  this
-    ~>  %bout
-    (reload-changed-nexuses cod old-refs new-refs)
-  ~&  >  "build-code: done"
-  this
+    :+  (~(put by kz) rail [in-ckey out-ckey])
+      (~(put of acc) path.rail (~(put by node) stem out-ckey))
+    (~(put by bld) out-ckey built)
+  [new-keys refs builds]
+::
+++  gc-vale-cache
+  |=  [=vale:nexus =bins:nexus]
+  ^-  vale:nexus
+  %-  ~(gas by *vale:nexus)
+  %+  skip  ~(tap by vale)
+  |=  [[* ckey=@uv] *]
+  !(~(has by bins) ckey)
 ::  Validate marks: for each changed mark in bin/mar/, build a vale gate
 ::  Walk ball under a code namespace, pruning at child code namespaces.
 ::  Returns all [fold lump] pairs governed by this code namespace —
