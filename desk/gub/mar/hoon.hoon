@@ -1,6 +1,5 @@
-::::  Bootstrap mark — compiled into the runtime before build-code runs.
-  ::  This file exists for reference only; the runtime uses a hardcoded
-  ::  version and build-code skips it.
+::::  Foundational mark  -- compiled at bootstrap and forced into every
+  ::  /code nexus before build-code runs.  Do not remove or rename.
   ::
 =,  eyre
 |_  own=@t

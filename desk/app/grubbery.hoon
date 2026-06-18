@@ -1169,15 +1169,6 @@
       (validate-vase vale:p.marc-res noun)
     ?:  ?=(%| -.val-res)  val-res
     &+[type:p.marc-res noun]
-  ::  No compiled marc — bootstrap fallback
-  ?:  =([/ %hoon] blot)
-    (mule |.(!>(;;(@t noun))))
-  ?:  =([/ %tang] blot)
-    (mule |.(!>(;;(tang noun))))
-  ?:  =([/ %mime] blot)
-    (mule |.(!>(;;(mime noun))))
-  ?:  =([/ %kelvin] blot)
-    (mule |.(!>(;;(waft:clay noun))))
   =/  nam=@tas  (rail-to-arm:tarball blot)
   |+~[leaf+"validate-noun: no marc for %{(trip nam)} at {(spud pax)}"]
 ::  Validate a sage at sandbox boundary
@@ -3742,42 +3733,25 @@
 ::  validate files before the build system compiles mark files.
 ::
 ++  bootstrap-marcs
+  ::  Compile the 4 foundational marks from their real source in /gub/mar/.
+  ::  These are full marcs with grow/grab — not minimal stubs.
+  ::  build-code forces these sources into every code nexus before compiling,
+  ::  so they can never be overridden or missing.
+  ::
   ^+  this
-  =/  marcs=(list [=blot:tarball =marc:tarball])
-    :~  :-  [/ %hoon]
-        |%
-        ++  type  -:!>(*@t)
-        ++  vale  |=(n=* !>(;;(@t n)))
-        ++  grow  |=(* !!)
-        ++  grab  |=(* !!)
-        --
-      ::
-        :-  [/ %tang]
-        |%
-        ++  type  -:!>(*tang)
-        ++  vale  |=(n=* !>(;;(tang n)))
-        ++  grow  |=(* !!)
-        ++  grab  |=(* !!)
-        --
-      ::
-        :-  [/ %mime]
-        |%
-        ++  type  -:!>(*mime)
-        ++  vale  |=(n=* !>(;;(mime n)))
-        ++  grow  |=(* !!)
-        ++  grab  |=(* !!)
-        --
-      ::
-        :-  [/ %kelvin]
-        |%
-        ++  type  -:!>(*waft:clay)
-        ++  vale  |=(n=* !>(;;(waft:clay n)))
-        ++  grow  |=(* !!)
-        ++  grab  |=(* !!)
-        --
-    ==
-  %+  roll  marcs
-  |=  [[=blot:tarball =marc:tarball] acc=_this]
+  =/  pax=path  /(scot %p our.bowl)/grubbery/(scot %da now.bowl)
+  =/  zuse-vase=vase  !>(..zuse)
+  =/  names=(list @ta)  ~[%hoon %tang %mime %kelvin]
+  %+  roll  names
+  |=  [nam=@ta acc=_this]
+  =/  src=@t  !<(@t .^(vase %cr (weld pax /gub/mar/[nam]/hoon)))
+  =/  compiled=(each vase tang)
+    (build-hoon:build zuse-vase /gub/mar/[nam]/hoon src 0)
+  ?.  ?=(%& -.compiled)
+    ~&  >>>  "bootstrap-marcs: FAILED to compile {(trip nam)}"
+    %-  (slog p.compiled)
+    acc
+  =/  =marc:tarball  (build-marc:marks p.compiled)
   =/  marc-vase=vase  !>(marc)
   =/  =built:nexus  [%vase marc-vase]
   =/  ckey=@uv  (sham built)
@@ -3787,7 +3761,7 @@
   =/  ref-path=path  /mar
   =/  node=(map @ta @uv)
     (fall (~(get of refs.lode) ref-path) *(map @ta @uv))
-  =.  node  (~(put by node) name.blot ckey)
+  =.  node  (~(put by node) nam ckey)
   =.  refs.lode  (~(put of refs.lode) ref-path node)
   =.  code.acc  (~(put by code.acc) /code lode)
   acc
@@ -3799,6 +3773,19 @@
   ^+  this
   ~&  >  "build-code: start {(spud cod)}"
   =/  src-ball  (peek-ball-now cod)
+  ::  Force the 4 foundational mark sources into every code nexus.
+  ::  These marks (%hoon %tang %mime %kelvin) must always be present
+  ::  and cannot be overridden — they are the bedrock the build system
+  ::  needs to validate and compile everything else.
+  ::
+  =/  pax=path  /(scot %p our.bowl)/grubbery/(scot %da now.bowl)
+  =.  src-ball
+    %+  roll  `(list @ta)`~[%hoon %tang %mime %kelvin]
+    |=  [nam=@ta acc=_src-ball]
+    =/  src=vase  .^(vase %cr (weld pax /gub/mar/[nam]/hoon))
+    =/  val=(each vase tang)  (validate-noun cod [/ %hoon] q.src)
+    ?.  ?=(%& -.val)  acc
+    (~(put ba:tarball acc) [/mar (cat 3 nam '.hoon')] [[/ %hoon] %& p.val])
   ::  Separate hoon and non-hoon files
   =/  all-files=(list [=rail:tarball =sang:tarball])
     ~(tap ba:tarball src-ball)
@@ -3846,12 +3833,6 @@
     %+  roll  ~(tap by results.res)
     |=  [[=rail:tarball =build-result:build] [acc=_new-refs bld=_builds]]
     =/  stem=@ta  (strip-hoon:build name.rail)
-    ::  Skip bootstrap marks — these are seeded by bootstrap-marcs and
-    ::  must not be replaced, or leaf ject ckeys become stale.
-    ?:  ?&  =(path.rail /mar)
-            ?=(?(%hoon %tang %mime %kelvin) stem)
-        ==
-      [acc bld]
     =/  =built:nexus
       ?:  ?=(%| -.build-result)
         ~&  >>>  "build-code: FAILED {(spud (snoc path.rail name.rail))}"
@@ -3866,21 +3847,6 @@
     =/  node=(map @ta @uv)
       (fall (~(get of acc) path.rail) *(map @ta @uv))
     [(~(put of acc) path.rail (~(put by node) stem ckey)) (~(put by bld) ckey built)]
-  ::  Carry bootstrap mark refs from old-refs into new-refs so they
-  ::  survive the inc/dec cycle (bootstrap-marcs is authoritative).
-  =/  old-mar=(map @ta @uv)
-    (fall (~(get of old-refs) /mar) *(map @ta @uv))
-  =/  merged-refs=refs:nexus  new-refs
-  =/  cur-mar=(map @ta @uv)
-    (fall (~(get of merged-refs) /mar) *(map @ta @uv))
-  =/  boot=(list @ta)  ~[%hoon %tang %mime %kelvin]
-  =/  patched=(map @ta @uv)
-    %+  roll  boot
-    |=  [nam=@ta acc=_cur-mar]
-    =/  old-ckey=(unit @uv)  (~(get by old-mar) nam)
-    ?~  old-ckey  acc
-    (~(put by acc) nam u.old-ckey)
-  =.  new-refs  (~(put of merged-refs) /mar patched)
   ::  Update global bins: increment new, decrement old
   ~&  >  %refs-inc
   =.  bins  ~>(%bout (refs-inc new-refs builds))
