@@ -826,8 +826,8 @@
             =hist
         ==
     ^-  [lobe:clay ^silo ^hist]
-    ::  Carry over bang from previous leaf ject (sticky until cleared)
-    =/  prev-bang=(unit lobe:clay)
+    ::  Look up previous leaf ject
+    =/  prev-leaf=(unit leaf)
       =/  prev-pace=(unit pace:^hist)  (get:hon:^hist hist file-cass)
       ?~  prev-pace  ~
       ?:  ?=(%tomb -.u.prev-pace)  ~
@@ -835,9 +835,22 @@
       =/  got  (~(get by jects.silo) u.p.u.prev-pace)
       ?~  got  ~
       ?.  ?=(%leaf -.ject.u.got)  ~
-      bang.leaf.ject.u.got
+      `leaf.ject.u.got
+    ::  Skip if blot, governing marc, and content are unchanged
+    =/  noun-lobe=lobe:clay  (hash noun)
+    ?:  ?&  ?=(^ prev-leaf)
+            =(noun-lobe lobe.u.prev-leaf)
+            =(blot blot.mark.u.prev-leaf)
+            =(ckey ckey.mark.u.prev-leaf)
+            =(gain gain.u.prev-leaf)
+        ==
+      [noun-lobe silo hist]
+    =/  prev-bang=(unit lobe:clay)
+      ?~(prev-leaf ~ bang.u.prev-leaf)
     ::  Store noun, then wrap as leaf ject
-    =/  [noun-lobe=lobe:clay new-silo=^silo]  (put noun)
+    =/  new-silo=^silo
+      ?^  (~(get by nouns.silo) noun-lobe)  silo
+      silo(nouns (~(put by nouns.silo) noun-lobe [0 noun]))
     =/  [ject-lobe=lobe:clay newer-silo=^silo]
       (~(put-ject si new-silo) [%leaf noun-lobe [blot ckey] gain prev-bang])
     =/  [tombed-silo=^silo tombed-hist=^hist]

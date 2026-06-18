@@ -3734,19 +3734,17 @@
 ::
 ++  bootstrap-marcs
   ::  Compile the 4 foundational marks from their real source in /gub/mar/.
-  ::  These are full marcs with grow/grab — not minimal stubs.
-  ::  build-code forces these sources into every code nexus before compiling,
-  ::  so they can never be overridden or missing.
+  ::  Needed before sync-gub so marks exist to validate incoming files.
+  ::  build-code forces these same sources into every code nexus later.
   ::
   ^+  this
   =/  pax=path  /(scot %p our.bowl)/grubbery/(scot %da now.bowl)
-  =/  zuse-vase=vase  !>(..zuse)
   =/  names=(list @ta)  ~[%hoon %tang %mime %kelvin]
   %+  roll  names
   |=  [nam=@ta acc=_this]
   =/  src=@t  !<(@t .^(vase %cr (weld pax /gub/mar/[nam]/hoon)))
   =/  compiled=(each vase tang)
-    (build-hoon:build zuse-vase /gub/mar/[nam]/hoon src 0)
+    (build-hoon:build sut /gub/mar/[nam]/hoon src 0)
   ?.  ?=(%& -.compiled)
     ~&  >>>  "bootstrap-marcs: FAILED to compile {(trip nam)}"
     %-  (slog p.compiled)
@@ -3774,7 +3772,7 @@
   ::  1. Source: get ball, force foundational marks
   ::
   =/  src-ball  (peek-ball-now cod)
-  =.  src-ball  (force-foundational-marks cod src-ball)
+  =^  src-ball  this  (force-foundational-marks cod src-ball)
   ::  2. Compile: reconstruct cache, run build-all
   ::
   =/  =lode:nexus   (fall (~(get by code) cod) *lode:nexus)
@@ -3813,17 +3811,25 @@
     (reload-changed-nexuses cod old-refs new-refs)
   ~&  >  "build-code: done"
   this
+::  Force foundational mark sources into born and the src-ball.
+::  Overwrites any user modifications; these marks are immutable.
 ::
 ++  force-foundational-marks
   |=  [cod=path src-ball=ball:tarball]
-  ^-  ball:tarball
+  ^-  [ball:tarball _this]
   =/  pax=path  /(scot %p our.bowl)/grubbery/(scot %da now.bowl)
   %+  roll  `(list @ta)`~[%hoon %tang %mime %kelvin]
-  |=  [nam=@ta acc=_src-ball]
+  |=  [nam=@ta [acc=_src-ball sat=_this]]
   =/  src=vase  .^(vase %cr (weld pax /gub/mar/[nam]/hoon))
-  =/  val=(each vase tang)  (validate-noun cod [/ %hoon] q.src)
-  ?.  ?=(%& -.val)  acc
-  (~(put ba:tarball acc) [/mar (cat 3 nam '.hoon')] [[/ %hoon] %& p.val])
+  =/  val=(each vase tang)  (validate-noun:sat cod [/ %hoon] q.src)
+  ?.  ?=(%& -.val)  [acc sat]
+  =/  dest=rail:tarball  [(weld cod /mar) (cat 3 nam '.hoon')]
+  =/  =sang:tarball  [[/ %hoon] %& p.val]
+  ::  write to born (record skips if unchanged)
+  =.  sat  ?^((get-born:sat dest) sat (init-born:sat dest))
+  =.  sat  (record:sat dest [[/ %hoon] q.src] %.n ~)
+  ::  inject into src-ball
+  [(~(put ba:tarball acc) [/mar (cat 3 nam '.hoon')] sang) sat]
 ::
 ++  index-results
   |=  [res=build-out:build =lode:nexus src-ball=ball:tarball]
@@ -3961,9 +3967,8 @@
   ?~  remaining  [new-refs this]
   =/  [ckey=@uv =blot:tarball =built:nexus]  i.remaining
   =/  nam=@tas  (rail-to-arm:tarball blot)
-  ::  Skip bootstrap marks — these are hardcoded in validate-noun
-  ::  and can't meaningfully change. Re-validating all .hoon/.mime/etc
-  ::  files would cascade into build-code loops.
+  ::  Skip foundational marks -- re-validating all .hoon/.mime/etc
+  ::  files through them would cascade into build-code loops.
   ?:  ?=(?(%hoon %tang %mime %kelvin) nam)
     $(remaining t.remaining)
   ::  Find all grubs with this mark
