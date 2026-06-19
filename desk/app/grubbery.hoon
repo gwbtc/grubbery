@@ -3125,6 +3125,14 @@
     ?.  force
       =/  existing=born:nexus  (~(dip of born) dest-path)
       ?~  fil.existing  $(force %.y)
+      =/  fold-cas=(unit cass:clay)
+        (top:hist:nexus fold.u.fil.existing)
+      ?~  fold-cas  $(force %.y)
+      =/  cur-pace=(unit pace:hist:nexus)
+        (get:hon:hist:nexus fold.u.fil.existing u.fold-cas)
+      ::  Latest version is empty = directory was deleted, allow recreate
+      ?:  &(?=(^ cur-pace) ?=(?(%temp %firm) -.u.cur-pace) =(~ p.u.cur-pace))
+        $(force %.y)
       ~|("make failed: directory {(spud dest-path)} already exists" !!)
     =.  this  (load-ball-changes dest-path new-bole)
     =.  this  (build-new-code-namespaces dest-path new-bole)
