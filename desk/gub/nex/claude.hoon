@@ -841,6 +841,10 @@
     (append-to-msgs msg-road 'user' (rap 3 ~['<api action="' act '" path="' api-path '">DELETED</api>']))
       %miss
     (append-to-msgs msg-road 'user' (rap 3 ~['<api action="' act '" path="' api-path '">MISS — data expired, retrying</api>']))
+      %veto
+    (append-to-msgs msg-road 'user' (rap 3 ~['<api action="' act '" path="' api-path '">BLOCKED — no permission</api>']))
+      %tomb
+    (append-to-msgs msg-road 'user' (rap 3 ~['<api action="' act '" path="' api-path '">TOMBSTONED — data removed</api>']))
       %file
     ;<  content=@t  bind:m  (sage-to-txt (need-sage:tarball sang.p.seen))
     =/  rev=@ud  ud.cass.p.seen

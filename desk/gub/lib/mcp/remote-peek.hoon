@@ -42,8 +42,31 @@
     [%& %& pax u.name-raw]
   ;<  =seen:nexus  bind:m
     (peek-remote:io road target cas)
-  =/  msg=tape
-    ?~  name-raw  "Peeked {(trip u.path-raw)}/ on {(trip u.ship-raw)}"
-    "Peeked {(trip u.path-raw)}/{(trip u.name-raw)} on {(trip u.ship-raw)}"
-  (pure:m [%text (crip msg)])
+  =/  label=tape
+    ?~  name-raw  "{(trip u.path-raw)}/ on {(trip u.ship-raw)}"
+    "{(trip u.path-raw)}/{(trip u.name-raw)} on {(trip u.ship-raw)}"
+  ?:  ?=(%| -.seen)
+    (pure:m [%error (crip "Peek blocked: {label}")])
+  ?+  -.p.seen
+    (pure:m [%text (crip "Peeked {label}: {<-.p.seen>}")])
+      %none
+    (pure:m [%text (crip "Nothing at {label}")])
+      %veto
+    (pure:m [%error (crip "Blocked: no permission to peek {label}")])
+      %tomb
+    (pure:m [%error (crip "Tombstoned: data at {label} has been removed")])
+      %file
+    =/  [* * =sang:tarball]  p.seen
+    =/  res=(each tape tang)
+      (mule |.((trip q.q:;;(mime (sang-noun:tarball sang)))))
+    ?:  ?=(%& -.res)
+      (pure:m [%text (crip p.res)])
+    (pure:m [%text (crip "Peeked {label} ({<p.sang>})")])
+      %ball
+    =/  [* * b=ball:tarball]  p.seen
+    =/  files=(list @ta)
+      ?~(fil.b ~ ~(tap in ~(key by contents.u.fil.b)))
+    =/  dirs=(list @ta)  ~(tap in ~(key by dir.b))
+    (pure:m [%text (crip "Peeked {label}:\0a  dirs: {<dirs>}\0a  files: {<files>}")])
+  ==
 --

@@ -114,7 +114,12 @@
       ::  Weir gate: simulate dart traversal from ship-rail to dest
       ?:  ?=([~ %|] (allowed:hc %peek ship-rail `dest-lane))
         ~&  >>  [%peek-vetoed src=src.bowl dest=dest-lane]
-        :_  this  peer-cards
+        =/  resp=transfer:remote:nexus
+          [wire.req %veto dest-lane]
+        :_  this
+        %+  weld  peer-cards
+        ^-  (list card)
+        ~[[%pass /peek/[(scot %p src.bowl)] %agent [src.bowl %grubbery] %poke grubbery-transfer+!>(resp)]]
       =/  snap=(unit snap:remote:nexus)
         =/  cas-pace=(unit [=cass:clay =pace:hist:nexus])
           ?-  -.dest-lane
@@ -224,8 +229,8 @@
       abet:(ensure-peer-ship:hc src.bowl)
     =/  ship-rail=rail:tarball  [/sys/ames/ships/[ship-ta] %'ship.sig']
     ~&  >  [%grubbery-transfer +<.req src=src.bowl]
-    ?:  ?=(?(%snap %data) +<.req)
-      ::  Inbound snap/data: process locally (no auth needed, we requested it)
+    ?:  ?=(?(%snap %data %veto %miss) +<.req)
+      ::  Inbound snap/data/veto/miss: process locally (no auth needed, we requested it)
       =^  cards  state
         abet:(process-transfer:hc src.bowl req)
       [(weld peer-cards cards) this]
@@ -687,16 +692,25 @@
     ::  2. Diff refs against silo and request missing lobes.
     ::  3. Discharge any peeks that can already be fulfilled.
     ::
+    ?~  snap.resp
+      ::  Nothing exists at dest — discharge with %none and remove peeks
+      ~&  >  [%snap-not-found dest=dest.resp]
+      =/  to-discharge=(list [[=rail:tarball =wire] =peek:remote:nexus])
+        %+  skim  ~(tap by peeks)
+        |=  [[=rail:tarball =wire] pk=peek:remote:nexus]
+        &(=(ship.pk src) =(dest.pk dest.resp))
+      =.  this
+        %+  roll  to-discharge
+        |=  [[[=rail:tarball =wire] pk=peek:remote:nexus] sat=_this]
+        =.  peeks.sat  (~(del by peeks.sat) [rail wire])
+        (enqu-take:sat rail (sys-give:sat /peek) ~ %peek wire &+[%none ~])
+      this
     =.  peeks
       %-  ~(run by peeks)
       |=  pk=peek:remote:nexus
       ?.  &(=(ship.pk src) =(dest.pk dest.resp))
         pk
       pk(snap snap.resp, snap-id snap-id.resp)
-    ?~  snap.resp
-      ::  Nothing exists at dest — discharge immediately with %none
-      ~&  >  [%snap-not-found dest=dest.resp]
-      discharge-peeks
     =/  have=(set lobe:clay)
       (~(uni in ~(key by jects.silo)) ~(key by nouns.silo))
     =/  missing=(set lobe:clay)
@@ -759,6 +773,19 @@
       $(ject-entries t.ject-entries)
     ~&  >  [%peek-data-received nouns=~(wyt by nouns.got) jects=~(wyt by jects.got)]
     discharge-peeks
+    ::
+      %veto
+    ::  Remote peek was blocked by weir. Discharge matching peeks.
+    ::
+    ~&  >>  [%veto-received-from src dest=dest.resp]
+    =/  vetoed=(list [[=rail:tarball =wire] =peek:remote:nexus])
+      %+  skim  ~(tap by peeks)
+      |=  [[=rail:tarball =wire] pk=peek:remote:nexus]
+      &(=(ship.pk src) =(dest.pk dest.resp))
+    %+  roll  vetoed
+    |=  [[[=rail:tarball =wire] pk=peek:remote:nexus] sat=_this]
+    =.  peeks.sat  (~(del by peeks.sat) [rail wire])
+    (enqu-take:sat rail (sys-give:sat /peek) ~ %peek wire &+[%veto ~])
     ::
       %miss
     ::  Remote snap expired before want arrived. Discharge affected
@@ -1148,7 +1175,7 @@
     (mule |.((grow:(get-marc pax a.bars) b.bars)))
   ?:  ?=(%& -.via-grow)  p.via-grow
   (grab:(get-marc pax b.bars) a.bars)
-::  Validate file content, looks up cached dais
+::  Validate file content via compiled marc
 ::
 ++  validate-noun
   |=  [pax=path =blot:tarball noun=*]
@@ -1299,7 +1326,9 @@
     %+  turn  ~(tap by dir.tree.jt)
     |=  [name=@ta =lobe:clay weir=(unit weir:tarball)]
     ^-  [@ta ball:tarball]
-    [name (peek-ball lobe)]
+    =/  child=ball:tarball  (peek-ball lobe)
+    =/  child-fil=lump:tarball  (fall fil.child [~ ~ %.n ~ ~])
+    [name child(fil `child-fil(weir weir))]
   [`lump sub-dirs]
 ::  Peek bole: raw nouns, no vase construction or bang resolution.
 ::
@@ -2555,6 +2584,11 @@
           ?:  deep.load.dart
             (peek-ball-now dest)
           (peek-ball-shallow-now dest)
+        ::  Inject root weir from parent's tree entry
+        =/  sub-ball
+          =/  root-weir=(unit weir:nexus)  (peek-weir dest)
+          =/  root-fil=lump:tarball  (fall fil.sub-ball [~ ~ %.n ~ ~])
+          sub-ball(fil `root-fil(weir root-weir))
         =^  vball  this  (validate-ball cod sub-ball)
         (enqu-take here (sys-give /peek) ~ %peek wire.dart %& %ball (wave-from-born:nexus sub-born) vball)
         ::
@@ -2675,13 +2709,21 @@
         %font
       ::  Find the /code namespace governing this node.
       ::  Walks up from dest to the nearest /code lode.
+      ::  ~: blocked (weir), [~ ~]: definitively none, [~ ~ bend]: found.
       =/  pax=path
         ?-(-.u.dest-lane %| p.u.dest-lane, %& path.p.u.dest-lane)
       =/  ns=(unit fold:tarball)  (find-code-ns pax)
       ?~  ns
+        ::  No code nexus anywhere. But can the querier see all the way up?
+        =/  =filt:nexus  (allowed %peek here `[%| /])
+        ?:  ?=([~ %|] filt)
+          (enqu-take here (sys-give /font) ~ %font wire.dart ~)
+        (enqu-take here (sys-give /font) ~ %font wire.dart `~)
+      =/  =filt:nexus  (allowed %peek here `[%| u.ns])
+      ?:  ?=([~ %|] filt)
         (enqu-take here (sys-give /font) ~ %font wire.dart ~)
       =/  =bend:tarball  (make-bend:tarball here [%| u.ns])
-      (enqu-take here (sys-give /font) ~ %font wire.dart `bend)
+      (enqu-take here (sys-give /font) ~ %font wire.dart ``bend)
       ::
         %keep
       ::  Subscribe to changes at dest (uses peek permission)
@@ -4386,7 +4428,8 @@
   =.  this  (ensure-dir /sys/ames/usergroups)
   =.  this  (ensure-dir /sys/ames/ships)
   =.  this  ensure-public-group
-  (ensure-peer-ship our.bowl)
+  =.  this  (ensure-peer-ship our.bowl)
+  recompute-peer-weirs
 ::  Ensure /sys/ames/usergroups/public/ exists with who.ships and how.weir.
 ::  The public group's weir applies to all foreign ships regardless of membership.
 ::
@@ -4395,11 +4438,33 @@
   =/  pub-dir=path  /sys/ames/usergroups/public
   =/  who-rail=rail:tarball  [pub-dir %'who.ships']
   =/  how-rail=rail:tarball  [pub-dir %'how.weir']
+  =/  man-rail=rail:tarball  [pub-dir %'man.md']
   =.  this  (ensure-dir pub-dir)
   =?  this  =(~ (~(get bo:nexus now.bowl born) pub-dir %'who.ships'))
     (save-file who-rail [[/ %ships] %& !>(*(set @p))])
   =?  this  =(~ (~(get bo:nexus now.bowl born) pub-dir %'how.weir'))
     (save-file how-rail [[/ %weir] %& !>(*weir:nexus)])
+  =?  this  =(~ (~(get bo:nexus now.bowl born) pub-dir %'man.md'))
+    =/  default-man=mime
+      :-  /text/markdown
+      %-  as-octs:mimes:html
+      ^-  @t
+      '''
+      # Public
+
+      The default usergroup for all foreign ships. Every ship that connects to this grubbery is automatically a member of the public group.
+
+      ## Permissions
+
+      The public group's weir controls what unauthenticated or unrecognized ships can do:
+
+      - **make** — create files or directories
+      - **poke** — send actions to running processes
+      - **peek** — read files and directories
+
+      Each permission is a set of path prefixes. A request is allowed if its destination matches any prefix in the relevant set. An empty set means that category is blocked.
+      '''
+    (save-file man-rail [[/ %mime] %& !>(default-man)])
   this
 ::  Ensure /sys/ames/ships/~ship/ exists with ship.sig and computed weir.
 ::  Our ship gets no weir (full access). Foreign ships get weir from usergroups.
@@ -4419,7 +4484,27 @@
   ::  Set weir (our ship gets none — full access)
   ?:  =(src our.bowl)  this
   =/  =weir:nexus  (compute-peer-weir src)
-  (set-weir ship-dir `weir)
+  =.  this  (set-weir ship-dir `weir)
+  ::  Aggregate man pages from this ship's usergroups
+  (sync-peer-man src ship-dir)
+::  Copy man pages from this ship's usergroups into /man/ under its dir.
+::
+++  sync-peer-man
+  |=  [src=@p ship-dir=path]
+  ^+  this
+  =/  man=(map @ta mime)  read-peer-man
+  =/  who=(map @ta (set @p))  read-peer-who
+  =/  peer-src=(map @p (set @ta))  (build-peer-src who)
+  =/  ship-groups=(set @ta)
+    %-  ~(uni in (fall (~(get by peer-src) src) *(set @ta)))
+    (~(gas in *(set @ta)) ~[%public])
+  =/  man-dir=path  (weld ship-dir /man)
+  =.  this  (ensure-dir man-dir)
+  %+  roll  ~(tap in ship-groups)
+  |=  [grp=@ta sat=_this]
+  =/  grp-man=(unit mime)  (~(get by man) grp)
+  ?~  grp-man  sat
+  (save-file:sat [man-dir (cat 3 grp '.md')] [[/ %mime] %& !>(u.grp-man)])
 ::  Compute weir for a ship from usergroup data.
 ::  Union of all group weirs the ship belongs to, plus public weir.
 ::
@@ -4449,6 +4534,20 @@
   =/  c=(unit sang:tarball)  (~(get ba:tarball grp) [/ %'how.weir'])
   ?~  c  ~
   =/  res  (mule |.(!<(weir:nexus (need-vase:tarball u.c))))
+  ?:(?=(%| -.res) ~ `[name p.res])
+::
+++  read-peer-man
+  ^-  (map @ta mime)
+  =/  ug=ball:tarball
+    (peek-ball-now /sys/ames/usergroups)
+  %-  ~(gas by *(map @ta mime))
+  %+  murn  ~(tap in ~(key by dir.ug))
+  |=  name=@ta
+  ^-  (unit [@ta mime])
+  =/  grp=ball:tarball  (~(dip ba:tarball ug) /[name])
+  =/  c=(unit sang:tarball)  (~(get ba:tarball grp) [/ %'man.md'])
+  ?~  c  ~
+  =/  res  (mule |.(!<(mime (need-vase:tarball u.c))))
   ?:(?=(%| -.res) ~ `[name p.res])
 ::  Build reverse index: ship → group names
 ::
@@ -4528,6 +4627,7 @@
   =.  this  (ensure-peer-ship ship)
   =/  =weir:nexus  (compute-peer-weir-from ship src how)
   =.  this  (set-weir /sys/ames/ships/[(scot %p ship)] `weir)
+  =.  this  (sync-peer-man ship /sys/ames/ships/[(scot %p ship)])
   $(all-ships t.all-ships)
 ::  /sys/eyre: ensure directory structure + register /grubbery/api
 ::

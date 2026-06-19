@@ -63,6 +63,8 @@
       [%file =cass:clay =sang:tarball]
       [%none ~]
       [%miss ~]
+      [%veto ~]
+      [%tomb ~]
   ==
 +$  seen  (each view tang)
 :: dart payload
@@ -198,7 +200,7 @@
         [%news =wire =wave] :: subscription wave (initial or update)
         [%veto =dart] :: notify that a dart was sandboxed
         [%code =wire res=(each (axal (map @ta built)) built)]  :: code subtree or single artifact
-        [%font =wire res=(unit bend:tarball)]  :: bend to governing /code namespace
+        [%font =wire res=(unit (unit bend:tarball))]  :: ~: blocked, [~ ~]: none, [~ ~ bend]: found
         [%here =wire =here]
     ==
   ::
@@ -1075,6 +1077,7 @@
   +$  transfer
     $:  =wire
         $%  [%snap dest=lane:tarball snap-id=@uvJ snap=(unit snap)]
+            [%veto dest=lane:tarball]
             [%want dest=lane:tarball snap-id=@uvJ]
             [%data =silo]
             [%miss ~]

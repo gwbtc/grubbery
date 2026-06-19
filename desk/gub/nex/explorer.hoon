@@ -134,13 +134,14 @@
     ;<  conversions=(map bars:tarball tube:clay)  bind:m
       (get-blot-conversions-shallow:io ball)
     ~&  >  %explorer-get-font
-    ;<  font=(unit bend:tarball)  bind:m
+    ;<  font=(unit (unit bend:tarball))  bind:m
       (get-font:io [%& %| tree-path])
     ;<  here=rail:tarball  bind:m  get-here-abs:io
     =/  code-namespace=(unit path)
       ?~  font  ~
+      ?~  u.font  ~
       =/  ns=(unit lane:tarball)
-        (lane-from-bend:tarball [%& here] u.font)
+        (lane-from-bend:tarball [%& here] u.u.font)
       ?~  ns  ~
       ?.  ?=(%| -.u.ns)  ~
       `p.u.ns
@@ -248,8 +249,7 @@
       ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'Missing fields')])
       (pure:m ~)
     =/  new-road=road:tarball  (parse-road-input road-path)
-    =/  sub=ball:tarball  (~(dip ba:tarball root) tree-path)
-    =/  cur=weir:nexus  (fall ?~(fil.sub ~ weir.u.fil.sub) [~ ~ ~])
+    =/  cur=weir:nexus  (fall ?~(fil.root ~ weir.u.fil.root) [~ ~ ~])
     =/  new=weir:nexus
       ?+  category  cur
         %'write'  cur(make (~(put in make.cur) new-road))
@@ -267,8 +267,7 @@
       ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'Missing category')])
       (pure:m ~)
     =/  del-road=road:tarball  (parse-road-input road-path)
-    =/  sub=ball:tarball  (~(dip ba:tarball root) tree-path)
-    =/  cur=weir:nexus  (fall ?~(fil.sub ~ weir.u.fil.sub) [~ ~ ~])
+    =/  cur=weir:nexus  (fall ?~(fil.root ~ weir.u.fil.root) [~ ~ ~])
     =/  new=weir:nexus
       ?+  category  cur
         %'write'  cur(make (~(del in make.cur) del-road))
@@ -496,13 +495,14 @@
     ::  Resolve governing /code namespace so SSE-pushed rows get
     ::  the same blot & nexus links as the initial page render.
     ::  The bend is relative to this fiber, so resolve with `here`.
-    ;<  font=(unit bend:tarball)  bind:m
+    ;<  font=(unit (unit bend:tarball))  bind:m
       (get-font:io [%& %| watch-path])
     ;<  here=rail:tarball  bind:m  get-here-abs:io
     =/  code-namespace=(unit path)
       ?~  font  ~
+      ?~  u.font  ~
       =/  ns=(unit lane:tarball)
-        (lane-from-bend:tarball [%& here] u.font)
+        (lane-from-bend:tarball [%& here] u.u.font)
       ?~  ns  ~
       ?.  ?=(%| -.u.ns)  ~
       `p.u.ns

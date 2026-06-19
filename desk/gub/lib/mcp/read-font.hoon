@@ -18,8 +18,10 @@
     (pure:m [%error 'Missing or invalid argument: path'])
   =/  pax=@t  p.parsed
   =/  =road:tarball  (cord-to-road:tarball pax)
-  ;<  res=(unit bend:tarball)  bind:m  (get-font:io road)
+  ;<  res=(unit (unit bend:tarball))  bind:m  (get-font:io road)
   ?~  res
+    (pure:m [%text (crip "Blocked: cannot see code governing {(trip pax)}")])
+  ?~  u.res
     (pure:m [%text (crip "No code found governing {(trip pax)}")])
-  (pure:m [%text (crip "Bend: {<u.res>}")])
+  (pure:m [%text (crip "Bend: {<u.u.res>}")])
 --

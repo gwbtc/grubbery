@@ -672,11 +672,11 @@
     [%done p.res.u.in]
   ==
 ::  +get-font: find code responsible for a node
-::  Returns bend to code namespace (relative to asker) + source rail within
+::  ~: blocked (weir), [~ ~]: definitively none, [~ ~ bend]: found
 ::
 ++  get-font
   |=  =road:tarball
-  =/  m  (fiber ,(unit bend:tarball))
+  =/  m  (fiber ,(unit (unit bend:tarball)))
   ^-  form:m
   ;<  ~  bind:m  (send-dart %node /font road %font ~)
   |=  input

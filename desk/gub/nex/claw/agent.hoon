@@ -3088,10 +3088,12 @@
     ?~  raw=(get-arg st 'road')
       (pure:m [%error 'Missing required argument: road'])
     =/  road=road:tarball  (agent-road u.raw)
-    ;<  res=(unit bend:tarball)  bind:m  (get-font:io road)
+    ;<  res=(unit (unit bend:tarball))  bind:m  (get-font:io road)
     ?~  res
+      (pure:m [%text (crip "Blocked: cannot see code governing {(trip u.raw)}")])
+    ?~  u.res
       (pure:m [%text (crip "No code found governing {(trip u.raw)}")])
-    (pure:m [%text (crip "Code: {(trip (road-to-cord:tarball [%| u.res]))}")])
+    (pure:m [%text (crip "Code: {(trip (road-to-cord:tarball [%| u.u.res]))}")])
   --
 ::
 ++  read-weir-tool
