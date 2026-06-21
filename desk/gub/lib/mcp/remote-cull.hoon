@@ -31,7 +31,7 @@
     (pure:m [%error p.pax-parsed])
   =/  pax=path  p.pax-parsed
   =/  nam=@ta  u.name-raw
-  =/  req=load:remote:nexus
+  =/  req=load:remo:nexus
     [[/remote-cull %& pax nam] %cull ~]
   ;<  ~  bind:m
     (gall-poke:io [target %grubbery] grubbery-load+req)

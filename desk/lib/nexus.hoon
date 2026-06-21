@@ -1057,8 +1057,10 @@
 ::  Initial and ongoing waves both delivered as %news.
 ::  %wave delivers ongoing wave updates.
 ::
-++  remote
+++  remo
+  =<  remo
   |%
+  +$  remo  [=peeks =snaps]
   +$  load
     $:  [=wire dest=lane:tarball]
         $%  [%make force=? =make]
@@ -1097,6 +1099,7 @@
   +$  snaps  (map [@uvJ @p] [dest=lane:tarball refs=(set lobe:clay) expiry=@da])
   --
 +$  ack  (unit tang)
++$  upki  (unit rail:tarball) :: urbit PKI source in the namespace
 ::
 :: ++  deaf
 ::   |=  tap=(trap)

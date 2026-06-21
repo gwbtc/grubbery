@@ -133,9 +133,11 @@
     ~&  >  %explorer-get-conversions
     ;<  conversions=(map bars:tarball tube:clay)  bind:m
       (get-blot-conversions-shallow:io ball)
+    ~&  >  %explorer-get-conversions-done
     ~&  >  %explorer-get-font
     ;<  font=(unit (unit bend:tarball))  bind:m
       (get-font:io [%& %| tree-path])
+    ~&  >  %explorer-get-font-done
     ;<  here=rail:tarball  bind:m  get-here-abs:io
     =/  code-namespace=(unit path)
       ?~  font  ~
@@ -146,7 +148,9 @@
       ?.  ?=(%| -.u.ns)  ~
       `p.u.ns
     ~&  >  %explorer-render-dir
-    =/  bod=octs  (manx-to-octs:server (render-dir tree-path ball ball-wave now conversions code-namespace))
+    =/  page=manx  ~>(%bout (render-dir tree-path ball ball-wave now conversions code-namespace))
+    ~&  >  %explorer-manx-to-octs
+    =/  bod=octs  ~>(%bout (manx-to-octs:server page))
     ~&  >  %explorer-send
     ;<  ~  bind:m  (send-simple:srv eyre-id (mime-response:http-utils [/text/html bod]))
     (pure:m ~)

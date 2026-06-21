@@ -50,7 +50,7 @@
     [(snip `path`mk-pax) (rear mk-pax)]
   =/  =noun  (to-wain:format u.content-raw)
   =/  =bask:tarball  [blot noun]
-  =/  req=load:remote:nexus
+  =/  req=load:remo:nexus
     [[/remote-poke %& pax nam] %poke bask]
   ;<  ~  bind:m
     (gall-poke:io [target %grubbery] grubbery-load+req)

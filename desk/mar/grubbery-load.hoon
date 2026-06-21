@@ -1,7 +1,7 @@
 ::  grubbery-load: cross-ship request mark
 ::
 /+  nexus
-|_  axn=load:remote:nexus
+|_  axn=load:remo:nexus
 ++  grad  %noun
 ++  grow
   |%
@@ -9,6 +9,6 @@
   --
 ++  grab
   |%
-  ++  noun  ,load:remote:nexus
+  ++  noun  ,load:remo:nexus
   --
 --

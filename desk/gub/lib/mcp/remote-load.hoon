@@ -32,7 +32,7 @@
   =/  pax=path  p.pax-parsed
   =/  nam=@ta  u.name-raw
   =/  dir=path  (snoc pax nam)
-  =/  req=load:remote:nexus
+  =/  req=load:remo:nexus
     [[/remote-load %| dir] %load ~]
   ;<  ~  bind:m
     (gall-poke:io [target %grubbery] grubbery-load+req)

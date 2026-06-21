@@ -39,7 +39,7 @@
     ?~  jon  ~
     `(weir-from-json:nexus u.jon)
   =/  dir=path  (snoc pax nam)
-  =/  req=load:remote:nexus
+  =/  req=load:remo:nexus
     [[/remote-sand %| dir] %sand wer]
   ;<  ~  bind:m
     (gall-poke:io [target %grubbery] grubbery-load+req)

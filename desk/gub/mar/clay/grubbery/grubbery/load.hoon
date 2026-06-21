@@ -1,12 +1,12 @@
 ::  grubbery-load marc: cross-ship request mark
 ::
-|_  axn=load:remote:nexus
+|_  axn=load:remo:nexus
 ++  grow
   |%
   ++  noun  axn
   --
 ++  grab
   |%
-  ++  noun  ,load:remote:nexus
+  ++  noun  ,load:remo:nexus
   --
 --

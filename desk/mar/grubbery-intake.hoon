@@ -1,7 +1,7 @@
 ::  grubbery-intake: cross-ship response mark
 ::
 /+  nexus
-|_  tak=intake:remote:nexus
+|_  tak=intake:remo:nexus
 ++  grad  %noun
 ++  grow
   |%
@@ -9,6 +9,6 @@
   --
 ++  grab
   |%
-  ++  noun  ,intake:remote:nexus
+  ++  noun  ,intake:remo:nexus
   --
 --

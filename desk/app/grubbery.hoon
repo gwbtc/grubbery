@@ -1,8 +1,8 @@
 /-  spider, push
 /+  default-agent, dbug, tarball, nexus,
     server, multipart, http-utils, html-utils, json-utils,
-    marks, build, fiberio, loader, cram, pretty-file, zlib, bytestream, root,
-    web-push
+    marks, build, fiberio, loader, cram, pretty-file, zlib, bytestream,
+    root, web-push
 /=  t-  /tests/nexus
 /=  t-  /tests/tarball
 /=  t-  /tests/build
@@ -28,9 +28,8 @@
       =code:nexus
       =bins:nexus
       =vale:nexus
-      =peeks:remote:nexus
-      =snaps:remote:nexus
-      jael-source=(unit rail:tarball)
+      =remo:nexus
+      =upki:nexus
   ==
 ++  kel  21.000.000 :: start big; burn many at once
 ++  sut
@@ -100,7 +99,7 @@
   ^-  (quip card _this)
   ?+    mak  (on-poke:def mak vas)
       %grubbery-load
-    =+  !<(req=load:remote:nexus vas)
+    =+  !<(req=load:remo:nexus vas)
     ::  All actions route through /sys/ames/ships/[src]/ as a dart
     ::  from ship.sig.  Our ship has no weir (full access); foreign
     ::  ships get weir from usergroups.
@@ -114,13 +113,13 @@
       ::  Weir gate: simulate dart traversal from ship-rail to dest
       ?:  ?=([~ %|] (allowed:hc %peek ship-rail `dest-lane))
         ~&  >>  [%peek-vetoed src=src.bowl dest=dest-lane]
-        =/  resp=transfer:remote:nexus
+        =/  resp=transfer:remo:nexus
           [wire.req %veto dest-lane]
         :_  this
         %+  weld  peer-cards
         ^-  (list card)
         ~[[%pass /peek/[(scot %p src.bowl)] %agent [src.bowl %grubbery] %poke grubbery-transfer+!>(resp)]]
-      =/  snap=(unit snap:remote:nexus)
+      =/  snap=(unit snap:remo:nexus)
         =/  cas-pace=(unit [=cass:clay =pace:hist:nexus])
           ?-  -.dest-lane
               %&
@@ -177,9 +176,9 @@
           silo(nouns (~(put by nouns.silo) i.refs u.got(refs +(refs.u.got))))
         $(refs t.refs)
       =/  expiry=@da  (add now.bowl ~m5)
-      =?  snaps  ?=(^ snap)
-        (~(put by snaps) [snap-id src.bowl] [dest-lane refs.u.snap expiry])
-      =/  resp=transfer:remote:nexus
+      =?  snaps.remo  ?=(^ snap)
+        (~(put by snaps.remo) [snap-id src.bowl] [dest-lane refs.u.snap expiry])
+      =/  resp=transfer:remo:nexus
         [wire.req %snap dest-lane snap-id snap]
       =/  snap-cards=(list card)
         ?.  ?=(^ snap)  ~
@@ -223,7 +222,7 @@
       %grubbery-transfer
     ::  Runtime-to-runtime content-addressed negotiation.
     ::  Separate from grubbery-load (dart-like operations).
-    =+  !<(req=transfer:remote:nexus vas)
+    =+  !<(req=transfer:remo:nexus vas)
     =/  ship-ta=@ta  (scot %p src.bowl)
     =^  peer-cards  state
       abet:(ensure-peer-ship:hc src.bowl)
@@ -237,10 +236,10 @@
     ::  %want: inbound content request — look up pinned snap by ID
     ?>  ?=(%want +<.req)
     =/  pin-key=[@uvJ @p]  [snap-id.req src.bowl]
-    =/  pin  (~(get by snaps) pin-key)
+    =/  pin  (~(get by snaps.remo) pin-key)
     ?~  pin
       ~&  >>  [%want-unknown-snap-id snap-id.req src=src.bowl]
-      =/  resp=transfer:remote:nexus  [/want %miss ~]
+      =/  resp=transfer:remo:nexus  [/want %miss ~]
       :_  this
       %+  weld  peer-cards
       ^-  (list card)
@@ -261,18 +260,18 @@
       $(wanted t.wanted, acc acc(nouns (~(put by nouns.acc) cur [0 noun.u.got])))
     ~&  >  [%want-sending nouns=~(wyt by nouns.send) jects=~(wyt by jects.send)]
     ::  Release snap, drop refs, cancel timer
-    =.  snaps  (~(del by snaps) pin-key)
+    =.  snaps.remo  (~(del by snaps.remo) pin-key)
     =.  silo  (release-snap-refs:hc refs.u.pin)
     =/  timer-wire=wire
       /behn/snap-pin/[(scot %uv snap-id.req)]/[(scot %p src.bowl)]
-    =/  resp=transfer:remote:nexus
+    =/  resp=transfer:remo:nexus
       [/want %data send]
     ~&  >  [%want-responding-with-data nouns=~(wyt by nouns.send) jects=~(wyt by jects.send) to=src.bowl]
     :_  this
     :(weld peer-cards ^-((list card) ~[[%pass timer-wire %arvo %b %rest expiry.u.pin]]) ^-((list card) ~[[%pass /want/[(scot %p src.bowl)] %agent [src.bowl %grubbery] %poke grubbery-transfer+!>(resp)]]))
     ::
       %grubbery-intake
-    =+  !<(resp=intake:remote:nexus vas)
+    =+  !<(resp=intake:remo:nexus vas)
     ~&  >  [%grubbery-intake src=src.bowl dest=dest.resp]
     =^  cards  state
       abet:(process-intake:hc src.bowl resp)
@@ -316,14 +315,14 @@
     [cards this]
       ::
       ::
-      %set-jael-source
+      %set-upki
     ::  Set the rail whose file backs jael PKI subscriptions.
     ::  Jael subscribes on / and /(scot %p ship); grubbery gives
     ::  %azimuth-udiffs facts when the file at this rail changes.
     ?>  =(src our):bowl
     =/  rl=rail:tarball  !<(rail:tarball vas)
-    ~&  >  [%grubbery %set-jael-source rl]
-    =.  jael-source  `rl
+    ~&  >  [%grubbery %set-upki rl]
+    =.  upki  `rl
     ::  Tell jael to listen to us
     :-  [%pass /jael-listen %arvo %j %listen ~ [%| %grubbery]]~
     this
@@ -356,12 +355,12 @@
     [~ this]
       ::  Jael subscribes on / for all udiffs
       ~
-    ?:  =(~ jael-source)  (on-watch:def path)
+    ?:  =(~ upki)  (on-watch:def path)
     =^  cards  state  abet:(serve-jael:hc ~)
     [cards this]
       ::  Jael subscribes on /(scot %p ship) for per-ship udiffs
       [@ ~]
-    ?:  =(~ jael-source)  (on-watch:def path)
+    ?:  =(~ upki)  (on-watch:def path)
     =^  cards  state  abet:(serve-jael:hc path)
     [cards this]
   ==
@@ -500,13 +499,13 @@
     =/  snap-id=@uvJ  (slav %uv i.t.t.wire)
     =/  ship=@p  (slav %p i.t.t.t.wire)
     =/  snap-key=[@uvJ @p]  [snap-id ship]
-    =/  snap  (~(get by snaps) snap-key)
+    =/  snap  (~(get by snaps.remo) snap-key)
     ?~  snap
       ::  Already released (want arrived before timeout)
       `this
     ~&  >  [%snap-pin-expired snap-id ship refs=~(wyt in refs.u.snap)]
     =.  silo  (release-snap-refs:hc refs.u.snap)
-    =.  snaps  (~(del by snaps) snap-key)
+    =.  snaps.remo  (~(del by snaps.remo) snap-key)
     `this
   ?:  ?=([%behn %timer @ *] wire)
     ?>  ?=([%behn %wake *] sign)
@@ -605,13 +604,13 @@
 ::
 ++  discharge-peeks
   ^+  this
-  =/  entries=(list [[=rail:tarball =wire] =peek:remote:nexus])
-    ~(tap by peeks)
+  =/  entries=(list [[=rail:tarball =wire] =peek:remo:nexus])
+    ~(tap by peeks.remo)
   =/  have=(set lobe:clay)
     (~(uni in ~(key by jects.silo)) ~(key by nouns.silo))
   |-
   ?~  entries  this
-  =/  [key=[=rail:tarball =wire] pk=peek:remote:nexus]  i.entries
+  =/  [key=[=rail:tarball =wire] pk=peek:remo:nexus]  i.entries
   ?~  snap.pk
     ::  Still waiting for %snap — skip
     $(entries t.entries)
@@ -622,7 +621,7 @@
     $(entries t.entries)
   ::  All refs present — discharge: build view from snap+silo,
   ::  send %peek intake to the requesting fiber.
-  ~&  >  [%peek-discharged ship.pk dest.pk key=key peeks-remaining=~(wyt by peeks)]
+  ~&  >  [%peek-discharged ship.pk dest.pk key=key peeks-remaining=~(wyt by peeks.remo)]
   =/  =seen:nexus
     ?:  ?=(%tomb -.pace.u.snap.pk)  &+[%none ~]
     ?~  p.pace.u.snap.pk  &+[%none ~]
@@ -645,7 +644,7 @@
       &+[%file cass.u.snap.pk [blot.mark.leaf.jt %| [~ u.got]]]
     ==
   =.  this  (enqu-take rail.key (sys-give /peek) ~ %peek wire.key seen)
-  =.  peeks  (~(del by peeks) key)
+  =.  peeks.remo  (~(del by peeks.remo) key)
   ::  Drop refs held for this peek's data
   ?>  ?=(^ snap.pk)
   =.  silo  (release-snap-refs refs.u.snap.pk)
@@ -659,7 +658,7 @@
   ^+  this
   =.  this  (sub-put target watcher wire ~)
   =/  =wave:nexus  (wave-at:nexus born target)
-  =/  resp=intake:remote:nexus
+  =/  resp=intake:remo:nexus
     [wire target wave]
   =.  cards
     :_  cards
@@ -676,14 +675,14 @@
 ::  %data: merge silo, discharge fulfilled peeks.
 ::
 ++  process-transfer
-  |=  [src=@p resp=transfer:remote:nexus]
+  |=  [src=@p resp=transfer:remo:nexus]
   ^+  this
   ?-  +<.resp
       %snap
     ::  Solicitation check: only accept snaps we asked for
     =/  solicited=?
-      %+  lien  ~(tap by peeks)
-      |=  [[* *] pk=peek:remote:nexus]
+      %+  lien  ~(tap by peeks.remo)
+      |=  [[* *] pk=peek:remo:nexus]
       &(=(ship.pk src) =(dest.pk dest.resp))
     ?.  solicited
       ~&  >>  [%snap-unsolicited src=src dest=dest.resp]
@@ -695,19 +694,19 @@
     ?~  snap.resp
       ::  Nothing exists at dest — discharge with %none and remove peeks
       ~&  >  [%snap-not-found dest=dest.resp]
-      =/  to-discharge=(list [[=rail:tarball =wire] =peek:remote:nexus])
-        %+  skim  ~(tap by peeks)
-        |=  [[=rail:tarball =wire] pk=peek:remote:nexus]
+      =/  to-discharge=(list [[=rail:tarball =wire] =peek:remo:nexus])
+        %+  skim  ~(tap by peeks.remo)
+        |=  [[=rail:tarball =wire] pk=peek:remo:nexus]
         &(=(ship.pk src) =(dest.pk dest.resp))
       =.  this
         %+  roll  to-discharge
-        |=  [[[=rail:tarball =wire] pk=peek:remote:nexus] sat=_this]
-        =.  peeks.sat  (~(del by peeks.sat) [rail wire])
+        |=  [[[=rail:tarball =wire] pk=peek:remo:nexus] sat=_this]
+        =.  peeks.remo.sat  (~(del by peeks.remo.sat) [rail wire])
         (enqu-take:sat rail (sys-give:sat /peek) ~ %peek wire &+[%none ~])
       this
-    =.  peeks
-      %-  ~(run by peeks)
-      |=  pk=peek:remote:nexus
+    =.  peeks.remo
+      %-  ~(run by peeks.remo)
+      |=  pk=peek:remo:nexus
       ?.  &(=(ship.pk src) =(dest.pk dest.resp))
         pk
       pk(snap snap.resp, snap-id snap-id.resp)
@@ -722,7 +721,7 @@
       discharge-peeks
     ::  Send %want with snap-id — server uses it to look up pinned refs
     ~&  >  [%snap-sending-want missing=~(wyt in missing) snap-id=snap-id.resp]
-    =/  want-req=transfer:remote:nexus
+    =/  want-req=transfer:remo:nexus
       [/want %want dest.resp snap-id.resp]
     =.  cards
       :_  cards
@@ -778,13 +777,13 @@
     ::  Remote peek was blocked by weir. Discharge matching peeks.
     ::
     ~&  >>  [%veto-received-from src dest=dest.resp]
-    =/  vetoed=(list [[=rail:tarball =wire] =peek:remote:nexus])
-      %+  skim  ~(tap by peeks)
-      |=  [[=rail:tarball =wire] pk=peek:remote:nexus]
+    =/  vetoed=(list [[=rail:tarball =wire] =peek:remo:nexus])
+      %+  skim  ~(tap by peeks.remo)
+      |=  [[=rail:tarball =wire] pk=peek:remo:nexus]
       &(=(ship.pk src) =(dest.pk dest.resp))
     %+  roll  vetoed
-    |=  [[[=rail:tarball =wire] pk=peek:remote:nexus] sat=_this]
-    =.  peeks.sat  (~(del by peeks.sat) [rail wire])
+    |=  [[[=rail:tarball =wire] pk=peek:remo:nexus] sat=_this]
+    =.  peeks.remo.sat  (~(del by peeks.remo.sat) [rail wire])
     (enqu-take:sat rail (sys-give:sat /peek) ~ %peek wire &+[%veto ~])
     ::
       %miss
@@ -792,22 +791,22 @@
     ::  peeks as %miss so callers can retry.
     ::
     ~&  >>  [%miss-received-from src]
-    =/  stale=(list [[=rail:tarball =wire] =peek:remote:nexus])
-      %+  skim  ~(tap by peeks)
-      |=  [[* *] pk=peek:remote:nexus]
+    =/  stale=(list [[=rail:tarball =wire] =peek:remo:nexus])
+      %+  skim  ~(tap by peeks.remo)
+      |=  [[* *] pk=peek:remo:nexus]
       =(ship.pk src)
     |-
     ?~  stale  this
-    =/  [key=[=rail:tarball =wire] pk=peek:remote:nexus]  i.stale
+    =/  [key=[=rail:tarball =wire] pk=peek:remo:nexus]  i.stale
     =.  this  (enqu-take rail.key (sys-give /peek) ~ %peek wire.key &+[%miss ~])
-    =.  peeks  (~(del by peeks) key)
+    =.  peeks.remo  (~(del by peeks.remo) key)
     $(stale t.stale)
   ==
 ::  Subscription wave from remote watcher. Translate dest back to
 ::  namespaced lane and deliver %news to local watchers.
 ::
 ++  process-intake
-  |=  [src=@p resp=intake:remote:nexus]
+  |=  [src=@p resp=intake:remo:nexus]
   ^+  this
   ~&  >  [%wave-received-from src dest=dest.resp]
   =/  ns-lane=lane:tarball
@@ -1956,10 +1955,8 @@
 ++  reload-nexus-at
   |=  [dest=fold:tarball nex=nexus:nexus]
   ^+  this
-  ~&  >  [%reload-nexus-at dest]
   =/  old-sub  (peek-ball-now dest)
   =/  sub-ball=ball:tarball  old-sub
-  ~&  >  [%reload-old-sub-fil ?=(^ fil.sub-ball) %neck ?~(fil.sub-ball ~ ?=(^ neck.u.fil.sub-ball))]
   =/  parent-weir=(unit weir:nexus)
     ?~  fil.sub-ball  ~
     weir.u.fil.sub-ball
@@ -1971,24 +1968,19 @@
   =/  load-res=(each bole:tarball tang)
     (mule |.((on-load:nex sub-ball)))
   ?:  ?=(%| -.load-res)
-    ~&  >>>  [%reload-nexus-at-bang dest]
     (bang-nexus dest p.load-res)
-  ~&  >  [%reload-on-load-ok dest]
   =/  upd-bole=bole:tarball  p.load-res
   ::  Enforce parent weir and parent neck on bole
   =/  restored-pulp=pulp:tarball  (fall fil.upd-bole *pulp:tarball)
   =.  upd-bole
     upd-bole(fil `restored-pulp(neck parent-neck, weir parent-weir))
-  ~&  >  [%reload-validated dest %fil ?=(^ fil.upd-bole) %neck ?~(fil.upd-bole ~ ?=(^ neck.u.fil.upd-bole))]
   ::  Put results back — load-ball-changes writes bole and does bookkeeping
   =.  this  (load-ball-changes dest upd-bole)
-  ~&  >  [%reload-loaded dest]
   =.  this  (bump-weir-changes dest (ball-to-bole:tarball old-sub) upd-bole)
   =.  this  (audit-weir dest)
   =.  this  (reload-child-nexuses dest)
   ::  Propagate tree ject changes upward to root after child nexuses reload.
   =.  this  (record-trees dest)
-  ~&  >  [%reload-done dest]
   this
 ::  Recursively reload all child nexuses top-to-bottom.
 ::  Every directory with a neck loads state and recurses into its children.
@@ -2192,7 +2184,7 @@
   ^+  this
   =/  changed=(set lane:tarball)  (diff-born-state:nexus old-born born)
   ?:  =(~ changed)  this
-  ::  If the jael-source file changed, give udiffs to gall subscribers
+  ::  If the upki file changed, give udiffs to gall subscribers
   =.  this  (maybe-give-jael changed)
   ::  For each watched lane, find subscribers and send news
   =/  watched=(list [target=lane:tarball watchers=(map rail:tarball [=wire blot=(unit blot:tarball)])])
@@ -2231,7 +2223,7 @@
     ::  Remote watcher: poke wave to subscriber ship
     ?:  ?=([%sys %ames %ships @ *] path.watcher)
       =/  dest=@p  (slav %p i.t.t.t.path.watcher)
-      =/  resp=intake:remote:nexus
+      =/  resp=intake:remo:nexus
         [wire target wave]
       =.  cards.acc
         :_  cards.acc
@@ -2246,7 +2238,7 @@
 ++  serve-jael
   |=  =path
   ^+  this
-  =/  js  jael-source
+  =/  js  upki
   ?~  js  this
   =/  content=(unit sang:tarball)  (peek-grub-now u.js)
   ?~  content  this
@@ -2264,13 +2256,13 @@
   =.  cards
     [[%give %fact ~ %azimuth-udiffs !>(filtered)] cards]
   this
-::  If the jael-source rail changed, give %azimuth-udiffs to gall subs.
+::  If the upki rail changed, give %azimuth-udiffs to gall subs.
 ::  Sends on / (all udiffs) and on /(scot %p ship) (filtered per ship).
 ::
 ++  maybe-give-jael
   |=  changed=(set lane:tarball)
   ^+  this
-  =/  js  jael-source
+  =/  js  upki
   ?~  js  this
   =/  src-lane=lane:tarball  [%& u.js]
   ?.  (~(has in changed) src-lane)  this
@@ -2543,10 +2535,10 @@
       ?^  remote
         =/  [target=@p real-dest=lane:tarball]  u.remote
         =/  key=[rail:tarball wire]  [here wire.dart]
-        =.  peeks
-          %+  ~(put by peeks)  key
+        =.  peeks.remo
+          %+  ~(put by peeks.remo)  key
           [target real-dest deep.load.dart blot.load.dart ~ *@uvJ]
-        =/  req=load:remote:nexus
+        =/  req=load:remo:nexus
           [[wire.dart real-dest] %peek case.load.dart deep.load.dart]
         =.  cards
           :_  cards
@@ -2733,7 +2725,7 @@
         ::  Remote subscribe: register locally and send %keep to remote
         =/  [target=@p real-dest=lane:tarball]  u.remote
         =.  this  (sub-put u.dest-lane here wire.dart blot.load.dart)
-        =/  req=load:remote:nexus
+        =/  req=load:remo:nexus
           [[wire.dart real-dest] %keep ~]
         =.  cards
           :_  cards
@@ -2752,7 +2744,7 @@
         ::  Remote unsubscribe
         =/  [target=@p real-dest=lane:tarball]  u.remote
         =.  this  (sub-del u.dest-lane here)
-        =/  req=load:remote:nexus
+        =/  req=load:remo:nexus
           [[wire.dart real-dest] %drop ~]
         =.  cards
           :_  cards
@@ -4066,9 +4058,13 @@
     =.  this  (bang-nexus dest p.nex-res)
     $(dir-remaining t.dir-remaining)
   ~&  >  "reload-changed-nexuses: reloading {(spud (weld path.neck ~[name.neck]))} at {(spud dest)}"
+  ~&  >  "reload-changed-nexuses: reload-nexus-at start"
   =.  this  (reload-nexus-at dest p.nex-res)
+  ~&  >  "reload-changed-nexuses: reload-nexus-at done"
   =/  reload-bole  (peek-bole-now dest)
+  ~&  >  "reload-changed-nexuses: spawn-all-files start"
   =.  this  (spawn-all-files dest reload-bole)
+  ~&  >  "reload-changed-nexuses: spawn-all-files done"
   $(dir-remaining t.dir-remaining)
 ::  Validate a compiled artifact based on its source path.
 ::
