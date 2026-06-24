@@ -89,17 +89,23 @@
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
   (send-simple:srv eyre-id (mime-response:http-utils mime))
-::  +maybe-convert: optionally convert cage through ?mark= param
+::  +maybe-convert: optionally convert cage through ?blot= param
 ::    Returns ~ on error (error response already sent).
+::    blot-param is a path-encoded blot, e.g. "/json" or "/wallet/wallet"
 ::
 ++  maybe-convert
-  |=  [eyre-id=@ta =sage:tarball mark-param=(unit @t)]
+  |=  [eyre-id=@ta =sage:tarball blot-param=(unit @t)]
   =/  m  (fiber:fiber:nexus ,(unit sage:tarball))
   ^-  form:m
-  ?~  mark-param  (pure:m `sage)
-  =/  target-mark=@tas  u.mark-param
-  ?:  =(name.p.sage target-mark)  (pure:m `sage)
-  ;<  tube=(unit tube:clay)  bind:m  (get-tube:io [%& %| /code] [p.sage [/ target-mark]])
+  ?~  blot-param  (pure:m `sage)
+  =/  target-path=path  (stab u.blot-param)
+  ?~  target-path
+    ;<  ~  bind:m  (send-error eyre-id 400 'Invalid blot path')
+    (pure:m ~)
+  =/  target-blot=blot:tarball
+    [(snip `path`target-path) (rear target-path)]
+  ?:  =(p.sage target-blot)  (pure:m `sage)
+  ;<  tube=(unit tube:clay)  bind:m  (get-tube:io [%& %| /code] [p.sage target-blot])
   ?~  tube
     ;<  ~  bind:m  (send-error eyre-id 400 'No tube for mark conversion')
     (pure:m ~)
@@ -107,7 +113,7 @@
   ?:  ?=(%| -.result)
     ;<  ~  bind:m  (send-error eyre-id 500 'Mark conversion failed')
     (pure:m ~)
-  (pure:m `[[/ target-mark] p.result])
+  (pure:m `[target-blot p.result])
 ::  +send-json: respond with JSON body
 ::
 ++  send-json
@@ -145,8 +151,8 @@
   ?~  content-data
     (send-error eyre-id 404 'Not found')
   =/  =sage:tarball  (need-sage:tarball sang.u.content-data)
-  =/  mark-param=(unit @t)  (get-key:kv:html-utils 'mark' args)
-  ;<  converted=(unit sage:tarball)  bind:m  (maybe-convert eyre-id sage mark-param)
+  =/  blot-param=(unit @t)  (get-key:kv:html-utils 'blot' args)
+  ;<  converted=(unit sage:tarball)  bind:m  (maybe-convert eyre-id sage blot-param)
   ?~  converted  (pure:m ~)
   ;<  =mime  bind:m  (sage-to-mime:io u.converted)
   (send-mime eyre-id mime)
@@ -223,9 +229,9 @@
   ;<  exists=?  bind:m  (peek-exists:io road)
   ?:  exists
     (send-error eyre-id 409 'Already exists')
-  =/  mark-param=(unit @t)  (get-key:kv:html-utils 'mark' args)
+  =/  blot-param=(unit @t)  (get-key:kv:html-utils 'blot' args)
   =/  mime-sage=sage:tarball  [[/ %mime] !>(`mime`[/application/octet-stream u.body])]
-  ;<  converted=(unit sage:tarball)  bind:m  (maybe-convert eyre-id mime-sage mark-param)
+  ;<  converted=(unit sage:tarball)  bind:m  (maybe-convert eyre-id mime-sage blot-param)
   ?~  converted  (pure:m ~)
   ;<  ~  bind:m  (make:io road [%| [p.u.converted q.q.u.converted] ~])
   (send-created eyre-id)
@@ -260,9 +266,9 @@
   ;<  exists=?  bind:m  (peek-exists:io road)
   ?.  exists
     (send-error eyre-id 404 'Not found')
-  =/  mark-param=(unit @t)  (get-key:kv:html-utils 'mark' args)
+  =/  blot-param=(unit @t)  (get-key:kv:html-utils 'blot' args)
   =/  mime-sage=sage:tarball  [[/ %mime] !>(`mime`[/application/octet-stream u.body])]
-  ;<  converted=(unit sage:tarball)  bind:m  (maybe-convert eyre-id mime-sage mark-param)
+  ;<  converted=(unit sage:tarball)  bind:m  (maybe-convert eyre-id mime-sage blot-param)
   ?~  converted  (pure:m ~)
   ~&  >>  ["%ball-api: serve-post" op road p.u.converted]
   ;<  ~  bind:m
@@ -451,7 +457,7 @@
   ^-  form:m
   ?.  (is-sse-request:http-utils req)
     (send-error eyre-id 400 'Requires Accept: text/event-stream')
-  =/  mark-param=(unit @t)  (get-key:kv:html-utils 'mark' args)
+  =/  blot-param=(unit @t)  (get-key:kv:html-utils 'blot' args)
   ::  Send SSE response header
   ;<  ~  bind:m
     (send-header:srv eyre-id sse-header:http-utils)
@@ -483,7 +489,7 @@
     =/  lane-path=@t  (spat (snoc path.p.lane.i.lanes name.p.lane.i.lanes))
     =/  id=@t  (scot %ud ud.cass.i.lanes)
     =/  event-name=@t  (crip "old {(trip lane-path)}")
-    ;<  body=@t  bind:m  (sage-to-txt (need-sage:tarball sang.p.seen) mark-param)
+    ;<  body=@t  bind:m  (sage-to-txt (need-sage:tarball sang.p.seen) blot-param)
     =/  data=wain  (to-wain:format body)
     =/  =sse-event:http-utils  [`id `event-name data]
     ;<  ~  bind:m
@@ -525,7 +531,7 @@
         (~(has by file.u.node) name.p.lane.i.lanes)
       =/  action=@t  ?:(was-known 'upd' 'new')
       =/  event-name=@t  (crip "{(trip action)} {(trip lane-path)}")
-      ;<  body=@t  bind:m  (sage-to-txt (need-sage:tarball sang.p.seen) mark-param)
+      ;<  body=@t  bind:m  (sage-to-txt (need-sage:tarball sang.p.seen) blot-param)
       =/  data=wain  (to-wain:format body)
       =/  =sse-event:http-utils  [`id `event-name data]
       ;<  ~  bind:m
@@ -541,7 +547,7 @@
 ::  +send-old-dir: send "old" SSE events for all files in a ball
 ::
 ++  send-old-dir
-  |=  [eyre-id=@ta b=ball:tarball =born:nexus here=path mark-param=(unit @t)]
+  |=  [eyre-id=@ta b=ball:tarball =born:nexus here=path blot-param=(unit @t)]
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
   ::  Send "old" for files in this directory
@@ -560,7 +566,7 @@
       ?~  file-hist  '0'
       (scot %ud (ver:hist:nexus u.file-hist))
     =/  event-name=@t  (crip "old {(trip lane-path)}")
-    ;<  body=@t  bind:m  (sage-to-txt (need-sage:tarball sang) mark-param)
+    ;<  body=@t  bind:m  (sage-to-txt (need-sage:tarball sang) blot-param)
     =/  data=wain  (to-wain:format body)
     =/  =sse-event:http-utils  [`id `event-name data]
     ;<  ~  bind:m
@@ -571,32 +577,36 @@
   |-
   ?~  dirs  (pure:m ~)
   =/  [dir-name=@ta sub=ball:tarball]  i.dirs
-  ;<  ~  bind:m  (send-old-dir eyre-id sub born (snoc here dir-name) mark-param)
+  ;<  ~  bind:m  (send-old-dir eyre-id sub born (snoc here dir-name) blot-param)
   $(dirs t.dirs)
 ::
 ::  +sage-to-txt: convert sage to text for SSE data
 ::
-::    With mark param: sage -> target mark -> txt
+::    With blot param: sage -> target blot -> txt
 ::    Without: sage -> txt directly
 ::    Falls back to mime body extraction if no txt tube exists.
 ::
 ++  sage-to-txt
-  |=  [=sage:tarball mark-param=(unit @t)]
+  |=  [=sage:tarball blot-param=(unit @t)]
   =/  m  (fiber:fiber:nexus ,@t)
   ^-  form:m
-  ::  Step 1: optionally convert to intermediate mark
-  ?~  mark-param
+  ::  Step 1: optionally convert to intermediate blot
+  ?~  blot-param
     (sage-to-txt-raw sage)
-  =/  target-mark=@tas  u.mark-param
-  ?:  =(name.p.sage target-mark)
+  =/  target-path=path  (stab u.blot-param)
+  ?~  target-path
     (sage-to-txt-raw sage)
-  ;<  tube=(unit tube:clay)  bind:m  (get-tube:io [%& %| /code] [p.sage [/ target-mark]])
+  =/  target-blot=blot:tarball
+    [(snip `path`target-path) (rear target-path)]
+  ?:  =(p.sage target-blot)
+    (sage-to-txt-raw sage)
+  ;<  tube=(unit tube:clay)  bind:m  (get-tube:io [%& %| /code] [p.sage target-blot])
   ?~  tube
     (sage-to-txt-raw sage)
   =/  result=(each vase tang)  (mule |.((u.tube q.sage)))
   ?:  ?=(%| -.result)
     (sage-to-txt-raw sage)
-  (sage-to-txt-raw [[/ target-mark] p.result])
+  (sage-to-txt-raw [target-blot p.result])
 ::  +sage-to-txt-raw: convert a single sage to @t
 ::
 ++  sage-to-txt-raw

@@ -21,10 +21,19 @@
               image+s+''
               href+s+'/grubbery/ball'
           ==
+        =/  contacts-tile=json
+          %-  pairs:enjs:format
+          :~  title+s+'Contacts'
+              info+s+'Manage your contacts'
+              color+s+'#6b7280'
+              image+s+''
+              href+s+'/grubbery/contacts'
+          ==
         %+  spin:loader  ball
         :~  (ver-row:loader 0)
             [%fall %| /tiles empty-dir:loader]
             [%over %& [/tiles %'explorer.json'] [[/ %json] explorer-tile]]
+            [%over %& [/tiles %'contacts.json'] [[/ %json] contacts-tile]]
             [%over %& [/ %'page.html'] [[/ %html] (crip (en-xml:html (tiles-page "" ~)))]]
             [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
             [%fall %| /requests empty-dir:loader]
@@ -268,7 +277,7 @@
     var title = el ? (el.querySelector('.tile-title') || \{}).textContent || name : name;
     editTitle.textContent = 'Edit ' + title;
     editStatus.textContent = '';
-    fetch(API + '/file/' + BALL + '/tiles/' + name + '?mark=json')
+    fetch(API + '/file/' + BALL + '/tiles/' + name + '?blot=/json')
       .then(function(r) \{ return r.json() })
       .then(function(j) \{ editJson.value = JSON.stringify(j, null, 2) })
       .catch(function() \{ editJson.value = '\{}' });
@@ -304,7 +313,7 @@
     }
     var method = isNew ? 'PUT' : 'POST';
     var endpoint = isNew ? '/file/' : '/over/';
-    var r = await fetch(API + endpoint + BALL + '/tiles/' + editName + '?mark=json', \{
+    var r = await fetch(API + endpoint + BALL + '/tiles/' + editName + '?blot=/json', \{
       method: method,
       headers: \{'Content-Type': 'application/json'},
       body: JSON.stringify(parsed)
@@ -320,7 +329,7 @@
   };
 
   // SSE for live updates
-  var SSE_URL = API + '/keep/' + BALL + '?mark=txt';
+  var SSE_URL = API + '/keep/' + BALL + '?blot=/txt';
   async function connectSSE() \{
     try \{
       var r = await fetch(SSE_URL, \{headers: \{Accept: 'text/event-stream'}});

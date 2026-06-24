@@ -1344,8 +1344,8 @@
 ++  btc-page
   |=  [nexus-root=tape stats=manx ships=(list @p) known-points=(list @p)]
   ^-  manx
-  =/  sse=tape       "/grubbery/api/keep{nexus-root}/ui/sse?mark=txt"
-  =/  reg-poke=tape  "/grubbery/api/poke{nexus-root}/reg-tester.sig?mark=json"
+  =/  sse=tape       "/grubbery/api/keep{nexus-root}/ui/sse?blot=/txt"
+  =/  reg-poke=tape  "/grubbery/api/poke{nexus-root}/reg-tester.sig?blot=/json"
   =/  sorted-ships=(list @p)  (sort ships lth)
   =/  sorted-points=(list @p)  (sort known-points lth)
   =/  point-options=(list manx)

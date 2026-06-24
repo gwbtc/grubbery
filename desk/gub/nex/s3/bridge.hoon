@@ -1116,7 +1116,7 @@
   var KEEP = P.replace('/ball/', '/api/keep/');
 
   function poke(payload) \{
-    fetch(POKE + 'main.sig?mark=json', \{
+    fetch(POKE + 'main.sig?blot=/json', \{
       method: 'POST',
       headers: \{'Content-Type': 'application/json'},
       body: JSON.stringify(payload)
@@ -1152,7 +1152,7 @@
       credsStatus.style.color = '#f87171';
       return;
     }
-    var r = await fetch(OVER + 'creds.json?mark=json', \{
+    var r = await fetch(OVER + 'creds.json?blot=/json', \{
       method: 'POST',
       headers: \{'Content-Type': 'application/json'},
       body: JSON.stringify(parsed)
@@ -1300,7 +1300,7 @@
 
   function saveSource() \{
     var val = document.getElementById('m-source').value.trim();
-    fetch(OVER + 'source.json?mark=json', \{
+    fetch(OVER + 'source.json?blot=/json', \{
       method: 'POST',
       headers: \{'Content-Type': 'application/json'},
       body: JSON.stringify(val)
@@ -1403,7 +1403,7 @@
     el.innerHTML = html;
   }
 
-  var mapEs = new EventSource(KEEP + 'mapping.json?mark=json');
+  var mapEs = new EventSource(KEEP + 'mapping.json?blot=/json');
   mapEs.addEventListener('upd mapping.json', function(e) \{
     try \{ renderBridges(JSON.parse(e.data)); } catch(x) \{}
   });
@@ -1419,7 +1419,7 @@
   }
 
   // SSE: live-update sync status
-  var syncEs = new EventSource(KEEP + 'sync-status.json?mark=json');
+  var syncEs = new EventSource(KEEP + 'sync-status.json?blot=/json');
   syncEs.addEventListener('upd sync-status.json', function(e) \{
     try \{ applySyncStatus(JSON.parse(e.data)); } catch(x) \{}
   });
@@ -1501,7 +1501,7 @@
       .catch(function() \{});
   }
 
-  var logEs = new EventSource(KEEP + 'log.json?mark=json');
+  var logEs = new EventSource(KEEP + 'log.json?blot=/json');
   logEs.addEventListener('upd log.json', function(e) \{
     try \{
       var entries = JSON.parse(e.data);

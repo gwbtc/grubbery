@@ -1,6 +1,6 @@
 # Goals Nexus
 
-DAG-based goal tracking with web UI. Manages goal stores, each containing a directed acyclic graph of goals. Page at `/grubbery/api/peek/goals.goals/page.html?mark=mime`.
+DAG-based goal tracking with web UI. Manages goal stores, each containing a directed acyclic graph of goals. Page at `/grubbery/api/peek/goals.goals/page.html?blot=/mime`.
 
 ## Files
 

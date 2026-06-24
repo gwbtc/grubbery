@@ -679,7 +679,7 @@
   ^-  tape
   """
   function poke(body,cb)\{
-    return fetch(API+'/poke/'+BASE+'/main.sig?mark=json',\{
+    return fetch(API+'/poke/'+BASE+'/main.sig?blot=/json',\{
       method:'POST',
       headers:\{'Content-Type':'application/json'},
       body:JSON.stringify(body)

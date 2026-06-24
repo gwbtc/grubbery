@@ -774,7 +774,7 @@
   }
 
   function setNetwork(network) \{
-    var url = API + '/poke/' + acctBase + '/main.sig?mark=json';
+    var url = API + '/poke/' + acctBase + '/data.wallet_account?blot=/json';
     fetch(url, \{
       method: 'POST',
       headers: \{'Content-Type': 'application/json'},
@@ -784,74 +784,44 @@
     }).catch(function(e) \{ console.error('set-network failed', e) });
   }
 
-  function deriveNext(chain) \{
-    console.log('[debug] deriveNext called', chain);
-    var url = API + '/poke/' + acctBase + '/main.sig?mark=json';
-    console.log('[debug] deriveNext url:', url);
-    fetch(url, \{
+  function acctPoke(body, cb) \{
+    var url = API + '/poke/' + acctBase + '/data.wallet_account?blot=/json';
+    return fetch(url, \{
       method: 'POST',
       headers: \{'Content-Type': 'application/json'},
-      body: JSON.stringify(\{action: 'derive-next', chain: chain})
+      body: JSON.stringify(body)
     }).then(function(r) \{
-      if (!r.ok) return r.text().then(function(t) \{ console.error('derive-next error', t) });
-    }).catch(function(e) \{ console.error('derive-next failed', e) });
+      if (!r.ok) return r.text().then(function(t) \{ console.error('poke error', t) });
+      if (cb) setTimeout(cb, 500);
+    }).catch(function(e) \{ console.error('poke failed', e) });
+  }
+  function deriveNext(chain) \{
+    acctPoke(\{action: 'derive-next', chain: chain});
   }
 
   function deleteAddress(chain, idx) \{
     if (!confirm('Remove address ' + chain + '-' + idx + '?')) return;
-    var url = API + '/poke/' + acctBase + '/main.sig?mark=json';
-    fetch(url, \{
-      method: 'POST',
-      headers: \{'Content-Type': 'application/json'},
-      body: JSON.stringify(\{action: 'delete-address', chain: chain, index: Number(idx)})
-    }).catch(function(e) \{ console.error('delete failed', e) });
+    acctPoke(\{action: 'delete-address', chain: chain, index: Number(idx)});
   }
 
   function refreshAddress(chain, idx) \{
-    var url = API + '/poke/' + acctBase + '/main.sig?mark=json';
-    fetch(url, \{
-      method: 'POST',
-      headers: \{'Content-Type': 'application/json'},
-      body: JSON.stringify(\{action: 'refresh', chain: chain, index: Number(idx)})
-    }).then(function(r) \{
-      if (!r.ok) return r.text().then(function(t) \{ console.error('refresh error', t) });
-    }).catch(function(e) \{ console.error('refresh failed', e) });
+    acctPoke(\{action: 'refresh', chain: chain, index: Number(idx)});
   }
 
   function fullScan() \{
-    var url = API + '/poke/' + acctBase + '/main.sig?mark=json';
-    fetch(url, \{
-      method: 'POST',
-      headers: \{'Content-Type': 'application/json'},
-      body: JSON.stringify(\{action: 'full-scan'})
-    }).catch(function(e) \{ console.error('scan failed', e) });
+    acctPoke(\{action: 'full-scan'});
   }
 
   function pauseScan() \{
-    var url = API + '/poke/' + acctBase + '/main.sig?mark=json';
-    fetch(url, \{
-      method: 'POST',
-      headers: \{'Content-Type': 'application/json'},
-      body: JSON.stringify(\{action: 'pause-scan'})
-    }).catch(function(e) \{ console.error('pause-scan failed', e) });
+    acctPoke(\{action: 'pause-scan'});
   }
 
   function resumeScan() \{
-    var url = API + '/poke/' + acctBase + '/main.sig?mark=json';
-    fetch(url, \{
-      method: 'POST',
-      headers: \{'Content-Type': 'application/json'},
-      body: JSON.stringify(\{action: 'resume-scan'})
-    }).catch(function(e) \{ console.error('resume-scan failed', e) });
+    acctPoke(\{action: 'resume-scan'});
   }
 
   function cancelScan() \{
-    var url = API + '/poke/' + acctBase + '/main.sig?mark=json';
-    fetch(url, \{
-      method: 'POST',
-      headers: \{'Content-Type': 'application/json'},
-      body: JSON.stringify(\{action: 'cancel-scan'})
-    }).catch(function(e) \{ console.error('cancel-scan failed', e) });
+    acctPoke(\{action: 'cancel-scan'});
   }
 
   function toggleEmptyAddresses() \{
@@ -952,7 +922,7 @@
     var changeAddress = '{next-chg-tape}';
 
     function poke(action, extra) \{
-      var url = API + '/poke/' + sendBase + '/main.sig?mark=json';
+      var url = API + '/poke/' + sendBase + '/data.wallet_account?blot=/json';
       var body = Object.assign(\{action: action}, extra || \{});
       return fetch(url, \{
         method: 'POST',
@@ -1112,7 +1082,7 @@
       ==
       ;script
         ;+  ;/
-          =/  acct-base=tape  "wallet.wallet_app/accounts/{key-hex}.wallet_account"
+          =/  acct-base=tape  "apps/wallet.wallet_app/accounts/{key-hex}.wallet_account"
           (script-text active-network.acct acct-base key-hex)
       ==
     ==
@@ -1234,7 +1204,7 @@
         ==
       ==
       ;+
-        =/  acct-base=tape  "wallet.wallet_app/accounts/{key-hex}.wallet_account"
+        =/  acct-base=tape  "apps/wallet.wallet_app/accounts/{key-hex}.wallet_account"
         (send-scripts-ui next-chg-tape acct-base key-hex)
     ==
   ==

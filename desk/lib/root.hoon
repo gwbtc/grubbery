@@ -43,6 +43,7 @@
         [%fall %| /apps/'mcp.mcp' [`[`[/ %mcp] ~ %.n ~] ~]]
         [%fall %| /apps/'peers.peers' [`[`[/ %peers] ~ %.n ~] ~]]
         [%fall %| /apps/'wallet.wallet_app' [`[`[/wallet %app] ~ %.n ~] ~]]
+        [%fall %| /apps/'contacts.contacts' [`[`[/ %contacts] ~ %.n ~] ~]]
     ==
   ==
 ::

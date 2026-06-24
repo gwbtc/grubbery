@@ -480,14 +480,14 @@
             "function renderMsgs()\{var filtered=curChat==='all'?allMsgs:allMsgs.filter(function(m)\{return(m['chat-id']||'')==curChat});var el=document.getElementById('messages');el.innerHTML='';if(filtered.length===0)\{el.innerHTML='<span class=\"empty\">No messages yet.</span>';return}filtered.forEach(function(m)\{var d=document.createElement('div');d.className='msg '+(m.dir||'in');d.innerHTML='<div class=\"from\">'+esc(m.from||'unknown')+'</div><span>'+esc(m.text||'')+'</span>';el.appendChild(d)});scrollBottom()}"
             "renderMsgs();"
             ::  send message
-            "function doSend()\{var i=document.getElementById('input');var m=i.value.trim();if(!m)return;if(curChat==='all')\{alert('Select a specific chat to send to');return}i.value='';fetch(API+'/poke/'+BASE+'/send.sig?mark=json',\{method:'POST',headers:\{'Content-Type':'application/json'},body:JSON.stringify(\{message:m,chat_id:curChat})})}"
+            "function doSend()\{var i=document.getElementById('input');var m=i.value.trim();if(!m)return;if(curChat==='all')\{alert('Select a specific chat to send to');return}i.value='';fetch(API+'/poke/'+BASE+'/send.sig?blot=/json',\{method:'POST',headers:\{'Content-Type':'application/json'},body:JSON.stringify(\{message:m,chat_id:curChat})})}"
             "document.getElementById('send').onclick=doSend;"
             "document.getElementById('input').onkeydown=function(e)\{if(e.key==='Enter')doSend()};"
             ::  helpers
             "function scrollBottom()\{var m=document.getElementById('messages');m.scrollTop=m.scrollHeight}"
             "function esc(s)\{var d=document.createElement('div');d.textContent=s;return d.innerHTML}"
             ::  chat management — create/delete message files directly
-            "document.getElementById('add-chat-btn').onclick=async function()\{var id=document.getElementById('add-chat-id').value.trim();var name=document.getElementById('add-chat-name').value.trim()||id;if(!id)\{alert('Chat ID required');return}await fetch(API+'/file/'+BASE+'/messages/'+id+'.json?mark=json',\{method:'PUT',headers:\{'Content-Type':'application/json'},body:JSON.stringify(\{name:name,'chat-id':id,messages:[]})});location.reload()};"
+            "document.getElementById('add-chat-btn').onclick=async function()\{var id=document.getElementById('add-chat-id').value.trim();var name=document.getElementById('add-chat-name').value.trim()||id;if(!id)\{alert('Chat ID required');return}await fetch(API+'/file/'+BASE+'/messages/'+id+'.json?blot=/json',\{method:'PUT',headers:\{'Content-Type':'application/json'},body:JSON.stringify(\{name:name,'chat-id':id,messages:[]})});location.reload()};"
             "document.getElementById('del-chat-btn').onclick=async function()\{if(curChat==='all')\{alert('Select a chat first');return}var el=document.querySelector('.chat-item.active');var name=el?el.textContent:curChat;if(!confirm('Delete chat \"'+name+'\" ('+curChat+')?'))return;await fetch(API+'/file/'+BASE+'/messages/'+curChat+'.json',\{method:'DELETE'});location.reload()};"
             ::  SSE live updates
             "var sseCtrl=null,sseRdr=null;"
@@ -497,7 +497,7 @@
             "if(sseCtrl)sseCtrl.abort();"
             "sseCtrl=new AbortController();"
             "try\{"
-            "var r=await fetch(API+'/keep/'+BASE+'/ui/sse?mark=txt',\{headers:\{Accept:'text/event-stream'},signal:sseCtrl.signal});"
+            "var r=await fetch(API+'/keep/'+BASE+'/ui/sse?blot=/txt',\{headers:\{Accept:'text/event-stream'},signal:sseCtrl.signal});"
             "sseRdr=r.body.getReader();"
             "var dec=new TextDecoder();var buf='';"
             "while(true)\{"

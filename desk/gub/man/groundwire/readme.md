@@ -15,5 +15,5 @@ Bitcoin PKI state machine with live web UI. Maintains urb protocol PKI state by 
 ## Usage from the browser
 
 - `GET  /grubbery/api/file/groundwire.groundwire/page.html`
-- `SSE  /grubbery/api/keep/groundwire.groundwire/urb-state.urb-state?mark=json`
-- `POKE /grubbery/api/poke/groundwire.groundwire/reg-tester.sig?mark=json`
+- `SSE  /grubbery/api/keep/groundwire.groundwire/urb-state.urb-state?blot=/json`
+- `POKE /grubbery/api/poke/groundwire.groundwire/reg-tester.sig?blot=/json`

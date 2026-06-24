@@ -497,7 +497,7 @@
       typeEl.value = '';
     }
     nameEl.value = '';
-    fetch(API + '/poke/' + BALL + '/main.sig?mark=json', \{
+    fetch(API + '/poke/' + BALL + '/main.sig?blot=/json', \{
       method: 'POST',
       headers: \{'Content-Type': 'application/json'},
       body: JSON.stringify(body)
@@ -507,7 +507,7 @@
   function deleteEntity(section, name) \{
     if (!confirm('Delete ' + name + '?')) return;
     var a = ACTIONS[section];
-    fetch(API + '/poke/' + BALL + '/main.sig?mark=json', \{
+    fetch(API + '/poke/' + BALL + '/main.sig?blot=/json', \{
       method: 'POST',
       headers: \{'Content-Type': 'application/json'},
       body: JSON.stringify(\{action: a.del, name: name})
@@ -530,7 +530,7 @@
     cfgTitle.textContent = name + ' config';
     cfgStatus.textContent = '';
     cfgStatus.style.color = '#4ade80';
-    fetch(API + '/file/' + BALL + '/' + section + '/' + name + '/config.json?mark=json')
+    fetch(API + '/file/' + BALL + '/' + section + '/' + name + '/config.json?blot=/json')
       .then(function(r) \{ return r.json() })
       .then(function(j) \{ cfgJson.value = JSON.stringify(j, null, 2); })
       .catch(function() \{ cfgJson.value = '\{}'; });
@@ -552,7 +552,7 @@
       cfgStatus.style.color = '#f87171';
       return;
     }
-    var r = await fetch(API + '/over/' + BALL + '/' + cfgSection + '/' + cfgName + '/config.json?mark=json', \{
+    var r = await fetch(API + '/over/' + BALL + '/' + cfgSection + '/' + cfgName + '/config.json?blot=/json', \{
       method: 'POST',
       headers: \{'Content-Type': 'application/json'},
       body: JSON.stringify(parsed)
@@ -567,7 +567,7 @@
     }
   };
 
-  var SSE_URL = API + '/keep/' + BALL + '/ui/sse?mark=txt';
+  var SSE_URL = API + '/keep/' + BALL + '/ui/sse?blot=/txt';
   var sseCtrl = null;
   var sseRdr = null;
 

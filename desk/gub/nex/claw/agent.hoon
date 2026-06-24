@@ -2382,7 +2382,7 @@
     if (!text) return;
     input.value = '';
     input.style.height = 'auto';
-    fetch(API + '/poke/' + BALL + '/chats/' + CHAT + '/chat.json?mark=json', \{
+    fetch(API + '/poke/' + BALL + '/chats/' + CHAT + '/chat.json?blot=/json', \{
       method: 'POST',
       headers: \{'Content-Type': 'application/json'},
       body: JSON.stringify(\{action: 'message', content: text})
@@ -2403,7 +2403,7 @@
 
   document.getElementById('clear-btn').onclick = function() \{
     if (!confirm('Clear chat?')) return;
-    fetch(API + '/poke/' + BALL + '/chats/' + CHAT + '/chat.json?mark=json', \{
+    fetch(API + '/poke/' + BALL + '/chats/' + CHAT + '/chat.json?blot=/json', \{
       method: 'POST',
       headers: \{'Content-Type': 'application/json'},
       body: JSON.stringify(\{action: 'clear'})
@@ -2412,7 +2412,7 @@
 
   // config modal
   document.getElementById('config-btn').onclick = function() \{
-    fetch(API + '/file/' + BALL + '/config.json?mark=json')
+    fetch(API + '/file/' + BALL + '/config.json?blot=/json')
       .then(function(r) \{ return r.json() })
       .then(function(cfg) \{
         document.getElementById('cfg-model').value = cfg.model || '';
@@ -2432,7 +2432,7 @@
     var win = parseInt(document.getElementById('cfg-window').value) || 80000;
     var cap = parseInt(document.getElementById('cfg-msgcap').value) || 20000;
     var channel = document.getElementById('cfg-channel').value.trim();
-    fetch(API + '/over/' + BALL + '/config.json?mark=json', \{
+    fetch(API + '/over/' + BALL + '/config.json?blot=/json', \{
       method: 'POST',
       headers: \{'Content-Type': 'application/json'},
       body: JSON.stringify(\{model: model, 'api-proxy': proxy, context_window: win, message_cap: cap, channel: channel})
@@ -2446,7 +2446,7 @@
 
   // about modal
   document.getElementById('about-btn').onclick = function() \{
-    fetch(API + '/file/' + BALL + '/about.txt?mark=txt')
+    fetch(API + '/file/' + BALL + '/about.txt?blot=/txt')
       .then(function(r) \{ return r.text() })
       .then(function(t) \{ document.getElementById('abt-text').value = t; })
       .catch(function() \{ document.getElementById('abt-text').value = ''; });
@@ -2461,7 +2461,7 @@
   };
   document.getElementById('abt-save').onclick = async function() \{
     var text = document.getElementById('abt-text').value;
-    var r = await fetch(API + '/over/' + BALL + '/about.txt?mark=txt', \{
+    var r = await fetch(API + '/over/' + BALL + '/about.txt?blot=/txt', \{
       method: 'POST',
       headers: \{'Content-Type': 'text/plain'},
       body: text
@@ -2482,7 +2482,7 @@
     if (sseCtrl) sseCtrl.abort();
     sseCtrl = new AbortController();
     try \{
-      var r = await fetch(API + '/keep/' + BALL + '/chats/' + CHAT + '/chat.json?mark=json', \{
+      var r = await fetch(API + '/keep/' + BALL + '/chats/' + CHAT + '/chat.json?blot=/json', \{
         headers: \{Accept: 'text/event-stream'},
         signal: sseCtrl.signal
       });
@@ -2528,13 +2528,13 @@
     if (currentStatus.state === 'idle') return;
     if (currentStatus.state === 'tool') \{
       if (!confirm('Abort tool? This may leave state inconsistent.')) return;
-      fetch(API + '/poke/' + BALL + '/chats/' + CHAT + '/chat.json?mark=json', \{
+      fetch(API + '/poke/' + BALL + '/chats/' + CHAT + '/chat.json?blot=/json', \{
         method: 'POST',
         headers: \{'Content-Type': 'application/json'},
         body: JSON.stringify(\{action: 'interrupt', id: currentStatus.id})
       });
     } else \{
-      fetch(API + '/poke/' + BALL + '/chats/' + CHAT + '/chat.json?mark=json', \{
+      fetch(API + '/poke/' + BALL + '/chats/' + CHAT + '/chat.json?blot=/json', \{
         method: 'POST',
         headers: \{'Content-Type': 'application/json'},
         body: JSON.stringify(\{action: 'interrupt'})
@@ -2546,7 +2546,7 @@
   var statusEs = null;
   function connectStatusSSE() \{
     if (statusEs) statusEs.close();
-    statusEs = new EventSource(API + '/keep/' + BALL + '/chats/' + CHAT + '/status.json?mark=json');
+    statusEs = new EventSource(API + '/keep/' + BALL + '/chats/' + CHAT + '/status.json?blot=/json');
     statusEs.addEventListener('upd /status.json', function(e) \{
       try \{
         var s = JSON.parse(e.data);
@@ -2567,12 +2567,12 @@
   }
 
   // Load chat
-  fetch(API + '/file/' + BALL + '/chats/' + CHAT + '/chat.json?mark=json')
+  fetch(API + '/file/' + BALL + '/chats/' + CHAT + '/chat.json?blot=/json')
     .then(function(r) \{ return r.json() })
     .then(renderMessages)
     .catch(function() \{});
   // Load current status
-  fetch(API + '/file/' + BALL + '/chats/' + CHAT + '/status.json?mark=json')
+  fetch(API + '/file/' + BALL + '/chats/' + CHAT + '/status.json?blot=/json')
     .then(function(r) \{ return r.json() })
     .then(function(s) \{
       currentStatus = s;
@@ -2628,7 +2628,7 @@
         var n = this.getAttribute('data-chat');
         if (!confirm('Delete chat "' + n + '"?')) return;
         pendingNav = '-' + n;
-        fetch(API + '/poke/' + BALL + '/main.sig?mark=json', \{
+        fetch(API + '/poke/' + BALL + '/main.sig?blot=/json', \{
           method: 'POST',
           headers: \{'Content-Type': 'application/json'},
           body: JSON.stringify(\{action: 'delete-chat', name: n})
@@ -2641,7 +2641,7 @@
 
   function connectChatListSSE() \{
     if (chatListEs) chatListEs.close();
-    chatListEs = new EventSource(API + '/keep/' + BALL + '/ui/chats.json?mark=json');
+    chatListEs = new EventSource(API + '/keep/' + BALL + '/ui/chats.json?blot=/json');
     chatListEs.addEventListener('upd /chats.json', function(e) \{
       try \{ renderChatList(JSON.parse(e.data)); } catch(x) \{}
     });
@@ -2658,7 +2658,7 @@
     name = name.toLowerCase().replace(/[^a-z0-9\\-]/g, '-').replace(/^-|-$/g, '');
     if (!name) return;
     pendingNav = '+' + name;
-    fetch(API + '/poke/' + BALL + '/main.sig?mark=json', \{
+    fetch(API + '/poke/' + BALL + '/main.sig?blot=/json', \{
       method: 'POST',
       headers: \{'Content-Type': 'application/json'},
       body: JSON.stringify(\{action: 'create-chat', name: name})
@@ -2666,7 +2666,7 @@
   };
 
   try \{ var cached = JSON.parse(sessionStorage.getItem('claw-chats')); if (cached) renderChatList(cached, true); } catch(x) \{}
-  fetch(API + '/file/' + BALL + '/ui/chats.json?mark=json')
+  fetch(API + '/file/' + BALL + '/ui/chats.json?blot=/json')
     .then(function(r) \{ return r.json() })
     .then(function(d) \{ renderChatList(d); })
     .catch(function() \{ if (!sessionStorage.getItem('claw-chats')) renderChatList(['main']); });

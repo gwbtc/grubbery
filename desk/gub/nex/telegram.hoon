@@ -179,8 +179,8 @@
             "function sanitize(s)\{return s.toLowerCase().replace(/[^a-z0-9]/g,'-').replace(/-+/g,'-').replace(/^-|-$/g,'')}"
             "var nameInput=document.getElementById('bot-name');"
             "nameInput.oninput=function()\{var s=sanitize(this.value);this.title=s?'Will create: '+s:''};"
-            "document.getElementById('add-btn').onclick=async function()\{var n=sanitize(document.getElementById('bot-name').value);var t=document.getElementById('bot-token').value.trim();if(!n||!t)\{alert('Name and token are required');return}await fetch(API+'/poke/'+BASE+'/main.sig?mark=json',\{method:'POST',headers:\{'Content-Type':'application/json'},body:JSON.stringify(\{action:'add',name:n,token:t})});location.reload()};"
-            "function deletBot(name)\{if(!confirm('Delete bot '+name+'?'))return;fetch(API+'/poke/'+BASE+'/main.sig?mark=json',\{method:'POST',headers:\{'Content-Type':'application/json'},body:JSON.stringify(\{action:'delete',name:name})}).then(function()\{location.reload()})}"
+            "document.getElementById('add-btn').onclick=async function()\{var n=sanitize(document.getElementById('bot-name').value);var t=document.getElementById('bot-token').value.trim();if(!n||!t)\{alert('Name and token are required');return}await fetch(API+'/poke/'+BASE+'/main.sig?blot=/json',\{method:'POST',headers:\{'Content-Type':'application/json'},body:JSON.stringify(\{action:'add',name:n,token:t})});location.reload()};"
+            "function deletBot(name)\{if(!confirm('Delete bot '+name+'?'))return;fetch(API+'/poke/'+BASE+'/main.sig?blot=/json',\{method:'POST',headers:\{'Content-Type':'application/json'},body:JSON.stringify(\{action:'delete',name:name})}).then(function()\{location.reload()})}"
           ==
       ==
     ==

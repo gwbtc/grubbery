@@ -108,19 +108,19 @@
   `steps
 ::  +ancestor-road: resolve a lane relative to an ancestor nexus
 ::
-::  Finds the nearest ancestor with the given code-id (e.g. [/claw %agent])
+::  Finds the nearest ancestor with the given neck (e.g. [/claw %agent])
 ::  via find-in-here, then builds a road to the given lane within it.
 ::  Works from any depth — no hardcoded offsets needed.
 ::
 ++  ancestor-road
-  |=  [code-id=[=path name=@tas] =lane:tarball]
+  |=  [=neck:tarball =lane:tarball]
   =/  m  (fiber ,road:tarball)
   ^-  form:m
   ;<  ~  bind:m  (send-dart %here /ancestor)
   ;<  =here:nexus  bind:m  (take-here-raw /ancestor)
-  =/  steps=(unit @ud)  (find-in-here here `code-id)
+  =/  steps=(unit @ud)  (find-in-here here `neck)
   ?~  steps
-    ~&  >>>  ["fiberio: couldn't find ancestor" code-id]
+    ~&  >>>  ["fiberio: couldn't find ancestor" neck]
     (pure:m [%& lane])
   (pure:m [%| u.steps lane])
 ::
@@ -217,8 +217,19 @@
       [~ %poke * *]
     [%done [from sage]:u.in]
   ==
+::  +get-poke-src: extract foreign ship from a poke's from field
 ::
+::  Remote pokes arrive through /sys/ames/ships/~ship/ in the
+::  namespace, so from is always %& (a bend).  This checks the
+::  rail path for that prefix and returns the ship if found.
 ::
+++  get-poke-src
+  |=  =from:fiber:nexus
+  ^-  (unit @p)
+  ?.  ?=(%& -.from)  ~
+  =/  pax=path  path.q.p.from
+  ?.  ?=([%sys %ames %ships @ *] pax)  ~
+  (slaw %p i.t.t.t.pax)
 ::
 ++  take-made
   |=  =wire
