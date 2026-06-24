@@ -4,7 +4,8 @@
 +$  seg  (pair ? @ud)
 +$  seed  $%([%t phrase=@t] [%q secret=@q])
 +$  account  [purpose=seg coin-type=seg account=seg]
-+$  wallet-data  [name=@t =seed fingerprint=@ux accounts=(map account @ux)]
++$  wallet-data  [=seed fingerprint=@ux]
++$  wallet-store  (map @ux seed)
 +$  script-type  ?(%p2pkh %p2sh-p2wpkh %p2wpkh %p2tr)
 ::  per-address fetched info from mempool.space
 ::

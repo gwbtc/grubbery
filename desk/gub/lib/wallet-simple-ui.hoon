@@ -133,37 +133,7 @@
     $(entries t.entries, pin (add pin amt.i.entries))
   $(entries t.entries, pout (add pout amt.i.entries))
 ::
-++  is-simple
-  |=  name=@t
-  ^-  ?
-  =/  t=tape  (trip name)
-  =/  prefix=tape  "<simple>"
-  =/  plen=@ud  (lent prefix)
-  ?:  (lth (lent t) plen)  %.n
-  =((scag plen t) prefix)
-::
-++  extract-simple-name
-  |=  name=@t
-  ^-  tape
-  =/  t=tape  (trip name)
-  =/  prefix=tape  "<simple>"
-  =/  suffix=tape  "</simple>"
-  =/  plen=@ud  (lent prefix)
-  =/  slen=@ud  (lent suffix)
-  ?.  (is-simple name)  t
-  =/  body=tape  (slag plen t)
-  =/  blen=@ud  (lent body)
-  ?:  (lth blen slen)  body
-  ?.  =((slag (sub blen slen) body) suffix)  body
-  (scag (sub blen slen) body)
-::
-++  find-simple
-  |=  wals=(list wallet-data)
-  ^-  (unit wallet-data)
-  ?~  wals  ~
-  ?:  (is-simple name.i.wals)  `i.wals
-  $(wals t.wals)
-::
+:::
 ++  next-unused-addr
   |=  mop=addr-mop
   ^-  (unit @t)
@@ -179,19 +149,21 @@
 ::
 ++  simple-page
   |=  $:  wal=(unit wallet-data)
+          wal-name=@t
           acct=(unit account-data)
           recv=addr-mop
           chng=addr-mop
           txs=tx-map
           post-url=tape
           saved=?
+          available-nets=(list tape)
+          fee-rate=@ud
+          contacts=(map @t (map @t json))
       ==
   ^-  manx
   =/  wal-name=tape
     ?~  wal  "Wallet"
-    ?:  (is-simple name.u.wal)
-      (extract-simple-name name.u.wal)
-    (trip name.u.wal)
+    (trip wal-name)
   =/  wal-seed=tape
     ?~  wal  ""
     (trip (seed-to-cord seed.u.wal))
@@ -227,13 +199,13 @@
     ==
     ;body
       ;div.wallet-shell(style "--accent: {accent}; --accent-hover: {accent-hover}; --accent-bg: {accent-bg}; --accent-border: {accent-border};", data-net net-label, data-post-url post-url)
-        ;+  (render-header wal-name net-label)
+        ;+  (render-header wal-name net-label available-nets)
         ;+  (render-backup-banner saved)
         ;+  (render-balance-section bal-tape bal-sats pending-in pending-out)
         ;+  render-actions
         ;+  (render-tab-panel tx-items recv-rows chng-rows)
-        ;+  (render-send-popup bal)
-        ;+  (render-info-popup wal-seed wal-seed-masked saved)
+        ;+  (render-send-popup bal fee-rate contacts)
+        ;+  (render-info-popup wal-seed wal-seed-masked saved fee-rate)
         ;+  render-tx-detail-popup
       ==
       ;script(src "https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js");
@@ -242,7 +214,7 @@
   ==
 ::
 ++  render-header
-  |=  [wal-name=tape net-label=tape]
+  |=  [wal-name=tape net-label=tape available-nets=(list tape)]
   ^-  manx
   ;div.wallet-header
     ;div.wallet-header-left
@@ -252,8 +224,20 @@
           ;path(d "M17.204,10.296c0.239-1.596-0.977-2.453-2.64-3.025l0.54-2.163-1.317-0.328-0.525,2.107c-0.346-0.086-0.702-0.168-1.055-0.248l0.529-2.12-1.317-0.328-0.54,2.162c-0.286-0.065-0.567-0.13-0.84-0.198l0.001-0.007-1.816-0.453-0.35,1.407s0.977,0.224,0.957,0.238c0.533,0.133,0.63,0.486,0.614,0.766l-0.615,2.464c0.037,0.009,0.084,0.023,0.137,0.044l-0.139-0.035-0.862,3.453c-0.065,0.162-0.231,0.405-0.604,0.313,0.013,0.019-0.957-0.239-0.957-0.239l-0.654,1.508,1.714,0.427c0.319,0.08,0.631,0.164,0.939,0.243l-0.546,2.189,1.316,0.328,0.54-2.164c0.359,0.098,0.708,0.188,1.05,0.273l-0.538,2.155,1.317,0.328,0.546-2.186c2.245,0.425,3.933,0.253,4.643-1.778,0.572-1.635-0.028-2.578-1.21-3.194,0.861-0.199,1.509-0.764,1.681-1.933zm-3.009,4.22c-0.407,1.636-3.162,0.751-4.055,0.529l0.723-2.899c0.893,0.223,3.757,0.664,3.332,2.37zm0.407-4.243c-0.371,1.489-2.664,0.732-3.407,0.547l0.656-2.63c0.743,0.186,3.138,0.532,2.751,2.083z", fill "white");
         ==
       ==
-      ;span.wallet-title: {wal-name}
-      ;span.net-badge: {net-label}
+      ;span#wallet-name.wallet-title(contenteditable "true", spellcheck "false"): {wal-name}
+      ;+  ?:  (lth (lent available-nets) 2)
+            ;span.net-badge: {net-label}
+          ;div.net-dropdown
+            ;button.net-badge.net-badge-toggle(onclick "toggleNetDropdown(event)")
+              ;span: {net-label}
+              ;span.net-arrow: ▾
+            ==
+            ;div#net-menu.net-menu
+              ;*  %+  turn  available-nets
+                  |=  net=tape
+                  ;button.net-menu-item(onclick "switchNet('{net}')"): {net}
+            ==
+          ==
     ==
     ;button.info-btn(onclick "toggleInfo()")
       ;svg(xmlns "http://www.w3.org/2000/svg", viewBox "0 0 24 24", width "18", height "18", fill "none", stroke "currentColor", stroke-width "2", stroke-linecap "round", stroke-linejoin "round")
@@ -406,7 +390,7 @@
 ++  render-addr-rows
   |=  [leaves=(list [@ud address-data]) chain=?(%recv %chng)]
   ^-  (list manx)
-  =/  chain-tape=tape  ?:(?=(%recv chain) "receiving" "change")
+  =/  chain-tape=tape  ?:(?=(%recv chain) "recv" "chng")
   =/  items=(list manx)  ~
   |-
   ?~  leaves  (flop items)
@@ -444,27 +428,79 @@
   $(leaves t.leaves, items [item items])
 ::
 ++  render-send-popup
-  |=  bal=@ud
+  |=  [bal=@ud fee-rate=@ud contacts=(map @t (map @t json))]
   ^-  manx
   =/  est-fee=@ud  220
   =/  est-max=@ud  ?:((lth bal est-fee) 0 (sub bal est-fee))
   =/  est-max-tape=tape  (format-btc est-max)
-  ;div#send-overlay.send-overlay(onclick "closeSend(event)")
+  =/  fee-rate-tape=tape  (a-co:co fee-rate)
+  =/  contact-rows=(list manx)
+    =/  pairs=(list [key=@t =manx])
+      %+  turn  ~(tap by contacts)
+      |=  [ship=@t fields=(map @t json)]
+      =/  nick=tape
+        =/  n=(unit json)  (~(get by fields) 'nickname')
+        ?~(n "" ?.(?=([%s @] u.n) "" (trip p.u.n)))
+      =/  ship-t=tape  (trip ship)
+      =/  sort-key=@t  ?~(nick ship (crip (cass nick)))
+      :-  sort-key
+      ;div.cp-row(onclick "pickContact('{ship-t}')", data-ship ship-t, data-nick nick)
+        ;+  ?~  nick
+              ;span.cp-name: {ship-t}
+            ;span.cp-name: {nick}
+        ;+  ?~  nick
+              ;span;
+            ;span.cp-ship: {ship-t}
+      ==
+    (turn (sort pairs |=([a=[key=@t *] b=[key=@t *]] (aor key.a key.b))) |=([* m=manx] m))
+  ;div
+    ;div#contact-picker.cp-overlay(onclick "closePicker(event)")
+      ;div.cp-modal
+        ;div.cp-header
+          ;span.cp-title: Select Contact
+          ;button.cp-close(onclick "closePicker()"): ×
+        ==
+        ;input#cp-search.cp-search(type "text", placeholder "Search...", autocomplete "off", oninput "filterContacts()");
+        ;div#cp-list.cp-list
+          ;*  ?~  contact-rows
+                =/  empty=manx  ;div.cp-empty: No contacts
+                ~[empty]
+              contact-rows
+        ==
+      ==
+    ==
+    ;div#send-overlay.send-overlay(onclick "closeSend(event)")
     ;div.send-modal
       ;button.send-close(onclick "toggleSend()"): ×
       ;div.send-title: Send Bitcoin
       ;div.send-field
-        ;label.send-label: To
-        ;input#send-to.send-input(type "text", placeholder "bc1q...", autocomplete "off");
+        ;div.send-to-tabs
+          ;button.send-to-tab.active(onclick "switchToTab('address', this)"): Address
+          ;button.send-to-tab(onclick "switchToTab('contact', this)"): Contact
+        ==
+        ;div#to-address
+          ;input#send-to.send-input(type "text", placeholder "bc1q...", autocomplete "off");
+        ==
+        ;div#to-contact.hidden
+          ;div.to-contact-row
+            ;span#to-contact-label.to-contact-label: No contact selected
+            ;button.to-contact-btn(onclick "openPicker()"): Choose
+          ==
+        ==
       ==
       ;div.send-field
         ;label.send-label: Amount (sats)
         ;input#send-amount.send-input(type "text", placeholder "0", autocomplete "off");
       ==
+      ;div.send-field
+        ;label.send-label: Fee rate (sat/vB)
+        ;input#send-fee-rate.send-input.send-input-short(type "number", min "1", value fee-rate-tape, autocomplete "off");
+      ==
       ;div.send-balance: Est. max: ฿{est-max-tape}
       ;div#send-status.send-status;
       ;button#send-btn.send-btn(onclick "sendBitcoin()"): Send
     ==
+  ==
   ==
 ::
 ++  render-backup-banner
@@ -483,8 +519,9 @@
   ==
 ::
 ++  render-info-popup
-  |=  [wal-seed=tape wal-seed-masked=tape saved=?]
+  |=  [wal-seed=tape wal-seed-masked=tape saved=? fee-rate=@ud]
   ^-  manx
+  =/  fee-tape=tape  (a-co:co fee-rate)
   ;div#info-overlay.info-overlay(onclick "closeInfo(event)")
     ;div.info-modal
       ;button.info-close(onclick "toggleInfo()"): ×
@@ -502,6 +539,14 @@
         ==
         ;div.info-warning: Anyone with this phrase can access your funds. Store it somewhere safe.
         ;+  (render-saved-checkbox saved)
+      ==
+      ;div.info-title: Account Settings
+      ;div.info-section
+        ;div.info-label: Fee Rate (sat/vB)
+        ;div.info-fee-row
+          ;input#info-fee.info-fee-input(type "number", min "1", value fee-tape);
+          ;button#info-fee-save.info-fee-save(onclick "saveFeeRate()"): Save
+        ==
       ==
       ;div.info-title: Receive Address
       ;div.info-section
@@ -616,7 +661,12 @@
     ;   font-size: 16px;
     ;   font-weight: 600;
     ;   letter-spacing: -0.01em;
+    ;   cursor: text;
+    ;   outline: none;
+    ;   border-bottom: 1px dashed transparent;
     ; }
+    ; .wallet-title:hover { border-bottom-color: var(--f4); }
+    ; .wallet-title:focus { border-bottom-color: var(--accent); }
     ; .net-badge {
     ;   font-size: 11px;
     ;   padding: 3px 8px;
@@ -625,6 +675,14 @@
     ;   color: var(--f3);
     ;   font-weight: 500;
     ; }
+    ; .net-dropdown { position: relative; display: inline-block; }
+    ; .net-badge-toggle { border: none; cursor: pointer; display: flex; align-items: center; gap: 4px; }
+    ; .net-badge-toggle:hover { opacity: 0.8; }
+    ; .net-arrow { font-size: 10px; }
+    ; .net-menu { display: none; position: absolute; top: 100%; left: 0; margin-top: 4px; background: var(--b1); border: 1px solid var(--b3); border-radius: 6px; min-width: 120px; box-shadow: 0 4px 12px rgba(0,0,0,0.2); z-index: 100; overflow: hidden; }
+    ; .net-menu.open { display: block; }
+    ; .net-menu-item { display: block; width: 100%; border: none; background: none; color: var(--f1); padding: 8px 12px; text-align: left; cursor: pointer; font-size: 12px; }
+    ; .net-menu-item:hover { background: var(--b2); }
     ; .balance-section {
     ;   text-align: center;
     ;   padding: 32px 24px 28px;
@@ -987,7 +1045,31 @@
     ;   font-size: 20px;
     ;   cursor: pointer;
     ; }
-    ; .send-title { font-size: 16px; font-weight: 600; margin-bottom: 20px; }
+    ; .send-title { font-size: 16px; font-weight: 600; margin-bottom: 16px; }
+    ; .send-to-tabs { display: flex; gap: 0; margin-bottom: 8px; }
+    ; .send-to-tab { padding: 4px 10px; border: none; background: none; cursor: pointer; font-size: 12px; color: var(--f4); border-bottom: 2px solid transparent; font-family: inherit; }
+    ; .send-to-tab:hover { color: var(--f2); }
+    ; .send-to-tab.active { color: var(--f0); font-weight: 600; border-bottom-color: var(--accent); }
+    ; #to-contact.hidden, #to-address.hidden { display: none; }
+    ; .to-contact-row { display: flex; align-items: center; gap: 10px; }
+    ; .to-contact-label { font-size: 14px; color: var(--f3); flex: 1; }
+    ; .to-contact-btn { padding: 8px 14px; border-radius: 8px; border: 1px solid var(--b3); background: var(--b1); color: var(--f2); font-size: 13px; cursor: pointer; font-family: inherit; }
+    ; .to-contact-btn:hover { background: var(--b2); }
+    ; .cp-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 200; align-items: center; justify-content: center; }
+    ; .cp-overlay.open { display: flex; }
+    ; .cp-modal { background: var(--b0); border-radius: 16px; padding: 20px; max-width: 340px; width: 90%; }
+    ; .cp-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+    ; .cp-title { font-size: 15px; font-weight: 600; }
+    ; .cp-close { background: none; border: none; color: var(--f4); font-size: 18px; cursor: pointer; }
+    ; .cp-search { width: 100%; padding: 10px 12px; background: var(--b1); border: 1px solid var(--b3); border-radius: 8px; color: var(--f0); font-size: 14px; font-family: inherit; box-sizing: border-box; margin-bottom: 8px; }
+    ; .cp-search::placeholder { color: var(--f4); }
+    ; .cp-list { max-height: 240px; overflow-y: auto; }
+    ; .cp-row { display: flex; align-items: baseline; gap: 8px; padding: 10px 12px; border-radius: 8px; cursor: pointer; }
+    ; .cp-row:hover { background: var(--b1); }
+    ; .cp-row.fil-hide { display: none; }
+    ; .cp-name { font-size: 14px; font-weight: 500; color: var(--f0); }
+    ; .cp-ship { font-size: 11px; color: var(--f4); font-family: monospace; }
+    ; .cp-empty { font-size: 13px; color: var(--f4); text-align: center; padding: 20px 0; }
     ; .send-field { margin-bottom: 16px; }
     ; .send-label {
     ;   display: block;
@@ -1008,6 +1090,7 @@
     ;   box-sizing: border-box;
     ; }
     ; .send-input::placeholder { color: var(--f4); }
+    ; .send-input-short { width: 120px; }
     ; .send-balance { font-size: 12px; color: var(--f4); margin-bottom: 20px; }
     ; .send-btn {
     ;   width: 100%;
@@ -1106,6 +1189,18 @@
     ; .info-saved-row { display: flex; align-items: center; gap: 10px; cursor: pointer; padding: 10px 0; }
     ; .info-checkbox { width: 18px; height: 18px; accent-color: var(--accent); cursor: pointer; flex-shrink: 0; }
     ; .info-saved-text { font-size: 14px; color: var(--f1); cursor: pointer; }
+    ; .info-fee-row { display: flex; align-items: center; gap: 8px; }
+    ; .info-fee-input {
+    ;   width: 80px; padding: 8px 10px; background: var(--b1);
+    ;   border: 1px solid var(--b3); border-radius: 8px;
+    ;   color: var(--f0); font-size: 14px; font-family: monospace;
+    ; }
+    ; .info-fee-save {
+    ;   padding: 8px 16px; background: var(--accent); color: white;
+    ;   border: none; border-radius: 8px; font-size: 13px;
+    ;   font-weight: 600; cursor: pointer;
+    ; }
+    ; .info-fee-save:hover { background: var(--accent-hover); }
     ; @media (min-width: 768px) {
     ;   .wallet-shell { max-width: 900px; }
     ;   .wallet-header { padding: 24px 32px 16px; }
@@ -1128,6 +1223,17 @@
     ;     body: params
     ;   });
     ; }
+    ; function toggleNetDropdown(e) {
+    ;   e.stopPropagation();
+    ;   document.getElementById('net-menu').classList.toggle('open');
+    ; }
+    ; function switchNet(net) {
+    ;   window.location.search = '?net=' + net;
+    ; }
+    ; document.addEventListener('click', function() {
+    ;   var m = document.getElementById('net-menu');
+    ;   if (m) m.classList.remove('open');
+    ; });
     ; function fetchPrice() {
     ;   var el = document.getElementById('fiat-value');
     ;   if (!el) return;
@@ -1236,6 +1342,39 @@
     ; function closeSend(e) {
     ;   if (e.target === document.getElementById('send-overlay')) toggleSend();
     ; }
+    ; function switchToTab(tab, btn) {
+    ;   document.getElementById('to-address').classList.toggle('hidden', tab !== 'address');
+    ;   document.getElementById('to-contact').classList.toggle('hidden', tab !== 'contact');
+    ;   var tabs = btn.parentElement.querySelectorAll('.send-to-tab');
+    ;   for (var i = 0; i < tabs.length; i++) tabs[i].classList.remove('active');
+    ;   btn.classList.add('active');
+    ; }
+    ; function openPicker() {
+    ;   document.getElementById('contact-picker').classList.add('open');
+    ;   document.getElementById('cp-search').value = '';
+    ;   filterContacts();
+    ;   document.getElementById('cp-search').focus();
+    ; }
+    ; function closePicker(e) {
+    ;   if (e && e.target !== document.getElementById('contact-picker')) return;
+    ;   document.getElementById('contact-picker').classList.remove('open');
+    ; }
+    ; function filterContacts() {
+    ;   var q = document.getElementById('cp-search').value.toLowerCase();
+    ;   var rows = document.querySelectorAll('.cp-row');
+    ;   for (var i = 0; i < rows.length; i++) {
+    ;     var ship = (rows[i].dataset.ship || '').toLowerCase();
+    ;     var nick = (rows[i].dataset.nick || '').toLowerCase();
+    ;     rows[i].classList.toggle('fil-hide', q && ship.indexOf(q) < 0 && nick.indexOf(q) < 0);
+    ;   }
+    ; }
+    ; function pickContact(ship) {
+    ;   document.getElementById('to-contact-label').textContent = ship;
+    ;   document.getElementById('contact-picker').classList.remove('open');
+    ;   var status = document.getElementById('send-status');
+    ;   status.className = 'send-status pending';
+    ;   status.textContent = 'Requesting address from ' + ship + '...';
+    ; }
     ; function sendBitcoin() {
     ;   var addr = document.getElementById('send-to').value.trim();
     ;   var amtStr = document.getElementById('send-amount').value.trim();
@@ -1259,11 +1398,14 @@
     ;     status.textContent = 'Amount below dust limit (546)';
     ;     return;
     ;   }
-    ;   if (!confirm('Send ' + sats.toLocaleString() + ' sats to ' + addr + '?')) return;
+    ;   var feeRate = parseInt(document.getElementById('send-fee-rate').value) || 2;
+    ;   if (!confirm('Send ' + sats.toLocaleString() + ' sats to ' + addr + ' @ ' + feeRate + ' sat/vB?')) return;
     ;   btn.disabled = true;
     ;   status.className = 'send-status pending';
     ;   status.textContent = 'Building & broadcasting...';
-    ;   walletPost('action=send-bitcoin&address=' + encodeURIComponent(addr) + '&amount=' + sats)
+    ;   var net = document.querySelector('.wallet-shell').dataset.net;
+    ;   walletPost('action=set-fee-rate&fee-rate=' + feeRate + '&net=' + net);
+    ;   walletPost('action=send-bitcoin&address=' + encodeURIComponent(addr) + '&amount=' + sats + '&fee-rate=' + feeRate + '&net=' + net)
     ;     .then(function(res) {
     ;       if (!res.ok) throw new Error('HTTP ' + res.status);
     ;       status.className = 'send-status success';
@@ -1284,7 +1426,7 @@
     ;   var btn = document.getElementById('sync-btn');
     ;   if (btn) btn.classList.add('spinning');
     ;   walletPost('action=refresh-wallet').then(function() {
-    ;     location.reload();
+    ;     setTimeout(function() { location.reload(); }, 5000);
     ;   }).catch(function(err) {
     ;     console.error('refreshWallet', err);
     ;     if (btn) btn.classList.remove('spinning');
@@ -1294,7 +1436,9 @@
     ;   var btn = event.currentTarget;
     ;   btn.classList.add('spinning');
     ;   walletPost('action=refresh-address&chain=' + chain + '&index=' + index)
-    ;     .then(function() { location.reload(); })
+    ;     .then(function() {
+    ;       setTimeout(function() { location.reload(); }, 5000);
+    ;     })
     ;     .catch(function(err) {
     ;       console.error('refreshAddr', err);
     ;       btn.classList.remove('spinning');
@@ -1316,7 +1460,8 @@
     ;   document.getElementById('info-addr-content').classList.remove('show');
     ;   document.getElementById('info-addr-error').classList.remove('show');
     ;   document.getElementById('info-addr-qr').innerHTML = '';
-    ;   walletPost('action=get-receive-address').then(function(r) {
+    ;   var net = document.querySelector('.wallet-shell').dataset.net;
+    ;   walletPost('action=get-receive-address&net=' + net).then(function(r) {
     ;     return r.text();
     ;   }).then(function(addr) {
     ;     addr = addr.trim();
@@ -1341,6 +1486,30 @@
     ; }
     ; function copyInfoAddr(btn) {
     ;   navigator.clipboard.writeText(btn.dataset.addr).then(function() { flashCheck(btn); });
+    ; }
+    ; var _wn = document.getElementById('wallet-name');
+    ; var _lastWalletName = _wn.textContent.trim();
+    ; _wn.addEventListener('focus', function() {
+    ;   _lastWalletName = this.textContent.trim();
+    ; });
+    ; _wn.addEventListener('blur', function() {
+    ;   var n = this.textContent.trim();
+    ;   if (!n || n === _lastWalletName) return;
+    ;   walletPost('action=rename-wallet&name=' + encodeURIComponent(n));
+    ; });
+    ; _wn.addEventListener('keydown', function(e) {
+    ;   if (e.key === 'Enter') { e.preventDefault(); this.blur(); }
+    ; });
+    ; function saveFeeRate() {
+    ;   var fee = parseInt(document.getElementById('info-fee').value) || 2;
+    ;   var btn = document.getElementById('info-fee-save');
+    ;   var net = document.querySelector('.wallet-shell').dataset.net;
+    ;   walletPost('action=set-fee-rate&fee-rate=' + fee + '&net=' + net).then(function() {
+    ;     btn.textContent = 'Saved';
+    ;     setTimeout(function() { btn.textContent = 'Save'; }, 1200);
+    ;     var sf = document.getElementById('send-fee-rate');
+    ;     if (sf) sf.value = fee;
+    ;   });
     ; }
   ==
 --

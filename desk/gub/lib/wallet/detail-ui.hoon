@@ -12,13 +12,13 @@
 |%
 ::
 ++  detail-page
-  |=  [wal=wallet-data accts=(list account-data)]
+  |=  [wal=wallet-data wal-name=@t accts=(list account-data)]
   ^-  manx
   =/  back-url=tape
     "/groundwire/wallet"
   ;html
     ;head
-      ;title: {(trip name.wal)}
+      ;title: {(trip wal-name)}
       ;meta(charset "utf-8");
       ;meta(name "viewport", content "width=device-width, initial-scale=1");
       ;+  feather:feather
@@ -32,7 +32,7 @@
           ;div(style "flex-shrink: 0; display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;")
             ;a.hover.pointer(href back-url, style "color: var(--f3); text-decoration: none;"): ← Back to Wallets
           ==
-          ;+  (render-wallet-header wal)
+          ;+  (render-wallet-header wal wal-name)
           ;div.fc.g2(style "flex: 1; min-height: 0;")
             ;h2.s1.bold: Accounts
             ;div(id "accounts-container", style "flex: 1; min-height: 0; overflow-y: auto;")
@@ -50,10 +50,10 @@
   ==
 ::
 ++  render-wallet-header
-  |=  wal=wallet-data
+  |=  [wal=wallet-data wal-name=@t]
   ^-  manx
   ;div.p4.b1.br2.mb2(style "flex-shrink: 0;")
-    ;h1.s2.bold.mb1: {(trip name.wal)}
+    ;h1.s2.bold.mb1: {(trip wal-name)}
     ;div(style "display: flex; gap: 8px; align-items: center;")
       ;span.f3.s-1: Seed:
       ;code.mono.s-2.p2.b2.br1: {(mask-seed seed.wal)}

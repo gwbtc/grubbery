@@ -8,6 +8,7 @@
 /<  bech32  /lib/bech32.hoon
 /<  drft  /lib/tx/draft.hoon
 /<  fees  /lib/tx/fees.hoon
+/<  b329  /lib/bip329.hoon
 =,  wt
 |%
 ::  +addr-road: compute road to a chain's mop file
@@ -482,20 +483,19 @@
   (make:io road |+[[[/wallet %draft] dr] ~])
 ::
 ++  read-wallet-name
-  |=  [steps=@ud wallet-fp=@ux]
-  =/  m  (fiber:fiber:nexus ,@t)
-  ^-  form:m
-  =/  fp-hex=tape  (hexn:http-utils wallet-fp)
-  =/  wal-name=@ta  (crip "{fp-hex}.wallet_wallet")
-  =/  wal-road=road:tarball  [%| steps [%& /wallets wal-name]]
-  ;<  exists=?  bind:m  (peek-exists:io wal-road)
-  ?.  exists  (pure:m '')
-  ;<  seen=seen:nexus  bind:m  (peek:io wal-road ~)
-  ?.  ?=(%& -.seen)  (pure:m '')
-  ?.  ?=([%file *] p.seen)  (pure:m '')
-  =/  wal=(unit wallet-data)  (mole |.(!<(wallet-data (need-vase:tarball sang.p.seen))))
-  ?~  wal  (pure:m '')
-  (pure:m name.u.wal)
+  |=  [=labels:b329 wallet-fp=@ux]
+  ^-  @t
+  =/  xpub=@t  (scot %ux wallet-fp)
+  =/  entries=(list label-entry:b329)
+    ~(tap in (~(get la:b329 labels) %xpub xpub))
+  =/  prefix=tape  "gwbtc:wallet:"
+  =/  prefix-len=@ud  (lent prefix)
+  |-
+  ?~  entries  ''
+  =/  lbl=tape  (trip label.i.entries)
+  ?.  =(prefix (scag prefix-len lbl))
+    $(entries t.entries)
+  (crip (slag prefix-len lbl))
 ::
 ++  collect-utxo-inputs
   |=  [recv=addr-mop chng=addr-mop =script-type]
@@ -510,4 +510,79 @@
   |=  u=utxo
   ^-  utxo-input:drft
   [txid.u vout.u value.u spend]
+::  +get-next-unused-index: find first unused address index in an addr-mop
+::
+::  Walks the mop (descending by index) looking for the highest-indexed
+::  address with no transaction history.  Respects BIP-44 gap limit of 20.
+::
+++  get-next-unused-index
+  |=  mop=addr-mop
+  ^-  (unit @ud)
+  =/  entries=(list [@ud address-data])
+    (tap:((on @ud address-data) gth) mop)
+  =|  last-unused=(unit @ud)
+  |-
+  ?~  entries
+    last-unused
+  =/  [idx=@ud ad=address-data]  i.entries
+  =/  has-txs=?
+    ?~  info.ad  %.n
+    (gth tx-count.u.info.ad 0)
+  ?:  has-txs
+    ?~  last-unused  ~
+    =/  gap=@ud  (sub u.last-unused idx)
+    ?:  (lth gap 20)
+      last-unused
+    ~
+  $(entries t.entries, last-unused `idx)
+::  +get-last-offered: read last-offered index from xpub labels
+::
+::  Looks for a label like 'gwbtc:last-offered:5' on the xpub.
+::
+++  get-last-offered
+  |=  [=labels:b329 xpub=@t]
+  ^-  (unit @ud)
+  =/  entries=(list label-entry:b329)
+    ~(tap in (~(get la:b329 labels) %xpub xpub))
+  =/  prefix=tape  "gwbtc:last-offered:"
+  =/  prefix-len=@ud  (lent prefix)
+  |-
+  ?~  entries  ~
+  =/  lbl=tape  (trip label.i.entries)
+  ?.  =(prefix (scag prefix-len lbl))
+    $(entries t.entries)
+  (rush (crip (slag prefix-len lbl)) dem)
+::  +set-last-offered: write last-offered index as xpub label
+::
+++  set-last-offered
+  |=  [=labels:b329 xpub=@t idx=@ud]
+  ^-  labels:b329
+  =/  entries=(list label-entry:b329)
+    ~(tap in (~(get la:b329 labels) %xpub xpub))
+  =/  prefix=tape  "gwbtc:last-offered:"
+  =/  prefix-len=@ud  (lent prefix)
+  =.  labels
+    |-
+    ?~  entries  labels
+    =/  lbl=tape  (trip label.i.entries)
+    ?:  =(prefix (scag prefix-len lbl))
+      $(entries t.entries, labels (~(del la:b329 labels) %xpub xpub label.i.entries))
+    $(entries t.entries)
+  (~(put la:b329 labels) [%xpub xpub (crip "gwbtc:last-offered:{((d-co:co 1) idx)}") ~ ~ ~])
+::  +get-next-offer-index: next address index to offer
+::
+::  max(first-unused-index, last-offered + 1)
+::  Ensures each request gets a fresh, never-reused address.
+::
+++  get-next-offer-index
+  |=  [mop=addr-mop =labels:b329 xpub=@t]
+  ^-  @ud
+  =/  unused-idx=@ud
+    =/  ui=(unit @ud)  (get-next-unused-index mop)
+    ?~  ui
+      (lent (tap:((on @ud address-data) gth) mop))
+    u.ui
+  =/  last=(unit @ud)  (get-last-offered labels xpub)
+  ?~  last  unused-idx
+  (max unused-idx +(u.last))
 --

@@ -12,6 +12,7 @@
       label=@t
       origin=(unit parsed-origin)
       spendable=(unit ?)
+      more=(map @t json)
   ==
 ::
 +$  labels
@@ -155,7 +156,7 @@
     ^-  ^labels
     =/  existing=(set label-entry)  (get %output ref)
     ?:  =(~ existing)
-      (put [%output ref '' ~ `%.n])
+      (put [%output ref '' ~ `%.n ~])
     =/  updated=(list label-entry)
       (turn ~(tap in existing) |=(e=label-entry e(spendable `%.n)))
     =/  new-set=(set label-entry)  (sy updated)

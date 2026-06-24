@@ -27,22 +27,29 @@
       =/  =ver:loader  (get-ver:loader ball)
       ?+  ver  !!
           ?(~ [~ %0])
-        =/  [wal-dir=@ta wal=wallet-data acct-dir=@ta acct-ball=ball:tarball]
+        =/  [wal=wallet-data wal-name=@t acct-dir=@ta acct-ball=ball:tarball]
           (make-dev-wallet 'Dev Wallet' [%t 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about'] %testnet4)
-        =/  [fau-wal-dir=@ta fau-wal=wallet-data fau-acct-dir=@ta fau-acct-ball=ball:tarball]
+        =/  [fau-wal=wallet-data fau-name=@t fau-acct-dir=@ta fau-acct-ball=ball:tarball]
           (make-dev-wallet 'Fauceted Wallet' [%t 'injury idea term fox crop movie type critic hello inquiry lottery agree'] %testnet3)
+        =/  init-lbls=labels:b329
+          =/  l=labels:b329  *labels:b329
+          =/  xpub1=@t  (scot %ux fingerprint.wal)
+          =/  xpub2=@t  (scot %ux fingerprint.fau-wal)
+          =.  l  (~(put la:b329 l) [%xpub xpub1 (rap 3 ~['gwbtc:wallet:' wal-name]) ~ ~ ~])
+          (~(put la:b329 l) [%xpub xpub2 (rap 3 ~['gwbtc:wallet:' fau-name]) ~ ~ ~])
+        =/  init-store=wallet-store
+          %-  ~(gas by *wallet-store)
+          ~[[fingerprint.wal seed.wal] [fingerprint.fau-wal seed.fau-wal]]
         %+  spin:loader  ball
         :~  (ver-row:loader 0)
             [%over %& [/ %'main.sig'] [[/ %sig] ~]]
-            [%fall %& [/ %'labels.wallet_labels'] [[/wallet %labels] *labels:b329]]
-            [%fall %| /wallets empty-dir:loader]
+            [%fall %& [/ %'labels.wallet_labels'] [[/wallet %labels] init-lbls]]
+            [%fall %& [/ %'wallets.wallet_wallets'] [[/wallet %wallets] init-store]]
             [%fall %| /accounts empty-dir:loader]
             [%fall %| /proc empty-dir:loader]
             [%fall %& [/ui %'http.sig'] [[/ %sig] ~]]
             [%fall %| /ui/requests empty-dir:loader]
-            [%fall %& [/wallets wal-dir] [[/wallet %wallet] wal]]
             [%fall %| (snoc /accounts acct-dir) (ball-to-bole:tarball acct-ball)]
-            [%fall %& [/wallets fau-wal-dir] [[/wallet %wallet] fau-wal]]
             [%fall %| (snoc /accounts fau-acct-dir) (ball-to-bole:tarball fau-acct-ball)]
             [%over %& [/man %'readme.md'] [[/ %mime] man]]
         ==
@@ -63,6 +70,8 @@
           ::
           [~ %'main.sig']
         ;<  ~  bind:m  (rise-wait:io prod "%wallet /main: failed")
+        ;<  ~  bind:m  ensure-simple-wallet
+        ;<  ~  bind:m  ensure-public-poke
         |-
         ;<  [=from:fiber:nexus =sage:tarball]  bind:m  take-poke-from:io
         ?+    name.p.sage
@@ -96,11 +105,13 @@
               `[%t seed-phrase]
             ?~  sd  $
             =/  pubkey=@ux  (seed-to-pubkey u.sd)
-            =/  wallet-key=@ta  (crip (hexn:http-utils pubkey))
-            =/  wal=wallet-data  [wallet-name u.sd pubkey ~]
-            =/  wallet-dir=@ta  (cat 3 wallet-key '.wallet_wallet')
-            ;<  ~  bind:m
-              (make:io [%| 0 %& [/wallets wallet-dir]] |+[[[/wallet %wallet] wal] ~])
+            ;<  store=wallet-store  bind:m  load-wallets
+            ;<  ~  bind:m  (save-wallets (~(put by store) pubkey u.sd))
+            =/  xpub=@t  (scot %ux pubkey)
+            ;<  lbls=labels:b329  bind:m  load-labels
+            =/  new-lbls=labels:b329
+              (~(put la:b329 lbls) [%xpub xpub (rap 3 ~['gwbtc:wallet:' wallet-name]) ~ ~ ~])
+            ;<  ~  bind:m  (save-labels new-lbls)
             $
               %'add-wallet-from-entropy'
             =/  wallet-name=@t
@@ -109,20 +120,236 @@
             =/  seed-phrase=cord
               (gen-seed:seed-phrases eny %128)
             =/  pubkey=@ux  (seed-to-pubkey [%t seed-phrase])
-            =/  wallet-key=@ta  (crip (hexn:http-utils pubkey))
-            =/  wal=wallet-data  [wallet-name [%t seed-phrase] pubkey ~]
-            =/  wallet-dir=@ta  (cat 3 wallet-key '.wallet_wallet')
-            ;<  ~  bind:m
-              (make:io [%| 0 %& [/wallets wallet-dir]] |+[[[/wallet %wallet] wal] ~])
+            ;<  store=wallet-store  bind:m  load-wallets
+            ;<  ~  bind:m  (save-wallets (~(put by store) pubkey [%t seed-phrase]))
+            =/  xpub=@t  (scot %ux pubkey)
+            ;<  lbls=labels:b329  bind:m  load-labels
+            =/  new-lbls=labels:b329
+              (~(put la:b329 lbls) [%xpub xpub (rap 3 ~['gwbtc:wallet:' wallet-name]) ~ ~ ~])
+            ;<  ~  bind:m  (save-labels new-lbls)
             $
               %'remove-wallet'
             =/  pubkey=@t
               (~(dog jo:json-utils jon) /pubkey so:dejs:format)
-            =/  wallet-key=@ta  (crip (trip pubkey))
-            =/  wallet-file=@ta  (cat 3 wallet-key '.wallet_wallet')
-            ;<  ~  bind:m
-              (cull:io [%| 0 %& [/wallets wallet-file]])
+            =/  fp=@ux  (slav %ux pubkey)
+            ;<  store=wallet-store  bind:m  load-wallets
+            ;<  ~  bind:m  (save-wallets (~(del by store) fp))
             $
+              %'add-account'
+            =/  wallet-key=@t
+              (~(dog jo:json-utils jon) /wallet-key so:dejs:format)
+            =/  fp=@ux  (slav %ux wallet-key)
+            ;<  store=wallet-store  bind:m  load-wallets
+            =/  sd=(unit seed)  (~(get by store) fp)
+            ?~  sd
+              ~&  >>>  [%wallet %add-account %wallet-not-found]
+              $
+            =/  account-name=@t
+              (~(dog jo:json-utils jon) /account-name so:dejs:format)
+            =/  purpose-select=@t
+              (~(dug jo:json-utils jon) /purpose-select so:dejs:format '84')
+            =/  purpose=@ud
+              ?:  =(purpose-select 'custom')
+                (rash (~(dog jo:json-utils jon) /purpose-custom so:dejs:format) dem)
+              (rash purpose-select dem)
+            =/  coin-type-select=@t
+              (~(dug jo:json-utils jon) /coin-type-select so:dejs:format '0')
+            =/  coin-type=@ud
+              ?:  =(coin-type-select 'custom')
+                (rash (~(dog jo:json-utils jon) /coin-type-custom so:dejs:format) dem)
+              (rash coin-type-select dem)
+            =/  account-idx=@ud
+              (rash (~(dug jo:json-utils jon) /account-number so:dejs:format '0') dem)
+            =/  =script-type  (purpose-to-script purpose)
+            =/  network=?(%main %testnet3 %testnet4 %signet %regtest)
+              ?:  =(1 coin-type)  %testnet3  %main
+            =/  master  (from-seed:bip32 (seed-to-bytes u.sd))
+            =/  pax=tape
+              "m/{(scow %ud purpose)}'/{(scow %ud coin-type)}'/{(scow %ud account-idx)}'"
+            =/  derived  (derive-path:master pax)
+            =/  xprv=@t  (crip (prv-extended:derived (to-bip-network:wt network)))
+            =/  acct=account-data
+              [account-name fp script-type network [%.y purpose] [%.y coin-type] [%.y account-idx] xprv]
+            =/  acct-pubkey=@ux  public-key:derived
+            =/  acct-key=@ta  (crip (hexn:http-utils acct-pubkey))
+            =/  acct-dir=@ta  (cat 3 acct-key '.wallet_account')
+            =/  acct-contents=(map @ta [=sang:tarball gain=? bang=(unit tang)])
+              (~(put by *(map @ta [=sang:tarball gain=? bang=(unit tang)])) %'data.wallet_account' [[[/wallet %account] %& !>(acct)] %.n ~])
+            =/  acct-lump=lump:tarball  [~ ~ %.n ~ acct-contents]
+            =/  acct-ball=ball:tarball  [`acct-lump ~]
+            ;<  acct-rd=road:tarball  bind:m  (wr [%| (snoc /accounts acct-dir)])
+            ;<  err=(unit tang)  bind:m
+              (make-soft:io acct-rd &+(ball-to-bole:tarball acct-ball))
+            ?^  err
+              ~&  >>>  [%wallet %add-account-failed]
+              $
+            $
+              %'remove-account'
+            =/  acct-key=@t
+              (~(dog jo:json-utils jon) /account-key so:dejs:format)
+            =/  acct-dir=@ta  (cat 3 (crip (trip acct-key)) '.wallet_account')
+            ;<  acct-rd=road:tarball  bind:m  (wr [%| (snoc /accounts acct-dir)])
+            ;<  err=(unit tang)  bind:m  (cull-soft:io acct-rd)
+            ?^  err
+              ~&  >>>  [%wallet %remove-account-failed]
+              $
+            $
+              %'discover-accounts'
+            =/  wallet-key=@t
+              (~(dog jo:json-utils jon) /wallet-key so:dejs:format)
+            =/  fp-key=@ta  (crip (trip wallet-key))
+            =/  purpose-select=@t
+              (~(dug jo:json-utils jon) /purpose-select so:dejs:format '84')
+            =/  purpose=@ud
+              ?:(=(purpose-select 'custom') (rash (~(dog jo:json-utils jon) /purpose-custom so:dejs:format) dem) (rash purpose-select dem))
+            =/  coin-type-select=@t
+              (~(dug jo:json-utils jon) /coin-type-select so:dejs:format '0')
+            =/  coin-type=@ud
+              ?:(=(coin-type-select 'custom') (rash (~(dog jo:json-utils jon) /coin-type-custom so:dejs:format) dem) (rash coin-type-select dem))
+            =/  disc-json=json
+              %-  pairs:enjs:format
+              :~  ['type' s+'discover']
+                  ['purpose' (numb:enjs:format purpose)]
+                  ['coin-type' (numb:enjs:format coin-type)]
+                  ['account-idx' (numb:enjs:format 0)]
+                  ['fingerprint' s+fp-key]
+              ==
+            ;<  eny=@uvJ  bind:m  get-entropy:io
+            =/  disc-uuid=@ta  (scot %uv eny)
+            ;<  disc-rd=road:tarball  bind:m  (wr [%& /proc (cat 3 disc-uuid '.json')])
+            ;<  ~  bind:m  (make:io disc-rd |+[[[/ %json] disc-json] ~])
+            $
+              %'address-request'
+            ::  foreign ship asks us for a receive address
+            =/  src=(unit @p)  (get-poke-src:io from)
+            ?~  src
+              ~&  >  [%wallet %address-request %no-remote-src]
+              $
+            =/  req-net=@t
+              (~(dug jo:json-utils jon) /network so:dejs:format 'testnet3')
+            ;<  lbls=labels:b329  bind:m  load-labels
+            ;<  sa=(unit [key=@ta acct=account-data])  bind:m
+              (get-simple-account lbls req-net)
+            ?~  sa
+              ~&  >>>  [%wallet %address-request %no-simple-account]
+              $
+            =/  acct-key=@ta  key.u.sa
+            =/  acct=account-data  acct.u.sa
+            ;<  recv=addr-mop  bind:m  (load-addr-mop acct-key active-network.acct %recv)
+            =/  offer-idx=@ud
+              (get-next-offer-index:aio recv lbls xprv.acct)
+            =/  addr=(unit @t)
+              (derive-addr:aio xprv.acct script-type.acct active-network.acct 0 offer-idx)
+            ?~  addr
+              ~&  >>>  [%wallet %address-request %derivation-failed]
+              $
+            ~&  [%wallet %address-request %offering (scow %p u.src) u.addr offer-idx]
+            =/  lbl=@t  (rap 3 ~['gwbtc:offered:to:' (scot %p u.src)])
+            =/  new-lbls=labels:b329
+              (~(put la:b329 lbls) [%addr u.addr lbl ~ ~ ~])
+            =/  new-lbls=labels:b329
+              (set-last-offered:aio new-lbls xprv.acct offer-idx)
+            ;<  ~  bind:m  (save-labels new-lbls)
+            ::  poke back with address-offer
+            =/  offer-jon=json
+              %-  pairs:enjs:format
+              :~  ['action' s+'address-offer']
+                  ['address' s+u.addr]
+                  ['network' s+req-net]
+              ==
+            =/  req=load:remo:nexus
+              :_  [%poke [[/ %json] offer-jon]]
+              [/remote-poke %& /apps/'wallet.wallet_app' %'main.sig']
+            ;<  ~  bind:m
+              (gall-poke:io [u.src %grubbery] grubbery-load+req)
+            $
+              %'address-offer'
+            ::  foreign ship is giving us an address we requested
+            =/  src=(unit @p)  (get-poke-src:io from)
+            ?~  src
+              ~&  >  [%wallet %address-offer %no-remote-src]
+              $
+            =/  addr=@t
+              (~(dog jo:json-utils jon) /address so:dejs:format)
+            =/  req-net=@t
+              (~(dug jo:json-utils jon) /network so:dejs:format 'testnet3')
+            ~&  [%wallet %address-offer %received (scow %p u.src) addr req-net]
+            ;<  lbls=labels:b329  bind:m  load-labels
+            ::  clear old simple:send:active labels
+            =/  addr-list=(list [@t (set label-entry:b329)])
+              ~(tap by addr.lbls)
+            =/  cleaned=labels:b329
+              |-
+              ?~  addr-list  lbls
+              =/  [ref=@t entries=(set label-entry:b329)]  i.addr-list
+              =/  has-active=?
+                %+  lien  ~(tap in entries)
+                |=(e=label-entry:b329 =('simple:send:active' label.e))
+              ?.  has-active  $(addr-list t.addr-list)
+              %=  $
+                addr-list  t.addr-list
+                lbls  (~(del la:b329 lbls) %addr ref 'simple:send:active')
+              ==
+            ::  label with offered-from and send-active
+            =/  lbl=@t  (rap 3 ~['gwbtc:offered:from:' (scot %p u.src)])
+            =/  new-lbls=labels:b329
+              (~(put la:b329 cleaned) [%addr addr lbl ~ ~ ~])
+            =/  new-lbls=labels:b329
+              (~(put la:b329 new-lbls) [%addr addr 'simple:send:active' ~ ~ ~])
+            ;<  ~  bind:m  (save-labels new-lbls)
+            ::  append to offer log
+            =/  log-road=road:tarball
+              [%& %& /apps/'wallet.wallet_app' %'offer-log.json']
+            ;<  log-seen=seen:nexus  bind:m  (peek:io log-road ~)
+            =/  cur-log=json
+              ?.  ?=([%& %file *] log-seen)  [%a ~]
+              (fall (mole |.(!<(json (need-vase:tarball sang.p.log-seen)))) [%a ~])
+            =/  entry=json
+              %-  pairs:enjs:format
+              :~  ['ship' s+(scot %p u.src)]
+                  ['address' s+addr]
+                  ['network' s+req-net]
+              ==
+            =/  new-log=json
+              [%a (snoc ?>(?=(%a -.cur-log) p.cur-log) entry)]
+            ;<  ~  bind:m  (over:io log-road [[/ %json] new-log])
+            $
+              %'refresh-account'
+            ::  spawn refresh procs for all addresses in an account
+            =/  acct-key=@ta
+              (~(dog jo:json-utils jon) /account so:dejs:format)
+            ;<  acct=(unit account-data)  bind:m  (load-account acct-key)
+            ?~  acct
+              ~&  >>>  [%wallet %refresh-account %not-found acct-key]
+              $
+            =/  net  active-network.u.acct
+            ;<  recv=addr-mop  bind:m  (load-addr-mop acct-key net %recv)
+            ;<  chng=addr-mop  bind:m  (load-addr-mop acct-key net %chng)
+            =/  refresh-list=(list [chain=?(%recv %chng) idx=@ud])
+              %-  weld
+              :_  ^-  (list [?(%recv %chng) @ud])
+                  %+  turn  (tap:((on @ud address-data) gth) chng)
+                  |=([idx=@ud *] [%chng idx])
+              ^-  (list [?(%recv %chng) @ud])
+              %+  turn  (tap:((on @ud address-data) gth) recv)
+              |=([idx=@ud *] [%recv idx])
+            ;<  now=@da  bind:m  get-time:io
+            |-
+            ?~  refresh-list  $
+            =/  [chain=?(%recv %chng) idx=@ud]  i.refresh-list
+            ;<  eny=@uvJ  bind:m  get-entropy:io
+            =/  uuid=@ta  (scot %uv eny)
+            ;<  proc-road=road:tarball  bind:m  (wr [%& /proc (cat 3 uuid '.json')])
+            =/  proc-json=json
+              %-  pairs:enjs:format
+              :~  ['type' s+'refresh']
+                  ['account' s+acct-key]
+                  ['network' s+net]
+                  ['chain' s+chain]
+                  ['index' (numb:enjs:format idx)]
+              ==
+            ;<  ~  bind:m  (make:io proc-road |+[[[/ %json] proc-json] ~])
+            $(refresh-list t.refresh-list)
           ==
         ==
           ::  /ui/http.sig: bind /groundwire/wallet/ and dispatch requests
@@ -144,58 +371,74 @@
           (pure:m ~)
         ;<  here=rail:tarball  bind:m  get-here-abs:io
         =/  nexus-root=tape  (spud (snip (snip path.here)))
-        =/  site=path  site:(parse-url:http-utils url.request.req)
+        =/  [site=path args=quay:eyre]  (parse-url:http-utils url.request.req)
         =/  prefix=path  /groundwire/wallet
         =/  suffix=path
           %+  skip  (slag (lent prefix) site)
           |=(s=@ta =('' s))
         ::  route: / → wallet list page
         ?~  suffix
-          ;<  wals=(list wallet-data)  bind:m  load-wallets
-          ;<  ~  bind:m  (send-html eyre-id (wallet-page nexus-root wals))
+          ;<  store=wallet-store  bind:m  load-wallets
+          ;<  lbls=labels:b329  bind:m  load-labels
+          =/  wals=(list wallet-data)  (store-to-list store)
+          ;<  ~  bind:m  (send-html eyre-id (wallet-page nexus-root wals lbls))
           (pure:m ~)
         ::  route: /simple → simple wallet page
         ?:  ?=([%simple ~] suffix)
           ?:  ?=(%'GET' method.request.req)
-            ;<  wals=(list wallet-data)  bind:m  load-wallets
-            =/  simple-wal=(unit wallet-data)  (find-simple:simp wals)
+            ;<  lbls=labels:b329  bind:m  ~>(%bout load-labels)
+            ;<  simple-wal=(unit wallet-data)  bind:m  (get-simple-wallet lbls)
             =/  post-url=tape  "{(spud prefix)}/simple"
             ?~  simple-wal
-              ::  auto-create simple wallet
+              ::  auto-create simple wallet with testnet3 + mainnet accounts
               ;<  eny=@uvJ  bind:m  get-entropy:io
               =/  seed-phrase=cord  (gen-seed:seed-phrases eny %256)
-              =/  [wdir=@ta wal=wallet-data adir=@ta acct-ball=ball:tarball]
-                (make-dev-wallet '<simple>My Wallet</simple>' [%t seed-phrase] %testnet3)
+              =/  [wal-t=wallet-data * adir-t=@ta ball-t=ball:tarball]
+                (make-dev-wallet 'My Wallet' [%t seed-phrase] %testnet3)
+              =/  [* * adir-m=@ta ball-m=ball:tarball]
+                (make-dev-wallet 'My Wallet' [%t seed-phrase] %main)
+              =/  wal=wallet-data  wal-t
+              ;<  store=wallet-store  bind:m  load-wallets
+              ;<  ~  bind:m  (save-wallets (~(put by store) fingerprint.wal seed.wal))
+              ;<  acct-t-rd=road:tarball  bind:m  (wr [%| (snoc /accounts adir-t)])
+              ;<  ~  bind:m  (make:io acct-t-rd &+(ball-to-bole:tarball ball-t))
+              ;<  acct-m-rd=road:tarball  bind:m  (wr [%| (snoc /accounts adir-m)])
+              ;<  ~  bind:m  (make:io acct-m-rd &+(ball-to-bole:tarball ball-m))
+              =/  xpub=@t  (scot %ux fingerprint.wal)
+              =/  new-lbls=labels:b329  (set-simple-wallet lbls xpub)
+              =/  new-lbls=labels:b329
+                (~(put la:b329 new-lbls) [%xpub xpub 'gwbtc:wallet:My Wallet' ~ ~ ~])
+              ;<  ~  bind:m  (save-labels new-lbls)
               ;<  ~  bind:m
-                (make:io (cord-to-road:tarball (crip "../../wallets/{(trip wdir)}")) |+[[[/wallet %wallet] wal] ~])
-              ;<  ~  bind:m
-                (make:io (cord-to-road:tarball (crip "../../accounts/{(trip adir)}/")) &+(ball-to-bole:tarball acct-ball))
-              ::  render empty page — next reload will show wallet
-              ;<  ~  bind:m
-                (send-html eyre-id (simple-page:simp ~ ~ *addr-mop *addr-mop *tx-map post-url %.n))
+                (send-html eyre-id (simple-page:simp ~ '' ~ *addr-mop *addr-mop *tx-map post-url %.n ~["testnet3" "main"] 2 ~))
               (pure:m ~)
             =/  wal=wallet-data  u.simple-wal
-            ;<  lbls=labels:b329  bind:m  load-labels
+            =/  wal-name=@t  (get-wallet-name lbls fingerprint.wal)
             =/  saved=?  (get-simple-saved lbls (scot %ux fingerprint.wal))
-            =/  pairs=(list [account:wt @ux])  ~(tap by accounts.wal)
-            ?~  pairs
+            ;<  accts=(list [key=@ta acct=account-data])  bind:m
+              (load-wallet-accounts fingerprint.wal)
+            =/  nets=(list tape)  (wallet-nets accts)
+            =/  req-net=@t
+              (fall (get-key:kv:html-utils 'net' args) 'testnet3')
+            =/  acct-pair=(unit [key=@ta acct=account-data])
+              (find-account-for-net accts req-net)
+            ?~  acct-pair
               ;<  ~  bind:m
-                (send-html eyre-id (simple-page:simp `wal ~ *addr-mop *addr-mop *tx-map post-url saved))
+                (send-html eyre-id (simple-page:simp `wal wal-name ~ *addr-mop *addr-mop *tx-map post-url saved nets 2 ~))
               (pure:m ~)
-            =/  acct-key=@ta  (cat 3 (crip (hexn:http-utils +.i.pairs)) '.wallet_account')
-            ;<  acct=(unit account-data)  bind:m  (load-account acct-key)
-            ?~  acct
-              ;<  ~  bind:m
-                (send-html eyre-id (simple-page:simp `wal ~ *addr-mop *addr-mop *tx-map post-url saved))
-              (pure:m ~)
+            =/  acct-key=@ta  key.u.acct-pair
+            =/  acct-ref=@t  (crip (scag (need (find "." (trip acct-key))) (trip acct-key)))
+            =/  fee-rate=@ud  (get-simple-fee lbls acct-ref)
+            =/  acct=account-data  acct.u.acct-pair
             ;<  recv=addr-mop  bind:m
-              (load-addr-mop acct-key active-network.u.acct %recv)
+              (load-addr-mop acct-key active-network.acct %recv)
             ;<  chng=addr-mop  bind:m
-              (load-addr-mop acct-key active-network.u.acct %chng)
+              (load-addr-mop acct-key active-network.acct %chng)
             ;<  txs=tx-map  bind:m
-              (load-txs acct-key active-network.u.acct)
-            ;<  ~  bind:m
-              (send-html eyre-id (simple-page:simp `wal `u.acct recv chng txs post-url saved))
+              (load-txs acct-key active-network.acct)
+            ;<  contacts=(map @t (map @t json))  bind:m  load-contacts
+            =/  page=manx  (simple-page:simp `wal wal-name `acct recv chng txs post-url saved nets fee-rate contacts)
+            ;<  ~  bind:m  (send-html eyre-id page)
             (pure:m ~)
           ::  POST /simple → simple wallet actions
           =/  args=key-value-list:kv:html-utils  (parse-body:kv:html-utils body.request.req)
@@ -204,33 +447,38 @@
               ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'Unknown action')])
               (pure:m ~)
               %'get-receive-address'
-            ;<  wals=(list wallet-data)  bind:m  load-wallets
-            =/  first-wal=(unit wallet-data)  (find-simple:simp wals)
-            =/  first-acct-key=(unit @ta)
-              ?~  first-wal  ~
-              =/  pairs=(list [account:wt @ux])  ~(tap by accounts.u.first-wal)
-              ?~  pairs  ~
-              `(cat 3 (crip (hexn:http-utils +.i.pairs)) '.wallet_account')
-            ?~  first-acct-key
+            =/  req-net=@t
+              (fall (get-key:kv:html-utils 'net' args) 'testnet3')
+            ;<  lbls=labels:b329  bind:m  load-labels
+            ;<  sa=(unit [key=@ta acct=account-data])  bind:m
+              (get-simple-account lbls req-net)
+            ?~  sa
               ;<  ~  bind:m  (send-simple:srv eyre-id [[200 ~] `(as-octs:mimes:html '')])
               (pure:m ~)
-            ;<  acct=(unit account-data)  bind:m  (load-account u.first-acct-key)
-            ?~  acct
-              ;<  ~  bind:m  (send-simple:srv eyre-id [[200 ~] `(as-octs:mimes:html '')])
-              (pure:m ~)
-            ;<  recv=addr-mop  bind:m  (load-addr-mop u.first-acct-key active-network.u.acct %recv)
-            =/  next=(unit @t)  (next-unused-addr:simp recv)
-            ;<  ~  bind:m
-              (send-simple:srv eyre-id [[200 ~] `(as-octs:mimes:html (fall next ''))])
-            (pure:m ~)
+            =/  acct-key=@ta  key.u.sa
+            =/  acct=account-data  acct.u.sa
+            ;<  recv=addr-mop  bind:m
+              (load-addr-mop acct-key active-network.acct %recv)
+            ::  find local candidate: first addr with no/zero tx-count
+            =/  candidate-idx=@ud
+              =/  leaves=(list [@ud address-data])
+                (tap:((on @ud address-data) gth) recv)
+              |-
+              ?~  leaves
+                (lent (tap:((on @ud address-data) gth) recv))
+              =/  [lidx=@ud dat=address-data]  i.leaves
+              ?~  info.dat  lidx
+              ?:  =(0 tx-count.u.info.dat)  lidx
+              $(leaves t.leaves)
+            ::  verify against mempool, advance if used
+            (verify-receive-addr acct-key acct recv candidate-idx eyre-id)
               %'toggle-saved'
-            ;<  wals=(list wallet-data)  bind:m  load-wallets
-            =/  wal=(unit wallet-data)  (find-simple:simp wals)
-            ?~  wal
+            ;<  lbls=labels:b329  bind:m  load-labels
+            =/  fp=(unit @ux)  (get-simple-fp lbls)
+            ?~  fp
               ;<  ~  bind:m  (send-simple:srv eyre-id [[200 ~] `(as-octs:mimes:html 'ok')])
               (pure:m ~)
-            ;<  lbls=labels:b329  bind:m  load-labels
-            =/  xpub=@t  (scot %ux fingerprint.u.wal)
+            =/  xpub=@t  (scot %ux u.fp)
             =/  saved=?  (get-simple-saved lbls xpub)
             =/  new-lbls=labels:b329  (set-simple-saved lbls xpub !saved)
             ;<  ~  bind:m  (save-labels new-lbls)
@@ -238,25 +486,21 @@
             (pure:m ~)
               %'refresh-wallet'
             ::  refresh all pending + next-unused addresses
-            ;<  wals=(list wallet-data)  bind:m  load-wallets
-            =/  wal=(unit wallet-data)  (find-simple:simp wals)
-            ?~  wal
+            =/  req-net=@t
+              (fall (get-key:kv:html-utils 'net' args) 'testnet3')
+            ;<  lbls=labels:b329  bind:m  load-labels
+            ;<  sa=(unit [key=@ta acct=account-data])  bind:m
+              (get-simple-account lbls req-net)
+            ?~  sa
               ;<  ~  bind:m  (send-simple:srv eyre-id [[200 ~] `(as-octs:mimes:html 'ok')])
               (pure:m ~)
-            =/  pairs=(list [account:wt @ux])  ~(tap by accounts.u.wal)
-            ?~  pairs
-              ;<  ~  bind:m  (send-simple:srv eyre-id [[200 ~] `(as-octs:mimes:html 'ok')])
-              (pure:m ~)
-            =/  acct-key=@ta  (cat 3 (crip (hexn:http-utils +.i.pairs)) '.wallet_account')
-            ;<  acct=(unit account-data)  bind:m  (load-account acct-key)
-            ?~  acct
-              ;<  ~  bind:m  (send-simple:srv eyre-id [[200 ~] `(as-octs:mimes:html 'ok')])
-              (pure:m ~)
-            =/  net=@ta  ;;(@ta active-network.u.acct)
-            ;<  recv=addr-mop  bind:m  (load-addr-mop acct-key active-network.u.acct %recv)
-            ;<  chng=addr-mop  bind:m  (load-addr-mop acct-key active-network.u.acct %chng)
+            =/  acct-key=@ta  key.u.sa
+            =/  acct=account-data  acct.u.sa
+            =/  net=@ta  ;;(@ta active-network.acct)
+            ;<  recv=addr-mop  bind:m  (load-addr-mop acct-key active-network.acct %recv)
+            ;<  chng=addr-mop  bind:m  (load-addr-mop acct-key active-network.acct %chng)
             ::  collect addresses needing refresh: unconfirmed tx addrs + next unused
-            ;<  txs=tx-map  bind:m  (load-txs acct-key active-network.u.acct)
+            ;<  txs=tx-map  bind:m  (load-txs acct-key active-network.acct)
             =/  refresh-list=(list [chain=?(%recv %chng) idx=@ud])
               ::  find addresses involved in unconfirmed transactions
               =/  unconf-addrs=(set @t)
@@ -319,22 +563,21 @@
               |-
               ?~  all  (flop out)
               ?:  (~(has in seen) i.all)  $(all t.all)
-              $(all t.all, seen (~(put in seen) i.all), out [i.all out])
+            $(all t.all, seen (~(put in seen) i.all), out [i.all out])
             ::  spawn refresh proc files
-            =/  acct-hex=tape
-              (scag (need (find "." (trip acct-key))) (trip acct-key))
+            ;<  now=@da  bind:m  get-time:io
             |-
             ?~  refresh-list
               ;<  ~  bind:m  (send-simple:srv eyre-id [[200 ~] `(as-octs:mimes:html 'ok')])
               (pure:m ~)
             =/  [chain=?(%recv %chng) idx=@ud]  i.refresh-list
-            =/  proc-name=@ta
-              (crip "refresh-{acct-hex}-{(trip net)}-{(trip chain)}-{(scow %ud idx)}.json")
-            =/  proc-road=road:tarball
-              [%| 2 [%& /proc proc-name]]
+            ;<  eny=@uvJ  bind:m  get-entropy:io
+            =/  uuid=@ta  (scot %uv eny)
+            ;<  proc-road=road:tarball  bind:m  (wr [%& /proc (cat 3 uuid '.json')])
             =/  proc-json=json
               %-  pairs:enjs:format
-              :~  ['acct-dir' s+acct-key]
+              :~  ['type' s+'refresh']
+                  ['account' s+acct-key]
                   ['network' s+net]
                   ['chain' s+chain]
                   ['index' (numb:enjs:format idx)]
@@ -349,29 +592,24 @@
             =/  chain=?(%recv %chng)
               ?:(?=(%recv ;;(?(%recv %chng) (slav %tas chain-raw))) %recv %chng)
             =/  idx=@ud  (fall (slaw %ud idx-raw) 0)
-            ;<  wals=(list wallet-data)  bind:m  load-wallets
-            =/  wal=(unit wallet-data)  (find-simple:simp wals)
-            ?~  wal
+            =/  req-net=@t
+              (fall (get-key:kv:html-utils 'net' args) 'testnet3')
+            ;<  lbls=labels:b329  bind:m  load-labels
+            ;<  sa=(unit [key=@ta acct=account-data])  bind:m
+              (get-simple-account lbls req-net)
+            ?~  sa
               ;<  ~  bind:m  (send-simple:srv eyre-id [[200 ~] `(as-octs:mimes:html 'ok')])
               (pure:m ~)
-            =/  pairs=(list [account:wt @ux])  ~(tap by accounts.u.wal)
-            ?~  pairs
-              ;<  ~  bind:m  (send-simple:srv eyre-id [[200 ~] `(as-octs:mimes:html 'ok')])
-              (pure:m ~)
-            =/  acct-hex=tape  (hexn:http-utils +.i.pairs)
-            =/  acct-key=@ta  (cat 3 (crip acct-hex) '.wallet_account')
-            ;<  acct=(unit account-data)  bind:m  (load-account acct-key)
-            ?~  acct
-              ;<  ~  bind:m  (send-simple:srv eyre-id [[200 ~] `(as-octs:mimes:html 'ok')])
-              (pure:m ~)
-            =/  net=@ta  ;;(@ta active-network.u.acct)
-            =/  proc-name=@ta
-              (crip "refresh-{acct-hex}-{(trip net)}-{(trip chain)}-{(scow %ud idx)}.json")
-            =/  proc-road=road:tarball
-              [%| 2 [%& /proc proc-name]]
+            =/  acct-key=@ta  key.u.sa
+            =/  acct=account-data  acct.u.sa
+            =/  net=@ta  ;;(@ta active-network.acct)
+            ;<  eny=@uvJ  bind:m  get-entropy:io
+            =/  uuid=@ta  (scot %uv eny)
+            ;<  proc-road=road:tarball  bind:m  (wr [%& /proc (cat 3 uuid '.json')])
             =/  proc-json=json
               %-  pairs:enjs:format
-              :~  ['acct-dir' s+acct-key]
+              :~  ['type' s+'refresh']
+                  ['account' s+acct-key]
                   ['network' s+net]
                   ['chain' s+chain]
                   ['index' (numb:enjs:format idx)]
@@ -380,33 +618,120 @@
               (make:io proc-road |+[[[/ %json] proc-json] ~])
             ;<  ~  bind:m  (send-simple:srv eyre-id [[200 ~] `(as-octs:mimes:html 'ok')])
             (pure:m ~)
+              %'send-bitcoin'
+            ::  Build, sign, and broadcast a transaction
+            =/  address=@t
+              (fall (get-key:kv:html-utils 'address' args) '')
+            =/  amount-raw=@t
+              (fall (get-key:kv:html-utils 'amount' args) '0')
+            =/  fee-rate-raw=@t
+              (fall (get-key:kv:html-utils 'fee-rate' args) '2')
+            =/  req-net=@t
+              (fall (get-key:kv:html-utils 'net' args) 'testnet3')
+            =/  amount=@ud  (fall (rush amount-raw dem) 0)
+            =/  fee-rate=@ud  (fall (rush fee-rate-raw dem) 2)
+            ?:  |(=('' address) =(0 amount))
+              ;<  ~  bind:m
+                (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'Missing address or amount')])
+              (pure:m ~)
+            ;<  lbls=labels:b329  bind:m  load-labels
+            ;<  sa=(unit [key=@ta acct=account-data])  bind:m
+              (get-simple-account lbls req-net)
+            ?~  sa
+              ;<  ~  bind:m
+                (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'No account for network')])
+              (pure:m ~)
+            =/  acct-key=@ta  key.u.sa
+            =/  acct=account-data  acct.u.sa
+            ::  find unused change address from mop, or derive one
+            ;<  chng=addr-mop  bind:m
+              (load-addr-mop acct-key active-network.acct %chng)
+            =/  change-addr=(unit @t)
+              =/  leaves=(list [@ud address-data])
+                (tap:((on @ud address-data) gth) chng)
+              |-
+              ?~  leaves  ~
+              =/  [* dat=address-data]  i.leaves
+              ?~  info.dat  `addr.dat
+              ?:  =(0 tx-count.u.info.dat)  `addr.dat
+              $(leaves t.leaves)
+            =/  change-addr=@t
+              ?^  change-addr  u.change-addr
+              ::  derive next change index in-memory
+              =/  next-idx=@ud
+                =/  top=(unit [@ud address-data])
+                  (pry:((on @ud address-data) gth) chng)
+                ?~  top  0
+                +(-.u.top)
+              %-  need
+              %:  derive-addr:aio
+                xprv.acct
+                script-type.acct
+                active-network.acct
+                1  next-idx
+              ==
+            (send-bitcoin-pokes acct-key change-addr address amount fee-rate eyre-id)
+              %'rename-wallet'
+            =/  new-name=@t  (fall (get-key:kv:html-utils 'name' args) '')
+            ?:  =('' new-name)
+              ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'Name required')])
+              (pure:m ~)
+            ;<  lbls=labels:b329  bind:m  load-labels
+            =/  fp=(unit @ux)  (get-simple-fp lbls)
+            ?~  fp
+              ;<  ~  bind:m  (send-simple:srv eyre-id [[200 ~] `(as-octs:mimes:html 'ok')])
+              (pure:m ~)
+            =/  xpub=@t  (scot %ux u.fp)
+            =/  old-name=@t  (get-wallet-name lbls u.fp)
+            =/  old-lbl=@t  (rap 3 ~['gwbtc:wallet:' old-name])
+            =/  new-lbls=labels:b329  (~(del la:b329 lbls) %xpub xpub old-lbl)
+            =/  new-lbls=labels:b329
+              (~(put la:b329 new-lbls) [%xpub xpub (rap 3 ~['gwbtc:wallet:' new-name]) ~ ~ ~])
+            ;<  ~  bind:m  (save-labels new-lbls)
+            ;<  ~  bind:m  (send-simple:srv eyre-id [[200 ~] `(as-octs:mimes:html 'ok')])
+            (pure:m ~)
+              %'set-fee-rate'
+            =/  fee-raw=@t  (fall (get-key:kv:html-utils 'fee-rate' args) '2')
+            =/  req-net=@t  (fall (get-key:kv:html-utils 'net' args) 'testnet3')
+            =/  fee-val=@ud  (fall (rush fee-raw dem) 2)
+            ;<  lbls=labels:b329  bind:m  load-labels
+            ;<  sa=(unit [key=@ta acct=account-data])  bind:m
+              (get-simple-account lbls req-net)
+            ?~  sa
+              ;<  ~  bind:m  (send-simple:srv eyre-id [[200 ~] `(as-octs:mimes:html 'ok')])
+              (pure:m ~)
+            =/  acct-ref=@t  (crip (scag (need (find "." (trip key.u.sa))) (trip key.u.sa)))
+            =/  new-lbls=labels:b329  (set-simple-fee lbls acct-ref fee-val)
+            ;<  ~  bind:m  (save-labels new-lbls)
+            ;<  ~  bind:m  (send-simple:srv eyre-id [[200 ~] `(as-octs:mimes:html 'ok')])
+            (pure:m ~)
           ==
         ::  route: /w/<wallet-key>/ → wallet detail page
         ?:  ?&  ?=([%w @ *] suffix)
                 =(~ t.t.suffix)
             ==
-          =/  wal-key=@ta  (cat 3 i.t.suffix '.wallet_wallet')
-          =/  wal-road=road:tarball
-            (cord-to-road:tarball (crip "../../wallets/{(trip wal-key)}"))
-          ::  POST → forward as poke to wallet grub
+          =/  fp=@ux  (scan (trip i.t.suffix) hex)
+          ::  POST → forward as poke to main.sig with wallet-key
           ?:  ?=(%'POST' method.request.req)
             =/  args=key-value-list:kv:html-utils  (parse-body:kv:html-utils body.request.req)
             =/  jon=json  (form-args-to-json args)
-            ;<  ~  bind:m  (poke:io wal-road [[/ %json] jon])
+            =/  jon=json  [%o (~(put by ?>(?=(%o -.jon) p.jon)) 'wallet-key' s+(scot %ux fp))]
+            ;<  main-road=road:tarball  bind:m  (wr [%& ~ %'main.sig'])
+            ;<  ~  bind:m  (poke:io main-road [[/ %json] jon])
             ;<  ~  bind:m  (send-simple:srv eyre-id [[200 ~] `(as-octs:mimes:html 'ok')])
             (pure:m ~)
           ::  GET → render wallet detail page
-          ;<  wal-seen=seen:nexus  bind:m  (peek:io wal-road ~)
-          ?.  ?=([%& %file *] wal-seen)
+          ;<  store=wallet-store  bind:m  load-wallets
+          =/  sd=(unit seed)  (~(get by store) fp)
+          ?~  sd
             ;<  ~  bind:m  (send-simple:srv eyre-id [[404 ~] `(as-octs:mimes:html 'Wallet not found')])
             (pure:m ~)
-          =/  wal=(unit wallet-data)
-            (mole |.(!<(wallet-data (need-vase:tarball sang.p.wal-seen))))
-          ?~  wal
-            ;<  ~  bind:m  (send-simple:srv eyre-id [[404 ~] `(as-octs:mimes:html 'Wallet not found')])
-            (pure:m ~)
-          ;<  accts=(list account-data)  bind:m  (load-wallet-accounts u.wal)
-          ;<  ~  bind:m  (send-html eyre-id (detail-page:det-ui u.wal accts))
+          =/  wal=wallet-data  [u.sd fp]
+          ;<  lbls=labels:b329  bind:m  load-labels
+          =/  wal-name=@t  (get-wallet-name lbls fp)
+          ;<  accts=(list [key=@ta acct=account-data])  bind:m  (load-wallet-accounts fp)
+          =/  acct-list=(list account-data)  (turn accts |=([* a=account-data] a))
+          ;<  ~  bind:m  (send-html eyre-id (detail-page:det-ui wal wal-name acct-list))
           (pure:m ~)
         ::  route: /a/<account-key>/ → account page
         ?:  ?&  ?=([%a @ *] suffix)
@@ -501,249 +826,95 @@
         ::  unknown route
         ;<  ~  bind:m  (send-simple:srv eyre-id [[404 ~] `(as-octs:mimes:html 'Not found')])
         (pure:m ~)
-          ::  /wallets/*.wallet_wallet: per-wallet poke handler
           ::
-          [[%wallets ~] @]
-        ;<  ~  bind:m  (rise-wait:io prod "%wallet /wallets/*: failed")
-        |-
-        ;<  wal=wallet-data  bind:m  (get-state-as:io wallet-data)
-        ;<  [=from:fiber:nexus =sage:tarball]  bind:m  take-poke-from:io
-        ?+    name.p.sage
-            ~&  >  [%wallet-poke %unknown-mark name.p.sage]
-            $
-            %json
-          =/  jon=json  !<(json q.sage)
-          ?.  ?=([%o *] jon)  $
-          =/  act=@t  (~(dug jo:json-utils jon) /action so:dejs:format '')
-          ?+    act
-              ~&  >  [%wallet-poke %unknown-action act]
-              $
-              %'add-account'
-            =/  account-name=@t
-              (~(dog jo:json-utils jon) /account-name so:dejs:format)
-            =/  purpose-select=@t
-              (~(dug jo:json-utils jon) /purpose-select so:dejs:format '84')
-            =/  purpose=@ud
-              ?:  =(purpose-select 'custom')
-                (rash (~(dog jo:json-utils jon) /purpose-custom so:dejs:format) dem)
-              (rash purpose-select dem)
-            =/  coin-type-select=@t
-              (~(dug jo:json-utils jon) /coin-type-select so:dejs:format '0')
-            =/  coin-type=@ud
-              ?:  =(coin-type-select 'custom')
-                (rash (~(dog jo:json-utils jon) /coin-type-custom so:dejs:format) dem)
-              (rash coin-type-select dem)
-            =/  account-idx=@ud
-              (rash (~(dug jo:json-utils jon) /account-number so:dejs:format '0') dem)
-            =/  =script-type  (purpose-to-script purpose)
-            ::  derive account key from master seed
-            =/  network=?(%main %testnet3 %testnet4 %signet %regtest)
-              ?:  =(1 coin-type)  %testnet3  %main
-            =/  master  (from-seed:bip32 (seed-to-bytes seed.wal))
-            =/  pax=tape
-              "m/{(scow %ud purpose)}'/{(scow %ud coin-type)}'/{(scow %ud account-idx)}'"
-            =/  derived  (derive-path:master pax)
-            =/  xprv=@t  (crip (prv-extended:derived (to-bip-network:wt network)))
-            ::  create account data
-            =/  acct=account-data
-              [account-name fingerprint.wal script-type network [%.y purpose] [%.y coin-type] [%.y account-idx] xprv]
-            =/  acct-pubkey=@ux  public-key:derived
-            =/  acct-key=@ta  (crip (hexn:http-utils acct-pubkey))
-            =/  acct-dir=@ta  (cat 3 acct-key '.wallet_account')
-            =/  acct-contents=(map @ta [=sang:tarball gain=? bang=(unit tang)])
-              (~(put by *(map @ta [=sang:tarball gain=? bang=(unit tang)])) %'data.wallet_account' [[[/wallet %account] %& !>(acct)] %.n ~])
-            =/  acct-lump=lump:tarball  [~ ~ %.n ~ acct-contents]
-            =/  acct-ball=ball:tarball  [`acct-lump ~]
-            ;<  err=(unit tang)  bind:m
-              (make-soft:io [%| 1 %| (snoc /accounts acct-dir)] &+(ball-to-bole:tarball acct-ball))
-            ?^  err
-              ~&  >>>  [%wallet-poke %add-account-failed]
-              $
-            ::  update wallet accounts map
-            =/  acct-path=account:wt  [[%.y purpose] [%.y coin-type] [%.y account-idx]]
-            =.  wal  wal(accounts (~(put by accounts.wal) acct-path acct-pubkey))
-            ;<  ~  bind:m  (replace:io wal)
-            $
-              %'remove-account'
-            =/  acct-key=@t
-              (~(dog jo:json-utils jon) /account-key so:dejs:format)
-            =/  acct-pubkey=@ux  (scan (trip acct-key) hex)
-            =/  acct-dir=@ta  (cat 3 (crip (trip acct-key)) '.wallet_account')
-            ;<  err=(unit tang)  bind:m
-              (cull-soft:io [%| 1 %| (snoc /accounts acct-dir)])
-            ?^  err
-              ~&  >>>  [%wallet-poke %remove-account-failed]
-              $
-            ::  remove from wallet accounts map
-            =.  wal
-              %=  wal
-                accounts
-                %-  ~(gas by *(map account:wt @ux))
-                %+  skip  ~(tap by accounts.wal)
-                |=([* pk=@ux] =(pk acct-pubkey))
-              ==
-            ;<  ~  bind:m  (replace:io wal)
-            $
-              %'discover-accounts'
-            =/  purpose-select=@t
-              (~(dug jo:json-utils jon) /purpose-select so:dejs:format '84')
-            =/  purpose=@ud
-              ?:(=(purpose-select 'custom') (rash (~(dog jo:json-utils jon) /purpose-custom so:dejs:format) dem) (rash purpose-select dem))
-            =/  coin-type-select=@t
-              (~(dug jo:json-utils jon) /coin-type-select so:dejs:format '0')
-            =/  coin-type=@ud
-              ?:(=(coin-type-select 'custom') (rash (~(dog jo:json-utils jon) /coin-type-custom so:dejs:format) dem) (rash coin-type-select dem))
-            =/  fp-key=@ta  (crip (hexn:http-utils fingerprint.wal))
-            =/  disc-json=json
-              %-  pairs:enjs:format
-              :~  ['purpose' (numb:enjs:format purpose)]
-                  ['coin-type' (numb:enjs:format coin-type)]
-                  ['account-idx' (numb:enjs:format 0)]
-                  ['fingerprint' s+fp-key]
-              ==
-            ;<  ~  bind:m
-              (make:io (cord-to-road:tarball (crip "../proc/discover-{(trip fp-key)}.json")) |+[[[/ %json] disc-json] ~])
-            $
-          ::
-              %'cancel-discovery'
-            =/  fp-key=@ta  (crip (hexn:http-utils fingerprint.wal))
-            ;<  *  bind:m
-              (cull-soft:io (cord-to-road:tarball (crip "../proc/discover-{(trip fp-key)}.json")))
-            $
-          ==
-        ==
-          ::  /proc/*: process dispatch
+          ::  /proc/*: generic process handler — dispatches on type in state
           ::
           [[%proc ~] @]
-        =/  proc-filename=tape  (trip name.rail)
-        ::  scan-paused marker: no handler needed
-        ?:  =("scan-paused-" (scag 12 proc-filename))
-          stay:m
-        ::  scan process
-        ?:  =("scan-" (scag 5 proc-filename))
-          (handle-scan-proc rail prod)
-        ::  refresh process
-        ?:  =("refresh-" (scag 8 proc-filename))
-          (handle-refresh-proc rail prod)
-        ::  discover process (default)
-        ;<  ~  bind:m  (rise-wait:io prod "%wallet /proc/discover: failed")
+        ;<  ~  bind:m  (rise-wait:io prod "%wallet /proc: failed")
         ;<  prev-state=vase  bind:m  get-state:io
         =/  prev=json  (fall (mole |.(!<(json prev-state))) *json)
-        =/  fp-key=@t
-          (fall (mole |.((so:dejs:format (~(got jo:json-utils prev) /'fingerprint')))) '')
-        =/  wal-road=road:tarball
-          (cord-to-road:tarball (crip "../wallets/{(trip fp-key)}.wallet_wallet"))
-        ;<  wal-seen=seen:nexus  bind:m  (peek:io wal-road ~)
-        ?.  ?=([%& %file *] wal-seen)  (pure:m ~)
-        =/  wal=(unit wallet-data)
-          (mole |.(!<(wallet-data (need-vase:tarball sang.p.wal-seen))))
-        ?~  wal  (pure:m ~)
-        =/  purpose=@ud
-          (fall (mole |.((ni:dejs:format (~(got jo:json-utils prev) /'purpose')))) 84)
-        =/  coin-type=@ud
-          (fall (mole |.((ni:dejs:format (~(got jo:json-utils prev) /'coin-type')))) 0)
-        =/  start-idx=@ud
-          (fall (mole |.((ni:dejs:format (~(got jo:json-utils prev) /'account-idx')))) 0)
-        =/  =script-type  (purpose-to-script purpose)
-        =/  network=?(%main %testnet3 %testnet4 %signet %regtest)
-          ?:(=(1 coin-type) %testnet3 %main)
-        =/  account-idx=@ud  start-idx
-        |-
-        ::  update progress in proc state
-        =/  prog=json
-          %-  pairs:enjs:format
-          :~  ['purpose' (numb:enjs:format purpose)]
-              ['coin-type' (numb:enjs:format coin-type)]
-              ['account-idx' (numb:enjs:format account-idx)]
-              ['fingerprint' s+fp-key]
-          ==
-        ;<  ~  bind:m  (replace:io prog)
-        ::  derive xprv for this account index
-        =/  master  (from-seed:bip32 (seed-to-bytes seed.u.wal))
-        =/  pax=tape
-          "m/{(scow %ud purpose)}'/{(scow %ud coin-type)}'/{(scow %ud account-idx)}'"
-        =/  derived  (derive-path:master pax)
-        =/  xprv=@t  (crip (prv-extended:derived (to-bip-network:wt network)))
-        ::  check recv + change chains for any activity
-        ;<  recv-active=?  bind:m
-          (discover-check-chain xprv script-type network 0)
-        ;<  chng-active=?  bind:m
-          (discover-check-chain xprv script-type network 1)
-        ::  no activity = discovery complete
-        ?.  |(recv-active chng-active)
-          (pure:m ~)
-        ::  account has activity — create it
-        =/  acct-name=@t  (crip "Account {(scow %ud account-idx)}")
-        =/  acct=account-data:wt
-          [acct-name fingerprint.u.wal script-type network [%.y purpose] [%.y coin-type] [%.y account-idx] xprv]
-        =/  acct-pubkey=@ux  public-key:derived
-        =/  acct-key=@ta  (crip (hexn:http-utils acct-pubkey))
-        =/  acct-dir=@ta  (cat 3 acct-key '.wallet_account')
-        =/  acct-contents=(map @ta [=sang:tarball gain=? bang=(unit tang)])
-          (~(put by *(map @ta [=sang:tarball gain=? bang=(unit tang)])) %'data.wallet_account' [[[/wallet %account] %& !>(acct)] %.n ~])
-        =/  acct-lump=lump:tarball  [~ ~ %.n ~ acct-contents]
-        =/  acct-ball=ball:tarball  [`acct-lump ~]
-        ;<  err=(unit tang)  bind:m
-          (make-soft:io [%| 1 %| (snoc /accounts acct-dir)] &+(ball-to-bole:tarball acct-ball))
-        ?^  err
-          ~&(>>> [%discover %account-create-failed] (pure:m ~))
-        ::  update wallet accounts map
-        =/  acct-path=account:wt  [[%.y purpose] [%.y coin-type] [%.y account-idx]]
-        =.  u.wal  u.wal(accounts (~(put by accounts.u.wal) acct-path acct-pubkey))
-        ;<  ~  bind:m
-          (over:io wal-road [[/wallet %wallet] u.wal])
-        ::  kick off full scan on the new account
-        =/  acct-rail-path=path  (snoc /accounts acct-dir)
-        =/  acct-path-cord=@t  (spat acct-rail-path)
-        =/  scan-name=@ta  (crip "scan-{(trip acct-key)}.json")
-        =/  scan-json=json
-          %-  pairs:enjs:format
-          :~  ['account' s+acct-path-cord]
-              ['acct-dir' s+acct-dir]
-              ['phase' s+'recv']
-              ['idx' (numb:enjs:format 0)]
-              ['gap' (numb:enjs:format 0)]
-          ==
-        ;<  ~  bind:m
-          (make:io [%| 1 [%& /proc scan-name]] |+[[[/ %json] scan-json] ~])
-        ::  continue to next account
-        $(account-idx +(account-idx))
+        =/  proc-type=@t
+          (~(dug jo:json-utils prev) /type so:dejs:format '')
+        ?+    proc-type
+            ~&  >  [%wallet %proc %unknown-type proc-type]
+            (pure:m ~)
+            %'scan'
+          (handle-scan-proc prev)
+            %'refresh'
+          (handle-refresh-proc prev)
+            %'discover'
+          (handle-discover-proc prev)
+            %'paused'
+          stay:m
+        ==
       ==
     --
 ::  wallet helpers
 ::
 |%
+++  wr  |=(=lane:tarball (ancestor-road:io [/wallet %app] lane))
+::  +get-or-gen-uuid: read optional uuid from json, generate if absent
+::
+++  get-or-gen-uuid
+  |=  jon=(map @t json)
+  =/  m  (fiber:fiber:nexus ,@ta)
+  ^-  form:m
+  =/  raw=@ta  (~(dug jo:json-utils [%o jon]) /uuid so:dejs:format '')
+  ?.  =('' raw)  (pure:m raw)
+  ;<  eny=@uvJ  bind:m  get-entropy:io
+  (pure:m (scot %uv eny))
+::
+::  Account identity helpers.  Account directories are the canonical
+::  serialized account id: <pubkey>.wallet_account.
+::
+++  acct-dir-from-path
+  |=  pax=path
+  ^-  @ta
+  ?~  pax  ''
+  ?:  =(%'data.wallet_account' (rear pax))
+    ?:  (lth (lent pax) 2)  ''
+    (snag (sub (lent pax) 2) `path`pax)
+  (rear pax)
+::
+++  acct-dir-from-rail
+  |=  =rail:tarball
+  ^-  @ta
+  (acct-dir-from-path path.rail)
+::
+++  acct-dir-from-proc-rail
+  |=  =rail:tarball
+  ^-  @ta
+  ?:  (lth (lent path.rail) 3)  ''
+  (snag 2 path.rail)
+::
 ::  +handle-scan-proc: scan chain process handler
 ::
 ++  handle-scan-proc
-  |=  [=rail:tarball =prod:fiber:nexus]
+  |=  prev=json
   =/  m  (fiber:fiber:nexus ,~)
-  ^-  process:fiber:nexus
-  ;<  ~  bind:m  (rise-wait:io prod "%wallet /proc/scan: failed")
-  ;<  prev-state=vase  bind:m  get-state:io
-  =/  prev=json  (fall (mole |.(!<(json prev-state))) *json)
-  =/  acct-path=@t
-    (fall (mole |.((so:dejs:format (~(got jo:json-utils prev) /'account')))) '')
-  =/  acct-path-segs=path  (stab acct-path)
-  =/  acct-dir=@ta
-    ?~  acct-path-segs  ''
-    (snag (dec (lent acct-path-segs)) `(list @ta)`acct-path-segs)
-  =/  prefix=path  (snoc /accounts acct-dir)
-  ::  load account data (1 step up from proc/ to app root)
-  =/  acct-road=road:tarball  [%| 1 [%& prefix %'data.wallet_account']]
+  ^-  form:m
+  =/  acct-key=@ta
+    (~(dog jo:json-utils prev) /account so:dejs:format)
+  =/  prefix=path  (snoc /accounts acct-key)
+  ::  load account data
+  ;<  acct-road=road:tarball  bind:m  (wr [%& prefix %'data.wallet_account'])
   ;<  acct-seen=seen:nexus  bind:m  (peek:io acct-road ~)
   ?.  ?=([%& %file *] acct-seen)  (pure:m ~)
   =/  acct=(unit account-data)
     (mole |.(!<(account-data (need-vase:tarball sang.p.acct-seen))))
   ?~  acct  (pure:m ~)
   =/  network  active-network.u.acct
-  ::  parse scan progress
   =/  progress=scan-progress:aio  (parse-scan-progress:aio prev)
-  =/  paused-name=@ta
-    =/  fn=tape  (trip name.rail)
-    (crip (weld "scan-paused-" (slag 5 fn)))
-  =/  paused-road=road:tarball  [%| 0 [%& /proc paused-name]]
+  ::  find paused marker by scanning /proc for a paused proc matching this account
+  =/  paused-id=@t
+    (~(dug jo:json-utils prev) /paused-id so:dejs:format '')
+  =/  paused-road=road:tarball
+    ?:  =('' paused-id)
+      ::  no paused marker — use a dummy road that won't exist
+      [%& %& /proc %'__no-pause__.json']
+    [%& %& /proc (cat 3 paused-id '.json')]
   ::  scan recv chain
+  =/  acct-path=@t  (spat prefix)
   ;<  ~  bind:m
     %:  scan-chain:aio
       1  prefix  paused-road  acct-path  u.acct
@@ -757,21 +928,24 @@
       1  prefix  paused-road  acct-path  u.acct
       %change  network  0  0
     ==
+  ::  mark proc as done — triggers news for subscribers
+  ;<  prev-state=vase  bind:m  get-state:io
+  =/  cur=json  (fall (mole |.(!<(json prev-state))) *json)
+  =/  updated=json
+    ?.  ?=(%o -.cur)  cur
+    [%o (~(put by p.cur) 'status' s+'done')]
+  ;<  ~  bind:m  (replace:io updated)
+  ;<  ~  bind:m  (sleep:io ~m5)
   (pure:m ~)
 ::  +handle-refresh-proc: single address refresh process handler
 ::
 ++  handle-refresh-proc
-  |=  [=rail:tarball =prod:fiber:nexus]
+  |=  prev=json
   =/  m  (fiber:fiber:nexus ,~)
-  ^-  process:fiber:nexus
-  ;<  ~  bind:m  (rise-wait:io prod "%wallet /proc/refresh: failed")
-  ;<  prev-state=vase  bind:m  get-state:io
-  =/  prev=json  (fall (mole |.(!<(json prev-state))) *json)
-  =/  acct-dir=@ta
-    =/  ap=@t  (fall (mole |.((so:dejs:format (~(got jo:json-utils prev) /'acct-dir')))) '')
-    ?:  =(%'' ap)  ''
-    ap
-  =/  prefix=path  (snoc /accounts acct-dir)
+  ^-  form:m
+  =/  acct-key=@ta
+    (~(dog jo:json-utils prev) /account so:dejs:format)
+  =/  prefix=path  (snoc /accounts acct-key)
   =/  net-raw=@t
     (fall (mole |.((so:dejs:format (~(got jo:json-utils prev) /'network')))) 'main')
   =/  network=?(%main %testnet3 %testnet4 %signet %regtest)
@@ -782,15 +956,17 @@
   =/  idx=@ud
     (fall (mole |.((ni:dejs:format (~(got jo:json-utils prev) /'index')))) 0)
   ::  read current address data
-  ;<  mop=addr-mop  bind:m  (read-mop:aio 1 prefix network chain-tag)
+  ;<  mop=addr-mop  bind:m  (load-addr-mop acct-key network chain-tag)
   =/  dat=(unit address-data)
     (get:((on @ud address-data) gth) mop idx)
-  ?~  dat  (pure:m ~)
+  ?~  dat
+    ~&  ["%refresh proc missing addr" acct-key network chain-tag idx]
+    (pure:m ~)
   ::  set loading flag
   =/  loading-dat=address-data  u.dat(loading %.y)
   =/  updated=addr-mop
     (put:((on @ud address-data) gth) mop idx loading-dat)
-  ;<  ~  bind:m  (write-mop:aio 1 prefix network chain-tag updated)
+  ;<  ~  bind:m  (write-addr-mop acct-key network chain-tag updated)
   ::  fetch address info
   =/  base-url=tape  (mempool-base-url:aio network)
   =/  info-url=@t  (crip (weld base-url (trip addr.u.dat)))
@@ -799,35 +975,134 @@
   ;<  ~  bind:m  (send-request:io request)
   ;<  info-resp=client-response:iris  bind:m  take-http:aio
   ;<  now=@da  bind:m  get-time:io
-  =/  new-info=(unit address-info)  (parse-info-response:aio info-resp now)
+  =/  new-info=(unit address-info)  ~>(%bout (parse-info-response:aio info-resp now))
   ::  fetch UTXOs
   =/  utxo-url=@t  (crip :(weld base-url (trip addr.u.dat) "/utxo"))
   =/  utxo-req=request:http
     [%'GET' utxo-url ~[['Accept' 'application/json']] ~]
   ;<  ~  bind:m  (send-request:io utxo-req)
   ;<  utxo-resp=client-response:iris  bind:m  take-http:aio
-  =/  utxos=(list utxo)  (parse-utxo-response:aio utxo-resp)
+  =/  utxos=(list utxo)  ~>(%bout (parse-utxo-response:aio utxo-resp))
   ::  fetch transactions
   =/  txs-url=@t  (crip :(weld base-url (trip addr.u.dat) "/txs"))
   =/  txs-req=request:http
     [%'GET' txs-url ~[['Accept' 'application/json']] ~]
   ;<  ~  bind:m  (send-request:io txs-req)
   ;<  txs-resp=client-response:iris  bind:m  take-http:aio
-  =/  txs=(list transaction)  (parse-txs-response:aio txs-resp)
+  =/  txs=(list transaction)  ~>(%bout (parse-txs-response:aio txs-resp))
   ::  update address in mop
-  ;<  cur-mop=addr-mop  bind:m  (read-mop:aio 1 prefix network chain-tag)
+  ;<  cur-mop=addr-mop  bind:m  (load-addr-mop acct-key network chain-tag)
   =/  new-dat=address-data
     [addr.u.dat %.n ~ new-info utxos]
   =/  final=addr-mop
-    (put:((on @ud address-data) gth) cur-mop idx new-dat)
-  ;<  ~  bind:m  (write-mop:aio 1 prefix network chain-tag final)
+    ~>(%bout (put:((on @ud address-data) gth) cur-mop idx new-dat))
+  ;<  ~  bind:m  (write-addr-mop acct-key network chain-tag final)
   ::  update tx-map
-  ;<  existing-txs=tx-map  bind:m  (read-txs:aio 1 prefix network)
+  ;<  existing-txs=tx-map  bind:m  (load-txs acct-key network)
   =/  new-tx-map=tx-map
+    ~>  %bout
     %-  ~(gas by existing-txs)
     (turn txs |=(t=transaction [txid.t t]))
-  ;<  ~  bind:m  (write-txs:aio 1 prefix network new-tx-map)
+  ;<  ~  bind:m  (write-txs acct-key network new-tx-map)
+  ::  mark proc as done — triggers news for subscribers
+  ;<  prev-state=vase  bind:m  get-state:io
+  =/  cur=json  (fall (mole |.(!<(json prev-state))) *json)
+  =/  updated=json
+    ?.  ?=(%o -.cur)  cur
+    [%o (~(put by p.cur) 'status' s+'done')]
+  ;<  ~  bind:m  (replace:io updated)
+  ;<  ~  bind:m  (sleep:io ~m5)
   (pure:m ~)
+::  +handle-discover-proc: account discovery process
+::
+++  handle-discover-proc
+  |=  prev=json
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  =/  fp-key=@t
+    (~(dog jo:json-utils prev) /fingerprint so:dejs:format)
+  =/  fp=@ux  (slav %ux fp-key)
+  ;<  store=wallet-store  bind:m  load-wallets
+  =/  sd=(unit seed)  (~(get by store) fp)
+  ?~  sd  (pure:m ~)
+  =/  wal=wallet-data  [u.sd fp]
+  =/  purpose=@ud
+    (fall (mole |.((ni:dejs:format (~(got jo:json-utils prev) /'purpose')))) 84)
+  =/  coin-type=@ud
+    (fall (mole |.((ni:dejs:format (~(got jo:json-utils prev) /'coin-type')))) 0)
+  =/  start-idx=@ud
+    (fall (mole |.((ni:dejs:format (~(got jo:json-utils prev) /'account-idx')))) 0)
+  =/  =script-type  (purpose-to-script purpose)
+  =/  network=?(%main %testnet3 %testnet4 %signet %regtest)
+    ?:(=(1 coin-type) %testnet3 %main)
+  =/  account-idx=@ud  start-idx
+  |-
+  ::  update progress in proc state
+  =/  prog=json
+    %-  pairs:enjs:format
+    :~  ['type' s+'discover']
+        ['purpose' (numb:enjs:format purpose)]
+        ['coin-type' (numb:enjs:format coin-type)]
+        ['account-idx' (numb:enjs:format account-idx)]
+        ['fingerprint' s+fp-key]
+    ==
+  ;<  ~  bind:m  (replace:io prog)
+  ::  derive xprv for this account index
+  =/  master  (from-seed:bip32 (seed-to-bytes seed.wal))
+  =/  pax=tape
+    "m/{(scow %ud purpose)}'/{(scow %ud coin-type)}'/{(scow %ud account-idx)}'"
+  =/  derived  (derive-path:master pax)
+  =/  xprv=@t  (crip (prv-extended:derived (to-bip-network:wt network)))
+  ::  check recv + change chains for any activity
+  ;<  recv-active=?  bind:m
+    (discover-check-chain xprv script-type network 0)
+  ;<  chng-active=?  bind:m
+    (discover-check-chain xprv script-type network 1)
+  ::  no activity = discovery complete
+  ?.  |(recv-active chng-active)
+    =/  done-prog=json
+      %-  pairs:enjs:format
+      :~  ['type' s+'discover']
+          ['status' s+'done']
+          ['fingerprint' s+fp-key]
+      ==
+    ;<  ~  bind:m  (replace:io done-prog)
+    ;<  ~  bind:m  (sleep:io ~m5)
+    (pure:m ~)
+  ::  account has activity — create it
+  =/  acct-name=@t  (crip "Account {(scow %ud account-idx)}")
+  =/  acct=account-data:wt
+    [acct-name fingerprint.wal script-type network [%.y purpose] [%.y coin-type] [%.y account-idx] xprv]
+  =/  acct-pubkey=@ux  public-key:derived
+  =/  acct-key=@ta  (crip (hexn:http-utils acct-pubkey))
+  =/  acct-dir=@ta  (cat 3 acct-key '.wallet_account')
+  =/  acct-contents=(map @ta [=sang:tarball gain=? bang=(unit tang)])
+    (~(put by *(map @ta [=sang:tarball gain=? bang=(unit tang)])) %'data.wallet_account' [[[/wallet %account] %& !>(acct)] %.n ~])
+  =/  acct-lump=lump:tarball  [~ ~ %.n ~ acct-contents]
+  =/  acct-ball=ball:tarball  [`acct-lump ~]
+  ;<  acct-rd=road:tarball  bind:m  (wr [%| (snoc /accounts acct-dir)])
+  ;<  err=(unit tang)  bind:m
+    (make-soft:io acct-rd &+(ball-to-bole:tarball acct-ball))
+  ?^  err
+    ~&(>>> [%discover %account-create-failed] (pure:m ~))
+  ::  kick off full scan on the new account
+  ;<  scan-eny=@uvJ  bind:m  get-entropy:io
+  =/  scan-uuid=@ta  (scot %uv scan-eny)
+  =/  scan-json=json
+    %-  pairs:enjs:format
+    :~  ['type' s+'scan']
+        ['account' s+acct-dir]
+        ['phase' s+'recv']
+        ['idx' (numb:enjs:format 0)]
+        ['gap' (numb:enjs:format 0)]
+    ==
+  ;<  scan-rd=road:tarball  bind:m  (wr [%& /proc (cat 3 scan-uuid '.json')])
+  ;<  ~  bind:m  (make:io scan-rd |+[[[/ %json] scan-json] ~])
+  ::  write scan ref so UI can find the proc
+  ;<  ref-rd=road:tarball  bind:m  (wr [%& (snoc /accounts acct-dir) %'scan-ref.json'])
+  ;<  ~  bind:m  (over:io ref-rd [[/ %json] (pairs:enjs:format ~[['uuid' s+scan-uuid]])])
+  ::  continue to next account
+  $(account-idx +(account-idx))
 ::  +handle-account-data: per-account poke handler
 ::
 ++  handle-account-data
@@ -837,20 +1112,15 @@
   ;<  ~  bind:m  (rise-wait:io prod "%account /data: failed")
   |-
   ;<  acct=account-data  bind:m  (get-state-as:io account-data)
-  ;<  acct-rail=rail:tarball  bind:m  get-here-abs:io
-  =/  acct-pax=path  path.acct-rail
-  =/  acct-path=@t  (spat (snoc acct-pax name.acct-rail))
-  =/  acct-dir=@ta  (snag 1 acct-pax)
+  =/  acct-dir=@ta  (acct-dir-from-rail rail)
   =/  acct-hex=tape
     (scag (need (find "." (trip acct-dir))) (trip acct-dir))
   ;<  [=from:fiber:nexus =sage:tarball]  bind:m  take-poke-from:io
-  ~&  ["%account data poke" name.p.sage]
   ?+    name.p.sage  $
       %json
     =/  jon=json  !<(json q.sage)
     ?.  ?=([%o *] jon)  $
     =/  act=@t  (~(dug jo:json-utils jon) /action so:dejs:format '')
-    ~&  ["%account data action" act]
     ?+    act  $
         %'derive-next'
       =/  chain=@t
@@ -871,25 +1141,27 @@
           ?:(is-change 1 0)
           next-idx
         ==
-      ?~  new-addr  $
+      ?~  new-addr
+        ~&  >>>  "%derive-next: derive-addr returned ~"
+        $
       =/  dat=address-data  [u.new-addr %.n ~ ~ ~]
       =/  updated=addr-mop
         (put:((on @ud address-data) gth) mop next-idx dat)
       ;<  ~  bind:m  (write-mop:aio 0 ~ active-network.acct chain-tag updated)
       ::  auto-refresh the newly derived address
       =/  net=@ta  ;;(@ta active-network.acct)
-      =/  proc-name=@ta
-        (crip "refresh-{acct-hex}-{(trip net)}-{(trip chain-tag)}-{(scow %ud next-idx)}.json")
+      ;<  eny=@uvJ  bind:m  get-entropy:io
+      =/  uuid=@ta  (scot %uv eny)
       =/  proc-json=json
         %-  pairs:enjs:format
-        :~  ['account' s+acct-path]
-            ['acct-dir' s+acct-dir]
+        :~  ['type' s+'refresh']
+            ['account' s+acct-dir]
             ['network' s+net]
             ['chain' s+chain-tag]
             ['index' (numb:enjs:format next-idx)]
         ==
-      ;<  ~  bind:m
-        (make:io [%| 2 [%& /proc proc-name]] |+[[[/ %json] proc-json] ~])
+      ;<  proc-rd=road:tarball  bind:m  (wr [%& /proc (cat 3 uuid '.json')])
+      ;<  ~  bind:m  (make:io proc-rd |+[[[/ %json] proc-json] ~])
       $
     ::
         %'delete-address'
@@ -916,22 +1188,26 @@
       $
     ::
         %'full-scan'
-      =/  scan-name=@ta  (crip "scan-{acct-hex}.json")
+      ;<  uuid=@ta  bind:m  (get-or-gen-uuid p.jon)
       =/  proc-json=json
         %-  pairs:enjs:format
-        :~  ['account' s+acct-path]
-            ['acct-dir' s+acct-dir]
+        :~  ['type' s+'scan']
+            ['account' s+acct-dir]
             ['phase' s+'recv']
             ['idx' (numb:enjs:format 0)]
             ['gap' (numb:enjs:format 0)]
         ==
-      ;<  ~  bind:m
-        (make:io [%| 2 [%& /proc scan-name]] |+[[[/ %json] proc-json] ~])
+      ;<  scan-rd=road:tarball  bind:m  (wr [%& /proc (cat 3 uuid '.json')])
+      ;<  ~  bind:m  (make:io scan-rd |+[[[/ %json] proc-json] ~])
+      ::  write scan ref so UI can find the proc
+      ;<  ref-rd=road:tarball  bind:m  (wr [%& (snoc /accounts acct-dir) %'scan-ref.json'])
+      ;<  ~  bind:m  (over:io ref-rd [[/ %json] (pairs:enjs:format ~[['uuid' s+uuid]])])
       $
     ::
         %'pause-scan'
-      =/  scan-name=@ta  (crip "scan-{acct-hex}.json")
-      =/  scan-road=road:tarball  [%| 2 [%& /proc scan-name]]
+      =/  uuid=@ta
+        (~(dug jo:json-utils jon) /uuid so:dejs:format '')
+      ;<  scan-road=road:tarball  bind:m  (wr [%& /proc (cat 3 uuid '.json')])
       =/  pause-json=json
         (pairs:enjs:format ~[['action' s+'pause']])
       ;<  ~  bind:m
@@ -939,8 +1215,9 @@
       $
     ::
         %'resume-scan'
-      =/  scan-name=@ta  (crip "scan-{acct-hex}.json")
-      =/  scan-road=road:tarball  [%| 2 [%& /proc scan-name]]
+      =/  uuid=@ta
+        (~(dug jo:json-utils jon) /uuid so:dejs:format '')
+      ;<  scan-road=road:tarball  bind:m  (wr [%& /proc (cat 3 uuid '.json')])
       =/  resume-json=json
         (pairs:enjs:format ~[['action' s+'resume']])
       ;<  ~  bind:m
@@ -948,12 +1225,10 @@
       $
     ::
         %'cancel-scan'
-      =/  scan-name=@ta  (crip "scan-{acct-hex}.json")
-      =/  paused-name=@ta  (crip "scan-paused-{acct-hex}.json")
-      ;<  *  bind:m
-        (cull-soft:io [%| 2 [%& /proc scan-name]])
-      ;<  *  bind:m
-        (cull-soft:io [%| 2 [%& /proc paused-name]])
+      =/  uuid=@ta
+        (~(dug jo:json-utils jon) /uuid so:dejs:format '')
+      ;<  scan-rd=road:tarball  bind:m  (wr [%& /proc (cat 3 uuid '.json')])
+      ;<  *  bind:m  (cull-soft:io scan-rd)
       $
     ::
         %'refresh'
@@ -963,20 +1238,21 @@
         (~(dug jo:json-utils jon) /index ni:dejs:format 0)
       =/  chain-tag=?(%recv %chng)
         ?:(?=(%recv ;;(?(%recv %chng) (slav %tas chain))) %recv %chng)
-      =/  net=@ta  ;;(@ta active-network.acct)
-      =/  proc-name=@ta
-        (crip "refresh-{acct-hex}-{(trip net)}-{(trip chain-tag)}-{(scow %ud idx)}.json")
+      =/  net=@ta  active-network.acct
+      ;<  uuid=@ta  bind:m  (get-or-gen-uuid p.jon)
       =/  proc-json=json
         %-  pairs:enjs:format
-        :~  ['account' s+acct-path]
-            ['acct-dir' s+acct-dir]
+        :~  ['type' s+'refresh']
+            ['account' s+acct-dir]
             ['network' s+net]
             ['chain' s+chain-tag]
             ['index' (numb:enjs:format idx)]
         ==
-      ~&  >  [%refresh %spawning proc-name]
-      ;<  ~  bind:m
-        (make:io [%| 2 [%& /proc proc-name]] |+[[[/ %json] proc-json] ~])
+      ;<  proc-rd=road:tarball  bind:m  (wr [%& /proc (cat 3 uuid '.json')])
+      ;<  make-err=(unit tang)  bind:m  (make-soft:io proc-rd |+[[[/ %json] proc-json] ~])
+      ?^  make-err
+        ~&  ["%account refresh make failed" acct-dir uuid u.make-err]
+        $
       $
     ::
     ::  === Draft transaction actions ===
@@ -1223,6 +1499,8 @@
 ::
 ::  HTTP response helpers — road from /ui/requests/* to /ui/http.sig
 ::
+::  srv: HTTP response helpers — always 1 step from /ui/requests/* to /ui/http.sig
+::  (stable: request handler is always a direct child of /ui/)
 ++  srv  ~(. http-res:io [%| 1 %& ~ %'http.sig'])
 ::
 ++  send-html
@@ -1250,8 +1528,7 @@
   |=  acct-key=@ta
   =/  m  (fiber:fiber:nexus ,(unit account-data))
   ^-  form:m
-  =/  =road:tarball
-    (cord-to-road:tarball (crip "../../accounts/{(trip acct-key)}/data.wallet_account"))
+  ;<  road=road:tarball  bind:m  (wr [%& /accounts/[acct-key] %'data.wallet_account'])
   ;<  =seen:nexus  bind:m  (peek:io road ~)
   ?.  ?=([%& %file *] seen)  (pure:m ~)
   (pure:m (mole |.(!<(account-data (need-vase:tarball sang.p.seen)))))
@@ -1259,8 +1536,7 @@
 ++  load-labels
   =/  m  (fiber:fiber:nexus ,labels:b329)
   ^-  form:m
-  =/  =road:tarball
-    (cord-to-road:tarball '../../labels.wallet_labels')
+  ;<  road=road:tarball  bind:m  (wr [%& ~ %'labels.wallet_labels'])
   ;<  exists=?  bind:m  (peek-exists:io road)
   ?.  exists  (pure:m *labels:b329)
   ;<  =seen:nexus  bind:m  (peek:io road ~)
@@ -1271,9 +1547,174 @@
   |=  =labels:b329
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
-  =/  =road:tarball
-    (cord-to-road:tarball '../../labels.wallet_labels')
+  ;<  road=road:tarball  bind:m  (wr [%& ~ %'labels.wallet_labels'])
   (over:io road [[/wallet %labels] labels])
+::  +verify-receive-addr: live-check addr against mempool, advance if used
+::
+++  verify-receive-addr
+  |=  $:  acct-key=@ta
+          acct=account-data
+          recv=addr-mop
+          idx=@ud
+          eyre-id=@ta
+      ==
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  ::  get or derive address at idx
+  =/  dat=(unit address-data)
+    (get:((on @ud address-data) gth) recv idx)
+  =/  addr=@t
+    ?^  dat  addr.u.dat
+    ::  derive if beyond mop range
+    %-  fall  :_  ''
+    %:  derive-addr:aio
+      xprv.acct  script-type.acct
+      active-network.acct  0  idx
+    ==
+  ?:  =('' addr)
+    ;<  ~  bind:m
+      (send-simple:srv eyre-id [[200 ~] `(as-octs:mimes:html '')])
+    (pure:m ~)
+  ::  fetch address info from mempool
+  =/  base-url=tape  (mempool-base-url:aio active-network.acct)
+  =/  info-url=@t  (crip (weld base-url (trip addr)))
+  =/  =request:http
+    [%'GET' info-url ~[['Accept' 'application/json']] ~]
+  ;<  ~  bind:m  (send-request:io request)
+  ;<  resp=client-response:iris  bind:m  take-http:aio
+  ;<  now=@da  bind:m  get-time:io
+  =/  info=(unit address-info)
+    (parse-info-response:aio resp now)
+  =/  has-activity=?
+    ?~  info  %.n
+    (gth tx-count.u.info 0)
+  ?.  has-activity
+    ::  unused — return it
+    ;<  ~  bind:m
+      (send-simple:srv eyre-id [[200 ~] `(as-octs:mimes:html addr)])
+    (pure:m ~)
+  ::  used — try next index
+  $(idx +(idx))
+::  +send-bitcoin-pokes: chain draft pokes to build, sign, and broadcast
+::
+++  send-bitcoin-pokes
+  |=  $:  acct-key=@ta
+          change-addr=@t
+          dest-addr=@t
+          amount=@ud
+          fee-rate=@ud
+          eyre-id=@ta
+      ==
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  ;<  acct-road=road:tarball  bind:m  (wr [%& /accounts/[acct-key] %'data.wallet_account'])
+  =/  poke-jon  |=(=json [[/ %json] json])
+  ::  1. clear-draft
+  ;<  ~  bind:m
+    (poke:io acct-road (poke-jon (pairs:enjs:format ~[['action' s+'clear-draft']])))
+  ::  2. add-output
+  ;<  ~  bind:m
+    %:  poke:io  acct-road
+      %-  poke-jon
+      %-  pairs:enjs:format
+      :~  ['action' s+'add-output']
+          ['address' s+dest-addr]
+          ['amount' (numb:enjs:format amount)]
+      ==
+    ==
+  ::  3. set-change-config
+  ;<  ~  bind:m
+    %:  poke:io  acct-road
+      %-  poke-jon
+      %-  pairs:enjs:format
+      :~  ['action' s+'set-change-config']
+          ['fee-rate' (numb:enjs:format fee-rate)]
+          ['change-address' s+change-addr]
+      ==
+    ==
+  ::  4. run-auto-select
+  ;<  ~  bind:m
+    (poke:io acct-road (poke-jon (pairs:enjs:format ~[['action' s+'run-auto-select']])))
+  ::  5. build-transaction (signs, broadcasts, clears draft)
+  ;<  ~  bind:m
+    (poke:io acct-road (poke-jon (pairs:enjs:format ~[['action' s+'build-transaction']])))
+  ;<  ~  bind:m
+    (send-simple:srv eyre-id [[200 ~] `(as-octs:mimes:html 'ok')])
+  (pure:m ~)
+::
+++  get-simple-fp
+  |=  =labels:b329
+  ^-  (unit @ux)
+  =/  xpubs=(list [@t (set label-entry:b329)])
+    ~(tap by xpub.labels)
+  |-
+  ?~  xpubs  ~
+  =/  [ref=@t entries=(set label-entry:b329)]  i.xpubs
+  =/  is-simple=?
+    %+  lien  ~(tap in entries)
+    |=(e=label-entry:b329 =('gwbtc:simple' label.e))
+  ?.  is-simple  $(xpubs t.xpubs)
+  (slaw %ux ref)
+::
+++  get-simple-wallet
+  |=  =labels:b329
+  =/  m  (fiber:fiber:nexus ,(unit wallet-data))
+  ^-  form:m
+  =/  fp=(unit @ux)  (get-simple-fp labels)
+  ?~  fp  (pure:m ~)
+  ;<  store=wallet-store  bind:m  load-wallets
+  =/  sd=(unit seed)  (~(get by store) u.fp)
+  ?~  sd  (pure:m ~)
+  (pure:m `[u.sd u.fp])
+::
+++  get-simple-account
+  |=  [=labels:b329 req-net=@t]
+  =/  m  (fiber:fiber:nexus ,(unit [key=@ta acct=account-data]))
+  ^-  form:m
+  =/  fp=(unit @ux)  (get-simple-fp labels)
+  ?~  fp  (pure:m ~)
+  ;<  accts=(list [key=@ta acct=account-data])  bind:m  (load-wallet-accounts u.fp)
+  %-  pure:m
+  |-
+  ?~  accts  ~
+  ?:  =(req-net ;;(@t active-network.acct.i.accts))  `i.accts
+  $(accts t.accts)
+::
+++  get-wallet-name
+  |=  [=labels:b329 fp=@ux]
+  ^-  @t
+  =/  xpub=@t  (scot %ux fp)
+  =/  entries=(list label-entry:b329)
+    ~(tap in (~(get la:b329 labels) %xpub xpub))
+  =/  prefix=tape  "gwbtc:wallet:"
+  =/  prefix-len=@ud  (lent prefix)
+  |-
+  ?~  entries  'Unnamed Wallet'
+  =/  lbl=tape  (trip label.i.entries)
+  ?.  =(prefix (scag prefix-len lbl))
+    $(entries t.entries)
+  (crip (slag prefix-len lbl))
+::
+++  set-simple-wallet
+  |=  [=labels:b329 xpub=@t]
+  ^-  labels:b329
+  ::  clear any existing simple-wallet label
+  =/  cleared=labels:b329  (clear-simple-wallet labels)
+  (~(put la:b329 cleared) [%xpub xpub 'gwbtc:simple' ~ ~ ~])
+::
+++  clear-simple-wallet
+  |=  =labels:b329
+  ^-  labels:b329
+  =/  xpubs=(list [@t (set label-entry:b329)])
+    ~(tap by xpub.labels)
+  |-
+  ?~  xpubs  labels
+  =/  [ref=@t entries=(set label-entry:b329)]  i.xpubs
+  =/  has=?
+    %+  lien  ~(tap in entries)
+    |=(e=label-entry:b329 =('gwbtc:simple' label.e))
+  ?.  has  $(xpubs t.xpubs)
+  (~(del la:b329 labels) %xpub ref 'gwbtc:simple')
 ::
 ++  get-simple-saved
   |=  [=labels:b329 xpub=@t]
@@ -1281,31 +1722,150 @@
   =/  entries=(list label-entry:b329)
     ~(tap in (~(get la:b329 labels) %xpub xpub))
   %+  lien  entries
-  |=(e=label-entry:b329 =('simple:saved' label.e))
+  |=(e=label-entry:b329 =('gwbtc:saved' label.e))
 ::
 ++  set-simple-saved
   |=  [=labels:b329 xpub=@t saved=?]
   ^-  labels:b329
   ?:  saved
-    (~(put la:b329 labels) [%xpub xpub 'simple:saved' ~ ~])
-  (~(del la:b329 labels) %xpub xpub 'simple:saved')
+    (~(put la:b329 labels) [%xpub xpub 'gwbtc:saved' ~ ~ ~])
+  (~(del la:b329 labels) %xpub xpub 'gwbtc:saved')
+::
+++  get-simple-fee
+  |=  [=labels:b329 xpub=@t]
+  ^-  @ud
+  =/  entries=(list label-entry:b329)
+    ~(tap in (~(get la:b329 labels) %xpub xpub))
+  =/  prefix=tape  "gwbtc:fee:"
+  =/  prefix-len=@ud  (lent prefix)
+  |-
+  ?~  entries  2
+  =/  lbl=tape  (trip label.i.entries)
+  ?.  =(prefix (scag prefix-len lbl))
+    $(entries t.entries)
+  (fall (rush (crip (slag prefix-len lbl)) dem) 2)
+::
+++  set-simple-fee
+  |=  [=labels:b329 xpub=@t fee=@ud]
+  ^-  labels:b329
+  =/  entries=(list label-entry:b329)
+    ~(tap in (~(get la:b329 labels) %xpub xpub))
+  =/  prefix=tape  "gwbtc:fee:"
+  =/  prefix-len=@ud  (lent prefix)
+  =.  labels
+    |-
+    ?~  entries  labels
+    =/  lbl=tape  (trip label.i.entries)
+    ?:  =(prefix (scag prefix-len lbl))
+      $(entries t.entries, labels (~(del la:b329 labels) %xpub xpub label.i.entries))
+    $(entries t.entries)
+  (~(put la:b329 labels) [%xpub xpub (crip "gwbtc:fee:{(a-co:co fee)}") ~ ~ ~])
+::
+++  find-account-for-net
+  |=  [accts=(list [key=@ta acct=account-data]) req-net=@t]
+  ^-  (unit [key=@ta acct=account-data])
+  |-
+  ?~  accts  ~
+  ?:  =(req-net ;;(@t active-network.acct.i.accts))  `i.accts
+  $(accts t.accts)
+::
+++  wallet-nets
+  |=  accts=(list [key=@ta acct=account-data])
+  ^-  (list tape)
+  %+  turn  accts
+  |=  [* acct=account-data]
+  (trip ;;(@t active-network.acct))
+::  +ensure-public-poke: add wallet main.sig to public usergroup's poke weir
+::
+++  ensure-public-poke
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  =/  weir-road=road:tarball
+    [%& %& /sys/ames/usergroups/public %'how.weir']
+  =/  wallet-road=road:tarball
+    [%& %& /apps/'wallet.wallet_app' %'main.sig']
+  ;<  weir-seen=seen:nexus  bind:m  (peek:io weir-road ~)
+  =/  cur=weir:nexus
+    ?.  ?=([%& %file *] weir-seen)  [~ ~ ~]
+    (fall (mole |.(!<(weir:nexus (need-vase:tarball sang.p.weir-seen)))) [~ ~ ~])
+  ?:  (~(has in poke.cur) wallet-road)
+    (pure:m ~)
+  ~&  "%wallet: registering with public usergroup"
+  =/  new=weir:nexus  cur(poke (~(put in poke.cur) wallet-road))
+  ;<  ~  bind:m  (over:io weir-road [[/ %weir] new])
+  (pure:m ~)
+::  +ensure-simple-wallet: create simple wallet if none labeled 'gwbtc:simple'
+::
+++  ensure-simple-wallet
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  ::  load labels from root level
+  ;<  lbl-rd=road:tarball  bind:m  (wr [%& ~ %'labels.wallet_labels'])
+  ;<  lbl-seen=seen:nexus  bind:m  (peek:io lbl-rd ~)
+  =/  lbls=labels:b329
+    ?.  ?=([%& %file *] lbl-seen)  *labels:b329
+    (fall (mole |.(!<(labels:b329 (need-vase:tarball sang.p.lbl-seen)))) *labels:b329)
+  =/  fp=(unit @ux)  (get-simple-fp lbls)
+  ?^  fp
+    ~&  "%wallet: simple wallet exists"
+    (pure:m ~)
+  ~&  "%wallet: creating simple wallet"
+  ;<  eny=@uvJ  bind:m  get-entropy:io
+  =/  seed-phrase=cord  (gen-seed:seed-phrases eny %256)
+  =/  [wal-t=wallet-data * adir-t=@ta ball-t=ball:tarball]
+    (make-dev-wallet 'My Wallet' [%t seed-phrase] %testnet3)
+  =/  [* * adir-m=@ta ball-m=ball:tarball]
+    (make-dev-wallet 'My Wallet' [%t seed-phrase] %main)
+  =/  wal=wallet-data  wal-t
+  ;<  store=wallet-store  bind:m  load-wallets
+  ;<  ~  bind:m  (save-wallets (~(put by store) fingerprint.wal seed.wal))
+  ;<  acct-t-rd=road:tarball  bind:m  (wr [%| (snoc /accounts adir-t)])
+  ;<  ~  bind:m  (make:io acct-t-rd &+(ball-to-bole:tarball ball-t))
+  ;<  acct-m-rd=road:tarball  bind:m  (wr [%| (snoc /accounts adir-m)])
+  ;<  ~  bind:m  (make:io acct-m-rd &+(ball-to-bole:tarball ball-m))
+  =/  xpub=@t  (scot %ux fingerprint.wal)
+  =/  new-lbls=labels:b329  (set-simple-wallet lbls xpub)
+  =/  new-lbls=labels:b329
+    (~(put la:b329 new-lbls) [%xpub xpub 'gwbtc:wallet:My Wallet' ~ ~ ~])
+  ;<  ~  bind:m  (over:io lbl-rd [[/wallet %labels] new-lbls])
+  ~&  "%wallet: simple wallet created"
+  (pure:m ~)
 ::
 ++  load-wallets
-  =/  m  (fiber:fiber:nexus ,(list wallet-data))
+  =/  m  (fiber:fiber:nexus ,wallet-store)
   ^-  form:m
-  ;<  =seen:nexus  bind:m  (peek:io (cord-to-road:tarball '../../wallets/') ~)
-  (pure:m (view-to-wallets seen))
+  ;<  rd=road:tarball  bind:m  (wr [%& ~ %'wallets.wallet_wallets'])
+  ;<  exists=?  bind:m  (peek-exists:io rd)
+  ?.  exists  (pure:m *wallet-store)
+  ;<  =seen:nexus  bind:m  (peek:io rd ~)
+  ?.  ?=([%& %file *] seen)  (pure:m *wallet-store)
+  (pure:m (fall (mole |.(!<(wallet-store (need-vase:tarball sang.p.seen)))) *wallet-store))
+::
+++  save-wallets
+  |=  store=wallet-store
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  ;<  rd=road:tarball  bind:m  (wr [%& ~ %'wallets.wallet_wallets'])
+  (over:io rd [[/wallet %wallets] store])
+::
+++  store-to-list
+  |=  store=wallet-store
+  ^-  (list wallet-data)
+  %+  turn  ~(tap by store)
+  |=([fp=@ux sd=seed] `wallet-data`[sd fp])
 ::  +load-wallet-accounts: load all accounts belonging to a wallet
 ::
 ++  load-wallet-accounts
-  |=  wal=wallet-data
-  =/  m  (fiber:fiber:nexus ,(list account-data))
+  |=  fp=@ux
+  =/  m  (fiber:fiber:nexus ,(list [key=@ta acct=account-data]))
   ^-  form:m
-  ;<  =seen:nexus  bind:m  (peek:io (cord-to-road:tarball '../../accounts/') ~)
+  ;<  accts-rd=road:tarball  bind:m  (wr [%| /accounts])
+  ;<  =seen:nexus  bind:m  (peek:io accts-rd ~)
   ?.  ?=([%& %ball *] seen)  (pure:m ~)
   %-  pure:m
   %+  murn  ~(tap by dir.ball.p.seen)
-  |=  [name=@ta sub=ball:tarball]
+  |=  [dir-name=@ta sub=ball:tarball]
+  ^-  (unit [key=@ta acct=account-data])
   =/  sub-lump=lump:tarball  (fall fil.sub *lump:tarball)
   =/  ct=(unit [=sang:tarball gain=? bang=(unit tang)])
     (~(get by contents.sub-lump) 'data.wallet_account')
@@ -1314,8 +1874,8 @@
   =/  acct=(unit account-data)
     (mole |.(!<(account-data (need-vase:tarball sang.u.ct))))
   ?~  acct  ~
-  ?.  =(wallet.u.acct fingerprint.wal)  ~
-  acct
+  ?.  =(wallet.u.acct fp)  ~
+  `[dir-name u.acct]
 ::
 ::  +load-addr-mop: read an addr-mop file from an account ball
 ::
@@ -1323,36 +1883,81 @@
   |=  [acct-key=@ta network=?(%main %testnet3 %testnet4 %signet %regtest) chain=?(%recv %chng)]
   =/  m  (fiber:fiber:nexus ,addr-mop)
   ^-  form:m
-  =/  =road:tarball
-    (cord-to-road:tarball (crip "../../accounts/{(trip acct-key)}/addresses/{(trip ;;(@ta network))}/{(trip chain)}.wallet_addresses"))
+  ;<  road=road:tarball  bind:m  (wr [%& /accounts/[acct-key]/addresses/[;;(@ta network)]/[;;(@ta chain)] %'wallet_addresses'])
   ;<  exists=?  bind:m  (peek-exists:io road)
   ?.  exists  (pure:m *addr-mop)
   ;<  =seen:nexus  bind:m  (peek:io road ~)
   ?.  ?=([%& %file *] seen)  (pure:m *addr-mop)
-  (pure:m (fall (mole |.(!<(addr-mop (need-vase:tarball sang.p.seen)))) *addr-mop))
+  =/  result=addr-mop  (fall (mole |.(!<(addr-mop (need-vase:tarball sang.p.seen)))) *addr-mop)
+  (pure:m result)
+::
+++  write-addr-mop
+  |=  [acct-key=@ta network=?(%main %testnet3 %testnet4 %signet %regtest) chain=?(%recv %chng) mop=addr-mop]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  ;<  road=road:tarball  bind:m  (wr [%& /accounts/[acct-key]/addresses/[;;(@ta network)]/[;;(@ta chain)] %'wallet_addresses'])
+  ;<  exists=?  bind:m  (peek-exists:io road)
+  ?:  exists
+    (over:io road [[/wallet %addresses] mop])
+  (make:io road |+[[[/wallet %addresses] mop] ~])
 ::  +load-txs: load tx-map from an account's network directory (app-level)
 ::
 ++  load-txs
   |=  [acct-key=@ta network=?(%main %testnet3 %testnet4 %signet %regtest)]
   =/  m  (fiber:fiber:nexus ,tx-map)
   ^-  form:m
-  =/  =road:tarball
-    (cord-to-road:tarball (crip "../../accounts/{(trip acct-key)}/addresses/{(trip ;;(@ta network))}/txs.wallet_txs"))
+  ;<  road=road:tarball  bind:m  (wr [%& /accounts/[acct-key]/addresses/[;;(@ta network)] %'txs.wallet_txs'])
   ;<  exists=?  bind:m  (peek-exists:io road)
   ?.  exists  (pure:m *tx-map)
   ;<  =seen:nexus  bind:m  (peek:io road ~)
   ?.  ?=([%& %file *] seen)  (pure:m *tx-map)
   (pure:m (fall (mole |.(!<(tx-map (need-vase:tarball sang.p.seen)))) *tx-map))
+::
+++  write-txs
+  |=  [acct-key=@ta network=?(%main %testnet3 %testnet4 %signet %regtest) txs=tx-map]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  ;<  road=road:tarball  bind:m  (wr [%& /accounts/[acct-key]/addresses/[;;(@ta network)] %'txs.wallet_txs'])
+  ;<  exists=?  bind:m  (peek-exists:io road)
+  ?:  exists
+    (over:io road [[/wallet %txs] txs])
+  (make:io road |+[[[/wallet %txs] txs] ~])
+::  +load-contacts: peek contacts overlay dir for send-to picker
+::
+++  contacts-overlay-road  [%& %| /apps/'contacts.contacts'/overlay]
+++  load-contacts
+  =/  m  (fiber:fiber:nexus ,(map @t (map @t json)))
+  ^-  form:m
+  ;<  =seen:nexus  bind:m  (peek:io contacts-overlay-road ~)
+  ?.  ?=([%& %ball *] seen)  (pure:m ~)
+  =/  =lump:tarball  (fall fil.ball.p.seen *lump:tarball)
+  %-  pure:m
+  %-  ~(gas by *(map @t (map @t json)))
+  %+  murn  ~(tap by contents.lump)
+  |=  [name=@ta =sang:tarball gain=? bang=(unit tang)]
+  ?.  =(%jobj name.p.sang)  ~
+  ?:  (is-boom:tarball sang)  ~
+  =/  key=@t
+    =/  parts=(list tape)  (rash name (more dot (star ;~(less dot prn))))
+    ?~  parts  name
+    (crip i.parts)
+  =/  obj=(map @t json)  (fall (mole |.(!<((map @t json) (need-vase:tarball sang)))) ~)
+  ?~  obj  ~
+  `[key obj]
 ::  +load-scan-state: peek scan process file and paused marker
 ::
 ++  load-scan-state
   |=  acct-key=@ta
   =/  m  (fiber:fiber:nexus ,[?(%active %paused %none) (unit scan-progress:acct-ui)])
   ^-  form:m
-  =/  acct-hex=tape
-    (scag (need (find "." (trip acct-key))) (trip acct-key))
-  =/  scan-road=road:tarball
-    (cord-to-road:tarball (crip "../../proc/scan-{acct-hex}.json"))
+  ;<  ref-road=road:tarball  bind:m  (wr [%& (snoc /accounts acct-key) %'scan-ref.json'])
+  ;<  ref-seen=seen:nexus  bind:m  (peek:io ref-road ~)
+  ?.  ?=([%& %file *] ref-seen)  (pure:m [%none ~])
+  =/  ref-json=json  (fall (mole |.(!<(json (need-vase:tarball sang.p.ref-seen)))) *json)
+  =/  scan-uuid=@t
+    (~(dug jo:json-utils ref-json) /uuid so:dejs:format '')
+  ?:  =('' scan-uuid)  (pure:m [%none ~])
+  ;<  scan-road=road:tarball  bind:m  (wr [%& /proc (cat 3 scan-uuid '.json')])
   ;<  scan-exists=?  bind:m  (peek-exists:io scan-road)
   ?.  scan-exists  (pure:m [%none ~])
   ;<  =seen:nexus  bind:m  (peek:io scan-road ~)
@@ -1369,35 +1974,24 @@
     =/  gap=(unit @ud)  (rush p.u.gap-j dem)
     ?:  |(?=(~ idx) ?=(~ gap))  ['' 0 0]
     [p.u.phase u.idx u.gap]
-  ::  check for paused marker
-  =/  pause-road=road:tarball
-    (cord-to-road:tarball (crip "../../proc/scan-paused-{acct-hex}.json"))
-  ;<  paused=?  bind:m  (peek-exists:io pause-road)
-  (pure:m [?:(paused %paused %active) `progress])
+  ::  check for paused state in proc json
+  =/  proc-type=@t  (~(dug jo:json-utils jon) /type so:dejs:format '')
+  (pure:m [?:(=(%'paused' proc-type) %paused %active) `progress])
 ::  +load-wallet-name: peek wallet name from wallet data
 ::
 ++  load-wallet-name
   |=  wallet-fp=@ux
   =/  m  (fiber:fiber:nexus ,@t)
   ^-  form:m
-  =/  fp-hex=tape  (hexn:http-utils wallet-fp)
-  =/  =road:tarball
-    (cord-to-road:tarball (crip "../../wallets/{fp-hex}.wallet_wallet"))
-  ;<  exists=?  bind:m  (peek-exists:io road)
-  ?.  exists  (pure:m '')
-  ;<  =seen:nexus  bind:m  (peek:io road ~)
-  ?.  ?=([%& %file *] seen)  (pure:m '')
-  =/  wal=(unit wallet-data)  (mole |.(!<(wallet-data (need-vase:tarball sang.p.seen))))
-  ?~  wal  (pure:m '')
-  (pure:m name.u.wal)
+  ;<  lbls=labels:b329  bind:m  load-labels
+  (pure:m (get-wallet-name lbls wallet-fp))
 ::  +load-draft: peek draft transaction from account
 ::
 ++  load-draft
   |=  acct-key=@ta
   =/  m  (fiber:fiber:nexus ,(unit transaction:drft))
   ^-  form:m
-  =/  =road:tarball
-    (cord-to-road:tarball (crip "../../accounts/{(trip acct-key)}/data.wallet_draft"))
+  ;<  road=road:tarball  bind:m  (wr [%& /accounts/[acct-key] %'data.wallet_draft'])
   ;<  exists=?  bind:m  (peek-exists:io road)
   ?.  exists  (pure:m ~)
   ;<  =seen:nexus  bind:m  (peek:io road ~)
@@ -1476,8 +2070,7 @@
     (pure:m ~)
   ;<  ~  bind:m  (send-header:srv eyre-id sse-header:http-utils)
   ::  watch the account ball
-  =/  acct-road=road:tarball
-    (cord-to-road:tarball (crip "../../accounts/{(trip acct-key)}/"))
+  ;<  acct-road=road:tarball  bind:m  (wr [%| /accounts/[acct-key]])
   ;<  *  bind:m  (keep:io /acct-stream acct-road ~)
   ;<  now=@da  bind:m  get-time:io
   ;<  ~  bind:m  (send-wait:io (add now ~s30))
@@ -1534,8 +2127,7 @@
     ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'SSE only')])
     (pure:m ~)
   ;<  ~  bind:m  (send-header:srv eyre-id sse-header:http-utils)
-  =/  acct-road=road:tarball
-    (cord-to-road:tarball (crip "../../accounts/{(trip acct-key)}/"))
+  ;<  acct-road=road:tarball  bind:m  (wr [%| /accounts/[acct-key]])
   ;<  *  bind:m  (keep:io /send-stream acct-road ~)
   ;<  now=@da  bind:m  get-time:io
   ;<  ~  bind:m  (send-wait:io (add now ~s30))
@@ -1622,8 +2214,7 @@
     (pure:m ~)
   ;<  ~  bind:m  (send-header:srv eyre-id sse-header:http-utils)
   ::  watch the account ball
-  =/  acct-road=road:tarball
-    (cord-to-road:tarball (crip "../../accounts/{(trip acct-key)}/"))
+  ;<  acct-road=road:tarball  bind:m  (wr [%| /accounts/[acct-key]])
   ;<  *  bind:m  (keep:io /addr-stream acct-road ~)
   ;<  now=@da  bind:m  get-time:io
   ;<  ~  bind:m  (send-wait:io (add now ~s30))
@@ -1645,13 +2236,7 @@
     ?~  dat  $
     =/  akh=tape  (trip akh-ta)
     =/  net=@ta  ;;(@ta active-network.u.acct)
-    =/  acct-hex=tape
-      (scag (need (find "." (trip acct-key))) (trip acct-key))
-    =/  proc-name=@ta
-      (crip "refresh-{acct-hex}-{(trip net)}-{(trip chain-tag)}-{(scow %ud idx)}.json")
-    =/  proc-road=road:tarball
-      (cord-to-road:tarball (crip "../../proc/{(trip proc-name)}"))
-    ;<  loading=?  bind:m  (peek-exists:io proc-road)
+    =/  loading=?  %.n
     ;<  txs=tx-map  bind:m  (load-txs acct-key active-network.u.acct)
     =/  addr-txs=(list transaction)
       %-  sort-txs
@@ -2214,7 +2799,7 @@
   }
 
   function doRefresh() \{
-    var url = API + '/poke/' + acctBase + '/main.sig?mark=json';
+    var url = API + '/poke/' + acctBase + '/main.sig?blot=/json';
     fetch(url, \{
       method: 'POST',
       headers: \{'Content-Type': 'application/json'},
@@ -2355,7 +2940,7 @@
 ::
 ++  make-dev-wallet
   |=  [name=@t =seed network=?(%main %testnet3 %testnet4 %signet %regtest)]
-  ^-  [@ta wallet-data @ta ball:tarball]
+  ^-  [wallet-data @t @ta ball:tarball]
   =/  seed-bytes=byts
     ?-  -.seed
       %t  64^(to-seed:bip39 (trip phrase.seed) "")
@@ -2370,8 +2955,7 @@
   =/  apk=@ux  public-key:derived
   =/  addr=(unit @t)
     (encode-pubkey:bech32 bip-net [33 public-key:(derive:(derive:derived 0) 0)])
-  =/  apath=account  [[%.y 84] [%.y coin] [%.y 0]]
-  =/  wal=wallet-data  [name seed fp (~(put by *(map account @ux)) apath apk)]
+  =/  wal=wallet-data  [seed fp]
   ::  build account data (no inline addresses)
   =/  acct=account-data  ['Default' fp %p2wpkh network [%.y 84] [%.y coin] [%.y 0] xprv]
   ::  build initial recv mop with first address
@@ -2381,7 +2965,6 @@
   =/  recv-mop=addr-mop
     (put:((on @ud address-data) gth) *addr-mop 0 init-addr)
   ::  build account ball with address mop files
-  =/  wdir=@ta  (cat 3 (crip (hexn:http-utils fp)) '.wallet_wallet')
   =/  adir=@ta  (cat 3 (crip (hexn:http-utils apk)) '.wallet_account')
   =/  net-dir=@ta  ;;(@ta network)
   =/  acct-contents=(map @ta [=sang:tarball gain=? bang=(unit tang)])
@@ -2399,58 +2982,7 @@
   =/  addr-dir=ball:tarball  [~ (~(put by *(map @ta ball:tarball)) net-dir net-ball)]
   =/  acct-ball=ball:tarball
     [`acct-lump (~(put by *(map @ta ball:tarball)) 'addresses' addr-dir)]
-  :^  wdir  wal  adir  acct-ball
-::
-++  wallet-to-json
-  |=  wal=wallet-data
-  ^-  json
-  %-  pairs:enjs:format
-  :~  ['name' s+name.wal]
-      ['fingerprint' s+(crip (hexn:http-utils fingerprint.wal))]
-      :-  'seed'
-      %-  pairs:enjs:format
-      ?-  -.seed.wal
-        %t  ~[['type' s+'bip39'] ['value' s+phrase.seed.wal]]
-        %q  ~[['type' s+'q'] ['value' s+(scot %q secret.seed.wal)]]
-      ==
-  ==
-::
-++  json-to-wallet-data
-  |=  jon=json
-  ^-  (unit wallet-data)
-  =/  m  (mole |.((pairs-to-wallet jon)))
-  ?~  m  ~
-  `u.m
-::
-++  pairs-to-wallet
-  |=  jon=json
-  ^-  wallet-data
-  ?>  ?=([%o *] jon)
-  =/  name=json      (~(got by p.jon) 'name')
-  ?>  ?=([%s *] name)
-  =/  fp=json        (~(got by p.jon) 'fingerprint')
-  ?>  ?=([%s *] fp)
-  =/  seed-jon=json  (~(got by p.jon) 'seed')
-  ?>  ?=([%o *] seed-jon)
-  =/  stype=json  (~(got by p.seed-jon) 'type')
-  ?>  ?=([%s *] stype)
-  =/  sval=json   (~(got by p.seed-jon) 'value')
-  ?>  ?=([%s *] sval)
-  =/  =seed
-    ?:  =('bip39' p.stype)  [%t p.sval]
-    [%q (slav %q p.sval)]
-  =/  fingerprint=@ux  (scan (trip p.fp) hex)
-  [p.name seed fingerprint ~]
-::
-++  view-to-wallets
-  |=  =seen:nexus
-  ^-  (list wallet-data)
-  ?.  ?=([%& %ball *] seen)  ~
-  =/  =lump:tarball  (fall fil.ball.p.seen *lump:tarball)
-  %+  murn  ~(tap by contents.lump)
-  |=  [name=@ta =sang:tarball gain=? bang=(unit tang)]
-  ?.  ?=(%wallet name.p.sang)  ~
-  (mole |.(!<(wallet-data (need-vase:tarball sang))))
+  :*  wal  name  adir  acct-ball  ==
 ::
 ++  seed-to-cord
   |=  =seed
@@ -2477,22 +3009,25 @@
     (weld (scag show text) "...")
   ==
 ++  wallet-list-html
-  |=  wals=(list wallet-data)
+  |=  [wals=(list wallet-data) =labels:b329]
   ^-  manx
   ?~  wals
     ;div.p4.b1.br2.tc
       ;div.s0.f2.mb2: No wallets yet
       ;div.f3.s-1: Generate a new wallet or restore from a seed phrase below
     ==
-  =/  sorted=(list wallet-data)
-    (sort wals |=([a=wallet-data b=wallet-data] (aor name.a name.b)))
+  =/  named=(list [wal=wallet-data wal-name=@t])
+    %+  turn  wals
+    |=(w=wallet-data [w (get-wallet-name labels fingerprint.w)])
+  =/  sorted=(list [wal=wallet-data wal-name=@t])
+    (sort named |=([a=[wallet-data @t] b=[wallet-data @t]] (aor +.a +.b)))
   ;div.fc.g2
     ;*  (turn sorted wallet-card)
   ==
 ::  page rendering
 ::
 ++  wallet-page
-  |=  [nexus-root=tape wals=(list wallet-data)]
+  |=  [nexus-root=tape wals=(list wallet-data) =labels:b329]
   ^-  manx
   ;html
     ;head
@@ -2516,7 +3051,7 @@
           ==
           ::  Scrollable content
           ;div.fc.g3.p5.ma.mw-page(style "flex: 1; min-height: 0; overflow-y: auto; padding-top: 0; width: 100%;")
-            ;+  (tab-container wals)
+            ;+  (tab-container wals labels)
           ==
         ==
       ==
@@ -2528,7 +3063,7 @@
   ==
 ::
 ++  tab-container
-  |=  wals=(list wallet-data)
+  |=  [wals=(list wallet-data) =labels:b329]
   ^-  manx
   ;div.tab-container.b0.br2(data-active-tab "wallets", style "box-shadow: 0 4px 12px rgba(0,0,0,0.15); overflow: hidden; display: flex; flex-direction: column; min-height: 0; flex: 1; width: 100%;")
     ::  Tab buttons
@@ -2540,7 +3075,7 @@
     ::  Tab content
     ;div.p3.b0(style "flex: 1; min-height: 0; display: flex; flex-direction: column;")
       ;div#content-wallets.tab-content(style "display: flex; flex-direction: column; flex: 1; min-height: 0;")
-        ;+  (wallets-panel wals)
+        ;+  (wallets-panel wals labels)
       ==
       ;div#content-watch.tab-content(style "display: none;")
         ;+  watch-only-panel
@@ -2553,11 +3088,11 @@
 ::  Full Wallets tab
 ::
 ++  wallets-panel
-  |=  wals=(list wallet-data)
+  |=  [wals=(list wallet-data) =labels:b329]
   ^-  manx
   ;div.fc.g2(style "flex: 1; min-height: 0;")
     ;div#wallet-list-container.p4.b0.br2(style "flex: 1; min-height: 0; overflow-y: auto;")
-      ;+  (wallet-list-html wals)
+      ;+  (wallet-list-html wals labels)
     ==
     ;div.p4.b2.br2(style "flex-shrink: 0;")
       ;div.s0.bold.tc.hover.pointer(onclick "toggleAddPanel(this)", style "display: flex; align-items: center; justify-content: center; gap: 8px; padding-bottom: 4px;")
@@ -2585,7 +3120,7 @@
   ==
 ::
 ++  wallet-card
-  |=  wal=wallet-data
+  |=  [wal=wallet-data wal-name=@t]
   ^-  manx
   =/  wallet-key=tape  (hexn:http-utils fingerprint.wal)
   =/  detail-url=tape
@@ -2594,7 +3129,7 @@
     =onclick  "window.location.href='{detail-url}'"
     =style  "display: flex; justify-content: space-between; align-items: center; gap: 12px;"
     ;div(style "flex: 1; min-width: 0;")
-      ;div.s0.bold.mb-1: {(trip name.wal)}
+      ;div.s0.bold.mb-1: {(trip wal-name)}
       ;div(style "display: flex; align-items: center; gap: 8px;")
         ;button.p1.b0.br1.hover.pointer
           =data-seed  (trip (seed-to-cord seed.wal))
@@ -2609,7 +3144,7 @@
       ==
     ==
     ;button.p2.b1.br1.hover.pointer
-      =data-wallet-name  (trip name.wal)
+      =data-wallet-name  (trip wal-name)
       =data-pubkey  (hexn:http-utils fingerprint.wal)
       =onclick  "event.stopPropagation(); showDeleteModal(this.dataset.walletName, this.dataset.pubkey)"
       =style  "background: var(--b2); border: 1px solid var(--b3); color: var(--f3); display: flex; align-items: center; width: 32px; height: 32px; justify-content: center; outline: none; flex-shrink: 0;"
@@ -2795,12 +3330,12 @@
   |=  nexus-root=tape
   ^-  tape
   ;:  weld
-  "var API = '/' + window.location.pathname.split('/')[1] + '/'+'api';\0a"
+  "var API = '/grubbery/api';\0a"
   "var BASE = '{(slag 1 nexus-root)}';\0a"
   """
 
   function poke(body, cb) \{
-    var url = API + '/'+'poke/' + BASE + '/'+'main.sig?mark=json';
+    var url = API + '/'+'poke/' + BASE + '/'+'main.sig?blot=/json';
     console.log('POKE', url, body);
     return fetch(url, \{
       method: 'POST',
@@ -2818,7 +3353,7 @@
       e.preventDefault();
       var data = \{};
       new FormData(form).forEach(function(v, k) \{ data[k] = v; });
-      poke(data);
+      poke(data, function() \{ location.reload(); });
     });
   });
 
@@ -2884,7 +3419,7 @@
   }
 
   function confirmDelete() \{
-    poke(\{action: 'remove-wallet', pubkey: _deletePubkey, 'wallet-name': _deleteWalletName});
+    poke(\{action: 'remove-wallet', pubkey: _deletePubkey, 'wallet-name': _deleteWalletName}, function() \{ location.reload(); });
     hideDeleteModal();
   }
 
@@ -2930,7 +3465,7 @@
     });
   })();
 
-  var SSE = API + '/'+'keep/' + BASE + '/'+'ui/sse?mark=txt';
+  var SSE = API + '/'+'keep/' + BASE + '/'+'ui/sse?blot=/txt';
   var sseController = null;
   var sseReader = null;
 
