@@ -740,14 +740,14 @@
   """
 ::
 ++  script-text
-  |=  [network=?(%main %testnet3 %testnet4 %signet %regtest) acct-base=tape acct-hex=tape]
+  |=  [network=?(%main %testnet3 %testnet4 %signet %regtest) acct-ref=tape acct-hex=tape]
   ^-  tape
   """
   var API = '/grubbery/api';
-  var acctBase = '{acct-base}';
+  var mainSig = 'apps/wallet.wallet_app/main.sig';
+  var acctRef = '{acct-hex}';
   var activeNetwork = '{(trip ;;(@ta network))}';
   var activeTab = 'receiving';
-  var acctHex = '{acct-hex}';
 
   function showReceiveModal() \{
     document.getElementById('receive-modal').style.display = 'flex';
@@ -773,18 +773,14 @@
   }
 
   function setNetwork(network) \{
-    var url = API + '/poke/' + acctBase + '/data.wallet_account?blot=/json';
-    fetch(url, \{
-      method: 'POST',
-      headers: \{'Content-Type': 'application/json'},
-      body: JSON.stringify(\{action: 'set-network', network: network})
-    }).then(function() \{
+    acctPoke(\{action: 'set-network', network: network}).then(function() \{
       window.location.reload();
-    }).catch(function(e) \{ console.error('set-network failed', e) });
+    });
   }
 
   function acctPoke(body, cb) \{
-    var url = API + '/poke/' + acctBase + '/data.wallet_account?blot=/json';
+    body.account = acctRef;
+    var url = API + '/poke/' + mainSig + '?blot=/json';
     return fetch(url, \{
       method: 'POST',
       headers: \{'Content-Type': 'application/json'},
@@ -874,7 +870,7 @@
   }
 
   function connectSSE() \{
-    var es = new EventSource('/groundwire/wallet/a/' + acctHex + '/stream');
+    var es = new EventSource('/groundwire/wallet/a/' + acctRef + '/stream');
     es.addEventListener('fragment', function(e) \{
       try \{
         var data = JSON.parse(e.data);
@@ -912,17 +908,18 @@
   """
 ::
 ++  send-scripts-ui
-  |=  [next-chg-tape=tape acct-base=tape key-hex=tape]
+  |=  [next-chg-tape=tape acct-ref=tape key-hex=tape]
   ^-  manx
   =/  js=tape
     """
     var API = '/grubbery/api';
-    var sendBase = '{acct-base}';
+    var mainSig = 'apps/wallet.wallet_app/main.sig';
+    var acctRef = '{acct-ref}';
     var changeAddress = '{next-chg-tape}';
 
     function poke(action, extra) \{
-      var url = API + '/poke/' + sendBase + '/data.wallet_account?blot=/json';
-      var body = Object.assign(\{action: action}, extra || \{});
+      var body = Object.assign(\{action: action, account: acctRef}, extra || \{});
+      var url = API + '/poke/' + mainSig + '?blot=/json';
       return fetch(url, \{
         method: 'POST',
         headers: \{'Content-Type': 'application/json'},
@@ -1073,9 +1070,7 @@
         ==
       ==
       ;script
-        ;+  ;/
-          =/  acct-base=tape  "apps/wallet.wallet_app/accounts/{key-hex}.wallet_account"
-          (script-text network acct-base key-hex)
+        ;+  ;/  (script-text network key-hex key-hex)
       ==
     ==
   ==
@@ -1193,9 +1188,7 @@
           ==
         ==
       ==
-      ;+
-        =/  acct-base=tape  "apps/wallet.wallet_app/accounts/{key-hex}.wallet_account"
-        (send-scripts-ui next-chg-tape acct-base key-hex)
+      ;+  (send-scripts-ui next-chg-tape key-hex key-hex)
     ==
   ==
 --

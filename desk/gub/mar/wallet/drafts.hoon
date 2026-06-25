@@ -1,4 +1,4 @@
-::  mark for all-drafts: flat map of acct-ref to transaction draft
+::  mark for drafts: flat map of acct-ref to transaction draft
 ::
 /<  drft  /lib/tx/draft.hoon
 |_  dat=(map @t transaction:drft)

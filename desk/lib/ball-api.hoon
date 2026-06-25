@@ -19,8 +19,8 @@
   ?.  =(src our)
     (send-error eyre-id 403 'Forbidden')
   ?>  ?=([%grubbery %api *] site)
-  ~&  >>  ["%ball-api: dispatch" method.request.req site]
   =/  rest=path  t.t.site
+  ~&  >  [%ball-api-dispatch method.request.req ?~(rest %~ i.rest)]
   ::  Route by first segment: file, kids, tree, tar, dir
   ?~  rest
     (send-error eyre-id 400 'Missing endpoint: file, kids, tree, tar, dir')
@@ -109,7 +109,9 @@
   ?~  tube
     ;<  ~  bind:m  (send-error eyre-id 400 'No tube for mark conversion')
     (pure:m ~)
-  =/  result=(each vase tang)  (mule |.((u.tube q.sage)))
+  =/  result=(each vase tang)
+    ~>  %bout.[1 %convert-apply-tube]
+    (mule |.((u.tube q.sage)))
   ?:  ?=(%| -.result)
     ;<  ~  bind:m  (send-error eyre-id 500 'Mark conversion failed')
     (pure:m ~)
@@ -270,13 +272,11 @@
   =/  mime-sage=sage:tarball  [[/ %mime] !>(`mime`[/application/octet-stream u.body])]
   ;<  converted=(unit sage:tarball)  bind:m  (maybe-convert eyre-id mime-sage blot-param)
   ?~  converted  (pure:m ~)
-  ~&  >>  ["%ball-api: serve-post" op road p.u.converted]
   ;<  ~  bind:m
     ?-  op
       %poke  (poke:io road [p.u.converted q.q.u.converted])
       %over  (over:io road [p.u.converted q.q.u.converted])
     ==
-  ~&  >>  "%ball-api: serve-post done"
   (send-ok eyre-id 'OK')
 ::  +serve-file-cull: DELETE /file — delete file
 ::
