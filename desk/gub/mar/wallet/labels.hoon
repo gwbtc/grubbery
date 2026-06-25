@@ -39,7 +39,7 @@
         |=(s=seg:b329 "/{(trip (render-seg s))}")
       :_  base
       :-  'origin'
-      s+(rap 3 ~[(scot %tas type.og) '([' (scot %ux fingerprint.og) ']' path-str ')'])
+      s+(rap 3 ~[(scot %tas type.og) '([' (crip (hexn:http-utils fingerprint.og)) ']' path-str ')'])
     =/  base=(list [@t ^json])
       ?~  spendable.e  base
       [[%spendable b+u.spendable.e] base]

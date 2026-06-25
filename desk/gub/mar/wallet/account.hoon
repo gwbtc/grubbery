@@ -1,45 +1,24 @@
-::  mark for account-data: BIP44 bitcoin account
+::  mark for account ref: pubkey-hex routing sentinel
 ::
-/<  wt  /lib/wallet-types.hoon
-=,  wt
 =,  format
-|_  acct=account-data
+|_  ref=@t
 ++  grab
   |%
-  ++  noun  account-data
+  ++  noun  @t
   ++  json
     |=  jon=^json
-    ^-  account-data
-    ?>  ?=([%o *] jon)
-    :*  (~(dog jo:json-utils jon) /name so:dejs:format)
-        (slav %ux (~(dog jo:json-utils jon) /wallet so:dejs:format))
-        ;;(script-type (slav %tas (~(dog jo:json-utils jon) /script-type so:dejs:format)))
-        ;;(?(%main %testnet3 %testnet4 %signet %regtest) (slav %tas (~(dog jo:json-utils jon) /active-network so:dejs:format)))
-        [%.y (rash (~(dog jo:json-utils jon) /purpose so:dejs:format) dem)]
-        [%.y (rash (~(dog jo:json-utils jon) /coin-type so:dejs:format) dem)]
-        [%.y (rash (~(dog jo:json-utils jon) /account-idx so:dejs:format) dem)]
-        (~(dog jo:json-utils jon) /xprv so:dejs:format)
-    ==
+    ^-  @t
+    ?>  ?=([%s *] jon)
+    p.jon
   ++  mime
     |=  [p=mite q=octs]
-    ^-  account-data
+    ^-  @t
     (json (need (de:json:html (@t q.q))))
   --
 ++  grow
   |%
-  ++  noun  acct
-  ++  json
-    ^-  ^json
-    %-  pairs:enjs
-    :~  ['name' s+name.acct]
-        ['wallet' s+(scot %ux wallet.acct)]
-        ['script-type' s+(scot %tas script-type.acct)]
-        ['active-network' s+(scot %tas active-network.acct)]
-        ['purpose' (numb:enjs q.purpose.acct)]
-        ['coin-type' (numb:enjs q.coin-type.acct)]
-        ['account-idx' (numb:enjs q.account-idx.acct)]
-        ['xprv' s+xprv.acct]
-    ==
+  ++  noun  ref
+  ++  json  ^-(^json s+ref)
   ++  mime  [/application/json (as-octs:mimes:html -:txt)]
   ++  txt   [(en:json:html json)]~
   --

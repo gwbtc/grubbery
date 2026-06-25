@@ -202,7 +202,8 @@
   ==
 ::
 ++  network-badge-ui
-  |=  [network=?(%main %testnet3 %testnet4 %signet %regtest) coin-type=@ud]
+  |=  network=?(%main %testnet3 %testnet4 %signet %regtest)
+  =/  coin-type=@ud  ?:(=(%main network) 0 1)
   ^-  manx
   ;div#network-status(data-network "{(trip ;;(@ta network))}", style "display: flex; align-items: center; gap: 8px; margin-top: 12px;")
     ;div.p2.br1(style "display: flex; align-items: center; gap: 8px; background: var(--b2);")
@@ -319,7 +320,7 @@
   ==
 ::
 ++  address-list
-  |=  [acct=account-data chain-tag=?(%recv %chng) mop=addr-mop now=@da]
+  |=  [network=network:wt key-hex=tape chain-tag=?(%recv %chng) mop=addr-mop now=@da]
   ^-  manx
   =/  chain=tape  ?:(?=(%recv chain-tag) "receiving" "change")
   =/  entries=(list [@ud address-data])  (mop-to-list mop)
@@ -330,9 +331,7 @@
                 ;div.f3.s-1: Click above to derive your first address
               ==
           ==
-        =/  acct-key  (from-extended:bip32 (trip xprv.acct))
-        =/  key-hex=tape  (hexn:http-utils public-key:acct-key)
-        (turn (flop entries) |=([idx=@ud a=address-data] (address-row idx a now chain chain-tag active-network.acct key-hex)))
+        (turn (flop entries) |=([idx=@ud a=address-data] (address-row idx a now chain chain-tag network key-hex)))
   ==
 ::
 ++  address-row
@@ -548,7 +547,7 @@
   ==
 ::
 ++  addresses-fragment
-  |=  [acct=account-data recv=addr-mop chng=addr-mop now=@da scan=?(%active %paused %none) progress=(unit scan-progress)]
+  |=  [network=network:wt key-hex=tape recv=addr-mop chng=addr-mop now=@da scan=?(%active %paused %none) progress=(unit scan-progress)]
   ^-  manx
   =/  recv-count=@ud  (lent (mop-to-list recv))
   =/  chng-count=@ud  (lent (mop-to-list chng))
@@ -569,10 +568,10 @@
     ==
     ;div#addr-scroll.fc.g2(style "flex: 1; min-height: 0; overflow-y: auto; padding-top: 8px;")
       ;div#receiving-addresses
-        ;+  (address-list acct %recv recv now)
+        ;+  (address-list network key-hex %recv recv now)
       ==
       ;div#change-addresses(style "display: none;")
-        ;+  (address-list acct %chng chng now)
+        ;+  (address-list network key-hex %chng chng now)
       ==
     ==
   ==
@@ -1006,13 +1005,11 @@
   ==
 ::
 ++  detail-page
-  |=  [acct=account-data recv=addr-mop chng=addr-mop now=@da scan=?(%active %paused %none) progress=(unit scan-progress) rfsh=(set (pair ?(%recv %chng) @ud)) wal-name=@t]
+  |=  [acct-name=@t key-hex=tape wallet-xpub=@t network=network:wt stype=script-type recv=addr-mop chng=addr-mop now=@da scan=?(%active %paused %none) progress=(unit scan-progress) rfsh=(set (pair ?(%recv %chng) @ud)) wal-name=@t]
   ^-  manx
-  =/  acct-key  (from-extended:bip32 (trip xprv.acct))
-  =/  key-hex=tape  (hexn:http-utils public-key:acct-key)
   ;html
     ;head
-      ;title: {(trip name.acct)}
+      ;title: {(trip acct-name)}
       ;meta(charset "utf-8");
       ;meta(name "viewport", content "width=device-width, initial-scale=1");
       ;+  feather:feather
@@ -1025,7 +1022,7 @@
       ;div(style "min-width: 650px; height: 100%;")
         ;div#account-page.fc.g3.p5.ma.mw-page(style "height: 100%;")
           ;div(style "flex-shrink: 0; display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;")
-            ;a.hover.pointer(href "/groundwire/wallet/w/{(hexn:http-utils wallet.acct)}/", style "color: var(--f3); text-decoration: none;"): ← Back to Wallet
+            ;a.hover.pointer(href "/groundwire/wallet/w/{(trip wallet-xpub)}/", style "color: var(--f3); text-decoration: none;"): ← Back to Wallet
           ==
           ;div.p4.b1.br2(style "flex-shrink: 0; position: relative;")
             ;button#empty-toggle.hover.pointer
@@ -1037,17 +1034,12 @@
               ==
             ==
             ;h1.s2.bold.mb2
-              ; {(trip name.acct)}
+              ; {(trip acct-name)}
               ;+  ?:  =('' wal-name)  ;span;
                   ;span.f2(style "opacity: 0.4; font-weight: normal;"): {" | "}{(trip wal-name)}
             ==
-            ;div(style "display: flex; gap: 8px; align-items: center; flex-wrap: wrap;")
-              ;+  (purpose-badge purpose.acct)
-              ;code.mono.s-2.p1.b2.br1: {(format-account-path purpose.acct coin-type.acct account-idx.acct)}
-              ;+  (coin-type-badge coin-type.acct)
-            ==
             ;div#network-badge-wrap
-              ;+  (network-badge-ui active-network.acct q.coin-type.acct)
+              ;+  (network-badge-ui network)
             ==
           ==
           ;div.p4.b2.br2(style "flex-shrink: 0;")
@@ -1076,23 +1068,21 @@
           ==
           ;div#live-content.fc.g3(style "flex: 1; min-height: 0;")
             ;+  (receive-modal recv)
-            ;+  (addresses-fragment acct recv chng now scan progress)
+            ;+  (addresses-fragment network key-hex recv chng now scan progress)
           ==
         ==
       ==
       ;script
         ;+  ;/
           =/  acct-base=tape  "apps/wallet.wallet_app/accounts/{key-hex}.wallet_account"
-          (script-text active-network.acct acct-base key-hex)
+          (script-text network acct-base key-hex)
       ==
     ==
   ==
 ::
 ++  send-page
-  |=  [acct=account-data recv=addr-mop chng=addr-mop dr=(unit transaction:drft) now=@da wal-name=@t]
+  |=  [acct-name=@t key-hex=tape network=network:wt stype=script-type recv=addr-mop chng=addr-mop dr=(unit transaction:drft) now=@da wal-name=@t]
   ^-  manx
-  =/  acct-key  (from-extended:bip32 (trip xprv.acct))
-  =/  key-hex=tape  (hexn:http-utils public-key:acct-key)
   =/  fi=fee-calc  (compute-fee-info dr)
   =/  utxos=(list [addr=@t u=utxo chain=?(%recv %chng) idx=@ud])
     %+  weld
@@ -1114,7 +1104,7 @@
   =/  has-auto=?  ?=(^ auto-mode)
   =/  is-random=?  =(auto-mode `%random)
   =/  is-largest=?  =(auto-mode `%largest-first)
-  =/  spend=spend:fees  script-type.acct
+  =/  spend=spend:fees  stype
   =/  total-balance=@ud
     %+  roll  utxos
     |=  [[addr=@t u=utxo chain=?(%recv %chng) idx=@ud] sum=@ud]
@@ -1132,7 +1122,7 @@
     (utxo-row-ui txid.u vout.u value.u addr spend is-sel)
   ;html
     ;head
-      ;title: Send - {(trip name.acct)}
+      ;title: Send - {(trip acct-name)}
       ;meta(charset "utf-8");
       ;meta(name "viewport", content "width=device-width, initial-scale=1");
       ;+  feather:feather
@@ -1145,7 +1135,7 @@
           ;h1.s2.bold(style "margin-bottom: 8px;")
             ; Send Bitcoin
             ;span(style "opacity: 0.4; margin: 0 8px;"): |
-            ;span.f2(style "opacity: 0.5; font-weight: normal;"): {(trip name.acct)}
+            ;span.f2(style "opacity: 0.5; font-weight: normal;"): {(trip acct-name)}
           ==
           ;div#send-balance.f2(style "margin-top: 4px;"): Available: {(scow %ud total-balance)} sats
           ;div#send-fee-info

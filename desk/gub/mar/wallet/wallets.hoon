@@ -1,4 +1,4 @@
-::  mark for wallet-store: map of fingerprint to seed
+::  mark for wallet-store: map of xpub to seed
 ::
 /<  wt  /lib/wallet-types.hoon
 =,  wt
@@ -13,9 +13,8 @@
     ?>  ?=([%o *] jon)
     %-  ~(gas by *wallet-store)
     %+  turn  ~(tap by p.jon)
-    |=  [fp-key=@t seed-jon=^json]
-    ^-  [@ux seed]
-    =/  fp=@ux  (scan (trip fp-key) hex)
+    |=  [xpub-key=@t seed-jon=^json]
+    ^-  [@t seed]
     ?>  ?=([%o *] seed-jon)
     =/  stype=^json  (~(got by p.seed-jon) 'type')
     ?>  ?=([%s *] stype)
@@ -24,7 +23,7 @@
     =/  =seed
       ?:  =('bip39' p.stype)  [%t p.sval]
       [%q (slav %q p.sval)]
-    [fp seed]
+    [xpub-key seed]
   ++  mime
     |=  [p=mite q=octs]
     ^-  wallet-store
@@ -38,9 +37,9 @@
     :-  %o
     %-  ~(gas by *(map @t ^json))
     %+  turn  ~(tap by store)
-    |=  [fp=@ux =seed]
+    |=  [xpub=@t =seed]
     ^-  [@t ^json]
-    :-  (crip (hexn:http-utils fp))
+    :-  xpub
     %-  pairs:enjs
     ?-  -.seed
       %t  ~[['type' s+'bip39'] ['value' s+phrase.seed]]

@@ -1,5 +1,6 @@
 /<  tools  /lib/nex/tools.hoon
 /<  wt     /lib/wallet-types.hoon
+/<  b329   /lib/bip329.hoon
 ::  wallet-addresses: list derived addresses for an account
 ::
 =,  wt
@@ -41,32 +42,52 @@
   =/  m  (fiber:fiber:nexus ,tool-result:tools)
   ^-  form:m
   ;<  st=tool-state:tools  bind:m  (get-state-as:io ,tool-state:tools)
-  =/  acct-key=@ta
+  =/  ref=@t
     (~(dog jo:json-utils [%o args.st]) /account so:dejs:format)
-  =/  acct-key=@ta  (cat 3 acct-key '.wallet_account')
-  ::  load account data
-  =/  acct-path=road:tarball
-    [%& %& /apps/'wallet.wallet_app'/accounts/[acct-key] %'data.wallet_account']
-  ;<  acct-seen=seen:nexus  bind:m  (peek:io acct-path ~)
-  ?.  ?=([%& %file *] acct-seen)
+  ::  load account-store
+  ;<  as-seen=seen:nexus  bind:m
+    (peek:io [%& %& /apps/'wallet.wallet_app' %'accounts.wallet_accounts'] ~)
+  =/  acct-store=account-store
+    ?.  ?=([%& %file *] as-seen)  *account-store
+    (fall (mole |.(!<(account-store (need-vase:tarball sang.p.as-seen)))) *account-store)
+  ?.  (~(has by acct-store) ref)
     (pure:m [%error 'Account not found'])
-  =/  acct=account-data
-    !<(account-data (need-vase:tarball sang.p.acct-seen))
-  =/  network=@ta  ;;(@ta active-network.acct)
-  ::  load recv addresses
-  =/  recv-path=road:tarball
-    [%& %& /apps/'wallet.wallet_app'/accounts/[acct-key]/addresses/[network]/recv %'wallet_addresses']
-  ;<  recv-seen=seen:nexus  bind:m  (peek:io recv-path ~)
-  =/  recv=addr-mop
-    ?.  ?=([%& %file *] recv-seen)  *addr-mop
-    (fall (mole |.(!<(addr-mop (need-vase:tarball sang.p.recv-seen)))) *addr-mop)
-  ::  load chng addresses
-  =/  chng-path=road:tarball
-    [%& %& /apps/'wallet.wallet_app'/accounts/[acct-key]/addresses/[network]/chng %'wallet_addresses']
-  ;<  chng-seen=seen:nexus  bind:m  (peek:io chng-path ~)
-  =/  chng=addr-mop
-    ?.  ?=([%& %file *] chng-seen)  *addr-mop
-    (fall (mole |.(!<(addr-mop (need-vase:tarball sang.p.chng-seen)))) *addr-mop)
+  ::  load labels
+  ;<  lbl-seen=seen:nexus  bind:m
+    (peek:io [%& %& /apps/'wallet.wallet_app' %'labels.wallet_labels'] ~)
+  =/  lbls=labels:b329
+    ?.  ?=([%& %file *] lbl-seen)  *labels:b329
+    (fall (mole |.(!<(labels:b329 (need-vase:tarball sang.p.lbl-seen)))) *labels:b329)
+  ::  extract account metadata from labels
+  =/  entries=(list label-entry:b329)
+    ~(tap in (~(get la:b329 lbls) %xpub ref))
+  =/  network=network
+    =/  prefix=tape  "gwbtc:network:"
+    =/  prefix-len=@ud  (lent prefix)
+    |-
+    ?~  entries  %testnet3
+    =/  lbl=tape  (trip label.i.entries)
+    ?.  =(prefix (scag prefix-len lbl))
+      $(entries t.entries)
+    ;;(network (slav %tas (crip (slag prefix-len lbl))))
+  =/  og=(unit parsed-origin:b329)
+    |-
+    ?~  entries  ~
+    ?^  origin.i.entries  origin.i.entries
+    $(entries t.entries)
+  =/  stype=script-type
+    ?~  og  %p2wpkh
+    (from-descriptor:b329 type.u.og)
+  ::  load addresses flat store
+  ;<  addr-seen=seen:nexus  bind:m
+    (peek:io [%& %& /apps/'wallet.wallet_app' %'addresses.wallet_addresses'] ~)
+  =/  addrs=addresses
+    ?.  ?=([%& %file *] addr-seen)  *addresses
+    (fall (mole |.(!<(addresses (need-vase:tarball sang.p.addr-seen)))) *addresses)
+  =/  mops=[recv=addr-mop chng=addr-mop]
+    (fall (~(get by addrs) [ref network]) [*addr-mop *addr-mop])
+  =/  recv=addr-mop  recv.mops
+  =/  chng=addr-mop  chng.mops
   ::  format output
   =/  recv-entries=(list [key=@ud val=address-data])
     (tap:((on @ud address-data) gth) recv)
@@ -74,9 +95,9 @@
     (tap:((on @ud address-data) gth) chng)
   =/  out=wain
     ;:  weld
-      :~  (rap 3 ~['account: ' acct-key])
-          (rap 3 ~['network: ' (scot %tas active-network.acct)])
-          (rap 3 ~['script: ' (scot %tas script-type.acct)])
+      :~  (rap 3 ~['account: ' ref])
+          (rap 3 ~['network: ' (scot %tas network)])
+          (rap 3 ~['script: ' (scot %tas stype)])
           ''
           'receive addresses:'
       ==

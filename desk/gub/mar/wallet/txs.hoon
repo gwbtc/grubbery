@@ -1,115 +1,145 @@
-::  mark for tx-map: map of txid to transaction
+::  mark for txs: flat map of [origin-ref network] to tx-map
 ::
 /<  wt  /lib/wallet-types.hoon
 =,  wt
 =,  format
-|_  txs=tx-map
+=>
+|%
+++  status-to-json
+  |=  =tx-status
+  ^-  json
+  ?-  -.tx-status
+    %unconfirmed  s+'unconfirmed'
+    %confirmed
+      %-  pairs:enjs
+      ~[['block-hash' s+block-hash.tx-status] ['block-height' (numb:enjs block-height.tx-status)]]
+  ==
+++  status-from-json
+  |=  jon=json
+  ^-  tx-status
+  ?:  ?=([%s %'unconfirmed'] jon)  [%unconfirmed ~]
+  ?>  ?=([%o *] jon)
+  [%confirmed (so:dejs (~(got by p.jon) 'block-hash')) (ni:dejs (~(got by p.jon) 'block-height'))]
+++  parse-network
+  |=  net=@t
+  ^-  network
+  ?+  net  ~|("bad network: {(trip net)}" !!)
+    %'main'       %main
+    %'testnet3'   %testnet3
+    %'testnet4'   %testnet4
+    %'signet'     %signet
+    %'regtest'    %regtest
+  ==
+--
+|_  dat=txs
 ++  grab
   |%
-  ++  noun  tx-map
-  ++  mime
-    |=  [p=mite q=octs]
-    ^-  tx-map
-    (json (need (de:json:html (@t q.q))))
+  ++  noun  txs
   ++  json
     |=  jon=^json
-    ^-  tx-map
+    ^-  txs
     ?>  ?=([%o *] jon)
-    %-  ~(gas by *tx-map)
+    %-  ~(gas by *txs)
     %+  turn  ~(tap by p.jon)
-    |=  [txid=@t v=^json]
-    ?>  ?=([%o *] v)
-    :-  txid
-    :*  txid
-        (parse-inputs (~(got by p.v) 'inputs'))
-        (parse-outputs (~(got by p.v) 'outputs'))
-        (parse-status (~(got by p.v) 'status'))
-        (bind (~(get by p.v) 'fee') |=(j=^json (rash (so:dejs j) dem)))
-        (bind (~(get by p.v) 'size') |=(j=^json (rash (so:dejs j) dem)))
-    ==
+    |=  [key=@t entry=^json]
+    ^-  [[@t network] tx-map]
+    ?>  ?=([%o *] entry)
+    =/  m  p.entry
+    =/  ref=@t    (so:dejs (~(got by m) 'ref'))
+    =/  =network  (parse-network (so:dejs (~(got by m) 'network')))
+    =/  =tx-map   (parse-tx-map (~(got by m) 'txs'))
+    [[ref network] tx-map]
+  ++  mime
+    |=  [p=mite q=octs]
+    ^-  txs
+    (json (need (de:json:html (@t q.q))))
   --
 ++  grow
   |%
-  ++  noun  txs
+  ++  noun  dat
   ++  json
     ^-  ^json
     :-  %o
     %-  ~(gas by *(map @t ^json))
-    %+  turn  ~(tap by txs)
-    |=  [txid=@t tx=transaction]
-    :-  txid
+    %+  turn  ~(tap by dat)
+    |=  [[ref=@t =network] =tx-map]
+    ^-  [@t ^json]
+    :-  (crip "{(trip ref)}.{(trip (scot %tas network))}")
     %-  pairs:enjs
-    :~  ['txid' s+txid.tx]
-        ['inputs' [%a (turn inputs.tx input-to-json)]]
-        ['outputs' [%a (turn outputs.tx output-to-json)]]
-        ['status' (status-to-json tx-status.tx)]
-        ['fee' ?~(fee.tx ~ (numb:enjs u.fee.tx))]
-        ['size' ?~(size.tx ~ (numb:enjs u.size.tx))]
+    :~  ['ref' s+ref]
+        ['network' s+(scot %tas network)]
+        ['txs' (tx-map-to-json tx-map)]
     ==
   ++  mime  [/application/json (as-octs:mimes:html -:txt)]
   ++  txt   [(en:json:html json)]~
   --
-++  input-to-json
-  |=  i=tx-input
-  ^-  ^json
+++  tx-map-to-json
+  |=  =tx-map
+  ^-  json
+  :-  %o
+  %-  ~(gas by *(map @t json))
+  %+  turn  ~(tap by tx-map)
+  |=  [txid=@t =transaction]
+  ^-  [@t json]
+  :-  txid
   %-  pairs:enjs
-  :~  ['spent-txid' s+spent-txid.i]
-      ['spent-vout' (numb:enjs spent-vout.i)]
-      :-  'prevout'
-      ?~  prevout.i  ~
-      (output-to-json u.prevout.i)
-  ==
-++  output-to-json
-  |=  o=tx-output
-  ^-  ^json
-  %-  pairs:enjs
-  :~  ['value' (numb:enjs value.o)]
-      ['address' s+address.o]
-  ==
-++  status-to-json
-  |=  s=tx-status
-  ^-  ^json
-  ?-  -.s
-    %unconfirmed  (pairs:enjs ~[['type' s+'unconfirmed']])
-    %confirmed
+  :~  ['txid' s+txid.transaction]
+      :-  'inputs'
+      :-  %a
+      %+  turn  inputs.transaction
+      |=  =tx-input
       %-  pairs:enjs
-      :~  ['type' s+'confirmed']
-          ['block-hash' s+block-hash.s]
-          ['block-height' (numb:enjs block-height.s)]
+      :~  ['spent-txid' s+spent-txid.tx-input]
+          ['spent-vout' (numb:enjs spent-vout.tx-input)]
+          :-  'prevout'
+          ?~  prevout.tx-input  ~
+          %-  pairs:enjs
+          ~[['value' (numb:enjs value.u.prevout.tx-input)] ['address' s+address.u.prevout.tx-input]]
       ==
+      :-  'outputs'
+      :-  %a
+      %+  turn  outputs.transaction
+      |=  =tx-output
+      %-  pairs:enjs
+      ~[['value' (numb:enjs value.tx-output)] ['address' s+address.tx-output]]
+      ['status' (status-to-json tx-status.transaction)]
+      ['fee' ?~(fee.transaction ~ (numb:enjs u.fee.transaction))]
+      ['size' ?~(size.transaction ~ (numb:enjs u.size.transaction))]
   ==
-++  parse-inputs
-  |=  jon=^json
-  ^-  (list tx-input)
-  ?>  ?=([%a *] jon)
-  %+  turn  p.jon
-  |=  j=^json
-  ?>  ?=([%o *] j)
-  :*  (so:dejs (~(got by p.j) 'spent-txid'))
-      (rash (so:dejs (~(got by p.j) 'spent-vout')) dem)
-      =/  pv=^json  (~(got by p.j) 'prevout')
-      ?:(=(~ pv) ~ `(parse-output pv))
-  ==
-++  parse-output
-  |=  jon=^json
-  ^-  tx-output
+++  parse-tx-map
+  |=  jon=json
+  ^-  tx-map
   ?>  ?=([%o *] jon)
-  :*  (rash (so:dejs (~(got by p.jon) 'value')) dem)
-      (so:dejs (~(got by p.jon) 'address'))
-  ==
-++  parse-outputs
-  |=  jon=^json
-  ^-  (list tx-output)
-  ?>  ?=([%a *] jon)
-  (turn p.jon parse-output)
-++  parse-status
-  |=  jon=^json
-  ^-  tx-status
-  ?>  ?=([%o *] jon)
-  =/  typ=@t  (so:dejs (~(got by p.jon) 'type'))
-  ?:  =('unconfirmed' typ)  [%unconfirmed ~]
-  :*  %confirmed
-      (so:dejs (~(got by p.jon) 'block-hash'))
-      (rash (so:dejs (~(got by p.jon) 'block-height')) dem)
-  ==
+  %-  ~(gas by *tx-map)
+  %+  turn  ~(tap by p.jon)
+  |=  [txid=@t tx-jon=json]
+  ^-  [@t transaction]
+  ?>  ?=([%o *] tx-jon)
+  =/  m  p.tx-jon
+  =/  inputs=(list tx-input)
+    =/  ij  (~(got by m) 'inputs')
+    ?>  ?=([%a *] ij)
+    %+  turn  p.ij
+    |=  i=json
+    ?>  ?=([%o *] i)
+    =/  prevout=(unit tx-output)
+      =/  pj  (~(got by p.i) 'prevout')
+      ?:  =(~ pj)  ~
+      ?>  ?=([%o *] pj)
+      `[(ni:dejs (~(got by p.pj) 'value')) (so:dejs (~(got by p.pj) 'address'))]
+    [(so:dejs (~(got by p.i) 'spent-txid')) (ni:dejs (~(got by p.i) 'spent-vout')) prevout]
+  =/  outputs=(list tx-output)
+    =/  oj  (~(got by m) 'outputs')
+    ?>  ?=([%a *] oj)
+    %+  turn  p.oj
+    |=  o=json
+    ?>  ?=([%o *] o)
+    [(ni:dejs (~(got by p.o) 'value')) (so:dejs (~(got by p.o) 'address'))]
+  =/  fee=(unit @ud)
+    =/  fj  (~(got by m) 'fee')
+    ?:(=(~ fj) ~ `(ni:dejs fj))
+  =/  size=(unit @ud)
+    =/  sj  (~(got by m) 'size')
+    ?:(=(~ sj) ~ `(ni:dejs sj))
+  [txid [txid inputs outputs (status-from-json (~(got by m) 'status')) fee size]]
 --

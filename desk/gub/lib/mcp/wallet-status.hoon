@@ -1,6 +1,7 @@
 /<  tools  /lib/nex/tools.hoon
 /<  wt     /lib/wallet-types.hoon
 /<  b329   /lib/bip329.hoon
+/<  bip32  /lib/bip32.hoon
 ::  wallet-status: list wallets and their accounts with balances
 ::
 =,  wt
@@ -27,7 +28,7 @@
   =/  store=wallet-store
     ?.  ?=([%& %file *] store-seen)  *wallet-store
     (fall (mole |.(!<(wallet-store (need-vase:tarball sang.p.store-seen)))) *wallet-store)
-  =/  fps=(list @ux)  (turn ~(tap by store) |=([fp=@ux *] fp))
+  =/  fps=(list @t)  (turn ~(tap by store) |=([xp=@t *] xp))
   ?~  fps
     (pure:m [%text 'No wallets found.'])
   ::  read labels
@@ -36,30 +37,23 @@
   =/  lbls=labels:b329
     ?.  ?=([%& %file *] lbl-seen)  *labels:b329
     (fall (mole |.(!<(labels:b329 (need-vase:tarball sang.p.lbl-seen)))) *labels:b329)
-  ::  read accounts directory
-  ;<  acct-seen=seen:nexus  bind:m
-    (peek:io [%& %| /apps/'wallet.wallet_app'/accounts] ~)
-  =/  accts=(list [key=@ta acct=account-data])
-    ?.  ?=([%& %ball *] acct-seen)  ~
-    %+  murn  ~(tap by dir.ball.p.acct-seen)
-    |=  [dir-name=@ta sub=ball:tarball]
-    =/  sub-lump=lump:tarball  (fall fil.sub *lump:tarball)
-    =/  ct=(unit [=sang:tarball gain=? bang=(unit tang)])
-      (~(get by contents.sub-lump) 'data.wallet_account')
-    ?~  ct  ~
-    ?.  ?=(%account name.p.sang.u.ct)  ~
-    =/  acct=(unit account-data)
-      (mole |.(!<(account-data (need-vase:tarball sang.u.ct))))
-    ?~  acct  ~
-    `[dir-name u.acct]
+  ::  read account-store
+  ;<  store-seen2=seen:nexus  bind:m
+    (peek:io [%& %& /apps/'wallet.wallet_app' %'accounts.wallet_accounts'] ~)
+  =/  acct-store=account-store
+    ?.  ?=([%& %file *] store-seen2)  *account-store
+    (fall (mole |.(!<(account-store (need-vase:tarball sang.p.store-seen2)))) *account-store)
+  =/  accts=(list [key=@ta ref=@t])
+    %+  turn  ~(tap by acct-store)
+    |=  [ref=@t *]
+    [(crip (trip ref)) ref]
   ::  format output
   =/  out=wain
     %-  zing
     %+  turn  fps
-    |=  fp=@ux
+    |=  xpub=@t
     ^-  wain
     =/  wal-name=@t
-      =/  xpub=@t  (scot %ux fp)
       =/  entries=(list label-entry:b329)
         ~(tap in (~(get la:b329 lbls) %xpub xpub))
       =/  prefix=tape  "gwbtc:wallet:"
@@ -70,24 +64,62 @@
       ?.  =(prefix (scag prefix-len lbl))
         $(entries t.entries)
       (crip (slag prefix-len lbl))
+    =/  fp=@ux
+      (fall (mole |.(fingerprint:(from-extended:bip32 (trip xpub)))) 0x0)
     =/  header=@t
-      (rap 3 ~['wallet: ' wal-name ' (fingerprint: ' (scot %ux fp) ')'])
-    =/  wal-accts=(list [key=@ta acct=account-data])
-      (skim accts |=([* a=account-data] =(wallet.a fp)))
+      (rap 3 ~['wallet: ' wal-name ' (xpub: ' (end [3 12] xpub) '...)'])
+    =/  wal-accts=(list [key=@ta ref=@t])
+      %+  skim  accts
+      |=  [* ref=@t]
+      ::  check if this ref's origin fingerprint matches this wallet
+      =/  entries=(list label-entry:b329)
+        ~(tap in (~(get la:b329 lbls) %xpub ref))
+      =/  og=(unit parsed-origin:b329)
+        |-
+        ?~  entries  ~
+        ?^  origin.i.entries  origin.i.entries
+        $(entries t.entries)
+      =/  ref-fp=@ux
+        ?~  og  0x0
+        fingerprint.u.og
+      =(ref-fp fp)
     ?~  wal-accts
       ~[header '  (no accounts)' '']
     =/  acct-lines=wain
       %-  zing
       %+  turn  wal-accts
-      |=  [key=@ta acct=account-data]
+      |=  [key=@ta ref=@t]
       ^-  wain
       =/  short-key=@ta
         =/  parts=(list @t)  (rash key (more dot (cook crip (star ;~(less dot prn)))))
         ?~(parts key i.parts)
+      ::  look up network from labels
+      =/  entries=(list label-entry:b329)
+        ~(tap in (~(get la:b329 lbls) %xpub ref))
+      =/  network=network
+        =/  prefix=tape  "gwbtc:network:"
+        =/  prefix-len=@ud  (lent prefix)
+        |-
+        ?~  entries  %testnet3
+        =/  lbl=tape  (trip label.i.entries)
+        ?.  =(prefix (scag prefix-len lbl))
+          $(entries t.entries)
+        ;;(network (slav %tas (crip (slag prefix-len lbl))))
+      ::  look up script-type from origin
+      =/  og=(unit parsed-origin:b329)
+        |-
+        ?~  entries  ~
+        ?^  origin.i.entries  origin.i.entries
+        $(entries t.entries)
+      =/  stype=script-type
+        ?~  og  %p2wpkh
+        (from-descriptor:b329 type.u.og)
+      ::  look up xprv
+      =/  xprv=@t  (fall (~(get by acct-store) ref) '')
       :~  (rap 3 ~['  account: ' short-key])
-          (rap 3 ~['    network: ' (scot %tas active-network.acct)])
-          (rap 3 ~['    script: ' (scot %tas script-type.acct)])
-          (rap 3 ~['    xprv: ' (end [3 12] xprv.acct) '...'])
+          (rap 3 ~['    network: ' (scot %tas network)])
+          (rap 3 ~['    script: ' (scot %tas stype)])
+          (rap 3 ~['    xprv: ' (end [3 12] xprv) '...'])
       ==
     [header acct-lines]
   (pure:m [%text (of-wain:format out)])

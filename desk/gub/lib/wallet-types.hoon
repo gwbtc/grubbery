@@ -4,8 +4,8 @@
 +$  seg  (pair ? @ud)
 +$  seed  $%([%t phrase=@t] [%q secret=@q])
 +$  account  [purpose=seg coin-type=seg account=seg]
-+$  wallet-data  [=seed fingerprint=@ux]
-+$  wallet-store  (map @ux seed)
++$  wallet-data  [=seed xpub=@t]
++$  wallet-store  (map @t seed)
 +$  script-type  ?(%p2pkh %p2sh-p2wpkh %p2wpkh %p2tr)
 ::  per-address fetched info from mempool.space
 ::
@@ -71,16 +71,10 @@
       gap=@ud
   ==
 ::
-+$  account-data
-  $:  name=@t
-      wallet=@ux
-      =script-type
-      active-network=?(%main %testnet3 %testnet4 %signet %regtest)
-      purpose=seg
-      coin-type=seg
-      account-idx=seg
-      xprv=@t
-  ==
++$  account-store  (map @t @t)
++$  addresses  (map [@t network] [recv=addr-mop chng=addr-mop])
++$  txs  (map [@t network] tx-map)
++$  network  ?(%main %testnet3 %testnet4 %signet %regtest)
 ::  +to-bip-network: map expanded network to bip32/bech32 protocol network
 ::
 ++  to-bip-network

@@ -1,7 +1,8 @@
 ::  wallet account IO helpers
 ::
-::  Shared helpers for account address/tx file operations,
-::  chain scanning, and address refresh processes.
+::  Pure helpers for address/tx operations, chain scanning,
+::  and address refresh processes. No steps/prefix — callers
+::  pass data directly or use ancestor-road for file access.
 ::
 /<  wt   /lib/wallet-types.hoon
 /<  bip32  /lib/bip32.hoon
@@ -11,123 +12,52 @@
 /<  b329  /lib/bip329.hoon
 =,  wt
 |%
-::  +addr-road: compute road to a chain's mop file
-::
-++  addr-road
-  |=  [steps=@ud prefix=path network=?(%main %testnet3 %testnet4 %signet %regtest) chain=?(%recv %chng)]
-  ^-  road:tarball
-  [%| steps [%& (weld prefix `path`~[%addresses network chain]) %'wallet_addresses']]
-::  +read-mop: fiber that reads a single mop file
-::
-++  read-mop
-  |=  [steps=@ud prefix=path network=?(%main %testnet3 %testnet4 %signet %regtest) chain=?(%recv %chng)]
-  =/  m  (fiber:fiber:nexus ,addr-mop)
-  ^-  form:m
-  =/  road=road:tarball  (addr-road steps prefix network chain)
-  ;<  exists=?  bind:m  (peek-exists:io road)
-  ?.  exists  (pure:m *addr-mop)
-  ;<  seen=seen:nexus  bind:m  (peek:io road ~)
-  ?.  ?=([%& %file *] seen)  (pure:m *addr-mop)
-  (pure:m (fall (mole |.(!<(addr-mop (need-vase:tarball sang.p.seen)))) *addr-mop))
-::  +write-mop: fiber that writes a mop file (creates dir structure if needed)
-::
-++  write-mop
-  |=  [steps=@ud prefix=path network=?(%main %testnet3 %testnet4 %signet %regtest) chain=?(%recv %chng) mop=addr-mop]
-  =/  m  (fiber:fiber:nexus ,~)
-  ^-  form:m
-  =/  road=road:tarball  (addr-road steps prefix network chain)
-  ;<  exists=?  bind:m  (peek-exists:io road)
-  ?:  exists
-    (over:io road [[/wallet %addresses] mop])
-  (make:io road |+[[[/wallet %addresses] mop] ~])
-::  +txs-road: compute road to the tx-map file
-::
-++  txs-road
-  |=  [steps=@ud prefix=path network=?(%main %testnet3 %testnet4 %signet %regtest)]
-  ^-  road:tarball
-  [%| steps [%& (weld prefix `path`~[%addresses network %txs]) %'wallet_txs']]
-::  +read-txs: fiber that reads the tx-map file
-::
-++  read-txs
-  |=  [steps=@ud prefix=path network=?(%main %testnet3 %testnet4 %signet %regtest)]
-  =/  m  (fiber:fiber:nexus ,tx-map)
-  ^-  form:m
-  =/  road=road:tarball  (txs-road steps prefix network)
-  ;<  exists=?  bind:m  (peek-exists:io road)
-  ?.  exists  (pure:m *tx-map)
-  ;<  seen=seen:nexus  bind:m  (peek:io road ~)
-  ?.  ?=([%& %file *] seen)  (pure:m *tx-map)
-  (pure:m (fall (mole |.(!<(tx-map (need-vase:tarball sang.p.seen)))) *tx-map))
-::  +write-txs: fiber that writes the tx-map file
-::
-++  write-txs
-  |=  [steps=@ud prefix=path network=?(%main %testnet3 %testnet4 %signet %regtest) txs=tx-map]
-  =/  m  (fiber:fiber:nexus ,~)
-  ^-  form:m
-  =/  road=road:tarball  (txs-road steps prefix network)
-  ;<  exists=?  bind:m  (peek-exists:io road)
-  ?:  exists
-    (over:io road [[/wallet %txs] txs])
-  (make:io road |+[[[/wallet %txs] txs] ~])
-::  +ensure-net-dir: create network dir + empty mop files if needed
-::
-++  ensure-net-dir
-  |=  [steps=@ud prefix=path network=?(%main %testnet3 %testnet4 %signet %regtest)]
-  =/  m  (fiber:fiber:nexus ,~)
-  ^-  form:m
-  =/  recv-road=road:tarball  (addr-road steps prefix network %recv)
-  ;<  exists=?  bind:m  (peek-exists:io recv-road)
-  ?:  exists  (pure:m ~)
-  ;<  ~  bind:m  (write-mop steps prefix network %recv *addr-mop)
-  ;<  ~  bind:m  (write-mop steps prefix network %chng *addr-mop)
-  (write-txs steps prefix network *tx-map)
 ::  +mop-to-list: tap mop to indexed list (ascending by index)
 ::
 ++  mop-to-list
   |=  mop=addr-mop
   ^-  (list [@ud address-data])
   (flop (tap:((on @ud address-data) gth) mop))
-::  +extract-account: pull account-data from a ball view
+::  +get-mops: look up recv/chng mops for an account+network
 ::
-++  extract-account
-  |=  =seen:nexus
-  ^-  (unit account-data)
-  ?.  ?=([%& %ball *] seen)  ~
-  =/  =lump:tarball  (fall fil.ball.p.seen *lump:tarball)
-  =/  ct=(unit [=sang:tarball gain=? bang=(unit tang)])  (~(get by contents.lump) 'data.wallet_account')
-  ?~  ct  ~
-  ?.  ?=(%account name.p.sang.u.ct)  ~
-  (mole |.(!<(account-data (need-vase:tarball sang.u.ct))))
-::  +extract-mops: pull recv and chng addr-mops from a ball view
-::
-++  extract-mops
-  |=  [=seen:nexus network=?(%main %testnet3 %testnet4 %signet %regtest)]
+++  get-mops
+  |=  [=addresses ref=@t =network]
   ^-  [recv=addr-mop chng=addr-mop]
-  ?.  ?=([%& %ball *] seen)  [*addr-mop *addr-mop]
-  =/  addrs-ball=(unit ball:tarball)  (~(get by dir.ball.p.seen) 'addresses')
-  ?~  addrs-ball  [*addr-mop *addr-mop]
-  =/  net-ball=(unit ball:tarball)  (~(get by dir.u.addrs-ball) ;;(@ta network))
-  ?~  net-ball  [*addr-mop *addr-mop]
-  ?~  fil.u.net-ball  [*addr-mop *addr-mop]
-  =/  recv=addr-mop
-    =/  ct=(unit [=sang:tarball gain=? bang=(unit tang)])  (~(get by contents.u.fil.u.net-ball) 'recv.wallet_addresses')
-    ?~  ct  *addr-mop
-    (fall (mole |.(!<(addr-mop (need-vase:tarball sang.u.ct)))) *addr-mop)
-  =/  chng=addr-mop
-    =/  ct=(unit [=sang:tarball gain=? bang=(unit tang)])  (~(get by contents.u.fil.u.net-ball) 'chng.wallet_addresses')
-    ?~  ct  *addr-mop
-    (fall (mole |.(!<(addr-mop (need-vase:tarball sang.u.ct)))) *addr-mop)
-  [recv chng]
+  (fall (~(get by addresses) [ref network]) [*addr-mop *addr-mop])
+::  +put-mop: update a single chain mop in addresses
+::
+++  put-mop
+  |=  [=addresses ref=@t =network chain=?(%recv %chng) mop=addr-mop]
+  ^-  ^addresses
+  =/  cur=[recv=addr-mop chng=addr-mop]
+    (fall (~(get by addresses) [ref network]) [*addr-mop *addr-mop])
+  %+  ~(put by addresses)  [ref network]
+  ?-  chain
+    %recv  cur(recv mop)
+    %chng  cur(chng mop)
+  ==
+::  +get-txs: look up tx-map for an account+network
+::
+++  get-txs
+  |=  [=txs ref=@t =network]
+  ^-  tx-map
+  (fall (~(get by txs) [ref network]) *tx-map)
+::  +put-txs: update tx-map for an account+network
+::
+++  put-txs
+  |=  [=txs ref=@t =network tm=tx-map]
+  ^-  ^txs
+  (~(put by txs) [ref network] tm)
 ::  +derive-addr: derive a bitcoin address
 ::
 ++  derive-addr
-  |=  [xprv=@t =script-type network=?(%main %testnet3 %testnet4 %signet %regtest) chain=@ud index=@ud]
+  |=  [xprv=@t =script-type =network chain=@ud index=@ud]
   ^-  (unit @t)
   =/  acct-key  (from-extended:bip32 (trip xprv))
   =/  chain-key  (derive:acct-key chain)
   =/  addr-key  (derive:chain-key index)
   =/  pubkey=@  public-key:addr-key
-  =/  bip-net  (to-bip-network:wt network)
+  =/  bip-net  (to-bip-network network)
   ?-  script-type
     %p2wpkh      (encode-pubkey:bech32 bip-net [33 pubkey])
     %p2tr        (encode-taproot:bech32 bip-net [32 (end [3 32] pubkey)])
@@ -213,7 +143,7 @@
   (pure:m ~)
 ::
 ++  mempool-base-url
-  |=  network=?(%main %testnet3 %testnet4 %signet %regtest)
+  |=  =network
   ^-  tape
   ?-  network
     %main      "https://mempool.space/api/address/"
@@ -225,7 +155,7 @@
 ::  +scan-fetch: like fetch-address-info but pausable during HTTP wait
 ::
 ++  scan-fetch
-  |=  [paused-road=road:tarball address=@t network=?(%main %testnet3 %testnet4 %signet %regtest)]
+  |=  [paused-road=road:tarball address=@t =network]
   =/  m  (fiber:fiber:nexus ,(unit address-info))
   ^-  form:m
   =/  url=@t
@@ -394,18 +324,39 @@
   =/  fee=(unit @ud)  (mole |.((ni:dejs:format (~(got jo:json-utils tj) /fee))))
   =/  size=(unit @ud)  (mole |.((ni:dejs:format (~(got jo:json-utils tj) /size))))
   `[u.txid inputs outputs status fee size]
+::  +load-addr-file: load addresses from a road
+::
+++  load-addr-file
+  |=  rd=road:tarball
+  =/  m  (fiber:fiber:nexus ,addresses)
+  ^-  form:m
+  ;<  exists=?  bind:m  (peek-exists:io rd)
+  ?.  exists  (pure:m *addresses)
+  ;<  =seen:nexus  bind:m  (peek:io rd ~)
+  ?.  ?=([%& %file *] seen)  (pure:m *addresses)
+  (pure:m (fall (mole |.(!<(addresses (need-vase:tarball sang.p.seen)))) *addresses))
+::  +save-addr-file: save addresses to a road
+::
+++  save-addr-file
+  |=  [rd=road:tarball =addresses]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  ;<  exists=?  bind:m  (peek-exists:io rd)
+  ?:  exists
+    (over:io rd [[/wallet %addresses] addresses])
+  (make:io rd |+[[[/wallet %addresses] addresses] ~])
 ::  +scan-chain: derive addresses and scan chain for activity
 ::
 ++  scan-chain
-  |=  $:  steps=@ud
-          prefix=path
+  |=  $:  acct-ref=@t
           paused-road=road:tarball
-          acct-path=@t
-          acct=account-data
+          xprv=@t
+          stype=script-type
           chain=?(%receiving %change)
-          network=?(%main %testnet3 %testnet4 %signet %regtest)
+          =network
           start-idx=@ud
           start-gap=@ud
+          addr-road=road:tarball
       ==
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
@@ -419,8 +370,8 @@
     (pure:m ~)
   =/  new-addr=(unit @t)
     %:  derive-addr
-      xprv.acct
-      script-type.acct
+      xprv
+      stype
       network
       ?:(is-change 1 0)
       scan-idx
@@ -431,7 +382,7 @@
   =/  phase-tape=@t  ?:(is-change 'chng' 'recv')
   =/  scan-prog=json
     %-  pairs:enjs:format
-    :~  ['account' s+acct-path]
+    :~  ['account' s+acct-ref]
         ['phase' s+phase-tape]
         ['idx' (numb:enjs:format scan-idx)]
         ['gap' (numb:enjs:format gap)]
@@ -439,63 +390,32 @@
   ;<  ~  bind:m  (replace:io scan-prog)
   ::  write address with loading flag before fetch
   =/  loading-dat=address-data  [u.new-addr %.y ~ ~ ~]
-  ;<  pre-mop=addr-mop  bind:m  (read-mop steps prefix network chain-tag)
-  =/  pre-updated=addr-mop
-    (put:((on @ud address-data) gth) pre-mop scan-idx loading-dat)
-  ;<  ~  bind:m  (write-mop steps prefix network chain-tag pre-updated)
+  ;<  cur-addrs=addresses  bind:m  (load-addr-file addr-road)
+  =/  pre-updated=addresses
+    (put-mop cur-addrs acct-ref network chain-tag (put:((on @ud address-data) gth) recv:(get-mops cur-addrs acct-ref network) scan-idx loading-dat))
+  ;<  ~  bind:m  (save-addr-file addr-road pre-updated)
   ;<  ~  bind:m  (sleep:io `@dr`(div ~s1 1.000))
   ::  fetch address info
   ;<  new-info=(unit address-info)  bind:m
     (scan-fetch paused-road u.new-addr network)
   ::  clear loading, write results
   =/  addr-dat=address-data  [u.new-addr %.n ~ new-info ~]
-  ;<  mop=addr-mop  bind:m  (read-mop steps prefix network chain-tag)
+  ;<  post-addrs=addresses  bind:m  (load-addr-file addr-road)
+  =/  [recv=addr-mop chng=addr-mop]
+    (get-mops post-addrs acct-ref network)
+  =/  post-mop=addr-mop
+    ?:(is-change chng recv)
   =/  updated=addr-mop
-    (put:((on @ud address-data) gth) mop scan-idx addr-dat)
-  ;<  ~  bind:m  (write-mop steps prefix network chain-tag updated)
+    (put:((on @ud address-data) gth) post-mop scan-idx addr-dat)
+  =/  post-updated=addresses
+    (put-mop post-addrs acct-ref network chain-tag updated)
+  ;<  ~  bind:m  (save-addr-file addr-road post-updated)
   ::  check gap
   ?~  new-info
     $(scan-idx +(scan-idx), gap +(gap))
   ?:  =(0 tx-count.u.new-info)
     $(scan-idx +(scan-idx), gap +(gap))
   $(scan-idx +(scan-idx), gap 0)
-::
-++  read-draft-file
-  =/  m  (fiber:fiber:nexus ,(unit transaction:drft))
-  ^-  form:m
-  =/  draft-road=road:tarball
-    (cord-to-road:tarball './data.wallet_draft')
-  ;<  exists=?  bind:m  (peek-exists:io draft-road)
-  ?.  exists  (pure:m ~)
-  ;<  seen=seen:nexus  bind:m  (peek:io draft-road ~)
-  ?.  ?=(%& -.seen)  (pure:m ~)
-  ?.  ?=([%file *] p.seen)  (pure:m ~)
-  (pure:m (mole |.(!<(transaction:drft (need-vase:tarball sang.p.seen)))))
-::
-++  write-draft
-  |=  dr=transaction:drft
-  =/  m  (fiber:fiber:nexus ,~)
-  ^-  form:m
-  =/  road=road:tarball  (cord-to-road:tarball './data.wallet_draft')
-  ;<  exists=?  bind:m  (peek-exists:io road)
-  ?:  exists
-    (over:io road [[/wallet %draft] dr])
-  (make:io road |+[[[/wallet %draft] dr] ~])
-::
-++  read-wallet-name
-  |=  [=labels:b329 wallet-fp=@ux]
-  ^-  @t
-  =/  xpub=@t  (scot %ux wallet-fp)
-  =/  entries=(list label-entry:b329)
-    ~(tap in (~(get la:b329 labels) %xpub xpub))
-  =/  prefix=tape  "gwbtc:wallet:"
-  =/  prefix-len=@ud  (lent prefix)
-  |-
-  ?~  entries  ''
-  =/  lbl=tape  (trip label.i.entries)
-  ?.  =(prefix (scag prefix-len lbl))
-    $(entries t.entries)
-  (crip (slag prefix-len lbl))
 ::
 ++  collect-utxo-inputs
   |=  [recv=addr-mop chng=addr-mop =script-type]
@@ -512,32 +432,29 @@
   [txid.u vout.u value.u spend]
 ::  +get-next-unused-index: find first unused address index in an addr-mop
 ::
-::  Walks the mop (descending by index) looking for the highest-indexed
-::  address with no transaction history.  Respects BIP-44 gap limit of 20.
-::
 ++  get-next-unused-index
   |=  mop=addr-mop
-  ^-  (unit @ud)
-  =/  entries=(list [@ud address-data])
-    (tap:((on @ud address-data) gth) mop)
-  =|  last-unused=(unit @ud)
-  |-
-  ?~  entries
-    last-unused
-  =/  [idx=@ud ad=address-data]  i.entries
-  =/  has-txs=?
-    ?~  info.ad  %.n
-    (gth tx-count.u.info.ad 0)
-  ?:  has-txs
-    ?~  last-unused  ~
-    =/  gap=@ud  (sub u.last-unused idx)
-    ?:  (lth gap 20)
-      last-unused
-    ~
-  $(entries t.entries, last-unused `idx)
-::  +get-last-offered: read last-offered index from xpub labels
+  ^-  @ud
+  =/  top=(unit [idx=@ud address-data])
+    (pry:((on @ud address-data) gth) mop)
+  ?~  top  0
+  +(idx.u.top)
 ::
-::  Looks for a label like 'gwbtc:last-offered:5' on the xpub.
+++  read-wallet-name
+  |=  [=labels:b329 wallet-fp=@ux]
+  ^-  @t
+  =/  xpub=@t  (crip (hexn:http-utils wallet-fp))
+  =/  entries=(list label-entry:b329)
+    ~(tap in (~(get la:b329 labels) %xpub xpub))
+  =/  prefix=tape  "gwbtc:wallet:"
+  =/  prefix-len=@ud  (lent prefix)
+  |-
+  ?~  entries  ''
+  =/  lbl=tape  (trip label.i.entries)
+  ?.  =(prefix (scag prefix-len lbl))
+    $(entries t.entries)
+  (crip (slag prefix-len lbl))
+::  +get-last-offered: read last-offered index from xpub labels
 ::
 ++  get-last-offered
   |=  [=labels:b329 xpub=@t]
@@ -571,17 +488,11 @@
   (~(put la:b329 labels) [%xpub xpub (crip "gwbtc:last-offered:{((d-co:co 1) idx)}") ~ ~ ~])
 ::  +get-next-offer-index: next address index to offer
 ::
-::  max(first-unused-index, last-offered + 1)
-::  Ensures each request gets a fresh, never-reused address.
-::
 ++  get-next-offer-index
   |=  [mop=addr-mop =labels:b329 xpub=@t]
   ^-  @ud
   =/  unused-idx=@ud
-    =/  ui=(unit @ud)  (get-next-unused-index mop)
-    ?~  ui
-      (lent (tap:((on @ud address-data) gth) mop))
-    u.ui
+    (get-next-unused-index mop)
   =/  last=(unit @ud)  (get-last-offered labels xpub)
   ?~  last  unused-idx
   (max unused-idx +(u.last))

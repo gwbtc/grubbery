@@ -278,6 +278,16 @@
     [cards this]
     ::  HTTP request from eyre: route directly
     ::
+      %noun
+    =/  cmd  !<(@tas vas)
+    ?>  =(src.bowl our.bowl)
+    ?+  cmd  ~|(%unknown-noun-poke !!)
+        %reload
+      ~&  >  %grubbery-reload
+      =^  cards  state  abet:cold-start:hc
+      [cards this]
+    ==
+    ::
       %handle-http-request
     =+  !<([eyre-id=@ta req=inbound-request:eyre] vas)
     =/  [site=path args=quay:eyre]  (parse-url:http-utils url.request.req)
@@ -1505,7 +1515,7 @@
     =^  res=(each vase tang)  this
       (validate-cached cod p.sang noun)
     ?.  ?=(%& -.res)
-      ~&  >>  "validate-ball: boom {(trip name)} (mark %{(trip name.p.sang)}) at {(spud (weld cod here))}"
+      ~&  >>  "validate-ball: vale via mark %{(trip name.p.sang)} crashed for file '{(trip name)}' cod={<cod>} here={<here>}"
       $(files t.files, out (~(put by out) name [[p.sang %| [p.res noun]] gain bang]))
     $(files t.files, out (~(put by out) name [[p.sang %& p.res] gain bang]))
   =/  validated-dir=(map @ta ball:tarball)

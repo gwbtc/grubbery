@@ -150,7 +150,7 @@
 ++  simple-page
   |=  $:  wal=(unit wallet-data)
           wal-name=@t
-          acct=(unit account-data)
+          active-net=(unit tape)
           recv=addr-mop
           chng=addr-mop
           txs=tx-map
@@ -177,11 +177,10 @@
   =/  tx-list=(list tx-entry)  (sort-tx-list (build-tx-list txs our))
   =/  [pending-in=@ud pending-out=@ud]  (compute-pending tx-list)
   =/  is-mainnet=?
-    ?~  acct  %.n
-    =(%main active-network.u.acct)
+    ?~  active-net  %.n
+    =("main" u.active-net)
   =/  net-label=tape
-    ?~  acct  "unknown"
-    (trip active-network.u.acct)
+    (fall active-net "unknown")
   =/  accent=tape  ?:(is-mainnet "#f7931a" "#6496ff")
   =/  accent-hover=tape  ?:(is-mainnet "#e8850f" "#5080e0")
   =/  accent-bg=tape  ?:(is-mainnet "rgba(247, 147, 26, 0.1)" "rgba(100, 150, 255, 0.1)")

@@ -1,4 +1,4 @@
-::  mark for wallet-data: stored bitcoin wallet (seed + fingerprint only)
+::  mark for wallet-data: stored bitcoin wallet (seed + xpub)
 ::
 /<  wt  /lib/wallet-types.hoon
 =,  wt
@@ -11,8 +11,8 @@
     |=  jon=^json
     ^-  wallet-data
     ?>  ?=([%o *] jon)
-    =/  fp=^json        (~(got by p.jon) 'fingerprint')
-    ?>  ?=([%s *] fp)
+    =/  xp=^json        (~(got by p.jon) 'xpub')
+    ?>  ?=([%s *] xp)
     =/  seed-jon=^json  (~(got by p.jon) 'seed')
     ?>  ?=([%o *] seed-jon)
     =/  stype=^json  (~(got by p.seed-jon) 'type')
@@ -22,8 +22,7 @@
     =/  =seed
       ?:  =('bip39' p.stype)  [%t p.sval]
       [%q (slav %q p.sval)]
-    =/  fingerprint=@ux  (scan (trip p.fp) hex)
-    [seed fingerprint]
+    [seed p.xp]
   ++  mime
     |=  [p=mite q=octs]
     ^-  wallet-data
@@ -35,7 +34,7 @@
   ++  json
     ^-  ^json
     %-  pairs:enjs
-    :~  ['fingerprint' s+(crip (hexn:http-utils fingerprint.wal))]
+    :~  ['xpub' s+xpub.wal]
         :-  'seed'
         %-  pairs:enjs
         ?-  -.seed.wal

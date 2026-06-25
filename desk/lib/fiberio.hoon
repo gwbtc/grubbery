@@ -123,6 +123,15 @@
     ~&  >>>  ["fiberio: couldn't find ancestor" neck]
     (pure:m [%& lane])
   (pure:m [%| u.steps lane])
+::  +nex-road: pure road from current rail to nexus-relative lane
+::
+::  Computes the relative road from the current file's rail to a
+::  nexus-relative destination lane. No fiber IO needed.
+::
+++  nex-road
+  |=  [here=rail:tarball target=lane:tarball]
+  ^-  road:tarball
+  [%| (lent path.here) target]
 ::
 ++  take-here-raw
   |=  =wire

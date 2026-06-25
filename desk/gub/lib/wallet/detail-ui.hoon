@@ -8,11 +8,12 @@
 /<  wt       /lib/wallet-types.hoon
 /<  bip32    /lib/bip32.hoon
 /<  seed-phrases  /lib/seed-phrases.hoon
+/<  b329     /lib/bip329.hoon
 =,  wt
 |%
 ::
 ++  detail-page
-  |=  [wal=wallet-data wal-name=@t accts=(list account-data)]
+  |=  [wal=wallet-data wal-name=@t =labels:b329 refs=(list @t)]
   ^-  manx
   =/  back-url=tape
     "/groundwire/wallet"
@@ -36,7 +37,7 @@
           ;div.fc.g2(style "flex: 1; min-height: 0;")
             ;h2.s1.bold: Accounts
             ;div(id "accounts-container", style "flex: 1; min-height: 0; overflow-y: auto;")
-              ;+  (render-accounts-list accts)
+              ;+  (render-accounts-list labels refs)
             ==
             ;+  render-discover-form
             ;+  render-add-account-form
@@ -69,48 +70,63 @@
   ==
 ::
 ++  render-accounts-list
-  |=  accts=(list account-data)
+  |=  [=labels:b329 refs=(list @t)]
   ^-  manx
-  =/  sorted=(list account-data)
-    %+  sort  accts
-    |=([a=account-data b=account-data] (aor name.a name.b))
-  ?:  =(~ sorted)
+  ?:  =(~ refs)
     ;div.p3.b1.br2.tc.f3.s-1.empty-msg: No accounts yet. Add one below.
   ;div.fc.g1
-    ;*  %+  turn  sorted
-        |=  acct=account-data
-        =/  acct-key  (from-extended:bip32 (trip xprv.acct))
-        =/  key-hex=tape  (hexn:http-utils public-key:acct-key)
+    ;*  %+  turn  refs
+        |=  ref=@t
+        =/  key-hex=tape  (trip ref)
         ;div(id "card-{key-hex}")
-          ;+  (render-account-card acct)
+          ;+  (render-account-card labels ref)
         ==
   ==
 ::
 ++  render-account-card
-  |=  acct=account-data
+  |=  [=labels:b329 ref=@t]
   ^-  manx
-  =/  acct-key  (from-extended:bip32 (trip xprv.acct))
-  =/  acct-pubkey=@ux  public-key:acct-key
-  =/  key-hex=tape  (hexn:http-utils acct-pubkey)
+  =/  key-hex=tape  (trip ref)
   =/  detail-url=tape
     "/groundwire/wallet/a/{key-hex}"
+  =/  acct-name=@t
+    =/  entries=(list label-entry:b329)
+      ~(tap in (~(get la:b329 labels) %xpub ref))
+    =/  prefix=tape  "gwbtc:account:"
+    =/  prefix-len=@ud  (lent prefix)
+    |-
+    ?~  entries  'Unnamed Account'
+    =/  lbl=tape  (trip label.i.entries)
+    ?.  =(prefix (scag prefix-len lbl))
+      $(entries t.entries)
+    (crip (slag prefix-len lbl))
+  =/  og=(unit parsed-origin:b329)
+    =/  entries=(list label-entry:b329)
+      ~(tap in (~(get la:b329 labels) %xpub ref))
+    |-
+    ?~  entries  ~
+    ?^  origin.i.entries  origin.i.entries
+    $(entries t.entries)
   =/  account-path-str=tape
-    (format-account-path purpose.acct coin-type.acct account-idx.acct)
+    ?~  og  "m/84'/0'/0'"
+    (trip (render-origin:b329 u.og))
   ;div.p3.b1.br2.hover(style "display: flex; justify-content: space-between; align-items: center; gap: 12px;")
     ;a.pointer(href detail-url, style "flex: 1; min-width: 0; text-decoration: none; color: inherit; outline: none !important;")
       ;div(style "display: flex; align-items: center; gap: 8px;")
-        ;+  (purpose-badge purpose.acct)
-        ;span.s0.bold: {(trip name.acct)}
+        ;+  ?.  ?&(?=(^ og) ?=(^ path.u.og))  ;span;
+            (purpose-badge i.path.u.og)
+        ;span.s0.bold: {(trip acct-name)}
+        ;+  ?.  ?&(?=(^ og) ?=(^ path.u.og) ?=(^ t.path.u.og))  ;span;
+            (coin-type-badge i.t.path.u.og)
       ==
       ;div(style "display: flex; align-items: center; gap: 8px;")
-        ;+  (coin-type-badge coin-type.acct)
         ;div.f3.s-2.mono: {account-path-str}
       ==
     ==
     ;div(style "display: flex; gap: 4px;")
       ;button.p2.b1.br1.hover.pointer
         =data-key  key-hex
-        =data-name  (trip name.acct)
+        =data-name  (trip acct-name)
         =onclick  "event.preventDefault(); event.stopPropagation(); if(confirm('Delete account ' + this.dataset.name + '?')) removeAccount(this.dataset.key)"
         =style  "background: var(--b2); border: 1px solid var(--b3); color: var(--f3); display: flex; align-items: center; width: 32px; height: 32px; justify-content: center; outline: none;"
         ;div(style "width: 16px; height: 16px; display: flex; align-items: center; justify-content: center;")

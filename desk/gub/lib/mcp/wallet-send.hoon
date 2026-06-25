@@ -30,9 +30,8 @@
   =/  m  (fiber:fiber:nexus ,tool-result:tools)
   ^-  form:m
   ;<  st=tool-state:tools  bind:m  (get-state-as:io ,tool-state:tools)
-  =/  acct-key=@ta
+  =/  ref=@ta
     (~(dog jo:json-utils [%o args.st]) /account so:dejs:format)
-  =/  acct-key=@ta  (cat 3 acct-key '.wallet_account')
   =/  dest-addr=@t
     (~(dog jo:json-utils [%o args.st]) /address so:dejs:format)
   =/  amount-raw=@t
@@ -43,20 +42,51 @@
   =/  fee-rate=@ud  (fall (rush fee-rate-raw dem) 2)
   ?:  |(=('' dest-addr) =(0 amount))
     (pure:m [%error 'Missing address or amount'])
-  ::  load account data
-  ;<  acct-seen=seen:nexus  bind:m
-    (peek:io [%& %& /apps/'wallet.wallet_app'/accounts/[acct-key] %'data.wallet_account'] ~)
-  ?.  ?=([%& %file *] acct-seen)
+  ::  load labels
+  ;<  lbl-seen=seen:nexus  bind:m
+    (peek:io [%& %& /apps/'wallet.wallet_app' %'labels.wallet_labels'] ~)
+  =/  lbls=labels:b329
+    ?.  ?=([%& %file *] lbl-seen)  *labels:b329
+    (fall (mole |.(!<(labels:b329 (need-vase:tarball sang.p.lbl-seen)))) *labels:b329)
+  ::  load account-store
+  ;<  as-seen=seen:nexus  bind:m
+    (peek:io [%& %& /apps/'wallet.wallet_app' %'accounts.wallet_accounts'] ~)
+  =/  acct-store=account-store
+    ?.  ?=([%& %file *] as-seen)  *account-store
+    (fall (mole |.(!<(account-store (need-vase:tarball sang.p.as-seen)))) *account-store)
+  ?.  (~(has by acct-store) ref)
     (pure:m [%error 'Account not found'])
-  =/  acct=account-data
-    !<(account-data (need-vase:tarball sang.p.acct-seen))
-  =/  network=@ta  ;;(@ta active-network.acct)
+  ::  extract account metadata from labels
+  =/  entries=(list label-entry:b329)
+    ~(tap in (~(get la:b329 lbls) %xpub ref))
+  =/  network=network
+    =/  prefix=tape  "gwbtc:network:"
+    =/  prefix-len=@ud  (lent prefix)
+    |-
+    ?~  entries  %testnet3
+    =/  lbl=tape  (trip label.i.entries)
+    ?.  =(prefix (scag prefix-len lbl))
+      $(entries t.entries)
+    ;;(network (slav %tas (crip (slag prefix-len lbl))))
+  =/  og=(unit parsed-origin:b329)
+    |-
+    ?~  entries  ~
+    ?^  origin.i.entries  origin.i.entries
+    $(entries t.entries)
+  =/  stype=script-type
+    ?~  og  %p2wpkh
+    (from-descriptor:b329 type.u.og)
+  =/  xprv=@t  (fall (~(get by acct-store) ref) '')
+  =/  network-ta=@ta  ;;(@ta network)
   ::  find unused change address
-  ;<  chng-seen=seen:nexus  bind:m
-    (peek:io [%& %& /apps/'wallet.wallet_app'/accounts/[acct-key]/addresses/[network]/chng %'wallet_addresses'] ~)
-  =/  chng=addr-mop
-    ?.  ?=([%& %file *] chng-seen)  *addr-mop
-    (fall (mole |.(!<(addr-mop (need-vase:tarball sang.p.chng-seen)))) *addr-mop)
+  ;<  addr-seen=seen:nexus  bind:m
+    (peek:io [%& %& /apps/'wallet.wallet_app' %'addresses.wallet_addresses'] ~)
+  =/  addrs=addresses
+    ?.  ?=([%& %file *] addr-seen)  *addresses
+    (fall (mole |.(!<(addresses (need-vase:tarball sang.p.addr-seen)))) *addresses)
+  =/  mops=[recv=addr-mop chng=addr-mop]
+    (fall (~(get by addrs) [ref network]) [*addr-mop *addr-mop])
+  =/  chng=addr-mop  +.mops
   =/  change-addr=(unit @t)
     =/  leaves=(list [@ud address-data])
       (tap:((on @ud address-data) gth) chng)
@@ -74,41 +104,43 @@
       ?~  top  0
       +(-.u.top)
     %-  need
-    (derive-addr:aio xprv.acct script-type.acct active-network.acct 1 next-idx)
-  ::  poke account to build and broadcast
-  =/  acct-road=road:tarball
-    [%& %& /apps/'wallet.wallet_app'/accounts/[acct-key] %'data.wallet_account']
+    (derive-addr:aio xprv stype network 1 next-idx)
+  ::  poke main.sig to build and broadcast
+  =/  main-road=road:tarball
+    [%& %& /apps/'wallet.wallet_app' %'main.sig']
   =/  poke-jon  |=(=json [[/ %json] json])
   ;<  ~  bind:m
-    (poke:io acct-road (poke-jon (pairs:enjs:format ~[['action' s+'clear-draft']])))
+    (poke:io main-road (poke-jon (pairs:enjs:format ~[['action' s+'clear-draft'] ['account' s+ref]])))
   ;<  ~  bind:m
-    %:  poke:io  acct-road
+    %:  poke:io  main-road
       %-  poke-jon
       %-  pairs:enjs:format
       :~  ['action' s+'add-output']
+          ['account' s+ref]
           ['address' s+dest-addr]
           ['amount' (numb:enjs:format amount)]
       ==
     ==
   ;<  ~  bind:m
-    %:  poke:io  acct-road
+    %:  poke:io  main-road
       %-  poke-jon
       %-  pairs:enjs:format
       :~  ['action' s+'set-change-config']
+          ['account' s+ref]
           ['fee-rate' (numb:enjs:format fee-rate)]
           ['change-address' s+change-addr]
       ==
     ==
   ;<  ~  bind:m
-    (poke:io acct-road (poke-jon (pairs:enjs:format ~[['action' s+'run-auto-select']])))
+    (poke:io main-road (poke-jon (pairs:enjs:format ~[['action' s+'run-auto-select'] ['account' s+ref]])))
   ;<  ~  bind:m
-    (poke:io acct-road (poke-jon (pairs:enjs:format ~[['action' s+'build-transaction']])))
+    (poke:io main-road (poke-jon (pairs:enjs:format ~[['action' s+'build-transaction'] ['account' s+ref]])))
   =/  out=wain
     :~  'Transaction built, signed, and broadcast.'
         (rap 3 ~['  to: ' dest-addr])
         (rap 3 ~['  amount: ' (scot %ud amount) ' sats'])
         (rap 3 ~['  fee rate: ' (scot %ud fee-rate) ' sat/vB'])
-        (rap 3 ~['  network: ' (scot %tas active-network.acct)])
+        (rap 3 ~['  network: ' (scot %tas network)])
         (rap 3 ~['  change: ' change-addr])
     ==
   (pure:m [%text (of-wain:format out)])

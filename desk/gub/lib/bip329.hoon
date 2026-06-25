@@ -32,6 +32,112 @@
 ::
 +$  script-type  ?(%wpkh %wsh %tr %sh %pkh %pk)
 ::
+::  +to-descriptor: wallet script-type to BIP329 descriptor prefix
+::
+++  to-descriptor
+  |=  st=script-type:wt
+  ^-  script-type
+  ?-  st
+    %p2pkh       %pkh
+    %p2sh-p2wpkh  %sh
+    %p2wpkh      %wpkh
+    %p2tr        %tr
+  ==
+::  +from-descriptor: BIP329 descriptor prefix to wallet script-type
+::
+++  from-descriptor
+  |=  dt=script-type
+  ^-  script-type:wt
+  ?-  dt
+    %pkh   %p2pkh
+    %sh    %p2sh-p2wpkh
+    %wpkh  %p2wpkh
+    %tr    %p2tr
+    %wsh   %p2wpkh
+    %pk    %p2pkh
+  ==
+::  +render-origin: build origin string from parsed-origin
+::
+++  render-origin
+  |=  og=parsed-origin
+  ^-  @t
+  =/  path-str=tape
+    %-  zing
+    %+  turn  path.og
+    |=  s=seg
+    "/{?:(p.s "{(scow %ud q.s)}'" (scow %ud q.s))}"
+  (rap 3 ~[(scot %tas type.og) '([' (crip (hexn:http-utils fingerprint.og)) ']' (crip path-str) ')'])
+::  +parse-origin: parse origin string to parsed-origin
+::
+++  parse-origin
+  |=  raw=@t
+  ^-  parsed-origin
+  =/  txt=tape  (trip raw)
+  =/  type-end=@ud  (need (find "(" txt))
+  =/  stype=@ta  (crip (scag type-end txt))
+  =/  inner=tape  (slag +(type-end) txt)
+  =/  inner=tape  (scag (dec (lent inner)) inner)
+  =/  parts=(list tape)
+    |-
+    =/  idx=(unit @ud)  (find "/" inner)
+    ?~  idx  ~[inner]
+    [(scag u.idx inner) $(inner (slag +(u.idx) inner))]
+  ?>  ?=(^ parts)
+  =/  fp-raw=tape  i.parts
+  =/  fp-raw=tape
+    ?:  &(=('[' (snag 0 fp-raw)) =(']' (rear fp-raw)))
+      (slag 1 (scag (dec (lent fp-raw)) fp-raw))
+    ?:  =('[' (snag 0 fp-raw))
+      (slag 1 (scag (dec (lent fp-raw)) fp-raw))
+    fp-raw
+  =/  fp=@ux  (scan fp-raw hex)
+  =/  segs=(list seg)
+    %+  turn  t.parts
+    |=  s=tape
+    ^-  seg
+    ?:  =(~ s)  [%.n 0]
+    ?:  =("*" s)  [%.n 0]
+    ?:  =('\'' (rear s))
+      [%.y (slav %ud (crip (scag (dec (lent s)) s)))]
+    [%.n (slav %ud (crip s))]
+  [;;(script-type stype) fp segs]
+::  +origin-ref: path-safe cord from parsed-origin
+::  e.g. 'wpkh.deadbeef.84h.0h.0h'
+::
+++  origin-ref
+  |=  og=parsed-origin
+  ^-  @t
+  =/  segs=tape
+    %-  zing
+    %+  turn  path.og
+    |=  s=seg
+    ".{(scow %ud q.s)}{?:(p.s "h" "")}"
+  (rap 3 ~[(scot %tas type.og) '.' (crip (hexn:http-utils fingerprint.og)) (crip segs)])
+::  +parse-origin-ref: path-safe cord back to parsed-origin
+::  e.g. 'wpkh.deadbeef.84h.0h.0h' → [%wpkh 0xdead.beef ~[[%.y 84] [%.y 0] [%.y 0]]]
+::
+++  parse-origin-ref
+  |=  ref=@t
+  ^-  parsed-origin
+  =/  txt=tape  (trip ref)
+  =/  idx=@ud  (need (find "." txt))
+  =/  stype=@ta  (crip (scag idx txt))
+  =/  rest=tape  (slag +(idx) txt)
+  =/  parts=(list tape)
+    |-
+    =/  dot=(unit @ud)  (find "." rest)
+    ?~  dot  ~[rest]
+    [(scag u.dot rest) $(rest (slag +(u.dot) rest))]
+  ?>  ?=(^ parts)
+  =/  fp=@ux  (scan i.parts hex)
+  =/  segs=(list seg)
+    %+  turn  t.parts
+    |=  s=tape
+    ^-  seg
+    ?:  =('h' (rear s))
+      [%.y (slav %ud (crip (scag (dec (lent s)) s)))]
+    [%.n (slav %ud (crip s))]
+  [;;(script-type stype) fp segs]
 ::  +la: CRUD core for labels structure
 ::  Usage: (~(get la my-labels) %output 'txid:0')
 ::

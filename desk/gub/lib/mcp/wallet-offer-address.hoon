@@ -30,37 +30,60 @@
   =/  m  (fiber:fiber:nexus ,tool-result:tools)
   ^-  form:m
   ;<  st=tool-state:tools  bind:m  (get-state-as:io ,tool-state:tools)
-  =/  acct-key=@ta
+  =/  ref=@t
     (~(dog jo:json-utils [%o args.st]) /account so:dejs:format)
-  =/  acct-key=@ta  (cat 3 acct-key '.wallet_account')
   =/  target=@t
     (~(dog jo:json-utils [%o args.st]) /ship so:dejs:format)
-  ::  load account data
-  ;<  acct-seen=seen:nexus  bind:m
-    (peek:io [%& %& /apps/'wallet.wallet_app'/accounts/[acct-key] %'data.wallet_account'] ~)
-  ?.  ?=([%& %file *] acct-seen)
+  ::  load account-store
+  ;<  as-seen=seen:nexus  bind:m
+    (peek:io [%& %& /apps/'wallet.wallet_app' %'accounts.wallet_accounts'] ~)
+  =/  acct-store=account-store
+    ?.  ?=([%& %file *] as-seen)  *account-store
+    (fall (mole |.(!<(account-store (need-vase:tarball sang.p.as-seen)))) *account-store)
+  ?.  (~(has by acct-store) ref)
     (pure:m [%error 'Account not found'])
-  =/  acct=account-data
-    !<(account-data (need-vase:tarball sang.p.acct-seen))
-  =/  network=@ta  ;;(@ta active-network.acct)
-  ::  load recv addr-mop
-  ;<  recv-seen=seen:nexus  bind:m
-    (peek:io [%& %& /apps/'wallet.wallet_app'/accounts/[acct-key]/addresses/[network]/recv %'wallet_addresses'] ~)
-  =/  recv=addr-mop
-    ?.  ?=([%& %file *] recv-seen)  *addr-mop
-    (fall (mole |.(!<(addr-mop (need-vase:tarball sang.p.recv-seen)))) *addr-mop)
   ::  load labels
   ;<  lbl-seen=seen:nexus  bind:m
     (peek:io [%& %& /apps/'wallet.wallet_app' %'labels.wallet_labels'] ~)
   =/  lbls=labels:b329
     ?.  ?=([%& %file *] lbl-seen)  *labels:b329
     (fall (mole |.(!<(labels:b329 (need-vase:tarball sang.p.lbl-seen)))) *labels:b329)
+  ::  extract account metadata from labels
+  =/  entries=(list label-entry:b329)
+    ~(tap in (~(get la:b329 lbls) %xpub ref))
+  =/  network=network
+    =/  prefix=tape  "gwbtc:network:"
+    =/  prefix-len=@ud  (lent prefix)
+    |-
+    ?~  entries  %testnet3
+    =/  lbl=tape  (trip label.i.entries)
+    ?.  =(prefix (scag prefix-len lbl))
+      $(entries t.entries)
+    ;;(network (slav %tas (crip (slag prefix-len lbl))))
+  =/  og=(unit parsed-origin:b329)
+    |-
+    ?~  entries  ~
+    ?^  origin.i.entries  origin.i.entries
+    $(entries t.entries)
+  =/  stype=script-type
+    ?~  og  %p2wpkh
+    (from-descriptor:b329 type.u.og)
+  =/  xprv=@t  (fall (~(get by acct-store) ref) '')
+  ::  load recv addr-mop from flat store
+  ;<  addr-seen=seen:nexus  bind:m
+    (peek:io [%& %& /apps/'wallet.wallet_app' %'addresses.wallet_addresses'] ~)
+  =/  addrs=addresses
+    ?.  ?=([%& %file *] addr-seen)  *addresses
+    (fall (mole |.(!<(addresses (need-vase:tarball sang.p.addr-seen)))) *addresses)
+  =/  mops=[recv=addr-mop chng=addr-mop]
+    (fall (~(get by addrs) [ref network]) [*addr-mop *addr-mop])
+  =/  recv=addr-mop  recv.mops
   ::  compute next offer index
   =/  offer-idx=@ud
-    (get-next-offer-index:aio recv lbls xprv.acct)
+    (get-next-offer-index:aio recv lbls xprv)
   ::  derive address
   =/  addr=(unit @t)
-    (derive-addr:aio xprv.acct script-type.acct active-network.acct 0 offer-idx)
+    (derive-addr:aio xprv stype network 0 offer-idx)
   ?~  addr
     (pure:m [%error 'Address derivation failed'])
   ::  label address as offered to ship
@@ -69,7 +92,7 @@
     (~(put la:b329 lbls) [%addr u.addr lbl ~ ~ ~])
   ::  advance last-offered counter
   =/  new-lbls=labels:b329
-    (set-last-offered:aio new-lbls xprv.acct offer-idx)
+    (set-last-offered:aio new-lbls xprv offer-idx)
   ::  save labels
   =/  lbl-road=road:tarball
     [%& %& /apps/'wallet.wallet_app' %'labels.wallet_labels']
@@ -79,8 +102,8 @@
     :~  (rap 3 ~['offered: ' u.addr])
         (rap 3 ~['to: ' target])
         (rap 3 ~['index: ' (scot %ud offer-idx)])
-        (rap 3 ~['account: ' acct-key])
-        (rap 3 ~['network: ' (scot %tas active-network.acct)])
+        (rap 3 ~['account: ' ref])
+        (rap 3 ~['network: ' (scot %tas network)])
     ==
   (pure:m [%text (of-wain:format out)])
 --
