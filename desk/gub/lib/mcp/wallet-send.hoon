@@ -105,36 +105,47 @@
       +(-.u.top)
     %-  need
     (derive-addr:aio xprv stype network 1 next-idx)
-  ::  poke main.sig to build and broadcast
+  ::  generate uuid and build proc road
+  ;<  eny=@uvJ  bind:m  get-entropy:io
+  =/  uuid=@ta  (scot %uv eny)
+  =/  proc-road=road:tarball
+    [%& %& /apps/'wallet.wallet_app'/proc (cat 3 uuid '.json')]
+  ::  subscribe FIRST
+  ;<  *  bind:m  (keep:io /send-proc proc-road ~)
+  ::  poke main.sig with send action
   =/  main-road=road:tarball
     [%& %& /apps/'wallet.wallet_app' %'main.sig']
-  =/  poke-jon  |=(=json [[/ %json] json])
-  ;<  ~  bind:m
-    (poke:io main-road (poke-jon (pairs:enjs:format ~[['action' s+'clear-draft'] ['account' s+ref]])))
   ;<  ~  bind:m
     %:  poke:io  main-road
-      %-  poke-jon
+      :-  [/ %json]
       %-  pairs:enjs:format
-      :~  ['action' s+'add-output']
+      :~  ['action' s+'send']
           ['account' s+ref]
           ['address' s+dest-addr]
           ['amount' (numb:enjs:format amount)]
-      ==
-    ==
-  ;<  ~  bind:m
-    %:  poke:io  main-road
-      %-  poke-jon
-      %-  pairs:enjs:format
-      :~  ['action' s+'set-change-config']
-          ['account' s+ref]
           ['fee-rate' (numb:enjs:format fee-rate)]
           ['change-address' s+change-addr]
+          ['uuid' s+uuid]
       ==
     ==
-  ;<  ~  bind:m
-    (poke:io main-road (poke-jon (pairs:enjs:format ~[['action' s+'run-auto-select'] ['account' s+ref]])))
-  ;<  ~  bind:m
-    (poke:io main-road (poke-jon (pairs:enjs:format ~[['action' s+'build-transaction'] ['account' s+ref]])))
+  ::  wait for proc to complete
+  |-
+  ;<  =wave:nexus  bind:m  (take-news:io /send-proc)
+  ;<  proc-seen=seen:nexus  bind:m  (peek:io proc-road ~)
+  =/  proc-json=(unit json)
+    ?.  ?=([%& %file *] proc-seen)  ~
+    (mole |.(!<(json (need-vase:tarball sang.p.proc-seen))))
+  =/  proc-status=@t
+    ?~  proc-json  ''
+    (~(dug jo:json-utils u.proc-json) /status so:dejs:format '')
+  ?:  =('' proc-status)  $
+  ::  proc finished — clean up subscription
+  ;<  ~  bind:m  (drop:io /send-proc proc-road)
+  ?:  =('error' proc-status)
+    =/  err=@t
+      ?~  proc-json  'Unknown error'
+      (~(dug jo:json-utils u.proc-json) /error so:dejs:format 'Unknown error')
+    (pure:m [%error err])
   =/  out=wain
     :~  'Transaction built, signed, and broadcast.'
         (rap 3 ~['  to: ' dest-addr])

@@ -349,7 +349,7 @@
             $(refresh-list t.refresh-list)
           ::  account-specific actions (derive, scan, draft, etc)
           ::
-              ?(%'derive-next' %'delete-address' %'set-network' %'full-scan' %'pause-scan' %'resume-scan' %'cancel-scan' %'refresh' %'add-output' %'delete-output' %'clear-draft' %'set-change-config' %'clear-change-config' %'set-auto-select-mode' %'run-auto-select' %'add-input' %'remove-input' %'build-transaction')
+              ?(%'derive-next' %'delete-address' %'set-network' %'full-scan' %'pause-scan' %'resume-scan' %'cancel-scan' %'refresh' %'send' %'add-output' %'delete-output' %'clear-draft' %'set-change-config' %'clear-change-config' %'set-auto-select-mode' %'run-auto-select' %'add-input' %'remove-input' %'build-transaction')
             =/  acct-ref=@t  (~(dog jo:json-utils jon) /account so:dejs:format)
             ;<  ~  bind:m  (handle-account-action:h jon acct-ref)
             $
@@ -873,6 +873,8 @@
           (handle-refresh-proc:h prev)
             %'discover'
           (handle-discover-proc:h prev)
+            %'send'
+          (handle-send-proc:h prev)
             %'paused'
           stay:m
         ==
@@ -1017,6 +1019,75 @@
   =/  cur=json  (fall (mole |.(!<(json prev-state))) *json)
   =/  updated=json
     ?.  ?=(%o -.cur)  cur
+    [%o (~(put by p.cur) 'status' s+'done')]
+  ;<  ~  bind:m  (replace:io updated)
+  ;<  ~  bind:m  (sleep:io ~m5)
+  (pure:m ~)
+::  +handle-send-proc: build, sign, broadcast a transaction
+::
+++  handle-send-proc
+  |=  prev=json
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  =/  acct-ref=@t
+    (~(dog jo:json-utils prev) /account so:dejs:format)
+  =/  dest-addr=@t
+    (~(dog jo:json-utils prev) /address so:dejs:format)
+  =/  amount=@ud
+    (~(dog jo:json-utils prev) /amount ni:dejs:format)
+  =/  fee-rate=@ud
+    (~(dug jo:json-utils prev) /fee-rate ni:dejs:format 2)
+  =/  change-addr=@t
+    (~(dog jo:json-utils prev) /change-address so:dejs:format)
+  ::  1. clear-draft
+  ;<  ~  bind:m
+    (handle-account-action (pairs:enjs:format ~[['action' s+'clear-draft']]) acct-ref)
+  ::  2. add-output
+  ;<  ~  bind:m
+    %:  handle-account-action
+      %-  pairs:enjs:format
+      :~  ['action' s+'add-output']
+          ['address' s+dest-addr]
+          ['amount' (numb:enjs:format amount)]
+      ==
+      acct-ref
+    ==
+  ::  3. set-change-config
+  ;<  ~  bind:m
+    %:  handle-account-action
+      %-  pairs:enjs:format
+      :~  ['action' s+'set-change-config']
+          ['fee-rate' (numb:enjs:format fee-rate)]
+          ['change-address' s+change-addr]
+      ==
+      acct-ref
+    ==
+  ::  4. run-auto-select
+  ;<  ~  bind:m
+    (handle-account-action (pairs:enjs:format ~[['action' s+'run-auto-select']]) acct-ref)
+  ::  5. check if inputs were selected
+  ;<  existing=(unit transaction:drft)  bind:m  (load-draft acct-ref)
+  ?:  |(?=(~ existing) =(~ inputs.u.existing))
+    ::  no UTXOs available — report error
+    ;<  prev-state=vase  bind:m  get-state:io
+    =/  cur=json  (fall (mole |.(!<(json prev-state))) *json)
+    =/  updated=json
+      ?.  ?=(%o -.cur)  cur
+      [%o (~(put by (~(put by p.cur) 'status' s+'error')) 'error' s+'No UTXOs available to fund this transaction')]
+    ;<  ~  bind:m  (replace:io updated)
+    ;<  ~  bind:m  (sleep:io ~m5)
+    (pure:m ~)
+  ::  6. build-transaction (signs, broadcasts, clears draft)
+  ;<  ~  bind:m
+    (handle-account-action (pairs:enjs:format ~[['action' s+'build-transaction']]) acct-ref)
+  ::  7. check if draft was cleared (= success) or still exists (= failure)
+  ;<  post-draft=(unit transaction:drft)  bind:m  (load-draft acct-ref)
+  ;<  prev-state=vase  bind:m  get-state:io
+  =/  cur=json  (fall (mole |.(!<(json prev-state))) *json)
+  =/  updated=json
+    ?.  ?=(%o -.cur)  cur
+    ?^  post-draft
+      [%o (~(put by (~(put by p.cur) 'status' s+'error')) 'error' s+'Transaction build or broadcast failed')]
     [%o (~(put by p.cur) 'status' s+'done')]
   ;<  ~  bind:m  (replace:io updated)
   ;<  ~  bind:m  (sleep:io ~m5)
@@ -1245,6 +1316,24 @@
       ~&  ["%account refresh make failed" acct-ref uuid u.make-err]
       (pure:m ~)
     (pure:m ~)
+  ::
+      %'send'
+    =/  dest-addr=@t  (~(dog jo:json-utils jon) /address so:dejs:format)
+    =/  amount=@ud  (~(dog jo:json-utils jon) /amount ni:dejs:format)
+    =/  fee-rate=@ud  (~(dug jo:json-utils jon) /fee-rate ni:dejs:format 2)
+    =/  change-addr=@t  (~(dog jo:json-utils jon) /change-address so:dejs:format)
+    ;<  uuid=@ta  bind:m  (get-or-gen-uuid p.jon)
+    =/  proc-json=json
+      %-  pairs:enjs:format
+      :~  ['type' s+'send']
+          ['account' s+acct-ref]
+          ['address' s+dest-addr]
+          ['amount' (numb:enjs:format amount)]
+          ['fee-rate' (numb:enjs:format fee-rate)]
+          ['change-address' s+change-addr]
+      ==
+    =/  proc-rd=road:tarball  (nex-road [%& /proc (cat 3 uuid '.json')])
+    (make:io proc-rd |+[[[/ %json] proc-json] ~])
   ::
   ::  === Draft transaction actions ===
   ::
