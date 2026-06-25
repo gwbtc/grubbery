@@ -54,6 +54,7 @@
             [%fall %& [/ %'accounts.wallet_accounts'] [[/wallet %accounts] init-accts]]
             [%fall %& [/ %'addresses.wallet_addresses'] [[/wallet %addresses] init-addrs]]
             [%fall %& [/ %'txs.wallet_txs'] [[/wallet %txs] *txs]]
+            [%fall %& [/ %'drafts.wallet_drafts'] [[/wallet %drafts] *(map @t transaction:drft)]]
             [%fall %| /proc empty-dir:loader]
             [%fall %& [/ui %'http.sig'] [[/ %sig] ~]]
             [%fall %| /ui/requests empty-dir:loader]
@@ -389,7 +390,7 @@
         ::  route: /simple → simple wallet page
         ?:  ?=([%simple ~] suffix)
           ?:  ?=(%'GET' method.request.req)
-            ;<  lbls=labels:b329  bind:m  ~>(%bout load-labels:h)
+            ;<  lbls=labels:b329  bind:m  load-labels:h
             ;<  simple-wal=(unit wallet-data)  bind:m  (get-simple-wallet:h lbls)
             =/  post-url=tape  "{(spud prefix)}/simple"
             ?~  simple-wal
@@ -985,32 +986,36 @@
   ;<  ~  bind:m  (send-request:io request)
   ;<  info-resp=client-response:iris  bind:m  take-http:aio
   ;<  now=@da  bind:m  get-time:io
-  =/  new-info=(unit address-info)  ~>(%bout (parse-info-response:aio info-resp now))
+  ::  ~>(%bout.[1 %parse-info] ...)
+  =/  new-info=(unit address-info)  (parse-info-response:aio info-resp now)
   ::  fetch UTXOs
   =/  utxo-url=@t  (crip :(weld base-url (trip addr.u.dat) "/utxo"))
   =/  utxo-req=request:http
     [%'GET' utxo-url ~[['Accept' 'application/json']] ~]
   ;<  ~  bind:m  (send-request:io utxo-req)
   ;<  utxo-resp=client-response:iris  bind:m  take-http:aio
-  =/  utxos=(list utxo)  ~>(%bout (parse-utxo-response:aio utxo-resp))
+  ::  ~>(%bout.[1 %parse-utxos] ...)
+  =/  utxos=(list utxo)  (parse-utxo-response:aio utxo-resp)
   ::  fetch transactions
   =/  txs-url=@t  (crip :(weld base-url (trip addr.u.dat) "/txs"))
   =/  txs-req=request:http
     [%'GET' txs-url ~[['Accept' 'application/json']] ~]
   ;<  ~  bind:m  (send-request:io txs-req)
   ;<  txs-resp=client-response:iris  bind:m  take-http:aio
-  =/  txs=(list transaction)  ~>(%bout (parse-txs-response:aio txs-resp))
+  ::  ~>(%bout.[1 %parse-txs] ...)
+  =/  txs=(list transaction)  (parse-txs-response:aio txs-resp)
   ::  update address in mop
   ;<  cur-mop=addr-mop  bind:m  (load-addr-mop acct-ref network chain-tag)
   =/  new-dat=address-data
     [addr.u.dat %.n ~ new-info utxos]
   =/  final=addr-mop
-    ~>(%bout (put:((on @ud address-data) gth) cur-mop idx new-dat))
+    ::  ~>(%bout.[1 %put-addr-mop] ...)
+    (put:((on @ud address-data) gth) cur-mop idx new-dat)
   ;<  ~  bind:m  (write-addr-mop acct-ref network chain-tag final)
   ::  update tx-map
   ;<  existing-txs=tx-map  bind:m  (load-tx-map acct-ref network)
   =/  new-tx-map=tx-map
-    ~>  %bout
+    ::  ~>  %bout.[1 %gas-tx-map]
     %-  ~(gas by existing-txs)
     (turn txs |=(t=transaction [txid.t t]))
   ;<  ~  bind:m  (write-txs acct-ref network new-tx-map)
@@ -2140,9 +2145,7 @@
   |=  acct-ref=@t
   =/  m  (fiber:fiber:nexus ,(unit transaction:drft))
   ^-  form:m
-  =/  rd=road:tarball  (nex-road [%& ~ %'drafts.wallet_all-drafts'])
-  ;<  exists=?  bind:m  (peek-exists:io rd)
-  ?.  exists  (pure:m ~)
+  =/  rd=road:tarball  (nex-road [%& ~ %'drafts.wallet_drafts'])
   ;<  =seen:nexus  bind:m  (peek:io rd ~)
   ?.  ?=([%& %file *] seen)  (pure:m ~)
   =/  drafts=(map @t transaction:drft)
@@ -2153,28 +2156,23 @@
   |=  [acct-ref=@t dr=transaction:drft]
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
-  =/  rd=road:tarball  (nex-road [%& ~ %'drafts.wallet_all-drafts'])
-  ;<  exists=?  bind:m  (peek-exists:io rd)
-  ?.  exists
-    (make:io rd |+[[[/wallet %all-drafts] (~(put by *(map @t transaction:drft)) acct-ref dr)] ~])
+  =/  rd=road:tarball  (nex-road [%& ~ %'drafts.wallet_drafts'])
   ;<  =seen:nexus  bind:m  (peek:io rd ~)
   ?.  ?=([%& %file *] seen)  (pure:m ~)
   =/  drafts=(map @t transaction:drft)
     (fall (mole |.(!<((map @t transaction:drft) (need-vase:tarball sang.p.seen)))) ~)
-  (over:io rd [[/wallet %all-drafts] (~(put by drafts) acct-ref dr)])
+  (over:io rd [[/wallet %drafts] (~(put by drafts) acct-ref dr)])
 ::
 ++  delete-draft
   |=  acct-ref=@t
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
-  =/  rd=road:tarball  (nex-road [%& ~ %'drafts.wallet_all-drafts'])
-  ;<  exists=?  bind:m  (peek-exists:io rd)
-  ?.  exists  (pure:m ~)
+  =/  rd=road:tarball  (nex-road [%& ~ %'drafts.wallet_drafts'])
   ;<  =seen:nexus  bind:m  (peek:io rd ~)
   ?.  ?=([%& %file *] seen)  (pure:m ~)
   =/  drafts=(map @t transaction:drft)
     (fall (mole |.(!<((map @t transaction:drft) (need-vase:tarball sang.p.seen)))) ~)
-  (over:io rd [[/wallet %all-drafts] (~(del by drafts) acct-ref)])
+  (over:io rd [[/wallet %drafts] (~(del by drafts) acct-ref)])
 ::  +send-sse-fragment: send a single SSE fragment targeting a DOM element
 ::
 ++  send-sse-fragment
@@ -2247,9 +2245,13 @@
     ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'SSE only')])
     (pure:m ~)
   ;<  ~  bind:m  (send-header:srv eyre-id sse-header:http-utils)
-  ::  watch the account ball
-  =/  acct-road=road:tarball  (nex-road [%| /accounts/[acct-key]])
-  ;<  *  bind:m  (keep:io /acct-stream acct-road ~)
+  ::  watch flat stores
+  =/  addr-road=road:tarball  (nex-road [%& ~ %'addresses.wallet_addresses'])
+  =/  lbl-road=road:tarball   (nex-road [%& ~ %'labels.wallet_labels'])
+  =/  tx-road=road:tarball    (nex-road [%& ~ %'txs.wallet_txs'])
+  ;<  *  bind:m  (keep:io /acct-stream addr-road ~)
+  ;<  *  bind:m  (keep:io /acct-stream lbl-road ~)
+  ;<  *  bind:m  (keep:io /acct-stream tx-road ~)
   ;<  now=@da  bind:m  get-time:io
   ;<  ~  bind:m  (send-wait:io (add now ~s30))
   |-
@@ -2309,8 +2311,10 @@
     ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'SSE only')])
     (pure:m ~)
   ;<  ~  bind:m  (send-header:srv eyre-id sse-header:http-utils)
-  =/  acct-road=road:tarball  (nex-road [%| /accounts/[acct-key]])
-  ;<  *  bind:m  (keep:io /send-stream acct-road ~)
+  =/  addr-road=road:tarball   (nex-road [%& ~ %'addresses.wallet_addresses'])
+  =/  draft-road=road:tarball  (nex-road [%& ~ %'drafts.wallet_drafts'])
+  ;<  *  bind:m  (keep:io /send-stream addr-road ~)
+  ;<  *  bind:m  (keep:io /send-stream draft-road ~)
   ;<  now=@da  bind:m  get-time:io
   ;<  ~  bind:m  (send-wait:io (add now ~s30))
   |-
@@ -2399,9 +2403,11 @@
     ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'SSE only')])
     (pure:m ~)
   ;<  ~  bind:m  (send-header:srv eyre-id sse-header:http-utils)
-  ::  watch the account ball
-  =/  acct-road=road:tarball  (nex-road [%| /accounts/[acct-key]])
-  ;<  *  bind:m  (keep:io /addr-stream acct-road ~)
+  ::  watch flat stores
+  =/  addr-road=road:tarball  (nex-road [%& ~ %'addresses.wallet_addresses'])
+  =/  tx-road=road:tarball    (nex-road [%& ~ %'txs.wallet_txs'])
+  ;<  *  bind:m  (keep:io /addr-stream addr-road ~)
+  ;<  *  bind:m  (keep:io /addr-stream tx-road ~)
   ;<  now=@da  bind:m  get-time:io
   ;<  ~  bind:m  (send-wait:io (add now ~s30))
   |-
@@ -2507,16 +2513,11 @@
   ?:  (lte len 16)  full
   :(weld (scag 8 full) "..." (slag (sub len 8) full))
 ::
-++  mk-acct-base
-  |=  [nexus-root=tape akh=tape]
-  ^-  tape
-  "{(slag 1 nexus-root)}/accounts/{akh}.wallet_account"
 ::  +addr-detail-page: render address detail from inline data
 ::
 ++  addr-detail-page
   |=  [nexus-root=tape idx=@ud dat=address-data chain-tag=?(%recv %chng) ad-net=network:wt akh=tape txs=tx-map]
   ^-  manx
-  =/  acct-base=tape  (mk-acct-base nexus-root akh)
   =/  addr-text=tape  (trip addr.dat)
   =/  chain-label=tape
     ?:(?=(%recv chain-tag) "Receiving" "Change")
@@ -2576,7 +2577,7 @@
         ==
       ==
       ;script
-        ;+  ;/  (addr-script-text acct-base (trip chain-tag) (scow %ud idx))
+        ;+  ;/  (addr-script-text akh (trip chain-tag) (scow %ud idx))
       ==
     ==
   ==
@@ -2964,11 +2965,12 @@
   """
 ::
 ++  addr-script-text
-  |=  [acct-base=tape chain=tape idx=tape]
+  |=  [acct-ref=tape chain=tape idx=tape]
   ^-  tape
   """
   var API = '/grubbery/api';
-  var acctBase = '{acct-base}';
+  var mainSig = 'apps/wallet.wallet_app/main.sig';
+  var acctRef = '{acct-ref}';
 
   function goBack() \{
     var path = window.location.pathname;
@@ -2985,11 +2987,11 @@
   }
 
   function doRefresh() \{
-    var url = API + '/poke/' + acctBase + '/main.sig?blot=/json';
+    var url = API + '/poke/' + mainSig + '?blot=/json';
     fetch(url, \{
       method: 'POST',
       headers: \{'Content-Type': 'application/json'},
-      body: JSON.stringify(\{action: 'refresh', chain: '{chain}', index: {idx}})
+      body: JSON.stringify(\{action: 'refresh', account: acctRef, chain: '{chain}', index: {idx}})
     }).then(function(r) \{
       if (!r.ok) return r.text().then(function(t) \{ console.error('refresh error', t) });
     }).catch(function(e) \{ console.error('refresh failed', e) });

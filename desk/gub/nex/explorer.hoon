@@ -147,11 +147,10 @@
       ?~  ns  ~
       ?.  ?=(%| -.u.ns)  ~
       `p.u.ns
-    ~&  >  %explorer-render-dir
-    =/  page=manx  ~>(%bout (render-dir tree-path ball ball-wave now conversions code-namespace))
-    ~&  >  %explorer-manx-to-octs
-    =/  bod=octs  ~>(%bout (manx-to-octs:server page))
-    ~&  >  %explorer-send
+    ::  ~>(%bout.[1 %explorer-render-dir] ...)
+    =/  page=manx  (render-dir tree-path ball ball-wave now conversions code-namespace)
+    ::  ~>(%bout.[1 %explorer-manx-to-octs] ...)
+    =/  bod=octs  (manx-to-octs:server page)
     ;<  ~  bind:m  (send-simple:srv eyre-id (mime-response:http-utils [/text/html bod]))
     (pure:m ~)
   ::  File view — ball is the parent directory

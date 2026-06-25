@@ -30,6 +30,7 @@
       =vale:nexus
       =remo:nexus
       =upki:nexus
+      last=[now=@da eny=@uvJ]
   ==
 ++  kel  21.000.000 :: start big; burn many at once
 ++  sut
@@ -298,8 +299,9 @@
       [cards this]
     ::  Ball API: spawn request fiber at /sys/eyre/requests/{eyre-id}
     ?:  ?=([%grubbery %api *] site)
-      ~&  >  [%eyre-api eyre-id url.request.req ~(wyt by nouns.silo) ~(wyt by jects.silo)]
+      ::  ~&  >  [%eyre-api eyre-id url.request.req]
       =^  cards  state
+        ::  ~>  %bout.[1 %eyre-api-make]
         abet:(make:hc [%& /sys/eyre/requests eyre-id] %.n [%| [[/ %http-request] [src.bowl req]] ~])
       [cards this]
     ::  Binding match: find handler, forward request
@@ -1436,6 +1438,13 @@
 ++  peek-grub-now
   |=  =rail:tarball
   ^-  (unit sang:tarball)
+  ::  Virtual bowl values — always fresh, never persisted
+  ?:  =(/sys/bowl path.rail)
+    ?+  name.rail  ~
+      %now  `[[/ %time] %& !>(now.last)]
+      %eny  `[[/ %entropy] %& !>(eny.last)]
+      %our  `[[/ %ship] %& !>(our.bowl)]
+    ==
   =/  node=(unit [fold=hist:nexus file=(map @ta hist:nexus)])
     (~(get of born) path.rail)
   ?~  node  ~
@@ -1502,6 +1511,7 @@
   |=  [cod=path =ball:tarball]
   ^-  [ball:tarball _this]
   =|  here=path
+  ::  ~>  %bout.[1 %validate-ball]
   |-
   =/  validated-contents=(map @ta [=sang:tarball gain=? bang=(unit tang)])
     ?~  fil.ball  ~
@@ -2335,13 +2345,15 @@
   |=  [pax=path =neck:tarball]
   ^-  (each nexus:nexus tang)
   ?:  =([/ %root] neck)  &+root
-  =/  res=(unit built:nexus)  (get-built pax (weld /nex path.neck) name.neck)
+  =/  res=(unit built:nexus)
+    (get-built pax (weld /nex path.neck) name.neck)
   ?~  res  |+~[leaf+"build-nexus: {(trip (rail-to-arm:tarball [path.neck name.neck]))} not found in code"]
   ?+  -.u.res
     |+~[leaf+"build-nexus: unexpected artifact type {<-.u.res>}"]
     %tang  |+tang.u.res
     %vase
-  =/  nex=(unit nexus:nexus)  (mole |.(!<(nexus:nexus vase.u.res)))
+  =/  nex=(unit nexus:nexus)
+    (mole |.(!<(nexus:nexus vase.u.res)))
   ?~  nex  |+~[leaf+"build-nexus: failed to extract nexus from vase"]
   &+u.nex
   ==
@@ -2373,7 +2385,8 @@
   =/  nex-info  (find-nearest-nexus here)
   ?~  nex-info  ~
   ::  Build the nexus from the neck
-  =/  nex-res=(each nexus:nexus tang)  (build-nexus path.here q.u.nex-info)
+  =/  nex-res=(each nexus:nexus tang)
+    (build-nexus path.here q.u.nex-info)
   ?:  ?=(%| -.nex-res)  ~
   ::  Call on-file with rail relative to nexus location
   =/  rel=rail:tarball  (relativize-rail:tarball p.u.nex-info here)
@@ -2554,25 +2567,12 @@
           :_  cards
           [%pass /peek/[(scot %p target)] %agent [target %grubbery] %poke grubbery-load+!>(req)]
         this
-      ::  Refresh /sys/bowl/ on peek-at-latest only.
-      ::  Peek-at-cass returns historical values from silo.
-      ::  This breaks the notify loop: save-file notifies → subscriber
-      ::  re-peeks at the notified cass → no refresh → no loop.
-      =?  this  =(~ case.load.dart)
-        =/  now-existing  (peek-grub-now /sys/bowl %now)
-        =/  now-val=@da
-          ?~  now-existing  now.bowl
-          =/  prev=@da  ;;(@da (sang-noun:tarball u.now-existing))
-          ?:  (gte prev now.bowl)
-            (add prev (div ~s1 1.000))
-          now.bowl
-        =/  eny-existing  (peek-grub-now /sys/bowl %eny)
-        =/  eny-val=@uvJ
-          ?~  eny-existing  eny.bowl
-          (shaz (cat 3 eny.bowl ;;(@uvJ (sang-noun:tarball u.eny-existing))))
-        =.  this  (save-file [/sys/bowl %our] [[/ %ship] %& !>(our.bowl)])
-        =.  this  (save-file [/sys/bowl %now] [[/ %time] %& !>(now-val)])
-        (save-file [/sys/bowl %eny] [[/ %entropy] %& !>(eny-val)])
+      ::  Refresh virtual bowl values on peek-at-latest only.
+      ::  These are returned by peek-grub-now, never persisted.
+      =?  last  =(~ case.load.dart)
+        :*  now=?:((gte now.last now.bowl) (add now.last (div ~s1 1.000)) now.bowl)
+            eny=(shaz (cat 3 eny.bowl eny.last))
+        ==
       ::  Peek at dest - directory returns ball+born, file returns cage
       ::  Returns %none if directory doesn't exist or has no lump
       ::  ver: if set, read historical version from hist via silo
@@ -2591,8 +2591,7 @@
           =/  root-weir=(unit weir:nexus)  (peek-weir dest)
           =/  root-fil=lump:tarball  (fall fil.sub-ball [~ ~ %.n ~ ~])
           sub-ball(fil `root-fil(weir root-weir))
-        =^  vball  this  (validate-ball cod sub-ball)
-        (enqu-take here (sys-give /peek) ~ %peek wire.dart %& %ball (wave-from-born:nexus sub-born) vball)
+        (enqu-take here (sys-give /peek) ~ %peek wire.dart %& %ball (wave-from-born:nexus sub-born) sub-ball)
         ::
           %&
         =/  dest=rail:tarball  p.u.dest-lane
@@ -2863,9 +2862,13 @@
   ?:  (is-nexus-banged here)
     this
   ::  Build spool and process — bang file on crash
-  =/  spool-got  (build-spool here)
+  =/  spool-got
+    ::  ~>  %bout.[1 %spawn-build-spool]
+    (build-spool here)
   =/  spool-res=(each spool:fiber:nexus tang)
+    ::  ~>  %bout.[1 %spawn-mule-spool]
     (mule |.((fall spool-got default-spool)))
+  ::  ~>  %bout.[1 %spawn-proc-with]
   (spawn-proc-with here prod spool-res)
 ::  Spawn a process with a pre-built spool result.
 ::  Used by spawn-all-files to avoid redundant silo lookups.
@@ -3057,12 +3060,14 @@
   ::  Crashed process — takes accumulate in next, don't evaluate
   ?:  ?=(%| -.process.proc)  this
   ::  Get file state from ball
+  ::  ~>(%bout.[1 %do-next-peek-grub] ...)
   =/  file-data  (peek-grub-now path.here name.here)
   ?~  file-data  this
   ?:  (is-boom:tarball u.file-data)  this
   =/  fil-state=vase  (need-vase:tarball u.file-data)
   ::  Run the evaluator (mule to catch hard crashes like !< mismatches)
   =/  eval-res=(each [darts=(list dart:nexus) done=(list took:eval) new-state=vase new-proc=proc:fiber:nexus res=result:eval core=_this] tang)
+    ::  ~>(%bout.[1 %eval-take] ...)
     (mule |.((take:eval here fil-state proc)))
   ?:  ?=(%| -.eval-res)
     (bang-file here p.eval-res)
@@ -3071,6 +3076,7 @@
   ::  Restore core with updated vale cache
   =.  this  core
   ::  Process darts (emit cards or enqueue takes)
+  ::  ~>(%bout.[1 %process-darts] ...)
   =.  this  (process-darts here darts)
   ::  Ack consumed pokes
   =.  this  (give-poke-signs here done)
@@ -3163,6 +3169,7 @@
       ~|("make failed: file {(spud (snoc path.dest-rail name.dest-rail))} already exists" !!)
     ::  Convert mark if blot override is set
     =/  =bask:tarball
+      ::  ~>  %bout.[1 %make-file-blot-convert]
       ?.  ?&  ?=(^ blot.p.make)
               !=(p.bask.p.make u.blot.p.make)
           ==
@@ -3173,11 +3180,15 @@
       [u.blot.p.make q:(tube p.src)]
     ::  Validate the bask before storing
     =^  validated=(each vase tang)  this
+      ::  ~>  %bout.[1 %make-file-validate]
       (validate-cached path.dest-rail p.bask q.bask)
     ?:  ?=(%| -.validated)
       ~|("make failed: validation error" (mean p.validated))
-    =.  this  (save-file dest-rail [p.bask %& p.validated])
+    =.  this
+      ::  ~>  %bout.[1 %make-file-save]
+      (save-file dest-rail [p.bask %& p.validated])
     ::  Spawn process (respawns if already exists via store-proc)
+    ::  ~>  %bout.[1 %make-file-spawn]
     (spawn-proc dest-rail ~)
   ==
 ::
@@ -3400,7 +3411,9 @@
 ++  propagate
   |=  [old-born=born:nexus here=rail:tarball]
   ^+  this
+  ::  ~>(%bout.[1 %record-trees] ...)
   =.  this  (record-trees path.here)
+  ::  ~>(%bout.[1 %notify] ...)
   (notify old-born)
 ::  Record tree objects from dir up to root into silo + fold hist.
 ::  Only bumps fold when tree hash actually changes. Stops propagating
@@ -3776,18 +3789,22 @@
   ::
   =/  =lode:nexus   (fall (~(get by code) cod) *lode:nexus)
   =/  old-refs       refs.lode
-  =/  old-cache      ~>(%bout (bins-to-cache:build keys.lode bins))
-  =/  res            ~>(%bout (build-all:build sut src-ball old-cache))
+  ::  ~>(%bout.[1 %bins-to-cache] ...)
+  =/  old-cache      (bins-to-cache:build keys.lode bins)
+  ::  ~>(%bout.[1 %build-all] ...)
+  =/  res            (build-all:build sut src-ball old-cache)
   ~&  >  "build-code: compiled {<~(wyt by results.res)>} results"
   ::  3. Index: compute output ckeys, build keys/refs/builds
   ::
   =/  [new-keys=keys:nexus new-refs=refs:nexus builds=(map @uv built:nexus)]
-    ~>  %bout
+    ::  ~>  %bout.[1 %index-results]
     (index-results res lode src-ball)
   ::  4. Update bins: increment new refs, decrement old
   ::
-  =.  bins  ~>(%bout (refs-inc new-refs builds))
-  =.  bins  ~>(%bout (refs-dec old-refs))
+  ::  ~>(%bout.[1 %refs-inc] ...)
+  =.  bins  (refs-inc new-refs builds)
+  ::  ~>(%bout.[1 %refs-dec] ...)
+  =.  bins  (refs-dec old-refs)
   ::  5. GC vale cache: drop entries whose marc was removed
   ::
   =.  vale  (gc-vale-cache vale bins)
@@ -3798,7 +3815,7 @@
   ::  7. Validate marks: re-clam grubs through changed marks
   ::
   =^  new-refs  this
-    ~>  %bout
+    ::  ~>  %bout.[1 %validate-marks]
     (validate-marks cod old-refs new-refs)
   =.  code
     =/  upd=lode:nexus  (fall (~(get by code) cod) *lode:nexus)
@@ -3806,7 +3823,7 @@
   ::  8. Reload nexuses whose compiled code changed
   ::
   =.  this
-    ~>  %bout
+    ::  ~>  %bout.[1 %reload-changed-nexuses]
     (reload-changed-nexuses cod old-refs new-refs)
   ~&  >  "build-code: done"
   this
@@ -3924,14 +3941,20 @@
 ::
 ++  governed-files
   |=  cod=path
-  ^-  (list [=rail:tarball =sang:tarball])
+  ^-  (list [=rail:tarball =sang:tarball lob=lobe:clay])
   =/  dirs=(list [=fold:tarball =lump:tarball])  (governed-dirs cod)
   %-  zing
   %+  turn  dirs
   |=  [=fold:tarball =lump:tarball]
-  %+  turn  ~(tap by contents.lump)
+  %+  murn  ~(tap by contents.lump)
   |=  [name=@ta =sang:tarball gain=? bang=(unit tang)]
-  [[fold name] sang]
+  =/  sk=(unit hist:nexus)  (~(get bo:nexus now.bowl born) [fold name])
+  ?~  sk  ~
+  =/  top=(unit [key=cass:clay val=pace:hist:nexus])  (ram:hon:hist:nexus u.sk)
+  ?~  top  ~
+  ?:  ?=(%tomb -.val.u.top)  ~
+  ?~  p.val.u.top  ~
+  `[[fold name] sang u.p.val.u.top]
 ::  and clam all grubs with that mark through validate-vase.
 ::  On success, updates grubs in ball with clammed vases.
 ::  On failure, downgrades the mark to .tang in new-bin.
@@ -3959,7 +3982,7 @@
     ?~  entry  ~
     `[ckey [pax nam] built.u.entry]
   ::  Collect all governed files once (expensive tree walk)
-  =/  all-grubs=(list [=rail:tarball =sang:tarball])  (governed-files cod)
+  =/  all-grubs=(list [=rail:tarball =sang:tarball lob=lobe:clay])  (governed-files cod)
   ::  Process each changed mark
   =/  remaining=_changed  changed
   |-
@@ -3971,9 +3994,9 @@
   ?:  ?=(?(%hoon %tang %mime %kelvin) nam)
     $(remaining t.remaining)
   ::  Find all grubs with this mark
-  =/  grubs=(list [=rail:tarball =sang:tarball])
+  =/  grubs=(list [=rail:tarball =sang:tarball lob=lobe:clay])
     %+  skim  all-grubs
-    |=  [=rail:tarball =sang:tarball]
+    |=  [=rail:tarball =sang:tarball lob=lobe:clay]
     =(name.blot name.p.sang)
   ?~  grubs  $(remaining t.remaining)
   ::  Get marc, or skip if mark failed to compile
@@ -3985,15 +4008,13 @@
     ~&  >>  "validate-marks: {(trip nam)} marc failed"
     $(remaining t.remaining)
   ::  Validate each grub, threading state for cache
-  =/  grubs=(list [=rail:tarball =sang:tarball])  grubs
+  =/  grubs=(list [=rail:tarball =sang:tarball lob=lobe:clay])  grubs
   =/  [n-ok=@ud n-boom=@ud]  [0 0]
   =.  this
     |-
     ?~  grubs  this
-    =/  [=rail:tarball =sang:tarball]  i.grubs
+    =/  [=rail:tarball =sang:tarball lob=lobe:clay]  i.grubs
     =/  noun=*  (sang-noun:tarball sang)
-    ::  TODO: pass lobe instead of hashing noun
-    =/  lob=lobe:clay  (sham noun)
     =/  hit  (vale-hit lob ckey)
     =/  res=(each vase tang)
       ?^  hit
@@ -4429,12 +4450,10 @@
 ::
 ++  sync-bowl
   ^+  this
-  ::  seed /sys/bowl/ with save-file (proper silo entries + notify).
-  ::  no loop: explorer peeks at cass on news, not latest.
-  =.  this  (ensure-dir /sys/bowl)
-  =.  this  (save-file [/sys/bowl %our] [[/ %ship] %& !>(our.bowl)])
-  =.  this  (save-file [/sys/bowl %now] [[/ %time] %& !>(now.bowl)])
-  (save-file [/sys/bowl %eny] [[/ %entropy] %& !>(eny.bowl)])
+  ::  Bowl values are virtual — returned by peek-grub-now from +last,
+  ::  never persisted.
+  =.  last  [now=now.bowl eny=eny.bowl]
+  this
 ::
 ++  sync-peer
   ^+  this
@@ -4944,9 +4963,12 @@
       ==
     this
   ::  Record, propagate, notify — preserve existing gain flag
+  ::  ~&  >  [%save-file (snoc path.here name.here)]
   =/  old-born=born:nexus  born
   =/  file-gain=?  (lookup-gain here)
+  ::  ~>(%bout.[1 %save-record] ...)
   =.  this  (record here [p.new-content (sang-noun:tarball new-content)] file-gain ~)
+  ::  ~>(%bout.[1 %save-propagate] ...)
   =.  this  (propagate old-born here)
   ::  Rebuild if change is inside a code nexus
   =/  cod=(unit path)
