@@ -29,25 +29,27 @@
   ;<  st=tool-state:tools  bind:m  (get-state-as:io ,tool-state:tools)
   =/  ref=@t
     (~(dog jo:json-utils [%o args.st]) /account so:dejs:format)
-  ::  load account-store
-  ;<  as-seen=seen:nexus  bind:m
-    (peek:io [%& %& /apps/'wallet.wallet_app' %'accounts.wallet_accounts'] ~)
-  =/  acct-store=account-store
-    ?.  ?=([%& %file *] as-seen)  *account-store
-    (fall (mole |.(!<(account-store (need-vase:tarball sang.p.as-seen)))) *account-store)
-  ?.  (~(has by acct-store) ref)
-    (pure:m [%error 'Account not found'])
   ::  load labels
   ;<  lbl-seen=seen:nexus  bind:m
     (peek:io [%& %& /apps/'wallet.wallet_app' %'labels.wallet_labels'] ~)
   =/  lbls=labels:b329
     ?.  ?=([%& %file *] lbl-seen)  *labels:b329
     (fall (mole |.(!<(labels:b329 (need-vase:tarball sang.p.lbl-seen)))) *labels:b329)
+  ?.  (has-account:aio lbls ref)
+    (pure:m [%error 'Account not found'])
+  ::  load secrets for xprv derivation
+  ;<  ws-seen=seen:nexus  bind:m
+    (peek:io [%& %& /apps/'wallet.wallet_app' %'secrets.wallet_secrets'] ~)
+  =/  wstore=secrets
+    ?.  ?=([%& %file *] ws-seen)  *secrets
+    (fall (mole |.(!<(secrets (need-vase:tarball sang.p.ws-seen)))) *secrets)
   ::  extract account metadata from labels
   =/  network=network  (get-acct-network:aio lbls ref)
   =/  og=(unit parsed-origin:b329)  (get-acct-origin:aio lbls ref)
   =/  stype=script-type  (get-acct-script-type:aio lbls ref)
-  =/  xprv=@t  (fall (~(get by acct-store) ref) '')
+  =/  xprv=(unit @t)  (derive-xprv:aio lbls wstore ref)
+  ?~  xprv  (pure:m [%error 'Could not derive account key'])
+  =/  xprv=@t  u.xprv
   ::  get recv address list from labels via account origin
   =/  recv=(list [idx=@ud addr=@t])
     ?~  og  ~

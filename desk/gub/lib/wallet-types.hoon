@@ -5,7 +5,10 @@
 +$  seed  $%([%t phrase=@t] [%q secret=@q])
 +$  account  [purpose=seg coin-type=seg account=seg]
 +$  wallet-data  [=seed xpub=@t]
-+$  wallet-store  (map @t seed)
++$  secrets
+  $:  seeds=(map @t seed)       :: wallet xpub → seed
+      xprvs=(map @t @t)         :: account xpub → xprv
+  ==
 +$  script-type  ?(%p2pkh %p2sh-p2wpkh %p2wpkh %p2tr)
 ::  per-address fetched info from mempool.space
 ::
@@ -64,8 +67,6 @@
       idx=@ud
       gap=@ud
   ==
-::
-+$  account-store  (map @t @t)
 ::  process registry: main.sig's bookkeeping of active procs
 ::
 +$  proc-registry

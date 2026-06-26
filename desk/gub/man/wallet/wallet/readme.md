@@ -1,9 +1,5 @@
-# Wallet
+# Wallet Detail
 
-Individual Bitcoin wallet. Contains wallet data and rendered detail page.
+Per-wallet view. Shows accounts belonging to a wallet and provides account discovery.
 
-## Files
-
-- `main.wallet_wallet` — Wallet data + poke handler: name, seed, fingerprint, accounts.
-- `page.html` — Rendered wallet detail page.
-- `ver.ud` — Schema version.
+This is a route under the wallet app nexus, not a separate nexus. See `wallet/app/readme.md` for the full picture.

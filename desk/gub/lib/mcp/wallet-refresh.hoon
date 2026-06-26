@@ -35,20 +35,14 @@
   =/  idx-raw=@t
     (~(dug jo:json-utils [%o args.st]) /index so:dejs:format '0')
   =/  idx=@ud  (fall (rush idx-raw dem) 0)
-  ::  verify account exists via flat store
-  ;<  as-seen=seen:nexus  bind:m
-    (peek:io [%& %& /apps/'wallet.wallet_app' %'accounts.wallet_accounts'] ~)
-  =/  acct-store=account-store
-    ?.  ?=([%& %file *] as-seen)  *account-store
-    (fall (mole |.(!<(account-store (need-vase:tarball sang.p.as-seen)))) *account-store)
-  ?.  (~(has by acct-store) ref)
-    (pure:m [%error 'Account not found'])
   ::  load labels
   ;<  lbl-seen=seen:nexus  bind:m
     (peek:io [%& %& /apps/'wallet.wallet_app' %'labels.wallet_labels'] ~)
   =/  lbls=labels:b329
     ?.  ?=([%& %file *] lbl-seen)  *labels:b329
     (fall (mole |.(!<(labels:b329 (need-vase:tarball sang.p.lbl-seen)))) *labels:b329)
+  ?.  (has-account:aio lbls ref)
+    (pure:m [%error 'Account not found'])
   ::  extract network from labels
   =/  network=network  (get-acct-network:aio lbls ref)
   ::  generate uuid and build proc road

@@ -6,6 +6,7 @@
 ::
 /<  wt   /lib/wallet-types.hoon
 /<  bip32  /lib/bip32.hoon
+/<  bip39  /lib/bip39.hoon
 /<  bech32  /lib/bech32.hoon
 /<  drft  /lib/tx/draft.hoon
 /<  fees  /lib/tx/fees.hoon
@@ -21,6 +22,59 @@
 ::  +unix-to-da: convert unix seconds to @da
 ::
 ++  unix-to-da  |=(u=@ud (add ~1970.1.1 (mul u ~s1)))
+::  +has-account: check if an account ref exists in labels
+::
+++  has-account
+  |=  [=labels:b329 ref=@t]
+  ^-  ?
+  ?|  ?=(^ (get-acct-origin labels ref))
+      ?=(^ (~(read-kv la:b329 labels) %xpub ref 'gwbtc:account:'))
+  ==
+::  +derive-xprv: derive account xprv from secrets
+::  checks standalone xprvs first, then derives from wallet seed
+::
+++  derive-xprv
+  |=  [=labels:b329 =secrets ref=@t]
+  ^-  (unit @t)
+  ::  check standalone xprvs first
+  =/  standalone=(unit @t)  (~(get by xprvs.secrets) ref)
+  ?^  standalone  standalone
+  ::  try deriving from wallet seed
+  =/  og=(unit parsed-origin:b329)  (get-acct-origin labels ref)
+  ?~  og  ~
+  =/  =network  (get-acct-network labels ref)
+  =/  wallet-xpub=(unit @t)  (fp-to-xpub labels fingerprint.u.og)
+  ?~  wallet-xpub  ~
+  =/  sd=(unit seed)  (~(get by seeds.secrets) u.wallet-xpub)
+  ?~  sd  ~
+  =/  seed-bytes=byts
+    ?-  -.u.sd
+      %t  64^(to-seed:bip39 (trip phrase.u.sd) "")
+      %q  =/  val=@  `@`secret.u.sd  [(met 3 val) val]
+    ==
+  =/  master  (from-seed:bip32 seed-bytes)
+  =/  path-str=tape
+    %-  zing
+    :-  "m"
+    %+  turn  path.u.og
+    |=  s=seg
+    ^-  tape
+    %+  weld  "/"
+    %+  weld  (a-co:co q.s)
+    ?:(p.s "'" ~)
+  =/  derived  (derive-path:master path-str)
+  `(crip (prv-extended:derived (to-bip-network network)))
+::  +derive-key: get best available key for address derivation
+::  returns xprv if available, else the xpub ref (for watch-only)
+::
+++  derive-key
+  |=  [=labels:b329 =secrets ref=@t]
+  ^-  (unit @t)
+  =/  xprv=(unit @t)  (derive-xprv labels secrets ref)
+  ?^  xprv  xprv
+  ::  watch-only: use the xpub ref itself for public derivation
+  ?.  (has-account labels ref)  ~
+  `ref
 ::  +build-addr-data: enrich address list with info/utxos from labels
 ::
 ++  build-addr-data
@@ -48,6 +102,7 @@
     %p2sh-p2wpkh  ~
   ==
 ::  +label-derived-addr: add a BIP-329 addr label with origin for a derived address
+::  for standalone accounts (no origin), tags with gwbtc:derived-from:{ref}
 ::
 ++  label-derived-addr
   |=  $:  =labels:b329
@@ -56,11 +111,16 @@
           acct-og=(unit parsed-origin:b329)
           chain=@ud
           index=@ud
+          acct-ref=@t
       ==
   ^-  labels:b329
   =/  addr-og=(unit parsed-origin:b329)
     (bind acct-og |=(og=parsed-origin:b329 (addr-origin:b329 og chain index)))
-  (~(put la:b329 labels) [%addr addr lbl addr-og ~ ~])
+  =.  labels  (~(put la:b329 labels) [%addr addr lbl addr-og ~ ~])
+  ?.  ?=(~ acct-og)  labels
+  =/  chain-tag=@t  ?:(=(0 chain) 'recv' 'chng')
+  =/  df-lbl=@t  (rap 3 ~['gwbtc:derived-from:' acct-ref ':' chain-tag ':' (crip (a-co:co index))])
+  (~(put la:b329 labels) [%addr addr df-lbl ~ ~ ~])
 ::  +label-addr-info: write addr labels for mempool.space address info
 ::
 ++  label-addr-info
@@ -277,6 +337,39 @@
   ?:  =(0 chain)
     $(all t.all, recv [[idx addr] recv])
   $(all t.all, chng [[idx addr] chng])
+::  +read-standalone-addrs: find addresses for standalone accounts
+::  scans addr labels for gwbtc:derived-from:{ref}:{chain}:{idx}
+::
+++  read-standalone-addrs
+  |=  [=labels:b329 acct-ref=@t]
+  ^-  [recv=(list [idx=@ud addr=@t]) chng=(list [idx=@ud addr=@t])]
+  =/  prefix=tape  (trip (rap 3 ~['gwbtc:derived-from:' acct-ref ':']))
+  =/  prefix-len=@ud  (lent prefix)
+  =/  all=(list [@t (set label-entry:b329)])  ~(tap by addr.labels)
+  =/  recv=(list [idx=@ud addr=@t])  ~
+  =/  chng=(list [idx=@ud addr=@t])  ~
+  |-
+  ?~  all
+    :_  (sort chng |=([[a=@ud *] [b=@ud *]] (lth a b)))
+    (sort recv |=([[a=@ud *] [b=@ud *]] (lth a b)))
+  =/  [addr=@t entries=(set label-entry:b329)]  i.all
+  =/  el=(list label-entry:b329)  ~(tap in entries)
+  =/  found=(unit [chain=@t idx=@ud])
+    |-
+    ?~  el  ~
+    =/  ltape=tape  (trip label.i.el)
+    ?.  =(prefix (scag prefix-len ltape))
+      $(el t.el)
+    =/  suffix=tape  (slag prefix-len ltape)
+    =/  col=(unit @ud)  (find ":" suffix)
+    ?~  col  $(el t.el)
+    =/  chain=@t  (crip (scag u.col suffix))
+    =/  idx=@ud  (rash (crip (slag +(u.col) suffix)) dem)
+    `[chain idx]
+  ?~  found  $(all t.all)
+  ?:  =(chain.u.found 'recv')
+    $(all t.all, recv [[idx.u.found addr] recv])
+  $(all t.all, chng [[idx.u.found addr] chng])
 ::  +build-tx-map: reconstruct tx-map from labels for a set of addresses
 ::
 ++  build-tx-map
@@ -776,14 +869,22 @@
   ?~  entries  ~
   ?^  origin.i.entries  origin.i.entries
   $(entries t.entries)
-::  +get-acct-script-type: derive script-type from origin
+::  +get-acct-script-type: derive script-type from origin or label
 ::
 ++  get-acct-script-type
   |=  [=labels:b329 ref=@t]
   ^-  script-type
   =/  og=(unit parsed-origin:b329)  (get-acct-origin labels ref)
-  ?~  og  %p2wpkh
-  (from-descriptor:b329 type.u.og)
+  ?^  og  (from-descriptor:b329 type.u.og)
+  ::  standalone account: check gwbtc:script-type: label
+  =/  st=(unit @t)  (~(read-kv la:b329 labels) %xpub ref 'gwbtc:script-type:')
+  ?~  st  %p2wpkh
+  ?+  u.st  %p2wpkh
+    %p2pkh        %p2pkh
+    %p2sh-p2wpkh  %p2sh-p2wpkh
+    %p2wpkh       %p2wpkh
+    %p2tr         %p2tr
+  ==
 ::  +get-acct-wallet: derive wallet fingerprint from origin
 ::
 ++  get-acct-wallet
@@ -820,4 +921,21 @@
   =/  net-lbl=@t  (rap 3 ~['gwbtc:network:' ;;(@t network)])
   =.  labels  (~(put la:b329 labels) [%xpub ref name-lbl `og ~ ~])
   (~(put la:b329 labels) [%xpub ref net-lbl ~ ~ ~])
+::  +make-standalone-labels: create labels for a standalone account
+::  (no origin/parent wallet — watch-only or imported signing)
+::
+++  make-standalone-labels
+  |=  $:  =labels:b329
+          ref=@t
+          name=@t
+          =network
+          =script-type
+      ==
+  ^-  labels:b329
+  =/  name-lbl=@t  (rap 3 ~['gwbtc:account:' name])
+  =/  net-lbl=@t  (rap 3 ~['gwbtc:network:' ;;(@t network)])
+  =/  st-lbl=@t  (rap 3 ~['gwbtc:script-type:' ;;(@t script-type)])
+  =.  labels  (~(put la:b329 labels) [%xpub ref name-lbl ~ ~ ~])
+  =.  labels  (~(put la:b329 labels) [%xpub ref net-lbl ~ ~ ~])
+  (~(put la:b329 labels) [%xpub ref st-lbl ~ ~ ~])
 --

@@ -23,13 +23,13 @@
   ^-  tool-handler:tools
   =/  m  (fiber:fiber:nexus ,tool-result:tools)
   ^-  form:m
-  ::  read wallet store
-  ;<  store-seen=seen:nexus  bind:m
-    (peek:io [%& %& /apps/'wallet.wallet_app' %'wallets.wallet_wallets'] ~)
-  =/  store=wallet-store
-    ?.  ?=([%& %file *] store-seen)  *wallet-store
-    (fall (mole |.(!<(wallet-store (need-vase:tarball sang.p.store-seen)))) *wallet-store)
-  =/  fps=(list @t)  (turn ~(tap by store) |=([xp=@t *] xp))
+  ::  read secrets
+  ;<  sec-seen=seen:nexus  bind:m
+    (peek:io [%& %& /apps/'wallet.wallet_app' %'secrets.wallet_secrets'] ~)
+  =/  sec=secrets
+    ?.  ?=([%& %file *] sec-seen)  *secrets
+    (fall (mole |.(!<(secrets (need-vase:tarball sang.p.sec-seen)))) *secrets)
+  =/  fps=(list @t)  (turn ~(tap by seeds.sec) |=([xp=@t *] xp))
   ?~  fps
     (pure:m [%text 'No wallets found.'])
   ::  read labels
@@ -38,18 +38,39 @@
   =/  lbls=labels:b329
     ?.  ?=([%& %file *] lbl-seen)  *labels:b329
     (fall (mole |.(!<(labels:b329 (need-vase:tarball sang.p.lbl-seen)))) *labels:b329)
-  ::  read account-store
-  ;<  store-seen2=seen:nexus  bind:m
-    (peek:io [%& %& /apps/'wallet.wallet_app' %'accounts.wallet_accounts'] ~)
-  =/  acct-store=account-store
-    ?.  ?=([%& %file *] store-seen2)  *account-store
-    (fall (mole |.(!<(account-store (need-vase:tarball sang.p.store-seen2)))) *account-store)
-  =/  accts=(list [key=@ta ref=@t])
-    %+  turn  ~(tap by acct-store)
+  ::  enumerate all accounts from labels (xpub entries with account name)
+  =/  all-refs=(list @t)
+    %+  murn  ~(tap by xpub.lbls)
     |=  [ref=@t *]
-    [(crip (trip ref)) ref]
-  ::  format output
-  =/  out=wain
+    ^-  (unit @t)
+    ?.  (has-account:aio lbls ref)  ~
+    `ref
+  ::  split into wallet-derived and standalone
+  =/  wallet-accts=(list @t)
+    (skim all-refs |=(ref=@t ?=(^ (get-acct-origin:aio lbls ref))))
+  =/  standalone-accts=(list @t)
+    (skip all-refs |=(ref=@t ?=(^ (get-acct-origin:aio lbls ref))))
+  ::  helper: format one account
+  =/  fmt-acct
+    |=  ref=@t
+    ^-  wain
+    =/  network=network  (get-acct-network:aio lbls ref)
+    =/  stype=script-type  (get-acct-script-type:aio lbls ref)
+    =/  xprv=@t  (fall (derive-xprv:aio lbls sec ref) '')
+    =/  acct-name=@t  (get-acct-name:aio lbls ref)
+    =/  mode=@t
+      ?:  !=('' xprv)  'signing'
+      'watch-only'
+    :~  (rap 3 ~['  account: ' ref])
+        (rap 3 ~['    name: ' acct-name])
+        (rap 3 ~['    network: ' (scot %tas network)])
+        (rap 3 ~['    script: ' (scot %tas stype)])
+        (rap 3 ~['    mode: ' mode])
+        ?:  =('' xprv)  '    xprv: (none)'
+        (rap 3 ~['    xprv: ' (end [3 12] xprv) '...'])
+    ==
+  ::  format wallet sections
+  =/  wallet-out=wain
     %-  zing
     %+  turn  fps
     |=  xpub=@t
@@ -59,35 +80,18 @@
       (fall (mole |.(fingerprint:(from-extended:bip32 (trip xpub)))) 0x0)
     =/  header=@t
       (rap 3 ~['wallet: ' wal-name ' (xpub: ' (end [3 12] xpub) '...)'])
-    =/  wal-accts=(list [key=@ta ref=@t])
-      %+  skim  accts
-      |=  [* ref=@t]
-      ::  check if this ref's origin fingerprint matches this wallet
+    =/  wal-refs=(list @t)
+      %+  skim  wallet-accts
+      |=  ref=@t
       =/  og=(unit parsed-origin:b329)  (get-acct-origin:aio lbls ref)
-      =/  ref-fp=@ux
-        ?~  og  0x0
-        fingerprint.u.og
-      =(ref-fp fp)
-    ?~  wal-accts
+      ?~  og  %.n
+      =(fingerprint.u.og fp)
+    ?~  wal-refs
       ~[header '  (no accounts)' '']
-    =/  acct-lines=wain
-      %-  zing
-      %+  turn  wal-accts
-      |=  [key=@ta ref=@t]
-      ^-  wain
-      =/  short-key=@ta
-        =/  parts=(list @t)  (rash key (more dot (cook crip (star ;~(less dot prn)))))
-        ?~(parts key i.parts)
-      ::  look up network and script-type from labels
-      =/  network=network  (get-acct-network:aio lbls ref)
-      =/  stype=script-type  (get-acct-script-type:aio lbls ref)
-      ::  look up xprv
-      =/  xprv=@t  (fall (~(get by acct-store) ref) '')
-      :~  (rap 3 ~['  account: ' short-key])
-          (rap 3 ~['    network: ' (scot %tas network)])
-          (rap 3 ~['    script: ' (scot %tas stype)])
-          (rap 3 ~['    xprv: ' (end [3 12] xprv) '...'])
-      ==
-    [header acct-lines]
-  (pure:m [%text (of-wain:format out)])
+    [header (zing (turn wal-refs fmt-acct))]
+  ::  format standalone section
+  =/  standalone-out=wain
+    ?~  standalone-accts  ~
+    ['standalone accounts:' (zing (turn standalone-accts fmt-acct))]
+  (pure:m [%text (of-wain:format (weld wallet-out standalone-out))])
 --

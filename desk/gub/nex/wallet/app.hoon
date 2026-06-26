@@ -17,7 +17,7 @@
 /<  det-ui        /lib/wallet/detail-ui.hoon
 /<  drft          /lib/tx/draft.hoon
 /<  b329          /lib/bip329.hoon
-/&  man  ../../man/wallet/app/readme.md
+/&  man           /man/wallet/app/readme.md
 =,  wt
 =<  ^-  nexus:nexus
     |%
@@ -40,26 +40,24 @@
           =.  l  (~(put la:b329 l) [%xpub mxpub2 (rap 3 ~['gwbtc:wallet:' 'Fauceted Wallet']) ~ ~ ~])
           =.  l  (make-acct-labels:aio l ref1 'Default' net1 og1)
           =.  l  (make-acct-labels:aio l ref2 'Default' net2 og2)
-          =.  l  ?~(addr1 l (label-derived-addr:aio l u.addr1 '' `og1 0 0))
-          ?~(addr2 l (label-derived-addr:aio l u.addr2 '' `og2 0 0))
-        =/  init-store=wallet-store
-          %-  ~(gas by *wallet-store)
-          ~[[xpub.wal seed.wal] [xpub.fau-wal seed.fau-wal]]
-        =/  init-accts=account-store
-          %-  ~(gas by *account-store)
-          ~[[ref1 xprv1] [ref2 xprv2]]
+          =.  l  ?~(addr1 l (label-derived-addr:aio l u.addr1 '' `og1 0 0 ref1))
+          ?~(addr2 l (label-derived-addr:aio l u.addr2 '' `og2 0 0 ref2))
+        =/  init-sec=secrets
+          :*  %-  ~(gas by *(map @t seed))
+              ~[[xpub.wal seed.wal] [xpub.fau-wal seed.fau-wal]]
+              *(map @t @t)
+          ==
         %+  spin:loader  ball
         :~  (ver-row:loader 0)
             [%over %& [/ %'main.sig'] [[/ %sig] ~]]
             [%fall %& [/ %'labels.wallet_labels'] [[/wallet %labels] init-lbls]]
-            [%fall %& [/ %'wallets.wallet_wallets'] [[/wallet %wallets] init-store]]
-            [%fall %& [/ %'accounts.wallet_accounts'] [[/wallet %accounts] init-accts]]
+            [%fall %& [/ %'secrets.wallet_secrets'] [[/wallet %secrets] init-sec]]
             [%fall %& [/ %'drafts.wallet_drafts'] [[/wallet %drafts] *(map @t transaction:drft)]]
             [%fall %& [/ %'registry.wallet_registry'] [[/wallet %registry] *proc-registry]]
             [%fall %| /proc empty-dir:loader]
             [%fall %& [/ui %'http.sig'] [[/ %sig] ~]]
             [%fall %| /ui/requests empty-dir:loader]
-            [%over %& [/man %'readme.md'] [[/ %mime] man]]
+            [%over %& [/ %'README.md'] [[/ %mime] man]]
         ==
       ==
     ::
@@ -110,8 +108,8 @@
               `[%t seed-phrase]
             ?~  sd  $
             =/  xpub=@t  (seed-to-xpub:h u.sd)
-            ;<  store=wallet-store  bind:m  load-wallets:h
-            ;<  ~  bind:m  (save-wallets:h (~(put by store) xpub u.sd))
+            ;<  sec=secrets  bind:m  load-secrets:h
+            ;<  ~  bind:m  (save-secrets:h sec(seeds (~(put by seeds.sec) xpub u.sd)))
             ;<  lbls=labels:b329  bind:m  load-labels:h
             =/  new-lbls=labels:b329
               (~(put la:b329 lbls) [%xpub xpub (rap 3 ~['gwbtc:wallet:' wallet-name]) ~ ~ ~])
@@ -124,8 +122,8 @@
             =/  seed-phrase=cord
               (gen-seed:seed-phrases eny %128)
             =/  xpub=@t  (seed-to-xpub:h [%t seed-phrase])
-            ;<  store=wallet-store  bind:m  load-wallets:h
-            ;<  ~  bind:m  (save-wallets:h (~(put by store) xpub [%t seed-phrase]))
+            ;<  sec=secrets  bind:m  load-secrets:h
+            ;<  ~  bind:m  (save-secrets:h sec(seeds (~(put by seeds.sec) xpub [%t seed-phrase])))
             ;<  lbls=labels:b329  bind:m  load-labels:h
             =/  new-lbls=labels:b329
               (~(put la:b329 lbls) [%xpub xpub (rap 3 ~['gwbtc:wallet:' wallet-name]) ~ ~ ~])
@@ -134,14 +132,14 @@
               %'remove-wallet'
             =/  pubkey=@t
               (~(dog jo:json-utils jon) /pubkey so:dejs:format)
-            ;<  store=wallet-store  bind:m  load-wallets:h
-            ;<  ~  bind:m  (save-wallets:h (~(del by store) pubkey))
+            ;<  sec=secrets  bind:m  load-secrets:h
+            ;<  ~  bind:m  (save-secrets:h sec(seeds (~(del by seeds.sec) pubkey)))
             $
               %'add-account'
             =/  wallet-xpub=@t
               (~(dog jo:json-utils jon) /wallet-key so:dejs:format)
-            ;<  store=wallet-store  bind:m  load-wallets:h
-            =/  sd=(unit seed)  (~(get by store) wallet-xpub)
+            ;<  sec=secrets  bind:m  load-secrets:h
+            =/  sd=(unit seed)  (~(get by seeds.sec) wallet-xpub)
             ?~  sd
               ~&  >>>  [%wallet %add-account %wallet-not-found]
               $
@@ -172,9 +170,6 @@
             =/  acct-ref=@t  (crip (pub-extended:derived (to-bip-network:wt network)))
             =/  og=parsed-origin:b329
               [(to-descriptor:b329 script-type) fingerprint:master ~[[%.y purpose] [%.y coin-type] [%.y account-idx]]]
-            ::  write to account store
-            ;<  acct-store=account-store  bind:m  load-accounts:h
-            ;<  ~  bind:m  (save-accounts:h (~(put by acct-store) acct-ref xprv))
             ::  write account labels
             ;<  lbls=labels:b329  bind:m  load-labels:h
             ;<  ~  bind:m  (save-labels:h (make-acct-labels:aio lbls acct-ref account-name network og))
@@ -182,12 +177,86 @@
               %'remove-account'
             =/  acct-ref=@t
               (~(dog jo:json-utils jon) /account-key so:dejs:format)
-            ::  remove from account store
-            ;<  acct-store=account-store  bind:m  load-accounts:h
-            ;<  ~  bind:m  (save-accounts:h (~(del by acct-store) acct-ref))
-            ::  remove account labels
+            ::  remove account labels + secrets entry if any
             ;<  lbls=labels:b329  bind:m  load-labels:h
             ;<  ~  bind:m  (save-labels:h (~(del-all la:b329 lbls) %xpub acct-ref))
+            ;<  sec=secrets  bind:m  load-secrets:h
+            ?:  (~(has by xprvs.sec) acct-ref)
+              ;<  ~  bind:m  (save-secrets:h sec(xprvs (~(del by xprvs.sec) acct-ref)))
+              $
+            $
+              %'add-watch-only'
+            =/  account-name=@t
+              (~(dog jo:json-utils jon) /account-name so:dejs:format)
+            =/  xpub=@t
+              (~(dog jo:json-utils jon) /xpub so:dejs:format)
+            =/  xpub-tape=tape  (trip xpub)
+            ?.  ?|  =((scag 4 xpub-tape) "xpub")
+                    =((scag 4 xpub-tape) "tpub")
+                ==
+              ~&  >>>  [%wallet %add-watch-only %invalid-prefix]
+              $
+            =/  script-type-str=@t
+              (~(dug jo:json-utils jon) /script-type so:dejs:format 'p2wpkh')
+            =/  =script-type
+              ?+  script-type-str  %p2wpkh
+                %p2pkh        %p2pkh
+                %p2sh-p2wpkh  %p2sh-p2wpkh
+                %p2wpkh       %p2wpkh
+                %p2tr         %p2tr
+              ==
+            =/  network-str=@t
+              (~(dug jo:json-utils jon) /network so:dejs:format 'testnet3')
+            =/  =network:wt
+              ?+  network-str  %testnet3
+                %main      %main
+                %testnet3  %testnet3
+                %testnet4  %testnet4
+                %signet    %signet
+                %regtest   %regtest
+              ==
+            ;<  lbls=labels:b329  bind:m  load-labels:h
+            ;<  ~  bind:m
+              (save-labels:h (make-standalone-labels:aio lbls xpub account-name network script-type))
+            $
+              %'add-signing'
+            =/  account-name=@t
+              (~(dog jo:json-utils jon) /account-name so:dejs:format)
+            =/  xprv=@t
+              (~(dog jo:json-utils jon) /xprv so:dejs:format)
+            =/  xprv-tape=tape  (trip xprv)
+            ?.  ?|  =((scag 4 xprv-tape) "xprv")
+                    =((scag 4 xprv-tape) "tprv")
+                ==
+              ~&  >>>  [%wallet %add-signing %invalid-prefix]
+              $
+            =/  derived  (from-extended:bip32 xprv-tape)
+            =/  script-type-str=@t
+              (~(dug jo:json-utils jon) /script-type so:dejs:format 'p2wpkh')
+            =/  =script-type
+              ?+  script-type-str  %p2wpkh
+                %p2pkh        %p2pkh
+                %p2sh-p2wpkh  %p2sh-p2wpkh
+                %p2wpkh       %p2wpkh
+                %p2tr         %p2tr
+              ==
+            =/  network-str=@t
+              (~(dug jo:json-utils jon) /network so:dejs:format 'testnet3')
+            =/  =network:wt
+              ?+  network-str  %testnet3
+                %main      %main
+                %testnet3  %testnet3
+                %testnet4  %testnet4
+                %signet    %signet
+                %regtest   %regtest
+              ==
+            =/  acct-xpub=@t
+              (crip (pub-extended:derived (to-bip-network:wt network)))
+            ;<  lbls=labels:b329  bind:m  load-labels:h
+            ;<  ~  bind:m
+              (save-labels:h (make-standalone-labels:aio lbls acct-xpub account-name network script-type))
+            ;<  sec=secrets  bind:m  load-secrets:h
+            ;<  ~  bind:m  (save-secrets:h sec(xprvs (~(put by xprvs.sec) acct-xpub xprv)))
             $
               %'discover-accounts'
             =/  wallet-xpub=@t
@@ -237,8 +306,11 @@
               ~&  >>>  [%wallet %address-request %no-simple-account]
               $
             =/  acct-ref=@t  u.sa
-            ;<  acct-store=account-store  bind:m  load-accounts:h
-            =/  xprv=@t  (~(got by acct-store) acct-ref)
+            ;<  wstore=secrets  bind:m  load-secrets:h
+            =/  xprv=(unit @t)  (derive-xprv:aio lbls wstore acct-ref)
+            ?~  xprv
+              ~&  >>>  [%wallet %address-request %no-xprv]
+              $
             =/  network=network:wt  (get-acct-network:aio lbls acct-ref)
             =/  stype=script-type  (get-acct-script-type:aio lbls acct-ref)
             =/  acct-og=(unit parsed-origin:b329)  (get-acct-origin:aio lbls acct-ref)
@@ -246,9 +318,9 @@
               ?~  acct-og  ~
               recv:(read-account-addrs:aio lbls u.acct-og)
             =/  offer-idx=@ud
-              (get-next-offer-index:aio recv-addrs lbls xprv)
+              (get-next-offer-index:aio recv-addrs lbls u.xprv)
             =/  addr=(unit @t)
-              (derive-addr:aio xprv stype network 0 offer-idx)
+              (derive-addr:aio u.xprv stype network 0 offer-idx)
             ?~  addr
               ~&  >>>  [%wallet %address-request %derivation-failed]
               $
@@ -256,9 +328,9 @@
             =/  lbl=@t  (rap 3 ~['gwbtc:offered:to:' (scot %p u.src)])
             =/  acct-og=(unit parsed-origin:b329)  (get-acct-origin:aio lbls acct-ref)
             =/  new-lbls=labels:b329
-              (label-derived-addr:aio lbls u.addr lbl acct-og 0 offer-idx)
+              (label-derived-addr:aio lbls u.addr lbl acct-og 0 offer-idx acct-ref)
             =/  new-lbls=labels:b329
-              (set-last-offered:aio new-lbls xprv offer-idx)
+              (set-last-offered:aio new-lbls u.xprv offer-idx)
             ;<  ~  bind:m  (save-labels:h new-lbls)
             ::  poke back with address-offer
             =/  offer-jon=json
@@ -329,8 +401,7 @@
             =/  acct-ref=@t
               (~(dog jo:json-utils jon) /account so:dejs:format)
             ;<  ra-lbls=labels:b329  bind:m  load-labels:h
-            ;<  ra-store=account-store  bind:m  load-accounts:h
-            ?.  (~(has by ra-store) acct-ref)
+            ?.  (has-account:aio ra-lbls acct-ref)
               ~&  >>>  [%wallet %refresh-account %not-found acct-ref]
               $
             =/  net  (get-acct-network:aio ra-lbls acct-ref)
@@ -405,10 +476,10 @@
           |=(s=@ta =('' s))
         ::  route: / → wallet list page
         ?~  suffix
-          ;<  store=wallet-store  bind:m  load-wallets:h
+          ;<  sec=secrets  bind:m  load-secrets:h
           ;<  lbls=labels:b329  bind:m  load-labels:h
-          =/  wals=(list wallet-data)  (store-to-list:h store)
-          ;<  ~  bind:m  (send-html:h eyre-id (wallet-page:h nexus-root wals lbls))
+          =/  wals=(list wallet-data)  (secrets-to-wallets:h sec)
+          ;<  ~  bind:m  (send-html:h eyre-id (wallet-page:h nexus-root wals lbls sec))
           (pure:m ~)
         ::  route: /simple → simple wallet page
         ?:  ?=([%simple ~] suffix)
@@ -425,12 +496,8 @@
               =/  [* * ref-m=@t xprv-m=@t net-m=network:wt st-m=script-type og-m=parsed-origin:b329 addr-m=(unit @t)]
                 (make-dev-wallet:h 'My Wallet' [%t seed-phrase] %main)
               =/  wal=wallet-data  wal-t
-              ;<  store=wallet-store  bind:m  load-wallets:h
-              ;<  ~  bind:m  (save-wallets:h (~(put by store) xpub.wal seed.wal))
-              ::  save account-store entries
-              ;<  acct-store=account-store  bind:m  load-accounts:h
-              =/  acct-store  (~(gas by acct-store) ~[[ref-t xprv-t] [ref-m xprv-m]])
-              ;<  ~  bind:m  (save-accounts:h acct-store)
+              ;<  sec=secrets  bind:m  load-secrets:h
+              ;<  ~  bind:m  (save-secrets:h sec(seeds (~(put by seeds.sec) xpub.wal seed.wal)))
               ::  save labels
               =/  new-lbls=labels:b329  (set-simple-wallet:h lbls mxpub)
               =/  new-lbls=labels:b329
@@ -439,10 +506,10 @@
               =/  new-lbls=labels:b329  (make-acct-labels:aio new-lbls ref-m 'Default' net-m og-m)
               =/  new-lbls=labels:b329
                 ?~  addr-t  new-lbls
-                (label-derived-addr:aio new-lbls u.addr-t '' `og-t 0 0)
+                (label-derived-addr:aio new-lbls u.addr-t '' `og-t 0 0 ref-t)
               =/  new-lbls=labels:b329
                 ?~  addr-m  new-lbls
-                (label-derived-addr:aio new-lbls u.addr-m '' `og-m 0 0)
+                (label-derived-addr:aio new-lbls u.addr-m '' `og-m 0 0 ref-m)
               ;<  ~  bind:m  (save-labels:h new-lbls)
               ;<  ~  bind:m
                 (send-html:h eyre-id (simple-page:simp ~ '' ~ ~ ~ *tx-map post-url %.n ~["testnet3" "main"] 2 ~))
@@ -463,8 +530,6 @@
               (pure:m ~)
             =/  fee-rate=@ud  (get-simple-fee:h lbls u.acct-ref)
             =/  network=network:wt  (get-acct-network:aio lbls u.acct-ref)
-            ;<  acct-store=account-store  bind:m  load-accounts:h
-            =/  xprv=@t  (~(got by acct-store) u.acct-ref)
             =/  stype=script-type  (get-acct-script-type:aio lbls u.acct-ref)
             =/  [recv=(list [@ud address-data]) chng=(list [@ud address-data])]
               (load-recv-chng:h lbls u.acct-ref)
@@ -489,8 +554,11 @@
               (pure:m ~)
             =/  acct-ref=@t  u.sa
             =/  network=network:wt  (get-acct-network:aio lbls acct-ref)
-            ;<  acct-store=account-store  bind:m  load-accounts:h
-            =/  xprv=@t  (~(got by acct-store) acct-ref)
+            ;<  wstore=secrets  bind:m  load-secrets:h
+            =/  xprv=(unit @t)  (derive-xprv:aio lbls wstore acct-ref)
+            ?~  xprv
+              ;<  ~  bind:m  (send-simple:srv:h eyre-id [[400 ~] `(as-octs:mimes:html 'Cannot derive key')])
+              (pure:m ~)
             =/  stype=script-type  (get-acct-script-type:aio lbls acct-ref)
             =/  recv=(list [@ud address-data])
               recv:(load-recv-chng:h lbls acct-ref)
@@ -504,7 +572,7 @@
               ?:  =(0 tx-count.u.info.dat)  lidx
               $(recv t.recv)
             ::  verify against mempool, advance if used
-            (verify-receive-addr:h xprv stype network recv candidate-idx eyre-id)
+            (verify-receive-addr:h u.xprv stype network recv candidate-idx eyre-id)
               %'toggle-saved'
             ;<  lbls=labels:b329  bind:m  load-labels:h
             =/  xpub=(unit @t)  (get-simple-xpub:h lbls)
@@ -688,8 +756,12 @@
               (pure:m ~)
             =/  acct-ref=@t  u.sa
             =/  network=network:wt  (get-acct-network:aio lbls acct-ref)
-            ;<  acct-store=account-store  bind:m  load-accounts:h
-            =/  xprv=@t  (~(got by acct-store) acct-ref)
+            ;<  wstore=secrets  bind:m  load-secrets:h
+            =/  xprv=(unit @t)  (derive-xprv:aio lbls wstore acct-ref)
+            ?~  xprv
+              ;<  ~  bind:m
+                (send-simple:srv:h eyre-id [[400 ~] `(as-octs:mimes:html 'Cannot derive key')])
+              (pure:m ~)
             =/  stype=script-type  (get-acct-script-type:aio lbls acct-ref)
             ::  find unused change address from labels, or derive one
             =/  chng=(list [@ud address-data])
@@ -708,7 +780,7 @@
                 +(-:(rear chng))
               %-  need
               %:  derive-addr:aio
-                xprv
+                u.xprv
                 stype
                 network
                 1  next-idx
@@ -762,8 +834,8 @@
             ;<  ~  bind:m  (send-simple:srv:h eyre-id [[200 ~] `(as-octs:mimes:html 'ok')])
             (pure:m ~)
           ::  GET → render wallet detail page
-          ;<  store=wallet-store  bind:m  load-wallets:h
-          =/  sd=(unit seed)  (~(get by store) wallet-xpub)
+          ;<  sec=secrets  bind:m  load-secrets:h
+          =/  sd=(unit seed)  (~(get by seeds.sec) wallet-xpub)
           ?~  sd
             ;<  ~  bind:m  (send-simple:srv:h eyre-id [[404 ~] `(as-octs:mimes:html 'Wallet not found')])
             (pure:m ~)
@@ -781,42 +853,47 @@
           =/  acct-key=@ta  (cat 3 i.t.suffix '.wallet_account')
           =/  acct-ref=@t  (acct-ref-from-key:h acct-key)
           ;<  lbls=labels:b329  bind:m  load-labels:h
-          ;<  acct-store=account-store  bind:m  load-accounts:h
-          ?.  (~(has by acct-store) acct-ref)
+          ?.  (has-account:aio lbls acct-ref)
             ;<  ~  bind:m  (send-simple:srv:h eyre-id [[404 ~] `(as-octs:mimes:html 'Account not found')])
             (pure:m ~)
           =/  network=network:wt  (get-acct-network:aio lbls acct-ref)
           =/  stype=script-type  (get-acct-script-type:aio lbls acct-ref)
-          =/  fp=@ux  (get-acct-wallet:aio lbls acct-ref)
-          =/  wallet-xpub=@t  (need (fp-to-xpub:aio lbls fp))
+          =/  og=(unit parsed-origin:b329)  (get-acct-origin:aio lbls acct-ref)
+          =/  wallet-xpub=@t
+            ?~  og  ''
+            =/  fp=@ux  fingerprint.u.og
+            (fall (fp-to-xpub:aio lbls fp) '')
           =/  acct-name=@t  (get-acct-name:aio lbls acct-ref)
           =/  [recv=(list [@ud address-data]) chng=(list [@ud address-data])]
             (load-recv-chng:h lbls acct-ref)
           ;<  now=@da  bind:m  get-time:io
           ;<  [scan=?(%active %paused %none) progress=(unit scan-progress:acct-ui)]  bind:m
             (load-scan-state:h acct-ref)
-          =/  wal-name=@t  (get-wallet-name:aio lbls wallet-xpub)
-          ;<  ~  bind:m  (send-html:h eyre-id (detail-page:acct-ui acct-name (trip acct-ref) wallet-xpub network stype recv chng now scan progress ~ wal-name))
+          =/  wal-name=@t  ?:(=('' wallet-xpub) '' (get-wallet-name:aio lbls wallet-xpub))
+          ;<  sec=secrets  bind:m  load-secrets:h
+          =/  can-sign=?  ?|(?=(^ og) (~(has by xprvs.sec) acct-ref))
+          ;<  ~  bind:m  (send-html:h eyre-id (detail-page:acct-ui acct-name (trip acct-ref) wallet-xpub network stype recv chng now scan progress ~ wal-name can-sign))
           (pure:m ~)
         ::  route: /a/<account-key>/send → send page
         ?:  ?=([%a @ %send ~] suffix)
           =/  acct-key=@ta  (cat 3 i.t.suffix '.wallet_account')
           =/  acct-ref=@t  (acct-ref-from-key:h acct-key)
           ;<  lbls=labels:b329  bind:m  load-labels:h
-          ;<  acct-store=account-store  bind:m  load-accounts:h
-          ?.  (~(has by acct-store) acct-ref)
+          ?.  (has-account:aio lbls acct-ref)
             ;<  ~  bind:m  (send-simple:srv:h eyre-id [[404 ~] `(as-octs:mimes:html 'Account not found')])
             (pure:m ~)
           =/  network=network:wt  (get-acct-network:aio lbls acct-ref)
           =/  stype=script-type  (get-acct-script-type:aio lbls acct-ref)
-          =/  fp=@ux  (get-acct-wallet:aio lbls acct-ref)
-          =/  wallet-xpub=@t  (need (fp-to-xpub:aio lbls fp))
+          =/  og=(unit parsed-origin:b329)  (get-acct-origin:aio lbls acct-ref)
+          =/  wallet-xpub=@t
+            ?~  og  ''
+            (fall (fp-to-xpub:aio lbls fingerprint.u.og) '')
           =/  acct-name=@t  (get-acct-name:aio lbls acct-ref)
           =/  [recv=(list [@ud address-data]) chng=(list [@ud address-data])]
             (load-recv-chng:h lbls acct-ref)
           ;<  now=@da  bind:m  get-time:io
           ;<  dr=(unit transaction:drft)  bind:m  (load-draft:h acct-ref)
-          =/  wal-name=@t  (get-wallet-name:aio lbls wallet-xpub)
+          =/  wal-name=@t  ?:(=('' wallet-xpub) '' (get-wallet-name:aio lbls wallet-xpub))
           ;<  ~  bind:m  (send-html:h eyre-id (send-page:acct-ui acct-name (trip acct-ref) network stype recv chng dr now wal-name))
           (pure:m ~)
         ::  route: /a/<account-key>/send/stream → SSE for send page
@@ -842,8 +919,7 @@
           =/  idx-ta=@ta  i.t.t.t.t.suffix
           =/  acct-ref=@t  (acct-ref-from-key:h acct-key)
           ;<  lbls=labels:b329  bind:m  load-labels:h
-          ;<  acct-store=account-store  bind:m  load-accounts:h
-          ?.  (~(has by acct-store) acct-ref)
+          ?.  (has-account:aio lbls acct-ref)
             ;<  ~  bind:m  (send-simple:srv:h eyre-id [[404 ~] `(as-octs:mimes:html 'Account not found')])
             (pure:m ~)
           =/  network=network:wt  (get-acct-network:aio lbls acct-ref)
@@ -871,8 +947,7 @@
           =/  txid=@ta  i.t.t.t.suffix
           =/  acct-ref=@t  (acct-ref-from-key:h acct-key)
           ;<  lbls=labels:b329  bind:m  load-labels:h
-          ;<  acct-store=account-store  bind:m  load-accounts:h
-          ?.  (~(has by acct-store) acct-ref)
+          ?.  (has-account:aio lbls acct-ref)
             ;<  ~  bind:m  (send-simple:srv:h eyre-id [[404 ~] `(as-octs:mimes:html 'Account not found')])
             (pure:m ~)
           =/  network=network:wt  (get-acct-network:aio lbls acct-ref)
@@ -945,8 +1020,7 @@
   =/  acct-ref=@t
     (~(dog jo:json-utils prev) /account so:dejs:format)
   ;<  lbls=labels:b329  bind:m  load-labels
-  ;<  acct-store=account-store  bind:m  load-accounts
-  ?.  (~(has by acct-store) acct-ref)  (pure:m ~)
+  ?.  (has-account:aio lbls acct-ref)  (pure:m ~)
   =/  network=network:wt  (get-acct-network:aio lbls acct-ref)
   =/  progress=scan-progress:aio  (parse-scan-progress:aio prev)
   =/  main-road=road:tarball  (nex-road [%& ~ %'main.sig'])
@@ -1148,8 +1222,8 @@
   =/  fp=@ux  (slav %ux fp-key)
   =/  wxpub=@t
     (~(dog jo:json-utils prev) /wallet-xpub so:dejs:format)
-  ;<  store=wallet-store  bind:m  load-wallets
-  =/  sd=(unit seed)  (~(get by store) wxpub)
+  ;<  sec=secrets  bind:m  load-secrets
+  =/  sd=(unit seed)  (~(get by seeds.sec) wxpub)
   ?~  sd  (pure:m ~)
   =/  wal=wallet-data  [u.sd wxpub]
   =/  purpose=@ud
@@ -1208,9 +1282,6 @@
   =/  acct-ref=@t  (crip (pub-extended:derived (to-bip-network:wt network)))
   =/  og=parsed-origin:b329
     [(to-descriptor:b329 script-type) fingerprint:(from-extended:bip32 (trip xpub.wal)) ~[[%.y purpose] [%.y coin-type] [%.y account-idx]]]
-  ::  write to account-store
-  ;<  cur-store=account-store  bind:m  load-accounts
-  ;<  ~  bind:m  (save-accounts (~(put by cur-store) acct-ref xprv))
   ::  write labels
   ;<  cur-lbls=labels:b329  bind:m  load-labels
   =/  new-lbls=labels:b329  (make-acct-labels:aio cur-lbls acct-ref acct-name network og)
@@ -1245,12 +1316,14 @@
   ?.  ?=([%o *] jon)  (pure:m ~)
   =/  act=@t  (~(dug jo:json-utils jon) /action so:dejs:format '')
   ;<  lbls=labels:b329  bind:m  load-labels
-  ;<  acct-store=account-store  bind:m  load-accounts
-  =/  xprv=@t  (~(got by acct-store) acct-ref)
+  ;<  wstore=secrets  bind:m  load-secrets
+  =/  xprv=(unit @t)  (derive-xprv:aio lbls wstore acct-ref)
+  =/  dkey=(unit @t)  (derive-key:aio lbls wstore acct-ref)
   =/  network=network:wt  (get-acct-network:aio lbls acct-ref)
   =/  stype=script-type  (get-acct-script-type:aio lbls acct-ref)
   ?+    act  (pure:m ~)
       %'derive-address'
+    ?~  dkey  (pure:m ~)
     =/  chain=@t
       (~(dug jo:json-utils jon) /chain so:dejs:format 'receiving')
     =/  is-change=?  =(chain 'change')
@@ -1258,7 +1331,7 @@
     =/  idx=@ud
       (~(dug jo:json-utils jon) /index ni:dejs:format 0)
     =/  new-addr=(unit @t)
-      (derive-addr:aio xprv stype network ?:(is-change 1 0) idx)
+      (derive-addr:aio u.dkey stype network ?:(is-change 1 0) idx)
     ?~  new-addr
       ~&  >>>  "%derive-address: derive-addr returned ~"
       (pure:m ~)
@@ -1266,7 +1339,7 @@
     =/  acct-og=(unit parsed-origin:b329)  (get-acct-origin:aio lbls acct-ref)
     =/  lbl=@t  (~(dug jo:json-utils jon) /label so:dejs:format '')
     =/  new-lbls=labels:b329
-      (label-derived-addr:aio lbls u.new-addr lbl acct-og ?:(is-change 1 0) idx)
+      (label-derived-addr:aio lbls u.new-addr lbl acct-og ?:(is-change 1 0) idx acct-ref)
     ;<  ~  bind:m  (save-labels new-lbls)
     (pure:m ~)
   ::
@@ -1578,6 +1651,7 @@
     (save-draft acct-ref u.existing(modified now))
   ::
       %'build-transaction'
+    ?~  xprv  (pure:m ~)
     ~&  >>  "=== BUILD AND BROADCAST TRANSACTION ==="
     ;<  existing=(unit transaction:drft)  bind:m  (load-draft acct-ref)
     ?~  existing
@@ -1616,7 +1690,7 @@
           =.  m  (~(put by m) [txid.i.utxos.a vout.i.utxos.a] addr.a)
           $(utxos.a t.utxos.a)
         $(all t.all)
-      =/  account-wallet  (from-extended:bip32 (trip xprv))
+      =/  account-wallet  (from-extended:bip32 (trip u.xprv))
       =/  tx-inputs=(list input:ap:tt:txb)
         %+  turn  inputs.u.existing
         |=  in=utxo-input:drft
@@ -1828,8 +1902,8 @@
   ^-  form:m
   =/  xpub=(unit @t)  (get-simple-xpub labels)
   ?~  xpub  (pure:m ~)
-  ;<  store=wallet-store  bind:m  load-wallets
-  =/  sd=(unit seed)  (~(get by store) u.xpub)
+  ;<  sec=secrets  bind:m  load-secrets
+  =/  sd=(unit seed)  (~(get by seeds.sec) u.xpub)
   ?~  sd  (pure:m ~)
   (pure:m `[u.sd u.xpub])
 ::
@@ -1939,33 +2013,17 @@
   |=  [chain=?(%recv %chng) idx=@ud]
   ^-  @ta
   (crip "{(trip chain)}-{(scow %ud idx)}")
-::
-::  +load-accounts/save-accounts: read/write account-store
-::
-++  load-accounts
-  =/  m  (fiber:fiber:nexus ,account-store)
-  ^-  form:m
-  =/  rd=road:tarball  (nex-road [%& ~ %'accounts.wallet_accounts'])
-  ;<  exists=?  bind:m  (peek-exists:io rd)
-  ?.  exists  (pure:m *account-store)
-  ;<  =seen:nexus  bind:m  (peek:io rd ~)
-  ?.  ?=([%& %file *] seen)  (pure:m *account-store)
-  (pure:m !<(account-store (need-vase:tarball sang.p.seen)))
-::
-++  save-accounts
-  |=  store=account-store
-  =/  m  (fiber:fiber:nexus ,~)
-  ^-  form:m
-  =/  rd=road:tarball  (nex-road [%& ~ %'accounts.wallet_accounts'])
-  (over:io rd [[/wallet %accounts] store])
 ::  +load-recv-chng: build recv/chng address lists from labels
 ::
 ++  load-recv-chng
   |=  [=labels:b329 acct-ref=@t]
   ^-  [recv=(list [@ud address-data]) chng=(list [@ud address-data])]
   =/  og=(unit parsed-origin:b329)  (get-acct-origin:aio labels acct-ref)
-  ?~  og  [~ ~]
-  =/  addrs  (read-account-addrs:aio labels u.og)
+  ?.  ?=(~ og)
+    =/  addrs  (read-account-addrs:aio labels u.og)
+    [(build-addr-data:aio recv.addrs labels) (build-addr-data:aio chng.addrs labels)]
+  ::  standalone account: find addresses via gwbtc:derived-from: labels
+  =/  addrs  (read-standalone-addrs:aio labels acct-ref)
   [(build-addr-data:aio recv.addrs labels) (build-addr-data:aio chng.addrs labels)]
 ::  +build-acct-tx-map: reconstruct tx-map for an account from labels
 ::
@@ -2055,12 +2113,8 @@
   =/  [* * ref-m=@t xprv-m=@t net-m=network:wt st-m=script-type og-m=parsed-origin:b329 addr-m=(unit @t)]
     (make-dev-wallet 'My Wallet' [%t seed-phrase] %main)
   =/  wal=wallet-data  wal-t
-  ;<  store=wallet-store  bind:m  load-wallets
-  ;<  ~  bind:m  (save-wallets (~(put by store) xpub.wal seed.wal))
-  ::  save account-store entries
-  ;<  acct-store=account-store  bind:m  load-accounts
-  =/  acct-store  (~(gas by acct-store) ~[[ref-t xprv-t] [ref-m xprv-m]])
-  ;<  ~  bind:m  (save-accounts acct-store)
+  ;<  sec=secrets  bind:m  load-secrets
+  ;<  ~  bind:m  (save-secrets sec(seeds (~(put by seeds.sec) xpub.wal seed.wal)))
   ::  save labels
   =/  new-lbls=labels:b329  (set-simple-wallet lbls mxpub)
   =/  new-lbls=labels:b329
@@ -2070,35 +2124,35 @@
   ::  label first receive address for each account
   =/  new-lbls=labels:b329
     ?~  addr-t  new-lbls
-    (label-derived-addr:aio new-lbls u.addr-t '' `og-t 0 0)
+    (label-derived-addr:aio new-lbls u.addr-t '' `og-t 0 0 ref-t)
   =/  new-lbls=labels:b329
     ?~  addr-m  new-lbls
-    (label-derived-addr:aio new-lbls u.addr-m '' `og-m 0 0)
+    (label-derived-addr:aio new-lbls u.addr-m '' `og-m 0 0 ref-m)
   ;<  ~  bind:m  (over:io lbl-rd [[/wallet %labels] new-lbls])
   ~&  "%wallet: simple wallet created"
   (pure:m ~)
 ::
-++  load-wallets
-  =/  m  (fiber:fiber:nexus ,wallet-store)
+++  load-secrets
+  =/  m  (fiber:fiber:nexus ,secrets)
   ^-  form:m
-  =/  rd=road:tarball  (nex-road [%& ~ %'wallets.wallet_wallets'])
+  =/  rd=road:tarball  (nex-road [%& ~ %'secrets.wallet_secrets'])
   ;<  exists=?  bind:m  (peek-exists:io rd)
-  ?.  exists  (pure:m *wallet-store)
+  ?.  exists  (pure:m *secrets)
   ;<  =seen:nexus  bind:m  (peek:io rd ~)
-  ?.  ?=([%& %file *] seen)  (pure:m *wallet-store)
-  (pure:m !<(wallet-store (need-vase:tarball sang.p.seen)))
+  ?.  ?=([%& %file *] seen)  (pure:m *secrets)
+  (pure:m !<(secrets (need-vase:tarball sang.p.seen)))
 ::
-++  save-wallets
-  |=  store=wallet-store
+++  save-secrets
+  |=  sec=secrets
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
-  =/  rd=road:tarball  (nex-road [%& ~ %'wallets.wallet_wallets'])
-  (over:io rd [[/wallet %wallets] store])
+  =/  rd=road:tarball  (nex-road [%& ~ %'secrets.wallet_secrets'])
+  (over:io rd [[/wallet %secrets] sec])
 ::
-++  store-to-list
-  |=  store=wallet-store
+++  secrets-to-wallets
+  |=  sec=secrets
   ^-  (list wallet-data)
-  %+  turn  ~(tap by store)
+  %+  turn  ~(tap by seeds.sec)
   |=([xp=@t sd=seed] `wallet-data`[sd xp])
 ::
 ::  +load-contacts: peek contacts overlay dir for send-to picker
@@ -2279,10 +2333,8 @@
     ::  lightweight update: just summary + address rows
     =/  s-ref=@t  (acct-ref-from-key acct-key)
     ;<  s-lbls=labels:b329  bind:m  load-labels
-    ;<  s-store=account-store  bind:m  load-accounts
-    ?.  (~(has by s-store) s-ref)  $
+    ?.  (has-account:aio s-lbls s-ref)  $
     =/  s-net=network:wt  (get-acct-network:aio s-lbls s-ref)
-    =/  s-xprv=@t  (~(got by s-store) s-ref)
     =/  [recv=(list [@ud address-data]) chng=(list [@ud address-data])]
       (load-recv-chng s-lbls s-ref)
     ;<  now=@da  bind:m  get-time:io
@@ -2325,8 +2377,7 @@
       %news
     =/  ss-ref=@t  (acct-ref-from-key acct-key)
     ;<  ss-lbls=labels:b329  bind:m  load-labels
-    ;<  ss-store=account-store  bind:m  load-accounts
-    ?.  (~(has by ss-store) ss-ref)  $
+    ?.  (has-account:aio ss-lbls ss-ref)  $
     =/  ss-net=network:wt  (get-acct-network:aio ss-lbls ss-ref)
     =/  ss-stype=script-type  (get-acct-script-type:aio ss-lbls ss-ref)
     =/  [recv=(list [@ud address-data]) chng=(list [@ud address-data])]
@@ -2417,8 +2468,7 @@
     ::  reload address data and re-render live content
     =/  as-ref=@t  (acct-ref-from-key acct-key)
     ;<  as-lbls=labels:b329  bind:m  load-labels
-    ;<  as-store=account-store  bind:m  load-accounts
-    ?.  (~(has by as-store) as-ref)  $
+    ?.  (has-account:aio as-lbls as-ref)  $
     =/  as-net=network:wt  (get-acct-network:aio as-lbls as-ref)
     =/  rc  (load-recv-chng as-lbls as-ref)
     =/  chain-list=(list [@ud address-data])
@@ -3187,7 +3237,7 @@
 ::  page rendering
 ::
 ++  wallet-page
-  |=  [nexus-root=tape wals=(list wallet-data) =labels:b329]
+  |=  [nexus-root=tape wals=(list wallet-data) =labels:b329 =secrets]
   ^-  manx
   ;html
     ;head
@@ -3211,7 +3261,7 @@
           ==
           ::  Scrollable content
           ;div.fc.g3.p5.ma.mw-page(style "flex: 1; min-height: 0; overflow-y: auto; padding-top: 0; width: 100%;")
-            ;+  (tab-container wals labels)
+            ;+  (tab-container wals labels secrets)
           ==
         ==
       ==
@@ -3223,7 +3273,7 @@
   ==
 ::
 ++  tab-container
-  |=  [wals=(list wallet-data) =labels:b329]
+  |=  [wals=(list wallet-data) =labels:b329 =secrets]
   ^-  manx
   ;div.tab-container.b0.br2(data-active-tab "wallets", style "box-shadow: 0 4px 12px rgba(0,0,0,0.15); overflow: hidden; display: flex; flex-direction: column; min-height: 0; flex: 1; width: 100%;")
     ::  Tab buttons
@@ -3238,10 +3288,10 @@
         ;+  (wallets-panel wals labels)
       ==
       ;div#content-watch.tab-content(style "display: none;")
-        ;+  watch-only-panel
+        ;+  (watch-only-panel labels secrets)
       ==
       ;div#content-signing.tab-content(style "display: none;")
-        ;+  signing-panel
+        ;+  (signing-panel labels secrets)
       ==
     ==
   ==
@@ -3376,16 +3426,83 @@
       ==
     ==
   ==
+::  Standalone account card (watch-only or signing)
+::
+++  standalone-card
+  |=  [=labels:b329 =secrets ref=@t mode=@t]
+  ^-  manx
+  =/  acct-name=@t  (get-acct-name:aio labels ref)
+  =/  network=network  (get-acct-network:aio labels ref)
+  =/  stype=script-type  (get-acct-script-type:aio labels ref)
+  =/  is-signing=?  =(mode 'signing')
+  =/  display-key=@t  ?:(is-signing (fall (~(get by xprvs.secrets) ref) ref) ref)
+  =/  copy-title=tape  ?:(is-signing "Copy xprv" "Copy xpub")
+  ;div.p3.b1.br2.hover(style "display: flex; justify-content: space-between; align-items: center; gap: 12px; outline: none;")
+    ;a(href "/groundwire/wallet/a/{(trip ref)}/", style "flex: 1; min-width: 0; text-decoration: none; color: inherit; outline: none !important;")
+      ;div(style "display: flex; align-items: center; gap: 8px; margin-bottom: 4px;")
+        ;+  (script-type-badge stype)
+        ;span.s0.bold: {(trip acct-name)}
+      ==
+      ;div(style "display: flex; align-items: center; gap: 8px;")
+        ;+  (network-badge:acct-ui network)
+        ;button.p1.b0.br1.hover.pointer
+          =data-key  (trip display-key)
+          =onclick  "event.preventDefault(); event.stopPropagation(); copyToClipboard(this.dataset.key);"
+          =style  "background: transparent; border: 1px solid var(--b3); color: var(--f3); display: flex; align-items: center; width: 24px; height: 24px; justify-content: center; outline: none;"
+          =title  copy-title
+          ;div(style "width: 12px; height: 12px; display: flex; align-items: center; justify-content: center;")
+            ;+  (make:fi 'copy')
+          ==
+        ==
+        ;div.f3.s-2.f2(style "font-family: monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1;"): {(trip display-key)}
+      ==
+    ==
+    ;button.p2.b1.br1.hover.pointer
+      =onclick  "event.preventDefault(); event.stopPropagation(); deleteStandalone('{(trip acct-name)}', '{(trip ref)}');"
+      =style  "background: var(--b2); border: 1px solid var(--b3); color: var(--f3); display: flex; align-items: center; width: 32px; height: 32px; justify-content: center; outline: none;"
+      ;div(style "width: 16px; height: 16px; display: flex; align-items: center; justify-content: center;")
+        ;+  (make:fi 'trash-2')
+      ==
+    ==
+  ==
+::  Script type badge (colored circle with BIP number)
+::
+++  script-type-badge
+  |=  =script-type
+  ^-  manx
+  =/  [color=tape label=tape tooltip=tape]
+    ?-  script-type
+        %p2pkh         ["#6b7280" "44" "Legacy (BIP44) - P2PKH"]
+        %p2sh-p2wpkh   ["#f59e0b" "49" "Wrapped SegWit (BIP49) - P2SH-P2WPKH"]
+        %p2wpkh        ["#10b981" "84" "Native SegWit (BIP84) - P2WPKH"]
+        %p2tr          ["#9333ea" "86" "Taproot (BIP86) - P2TR"]
+    ==
+  ;div(title "{tooltip}", style "display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 50%; background: {color}; color: white; font-size: 10px; font-weight: bold; font-family: monospace; cursor: default;"): {label}
 ::  Watch-Only tab
 ::
 ++  watch-only-panel
+  |=  [=labels:b329 =secrets]
   ^-  manx
-  ;div.fc.g2(style "flex: 1; min-height: 0;")
-    ;div#watch-only-list-container.p4.b0.br2(style "flex: 1; min-height: 0; overflow-y: auto;")
+  =/  all-refs=(list @t)
+    %+  murn  ~(tap by xpub.labels)
+    |=  [ref=@t *]
+    ^-  (unit @t)
+    ?.  (has-account:aio labels ref)  ~
+    ?:  ?=(^ (get-acct-origin:aio labels ref))  ~
+    ?:  (~(has by xprvs.secrets) ref)  ~
+    `ref
+  =/  list-content=manx
+    ?~  all-refs
       ;div.p4.b1.br2.tc
         ;div.s0.f2.mb2: No watch-only accounts yet
         ;div.f3.s-1: Import xpubs or addresses to track balances
       ==
+    ;div.fc.g2
+      ;*  (turn all-refs |=(ref=@t (standalone-card labels secrets ref %'watch-only')))
+    ==
+  ;div.fc.g2(style "flex: 1; min-height: 0;")
+    ;div#watch-only-list-container.p4.b0.br2(style "flex: 1; min-height: 0; overflow-y: auto;")
+      ;+  list-content
     ==
     ;div.p4.b2.br2(style "flex-shrink: 0;")
       ;div.s0.bold.tc.hover.pointer(onclick "toggleAddPanel(this)", style "display: flex; align-items: center; justify-content: center; gap: 8px;")
@@ -3417,13 +3534,28 @@
 ::  Signing tab
 ::
 ++  signing-panel
+  |=  [=labels:b329 =secrets]
   ^-  manx
-  ;div.fc.g2(style "flex: 1; min-height: 0;")
-    ;div#signing-list-container.p4.b0.br2(style "flex: 1; min-height: 0; overflow-y: auto;")
+  =/  all-refs=(list @t)
+    %+  murn  ~(tap by xpub.labels)
+    |=  [ref=@t *]
+    ^-  (unit @t)
+    ?.  (has-account:aio labels ref)  ~
+    ?:  ?=(^ (get-acct-origin:aio labels ref))  ~
+    ?.  (~(has by xprvs.secrets) ref)  ~
+    `ref
+  =/  list-content=manx
+    ?~  all-refs
       ;div.p4.b1.br2.tc
         ;div.s0.f2.mb2: No signing accounts yet
         ;div.f3.s-1: Import private keys or connect hardware wallets
       ==
+    ;div.fc.g2
+      ;*  (turn all-refs |=(ref=@t (standalone-card labels secrets ref %signing)))
+    ==
+  ;div.fc.g2(style "flex: 1; min-height: 0;")
+    ;div#signing-list-container.p4.b0.br2(style "flex: 1; min-height: 0; overflow-y: auto;")
+      ;+  list-content
     ==
     ;div.p4.b2.br2(style "flex-shrink: 0;")
       ;div.s0.bold.tc.hover.pointer(onclick "toggleAddPanel(this)", style "display: flex; align-items: center; justify-content: center; gap: 8px;")
@@ -3581,6 +3713,12 @@
   function confirmDelete() \{
     poke(\{action: 'remove-wallet', pubkey: _deletePubkey, 'wallet-name': _deleteWalletName}, function() \{ location.reload(); });
     hideDeleteModal();
+  }
+
+  function deleteStandalone(name, ref) \{
+    if (confirm('Delete account "' + name + '"? This cannot be undone.')) \{
+      poke(\{'action': 'remove-account', 'account-key': ref}, function() \{ location.reload(); });
+    }
   }
 
   (function() \{

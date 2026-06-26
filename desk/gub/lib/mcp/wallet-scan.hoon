@@ -29,20 +29,14 @@
   ;<  st=tool-state:tools  bind:m  (get-state-as:io ,tool-state:tools)
   =/  ref=@ta
     (~(dog jo:json-utils [%o args.st]) /account so:dejs:format)
-  ::  verify account exists via flat store
-  ;<  as-seen=seen:nexus  bind:m
-    (peek:io [%& %& /apps/'wallet.wallet_app' %'accounts.wallet_accounts'] ~)
-  =/  acct-store=account-store
-    ?.  ?=([%& %file *] as-seen)  *account-store
-    (fall (mole |.(!<(account-store (need-vase:tarball sang.p.as-seen)))) *account-store)
-  ?.  (~(has by acct-store) ref)
-    (pure:m [%error 'Account not found'])
   ::  load labels
   ;<  lbl-seen=seen:nexus  bind:m
     (peek:io [%& %& /apps/'wallet.wallet_app' %'labels.wallet_labels'] ~)
   =/  lbls=labels:b329
     ?.  ?=([%& %file *] lbl-seen)  *labels:b329
     (fall (mole |.(!<(labels:b329 (need-vase:tarball sang.p.lbl-seen)))) *labels:b329)
+  ?.  (has-account:aio lbls ref)
+    (pure:m [%error 'Account not found'])
   ::  extract network from labels
   =/  network=network  (get-acct-network:aio lbls ref)
   ::  generate uuid for the scan proc

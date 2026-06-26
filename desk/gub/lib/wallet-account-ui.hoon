@@ -974,7 +974,7 @@
   ==
 ::
 ++  detail-page
-  |=  [acct-name=@t key-hex=tape wallet-xpub=@t network=network:wt stype=script-type recv=(list [@ud address-data]) chng=(list [@ud address-data]) now=@da scan=?(%active %paused %none) progress=(unit scan-progress) rfsh=(set (pair ?(%recv %chng) @ud)) wal-name=@t]
+  |=  [acct-name=@t key-hex=tape wallet-xpub=@t network=network:wt stype=script-type recv=(list [@ud address-data]) chng=(list [@ud address-data]) now=@da scan=?(%active %paused %none) progress=(unit scan-progress) rfsh=(set (pair ?(%recv %chng) @ud)) wal-name=@t can-sign=?]
   ^-  manx
   ;html
     ;head
@@ -991,7 +991,9 @@
       ;div(style "min-width: 650px; height: 100%;")
         ;div#account-page.fc.g3.p5.ma.mw-page(style "height: 100%;")
           ;div(style "flex-shrink: 0; display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;")
-            ;a.hover.pointer(href "/groundwire/wallet/w/{(trip wallet-xpub)}/", style "color: var(--f3); text-decoration: none;"): ← Back to Wallet
+            ;+  ?:  =('' wallet-xpub)
+                  ;a.hover.pointer(href "/groundwire/wallet/", style "color: var(--f3); text-decoration: none;"): ← Back to Wallets
+                ;a.hover.pointer(href "/groundwire/wallet/w/{(trip wallet-xpub)}/", style "color: var(--f3); text-decoration: none;"): ← Back to Wallet
           ==
           ;div.p4.b1.br2(style "flex-shrink: 0; position: relative;")
             ;button#empty-toggle.hover.pointer
@@ -1017,14 +1019,15 @@
               ;+  (account-summary-ui recv chng)
             ==
             ;div(style "display: flex; gap: 8px; margin-top: 12px; justify-content: center;")
-              ;a.p2.b1.br2.hover.pointer
-                =href  "/groundwire/wallet/a/{key-hex}/send"
-                =style  "display: flex; align-items: center; justify-content: center; gap: 6px; background: rgba(100, 150, 255, 0.15); border: 1px solid rgba(100, 150, 255, 0.4); color: var(--f3); text-decoration: none; outline: none; white-space: nowrap;"
-                ;div(style "width: 16px; height: 16px; display: flex; align-items: center; justify-content: center;")
-                  ;+  (make:fi 'arrow-up')
+              ;+  ?.  can-sign  ;span;
+                ;a.p2.b1.br2.hover.pointer
+                  =href  "/groundwire/wallet/a/{key-hex}/send"
+                  =style  "display: flex; align-items: center; justify-content: center; gap: 6px; background: rgba(100, 150, 255, 0.15); border: 1px solid rgba(100, 150, 255, 0.4); color: var(--f3); text-decoration: none; outline: none; white-space: nowrap;"
+                  ;div(style "width: 16px; height: 16px; display: flex; align-items: center; justify-content: center;")
+                    ;+  (make:fi 'arrow-up')
+                  ==
+                  ;span.f2.bold: Send
                 ==
-                ;span.f2.bold: Send
-              ==
               ;button.p2.b1.br2.hover.pointer
                 =onclick  "showReceiveModal()"
                 =style  "display: flex; align-items: center; justify-content: center; gap: 6px; background: rgba(50, 200, 100, 0.15); border: 1px solid rgba(50, 200, 100, 0.4); color: var(--f3); outline: none; white-space: nowrap;"
