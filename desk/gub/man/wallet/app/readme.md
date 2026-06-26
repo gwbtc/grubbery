@@ -6,10 +6,11 @@ View at `/grubbery/ball/wallet/`.
 
 ## State
 
-All wallet state lives in two files at the nexus root:
+All wallet state lives in files at the nexus root:
 
 - `labels.wallet_labels` -- BIP-329 label store. Wallets, accounts, addresses, transactions, and UTXOs are all represented as labeled entries. Account metadata (name, network, script type) is stored as label prefixes like `gwbtc:account:`, `gwbtc:network:`, `gwbtc:script-type:`.
 - `secrets.wallet_secrets` -- Sensitive key material. Contains `seeds=(map @t seed)` keyed by master xpub, and `xprvs=(map @t @t)` keyed by account xpub for standalone signing accounts.
+- `ptsts.wallet_ptsts` -- Tapscript tree store. Contains `(map @t ptst:taproot)` keyed by tapscript address. Each ptst is a recursive tree of leaf, opaque, and branch nodes. Tapscript addresses are linked to parent key-path addresses via `gwbtc:tapscript-of:{parent-addr}` labels.
 
 ## Account Types
 
@@ -37,6 +38,8 @@ Account-level: `add-watch-only`, `add-signing`, `remove-account`, `discover-acco
 
 Address/TX-level: `derive-address`, `derive-next`, `delete-address`, `full-scan`, `pause-scan`, `resume-scan`, `cancel-scan`, `refresh`, `send`
 
+Tapscript-level: `add-tapscript`, `delete-tapscript`
+
 ## Libraries
 
 - `lib/wallet-types.hoon` -- Type definitions (secrets, seed, wallet-data, script-type, network)
@@ -44,4 +47,5 @@ Address/TX-level: `derive-address`, `derive-next`, `delete-address`, `full-scan`
 - `lib/wallet-account-ui.hoon` -- Sail rendering for account detail, send page, address rows
 - `lib/bip32.hoon`, `lib/bip39.hoon`, `lib/bech32.hoon` -- Bitcoin key derivation and encoding
 - `lib/bip329.hoon` -- BIP-329 label store with prefix scanning
+- `lib/taproot.hoon` -- Tapscript tree types, hashing, merkle proofs, address generation, JSON serialization
 - `lib/tx/draft.hoon`, `lib/tx/fees.hoon` -- Transaction building and fee estimation

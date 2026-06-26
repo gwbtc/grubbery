@@ -16,12 +16,6 @@
 ::  +num: render @ud as plain decimal cord (no dots)
 ::
 ++  num  |=(n=@ud (crip (a-co:co n)))
-::  +da-to-unix: convert @da to unix seconds
-::
-++  da-to-unix  |=(d=@da (div (sub d ~1970.1.1) ~s1))
-::  +unix-to-da: convert unix seconds to @da
-::
-++  unix-to-da  |=(u=@ud (add ~1970.1.1 (mul u ~s1)))
 ::  +has-account: check if an account ref exists in labels
 ::
 ++  has-account
@@ -130,7 +124,7 @@
   =.  l  (~(put-kv la:b329 l) [%addr addr (rap 3 ~['gwbtc:funded:' (num funded.info)]) ~ ~ ~])
   =.  l  (~(put-kv la:b329 l) [%addr addr (rap 3 ~['gwbtc:spent:' (num spent.info)]) ~ ~ ~])
   =.  l  (~(put-kv la:b329 l) [%addr addr (rap 3 ~['gwbtc:tx-count:' (num tx-count.info)]) ~ ~ ~])
-  (~(put-kv la:b329 l) [%addr addr (rap 3 ~['gwbtc:last-checked:' (num (da-to-unix last-check.info))]) ~ ~ ~])
+  (~(put-kv la:b329 l) [%addr addr (rap 3 ~['gwbtc:last-checked:' (num (unt:chrono:userlib last-check.info))]) ~ ~ ~])
 ::  +label-utxos: write output labels for UTXOs
 ::
 ++  label-utxos
@@ -209,7 +203,7 @@
   =/  tc-ud=(unit @ud)      (rush u.tc dem)
   =/  lc-ud=(unit @ud)      (rush u.lc dem)
   ?:  |(?=(~ funded-ud) ?=(~ spent-ud) ?=(~ tc-ud) ?=(~ lc-ud))  ~
-  `[u.tc-ud u.funded-ud u.spent-ud (unix-to-da u.lc-ud)]
+  `[u.tc-ud u.funded-ud u.spent-ud (from-unix:chrono:userlib u.lc-ud)]
 ::  +read-utxos: reconstruct UTXOs for an address from output labels
 ::
 ++  read-utxos
@@ -938,4 +932,40 @@
   =.  labels  (~(put la:b329 labels) [%xpub ref name-lbl ~ ~ ~])
   =.  labels  (~(put la:b329 labels) [%xpub ref net-lbl ~ ~ ~])
   (~(put la:b329 labels) [%xpub ref st-lbl ~ ~ ~])
+::  +get-tapscript-addrs: find all tapscript addresses for a parent address
+::
+++  get-tapscript-addrs
+  |=  [=labels:b329 parent-addr=@t]
+  ^-  (list @t)
+  =/  prefix=tape  (trip (rap 3 ~['gwbtc:tapscript-of:' parent-addr]))
+  =/  all=(list [@t (set label-entry:b329)])  ~(tap by addr.labels)
+  =/  result=(list @t)  ~
+  |-
+  ?~  all  result
+  =/  [addr=@t entries=(set label-entry:b329)]  i.all
+  =/  el=(list label-entry:b329)  ~(tap in entries)
+  =/  found=?
+    |-
+    ?~  el  %.n
+    ?:  =(prefix (trip label.i.el))  %.y
+    $(el t.el)
+  ?:  found
+    $(all t.all, result [addr result])
+  $(all t.all)
+::  +get-tapscript-name: get the name label for a tapscript address
+::
+++  get-tapscript-name
+  |=  [=labels:b329 ts-addr=@t]
+  ^-  @t
+  =/  prefix=tape  "gwbtc:tapscript-name:"
+  =/  prefix-len=@ud  (lent prefix)
+  =/  entries=(unit (set label-entry:b329))  (~(get by addr.labels) ts-addr)
+  ?~  entries  ''
+  =/  el=(list label-entry:b329)  ~(tap in u.entries)
+  |-
+  ?~  el  ''
+  =/  ltape=tape  (trip label.i.el)
+  ?:  =(prefix (scag prefix-len ltape))
+    (crip (slag prefix-len ltape))
+  $(el t.el)
 --

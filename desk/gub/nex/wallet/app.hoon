@@ -17,6 +17,7 @@
 /<  det-ui        /lib/wallet/detail-ui.hoon
 /<  drft          /lib/tx/draft.hoon
 /<  b329          /lib/bip329.hoon
+/<  taproot       /lib/taproot.hoon
 /&  man           /man/wallet/app/readme.md
 =,  wt
 =<  ^-  nexus:nexus
@@ -53,6 +54,7 @@
             [%fall %& [/ %'labels.wallet_labels'] [[/wallet %labels] init-lbls]]
             [%fall %& [/ %'secrets.wallet_secrets'] [[/wallet %secrets] init-sec]]
             [%fall %& [/ %'drafts.wallet_drafts'] [[/wallet %drafts] *(map @t transaction:drft)]]
+            [%fall %& [/ %'ptsts.wallet_ptsts'] [[/wallet %ptsts] *(map @t ptst:taproot)]]
             [%fall %& [/ %'registry.wallet_registry'] [[/wallet %registry] *proc-registry]]
             [%fall %| /proc empty-dir:loader]
             [%fall %& [/ui %'http.sig'] [[/ %sig] ~]]
@@ -444,7 +446,7 @@
             $(refresh-list t.refresh-list)
           ::  account-specific actions (derive, scan, draft, etc)
           ::
-              ?(%'derive-address' %'derive-next' %'delete-address' %'set-network' %'full-scan' %'pause-scan' %'resume-scan' %'cancel-scan' %'refresh' %'send' %'add-output' %'delete-output' %'clear-draft' %'set-change-config' %'clear-change-config' %'set-auto-select-mode' %'run-auto-select' %'add-input' %'remove-input' %'build-transaction')
+              ?(%'derive-address' %'derive-next' %'delete-address' %'set-network' %'full-scan' %'pause-scan' %'resume-scan' %'cancel-scan' %'refresh' %'send' %'add-output' %'delete-output' %'clear-draft' %'set-change-config' %'clear-change-config' %'set-auto-select-mode' %'run-auto-select' %'add-input' %'remove-input' %'build-transaction' %'add-tapscript' %'delete-tapscript')
             =/  acct-ref=@t  (~(dog jo:json-utils jon) /account so:dejs:format)
             ;<  ~  bind:m  (handle-account-action:h jon acct-ref)
             $
@@ -1741,6 +1743,64 @@
         ==
       ~&  >>  "broadcast result: {<broadcast-result>}"
       (delete-draft acct-ref)
+  ::
+  ::  === Tapscript actions ===
+  ::
+      %'add-tapscript'
+    ::  Attach a script tree to an existing taproot address.
+    ::  Derives internal pubkey from account + chain + index, then
+    ::  computes the tapscript address from internal_pubkey + tree.
+    ::
+    ::  parent-addr: the key-path taproot address (for label linking)
+    ::  chain: 0 (recv) or 1 (chng) — which chain the parent is on
+    ::  index: derivation index of the parent address
+    ::  name: human-readable label for the tapscript
+    ::  tree: ptst as JSON
+    ?.  ?=(%p2tr stype)
+      ~&  >>>  "%add-tapscript: account is not p2tr"
+      (pure:m ~)
+    ?~  dkey
+      ~&  >>>  "%add-tapscript: no derivation key"
+      (pure:m ~)
+    =/  parent-addr=@t  (~(dog jo:json-utils jon) /parent-addr so:dejs:format)
+    =/  chain=@ud  (~(dug jo:json-utils jon) /chain ni:dejs:format 0)
+    =/  idx=@ud  (~(dog jo:json-utils jon) /index ni:dejs:format)
+    =/  ts-name=@t  (~(dug jo:json-utils jon) /name so:dejs:format '')
+    =/  tree-jon=(unit json)  (~(get by p.jon) 'tree')
+    ?~  tree-jon  (pure:m ~)
+    =/  tree=ptst:taproot  (json-to-ptst:taproot u.tree-jon)
+    ?~  tree
+      ~&  >>>  "%add-tapscript: empty tree"
+      (pure:m ~)
+    ::  derive the internal pubkey (33-byte compressed) from account key
+    =/  acct-wallet  (from-extended:bip32 (trip u.dkey))
+    =/  derived  (derive:(derive:acct-wallet chain) idx)
+    =/  internal-pubkey=@ux  (ser-p:derived pub.derived)
+    ::  compute tapscript address
+    =/  bip-net  (to-bip-network:wt network)
+    =/  ts-addr=@t  (tapscript-address:taproot internal-pubkey tree bip-net)
+    ::  store tree
+    ;<  sts=(map @t ptst:taproot)  bind:m  load-ptsts
+    ;<  ~  bind:m  (save-ptsts (~(put by sts) ts-addr tree))
+    ::  label: link tapscript addr to parent, and set name
+    =/  ts-of-lbl=@t  (rap 3 ~['gwbtc:tapscript-of:' parent-addr])
+    =/  new-lbls=labels:b329
+      (~(put la:b329 lbls) [%addr ts-addr ts-of-lbl ~ ~ ~])
+    =/  new-lbls=labels:b329
+      ?.  =('' ts-name)  (~(put la:b329 new-lbls) [%addr ts-addr (rap 3 ~['gwbtc:tapscript-name:' ts-name]) ~ ~ ~])
+      new-lbls
+    ;<  ~  bind:m  (save-labels new-lbls)
+    (pure:m ~)
+  ::
+      %'delete-tapscript'
+    =/  ts-addr=@t  (~(dog jo:json-utils jon) /tapscript-addr so:dejs:format)
+    ::  remove from ptsts store
+    ;<  sts=(map @t ptst:taproot)  bind:m  load-ptsts
+    ;<  ~  bind:m  (save-ptsts (~(del by sts) ts-addr))
+    ::  remove all labels for this tapscript address
+    =/  new-lbls=labels:b329  (~(del-all la:b329 lbls) %addr ts-addr)
+    ;<  ~  bind:m  (save-labels new-lbls)
+    (pure:m ~)
   ==
 ::
 ::  HTTP response helpers — road from /ui/requests/* to /ui/http.sig
@@ -2148,6 +2208,23 @@
   ^-  form:m
   =/  rd=road:tarball  (nex-road [%& ~ %'secrets.wallet_secrets'])
   (over:io rd [[/wallet %secrets] sec])
+::
+++  load-ptsts
+  =/  m  (fiber:fiber:nexus ,(map @t ptst:taproot))
+  ^-  form:m
+  =/  rd=road:tarball  (nex-road [%& ~ %'ptsts.wallet_ptsts'])
+  ;<  exists=?  bind:m  (peek-exists:io rd)
+  ?.  exists  (pure:m *(map @t ptst:taproot))
+  ;<  =seen:nexus  bind:m  (peek:io rd ~)
+  ?.  ?=([%& %file *] seen)  (pure:m *(map @t ptst:taproot))
+  (pure:m !<((map @t ptst:taproot) (need-vase:tarball sang.p.seen)))
+::
+++  save-ptsts
+  |=  sts=(map @t ptst:taproot)
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  =/  rd=road:tarball  (nex-road [%& ~ %'ptsts.wallet_ptsts'])
+  (over:io rd [[/wallet %ptsts] sts])
 ::
 ++  secrets-to-wallets
   |=  sec=secrets

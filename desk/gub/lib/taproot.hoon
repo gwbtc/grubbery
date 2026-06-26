@@ -409,6 +409,62 @@
 ::
 ::  Timelocked single-key spend (relative timelock).
 ::
+::
+::  ============================================================================
+::  JSON Serialization
+::  ============================================================================
+::
+::  +ptst-to-json: serialize a ptst to JSON
+::
+++  ptst-to-json
+  |=  tree=ptst
+  ^-  json
+  ?~  tree  ~
+  ?-  -.tree
+      %leaf
+    %-  pairs:enjs:format
+    :~  ['type' s+'leaf']
+        ['version' s+(scot %ux version.tapleaf.tree)]
+        ['script' s+(scot %ux dat.script.tapleaf.tree)]
+        ['script_len' (numb:enjs:format wid.script.tapleaf.tree)]
+    ==
+      %opaque
+    %-  pairs:enjs:format
+    :~  ['type' s+'opaque']
+        ['hash' s+(scot %ux hash.tree)]
+    ==
+      %branch
+    %-  pairs:enjs:format
+    :~  ['type' s+'branch']
+        ['l' (ptst-to-json l.tree)]
+        ['r' (ptst-to-json r.tree)]
+    ==
+  ==
+::
+::  +json-to-ptst: deserialize a ptst from JSON
+::
+++  json-to-ptst
+  |=  jon=json
+  ^-  ptst
+  ?~  jon  ~
+  ?.  ?=([%o *] jon)  ~
+  =/  typ=(unit json)  (~(get by p.jon) 'type')
+  ?~  typ  ~
+  ?.  ?=([%s *] u.typ)  ~
+  ?+    p.u.typ  ~
+      %leaf
+    =/  ver=@ux   (slav %ux (so:dejs:format (~(got by p.jon) 'version')))
+    =/  scr=@ux   (slav %ux (so:dejs:format (~(got by p.jon) 'script')))
+    =/  slen=@ud  (ni:dejs:format (~(got by p.jon) 'script_len'))
+    [%leaf [ver [slen scr]]]
+      %opaque
+    [%opaque (slav %ux (so:dejs:format (~(got by p.jon) 'hash')))]
+      %branch
+    =/  l=ptst  (json-to-ptst (~(got by p.jon) 'l'))
+    =/  r=ptst  (json-to-ptst (~(got by p.jon) 'r'))
+    [%branch l r]
+  ==
+::
 ++  csv-checksig-script
   |=  [delay=@ud pubkey=@ux]
   ^-  hexb:btc
