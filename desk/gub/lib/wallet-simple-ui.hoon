@@ -10,7 +10,6 @@
 =,  wt
 |%
 +$  tx-entry  [dir=?(%sent %received) amt=@ud conf=? =transaction]
-++  on-addr  ((on @ud address-data) gth)
 ::
 ++  text
   |=  t=tape
@@ -61,10 +60,10 @@
   ==
 ::
 ++  compute-balance
-  |=  [recv=addr-mop chng=addr-mop]
+  |=  [recv=(list [@ud address-data]) chng=(list [@ud address-data])]
   ^-  @ud
   =/  all=(list [@ud address-data])
-    (weld (tap:on-addr recv) (tap:on-addr chng))
+    (weld recv chng)
   %+  roll  all
   |=  [[* ad=address-data] sum=@ud]
   %+  roll  utxos.ad
@@ -72,10 +71,10 @@
   (add acc value.u)
 ::
 ++  collect-addrs
-  |=  [recv=addr-mop chng=addr-mop]
+  |=  [recv=(list [@ud address-data]) chng=(list [@ud address-data])]
   ^-  (set @t)
   =/  all=(list [@ud address-data])
-    (weld (tap:on-addr recv) (tap:on-addr chng))
+    (weld recv chng)
   %-  ~(gas in *(set @t))
   (turn all |=([* ad=address-data] addr.ad))
 ::
@@ -135,9 +134,9 @@
 ::
 :::
 ++  next-unused-addr
-  |=  mop=addr-mop
+  |=  addrs=(list [@ud address-data])
   ^-  (unit @t)
-  =/  leaves=(list [@ud address-data])  (flop (tap:on-addr mop))
+  =/  leaves=(list [@ud address-data])  (flop addrs)
   |-
   ?~  leaves  ~
   =/  [* ad=address-data]  i.leaves
@@ -151,8 +150,8 @@
   |=  $:  wal=(unit wallet-data)
           wal-name=@t
           active-net=(unit tape)
-          recv=addr-mop
-          chng=addr-mop
+          recv=(list [@ud address-data])
+          chng=(list [@ud address-data])
           txs=tx-map
           post-url=tape
           saved=?
@@ -186,8 +185,8 @@
   =/  accent-bg=tape  ?:(is-mainnet "rgba(247, 147, 26, 0.1)" "rgba(100, 150, 255, 0.1)")
   =/  accent-border=tape  ?:(is-mainnet "rgba(247, 147, 26, 0.25)" "rgba(100, 150, 255, 0.25)")
   =/  tx-items=(list manx)  (render-tx-items tx-list our)
-  =/  recv-rows=(list manx)  (render-addr-rows (flop (tap:on-addr recv)) %recv)
-  =/  chng-rows=(list manx)  (render-addr-rows (flop (tap:on-addr chng)) %chng)
+  =/  recv-rows=(list manx)  (render-addr-rows (flop recv) %recv)
+  =/  chng-rows=(list manx)  (render-addr-rows (flop chng) %chng)
   ;html
     ;head
       ;title: Wallet

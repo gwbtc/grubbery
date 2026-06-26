@@ -12,42 +12,25 @@
 /<  b329  /lib/bip329.hoon
 =,  wt
 |%
-::  +mop-to-list: tap mop to indexed list (ascending by index)
+::  +num: render @ud as plain decimal cord (no dots)
 ::
-++  mop-to-list
-  |=  mop=addr-mop
-  ^-  (list [@ud address-data])
-  (flop (tap:((on @ud address-data) gth) mop))
-::  +get-mops: look up recv/chng mops for an account+network
+++  num  |=(n=@ud (crip (a-co:co n)))
+::  +da-to-unix: convert @da to unix seconds
 ::
-++  get-mops
-  |=  [=addresses ref=@t =network]
-  ^-  [recv=addr-mop chng=addr-mop]
-  (fall (~(get by addresses) [ref network]) [*addr-mop *addr-mop])
-::  +put-mop: update a single chain mop in addresses
+++  da-to-unix  |=(d=@da (div (sub d ~1970.1.1) ~s1))
+::  +unix-to-da: convert unix seconds to @da
 ::
-++  put-mop
-  |=  [=addresses ref=@t =network chain=?(%recv %chng) mop=addr-mop]
-  ^-  ^addresses
-  =/  cur=[recv=addr-mop chng=addr-mop]
-    (fall (~(get by addresses) [ref network]) [*addr-mop *addr-mop])
-  %+  ~(put by addresses)  [ref network]
-  ?-  chain
-    %recv  cur(recv mop)
-    %chng  cur(chng mop)
-  ==
-::  +get-txs: look up tx-map for an account+network
+++  unix-to-da  |=(u=@ud (add ~1970.1.1 (mul u ~s1)))
+::  +build-addr-data: enrich address list with info/utxos from labels
 ::
-++  get-txs
-  |=  [=txs ref=@t =network]
-  ^-  tx-map
-  (fall (~(get by txs) [ref network]) *tx-map)
-::  +put-txs: update tx-map for an account+network
-::
-++  put-txs
-  |=  [=txs ref=@t =network tm=tx-map]
-  ^-  ^txs
-  (~(put by txs) [ref network] tm)
+++  build-addr-data
+  |=  [addrs=(list [idx=@ud addr=@t]) =labels:b329]
+  ^-  (list [idx=@ud address-data])
+  %+  turn  addrs
+  |=  [idx=@ud addr=@t]
+  =/  info=(unit address-info)  (read-addr-info labels addr)
+  =/  utxos=(list utxo)  (read-utxos labels addr)
+  [idx [addr info utxos]]
 ::  +derive-addr: derive a bitcoin address
 ::
 ++  derive-addr
@@ -84,10 +67,10 @@
   |=  [=labels:b329 addr=@t info=address-info]
   ^-  labels:b329
   =/  l  labels
-  =.  l  (~(put-kv la:b329 l) [%addr addr (rap 3 ~['gwbtc:funded:' (scot %ud funded.info)]) ~ ~ ~])
-  =.  l  (~(put-kv la:b329 l) [%addr addr (rap 3 ~['gwbtc:spent:' (scot %ud spent.info)]) ~ ~ ~])
-  =.  l  (~(put-kv la:b329 l) [%addr addr (rap 3 ~['gwbtc:tx-count:' (scot %ud tx-count.info)]) ~ ~ ~])
-  (~(put-kv la:b329 l) [%addr addr (rap 3 ~['gwbtc:last-checked:' (scot %da last-check.info)]) ~ ~ ~])
+  =.  l  (~(put-kv la:b329 l) [%addr addr (rap 3 ~['gwbtc:funded:' (num funded.info)]) ~ ~ ~])
+  =.  l  (~(put-kv la:b329 l) [%addr addr (rap 3 ~['gwbtc:spent:' (num spent.info)]) ~ ~ ~])
+  =.  l  (~(put-kv la:b329 l) [%addr addr (rap 3 ~['gwbtc:tx-count:' (num tx-count.info)]) ~ ~ ~])
+  (~(put-kv la:b329 l) [%addr addr (rap 3 ~['gwbtc:last-checked:' (num (da-to-unix last-check.info))]) ~ ~ ~])
 ::  +label-utxos: write output labels for UTXOs
 ::
 ++  label-utxos
@@ -96,8 +79,8 @@
   =/  l  labels
   |-
   ?~  utxos  l
-  =/  ref=@t  (rap 3 ~[txid.i.utxos ':' (scot %ud vout.i.utxos)])
-  =.  l  (~(put-kv la:b329 l) [%output ref (rap 3 ~['gwbtc:value:' (scot %ud value.i.utxos)]) ~ ~ ~])
+  =/  ref=@t  (rap 3 ~[txid.i.utxos ':' (num vout.i.utxos)])
+  =.  l  (~(put-kv la:b329 l) [%output ref (rap 3 ~['gwbtc:value:' (num value.i.utxos)]) ~ ~ ~])
   =.  l  (~(put-kv la:b329 l) [%output ref (rap 3 ~['gwbtc:addr:' addr]) ~ ~ ~])
   =.  l
     ?-  -.tx-status.i.utxos
@@ -105,7 +88,7 @@
       (~(put la:b329 l) [%output ref 'gwbtc:unconfirmed' ~ ~ ~])
         %confirmed
       =.  l  (~(del la:b329 l) %output ref 'gwbtc:unconfirmed')
-      (~(put-kv la:b329 l) [%output ref (rap 3 ~['gwbtc:confirmed:' (scot %ud block-height.tx-status.i.utxos)]) ~ ~ ~])
+      (~(put-kv la:b329 l) [%output ref (rap 3 ~['gwbtc:confirmed:' (num block-height.tx-status.i.utxos)]) ~ ~ ~])
     ==
   $(utxos t.utxos)
 ::  +label-txs: write tx labels for transactions
@@ -123,21 +106,21 @@
       (~(put la:b329 l) [%tx txid.tx 'gwbtc:unconfirmed' ~ ~ ~])
         %confirmed
       =.  l  (~(del la:b329 l) %tx txid.tx 'gwbtc:unconfirmed')
-      =.  l  (~(put-kv la:b329 l) [%tx txid.tx (rap 3 ~['gwbtc:confirmed:' (scot %ud block-height.tx-status.tx)]) ~ ~ ~])
+      =.  l  (~(put-kv la:b329 l) [%tx txid.tx (rap 3 ~['gwbtc:confirmed:' (num block-height.tx-status.tx)]) ~ ~ ~])
       (~(put-kv la:b329 l) [%tx txid.tx (rap 3 ~['gwbtc:block-hash:' block-hash.tx-status.tx]) ~ ~ ~])
     ==
-  =.  l  ?~(fee.tx l (~(put-kv la:b329 l) [%tx txid.tx (rap 3 ~['gwbtc:fee:' (scot %ud u.fee.tx)]) ~ ~ ~]))
-  =.  l  ?~(size.tx l (~(put-kv la:b329 l) [%tx txid.tx (rap 3 ~['gwbtc:size:' (scot %ud u.size.tx)]) ~ ~ ~]))
+  =.  l  ?~(fee.tx l (~(put-kv la:b329 l) [%tx txid.tx (rap 3 ~['gwbtc:fee:' (num u.fee.tx)]) ~ ~ ~]))
+  =.  l  ?~(size.tx l (~(put-kv la:b329 l) [%tx txid.tx (rap 3 ~['gwbtc:size:' (num u.size.tx)]) ~ ~ ~]))
   ::  label inputs
   =.  l
     =/  ins=(list tx-input)  inputs.tx
     |-
     ?~  ins  l
-    =/  in-ref=@t  (rap 3 ~[spent-txid.i.ins ':' (scot %ud spent-vout.i.ins)])
+    =/  in-ref=@t  (rap 3 ~[spent-txid.i.ins ':' (num spent-vout.i.ins)])
     =.  l  (~(put-kv la:b329 l) [%input in-ref (rap 3 ~['gwbtc:tx:' txid.tx]) ~ ~ ~])
     =.  l
       ?~  prevout.i.ins  l
-      =.  l  (~(put-kv la:b329 l) [%input in-ref (rap 3 ~['gwbtc:value:' (scot %ud value.u.prevout.i.ins)]) ~ ~ ~])
+      =.  l  (~(put-kv la:b329 l) [%input in-ref (rap 3 ~['gwbtc:value:' (num value.u.prevout.i.ins)]) ~ ~ ~])
       (~(put-kv la:b329 l) [%input in-ref (rap 3 ~['gwbtc:addr:' address.u.prevout.i.ins]) ~ ~ ~])
     $(ins t.ins)
   ::  label outputs
@@ -146,8 +129,8 @@
     =/  vout=@ud  0
     |-
     ?~  outs  l
-    =/  out-ref=@t  (rap 3 ~[txid.tx ':' (scot %ud vout)])
-    =.  l  (~(put-kv la:b329 l) [%output out-ref (rap 3 ~['gwbtc:value:' (scot %ud value.i.outs)]) ~ ~ ~])
+    =/  out-ref=@t  (rap 3 ~[txid.tx ':' (num vout)])
+    =.  l  (~(put-kv la:b329 l) [%output out-ref (rap 3 ~['gwbtc:value:' (num value.i.outs)]) ~ ~ ~])
     =.  l  (~(put-kv la:b329 l) [%output out-ref (rap 3 ~['gwbtc:addr:' address.i.outs]) ~ ~ ~])
     $(outs t.outs, vout +(vout))
   $(txs t.txs)
@@ -164,9 +147,9 @@
   =/  funded-ud=(unit @ud)  (rush u.funded dem)
   =/  spent-ud=(unit @ud)   (rush u.spent dem)
   =/  tc-ud=(unit @ud)      (rush u.tc dem)
-  =/  lc-da=(unit @da)      (slaw %da u.lc)
-  ?:  |(?=(~ funded-ud) ?=(~ spent-ud) ?=(~ tc-ud) ?=(~ lc-da))  ~
-  `[u.tc-ud u.funded-ud u.spent-ud u.lc-da]
+  =/  lc-ud=(unit @ud)      (rush u.lc dem)
+  ?:  |(?=(~ funded-ud) ?=(~ spent-ud) ?=(~ tc-ud) ?=(~ lc-ud))  ~
+  `[u.tc-ud u.funded-ud u.spent-ud (unix-to-da u.lc-ud)]
 ::  +read-utxos: reconstruct UTXOs for an address from output labels
 ::
 ++  read-utxos
@@ -294,22 +277,6 @@
   ?:  =(0 chain)
     $(all t.all, recv [[idx addr] recv])
   $(all t.all, chng [[idx addr] chng])
-::  +enrich-mop: populate addr-mop entries with data from labels
-::
-++  enrich-mop
-  |=  [mop=addr-mop =labels:b329]
-  ^-  addr-mop
-  =/  entries=(list [idx=@ud dat=address-data])
-    (tap:((on @ud address-data) gth) mop)
-  |-
-  ?~  entries  mop
-  =/  [idx=@ud dat=address-data]  i.entries
-  =/  info=(unit address-info)  (read-addr-info labels addr.dat)
-  =/  utxos=(list utxo)  (read-utxos labels addr.dat)
-  %=  $
-    entries  t.entries
-    mop  (put:((on @ud address-data) gth) mop idx dat(info info, utxos utxos, loading %.n))
-  ==
 ::  +build-tx-map: reconstruct tx-map from labels for a set of addresses
 ::
 ++  build-tx-map
@@ -613,27 +580,6 @@
   =/  fee=(unit @ud)  (mole |.((ni:dejs:format (~(got jo:json-utils tj) /fee))))
   =/  size=(unit @ud)  (mole |.((ni:dejs:format (~(got jo:json-utils tj) /size))))
   `[u.txid inputs outputs status fee size]
-::  +load-addr-file: load addresses from a road
-::
-++  load-addr-file
-  |=  rd=road:tarball
-  =/  m  (fiber:fiber:nexus ,addresses)
-  ^-  form:m
-  ;<  exists=?  bind:m  (peek-exists:io rd)
-  ?.  exists  (pure:m *addresses)
-  ;<  =seen:nexus  bind:m  (peek:io rd ~)
-  ?.  ?=([%& %file *] seen)  (pure:m *addresses)
-  (pure:m (fall (mole |.(!<(addresses (need-vase:tarball sang.p.seen)))) *addresses))
-::  +save-addr-file: save addresses to a road
-::
-++  save-addr-file
-  |=  [rd=road:tarball =addresses]
-  =/  m  (fiber:fiber:nexus ,~)
-  ^-  form:m
-  ;<  exists=?  bind:m  (peek-exists:io rd)
-  ?:  exists
-    (over:io rd [[/wallet %addresses] addresses])
-  (make:io rd |+[[[/wallet %addresses] addresses] ~])
 ::  +scan-chain: derive addresses and scan chain for activity
 ::
 ++  scan-chain
@@ -642,13 +588,11 @@
           =network
           start-idx=@ud
           start-gap=@ud
-          addr-road=road:tarball
           main-road=road:tarball
       ==
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
   =/  is-change=?  =(chain %change)
-  =/  chain-tag=?(%recv %chng)  ?:(is-change %chng %recv)
   =/  gap-limit=@ud  20
   =/  scan-idx=@ud  start-idx
   =/  gap=@ud  start-gap
@@ -666,13 +610,24 @@
           ['index' (numb:enjs:format scan-idx)]
       ==
     ==
-  ::  read back the derived address from addr-mop
-  ;<  cur-addrs=addresses  bind:m  (load-addr-file addr-road)
-  =/  [recv=addr-mop chng=addr-mop]  (get-mops cur-addrs acct-ref network)
-  =/  mop=addr-mop  ?:(is-change chng recv)
-  =/  dat=(unit address-data)
-    (get:((on @ud address-data) gth) mop scan-idx)
-  ?~  dat
+  ::  read back the derived address from labels
+  ;<  lbls=labels:b329  bind:m
+    =/  lm  (fiber:fiber:nexus ,labels:b329)
+    =/  lbl-road=road:tarball  [%& %& /apps/'wallet.wallet_app' %'labels.wallet_labels']
+    ;<  lbl-seen=seen:nexus  bind:lm  (peek:io lbl-road ~)
+    ?.  ?=([%& %file *] lbl-seen)  (pure:lm *labels:b329)
+    (pure:lm (fall (mole |.(!<(labels:b329 (need-vase:tarball sang.p.lbl-seen)))) *labels:b329))
+  =/  og=(unit parsed-origin:b329)  (get-acct-origin lbls acct-ref)
+  ?~  og  (pure:m ~)
+  =/  addrs  (read-account-addrs lbls u.og)
+  =/  chain-addrs=(list [idx=@ud addr=@t])
+    ?:(is-change chng.addrs recv.addrs)
+  =/  addr=(unit @t)
+    |-
+    ?~  chain-addrs  ~
+    ?:  =(idx.i.chain-addrs scan-idx)  `addr.i.chain-addrs
+    $(chain-addrs t.chain-addrs)
+  ?~  addr
     (pure:m ~)
   ::  update scan progress in proc file
   =/  phase-tape=@t  ?:(is-change 'chng' 'recv')
@@ -687,19 +642,7 @@
   ;<  ~  bind:m  (sleep:io `@dr`(div ~s1 1.000))
   ::  fetch address info
   ;<  new-info=(unit address-info)  bind:m
-    (scan-fetch scan-prog addr.u.dat network)
-  ::  write addr-mop index entry (data lives in labels)
-  =/  addr-dat=address-data  [addr.u.dat %.n ~ ~ ~]
-  ;<  post-addrs=addresses  bind:m  (load-addr-file addr-road)
-  =/  [recv=addr-mop chng=addr-mop]
-    (get-mops post-addrs acct-ref network)
-  =/  post-mop=addr-mop
-    ?:(is-change chng recv)
-  =/  updated=addr-mop
-    (put:((on @ud address-data) gth) post-mop scan-idx addr-dat)
-  =/  post-updated=addresses
-    (put-mop post-addrs acct-ref network chain-tag updated)
-  ;<  ~  bind:m  (save-addr-file addr-road post-updated)
+    (scan-fetch scan-prog u.addr network)
   ::  check gap
   ?~  new-info
     $(scan-idx +(scan-idx), gap +(gap))
@@ -708,11 +651,10 @@
   $(scan-idx +(scan-idx), gap 0)
 ::
 ++  collect-utxo-inputs
-  |=  [recv=addr-mop chng=addr-mop =script-type]
+  |=  [recv=(list [@ud address-data]) chng=(list [@ud address-data]) =script-type]
   ^-  (list utxo-input:drft)
   =/  spend=spend:fees  script-type
-  =/  all=(list [@ud address-data])
-    (weld (mop-to-list recv) (mop-to-list chng))
+  =/  all=(list [@ud address-data])  (weld recv chng)
   %-  zing
   %+  turn  all
   |=  [idx=@ud a=address-data]
@@ -720,15 +662,6 @@
   |=  u=utxo
   ^-  utxo-input:drft
   [txid.u vout.u value.u spend]
-::  +get-next-unused-index: find first unused address index in an addr-mop
-::
-++  get-next-unused-index
-  |=  mop=addr-mop
-  ^-  @ud
-  =/  top=(unit [idx=@ud address-data])
-    (pry:((on @ud address-data) gth) mop)
-  ?~  top  0
-  +(idx.u.top)
 ::
 ++  read-wallet-name
   |=  [=labels:b329 wallet-fp=@ux]
@@ -775,7 +708,7 @@
     ?:  =(prefix (scag prefix-len lbl))
       $(entries t.entries, labels (~(del la:b329 labels) %xpub xpub label.i.entries))
     $(entries t.entries)
-  (~(put la:b329 labels) [%xpub xpub (crip "gwbtc:last-offered:{((d-co:co 1) idx)}") ~ ~ ~])
+  (~(put la:b329 labels) [%xpub xpub (rap 3 ~['gwbtc:last-offered:' (num idx)]) ~ ~ ~])
 ::  +get-next-offer-index: next address index to offer
 ::
 ++  get-next-offer-index

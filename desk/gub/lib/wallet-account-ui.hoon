@@ -22,12 +22,6 @@
       change-result=change-result:fees
       actual-fee=@sd
   ==
-::  +mop-to-list: tap mop to indexed list (ascending by index)
-::
-++  mop-to-list
-  |=  mop=addr-mop
-  ^-  (list [@ud address-data])
-  (flop (tap:((on @ud address-data) gth) mop))
 ::
 ++  format-sats
   |=  n=@ud
@@ -45,10 +39,10 @@
   $(rev t.rev, out [i.rev out], i +(i))
 ::
 ++  compute-total-balance
-  |=  [recv=addr-mop chng=addr-mop]
+  |=  [recv=(list [@ud address-data]) chng=(list [@ud address-data])]
   ^-  @ud
   =/  all=(list [@ud address-data])
-    (weld (mop-to-list recv) (mop-to-list chng))
+    (weld recv chng)
   %+  roll  all
   |=  [[idx=@ud a=address-data] total=@ud]
   ?~  info.a  total
@@ -71,9 +65,8 @@
   ?:(ah "'" "")
 ::
 ++  next-unused-addr
-  |=  recv=addr-mop
+  |=  entries=(list [@ud address-data])
   ^-  (unit @t)
-  =/  entries=(list [@ud address-data])  (mop-to-list recv)
   |-
   ?~  entries  ~
   =/  [idx=@ud a=address-data]  i.entries
@@ -82,9 +75,8 @@
   $(entries t.entries)
 ::
 ++  next-unused-change-addr
-  |=  chng=addr-mop
+  |=  entries=(list [@ud address-data])
   ^-  (unit @t)
-  =/  entries=(list [@ud address-data])  (mop-to-list chng)
   |-
   ?~  entries  ~
   =/  [idx=@ud a=address-data]  i.entries
@@ -281,7 +273,7 @@
   ==
 ::
 ++  account-summary-ui
-  |=  [recv=addr-mop chng=addr-mop]
+  |=  [recv=(list [@ud address-data]) chng=(list [@ud address-data])]
   ^-  manx
   =/  total-balance=@ud  (compute-total-balance recv chng)
   ;div#account-summary(style "display: flex; justify-content: space-between; align-items: baseline;")
@@ -302,13 +294,12 @@
   ==
 ::
 ++  derive-button
-  |=  [chain=tape mop=addr-mop]
+  |=  [chain=tape mop=(list [@ud address-data])]
   ^-  manx
   =/  next-idx=@ud
-    =/  top=(unit [idx=@ud address-data])
-      (pry:((on @ud address-data) gth) mop)
-    ?~  top  0
-    +(idx.u.top)
+    ?~  mop  0
+    =/  [last-idx=@ud *]  (rear mop)
+    +(last-idx)
   =/  chain-tag=tape
     ?:(=("receiving" chain) "recv" "chng")
   ;div.p3.b2.br2.hover.pointer
@@ -320,18 +311,17 @@
   ==
 ::
 ++  address-list
-  |=  [network=network:wt key-hex=tape chain-tag=?(%recv %chng) mop=addr-mop now=@da]
+  |=  [network=network:wt key-hex=tape chain-tag=?(%recv %chng) mop=(list [@ud address-data]) now=@da]
   ^-  manx
   =/  chain=tape  ?:(?=(%recv chain-tag) "receiving" "change")
-  =/  entries=(list [@ud address-data])  (mop-to-list mop)
   ;div.fc.g2(id "addr-list-{(trip chain-tag)}")
-    ;*  ?:  =(~ entries)
+    ;*  ?:  =(~ mop)
           :~  ;div.p4.b1.br2.tc(id "empty-{(trip chain-tag)}")
                 ;div.s0.f2.mb2: No addresses yet
                 ;div.f3.s-1: Click above to derive your first address
               ==
           ==
-        (turn (flop entries) |=([idx=@ud a=address-data] (address-row idx a now chain chain-tag network key-hex)))
+        (turn (flop mop) |=([idx=@ud a=address-data] (address-row idx a now chain chain-tag network key-hex)))
   ==
 ::
 ++  address-row
@@ -359,16 +349,6 @@
                 ; • {(format-sats balance)} sats
               ==
             ==
-        ;+  ?~  last-error.a  ;span;
-            =/  err-lines=(list tape)
-              (turn u.last-error.a |=(=tank ~(ram re tank)))
-            =/  err-text=tape
-              (zing (join " | " err-lines))
-            ;div
-              =title  err-text
-              =style  "width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; color: #ff5050; cursor: help;"
-              ;+  (make:fi 'alert-circle')
-            ==
       ==
       ;div(style "display: flex; align-items: center; gap: 8px;")
         ;button.p1.b0.br1.hover.pointer
@@ -391,24 +371,16 @@
       ==
     ==
     ;div(style "display: flex; gap: 4px; flex-shrink: 0;")
-      ;+  ?:  loading.a
-            ;div(style "display: flex; gap: 4px;")
-              ;div.p2.b1.br1(style "background: rgba(100, 150, 255, 0.2); border: 1px solid var(--b3); color: var(--f3); display: flex; align-items: center; width: 32px; height: 32px; justify-content: center;")
-                ;div(style "width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; animation: spin 1s linear infinite;")
-                  ;+  (make:fi 'loader')
-                ==
-              ==
-            ==
-          ;button.p2.b1.br1.hover.pointer
-            =title  ?~(info.a "Never checked" "Last: {(scow %da last-check.u.info.a)}")
-            =data-chain  (trip chain-tag)
-            =data-idx  (scow %ud idx)
-            =onclick  "refreshAddress(this.dataset.chain, this.dataset.idx)"
-            =style  "background: var(--b2); border: 1px solid var(--b3); color: var(--f3); display: flex; align-items: center; width: 32px; height: 32px; justify-content: center; outline: none;"
-            ;div(style "width: 16px; height: 16px; display: flex; align-items: center; justify-content: center;")
-              ;+  (make:fi 'refresh-cw')
-            ==
-          ==
+      ;button.p2.b1.br1.hover.pointer
+        =title  ?~(info.a "Never checked" "Last: {(scow %da last-check.u.info.a)}")
+        =data-chain  (trip chain-tag)
+        =data-idx  (scow %ud idx)
+        =onclick  "refreshAddress(this.dataset.chain, this.dataset.idx)"
+        =style  "background: var(--b2); border: 1px solid var(--b3); color: var(--f3); display: flex; align-items: center; width: 32px; height: 32px; justify-content: center; outline: none;"
+        ;div(style "width: 16px; height: 16px; display: flex; align-items: center; justify-content: center;")
+          ;+  (make:fi 'refresh-cw')
+        ==
+      ==
       ;button.p2.b1.br1.hover.pointer
         =title  "Remove address"
         =data-chain  (trip chain-tag)
@@ -423,7 +395,7 @@
   ==
 ::
 ++  receive-modal
-  |=  recv=addr-mop
+  |=  recv=(list [@ud address-data])
   ^-  manx
   =/  next=(unit @t)  (next-unused-addr recv)
   ;div#receive-modal(style "display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center;", onclick "if(event.target === this) hideModal('receive-modal')")
@@ -547,10 +519,10 @@
   ==
 ::
 ++  addresses-fragment
-  |=  [network=network:wt key-hex=tape recv=addr-mop chng=addr-mop now=@da scan=?(%active %paused %none) progress=(unit scan-progress)]
+  |=  [network=network:wt key-hex=tape recv=(list [@ud address-data]) chng=(list [@ud address-data]) now=@da scan=?(%active %paused %none) progress=(unit scan-progress)]
   ^-  manx
-  =/  recv-count=@ud  (lent (mop-to-list recv))
-  =/  chng-count=@ud  (lent (mop-to-list chng))
+  =/  recv-count=@ud  (lent recv)
+  =/  chng-count=@ud  (lent chng)
   ;div.fc(style "flex: 1; min-height: 0;")
     ;div.fc.g2(style "flex-shrink: 0;")
       ;div#scan-status-wrap
@@ -1002,7 +974,7 @@
   ==
 ::
 ++  detail-page
-  |=  [acct-name=@t key-hex=tape wallet-xpub=@t network=network:wt stype=script-type recv=addr-mop chng=addr-mop now=@da scan=?(%active %paused %none) progress=(unit scan-progress) rfsh=(set (pair ?(%recv %chng) @ud)) wal-name=@t]
+  |=  [acct-name=@t key-hex=tape wallet-xpub=@t network=network:wt stype=script-type recv=(list [@ud address-data]) chng=(list [@ud address-data]) now=@da scan=?(%active %paused %none) progress=(unit scan-progress) rfsh=(set (pair ?(%recv %chng) @ud)) wal-name=@t]
   ^-  manx
   ;html
     ;head
@@ -1076,19 +1048,19 @@
   ==
 ::
 ++  send-page
-  |=  [acct-name=@t key-hex=tape network=network:wt stype=script-type recv=addr-mop chng=addr-mop dr=(unit transaction:drft) now=@da wal-name=@t]
+  |=  [acct-name=@t key-hex=tape network=network:wt stype=script-type recv=(list [@ud address-data]) chng=(list [@ud address-data]) dr=(unit transaction:drft) now=@da wal-name=@t]
   ^-  manx
   =/  fi=fee-calc  (compute-fee-info dr)
   =/  utxos=(list [addr=@t u=utxo chain=?(%recv %chng) idx=@ud])
     %+  weld
       ^-  (list [addr=@t u=utxo chain=?(%recv %chng) idx=@ud])
       %-  zing
-      %+  turn  (mop-to-list recv)
+      %+  turn  recv
       |=  [idx=@ud a=address-data]
       (turn utxos.a |=(u=utxo [addr.a u %recv idx]))
     ^-  (list [addr=@t u=utxo chain=?(%recv %chng) idx=@ud])
     %-  zing
-    %+  turn  (mop-to-list chng)
+    %+  turn  chng
     |=  [idx=@ud a=address-data]
     (turn utxos.a |=(u=utxo [addr.a u %chng idx]))
   =/  next-chg=(unit @t)  (next-unused-change-addr chng)

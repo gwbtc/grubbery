@@ -49,19 +49,13 @@
       value=@ud
       =tx-status
   ==
-::  per-address data: stored in addr-mop files keyed by index
-::  path encodes network + chain: addresses/[network]/[recv|chng].wallet_addresses
+::  per-address data enriched from labels
 ::
 +$  address-data
   $:  addr=@t
-      loading=?
-      last-error=(unit tang)
       info=(unit address-info)
       utxos=(list utxo)
   ==
-::  ordered map of index -> address-data (descending by index)
-::
-+$  addr-mop  ((mop @ud address-data) gth)
 +$  tx-map  (map @t transaction)
 ::  scan process state: tracks progress through gap-limit scan
 ::
@@ -72,8 +66,6 @@
   ==
 ::
 +$  account-store  (map @t @t)
-+$  addresses  (map [@t network] [recv=addr-mop chng=addr-mop])
-+$  txs  (map [@t network] tx-map)
 ::  process registry: main.sig's bookkeeping of active procs
 ::
 +$  proc-registry
