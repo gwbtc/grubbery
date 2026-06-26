@@ -235,22 +235,20 @@
   ;<  our=@p  bind:m  get-our:io
   ;<  peers=(map ship ?(%alien %known))  bind:m
     (scry:io (map ship ?(%alien %known)) /ax//peers)
-  =/  known=(list ship)
+  =/  peer-list=(list [ship ?(%alien %known)])
     %+  murn  ~(tap by peers)
     |=  [=ship val=?(%alien %known)]
     ?:  =(ship our)  ~
-    ?-  val
-      %alien  ~
-      %known  `ship
-    ==
-  ~&  [%contacts %sync-ames %known-peers (lent known)]
-  (write-peers known)
+    `[ship val]
+  ~&  [%contacts %sync-ames %peers (lent peer-list)]
+  (write-peers peer-list)
 ++  write-peers
-  |=  peers=(list ship)
+  |=  peers=(list [ship ?(%alien %known)])
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
   ?~  peers  (pure:m ~)
-  =/  who=@t  (scot %p i.peers)
+  =/  [=ship status=?(%alien %known)]  i.peers
+  =/  who=@t  (scot %p ship)
   =/  file=@ta  (cat 3 who '.jobj')
   =/  file-road=road:tarball  [%| 0 %& /overlay file]
   ;<  seen=seen:nexus  bind:m  (peek:io file-road `[/ %jobj])
@@ -258,12 +256,13 @@
     ?.  ?=([%& %file *] seen)  ~
     ?:  (is-boom:tarball sang.p.seen)  ~
     !<((map @t json) (need-vase:tarball sang.p.seen))
-  ?^  existing
-    ::  already has overlay data, don't overwrite
-    $(peers t.peers)
-  =/  fields=(map @t json)
-    (~(put by *(map @t json)) 'source' s+'ames')
-  ;<  ~  bind:m  (over:io file-road [[/ %jobj] fields])
+  =/  merged=(map @t json)
+    %-  ~(uni by existing)
+    %-  ~(gas by *(map @t json))
+    :~  ['source' s+'ames']
+        ['ames' s+status]
+    ==
+  ;<  ~  bind:m  (over:io file-road [[/ %jobj] merged])
   $(peers t.peers)
 ::
 ::  HTTP helpers — road from /ui/requests/* to /ui/main.sig

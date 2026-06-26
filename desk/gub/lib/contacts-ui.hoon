@@ -56,6 +56,10 @@
           ;div#panel-contact.panel
             ;div.modal-body
               ;input#modal-ship(type "hidden");
+              ;div#modal-ames-row.field-row.hidden
+                ;label: Ames
+                ;span#modal-ames.ames-tag;
+              ==
               ;div.field-row
                 ;label: Nickname
                 ;input#field-nickname.field-input(type "text", placeholder "Display name");
@@ -63,6 +67,13 @@
               ;div.field-row
                 ;label: Notes
                 ;textarea#field-notes.field-input(rows "3", placeholder "Private notes");
+              ==
+              ;div.field-row
+                ;label: Tags
+                ;div#tags-container.tags-container;
+                ;div.tags-input-wrap
+                  ;input#field-tag-input.field-input(type "text", placeholder "Add tag...", onkeydown "tagKeydown(event)");
+                ==
               ==
             ==
             ;div.modal-footer
@@ -100,6 +111,8 @@
   =/  stat=tape  (get-text pro 'status')
   =/  color=tape  (get-text pro 'color')
   =/  avatar=tape  (get-text pro 'avatar')
+  =/  ames=tape  (get-text con 'ames')
+  =/  tags=(list tape)  (get-tags con 'tags')
   =/  ship-t=tape  (trip ship)
   ;div.contact-card
     ;div.card-main(onclick "openContact('{ship-t}')")
@@ -112,11 +125,8 @@
       ==
       ;div.card-info
         ;span.name: {display}
-        ;+  ?.  =(nick (trip ship))
-              ;span.ship-sub: {ship-t}
-            ;span;
-        ;+  ?~  stat  ;span;
-            ;span.status: {stat}
+        ;+  (render-ship-sub nick ship-t ames)
+        ;+  (render-card-meta tags stat)
       ==
     ==
     ;button.card-delete(onclick "quickDelete('{ship-t}')")
@@ -130,6 +140,44 @@
   =/  val=(unit json)  (~(get by m) key)
   ?~  val  ~
   ?.(?=([%s @] u.val) ~ (trip p.u.val))
+::
+++  render-ship-sub
+  |=  [nick=tape ship-t=tape ames=tape]
+  ^-  manx
+  ?~  ames
+    ;span.ship-sub: {ship-t}
+  ;span.ship-sub
+    ;+  ;/  ship-t
+    ;span.ames-tag(class "{ames}"): {ames}
+  ==
+::
+++  render-card-meta
+  |=  [tags=(list tape) stat=tape]
+  ^-  manx
+  ?^  tags
+    ;div.card-tags
+      ;*  (render-tag-chips tags)
+    ==
+  ?^  stat
+    ;span.status: {stat}
+  ;span;
+::
+++  render-tag-chips
+  |=  tags=(list tape)
+  ^-  (list manx)
+  %+  turn  tags
+  |=  t=tape
+  ^-  manx
+  ;span.card-tag: {t}
+::
+++  get-tags
+  |=  [m=(map @t json) key=@t]
+  ^-  (list tape)
+  =/  val=(unit json)  (~(get by m) key)
+  ?~  val  ~
+  ?.  ?=([%a *] u.val)  ~
+  %+  murn  p.u.val
+  |=(=json ?.(?=([%s @] json) ~ `(trip p.json)))
 ::  feather-style inline SVG icons
 ::
 ++  icon-plus
@@ -179,7 +227,17 @@
     " .avatar-placeholder \{ width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 600; font-size: 0.85rem; text-transform: uppercase; }"
     " .card-info \{ display: flex; flex-direction: column; gap: 0.1rem; min-width: 0; }"
     " .name \{ font-weight: 600; font-size: 0.9rem; }"
-    " .ship-sub \{ font-size: 0.7rem; color: #999; font-family: monospace; }"
+    " .ship-sub \{ font-size: 0.7rem; color: #999; font-family: monospace; display: flex; align-items: center; gap: 0.4rem; }"
+    " .ames-tag \{ font-size: 0.6rem; padding: 0 4px; border-radius: 3px; font-family: sans-serif; }"
+    " .ames-tag.known \{ background: #e8f5e9; color: #2e7d32; }"
+    " .ames-tag.alien \{ background: #fff3e0; color: #e65100; }"
+    " .card-tags \{ display: flex; gap: 0.3rem; flex-wrap: wrap; }"
+    " .card-tag \{ font-size: 0.65rem; padding: 1px 6px; border-radius: 3px; background: #eee; color: #555; }"
+    " .tags-container \{ display: flex; gap: 0.3rem; flex-wrap: wrap; margin-bottom: 0.3rem; }"
+    " .tag-chip \{ display: inline-flex; align-items: center; gap: 2px; font-size: 0.8rem; padding: 2px 8px; border-radius: 4px; background: #e3e3e3; color: #333; }"
+    " .tag-chip button \{ background: none; border: none; cursor: pointer; color: #999; font-size: 1rem; padding: 0 2px; line-height: 1; }"
+    " .tag-chip button:hover \{ color: #c00; }"
+    " .tags-input-wrap \{ margin-top: 0.2rem; }"
     " .status \{ font-size: 0.8rem; color: #666; }"
     " .muted \{ color: #999; }"
     " .hidden, .modal.hidden, .panel.hidden \{ display: none; }"
@@ -225,6 +283,12 @@
     "  var o = (CONTACTS[ship] || \{});"
     "  document.getElementById('field-nickname').value = o.nickname || '';"
     "  document.getElementById('field-notes').value = o.notes || '';"
+    "  window._tags = (o.tags || []).slice();"
+    "  renderTags();"
+    "  var ar = document.getElementById('modal-ames-row');"
+    "  var ae = document.getElementById('modal-ames');"
+    "  if(o.ames) \{ ar.classList.remove('hidden'); ae.textContent = o.ames; ae.className = 'ames-tag ' + o.ames; }"
+    "  else \{ ar.classList.add('hidden'); }"
     "  var p = (PROFILES[ship] || \{});"
     "  var el = document.getElementById('profile-fields');"
     "  var fields = ['nickname','bio','status','color','avatar'];"
@@ -248,6 +312,7 @@
     "  var t = document.getElementById('field-notes').value.trim();"
     "  if(n) fields.nickname = n;"
     "  if(t) fields.notes = t;"
+    "  if(window._tags && window._tags.length) fields.tags = window._tags;"
     "  fetch(API + '/overlay/' + ship, \{"
     "    method: 'POST',"
     "    headers: \{'Content-Type': 'application/json'},"
@@ -273,6 +338,28 @@
     "  ship = ship.trim();"
     "  if(ship[0] !== '~') ship = '~' + ship;"
     "  openContact(ship);"
+    "}"
+    ::
+    "function renderTags() \{"
+    "  var c = document.getElementById('tags-container');"
+    "  c.innerHTML = (window._tags || []).map(function(t) \{"
+    "    return '<span class=\"tag-chip\">' + t + '<button onclick=\"removeTag(\\'' + t + '\\')\">&times;</button></span>';"
+    "  }).join('');"
+    "}"
+    "function removeTag(t) \{"
+    "  window._tags = (window._tags || []).filter(function(x)\{ return x !== t; });"
+    "  renderTags();"
+    "}"
+    "function tagKeydown(e) \{"
+    "  if(e.key !== 'Enter') return;"
+    "  e.preventDefault();"
+    "  var v = e.target.value.trim().toLowerCase();"
+    "  if(!v) return;"
+    "  if((window._tags || []).indexOf(v) === -1) \{"
+    "    window._tags = (window._tags || []).concat([v]);"
+    "    renderTags();"
+    "  }"
+    "  e.target.value = '';"
     "}"
     ::
     "document.getElementById('edit-modal').addEventListener('click', function(e) \{"

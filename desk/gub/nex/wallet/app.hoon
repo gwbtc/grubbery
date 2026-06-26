@@ -318,7 +318,7 @@
               ?~  acct-og  ~
               recv:(read-account-addrs:aio lbls u.acct-og)
             =/  offer-idx=@ud
-              (get-next-offer-index:aio recv-addrs lbls u.xprv)
+              (get-next-offer-index:aio recv-addrs lbls acct-ref)
             =/  addr=(unit @t)
               (derive-addr:aio u.xprv stype network 0 offer-idx)
             ?~  addr
@@ -330,7 +330,7 @@
             =/  new-lbls=labels:b329
               (label-derived-addr:aio lbls u.addr lbl acct-og 0 offer-idx acct-ref)
             =/  new-lbls=labels:b329
-              (set-last-offered:aio new-lbls u.xprv offer-idx)
+              (set-last-offered:aio new-lbls acct-ref offer-idx)
             ;<  ~  bind:m  (save-labels:h new-lbls)
             ::  poke back with address-offer
             =/  offer-jon=json
@@ -513,7 +513,7 @@
               =/  new-lbls=labels:b329  (make-acct-labels:aio new-lbls ref-m 'Default' net-m og-m)
               ;<  ~  bind:m  (save-labels:h new-lbls)
               ;<  ~  bind:m
-                (send-html:h eyre-id (simple-page:simp ~ '' ~ ~ ~ *tx-map post-url %.n ~["testnet3" "main"] 2 ~))
+                (send-html:h eyre-id (simple-page:simp ~ '' ~ ~ ~ *tx-map post-url %.n ~["testnet3" "main"] 2 ~ ~ ~))
               (pure:m ~)
             =/  wal=wallet-data  u.simple-wal
             =/  wal-name=@t  (get-wallet-name:aio lbls xpub.wal)
@@ -527,7 +527,7 @@
               (find-account-for-net:h lbls refs req-net)
             ?~  acct-ref
               ;<  ~  bind:m
-                (send-html:h eyre-id (simple-page:simp `wal wal-name ~ ~ ~ *tx-map post-url saved nets 2 ~))
+                (send-html:h eyre-id (simple-page:simp `wal wal-name ~ ~ ~ *tx-map post-url saved nets 2 ~ ~ ~))
               (pure:m ~)
             =/  fee-rate=@ud  (get-simple-fee:h lbls u.acct-ref)
             =/  network=network:wt  (get-acct-network:aio lbls u.acct-ref)
@@ -535,8 +535,31 @@
             =/  [recv=(list [@ud address-data]) chng=(list [@ud address-data])]
               (load-recv-chng:h lbls u.acct-ref)
             =/  txs=tx-map  (build-acct-tx-map:h lbls u.acct-ref)
-            ;<  contacts=(map @t (map @t json))  bind:m  load-contacts:h
-            =/  page=manx  (simple-page:simp `wal wal-name `(trip ;;(@t network)) recv chng txs post-url saved nets fee-rate contacts)
+            =/  last-offered=(unit @ud)
+              (get-last-offered:aio lbls u.acct-ref)
+            =/  last-change=(unit @ud)
+              (get-last-change:aio lbls u.acct-ref)
+            =/  recv-addrs=(list @t)  (turn recv |=([* ad=address-data] addr.ad))
+            =/  chng-addrs=(list @t)  (turn chng |=([* ad=address-data] addr.ad))
+            =/  tx-addrs=(list @t)
+              %-  zing
+              %+  turn  ~(val by txs)
+              |=  tx=transaction
+              ^-  (list @t)
+              %+  weld
+                (turn outputs.tx |=(o=tx-output address.o))
+              (murn inputs.tx |=(i=tx-input ?~(prevout.i ~ `address.u.prevout.i)))
+            =/  all-addrs=(list @t)
+              :(weld recv-addrs chng-addrs tx-addrs)
+            =/  ships=(map @t @t)
+              =|  acc=(map @t @t)
+              =/  addrs=(list @t)  all-addrs
+              |-  ^-  (map @t @t)
+              ?~  addrs  acc
+              =/  s=(unit @t)  (addr-to-ship:aio lbls i.addrs)
+              ?~  s  $(addrs t.addrs)
+              $(addrs t.addrs, acc (~(put by acc) i.addrs u.s))
+            =/  page=manx  (simple-page:simp `wal wal-name `(trip ;;(@t network)) recv chng txs post-url saved nets fee-rate last-offered last-change ships)
             ;<  ~  bind:m  (send-html:h eyre-id page)
             (pure:m ~)
           ::  POST /simple → simple wallet actions
@@ -797,29 +820,23 @@
                 (send-simple:srv:h eyre-id [[400 ~] `(as-octs:mimes:html 'Cannot derive key')])
               (pure:m ~)
             =/  stype=script-type  (get-acct-script-type:aio lbls acct-ref)
-            ::  find unused change address from labels, or derive one
+            ::  derive next change address, label it, advance counter
             =/  chng=(list [@ud address-data])
               chng:(load-recv-chng:h lbls acct-ref)
-            =/  change-addr=(unit @t)
-              |-
-              ?~  chng  ~
-              =/  [* dat=address-data]  i.chng
-              ?~  info.dat  `addr.dat
-              ?:  =(0 tx-count.u.info.dat)  `addr.dat
-              $(chng t.chng)
+            =/  chng-simple=(list [idx=@ud addr=@t])
+              (turn chng |=([idx=@ud ad=address-data] [idx addr.ad]))
+            =/  next-idx=@ud
+              (get-next-change-index:aio chng-simple lbls acct-ref)
             =/  change-addr=@t
-              ?^  change-addr  u.change-addr
-              =/  next-idx=@ud
-                ?~  chng  0
-                +(-:(rear chng))
               %-  need
-              %:  derive-addr:aio
-                u.xprv
-                stype
-                network
-                1  next-idx
-              ==
-            (send-bitcoin-pokes:h acct-ref change-addr address amount fee-rate eyre-id)
+              (derive-addr:aio u.xprv stype network 1 next-idx)
+            =/  acct-og=(unit parsed-origin:b329)  (get-acct-origin:aio lbls acct-ref)
+            =/  lbls=labels:b329
+              (label-derived-addr:aio lbls change-addr '' acct-og 1 next-idx acct-ref)
+            =/  lbls=labels:b329
+              (set-last-change:aio lbls acct-ref next-idx)
+            ;<  ~  bind:m  (save-labels:h lbls)
+            (simple-send:h acct-ref change-addr address amount fee-rate eyre-id)
               %'rename-wallet'
             =/  new-name=@t  (fall (get-key:kv:html-utils 'name' args) '')
             ?:  =('' new-name)
@@ -837,6 +854,74 @@
               (~(put la:b329 new-lbls) [%xpub u.xpub (rap 3 ~['gwbtc:wallet:' new-name]) ~ ~ ~])
             ;<  ~  bind:m  (save-labels:h new-lbls)
             ;<  ~  bind:m  (send-simple:srv:h eyre-id [[200 ~] `(as-octs:mimes:html 'ok')])
+            (pure:m ~)
+              %'request-address'
+            ::  Request a receive address from another ship
+            =/  ship-name=@t
+              (fall (get-key:kv:html-utils 'ship' args) '')
+            =/  req-net=@t
+              (fall (get-key:kv:html-utils 'net' args) 'testnet3')
+            ?:  =('' ship-name)
+              ;<  ~  bind:m
+                (send-simple:srv:h eyre-id [[400 ~] `(as-octs:mimes:html 'Missing ship')])
+              (pure:m ~)
+            =/  target=(unit @p)  (slaw %p ship-name)
+            ?~  target
+              ;<  ~  bind:m
+                (send-simple:srv:h eyre-id [[400 ~] `(as-octs:mimes:html 'Invalid ship')])
+              (pure:m ~)
+            ~&  [%wallet %request-address %asking (scow %p u.target) req-net]
+            ::  clear old simple:send:active labels
+            ;<  lbls=labels:b329  bind:m  load-labels:h
+            =/  addr-list=(list [@t (set label-entry:b329)])
+              ~(tap by addr.lbls)
+            =/  cleaned=labels:b329
+              |-
+              ?~  addr-list  lbls
+              =/  [ref=@t entries=(set label-entry:b329)]  i.addr-list
+              =/  has-active=?
+                %+  lien  ~(tap in entries)
+                |=(e=label-entry:b329 =('simple:send:active' label.e))
+              ?.  has-active  $(addr-list t.addr-list)
+              %=  $
+                addr-list  t.addr-list
+                lbls  (~(del la:b329 lbls) %addr ref 'simple:send:active')
+              ==
+            ;<  ~  bind:m  (save-labels:h cleaned)
+            ::  poke target ship with address-request
+            =/  req-jon=json
+              %-  pairs:enjs:format
+              :~  ['action' s+'address-request']
+                  ['network' s+req-net]
+              ==
+            =/  req=load:remo:nexus
+              :_  [%poke [[/ %json] req-jon]]
+              [/remote-poke %& /apps/'wallet.wallet_app' %'main.sig']
+            ;<  ~  bind:m
+              (gall-poke:io [u.target %grubbery] grubbery-load+req)
+            ;<  ~  bind:m  (send-simple:srv:h eyre-id [[200 ~] `(as-octs:mimes:html 'ok')])
+            (pure:m ~)
+              %'offer-status'
+            ::  Check if we have a send:active address (from an offer)
+            ;<  lbls=labels:b329  bind:m  load-labels:h
+            =/  addr-list=(list [@t (set label-entry:b329)])
+              ~(tap by addr.lbls)
+            =/  active=(unit @t)
+              |-
+              ?~  addr-list  ~
+              =/  [ref=@t entries=(set label-entry:b329)]  i.addr-list
+              =/  has-active=?
+                %+  lien  ~(tap in entries)
+                |=(e=label-entry:b329 =('simple:send:active' label.e))
+              ?:  has-active  `ref
+              $(addr-list t.addr-list)
+            =/  body=@t
+              %-  en:json:html
+              ?~  active
+                [%o (~(gas by *(map @t json)) ~[['status' s+'waiting']])]
+              [%o (~(gas by *(map @t json)) ~[['status' s+'ready'] ['address' s+u.active]])]
+            ;<  ~  bind:m
+              (send-simple:srv:h eyre-id [[200 ~[['content-type' 'application/json']]] `(as-octs:mimes:html body)])
             (pure:m ~)
               %'set-fee-rate'
             =/  fee-raw=@t  (fall (get-key:kv:html-utils 'fee-rate' args) '2')
@@ -1021,7 +1106,7 @@
             %'discover'
           (handle-discover-proc:h prev)
             %'send'
-          (handle-send-proc:h prev)
+          (on-send-proc:h prev)
             %'paused'
           stay:m
         ==
@@ -1069,7 +1154,9 @@
   ^-  form:m
   =/  deriv=(unit [acct=@t chain=?(%recv %chng) idx=@ud])
     (get-addr-derivation:aio labels addr)
-  ?~  deriv  (pure:m reg)
+  ?~  deriv
+    ~&  >>>  [%spawn-refresh %no-derivation addr]
+    (pure:m reg)
   =/  network=network:wt  (get-acct-network:aio labels acct-ref)
   =/  net=@ta  ;;(@ta network)
   =/  acct-procs=account-procs
@@ -1208,25 +1295,13 @@
   ;<  ~  bind:m  (replace:io updated)
   ;<  ~  bind:m  (sleep:io ~m5)
   (pure:m ~)
-::  +handle-send-proc: build, sign, broadcast a transaction
+::  +do-send: shared send logic — draft, broadcast, refresh
+::  returns %.y on success, %.n on failure
 ::
-++  handle-send-proc
-  |=  prev=json
-  =/  m  (fiber:fiber:nexus ,~)
+++  do-send
+  |=  [acct-ref=@t dest-addr=@t change-addr=@t amount=@ud fee-rate=@ud]
+  =/  m  (fiber:fiber:nexus ,?)
   ^-  form:m
-  =/  status=@t  (~(dug jo:json-utils prev) /status so:dejs:format '')
-  ?:  =('done' status)  (pure:m ~)
-  ?:  =('error' status)  (pure:m ~)
-  =/  acct-ref=@t
-    (~(dog jo:json-utils prev) /account so:dejs:format)
-  =/  dest-addr=@t
-    (~(dog jo:json-utils prev) /address so:dejs:format)
-  =/  amount=@ud
-    (~(dog jo:json-utils prev) /amount ni:dejs:format)
-  =/  fee-rate=@ud
-    (~(dug jo:json-utils prev) /fee-rate ni:dejs:format 2)
-  =/  change-addr=@t
-    (~(dog jo:json-utils prev) /change-address so:dejs:format)
   ::  1. clear-draft
   ;<  ~  bind:m
     (handle-account-action (pairs:enjs:format ~[['action' s+'clear-draft']]) acct-ref)
@@ -1256,14 +1331,7 @@
   ::  5. check if inputs were selected
   ;<  existing=(unit transaction:drft)  bind:m  (load-draft acct-ref)
   ?:  |(?=(~ existing) =(~ inputs.u.existing))
-    ::  no UTXOs available — report error
-    ;<  cur=json  bind:m  (get-state-as:io json)
-    =/  updated=json
-      ?.  ?=(%o -.cur)  cur
-      [%o (~(put by (~(put by p.cur) 'status' s+'error')) 'error' s+'No UTXOs available to fund this transaction')]
-    ;<  ~  bind:m  (replace:io updated)
-    ;<  ~  bind:m  (sleep:io ~m5)
-    (pure:m ~)
+    (pure:m %.n)
   ::  6. collect input addresses before broadcast clears the draft
   ;<  lbls=labels:b329  bind:m  load-labels
   =/  input-addrs=(list @t)
@@ -1277,22 +1345,42 @@
     (handle-account-action (pairs:enjs:format ~[['action' s+'build-transaction']]) acct-ref)
   ::  8. check if draft was cleared (= success) or still exists (= failure)
   ;<  post-draft=(unit transaction:drft)  bind:m  (load-draft acct-ref)
-  ;<  cur=json  bind:m  (get-state-as:io json)
-  =/  updated=json
-    ?.  ?=(%o -.cur)  cur
-    ?^  post-draft
-      [%o (~(put by (~(put by p.cur) 'status' s+'error')) 'error' s+'Transaction build or broadcast failed')]
-    [%o (~(put by p.cur) 'status' s+'done')]
-  ;<  ~  bind:m  (replace:io updated)
-  ::  9. on success, refresh our own addresses (inputs + change)
-  ?.  ?=(~ post-draft)
-    ;<  ~  bind:m  (sleep:io ~m5)
-    (pure:m ~)
+  ?^  post-draft  (pure:m %.n)
+  ::  9. refresh our own addresses (inputs + change)
   =/  own-addrs=(list @t)  (weld input-addrs ~[change-addr])
+  ;<  lbls=labels:b329  bind:m  load-labels
   ;<  reg=proc-registry  bind:m  load-registry
   ;<  reg=proc-registry  bind:m
     (spawn-refreshes own-addrs lbls acct-ref reg)
   ;<  ~  bind:m  (save-registry reg)
+  (pure:m %.y)
+::  +on-send-proc: build, sign, broadcast a transaction
+::
+++  on-send-proc
+  |=  prev=json
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  =/  status=@t  (~(dug jo:json-utils prev) /status so:dejs:format '')
+  ?:  =('done' status)  (pure:m ~)
+  ?:  =('error' status)  (pure:m ~)
+  =/  acct-ref=@t
+    (~(dog jo:json-utils prev) /account so:dejs:format)
+  =/  dest-addr=@t
+    (~(dog jo:json-utils prev) /address so:dejs:format)
+  =/  amount=@ud
+    (~(dog jo:json-utils prev) /amount ni:dejs:format)
+  =/  fee-rate=@ud
+    (~(dug jo:json-utils prev) /fee-rate ni:dejs:format 2)
+  =/  change-addr=@t
+    (~(dog jo:json-utils prev) /change-address so:dejs:format)
+  ;<  ok=?  bind:m  (do-send acct-ref dest-addr change-addr amount fee-rate)
+  ;<  cur=json  bind:m  (get-state-as:io json)
+  =/  updated=json
+    ?.  ?=(%o -.cur)  cur
+    ?.  ok
+      [%o (~(put by (~(put by p.cur) 'status' s+'error')) 'error' s+'Send failed')]
+    [%o (~(put by p.cur) 'status' s+'done')]
+  ;<  ~  bind:m  (replace:io updated)
   ;<  ~  bind:m  (sleep:io ~m5)
   (pure:m ~)
 ::  +handle-discover-proc: account discovery process
@@ -2027,47 +2115,15 @@
     (pure:m ~)
   ::  used — try next index
   $(idx +(idx))
-::  +send-bitcoin-pokes: chain draft actions to build, sign, and broadcast
+::  +simple-send: build, sign, broadcast via simple page
 ::
-++  send-bitcoin-pokes
-  |=  $:  acct-ref=@t
-          change-addr=@t
-          dest-addr=@t
-          amount=@ud
-          fee-rate=@ud
-          eyre-id=@ta
-      ==
+++  simple-send
+  |=  [acct-ref=@t change-addr=@t dest-addr=@t amount=@ud fee-rate=@ud eyre-id=@ta]
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
-  ::  1. clear-draft
-  ;<  ~  bind:m
-    (handle-account-action (pairs:enjs:format ~[['action' s+'clear-draft']]) acct-ref)
-  ::  2. add-output
-  ;<  ~  bind:m
-    %:  handle-account-action
-      %-  pairs:enjs:format
-      :~  ['action' s+'add-output']
-          ['address' s+dest-addr]
-          ['amount' (numb:enjs:format amount)]
-      ==
-      acct-ref
-    ==
-  ::  3. set-change-config
-  ;<  ~  bind:m
-    %:  handle-account-action
-      %-  pairs:enjs:format
-      :~  ['action' s+'set-change-config']
-          ['fee-rate' (numb:enjs:format fee-rate)]
-          ['change-address' s+change-addr]
-      ==
-      acct-ref
-    ==
-  ::  4. run-auto-select
-  ;<  ~  bind:m
-    (handle-account-action (pairs:enjs:format ~[['action' s+'run-auto-select']]) acct-ref)
-  ::  5. build-transaction (signs, broadcasts, clears draft)
-  ;<  ~  bind:m
-    (handle-account-action (pairs:enjs:format ~[['action' s+'build-transaction']]) acct-ref)
+  ;<  ok=?  bind:m  (do-send acct-ref dest-addr change-addr amount fee-rate)
+  ?.  ok
+    (send-simple:srv eyre-id [[500 ~] `(as-octs:mimes:html 'Send failed')])
   (send-simple:srv eyre-id [[200 ~] `(as-octs:mimes:html 'ok')])
 ::
 ++  get-simple-xpub
@@ -2864,7 +2920,7 @@
         ==
       ==
       ;div(style "display: flex; justify-content: space-between; align-items: center; margin-top: 12px;")
-        ;span.f3.s-2: {?~(info.dat "Never checked" "Last: {(scow %da last-check.u.info.dat)}")}
+        ;span.f3.s-2: {?~(info.dat "Never checked" ?~(last-check.u.info.dat "Never checked" "Last: {(scow %da u.last-check.u.info.dat)}"))}
         ;+  ?:  is-loading
               ;div(style "display: flex; gap: 4px;")
                 ;div.p2.b1.br1(style "background: rgba(100, 150, 255, 0.2); border: 1px solid var(--b3); color: var(--f3); display: flex; align-items: center; height: 32px; padding: 0 8px; justify-content: center;")

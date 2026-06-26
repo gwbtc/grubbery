@@ -372,7 +372,7 @@
     ==
     ;div(style "display: flex; gap: 4px; flex-shrink: 0;")
       ;button.p2.b1.br1.hover.pointer
-        =title  ?~(info.a "Never checked" "Last: {(scow %da last-check.u.info.a)}")
+        =title  ?~(info.a "Never checked" ?~(last-check.u.info.a "Never checked" "Last: {(scow %da u.last-check.u.info.a)}"))
         =data-chain  (trip chain-tag)
         =data-idx  (scow %ud idx)
         =onclick  "refreshAddress(this.dataset.chain, this.dataset.idx)"

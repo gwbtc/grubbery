@@ -65,7 +65,7 @@
     recv:(read-account-addrs:aio lbls u.og)
   ::  compute next offer index
   =/  offer-idx=@ud
-    (get-next-offer-index:aio recv lbls xprv)
+    (get-next-offer-index:aio recv lbls ref)
   ::  derive address
   =/  addr=(unit @t)
     (derive-addr:aio xprv stype network 0 offer-idx)
@@ -77,7 +77,7 @@
     (label-derived-addr:aio lbls u.addr lbl og 0 offer-idx ref)
   ::  advance last-offered counter
   =/  new-lbls=labels:b329
-    (set-last-offered:aio new-lbls xprv offer-idx)
+    (set-last-offered:aio new-lbls ref offer-idx)
   ::  save labels
   =/  lbl-road=road:tarball
     [%& %& /apps/'wallet.wallet_app' %'labels.wallet_labels']

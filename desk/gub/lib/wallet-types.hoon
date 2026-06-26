@@ -19,7 +19,7 @@
       mem-tx-count=@ud    :: mempool_stats.tx_count
       mem-funded=@ud      :: mempool_stats.funded_txo_sum
       mem-spent=@ud       :: mempool_stats.spent_txo_sum
-      last-check=@da
+      last-check=(unit @da)
   ==
 ::  transaction status: confirmed or unconfirmed
 ::

@@ -127,7 +127,8 @@
   =.  l  (~(put-kv la:b329 l) [%addr addr (rap 3 ~['gwbtc:mempool:funded:' (num mem-funded.info)]) ~ ~ ~])
   =.  l  (~(put-kv la:b329 l) [%addr addr (rap 3 ~['gwbtc:mempool:spent:' (num mem-spent.info)]) ~ ~ ~])
   =.  l  (~(put-kv la:b329 l) [%addr addr (rap 3 ~['gwbtc:mempool:tx-count:' (num mem-tx-count.info)]) ~ ~ ~])
-  (~(put-kv la:b329 l) [%addr addr (rap 3 ~['gwbtc:last-checked:' (num (unt:chrono:userlib last-check.info))]) ~ ~ ~])
+  ?~  last-check.info  l
+  (~(put-kv la:b329 l) [%addr addr (rap 3 ~['gwbtc:last-checked:' (num (unt:chrono:userlib u.last-check.info))]) ~ ~ ~])
 ::  +label-utxos: write output labels for UTXOs
 ::
 ++  label-utxos
@@ -195,20 +196,23 @@
   =/  funded=(unit @t)  (~(read-kv la:b329 labels) %addr addr 'gwbtc:funded:')
   =/  spent=(unit @t)   (~(read-kv la:b329 labels) %addr addr 'gwbtc:spent:')
   =/  tc=(unit @t)      (~(read-kv la:b329 labels) %addr addr 'gwbtc:tx-count:')
-  =/  lc=(unit @t)      (~(read-kv la:b329 labels) %addr addr 'gwbtc:last-checked:')
-  ?:  |(?=(~ funded) ?=(~ spent) ?=(~ tc) ?=(~ lc))  ~
+  ?:  |(?=(~ funded) ?=(~ spent) ?=(~ tc))  ~
   =/  funded-ud=(unit @ud)  (rush u.funded dem)
   =/  spent-ud=(unit @ud)   (rush u.spent dem)
   =/  tc-ud=(unit @ud)      (rush u.tc dem)
-  =/  lc-ud=(unit @ud)      (rush u.lc dem)
-  ?:  |(?=(~ funded-ud) ?=(~ spent-ud) ?=(~ tc-ud) ?=(~ lc-ud))  ~
+  ?:  |(?=(~ funded-ud) ?=(~ spent-ud) ?=(~ tc-ud))  ~
+  =/  lc=(unit @t)      (~(read-kv la:b329 labels) %addr addr 'gwbtc:last-checked:')
+  =/  lc-ud=(unit @ud)  (biff lc |=(v=@t (rush v dem)))
+  =/  lc-da=(unit @da)
+    ?~  lc-ud  ~
+    `(from-unix:chrono:userlib u.lc-ud)
   =/  mf=(unit @t)  (~(read-kv la:b329 labels) %addr addr 'gwbtc:mempool:funded:')
   =/  ms=(unit @t)  (~(read-kv la:b329 labels) %addr addr 'gwbtc:mempool:spent:')
   =/  mt=(unit @t)  (~(read-kv la:b329 labels) %addr addr 'gwbtc:mempool:tx-count:')
   =/  mf-ud=@ud  (fall (biff mf |=(v=@t (rush v dem))) 0)
   =/  ms-ud=@ud  (fall (biff ms |=(v=@t (rush v dem))) 0)
   =/  mt-ud=@ud  (fall (biff mt |=(v=@t (rush v dem))) 0)
-  `[u.tc-ud u.funded-ud u.spent-ud mt-ud mf-ud ms-ud (from-unix:chrono:userlib u.lc-ud)]
+  `[u.tc-ud u.funded-ud u.spent-ud mt-ud mf-ud ms-ud lc-da]
 ::  +has-new-broadcast: check if address has broadcast notification newer than last-check
 ::
 ++  has-new-broadcast
@@ -217,7 +221,8 @@
   =/  info=(unit address-info)  (read-addr-info labels addr)
   =/  last-checked=@ud
     ?~  info  0
-    (unt:chrono:userlib last-check.u.info)
+    ?~  last-check.u.info  0
+    (unt:chrono:userlib u.last-check.u.info)
   =/  entries=(list label-entry:b329)
     ~(tap in (~(get la:b329 labels) %addr addr))
   =/  prefix=tape  "gwbtc:broadcast:"
@@ -595,7 +600,7 @@
   %:  pure:m  :-  ~
   :*  u.tx-count  u.funded  u.spent
       (fall mem-tc 0)  (fall mem-funded 0)  (fall mem-spent 0)
-      now
+      `now
   ==  ==
 ::  +fetch-address-data: full address fetch — info, UTXOs, txs
 ::  returns fetched data for the caller to label and save
@@ -654,7 +659,7 @@
   =/  mem-funded=(unit @ud)  (mole |.((ni:dejs:format (~(got jo:json-utils data) /'mempool_stats'/'funded_txo_sum'))))
   =/  mem-spent=(unit @ud)  (mole |.((ni:dejs:format (~(got jo:json-utils data) /'mempool_stats'/'spent_txo_sum'))))
   ?:  |(?=(~ tc) ?=(~ funded) ?=(~ spent))  ~
-  `[u.tc u.funded u.spent (fall mem-tc 0) (fall mem-funded 0) (fall mem-spent 0) now]
+  `[u.tc u.funded u.spent (fall mem-tc 0) (fall mem-funded 0) (fall mem-spent 0) `now]
 ::  +parse-utxo-response: extract UTXOs from HTTP response
 ::
 ++  parse-utxo-response
@@ -908,6 +913,64 @@
     ?~  recv  0
     +(idx:(rear recv))
   =/  last=(unit @ud)  (get-last-offered labels xpub)
+  ?~  last  unused-idx
+  (max unused-idx +(u.last))
+::  +addr-to-ship: resolve address to ship from offered labels
+::
+++  addr-to-ship
+  |=  [=labels:b329 addr=@t]
+  ^-  (unit @t)
+  =/  entries=(list label-entry:b329)
+    ~(tap in (~(get la:b329 labels) %addr addr))
+  |-
+  ?~  entries  ~
+  =/  lbl=tape  (trip label.i.entries)
+  ?:  =("gwbtc:offered:to:" (scag 17 lbl))
+    `(crip (slag 17 lbl))
+  ?:  =("gwbtc:offered:from:" (scag 19 lbl))
+    `(crip (slag 19 lbl))
+  $(entries t.entries)
+::  +get-last-change: read last-change index from xpub labels
+::
+++  get-last-change
+  |=  [=labels:b329 xpub=@t]
+  ^-  (unit @ud)
+  =/  entries=(list label-entry:b329)
+    ~(tap in (~(get la:b329 labels) %xpub xpub))
+  =/  prefix=tape  "gwbtc:last-change:"
+  =/  prefix-len=@ud  (lent prefix)
+  |-
+  ?~  entries  ~
+  =/  lbl=tape  (trip label.i.entries)
+  ?.  =(prefix (scag prefix-len lbl))
+    $(entries t.entries)
+  (rush (crip (slag prefix-len lbl)) dem)
+::  +set-last-change: write last-change index as xpub label
+::
+++  set-last-change
+  |=  [=labels:b329 xpub=@t idx=@ud]
+  ^-  labels:b329
+  =/  entries=(list label-entry:b329)
+    ~(tap in (~(get la:b329 labels) %xpub xpub))
+  =/  prefix=tape  "gwbtc:last-change:"
+  =/  prefix-len=@ud  (lent prefix)
+  =.  labels
+    |-
+    ?~  entries  labels
+    =/  lbl=tape  (trip label.i.entries)
+    ?:  =(prefix (scag prefix-len lbl))
+      $(entries t.entries, labels (~(del la:b329 labels) %xpub xpub label.i.entries))
+    $(entries t.entries)
+  (~(put la:b329 labels) [%xpub xpub (rap 3 ~['gwbtc:last-change:' (num idx)]) ~ ~ ~])
+::  +get-next-change-index: next change address index
+::
+++  get-next-change-index
+  |=  [chng=(list [idx=@ud addr=@t]) =labels:b329 xpub=@t]
+  ^-  @ud
+  =/  unused-idx=@ud
+    ?~  chng  0
+    +(idx:(rear chng))
+  =/  last=(unit @ud)  (get-last-change labels xpub)
   ?~  last  unused-idx
   (max unused-idx +(u.last))
 ::  +get-wallet-name: read gwbtc:wallet:X label for wallet xpub

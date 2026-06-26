@@ -158,7 +158,9 @@
           saved=?
           available-nets=(list tape)
           fee-rate=@ud
-          contacts=(map @t (map @t json))
+          last-offered=(unit @ud)
+          last-change=(unit @ud)
+          ships=(map @t @t)
       ==
   ^-  manx
   =/  wal-name=tape
@@ -185,7 +187,7 @@
   =/  accent-hover=tape  ?:(is-mainnet "#e8850f" "#5080e0")
   =/  accent-bg=tape  ?:(is-mainnet "rgba(247, 147, 26, 0.1)" "rgba(100, 150, 255, 0.1)")
   =/  accent-border=tape  ?:(is-mainnet "rgba(247, 147, 26, 0.25)" "rgba(100, 150, 255, 0.25)")
-  =/  tx-items=(list manx)  (render-tx-items tx-list our)
+  =/  tx-items=(list manx)  (render-tx-items tx-list our ships)
   =/  recv-rows=(list manx)  (render-addr-rows (flop recv) %recv)
   =/  chng-rows=(list manx)  (render-addr-rows (flop chng) %chng)
   ;html
@@ -202,8 +204,8 @@
         ;+  (render-backup-banner saved)
         ;+  (render-balance-section bal-tape bal-sats pending-in pending-out)
         ;+  render-actions
-        ;+  (render-tab-panel tx-items recv-rows chng-rows)
-        ;+  (render-send-popup bal fee-rate contacts)
+        ;+  (render-tab-panel tx-items recv-rows chng-rows last-offered last-change)
+        ;+  (render-send-popup bal fee-rate)
         ;+  (render-info-popup wal-seed wal-seed-masked saved fee-rate)
         ;+  render-tx-detail-popup
       ==
@@ -297,12 +299,16 @@
   ==
 ::
 ++  render-tab-panel
-  |=  [tx-items=(list manx) recv-rows=(list manx) chng-rows=(list manx)]
+  |=  [tx-items=(list manx) recv-rows=(list manx) chng-rows=(list manx) last-offered=(unit @ud) last-change=(unit @ud)]
   ^-  manx
   ;div.tab-panel
     ;div.tab-bar
       ;button.tab-btn.active(onclick "switchTab('activity', this)"): Activity
       ;button.tab-btn(onclick "switchTab('addresses', this)"): Addresses
+    ==
+    ;div#addr-subtabs.addr-tabs.hidden
+      ;button.addr-tab.active(onclick "switchAddrTab('recv', this)"): Receiving
+      ;button.addr-tab(onclick "switchAddrTab('chng', this)"): Change
     ==
     ;div#tab-activity.tab-content
       ;div.activity-list
@@ -312,16 +318,14 @@
       ==
     ==
     ;div#tab-addresses.tab-content.hidden
-      ;div.addr-tabs
-        ;button.addr-tab.active(onclick "switchAddrTab('recv', this)"): Receiving
-        ;button.addr-tab(onclick "switchAddrTab('chng', this)"): Change
-      ==
       ;div#addr-recv.addr-list
+        ;div.addr-last-offered: Last offered: {?~(last-offered "none" (weld "#" (a-co:co u.last-offered)))}
         ;+  ?^  recv-rows  ;span;
             ;div.addr-empty: No receiving addresses derived
         ;*  recv-rows
       ==
       ;div#addr-chng.addr-list.hidden
+        ;div.addr-last-offered: Last change: {?~(last-change "none" (weld "#" (a-co:co u.last-change)))}
         ;+  ?^  chng-rows  ;span;
             ;div.addr-empty: No change addresses derived
         ;*  chng-rows
@@ -330,7 +334,7 @@
   ==
 ::
 ++  render-tx-items
-  |=  [entries=(list tx-entry) our=(set @t)]
+  |=  [entries=(list tx-entry) our=(set @t) ships=(map @t @t)]
   ^-  (list manx)
   =/  items=(list manx)  ~
   |-
@@ -343,7 +347,7 @@
     ?.  conf.e  "Pending"
     ?.  ?=([%confirmed *] tx-status.transaction.e)  "Confirmed"
     "Block {(a-co:co block-height.tx-status.transaction.e)}"
-  =/  counterparty=tape
+  =/  counterparty-addr=tape
     ?:  ?=(%sent dir.e)
       =/  outs=(list tx-output)  outputs.transaction.e
       |-
@@ -356,6 +360,19 @@
     ?~  ins  ""
     ?~  prevout.i.ins  $(ins t.ins)
     (trip address.u.prevout.i.ins)
+  =/  ship-name=(unit @t)
+    ?:  ?=(%sent dir.e)
+      (~(get by ships) (crip counterparty-addr))
+    =/  outs=(list tx-output)  outputs.transaction.e
+    |-
+    ?~  outs  ~
+    ?.  (~(has in our) address.i.outs)  $(outs t.outs)
+    =/  s=(unit @t)  (~(get by ships) address.i.outs)
+    ?^  s  s
+    $(outs t.outs)
+  =/  counterparty=tape
+    ?~  ship-name  counterparty-addr
+    (trip u.ship-name)
   =/  addr-label=tape  ?:(?=(%sent dir.e) "To" "From")
   =/  txid-full=tape  (trip txid.transaction.e)
   =/  item=manx
@@ -386,6 +403,7 @@
     ==
   $(entries t.entries, items [item items])
 ::
+::
 ++  render-addr-rows
   |=  [leaves=(list [@ud address-data]) chain=?(%recv %chng)]
   ^-  (list manx)
@@ -401,6 +419,14 @@
   =/  bal=@ud
     %+  roll  utxos.ad  |=([u=utxo s=@ud] (add s value.u))
   =/  bal-tape=tape  (format-btc bal)
+  =/  has-pending=?
+    %+  lien  utxos.ad
+    |=(u=utxo ?=([%unconfirmed ~] tx-status.u))
+  =/  last-title=tape
+    ?~  info.ad  "Never refreshed"
+    ?~  last-check.u.info.ad  "Never refreshed"
+    =/  d=date  (yore u.last-check.u.info.ad)
+    "Last refreshed: {(a-co:co m.d)}/{(a-co:co d.t.d)} {(a-co:co h.t.d)}:{?:((lth m.t.d 10) "0" "")}{(a-co:co m.t.d)}"
   =/  item=manx
     ;div.addr-item
       ;div.addr-item-left
@@ -412,9 +438,19 @@
             ;path(d "M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1");
           ==
         ==
+        ;+  ?~  info.ad  ;span.addr-txc: ?
+            ;span.addr-txc: {(a-co:co tx-count.u.info.ad)}tx
+        ;+  ?.  has-pending  ;span;
+            ;span.addr-pending: pending
       ==
       ;div.addr-item-right
         ;span.addr-bal: {bal-tape}
+        ;span.addr-clock(title last-title)
+          ;svg(xmlns "http://www.w3.org/2000/svg", viewBox "0 0 24 24", width "12", height "12", fill "none", stroke "currentColor", stroke-width "2", stroke-linecap "round", stroke-linejoin "round")
+            ;circle(cx "12", cy "12", r "10");
+            ;polyline(points "12 6 12 12 16 14");
+          ==
+        ==
         ;button.addr-refresh(onclick "refreshAddr('{chain-tape}', {(a-co:co idx)})", title "Refresh address")
           ;svg(xmlns "http://www.w3.org/2000/svg", viewBox "0 0 24 24", width "12", height "12", fill "none", stroke "currentColor", stroke-width "2", stroke-linecap "round", stroke-linejoin "round")
             ;polyline(points "23 4 23 10 17 10");
@@ -427,44 +463,30 @@
   $(leaves t.leaves, items [item items])
 ::
 ++  render-send-popup
-  |=  [bal=@ud fee-rate=@ud contacts=(map @t (map @t json))]
+  |=  [bal=@ud fee-rate=@ud]
   ^-  manx
   =/  est-fee=@ud  220
   =/  est-max=@ud  ?:((lth bal est-fee) 0 (sub bal est-fee))
   =/  est-max-tape=tape  (format-btc est-max)
   =/  fee-rate-tape=tape  (a-co:co fee-rate)
-  =/  contact-rows=(list manx)
-    =/  pairs=(list [key=@t =manx])
-      %+  turn  ~(tap by contacts)
-      |=  [ship=@t fields=(map @t json)]
-      =/  nick=tape
-        =/  n=(unit json)  (~(get by fields) 'nickname')
-        ?~(n "" ?.(?=([%s @] u.n) "" (trip p.u.n)))
-      =/  ship-t=tape  (trip ship)
-      =/  sort-key=@t  ?~(nick ship (crip (cass nick)))
-      :-  sort-key
-      ;div.cp-row(onclick "pickContact('{ship-t}')", data-ship ship-t, data-nick nick)
-        ;+  ?~  nick
-              ;span.cp-name: {ship-t}
-            ;span.cp-name: {nick}
-        ;+  ?~  nick
-              ;span;
-            ;span.cp-ship: {ship-t}
-      ==
-    (turn (sort pairs |=([a=[key=@t *] b=[key=@t *]] (aor key.a key.b))) |=([* m=manx] m))
   ;div
     ;div#contact-picker.cp-overlay(onclick "closePicker(event)")
       ;div.cp-modal
         ;div.cp-header
+          ;a.cp-manage(href "/grubbery/contacts", title "Manage Contacts")
+            ;svg(xmlns "http://www.w3.org/2000/svg", viewBox "0 0 24 24", width "14", height "14", fill "none", stroke "currentColor", stroke-width "2", stroke-linecap "round", stroke-linejoin "round")
+              ;path(d "M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2");
+              ;circle(cx "9", cy "7", r "4");
+              ;path(d "M23 21v-2a4 4 0 0 0-3-3.87");
+              ;path(d "M16 3.13a4 4 0 0 1 0 7.75");
+            ==
+          ==
           ;span.cp-title: Select Contact
           ;button.cp-close(onclick "closePicker()"): ×
         ==
         ;input#cp-search.cp-search(type "text", placeholder "Search...", autocomplete "off", oninput "filterContacts()");
         ;div#cp-list.cp-list
-          ;*  ?~  contact-rows
-                =/  empty=manx  ;div.cp-empty: No contacts
-                ~[empty]
-              contact-rows
+          ;div.cp-empty: Loading contacts...
         ==
       ==
     ==
@@ -482,8 +504,8 @@
         ==
         ;div#to-contact.hidden
           ;div.to-contact-row
-            ;span#to-contact-label.to-contact-label: No contact selected
-            ;button.to-contact-btn(onclick "openPicker()"): Choose
+            ;input#send-to-ship.send-input(type "text", placeholder "~sampel-palnet", autocomplete "off");
+            ;button.to-contact-btn(onclick "openPicker()"): Contacts
           ==
         ==
       ==
@@ -632,7 +654,6 @@
     ; .wallet-shell {
     ;   max-width: 480px;
     ;   margin: 0 auto;
-    ;   min-height: 100vh;
     ;   display: flex;
     ;   flex-direction: column;
     ; }
@@ -777,11 +798,10 @@
     ; .action-btn-primary { background: var(--accent); color: #fff; }
     ; .action-btn-primary:hover { background: var(--accent-hover); }
     ; .tab-panel {
-    ;   flex: 1;
     ;   display: flex;
     ;   flex-direction: column;
-    ;   min-height: 0;
-    ;   margin: 0 24px 24px;
+    ;   height: calc(100vh - 420px);
+    ;   margin: 0 24px 48px;
     ;   background: var(--b1);
     ;   border: 1px solid var(--b3);
     ;   border-radius: 16px;
@@ -826,7 +846,7 @@
     ;   color: var(--f4);
     ;   font-size: 14px;
     ; }
-    ; .activity-list { overflow-y: auto; flex: 1; }
+    ; .activity-list { padding-bottom: 16px; }
     ; .activity-tx {
     ;   display: flex;
     ;   gap: 12px;
@@ -878,7 +898,8 @@
     ; .activity-tx-status { font-size: 11px; color: var(--f4); }
     ; .activity-tx-status.pending { color: var(--accent); }
     ; .activity-tx-time { font-size: 11px; color: var(--f4); }
-    ; .addr-tabs { display: flex; gap: 4px; margin-bottom: 12px; }
+    ; .addr-tabs { display: flex; gap: 4px; padding: 12px 16px 0; }
+    ; .addr-tabs.hidden { display: none; }
     ; .addr-tab {
     ;   flex: 1;
     ;   background: var(--b2);
@@ -901,8 +922,7 @@
     ;   display: flex;
     ;   flex-direction: column;
     ;   gap: 4px;
-    ;   max-height: 400px;
-    ;   overflow-y: auto;
+    ;   padding-bottom: 16px;
     ; }
     ; .addr-item {
     ;   display: flex;
@@ -924,8 +944,12 @@
     ;   overflow: hidden;
     ;   text-overflow: ellipsis;
     ; }
+    ; .addr-txc { font-size: 10px; color: var(--f4); flex-shrink: 0; }
+    ; .addr-pending { font-size: 9px; color: var(--accent); font-weight: 600; text-transform: uppercase; flex-shrink: 0; }
     ; .addr-item-right { display: flex; align-items: center; flex-shrink: 0; gap: 6px; }
     ; .addr-bal { font-size: 11px; font-weight: 500; font-family: monospace; color: var(--f3); }
+    ; .addr-clock { display: flex; align-items: center; color: var(--f4); opacity: 0.3; cursor: default; transition: opacity 0.15s; }
+    ; .addr-clock:hover { opacity: 0.8; }
     ; .addr-refresh {
     ;   background: none;
     ;   border: none;
@@ -940,6 +964,7 @@
     ; .addr-refresh:hover { opacity: 1; }
     ; .addr-refresh.spinning svg { animation: spin 0.6s linear infinite; }
     ; .addr-empty { text-align: center; padding: 24px 0; font-size: 13px; color: var(--f4); }
+    ; .addr-last-offered { font-size: 11px; color: var(--f4); padding: 6px 12px; font-family: monospace; }
     ; .tx-copy-btn {
     ;   background: none;
     ;   border: none;
@@ -1050,15 +1075,17 @@
     ; .send-to-tab:hover { color: var(--f2); }
     ; .send-to-tab.active { color: var(--f0); font-weight: 600; border-bottom-color: var(--accent); }
     ; #to-contact.hidden, #to-address.hidden { display: none; }
-    ; .to-contact-row { display: flex; align-items: center; gap: 10px; }
-    ; .to-contact-label { font-size: 14px; color: var(--f3); flex: 1; }
-    ; .to-contact-btn { padding: 8px 14px; border-radius: 8px; border: 1px solid var(--b3); background: var(--b1); color: var(--f2); font-size: 13px; cursor: pointer; font-family: inherit; }
+    ; .to-contact-row { display: flex; align-items: center; gap: 8px; }
+    ; .to-contact-row .send-input { flex: 1; }
+    ; .to-contact-btn { padding: 8px 14px; border-radius: 8px; border: 1px solid var(--b3); background: var(--b1); color: var(--f2); font-size: 13px; cursor: pointer; font-family: inherit; flex-shrink: 0; }
     ; .to-contact-btn:hover { background: var(--b2); }
     ; .cp-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 200; align-items: center; justify-content: center; }
     ; .cp-overlay.open { display: flex; }
     ; .cp-modal { background: var(--b0); border-radius: 16px; padding: 20px; max-width: 340px; width: 90%; }
     ; .cp-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
     ; .cp-title { font-size: 15px; font-weight: 600; }
+    ; .cp-manage { color: var(--f4); display: flex; align-items: center; padding: 4px; text-decoration: none; margin-right: 8px; }
+    ; .cp-manage:hover { color: var(--f2); }
     ; .cp-close { background: none; border: none; color: var(--f4); font-size: 18px; cursor: pointer; }
     ; .cp-search { width: 100%; padding: 10px 12px; background: var(--b1); border: 1px solid var(--b3); border-radius: 8px; color: var(--f0); font-size: 14px; font-family: inherit; box-sizing: border-box; margin-bottom: 8px; }
     ; .cp-search::placeholder { color: var(--f4); }
@@ -1259,9 +1286,40 @@
     ; }
     ; document.addEventListener('DOMContentLoaded', function() {
     ;   fetchPrice();
+    ;   loadContacts();
     ;   var cb = document.getElementById('info-saved');
     ;   if (cb) cb.checked = cb.dataset.checked === 'true';
     ; });
+    ; function loadContacts() {
+    ;   fetch('/grubbery/contacts/api/overlays')
+    ;     .then(function(r) { return r.json(); })
+    ;     .then(function(data) {
+    ;       var list = document.getElementById('cp-list');
+    ;       var entries = Object.keys(data).map(function(ship) {
+    ;         var f = data[ship] || {};
+    ;         var nick = f.nickname || '';
+    ;         return { ship: ship, nick: nick, sort: nick ? nick.toLowerCase() : ship };
+    ;       });
+    ;       entries.sort(function(a, b) { return a.sort < b.sort ? -1 : a.sort > b.sort ? 1 : 0; });
+    ;       if (!entries.length) { list.innerHTML = '<div class="cp-empty">No contacts</div>'; return; }
+    ;       list.innerHTML = entries.map(function(e) {
+    ;         var label = e.nick ? '<span class="cp-name">' + e.nick + '</span><span class="cp-ship">' + e.ship + '</span>'
+    ;                            : '<span class="cp-ship">' + e.ship + '</span>';
+    ;         return '<div class="cp-row" onclick="pickContact(\'' + e.ship + '\', \'' + (e.nick || '') + '\')" data-ship="' + e.ship + '" data-nick="' + e.nick + '">' + label + '</div>';
+    ;       }).join('');
+    ;       document.querySelectorAll('.activity-tx').forEach(function(el) {
+    ;         var addr = el.dataset.addr;
+    ;         if (!addr || addr.charAt(0) != String.fromCharCode(126)) return;
+    ;         var contact = data[addr];
+    ;         if (!contact || !contact.nickname) return;
+    ;         var addrDiv = el.querySelector('.activity-tx-addr');
+    ;         if (addrDiv) addrDiv.innerHTML = '<span class="cp-name">' + contact.nickname + '</span> <span class="cp-ship">' + addr + '</span>';
+    ;       });
+    ;     })
+    ;     .catch(function() {
+    ;       document.getElementById('cp-list').innerHTML = '<div class="cp-empty">Failed to load contacts</div>';
+    ;     });
+    ; }
     ; function flashCheck(btn) {
     ;   var orig = btn.innerHTML;
     ;   btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="#10b981" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>';
@@ -1324,6 +1382,7 @@
     ; function switchTab(tab, btn) {
     ;   document.getElementById('tab-activity').classList.toggle('hidden', tab !== 'activity');
     ;   document.getElementById('tab-addresses').classList.toggle('hidden', tab !== 'addresses');
+    ;   document.getElementById('addr-subtabs').classList.toggle('hidden', tab !== 'addresses');
     ;   var tabs = btn.parentElement.querySelectorAll('.tab-btn');
     ;   for (var i = 0; i < tabs.length; i++) tabs[i].classList.remove('active');
     ;   btn.classList.add('active');
@@ -1347,6 +1406,10 @@
     ;   var tabs = btn.parentElement.querySelectorAll('.send-to-tab');
     ;   for (var i = 0; i < tabs.length; i++) tabs[i].classList.remove('active');
     ;   btn.classList.add('active');
+    ;   if (offerPoll) { clearTimeout(offerPoll); offerPoll = null; }
+    ;   selectedNick = '';
+    ;   document.getElementById('send-btn').disabled = false;
+    ;   var st = document.getElementById('send-status'); st.className = 'send-status'; st.textContent = '';
     ; }
     ; function openPicker() {
     ;   document.getElementById('contact-picker').classList.add('open');
@@ -1367,25 +1430,65 @@
     ;     rows[i].classList.toggle('fil-hide', q && ship.indexOf(q) < 0 && nick.indexOf(q) < 0);
     ;   }
     ; }
-    ; function pickContact(ship) {
-    ;   document.getElementById('to-contact-label').textContent = ship;
+    ; var selectedNick = '';
+    ; var offerPoll = null;
+    ; function pickContact(ship, nick) {
+    ;   document.getElementById('send-to-ship').value = ship;
+    ;   selectedNick = nick || '';
     ;   document.getElementById('contact-picker').classList.remove('open');
+    ; }
+    ; function pollForOffer(ship, nick, attempts) {
+    ;   if (attempts >= 15) {
+    ;     var status = document.getElementById('send-status');
+    ;     status.className = 'send-status error';
+    ;     status.textContent = (nick || ship) + ' did not respond';
+    ;     document.getElementById('send-btn').disabled = false;
+    ;     return;
+    ;   }
+    ;   offerPoll = setTimeout(function() {
+    ;     walletPost('action=offer-status')
+    ;       .then(function(res) { return res.json(); })
+    ;       .then(function(data) {
+    ;         if (data.status === 'ready' && data.address) {
+    ;           sendToAddress(data.address, ship, nick);
+    ;         } else {
+    ;           pollForOffer(ship, nick, attempts + 1);
+    ;         }
+    ;       }).catch(function() {
+    ;         pollForOffer(ship, nick, attempts + 1);
+    ;       });
+    ;   }, 2000);
+    ; }
+    ; function sendToAddress(addr, ship, nick) {
+    ;   var amtStr = document.getElementById('send-amount').value.trim();
+    ;   var sats = parseInt(amtStr, 10);
+    ;   var feeRate = parseInt(document.getElementById('send-fee-rate').value) || 2;
     ;   var status = document.getElementById('send-status');
+    ;   var btn = document.getElementById('send-btn');
+    ;   var label = nick ? nick + ' (' + ship + ')' : ship;
     ;   status.className = 'send-status pending';
-    ;   status.textContent = 'Requesting address from ' + ship + '...';
+    ;   status.textContent = 'Building & broadcasting to ' + label + '...';
+    ;   var net = document.querySelector('.wallet-shell').dataset.net;
+    ;   walletPost('action=set-fee-rate&fee-rate=' + feeRate + '&net=' + net);
+    ;   walletPost('action=send-bitcoin&address=' + encodeURIComponent(addr) + '&amount=' + sats + '&fee-rate=' + feeRate + '&net=' + net)
+    ;     .then(function(res) {
+    ;       if (!res.ok) throw new Error('HTTP ' + res.status);
+    ;       status.className = 'send-status success';
+    ;       status.textContent = 'Transaction broadcast!';
+    ;       setTimeout(function() { location.reload(); }, 1500);
+    ;     }).catch(function(err) {
+    ;       status.className = 'send-status error';
+    ;       status.textContent = 'Send failed: ' + err.message;
+    ;       btn.disabled = false;
+    ;     });
     ; }
     ; function sendBitcoin() {
-    ;   var addr = document.getElementById('send-to').value.trim();
-    ;   var amtStr = document.getElementById('send-amount').value.trim();
     ;   var status = document.getElementById('send-status');
     ;   var btn = document.getElementById('send-btn');
     ;   status.className = 'send-status';
     ;   status.textContent = '';
-    ;   if (!addr) {
-    ;     status.className = 'send-status error';
-    ;     status.textContent = 'Enter a destination address';
-    ;     return;
-    ;   }
+    ;   var contactMode = !document.getElementById('to-contact').classList.contains('hidden');
+    ;   var amtStr = document.getElementById('send-amount').value.trim();
     ;   var sats = parseInt(amtStr, 10);
     ;   if (isNaN(sats) || sats <= 0) {
     ;     status.className = 'send-status error';
@@ -1395,6 +1498,37 @@
     ;   if (sats < 546) {
     ;     status.className = 'send-status error';
     ;     status.textContent = 'Amount below dust limit (546)';
+    ;     return;
+    ;   }
+    ;   if (contactMode) {
+    ;     var ship = document.getElementById('send-to-ship').value.trim();
+    ;     if (!ship || ship.indexOf('~') !== 0) {
+    ;       status.className = 'send-status error';
+    ;       status.textContent = 'Enter a valid ~ship';
+    ;       return;
+    ;     }
+    ;     var nick = selectedNick;
+    ;     var label = nick ? nick + ' (' + ship + ')' : ship;
+    ;     if (!confirm('Send ' + sats.toLocaleString() + ' sats to ' + label + '?')) return;
+    ;     btn.disabled = true;
+    ;     status.className = 'send-status pending';
+    ;     status.textContent = 'Requesting address from ' + label + '...';
+    ;     var net = document.querySelector('.wallet-shell').dataset.net;
+    ;     walletPost('action=request-address&ship=' + encodeURIComponent(ship) + '&net=' + net)
+    ;       .then(function(res) {
+    ;         if (!res.ok) throw new Error('HTTP ' + res.status);
+    ;         pollForOffer(ship, nick, 0);
+    ;       }).catch(function(err) {
+    ;         status.className = 'send-status error';
+    ;         status.textContent = 'Request failed: ' + err.message;
+    ;         btn.disabled = false;
+    ;       });
+    ;     return;
+    ;   }
+    ;   var addr = document.getElementById('send-to').value.trim();
+    ;   if (!addr) {
+    ;     status.className = 'send-status error';
+    ;     status.textContent = 'Enter a destination address';
     ;     return;
     ;   }
     ;   var feeRate = parseInt(document.getElementById('send-fee-rate').value) || 2;
