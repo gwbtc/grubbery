@@ -800,7 +800,7 @@
     ; .tab-panel {
     ;   display: flex;
     ;   flex-direction: column;
-    ;   height: calc(100vh - 420px);
+    ;   height: calc(100vh - 460px);
     ;   margin: 0 24px 48px;
     ;   background: var(--b1);
     ;   border: 1px solid var(--b3);
