@@ -28,6 +28,8 @@
   =/  m  (fiber:fiber:nexus ,tool-result:tools)
   ^-  form:m
   ;<  st=tool-state:tools  bind:m  (get-state-as:io ,tool-state:tools)
+  ?.  (~(has jo:json-utils [%o args.st]) /account)
+    (pure:m [%error 'Missing required parameter: account (key from wallet_status)'])
   =/  ref=@ta
     (~(dog jo:json-utils [%o args.st]) /account so:dejs:format)
   =/  chain=@t
@@ -109,7 +111,7 @@
           ?~  found  '  address not found at index'
           =/  info-u=(unit address-info)  (read-addr-info:aio lbls2 u.found)
           ?~  info-u  '  no chain data yet'
-          (rap 3 ~['  funded: ' (scot %ud funded.u.info-u) ' sats'])
+          (rap 3 ~['  funded: ' (scot %ud (add funded.u.info-u mem-funded.u.info-u)) ' sats'])
       ==
     (pure:m [%text (of-wain:format out)])
 --

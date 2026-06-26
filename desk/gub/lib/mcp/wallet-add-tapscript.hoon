@@ -33,6 +33,14 @@
   =/  m  (fiber:fiber:nexus ,tool-result:tools)
   ^-  form:m
   ;<  st=tool-state:tools  bind:m  (get-state-as:io ,tool-state:tools)
+  ?.  (~(has jo:json-utils [%o args.st]) /account)
+    (pure:m [%error 'Missing required parameter: account (p2tr account key from wallet_status)'])
+  ?.  (~(has jo:json-utils [%o args.st]) /'parent_addr')
+    (pure:m [%error 'Missing required parameter: parent_addr (parent taproot address)'])
+  ?.  (~(has jo:json-utils [%o args.st]) /index)
+    (pure:m [%error 'Missing required parameter: index (derivation index of parent address)'])
+  ?.  (~(has jo:json-utils [%o args.st]) /tree)
+    (pure:m [%error 'Missing required parameter: tree (script tree as JSON string)'])
   =/  ref=@t
     (~(dog jo:json-utils [%o args.st]) /account so:dejs:format)
   =/  parent-addr=@t

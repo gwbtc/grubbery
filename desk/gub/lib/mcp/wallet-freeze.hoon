@@ -27,6 +27,12 @@
   =/  m  (fiber:fiber:nexus ,tool-result:tools)
   ^-  form:m
   ;<  st=tool-state:tools  bind:m  (get-state-as:io ,tool-state:tools)
+  ?.  (~(has jo:json-utils [%o args.st]) /txid)
+    (pure:m [%error 'Missing required parameter: txid (transaction ID)'])
+  ?.  (~(has jo:json-utils [%o args.st]) /vout)
+    (pure:m [%error 'Missing required parameter: vout (output index)'])
+  ?.  (~(has jo:json-utils [%o args.st]) /action)
+    (pure:m [%error 'Missing required parameter: action (freeze or thaw)'])
   =/  txid=@t
     (~(dog jo:json-utils [%o args.st]) /txid so:dejs:format)
   =/  vout=@t

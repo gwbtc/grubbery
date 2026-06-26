@@ -30,6 +30,10 @@
   =/  m  (fiber:fiber:nexus ,tool-result:tools)
   ^-  form:m
   ;<  st=tool-state:tools  bind:m  (get-state-as:io ,tool-state:tools)
+  ?.  (~(has jo:json-utils [%o args.st]) /account)
+    (pure:m [%error 'Missing required parameter: account (account key from wallet_status)'])
+  ?.  (~(has jo:json-utils [%o args.st]) /ship)
+    (pure:m [%error 'Missing required parameter: ship (e.g. ~zod)'])
   =/  ref=@t
     (~(dog jo:json-utils [%o args.st]) /account so:dejs:format)
   =/  target=@t
@@ -70,7 +74,7 @@
   ::  label address as offered to ship
   =/  lbl=@t  (rap 3 ~['gwbtc:offered:to:' target])
   =/  new-lbls=labels:b329
-    (label-derived-addr:aio lbls u.addr lbl og 0 offer-idx)
+    (label-derived-addr:aio lbls u.addr lbl og 0 offer-idx ref)
   ::  advance last-offered counter
   =/  new-lbls=labels:b329
     (set-last-offered:aio new-lbls xprv offer-idx)

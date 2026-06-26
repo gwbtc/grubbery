@@ -124,25 +124,25 @@
   =.  l  (~(put-kv la:b329 l) [%addr addr (rap 3 ~['gwbtc:funded:' (num funded.info)]) ~ ~ ~])
   =.  l  (~(put-kv la:b329 l) [%addr addr (rap 3 ~['gwbtc:spent:' (num spent.info)]) ~ ~ ~])
   =.  l  (~(put-kv la:b329 l) [%addr addr (rap 3 ~['gwbtc:tx-count:' (num tx-count.info)]) ~ ~ ~])
+  =.  l  (~(put-kv la:b329 l) [%addr addr (rap 3 ~['gwbtc:mempool:funded:' (num mem-funded.info)]) ~ ~ ~])
+  =.  l  (~(put-kv la:b329 l) [%addr addr (rap 3 ~['gwbtc:mempool:spent:' (num mem-spent.info)]) ~ ~ ~])
+  =.  l  (~(put-kv la:b329 l) [%addr addr (rap 3 ~['gwbtc:mempool:tx-count:' (num mem-tx-count.info)]) ~ ~ ~])
   (~(put-kv la:b329 l) [%addr addr (rap 3 ~['gwbtc:last-checked:' (num (unt:chrono:userlib last-check.info))]) ~ ~ ~])
 ::  +label-utxos: write output labels for UTXOs
 ::
 ++  label-utxos
   |=  [=labels:b329 addr=@t utxos=(list utxo)]
   ^-  labels:b329
-  =/  l  labels
-  |-
-  ?~  utxos  l
+  ?~  utxos  labels
   =/  ref=@t  (rap 3 ~[txid.i.utxos ':' (num vout.i.utxos)])
-  =.  l  (~(put-kv la:b329 l) [%output ref (rap 3 ~['gwbtc:value:' (num value.i.utxos)]) ~ ~ ~])
-  =.  l  (~(put-kv la:b329 l) [%output ref (rap 3 ~['gwbtc:addr:' addr]) ~ ~ ~])
-  =.  l
+  =.  labels  (~(put-kv la:b329 labels) [%output ref (rap 3 ~['gwbtc:value:' (num value.i.utxos)]) ~ ~ ~])
+  =.  labels  (~(put-kv la:b329 labels) [%output ref (rap 3 ~['gwbtc:addr:' addr]) ~ ~ ~])
+  =.  labels
     ?-  -.tx-status.i.utxos
         %unconfirmed
-      (~(put la:b329 l) [%output ref 'gwbtc:unconfirmed' ~ ~ ~])
+      (~(put-kv la:b329 labels) [%output ref 'gwbtc:confirmed:~' ~ ~ ~])
         %confirmed
-      =.  l  (~(del la:b329 l) %output ref 'gwbtc:unconfirmed')
-      (~(put-kv la:b329 l) [%output ref (rap 3 ~['gwbtc:confirmed:' (num block-height.tx-status.i.utxos)]) ~ ~ ~])
+      (~(put-kv la:b329 labels) [%output ref (rap 3 ~['gwbtc:confirmed:' (num block-height.tx-status.i.utxos)]) ~ ~ ~])
     ==
   $(utxos t.utxos)
 ::  +label-txs: write tx labels for transactions
@@ -157,9 +157,8 @@
   =.  l
     ?-  -.tx-status.tx
         %unconfirmed
-      (~(put la:b329 l) [%tx txid.tx 'gwbtc:unconfirmed' ~ ~ ~])
+      (~(put-kv la:b329 l) [%tx txid.tx 'gwbtc:confirmed:~' ~ ~ ~])
         %confirmed
-      =.  l  (~(del la:b329 l) %tx txid.tx 'gwbtc:unconfirmed')
       =.  l  (~(put-kv la:b329 l) [%tx txid.tx (rap 3 ~['gwbtc:confirmed:' (num block-height.tx-status.tx)]) ~ ~ ~])
       (~(put-kv la:b329 l) [%tx txid.tx (rap 3 ~['gwbtc:block-hash:' block-hash.tx-status.tx]) ~ ~ ~])
     ==
@@ -203,7 +202,13 @@
   =/  tc-ud=(unit @ud)      (rush u.tc dem)
   =/  lc-ud=(unit @ud)      (rush u.lc dem)
   ?:  |(?=(~ funded-ud) ?=(~ spent-ud) ?=(~ tc-ud) ?=(~ lc-ud))  ~
-  `[u.tc-ud u.funded-ud u.spent-ud (from-unix:chrono:userlib u.lc-ud)]
+  =/  mf=(unit @t)  (~(read-kv la:b329 labels) %addr addr 'gwbtc:mempool:funded:')
+  =/  ms=(unit @t)  (~(read-kv la:b329 labels) %addr addr 'gwbtc:mempool:spent:')
+  =/  mt=(unit @t)  (~(read-kv la:b329 labels) %addr addr 'gwbtc:mempool:tx-count:')
+  =/  mf-ud=@ud  (fall (biff mf |=(v=@t (rush v dem))) 0)
+  =/  ms-ud=@ud  (fall (biff ms |=(v=@t (rush v dem))) 0)
+  =/  mt-ud=@ud  (fall (biff mt |=(v=@t (rush v dem))) 0)
+  `[u.tc-ud u.funded-ud u.spent-ud mt-ud mf-ud ms-ud (from-unix:chrono:userlib u.lc-ud)]
 ::  +read-utxos: reconstruct UTXOs for an address from output labels
 ::
 ++  read-utxos
@@ -217,6 +222,8 @@
   ::  check if this output belongs to our address
   =/  out-addr=(unit @t)  (~(read-kv la:b329 labels) %output ref 'gwbtc:addr:')
   ?.  &(?=(^ out-addr) =(addr u.out-addr))  ~
+  ::  skip if spent (input label exists for this outpoint)
+  ?.  =(~ (~(get la:b329 labels) %input ref))  ~
   ::  parse ref as txid:vout
   =/  colon=(unit @ud)  (find ":" (trip ref))
   ?~  colon  ~
@@ -231,9 +238,9 @@
   =/  status=tx-status
     =/  conf=(unit @t)  (~(read-kv la:b329 labels) %output ref 'gwbtc:confirmed:')
     ?~  conf  [%unconfirmed ~]
+    ?:  =('~' u.conf)  [%unconfirmed ~]
     =/  bh=(unit @ud)  (rush u.conf dem)
     ?~  bh  [%unconfirmed ~]
-    ::  we don't store block-hash on output labels, just height
     [%confirmed '' u.bh]
   `[txid u.vout u.value-ud status]
 ::  +read-tx: reconstruct a transaction from tx/input/output labels
@@ -247,10 +254,11 @@
   =/  status=tx-status
     =/  conf=(unit @t)  (~(read-kv la:b329 labels) %tx txid 'gwbtc:confirmed:')
     ?~  conf  [%unconfirmed ~]
+    ?:  =('~' u.conf)  [%unconfirmed ~]
     =/  bh=(unit @ud)  (rush u.conf dem)
     ?~  bh  [%unconfirmed ~]
     =/  block-hash=(unit @t)  (~(read-kv la:b329 labels) %tx txid 'gwbtc:block-hash:')
-    [%confirmed (fall block-hash '') (fall bh 0)]
+    [%confirmed (fall block-hash '') u.bh]
   =/  fee=(unit @ud)
     =/  f=(unit @t)  (~(read-kv la:b329 labels) %tx txid 'gwbtc:fee:')
     ?~  f  ~
@@ -533,11 +541,46 @@
     (mole |.((ni:dejs:format (~(got jo:json-utils data) /'chain_stats'/'funded_txo_sum'))))
   =/  spent=(unit @ud)
     (mole |.((ni:dejs:format (~(got jo:json-utils data) /'chain_stats'/'spent_txo_sum'))))
+  =/  mem-tc=(unit @ud)
+    (mole |.((ni:dejs:format (~(got jo:json-utils data) /'mempool_stats'/'tx_count'))))
+  =/  mem-funded=(unit @ud)
+    (mole |.((ni:dejs:format (~(got jo:json-utils data) /'mempool_stats'/'funded_txo_sum'))))
+  =/  mem-spent=(unit @ud)
+    (mole |.((ni:dejs:format (~(got jo:json-utils data) /'mempool_stats'/'spent_txo_sum'))))
   ?~  tx-count  (pure:m ~)
   ?~  funded    (pure:m ~)
   ?~  spent     (pure:m ~)
   ;<  now=@da  bind:m  get-time:io
-  (pure:m `[u.tx-count u.funded u.spent now])
+  %:  pure:m  :-  ~
+  :*  u.tx-count  u.funded  u.spent
+      (fall mem-tc 0)  (fall mem-funded 0)  (fall mem-spent 0)
+      now
+  ==  ==
+::  +fetch-address-data: full address fetch — info, UTXOs, txs
+::  returns fetched data for the caller to label and save
+::
+++  fetch-address-data
+  |=  [addr=@t =network]
+  =/  m  (fiber:fiber:nexus ,[(unit address-info) (list utxo) (list transaction)])
+  ^-  form:m
+  =/  base-url=tape  (mempool-base-url network)
+  ::  fetch address info
+  =/  info-url=@t  (crip (weld base-url (trip addr)))
+  ;<  ~  bind:m  (send-request:io [%'GET' info-url ~[['Accept' 'application/json']] ~])
+  ;<  info-resp=client-response:iris  bind:m  take-http
+  ;<  now=@da  bind:m  get-time:io
+  =/  new-info=(unit address-info)  (parse-info-response info-resp now)
+  ::  fetch UTXOs
+  =/  utxo-url=@t  (crip :(weld base-url (trip addr) "/utxo"))
+  ;<  ~  bind:m  (send-request:io [%'GET' utxo-url ~[['Accept' 'application/json']] ~])
+  ;<  utxo-resp=client-response:iris  bind:m  take-http
+  =/  utxos=(list utxo)  (parse-utxo-response utxo-resp)
+  ::  fetch transactions
+  =/  txs-url=@t  (crip :(weld base-url (trip addr) "/txs"))
+  ;<  ~  bind:m  (send-request:io [%'GET' txs-url ~[['Accept' 'application/json']] ~])
+  ;<  txs-resp=client-response:iris  bind:m  take-http
+  =/  txs=(list transaction)  (parse-txs-response txs-resp)
+  (pure:m [new-info utxos txs])
 ::  +take-http: simple HTTP response handler
 ::
 ++  take-http
@@ -566,8 +609,11 @@
   =/  tc=(unit @ud)  (mole |.((ni:dejs:format (~(got jo:json-utils data) /'chain_stats'/'tx_count'))))
   =/  funded=(unit @ud)  (mole |.((ni:dejs:format (~(got jo:json-utils data) /'chain_stats'/'funded_txo_sum'))))
   =/  spent=(unit @ud)  (mole |.((ni:dejs:format (~(got jo:json-utils data) /'chain_stats'/'spent_txo_sum'))))
+  =/  mem-tc=(unit @ud)  (mole |.((ni:dejs:format (~(got jo:json-utils data) /'mempool_stats'/'tx_count'))))
+  =/  mem-funded=(unit @ud)  (mole |.((ni:dejs:format (~(got jo:json-utils data) /'mempool_stats'/'funded_txo_sum'))))
+  =/  mem-spent=(unit @ud)  (mole |.((ni:dejs:format (~(got jo:json-utils data) /'mempool_stats'/'spent_txo_sum'))))
   ?:  |(?=(~ tc) ?=(~ funded) ?=(~ spent))  ~
-  `[u.tc u.funded u.spent now]
+  `[u.tc u.funded u.spent (fall mem-tc 0) (fall mem-funded 0) (fall mem-spent 0) now]
 ::  +parse-utxo-response: extract UTXOs from HTTP response
 ::
 ++  parse-utxo-response
@@ -685,8 +731,9 @@
   =/  gap=@ud  start-gap
   |-
   ?:  (gte gap gap-limit)
+    ~&  [%scan-chain %done chain scan-idx gap]
     (pure:m ~)
-  ::  poke main.sig to derive + label the address
+  ~&  [%scan-chain chain scan-idx gap=gap]
   ;<  ~  bind:m
     %:  poke:io  main-road
       :-  [/ %json]
@@ -715,7 +762,8 @@
     ?:  =(idx.i.chain-addrs scan-idx)  `addr.i.chain-addrs
     $(chain-addrs t.chain-addrs)
   ?~  addr
-    (pure:m ~)
+    ~&  [%scan-chain %addr-not-found scan-idx]
+    $(scan-idx +(scan-idx), gap +(gap))
   ::  update scan progress in proc file
   =/  phase-tape=@t  ?:(is-change 'chng' 'recv')
   ;<  cur=json  bind:m  (get-state-as:io json)
@@ -727,14 +775,28 @@
     ==
   ;<  ~  bind:m  (replace:io scan-prog)
   ;<  ~  bind:m  (sleep:io `@dr`(div ~s1 1.000))
-  ::  fetch address info
-  ;<  new-info=(unit address-info)  bind:m
-    (scan-fetch scan-prog u.addr network)
+  ::  full refresh: fetch info + UTXOs + txs
+  ;<  [new-info=(unit address-info) utxos=(list utxo) txs=(list transaction)]  bind:m
+    (fetch-address-data u.addr network)
   ::  check gap
   ?~  new-info
+    ~&  [%scan-chain %no-info u.addr]
     $(scan-idx +(scan-idx), gap +(gap))
+  ~&  [%scan-chain %fetched u.addr tx-count=tx-count.u.new-info]
   ?:  =(0 tx-count.u.new-info)
     $(scan-idx +(scan-idx), gap +(gap))
+  ::  active address — label and save
+  ;<  fresh-lbls=labels:b329  bind:m
+    =/  lm  (fiber:fiber:nexus ,labels:b329)
+    =/  lbl-road=road:tarball  [%& %& /apps/'wallet.wallet_app' %'labels.wallet_labels']
+    ;<  lbl-seen=seen:nexus  bind:lm  (peek:io lbl-road ~)
+    ?.  ?=([%& %file *] lbl-seen)  (pure:lm *labels:b329)
+    (pure:lm (fall (mole |.(!<(labels:b329 (need-vase:tarball sang.p.lbl-seen)))) *labels:b329))
+  =/  fresh-lbls=labels:b329  (label-addr-info fresh-lbls u.addr u.new-info)
+  =/  fresh-lbls=labels:b329  (label-utxos fresh-lbls u.addr utxos)
+  =/  fresh-lbls=labels:b329  (label-txs fresh-lbls txs)
+  =/  lbl-road=road:tarball  [%& %& /apps/'wallet.wallet_app' %'labels.wallet_labels']
+  ;<  ~  bind:m  (over:io lbl-road [[/wallet %labels] fresh-lbls])
   $(scan-idx +(scan-idx), gap 0)
 ::
 ++  collect-utxo-inputs
@@ -901,6 +963,26 @@
   ?~  key  $(xpubs t.xpubs)
   ?.  =(fp fingerprint:u.key)  $(xpubs t.xpubs)
   `ref
+::  +origin-to-xpub: find account xpub matching a fingerprint + derivation path
+::
+++  origin-to-xpub
+  |=  [=labels:b329 fp=@ux segs=(list seg:wt)]
+  ^-  (unit @t)
+  =/  xpubs=(list [@t (set label-entry:b329)])
+    ~(tap by xpub.labels)
+  |-
+  ?~  xpubs  ~
+  =/  [ref=@t entries=(set label-entry:b329)]  i.xpubs
+  =/  el=(list label-entry:b329)  ~(tap in entries)
+  =/  match=?
+    |-
+    ?~  el  %.n
+    ?~  origin.i.el  $(el t.el)
+    ?&  =(fp fingerprint.u.origin.i.el)
+        =(segs path.u.origin.i.el)
+    ==
+  ?.  match  $(xpubs t.xpubs)
+  `ref
 ::  +make-acct-labels: create labels for a new account
 ::
 ++  make-acct-labels
@@ -1003,4 +1085,54 @@
   =/  col=(unit @ud)  (find ":" suffix)
   ?~  col  $(el t.el)
   `(crip (scag u.col suffix))
+::  +get-addr-derivation: get account, chain, and index for an address
+::
+::  Returns account ref + chain + index from origin or derived-from labels.
+::
+++  get-addr-derivation
+  |=  [=labels:b329 addr=@t]
+  ^-  (unit [acct=@t chain=?(%recv %chng) idx=@ud])
+  =/  entries=(unit (set label-entry:b329))  (~(get by addr.labels) addr)
+  ?~  entries  ~
+  =/  el=(list label-entry:b329)  ~(tap in u.entries)
+  ::  try origin path: last two segs are chain and index
+  =/  from-origin=(unit [acct=@t chain=?(%recv %chng) idx=@ud])
+    |-
+    ?~  el  ~
+    ?~  origin.i.el  $(el t.el)
+    =/  segs=(list seg:wt)  path.u.origin.i.el
+    =/  len=@ud  (lent segs)
+    ?.  (gte len 2)  $(el t.el)
+    =/  chain-seg=seg:wt  (snag (sub len 2) segs)
+    =/  idx-seg=seg:wt    (snag (dec len) segs)
+    =/  fp=@ux  fingerprint.u.origin.i.el
+    ::  account path is address path minus last 2 segs (chain + index)
+    =/  acct-path=(list seg:wt)  (scag (sub len 2) segs)
+    =/  acct=(unit @t)  (origin-to-xpub labels fp acct-path)
+    ?~  acct  $(el t.el)
+    =/  chain=?(%recv %chng)  ?:(=(0 q.chain-seg) %recv %chng)
+    `[u.acct chain q.idx-seg]
+  ?^  from-origin  from-origin
+  ::  try derived-from: gwbtc:derived-from:{ref}:{chain}:{idx}
+  =/  df-prefix=tape  "gwbtc:derived-from:"
+  =/  df-len=@ud  (lent df-prefix)
+  =/  el=(list label-entry:b329)  ~(tap in u.entries)
+  |-
+  ?~  el  ~
+  =/  ltape=tape  (trip label.i.el)
+  ?.  =(df-prefix (scag df-len ltape))
+    $(el t.el)
+  ::  format: gwbtc:derived-from:{ref}:{chain}:{idx}
+  =/  suffix=tape  (slag df-len ltape)
+  =/  col1=(unit @ud)  (find ":" suffix)
+  ?~  col1  $(el t.el)
+  =/  ref=@t  (crip (scag u.col1 suffix))
+  =/  rest=tape  (slag +(u.col1) suffix)
+  =/  col2=(unit @ud)  (find ":" rest)
+  ?~  col2  $(el t.el)
+  =/  chain-t=tape  (scag u.col2 rest)
+  =/  idx-t=tape  (slag +(u.col2) rest)
+  =/  chain=?(%recv %chng)  ?:  =("recv" chain-t)  %recv  %chng
+  =/  idx=@ud  (fall (rush (crip idx-t) dem) 0)
+  `[ref chain idx]
 --

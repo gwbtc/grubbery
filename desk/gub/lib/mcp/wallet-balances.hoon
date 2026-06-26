@@ -26,6 +26,8 @@
   =/  m  (fiber:fiber:nexus ,tool-result:tools)
   ^-  form:m
   ;<  st=tool-state:tools  bind:m  (get-state-as:io ,tool-state:tools)
+  ?.  (~(has jo:json-utils [%o args.st]) /account)
+    (pure:m [%error 'Missing required parameter: account (key from wallet_status)'])
   =/  ref=@t
     (~(dog jo:json-utils [%o args.st]) /account so:dejs:format)
   ::  load labels
@@ -56,12 +58,12 @@
     %+  roll  all-addrs
     |=  [a=@t acc=@ud]
     =/  info  (read-addr-info:aio lbls a)
-    (add acc ?~(info 0 funded.u.info))
+    (add acc ?~(info 0 (add funded.u.info mem-funded.u.info)))
   =.  total-spent
     %+  roll  all-addrs
     |=  [a=@t acc=@ud]
     =/  info  (read-addr-info:aio lbls a)
-    (add acc ?~(info 0 spent.u.info))
+    (add acc ?~(info 0 (add spent.u.info mem-spent.u.info)))
   =.  total-utxo-value
     %+  roll  all-addrs
     |=  [a=@t acc=@ud]

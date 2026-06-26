@@ -46,7 +46,7 @@
   %+  roll  all
   |=  [[idx=@ud a=address-data] total=@ud]
   ?~  info.a  total
-  (add total (sub funded.u.info.a spent.u.info.a))
+  (add total (sub (add funded.u.info.a mem-funded.u.info.a) (add spent.u.info.a mem-spent.u.info.a)))
 ::
 ++  format-account-path
   |=  [purpose=seg coin-type=seg account-idx=seg]
@@ -340,7 +340,7 @@
         ;span.f3.s-2.mono: Index {(scow %ud idx)}
         ;+  ?~  info.a  ;span;
             =/  balance=@ud
-              (sub funded.u.info.a spent.u.info.a)
+              (sub (add funded.u.info.a mem-funded.u.info.a) (add spent.u.info.a mem-spent.u.info.a))
             ;div(style "display: flex; gap: 8px;")
               ;span.f3.s-2(style "opacity: 0.8;")
                 ; • {(scow %ud tx-count.u.info.a)} txs

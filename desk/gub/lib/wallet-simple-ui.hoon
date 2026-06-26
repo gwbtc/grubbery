@@ -141,7 +141,7 @@
   ?~  leaves  ~
   =/  [* ad=address-data]  i.leaves
   ?~  info.ad  `addr.ad
-  ?:  &(=(0 tx-count.u.info.ad) =(0 funded.u.info.ad))
+  ?:  &(=(0 (add tx-count.u.info.ad mem-tx-count.u.info.ad)) =(0 (add funded.u.info.ad mem-funded.u.info.ad)))
     `addr.ad
   $(leaves t.leaves)
 ::  +simple-page: render the full simple wallet HTML page

@@ -30,6 +30,12 @@
   =/  m  (fiber:fiber:nexus ,tool-result:tools)
   ^-  form:m
   ;<  st=tool-state:tools  bind:m  (get-state-as:io ,tool-state:tools)
+  ?.  (~(has jo:json-utils [%o args.st]) /account)
+    (pure:m [%error 'Missing required parameter: account (account key from wallet_status)'])
+  ?.  (~(has jo:json-utils [%o args.st]) /address)
+    (pure:m [%error 'Missing required parameter: address (destination bitcoin address)'])
+  ?.  (~(has jo:json-utils [%o args.st]) /amount)
+    (pure:m [%error 'Missing required parameter: amount (amount in satoshis)'])
   =/  ref=@ta
     (~(dog jo:json-utils [%o args.st]) /account so:dejs:format)
   =/  dest-addr=@t

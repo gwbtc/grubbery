@@ -421,6 +421,16 @@
             =/  new-lbls=labels:b329
               (~(put la:b329 lbls) [%addr addr lbl ~ ~ ~])
             ;<  ~  bind:m  (save-labels:h new-lbls)
+            ::  auto-refresh the notified address
+            =/  deriv=(unit [acct=@t chain=?(%recv %chng) idx=@ud])
+              (get-addr-derivation:aio new-lbls addr)
+            ?~  deriv
+              ~&  >  [%wallet %tx-broadcast %no-derivation-info addr]
+              $
+            ;<  reg=proc-registry  bind:m  load-registry:h
+            ;<  reg=proc-registry  bind:m
+              (spawn-refreshes:h ~[addr] new-lbls acct.u.deriv reg)
+            ;<  ~  bind:m  (save-registry:h reg)
             $
               %'refresh-account'
             ::  spawn refresh procs for all addresses in an account
@@ -430,44 +440,17 @@
             ?.  (has-account:aio ra-lbls acct-ref)
               ~&  >>>  [%wallet %refresh-account %not-found acct-ref]
               $
-            =/  net  (get-acct-network:aio ra-lbls acct-ref)
             =/  ra-og=(unit parsed-origin:b329)  (get-acct-origin:aio ra-lbls acct-ref)
             =/  [ra-recv=(list [idx=@ud addr=@t]) ra-chng=(list [idx=@ud addr=@t])]
               ?~  ra-og  [~ ~]
               (read-account-addrs:aio ra-lbls u.ra-og)
-            =/  refresh-list=(list [chain=?(%recv %chng) idx=@ud])
-              %-  weld
-              :_  ^-  (list [?(%recv %chng) @ud])
-                  (turn ra-chng |=([idx=@ud *] [%chng idx]))
-              ^-  (list [?(%recv %chng) @ud])
-              (turn ra-recv |=([idx=@ud *] [%recv idx]))
+            =/  all-addrs=(list @t)
+              (weld (turn ra-recv |=([* addr=@t] addr)) (turn ra-chng |=([* addr=@t] addr)))
             ;<  reg=proc-registry  bind:m  load-registry:h
-            =/  acct-procs=account-procs
-              (fall (~(get by accounts.reg) acct-ref) *account-procs)
-            ;<  now=@da  bind:m  get-time:io
-            |-
-            ?~  refresh-list
-              ;<  ~  bind:m  (save-registry:h reg)
-              $
-            =/  [chain=?(%recv %chng) idx=@ud]  i.refresh-list
-            =/  rkey=@ta  (refresh-key:h chain idx)
-            ?:  (~(has by refresh.acct-procs) rkey)
-              $(refresh-list t.refresh-list)
-            ;<  eny=@uvJ  bind:m  get-entropy:io
-            =/  uuid=@ta  (short-id:h eny)
-            =/  proc-road=road:tarball  (nex-road:h [%& /proc (cat 3 uuid '.json')])
-            =/  proc-json=json
-              %-  pairs:enjs:format
-              :~  ['type' s+'refresh']
-                  ['account' s+acct-ref]
-                  ['network' s+net]
-                  ['chain' s+chain]
-                  ['index' (numb:enjs:format idx)]
-              ==
-            ;<  ~  bind:m  (make:io proc-road |+[[[/ %json] proc-json] ~])
-            =.  refresh.acct-procs  (~(put by refresh.acct-procs) rkey uuid)
-            =.  accounts.reg  (~(put by accounts.reg) acct-ref acct-procs)
-            $(refresh-list t.refresh-list)
+            ;<  reg=proc-registry  bind:m
+              (spawn-refreshes:h all-addrs ra-lbls acct-ref reg)
+            ;<  ~  bind:m  (save-registry:h reg)
+            $
           ::  account-specific actions (derive, scan, draft, etc)
           ::
               ?(%'derive-address' %'derive-next' %'delete-address' %'set-network' %'full-scan' %'pause-scan' %'resume-scan' %'cancel-scan' %'refresh' %'send' %'add-output' %'delete-output' %'clear-draft' %'set-change-config' %'clear-change-config' %'set-auto-select-mode' %'run-auto-select' %'add-input' %'remove-input' %'build-transaction' %'add-tapscript' %'delete-tapscript')
@@ -1036,6 +1019,56 @@
   ?.  =('' raw)  (pure:m raw)
   ;<  eny=@uvJ  bind:m  get-entropy:io
   (pure:m (short-id eny))
+::  +spawn-refreshes: spawn refresh procs for a list of addresses
+::
+::  Looks up derivation info for each address, skips already-refreshing,
+::  and creates proc files. Returns updated registry.
+::
+++  spawn-refreshes
+  |=  $:  addrs=(list @t)
+          =labels:b329
+          acct-ref=@t
+          reg=proc-registry
+      ==
+  =/  m  (fiber:fiber:nexus ,proc-registry)
+  ^-  form:m
+  ?~  addrs  (pure:m reg)
+  =/  rest=(list @t)  t.addrs
+  ;<  reg=proc-registry  bind:m
+    (spawn-one-refresh i.addrs labels acct-ref reg)
+  (spawn-refreshes rest labels acct-ref reg)
+::
+++  spawn-one-refresh
+  |=  [addr=@t =labels:b329 acct-ref=@t reg=proc-registry]
+  =/  m  (fiber:fiber:nexus ,proc-registry)
+  ^-  form:m
+  =/  deriv=(unit [acct=@t chain=?(%recv %chng) idx=@ud])
+    (get-addr-derivation:aio labels addr)
+  ?~  deriv  (pure:m reg)
+  =/  network=network:wt  (get-acct-network:aio labels acct-ref)
+  =/  net=@ta  ;;(@ta network)
+  =/  acct-procs=account-procs
+    (fall (~(get by accounts.reg) acct-ref) *account-procs)
+  =/  rkey=@ta  (refresh-key chain.u.deriv idx.u.deriv)
+  ?:  (~(has by refresh.acct-procs) rkey)
+    (pure:m reg)
+  ;<  eny=@uvJ  bind:m  get-entropy:io
+  =/  uuid=@ta  (short-id eny)
+  =/  proc-road=road:tarball  (nex-road [%& /proc (cat 3 uuid '.json')])
+  =/  proc-json=json
+    %-  pairs:enjs:format
+    :~  ['type' s+'refresh']
+        ['account' s+acct-ref]
+        ['network' s+net]
+        ['chain' s+chain.u.deriv]
+        ['index' (numb:enjs:format idx.u.deriv)]
+    ==
+  ;<  ~  bind:m
+    (make:io proc-road |+[[[/ %json] proc-json] ~])
+  =.  refresh.acct-procs  (~(put by refresh.acct-procs) rkey uuid)
+  =.  accounts.reg  (~(put by accounts.reg) acct-ref acct-procs)
+  ~&  [%wallet %spawn-refresh addr chain.u.deriv idx.u.deriv]
+  (pure:m reg)
 ::
 ::  +handle-scan-proc: scan chain process handler
 ::
@@ -1043,6 +1076,8 @@
   |=  prev=json
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
+  =/  status=@t  (~(dug jo:json-utils prev) /status so:dejs:format '')
+  ?:  =('done' status)  (pure:m ~)
   =/  acct-ref=@t
     (~(dog jo:json-utils prev) /account so:dejs:format)
   ;<  lbls=labels:b329  bind:m  load-labels
@@ -1050,13 +1085,14 @@
   =/  network=network:wt  (get-acct-network:aio lbls acct-ref)
   =/  progress=scan-progress:aio  (parse-scan-progress:aio prev)
   =/  main-road=road:tarball  (nex-road [%& ~ %'main.sig'])
-  ::  scan recv chain
+  ::  scan recv chain (skip if already past it)
   ;<  ~  bind:m
+    ?:  ?=(%chng phase.progress)  (pure:m ~)
     %:  scan-chain:aio
       acct-ref
       %receiving  network
-      ?:(?=(%recv phase.progress) idx.progress 0)
-      ?:(?=(%recv phase.progress) gap.progress 0)
+      idx.progress
+      gap.progress
       main-road
     ==
   ::  scan chng chain
@@ -1089,6 +1125,8 @@
   |=  prev=json
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
+  =/  status=@t  (~(dug jo:json-utils prev) /status so:dejs:format '')
+  ?:  =('done' status)  (pure:m ~)
   =/  acct-ref=@t
     (~(dog jo:json-utils prev) /account so:dejs:format)
   =/  net-raw=@t
@@ -1120,34 +1158,9 @@
     =.  refresh.acct-procs  (~(del by refresh.acct-procs) rkey)
     =.  accounts.reg  (~(put by accounts.reg) acct-ref acct-procs)
     (save-registry reg)
-  ::  fetch address info
-  =/  base-url=tape  (mempool-base-url:aio network)
-  =/  info-url=@t  (crip (weld base-url (trip addr.u.dat)))
-  =/  =request:http
-    [%'GET' info-url ~[['Accept' 'application/json']] ~]
-  ;<  ~  bind:m  (send-request:io request)
-  ;<  info-resp=client-response:iris  bind:m  take-http:aio
-  ;<  now=@da  bind:m  get-time:io
-  ::  ~>(%bout.[1 %parse-info] ...)
-  =/  new-info=(unit address-info)  (parse-info-response:aio info-resp now)
-  ::  fetch UTXOs
-  =/  utxo-url=@t  (crip :(weld base-url (trip addr.u.dat) "/utxo"))
-  =/  utxo-req=request:http
-    [%'GET' utxo-url ~[['Accept' 'application/json']] ~]
-  ;<  ~  bind:m  (send-request:io utxo-req)
-  ;<  utxo-resp=client-response:iris  bind:m  take-http:aio
-  ::  ~>(%bout.[1 %parse-utxos] ...)
-  =/  utxos=(list utxo)  (parse-utxo-response:aio utxo-resp)
-  ::  fetch transactions
-  =/  txs-url=@t  (crip :(weld base-url (trip addr.u.dat) "/txs"))
-  =/  txs-req=request:http
-    [%'GET' txs-url ~[['Accept' 'application/json']] ~]
-  ;<  ~  bind:m  (send-request:io txs-req)
-  ;<  txs-resp=client-response:iris  bind:m  take-http:aio
-  ::  ~>(%bout.[1 %parse-txs] ...)
-  =/  txs=(list transaction)  (parse-txs-response:aio txs-resp)
-  ::  write labels for mempool.space results
-  ;<  lbls=labels:b329  bind:m  load-labels  ::  reload fresh
+  ;<  [new-info=(unit address-info) utxos=(list utxo) txs=(list transaction)]  bind:m
+    (fetch-address-data:aio addr.u.dat network)
+  ;<  lbls=labels:b329  bind:m  load-labels
   =/  lbls=labels:b329
     ?~  new-info  lbls
     (label-addr-info:aio lbls addr.u.dat u.new-info)
@@ -1176,6 +1189,9 @@
   |=  prev=json
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
+  =/  status=@t  (~(dug jo:json-utils prev) /status so:dejs:format '')
+  ?:  =('done' status)  (pure:m ~)
+  ?:  =('error' status)  (pure:m ~)
   =/  acct-ref=@t
     (~(dog jo:json-utils prev) /account so:dejs:format)
   =/  dest-addr=@t
@@ -1223,10 +1239,18 @@
     ;<  ~  bind:m  (replace:io updated)
     ;<  ~  bind:m  (sleep:io ~m5)
     (pure:m ~)
-  ::  6. build-transaction (signs, broadcasts, clears draft)
+  ::  6. collect input addresses before broadcast clears the draft
+  ;<  lbls=labels:b329  bind:m  load-labels
+  =/  input-addrs=(list @t)
+    %+  murn  inputs.u.existing
+    |=  inp=utxo-input:drft
+    ^-  (unit @t)
+    =/  ref=@t  (rap 3 ~[txid.inp ':' (num:aio vout.inp)])
+    (~(read-kv la:b329 lbls) %output ref 'gwbtc:addr:')
+  ::  7. build-transaction (signs, broadcasts, clears draft)
   ;<  ~  bind:m
     (handle-account-action (pairs:enjs:format ~[['action' s+'build-transaction']]) acct-ref)
-  ::  7. check if draft was cleared (= success) or still exists (= failure)
+  ::  8. check if draft was cleared (= success) or still exists (= failure)
   ;<  post-draft=(unit transaction:drft)  bind:m  (load-draft acct-ref)
   ;<  cur=json  bind:m  (get-state-as:io json)
   =/  updated=json
@@ -1235,6 +1259,15 @@
       [%o (~(put by (~(put by p.cur) 'status' s+'error')) 'error' s+'Transaction build or broadcast failed')]
     [%o (~(put by p.cur) 'status' s+'done')]
   ;<  ~  bind:m  (replace:io updated)
+  ::  9. on success, refresh our own addresses (inputs + change)
+  ?.  ?=(~ post-draft)
+    ;<  ~  bind:m  (sleep:io ~m5)
+    (pure:m ~)
+  =/  own-addrs=(list @t)  (weld input-addrs ~[change-addr])
+  ;<  reg=proc-registry  bind:m  load-registry
+  ;<  reg=proc-registry  bind:m
+    (spawn-refreshes own-addrs lbls acct-ref reg)
+  ;<  ~  bind:m  (save-registry reg)
   ;<  ~  bind:m  (sleep:io ~m5)
   (pure:m ~)
 ::  +handle-discover-proc: account discovery process
@@ -1243,6 +1276,8 @@
   |=  prev=json
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
+  =/  status=@t  (~(dug jo:json-utils prev) /status so:dejs:format '')
+  ?:  =('done' status)  (pure:m ~)
   =/  fp-key=@t
     (~(dog jo:json-utils prev) /fingerprint so:dejs:format)
   =/  fp=@ux  (slav %ux fp-key)
@@ -2785,7 +2820,9 @@
   ^-  manx
   =/  balance=@ud
     ?~  info.dat  0
-    (sub funded.u.info.dat spent.u.info.dat)
+    %+  sub
+      (add funded.u.info.dat mem-funded.u.info.dat)
+    (add spent.u.info.dat mem-spent.u.info.dat)
   ;div#live-content.fc.g3(style "flex: 1; min-height: 0; overflow: hidden;")
     ::  balance stats
     ;div.p4.b2.br2(style "flex-shrink: 0; overflow: hidden;")
@@ -2797,11 +2834,11 @@
         ==
         ;div
           ;div.f3.s-2: Funded
-          ;div.s-1.mono: {?~(info.dat "—" (format-sats funded.u.info.dat))}
+          ;div.s-1.mono: {?~(info.dat "—" (format-sats (add funded.u.info.dat mem-funded.u.info.dat)))}
         ==
         ;div
           ;div.f3.s-2: Spent
-          ;div.s-1.mono: {?~(info.dat "—" (format-sats spent.u.info.dat))}
+          ;div.s-1.mono: {?~(info.dat "—" (format-sats (add spent.u.info.dat mem-spent.u.info.dat)))}
         ==
         ;div
           ;div.f3.s-2: Transactions

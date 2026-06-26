@@ -14,8 +14,11 @@
 ::
 +$  address-info
   $:  tx-count=@ud
-      funded=@ud          :: chain_stats.funded_txo_sum (total sats received)
-      spent=@ud           :: chain_stats.spent_txo_sum (total sats spent)
+      funded=@ud          :: chain_stats.funded_txo_sum (confirmed sats received)
+      spent=@ud           :: chain_stats.spent_txo_sum (confirmed sats spent)
+      mem-tx-count=@ud    :: mempool_stats.tx_count
+      mem-funded=@ud      :: mempool_stats.funded_txo_sum
+      mem-spent=@ud       :: mempool_stats.spent_txo_sum
       last-check=@da
   ==
 ::  transaction status: confirmed or unconfirmed

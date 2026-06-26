@@ -29,6 +29,8 @@
   =/  m  (fiber:fiber:nexus ,tool-result:tools)
   ^-  form:m
   ;<  st=tool-state:tools  bind:m  (get-state-as:io ,tool-state:tools)
+  ?.  (~(has jo:json-utils [%o args.st]) /wallet)
+    (pure:m [%error 'Missing required parameter: wallet (xpub key from wallet_status)'])
   =/  wallet-key=@t
     (~(dog jo:json-utils [%o args.st]) /wallet so:dejs:format)
   =/  acct-name=@t

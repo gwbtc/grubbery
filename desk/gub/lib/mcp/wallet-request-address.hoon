@@ -29,6 +29,8 @@
   =/  m  (fiber:fiber:nexus ,tool-result:tools)
   ^-  form:m
   ;<  st=tool-state:tools  bind:m  (get-state-as:io ,tool-state:tools)
+  ?.  (~(has jo:json-utils [%o args.st]) /ship)
+    (pure:m [%error 'Missing required parameter: ship (e.g. ~zod)'])
   =/  ship-raw=@t
     (~(dog jo:json-utils [%o args.st]) /ship so:dejs:format)
   =/  net-raw=@t

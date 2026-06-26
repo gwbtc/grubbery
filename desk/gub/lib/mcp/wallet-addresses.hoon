@@ -15,7 +15,7 @@
   =/  info=(unit address-info)  (read-addr-info:aio lbls addr)
   =/  bal=@ud
     ?~  info  0
-    (sub funded.u.info spent.u.info)
+    (sub (add funded.u.info mem-funded.u.info) (add spent.u.info mem-spent.u.info))
   =/  utxo-count=@ud  (lent (read-utxos:aio lbls addr))
   %+  rap  3
   :~  '  #'  (scot %ud idx)  ' '  addr
@@ -43,6 +43,8 @@
   =/  m  (fiber:fiber:nexus ,tool-result:tools)
   ^-  form:m
   ;<  st=tool-state:tools  bind:m  (get-state-as:io ,tool-state:tools)
+  ?.  (~(has jo:json-utils [%o args.st]) /account)
+    (pure:m [%error 'Missing required parameter: account (key from wallet_status)'])
   =/  ref=@t
     (~(dog jo:json-utils [%o args.st]) /account so:dejs:format)
   ::  load labels
