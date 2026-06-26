@@ -209,6 +209,47 @@
   =/  ms-ud=@ud  (fall (biff ms |=(v=@t (rush v dem))) 0)
   =/  mt-ud=@ud  (fall (biff mt |=(v=@t (rush v dem))) 0)
   `[u.tc-ud u.funded-ud u.spent-ud mt-ud mf-ud ms-ud (from-unix:chrono:userlib u.lc-ud)]
+::  +has-new-broadcast: check if address has broadcast notification newer than last-check
+::
+++  has-new-broadcast
+  |=  [=labels:b329 addr=@t]
+  ^-  ?
+  =/  info=(unit address-info)  (read-addr-info labels addr)
+  =/  last-checked=@ud
+    ?~  info  0
+    (unt:chrono:userlib last-check.u.info)
+  =/  entries=(list label-entry:b329)
+    ~(tap in (~(get la:b329 labels) %addr addr))
+  =/  prefix=tape  "gwbtc:broadcast:"
+  =/  prefix-len=@ud  (lent prefix)
+  |-
+  ?~  entries  %.n
+  =/  lbl=tape  (trip label.i.entries)
+  ?.  =(prefix (scag prefix-len lbl))
+    $(entries t.entries)
+  ::  extract trailing unix timestamp after last ':'
+  =/  rest=tape  (slag prefix-len lbl)
+  =/  parts=(list tape)  (split-on-colon rest)
+  =/  ts=(unit @ud)
+    ?~  parts  ~
+    (rush (crip (rear parts)) dem)
+  ?~  ts  $(entries t.entries)
+  ?:  (gth u.ts last-checked)  %.y
+  $(entries t.entries)
+::  +split-on-colon: split tape on ':' character
+::
+++  split-on-colon
+  |=  t=tape
+  ^-  (list tape)
+  =/  acc=tape  ~
+  =/  out=(list tape)  ~
+  |-
+  ?~  t
+    ?~  acc  (flop out)
+    (flop [(flop acc) out])
+  ?:  =(i.t ':')
+    $(t t.t, acc ~, out [(flop acc) out])
+  $(t t.t, acc [i.t acc])
 ::  +read-utxos: reconstruct UTXOs for an address from output labels
 ::
 ++  read-utxos

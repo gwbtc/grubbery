@@ -31,18 +31,16 @@
       =/  =ver:loader  (get-ver:loader ball)
       ?+  ver  !!
           ?(~ [~ %0])
-        =/  [wal=wallet-data mxpub1=@t ref1=@t xprv1=@t net1=network:wt st1=script-type og1=parsed-origin:b329 addr1=(unit @t)]
+        =/  [wal=wallet-data mxpub1=@t ref1=@t xprv1=@t net1=network:wt st1=script-type og1=parsed-origin:b329]
           (make-dev-wallet 'Dev Wallet' [%t 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about'] %testnet4)
-        =/  [fau-wal=wallet-data mxpub2=@t ref2=@t xprv2=@t net2=network:wt st2=script-type og2=parsed-origin:b329 addr2=(unit @t)]
+        =/  [fau-wal=wallet-data mxpub2=@t ref2=@t xprv2=@t net2=network:wt st2=script-type og2=parsed-origin:b329]
           (make-dev-wallet 'Fauceted Wallet' [%t 'injury idea term fox crop movie type critic hello inquiry lottery agree'] %testnet3)
         =/  init-lbls=labels:b329
           =/  l=labels:b329  *labels:b329
           =.  l  (~(put la:b329 l) [%xpub mxpub1 (rap 3 ~['gwbtc:wallet:' 'Dev Wallet']) ~ ~ ~])
           =.  l  (~(put la:b329 l) [%xpub mxpub2 (rap 3 ~['gwbtc:wallet:' 'Fauceted Wallet']) ~ ~ ~])
           =.  l  (make-acct-labels:aio l ref1 'Default' net1 og1)
-          =.  l  (make-acct-labels:aio l ref2 'Default' net2 og2)
-          =.  l  ?~(addr1 l (label-derived-addr:aio l u.addr1 '' `og1 0 0 ref1))
-          ?~(addr2 l (label-derived-addr:aio l u.addr2 '' `og2 0 0 ref2))
+          (make-acct-labels:aio l ref2 'Default' net2 og2)
         =/  init-sec=secrets
           :*  %-  ~(gas by *(map @t seed))
               ~[[xpub.wal seed.wal] [xpub.fau-wal seed.fau-wal]]
@@ -500,9 +498,9 @@
               ::  auto-create simple wallet with testnet3 + mainnet accounts
               ;<  eny=@uvJ  bind:m  get-entropy:io
               =/  seed-phrase=cord  (gen-seed:seed-phrases eny %256)
-              =/  [wal-t=wallet-data mxpub=@t ref-t=@t xprv-t=@t net-t=network:wt st-t=script-type og-t=parsed-origin:b329 addr-t=(unit @t)]
+              =/  [wal-t=wallet-data mxpub=@t ref-t=@t xprv-t=@t net-t=network:wt st-t=script-type og-t=parsed-origin:b329]
                 (make-dev-wallet:h 'My Wallet' [%t seed-phrase] %testnet3)
-              =/  [* * ref-m=@t xprv-m=@t net-m=network:wt st-m=script-type og-m=parsed-origin:b329 addr-m=(unit @t)]
+              =/  [* * ref-m=@t xprv-m=@t net-m=network:wt st-m=script-type og-m=parsed-origin:b329]
                 (make-dev-wallet:h 'My Wallet' [%t seed-phrase] %main)
               =/  wal=wallet-data  wal-t
               ;<  sec=secrets  bind:m  load-secrets:h
@@ -513,12 +511,6 @@
                 (~(put la:b329 new-lbls) [%xpub mxpub 'gwbtc:wallet:My Wallet' ~ ~ ~])
               =/  new-lbls=labels:b329  (make-acct-labels:aio new-lbls ref-t 'Default' net-t og-t)
               =/  new-lbls=labels:b329  (make-acct-labels:aio new-lbls ref-m 'Default' net-m og-m)
-              =/  new-lbls=labels:b329
-                ?~  addr-t  new-lbls
-                (label-derived-addr:aio new-lbls u.addr-t '' `og-t 0 0 ref-t)
-              =/  new-lbls=labels:b329
-                ?~  addr-m  new-lbls
-                (label-derived-addr:aio new-lbls u.addr-m '' `og-m 0 0 ref-m)
               ;<  ~  bind:m  (save-labels:h new-lbls)
               ;<  ~  bind:m
                 (send-html:h eyre-id (simple-page:simp ~ '' ~ ~ ~ *tx-map post-url %.n ~["testnet3" "main"] 2 ~))
@@ -607,10 +599,10 @@
             =/  net=@ta  ;;(@ta network)
             =/  [recv=(list [@ud address-data]) chng=(list [@ud address-data])]
               (load-recv-chng:h lbls acct-ref)
-            ::  collect addresses needing refresh: unconfirmed tx addrs + next unused
+            ::  collect addresses needing refresh
             =/  txs=tx-map  (build-acct-tx-map:h lbls acct-ref)
             =/  refresh-list=(list [chain=?(%recv %chng) idx=@ud])
-              ::  find addresses involved in unconfirmed transactions
+              ::  1. addresses involved in unconfirmed transactions
               =/  unconf-addrs=(set @t)
                 =/  txns=(list [txid=@t tx=transaction])  ~(tap by txs)
                 =/  addrs=(set @t)  ~
@@ -623,8 +615,7 @@
                 =/  in-addrs=(list @t)
                   (murn inputs.tx |=(i=tx-input ?~(prevout.i ~ `address.u.prevout.i)))
                 $(txns t.txns, addrs (~(gas in addrs) (weld out-addrs in-addrs)))
-              ::  resolve unconfirmed addrs to chain/index via lists
-              =/  pending=(list [chain=?(%recv %chng) idx=@ud])
+              =/  from-unconf=(list [chain=?(%recv %chng) idx=@ud])
                 %-  weld
                 :_  ^-  (list [?(%recv %chng) @ud])
                     %+  murn  chng
@@ -636,14 +627,42 @@
                 |=  [idx=@ud dat=address-data]
                 ?.  (~(has in unconf-addrs) addr.dat)  ~
                 `[%recv idx]
-              ::  add next unused receiving index
+              ::  2. addresses with mempool activity
+              =/  from-mempool=(list [chain=?(%recv %chng) idx=@ud])
+                %-  weld
+                :_  ^-  (list [?(%recv %chng) @ud])
+                    %+  murn  chng
+                    |=  [idx=@ud dat=address-data]
+                    ?~  info.dat  ~
+                    ?.  |((gth mem-funded.u.info.dat 0) (gth mem-spent.u.info.dat 0))  ~
+                    `[%chng idx]
+                ^-  (list [?(%recv %chng) @ud])
+                %+  murn  recv
+                |=  [idx=@ud dat=address-data]
+                ?~  info.dat  ~
+                ?.  |((gth mem-funded.u.info.dat 0) (gth mem-spent.u.info.dat 0))  ~
+                `[%recv idx]
+              ::  3. addresses with broadcast notifications newer than last-check
+              =/  from-broadcast=(list [chain=?(%recv %chng) idx=@ud])
+                %-  weld
+                :_  ^-  (list [?(%recv %chng) @ud])
+                    %+  murn  chng
+                    |=  [idx=@ud dat=address-data]
+                    ?.  (has-new-broadcast:aio lbls addr.dat)  ~
+                    `[%chng idx]
+                ^-  (list [?(%recv %chng) @ud])
+                %+  murn  recv
+                |=  [idx=@ud dat=address-data]
+                ?.  (has-new-broadcast:aio lbls addr.dat)  ~
+                `[%recv idx]
+              ::  4. next unused receiving + change
               =/  next-recv=@ud
                 =/  found=(unit @ud)
                   |-
                   ?~  recv  ~
                   =/  [lidx=@ud dat=address-data]  i.recv
                   ?:  ?|  ?=(~ info.dat)
-                          =(0 tx-count.u.info.dat)
+                          &(=(0 (add tx-count.u.info.dat mem-tx-count.u.info.dat)) =(0 (add funded.u.info.dat mem-funded.u.info.dat)))
                       ==
                     `lidx
                   $(recv t.recv)
@@ -655,14 +674,20 @@
                   ?~  chng-copy  ~
                   =/  [lidx=@ud dat=address-data]  i.chng-copy
                   ?:  ?|  ?=(~ info.dat)
-                          =(0 tx-count.u.info.dat)
+                          &(=(0 (add tx-count.u.info.dat mem-tx-count.u.info.dat)) =(0 (add funded.u.info.dat mem-funded.u.info.dat)))
                       ==
                     `lidx
                   $(chng-copy t.chng-copy)
                 (fall found (lent chng))
+              ::  combine and deduplicate
               =/  all=(list [chain=?(%recv %chng) idx=@ud])
-                :(weld pending `(list [?(%recv %chng) @ud])`~[[%recv next-recv]] `(list [?(%recv %chng) @ud])`~[[%chng next-chng]])
-              ::  deduplicate
+                ;:  weld
+                  from-unconf
+                  from-mempool
+                  from-broadcast
+                  `(list [?(%recv %chng) @ud])`~[[%recv next-recv]]
+                  `(list [?(%recv %chng) @ud])`~[[%chng next-chng]]
+                ==
               =/  seen=(set [?(%recv %chng) @ud])  ~
               =/  out=(list [chain=?(%recv %chng) idx=@ud])  ~
               |-
@@ -2271,9 +2296,9 @@
   ~&  "%wallet: creating simple wallet"
   ;<  eny=@uvJ  bind:m  get-entropy:io
   =/  seed-phrase=cord  (gen-seed:seed-phrases eny %256)
-  =/  [wal-t=wallet-data mxpub=@t ref-t=@t xprv-t=@t net-t=network:wt st-t=script-type og-t=parsed-origin:b329 addr-t=(unit @t)]
+  =/  [wal-t=wallet-data mxpub=@t ref-t=@t xprv-t=@t net-t=network:wt st-t=script-type og-t=parsed-origin:b329]
     (make-dev-wallet 'My Wallet' [%t seed-phrase] %testnet3)
-  =/  [* * ref-m=@t xprv-m=@t net-m=network:wt st-m=script-type og-m=parsed-origin:b329 addr-m=(unit @t)]
+  =/  [* * ref-m=@t xprv-m=@t net-m=network:wt st-m=script-type og-m=parsed-origin:b329]
     (make-dev-wallet 'My Wallet' [%t seed-phrase] %main)
   =/  wal=wallet-data  wal-t
   ;<  sec=secrets  bind:m  load-secrets
@@ -2284,13 +2309,6 @@
     (~(put la:b329 new-lbls) [%xpub mxpub 'gwbtc:wallet:My Wallet' ~ ~ ~])
   =/  new-lbls=labels:b329  (make-acct-labels:aio new-lbls ref-t 'Default' net-t og-t)
   =/  new-lbls=labels:b329  (make-acct-labels:aio new-lbls ref-m 'Default' net-m og-m)
-  ::  label first receive address for each account
-  =/  new-lbls=labels:b329
-    ?~  addr-t  new-lbls
-    (label-derived-addr:aio new-lbls u.addr-t '' `og-t 0 0 ref-t)
-  =/  new-lbls=labels:b329
-    ?~  addr-m  new-lbls
-    (label-derived-addr:aio new-lbls u.addr-m '' `og-m 0 0 ref-m)
   ;<  ~  bind:m  (over:io lbl-rd [[/wallet %labels] new-lbls])
   ~&  "%wallet: simple wallet created"
   (pure:m ~)
@@ -3351,7 +3369,6 @@
   [k s+v]
 ::
 ::  +make-dev-wallet: create wallet + account data for dev/init
-::  returns: [wallet-data acct-ref xprv network script-type origin recv-mop]
 ::
 ++  make-dev-wallet
   |=  [name=@t =seed network=network:wt]
@@ -3368,13 +3385,11 @@
   =/  xprv=@t  (crip (prv-extended:derived bip-net))
   =/  acct-xpub=@t  (crip (pub-extended:derived bip-net))
   =/  master-xpub=@t  (crip (pub-extended:master bip-net))
-  =/  addr=(unit @t)
-    (encode-pubkey:bech32 bip-net [33 public-key:(derive:(derive:derived 0) 0)])
   =/  wal=wallet-data  [seed master-xpub]
   =/  =script-type  %p2wpkh
   =/  og=parsed-origin:b329
     [(to-descriptor:b329 script-type) fp ~[[%.y 84] [%.y coin] [%.y 0]]]
-  [wal master-xpub acct-xpub xprv network script-type og addr]
+  [wal master-xpub acct-xpub xprv network script-type og]
 ::
 ++  seed-to-cord
   |=  =seed

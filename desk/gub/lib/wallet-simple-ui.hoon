@@ -66,6 +66,7 @@
     (weld recv chng)
   %+  roll  all
   |=  [[* ad=address-data] sum=@ud]
+  %+  add  sum
   %+  roll  utxos.ad
   |=  [u=utxo acc=@ud]
   (add acc value.u)
