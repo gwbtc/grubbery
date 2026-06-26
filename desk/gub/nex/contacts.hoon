@@ -34,6 +34,8 @@
           ::
           [~ %'main.sig']
         ;<  ~  bind:m  (rise-wait:io prod "%contacts /main: failed")
+        ::  sync ames peers on startup
+        ;<  ~  bind:m  sync-ames
         |-
         ;<  [=from:fiber:nexus =sage:tarball]  bind:m  take-poke-from:io
         ?.  =(%json name.p.sage)
@@ -44,6 +46,9 @@
         =/  act=(unit json)  (~(get by p.jon) 'action')
         ?.  ?=([~ %s @] act)  $
         =/  action=@t  p.u.act
+        ?:  =(%'sync-ames' action)
+          ;<  ~  bind:m  sync-ames
+          $
         =/  dir=(unit json)  (~(get by p.jon) 'dir')
         ?.  ?=([~ %s ?(%profile %overlay)] dir)  $
         =/  dir-name=@t  p.u.dir
@@ -147,6 +152,13 @@
           ;<  ~  bind:m  (send-json eyre-id body)
           (pure:m ~)
         ::
+        ::  POST /api/sync-ames — import ames peers as contacts
+        ::
+        ?:  ?&(=(%'POST' method) =(/api/'sync-ames' suffix))
+          ;<  ~  bind:m  sync-ames
+          ;<  ~  bind:m  (send-simple:srv eyre-id [[200 ~] `(as-octs:mimes:html 'ok')])
+          (pure:m ~)
+        ::
         ::  POST /api/overlay/[ship] — put fields into overlay
         ::
         ?:  ?&(=(%'POST' method) ?=([%api %overlay @ ~] suffix))
@@ -215,6 +227,45 @@
       ==
     --
 |%
+::  +sync-ames: scry ames peers and create overlay entries for known peers
+::
+++  sync-ames
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  ;<  our=@p  bind:m  get-our:io
+  ;<  peers=(map ship ?(%alien %known))  bind:m
+    (scry:io (map ship ?(%alien %known)) /ax//peers)
+  =/  known=(list ship)
+    %+  murn  ~(tap by peers)
+    |=  [=ship val=?(%alien %known)]
+    ?:  =(ship our)  ~
+    ?-  val
+      %alien  ~
+      %known  `ship
+    ==
+  ~&  [%contacts %sync-ames %known-peers (lent known)]
+  (write-peers known)
+++  write-peers
+  |=  peers=(list ship)
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  ?~  peers  (pure:m ~)
+  =/  who=@t  (scot %p i.peers)
+  =/  file=@ta  (cat 3 who '.jobj')
+  =/  file-road=road:tarball  [%| 0 %& /overlay file]
+  ;<  seen=seen:nexus  bind:m  (peek:io file-road `[/ %jobj])
+  =/  existing=(map @t json)
+    ?.  ?=([%& %file *] seen)  ~
+    ?:  (is-boom:tarball sang.p.seen)  ~
+    !<((map @t json) (need-vase:tarball sang.p.seen))
+  ?^  existing
+    ::  already has overlay data, don't overwrite
+    $(peers t.peers)
+  =/  fields=(map @t json)
+    (~(put by *(map @t json)) 'source' s+'ames')
+  ;<  ~  bind:m  (over:io file-road [[/ %jobj] fields])
+  $(peers t.peers)
+::
 ::  HTTP helpers — road from /ui/requests/* to /ui/main.sig
 ::
 ++  srv  ~(. http-res:io [%| 1 %& ~ %'main.sig'])
