@@ -57,52 +57,28 @@
   ?.  (~(has by acct-store) ref)
     (pure:m [%error 'Account not found'])
   ::  extract account metadata from labels
-  =/  entries=(list label-entry:b329)
-    ~(tap in (~(get la:b329 lbls) %xpub ref))
-  =/  network=network
-    =/  prefix=tape  "gwbtc:network:"
-    =/  prefix-len=@ud  (lent prefix)
-    |-
-    ?~  entries  %testnet3
-    =/  lbl=tape  (trip label.i.entries)
-    ?.  =(prefix (scag prefix-len lbl))
-      $(entries t.entries)
-    ;;(network (slav %tas (crip (slag prefix-len lbl))))
-  =/  og=(unit parsed-origin:b329)
-    |-
-    ?~  entries  ~
-    ?^  origin.i.entries  origin.i.entries
-    $(entries t.entries)
-  =/  stype=script-type
-    ?~  og  %p2wpkh
-    (from-descriptor:b329 type.u.og)
+  =/  network=network  (get-acct-network:aio lbls ref)
+  =/  og=(unit parsed-origin:b329)  (get-acct-origin:aio lbls ref)
+  =/  stype=script-type  (get-acct-script-type:aio lbls ref)
   =/  xprv=@t  (fall (~(get by acct-store) ref) '')
   =/  network-ta=@ta  ;;(@ta network)
-  ::  find unused change address
-  ;<  addr-seen=seen:nexus  bind:m
-    (peek:io [%& %& /apps/'wallet.wallet_app' %'addresses.wallet_addresses'] ~)
-  =/  addrs=addresses
-    ?.  ?=([%& %file *] addr-seen)  *addresses
-    (fall (mole |.(!<(addresses (need-vase:tarball sang.p.addr-seen)))) *addresses)
-  =/  mops=[recv=addr-mop chng=addr-mop]
-    (fall (~(get by addrs) [ref network]) [*addr-mop *addr-mop])
-  =/  chng=addr-mop  +.mops
+  ::  find unused change address from labels
+  ?~  og
+    (pure:m [%error 'Account origin not found in labels'])
+  =/  acct-addrs  (read-account-addrs:aio lbls u.og)
+  =/  chng=(list [idx=@ud addr=@t])  chng.acct-addrs
   =/  change-addr=(unit @t)
-    =/  leaves=(list [@ud address-data])
-      (tap:((on @ud address-data) gth) chng)
     |-
-    ?~  leaves  ~
-    =/  [* dat=address-data]  i.leaves
-    ?~  info.dat  `addr.dat
-    ?:  =(0 tx-count.u.info.dat)  `addr.dat
-    $(leaves t.leaves)
+    ?~  chng  ~
+    =/  info=(unit address-info:aio)  (read-addr-info:aio lbls addr.i.chng)
+    ?~  info  `addr.i.chng
+    ?:  =(0 tx-count.u.info)  `addr.i.chng
+    $(chng t.chng)
   =/  change-addr=@t
     ?^  change-addr  u.change-addr
     =/  next-idx=@ud
-      =/  top=(unit [@ud address-data])
-        (pry:((on @ud address-data) gth) chng)
-      ?~  top  0
-      +(-.u.top)
+      ?~  chng  0
+      +((roll (turn chng |=([idx=@ud *] idx)) max))
     %-  need
     (derive-addr:aio xprv stype network 1 next-idx)
   ::  generate uuid and build proc road

@@ -74,6 +74,19 @@
 +$  account-store  (map @t @t)
 +$  addresses  (map [@t network] [recv=addr-mop chng=addr-mop])
 +$  txs  (map [@t network] tx-map)
+::  process registry: main.sig's bookkeeping of active procs
+::
++$  proc-registry
+  $:  wallets=(map @t wallet-procs)    :: keyed by wallet xpub
+      accounts=(map @t account-procs)  :: keyed by acct-ref
+  ==
++$  wallet-procs
+  $:  discover=(unit @ta)              :: uuid of active discover proc
+  ==
++$  account-procs
+  $:  scan=(unit @ta)                  :: uuid of active scan proc
+      refresh=(map @ta @ta)            :: "recv-0" -> uuid
+  ==
 +$  network  ?(%main %testnet3 %testnet4 %signet %regtest)
 ::  +to-bip-network: map expanded network to bip32/bech32 protocol network
 ::

@@ -1293,6 +1293,31 @@
     =/  cas=(unit cass:clay)  (~(get by file.u.fil.dir-wave) name)
     ?~  cas  "-"
     (en:datetime-local:iso-8601 da.u.cas)
+  =/  display-name=tape  (trip name)
+  =/  file-url=tape  "{url-prefix}/{display-name}"
+  ::  Boom file: render error row instead of crashing
+  ?:  (is-boom:tarball sang)
+    =/  boom-tang=tang
+      ?~  file-bang  ~[leaf+"validation failed"]
+      u.file-bang
+    =/  rendered=tape  (render-tang boom-tang)
+    ;tr.boom-row(data-name display-name, data-type "grub")
+      ;td
+        ;a/"{file-url}": {display-name}
+        ;span.boom-icon(data-tang rendered, onclick "showBoom(this)"): !
+      ==
+      ;td.col-blot: {(spud (rail-to-path:tarball p.sang))}
+      ;td.col-mime: -
+      ;td: -
+      ;td.col-mtime: {mtime-display}
+      ;td.actions-cell
+        ;form.del-form(method "POST", action url-prefix)
+          ;input(type "hidden", name "action", value "delete-grub");
+          ;input(type "hidden", name "filename", value display-name);
+          ;button(type "submit", onclick "return confirm('Delete {display-name}?')"): Delete
+        ==
+      ==
+    ==
   =/  sag=sage:tarball  (need-sage:tarball sang)
   ?:  =(%symlink name.p.sag)
     =/  sym  !<(symlink:tarball q.sag)
@@ -1316,8 +1341,6 @@
         ==
       ==
     ==
-  =/  display-name=tape  (trip name)
-  =/  file-url=tape  "{url-prefix}/{display-name}"
   =/  mark-name=tape  (spud (rail-to-path:tarball p.sag))
   =/  ext=(unit @ta)  (parse-extension:tarball name)
   =/  rail-ext=@ta

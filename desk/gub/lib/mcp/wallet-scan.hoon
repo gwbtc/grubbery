@@ -1,5 +1,6 @@
 /<  tools  /lib/nex/tools.hoon
 /<  wt     /lib/wallet-types.hoon
+/<  aio    /lib/wallet/account-io.hoon
 /<  b329   /lib/bip329.hoon
 ::  wallet-scan: run a full address scan on a wallet account
 ::
@@ -43,17 +44,7 @@
     ?.  ?=([%& %file *] lbl-seen)  *labels:b329
     (fall (mole |.(!<(labels:b329 (need-vase:tarball sang.p.lbl-seen)))) *labels:b329)
   ::  extract network from labels
-  =/  entries=(list label-entry:b329)
-    ~(tap in (~(get la:b329 lbls) %xpub ref))
-  =/  network=network
-    =/  prefix=tape  "gwbtc:network:"
-    =/  prefix-len=@ud  (lent prefix)
-    |-
-    ?~  entries  %testnet3
-    =/  lbl=tape  (trip label.i.entries)
-    ?.  =(prefix (scag prefix-len lbl))
-      $(entries t.entries)
-    ;;(network (slav %tas (crip (slag prefix-len lbl))))
+  =/  network=network  (get-acct-network:aio lbls ref)
   ::  generate uuid for the scan proc
   ;<  eny=@uvJ  bind:m  get-entropy:io
   =/  uuid=@ta  (scot %uv eny)
@@ -92,15 +83,17 @@
   ~&  >  [%mcp-scan %complete]
   ;<  ~  bind:m  (drop:io /scan-proc proc-road)
     =/  net=@ta  ;;(@ta network)
-    ;<  addr-seen=seen:nexus  bind:m
-      (peek:io [%& %& /apps/'wallet.wallet_app' %'addresses.wallet_addresses'] ~)
-    =/  addrs=addresses
-      ?.  ?=([%& %file *] addr-seen)  *addresses
-      (fall (mole |.(!<(addresses (need-vase:tarball sang.p.addr-seen)))) *addresses)
-    =/  mops=[recv=addr-mop chng=addr-mop]
-      (fall (~(get by addrs) [ref network]) [*addr-mop *addr-mop])
-    =/  recv-count=@ud  (lent (tap:((on @ud address-data) gth) -.mops))
-    =/  chng-count=@ud  (lent (tap:((on @ud address-data) gth) +.mops))
+    ::  reload labels (scan may have written new ones)
+    ;<  lbl-seen2=seen:nexus  bind:m
+      (peek:io [%& %& /apps/'wallet.wallet_app' %'labels.wallet_labels'] ~)
+    =/  lbls2=labels:b329
+      ?.  ?=([%& %file *] lbl-seen2)  *labels:b329
+      (fall (mole |.(!<(labels:b329 (need-vase:tarball sang.p.lbl-seen2)))) *labels:b329)
+    =/  og=(unit parsed-origin:b329)  (get-acct-origin:aio lbls2 ref)
+    =/  [recv-count=@ud chng-count=@ud]
+      ?~  og  [0 0]
+      =+  (read-account-addrs:aio lbls2 u.og)
+      [(lent recv) (lent chng)]
     =/  out=wain
       :~  'Scan complete.'
           (rap 3 ~['  account: ' ref])

@@ -64,6 +64,292 @@
     %p2pkh       ~
     %p2sh-p2wpkh  ~
   ==
+::  +label-derived-addr: add a BIP-329 addr label with origin for a derived address
+::
+++  label-derived-addr
+  |=  $:  =labels:b329
+          addr=@t
+          lbl=@t
+          acct-og=(unit parsed-origin:b329)
+          chain=@ud
+          index=@ud
+      ==
+  ^-  labels:b329
+  =/  addr-og=(unit parsed-origin:b329)
+    (bind acct-og |=(og=parsed-origin:b329 (addr-origin:b329 og chain index)))
+  (~(put la:b329 labels) [%addr addr lbl addr-og ~ ~])
+::  +label-addr-info: write addr labels for mempool.space address info
+::
+++  label-addr-info
+  |=  [=labels:b329 addr=@t info=address-info]
+  ^-  labels:b329
+  =/  l  labels
+  =.  l  (~(put-kv la:b329 l) [%addr addr (rap 3 ~['gwbtc:funded:' (scot %ud funded.info)]) ~ ~ ~])
+  =.  l  (~(put-kv la:b329 l) [%addr addr (rap 3 ~['gwbtc:spent:' (scot %ud spent.info)]) ~ ~ ~])
+  =.  l  (~(put-kv la:b329 l) [%addr addr (rap 3 ~['gwbtc:tx-count:' (scot %ud tx-count.info)]) ~ ~ ~])
+  (~(put-kv la:b329 l) [%addr addr (rap 3 ~['gwbtc:last-checked:' (scot %da last-check.info)]) ~ ~ ~])
+::  +label-utxos: write output labels for UTXOs
+::
+++  label-utxos
+  |=  [=labels:b329 addr=@t utxos=(list utxo)]
+  ^-  labels:b329
+  =/  l  labels
+  |-
+  ?~  utxos  l
+  =/  ref=@t  (rap 3 ~[txid.i.utxos ':' (scot %ud vout.i.utxos)])
+  =.  l  (~(put-kv la:b329 l) [%output ref (rap 3 ~['gwbtc:value:' (scot %ud value.i.utxos)]) ~ ~ ~])
+  =.  l  (~(put-kv la:b329 l) [%output ref (rap 3 ~['gwbtc:addr:' addr]) ~ ~ ~])
+  =.  l
+    ?-  -.tx-status.i.utxos
+        %unconfirmed
+      (~(put la:b329 l) [%output ref 'gwbtc:unconfirmed' ~ ~ ~])
+        %confirmed
+      =.  l  (~(del la:b329 l) %output ref 'gwbtc:unconfirmed')
+      (~(put-kv la:b329 l) [%output ref (rap 3 ~['gwbtc:confirmed:' (scot %ud block-height.tx-status.i.utxos)]) ~ ~ ~])
+    ==
+  $(utxos t.utxos)
+::  +label-txs: write tx labels for transactions
+::
+++  label-txs
+  |=  [=labels:b329 txs=(list transaction)]
+  ^-  labels:b329
+  =/  l  labels
+  |-
+  ?~  txs  l
+  =/  tx  i.txs
+  =.  l
+    ?-  -.tx-status.tx
+        %unconfirmed
+      (~(put la:b329 l) [%tx txid.tx 'gwbtc:unconfirmed' ~ ~ ~])
+        %confirmed
+      =.  l  (~(del la:b329 l) %tx txid.tx 'gwbtc:unconfirmed')
+      =.  l  (~(put-kv la:b329 l) [%tx txid.tx (rap 3 ~['gwbtc:confirmed:' (scot %ud block-height.tx-status.tx)]) ~ ~ ~])
+      (~(put-kv la:b329 l) [%tx txid.tx (rap 3 ~['gwbtc:block-hash:' block-hash.tx-status.tx]) ~ ~ ~])
+    ==
+  =.  l  ?~(fee.tx l (~(put-kv la:b329 l) [%tx txid.tx (rap 3 ~['gwbtc:fee:' (scot %ud u.fee.tx)]) ~ ~ ~]))
+  =.  l  ?~(size.tx l (~(put-kv la:b329 l) [%tx txid.tx (rap 3 ~['gwbtc:size:' (scot %ud u.size.tx)]) ~ ~ ~]))
+  ::  label inputs
+  =.  l
+    =/  ins=(list tx-input)  inputs.tx
+    |-
+    ?~  ins  l
+    =/  in-ref=@t  (rap 3 ~[spent-txid.i.ins ':' (scot %ud spent-vout.i.ins)])
+    =.  l  (~(put-kv la:b329 l) [%input in-ref (rap 3 ~['gwbtc:tx:' txid.tx]) ~ ~ ~])
+    =.  l
+      ?~  prevout.i.ins  l
+      =.  l  (~(put-kv la:b329 l) [%input in-ref (rap 3 ~['gwbtc:value:' (scot %ud value.u.prevout.i.ins)]) ~ ~ ~])
+      (~(put-kv la:b329 l) [%input in-ref (rap 3 ~['gwbtc:addr:' address.u.prevout.i.ins]) ~ ~ ~])
+    $(ins t.ins)
+  ::  label outputs
+  =.  l
+    =/  outs=(list tx-output)  outputs.tx
+    =/  vout=@ud  0
+    |-
+    ?~  outs  l
+    =/  out-ref=@t  (rap 3 ~[txid.tx ':' (scot %ud vout)])
+    =.  l  (~(put-kv la:b329 l) [%output out-ref (rap 3 ~['gwbtc:value:' (scot %ud value.i.outs)]) ~ ~ ~])
+    =.  l  (~(put-kv la:b329 l) [%output out-ref (rap 3 ~['gwbtc:addr:' address.i.outs]) ~ ~ ~])
+    $(outs t.outs, vout +(vout))
+  $(txs t.txs)
+::  +read-addr-info: reconstruct address-info from labels
+::
+++  read-addr-info
+  |=  [=labels:b329 addr=@t]
+  ^-  (unit address-info)
+  =/  funded=(unit @t)  (~(read-kv la:b329 labels) %addr addr 'gwbtc:funded:')
+  =/  spent=(unit @t)   (~(read-kv la:b329 labels) %addr addr 'gwbtc:spent:')
+  =/  tc=(unit @t)      (~(read-kv la:b329 labels) %addr addr 'gwbtc:tx-count:')
+  =/  lc=(unit @t)      (~(read-kv la:b329 labels) %addr addr 'gwbtc:last-checked:')
+  ?:  |(?=(~ funded) ?=(~ spent) ?=(~ tc) ?=(~ lc))  ~
+  =/  funded-ud=(unit @ud)  (rush u.funded dem)
+  =/  spent-ud=(unit @ud)   (rush u.spent dem)
+  =/  tc-ud=(unit @ud)      (rush u.tc dem)
+  =/  lc-da=(unit @da)      (slaw %da u.lc)
+  ?:  |(?=(~ funded-ud) ?=(~ spent-ud) ?=(~ tc-ud) ?=(~ lc-da))  ~
+  `[u.tc-ud u.funded-ud u.spent-ud u.lc-da]
+::  +read-utxos: reconstruct UTXOs for an address from output labels
+::
+++  read-utxos
+  |=  [=labels:b329 addr=@t]
+  ^-  (list utxo)
+  =/  all-outputs=(list [@t (set label-entry:b329)])
+    ~(tap by output.labels)
+  %+  murn  all-outputs
+  |=  [ref=@t entries=(set label-entry:b329)]
+  ^-  (unit utxo)
+  ::  check if this output belongs to our address
+  =/  out-addr=(unit @t)  (~(read-kv la:b329 labels) %output ref 'gwbtc:addr:')
+  ?.  &(?=(^ out-addr) =(addr u.out-addr))  ~
+  ::  parse ref as txid:vout
+  =/  colon=(unit @ud)  (find ":" (trip ref))
+  ?~  colon  ~
+  =/  txid=@t  (crip (scag u.colon (trip ref)))
+  =/  vout-t=@t  (crip (slag +(u.colon) (trip ref)))
+  =/  vout=(unit @ud)  (rush vout-t dem)
+  ?~  vout  ~
+  =/  value=(unit @t)  (~(read-kv la:b329 labels) %output ref 'gwbtc:value:')
+  ?~  value  ~
+  =/  value-ud=(unit @ud)  (rush u.value dem)
+  ?~  value-ud  ~
+  =/  status=tx-status
+    =/  conf=(unit @t)  (~(read-kv la:b329 labels) %output ref 'gwbtc:confirmed:')
+    ?~  conf  [%unconfirmed ~]
+    =/  bh=(unit @ud)  (rush u.conf dem)
+    ?~  bh  [%unconfirmed ~]
+    ::  we don't store block-hash on output labels, just height
+    [%confirmed '' u.bh]
+  `[txid u.vout u.value-ud status]
+::  +read-tx: reconstruct a transaction from tx/input/output labels
+::
+++  read-tx
+  |=  [=labels:b329 txid=@t]
+  ^-  (unit transaction)
+  =/  entries=(set label-entry:b329)
+    (~(get la:b329 labels) %tx txid)
+  ?:  =(~ entries)  ~
+  =/  status=tx-status
+    =/  conf=(unit @t)  (~(read-kv la:b329 labels) %tx txid 'gwbtc:confirmed:')
+    ?~  conf  [%unconfirmed ~]
+    =/  bh=(unit @ud)  (rush u.conf dem)
+    ?~  bh  [%unconfirmed ~]
+    =/  block-hash=(unit @t)  (~(read-kv la:b329 labels) %tx txid 'gwbtc:block-hash:')
+    [%confirmed (fall block-hash '') (fall bh 0)]
+  =/  fee=(unit @ud)
+    =/  f=(unit @t)  (~(read-kv la:b329 labels) %tx txid 'gwbtc:fee:')
+    ?~  f  ~
+    (rush u.f dem)
+  =/  size=(unit @ud)
+    =/  s=(unit @t)  (~(read-kv la:b329 labels) %tx txid 'gwbtc:size:')
+    ?~  s  ~
+    (rush u.s dem)
+  ::  find inputs: scan all input labels for gwbtc:tx:<our-txid>
+  =/  inputs=(list tx-input)
+    =/  all-inputs=(list [@t (set label-entry:b329)])
+      ~(tap by input.labels)
+    %+  murn  all-inputs
+    |=  [ref=@t *]
+    ^-  (unit tx-input)
+    =/  in-tx=(unit @t)  (~(read-kv la:b329 labels) %input ref 'gwbtc:tx:')
+    ?.  &(?=(^ in-tx) =(txid u.in-tx))  ~
+    ::  parse ref as spent-txid:spent-vout
+    =/  colon=(unit @ud)  (find ":" (trip ref))
+    ?~  colon  ~
+    =/  st=@t  (crip (scag u.colon (trip ref)))
+    =/  sv=(unit @ud)  (rush (crip (slag +(u.colon) (trip ref))) dem)
+    ?~  sv  ~
+    =/  pv=(unit @t)  (~(read-kv la:b329 labels) %input ref 'gwbtc:value:')
+    =/  pa=(unit @t)  (~(read-kv la:b329 labels) %input ref 'gwbtc:addr:')
+    =/  prevout=(unit tx-output)
+      ?:  |(?=(~ pv) ?=(~ pa))  ~
+      =/  pvud=(unit @ud)  (rush u.pv dem)
+      ?~  pvud  ~
+      `[u.pvud u.pa]
+    `[st u.sv prevout]
+  ::  find outputs: scan output labels for this txid prefix
+  =/  outputs=(list tx-output)
+    =/  all-outputs=(list [@t (set label-entry:b329)])
+      ~(tap by output.labels)
+    =/  txid-prefix=tape  (weld (trip txid) ":")
+    =/  txid-prefix-len=@ud  (lent txid-prefix)
+    %+  murn  all-outputs
+    |=  [ref=@t *]
+    ^-  (unit tx-output)
+    ?.  =(txid-prefix (scag txid-prefix-len (trip ref)))  ~
+    =/  v=(unit @t)  (~(read-kv la:b329 labels) %output ref 'gwbtc:value:')
+    =/  a=(unit @t)  (~(read-kv la:b329 labels) %output ref 'gwbtc:addr:')
+    ?:  |(?=(~ v) ?=(~ a))  ~
+    =/  vud=(unit @ud)  (rush u.v dem)
+    ?~  vud  ~
+    `[u.vud u.a]
+  `[txid inputs outputs status fee size]
+::  +read-account-addrs: enumerate addresses for an account from labels
+::  Scans addr labels matching the account's origin prefix
+::
+++  read-account-addrs
+  |=  [=labels:b329 acct-og=parsed-origin:b329]
+  ^-  [recv=(list [idx=@ud addr=@t]) chng=(list [idx=@ud addr=@t])]
+  =/  acct-plen=@ud  (lent path.acct-og)
+  =/  all=(list [@t (set label-entry:b329)])  ~(tap by addr.labels)
+  =/  recv=(list [idx=@ud addr=@t])  ~
+  =/  chng=(list [idx=@ud addr=@t])  ~
+  |-
+  ?~  all
+    :_  (sort chng |=([[a=@ud *] [b=@ud *]] (lth a b)))
+    (sort recv |=([[a=@ud *] [b=@ud *]] (lth a b)))
+  =/  [addr=@t entries=(set label-entry:b329)]  i.all
+  =/  og=(unit parsed-origin:b329)
+    =/  el=(list label-entry:b329)  ~(tap in entries)
+    |-
+    ?~  el  ~
+    ?^  origin.i.el  origin.i.el
+    $(el t.el)
+  ?~  og  $(all t.all)
+  ?.  =(type.acct-og type.u.og)  $(all t.all)
+  ?.  =(fingerprint.acct-og fingerprint.u.og)  $(all t.all)
+  ?.  =(path.acct-og (scag acct-plen path.u.og))  $(all t.all)
+  =/  suffix=(list seg:wt)  (slag acct-plen path.u.og)
+  ?.  ?=([^ ^ ~] suffix)  $(all t.all)
+  =/  chain=@ud  q.i.suffix
+  =/  idx=@ud  q.i.t.suffix
+  ?:  =(0 chain)
+    $(all t.all, recv [[idx addr] recv])
+  $(all t.all, chng [[idx addr] chng])
+::  +enrich-mop: populate addr-mop entries with data from labels
+::
+++  enrich-mop
+  |=  [mop=addr-mop =labels:b329]
+  ^-  addr-mop
+  =/  entries=(list [idx=@ud dat=address-data])
+    (tap:((on @ud address-data) gth) mop)
+  |-
+  ?~  entries  mop
+  =/  [idx=@ud dat=address-data]  i.entries
+  =/  info=(unit address-info)  (read-addr-info labels addr.dat)
+  =/  utxos=(list utxo)  (read-utxos labels addr.dat)
+  %=  $
+    entries  t.entries
+    mop  (put:((on @ud address-data) gth) mop idx dat(info info, utxos utxos, loading %.n))
+  ==
+::  +build-tx-map: reconstruct tx-map from labels for a set of addresses
+::
+++  build-tx-map
+  |=  [=labels:b329 addrs=(set @t)]
+  ^-  tx-map
+  =/  txids=(set @t)  ~
+  ::  find txids from output labels matching our addresses
+  =/  all-outputs=(list [@t (set label-entry:b329)])
+    ~(tap by output.labels)
+  =.  txids
+    |-
+    ?~  all-outputs  txids
+    =/  [ref=@t *]  i.all-outputs
+    =/  out-addr=(unit @t)  (~(read-kv la:b329 labels) %output ref 'gwbtc:addr:')
+    ?.  &(?=(^ out-addr) (~(has in addrs) u.out-addr))
+      $(all-outputs t.all-outputs)
+    =/  colon=(unit @ud)  (find ":" (trip ref))
+    ?~  colon  $(all-outputs t.all-outputs)
+    =/  txid=@t  (crip (scag u.colon (trip ref)))
+    $(all-outputs t.all-outputs, txids (~(put in txids) txid))
+  ::  also find txids from input labels matching our addresses
+  =/  all-inputs=(list [@t (set label-entry:b329)])
+    ~(tap by input.labels)
+  =.  txids
+    |-
+    ?~  all-inputs  txids
+    =/  [ref=@t *]  i.all-inputs
+    =/  in-addr=(unit @t)  (~(read-kv la:b329 labels) %input ref 'gwbtc:addr:')
+    ?.  &(?=(^ in-addr) (~(has in addrs) u.in-addr))
+      $(all-inputs t.all-inputs)
+    =/  in-tx=(unit @t)  (~(read-kv la:b329 labels) %input ref 'gwbtc:tx:')
+    ?~  in-tx  $(all-inputs t.all-inputs)
+    $(all-inputs t.all-inputs, txids (~(put in txids) u.in-tx))
+  ::  build tx-map from found txids
+  %-  ~(gas by *tx-map)
+  %+  murn  ~(tap in txids)
+  |=  txid=@t
+  =/  tx=(unit transaction)  (read-tx labels txid)
+  ?~  tx  ~
+  `[txid u.tx]
 ::
 +$  scan-progress  [phase=@t idx=@ud gap=@ud]
 ::
@@ -130,16 +416,19 @@
   ==
 ::
 ++  pause-loop
-  |=  paused-road=road:tarball
+  |=  progress=json
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
-  =/  marker-json=json  (pairs:enjs:format ~[['paused' b+%.y]])
-  ;<  ~  bind:m
-    (make:io paused-road |+[[[/ %json] marker-json] ~])
+  =/  marker-json=json
+    ?:  ?=([%o *] progress)
+      [%o (~(put by p.progress) 'paused' b+%.y)]
+    (pairs:enjs:format ~[['paused' b+%.y]])
+  ;<  ~  bind:m  (replace:io marker-json)
   |-
   ;<  resumed=?  bind:m  take-pause-event
   ?.  resumed  $
-  ;<  *  bind:m  (cull-soft:io paused-road)
+  ::  remove paused flag on resume
+  ;<  ~  bind:m  (replace:io (~(del jo:json-utils marker-json) /paused))
   (pure:m ~)
 ::
 ++  mempool-base-url
@@ -155,7 +444,7 @@
 ::  +scan-fetch: like fetch-address-info but pausable during HTTP wait
 ::
 ++  scan-fetch
-  |=  [paused-road=road:tarball address=@t =network]
+  |=  [progress=json address=@t =network]
   =/  m  (fiber:fiber:nexus ,(unit address-info))
   ^-  form:m
   =/  url=@t
@@ -166,7 +455,7 @@
   |-
   ;<  evt=scan-event  bind:m  take-scan-event
   ?-    -.evt
-      %pause   ;<  ~  bind:m  (pause-loop paused-road)  $
+      %pause   ;<  ~  bind:m  (pause-loop progress)  $
       %resume  $
       %http    (parse-address-response client-response.evt)
   ==
@@ -349,14 +638,12 @@
 ::
 ++  scan-chain
   |=  $:  acct-ref=@t
-          paused-road=road:tarball
-          xprv=@t
-          stype=script-type
           chain=?(%receiving %change)
           =network
           start-idx=@ud
           start-gap=@ud
           addr-road=road:tarball
+          main-road=road:tarball
       ==
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
@@ -368,38 +655,41 @@
   |-
   ?:  (gte gap gap-limit)
     (pure:m ~)
-  =/  new-addr=(unit @t)
-    %:  derive-addr
-      xprv
-      stype
-      network
-      ?:(is-change 1 0)
-      scan-idx
+  ::  poke main.sig to derive + label the address
+  ;<  ~  bind:m
+    %:  poke:io  main-road
+      :-  [/ %json]
+      %-  pairs:enjs:format
+      :~  ['action' s+'derive-address']
+          ['account' s+acct-ref]
+          ['chain' s+?:(is-change 'change' 'receiving')]
+          ['index' (numb:enjs:format scan-idx)]
+      ==
     ==
-  ?~  new-addr
+  ::  read back the derived address from addr-mop
+  ;<  cur-addrs=addresses  bind:m  (load-addr-file addr-road)
+  =/  [recv=addr-mop chng=addr-mop]  (get-mops cur-addrs acct-ref network)
+  =/  mop=addr-mop  ?:(is-change chng recv)
+  =/  dat=(unit address-data)
+    (get:((on @ud address-data) gth) mop scan-idx)
+  ?~  dat
     (pure:m ~)
   ::  update scan progress in proc file
   =/  phase-tape=@t  ?:(is-change 'chng' 'recv')
+  ;<  cur=json  bind:m  (get-state-as:io json)
   =/  scan-prog=json
-    %-  pairs:enjs:format
-    :~  ['account' s+acct-ref]
-        ['phase' s+phase-tape]
-        ['idx' (numb:enjs:format scan-idx)]
-        ['gap' (numb:enjs:format gap)]
+    %-  ~(gas jo:json-utils cur)
+    :~  [/phase s+phase-tape]
+        [/idx (numb:enjs:format scan-idx)]
+        [/gap (numb:enjs:format gap)]
     ==
   ;<  ~  bind:m  (replace:io scan-prog)
-  ::  write address with loading flag before fetch
-  =/  loading-dat=address-data  [u.new-addr %.y ~ ~ ~]
-  ;<  cur-addrs=addresses  bind:m  (load-addr-file addr-road)
-  =/  pre-updated=addresses
-    (put-mop cur-addrs acct-ref network chain-tag (put:((on @ud address-data) gth) recv:(get-mops cur-addrs acct-ref network) scan-idx loading-dat))
-  ;<  ~  bind:m  (save-addr-file addr-road pre-updated)
   ;<  ~  bind:m  (sleep:io `@dr`(div ~s1 1.000))
   ::  fetch address info
   ;<  new-info=(unit address-info)  bind:m
-    (scan-fetch paused-road u.new-addr network)
-  ::  clear loading, write results
-  =/  addr-dat=address-data  [u.new-addr %.n ~ new-info ~]
+    (scan-fetch scan-prog addr.u.dat network)
+  ::  write addr-mop index entry (data lives in labels)
+  =/  addr-dat=address-data  [addr.u.dat %.n ~ ~ ~]
   ;<  post-addrs=addresses  bind:m  (load-addr-file addr-road)
   =/  [recv=addr-mop chng=addr-mop]
     (get-mops post-addrs acct-ref network)
@@ -489,11 +779,112 @@
 ::  +get-next-offer-index: next address index to offer
 ::
 ++  get-next-offer-index
-  |=  [mop=addr-mop =labels:b329 xpub=@t]
+  |=  [recv=(list [idx=@ud addr=@t]) =labels:b329 xpub=@t]
   ^-  @ud
   =/  unused-idx=@ud
-    (get-next-unused-index mop)
+    ?~  recv  0
+    +(idx:(rear recv))
   =/  last=(unit @ud)  (get-last-offered labels xpub)
   ?~  last  unused-idx
   (max unused-idx +(u.last))
+::  +get-wallet-name: read gwbtc:wallet:X label for wallet xpub
+::
+++  get-wallet-name
+  |=  [=labels:b329 xpub=@t]
+  ^-  @t
+  =/  entries=(list label-entry:b329)
+    ~(tap in (~(get la:b329 labels) %xpub xpub))
+  =/  prefix=tape  "gwbtc:wallet:"
+  =/  prefix-len=@ud  (lent prefix)
+  |-
+  ?~  entries  'Unnamed Wallet'
+  =/  lbl=tape  (trip label.i.entries)
+  ?.  =(prefix (scag prefix-len lbl))
+    $(entries t.entries)
+  (crip (slag prefix-len lbl))
+::  +get-acct-network: read gwbtc:network:X label for account ref
+::
+++  get-acct-network
+  |=  [=labels:b329 ref=@t]
+  ^-  network
+  =/  entries=(list label-entry:b329)
+    ~(tap in (~(get la:b329 labels) %xpub ref))
+  =/  prefix=tape  "gwbtc:network:"
+  =/  prefix-len=@ud  (lent prefix)
+  |-
+  ?~  entries  %testnet3
+  =/  lbl=tape  (trip label.i.entries)
+  ?.  =(prefix (scag prefix-len lbl))
+    $(entries t.entries)
+  ;;(network (slav %tas (crip (slag prefix-len lbl))))
+::  +get-acct-name: read gwbtc:account:X label for account ref
+::
+++  get-acct-name
+  |=  [=labels:b329 ref=@t]
+  ^-  @t
+  =/  entries=(list label-entry:b329)
+    ~(tap in (~(get la:b329 labels) %xpub ref))
+  =/  prefix=tape  "gwbtc:account:"
+  =/  prefix-len=@ud  (lent prefix)
+  |-
+  ?~  entries  'Unnamed Account'
+  =/  lbl=tape  (trip label.i.entries)
+  ?.  =(prefix (scag prefix-len lbl))
+    $(entries t.entries)
+  (crip (slag prefix-len lbl))
+::  +get-acct-origin: read parsed-origin from label entries for account ref
+::
+++  get-acct-origin
+  |=  [=labels:b329 ref=@t]
+  ^-  (unit parsed-origin:b329)
+  =/  entries=(list label-entry:b329)
+    ~(tap in (~(get la:b329 labels) %xpub ref))
+  |-
+  ?~  entries  ~
+  ?^  origin.i.entries  origin.i.entries
+  $(entries t.entries)
+::  +get-acct-script-type: derive script-type from origin
+::
+++  get-acct-script-type
+  |=  [=labels:b329 ref=@t]
+  ^-  script-type
+  =/  og=(unit parsed-origin:b329)  (get-acct-origin labels ref)
+  ?~  og  %p2wpkh
+  (from-descriptor:b329 type.u.og)
+::  +get-acct-wallet: derive wallet fingerprint from origin
+::
+++  get-acct-wallet
+  |=  [=labels:b329 ref=@t]
+  ^-  @ux
+  =/  og=(unit parsed-origin:b329)  (get-acct-origin labels ref)
+  ?~  og  0x0
+  fingerprint.u.og
+::  +fp-to-xpub: find wallet xpub label ref matching a fingerprint
+::
+++  fp-to-xpub
+  |=  [=labels:b329 fp=@ux]
+  ^-  (unit @t)
+  =/  xpubs=(list [@t (set label-entry:b329)])
+    ~(tap by xpub.labels)
+  |-
+  ?~  xpubs  ~
+  =/  [ref=@t *]  i.xpubs
+  =/  key  (mole |.((from-extended:bip32 (trip ref))))
+  ?~  key  $(xpubs t.xpubs)
+  ?.  =(fp fingerprint:u.key)  $(xpubs t.xpubs)
+  `ref
+::  +make-acct-labels: create labels for a new account
+::
+++  make-acct-labels
+  |=  $:  =labels:b329
+          ref=@t
+          name=@t
+          =network
+          og=parsed-origin:b329
+      ==
+  ^-  labels:b329
+  =/  name-lbl=@t  (rap 3 ~['gwbtc:account:' name])
+  =/  net-lbl=@t  (rap 3 ~['gwbtc:network:' ;;(@t network)])
+  =.  labels  (~(put la:b329 labels) [%xpub ref name-lbl `og ~ ~])
+  (~(put la:b329 labels) [%xpub ref net-lbl ~ ~ ~])
 --

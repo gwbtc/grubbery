@@ -24,6 +24,9 @@
     ++  on-load
       |=  =ball:tarball
       ^-  bole:tarball
+      ~&  >>  [%wallet-on-load %proc-in-old-ball ?=(^ (~(dap ba:tarball ball) /proc))]
+      ~&  >>  [%wallet-on-load %registry-in-old-ball ?=(^ (~(get ba:tarball ball) [/ %'registry.wallet_registry']))]
+      ~&  >>  [%wallet-on-load %dir-keys ~(key by dir.ball)]
       =/  =ver:loader  (get-ver:loader ball)
       ?+  ver  !!
           ?(~ [~ %0])
@@ -35,8 +38,8 @@
           =/  l=labels:b329  *labels:b329
           =.  l  (~(put la:b329 l) [%xpub mxpub1 (rap 3 ~['gwbtc:wallet:' 'Dev Wallet']) ~ ~ ~])
           =.  l  (~(put la:b329 l) [%xpub mxpub2 (rap 3 ~['gwbtc:wallet:' 'Fauceted Wallet']) ~ ~ ~])
-          =.  l  (make-acct-labels l ref1 'Default' net1 og1)
-          (make-acct-labels l ref2 'Default' net2 og2)
+          =.  l  (make-acct-labels:aio l ref1 'Default' net1 og1)
+          (make-acct-labels:aio l ref2 'Default' net2 og2)
         =/  init-store=wallet-store
           %-  ~(gas by *wallet-store)
           ~[[xpub.wal seed.wal] [xpub.fau-wal seed.fau-wal]]
@@ -55,6 +58,7 @@
             [%fall %& [/ %'addresses.wallet_addresses'] [[/wallet %addresses] init-addrs]]
             [%fall %& [/ %'txs.wallet_txs'] [[/wallet %txs] *txs]]
             [%fall %& [/ %'drafts.wallet_drafts'] [[/wallet %drafts] *(map @t transaction:drft)]]
+            [%fall %& [/ %'registry.wallet_registry'] [[/wallet %registry] *proc-registry]]
             [%fall %| /proc empty-dir:loader]
             [%fall %& [/ui %'http.sig'] [[/ %sig] ~]]
             [%fall %| /ui/requests empty-dir:loader]
@@ -176,7 +180,7 @@
             ;<  ~  bind:m  (save-accounts:h (~(put by acct-store) acct-ref xprv))
             ::  write account labels
             ;<  lbls=labels:b329  bind:m  load-labels:h
-            ;<  ~  bind:m  (save-labels:h (make-acct-labels:h lbls acct-ref account-name network og))
+            ;<  ~  bind:m  (save-labels:h (make-acct-labels:aio lbls acct-ref account-name network og))
             $
               %'remove-account'
             =/  acct-ref=@t
@@ -209,10 +213,18 @@
                   ['fingerprint' s+fp-key]
                   ['wallet-xpub' s+wallet-xpub]
               ==
+            ;<  reg=proc-registry  bind:m  load-registry:h
+            =/  wal-procs=wallet-procs
+              (fall (~(get by wallets.reg) wallet-xpub) *wallet-procs)
+            ?:  ?=(^ discover.wal-procs)
+              ~&  >  [%wallet %discover %already-running wallet-xpub]
+              $
             ;<  eny=@uvJ  bind:m  get-entropy:io
-            =/  disc-uuid=@ta  (scot %uv eny)
+            =/  disc-uuid=@ta  (short-id:h eny)
             =/  disc-rd=road:tarball  (nex-road:h [%& /proc (cat 3 disc-uuid '.json')])
             ;<  ~  bind:m  (make:io disc-rd |+[[[/ %json] disc-json] ~])
+            =.  wallets.reg  (~(put by wallets.reg) wallet-xpub [discover=`disc-uuid])
+            ;<  ~  bind:m  (save-registry:h reg)
             $
               %'address-request'
             ::  foreign ship asks us for a receive address
@@ -230,11 +242,14 @@
             =/  acct-ref=@t  u.sa
             ;<  acct-store=account-store  bind:m  load-accounts:h
             =/  xprv=@t  (~(got by acct-store) acct-ref)
-            =/  network=network:wt  (get-acct-network:h lbls acct-ref)
-            =/  stype=script-type  (get-acct-script-type:h lbls acct-ref)
-            ;<  recv=addr-mop  bind:m  (load-addr-mop:h acct-ref network %recv)
+            =/  network=network:wt  (get-acct-network:aio lbls acct-ref)
+            =/  stype=script-type  (get-acct-script-type:aio lbls acct-ref)
+            =/  acct-og=(unit parsed-origin:b329)  (get-acct-origin:aio lbls acct-ref)
+            =/  recv-addrs=(list [idx=@ud addr=@t])
+              ?~  acct-og  ~
+              recv:(read-account-addrs:aio lbls u.acct-og)
             =/  offer-idx=@ud
-              (get-next-offer-index:aio recv lbls xprv)
+              (get-next-offer-index:aio recv-addrs lbls xprv)
             =/  addr=(unit @t)
               (derive-addr:aio xprv stype network 0 offer-idx)
             ?~  addr
@@ -242,8 +257,9 @@
               $
             ~&  [%wallet %address-request %offering (scow %p u.src) u.addr offer-idx]
             =/  lbl=@t  (rap 3 ~['gwbtc:offered:to:' (scot %p u.src)])
+            =/  acct-og=(unit parsed-origin:b329)  (get-acct-origin:aio lbls acct-ref)
             =/  new-lbls=labels:b329
-              (~(put la:b329 lbls) [%addr u.addr lbl ~ ~ ~])
+              (label-derived-addr:aio lbls u.addr lbl acct-og 0 offer-idx)
             =/  new-lbls=labels:b329
               (set-last-offered:aio new-lbls xprv offer-idx)
             ;<  ~  bind:m  (save-labels:h new-lbls)
@@ -300,7 +316,7 @@
             ;<  log-seen=seen:nexus  bind:m  (peek:io log-road ~)
             =/  cur-log=json
               ?.  ?=([%& %file *] log-seen)  [%a ~]
-              (fall (mole |.(!<(json (need-vase:tarball sang.p.log-seen)))) [%a ~])
+              !<(json (need-vase:tarball sang.p.log-seen))
             =/  entry=json
               %-  pairs:enjs:format
               :~  ['ship' s+(scot %p u.src)]
@@ -320,23 +336,31 @@
             ?.  (~(has by ra-store) acct-ref)
               ~&  >>>  [%wallet %refresh-account %not-found acct-ref]
               $
-            =/  net  (get-acct-network:h ra-lbls acct-ref)
-            ;<  recv=addr-mop  bind:m  (load-addr-mop:h acct-ref net %recv)
-            ;<  chng=addr-mop  bind:m  (load-addr-mop:h acct-ref net %chng)
+            =/  net  (get-acct-network:aio ra-lbls acct-ref)
+            =/  ra-og=(unit parsed-origin:b329)  (get-acct-origin:aio ra-lbls acct-ref)
+            =/  [ra-recv=(list [idx=@ud addr=@t]) ra-chng=(list [idx=@ud addr=@t])]
+              ?~  ra-og  [~ ~]
+              (read-account-addrs:aio ra-lbls u.ra-og)
             =/  refresh-list=(list [chain=?(%recv %chng) idx=@ud])
               %-  weld
               :_  ^-  (list [?(%recv %chng) @ud])
-                  %+  turn  (tap:((on @ud address-data) gth) chng)
-                  |=([idx=@ud *] [%chng idx])
+                  (turn ra-chng |=([idx=@ud *] [%chng idx]))
               ^-  (list [?(%recv %chng) @ud])
-              %+  turn  (tap:((on @ud address-data) gth) recv)
-              |=([idx=@ud *] [%recv idx])
+              (turn ra-recv |=([idx=@ud *] [%recv idx]))
+            ;<  reg=proc-registry  bind:m  load-registry:h
+            =/  acct-procs=account-procs
+              (fall (~(get by accounts.reg) acct-ref) *account-procs)
             ;<  now=@da  bind:m  get-time:io
             |-
-            ?~  refresh-list  $
+            ?~  refresh-list
+              ;<  ~  bind:m  (save-registry:h reg)
+              $
             =/  [chain=?(%recv %chng) idx=@ud]  i.refresh-list
+            =/  rkey=@ta  (refresh-key:h chain idx)
+            ?:  (~(has by refresh.acct-procs) rkey)
+              $(refresh-list t.refresh-list)
             ;<  eny=@uvJ  bind:m  get-entropy:io
-            =/  uuid=@ta  (scot %uv eny)
+            =/  uuid=@ta  (short-id:h eny)
             =/  proc-road=road:tarball  (nex-road:h [%& /proc (cat 3 uuid '.json')])
             =/  proc-json=json
               %-  pairs:enjs:format
@@ -347,10 +371,12 @@
                   ['index' (numb:enjs:format idx)]
               ==
             ;<  ~  bind:m  (make:io proc-road |+[[[/ %json] proc-json] ~])
+            =.  refresh.acct-procs  (~(put by refresh.acct-procs) rkey uuid)
+            =.  accounts.reg  (~(put by accounts.reg) acct-ref acct-procs)
             $(refresh-list t.refresh-list)
           ::  account-specific actions (derive, scan, draft, etc)
           ::
-              ?(%'derive-next' %'delete-address' %'set-network' %'full-scan' %'pause-scan' %'resume-scan' %'cancel-scan' %'refresh' %'send' %'add-output' %'delete-output' %'clear-draft' %'set-change-config' %'clear-change-config' %'set-auto-select-mode' %'run-auto-select' %'add-input' %'remove-input' %'build-transaction')
+              ?(%'derive-address' %'derive-next' %'delete-address' %'set-network' %'full-scan' %'pause-scan' %'resume-scan' %'cancel-scan' %'refresh' %'send' %'add-output' %'delete-output' %'clear-draft' %'set-change-config' %'clear-change-config' %'set-auto-select-mode' %'run-auto-select' %'add-input' %'remove-input' %'build-transaction')
             =/  acct-ref=@t  (~(dog jo:json-utils jon) /account so:dejs:format)
             ;<  ~  bind:m  (handle-account-action:h jon acct-ref)
             $
@@ -416,14 +442,14 @@
               =/  new-lbls=labels:b329  (set-simple-wallet:h lbls mxpub)
               =/  new-lbls=labels:b329
                 (~(put la:b329 new-lbls) [%xpub mxpub 'gwbtc:wallet:My Wallet' ~ ~ ~])
-              =/  new-lbls=labels:b329  (make-acct-labels:h new-lbls ref-t 'Default' net-t og-t)
-              =/  new-lbls=labels:b329  (make-acct-labels:h new-lbls ref-m 'Default' net-m og-m)
+              =/  new-lbls=labels:b329  (make-acct-labels:aio new-lbls ref-t 'Default' net-t og-t)
+              =/  new-lbls=labels:b329  (make-acct-labels:aio new-lbls ref-m 'Default' net-m og-m)
               ;<  ~  bind:m  (save-labels:h new-lbls)
               ;<  ~  bind:m
                 (send-html:h eyre-id (simple-page:simp ~ '' ~ *addr-mop *addr-mop *tx-map post-url %.n ~["testnet3" "main"] 2 ~))
               (pure:m ~)
             =/  wal=wallet-data  u.simple-wal
-            =/  wal-name=@t  (get-wallet-name:h lbls xpub.wal)
+            =/  wal-name=@t  (get-wallet-name:aio lbls xpub.wal)
             =/  saved=?  (get-simple-saved:h lbls xpub.wal)
             =/  fp=@ux  fingerprint:(from-extended:bip32 (trip xpub.wal))
             =/  refs=(list @t)  (load-wallet-account-keys:h lbls fp)
@@ -437,10 +463,10 @@
                 (send-html:h eyre-id (simple-page:simp `wal wal-name ~ *addr-mop *addr-mop *tx-map post-url saved nets 2 ~))
               (pure:m ~)
             =/  fee-rate=@ud  (get-simple-fee:h lbls u.acct-ref)
-            =/  network=network:wt  (get-acct-network:h lbls u.acct-ref)
+            =/  network=network:wt  (get-acct-network:aio lbls u.acct-ref)
             ;<  acct-store=account-store  bind:m  load-accounts:h
             =/  xprv=@t  (~(got by acct-store) u.acct-ref)
-            =/  stype=script-type  (get-acct-script-type:h lbls u.acct-ref)
+            =/  stype=script-type  (get-acct-script-type:aio lbls u.acct-ref)
             ;<  recv=addr-mop  bind:m
               (load-addr-mop:h u.acct-ref network %recv)
             ;<  chng=addr-mop  bind:m
@@ -466,10 +492,10 @@
               ;<  ~  bind:m  (send-simple:srv:h eyre-id [[200 ~] `(as-octs:mimes:html '')])
               (pure:m ~)
             =/  acct-ref=@t  u.sa
-            =/  network=network:wt  (get-acct-network:h lbls acct-ref)
+            =/  network=network:wt  (get-acct-network:aio lbls acct-ref)
             ;<  acct-store=account-store  bind:m  load-accounts:h
             =/  xprv=@t  (~(got by acct-store) acct-ref)
-            =/  stype=script-type  (get-acct-script-type:h lbls acct-ref)
+            =/  stype=script-type  (get-acct-script-type:aio lbls acct-ref)
             ;<  recv=addr-mop  bind:m
               (load-addr-mop:h acct-ref network %recv)
             ::  find local candidate: first addr with no/zero tx-count
@@ -506,7 +532,7 @@
               ;<  ~  bind:m  (send-simple:srv:h eyre-id [[200 ~] `(as-octs:mimes:html 'ok')])
               (pure:m ~)
             =/  acct-ref=@t  u.sa
-            =/  network=network:wt  (get-acct-network:h lbls acct-ref)
+            =/  network=network:wt  (get-acct-network:aio lbls acct-ref)
             =/  net=@ta  ;;(@ta network)
             ;<  recv=addr-mop  bind:m  (load-addr-mop:h acct-ref network %recv)
             ;<  chng=addr-mop  bind:m  (load-addr-mop:h acct-ref network %chng)
@@ -576,14 +602,21 @@
               ?:  (~(has in seen) i.all)  $(all t.all)
             $(all t.all, seen (~(put in seen) i.all), out [i.all out])
             ::  spawn refresh proc files
+            ;<  reg=proc-registry  bind:m  load-registry:h
+            =/  acct-procs=account-procs
+              (fall (~(get by accounts.reg) acct-ref) *account-procs)
             ;<  now=@da  bind:m  get-time:io
             |-
             ?~  refresh-list
+              ;<  ~  bind:m  (save-registry:h reg)
               ;<  ~  bind:m  (send-simple:srv:h eyre-id [[200 ~] `(as-octs:mimes:html 'ok')])
               (pure:m ~)
             =/  [chain=?(%recv %chng) idx=@ud]  i.refresh-list
+            =/  rkey=@ta  (refresh-key:h chain idx)
+            ?:  (~(has by refresh.acct-procs) rkey)
+              $(refresh-list t.refresh-list)
             ;<  eny=@uvJ  bind:m  get-entropy:io
-            =/  uuid=@ta  (scot %uv eny)
+            =/  uuid=@ta  (short-id:h eny)
             =/  proc-road=road:tarball  (nex-road:h [%& /proc (cat 3 uuid '.json')])
             =/  proc-json=json
               %-  pairs:enjs:format
@@ -595,6 +628,8 @@
               ==
             ;<  ~  bind:m
               (make:io proc-road |+[[[/ %json] proc-json] ~])
+            =.  refresh.acct-procs  (~(put by refresh.acct-procs) rkey uuid)
+            =.  accounts.reg  (~(put by accounts.reg) acct-ref acct-procs)
             $(refresh-list t.refresh-list)
               %'refresh-address'
             ::  refresh a single address by chain + index
@@ -611,10 +646,17 @@
               ;<  ~  bind:m  (send-simple:srv:h eyre-id [[200 ~] `(as-octs:mimes:html 'ok')])
               (pure:m ~)
             =/  acct-ref=@t  u.sa
-            =/  network=network:wt  (get-acct-network:h lbls acct-ref)
+            =/  network=network:wt  (get-acct-network:aio lbls acct-ref)
             =/  net=@ta  ;;(@ta network)
+            =/  rkey=@ta  (refresh-key:h chain idx)
+            ;<  reg=proc-registry  bind:m  load-registry:h
+            =/  acct-procs=account-procs
+              (fall (~(get by accounts.reg) acct-ref) *account-procs)
+            ?:  (~(has by refresh.acct-procs) rkey)
+              ;<  ~  bind:m  (send-simple:srv:h eyre-id [[200 ~] `(as-octs:mimes:html 'ok')])
+              (pure:m ~)
             ;<  eny=@uvJ  bind:m  get-entropy:io
-            =/  uuid=@ta  (scot %uv eny)
+            =/  uuid=@ta  (short-id:h eny)
             =/  proc-road=road:tarball  (nex-road:h [%& /proc (cat 3 uuid '.json')])
             =/  proc-json=json
               %-  pairs:enjs:format
@@ -626,6 +668,9 @@
               ==
             ;<  ~  bind:m
               (make:io proc-road |+[[[/ %json] proc-json] ~])
+            =.  refresh.acct-procs  (~(put by refresh.acct-procs) rkey uuid)
+            =.  accounts.reg  (~(put by accounts.reg) acct-ref acct-procs)
+            ;<  ~  bind:m  (save-registry:h reg)
             ;<  ~  bind:m  (send-simple:srv:h eyre-id [[200 ~] `(as-octs:mimes:html 'ok')])
             (pure:m ~)
               %'send-bitcoin'
@@ -651,10 +696,10 @@
                 (send-simple:srv:h eyre-id [[400 ~] `(as-octs:mimes:html 'No account for network')])
               (pure:m ~)
             =/  acct-ref=@t  u.sa
-            =/  network=network:wt  (get-acct-network:h lbls acct-ref)
+            =/  network=network:wt  (get-acct-network:aio lbls acct-ref)
             ;<  acct-store=account-store  bind:m  load-accounts:h
             =/  xprv=@t  (~(got by acct-store) acct-ref)
-            =/  stype=script-type  (get-acct-script-type:h lbls acct-ref)
+            =/  stype=script-type  (get-acct-script-type:aio lbls acct-ref)
             ::  find unused change address from mop, or derive one
             ;<  chng=addr-mop  bind:m
               (load-addr-mop:h acct-ref network %chng)
@@ -693,7 +738,7 @@
             ?~  xpub
               ;<  ~  bind:m  (send-simple:srv:h eyre-id [[200 ~] `(as-octs:mimes:html 'ok')])
               (pure:m ~)
-            =/  old-name=@t  (get-wallet-name:h lbls u.xpub)
+            =/  old-name=@t  (get-wallet-name:aio lbls u.xpub)
             =/  old-lbl=@t  (rap 3 ~['gwbtc:wallet:' old-name])
             =/  new-lbls=labels:b329  (~(del la:b329 lbls) %xpub u.xpub old-lbl)
             =/  new-lbls=labels:b329
@@ -738,7 +783,7 @@
             (pure:m ~)
           =/  wal=wallet-data  [u.sd wallet-xpub]
           ;<  lbls=labels:b329  bind:m  load-labels:h
-          =/  wal-name=@t  (get-wallet-name:h lbls wallet-xpub)
+          =/  wal-name=@t  (get-wallet-name:aio lbls wallet-xpub)
           =/  fp=@ux  fingerprint:(from-extended:bip32 (trip wallet-xpub))
           =/  refs=(list @t)  (load-wallet-account-keys:h lbls fp)
           ;<  ~  bind:m  (send-html:h eyre-id (detail-page:det-ui wal wal-name lbls refs))
@@ -754,17 +799,17 @@
           ?.  (~(has by acct-store) acct-ref)
             ;<  ~  bind:m  (send-simple:srv:h eyre-id [[404 ~] `(as-octs:mimes:html 'Account not found')])
             (pure:m ~)
-          =/  network=network:wt  (get-acct-network:h lbls acct-ref)
-          =/  stype=script-type  (get-acct-script-type:h lbls acct-ref)
-          =/  fp=@ux  (get-acct-wallet:h lbls acct-ref)
-          =/  wallet-xpub=@t  (need (fp-to-xpub:h lbls fp))
-          =/  acct-name=@t  (get-acct-name:h lbls acct-ref)
+          =/  network=network:wt  (get-acct-network:aio lbls acct-ref)
+          =/  stype=script-type  (get-acct-script-type:aio lbls acct-ref)
+          =/  fp=@ux  (get-acct-wallet:aio lbls acct-ref)
+          =/  wallet-xpub=@t  (need (fp-to-xpub:aio lbls fp))
+          =/  acct-name=@t  (get-acct-name:aio lbls acct-ref)
           ;<  recv=addr-mop  bind:m  (load-addr-mop:h acct-ref network %recv)
           ;<  chng=addr-mop  bind:m  (load-addr-mop:h acct-ref network %chng)
           ;<  now=@da  bind:m  get-time:io
           ;<  [scan=?(%active %paused %none) progress=(unit scan-progress:acct-ui)]  bind:m
             (load-scan-state:h acct-ref)
-          =/  wal-name=@t  (get-wallet-name:h lbls wallet-xpub)
+          =/  wal-name=@t  (get-wallet-name:aio lbls wallet-xpub)
           ;<  ~  bind:m  (send-html:h eyre-id (detail-page:acct-ui acct-name (trip acct-ref) wallet-xpub network stype recv chng now scan progress ~ wal-name))
           (pure:m ~)
         ::  route: /a/<account-key>/send → send page
@@ -776,16 +821,16 @@
           ?.  (~(has by acct-store) acct-ref)
             ;<  ~  bind:m  (send-simple:srv:h eyre-id [[404 ~] `(as-octs:mimes:html 'Account not found')])
             (pure:m ~)
-          =/  network=network:wt  (get-acct-network:h lbls acct-ref)
-          =/  stype=script-type  (get-acct-script-type:h lbls acct-ref)
-          =/  fp=@ux  (get-acct-wallet:h lbls acct-ref)
-          =/  wallet-xpub=@t  (need (fp-to-xpub:h lbls fp))
-          =/  acct-name=@t  (get-acct-name:h lbls acct-ref)
+          =/  network=network:wt  (get-acct-network:aio lbls acct-ref)
+          =/  stype=script-type  (get-acct-script-type:aio lbls acct-ref)
+          =/  fp=@ux  (get-acct-wallet:aio lbls acct-ref)
+          =/  wallet-xpub=@t  (need (fp-to-xpub:aio lbls fp))
+          =/  acct-name=@t  (get-acct-name:aio lbls acct-ref)
           ;<  recv=addr-mop  bind:m  (load-addr-mop:h acct-ref network %recv)
           ;<  chng=addr-mop  bind:m  (load-addr-mop:h acct-ref network %chng)
           ;<  now=@da  bind:m  get-time:io
           ;<  dr=(unit transaction:drft)  bind:m  (load-draft:h acct-ref)
-          =/  wal-name=@t  (get-wallet-name:h lbls wallet-xpub)
+          =/  wal-name=@t  (get-wallet-name:aio lbls wallet-xpub)
           ;<  ~  bind:m  (send-html:h eyre-id (send-page:acct-ui acct-name (trip acct-ref) network stype recv chng dr now wal-name))
           (pure:m ~)
         ::  route: /a/<account-key>/send/stream → SSE for send page
@@ -815,7 +860,7 @@
           ?.  (~(has by acct-store) acct-ref)
             ;<  ~  bind:m  (send-simple:srv:h eyre-id [[404 ~] `(as-octs:mimes:html 'Account not found')])
             (pure:m ~)
-          =/  network=network:wt  (get-acct-network:h lbls acct-ref)
+          =/  network=network:wt  (get-acct-network:aio lbls acct-ref)
           =/  chain-tag=?(%recv %chng)  ?:(?=(%recv chain) %recv %chng)
           =/  idx=@ud  (fall (slaw %ud idx-ta) 0)
           ;<  mop=addr-mop  bind:m  (load-addr-mop:h acct-ref network chain-tag)
@@ -838,7 +883,7 @@
           ?.  (~(has by acct-store) acct-ref)
             ;<  ~  bind:m  (send-simple:srv:h eyre-id [[404 ~] `(as-octs:mimes:html 'Account not found')])
             (pure:m ~)
-          =/  network=network:wt  (get-acct-network:h lbls acct-ref)
+          =/  network=network:wt  (get-acct-network:aio lbls acct-ref)
           ;<  txs=tx-map  bind:m  (load-tx-map:h acct-ref network)
           =/  tx=(unit transaction)  (~(get by txs) txid)
           ?~  tx
@@ -862,7 +907,7 @@
           [[%proc ~] @]
         ;<  ~  bind:m  (rise-wait:io prod "%wallet /proc: failed")
         ;<  prev-state=vase  bind:m  get-state:io
-        =/  prev=json  (fall (mole |.(!<(json prev-state))) *json)
+        =/  prev=json  !<(json prev-state)
         =/  proc-type=@t
           (~(dug jo:json-utils prev) /type so:dejs:format '')
         ?+    proc-type
@@ -897,7 +942,7 @@
   =/  raw=@ta  (~(dug jo:json-utils [%o jon]) /uuid so:dejs:format '')
   ?.  =('' raw)  (pure:m raw)
   ;<  eny=@uvJ  bind:m  get-entropy:io
-  (pure:m (scot %uv eny))
+  (pure:m (short-id eny))
 ::
 ::  +handle-scan-proc: scan chain process handler
 ::
@@ -910,39 +955,37 @@
   ;<  lbls=labels:b329  bind:m  load-labels
   ;<  acct-store=account-store  bind:m  load-accounts
   ?.  (~(has by acct-store) acct-ref)  (pure:m ~)
-  =/  xprv=@t  (~(got by acct-store) acct-ref)
-  =/  network=network:wt  (get-acct-network lbls acct-ref)
-  =/  stype=script-type  (get-acct-script-type lbls acct-ref)
+  =/  network=network:wt  (get-acct-network:aio lbls acct-ref)
   =/  progress=scan-progress:aio  (parse-scan-progress:aio prev)
-  ::  find paused marker by scanning /proc for a paused proc matching this account
-  =/  paused-id=@t
-    (~(dug jo:json-utils prev) /paused-id so:dejs:format '')
-  =/  paused-road=road:tarball
-    ?:  =('' paused-id)
-      ::  no paused marker — use a dummy road that won't exist
-      [%& %& /proc %'__no-pause__.json']
-    [%& %& /proc (cat 3 paused-id '.json')]
-  ::  resolve address road once for both scans
   =/  addr-road=road:tarball  (nex-road [%& ~ %'addresses.wallet_addresses'])
+  =/  main-road=road:tarball  (nex-road [%& ~ %'main.sig'])
   ::  scan recv chain
   ;<  ~  bind:m
     %:  scan-chain:aio
-      acct-ref  paused-road  xprv  stype
+      acct-ref
       %receiving  network
       ?:(?=(%recv phase.progress) idx.progress 0)
       ?:(?=(%recv phase.progress) gap.progress 0)
-      addr-road
+      addr-road  main-road
     ==
   ::  scan chng chain
   ;<  ~  bind:m
     %:  scan-chain:aio
-      acct-ref  paused-road  xprv  stype
-      %change  network  0  0
-      addr-road
+      acct-ref
+      %change  network
+      ?:(?=(%chng phase.progress) idx.progress 0)
+      ?:(?=(%chng phase.progress) gap.progress 0)
+      addr-road  main-road
     ==
+  ::  clear registry entry
+  ;<  reg=proc-registry  bind:m  load-registry
+  =/  acct-procs=account-procs
+    (fall (~(get by accounts.reg) acct-ref) *account-procs)
+  =/  cleared=account-procs  [~ refresh.acct-procs]
+  =.  accounts.reg  (~(put by accounts.reg) acct-ref cleared)
+  ;<  ~  bind:m  (save-registry reg)
   ::  mark proc as done — triggers news for subscribers
-  ;<  prev-state=vase  bind:m  get-state:io
-  =/  cur=json  (fall (mole |.(!<(json prev-state))) *json)
+  ;<  cur=json  bind:m  (get-state-as:io json)
   =/  updated=json
     ?.  ?=(%o -.cur)  cur
     [%o (~(put by p.cur) 'status' s+'done')]
@@ -972,12 +1015,14 @@
     (get:((on @ud address-data) gth) mop idx)
   ?~  dat
     ~&  ["%refresh proc missing addr" acct-ref network chain-tag idx]
-    (pure:m ~)
-  ::  set loading flag
-  =/  loading-dat=address-data  u.dat(loading %.y)
-  =/  updated=addr-mop
-    (put:((on @ud address-data) gth) mop idx loading-dat)
-  ;<  ~  bind:m  (write-addr-mop acct-ref network chain-tag updated)
+    ::  clear registry on early exit
+    =/  rkey=@ta  (refresh-key chain-tag idx)
+    ;<  reg=proc-registry  bind:m  load-registry
+    =/  acct-procs=account-procs
+      (fall (~(get by accounts.reg) acct-ref) *account-procs)
+    =.  refresh.acct-procs  (~(del by refresh.acct-procs) rkey)
+    =.  accounts.reg  (~(put by accounts.reg) acct-ref acct-procs)
+    (save-registry reg)
   ::  fetch address info
   =/  base-url=tape  (mempool-base-url:aio network)
   =/  info-url=@t  (crip (weld base-url (trip addr.u.dat)))
@@ -1004,24 +1049,35 @@
   ;<  txs-resp=client-response:iris  bind:m  take-http:aio
   ::  ~>(%bout.[1 %parse-txs] ...)
   =/  txs=(list transaction)  (parse-txs-response:aio txs-resp)
-  ::  update address in mop
+  ::  update addr-mop index (addr string only, data lives in labels)
   ;<  cur-mop=addr-mop  bind:m  (load-addr-mop acct-ref network chain-tag)
-  =/  new-dat=address-data
-    [addr.u.dat %.n ~ new-info utxos]
   =/  final=addr-mop
-    ::  ~>(%bout.[1 %put-addr-mop] ...)
-    (put:((on @ud address-data) gth) cur-mop idx new-dat)
+    (put:((on @ud address-data) gth) cur-mop idx [addr.u.dat %.n ~ ~ ~])
   ;<  ~  bind:m  (write-addr-mop acct-ref network chain-tag final)
-  ::  update tx-map
+  ::  update tx-map (still needed for unconfirmed tx tracking)
   ;<  existing-txs=tx-map  bind:m  (load-tx-map acct-ref network)
   =/  new-tx-map=tx-map
-    ::  ~>  %bout.[1 %gas-tx-map]
     %-  ~(gas by existing-txs)
     (turn txs |=(t=transaction [txid.t t]))
   ;<  ~  bind:m  (write-txs acct-ref network new-tx-map)
+  ::  write labels for mempool.space results
+  ;<  lbls=labels:b329  bind:m  load-labels
+  =/  lbls=labels:b329
+    ?~  new-info  lbls
+    (label-addr-info:aio lbls addr.u.dat u.new-info)
+  =/  lbls=labels:b329  (label-utxos:aio lbls addr.u.dat utxos)
+  =/  lbls=labels:b329  (label-txs:aio lbls txs)
+  ;<  ~  bind:m  (save-labels lbls)
+  ::  clear registry entry
+  =/  rkey=@ta  (refresh-key chain-tag idx)
+  ;<  reg=proc-registry  bind:m  load-registry
+  =/  acct-procs=account-procs
+    (fall (~(get by accounts.reg) acct-ref) *account-procs)
+  =.  refresh.acct-procs  (~(del by refresh.acct-procs) rkey)
+  =.  accounts.reg  (~(put by accounts.reg) acct-ref acct-procs)
+  ;<  ~  bind:m  (save-registry reg)
   ::  mark proc as done — triggers news for subscribers
-  ;<  prev-state=vase  bind:m  get-state:io
-  =/  cur=json  (fall (mole |.(!<(json prev-state))) *json)
+  ;<  cur=json  bind:m  (get-state-as:io json)
   =/  updated=json
     ?.  ?=(%o -.cur)  cur
     [%o (~(put by p.cur) 'status' s+'done')]
@@ -1074,8 +1130,7 @@
   ;<  existing=(unit transaction:drft)  bind:m  (load-draft acct-ref)
   ?:  |(?=(~ existing) =(~ inputs.u.existing))
     ::  no UTXOs available — report error
-    ;<  prev-state=vase  bind:m  get-state:io
-    =/  cur=json  (fall (mole |.(!<(json prev-state))) *json)
+    ;<  cur=json  bind:m  (get-state-as:io json)
     =/  updated=json
       ?.  ?=(%o -.cur)  cur
       [%o (~(put by (~(put by p.cur) 'status' s+'error')) 'error' s+'No UTXOs available to fund this transaction')]
@@ -1087,8 +1142,7 @@
     (handle-account-action (pairs:enjs:format ~[['action' s+'build-transaction']]) acct-ref)
   ::  7. check if draft was cleared (= success) or still exists (= failure)
   ;<  post-draft=(unit transaction:drft)  bind:m  (load-draft acct-ref)
-  ;<  prev-state=vase  bind:m  get-state:io
-  =/  cur=json  (fall (mole |.(!<(json prev-state))) *json)
+  ;<  cur=json  bind:m  (get-state-as:io json)
   =/  updated=json
     ?.  ?=(%o -.cur)  cur
     ?^  post-draft
@@ -1147,6 +1201,13 @@
     (discover-check-chain xprv script-type network 1)
   ::  no activity = discovery complete
   ?.  |(recv-active chng-active)
+    ::  clear registry entry
+    ;<  reg=proc-registry  bind:m  load-registry
+    =/  wal-procs=wallet-procs
+      (fall (~(get by wallets.reg) wxpub) *wallet-procs)
+    =.  discover.wal-procs  ~
+    =.  wallets.reg  (~(put by wallets.reg) wxpub wal-procs)
+    ;<  ~  bind:m  (save-registry reg)
     =/  done-prog=json
       %-  pairs:enjs:format
       :~  ['type' s+'discover']
@@ -1166,11 +1227,11 @@
   ;<  ~  bind:m  (save-accounts (~(put by cur-store) acct-ref xprv))
   ::  write labels
   ;<  cur-lbls=labels:b329  bind:m  load-labels
-  =/  new-lbls=labels:b329  (make-acct-labels cur-lbls acct-ref acct-name network og)
+  =/  new-lbls=labels:b329  (make-acct-labels:aio cur-lbls acct-ref acct-name network og)
   ;<  ~  bind:m  (save-labels new-lbls)
   ::  kick off full scan on the new account
   ;<  scan-eny=@uvJ  bind:m  get-entropy:io
-  =/  scan-uuid=@ta  (scot %uv scan-eny)
+  =/  scan-uuid=@ta  (short-id scan-eny)
   =/  scan-json=json
     %-  pairs:enjs:format
     :~  ['type' s+'scan']
@@ -1181,6 +1242,13 @@
     ==
   =/  scan-rd=road:tarball  (nex-road [%& /proc (cat 3 scan-uuid '.json')])
   ;<  ~  bind:m  (make:io scan-rd |+[[[/ %json] scan-json] ~])
+  ::  register scan proc
+  ;<  reg=proc-registry  bind:m  load-registry
+  =/  acct-procs=account-procs
+    (fall (~(get by accounts.reg) acct-ref) *account-procs)
+  =.  scan.acct-procs  `scan-uuid
+  =.  accounts.reg  (~(put by accounts.reg) acct-ref acct-procs)
+  ;<  ~  bind:m  (save-registry reg)
   $(account-idx +(account-idx))
 ::  +handle-account-action: dispatch account-specific actions
 ::
@@ -1193,9 +1261,35 @@
   ;<  lbls=labels:b329  bind:m  load-labels
   ;<  acct-store=account-store  bind:m  load-accounts
   =/  xprv=@t  (~(got by acct-store) acct-ref)
-  =/  network=network:wt  (get-acct-network lbls acct-ref)
-  =/  stype=script-type  (get-acct-script-type lbls acct-ref)
+  =/  network=network:wt  (get-acct-network:aio lbls acct-ref)
+  =/  stype=script-type  (get-acct-script-type:aio lbls acct-ref)
   ?+    act  (pure:m ~)
+      %'derive-address'
+    =/  chain=@t
+      (~(dug jo:json-utils jon) /chain so:dejs:format 'receiving')
+    =/  is-change=?  =(chain 'change')
+    =/  chain-tag=?(%recv %chng)  ?:(is-change %chng %recv)
+    =/  idx=@ud
+      =/  idx-raw=@t  (~(dug jo:json-utils jon) /index so:dejs:format '0')
+      (fall (rush idx-raw dem) 0)
+    =/  new-addr=(unit @t)
+      (derive-addr:aio xprv stype network ?:(is-change 1 0) idx)
+    ?~  new-addr
+      ~&  >>>  "%derive-address: derive-addr returned ~"
+      (pure:m ~)
+    ::  label + write
+    =/  acct-og=(unit parsed-origin:b329)  (get-acct-origin:aio lbls acct-ref)
+    =/  lbl=@t  (~(dug jo:json-utils jon) /label so:dejs:format '')
+    =/  new-lbls=labels:b329
+      (label-derived-addr:aio lbls u.new-addr lbl acct-og ?:(is-change 1 0) idx)
+    ;<  ~  bind:m  (save-labels new-lbls)
+    ;<  mop=addr-mop  bind:m  (load-addr-mop acct-ref network chain-tag)
+    =/  dat=address-data  [u.new-addr %.n ~ ~ ~]
+    =/  updated=addr-mop
+      (put:((on @ud address-data) gth) mop idx dat)
+    ;<  ~  bind:m  (write-addr-mop acct-ref network chain-tag updated)
+    (pure:m ~)
+  ::
       %'derive-next'
     =/  chain=@t
       (~(dug jo:json-utils jon) /chain so:dejs:format 'receiving')
@@ -1207,25 +1301,24 @@
         (pry:((on @ud address-data) gth) mop)
       ?~  top  0
       +(idx.u.top)
-    =/  new-addr=(unit @t)
-      %:  derive-addr:aio
-        xprv
-        stype
-        network
-        ?:(is-change 1 0)
-        next-idx
+    =/  derive-jon=json
+      %-  pairs:enjs:format
+      :~  ['action' s+'derive-address']
+          ['account' s+acct-ref]
+          ['chain' s+chain]
+          ['index' (numb:enjs:format next-idx)]
       ==
-    ?~  new-addr
-      ~&  >>>  "%derive-next: derive-addr returned ~"
-      (pure:m ~)
-    =/  dat=address-data  [u.new-addr %.n ~ ~ ~]
-    =/  updated=addr-mop
-      (put:((on @ud address-data) gth) mop next-idx dat)
-    ;<  ~  bind:m  (write-addr-mop acct-ref network chain-tag updated)
+    ;<  ~  bind:m  (handle-account-action derive-jon acct-ref)
     ::  auto-refresh the newly derived address
     =/  net=@ta  ;;(@ta network)
+    =/  rkey=@ta  (refresh-key chain-tag next-idx)
+    ;<  reg=proc-registry  bind:m  load-registry
+    =/  acct-procs=account-procs
+      (fall (~(get by accounts.reg) acct-ref) *account-procs)
+    ?:  (~(has by refresh.acct-procs) rkey)
+      (pure:m ~)
     ;<  eny=@uvJ  bind:m  get-entropy:io
-    =/  uuid=@ta  (scot %uv eny)
+    =/  uuid=@ta  (short-id eny)
     =/  proc-json=json
       %-  pairs:enjs:format
       :~  ['type' s+'refresh']
@@ -1235,7 +1328,10 @@
           ['index' (numb:enjs:format next-idx)]
       ==
     =/  proc-rd=road:tarball  (nex-road [%& /proc (cat 3 uuid '.json')])
-    (make:io proc-rd |+[[[/ %json] proc-json] ~])
+    ;<  ~  bind:m  (make:io proc-rd |+[[[/ %json] proc-json] ~])
+    =.  refresh.acct-procs  (~(put by refresh.acct-procs) rkey uuid)
+    =.  accounts.reg  (~(put by accounts.reg) acct-ref acct-procs)
+    (save-registry reg)
   ::
       %'delete-address'
     =/  chain=@t
@@ -1263,6 +1359,12 @@
     (save-labels new-lbls)
   ::
       %'full-scan'
+    ;<  reg=proc-registry  bind:m  load-registry
+    =/  acct-procs=account-procs
+      (fall (~(get by accounts.reg) acct-ref) *account-procs)
+    ?:  ?=(^ scan.acct-procs)
+      ~&  >  [%wallet %scan %already-running acct-ref]
+      (pure:m ~)
     ;<  uuid=@ta  bind:m  (get-or-gen-uuid p.jon)
     =/  proc-json=json
       %-  pairs:enjs:format
@@ -1272,31 +1374,43 @@
           ['idx' (numb:enjs:format 0)]
           ['gap' (numb:enjs:format 0)]
       ==
-    =/  scan-rd=road:tarball  (nex-road [%& /proc (cat 3 uuid '.json')])
-    (make:io scan-rd |+[[[/ %json] proc-json] ~])
+    =/  fs-rd=road:tarball  (nex-road [%& /proc (cat 3 uuid '.json')])
+    ;<  ~  bind:m  (make:io fs-rd |+[[[/ %json] proc-json] ~])
+    =/  new-procs=account-procs  [`uuid refresh.acct-procs]
+    =.  accounts.reg  (~(put by accounts.reg) acct-ref new-procs)
+    (save-registry reg)
   ::
       %'pause-scan'
-    =/  uuid=@ta
-      (~(dug jo:json-utils jon) /uuid so:dejs:format '')
-    =/  scan-road=road:tarball  (nex-road [%& /proc (cat 3 uuid '.json')])
+    ;<  reg=proc-registry  bind:m  load-registry
+    =/  acct-procs=account-procs
+      (fall (~(get by accounts.reg) acct-ref) *account-procs)
+    ?~  scan.acct-procs  (pure:m ~)
+    =/  scan-road=road:tarball  (nex-road [%& /proc (cat 3 u.scan.acct-procs '.json')])
     =/  pause-json=json
       (pairs:enjs:format ~[['action' s+'pause']])
-    (send-dart:io [%node /pause scan-road %poke [[/ %json] !>(pause-json)]])
+    (poke:io scan-road [[/ %json] pause-json])
   ::
       %'resume-scan'
-    =/  uuid=@ta
-      (~(dug jo:json-utils jon) /uuid so:dejs:format '')
-    =/  scan-road=road:tarball  (nex-road [%& /proc (cat 3 uuid '.json')])
+    ;<  reg=proc-registry  bind:m  load-registry
+    =/  acct-procs=account-procs
+      (fall (~(get by accounts.reg) acct-ref) *account-procs)
+    ?~  scan.acct-procs  (pure:m ~)
+    =/  scan-road=road:tarball  (nex-road [%& /proc (cat 3 u.scan.acct-procs '.json')])
     =/  resume-json=json
       (pairs:enjs:format ~[['action' s+'resume']])
-    (send-dart:io [%node /resume scan-road %poke [[/ %json] !>(resume-json)]])
+    (poke:io scan-road [[/ %json] resume-json])
   ::
       %'cancel-scan'
-    =/  uuid=@ta
-      (~(dug jo:json-utils jon) /uuid so:dejs:format '')
-    =/  scan-rd=road:tarball  (nex-road [%& /proc (cat 3 uuid '.json')])
-    ;<  *  bind:m  (cull-soft:io scan-rd)
-    (pure:m ~)
+    ;<  reg=proc-registry  bind:m  load-registry
+    =/  acct-procs=account-procs
+      (fall (~(get by accounts.reg) acct-ref) *account-procs)
+    ?~  scan.acct-procs
+      (pure:m ~)
+    =/  cs-rd=road:tarball  (nex-road [%& /proc (cat 3 u.scan.acct-procs '.json')])
+    ;<  *  bind:m  (cull-soft:io cs-rd)
+    =/  new-procs=account-procs  [~ refresh.acct-procs]
+    =.  accounts.reg  (~(put by accounts.reg) acct-ref new-procs)
+    (save-registry reg)
   ::
       %'refresh'
     =/  chain=@t
@@ -1306,6 +1420,12 @@
     =/  chain-tag=?(%recv %chng)
       ?:(?=(%recv ;;(?(%recv %chng) (slav %tas chain))) %recv %chng)
     =/  net=@ta  ;;(@ta network)
+    =/  rkey=@ta  (refresh-key chain-tag idx)
+    ;<  reg=proc-registry  bind:m  load-registry
+    =/  acct-procs=account-procs
+      (fall (~(get by accounts.reg) acct-ref) *account-procs)
+    ?:  (~(has by refresh.acct-procs) rkey)
+      (pure:m ~)
     ;<  uuid=@ta  bind:m  (get-or-gen-uuid p.jon)
     =/  proc-json=json
       %-  pairs:enjs:format
@@ -1320,7 +1440,9 @@
     ?^  make-err
       ~&  ["%account refresh make failed" acct-ref uuid u.make-err]
       (pure:m ~)
-    (pure:m ~)
+    =.  refresh.acct-procs  (~(put by refresh.acct-procs) rkey uuid)
+    =.  accounts.reg  (~(put by accounts.reg) acct-ref acct-procs)
+    (save-registry reg)
   ::
       %'send'
     =/  dest-addr=@t  (~(dog jo:json-utils jon) /address so:dejs:format)
@@ -1600,7 +1722,7 @@
   ?.  exists  (pure:m *labels:b329)
   ;<  =seen:nexus  bind:m  (peek:io road ~)
   ?.  ?=([%& %file *] seen)  (pure:m *labels:b329)
-  (pure:m (fall (mole |.(!<(labels:b329 (need-vase:tarball sang.p.seen)))) *labels:b329))
+  (pure:m !<(labels:b329 (need-vase:tarball sang.p.seen)))
 ::
 ++  save-labels
   |=  =labels:b329
@@ -1732,20 +1854,6 @@
   =/  refs=(list @t)  (load-wallet-account-keys labels fp)
   (find-account-for-net labels refs req-net)
 ::
-++  get-wallet-name
-  |=  [=labels:b329 xpub=@t]
-  ^-  @t
-  =/  entries=(list label-entry:b329)
-    ~(tap in (~(get la:b329 labels) %xpub xpub))
-  =/  prefix=tape  "gwbtc:wallet:"
-  =/  prefix-len=@ud  (lent prefix)
-  |-
-  ?~  entries  'Unnamed Wallet'
-  =/  lbl=tape  (trip label.i.entries)
-  ?.  =(prefix (scag prefix-len lbl))
-    $(entries t.entries)
-  (crip (slag prefix-len lbl))
-::
 ++  set-simple-wallet
   |=  [=labels:b329 xpub=@t]
   ^-  labels:b329
@@ -1812,6 +1920,38 @@
     $(entries t.entries)
   (~(put la:b329 labels) [%xpub xpub (crip "gwbtc:fee:{(a-co:co fee)}") ~ ~ ~])
 ::
+::  +load-registry/save-registry: read/write process registry
+::
+++  load-registry
+  =/  m  (fiber:fiber:nexus ,proc-registry)
+  ^-  form:m
+  =/  rd=road:tarball  (nex-road [%& ~ %'registry.wallet_registry'])
+  ;<  exists=?  bind:m  (peek-exists:io rd)
+  ?.  exists  (pure:m *proc-registry)
+  ;<  =seen:nexus  bind:m  (peek:io rd ~)
+  ?.  ?=([%& %file *] seen)  (pure:m *proc-registry)
+  (pure:m !<(proc-registry (need-vase:tarball sang.p.seen)))
+::
+++  save-registry
+  |=  reg=proc-registry
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  =/  rd=road:tarball  (nex-road [%& ~ %'registry.wallet_registry'])
+  (over:io rd [[/wallet %registry] reg])
+::  +short-id: 8 hex chars from entropy, no dots
+::
+++  short-id
+  |=  eny=@uvJ
+  ^-  @ta
+  =/  hex=tape  ((x-co:co 8) (end [3 4] (mug eny)))
+  (crip hex)
+::  +refresh-key: build registry key for a refresh proc
+::
+++  refresh-key
+  |=  [chain=?(%recv %chng) idx=@ud]
+  ^-  @ta
+  (crip "{(trip chain)}-{(scow %ud idx)}")
+::
 ::  +load-accounts/save-accounts: read/write account-store
 ::
 ++  load-accounts
@@ -1822,7 +1962,7 @@
   ?.  exists  (pure:m *account-store)
   ;<  =seen:nexus  bind:m  (peek:io rd ~)
   ?.  ?=([%& %file *] seen)  (pure:m *account-store)
-  (pure:m (fall (mole |.(!<(account-store (need-vase:tarball sang.p.seen)))) *account-store))
+  (pure:m !<(account-store (need-vase:tarball sang.p.seen)))
 ::
 ++  save-accounts
   |=  store=account-store
@@ -1840,7 +1980,7 @@
   ?.  exists  (pure:m *addresses)
   ;<  =seen:nexus  bind:m  (peek:io rd ~)
   ?.  ?=([%& %file *] seen)  (pure:m *addresses)
-  (pure:m (fall (mole |.(!<(addresses (need-vase:tarball sang.p.seen)))) *addresses))
+  (pure:m !<(addresses (need-vase:tarball sang.p.seen)))
 ::
 ++  save-addresses
   |=  =addresses
@@ -1860,7 +2000,7 @@
   ?.  exists  (pure:m *txs)
   ;<  =seen:nexus  bind:m  (peek:io rd ~)
   ?.  ?=([%& %file *] seen)  (pure:m *txs)
-  (pure:m (fall (mole |.(!<(txs (need-vase:tarball sang.p.seen)))) *txs))
+  (pure:m !<(txs (need-vase:tarball sang.p.seen)))
 ::
 ++  save-txs
   |=  =txs
@@ -1871,91 +2011,6 @@
   ?:  exists
     (over:io rd [[/wallet %txs] txs])
   (make:io rd |+[[[/wallet %txs] txs] ~])
-::  +get-acct-network: read gwbtc:network:X label for account ref
-::
-++  get-acct-network
-  |=  [=labels:b329 ref=@t]
-  ^-  network:wt
-  =/  entries=(list label-entry:b329)
-    ~(tap in (~(get la:b329 labels) %xpub ref))
-  =/  prefix=tape  "gwbtc:network:"
-  =/  prefix-len=@ud  (lent prefix)
-  |-
-  ?~  entries  %testnet3
-  =/  lbl=tape  (trip label.i.entries)
-  ?.  =(prefix (scag prefix-len lbl))
-    $(entries t.entries)
-  ;;(network:wt (slav %tas (crip (slag prefix-len lbl))))
-::  +get-acct-name: read gwbtc:account:X label for account ref
-::
-++  get-acct-name
-  |=  [=labels:b329 ref=@t]
-  ^-  @t
-  =/  entries=(list label-entry:b329)
-    ~(tap in (~(get la:b329 labels) %xpub ref))
-  =/  prefix=tape  "gwbtc:account:"
-  =/  prefix-len=@ud  (lent prefix)
-  |-
-  ?~  entries  'Unnamed Account'
-  =/  lbl=tape  (trip label.i.entries)
-  ?.  =(prefix (scag prefix-len lbl))
-    $(entries t.entries)
-  (crip (slag prefix-len lbl))
-::  +get-acct-origin: read parsed-origin from label entries for account ref
-::
-++  get-acct-origin
-  |=  [=labels:b329 ref=@t]
-  ^-  (unit parsed-origin:b329)
-  =/  entries=(list label-entry:b329)
-    ~(tap in (~(get la:b329 labels) %xpub ref))
-  |-
-  ?~  entries  ~
-  ?^  origin.i.entries  origin.i.entries
-  $(entries t.entries)
-::  +get-acct-script-type: derive script-type from origin
-::
-++  get-acct-script-type
-  |=  [=labels:b329 ref=@t]
-  ^-  script-type
-  =/  og=(unit parsed-origin:b329)  (get-acct-origin labels ref)
-  ?~  og  %p2wpkh
-  (from-descriptor:b329 type.u.og)
-::  +get-acct-wallet: derive wallet fingerprint from origin
-::
-++  get-acct-wallet
-  |=  [=labels:b329 ref=@t]
-  ^-  @ux
-  =/  og=(unit parsed-origin:b329)  (get-acct-origin labels ref)
-  ?~  og  0x0
-  fingerprint.u.og
-::  +fp-to-xpub: find wallet xpub label ref matching a fingerprint
-::
-++  fp-to-xpub
-  |=  [=labels:b329 fp=@ux]
-  ^-  (unit @t)
-  =/  xpubs=(list [@t (set label-entry:b329)])
-    ~(tap by xpub.labels)
-  |-
-  ?~  xpubs  ~
-  =/  [ref=@t *]  i.xpubs
-  =/  key  (mole |.((from-extended:bip32 (trip ref))))
-  ?~  key  $(xpubs t.xpubs)
-  ?.  =(fp fingerprint:u.key)  $(xpubs t.xpubs)
-  `ref
-::  +make-acct-labels: create labels for a new account
-::
-++  make-acct-labels
-  |=  $:  =labels:b329
-          ref=@t
-          name=@t
-          network=network:wt
-          og=parsed-origin:b329
-      ==
-  ^-  labels:b329
-  =/  name-lbl=@t  (rap 3 ~['gwbtc:account:' name])
-  =/  net-lbl=@t  (rap 3 ~['gwbtc:network:' ;;(@t network)])
-  =.  labels  (~(put la:b329 labels) [%xpub ref name-lbl `og ~ ~])
-  (~(put la:b329 labels) [%xpub ref net-lbl ~ ~ ~])
 ::  +load-wallet-account-keys: find account refs belonging to a wallet
 ::  returns list of pubkey-hex refs
 ::
@@ -1981,7 +2036,7 @@
   |=  [=labels:b329 refs=(list @t) req-net=@t]
   ^-  (unit @t)
   ?~  refs  ~
-  =/  network=@t  ;;(@t (get-acct-network labels i.refs))
+  =/  network=@t  ;;(@t (get-acct-network:aio labels i.refs))
   ?:  =(req-net network)  `i.refs
   $(refs t.refs)
 ::
@@ -1989,7 +2044,7 @@
   |=  [=labels:b329 refs=(list @t)]
   ^-  (list tape)
   %+  turn  refs
-  |=(ref=@t (trip ;;(@t (get-acct-network labels ref))))
+  |=(ref=@t (trip ;;(@t (get-acct-network:aio labels ref))))
 ::  +ensure-public-poke: add wallet main.sig to public usergroup's poke weir
 ::
 ++  ensure-public-poke
@@ -2002,7 +2057,7 @@
   ;<  weir-seen=seen:nexus  bind:m  (peek:io weir-road ~)
   =/  cur=weir:nexus
     ?.  ?=([%& %file *] weir-seen)  [~ ~ ~]
-    (fall (mole |.(!<(weir:nexus (need-vase:tarball sang.p.weir-seen)))) [~ ~ ~])
+    !<(weir:nexus (need-vase:tarball sang.p.weir-seen))
   ?:  (~(has in poke.cur) wallet-road)
     (pure:m ~)
   ~&  "%wallet: registering with public usergroup"
@@ -2019,7 +2074,7 @@
   ;<  lbl-seen=seen:nexus  bind:m  (peek:io lbl-rd ~)
   =/  lbls=labels:b329
     ?.  ?=([%& %file *] lbl-seen)  *labels:b329
-    (fall (mole |.(!<(labels:b329 (need-vase:tarball sang.p.lbl-seen)))) *labels:b329)
+    !<(labels:b329 (need-vase:tarball sang.p.lbl-seen))
   =/  xpub=(unit @t)  (get-simple-xpub lbls)
   ?^  xpub
     ~&  "%wallet: simple wallet exists"
@@ -2048,8 +2103,8 @@
   =/  new-lbls=labels:b329  (set-simple-wallet lbls mxpub)
   =/  new-lbls=labels:b329
     (~(put la:b329 new-lbls) [%xpub mxpub 'gwbtc:wallet:My Wallet' ~ ~ ~])
-  =/  new-lbls=labels:b329  (make-acct-labels new-lbls ref-t 'Default' net-t og-t)
-  =/  new-lbls=labels:b329  (make-acct-labels new-lbls ref-m 'Default' net-m og-m)
+  =/  new-lbls=labels:b329  (make-acct-labels:aio new-lbls ref-t 'Default' net-t og-t)
+  =/  new-lbls=labels:b329  (make-acct-labels:aio new-lbls ref-m 'Default' net-m og-m)
   ;<  ~  bind:m  (over:io lbl-rd [[/wallet %labels] new-lbls])
   ~&  "%wallet: simple wallet created"
   (pure:m ~)
@@ -2062,7 +2117,7 @@
   ?.  exists  (pure:m *wallet-store)
   ;<  =seen:nexus  bind:m  (peek:io rd ~)
   ?.  ?=([%& %file *] seen)  (pure:m *wallet-store)
-  (pure:m (fall (mole |.(!<(wallet-store (need-vase:tarball sang.p.seen)))) *wallet-store))
+  (pure:m !<(wallet-store (need-vase:tarball sang.p.seen)))
 ::
 ++  save-wallets
   |=  store=wallet-store
@@ -2087,7 +2142,9 @@
   ^-  form:m
   ;<  =addresses  bind:m  load-addresses
   =/  [recv=addr-mop chng=addr-mop]  (get-mops:aio addresses acct-ref network)
-  (pure:m ?:(?=(%recv chain) recv chng))
+  =/  mop=addr-mop  ?:(?=(%recv chain) recv chng)
+  ;<  lbls=labels:b329  bind:m  load-labels
+  (pure:m (enrich-mop:aio mop lbls))
 ::
 ++  write-addr-mop
   |=  [acct-ref=@t =network chain=?(%recv %chng) mop=addr-mop]
@@ -2128,17 +2185,44 @@
     =/  parts=(list tape)  (rash name (more dot (star ;~(less dot prn))))
     ?~  parts  name
     (crip i.parts)
-  =/  obj=(map @t json)  (fall (mole |.(!<((map @t json) (need-vase:tarball sang)))) ~)
+  =/  obj=(map @t json)  !<((map @t json) (need-vase:tarball sang))
   ?~  obj  ~
   `[key obj]
-::  +load-scan-state: peek scan process file and paused marker
+::  +load-scan-state: read scan status from registry + proc file
 ::
 ++  load-scan-state
   |=  acct-ref=@t
   =/  m  (fiber:fiber:nexus ,[?(%active %paused %none) (unit scan-progress:acct-ui)])
   ^-  form:m
-  ::  TODO: search /proc/ for scan with matching account ref
-  (pure:m [%none ~])
+  ;<  reg=proc-registry  bind:m  load-registry
+  =/  acct-procs=account-procs
+    (fall (~(get by accounts.reg) acct-ref) *account-procs)
+  ?~  scan.acct-procs
+    (pure:m [%none ~])
+  ::  peek the proc file for progress and paused state
+  =/  proc-rd=road:tarball  (nex-road [%& /proc (cat 3 u.scan.acct-procs '.json')])
+  ;<  exists=?  bind:m  (peek-exists:io proc-rd)
+  ?.  exists
+    ::  proc file gone but registry stale — clean up
+    =/  cleared=account-procs  [~ refresh.acct-procs]
+    =.  accounts.reg  (~(put by accounts.reg) acct-ref cleared)
+    ;<  ~  bind:m  (save-registry reg)
+    (pure:m [%none ~])
+  ;<  =seen:nexus  bind:m  (peek:io proc-rd ~)
+  ?.  ?=([%& %file *] seen)
+    (pure:m [%active ~])
+  =/  jon=json  !<(json (need-vase:tarball sang.p.seen))
+  =/  status=@t
+    (~(dug jo:json-utils jon) /status so:dejs:format '')
+  ?:  =(status 'done')
+    (pure:m [%none ~])
+  =/  progress=(unit scan-progress:acct-ui)
+    (mole |.((parse-scan-progress:aio jon)))
+  =/  paused-marker=(unit json)
+    ?:  ?=([%o *] jon)  (~(get by p.jon) 'paused')
+    ~
+  =/  is-paused=?  =(paused-marker `b+%.y)
+  (pure:m [?:(is-paused %paused %active) progress])
 ::  +load-draft: peek draft transaction from account
 ::
 ++  load-draft
@@ -2149,7 +2233,7 @@
   ;<  =seen:nexus  bind:m  (peek:io rd ~)
   ?.  ?=([%& %file *] seen)  (pure:m ~)
   =/  drafts=(map @t transaction:drft)
-    (fall (mole |.(!<((map @t transaction:drft) (need-vase:tarball sang.p.seen)))) ~)
+    !<((map @t transaction:drft) (need-vase:tarball sang.p.seen))
   (pure:m (~(get by drafts) acct-ref))
 ::
 ++  save-draft
@@ -2160,7 +2244,7 @@
   ;<  =seen:nexus  bind:m  (peek:io rd ~)
   ?.  ?=([%& %file *] seen)  (pure:m ~)
   =/  drafts=(map @t transaction:drft)
-    (fall (mole |.(!<((map @t transaction:drft) (need-vase:tarball sang.p.seen)))) ~)
+    !<((map @t transaction:drft) (need-vase:tarball sang.p.seen))
   (over:io rd [[/wallet %drafts] (~(put by drafts) acct-ref dr)])
 ::
 ++  delete-draft
@@ -2171,7 +2255,7 @@
   ;<  =seen:nexus  bind:m  (peek:io rd ~)
   ?.  ?=([%& %file *] seen)  (pure:m ~)
   =/  drafts=(map @t transaction:drft)
-    (fall (mole |.(!<((map @t transaction:drft) (need-vase:tarball sang.p.seen)))) ~)
+    !<((map @t transaction:drft) (need-vase:tarball sang.p.seen))
   (over:io rd [[/wallet %drafts] (~(del by drafts) acct-ref)])
 ::  +send-sse-fragment: send a single SSE fragment targeting a DOM element
 ::
@@ -2263,20 +2347,16 @@
     ;<  ~  bind:m  (send-wait:io (add now ~s30))
     $
       %news
-    ::  reload all account data and re-render fragments
+    ::  lightweight update: just summary + address rows
     =/  s-ref=@t  (acct-ref-from-key acct-key)
     ;<  s-lbls=labels:b329  bind:m  load-labels
     ;<  s-store=account-store  bind:m  load-accounts
     ?.  (~(has by s-store) s-ref)  $
-    =/  s-net=network:wt  (get-acct-network s-lbls s-ref)
+    =/  s-net=network:wt  (get-acct-network:aio s-lbls s-ref)
     =/  s-xprv=@t  (~(got by s-store) s-ref)
     ;<  recv=addr-mop  bind:m  (load-addr-mop s-ref s-net %recv)
     ;<  chng=addr-mop  bind:m  (load-addr-mop s-ref s-net %chng)
     ;<  now=@da  bind:m  get-time:io
-    ;<  [scan=?(%active %paused %none) progress=(unit scan-progress:acct-ui)]  bind:m
-      (load-scan-state s-ref)
-    ::  send granular fragments to preserve scroll position
-    ::  update receive modal address
     =/  next-addr=(unit @t)  (next-unused-addr:acct-ui recv)
     ;<  ~  bind:m
       ?~  next-addr  (pure:m ~)
@@ -2285,20 +2365,8 @@
       (send-data:srv eyre-id `data)
     ;<  ~  bind:m
       (send-sse-fragment eyre-id 'account-summary-wrap' (account-summary-ui:acct-ui recv chng))
-    ;<  ~  bind:m
-      (send-sse-fragment eyre-id 'scan-status-wrap' (scan-status-ui:acct-ui scan progress))
     ;<  ~  bind:m  (send-addr-rows eyre-id s-xprv s-net %recv recv now)
     ;<  ~  bind:m  (send-addr-rows eyre-id s-xprv s-net %chng chng now)
-    ;<  ~  bind:m
-      (send-sse-fragment eyre-id 'receiving-derive' (derive-button:acct-ui "receiving" recv))
-    ;<  ~  bind:m
-      (send-sse-fragment eyre-id 'change-derive' (derive-button:acct-ui "change" chng))
-    =/  recv-count=@ud  (lent (mop-to-list:acct-ui recv))
-    =/  chng-count=@ud  (lent (mop-to-list:acct-ui chng))
-    ;<  ~  bind:m
-      (send-sse-fragment eyre-id 'tab-bar' (tab-bar:acct-ui recv-count chng-count))
-    ;<  ~  bind:m
-      (send-sse-fragment eyre-id 'network-badge-wrap' (network-badge-ui:acct-ui s-net))
     $
   ==
 ::  +handle-send-stream: SSE stream for send page
@@ -2330,8 +2398,8 @@
     ;<  ss-lbls=labels:b329  bind:m  load-labels
     ;<  ss-store=account-store  bind:m  load-accounts
     ?.  (~(has by ss-store) ss-ref)  $
-    =/  ss-net=network:wt  (get-acct-network ss-lbls ss-ref)
-    =/  ss-stype=script-type  (get-acct-script-type ss-lbls ss-ref)
+    =/  ss-net=network:wt  (get-acct-network:aio ss-lbls ss-ref)
+    =/  ss-stype=script-type  (get-acct-script-type:aio ss-lbls ss-ref)
     ;<  recv=addr-mop  bind:m  (load-addr-mop ss-ref ss-net %recv)
     ;<  chng=addr-mop  bind:m  (load-addr-mop ss-ref ss-net %chng)
     ;<  dr=(unit transaction:drft)  bind:m  (load-draft ss-ref)
@@ -2424,7 +2492,7 @@
     ;<  as-lbls=labels:b329  bind:m  load-labels
     ;<  as-store=account-store  bind:m  load-accounts
     ?.  (~(has by as-store) as-ref)  $
-    =/  as-net=network:wt  (get-acct-network as-lbls as-ref)
+    =/  as-net=network:wt  (get-acct-network:aio as-lbls as-ref)
     ;<  mop=addr-mop  bind:m  (load-addr-mop as-ref as-net chain-tag)
     =/  dat=(unit address-data)
       (get:((on @ud address-data) gth) mop idx)
@@ -3192,7 +3260,7 @@
     ==
   =/  named=(list [wal=wallet-data wal-name=@t])
     %+  turn  wals
-    |=(w=wallet-data [w (get-wallet-name labels xpub.w)])
+    |=(w=wallet-data [w (get-wallet-name:aio labels xpub.w)])
   =/  sorted=(list [wal=wallet-data wal-name=@t])
     (sort named |=([a=[wallet-data @t] b=[wallet-data @t]] (aor +.a +.b)))
   ;div.fc.g2

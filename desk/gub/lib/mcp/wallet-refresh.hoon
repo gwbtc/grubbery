@@ -1,5 +1,6 @@
 /<  tools  /lib/nex/tools.hoon
 /<  wt     /lib/wallet-types.hoon
+/<  aio    /lib/wallet/account-io.hoon
 /<  b329   /lib/bip329.hoon
 ::  wallet-refresh: refresh address data from mempool.space
 ::
@@ -49,17 +50,7 @@
     ?.  ?=([%& %file *] lbl-seen)  *labels:b329
     (fall (mole |.(!<(labels:b329 (need-vase:tarball sang.p.lbl-seen)))) *labels:b329)
   ::  extract network from labels
-  =/  entries=(list label-entry:b329)
-    ~(tap in (~(get la:b329 lbls) %xpub ref))
-  =/  network=network
-    =/  prefix=tape  "gwbtc:network:"
-    =/  prefix-len=@ud  (lent prefix)
-    |-
-    ?~  entries  %testnet3
-    =/  lbl=tape  (trip label.i.entries)
-    ?.  =(prefix (scag prefix-len lbl))
-      $(entries t.entries)
-    ;;(network (slav %tas (crip (slag prefix-len lbl))))
+  =/  network=network  (get-acct-network:aio lbls ref)
   ::  generate uuid and build proc road
   ;<  eny=@uvJ  bind:m  get-entropy:io
   =/  uuid=@ta  (scot %uv eny)
@@ -94,24 +85,37 @@
   ;<  ~  bind:m  (drop:io /refresh-proc proc-road)
     =/  chain-tag=?(%recv %chng)
       ?:(?=(%recv ;;(?(%recv %chng) (slav %tas chain))) %recv %chng)
-    ;<  addr-seen=seen:nexus  bind:m
-      (peek:io [%& %& /apps/'wallet.wallet_app' %'addresses.wallet_addresses'] ~)
-    =/  addrs=addresses
-      ?.  ?=([%& %file *] addr-seen)  *addresses
-      (fall (mole |.(!<(addresses (need-vase:tarball sang.p.addr-seen)))) *addresses)
-    =/  mops=[recv=addr-mop chng=addr-mop]
-      (fall (~(get by addrs) [ref network]) [*addr-mop *addr-mop])
-    =/  mop=addr-mop  ?:(?=(%recv chain-tag) -.mops +.mops)
-    =/  dat=(unit address-data)
-      (get:((on @ud address-data) gth) mop idx)
+    ::  reload labels (refresh wrote new data)
+    ;<  lbl-seen2=seen:nexus  bind:m
+      (peek:io [%& %& /apps/'wallet.wallet_app' %'labels.wallet_labels'] ~)
+    =/  lbls2=labels:b329
+      ?.  ?=([%& %file *] lbl-seen2)  *labels:b329
+      (fall (mole |.(!<(labels:b329 (need-vase:tarball sang.p.lbl-seen2)))) *labels:b329)
+    ::  get account origin
+    =/  og-u=(unit parsed-origin:b329)  (get-acct-origin:aio lbls2 ref)
+    ?~  og-u
+      (pure:m [%error 'Account origin not found in labels'])
+    =/  og=parsed-origin:b329  u.og-u
+    ::  read recv/chng address lists
+    =/  addr-lists=[recv=(list [idx=@ud addr=@t]) chng=(list [idx=@ud addr=@t])]
+      (read-account-addrs:aio lbls2 og)
+    =/  chain-list=(list [idx=@ud addr=@t])
+      ?:(?=(%recv chain-tag) recv.addr-lists chng.addr-lists)
+    ::  find address at idx
+    =/  found=(unit @t)
+      |-  ^-  (unit @t)
+      ?~  chain-list  ~
+      ?:  =(idx.i.chain-list idx)  `addr.i.chain-list
+      $(chain-list t.chain-list)
     =/  out=wain
       :~  'Refresh complete.'
           (rap 3 ~['  account: ' ref])
           (rap 3 ~['  chain: ' chain])
           (rap 3 ~['  index: ' (scot %ud idx)])
-          ?~  dat  '  address data not found'
-          ?~  info.u.dat  '  no chain data yet'
-          (rap 3 ~['  funded: ' (scot %ud funded.u.info.u.dat) ' sats'])
+          ?~  found  '  address not found at index'
+          =/  info-u=(unit address-info)  (read-addr-info:aio lbls2 u.found)
+          ?~  info-u  '  no chain data yet'
+          (rap 3 ~['  funded: ' (scot %ud funded.u.info-u) ' sats'])
       ==
     (pure:m [%text (of-wain:format out)])
 --

@@ -44,35 +44,14 @@
     ?.  ?=([%& %file *] lbl-seen)  *labels:b329
     (fall (mole |.(!<(labels:b329 (need-vase:tarball sang.p.lbl-seen)))) *labels:b329)
   ::  extract account metadata from labels
-  =/  entries=(list label-entry:b329)
-    ~(tap in (~(get la:b329 lbls) %xpub ref))
-  =/  network=network
-    =/  prefix=tape  "gwbtc:network:"
-    =/  prefix-len=@ud  (lent prefix)
-    |-
-    ?~  entries  %testnet3
-    =/  lbl=tape  (trip label.i.entries)
-    ?.  =(prefix (scag prefix-len lbl))
-      $(entries t.entries)
-    ;;(network (slav %tas (crip (slag prefix-len lbl))))
-  =/  og=(unit parsed-origin:b329)
-    |-
-    ?~  entries  ~
-    ?^  origin.i.entries  origin.i.entries
-    $(entries t.entries)
-  =/  stype=script-type
-    ?~  og  %p2wpkh
-    (from-descriptor:b329 type.u.og)
+  =/  network=network  (get-acct-network:aio lbls ref)
+  =/  og=(unit parsed-origin:b329)  (get-acct-origin:aio lbls ref)
+  =/  stype=script-type  (get-acct-script-type:aio lbls ref)
   =/  xprv=@t  (fall (~(get by acct-store) ref) '')
-  ::  load recv addr-mop from flat store
-  ;<  addr-seen=seen:nexus  bind:m
-    (peek:io [%& %& /apps/'wallet.wallet_app' %'addresses.wallet_addresses'] ~)
-  =/  addrs=addresses
-    ?.  ?=([%& %file *] addr-seen)  *addresses
-    (fall (mole |.(!<(addresses (need-vase:tarball sang.p.addr-seen)))) *addresses)
-  =/  mops=[recv=addr-mop chng=addr-mop]
-    (fall (~(get by addrs) [ref network]) [*addr-mop *addr-mop])
-  =/  recv=addr-mop  recv.mops
+  ::  get recv address list from labels via account origin
+  =/  recv=(list [idx=@ud addr=@t])
+    ?~  og  ~
+    recv:(read-account-addrs:aio lbls u.og)
   ::  compute next offer index
   =/  offer-idx=@ud
     (get-next-offer-index:aio recv lbls xprv)

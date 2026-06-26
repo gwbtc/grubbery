@@ -56,6 +56,13 @@
     %wsh   %p2wpkh
     %pk    %p2pkh
   ==
+::  +addr-origin: extend account origin with chain + index for an address
+::  e.g. wpkh([deadbeef]/84'/0'/0') + chain=0, idx=3 → wpkh([deadbeef]/84'/0'/0'/0/3)
+::
+++  addr-origin
+  |=  [acct-og=parsed-origin chain=@ud idx=@ud]
+  ^-  parsed-origin
+  acct-og(path (weld path.acct-og `(list seg:wt)`~[[%.n chain] [%.n idx]]))
 ::  +render-origin: build origin string from parsed-origin
 ::
 ++  render-origin
@@ -165,6 +172,23 @@
       (turn ~(tap in entries) |=(e=label-entry label.e))
     |=([a=@t b=@t] (aor a b))
   ::
+  ::  +read-kv: read value for a gwbtc: prefixed label
+  ::  e.g. (read-kv %addr 'bc1q...' 'gwbtc:funded:') → `'50000'`
+  ::
+  ++  read-kv
+    |=  [typ=label-type ref=@t prefix=@t]
+    ^-  (unit @t)
+    =/  entries=(list label-entry)
+      ~(tap in (get typ ref))
+    =/  prefix-tape=tape  (trip prefix)
+    =/  prefix-len=@ud  (lent prefix-tape)
+    |-
+    ?~  entries  ~
+    =/  lbl=tape  (trip label.i.entries)
+    ?.  =(prefix-tape (scag prefix-len lbl))
+      $(entries t.entries)
+    `(crip (slag prefix-len lbl))
+  ::
   ++  frozen
     |=  ref=@t
     ^-  ?
@@ -190,6 +214,52 @@
       %-  sy
       %+  skip  ~(tap in existing)
       |=(e=label-entry =(label.e label.entry))
+    =/  updated=(set label-entry)
+      (~(put in filtered) entry)
+    =/  new-type-map=(map @t (set label-entry))
+      (~(put by type-map) ref.entry updated)
+    ?-  type.entry
+      %tx      labels(tx new-type-map)
+      %addr    labels(addr new-type-map)
+      %output  labels(output new-type-map)
+      %input   labels(input new-type-map)
+      %pubkey  labels(pubkey new-type-map)
+      %xpub    labels(xpub new-type-map)
+    ==
+  ::
+  ::  +put-kv: put a label, replacing any existing label with the same prefix
+  ::  e.g. putting 'gwbtc:funded:60000' removes 'gwbtc:funded:50000' first
+  ::  prefix is everything up to and including the last ':'
+  ::
+  ++  put-kv
+    |=  entry=label-entry
+    ^-  ^labels
+    =/  lbl-tape=tape  (trip label.entry)
+    =/  colon-idx=(unit @ud)
+      =/  i=@ud  (dec (lent lbl-tape))
+      |-
+      ?:  =(':' (snag i lbl-tape))  `i
+      ?:  =(0 i)  ~
+      $(i (dec i))
+    ?~  colon-idx  (put entry)
+    =/  prefix=tape  (scag +(u.colon-idx) lbl-tape)
+    =/  prefix-len=@ud  (lent prefix)
+    =/  type-map=(map @t (set label-entry))
+      ?-  type.entry
+        %tx      tx.labels
+        %addr    addr.labels
+        %output  output.labels
+        %input   input.labels
+        %pubkey  pubkey.labels
+        %xpub    xpub.labels
+      ==
+    =/  existing=(set label-entry)
+      (fall (~(get by type-map) ref.entry) ~)
+    =/  filtered=(set label-entry)
+      %-  sy
+      %+  skip  ~(tap in existing)
+      |=  e=label-entry
+      =(prefix (scag prefix-len (trip label.e)))
     =/  updated=(set label-entry)
       (~(put in filtered) entry)
     =/  new-type-map=(map @t (set label-entry))

@@ -1,5 +1,6 @@
 /<  tools  /lib/nex/tools.hoon
 /<  wt     /lib/wallet-types.hoon
+/<  aio    /lib/wallet/account-io.hoon
 /<  b329   /lib/bip329.hoon
 /<  bip32  /lib/bip32.hoon
 ::  wallet-status: list wallets and their accounts with balances
@@ -53,17 +54,7 @@
     %+  turn  fps
     |=  xpub=@t
     ^-  wain
-    =/  wal-name=@t
-      =/  entries=(list label-entry:b329)
-        ~(tap in (~(get la:b329 lbls) %xpub xpub))
-      =/  prefix=tape  "gwbtc:wallet:"
-      =/  prefix-len=@ud  (lent prefix)
-      |-
-      ?~  entries  'Unnamed Wallet'
-      =/  lbl=tape  (trip label.i.entries)
-      ?.  =(prefix (scag prefix-len lbl))
-        $(entries t.entries)
-      (crip (slag prefix-len lbl))
+    =/  wal-name=@t  (get-wallet-name:aio lbls xpub)
     =/  fp=@ux
       (fall (mole |.(fingerprint:(from-extended:bip32 (trip xpub)))) 0x0)
     =/  header=@t
@@ -72,13 +63,7 @@
       %+  skim  accts
       |=  [* ref=@t]
       ::  check if this ref's origin fingerprint matches this wallet
-      =/  entries=(list label-entry:b329)
-        ~(tap in (~(get la:b329 lbls) %xpub ref))
-      =/  og=(unit parsed-origin:b329)
-        |-
-        ?~  entries  ~
-        ?^  origin.i.entries  origin.i.entries
-        $(entries t.entries)
+      =/  og=(unit parsed-origin:b329)  (get-acct-origin:aio lbls ref)
       =/  ref-fp=@ux
         ?~  og  0x0
         fingerprint.u.og
@@ -93,27 +78,9 @@
       =/  short-key=@ta
         =/  parts=(list @t)  (rash key (more dot (cook crip (star ;~(less dot prn)))))
         ?~(parts key i.parts)
-      ::  look up network from labels
-      =/  entries=(list label-entry:b329)
-        ~(tap in (~(get la:b329 lbls) %xpub ref))
-      =/  network=network
-        =/  prefix=tape  "gwbtc:network:"
-        =/  prefix-len=@ud  (lent prefix)
-        |-
-        ?~  entries  %testnet3
-        =/  lbl=tape  (trip label.i.entries)
-        ?.  =(prefix (scag prefix-len lbl))
-          $(entries t.entries)
-        ;;(network (slav %tas (crip (slag prefix-len lbl))))
-      ::  look up script-type from origin
-      =/  og=(unit parsed-origin:b329)
-        |-
-        ?~  entries  ~
-        ?^  origin.i.entries  origin.i.entries
-        $(entries t.entries)
-      =/  stype=script-type
-        ?~  og  %p2wpkh
-        (from-descriptor:b329 type.u.og)
+      ::  look up network and script-type from labels
+      =/  network=network  (get-acct-network:aio lbls ref)
+      =/  stype=script-type  (get-acct-script-type:aio lbls ref)
       ::  look up xprv
       =/  xprv=@t  (fall (~(get by acct-store) ref) '')
       :~  (rap 3 ~['  account: ' short-key])

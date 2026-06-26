@@ -1,25 +1,26 @@
 /<  tools  /lib/nex/tools.hoon
 /<  wt     /lib/wallet-types.hoon
+/<  aio    /lib/wallet/account-io.hoon
 /<  b329   /lib/bip329.hoon
 ::  wallet-addresses: list derived addresses for an account
 ::
 =,  wt
 =/  format-addrs
-  |=  entries=(list [key=@ud val=address-data])
+  |=  [lbls=labels:b329 entries=(list [key=@ud addr=@t])]
   ^-  wain
   ?~  entries  ~['  (none)']
   %+  turn  entries
-  |=  [idx=@ud ad=address-data]
+  |=  [idx=@ud addr=@t]
   ^-  @t
+  =/  info=(unit address-info)  (read-addr-info:aio lbls addr)
   =/  bal=@ud
-    ?~  info.ad  0
-    (sub funded.u.info.ad spent.u.info.ad)
-  =/  utxo-count=@ud  (lent utxos.ad)
+    ?~  info  0
+    (sub funded.u.info spent.u.info)
+  =/  utxo-count=@ud  (lent (read-utxos:aio lbls addr))
   %+  rap  3
-  :~  '  #'  (scot %ud idx)  ' '  addr.ad
+  :~  '  #'  (scot %ud idx)  ' '  addr
       ' bal='  (scot %ud bal)
       ' utxos='  (scot %ud utxo-count)
-      ?:(loading.ad ' [loading]' '')
   ==
 ^-  tool:tools
 |%
@@ -59,40 +60,14 @@
     ?.  ?=([%& %file *] lbl-seen)  *labels:b329
     (fall (mole |.(!<(labels:b329 (need-vase:tarball sang.p.lbl-seen)))) *labels:b329)
   ::  extract account metadata from labels
-  =/  entries=(list label-entry:b329)
-    ~(tap in (~(get la:b329 lbls) %xpub ref))
-  =/  network=network
-    =/  prefix=tape  "gwbtc:network:"
-    =/  prefix-len=@ud  (lent prefix)
-    |-
-    ?~  entries  %testnet3
-    =/  lbl=tape  (trip label.i.entries)
-    ?.  =(prefix (scag prefix-len lbl))
-      $(entries t.entries)
-    ;;(network (slav %tas (crip (slag prefix-len lbl))))
-  =/  og=(unit parsed-origin:b329)
-    |-
-    ?~  entries  ~
-    ?^  origin.i.entries  origin.i.entries
-    $(entries t.entries)
-  =/  stype=script-type
-    ?~  og  %p2wpkh
-    (from-descriptor:b329 type.u.og)
-  ::  load addresses flat store
-  ;<  addr-seen=seen:nexus  bind:m
-    (peek:io [%& %& /apps/'wallet.wallet_app' %'addresses.wallet_addresses'] ~)
-  =/  addrs=addresses
-    ?.  ?=([%& %file *] addr-seen)  *addresses
-    (fall (mole |.(!<(addresses (need-vase:tarball sang.p.addr-seen)))) *addresses)
-  =/  mops=[recv=addr-mop chng=addr-mop]
-    (fall (~(get by addrs) [ref network]) [*addr-mop *addr-mop])
-  =/  recv=addr-mop  recv.mops
-  =/  chng=addr-mop  chng.mops
+  =/  network=network  (get-acct-network:aio lbls ref)
+  =/  og=(unit parsed-origin:b329)  (get-acct-origin:aio lbls ref)
+  =/  stype=script-type  (get-acct-script-type:aio lbls ref)
+  ::  read addresses via labels
+  ?~  og
+    (pure:m [%error 'Account origin not found in labels'])
+  =/  addr-lists  (read-account-addrs:aio lbls u.og)
   ::  format output
-  =/  recv-entries=(list [key=@ud val=address-data])
-    (tap:((on @ud address-data) gth) recv)
-  =/  chng-entries=(list [key=@ud val=address-data])
-    (tap:((on @ud address-data) gth) chng)
   =/  out=wain
     ;:  weld
       :~  (rap 3 ~['account: ' ref])
@@ -101,9 +76,9 @@
           ''
           'receive addresses:'
       ==
-      (format-addrs recv-entries)
+      (format-addrs lbls recv.addr-lists)
       ~['' 'change addresses:']
-      (format-addrs chng-entries)
+      (format-addrs lbls chng.addr-lists)
     ==
   (pure:m [%text (of-wain:format out)])
 --

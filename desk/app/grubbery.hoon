@@ -2404,6 +2404,7 @@
       [~ %|]
     ::  Vetoed — crash for foreign ship darts (gall nacks the sender),
     ::  send %veto intake back to source for internal darts.
+    ~&  >>>  [%process-dart-vetoed jump=jump here=here dest=dest filt=filt dart-type=-.dart]
     ?:  ?=([%sys %ames %ships @ ~] path.here)
       ~|  [%peer-vetoed name.here dest]
       !!
@@ -2468,13 +2469,22 @@
       ::  Poke destination must be a file
       ?>  ?=(%& -.u.dest-lane)
       =/  dest=rail:tarball  p.u.dest-lane
-      ::  Validate poke bask → sage
+      ::  Clam poke bask at destination via governing marc
       =^  validated=(each vase tang)  this
         (validate-cached path.dest p.bask.load.dart q.bask.load.dart)
       ?:  ?=(%| -.validated)
-        ?:  ?=([%sys %ames %ships @ ~] path.here)
-          ~|  [%peer-clam-failed name.here dest]  !!
-        (enqu-take here (sys-give /veto) ~ %veto dart)
+        =/  err=tang  [[leaf+"poke-validate-failed: {<p.bask.load.dart>} -> {(spud (snoc path.dest name.dest))}"] p.validated]
+        =/  spool-got  (build-spool dest)
+        =/  spool-res=(each spool:fiber:nexus tang)
+          (mule |.((fall spool-got default-spool)))
+        ?:  ?=(%| -.spool-res)
+          (bang-file dest p.spool-res)
+        =/  proc-res=(each process:fiber:nexus tang)
+          (mule |.((p.spool-res `err)))
+        ?:  ?=(%| -.proc-res)
+          (bang-file dest p.proc-res)
+        =.  this  (store-proc dest [&+p.proc-res ~ ~])
+        (enqu-take here (sys-give /poke) ~ %pack wire.dart `err)
       =/  =sage:tarball  [p.bask.load.dart p.validated]
       ::  /sys/behn/ timer service: intercept timer-set pokes
       ?:  ?&  =([/sys/behn %'main.timer-state'] dest)
@@ -2970,6 +2980,7 @@
     =/  =output  p.res
     =/  clam=(each [vase _this] tang)
       ?:  ?=(?(%fail %skip) -.next.output)  [%& state this]
+      ::  ~>  %bout.[1 %clam-output]
       (clam-output here blot state state.output)
     ?:  ?=(%| -.clam)
       =/  =tang  [leaf+"state validation failed at {(spud (snoc path.here name.here))}"]~
@@ -3060,23 +3071,36 @@
   ::  Crashed process — takes accumulate in next, don't evaluate
   ?:  ?=(%| -.process.proc)  this
   ::  Get file state from ball
-  ::  ~>(%bout.[1 %do-next-peek-grub] ...)
-  =/  file-data  (peek-grub-now path.here name.here)
+  =/  file-data
+    ::  ~>  %bout.[1 %do-next-peek-grub]
+    (peek-grub-now path.here name.here)
   ?~  file-data  this
   ?:  (is-boom:tarball u.file-data)  this
   =/  fil-state=vase  (need-vase:tarball u.file-data)
   ::  Run the evaluator (mule to catch hard crashes like !< mismatches)
   =/  eval-res=(each [darts=(list dart:nexus) done=(list took:eval) new-state=vase new-proc=proc:fiber:nexus res=result:eval core=_this] tang)
-    ::  ~>(%bout.[1 %eval-take] ...)
+    ::  ~>  %bout.[1 %eval-take]
     (mule |.((take:eval here fil-state proc)))
   ?:  ?=(%| -.eval-res)
-    (bang-file here p.eval-res)
+    ::  Runtime crash — restart process with error prod
+    ?:  (is-nexus-banged here)  this
+    =/  spool-got  (build-spool here)
+    =/  spool-res=(each spool:fiber:nexus tang)
+      (mule |.((fall spool-got default-spool)))
+    ?:  ?=(%| -.spool-res)
+      (bang-file here p.spool-res)
+    =/  proc-res=(each process:fiber:nexus tang)
+      (mule |.((p.spool-res `p.eval-res)))
+    ?:  ?=(%| -.proc-res)
+      (bang-file here p.proc-res)
+    =.  this  (store-proc here [&+p.proc-res ~ next.proc])
+    (enqu-take here (sys-give /restart) ~)
   =/  [darts=(list dart:nexus) done=(list took:eval) new-state=vase new-proc=proc:fiber:nexus res=result:eval core=_this]
     p.eval-res
   ::  Restore core with updated vale cache
   =.  this  core
   ::  Process darts (emit cards or enqueue takes)
-  ::  ~>(%bout.[1 %process-darts] ...)
+  ::  ~>  %bout.[1 %process-darts]
   =.  this  (process-darts here darts)
   ::  Ack consumed pokes
   =.  this  (give-poke-signs here done)
@@ -3098,7 +3122,7 @@
       %fail
     ::  Process failed - don't save state, restart. Subs survive (wires still route).
     ::  Sync queues (consumed takes removed), rebuild process, enqueue
-    ::  rise via abet. Same pattern as spawn-proc.
+    ::  Restart via abet. Same pattern as spawn-proc.
     ?:  (is-nexus-banged here)  this
     =/  spool-got  (build-spool here)
     =/  spool-res=(each spool:fiber:nexus tang)
@@ -3112,7 +3136,7 @@
     =/  merged-skip=(qeu take:fiber:nexus)
       (~(gas to skip.new-proc) ~(tap to next.new-proc))
     =.  this  (store-proc here [&+p.proc-res ~ merged-skip])
-    (enqu-take here (sys-give /rise) ~)
+    (enqu-take here (sys-give /restart) ~)
   ==
 ::
 ++  poke
@@ -3411,9 +3435,9 @@
 ++  propagate
   |=  [old-born=born:nexus here=rail:tarball]
   ^+  this
-  ::  ~>(%bout.[1 %record-trees] ...)
+  ::  ~>  %bout.[1 %record-trees]
   =.  this  (record-trees path.here)
-  ::  ~>(%bout.[1 %notify] ...)
+  ::  ~>  %bout.[1 %notify]
   (notify old-born)
 ::  Record tree objects from dir up to root into silo + fold hist.
 ::  Only bumps fold when tree hash actually changes. Stops propagating
@@ -3789,9 +3813,9 @@
   ::
   =/  =lode:nexus   (fall (~(get by code) cod) *lode:nexus)
   =/  old-refs       refs.lode
-  ::  ~>(%bout.[1 %bins-to-cache] ...)
+  ::  ~>  %bout.[1 %bins-to-cache]
   =/  old-cache      (bins-to-cache:build keys.lode bins)
-  ::  ~>(%bout.[1 %build-all] ...)
+  ::  ~>  %bout.[1 %build-all]
   =/  res            (build-all:build sut src-ball old-cache)
   ~&  >  "build-code: compiled {<~(wyt by results.res)>} results"
   ::  3. Index: compute output ckeys, build keys/refs/builds
@@ -3801,9 +3825,9 @@
     (index-results res lode src-ball)
   ::  4. Update bins: increment new refs, decrement old
   ::
-  ::  ~>(%bout.[1 %refs-inc] ...)
+  ::  ~>  %bout.[1 %refs-inc]
   =.  bins  (refs-inc new-refs builds)
-  ::  ~>(%bout.[1 %refs-dec] ...)
+  ::  ~>  %bout.[1 %refs-dec]
   =.  bins  (refs-dec old-refs)
   ::  5. GC vale cache: drop entries whose marc was removed
   ::
@@ -4966,9 +4990,9 @@
   ::  ~&  >  [%save-file (snoc path.here name.here)]
   =/  old-born=born:nexus  born
   =/  file-gain=?  (lookup-gain here)
-  ::  ~>(%bout.[1 %save-record] ...)
+  ::  ~>  %bout.[1 %save-record]
   =.  this  (record here [p.new-content (sang-noun:tarball new-content)] file-gain ~)
-  ::  ~>(%bout.[1 %save-propagate] ...)
+  ::  ~>  %bout.[1 %save-propagate]
   =.  this  (propagate old-born here)
   ::  Rebuild if change is inside a code nexus
   =/  cod=(unit path)

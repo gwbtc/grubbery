@@ -8,6 +8,7 @@
 /<  wt       /lib/wallet-types.hoon
 /<  bip32    /lib/bip32.hoon
 /<  seed-phrases  /lib/seed-phrases.hoon
+/<  aio      /lib/wallet/account-io.hoon
 /<  b329     /lib/bip329.hoon
 =,  wt
 |%
@@ -89,24 +90,8 @@
   =/  key-hex=tape  (trip ref)
   =/  detail-url=tape
     "/groundwire/wallet/a/{key-hex}"
-  =/  acct-name=@t
-    =/  entries=(list label-entry:b329)
-      ~(tap in (~(get la:b329 labels) %xpub ref))
-    =/  prefix=tape  "gwbtc:account:"
-    =/  prefix-len=@ud  (lent prefix)
-    |-
-    ?~  entries  'Unnamed Account'
-    =/  lbl=tape  (trip label.i.entries)
-    ?.  =(prefix (scag prefix-len lbl))
-      $(entries t.entries)
-    (crip (slag prefix-len lbl))
-  =/  og=(unit parsed-origin:b329)
-    =/  entries=(list label-entry:b329)
-      ~(tap in (~(get la:b329 labels) %xpub ref))
-    |-
-    ?~  entries  ~
-    ?^  origin.i.entries  origin.i.entries
-    $(entries t.entries)
+  =/  acct-name=@t  (get-acct-name:aio labels ref)
+  =/  og=(unit parsed-origin:b329)  (get-acct-origin:aio labels ref)
   =/  account-path-str=tape
     ?~  og  "m/84'/0'/0'"
     (trip (render-origin:b329 u.og))
