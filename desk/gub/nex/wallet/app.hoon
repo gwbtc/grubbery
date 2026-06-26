@@ -398,6 +398,30 @@
               [%a (snoc ?>(?=(%a -.cur-log) p.cur-log) entry)]
             ;<  ~  bind:m  (over:io log-road [[/ %json] new-log])
             $
+              %'tx-broadcast'
+            ::  foreign ship notifies us they broadcast a tx to our address
+            =/  src=(unit @p)  (get-poke-src:io from)
+            ?~  src
+              ~&  >  [%wallet %tx-broadcast %no-remote-src]
+              $
+            =/  addr=@t
+              (~(dog jo:json-utils jon) /address so:dejs:format)
+            =/  txid=@t
+              (~(dog jo:json-utils jon) /txid so:dejs:format)
+            ~&  [%wallet %tx-broadcast %from (scow %p u.src) addr txid]
+            ;<  lbls=labels:b329  bind:m  load-labels:h
+            ::  verify we actually own this address
+            ?.  (~(has by addr.lbls) addr)
+              ~&  >>>  [%wallet %tx-broadcast %unknown-address addr]
+              $
+            ;<  now=@da  bind:m  get-time:io
+            =/  unix=@ud  (unt:chrono:userlib now)
+            =/  lbl=@t
+              (rap 3 ~['gwbtc:broadcast:' (scot %p u.src) ':' txid ':' (crip (a-co:co unix))])
+            =/  new-lbls=labels:b329
+              (~(put la:b329 lbls) [%addr addr lbl ~ ~ ~])
+            ;<  ~  bind:m  (save-labels:h new-lbls)
+            $
               %'refresh-account'
             ::  spawn refresh procs for all addresses in an account
             =/  acct-ref=@t
@@ -1736,12 +1760,19 @@
         ==
       ;<  ~  bind:m  (send-request:io request)
       ;<  =client-response:iris  bind:m  take-http:aio
-      =/  broadcast-result=cord
-        ?+  client-response  'broadcast-failed'
-          [%finished * [~ [* [p=@ q=@]]]]
-        q.data.u.full-file.client-response
+      =/  [ok=? broadcast-result=cord]
+        ?+  client-response  [%.n 'broadcast-failed']
+          [%finished [@ *] [~ [* [p=@ q=@]]]]
+        =/  status=@ud  status-code.response-header.client-response
+        [`?`=(200 status) q.data.u.full-file.client-response]
         ==
-      ~&  >>  "broadcast result: {<broadcast-result>}"
+      ~&  >>  "broadcast result: {<ok>} {<broadcast-result>}"
+      ?.  ok
+        ~&  >>>  "%build-transaction: broadcast failed, skipping notifications"
+        (pure:m ~)
+      =/  out-addrs=(list @t)
+        (turn outputs.u.existing |=(o=output:drft address.o))
+      ;<  ~  bind:m  (notify-broadcast-recipients lbls broadcast-result out-addrs)
       (delete-draft acct-ref)
   ::
   ::  === Tapscript actions ===
@@ -1802,6 +1833,43 @@
     ;<  ~  bind:m  (save-labels new-lbls)
     (pure:m ~)
   ==
+::
+::  +notify-broadcast-recipients: after broadcasting, poke ships
+::  that offered us any of the output addresses
+::
+++  notify-broadcast-recipients
+  |=  [=labels:b329 txid=@t out-addrs=(list @t)]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  =/  prefix=tape  "gwbtc:offered:from:"
+  =/  prefix-len=@ud  (lent prefix)
+  |-
+  ?~  out-addrs  (pure:m ~)
+  =/  addr=@t  i.out-addrs
+  =/  entries=(unit (set label-entry:b329))  (~(get by addr.labels) addr)
+  ?~  entries  $(out-addrs t.out-addrs)
+  =/  el=(list label-entry:b329)  ~(tap in u.entries)
+  =/  ship=(unit @p)
+    |-
+    ?~  el  ~
+    =/  ltape=tape  (trip label.i.el)
+    ?.  =(prefix (scag prefix-len ltape))
+      $(el t.el)
+    (slaw %p (crip (slag prefix-len ltape)))
+  ?~  ship  $(out-addrs t.out-addrs)
+  ~&  [%wallet %notify-broadcast u.ship addr txid]
+  =/  notify-jon=json
+    %-  pairs:enjs:format
+    :~  ['action' s+'tx-broadcast']
+        ['address' s+addr]
+        ['txid' s+txid]
+    ==
+  =/  req=load:remo:nexus
+    :_  [%poke [[/ %json] notify-jon]]
+    [/remote-poke %& /apps/'wallet.wallet_app' %'main.sig']
+  ;<  ~  bind:m
+    (gall-poke:io [u.ship %grubbery] grubbery-load+req)
+  $(out-addrs t.out-addrs)
 ::
 ::  HTTP response helpers — road from /ui/requests/* to /ui/http.sig
 ::

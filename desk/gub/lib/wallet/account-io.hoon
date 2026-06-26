@@ -968,4 +968,39 @@
   ?:  =(prefix (scag prefix-len ltape))
     (crip (slag prefix-len ltape))
   $(el t.el)
+::  +find-addr-account: find the account ref that owns an address
+::
+::  Checks origin (wallet-derived) and derived-from (standalone) labels.
+::
+++  find-addr-account
+  |=  [=labels:b329 addr=@t]
+  ^-  (unit @t)
+  =/  entries=(unit (set label-entry:b329))  (~(get by addr.labels) addr)
+  ?~  entries  ~
+  =/  el=(list label-entry:b329)  ~(tap in u.entries)
+  ::  check for origin (wallet-derived address)
+  =/  og-acct=(unit @t)
+    |-
+    ?~  el  ~
+    ?~  origin.i.el  $(el t.el)
+    ::  the account ref is the xpub with a matching origin prefix
+    ::  scan xpub entries for matching fingerprint
+    =/  fp=@ux  fingerprint.u.origin.i.el
+    (fp-to-xpub labels fp)
+  ?^  og-acct  og-acct
+  ::  check for derived-from (standalone address)
+  =/  df-prefix=tape  "gwbtc:derived-from:"
+  =/  df-len=@ud  (lent df-prefix)
+  =/  el=(list label-entry:b329)  ~(tap in u.entries)
+  |-
+  ?~  el  ~
+  =/  ltape=tape  (trip label.i.el)
+  ?.  =(df-prefix (scag df-len ltape))
+    $(el t.el)
+  ::  format: gwbtc:derived-from:{ref}:{chain}:{idx}
+  ::  extract ref (everything between prefix and next colon after ref)
+  =/  suffix=tape  (slag df-len ltape)
+  =/  col=(unit @ud)  (find ":" suffix)
+  ?~  col  $(el t.el)
+  `(crip (scag u.col suffix))
 --
