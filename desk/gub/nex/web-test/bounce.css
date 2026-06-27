@@ -69,3 +69,31 @@ canvas {
   text-transform: uppercase;
   letter-spacing: 0.1em;
 }
+
+.icon-demo {
+  position: fixed;
+  bottom: 16px;
+  left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.icon-label {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.3);
+  letter-spacing: 0.05em;
+}
+
+.icon-row {
+  display: flex;
+  gap: 12px;
+}
+
+.icon-row img {
+  width: 22px;
+  height: 22px;
+  filter: invert(1);
+  opacity: 0.5;
+}
