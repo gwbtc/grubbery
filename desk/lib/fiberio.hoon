@@ -986,10 +986,15 @@
     (pure:m *@da)
   (pure:m !<(@da (need-vase:tarball sang.p.seen)))
 ::
+::  get-entropy uses raw send-dart with a static /sys/eny wire to avoid
+::  recursion: peek → nonce → get-entropy → peek. Static wire is safe
+::  because stale entropy is still valid entropy.
+::
 ++  get-entropy
   =/  m  (fiber ,@uvJ)
   ^-  form:m
-  ;<  =seen:nexus  bind:m  (peek [%& %& /sys/bowl %eny] ~)
+  ;<  ~  bind:m  (send-dart %node /sys/eny [%& %& /sys/bowl %eny] %peek ~ ~ %.y)
+  ;<  =seen:nexus  bind:m  (take-peek /sys/eny)
   ?.  ?=([%& %file *] seen)
     (pure:m *@uvJ)
   (pure:m !<(@uvJ (need-vase:tarball sang.p.seen)))
@@ -998,11 +1003,7 @@
   |=  base=wire
   =/  m  (fiber ,wire)
   ^-  form:m
-  ;<  ~  bind:m  (send-dart %node /sys/nonce [%& %& /sys/bowl %eny] %peek ~ ~ %.y)
-  ;<  =seen:nexus  bind:m  (take-peek /sys/nonce)
-  =/  eny=@uvJ
-    ?.  ?=([%& %file *] seen)  *@uvJ
-    !<(@uvJ (need-vase:tarball sang.p.seen))
+  ;<  eny=@uvJ  bind:m  get-entropy
   (pure:m (snoc base (scot %uv (end 5 eny))))
 ::
 ++  get-here
