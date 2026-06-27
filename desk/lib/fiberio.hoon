@@ -1,5 +1,47 @@
 ::  fiberio: helper functions for nexus fibers
 ::
+::  +nonce: tag a wire with an entropy suffix to prevent stale matches.
+::
+::  Problem: fiber wires (/poke, /peek, etc.) are static labels. Within
+::  an uninterrupted run this is fine — fibers are sequential. But if a
+::  fiber crashes and restarts, a stale response from the previous run
+::  can match the restarted fiber's take-* arm on the same wire.
+::
+::  Fix: nonce tags each wire with entropy so stale responses from a
+::  previous run get %skip'd. e.g. /poke → /poke/0v1a.2b3c4
+::
+::  Nonce uses a raw send-dart peek to /sys/bowl/eny with a static
+::  /sys/nonce wire. This avoids infinite recursion (nonce → get-entropy →
+::  peek → nonce → ...) since peek itself calls nonce. The static
+::  /sys/nonce wire is safe because both stale and fresh responses return
+::  valid entropy — consuming the "wrong" one still produces a unique
+::  random nonce. /sys/nonce is effectively a reserved wire.
+::
+::  Subscriptions (keep/drop) are unaffected — caller-provided wires
+::  are stable identifiers, and re-keep on restart is idempotent
+::  (sub-put overwrites, wave-at re-sends initial state).
+::
+::  TODO: vase-free queue storage
+::
+::  Intakes that carry vases (%poke, %peek, %peep, %code) are stored
+::  in the fiber's skip queue as-is. Vases contain type nouns from the
+::  build that produced them. After a code reload, queued vases have
+::  stale types that don't match the new subject — handing these to a
+::  fiber can cause type mismatches or silent corruption.
+::
+::  Fix: split intake into a queue-safe form (nouns only, no vases) and
+::  a fiber-facing form (with vases). On enqueue, strip vases to
+::  [blot noun] (bask). On dequeue, re-vale the noun against the
+::  current type. Affected intakes:
+::    %poke — sage [blot vase] → bask [blot noun], re-vale on dequeue
+::    %peek — sang [blot reus] → [blot noun], re-vale on dequeue
+::    %peep — list of [cass sage] → [cass bask], re-vale on dequeue
+::    %code — built can be [%vase vase] → store as noun, re-vale
+::  Unaffected: %made/%gone/%pack/%sand/%load/%lost/%gain/%held (just
+::  wire+tang), %fell (wire), %news (wave), %here (pant), %veto (dart),
+::  %font (bend), %kept (set bend).
+::
+
 /-  push
 /+  nexus, tarball, server, hu=http-utils
 |%
@@ -116,8 +158,9 @@
   |=  [=neck:tarball =lane:tarball]
   =/  m  (fiber ,road:tarball)
   ^-  form:m
-  ;<  ~  bind:m  (send-dart %here /ancestor)
-  ;<  =here:nexus  bind:m  (take-here-raw /ancestor)
+  ;<  =wire  bind:m  (nonce /ancestor)
+  ;<  ~  bind:m  (send-dart %here wire)
+  ;<  =here:nexus  bind:m  (take-here-raw wire)
   =/  steps=(unit @ud)  (find-in-here here `neck)
   ?~  steps
     ~&  >>>  ["fiberio: couldn't find ancestor" neck]
@@ -158,8 +201,9 @@
 ++  get-kept
   =/  m  (fiber ,kept:nexus)
   ^-  form:m
-  ;<  ~  bind:m  (send-dart %kept /kept)
-  (take-kept /kept)
+  ;<  =wire  bind:m  (nonce /kept)
+  ;<  ~  bind:m  (send-dart %kept wire)
+  (take-kept wire)
 ::
 ++  take-kept
   |=  =wire
@@ -297,14 +341,16 @@
   |=  [=road:tarball =make:nexus]
   =/  m  (fiber ,~)
   ^-  form:m
-  ;<  ~  bind:m  (send-dart %node /make road %make %.n make)
-  (take-made /make)
+  ;<  =wire  bind:m  (nonce /make)
+  ;<  ~  bind:m  (send-dart %node wire road %make %.n make)
+  (take-made wire)
 ::
 ++  make-soft
   |=  [=road:tarball =make:nexus]
   =/  m  (fiber ,(unit tang))
   ^-  form:m
-  ;<  ~  bind:m  (send-dart %node /make road %make %.n make)
+  ;<  =wire  bind:m  (nonce /make)
+  ;<  ~  bind:m  (send-dart %node wire road %make %.n make)
   |=  input
   :+  ~  q.state
   ?+  in  [%skip ~]
@@ -312,7 +358,7 @@
       [~ %veto *]
     [%fail (veto-error dart.u.in)]
       [~ %made * *]
-    ?.  =(/make wire.u.in)
+    ?.  =(wire wire.u.in)
       [%skip ~]
     [%done err.u.in]
   ==
@@ -321,15 +367,17 @@
   |=  [=road:tarball =bask:tarball]
   =/  m  (fiber ,~)
   ^-  form:m
-  ;<  ~  bind:m  (send-dart %node /poke road %poke bask)
-  (take-pack /poke)
+  ;<  =wire  bind:m  (nonce /poke)
+  ;<  ~  bind:m  (send-dart %node wire road %poke bask)
+  (take-pack wire)
 ::
 ++  peek
   |=  [=road:tarball blot=(unit blot:tarball)]
   =/  m  (fiber ,seen:nexus)
   ^-  form:m
-  ;<  ~  bind:m  (send-dart %node /peek road %peek blot ~ %.y)
-  (take-peek /peek)
+  ;<  =wire  bind:m  (nonce /peek)
+  ;<  ~  bind:m  (send-dart %node wire road %peek blot ~ %.y)
+  (take-peek wire)
 ::
 ::  Shallow peek: files at this level, subdir names only (no recursion)
 ::
@@ -337,8 +385,9 @@
   |=  [=road:tarball blot=(unit blot:tarball)]
   =/  m  (fiber ,seen:nexus)
   ^-  form:m
-  ;<  ~  bind:m  (send-dart %node /peek road %peek blot ~ %.n)
-  (take-peek /peek)
+  ;<  =wire  bind:m  (nonce /peek)
+  ;<  ~  bind:m  (send-dart %node wire road %peek blot ~ %.n)
+  (take-peek wire)
 ::
 ::  Peek at a historical version of a file
 ::
@@ -346,8 +395,9 @@
   |=  [=road:tarball blot=(unit blot:tarball) =case:nexus]
   =/  m  (fiber ,seen:nexus)
   ^-  form:m
-  ;<  ~  bind:m  (send-dart %node /peek road %peek blot `case %.y)
-  (take-peek /peek)
+  ;<  =wire  bind:m  (nonce /peek)
+  ;<  ~  bind:m  (send-dart %node wire road %peek blot `case %.y)
+  (take-peek wire)
 ::
 ::  Peek a remote ship. Constructs a road targeting
 ::  /sys/ames/ships/[ship]/root/[path] so the grubbery routes
@@ -369,8 +419,9 @@
         [%& %| (weld prefix p.p.road)]
       ==
     ==
-  ;<  ~  bind:m  (send-dart %node /peek remote-road %peek ~ case %.y)
-  (take-peek /peek)
+  ;<  =wire  bind:m  (nonce /peek)
+  ;<  ~  bind:m  (send-dart %node wire remote-road %peek ~ case %.y)
+  (take-peek wire)
 ::
 ::  Check if a target (file or directory) exists at a road.
 ::  Returns %.n on peek failure or %none view, %.y otherwise.
@@ -386,7 +437,8 @@
   |=  =road:tarball
   =/  m  (fiber ,~)
   ^-  form:m
-  ;<  ~  bind:m  (send-dart %node /cull road %cull ~)
+  ;<  =wire  bind:m  (nonce /cull)
+  ;<  ~  bind:m  (send-dart %node wire road %cull ~)
   |=  input
   :+  ~  q.state
   ?+  in  [%skip ~]
@@ -394,7 +446,7 @@
       [~ %veto *]
     [%fail (veto-error dart.u.in)]
       [~ %gone * *]
-    ?.  =(/cull wire.u.in)
+    ?.  =(wire wire.u.in)
       [%skip ~]
     ?~  err.u.in
       [%done ~]
@@ -407,7 +459,8 @@
   |=  =road:tarball
   =/  m  (fiber ,(unit tang))
   ^-  form:m
-  ;<  ~  bind:m  (send-dart %node /cull road %cull ~)
+  ;<  =wire  bind:m  (nonce /cull)
+  ;<  ~  bind:m  (send-dart %node wire road %cull ~)
   |=  input
   :+  ~  q.state
   ?+  in  [%skip ~]
@@ -415,7 +468,7 @@
       [~ %veto *]
     [%fail (veto-error dart.u.in)]
       [~ %gone * *]
-    ?.  =(/cull wire.u.in)
+    ?.  =(wire wire.u.in)
       [%skip ~]
     [%done err.u.in]
   ==
@@ -424,7 +477,8 @@
   |=  [=road:tarball weir=(unit weir:nexus)]
   =/  m  (fiber ,~)
   ^-  form:m
-  ;<  ~  bind:m  (send-dart %node /sand road %sand weir)
+  ;<  =wire  bind:m  (nonce /sand)
+  ;<  ~  bind:m  (send-dart %node wire road %sand weir)
   |=  input
   :+  ~  q.state
   ?+  in  [%skip ~]
@@ -432,7 +486,7 @@
       [~ %veto *]
     [%fail (veto-error dart.u.in)]
       [~ %sand * *]
-    ?.  =(/sand wire.u.in)
+    ?.  =(wire wire.u.in)
       [%skip ~]
     ?~  err.u.in
       [%done ~]
@@ -443,7 +497,8 @@
   |=  [=road:tarball flag=?]
   =/  m  (fiber ,~)
   ^-  form:m
-  ;<  ~  bind:m  (send-dart %node /gain road %gain flag)
+  ;<  =wire  bind:m  (nonce /gain)
+  ;<  ~  bind:m  (send-dart %node wire road %gain flag)
   |=  input
   :+  ~  q.state
   ?+  in  [%skip ~]
@@ -451,7 +506,7 @@
       [~ %veto *]
     [%fail (veto-error dart.u.in)]
       [~ %gain * *]
-    ?.  =(/gain wire.u.in)
+    ?.  =(wire wire.u.in)
       [%skip ~]
     ?~  err.u.in
       [%done ~]
@@ -462,7 +517,8 @@
   |=  [=road:tarball =lose:nexus]
   =/  m  (fiber ,~)
   ^-  form:m
-  ;<  ~  bind:m  (send-dart %node /lose road %lose lose)
+  ;<  =wire  bind:m  (nonce /lose)
+  ;<  ~  bind:m  (send-dart %node wire road %lose lose)
   |=  input
   :+  ~  q.state
   ?+  in  [%skip ~]
@@ -470,7 +526,7 @@
       [~ %veto *]
     [%fail (veto-error dart.u.in)]
       [~ %lost * *]
-    ?.  =(/lose wire.u.in)
+    ?.  =(wire wire.u.in)
       [%skip ~]
     ?~  err.u.in
       [%done ~]
@@ -481,7 +537,8 @@
   |=  [=road:tarball =lobe:clay]
   =/  m  (fiber ,(each (list [=rail:tarball =cass:clay]) tang))
   ^-  form:m
-  ;<  ~  bind:m  (send-dart %node /seek road %seek lobe)
+  ;<  =wire  bind:m  (nonce /seek)
+  ;<  ~  bind:m  (send-dart %node wire road %seek lobe)
   |=  input
   :+  ~  q.state
   ?+  in  [%skip ~]
@@ -489,7 +546,7 @@
       [~ %veto *]
     [%fail (veto-error dart.u.in)]
       [~ %seek * *]
-    ?.  =(/seek wire.u.in)
+    ?.  =(wire wire.u.in)
       [%skip ~]
     [%done res.u.in]
   ==
@@ -498,7 +555,8 @@
   |=  [=road:tarball =find:nexus]
   =/  m  (fiber ,(each (list [=cass:clay =sage:tarball]) tang))
   ^-  form:m
-  ;<  ~  bind:m  (send-dart %node /peep road %peep find)
+  ;<  =wire  bind:m  (nonce /peep)
+  ;<  ~  bind:m  (send-dart %node wire road %peep find)
   |=  input
   :+  ~  q.state
   ?+  in  [%skip ~]
@@ -506,7 +564,7 @@
       [~ %veto *]
     [%fail (veto-error dart.u.in)]
       [~ %peep * *]
-    ?.  =(/peep wire.u.in)
+    ?.  =(wire wire.u.in)
       [%skip ~]
     [%done res.u.in]
   ==
@@ -515,14 +573,16 @@
   |=  [=road:tarball =bask:tarball]
   =/  m  (fiber ,~)
   ^-  form:m
-  ;<  ~  bind:m  (send-dart %node /make road %make %.y |+[bask ~])
-  (take-made /make)
+  ;<  =wire  bind:m  (nonce /make)
+  ;<  ~  bind:m  (send-dart %node wire road %make %.y |+[bask ~])
+  (take-made wire)
 ::
 ++  reload
   |=  =road:tarball
   =/  m  (fiber ,~)
   ^-  form:m
-  ;<  ~  bind:m  (send-dart %node /load road %load ~)
+  ;<  =wire  bind:m  (nonce /load)
+  ;<  ~  bind:m  (send-dart %node wire road %load ~)
   |=  input
   :+  ~  q.state
   ?+  in  [%skip ~]
@@ -530,7 +590,7 @@
       [~ %veto *]
     [%fail (veto-error dart.u.in)]
       [~ %load * *]
-    ?.  =(/load wire.u.in)
+    ?.  =(wire wire.u.in)
       [%skip ~]
     ?~  err.u.in
       [%done ~]
@@ -629,8 +689,9 @@
   |=  =road:tarball
   =/  m  (fiber ,(unit vase))
   ^-  form:m
-  ;<  ~  bind:m  (send-dart %node /code road %code ~)
-  (take-code /code)
+  ;<  =wire  bind:m  (nonce /code)
+  ;<  ~  bind:m  (send-dart %node wire road %code ~)
+  (take-code wire)
 ::
 ++  take-code
   |=  =wire
@@ -657,7 +718,8 @@
   |=  =road:tarball
   =/  m  (fiber ,built:nexus)
   ^-  form:m
-  ;<  ~  bind:m  (send-dart %node /code road %code ~)
+  ;<  =wire  bind:m  (nonce /code)
+  ;<  ~  bind:m  (send-dart %node wire road %code ~)
   |=  input
   :+  ~  q.state
   ?+  in  [%skip ~]
@@ -665,7 +727,7 @@
       [~ %veto *]
     [%fail (veto-error dart.u.in)]
       [~ %code * *]
-    ?.  =(/code wire.u.in)
+    ?.  =(wire wire.u.in)
       [%skip ~]
     ?.  ?=(%| -.res.u.in)
       [%skip ~]
@@ -677,7 +739,8 @@
   |=  =road:tarball
   =/  m  (fiber ,(axal (map @ta built:nexus)))
   ^-  form:m
-  ;<  ~  bind:m  (send-dart %node /code road %code ~)
+  ;<  =wire  bind:m  (nonce /code)
+  ;<  ~  bind:m  (send-dart %node wire road %code ~)
   |=  input
   :+  ~  q.state
   ?+  in  [%skip ~]
@@ -685,7 +748,7 @@
       [~ %veto *]
     [%fail (veto-error dart.u.in)]
       [~ %code * *]
-    ?.  =(/code wire.u.in)
+    ?.  =(wire wire.u.in)
       [%skip ~]
     ?.  ?=(%& -.res.u.in)
       [%skip ~]
@@ -698,7 +761,8 @@
   |=  =road:tarball
   =/  m  (fiber ,(unit (unit bend:tarball)))
   ^-  form:m
-  ;<  ~  bind:m  (send-dart %node /font road %font ~)
+  ;<  =wire  bind:m  (nonce /font)
+  ;<  ~  bind:m  (send-dart %node wire road %font ~)
   |=  input
   :+  ~  q.state
   ?+  in  [%skip ~]
@@ -706,7 +770,7 @@
       [~ %veto *]
     [%fail (veto-error dart.u.in)]
       [~ %font * *]
-    ?.  =(/font wire.u.in)
+    ?.  =(wire wire.u.in)
       [%skip ~]
     [%done res.u.in]
   ==
@@ -930,11 +994,23 @@
     (pure:m *@uvJ)
   (pure:m !<(@uvJ (need-vase:tarball sang.p.seen)))
 ::
+++  nonce
+  |=  base=wire
+  =/  m  (fiber ,wire)
+  ^-  form:m
+  ;<  ~  bind:m  (send-dart %node /sys/nonce [%& %& /sys/bowl %eny] %peek ~ ~ %.y)
+  ;<  =seen:nexus  bind:m  (take-peek /sys/nonce)
+  =/  eny=@uvJ
+    ?.  ?=([%& %file *] seen)  *@uvJ
+    !<(@uvJ (need-vase:tarball sang.p.seen))
+  (pure:m (snoc base (scot %uv (end 5 eny))))
+::
 ++  get-here
   =/  m  (fiber ,here:nexus)
   ^-  form:m
-  ;<  ~  bind:m  (send-dart %here /here)
-  (take-here-raw /here)
+  ;<  =wire  bind:m  (nonce /here)
+  ;<  ~  bind:m  (send-dart %here wire)
+  (take-here-raw wire)
 ::  +get-here-abs: get absolute rail, crashes if blocked from root
 ::
 ++  get-here-abs
