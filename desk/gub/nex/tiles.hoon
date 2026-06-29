@@ -5,6 +5,10 @@
 ::  href can be absolute (https://...) or relative (/grubbery/ball/...)
 ::
 /&  man  ../man/tiles/readme.md
+/&  ico-explorer   tiles/icons/explorer.svg
+/&  ico-contacts   tiles/icons/contacts.svg
+/&  ico-wallet     tiles/icons/wallet.svg
+/&  ico-itinerary  tiles/icons/itinerary.svg
 =<  ^-  nexus:nexus
     |%
     ++  on-load
@@ -18,7 +22,7 @@
           :~  title+s+'Explorer'
               info+s+'Browse the tarball'
               color+s+'#4a9de5'
-              image+s+''
+              image+s+'/grubbery/tiles/icons/explorer.svg'
               href+s+'/grubbery/ball'
           ==
         =/  contacts-tile=json
@@ -26,7 +30,7 @@
           :~  title+s+'Contacts'
               info+s+'Manage your contacts'
               color+s+'#6b7280'
-              image+s+''
+              image+s+'/grubbery/tiles/icons/contacts.svg'
               href+s+'/grubbery/contacts'
           ==
         =/  wallet-tile=json
@@ -34,7 +38,7 @@
           :~  title+s+'Wallet'
               info+s+'Bitcoin wallet'
               color+s+'#f7931a'
-              image+s+''
+              image+s+'/grubbery/tiles/icons/wallet.svg'
               href+s+'/groundwire/wallet/simple'
           ==
         =/  itinerary-tile=json
@@ -42,7 +46,7 @@
           :~  title+s+'Itinerary'
               info+s+'Travel maps & pins'
               color+s+'#27ae60'
-              image+s+''
+              image+s+'/grubbery/tiles/icons/itinerary.svg'
               href+s+'/grubbery/itinerary'
           ==
         %+  spin:loader  ball
@@ -56,6 +60,11 @@
             [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
             [%fall %| /requests empty-dir:loader]
             [%over %& [/man %'readme.md'] [[/ %mime] man]]
+            [%fall %| /icons empty-dir:loader]
+            [%over %& [/icons %'explorer.svg'] [[/ %mime] ico-explorer]]
+            [%over %& [/icons %'contacts.svg'] [[/ %mime] ico-contacts]]
+            [%over %& [/icons %'wallet.svg'] [[/ %mime] ico-wallet]]
+            [%over %& [/icons %'itinerary.svg'] [[/ %mime] ico-itinerary]]
         ==
       ==
     ::
@@ -96,7 +105,20 @@
         ?.  =(src our)
           ;<  ~  bind:m  (send-simple:srv eyre-id [[403 ~] `(as-octs:mimes:html 'Forbidden')])
           (pure:m ~)
-        ::  Serve tiles page
+        =/  prefix=path  /grubbery/tiles
+        =/  site=path  site:(parse-url:http-utils url.request.req)
+        =/  suffix=path  (slag (lent prefix) site)
+        ::  /icons/<file> → serve icon file
+        ?:  ?=([%icons @ ~] suffix)
+          =/  filename=@ta  i.t.suffix
+          ;<  =seen:nexus  bind:m  (peek:io [%| 1 %& /icons filename] `[/ %mime])
+          ?.  ?=([%& %file *] seen)
+            ;<  ~  bind:m  (send-simple:srv eyre-id [[404 ~] `(as-octs:mimes:html 'Not found')])
+            (pure:m ~)
+          =/  =mime  !<(mime (need-vase:tarball sang.p.seen))
+          ;<  ~  bind:m  (send-simple:srv eyre-id (mime-response:http-utils mime))
+          (pure:m ~)
+        ::  default → serve tiles page
         ;<  =seen:nexus  bind:m  (peek:io [%| 1 %& / %'page.html'] `[/ %mime])
         ?.  ?=([%& %file *] seen)
           ;<  ~  bind:m  (send-simple:srv eyre-id [[500 ~] `(as-octs:mimes:html 'Page not ready')])
