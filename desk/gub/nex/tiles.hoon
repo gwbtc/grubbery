@@ -29,11 +29,29 @@
               image+s+''
               href+s+'/grubbery/contacts'
           ==
+        =/  wallet-tile=json
+          %-  pairs:enjs:format
+          :~  title+s+'Wallet'
+              info+s+'Bitcoin wallet'
+              color+s+'#f7931a'
+              image+s+''
+              href+s+'/groundwire/wallet/simple'
+          ==
+        =/  itinerary-tile=json
+          %-  pairs:enjs:format
+          :~  title+s+'Itinerary'
+              info+s+'Travel maps & pins'
+              color+s+'#27ae60'
+              image+s+''
+              href+s+'/grubbery/itinerary'
+          ==
         %+  spin:loader  ball
         :~  (ver-row:loader 0)
             [%fall %| /tiles empty-dir:loader]
             [%over %& [/tiles %'explorer.json'] [[/ %json] explorer-tile]]
             [%over %& [/tiles %'contacts.json'] [[/ %json] contacts-tile]]
+            [%fall %& [/tiles %'wallet.json'] [[/ %json] wallet-tile]]
+            [%fall %& [/tiles %'itinerary.json'] [[/ %json] itinerary-tile]]
             [%over %& [/ %'page.html'] [[/ %html] (crip (en-xml:html (tiles-page "" ~)))]]
             [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
             [%fall %| /requests empty-dir:loader]
@@ -277,23 +295,23 @@
     var title = el ? (el.querySelector('.tile-title') || \{}).textContent || name : name;
     editTitle.textContent = 'Edit ' + title;
     editStatus.textContent = '';
+    editJson.value = '';
+    editJson.disabled = true;
+    editJson.placeholder = 'Loading...';
+    editBack.classList.add('open');
     fetch(API + '/file/' + BALL + '/tiles/' + name + '?blot=/json')
       .then(function(r) \{ return r.json() })
-      .then(function(j) \{ editJson.value = JSON.stringify(j, null, 2) })
-      .catch(function() \{ editJson.value = '\{}' });
-    editBack.classList.add('open');
+      .then(function(j) \{ editJson.value = JSON.stringify(j, null, 2); })
+      .catch(function() \{ editJson.value = '\{}'; })
+      .finally(function() \{ editJson.disabled = false; editJson.placeholder = '\{}'; });
   }
 
   function deleteTile(name) \{
     var el = document.querySelector('[data-tile="' + name + '"]');
     var title = el ? (el.querySelector('.tile-title') || \{}).textContent || name : name;
     if (!confirm('Delete ' + title + '?')) return;
-    fetch(API + '/file/' + BALL + '/tiles/' + name, \{method: 'DELETE'});
-    var el = document.querySelector('[data-tile="' + name + '"]');
-    if (el) el.remove();
-    if (!document.querySelector('.tile')) \{
-      document.getElementById('tiles').innerHTML = '<div class="empty">no tiles \\u2014 click + new to add one</div>';
-    }
+    fetch(API + '/file/' + BALL + '/tiles/' + name, \{method: 'DELETE'})
+      .then(function() \{ reloadAfterSave(); });
   }
 
   document.getElementById('edit-close').onclick = function() \{
@@ -321,33 +339,16 @@
     if (r.ok) \{
       editStatus.textContent = 'Saved';
       editStatus.style.color = '#4ade80';
-      setTimeout(function() \{ editBack.classList.remove('open'); }, 400);
+      setTimeout(function() \{ editBack.classList.remove('open'); reloadAfterSave(); }, 400);
     } else \{
       editStatus.textContent = 'Save failed';
       editStatus.style.color = '#f87171';
     }
   };
 
-  // SSE for live updates
-  var SSE_URL = API + '/keep/' + BALL + '?blot=/txt';
-  async function connectSSE() \{
-    try \{
-      var r = await fetch(SSE_URL, \{headers: \{Accept: 'text/event-stream'}});
-      var rdr = r.body.getReader();
-      var dec = new TextDecoder();
-      var buf = '';
-      while (true) \{
-        var chunk = await rdr.read();
-        if (chunk.done) break;
-        buf += dec.decode(chunk.value, \{stream: true});
-        if (buf.indexOf('\\n') >= 0) \{
-          window.location.reload();
-          return;
-        }
-      }
-    } catch(e) \{}
-    setTimeout(connectSSE, 3000);
+  // Reload after save to pick up server-rendered changes
+  function reloadAfterSave() \{
+    setTimeout(function() \{ window.location.reload(); }, 600);
   }
-  connectSSE();
   """
 --

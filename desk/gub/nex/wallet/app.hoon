@@ -622,101 +622,86 @@
             =/  net=@ta  ;;(@ta network)
             =/  [recv=(list [@ud address-data]) chng=(list [@ud address-data])]
               (load-recv-chng:h lbls acct-ref)
-            ::  collect addresses needing refresh
+            ::  collect addresses needing refresh:
+            ::    - any address with pending activity (mempool, unconfirmed tx, broadcast)
+            ::    - next unused recv + chng (for gap-limit discovery)
+            ::
             =/  txs=tx-map  (build-acct-tx-map:h lbls acct-ref)
+            ::  set of addresses involved in unconfirmed transactions
+            =/  unconf-addrs=(set @t)
+              =/  acc=(set @t)  ~
+              =/  txns=(list [txid=@t tx=transaction])  ~(tap by txs)
+              |-
+              ?~  txns  acc
+              ?.  ?=([%unconfirmed *] tx-status.tx.i.txns)  $(txns t.txns)
+              =/  out=(list @t)  (turn outputs.tx.i.txns |=(o=tx-output address.o))
+              =/  inp=(list @t)  (murn inputs.tx.i.txns |=(i=tx-input ?~(prevout.i ~ `address.u.prevout.i)))
+              $(txns t.txns, acc (~(gas in acc) (weld out inp)))
+            ::  +needs-refresh: does this address have any pending activity?
+            =/  needs-refresh
+              |=  dat=address-data
+              ?|  ::  involved in an unconfirmed transaction
+                  (~(has in unconf-addrs) addr.dat)
+                  ::  mempool activity (funded or spent)
+                  ?&  ?=(^ info.dat)
+                      |((gth mem-funded.u.info.dat 0) (gth mem-spent.u.info.dat 0))
+                  ==
+                  ::  mempool tx count (catches edge cases above might miss)
+                  ?&  ?=(^ info.dat)
+                      (gth mem-tx-count.u.info.dat 0)
+                  ==
+                  ::  new broadcast notification since last check
+                  (has-new-broadcast:aio lbls addr.dat)
+              ==
+            ::  scan recv + chng for addresses needing refresh
+            =/  from-recv=(list [chain=?(%recv %chng) idx=@ud])
+              %+  murn  recv
+              |=  [idx=@ud dat=address-data]
+              ^-  (unit [?(%recv %chng) @ud])
+              ?.  (needs-refresh dat)  ~
+              `[%recv idx]
+            =/  from-chng=(list [chain=?(%recv %chng) idx=@ud])
+              %+  murn  chng
+              |=  [idx=@ud dat=address-data]
+              ^-  (unit [?(%recv %chng) @ud])
+              ?.  (needs-refresh dat)  ~
+              `[%chng idx]
+            ::  find next unused address on each chain (for discovery)
+            =/  next-recv=@ud
+              =/  r  recv
+              |-
+              ?~  r  (lent recv)
+              =/  [lidx=@ud dat=address-data]  i.r
+              ?:  ?|  ?=(~ info.dat)
+                      =(0 (add tx-count.u.info.dat mem-tx-count.u.info.dat))
+                  ==
+                lidx
+              $(r t.r)
+            =/  next-chng=@ud
+              =/  c  chng
+              |-
+              ?~  c  (lent chng)
+              =/  [lidx=@ud dat=address-data]  i.c
+              ?:  ?|  ?=(~ info.dat)
+                      =(0 (add tx-count.u.info.dat mem-tx-count.u.info.dat))
+                  ==
+                lidx
+              $(c t.c)
+            ::  combine and deduplicate
+            =/  all=(list [chain=?(%recv %chng) idx=@ud])
+              ;:  weld
+                from-recv
+                from-chng
+                `(list [?(%recv %chng) @ud])`~[[%recv next-recv]]
+                `(list [?(%recv %chng) @ud])`~[[%chng next-chng]]
+              ==
             =/  refresh-list=(list [chain=?(%recv %chng) idx=@ud])
-              ::  1. addresses involved in unconfirmed transactions
-              =/  unconf-addrs=(set @t)
-                =/  txns=(list [txid=@t tx=transaction])  ~(tap by txs)
-                =/  addrs=(set @t)  ~
-                |-
-                ?~  txns  addrs
-                =/  tx=transaction  tx.i.txns
-                ?.  ?=([%unconfirmed *] tx-status.tx)  $(txns t.txns)
-                =/  out-addrs=(list @t)
-                  (turn outputs.tx |=(o=tx-output address.o))
-                =/  in-addrs=(list @t)
-                  (murn inputs.tx |=(i=tx-input ?~(prevout.i ~ `address.u.prevout.i)))
-                $(txns t.txns, addrs (~(gas in addrs) (weld out-addrs in-addrs)))
-              =/  from-unconf=(list [chain=?(%recv %chng) idx=@ud])
-                %-  weld
-                :_  ^-  (list [?(%recv %chng) @ud])
-                    %+  murn  chng
-                    |=  [idx=@ud dat=address-data]
-                    ?.  (~(has in unconf-addrs) addr.dat)  ~
-                    `[%chng idx]
-                ^-  (list [?(%recv %chng) @ud])
-                %+  murn  recv
-                |=  [idx=@ud dat=address-data]
-                ?.  (~(has in unconf-addrs) addr.dat)  ~
-                `[%recv idx]
-              ::  2. addresses with mempool activity
-              =/  from-mempool=(list [chain=?(%recv %chng) idx=@ud])
-                %-  weld
-                :_  ^-  (list [?(%recv %chng) @ud])
-                    %+  murn  chng
-                    |=  [idx=@ud dat=address-data]
-                    ?~  info.dat  ~
-                    ?.  |((gth mem-funded.u.info.dat 0) (gth mem-spent.u.info.dat 0))  ~
-                    `[%chng idx]
-                ^-  (list [?(%recv %chng) @ud])
-                %+  murn  recv
-                |=  [idx=@ud dat=address-data]
-                ?~  info.dat  ~
-                ?.  |((gth mem-funded.u.info.dat 0) (gth mem-spent.u.info.dat 0))  ~
-                `[%recv idx]
-              ::  3. addresses with broadcast notifications newer than last-check
-              =/  from-broadcast=(list [chain=?(%recv %chng) idx=@ud])
-                %-  weld
-                :_  ^-  (list [?(%recv %chng) @ud])
-                    %+  murn  chng
-                    |=  [idx=@ud dat=address-data]
-                    ?.  (has-new-broadcast:aio lbls addr.dat)  ~
-                    `[%chng idx]
-                ^-  (list [?(%recv %chng) @ud])
-                %+  murn  recv
-                |=  [idx=@ud dat=address-data]
-                ?.  (has-new-broadcast:aio lbls addr.dat)  ~
-                `[%recv idx]
-              ::  4. next unused receiving + change
-              =/  next-recv=@ud
-                =/  found=(unit @ud)
-                  |-
-                  ?~  recv  ~
-                  =/  [lidx=@ud dat=address-data]  i.recv
-                  ?:  ?|  ?=(~ info.dat)
-                          &(=(0 (add tx-count.u.info.dat mem-tx-count.u.info.dat)) =(0 (add funded.u.info.dat mem-funded.u.info.dat)))
-                      ==
-                    `lidx
-                  $(recv t.recv)
-                (fall found (lent recv))
-              =/  next-chng=@ud
-                =/  chng-copy  chng
-                =/  found=(unit @ud)
-                  |-
-                  ?~  chng-copy  ~
-                  =/  [lidx=@ud dat=address-data]  i.chng-copy
-                  ?:  ?|  ?=(~ info.dat)
-                          &(=(0 (add tx-count.u.info.dat mem-tx-count.u.info.dat)) =(0 (add funded.u.info.dat mem-funded.u.info.dat)))
-                      ==
-                    `lidx
-                  $(chng-copy t.chng-copy)
-                (fall found (lent chng))
-              ::  combine and deduplicate
-              =/  all=(list [chain=?(%recv %chng) idx=@ud])
-                ;:  weld
-                  from-unconf
-                  from-mempool
-                  from-broadcast
-                  `(list [?(%recv %chng) @ud])`~[[%recv next-recv]]
-                  `(list [?(%recv %chng) @ud])`~[[%chng next-chng]]
-                ==
               =/  seen=(set [?(%recv %chng) @ud])  ~
               =/  out=(list [chain=?(%recv %chng) idx=@ud])  ~
               |-
               ?~  all  (flop out)
               ?:  (~(has in seen) i.all)  $(all t.all)
-            $(all t.all, seen (~(put in seen) i.all), out [i.all out])
+              $(all t.all, seen (~(put in seen) i.all), out [i.all out])
             ::  spawn refresh proc files
             ;<  reg=proc-registry  bind:m  load-registry:h
             =/  acct-procs=account-procs

@@ -373,10 +373,11 @@
   =/  counterparty=tape
     ?~  ship-name  counterparty-addr
     (trip u.ship-name)
+  =/  ship-tape=tape  ?~(ship-name "" (trip u.ship-name))
   =/  addr-label=tape  ?:(?=(%sent dir.e) "To" "From")
   =/  txid-full=tape  (trip txid.transaction.e)
   =/  item=manx
-    ;div.activity-tx(onclick "showTxDetail(this)", data-txid txid-full, data-addr counterparty, data-addr-label addr-label, data-status status, data-time tx-time)
+    ;div.activity-tx(onclick "showTxDetail(this)", data-txid txid-full, data-addr counterparty-addr, data-ship ship-tape, data-addr-label addr-label, data-status status, data-time tx-time)
       ;div(class "activity-tx-icon {dir-class}")
         ;svg(xmlns "http://www.w3.org/2000/svg", viewBox "0 0 24 24", width "16", height "16", fill "none", stroke "currentColor", stroke-width "2.5", stroke-linecap "round", stroke-linejoin "round")
           ;+  ?:  ?=(%sent dir.e)
@@ -596,8 +597,20 @@
   ;div.tx-detail-overlay.hidden(id "tx-detail-overlay", onclick "closeTxDetail(event)")
     ;div.tx-detail-modal
       ;button.receive-close(onclick "closeTxDetail()"): ×
+      ;div.tx-detail-row.hidden(id "tx-detail-ship")
+        ;span.tx-detail-label(id "tx-detail-ship-label"): From
+        ;div.tx-detail-value-row
+          ;a.tx-detail-ship-link(id "tx-detail-ship-value", href "/grubbery/contacts")
+            ;svg.tx-detail-contact-icon(xmlns "http://www.w3.org/2000/svg", viewBox "0 0 24 24", width "14", height "14", fill "none", stroke "currentColor", stroke-width "2", stroke-linecap "round", stroke-linejoin "round")
+              ;path(d "M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2");
+              ;circle(cx "12", cy "7", r "4");
+            ==
+            ;span(id "tx-detail-ship-name");
+          ==
+        ==
+      ==
       ;div.tx-detail-row.hidden(id "tx-detail-addr")
-        ;span.tx-detail-label(id "tx-detail-addr-label"): From
+        ;span.tx-detail-label(id "tx-detail-addr-label"): Address
         ;div.tx-detail-value-row
           ;span.tx-detail-value(id "tx-detail-addr-value");
           ;button.tx-copy-btn(onclick "copyAddr(this, event)")
@@ -1009,6 +1022,10 @@
     ;   min-width: 0;
     ; }
     ; .tx-detail-value-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
+    ; .tx-detail-ship-link { display: flex; align-items: center; gap: 6px; color: var(--f1); text-decoration: none; font-size: 13px; font-weight: 500; }
+    ; .tx-detail-ship-link:hover { color: var(--accent); }
+    ; .tx-detail-contact-icon { flex-shrink: 0; color: var(--f4); }
+    ; .tx-detail-ship-link:hover .tx-detail-contact-icon { color: var(--accent); }
     ; .tx-explorer-link { flex-shrink: 0; font-size: 11px; color: var(--accent); text-decoration: none; }
     ; .tx-explorer-link:hover { text-decoration: underline; }
     ; .receive-close {
@@ -1351,11 +1368,22 @@
     ;   var txLink = document.getElementById('tx-detail-txid-link');
     ;   txLink.href = base + '/tx/' + txid;
     ;   txLink.classList.remove('hidden');
+    ;   var ship = row.dataset.ship;
+    ;   var addr = row.dataset.addr;
+    ;   var shipRow = document.getElementById('tx-detail-ship');
+    ;   if (ship) {
+    ;     shipRow.classList.remove('hidden');
+    ;     document.getElementById('tx-detail-ship-label').textContent = row.dataset.addrLabel;
+    ;     document.getElementById('tx-detail-ship-name').textContent = ship;
+    ;   } else {
+    ;     shipRow.classList.add('hidden');
+    ;   }
     ;   var addrRow = document.getElementById('tx-detail-addr');
     ;   var addrLink = document.getElementById('tx-detail-addr-link');
+    ;   var addrLabel = document.getElementById('tx-detail-addr-label');
     ;   if (addr) {
     ;     addrRow.classList.remove('hidden');
-    ;     document.getElementById('tx-detail-addr-label').textContent = row.dataset.addrLabel;
+    ;     addrLabel.textContent = ship ? 'Address' : row.dataset.addrLabel;
     ;     document.getElementById('tx-detail-addr-value').textContent = addr;
     ;     var aBtn = addrRow.querySelector('.tx-copy-btn');
     ;     if (aBtn) aBtn.dataset.txid = addr;
