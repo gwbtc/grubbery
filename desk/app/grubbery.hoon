@@ -263,6 +263,7 @@
     ::  Release snap, drop refs, cancel timer
     =.  snaps.remo  (~(del by snaps.remo) pin-key)
     =.  silo  (release-snap-refs:hc refs.u.pin)
+    =.  vale  (gc-vale-cache vale bins)
     =/  timer-wire=wire
       /behn/snap-pin/[(scot %uv snap-id.req)]/[(scot %p src.bowl)]
     =/  resp=transfer:remo:nexus
@@ -517,6 +518,7 @@
       `this
     ~&  >  [%snap-pin-expired snap-id ship refs=~(wyt in refs.u.snap)]
     =.  silo  (release-snap-refs:hc refs.u.snap)
+    =.  vale  (gc-vale-cache vale bins)
     =.  snaps.remo  (~(del by snaps.remo) snap-key)
     `this
   ?:  ?=([%behn %timer @ *] wire)
@@ -603,12 +605,8 @@
   |-
   ?~  lobes  silo
   =/  cur=lobe:clay  i.lobes
-  =/  jot  (~(get by jects.silo) cur)
-  =?  silo  &(?=(^ jot) (gth refs.u.jot 0))
-    silo(jects (~(put by jects.silo) cur u.jot(refs (dec refs.u.jot))))
-  =/  got  (~(get by nouns.silo) cur)
-  =?  silo  &(?=(^ got) (gth refs.u.got 0))
-    silo(nouns (~(put by nouns.silo) cur u.got(refs (dec refs.u.got))))
+  =.  silo  (~(drop-ject si:nexus silo) cur)
+  =.  silo  (~(drop si:nexus silo) cur)
   $(lobes t.lobes)
 ::  +discharge-peeks: sweep staged cross-ship peeks.  If a peek's refs
 ::  can now read the content it asked for — notify and remove.
@@ -660,6 +658,7 @@
   ::  Drop refs held for this peek's data
   ?>  ?=(^ snap.pk)
   =.  silo  (release-snap-refs refs.u.snap.pk)
+  =.  vale  (gc-vale-cache vale bins)
   $(entries t.entries)
 ::  +process-intake: handle inbound cross-ship responses.
 ::  +keep: register a remote watcher and send initial wave.
@@ -868,6 +867,7 @@
       ?~  kept  new-hist
       $(kept t.kept, new-hist (put:hon:hist:nexus new-hist key.i.kept val.i.kept))
     =.  born  (~(put bo:nexus now.bowl born) here new-hist)
+    =.  vale  (gc-vale-cache vale bins)
     this
   =/  drop=?
     ?-    -.lose
@@ -3474,6 +3474,7 @@
   =/  [=lobe:clay new-silo=silo:nexus new-sok=hist:nexus]
     (~(record si:nexus silo) raw p.bask marc-ckey gain new-cass file-cass sok)
   =.  silo  new-silo
+  =.  vale  (gc-vale-cache vale bins)
   =.  born  (~(put bo:nexus now.bowl born) here new-sok)
   ::  Populate vale cache so reads never miss
   ?:  =(marc-ckey 0v0)  this
@@ -3894,11 +3895,14 @@
     |=  $:  [=rail:tarball =build-result:build]
             [kz=keys:nexus acc=_refs bld=_builds]
         ==
+    ::  skip mimes — already handled in mime-files loop above
+    =/  sang=(unit sang:tarball)  (~(get ba:tarball src-ball) rail)
+    ?:  ?&(?=(^ sang) =([/ %mime] p.u.sang))
+      [kz acc bld]
     =/  stem=@ta  (strip-hoon:build name.rail)
     =/  =built:nexus
       ?:  ?=(%| -.build-result)
-        ~&  >>>  "build-code: FAILED {(spud (snoc path.rail name.rail))}"
-        %-  (slog p.build-result)
+        ~&  >>  "WARNING {(spud (snoc path.rail name.rail))} did not compile"
         [%tang p.build-result]
       =/  val-err=(unit tang)  (validate-build rail p.build-result)
       ?^  val-err
@@ -3923,8 +3927,9 @@
   ^-  vale:nexus
   %-  ~(gas by *vale:nexus)
   %+  skip  ~(tap by vale)
-  |=  [[* ckey=@uv] *]
-  !(~(has by bins) ckey)
+  |=  [[lob=lobe:clay ckey=@uv] *]
+  ::  drop if mark was removed or lobe was tombstoned from silo
+  |(!(~(has by bins) ckey) !(~(has by nouns.silo) lob))
 ::  Validate marks: for each changed mark in bin/mar/, build a vale gate
 ::  Walk ball under a code namespace, pruning at child code namespaces.
 ::  Returns all [fold lump] pairs governed by this code namespace —
