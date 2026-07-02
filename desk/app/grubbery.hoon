@@ -4577,8 +4577,7 @@
   =.  this  (ensure-dir /sys/ames/usergroups)
   =.  this  (ensure-dir /sys/ames/ships)
   =.  this  ensure-public-group
-  =.  this  (ensure-peer-ship our.bowl)
-  recompute-peer-weirs
+  (ensure-peer-ship our.bowl)
 ::  Ensure /sys/ames/usergroups/public/ exists with who.ships and how.weir.
 ::  The public group's weir applies to all foreign ships regardless of membership.
 ::
@@ -4745,39 +4744,6 @@
     |=  [name=@ta acc=weir:nexus]
     (union-weirs acc (fall (~(get by how) name) *weir:nexus))
   (union-weirs ship-weir public-weir)
-::  Recompute weirs for all foreign ship directories.
-::  Called when usergroup data changes. Lazily creates ship dirs
-::  for ships in usergroups that don't have dirs yet.
-::
-++  recompute-peer-weirs
-  ^+  this
-  =/  who=(map @ta (set @p))  read-peer-who
-  =/  how=(map @ta weir:nexus)  read-peer-how
-  =/  src=(map @p (set @ta))  (build-peer-src who)
-  ::  Collect all ships from usergroups + existing ship dirs
-  =/  all-members=(set @p)
-    %-  ~(gas in *(set @p))
-    %-  zing
-    %+  turn  ~(val by who)
-    |=  members=(set @p)
-    ~(tap in members)
-  =/  ships-ball=ball:tarball
-    (peek-ball-now /sys/ames/ships)
-  =/  existing=(set @p)
-    %-  ~(gas in *(set @p))
-    %+  murn  ~(tap in ~(key by dir.ships-ball))
-    |=(name=@ta (slaw %p name))
-  =/  all-ships=(list @p)  ~(tap in (~(uni in all-members) existing))
-  |-
-  ?~  all-ships  this
-  =/  =ship  i.all-ships
-  ?:  =(ship our.bowl)
-    $(all-ships t.all-ships)
-  =.  this  (ensure-peer-ship ship)
-  =/  =weir:nexus  (compute-peer-weir-from ship src how)
-  =.  this  (set-weir /sys/ames/ships/[(scot %p ship)] `weir)
-  =.  this  (sync-peer-man ship /sys/ames/ships/[(scot %p ship)])
-  $(all-ships t.all-ships)
 ::  /sys/eyre: ensure directory structure + register /grubbery/api
 ::
 ++  sync-eyre
@@ -5095,11 +5061,7 @@
   =.  this
     ?~  cod  this
     (build-code u.cod)
-  ::  Recompute peer weirs if usergroup data changed
-  ?.  ?=([%sys %ames %usergroups *] path.here)
-    this
-  ~&  >>  "save-file: usergroup changed, recomputing peer weirs"
-  recompute-peer-weirs
+  this
 ::
 ::  /sys/ namespace services
 ::  Grubs interact with vanes through /sys/ namespace pokes.
