@@ -101,7 +101,7 @@
       [%drop ~]                 :: unsubscribe from dest
       [%lose =lose]             :: drop hist entries, decrement silo refs
       [%gain flag=?]            :: set gain flag (recursive on directories)
-      [%firm ~]                 :: promote current %temp entry to %firm
+      [%firm ~]                 :: promote current entry to %firm
       [%seek =lobe:clay]        :: find all [rail cass] pairs with this hash
       [%peep =find]
       [%code ~]                 :: look up compiled artifacts at dest
@@ -330,8 +330,8 @@
 :: version history for files and directories
 ::
 +$  pace
-  $%  [%firm p=(unit lobe:clay)]
-      [%temp p=(unit lobe:clay)]
+  $%  [%firm tags=(set @t) p=(unit lobe:clay)]
+      [%temp tags=(set @t) p=(unit lobe:clay)]
       [%tomb ~]
   ==
 ++  hist
@@ -518,7 +518,7 @@
   =/  new-fold=cass:clay
     =/  nex-da=@da  ?:((lth da.old-fold now) now +(da.old-fold))
     [+(ud.old-fold) nex-da]
-  =/  =pace:hist  ?:(gain.tree [%firm `lobe] [%temp `lobe])
+  =/  =pace:hist  ?:(gain.tree [%firm ~ `lobe] [%temp ~ `lobe])
   =/  new-hist=hist
     (put:hon:hist tombed-fold new-fold pace)
   =.  born  (~(put of born) dir node(fold new-hist))
@@ -542,7 +542,7 @@
   ++  default-node
     ^-  [fold=hist file=(map @ta hist)]
     =/  zero=cass:clay  [0 now]
-    [[[zero [%temp ~]] ~ ~] ~]
+    [[[zero [%temp ~ ~]] ~ ~] ~]
   ::  Get hist for a file
   ::
   ++  get
@@ -586,7 +586,7 @@
     =/  existing=(unit hist)  (get here)
     ?~  existing
       =/  zero=cass:clay  [0 now]
-      (put here [[zero [%temp ~]] ~ ~])
+      (put here [[zero [%temp ~ ~]] ~ ~])
     (put here u.existing)
   --
 ::  +si: Pure operations on silo (content-addressed object store)
@@ -881,7 +881,7 @@
       (~(put-ject si new-silo) [%leaf noun-lobe [blot ckey] gain prev-bang])
     =/  [tombed-silo=^silo tombed-hist=^hist]
       (~(tomb-temp si newer-silo) hist file-cass)
-    =/  =pace:^hist  ?:(gain [%firm `ject-lobe] [%temp `ject-lobe])
+    =/  =pace:^hist  ?:(gain [%firm ~ `ject-lobe] [%temp ~ `ject-lobe])
     [noun-lobe tombed-silo (put:hon:^hist tombed-hist cass pace)]
   --
 ::  +stamp-mtimes: no-op (metadata removed from content)
@@ -1346,6 +1346,9 @@
           ?~  p.val  s+'deleted'
           s+(cat 3 'temp+' (scot %uv u.p.val))
           ==
+          :-  'tags'
+          ?:  ?=(%tomb -.val)  ~
+          a+(turn ~(tap in tags.val) |=(t=@t s+t))
       ==
   ==
 ::
@@ -1375,6 +1378,9 @@
                 ?~  p.val  s+'deleted'
                 s+(cat 3 'temp+' (scot %uv u.p.val))
                 ==
+                :-  'tags'
+                ?:  ?=(%tomb -.val)  ~
+                a+(turn ~(tap in tags.val) |=(t=@t s+t))
             ==
         ==
         :-  'file'

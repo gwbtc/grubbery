@@ -18,6 +18,7 @@
 +$  versioned-state
   $%  state-0:migrations
       state-1:migrations
+      state-2:migrations
   ==
 +$  card  card:agent:gall
 ++  kel  21.000.000 :: start big; burn many at once
@@ -44,7 +45,7 @@
   !>(..zuse)
 --
 ::
-=|  state-1:migrations
+=|  state-2:migrations
 =*  state  -
 ::
 =<
@@ -78,10 +79,10 @@
   =/  old  !<(versioned-state old-state)
   ?-    -.old
       %0
-    =.  state  (migrate-0-to-1:migrations old now.bowl eny.bowl)
-    =^  start-cards  state  abet:cold-start:hc
-    [start-cards this]
+    $(old-state !>((migrate-0-to-1:migrations old now.bowl eny.bowl)))
       %1
+    $(old-state !>((migrate-1-to-2:migrations old)))
+      %2
     =.  state  old
     =^  start-cards  state  abet:cold-start:hc
     [start-cards this]
@@ -871,13 +872,13 @@
       ?:  ?=(%tomb -.pv)  silo
       ?~  p.pv  silo
       (~(drop-ject si:nexus silo) u.p.pv)
-    ::  if tombstoning the top, append a new [%temp ~] wavefront
+    ::  if tombstoning the top, append a new [%temp ~ ~] wavefront
     =/  new-kept  [[key.i.entries [%tomb ~]] kept]
     ?.  =(key.i.entries (need (top:hist:nexus sk)))
       $(entries t.entries, kept new-kept)
     =/  new-cass=cass:clay
       (~(next-cass bo:nexus now.bowl born) key.i.entries)
-    $(entries t.entries, kept [[new-cass [%temp ~]] new-kept])
+    $(entries t.entries, kept [[new-cass [%temp ~ ~]] new-kept])
   $(entries t.entries, kept [i.entries kept])
 ::  Set gain flag on a lane: single file or recursive on directory.
 ::  For files, rewrites the leaf ject with the new gain flag.
@@ -911,7 +912,7 @@
       (~(put-ject si:nexus silo) [%leaf new-leaf])
     =.  silo  new-silo
     ::  Update hist to point to new ject lobe
-    =/  =pace:hist:nexus  ?:(flag [%firm `new-lobe] [%temp `new-lobe])
+    =/  =pace:hist:nexus  ?:(flag [%firm ~ `new-lobe] [%temp ~ `new-lobe])
     =/  new-hist=hist:nexus
       (put:hon:hist:nexus u.fh key.u.got pace)
     =.  born  (~(put bo:nexus now.bowl born) here new-hist)
@@ -928,10 +929,10 @@
     =.  this  (set-gain-lane &+[(weld p.lane pax.i.entries) i.files] flag)
     $(files t.files)
   ==
-::  Promote current %temp hist entry to %firm at a rail.
+::  Promote current hist entry to %firm at a rail, with optional tags.
 ::
 ++  firm-hist
-  |=  here=rail:tarball
+  |=  [here=rail:tarball tags=(set @t)]
   ^+  this
   =/  node=(unit [fold=hist:nexus file=(map @ta hist:nexus)])
     (~(get of born) path.here)
@@ -941,12 +942,20 @@
   =/  got=(unit [key=cass:clay val=pace:hist:nexus])
     (ram:hon:hist:nexus u.fh)
   ?~  got  this
-  ?.  ?=(%temp -.val.u.got)  this
-  ::  Promote %temp → %firm in hist
-  =/  new-hist=hist:nexus
-    (put:hon:hist:nexus u.fh key.u.got [%firm p.val.u.got])
-  =.  born  (~(put bo:nexus now.bowl born) here new-hist)
-  this
+  ?-    -.val.u.got
+      %tomb  this
+      %firm
+    ?:  =(tags tags.val.u.got)  this
+    =/  new-hist=hist:nexus
+      (put:hon:hist:nexus u.fh key.u.got val.u.got(tags (~(uni in tags.val.u.got) tags)))
+    =.  born  (~(put bo:nexus now.bowl born) here new-hist)
+    this
+      %temp
+    =/  new-hist=hist:nexus
+      (put:hon:hist:nexus u.fh key.u.got [%firm tags p.val.u.got])
+    =.  born  (~(put bo:nexus now.bowl born) here new-hist)
+    this
+  ==
 ::  Find all [rail cass] pairs in a subtree whose hist contains a lobe
 ::
 ++  seek-lobe
@@ -1622,7 +1631,7 @@
     (~(set-bang si:nexus silo) u.p.u.pv err)
   =/  new-cass=cass:clay  (~(next-cass bo:nexus now.bowl born) u.cas)
   =/  new-sok=hist:nexus
-    (put:hon:hist:nexus u.sok new-cass [%temp `new-lobe])
+    (put:hon:hist:nexus u.sok new-cass [%temp ~ `new-lobe])
   =.  silo  new-silo
   =.  born  (~(put bo:nexus now.bowl born) here new-sok)
   =/  old-born=born:nexus  born
@@ -1647,7 +1656,7 @@
     (~(set-bang si:nexus silo) u.p.u.pv err)
   =/  new-cass=cass:clay  (~(next-cass bo:nexus now.bowl born) u.cas)
   =/  new-fold=hist:nexus
-    (put:hon:hist:nexus fold.u.node new-cass [%temp `new-lobe])
+    (put:hon:hist:nexus fold.u.node new-cass [%temp ~ `new-lobe])
   =.  silo  new-silo
   =.  born  (~(put of born) dest u.node(fold new-fold))
   =/  old-born=born:nexus  born
@@ -1730,7 +1739,7 @@
     ?~  cleared  this
     =/  new-cass=cass:clay  (~(next-cass bo:nexus now.bowl born) u.fold-cas)
     =/  new-fold=hist:nexus
-      (put:hon:hist:nexus fold.u.fil.bor new-cass [%temp `lobe.u.cleared])
+      (put:hon:hist:nexus fold.u.fil.bor new-cass [%temp ~ `lobe.u.cleared])
     =.  silo  silo.u.cleared
     =.  born
       =/  node  (fall (~(get of born) pax) *[fold=hist:nexus file=(map @ta hist:nexus)])
@@ -1754,7 +1763,7 @@
     =/  here=rail:tarball  [pax name]
     =/  new-cass=cass:clay  (~(next-cass bo:nexus now.bowl born) u.cas)
     =/  new-sok=hist:nexus
-      (put:hon:hist:nexus sok new-cass [%temp `lobe.u.cleared])
+      (put:hon:hist:nexus sok new-cass [%temp ~ `lobe.u.cleared])
     =.  silo  silo.u.cleared
     =.  born  (~(put bo:nexus now.bowl born) here new-sok)
     $(files t.files)
@@ -1787,7 +1796,7 @@
   =.  this  (sub-wipe [dir name])
   ::  Snapshot before mutations
   =/  old-born=born:nexus  born
-  ::  Tomb previous %temp entry, then append [%temp ~] for deletion
+  ::  Tomb previous %temp entry, then append [%temp ~ ~] for deletion
   =/  sok=(unit hist:nexus)  (get-born [dir name])
   =.  this
     ?.  ?=(^ sok)  this
@@ -1795,7 +1804,7 @@
     =/  [tombed-silo=silo:nexus tombed-hist=hist:nexus]
       (~(tomb-temp si:nexus silo) u.sok file-cass)
     =/  new-cass=cass:clay  (~(next-cass bo:nexus now.bowl born) file-cass)
-    =/  new-sok=hist:nexus  (put:hon:hist:nexus tombed-hist new-cass [%temp ~])
+    =/  new-sok=hist:nexus  (put:hon:hist:nexus tombed-hist new-cass [%temp ~ ~])
     this(silo tombed-silo, born (~(put bo:nexus now.bowl born) [dir name] new-sok))
   =.  this  (propagate old-born [dir name])
   =/  old=pipe:nexus  (fall (~(get of pool) dir) *pipe:nexus)
@@ -2798,10 +2807,10 @@
       ==
       ::
         %firm
-      ::  Promote current %temp hist entry to %firm at a rail.
+      ::  Promote current hist entry to %firm.
       ?>  ?=(%& -.u.dest-lane)
       =/  res=(each _this tang)
-        (mule |.((firm-hist p.u.dest-lane)))
+        (mule |.((firm-hist p.u.dest-lane ~)))
       ?-  -.res
         %&  (enqu-take:p.res here (sys-give /firm) ~ %held wire.dart ~)
         %|  (enqu-take here (sys-give /firm) ~ %held wire.dart `p.res)
@@ -3597,7 +3606,7 @@
       (fall (~(get by dir.bol) i.all-kids) *bole:tarball)
     =.  this  ^$(here (snoc here i.all-kids), bol kid-bole)
     $(all-kids t.all-kids)
-  ::  2. Record files: store jects for bole files, [%temp ~] for stale
+  ::  2. Record files: store jects for bole files, [%temp ~ ~] for stale
   =/  new-files=(map @ta [=bask:tarball gain=?])
     ?~(fil.bol ~ contents.u.fil.bol)
   =/  new-names=(set @ta)  ~(key by new-files)
@@ -3632,7 +3641,7 @@
     ?:  &(?=(^ cur-pace) ?=(?(%temp %firm) -.u.cur-pace) =(~ p.u.cur-pace))
       $(to-delete t.to-delete)
     =/  new-cass=cass:clay  (next-cass:boo u.file-cas)
-    =/  new-sok=hist:nexus  (put:hon:hist:nexus u.sok new-cass [%temp ~])
+    =/  new-sok=hist:nexus  (put:hon:hist:nexus u.sok new-cass [%temp ~ ~])
     =.  born  (~(put bo:nexus now.bowl born) [here i.to-delete] new-sok)
     ::  Nack queued inputs and remove process for deleted file
     =/  del-rail=rail:tarball  [here i.to-delete]
@@ -3659,7 +3668,7 @@
       this
     =/  new-cass=cass:clay  (next-cass:boo u.fold-cas)
     =/  new-fold=hist:nexus
-      (put:hon:hist:nexus fold.u.fold-node new-cass [%temp ~])
+      (put:hon:hist:nexus fold.u.fold-node new-cass [%temp ~ ~])
     this(born (~(put of born) here u.fold-node(fold new-fold)))
   ::  Build tree: file lobes + child fold lobes from born
   =/  settled-born=born:nexus  (~(dip of born) here)

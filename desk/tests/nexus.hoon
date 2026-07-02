@@ -269,7 +269,7 @@
   !>  (get:b [/a/b %file])
 ::
 ++  test-bo-init-creates-zero-hist
-  ::  Init creates hist seeded with [%temp ~] at [0 now]
+  ::  Init creates hist seeded with [%temp ~ ~] at [0 now]
   =/  now=@da  ~2024.1.1
   =/  b  (make-bo now)
   =/  new-born=born:nexus  (init:b [/a/b %file])
@@ -280,7 +280,7 @@
     %+  expect-eq  !>(`@ud`0)  !>((ver:hist:nexus (need sok)))
     %+  expect-eq  !>(`@ud`1)  !>((lent (tap:hon:hist:nexus (need sok))))
     %+  expect-eq
-      !>  `(unit pace:hist:nexus)`[~ %temp ~]
+      !>  `(unit pace:hist:nexus)`[~ %temp ~ ~]
     !>  (get:hon:hist:nexus (need sok) [0 now])
   ==
 ::
@@ -479,7 +479,7 @@
     !>  ~(wyt by nouns.silo3)
   ::  Oldest entry has a live pace with an ject-lobe
     =/  oldest-pace=(unit pace:hist:nexus)  (get:hon:hist:nexus hist3 cass1)
-    %+  expect-eq  !>(%.y)  !>(?=([~ %temp [~ @]] oldest-pace))
+    %+  expect-eq  !>(%.y)  !>(?=([~ %temp ~ [~ @]] oldest-pace))
   ==
 ::
 ++  test-si-record-two-versions
@@ -575,7 +575,7 @@
   =/  =hist:nexus  ~
   |-
   ?~  entries  hist
-  $(entries t.entries, hist (put:hon:hist:nexus hist [ud.i.entries da.i.entries] [%temp `lobe.i.entries]))
+  $(entries t.entries, hist (put:hon:hist:nexus hist [ud.i.entries da.i.entries] [%temp ~ `lobe.i.entries]))
 ::
 ++  test-resolve-case-ud-exact
   ::  %ud finds exact revision number
@@ -584,7 +584,7 @@
   =/  lobe3=lobe:clay  `@uvI`(sham 'ccc')
   =/  hist  (make-hist ~[[1 ~2024.1.1 lobe1 [/ %txt]] [2 ~2024.1.2 lobe2 [/ %txt]] [3 ~2024.1.3 lobe3 [/ %txt]]])
   %+  expect-eq
-    !>  [[2 ~2024.1.2] [%temp `lobe2]]
+    !>  [[2 ~2024.1.2] [%temp ~ `lobe2]]
   !>  (resolve-case:nexus [%ud 2] hist)
 ::
 ++  test-resolve-case-ud-first
@@ -593,7 +593,7 @@
   =/  lobe2=lobe:clay  `@uvI`(sham 'bbb')
   =/  hist  (make-hist ~[[1 ~2024.1.1 lobe1 [/ %txt]] [2 ~2024.1.2 lobe2 [/ %txt]]])
   %+  expect-eq
-    !>  [[1 ~2024.1.1] [%temp `lobe1]]
+    !>  [[1 ~2024.1.1] [%temp ~ `lobe1]]
   !>  (resolve-case:nexus [%ud 1] hist)
 ::
 ++  test-resolve-case-ud-last
@@ -603,7 +603,7 @@
   =/  lobe3=lobe:clay  `@uvI`(sham 'ccc')
   =/  hist  (make-hist ~[[1 ~2024.1.1 lobe1 [/ %txt]] [2 ~2024.1.2 lobe2 [/ %txt]] [3 ~2024.1.3 lobe3 [/ %txt]]])
   %+  expect-eq
-    !>  [[3 ~2024.1.3] [%temp `lobe3]]
+    !>  [[3 ~2024.1.3] [%temp ~ `lobe3]]
   !>  (resolve-case:nexus [%ud 3] hist)
 ::
 ++  test-resolve-case-ud-not-found
@@ -622,7 +622,7 @@
   =/  lobe2=lobe:clay  `@uvI`(sham 'bbb')
   =/  hist  (make-hist ~[[1 ~2024.1.1 lobe1 [/ %txt]] [2 ~2024.1.2 lobe2 [/ %txt]]])
   %+  expect-eq
-    !>  [[2 ~2024.1.2] [%temp `lobe2]]
+    !>  [[2 ~2024.1.2] [%temp ~ `lobe2]]
   !>  (resolve-case:nexus [%da ~2024.1.2] hist)
 ::
 ++  test-resolve-case-da-between
@@ -633,7 +633,7 @@
   =/  hist  (make-hist ~[[1 ~2024.1.1 lobe1 [/ %txt]] [2 ~2024.3.1 lobe2 [/ %txt]] [3 ~2024.6.1 lobe3 [/ %txt]]])
   ::  Date between entry 1 and 2 should return lobe1
   %+  expect-eq
-    !>  [[1 ~2024.1.1] [%temp `lobe1]]
+    !>  [[1 ~2024.1.1] [%temp ~ `lobe1]]
   !>  (resolve-case:nexus [%da ~2024.2.1] hist)
 ::
 ++  test-resolve-case-da-after-all
@@ -642,7 +642,7 @@
   =/  lobe2=lobe:clay  `@uvI`(sham 'bbb')
   =/  hist  (make-hist ~[[1 ~2024.1.1 lobe1 [/ %txt]] [2 ~2024.3.1 lobe2 [/ %txt]]])
   %+  expect-eq
-    !>  [[2 ~2024.3.1] [%temp `lobe2]]
+    !>  [[2 ~2024.3.1] [%temp ~ `lobe2]]
   !>  (resolve-case:nexus [%da ~2025.1.1] hist)
 ::
 ++  test-resolve-case-da-before-all
@@ -691,10 +691,10 @@
   |=  [dir=path name=@ta =lobe:clay =blot:tarball file-cass=cass:clay]
   ^-  born:nexus
   =/  sok=hist:nexus
-    (put:hon:hist:nexus ~ file-cass [%temp `lobe])
+    (put:hon:hist:nexus ~ file-cass [%temp ~ `lobe])
   =/  zero=cass:clay  [0 ~2024.1.1]
   =/  node=[fold=hist:nexus file=(map @ta hist:nexus)]
-    [(put:hon:hist:nexus ~ zero [%temp ~]) (~(put by *(map @ta hist:nexus)) name sok)]
+    [(put:hon:hist:nexus ~ zero [%temp ~ ~]) (~(put by *(map @ta hist:nexus)) name sok)]
   (~(put of *born:nexus) dir node)
 ::
 ++  test-record-trees-single-file
@@ -753,7 +753,7 @@
   =/  born1-node  (need (get-node born1 /))
   =/  sok=hist:nexus  (~(got by file.born1-node) %myfile)
   =/  new-sok=hist:nexus
-    (put:hon:hist:nexus sok new-cass [%temp `lobe2])
+    (put:hon:hist:nexus sok new-cass [%temp ~ `lobe2])
   =/  born2=born:nexus
     (~(put of born1) / born1-node(file (~(put by file.born1-node) %myfile new-sok)))
   =/  [born3=born:nexus silo2=silo:nexus]
@@ -800,11 +800,11 @@
   |=  [=born:nexus dir=path name=@ta =lobe:clay =blot:tarball file-cass=cass:clay]
   ^-  born:nexus
   =/  sok=hist:nexus
-    (put:hon:hist:nexus ~ file-cass [%temp `lobe])
+    (put:hon:hist:nexus ~ file-cass [%temp ~ `lobe])
   =/  sub=born:nexus  (~(dip of born) dir)
   =/  node=[fold=hist:nexus file=(map @ta hist:nexus)]
     =/  zero=cass:clay  [0 ~2024.1.1]
-    (fall fil.sub [(put:hon:hist:nexus ~ zero [%temp ~]) ~])
+    (fall fil.sub [(put:hon:hist:nexus ~ zero [%temp ~ ~]) ~])
   (~(put of born) dir node(file (~(put by file.node) name sok)))
 ::
 ++  test-record-trees-multi-file
@@ -1074,7 +1074,7 @@
   =/  [lobe2=lobe:clay silo2=silo:nexus]  (put-ject:s2 [%tree tree2])
   =/  =hist:nexus
     %-  put:hon:hist:nexus
-    [(put:hon:hist:nexus ~ [1 ~2024.1.1] [%temp `lobe1]) [2 ~2024.1.2] [%temp `lobe2]]
+    [(put:hon:hist:nexus ~ [1 ~2024.1.1] [%temp ~ `lobe1]) [2 ~2024.1.2] [%temp ~ `lobe2]]
   =/  silo3=silo:nexus  (~(drop-hist si:nexus silo2) hist)
   %+  expect-eq  !>(`@ud`0)  !>(~(wyt by jects.silo3))
 --

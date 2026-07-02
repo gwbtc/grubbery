@@ -370,6 +370,16 @@
   ;<  =wire  bind:m  (nonce /poke)
   ;<  ~  bind:m  (send-dart %node wire road %poke bask)
   (take-pack wire)
+::  +checkpoint: promote current state to %firm
+::
+++  checkpoint
+  |=  =rail:tarball
+  =/  m  (fiber ,~)
+  ^-  form:m
+  ;<  =wire  bind:m  (nonce /firm)
+  ;<  ~  bind:m
+    (send-dart %node wire &+&+rail %firm ~)
+  (take-pack wire)
 ::
 ++  peek
   |=  [=road:tarball blot=(unit blot:tarball)]
