@@ -34,7 +34,7 @@
         30
       (rash p.u.timeout-json dem)
     =/  timeout=@dr  (mul timeout-seconds ~s1)
-    ;<  initial=cass:clay  bind:m  (scry:io cass:clay /cw/[mount-point])
+    ;<  initial=cass:clay  bind:m  (clay-case:io mount-point)
     =/  commit-data=json
       %-  pairs:enjs:format
       :~  ['initial-ud' (numb:enjs:format ud.initial)]

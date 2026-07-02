@@ -67,6 +67,14 @@
       [%tomb ~]
   ==
 +$  seen  (each view tang)
++$  cite
+  $%  [%file =cass:clay =lobe:clay conv=(unit blot:tarball)]
+      [%ball =wave =lobe:clay deep=?]
+      [%none ~]
+      [%miss ~]
+      [%veto ~]
+      [%tomb ~]
+  ==
 :: dart payload
 ::
 +$  case  $%([%ud p=@ud] [%da p=@da])
@@ -203,13 +211,37 @@
         [%font =wire res=(unit (unit bend:tarball))]  :: ~: blocked, [~ ~]: none, [~ ~ bend]: found
         [%here =wire =here]
     ==
+  ::  +$  pend: cold intake for queuing. No vases — lobes and ckeys only.
+  ::  Hydrated to intake at consumption time.
+  ::
+  +$  pend
+    $%  [%poke =from =bask:tarball]
+        [%peek =wire cite=(each cite tang)]
+        [%peep =wire res=(each (list [=cass:clay =lobe:clay]) tang)]
+        [%code =wire res=(each (axal (map @ta @uv)) (each @uv tang))]
+        [%news =wire =wave]
+        [%kept =wire =kept]
+        [%made =wire err=(unit tang)]
+        [%gone =wire err=(unit tang)]
+        [%pack =wire err=(unit tang)]
+        [%sand =wire err=(unit tang)]
+        [%load =wire err=(unit tang)]
+        [%lost =wire err=(unit tang)]
+        [%gain =wire err=(unit tang)]
+        [%held =wire err=(unit tang)]
+        [%seek =wire res=(each (list [=rail:tarball =cass:clay]) tang)]
+        [%fell =wire]
+        [%veto =dart]
+        [%font =wire res=(unit (unit bend:tarball))]
+        [%here =wire =here]
+    ==
   ::
   +$  input
     $:  state=vase       :: state for which we are responsible
         in=(unit intake) :: command/response/data to ingest (null means start)
     ==
   ::
-  +$  take  [=give in=(unit intake)]
+  +$  take  [=give in=(unit pend)]
   :: Three situations for process initialization
   ::
   +$  prod  (unit tang)    :: ~ = clean start, [~ tang] = crash recovery

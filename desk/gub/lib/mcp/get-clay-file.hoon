@@ -28,11 +28,11 @@
   ?~  dek
     (pure:m [%error (crip "Invalid desk name: {(trip u.desk)}")])
   =/  pax=path  (stab u.file-path)
-  ;<  has=?  bind:m  (scry:io ? (weld /cu/[u.dek] pax))
+  ;<  has=?  bind:m  (clay-exists:io u.dek pax)
   ?.  has
     (pure:m [%error 'File not found'])
-  ;<  =vase  bind:m  (scry:io vase (weld /cr/[u.dek] pax))
-  =/  =tang  (pretty-file:pretty-file:tools !<(noun vase))
+  ;<  content=*  bind:m  (clay-read:io u.dek pax)
+  =/  =tang  (pretty-file:pretty-file:tools content)
   =/  =wain
     %-  zing
     %+  turn  tang

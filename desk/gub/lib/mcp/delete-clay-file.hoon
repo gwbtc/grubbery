@@ -45,10 +45,10 @@
     ?~  pax
       (pure:m [%error 'Empty path'])
     ::  Verify file exists before deleting
-    ;<  has=?  bind:m  (scry:io ? (weld /cu/[dek] pax))
+    ;<  has=?  bind:m  (clay-exists:io dek pax)
     ?.  has
       (pure:m [%error (crip "File not found: {(trip file-path)}")])
-    ;<  initial=cass:clay  bind:m  (scry:io cass:clay /cw/[dek])
+    ;<  initial=cass:clay  bind:m  (clay-case:io dek)
     =/  write-data=json
       %-  pairs:enjs:format
       :~  ['initial-ud' (numb:enjs:format ud.initial)]

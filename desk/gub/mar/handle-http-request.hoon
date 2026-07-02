@@ -1,7 +1,7 @@
-|_  req=[@ta request-line:server inbound-request:eyre]
+|_  req=[@ta @p inbound-request:eyre]
 ++  grab
   |%
-  ++  noun  ,[@ta request-line:server inbound-request:eyre]
+  ++  noun  ,[@ta @p inbound-request:eyre]
   --
 ++  grow
   |%

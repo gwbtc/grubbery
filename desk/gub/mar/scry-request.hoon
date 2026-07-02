@@ -1,12 +1,12 @@
-::  scry-request: scry path request
+::  scry-request: scry request with expected response mark
 ::
-|_  pat=path
+|_  req=[@tas path]
 ++  grab
   |%
-  ++  noun  ,path
+  ++  noun  ,[@tas path]
   --
 ++  grow
   |%
-  ++  noun  pat
+  ++  noun  req
   --
 --

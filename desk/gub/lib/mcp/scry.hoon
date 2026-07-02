@@ -42,16 +42,16 @@
   ?+  mark
     (pure:m [%error (crip "Unsupported scry mark: %{(trip mark)}. Use /json, /txt, /hoon, or /mime.")])
       %json
-    ;<  result=json  bind:m  (scry:io json pax)
+    ;<  result=json  bind:m  (typed-scry:io json %json pax)
     (pure:m [%text (en:json:html result)])
       %txt
-    ;<  result=wain  bind:m  (scry:io wain pax)
+    ;<  result=wain  bind:m  (typed-scry:io wain %txt pax)
     (pure:m [%text (of-wain:format result)])
       %hoon
-    ;<  result=@t  bind:m  (scry:io @t pax)
+    ;<  result=@t  bind:m  (typed-scry:io @t %hoon pax)
     (pure:m [%text result])
       %mime
-    ;<  result=mime  bind:m  (scry:io mime pax)
+    ;<  result=mime  bind:m  (typed-scry:io mime %mime pax)
     (pure:m [%text (crip (trip q.q.result))])
   ==
 --

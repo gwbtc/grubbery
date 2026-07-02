@@ -54,7 +54,7 @@
     ?~  remaining
       ?~  instructions
         (pure:m [%error 'no valid edits to apply'])
-      ;<  initial=cass:clay  bind:m  (scry:io cass:clay /cw/[dek])
+      ;<  initial=cass:clay  bind:m  (clay-case:io dek)
       =/  ins=(list [path %ins @tas *])
         %+  turn  (flop instructions)
         |=  [pax=path mark=@tas blob=*]
@@ -105,11 +105,11 @@
     =/  mark=@tas  (rear pax)
     ?.  ?=(?(%hoon %json %html %css %js %md %txt) mark)
       (pure:m [%error (crip "Unsupported mark: %{(trip mark)}. Use hoon, json, html, css, js, md, or txt.")])
-    ;<  has=?  bind:m  (scry:io ? (weld /cu/[dek] pax))
+    ;<  has=?  bind:m  (clay-exists:io dek pax)
     ?.  has
       (pure:m [%error (crip "File not found: {(trip file-path.u.parsed)}")])
-    ;<  =vase  bind:m  (scry:io vase (weld /cr/[dek] pax))
-    =/  =tang  (pretty-file:pretty-file:tools !<(noun vase))
+    ;<  content=*  bind:m  (clay-read:io dek pax)
+    =/  =tang  (pretty-file:pretty-file:tools content)
     =/  =wain
       %-  zing
       %+  turn  tang

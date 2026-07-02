@@ -2,7 +2,7 @@
 /+  default-agent, dbug, tarball, nexus,
     server, multipart, http-utils, html-utils, json-utils,
     marks, build, fiberio, loader, cram, pretty-file, zlib, bytestream,
-    root, web-push
+    root, web-push, migrations
 /=  t-  /tests/nexus
 /=  t-  /tests/tarball
 /=  t-  /tests/build
@@ -16,22 +16,10 @@
 /=  m-  /mar/grubbery-intake
 |%
 +$  versioned-state
-  $%  state-0
+  $%  state-0:migrations
+      state-1:migrations
   ==
 +$  card  card:agent:gall
-+$  state-0
-  $:  %0
-      =born:nexus
-      =silo:nexus
-      =subs:nexus
-      =pool:nexus
-      =code:nexus
-      =bins:nexus
-      =vale:nexus
-      =remo:nexus
-      =upki:nexus
-      last=[now=@da eny=@uvJ]
-  ==
 ++  kel  21.000.000 :: start big; burn many at once
 ++  sut
   :: Need to determine how much actually needs to be in here...
@@ -56,7 +44,7 @@
   !>(..zuse)
 --
 ::
-=|  state-0
+=|  state-1:migrations
 =*  state  -
 ::
 =<
@@ -90,6 +78,10 @@
   =/  old  !<(versioned-state old-state)
   ?-    -.old
       %0
+    =.  state  (migrate-0-to-1:migrations old now.bowl eny.bowl)
+    =^  start-cards  state  abet:cold-start:hc
+    [start-cards this]
+      %1
     =.  state  old
     =^  start-cards  state  abet:cold-start:hc
     [start-cards this]
@@ -317,7 +309,7 @@
     =/  =give:nexus  [|+[src.bowl /eyre] /[eyre-id]]
     =/  new-st  st(conns (~(put by conns.st) eyre-id binding.u.match))
     =^  cards  state
-      abet:(poke:(save-server-state:hc new-st) give handler.u.match [[/ %handle-http-request] !>([eyre-id src.bowl req])])
+      abet:(poke:(save-server-state:hc new-st) give handler.u.match [[/ %handle-http-request] [eyre-id src.bowl req]])
     [cards this]
       ::
       %refresh-sessions
@@ -399,7 +391,7 @@
       (fall (~(get by bindings.new-st) u.conn-binding) *rail:tarball)
     =/  =give:nexus  [|+[our.bowl /eyre] /cancel/[eyre-id]]
     =^  cards  state
-      abet:(poke:(save-server-state:hc new-st) give handler [[/ %handle-http-cancel] !>(eyre-id)])
+      abet:(poke:(save-server-state:hc new-st) give handler [[/ %handle-http-cancel] eyre-id])
     [cards this]
   ==
 ::
@@ -632,28 +624,19 @@
   ::  All refs present — discharge: build view from snap+silo,
   ::  send %peek intake to the requesting fiber.
   ~&  >  [%peek-discharged ship.pk dest.pk key=key peeks-remaining=~(wyt by peeks.remo)]
-  =/  =seen:nexus
+  =/  cit=(each cite:nexus tang)
     ?:  ?=(%tomb -.pace.u.snap.pk)  &+[%none ~]
     ?~  p.pace.u.snap.pk  &+[%none ~]
     ?-  -.dest.pk
-        %|
-      ::  Directory: build ball from snap's pace lobe
-      =/  sub-ball
-        ?:  deep.pk
-          (peek-ball u.p.pace.u.snap.pk)
-        (peek-ball-shallow u.p.pace.u.snap.pk)
-      &+[%ball *wave:nexus sub-ball]
-        %&
-      ::  File: read content from silo via snap's pace
-      =/  jot  (~(get by jects.silo) u.p.pace.u.snap.pk)
-      ?~  jot  &+[%none ~]
-      =/  jt=ject:nexus  ject.u.jot
-      ?.  ?=(%leaf -.jt)  &+[%none ~]
-      =/  got=(unit noun)  (~(get si:nexus silo) lobe.leaf.jt)
-      ?~  got  &+[%none ~]
-      &+[%file cass.u.snap.pk [blot.mark.leaf.jt %| [~ u.got]]]
+      %|  &+[%ball *wave:nexus u.p.pace.u.snap.pk deep.pk]
+      %&  &+[%file cass.u.snap.pk u.p.pace.u.snap.pk blot.pk]
     ==
-  =.  this  (enqu-take rail.key (sys-give /peek) ~ %peek wire.key seen)
+  ::  Bump silo ref for data-carrying cites
+  =?  silo  ?=([%& %ball *] cit)
+    (~(bump-ject-ref si:nexus silo) lobe.p.cit)
+  =?  silo  ?=([%& %file *] cit)
+    (~(bump-ref si:nexus silo) lobe.p.cit)
+  =.  this  (enqu-take rail.key (sys-give /peek) ~ %peek wire.key cit)
   =.  peeks.remo  (~(del by peeks.remo) key)
   ::  Drop refs held for this peek's data
   ?>  ?=(^ snap.pk)
@@ -1027,7 +1010,7 @@
   this(cards (welp (flop cadz) cards))
 ::
 ++  enqu-take
-  |=  [here=rail:tarball =give:nexus in=(unit intake:fiber:nexus)]
+  |=  [here=rail:tarball =give:nexus in=(unit pend:fiber:nexus)]
   this(takes (~(put to takes) [here give in]))
 ::  Generate a system give (for internal system operations)
 ::
@@ -1438,13 +1421,6 @@
 ++  peek-grub-now
   |=  =rail:tarball
   ^-  (unit sang:tarball)
-  ::  Virtual bowl values — always fresh, never persisted
-  ?:  =(/sys/bowl path.rail)
-    ?+  name.rail  ~
-      %now  `[[/ %time] %& !>(now.last)]
-      %eny  `[[/ %entropy] %& !>(eny.last)]
-      %our  `[[/ %ship] %& !>(our.bowl)]
-    ==
   =/  node=(unit [fold=hist:nexus file=(map @ta hist:nexus)])
     (~(get of born) path.rail)
   ?~  node  ~
@@ -1882,8 +1858,29 @@
   ^+  this
   ?:  =(~ takes)  this
   =^  =take:fiber:nexus  takes  ~(get to takes)
+  =.  this  (drop-pend-refs in.take)
   =.  this  (give-poke-sign here [take `err])
   $(takes takes)
+::  Drop silo refs held by lobes in a pend
+::
+++  drop-pend-refs
+  |=  in=(unit pend:fiber:nexus)
+  ^+  this
+  ?~  in  this
+  ?+  -.u.in  this
+      %peek
+    ?.  ?=(%& -.cite.u.in)  this
+    ?+  -.p.cite.u.in  this
+      %file  this(silo (~(drop si:nexus silo) lobe.p.cite.u.in))
+      %ball  this(silo (~(drop-ject si:nexus silo) lobe.p.cite.u.in))
+    ==
+      %peep
+    ?.  ?=(%& -.res.u.in)  this
+    =-  this(silo -)
+    %+  roll  p.res.u.in
+    |=  [[* =lobe:clay] acc=silo:nexus]
+    (~(drop si:nexus acc) lobe)
+  ==
 ::  Nack all queued pokes in a pool subtree
 ::
 ++  nack-pool
@@ -2469,48 +2466,39 @@
       ::  Poke destination must be a file
       ?>  ?=(%& -.u.dest-lane)
       =/  dest=rail:tarball  p.u.dest-lane
-      ::  Clam poke bask at destination via governing marc
-      =^  validated=(each vase tang)  this
-        (validate-cached path.dest p.bask.load.dart q.bask.load.dart)
-      ?:  ?=(%| -.validated)
-        =/  err=tang  [[leaf+"poke-validate-failed: {<p.bask.load.dart>} -> {(spud (snoc path.dest name.dest))}"] p.validated]
-        =/  spool-got  (build-spool dest)
-        =/  spool-res=(each spool:fiber:nexus tang)
-          (mule |.((fall spool-got default-spool)))
-        ?:  ?=(%| -.spool-res)
-          (bang-file dest p.spool-res)
-        =/  proc-res=(each process:fiber:nexus tang)
-          (mule |.((p.spool-res `err)))
-        ?:  ?=(%| -.proc-res)
-          (bang-file dest p.proc-res)
-        =.  this  (store-proc dest [&+p.proc-res ~ ~])
-        (enqu-take here (sys-give /poke) ~ %pack wire.dart `err)
-      =/  =sage:tarball  [p.bask.load.dart p.validated]
-      ::  /sys/behn/ timer service: intercept timer-set pokes
-      ?:  ?&  =([/sys/behn %'main.timer-state'] dest)
-              =([/ %timer-set] p.sage)
-          ==
-        =.  this  (handle-timer-set here wire.dart q.sage)
-        (enqu-take here (sys-give /behn) ~ %pack wire.dart ~)
-      ::  /sys/eyre/ HTTP service: intercept eyre-action pokes
-      ?:  ?&  =([/sys/eyre %'main.server-state'] dest)
-              =([/ %eyre-action] p.sage)
-          ==
-        =.  this  (handle-eyre-action here wire.dart q.sage)
-        (enqu-take here (sys-give /eyre) ~ %pack wire.dart ~)
-      ::  /sys/push/ push service: intercept push-action pokes
-      ?:  ?&  =([/sys/push %'main.push-state'] dest)
-              =([/ %push-action] p.sage)
-          ==
-        =.  this  (handle-push-action here wire.dart q.sage)
-        (enqu-take here (sys-give /push) ~ %pack wire.dart ~)
-      ::  /sys/ namespace services: general dispatch
-      =/  sys=(unit _this)
-        (handle-sys-poke dest here wire.dart sage)
-      ?^  sys  u.sys
-      ::  Poke with return address (relativize source for fiber intake)
+      ::  /sys/ intercepts: validate and consume immediately
+      ?:  ?=([%sys *] path.dest)
+        =^  validated=(each vase tang)  this
+          (validate-cached path.dest p.bask.load.dart q.bask.load.dart)
+        ?:  ?=(%| -.validated)
+          ::  No marc or validation failed — fall through to general poke
+          =/  rel=from:fiber:nexus  (relativize-from:nexus dest &+here)
+          (enqu-take dest [&+here wire.dart] ~ %poke rel bask.load.dart)
+        =/  =sage:tarball  [p.bask.load.dart p.validated]
+        ?:  ?&  =([/sys/behn %'main.timer-state'] dest)
+                =([/ %timer-set] p.sage)
+            ==
+          =.  this  (handle-timer-set here wire.dart q.sage)
+          (enqu-take here (sys-give /behn) ~ %pack wire.dart ~)
+        ?:  ?&  =([/sys/eyre %'main.server-state'] dest)
+                =([/ %eyre-action] p.sage)
+            ==
+          =.  this  (handle-eyre-action here wire.dart q.sage)
+          (enqu-take here (sys-give /eyre) ~ %pack wire.dart ~)
+        ?:  ?&  =([/sys/push %'main.push-state'] dest)
+                =([/ %push-action] p.sage)
+            ==
+          =.  this  (handle-push-action here wire.dart q.sage)
+          (enqu-take here (sys-give /push) ~ %pack wire.dart ~)
+        =/  sys=(unit _this)
+          (handle-sys-poke dest here wire.dart sage)
+        ?^  sys  u.sys
+        ::  /sys/ poke not intercepted — enqueue as bask
+        =/  rel=from:fiber:nexus  (relativize-from:nexus dest &+here)
+        (enqu-take dest [&+here wire.dart] ~ %poke rel bask.load.dart)
+      ::  General poke: enqueue as bask, validate at consumption
       =/  rel=from:fiber:nexus  (relativize-from:nexus dest &+here)
-      (enqu-take dest [&+here wire.dart] ~ %poke rel sage)
+      (enqu-take dest [&+here wire.dart] ~ %poke rel bask.load.dart)
       ::
         %make
       ::  Create file or directory.
@@ -2592,16 +2580,22 @@
         =/  sub-born=born:nexus  (~(dip of born) dest)
         ?:  &(=(~ fil.sub-born) =(~ dir.sub-born))
           (enqu-take here (sys-give /peek) ~ %peek wire.dart &+[%none ~])
-        =/  sub-ball
-          ?:  deep.load.dart
-            (peek-ball-now dest)
-          (peek-ball-shallow-now dest)
-        ::  Inject root weir from parent's tree entry
-        =/  sub-ball
-          =/  root-weir=(unit weir:nexus)  (peek-weir dest)
-          =/  root-fil=lump:tarball  (fall fil.sub-ball [~ ~ %.n ~ ~])
-          sub-ball(fil `root-fil(weir root-weir))
-        (enqu-take here (sys-give /peek) ~ %peek wire.dart %& %ball (wave-from-born:nexus sub-born) sub-ball)
+        ::  Get root tree ject lobe from born fold hist
+        =/  node=(unit [fold=hist:nexus file=(map @ta hist:nexus)])
+          fil.sub-born
+        =/  root-lobe=(unit lobe:clay)
+          ?~  node  ~
+          =/  got=(unit [key=cass:clay val=pace:hist:nexus])
+            (ram:hon:hist:nexus fold.u.node)
+          ?~  got  ~
+          ?:  ?=(%tomb -.val.u.got)  ~
+          p.val.u.got
+        ?~  root-lobe
+          (enqu-take here (sys-give /peek) ~ %peek wire.dart &+[%none ~])
+        ::  Bump ref to keep tree alive while queued
+        =.  silo  (~(bump-ject-ref si:nexus silo) u.root-lobe)
+        =/  =wave:nexus  (wave-from-born:nexus sub-born)
+        (enqu-take here (sys-give /peek) ~ %peek wire.dart &+[%ball wave u.root-lobe deep.load.dart])
         ::
           %&
         =/  dest=rail:tarball  p.u.dest-lane
@@ -2613,46 +2607,25 @@
         =/  sk=hist:nexus
           ?~  node  *hist:nexus
           (fall (~(get by file.u.node) name.dest) *hist:nexus)
-        ::  Resolve source: historical bask from silo or current sang from ball
-        =/  source=(unit sang:tarball)
+        ::  Resolve lobe: historical from silo or current from born
+        =/  src-lobe=(unit lobe:clay)
           ?^  case.load.dart
             =/  [* =pace:hist:nexus]
               (resolve-case:nexus u.case.load.dart sk)
             ?:  ?=(%tomb -.pace)  ~
-            ?~  p.pace  ~
-            =/  jot  (~(get by jects.silo) u.p.pace)
-            ?~  jot  ~
-            =/  jt=ject:nexus  ject.u.jot
-            ?.  ?=(%leaf -.jt)  ~
-            =/  got=(unit noun)  (~(get si:nexus silo) lobe.leaf.jt)
-            ?~  got  ~
-            ::  Validate bask back to sang
-            =/  res  (validate-bask cod [blot.mark.leaf.jt u.got])
-            ?:  ?=(%| -.res)
-              `[blot.mark.leaf.jt %| [p.res u.got]]
-            `(sage-to-sang:tarball p.res)
-          ?~  content  ~
-          `u.content
-        ?~  source
+            p.pace
+          ::  Current: get lobe from born pace
+          =/  got=(unit [key=cass:clay val=pace:hist:nexus])
+            (ram:hon:hist:nexus sk)
+          ?~  got  ~
+          ?:  ?=(%tomb -.val.u.got)  ~
+          p.val.u.got
+        ?~  src-lobe
           (enqu-take here (sys-give /peek) ~ %peek wire.dart &+[%none ~])
-        ::  Boom content passes through as-is
-        ?:  (is-boom:tarball u.source)
-          (enqu-take here (sys-give /peek) ~ %peek wire.dart %& %file (fall (top:hist:nexus sk) *cass:clay) u.source)
-        ::  Validate peek result
-        =/  =sage:tarball  (need-sage:tarball u.source)
-        =/  clammed=sage:tarball
-          =^  validated=(each vase tang)  this
-            (validate-cached cod p.sage q.q.sage)
-          ?:  ?=(%| -.validated)
-            ~|(%peek-clam-failed !!)
-          [p.sage p.validated]
-        ::  Apply mark conversion if requested
-        =/  result=sang:tarball
-          ?~  blot.load.dart  (sage-to-sang:tarball clammed)
-          ?:  =(p.clammed u.blot.load.dart)  (sage-to-sang:tarball clammed)
-          =/  =tube:clay  (get-tube cod [p.clammed u.blot.load.dart])
-          (sage-to-sang:tarball [p.clammed (tube q.clammed)])
-        (enqu-take here (sys-give /peek) ~ %peek wire.dart %& %file (fall (top:hist:nexus sk) *cass:clay) result)
+        ::  Bump silo ref to keep noun alive while queued
+        =.  silo  (~(bump-ref si:nexus silo) u.src-lobe)
+        =/  =cass:clay  (fall (top:hist:nexus sk) *cass:clay)
+        (enqu-take here (sys-give /peek) ~ %peek wire.dart &+[%file cass u.src-lobe blot.load.dart])
       ==
       ::
         %code
@@ -2667,22 +2640,11 @@
           ?~  pax  ~
           $(pax (snip `path`pax))
         ?~  nex
-          (enqu-take here (sys-give /code) ~ %code wire.dart |+[%tang ~[leaf+"code: no code nexus at {(spud dest)}"]])
+          (enqu-take here (sys-give /code) ~ %code wire.dart |+|+~[leaf+"code: no code nexus at {(spud dest)}"])
         =/  =lode:nexus  (~(got by code) u.nex)
         =/  inner=fold:tarball  (slag (lent u.nex) dest)
         =/  sub-refs=refs:nexus  (~(dip of refs.lode) inner)
-        =/  materialized=(axal (map @ta built:nexus))
-          %+  roll  ~(tap of sub-refs)
-          |=  [[pax=path node=(map @ta @uv)] acc=(axal (map @ta built:nexus))]
-          =/  resolved=(map @ta built:nexus)
-            %-  ~(gas by *(map @ta built:nexus))
-            %+  murn  ~(tap by node)
-            |=  [nam=@ta key=@uv]
-            =/  entry=(unit [refs=@ud =built:nexus])  (~(get by bins) key)
-            ?~  entry  ~
-            `[nam built.u.entry]
-          (~(put of acc) pax resolved)
-        (enqu-take here (sys-give /code) ~ %code wire.dart &+materialized)
+        (enqu-take here (sys-give /code) ~ %code wire.dart &+sub-refs)
         ::
           %&
         =/  dest=rail:tarball  p.u.dest-lane
@@ -2692,29 +2654,29 @@
           ?~  pax  ~
           $(pax (snip `path`pax))
         ?~  nex
-          (enqu-take here (sys-give /code) ~ %code wire.dart |+[%tang ~[leaf+"code: no code nexus at {(spud path.dest)}"]])
+          (enqu-take here (sys-give /code) ~ %code wire.dart |+|+~[leaf+"code: no code nexus at {(spud path.dest)}"])
         =/  =lode:nexus  (~(got by code) u.nex)
         =/  inner=path  (slag (lent u.nex) path.dest)
         =/  node=(unit (map @ta @uv))  (~(get of refs.lode) inner)
-        =/  hit=(unit built:nexus)
+        =/  ckey=(unit @uv)
           ?~  node  ~
-          =/  ckey=(unit @uv)  (~(get by u.node) name.dest)
-          ?~  ckey  ~
-          =/  entry=(unit [refs=@ud =built:nexus])  (~(get by bins) u.ckey)
-          ?~  entry  ~
-          `built.u.entry
-        ?^  hit
-          (enqu-take here (sys-give /code) ~ %code wire.dart |+u.hit)
+          (~(get by u.node) name.dest)
+        ?^  ckey
+          (enqu-take here (sys-give /code) ~ %code wire.dart |+&+u.ckey)
         ::  Tube requests: /tub/from/to — resolve via marc grow gate
         ?.  ?=([%tub @ ~] inner)
-          (enqu-take here (sys-give /code) ~ %code wire.dart |+[%tang ~[leaf+"code: {(trip name.dest)} not found at {(spud path.dest)}"]])
+          (enqu-take here (sys-give /code) ~ %code wire.dart |+|+~[leaf+"code: {(trip name.dest)} not found at {(spud path.dest)}"])
         =/  from=blot:tarball  [/ i.t.inner]
         =/  to=blot:tarball  [/ name.dest]
         =/  tube-res=(each tube:clay tang)
           (mule |.((grow:(get-marc (snip `path`u.nex) from) to)))
         ?:  ?=(%| -.tube-res)
-          (enqu-take here (sys-give /code) ~ %code wire.dart |+[%tang p.tube-res])
-        (enqu-take here (sys-give /code) ~ %code wire.dart |+[%vase !>(p.tube-res)])
+          (enqu-take here (sys-give /code) ~ %code wire.dart |+|+p.tube-res)
+        ::  Store tube in bins so it can be referenced by ckey
+        =/  =built:nexus  [%vase !>(p.tube-res)]
+        =/  tube-ckey=@uv  (sham built)
+        =.  bins  (~(put by bins) tube-ckey [1 built])
+        (enqu-take here (sys-give /code) ~ %code wire.dart |+&+tube-ckey)
       ==
       ::
         %font
@@ -2787,10 +2749,10 @@
         (enqu-take here (sys-give /peep) ~ %peep wire.dart |+~[leaf+"no history for {(spud (snoc path.dest name.dest))}"])
       =/  entries=(list [key=cass:clay val=pace:hist:nexus])
         (tap:hon:hist:nexus u.sk)
-      =/  hits=(list [cass:clay sage:tarball])
+      =/  hits=(list [cass:clay lobe:clay])
         %+  murn  entries
         |=  [key=cass:clay val=pace:hist:nexus]
-        ^-  (unit [cass:clay sage:tarball])
+        ^-  (unit [cass:clay lobe:clay])
         =/  match=?
           ?-    -.find.load.dart
               %pick
@@ -2807,15 +2769,12 @@
         ?.  match  ~
         ?:  ?=(%tomb -.val)  ~
         ?~  p.val  ~
-        =/  jot  (~(get by jects.silo) u.p.val)
-        ?~  jot  ~
-        =/  jt=ject:nexus  ject.u.jot
-        ?.  ?=(%leaf -.jt)  ~
-        =/  got=(unit noun)  (~(get si:nexus silo) lobe.leaf.jt)
-        ?~  got  ~
-        =/  res  (validate-bask cod [blot.mark.leaf.jt u.got])
-        ?:  ?=(%| -.res)  ~
-        `[key p.res]
+        `[key u.p.val]
+      ::  Bump silo refs for all matched lobes
+      =.  silo
+        %+  roll  hits
+        |=  [[* =lobe:clay] acc=silo:nexus]
+        (~(bump-ref si:nexus acc) lobe)
       (enqu-take here (sys-give /peep) ~ %peep wire.dart &+hits)
       ::
         %lose
@@ -2945,6 +2904,121 @@
     [%& p.res this]
   [%| p.res]
 ::
+++  hydrate
+  |=  [cod=path in=(unit pend:fiber:nexus)]
+  ^-  [(unit intake:fiber:nexus) _this]
+  ?~  in  [~ this]
+  ?-    -.u.in
+      %news   [`u.in this]
+      %kept   [`u.in this]
+      %made   [`u.in this]
+      %gone   [`u.in this]
+      %pack   [`u.in this]
+      %sand   [`u.in this]
+      %load   [`u.in this]
+      %lost   [`u.in this]
+      %gain   [`u.in this]
+      %held   [`u.in this]
+      %seek   [`u.in this]
+      %fell   [`u.in this]
+      %veto   [`u.in this]
+      %font   [`u.in this]
+      %here   [`u.in this]
+      %poke
+    ::  bask → sage: validate noun through compiled type
+    =^  validated=(each vase tang)  this
+      (validate-cached cod p.bask.u.in q.bask.u.in)
+    ?:  ?=(%| -.validated)
+      ::  No marc or validation failed — deliver noun untyped.
+      [`[%poke from.u.in [p.bask.u.in -:!>(*) q.bask.u.in]] this]
+    [`[%poke from.u.in [p.bask.u.in p.validated]] this]
+      %peek
+    ::  cite → seen: resolve lobe from silo, wrap with type
+    =/  =cite:nexus  ?:(?=(%& -.cite.u.in) p.cite.u.in [%none ~])
+    =/  =seen:nexus
+      ?-  -.cite
+        %none  &+[%none ~]
+        %miss  &+[%miss ~]
+        %veto  &+[%veto ~]
+        %tomb  &+[%tomb ~]
+          %file
+        =/  jot  (~(get by jects.silo) lobe.cite)
+        ?~  jot  &+[%none ~]
+        =/  jt=ject:nexus  ject.u.jot
+        ?.  ?=(%leaf -.jt)  &+[%none ~]
+        =/  got=(unit noun)  (~(get si:nexus silo) lobe.leaf.jt)
+        ?~  got  &+[%none ~]
+        =/  =bask:tarball  [blot.mark.leaf.jt u.got]
+        =/  res  (validate-bask cod bask)
+        ?:  ?=(%| -.res)
+          &+[%file cass.cite [blot.mark.leaf.jt %| [p.res u.got]]]
+        =/  =sage:tarball  p.res
+        =/  result=sang:tarball
+          ?~  conv.cite  (sage-to-sang:tarball sage)
+          ?:  =(p.sage u.conv.cite)  (sage-to-sang:tarball sage)
+          =/  =tube:clay  (get-tube cod [p.sage u.conv.cite])
+          (sage-to-sang:tarball [u.conv.cite (tube q.sage)])
+        &+[%file cass.cite result]
+          %ball
+        =/  sub-ball
+          ?:  deep.cite
+            (peek-ball lobe.cite)
+          (peek-ball-shallow lobe.cite)
+        &+[%ball wave.cite sub-ball]
+      ==
+    ::  Drop silo refs after hydrating
+    =?  silo  ?=(%file -.cite)  (~(drop si:nexus silo) lobe.cite)
+    =?  silo  ?=(%ball -.cite)  (~(drop-ject si:nexus silo) lobe.cite)
+    ?:  ?=(%| -.cite.u.in)  [`[%peek wire.u.in |+p.cite.u.in] this]
+    [`[%peek wire.u.in seen] this]
+      %peep
+    ::  Resolve lobes to sages
+    ?:  ?=(%| -.res.u.in)
+      [`[%peep wire.u.in |+p.res.u.in] this]
+    =/  hits=(list [cass:clay sage:tarball])
+      %+  murn  p.res.u.in
+      |=  [cas=cass:clay =lobe:clay]
+      ^-  (unit [cass:clay sage:tarball])
+      =/  jot  (~(get by jects.silo) lobe)
+      ?~  jot  ~
+      =/  jt=ject:nexus  ject.u.jot
+      ?.  ?=(%leaf -.jt)  ~
+      =/  got=(unit noun)  (~(get si:nexus silo) lobe.leaf.jt)
+      ?~  got  ~
+      =/  res  (validate-bask cod [blot.mark.leaf.jt u.got])
+      ?:  ?=(%| -.res)  ~
+      `[cas p.res]
+    ::  Drop silo refs
+    =.  silo
+      %+  roll  p.res.u.in
+      |=  [[* =lobe:clay] acc=silo:nexus]
+      (~(drop si:nexus acc) lobe)
+    [`[%peep wire.u.in &+hits] this]
+      %code
+    ::  Resolve ckeys to builts
+    ?:  ?=(%| -.res.u.in)
+      ?:  ?=(%| -.p.res.u.in)
+        [`[%code wire.u.in |+[%tang p.p.res.u.in]] this]
+      =/  ckey=@uv  p.p.res.u.in
+      =/  entry=(unit [refs=@ud =built:nexus])  (~(get by bins) ckey)
+      ?~  entry
+        [`[%code wire.u.in |+[%tang ~[leaf+"code: artifact missing"]]] this]
+      [`[%code wire.u.in |+built.u.entry] this]
+    ::  Directory: resolve ckey tree to built tree
+    =/  materialized=(axal (map @ta built:nexus))
+      %+  roll  ~(tap of p.res.u.in)
+      |=  [[pax=path node=(map @ta @uv)] acc=(axal (map @ta built:nexus))]
+      =/  resolved=(map @ta built:nexus)
+        %-  ~(gas by *(map @ta built:nexus))
+        %+  murn  ~(tap by node)
+        |=  [nam=@ta key=@uv]
+        =/  entry=(unit [refs=@ud =built:nexus])  (~(get by bins) key)
+        ?~  entry  ~
+        `[nam built.u.entry]
+      (~(put of acc) pax resolved)
+    [`[%code wire.u.in &+materialized] this]
+  ==
+::
 ++  eval
   |%
   ++  output  (output-raw:fiber:nexus ,~)
@@ -2965,10 +3039,14 @@
       p.u.file-data
     =^  =take:fiber:nexus  next.proc  ~(get to next.proc)
     |-
+    ::  Hydrate pend → intake at consumption time
+    =^  hot-in=(unit intake:fiber:nexus)  this
+      (hydrate path.here in.take)
     =/  res=(each output tang)
       ?>  ?=(%& -.process.proc)
-      (mule |.((p.process.proc state in.take)))
+      (mule |.((p.process.proc state hot-in)))
     ?:  ?=(%| -.res)
+      ~&  >>  [%fiber-crash here=here in-tag=?~(in.take ~ `-.u.in.take)]
       =/  =tang  [leaf+"crash" p.res]
       :*  darts
           :_(done [take `tang])
@@ -3140,10 +3218,10 @@
   ==
 ::
 ++  poke
-  |=  [=give:nexus here=rail:tarball =sage:tarball]
+  |=  [=give:nexus here=rail:tarball =bask:tarball]
   ^+  this
   =/  rel-from=from:fiber:nexus  (relativize-from:nexus here from.give)
-  (enqu-take here give ~ %poke rel-from sage)
+  (enqu-take here give ~ %poke rel-from bask)
 ::
 ++  make
   |=  [dest=lane:tarball force=? =make:nexus]
@@ -5067,8 +5145,13 @@
   ::
       %scry
     ?.  =([/ %scry-request] p.sage)  ~
-    =.  this  (handle-scry-request here wir q.sage)
+    =.  this  (handle-typed-scry here wir q.sage)
     `(enqu-take here (sys-give /scry) ~ %pack wir ~)
+  ::
+      %bowl
+    ?.  =([/ %bowl-req] p.sage)  ~
+    =.  this  (handle-bowl-req here wir q.sage)
+    `(enqu-take here (sys-give /bowl) ~ %pack wir ~)
   ==
 ::
 ::  /sys/behn/ timer service
@@ -5123,7 +5206,7 @@
   =.  this  (save-file timer-rail [[/ %timer-state] %& !>(st)])
   ::  Poke sender back with timer-wake
   =/  rel=from:fiber:nexus  (relativize-from:nexus sender &+timer-rail)
-  (enqu-take sender (sys-give /behn) ~ %poke rel [[/ %timer-wake] !>(req-wire)])
+  (enqu-take sender (sys-give /behn) ~ %poke rel [[/ %timer-wake] req-wire])
 ::
 ::  /sys/clay/ desk sync service
 ::
@@ -5317,9 +5400,7 @@
   =/  req-wire=wire  t.rest
   ::  Route poke-ack back to sender
   ?>  ?=(%poke-ack -.sign)
-  =/  ack-sage=sage:tarball  [[/ %poke-ack] !>(p.sign)]
-  =/  rel=from:fiber:nexus  (relativize-from:nexus sender &+[/sys/gall %'main.sig'])
-  (enqu-take sender (sys-give /gall) ~ %poke rel ack-sage)
+  (enqu-take sender (sys-give /gall) ~ %pack req-wire p.sign)
 ::
 ::  /sys/iris/ HTTP client service
 ::
@@ -5366,18 +5447,30 @@
   =.  this  (save-file iris-rail [[/ %iris-state] %& !>(st)])
   ::  Poke sender back with http-response
   =/  rel=from:fiber:nexus  (relativize-from:nexus sender &+iris-rail)
-  (enqu-take sender (sys-give /iris) ~ %poke rel [[/ %http-response] !>(client-response)])
+  (enqu-take sender (sys-give /iris) ~ %poke rel [[/ %http-response] client-response])
 ::
-::  /sys/scry/ scry service
+::  /sys/scry/ typed scry service
 ::
-++  handle-scry-request
+++  handle-typed-scry
   |=  [sender=rail:tarball =wire vaz=vase]
   ^+  this
-  =/  pat=path  !<(path vaz)
+  =/  [mark=@tas pat=path]  !<([@tas path] vaz)
   =/  scry-rail=rail:tarball  [/sys/scry %'main.sig']
   ?>  ?=([@ @ *] pat)
-  =/  res=vase
-    !>(.^(* i.pat (scot %p our.bowl) i.t.pat (scot %da now.bowl) t.t.pat))
+  =/  res=*
+    .^(* i.pat (scot %p our.bowl) i.t.pat (scot %da now.bowl) t.t.pat)
   =/  rel=from:fiber:nexus  (relativize-from:nexus sender &+scry-rail)
-  (enqu-take sender (sys-give /scry) ~ %poke rel [[/ %scry-response] res])
+  (enqu-take sender (sys-give /scry) ~ %poke rel [[/ mark] res])
+::
+++  handle-bowl-req
+  |=  [sender=rail:tarball =wire vaz=vase]
+  ^+  this
+  =/  req=@tas  !<(@tas vaz)
+  =/  bowl-rail=rail:tarball  [/sys/bowl %'main.sig']
+  =/  rel=from:fiber:nexus  (relativize-from:nexus sender &+bowl-rail)
+  ?+  req  this
+    %our  (enqu-take sender (sys-give /bowl) ~ %poke rel [[/ %ship] our.bowl])
+    %now  (enqu-take sender (sys-give /bowl) ~ %poke rel [[/ %time] now.last])
+    %eny  (enqu-take sender (sys-give /bowl) ~ %poke rel [[/ %entropy] eny.last])
+  ==
 --

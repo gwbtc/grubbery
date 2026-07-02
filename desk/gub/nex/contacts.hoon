@@ -234,7 +234,7 @@
   ^-  form:m
   ;<  our=@p  bind:m  get-our:io
   ;<  peers=(map ship ?(%alien %known))  bind:m
-    (scry:io (map ship ?(%alien %known)) /ax//peers)
+    (typed-scry:io (map ship ?(%alien %known)) %ames-peers /ax//peers)
   =/  peer-list=(list [ship ?(%alien %known)])
     %+  murn  ~(tap by peers)
     |=  [=ship val=?(%alien %known)]

@@ -10,12 +10,12 @@
 ::  Fix: nonce tags each wire with entropy so stale responses from a
 ::  previous run get %skip'd. e.g. /poke → /poke/0v1a.2b3c4
 ::
-::  Nonce uses a raw send-dart peek to /sys/bowl/eny with a static
-::  /sys/nonce wire. This avoids infinite recursion (nonce → get-entropy →
-::  peek → nonce → ...) since peek itself calls nonce. The static
-::  /sys/nonce wire is safe because both stale and fresh responses return
-::  valid entropy — consuming the "wrong" one still produces a unique
-::  random nonce. /sys/nonce is effectively a reserved wire.
+::  Nonce uses get-entropy which does a raw send-dart poke to
+::  /sys/bowl with a static /sys/eny wire. This avoids infinite recursion
+::  (nonce → get-entropy → poke → nonce → ...) since poke calls nonce.
+::  The static /sys/eny wire is safe because both stale and fresh
+::  responses return valid entropy — consuming the "wrong" one still
+::  produces a unique random nonce.
 ::
 ::  Subscriptions (keep/drop) are unaffected — caller-provided wires
 ::  are stable identifiers, and re-keep on restart is idempotent
@@ -643,14 +643,18 @@
       [%skip ~]
     [%done wave.u.in]
   ==
-::  Scry via /sys/scry/ runtime service
+::  Typed scry via /sys/scry/ runtime service
 ::
-++  scry
-  |*  [=mold =path]
+::  Scries a vane path and returns the result validated through
+::  the specified mark. The mark must have a marc in the code
+::  namespace so hydration can validate the response.
+::
+++  typed-scry
+  |*  [=mold mark=@tas =path]
   =/  m  (fiber ,mold)
   ^-  form:m
   ;<  ~  bind:m
-    (poke &+&+[/sys/scry %'main.sig'] [[/ %scry-request] `^path`path])
+    (poke &+&+[/sys/scry %'main.sig'] [[/ %scry-request] [mark `^path`path]])
   |=  input
   :+  ~  q.state
   ?+  in  [%skip ~]
@@ -658,9 +662,34 @@
       [~ %veto *]
     [%fail (veto-error dart.u.in)]
       [~ %poke * *]
-    ?.  =([/ %scry-response] p.sage.u.in)  [%skip ~]
+    ?.  =([/ mark] p.sage.u.in)  [%skip ~]
     [%done !<(mold q.sage.u.in)]
   ==
+::  Clay convenience helpers
+::
+++  clay-case
+  |=  dek=desk
+  =/  m  (fiber ,cass:clay)
+  ^-  form:m
+  (typed-scry cass:clay %clay-case /cw/[dek])
+::
+++  clay-exists
+  |=  [dek=desk pax=path]
+  =/  m  (fiber ,?)
+  ^-  form:m
+  (typed-scry ? %loob (weld /cu/[dek] pax))
+::
+++  clay-read
+  |=  [dek=desk pax=path]
+  =/  m  (fiber ,*)
+  ^-  form:m
+  (typed-scry * %noun (weld /cx/[dek] pax))
+::
+++  clay-tree
+  |=  [dek=desk pax=path]
+  =/  m  (fiber ,(list path))
+  ^-  form:m
+  (typed-scry (list path) %clay-tree [%ct dek pax])
 ::  Create a new desk via /sys/clay/ runtime service
 ::
 ++  create-desk
@@ -916,11 +945,9 @@
       ~  [%wait ~]
       [~ %veto *]
     [%fail (veto-error dart.u.in)]
-      [~ %poke * *]
-    ?.  =([/ %poke-ack] p.sage.u.in)  [%skip ~]
-    =/  err=(unit tang)  !<((unit tang) q.sage.u.in)
-    ?~  err  [%done ~]
-    [%fail %poke-failed u.err]
+      [~ %pack *]
+    ?~  err.u.in  [%done ~]
+    [%fail %poke-failed u.err.u.in]
   ==
 ::  Timer helpers — poke /sys/behn/main.timer-state, receive timer-wake back
 ::
@@ -973,31 +1000,36 @@
 ++  get-our
   =/  m  (fiber ,ship)
   ^-  form:m
-  ;<  =seen:nexus  bind:m  (peek [%& %& /sys/bowl %our] ~)
-  ?.  ?=([%& %file *] seen)
-    (pure:m *ship)
-  (pure:m !<(ship (need-vase:tarball sang.p.seen)))
+  ;<  ~  bind:m
+    (poke &+&+[/sys/bowl %'main.sig'] [[/ %bowl-req] %our])
+  ;<  =sage:tarball  bind:m  take-poke
+  (pure:m !<(ship q.sage))
 ::
 ++  get-time
   =/  m  (fiber ,@da)
   ^-  form:m
-  ;<  =seen:nexus  bind:m  (peek [%& %& /sys/bowl %now] ~)
-  ?.  ?=([%& %file *] seen)
-    (pure:m *@da)
-  (pure:m !<(@da (need-vase:tarball sang.p.seen)))
-::
+  ;<  ~  bind:m
+    (poke &+&+[/sys/bowl %'main.sig'] [[/ %bowl-req] %now])
+  ;<  =sage:tarball  bind:m  take-poke
+  (pure:m !<(@da q.sage))
 ::  get-entropy uses raw send-dart with a static /sys/eny wire to avoid
-::  recursion: peek → nonce → get-entropy → peek. Static wire is safe
+::  recursion: poke → nonce → get-entropy → poke. Static wire is safe
 ::  because stale entropy is still valid entropy.
 ::
 ++  get-entropy
   =/  m  (fiber ,@uvJ)
   ^-  form:m
-  ;<  ~  bind:m  (send-dart %node /sys/eny [%& %& /sys/bowl %eny] %peek ~ ~ %.y)
-  ;<  =seen:nexus  bind:m  (take-peek /sys/eny)
-  ?.  ?=([%& %file *] seen)
-    (pure:m *@uvJ)
-  (pure:m !<(@uvJ (need-vase:tarball sang.p.seen)))
+  ;<  ~  bind:m  (send-dart %node /sys/eny &+&+[/sys/bowl %'main.sig'] %poke [[/ %bowl-req] %eny])
+  |=  input
+  :+  ~  q.state
+  ?+  in  [%skip ~]
+      ~  [%wait ~]
+      [~ %pack *]
+    [%wait ~]
+      [~ %poke * *]
+    ?.  =([/ %entropy] p.sage.u.in)  [%skip ~]
+    [%done !<(@uvJ q.sage.u.in)]
+  ==
 ::
 ++  nonce
   |=  base=wire

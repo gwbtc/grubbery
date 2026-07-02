@@ -51,11 +51,11 @@
     =/  mark=@tas  (rear pax)
     ?.  ?=(?(%hoon %json %html %css %js %md %txt) mark)
       (pure:m [%error (crip "Unsupported mark: %{(trip mark)}. Use hoon, json, html, css, js, md, or txt.")])
-    ;<  has=?  bind:m  (scry:io ? (weld /cu/[dek] pax))
+    ;<  has=?  bind:m  (clay-exists:io dek pax)
     ?.  has
       (pure:m [%error (crip "File not found: {(trip file-path)}")])
-    ;<  =vase  bind:m  (scry:io vase (weld /cr/[dek] pax))
-    =/  =tang  (pretty-file:pretty-file:tools !<(noun vase))
+    ;<  content=*  bind:m  (clay-read:io dek pax)
+    =/  =tang  (pretty-file:pretty-file:tools content)
     =/  =wain
       %-  zing
       %+  turn  tang
@@ -72,7 +72,7 @@
     =/  before=tape  (scag u.idx text)
     =/  after=tape  (slag (add u.idx (lent old-tape)) text)
     =/  result=@t  (crip (zing ~[before new-tape after]))
-    ;<  initial=cass:clay  bind:m  (scry:io cass:clay /cw/[dek])
+    ;<  initial=cass:clay  bind:m  (clay-case:io dek)
     =/  write-data=json
       %-  pairs:enjs:format
       :~  ['initial-ud' (numb:enjs:format ud.initial)]

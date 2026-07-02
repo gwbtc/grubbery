@@ -51,7 +51,7 @@
     ?.  ?=(?(%hoon %json %html %css %js %md %txt) mark)
       (pure:m [%error (crip "Unsupported mark: %{(trip mark)}. Use hoon, json, html, css, js, md, or txt.")])
     =/  blob=*  ?:(?=(%txt mark) (to-wain:format content) content)
-    ;<  initial=cass:clay  bind:m  (scry:io cass:clay /cw/[dek])
+    ;<  initial=cass:clay  bind:m  (clay-case:io dek)
     =/  write-data=json
       %-  pairs:enjs:format
       :~  ['initial-ud' (numb:enjs:format ud.initial)]

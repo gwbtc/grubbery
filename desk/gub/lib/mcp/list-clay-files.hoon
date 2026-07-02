@@ -28,7 +28,7 @@
   =/  dek=@tas  (slav %tas desk)
   =/  pax=path  (stab file-path)
   ;<  files=(list path)  bind:m
-    (scry:io (list path) [%ct dek pax])
+    (clay-tree:io dek pax)
   ?~  files
     (pure:m [%text (crip "No files found under {(trip file-path)} on desk %{(trip desk)}")])
   =/  result=tape
