@@ -49,7 +49,7 @@
         =born
         =silo:nexus
         =subs:nexus
-        =pool:nexus
+        pool=*
         =code:nexus
         =bins:nexus
         =vale:nexus
@@ -81,7 +81,7 @@
         =born
         =silo:nexus
         =subs:nexus
-        =pool:nexus
+        pool=*
         =code:nexus
         =bins:nexus
         =vale:nexus
