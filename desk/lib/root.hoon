@@ -45,6 +45,7 @@
         [%fall %| /apps/'wallet.wallet_app' [`[`[/wallet %app] ~ %.n ~] ~]]
         [%fall %| /apps/'contacts.contacts' [`[`[/ %contacts] ~ %.n ~] ~]]
         [%fall %| /apps/'test.web-test' [`[`[/ %web-test] ~ %.n ~] ~]]
+        [%fall %| /apps/'test.desk' [`[`[/ %desk] ~ %.n ~] ~]]
     ==
   ==
 ::

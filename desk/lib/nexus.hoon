@@ -102,6 +102,7 @@
       [%lose =lose]             :: drop hist entries, decrement silo refs
       [%gain flag=?]            :: set gain flag (recursive on directories)
       [%firm ~]                 :: promote current entry to %firm
+      [%tag case=(unit case) tags=(set @t)]  :: set tags on hist entry (~ = current)
       [%seek =lobe:clay]        :: find all [rail cass] pairs with this hash
       [%peep =find]
       [%code ~]                 :: look up compiled artifacts at dest
@@ -330,20 +331,41 @@
 :: version history for files and directories
 ::
 +$  pace
-  $%  [%firm tags=(set @t) p=(unit lobe:clay)]
-      [%temp tags=(set @t) p=(unit lobe:clay)]
+  $%  [%firm p=(unit lobe:clay)]
+      [%temp p=(unit lobe:clay)]
       [%tomb ~]
   ==
 ++  hist
   =<  hist
   |%
   ++  cor   |=([a=cass:clay b=cass:clay] (lth ud.a ud.b))
-  +$  hist  ((mop cass:clay pace) cor)
-  ++  hon    ((on cass:clay pace) cor)
+  +$  entry  [=pace tags=(set @t)]
+  +$  hist  ((mop cass:clay entry) cor)
+  ++  hon    ((on cass:clay entry) cor)
+  ::  +get-pace: look up just the pace at a revision (ignoring tags)
+  ::
+  ++  get-pace
+    |=  [=hist cas=cass:clay]
+    ^-  (unit pace)
+    (bind (get:hon hist cas) |=(=entry pace.entry))
+  ::  +put-pace: store a pace with empty tags at a revision
+  ::
+  ++  put-pace
+    |=  [=hist cas=cass:clay =pace]
+    ^-  ^hist
+    (put:hon hist cas [pace ~])
+  ::  +tag: set tags on an existing hist entry
+  ::
+  ++  tag
+    |=  [=hist cas=cass:clay tags=(set @t)]
+    ^-  ^hist
+    =/  got=(unit entry)  (get:hon hist cas)
+    ?~  got  hist
+    (put:hon hist cas u.got(tags tags))
   ++  top
     |=  =hist
     ^-  (unit cass:clay)
-    =/  got=(unit [key=cass:clay val=pace])  (ram:hon hist)
+    =/  got=(unit [key=cass:clay val=entry])  (ram:hon hist)
     ?~  got  ~
     `key.u.got
   ++  ver
@@ -384,15 +406,15 @@
   ^-  [cass:clay pace:^hist]
   ?-    -.cas
       %ud
-    =/  entries=(list [key=cass:clay val=pace:^hist])
+    =/  entries=(list [key=cass:clay val=entry:^hist])
       (tap:hon:^hist hist)
     |-
     ?~  entries  ~|(%hist-version-not-found !!)
     ?:  =(ud.key.i.entries p.cas)
-      [key.i.entries val.i.entries]
+      [key.i.entries pace.val.i.entries]
     $(entries t.entries)
       %da
-    =/  entries=(list [key=cass:clay val=pace:^hist])
+    =/  entries=(list [key=cass:clay val=entry:^hist])
       (tap:hon:^hist hist)
     ::  tap gives ascending order; find latest entry with da <= target
     =/  best=(unit [cass:clay pace:^hist])  ~
@@ -403,7 +425,7 @@
     ?:  (gth da.key.i.entries p.cas)
       ?~  best  ~|(%hist-version-not-found !!)
       u.best
-    $(entries t.entries, best `[key.i.entries val.i.entries])
+    $(entries t.entries, best `[key.i.entries pace.val.i.entries])
   ==
 ::  +record-trees: Snapshot directory state into tree objects.
 ::  Walks from dir up to root. At each level, builds a tree from
@@ -424,7 +446,7 @@
   =/  existing-tree=(unit tree)
     =/  fold-top=(unit cass:clay)  (top-fold fold.node)
     ?~  fold-top  ~
-    =/  got=(unit pace:hist)  (get:hon:hist fold.node u.fold-top)
+    =/  got=(unit pace:hist)  (get-pace:hist fold.node u.fold-top)
     ?~  got  ~
     ?:  ?=(%tomb -.u.got)  ~
     ?~  p.u.got  ~
@@ -456,7 +478,7 @@
     |=  [[name=@ta sk=hist] out=(map @ta lobe:clay)]
     =/  cas=(unit cass:clay)  (top-hist sk)
     ?~  cas  out
-    =/  val=(unit pace:hist)  (get:hon:hist sk u.cas)
+    =/  val=(unit pace:hist)  (get-pace:hist sk u.cas)
     ?~  val  out
     ?:  ?=(%tomb -.u.val)  out
     ?~  p.u.val  out
@@ -470,7 +492,7 @@
     =/  cas=(unit cass:clay)  (top-fold fold.u.kid-node)
     ?~  cas  out
     =/  got=(unit pace:hist)
-      (get:hon:hist fold.u.kid-node u.cas)
+      (get-pace:hist fold.u.kid-node u.cas)
     ?~  got  out
     ?:  ?=(%tomb -.u.got)  out
     ?~  p.u.got  out
@@ -501,7 +523,7 @@
   =/  cur-lobe=(unit lobe:clay)
     =/  cur-pace=(unit pace:hist)
       ?~  fold-cas  ~
-      (get:hon:hist fold.node u.fold-cas)
+      (get-pace:hist fold.node u.fold-cas)
     ?~  cur-pace  ~
     ?:  ?=(%tomb -.u.cur-pace)  ~
     p.u.cur-pace
@@ -518,9 +540,9 @@
   =/  new-fold=cass:clay
     =/  nex-da=@da  ?:((lth da.old-fold now) now +(da.old-fold))
     [+(ud.old-fold) nex-da]
-  =/  =pace:hist  ?:(gain.tree [%firm ~ `lobe] [%temp ~ `lobe])
+  =/  =pace:hist  ?:(gain.tree [%firm `lobe] [%temp `lobe])
   =/  new-hist=hist
-    (put:hon:hist tombed-fold new-fold pace)
+    (put-pace:hist tombed-fold new-fold pace)
   =.  born  (~(put of born) dir node(fold new-hist))
   [%.y born silo]
 ::  +bo: Pure operations on born (version tracking)
@@ -542,7 +564,7 @@
   ++  default-node
     ^-  [fold=hist file=(map @ta hist)]
     =/  zero=cass:clay  [0 now]
-    [[[zero [%temp ~ ~]] ~ ~] ~]
+    [[[zero [[%temp ~] ~]] ~ ~] ~]
   ::  Get hist for a file
   ::
   ++  get
@@ -586,7 +608,7 @@
     =/  existing=(unit hist)  (get here)
     ?~  existing
       =/  zero=cass:clay  [0 now]
-      (put here [[zero [%temp ~ ~]] ~ ~])
+      (put here [[zero [[%temp ~] ~]] ~ ~])
     (put here u.existing)
   --
 ::  +si: Pure operations on silo (content-addressed object store)
@@ -633,11 +655,11 @@
   ++  drop-hist
     |=  =hist
     ^-  ^silo
-    =/  entries=(list [key=cass:clay val=pace:^hist])
+    =/  entries=(list [key=cass:clay val=entry:^hist])
       (tap:hon:^hist hist)
     |-
     ?~  entries  silo
-    =/  pv=pace:^hist  val.i.entries
+    =/  pv=pace:^hist  pace.val.i.entries
     ?:  ?=(%tomb -.pv)  $(entries t.entries)
     ?~  p.pv  $(entries t.entries)
     $(entries t.entries, silo (drop-ject u.p.pv))
@@ -829,13 +851,13 @@
   ++  tomb-temp
     |=  [=hist prev-cas=cass:clay]
     ^-  [^silo ^hist]
-    =/  prev-pace=(unit pace:^hist)  (get:hon:^hist hist prev-cas)
+    =/  prev-pace=(unit pace:^hist)  (get-pace:^hist hist prev-cas)
     ?~  prev-pace  [silo hist]
     ?.  ?=(%temp -.u.prev-pace)  [silo hist]
     =.  silo
       ?~  p.u.prev-pace  silo
       (~(drop-ject si silo) u.p.u.prev-pace)
-    [silo (put:hon:^hist hist prev-cas [%tomb ~])]
+    [silo (put-pace:^hist hist prev-cas [%tomb ~])]
   ::  Record a noun: insert into silo, update hist.
   ::  Returns [lobe new-silo new-hist].
   ::
@@ -854,7 +876,7 @@
     ^-  [lobe:clay ^silo ^hist]
     ::  Look up previous leaf ject
     =/  prev-leaf=(unit leaf)
-      =/  prev-pace=(unit pace:^hist)  (get:hon:^hist hist file-cass)
+      =/  prev-pace=(unit pace:^hist)  (get-pace:^hist hist file-cass)
       ?~  prev-pace  ~
       ?:  ?=(%tomb -.u.prev-pace)  ~
       ?~  p.u.prev-pace  ~
@@ -881,8 +903,8 @@
       (~(put-ject si new-silo) [%leaf noun-lobe [blot ckey] gain prev-bang])
     =/  [tombed-silo=^silo tombed-hist=^hist]
       (~(tomb-temp si newer-silo) hist file-cass)
-    =/  =pace:^hist  ?:(gain [%firm ~ `ject-lobe] [%temp ~ `ject-lobe])
-    [noun-lobe tombed-silo (put:hon:^hist tombed-hist cass pace)]
+    =/  =pace:^hist  ?:(gain [%firm `ject-lobe] [%temp `ject-lobe])
+    [noun-lobe tombed-silo (put-pace:^hist tombed-hist cass pace)]
   --
 ::  +stamp-mtimes: no-op (metadata removed from content)
 ::
@@ -1332,22 +1354,22 @@
       :-  'hist'
       :-  %a
       %+  turn  (tap:hon:hist sk)
-      |=  [key=cass:clay val=pace:hist]
+      |=  [key=cass:clay val=entry:hist]
       %-  pairs:enjs:format
       :~  ['ud' (numb:enjs:format ud.key)]
           ['da' s+(scot %da da.key)]
           :-  'pace'
-          ?-  -.val
+          ?-  -.pace.val
             %tomb  s+'tomb'
             %firm
-          ?~  p.val  s+'deleted'
-          s+(cat 3 'firm+' (scot %uv u.p.val))
+          ?~  p.pace.val  s+'deleted'
+          s+(cat 3 'firm+' (scot %uv u.p.pace.val))
             %temp
-          ?~  p.val  s+'deleted'
-          s+(cat 3 'temp+' (scot %uv u.p.val))
+          ?~  p.pace.val  s+'deleted'
+          s+(cat 3 'temp+' (scot %uv u.p.pace.val))
           ==
           :-  'tags'
-          ?:  ?=(%tomb -.val)  ~
+          ?:  ?=(%tomb -.pace.val)  ~
           a+(turn ~(tap in tags.val) |=(t=@t s+t))
       ==
   ==
@@ -1364,22 +1386,22 @@
             :-  'hist'
             :-  %a
             %+  turn  (tap:hon:hist fold.u.fil.b)
-            |=  [key=cass:clay val=pace:hist]
+            |=  [key=cass:clay val=entry:hist]
             %-  pairs:enjs:format
             :~  ['ud' (numb:enjs:format ud.key)]
                 ['da' s+(scot %da da.key)]
                 :-  'pace'
-                ?-  -.val
+                ?-  -.pace.val
                   %tomb  s+'tomb'
                   %firm
-                ?~  p.val  s+'deleted'
-                s+(cat 3 'firm+' (scot %uv u.p.val))
+                ?~  p.pace.val  s+'deleted'
+                s+(cat 3 'firm+' (scot %uv u.p.pace.val))
                   %temp
-                ?~  p.val  s+'deleted'
-                s+(cat 3 'temp+' (scot %uv u.p.val))
+                ?~  p.pace.val  s+'deleted'
+                s+(cat 3 'temp+' (scot %uv u.p.pace.val))
                 ==
                 :-  'tags'
-                ?:  ?=(%tomb -.val)  ~
+                ?:  ?=(%tomb -.pace.val)  ~
                 a+(turn ~(tap in tags.val) |=(t=@t s+t))
             ==
         ==
