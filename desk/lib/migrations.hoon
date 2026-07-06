@@ -1,18 +1,10 @@
 ::  migrations: old state types and migration functions for grubbery
 ::
 ::  Each state version gets a core (++state-N) that snapshots the
-::  exact types that were live when that version was persisted.
-::  Types change across versions, so the current molds won't nest
-::  against old state nouns. Each version core freezes its types
-::  so !<(versioned-state ...) can accept any historical shape.
-::
-::  State types use born=* for fields whose types have changed.
-::  Migration gates clam the raw noun via ;;(type:state-N ...)
-::  to get typed access before transforming.
-::
-::  Only the current state references live nexus types. When adding
-::  a new version: snapshot the current types into a new core, set
-::  changed fields to *, and define the new state with live types.
+::  exact types live when that version was persisted. Only the
+::  current state references live nexus types. When adding a new
+::  version: snapshot the current types into a new core and define
+::  the new state with live types.
 ::
 /+  nexus
 |%
@@ -23,7 +15,7 @@
   |%
   +$  state-0
     $:  %0
-        born=*
+        =born
         =silo:nexus
         =subs:nexus
         pool=*
@@ -54,7 +46,7 @@
   |%
   +$  state-1
     $:  %1
-        born=*
+        =born
         =silo:nexus
         =subs:nexus
         =pool:nexus
@@ -79,14 +71,14 @@
     --
   +$  born  (axal [fold=hist:hist file=(map @ta hist:hist)])
   --
-::  state-2: tags on pace variants
+::  state-2: tags on pace
 ::
 ++  state-2
   =<  state-2
   |%
   +$  state-2
     $:  %2
-        born=*
+        =born
         =silo:nexus
         =subs:nexus
         =pool:nexus
@@ -118,7 +110,7 @@
   |%
   +$  state-3
     $:  %3
-        born=*
+        =born
         =silo:nexus
         =subs:nexus
         pool=*
@@ -182,7 +174,7 @@
   ^-  state-2
   ~&  >  "%grubbery: migrating %1 -> %2 (adding tags to born)"
   :*  %2
-      (upgrade-born-1-to-2 ;;(born:state-1 born.old))
+      (upgrade-born-1-to-2 born.old)
       silo.old
       subs.old
       pool.old
@@ -226,7 +218,7 @@
   ^-  state-3
   ~&  >  "%grubbery: migrating %2 -> %3 (tags next to pace)"
   :*  %3
-      (upgrade-born-2-to-3 ;;(born:state-2 born.old))
+      (upgrade-born-2-to-3 born.old)
       silo.old
       subs.old
       pool.old
@@ -274,7 +266,7 @@
   ^-  state-4
   ~&  >  "%grubbery: migrating %3 -> %4 (resetting pool for %tag load)"
   :*  %4
-      ;;(born:nexus ;;(born:state-3 born.old))
+      born.old
       silo.old
       subs.old
       *pool:nexus
