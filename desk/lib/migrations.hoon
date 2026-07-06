@@ -6,6 +6,10 @@
 ::  version: snapshot the current types into a new core and define
 ::  the new state with live types.
 ::
+::  WARNING: every migration resets pool, killing all running fibers.
+::  Acceptable during development; post-release, pool migrations must
+::  preserve running state or gracefully drain.
+::
 /+  nexus
 |%
 ::  state-0/1: no tags on pace
@@ -177,7 +181,7 @@
       (upgrade-born-1-to-2 born.old)
       silo.old
       subs.old
-      pool.old
+      *pool:nexus
       code.old
       bins.old
       vale.old
@@ -221,7 +225,7 @@
       (upgrade-born-2-to-3 born.old)
       silo.old
       subs.old
-      pool.old
+      *pool:nexus
       code.old
       bins.old
       vale.old
@@ -256,10 +260,6 @@
       %tomb  [[%tomb ~] ~]
     ==
   $(entries t.entries, new (put:hon:hist:state-3 new cas.i.entries entry))
-::
-::  WARNING: pool reset is destructive — kills all running fibers.
-::  Acceptable during development; post-release, pool migrations must
-::  preserve running state or gracefully drain.
 ::
 ++  migrate-3-to-4
   |=  old=state-3
