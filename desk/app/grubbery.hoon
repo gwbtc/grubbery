@@ -72,7 +72,7 @@
 ::
 ++  on-save
   ^-  vase
-  =.  pool  (bang-pool:hc pool)
+  =.  pool  (bang-pool:hc pool ?=(%4 -.state))
   !>(state)
 ::
 ++  on-load
@@ -1582,8 +1582,18 @@
   ?~  fil.bole  ~
   `[neck.u.fil.bole weir.u.fil.bole gain.u.fil.bole ~ validated-contents]
 ::
+::  +bang-pool: prepare pool for persistence
+::
+::  Bangs processes to crash tangs (gates can't survive reload).
+::  If latest=%.n, also clears skip/next queues — queues hold pend
+::  values which reference dart/load via %veto, and load changes
+::  across versions. Clearing queues avoids nesting failures on load.
+::
+::  WARNING: clearing queues loses queued inputs. Post-release, fix
+::  %veto to not carry =dart (root cause of pend referencing load).
+::
 ++  bang-pool
-  |=  =pool:nexus
+  |=  [=pool:nexus latest=?]
   ^-  pool:nexus
   =/  new-fil=(unit pipe:nexus)
     ?~  fil.pool  ~
@@ -1592,11 +1602,15 @@
     %=  pipe
       proc  %-  ~(run by proc.pipe)
              |=  =proc:fiber:nexus
-             ?:  ?=(%| -.process.proc)  proc
-             proc(process |+~[leaf+"saving for reload"])
+             ?:  latest
+               ?:  ?=(%| -.process.proc)  proc
+               proc(process |+~[leaf+"saving for reload"])
+             ?:  ?=(%| -.process.proc)
+               proc(next ~, skip ~)
+             proc(process |+~[leaf+"saving for reload"], next ~, skip ~)
     ==
   =/  new-dir=(map @ta pool:nexus)
-    (~(run by dir.pool) bang-pool)
+    (~(run by dir.pool) |=(p=pool:nexus (bang-pool p latest)))
   [new-fil new-dir]
 ::
 ++  store-proc
