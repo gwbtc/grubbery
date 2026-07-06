@@ -1010,18 +1010,34 @@
 ++  get-our
   =/  m  (fiber ,ship)
   ^-  form:m
-  ;<  ~  bind:m
-    (poke &+&+[/sys/bowl %'main.sig'] [[/ %bowl-req] %our])
-  ;<  =sage:tarball  bind:m  take-poke
-  (pure:m !<(ship q.sage))
+  ;<  =wire  bind:m  (nonce /sys/our)
+  ;<  ~  bind:m  (send-dart %node wire &+&+[/sys/bowl %'main.sig'] %poke [[/ %bowl-req] %our])
+  |=  input
+  :+  ~  q.state
+  ?+  in  [%skip ~]
+      ~  [%wait ~]
+      [~ %pack *]
+    [%wait ~]
+      [~ %poke * *]
+    ?.  =([/ %ship] p.sage.u.in)  [%skip ~]
+    [%done !<(ship q.sage.u.in)]
+  ==
 ::
 ++  get-time
   =/  m  (fiber ,@da)
   ^-  form:m
-  ;<  ~  bind:m
-    (poke &+&+[/sys/bowl %'main.sig'] [[/ %bowl-req] %now])
-  ;<  =sage:tarball  bind:m  take-poke
-  (pure:m !<(@da q.sage))
+  ;<  =wire  bind:m  (nonce /sys/now)
+  ;<  ~  bind:m  (send-dart %node wire &+&+[/sys/bowl %'main.sig'] %poke [[/ %bowl-req] %now])
+  |=  input
+  :+  ~  q.state
+  ?+  in  [%skip ~]
+      ~  [%wait ~]
+      [~ %pack *]
+    [%wait ~]
+      [~ %poke * *]
+    ?.  =([/ %time] p.sage.u.in)  [%skip ~]
+    [%done !<(@da q.sage.u.in)]
+  ==
 ::  get-entropy uses raw send-dart with a static /sys/eny wire to avoid
 ::  recursion: poke → nonce → get-entropy → poke. Static wire is safe
 ::  because stale entropy is still valid entropy.
