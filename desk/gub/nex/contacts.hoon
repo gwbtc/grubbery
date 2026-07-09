@@ -21,29 +21,14 @@
     ++  on-load
       |=  =ball:tarball
       ^-  bole:tarball
-      =/  =ver:loader  (get-ver:loader ball)
-      ?+  ver  !!
-          ?(~ [~ %0])
-        ::  migrate to single-grub stores (old per-ship dirs left inert)
-        %+  spin:loader  ball
-        :~  (ver-row:loader 1)
-            [%over %& [/ %'main.sig'] [[/ %sig] ~]]
-            [%fall %& [/ %'profiles.jobj-store'] [[/ %jobj-store] *(map @t (map @t json))]]
-            [%fall %& [/ %'overlays.jobj-store'] [[/ %jobj-store] *(map @t (map @t json))]]
-            [%fall %| /ui empty-dir:loader]
-            [%fall %& [/ui %'main.sig'] [[/ %sig] ~]]
-            [%fall %| /ui/requests empty-dir:loader]
-        ==
-          [~ %1]
-        %+  spin:loader  ball
-        :~  (ver-row:loader 1)
-            [%over %& [/ %'main.sig'] [[/ %sig] ~]]
-            [%fall %& [/ %'profiles.jobj-store'] [[/ %jobj-store] *(map @t (map @t json))]]
-            [%fall %& [/ %'overlays.jobj-store'] [[/ %jobj-store] *(map @t (map @t json))]]
-            [%fall %| /ui empty-dir:loader]
-            [%fall %& [/ui %'main.sig'] [[/ %sig] ~]]
-            [%fall %| /ui/requests empty-dir:loader]
-        ==
+      %+  spin:loader  ball
+      :~  (manifest:loader 0)
+          [%over %& [/ %'main.sig'] [[/ %sig] ~]]
+          [%fall %& [/ %'profiles.jobj-store'] [[/ %jobj-store] *(map @t (map @t json))]]
+          [%fall %& [/ %'overlays.jobj-store'] [[/ %jobj-store] *(map @t (map @t json))]]
+          [%fall %| /ui empty-dir:loader]
+          [%fall %& [/ui %'main.sig'] [[/ %sig] ~]]
+          [%fall %| /ui/requests empty-dir:loader]
       ==
     ::
     ++  on-file

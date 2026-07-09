@@ -13,7 +13,6 @@
     ++  on-load
       |=  =ball:tarball
       ^-  bole:tarball
-      =/  =ver:loader  (get-ver:loader ball)
       =/  default-config=json
         %-  pairs:enjs:format
         :~  ['access-key' s+'']
@@ -22,17 +21,14 @@
             ['bucket' s+'']
             ['endpoint' s+'']
         ==
-      ?+  ver  !!
-          ?(~ [~ %0])
-        %+  spin:loader  ball
-        :~  (ver-row:loader 0)
-            [%fall %& [/ %'main.json'] [[/ %json] (pairs:enjs:format ~[['status' s+'idle']])]]
-            [%fall %& [/ %'config.json'] [[/ %json] default-config]]
-            [%fall %& [/ %'mounts.json'] [[/ %json] [%o ~]]]
-            [%fall %| /mounts empty-dir:loader]
-            [%over %& [/ %'page.html'] [[/ %html] (crip (en-xml:html s3-page))]]
-            [%over %& [/man %'readme.md'] [[/ %mime] man]]
-        ==
+      %+  spin:loader  ball
+      :~  (manifest:loader 0)
+          [%fall %& [/ %'main.json'] [[/ %json] (pairs:enjs:format ~[['status' s+'idle']])]]
+          [%fall %& [/ %'config.json'] [[/ %json] default-config]]
+          [%fall %& [/ %'mounts.json'] [[/ %json] [%o ~]]]
+          [%fall %| /mounts empty-dir:loader]
+          [%over %& [/ %'page.html'] [[/ %html] (crip (en-xml:html s3-page))]]
+          [%over %& [/man %'readme.md'] [[/ %mime] man]]
       ==
     ::
     ++  on-file

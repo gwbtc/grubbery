@@ -32,26 +32,16 @@
       [%load %| from=fold:tarball to=fold:tarball =fold-load]
   ==
 ::
-+$  ver  (unit @ud)
-::  +get-ver: extract schema version from ball
-::
-::    ~      no ver.ud found (fresh or legacy — needs initialization)
-::    [~ n]  ver.ud exists with value n
-::
-++  get-ver
-  |=  =ball:tarball
-  ^-  ver
-  =/  ct=(unit sang:tarball)  (~(get ba:tarball ball) [/ %'ver.ud'])
-  ?~  ct  ~
-  `!<(@ud (need-vase:tarball u.ct))
-::  +ver-row: convenience row to set the version file
-::
 ++  empty-dir  [`[~ ~ %.n ~] ~]
 ::
-++  ver-row
+++  manifest
   |=  ver=@ud
   ^-  row
-  [%over %& [/ %'ver.ud'] [[/ %ud] ver]]
+  =/  =json
+    %-  pairs:enjs:format
+    :~  ['version' (numb:enjs:format ver)]
+    ==
+  [%over %& [/ %'manifest.json'] [[/ %json] json]]
 ::  +put-bole: place a sub-bole at a path
 ::
 ++  put-bole

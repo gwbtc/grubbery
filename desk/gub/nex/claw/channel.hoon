@@ -22,22 +22,18 @@
     ++  on-load
       |=  =ball:tarball
       ^-  bole:tarball
-      =/  =ver:loader  (get-ver:loader ball)
       =/  default-config=json
         %-  pairs:enjs:format
         :~  ['source' s+'']
             ['chat-id' s+'']
         ==
-      ?+  ver  !!
-          ?(~ [~ %0])
-        %+  spin:loader  ball
-        :~  (ver-row:loader 0)
-            [%fall %& [/ %'config.json'] [[/ %json] default-config]]
-            [%fall %& [/ %'inbox.json'] [[/ %json] [%a ~]]]
-            [%over %& [/ %'send.sig'] [[/ %sig] ~]]
-            [%over %& [/ %'relay.sig'] [[/ %sig] ~]]
-            [%over %& [/man %'readme.md'] [[/ %mime] man]]
-        ==
+      %+  spin:loader  ball
+      :~  (manifest:loader 0)
+          [%fall %& [/ %'config.json'] [[/ %json] default-config]]
+          [%fall %& [/ %'inbox.json'] [[/ %json] [%a ~]]]
+          [%over %& [/ %'send.sig'] [[/ %sig] ~]]
+          [%over %& [/ %'relay.sig'] [[/ %sig] ~]]
+          [%over %& [/man %'readme.md'] [[/ %mime] man]]
       ==
     ::
     ++  on-file

@@ -17,11 +17,8 @@
     ++  on-load
       |=  =ball:tarball
       ^-  bole:tarball
-      =/  =ver:loader  (get-ver:loader ball)
-      ?+  ver  !!
-          ?(~ [~ %0])
-        %+  spin:loader  ball
-        :~  (ver-row:loader 0)
+      %+  spin:loader  ball
+      :~  (manifest:loader 0)
             [%fall %& [/ %'config.json'] [[/ %json] default-config]]
             [%fall %& [/ %'height.ud'] [[/ %ud] 0]]
             [%fall %& [/ %'urb-state.urb-state'] [[/ %urb-state] *state:urb]]
@@ -40,7 +37,6 @@
             [%over %& [/ %'page.html'] [[/ %html] (crip (en-xml:html (btc-page "" ;div; ~ ~)))]]
             [%over %& [/man %'readme.md'] [[/ %mime] man]]
         ==
-      ==
     ::
     ++  on-file
       |=  [=rail:tarball =blot:tarball]

@@ -25,7 +25,7 @@
   ?:  ?=(%| -.name-parsed)
     (pure:m [%error 'Missing required argument: group'])
   =/  grp=path  (stab p.name-parsed)
-  =/  grp-dir=path  (weld /sys/ames/usergroups grp)
+  =/  grp-dir=path  (grp-storage-path grp)
   =/  parse-roads
     |=  key=@t
     ^-  (set road:tarball)
@@ -58,6 +58,13 @@
   ?:  =(i.tape ',')
     $(tape t.tape, acc [(crip (flop cur)) acc], cur ~)
   $(tape t.tape, cur [i.tape cur])
+++  grp-storage-path
+  |=  grp=path
+  ^-  path
+  ?~  grp  /sys/ames/usergroups
+  %+  weld  /sys/ames/usergroups
+  (snoc (snip `path`grp) (cat 3 (rear grp) '.grp'))
+::
 ++  trim
   |=  t=tape
   ^-  tape

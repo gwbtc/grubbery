@@ -112,7 +112,6 @@
       =/  dest-lane=lane:tarball  dest.req
       ::  Weir gate: simulate dart traversal from ship-rail to dest
       ?:  ?=([~ %|] (allowed:hc %peek ship-rail `dest-lane))
-        ~&  >>  [%peek-vetoed src=src.bowl dest=dest-lane]
         =/  resp=transfer:remo:nexus
           [wire.req %veto dest-lane]
         :_  this
@@ -126,11 +125,15 @@
             =/  r=rail:tarball  p.dest-lane
             =/  node=(unit [fold=hist:nexus file=(map @ta hist:nexus)])
               (~(get of born) path.r)
+            ~&  >  [%file-peek-debug rail=r node=?~(node %missing [%found files=~(key by file.u.node)])]
             ?~  node  ~
             =/  sk=hist:nexus
               (fall (~(get by file.u.node) name.r) *hist:nexus)
+            =/  has-file=?  !=(sk *hist:nexus)
+            ~&  >  [%file-peek-hist name=name.r has-file=has-file]
             ?~  case.req
               =/  cas=(unit cass:clay)  (top:hist:nexus sk)
+              ~&  >  [%file-peek-top cas=?~(cas %none [%found ud.u.cas])]
               ?~  cas  ~
               =/  pac  (get-pace:hist:nexus sk u.cas)
               ?~  pac  ~
@@ -642,7 +645,8 @@
   =?  silo  ?=([%& %ball *] cit)
     (~(bump-ject-ref si:nexus silo) lobe.p.cit)
   =?  silo  ?=([%& %file *] cit)
-    (~(bump-ref si:nexus silo) lobe.p.cit)
+    (~(bump-ject-ref si:nexus silo) lobe.p.cit)
+  ~&  >  [%discharge-cite rail=rail.key wire=wire.key cite=?:(?=(%| -.cit) %error -.p.cit)]
   =.  this  (enqu-take rail.key (sys-give /peek) ~ %peek wire.key cit)
   =.  peeks.remo  (~(del by peeks.remo) key)
   ::  Drop refs held for this peek's data
@@ -686,12 +690,15 @@
       |=  [[* *] pk=peek:remo:nexus]
       &(=(ship.pk src) =(dest.pk dest.resp))
     ?.  solicited
-      ~&  >>  [%snap-unsolicited src=src dest=dest.resp]
       this
     ::  1. Populate snap on staged peeks matching this ship+dest.
     ::  2. Diff refs against silo and request missing lobes.
     ::  3. Discharge any peeks that can already be fulfilled.
     ::
+    =/  matching=(list [[=rail:tarball =wire] =peek:remo:nexus])
+      %+  skim  ~(tap by peeks.remo)
+      |=  [[=rail:tarball =wire] pk=peek:remo:nexus]
+      &(=(ship.pk src) =(dest.pk dest.resp))
     ?~  snap.resp
       ::  Nothing exists at dest — discharge with %none and remove peeks
       ~&  >  [%snap-not-found dest=dest.resp]
@@ -703,6 +710,7 @@
         %+  roll  to-discharge
         |=  [[[=rail:tarball =wire] pk=peek:remo:nexus] sat=_this]
         =.  peeks.remo.sat  (~(del by peeks.remo.sat) [rail wire])
+        ~&  >>>  [%none-source-a rail wire]
         (enqu-take:sat rail (sys-give:sat /peek) ~ %peek wire &+[%none ~])
       this
     =.  peeks.remo
@@ -765,11 +773,7 @@
       ?.  =(lobe `@uvI`(sham ject))
         ~&  >>  [%data-hash-mismatch %ject lobe]
         $(ject-entries t.ject-entries)
-      =/  existing  (~(get by jects.silo) lobe)
-      =.  jects.silo
-        ?~  existing
-          (~(put by jects.silo) lobe [1 ject])
-        (~(put by jects.silo) lobe u.existing(refs +(refs.u.existing)))
+      =.  silo  +:(~(put-ject si:nexus silo) ject)
       $(ject-entries t.ject-entries)
     ~&  >  [%peek-data-received nouns=~(wyt by nouns.got) jects=~(wyt by jects.got)]
     discharge-peeks
@@ -1042,6 +1046,11 @@
 ::
 ++  enqu-take
   |=  [here=rail:tarball =give:nexus in=(unit pend:fiber:nexus)]
+  ~?  >>  ?&  ?=(^ in)
+              ?=(%peek -.u.in)
+              =([%apps %'mcp.mcp' ~] (scag 2 path.here))
+          ==
+    [%enqu-peek here=here wire=wire.u.in cite=?:(?=(%| -.cite.u.in) %error -.p.cite.u.in)]
   this(takes (~(put to takes) [here give in]))
 ::  Generate a system give (for internal system operations)
 ::
@@ -1916,7 +1925,7 @@
       %peek
     ?.  ?=(%& -.cite.u.in)  this
     ?+  -.p.cite.u.in  this
-      %file  this(silo (~(drop si:nexus silo) lobe.p.cite.u.in))
+      %file  this(silo (~(drop-ject si:nexus silo) lobe.p.cite.u.in))
       %ball  this(silo (~(drop-ject si:nexus silo) lobe.p.cite.u.in))
     ==
       %peep
@@ -2610,12 +2619,6 @@
           :_  cards
           [%pass /peek/[(scot %p target)] %agent [target %grubbery] %poke grubbery-load+!>(req)]
         this
-      ::  Refresh virtual bowl values on peek-at-latest only.
-      ::  These are returned by peek-grub-now, never persisted.
-      =?  last  =(~ case.load.dart)
-        :*  now=?:((gte now.last now.bowl) (add now.last (div ~s1 1.000)) now.bowl)
-            eny=(shaz (cat 3 eny.bowl eny.last))
-        ==
       ::  Peek at dest - directory returns ball+born, file returns cage
       ::  Returns %none if directory doesn't exist or has no lump
       ::  ver: if set, read historical version from hist via silo
@@ -2624,6 +2627,7 @@
         =/  dest=fold:tarball  p.u.dest-lane
         =/  sub-born=born:nexus  (~(dip of born) dest)
         ?:  &(=(~ fil.sub-born) =(~ dir.sub-born))
+          ~&  >>>  [%none-source-b here wire.dart]
           (enqu-take here (sys-give /peek) ~ %peek wire.dart &+[%none ~])
         ::  Get root tree ject lobe from born fold hist
         =/  node=(unit [fold=hist:nexus file=(map @ta hist:nexus)])
@@ -2636,6 +2640,7 @@
           ?:  ?=(%tomb -.pace.val.u.got)  ~
           p.pace.val.u.got
         ?~  root-lobe
+          ~&  >>>  [%none-source-c here wire.dart]
           (enqu-take here (sys-give /peek) ~ %peek wire.dart &+[%none ~])
         ::  Bump ref to keep tree alive while queued
         =.  silo  (~(bump-ject-ref si:nexus silo) u.root-lobe)
@@ -2646,6 +2651,7 @@
         =/  dest=rail:tarball  p.u.dest-lane
         =/  content  (peek-grub-now path.dest name.dest)
         ?:  &(?=(~ content) ?=(~ case.load.dart))
+          ~&  >>>  [%none-source-d here wire.dart dest]
           (enqu-take here (sys-give /peek) ~ %peek wire.dart &+[%none ~])
         =/  node=(unit [fold=hist:nexus file=(map @ta hist:nexus)])
           (~(get of born) path.dest)
@@ -2666,9 +2672,10 @@
           ?:  ?=(%tomb -.pace.val.u.got)  ~
           p.pace.val.u.got
         ?~  src-lobe
+          ~&  >>>  [%none-source-e here wire.dart]
           (enqu-take here (sys-give /peek) ~ %peek wire.dart &+[%none ~])
-        ::  Bump silo ref to keep noun alive while queued
-        =.  silo  (~(bump-ref si:nexus silo) u.src-lobe)
+        ::  Bump silo ref to keep ject alive while queued
+        =.  silo  (~(bump-ject-ref si:nexus silo) u.src-lobe)
         =/  =cass:clay  (fall (top:hist:nexus sk) *cass:clay)
         (enqu-take here (sys-give /peek) ~ %peek wire.dart &+[%file cass u.src-lobe blot.load.dart])
       ==
@@ -2998,11 +3005,17 @@
         %tomb  &+[%tomb ~]
           %file
         =/  jot  (~(get by jects.silo) lobe.cite)
-        ?~  jot  &+[%none ~]
+        ?~  jot
+          ~&  >>  [%hydrate-file-miss %no-ject lobe=lobe.cite jects=~(wyt by jects.silo)]
+          &+[%none ~]
         =/  jt=ject:nexus  ject.u.jot
-        ?.  ?=(%leaf -.jt)  &+[%none ~]
+        ?.  ?=(%leaf -.jt)
+          ~&  >>  [%hydrate-file-miss %not-leaf lobe=lobe.cite type=-.jt]
+          &+[%none ~]
         =/  got=(unit noun)  (~(get si:nexus silo) lobe.leaf.jt)
-        ?~  got  &+[%none ~]
+        ?~  got
+          ~&  >>  [%hydrate-file-miss %no-noun lobe=lobe.leaf.jt nouns=~(wyt by nouns.silo)]
+          &+[%none ~]
         =/  =bask:tarball  [blot.mark.leaf.jt u.got]
         =/  res  (validate-bask cod bask)
         ?:  ?=(%| -.res)
@@ -3022,7 +3035,7 @@
         &+[%ball wave.cite sub-ball]
       ==
     ::  Drop silo refs after hydrating
-    =?  silo  ?=(%file -.cite)  (~(drop si:nexus silo) lobe.cite)
+    =?  silo  ?=(%file -.cite)  (~(drop-ject si:nexus silo) lobe.cite)
     =?  silo  ?=(%ball -.cite)  (~(drop-ject si:nexus silo) lobe.cite)
     ?:  ?=(%| -.cite.u.in)  [`[%peek wire.u.in |+p.cite.u.in] this]
     [`[%peek wire.u.in seen] this]
@@ -4159,7 +4172,7 @@
   =/  grubs=(list [=rail:tarball =sang:tarball lob=lobe:clay])
     %+  skim  all-grubs
     |=  [=rail:tarball =sang:tarball lob=lobe:clay]
-    =(name.blot name.p.sang)
+    =(blot p.sang)
   ?~  grubs  $(remaining t.remaining)
   ::  Get marc, or skip if mark failed to compile
   =/  marc-res=(each marc:tarball tang)
@@ -4606,7 +4619,9 @@
 ::  /sys/ames: runtime-owned peer infrastructure
 ::
 ::  Creates /sys/ames/ directory structure for foreign ship management.
-::  Usergroups are per-group directories with who.ships and how.weir files.
+::  Usergroups are .grp directories under /sys/ames/usergroups/ with
+::  who.ships and how.weir files. Groups can be nested in namespaces
+::  (e.g. /sys/ames/usergroups/contacts/friends.grp/).
 ::  Ship directories are created lazily on first foreign poke.
 ::  Weirs recompute atomically on any usergroup change.
 ::
@@ -4622,14 +4637,18 @@
   =.  this  (ensure-dir /sys/ames)
   =.  this  (ensure-dir /sys/ames/usergroups)
   =.  this  (ensure-dir /sys/ames/ships)
+  ::  Ensure usergroups registry exists
+  =/  reg-rail=rail:tarball  [/sys/ames %'public.usergroups_registry']
+  =?  this  =(~ (peek-grub-now reg-rail))
+    (save-file reg-rail [[/usergroups %registry] %& !>(*(map rail:tarball path))])
   =.  this  ensure-public-group
   (ensure-peer-ship our.bowl)
-::  Ensure /sys/ames/usergroups/public/ exists with who.ships and how.weir.
+::  Ensure /sys/ames/usergroups/public.grp/ exists with who.ships and how.weir.
 ::  The public group's weir applies to all foreign ships regardless of membership.
 ::
 ++  ensure-public-group
   ^+  this
-  =/  pub-dir=path  /sys/ames/usergroups/public
+  =/  pub-dir=path  (grp-storage-path /public)
   =/  who-rail=rail:tarball  [pub-dir %'who.ships']
   =/  how-rail=rail:tarball  [pub-dir %'how.weir']
   =/  man-rail=rail:tarball  [pub-dir %'man.md']
@@ -4686,78 +4705,123 @@
 ++  sync-peer-man
   |=  [src=@p ship-dir=path]
   ^+  this
-  =/  man=(map @ta mime)  read-peer-man
-  =/  who=(map @ta (set @p))  read-peer-who
-  =/  peer-src=(map @p (set @ta))  (build-peer-src who)
-  =/  ship-groups=(set @ta)
-    %-  ~(uni in (fall (~(get by peer-src) src) *(set @ta)))
-    (~(gas in *(set @ta)) ~[%public])
+  =/  man=(map path mime)  read-peer-man
+  =/  who=(map path (set @p))  read-peer-who
+  =/  peer-src=(map @p (set path))  (build-peer-src who)
+  =/  ship-groups=(set path)
+    %-  ~(uni in (fall (~(get by peer-src) src) *(set path)))
+    (~(gas in *(set path)) ~[/public])
   =/  man-dir=path  (weld ship-dir /man)
   =.  this  (ensure-dir man-dir)
   %+  roll  ~(tap in ship-groups)
-  |=  [grp=@ta sat=_this]
+  |=  [grp=path sat=_this]
   =/  grp-man=(unit mime)  (~(get by man) grp)
   ?~  grp-man  sat
-  (save-file:sat [man-dir (cat 3 grp '.md')] [[/ %mime] %& !>(u.grp-man)])
-::  Compute weir for a ship from usergroup data.
-::  Union of all group weirs the ship belongs to, plus public weir.
+  ?~  grp  sat
+  (save-file:sat [man-dir (cat 3 (rear grp) '.md')] [[/ %mime] %& !>(u.grp-man)])
+::  Usergroup helpers: .grp directory convention
+::
+::  Groups live under /sys/ames/usergroups/ and are identified by path
+::  (e.g. /public, /contacts/friends). Storage directories use a .grp
+::  suffix on the last segment to mark group boundaries.
+::
+++  grp-dir-name
+  |=  name=@ta
+  ^-  @ta
+  (cat 3 name '.grp')
+::
+++  grp-storage-path
+  |=  grp=path
+  ^-  path
+  ?~  grp  /sys/ames/usergroups
+  %+  weld  /sys/ames/usergroups
+  (snoc (snip `path`grp) (grp-dir-name (rear grp)))
+::
+++  is-grp-name
+  |=  name=@ta
+  ^-  ?
+  =/  t=tape  (trip name)
+  =/  len=@ud  (lent t)
+  ?&  (gte len 5)
+      =(".grp" (slag (sub len 4) t))
+  ==
+::
+++  strip-grp-suffix
+  |=  name=@ta
+  ^-  @ta
+  =/  t=tape  (trip name)
+  (crip (scag (sub (lent t) 4) t))
+::  Recursively find all .grp directories in a ball.
+::  Returns [group-path group-ball] pairs.
+::
+++  find-groups
+  |=  [pax=path ug=ball:tarball]
+  ^-  (list [name=path grp=ball:tarball])
+  =/  kids=(list [@ta ball:tarball])  ~(tap by dir.ug)
+  =|  acc=(list [name=path grp=ball:tarball])
+  |-
+  ?~  kids  acc
+  =/  [kid-name=@ta kid=ball:tarball]  i.kids
+  ?:  (is-grp-name kid-name)
+    $(kids t.kids, acc [[(snoc pax (strip-grp-suffix kid-name)) kid] acc])
+  $(kids t.kids, acc (weld acc ^$(pax (snoc pax kid-name), ug kid)))
 ::
 ++  read-peer-who
-  ^-  (map @ta (set @p))
+  ^-  (map path (set @p))
   =/  ug=ball:tarball
     (peek-ball-now /sys/ames/usergroups)
-  %-  ~(gas by *(map @ta (set @p)))
-  %+  murn  ~(tap in ~(key by dir.ug))
-  |=  name=@ta
-  ^-  (unit [@ta (set @p)])
-  =/  grp=ball:tarball  (~(dip ba:tarball ug) /[name])
+  =/  groups=(list [name=path grp=ball:tarball])  (find-groups / ug)
+  %-  ~(gas by *(map path (set @p)))
+  %+  murn  groups
+  |=  [name=path grp=ball:tarball]
+  ^-  (unit [path (set @p)])
   =/  c=(unit sang:tarball)  (~(get ba:tarball grp) [/ %'who.ships'])
   ?~  c  ~
   =/  res  (mule |.(!<((set @p) (need-vase:tarball u.c))))
   ?:(?=(%| -.res) ~ `[name p.res])
 ::
 ++  read-peer-how
-  ^-  (map @ta weir:nexus)
+  ^-  (map path weir:nexus)
   =/  ug=ball:tarball
     (peek-ball-now /sys/ames/usergroups)
-  %-  ~(gas by *(map @ta weir:nexus))
-  %+  murn  ~(tap in ~(key by dir.ug))
-  |=  name=@ta
-  ^-  (unit [@ta weir:nexus])
-  =/  grp=ball:tarball  (~(dip ba:tarball ug) /[name])
+  =/  groups=(list [name=path grp=ball:tarball])  (find-groups / ug)
+  %-  ~(gas by *(map path weir:nexus))
+  %+  murn  groups
+  |=  [name=path grp=ball:tarball]
+  ^-  (unit [path weir:nexus])
   =/  c=(unit sang:tarball)  (~(get ba:tarball grp) [/ %'how.weir'])
   ?~  c  ~
   =/  res  (mule |.(!<(weir:nexus (need-vase:tarball u.c))))
   ?:(?=(%| -.res) ~ `[name p.res])
 ::
 ++  read-peer-man
-  ^-  (map @ta mime)
+  ^-  (map path mime)
   =/  ug=ball:tarball
     (peek-ball-now /sys/ames/usergroups)
-  %-  ~(gas by *(map @ta mime))
-  %+  murn  ~(tap in ~(key by dir.ug))
-  |=  name=@ta
-  ^-  (unit [@ta mime])
-  =/  grp=ball:tarball  (~(dip ba:tarball ug) /[name])
+  =/  groups=(list [name=path grp=ball:tarball])  (find-groups / ug)
+  %-  ~(gas by *(map path mime))
+  %+  murn  groups
+  |=  [name=path grp=ball:tarball]
+  ^-  (unit [path mime])
   =/  c=(unit sang:tarball)  (~(get ba:tarball grp) [/ %'man.md'])
   ?~  c  ~
   =/  res  (mule |.(!<(mime (need-vase:tarball u.c))))
   ?:(?=(%| -.res) ~ `[name p.res])
-::  Build reverse index: ship → group names
+::  Build reverse index: ship → group paths
 ::
 ++  build-peer-src
-  |=  who=(map @ta (set @p))
-  ^-  (map @p (set @ta))
-  =/  groups=(list [@ta (set @p)])  ~(tap by who)
-  =|  acc=(map @p (set @ta))
+  |=  who=(map path (set @p))
+  ^-  (map @p (set path))
+  =/  groups=(list [path (set @p)])  ~(tap by who)
+  =|  acc=(map @p (set path))
   |-
   ?~  groups  acc
-  =/  [name=@ta members=(set @p)]  i.groups
+  =/  [name=path members=(set @p)]  i.groups
   =/  ships=(list @p)  ~(tap in members)
   =.  acc
     |-
     ?~  ships  acc
-    =/  existing=(set @ta)  (fall (~(get by acc) i.ships) ~)
+    =/  existing=(set path)  (fall (~(get by acc) i.ships) ~)
     $(ships t.ships, acc (~(put by acc) i.ships (~(put in existing) name)))
   $(groups t.groups)
 ::  Union two weirs
@@ -4774,20 +4838,20 @@
 ++  compute-peer-weir
   |=  =ship
   ^-  weir:nexus
-  =/  who=(map @ta (set @p))  read-peer-who
-  =/  how=(map @ta weir:nexus)  read-peer-how
+  =/  who=(map path (set @p))  read-peer-who
+  =/  how=(map path weir:nexus)  read-peer-how
   (compute-peer-weir-from ship (build-peer-src who) how)
 ::
 ++  compute-peer-weir-from
-  |=  [=ship src=(map @p (set @ta)) how=(map @ta weir:nexus)]
+  |=  [=ship src=(map @p (set path)) how=(map path weir:nexus)]
   ^-  weir:nexus
   =/  public-weir=weir:nexus
-    (fall (~(get by how) %public) *weir:nexus)
-  =/  ship-groups=(set @ta)
+    (fall (~(get by how) /public) *weir:nexus)
+  =/  ship-groups=(set path)
     (fall (~(get by src) ship) ~)
   =/  ship-weir=weir:nexus
     %+  roll  ~(tap in ship-groups)
-    |=  [name=@ta acc=weir:nexus]
+    |=  [name=path acc=weir:nexus]
     (union-weirs acc (fall (~(get by how) name) *weir:nexus))
   (union-weirs ship-weir public-weir)
 ::  /sys/eyre: ensure directory structure + register /grubbery/api
@@ -5169,6 +5233,12 @@
     ?.  =([/ %bowl-req] p.sage)  ~
     =.  this  (handle-bowl-req here wir q.sage)
     `(enqu-take here (sys-give /bowl) ~ %pack wir ~)
+  ::
+      %ames
+    ?>  =(dest [/sys/ames %'public.usergroups_registry'])
+    ?>  =([/usergroups %registry-action] p.sage)
+    =.  this  (handle-ames-registry here wir q.sage)
+    `(enqu-take here (sys-give /ames) ~ %pack wir ~)
   ==
 ::
 ::  /sys/behn/ timer service
@@ -5487,7 +5557,146 @@
   =/  rel=from:fiber:nexus  (relativize-from:nexus sender &+bowl-rail)
   ?+  req  this
     %our  (enqu-take sender (sys-give /bowl) ~ %poke rel [[/ %ship] our.bowl])
-    %now  (enqu-take sender (sys-give /bowl) ~ %poke rel [[/ %time] now.last])
-    %eny  (enqu-take sender (sys-give /bowl) ~ %poke rel [[/ %entropy] eny.last])
+      %now
+    =.  last  last(now ?:((gte now.last now.bowl) (add now.last (div ~s1 1.000)) now.bowl))
+    (enqu-take sender (sys-give /bowl) ~ %poke rel [[/ %time] now.last])
+      %eny
+    =.  last  last(eny (shaz (cat 3 eny.bowl eny.last)))
+    (enqu-take sender (sys-give /bowl) ~ %poke rel [[/ %entropy] eny.last])
   ==
+::  /sys/ames/ usergroups registry
+::
+::  Manages the public usergroups registry. Two operations:
+::  - %register: root-only, adds a rail→prefix mapping
+::  - %how: registered grub updates /public's weir under its prefix
+::
+++  handle-ames-registry
+  |=  [sender=rail:tarball =wire vaz=vase]
+  ^+  this
+  =/  reg-rail=rail:tarball  [/sys/ames %'public.usergroups_registry']
+  =/  reg=(map rail:tarball path)
+    =/  got=(unit sang:tarball)  (peek-grub-now reg-rail)
+    ?~  got  *(map rail:tarball path)
+    =/  res  (mule |.(!<((map rail:tarball path) (need-vase:tarball u.got))))
+    ?:(?=(%| -.res) *(map rail:tarball path) p.res)
+  =/  act  !<($%([%register =rail:tarball pax=path] [%deregister =rail:tarball clean=?] [%how =weir:nexus]) vaz)
+  ?-    -.act
+      %register
+    ::  Check no overlapping prefixes
+    =/  new-prefix  pax.act
+    =/  entries=(list [rail:tarball path])  ~(tap by reg)
+    |-
+    ?~  entries
+      ::  No conflicts — add to registry
+      =/  new-reg=(map rail:tarball path)  (~(put by reg) rail.act new-prefix)
+      (save-file reg-rail [[/usergroups %registry] %& !>(new-reg)])
+    =/  [r=rail:tarball existing=path]  i.entries
+    ::  Check: new is not a prefix of existing, existing is not a prefix of new
+    ?:  ?|  (is-prefix new-prefix existing)
+            (is-prefix existing new-prefix)
+        ==
+      this  :: overlap — silently reject
+    $(entries t.entries)
+  ::
+      %deregister
+    =/  prefix=(unit path)  (~(get by reg) rail.act)
+    ?~  prefix  this  :: not registered
+    =/  new-reg=(map rail:tarball path)  (~(del by reg) rail.act)
+    =.  this  (save-file reg-rail [[/usergroups %registry] %& !>(new-reg)])
+    ?.  clean.act  this
+    ::  Strip roads under prefix from /public's how.weir
+    =/  how-rail=rail:tarball  [(grp-storage-path /public) %'how.weir']
+    =/  cur=weir:nexus
+      =/  got=(unit sang:tarball)  (peek-grub-now how-rail)
+      ?~  got  *weir:nexus
+      =/  res  (mule |.(!<(weir:nexus (need-vase:tarball u.got))))
+      ?:(?=(%| -.res) *weir:nexus p.res)
+    =/  new=weir:nexus
+      :*  (replace-roads make.cur ~ u.prefix)
+          (replace-roads poke.cur ~ u.prefix)
+          (replace-roads peek.cur ~ u.prefix)
+      ==
+    =.  this  (save-file how-rail [[/ %weir] %& !>(new)])
+    recompute-all-weirs
+  ::
+      %how
+    ::  Look up sender in registry
+    =/  prefix=(unit path)  (~(get by reg) sender)
+    ?~  prefix  this  :: not registered — reject
+    ::  Read current public weir
+    =/  how-rail=rail:tarball  [(grp-storage-path /public) %'how.weir']
+    =/  cur=weir:nexus
+      =/  got=(unit sang:tarball)  (peek-grub-now how-rail)
+      ?~  got  *weir:nexus
+      =/  res  (mule |.(!<(weir:nexus (need-vase:tarball u.got))))
+      ?:(?=(%| -.res) *weir:nexus p.res)
+    ::  Validate all roads in poked weir are under prefix
+    ?.  (validate-weir-roads weir.act u.prefix)  this
+    ::  Delete-and-replace: strip roads under prefix, add new ones
+    =/  new=weir:nexus
+      :*  (replace-roads make.cur make.weir.act u.prefix)
+          (replace-roads poke.cur poke.weir.act u.prefix)
+          (replace-roads peek.cur peek.weir.act u.prefix)
+      ==
+    =.  this  (save-file how-rail [[/ %weir] %& !>(new)])
+    ::  Recompute weirs for all foreign ships
+    recompute-all-weirs
+  ==
+::
+++  is-prefix
+  |=  [pre=path full=path]
+  ^-  ?
+  ?~  pre  &
+  ?~  full  |
+  ?.  =(i.pre i.full)  |
+  $(pre t.pre, full t.full)
+::
+++  road-path
+  |=  =road:tarball
+  ^-  (unit path)
+  ?.  ?=(%& -.road)  ~
+  ?-  -.p.road
+    %&  `path.p.p.road
+    %|  `p.p.road
+  ==
+::
+++  validate-weir-roads
+  |=  [=weir:nexus prefix=path]
+  ^-  ?
+  %+  levy
+    %+  weld  ~(tap in make.weir)
+    %+  weld  ~(tap in poke.weir)
+    ~(tap in peek.weir)
+  |=  =road:tarball
+  =/  pax=(unit path)  (road-path road)
+  ?~  pax  |  :: reject relative roads
+  (is-prefix prefix u.pax)
+::
+++  replace-roads
+  |=  [cur=(set road:tarball) new=(set road:tarball) prefix=path]
+  ^-  (set road:tarball)
+  ::  Strip roads under prefix from current
+  =/  stripped=(set road:tarball)
+    %-  ~(gas in *(set road:tarball))
+    %+  skip  ~(tap in cur)
+    |=  =road:tarball
+    =/  pax=(unit path)  (road-path road)
+    ?~  pax  |
+    (is-prefix prefix u.pax)
+  ::  Add new roads
+  (~(uni in stripped) new)
+::
+++  recompute-all-weirs
+  ^+  this
+  =/  ships-ball=ball:tarball  (peek-ball-now /sys/ames/ships)
+  =/  kids=(list [@ta ball:tarball])  ~(tap by dir.ships-ball)
+  |-
+  ?~  kids  this
+  =/  ship-name=@ta  -.i.kids
+  =/  ship=(unit @p)  (slaw %p ship-name)
+  ?~  ship  $(kids t.kids)
+  ?:  =(u.ship our.bowl)  $(kids t.kids)
+  =/  =weir:nexus  (compute-peer-weir u.ship)
+  =.  this  (set-weir /sys/ames/ships/[ship-name] `weir)
+  $(kids t.kids)
 --

@@ -21,23 +21,19 @@
     ++  on-load
       |=  =ball:tarball
       ^-  bole:tarball
-      =/  =ver:loader  (get-ver:loader ball)
-      ?+  ver  !!
-          ?(~ [~ %0] [~ %1])
-        =/  default-config=json
+      =/  default-config=json
           %-  pairs:enjs:format
           :~  ['url' s+'http://localhost:18443/']
               ['auth' s+'Basic dXJiaXQ6dXJiaXQxMjM=']
               ['poll-interval' s+'~s5']
           ==
-        %+  spin:loader  ball
-        :~  (ver-row:loader 1)
-            [%fall %& [/ %'config.json'] [[/ %json] default-config]]
-            [%fall %& [/ %'tip.ud'] [[/ %ud] 0]]
-            [%over %& [/ %'poller.sig'] [[/ %sig] ~]]
-            [%fall %| /blocks empty-dir:loader]
-            [%over %& [/man %'readme.md'] [[/ %mime] man]]
-        ==
+      %+  spin:loader  ball
+      :~  (manifest:loader 0)
+          [%fall %& [/ %'config.json'] [[/ %json] default-config]]
+          [%fall %& [/ %'tip.ud'] [[/ %ud] 0]]
+          [%over %& [/ %'poller.sig'] [[/ %sig] ~]]
+          [%fall %| /blocks empty-dir:loader]
+          [%over %& [/man %'readme.md'] [[/ %mime] man]]
       ==
     ::
     ++  on-file

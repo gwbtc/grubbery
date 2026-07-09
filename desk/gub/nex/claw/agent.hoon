@@ -9,10 +9,7 @@
     ++  on-load
       |=  =ball:tarball
       ^-  bole:tarball
-      =/  =ver:loader  (get-ver:loader ball)
-      ?+  ver  !!
-          ?(~ [~ %0])
-        =/  default-config=json
+      =/  default-config=json
           %-  pairs:enjs:format
           :~  ['model' s+'claude-sonnet-4-20250514']
               ['api-proxy' s+'anthropic']
@@ -135,7 +132,7 @@
               'set up files and directories. Key loader operations:'
               '  %fall -- create file/dir only if absent (keeps existing data on reload)'
               '  %over -- overwrite file/dir unconditionally (resets on reload)'
-              '  ver-row:loader -- version tracking for schema migrations'
+              '  manifest:loader -- version tracking for schema migrations'
               ''
               '## on-file: define fiber processes'
               '  |=  [=rail:tarball =mark]'
@@ -583,50 +580,49 @@
           ==
         =/  default-conv=json  [%a ~]
         =/  code-dir=bole:tarball  [`[`[/ %code] ~ %.n ~] ~]
-        %+  spin:loader  ball
-        :~  (ver-row:loader 0)
-            [%fall %& [/ %'config.json'] [[/ %json] default-config]]
-            ::  /main.sig: chat lifecycle + message routing
-            [%over %& [/ %'main.sig'] [[/ %sig] ~]]
-            ::  /chats/main: primary chat instance
-            [%fall %| /chats empty-dir:loader]
-            [%fall %| /chats/main empty-dir:loader]
-            [%fall %& [/chats/main %'chat.json'] [[/ %json] default-conv]]
-            [%fall %& [/chats/main %'outbox.json'] [[/ %json] [%a ~]]]
-            [%over %& [/chats/main %'status.json'] [[/ %json] (pairs:enjs:format ~[['state' s+'idle']])]]
-            ::  /proc/tools: tool execution (flat, [chat]_[tid] naming)
-            [%fall %| /proc empty-dir:loader]
-            [%fall %| /proc/tools empty-dir:loader]
-            [%fall %| /proc/cron empty-dir:loader]
-            ::  /context: shared prompts, memories, docs
-            [%fall %| /context empty-dir:loader]
-            [%fall %| /context/prompts empty-dir:loader]
-            [%fall %& [/context/prompts %'main.txt'] [[/ %txt] default-prompt]]
-            [%fall %| /context/memories empty-dir:loader]
-            [%fall %| /context/docs empty-dir:loader]
-            [%over %& [/context/docs %'grubbery-fundamentals.txt'] [[/ %txt] fundamentals-doc]]
-            [%over %& [/context/docs %'workflows.txt'] [[/ %txt] workflows-doc]]
-            ::  /apps: applications and code
-            [%fall %| /apps empty-dir:loader]
-            [%fall %| /apps/code code-dir]
-            [%fall %| /apps/code/nex empty-dir:loader]
-            [%fall %| /apps/code/lib empty-dir:loader]
-            [%fall %| /apps/code/lib/tools empty-dir:loader]
-            [%fall %| /apps/code/mar empty-dir:loader]
-            ::  /ui/chats.json: manifest of active chats
-            [%fall %| /ui empty-dir:loader]
-            [%fall %& [/ui %'chats.json'] [[/ %json] [%a ~[s+'main']]]]
-            ::  /about.txt: self-description visible to other agents
-            =/  default-about=wain
-              :~  'A general-purpose claw agent. No specific role assigned yet.'
-              ==
-            [%fall %& [/ %'about.txt'] [[/ %txt] default-about]]
-            ::  /children: spawned child nexuses
-            [%fall %| /children empty-dir:loader]
-            ::  ui
-            [%over %& [/ %'page.html'] [[/ %html] (crip (en-xml:html (chat-page "" "")))]]
-            [%over %& [/man %'readme.md'] [[/ %mime] man]]
-        ==
+      %+  spin:loader  ball
+      :~  (manifest:loader 0)
+          [%fall %& [/ %'config.json'] [[/ %json] default-config]]
+          ::  /main.sig: chat lifecycle + message routing
+          [%over %& [/ %'main.sig'] [[/ %sig] ~]]
+          ::  /chats/main: primary chat instance
+          [%fall %| /chats empty-dir:loader]
+          [%fall %| /chats/main empty-dir:loader]
+          [%fall %& [/chats/main %'chat.json'] [[/ %json] default-conv]]
+          [%fall %& [/chats/main %'outbox.json'] [[/ %json] [%a ~]]]
+          [%over %& [/chats/main %'status.json'] [[/ %json] (pairs:enjs:format ~[['state' s+'idle']])]]
+          ::  /proc/tools: tool execution (flat, [chat]_[tid] naming)
+          [%fall %| /proc empty-dir:loader]
+          [%fall %| /proc/tools empty-dir:loader]
+          [%fall %| /proc/cron empty-dir:loader]
+          ::  /context: shared prompts, memories, docs
+          [%fall %| /context empty-dir:loader]
+          [%fall %| /context/prompts empty-dir:loader]
+          [%fall %& [/context/prompts %'main.txt'] [[/ %txt] default-prompt]]
+          [%fall %| /context/memories empty-dir:loader]
+          [%fall %| /context/docs empty-dir:loader]
+          [%over %& [/context/docs %'grubbery-fundamentals.txt'] [[/ %txt] fundamentals-doc]]
+          [%over %& [/context/docs %'workflows.txt'] [[/ %txt] workflows-doc]]
+          ::  /apps: applications and code
+          [%fall %| /apps empty-dir:loader]
+          [%fall %| /apps/code code-dir]
+          [%fall %| /apps/code/nex empty-dir:loader]
+          [%fall %| /apps/code/lib empty-dir:loader]
+          [%fall %| /apps/code/lib/tools empty-dir:loader]
+          [%fall %| /apps/code/mar empty-dir:loader]
+          ::  /ui/chats.json: manifest of active chats
+          [%fall %| /ui empty-dir:loader]
+          [%fall %& [/ui %'chats.json'] [[/ %json] [%a ~[s+'main']]]]
+          ::  /about.txt: self-description visible to other agents
+          =/  default-about=wain
+            :~  'A general-purpose claw agent. No specific role assigned yet.'
+            ==
+          [%fall %& [/ %'about.txt'] [[/ %txt] default-about]]
+          ::  /children: spawned child nexuses
+          [%fall %| /children empty-dir:loader]
+          ::  ui
+          [%over %& [/ %'page.html'] [[/ %html] (crip (en-xml:html (chat-page "" "")))]]
+          [%over %& [/man %'readme.md'] [[/ %mime] man]]
       ==
     ::
     ++  on-file

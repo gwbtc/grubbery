@@ -10,15 +10,11 @@
     ++  on-load
       |=  =ball:tarball
       ^-  bole:tarball
-      =/  =ver:loader  (get-ver:loader ball)
-      ?+  ver  !!
-          ?(~ [~ %0])
-        %+  spin:loader  ball
-        :~  (ver-row:loader 0)
-            [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
-            [%fall %| /requests empty-dir:loader]
-            [%over %& [/man %'readme.md'] [[/ %mime] man]]
-        ==
+      %+  spin:loader  ball
+      :~  (manifest:loader 0)
+          [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
+          [%fall %| /requests empty-dir:loader]
+          [%over %& [/man %'readme.md'] [[/ %mime] man]]
       ==
     ::
     ++  on-file
@@ -51,6 +47,45 @@
 |%
 ++  srv  ~(. http-res:io [%| 1 %& ~ %'main.sig'])
 ++  peer-base  /sys/ames
+::
+++  grp-dir-name
+  |=  name=@ta
+  ^-  @ta
+  (cat 3 name '.grp')
+::
+++  grp-storage-path
+  |=  grp=path
+  ^-  path
+  ?~  grp  /sys/ames/usergroups
+  %+  weld  /sys/ames/usergroups
+  (snoc (snip `path`grp) (grp-dir-name (rear grp)))
+::
+++  is-grp-name
+  |=  name=@ta
+  ^-  ?
+  =/  t=tape  (trip name)
+  =/  len=@ud  (lent t)
+  ?&  (gte len 5)
+      =(".grp" (slag (sub len 4) t))
+  ==
+::
+++  strip-grp-suffix
+  |=  name=@ta
+  ^-  @ta
+  =/  t=tape  (trip name)
+  (crip (scag (sub (lent t) 4) t))
+::
+++  find-groups
+  |=  [pax=path ug=ball:tarball]
+  ^-  (list [name=path grp=ball:tarball])
+  =/  kids=(list [@ta ball:tarball])  ~(tap by dir.ug)
+  =|  acc=(list [name=path grp=ball:tarball])
+  |-
+  ?~  kids  acc
+  =/  [kid-name=@ta kid=ball:tarball]  i.kids
+  ?:  (is-grp-name kid-name)
+    $(kids t.kids, acc [[(snoc pax (strip-grp-suffix kid-name)) kid] acc])
+  $(kids t.kids, acc (weld acc ^$(pax (snoc pax kid-name), ug kid)))
 ::
 ++  abs-file
   |=  [=path name=@ta]
@@ -99,16 +134,16 @@
     =/  name=@t  body
     ?:  =('' name)  (redirect eyre-id)
     =/  grp=path  (stab name)
-    =/  grp-dir=path  (weld /usergroups grp)
-    =/  who-road=road:tarball  (abs-file grp-dir %'who.ships')
-    =/  how-road=road:tarball  (abs-file grp-dir %'how.weir')
+    =/  grp-dir=path  (grp-storage-path grp)
+    =/  who-road=road:tarball  [%& %& grp-dir %'who.ships']
+    =/  how-road=road:tarball  [%& %& grp-dir %'how.weir']
     ;<  ~  bind:m  (make:io who-road |+[[[/ %ships] *(set @p)] ~])
     ;<  ~  bind:m  (make:io how-road |+[[[/ %weir] *weir:nexus] ~])
     (redirect eyre-id)
   ::
       [%delete ~]
     =/  grp=path  (stab body)
-    ;<  *  bind:m  (cull-soft:io (abs-dir (weld /usergroups grp)))
+    ;<  *  bind:m  (cull-soft:io [%& %| (grp-storage-path grp)])
     (redirect eyre-id)
   ::
       [%members ~]
@@ -119,7 +154,7 @@
     =/  ships=(set @p)
       %-  ~(gas in *(set @p))
       (murn t.lines |=(t=@t (slaw %p t)))
-    ;<  ~  bind:m  (over:io (abs-file (weld /usergroups grp) %'who.ships') [[/ %ships] ships])
+    ;<  ~  bind:m  (over:io [%& %& (grp-storage-path grp) %'who.ships'] [[/ %ships] ships])
     (redirect eyre-id)
   ::
       [%permissions ~]
@@ -128,7 +163,7 @@
     ?~  lines  (redirect eyre-id)
     =/  grp=path  (stab i.lines)
     =/  =weir:nexus  (parse-weir-lines t.lines)
-    ;<  ~  bind:m  (over:io (abs-file (weld /usergroups grp) %'how.weir') [[/ %weir] weir])
+    ;<  ~  bind:m  (over:io [%& %& (grp-storage-path grp) %'how.weir'] [[/ %weir] weir])
     (redirect eyre-id)
   ==
 ::
@@ -144,7 +179,7 @@
 ::  Data reading
 ::
 +$  group-info
-  $:  name=@ta
+  $:  name=path
       members=(set @p)
       =weir:nexus
   ==
@@ -152,12 +187,10 @@
 ++  read-groups
   |=  ug-ball=ball:tarball
   ^-  (list group-info)
-  =/  names=(list @ta)
-    (sort ~(tap in ~(key by dir.ug-ball)) aor)
-  %+  murn  names
-  |=  name=@ta
+  =/  groups=(list [name=path grp=ball:tarball])  (find-groups / ug-ball)
+  %+  murn  groups
+  |=  [name=path grp=ball:tarball]
   ^-  (unit group-info)
-  =/  grp=ball:tarball  (~(dip ba:tarball ug-ball) /[name])
   =/  who-c=(unit sang:tarball)  (~(get ba:tarball grp) [/ %'who.ships'])
   =/  how-c=(unit sang:tarball)  (~(get ba:tarball grp) [/ %'how.weir'])
   ?~  who-c  ~
@@ -377,8 +410,8 @@
 ++  render-group
   |=  =group-info
   ^-  manx
-  =/  n=tape  "/{(trip name.group-info)}"
-  =/  is-public=?  =(%public name.group-info)
+  =/  n=tape  (spud name.group-info)
+  =/  is-public=?  =(/public name.group-info)
   =/  mem-list=(list @p)  (sort ~(tap in members.group-info) aor)
   =/  mem-text=tape
     %+  join  "\0a"

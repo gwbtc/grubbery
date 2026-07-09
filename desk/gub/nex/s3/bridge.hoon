@@ -24,7 +24,6 @@
     ++  on-load
       |=  =ball:tarball
       ^-  bole:tarball
-      =/  =ver:loader  (get-ver:loader ball)
       =/  default-creds=json
         %-  pairs:enjs:format
         :~  ['access_key' s+'']
@@ -33,21 +32,18 @@
             ['bucket' s+'']
             ['endpoint' s+'']
         ==
-      ?+  ver  !!
-          ?(~ [~ %0])
-        %+  spin:loader  ball
-        :~  (ver-row:loader 0)
-            [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
-            [%fall %& [/ %'creds.json'] [[/ %json] default-creds]]
-            [%fall %& [/ %'source.json'] [[/ %json] s+'']]
-            [%fall %& [/ %'mapping.json'] [[/ %json] [%a ~]]]
-            [%fall %& [/ %'log.json'] [[/ %json] [%a ~]]]
-            [%fall %& [/ %'browse.json'] [[/ %json] [%o ~]]]
-            [%fall %& [/ %'sync-status.json'] [[/ %json] [%a ~]]]
-            [%fall %| /sync empty-dir:loader]
-            [%over %& [/ %'page.html'] [[/ %html] (manx-to-html (bridge-page ~))]]
-            [%over %& [/man %'readme.md'] [[/ %mime] man]]
-        ==
+      %+  spin:loader  ball
+      :~  (manifest:loader 0)
+          [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
+          [%fall %& [/ %'creds.json'] [[/ %json] default-creds]]
+          [%fall %& [/ %'source.json'] [[/ %json] s+'']]
+          [%fall %& [/ %'mapping.json'] [[/ %json] [%a ~]]]
+          [%fall %& [/ %'log.json'] [[/ %json] [%a ~]]]
+          [%fall %& [/ %'browse.json'] [[/ %json] [%o ~]]]
+          [%fall %& [/ %'sync-status.json'] [[/ %json] [%a ~]]]
+          [%fall %| /sync empty-dir:loader]
+          [%over %& [/ %'page.html'] [[/ %html] (manx-to-html (bridge-page ~))]]
+          [%over %& [/man %'readme.md'] [[/ %mime] man]]
       ==
     ::
     ++  on-file

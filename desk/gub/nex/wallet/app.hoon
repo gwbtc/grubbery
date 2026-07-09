@@ -28,37 +28,33 @@
       ~&  >>  [%wallet-on-load %proc-in-old-ball ?=(^ (~(dap ba:tarball ball) /proc))]
       ~&  >>  [%wallet-on-load %registry-in-old-ball ?=(^ (~(get ba:tarball ball) [/ %'registry.wallet_registry']))]
       ~&  >>  [%wallet-on-load %dir-keys ~(key by dir.ball)]
-      =/  =ver:loader  (get-ver:loader ball)
-      ?+  ver  !!
-          ?(~ [~ %0])
-        =/  [wal=wallet-data mxpub1=@t ref1=@t xprv1=@t net1=network:wt st1=script-type og1=parsed-origin:b329]
-          (make-dev-wallet 'Dev Wallet' [%t 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about'] %testnet4)
-        =/  [fau-wal=wallet-data mxpub2=@t ref2=@t xprv2=@t net2=network:wt st2=script-type og2=parsed-origin:b329]
-          (make-dev-wallet 'Fauceted Wallet' [%t 'injury idea term fox crop movie type critic hello inquiry lottery agree'] %testnet3)
-        =/  init-lbls=labels:b329
-          =/  l=labels:b329  *labels:b329
-          =.  l  (~(put la:b329 l) [%xpub mxpub1 (rap 3 ~['gwbtc:wallet:' 'Dev Wallet']) ~ ~ ~])
-          =.  l  (~(put la:b329 l) [%xpub mxpub2 (rap 3 ~['gwbtc:wallet:' 'Fauceted Wallet']) ~ ~ ~])
-          =.  l  (make-acct-labels:aio l ref1 'Default' net1 og1)
-          (make-acct-labels:aio l ref2 'Default' net2 og2)
-        =/  init-sec=secrets
-          :*  %-  ~(gas by *(map @t seed))
-              ~[[xpub.wal seed.wal] [xpub.fau-wal seed.fau-wal]]
-              *(map @t @t)
-          ==
-        %+  spin:loader  ball
-        :~  (ver-row:loader 0)
-            [%over %& [/ %'main.sig'] [[/ %sig] ~]]
-            [%fall %& [/ %'labels.wallet_labels'] [[/wallet %labels] init-lbls]]
-            [%fall %& [/ %'secrets.wallet_secrets'] [[/wallet %secrets] init-sec]]
-            [%fall %& [/ %'drafts.wallet_drafts'] [[/wallet %drafts] *(map @t transaction:drft)]]
-            [%fall %& [/ %'ptsts.wallet_ptsts'] [[/wallet %ptsts] *(map @t ptst:taproot)]]
-            [%fall %& [/ %'registry.wallet_registry'] [[/wallet %registry] *proc-registry]]
-            [%fall %| /proc empty-dir:loader]
-            [%fall %& [/ui %'http.sig'] [[/ %sig] ~]]
-            [%fall %| /ui/requests empty-dir:loader]
-            [%over %& [/ %'README.md'] [[/ %mime] man]]
+      =/  [wal=wallet-data mxpub1=@t ref1=@t xprv1=@t net1=network:wt st1=script-type og1=parsed-origin:b329]
+        (make-dev-wallet 'Dev Wallet' [%t 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about'] %testnet4)
+      =/  [fau-wal=wallet-data mxpub2=@t ref2=@t xprv2=@t net2=network:wt st2=script-type og2=parsed-origin:b329]
+        (make-dev-wallet 'Fauceted Wallet' [%t 'injury idea term fox crop movie type critic hello inquiry lottery agree'] %testnet3)
+      =/  init-lbls=labels:b329
+        =/  l=labels:b329  *labels:b329
+        =.  l  (~(put la:b329 l) [%xpub mxpub1 (rap 3 ~['gwbtc:wallet:' 'Dev Wallet']) ~ ~ ~])
+        =.  l  (~(put la:b329 l) [%xpub mxpub2 (rap 3 ~['gwbtc:wallet:' 'Fauceted Wallet']) ~ ~ ~])
+        =.  l  (make-acct-labels:aio l ref1 'Default' net1 og1)
+        (make-acct-labels:aio l ref2 'Default' net2 og2)
+      =/  init-sec=secrets
+        :*  %-  ~(gas by *(map @t seed))
+            ~[[xpub.wal seed.wal] [xpub.fau-wal seed.fau-wal]]
+            *(map @t @t)
         ==
+      %+  spin:loader  ball
+      :~  (manifest:loader 0)
+          [%over %& [/ %'main.sig'] [[/ %sig] ~]]
+          [%fall %& [/ %'labels.wallet_labels'] [[/wallet %labels] init-lbls]]
+          [%fall %& [/ %'secrets.wallet_secrets'] [[/wallet %secrets] init-sec]]
+          [%fall %& [/ %'drafts.wallet_drafts'] [[/wallet %drafts] *(map @t transaction:drft)]]
+          [%fall %& [/ %'ptsts.wallet_ptsts'] [[/wallet %ptsts] *(map @t ptst:taproot)]]
+          [%fall %& [/ %'registry.wallet_registry'] [[/wallet %registry] *proc-registry]]
+          [%fall %| /proc empty-dir:loader]
+          [%fall %& [/ui %'http.sig'] [[/ %sig] ~]]
+          [%fall %| /ui/requests empty-dir:loader]
+          [%over %& [/ %'README.md'] [[/ %mime] man]]
       ==
     ::
     ++  on-file
@@ -2306,7 +2302,7 @@
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
   =/  weir-road=road:tarball
-    [%& %& /sys/ames/usergroups/public %'how.weir']
+    [%& %& /sys/ames/usergroups/'public.grp' %'how.weir']
   =/  wallet-road=road:tarball
     [%& %& /apps/'wallet.wallet_app' %'main.sig']
   ;<  weir-seen=seen:nexus  bind:m  (peek:io weir-road ~)

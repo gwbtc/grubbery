@@ -22,37 +22,33 @@
     ++  on-load
       |=  =ball:tarball
       ^-  bole:tarball
-      =/  =ver:loader  (get-ver:loader ball)
       =/  default-config=json
         %-  pairs:enjs:format
         :~  ['repo' s+'']
             ['ref' s+'']
             ['token' s+'']
         ==
-      ?+  ver  !!
-          ?(~ [~ %0])
-        %+  spin:loader  ball
-        :~  (ver-row:loader 0)
-            [%fall %& [/ %'config.json'] [[/ %json] default-config]]
-            [%fall %& [/actions %'sync.sig'] [[/ %sig] ~]]
-            [%fall %& [/actions %'switch.sig'] [[/ %sig] ~]]
-            [%fall %& [/actions %'checkout.sig'] [[/ %sig] ~]]
-            [%fall %& [/actions %'diff.sig'] [[/ %sig] ~]]
-            [%fall %& [/actions %'add.sig'] [[/ %sig] ~]]
-            [%fall %& [/actions %'commit.sig'] [[/ %sig] ~]]
-            [%fall %& [/actions %'import.sig'] [[/ %sig] ~]]
-            [%fall %& [/actions %'branch.sig'] [[/ %sig] ~]]
-            [%fall %& [/actions %'delete-branch.sig'] [[/ %sig] ~]]
-            [%fall %& [/actions %'stash.sig'] [[/ %sig] ~]]
-            [%fall %& [/actions %'stash-pop.sig'] [[/ %sig] ~]]
-            [%fall %& [/actions %'push.sig'] [[/ %sig] ~]]
-            [%fall %| /ui empty-dir:loader]
-            [%fall %& [/ui %'status.json'] [[/ %json] (pairs:enjs:format ~[['status' s+'idle']])]]
-            [%fall %& [/ui %'commit.json'] [[/ %json] [%a ~]]]
-            [%over %& [/ %'page.html'] [[/ %html] (crip (en-xml:html (repo-page '' '' '' ~ ~ [%a ~] [%o ~] clean-status)))]]
-            [%fall %| /data [`[`[/git %data] ~ %.n ~] ~]]
-            [%over %& [/man %'readme.md'] [[/ %mime] man]]
-        ==
+      %+  spin:loader  ball
+      :~  (manifest:loader 0)
+          [%fall %& [/ %'config.json'] [[/ %json] default-config]]
+          [%fall %& [/actions %'sync.sig'] [[/ %sig] ~]]
+          [%fall %& [/actions %'switch.sig'] [[/ %sig] ~]]
+          [%fall %& [/actions %'checkout.sig'] [[/ %sig] ~]]
+          [%fall %& [/actions %'diff.sig'] [[/ %sig] ~]]
+          [%fall %& [/actions %'add.sig'] [[/ %sig] ~]]
+          [%fall %& [/actions %'commit.sig'] [[/ %sig] ~]]
+          [%fall %& [/actions %'import.sig'] [[/ %sig] ~]]
+          [%fall %& [/actions %'branch.sig'] [[/ %sig] ~]]
+          [%fall %& [/actions %'delete-branch.sig'] [[/ %sig] ~]]
+          [%fall %& [/actions %'stash.sig'] [[/ %sig] ~]]
+          [%fall %& [/actions %'stash-pop.sig'] [[/ %sig] ~]]
+          [%fall %& [/actions %'push.sig'] [[/ %sig] ~]]
+          [%fall %| /ui empty-dir:loader]
+          [%fall %& [/ui %'status.json'] [[/ %json] (pairs:enjs:format ~[['status' s+'idle']])]]
+          [%fall %& [/ui %'commit.json'] [[/ %json] [%a ~]]]
+          [%over %& [/ %'page.html'] [[/ %html] (crip (en-xml:html (repo-page '' '' '' ~ ~ [%a ~] [%o ~] clean-status)))]]
+          [%fall %| /data [`[`[/git %data] ~ %.n ~] ~]]
+          [%over %& [/man %'readme.md'] [[/ %mime] man]]
       ==
     ::
     ++  on-file

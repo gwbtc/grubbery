@@ -10,25 +10,21 @@
     ++  on-load
       |=  =ball:tarball
       ^-  bole:tarball
-      =/  =ver:loader  (get-ver:loader ball)
-      ?+  ver  !!
-          ?(~ [~ %0])
-        %+  spin:loader  ball
-        :~  (ver-row:loader 0)
-            [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
-            [%fall %| /apis empty-dir:loader]
-            [%fall %| /apis/anthropic [`[`[/claw/api %anthropic] ~ %.n ~] ~]]
-            [%fall %| /agents empty-dir:loader]
-            [%fall %| /agents/main [`[`[/claw %agent] `main-agent-weir %.n ~] ~]]
-            [%fall %| /channels empty-dir:loader]
-            [%fall %| /channels/telegram/main-bot [`[`[/claw/channel %telegram] ~ %.n ~] ~]]
-            [%fall %| /ui/sse empty-dir:loader]
-            [%over %& [/ui/sse %'agents.html'] [[/ %html] (crip (en-xml:html (agents-fragment "" ~)))]]
-            [%over %& [/ui/sse %'channels.html'] [[/ %html] (crip (en-xml:html (channels-fragment "" ~)))]]
-            [%over %& [/ui/sse %'apis.html'] [[/ %html] (crip (en-xml:html (apis-fragment "" ~)))]]
-            [%over %& [/ %'page.html'] [[/ %html] (crip (en-xml:html (dashboard-page "" ~ ~ ~)))]]
-            [%over %& [/man %'readme.md'] [[/ %mime] man]]
-        ==
+      %+  spin:loader  ball
+      :~  (manifest:loader 0)
+          [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
+          [%fall %| /apis empty-dir:loader]
+          [%fall %| /apis/anthropic [`[`[/claw/api %anthropic] ~ %.n ~] ~]]
+          [%fall %| /agents empty-dir:loader]
+          [%fall %| /agents/main [`[`[/claw %agent] `main-agent-weir %.n ~] ~]]
+          [%fall %| /channels empty-dir:loader]
+          [%fall %| /channels/telegram/main-bot [`[`[/claw/channel %telegram] ~ %.n ~] ~]]
+          [%fall %| /ui/sse empty-dir:loader]
+          [%over %& [/ui/sse %'agents.html'] [[/ %html] (crip (en-xml:html (agents-fragment "" ~)))]]
+          [%over %& [/ui/sse %'channels.html'] [[/ %html] (crip (en-xml:html (channels-fragment "" ~)))]]
+          [%over %& [/ui/sse %'apis.html'] [[/ %html] (crip (en-xml:html (apis-fragment "" ~)))]]
+          [%over %& [/ %'page.html'] [[/ %html] (crip (en-xml:html (dashboard-page "" ~ ~ ~)))]]
+          [%over %& [/man %'readme.md'] [[/ %mime] man]]
       ==
     ::
     ++  on-file

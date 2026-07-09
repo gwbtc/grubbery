@@ -8,17 +8,13 @@
 ++  on-load
   |=  =ball:tarball
   ^-  bole:tarball
-  =/  =ver:loader  (get-ver:loader ball)
-  ?+  ver  !!
-      ?(~ [~ %0])
-    %+  spin:loader  ball
-    :~  (ver-row:loader 0)
-        [%over %& [/ %'bounce.html'] [[/ %mime] bounce-html]]
-        [%over %& [/ %'bounce.css'] [[/ %mime] bounce-css]]
-        [%over %& [/ %'bounce.js'] [[/ %mime] bounce-js]]
-        [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
-        [%fall %| /requests empty-dir:loader]
-    ==
+  %+  spin:loader  ball
+  :~  (manifest:loader 0)
+      [%over %& [/ %'bounce.html'] [[/ %mime] bounce-html]]
+      [%over %& [/ %'bounce.css'] [[/ %mime] bounce-css]]
+      [%over %& [/ %'bounce.js'] [[/ %mime] bounce-js]]
+      [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
+      [%fall %| /requests empty-dir:loader]
   ==
 ::
 ++  on-file

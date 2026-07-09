@@ -2,6 +2,7 @@
 ::  delete-usergroup: delete a usergroup
 ::
 ^-  tool:tools
+=<
 |%
 ++  name  'delete_usergroup'
 ++  description  'Delete a usergroup and all its data.'
@@ -21,7 +22,15 @@
   ?:  ?=(%| -.name-parsed)
     (pure:m [%error 'Missing required argument: group'])
   =/  grp=path  (stab p.name-parsed)
-  =/  grp-dir=path  (weld /sys/ames/usergroups grp)
+  =/  grp-dir=path  (grp-storage-path grp)
   ;<  *  bind:m  (cull-soft:io [%& %| grp-dir])
   (pure:m [%text (crip "Deleted usergroup {(spud grp)}")])
+--
+|%
+++  grp-storage-path
+  |=  grp=path
+  ^-  path
+  ?~  grp  /sys/ames/usergroups
+  %+  weld  /sys/ames/usergroups
+  (snoc (snip `path`grp) (cat 3 (rear grp) '.grp'))
 --

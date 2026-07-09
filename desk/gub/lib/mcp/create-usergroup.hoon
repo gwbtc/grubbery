@@ -26,7 +26,7 @@
   ?:  ?=(%| -.name-parsed)
     (pure:m [%error 'Missing required argument: group'])
   =/  grp=path  (stab p.name-parsed)
-  =/  grp-dir=path  (weld /sys/ames/usergroups grp)
+  =/  grp-dir=path  (grp-storage-path grp)
   =/  members=(set @p)
     =/  raw  (~(get jo:json-utils [%o args.st]) /members)
     ?~  raw  ~
@@ -55,6 +55,13 @@
   (pure:m [%text (crip "Created usergroup {(spud grp)} with {(a-co:co ~(wyt in members))} members")])
 --
 |%
+++  grp-storage-path
+  |=  grp=path
+  ^-  path
+  ?~  grp  /sys/ames/usergroups
+  %+  weld  /sys/ames/usergroups
+  (snoc (snip `path`grp) (cat 3 (rear grp) '.grp'))
+::
 ++  split-comma
   |=  t=@t
   ^-  (list @t)

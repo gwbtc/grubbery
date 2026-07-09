@@ -11,18 +11,14 @@
     ++  on-load
       |=  =ball:tarball
       ^-  bole:tarball
-      =/  =ver:loader  (get-ver:loader ball)
-      ?+  ver  !!
-          ?(~ [~ %0])
-        %+  spin:loader  ball
-        :~  (ver-row:loader 0)
-            [%over %& [/ %'index.html'] [[/ %mime] index-html]]
-            [%over %& [/ %'app.js'] [[/ %mime] app-js]]
-            [%over %& [/ %'style.css'] [[/ %mime] style-css]]
-            [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
-            [%fall %| /requests empty-dir:loader]
-            [%fall %| /itineraries empty-dir:loader]
-        ==
+      %+  spin:loader  ball
+      :~  (manifest:loader 0)
+          [%over %& [/ %'index.html'] [[/ %mime] index-html]]
+          [%over %& [/ %'app.js'] [[/ %mime] app-js]]
+          [%over %& [/ %'style.css'] [[/ %mime] style-css]]
+          [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
+          [%fall %| /requests empty-dir:loader]
+          [%fall %| /itineraries empty-dir:loader]
       ==
     ::
     ++  on-file

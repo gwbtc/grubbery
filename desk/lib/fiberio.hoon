@@ -331,6 +331,7 @@
       [~ %veto *]
     [%fail (veto-error dart.u.in)]
       [~ %peek * *]
+    ~&  >  [%take-peek-got wire=wire exp=wire.u.in cite=?:(?=(%| -.seen.u.in) %error -.p.seen.u.in)]
     ?.  =(wire wire.u.in)
       [%skip ~]
     [%done seen.u.in]
@@ -370,6 +371,50 @@
   ;<  =wire  bind:m  (nonce /poke)
   ;<  ~  bind:m  (send-dart %node wire road %poke bask)
   (take-pack wire)
+::  +poke-soft: poke with timeout, never crashes
+::
+::    Returns ~ on success, (unit tang) on nack or timeout.
+::    Sets a 5s timer; on nack or timeout returns the error.
+::
+++  poke-soft
+  |=  [=road:tarball =bask:tarball]
+  =/  m  (fiber ,(unit tang))
+  ^-  form:m
+  ;<  =wire  bind:m  (nonce /poke)
+  ;<  ~  bind:m  (send-dart %node wire road %poke bask)
+  ;<  now=@da  bind:m  get-time
+  ;<  ~  bind:m  (set-timer wire (add now ~s5))
+  |=  input:fiber:nexus
+  :+  ~  q.state
+  ?+  in  [%skip ~]
+      ~  [%wait ~]
+      [~ %pack * *]
+    ?.  =(wire wire.u.in)  [%skip ~]
+    ?~  err.u.in  [%done ~]
+    [%done `u.err.u.in]
+      [~ %poke * *]
+    ?.  =([/ %timer-wake] p.sage.u.in)  [%skip ~]
+    [%done `~[leaf+"poke timed out after 5s"]]
+  ==
+::  +take-held: wait for a %held response on a wire
+::
+++  take-held
+  |=  =wire
+  =/  m  (fiber ,~)
+  ^-  form:m
+  |=  input
+  :+  ~  q.state
+  ?+  in  [%skip ~]
+      ~  [%wait ~]
+      [~ %veto *]
+    [%fail (veto-error dart.u.in)]
+      [~ %held * *]
+    ?.  =(wire wire.u.in)
+      [%skip ~]
+    ?~  err.u.in
+      [%done ~]
+    [%fail %held-failed u.err.u.in]
+  ==
 ::  +checkpoint: promote current state to %firm
 ::
 ++  checkpoint
@@ -379,7 +424,17 @@
   ;<  =wire  bind:m  (nonce /firm)
   ;<  ~  bind:m
     (send-dart %node wire &+&+rail %firm ~)
-  (take-pack wire)
+  (take-held wire)
+::  +tag: set tags on a hist entry
+::
+++  tag
+  |=  [=rail:tarball cas=(unit case:nexus) tags=(set @t)]
+  =/  m  (fiber ,~)
+  ^-  form:m
+  ;<  =wire  bind:m  (nonce /tag)
+  ;<  ~  bind:m
+    (send-dart %node wire &+&+rail %tag cas tags)
+  (take-held wire)
 ::
 ++  peek
   |=  [=road:tarball blot=(unit blot:tarball)]
@@ -388,6 +443,18 @@
   ;<  =wire  bind:m  (nonce /peek)
   ;<  ~  bind:m  (send-dart %node wire road %peek blot ~ %.y)
   (take-peek wire)
+::
+::  Peek a file and extract its value as a typed noun.
+::  Crashes if file not found or wrong type.
+::
+++  peek-as
+  |*  [=road:tarball a=mold]
+  =/  m  (fiber ,(unit a))
+  ^-  form:m
+  ;<  res=seen:nexus  bind:m  (peek road ~)
+  ?.  ?=([%& %file *] res)
+    (pure:m ~)
+  (pure:m `!<(a (need-vase:tarball sang.p.res)))
 ::
 ::  Shallow peek: files at this level, subdir names only (no recursion)
 ::
@@ -1373,7 +1440,9 @@
     ;<  ~  bind:m  (cull [%| 0 %& /requests eyre-id])
     $
       %eyre-action
-    ;<  ~  bind:m  (poke server-road [p.sage q.q.sage])
+    ;<  err=(unit tang)  bind:m  (poke-soft server-road [p.sage q.q.sage])
+    ?~  err  $
+    %-  (slog leaf+"{(trip label)}: eyre-action failed" u.err)
     $
   ==
 ::  +resolve-bend: resolve a fiber bend to an absolute rail

@@ -12,24 +12,20 @@
     ++  on-load
       |=  =ball:tarball
       ^-  bole:tarball
-      =/  =ver:loader  (get-ver:loader ball)
       =/  default-config=json
         %-  pairs:enjs:format
         ~[['bot-token' s+'']]
-      ?+  ver  !!
-          ?(~ [~ %0])
-        %+  spin:loader  ball
-        :~  (ver-row:loader 0)
-            [%fall %& [/ %'config.json'] [[/ %json] default-config]]
-            [%fall %& [/ %'offset.ud'] [[/ %ud] 0]]
-            [%fall %& [/ %'send.sig'] [[/ %sig] ~]]
-            [%fall %& [/ %'poller.sig'] [[/ %sig] ~]]
-            [%fall %| /messages empty-dir:loader]
-            [%fall %| /ui/sse empty-dir:loader]
-            [%over %& [/ui/sse %'data.html'] [[/ %html] (crip (en-xml:html (sse-data ~ ~)))]]
-            [%over %& [/ui %'chat.html'] [[/ %html] (crip (en-xml:html (chat-page "" *(map @t @t) *(list json))))]]
-            [%over %& [/man %'readme.md'] [[/ %mime] man]]
-        ==
+      %+  spin:loader  ball
+      :~  (manifest:loader 0)
+          [%fall %& [/ %'config.json'] [[/ %json] default-config]]
+          [%fall %& [/ %'offset.ud'] [[/ %ud] 0]]
+          [%fall %& [/ %'send.sig'] [[/ %sig] ~]]
+          [%fall %& [/ %'poller.sig'] [[/ %sig] ~]]
+          [%fall %| /messages empty-dir:loader]
+          [%fall %| /ui/sse empty-dir:loader]
+          [%over %& [/ui/sse %'data.html'] [[/ %html] (crip (en-xml:html (sse-data ~ ~)))]]
+          [%over %& [/ui %'chat.html'] [[/ %html] (crip (en-xml:html (chat-page "" *(map @t @t) *(list json))))]]
+          [%over %& [/man %'readme.md'] [[/ %mime] man]]
       ==
     ::
     ++  on-file

@@ -85,18 +85,12 @@
 ++  on-load
   |=  =ball:tarball
   ^-  bole:tarball
-  =/  =ver:loader  (get-ver:loader ball)
-  ?+  ver  !!
-      ?(~ [~ %0])
-    %+  spin:loader  ball
-    :~  (ver-row:loader 1)
-        [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
-        [%fall %| /requests empty-dir:loader]
-        [%fall %| /tools empty-dir:loader]
-        [%over %& [/man %'readme.md'] [[/ %mime] man]]
-    ==
-      [~ %1]
-    (ball-to-bole:tarball ball)
+  %+  spin:loader  ball
+  :~  (manifest:loader 0)
+      [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
+      [%fall %| /requests empty-dir:loader]
+      [%fall %| /tools empty-dir:loader]
+      [%over %& [/man %'readme.md'] [[/ %mime] man]]
   ==
 ::
 ++  on-file
@@ -187,8 +181,10 @@
         (mcp-text-result:nex-mcp txt id)
       =/  json-bytes=octs
         (as-octs:mimes:html (en:json:html rpc-result))
-      %-  send-simple:srv
-      [eyre-id [[200 ~[['content-type' 'application/json']]] `json-bytes]]
+      ;<  ~  bind:m
+        %-  send-simple:srv
+        [eyre-id [[200 ~[['content-type' 'application/json']]] `json-bytes]]
+      (pure:m ~)
     ::  Protocol methods (initialize, tools/list, etc.): handle inline
     ;<  dynamic=(map @t tool:nex-tools)  bind:m  get-dynamic-tools
     ;<  response=(unit json)  bind:m  (handle-request:nex-mcp u.parsed dynamic)

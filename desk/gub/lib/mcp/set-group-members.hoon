@@ -26,7 +26,7 @@
     (pure:m [%error 'Missing required arguments: group, members'])
   =/  [name=@t mem-text=@t]  p.parsed
   =/  grp=path  (stab name)
-  =/  grp-dir=path  (weld /sys/ames/usergroups grp)
+  =/  grp-dir=path  (grp-storage-path grp)
   =/  members=(set @p)
     %-  ~(gas in *(set @p))
     %+  murn  (split-comma mem-text)
@@ -47,6 +47,13 @@
   ?:  =(i.tape ',')
     $(tape t.tape, acc [(crip (flop cur)) acc], cur ~)
   $(tape t.tape, cur [i.tape cur])
+++  grp-storage-path
+  |=  grp=path
+  ^-  path
+  ?~  grp  /sys/ames/usergroups
+  %+  weld  /sys/ames/usergroups
+  (snoc (snip `path`grp) (cat 3 (rear grp) '.grp'))
+::
 ++  trim
   |=  t=tape
   ^-  tape

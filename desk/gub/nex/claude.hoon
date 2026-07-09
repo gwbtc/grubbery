@@ -8,28 +8,24 @@
     ++  on-load
       |=  =ball:tarball
       ^-  bole:tarball
-      =/  =ver:loader  (get-ver:loader ball)
       =/  default-config=json
         %-  pairs:enjs:format
         :~  ['api_key' s+'']
             ['model' s+'claude-sonnet-4-20250514']
             ['max_tokens' (numb:enjs:format 4.096)]
         ==
-      ?+  ver  !!
-          ?(~ [~ %0])
-        %+  spin:loader  ball
-        :~  (ver-row:loader 0)
-            [%fall %& [/ %'config.json'] [[/ %json] default-config]]
-            [%fall %& [/ %'messages.claude-messages'] [[/ %claude-messages] [%0 *((mop @ud message) lth)]]]
-            [%fall %& [/ %'custom-prompt.txt'] [[/ %txt] *wain]]
-            [%fall %& [/ %'main.claude-registry'] [[/ %claude-registry] [%0 0 ~ %.y]]]
-            ::  always overwritten
-            [%over %& [/ %'weir.txt'] [[/ %txt] ~['No weir set.']]]
-            [%over %& [/ui %'chat.html'] [[/ %html] (crip (en-xml:html (chat-page ~)))]]
-            [%over %& [/ui/sse %'last-message.html'] [[/ %html] (crip (en-xml:html *manx))]]
-            [%over %& [/ui/sse %'status.json'] [[/ %json] (pairs:enjs:format ~[['loading' b+%.n] ['live' b+%.y]])]]
-            [%over %& [/man %'readme.md'] [[/ %mime] man]]
-        ==
+      %+  spin:loader  ball
+      :~  (manifest:loader 0)
+          [%fall %& [/ %'config.json'] [[/ %json] default-config]]
+          [%fall %& [/ %'messages.claude-messages'] [[/ %claude-messages] [%0 *((mop @ud message) lth)]]]
+          [%fall %& [/ %'custom-prompt.txt'] [[/ %txt] *wain]]
+          [%fall %& [/ %'main.claude-registry'] [[/ %claude-registry] [%0 0 ~ %.y]]]
+          ::  always overwritten
+          [%over %& [/ %'weir.txt'] [[/ %txt] ~['No weir set.']]]
+          [%over %& [/ui %'chat.html'] [[/ %html] (crip (en-xml:html (chat-page ~)))]]
+          [%over %& [/ui/sse %'last-message.html'] [[/ %html] (crip (en-xml:html *manx))]]
+          [%over %& [/ui/sse %'status.json'] [[/ %json] (pairs:enjs:format ~[['loading' b+%.n] ['live' b+%.y]])]]
+          [%over %& [/man %'readme.md'] [[/ %mime] man]]
       ==
     ::
     ++  on-file

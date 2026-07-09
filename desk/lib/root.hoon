@@ -6,11 +6,8 @@
 ++  on-load
   |=  =ball:tarball
   ^-  bole:tarball
-  =/  =ver:loader  ~  :: (get-ver:loader ball)
-  ?+  ver  !!
-      ?(~ [~ %0])
-    %+  spin:loader  ball
-    :~  (ver-row:loader 0)
+  %+  spin:loader  ball
+    :~  (manifest:loader 0)
         [%load %| / / same-fold:loader]
         [%fall %| /apps [`[~ ~ %.n ~] ~]]
         [%fall %| /docs [`[~ ~ %.n ~] ~]]
@@ -47,7 +44,6 @@
         [%fall %| /apps/'test.web-test' [`[`[/ %web-test] ~ %.n ~] ~]]
         [%fall %| /apps/'test.desk' [`[`[/ %desk] ~ %.n ~] ~]]
     ==
-  ==
 ::
 ++  on-file
   |=  [=rail:tarball =blot:tarball]

@@ -8,16 +8,11 @@
     ++  on-load
       |=  =ball:tarball
       ^-  bole:tarball
-      ~&  >  [%explorer-on-load %ver (get-ver:loader ball)]
-      =/  =ver:loader  (get-ver:loader ball)
-      ?+  ver  !!
-          ?(~ [~ %0])
-        %+  spin:loader  ball
-        :~  (ver-row:loader 0)
-            [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
-            [%fall %| /requests empty-dir:loader]
-            [%over %& [/man %'readme.md'] [[/ %mime] man]]
-        ==
+      %+  spin:loader  ball
+      :~  (manifest:loader 0)
+          [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
+          [%fall %| /requests empty-dir:loader]
+          [%over %& [/man %'readme.md'] [[/ %mime] man]]
       ==
     ::
     ++  on-file

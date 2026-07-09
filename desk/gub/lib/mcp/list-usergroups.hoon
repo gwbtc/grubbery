@@ -2,6 +2,7 @@
 ::  list-usergroups: show all usergroups with members and permissions
 ::
 ^-  tool:tools
+=<
 |%
 ++  name  'list_usergroups'
 ++  description  'List all usergroups with their members and permissions (weir rules)'
@@ -17,7 +18,7 @@
   =/  ug-ball=ball:tarball
     ?.  ?=([%& %ball *] ug-seen)  [~ ~]
     ball.p.ug-seen
-  =/  names=(list @ta)  (sort ~(tap in ~(key by dir.ug-ball)) aor)
+  =/  groups=(list [name=path grp=ball:tarball])  (find-groups / ug-ball)
   =/  road-text
     |=  roads=(set road:tarball)
     ^-  tape
@@ -32,10 +33,9 @@
     ?~  acc  t
     "{acc}, {t}"
   =/  out=wall
-    %+  turn  names
-    |=  name=@ta
+    %+  turn  groups
+    |=  [name=path grp=ball:tarball]
     ^-  tape
-    =/  grp=ball:tarball  (~(dip ba:tarball ug-ball) /[name])
     =/  who-c=(unit sang:tarball)  (~(get ba:tarball grp) [/ %'who.ships'])
     =/  how-c=(unit sang:tarball)  (~(get ba:tarball grp) [/ %'how.weir'])
     =/  members=(set @p)
@@ -53,7 +53,7 @@
       ?~  acc  (trip (scot %p s))
       "{acc}, {(trip (scot %p s))}"
     ;:  weld
-      "/{(trip name)}:\0a"
+      "{(spud name)}:\0a"
       "  members: {mem-text}\0a"
       "  make: {(road-text make.weir)}\0a"
       "  poke: {(road-text poke.weir)}\0a"
@@ -62,4 +62,32 @@
   ?~  out
     (pure:m [%text 'No usergroups found'])
   (pure:m [%text (crip (zing (join "\0a" out)))])
+--
+|%
+++  is-grp-name
+  |=  name=@ta
+  ^-  ?
+  =/  t=tape  (trip name)
+  =/  len=@ud  (lent t)
+  ?&  (gte len 5)
+      =(".grp" (slag (sub len 4) t))
+  ==
+::
+++  strip-grp-suffix
+  |=  name=@ta
+  ^-  @ta
+  =/  t=tape  (trip name)
+  (crip (scag (sub (lent t) 4) t))
+::
+++  find-groups
+  |=  [pax=path ug=ball:tarball]
+  ^-  (list [name=path grp=ball:tarball])
+  =/  kids=(list [@ta ball:tarball])  ~(tap by dir.ug)
+  =|  acc=(list [name=path grp=ball:tarball])
+  |-
+  ?~  kids  acc
+  =/  [kid-name=@ta kid=ball:tarball]  i.kids
+  ?:  (is-grp-name kid-name)
+    $(kids t.kids, acc [[(snoc pax (strip-grp-suffix kid-name)) kid] acc])
+  $(kids t.kids, acc (weld acc ^$(pax (snoc pax kid-name), ug kid)))
 --

@@ -5,14 +5,20 @@
 ::    "/some/local/path"     (local namespace)
 ::
 ::  Layout:
-::    config.json     source config + sync state
+::    config.json     source config
+::    version.ud      release version (source bumps, sink subscribes)
 ::    /code/          code nexus (synced from source)
 ::    /data/          working data for the installed nexus
-::    /snapshots/     checkpoint metadata
 ::
 ::  Before each code update, firms /data and /code entries
-::  to create permanent snapshots. Snapshot metadata is
-::  written to /snapshots/ for browsing.
+::  and tags them as checkpoints.
+::
+::  Future: this could extend to a repo nexus. The content store
+::  gives you dedup (silo lobes) and history (hist). But real
+::  commits need a merkle DAG — each commit hashes over parent +
+::  tree, not just firm entries. Would need a commit object type
+::  (parent hash, tree hash, message, author @p, signature)
+::  layered on top of the born tree, not replacing it.
 ::
 /&  man  ../man/desk/readme.md
 =<  ^-  nexus:nexus
@@ -20,19 +26,15 @@
 ++  on-load
   |=  =ball:tarball
   ^-  bole:tarball
-  =/  =ver:loader  (get-ver:loader ball)
-  ?+  ver  !!
-      ?(~ [~ %0])
-    %+  spin:loader  ball
-    :~  (ver-row:loader 0)
-        [%fall %& [/ %'config.json'] [[/ %json] (config-to-json *desk-config)]]
-        [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
-        [%fall %| /requests empty-dir:loader]
-        [%fall %| /code empty-dir:loader]
-        [%fall %| /data empty-dir:loader]
-        [%fall %| /snapshots empty-dir:loader]
-        [%over %& [/man %'readme.md'] [[/ %mime] man]]
-    ==
+  %+  spin:loader  ball
+  :~  (manifest:loader 0)
+      [%fall %& [/ %'config.json'] [[/ %json] (config-to-json *desk-config)]]
+      [%fall %& [/ %'version.ud'] [[/ %ud] 0]]
+      [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
+      [%fall %| /requests empty-dir:loader]
+      [%fall %| /code empty-dir:loader]
+      [%fall %| /data empty-dir:loader]
+      [%over %& [/ %'README.md'] [[/ %mime] man]]
   ==
 ::
 ++  on-file
@@ -56,37 +58,57 @@
       =/  new-json=json  !<(json q.sage)
       ;<  ~  bind:m  (replace:io new-json)
       $
-    ::  subscribe to remote source
+    ::  subscribe to source's version.ud
     =/  source-road=road:tarball  (parse-source u.source.config)
+    =/  ver-road=road:tarball  (version-road source-road)
+    =/  code-road=road:tarball  (code-road source-road)
     ~&  >  [%desk-subscribing u.source.config]
-    ;<  init=wave:nexus  bind:m  (keep:io /src source-road ~)
+    ;<  init=wave:nexus  bind:m  (keep:io /ver ver-road `[/ %ud])
     ~&  >  [%desk-subscribed u.source.config]
-    ::  initial sync (no checkpoint on first sync)
-    ;<  ~  bind:m  (sync-code source-road *wave:nexus init)
-    =/  prev=wave:nexus  init
+    ::  initial sync: peek source /code/ and copy
+    ;<  ~  bind:m  (sync-from-source code-road)
     |-
-    ;<  res=news-or-poke  bind:m  (take-news-or-poke /src)
+    ;<  res=news-or-poke  bind:m  (take-news-or-poke /ver)
     ?-  -.res
         %news
       ~&  >  %desk-update-received
-      ::  checkpoint before applying update
-      ;<  ~  bind:m  (do-checkpoint config)
-      ;<  ~  bind:m  (sync-code source-road prev wave.res)
-      =.  config  config(snap-count +(snap-count.config))
-      $(prev wave.res)
+      ::  checkpoint current state, then sync new code
+      ;<  ~  bind:m  do-checkpoint
+      ;<  ~  bind:m  (sync-from-source code-road)
+      ::  update local version.ud to match source
+      ;<  ver-seen=seen:nexus  bind:m  (peek:io ver-road `[/ %ud])
+      ?:  ?=([%& %file *] ver-seen)
+        =/  ver=@ud  !<(@ud (need-vase:tarball sang.p.ver-seen))
+        ;<  ~  bind:m  (over:io [%| 0 %& / %'version.ud'] [[/ %ud] ver])
+        $
+      $
         %poke
       ::  config change: replace state, drop sub, restart
       =/  new-json=json  !<(json q.sage.res)
       ~&  >  [%desk-config-change new-json]
       ;<  ~  bind:m  (replace:io new-json)
-      ;<  ~  bind:m  (drop:io /src source-road)
+      ;<  ~  bind:m  (drop:io /ver ver-road)
       ^$
     ==
       ::  main.sig: HTTP endpoint for desk management UI
       ::
       [~ %'main.sig']
     ;<  ~  bind:m  (rise-wait:io prod "%desk /main: failed")
-    ;<  ~  bind:m  (bind-http:io [~ /grubbery/desk])
+    ;<  here=rail:tarball  bind:m  get-here-abs:io
+    ;<  ~  bind:m  (bind-http:io [~ (weld /grubbery/desk path.here)])
+    ::  Register with /public usergroup if configured
+    ;<  config-json=(unit json)  bind:m  (peek-as:io [%| 1 %& / %'config.json'] ,json)
+    =/  config=desk-config  ?~(config-json *desk-config (json-to-config u.config-json))
+    =/  nex-dir=path  path.here
+    =/  reg-road=road:tarball  [%& %& /sys/ames %'public.usergroups_registry']
+    =/  reg-blot=blot:tarball  [/usergroups %registry-action]
+    =*  reg-poke  |=(act=* (poke:io reg-road [reg-blot act]))
+    ;<  ~  bind:m  (reg-poke [%register here nex-dir])
+    ;<  ~  bind:m
+      %-  reg-poke
+      ?:  public.config
+        [%how [~ ~ (sy [%& %| nex-dir] ~)]]
+      [%how *weir:nexus]
     (http-dispatch:io %desk)
       ::  /requests/*: individual HTTP request handlers
       ::
@@ -98,8 +120,11 @@
     ?.  =(src our)
       ;<  ~  bind:m  (send-simple:srv eyre-id [[403 ~] `(as-octs:mimes:html 'Forbidden')])
       (pure:m ~)
+    ;<  here=rail:tarball  bind:m  get-here-abs:io
+    =/  nex-path=path  (snip path.here)  :: /foo/requests -> /foo
+    =/  prefix=path  (weld /grubbery/desk nex-path)
     =/  [site=path args=quay:eyre]  (parse-url:http-utils url.request.req)
-    =/  suffix=path  (slag 2 site)  :: strip /grubbery/desk
+    =/  suffix=path  (slag (lent prefix) site)
     ?:  =('POST' method.request.req)
       (handle-post eyre-id suffix req)
     (handle-get eyre-id suffix)
@@ -109,8 +134,7 @@
 |%
 +$  desk-config
   $:  source=(unit @t)
-      version=@ud
-      snap-count=@ud
+      public=?
   ==
 ::
 +$  news-or-poke
@@ -125,8 +149,7 @@
   ^-  json
   %-  pairs:enjs:format
   :~  ['source' ?~(source.config ~ s+u.source.config)]
-      ['version' (numb:enjs:format version.config)]
-      ['snapCount' (numb:enjs:format snap-count.config)]
+      ['public' b+public.config]
   ==
 ::
 ++  json-to-config
@@ -134,11 +157,9 @@
   ^-  desk-config
   ?.  ?=(%o -.json)  *desk-config
   =/  src  (~(get by p.json) 'source')
-  =/  ver  (~(get by p.json) 'version')
-  =/  snc  (~(get by p.json) 'snapCount')
+  =/  pub  (~(get by p.json) 'public')
   :*  ?~(src ~ ?:(?=([~ %s *] src) `p.u.src ~))
-      ?~(ver 0 ?:(?=([~ %n *] ver) (rash p.u.ver dem) 0))
-      ?~(snc 0 ?:(?=([~ %n *] snc) (rash p.u.snc dem) 0))
+      ?~(pub %.n ?:(?=([~ %b *] pub) p.u.pub %.n))
   ==
 ::
 ++  parse-source
@@ -152,33 +173,58 @@
     [%& %| (weld /sys/ames/ships/[(scot %p target)]/root source-path)]
   [%& %| (stab src)]
 ::
-::  do-checkpoint: firm all files under /data and /code,
-::  then write snapshot metadata
+::  version-road: source's version.ud road from base source road
 ::
-++  do-checkpoint
-  |=  config=desk-config
+++  version-road
+  |=  source-road=road:tarball
+  ^-  road:tarball
+  ?.  ?=([%& %| *] source-road)  ~|(%desk-unexpected-road-shape !!)
+  [%& %& p.p.source-road %'version.ud']
+::  code-road: source's /code/ directory road from base source road
+::
+++  code-road
+  |=  source-road=road:tarball
+  ^-  road:tarball
+  ?.  ?=([%& %| *] source-road)  ~|(%desk-unexpected-road-shape !!)
+  [%& %| (weld p.p.source-road /code)]
+::  sync-from-source: peek source /code/ tree and mirror locally
+::
+++  sync-from-source
+  |=  source-code=road:tarball
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
-  =/  snap-id=@ud  +(snap-count.config)
-  ~&  >  [%desk-checkpoint snap-id]
-  ::  firm all files under /data/
-  ;<  ~  bind:m  (firm-tree [%| 0 %| /data])
-  ::  firm all files under /code/
-  ;<  ~  bind:m  (firm-tree [%| 0 %| /code])
-  ::  write snapshot metadata
-  =/  snap-json=json
-    %-  pairs:enjs:format
-    :~  ['id' (numb:enjs:format snap-id)]
-        ['version' (numb:enjs:format version.config)]
-    ==
-  =/  snap-name=@ta  (crip "snap-{(a-co:co snap-id)}.json")
-  ;<  ~  bind:m
-    (make:io [%| 0 %& /snapshots snap-name] |+[[[/ %json] snap-json] ~])
-  (pure:m ~)
+  ;<  =seen:nexus  bind:m  (peek:io source-code ~)
+  ?.  ?=([%& %ball *] seen)
+    ~&  >>  %desk-no-code-at-source
+    (pure:m ~)
+  =/  rails=(list rail:tarball)  (ball-to-rails ball.p.seen source-code)
+  ~&  >  [%desk-sync-files (lent rails)]
+  =/  base=path
+    ?.  ?=([%& %| *] source-code)  ~|(%desk-unexpected-code-road !!)
+    p.p.source-code
+  |-
+  ?~  rails  (pure:m ~)
+  =/  src-road=road:tarball  [%& %& path.i.rails name.i.rails]
+  =/  rel-path=path  (slag (lent base) path.i.rails)
+  =/  dest-road=road:tarball  [%| 0 %& (weld /code rel-path) name.i.rails]
+  ;<  =seen:nexus  bind:m  (peek:io src-road ~)
+  ?.  ?=([%& %file *] seen)
+    $(rails t.rails)
+  ;<  ~  bind:m  (over:io dest-road [p.sang.p.seen (sang-noun:tarball sang.p.seen)])
+  $(rails t.rails)
 ::
-::  firm-tree: checkpoint all files under a directory road
+::  do-checkpoint: firm and tag all files under /data and /code
 ::
-++  firm-tree
+++  do-checkpoint
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  ~&  >  %desk-checkpoint
+  ;<  ~  bind:m  (firm-and-tag-tree [%| 0 %| /data])
+  (firm-and-tag-tree [%| 0 %| /code])
+::
+::  firm-and-tag-tree: firm and tag 'checkpoint' on all files under a road
+::
+++  firm-and-tag-tree
   |=  =road:tarball
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
@@ -189,6 +235,7 @@
   |-
   ?~  rails  (pure:m ~)
   ;<  ~  bind:m  (checkpoint:io i.rails)
+  ;<  ~  bind:m  (tag:io i.rails ~ (sy ~['checkpoint']))
   $(rails t.rails)
 ::
 ::  ball-to-rails: extract file rails from a ball relative to base
@@ -213,34 +260,6 @@
   =.  out
     (welp out (ball-to-rails kid [%& %| (weld base-path /[dname])]))
   $(kids t.kids)
-::
-::  sync-code: apply changes from source to local /code/
-::
-++  sync-code
-  |=  [source-road=road:tarball prev=wave:nexus cur=wave:nexus]
-  =/  m  (fiber:fiber:nexus ,~)
-  ^-  form:m
-  =/  changes=(map lane:tarball cass:clay)  (diff-wave:nexus prev cur)
-  =/  lanes=(list [=lane:tarball =cass:clay])  ~(tap by changes)
-  ~&  >  [%desk-sync-changes (lent lanes)]
-  |-
-  ?~  lanes  (pure:m ~)
-  =/  =lane:tarball  lane.i.lanes
-  ?:  ?=(%| -.lane)
-    $(lanes t.lanes)
-  =/  base=path
-    ?:  ?=([%& %| *] source-road)  p.p.source-road
-    ?:  ?=([%| * %| *] source-road)  p.q.p.source-road
-    ~|(%desk-unexpected-road-shape !!)
-  =/  src-road=road:tarball  [%& %& (weld base path.p.lane) name.p.lane]
-  =/  dest-road=road:tarball  [%| 0 %& (weld /code path.p.lane) name.p.lane]
-  ;<  =seen:nexus  bind:m  (peek:io src-road ~)
-  ?.  ?=([%& %file *] seen)
-    ~&  >>  [%desk-file-not-found lane]
-    ;<  *  bind:m  (cull-soft:io dest-road)
-    $(lanes t.lanes)
-  ;<  ~  bind:m  (over:io dest-road [p.sang.p.seen (sang-noun:tarball sang.p.seen)])
-  $(lanes t.lanes)
 ::
 ++  take-news-or-poke
   |=  news-wire=wire
@@ -272,12 +291,14 @@
   =/  config=desk-config
     ?.  ?=([%& %file *] config-seen)  *desk-config
     (json-to-config !<(json (need-vase:tarball sang.p.config-seen)))
-  ::  read snapshots
-  ;<  snap-seen=seen:nexus  bind:m
-    (peek:io [%| 0 %| /snapshots] ~)
-  =/  snaps=(list [@ta json])  (read-snapshots snap-seen)
+  ::  read version
+  ;<  ver-seen=seen:nexus  bind:m
+    (peek:io [%| 0 %& / %'version.ud'] `[/ %ud])
+  =/  version=@ud
+    ?.  ?=([%& %file *] ver-seen)  0
+    !<(@ud (need-vase:tarball sang.p.ver-seen))
   ::  render page
-  =/  page=manx  (render-page config snaps)
+  =/  page=manx  (render-page config version)
   =/  bod=octs  (as-octs:mimes:html (crip (en-xml:html page)))
   ;<  ~  bind:m  (send-simple:srv eyre-id (mime-response:http-utils [/text/html bod]))
   (pure:m ~)
@@ -295,20 +316,11 @@
   ::
       [%set-source ~]
     ::  poke config.json — the config fiber picks this up
-    =/  new-config=desk-config  [?:(=('' body) ~ `body) 0 0]
+    ;<  cur-json=(unit json)  bind:m  (peek-as:io [%| 1 %& / %'config.json'] ,json)
+    =/  cur=desk-config  ?~(cur-json *desk-config (json-to-config u.cur-json))
+    =/  new-config=desk-config  cur(source ?:(=('' body) ~ `body))
     ;<  ~  bind:m
       (poke:io [%| 0 %& / %'config.json'] [[/ %json] (config-to-json new-config)])
-    (redirect eyre-id)
-  ::
-      [%checkpoint ~]
-    ::  read config, then checkpoint
-    ;<  config-seen=seen:nexus  bind:m
-      (peek:io [%| 0 %& / %'config.json'] `[/ %json])
-    =/  config=desk-config
-      ?.  ?=([%& %file *] config-seen)  *desk-config
-      (json-to-config !<(json (need-vase:tarball sang.p.config-seen)))
-    ;<  ~  bind:m  (do-checkpoint config)
-    ~&  >  %desk-manual-checkpoint
     (redirect eyre-id)
   ==
 ::
@@ -321,26 +333,11 @@
   ;<  ~  bind:m  (send-data:srv eyre-id ~)
   (pure:m ~)
 ::
-++  read-snapshots
-  |=  =seen:nexus
-  ^-  (list [@ta json])
-  ?.  ?=([%& %ball *] seen)  ~
-  =/  =lump:tarball  (fall fil.ball.p.seen *lump:tarball)
-  =/  names=(list @ta)
-    (sort ~(tap in ~(key by contents.lump)) dor)
-  %+  murn  names
-  |=  nm=@ta
-  ^-  (unit [@ta json])
-  =/  got=(unit [=sang:tarball gain=? bang=(unit tang)])
-    (~(get by contents.lump) nm)
-  ?~  got  ~
-  =/  res  (mule |.(!<(json (need-vase:tarball sang.u.got))))
-  ?:(?=(%| -.res) ~ `[nm p.res])
 ::
 ::  HTML rendering
 ::
 ++  render-page
-  |=  [config=desk-config snaps=(list [@ta json])]
+  |=  [config=desk-config version=@ud]
   ^-  manx
   ;html
     ;head
@@ -353,8 +350,7 @@
     ==
     ;body
       ;h1: Desk
-      ;+  (render-config config)
-      ;+  (render-snapshots snaps)
+      ;+  (render-config config version)
       ;script
         ;+  ;/  page-js
       ==
@@ -362,7 +358,7 @@
   ==
 ::
 ++  render-config
-  |=  config=desk-config
+  |=  [config=desk-config version=@ud]
   ^-  manx
   ;div(class "section")
     ;h2: Source
@@ -376,43 +372,10 @@
     ==
     ;div(class "status")
       ;span(class "label"): Version:
-      ;span: {(a-co:co version.config)}
-    ==
-    ;div(class "status")
-      ;span(class "label"): Snapshots:
-      ;span: {(a-co:co snap-count.config)}
+      ;span: {(a-co:co version)}
     ==
   ==
 ::
-++  render-snapshots
-  |=  snaps=(list [@ta json])
-  ^-  manx
-  ;div(class "section")
-    ;h2: Snapshots
-    ;button(class "btn", onclick "manualCheckpoint()"): + Checkpoint Now
-    ;div(class "snap-list")
-      ;*  ?~  snaps
-            =/  empty=manx  ;span(class "muted"): No snapshots yet
-            ~[empty]
-          (turn snaps render-snap)
-    ==
-  ==
-::
-++  render-snap
-  |=  [nm=@ta =json]
-  ^-  manx
-  =/  snap-id=tape
-    ?.  ?=(%o -.json)  "?"
-    =/  id  (~(get by p.json) 'id')
-    ?~(id "?" ?:(?=([~ %n *] id) (trip p.u.id) "?"))
-  =/  snap-ver=tape
-    ?.  ?=(%o -.json)  "?"
-    =/  vr  (~(get by p.json) 'version')
-    ?~(vr "?" ?:(?=([~ %n *] vr) (trip p.u.vr) "?"))
-  ;div(class "snap")
-    ;span(class "snap-id"): #{snap-id}
-    ;span(class "snap-ver"): v{snap-ver}
-  ==
 ::
 ++  page-css
   ^-  tape
@@ -430,10 +393,6 @@
     ".btn:hover \{ background:#eee; }"
     ".btn-grn \{ color:#2a2; border-color:#2a2; }"
     ".btn-grn:hover \{ background:#dfd; }"
-    ".snap-list \{ margin-top:.5rem; }"
-    ".snap \{ display:flex; gap:.75rem; padding:.3rem 0; border-bottom:1px solid #eee; font-size:.85rem; }"
-    ".snap-id \{ font-weight:bold; }"
-    ".snap-ver \{ color:#888; }"
     ".muted \{ color:#999; font-size:.85rem; }"
   ==
 ::
@@ -446,9 +405,6 @@
     "function setSource()\{"
     "  var src=document.getElementById('source-input').value.trim();"
     "  fetch(API+'requests/set-source',\{method:'POST',body:src}).then(function()\{location.reload()});"
-    "}"
-    "function manualCheckpoint()\{"
-    "  fetch(API+'requests/checkpoint',\{method:'POST'}).then(function()\{location.reload()});"
     "}"
   ==
 --

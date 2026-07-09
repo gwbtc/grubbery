@@ -14,10 +14,7 @@
     ++  on-load
       |=  =ball:tarball
       ^-  bole:tarball
-      =/  =ver:loader  (get-ver:loader ball)
-      ?+  ver  !!
-          ?(~ [~ %0])
-        =/  explorer-tile=json
+      =/  explorer-tile=json
           %-  pairs:enjs:format
           :~  title+s+'Explorer'
               info+s+'Browse the tarball'
@@ -49,23 +46,22 @@
               image+s+'/grubbery/tiles/icons/itinerary.svg'
               href+s+'/grubbery/itinerary'
           ==
-        %+  spin:loader  ball
-        :~  (ver-row:loader 0)
-            [%fall %| /tiles empty-dir:loader]
-            [%over %& [/tiles %'explorer.json'] [[/ %json] explorer-tile]]
-            [%over %& [/tiles %'contacts.json'] [[/ %json] contacts-tile]]
-            [%fall %& [/tiles %'wallet.json'] [[/ %json] wallet-tile]]
-            [%fall %& [/tiles %'itinerary.json'] [[/ %json] itinerary-tile]]
-            [%over %& [/ %'page.html'] [[/ %html] (crip (en-xml:html (tiles-page "" ~)))]]
-            [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
-            [%fall %| /requests empty-dir:loader]
-            [%over %& [/man %'readme.md'] [[/ %mime] man]]
-            [%fall %| /icons empty-dir:loader]
-            [%over %& [/icons %'explorer.svg'] [[/ %mime] ico-explorer]]
-            [%over %& [/icons %'contacts.svg'] [[/ %mime] ico-contacts]]
-            [%over %& [/icons %'wallet.svg'] [[/ %mime] ico-wallet]]
-            [%over %& [/icons %'itinerary.svg'] [[/ %mime] ico-itinerary]]
-        ==
+      %+  spin:loader  ball
+      :~  (manifest:loader 0)
+          [%fall %| /tiles empty-dir:loader]
+          [%over %& [/tiles %'explorer.json'] [[/ %json] explorer-tile]]
+          [%over %& [/tiles %'contacts.json'] [[/ %json] contacts-tile]]
+          [%fall %& [/tiles %'wallet.json'] [[/ %json] wallet-tile]]
+          [%fall %& [/tiles %'itinerary.json'] [[/ %json] itinerary-tile]]
+          [%over %& [/ %'page.html'] [[/ %html] (crip (en-xml:html (tiles-page "" ~)))]]
+          [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
+          [%fall %| /requests empty-dir:loader]
+          [%over %& [/man %'readme.md'] [[/ %mime] man]]
+          [%fall %| /icons empty-dir:loader]
+          [%over %& [/icons %'explorer.svg'] [[/ %mime] ico-explorer]]
+          [%over %& [/icons %'contacts.svg'] [[/ %mime] ico-contacts]]
+          [%over %& [/icons %'wallet.svg'] [[/ %mime] ico-wallet]]
+          [%over %& [/icons %'itinerary.svg'] [[/ %mime] ico-itinerary]]
       ==
     ::
     ++  on-file
