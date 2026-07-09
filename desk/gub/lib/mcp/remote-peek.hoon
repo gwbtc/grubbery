@@ -45,7 +45,6 @@
   =/  label=tape
     ?~  name-raw  "{(trip u.path-raw)}/ on {(trip u.ship-raw)}"
     "{(trip u.path-raw)}/{(trip u.name-raw)} on {(trip u.ship-raw)}"
-  ~&  >  [%remote-peek-result seen=?:(?=(%| -.seen) %error -.p.seen)]
   ?:  ?=(%| -.seen)
     (pure:m [%error (crip "Peek blocked: {label}")])
   ?+  -.p.seen

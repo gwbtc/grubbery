@@ -331,7 +331,6 @@
       [~ %veto *]
     [%fail (veto-error dart.u.in)]
       [~ %peek * *]
-    ~&  >  [%take-peek-got wire=wire exp=wire.u.in cite=?:(?=(%| -.seen.u.in) %error -.p.seen.u.in)]
     ?.  =(wire wire.u.in)
       [%skip ~]
     [%done seen.u.in]

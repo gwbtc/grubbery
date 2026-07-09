@@ -48,6 +48,7 @@
       ::
       [~ %'config.json']
     ;<  ~  bind:m  (rise-wait:io prod "%desk config: failed")
+    ;<  here=rail:tarball  bind:m  get-here-abs:io
     |-
     ;<  config-json=json  bind:m  (get-state-as:io ,json)
     =/  config=desk-config  (json-to-config config-json)
@@ -66,20 +67,20 @@
     ;<  init=wave:nexus  bind:m  (keep:io /ver ver-road `[/ %ud])
     ~&  >  [%desk-subscribed u.source.config]
     ::  initial sync: peek source /code/ and copy
-    ;<  ~  bind:m  (sync-from-source code-road)
+    ;<  ~  bind:m  (sync-from-source code-road here)
     |-
     ;<  res=news-or-poke  bind:m  (take-news-or-poke /ver)
     ?-  -.res
         %news
       ~&  >  %desk-update-received
       ::  checkpoint current state, then sync new code
-      ;<  ~  bind:m  do-checkpoint
-      ;<  ~  bind:m  (sync-from-source code-road)
+      ;<  ~  bind:m  (do-checkpoint here)
+      ;<  ~  bind:m  (sync-from-source code-road here)
       ::  update local version.ud to match source
       ;<  ver-seen=seen:nexus  bind:m  (peek:io ver-road `[/ %ud])
       ?:  ?=([%& %file *] ver-seen)
         =/  ver=@ud  !<(@ud (need-vase:tarball sang.p.ver-seen))
-        ;<  ~  bind:m  (over:io [%| 0 %& / %'version.ud'] [[/ %ud] ver])
+        ;<  ~  bind:m  (over:io (nex-road:io here [%& / %'version.ud']) [[/ %ud] ver])
         $
       $
         %poke
@@ -97,7 +98,7 @@
     ;<  here=rail:tarball  bind:m  get-here-abs:io
     ;<  ~  bind:m  (bind-http:io [~ (weld /grubbery/desk path.here)])
     ::  Register with /public usergroup if configured
-    ;<  config-json=(unit json)  bind:m  (peek-as:io [%| 1 %& / %'config.json'] ,json)
+    ;<  config-json=(unit json)  bind:m  (peek-as:io (nex-road:io here [%& / %'config.json']) ,json)
     =/  config=desk-config  ?~(config-json *desk-config (json-to-config u.config-json))
     =/  nex-dir=path  path.here
     =/  reg-road=road:tarball  [%& %& /sys/ames %'public.usergroups_registry']
@@ -116,18 +117,18 @@
     ;<  ~  bind:m  (rise-wait:io prod "%desk /requests: failed")
     =/  eyre-id=@ta  name.rail
     ;<  [src=@p req=inbound-request:eyre]  bind:m  (get-state-as:io ,[src=@p inbound-request:eyre])
+    ;<  here=rail:tarball  bind:m  get-here-abs:io
     ;<  our=@p  bind:m  get-our:io
     ?.  =(src our)
-      ;<  ~  bind:m  (send-simple:srv eyre-id [[403 ~] `(as-octs:mimes:html 'Forbidden')])
+      ;<  ~  bind:m  (send-simple:(~(. http-res:io (nex-road:io here [%& ~ %'main.sig']))) eyre-id [[403 ~] `(as-octs:mimes:html 'Forbidden')])
       (pure:m ~)
-    ;<  here=rail:tarball  bind:m  get-here-abs:io
     =/  nex-path=path  (snip path.here)  :: /foo/requests -> /foo
     =/  prefix=path  (weld /grubbery/desk nex-path)
     =/  [site=path args=quay:eyre]  (parse-url:http-utils url.request.req)
     =/  suffix=path  (slag (lent prefix) site)
     ?:  =('POST' method.request.req)
-      (handle-post eyre-id suffix req)
-    (handle-get eyre-id suffix)
+      (handle-post eyre-id suffix req here)
+    (handle-get eyre-id suffix here)
   ==
 --
 ::
@@ -142,7 +143,6 @@
       [%poke =sage:tarball]
   ==
 ::
-++  srv  ~(. http-res:io [%| 1 %& ~ %'main.sig'])
 ::
 ++  config-to-json
   |=  config=desk-config
@@ -190,7 +190,7 @@
 ::  sync-from-source: peek source /code/ tree and mirror locally
 ::
 ++  sync-from-source
-  |=  source-code=road:tarball
+  |=  [source-code=road:tarball here=rail:tarball]
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
   ;<  =seen:nexus  bind:m  (peek:io source-code ~)
@@ -206,7 +206,7 @@
   ?~  rails  (pure:m ~)
   =/  src-road=road:tarball  [%& %& path.i.rails name.i.rails]
   =/  rel-path=path  (slag (lent base) path.i.rails)
-  =/  dest-road=road:tarball  [%| 0 %& (weld /code rel-path) name.i.rails]
+  =/  dest-road=road:tarball  (nex-road:io here [%& (weld /code rel-path) name.i.rails])
   ;<  =seen:nexus  bind:m  (peek:io src-road ~)
   ?.  ?=([%& %file *] seen)
     $(rails t.rails)
@@ -216,11 +216,12 @@
 ::  do-checkpoint: firm and tag all files under /data and /code
 ::
 ++  do-checkpoint
+  |=  here=rail:tarball
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
   ~&  >  %desk-checkpoint
-  ;<  ~  bind:m  (firm-and-tag-tree [%| 0 %| /data])
-  (firm-and-tag-tree [%| 0 %| /code])
+  ;<  ~  bind:m  (firm-and-tag-tree (nex-road:io here [%| /data]))
+  (firm-and-tag-tree (nex-road:io here [%| /code]))
 ::
 ::  firm-and-tag-tree: firm and tag 'checkpoint' on all files under a road
 ::
@@ -282,55 +283,55 @@
 ::  HTTP handlers
 ::
 ++  handle-get
-  |=  [eyre-id=@ta suffix=path]
+  |=  [eyre-id=@ta suffix=path here=rail:tarball]
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
   ::  read config
   ;<  config-seen=seen:nexus  bind:m
-    (peek:io [%| 0 %& / %'config.json'] `[/ %json])
+    (peek:io (nex-road:io here [%& / %'config.json']) `[/ %json])
   =/  config=desk-config
     ?.  ?=([%& %file *] config-seen)  *desk-config
     (json-to-config !<(json (need-vase:tarball sang.p.config-seen)))
   ::  read version
   ;<  ver-seen=seen:nexus  bind:m
-    (peek:io [%| 0 %& / %'version.ud'] `[/ %ud])
+    (peek:io (nex-road:io here [%& / %'version.ud']) `[/ %ud])
   =/  version=@ud
     ?.  ?=([%& %file *] ver-seen)  0
     !<(@ud (need-vase:tarball sang.p.ver-seen))
   ::  render page
   =/  page=manx  (render-page config version)
   =/  bod=octs  (as-octs:mimes:html (crip (en-xml:html page)))
-  ;<  ~  bind:m  (send-simple:srv eyre-id (mime-response:http-utils [/text/html bod]))
+  ;<  ~  bind:m  (send-simple:(~(. http-res:io (nex-road:io here [%& ~ %'main.sig']))) eyre-id (mime-response:http-utils [/text/html bod]))
   (pure:m ~)
 ::
 ++  handle-post
-  |=  [eyre-id=@ta suffix=path req=inbound-request:eyre]
+  |=  [eyre-id=@ta suffix=path req=inbound-request:eyre here=rail:tarball]
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
   =/  body=@t
     ?~  body.request.req  ''
     q.u.body.request.req
   ?+    suffix
-    ;<  ~  bind:m  (send-simple:srv eyre-id [[404 ~] `(as-octs:mimes:html 'Not found')])
+    ;<  ~  bind:m  (send-simple:(~(. http-res:io (nex-road:io here [%& ~ %'main.sig']))) eyre-id [[404 ~] `(as-octs:mimes:html 'Not found')])
     (pure:m ~)
   ::
       [%set-source ~]
     ::  poke config.json — the config fiber picks this up
-    ;<  cur-json=(unit json)  bind:m  (peek-as:io [%| 1 %& / %'config.json'] ,json)
+    ;<  cur-json=(unit json)  bind:m  (peek-as:io (nex-road:io here [%& / %'config.json']) ,json)
     =/  cur=desk-config  ?~(cur-json *desk-config (json-to-config u.cur-json))
     =/  new-config=desk-config  cur(source ?:(=('' body) ~ `body))
     ;<  ~  bind:m
-      (poke:io [%| 0 %& / %'config.json'] [[/ %json] (config-to-json new-config)])
-    (redirect eyre-id)
+      (poke:io (nex-road:io here [%& / %'config.json']) [[/ %json] (config-to-json new-config)])
+    (redirect eyre-id here)
   ==
 ::
 ++  redirect
-  |=  eyre-id=@ta
+  |=  [eyre-id=@ta here=rail:tarball]
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
   =/  hed=response-header:http  [303 ~[['location' './']]]
-  ;<  ~  bind:m  (send-header:srv eyre-id hed)
-  ;<  ~  bind:m  (send-data:srv eyre-id ~)
+  ;<  ~  bind:m  (send-header:(~(. http-res:io (nex-road:io here [%& ~ %'main.sig']))) eyre-id hed)
+  ;<  ~  bind:m  (send-data:(~(. http-res:io (nex-road:io here [%& ~ %'main.sig']))) eyre-id ~)
   (pure:m ~)
 ::
 ::

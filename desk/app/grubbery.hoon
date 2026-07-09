@@ -125,15 +125,11 @@
             =/  r=rail:tarball  p.dest-lane
             =/  node=(unit [fold=hist:nexus file=(map @ta hist:nexus)])
               (~(get of born) path.r)
-            ~&  >  [%file-peek-debug rail=r node=?~(node %missing [%found files=~(key by file.u.node)])]
             ?~  node  ~
             =/  sk=hist:nexus
               (fall (~(get by file.u.node) name.r) *hist:nexus)
-            =/  has-file=?  !=(sk *hist:nexus)
-            ~&  >  [%file-peek-hist name=name.r has-file=has-file]
             ?~  case.req
               =/  cas=(unit cass:clay)  (top:hist:nexus sk)
-              ~&  >  [%file-peek-top cas=?~(cas %none [%found ud.u.cas])]
               ?~  cas  ~
               =/  pac  (get-pace:hist:nexus sk u.cas)
               ?~  pac  ~
@@ -646,7 +642,6 @@
     (~(bump-ject-ref si:nexus silo) lobe.p.cit)
   =?  silo  ?=([%& %file *] cit)
     (~(bump-ject-ref si:nexus silo) lobe.p.cit)
-  ~&  >  [%discharge-cite rail=rail.key wire=wire.key cite=?:(?=(%| -.cit) %error -.p.cit)]
   =.  this  (enqu-take rail.key (sys-give /peek) ~ %peek wire.key cit)
   =.  peeks.remo  (~(del by peeks.remo) key)
   ::  Drop refs held for this peek's data
@@ -710,7 +705,6 @@
         %+  roll  to-discharge
         |=  [[[=rail:tarball =wire] pk=peek:remo:nexus] sat=_this]
         =.  peeks.remo.sat  (~(del by peeks.remo.sat) [rail wire])
-        ~&  >>>  [%none-source-a rail wire]
         (enqu-take:sat rail (sys-give:sat /peek) ~ %peek wire &+[%none ~])
       this
     =.  peeks.remo
@@ -1046,11 +1040,6 @@
 ::
 ++  enqu-take
   |=  [here=rail:tarball =give:nexus in=(unit pend:fiber:nexus)]
-  ~?  >>  ?&  ?=(^ in)
-              ?=(%peek -.u.in)
-              =([%apps %'mcp.mcp' ~] (scag 2 path.here))
-          ==
-    [%enqu-peek here=here wire=wire.u.in cite=?:(?=(%| -.cite.u.in) %error -.p.cite.u.in)]
   this(takes (~(put to takes) [here give in]))
 ::  Generate a system give (for internal system operations)
 ::
@@ -2627,7 +2616,6 @@
         =/  dest=fold:tarball  p.u.dest-lane
         =/  sub-born=born:nexus  (~(dip of born) dest)
         ?:  &(=(~ fil.sub-born) =(~ dir.sub-born))
-          ~&  >>>  [%none-source-b here wire.dart]
           (enqu-take here (sys-give /peek) ~ %peek wire.dart &+[%none ~])
         ::  Get root tree ject lobe from born fold hist
         =/  node=(unit [fold=hist:nexus file=(map @ta hist:nexus)])
@@ -2640,7 +2628,6 @@
           ?:  ?=(%tomb -.pace.val.u.got)  ~
           p.pace.val.u.got
         ?~  root-lobe
-          ~&  >>>  [%none-source-c here wire.dart]
           (enqu-take here (sys-give /peek) ~ %peek wire.dart &+[%none ~])
         ::  Bump ref to keep tree alive while queued
         =.  silo  (~(bump-ject-ref si:nexus silo) u.root-lobe)
@@ -2651,7 +2638,6 @@
         =/  dest=rail:tarball  p.u.dest-lane
         =/  content  (peek-grub-now path.dest name.dest)
         ?:  &(?=(~ content) ?=(~ case.load.dart))
-          ~&  >>>  [%none-source-d here wire.dart dest]
           (enqu-take here (sys-give /peek) ~ %peek wire.dart &+[%none ~])
         =/  node=(unit [fold=hist:nexus file=(map @ta hist:nexus)])
           (~(get of born) path.dest)
@@ -2672,7 +2658,6 @@
           ?:  ?=(%tomb -.pace.val.u.got)  ~
           p.pace.val.u.got
         ?~  src-lobe
-          ~&  >>>  [%none-source-e here wire.dart]
           (enqu-take here (sys-give /peek) ~ %peek wire.dart &+[%none ~])
         ::  Bump silo ref to keep ject alive while queued
         =.  silo  (~(bump-ject-ref si:nexus silo) u.src-lobe)
@@ -3005,17 +2990,11 @@
         %tomb  &+[%tomb ~]
           %file
         =/  jot  (~(get by jects.silo) lobe.cite)
-        ?~  jot
-          ~&  >>  [%hydrate-file-miss %no-ject lobe=lobe.cite jects=~(wyt by jects.silo)]
-          &+[%none ~]
+        ?~  jot  &+[%none ~]
         =/  jt=ject:nexus  ject.u.jot
-        ?.  ?=(%leaf -.jt)
-          ~&  >>  [%hydrate-file-miss %not-leaf lobe=lobe.cite type=-.jt]
-          &+[%none ~]
+        ?.  ?=(%leaf -.jt)  &+[%none ~]
         =/  got=(unit noun)  (~(get si:nexus silo) lobe.leaf.jt)
-        ?~  got
-          ~&  >>  [%hydrate-file-miss %no-noun lobe=lobe.leaf.jt nouns=~(wyt by nouns.silo)]
-          &+[%none ~]
+        ?~  got  &+[%none ~]
         =/  =bask:tarball  [blot.mark.leaf.jt u.got]
         =/  res  (validate-bask cod bask)
         ?:  ?=(%| -.res)
