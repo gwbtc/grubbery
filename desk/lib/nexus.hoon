@@ -68,8 +68,8 @@
   ==
 +$  seen  (each view tang)
 +$  cite
-  $%  [%file =cass:clay =lobe:clay conv=(unit blot:tarball)]
-      [%ball =wave =lobe:clay deep=?]
+  $%  [%file =cass:clay lobe=jobe conv=(unit blot:tarball)]
+      [%ball =wave lobe=jobe deep=?]
       [%none ~]
       [%miss ~]
       [%veto ~]
@@ -105,6 +105,7 @@
       [%tag case=(unit case) tags=(set @t)]  :: set tags on hist entry (~ = current)
       [%seek =lobe:clay]        :: find all [rail cass] pairs with this hash
       [%peep =find]
+      [%born ~]                 :: read hist metadata at dest (file or fold)
       [%code ~]                 :: look up compiled artifacts at dest
       [%font ~]                 :: find code responsible for dest node
   ==
@@ -204,6 +205,7 @@
         [%held =wire err=(unit tang)] :: response to firm
         [%seek =wire res=(each (list [=rail:tarball =cass:clay]) tang)] :: response to seek
         [%peep =wire res=(each (list [=cass:clay =sage:tarball]) tang)] :: response to peep
+        [%born =wire res=(each (list [=cass:clay tags=(set @t) tomb=?]) tang)] :: hist metadata
 
         [%fell =wire]                 :: subscription canceled (weir change, deletion, etc)
         [%news =wire =wave] :: subscription wave (initial or update)
@@ -218,7 +220,7 @@
   +$  pend
     $%  [%poke =from =bask:tarball]
         [%peek =wire cite=(each cite tang)]
-        [%peep =wire res=(each (list [=cass:clay =lobe:clay]) tang)]
+        [%peep =wire res=(each (list [=cass:clay lobe=jobe]) tang)]
         [%code =wire res=(each (axal (map @ta @uv)) (each @uv tang))]
         [%news =wire =wave]
         [%kept =wire =kept]
@@ -231,6 +233,7 @@
         [%gain =wire err=(unit tang)]
         [%held =wire err=(unit tang)]
         [%seek =wire res=(each (list [=rail:tarball =cass:clay]) tang)]
+        [%born =wire res=(each (list [=cass:clay tags=(set @t) tomb=?]) tang)]
         [%fell =wire]
         [%veto =dart]
         [%font =wire res=(unit (unit bend:tarball))]
@@ -331,8 +334,8 @@
 :: version history for files and directories
 ::
 +$  pace
-  $%  [%firm p=(unit lobe:clay)]
-      [%temp p=(unit lobe:clay)]
+  $%  [%firm p=(unit jobe)]
+      [%temp p=(unit jobe)]
       [%tomb ~]
   ==
 ++  hist
@@ -354,14 +357,15 @@
     |=  [=hist cas=cass:clay =pace]
     ^-  ^hist
     (put:hon hist cas [pace ~])
-  ::  +tag: set tags on an existing hist entry
+  ::  +tag: add tags to an existing hist entry (union — tags only
+  ::  accumulate; removal happens via %lose tombstoning the entry)
   ::
   ++  tag
     |=  [=hist cas=cass:clay tags=(set @t)]
     ^-  ^hist
     =/  got=(unit entry)  (get:hon hist cas)
     ?~  got  hist
-    (put:hon hist cas u.got(tags tags))
+    (put:hon hist cas u.got(tags (~(uni in tags.u.got) tags)))
   ++  top
     |=  =hist
     ^-  (unit cass:clay)
@@ -375,27 +379,39 @@
   --
 ::
 +$  born  (axal [fold=hist file=(map @ta hist)])
+::  jobe/nobe: same atom as lobe:clay, but the alias says which
+::  silo store the hash names. Pace and cite lobes are always
+::  jobes; leaf content and bangs are always nobes. Use the alias
+::  in every signature so kind confusion is visible at the type.
+::
++$  jobe  lobe:clay                ::  hash naming a ject (jects.silo)
++$  nobe  lobe:clay                ::  hash naming a noun (nouns.silo)
 +$  leaf
-  $:  =lobe:clay
+  $:  lobe=nobe
       mark=[=blot:tarball ckey=@uv]
       gain=?
-      bang=(unit lobe:clay)
+      bang=(unit nobe)
   ==
 +$  tree
   $:  nek=(unit [=neck:tarball ckey=@uv])
       gain=?
-      bang=(unit lobe:clay)
-      fil=(map @ta lobe:clay)
-      dir=(map @ta [=lobe:clay weir=(unit weir)])
+      bang=(unit nobe)
+      fil=(map @ta jobe)
+      dir=(map @ta [lobe=jobe weir=(unit weir)])
   ==
 +$  ject
   $%  [%leaf =leaf]
       [%tree =tree]
   ==
 +$  vale  (map [lobe:clay @uv] (unit tang))
+::  kind-separated lobe sets: never flatten jects and nouns into one
+::  bag — every silo operation is kind-directed, so consumers must
+::  know which store a lobe lives in.
+::
++$  lobes  [jects=(set jobe) nouns=(set nobe)]
 +$  silo
-  $:  nouns=(map lobe:clay [refs=@ud =noun])
-      jects=(map lobe:clay [refs=@ud =ject])
+  $:  nouns=(map nobe [refs=@ud =noun])
+      jects=(map jobe [refs=@ud =ject])
   ==
 ::  Resolve a hist case to a lobe from the hist mop
 ::  %ud: exact match on revision number
@@ -620,14 +636,14 @@
   |_  =silo
   ++  hash
     |=  =noun
-    ^-  lobe:clay
+    ^-  nobe
     `@uvI`(sham noun)
   ::  Insert noun, increment refcount if exists. Returns lobe and new silo.
   ::
   ++  put
     |=  =noun
-    ^-  [lobe:clay ^silo]
-    =/  =lobe:clay  (hash noun)
+    ^-  [nobe ^silo]
+    =/  lobe=nobe  (hash noun)
     =/  got  (~(get by nouns.silo) lobe)
     ?~  got
       [lobe silo(nouns (~(put by nouns.silo) lobe [0 noun]))]
@@ -635,17 +651,19 @@
   ::  Decrement refcount, delete if zero.
   ::
   ++  drop
-    |=  =lobe:clay
+    |=  lobe=nobe
     ^-  ^silo
     =/  got  (~(get by nouns.silo) lobe)
-    ?~  got  silo
+    ?~  got
+      ~&  >>>  [%silo-drop-noun-absent lobe]
+      silo
     ?:  (lte refs.u.got 1)
       silo(nouns (~(del by nouns.silo) lobe))
     silo(nouns (~(put by nouns.silo) lobe [refs=(dec refs.u.got) noun.u.got]))
   ::  Look up noun by lobe.
   ::
   ++  get
-    |=  =lobe:clay
+    |=  lobe=nobe
     ^-  (unit noun)
     =/  got  (~(get by nouns.silo) lobe)
     ?~  got  ~
@@ -666,26 +684,33 @@
   ::  Increment noun refcount by lobe (must exist).
   ::
   ++  bump-ref
-    |=  =lobe:clay
+    |=  lobe=nobe
     ^-  ^silo
     =/  got  (~(get by nouns.silo) lobe)
-    ?~  got  silo
+    ?~  got
+      ~&  >>>  [%silo-bump-noun-absent lobe]
+      silo
     silo(nouns (~(put by nouns.silo) lobe [+(refs.u.got) noun.u.got]))
   ::  Increment ject refcount by lobe (must exist).
   ::
   ++  bump-ject-ref
-    |=  =lobe:clay
+    |=  lobe=jobe
     ^-  ^silo
     =/  got  (~(get by jects.silo) lobe)
-    ?~  got  silo
+    ?~  got
+      ~&  >>>  [%silo-bump-ject-absent lobe]
+      silo
     silo(jects (~(put by jects.silo) lobe [+(refs.u.got) ject.u.got]))
   ::  Insert ject, increment refcount if exists.
   ::  On first insert, bumps refs on all referenced nouns and child jects.
+  ::  Children MUST already be in the silo — the bump silently no-ops
+  ::  on absent lobes. Batch callers must insert bottom-up (leaves
+  ::  before the trees that reference them).
   ::
   ++  put-ject
     |=  =ject
-    ^-  [lobe:clay ^silo]
-    =/  =lobe:clay  `@uvI`(sham ject)
+    ^-  [jobe ^silo]
+    =/  lobe=jobe  `@uvI`(sham ject)
     =/  got  (~(get by jects.silo) lobe)
     ?^  got
       [lobe silo(jects (~(put by jects.silo) lobe [+(refs.u.got) ject]))]
@@ -711,10 +736,12 @@
   ::  Decrement ject refcount, delete if zero.
   ::
   ++  drop-ject
-    |=  =lobe:clay
+    |=  lobe=jobe
     ^-  ^silo
     =/  got  (~(get by jects.silo) lobe)
-    ?~  got  silo
+    ?~  got
+      ~&  >>>  [%silo-drop-ject-absent lobe]
+      silo
     ?.  (lte refs.u.got 1)
       silo(jects (~(put by jects.silo) lobe [refs=(dec refs.u.got) ject.u.got]))
     ::  refs hit zero — delete ject and cascade to children
@@ -735,30 +762,33 @@
       (~(drop-ject si silo) lobe)
     ==
   ::  Collect all lobes reachable from a root ject lobe (transitive closure).
-  ::  Returns set of all ject lobes + noun lobes.
+  ::  Returns kind-separated ject and noun lobes.
   ::
   ++  reachable
-    |=  root=lobe:clay
-    ^-  (set lobe:clay)
+    |=  root=jobe
+    ^-  lobes
+    =|  out=lobes
     =|  seen=(set lobe:clay)
     =|  queue=(list lobe:clay)
     =.  queue  ~[root]
     |-
-    ?~  queue  seen
+    ?~  queue  out
     =/  cur=lobe:clay  i.queue
     ?:  (~(has in seen) cur)
       $(queue t.queue)
     =.  seen  (~(put in seen) cur)
+    ::  everything on the queue was referenced as a ject
+    =.  jects.out  (~(put in jects.out) cur)
     =/  got  (~(get by jects.silo) cur)
     ?~  got  $(queue t.queue)
     =/  jt=ject  ject.u.got
     ?-  -.jt
         %leaf
-      =.  seen  (~(put in seen) lobe.leaf.jt)
-      =?  seen  ?=(^ bang.leaf.jt)  (~(put in seen) u.bang.leaf.jt)
+      =.  nouns.out  (~(put in nouns.out) lobe.leaf.jt)
+      =?  nouns.out  ?=(^ bang.leaf.jt)  (~(put in nouns.out) u.bang.leaf.jt)
       $(queue t.queue)
         %tree
-      =?  seen  ?=(^ bang.tree.jt)  (~(put in seen) u.bang.tree.jt)
+      =?  nouns.out  ?=(^ bang.tree.jt)  (~(put in nouns.out) u.bang.tree.jt)
       =/  fil-lobes=(list lobe:clay)
         (turn ~(val by fil.tree.jt) |=(=lobe:clay lobe))
       =/  dir-lobes=(list lobe:clay)
@@ -770,31 +800,32 @@
   ::  leaf jects + nouns, but treats dir lobes as opaque.
   ::
   ++  reachable-shallow
-    |=  root=lobe:clay
-    ^-  (set lobe:clay)
-    =/  seen=(set lobe:clay)  (sy ~[root])
+    |=  root=jobe
+    ^-  lobes
+    =|  out=lobes
+    =.  jects.out  (~(put in jects.out) root)
     =/  got  (~(get by jects.silo) root)
-    ?~  got  seen
+    ?~  got  out
     =/  jt=ject  ject.u.got
     ?-  -.jt
         %leaf
-      =.  seen  (~(put in seen) lobe.leaf.jt)
-      =?  seen  ?=(^ bang.leaf.jt)  (~(put in seen) u.bang.leaf.jt)
-      seen
+      =.  nouns.out  (~(put in nouns.out) lobe.leaf.jt)
+      =?  nouns.out  ?=(^ bang.leaf.jt)  (~(put in nouns.out) u.bang.leaf.jt)
+      out
         %tree
-      =?  seen  ?=(^ bang.tree.jt)  (~(put in seen) u.bang.tree.jt)
+      =?  nouns.out  ?=(^ bang.tree.jt)  (~(put in nouns.out) u.bang.tree.jt)
       ::  Include file lobes and their leaf contents
       =/  fil-entries=(list [name=@ta =lobe:clay])
         ~(tap by fil.tree.jt)
       |-
-      ?~  fil-entries  seen
+      ?~  fil-entries  out
       =/  fl=lobe:clay  lobe.i.fil-entries
-      =.  seen  (~(put in seen) fl)
+      =.  jects.out  (~(put in jects.out) fl)
       =/  fgot  (~(get by jects.silo) fl)
-      =?  seen  &(?=(^ fgot) ?=(%leaf -.ject.u.fgot))
-        (~(put in seen) lobe.leaf.ject.u.fgot)
-      =?  seen  &(?=(^ fgot) ?=(%leaf -.ject.u.fgot) ?=(^ bang.leaf.ject.u.fgot))
-        (~(put in seen) u.bang.leaf.ject.u.fgot)
+      =?  nouns.out  &(?=(^ fgot) ?=(%leaf -.ject.u.fgot))
+        (~(put in nouns.out) lobe.leaf.ject.u.fgot)
+      =?  nouns.out  &(?=(^ fgot) ?=(%leaf -.ject.u.fgot) ?=(^ bang.leaf.ject.u.fgot))
+        (~(put in nouns.out) u.bang.leaf.ject.u.fgot)
       $(fil-entries t.fil-entries)
     ==
   ::  Set bang on an existing ject.  Stores the tang as a noun,
@@ -802,12 +833,12 @@
   ::  and returns the new ject lobe.
   ::
   ++  set-bang
-    |=  [old-lobe=lobe:clay err=tang]
-    ^-  [lobe:clay ^silo]
+    |=  [old-lobe=jobe err=tang]
+    ^-  [jobe ^silo]
     =/  got  (~(get by jects.silo) old-lobe)
     ?~  got  [old-lobe silo]
     ::  store tang noun in silo
-    =/  [tang-lobe=lobe:clay mid-silo=^silo]  (~(put si silo) err)
+    =/  [tang-lobe=nobe mid-silo=^silo]  (~(put si silo) err)
     ::  build new ject with bang set
     =/  new-ject=ject
       ?-  -.ject.u.got
@@ -873,7 +904,7 @@
             file-cass=cass:clay
             =hist
         ==
-    ^-  [lobe:clay ^silo ^hist]
+    ^-  [jobe ^silo ^hist]
     ::  Look up previous leaf ject
     =/  prev-leaf=(unit leaf)
       =/  prev-pace=(unit pace:^hist)  (get-pace:^hist hist file-cass)
@@ -1147,10 +1178,10 @@
   ::  from initiation through negotiation to discharge.
   ::  snap is ~ until %snap response arrives with pace + refs.
   ::
-  +$  snap   [=cass:clay =pace refs=(set lobe:clay)]
+  +$  snap   [=cass:clay =pace refs=lobes]
   +$  peek   [ship=@p dest=lane:tarball deep=? blot=(unit blot:tarball) snap=(unit snap) snap-id=@uvJ]
   +$  peeks  (map [rail:tarball wire] peek)
-  +$  snaps  (map [@uvJ @p] [dest=lane:tarball refs=(set lobe:clay) expiry=@da])
+  +$  snaps  (map [@uvJ @p] [dest=lane:tarball refs=lobes expiry=@da])
   --
 +$  ack  (unit tang)
 +$  upki  (unit rail:tarball) :: urbit PKI source in the namespace

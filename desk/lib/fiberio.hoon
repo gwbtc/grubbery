@@ -414,25 +414,27 @@
       [%done ~]
     [%fail %held-failed u.err.u.in]
   ==
-::  +checkpoint: promote current state to %firm
+::  +checkpoint: promote current hist entry to %firm.
+::  Takes a road: file dests firm the file hist, directory dests
+::  firm the fold hist (whose pace lobe is the subtree merkle root).
 ::
 ++  checkpoint
-  |=  =rail:tarball
+  |=  =road:tarball
   =/  m  (fiber ,~)
   ^-  form:m
   ;<  =wire  bind:m  (nonce /firm)
   ;<  ~  bind:m
-    (send-dart %node wire &+&+rail %firm ~)
+    (send-dart %node wire road %firm ~)
   (take-held wire)
-::  +tag: set tags on a hist entry
+::  +tag: set tags on a hist entry (file or fold, per road)
 ::
 ++  tag
-  |=  [=rail:tarball cas=(unit case:nexus) tags=(set @t)]
+  |=  [=road:tarball cas=(unit case:nexus) tags=(set @t)]
   =/  m  (fiber ,~)
   ^-  form:m
   ;<  =wire  bind:m  (nonce /tag)
   ;<  ~  bind:m
-    (send-dart %node wire &+&+rail %tag cas tags)
+    (send-dart %node wire road %tag cas tags)
   (take-held wire)
 ::
 ++  peek
@@ -644,6 +646,26 @@
       [%skip ~]
     [%done res.u.in]
   ==
+::  +born: read hist metadata at dest — file (%&) or fold (%|).
+::  Pure metadata: revision, tags, tombstone flag per entry.
+::
+++  born
+  |=  =road:tarball
+  =/  m  (fiber ,(each (list [=cass:clay tags=(set @t) tomb=?]) tang))
+  ^-  form:m
+  ;<  =wire  bind:m  (nonce /born)
+  ;<  ~  bind:m  (send-dart %node wire road %born ~)
+  |=  input
+  :+  ~  q.state
+  ?+  in  [%skip ~]
+      ~  [%wait ~]
+      [~ %veto *]
+    [%fail (veto-error dart.u.in)]
+      [~ %born * *]
+    ?.  =(wire wire.u.in)
+      [%skip ~]
+    [%done res.u.in]
+  ==
 ::
 ++  over
   |=  [=road:tarball =bask:tarball]
@@ -651,6 +673,16 @@
   ^-  form:m
   ;<  =wire  bind:m  (nonce /make)
   ;<  ~  bind:m  (send-dart %node wire road %make %.y |+[bask ~])
+  (take-made wire)
+::  +over-as: overwrite with a blot override — the runtime tubes
+::  the given bask to the target blot and validates at destination.
+::
+++  over-as
+  |=  [=road:tarball =bask:tarball =blot:tarball]
+  =/  m  (fiber ,~)
+  ^-  form:m
+  ;<  =wire  bind:m  (nonce /make)
+  ;<  ~  bind:m  (send-dart %node wire road %make %.y |+[bask `blot])
   (take-made wire)
 ::
 ++  reload
@@ -1439,9 +1471,7 @@
     ;<  ~  bind:m  (cull [%| 0 %& /requests eyre-id])
     $
       %eyre-action
-    ;<  err=(unit tang)  bind:m  (poke-soft server-road [p.sage q.q.sage])
-    ?~  err  $
-    %-  (slog leaf+"{(trip label)}: eyre-action failed" u.err)
+    ;<  ~  bind:m  (send-dart %node / server-road %poke [p.sage q.q.sage])
     $
   ==
 ::  +resolve-bend: resolve a fiber bend to an absolute rail
