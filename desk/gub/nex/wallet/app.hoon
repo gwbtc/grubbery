@@ -2296,25 +2296,14 @@
   ^-  (list tape)
   %+  turn  refs
   |=(ref=@t (trip ;;(@t (get-acct-network:aio labels ref))))
-::  +ensure-public-poke: add wallet main.sig to public usergroup's poke weir
+::  +ensure-public-poke: register and expose main.sig for pokes via /public
 ::
 ++  ensure-public-poke
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
-  =/  weir-road=road:tarball
-    [%& %& /sys/ames/usergroups/'public.grp' %'how.weir']
-  =/  wallet-road=road:tarball
-    [%& %& /apps/'wallet.wallet_app' %'main.sig']
-  ;<  weir-seen=seen:nexus  bind:m  (peek:io weir-road ~)
-  =/  cur=weir:nexus
-    ?.  ?=([%& %file *] weir-seen)  [~ ~ ~]
-    !<(weir:nexus (need-vase:tarball sang.p.weir-seen))
-  ?:  (~(has in poke.cur) wallet-road)
-    (pure:m ~)
-  ~&  "%wallet: registering with public usergroup"
-  =/  new=weir:nexus  cur(poke (~(put in poke.cur) wallet-road))
-  ;<  ~  bind:m  (over:io weir-road [[/ %weir] new])
-  (pure:m ~)
+  ;<  ~  bind:m  reg-register:io
+  ;<  here=rail:tarball  bind:m  get-here-abs:io
+  (reg-how:io /public [~ (sy ~[[%& %& here]]) ~])
 ::  +ensure-simple-wallet: create simple wallet if none labeled 'gwbtc:simple'
 ::
 ++  ensure-simple-wallet

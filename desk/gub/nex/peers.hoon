@@ -134,16 +134,12 @@
     =/  name=@t  body
     ?:  =('' name)  (redirect eyre-id)
     =/  grp=path  (stab name)
-    =/  grp-dir=path  (grp-storage-path grp)
-    =/  who-road=road:tarball  [%& %& grp-dir %'who.ships']
-    =/  how-road=road:tarball  [%& %& grp-dir %'how.weir']
-    ;<  ~  bind:m  (make:io who-road |+[[[/ %ships] *(set @p)] ~])
-    ;<  ~  bind:m  (make:io how-road |+[[[/ %weir] *weir:nexus] ~])
+    ;<  ~  bind:m  (reg-create-group:io grp '')
     (redirect eyre-id)
   ::
       [%delete ~]
     =/  grp=path  (stab body)
-    ;<  *  bind:m  (cull-soft:io [%& %| (grp-storage-path grp)])
+    ;<  ~  bind:m  (reg-delete-group:io grp)
     (redirect eyre-id)
   ::
       [%members ~]
@@ -154,7 +150,7 @@
     =/  ships=(set @p)
       %-  ~(gas in *(set @p))
       (murn t.lines |=(t=@t (slaw %p t)))
-    ;<  ~  bind:m  (over:io [%& %& (grp-storage-path grp) %'who.ships'] [[/ %ships] ships])
+    ;<  ~  bind:m  (reg-set-members:io grp ships)
     (redirect eyre-id)
   ::
       [%permissions ~]
@@ -163,7 +159,7 @@
     ?~  lines  (redirect eyre-id)
     =/  grp=path  (stab i.lines)
     =/  =weir:nexus  (parse-weir-lines t.lines)
-    ;<  ~  bind:m  (over:io [%& %& (grp-storage-path grp) %'how.weir'] [[/ %weir] weir])
+    ;<  ~  bind:m  (reg-set-weir:io grp weir)
     (redirect eyre-id)
   ==
 ::

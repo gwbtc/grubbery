@@ -1487,4 +1487,62 @@
     ?~  base  ~
     $(up (dec up), base (snip `path`base))
   [(weld resolved path.q.bend) name.q.bend]
+::  Usergroup registry helpers.
+::
+++  reg-road  `road:tarball`[%& %& /sys/ames %'registry']
+++  reg-blot  `blot:tarball`[/usergroups %registry-action]
+::
+++  reg-poke
+  |=  act=registry-action:nexus
+  =/  m  (fiber ,~)
+  ^-  form:m
+  (poke reg-road [reg-blot act])
+::
+++  reg-register
+  =/  m  (fiber ,~)
+  ^-  form:m
+  ;<  here=rail:tarball  bind:m  get-here-abs
+  (reg-poke [%register here path.here])
+::
+++  reg-how
+  |=  [group=path =weir:nexus]
+  =/  m  (fiber ,~)
+  ^-  form:m
+  (reg-poke [%how group weir])
+::
+++  reg-create-group
+  |=  [group=path man=@t]
+  =/  m  (fiber ,~)
+  ^-  form:m
+  (reg-poke [%create-group group man])
+::
+++  reg-delete-group
+  |=  group=path
+  =/  m  (fiber ,~)
+  ^-  form:m
+  (reg-poke [%delete-group group])
+::
+++  reg-add-ship
+  |=  [group=path =ship]
+  =/  m  (fiber ,~)
+  ^-  form:m
+  (reg-poke [%add-ship group ship])
+::
+++  reg-del-ship
+  |=  [group=path =ship]
+  =/  m  (fiber ,~)
+  ^-  form:m
+  (reg-poke [%del-ship group ship])
+::
+++  reg-set-members
+  |=  [group=path members=(set @p)]
+  =/  m  (fiber ,~)
+  ^-  form:m
+  (reg-poke [%set-members group members])
+::
+++  reg-set-weir
+  |=  [group=path =weir:nexus]
+  =/  m  (fiber ,~)
+  ^-  form:m
+  (reg-poke [%set-weir group weir])
 --

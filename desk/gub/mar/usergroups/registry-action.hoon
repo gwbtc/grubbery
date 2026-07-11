@@ -1,9 +1,7 @@
-::  usergroups-registry-action: poke actions for the usergroups registry
-::
-|_  act=$%([%register =rail:tarball pax=path] [%deregister =rail:tarball clean=?] [%how =weir:nexus])
+|_  act=registry-action:nexus
 ++  grab
   |%
-  ++  noun  ,$%([%register =rail:tarball pax=path] [%deregister =rail:tarball clean=?] [%how =weir:nexus])
+  ++  noun  ,registry-action:nexus
   --
 ++  grow
   |%

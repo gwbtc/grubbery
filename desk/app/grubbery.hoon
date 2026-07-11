@@ -4793,7 +4793,7 @@
   =.  this  (ensure-dir /sys/ames/usergroups)
   =.  this  (ensure-dir /sys/ames/ships)
   ::  Ensure usergroups registry exists
-  =/  reg-rail=rail:tarball  [/sys/ames %'public.usergroups_registry']
+  =/  reg-rail=rail:tarball  [/sys/ames %'registry']
   =?  this  =(~ (peek-grub-now reg-rail))
     (save-file reg-rail [[/usergroups %registry] %& !>(*(map rail:tarball path))])
   =.  this  ensure-public-group
@@ -5400,7 +5400,7 @@
     `(enqu-take here (sys-give /bowl) ~ %pack wir ~)
   ::
       %ames
-    ?>  =(dest [/sys/ames %'public.usergroups_registry'])
+    ?>  =(dest [/sys/ames %'registry'])
     ?>  =([/usergroups %registry-action] p.sage)
     =.  this  (handle-ames-registry here wir q.sage)
     `(enqu-take here (sys-give /ames) ~ %pack wir ~)
@@ -5736,34 +5736,32 @@
   ==
 ::  /sys/ames/ usergroups registry
 ::
-::  Manages the public usergroups registry. Two operations:
-::  - %register: root-only, adds a rail→prefix mapping
-::  - %how: registered grub updates /public's weir under its prefix
+::  Namespace ownership + per-group weir management.
+::  - %register/%deregister: claim/release a path prefix
+::  - %how: set weir roads for a named group, scoped to owned prefix
+::  - %create-group/%delete-group: group lifecycle
+::  - %add-ship/%del-ship: group membership
 ::
 ++  handle-ames-registry
   |=  [sender=rail:tarball =wire vaz=vase]
   ^+  this
-  =/  reg-rail=rail:tarball  [/sys/ames %'public.usergroups_registry']
+  =/  reg-rail=rail:tarball  [/sys/ames %'registry']
   =/  reg=(map rail:tarball path)
     =/  got=(unit sang:tarball)  (peek-grub-now reg-rail)
     ?~  got  *(map rail:tarball path)
     =/  res  (mule |.(!<((map rail:tarball path) (need-vase:tarball u.got))))
     ?:(?=(%| -.res) *(map rail:tarball path) p.res)
-  =/  act  !<($%([%register =rail:tarball pax=path] [%deregister =rail:tarball clean=?] [%how =weir:nexus]) vaz)
+  =/  act  !<(registry-action:nexus vaz)
   ?-    -.act
       %register
-    ::  Check no overlapping prefixes
     =/  new-prefix  pax.act
     =/  entries=(list [rail:tarball path])  ~(tap by reg)
     |-
     ?~  entries
-      ::  No conflicts — add to registry
       =/  new-reg=(map rail:tarball path)  (~(put by reg) rail.act new-prefix)
       (save-file reg-rail [[/usergroups %registry] %& !>(new-reg)])
     =/  [r=rail:tarball existing=path]  i.entries
-    ::  Re-registration by the same rail is idempotent, not a conflict
     ?:  =(r rail.act)  $(entries t.entries)
-    ::  Check: new is not a prefix of existing, existing is not a prefix of new
     ?:  ?|  (is-prefix new-prefix existing)
             (is-prefix existing new-prefix)
         ==
@@ -5773,48 +5771,124 @@
   ::
       %deregister
     =/  prefix=(unit path)  (~(get by reg) rail.act)
-    ?~  prefix  this  :: not registered
+    ?~  prefix  this
     =/  new-reg=(map rail:tarball path)  (~(del by reg) rail.act)
     =.  this  (save-file reg-rail [[/usergroups %registry] %& !>(new-reg)])
     ?.  clean.act  this
-    ::  Strip roads under prefix from /public's how.weir
-    =/  how-rail=rail:tarball  [(grp-storage-path /public) %'how.weir']
-    =/  cur=weir:nexus
-      =/  got=(unit sang:tarball)  (peek-grub-now how-rail)
-      ?~  got  *weir:nexus
-      =/  res  (mule |.(!<(weir:nexus (need-vase:tarball u.got))))
-      ?:(?=(%| -.res) *weir:nexus p.res)
+    ::  Strip roads under prefix from ALL groups
+    =/  groups=(list [name=path grp=ball:tarball])
+      (find-groups / (peek-ball-now /sys/ames/usergroups))
+    |-
+    ?~  groups  recompute-all-weirs
+    =/  how-rail=rail:tarball  [(grp-storage-path name.i.groups) %'how.weir']
+    =/  cur=weir:nexus  (read-group-weir how-rail)
     =/  new=weir:nexus
       :*  (replace-roads make.cur ~ u.prefix)
           (replace-roads poke.cur ~ u.prefix)
           (replace-roads peek.cur ~ u.prefix)
       ==
     =.  this  (save-file how-rail [[/ %weir] %& !>(new)])
-    recompute-all-weirs
+    $(groups t.groups)
   ::
       %how
-    ::  Look up sender in registry
     =/  prefix=(unit path)  (~(get by reg) sender)
-    ?~  prefix  this  :: not registered — reject
-    ::  Read current public weir
-    =/  how-rail=rail:tarball  [(grp-storage-path /public) %'how.weir']
-    =/  cur=weir:nexus
-      =/  got=(unit sang:tarball)  (peek-grub-now how-rail)
-      ?~  got  *weir:nexus
-      =/  res  (mule |.(!<(weir:nexus (need-vase:tarball u.got))))
-      ?:(?=(%| -.res) *weir:nexus p.res)
-    ::  Validate all roads in poked weir are under prefix
-    ?.  (validate-weir-roads weir.act u.prefix)  this
-    ::  Delete-and-replace: strip roads under prefix, add new ones
+    ?~  prefix
+      ~&  >>  [%how-rejected-not-registered sender]
+      this
+    =/  grp-dir=path  (grp-storage-path group.act)
+    =/  how-rail=rail:tarball  [grp-dir %'how.weir']
+    =/  exists=(unit sang:tarball)  (peek-grub-now [grp-dir %'who.ships'])
+    ?~  exists
+      ~&  >>  [%how-rejected-no-such-group group.act]
+      this
+    =/  cur=weir:nexus  (read-group-weir how-rail)
+    ?.  (validate-weir-roads weir.act u.prefix)
+      ~&  >>  [%how-rejected-roads-outside-prefix sender group.act u.prefix]
+      this
     =/  new=weir:nexus
       :*  (replace-roads make.cur make.weir.act u.prefix)
           (replace-roads poke.cur poke.weir.act u.prefix)
           (replace-roads peek.cur peek.weir.act u.prefix)
       ==
     =.  this  (save-file how-rail [[/ %weir] %& !>(new)])
-    ::  Recompute weirs for all foreign ships
+    recompute-all-weirs
+  ::
+      %create-group
+    =/  grp-dir=path  (grp-storage-path group.act)
+    =/  who-rail=rail:tarball  [grp-dir %'who.ships']
+    ?^  (peek-grub-now who-rail)
+      ~&  >>  [%group-already-exists group.act]
+      this
+    =.  this  (ensure-dir grp-dir)
+    =.  this  (save-file who-rail [[/ %ships] %& !>(*(set @p))])
+    =.  this  (save-file [grp-dir %'how.weir'] [[/ %weir] %& !>(*weir:nexus)])
+    =/  man-mime=mime  [/text/markdown (as-octs:mimes:html man.act)]
+    (save-file [grp-dir %'man.md'] [[/ %mime] %& !>(man-mime)])
+  ::
+      %delete-group
+    ?:  =(group.act /public)
+      ~&  >>  %cannot-delete-public-group
+      this
+    =/  grp-dir=path  (grp-storage-path group.act)
+    =/  who-rail=rail:tarball  [grp-dir %'who.ships']
+    ?~  (peek-grub-now who-rail)
+      ~&  >>  [%group-not-found group.act]
+      this
+    =.  this  (cull [%| grp-dir])
+    recompute-all-weirs
+  ::
+      %add-ship
+    =/  grp-dir=path  (grp-storage-path group.act)
+    =/  who-rail=rail:tarball  [grp-dir %'who.ships']
+    =/  got=(unit sang:tarball)  (peek-grub-now who-rail)
+    ?~  got
+      ~&  >>  [%group-not-found group.act]
+      this
+    =/  cur=(set @p)
+      =/  res  (mule |.(!<((set @p) (need-vase:tarball u.got))))
+      ?:(?=(%| -.res) *(set @p) p.res)
+    =.  this  (save-file who-rail [[/ %ships] %& !>((~(put in cur) ship.act))])
+    (ensure-peer-ship ship.act)
+  ::
+      %del-ship
+    =/  grp-dir=path  (grp-storage-path group.act)
+    =/  who-rail=rail:tarball  [grp-dir %'who.ships']
+    =/  got=(unit sang:tarball)  (peek-grub-now who-rail)
+    ?~  got
+      ~&  >>  [%group-not-found group.act]
+      this
+    =/  cur=(set @p)
+      =/  res  (mule |.(!<((set @p) (need-vase:tarball u.got))))
+      ?:(?=(%| -.res) *(set @p) p.res)
+    =.  this  (save-file who-rail [[/ %ships] %& !>((~(del in cur) ship.act))])
+    (ensure-peer-ship ship.act)
+  ::
+      %set-members
+    =/  grp-dir=path  (grp-storage-path group.act)
+    =/  who-rail=rail:tarball  [grp-dir %'who.ships']
+    ?~  (peek-grub-now who-rail)
+      ~&  >>  [%group-not-found group.act]
+      this
+    =.  this  (save-file who-rail [[/ %ships] %& !>(members.act)])
+    recompute-all-weirs
+  ::
+      %set-weir
+    =/  grp-dir=path  (grp-storage-path group.act)
+    =/  how-rail=rail:tarball  [grp-dir %'how.weir']
+    ?~  (peek-grub-now [grp-dir %'who.ships'])
+      ~&  >>  [%group-not-found group.act]
+      this
+    =.  this  (save-file how-rail [[/ %weir] %& !>(weir.act)])
     recompute-all-weirs
   ==
+::
+++  read-group-weir
+  |=  how-rail=rail:tarball
+  ^-  weir:nexus
+  =/  got=(unit sang:tarball)  (peek-grub-now how-rail)
+  ?~  got  *weir:nexus
+  =/  res  (mule |.(!<(weir:nexus (need-vase:tarball u.got))))
+  ?:(?=(%| -.res) *weir:nexus p.res)
 ::
 ++  is-prefix
   |=  [pre=path full=path]

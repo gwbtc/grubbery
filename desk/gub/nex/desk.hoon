@@ -69,29 +69,23 @@
       ::
       [~ %'config.json']
     ;<  ~  bind:m  (rise-wait:io prod "%desk config: failed")
+    ;<  ~  bind:m  reg-register:io
     ;<  here=rail:tarball  bind:m  get-here-abs:io
     =/  nex-dir=path  path.here
-    =/  reg-road=road:tarball  [%& %& /sys/ames %'public.usergroups_registry']
-    =/  reg-blot=blot:tarball  [/usergroups %registry-action]
-    =*  reg-poke  |=(act=* (poke:io reg-road [reg-blot act]))
-    ;<  ~  bind:m  (reg-poke [%register here nex-dir])
     |-
     ;<  config-json=json  bind:m  (get-state-as:io ,json)
     =/  config=desk-config  (json-to-config config-json)
-    ::  (re)apply the public exposure per the current config: a
-    ::  published desk exposes ONLY version.ud and /desk/code.
-    ::  Subscribers never publish — re-serving someone else's desk
-    ::  is mirroring, which wants its own deliberate design.
     ;<  ~  bind:m
-      %-  reg-poke
+      %-  reg-how:io
       ?:  &(public.config ?=(~ source.config))
-        :+  %how  ~  :-  ~
+        :-  /public
+        :+  ~  ~
         %-  sy
         :~  [%& %& nex-dir %'version.ud']
             [%& %| (weld nex-dir /desk/code)]
             [%& %| (weld nex-dir /desk/init)]
         ==
-      [%how *weir:nexus]
+      [/public *weir:nexus]
     ?~  source.config
       ::  no source configured, wait for poke
       ~&  >  %desk-no-source
