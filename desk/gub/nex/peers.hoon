@@ -26,6 +26,7 @@
       ?+    rail  stay:m
           [~ %'main.sig']
         ;<  ~  bind:m  (rise-wait:io prod "%peers /main: failed")
+        ;<  ~  bind:m  reg-register:io
         ;<  ~  bind:m  (bind-http:io [~ /grubbery/peers])
         (http-dispatch:io %peers)
           [[%requests ~] @]
@@ -134,12 +135,16 @@
     =/  name=@t  body
     ?:  =('' name)  (redirect eyre-id)
     =/  grp=path  (stab name)
-    ;<  ~  bind:m  (reg-create-group:io grp '')
+    =/  grp-dir=path  (grp-storage-path grp)
+    =/  who-road=road:tarball  [%& %& grp-dir %'who.ships']
+    =/  how-road=road:tarball  [%& %& grp-dir %'how.weir']
+    ;<  ~  bind:m  (make:io who-road |+[[[/ %ships] *(set @p)] ~])
+    ;<  ~  bind:m  (make:io how-road |+[[[/ %weir] *weir:nexus] ~])
     (redirect eyre-id)
   ::
       [%delete ~]
     =/  grp=path  (stab body)
-    ;<  ~  bind:m  (reg-delete-group:io grp)
+    ;<  *  bind:m  (cull-soft:io [%& %| (grp-storage-path grp)])
     (redirect eyre-id)
   ::
       [%members ~]
@@ -150,7 +155,7 @@
     =/  ships=(set @p)
       %-  ~(gas in *(set @p))
       (murn t.lines |=(t=@t (slaw %p t)))
-    ;<  ~  bind:m  (reg-set-members:io grp ships)
+    ;<  ~  bind:m  (over:io [%& %& (grp-storage-path grp) %'who.ships'] [[/ %ships] ships])
     (redirect eyre-id)
   ::
       [%permissions ~]
@@ -159,7 +164,7 @@
     ?~  lines  (redirect eyre-id)
     =/  grp=path  (stab i.lines)
     =/  =weir:nexus  (parse-weir-lines t.lines)
-    ;<  ~  bind:m  (reg-set-weir:io grp weir)
+    ;<  ~  bind:m  (reg-how:io grp weir)
     (redirect eyre-id)
   ==
 ::

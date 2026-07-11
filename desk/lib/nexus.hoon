@@ -171,12 +171,6 @@
   $%  [%register =rail:tarball pax=path]
       [%deregister =rail:tarball clean=?]
       [%how group=path =weir]
-      [%create-group group=path man=@t]
-      [%delete-group group=path]
-      [%add-ship group=path =ship]
-      [%del-ship group=path =ship]
-      [%set-members group=path members=(set @p)]
-      [%set-weir group=path =weir]
   ==
 ::  Clay desk sync service state.
 ::  Stored as a grub at /sys/clay/main.clay-state.
