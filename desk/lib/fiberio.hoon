@@ -941,6 +941,34 @@
   ?:  ?=(%| -.extracted)
     (pure:m [/application/x-urb-jam (as-octs:mimes:html (jam q.sage))])
   (pure:m p.extracted)
+::  Local IPC (lick vane, via /sys/lick/ runtime service)
+::
+::  +lick-spin: open a local IPC port. vere serves the socket at
+::  <pier>/.urb/dev/grubbery/<name>. Inbound messages materialize at
+::  /sys/lick/<name>/in as [seq=@ud =mark noun=*] (seq bumps per message
+::  so identical payloads still fire a wave); connection state at
+::  /sys/lick/<name>/live. keep the in-grub and take-news to react.
+::
+++  lick-spin
+  |=  name=path
+  =/  m  (fiber ,~)
+  ^-  form:m
+  (poke &+&+[/sys/lick %'main.sig'] [[/ %lick-spin] name])
+::  +lick-shut: close a local IPC port and delete its /sys/lick tree
+::
+++  lick-shut
+  |=  name=path
+  =/  m  (fiber ,~)
+  ^-  form:m
+  (poke &+&+[/sys/lick %'main.sig'] [[/ %lick-shut] name])
+::  +lick-spit: send [mark noun] to the client connected to a port
+::
+++  lick-spit
+  |=  [name=path =mark noun=*]
+  =/  m  (fiber ,~)
+  ^-  form:m
+  (poke &+&+[/sys/lick %'main.sig'] [[/ %lick-spit] name mark noun])
+::
 ::  Gall agent operations (via /sys/gall/ runtime service)
 ::
 ++  gall-poke

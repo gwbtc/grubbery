@@ -486,6 +486,11 @@
     =^  cards  state
       abet:(save-file:hc [/sys/dill/sessions ses] [[/ %dill-blit] %& !>(p.sign)])
     [cards this]
+  ?:  ?=([%lick *] wire)
+    ?>  ?=([%lick %soak *] sign)
+    =^  cards  state
+      abet:(take-lick-soak:hc name.sign mark.sign noun.sign)
+    [cards this]
   ?:  ?=([%clay-desk @ ~] wire)
     ~&  >>  "on-arvo: clay writ on wire {<wire>}"
     ?>  ?=([%clay %writ *] sign)
@@ -563,6 +568,7 @@
   =.  this  sync-bowl
   =.  this  sync-peer
   =.  this  sync-gall
+  =.  this  sync-lick
   =.  this  sync-eyre
   sync-push
 ::  +put-pace: write a pace into a born tree at the given dest lane.
@@ -4589,6 +4595,119 @@
   =.  this  ^$(pax (snoc pax -.i.kids), sub +.i.kids)
   $(kids t.kids)
 ::
+::  /sys/lick: local IPC ports (lick vane; unix sockets under .urb/dev/)
+::
+::    - A nexus opens a port by poking /sys/lick with blot [/ %lick-spin]
+::      and a path payload; vere serves the socket at
+::      <pier>/.urb/dev/grubbery/<name> (agent dir + port path, verbatim).
+::    - Inbound %soak messages are materialized at /sys/lick/<name>/in as
+::      [seq=@ud =mark noun=*]. seq increments per message so identical
+::      payloads still fire a wave. Connection state (%connect/%disconnect
+::      soaks from the runtime) lives at /sys/lick/<name>/live as a loobean.
+::    - Outbound: blot [/ %lick-spit] with [name mark noun] payload.
+::      Blot [/ %lick-shut] closes the port and deletes its tree.
+::    - Ports are respun from the tree on reload (sync-lick); the vane
+::      itself re-registers sockets with vere on %born.
+::    - /live is advisory: %connect/%disconnect are ordinary soak marks,
+::      so a local client could spoof them. The socket is same-user-only
+::      (unix perms), so this is a footgun note, not a security boundary.
+::    - Runtime port errors (%error soaks) persist at /sys/lick/<name>/err.
+::
+++  lick-dir
+  |=  name=path
+  ^-  path
+  (weld /sys/lick name)
+::
+++  lick-wire
+  |=  name=path
+  ^-  wire
+  (weld /lick name)
+::
+++  handle-lick-spin
+  |=  name=path
+  ^+  this
+  ?~  name
+    ~&  >>>  "lick: refusing to spin empty port name"
+    this
+  =/  dir=path  (lick-dir name)
+  =.  this  (ensure-dir dir)
+  ::  init /live only when absent: on a respin of an already-connected
+  ::  port the socket survives in vere and no new %connect will arrive,
+  ::  so a forced %.n here would go stale.
+  =.  this
+    ?^  (peek-grub-now dir %live)  this
+    (save-file [dir %live] [[/ %loob] %& !>(%.n)])
+  ~&  >  "lick: spinning {(spud name)}"
+  (emit-card [%pass (lick-wire name) %arvo %l %spin name])
+::
+++  handle-lick-shut
+  |=  name=path
+  ^+  this
+  =/  dir=path  (lick-dir name)
+  ~&  >  "lick: shutting {(spud name)}"
+  =.  this  (emit-card [%pass (lick-wire name) %arvo %l %shut name])
+  =.  pool  (~(lop of pool) dir)
+  (load-ball-changes dir *bole:tarball)
+::
+++  handle-lick-spit
+  |=  req=[name=path =mark noun=*]
+  ^+  this
+  (emit-card [%pass (lick-wire name.req) %arvo %l %spit req])
+::  Handle a %soak gift: connection state to /live, data to /in
+::
+++  take-lick-soak
+  |=  [name=path =mark noun=*]
+  ^+  this
+  =/  dir=path  (lick-dir name)
+  ::  drop soaks for ports we no longer track (tree culled or shut):
+  ::  save-file would silently resurrect a half-tree otherwise, and the
+  ::  socket keeps producing events regardless of tree state.
+  ?:  ?=(~ (peek-grub-now dir %live))
+    ~&  >>  "lick: dropping soak for unknown port {(spud name)}"
+    this
+  ?:  =(%connect mark)
+    (save-file [dir %live] [[/ %loob] %& !>(%.y)])
+  ?:  =(%disconnect mark)
+    (save-file [dir %live] [[/ %loob] %& !>(%.n)])
+  ?:  =(%error mark)
+    ::  persist runtime errors (port collision, fs perms) so callers can
+    ::  observe a port that will never come up, not just scan the log.
+    ~&  >>>  "lick: error on {(spud name)}: {<noun>}"
+    (save-file [dir %err] [[/ %page] %& !>(`[p=@tas q=*]`[%error noun])])
+  ::  data message: bump seq so equal payloads still fire a wave
+  =/  old=(unit sang:tarball)  (peek-grub-now dir %in)
+  =/  seq=@ud
+    ?~  old  0
+    =/  prev  !<([seq=@ud @tas *] (need-vase:tarball u.old))
+    +(seq.prev)
+  (save-file [dir %in] [[/ %lick-in] %& !>([seq mark noun])])
+::  Respin all recorded ports on reload
+::
+++  sync-lick
+  ^+  this
+  =.  this  (ensure-dir /sys/lick)
+  (respin-lick-tree / (peek-ball-now /sys/lick))
+::
+++  respin-lick-tree
+  |=  [pax=path sub=ball:tarball]
+  ^+  this
+  =/  has-live=?
+    ?&  ?=(^ fil.sub)
+        (~(has by contents.u.fil.sub) %live)
+    ==
+  ::  no /live reset here: the socket (and its client) survive agent
+  ::  reloads in vere, so no new %connect would arrive to undo a forced
+  ::  %.n. %connect/%disconnect soaks own /live.
+  =.  this
+    ?.  has-live  this
+    ~&  >  "sync-lick: respinning {(spud pax)}"
+    (emit-card [%pass (lick-wire pax) %arvo %l %spin pax])
+  =/  kids=(list [@ta ball:tarball])  ~(tap by dir.sub)
+  |-
+  ?~  kids  this
+  =.  this  ^$(pax (snoc pax -.i.kids), sub +.i.kids)
+  $(kids t.kids)
+::
 ::  /sys/ames: runtime-owned peer infrastructure
 ::
 ::  Creates /sys/ames/ directory structure for foreign ship management.
@@ -5155,6 +5274,19 @@
     ?.  =([/ %bowl-req] p.sage)  ~
     =.  this  (handle-bowl-req here wir q.sage)
     `(enqu-take here (sys-give /bowl) ~ %pack wir ~)
+  ::
+      %lick
+    ?:  =([/ %lick-spin] p.sage)
+      =.  this  (handle-lick-spin !<(path q.sage))
+      `(enqu-take here (sys-give /lick) ~ %pack wir ~)
+    ?:  =([/ %lick-shut] p.sage)
+      =.  this  (handle-lick-shut !<(path q.sage))
+      `(enqu-take here (sys-give /lick) ~ %pack wir ~)
+    ?:  =([/ %lick-spit] p.sage)
+      =/  req=[name=path =mark noun=*]  !<([path @tas *] q.sage)
+      =.  this  (handle-lick-spit req)
+      `(enqu-take here (sys-give /lick) ~ %pack wir ~)
+    ~
   ==
 ::
 ::  /sys/behn/ timer service
