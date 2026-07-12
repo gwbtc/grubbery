@@ -1109,7 +1109,7 @@
   =/  m  (fiber ,ship)
   ^-  form:m
   ;<  =wire  bind:m  (nonce /sys/our)
-  ;<  ~  bind:m  (send-dart %node wire &+&+[/sys/bowl %'main.sig'] %poke [[/ %bowl-req] %our])
+  ;<  ~  bind:m  (send-dart %node wire &+&+[/sys %'bowl.sig'] %poke [[/ %bowl-req] %our])
   |=  input
   :+  ~  q.state
   ?+  in  [%skip ~]
@@ -1125,7 +1125,7 @@
   =/  m  (fiber ,@da)
   ^-  form:m
   ;<  =wire  bind:m  (nonce /sys/now)
-  ;<  ~  bind:m  (send-dart %node wire &+&+[/sys/bowl %'main.sig'] %poke [[/ %bowl-req] %now])
+  ;<  ~  bind:m  (send-dart %node wire &+&+[/sys %'bowl.sig'] %poke [[/ %bowl-req] %now])
   |=  input
   :+  ~  q.state
   ?+  in  [%skip ~]
@@ -1143,7 +1143,7 @@
 ++  get-entropy
   =/  m  (fiber ,@uvJ)
   ^-  form:m
-  ;<  ~  bind:m  (send-dart %node /sys/eny &+&+[/sys/bowl %'main.sig'] %poke [[/ %bowl-req] %eny])
+  ;<  ~  bind:m  (send-dart %node /sys/eny &+&+[/sys %'bowl.sig'] %poke [[/ %bowl-req] %eny])
   |=  input
   :+  ~  q.state
   ?+  in  [%skip ~]

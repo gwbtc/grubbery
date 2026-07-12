@@ -471,13 +471,13 @@
   ?:  ?=([%dill %logs ~] wire)
     ?>  ?=([%dill %logs *] sign)
     =^  cards  state
-      abet:(save-file:hc [/sys/dill %'logs.dill-told'] [[/ %dill-told] %& !>(told.sign)])
+      abet:(save-file:hc [/sys/dill %'logs.dill-told'] [[/ %dill-told] told.sign])
     [cards this]
   ?:  ?=([%dill %session @ ~] wire)
     ?>  ?=([%dill %blit *] sign)
     =/  ses=@tas  i.t.t.wire
     =^  cards  state
-      abet:(save-file:hc [/sys/dill/sessions ses] [[/ %dill-blit] %& !>(p.sign)])
+      abet:(save-file:hc [/sys/dill/sessions ses] [[/ %dill-blit] p.sign])
     [cards this]
   ?:  ?=([%clay-desk @ ~] wire)
     ~&  >>  "on-arvo: clay writ on wire {<wire>}"
@@ -494,7 +494,7 @@
   ?:  ?=([%jael %private ~] wire)
     ?>  ?=([%jael %private-keys *] sign)
     =^  cards  state
-      abet:(save-file:hc [/sys/jael %'private-keys.jael-private-keys'] [[/ %jael-private-keys] %& !>([life.sign vein.sign])])
+      abet:(save-file:hc [/sys/jael %'private-keys.jael-private-keys'] [[/ %jael-private-keys] [life.sign vein.sign]])
     [cards this]
   ?:  ?=([%behn %snap-pin @ @ ~] wire)
     ?>  ?=([%behn %wake *] sign)
@@ -3403,11 +3403,11 @@
   ?-    -.res
       %next
     ::  Save state (bumps aeon only if content changed)
-    =.  this  (save-file here [p.u.file-data %& new-state])
+    =.  this  (save-file here [p.u.file-data q.new-state])
     (store-proc here new-proc)
       %done
     ::  Save final state so subscribers see it, then delete
-    =.  this  (save-file here [p.u.file-data %& new-state])
+    =.  this  (save-file here [p.u.file-data q.new-state])
     =/  err=tang  ~[leaf+"process completed"]
     :: only nack-pokes when we're done
     ::
@@ -3509,7 +3509,7 @@
       ~|("make failed: validation error" (mean p.validated))
     =.  this
       ::  ~>  %bout.[1 %make-file-save]
-      (save-file dest-rail [p.bask %& p.validated])
+      (save-file dest-rail [p.bask q.p.validated])
     ::  Spawn process (respawns if already exists via store-proc)
     ::  ~>  %bout.[1 %make-file-spawn]
     (spawn-proc dest-rail ~)
@@ -3956,7 +3956,7 @@
   ::  Update clay-state with synced desks
   =/  clay-rail=rail:tarball  [/sys/clay %'main.clay-state']
   =/  st=clay-state:nexus  [%0 (silt dek)]
-  =.  this  (save-file clay-rail [[/ %clay-state] %& !>(st)])
+  =.  this  (save-file clay-rail [[/ %clay-state] st])
   |-  ^+  this
   ?~  dek  this
   $(dek t.dek, this (sync-clay-desk i.dek))
@@ -3993,7 +3993,7 @@
     ?.  ?=(%& -.res)
       ~&  [%sync-clay-vale-failed mar fyl]
       acc
-    (save-file:acc [dir name] [[/ mar] %& p.res])
+    (save-file:acc [dir name] [[/ mar] q.p.res])
   ::  Delete files that no longer exist in Clay
   =/  removed=(list path)
     %+  skim  ~(tap in old-files)
@@ -4355,12 +4355,12 @@
     =?  this  ?=(~ hit)
       (vale-put lob ckey ?:(?=(%& -.res) ~ `p.res))
     ?:  ?=(%& -.res)
-      =.  this  (save-file rail [p.sang %& p.res])
+      =.  this  (save-file rail [p.sang noun])
       =.  n-ok  +(n-ok)
       $(grubs t.grubs)
     ~&  >>  "validate-marks: boom {(spud (snoc path.rail name.rail))}"
     =.  this
-      (save-file rail [blot %| [p.res noun]])
+      (save-file rail [blot noun])
     =.  n-boom  +(n-boom)
     $(grubs t.grubs)
   ~&  >  "validate-marks: {(trip nam)} — {<n-ok>} ok, {<n-boom>} boom"
@@ -4572,7 +4572,8 @@
 ++  sync-dill
   ^+  this
   ::  Create dill/logs grub and subscribe
-  =.  this  (save-file [/sys/dill %'logs.dill-told'] [[/ %dill-told] %& !>(*told:dill)])
+  =.  this  (save-file [/sys/dill %'logs.dill-told'] [[/ %dill-told] *told:dill])
+  =.  this  (set-gain-lane [%& /sys/dill %'logs.dill-told'] %.y)
   =.  this  (emit-card [%pass /dill/logs %arvo %d %logs `~])
   ::  Scry for sessions
   =/  sessions=(list @tas)
@@ -4590,7 +4591,8 @@
   =.  this
     %+  roll  sessions
     |=  [ses=@tas acc=_this]
-    (save-file:acc [/sys/dill/sessions ses] [[/ %dill-blit] %& !>(*(list blit:dill))])
+    =/  acc  (save-file:acc [/sys/dill/sessions ses] [[/ %dill-blit] *(list blit:dill)])
+    (set-gain-lane:acc [%& /sys/dill/sessions ses] %.y)
   %-  emit-cards
   %+  turn  sessions
   |=(ses=@tas [%pass /dill/session/[ses] %arvo %d %shot ses %view ~])
@@ -4601,9 +4603,9 @@
   =.  this  (ensure-dir /sys/jael)
   ::  Create grubs and subscribe
   =.  this
-    (save-file [/sys/jael %'private-keys.jael-private-keys'] [[/ %jael-private-keys] %& !>(*[life (map life ring)])])
+    (save-file [/sys/jael %'private-keys.jael-private-keys'] [[/ %jael-private-keys] *[life (map life ring)]])
   =.  this
-    (save-file [/sys/jael %'public-keys.jael-public-keys-result'] [[/ %jael-public-keys-result] %& !>(*public-keys-result:jael)])
+    (save-file [/sys/jael %'public-keys.jael-public-keys-result'] [[/ %jael-public-keys-result] *public-keys-result:jael])
   ::  Subscribe to private keys
   =.  this
     (emit-card [%pass /jael/private %arvo %j %private-keys ~])
@@ -4614,7 +4616,7 @@
 ++  on-jael-public
   |=  =public-keys-result:jael
   ^+  this
-  (save-file [/sys/jael %'public-keys.jael-public-keys-result'] [[/ %jael-public-keys-result] %& !>(public-keys-result)])
+  (save-file [/sys/jael %'public-keys.jael-public-keys-result'] [[/ %jael-public-keys-result] public-keys-result])
 ::  /sys/gall: materialized gall subscriptions
 ::
 ::  Poke %grubbery with %gall-watch to subscribe to a gall agent.
@@ -4659,7 +4661,7 @@
   ::  Ensure directory exists
   =.  this  (ensure-dir dir)
   ::  Create live file (%.y = subscribing)
-  =.  this  (save-file [dir %live] [[/ %loob] %& !>(%.y)])
+  =.  this  (save-file [dir %live] [[/ %loob] %.y])
   ::  Subscribe
   ~&  >  "gall-sub: subscribing to {<ship>}/{(trip agent)}/{(spud path)}"
   (emit-card [%pass wir %agent [ship agent] %watch path])
@@ -4695,11 +4697,11 @@
     ?~  p.sign
       ::  Success — set live to %.y
       ~&  >  "gall-sub: watch-ack ok {<ship>}/{(trip agent)}/{(spud path)}"
-      (save-file [dir %live] [[/ %loob] %& !>(%.y)])
+      (save-file [dir %live] [[/ %loob] %.y])
     ::  Failed — set live to %.n, don't retry
     ~&  >>>  "gall-sub: watch-ack failed {<ship>}/{(trip agent)}/{(spud path)}"
     %-  (slog u.p.sign)
-    (save-file [dir %live] [[/ %loob] %& !>(%.n)])
+    (save-file [dir %live] [[/ %loob] %.n])
   ::
       %fact
     ::  Validate via marc, save to data
@@ -4713,18 +4715,18 @@
     ?~  vale
       ::  No marc — fall back to page (original mark + raw noun)
       ~&  >  "gall-sub: no marc for {<mar>}, storing as page"
-      (save-file [dir %data] [[/ %page] %& !>(`[p=@tas q=*]`[mar q.q.cage.sign])])
+      (save-file [dir %data] [[/ %page] `[p=@tas q=*]`[mar q.q.cage.sign]])
     =/  res=(each vase tang)
       (validate-vase u.vale q.q.cage.sign)
     ?.  ?=(%& -.res)
       ~&  >>>  "gall-sub: vale failed for {<mar>}"
       this
-    (save-file [dir %data] [[/ mar] %& p.res])
+    (save-file [dir %data] [[/ mar] q.p.res])
   ::
       %kick
     ::  Set live to %.n, auto-resubscribe
     ~&  >  "gall-sub: kicked from {<ship>}/{(trip agent)}/{(spud path)}, resubscribing"
-    =.  this  (save-file [dir %live] [[/ %loob] %& !>(%.n)])
+    =.  this  (save-file [dir %live] [[/ %loob] %.n])
     (emit-card [%pass (gall-sub-wire ship agent path) %agent [ship agent] %watch path])
   ==
 ::  Resubscribe all existing gall subs on reload
@@ -4782,9 +4784,9 @@
 ::
 ++  sync-bowl
   ^+  this
-  ::  Bowl values are virtual — returned by peek-grub-now from +last,
-  ::  never persisted.
   =.  last  [now=now.bowl eny=eny.bowl]
+  =?  this  =(~ (peek-grub-now [/sys %'bowl.sig']))
+    (save-file [/sys %'bowl.sig'] [[/ %sig] ~])
   this
 ::
 ++  sync-peer
@@ -4795,7 +4797,7 @@
   ::  Ensure usergroups registry exists
   =/  reg-rail=rail:tarball  [/sys/ames %'registry']
   =?  this  =(~ (peek-grub-now reg-rail))
-    (save-file reg-rail [[/usergroups %registry] %& !>(*(map rail:tarball path))])
+    (save-file reg-rail [[/usergroups %registry] *(map rail:tarball path)])
   =.  this  ensure-public-group
   (ensure-peer-ship our.bowl)
 ::  Ensure /sys/ames/usergroups/public.grp/ exists with who.ships and how.weir.
@@ -4809,9 +4811,9 @@
   =/  man-rail=rail:tarball  [pub-dir %'man.md']
   =.  this  (ensure-dir pub-dir)
   =?  this  =(~ (~(get bo:nexus now.bowl born) pub-dir %'who.ships'))
-    (save-file who-rail [[/ %ships] %& !>(*(set @p))])
+    (save-file who-rail [[/ %ships] *(set @p)])
   =?  this  =(~ (~(get bo:nexus now.bowl born) pub-dir %'how.weir'))
-    (save-file how-rail [[/ %weir] %& !>(*weir:nexus)])
+    (save-file how-rail [[/ %weir] *weir:nexus])
   =?  this  =(~ (~(get bo:nexus now.bowl born) pub-dir %'man.md'))
     =/  default-man=mime
       :-  /text/markdown
@@ -4832,7 +4834,7 @@
 
       Each permission is a set of path prefixes. A request is allowed if its destination matches any prefix in the relevant set. An empty set means that category is blocked.
       '''
-    (save-file man-rail [[/ %mime] %& !>(default-man)])
+    (save-file man-rail [[/ %mime] default-man])
   this
 ::  Ensure /sys/ames/ships/~ship/ exists with ship.sig and computed weir.
 ::  Our ship gets no weir (full access). Foreign ships get weir from usergroups.
@@ -4847,7 +4849,7 @@
   =.  this  (ensure-dir (weld ship-dir /root))
   =?  this  =(~ (~(get bo:nexus now.bowl born) ship-dir %'ship.sig'))
     =/  ship-rail=rail:tarball  [ship-dir %'ship.sig']
-    =.  this  (save-file ship-rail [[/ %sig] %& !>(~)])
+    =.  this  (save-file ship-rail [[/ %sig] ~])
     (spawn-proc ship-rail ~)
   ::  Set weir (our ship gets none — full access)
   ?:  =(src our.bowl)  this
@@ -4873,7 +4875,7 @@
   =/  grp-man=(unit mime)  (~(get by man) grp)
   ?~  grp-man  sat
   ?~  grp  sat
-  (save-file:sat [man-dir (cat 3 (rear grp) '.md')] [[/ %mime] %& !>(u.grp-man)])
+  (save-file:sat [man-dir (cat 3 (rear grp) '.md')] [[/ %mime] u.grp-man])
 ::  Usergroup helpers: .grp directory convention
 ::
 ::  Groups live under /sys/ames/usergroups/ and are identified by path
@@ -5045,7 +5047,7 @@
 ++  save-server-state
   |=  st=server-state:nexus
   ^+  this
-  (save-file [/sys/eyre %'main.server-state'] [[/ %server-state] %& !>(st)])
+  (save-file [/sys/eyre %'main.server-state'] [[/ %server-state] st])
 ::
 ++  find-eyre-binding
   |=  [bindings=(map binding:eyre rail:tarball) site=path]
@@ -5093,7 +5095,7 @@
 ++  save-push-state
   |=  st=push-state:nexus
   ^+  this
-  (save-file [/sys/push %'main.push-state'] [[/ %push-state] %& !>(st)])
+  (save-file [/sys/push %'main.push-state'] [[/ %push-state] st])
 ::
 ++  handle-push-action
   |=  [sender=rail:tarball =wire vaz=vase]
@@ -5297,37 +5299,22 @@
 ::  Invariant: file aeon changes iff file content changes.
 ::
 ++  save-file
-  |=  [here=rail:tarball new-content=sang:tarball]
+  |=  [here=rail:tarball new-content=bask:tarball]
   ^+  this
   ::  Init born if needed
   =.  this  ?^((get-born here) this (init-born here))
   ::  Only bump if content actually changed
   =/  old=(unit sang:tarball)  (peek-grub-now here)
   ?:  ?&  ?=(^ old)
-          =(u.old new-content)
-      ==
-    ::  same content — no bump
-    this
-  ::  Types may differ structurally (e.g. %hold context) but nest
-  ::  identically. If blot and data match and types nest, keep the
-  ::  old content to avoid false-change rebuild cascades.
-  ?:  ?&  ?=(^ old)
           =(p.u.old p.new-content)
-          ?=(%& -.q.u.old)
-          ?=(%& -.q.new-content)
-          =(q.p.q.u.old q.p.q.new-content)
-          (~(nest ut p.p.q.u.old) | p.p.q.new-content)
+          =(q.new-content (sang-noun:tarball u.old))
       ==
     this
   ::  Record, propagate, notify — preserve existing gain flag
-  ::  ~&  >  [%save-file (snoc path.here name.here)]
   =/  old-born=born:nexus  born
   =/  file-gain=?  (lookup-gain here)
-  ::  ~>  %bout.[1 %save-record]
-  =.  this  (record here [p.new-content (sang-noun:tarball new-content)] file-gain ~)
-  ::  ~>  %bout.[1 %save-propagate]
+  =.  this  (record here new-content file-gain ~)
   =.  this  (propagate old-born here)
-  ::  Rebuild if change is inside a code nexus
   =/  cod=(unit path)
     =+  pax=path.here
     |-  ?:  (~(has by code) pax)  `pax
@@ -5350,6 +5337,10 @@
 ++  handle-sys-poke
   |=  [dest=rail:tarball here=rail:tarball wir=path =sage:tarball]
   ^-  (unit _this)
+  ?:  =(dest [/sys %'bowl.sig'])
+    ?.  =([/ %bowl-req] p.sage)  ~
+    =.  this  (handle-bowl-req here wir q.sage)
+    `(enqu-take here (sys-give /bowl) ~ %pack wir ~)
   ?.  ?=([%sys @ *] path.dest)  ~
   =/  service=@tas  i.t.path.dest
   ?+  service  ~
@@ -5394,10 +5385,6 @@
     =.  this  (handle-typed-scry here wir q.sage)
     `(enqu-take here (sys-give /scry) ~ %pack wir ~)
   ::
-      %bowl
-    ?.  =([/ %bowl-req] p.sage)  ~
-    =.  this  (handle-bowl-req here wir q.sage)
-    `(enqu-take here (sys-give /bowl) ~ %pack wir ~)
   ::
       %ames
     ?>  =(dest [/sys/ames %'registry'])
@@ -5420,7 +5407,7 @@
     !<(timer-state:nexus (need-vase:tarball u.old))
   ::  Update state
   =.  timers.st  (~(put by timers.st) [sender wire.req] when.req)
-  =.  this  (save-file timer-rail [[/ %timer-state] %& !>(st)])
+  =.  this  (save-file timer-rail [[/ %timer-state] st])
   ::  Build behn wire: /behn/timer/{da}/{path-len}/{path...}/{name}/{wire...}
   =/  timer-wire=^wire
     :-  %behn
@@ -5455,7 +5442,7 @@
     ?~  old  [%0 ~]
     !<(timer-state:nexus (need-vase:tarball u.old))
   =.  timers.st  (~(del by timers.st) [sender req-wire])
-  =.  this  (save-file timer-rail [[/ %timer-state] %& !>(st)])
+  =.  this  (save-file timer-rail [[/ %timer-state] st])
   ::  Poke sender back with timer-wake
   =/  rel=from:fiber:nexus  (relativize-from:nexus sender &+timer-rail)
   (enqu-take sender (sys-give /behn) ~ %poke rel [[/ %timer-wake] req-wire])
@@ -5471,7 +5458,7 @@
     ?~  old  [%0 ~]
     !<(clay-state:nexus (need-vase:tarball u.old))
   =.  desks.st  (~(put in desks.st) dek)
-  =.  this  (save-file clay-rail [[/ %clay-state] %& !>(st)])
+  =.  this  (save-file clay-rail [[/ %clay-state] st])
   ::  Ensure directory exists
   =.  this  (ensure-dir /sys/clay/desks/[dek])
   (sync-clay-desk dek)
@@ -5487,7 +5474,7 @@
     ?~  old  [%0 ~]
     !<(clay-state:nexus (need-vase:tarball u.old))
   =.  desks.st  (~(del in desks.st) dek)
-  =.  this  (save-file clay-rail [[/ %clay-state] %& !>(st)])
+  =.  this  (save-file clay-rail [[/ %clay-state] st])
   (unmount-clay-desk dek)
 ::
 ++  handle-clay-new-desk
@@ -5678,7 +5665,7 @@
     ?~  old  [%0 ~]
     !<(iris-state:nexus (need-vase:tarball u.old))
   =.  requests.st  (~(put by requests.st) iris-wire [sender url.request])
-  =.  this  (save-file iris-rail [[/ %iris-state] %& !>(st)])
+  =.  this  (save-file iris-rail [[/ %iris-state] st])
   (emit-card [%pass iris-wire %arvo %i %request request *outbound-config:iris])
 ::
 ++  handle-iris-response
@@ -5701,7 +5688,7 @@
     ?~  old  [%0 ~]
     !<(iris-state:nexus (need-vase:tarball u.old))
   =.  requests.st  (~(del by requests.st) iris-wire)
-  =.  this  (save-file iris-rail [[/ %iris-state] %& !>(st)])
+  =.  this  (save-file iris-rail [[/ %iris-state] st])
   ::  Poke sender back with http-response
   =/  rel=from:fiber:nexus  (relativize-from:nexus sender &+iris-rail)
   (enqu-take sender (sys-give /iris) ~ %poke rel [[/ %http-response] client-response])
@@ -5723,7 +5710,7 @@
   |=  [sender=rail:tarball =wire vaz=vase]
   ^+  this
   =/  req=@tas  !<(@tas vaz)
-  =/  bowl-rail=rail:tarball  [/sys/bowl %'main.sig']
+  =/  bowl-rail=rail:tarball  [/sys %'bowl.sig']
   =/  rel=from:fiber:nexus  (relativize-from:nexus sender &+bowl-rail)
   ?+  req  this
     %our  (enqu-take sender (sys-give /bowl) ~ %poke rel [[/ %ship] our.bowl])
@@ -5759,7 +5746,7 @@
     |-
     ?~  entries
       =/  new-reg=(map rail:tarball path)  (~(put by reg) rail.act new-prefix)
-      (save-file reg-rail [[/usergroups %registry] %& !>(new-reg)])
+      (save-file reg-rail [[/usergroups %registry] new-reg])
     =/  [r=rail:tarball existing=path]  i.entries
     ?:  =(r rail.act)  $(entries t.entries)
     ?:  ?|  (is-prefix new-prefix existing)
@@ -5773,7 +5760,7 @@
     =/  prefix=(unit path)  (~(get by reg) rail.act)
     ?~  prefix  this
     =/  new-reg=(map rail:tarball path)  (~(del by reg) rail.act)
-    =.  this  (save-file reg-rail [[/usergroups %registry] %& !>(new-reg)])
+    =.  this  (save-file reg-rail [[/usergroups %registry] new-reg])
     ?.  clean.act  this
     ::  Strip roads under prefix from ALL groups
     =/  groups=(list [name=path grp=ball:tarball])
@@ -5787,7 +5774,7 @@
           (replace-roads poke.cur ~ u.prefix)
           (replace-roads peek.cur ~ u.prefix)
       ==
-    =.  this  (save-file how-rail [[/ %weir] %& !>(new)])
+    =.  this  (save-file how-rail [[/ %weir] new])
     $(groups t.groups)
   ::
       %how
@@ -5810,7 +5797,7 @@
           (replace-roads poke.cur poke.weir.act u.prefix)
           (replace-roads peek.cur peek.weir.act u.prefix)
       ==
-    =.  this  (save-file how-rail [[/ %weir] %& !>(new)])
+    =.  this  (save-file how-rail [[/ %weir] new])
     recompute-all-weirs
   ==
 ::
