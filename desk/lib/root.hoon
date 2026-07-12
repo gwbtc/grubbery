@@ -43,6 +43,7 @@
         [%fall %| /apps/'contacts.contacts' [`[`[/ %contacts] ~ %.n ~] ~]]
         [%fall %| /apps/'test.web-test' [`[`[/ %web-test] ~ %.n ~] ~]]
         [%fall %| /apps/'test.desk' [`[`[/ %desk] ~ %.n ~] ~]]
+        [%fall %| /apps/'echo.lick-echo' [`[`[/ %lick-echo] ~ %.n ~] ~]]
     ==
 ::
 ++  on-file
