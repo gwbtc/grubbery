@@ -4142,22 +4142,17 @@
   ::
   =/  =lode:nexus   (fall (~(get by code) cod) *lode:nexus)
   =/  old-refs       refs.lode
-  ::  ~>  %bout.[1 %bins-to-cache]
-  =/  old-cache      (bins-to-cache:build keys.lode bins)
-  ::  ~>  %bout.[1 %build-all]
-  =/  res            (build-all:build sut src-ball old-cache)
+  =/  old-cache      ~>(%bout.[1 %bins-to-cache] (bins-to-cache:build keys.lode bins))
+  =/  res            ~>(%bout.[1 %build-all] (build-all:build sut src-ball old-cache))
   ~&  >  "build-code: compiled {<~(wyt by results.res)>} results"
   ::  3. Index: compute output ckeys, build keys/refs/builds
   ::
   =/  [new-keys=keys:nexus new-refs=refs:nexus builds=(map @uv built:nexus)]
-    ::  ~>  %bout.[1 %index-results]
-    (index-results res lode src-ball)
+      ~>(%bout.[1 %index-results] (index-results res lode src-ball))
   ::  4. Update bins: increment new refs, decrement old
   ::
-  ::  ~>  %bout.[1 %refs-inc]
-  =.  bins  (refs-inc new-refs builds)
-  ::  ~>  %bout.[1 %refs-dec]
-  =.  bins  (refs-dec old-refs)
+  =.  bins  ~>(%bout.[1 %refs-inc] (refs-inc new-refs builds))
+  =.  bins  ~>(%bout.[1 %refs-dec] (refs-dec old-refs))
   ::  5. GC vale cache: drop entries whose marc was removed
   ::
   =.  vale  (gc-vale-cache vale bins)
@@ -4168,16 +4163,14 @@
   ::  7. Validate marks: re-clam grubs through changed marks
   ::
   =^  new-refs  this
-    ::  ~>  %bout.[1 %validate-marks]
-    (validate-marks cod old-refs new-refs)
+    ~>(%bout.[1 %validate-marks] (validate-marks cod old-refs new-refs))
   =.  code
     =/  upd=lode:nexus  (fall (~(get by code) cod) *lode:nexus)
     (~(put by code) cod upd(refs new-refs))
   ::  8. Reload nexuses whose compiled code changed
   ::
   =.  this
-    ::  ~>  %bout.[1 %reload-changed-nexuses]
-    (reload-changed-nexuses cod old-refs new-refs)
+    ~>(%bout.[1 %reload-changed-nexuses] (reload-changed-nexuses cod old-refs new-refs))
   ~&  >  "build-code: done"
   this
 ::  Force foundational mark sources into born and the src-ball.
@@ -4213,7 +4206,7 @@
     |=  [[=rail:tarball =sang:tarball] [acc=refs:nexus bld=(map @uv built:nexus)]]
     =/  =mime  !<(mime (need-vase:tarball sang))
     =/  =built:nexus  [%mime mime]
-    =/  ckey=@uv  (sham built)
+    =/  ckey=@uv  (~(got by keys.res) rail)
     =/  node=(map @ta @uv)
       (fall (~(get of acc) path.rail) *(map @ta @uv))
     [(~(put of acc) path.rail (~(put by node) name.rail ckey)) (~(put by bld) ckey built)]
@@ -4238,11 +4231,7 @@
         [%tang u.val-err]
       [%vase p.build-result]
     =/  in-ckey=@uv  (~(got by keys.res) rail)
-    =/  out-ckey=@uv
-      =/  old=(unit [in=@uv out=@uv])  (~(get by keys.lode) rail)
-      ?:  ?&(?=(^ old) =(in.u.old in-ckey))
-        out.u.old
-      (sham built)
+    =/  out-ckey=@uv  in-ckey
     =/  node=(map @ta @uv)
       (fall (~(get of acc) path.rail) *(map @ta @uv))
     :+  (~(put by kz) rail [in-ckey out-ckey])

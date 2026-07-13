@@ -355,7 +355,8 @@
 ++  build-all
   |=  [sut=vase =ball:tarball =build-cache]
   ^-  build-out
-  =/  sut-hash=@uv  (sham q.sut)
+  =/  sut-hash=@uv  ~>(%bout.[1 %build-sut-hash] (sham q.sut))
+  ~&  >  "build-all: {<~(wyt by build-cache)>} cached, hashing subject done"
   =/  sources=source-map  (find-hoon-sources ball)
   ::  Collect mimes from ball — self-compiled artifacts
   ::
@@ -494,11 +495,13 @@
   =/  ckey=@uv  (sham [sut-hash src-hash.fi (snoc path.rail name.rail) (sort dep-keys lth)])
   ::  Cache hit → reuse
   ?:  (~(has by build-cache) ckey)
+    ~&  >  "build: cache hit {(spud (snoc path.rail name.rail))}"
     %=  $
       order.sort-res  t.order.sort-res
       results  (~(put by results) rail [%& (~(got by build-cache) ckey)])
       key-map  (~(put by key-map) rail ckey)
     ==
+  ~&  >>  "build: cache MISS {(spud (snoc path.rail name.rail))}"
   ::  Build augmented subject with named dep faces
   =/  aug=vase
     %+  roll  imports.fi
@@ -545,6 +548,7 @@
   =/  import-lines=@ud
     (sub (lent (to-wain:format src.fi)) (lent (to-wain:format body.fi)))
   =/  res=build-result
+    ~>  %bout.[1 (crip "compile {(spud (snoc path.rail name.rail))}")]
     =/  r  (mule |.((build-hoon aug (snoc path.rail name.rail) body.fi import-lines)))
     ?:(?=(%& -.r) p.r [%| ~[leaf+"crash compiling {(spud (snoc path.rail name.rail))}"]])
   ::  For marks: compile raw door into marc

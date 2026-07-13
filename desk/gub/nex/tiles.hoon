@@ -233,6 +233,9 @@
           ==
         ==
         ;div#tiles
+          ;div#loading-tile
+            ;div.spinner;
+          ==
           ;*  ?~  sorted
                 =/  empty=manx  ;div.empty: no tiles yet
                 ~[empty]
@@ -306,6 +309,10 @@
   #tiles \{ justify-content: center; }
   .tile \{ position: relative; width: 256px; height: 256px; border-radius: 16px; overflow: hidden; flex-shrink: 0; }
   .tile.has-img:not(.loaded) \{ display: none; }
+  #loading-tile \{ display: none; width: 256px; height: 256px; border-radius: 16px; background: #f5f5f5; align-items: center; justify-content: center; flex-shrink: 0; }
+  #tiles:has(.tile.has-img:not(.loaded)) #loading-tile \{ display: flex; }
+  .spinner \{ width: 32px; height: 32px; border: 3px solid #ddd; border-top-color: #888; border-radius: 50%; animation: spin 0.8s linear infinite; }
+  @keyframes spin \{ to \{ transform: rotate(360deg); } }
   .tile-bg \{ position: absolute; inset: 0; }
   .tile-img \{ position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: 1; }
   .tile-label \{ position: absolute; bottom: 0; left: 0; right: 0; padding: 20px 24px; z-index: 2; }
@@ -330,7 +337,7 @@
   #edit-json:focus \{ border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,0.1); }
   #edit-status \{ margin-top: 10px; font-size: 12px; color: #16a34a; }
   @media (max-width: 500px) \{
-    .tile \{ width: calc(50% - 10px); height: auto; aspect-ratio: 1; min-width: 140px; }
+    .tile, #loading-tile \{ width: calc(50% - 10px); height: auto; aspect-ratio: 1; min-width: 140px; }
     #app \{ padding: 20px 16px; }
   }
   """
