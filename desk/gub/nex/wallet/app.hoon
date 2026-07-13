@@ -19,6 +19,7 @@
 /<  b329          /lib/bip329.hoon
 /<  taproot       /lib/taproot.hoon
 /&  man           /man/wallet/app/readme.md
+/&  icon          icon.svg
 =,  wt
 =<  ^-  nexus:nexus
     |%
@@ -43,8 +44,18 @@
             ~[[xpub.wal seed.wal] [xpub.fau-wal seed.fau-wal]]
             *(map @t @t)
         ==
+      =/  tile=json
+        %-  pairs:enjs:format
+        :~  title+s+'Wallet'
+            info+s+'Bitcoin wallet'
+            color+s+'#f7931a'
+            image+s+'/grubbery/tiles/icon/wallet'
+            href+s+'/groundwire/wallet/simple'
+        ==
       %+  spin:loader  ball
       :~  (manifest:loader 0)
+          [%over %& [/ %'tile.json'] [[/ %json] tile]]
+          [%over %& [/ %'icon.svg'] [[/ %mime] icon]]
           [%over %& [/ %'main.sig'] [[/ %sig] ~]]
           [%fall %& [/ %'labels.wallet_labels'] [[/wallet %labels] init-lbls]]
           [%fall %& [/ %'secrets.wallet_secrets'] [[/wallet %secrets] init-sec]]

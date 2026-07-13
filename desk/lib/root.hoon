@@ -1,6 +1,8 @@
 ::  Root nexus — hardcoded in app/grubbery.hoon, not loaded from code namespace.
 ::
 /+  nexus, tarball, loader, io=fiberio, ball-api, http-utils, server
+=/  app-weir=(unit weir:tarball)
+  `[make=~ poke=(sy ~[[%& %| /]]) peek=(sy ~[[%& %| /]])]
 ^-  nexus:nexus
 |%
 ++  on-load
@@ -34,16 +36,16 @@
         [%fall %& [/sys/scry %'main.sig'] [[/ %sig] ~]]
         ::  child nexuses
         ::
-        [%fall %| /apps/'tiles.tiles' [`[`[/ %tiles] ~ %.n ~] ~]]
-        [%fall %| /apps/'counter.counter' [`[`[/ %counter] ~ %.n ~] ~]]
+        [%fall %| /apps/'tiles.tiles' [`[`[/ %tiles] app-weir %.n ~] ~]]
+        [%fall %| /apps/'counter.counter' [`[`[/ %counter] app-weir %.n ~] ~]]
         [%fall %| /apps/'explorer.explorer' [`[`[/ %explorer] ~ %.n ~] ~]]
         [%fall %| /apps/'mcp.mcp' [`[`[/ %mcp] ~ %.n ~] ~]]
-        [%fall %| /apps/'peers.peers' [`[`[/ %peers] ~ %.n ~] ~]]
-        [%fall %| /apps/'wallet.wallet_app' [`[`[/wallet %app] ~ %.n ~] ~]]
-        [%fall %| /apps/'contacts.contacts' [`[`[/ %contacts] ~ %.n ~] ~]]
-        [%fall %| /apps/'test.web-test' [`[`[/ %web-test] ~ %.n ~] ~]]
-        [%fall %| /apps/'test.desk' [`[`[/ %desk] ~ %.n ~] ~]]
-        [%fall %| /apps/'echo.lick-echo' [`[`[/ %lick-echo] ~ %.n ~] ~]]
+        [%fall %| /apps/'peers.peers' [`[`[/ %peers] app-weir %.n ~] ~]]
+        [%fall %| /apps/'wallet.wallet_app' [`[`[/wallet %app] app-weir %.n ~] ~]]
+        [%fall %| /apps/'contacts.contacts' [`[`[/ %contacts] app-weir %.n ~] ~]]
+        [%fall %| /apps/'test.web-test' [`[`[/ %web-test] app-weir %.n ~] ~]]
+        [%fall %| /apps/'test.desk' [`[`[/ %desk] app-weir %.n ~] ~]]
+        [%fall %| /apps/'echo.lick-echo' [`[`[/ %lick-echo] app-weir %.n ~] ~]]
     ==
 ::
 ++  on-file

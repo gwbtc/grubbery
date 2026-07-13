@@ -435,18 +435,29 @@
     %-  ~(uni by `(map rail:tarball build-result)`(~(run by mimes) |=(v=vase `build-result`[%& v])))
     `(map rail:tarball build-result)`(~(run by errors) |=(t=tang `build-result`[%| t]))
   ::  Add cycle errors
+  =/  all-known=(set rail:tarball)  ~(key by deps)
   =.  results
     %+  roll  ~(tap in cycle.sort-res)
     |=  [r=rail:tarball acc=_results]
     =/  my-deps=(set rail:tarball)  (~(gut by deps) r ~)
     =/  cycle-deps=(set rail:tarball)  (~(int in my-deps) cycle.sort-res)
-    =/  dep-paths=tape
-      %-  zing
-      ^-  (list tape)
-      %+  join  ", "
-      %+  turn  ~(tap in cycle-deps)
-      |=(d=rail:tarball (spud (snoc path.d name.d)))
-    =/  err=tang  ~[leaf+"circular dependency in {(spud (snoc path.r name.r))} on {dep-paths}"]
+    =/  missing-deps=(set rail:tarball)  (~(dif in my-deps) all-known)
+    =/  err=tang
+      ?:  ?=(^ ~(tap in missing-deps))
+        =/  miss=tape
+          %-  zing
+          ^-  (list tape)
+          %+  join  ", "
+          %+  turn  ~(tap in missing-deps)
+          |=(d=rail:tarball (spud (snoc path.d name.d)))
+        ~[leaf+"unresolved dependency in {(spud (snoc path.r name.r))}: {miss}"]
+      =/  cyc=tape
+        %-  zing
+        ^-  (list tape)
+        %+  join  ", "
+        %+  turn  ~(tap in cycle-deps)
+        |=(d=rail:tarball (spud (snoc path.d name.d)))
+      ~[leaf+"circular dependency in {(spud (snoc path.r name.r))} on {cyc}"]
     (~(put by acc) r [%| err])
   ::  Seed key-map: mime content hashes + all pre-loop error tang hashes
   =/  key-map=(map rail:tarball @uv)

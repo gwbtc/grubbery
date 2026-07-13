@@ -27,10 +27,17 @@
         =/  clean=tape  ?:(&(!=(~ t) =('/' (rear t))) (snip t) t)
         ?~  clean  /
         (stab (crip clean))
-      ;<  dir-seen=seen:nexus  bind:m  (peek:io [%& %| dir-pax] ~)
-      ?.  ?=([%& %ball *] dir-seen)
+      ?~  dir-pax
+        (pure:m [%text 'Cannot read weir on root'])
+      =/  parent=path  (snip `path`dir-pax)
+      =/  child-name=@ta  (rear dir-pax)
+      ;<  parent-seen=seen:nexus  bind:m  (peek:io [%& %| parent] ~)
+      ?.  ?=([%& %ball *] parent-seen)
+        (pure:m [%text 'No parent directory found'])
+      =/  child-ball=(unit ball:tarball)  (~(get by dir.ball.p.parent-seen) child-name)
+      ?~  child-ball
         (pure:m [%text 'No directory found at that path'])
-      =/  weir-here=(unit weir:nexus)  ?~(fil.ball.p.dir-seen ~ weir.u.fil.ball.p.dir-seen)
+      =/  weir-here=(unit weir:nexus)  ?~(fil.u.child-ball ~ weir.u.fil.u.child-ball)
       ?~  weir-here
         (pure:m [%text (crip "Weir at {(trip weir-path)}: NONE (unrestricted)")])
       =/  w=weir:nexus  u.weir-here

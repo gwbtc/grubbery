@@ -6,13 +6,24 @@
 /&  index-html  itinerary/index.html
 /&  app-js      itinerary/app.js
 /&  style-css   itinerary/style.css
+/&  icon        itinerary/icon.svg
 =<  ^-  nexus:nexus
     |%
     ++  on-load
       |=  =ball:tarball
       ^-  bole:tarball
+      =/  tile=json
+        %-  pairs:enjs:format
+        :~  title+s+'Itinerary'
+            info+s+'Travel maps & pins'
+            color+s+'#27ae60'
+            image+s+'/grubbery/tiles/icon/itinerary'
+            href+s+'/grubbery/itinerary'
+        ==
       %+  spin:loader  ball
       :~  (manifest:loader 0)
+          [%over %& [/ %'tile.json'] [[/ %json] tile]]
+          [%over %& [/ %'icon.svg'] [[/ %mime] icon]]
           [%over %& [/ %'index.html'] [[/ %mime] index-html]]
           [%over %& [/ %'app.js'] [[/ %mime] app-js]]
           [%over %& [/ %'style.css'] [[/ %mime] style-css]]

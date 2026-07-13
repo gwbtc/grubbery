@@ -1578,12 +1578,13 @@
     ?~  tn  ~
     `!<(tang [-:!>(*tang) u.tn])
   =/  =lump:tarball  [nek ~ gain.tree.jt dir-bang contents]
+  ::  Preserve parent-owned weir on children (content left empty for shallow)
   =/  sub-dirs=(map @ta ball:tarball)
     %-  ~(gas by *(map @ta ball:tarball))
     %+  turn  ~(tap by dir.tree.jt)
     |=  [name=@ta =lobe:clay weir=(unit weir:tarball)]
     ^-  [@ta ball:tarball]
-    [name *ball:tarball]
+    [name [`[~ weir %.n ~ ~] ~]]
   [`lump sub-dirs]
 ::  Peek the current sang at a rail (born lookup + peek-grub).
 ::
@@ -1617,6 +1618,29 @@
   ?:  ?=(%tomb -.pace)  *ball:tarball
   ?~  p.pace  *ball:tarball
   (peek-ball u.p.pace)
+::  Look up a directory's weir from its parent's tree ject.
+::
+++  get-weir-for
+  |=  =fold:tarball
+  ^-  (unit weir:tarball)
+  ?~  fold  ~
+  =/  parent=fold:tarball  (snip `path`fold)
+  =/  name=@ta  (rear fold)
+  =/  parent-node=(unit [fold=hist:nexus file=(map @ta hist:nexus)])
+    (~(get of born) parent)
+  ?~  parent-node  ~
+  =/  parent-got=(unit [key=cass:clay val=entry:hist:nexus])
+    (ram:hon:hist:nexus fold.u.parent-node)
+  ?~  parent-got  ~
+  =/  =pace:hist:nexus  pace.val.u.parent-got
+  ?:  ?=(%tomb -.pace)  ~
+  ?~  p.pace  ~
+  =/  jot  (~(get by jects.silo) u.p.pace)
+  ?~  jot  ~
+  ?.  ?=(%tree -.ject.u.jot)  ~
+  =/  entry  (~(get by dir.tree.ject.u.jot) name)
+  ?~  entry  ~
+  weir.u.entry
 ::  Shallow peek: files at fold + subdir names, no recursion.
 ::
 ++  peek-ball-shallow-now
@@ -3570,10 +3594,7 @@
   ^+  this
   ?>  ?=(^ dest)  :: root should always have system access
   ::  Read old weir from materialized ball
-  =/  sub  (peek-ball-now dest)
-  =/  old-weir=(unit weir:nexus)
-    ?~  fil.sub  ~
-    weir.u.fil.sub
+  =/  old-weir=(unit weir:nexus)  (get-weir-for dest)
   ?:  =(old-weir weir)  this
   ::  Update parent's tree ject with new child weir
   =/  parent=path  (snip `path`dest)

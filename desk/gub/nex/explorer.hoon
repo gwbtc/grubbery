@@ -2,17 +2,28 @@
 ::
 /<  feather  /lib/feather.hoon
 /<  iso-8601  /lib/iso-8601.hoon
-/&  man  ../man/explorer/readme.md
+/&  man   ../man/explorer/readme.md
+/&  icon  explorer/icon.svg
 =<  ^-  nexus:nexus
     |%
     ++  on-load
       |=  =ball:tarball
       ^-  bole:tarball
+      =/  tile=json
+        %-  pairs:enjs:format
+        :~  title+s+'Explorer'
+            info+s+'Browse the tarball'
+            color+s+'#4a9de5'
+            image+s+'/grubbery/tiles/icon/explorer'
+            href+s+'/grubbery/ball'
+        ==
       %+  spin:loader  ball
       :~  (manifest:loader 0)
+          [%over %& [/ %'tile.json'] [[/ %json] tile]]
+          [%over %& [/ %'icon.svg'] [[/ %mime] icon]]
           [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
           [%fall %| /requests empty-dir:loader]
-          [%over %& [/man %'readme.md'] [[/ %mime] man]]
+          [%over %& [/ %'README.md'] [[/ %mime] man]]
       ==
     ::
     ++  on-file
@@ -67,12 +78,14 @@
             ;<  ~  bind:m  (send-simple:srv eyre-id [[404 ~] `(as-octs:mimes:html 'Not found')])
             (pure:m ~)
           ?:  =('POST' method.request.req)
-            (handle-post eyre-id raw-path ball.p.par-seen req)
-          (handle-get eyre-id raw-path %.n ball.p.par-seen wave.p.par-seen args)
+            (handle-post eyre-id raw-path ~ ball.p.par-seen req)
+          (handle-get eyre-id raw-path %.n ~ ball.p.par-seen wave.p.par-seen args)
+        ;<  dir-weir=(unit weir:nexus)  bind:m
+          (read-weir-from-parent raw-path)
         ?:  =('POST' method.request.req)
-          (handle-post eyre-id raw-path ball.p.dir-seen req)
+          (handle-post eyre-id raw-path dir-weir ball.p.dir-seen req)
         ~&  >  %explorer-handle-get-start
-        (handle-get eyre-id raw-path %.y ball.p.dir-seen wave.p.dir-seen args)
+        (handle-get eyre-id raw-path %.y dir-weir ball.p.dir-seen wave.p.dir-seen args)
       ==
     --
 ::
@@ -80,6 +93,20 @@
 ::  HTTP response door (road from /explorer.explorer/requests/* to /explorer.explorer/main.sig)
 ::
 ++  srv  ~(. http-res:io [%| 1 %& ~ %'main.sig'])
+::  Weir lives in the parent's dir-map, not in the directory's own lump
+++  read-weir-from-parent
+  |=  pax=path
+  =/  m  (fiber:fiber:nexus ,(unit weir:nexus))
+  ^-  form:m
+  ?~  pax  (pure:m ~)
+  =/  parent=path  (snip `path`pax)
+  =/  child-name=@ta  (rear pax)
+  ;<  par-seen=seen:nexus  bind:m  (peek-shallow:io [%& %| parent] ~)
+  ?.  ?=([%& %ball *] par-seen)  (pure:m ~)
+  =/  child=(unit ball:tarball)  (~(get by dir.ball.p.par-seen) child-name)
+  ?~  child  (pure:m ~)
+  ?~  fil.u.child  (pure:m ~)
+  (pure:m weir.u.fil.u.child)
 ++  split-fas
   |=  t=@t
   ^-  path
@@ -115,7 +142,7 @@
 ::  Handle GET requests
 ::
 ++  handle-get
-  |=  [eyre-id=@ta tree-path=path is-dir=? ball=ball:tarball ball-wave=wave:nexus args=(list [key=@t value=@t])]
+  |=  [eyre-id=@ta tree-path=path is-dir=? dir-weir=(unit weir:nexus) ball=ball:tarball ball-wave=wave:nexus args=(list [key=@t value=@t])]
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
   ~&  >  [%explorer-peek tree-path]
@@ -143,7 +170,7 @@
       ?.  ?=(%| -.u.ns)  ~
       `p.u.ns
     ::  ~>(%bout.[1 %explorer-render-dir] ...)
-    =/  page=manx  (render-dir tree-path ball ball-wave now conversions code-namespace)
+    =/  page=manx  (render-dir tree-path ball ball-wave now conversions code-namespace dir-weir)
     ::  ~>(%bout.[1 %explorer-manx-to-octs] ...)
     =/  bod=octs  (manx-to-octs:server page)
     ;<  ~  bind:m  (send-simple:srv eyre-id (mime-response:http-utils [/text/html bod]))
@@ -176,7 +203,7 @@
 ::  Handle POST requests (delete actions)
 ::
 ++  handle-post
-  |=  [eyre-id=@ta tree-path=path root=ball:tarball req=inbound-request:eyre]
+  |=  [eyre-id=@ta tree-path=path dir-weir=(unit weir:nexus) root=ball:tarball req=inbound-request:eyre]
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
   ::  Check for multipart upload
@@ -247,7 +274,7 @@
       ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'Missing fields')])
       (pure:m ~)
     =/  new-road=road:tarball  (parse-road-input road-path)
-    =/  cur=weir:nexus  (fall ?~(fil.root ~ weir.u.fil.root) [~ ~ ~])
+    =/  cur=weir:nexus  (fall dir-weir [~ ~ ~])
     =/  new=weir:nexus
       ?+  category  cur
         %'write'  cur(make (~(put in make.cur) new-road))
@@ -265,7 +292,7 @@
       ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'Missing category')])
       (pure:m ~)
     =/  del-road=road:tarball  (parse-road-input road-path)
-    =/  cur=weir:nexus  (fall ?~(fil.root ~ weir.u.fil.root) [~ ~ ~])
+    =/  cur=weir:nexus  (fall dir-weir [~ ~ ~])
     =/  new=weir:nexus
       ?+  category  cur
         %'write'  cur(make (~(del in make.cur) del-road))
@@ -913,9 +940,9 @@
           now=@da
           conversions=(map bars:tarball tube:clay)
           code-namespace=(unit path)
+          dir-weir=(unit weir:nexus)
       ==
   ^-  manx
-  =/  dir-weir=(unit weir:nexus)  ?~(fil.b ~ weir.u.fil.b)
   ::  Nexus source link: combines the governing /code namespace
   ::  with the directory's neck rail to form a URL to the .hoon source.
   ::  e.g. /grubbery/ball/code/nex/wallet/account.hoon

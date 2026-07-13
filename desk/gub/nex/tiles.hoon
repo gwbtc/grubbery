@@ -5,63 +5,26 @@
 ::  href can be absolute (https://...) or relative (/grubbery/ball/...)
 ::
 /&  man  ../man/tiles/readme.md
-/&  ico-explorer   tiles/icons/explorer.svg
-/&  ico-contacts   tiles/icons/contacts.svg
-/&  ico-wallet     tiles/icons/wallet.svg
-/&  ico-itinerary  tiles/icons/itinerary.svg
 =<  ^-  nexus:nexus
     |%
     ++  on-load
       |=  =ball:tarball
       ^-  bole:tarball
-      =/  explorer-tile=json
-          %-  pairs:enjs:format
-          :~  title+s+'Explorer'
-              info+s+'Browse the tarball'
-              color+s+'#4a9de5'
-              image+s+'/grubbery/tiles/icons/explorer.svg'
-              href+s+'/grubbery/ball'
-          ==
-        =/  contacts-tile=json
-          %-  pairs:enjs:format
-          :~  title+s+'Contacts'
-              info+s+'Manage your contacts'
-              color+s+'#6b7280'
-              image+s+'/grubbery/tiles/icons/contacts.svg'
-              href+s+'/grubbery/contacts'
-          ==
-        =/  wallet-tile=json
-          %-  pairs:enjs:format
-          :~  title+s+'Wallet'
-              info+s+'Bitcoin wallet'
-              color+s+'#f7931a'
-              image+s+'/grubbery/tiles/icons/wallet.svg'
-              href+s+'/groundwire/wallet/simple'
-          ==
-        =/  itinerary-tile=json
-          %-  pairs:enjs:format
-          :~  title+s+'Itinerary'
-              info+s+'Travel maps & pins'
-              color+s+'#27ae60'
-              image+s+'/grubbery/tiles/icons/itinerary.svg'
-              href+s+'/grubbery/itinerary'
-          ==
+      =/  landscape-tile=json
+        %-  pairs:enjs:format
+        :~  title+s+'Landscape'
+            info+s+'Tlon'
+            color+s+'#1a1a1a'
+            href+s+'/apps/landscape'
+        ==
       %+  spin:loader  ball
       :~  (manifest:loader 0)
           [%fall %| /tiles empty-dir:loader]
-          [%over %& [/tiles %'explorer.json'] [[/ %json] explorer-tile]]
-          [%over %& [/tiles %'contacts.json'] [[/ %json] contacts-tile]]
-          [%fall %& [/tiles %'wallet.json'] [[/ %json] wallet-tile]]
-          [%fall %& [/tiles %'itinerary.json'] [[/ %json] itinerary-tile]]
-          [%over %& [/ %'page.html'] [[/ %html] (crip (en-xml:html (tiles-page "" ~)))]]
+          [%fall %& [/tiles %'landscape.json'] [[/ %json] landscape-tile]]
+          [%over %& [/ %'page.html'] [[/ %html] (crip (en-xml:html (tiles-page "" ~ ~ ~)))]]
           [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
           [%fall %| /requests empty-dir:loader]
-          [%over %& [/man %'readme.md'] [[/ %mime] man]]
-          [%fall %| /icons empty-dir:loader]
-          [%over %& [/icons %'explorer.svg'] [[/ %mime] ico-explorer]]
-          [%over %& [/icons %'contacts.svg'] [[/ %mime] ico-contacts]]
-          [%over %& [/icons %'wallet.svg'] [[/ %mime] ico-wallet]]
-          [%over %& [/icons %'itinerary.svg'] [[/ %mime] ico-itinerary]]
+          [%over %& [/ %'README.md'] [[/ %mime] man]]
       ==
     ::
     ++  on-file
@@ -80,8 +43,13 @@
         ;<  *  bind:m  (keep:io /tiles (cord-to-road:tarball './tiles/') ~)
         |-
         ;<  =seen:nexus  bind:m  (peek:io (cord-to-road:tarball './tiles/') ~)
-        =/  tiles=(list tile)  (read-tiles seen)
-        ;<  ~  bind:m  (replace:io (crip (en-xml:html (tiles-page ball-id tiles))))
+        =/  local=(list tile)  (read-tiles seen)
+        =/  local-names=(set @ta)  (sy (turn local |=(t=tile name.t)))
+        ;<  app-pairs=(list [tile @ta])  bind:m  read-app-tiles
+        =/  app=(list tile)  (turn app-pairs head)
+        =/  app-dirs=(map @ta @ta)  (malt (turn app-pairs |=([t=tile d=@ta] [name.t d])))
+        =/  tiles=(list tile)  (merge-tiles local app)
+        ;<  ~  bind:m  (replace:io (crip (en-xml:html (tiles-page ball-id local-names app-dirs tiles))))
         ;<  *  bind:m  (take-news:io /tiles)
         $
           ::  main.sig: bind HTTP and dispatch
@@ -104,14 +72,31 @@
         =/  prefix=path  /grubbery/tiles
         =/  site=path  site:(parse-url:http-utils url.request.req)
         =/  suffix=path  (slag (lent prefix) site)
-        ::  /icons/<file> → serve icon file
-        ?:  ?=([%icons @ ~] suffix)
-          =/  filename=@ta  i.t.suffix
-          ;<  =seen:nexus  bind:m  (peek:io [%| 1 %& /icons filename] `[/ %mime])
-          ?.  ?=([%& %file *] seen)
+        ::  /icon/<slug> → serve icon from sibling app
+        ?:  ?=([%icon @ ~] suffix)
+          =/  slug=@ta  i.t.suffix
+          ;<  apps=seen:nexus  bind:m  (peek:io [%& %| /apps] ~)
+          =/  kid=(unit @ta)
+            ?.  ?=([%& %ball *] apps)  ~
+            (find-app-by-slug slug dir.ball.p.apps)
+          ?~  kid
             ;<  ~  bind:m  (send-simple:srv eyre-id [[404 ~] `(as-octs:mimes:html 'Not found')])
             (pure:m ~)
-          =/  =mime  !<(mime (need-vase:tarball sang.p.seen))
+          ;<  kid-root=seen:nexus  bind:m
+            (peek:io [%& %| /apps/[u.kid]] ~)
+          =/  icon-file=(unit [name=@ta sang=sang:tarball])
+            ?.  ?=([%& %ball *] kid-root)  ~
+            =/  =lump:tarball  (fall fil.ball.p.kid-root *lump:tarball)
+            %-  ~(rep by contents.lump)
+            |=  [[n=@ta s=sang:tarball g=? b=(unit tang)] out=(unit [name=@ta sang=sang:tarball])]
+            ?^  out  out
+            =/  nam=tape  (trip n)
+            ?.  =("icon." (scag 5 nam))  out
+            `[n s]
+          ?~  icon-file
+            ;<  ~  bind:m  (send-simple:srv eyre-id [[404 ~] `(as-octs:mimes:html 'Not found')])
+            (pure:m ~)
+          =/  =mime  !<(mime (need-vase:tarball sang.u.icon-file))
           ;<  ~  bind:m  (send-simple:srv eyre-id (mime-response:http-utils mime))
           (pure:m ~)
         ::  default → serve tiles page
@@ -150,6 +135,11 @@
   |=  [name=@ta =sang:tarball gain=? bang=(unit tang)]
   ^-  (unit tile)
   ?.  ?=(%json name.p.sang)  ~
+  (json-to-tile name sang)
+::
+++  json-to-tile
+  |=  [name=@ta =sang:tarball]
+  ^-  (unit tile)
   =/  jon=(unit json)  (mole |.(!<(json (need-vase:tarball sang))))
   ?~  jon  ~
   ?.  ?=(%o -.u.jon)  ~
@@ -163,8 +153,56 @@
       (fall (bind (~(get by m) 'href') |=(=json ?>(?=(%s -.json) p.json))) '')
   ==
 ::
+++  read-app-tiles
+  =/  m  (fiber:fiber:nexus ,(list [tile @ta]))
+  ^-  form:m
+  ;<  =seen:nexus  bind:m  (peek:io [%& %| /apps] ~)
+  ?.  ?=([%& %ball *] seen)
+    (pure:m ~)
+  =/  kids=(list [@ta ball:tarball])  ~(tap by dir.ball.p.seen)
+  =|  acc=(list [tile @ta])
+  |-
+  ?~  kids  (pure:m (flop acc))
+  ?:  =('tiles.tiles' -.i.kids)
+    $(kids t.kids)
+  =/  kid=@ta  -.i.kids
+  =/  slug=@ta  (app-slug kid)
+  ;<  kid-seen=seen:nexus  bind:m
+    (peek:io [%& %& /apps/[kid] %'tile.json'] `[/ %json])
+  ?.  ?=([%& %file *] kid-seen)
+    $(kids t.kids)
+  =/  tile-name=@ta  (crip "{(trip slug)}.json")
+  =/  tile=(unit tile)  (json-to-tile tile-name sang.p.kid-seen)
+  ?~  tile  $(kids t.kids)
+  $(kids t.kids, acc [[u.tile kid] acc])
+::
+++  app-slug
+  |=  name=@ta
+  ^-  @ta
+  =/  nam=tape  (trip name)
+  =/  dix=(unit @ud)  (find "." nam)
+  ?~  dix  name
+  (crip (scag u.dix nam))
+::
+++  find-app-by-slug
+  |=  [slug=@ta kids=(map @ta ball:tarball)]
+  ^-  (unit @ta)
+  =/  entries=(list [@ta ball:tarball])  ~(tap by kids)
+  |-
+  ?~  entries  ~
+  ?:  =(slug (app-slug -.i.entries))
+    `-.i.entries
+  $(entries t.entries)
+::
+++  merge-tiles
+  |=  [local=(list tile) app=(list tile)]
+  ^-  (list tile)
+  =/  local-names=(set @ta)  (sy (turn local |=(t=tile name.t)))
+  %+  weld  local
+  (skip app |=(t=tile (~(has in local-names) name.t)))
+::
 ++  tiles-page
-  |=  [ball-id=tape tiles=(list tile)]
+  |=  [ball-id=tape local-names=(set @ta) app-dirs=(map @ta @ta) tiles=(list tile)]
   ^-  manx
   =/  sorted=(list tile)  (sort tiles |=([a=tile b=tile] (aor name.a name.b)))
   ;html
@@ -198,7 +236,7 @@
           ;*  ?~  sorted
                 =/  empty=manx  ;div.empty: no tiles yet
                 ~[empty]
-              (turn sorted |=(t=tile (tile-card ball-id t)))
+              (turn sorted |=(t=tile (tile-card ball-id local-names app-dirs t)))
         ==
       ==
       ;script
@@ -208,7 +246,7 @@
   ==
 ::
 ++  tile-card
-  |=  [ball-id=tape t=tile]
+  |=  [ball-id=tape local-names=(set @ta) app-dirs=(map @ta @ta) t=tile]
   ^-  manx
   =/  n=tape  (trip name.t)
   =/  ttl=tape  (trip title.t)
@@ -216,22 +254,40 @@
   =/  col=tape  (trip color.t)
   =/  img=tape  (trip image.t)
   =/  lnk=tape  (trip href.t)
+  =/  is-local=?  (~(has in local-names) name.t)
   =/  cls=tape  ?:(=(~ img) "tile" "tile has-img")
-  ;div(class cls, data-tile n)
+  =/  app-dir=@ta  (fall (~(get by app-dirs) name.t) '')
+  =/  jon=tape
+    ?:  is-local  ""
+    %-  trip
+    %-  en:json:html
+    %-  pairs:enjs:format
+    :~  title+s+title.t
+        info+s+info.t
+        color+s+color.t
+        image+s+image.t
+        href+s+href.t
+    ==
+  =/  app-path=tape  ?:(is-local "" "/apps/{(trip app-dir)}")
+  ;div(class cls, data-tile n, data-json jon, data-app app-path)
     ;div.tile-bg(style "background:{col}");
     ;+  ?:  =(~ img)
           ;div;
-        ;img.tile-img(src img, onerror "this.style.display='none'");
+        ;img.tile-img(src img, onload "this.closest('.tile').classList.add('loaded')", onerror "this.style.display='none';this.closest('.tile').classList.add('loaded')");
     ;div.tile-label
       ;div.tile-title: {ttl}
       ;+  ?:  =(~ inf)
             ;div;
           ;div.tile-desc: {inf}
     ==
-    ;div.tile-actions
-      ;button.tile-edit(onclick "event.preventDefault();event.stopPropagation();editTile('{n}')"): edit
-      ;button.tile-del(onclick "event.preventDefault();event.stopPropagation();deleteTile('{n}')"):  ✕
-    ==
+    ;+  ?:  is-local
+          ;div.tile-actions
+            ;button.tile-edit(onclick "event.preventDefault();event.stopPropagation();editTile('{n}')"): edit
+            ;button.tile-del(onclick "event.preventDefault();event.stopPropagation();deleteTile('{n}')"):  ✕
+          ==
+        ;div.tile-actions
+          ;button.tile-edit(onclick "event.preventDefault();event.stopPropagation();viewTile(this.closest('.tile'))"): view
+        ==
     ;+  ?:  =(~ lnk)
           ;div;
         ;a.tile-link(href lnk, target "_blank");
@@ -249,6 +305,7 @@
   #tiles \{ display: flex; flex-wrap: wrap; gap: 20px; }
   #tiles \{ justify-content: center; }
   .tile \{ position: relative; width: 256px; height: 256px; border-radius: 16px; overflow: hidden; flex-shrink: 0; }
+  .tile.has-img:not(.loaded) \{ display: none; }
   .tile-bg \{ position: absolute; inset: 0; }
   .tile-img \{ position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: 1; }
   .tile-label \{ position: absolute; bottom: 0; left: 0; right: 0; padding: 20px 24px; z-index: 2; }
@@ -296,6 +353,8 @@
     editName = 'tile-' + Date.now().toString(36);
     editTitle.textContent = 'New tile';
     editStatus.textContent = '';
+    editJson.disabled = false;
+    document.getElementById('edit-save').style.display = '';
     editJson.value = JSON.stringify(\{
       title: 'New tile',
       info: '',
@@ -306,9 +365,21 @@
     editBack.classList.add('open');
   }
 
+  function viewTile(el) \{
+    var json = el.dataset.json;
+    var app = el.dataset.app;
+    editTitle.textContent = app;
+    editStatus.textContent = '';
+    editJson.value = JSON.stringify(JSON.parse(json), null, 2);
+    editJson.disabled = true;
+    document.getElementById('edit-save').style.display = 'none';
+    editBack.classList.add('open');
+  }
+
   function editTile(name) \{
     isNew = false;
     editName = name;
+    document.getElementById('edit-save').style.display = '';
     var el = document.querySelector('[data-tile="' + name + '"]');
     var title = el ? (el.querySelector('.tile-title') || \{}).textContent || name : name;
     editTitle.textContent = 'Edit ' + title;

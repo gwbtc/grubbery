@@ -16,13 +16,24 @@
 ::    here take the caller's rail and resolve internally.
 ::
 /<  cui  /lib/contacts-ui.hoon
+/&  icon  contacts/icon.svg
 =<  ^-  nexus:nexus
     |%
     ++  on-load
       |=  =ball:tarball
       ^-  bole:tarball
+      =/  tile=json
+        %-  pairs:enjs:format
+        :~  title+s+'Contacts'
+            info+s+'Manage your contacts'
+            color+s+'#6b7280'
+            image+s+'/grubbery/tiles/icon/contacts'
+            href+s+'/grubbery/contacts'
+        ==
       %+  spin:loader  ball
       :~  (manifest:loader 0)
+          [%over %& [/ %'tile.json'] [[/ %json] tile]]
+          [%over %& [/ %'icon.svg'] [[/ %mime] icon]]
           [%over %& [/ %'main.sig'] [[/ %sig] ~]]
           [%fall %& [/ %'profiles.jobj-store'] [[/ %jobj-store] *(map @t (map @t json))]]
           [%fall %& [/ %'overlays.jobj-store'] [[/ %jobj-store] *(map @t (map @t json))]]
