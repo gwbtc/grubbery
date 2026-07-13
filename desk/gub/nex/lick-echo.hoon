@@ -33,9 +33,9 @@
         ;<  *  bind:m  (keep:io /in [%& %& (weld /sys/lick port) %in] ~)
         =|  last=(unit @ud)
         |-
-        ;<  =seen:nexus  bind:m  (peek:io [%& %& (weld /sys/lick port) %in] ~)
-        ?:  ?=([%& %file *] seen)
-          =/  msg  !<([seq=@ud mark=@tas noun=*] (need-vase:tarball sang.p.seen))
+        ;<  =view:nexus  bind:m  (peek:io [%& %& (weld /sys/lick port) %in] ~)
+        ?:  ?=([%file *] view)
+          =/  msg  !<([seq=@ud mark=@tas noun=*] (need-vase:tarball sang.view))
           ?.  =(`seq.msg last)
             ~&  >  "lick-echo: [{<mark.msg>} {<noun.msg>}]"
             ;<  ~  bind:m  (lick-spit:io port mark.msg noun.msg)

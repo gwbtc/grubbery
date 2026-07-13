@@ -62,9 +62,9 @@
             ~
           ?:  =('' dir-name)  $
           ::  check if bot already exists
-          ;<  =seen:nexus  bind:m
+          ;<  =view:nexus  bind:m
             (peek:io [%| 0 %| /bots/[dir-name]] ~)
-          ?.  ?=([%& %none *] seen)
+          ?.  ?=([%none *] view)
             ~&  >>  [%telegram-bot-already-exists dir-name]
             $
           =/  new-ball=ball:tarball  [`[`[/ %telegram-bot] ~ %.n ~ ~] ~]
@@ -95,8 +95,8 @@
         ;<  init=wave:nexus  bind:m
           (keep:io /bots [%| 1 %| /bots] ~)
         |-
-        ;<  =seen:nexus  bind:m  (peek:io [%| 1 %| /bots] ~)
-        =/  bot-names=(list @ta)  (seen-to-bot-names seen)
+        ;<  =view:nexus  bind:m  (peek:io [%| 1 %| /bots] ~)
+        =/  bot-names=(list @ta)  (view-to-bot-names view)
         ;<  ~  bind:m  (replace:io (crip (en-xml:html (manage-page bot-names))))
         ;<  upd=wave:nexus  bind:m  (take-news:io /bots)
         $
@@ -104,11 +104,11 @@
     --
 |%
 ::
-++  seen-to-bot-names
-  |=  =seen:nexus
+++  view-to-bot-names
+  |=  =view:nexus
   ^-  (list @ta)
-  ?.  ?=([%& %ball *] seen)  ~
-  ~(tap in ~(key by dir.ball.p.seen))
+  ?.  ?=([%ball *] view)  ~
+  ~(tap in ~(key by dir.ball.view))
 ::
 ++  manage-page
   |=  bots=(list @ta)

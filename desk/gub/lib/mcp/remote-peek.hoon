@@ -40,15 +40,13 @@
   =/  road=road:tarball
     ?~  name-raw  [%& %| pax]
     [%& %& pax u.name-raw]
-  ;<  =seen:nexus  bind:m
+  ;<  =view:nexus  bind:m
     (peek-remote:io road target cas)
   =/  label=tape
     ?~  name-raw  "{(trip u.path-raw)}/ on {(trip u.ship-raw)}"
     "{(trip u.path-raw)}/{(trip u.name-raw)} on {(trip u.ship-raw)}"
-  ?:  ?=(%| -.seen)
-    (pure:m [%error (crip "Peek blocked: {label}")])
-  ?+  -.p.seen
-    (pure:m [%text (crip "Peeked {label}: {<-.p.seen>}")])
+  ?+  -.view
+    (pure:m [%text (crip "Peeked {label}: {<-.view>}")])
       %none
     (pure:m [%text (crip "Nothing at {label}")])
       %veto
@@ -56,14 +54,14 @@
       %tomb
     (pure:m [%error (crip "Tombstoned: data at {label} has been removed")])
       %file
-    =/  [* * =sang:tarball]  p.seen
+    =/  [* * =sang:tarball]  view
     =/  res=(each tape tang)
       (mule |.((trip q.q:;;(mime (sang-noun:tarball sang)))))
     ?:  ?=(%& -.res)
       (pure:m [%text (crip p.res)])
     (pure:m [%text (crip "Peeked {label} ({<p.sang>})")])
       %ball
-    =/  [* * b=ball:tarball]  p.seen
+    =/  [* * b=ball:tarball]  view
     =/  files=(list @ta)
       ?~(fil.b ~ ~(tap in ~(key by contents.u.fil.b)))
     =/  dirs=(list @ta)  ~(tap in ~(key by dir.b))

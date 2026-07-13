@@ -48,12 +48,12 @@
     `p.u.mk
   =/  search-tape=tape  (trip search)
   ::  Browse root to get entire ball
-  ;<  =seen:nexus  bind:m  (peek:io [%& %| ~] ~)
-  ?.  ?=([%& %ball *] seen)
+  ;<  =view:nexus  bind:m  (peek:io [%& %| ~] ~)
+  ?.  ?=([%ball *] seen)
     (pure:m [%error 'Could not read ball'])
   ::  Flatten and filter by metadata patterns
   =/  candidates=(list [rail:tarball sang:tarball])
-    %+  skim  ~(tap ba:tarball ball.p.seen)
+    %+  skim  ~(tap ba:tarball ball.view)
     |=  [=rail:tarball =sang:tarball]
     =/  file-path=tape  ?~(path.rail "/" (trip (spat path.rail)))
     =/  file-name=tape  (trip name.rail)
@@ -76,11 +76,11 @@
     =/  pax=tape  ?~(path.rail "/" (trip (spat path.rail)))
     "{pax}/{(trip name.rail)}"
   ::  Try to read file content as text
-  ;<  file-seen=seen:nexus  bind:m
+  ;<  file-view=view:nexus  bind:m
     (peek:io [%& %& path.rail name.rail] ~)
-  ?.  ?=([%& %file *] file-seen)
+  ?.  ?=([%file *] file-view)
     $(candidates t.candidates)
-  ;<  =mime  bind:m  (sage-to-mime:io (need-sage:tarball sang.p.file-seen))
+  ;<  =mime  bind:m  (sage-to-mime:io (need-sage:tarball sang.file-view))
   =/  text=tape  (trip ;;(@t q.q.mime))
   ::  Split into lines and search
   =/  lines=(list tape)

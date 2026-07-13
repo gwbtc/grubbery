@@ -129,10 +129,10 @@
 ++  peek-root
   =/  m  (fiber:fiber:nexus ,(unit ball:tarball))
   ^-  form:m
-  ;<  root-seen=seen:nexus  bind:m  (peek:io [%& %| ~] ~)
-  ?.  ?=([%& %ball *] root-seen)
+  ;<  root-view=view:nexus  bind:m  (peek:io [%& %| ~] ~)
+  ?.  ?=([%ball *] root-view)
     (pure:m ~)
-  (pure:m `ball.p.root-seen)
+  (pure:m `ball.root-view)
 ::  +serve-file-peek: GET /file — peek grub, convert to mime
 ::
 ++  serve-file-peek
@@ -196,10 +196,10 @@
   |=  [eyre-id=@ta api-path=path]
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
-  ;<  root-seen=seen:nexus  bind:m  (peek:io [%& %| ~] ~)
-  ?.  ?=([%& %ball *] root-seen)
+  ;<  root-view=view:nexus  bind:m  (peek:io [%& %| ~] ~)
+  ?.  ?=([%ball *] root-view)
     (send-error eyre-id 500 'Peek failed')
-  =/  root=ball:tarball  ball.p.root-seen
+  =/  root=ball:tarball  ball.root-view
   =/  sub=(unit ball:tarball)  (~(dap ba:tarball root) api-path)
   ?~  sub
     (send-error eyre-id 404 'Not found')
@@ -409,20 +409,20 @@
   |=  [eyre-id=@ta api-path=path]
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
-  ;<  dir-seen=seen:nexus  bind:m  (peek:io [%& %| api-path] ~)
-  ?.  ?=([%& %ball *] dir-seen)
+  ;<  dir-view=view:nexus  bind:m  (peek:io [%& %| api-path] ~)
+  ?.  ?=([%ball *] dir-view)
     (send-error eyre-id 404 'Not found')
-  (send-json eyre-id (ball-weirs-to-json:nexus ball.p.dir-seen))
+  (send-json eyre-id (ball-weirs-to-json:nexus ball.dir-view))
 ::  +serve-weir-peek: GET /weir — single directory weir as JSON
 ::
 ++  serve-weir-peek
   |=  [eyre-id=@ta api-path=path]
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
-  ;<  dir-seen=seen:nexus  bind:m  (peek:io [%& %| api-path] ~)
-  ?.  ?=([%& %ball *] dir-seen)
+  ;<  dir-view=view:nexus  bind:m  (peek:io [%& %| api-path] ~)
+  ?.  ?=([%ball *] dir-view)
     (send-error eyre-id 404 'Not found')
-  =/  =weir:nexus  (fall ?~(fil.ball.p.dir-seen ~ weir.u.fil.ball.p.dir-seen) *weir:nexus)
+  =/  =weir:nexus  (fall ?~(fil.ball.dir-view ~ weir.u.fil.ball.dir-view) *weir:nexus)
   (send-json eyre-id (weir-to-json:nexus weir))
 ::  +serve-weir-put: PUT /weir — replace weir from JSON body
 ::
@@ -484,12 +484,12 @@
     ?:  ?=(%| -.lane.i.lanes)  $(lanes t.lanes)
     ::  wave lanes are relative to subscription — resolve to absolute for peek
     =/  file-road=road:tarball  [%& %& (weld base-dir path.p.lane.i.lanes) name.p.lane.i.lanes]
-    ;<  =seen:nexus  bind:m  (peek:io file-road ~)
-    ?.  ?=([%& %file *] seen)  $(lanes t.lanes)
+    ;<  =view:nexus  bind:m  (peek:io file-road ~)
+    ?.  ?=([%file *] view)  $(lanes t.lanes)
     =/  lane-path=@t  (spat (snoc path.p.lane.i.lanes name.p.lane.i.lanes))
     =/  id=@t  (scot %ud ud.cass.i.lanes)
     =/  event-name=@t  (crip "old {(trip lane-path)}")
-    ;<  body=@t  bind:m  (sage-to-txt (need-sage:tarball sang.p.seen) blot-param)
+    ;<  body=@t  bind:m  (sage-to-txt (need-sage:tarball sang.view) blot-param)
     =/  data=wain  (to-wain:format body)
     =/  =sse-event:http-utils  [`id `event-name data]
     ;<  ~  bind:m
@@ -520,10 +520,10 @@
     ?:  ?=(%| -.lane.i.lanes)  $(lanes t.lanes)
     ::  wave lanes are relative to subscription — resolve to absolute for peek
     =/  file-road=road:tarball  [%& %& (weld base-dir path.p.lane.i.lanes) name.p.lane.i.lanes]
-    ;<  =seen:nexus  bind:m  (peek:io file-road ~)
+    ;<  =view:nexus  bind:m  (peek:io file-road ~)
     =/  lane-path=@t  (spat (snoc path.p.lane.i.lanes name.p.lane.i.lanes))
     =/  id=@t  (scot %ud ud.cass.i.lanes)
-    ?:  ?=([%& %file *] seen)
+    ?:  ?=([%file *] view)
       =/  was-known=?
         =/  node=(unit [fold=cass:clay file=(map @ta cass:clay)])
           (~(get of prev) path.p.lane.i.lanes)
@@ -531,7 +531,7 @@
         (~(has by file.u.node) name.p.lane.i.lanes)
       =/  action=@t  ?:(was-known 'upd' 'new')
       =/  event-name=@t  (crip "{(trip action)} {(trip lane-path)}")
-      ;<  body=@t  bind:m  (sage-to-txt (need-sage:tarball sang.p.seen) blot-param)
+      ;<  body=@t  bind:m  (sage-to-txt (need-sage:tarball sang.view) blot-param)
       =/  data=wain  (to-wain:format body)
       =/  =sse-event:http-utils  [`id `event-name data]
       ;<  ~  bind:m

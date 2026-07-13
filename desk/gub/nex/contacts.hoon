@@ -267,24 +267,24 @@
   |=  from=rail:tarball
   =/  m  (fiber:fiber:nexus ,(map @t (map @t json)))
   ^-  form:m
-  ;<  seen=seen:nexus  bind:m
+  ;<  view=view:nexus  bind:m
     (peek:io (nex-road:io from [%& / %'profiles.jobj-store']) `[/ %jobj-store])
   =/  store=(map @t (map @t json))
-    ?.  ?=([%& %file *] seen)  ~
-    ?:  (is-boom:tarball sang.p.seen)  ~
-    !<((map @t (map @t json)) (need-vase:tarball sang.p.seen))
+    ?.  ?=([%file *] view)  ~
+    ?:  (is-boom:tarball sang.view)  ~
+    !<((map @t (map @t json)) (need-vase:tarball sang.view))
   (pure:m store)
 ::
 ++  load-overlays
   |=  from=rail:tarball
   =/  m  (fiber:fiber:nexus ,(map @t (map @t json)))
   ^-  form:m
-  ;<  seen=seen:nexus  bind:m
+  ;<  view=view:nexus  bind:m
     (peek:io (nex-road:io from [%& / %'overlays.jobj-store']) `[/ %jobj-store])
   =/  store=(map @t (map @t json))
-    ?.  ?=([%& %file *] seen)  ~
-    ?:  (is-boom:tarball sang.p.seen)  ~
-    !<((map @t (map @t json)) (need-vase:tarball sang.p.seen))
+    ?.  ?=([%file *] view)  ~
+    ?:  (is-boom:tarball sang.view)  ~
+    !<((map @t (map @t json)) (need-vase:tarball sang.view))
   (pure:m store)
 ::
 ++  save-overlays

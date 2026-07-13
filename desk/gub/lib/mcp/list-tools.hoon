@@ -70,14 +70,14 @@
     ?~  v  %.n
     ?=([%b %.y] u.v)
   ::  Peek ball mirror for tool source filenames
-  ;<  src-seen=seen:nexus  bind:m
+  ;<  src-view=view:nexus  bind:m
     (peek:io [%& %| /code/lib/mcp] ~)
-  ?.  ?=([%& %ball *] src-seen)
+  ?.  ?=([%ball *] src-view)
     (pure:m [%error 'No tool sources found'])
-  ?~  fil.ball.p.src-seen
+  ?~  fil.ball.src-view
     (pure:m [%error 'No tool sources found'])
   =/  src-names=(list @ta)
-    %+  turn  ~(tap by contents.u.fil.ball.p.src-seen)
+    %+  turn  ~(tap by contents.u.fil.ball.src-view)
     |=([n=@ta [=sang:tarball gain=? bang=(unit tang)]] (strip-hoon n))
   ::  Look up each compiled tool from bins
   =/  all-tools=(list tool:tools)  ~

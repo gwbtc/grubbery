@@ -54,11 +54,11 @@
   =/  ses-road=road:tarball
     [%& %& /sys/dill/sessions session]
   ::  Get current version to compute range
-  ;<  =seen:nexus  bind:m
+  ;<  =view:nexus  bind:m
     (peek:io ses-road ~)
-  ?.  ?=([%& %file *] seen)
+  ?.  ?=([%file *] view)
     (pure:m [%error 'Session not found'])
-  =/  cur-ver=@ud  ud.cass.p.seen
+  =/  cur-ver=@ud  ud.cass.view
   ::  Determine version range
   =/  range-from=@ud
     ?^  from  u.from

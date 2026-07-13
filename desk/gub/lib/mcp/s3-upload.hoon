@@ -35,11 +35,11 @@
     ?:  =('' p.u.sk)  file-name
     p.u.sk
   =/  pax=path  (stab file-path)
-  ;<  [grub-name=@ta =seen:nexus]  bind:m
+  ;<  [grub-name=@ta =view:nexus]  bind:m
     (lookup-grub:tools pax file-name)
-  ?.  ?=([%& %file *] seen)
+  ?.  ?=([%file *] view)
     (pure:m [%error (crip "Not found: {(trip file-path)}/{(trip file-name)}")])
-  ;<  =mime  bind:m  (sage-to-mime:io (need-sage:tarball sang.p.seen))
+  ;<  =mime  bind:m  (sage-to-mime:io (need-sage:tarball sang.view))
   =/  text=@t  ;;(@t q.q.mime)
   ;<  creds=s3-creds:tools  bind:m  read-s3-creds:tools
   ;<  now=@da  bind:m  get-time:io

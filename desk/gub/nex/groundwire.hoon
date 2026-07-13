@@ -57,9 +57,9 @@
           =/  src=rail:tarball  [path.self %'udiffs.urb-udiffs']
           [%pass /jael-src %agent [our dap:io] %poke %set-jael-source !>(src)]~
         ::
-        ;<  cfg-seen=seen:nexus  bind:m
+        ;<  cfg-view=view:nexus  bind:m
           (peek:io [%| 1 %& / %'config.json'] `[/ %json])
-        =/  [url=@t auth=@t]  (read-config cfg-seen)
+        =/  [url=@t auth=@t]  (read-config cfg-view)
         |-
         =/  req=request:http
           (rpc-request:btc-rpc url auth 'getblockcount' '[]')
@@ -92,17 +92,17 @@
           ::
           [~ %'urb-state.urb-state']
         ;<  ~  bind:m  (rise-wait:io prod "%groundwire /urb-state: failed")
-        ;<  cfg-seen=seen:nexus  bind:m
+        ;<  cfg-view=view:nexus  bind:m
           (peek:io (cord-to-road:tarball './config.json') `[/ %json])
-        =/  [url=@t auth=@t]  (read-config cfg-seen)
+        =/  [url=@t auth=@t]  (read-config cfg-view)
         ;<  urb-state=state:urb  bind:m  (get-state-as:io ,state:urb)
         =/  processed=@ud  num.block-id.urb-state
         =/  height-road=road:tarball  (cord-to-road:tarball './height.ud')
         ;<  *  bind:m  (keep:io /t height-road ~)
-        ;<  init-seen=seen:nexus  bind:m  (peek:io height-road ~)
+        ;<  init-view=view:nexus  bind:m  (peek:io height-road ~)
         =/  tip=@ud
-          ?.  ?=([%& %file *] init-seen)  0
-          =/  res=(each @ud tang)  (mule |.(!<(@ud (need-vase:tarball sang.p.init-seen))))
+          ?.  ?=([%file *] init-view)  0
+          =/  res=(each @ud tang)  (mule |.(!<(@ud (need-vase:tarball sang.init-view))))
           ?:(?=(%& -.res) p.res 0)
         |-
         ::  chain reset detection: if tip < processed, the chain was
@@ -117,9 +117,9 @@
         ::  caught up — wait for the tip poller to advance
         ?:  (lte tip processed)
           ;<  *  bind:m  (take-news:io /t)
-          ;<  upd-seen=seen:nexus  bind:m  (peek:io height-road ~)
-          ?.  ?=([%& %file *] upd-seen)  $
-          =/  new-tip=@ud  !<(@ud (need-vase:tarball sang.p.upd-seen))
+          ;<  upd-view=view:nexus  bind:m  (peek:io height-road ~)
+          ?.  ?=([%file *] upd-view)  $
+          =/  new-tip=@ud  !<(@ud (need-vase:tarball sang.upd-view))
           $(tip new-tip)
         ::  fetch the hash of the next block
         =/  next=@ud  +(processed)
@@ -292,16 +292,16 @@
           ?~  acting.args  (pure:m [sed.args 0 init-utxo.args])
           =/  wal-road=road:tarball
             (cord-to-road:tarball (cat 3 './wallets/' (cat 3 (scot %p u.acting.args) '.urb-wallet')))
-          ;<  wal-seen=seen:nexus  bind:m  (peek:io wal-road ~)
-          ?.  ?=([%& %file *] wal-seen)
+          ;<  wal-view=view:nexus  bind:m  (peek:io wal-road ~)
+          ?.  ?=([%file *] wal-view)
             ~&  >>>  [%reg-tester %no-wallet-for-ship u.acting.args]  !!
-          =/  w  !<([seed=$%([%t =@t] [%uw =@uw] [%ux =@ux]) twk=@ utxo=(unit utxo:unv)] (need-vase:tarball sang.p.wal-seen))
+          =/  w  !<([seed=$%([%t =@t] [%uw =@uw] [%ux =@ux]) twk=@ utxo=(unit utxo:unv)] (need-vase:tarball sang.wal-view))
           =/  sd=@uw  ?-(-.seed.w %uw uw.seed.w, %ux `@uw`ux.seed.w, %t `@uw`(need (rush t.seed.w dem)))
           (pure:m [sd twk.w utxo.w])
         =.  sed.args  resolved-sed
-        ;<  cfg-seen=seen:nexus  bind:m
+        ;<  cfg-view=view:nexus  bind:m
           (peek:io [%| 1 %& / %'config.json'] `[/ %json])
-        =/  [url=@t auth=@t]  (read-config cfg-seen)
+        =/  [url=@t auth=@t]  (read-config cfg-view)
         =/  batch=(list single:skim-sotx:urb)
           ?:  ?=([%batch *] many.args)  bat.many.args
           ~[many.args]
@@ -481,9 +481,9 @@
           =/  wal-road=road:tarball
             (cord-to-road:tarball (cat 3 './wallets/' (cat 3 (scot %p spawn-ship) '.urb-wallet')))
           =/  wal-bask=bask:tarball  [[/ %urb-wallet] [[%uw sed.args] twk `final-utxo]]
-          ;<  wal-seen=seen:nexus  bind:m  (peek:io wal-road ~)
+          ;<  wal-view=view:nexus  bind:m  (peek:io wal-road ~)
           ;<  ~  bind:m
-            ?:  ?=([%& %file *] wal-seen)
+            ?:  ?=([%file *] wal-view)
               (over:io wal-road wal-bask)
             (make:io wal-road [%| wal-bask ~])
           ~&  >  [%reg-tester %saved-wallet spawn-ship]
@@ -633,11 +633,11 @@
         ;<  *  bind:m  (keep:io /h h-road ~)
         ;<  *  bind:m  (keep:io /u u-road ~)
         |-
-        ;<  h-seen=seen:nexus  bind:m  (peek:io h-road ~)
-        ;<  u-seen=seen:nexus  bind:m  (peek:io u-road ~)
+        ;<  h-view=view:nexus  bind:m  (peek:io h-road ~)
+        ;<  u-view=view:nexus  bind:m  (peek:io u-road ~)
         ;<  ~  bind:m
           %-  replace:io
-          !>((crip (en-xml:html (stats-fragment (extract-ud h-seen) (extract-urb u-seen)))))
+          !>((crip (en-xml:html (stats-fragment (extract-ud h-view) (extract-urb u-view)))))
         ;<  *  bind:m  (take-stats-news /h /u)
         $
           ::  /page.html: static shell with reg-tester forms. Re-renders
@@ -654,11 +654,11 @@
         ;<  *  bind:m  (keep:io /seeds seeds-road ~)
         ;<  *  bind:m  (keep:io /points points-road ~)
         |-
-        ;<  sse-seen=seen:nexus  bind:m  (peek:io sse-road ~)
-        ;<  seeds-seen=seen:nexus  bind:m  (peek:io seeds-road ~)
-        ;<  points-seen=seen:nexus  bind:m  (peek:io points-road ~)
+        ;<  sse-view=view:nexus  bind:m  (peek:io sse-road ~)
+        ;<  seeds-view=view:nexus  bind:m  (peek:io seeds-road ~)
+        ;<  points-view=view:nexus  bind:m  (peek:io points-road ~)
         ;<  ~  bind:m
-          (replace:io (crip (en-xml:html (btc-page nexus-root (extract-sse-manx sse-seen 'stats.html') (extract-ships seeds-seen) (extract-points points-seen)))))
+          (replace:io (crip (en-xml:html (btc-page nexus-root (extract-sse-manx sse-view 'stats.html') (extract-ships seeds-view) (extract-points points-view)))))
         ;<  *  bind:m  (take-any-news /sse /seeds /points)
         $
       ==
@@ -686,27 +686,27 @@
 ::  or mismatched shape.
 ::
 ++  extract-ud
-  |=  =seen:nexus
+  |=  =view:nexus
   ^-  @ud
-  ?.  ?=([%& %file *] seen)  0
-  (fall (mole |.(!<(@ud (need-vase:tarball sang.p.seen)))) 0)
+  ?.  ?=([%file *] view)  0
+  (fall (mole |.(!<(@ud (need-vase:tarball sang.view)))) 0)
 ::
 ::  Extract a urb state:urb from a kept urb-state file view.
 ::
 ++  extract-urb
-  |=  =seen:nexus
+  |=  =view:nexus
   ^-  state:urb
-  ?.  ?=([%& %file *] seen)  *state:urb
-  (fall (mole |.(!<(state:urb (need-vase:tarball sang.p.seen)))) *state:urb)
+  ?.  ?=([%file *] view)  *state:urb
+  (fall (mole |.(!<(state:urb (need-vase:tarball sang.view)))) *state:urb)
 ::
 ::  Extract a named manx fragment from a kept sse directory view,
 ::  defaulting to an empty div.
 ::
 ++  extract-sse-manx
-  |=  [=seen:nexus name=@ta]
+  |=  [=view:nexus name=@ta]
   ^-  manx
-  ?.  ?=([%& %ball *] seen)  ;div;
-  =/  =lump:tarball  (fall fil.ball.p.seen *lump:tarball)
+  ?.  ?=([%ball *] view)  ;div;
+  =/  =lump:tarball  (fall fil.ball.view *lump:tarball)
   =/  ct=(unit [=sang:tarball gain=? bang=(unit tang)])  (~(get by contents.lump) name)
   ?~  ct  ;div;
   (fall (mole |.((need (de-xml:html !<(@t (need-vase:tarball sang.u.ct)))))) ;div;)
@@ -714,10 +714,10 @@
 ::  Extract ship names from a kept wallets directory view.
 ::
 ++  extract-ships
-  |=  =seen:nexus
+  |=  =view:nexus
   ^-  (list @p)
-  ?.  ?=([%& %ball *] seen)  ~
-  =/  =lump:tarball  (fall fil.ball.p.seen *lump:tarball)
+  ?.  ?=([%ball *] view)  ~
+  =/  =lump:tarball  (fall fil.ball.view *lump:tarball)
   %+  murn  ~(tap by contents.lump)
   |=  [name=@ta =sang:tarball gain=? bang=(unit tang)]
   ?.  ?=(%urb-wallet name.p.sang)  ~
@@ -728,10 +728,10 @@
 ::  Extract ship names from a kept points directory view.
 ::
 ++  extract-points
-  |=  =seen:nexus
+  |=  =view:nexus
   ^-  (list @p)
-  ?.  ?=([%& %ball *] seen)  ~
-  =/  =lump:tarball  (fall fil.ball.p.seen *lump:tarball)
+  ?.  ?=([%ball *] view)  ~
+  =/  =lump:tarball  (fall fil.ball.view *lump:tarball)
   %+  murn  ~(tap by contents.lump)
   |=  [name=@ta =sang:tarball gain=? bang=(unit tang)]
   ?.  ?=(%json name.p.sang)  ~
@@ -765,15 +765,15 @@
       ['auth' s+'Basic Yml0Y29pbnJwYzpiaXRjb2lucnBj']
   ==
 ::
-::  Extract (url, auth) from a peeked config.json seen, falling back
+::  Extract (url, auth) from a peeked config.json view, falling back
 ::  to default values for any missing or malformed field.
 ::
 ++  read-config
-  |=  =seen:nexus
+  |=  =view:nexus
   ^-  [url=@t auth=@t]
   =/  fallback  [url='http://localhost:18443/' auth='Basic Yml0Y29pbnJwYzpiaXRjb2lucnBj']
-  ?.  ?=([%& %file *] seen)  fallback
-  =/  jon  !<(json (need-vase:tarball sang.p.seen))
+  ?.  ?=([%file *] view)  fallback
+  =/  jon  !<(json (need-vase:tarball sang.view))
   ?.  ?=([%o *] jon)  fallback
   =/  url=@t
     =/  u=(unit json)  (~(get by p.jon) 'url')
@@ -1169,9 +1169,9 @@
   =/  new-lines=wain  (trace-block:btc-rpc blk reveals-count)
   ?~  new-lines  (pure:m ~)
   =/  trace-road=road:tarball  (cord-to-road:tarball './trace.txt')
-  ;<  prev-seen=seen:nexus  bind:m  (peek:io trace-road `[/ %txt])
+  ;<  prev-view=view:nexus  bind:m  (peek:io trace-road `[/ %txt])
   =/  prev-lines=wain
-    ?:  ?=([%& %file *] prev-seen)  !<(wain (need-vase:tarball sang.p.prev-seen))
+    ?:  ?=([%file *] prev-view)  !<(wain (need-vase:tarball sang.prev-view))
     ~
   =/  combined=wain  (weld prev-lines new-lines)
   ;<  ~  bind:m  (over:io trace-road [[/ %txt] combined])
@@ -1207,9 +1207,9 @@
       ::  write to per-ship file (create on first event)
       =/  ship-road=road:tarball
         (cord-to-road:tarball (cat 3 './events/ships/' (cat 3 (scot %p ship.sot.i.sots) '.urb-event')))
-      ;<  ship-seen=seen:nexus  bind:m  (peek:io ship-road ~)
+      ;<  ship-view=view:nexus  bind:m  (peek:io ship-road ~)
       ;<  ~  bind:m
-        ?:  ?=([%& %file *] ship-seen)
+        ?:  ?=([%file *] ship-view)
           (over:io ship-road evt-bask)
         (make:io ship-road [%| evt-bask ~])
       $(sots t.sots)
@@ -1310,9 +1310,9 @@
                  ==
         ==
     ==
-  ;<  =seen:nexus  bind:m  (peek:io road ~)
+  ;<  =view:nexus  bind:m  (peek:io road ~)
   ;<  ~  bind:m
-    ?:  ?=([%& %file *] seen)
+    ?:  ?=([%file *] view)
       (over:io road [[/ %json] pt-json])
     (make:io road [%| [[/ %json] pt-json] ~])
   $(ships t.ships)

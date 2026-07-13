@@ -105,15 +105,15 @@
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
   ::  read all peer data
-  ;<  ug-seen=seen:nexus  bind:m  (peek:io (abs-dir /usergroups) ~)
-  ;<  ships-seen=seen:nexus  bind:m  (peek:io (abs-dir /ships) ~)
+  ;<  ug-view=view:nexus  bind:m  (peek:io (abs-dir /usergroups) ~)
+  ;<  ships-view=view:nexus  bind:m  (peek:io (abs-dir /ships) ~)
   =/  ug-ball=ball:tarball
-    ?.  ?=([%& %ball *] ug-seen)  [~ ~]
-    ball.p.ug-seen
+    ?.  ?=([%ball *] ug-view)  [~ ~]
+    ball.ug-view
   =/  groups=(list group-info)  (read-groups ug-ball)
   =/  ships=(list @ta)
-    ?.  ?=([%& %ball *] ships-seen)  ~
-    (sort ~(tap in ~(key by dir.ball.p.ships-seen)) aor)
+    ?.  ?=([%ball *] ships-view)  ~
+    (sort ~(tap in ~(key by dir.ball.ships-view)) aor)
   =/  page=manx  (render-page groups ships suffix)
   =/  bod=octs  (as-octs:mimes:html (crip (en-xml:html page)))
   ;<  ~  bind:m  (send-simple:srv eyre-id (mime-response:http-utils [/text/html bod]))

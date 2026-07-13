@@ -66,7 +66,6 @@
       [%veto ~]
       [%tomb ~]
   ==
-+$  seen  (each view tang)
 +$  cite
   $%  [%file =cass:clay lobe=jobe conv=(unit blot:tarball)]
       [%ball =wave lobe=jobe deep=?]
@@ -103,7 +102,7 @@
       [%gain flag=?]            :: set gain flag (recursive on directories)
       [%firm ~]                 :: promote current entry to %firm
       [%tag case=(unit case) tags=(set @t)]  :: set tags on hist entry (~ = current)
-      [%seek =lobe:clay]        :: find all [rail cass] pairs with this hash
+      [%seek =nobe]              :: find all [rail cass] pairs with this hash
       [%peep =find]
       [%born ~]                 :: read hist metadata at dest (file or fold)
       [%code ~]                 :: look up compiled artifacts at dest
@@ -201,7 +200,7 @@
   ::
   +$  intake
     $%  [%poke =from =sage:tarball] :: command for a running process (from is relative)
-        [%peek =wire =seen] :: local read result
+        [%peek =wire =view] :: local read result
         [%kept =wire =kept]              :: your outgoing subscriptions
         [%made =wire err=(unit tang)] :: response to make
         [%gone =wire err=(unit tang)] :: response to cull
@@ -227,7 +226,7 @@
   ::
   +$  pend
     $%  [%poke =from =bask:tarball]
-        [%peek =wire cite=(each cite tang)]
+        [%peek =wire =cite]
         [%peep =wire res=(each (list [=cass:clay lobe=jobe]) tang)]
         [%code =wire res=(each (axal (map @ta @uv)) (each @uv tang))]
         [%news =wire =wave]
@@ -411,7 +410,7 @@
   $%  [%leaf =leaf]
       [%tree =tree]
   ==
-+$  vale  (map [lobe:clay @uv] (unit tang))
++$  vale  (map [nobe @uv] (unit tang))
 ::  kind-separated lobe sets: never flatten jects and nouns into one
 ::  bag — every silo operation is kind-directed, so consumers must
 ::  know which store a lobe lives in.
@@ -497,9 +496,9 @@
       (fall (~(get by u.node) name.neck) 0v0)
     `[neck nex-ckey]
   ::  fil: each grub's current ject-lobe from hist (skip deleted/tombed)
-  =/  fil=(map @ta lobe:clay)
+  =/  fil=(map @ta jobe)
     %-  ~(rep by file.node)
-    |=  [[name=@ta sk=hist] out=(map @ta lobe:clay)]
+    |=  [[name=@ta sk=hist] out=(map @ta jobe)]
     =/  cas=(unit cass:clay)  (top-hist sk)
     ?~  cas  out
     =/  val=(unit pace:hist)  (get-pace:hist sk u.cas)
@@ -508,9 +507,9 @@
     ?~  p.u.val  out
     (~(put by out) name u.p.u.val)
   ::  dir: each child's latest tree lobe + weir from existing tree
-  =/  dir-map=(map @ta [lobe:clay weir=(unit weir)])
+  =/  dir-map=(map @ta [jobe weir=(unit weir)])
     %-  ~(rep by dir.sub-born)
-    |=  [[name=@ta kid=^born] out=(map @ta [lobe:clay weir=(unit weir)])]
+    |=  [[name=@ta kid=^born] out=(map @ta [jobe weir=(unit weir)])]
     =/  kid-node=(unit [fold=hist file=(map @ta hist)])  fil.kid
     ?~  kid-node  out
     =/  cas=(unit cass:clay)  (top-fold fold.u.kid-node)
@@ -528,7 +527,7 @@
     (~(put by out) name [u.p.u.got kid-weir])
   ::  Build tree object + store via put-tree
   =/  tree-gain=?  ?~(existing-tree %.n gain.u.existing-tree)
-  =/  tree-bang=(unit lobe:clay)  ?~(existing-tree ~ bang.u.existing-tree)
+  =/  tree-bang=(unit nobe)  ?~(existing-tree ~ bang.u.existing-tree)
   =/  =tree  [nek tree-gain tree-bang fil dir-map]
   =/  [changed=? new-born=^born new-silo=^silo]
     (put-tree born silo now dir node tree)
@@ -541,17 +540,17 @@
 ++  put-tree
   |=  [=born =silo now=@da dir=path node=[fold=hist file=(map @ta hist)] =tree]
   ^-  [changed=? ^born ^silo]
-  =/  =lobe:clay  `@uvI`(sham [%tree tree])
+  =/  new-lobe=jobe  `@uvI`(sham [%tree tree])
   =/  top-fold  top:hist
   =/  fold-cas=(unit cass:clay)  (top-fold fold.node)
-  =/  cur-lobe=(unit lobe:clay)
+  =/  cur-lobe=(unit jobe)
     =/  cur-pace=(unit pace:hist)
       ?~  fold-cas  ~
       (get-pace:hist fold.node u.fold-cas)
     ?~  cur-pace  ~
     ?:  ?=(%tomb -.u.cur-pace)  ~
     p.u.cur-pace
-  ?:  =(`lobe cur-lobe)
+  ?:  =(`new-lobe cur-lobe)
     [%.n born silo]
   =/  [* new-silo=^silo]
     (~(put-ject si silo) [%tree tree])
@@ -564,7 +563,7 @@
   =/  new-fold=cass:clay
     =/  nex-da=@da  ?:((lth da.old-fold now) now +(da.old-fold))
     [+(ud.old-fold) nex-da]
-  =/  =pace:hist  ?:(gain.tree [%firm `lobe] [%temp `lobe])
+  =/  =pace:hist  ?:(gain.tree [%firm `new-lobe] [%temp `new-lobe])
   =/  new-hist=hist
     (put-pace:hist tombed-fold new-fold pace)
   =.  born  (~(put of born) dir node(fold new-hist))
@@ -733,12 +732,12 @@
       =?  silo  ?=(^ bang.tree.ject)  (~(bump-ref si silo) u.bang.tree.ject)
       =.  silo
         %-  ~(rep by fil.tree.ject)
-        |=  [[* =lobe:clay] =_silo]
-        (~(bump-ject-ref si silo) lobe)
+        |=  [[* =jobe] =_silo]
+        (~(bump-ject-ref si silo) jobe)
       =.  silo
         %-  ~(rep by dir.tree.ject)
-        |=  [[* =lobe:clay *] =_silo]
-        (~(bump-ject-ref si silo) lobe)
+        |=  [[* =jobe *] =_silo]
+        (~(bump-ject-ref si silo) jobe)
       [lobe silo]
     ==
   ::  Decrement ject refcount, delete if zero.
@@ -763,11 +762,11 @@
       =?  silo  ?=(^ bang.tree.jt)  (~(drop si silo) u.bang.tree.jt)
       =.  silo
         %-  ~(rep by fil.tree.jt)
-        |=  [[* =lobe:clay] =_silo]
-        (~(drop-ject si silo) lobe)
+        |=  [[* =jobe] =_silo]
+        (~(drop-ject si silo) jobe)
       %-  ~(rep by dir.tree.jt)
-      |=  [[* =lobe:clay *] =_silo]
-      (~(drop-ject si silo) lobe)
+      |=  [[* =jobe *] =_silo]
+      (~(drop-ject si silo) jobe)
     ==
   ::  Collect all lobes reachable from a root ject lobe (transitive closure).
   ::  Returns kind-separated ject and noun lobes.
@@ -776,12 +775,12 @@
     |=  root=jobe
     ^-  lobes
     =|  out=lobes
-    =|  seen=(set lobe:clay)
-    =|  queue=(list lobe:clay)
+    =|  seen=(set jobe)
+    =|  queue=(list jobe)
     =.  queue  ~[root]
     |-
     ?~  queue  out
-    =/  cur=lobe:clay  i.queue
+    =/  cur=jobe  i.queue
     ?:  (~(has in seen) cur)
       $(queue t.queue)
     =.  seen  (~(put in seen) cur)
@@ -797,10 +796,10 @@
       $(queue t.queue)
         %tree
       =?  nouns.out  ?=(^ bang.tree.jt)  (~(put in nouns.out) u.bang.tree.jt)
-      =/  fil-lobes=(list lobe:clay)
-        (turn ~(val by fil.tree.jt) |=(=lobe:clay lobe))
-      =/  dir-lobes=(list lobe:clay)
-        (turn ~(val by dir.tree.jt) |=([=lobe:clay *] lobe))
+      =/  fil-lobes=(list jobe)
+        (turn ~(val by fil.tree.jt) |=(=jobe jobe))
+      =/  dir-lobes=(list jobe)
+        (turn ~(val by dir.tree.jt) |=([=jobe *] jobe))
       $(queue (weld t.queue (weld fil-lobes dir-lobes)))
     ==
   ::  Shallow reachable: like +reachable but doesn't recurse into
@@ -823,11 +822,11 @@
         %tree
       =?  nouns.out  ?=(^ bang.tree.jt)  (~(put in nouns.out) u.bang.tree.jt)
       ::  Include file lobes and their leaf contents
-      =/  fil-entries=(list [name=@ta =lobe:clay])
+      =/  fil-entries=(list [name=@ta =jobe])
         ~(tap by fil.tree.jt)
       |-
       ?~  fil-entries  out
-      =/  fl=lobe:clay  lobe.i.fil-entries
+      =/  fl=jobe  jobe.i.fil-entries
       =.  jects.out  (~(put in jects.out) fl)
       =/  fgot  (~(get by jects.silo) fl)
       =?  nouns.out  &(?=(^ fgot) ?=(%leaf -.ject.u.fgot))
@@ -853,21 +852,21 @@
         %leaf  [%leaf leaf.ject.u.got(bang `tang-lobe)]
         %tree  [%tree tree.ject.u.got(bang `tang-lobe)]
       ==
-    =/  [new-lobe=lobe:clay fin-silo=^silo]
+    =/  [new-jobe=jobe fin-silo=^silo]
       (~(put-ject si mid-silo) new-ject)
     ::  drop old ject ref
     =.  fin-silo  (~(drop-ject si fin-silo) old-lobe)
-    [new-lobe fin-silo]
+    [new-jobe fin-silo]
   ::  Clear bang on an existing ject.  Builds a new ject with bang=~,
   ::  drops the old ject and the old bang noun ref.
   ::  Returns ~ if ject has no bang or doesn't exist.
   ::
   ++  clear-bang
-    |=  old-lobe=lobe:clay
-    ^-  (unit [lobe=lobe:clay =^silo])
+    |=  old-lobe=jobe
+    ^-  (unit [lobe=jobe =^silo])
     =/  got  (~(get by jects.silo) old-lobe)
     ?~  got  ~
-    =/  old-bang=(unit lobe:clay)
+    =/  old-bang=(unit nobe)
       ?-  -.ject.u.got
         %leaf  bang.leaf.ject.u.got
         %tree  bang.tree.ject.u.got
@@ -879,11 +878,11 @@
         %leaf  [%leaf leaf.ject.u.got(bang ~)]
         %tree  [%tree tree.ject.u.got(bang ~)]
       ==
-    =/  [new-lobe=lobe:clay mid-silo=^silo]
+    =/  [new-jobe=jobe mid-silo=^silo]
       (~(put-ject si silo) new-ject)
     ::  drop old ject ref (cascades to drop old bang noun ref)
     =.  mid-silo  (~(drop-ject si mid-silo) old-lobe)
-    `[new-lobe mid-silo]
+    `[new-jobe mid-silo]
   ::  Tombstone previous %temp entry in hist, dropping silo refs.
   ::  %firm entries are left untouched.
   ::
@@ -912,7 +911,7 @@
             file-cass=cass:clay
             =hist
         ==
-    ^-  [jobe ^silo ^hist]
+    ^-  [nobe ^silo ^hist]
     ::  Look up previous leaf ject
     =/  prev-leaf=(unit leaf)
       =/  prev-pace=(unit pace:^hist)  (get-pace:^hist hist file-cass)
@@ -924,7 +923,7 @@
       ?.  ?=(%leaf -.ject.u.got)  ~
       `leaf.ject.u.got
     ::  Skip if blot, governing marc, and content are unchanged
-    =/  noun-lobe=lobe:clay  (hash noun)
+    =/  noun-lobe=nobe  (hash noun)
     ?:  ?&  ?=(^ prev-leaf)
             =(noun-lobe lobe.u.prev-leaf)
             =(blot blot.mark.u.prev-leaf)
@@ -932,13 +931,13 @@
             =(gain gain.u.prev-leaf)
         ==
       [noun-lobe silo hist]
-    =/  prev-bang=(unit lobe:clay)
+    =/  prev-bang=(unit nobe)
       ?~(prev-leaf ~ bang.u.prev-leaf)
     ::  Store noun, then wrap as leaf ject
     =/  new-silo=^silo
       ?^  (~(get by nouns.silo) noun-lobe)  silo
       silo(nouns (~(put by nouns.silo) noun-lobe [0 noun]))
-    =/  [ject-lobe=lobe:clay newer-silo=^silo]
+    =/  [ject-lobe=jobe newer-silo=^silo]
       (~(put-ject si new-silo) [%leaf noun-lobe [blot ckey] gain prev-bang])
     =/  [tombed-silo=^silo tombed-hist=^hist]
       (~(tomb-temp si newer-silo) hist file-cass)

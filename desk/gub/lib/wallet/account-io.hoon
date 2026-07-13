@@ -794,9 +794,9 @@
   ;<  lbls=labels:b329  bind:m
     =/  lm  (fiber:fiber:nexus ,labels:b329)
     =/  lbl-road=road:tarball  [%& %& /apps/'wallet.wallet_app' %'labels.wallet_labels']
-    ;<  lbl-seen=seen:nexus  bind:lm  (peek:io lbl-road ~)
-    ?.  ?=([%& %file *] lbl-seen)  (pure:lm *labels:b329)
-    (pure:lm (fall (mole |.(!<(labels:b329 (need-vase:tarball sang.p.lbl-seen)))) *labels:b329))
+    ;<  lbl-view=view:nexus  bind:lm  (peek:io lbl-road ~)
+    ?.  ?=([%file *] lbl-view)  (pure:lm *labels:b329)
+    (pure:lm (fall (mole |.(!<(labels:b329 (need-vase:tarball sang.lbl-view)))) *labels:b329))
   =/  og=(unit parsed-origin:b329)  (get-acct-origin lbls acct-ref)
   ?~  og  (pure:m ~)
   =/  addrs  (read-account-addrs lbls u.og)
@@ -835,9 +835,9 @@
   ;<  fresh-lbls=labels:b329  bind:m
     =/  lm  (fiber:fiber:nexus ,labels:b329)
     =/  lbl-road=road:tarball  [%& %& /apps/'wallet.wallet_app' %'labels.wallet_labels']
-    ;<  lbl-seen=seen:nexus  bind:lm  (peek:io lbl-road ~)
-    ?.  ?=([%& %file *] lbl-seen)  (pure:lm *labels:b329)
-    (pure:lm (fall (mole |.(!<(labels:b329 (need-vase:tarball sang.p.lbl-seen)))) *labels:b329))
+    ;<  lbl-view=view:nexus  bind:lm  (peek:io lbl-road ~)
+    ?.  ?=([%file *] lbl-view)  (pure:lm *labels:b329)
+    (pure:lm (fall (mole |.(!<(labels:b329 (need-vase:tarball sang.lbl-view)))) *labels:b329))
   =/  fresh-lbls=labels:b329  (label-addr-info fresh-lbls u.addr u.new-info)
   =/  fresh-lbls=labels:b329  (label-utxos fresh-lbls u.addr utxos)
   =/  fresh-lbls=labels:b329  (label-txs fresh-lbls txs)

@@ -32,11 +32,11 @@
   =/  ref=@ta
     (~(dog jo:json-utils [%o args.st]) /account so:dejs:format)
   ::  load labels
-  ;<  lbl-seen=seen:nexus  bind:m
+  ;<  lbl-view=view:nexus  bind:m
     (peek:io [%& %& /apps/'wallet.wallet_app' %'labels.wallet_labels'] ~)
   =/  lbls=labels:b329
-    ?.  ?=([%& %file *] lbl-seen)  *labels:b329
-    (fall (mole |.(!<(labels:b329 (need-vase:tarball sang.p.lbl-seen)))) *labels:b329)
+    ?.  ?=([%file *] lbl-view)  *labels:b329
+    (fall (mole |.(!<(labels:b329 (need-vase:tarball sang.lbl-view)))) *labels:b329)
   ?.  (has-account:aio lbls ref)
     (pure:m [%error 'Account not found'])
   ::  extract network from labels
@@ -66,10 +66,10 @@
   ::  wait for scan to complete — check status field
   |-
   ;<  =wave:nexus  bind:m  (take-news:io /scan-proc)
-  ;<  proc-seen=seen:nexus  bind:m  (peek:io proc-road ~)
+  ;<  proc-view=view:nexus  bind:m  (peek:io proc-road ~)
   =/  proc-state=(unit json)
-    ?.  ?=([%& %file *] proc-seen)  ~
-    (mole |.(!<(json (need-vase:tarball sang.p.proc-seen))))
+    ?.  ?=([%file *] proc-view)  ~
+    (mole |.(!<(json (need-vase:tarball sang.proc-view))))
   =/  proc-done=?
     ?~  proc-state  %.y
     =((~(dug jo:json-utils u.proc-state) /status so:dejs:format '') 'done')
@@ -80,11 +80,11 @@
   ;<  ~  bind:m  (drop:io /scan-proc proc-road)
     =/  net=@ta  ;;(@ta network)
     ::  reload labels (scan may have written new ones)
-    ;<  lbl-seen2=seen:nexus  bind:m
+    ;<  lbl-view2=view:nexus  bind:m
       (peek:io [%& %& /apps/'wallet.wallet_app' %'labels.wallet_labels'] ~)
     =/  lbls2=labels:b329
-      ?.  ?=([%& %file *] lbl-seen2)  *labels:b329
-      (fall (mole |.(!<(labels:b329 (need-vase:tarball sang.p.lbl-seen2)))) *labels:b329)
+      ?.  ?=([%file *] lbl-view2)  *labels:b329
+      (fall (mole |.(!<(labels:b329 (need-vase:tarball sang.lbl-view2)))) *labels:b329)
     =/  og=(unit parsed-origin:b329)  (get-acct-origin:aio lbls2 ref)
     =/  [recv-count=@ud chng-count=@ud]
       ?~  og  [0 0]

@@ -186,10 +186,10 @@
         ;<  init=wave:nexus  bind:m
           (keep:io /res (cord-to-road:tarball '../result.json') ~)
         |-
-        ;<  =seen:nexus  bind:m  (peek:io (cord-to-road:tarball '../result.json') ~)
+        ;<  =view:nexus  bind:m  (peek:io (cord-to-road:tarball '../result.json') ~)
         =/  res=@t
-          ?.  ?=([%& %file *] seen)  ''
-          (render-result !<(json (need-vase:tarball sang.p.seen)))
+          ?.  ?=([%file *] view)  ''
+          (render-result !<(json (need-vase:tarball sang.view)))
         ;<  req=json  bind:m  (read-request '../request.json')
         ;<  ~  bind:m  (replace:io (crip (en-xml:html (oneshot-page res req))))
         ;<  upd=wave:nexus  bind:m  (take-news:io /res)
@@ -201,10 +201,10 @@
         ;<  init=wave:nexus  bind:m
           (keep:io /brf (cord-to-road:tarball '../briefing.json') ~)
         |-
-        ;<  =seen:nexus  bind:m  (peek:io (cord-to-road:tarball '../briefing.json') ~)
+        ;<  =view:nexus  bind:m  (peek:io (cord-to-road:tarball '../briefing.json') ~)
         =/  state=json
-          ?.  ?=([%& %file *] seen)  ~
-          !<(json (need-vase:tarball sang.p.seen))
+          ?.  ?=([%file *] view)  ~
+          !<(json (need-vase:tarball sang.view))
         ;<  ~  bind:m  (replace:io (crip (en-xml:html (briefing-page-live state))))
         ;<  upd=wave:nexus  bind:m  (take-news:io /brf)
         $
@@ -215,20 +215,20 @@
   |=  rel=@t
   =/  m  (fiber:fiber:nexus ,json)
   ^-  form:m
-  ;<  =seen:nexus  bind:m
+  ;<  =view:nexus  bind:m
     (peek:io (cord-to-road:tarball rel) `[/ %json])
-  ?.  ?=([%& %file *] seen)
+  ?.  ?=([%file *] view)
     (pure:m ~)
-  (pure:m !<(json (need-vase:tarball sang.p.seen)))
+  (pure:m !<(json (need-vase:tarball sang.view)))
 ::
 ++  read-claude-config
   =/  m  (fiber:fiber:nexus ,claude-config:oneshot)
   ^-  form:m
-  ;<  =seen:nexus  bind:m
+  ;<  =view:nexus  bind:m
     (peek:io (cord-to-road:tarball './config/claude.json') `[/ %json])
-  ?.  ?=([%& %file *] seen)
+  ?.  ?=([%file *] view)
     (pure:m ['' 'claude-sonnet-4-20250514' 4.096])
-  =/  cfg=json  !<(json (need-vase:tarball sang.p.seen))
+  =/  cfg=json  !<(json (need-vase:tarball sang.view))
   ?.  ?=(%o -.cfg)
     (pure:m ['' 'claude-sonnet-4-20250514' 4.096])
   =/  api-key=@t
@@ -248,11 +248,11 @@
 ++  read-brave-key
   =/  m  (fiber:fiber:nexus ,@t)
   ^-  form:m
-  ;<  =seen:nexus  bind:m
+  ;<  =view:nexus  bind:m
     (peek:io (cord-to-road:tarball './config/brave.json') `[/ %json])
-  ?.  ?=([%& %file *] seen)
+  ?.  ?=([%file *] view)
     (pure:m '')
-  =/  cfg=json  !<(json (need-vase:tarball sang.p.seen))
+  =/  cfg=json  !<(json (need-vase:tarball sang.view))
   ?.  ?=(%o -.cfg)
     (pure:m '')
   =/  v  (~(get by p.cfg) 'api_key')

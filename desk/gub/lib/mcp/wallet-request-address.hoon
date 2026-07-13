@@ -41,11 +41,11 @@
   ::  snapshot offer-log length before requesting
   =/  log-road=road:tarball
     [%& %& /apps/'wallet.wallet_app' %'offer-log.json']
-  ;<  log-seen=seen:nexus  bind:m  (peek:io log-road ~)
+  ;<  log-view=view:nexus  bind:m  (peek:io log-road ~)
   =/  cur-len=@ud
-    ?.  ?=([%& %file *] log-seen)  0
+    ?.  ?=([%file *] log-view)  0
     =/  j=json
-      (fall (mole |.(!<(json (need-vase:tarball sang.p.log-seen)))) [%a ~])
+      (fall (mole |.(!<(json (need-vase:tarball sang.log-view)))) [%a ~])
     ?.  ?=(%a -.j)  0
     (lent p.j)
   ::  subscribe to offer-log for updates
@@ -71,10 +71,10 @@
     ;<  ~  bind:m  (drop:io /offer-log log-road)
     (pure:m [%error 'Timed out waiting for address offer'])
   ::  check if there's a new entry
-  ;<  new-seen=seen:nexus  bind:m  (peek:io log-road ~)
-  ?.  ?=([%& %file *] new-seen)  $
+  ;<  new-view=view:nexus  bind:m  (peek:io log-road ~)
+  ?.  ?=([%file *] new-view)  $
   =/  log=json
-    (fall (mole |.(!<(json (need-vase:tarball sang.p.new-seen)))) [%a ~])
+    (fall (mole |.(!<(json (need-vase:tarball sang.new-view)))) [%a ~])
   ?.  ?=(%a -.log)  $
   ?.  (gth (lent p.log) cur-len)  $
   ::  check the latest entry

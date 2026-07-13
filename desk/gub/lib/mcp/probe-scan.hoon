@@ -14,10 +14,10 @@
       ^-  form:m
       =/  fallback=[url=@t auth=@t]
         [default-url:btc-rpc default-auth:btc-rpc]
-      ;<  =seen:nexus  bind:m
+      ;<  =view:nexus  bind:m
         (peek:io [%& %& /'groundwire.groundwire' %'config.json'] ~)
-      ?.  ?=([%& %file *] seen)  (pure:m fallback)
-      =/  jon  !<(json (need-vase:tarball sang.p.seen))
+      ?.  ?=([%file *] view)  (pure:m fallback)
+      =/  jon  !<(json (need-vase:tarball sang.view))
       ?.  ?=([%o *] jon)  (pure:m fallback)
       =/  url=@t
         =/  u=(unit json)  (~(get by p.jon) 'url')
@@ -37,10 +37,10 @@
     ++  read-tip-height
       =/  m  (fiber:fiber:nexus ,(unit @ud))
       ^-  form:m
-      ;<  =seen:nexus  bind:m
+      ;<  =view:nexus  bind:m
         (peek:io [%& %& /'groundwire.groundwire' %'height.ud'] ~)
-      ?.  ?=([%& %file *] seen)  (pure:m ~)
-      (pure:m `!<(@ud (need-vase:tarball sang.p.seen)))
+      ?.  ?=([%file *] view)  (pure:m ~)
+      (pure:m `!<(@ud (need-vase:tarball sang.view)))
     ::
     ::  Fiber helper: walk heights [from..to] calling getblockhash +
     ::  getblock verbosity=1, accumulate one line per block.

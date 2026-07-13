@@ -97,14 +97,14 @@
     ::  Record version before command for both session and logs
     =/  ses-road=road:tarball  [%& %& /sys/dill/sessions session]
     =/  logs-road=road:tarball  [%& %& /sys/dill %'logs.dill-told']
-    ;<  pre=seen:nexus  bind:m  (peek:io ses-road ~)
+    ;<  pre=view:nexus  bind:m  (peek:io ses-road ~)
     =/  pre-ver=@ud
-      ?.  ?=([%& %file *] pre)  0
-      ud.cass.p.pre
-    ;<  pre-logs=seen:nexus  bind:m  (peek:io logs-road ~)
+      ?.  ?=([%file *] pre)  0
+      ud.cass.pre
+    ;<  pre-logs=view:nexus  bind:m  (peek:io logs-road ~)
     =/  pre-log-ver=@ud
-      ?.  ?=([%& %file *] pre-logs)  0
-      ud.cass.p.pre-logs
+      ?.  ?=([%file *] pre-logs)  0
+      ud.cass.pre-logs
     ::  Checkpoint state before sending command
     =/  run-data=json
       %-  pairs:enjs:format
@@ -133,14 +133,14 @@
       ::  Timeout — re-read state (has checkpointed pre-vers) and read results
       ;<  st=tool-state:tools  bind:m  (get-state-as:io ,tool-state:tools)
       (read-results st)
-    ;<  =seen:nexus  bind:m  (peek:io ses-road ~)
-    ?.  ?=([%& %file *] seen)  $
-    ?.  ?=(%dill-blit name.p.sang.p.seen)  $
+    ;<  =view:nexus  bind:m  (peek:io ses-road ~)
+    ?.  ?=([%file *] view)  $
+    ?.  ?=(%dill-blit name.p.sang.view)  $
     =.  batches  +(batches)
     ::  Skip the first batch (command echo) — wait for result + prompt
     ?.  (gth batches 1)  $
     =/  blits=(list blit:dill)
-      !<((list blit:dill) (need-vase:tarball sang.p.seen))
+      !<((list blit:dill) (need-vase:tarball sang.view))
     =/  rendered=@t  (render-blits:clurd blits wid)
     =/  txt=tape  (trip rendered)
     ::  Check for prompt at end of this batch

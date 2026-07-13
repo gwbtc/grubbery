@@ -70,11 +70,11 @@
   |=  remote-file=road:tarball
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
-  ;<  =seen:nexus  bind:m  (peek:io remote-file ~)
-  ?.  ?=([%& %file *] seen)
+  ;<  =view:nexus  bind:m  (peek:io remote-file ~)
+  ?.  ?=([%file *] view)
     ~&  >>  [%mirror-peek-failed]
     (pure:m ~)
-  =/  =sang:tarball  sang.p.seen
+  =/  =sang:tarball  sang.view
   ~&  >  [%mirror-sync p.sang]
   =/  mirrored=road:tarball  [%| 0 %& /mirrored %'main.txt']
   =/  =bask:tarball  [p.sang (sang-noun:tarball sang)]

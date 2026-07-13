@@ -41,14 +41,14 @@
     ++  get-dynamic-tools
       =/  m  (fiber:fiber:nexus ,(map @t tool:nex-tools))
       ^-  form:m
-      ;<  src-seen=seen:nexus  bind:m
+      ;<  src-view=view:nexus  bind:m
         (peek:io [%& %| /code/lib/mcp] ~)
-      ?.  ?=([%& %ball *] src-seen)
+      ?.  ?=([%ball *] src-view)
         (pure:m ~)
-      ?~  fil.ball.p.src-seen
+      ?~  fil.ball.src-view
         (pure:m ~)
       =/  names=(list @ta)
-        %+  turn  ~(tap by contents.u.fil.ball.p.src-seen)
+        %+  turn  ~(tap by contents.u.fil.ball.src-view)
         |=([name=@ta [=sang:tarball gain=? bang=(unit tang)]] (strip-hoon name))
       =/  result=(map @t tool:nex-tools)  ~
       |-
@@ -162,10 +162,10 @@
         ?~  fil.wave.nw  ~
         (~(get by file.u.fil.wave.nw) tid)
       ?~  cas  $
-      ;<  =seen:nexus  bind:m  (peek-at:io tool-road ~ [%ud ud.u.cas])
-      ?.  ?=([%& %file *] seen)  $
+      ;<  =view:nexus  bind:m  (peek-at:io tool-road ~ [%ud ud.u.cas])
+      ?.  ?=([%file *] view)  $
       =/  st=tool-state:nex-tools
-        !<(tool-state:nex-tools (need-vase:tarball sang.p.seen))
+        !<(tool-state:nex-tools (need-vase:tarball sang.view))
       ?.  =(%done step.st)  $
       ?~  update.st  $
       ::  Done — build JSON-RPC response from update

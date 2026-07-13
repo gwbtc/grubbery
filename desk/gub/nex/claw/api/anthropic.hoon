@@ -167,10 +167,10 @@
   =/  m  (fiber:fiber:nexus ,api-config)
   ^-  form:m
   =/  road=road:tarball  (cord-to-road:tarball '../config.json')
-  ;<  =seen:nexus  bind:m  (peek:io road ~)
-  ?.  ?=([%& %file *] seen)
+  ;<  =view:nexus  bind:m  (peek:io road ~)
+  ?.  ?=([%file *] view)
     (pure:m ['' ''])
-  =/  cfg=json  (fall (mole |.(!<(json (need-vase:tarball sang.p.seen)))) *json)
+  =/  cfg=json  (fall (mole |.(!<(json (need-vase:tarball sang.view)))) *json)
   ?.  ?=(%o -.cfg)
     (pure:m ['' ''])
   =/  get
@@ -203,10 +203,10 @@
     p.u.req
   ::  read current usage
   =/  usage-road=road:tarball  (cord-to-road:tarball '../usage.json')
-  ;<  usage-seen=seen:nexus  bind:m  (peek:io usage-road `[/ %json])
+  ;<  usage-view=view:nexus  bind:m  (peek:io usage-road `[/ %json])
   =/  cur=json
-    ?.  ?=([%& %file *] usage-seen)  [%o ~]
-    (fall (mole |.(!<(json (need-vase:tarball sang.p.usage-seen)))) [%o ~])
+    ?.  ?=([%file *] usage-view)  [%o ~]
+    (fall (mole |.(!<(json (need-vase:tarball sang.usage-view)))) [%o ~])
   ?.  ?=(%o -.cur)  (pure:m ~)
   ::  build call entry + updated call log
   =/  old-calls=(list json)

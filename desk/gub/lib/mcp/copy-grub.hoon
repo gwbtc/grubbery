@@ -31,14 +31,14 @@
   =/  src-road=road:tarball  [%& %& (stab u.src-path) u.src-name]
   =/  dst-road=road:tarball  [%& %& (stab u.dst-path) dn]
   ::  read source
-  ;<  =seen:nexus  bind:m  (peek:io src-road ~)
-  ?.  ?=([%& %file *] seen)
+  ;<  =view:nexus  bind:m  (peek:io src-road ~)
+  ?.  ?=([%file *] view)
     (pure:m [%error (crip "Source not found: {(trip u.src-path)}/{(trip u.src-name)}")])
   ::  write destination
   ;<  exists=?  bind:m  (peek-exists:io dst-road)
   ?:  exists
-    ;<  ~  bind:m  (over:io dst-road [p.sang.p.seen q:(need-vase:tarball sang.p.seen)])
+    ;<  ~  bind:m  (over:io dst-road [p.sang.view q:(need-vase:tarball sang.view)])
     (pure:m [%text (crip "Copied {(trip u.src-path)}/{(trip u.src-name)} -> {(trip u.dst-path)}/{(trip dn)}")])
-  ;<  ~  bind:m  (make:io dst-road |+[[p.sang.p.seen q:(need-vase:tarball sang.p.seen)] ~])
+  ;<  ~  bind:m  (make:io dst-road |+[[p.sang.view q:(need-vase:tarball sang.view)] ~])
   (pure:m [%text (crip "Copied {(trip u.src-path)}/{(trip u.src-name)} -> {(trip u.dst-path)}/{(trip dn)}")])
 --

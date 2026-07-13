@@ -202,11 +202,11 @@
       $  :: stale timer, keep waiting
     (pure:m ~)
       %log
-    ;<  dill-seen=seen:nexus  bind:m  (peek:io [%& %& /sys/dill %'logs.dill-told'] ~)
+    ;<  dill-view=view:nexus  bind:m  (peek:io [%& %& /sys/dill %'logs.dill-told'] ~)
     =/  log-text=tape
-      ?.  ?=([%& %file *] dill-seen)  ""
-      ?.  ?=(%dill-told name.p.sang.p.dill-seen)  ""
-      (format-told !<(told:dill (need-vase:tarball sang.p.dill-seen)))
+      ?.  ?=([%file *] dill-view)  ""
+      ?.  ?=(%dill-told name.p.sang.dill-view)  ""
+      (format-told !<(told:dill (need-vase:tarball sang.dill-view)))
     ?:  =(~ log-text)  $
     ;<  st=tool-state  bind:m  (get-state-as:io ,tool-state)
     =/  logs=(list json)
@@ -297,19 +297,19 @@
 ::    5. No conversion → error
 ::
 ++  render-grub-content
-  |=  =seen:nexus
+  |=  =view:nexus
   =/  m  (fiber:fiber:nexus ,tool-result)
   ^-  form:m
-  ?>  ?=([%& %file *] seen)
+  ?>  ?=([%file *] view)
   ::  1. boom (validation failure): render error tang
-  ?:  ?=(%| -.q.sang.p.seen)
-    =/  =boom:tarball  p.q.sang.p.seen
+  ?:  ?=(%| -.q.sang.view)
+    =/  =boom:tarball  p.q.sang.view
     =/  rendered=tape
       %-  zing
       %+  turn  (flop tang.boom)
       |=(=tank (weld ~(ram re tank) "\0a"))
-    (pure:m [%error (crip "BOOM (mark %{(trip name.p.sang.p.seen)})\0a{rendered}")])
-  =/  =sage:tarball  (need-sage:tarball sang.p.seen)
+    (pure:m [%error (crip "BOOM (mark %{(trip name.p.sang.view)})\0a{rendered}")])
+  =/  =sage:tarball  (need-sage:tarball sang.view)
   =/  blot-text=@t
     (crip "[mark: {(spud (snoc path.p.sage name.p.sage))}]")
   ;<  result=tool-result  bind:m
@@ -336,15 +336,15 @@
     (pure:m [%mime mime.result])
   (pure:m [%text (crip "{(trip blot-text)}\0a{(trip text.result)}")])
 ::  Look up a grub by name — exact match
-::  Returns [actual-grub-name seen]
+::  Returns [actual-grub-name view]
 ::
 ++  lookup-grub
   |=  [pax=path file-name=@ta]
-  =/  m  (fiber:fiber:nexus ,[name=@ta seen=seen:nexus])
+  =/  m  (fiber:fiber:nexus ,[name=@ta view=view:nexus])
   ^-  form:m
-  ;<  =seen:nexus  bind:m
+  ;<  =view:nexus  bind:m
     (peek:io [%& %& pax file-name] ~)
-  (pure:m [file-name seen])
+  (pure:m [file-name view])
 ::  String replacement on tapes
 ::  Returns (unit tape) — ~ if not found or ambiguous
 ::
@@ -386,12 +386,12 @@
 ++  read-s3-creds
   =/  m  (fiber:fiber:nexus ,s3-creds)
   ^-  form:m
-  ;<  creds-seen=seen:nexus  bind:m
+  ;<  creds-view=view:nexus  bind:m
     (peek:io [%& %& /'mcp.mcp' %'s3.json'] `[/ %json])
-  ?.  ?=([%& %file *] creds-seen)
+  ?.  ?=([%file *] creds-view)
     ~|  %s3-creds-not-found
     !!
-  =/  jon=json  !<(json (need-vase:tarball sang.p.creds-seen))
+  =/  jon=json  !<(json (need-vase:tarball sang.creds-view))
   =/  creds=s3-creds
     %.  jon
     %-  ot:dejs:format

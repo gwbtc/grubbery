@@ -31,10 +31,10 @@
         (pure:m [%text 'Cannot read weir on root'])
       =/  parent=path  (snip `path`dir-pax)
       =/  child-name=@ta  (rear dir-pax)
-      ;<  parent-seen=seen:nexus  bind:m  (peek:io [%& %| parent] ~)
-      ?.  ?=([%& %ball *] parent-seen)
+      ;<  parent-view=view:nexus  bind:m  (peek:io [%& %| parent] ~)
+      ?.  ?=([%ball *] parent-view)
         (pure:m [%text 'No parent directory found'])
-      =/  child-ball=(unit ball:tarball)  (~(get by dir.ball.p.parent-seen) child-name)
+      =/  child-ball=(unit ball:tarball)  (~(get by dir.ball.parent-view) child-name)
       ?~  child-ball
         (pure:m [%text 'No directory found at that path'])
       =/  weir-here=(unit weir:nexus)  ?~(fil.u.child-ball ~ weir.u.fil.u.child-ball)

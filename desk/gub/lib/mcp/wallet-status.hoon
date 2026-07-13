@@ -24,20 +24,20 @@
   =/  m  (fiber:fiber:nexus ,tool-result:tools)
   ^-  form:m
   ::  read secrets
-  ;<  sec-seen=seen:nexus  bind:m
+  ;<  sec-view=view:nexus  bind:m
     (peek:io [%& %& /apps/'wallet.wallet_app' %'secrets.wallet_secrets'] ~)
   =/  sec=secrets
-    ?.  ?=([%& %file *] sec-seen)  *secrets
-    (fall (mole |.(!<(secrets (need-vase:tarball sang.p.sec-seen)))) *secrets)
+    ?.  ?=([%file *] sec-view)  *secrets
+    (fall (mole |.(!<(secrets (need-vase:tarball sang.sec-view)))) *secrets)
   =/  fps=(list @t)  (turn ~(tap by seeds.sec) |=([xp=@t *] xp))
   ?~  fps
     (pure:m [%text 'No wallets found.'])
   ::  read labels
-  ;<  lbl-seen=seen:nexus  bind:m
+  ;<  lbl-view=view:nexus  bind:m
     (peek:io [%& %& /apps/'wallet.wallet_app' %'labels.wallet_labels'] ~)
   =/  lbls=labels:b329
-    ?.  ?=([%& %file *] lbl-seen)  *labels:b329
-    (fall (mole |.(!<(labels:b329 (need-vase:tarball sang.p.lbl-seen)))) *labels:b329)
+    ?.  ?=([%file *] lbl-view)  *labels:b329
+    (fall (mole |.(!<(labels:b329 (need-vase:tarball sang.lbl-view)))) *labels:b329)
   ::  enumerate all accounts from labels (xpub entries with account name)
   =/  all-refs=(list @t)
     %+  murn  ~(tap by xpub.lbls)

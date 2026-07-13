@@ -32,19 +32,19 @@
   =/  ref=@t
     (~(dog jo:json-utils [%o args.st]) /account so:dejs:format)
   ::  load labels
-  ;<  lbl-seen=seen:nexus  bind:m
+  ;<  lbl-view=view:nexus  bind:m
     (peek:io [%& %& /apps/'wallet.wallet_app' %'labels.wallet_labels'] ~)
   =/  lbls=labels:b329
-    ?.  ?=([%& %file *] lbl-seen)  *labels:b329
-    (fall (mole |.(!<(labels:b329 (need-vase:tarball sang.p.lbl-seen)))) *labels:b329)
+    ?.  ?=([%file *] lbl-view)  *labels:b329
+    (fall (mole |.(!<(labels:b329 (need-vase:tarball sang.lbl-view)))) *labels:b329)
   ?.  (has-account:aio lbls ref)
     (pure:m [%error 'Account not found'])
   ::  load secrets for xprv derivation
-  ;<  ws-seen=seen:nexus  bind:m
+  ;<  ws-view=view:nexus  bind:m
     (peek:io [%& %& /apps/'wallet.wallet_app' %'secrets.wallet_secrets'] ~)
   =/  wstore=secrets
-    ?.  ?=([%& %file *] ws-seen)  *secrets
-    (fall (mole |.(!<(secrets (need-vase:tarball sang.p.ws-seen)))) *secrets)
+    ?.  ?=([%file *] ws-view)  *secrets
+    (fall (mole |.(!<(secrets (need-vase:tarball sang.ws-view)))) *secrets)
   ::  extract account metadata from labels
   =/  network=network  (get-acct-network:aio lbls ref)
   =/  og=(unit parsed-origin:b329)  (get-acct-origin:aio lbls ref)

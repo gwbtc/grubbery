@@ -121,10 +121,10 @@
         ~&  >>  ["%tg-channel: new messages" (lent new-msgs)]
         ;<  now=@da  bind:m  get-time:io
         =/  inbox-road=road:tarball  (cord-to-road:tarball './inbox.json')
-        ;<  cur-seen=seen:nexus  bind:m  (peek:io inbox-road ~)
+        ;<  cur-view=view:nexus  bind:m  (peek:io inbox-road ~)
         =/  cur-inbox=(list json)
-          ?.  ?=([%& %file *] cur-seen)  ~
-          =/  j=json  (fall (mole |.(!<(json (need-vase:tarball sang.p.cur-seen)))) *json)
+          ?.  ?=([%file *] cur-view)  ~
+          =/  j=json  (fall (mole |.(!<(json (need-vase:tarball sang.cur-view)))) *json)
           ?.  ?=(%a -.j)  ~
           p.j
         =/  new-entries=(list json)
@@ -257,10 +257,10 @@
   =/  m  (fiber:fiber:nexus ,tg-config)
   ^-  form:m
   =/  road=road:tarball  (cord-to-road:tarball './config.json')
-  ;<  =seen:nexus  bind:m  (peek:io road `[/ %json])
-  ?.  ?=([%& %file *] seen)
+  ;<  =view:nexus  bind:m  (peek:io road `[/ %json])
+  ?.  ?=([%file *] view)
     (pure:m ['' ''])
-  =/  cfg=json  (fall (mole |.(!<(json (need-vase:tarball sang.p.seen)))) *json)
+  =/  cfg=json  (fall (mole |.(!<(json (need-vase:tarball sang.view)))) *json)
   ?.  ?=(%o -.cfg)
     (pure:m ['' ''])
   =/  get

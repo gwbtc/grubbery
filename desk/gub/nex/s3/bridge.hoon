@@ -60,8 +60,8 @@
           (ancestor-road:io [/s3 %bridge] [%& / %'mapping.json'])
         ;<  mappings=wave:nexus  bind:m  (keep:io /mapping map-rd ~)
         |-
-        ;<  =seen:nexus  bind:m  (peek:io map-rd ~)
-        ;<  ~  bind:m  (replace:io (manx-to-html (bridge-page (read-bridges seen))))
+        ;<  =view:nexus  bind:m  (peek:io map-rd ~)
+        ;<  ~  bind:m  (replace:io (manx-to-html (bridge-page (read-bridges view))))
         ;<  upd=wave:nexus  bind:m  (take-news:io /mapping)
         $
         ::
@@ -264,17 +264,17 @@
           stay:m
         =/  local-road=road:tarball  [%& %| (text-to-path local-path.entry)]
         ;<  init=wave:nexus  bind:m  (keep:io /sync local-road ~)
-        ;<  init-seen=seen:nexus  bind:m  (peek:io local-road ~)
-        =/  current=(map @t @ud)  (ball-file-mugs init-seen entry)
+        ;<  init-view=view:nexus  bind:m  (peek:io local-road ~)
+        =/  current=(map @t @ud)  (ball-file-mugs init-view entry)
         ;<  ~  bind:m  (push-changed creds entry current ~)
         ;<  ~  bind:m
           (log-msg 'info' (crip "Sync #{(trip id)} watching {(trip local-path.entry)} ({<~(wyt by current)>} files)"))
         =/  known=(map @t @ud)  current
         |-
         ;<  upd=wave:nexus  bind:m  (take-news:io /sync)
-        ;<  sync-seen=seen:nexus  bind:m  (peek:io local-road ~)
+        ;<  sync-view=view:nexus  bind:m  (peek:io local-road ~)
         ;<  creds=s3-creds  bind:m  read-creds
-        =/  now=(map @t @ud)  (ball-file-mugs sync-seen entry)
+        =/  now=(map @t @ud)  (ball-file-mugs sync-view entry)
         =/  changed=(list @t)
           %+  murn  ~(tap by now)
           |=  [key=@t mug=@ud]
@@ -289,7 +289,7 @@
           `key
         ?:  &(=(~ changed) =(~ deleted))
           $(known now)
-        ;<  ~  bind:m  (push-keys creds entry changed sync-seen)
+        ;<  ~  bind:m  (push-keys creds entry changed sync-view)
         ;<  ~  bind:m  (delete-keys creds deleted)
         ;<  ~  bind:m
           (log-msg 'info' (crip "Sync #{(trip id)}: {<(lent changed)>} updated, {<(lent deleted)>} deleted"))
@@ -339,10 +339,10 @@
   ^-  form:m
   ;<  rd=road:tarball  bind:m
     (ancestor-road:io [/s3 %bridge] [%& / %'creds.json'])
-  ;<  =seen:nexus  bind:m  (peek:io rd ~)
+  ;<  =view:nexus  bind:m  (peek:io rd ~)
   =/  jon=json
-    ?.  ?=([%& %file *] seen)  [%o ~]
-    (fall (mole |.(!<(json (need-vase:tarball sang.p.seen)))) [%o ~])
+    ?.  ?=([%file *] view)  [%o ~]
+    (fall (mole |.(!<(json (need-vase:tarball sang.view)))) [%o ~])
   ?.  ?=(%o -.jon)  (pure:m *s3-creds)
   %-  pure:m
   :*  (get-str jon 'access_key')
@@ -357,9 +357,9 @@
   ^-  form:m
   ;<  rd=road:tarball  bind:m
     (ancestor-road:io [/s3 %bridge] [%& / %'source.json'])
-  ;<  =seen:nexus  bind:m  (peek:io rd ~)
-  ?.  ?=([%& %file *] seen)  (pure:m '')
-  =/  jon=json  (fall (mole |.(!<(json (need-vase:tarball sang.p.seen)))) s+'')
+  ;<  =view:nexus  bind:m  (peek:io rd ~)
+  ?.  ?=([%file *] view)  (pure:m '')
+  =/  jon=json  (fall (mole |.(!<(json (need-vase:tarball sang.view)))) s+'')
   ?.  ?=(%s -.jon)  (pure:m '')
   (pure:m p.jon)
 ::
@@ -392,9 +392,9 @@
   ?:  =('' src)  (pure:m ~)
   ;<  rd=road:tarball  bind:m
     (ancestor-road:io [/s3 %bridge] [%& / %'mapping.json'])
-  ;<  =seen:nexus  bind:m  (peek:io rd ~)
-  ?.  ?=([%& %file *] seen)  (pure:m ~)
-  =/  jon=json  (fall (mole |.(!<(json (need-vase:tarball sang.p.seen)))) [%a ~])
+  ;<  =view:nexus  bind:m  (peek:io rd ~)
+  ?.  ?=([%file *] view)  (pure:m ~)
+  =/  jon=json  (fall (mole |.(!<(json (need-vase:tarball sang.view)))) [%a ~])
   =/  body=@t  (en:json:html jon)
   ;<  resp=client-response:iris  bind:m  (s3-request cfg 'PUT' src '' `body)
   ?.  ?=(%finished -.resp)
@@ -408,10 +408,10 @@
   ^-  form:m
   ;<  rd=road:tarball  bind:m
     (ancestor-road:io [/s3 %bridge] [%& / %'mapping.json'])
-  ;<  =seen:nexus  bind:m  (peek:io rd ~)
+  ;<  =view:nexus  bind:m  (peek:io rd ~)
   =/  jon=json
-    ?.  ?=([%& %file *] seen)  [%a ~]
-    (fall (mole |.(!<(json (need-vase:tarball sang.p.seen)))) [%a ~])
+    ?.  ?=([%file *] view)  [%a ~]
+    (fall (mole |.(!<(json (need-vase:tarball sang.view)))) [%a ~])
   ?.  ?=(%a -.jon)  (pure:m ~)
   %-  pure:m
   %+  murn  p.jon
@@ -474,10 +474,10 @@
   ^-  form:m
   ;<  rd=road:tarball  bind:m
     (ancestor-road:io [/s3 %bridge] [%& / %'sync-status.json'])
-  ;<  =seen:nexus  bind:m  (peek:io rd ~)
+  ;<  =view:nexus  bind:m  (peek:io rd ~)
   =/  existing=(set @t)
-    ?.  ?=([%& %file *] seen)  ~
-    =/  jon=json  (fall (mole |.(!<(json (need-vase:tarball sang.p.seen)))) [%a ~])
+    ?.  ?=([%file *] view)  ~
+    =/  jon=json  (fall (mole |.(!<(json (need-vase:tarball sang.view)))) [%a ~])
     ?.  ?=(%a -.jon)  ~
     %-  ~(gas in *(set @t))
     (murn p.jon |=(j=json ?.(?=(%s -.j) ~ `p.j)))
@@ -500,21 +500,21 @@
     ==
   ;<  rd=road:tarball  bind:m
     (ancestor-road:io [/s3 %bridge] [%& / %'log.json'])
-  ;<  =seen:nexus  bind:m  (peek:io rd ~)
+  ;<  =view:nexus  bind:m  (peek:io rd ~)
   =/  existing=(list json)
-    ?.  ?=([%& %file *] seen)  ~
-    =/  jon=json  (fall (mole |.(!<(json (need-vase:tarball sang.p.seen)))) [%a ~])
+    ?.  ?=([%file *] view)  ~
+    =/  jon=json  (fall (mole |.(!<(json (need-vase:tarball sang.view)))) [%a ~])
     ?.  ?=(%a -.jon)  ~
     p.jon
   =/  new=(list json)  (scag 50 ^-((list json) [entry existing]))
   (over:io rd [[/ %json] [%a new]])
 ::
 ++  read-bridges
-  |=  =seen:nexus
+  |=  =view:nexus
   ^-  (list bridge-entry)
-  ?.  ?=([%& %file *] seen)  ~
+  ?.  ?=([%file *] view)  ~
   =/  jon=json
-    (fall (mole |.(!<(json (need-vase:tarball sang.p.seen)))) [%a ~])
+    (fall (mole |.(!<(json (need-vase:tarball sang.view)))) [%a ~])
   ?.  ?=(%a -.jon)  ~
   %+  murn  p.jon
   |=  j=json
@@ -714,11 +714,11 @@
 ::  Build map of s3-key -> mug from a namespace view
 ::
 ++  ball-file-mugs
-  |=  [=seen:nexus =bridge-entry]
+  |=  [=view:nexus =bridge-entry]
   ^-  (map @t @ud)
-  ?.  ?=([%& %ball *] seen)  ~
+  ?.  ?=([%ball *] view)  ~
   =/  files=(list [=rail:tarball =sang:tarball])
-    (list-ball-files ball.p.seen (text-to-path local-path.bridge-entry))
+    (list-ball-files ball.view (text-to-path local-path.bridge-entry))
   %-  malt
   %+  murn  files
   |=  [=rail:tarball =sang:tarball]
@@ -733,12 +733,12 @@
 ::  Push only specific keys from a view
 ::
 ++  push-keys
-  |=  [cfg=s3-creds =bridge-entry keys=(list @t) =seen:nexus]
+  |=  [cfg=s3-creds =bridge-entry keys=(list @t) =view:nexus]
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
-  ?.  ?=([%& %ball *] seen)  (pure:m ~)
+  ?.  ?=([%ball *] view)  (pure:m ~)
   =/  files=(list [=rail:tarball =sang:tarball])
-    (list-ball-files ball.p.seen (text-to-path local-path.bridge-entry))
+    (list-ball-files ball.view (text-to-path local-path.bridge-entry))
   =/  key-set=(set @t)  (silt keys)
   =/  remaining=(list [rail:tarball sang:tarball])
     %+  skim  files
@@ -767,10 +767,10 @@
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
   =/  local-road=road:tarball  [%& %| (text-to-path local-path.bridge-entry)]
-  ;<  =seen:nexus  bind:m  (peek:io local-road ~)
-  ?.  ?=([%& %ball *] seen)  (pure:m ~)
+  ;<  =view:nexus  bind:m  (peek:io local-road ~)
+  ?.  ?=([%ball *] view)  (pure:m ~)
   =/  files=(list [=rail:tarball =sang:tarball])
-    (list-ball-files ball.p.seen (text-to-path local-path.bridge-entry))
+    (list-ball-files ball.view (text-to-path local-path.bridge-entry))
   |-
   ?~  files  (pure:m ~)
   =/  [=rail:tarball =sang:tarball]  i.files

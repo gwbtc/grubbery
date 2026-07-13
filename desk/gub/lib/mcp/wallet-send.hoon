@@ -49,19 +49,19 @@
   ?:  |(=('' dest-addr) =(0 amount))
     (pure:m [%error 'Missing address or amount'])
   ::  load labels
-  ;<  lbl-seen=seen:nexus  bind:m
+  ;<  lbl-view=view:nexus  bind:m
     (peek:io [%& %& /apps/'wallet.wallet_app' %'labels.wallet_labels'] ~)
   =/  lbls=labels:b329
-    ?.  ?=([%& %file *] lbl-seen)  *labels:b329
-    (fall (mole |.(!<(labels:b329 (need-vase:tarball sang.p.lbl-seen)))) *labels:b329)
+    ?.  ?=([%file *] lbl-view)  *labels:b329
+    (fall (mole |.(!<(labels:b329 (need-vase:tarball sang.lbl-view)))) *labels:b329)
   ?.  (has-account:aio lbls ref)
     (pure:m [%error 'Account not found'])
   ::  load secrets for xprv derivation
-  ;<  ws-seen=seen:nexus  bind:m
+  ;<  ws-view=view:nexus  bind:m
     (peek:io [%& %& /apps/'wallet.wallet_app' %'secrets.wallet_secrets'] ~)
   =/  wstore=secrets
-    ?.  ?=([%& %file *] ws-seen)  *secrets
-    (fall (mole |.(!<(secrets (need-vase:tarball sang.p.ws-seen)))) *secrets)
+    ?.  ?=([%file *] ws-view)  *secrets
+    (fall (mole |.(!<(secrets (need-vase:tarball sang.ws-view)))) *secrets)
   ::  extract account metadata from labels
   =/  network=network  (get-acct-network:aio lbls ref)
   =/  og=(unit parsed-origin:b329)  (get-acct-origin:aio lbls ref)
@@ -115,10 +115,10 @@
   ::  wait for proc to complete
   |-
   ;<  =wave:nexus  bind:m  (take-news:io /send-proc)
-  ;<  proc-seen=seen:nexus  bind:m  (peek:io proc-road ~)
+  ;<  proc-view=view:nexus  bind:m  (peek:io proc-road ~)
   =/  proc-json=(unit json)
-    ?.  ?=([%& %file *] proc-seen)  ~
-    (mole |.(!<(json (need-vase:tarball sang.p.proc-seen))))
+    ?.  ?=([%file *] proc-view)  ~
+    (mole |.(!<(json (need-vase:tarball sang.proc-view))))
   =/  proc-status=@t
     ?~  proc-json  ''
     (~(dug jo:json-utils u.proc-json) /status so:dejs:format '')

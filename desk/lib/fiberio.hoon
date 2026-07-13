@@ -221,7 +221,10 @@
     [%done kept.u.in]
   ==
 ::  On crash recovery (prod is [~ tang]), log the error and wait for a
-::  poke to restart (expect %sig). On clean start (prod is ~), continue.
+::  poke to restart. On clean start (prod is ~), continue.
+::  Any poke restarts the process — %sig is the convention; a non-sig
+::  poke logs a warning but restarts anyway, and its payload is
+::  consumed (the restarted process never sees it).
 ::  Use at the top of a process to make it restartable:
 ::    ;<  ~  bind:m  (rise-wait prod "my-process: failed")
 ::    ::  startup code continues here
@@ -322,7 +325,7 @@
 ::
 ++  take-peek
   |=  =wire
-  =/  m  (fiber ,seen:nexus)
+  =/  m  (fiber ,view:nexus)
   ^-  form:m
   |=  input
   :+  ~  q.state
@@ -333,7 +336,7 @@
       [~ %peek * *]
     ?.  =(wire wire.u.in)
       [%skip ~]
-    [%done seen.u.in]
+    [%done view.u.in]
   ==
 ::  File operations: make, poke, peek, cull, sand
 ::
@@ -439,7 +442,7 @@
 ::
 ++  peek
   |=  [=road:tarball blot=(unit blot:tarball)]
-  =/  m  (fiber ,seen:nexus)
+  =/  m  (fiber ,view:nexus)
   ^-  form:m
   ;<  =wire  bind:m  (nonce /peek)
   ;<  ~  bind:m  (send-dart %node wire road %peek blot ~ %.y)
@@ -452,16 +455,16 @@
   |*  [=road:tarball a=mold]
   =/  m  (fiber ,(unit a))
   ^-  form:m
-  ;<  res=seen:nexus  bind:m  (peek road ~)
-  ?.  ?=([%& %file *] res)
+  ;<  res=view:nexus  bind:m  (peek road ~)
+  ?.  ?=([%file *] res)
     (pure:m ~)
-  (pure:m `!<(a (need-vase:tarball sang.p.res)))
+  (pure:m `!<(a (need-vase:tarball sang.res)))
 ::
 ::  Shallow peek: files at this level, subdir names only (no recursion)
 ::
 ++  peek-shallow
   |=  [=road:tarball blot=(unit blot:tarball)]
-  =/  m  (fiber ,seen:nexus)
+  =/  m  (fiber ,view:nexus)
   ^-  form:m
   ;<  =wire  bind:m  (nonce /peek)
   ;<  ~  bind:m  (send-dart %node wire road %peek blot ~ %.n)
@@ -471,7 +474,7 @@
 ::
 ++  peek-at
   |=  [=road:tarball blot=(unit blot:tarball) =case:nexus]
-  =/  m  (fiber ,seen:nexus)
+  =/  m  (fiber ,view:nexus)
   ^-  form:m
   ;<  =wire  bind:m  (nonce /peek)
   ;<  ~  bind:m  (send-dart %node wire road %peek blot `case %.y)
@@ -483,7 +486,7 @@
 ::
 ++  peek-remote
   |=  [=road:tarball =@p case=(unit case:nexus)]
-  =/  m  (fiber ,seen:nexus)
+  =/  m  (fiber ,view:nexus)
   ^-  form:m
   =/  remote-road=road:tarball
     ?-  -.road
@@ -508,8 +511,8 @@
   |=  =road:tarball
   =/  m  (fiber ,?)
   ^-  form:m
-  ;<  =seen:nexus  bind:m  (peek road ~)
-  (pure:m ?&(?=(%& -.seen) !?=(%none -.p.seen)))
+  ;<  =view:nexus  bind:m  (peek road ~)
+  (pure:m !?=(?(%none %miss %veto %tomb) -.view))
 ::
 ++  cull
   |=  =road:tarball
@@ -612,11 +615,11 @@
   ==
 ::
 ++  seek
-  |=  [=road:tarball =lobe:clay]
+  |=  [=road:tarball =nobe:nexus]
   =/  m  (fiber ,(each (list [=rail:tarball =cass:clay]) tang))
   ^-  form:m
   ;<  =wire  bind:m  (nonce /seek)
-  ;<  ~  bind:m  (send-dart %node wire road %seek lobe)
+  ;<  ~  bind:m  (send-dart %node wire road %seek nobe)
   |=  input
   :+  ~  q.state
   ?+  in  [%skip ~]
@@ -1382,20 +1385,20 @@
   |=  [src=road:tarball dst=road:tarball]
   =/  m  (fiber ,~)
   ^-  form:m
-  ;<  =seen:nexus  bind:m  (peek src ~)
-  ?.  ?=([%& %file *] seen)
+  ;<  =view:nexus  bind:m  (peek src ~)
+  ?.  ?=([%file *] view)
     ~|(%copy-grub-src-not-found !!)
-  (make dst |+[[p.sang.p.seen (sang-noun:tarball sang.p.seen)] ~])
+  (make dst |+[[p.sang.view (sang-noun:tarball sang.view)] ~])
 ::  +copy-fold: copy a directory from src to dst
 ::
 ++  copy-fold
   |=  [src=road:tarball dst=road:tarball]
   =/  m  (fiber ,~)
   ^-  form:m
-  ;<  =seen:nexus  bind:m  (peek src ~)
-  ?.  ?=([%& %ball *] seen)
+  ;<  =view:nexus  bind:m  (peek src ~)
+  ?.  ?=([%ball *] view)
     ~|(%copy-fold-src-not-found !!)
-  (make dst &+(ball-to-bole:tarball ball.p.seen))
+  (make dst &+(ball-to-bole:tarball ball.view))
 ::  +move-grub: move a file from src to dst (copy + delete)
 ::
 ++  move-grub

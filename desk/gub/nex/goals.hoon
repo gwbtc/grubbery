@@ -285,7 +285,7 @@
         ;<  init=wave:nexus  bind:m
           (keep:io /stores (cord-to-road:tarball './store/') ~)
         |-
-        ;<  =seen:nexus  bind:m  (peek:io (cord-to-road:tarball './store/') ~)
+        ;<  =view:nexus  bind:m  (peek:io (cord-to-road:tarball './store/') ~)
         =/  stores=(map @ta goal-store:goals)
           (seen-to-stores seen)
         =/  store-names=(list @ta)  (sort ~(tap in ~(key by stores)) aor)
@@ -342,12 +342,12 @@
 ::  Extract stores from a view (directory subscription)
 ::
 ++  seen-to-stores
-  |=  =seen:nexus
+  |=  =view:nexus
   ^-  (map @ta goal-store:goals)
-  ?.  ?=([%& %ball *] seen)  ~
-  ?~  fil.ball.p.seen  ~
+  ?.  ?=([%ball *] seen)  ~
+  ?~  fil.ball.view  ~
   =/  entries=(list [@ta [=sang:tarball gain=? bang=(unit tang)]])
-    ~(tap by contents.u.fil.ball.p.seen)
+    ~(tap by contents.u.fil.ball.view)
   =/  out=(map @ta goal-store:goals)  ~
   |-
   ?~  entries  out

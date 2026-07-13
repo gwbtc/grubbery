@@ -29,22 +29,22 @@
     (pure:m [%error 'Missing or invalid required arguments (path, s3_prefix)'])
   =/  [dir-path=@t s3-prefix=@t]  p.parsed
   =/  pax=path  (stab dir-path)
-  ;<  =seen:nexus  bind:m  (peek:io [%& %| pax] ~)
-  ?.  ?=([%& %ball *] seen)
+  ;<  =view:nexus  bind:m  (peek:io [%& %| pax] ~)
+  ?.  ?=([%ball *] view)
     (pure:m [%error (crip "Directory not found: {(trip dir-path)}")])
   =/  files-to-upload=(list [path @ta])
-    %+  turn  (collect-files-recursive:s3:tools ball.p.seen ~)
+    %+  turn  (collect-files-recursive:s3:tools ball.view ~)
     |=([p=path n=@ta] [(weld pax p) n])
   =/  uploaded=@ud  0
   |-
   ?~  files-to-upload
     (pure:m [%text (crip "Uploaded {<uploaded>} files to s3://{(trip s3-prefix)}")])
   =/  [file-path=path filename=@ta]  i.files-to-upload
-  ;<  file-seen=seen:nexus  bind:m
+  ;<  file-view=view:nexus  bind:m
     (peek:io [%& %& file-path filename] ~)
-  ?.  ?=([%& %file *] file-seen)
+  ?.  ?=([%file *] file-view)
     $(files-to-upload t.files-to-upload)
-  ;<  =mime  bind:m  (sage-to-mime:io (need-sage:tarball sang.p.file-seen))
+  ;<  =mime  bind:m  (sage-to-mime:io (need-sage:tarball sang.file-view))
   =/  text=@t  ;;(@t q.q.mime)
   =/  full-name=@ta  filename
   =/  relative-path=path

@@ -119,11 +119,11 @@
   |=  [eyre-id=@ta filename=@ta]
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
-  ;<  =seen:nexus  bind:m  (peek:io [%| 1 %& / filename] `[/ %mime])
-  ?.  ?=([%& %file *] seen)
+  ;<  =view:nexus  bind:m  (peek:io [%| 1 %& / filename] `[/ %mime])
+  ?.  ?=([%file *] view)
     ;<  ~  bind:m  (send-simple:srv eyre-id [[404 ~] `(as-octs:mimes:html 'Not found')])
     (pure:m ~)
-  =/  =mime  !<(mime (need-vase:tarball sang.p.seen))
+  =/  =mime  !<(mime (need-vase:tarball sang.view))
   ;<  ~  bind:m  (send-simple:srv eyre-id (mime-response:http-utils mime))
   (pure:m ~)
 ::
@@ -152,12 +152,12 @@
   |=  itin-id=@ta
   =/  m  (fiber:fiber:nexus ,(unit json))
   ^-  form:m
-  ;<  =seen:nexus  bind:m  (peek:io (itin-road itin-id) `[/ %json])
-  ?.  ?=([%& %file *] seen)
+  ;<  =view:nexus  bind:m  (peek:io (itin-road itin-id) `[/ %json])
+  ?.  ?=([%file *] view)
     (pure:m ~)
-  ?:  (is-boom:tarball sang.p.seen)
+  ?:  (is-boom:tarball sang.view)
     (pure:m ~)
-  =/  jon=json  !<(json (need-vase:tarball sang.p.seen))
+  =/  jon=json  !<(json (need-vase:tarball sang.view))
   (pure:m `jon)
 ::
 ::  +save-itinerary: write an itinerary file
@@ -174,11 +174,11 @@
   |=  eyre-id=@ta
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
-  ;<  dir-seen=seen:nexus  bind:m  (peek:io [%| 1 %| /itineraries] ~)
-  ?.  ?=([%& %ball *] dir-seen)
+  ;<  dir-view=view:nexus  bind:m  (peek:io [%| 1 %| /itineraries] ~)
+  ?.  ?=([%ball *] dir-view)
     ;<  ~  bind:m  (send-json eyre-id '[]')
     (pure:m ~)
-  =/  =lump:tarball  (fall fil.ball.p.dir-seen *lump:tarball)
+  =/  =lump:tarball  (fall fil.ball.dir-view *lump:tarball)
   =/  entries=(list json)
     %+  murn  ~(tap by contents.lump)
     |=  [name=@ta =sang:tarball gain=? bang=(unit tang)]

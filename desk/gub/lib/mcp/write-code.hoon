@@ -113,10 +113,10 @@
   ?~  new-string
     (pure:m [%error 'Missing required argument: new_string'])
   ::  read current source
-  ;<  =seen:nexus  bind:m  (peek:io src-road ~)
-  ?.  ?=([%& %file *] seen)
+  ;<  =view:nexus  bind:m  (peek:io src-road ~)
+  ?.  ?=([%file *] view)
     (pure:m [%error (crip "File not found: {(trip pax)}/{(trip nam)}.hoon")])
-  =/  current=@t  !<(@t (need-vase:tarball sang.p.seen))
+  =/  current=@t  !<(@t (need-vase:tarball sang.view))
   =/  result=(unit tape)
     (replace (trip current) (trip u.old-string) (trip u.new-string))
   ?~  result

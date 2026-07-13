@@ -65,27 +65,27 @@
             (stab u.p)
           (handle-stream eyre-id req watch-path)
         ~&  >  %explorer-dispatch-start
-        ;<  dir-seen=seen:nexus  bind:m  (peek-shallow:io [%& %| raw-path] ~)
+        ;<  dir-view=view:nexus  bind:m  (peek-shallow:io [%& %| raw-path] ~)
         ~&  >  %explorer-peek-done
-        ?.  ?=([%& %ball *] dir-seen)
+        ?.  ?=([%ball *] dir-view)
           ::  Not a directory — try parent for file view
           ?~  raw-path
             ;<  ~  bind:m  (send-simple:srv eyre-id [[404 ~] `(as-octs:mimes:html 'Not found')])
             (pure:m ~)
           =/  parent=path  (snip `path`raw-path)
-          ;<  par-seen=seen:nexus  bind:m  (peek-shallow:io [%& %| parent] ~)
-          ?.  ?=([%& %ball *] par-seen)
+          ;<  par-view=view:nexus  bind:m  (peek-shallow:io [%& %| parent] ~)
+          ?.  ?=([%ball *] par-view)
             ;<  ~  bind:m  (send-simple:srv eyre-id [[404 ~] `(as-octs:mimes:html 'Not found')])
             (pure:m ~)
           ?:  =('POST' method.request.req)
-            (handle-post eyre-id raw-path ~ ball.p.par-seen req)
-          (handle-get eyre-id raw-path %.n ~ ball.p.par-seen wave.p.par-seen args)
+            (handle-post eyre-id raw-path ~ ball.par-view req)
+          (handle-get eyre-id raw-path %.n ~ ball.par-view wave.par-view args)
         ;<  dir-weir=(unit weir:nexus)  bind:m
           (read-weir-from-parent raw-path)
         ?:  =('POST' method.request.req)
-          (handle-post eyre-id raw-path dir-weir ball.p.dir-seen req)
+          (handle-post eyre-id raw-path dir-weir ball.dir-view req)
         ~&  >  %explorer-handle-get-start
-        (handle-get eyre-id raw-path %.y dir-weir ball.p.dir-seen wave.p.dir-seen args)
+        (handle-get eyre-id raw-path %.y dir-weir ball.dir-view wave.dir-view args)
       ==
     --
 ::
@@ -101,9 +101,9 @@
   ?~  pax  (pure:m ~)
   =/  parent=path  (snip `path`pax)
   =/  child-name=@ta  (rear pax)
-  ;<  par-seen=seen:nexus  bind:m  (peek-shallow:io [%& %| parent] ~)
-  ?.  ?=([%& %ball *] par-seen)  (pure:m ~)
-  =/  child=(unit ball:tarball)  (~(get by dir.ball.p.par-seen) child-name)
+  ;<  par-view=view:nexus  bind:m  (peek-shallow:io [%& %| parent] ~)
+  ?.  ?=([%ball *] par-view)  (pure:m ~)
+  =/  child=(unit ball:tarball)  (~(get by dir.ball.par-view) child-name)
   ?~  child  (pure:m ~)
   ?~  fil.u.child  (pure:m ~)
   (pure:m weir.u.fil.u.child)
@@ -479,15 +479,15 @@
     ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'SSE only')])
     (pure:m ~)
   ;<  ~  bind:m  (send-header:srv eyre-id sse-header:http-utils)
-  ;<  initial-seen=seen:nexus  bind:m  (peek:io [%& %| ~] ~)
+  ;<  initial-view=view:nexus  bind:m  (peek:io [%& %| ~] ~)
   =/  prev-wave=wave:nexus
-    ?.  ?&(?=(%& -.initial-seen) ?=(%ball -.p.initial-seen))
+    ?.  ?=(%ball -.initial-view)
       *wave:nexus
-    wave.p.initial-seen
+    wave.initial-view
   =/  prev-weir=(unit weir:nexus)
-    ?.  ?&(?=(%& -.initial-seen) ?=(%ball -.p.initial-seen))
+    ?.  ?=(%ball -.initial-view)
       ~
-    =/  s=ball:tarball  (~(dip ba:tarball ball.p.initial-seen) watch-path)
+    =/  s=ball:tarball  (~(dip ba:tarball ball.initial-view) watch-path)
     ?~(fil.s ~ weir.u.fil.s)
   ;<  *  bind:m  (keep:io /ball [%& %| ~] ~)
   ;<  now=@da  bind:m  get-time:io
@@ -506,10 +506,10 @@
       %+  roll  ~(val by changes)
       |=  [c=cass:clay best=cass:clay]
       ?:((gth ud.c ud.best) c best)
-    ;<  =seen:nexus  bind:m  (peek-at:io [%& %| ~] ~ [%ud ud.max-cas])
-    ?.  ?=([%& %ball *] seen)  $
-    =/  root=ball:tarball  ball.p.seen
-    =/  root-wave=wave:nexus  wave.p.seen
+    ;<  =view:nexus  bind:m  (peek-at:io [%& %| ~] ~ [%ud ud.max-cas])
+    ?.  ?=([%ball *] view)  $
+    =/  root=ball:tarball  ball.view
+    =/  root-wave=wave:nexus  wave.view
     =/  watch-ball=ball:tarball  (~(dip ba:tarball root) watch-path)
     =/  new-weir=(unit weir:nexus)  ?~(fil.watch-ball ~ weir.u.fil.watch-ball)
     =/  what=(set lane:tarball)  ~(key by changes)

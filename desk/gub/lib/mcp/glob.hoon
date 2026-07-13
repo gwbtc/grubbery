@@ -41,12 +41,12 @@
     ?:  =('' p.u.mk)  ~
     `p.u.mk
   ::  Browse root to get entire ball
-  ;<  =seen:nexus  bind:m  (peek:io [%& %| ~] ~)
-  ?.  ?=([%& %ball *] seen)
+  ;<  =view:nexus  bind:m  (peek:io [%& %| ~] ~)
+  ?.  ?=([%ball *] view)
     (pure:m [%error 'Could not read ball'])
   ::  Flatten ball to list of [rail content] pairs
   =/  all-files=(list [rail:tarball sang:tarball])
-    ~(tap ba:tarball ball.p.seen)
+    ~(tap ba:tarball ball.view)
   ::  Filter by patterns
   =/  matches=(list [rail:tarball @tas])
     %+  murn  all-files

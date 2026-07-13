@@ -348,13 +348,13 @@
   ::  put stores noun at refs=0 (leaf jects manage refs)
   =/  s  ~(. si:nexus *silo:nexus)
   =/  =noun  'hello'
-  =/  [=lobe:clay new-silo=silo:nexus]  (put:s noun)
+  =/  [=nobe:nexus new-silo=silo:nexus]  (put:s noun)
   =/  s2  ~(. si:nexus new-silo)
-  =/  got  (need (get:s2 lobe))
+  =/  got  (need (get:s2 nobe))
   ;:  weld
     %+  expect-eq
       !>  `@ud`0
-    !>  refs:(~(got by nouns.new-silo) lobe)
+    !>  refs:(~(got by nouns.new-silo) nobe)
   ::
     %+  expect-eq
       !>  noun
@@ -365,9 +365,9 @@
   ::  Inserting the same noun twice is a no-op (refs unchanged)
   =/  s  ~(. si:nexus *silo:nexus)
   =/  =noun  'hello'
-  =/  [lobe1=lobe:clay silo1=silo:nexus]  (put:s noun)
+  =/  [lobe1=nobe:nexus silo1=silo:nexus]  (put:s noun)
   =/  s2  ~(. si:nexus silo1)
-  =/  [lobe2=lobe:clay silo2=silo:nexus]  (put:s2 noun)
+  =/  [lobe2=nobe:nexus silo2=silo:nexus]  (put:s2 noun)
   ;:  weld
     %+  expect-eq
       !>  lobe1
@@ -382,32 +382,32 @@
   ::  Dropping with refs>1 decrements
   =/  s  ~(. si:nexus *silo:nexus)
   =/  =noun  'hello'
-  =/  [=lobe:clay silo1=silo:nexus]  (put:s noun)
+  =/  [=nobe:nexus silo1=silo:nexus]  (put:s noun)
   ::  bump via leaf ject to get refs=2
-  =/  silo2=silo:nexus  (~(bump-ref si:nexus silo1) lobe)
-  =/  silo3=silo:nexus  (~(bump-ref si:nexus silo2) lobe)
+  =/  silo2=silo:nexus  (~(bump-ref si:nexus silo1) nobe)
+  =/  silo3=silo:nexus  (~(bump-ref si:nexus silo2) nobe)
   ::  refs=2, drop once -> refs=1
-  =/  silo4=silo:nexus  (~(drop si:nexus silo3) lobe)
+  =/  silo4=silo:nexus  (~(drop si:nexus silo3) nobe)
   %+  expect-eq
     !>  `@ud`1
-  !>  refs:(~(got by nouns.silo4) lobe)
+  !>  refs:(~(got by nouns.silo4) nobe)
 ::
 ++  test-si-drop-deletes-at-zero
   ::  Dropping with refs=1 removes from silo
   =/  s  ~(. si:nexus *silo:nexus)
   =/  =noun  'hello'
-  =/  [=lobe:clay silo1=silo:nexus]  (put:s noun)
+  =/  [=nobe:nexus silo1=silo:nexus]  (put:s noun)
   ::  bump to refs=1 via leaf ject ownership
-  =/  silo2=silo:nexus  (~(bump-ref si:nexus silo1) lobe)
-  =/  silo3=silo:nexus  (~(drop si:nexus silo2) lobe)
+  =/  silo2=silo:nexus  (~(bump-ref si:nexus silo1) nobe)
+  =/  silo3=silo:nexus  (~(drop si:nexus silo2) nobe)
   %+  expect-eq
     !>  ~
-  !>  (~(get by nouns.silo3) lobe)
+  !>  (~(get by nouns.silo3) nobe)
 ::
 ++  test-si-drop-missing-is-noop
   ::  Dropping a nonexistent lobe is a no-op
   =/  s  ~(. si:nexus *silo:nexus)
-  =/  fake-lobe=lobe:clay  `@uvI`(sham 'fake')
+  =/  fake-lobe=nobe:nexus  `@uvI`(sham 'fake')
   %+  expect-eq
     !>  *silo:nexus
   !>  (drop:s fake-lobe)
@@ -415,7 +415,7 @@
 ++  test-si-get-missing
   ::  Getting a nonexistent lobe returns ~
   =/  s  ~(. si:nexus *silo:nexus)
-  =/  fake-lobe=lobe:clay  `@uvI`(sham 'fake')
+  =/  fake-lobe=nobe:nexus  `@uvI`(sham 'fake')
   %+  expect-eq
     !>  `(unit noun)`~
   !>  (get:s fake-lobe)
@@ -423,9 +423,9 @@
 ++  test-si-different-content-different-lobe
   ::  Different content produces different lobes
   =/  s  ~(. si:nexus *silo:nexus)
-  =/  [lobe1=lobe:clay silo1=silo:nexus]  (put:s 'hello')
+  =/  [lobe1=nobe:nexus silo1=silo:nexus]  (put:s 'hello')
   =/  s2  ~(. si:nexus silo1)
-  =/  [lobe2=lobe:clay silo2=silo:nexus]  (put:s2 'world')
+  =/  [lobe2=nobe:nexus silo2=silo:nexus]  (put:s2 'world')
   ;:  weld
     %+  expect-eq
       !>  %.n
@@ -439,8 +439,8 @@
 ++  test-si-same-noun-same-lobe
   ::  Same noun always produces same lobe regardless of blot
   =/  s  ~(. si:nexus *silo:nexus)
-  =/  [lobe1=lobe:clay *]  (put:s 'hello')
-  =/  [lobe2=lobe:clay *]  (put:s 'hello')
+  =/  [lobe1=nobe:nexus *]  (put:s 'hello')
+  =/  [lobe2=nobe:nexus *]  (put:s 'hello')
   %+  expect-eq
     !>  lobe1
   !>  lobe2
@@ -453,8 +453,7 @@
   !>  (hash:s 'hello')
 ::
 ++  test-si-record-accumulates
-  ::  record accumulates history entries
-  =/  s  ~(. si:nexus *silo:nexus)
+  ::  firm records accumulate in history and silo
   =/  page1=bask:tarball  [[/ %txt] 'first']
   =/  page2=bask:tarball  [[/ %txt] 'second']
   =/  page3=bask:tarball  [[/ %txt] 'third']
@@ -462,12 +461,12 @@
   =/  cass2=cass:clay  [2 ~2024.1.2]
   =/  cass3=cass:clay  [3 ~2024.1.3]
   =/  hist=hist:nexus  ~
-  =/  [lobe1=lobe:clay silo1=silo:nexus hist1=_hist]
-    (~(record si:nexus *silo:nexus) q.page1 p.page1 0v0 %.n cass1 [0 ~2024.1.1] hist)
-  =/  [lobe2=lobe:clay silo2=silo:nexus hist2=_hist]
-    (~(record si:nexus silo1) q.page2 p.page2 0v0 %.n cass2 cass1 hist1)
-  =/  [lobe3=lobe:clay silo3=silo:nexus hist3=_hist]
-    (~(record si:nexus silo2) q.page3 p.page3 0v0 %.n cass3 cass2 hist2)
+  =/  [lobe1=nobe:nexus silo1=silo:nexus hist1=_hist]
+    (~(record si:nexus *silo:nexus) q.page1 p.page1 0v0 %.y cass1 [0 ~2024.1.1] hist)
+  =/  [lobe2=nobe:nexus silo2=silo:nexus hist2=_hist]
+    (~(record si:nexus silo1) q.page2 p.page2 0v0 %.y cass2 cass1 hist1)
+  =/  [lobe3=nobe:nexus silo3=silo:nexus hist3=_hist]
+    (~(record si:nexus silo2) q.page3 p.page3 0v0 %.y cass3 cass2 hist2)
   ;:  weld
     ::  All 3 entries in hist
     %+  expect-eq
@@ -477,23 +476,22 @@
     %+  expect-eq
       !>  `@ud`3
     !>  ~(wyt by nouns.silo3)
-  ::  Oldest entry has a live pace with an ject-lobe
+  ::  Oldest entry has a live firm pace with an ject-lobe
     =/  oldest-pace=(unit pace:hist:nexus)  (get-pace:hist:nexus hist3 cass1)
-    %+  expect-eq  !>(%.y)  !>(?=([~ %temp [~ @]] oldest-pace))
+    %+  expect-eq  !>(%.y)  !>(?=([~ %firm [~ @]] oldest-pace))
   ==
 ::
 ++  test-si-record-two-versions
-  ::  recording two versions keeps both in history and silo
-  =/  s  ~(. si:nexus *silo:nexus)
+  ::  two firm versions both stay in silo
   =/  page1=bask:tarball  [[/ %txt] 'first']
   =/  page2=bask:tarball  [[/ %txt] 'second']
   =/  cass1=cass:clay  [1 ~2024.1.1]
   =/  cass2=cass:clay  [2 ~2024.1.2]
   =/  hist=hist:nexus  ~
-  =/  [lobe1=lobe:clay silo1=silo:nexus hist1=_hist]
-    (~(record si:nexus *silo:nexus) q.page1 p.page1 0v0 %.n cass1 [0 ~2024.1.1] hist)
-  =/  [lobe2=lobe:clay silo2=silo:nexus hist2=_hist]
-    (~(record si:nexus silo1) q.page2 p.page2 0v0 %.n cass2 cass1 hist1)
+  =/  [lobe1=nobe:nexus silo1=silo:nexus hist1=_hist]
+    (~(record si:nexus *silo:nexus) q.page1 p.page1 0v0 %.y cass1 [0 ~2024.1.1] hist)
+  =/  [lobe2=nobe:nexus silo2=silo:nexus hist2=_hist]
+    (~(record si:nexus silo1) q.page2 p.page2 0v0 %.y cass2 cass1 hist1)
   ;:  weld
     ::  2 entries in hist (both live)
     %+  expect-eq
@@ -514,9 +512,9 @@
   =/  cass1=cass:clay  [1 ~2024.1.1]
   =/  cass2=cass:clay  [2 ~2024.1.2]
   =/  hist=hist:nexus  ~
-  =/  [lobe1=lobe:clay silo1=silo:nexus hist1=_hist]
+  =/  [lobe1=nobe:nexus silo1=silo:nexus hist1=_hist]
     (~(record si:nexus *silo:nexus) q.bask p.bask 0v0 %.n cass1 [0 ~2024.1.1] hist)
-  =/  [lobe2=lobe:clay silo2=silo:nexus hist2=_hist]
+  =/  [lobe2=nobe:nexus silo2=silo:nexus hist2=_hist]
     (~(record si:nexus silo1) q.bask p.bask 0v0 %.n cass2 cass1 hist1)
   ;:  weld
     ::  Same lobe (content-addressed)
@@ -530,17 +528,17 @@
   ==
 ::
 ++  test-si-drop-hist-all-refs
-  ::  drop-hist removes all refs from silo
+  ::  drop-hist removes all firm refs from silo
   =/  page1=bask:tarball  [[/ %txt] 'aaa']
   =/  page2=bask:tarball  [[/ %txt] 'bbb']
   =/  page3=bask:tarball  [[/ %txt] 'ccc']
   =/  hist=hist:nexus  ~
   =/  [* silo1=silo:nexus hist1=_hist]
-    (~(record si:nexus *silo:nexus) q.page1 p.page1 0v0 %.n [1 ~2024.1.1] [0 ~2024.1.1] hist)
+    (~(record si:nexus *silo:nexus) q.page1 p.page1 0v0 %.y [1 ~2024.1.1] [0 ~2024.1.1] hist)
   =/  [* silo2=silo:nexus hist2=_hist]
-    (~(record si:nexus silo1) q.page2 p.page2 0v0 %.n [2 ~2024.1.2] [1 ~2024.1.1] hist1)
+    (~(record si:nexus silo1) q.page2 p.page2 0v0 %.y [2 ~2024.1.2] [1 ~2024.1.1] hist1)
   =/  [* silo3=silo:nexus hist3=_hist]
-    (~(record si:nexus silo2) q.page3 p.page3 0v0 %.n [3 ~2024.1.3] [2 ~2024.1.2] hist2)
+    (~(record si:nexus silo2) q.page3 p.page3 0v0 %.y [3 ~2024.1.3] [2 ~2024.1.2] hist2)
   ::  3 entries in silo
   ?>  =(3 ~(wyt by nouns.silo3))
   ::  Drop all
@@ -554,7 +552,7 @@
   =/  =bask:tarball  [[/ %txt] 'shared']
   =/  hist=hist:nexus  ~
   ::  Record same page twice with keep (2 hist entries, same lobe, refs=2)
-  =/  [=lobe:clay silo1=silo:nexus hist1=_hist]
+  =/  [=nobe:nexus silo1=silo:nexus hist1=_hist]
     (~(record si:nexus *silo:nexus) q.bask p.bask 0v0 %.n [1 ~2024.1.1] [0 ~2024.1.1] hist)
   =/  [* silo2=silo:nexus hist2=_hist]
     (~(record si:nexus silo1) q.bask p.bask 0v0 %.n [2 ~2024.1.2] [1 ~2024.1.1] hist1)
@@ -564,24 +562,96 @@
   %+  expect-eq
     !>  `@ud`0
   !>  ~(wyt by nouns.silo3)
+++  test-si-record-temp-tombs-previous
+  ::  temp entries get tombed on next write — only latest survives
+  =/  page1=bask:tarball  [[/ %txt] 'alpha']
+  =/  page2=bask:tarball  [[/ %txt] 'bravo']
+  =/  cass1=cass:clay  [1 ~2024.1.1]
+  =/  cass2=cass:clay  [2 ~2024.1.2]
+  =/  hist=hist:nexus  ~
+  =/  [lobe1=nobe:nexus silo1=silo:nexus hist1=_hist]
+    (~(record si:nexus *silo:nexus) q.page1 p.page1 0v0 %.n cass1 [0 ~2024.1.1] hist)
+  =/  [lobe2=nobe:nexus silo2=silo:nexus hist2=_hist]
+    (~(record si:nexus silo1) q.page2 p.page2 0v0 %.n cass2 cass1 hist1)
+  ;:  weld
+    ::  Hist still has 2 entries (tomb + live)
+    %+  expect-eq
+      !>  `@ud`2
+    !>  (lent (tap:hon:hist:nexus hist2))
+    ::  First entry is tombed
+    =/  old-pace=(unit pace:hist:nexus)  (get-pace:hist:nexus hist2 cass1)
+    %+  expect-eq  !>(%.y)  !>(?=([~ %tomb *] old-pace))
+    ::  Second entry is live temp
+    =/  new-pace=(unit pace:hist:nexus)  (get-pace:hist:nexus hist2 cass2)
+    %+  expect-eq  !>(%.y)  !>(?=([~ %temp [~ @]] new-pace))
+    ::  Only latest noun in silo
+    %+  expect-eq  !>(`@ud`1)  !>(~(wyt by nouns.silo2))
+    ::  Old lobe gone
+    %+  expect-eq  !>(%.n)  !>(?=(^ (~(get by nouns.silo2) lobe1)))
+    ::  New lobe present
+    %+  expect-eq  !>(%.y)  !>(?=(^ (~(get by nouns.silo2) lobe2)))
+  ==
+::
+++  test-si-record-firm-survives-next-write
+  ::  firm entries are NOT tombed on next write
+  =/  page1=bask:tarball  [[/ %txt] 'keep-me']
+  =/  page2=bask:tarball  [[/ %txt] 'also-keep']
+  =/  cass1=cass:clay  [1 ~2024.1.1]
+  =/  cass2=cass:clay  [2 ~2024.1.2]
+  =/  hist=hist:nexus  ~
+  =/  [lobe1=nobe:nexus silo1=silo:nexus hist1=_hist]
+    (~(record si:nexus *silo:nexus) q.page1 p.page1 0v0 %.y cass1 [0 ~2024.1.1] hist)
+  =/  [lobe2=nobe:nexus silo2=silo:nexus hist2=_hist]
+    (~(record si:nexus silo1) q.page2 p.page2 0v0 %.y cass2 cass1 hist1)
+  ;:  weld
+    ::  Both paces are firm (not tombed)
+    =/  p1=(unit pace:hist:nexus)  (get-pace:hist:nexus hist2 cass1)
+    %+  expect-eq  !>(%.y)  !>(?=([~ %firm [~ @]] p1))
+    =/  p2=(unit pace:hist:nexus)  (get-pace:hist:nexus hist2 cass2)
+    %+  expect-eq  !>(%.y)  !>(?=([~ %firm [~ @]] p2))
+    ::  Both nouns survive
+    %+  expect-eq  !>(`@ud`2)  !>(~(wyt by nouns.silo2))
+  ==
+::
+++  test-si-record-temp-three-versions
+  ::  three temp versions: only latest survives each step
+  =/  page1=bask:tarball  [[/ %txt] 'one']
+  =/  page2=bask:tarball  [[/ %txt] 'two']
+  =/  page3=bask:tarball  [[/ %txt] 'three']
+  =/  hist=hist:nexus  ~
+  =/  [* silo1=silo:nexus hist1=_hist]
+    (~(record si:nexus *silo:nexus) q.page1 p.page1 0v0 %.n [1 ~2024.1.1] [0 ~2024.1.1] hist)
+  =/  [* silo2=silo:nexus hist2=_hist]
+    (~(record si:nexus silo1) q.page2 p.page2 0v0 %.n [2 ~2024.1.2] [1 ~2024.1.1] hist1)
+  =/  [lobe3=nobe:nexus silo3=silo:nexus hist3=_hist]
+    (~(record si:nexus silo2) q.page3 p.page3 0v0 %.n [3 ~2024.1.3] [2 ~2024.1.2] hist2)
+  ;:  weld
+    ::  3 hist entries total (2 tombs + 1 live)
+    %+  expect-eq  !>(`@ud`3)  !>((lent (tap:hon:hist:nexus hist3)))
+    ::  Only 1 noun in silo (the latest)
+    %+  expect-eq  !>(`@ud`1)  !>(~(wyt by nouns.silo3))
+    ::  drop-hist on the 1 live entry cleans up
+    =/  silo4=silo:nexus  (~(drop-hist si:nexus silo3) hist3)
+    %+  expect-eq  !>(`@ud`0)  !>(~(wyt by nouns.silo4))
+  ==
 ::
 ::  ==========================================
 ::  +resolve-case tests
 ::  ==========================================
 ::
 ++  make-hist
-  |=  entries=(list [ud=@ud da=@da =lobe:clay =blot:tarball])
+  |=  entries=(list [ud=@ud da=@da =jobe:nexus =blot:tarball])
   ^-  hist:nexus
   =/  =hist:nexus  ~
   |-
   ?~  entries  hist
-  $(entries t.entries, hist (put-pace:hist:nexus hist [ud.i.entries da.i.entries] [%temp `lobe.i.entries]))
+  $(entries t.entries, hist (put-pace:hist:nexus hist [ud.i.entries da.i.entries] [%temp `jobe.i.entries]))
 ::
 ++  test-resolve-case-ud-exact
   ::  %ud finds exact revision number
-  =/  lobe1=lobe:clay  `@uvI`(sham 'aaa')
-  =/  lobe2=lobe:clay  `@uvI`(sham 'bbb')
-  =/  lobe3=lobe:clay  `@uvI`(sham 'ccc')
+  =/  lobe1=jobe:nexus  `@uvI`(sham 'aaa')
+  =/  lobe2=jobe:nexus  `@uvI`(sham 'bbb')
+  =/  lobe3=jobe:nexus  `@uvI`(sham 'ccc')
   =/  hist  (make-hist ~[[1 ~2024.1.1 lobe1 [/ %txt]] [2 ~2024.1.2 lobe2 [/ %txt]] [3 ~2024.1.3 lobe3 [/ %txt]]])
   %+  expect-eq
     !>  [[2 ~2024.1.2] [%temp `lobe2]]
@@ -589,8 +659,8 @@
 ::
 ++  test-resolve-case-ud-first
   ::  %ud finds first entry
-  =/  lobe1=lobe:clay  `@uvI`(sham 'aaa')
-  =/  lobe2=lobe:clay  `@uvI`(sham 'bbb')
+  =/  lobe1=jobe:nexus  `@uvI`(sham 'aaa')
+  =/  lobe2=jobe:nexus  `@uvI`(sham 'bbb')
   =/  hist  (make-hist ~[[1 ~2024.1.1 lobe1 [/ %txt]] [2 ~2024.1.2 lobe2 [/ %txt]]])
   %+  expect-eq
     !>  [[1 ~2024.1.1] [%temp `lobe1]]
@@ -598,9 +668,9 @@
 ::
 ++  test-resolve-case-ud-last
   ::  %ud finds last entry
-  =/  lobe1=lobe:clay  `@uvI`(sham 'aaa')
-  =/  lobe2=lobe:clay  `@uvI`(sham 'bbb')
-  =/  lobe3=lobe:clay  `@uvI`(sham 'ccc')
+  =/  lobe1=jobe:nexus  `@uvI`(sham 'aaa')
+  =/  lobe2=jobe:nexus  `@uvI`(sham 'bbb')
+  =/  lobe3=jobe:nexus  `@uvI`(sham 'ccc')
   =/  hist  (make-hist ~[[1 ~2024.1.1 lobe1 [/ %txt]] [2 ~2024.1.2 lobe2 [/ %txt]] [3 ~2024.1.3 lobe3 [/ %txt]]])
   %+  expect-eq
     !>  [[3 ~2024.1.3] [%temp `lobe3]]
@@ -608,7 +678,7 @@
 ::
 ++  test-resolve-case-ud-not-found
   ::  %ud crashes on missing revision
-  =/  lobe1=lobe:clay  `@uvI`(sham 'aaa')
+  =/  lobe1=jobe:nexus  `@uvI`(sham 'aaa')
   =/  hist  (make-hist ~[[1 ~2024.1.1 lobe1 [/ %txt]]])
   =/  res=(each [cass:clay pace:hist:nexus] tang)
     (mule |.((resolve-case:nexus [%ud 99] hist)))
@@ -618,8 +688,8 @@
 ::
 ++  test-resolve-case-da-exact
   ::  %da exact date match
-  =/  lobe1=lobe:clay  `@uvI`(sham 'aaa')
-  =/  lobe2=lobe:clay  `@uvI`(sham 'bbb')
+  =/  lobe1=jobe:nexus  `@uvI`(sham 'aaa')
+  =/  lobe2=jobe:nexus  `@uvI`(sham 'bbb')
   =/  hist  (make-hist ~[[1 ~2024.1.1 lobe1 [/ %txt]] [2 ~2024.1.2 lobe2 [/ %txt]]])
   %+  expect-eq
     !>  [[2 ~2024.1.2] [%temp `lobe2]]
@@ -627,9 +697,9 @@
 ::
 ++  test-resolve-case-da-between
   ::  %da falls back to nearest previous date
-  =/  lobe1=lobe:clay  `@uvI`(sham 'aaa')
-  =/  lobe2=lobe:clay  `@uvI`(sham 'bbb')
-  =/  lobe3=lobe:clay  `@uvI`(sham 'ccc')
+  =/  lobe1=jobe:nexus  `@uvI`(sham 'aaa')
+  =/  lobe2=jobe:nexus  `@uvI`(sham 'bbb')
+  =/  lobe3=jobe:nexus  `@uvI`(sham 'ccc')
   =/  hist  (make-hist ~[[1 ~2024.1.1 lobe1 [/ %txt]] [2 ~2024.3.1 lobe2 [/ %txt]] [3 ~2024.6.1 lobe3 [/ %txt]]])
   ::  Date between entry 1 and 2 should return lobe1
   %+  expect-eq
@@ -638,8 +708,8 @@
 ::
 ++  test-resolve-case-da-after-all
   ::  %da after all entries returns latest
-  =/  lobe1=lobe:clay  `@uvI`(sham 'aaa')
-  =/  lobe2=lobe:clay  `@uvI`(sham 'bbb')
+  =/  lobe1=jobe:nexus  `@uvI`(sham 'aaa')
+  =/  lobe2=jobe:nexus  `@uvI`(sham 'bbb')
   =/  hist  (make-hist ~[[1 ~2024.1.1 lobe1 [/ %txt]] [2 ~2024.3.1 lobe2 [/ %txt]]])
   %+  expect-eq
     !>  [[2 ~2024.3.1] [%temp `lobe2]]
@@ -647,7 +717,7 @@
 ::
 ++  test-resolve-case-da-before-all
   ::  %da before all entries crashes
-  =/  lobe1=lobe:clay  `@uvI`(sham 'aaa')
+  =/  lobe1=jobe:nexus  `@uvI`(sham 'aaa')
   =/  hist  (make-hist ~[[1 ~2024.6.1 lobe1 [/ %txt]]])
   =/  res=(each [cass:clay pace:hist:nexus] tang)
     (mule |.((resolve-case:nexus [%da ~2024.1.1] hist)))
@@ -688,10 +758,10 @@
 ::  Helper: build a born with a single grub that has a hist entry
 ::
 ++  make-grub-born
-  |=  [dir=path name=@ta =lobe:clay =blot:tarball file-cass=cass:clay]
+  |=  [dir=path name=@ta =jobe:nexus =blot:tarball file-cass=cass:clay]
   ^-  born:nexus
   =/  sok=hist:nexus
-    (put-pace:hist:nexus ~ file-cass [%temp `lobe])
+    (put-pace:hist:nexus ~ file-cass [%temp `jobe])
   =/  zero=cass:clay  [0 ~2024.1.1]
   =/  node=[fold=hist:nexus file=(map @ta hist:nexus)]
     [(put-pace:hist:nexus ~ zero [%temp ~]) (~(put by *(map @ta hist:nexus)) name sok)]
@@ -700,9 +770,9 @@
 ++  test-record-trees-single-file
   ::  record-trees creates a tree with the grub's lobe in fil
   =/  now=@da  ~2024.1.1
-  =/  =lobe:clay  `@uvI`(sham 'hello')
+  =/  =jobe:nexus  `@uvI`(sham 'hello')
   =/  =blot:tarball  [/ %txt]
-  =/  =born:nexus  (make-grub-born / %myfile lobe blot [1 now])
+  =/  =born:nexus  (make-grub-born / %myfile jobe blot [1 now])
   =/  [new-born=born:nexus new-silo=silo:nexus]
     (record-trees:nexus born *silo:nexus *code:nexus now /)
   ::  Fold should have bumped
@@ -712,21 +782,21 @@
   ::  Tree should be in silo
     %+  expect-eq  !>(`@ud`1)  !>(~(wyt by jects.new-silo))
   ::  Tree's fil should have our grub's lobe
-    =/  tree-lobe=lobe:clay
+    =/  tree-lobe=jobe:nexus
       =/  pv=pace:hist:nexus  (need (get-pace:hist:nexus fold.node (need (top:hist:nexus fold.node))))
       ?>(?=(%temp -.pv) (need p.pv))
     =/  tree-entry=ject:nexus  ject:(~(got by jects.new-silo) tree-lobe)
     ?>  ?=(%tree -.tree-entry)
     %+  expect-eq
-      !>  `(unit lobe:clay)``lobe
+      !>  `(unit jobe:nexus)``jobe
     !>  (~(get by fil.tree.tree-entry) %myfile)
   ==
 ::
 ++  test-record-trees-no-change-no-bump
   ::  Calling record-trees twice with no changes doesn't bump fold
   =/  now=@da  ~2024.1.1
-  =/  =lobe:clay  `@uvI`(sham 'hello')
-  =/  =born:nexus  (make-grub-born / %myfile lobe [/ %txt] [1 now])
+  =/  =jobe:nexus  `@uvI`(sham 'hello')
+  =/  =born:nexus  (make-grub-born / %myfile jobe [/ %txt] [1 now])
   =/  [born1=born:nexus silo1=silo:nexus]
     (record-trees:nexus born *silo:nexus *code:nexus now /)
   ::  Call again — nothing changed
@@ -743,12 +813,12 @@
 ++  test-record-trees-change-bumps-fold
   ::  Changing a grub's hist then re-recording bumps fold
   =/  now=@da  ~2024.1.1
-  =/  lobe1=lobe:clay  `@uvI`(sham 'first')
+  =/  lobe1=jobe:nexus  `@uvI`(sham 'first')
   =/  =born:nexus  (make-grub-born / %myfile lobe1 [/ %txt] [1 now])
   =/  [born1=born:nexus silo1=silo:nexus]
     (record-trees:nexus born *silo:nexus *code:nexus now /)
   ::  Simulate file change: update hist with new lobe at new cass
-  =/  lobe2=lobe:clay  `@uvI`(sham 'second')
+  =/  lobe2=jobe:nexus  `@uvI`(sham 'second')
   =/  new-cass=cass:clay  [2 ~2024.1.2]
   =/  born1-node  (need (get-node born1 /))
   =/  sok=hist:nexus  (~(got by file.born1-node) %myfile)
@@ -762,15 +832,15 @@
   =/  node  (need (get-node born3 /))
   ;:  weld
     %+  expect-eq  !>(`@ud`2)  !>((ver:hist:nexus fold.node))
-  ::  2 trees in silo (old and new)
-    %+  expect-eq  !>(`@ud`2)  !>(~(wyt by jects.silo2))
+  ::  1 tree in silo (old tree tombed by tomb-temp)
+    %+  expect-eq  !>(`@ud`1)  !>(~(wyt by jects.silo2))
   ==
 ::
 ++  test-record-trees-propagates-to-parent
   ::  record-trees at /a propagates tree to root /
   =/  now=@da  ~2024.1.1
-  =/  =lobe:clay  `@uvI`(sham 'hello')
-  =/  =born:nexus  (make-grub-born /a %myfile lobe [/ %txt] [1 now])
+  =/  =jobe:nexus  `@uvI`(sham 'hello')
+  =/  =born:nexus  (make-grub-born /a %myfile jobe [/ %txt] [1 now])
   =/  [new-born=born:nexus new-silo=silo:nexus]
     (record-trees:nexus born *silo:nexus *code:nexus now /a)
   ::  /a should have fold=1
@@ -781,11 +851,11 @@
     %+  expect-eq  !>(`@ud`1)  !>((ver:hist:nexus fold.a-node))
     %+  expect-eq  !>(`@ud`1)  !>((ver:hist:nexus fold.root-node))
   ::  Root's tree should have /a's tree lobe in its dir map
-    =/  root-tree-lobe=lobe:clay
+    =/  root-tree-lobe=jobe:nexus
       =/  pv=pace:hist:nexus  (need (get-pace:hist:nexus fold.root-node (need (top:hist:nexus fold.root-node))))
       ?>(?=(%temp -.pv) (need p.pv))
     =/  root-tree  =+(jt=ject:(~(got by jects.new-silo) root-tree-lobe) ?>(?=(%tree -.jt) tree.jt))
-    =/  a-tree-lobe=lobe:clay
+    =/  a-tree-lobe=jobe:nexus
       =/  pv=pace:hist:nexus  (need (get-pace:hist:nexus fold.a-node (need (top:hist:nexus fold.a-node))))
       ?>(?=(%temp -.pv) (need p.pv))
     %+  expect-eq
@@ -797,10 +867,10 @@
 ::  Helper: add a grub to an existing born
 ::
 ++  add-grub
-  |=  [=born:nexus dir=path name=@ta =lobe:clay =blot:tarball file-cass=cass:clay]
+  |=  [=born:nexus dir=path name=@ta =jobe:nexus =blot:tarball file-cass=cass:clay]
   ^-  born:nexus
   =/  sok=hist:nexus
-    (put-pace:hist:nexus ~ file-cass [%temp `lobe])
+    (put-pace:hist:nexus ~ file-cass [%temp `jobe])
   =/  sub=born:nexus  (~(dip of born) dir)
   =/  node=[fold=hist:nexus file=(map @ta hist:nexus)]
     =/  zero=cass:clay  [0 ~2024.1.1]
@@ -810,16 +880,16 @@
 ++  test-record-trees-multi-file
   ::  Tree captures multiple grubs in same dir
   =/  now=@da  ~2024.1.1
-  =/  lobe1=lobe:clay  `@uvI`(sham 'aaa')
-  =/  lobe2=lobe:clay  `@uvI`(sham 'bbb')
-  =/  lobe3=lobe:clay  `@uvI`(sham 'ccc')
+  =/  lobe1=jobe:nexus  `@uvI`(sham 'aaa')
+  =/  lobe2=jobe:nexus  `@uvI`(sham 'bbb')
+  =/  lobe3=jobe:nexus  `@uvI`(sham 'ccc')
   =/  =born:nexus  (make-grub-born / %alpha lobe1 [/ %txt] [1 now])
   =.  born  (add-grub born / %beta lobe2 [/ %hoon] [1 now])
   =.  born  (add-grub born / %gamma lobe3 [/ %json] [1 now])
   =/  [new-born=born:nexus new-silo=silo:nexus]
     (record-trees:nexus born *silo:nexus *code:nexus now /)
   =/  node  (need (get-node new-born /))
-  =/  tree-lobe=lobe:clay
+  =/  tree-lobe=jobe:nexus
     =/  pv=pace:hist:nexus  (need (get-pace:hist:nexus fold.node (need (top:hist:nexus fold.node))))
     ?>(?=(%temp -.pv) (need p.pv))
   =/  =tree:nexus  =+(jt=ject:(~(got by jects.new-silo) tree-lobe) ?>(?=(%tree -.jt) tree.jt))
@@ -827,21 +897,21 @@
     ::  All 3 grubs in tree's fil
     %+  expect-eq  !>(`@ud`3)  !>(~(wyt by fil.tree))
     %+  expect-eq
-      !>  `(unit lobe:clay)``lobe1
+      !>  `(unit jobe:nexus)``lobe1
     !>  (~(get by fil.tree) %alpha)
     %+  expect-eq
-      !>  `(unit lobe:clay)``lobe2
+      !>  `(unit jobe:nexus)``lobe2
     !>  (~(get by fil.tree) %beta)
     %+  expect-eq
-      !>  `(unit lobe:clay)``lobe3
+      !>  `(unit jobe:nexus)``lobe3
     !>  (~(get by fil.tree) %gamma)
   ==
 ::
 ++  test-record-trees-mixed-files-and-dirs
   ::  Dir with both grubs and child directories
   =/  now=@da  ~2024.1.1
-  =/  lobe1=lobe:clay  `@uvI`(sham 'root-file')
-  =/  lobe2=lobe:clay  `@uvI`(sham 'child-file')
+  =/  lobe1=jobe:nexus  `@uvI`(sham 'root-file')
+  =/  lobe2=jobe:nexus  `@uvI`(sham 'child-file')
   ::  / has a grub, /sub has a grub
   =/  =born:nexus  (make-grub-born / %rootfile lobe1 [/ %txt] [1 now])
   =.  born  (add-grub born /sub %childfile lobe2 [/ %txt] [1 now])
@@ -849,25 +919,25 @@
   =/  [new-born=born:nexus new-silo=silo:nexus]
     (record-trees:nexus born *silo:nexus *code:nexus now /sub)
   =/  root-node  (need (get-node new-born /))
-  =/  root-tree-lobe=lobe:clay
+  =/  root-tree-lobe=jobe:nexus
     =/  pv=pace:hist:nexus  (need (get-pace:hist:nexus fold.root-node (need (top:hist:nexus fold.root-node))))
     ?>(?=(%temp -.pv) (need p.pv))
   =/  root-tree  =+(jt=ject:(~(got by jects.new-silo) root-tree-lobe) ?>(?=(%tree -.jt) tree.jt))
   ;:  weld
     ::  Root tree has the root grub in fil
     %+  expect-eq
-      !>  `(unit lobe:clay)``lobe1
+      !>  `(unit jobe:nexus)``lobe1
     !>  (~(get by fil.root-tree) %rootfile)
     ::  Root tree has /sub in dir
     %+  expect-eq  !>(%.y)  !>((~(has by dir.root-tree) %sub))
     ::  /sub's tree has the child grub
     =/  sub-node  (need (get-node new-born /sub))
-    =/  sub-tree-lobe=lobe:clay
+    =/  sub-tree-lobe=jobe:nexus
       =/  pv=pace:hist:nexus  (need (get-pace:hist:nexus fold.sub-node (need (top:hist:nexus fold.sub-node))))
       ?>(?=(%temp -.pv) (need p.pv))
     =/  sub-tree  =+(jt=ject:(~(got by jects.new-silo) sub-tree-lobe) ?>(?=(%tree -.jt) tree.jt))
     %+  expect-eq
-      !>  `(unit lobe:clay)``lobe2
+      !>  `(unit jobe:nexus)``lobe2
     !>  (~(get by fil.sub-tree) %childfile)
   ==
 ::
@@ -879,25 +949,25 @@
   ::  Inserting a new tree returns lobe and silo with refs=1
   =/  s  ~(. si:nexus *silo:nexus)
   =/  =tree:nexus  [~ %.n ~ ~ ~]
-  =/  [=lobe:clay new-silo=silo:nexus]  (put-ject:s [%tree tree])
+  =/  [=jobe:nexus new-silo=silo:nexus]  (put-ject:s [%tree tree])
   ;:  weld
     %+  expect-eq
       !>  `@ud`1
-    !>  refs:(~(got by jects.new-silo) lobe)
+    !>  refs:(~(got by jects.new-silo) jobe)
   ::
     %+  expect-eq
       !>  tree
-    !>  =+(jt=ject:(~(got by jects.new-silo) lobe) ?>(?=(%tree -.jt) tree.jt))
+    !>  =+(jt=ject:(~(got by jects.new-silo) jobe) ?>(?=(%tree -.jt) tree.jt))
   ==
 ::
 ++  test-si-put-ject-bumps-leaf-refs
   ::  Inserting a tree that references leaf jects increments their refcounts
   =/  s  ~(. si:nexus *silo:nexus)
-  =/  [noun-lobe=lobe:clay silo1=silo:nexus]  (put:s 'hello')
-  =/  [leaf-lobe=lobe:clay silo2=silo:nexus]
+  =/  [noun-lobe=nobe:nexus silo1=silo:nexus]  (put:s 'hello')
+  =/  [leaf-lobe=jobe:nexus silo2=silo:nexus]
     (~(put-ject si:nexus silo1) [%leaf noun-lobe [[/ %txt] 0v0] %.n ~])
   =/  =tree:nexus
-    [~ %.n ~ (~(put by *(map @ta lobe:clay)) %foo leaf-lobe) ~]
+    [~ %.n ~ (~(put by *(map @ta jobe:nexus)) %foo leaf-lobe) ~]
   =/  [* silo3=silo:nexus]  (~(put-ject si:nexus silo2) [%tree tree])
   ::  leaf started at refs=1, tree put-ject should bump to 2
   %+  expect-eq  !>(`@ud`2)  !>(refs:(~(got by jects.silo3) leaf-lobe))
@@ -906,9 +976,9 @@
   ::  Inserting a tree that references child trees increments their refcounts
   =/  s  ~(. si:nexus *silo:nexus)
   =/  child=tree:nexus  [~ %.n ~ ~ ~]
-  =/  [child-lobe=lobe:clay silo1=silo:nexus]  (put-ject:s [%tree child])
+  =/  [child-lobe=jobe:nexus silo1=silo:nexus]  (put-ject:s [%tree child])
   =/  parent=tree:nexus
-    [~ %.n ~ ~ (~(put by *(map @ta [lobe:clay weir=(unit weir:nexus)])) %sub [child-lobe ~])]
+    [~ %.n ~ ~ (~(put by *(map @ta [jobe:nexus weir=(unit weir:nexus)])) %sub [child-lobe ~])]
   =/  s2  ~(. si:nexus silo1)
   =/  [* silo2=silo:nexus]  (put-ject:s2 [%tree parent])
   ::  child started at refs=1, parent should bump to 2
@@ -917,16 +987,16 @@
 ++  test-si-put-ject-duplicate-no-extra-bumps
   ::  Inserting the same tree twice does NOT re-bump child refs
   =/  s  ~(. si:nexus *silo:nexus)
-  =/  [noun-lobe=lobe:clay silo1=silo:nexus]  (put:s 'hello')
-  =/  [leaf-lobe=lobe:clay silo2=silo:nexus]
+  =/  [noun-lobe=nobe:nexus silo1=silo:nexus]  (put:s 'hello')
+  =/  [leaf-lobe=jobe:nexus silo2=silo:nexus]
     (~(put-ject si:nexus silo1) [%leaf noun-lobe [[/ %txt] 0v0] %.n ~])
   =/  =tree:nexus
-    [~ %.n ~ (~(put by *(map @ta lobe:clay)) %foo leaf-lobe) ~]
-  =/  [=lobe:clay silo3=silo:nexus]  (~(put-ject si:nexus silo2) [%tree tree])
+    [~ %.n ~ (~(put by *(map @ta jobe:nexus)) %foo leaf-lobe) ~]
+  =/  [=jobe:nexus silo3=silo:nexus]  (~(put-ject si:nexus silo2) [%tree tree])
   =/  [* silo4=silo:nexus]  (~(put-ject si:nexus silo3) [%tree tree])
   ;:  weld
     ::  tree refs=2
-    %+  expect-eq  !>(`@ud`2)  !>(refs:(~(got by jects.silo4) lobe))
+    %+  expect-eq  !>(`@ud`2)  !>(refs:(~(got by jects.silo4) jobe))
     ::  leaf refs still 2 (not 3) — only first insert bumps children
     %+  expect-eq  !>(`@ud`2)  !>(refs:(~(got by jects.silo4) leaf-lobe))
   ==
@@ -935,9 +1005,9 @@
   ::  Inserting the same tree twice increments refcount
   =/  s  ~(. si:nexus *silo:nexus)
   =/  =tree:nexus  [~ %.n ~ ~ ~]
-  =/  [lobe1=lobe:clay silo1=silo:nexus]  (put-ject:s [%tree tree])
+  =/  [lobe1=jobe:nexus silo1=silo:nexus]  (put-ject:s [%tree tree])
   =/  s2  ~(. si:nexus silo1)
-  =/  [lobe2=lobe:clay silo2=silo:nexus]  (put-ject:s2 [%tree tree])
+  =/  [lobe2=jobe:nexus silo2=silo:nexus]  (put-ject:s2 [%tree tree])
   ;:  weld
     %+  expect-eq  !>(lobe1)  !>(lobe2)
     %+  expect-eq  !>(`@ud`2)  !>(refs:(~(got by jects.silo2) lobe1))
@@ -948,10 +1018,10 @@
   =/  s  ~(. si:nexus *silo:nexus)
   =/  tree1=tree:nexus  [~ %.n ~ ~ ~]
   =/  tree2=tree:nexus
-    [~ %.n ~ (~(put by *(map @ta lobe:clay)) %foo `@uvI`(sham 'x')) ~]
-  =/  [lobe1=lobe:clay silo1=silo:nexus]  (put-ject:s [%tree tree1])
+    [~ %.n ~ (~(put by *(map @ta jobe:nexus)) %foo `@uvI`(sham 'x')) ~]
+  =/  [lobe1=jobe:nexus silo1=silo:nexus]  (put-ject:s [%tree tree1])
   =/  s2  ~(. si:nexus silo1)
-  =/  [lobe2=lobe:clay silo2=silo:nexus]  (put-ject:s2 [%tree tree2])
+  =/  [lobe2=jobe:nexus silo2=silo:nexus]  (put-ject:s2 [%tree tree2])
   ;:  weld
     %+  expect-eq  !>(%.n)  !>(=(lobe1 lobe2))
     %+  expect-eq  !>(`@ud`2)  !>(~(wyt by jects.silo2))
@@ -960,30 +1030,30 @@
 ++  test-si-drop-ject-decrements-refs
   =/  s  ~(. si:nexus *silo:nexus)
   =/  =tree:nexus  [~ %.n ~ ~ ~]
-  =/  [=lobe:clay silo1=silo:nexus]  (put-ject:s [%tree tree])
+  =/  [=jobe:nexus silo1=silo:nexus]  (put-ject:s [%tree tree])
   =/  s2  ~(. si:nexus silo1)
   =/  [* silo2=silo:nexus]  (put-ject:s2 [%tree tree])
   =/  s3  ~(. si:nexus silo2)
-  =/  silo3=silo:nexus  (drop-ject:s3 lobe)
-  %+  expect-eq  !>(`@ud`1)  !>(refs:(~(got by jects.silo3) lobe))
+  =/  silo3=silo:nexus  (drop-ject:s3 jobe)
+  %+  expect-eq  !>(`@ud`1)  !>(refs:(~(got by jects.silo3) jobe))
 ::
 ++  test-si-drop-ject-deletes-at-zero
   =/  s  ~(. si:nexus *silo:nexus)
   =/  =tree:nexus  [~ %.n ~ ~ ~]
-  =/  [=lobe:clay silo1=silo:nexus]  (put-ject:s [%tree tree])
+  =/  [=jobe:nexus silo1=silo:nexus]  (put-ject:s [%tree tree])
   =/  s2  ~(. si:nexus silo1)
-  =/  silo2=silo:nexus  (drop-ject:s2 lobe)
-  %+  expect-eq  !>(~)  !>((~(get by jects.silo2) lobe))
+  =/  silo2=silo:nexus  (drop-ject:s2 jobe)
+  %+  expect-eq  !>(~)  !>((~(get by jects.silo2) jobe))
 ::
 ++  test-si-drop-ject-cascades-leaves
   ::  Dropping a tree at zero decrements leaf ject refs
   =/  s  ~(. si:nexus *silo:nexus)
-  =/  [noun-lobe=lobe:clay silo1=silo:nexus]  (put:s 'hello')
-  =/  [leaf-lobe=lobe:clay silo2=silo:nexus]
+  =/  [noun-lobe=nobe:nexus silo1=silo:nexus]  (put:s 'hello')
+  =/  [leaf-lobe=jobe:nexus silo2=silo:nexus]
     (~(put-ject si:nexus silo1) [%leaf noun-lobe [[/ %txt] 0v0] %.n ~])
   =/  =tree:nexus
-    [~ %.n ~ (~(put by *(map @ta lobe:clay)) %foo leaf-lobe) ~]
-  =/  [tree-lobe=lobe:clay silo3=silo:nexus]
+    [~ %.n ~ (~(put by *(map @ta jobe:nexus)) %foo leaf-lobe) ~]
+  =/  [tree-lobe=jobe:nexus silo3=silo:nexus]
     (~(put-ject si:nexus silo2) [%tree tree])
   ::  leaf is at refs=2 (own + tree bump). Drop tree → leaf refs=1
   =/  silo4=silo:nexus  (~(drop-ject si:nexus silo3) tree-lobe)
@@ -996,11 +1066,11 @@
   ::  Dropping a parent tree at zero cascades to child trees
   =/  s  ~(. si:nexus *silo:nexus)
   =/  child=tree:nexus  [~ %.n ~ ~ ~]
-  =/  [child-lobe=lobe:clay silo1=silo:nexus]  (put-ject:s [%tree child])
+  =/  [child-lobe=jobe:nexus silo1=silo:nexus]  (put-ject:s [%tree child])
   =/  parent=tree:nexus
-    [~ %.n ~ ~ (~(put by *(map @ta [lobe:clay weir=(unit weir:nexus)])) %sub [child-lobe ~])]
+    [~ %.n ~ ~ (~(put by *(map @ta [jobe:nexus weir=(unit weir:nexus)])) %sub [child-lobe ~])]
   =/  s2  ~(. si:nexus silo1)
-  =/  [parent-lobe=lobe:clay silo2=silo:nexus]  (put-ject:s2 [%tree parent])
+  =/  [parent-lobe=jobe:nexus silo2=silo:nexus]  (put-ject:s2 [%tree parent])
   ::  child is at refs=2. Drop parent → child refs=1
   =/  silo3=silo:nexus  (~(drop-ject si:nexus silo2) parent-lobe)
   ;:  weld
@@ -1011,16 +1081,16 @@
 ++  test-si-drop-ject-deep-cascade
   ::  Dropping a tree cascades through child tree to leaf ject
   =/  s  ~(. si:nexus *silo:nexus)
-  =/  [noun-lobe=lobe:clay silo1=silo:nexus]  (put:s 'data')
-  =/  [leaf-lobe=lobe:clay silo2=silo:nexus]
+  =/  [noun-lobe=nobe:nexus silo1=silo:nexus]  (put:s 'data')
+  =/  [leaf-lobe=jobe:nexus silo2=silo:nexus]
     (~(put-ject si:nexus silo1) [%leaf noun-lobe [[/ %txt] 0v0] %.n ~])
   =/  child=tree:nexus
-    [~ %.n ~ (~(put by *(map @ta lobe:clay)) %f leaf-lobe) ~]
-  =/  [child-lobe=lobe:clay silo3=silo:nexus]
+    [~ %.n ~ (~(put by *(map @ta jobe:nexus)) %f leaf-lobe) ~]
+  =/  [child-lobe=jobe:nexus silo3=silo:nexus]
     (~(put-ject si:nexus silo2) [%tree child])
   =/  parent=tree:nexus
-    [~ %.n ~ ~ (~(put by *(map @ta [lobe:clay weir=(unit weir:nexus)])) %sub [child-lobe ~])]
-  =/  [parent-lobe=lobe:clay silo4=silo:nexus]
+    [~ %.n ~ ~ (~(put by *(map @ta [jobe:nexus weir=(unit weir:nexus)])) %sub [child-lobe ~])]
+  =/  [parent-lobe=jobe:nexus silo4=silo:nexus]
     (~(put-ject si:nexus silo3) [%tree parent])
   ::  leaf: own(1) + child-put-ject(1) = 2
   ::  child: own(1) + parent-put-ject(1) = 2
@@ -1035,16 +1105,16 @@
 ++  test-si-drop-ject-full-cascade-deletes-all
   ::  When child tree is only referenced by parent, full cascade cleans everything
   =/  s  ~(. si:nexus *silo:nexus)
-  =/  [noun-lobe=lobe:clay silo1=silo:nexus]  (put:s 'data')
-  =/  [leaf-lobe=lobe:clay silo2=silo:nexus]
+  =/  [noun-lobe=nobe:nexus silo1=silo:nexus]  (put:s 'data')
+  =/  [leaf-lobe=jobe:nexus silo2=silo:nexus]
     (~(put-ject si:nexus silo1) [%leaf noun-lobe [[/ %txt] 0v0] %.n ~])
   =/  child=tree:nexus
-    [~ %.n ~ (~(put by *(map @ta lobe:clay)) %f leaf-lobe) ~]
-  =/  [child-lobe=lobe:clay silo3=silo:nexus]
+    [~ %.n ~ (~(put by *(map @ta jobe:nexus)) %f leaf-lobe) ~]
+  =/  [child-lobe=jobe:nexus silo3=silo:nexus]
     (~(put-ject si:nexus silo2) [%tree child])
   =/  parent=tree:nexus
-    [~ %.n ~ ~ (~(put by *(map @ta [lobe:clay weir=(unit weir:nexus)])) %sub [child-lobe ~])]
-  =/  [parent-lobe=lobe:clay silo4=silo:nexus]
+    [~ %.n ~ ~ (~(put by *(map @ta [jobe:nexus weir=(unit weir:nexus)])) %sub [child-lobe ~])]
+  =/  [parent-lobe=jobe:nexus silo4=silo:nexus]
     (~(put-ject si:nexus silo3) [%tree parent])
   ::  Drop child's extra ref so it's only held by parent
   =/  silo5=silo:nexus  (~(drop-ject si:nexus silo4) child-lobe)
@@ -1068,10 +1138,10 @@
   =/  s  ~(. si:nexus *silo:nexus)
   =/  tree1=tree:nexus  [~ %.n ~ ~ ~]
   =/  tree2=tree:nexus
-    [~ %.n ~ (~(put by *(map @ta lobe:clay)) %a `@uvI`(sham 'y')) ~]
-  =/  [lobe1=lobe:clay silo1=silo:nexus]  (put-ject:s [%tree tree1])
+    [~ %.n ~ (~(put by *(map @ta jobe:nexus)) %a `@uvI`(sham 'y')) ~]
+  =/  [lobe1=jobe:nexus silo1=silo:nexus]  (put-ject:s [%tree tree1])
   =/  s2  ~(. si:nexus silo1)
-  =/  [lobe2=lobe:clay silo2=silo:nexus]  (put-ject:s2 [%tree tree2])
+  =/  [lobe2=jobe:nexus silo2=silo:nexus]  (put-ject:s2 [%tree tree2])
   =/  =hist:nexus
     %-  put-pace:hist:nexus
     [(put-pace:hist:nexus ~ [1 ~2024.1.1] [%temp `lobe1]) [2 ~2024.1.2] [%temp `lobe2]]

@@ -28,9 +28,9 @@
   ?:  ?=(%| -.pax-parsed)
     (pure:m [%error p.pax-parsed])
   =/  pax=path  p.pax-parsed
-  ;<  [grub-name=@ta =seen:nexus]  bind:m
+  ;<  [grub-name=@ta =view:nexus]  bind:m
     (lookup-grub:tools pax u.file-name)
-  ?.  ?=([%& %file *] seen)
+  ?.  ?=([%file *] view)
     (pure:m [%error (crip "Not found: {(trip u.file-path)}/{(trip u.file-name)}")])
-  (render-grub-content:tools seen)
+  (render-grub-content:tools view)
 --

@@ -57,10 +57,10 @@
     =/  clean=tape  ?:(&(!=(~ t) =('/' (rear t))) (snip t) t)
     ?~  clean  /
     (stab (crip clean))
-  ;<  dir-seen=seen:nexus  bind:m  (peek:io [%& %| dir-pax] ~)
+  ;<  dir-view=view:nexus  bind:m  (peek:io [%& %| dir-pax] ~)
   =/  cur=weir:nexus
-    ?.  ?=([%& %ball *] dir-seen)  [~ ~ ~]
-    (fall ?~(fil.ball.p.dir-seen ~ weir.u.fil.ball.p.dir-seen) [~ ~ ~])
+    ?.  ?=([%ball *] dir-view)  [~ ~ ~]
+    (fall ?~(fil.ball.dir-view ~ weir.u.fil.ball.dir-view) [~ ~ ~])
   =/  new=weir:nexus
     ?+  category  cur
       %'write'  cur(make (~(del in make.cur) del-road))

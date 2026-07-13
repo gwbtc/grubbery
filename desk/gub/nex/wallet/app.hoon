@@ -389,10 +389,10 @@
             ::  append to offer log
             =/  log-road=road:tarball
               [%& %& /apps/'wallet.wallet_app' %'offer-log.json']
-            ;<  log-seen=seen:nexus  bind:m  (peek:io log-road ~)
+            ;<  log-view=view:nexus  bind:m  (peek:io log-road ~)
             =/  cur-log=json
-              ?.  ?=([%& %file *] log-seen)  [%a ~]
-              !<(json (need-vase:tarball sang.p.log-seen))
+              ?.  ?=([%file *] log-view)  [%a ~]
+              !<(json (need-vase:tarball sang.log-view))
             =/  entry=json
               %-  pairs:enjs:format
               :~  ['ship' s+(scot %p u.src)]
@@ -2029,10 +2029,10 @@
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
   =/  =road:tarball  (cord-to-road:tarball road-cord)
-  ;<  =seen:nexus  bind:m  (peek:io road `[/ %mime])
-  ?.  ?=([%& %file *] seen)
+  ;<  =view:nexus  bind:m  (peek:io road `[/ %mime])
+  ?.  ?=([%file *] view)
     (send-simple:srv eyre-id [[404 ~] `(as-octs:mimes:html 'Page not found')])
-  =/  =mime  !<(mime (need-vase:tarball sang.p.seen))
+  =/  =mime  !<(mime (need-vase:tarball sang.view))
   (send-simple:srv eyre-id (mime-response:http-utils mime))
 ::  +acct-ref-from-key: extract pubkey-hex from directory name
 ::
@@ -2047,9 +2047,9 @@
   =/  road=road:tarball  (nex-road [%& ~ %'labels.wallet_labels'])
   ;<  exists=?  bind:m  (peek-exists:io road)
   ?.  exists  (pure:m *labels:b329)
-  ;<  =seen:nexus  bind:m  (peek:io road ~)
-  ?.  ?=([%& %file *] seen)  (pure:m *labels:b329)
-  (pure:m !<(labels:b329 (need-vase:tarball sang.p.seen)))
+  ;<  =view:nexus  bind:m  (peek:io road ~)
+  ?.  ?=([%file *] view)  (pure:m *labels:b329)
+  (pure:m !<(labels:b329 (need-vase:tarball sang.view)))
 ::
 ++  save-labels
   |=  =labels:b329
@@ -2226,9 +2226,9 @@
   =/  rd=road:tarball  (nex-road [%& ~ %'registry.wallet_registry'])
   ;<  exists=?  bind:m  (peek-exists:io rd)
   ?.  exists  (pure:m *proc-registry)
-  ;<  =seen:nexus  bind:m  (peek:io rd ~)
-  ?.  ?=([%& %file *] seen)  (pure:m *proc-registry)
-  (pure:m !<(proc-registry (need-vase:tarball sang.p.seen)))
+  ;<  =view:nexus  bind:m  (peek:io rd ~)
+  ?.  ?=([%file *] view)  (pure:m *proc-registry)
+  (pure:m !<(proc-registry (need-vase:tarball sang.view)))
 ::
 ++  save-registry
   |=  reg=proc-registry
@@ -2322,10 +2322,10 @@
   ^-  form:m
   ::  load labels from root level
   =/  lbl-rd=road:tarball  (nex-road [%& ~ %'labels.wallet_labels'])
-  ;<  lbl-seen=seen:nexus  bind:m  (peek:io lbl-rd ~)
+  ;<  lbl-view=view:nexus  bind:m  (peek:io lbl-rd ~)
   =/  lbls=labels:b329
-    ?.  ?=([%& %file *] lbl-seen)  *labels:b329
-    !<(labels:b329 (need-vase:tarball sang.p.lbl-seen))
+    ?.  ?=([%file *] lbl-view)  *labels:b329
+    !<(labels:b329 (need-vase:tarball sang.lbl-view))
   =/  xpub=(unit @t)  (get-simple-xpub lbls)
   ?^  xpub
     ~&  "%wallet: simple wallet exists"
@@ -2356,9 +2356,9 @@
   =/  rd=road:tarball  (nex-road [%& ~ %'secrets.wallet_secrets'])
   ;<  exists=?  bind:m  (peek-exists:io rd)
   ?.  exists  (pure:m *secrets)
-  ;<  =seen:nexus  bind:m  (peek:io rd ~)
-  ?.  ?=([%& %file *] seen)  (pure:m *secrets)
-  (pure:m !<(secrets (need-vase:tarball sang.p.seen)))
+  ;<  =view:nexus  bind:m  (peek:io rd ~)
+  ?.  ?=([%file *] view)  (pure:m *secrets)
+  (pure:m !<(secrets (need-vase:tarball sang.view)))
 ::
 ++  save-secrets
   |=  sec=secrets
@@ -2373,9 +2373,9 @@
   =/  rd=road:tarball  (nex-road [%& ~ %'ptsts.wallet_ptsts'])
   ;<  exists=?  bind:m  (peek-exists:io rd)
   ?.  exists  (pure:m *(map @t ptst:taproot))
-  ;<  =seen:nexus  bind:m  (peek:io rd ~)
-  ?.  ?=([%& %file *] seen)  (pure:m *(map @t ptst:taproot))
-  (pure:m !<((map @t ptst:taproot) (need-vase:tarball sang.p.seen)))
+  ;<  =view:nexus  bind:m  (peek:io rd ~)
+  ?.  ?=([%file *] view)  (pure:m *(map @t ptst:taproot))
+  (pure:m !<((map @t ptst:taproot) (need-vase:tarball sang.view)))
 ::
 ++  save-ptsts
   |=  sts=(map @t ptst:taproot)
@@ -2396,9 +2396,9 @@
 ++  load-contacts
   =/  m  (fiber:fiber:nexus ,(map @t (map @t json)))
   ^-  form:m
-  ;<  =seen:nexus  bind:m  (peek:io contacts-overlay-road ~)
-  ?.  ?=([%& %ball *] seen)  (pure:m ~)
-  =/  =lump:tarball  (fall fil.ball.p.seen *lump:tarball)
+  ;<  =view:nexus  bind:m  (peek:io contacts-overlay-road ~)
+  ?.  ?=([%ball *] view)  (pure:m ~)
+  =/  =lump:tarball  (fall fil.ball.view *lump:tarball)
   %-  pure:m
   %-  ~(gas by *(map @t (map @t json)))
   %+  murn  ~(tap by contents.lump)
@@ -2432,10 +2432,10 @@
     =.  accounts.reg  (~(put by accounts.reg) acct-ref cleared)
     ;<  ~  bind:m  (save-registry reg)
     (pure:m [%none ~])
-  ;<  =seen:nexus  bind:m  (peek:io proc-rd ~)
-  ?.  ?=([%& %file *] seen)
+  ;<  =view:nexus  bind:m  (peek:io proc-rd ~)
+  ?.  ?=([%file *] view)
     (pure:m [%active ~])
-  =/  jon=json  !<(json (need-vase:tarball sang.p.seen))
+  =/  jon=json  !<(json (need-vase:tarball sang.view))
   =/  status=@t
     (~(dug jo:json-utils jon) /status so:dejs:format '')
   ?:  =(status 'done')
@@ -2454,10 +2454,10 @@
   =/  m  (fiber:fiber:nexus ,(unit transaction:drft))
   ^-  form:m
   =/  rd=road:tarball  (nex-road [%& ~ %'drafts.wallet_drafts'])
-  ;<  =seen:nexus  bind:m  (peek:io rd ~)
-  ?.  ?=([%& %file *] seen)  (pure:m ~)
+  ;<  =view:nexus  bind:m  (peek:io rd ~)
+  ?.  ?=([%file *] view)  (pure:m ~)
   =/  drafts=(map @t transaction:drft)
-    !<((map @t transaction:drft) (need-vase:tarball sang.p.seen))
+    !<((map @t transaction:drft) (need-vase:tarball sang.view))
   (pure:m (~(get by drafts) acct-ref))
 ::
 ++  save-draft
@@ -2465,10 +2465,10 @@
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
   =/  rd=road:tarball  (nex-road [%& ~ %'drafts.wallet_drafts'])
-  ;<  =seen:nexus  bind:m  (peek:io rd ~)
-  ?.  ?=([%& %file *] seen)  (pure:m ~)
+  ;<  =view:nexus  bind:m  (peek:io rd ~)
+  ?.  ?=([%file *] view)  (pure:m ~)
   =/  drafts=(map @t transaction:drft)
-    !<((map @t transaction:drft) (need-vase:tarball sang.p.seen))
+    !<((map @t transaction:drft) (need-vase:tarball sang.view))
   (over:io rd [[/wallet %drafts] (~(put by drafts) acct-ref dr)])
 ::
 ++  delete-draft
@@ -2476,10 +2476,10 @@
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
   =/  rd=road:tarball  (nex-road [%& ~ %'drafts.wallet_drafts'])
-  ;<  =seen:nexus  bind:m  (peek:io rd ~)
-  ?.  ?=([%& %file *] seen)  (pure:m ~)
+  ;<  =view:nexus  bind:m  (peek:io rd ~)
+  ?.  ?=([%file *] view)  (pure:m ~)
   =/  drafts=(map @t transaction:drft)
-    !<((map @t transaction:drft) (need-vase:tarball sang.p.seen))
+    !<((map @t transaction:drft) (need-vase:tarball sang.view))
   (over:io rd [[/wallet %drafts] (~(del by drafts) acct-ref)])
 ::  +send-sse-fragment: send a single SSE fragment targeting a DOM element
 ::

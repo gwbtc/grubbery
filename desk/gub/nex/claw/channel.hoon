@@ -104,19 +104,19 @@
         ~&  >>  ["%channel relay: subscribing to" bot-msgs]
         ::  watch source messages
         ;<  *  bind:m  (keep:io /bot-msgs bot-msgs ~)
-        ;<  bot-seen=seen:nexus  bind:m  (peek:io bot-msgs ~)
-        ~&  >>  ["%channel relay: initial seen" -.bot-seen]
-        =/  seen-count=@ud  (count-incoming bot-seen)
+        ;<  bot-view=view:nexus  bind:m  (peek:io bot-msgs ~)
+        ~&  >>  ["%channel relay: initial seen" -.bot-view]
+        =/  seen-count=@ud  (count-incoming bot-view)
         ~&  >>  ["%channel relay: started, seen" seen-count "messages"]
         |-
         ~&  >>  "%channel relay: waiting for take-news..."
         ;<  *  bind:m  (take-news:io /bot-msgs)
-        ;<  upd-seen=seen:nexus  bind:m  (peek:io bot-msgs ~)
-        ~&  >>  ["%channel relay: got news!" -.upd-seen]
-        =/  new-count=@ud  (count-incoming upd-seen)
+        ;<  upd-view=view:nexus  bind:m  (peek:io bot-msgs ~)
+        ~&  >>  ["%channel relay: got news!" -.upd-view]
+        =/  new-count=@ud  (count-incoming upd-view)
         ~&  >>  ["%channel relay: new-count" new-count "seen-count" seen-count]
         =/  new-msgs=(list [text=@t from=@t])
-          (get-incoming-after upd-seen seen-count)
+          (get-incoming-after upd-view seen-count)
         =.  seen-count  new-count
         ?~  new-msgs
           ~&  >>  "%channel relay: no new incoming msgs after filter"
@@ -125,10 +125,10 @@
         ::  append to inbox
         ;<  now=@da  bind:m  get-time:io
         =/  inbox-road=road:tarball  (cord-to-road:tarball './inbox.json')
-        ;<  cur-seen=seen:nexus  bind:m  (peek:io inbox-road ~)
+        ;<  cur-view=view:nexus  bind:m  (peek:io inbox-road ~)
         =/  cur-inbox=(list json)
-          ?.  ?=([%& %file *] cur-seen)  ~
-          =/  j=json  (fall (mole |.(!<(json (need-vase:tarball sang.p.cur-seen)))) *json)
+          ?.  ?=([%file *] cur-view)  ~
+          =/  j=json  (fall (mole |.(!<(json (need-vase:tarball sang.cur-view)))) *json)
           ?.  ?=(%a -.j)  ~
           p.j
         =/  new-entries=(list json)
@@ -158,10 +158,10 @@
   =/  m  (fiber:fiber:nexus ,channel-config)
   ^-  form:m
   =/  road=road:tarball  (cord-to-road:tarball './config.json')
-  ;<  =seen:nexus  bind:m  (peek:io road `[/ %json])
-  ?.  ?=([%& %file *] seen)
+  ;<  =view:nexus  bind:m  (peek:io road `[/ %json])
+  ?.  ?=([%file *] view)
     (pure:m ['' ''])
-  =/  cfg=json  (fall (mole |.(!<(json (need-vase:tarball sang.p.seen)))) *json)
+  =/  cfg=json  (fall (mole |.(!<(json (need-vase:tarball sang.view)))) *json)
   ?.  ?=(%o -.cfg)
     (pure:m ['' ''])
   =/  get
@@ -187,9 +187,9 @@
 ::  count incoming (non-bot) messages in a telegram message file view
 ::
 ++  count-incoming
-  |=  =seen:nexus
+  |=  =view:nexus
   ^-  @ud
-  =/  msgs=(list json)  (extract-msgs seen)
+  =/  msgs=(list json)  (extract-msgs view)
   %+  roll  msgs
   |=  [msg=json acc=@ud]
   ?.  ?=([%o *] msg)  acc
@@ -200,9 +200,9 @@
 ::  get incoming messages after a given count, with sender info
 ::
 ++  get-incoming-after
-  |=  [=seen:nexus skip=@ud]
+  |=  [=view:nexus skip=@ud]
   ^-  (list [text=@t from=@t])
-  =/  msgs=(list json)  (extract-msgs seen)
+  =/  msgs=(list json)  (extract-msgs view)
   =/  idx=@ud  0
   =/  acc=(list [text=@t from=@t])  ~
   |-
@@ -229,10 +229,10 @@
 ::  extract messages list from a telegram message file view
 ::
 ++  extract-msgs
-  |=  =seen:nexus
+  |=  =view:nexus
   ^-  (list json)
-  ?.  ?=([%& %file *] seen)  ~
-  =/  dat=json  (fall (mole |.(!<(json (need-vase:tarball sang.p.seen)))) *json)
+  ?.  ?=([%file *] view)  ~
+  =/  dat=json  (fall (mole |.(!<(json (need-vase:tarball sang.view)))) *json)
   ?:  ?=([%a *] dat)  p.dat
   ?.  ?=([%o *] dat)  ~
   =/  v  (~(get by p.dat) 'messages')

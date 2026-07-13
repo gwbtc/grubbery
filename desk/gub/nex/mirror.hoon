@@ -113,12 +113,12 @@
     ~|(%mirror-unexpected-road-shape !!)
   =/  src-road=road:tarball  [%& %& (weld base path.p.lane) name.p.lane]
   =/  dest-road=road:tarball  [%| 0 %& (weld /data path.p.lane) name.p.lane]
-  ;<  =seen:nexus  bind:m  (peek:io src-road ~)
-  ?.  ?=([%& %file *] seen)
+  ;<  =view:nexus  bind:m  (peek:io src-road ~)
+  ?.  ?=([%file *] view)
     ~&  >>  [%mirror-file-not-found lane]
     ;<  *  bind:m  (cull-soft:io dest-road)
     $(lanes t.lanes)
-  ~&  >  [%mirror-syncing-file name.p.lane blot=p.sang.p.seen src-road dest-road]
-  ;<  ~  bind:m  (over:io dest-road [p.sang.p.seen (sang-noun:tarball sang.p.seen)])
+  ~&  >  [%mirror-syncing-file name.p.lane blot=p.sang.view src-road dest-road]
+  ;<  ~  bind:m  (over:io dest-road [p.sang.view (sang-noun:tarball sang.view)])
   $(lanes t.lanes)
 --

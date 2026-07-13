@@ -25,10 +25,10 @@
   =/  src-road=road:tarball  [%& %| (stab u.src)]
   =/  dst-road=road:tarball  [%& %| (stab u.dst)]
   ::  read source directory
-  ;<  =seen:nexus  bind:m  (peek:io src-road ~)
-  ?.  ?=([%& %ball *] seen)
+  ;<  =view:nexus  bind:m  (peek:io src-road ~)
+  ?.  ?=([%ball *] view)
     (pure:m [%error (crip "Source not found or not a directory: {(trip u.src)}")])
   ::  create destination with source's ball subtree
-  ;<  ~  bind:m  (make:io dst-road &+(ball-to-bole:tarball ball.p.seen))
+  ;<  ~  bind:m  (make:io dst-road &+(ball-to-bole:tarball ball.view))
   (pure:m [%text (crip "Copied {(trip u.src)} -> {(trip u.dst)}")])
 --

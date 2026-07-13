@@ -156,11 +156,11 @@
       =?  silo  ?=(^ snap)
         =.  silo
           %+  roll  ~(tap in jects.refs.u.snap)
-          |=  [=lobe:clay s=_silo]
-          (~(bump-ject-ref si:nexus s) lobe)
+          |=  [=jobe:nexus s=_silo]
+          (~(bump-ject-ref si:nexus s) jobe)
         %+  roll  ~(tap in nouns.refs.u.snap)
-        |=  [=lobe:clay s=_silo]
-        (~(bump-ref si:nexus s) lobe)
+        |=  [=nobe:nexus s=_silo]
+        (~(bump-ref si:nexus s) nobe)
       =/  expiry=@da  (add now.bowl ~m5)
       =?  snaps.remo  ?=(^ snap)
         (~(put by snaps.remo) [snap-id src.bowl] [dest-lane refs.u.snap expiry])
@@ -238,19 +238,19 @@
       =/  acc=silo:nexus  *silo:nexus
       =.  acc
         %+  roll  ~(tap in jects.refs.u.pin)
-        |=  [=lobe:clay a=_acc]
-        =/  jot  (~(get by jects.silo) lobe)
+        |=  [=jobe:nexus a=_acc]
+        =/  jot  (~(get by jects.silo) jobe)
         ?~  jot
-          ~&  >>>  [%want-serve-ject-absent lobe]
+          ~&  >>>  [%want-serve-ject-absent jobe]
           a
-        a(jects (~(put by jects.a) lobe [0 ject.u.jot]))
+        a(jects (~(put by jects.a) jobe [0 ject.u.jot]))
       %+  roll  ~(tap in nouns.refs.u.pin)
-      |=  [=lobe:clay a=_acc]
-      =/  got  (~(get by nouns.silo) lobe)
+      |=  [=nobe:nexus a=_acc]
+      =/  got  (~(get by nouns.silo) nobe)
       ?~  got
-        ~&  >>>  [%want-serve-noun-absent lobe]
+        ~&  >>>  [%want-serve-noun-absent nobe]
         a
-      a(nouns (~(put by nouns.a) lobe [0 noun.u.got]))
+      a(nouns (~(put by nouns.a) nobe [0 noun.u.got]))
     ~&  >  [%want-sending nouns=~(wyt by nouns.send) jects=~(wyt by jects.send)]
     ::  Release snap, drop refs, cancel timer
     =.  snaps.remo  (~(del by snaps.remo) pin-key)
@@ -434,8 +434,8 @@
     ::
       [%x %peek %silo %lobe @ ~]
     ::  Look up noun in silo by lobe hash
-    =/  =lobe:clay  (slav %uv i.t.t.t.t.path)
-    =/  got=(unit noun)  (~(get si:nexus silo) lobe)
+    =/  =nobe:nexus  (slav %uv i.t.t.t.t.path)
+    =/  got=(unit noun)  (~(get si:nexus silo) nobe)
     ?~  got  [~ ~]
     ``%noun^!>(u.got)
     ::
@@ -606,11 +606,11 @@
   ^-  silo:nexus
   =.  silo
     %+  roll  ~(tap in jects.refs)
-    |=  [=lobe:clay s=_silo]
-    (~(drop-ject si:nexus s) lobe)
+    |=  [=jobe:nexus s=_silo]
+    (~(drop-ject si:nexus s) jobe)
   %+  roll  ~(tap in nouns.refs)
-  |=  [=lobe:clay s=_silo]
-  (~(drop si:nexus s) lobe)
+  |=  [=nobe:nexus s=_silo]
+  (~(drop si:nexus s) nobe)
 ::  +discharge-peeks: sweep staged cross-ship peeks.  If a peek's refs
 ::  can now read the content it asked for — notify and remove.
 ::  Discharge means the requesting fiber gets its %peek intake.
@@ -619,8 +619,8 @@
   ^+  this
   =/  entries=(list [[=rail:tarball =wire] =peek:remo:nexus])
     ~(tap by peeks.remo)
-  =/  have-jects=(set lobe:clay)  ~(key by jects.silo)
-  =/  have-nouns=(set lobe:clay)  ~(key by nouns.silo)
+  =/  have-jects=(set jobe:nexus)  ~(key by jects.silo)
+  =/  have-nouns=(set nobe:nexus)  ~(key by nouns.silo)
   |-
   ?~  entries  this
   =/  [key=[=rail:tarball =wire] pk=peek:remo:nexus]  i.entries
@@ -636,19 +636,19 @@
   ::  All refs present — discharge: build view from snap+silo,
   ::  send %peek intake to the requesting fiber.
   ~&  >  [%peek-discharged ship.pk dest.pk key=key peeks-remaining=~(wyt by peeks.remo)]
-  =/  cit=(each cite:nexus tang)
-    ?:  ?=(%tomb -.pace.u.snap.pk)  &+[%none ~]
-    ?~  p.pace.u.snap.pk  &+[%none ~]
+  =/  =cite:nexus
+    ?:  ?=(%tomb -.pace.u.snap.pk)  [%none ~]
+    ?~  p.pace.u.snap.pk  [%none ~]
     ?-  -.dest.pk
-      %|  &+[%ball *wave:nexus u.p.pace.u.snap.pk deep.pk]
-      %&  &+[%file cass.u.snap.pk u.p.pace.u.snap.pk blot.pk]
+      %|  [%ball *wave:nexus u.p.pace.u.snap.pk deep.pk]
+      %&  [%file cass.u.snap.pk u.p.pace.u.snap.pk blot.pk]
     ==
   ::  Bump silo ref for data-carrying cites
-  =?  silo  ?=([%& %ball *] cit)
-    (~(bump-ject-ref si:nexus silo) lobe.p.cit)
-  =?  silo  ?=([%& %file *] cit)
-    (~(bump-ject-ref si:nexus silo) lobe.p.cit)
-  =.  this  (enqu-take rail.key (sys-give /peek) ~ %peek wire.key cit)
+  =?  silo  ?=([%ball *] cite)
+    (~(bump-ject-ref si:nexus silo) lobe.cite)
+  =?  silo  ?=([%file *] cite)
+    (~(bump-ject-ref si:nexus silo) lobe.cite)
+  =.  this  (enqu-take rail.key (sys-give /peek) ~ %peek wire.key cite)
   =.  peeks.remo  (~(del by peeks.remo) key)
   $(entries t.entries)
 ::  +process-intake: handle inbound cross-ship responses.
@@ -707,7 +707,7 @@
         %+  roll  to-discharge
         |=  [[[=rail:tarball =wire] pk=peek:remo:nexus] sat=_this]
         =.  peeks.remo.sat  (~(del by peeks.remo.sat) [rail wire])
-        (enqu-take:sat rail (sys-give:sat /peek) ~ %peek wire &+[%none ~])
+        (enqu-take:sat rail (sys-give:sat /peek) ~ %peek wire [%none ~])
       this
     =.  peeks.remo
       %-  ~(run by peeks.remo)
@@ -752,63 +752,63 @@
     ~&  >  [%data-received-from src]
     =/  got=silo:nexus  silo.resp
     ::  Hash verification: only accept blobs whose content matches their lobe
-    =/  good-nouns=(list [=lobe:clay =noun])
+    =/  good-nouns=(list [=nobe:nexus =noun])
       %+  murn  ~(tap by nouns.got)
-      |=  [=lobe:clay refs=@ud =noun]
-      ?.  =(lobe `@uvI`(sham noun))
-        ~&  >>  [%data-hash-mismatch %noun lobe]
+      |=  [=nobe:nexus refs=@ud =noun]
+      ?.  =(nobe `@uvI`(sham noun))
+        ~&  >>  [%data-hash-mismatch %noun nobe]
         ~
-      `[lobe noun]
-    =/  good-jects=(list [=lobe:clay =ject:nexus])
+      `[nobe noun]
+    =/  good-jects=(list [=jobe:nexus =ject:nexus])
       %+  murn  ~(tap by jects.got)
-      |=  [=lobe:clay refs=@ud =ject:nexus]
-      ?.  =(lobe `@uvI`(sham ject))
-        ~&  >>  [%data-hash-mismatch %ject lobe]
+      |=  [=jobe:nexus refs=@ud =ject:nexus]
+      ?.  =(jobe `@uvI`(sham ject))
+        ~&  >>  [%data-hash-mismatch %ject jobe]
         ~
-      `[lobe ject]
+      `[jobe ject]
     ::  Merge verified data into silo: insert at refcount 1 if new,
     ::  bump refcount if already present.
     =.  silo
       %+  roll  good-nouns
-      |=  [[=lobe:clay =noun] s=_silo]
-      =/  existing  (~(get by nouns.s) lobe)
+      |=  [[=nobe:nexus =noun] s=_silo]
+      =/  existing  (~(get by nouns.s) nobe)
       ?~  existing
-        s(nouns (~(put by nouns.s) lobe [1 noun]))
-      s(nouns (~(put by nouns.s) lobe u.existing(refs +(refs.u.existing))))
+        s(nouns (~(put by nouns.s) nobe [1 noun]))
+      s(nouns (~(put by nouns.s) nobe u.existing(refs +(refs.u.existing))))
     ::  Jects must insert bottom-up: put-ject bumps a new ject's
     ::  children only if they are already present. Topologically
     ::  insert — a tree waits until its child jects are in the silo.
     =.  silo
-      =/  pending=(list [=lobe:clay =ject:nexus])  good-jects
+      =/  pending=(list [=jobe:nexus =ject:nexus])  good-jects
       |-
       ?:  =(~ pending)  silo
-      =/  ready=(list [=lobe:clay =ject:nexus])
-        %+  skim  `(list [=lobe:clay =ject:nexus])`pending
-        |=  [=lobe:clay =ject:nexus]
+      =/  ready=(list [=jobe:nexus =ject:nexus])
+        %+  skim  `(list [=jobe:nexus =ject:nexus])`pending
+        |=  [=jobe:nexus =ject:nexus]
         ?.  ?=(%tree -.ject)  %.y
-        =/  kids=(list lobe:clay)
+        =/  kids=(list jobe:nexus)
           %+  weld
-            (turn ~(val by fil.tree.ject) |=(l=lobe:clay l))
-          (turn ~(val by dir.tree.ject) |=([l=lobe:clay *] l))
+            (turn ~(val by fil.tree.ject) |=(j=jobe:nexus j))
+          (turn ~(val by dir.tree.ject) |=([j=jobe:nexus *] j))
         %+  levy  kids
-        |=(l=lobe:clay (~(has by jects.silo) l))
+        |=(j=jobe:nexus (~(has by jects.silo) j))
       ::  Nothing ready but work remains: refs point outside this
       ::  transfer and are absent — insert anyway rather than loop.
-      =/  batch=(list [=lobe:clay =ject:nexus])
+      =/  batch=(list [=jobe:nexus =ject:nexus])
         ?~(ready pending ready)
       ~?  >>  =(~ ready)  [%data-merge-unresolved-children (lent pending)]
       =.  silo
         %+  roll  batch
-        |=  [[=lobe:clay =ject:nexus] s=_silo]
+        |=  [[=jobe:nexus =ject:nexus] s=_silo]
         +:(~(put-ject si:nexus s) ject)
-      =/  done=(set lobe:clay)  (sy (turn batch |=([l=lobe:clay *] l)))
+      =/  done=(set jobe:nexus)  (sy (turn batch |=([j=jobe:nexus *] j)))
       %=  $
-        pending  (skip pending |=([l=lobe:clay *] (~(has in done) l)))
+        pending  (skip pending |=([j=jobe:nexus *] (~(has in done) j)))
       ==
     ~&  >  [%peek-data-received nouns=(lent good-nouns) jects=(lent good-jects)]
     =/  merged=lobes:nexus
-      :-  (sy (turn good-jects |=([=lobe:clay *] lobe)))
-      (sy (turn good-nouns |=([=lobe:clay *] lobe)))
+      :-  (sy (turn good-jects |=([=jobe:nexus *] jobe)))
+      (sy (turn good-nouns |=([=nobe:nexus *] nobe)))
     =.  this  discharge-peeks
     =.  silo  (release-snap-refs merged)
     =.  vale  (gc-vale-cache vale bins)
@@ -825,7 +825,7 @@
     %+  roll  vetoed
     |=  [[[=rail:tarball =wire] pk=peek:remo:nexus] sat=_this]
     =.  peeks.remo.sat  (~(del by peeks.remo.sat) [rail wire])
-    (enqu-take:sat rail (sys-give:sat /peek) ~ %peek wire &+[%veto ~])
+    (enqu-take:sat rail (sys-give:sat /peek) ~ %peek wire [%veto ~])
     ::
       %miss
     ::  Remote snap expired before want arrived. Discharge affected
@@ -839,7 +839,7 @@
     |-
     ?~  stale  this
     =/  [key=[=rail:tarball =wire] pk=peek:remo:nexus]  i.stale
-    =.  this  (enqu-take rail.key (sys-give /peek) ~ %peek wire.key &+[%miss ~])
+    =.  this  (enqu-take rail.key (sys-give /peek) ~ %peek wire.key [%miss ~])
     =.  peeks.remo  (~(del by peeks.remo) key)
     $(stale t.stale)
   ==
@@ -1011,11 +1011,11 @@
     ::  Rewrite leaf ject with new gain flag
     =/  new-leaf=leaf:nexus  leaf.ject.u.jot(gain flag)
     =.  silo  (~(drop-ject si:nexus silo) u.p.pace.val.u.got)
-    =/  [new-lobe=lobe:clay new-silo=silo:nexus]
+    =/  [new-jobe=jobe:nexus new-silo=silo:nexus]
       (~(put-ject si:nexus silo) [%leaf new-leaf])
     =.  silo  new-silo
     ::  Update hist to point to new ject lobe
-    =/  =pace:hist:nexus  ?:(flag [%firm `new-lobe] [%temp `new-lobe])
+    =/  =pace:hist:nexus  ?:(flag [%firm `new-jobe] [%temp `new-jobe])
     =/  new-hist=hist:nexus
       (put-pace:hist:nexus u.fh key.u.got pace)
     =.  born  (~(put bo:nexus now.bowl born) here new-hist)
@@ -1119,7 +1119,7 @@
 ::  Find all [rail cass] pairs in a subtree whose hist contains a lobe
 ::
 ++  seek-lobe
-  |=  [=lane:tarball target=lobe:clay]
+  |=  [=lane:tarball target=nobe:nexus]
   ^-  (list [=rail:tarball =cass:clay])
   ?-    -.lane
       %&
@@ -1139,7 +1139,7 @@
   ==
 ::
 ++  seek-nodes
-  |=  [base=path nodes=(list [pax=path fold=hist:nexus file=(map @ta hist:nexus)]) target=lobe:clay]
+  |=  [base=path nodes=(list [pax=path fold=hist:nexus file=(map @ta hist:nexus)]) target=nobe:nexus]
   ^-  (list [=rail:tarball =cass:clay])
   ?~  nodes  ~
   =/  files=(list [@ta hist:nexus])  ~(tap by file.i.nodes)
@@ -1148,7 +1148,7 @@
   (weld hits $(nodes t.nodes))
 ::
 ++  seek-files
-  |=  [base=path pax=path files=(list [@ta hist:nexus]) target=lobe:clay]
+  |=  [base=path pax=path files=(list [@ta hist:nexus]) target=nobe:nexus]
   ^-  (list [=rail:tarball =cass:clay])
   ?~  files  ~
   =/  hits=(list [=rail:tarball =cass:clay])
@@ -1157,7 +1157,7 @@
 ::
 ::  match-hist: find hist entries whose leaf ject contains target noun-lobe
 ++  match-hist
-  |=  [here=rail:tarball =hist:nexus target=lobe:clay]
+  |=  [here=rail:tarball =hist:nexus target=nobe:nexus]
   ^-  (list [=rail:tarball =cass:clay])
   %+  murn  (tap:hon:hist:nexus hist)
   |=  [key=cass:clay val=entry:hist:nexus]
@@ -1282,13 +1282,13 @@
 ::  Vale cache read: check if [lobe ckey] has been validated
 ::
 ++  vale-hit
-  |=  [lob=lobe:clay ckey=@uv]
+  |=  [lob=nobe:nexus ckey=@uv]
   ^-  (unit (unit tang))
   (~(get by vale) [lob ckey])
 ::  Vale cache write: store validation result
 ::
 ++  vale-put
-  |=  [lob=lobe:clay ckey=@uv res=(unit tang)]
+  |=  [lob=nobe:nexus ckey=@uv res=(unit tang)]
   ^+  this
   this(vale (~(put by vale) [lob ckey] res))
 ::  Check vale cache for a prior validation result.
@@ -1300,7 +1300,7 @@
   ^-  (unit (each vase tang))
   =/  built-res  (seek-built pax (weld /mar path.blot) name.blot)
   ?~  built-res  ~
-  =/  lob=lobe:clay  (sham noun)
+  =/  lob=nobe:nexus  (sham noun)
   =/  hit  (vale-hit lob ckey.u.built-res)
   ?~  hit  ~
   ?^  u.hit  `|+u.u.hit
@@ -1316,7 +1316,7 @@
 ++  cache-validation
   |=  [pax=path =blot:tarball noun=* res=(each * tang)]
   ^+  this
-  =/  lob=lobe:clay  (sham noun)
+  =/  lob=nobe:nexus  (sham noun)
   =/  built-res  (seek-built pax (weld /mar path.blot) name.blot)
   ?~  built-res  this
   (vale-put lob ckey.u.built-res ?:(?=(%& -.res) ~ `p.res))
@@ -1416,9 +1416,9 @@
 ::  fetches the raw noun, validates via vale cache, returns sang.
 ::
 ++  peek-grub
-  |=  =lobe:clay
+  |=  =jobe:nexus
   ^-  (unit sang:tarball)
-  =/  jot  (~(get by jects.silo) lobe)
+  =/  jot  (~(get by jects.silo) jobe)
   ?~  jot  ~
   =/  jt=ject:nexus  ject.u.jot
   ?.  ?=(%leaf -.jt)  ~
@@ -1449,9 +1449,9 @@
 ::  recurse into fil (leaf children) and dir (tree children).
 ::
 ++  peek-ball
-  |=  =lobe:clay
+  |=  =jobe:nexus
   ^-  ball:tarball
-  =/  jot  (~(get by jects.silo) lobe)
+  =/  jot  (~(get by jects.silo) jobe)
   ?~  jot  *ball:tarball
   =/  jt=ject:nexus  ject.u.jot
   ?.  ?=(%tree -.jt)  *ball:tarball
@@ -1460,11 +1460,11 @@
   =/  contents=(map @ta [=sang:tarball gain=? bang=(unit tang)])
     %-  ~(gas by *(map @ta [=sang:tarball gain=? bang=(unit tang)]))
     %+  murn  ~(tap by fil.tree.jt)
-    |=  [name=@ta =lobe:clay]
+    |=  [name=@ta =jobe:nexus]
     ^-  (unit [@ta [=sang:tarball gain=? bang=(unit tang)]])
-    =/  got  (peek-grub lobe)
+    =/  got  (peek-grub jobe)
     ?~  got  ~
-    =/  leaf-jot  (~(get by jects.silo) lobe)
+    =/  leaf-jot  (~(get by jects.silo) jobe)
     =/  leaf-gain=?
       ?~  leaf-jot  %.n
       ?.  ?=(%leaf -.ject.u.leaf-jot)  %.n
@@ -1487,18 +1487,18 @@
   =/  sub-dirs=(map @ta ball:tarball)
     %-  ~(gas by *(map @ta ball:tarball))
     %+  turn  ~(tap by dir.tree.jt)
-    |=  [name=@ta =lobe:clay weir=(unit weir:tarball)]
+    |=  [name=@ta =jobe:nexus weir=(unit weir:tarball)]
     ^-  [@ta ball:tarball]
-    =/  child=ball:tarball  (peek-ball lobe)
+    =/  child=ball:tarball  (peek-ball jobe)
     =/  child-fil=lump:tarball  (fall fil.child [~ ~ %.n ~ ~])
     [name child(fil `child-fil(weir weir))]
   [`lump sub-dirs]
 ::  Peek bole: raw nouns, no vase construction or bang resolution.
 ::
 ++  peek-bole
-  |=  =lobe:clay
+  |=  =jobe:nexus
   ^-  bole:tarball
-  =/  jot  (~(get by jects.silo) lobe)
+  =/  jot  (~(get by jects.silo) jobe)
   ?~  jot  *bole:tarball
   =/  jt=ject:nexus  ject.u.jot
   ?.  ?=(%tree -.jt)  *bole:tarball
@@ -1507,9 +1507,9 @@
   =/  contents=(map @ta [=bask:tarball gain=?])
     %-  ~(gas by *(map @ta [=bask:tarball gain=?]))
     %+  murn  ~(tap by fil.tree.jt)
-    |=  [name=@ta =lobe:clay]
+    |=  [name=@ta =jobe:nexus]
     ^-  (unit [@ta [=bask:tarball gain=?]])
-    =/  leaf-jot  (~(get by jects.silo) lobe)
+    =/  leaf-jot  (~(get by jects.silo) jobe)
     ?~  leaf-jot  ~
     ?.  ?=(%leaf -.ject.u.leaf-jot)  ~
     =/  raw  (~(get si:nexus silo) lobe.leaf.ject.u.leaf-jot)
@@ -1522,9 +1522,9 @@
   =/  sub-dirs=(map @ta bole:tarball)
     %-  ~(gas by *(map @ta bole:tarball))
     %+  turn  ~(tap by dir.tree.jt)
-    |=  [name=@ta =lobe:clay weir=(unit weir:tarball)]
+    |=  [name=@ta =jobe:nexus weir=(unit weir:tarball)]
     ^-  [@ta bole:tarball]
-    [name (peek-bole lobe)]
+    [name (peek-bole jobe)]
   [`pulp sub-dirs]
 ::
 ++  peek-bole-now
@@ -1544,9 +1544,9 @@
 ::  No recursion — O(files at this level) instead of O(all files).
 ::
 ++  peek-ball-shallow
-  |=  =lobe:clay
+  |=  =jobe:nexus
   ^-  ball:tarball
-  =/  jot  (~(get by jects.silo) lobe)
+  =/  jot  (~(get by jects.silo) jobe)
   ?~  jot  *ball:tarball
   =/  jt=ject:nexus  ject.u.jot
   ?.  ?=(%tree -.jt)  *ball:tarball
@@ -1555,11 +1555,11 @@
   =/  contents=(map @ta [=sang:tarball gain=? bang=(unit tang)])
     %-  ~(gas by *(map @ta [=sang:tarball gain=? bang=(unit tang)]))
     %+  murn  ~(tap by fil.tree.jt)
-    |=  [name=@ta =lobe:clay]
+    |=  [name=@ta =jobe:nexus]
     ^-  (unit [@ta [=sang:tarball gain=? bang=(unit tang)]])
-    =/  got  (peek-grub lobe)
+    =/  got  (peek-grub jobe)
     ?~  got  ~
-    =/  leaf-jot  (~(get by jects.silo) lobe)
+    =/  leaf-jot  (~(get by jects.silo) jobe)
     =/  leaf-gain=?
       ?~  leaf-jot  %.n
       ?.  ?=(%leaf -.ject.u.leaf-jot)  %.n
@@ -1582,7 +1582,7 @@
   =/  sub-dirs=(map @ta ball:tarball)
     %-  ~(gas by *(map @ta ball:tarball))
     %+  turn  ~(tap by dir.tree.jt)
-    |=  [name=@ta =lobe:clay weir=(unit weir:tarball)]
+    |=  [name=@ta =jobe:nexus weir=(unit weir:tarball)]
     ^-  [@ta ball:tarball]
     [name [`[~ weir %.n ~ ~] ~]]
   [`lump sub-dirs]
@@ -1825,11 +1825,11 @@
   ?~  pv  this
   ?:  ?=(%tomb -.u.pv)  this
   ?~  p.u.pv  this
-  =/  [new-lobe=lobe:clay new-silo=silo:nexus]
+  =/  [new-jobe=jobe:nexus new-silo=silo:nexus]
     (~(set-bang si:nexus silo) u.p.u.pv err)
   =/  new-cass=cass:clay  (~(next-cass bo:nexus now.bowl born) u.cas)
   =/  new-sok=hist:nexus
-    (put-pace:hist:nexus u.sok new-cass [%temp `new-lobe])
+    (put-pace:hist:nexus u.sok new-cass [%temp `new-jobe])
   =.  silo  new-silo
   =.  born  (~(put bo:nexus now.bowl born) here new-sok)
   =/  old-born=born:nexus  born
@@ -1850,11 +1850,11 @@
   ?~  pv  this
   ?:  ?=(%tomb -.u.pv)  this
   ?~  p.u.pv  this
-  =/  [new-lobe=lobe:clay new-silo=silo:nexus]
+  =/  [new-jobe=jobe:nexus new-silo=silo:nexus]
     (~(set-bang si:nexus silo) u.p.u.pv err)
   =/  new-cass=cass:clay  (~(next-cass bo:nexus now.bowl born) u.cas)
   =/  new-fold=hist:nexus
-    (put-pace:hist:nexus fold.u.node new-cass [%temp `new-lobe])
+    (put-pace:hist:nexus fold.u.node new-cass [%temp `new-jobe])
   =.  silo  new-silo
   =.  born  (~(put of born) dest u.node(fold new-fold))
   =/  old-born=born:nexus  born
@@ -2076,17 +2076,16 @@
   ?~  in  this
   ?+  -.u.in  this
       %peek
-    ?.  ?=(%& -.cite.u.in)  this
-    ?+  -.p.cite.u.in  this
-      %file  this(silo (~(drop-ject si:nexus silo) lobe.p.cite.u.in))
-      %ball  this(silo (~(drop-ject si:nexus silo) lobe.p.cite.u.in))
+    ?+  -.cite.u.in  this
+      %file  this(silo (~(drop-ject si:nexus silo) lobe.cite.u.in))
+      %ball  this(silo (~(drop-ject si:nexus silo) lobe.cite.u.in))
     ==
       %peep
     ?.  ?=(%& -.res.u.in)  this
     =-  this(silo -)
     %+  roll  p.res.u.in
-    |=  [[* =lobe:clay] acc=_silo]
-    (~(drop-ject si:nexus acc) lobe)
+    |=  [[* =jobe:nexus] acc=_silo]
+    (~(drop-ject si:nexus acc) jobe)
   ==
 ::  Nack all queued pokes in a pool subtree
 ::
@@ -2605,10 +2604,15 @@
   ^+  this
   ::  %here does its own permission checks — skip weir pre-check
   ?:  ?=(%here -.dart)
-    (handle-dart here dart ~)
+    (handle-dart here dart ~ ~)
   =/  [=jump:nexus dest=(unit lane:tarball)]  (dart-to-dest here dart)
+  ::  %node dart with an unresolvable road — drop at admission.
+  ::  Past this point a %node dart always carries a resolved dest.
+  ?:  &(?=(%node -.dart) ?=(~ dest))
+    ~&  [%node-bad-road here road.dart]
+    this
   =/  =filt:nexus  (allowed jump here dest)
-  ?+    filt  (handle-dart here dart filt)
+  ?+    filt  (handle-dart here dart filt dest)
       [~ %|]
     ::  Vetoed — crash for foreign ship darts (gall nacks the sender),
     ::  send %veto intake back to source for internal darts.
@@ -2621,7 +2625,7 @@
       [~ %&]
     ::  Weir boundary allowed — validation happens in handler for all dart types.
     ::  Peek results are validated inside handle-dart (data flows back).
-    (handle-dart here dart filt)
+    (handle-dart here dart filt dest)
   ==
 ::  Extract jump category and destination from a dart for weir filtering.
 ::  Returns [jump dest] where:
@@ -2661,17 +2665,16 @@
   ?-(-.lane %& [%& real-path name.p.lane], %| [%| real-path])
 ::
 ++  handle-dart
-  |=  [here=rail:tarball =dart:nexus =filt:nexus]
+  |=  [here=rail:tarball =dart:nexus =filt:nexus dest=(unit lane:tarball)]
   ^+  this
   =/  cod=path  path.here
   ?-    -.dart
     ::
       %node
-    ::  Send load to another path
-    =/  dest-lane=(unit lane:tarball)  (lane-from-road:tarball [%& here] road.dart)
-    ?~  dest-lane
-      ~&  [%node-bad-road here road.dart]
-      this
+    ::  Send load to another path. Road was resolved in process-dart;
+    ::  bad roads are dropped there, so %node always has a dest.
+    ?>  ?=(^ dest)
+    =*  dest-lane  dest
     ?-    -.load.dart
         %poke
       ::  Poke destination must be a file
@@ -2784,12 +2787,12 @@
         =/  dest=fold:tarball  p.u.dest-lane
         =/  sub-born=born:nexus  (~(dip of born) dest)
         ?:  &(=(~ fil.sub-born) =(~ dir.sub-born))
-          (enqu-take here (sys-give /peek) ~ %peek wire.dart &+[%none ~])
+          (enqu-take here (sys-give /peek) ~ %peek wire.dart [%none ~])
         ::  Get root tree ject lobe from born fold hist:
         ::  historical if case is set, current top otherwise.
         =/  node=(unit [fold=hist:nexus file=(map @ta hist:nexus)])
           fil.sub-born
-        =/  root-lobe=(unit lobe:clay)
+        =/  root-lobe=(unit jobe:nexus)
           ?~  node  ~
           ?^  case.load.dart
             =/  [* =pace:hist:nexus]
@@ -2802,24 +2805,24 @@
           ?:  ?=(%tomb -.pace.val.u.got)  ~
           p.pace.val.u.got
         ?~  root-lobe
-          (enqu-take here (sys-give /peek) ~ %peek wire.dart &+[%none ~])
+          (enqu-take here (sys-give /peek) ~ %peek wire.dart [%none ~])
         ::  Bump ref to keep tree alive while queued
         =.  silo  (~(bump-ject-ref si:nexus silo) u.root-lobe)
         =/  =wave:nexus  (wave-from-born:nexus sub-born)
-        (enqu-take here (sys-give /peek) ~ %peek wire.dart &+[%ball wave u.root-lobe deep.load.dart])
+        (enqu-take here (sys-give /peek) ~ %peek wire.dart [%ball wave u.root-lobe deep.load.dart])
         ::
           %&
         =/  dest=rail:tarball  p.u.dest-lane
         =/  content  (peek-grub-now path.dest name.dest)
         ?:  &(?=(~ content) ?=(~ case.load.dart))
-          (enqu-take here (sys-give /peek) ~ %peek wire.dart &+[%none ~])
+          (enqu-take here (sys-give /peek) ~ %peek wire.dart [%none ~])
         =/  node=(unit [fold=hist:nexus file=(map @ta hist:nexus)])
           (~(get of born) path.dest)
         =/  sk=hist:nexus
           ?~  node  *hist:nexus
           (fall (~(get by file.u.node) name.dest) *hist:nexus)
         ::  Resolve lobe: historical from silo or current from born
-        =/  src-lobe=(unit lobe:clay)
+        =/  src-lobe=(unit jobe:nexus)
           ?^  case.load.dart
             =/  [* =pace:hist:nexus]
               (resolve-case:nexus u.case.load.dart sk)
@@ -2832,11 +2835,11 @@
           ?:  ?=(%tomb -.pace.val.u.got)  ~
           p.pace.val.u.got
         ?~  src-lobe
-          (enqu-take here (sys-give /peek) ~ %peek wire.dart &+[%none ~])
+          (enqu-take here (sys-give /peek) ~ %peek wire.dart [%none ~])
         ::  Bump silo ref to keep ject alive while queued
         =.  silo  (~(bump-ject-ref si:nexus silo) u.src-lobe)
         =/  =cass:clay  (fall (top:hist:nexus sk) *cass:clay)
-        (enqu-take here (sys-give /peek) ~ %peek wire.dart &+[%file cass u.src-lobe blot.load.dart])
+        (enqu-take here (sys-give /peek) ~ %peek wire.dart [%file cass u.src-lobe blot.load.dart])
       ==
       ::
         %code
@@ -2948,7 +2951,7 @@
         %seek
       ::  Find all [rail cass] pairs with matching lobe in subtree
       =/  res=(each (list [=rail:tarball =cass:clay]) tang)
-        (mule |.((seek-lobe u.dest-lane lobe.load.dart)))
+        (mule |.((seek-lobe u.dest-lane nobe.load.dart)))
       (enqu-take here (sys-give /found) ~ %seek wire.dart res)
       ::
         %peep
@@ -2960,10 +2963,10 @@
         (enqu-take here (sys-give /peep) ~ %peep wire.dart |+~[leaf+"no history for {(spud (snoc path.dest name.dest))}"])
       =/  entries=(list [key=cass:clay val=entry:hist:nexus])
         (tap:hon:hist:nexus u.sk)
-      =/  hits=(list [cass:clay lobe:clay])
+      =/  hits=(list [cass:clay jobe:nexus])
         %+  murn  entries
         |=  [key=cass:clay val=entry:hist:nexus]
-        ^-  (unit [cass:clay lobe:clay])
+        ^-  (unit [cass:clay jobe:nexus])
         =/  match=?
           ?-    -.find.load.dart
               %pick
@@ -2984,8 +2987,8 @@
       ::  Bump silo refs for all matched lobes (pace lobes are jects)
       =.  silo
         %+  roll  hits
-        |=  [[* =lobe:clay] acc=_silo]
-        (~(bump-ject-ref si:nexus acc) lobe)
+        |=  [[* =jobe:nexus] acc=_silo]
+        (~(bump-ject-ref si:nexus acc) jobe)
       (enqu-take here (sys-give /peep) ~ %peep wire.dart &+hits)
       ::
         %born
@@ -3180,53 +3183,52 @@
       [`[%poke from.u.in [p.bask.u.in -:!>(*) q.bask.u.in]] this]
     [`[%poke from.u.in [p.bask.u.in p.validated]] this]
       %peek
-    ::  cite → seen: resolve lobe from silo, wrap with type
-    =/  =cite:nexus  ?:(?=(%& -.cite.u.in) p.cite.u.in [%none ~])
-    =/  =seen:nexus
+    ::  cite → view: resolve lobe from silo, wrap with type
+    =/  =cite:nexus  cite.u.in
+    =/  =view:nexus
       ?-  -.cite
-        %none  &+[%none ~]
-        %miss  &+[%miss ~]
-        %veto  &+[%veto ~]
-        %tomb  &+[%tomb ~]
+        %none  [%none ~]
+        %miss  [%miss ~]
+        %veto  [%veto ~]
+        %tomb  [%tomb ~]
           %file
         =/  jot  (~(get by jects.silo) lobe.cite)
-        ?~  jot  &+[%none ~]
+        ?~  jot  [%none ~]
         =/  jt=ject:nexus  ject.u.jot
-        ?.  ?=(%leaf -.jt)  &+[%none ~]
+        ?.  ?=(%leaf -.jt)  [%none ~]
         =/  got=(unit noun)  (~(get si:nexus silo) lobe.leaf.jt)
-        ?~  got  &+[%none ~]
+        ?~  got  [%none ~]
         =/  =bask:tarball  [blot.mark.leaf.jt u.got]
         =/  res  (validate-bask cod bask)
         ?:  ?=(%| -.res)
-          &+[%file cass.cite [blot.mark.leaf.jt %| [p.res u.got]]]
+          [%file cass.cite [blot.mark.leaf.jt %| [p.res u.got]]]
         =/  =sage:tarball  p.res
         =/  result=sang:tarball
           ?~  conv.cite  (sage-to-sang:tarball sage)
           ?:  =(p.sage u.conv.cite)  (sage-to-sang:tarball sage)
           =/  =tube:clay  (get-tube cod [p.sage u.conv.cite])
           (sage-to-sang:tarball [u.conv.cite (tube q.sage)])
-        &+[%file cass.cite result]
+        [%file cass.cite result]
           %ball
         =/  sub-ball
           ?:  deep.cite
             (peek-ball lobe.cite)
           (peek-ball-shallow lobe.cite)
-        &+[%ball wave.cite sub-ball]
+        [%ball wave.cite sub-ball]
       ==
     ::  Drop silo refs after hydrating
     =?  silo  ?=(%file -.cite)  (~(drop-ject si:nexus silo) lobe.cite)
     =?  silo  ?=(%ball -.cite)  (~(drop-ject si:nexus silo) lobe.cite)
-    ?:  ?=(%| -.cite.u.in)  [`[%peek wire.u.in |+p.cite.u.in] this]
-    [`[%peek wire.u.in seen] this]
+    [`[%peek wire.u.in view] this]
       %peep
     ::  Resolve lobes to sages
     ?:  ?=(%| -.res.u.in)
       [`[%peep wire.u.in |+p.res.u.in] this]
     =/  hits=(list [cass:clay sage:tarball])
       %+  murn  p.res.u.in
-      |=  [cas=cass:clay =lobe:clay]
+      |=  [cas=cass:clay =jobe:nexus]
       ^-  (unit [cass:clay sage:tarball])
-      =/  jot  (~(get by jects.silo) lobe)
+      =/  jot  (~(get by jects.silo) jobe)
       ?~  jot  ~
       =/  jt=ject:nexus  ject.u.jot
       ?.  ?=(%leaf -.jt)  ~
@@ -3238,8 +3240,8 @@
     ::  Drop silo refs (pace lobes are jects)
     =.  silo
       %+  roll  p.res.u.in
-      |=  [[* =lobe:clay] acc=_silo]
-      (~(drop-ject si:nexus acc) lobe)
+      |=  [[* =jobe:nexus] acc=_silo]
+      (~(drop-ject si:nexus acc) jobe)
     [`[%peep wire.u.in &+hits] this]
       %code
     ::  Resolve ckeys to builts
@@ -3615,8 +3617,8 @@
     ?~  jot  [~ %.n ~ ~ ~]
     ?.  ?=(%tree -.ject.u.jot)  [~ %.n ~ ~ ~]
     tree.ject.u.jot
-  =/  old-entry=[=lobe:clay weir=(unit weir:nexus)]
-    (fall (~(get by dir.existing-tree) child-name) [*lobe:clay ~])
+  =/  old-entry=[=jobe:nexus weir=(unit weir:nexus)]
+    (fall (~(get by dir.existing-tree) child-name) [*jobe:nexus ~])
   =/  new-tree=tree:nexus
     existing-tree(dir (~(put by dir.existing-tree) child-name old-entry(weir weir)))
   =/  [* new-born=born:nexus new-silo=silo:nexus]
@@ -3674,21 +3676,26 @@
 ::  but don't check the governor's weir (we reach it, not pass through).
 ::  Downward movement from the governor to dest is always free.
 ::
-::  For syscalls (dest=~), there is no governor - walk all the way up.
+::  Dest-less darts (%kept) never reach here: a dart that names no
+::  destination crosses no boundary, so +allowed passes it unfiltered.
 ::
 ++  nearest-governor
   |=  [here=rail:tarball dest=(unit lane:tarball)]
   ^-  (unit fold:tarball)
-  ?~  dest  ~  :: syscall - no governor
+  ?~  dest  ~  :: unreachable from +allowed; no dest, no governor
   ?-    -.u.dest
       ::  File destination: governor is just the common prefix.
       %&
     [~ (prefix:tarball path.here path.p.u.dest)]
-      ::  Directory destination: governor must be strictly above both.
+      ::  Directory destination: if dest is at-or-above here's dir, the
+      ::  operation touches a dir whose entry the parent owns, so the
+      ::  governor must be strictly above dest. Otherwise (dest strictly
+      ::  inside here's namespace, or disjoint) the common prefix
+      ::  governs, same as file destinations.
       ::
       %|
     =/  pref=fold:tarball  (prefix:tarball path.here p.u.dest)
-    ?:  &(!=(pref path.here) !=(pref p.u.dest))
+    ?.  =(pref p.u.dest)
       [~ pref]
     ?~  pref
       [~ ~]
@@ -3698,9 +3705,10 @@
 ++  allowed
   |=  [=jump:nexus here=rail:tarball dest=(unit lane:tarball)]
   ^-  filt:nexus
+  ::  No destination (%kept): crosses no boundary, no weir has jurisdiction
+  ?~  dest  ~
   =/  gov=(unit fold:tarball)  (nearest-governor here dest)
-  ::  System darts have dest=~; use root as dummy dest (no weir match = pass)
-  =/  dest-lane=lane:tarball  (fall dest [%| /])
+  =/  dest-lane=lane:tarball  u.dest
   =|  =filt:nexus
   |-
   ::  Reached governor - stop (don't check its weir)
@@ -3712,7 +3720,7 @@
     (next-filt:nexus filt (filter:nexus jump path.here dest-lane weir-here))
   ?:  ?=([~ %|] next)
     [~ |]
-  ::  Reached root - stop (handles syscalls which have no governor)
+  ::  Reached root - stop
   ?~  path.here
     next
   $(filt next, path.here (snip `fold:tarball`path.here))
@@ -3799,7 +3807,7 @@
     =/  res  (seek-built path.here (weld /mar path.p.bask) name.p.bask)
     ?~(res 0v0 ckey.u.res)
   =/  raw=*  q.bask
-  =/  [=lobe:clay new-silo=silo:nexus new-sok=hist:nexus]
+  =/  [=nobe:nexus new-silo=silo:nexus new-sok=hist:nexus]
     (~(record si:nexus silo) raw p.bask marc-ckey gain new-cass file-cass sok)
   =.  silo  new-silo
   =.  vale  (gc-vale-cache vale bins)
@@ -3817,7 +3825,7 @@
     (mule |.((vale:p.marc-res raw)))
   ?:  ?=(%| -.res)
     ~|([%record-vale-failed p.bask path.here name.here] !!)
-  (vale-put lobe marc-ckey ~)
+  (vale-put nobe marc-ckey ~)
 ::  Sync a bole into the namespace.  One function for make, reload, and
 ::  cull (cull = empty bole).  Bottom-up walk: children settle before
 ::  parent builds its tree.  New bole is sole source of truth.
@@ -3935,9 +3943,9 @@
       (fall (~(get by u.nd) name.neck) 0v0)
     `[neck nex-ckey]
   ::  File lobes from born (skip deleted/tombed)
-  =/  fil=(map @ta lobe:clay)
+  =/  fil=(map @ta jobe:nexus)
     %-  ~(rep by file.settled-node)
-    |=  [[name=@ta sk=hist:nexus] out=(map @ta lobe:clay)]
+    |=  [[name=@ta sk=hist:nexus] out=(map @ta jobe:nexus)]
     =/  cas=(unit cass:clay)  (top:hist:nexus sk)
     ?~  cas  out
     =/  val=(unit pace:hist:nexus)  (get-pace:hist:nexus sk u.cas)
@@ -3946,9 +3954,9 @@
     ?~  p.u.val  out
     (~(put by out) name u.p.u.val)
   ::  Dir lobes from born (skip deleted/tombed/null-lobe)
-  =/  dir-map=(map @ta [lobe:clay weir=(unit weir:nexus)])
+  =/  dir-map=(map @ta [jobe:nexus weir=(unit weir:nexus)])
     %-  ~(rep by dir.settled-born)
-    |=  [[name=@ta kid=born:nexus] out=(map @ta [lobe:clay weir=(unit weir:nexus)])]
+    |=  [[name=@ta kid=born:nexus] out=(map @ta [jobe:nexus weir=(unit weir:nexus)])]
     =/  kid-node=(unit [fold=hist:nexus file=(map @ta hist:nexus)])  fil.kid
     ?~  kid-node  out
     =/  cas=(unit cass:clay)  (top:hist:nexus fold.u.kid-node)
@@ -4244,7 +4252,7 @@
   ^-  vale:nexus
   %-  ~(gas by *vale:nexus)
   %+  skip  ~(tap by vale)
-  |=  [[lob=lobe:clay ckey=@uv] *]
+  |=  [[lob=nobe:nexus ckey=@uv] *]
   ::  drop if mark was removed or lobe was tombstoned from silo
   |(!(~(has by bins) ckey) !(~(has by nouns.silo) lob))
 ::  Validate marks: for each changed mark in bin/mar/, build a vale gate
@@ -4287,7 +4295,7 @@
 ::
 ++  governed-files
   |=  cod=path
-  ^-  (list [=rail:tarball =sang:tarball lob=lobe:clay])
+  ^-  (list [=rail:tarball =sang:tarball lob=jobe:nexus])
   =/  dirs=(list [=fold:tarball =lump:tarball])  (governed-dirs cod)
   %-  zing
   %+  turn  dirs
@@ -4328,7 +4336,7 @@
     ?~  entry  ~
     `[ckey [pax nam] built.u.entry]
   ::  Collect all governed files once (expensive tree walk)
-  =/  all-grubs=(list [=rail:tarball =sang:tarball lob=lobe:clay])  (governed-files cod)
+  =/  all-grubs=(list [=rail:tarball =sang:tarball lob=jobe:nexus])  (governed-files cod)
   ::  Process each changed mark
   =/  remaining=_changed  changed
   |-
@@ -4340,9 +4348,9 @@
   ?:  ?=(?(%hoon %tang %mime %kelvin) nam)
     $(remaining t.remaining)
   ::  Find all grubs with this mark
-  =/  grubs=(list [=rail:tarball =sang:tarball lob=lobe:clay])
+  =/  grubs=(list [=rail:tarball =sang:tarball lob=jobe:nexus])
     %+  skim  all-grubs
-    |=  [=rail:tarball =sang:tarball lob=lobe:clay]
+    |=  [=rail:tarball =sang:tarball lob=jobe:nexus]
     =(blot p.sang)
   ?~  grubs  $(remaining t.remaining)
   ::  Get marc, or skip if mark failed to compile
@@ -4354,12 +4362,12 @@
     ~&  >>  "validate-marks: {(trip nam)} marc failed"
     $(remaining t.remaining)
   ::  Validate each grub, threading state for cache
-  =/  grubs=(list [=rail:tarball =sang:tarball lob=lobe:clay])  grubs
+  =/  grubs=(list [=rail:tarball =sang:tarball lob=jobe:nexus])  grubs
   =/  [n-ok=@ud n-boom=@ud]  [0 0]
   =.  this
     |-
     ?~  grubs  this
-    =/  [=rail:tarball =sang:tarball lob=lobe:clay]  i.grubs
+    =/  [=rail:tarball =sang:tarball lob=jobe:nexus]  i.grubs
     =/  noun=*  (sang-noun:tarball sang)
     =/  hit  (vale-hit lob ckey)
     =/  res=(each vase tang)

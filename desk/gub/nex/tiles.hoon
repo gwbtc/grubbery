@@ -42,8 +42,8 @@
         =/  ball-id=tape  (path-to-ball-id path.here)
         ;<  *  bind:m  (keep:io /tiles (cord-to-road:tarball './tiles/') ~)
         |-
-        ;<  =seen:nexus  bind:m  (peek:io (cord-to-road:tarball './tiles/') ~)
-        =/  local=(list tile)  (read-tiles seen)
+        ;<  =view:nexus  bind:m  (peek:io (cord-to-road:tarball './tiles/') ~)
+        =/  local=(list tile)  (read-tiles view)
         =/  local-names=(set @ta)  (sy (turn local |=(t=tile name.t)))
         ;<  app-pairs=(list [tile @ta])  bind:m  read-app-tiles
         =/  app=(list tile)  (turn app-pairs head)
@@ -75,18 +75,18 @@
         ::  /icon/<slug> → serve icon from sibling app
         ?:  ?=([%icon @ ~] suffix)
           =/  slug=@ta  i.t.suffix
-          ;<  apps=seen:nexus  bind:m  (peek:io [%& %| /apps] ~)
+          ;<  apps=view:nexus  bind:m  (peek:io [%& %| /apps] ~)
           =/  kid=(unit @ta)
-            ?.  ?=([%& %ball *] apps)  ~
-            (find-app-by-slug slug dir.ball.p.apps)
+            ?.  ?=([%ball *] apps)  ~
+            (find-app-by-slug slug dir.ball.apps)
           ?~  kid
             ;<  ~  bind:m  (send-simple:srv eyre-id [[404 ~] `(as-octs:mimes:html 'Not found')])
             (pure:m ~)
-          ;<  kid-root=seen:nexus  bind:m
+          ;<  kid-root=view:nexus  bind:m
             (peek:io [%& %| /apps/[u.kid]] ~)
           =/  icon-file=(unit [name=@ta sang=sang:tarball])
-            ?.  ?=([%& %ball *] kid-root)  ~
-            =/  =lump:tarball  (fall fil.ball.p.kid-root *lump:tarball)
+            ?.  ?=([%ball *] kid-root)  ~
+            =/  =lump:tarball  (fall fil.ball.kid-root *lump:tarball)
             %-  ~(rep by contents.lump)
             |=  [[n=@ta s=sang:tarball g=? b=(unit tang)] out=(unit [name=@ta sang=sang:tarball])]
             ?^  out  out
@@ -100,11 +100,11 @@
           ;<  ~  bind:m  (send-simple:srv eyre-id (mime-response:http-utils mime))
           (pure:m ~)
         ::  default → serve tiles page
-        ;<  =seen:nexus  bind:m  (peek:io [%| 1 %& / %'page.html'] `[/ %mime])
-        ?.  ?=([%& %file *] seen)
+        ;<  =view:nexus  bind:m  (peek:io [%| 1 %& / %'page.html'] `[/ %mime])
+        ?.  ?=([%file *] view)
           ;<  ~  bind:m  (send-simple:srv eyre-id [[500 ~] `(as-octs:mimes:html 'Page not ready')])
           (pure:m ~)
-        =/  =mime  !<(mime (need-vase:tarball sang.p.seen))
+        =/  =mime  !<(mime (need-vase:tarball sang.view))
         ;<  ~  bind:m  (send-simple:srv eyre-id (mime-response:http-utils mime))
         (pure:m ~)
       ==
@@ -127,10 +127,10 @@
   (zing (join "/" ^-((list tape) (turn path trip))))
 ::
 ++  read-tiles
-  |=  =seen:nexus
+  |=  =view:nexus
   ^-  (list tile)
-  ?.  ?=([%& %ball *] seen)  ~
-  =/  =lump:tarball  (fall fil.ball.p.seen *lump:tarball)
+  ?.  ?=([%ball *] view)  ~
+  =/  =lump:tarball  (fall fil.ball.view *lump:tarball)
   %+  murn  ~(tap by contents.lump)
   |=  [name=@ta =sang:tarball gain=? bang=(unit tang)]
   ^-  (unit tile)
@@ -156,10 +156,10 @@
 ++  read-app-tiles
   =/  m  (fiber:fiber:nexus ,(list [tile @ta]))
   ^-  form:m
-  ;<  =seen:nexus  bind:m  (peek:io [%& %| /apps] ~)
-  ?.  ?=([%& %ball *] seen)
+  ;<  =view:nexus  bind:m  (peek:io [%& %| /apps] ~)
+  ?.  ?=([%ball *] view)
     (pure:m ~)
-  =/  kids=(list [@ta ball:tarball])  ~(tap by dir.ball.p.seen)
+  =/  kids=(list [@ta ball:tarball])  ~(tap by dir.ball.view)
   =|  acc=(list [tile @ta])
   |-
   ?~  kids  (pure:m (flop acc))
@@ -167,12 +167,12 @@
     $(kids t.kids)
   =/  kid=@ta  -.i.kids
   =/  slug=@ta  (app-slug kid)
-  ;<  kid-seen=seen:nexus  bind:m
+  ;<  kid-view=view:nexus  bind:m
     (peek:io [%& %& /apps/[kid] %'tile.json'] `[/ %json])
-  ?.  ?=([%& %file *] kid-seen)
+  ?.  ?=([%file *] kid-view)
     $(kids t.kids)
   =/  tile-name=@ta  (crip "{(trip slug)}.json")
-  =/  tile=(unit tile)  (json-to-tile tile-name sang.p.kid-seen)
+  =/  tile=(unit tile)  (json-to-tile tile-name sang.kid-view)
   ?~  tile  $(kids t.kids)
   $(kids t.kids, acc [[u.tile kid] acc])
 ::

@@ -161,10 +161,10 @@
   ^-  form:m
   ;<  cfg-road=road:tarball  bind:m
     (ancestor-road:io [/ %s3] [%& / %'config.json'])
-  ;<  cfg-seen=seen:nexus  bind:m  (peek:io cfg-road ~)
+  ;<  cfg-view=view:nexus  bind:m  (peek:io cfg-road ~)
   =/  jon=json
-    ?.  ?=([%& %file *] cfg-seen)  [%o ~]
-    (fall (mole |.(!<(json (need-vase:tarball sang.p.cfg-seen)))) [%o ~])
+    ?.  ?=([%file *] cfg-view)  [%o ~]
+    (fall (mole |.(!<(json (need-vase:tarball sang.cfg-view)))) [%o ~])
   ?.  ?=(%o -.jon)
     (pure:m *s3-config)
   %-  pure:m
@@ -180,10 +180,10 @@
   ^-  form:m
   ;<  rd=road:tarball  bind:m
     (ancestor-road:io [/ %s3] [%& / %'mounts.json'])
-  ;<  seen=seen:nexus  bind:m  (peek:io rd ~)
+  ;<  seen=view:nexus  bind:m  (peek:io rd ~)
   =/  jon=json
-    ?.  ?=([%& %file *] seen)  [%o ~]
-    (fall (mole |.(!<(json (need-vase:tarball sang.p.seen)))) [%o ~])
+    ?.  ?=([%file *] seen)  [%o ~]
+    (fall (mole |.(!<(json (need-vase:tarball sang.view)))) [%o ~])
   ?.  ?=(%o -.jon)
     (pure:m *(map @t @t))
   %-  pure:m

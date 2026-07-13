@@ -38,11 +38,11 @@
     (~(dug jo:json-utils [%o args.st]) /index so:dejs:format '0')
   =/  idx=@ud  (fall (rush idx-raw dem) 0)
   ::  load labels
-  ;<  lbl-seen=seen:nexus  bind:m
+  ;<  lbl-view=view:nexus  bind:m
     (peek:io [%& %& /apps/'wallet.wallet_app' %'labels.wallet_labels'] ~)
   =/  lbls=labels:b329
-    ?.  ?=([%& %file *] lbl-seen)  *labels:b329
-    (fall (mole |.(!<(labels:b329 (need-vase:tarball sang.p.lbl-seen)))) *labels:b329)
+    ?.  ?=([%file *] lbl-view)  *labels:b329
+    (fall (mole |.(!<(labels:b329 (need-vase:tarball sang.lbl-view)))) *labels:b329)
   ?.  (has-account:aio lbls ref)
     (pure:m [%error 'Account not found'])
   ::  extract network from labels
@@ -71,10 +71,10 @@
   ::  wait for proc to complete
   |-
   ;<  =wave:nexus  bind:m  (take-news:io /refresh-proc)
-  ;<  proc-seen=seen:nexus  bind:m  (peek:io proc-road ~)
+  ;<  proc-view=view:nexus  bind:m  (peek:io proc-road ~)
   =/  proc-done=?
-    ?.  ?=([%& %file *] proc-seen)  %.y
-    =/  pj=json  (fall (mole |.(!<(json (need-vase:tarball sang.p.proc-seen)))) *json)
+    ?.  ?=([%file *] proc-view)  %.y
+    =/  pj=json  (fall (mole |.(!<(json (need-vase:tarball sang.proc-view)))) *json)
     =((~(dug jo:json-utils pj) /status so:dejs:format '') 'done')
   ?.  proc-done  $
   ::  refresh complete
@@ -82,11 +82,11 @@
     =/  chain-tag=?(%recv %chng)
       ?:(?=(%recv ;;(?(%recv %chng) (slav %tas chain))) %recv %chng)
     ::  reload labels (refresh wrote new data)
-    ;<  lbl-seen2=seen:nexus  bind:m
+    ;<  lbl-view2=view:nexus  bind:m
       (peek:io [%& %& /apps/'wallet.wallet_app' %'labels.wallet_labels'] ~)
     =/  lbls2=labels:b329
-      ?.  ?=([%& %file *] lbl-seen2)  *labels:b329
-      (fall (mole |.(!<(labels:b329 (need-vase:tarball sang.p.lbl-seen2)))) *labels:b329)
+      ?.  ?=([%file *] lbl-view2)  *labels:b329
+      (fall (mole |.(!<(labels:b329 (need-vase:tarball sang.lbl-view2)))) *labels:b329)
     ::  get account origin
     =/  og-u=(unit parsed-origin:b329)  (get-acct-origin:aio lbls2 ref)
     ?~  og-u

@@ -21,11 +21,11 @@
     (pure:m [%error 'Missing or invalid argument: message'])
   =/  message=@t  p.parsed
   ::  Read telegram creds from telegram nexus
-  ;<  creds-seen=seen:nexus  bind:m
+  ;<  creds-view=view:nexus  bind:m
     (peek:io [%& %& /'telegram.telegram' %'creds.json'] `[/ %json])
-  ?.  ?=([%& %file *] creds-seen)
+  ?.  ?=([%file *] creds-view)
     (pure:m [%error 'No telegram creds. Create /telegram.telegram/creds.json with bot-token and chat-id.'])
-  =/  jon=json  !<(json (need-vase:tarball sang.p.creds-seen))
+  =/  jon=json  !<(json (need-vase:tarball sang.creds-view))
   =/  creds-parsed=(each [@t @t] tang)
     %-  mule  |.
     :-  (~(dog jo:json-utils jon) /bot-token so:dejs:format)

@@ -14,10 +14,10 @@
   ^-  tool-handler:tools
   =/  m  (fiber:fiber:nexus ,tool-result:tools)
   ^-  form:m
-  ;<  ug-seen=seen:nexus  bind:m  (peek:io [%& %| /sys/ames/usergroups] ~)
+  ;<  ug-view=view:nexus  bind:m  (peek:io [%& %| /sys/ames/usergroups] ~)
   =/  ug-ball=ball:tarball
-    ?.  ?=([%& %ball *] ug-seen)  [~ ~]
-    ball.p.ug-seen
+    ?.  ?=([%ball *] ug-view)  [~ ~]
+    ball.ug-view
   =/  groups=(list [name=path grp=ball:tarball])  (find-groups / ug-ball)
   =/  road-text
     |=  roads=(set road:tarball)

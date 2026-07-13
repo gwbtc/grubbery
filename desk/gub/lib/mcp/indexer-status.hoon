@@ -28,19 +28,19 @@
   =/  arg-height=(unit @t)
     (~(deg jo:json-utils [%o args.st]) /height so:dejs:format)
   ::  read tip
-  ;<  tip-seen=seen:nexus  bind:m
+  ;<  tip-view=view:nexus  bind:m
     (peek:io [%& %& /['indexer.indexer_app'] %'tip.ud'] ~)
   =/  tip=@ud
-    ?.  ?=([%& %file *] tip-seen)  0
-    =/  res  (mole |.(!<(@ud (need-vase:tarball sang.p.tip-seen))))
+    ?.  ?=([%file *] tip-view)  0
+    =/  res  (mole |.(!<(@ud (need-vase:tarball sang.tip-view))))
     ?~  res  0
     u.res
   ::  read blocks directory
-  ;<  blocks-seen=seen:nexus  bind:m
+  ;<  blocks-view=view:nexus  bind:m
     (peek:io [%& %| /['indexer.indexer_app']/blocks] ~)
   =/  cached-heights=(list @ud)
-    ?.  ?=([%& %ball *] blocks-seen)  ~
-    %+  murn  ~(tap by dir.ball.p.blocks-seen)
+    ?.  ?=([%ball *] blocks-view)  ~
+    %+  murn  ~(tap by dir.ball.blocks-view)
     |=  [name=@ta *]
     (rush name dem)
   =/  sorted=(list @ud)
@@ -68,19 +68,19 @@
   ?~  h
     (pure:m [%error (crip "Invalid height: {(trip u.arg-height)}")])
   =/  height-dir=@ta  (crip ((d-co:co 1) u.h))
-  ;<  header-seen=seen:nexus  bind:m
+  ;<  header-view=view:nexus  bind:m
     (peek:io [%& %& /['indexer.indexer_app']/blocks/[height-dir] %'header.json'] ~)
-  ?.  ?=([%& %file *] header-seen)
+  ?.  ?=([%file *] header-view)
     %-  pure:m
     [%text (of-wain:format (snoc status (rap 3 ~['block ' (crip ((d-co:co 1) u.h)) ': not cached'])))]
-  =/  header-json=json  !<(json (need-vase:tarball sang.p.header-seen))
+  =/  header-json=json  !<(json (need-vase:tarball sang.header-view))
   ::  read txs dir
-  ;<  txs-seen=seen:nexus  bind:m
+  ;<  txs-view=view:nexus  bind:m
     (peek:io [%& %| /['indexer.indexer_app']/blocks/[height-dir]/txs] ~)
   =/  tx-count=@ud
-    ?.  ?=([%& %ball *] txs-seen)  0
-    ?~  fil.ball.p.txs-seen  0
-    ~(wyt by contents.u.fil.ball.p.txs-seen)
+    ?.  ?=([%ball *] txs-view)  0
+    ?~  fil.ball.txs-view  0
+    ~(wyt by contents.u.fil.ball.txs-view)
   =/  block-info=wain
     :~  ''
         (rap 3 ~['block ' (crip ((d-co:co 1) u.h)) ':'])

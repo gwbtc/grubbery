@@ -227,8 +227,8 @@
         =/  msgs-road=road:tarball  (cord-to-road:tarball '../../messages/')
         ;<  *  bind:m  (keep:io /msgs msgs-road ~)
         |-
-        ;<  =seen:nexus  bind:m  (peek:io msgs-road ~)
-        =/  chat-data=[(map @t @t) (list json)]  (view-to-chat-data seen)
+        ;<  =view:nexus  bind:m  (peek:io msgs-road ~)
+        =/  chat-data=[(map @t @t) (list json)]  (view-to-chat-data view)
         ;<  ~  bind:m  (replace:io (crip (en-xml:html (sse-data -.chat-data +.chat-data))))
         ;<  *  bind:m  (take-news:io /msgs)
         $
@@ -252,8 +252,8 @@
         =/  msgs-road=road:tarball  [%| 1 %| /messages]
         ;<  *  bind:m  (keep:io /msgs msgs-road ~)
         |-
-        ;<  =seen:nexus  bind:m  (peek:io msgs-road ~)
-        =/  chat-data=[(map @t @t) (list json)]  (view-to-chat-data seen)
+        ;<  =view:nexus  bind:m  (peek:io msgs-road ~)
+        =/  chat-data=[(map @t @t) (list json)]  (view-to-chat-data view)
         ;<  ~  bind:m
           (replace:io (crip (en-xml:html (chat-page base -.chat-data +.chat-data))))
         ;<  *  bind:m  (take-news:io /msgs)
@@ -265,11 +265,11 @@
 ++  read-bot-token
   =/  m  (fiber:fiber:nexus ,@t)
   ^-  form:m
-  ;<  =seen:nexus  bind:m
+  ;<  =view:nexus  bind:m
     (peek:io (cord-to-road:tarball './config.json') `[/ %json])
-  ?.  ?=([%& %file *] seen)
+  ?.  ?=([%file *] view)
     (pure:m '')
-  =/  cfg=json  !<(json (need-vase:tarball sang.p.seen))
+  =/  cfg=json  !<(json (need-vase:tarball sang.view))
   ?.  ?=(%o -.cfg)
     (pure:m '')
   =/  v  (~(get by p.cfg) 'bot-token')
@@ -279,21 +279,21 @@
 ++  read-offset
   =/  m  (fiber:fiber:nexus ,@ud)
   ^-  form:m
-  ;<  =seen:nexus  bind:m
+  ;<  =view:nexus  bind:m
     (peek:io (cord-to-road:tarball './offset.ud') `[/ %ud])
-  ?.  ?=([%& %file *] seen)
+  ?.  ?=([%file *] view)
     (pure:m 0)
-  (pure:m !<(@ud (need-vase:tarball sang.p.seen)))
+  (pure:m !<(@ud (need-vase:tarball sang.view)))
 ::
 ++  read-chat-file
   |=  cid=@t
   =/  m  (fiber:fiber:nexus ,json)
   ^-  form:m
-  ;<  =seen:nexus  bind:m
+  ;<  =view:nexus  bind:m
     (peek:io (cord-to-road:tarball (rap 3 ~['./messages/' cid '.json'])) `[/ %json])
-  ?.  ?=([%& %file *] seen)
+  ?.  ?=([%file *] view)
     (pure:m [%o ~])
-  (pure:m !<(json (need-vase:tarball sang.p.seen)))
+  (pure:m !<(json (need-vase:tarball sang.view)))
 ::
 ++  get-chat-name
   |=  [dat=json default=@t]
@@ -324,9 +324,9 @@
         ['chat-id' s+cid]
         ['messages' [%a msgs]]
     ==
-  ;<  =seen:nexus  bind:m
+  ;<  =view:nexus  bind:m
     (peek:io file-road ~)
-  ?:  ?=([%& %file *] seen)
+  ?:  ?=([%file *] view)
     (over:io file-road [[/ %json] dat])
   (make:io file-road [%| [[/ %json] dat] ~])
 ::
@@ -334,12 +334,12 @@
 ::  Files live in fil.ball.view → contents (not dir, which is subdirs).
 ::
 ++  view-to-chat-data
-  |=  =seen:nexus
+  |=  =view:nexus
   ^-  [(map @t @t) (list json)]
-  ?.  ?=([%& %ball *] seen)  [~ ~]
-  ?~  fil.ball.p.seen  [~ ~]
+  ?.  ?=([%ball *] view)  [~ ~]
+  ?~  fil.ball.view  [~ ~]
   =/  files=(list [key=@ta [=sang:tarball gain=? bang=(unit tang)]])
-    ~(tap by contents.u.fil.ball.p.seen)
+    ~(tap by contents.u.fil.ball.view)
   %+  roll  files
   |=  [[key=@ta =sang:tarball gain=? bang=(unit tang)] chats=(map @t @t) msgs=(list json)]
   ?.  ?=(%json name.p.sang)  [chats msgs]

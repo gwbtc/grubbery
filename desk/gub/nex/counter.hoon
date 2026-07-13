@@ -39,10 +39,10 @@
           (keep:io /ctrs (cord-to-road:tarball '../../counters/') ~)
         |-
         ;<  upd=wave:nexus  bind:m  (take-news:io /ctrs)
-        ;<  =seen:nexus  bind:m  (peek:io (cord-to-road:tarball '../../counters/') ~)
-        ?.  ?=([%& %ball *] seen)  $
+        ;<  =view:nexus  bind:m  (peek:io (cord-to-road:tarball '../../counters/') ~)
+        ?.  ?=([%ball *] view)  $
         =/  counters=(list [@ta @ud])
-          =/  =lump:tarball  (fall fil.ball.p.seen *lump:tarball)
+          =/  =lump:tarball  (fall fil.ball.view *lump:tarball)
           %+  murn  ~(tap by contents.lump)
           |=  [name=@ta =sang:tarball gain=? bang=(unit tang)]
           ?.  ?=(%ud name.p.sang)  ~
@@ -71,11 +71,11 @@
         =/  site=path  site:(parse-url:http-utils url.request.req)
         =/  suffix=path  (slag (lent prefix) site)
         ::  Serve counter page from view grub
-        ;<  =seen:nexus  bind:m  (peek:io [%| 2 %& /ui/views %'page.html'] `[/ %mime])
-        ?.  ?=([%& %file *] seen)
+        ;<  =view:nexus  bind:m  (peek:io [%| 2 %& /ui/views %'page.html'] `[/ %mime])
+        ?.  ?=([%file *] view)
           ;<  ~  bind:m  (send-simple:srv eyre-id [[500 ~] `(as-octs:mimes:html 'View not ready')])
           (pure:m ~)
-        =/  =mime  !<(mime (need-vase:tarball sang.p.seen))
+        =/  =mime  !<(mime (need-vase:tarball sang.view))
         ;<  ~  bind:m  (send-simple:srv eyre-id (mime-response:http-utils mime))
         (pure:m ~)
       ==

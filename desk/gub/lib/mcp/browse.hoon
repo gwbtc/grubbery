@@ -27,17 +27,17 @@
         (snip `(list @)`t)
       t
     (stab (crip stripped))
-  ;<  =seen:nexus  bind:m  (peek:io [%& %| pax] ~)
-  ?.  ?=([%& %ball *] seen)
+  ;<  =view:nexus  bind:m  (peek:io [%& %| pax] ~)
+  ?.  ?=([%ball *] view)
     (pure:m [%error (crip "Directory not found: {(trip dir-path)}")])
   =/  neck-text=tape
-    ?~  fil.ball.p.seen  ""
-    ?~  neck.u.fil.ball.p.seen  ""
-    "\0aNexus: {(spud (snoc path.u.neck.u.fil.ball.p.seen name.u.neck.u.fil.ball.p.seen))}"
-  =/  sub-dirs=(list @ta)  ~(tap in ~(key by dir.ball.p.seen))
+    ?~  fil.ball.view  ""
+    ?~  neck.u.fil.ball.view  ""
+    "\0aNexus: {(spud (snoc path.u.neck.u.fil.ball.view name.u.neck.u.fil.ball.view))}"
+  =/  sub-dirs=(list @ta)  ~(tap in ~(key by dir.ball.view))
   =/  files=(list [@ta @tas])
-    ?~  fil.ball.p.seen  ~
-    %+  turn  ~(tap by contents.u.fil.ball.p.seen)
+    ?~  fil.ball.view  ~
+    %+  turn  ~(tap by contents.u.fil.ball.view)
     |=([n=@ta [c=sang:tarball gain=? bang=(unit tang)]] [n name.p.c])
   =/  dir-text=tape
     ?~  sub-dirs  ""

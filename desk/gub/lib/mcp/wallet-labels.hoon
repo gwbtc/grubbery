@@ -29,11 +29,11 @@
   =/  sub-filter=(unit @t)
     (bind (~(get by args.st) 'filter') |=(j=json ?>(?=(%s -.j) p.j)))
   ::  load labels
-  ;<  lbl-seen=seen:nexus  bind:m
+  ;<  lbl-view=view:nexus  bind:m
     (peek:io [%& %& /apps/'wallet.wallet_app' %'labels.wallet_labels'] ~)
   =/  lbls=labels:b329
-    ?.  ?=([%& %file *] lbl-seen)  *labels:b329
-    (fall (mole |.(!<(labels:b329 (need-vase:tarball sang.p.lbl-seen)))) *labels:b329)
+    ?.  ?=([%file *] lbl-view)  *labels:b329
+    (fall (mole |.(!<(labels:b329 (need-vase:tarball sang.lbl-view)))) *labels:b329)
   ::  format each category
   =/  out=wain  ~
   =/  cats=(list [@t (map @t (set label-entry:b329))])

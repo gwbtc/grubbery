@@ -43,11 +43,11 @@
     (pure:m [%error 'action must be freeze or thaw'])
   =/  ref=@t  (rap 3 ~[txid ':' vout])
   ::  load labels
-  ;<  lbl-seen=seen:nexus  bind:m
+  ;<  lbl-view=view:nexus  bind:m
     (peek:io [%& %& /apps/'wallet.wallet_app' %'labels.wallet_labels'] ~)
   =/  lbls=labels:b329
-    ?.  ?=([%& %file *] lbl-seen)  *labels:b329
-    (fall (mole |.(!<(labels:b329 (need-vase:tarball sang.p.lbl-seen)))) *labels:b329)
+    ?.  ?=([%file *] lbl-view)  *labels:b329
+    (fall (mole |.(!<(labels:b329 (need-vase:tarball sang.lbl-view)))) *labels:b329)
   =/  new-lbls=labels:b329
     ?:  =(%freeze act)
       (~(freeze la:b329 lbls) ref)

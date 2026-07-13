@@ -30,17 +30,17 @@
   =/  parent-filter=@t
     (~(dug jo:json-utils [%o args.st]) /parent so:dejs:format '')
   ::  load ptsts store
-  ;<  ptst-seen=seen:nexus  bind:m
+  ;<  ptst-view=view:nexus  bind:m
     (peek:io [%& %& /apps/'wallet.wallet_app' %'ptsts.wallet_ptsts'] ~)
   =/  sts=(map @t ptst:taproot)
-    ?.  ?=([%& %file *] ptst-seen)  *(map @t ptst:taproot)
-    (fall (mole |.(!<((map @t ptst:taproot) (need-vase:tarball sang.p.ptst-seen)))) *(map @t ptst:taproot))
+    ?.  ?=([%file *] ptst-view)  *(map @t ptst:taproot)
+    (fall (mole |.(!<((map @t ptst:taproot) (need-vase:tarball sang.ptst-view)))) *(map @t ptst:taproot))
   ::  load labels
-  ;<  lbl-seen=seen:nexus  bind:m
+  ;<  lbl-view=view:nexus  bind:m
     (peek:io [%& %& /apps/'wallet.wallet_app' %'labels.wallet_labels'] ~)
   =/  lbls=labels:b329
-    ?.  ?=([%& %file *] lbl-seen)  *labels:b329
-    (fall (mole |.(!<(labels:b329 (need-vase:tarball sang.p.lbl-seen)))) *labels:b329)
+    ?.  ?=([%file *] lbl-view)  *labels:b329
+    (fall (mole |.(!<(labels:b329 (need-vase:tarball sang.lbl-view)))) *labels:b329)
   =/  describe-tree
     |=  tree=ptst:taproot
     ^-  @t

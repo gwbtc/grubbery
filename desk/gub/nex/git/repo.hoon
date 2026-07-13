@@ -191,18 +191,18 @@
           (ancestor-road:io [/git %repo] [%& /data/ui %'current.json'])
         ;<  *  bind:m  (keep:io /current current-rd `[/ %json])
         |-
-        ;<  cfg-s=seen:nexus  bind:m  (peek:io cfg-rd `[/ %json])
-        ;<  tree-s=seen:nexus  bind:m  (peek:io tree-rd ~)
-        ;<  status-s=seen:nexus  bind:m  (peek:io status-rd `[/ %json])
-        ;<  branches-s=seen:nexus  bind:m  (peek:io branches-rd `[/ %json])
-        ;<  commits-s=seen:nexus  bind:m  (peek:io commits-rd `[/ %json])
-        ;<  current-s=seen:nexus  bind:m  (peek:io current-rd `[/ %json])
-        =/  cfg=repo-config  (view-to-config cfg-s)
-        =/  files=(list @t)  (view-to-files tree-s)
-        =/  branches=(list @t)  (view-to-branches branches-s)
-        =/  commits=json  (view-to-json commits-s)
-        =/  current=json  (view-to-json current-s)
-        =/  status=json   (view-to-json status-s)
+        ;<  cfg-v=view:nexus  bind:m  (peek:io cfg-rd `[/ %json])
+        ;<  tree-v=view:nexus  bind:m  (peek:io tree-rd ~)
+        ;<  status-v=view:nexus  bind:m  (peek:io status-rd `[/ %json])
+        ;<  branches-v=view:nexus  bind:m  (peek:io branches-rd `[/ %json])
+        ;<  commits-v=view:nexus  bind:m  (peek:io commits-rd `[/ %json])
+        ;<  current-v=view:nexus  bind:m  (peek:io current-rd `[/ %json])
+        =/  cfg=repo-config  (view-to-config cfg-v)
+        =/  files=(list @t)  (view-to-files tree-v)
+        =/  branches=(list @t)  (view-to-branches branches-v)
+        =/  commits=json  (view-to-json commits-v)
+        =/  current=json  (view-to-json current-v)
+        =/  status=json   (view-to-json status-v)
         ;<  ~  bind:m  (replace:io (crip (en-xml:html (repo-page api repo.cfg ref.cfg branches files commits current status))))
         ;<  evt=page-event  bind:m  take-page-event
         ?:  ?=(%fell -.evt)  $
@@ -217,9 +217,9 @@
         ::  block checkout if working tree is dirty
         ;<  status-rd=road:tarball  bind:m
           (ancestor-road:io [/git %repo] [%& /data/ui %'status.json'])
-        ;<  status-seen=seen:nexus  bind:m  (peek:io status-rd `[/ %json])
+        ;<  status-view=view:nexus  bind:m  (peek:io status-rd `[/ %json])
         =/  is-clean=?
-          =/  status-json=json  (view-to-json status-seen)
+          =/  status-json=json  (view-to-json status-view)
           ?.  ?=(%o -.status-json)  %.y
           =/  cl  (~(get by p.status-json) 'clean')
           ?+  cl  %.n
@@ -253,9 +253,9 @@
         ::  block if dirty
         ;<  status-rd=road:tarball  bind:m
           (ancestor-road:io [/git %repo] [%& /data/ui %'status.json'])
-        ;<  status-seen=seen:nexus  bind:m  (peek:io status-rd `[/ %json])
+        ;<  status-view=view:nexus  bind:m  (peek:io status-rd `[/ %json])
         =/  is-clean=?
-          =/  status-json=json  (view-to-json status-seen)
+          =/  status-json=json  (view-to-json status-view)
           ?.  ?=(%o -.status-json)  %.y
           =/  cl  (~(get by p.status-json) 'clean')
           ?+  cl  %.n
@@ -508,10 +508,10 @@
         ;<  local-ref=@t  bind:m  (resolve-ref ref.cfg)
         ;<  remote-rd=road:tarball  bind:m
           (ancestor-road:io [/git %repo] [%& /data/refs/remotes/origin (crip (trip branch))])
-        ;<  remote-seen=seen:nexus  bind:m  (peek:io remote-rd `[/ %mime])
+        ;<  remote-view=view:nexus  bind:m  (peek:io remote-rd `[/ %mime])
         =/  remote-ref=@t
-          ?.  ?=([%& %file *] remote-seen)  ''
-          =/  mim=mime  !<(mime (need-vase:tarball sang.p.remote-seen))
+          ?.  ?=([%file *] remote-view)  ''
+          =/  mim=mime  !<(mime (need-vase:tarball sang.remote-view))
           (crip (trip q.q.mim))
         ?:  =(local-ref remote-ref)
           ~&  >>  "%git/repo push: nothing to push"
@@ -729,10 +729,10 @@
   =/  m  (fiber:fiber:nexus ,repo-config)
   ^-  form:m
   ;<  road=road:tarball  bind:m  (ancestor-road:io [/git %repo] [%& / %'config.json'])
-  ;<  =seen:nexus  bind:m  (peek:io road `[/ %json])
-  ?.  ?=([%& %file *] seen)
+  ;<  =view:nexus  bind:m  (peek:io road `[/ %json])
+  ?.  ?=([%file *] view)
     (pure:m ['' 'main' ''])
-  =/  cfg=json  (fall (mole |.(!<(json (need-vase:tarball sang.p.seen)))) *json)
+  =/  cfg=json  (fall (mole |.(!<(json (need-vase:tarball sang.view)))) *json)
   ?.  ?=(%o -.cfg)
     (pure:m ['' 'main' ''])
   =/  get
@@ -894,10 +894,10 @@
   ^-  form:m
   ;<  head-rd=road:tarball  bind:m
     (ancestor-road:io [/git %repo] [%& /data %'HEAD'])
-  ;<  head-seen=seen:nexus  bind:m  (peek:io head-rd `[/ %mime])
-  ?.  ?=([%.y %file *] head-seen)
+  ;<  head-view=view:nexus  bind:m  (peek:io head-rd `[/ %mime])
+  ?.  ?=([%file *] head-view)
     (pure:m '')
-  =/  head-mim=mime  !<(mime (need-vase:tarball sang.p.head-seen))
+  =/  head-mim=mime  !<(mime (need-vase:tarball sang.head-view))
   =/  head-text=tape  (trip q.q.head-mim)
   ?.  =("ref: " (scag 5 head-text))
     ::  raw hash (detached HEAD)
@@ -917,10 +917,10 @@
   ^-  form:m
   ;<  head-rd=road:tarball  bind:m
     (ancestor-road:io [/git %repo] [%& /data %'HEAD'])
-  ;<  head-seen=seen:nexus  bind:m  (peek:io head-rd `[/ %mime])
-  ?.  ?=([%.y %file *] head-seen)
+  ;<  head-view=view:nexus  bind:m  (peek:io head-rd `[/ %mime])
+  ?.  ?=([%file *] head-view)
     (pure:m '')
-  =/  head-mim=mime  !<(mime (need-vase:tarball sang.p.head-seen))
+  =/  head-mim=mime  !<(mime (need-vase:tarball sang.head-view))
   =/  head-text=tape  (trip q.q.head-mim)
   ?.  =("ref: " (scag 5 head-text))
     (pure:m '')
@@ -938,11 +938,11 @@
   =/  active=@ta  ?:(=('' ref) 'main' (crip (trip ref)))
   ;<  road=road:tarball  bind:m
     (ancestor-road:io [/git %repo] [%& /data/refs/heads active])
-  ;<  =seen:nexus  bind:m  (peek:io road `[/ %mime])
-  ?.  ?=([%& %file *] seen)
+  ;<  =view:nexus  bind:m  (peek:io road `[/ %mime])
+  ?.  ?=([%file *] view)
     ~&  >>>  ["%git/repo: ref not found:" active]
     (pure:m '')
-  =/  mim=mime  !<(mime (need-vase:tarball sang.p.seen))
+  =/  mim=mime  !<(mime (need-vase:tarball sang.view))
   (pure:m (crip (trip q.q.mim)))
 ::
 ++  set-status
@@ -960,22 +960,22 @@
   =/  m  (fiber:fiber:nexus ,(unit repository:git-repo))
   ^-  form:m
   ;<  packs-road=road:tarball  bind:m  (ancestor-road:io [/git %repo] [%| /data/packs])
-  ;<  packs-seen=seen:nexus  bind:m  (peek:io packs-road ~)
-  ?.  ?=([%& %ball *] packs-seen)  (pure:m ~)
+  ;<  packs-view=view:nexus  bind:m  (peek:io packs-road ~)
+  ?.  ?=([%ball *] packs-view)  (pure:m ~)
   =/  archive=(list pack:git-pack)
-    (load-packs-from-ball ball.p.packs-seen)
+    (load-packs-from-ball ball.packs-view)
   ?~  archive  (pure:m ~)
   ;<  heads-road=road:tarball  bind:m
     (ancestor-road:io [/git %repo] [%| /data/refs/heads])
-  ;<  heads-seen=seen:nexus  bind:m  (peek:io heads-road ~)
+  ;<  heads-view=view:nexus  bind:m  (peek:io heads-road ~)
   =/  built-refs=(axal ref:git-repo)
-    ?.  ?=([%& %ball *] heads-seen)  [~ ~]
-    (refs-from-ball ball.p.heads-seen ~['refs' 'heads'])
+    ?.  ?=([%ball *] heads-view)  [~ ~]
+    (refs-from-ball ball.heads-view ~['refs' 'heads'])
   ;<  obj-road=road:tarball  bind:m  (ancestor-road:io [/git %repo] [%| /data/objects])
-  ;<  obj-seen=seen:nexus  bind:m  (peek:io obj-road ~)
+  ;<  obj-view=view:nexus  bind:m  (peek:io obj-road ~)
   =/  loose=(map hash:git-repo object:git-obj)
-    ?.  ?=([%& %ball *] obj-seen)  ~
-    (read-loose-from-ball ball.p.obj-seen)
+    ?.  ?=([%ball *] obj-view)  ~
+    (read-loose-from-ball ball.obj-view)
   =/  repo=repository:git-repo
     [%sha-1 [loose archive] built-refs ~ ~]
   (pure:m `repo)
@@ -1328,10 +1328,10 @@
   ==
 ::
 ++  view-to-config
-  |=  =seen:nexus
+  |=  =view:nexus
   ^-  repo-config
-  ?.  ?=([%& %file *] seen)  ['' 'main' '']
-  =/  cfg=json  (fall (mole |.(!<(json (need-vase:tarball sang.p.seen)))) *json)
+  ?.  ?=([%file *] view)  ['' 'main' '']
+  =/  cfg=json  (fall (mole |.(!<(json (need-vase:tarball sang.view)))) *json)
   ?.  ?=(%o -.cfg)  ['' 'main' '']
   =/  get
     |=  [key=@t default=@t]
@@ -1350,24 +1350,24 @@
   (of-wain:format !<(wain q.sage))
 ::
 ++  view-to-branches
-  |=  =seen:nexus
+  |=  =view:nexus
   ^-  (list @t)
-  ?.  ?=([%& %file *] seen)  ~
-  =/  j=json  (fall (mole |.(!<(json (need-vase:tarball sang.p.seen)))) *json)
+  ?.  ?=([%file *] view)  ~
+  =/  j=json  (fall (mole |.(!<(json (need-vase:tarball sang.view)))) *json)
   ?.  ?=(%a -.j)  ~
   (murn p.j |=(v=json ?.(?=(%s -.v) ~ `p.v)))
 ::
 ++  view-to-json
-  |=  =seen:nexus
+  |=  =view:nexus
   ^-  json
-  ?.  ?=([%& %file *] seen)  [%a ~]
-  (fall (mole |.(!<(json (need-vase:tarball sang.p.seen)))) [%a ~])
+  ?.  ?=([%file *] view)  [%a ~]
+  (fall (mole |.(!<(json (need-vase:tarball sang.view)))) [%a ~])
 ::
 ++  view-to-files
-  |=  =seen:nexus
+  |=  =view:nexus
   ^-  (list @t)
-  ?.  ?=([%& %ball *] seen)  ~
-  (collect-files '' ball.p.seen)
+  ?.  ?=([%ball *] view)  ~
+  (collect-files '' ball.view)
 ::
 ++  collect-files
   |=  [prefix=@t =ball:tarball]

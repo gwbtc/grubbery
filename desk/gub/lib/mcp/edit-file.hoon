@@ -43,13 +43,13 @@
     %.n
   =/  pax=path  (stab file-path)
   ::  Look up the grub
-  ;<  [grub-name=@ta =seen:nexus]  bind:m
+  ;<  [grub-name=@ta =view:nexus]  bind:m
     (lookup-grub:tools pax file-name)
-  ?.  ?=([%& %file *] seen)
+  ?.  ?=([%file *] view)
     (pure:m [%error (crip "Not found: {(trip file-path)}/{(trip file-name)}")])
-  =/  original-blot=blot:tarball  p.sang.p.seen
+  =/  original-blot=blot:tarball  p.sang.view
   ::  Convert to text via mime
-  ;<  =mime  bind:m  (sage-to-mime:io (need-sage:tarball sang.p.seen))
+  ;<  =mime  bind:m  (sage-to-mime:io (need-sage:tarball sang.view))
   =/  txt=tape  (trip q.q.mime)
   ::  Do replacement
   =/  result=(each tape @tas)

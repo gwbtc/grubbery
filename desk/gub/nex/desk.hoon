@@ -268,13 +268,13 @@
   |=  [source-road=road:tarball =rail:tarball]
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
-  ;<  ver-seen=seen:nexus  bind:m
+  ;<  ver-view=view:nexus  bind:m
     (peek:io (version-road source-road) `[/ %ud])
-  ?.  ?=([%& %file *] ver-seen)
+  ?.  ?=([%file *] ver-view)
     ~&  >>  %desk-no-version-at-source
     (pure:m ~)
-  =/  ver=@ud  !<(@ud (need-vase:tarball sang.p.ver-seen))
-  =/  at=@da   da.cass.p.ver-seen
+  =/  ver=@ud  !<(@ud (need-vase:tarball sang.ver-view))
+  =/  at=@da   da.cass.ver-view
   ~&  >  [%desk-sync-release ver=ver]
   ;<  ~  bind:m
     (sync-dir (source-dir-road source-road /desk/code) rail /desk/code `[%da at])
@@ -302,13 +302,13 @@
   |=  [source-dir=road:tarball =rail:tarball dir=path cas=(unit case:nexus)]
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
-  ;<  =seen:nexus  bind:m
+  ;<  =view:nexus  bind:m
     ?~  cas  (peek:io source-dir ~)
     (peek-at:io source-dir ~ u.cas)
-  ?.  ?=([%& %ball *] seen)
+  ?.  ?=([%ball *] view)
     ~&  >>  [%desk-nothing-at-source dir]
     (pure:m ~)
-  =/  files=(list bfile)  (ball-to-files ball.p.seen)
+  =/  files=(list bfile)  (ball-to-files ball.view)
   ~&  >  [%desk-sync-files dir (lent files)]
   (write-files rail dir files)
 ::
@@ -361,11 +361,11 @@
   |=  [=rail:tarball dir=path cas=(unit case:nexus)]
   =/  m  (fiber:fiber:nexus ,(unit (list bfile)))
   ^-  form:m
-  ;<  =seen:nexus  bind:m
+  ;<  =view:nexus  bind:m
     ?~  cas  (peek:io (nex-road:io rail [%| dir]) ~)
     (peek-at:io (nex-road:io rail [%| dir]) ~ u.cas)
-  ?.  ?=([%& %ball *] seen)  (pure:m ~)
-  (pure:m `(ball-to-files ball.p.seen))
+  ?.  ?=([%ball *] view)  (pure:m ~)
+  (pure:m `(ball-to-files ball.view))
 ::
 ::  write-files: over a list of bfiles into a dir
 ::

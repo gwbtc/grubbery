@@ -47,11 +47,11 @@
     =/  filename=@ta
       ?~  suffix  'bounce.html'
       i.suffix
-    ;<  =seen:nexus  bind:m  (peek:io (nex-road:io rail [%& / filename]) `[/ %mime])
-    ?.  ?=([%& %file *] seen)
+    ;<  =view:nexus  bind:m  (peek:io (nex-road:io rail [%& / filename]) `[/ %mime])
+    ?.  ?=([%file *] view)
       ;<  ~  bind:m  (send-simple:srv eyre-id [[404 ~] `(as-octs:mimes:html 'Not found')])
       (pure:m ~)
-    =/  =mime  !<(mime (need-vase:tarball sang.p.seen))
+    =/  =mime  !<(mime (need-vase:tarball sang.view))
     ;<  ~  bind:m  (send-simple:srv eyre-id (mime-response:http-utils mime))
     (pure:m ~)
   ==

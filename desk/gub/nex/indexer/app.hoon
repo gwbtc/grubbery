@@ -48,9 +48,9 @@
           [~ %'poller.sig']
         ;<  ~  bind:m  (rise-wait:io prod "%indexer /poller: failed")
         ::  read config
-        ;<  cfg-seen=seen:nexus  bind:m
+        ;<  cfg-view=view:nexus  bind:m
           (peek:io (cord-to-road:tarball './config.json') `[/ %json])
-        =/  [url=@t auth=@t interval=@dr]  (read-config cfg-seen)
+        =/  [url=@t auth=@t interval=@dr]  (read-config cfg-view)
         |-
         ::  fetch current block count
         =/  req=request:http
@@ -76,11 +76,11 @@
         =/  tip-road=road:tarball  (cord-to-road:tarball './tip.ud')
         ;<  ~  bind:m  (over:io tip-road [[/ %ud] u.tip])
         ::  check what we've already cached
-        ;<  blocks-seen=seen:nexus  bind:m
+        ;<  blocks-view=view:nexus  bind:m
           (peek:io (cord-to-road:tarball './blocks/') ~)
         =/  cached-heights=(list @ud)
-          ?.  ?=([%& %ball *] blocks-seen)  ~
-          %+  murn  ~(tap by dir.ball.p.blocks-seen)
+          ?.  ?=([%ball *] blocks-view)  ~
+          %+  murn  ~(tap by dir.ball.blocks-view)
           |=  [name=@ta *]
           (rush name dem)
         =/  max-cached=@ud
@@ -159,11 +159,11 @@
 ::
 |%
 ++  read-config
-  |=  =seen:nexus
+  |=  =view:nexus
   ^-  [url=@t auth=@t interval=@dr]
   =/  fallback=[url=@t auth=@t interval=@dr]  ['http://localhost:18443/' 'Basic dXJiaXQ6dXJiaXQxMjM=' ~s5]
-  ?.  ?=([%& %file *] seen)  fallback
-  =/  jon  !<(json (need-vase:tarball sang.p.seen))
+  ?.  ?=([%file *] view)  fallback
+  =/  jon  !<(json (need-vase:tarball sang.view))
   ?.  ?=([%o *] jon)  fallback
   =/  url=@t
     =/  u=(unit json)  (~(get by p.jon) 'url')

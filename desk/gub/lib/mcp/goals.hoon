@@ -27,11 +27,11 @@
   |=  name=@ta
   =/  m  (fiber:fiber:nexus ,goal-store:goals)
   ^-  form:m
-  ;<  =seen:nexus  bind:m
+  ;<  =view:nexus  bind:m
     (peek:io (store-road name) ~)
-  ?.  ?=([%& %file *] seen)
+  ?.  ?=([%file *] view)
     ~|(%store-not-found !!)
-  (pure:m !<(goal-store:goals (need-vase:tarball sang.p.seen)))
+  (pure:m !<(goal-store:goals (need-vase:tarball sang.view)))
 ::  parse a node-id from json fields
 ::
 ++  parse-nid
@@ -133,15 +133,15 @@
     (pure:m [%text (crip "Deleted store: {(trip u.store-name)}")])
   ::
       %'list-stores'
-    ;<  =seen:nexus  bind:m
+    ;<  =view:nexus  bind:m
       (peek:io store-dir-road ~)
-    ?.  ?=([%& %ball *] seen)
+    ?.  ?=([%ball *] view)
       (pure:m [%text 'No stores found.'])
-    ?~  fil.ball.p.seen
+    ?~  fil.ball.view
       (pure:m [%text 'No stores found.'])
     =/  suf=tape  ".goal-store"
     =/  names=(list @ta)
-      %+  murn  ~(tap by contents.u.fil.ball.p.seen)
+      %+  murn  ~(tap by contents.u.fil.ball.view)
       |=  [fname=@ta [=sang:tarball gain=? bang=(unit tang)]]
       =/  full=tape  (trip fname)
       ?.  (gte (lent full) (lent suf))  ~
