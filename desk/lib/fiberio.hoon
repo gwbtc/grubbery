@@ -688,6 +688,17 @@
   ;<  ~  bind:m  (send-dart %node wire road %make %.y |+[bask `blot])
   (take-made wire)
 ::
+::  +put: overwrite if exists, create if not
+::
+++  put
+  |=  [=road:tarball =bask:tarball]
+  =/  m  (fiber ,~)
+  ^-  form:m
+  ;<  exists=?  bind:m  (peek-exists road)
+  ?:  exists
+    (over road bask)
+  (make road |+[bask ~])
+::
 ++  reload
   |=  =road:tarball
   =/  m  (fiber ,~)

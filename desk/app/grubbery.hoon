@@ -1255,12 +1255,21 @@
   ?~  res  ~
   `built.u.res
 ::
-::  Get a compiled marc from bins
+::  +get-marc: find a compiled marc (mark definition) for validation
+::
+::  Searches the local code namespace first, then falls back to
+::  root /code. This lets git_desks and other scoped namespaces
+::  use system marks (/sig, /json, etc.) without bundling them.
+::  Libs do NOT fall back — only marks and nexuses.
+::  TODO: walk up ancestor /code namespaces instead of jumping
+::  straight to root — would matter with nested namespaces.
 ::
 ++  get-marc
   |=  [pax=path =blot:tarball]
   ^-  marc:tarball
   =/  res=(unit built:nexus)  (get-built pax (weld /mar path.blot) name.blot)
+  ::  fall back to root /code for system marks
+  =?  res  =(~ res)  (get-built /code (weld /mar path.blot) name.blot)
   ?~  res
     =/  nam=@tas  (rail-to-arm:tarball blot)
     ~&  >>>  "get-marc: %{(trip nam)} not found, searched from {(spud pax)}"
@@ -1346,7 +1355,9 @@
   ::  Try compiled marc first — type:marc is the canonical type
   =/  res=(unit built:nexus)  (get-built pax (weld /mar path.blot) name.blot)
   ::  fall back to root /code namespace for system marks
-  =?  res  =(~ res)  (get-built /code (weld /mar path.blot) name.blot)
+  ~&  >>>  [%marc-local name.blot ?=(^ res) ?:(=(~ res) %miss ?:(?=([~ %vase *] res) %vase %tang)) pax]
+  =?  res  =(~ res)
+    (get-built /code (weld /mar path.blot) name.blot)
   ?^  res
     ?.  ?=(%vase -.u.res)
       =/  nam=@tas  (rail-to-arm:tarball blot)
@@ -2120,8 +2131,11 @@
     ?~  fil.sub-ball  ~
     ?~  neck.u.fil.sub-ball  ~
     =/  res  (build-nexus here u.neck.u.fil.sub-ball)
-    ?:  ?=(%& -.res)  `p.res
+    ?:  ?=(%& -.res)
+      ~&  >  "run-on-loads: nexus OK at {(spud here)}"
+      `p.res
     ~&  >>  "run-on-loads: nexus build error at {(spud here)}"
+    %-  (slog p.res)
     ~
   ::  Run on-load if nexus exists
   ::
@@ -2550,6 +2564,15 @@
   =.  this  (process-dart here i.darts)
   $(darts t.darts)
 ::
+::  +build-nexus: compile a nexus from its code path
+::
+::  Searches the local code namespace first, then falls back to
+::  root /code. Same fallback pattern as get-marc — lets git_desks
+::  use nexus types (like /git/desk itself) defined in the root
+::  namespace without bundling them.
+::  TODO: walk up ancestor /code namespaces instead of jumping
+::  straight to root — would matter with nested namespaces.
+::
 ++  build-nexus
   |=  [pax=path =neck:tarball]
   ^-  (each nexus:nexus tang)
@@ -2557,6 +2580,8 @@
   =/  ns=(unit fold:tarball)  (find-code-ns pax)
   =/  res=(unit built:nexus)
     (get-built pax (weld /nex path.neck) name.neck)
+  ::  fall back to root /code for shared nexus types
+  =?  res  =(~ res)  (get-built /code (weld /nex path.neck) name.neck)
   ?~  res  |+~[leaf+"build-nexus: {(trip (rail-to-arm:tarball [path.neck name.neck]))} not found in code at {(spud pax)} ns={?~(ns "~" (spud u.ns))}"]
   ?+  -.u.res
     |+~[leaf+"build-nexus: unexpected artifact type {<-.u.res>}"]

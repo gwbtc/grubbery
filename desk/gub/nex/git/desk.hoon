@@ -32,7 +32,7 @@
       :~  (manifest:loader 0)
           [%fall %& [/ %'config.json'] [[/ %json] (config-to-json *git-desk-config)]]
           [%fall %& [/ %'sync.sig'] [[/ %sig] ~]]
-          [%fall %& [/ %'version.ud'] [[/ %ud] 0]]
+          [%fall %& [/ %'poll.sig'] [[/ %sig] ~]]
           [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
           [%fall %| /requests empty-dir:loader]
           [%fall %| /desk empty-dir:loader]
@@ -54,6 +54,12 @@
         ;<  here=rail:tarball  bind:m  get-here-abs:io
         =/  nex-dir=path  path.here
         ~&  >>  [%git-desk-config-at nex-dir]
+        ;<  config-json=json  bind:m  (get-state-as:io ,json)
+        =/  config=git-desk-config  (json-to-config config-json)
+        ;<  ~  bind:m
+          ?.  !=('' repo.config)  (pure:m ~)
+          ~&  >>  %git-desk-boot-sync
+          (poke:io (nex-road:io rail [%& / %'sync.sig']) [[/ %sig] ~])
         |-
         ;<  config-json=json  bind:m  (get-state-as:io ,json)
         ~&  >>  [%git-desk-config-read config-json]
@@ -74,10 +80,30 @@
         =/  new-json=json  !<(json q.sage)
         ;<  ~  bind:m  (replace:io new-json)
         $
-          ::  sync.sig: poke to trigger fetch+install
+          ::  poll.sig: watch config, poke sync.sig on interval
+          ::
+          [~ %'poll.sig']
+        ;<  ~  bind:m  (rise-wait:io prod "%git/desk poll: failed")
+        ;<  *  bind:m
+          (keep:io /cfg (nex-road:io rail [%& / %'config.json']) `[/ %json])
+        |-
+        ;<  config-json=(unit json)  bind:m
+          (peek-as:io (nex-road:io rail [%& / %'config.json']) ,json)
+        =/  config=git-desk-config
+          ?~(config-json *git-desk-config (json-to-config u.config-json))
+        ?.  &((gth poll.config 0) !=('' repo.config))
+          ;<  =wave:nexus  bind:m  (take-news:io /cfg)
+          $
+        ~&  >  [%git-desk-poll-sleeping poll.config %minutes]
+        ;<  now=@da  bind:m  get-time:io
+        ;<  ~  bind:m  (set-timer:io /poll (add now (mul ~m1 poll.config)))
+        ;<  *  bind:m  (take-news-or-wake:io /cfg)
+        ;<  ~  bind:m
+          (poke:io (nex-road:io rail [%& / %'sync.sig']) [[/ %sig] ~])
+        $
+          ::  sync.sig: poke to fetch+install, then wait for next poke
           ::
           [~ %'sync.sig']
-        ~&  >>  %git-desk-sync-fiber-start
         ;<  ~  bind:m
           ?.  ?=(^ prod)  (pure:m ~)
           =/  err=@t
@@ -87,10 +113,7 @@
           [[/ %mime] [/text/plain (as-octs:mimes:html err)]]
         ;<  ~  bind:m  (rise-wait:io prod "%git/desk sync: failed")
         |-
-        ~&  >>  %git-desk-sync-waiting-for-poke
         ;<  *  bind:m  take-poke:io
-        ~&  >>  %git-desk-sync-poke-received
-        |-
         ;<  *  bind:m
           (cull-soft:io (nex-road:io rail [%& /desk %'error.txt']))
         ;<  config-json=(unit json)  bind:m
@@ -100,17 +123,14 @@
         ~&  >>  [%git-desk-sync-config repo.config ref.config]
         ?:  =('' repo.config)
           ~&  >>>  %git-desk-sync-no-repo
-          ^$
+          $
         ;<  files=(list [pax=path data=octs])  bind:m
           (do-fetch config)
         =/  remote-ver=@ud  (fall (extract-version files) 0)
         ;<  cur-ver=(unit @ud)  bind:m
           (peek-as:io (nex-road:io rail [%& / %'version.ud']) ,@ud)
-        =/  is-poll=?  (gth poll.config 0)
-        ?:  &(is-poll (lte remote-ver (fall cur-ver 0)))
-          ~&  >  [%git-desk-poll-no-update local=(fall cur-ver 0) remote=remote-ver]
-          ~&  >  [%git-desk-poll-sleeping poll.config %minutes]
-          ;<  ~  bind:m  (sleep:io (mul ~m1 poll.config))
+        ?:  &(?=(^ cur-ver) (lte remote-ver u.cur-ver))
+          ~&  >  [%git-desk-sync-no-update local=u.cur-ver remote=remote-ver]
           $
         ~&  >  [%git-desk-updating local=(fall cur-ver 0) remote=remote-ver]
         ;<  ~  bind:m  (do-checkpoint rail (sy ~['checkpoint']))
@@ -120,9 +140,6 @@
         ;<  ~  bind:m
           (do-checkpoint rail (sy ~['checkpoint' (version-tag (fall ver 0))]))
         ~&  >  [%git-desk-sync-done ver=(fall ver 0)]
-        ?.  is-poll  ^$
-        ~&  >  [%git-desk-poll-sleeping poll.config %minutes]
-        ;<  ~  bind:m  (sleep:io (mul ~m1 poll.config))
         $
           ::
           [~ %'version.ud']
@@ -286,17 +303,17 @@
   ;<  ~  bind:m
     ?~  bill-octs  (pure:m ~)
     =/  bill-json=json  (need (de:json:html q.u.bill-octs))
-    (over:io (nex-road:io rail [%& /desk %'bill.json']) [[/ %json] bill-json])
+    (put:io (nex-road:io rail [%& /desk %'bill.json']) [[/ %json] bill-json])
   =/  tile-octs=(unit octs)  (extract-file files ~['tile.json'])
   ;<  ~  bind:m
     ?~  tile-octs  (pure:m ~)
     =/  tile-json=json  (need (de:json:html q.u.tile-octs))
-    (over:io (nex-road:io rail [%& / %'tile.json']) [[/ %json] tile-json])
+    (put:io (nex-road:io rail [%& / %'tile.json']) [[/ %json] tile-json])
   =/  icon-octs=(unit octs)  (extract-file files ~['icon.svg'])
   ;<  ~  bind:m
     ?~  icon-octs  (pure:m ~)
     =/  =mime  [[%image %'svg+xml' ~] u.icon-octs]
-    (over:io (nex-road:io rail [%& / %'icon.svg']) [[/ %mime] mime])
+    (put:io (nex-road:io rail [%& / %'icon.svg']) [[/ %mime] mime])
   (apply-bill rail files)
 ::
 ::  +filter-prefix: extract files under a path prefix as bfiles
@@ -383,11 +400,11 @@
   ;<  ~  bind:m
     ?~  tile-octs  (pure:m ~)
     =/  tile-json=json  (need (de:json:html q.u.tile-octs))
-    (over:io (nex-road:io rail [%& /desk/data/[nam] %'tile.json']) [[/ %json] tile-json])
+    (put:io (nex-road:io rail [%& /desk/data/[nam] %'tile.json']) [[/ %json] tile-json])
   ;<  ~  bind:m
     ?~  icon-octs  (pure:m ~)
     =/  =mime  [[%image %'svg+xml' ~] u.icon-octs]
-    (over:io (nex-road:io rail [%& /desk/data/[nam] %'icon.svg']) [[/ %mime] mime])
+    (put:io (nex-road:io rail [%& /desk/data/[nam] %'icon.svg']) [[/ %mime] mime])
   $(entries t.entries)
 ::
 ++  do-checkpoint

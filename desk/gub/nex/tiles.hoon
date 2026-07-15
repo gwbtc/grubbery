@@ -21,7 +21,7 @@
       :~  (manifest:loader 0)
           [%fall %| /tiles empty-dir:loader]
           [%fall %& [/tiles %'landscape.json'] [[/ %json] landscape-tile]]
-          [%over %& [/ %'page.html'] [[/ %html] (crip (en-xml:html (tiles-page "" ~ ~ ~)))]]
+          [%over %& [/ %'page.html'] [[/ %html] (crip (en-xml:html (tiles-page "")))]]
           [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
           [%fall %| /requests empty-dir:loader]
           [%over %& [/ %'README.md'] [[/ %mime] man]]
@@ -34,32 +34,13 @@
       =/  m  (fiber:fiber:nexus ,~)
       ^-  process:fiber:nexus
       ?+    rail  stay:m
-          ::  page.html: render tile grid, re-render on changes
-          ::
-          [~ %'page.html']
-        ;<  ~  bind:m  (rise-wait:io prod "%tiles page: failed")
-        ;<  here=rail:tarball  bind:m  get-here-abs:io
-        =/  ball-id=tape  (path-to-ball-id path.here)
-        ;<  *  bind:m  (keep:io /tiles (cord-to-road:tarball './tiles/') ~)
-        |-
-        ;<  =view:nexus  bind:m  (peek:io (cord-to-road:tarball './tiles/') ~)
-        =/  local=(list tile)  (read-tiles view)
-        =/  local-names=(set @ta)  (sy (turn local |=(t=tile name.t)))
-        ;<  app-pairs=(list [tile @ta])  bind:m  read-app-tiles
-        =/  app=(list tile)  (turn app-pairs head)
-        =/  app-dirs=(map @ta @ta)  (malt (turn app-pairs |=([t=tile d=@ta] [name.t d])))
-        =/  tiles=(list tile)  (merge-tiles local app)
-        ;<  ~  bind:m  (replace:io (crip (en-xml:html (tiles-page ball-id local-names app-dirs tiles))))
-        ;<  *  bind:m  (take-news:io /tiles)
-        $
-          ::  main.sig: bind HTTP and dispatch
-          ::
           [~ %'main.sig']
         ;<  ~  bind:m  (rise-wait:io prod "%tiles main: failed")
+        ;<  here=rail:tarball  bind:m  get-here-abs:io
+        =/  ball-id=tape  (path-to-ball-id path.here)
         ;<  ~  bind:m  (bind-http:io [~ /apps/grubbery])
         ;<  ~  bind:m  (bind-http:io [~ /grubbery/tiles])
         (http-dispatch:io %tiles)
-          ::  /ui/requests/*: HTTP request handlers
           ::
           [[%requests ~] @]
         ;<  ~  bind:m  (rise-wait:io prod "%tiles request: failed")
@@ -69,9 +50,19 @@
         ?.  =(src our)
           ;<  ~  bind:m  (send-simple:srv eyre-id [[403 ~] `(as-octs:mimes:html 'Forbidden')])
           (pure:m ~)
+        ;<  here=rail:tarball  bind:m  get-here-abs:io
+        =/  ball-id=tape  (path-to-ball-id path.here)
         =/  prefix=path  /grubbery/tiles
         =/  site=path  site:(parse-url:http-utils url.request.req)
         =/  suffix=path  (slag (lent prefix) site)
+        ::  /tiles.json → all tile data
+        ?:  ?=([%'tiles.json' ~] suffix)
+          ;<  tiles=(list tile)  bind:m  (read-all-tiles rail)
+          =/  =json  (tiles-to-json tiles)
+          =/  body=octs  (as-octs:mimes:html (en:json:html json))
+          ;<  ~  bind:m
+            (send-simple:srv eyre-id [[200 ['content-type' 'application/json'] ~] `body])
+          (pure:m ~)
         ::  /icon/<slug> → serve icon from sibling app
         ?:  ?=([%icon @ ~] suffix)
           =/  slug=@ta  i.t.suffix
@@ -194,17 +185,38 @@
     `-.i.entries
   $(entries t.entries)
 ::
-++  merge-tiles
-  |=  [local=(list tile) app=(list tile)]
-  ^-  (list tile)
+++  read-all-tiles
+  |=  =rail:tarball
+  =/  m  (fiber:fiber:nexus ,(list tile))
+  ^-  form:m
+  ;<  =view:nexus  bind:m  (peek:io (nex-road:io rail [%| /tiles]) ~)
+  =/  local=(list tile)  (read-tiles view)
   =/  local-names=(set @ta)  (sy (turn local |=(t=tile name.t)))
-  %+  weld  local
-  (skip app |=(t=tile (~(has in local-names) name.t)))
+  ;<  app-pairs=(list [tile @ta])  bind:m  read-app-tiles
+  =/  app=(list tile)  (turn app-pairs head)
+  =/  merged=(list tile)
+    %+  weld  local
+    (skip app |=(t=tile (~(has in local-names) name.t)))
+  (pure:m (sort merged |=([a=tile b=tile] (aor name.a name.b))))
+::
+++  tiles-to-json
+  |=  tiles=(list tile)
+  ^-  json
+  :-  %a
+  %+  turn  tiles
+  |=  t=tile
+  %-  pairs:enjs:format
+  :~  name+s+name.t
+      title+s+title.t
+      info+s+info.t
+      color+s+color.t
+      image+s+image.t
+      href+s+href.t
+  ==
 ::
 ++  tiles-page
-  |=  [ball-id=tape local-names=(set @ta) app-dirs=(map @ta @ta) tiles=(list tile)]
+  |=  ball-id=tape
   ^-  manx
-  =/  sorted=(list tile)  (sort tiles |=([a=tile b=tile] (aor name.a name.b)))
   ;html
     ;head
       ;title: tiles
@@ -236,64 +248,12 @@
           ;div#loading-tile
             ;div.spinner;
           ==
-          ;*  ?~  sorted
-                =/  empty=manx  ;div.empty: no tiles yet
-                ~[empty]
-              (turn sorted |=(t=tile (tile-card ball-id local-names app-dirs t)))
         ==
       ==
       ;script
         ;+  ;/  (script-text ball-id)
       ==
     ==
-  ==
-::
-++  tile-card
-  |=  [ball-id=tape local-names=(set @ta) app-dirs=(map @ta @ta) t=tile]
-  ^-  manx
-  =/  n=tape  (trip name.t)
-  =/  ttl=tape  (trip title.t)
-  =/  inf=tape  (trip info.t)
-  =/  col=tape  (trip color.t)
-  =/  img=tape  (trip image.t)
-  =/  lnk=tape  (trip href.t)
-  =/  is-local=?  (~(has in local-names) name.t)
-  =/  cls=tape  ?:(=(~ img) "tile" "tile has-img")
-  =/  app-dir=@ta  (fall (~(get by app-dirs) name.t) '')
-  =/  jon=tape
-    ?:  is-local  ""
-    %-  trip
-    %-  en:json:html
-    %-  pairs:enjs:format
-    :~  title+s+title.t
-        info+s+info.t
-        color+s+color.t
-        image+s+image.t
-        href+s+href.t
-    ==
-  =/  app-path=tape  ?:(is-local "" "/apps/{(trip app-dir)}")
-  ;div(class cls, data-tile n, data-json jon, data-app app-path)
-    ;div.tile-bg(style "background:{col}");
-    ;+  ?:  =(~ img)
-          ;div;
-        ;img.tile-img(src img, onload "this.closest('.tile').classList.add('loaded')", onerror "this.style.display='none';this.closest('.tile').classList.add('loaded')");
-    ;div.tile-label
-      ;div.tile-title: {ttl}
-      ;+  ?:  =(~ inf)
-            ;div;
-          ;div.tile-desc: {inf}
-    ==
-    ;+  ?:  is-local
-          ;div.tile-actions
-            ;button.tile-edit(onclick "event.preventDefault();event.stopPropagation();editTile('{n}')"): edit
-            ;button.tile-del(onclick "event.preventDefault();event.stopPropagation();deleteTile('{n}')"):  ✕
-          ==
-        ;div.tile-actions
-          ;button.tile-edit(onclick "event.preventDefault();event.stopPropagation();viewTile(this.closest('.tile'))"): view
-        ==
-    ;+  ?:  =(~ lnk)
-          ;div;
-        ;a.tile-link(href lnk, target "_blank");
   ==
 ::
 ++  style-text
@@ -305,8 +265,7 @@
   #header \{ display: flex; justify-content: flex-end; margin-bottom: 32px; }
   .hdr-btn \{ font-size: 13px; padding: 8px 16px; border-radius: 8px; border: 1px solid #ddd; background: white; color: #555; cursor: pointer; font-family: inherit; }
   .hdr-btn:hover \{ background: #f5f5f5; }
-  #tiles \{ display: flex; flex-wrap: wrap; gap: 20px; }
-  #tiles \{ justify-content: center; }
+  #tiles \{ display: flex; flex-wrap: wrap; gap: 20px; justify-content: center; }
   .tile \{ position: relative; width: 256px; height: 256px; border-radius: 16px; overflow: hidden; flex-shrink: 0; }
   .tile.has-img:not(.loaded) \{ display: none; }
   #loading-tile \{ display: none; width: 256px; height: 256px; border-radius: 16px; background: #f5f5f5; align-items: center; justify-content: center; flex-shrink: 0; }
@@ -348,12 +307,76 @@
   %+  weld
     "var API='/grubbery/api';var BALL='{ball-id}';\0a"
   """
+  var tilesDiv = document.getElementById('tiles');
   var editBack = document.getElementById('edit-backdrop');
   var editTitle = document.getElementById('edit-title');
   var editJson = document.getElementById('edit-json');
   var editStatus = document.getElementById('edit-status');
   var editName = '';
   var isNew = false;
+
+  function renderTiles(tiles) \{
+    var loading = document.getElementById('loading-tile');
+    tilesDiv.innerHTML = '';
+    if (!tiles.length) \{
+      tilesDiv.innerHTML = '<div class="empty">no tiles yet</div>';
+    } else \{
+      tiles.forEach(function(t) \{
+        var d = document.createElement('div');
+        d.className = t.image ? 'tile has-img' : 'tile';
+        d.dataset.tile = t.name;
+        var bg = document.createElement('div');
+        bg.className = 'tile-bg';
+        bg.style.background = t.color || '#333';
+        d.appendChild(bg);
+        if (t.image) \{
+          var img = document.createElement('img');
+          img.className = 'tile-img';
+          img.src = t.image;
+          img.onload = function() \{ this.closest('.tile').classList.add('loaded'); };
+          img.onerror = function() \{ this.style.display='none'; this.closest('.tile').classList.add('loaded'); };
+          d.appendChild(img);
+        }
+        var lbl = document.createElement('div');
+        lbl.className = 'tile-label';
+        var ttl = document.createElement('div');
+        ttl.className = 'tile-title';
+        ttl.textContent = t.title || '';
+        lbl.appendChild(ttl);
+        if (t.info) \{
+          var desc = document.createElement('div');
+          desc.className = 'tile-desc';
+          desc.textContent = t.info;
+          lbl.appendChild(desc);
+        }
+        d.appendChild(lbl);
+        var acts = document.createElement('div');
+        acts.className = 'tile-actions';
+        var btn = document.createElement('button');
+        btn.className = 'tile-edit';
+        btn.textContent = 'view';
+        btn.onclick = function(e) \{ e.preventDefault(); e.stopPropagation(); viewTile(d, t.name); };
+        acts.appendChild(btn);
+        d.appendChild(acts);
+        if (t.href) \{
+          var a = document.createElement('a');
+          a.className = 'tile-link';
+          a.href = t.href;
+          a.target = '_blank';
+          d.appendChild(a);
+        }
+        tilesDiv.appendChild(d);
+      });
+      if (loading) tilesDiv.appendChild(loading);
+    }
+  }
+
+  function loadTiles() \{
+    fetch('/grubbery/tiles/tiles.json')
+      .then(function(r) \{ return r.json(); })
+      .then(renderTiles)
+      .catch(function() \{ tilesDiv.innerHTML = '<div class="empty">failed to load tiles</div>'; });
+  }
 
   function addTile() \{
     isNew = true;
@@ -372,34 +395,18 @@
     editBack.classList.add('open');
   }
 
-  function viewTile(el) \{
-    var json = el.dataset.json;
-    var app = el.dataset.app;
-    editTitle.textContent = app;
+  function viewTile(el, name) \{
+    editTitle.textContent = name;
     editStatus.textContent = '';
-    editJson.value = JSON.stringify(JSON.parse(json), null, 2);
-    editJson.disabled = true;
-    document.getElementById('edit-save').style.display = 'none';
-    editBack.classList.add('open');
-  }
-
-  function editTile(name) \{
-    isNew = false;
-    editName = name;
-    document.getElementById('edit-save').style.display = '';
-    var el = document.querySelector('[data-tile="' + name + '"]');
-    var title = el ? (el.querySelector('.tile-title') || \{}).textContent || name : name;
-    editTitle.textContent = 'Edit ' + title;
-    editStatus.textContent = '';
-    editJson.value = '';
-    editJson.disabled = true;
-    editJson.placeholder = 'Loading...';
-    editBack.classList.add('open');
     fetch(API + '/file/' + BALL + '/tiles/' + name + '?blot=/json')
-      .then(function(r) \{ return r.json() })
-      .then(function(j) \{ editJson.value = JSON.stringify(j, null, 2); })
-      .catch(function() \{ editJson.value = '\{}'; })
-      .finally(function() \{ editJson.disabled = false; editJson.placeholder = '\{}'; });
+      .then(function(r) \{ return r.json(); })
+      .then(function(j) \{
+        editJson.value = JSON.stringify(j, null, 2);
+        editJson.disabled = true;
+        document.getElementById('edit-save').style.display = 'none';
+        editBack.classList.add('open');
+      })
+      .catch(function() \{});
   }
 
   function deleteTile(name) \{
@@ -407,7 +414,7 @@
     var title = el ? (el.querySelector('.tile-title') || \{}).textContent || name : name;
     if (!confirm('Delete ' + title + '?')) return;
     fetch(API + '/file/' + BALL + '/tiles/' + name, \{method: 'DELETE'})
-      .then(function() \{ reloadAfterSave(); });
+      .then(function() \{ loadTiles(); });
   }
 
   document.getElementById('edit-close').onclick = function() \{
@@ -435,16 +442,13 @@
     if (r.ok) \{
       editStatus.textContent = 'Saved';
       editStatus.style.color = '#4ade80';
-      setTimeout(function() \{ editBack.classList.remove('open'); reloadAfterSave(); }, 400);
+      setTimeout(function() \{ editBack.classList.remove('open'); loadTiles(); }, 400);
     } else \{
       editStatus.textContent = 'Save failed';
       editStatus.style.color = '#f87171';
     }
   };
 
-  // Reload after save to pick up server-rendered changes
-  function reloadAfterSave() \{
-    setTimeout(function() \{ window.location.reload(); }, 600);
-  }
+  loadTiles();
   """
 --

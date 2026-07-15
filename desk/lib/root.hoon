@@ -3,6 +3,15 @@
 /+  nexus, tarball, loader, io=fiberio, ball-api, http-utils, server
 =/  app-weir=(unit weir:tarball)
   `[make=~ poke=(sy ~[[%& %| /]]) peek=(sy ~[[%& %| /]])]
+=/  git-desk-config
+  |=  [repo=@t ref=@t]
+  ^-  json
+  %-  pairs:enjs:format
+  :~  ['repo' s+repo]
+      ['ref' s+ref]
+      ['public' b+%.n]
+      ['poll' n+'360']
+  ==
 ^-  nexus:nexus
 |%
 ++  on-load
@@ -41,8 +50,13 @@
         [%fall %| /apps/'explorer.explorer' [`[`[/ %explorer] ~ %.n ~] ~]]
         [%fall %| /apps/'mcp.mcp' [`[`[/ %mcp] ~ %.n ~] ~]]
         [%fall %| /apps/'peers.peers' [`[`[/ %peers] app-weir %.n ~] ~]]
-        [%fall %| /apps/'wallet.wallet_app' [`[`[/wallet %app] app-weir %.n ~] ~]]
-        [%fall %| /apps/'contacts.contacts' [`[`[/ %contacts] app-weir %.n ~] ~]]
+        ::
+        [%fall %| /apps/'wallet.git_desk' [`[`[/git %desk] app-weir %.n ~] ~]]
+        [%fall %& [/apps/'wallet.git_desk' %'config.json'] [[/ %json] (git-desk-config 'niblyx-malnus/wallet-nexus' 'main')]]
+        ::
+        [%fall %| /apps/'contacts.git_desk' [`[`[/git %desk] app-weir %.n ~] ~]]
+        [%fall %& [/apps/'contacts.git_desk' %'config.json'] [[/ %json] (git-desk-config 'niblyx-malnus/contacts-nexus' 'main')]]
+        ::
         [%fall %| /apps/'test.web-test' [`[`[/ %web-test] app-weir %.n ~] ~]]
         [%fall %| /apps/'test.desk' [`[`[/ %desk] app-weir %.n ~] ~]]
         [%fall %| /apps/'itinerary.git_desk' [`[`[/git %desk] app-weir %.n ~] ~]]
