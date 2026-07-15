@@ -45,7 +45,7 @@
         [%fall %| /apps/'contacts.contacts' [`[`[/ %contacts] app-weir %.n ~] ~]]
         [%fall %| /apps/'test.web-test' [`[`[/ %web-test] app-weir %.n ~] ~]]
         [%fall %| /apps/'test.desk' [`[`[/ %desk] app-weir %.n ~] ~]]
-        [%fall %| /apps/'echo.lick-echo' [`[`[/ %lick-echo] app-weir %.n ~] ~]]
+        [%fall %| /apps/'itinerary.git_desk' [`[`[/git %desk] app-weir %.n ~] ~]]
     ==
 ::
 ++  on-file

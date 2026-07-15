@@ -1,4 +1,5 @@
 /<  tools  /lib/nex/tools.hoon
+/<  s3t    /lib/nex/s3-tools.hoon
 ::  s3-download-directory: download all files under an S3 prefix to the ball
 ::
 !:
@@ -29,11 +30,11 @@
     (pure:m [%error 'Missing or invalid required arguments (s3_prefix, path)'])
   =/  [s3-prefix=@t dest-path=@t]  p.parsed
   =/  pax=path  (stab dest-path)
-  ;<  creds=s3-creds:tools  bind:m  read-s3-creds:tools
+  ;<  creds=s3-creds:s3t  bind:m  read-s3-creds:s3t
   ;<  now=@da  bind:m  get-time:io
-  =/  query-string=@t  (build-list-query:s3:tools s3-prefix)
+  =/  query-string=@t  (build-list-query:s3:s3t s3-prefix)
   =/  [amz-date=@t payload-hash=@t authorization=@t]
-    %:  build-signature:s3:tools
+    %:  build-signature:s3:s3t
       'GET'
       access-key.creds
       secret-key.creds
@@ -45,8 +46,8 @@
       ~
       now
     ==
-  =/  url=@t  (build-url:s3:tools endpoint.creds bucket.creds '' `query-string)
-  =/  headers=(list [@t @t])  (build-headers:s3:tools 'GET' payload-hash amz-date authorization)
+  =/  url=@t  (build-url:s3:s3t endpoint.creds bucket.creds '' `query-string)
+  =/  headers=(list [@t @t])  (build-headers:s3:s3t 'GET' payload-hash amz-date authorization)
   =/  =request:http  [%'GET' url headers ~]
   ;<  ~  bind:m  (send-request:io request)
   ;<  =client-response:iris  bind:m  take-client-response:io
@@ -55,7 +56,7 @@
       [%finished * [~ [* [p=@ q=@]]]]
     ;;(@t q.data.u.full-file.client-response)
     ==
-  =/  all-keys=(list @t)  (parse-list-response:s3:tools body)
+  =/  all-keys=(list @t)  (parse-list-response:s3:s3t body)
   =/  files=(list @t)
     %+  skip  all-keys
     |=(key=@t =((rear (trip key)) '/'))
@@ -64,11 +65,11 @@
   ?~  files
     (pure:m [%text (crip "Downloaded {<downloaded>} files to {(trip dest-path)}")])
   =/  s3-key=@t  i.files
-  =/  filename=@ta  (extract-filename:s3:tools s3-key)
+  =/  filename=@ta  (extract-filename:s3:s3t s3-key)
   =/  ext=(unit @ta)  (parse-extension:tarball filename)
   ;<  now=@da  bind:m  get-time:io
   =/  [ld-amz-date=@t ld-payload-hash=@t ld-authorization=@t]
-    %:  build-signature:s3:tools
+    %:  build-signature:s3:s3t
       'GET'
       access-key.creds
       secret-key.creds
@@ -80,8 +81,8 @@
       ~
       now
     ==
-  =/  dl-url=@t  (build-url:s3:tools endpoint.creds bucket.creds s3-key ~)
-  =/  dl-headers=(list [@t @t])  (build-headers:s3:tools 'GET' ld-payload-hash ld-amz-date ld-authorization)
+  =/  dl-url=@t  (build-url:s3:s3t endpoint.creds bucket.creds s3-key ~)
+  =/  dl-headers=(list [@t @t])  (build-headers:s3:s3t 'GET' ld-payload-hash ld-amz-date ld-authorization)
   =/  dl-request=request:http  [%'GET' dl-url dl-headers ~]
   ;<  ~  bind:m  (send-request:io dl-request)
   ;<  dl-response=client-response:iris  bind:m  take-client-response:io
@@ -92,7 +93,7 @@
   =/  content=@t  ;;(@t q.data.u.full-file.dl-response)
   =/  response-headers=(list [key=@t value=@t])
     headers.response-header.dl-response
-  =/  ct=(unit @t)  (extract-content-type:s3:tools response-headers)
+  =/  ct=(unit @t)  (extract-content-type:s3:s3t response-headers)
   =/  mtype=path  (determine-mime-type:tarball ct filename)
   =/  file-mime=mime  [mtype (as-octs:mimes:html content)]
   =/  road=road:tarball  [%& %& pax filename]

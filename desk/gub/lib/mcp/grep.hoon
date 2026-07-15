@@ -49,7 +49,7 @@
   =/  search-tape=tape  (trip search)
   ::  Browse root to get entire ball
   ;<  =view:nexus  bind:m  (peek:io [%& %| ~] ~)
-  ?.  ?=([%ball *] seen)
+  ?.  ?=([%ball *] view)
     (pure:m [%error 'Could not read ball'])
   ::  Flatten and filter by metadata patterns
   =/  candidates=(list [rail:tarball sang:tarball])

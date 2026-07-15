@@ -1,4 +1,5 @@
 /<  tools  /lib/nex/tools.hoon
+/<  s3t    /lib/nex/s3-tools.hoon
 ::  s3-delete: delete a file from S3
 ::
 !:
@@ -26,10 +27,10 @@
   ?:  ?=(%| -.parsed)
     (pure:m [%error 'Missing or invalid argument: s3_key'])
   =/  s3-key=@t  p.parsed
-  ;<  creds=s3-creds:tools  bind:m  read-s3-creds:tools
+  ;<  creds=s3-creds:s3t  bind:m  read-s3-creds:s3t
   ;<  now=@da  bind:m  get-time:io
   =/  [amz-date=@t payload-hash=@t authorization=@t]
-    %:  build-signature:s3:tools
+    %:  build-signature:s3:s3t
       'DELETE'
       access-key.creds
       secret-key.creds
@@ -41,8 +42,8 @@
       ~
       now
     ==
-  =/  url=@t  (build-url:s3:tools endpoint.creds bucket.creds s3-key ~)
-  =/  headers=(list [@t @t])  (build-headers:s3:tools 'DELETE' payload-hash amz-date authorization)
+  =/  url=@t  (build-url:s3:s3t endpoint.creds bucket.creds s3-key ~)
+  =/  headers=(list [@t @t])  (build-headers:s3:s3t 'DELETE' payload-hash amz-date authorization)
   =/  =request:http  [%'DELETE' url headers ~]
   ;<  ~  bind:m  (send-request:io request)
   ;<  =client-response:iris  bind:m  take-client-response:io

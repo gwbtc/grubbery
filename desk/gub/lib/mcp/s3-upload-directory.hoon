@@ -1,4 +1,5 @@
 /<  tools  /lib/nex/tools.hoon
+/<  s3t    /lib/nex/s3-tools.hoon
 ::  s3-upload-directory: upload a ball directory to S3
 ::
 !:
@@ -33,7 +34,7 @@
   ?.  ?=([%ball *] view)
     (pure:m [%error (crip "Directory not found: {(trip dir-path)}")])
   =/  files-to-upload=(list [path @ta])
-    %+  turn  (collect-files-recursive:s3:tools ball.view ~)
+    %+  turn  (collect-files-recursive:s3:s3t ball.view ~)
     |=([p=path n=@ta] [(weld pax p) n])
   =/  uploaded=@ud  0
   |-
@@ -52,12 +53,12 @@
     (snoc (slag (lent pax) file-path) full-name)
   =/  s3-key=@t
     ?:  =(s3-prefix '')
-      (path-to-s3-key:s3:tools relative-path)
-    (crip "{(trip s3-prefix)}/{(trip (path-to-s3-key:s3:tools relative-path))}")
-  ;<  creds=s3-creds:tools  bind:m  read-s3-creds:tools
+      (path-to-s3-key:s3:s3t relative-path)
+    (crip "{(trip s3-prefix)}/{(trip (path-to-s3-key:s3:s3t relative-path))}")
+  ;<  creds=s3-creds:s3t  bind:m  read-s3-creds:s3t
   ;<  now=@da  bind:m  get-time:io
   =/  [amz-date=@t payload-hash=@t authorization=@t]
-    %:  build-signature:s3:tools
+    %:  build-signature:s3:s3t
       'PUT'
       access-key.creds
       secret-key.creds
@@ -69,8 +70,8 @@
       `text
       now
     ==
-  =/  url=@t  (build-url:s3:tools endpoint.creds bucket.creds s3-key ~)
-  =/  headers=(list [@t @t])  (build-headers:s3:tools 'PUT' payload-hash amz-date authorization)
+  =/  url=@t  (build-url:s3:s3t endpoint.creds bucket.creds s3-key ~)
+  =/  headers=(list [@t @t])  (build-headers:s3:s3t 'PUT' payload-hash amz-date authorization)
   =/  =request:http
     [%'PUT' url headers `(as-octs:mimes:html text)]
   ;<  ~  bind:m  (send-request:io request)

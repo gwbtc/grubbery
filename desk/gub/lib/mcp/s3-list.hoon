@@ -1,4 +1,5 @@
 /<  tools  /lib/nex/tools.hoon
+/<  s3t    /lib/nex/s3-tools.hoon
 ::  s3-list: list files in S3 bucket
 ::
 !:
@@ -21,11 +22,11 @@
     ?~  pj=(~(get by args.st) 'prefix')  ''
     ?.  ?=([%s *] u.pj)  ''
     p.u.pj
-  ;<  creds=s3-creds:tools  bind:m  read-s3-creds:tools
+  ;<  creds=s3-creds:s3t  bind:m  read-s3-creds:s3t
   ;<  now=@da  bind:m  get-time:io
-  =/  query-string=@t  (build-list-query:s3:tools prefix)
+  =/  query-string=@t  (build-list-query:s3:s3t prefix)
   =/  [amz-date=@t payload-hash=@t authorization=@t]
-    %:  build-signature:s3:tools
+    %:  build-signature:s3:s3t
       'GET'
       access-key.creds
       secret-key.creds
@@ -37,8 +38,8 @@
       ~
       now
     ==
-  =/  url=@t  (build-url:s3:tools endpoint.creds bucket.creds '' `query-string)
-  =/  headers=(list [@t @t])  (build-headers:s3:tools 'GET' payload-hash amz-date authorization)
+  =/  url=@t  (build-url:s3:s3t endpoint.creds bucket.creds '' `query-string)
+  =/  headers=(list [@t @t])  (build-headers:s3:s3t 'GET' payload-hash amz-date authorization)
   =/  =request:http  [%'GET' url headers ~]
   ;<  ~  bind:m  (send-request:io request)
   ;<  =client-response:iris  bind:m  take-client-response:io
@@ -47,7 +48,7 @@
       [%finished * [~ [* [p=@ q=@]]]]
     ;;(@t q.data.u.full-file.client-response)
     ==
-  =/  keys=(list @t)  (parse-list-response:s3:tools body)
+  =/  keys=(list @t)  (parse-list-response:s3:s3t body)
   ?~  keys
     (pure:m [%text 'No files found'])
   =/  result=tape

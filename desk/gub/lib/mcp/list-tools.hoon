@@ -2,10 +2,9 @@
 ::  list-tools: list all available MCP tools with optional filtering
 ::
 ::    Looks up compiled tools from bins via %code darts.
+::    Scans root /code/lib/mcp and each app's /desk/code/lib/mcp.
 ::
 =>  |%
-    ::  +strip-hoon: remove .hoon suffix from filename
-    ::
     ++  strip-hoon
       |=  name=@ta
       ^-  @ta
@@ -14,8 +13,6 @@
       ?.  (gth len 5)  name
       ?.  =(".hoon" (slag (sub len 5) t))  name
       (crip (scag (sub len 5) t))
-    ::  +has-substr: case-insensitive substring search
-    ::
     ++  has-substr
       |=  [needle=tape haystack=tape]
       ^-  ?
@@ -69,65 +66,88 @@
   =/  names-only=?
     ?~  v  %.n
     ?=([%b %.y] u.v)
-  ::  Peek ball mirror for tool source filenames
+  ::  Collect all code-path + name pairs to try
+  =/  pairs=(list [path @ta])  ~
+  ::  Root namespace tools
   ;<  src-view=view:nexus  bind:m
     (peek:io [%& %| /code/lib/mcp] ~)
-  ?.  ?=([%ball *] src-view)
-    (pure:m [%error 'No tool sources found'])
-  ?~  fil.ball.src-view
-    (pure:m [%error 'No tool sources found'])
-  =/  src-names=(list @ta)
+  =.  pairs
+    ?.  ?=([%ball *] src-view)  pairs
+    ?~  fil.ball.src-view  pairs
+    %+  weld  pairs
+    ^-  (list [path @ta])
     %+  turn  ~(tap by contents.u.fil.ball.src-view)
-    |=([n=@ta [=sang:tarball gain=? bang=(unit tang)]] (strip-hoon n))
-  ::  Look up each compiled tool from bins
-  =/  all-tools=(list tool:tools)  ~
+    |=  [n=@ta *]
+    [/code/lib/mcp (strip-hoon n)]
+  ::  App namespace tools
+  ;<  apps-view=view:nexus  bind:m
+    (peek:io [%& %| /apps] ~)
+  =/  app-kids=(list @ta)
+    ?.  ?=([%ball *] apps-view)  ~
+    (turn ~(tap by dir.ball.apps-view) |=([nam=@ta *] nam))
   |-
-  ?~  src-names
-    ::  Filter by name glob and description search
-    =/  matches=(list tool:tools)
-      %+  skim  all-tools
-      |=  =tool:tools
-      =/  name-ok=?
-        ?~  pat-name  %.y
-        (glob-match:tools (trip u.pat-name) (trip name:tool))
-      =/  search-ok=?
-        ?~  pat-search  %.y
-        (has-substr (trip u.pat-search) (trip description:tool))
-      &(name-ok search-ok)
-    ?~  matches
-      (pure:m [%text 'No tools found'])
-    ?:  names-only
+  ?~  app-kids
+    ::  All pairs collected, now compile and filter
+    =/  all-tools=(list tool:tools)  ~
+    |-
+    ?~  pairs
+      =/  matches=(list tool:tools)
+        %+  skim  all-tools
+        |=  =tool:tools
+        =/  name-ok=?
+          ?~  pat-name  %.y
+          (glob-match:tools (trip u.pat-name) (trip name:tool))
+        =/  search-ok=?
+          ?~  pat-search  %.y
+          (has-substr (trip u.pat-search) (trip description:tool))
+        &(name-ok search-ok)
+      ?~  matches
+        (pure:m [%text 'No tools found'])
+      ?:  names-only
+        =/  result=tape
+          (zing (turn matches |=(=tool:tools "\0a{(trip name:tool)}")))
+        (pure:m [%text (crip "{<(lent matches)>} tools:{result}")])
       =/  result=tape
-        (zing (turn matches |=(=tool:tools "\0a{(trip name:tool)}")))
-      (pure:m [%text (crip "{<(lent matches)>} tools:{result}")])
-    =/  result=tape
-      %-  zing
-      %+  turn  matches
-      |=  =tool:tools
-      =/  params=(list @t)
-        (turn ~(tap by parameters:tool) |=([n=@t *] n))
-      =/  req=(list @t)  required:tool
-      =/  out=tape
-        "\0a\0a{(trip name:tool)}\0a  {(trip description:tool)}"
-      =?  out  ?=(^ params)
-        =/  param-text=tape
-          %-  zing
-          ^-  (list tape)
-          (join ", " (turn params trip))
-        (weld out "\0a  params: {param-text}")
-      =?  out  ?=(^ req)
-        =/  req-text=tape
-          %-  zing
-          ^-  (list tape)
-          (join ", " (turn req trip))
-        (weld out "\0a  required: {req-text}")
-      out
-    (pure:m [%text (crip "{<(lent matches)>} tools found:{result}")])
-  =/  n=@ta  i.src-names
-  ;<  res=built:nexus  bind:m  (get-code-full:io [%& %& /code/lib/mcp n])
-  ?.  ?=(%vase -.res)  $(src-names t.src-names)
-  =/  got=(each tool:tools tang)
-    (mule |.(!<(tool:tools vase.res)))
-  ?.  ?=(%& -.got)  $(src-names t.src-names)
-  $(src-names t.src-names, all-tools [p.got all-tools])
+        %-  zing
+        %+  turn  matches
+        |=  =tool:tools
+        =/  params=(list @t)
+          (turn ~(tap by parameters:tool) |=([n=@t *] n))
+        =/  req=(list @t)  required:tool
+        =/  out=tape
+          "\0a\0a{(trip name:tool)}\0a  {(trip description:tool)}"
+        =?  out  ?=(^ params)
+          =/  param-text=tape
+            %-  zing
+            ^-  (list tape)
+            (join ", " (turn params trip))
+          (weld out "\0a  params: {param-text}")
+        =?  out  ?=(^ req)
+          =/  req-text=tape
+            %-  zing
+            ^-  (list tape)
+            (join ", " (turn req trip))
+          (weld out "\0a  required: {req-text}")
+        out
+      (pure:m [%text (crip "{<(lent matches)>} tools found:{result}")])
+    =/  [cp=path n=@ta]  `[path @ta]`i.pairs
+    ;<  res=built:nexus  bind:m  (get-code-full:io [%& %& cp n])
+    ?.  ?=(%vase -.res)  $(pairs t.pairs)
+    =/  got=(each tool:tools tang)
+      (mule |.(!<(tool:tools vase.res)))
+    ?.  ?=(%& -.got)  $(pairs t.pairs)
+    $(pairs t.pairs, all-tools [p.got all-tools])
+  ::  Peek this app's mcp dir and add any tool sources
+  =/  app-path=path  (welp ~[%apps i.app-kids] /desk/code/lib/mcp)
+  ;<  app-src=view:nexus  bind:m
+    (peek:io [%& %| app-path] ~)
+  =.  pairs
+    ?.  ?=([%ball *] app-src)  pairs
+    ?~  fil.ball.app-src  pairs
+    %+  weld  pairs
+    ^-  (list [path @ta])
+    %+  turn  ~(tap by contents.u.fil.ball.app-src)
+    |=  [n=@ta *]
+    [app-path (strip-hoon n)]
+  $(app-kids t.app-kids)
 --

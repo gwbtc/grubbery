@@ -12,7 +12,7 @@ SOURCE="desk/"
 
 sync_all() {
     while IFS= read -r dest; do
-        rsync -av --delete "$SOURCE" "$dest"
+        rsync -avc --delete "$SOURCE" "$dest"
     done <<< "$DESTS"
 }
 

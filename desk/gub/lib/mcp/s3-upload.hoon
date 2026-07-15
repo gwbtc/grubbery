@@ -1,4 +1,5 @@
 /<  tools  /lib/nex/tools.hoon
+/<  s3t    /lib/nex/s3-tools.hoon
 ::  s3-upload: upload a single ball file to S3
 ::
 !:
@@ -41,10 +42,10 @@
     (pure:m [%error (crip "Not found: {(trip file-path)}/{(trip file-name)}")])
   ;<  =mime  bind:m  (sage-to-mime:io (need-sage:tarball sang.view))
   =/  text=@t  ;;(@t q.q.mime)
-  ;<  creds=s3-creds:tools  bind:m  read-s3-creds:tools
+  ;<  creds=s3-creds:s3t  bind:m  read-s3-creds:s3t
   ;<  now=@da  bind:m  get-time:io
   =/  [amz-date=@t payload-hash=@t authorization=@t]
-    %:  build-signature:s3:tools
+    %:  build-signature:s3:s3t
       'PUT'
       access-key.creds
       secret-key.creds
@@ -56,8 +57,8 @@
       `text
       now
     ==
-  =/  url=@t  (build-url:s3:tools endpoint.creds bucket.creds s3-key ~)
-  =/  headers=(list [@t @t])  (build-headers:s3:tools 'PUT' payload-hash amz-date authorization)
+  =/  url=@t  (build-url:s3:s3t endpoint.creds bucket.creds s3-key ~)
+  =/  headers=(list [@t @t])  (build-headers:s3:s3t 'PUT' payload-hash amz-date authorization)
   =/  =request:http
     [%'PUT' url headers `(as-octs:mimes:html text)]
   ;<  ~  bind:m  (send-request:io request)

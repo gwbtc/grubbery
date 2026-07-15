@@ -36,13 +36,26 @@
       ?.  =(".hoon" (slag (sub len 5) t))  name
       (crip (scag (sub len 5) t))
     ::  Get all compiled tools from bins via %code darts.
-    ::  Peeks ball mirror for source filenames, then looks up each.
+    ::  Scans root /code/lib/mcp and each /apps/*/desk/code/lib/mcp.
     ::
     ++  get-dynamic-tools
       =/  m  (fiber:fiber:nexus ,(map @t tool:nex-tools))
       ^-  form:m
+      ;<  result=(map @t tool:nex-tools)  bind:m
+        (scan-namespace /code/lib/mcp)
+      ;<  app-paths=(list path)  bind:m  get-app-mcp-paths
+      |-
+      ?~  app-paths  (pure:m result)
+      ;<  more=(map @t tool:nex-tools)  bind:m
+        (scan-namespace i.app-paths)
+      $(app-paths t.app-paths, result (~(uni by result) more))
+    ::
+    ++  scan-namespace
+      |=  code-path=path
+      =/  m  (fiber:fiber:nexus ,(map @t tool:nex-tools))
+      ^-  form:m
       ;<  src-view=view:nexus  bind:m
-        (peek:io [%& %| /code/lib/mcp] ~)
+        (peek:io [%& %| code-path] ~)
       ?.  ?=([%ball *] src-view)
         (pure:m ~)
       ?~  fil.ball.src-view
@@ -54,16 +67,28 @@
       |-
       ?~  names  (pure:m result)
       =/  name=@ta  i.names
-      ;<  res=built:nexus  bind:m  (get-code-full:io [%& %& /code/lib/mcp name])
+      ;<  res=built:nexus  bind:m  (get-code-full:io [%& %& code-path name])
       ?.  ?=(%vase -.res)  $(names t.names)
       =/  got=(each tool:nex-tools tang)
         (mule |.(!<(tool:nex-tools vase.res)))
       ?.  ?=(%& -.got)  $(names t.names)
       $(names t.names, result (~(put by result) name:p.got p.got))
+    ::
+    ++  get-app-mcp-paths
+      =/  m  (fiber:fiber:nexus ,(list path))
+      ^-  form:m
+      ;<  apps-view=view:nexus  bind:m
+        (peek:io [%& %| /apps] ~)
+      ?.  ?=([%ball *] apps-view)
+        (pure:m ~)
+      %-  pure:m
+      %+  turn  ~(tap by dir.ball.apps-view)
+      |=  [nam=@ta *]
+      (welp ~[%apps nam] /desk/code/lib/mcp)
     ::  +await-tool: look up a compiled tool handler by name
     ::
-    ::    Converts underscores to hyphens (get_ship → get-ship) and
-    ::    looks up the compiled artifact from bins via %code dart.
+    ::    Converts underscores to hyphens (get_ship → get-ship).
+    ::    Checks root code namespace, then each app's code namespace.
     ::
     ++  await-tool
       |=  tool-name=@t
@@ -71,14 +96,30 @@
       ^-  form:m
       =/  file-name=@ta
         (crip (turn (trip tool-name) |=(c=@t ?:(=(c '_') '-' c))))
-      ;<  res=built:nexus  bind:m  (get-code-full:io [%& %& /code/lib/mcp file-name])
+      ;<  got=(unit tool:nex-tools)  bind:m
+        (try-compile /code/lib/mcp file-name)
+      ?^  got  (pure:m [%& u.got])
+      ;<  app-paths=(list path)  bind:m  get-app-mcp-paths
+      |-
+      ?~  app-paths
+        (pure:m [%| ~[leaf+"tool not found: {(trip tool-name)}"]])
+      ;<  got=(unit tool:nex-tools)  bind:m
+        (try-compile i.app-paths file-name)
+      ?^  got  (pure:m [%& u.got])
+      $(app-paths t.app-paths)
+    ::
+    ++  try-compile
+      |=  [code-path=path file-name=@ta]
+      =/  m  (fiber:fiber:nexus ,(unit tool:nex-tools))
+      ^-  form:m
+      ;<  res=built:nexus  bind:m  (get-code-full:io [%& %& code-path file-name])
       ?.  ?=(%vase -.res)
-        (pure:m [%| ?:(?=(%tang -.res) tang.res ~[leaf+"not a vase"])])
+        (pure:m ~)
       =/  got=(each tool:nex-tools tang)
         (mule |.(!<(tool:nex-tools vase.res)))
-      ?:  ?=(%& -.got)
-        (pure:m [%& p.got])
-      (pure:m [%| p.got])
+      ?.  ?=(%& -.got)
+        (pure:m ~)
+      (pure:m `p.got)
     --
 ^-  nexus:nexus
 |%

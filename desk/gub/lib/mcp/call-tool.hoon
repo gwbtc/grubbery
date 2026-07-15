@@ -38,17 +38,34 @@
   ::  Convert underscores to hyphens for filename lookup
   =/  file-name=@ta
     (crip (turn (trip tool-name) |=(c=@t ?:(=(c '_') '-' c))))
-  ::  Look up compiled tool from bins
+  ::  Look up compiled tool from bins — try root first
   ;<  res=built:nexus  bind:m  (get-code-full:io [%& %& /code/lib/mcp file-name])
-  ?.  ?=(%vase -.res)
+  =/  root-got=(unit tool:tools)
+    ?.  ?=(%vase -.res)  ~
+    =/  r=(each tool:tools tang)  (mule |.(!<(tool:tools vase.res)))
+    ?:(?=(%& -.r) `p.r ~)
+  ?^  root-got
+    ;<  ~  bind:m
+      (replace:io `tool-state:tools`[tool-name tool-args %start *json ~])
+    handler.u.root-got
+  ::  Try app namespaces
+  ;<  apps-view=view:nexus  bind:m
+    (peek:io [%& %| /apps] ~)
+  =/  app-kids=(list @ta)
+    ?.  ?=([%ball *] apps-view)  ~
+    (turn ~(tap by dir.ball.apps-view) |=([nam=@ta *] nam))
+  |-
+  ?~  app-kids
     (pure:m [%error (crip "Tool not found: {(trip tool-name)}")])
-  =/  got=(each tool:tools tang)
-    (mule |.(!<(tool:tools vase.res)))
-  ?.  ?=(%& -.got)
-    (pure:m [%error (crip "Tool {(trip tool-name)} failed type check")])
-  ::  Swap state to target tool's args and run handler
-  =/  tl=tool:tools  p.got
-  ;<  ~  bind:m
-    (replace:io `tool-state:tools`[tool-name tool-args %start *json ~])
-  handler.tl
+  =/  cp=path  (welp ~[%apps i.app-kids] /desk/code/lib/mcp)
+  ;<  ares=built:nexus  bind:m  (get-code-full:io [%& %& cp file-name])
+  =/  app-got=(unit tool:tools)
+    ?.  ?=(%vase -.ares)  ~
+    =/  r=(each tool:tools tang)  (mule |.(!<(tool:tools vase.ares)))
+    ?:(?=(%& -.r) `p.r ~)
+  ?^  app-got
+    ;<  ~  bind:m
+      (replace:io `tool-state:tools`[tool-name tool-args %start *json ~])
+    handler.u.app-got
+  $(app-kids t.app-kids)
 --

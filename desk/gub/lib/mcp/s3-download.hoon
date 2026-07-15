@@ -1,4 +1,5 @@
 /<  tools  /lib/nex/tools.hoon
+/<  s3t    /lib/nex/s3-tools.hoon
 ::  s3-download: download an S3 file to the grubbery ball
 ::
 !:
@@ -29,10 +30,10 @@
     (pure:m [%error 'Missing or invalid required arguments (s3_key, path)'])
   =/  [s3-key=@t dest-path=@t]  p.parsed
   =/  pax=path  (stab dest-path)
-  ;<  creds=s3-creds:tools  bind:m  read-s3-creds:tools
+  ;<  creds=s3-creds:s3t  bind:m  read-s3-creds:s3t
   ;<  now=@da  bind:m  get-time:io
   =/  [amz-date=@t payload-hash=@t authorization=@t]
-    %:  build-signature:s3:tools
+    %:  build-signature:s3:s3t
       'GET'
       access-key.creds
       secret-key.creds
@@ -44,8 +45,8 @@
       ~
       now
     ==
-  =/  url=@t  (build-url:s3:tools endpoint.creds bucket.creds s3-key ~)
-  =/  headers=(list [@t @t])  (build-headers:s3:tools 'GET' payload-hash amz-date authorization)
+  =/  url=@t  (build-url:s3:s3t endpoint.creds bucket.creds s3-key ~)
+  =/  headers=(list [@t @t])  (build-headers:s3:s3t 'GET' payload-hash amz-date authorization)
   =/  =request:http  [%'GET' url headers ~]
   ;<  ~  bind:m  (send-request:io request)
   ;<  =client-response:iris  bind:m  take-client-response:io
@@ -57,11 +58,11 @@
   ?~  full-file.client-response
     (pure:m [%error 'Empty response from S3'])
   =/  content=@t  ;;(@t q.data.u.full-file.client-response)
-  =/  filename=@ta  (extract-filename:s3:tools s3-key)
+  =/  filename=@ta  (extract-filename:s3:s3t s3-key)
   =/  ext=(unit @ta)  (parse-extension:tarball filename)
   =/  response-headers=(list [key=@t value=@t])
     headers.response-header.client-response
-  =/  ct=(unit @t)  (extract-content-type:s3:tools response-headers)
+  =/  ct=(unit @t)  (extract-content-type:s3:s3t response-headers)
   =/  mtype=path  (determine-mime-type:tarball ct filename)
   =/  file-mime=mime  [mtype (as-octs:mimes:html content)]
   =/  road=road:tarball  [%& %& pax filename]

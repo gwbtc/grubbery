@@ -180,9 +180,9 @@
   ^-  form:m
   ;<  rd=road:tarball  bind:m
     (ancestor-road:io [/ %s3] [%& / %'mounts.json'])
-  ;<  seen=view:nexus  bind:m  (peek:io rd ~)
+  ;<  =view:nexus  bind:m  (peek:io rd ~)
   =/  jon=json
-    ?.  ?=([%file *] seen)  [%o ~]
+    ?.  ?=([%file *] view)  [%o ~]
     (fall (mole |.(!<(json (need-vase:tarball sang.view)))) [%o ~])
   ?.  ?=(%o -.jon)
     (pure:m *(map @t @t))

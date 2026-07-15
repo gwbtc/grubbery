@@ -4,6 +4,11 @@
 ::    "~nec/apps/counter"    (remote ship)
 ::    "/some/local/path"     (local namespace)
 ::
+::  Updates are version-gated: the desk only re-syncs when the
+::  source's version.ud is higher than the local version. Code can
+::  change freely on the source — the desk won't update until the
+::  publisher bumps the version.
+::
 ::  Layout — host/guest split:
 ::    config.json     source config            (host, root-governed)
 ::    version.ud      release version          (host)
@@ -11,10 +16,9 @@
 ::    /requests/      HTTP request grubs       (host)
 ::    /desk/code/     %code nexus synced from source — governs the
 ::                    guest world and nothing else
-::    /desk/init/     publisher-recommended initial data (synced,
-::                    published, checkpointed with releases; applied
-::                    to /desk/data automatically on first install —
-::                    i.e. only when /desk/data is empty)
+::    /desk/bill.json nexus entry manifest synced from source —
+::                    declares which nexuses to create in /desk/data
+::                    on first install (only when /desk/data is empty)
 ::    /desk/data/     working data for the installed desk
 ::
 ::  The host layer resolves marcs from the root code namespace; the
@@ -31,13 +35,6 @@
 ::  /code is nullified first (world stops — /data goes inert),
 ::  then /data loads, then /code loads and everything comes alive.
 ::
-::  Future: this could extend to a repo nexus. The content store
-::  gives you dedup (silo lobes) and history (hist). But real
-::  commits need a merkle DAG — each commit hashes over parent +
-::  tree, not just firm entries. Would need a commit object type
-::  (parent hash, tree hash, message, author @p, signature)
-::  layered on top of the born tree, not replacing it.
-::
 /&  man  ../man/desk/readme.md
 =<  ^-  nexus:nexus
     |%
@@ -53,7 +50,6 @@
       [%fall %| /requests empty-dir:loader]
       [%fall %| /desk empty-dir:loader]
       [%fall %| /desk/code code-dir]
-      [%fall %| /desk/init empty-dir:loader]
       [%fall %| /desk/data empty-dir:loader]
       [%over %& [/ %'README.md'] [[/ %mime] man]]
   ==
@@ -83,7 +79,7 @@
         %-  sy
         :~  [%& %& nex-dir %'version.ud']
             [%& %| (weld nex-dir /desk/code)]
-            [%& %| (weld nex-dir /desk/init)]
+            [%& %& (weld nex-dir /desk) %'bill.json']
         ==
       [/public *weir:nexus]
     ?~  source.config
@@ -105,7 +101,7 @@
     ::  version watcher only fires on version CHANGES, and an
     ::  install of the source's current version isn't one.
     ;<  ~  bind:m  (sync-release source-road rail)
-    ;<  ~  bind:m  (apply-init rail)
+    ;<  ~  bind:m  (apply-bill rail)
     ;<  ver=(unit @ud)  bind:m
       (peek-as:io (nex-road:io rail [%& / %'version.ud']) ,@ud)
     ;<  ~  bind:m
@@ -257,6 +253,13 @@
   ^-  road:tarball
   ?.  ?=([%& %| *] source-road)  ~|(%desk-unexpected-road-shape !!)
   [%& %| (weld p.p.source-road dir)]
+::  source-file-road: a file under the source desk
+::
+++  source-file-road
+  |=  [source-road=road:tarball dir=path name=@ta]
+  ^-  road:tarball
+  ?.  ?=([%& %| *] source-road)  ~|(%desk-unexpected-road-shape !!)
+  [%& %& (weld p.p.source-road dir) name]
 ::  sync-release: mirror the source's RELEASE, never its live tree.
 ::  The source's version.ud revision pins the release instant — its
 ::  cass carries the da when version N was written, and the source's
@@ -278,25 +281,48 @@
   ~&  >  [%desk-sync-release ver=ver]
   ;<  ~  bind:m
     (sync-dir (source-dir-road source-road /desk/code) rail /desk/code `[%da at])
+  ;<  bill-view=view:nexus  bind:m
+    (peek-at:io (source-file-road source-road /desk %'bill.json') `[/ %json] [%da at])
   ;<  ~  bind:m
-    (sync-dir (source-dir-road source-road /desk/init) rail /desk/init `[%da at])
+    ?.  ?=([%file *] bill-view)  (pure:m ~)
+    =/  bill-json=json  !<(json (need-vase:tarball sang.bill-view))
+    (over:io (nex-road:io rail [%& /desk %'bill.json']) [[/ %json] bill-json])
+  ;<  exists=?  bind:m
+    (peek-exists:io (nex-road:io rail [%& / %'version.ud']))
+  ?.  exists
+    (make:io (nex-road:io rail [%& / %'version.ud']) |+[[[/ %ud] ver] ~])
   (over:io (nex-road:io rail [%& / %'version.ud']) [[/ %ud] ver])
 ::
-::  apply-init: on first install only — if /desk/data is empty,
-::  populate it from the publisher's synced /desk/init. Data with
-::  any contents is never touched (restarts, re-subscribes, toggles).
+::  apply-bill: on first install only — if /desk/data is empty,
+::  read bill.json and create nexus entries in /desk/data.
 ::
-++  apply-init
+++  apply-bill
   |=  =rail:tarball
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
   ;<  cur=(unit (list bfile))  bind:m  (fetch-dir rail /desk/data ~)
   ?.  =(~ (fall cur ~))  (pure:m ~)
-  ;<  init-files=(unit (list bfile))  bind:m  (fetch-dir rail /desk/init ~)
-  =/  files=(list bfile)  (fall init-files ~)
-  ?:  =(~ files)  (pure:m ~)
-  ~&  >  [%desk-init-data (lent files)]
-  (write-files rail /desk/data files)
+  ;<  bill=(unit json)  bind:m
+    (peek-as:io (nex-road:io rail [%& /desk %'bill.json']) ,json)
+  ?~  bill
+    ~&  >  %desk-no-bill
+    (pure:m ~)
+  ?.  ?=(%o -.u.bill)
+    ~&  >>>  %desk-bill-not-object
+    (pure:m ~)
+  =/  entries=(list [@t @t])
+    (turn ~(tap by p.u.bill) |=([k=@t v=json] [k (so:dejs:format v)]))
+  ~&  >  [%desk-bill (lent entries)]
+  |-
+  ?~  entries  (pure:m ~)
+  =/  nam=@ta  -.i.entries
+  =/  cod=path  (stab +.i.entries)
+  =/  neck=rail:tarball  [(snip cod) (rear cod)]
+  =/  data-road=road:tarball  (nex-road:io rail [%| /desk/data/[nam]])
+  =/  =bole:tarball  [`[`neck ~ %.n ~] ~]
+  ~&  >  [%desk-bill-entry nam neck]
+  ;<  ~  bind:m  (make:io data-road &+bole)
+  $(entries t.entries)
 ::
 ++  sync-dir
   |=  [source-dir=road:tarball =rail:tarball dir=path cas=(unit case:nexus)]
@@ -326,8 +352,6 @@
   ;<  ~  bind:m  (tag:io (nex-road:io rail [%| /desk/data]) ~ tags)
   ;<  ~  bind:m  (checkpoint:io (nex-road:io rail [%| /desk/code]))
   ;<  ~  bind:m  (tag:io (nex-road:io rail [%| /desk/code]) ~ tags)
-  ;<  ~  bind:m  (checkpoint:io (nex-road:io rail [%| /desk/init]))
-  ;<  ~  bind:m  (tag:io (nex-road:io rail [%| /desk/init]) ~ tags)
   ;<  ~  bind:m  (checkpoint:io (nex-road:io rail [%& / %'version.ud']))
   (tag:io (nex-road:io rail [%& / %'version.ud']) ~ tags)
 ::

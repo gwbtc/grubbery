@@ -1345,6 +1345,8 @@
   ^-  (each vase tang)
   ::  Try compiled marc first — type:marc is the canonical type
   =/  res=(unit built:nexus)  (get-built pax (weld /mar path.blot) name.blot)
+  ::  fall back to root /code namespace for system marks
+  =?  res  =(~ res)  (get-built /code (weld /mar path.blot) name.blot)
   ?^  res
     ?.  ?=(%vase -.u.res)
       =/  nam=@tas  (rail-to-arm:tarball blot)
@@ -2552,9 +2554,10 @@
   |=  [pax=path =neck:tarball]
   ^-  (each nexus:nexus tang)
   ?:  =([/ %root] neck)  &+root
+  =/  ns=(unit fold:tarball)  (find-code-ns pax)
   =/  res=(unit built:nexus)
     (get-built pax (weld /nex path.neck) name.neck)
-  ?~  res  |+~[leaf+"build-nexus: {(trip (rail-to-arm:tarball [path.neck name.neck]))} not found in code"]
+  ?~  res  |+~[leaf+"build-nexus: {(trip (rail-to-arm:tarball [path.neck name.neck]))} not found in code at {(spud pax)} ns={?~(ns "~" (spud u.ns))}"]
   ?+  -.u.res
     |+~[leaf+"build-nexus: unexpected artifact type {<-.u.res>}"]
     %tang  |+tang.u.res
@@ -3155,33 +3158,17 @@
 ::
 ++  hydrate
   |=  [cod=path in=(unit pend:fiber:nexus)]
-  ^-  [(unit intake:fiber:nexus) _this]
-  ?~  in  [~ this]
-  ?-    -.u.in
-      %news   [`u.in this]
-      %kept   [`u.in this]
-      %made   [`u.in this]
-      %gone   [`u.in this]
-      %pack   [`u.in this]
-      %sand   [`u.in this]
-      %load   [`u.in this]
-      %lost   [`u.in this]
-      %gain   [`u.in this]
-      %held   [`u.in this]
-      %seek   [`u.in this]
-      %born   [`u.in this]
-      %fell   [`u.in this]
-      %veto   [`u.in this]
-      %font   [`u.in this]
-      %here   [`u.in this]
+  ^-  [(each (unit intake:fiber:nexus) tang) _this]
+  ?~  in  [&+~ this]
+  ?+    -.u.in  [&+`u.in this]
       %poke
     ::  bask → sage: validate noun through compiled type
     =^  validated=(each vase tang)  this
       (validate-cached cod p.bask.u.in q.bask.u.in)
     ?:  ?=(%| -.validated)
-      ::  No marc or validation failed — deliver noun untyped.
-      [`[%poke from.u.in [p.bask.u.in -:!>(*) q.bask.u.in]] this]
-    [`[%poke from.u.in [p.bask.u.in p.validated]] this]
+      :-  |+[leaf+"hydrate: poke validation failed for {<p.bask.u.in>} at {(spud cod)}" p.validated]
+      this
+    [&+`[%poke from.u.in [p.bask.u.in p.validated]] this]
       %peek
     ::  cite → view: resolve lobe from silo, wrap with type
     =/  =cite:nexus  cite.u.in
@@ -3219,11 +3206,11 @@
     ::  Drop silo refs after hydrating
     =?  silo  ?=(%file -.cite)  (~(drop-ject si:nexus silo) lobe.cite)
     =?  silo  ?=(%ball -.cite)  (~(drop-ject si:nexus silo) lobe.cite)
-    [`[%peek wire.u.in view] this]
+    [&+`[%peek wire.u.in view] this]
       %peep
     ::  Resolve lobes to sages
     ?:  ?=(%| -.res.u.in)
-      [`[%peep wire.u.in |+p.res.u.in] this]
+      [&+`[%peep wire.u.in |+p.res.u.in] this]
     =/  hits=(list [cass:clay sage:tarball])
       %+  murn  p.res.u.in
       |=  [cas=cass:clay =jobe:nexus]
@@ -3242,17 +3229,17 @@
       %+  roll  p.res.u.in
       |=  [[* =jobe:nexus] acc=_silo]
       (~(drop-ject si:nexus acc) jobe)
-    [`[%peep wire.u.in &+hits] this]
+    [&+`[%peep wire.u.in &+hits] this]
       %code
     ::  Resolve ckeys to builts
     ?:  ?=(%| -.res.u.in)
       ?:  ?=(%| -.p.res.u.in)
-        [`[%code wire.u.in |+[%tang p.p.res.u.in]] this]
+        [&+`[%code wire.u.in |+[%tang p.p.res.u.in]] this]
       =/  ckey=@uv  p.p.res.u.in
       =/  entry=(unit [refs=@ud =built:nexus])  (~(get by bins) ckey)
       ?~  entry
-        [`[%code wire.u.in |+[%tang ~[leaf+"code: artifact missing"]]] this]
-      [`[%code wire.u.in |+built.u.entry] this]
+        [&+`[%code wire.u.in |+[%tang ~[leaf+"code: artifact missing"]]] this]
+      [&+`[%code wire.u.in |+built.u.entry] this]
     ::  Directory: resolve ckey tree to built tree
     =/  materialized=(axal (map @ta built:nexus))
       %+  roll  ~(tap of p.res.u.in)
@@ -3265,7 +3252,7 @@
         ?~  entry  ~
         `[nam built.u.entry]
       (~(put of acc) pax resolved)
-    [`[%code wire.u.in &+materialized] this]
+    [&+`[%code wire.u.in &+materialized] this]
   ==
 ::
 ++  eval
@@ -3289,8 +3276,18 @@
     =^  =take:fiber:nexus  next.proc  ~(get to next.proc)
     |-
     ::  Hydrate pend → intake at consumption time
-    =^  hot-in=(unit intake:fiber:nexus)  this
+    =^  hydrated=(each (unit intake:fiber:nexus) tang)  this
       (hydrate path.here in.take)
+    ?:  ?=(%| -.hydrated)
+      =/  =tang  [leaf+"hydrate failed" p.hydrated]
+      :*  darts
+          :_(done [take `tang])
+          state
+          proc
+          [%fail tang]
+          this
+      ==
+    =/  hot-in=(unit intake:fiber:nexus)  p.hydrated
     =/  res=(each output tang)
       ?>  ?=(%& -.process.proc)
       (mule |.((p.process.proc state hot-in)))

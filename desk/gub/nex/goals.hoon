@@ -287,7 +287,7 @@
         |-
         ;<  =view:nexus  bind:m  (peek:io (cord-to-road:tarball './store/') ~)
         =/  stores=(map @ta goal-store:goals)
-          (seen-to-stores seen)
+          (seen-to-stores view)
         =/  store-names=(list @ta)  (sort ~(tap in ~(key by stores)) aor)
         ;<  ~  bind:m  (replace:io (crip (en-xml:html (goals-page store-names stores))))
         ;<  upd=wave:nexus  bind:m  (take-news:io /stores)
@@ -344,7 +344,7 @@
 ++  seen-to-stores
   |=  =view:nexus
   ^-  (map @ta goal-store:goals)
-  ?.  ?=([%ball *] seen)  ~
+  ?.  ?=([%ball *] view)  ~
   ?~  fil.ball.view  ~
   =/  entries=(list [@ta [=sang:tarball gain=? bang=(unit tang)]])
     ~(tap by contents.u.fil.ball.view)
