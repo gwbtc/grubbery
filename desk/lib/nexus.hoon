@@ -395,12 +395,12 @@
 +$  nobe  lobe:clay                ::  hash naming a noun (nouns.silo)
 +$  leaf
   $:  lobe=nobe
-      mark=[=blot:tarball ckey=@uv]
+      mark=[=blot:tarball ckey=@uv ns=path]
       gain=?
       bang=(unit nobe)
   ==
 +$  tree
-  $:  nek=(unit [=neck:tarball ckey=@uv])
+  $:  nek=(unit [=neck:tarball ckey=@uv ns=path])
       gain=?
       bang=(unit nobe)
       fil=(map @ta jobe)
@@ -478,7 +478,7 @@
     ?.  ?=(%tree -.ject.u.jot)  ~
     `tree.ject.u.jot
   ::  nek: nexus identity + ckey from existing tree ject
-  =/  nek=(unit [=neck:tarball ckey=@uv])
+  =/  nek=(unit [=neck:tarball ckey=@uv ns=path])
     ?~  existing-tree  ~
     ?~  nek.u.existing-tree  ~
     =/  =neck:tarball  neck.u.nek.u.existing-tree
@@ -494,7 +494,7 @@
       =/  node=(unit (map @ta @uv))  (~(get of refs.lode) (slag (lent u.nex-ns) (weld dir path.neck)))
       ?~  node  0v0
       (fall (~(get by u.node) name.neck) 0v0)
-    `[neck nex-ckey]
+    `[neck nex-ckey (fall nex-ns /)]
   ::  fil: each grub's current ject-lobe from hist (skip deleted/tombed)
   =/  fil=(map @ta jobe)
     %-  ~(rep by file.node)
@@ -906,6 +906,7 @@
     |=  $:  =noun
             =blot:tarball
             ckey=@uv
+            ns=path
             gain=?
             =cass:clay
             file-cass=cass:clay
@@ -922,12 +923,13 @@
       ?~  got  ~
       ?.  ?=(%leaf -.ject.u.got)  ~
       `leaf.ject.u.got
-    ::  Skip if blot, governing marc, and content are unchanged
+    ::  Skip if blot, governing marc, namespace, and content are unchanged
     =/  noun-lobe=nobe  (hash noun)
     ?:  ?&  ?=(^ prev-leaf)
             =(noun-lobe lobe.u.prev-leaf)
             =(blot blot.mark.u.prev-leaf)
             =(ckey ckey.mark.u.prev-leaf)
+            =(ns ns.mark.u.prev-leaf)
             =(gain gain.u.prev-leaf)
         ==
       [noun-lobe silo hist]
@@ -938,7 +940,7 @@
       ?^  (~(get by nouns.silo) noun-lobe)  silo
       silo(nouns (~(put by nouns.silo) noun-lobe [0 noun]))
     =/  [ject-lobe=jobe newer-silo=^silo]
-      (~(put-ject si new-silo) [%leaf noun-lobe [blot ckey] gain prev-bang])
+      (~(put-ject si new-silo) [%leaf noun-lobe [blot ckey ns] gain prev-bang])
     =/  [tombed-silo=^silo tombed-hist=^hist]
       (~(tomb-temp si newer-silo) hist file-cass)
     =/  =pace:^hist  ?:(gain [%firm `ject-lobe] [%temp `ject-lobe])

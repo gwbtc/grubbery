@@ -462,11 +462,11 @@
   =/  cass3=cass:clay  [3 ~2024.1.3]
   =/  hist=hist:nexus  ~
   =/  [lobe1=nobe:nexus silo1=silo:nexus hist1=_hist]
-    (~(record si:nexus *silo:nexus) q.page1 p.page1 0v0 %.y cass1 [0 ~2024.1.1] hist)
+    (~(record si:nexus *silo:nexus) q.page1 p.page1 0v0 / %.y cass1 [0 ~2024.1.1] hist)
   =/  [lobe2=nobe:nexus silo2=silo:nexus hist2=_hist]
-    (~(record si:nexus silo1) q.page2 p.page2 0v0 %.y cass2 cass1 hist1)
+    (~(record si:nexus silo1) q.page2 p.page2 0v0 / %.y cass2 cass1 hist1)
   =/  [lobe3=nobe:nexus silo3=silo:nexus hist3=_hist]
-    (~(record si:nexus silo2) q.page3 p.page3 0v0 %.y cass3 cass2 hist2)
+    (~(record si:nexus silo2) q.page3 p.page3 0v0 / %.y cass3 cass2 hist2)
   ;:  weld
     ::  All 3 entries in hist
     %+  expect-eq
@@ -489,9 +489,9 @@
   =/  cass2=cass:clay  [2 ~2024.1.2]
   =/  hist=hist:nexus  ~
   =/  [lobe1=nobe:nexus silo1=silo:nexus hist1=_hist]
-    (~(record si:nexus *silo:nexus) q.page1 p.page1 0v0 %.y cass1 [0 ~2024.1.1] hist)
+    (~(record si:nexus *silo:nexus) q.page1 p.page1 0v0 / %.y cass1 [0 ~2024.1.1] hist)
   =/  [lobe2=nobe:nexus silo2=silo:nexus hist2=_hist]
-    (~(record si:nexus silo1) q.page2 p.page2 0v0 %.y cass2 cass1 hist1)
+    (~(record si:nexus silo1) q.page2 p.page2 0v0 / %.y cass2 cass1 hist1)
   ;:  weld
     ::  2 entries in hist (both live)
     %+  expect-eq
@@ -513,9 +513,9 @@
   =/  cass2=cass:clay  [2 ~2024.1.2]
   =/  hist=hist:nexus  ~
   =/  [lobe1=nobe:nexus silo1=silo:nexus hist1=_hist]
-    (~(record si:nexus *silo:nexus) q.bask p.bask 0v0 %.n cass1 [0 ~2024.1.1] hist)
+    (~(record si:nexus *silo:nexus) q.bask p.bask 0v0 / %.n cass1 [0 ~2024.1.1] hist)
   =/  [lobe2=nobe:nexus silo2=silo:nexus hist2=_hist]
-    (~(record si:nexus silo1) q.bask p.bask 0v0 %.n cass2 cass1 hist1)
+    (~(record si:nexus silo1) q.bask p.bask 0v0 / %.n cass2 cass1 hist1)
   ;:  weld
     ::  Same lobe (content-addressed)
     %+  expect-eq
@@ -534,11 +534,11 @@
   =/  page3=bask:tarball  [[/ %txt] 'ccc']
   =/  hist=hist:nexus  ~
   =/  [* silo1=silo:nexus hist1=_hist]
-    (~(record si:nexus *silo:nexus) q.page1 p.page1 0v0 %.y [1 ~2024.1.1] [0 ~2024.1.1] hist)
+    (~(record si:nexus *silo:nexus) q.page1 p.page1 0v0 / %.y [1 ~2024.1.1] [0 ~2024.1.1] hist)
   =/  [* silo2=silo:nexus hist2=_hist]
-    (~(record si:nexus silo1) q.page2 p.page2 0v0 %.y [2 ~2024.1.2] [1 ~2024.1.1] hist1)
+    (~(record si:nexus silo1) q.page2 p.page2 0v0 / %.y [2 ~2024.1.2] [1 ~2024.1.1] hist1)
   =/  [* silo3=silo:nexus hist3=_hist]
-    (~(record si:nexus silo2) q.page3 p.page3 0v0 %.y [3 ~2024.1.3] [2 ~2024.1.2] hist2)
+    (~(record si:nexus silo2) q.page3 p.page3 0v0 / %.y [3 ~2024.1.3] [2 ~2024.1.2] hist2)
   ::  3 entries in silo
   ?>  =(3 ~(wyt by nouns.silo3))
   ::  Drop all
@@ -553,9 +553,9 @@
   =/  hist=hist:nexus  ~
   ::  Record same page twice with keep (2 hist entries, same lobe, refs=2)
   =/  [=nobe:nexus silo1=silo:nexus hist1=_hist]
-    (~(record si:nexus *silo:nexus) q.bask p.bask 0v0 %.n [1 ~2024.1.1] [0 ~2024.1.1] hist)
+    (~(record si:nexus *silo:nexus) q.bask p.bask 0v0 / %.n [1 ~2024.1.1] [0 ~2024.1.1] hist)
   =/  [* silo2=silo:nexus hist2=_hist]
-    (~(record si:nexus silo1) q.bask p.bask 0v0 %.n [2 ~2024.1.2] [1 ~2024.1.1] hist1)
+    (~(record si:nexus silo1) q.bask p.bask 0v0 / %.n [2 ~2024.1.2] [1 ~2024.1.1] hist1)
   ::  Drop all hist refs
   =/  silo3=silo:nexus  (~(drop-hist si:nexus silo2) hist2)
   ::  Lobe gone (ject drops to 0, cascades to noun)
@@ -570,9 +570,9 @@
   =/  cass2=cass:clay  [2 ~2024.1.2]
   =/  hist=hist:nexus  ~
   =/  [lobe1=nobe:nexus silo1=silo:nexus hist1=_hist]
-    (~(record si:nexus *silo:nexus) q.page1 p.page1 0v0 %.n cass1 [0 ~2024.1.1] hist)
+    (~(record si:nexus *silo:nexus) q.page1 p.page1 0v0 / %.n cass1 [0 ~2024.1.1] hist)
   =/  [lobe2=nobe:nexus silo2=silo:nexus hist2=_hist]
-    (~(record si:nexus silo1) q.page2 p.page2 0v0 %.n cass2 cass1 hist1)
+    (~(record si:nexus silo1) q.page2 p.page2 0v0 / %.n cass2 cass1 hist1)
   ;:  weld
     ::  Hist still has 2 entries (tomb + live)
     %+  expect-eq
@@ -600,9 +600,9 @@
   =/  cass2=cass:clay  [2 ~2024.1.2]
   =/  hist=hist:nexus  ~
   =/  [lobe1=nobe:nexus silo1=silo:nexus hist1=_hist]
-    (~(record si:nexus *silo:nexus) q.page1 p.page1 0v0 %.y cass1 [0 ~2024.1.1] hist)
+    (~(record si:nexus *silo:nexus) q.page1 p.page1 0v0 / %.y cass1 [0 ~2024.1.1] hist)
   =/  [lobe2=nobe:nexus silo2=silo:nexus hist2=_hist]
-    (~(record si:nexus silo1) q.page2 p.page2 0v0 %.y cass2 cass1 hist1)
+    (~(record si:nexus silo1) q.page2 p.page2 0v0 / %.y cass2 cass1 hist1)
   ;:  weld
     ::  Both paces are firm (not tombed)
     =/  p1=(unit pace:hist:nexus)  (get-pace:hist:nexus hist2 cass1)
@@ -620,11 +620,11 @@
   =/  page3=bask:tarball  [[/ %txt] 'three']
   =/  hist=hist:nexus  ~
   =/  [* silo1=silo:nexus hist1=_hist]
-    (~(record si:nexus *silo:nexus) q.page1 p.page1 0v0 %.n [1 ~2024.1.1] [0 ~2024.1.1] hist)
+    (~(record si:nexus *silo:nexus) q.page1 p.page1 0v0 / %.n [1 ~2024.1.1] [0 ~2024.1.1] hist)
   =/  [* silo2=silo:nexus hist2=_hist]
-    (~(record si:nexus silo1) q.page2 p.page2 0v0 %.n [2 ~2024.1.2] [1 ~2024.1.1] hist1)
+    (~(record si:nexus silo1) q.page2 p.page2 0v0 / %.n [2 ~2024.1.2] [1 ~2024.1.1] hist1)
   =/  [lobe3=nobe:nexus silo3=silo:nexus hist3=_hist]
-    (~(record si:nexus silo2) q.page3 p.page3 0v0 %.n [3 ~2024.1.3] [2 ~2024.1.2] hist2)
+    (~(record si:nexus silo2) q.page3 p.page3 0v0 / %.n [3 ~2024.1.3] [2 ~2024.1.2] hist2)
   ;:  weld
     ::  3 hist entries total (2 tombs + 1 live)
     %+  expect-eq  !>(`@ud`3)  !>((lent (tap:hon:hist:nexus hist3)))
@@ -965,7 +965,7 @@
   =/  s  ~(. si:nexus *silo:nexus)
   =/  [noun-lobe=nobe:nexus silo1=silo:nexus]  (put:s 'hello')
   =/  [leaf-lobe=jobe:nexus silo2=silo:nexus]
-    (~(put-ject si:nexus silo1) [%leaf noun-lobe [[/ %txt] 0v0] %.n ~])
+    (~(put-ject si:nexus silo1) [%leaf noun-lobe [[/ %txt] 0v0 /] %.n ~])
   =/  =tree:nexus
     [~ %.n ~ (~(put by *(map @ta jobe:nexus)) %foo leaf-lobe) ~]
   =/  [* silo3=silo:nexus]  (~(put-ject si:nexus silo2) [%tree tree])
@@ -989,7 +989,7 @@
   =/  s  ~(. si:nexus *silo:nexus)
   =/  [noun-lobe=nobe:nexus silo1=silo:nexus]  (put:s 'hello')
   =/  [leaf-lobe=jobe:nexus silo2=silo:nexus]
-    (~(put-ject si:nexus silo1) [%leaf noun-lobe [[/ %txt] 0v0] %.n ~])
+    (~(put-ject si:nexus silo1) [%leaf noun-lobe [[/ %txt] 0v0 /] %.n ~])
   =/  =tree:nexus
     [~ %.n ~ (~(put by *(map @ta jobe:nexus)) %foo leaf-lobe) ~]
   =/  [=jobe:nexus silo3=silo:nexus]  (~(put-ject si:nexus silo2) [%tree tree])
@@ -1050,7 +1050,7 @@
   =/  s  ~(. si:nexus *silo:nexus)
   =/  [noun-lobe=nobe:nexus silo1=silo:nexus]  (put:s 'hello')
   =/  [leaf-lobe=jobe:nexus silo2=silo:nexus]
-    (~(put-ject si:nexus silo1) [%leaf noun-lobe [[/ %txt] 0v0] %.n ~])
+    (~(put-ject si:nexus silo1) [%leaf noun-lobe [[/ %txt] 0v0 /] %.n ~])
   =/  =tree:nexus
     [~ %.n ~ (~(put by *(map @ta jobe:nexus)) %foo leaf-lobe) ~]
   =/  [tree-lobe=jobe:nexus silo3=silo:nexus]
@@ -1083,7 +1083,7 @@
   =/  s  ~(. si:nexus *silo:nexus)
   =/  [noun-lobe=nobe:nexus silo1=silo:nexus]  (put:s 'data')
   =/  [leaf-lobe=jobe:nexus silo2=silo:nexus]
-    (~(put-ject si:nexus silo1) [%leaf noun-lobe [[/ %txt] 0v0] %.n ~])
+    (~(put-ject si:nexus silo1) [%leaf noun-lobe [[/ %txt] 0v0 /] %.n ~])
   =/  child=tree:nexus
     [~ %.n ~ (~(put by *(map @ta jobe:nexus)) %f leaf-lobe) ~]
   =/  [child-lobe=jobe:nexus silo3=silo:nexus]
@@ -1107,7 +1107,7 @@
   =/  s  ~(. si:nexus *silo:nexus)
   =/  [noun-lobe=nobe:nexus silo1=silo:nexus]  (put:s 'data')
   =/  [leaf-lobe=jobe:nexus silo2=silo:nexus]
-    (~(put-ject si:nexus silo1) [%leaf noun-lobe [[/ %txt] 0v0] %.n ~])
+    (~(put-ject si:nexus silo1) [%leaf noun-lobe [[/ %txt] 0v0 /] %.n ~])
   =/  child=tree:nexus
     [~ %.n ~ (~(put by *(map @ta jobe:nexus)) %f leaf-lobe) ~]
   =/  [child-lobe=jobe:nexus silo3=silo:nexus]

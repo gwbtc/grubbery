@@ -1241,6 +1241,37 @@
   ?~  entry  ~
   `[u.ns [path name] u.ckey built.u.entry]
 ::
+::  +resolve-built: find a compiled artifact by walking ancestor namespaces
+::
+::  Unlike seek-built (which only checks the governing namespace),
+::  resolve-built walks up through all ancestor code namespaces until
+::  it finds the artifact. This is the gradated fallback: a mark or
+::  nexus defined in /code is available to all namespaces, but a
+::  closer ancestor can shadow it.
+::
+++  resolve-built
+  |=  [pax=path =path name=@ta]
+  ^-  (unit [namespace=fold:tarball source=rail:tarball ckey=@uv =built:nexus])
+  |-
+  =/  cod=^path
+    ?~  pax  /code
+    (snoc (snip `(list @ta)`pax) %code)
+  =/  ns  (~(get by code) cod)
+  ?^  ns
+    =/  lod=lode:nexus  u.ns
+    =/  node=(unit (map @ta @uv))
+      (~(get of refs.lod) path)
+    =/  ckey=(unit @uv)
+      ?~(node ~ (~(get by u.node) name))
+    ?^  ckey
+      =/  entry=(unit [refs=@ud =built:nexus])  (~(get by bins) u.ckey)
+      ?~  entry  ~
+      `[cod [path name] u.ckey built.u.entry]
+    ?~  pax  ~
+    $(pax (snip `(list @ta)`pax))
+  ?~  pax  ~
+  $(pax (snip `(list @ta)`pax))
+::
 ++  find-built
   |=  [pax=path =path name=@ta]
   ^-  (unit [namespace=fold:tarball source=rail:tarball])
@@ -1255,30 +1286,22 @@
   ?~  res  ~
   `built.u.res
 ::
-::  +get-marc: find a compiled marc (mark definition) for validation
-::
-::  Searches the local code namespace first, then falls back to
-::  root /code. This lets git_desks and other scoped namespaces
-::  use system marks (/sig, /json, etc.) without bundling them.
-::  Libs do NOT fall back — only marks and nexuses.
-::  TODO: walk up ancestor /code namespaces instead of jumping
-::  straight to root — would matter with nested namespaces.
+::  +get-marc: find a compiled marc via ancestor resolution
 ::
 ++  get-marc
   |=  [pax=path =blot:tarball]
   ^-  marc:tarball
-  =/  res=(unit built:nexus)  (get-built pax (weld /mar path.blot) name.blot)
-  ::  fall back to root /code for system marks
-  =?  res  =(~ res)  (get-built /code (weld /mar path.blot) name.blot)
+  =/  res=(unit [namespace=fold:tarball source=rail:tarball ckey=@uv =built:nexus])
+    (resolve-built pax (weld /mar path.blot) name.blot)
   ?~  res
     =/  nam=@tas  (rail-to-arm:tarball blot)
-    ~&  >>>  "get-marc: %{(trip nam)} not found, searched from {(spud pax)}"
+    ~&  >>>  "get-marc: %{(trip nam)} not found from {(spud pax)}"
     ~|([%marc-not-found nam pax] !!)
-  ?.  ?=(%vase -.u.res)
+  ?.  ?=(%vase -.built.u.res)
     =/  nam=@tas  (rail-to-arm:tarball blot)
-    ~&  >>>  "get-marc: %{(trip nam)} failed (tang), searched from {(spud pax)}"
+    ~&  >>>  "get-marc: %{(trip nam)} failed (tang) from {(spud pax)}"
     ~|([%marc-failed nam pax] !!)
-  !<(marc:tarball vase.u.res)
+  !<(marc:tarball vase.built.u.res)
 ::
 ++  get-vale
   |=  [pax=path =blot:tarball]
@@ -1307,26 +1330,23 @@
 ++  check-vale-cache
   |=  [pax=path =blot:tarball noun=*]
   ^-  (unit (each vase tang))
-  =/  built-res  (seek-built pax (weld /mar path.blot) name.blot)
+  =/  built-res  (resolve-built pax (weld /mar path.blot) name.blot)
   ?~  built-res  ~
   =/  lob=nobe:nexus  (sham noun)
   =/  hit  (vale-hit lob ckey.u.built-res)
   ?~  hit  ~
   ?^  u.hit  `|+u.u.hit
-  ::  Cached success: reconstruct vase from marc type + noun
   ?.  ?=(%vase -.built.u.built-res)  ~
   =/  marc-res=(each marc:tarball tang)
     (mule |.(!<(marc:tarball vase.built.u.built-res)))
   ?.  ?=(%& -.marc-res)  ~
   `&+[type:p.marc-res noun]
-::  Cache a validation result by looking up the mark's ckey.
-::  No-op if the mark has no compiled artifact.
 ::
 ++  cache-validation
   |=  [pax=path =blot:tarball noun=* res=(each * tang)]
   ^+  this
   =/  lob=nobe:nexus  (sham noun)
-  =/  built-res  (seek-built pax (weld /mar path.blot) name.blot)
+  =/  built-res  (resolve-built pax (weld /mar path.blot) name.blot)
   ?~  built-res  this
   (vale-put lob ckey.u.built-res ?:(?=(%& -.res) ~ `p.res))
 ::  Validate a noun against its mark, using the cache if possible.
@@ -1352,20 +1372,15 @@
 ++  validate-noun
   |=  [pax=path =blot:tarball noun=*]
   ^-  (each vase tang)
-  ::  Try compiled marc first — type:marc is the canonical type
-  =/  res=(unit built:nexus)  (get-built pax (weld /mar path.blot) name.blot)
-  ::  fall back to root /code namespace for system marks
-  ~&  >>>  [%marc-local name.blot ?=(^ res) ?:(=(~ res) %miss ?:(?=([~ %vase *] res) %vase %tang)) pax]
-  =?  res  =(~ res)
-    (get-built /code (weld /mar path.blot) name.blot)
+  =/  res  (resolve-built pax (weld /mar path.blot) name.blot)
   ?^  res
-    ?.  ?=(%vase -.u.res)
+    ?.  ?=(%vase -.built.u.res)
       =/  nam=@tas  (rail-to-arm:tarball blot)
       |+~[leaf+"validate-noun: marc for %{(trip nam)} failed at {(spud pax)}"]
     =/  nam=@tas  (rail-to-arm:tarball blot)
     =/  marc-res=(each marc:tarball tang)
       ~|  [%validate-noun %marc-extract-failed nam pax]
-      (mule |.(!<(marc:tarball vase.u.res)))
+      (mule |.(!<(marc:tarball vase.built.u.res)))
     ?:  ?=(%| -.marc-res)
       |+[leaf+"validate-noun: marc for %{(trip nam)} broke at {(spud pax)}" p.marc-res]
     =/  val-res=(each vase tang)
@@ -2131,11 +2146,8 @@
     ?~  fil.sub-ball  ~
     ?~  neck.u.fil.sub-ball  ~
     =/  res  (build-nexus here u.neck.u.fil.sub-ball)
-    ?:  ?=(%& -.res)
-      ~&  >  "run-on-loads: nexus OK at {(spud here)}"
-      `p.res
+    ?:  ?=(%& -.res)  `p.res
     ~&  >>  "run-on-loads: nexus build error at {(spud here)}"
-    %-  (slog p.res)
     ~
   ::  Run on-load if nexus exists
   ::
@@ -2564,31 +2576,20 @@
   =.  this  (process-dart here i.darts)
   $(darts t.darts)
 ::
-::  +build-nexus: compile a nexus from its code path
-::
-::  Searches the local code namespace first, then falls back to
-::  root /code. Same fallback pattern as get-marc — lets git_desks
-::  use nexus types (like /git/desk itself) defined in the root
-::  namespace without bundling them.
-::  TODO: walk up ancestor /code namespaces instead of jumping
-::  straight to root — would matter with nested namespaces.
+::  +build-nexus: compile a nexus via ancestor resolution
 ::
 ++  build-nexus
   |=  [pax=path =neck:tarball]
   ^-  (each nexus:nexus tang)
   ?:  =([/ %root] neck)  &+root
-  =/  ns=(unit fold:tarball)  (find-code-ns pax)
-  =/  res=(unit built:nexus)
-    (get-built pax (weld /nex path.neck) name.neck)
-  ::  fall back to root /code for shared nexus types
-  =?  res  =(~ res)  (get-built /code (weld /nex path.neck) name.neck)
-  ?~  res  |+~[leaf+"build-nexus: {(trip (rail-to-arm:tarball [path.neck name.neck]))} not found in code at {(spud pax)} ns={?~(ns "~" (spud u.ns))}"]
-  ?+  -.u.res
-    |+~[leaf+"build-nexus: unexpected artifact type {<-.u.res>}"]
-    %tang  |+tang.u.res
+  =/  res  (resolve-built pax (weld /nex path.neck) name.neck)
+  ?~  res  |+~[leaf+"build-nexus: {(trip (rail-to-arm:tarball [path.neck name.neck]))} not found from {(spud pax)}"]
+  ?+  -.built.u.res
+    |+~[leaf+"build-nexus: unexpected artifact type {<-.built.u.res>}"]
+    %tang  |+tang.built.u.res
     %vase
   =/  nex=(unit nexus:nexus)
-    (mole |.(!<(nexus:nexus vase.u.res)))
+    (mole |.(!<(nexus:nexus vase.built.u.res)))
   ?~  nex  |+~[leaf+"build-nexus: failed to extract nexus from vase"]
   &+u.nex
   ==
@@ -3825,12 +3826,12 @@
   =/  file-cass=cass:clay  (need (top:hist:nexus sok))
   =/  new-cass=cass:clay
     (fall cas (~(next-cass bo:nexus now.bowl born) file-cass))
-  =/  marc-ckey=@uv
-    =/  res  (seek-built path.here (weld /mar path.p.bask) name.p.bask)
-    ?~(res 0v0 ckey.u.res)
+  =/  resolved  (resolve-built path.here (weld /mar path.p.bask) name.p.bask)
+  =/  marc-ckey=@uv   ?~(resolved 0v0 ckey.u.resolved)
+  =/  marc-ns=path     ?~(resolved / namespace.u.resolved)
   =/  raw=*  q.bask
   =/  [=nobe:nexus new-silo=silo:nexus new-sok=hist:nexus]
-    (~(record si:nexus silo) raw p.bask marc-ckey gain new-cass file-cass sok)
+    (~(record si:nexus silo) raw p.bask marc-ckey marc-ns gain new-cass file-cass sok)
   =.  silo  new-silo
   =.  vale  (gc-vale-cache vale bins)
   =.  born  (~(put bo:nexus now.bowl born) here new-sok)
@@ -3845,9 +3846,7 @@
     ~|([%record-marc-broken p.bask path.here name.here] !!)
   =/  res=(each vase tang)
     (mule |.((vale:p.marc-res raw)))
-  ?:  ?=(%| -.res)
-    ~|([%record-vale-failed p.bask path.here name.here] !!)
-  (vale-put nobe marc-ckey ~)
+  (vale-put nobe marc-ckey ?:(?=(%& -.res) ~ `p.res))
 ::  Sync a bole into the namespace.  One function for make, reload, and
 ::  cull (cull = empty bole).  Bottom-up walk: children settle before
 ::  parent builds its tree.  New bole is sole source of truth.
@@ -3946,7 +3945,7 @@
   =/  settled-node=[fold=hist:nexus file=(map @ta hist:nexus)]
     (fall fil.settled-born default-node:boo)
   ::  Neck from bole
-  =/  nek=(unit [neck:tarball @uv])
+  =/  nek=(unit [neck:tarball @uv ns=path])
     ?~  fil.bol  ~
     ?~  neck.u.fil.bol  ~
     =/  =neck:tarball  u.neck.u.fil.bol
@@ -3963,7 +3962,7 @@
         (~(get of refs.lode) (slag (lent u.nex-ns) (weld here path.neck)))
       ?~  nd  0v0
       (fall (~(get by u.nd) name.neck) 0v0)
-    `[neck nex-ckey]
+    `[neck nex-ckey (fall nex-ns /)]
   ::  File lobes from born (skip deleted/tombed)
   =/  fil=(map @ta jobe:nexus)
     %-  ~(rep by file.settled-node)
@@ -4357,8 +4356,23 @@
     =/  entry=(unit [refs=@ud =built:nexus])  (~(get by bins) ckey)
     ?~  entry  ~
     `[ckey [pax nam] built.u.entry]
-  ::  Collect all governed files once (expensive tree walk)
-  =/  all-grubs=(list [=rail:tarball =sang:tarball lob=jobe:nexus])  (governed-files cod)
+  ::  Collect all grubs whose mark.ns = this code namespace
+  =/  all-grubs=(list [=rail:tarball lob=jobe:nexus =leaf:nexus])
+    %-  zing
+    %+  turn  ~(tap of born)
+    |=  [fold=path node=[fold=hist:nexus file=(map @ta hist:nexus)]]
+    %+  murn  ~(tap by file.node)
+    |=  [name=@ta sk=hist:nexus]
+    =/  top=(unit [key=cass:clay val=entry:hist:nexus])
+      (ram:hon:hist:nexus sk)
+    ?~  top  ~
+    ?:  ?=(%tomb -.pace.val.u.top)  ~
+    ?~  p.pace.val.u.top  ~
+    =/  entry  (~(get by jects.silo) u.p.pace.val.u.top)
+    ?~  entry  ~
+    ?.  ?=(%leaf -.ject.u.entry)  ~
+    ?.  =(cod ns.mark.leaf.ject.u.entry)  ~
+    `[[fold name] u.p.pace.val.u.top leaf.ject.u.entry]
   ::  Process each changed mark
   =/  remaining=_changed  changed
   |-
@@ -4370,10 +4384,10 @@
   ?:  ?=(?(%hoon %tang %mime %kelvin) nam)
     $(remaining t.remaining)
   ::  Find all grubs with this mark
-  =/  grubs=(list [=rail:tarball =sang:tarball lob=jobe:nexus])
+  =/  grubs=(list [=rail:tarball lob=jobe:nexus =leaf:nexus])
     %+  skim  all-grubs
-    |=  [=rail:tarball =sang:tarball lob=jobe:nexus]
-    =(blot p.sang)
+    |=  [=rail:tarball lob=jobe:nexus =leaf:nexus]
+    =(blot blot.mark.leaf)
   ?~  grubs  $(remaining t.remaining)
   ::  Get marc, or skip if mark failed to compile
   =/  marc-res=(each marc:tarball tang)
@@ -4384,13 +4398,13 @@
     ~&  >>  "validate-marks: {(trip nam)} marc failed"
     $(remaining t.remaining)
   ::  Validate each grub, threading state for cache
-  =/  grubs=(list [=rail:tarball =sang:tarball lob=jobe:nexus])  grubs
+  =/  grubs=(list [=rail:tarball lob=jobe:nexus =leaf:nexus])  grubs
   =/  [n-ok=@ud n-boom=@ud]  [0 0]
   =.  this
     |-
     ?~  grubs  this
-    =/  [=rail:tarball =sang:tarball lob=jobe:nexus]  i.grubs
-    =/  noun=*  (sang-noun:tarball sang)
+    =/  [=rail:tarball lob=jobe:nexus =leaf:nexus]  i.grubs
+    =/  noun=*  (~(got by nouns.silo) lobe.leaf)
     =/  hit  (vale-hit lob ckey)
     =/  res=(each vase tang)
       ?^  hit
@@ -4401,7 +4415,7 @@
     =?  this  ?=(~ hit)
       (vale-put lob ckey ?:(?=(%& -.res) ~ `p.res))
     ?:  ?=(%& -.res)
-      =.  this  (save-file rail [p.sang noun])
+      =.  this  (save-file rail [blot.mark.leaf noun])
       =.  n-ok  +(n-ok)
       $(grubs t.grubs)
     ~&  >>  "validate-marks: boom {(spud (snoc path.rail name.rail))}"
@@ -4447,12 +4461,22 @@
       %tang  |+tang.built
       %vase  (mule |.(!<(nexus:nexus vase.built)))
     ==
-  ::  Find all directories using this neck, governed by this code namespace
+  ::  Find all directories using this neck, whose nek.ns = this namespace
   =/  dirs=(list fold:tarball)
-    %+  murn  (governed-dirs cod)
-    |=  [=fold:tarball =lump:tarball]
-    ?.  ?&(?=(^ neck.lump) =(u.neck.lump neck))  ~
-    `fold
+    %+  murn  ~(tap of born)
+    |=  [pax=path node=[fold=hist:nexus file=(map @ta hist:nexus)]]
+    =/  top=(unit [key=cass:clay val=entry:hist:nexus])
+      (ram:hon:hist:nexus fold.node)
+    ?~  top  ~
+    ?:  ?=(%tomb -.pace.val.u.top)  ~
+    ?~  p.pace.val.u.top  ~
+    =/  entry  (~(get by jects.silo) u.p.pace.val.u.top)
+    ?~  entry  ~
+    ?.  ?=(%tree -.ject.u.entry)  ~
+    ?~  nek.tree.ject.u.entry  ~
+    ?.  =(cod ns.u.nek.tree.ject.u.entry)  ~
+    ?.  =(neck neck.u.nek.tree.ject.u.entry)  ~
+    `pax
   ?~  dirs  $(remaining t.remaining)
   ::  Run on-load and apply results for each directory
   ::  (reload-nexus-at handles bang/clear internally)
