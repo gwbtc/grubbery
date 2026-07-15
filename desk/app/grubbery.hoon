@@ -2250,15 +2250,16 @@
   ::  Scry for sessions
   =/  sessions=(list @tas)
     ~(tap in .^((set @tas) %dy /(scot %p our.bowl)/$/(scot %da now.bowl)/sessions))
-  ::  Unsubscribe from sessions no longer in dill
+  ::  Flee every tracked session before re-%view-ing below.  A session that
+  ::  persists across a reload keeps its stale pre-reload duct otherwise, and
+  ::  dill goes on feeding it blits that gall discards as `got old %blit` —
+  ::  one per keystroke, compounding on every reload.  See gwbtc/grubbery#9.
   =/  old=(list @ta)  (~(lis ba:tarball ball) /sys/dill/sessions)
-  =/  new=(set @tas)  (~(gas in *(set @tas)) sessions)
   =.  this
     %-  emit-cards
-    %+  murn  old
+    %+  turn  old
     |=  ses=@ta
-    ?:  (~(has in new) ses)  ~
-    `[%pass /dill/session/[ses] %arvo %d %shot ses %flee ~]
+    [%pass /dill/session/[ses] %arvo %d %shot ses %flee ~]
   ::  Create grubs and subscribe, with gain enabled
   =.  this
     %+  roll  sessions
