@@ -255,11 +255,8 @@
 ::  Take a poke and return both its source and payload
 ::
 ::  Returns [from sage] where:
-::    from: %.y bend for internal (relative), %.n prov for external
+::    from: bend (relative path to sender)
 ::    sage: the poke payload
-::
-::  The from is relative to the current file's location.
-::  Use this when you need to verify the poke source for security.
 ::
 ++  take-poke-from
   =/  m  (fiber ,[from:fiber:nexus sage:tarball])
@@ -276,14 +273,12 @@
 ::  +get-poke-src: extract foreign ship from a poke's from field
 ::
 ::  Remote pokes arrive through /sys/ames/ships/~ship/ in the
-::  namespace, so from is always %& (a bend).  This checks the
-::  rail path for that prefix and returns the ship if found.
+::  namespace, so the bend path starts with /sys/ames/ships/~ship/.
 ::
 ++  get-poke-src
   |=  =from:fiber:nexus
   ^-  (unit @p)
-  ?.  ?=(%& -.from)  ~
-  =/  pax=path  path.q.p.from
+  =/  pax=path  path.q.from
   ?.  ?=([%sys %ames %ships @ *] pax)  ~
   (slaw %p i.t.t.t.pax)
 ::

@@ -4,52 +4,44 @@
 ::  +relativize-from tests
 ::  ==========================================
 ::
-++  test-relativize-from-external-passthrough
-  ::  External source passes through unchanged
-  =/  here=rail:tarball  [/a/b %file]
-  =/  =from:nexus  [%| [src=~zod sap=/some/path]]
-  %+  expect-eq
-    !>  `from:fiber:nexus`[%| [src=~zod sap=/some/path]]
-  !>  (relativize-from:nexus here from)
-::
 ++  test-relativize-from-same-dir
   ::  Source in same directory - 0 steps
   =/  here=rail:tarball  [/a/b %dest]
-  =/  =from:nexus  [%& [/a/b %src]]
+  =/  =from:nexus  [/a/b %src]
   %+  expect-eq
-    !>  `from:fiber:nexus`[%& [0 [/ %src]]]
+    !>  `from:fiber:nexus`[0 [/ %src]]
   !>  (relativize-from:nexus here from)
 ::
 ++  test-relativize-from-sibling-dir
   ::  Source in sibling directory - 1 step up
   =/  here=rail:tarball  [/a/b %dest]
-  =/  =from:nexus  [%& [/a/c %src]]
+  =/  =from:nexus  [/a/c %src]
   %+  expect-eq
-    !>  `from:fiber:nexus`[%& [1 [/c %src]]]
+    !>  `from:fiber:nexus`[1 [/c %src]]
   !>  (relativize-from:nexus here from)
 ::
 ++  test-relativize-from-parent-dir
   ::  Source in parent directory - 2 steps up
   =/  here=rail:tarball  [/a/b/c %dest]
-  =/  =from:nexus  [%& [/a %src]]
+  =/  =from:nexus  [/a %src]
   %+  expect-eq
-    !>  `from:fiber:nexus`[%& [2 [/ %src]]]
+    !>  `from:fiber:nexus`[2 [/ %src]]
   !>  (relativize-from:nexus here from)
 ::
 ++  test-relativize-from-child-dir
   ::  Source in child directory - 0 steps (going down)
   =/  here=rail:tarball  [/a %dest]
-  =/  =from:nexus  [%& [/a/b/c %src]]
+  =/  =from:nexus  [/a/b/c %src]
   %+  expect-eq
-    !>  `from:fiber:nexus`[%& [0 [/b/c %src]]]
+    !>  `from:fiber:nexus`[0 [/b/c %src]]
   !>  (relativize-from:nexus here from)
 ::
 ++  test-relativize-from-distant
   ::  Source far away - multiple steps
   =/  here=rail:tarball  [/a/b/c %dest]
-  =/  =from:nexus  [%& [/x/y/z %src]]
+  =/  =from:nexus  [/x/y/z %src]
   %+  expect-eq
-    !>  `from:fiber:nexus`[%& [3 [/x/y/z %src]]]
+    !>  `from:fiber:nexus`[3 [/x/y/z %src]]
   !>  (relativize-from:nexus here from)
 ::
 ::  ==========================================

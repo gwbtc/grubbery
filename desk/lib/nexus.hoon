@@ -22,9 +22,8 @@
 ::  directories, may have a neck identifying a nexus, and may have a weir
 ::  (sandbox rules).
 ::
-+$  prov  [src=@p sap=path]         :: external provenance
-+$  from  (each rail:tarball prov)  :: source: [%& rail] internal grub or [%| prov] external
-+$  give  [=from =wire]             :: return address (from is always a grub)
++$  from  rail:tarball               :: source grub (absolute rail)
++$  give  [=from =wire]             :: return address for poke acks
 +$  take  [here=rail:tarball take:fiber]  :: localized input (here is always a grub)
 ::  SANDBOXING
 ::
@@ -188,14 +187,11 @@
   ::  Relative source path for pokes
   ::
   ::  Fibers see only relative paths so they don't know their absolute location.
-  ::  [%& bend] = internal source (relative path to a grub)
-  ::  [%| prov] = external source (ship + path)
-  ::
   ::  Fiber bends always target grubs (rail), not directories.
   ::  Pokes come from grubs, pokes go to grubs.
   ::
   +$  bend  (pair @ud rail:tarball)   :: fiber-relative: steps up + target grub
-  +$  from  (each bend prov)
+  +$  from  bend
   +$  road  (each rail:tarball bend)
   ::
   +$  intake
@@ -252,7 +248,7 @@
         in=(unit intake) :: command/response/data to ingest (null means start)
     ==
   ::
-  +$  take  [=give in=(unit pend)]
+  +$  take  [give=(unit give) in=(unit pend)]
   :: Three situations for process initialization
   ::
   +$  prod  (unit tang)    :: ~ = clean start, [~ tang] = crash recovery
@@ -483,15 +479,18 @@
     ?~  nek.u.existing-tree  ~
     =/  =neck:tarball  neck.u.nek.u.existing-tree
     =/  nex-ns=(unit fold:tarball)
-      =/  pax=path  (weld dir path.neck)
+      =/  pax=path  dir
       |-
+      =/  cod=(list @ta)
+        ?~  pax  /code
+        (snoc (snip `(list @ta)`pax) %code)
+      ?:  (~(has by code) cod)  `cod
       ?~  pax  ~
-      ?:  (~(has by code) pax)  `pax
-      $(pax (snip `path`pax))
+      $(pax (snip `(list @ta)`pax))
     =/  nex-ckey=@uv
       ?~  nex-ns  0v0
       =/  =lode  (~(got by code) u.nex-ns)
-      =/  node=(unit (map @ta @uv))  (~(get of refs.lode) (slag (lent u.nex-ns) (weld dir path.neck)))
+      =/  node=(unit (map @ta @uv))  (~(get of refs.lode) (weld /nex path.neck))
       ?~  node  0v0
       (fall (~(get by u.node) name.neck) 0v0)
     `[neck nex-ckey (fall nex-ns /)]
@@ -1234,21 +1233,15 @@
 ::   ::
 ::     %2  [%2 p=p.ton]
 ::   ==
-::  Convert absolute from (rail) to relative from (fiber bend)
-::
-::  External sources pass through unchanged.
-::  Internal sources get relativized to a fiber bend (always targets rail).
+::  Relativize an absolute source rail to a fiber bend.
 ::
 ++  relativize-from
   |=  [here=rail:tarball =from]
   ^-  from:fiber
-  ?.  ?=(%& -.from)
-    from  :: external passes through
-  =/  src=rail:tarball  p.from
-  =/  pref=path  (prefix:tarball path.here path.src)
+  =/  pref=path  (prefix:tarball path.here path.from)
   =/  here-tail=path  (need (decap:tarball pref path.here))
-  =/  src-tail=path  (need (decap:tarball pref path.src))
-  &+[(lent here-tail) [src-tail name.src]]
+  =/  src-tail=path  (need (decap:tarball pref path.from))
+  [(lent here-tail) [src-tail name.from]]
 ::  Check if dest lane is permitted by an allowed lane.
 ::
 ++  raw-filter

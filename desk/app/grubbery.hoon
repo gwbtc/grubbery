@@ -306,10 +306,9 @@
       :_  this
       (give-simple-payload:app:server eyre-id [[404 ~] `(as-octs:mimes:html 'Not Found')])
     ~&  >  [%eyre-dispatch binding.u.match handler.u.match]
-    =/  =give:nexus  [|+[src.bowl /eyre] /[eyre-id]]
     =/  new-st  st(conns (~(put by conns.st) eyre-id binding.u.match))
     =^  cards  state
-      abet:(poke:(save-server-state:hc new-st) give handler.u.match [[/ %handle-http-request] [eyre-id src.bowl req]])
+      abet:(poke:(save-server-state:hc new-st) ~ handler.u.match [[/ %handle-http-request] [eyre-id src.bowl req]])
     [cards this]
       ::
       %refresh-sessions
@@ -389,9 +388,8 @@
     =/  new-st  st(conns (~(del by conns.st) eyre-id))
     =/  handler=rail:tarball
       (fall (~(get by bindings.new-st) u.conn-binding) *rail:tarball)
-    =/  =give:nexus  [|+[our.bowl /eyre] /cancel/[eyre-id]]
     =^  cards  state
-      abet:(poke:(save-server-state:hc new-st) give handler [[/ %handle-http-cancel] eyre-id])
+      abet:(poke:(save-server-state:hc new-st) ~ handler [[/ %handle-http-cancel] eyre-id])
     [cards this]
   ==
 ::
@@ -648,7 +646,7 @@
     (~(bump-ject-ref si:nexus silo) lobe.cite)
   =?  silo  ?=([%file *] cite)
     (~(bump-ject-ref si:nexus silo) lobe.cite)
-  =.  this  (enqu-take rail.key (sys-give /peek) ~ %peek wire.key cite)
+  =.  this  (enqu-take rail.key ~ ~ %peek wire.key cite)
   =.  peeks.remo  (~(del by peeks.remo) key)
   $(entries t.entries)
 ::  +process-intake: handle inbound cross-ship responses.
@@ -707,7 +705,7 @@
         %+  roll  to-discharge
         |=  [[[=rail:tarball =wire] pk=peek:remo:nexus] sat=_this]
         =.  peeks.remo.sat  (~(del by peeks.remo.sat) [rail wire])
-        (enqu-take:sat rail (sys-give:sat /peek) ~ %peek wire [%none ~])
+        (enqu-take:sat rail ~ ~ %peek wire [%none ~])
       this
     =.  peeks.remo
       %-  ~(run by peeks.remo)
@@ -825,7 +823,7 @@
     %+  roll  vetoed
     |=  [[[=rail:tarball =wire] pk=peek:remo:nexus] sat=_this]
     =.  peeks.remo.sat  (~(del by peeks.remo.sat) [rail wire])
-    (enqu-take:sat rail (sys-give:sat /peek) ~ %peek wire [%veto ~])
+    (enqu-take:sat rail ~ ~ %peek wire [%veto ~])
     ::
       %miss
     ::  Remote snap expired before want arrived. Discharge affected
@@ -839,7 +837,7 @@
     |-
     ?~  stale  this
     =/  [key=[=rail:tarball =wire] pk=peek:remo:nexus]  i.stale
-    =.  this  (enqu-take rail.key (sys-give /peek) ~ %peek wire.key [%miss ~])
+    =.  this  (enqu-take rail.key ~ ~ %peek wire.key [%miss ~])
     =.  peeks.remo  (~(del by peeks.remo) key)
     $(stale t.stale)
   ==
@@ -857,7 +855,7 @@
   =.  this
     %-  ~(rep by watchers)
     |=  [[watcher=rail:tarball =wire blot=(unit blot:tarball)] acc=_this]
-    (enqu-take:acc watcher (sys-give:acc /news) ~ %news wire wave.resp)
+    (enqu-take:acc watcher ~ ~ %news wire wave.resp)
   this
 ::
 ++  abet
@@ -1179,14 +1177,8 @@
   this(cards (welp (flop cadz) cards))
 ::
 ++  enqu-take
-  |=  [here=rail:tarball =give:nexus in=(unit pend:fiber:nexus)]
+  |=  [here=rail:tarball give=(unit give:nexus) in=(unit pend:fiber:nexus)]
   this(takes (~(put to takes) [here give in]))
-::  Generate a system give (for internal system operations)
-::
-++  sys-give
-  |=  =wire
-  ^-  give:nexus
-  [|+[our.bowl /gall/grubbery] wire]
 ::  Validate a noun using a vale gate $-(* vase)
 ::
 ++  validate-vase
@@ -2055,31 +2047,18 @@
 ++  give-poke-ack
   |=  [here=rail:tarball =from:nexus =wire err=(unit tang)]
   ^+  this
-  ::  Sanitize error if internal poke without peek permission
   =/  err=(unit tang)
-    ?.  ?=(%& -.from)
-      ?~(err ~ `~[leaf+"poke failed"])
-    ?.  ?=([~ %|] (allowed %peek p.from `[%& here]))
+    ?.  ?=([~ %|] (allowed %peek from `[%& here]))
       err
-    ?~(err ~ `~[leaf+"poke failed"])  :: no peek = generic error
-  ?-    -.from
-      %&
-    ::  Internal - send %pack intake to source path
-    (enqu-take p.from (sys-give /pack) ~ %pack wire err)
-    ::
-      %|
-    ::  External - send fact on caller's subscription path, then kick
-    =/  src=@ta  (scot %p src.p.from)
-    =/  pat=path  (weld /poke/[src] wire)
-    =.  this  (emit-card %give %fact ~[pat] grubbery-ack+!>(err))
-    (emit-card %give %kick ~[pat] ~)
-  ==
+    ?~(err ~ `~[leaf+"poke failed"])
+  (enqu-take from ~ ~ %pack wire err)
 ::
 ++  give-poke-sign
   |=  [here=rail:tarball =took:eval]
   ^+  this
   ?.  ?=([~ %poke *] in.take.took)  this
-  (give-poke-ack here from.give.take.took wire.give.take.took err.took)
+  ?~  give.take.took  this
+  (give-poke-ack here from.u.give.take.took wire.u.give.take.took err.took)
 ::
 ++  give-poke-signs
   |=  [here=rail:tarball done=(list took:eval)]
@@ -2485,7 +2464,7 @@
         [%pass /wave/[(scot %p dest)] %agent [dest %grubbery] %poke grubbery-intake+!>(resp)]
       acc
     ::  Local watcher: deliver directly
-    (enqu-take:acc watcher (sys-give:acc /news) ~ %news wire wave)
+    (enqu-take:acc watcher ~ ~ %news wire wave)
   $(watched t.watched)
 ::  Handle jael on-watch: give initial udiffs on subscription.
 ::  path=~ gives all udiffs, path=[@ ~] filters per ship.
@@ -2546,7 +2525,7 @@
   ^+  this
   =/  val=[=wire blot=(unit blot:tarball)]  (~(got by (fwd-get target)) watcher)
   =.  this  (sub-del target watcher)
-  (enqu-take watcher (sys-give /fell) ~ %fell wire.val)
+  (enqu-take watcher ~ ~ %fell wire.val)
 ::  Re-check subscriptions after weir change: fell any that are now blocked
 ::
 ++  audit-weir
@@ -2649,7 +2628,7 @@
     ?:  ?=([%sys %ames %ships @ ~] path.here)
       ~|  [%peer-vetoed name.here dest]
       !!
-    (enqu-take here (sys-give /veto) ~ %veto dart)
+    (enqu-take here ~ ~ %veto dart)
     ::
       [~ %&]
     ::  Weir boundary allowed — validation happens in handler for all dart types.
@@ -2715,33 +2694,33 @@
           (validate-cached path.dest p.bask.load.dart q.bask.load.dart)
         ?:  ?=(%| -.validated)
           ::  No marc or validation failed — fall through to general poke
-          =/  rel=from:fiber:nexus  (relativize-from:nexus dest &+here)
-          (enqu-take dest [&+here wire.dart] ~ %poke rel bask.load.dart)
+          =/  rel=from:fiber:nexus  (relativize-from:nexus dest here)
+          (enqu-take dest `[here wire.dart] ~ %poke rel bask.load.dart)
         =/  =sage:tarball  [p.bask.load.dart p.validated]
         ?:  ?&  =([/sys/behn %'main.timer-state'] dest)
                 =([/ %timer-set] p.sage)
             ==
           =.  this  (handle-timer-set here wire.dart q.sage)
-          (enqu-take here (sys-give /behn) ~ %pack wire.dart ~)
+          (enqu-take here ~ ~ %pack wire.dart ~)
         ?:  ?&  =([/sys/eyre %'main.server-state'] dest)
                 =([/ %eyre-action] p.sage)
             ==
           =.  this  (handle-eyre-action here wire.dart q.sage)
-          (enqu-take here (sys-give /eyre) ~ %pack wire.dart ~)
+          (enqu-take here ~ ~ %pack wire.dart ~)
         ?:  ?&  =([/sys/push %'main.push-state'] dest)
                 =([/ %push-action] p.sage)
             ==
           =.  this  (handle-push-action here wire.dart q.sage)
-          (enqu-take here (sys-give /push) ~ %pack wire.dart ~)
+          (enqu-take here ~ ~ %pack wire.dart ~)
         =/  sys=(unit _this)
           (handle-sys-poke dest here wire.dart sage)
         ?^  sys  u.sys
         ::  /sys/ poke not intercepted — enqueue as bask
-        =/  rel=from:fiber:nexus  (relativize-from:nexus dest &+here)
-        (enqu-take dest [&+here wire.dart] ~ %poke rel bask.load.dart)
+        =/  rel=from:fiber:nexus  (relativize-from:nexus dest here)
+        (enqu-take dest `[here wire.dart] ~ %poke rel bask.load.dart)
       ::  General poke: enqueue as bask, validate at consumption
-      =/  rel=from:fiber:nexus  (relativize-from:nexus dest &+here)
-      (enqu-take dest [&+here wire.dart] ~ %poke rel bask.load.dart)
+      =/  rel=from:fiber:nexus  (relativize-from:nexus dest here)
+      (enqu-take dest `[here wire.dart] ~ %poke rel bask.load.dart)
       ::
         %make
       ::  Create file or directory.
@@ -2751,22 +2730,22 @@
       =/  res=(each _this tang)
         (mule |.((make u.dest-lane force.load.dart mak)))
       ?-  -.res
-        %&  (enqu-take:p.res here (sys-give /made) ~ %made wire.dart ~)
+        %&  (enqu-take:p.res here ~ ~ %made wire.dart ~)
           %|
         ?:  =(/sys (scag 1 path.here))
           (mean p.res)
-        (enqu-take here (sys-give /made) ~ %made wire.dart `p.res)
+        (enqu-take here ~ ~ %made wire.dart `p.res)
       ==
       ::
         %cull
       ::  Delete file or directory at dest
       =/  res=(each _this tang)  (mule |.((cull u.dest-lane)))
       ?-  -.res
-        %&  (enqu-take:p.res here (sys-give /gone) ~ %gone wire.dart ~)
+        %&  (enqu-take:p.res here ~ ~ %gone wire.dart ~)
           %|
         ?:  =(/sys (scag 1 path.here))
           (mean p.res)
-        (enqu-take here (sys-give /gone) ~ %gone wire.dart `p.res)
+        (enqu-take here ~ ~ %gone wire.dart `p.res)
       ==
       ::
         %sand
@@ -2775,8 +2754,8 @@
       =/  dest=fold:tarball  p.u.dest-lane
       =/  res=(each _this tang)  (mule |.((set-weir dest weir.load.dart)))
       ?-  -.res
-        %&  (enqu-take:p.res here (sys-give /sand) ~ %sand wire.dart ~)
-        %|  (enqu-take here (sys-give /sand) ~ %sand wire.dart `p.res)
+        %&  (enqu-take:p.res here ~ ~ %sand wire.dart ~)
+        %|  (enqu-take here ~ ~ %sand wire.dart `p.res)
       ==
       ::
         %load
@@ -2785,8 +2764,8 @@
       =/  dest=fold:tarball  p.u.dest-lane
       =/  res=(each _this tang)  (mule |.((reload-nexus dest)))
       ?-  -.res
-        %&  (enqu-take:p.res here (sys-give /load) ~ %load wire.dart ~)
-        %|  (enqu-take here (sys-give /load) ~ %load wire.dart `p.res)
+        %&  (enqu-take:p.res here ~ ~ %load wire.dart ~)
+        %|  (enqu-take here ~ ~ %load wire.dart `p.res)
       ==
       ::
         %peek
@@ -2816,7 +2795,7 @@
         =/  dest=fold:tarball  p.u.dest-lane
         =/  sub-born=born:nexus  (~(dip of born) dest)
         ?:  &(=(~ fil.sub-born) =(~ dir.sub-born))
-          (enqu-take here (sys-give /peek) ~ %peek wire.dart [%none ~])
+          (enqu-take here ~ ~ %peek wire.dart [%none ~])
         ::  Get root tree ject lobe from born fold hist:
         ::  historical if case is set, current top otherwise.
         =/  node=(unit [fold=hist:nexus file=(map @ta hist:nexus)])
@@ -2834,17 +2813,17 @@
           ?:  ?=(%tomb -.pace.val.u.got)  ~
           p.pace.val.u.got
         ?~  root-lobe
-          (enqu-take here (sys-give /peek) ~ %peek wire.dart [%none ~])
+          (enqu-take here ~ ~ %peek wire.dart [%none ~])
         ::  Bump ref to keep tree alive while queued
         =.  silo  (~(bump-ject-ref si:nexus silo) u.root-lobe)
         =/  =wave:nexus  (wave-from-born:nexus sub-born)
-        (enqu-take here (sys-give /peek) ~ %peek wire.dart [%ball wave u.root-lobe deep.load.dart])
+        (enqu-take here ~ ~ %peek wire.dart [%ball wave u.root-lobe deep.load.dart])
         ::
           %&
         =/  dest=rail:tarball  p.u.dest-lane
         =/  content  (peek-grub-now path.dest name.dest)
         ?:  &(?=(~ content) ?=(~ case.load.dart))
-          (enqu-take here (sys-give /peek) ~ %peek wire.dart [%none ~])
+          (enqu-take here ~ ~ %peek wire.dart [%none ~])
         =/  node=(unit [fold=hist:nexus file=(map @ta hist:nexus)])
           (~(get of born) path.dest)
         =/  sk=hist:nexus
@@ -2864,11 +2843,11 @@
           ?:  ?=(%tomb -.pace.val.u.got)  ~
           p.pace.val.u.got
         ?~  src-lobe
-          (enqu-take here (sys-give /peek) ~ %peek wire.dart [%none ~])
+          (enqu-take here ~ ~ %peek wire.dart [%none ~])
         ::  Bump silo ref to keep ject alive while queued
         =.  silo  (~(bump-ject-ref si:nexus silo) u.src-lobe)
         =/  =cass:clay  (fall (top:hist:nexus sk) *cass:clay)
-        (enqu-take here (sys-give /peek) ~ %peek wire.dart [%file cass u.src-lobe blot.load.dart])
+        (enqu-take here ~ ~ %peek wire.dart [%file cass u.src-lobe blot.load.dart])
       ==
       ::
         %code
@@ -2883,11 +2862,11 @@
           ?~  pax  ~
           $(pax (snip `path`pax))
         ?~  nex
-          (enqu-take here (sys-give /code) ~ %code wire.dart |+|+~[leaf+"code: no code nexus at {(spud dest)}"])
+          (enqu-take here ~ ~ %code wire.dart |+|+~[leaf+"code: no code nexus at {(spud dest)}"])
         =/  =lode:nexus  (~(got by code) u.nex)
         =/  inner=fold:tarball  (slag (lent u.nex) dest)
         =/  sub-refs=refs:nexus  (~(dip of refs.lode) inner)
-        (enqu-take here (sys-give /code) ~ %code wire.dart &+sub-refs)
+        (enqu-take here ~ ~ %code wire.dart &+sub-refs)
         ::
           %&
         =/  dest=rail:tarball  p.u.dest-lane
@@ -2897,7 +2876,7 @@
           ?~  pax  ~
           $(pax (snip `path`pax))
         ?~  nex
-          (enqu-take here (sys-give /code) ~ %code wire.dart |+|+~[leaf+"code: no code nexus at {(spud path.dest)}"])
+          (enqu-take here ~ ~ %code wire.dart |+|+~[leaf+"code: no code nexus at {(spud path.dest)}"])
         =/  =lode:nexus  (~(got by code) u.nex)
         =/  inner=path  (slag (lent u.nex) path.dest)
         =/  node=(unit (map @ta @uv))  (~(get of refs.lode) inner)
@@ -2905,21 +2884,21 @@
           ?~  node  ~
           (~(get by u.node) name.dest)
         ?^  ckey
-          (enqu-take here (sys-give /code) ~ %code wire.dart |+&+u.ckey)
+          (enqu-take here ~ ~ %code wire.dart |+&+u.ckey)
         ::  Tube requests: /tub/from/to — resolve via marc grow gate
         ?.  ?=([%tub @ ~] inner)
-          (enqu-take here (sys-give /code) ~ %code wire.dart |+|+~[leaf+"code: {(trip name.dest)} not found at {(spud path.dest)}"])
+          (enqu-take here ~ ~ %code wire.dart |+|+~[leaf+"code: {(trip name.dest)} not found at {(spud path.dest)}"])
         =/  from=blot:tarball  [/ i.t.inner]
         =/  to=blot:tarball  [/ name.dest]
         =/  tube-res=(each tube:clay tang)
           (mule |.((grow:(get-marc (snip `path`u.nex) from) to)))
         ?:  ?=(%| -.tube-res)
-          (enqu-take here (sys-give /code) ~ %code wire.dart |+|+p.tube-res)
+          (enqu-take here ~ ~ %code wire.dart |+|+p.tube-res)
         ::  Store tube in bins so it can be referenced by ckey
         =/  =built:nexus  [%vase !>(p.tube-res)]
         =/  tube-ckey=@uv  (sham built)
         =.  bins  (~(put by bins) tube-ckey [1 built])
-        (enqu-take here (sys-give /code) ~ %code wire.dart |+&+tube-ckey)
+        (enqu-take here ~ ~ %code wire.dart |+&+tube-ckey)
       ==
       ::
         %font
@@ -2933,13 +2912,13 @@
         ::  No code nexus anywhere. But can the querier see all the way up?
         =/  =filt:nexus  (allowed %peek here `[%| /])
         ?:  ?=([~ %|] filt)
-          (enqu-take here (sys-give /font) ~ %font wire.dart ~)
-        (enqu-take here (sys-give /font) ~ %font wire.dart `~)
+          (enqu-take here ~ ~ %font wire.dart ~)
+        (enqu-take here ~ ~ %font wire.dart `~)
       =/  =filt:nexus  (allowed %peek here `[%| u.ns])
       ?:  ?=([~ %|] filt)
-        (enqu-take here (sys-give /font) ~ %font wire.dart ~)
+        (enqu-take here ~ ~ %font wire.dart ~)
       =/  =bend:tarball  (make-bend:tarball here [%| u.ns])
-      (enqu-take here (sys-give /font) ~ %font wire.dart ``bend)
+      (enqu-take here ~ ~ %font wire.dart ``bend)
       ::
         %keep
       ::  Subscribe to changes at dest (uses peek permission)
@@ -2958,7 +2937,7 @@
       ::  Local subscribe
       =.  this  (sub-put u.dest-lane here wire.dart blot.load.dart)
       =/  =wave:nexus  (wave-at:nexus born u.dest-lane)
-      (enqu-take here (sys-give /news) ~ %news wire.dart wave)
+      (enqu-take here ~ ~ %news wire.dart wave)
       ::
         %drop
       ::  Unsubscribe from dest
@@ -2975,13 +2954,13 @@
           [%pass /drop/[(scot %p target)] %agent [target %grubbery] %poke grubbery-load+!>(req)]
         this
       =.  this  (sub-del u.dest-lane here)
-      (enqu-take here (sys-give /fell) ~ %fell wire.dart)
+      (enqu-take here ~ ~ %fell wire.dart)
       ::
         %seek
       ::  Find all [rail cass] pairs with matching lobe in subtree
       =/  res=(each (list [=rail:tarball =cass:clay]) tang)
         (mule |.((seek-lobe u.dest-lane nobe.load.dart)))
-      (enqu-take here (sys-give /found) ~ %seek wire.dart res)
+      (enqu-take here ~ ~ %seek wire.dart res)
       ::
         %peep
       ::  Query hist entries matching find spec, clam pages to cages
@@ -2989,7 +2968,7 @@
       =/  dest=rail:tarball  p.u.dest-lane
       =/  sk=(unit hist:nexus)  (get-born dest)
       ?~  sk
-        (enqu-take here (sys-give /peep) ~ %peep wire.dart |+~[leaf+"no history for {(spud (snoc path.dest name.dest))}"])
+        (enqu-take here ~ ~ %peep wire.dart |+~[leaf+"no history for {(spud (snoc path.dest name.dest))}"])
       =/  entries=(list [key=cass:clay val=entry:hist:nexus])
         (tap:hon:hist:nexus u.sk)
       =/  hits=(list [cass:clay jobe:nexus])
@@ -3018,7 +2997,7 @@
         %+  roll  hits
         |=  [[* =jobe:nexus] acc=_silo]
         (~(bump-ject-ref si:nexus acc) jobe)
-      (enqu-take here (sys-give /peep) ~ %peep wire.dart &+hits)
+      (enqu-take here ~ ~ %peep wire.dart &+hits)
       ::
         %born
       ::  Read hist metadata at dest: file hist (%&) or fold hist (%|).
@@ -3030,12 +3009,12 @@
               ?~(node ~ `fold.u.node)
         ==
       ?~  sk
-        (enqu-take here (sys-give /born) ~ %born wire.dart |+~[leaf+"no history at dest"])
+        (enqu-take here ~ ~ %born wire.dart |+~[leaf+"no history at dest"])
       =/  entries=(list [=cass:clay tags=(set @t) tomb=?])
         %+  turn  (tap:hon:hist:nexus u.sk)
         |=  [key=cass:clay val=entry:hist:nexus]
         [key tags.val ?=(%tomb -.pace.val)]
-      (enqu-take here (sys-give /born) ~ %born wire.dart &+entries)
+      (enqu-take here ~ ~ %born wire.dart &+entries)
       ::
         %lose
       ::  Drop hist entries and decrement silo refs (file or fold)
@@ -3046,8 +3025,8 @@
           %|  (drop-fold-hist p.u.dest-lane lose.load.dart)
         ==
       ?-  -.res
-        %&  (enqu-take:p.res here (sys-give /lost) ~ %lost wire.dart ~)
-        %|  (enqu-take here (sys-give /lost) ~ %lost wire.dart `p.res)
+        %&  (enqu-take:p.res here ~ ~ %lost wire.dart ~)
+        %|  (enqu-take here ~ ~ %lost wire.dart `p.res)
       ==
       ::
         %gain
@@ -3055,8 +3034,8 @@
       =/  res=(each _this tang)
         (mule |.((set-gain-lane u.dest-lane flag.load.dart)))
       ?-  -.res
-        %&  (enqu-take:p.res here (sys-give /gain) ~ %gain wire.dart ~)
-        %|  (enqu-take here (sys-give /gain) ~ %gain wire.dart `p.res)
+        %&  (enqu-take:p.res here ~ ~ %gain wire.dart ~)
+        %|  (enqu-take here ~ ~ %gain wire.dart `p.res)
       ==
       ::
         %firm
@@ -3068,8 +3047,8 @@
           %|  (firm-fold p.u.dest-lane ~)
         ==
       ?-  -.res
-        %&  (enqu-take:p.res here (sys-give /firm) ~ %held wire.dart ~)
-        %|  (enqu-take here (sys-give /firm) ~ %held wire.dart `p.res)
+        %&  (enqu-take:p.res here ~ ~ %held wire.dart ~)
+        %|  (enqu-take here ~ ~ %held wire.dart `p.res)
       ==
       ::
         %tag
@@ -3081,15 +3060,15 @@
           %|  (tag-fold p.u.dest-lane case.load.dart tags.load.dart)
         ==
       ?-  -.res
-        %&  (enqu-take:p.res here (sys-give /tag) ~ %held wire.dart ~)
-        %|  (enqu-take here (sys-give /tag) ~ %held wire.dart `p.res)
+        %&  (enqu-take:p.res here ~ ~ %held wire.dart ~)
+        %|  (enqu-take here ~ ~ %held wire.dart `p.res)
       ==
     ==
     ::
       %here
     ::  Request location — walk up, reveal as much as allowed
     =/  loc=here:nexus  (walk-here here)
-    (enqu-take here (sys-give /here) ~ %here wire.dart loc)
+    (enqu-take here ~ ~ %here wire.dart loc)
     ::
     ::
       %kept
@@ -3099,7 +3078,7 @@
       %-  ~(gas in *kept:nexus)
       %+  turn  ~(tap in targets)
       |=(target=lane:tarball (make-bend:tarball here target))
-    (enqu-take here (sys-give /kept) ~ %kept wire.dart kept)
+    (enqu-take here ~ ~ %kept wire.dart kept)
   ==
 ::
 ++  spawn-proc
@@ -3145,7 +3124,7 @@
   =/  merged-skip=(qeu take:fiber:nexus)
     (~(gas to old-skip) ~(tap to old-next))
   =.  this  (store-proc here [&+process ~ merged-skip])
-  (enqu-take here (sys-give /start) ~)
+  (enqu-take here ~ ~)
 ::
 ++  default-spool
   ^-  spool:fiber:nexus
@@ -3444,7 +3423,7 @@
     ?:  ?=(%| -.proc-res)
       (bang-file here p.proc-res)
     =.  this  (store-proc here [&+p.proc-res ~ next.proc])
-    (enqu-take here (sys-give /restart) ~)
+    (enqu-take here ~ ~)
   =/  [darts=(list dart:nexus) done=(list took:eval) new-state=vase new-proc=proc:fiber:nexus res=result:eval core=_this]
     p.eval-res
   ::  Restore core with updated vale cache
@@ -3486,13 +3465,15 @@
     =/  merged-skip=(qeu take:fiber:nexus)
       (~(gas to skip.new-proc) ~(tap to next.new-proc))
     =.  this  (store-proc here [&+p.proc-res ~ merged-skip])
-    (enqu-take here (sys-give /restart) ~)
+    (enqu-take here ~ ~)
   ==
 ::
 ++  poke
-  |=  [=give:nexus here=rail:tarball =bask:tarball]
+  |=  [give=(unit give:nexus) here=rail:tarball =bask:tarball]
   ^+  this
-  =/  rel-from=from:fiber:nexus  (relativize-from:nexus here from.give)
+  =/  rel-from=from:fiber:nexus
+    ?~  give  *from:fiber:nexus
+    (relativize-from:nexus here from.u.give)
   (enqu-take here give ~ %poke rel-from bask)
 ::
 ++  make
@@ -5520,7 +5501,7 @@
   ?:  =(dest [/sys %'bowl.sig'])
     ?.  =([/ %bowl-req] p.sage)  ~
     =.  this  (handle-bowl-req here wir q.sage)
-    `(enqu-take here (sys-give /bowl) ~ %pack wir ~)
+    `(enqu-take here ~ ~ %pack wir ~)
   ?.  ?=([%sys @ *] path.dest)  ~
   =/  service=@tas  i.t.path.dest
   ?+  service  ~
@@ -5528,62 +5509,62 @@
     ?:  =([/ %mount-desk] p.sage)
       =/  dek=desk  !<(desk q.sage)
       =.  this  (handle-clay-mount dek)
-      `(enqu-take here (sys-give /clay) ~ %pack wir ~)
+      `(enqu-take here ~ ~ %pack wir ~)
     ?:  =([/ %unmount-desk] p.sage)
       =/  dek=desk  !<(desk q.sage)
       =.  this  (handle-clay-unmount dek)
-      `(enqu-take here (sys-give /clay) ~ %pack wir ~)
+      `(enqu-take here ~ ~ %pack wir ~)
     ?:  =([/ %new-desk] p.sage)
       =/  dek=desk  !<(desk q.sage)
       =.  this  (handle-clay-new-desk dek)
-      `(enqu-take here (sys-give /clay) ~ %pack wir ~)
+      `(enqu-take here ~ ~ %pack wir ~)
     ?:  =([/ %clay-info] p.sage)
       =/  [dek=desk changes=(list [path ?([%ins @tas *] [%del ~])])]
         !<([desk (list [path ?([%ins @tas *] [%del ~])])] q.sage)
       =.  this  (handle-clay-info dek changes)
-      `(enqu-take here (sys-give /clay) ~ %pack wir ~)
+      `(enqu-take here ~ ~ %pack wir ~)
     ~  :: unknown clay poke, fall through
   ::
       %dill
     ?.  =([/ %dill-belt] p.sage)  ~
     =/  [session=@tas =belt:dill]  !<([@tas belt:dill] q.sage)
     =.  this  (emit-card [%pass /dill/belt %arvo %d %shot session %belt belt])
-    `(enqu-take here (sys-give /dill) ~ %pack wir ~)
+    `(enqu-take here ~ ~ %pack wir ~)
   ::
       %gall
     ?.  =([/ %gall-poke] p.sage)  ~
     =.  this  (handle-gall-poke here wir q.sage)
-    `(enqu-take here (sys-give /gall) ~ %pack wir ~)
+    `(enqu-take here ~ ~ %pack wir ~)
   ::
       %iris
     ?.  =([/ %iris-request] p.sage)  ~
     =.  this  (handle-iris-request here wir q.sage)
-    `(enqu-take here (sys-give /iris) ~ %pack wir ~)
+    `(enqu-take here ~ ~ %pack wir ~)
   ::
       %scry
     ?.  =([/ %scry-request] p.sage)  ~
     =.  this  (handle-typed-scry here wir q.sage)
-    `(enqu-take here (sys-give /scry) ~ %pack wir ~)
+    `(enqu-take here ~ ~ %pack wir ~)
   ::
       %lick
     ?:  =([/ %lick-spin] p.sage)
       =/  req=[name=path gained=?]  !<([path ?] q.sage)
       =.  this  (handle-lick-spin req)
-      `(enqu-take here (sys-give /lick) ~ %pack wir ~)
+      `(enqu-take here ~ ~ %pack wir ~)
     ?:  =([/ %lick-shut] p.sage)
       =.  this  (handle-lick-shut !<(path q.sage))
-      `(enqu-take here (sys-give /lick) ~ %pack wir ~)
+      `(enqu-take here ~ ~ %pack wir ~)
     ?:  =([/ %lick-spit] p.sage)
       =/  req=[name=path =mark noun=*]  !<([path @tas *] q.sage)
       =.  this  (handle-lick-spit req)
-      `(enqu-take here (sys-give /lick) ~ %pack wir ~)
+      `(enqu-take here ~ ~ %pack wir ~)
     ~
   ::
       %ames
     ?>  =(dest [/sys/ames %'registry'])
     ?>  =([/usergroups %registry-action] p.sage)
     =.  this  (handle-ames-registry here wir q.sage)
-    `(enqu-take here (sys-give /ames) ~ %pack wir ~)
+    `(enqu-take here ~ ~ %pack wir ~)
   ==
 ::
 ::  /sys/behn/ timer service
@@ -5637,8 +5618,8 @@
   =.  timers.st  (~(del by timers.st) [sender req-wire])
   =.  this  (save-file timer-rail [[/ %timer-state] st])
   ::  Poke sender back with timer-wake
-  =/  rel=from:fiber:nexus  (relativize-from:nexus sender &+timer-rail)
-  (enqu-take sender (sys-give /behn) ~ %poke rel [[/ %timer-wake] req-wire])
+  =/  rel=from:fiber:nexus  (relativize-from:nexus sender timer-rail)
+  (enqu-take sender ~ ~ %poke rel [[/ %timer-wake] req-wire])
 ::
 ::  /sys/clay/ desk sync service
 ::
@@ -5837,7 +5818,7 @@
   =/  req-wire=wire  t.rest
   ::  Route poke-ack back to sender
   ?>  ?=(%poke-ack -.sign)
-  (enqu-take sender (sys-give /gall) ~ %pack req-wire p.sign)
+  (enqu-take sender ~ ~ %pack req-wire p.sign)
 ::
 ::  /sys/iris/ HTTP client service
 ::
@@ -5883,8 +5864,8 @@
   =.  requests.st  (~(del by requests.st) iris-wire)
   =.  this  (save-file iris-rail [[/ %iris-state] st])
   ::  Poke sender back with http-response
-  =/  rel=from:fiber:nexus  (relativize-from:nexus sender &+iris-rail)
-  (enqu-take sender (sys-give /iris) ~ %poke rel [[/ %http-response] client-response])
+  =/  rel=from:fiber:nexus  (relativize-from:nexus sender iris-rail)
+  (enqu-take sender ~ ~ %poke rel [[/ %http-response] client-response])
 ::
 ::  /sys/scry/ typed scry service
 ::
@@ -5896,23 +5877,23 @@
   ?>  ?=([@ @ *] pat)
   =/  res=*
     .^(* i.pat (scot %p our.bowl) i.t.pat (scot %da now.bowl) t.t.pat)
-  =/  rel=from:fiber:nexus  (relativize-from:nexus sender &+scry-rail)
-  (enqu-take sender (sys-give /scry) ~ %poke rel [[/ mark] res])
+  =/  rel=from:fiber:nexus  (relativize-from:nexus sender scry-rail)
+  (enqu-take sender ~ ~ %poke rel [[/ mark] res])
 ::
 ++  handle-bowl-req
   |=  [sender=rail:tarball =wire vaz=vase]
   ^+  this
   =/  req=@tas  !<(@tas vaz)
   =/  bowl-rail=rail:tarball  [/sys %'bowl.sig']
-  =/  rel=from:fiber:nexus  (relativize-from:nexus sender &+bowl-rail)
+  =/  rel=from:fiber:nexus  (relativize-from:nexus sender bowl-rail)
   ?+  req  this
-    %our  (enqu-take sender (sys-give /bowl) ~ %poke rel [[/ %ship] our.bowl])
+    %our  (enqu-take sender ~ ~ %poke rel [[/ %ship] our.bowl])
       %now
     =.  last  last(now ?:((gte now.last now.bowl) (add now.last (div ~s1 1.000)) now.bowl))
-    (enqu-take sender (sys-give /bowl) ~ %poke rel [[/ %time] now.last])
+    (enqu-take sender ~ ~ %poke rel [[/ %time] now.last])
       %eny
     =.  last  last(eny (shaz (cat 3 eny.bowl eny.last)))
-    (enqu-take sender (sys-give /bowl) ~ %poke rel [[/ %entropy] eny.last])
+    (enqu-take sender ~ ~ %poke rel [[/ %entropy] eny.last])
   ==
 ::  /sys/ames/ usergroups registry
 ::

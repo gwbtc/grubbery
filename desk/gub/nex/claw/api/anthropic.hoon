@@ -244,17 +244,14 @@
 ++  from-to-cord
   |=  =from:fiber:nexus
   ^-  @t
-  ?-  -.from
-    %|  (crip "ext:{(scow %p src.p.from)}")
-    %&  =/  =rail:tarball  q.p.from
-        %-  crip
-        =/  parts=(list @ta)  (snoc path.rail name.rail)
-        =|  acc=tape
-        |-
-        ?~  parts  acc
-        ?~  acc  $(parts t.parts, acc (trip i.parts))
-        $(parts t.parts, acc (weld acc `tape`['/' (trip i.parts)]))
-  ==
+  =/  =rail:tarball  q.from
+  %-  crip
+  =/  parts=(list @ta)  (snoc path.rail name.rail)
+  =|  acc=tape
+  |-
+  ?~  parts  acc
+  ?~  acc  $(parts t.parts, acc (trip i.parts))
+  $(parts t.parts, acc (weld acc `tape`['/' (trip i.parts)]))
 ::
 ++  get-num
   |=  [obj=json key=@t]
