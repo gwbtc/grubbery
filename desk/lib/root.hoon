@@ -57,6 +57,7 @@
         [%fall %| /apps/'contacts.git_desk' [`[`[/git %desk] app-weir %.n ~] ~]]
         [%fall %& [/apps/'contacts.git_desk' %'config.json'] [[/ %json] (git-desk-config 'niblyx-malnus/contacts-nexus' 'main')]]
         ::
+        [%fall %| /apps/'obelisk.obelisk_app' [`[`[/obelisk %app] app-weir %.n ~] ~]]
         [%fall %| /apps/'test.web-test' [`[`[/ %web-test] app-weir %.n ~] ~]]
         [%fall %| /apps/'test.desk' [`[`[/ %desk] app-weir %.n ~] ~]]
         [%fall %| /apps/'itinerary.git_desk' [`[`[/git %desk] app-weir %.n ~] ~]]

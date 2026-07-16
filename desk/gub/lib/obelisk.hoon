@@ -15,5 +15,5 @@
 ++  create
   |=  [now=@da our=@p name=@tas]
   ^-  [(list cmd-result:ast) db-state]
-  (exec *db-state now our name "CREATE DATABASE {(trip name)}")
+  (exec *db-state now our name "create database {(trip name)}")
 --

@@ -7,6 +7,6 @@
   --
 ++  grab
   |%
-  ++  noun  db-state
+  ++  noun  ^db-state
   --
 --

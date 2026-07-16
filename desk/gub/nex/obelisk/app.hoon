@@ -10,7 +10,7 @@
   ^-  bole:tarball
   %+  spin:loader  ball
   :~  (manifest:loader 0)
-      [%fall %& [/ %'db.obelisk_server'] [[/ %sig] ~]]
+      [%fall %& [/ %'db.obelisk_server'] [[/obelisk %server] *db-state]]
   ==
 ++  on-file
   |=  [=rail:tarball =blot:tarball]
@@ -21,8 +21,9 @@
   ?+    rail  stay:m
       [~ %'db.obelisk_server']
     ;<  ~  bind:m  (rise-wait:io prod "%obelisk: failed")
+    ~&  >  "%obelisk: ready"
     |-
-    ;<  =sage:tarball  bind:m  take-poke:io
+    ;<  [=from:fiber:nexus =sage:tarball]  bind:m  take-poke-from:io
     ?.  =(%json name.p.sage)
       ~&  >  [%obelisk %unknown-mark name.p.sage]
       $
@@ -38,18 +39,30 @@
     ;<  now=@da   bind:m  get-time:io
     ;<  our=@p    bind:m  get-our:io
     ;<  state=db-state  bind:m  (get-state-as:io ,db-state)
-    =/  [results=(list cmd-result:obelisk-ast) new-state=db-state]
-      (exec:obelisk state now our db script)
-    =/  state-road=road:tarball
-      (nex-road:io rail [%& ~ %'db.obelisk_server'])
-    ;<  ~  bind:m  (put:io state-road [[/ %'obelisk_server'] new-state])
+    =/  outcome=(each [(list cmd-result) db-state] tang)
+      (mule |.((exec:obelisk state now our db script)))
     =/  result-json=json
+      ?:  ?=(%| -.outcome)
+        %-  pairs:enjs:format
+        :~  :-  'error'
+            :-  %s
+            %-  crip
+            %+  roll  p.outcome
+            |=  [t=tank acc=tape]
+            (weld acc (weld (of-wall:format (~(win re t) 0 80)) "\0a"))
+        ==
       %-  pairs:enjs:format
-      :~  results+(results-to-json results)
+      :~  results+(results-to-json -.p.outcome)
       ==
-    =/  result-road=road:tarball
-      (nex-road:io rail [%& ~ %'result.json'])
-    ;<  ~  bind:m  (over:io result-road [[/ %json] result-json])
+    =/  new-state=db-state
+      ?:(?=(%| -.outcome) state +.p.outcome)
+    ;<  ~  bind:m  (replace:io new-state)
+    ::  TODO: get rid of prov in from — always reply via bend
+    ?:  ?=(%& -.from)
+      =/  reply-road=road:tarball  [%| p.p.from %& q.p.from]
+      ;<  ~  bind:m
+        (send-dart:io [%node /reply reply-road [%poke [[/ %json] result-json]]])
+      $
     $
   ==
 --
