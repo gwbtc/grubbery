@@ -30,12 +30,6 @@
 /=  m-  /mar/json
 /=  m-  /mar/kelvin
 /=  m-  /mar/kids
-/=  m-  /mar/kiln/commit
-/=  m-  /mar/kiln/install
-/=  m-  /mar/kiln/mount
-/=  m-  /mar/kiln/nuke
-/=  m-  /mar/kiln/permission
-/=  m-  /mar/kiln/revive
 /=  m-  /mar/manx
 /=  m-  /mar/md
 /=  m-  /mar/mime
