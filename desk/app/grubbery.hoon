@@ -7,13 +7,49 @@
 /=  t-  /tests/tarball
 /=  t-  /tests/build
 /=  t-  /tests/loader
-/=  m-  /mar/kids
-/=  m-  /mar/tree
+/=  m-  /mar/bill
 /=  m-  /mar/born
-/=  m-  /mar/subs
+/=  m-  /mar/css
+/=  m-  /mar/dill-blit
+/=  m-  /mar/dill-told
+/=  m-  /mar/docket-0
+/=  m-  /mar/eyre/bindings
+/=  m-  /mar/grubbery-ack
+/=  m-  /mar/grubbery-intake
 /=  m-  /mar/grubbery-load
 /=  m-  /mar/grubbery-transfer
-/=  m-  /mar/grubbery-intake
+/=  m-  /mar/handle-http-cancel
+/=  m-  /mar/handle-http-request
+/=  m-  /mar/hoon
+/=  m-  /mar/html
+/=  m-  /mar/http-request
+/=  m-  /mar/ico
+/=  m-  /mar/jael-private-keys
+/=  m-  /mar/jael-public-keys-result
+/=  m-  /mar/js
+/=  m-  /mar/json
+/=  m-  /mar/kelvin
+/=  m-  /mar/kids
+/=  m-  /mar/kiln/commit
+/=  m-  /mar/kiln/install
+/=  m-  /mar/kiln/mount
+/=  m-  /mar/kiln/nuke
+/=  m-  /mar/kiln/permission
+/=  m-  /mar/kiln/revive
+/=  m-  /mar/manx
+/=  m-  /mar/md
+/=  m-  /mar/mime
+/=  m-  /mar/noun
+/=  m-  /mar/png
+/=  m-  /mar/poke-ack
+/=  m-  /mar/sig
+/=  m-  /mar/subs
+/=  m-  /mar/svg
+/=  m-  /mar/tang
+/=  m-  /mar/timer-wake
+/=  m-  /mar/tree
+/=  m-  /mar/txt
+/=  m-  /mar/ud
 |%
 +$  versioned-state
   $%  state-0:migrations
@@ -279,6 +315,10 @@
         %reload
       ~&  >  %grubbery-reload
       =^  cards  state  abet:cold-start:hc
+      [cards this]
+        %revalidate
+      ~&  >  %grubbery-revalidate
+      =^  cards  state  abet:revalidate-all:hc
       [cards this]
     ==
     ::
@@ -3297,8 +3337,9 @@
       ?>  ?=(%& -.process.proc)
       (mule |.((p.process.proc state hot-in)))
     ?:  ?=(%| -.res)
-      ~&  >>  [%fiber-crash here=here in-tag=?~(in.take ~ `-.u.in.take)]
       =/  =tang  [leaf+"crash" p.res]
+      %-  (slog ~[leaf+"%fiber-crash {(spud (snoc path.here name.here))} in={<in-tag=?~(in.take ~ `-.u.in.take)>}"])
+      %-  (slog tang)
       :*  darts
           :_(done [take `tang])
           state
@@ -4385,7 +4426,7 @@
     |-
     ?~  grubs  this
     =/  [=rail:tarball lob=jobe:nexus =leaf:nexus]  i.grubs
-    =/  noun=*  (~(got by nouns.silo) lobe.leaf)
+    =/  noun=*  noun:(~(got by nouns.silo) lobe.leaf)
     =/  hit  (vale-hit lob ckey)
     =/  res=(each vase tang)
       ?^  hit
@@ -4400,12 +4441,77 @@
       =.  n-ok  +(n-ok)
       $(grubs t.grubs)
     ~&  >>  "validate-marks: boom {(spud (snoc path.rail name.rail))}"
+    %-  (slog p.res)
     =.  this
       (save-file rail [blot noun])
     =.  n-boom  +(n-boom)
     $(grubs t.grubs)
   ~&  >  "validate-marks: {(trip nam)} — {<n-ok>} ok, {<n-boom>} boom"
   $(remaining t.remaining)
+::
+++  revalidate-all
+  ^+  this
+  ~&  >  "revalidate-all: start"
+  =/  all-grubs=(list [=rail:tarball lob=jobe:nexus =leaf:nexus])
+    %-  zing
+    %+  turn  ~(tap of born)
+    |=  [fold=path node=[fold=hist:nexus file=(map @ta hist:nexus)]]
+    %+  murn  ~(tap by file.node)
+    |=  [name=@ta sk=hist:nexus]
+    =/  top=(unit [key=cass:clay val=entry:hist:nexus])
+      (ram:hon:hist:nexus sk)
+    ?~  top  ~
+    ?:  ?=(%tomb -.pace.val.u.top)  ~
+    ?~  p.pace.val.u.top  ~
+    =/  entry  (~(get by jects.silo) u.p.pace.val.u.top)
+    ?~  entry  ~
+    ?.  ?=(%leaf -.ject.u.entry)  ~
+    `[[fold name] u.p.pace.val.u.top leaf.ject.u.entry]
+  ~&  >  "revalidate-all: {<(lent all-grubs)>} grubs"
+  =/  [n-ok=@ud n-boom=@ud n-skip=@ud]  [0 0 0]
+  |-
+  ?~  all-grubs
+    ~&  >  "revalidate-all: done — {<n-ok>} ok, {<n-boom>} boom, {<n-skip>} skip"
+    this
+  =/  [=rail:tarball lob=jobe:nexus =leaf:nexus]  i.all-grubs
+  =/  nam=@tas  (rail-to-arm:tarball blot.mark.leaf)
+  ?:  ?=(?(%hoon %tang %mime %kelvin) nam)
+    $(all-grubs t.all-grubs, n-skip +(n-skip))
+  =/  cod=path  ns.mark.leaf
+  =/  mark-refs=refs:nexus
+    =/  cod-lode=(unit lode:nexus)  (~(get by code) cod)
+    ?~  cod-lode  *refs:nexus
+    refs.u.cod-lode
+  =/  mark-ckey=(unit @uv)
+    =/  node=(unit (map @ta @uv))  (~(get of mark-refs) (weld /mar path.blot.mark.leaf))
+    ?~  node  ~
+    (~(get by u.node) name.blot.mark.leaf)
+  ?~  mark-ckey
+    ~&  >>  "revalidate-all: no ckey for {(spud (snoc path.blot.mark.leaf name.blot.mark.leaf))}"
+    $(all-grubs t.all-grubs, n-skip +(n-skip))
+  =/  bin-entry=(unit [refs=@ud =built:nexus])  (~(get by bins) u.mark-ckey)
+  ?~  bin-entry
+    ~&  >>  "revalidate-all: no bin for {(trip nam)}"
+    $(all-grubs t.all-grubs, n-skip +(n-skip))
+  =/  marc-res=(each marc:tarball tang)
+    ?.  ?=(%vase -.built.u.bin-entry)
+      |+~[leaf+"revalidate-all: {(trip nam)} not a vase"]
+    (mule |.(!<(marc:tarball vase.built.u.bin-entry)))
+  ?:  ?=(%| -.marc-res)
+    ~&  >>  "revalidate-all: marc failed for {(trip nam)}"
+    $(all-grubs t.all-grubs, n-skip +(n-skip))
+  =/  noun=*  noun:(~(got by nouns.silo) lobe.leaf)
+  =/  res=(each vase tang)
+    =/  val  (validate-vase vale:p.marc-res noun)
+    ?:(?=(%| -.val) val &+[type:p.marc-res noun])
+  =.  this  (vale-put lob u.mark-ckey ?:(?=(%& -.res) ~ `p.res))
+  ?:  ?=(%& -.res)
+    =.  this  (save-file rail [blot.mark.leaf noun])
+    $(all-grubs t.all-grubs, n-ok +(n-ok))
+  ~&  >>  "revalidate-all: boom {(spud (snoc path.rail name.rail))}"
+  %-  (slog p.res)
+  =.  this  (save-file rail [blot.mark.leaf noun])
+  $(all-grubs t.all-grubs, n-boom +(n-boom))
 ::  Reload nexuses: for each changed nexus in bin/nex/, find all
 ::  directories using that neck, run on-load with the new code, and
 ::  apply the results (like reload-nexus). Crashes if any on-load fails.
@@ -5251,7 +5357,11 @@
   =/  push-rail=rail:tarball  [/sys/push %'main.push-state']
   =/  old=(unit sang:tarball)  (peek-grub-now push-rail)
   ?~  old  *push-state:nexus
-  !<(push-state:nexus (need-vase:tarball u.old))
+  ?.  ?=(%| -.q.u.old)
+    !<(push-state:nexus p.q.u.old)
+  ~&  >>>  "get-push-state: push-state grub is boomed, using default"
+  %-  (slog tang.p.q.u.old)
+  *push-state:nexus
 ::
 ++  save-push-state
   |=  st=push-state:nexus

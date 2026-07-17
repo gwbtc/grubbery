@@ -14,7 +14,10 @@
 ::  sang helpers
 ::
 ++  need-sage  |=(=sang ^-(sage ?>(?=(%& -.q.sang) [p.sang p.q.sang])))
-++  need-vase  |=(=sang ^-(vase ?>(?=(%& -.q.sang) p.q.sang)))
+++  need-vase
+  |=  =sang  ^-  vase
+  ~|  [%need-vase-boom mark=p.sang]
+  ?>(?=(%& -.q.sang) p.q.sang)
 ++  is-boom    |=(=sang ^-(? ?=(%| -.q.sang)))
 ++  sang-noun  |=(=sang ^-(noun ?-(-.q.sang %& q.p.q.sang, %| noun.p.q.sang)))
 ++  sage-to-sang  |=(=sage ^-(sang [p.sage %& q.sage]))
