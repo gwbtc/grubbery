@@ -46,7 +46,7 @@
 ++  generate-vapid-keypair
   |=  [eny=@ sub=@t]
   ^-  push-config:push
-  =/  raw=@  (shay 32 (can 3 ~[[32 eny] [4 'vpid']]))
+  =/  raw=@  (shay 36 (can 3 ~[[32 eny] [4 'vpid']]))
   =/  priv=@  (mod raw (dec n.t))
   =.  priv  ?:(=(0 priv) 1 priv)
   =/  pub=@  (serialize-point (priv-to-pub priv))
@@ -135,12 +135,15 @@
 ++  send-notification
   |=  [sub=subscription:push config=push-config:push msg=octs exp=@ud eny=@]
   ^-  request:http
+  =/  ep-len=@ud  (met 3 endpoint.sub)
   =/  eph-priv=@
     %+  mod
-      (shay 32 (can 3 ~[[32 eny] [4 'ekey']]))
+      (shay (add 36 ep-len) (can 3 ~[[32 eny] [4 'ekey'] [ep-len endpoint.sub]]))
     (dec n.t)
   =.  eph-priv  ?:(=(0 eph-priv) 1 eph-priv)
-  =/  salt-raw=@  (end [3 16] (shay 32 (can 3 ~[[32 eny] [4 'salt']])))
+  =/  salt-raw=@
+    %+  end  [3 16]
+    (shay (add 36 ep-len) (can 3 ~[[32 eny] [4 'salt'] [ep-len endpoint.sub]]))
   =/  push-salt=@  (rev 3 16 salt-raw)
   =/  body=octs
     (encrypt-payload p256dh.sub auth.sub msg eph-priv push-salt)

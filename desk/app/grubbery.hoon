@@ -5393,6 +5393,7 @@
       ?:  (~(has in exclude.push-send.act) ship.ps)  %.n
       ?:  =(~ targets.push-send.act)  %.y  :: empty = all
       (~(has in targets.push-send.act) ship.ps)
+    ~&  >>  ["%push send:" subs=~(wyt by subs.st) targets=(lent target-subs)]
     ::  Send to each subscription
     =/  unix-now=@ud  (div (sub now.bowl ~1970.1.1) ~s1)
     =/  exp=@ud  (add unix-now 86.400)
@@ -5402,12 +5403,14 @@
     =/  sub=subscription:push  subscription.ps
     =/  req=request:http
       (send-notification:web-push sub config payload exp eny.act)
-    ::  Build push wire: /push/send/{path-len}/{path...}/{name}/{sub-id}
+    ::  Build push wire: /push/send/{path-len}/{path...}/{name}/{sub-id}/{notif-id}
+    ::  notif-id keeps concurrent sends to the same sub on distinct wires
+    =/  notif-id=@ta  (scot %uv (end [3 8] (shax (cat 3 eny.act sub-id))))
     =/  push-wire=path
       :-  %push
       :-  %send
       :-  (scot %ud (lent path.sender))
-      (weld path.sender [name.sender sub-id ~])
+      (weld path.sender [name.sender sub-id notif-id ~])
     =.  inflight.st  (~(put by inflight.st) push-wire sender)
     =.  this  (save-push-state st)
     =.  this  (emit-card [%pass push-wire %arvo %i %request req *outbound-config:iris])
@@ -5423,12 +5426,14 @@
   ::  If push service returns 404/410, subscription is stale — remove it
   ?:  ?=(%finished -.client-response)
     =/  code=@ud  status-code.response-header.client-response
+    ~&  >>  ["%push response:" code]
     ?:  |(=(404 code) =(410 code))
-      ::  Extract sub-id from wire (last segment)
-      =/  sub-id=@ta  (rear segs)
+      ::  Extract sub-id from wire (second-to-last segment, before notif-id)
+      =/  sub-id=@ta  (rear (snip segs))
       =.  subs.st  (~(del by subs.st) sub-id)
       (save-push-state st)
     (save-push-state st)
+  ~&  >>>  ["%push response: request failed" -.client-response]
   (save-push-state st)
 ::
 ++  handle-push-http
@@ -5515,9 +5520,14 @@
     =/  auth-octs=(unit octs)    (de-base64url:web-push u.auth-key)
     ?:  |(?=(~ p256dh-octs) ?=(~ auth-octs))
       (respond [[400 ~] `(as-octs:mimes:html '"invalid key encoding"')])
+    ?.  &(=(65 p.u.p256dh-octs) =(16 p.u.auth-octs))
+      (respond [[400 ~] `(as-octs:mimes:html '"invalid key length"')])
     ::  Convert to MSB-first atoms (crypto convention)
     =/  p256dh-raw=@  (rev 3 p.u.p256dh-octs q.u.p256dh-octs)
     =/  auth-raw=@    (rev 3 p.u.auth-octs q.u.auth-octs)
+    ::  Reject off-curve points now; deserialize-p256 asserts at send time
+    ?~  (mole |.((deserialize-p256:web-push p256dh-raw)))
+      (respond [[400 ~] `(as-octs:mimes:html '"invalid p256dh key"')])
     =/  sub=subscription:push  [u.endpoint p256dh-raw auth-raw]
     ::  Generate sub-id from endpoint hash
     =/  sub-id=@ta  (scot %uv (end [3 16] (shax u.endpoint)))
