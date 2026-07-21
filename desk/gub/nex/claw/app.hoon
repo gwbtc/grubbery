@@ -10,8 +10,17 @@
     ++  on-load
       |=  =ball:tarball
       ^-  bole:tarball
+      =/  tile=json
+        %-  pairs:enjs:format
+        :~  title+s+'Claw'
+            info+s+'Agent container'
+            color+s+'#8a4a4a'
+            image+s+''
+            href+s+'/grubbery/ball/apps/claw.claw_app/page.html'
+        ==
       %+  spin:loader  ball
       :~  (manifest:loader 0)
+          [%over %& [/ %'tile.json'] [[/ %json] tile]]
           [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
           [%fall %| /apis empty-dir:loader]
           [%fall %| /apis/anthropic [`[`[/claw/api %anthropic] ~ %.n ~] ~]]
@@ -24,7 +33,7 @@
           [%over %& [/ui/sse %'channels.html'] [[/ %html] (crip (en-xml:html (channels-fragment "" ~)))]]
           [%over %& [/ui/sse %'apis.html'] [[/ %html] (crip (en-xml:html (apis-fragment "" ~)))]]
           [%over %& [/ %'page.html'] [[/ %html] (crip (en-xml:html (dashboard-page "" ~ ~ ~)))]]
-          [%over %& [/man %'readme.md'] [[/ %mime] man]]
+          [%over %& [/ %'README.md'] [[/ %mime] man]]
       ==
     ::
     ++  on-file
@@ -104,7 +113,7 @@
           ;<  ~  bind:m  (make:io agent-road &+(ball-to-bole:tarball new-ball))
           =/  agent-cfg=json
             %-  pairs:enjs:format
-            :~  ['model' s+'claude-sonnet-4-20250514']
+            :~  ['model' s+'claude-sonnet-4-6']
                 ['api-proxy' s+'anthropic']
                 ['context_window' (numb:enjs:format 80.000)]
                 ['message_cap' (numb:enjs:format 20.000)]
@@ -177,14 +186,14 @@
 ++  agents-weir
   ^-  weir:nexus
   :+  ~
-    (sy ~[&+[%| /sys/bowl] |+[2 |+/apis] |+[2 |+/channels] &+[%& /sys/behn %'main.timer-state'] &+[%& /sys/push %'main.push-state']])
+    (sy ~[&+[%& /sys %'bowl.sig'] |+[2 |+/apis] |+[2 |+/channels] &+[%& /sys/behn %'main.timer-state'] &+[%& /sys/push %'main.push-state']])
   (sy ~[&+[%| /]])
 ::  +main-agent-weir: agents-weir + make/poke on /agents
 ::
 ++  main-agent-weir
   ^-  weir:nexus
   :+  (sy ~[|+[2 |+/agents]])
-    (sy ~[&+[%| /sys/bowl] |+[2 |+/apis] |+[2 |+/channels] |+[2 |+/agents] &+[%& /sys/behn %'main.timer-state'] &+[%& /sys/push %'main.push-state']])
+    (sy ~[&+[%& /sys %'bowl.sig'] |+[2 |+/apis] |+[2 |+/channels] |+[2 |+/agents] &+[%& /sys/behn %'main.timer-state'] &+[%& /sys/push %'main.push-state']])
   (sy ~[&+[%| /]])
 ::  +path-to-ball-id: join a path into a slash-separated tape for URLs
 ::

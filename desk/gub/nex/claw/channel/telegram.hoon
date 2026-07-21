@@ -27,7 +27,7 @@
           [%fall %& [/ %'inbox.json'] [[/ %json] [%a ~]]]
           [%fall %& [/ %'send.sig'] [[/ %sig] ~]]
           [%fall %& [/ %'poller.sig'] [[/ %sig] ~]]
-          [%over %& [/man %'readme.md'] [[/ %mime] man]]
+          [%over %& [/ %'README.md'] [[/ %mime] man]]
       ==
     ::
     ++  on-file

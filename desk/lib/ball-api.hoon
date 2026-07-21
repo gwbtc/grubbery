@@ -489,8 +489,9 @@
     =/  lane-path=@t  (spat (snoc path.p.lane.i.lanes name.p.lane.i.lanes))
     =/  id=@t  (scot %ud ud.cass.i.lanes)
     =/  event-name=@t  (crip "old {(trip lane-path)}")
-    ;<  body=@t  bind:m  (sage-to-txt (need-sage:tarball sang.view) blot-param)
-    =/  data=wain  (to-wain:format body)
+    ;<  body=(unit @t)  bind:m  (sage-to-txt (need-sage:tarball sang.view) blot-param)
+    ?~  body  $(lanes t.lanes)
+    =/  data=wain  (to-wain:format u.body)
     =/  =sse-event:http-utils  [`id `event-name data]
     ;<  ~  bind:m
       (send-data:srv eyre-id `(sse-encode:http-utils ~[sse-event]))
@@ -531,8 +532,9 @@
         (~(has by file.u.node) name.p.lane.i.lanes)
       =/  action=@t  ?:(was-known 'upd' 'new')
       =/  event-name=@t  (crip "{(trip action)} {(trip lane-path)}")
-      ;<  body=@t  bind:m  (sage-to-txt (need-sage:tarball sang.view) blot-param)
-      =/  data=wain  (to-wain:format body)
+      ;<  body=(unit @t)  bind:m  (sage-to-txt (need-sage:tarball sang.view) blot-param)
+      ?~  body  $(lanes t.lanes)
+      =/  data=wain  (to-wain:format u.body)
       =/  =sse-event:http-utils  [`id `event-name data]
       ;<  ~  bind:m
         (send-data:srv eyre-id `(sse-encode:http-utils ~[sse-event]))
@@ -566,8 +568,9 @@
       ?~  file-hist  '0'
       (scot %ud (ver:hist:nexus u.file-hist))
     =/  event-name=@t  (crip "old {(trip lane-path)}")
-    ;<  body=@t  bind:m  (sage-to-txt (need-sage:tarball sang) blot-param)
-    =/  data=wain  (to-wain:format body)
+    ;<  body=(unit @t)  bind:m  (sage-to-txt (need-sage:tarball sang) blot-param)
+    ?~  body  $(files t.files)
+    =/  data=wain  (to-wain:format u.body)
     =/  =sse-event:http-utils  [`id `event-name data]
     ;<  ~  bind:m
       (send-data:srv eyre-id `(sse-encode:http-utils ~[sse-event]))
@@ -582,31 +585,34 @@
 ::
 ::  +sage-to-txt: convert sage to text for SSE data
 ::
-::    With blot param: sage -> target blot -> txt
-::    Without: sage -> txt directly
-::    Falls back to mime body extraction if no txt tube exists.
+::    With blot param: sage -> target blot -> txt; a failed conversion
+::    returns ~ so callers skip the event rather than send wrong data
+::    (mirrors maybe-convert's strictness on the /file endpoint).
+::    Without: sage -> txt directly.
 ::
 ++  sage-to-txt
   |=  [=sage:tarball blot-param=(unit @t)]
-  =/  m  (fiber:fiber:nexus ,@t)
+  =/  m  (fiber:fiber:nexus ,(unit @t))
   ^-  form:m
-  ::  Step 1: optionally convert to intermediate blot
   ?~  blot-param
-    (sage-to-txt-raw sage)
+    ;<  t=@t  bind:m  (sage-to-txt-raw sage)
+    (pure:m `t)
   =/  target-path=path  (stab u.blot-param)
   ?~  target-path
-    (sage-to-txt-raw sage)
+    (pure:m ~)
   =/  target-blot=blot:tarball
     [(snip `path`target-path) (rear target-path)]
   ?:  =(p.sage target-blot)
-    (sage-to-txt-raw sage)
+    ;<  t=@t  bind:m  (sage-to-txt-raw sage)
+    (pure:m `t)
   ;<  tube=(unit tube:clay)  bind:m  (get-tube:io [%& %| /code] [p.sage target-blot])
   ?~  tube
-    (sage-to-txt-raw sage)
+    (pure:m ~)
   =/  result=(each vase tang)  (mule |.((u.tube q.sage)))
   ?:  ?=(%| -.result)
-    (sage-to-txt-raw sage)
-  (sage-to-txt-raw [target-blot p.result])
+    (pure:m ~)
+  ;<  t=@t  bind:m  (sage-to-txt-raw [target-blot p.result])
+  (pure:m `t)
 ::  +sage-to-txt-raw: convert a single sage to @t
 ::
 ++  sage-to-txt-raw

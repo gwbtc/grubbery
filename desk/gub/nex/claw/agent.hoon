@@ -11,7 +11,7 @@
       ^-  bole:tarball
       =/  default-config=json
           %-  pairs:enjs:format
-          :~  ['model' s+'claude-sonnet-4-20250514']
+          :~  ['model' s+'claude-sonnet-4-6']
               ['api-proxy' s+'anthropic']
               ['context_window' (numb:enjs:format 80.000)]
               ['message_cap' (numb:enjs:format 20.000)]
@@ -622,7 +622,7 @@
           [%fall %| /children empty-dir:loader]
           ::  ui
           [%over %& [/ %'page.html'] [[/ %html] (crip (en-xml:html (chat-page "" "")))]]
-          [%over %& [/man %'readme.md'] [[/ %mime] man]]
+          [%over %& [/ %'README.md'] [[/ %mime] man]]
       ==
     ::
     ++  on-file
@@ -1577,7 +1577,8 @@
   ~&  >>  ["%claw: call" call-id "created, waiting for response"]
   ;<  ~  bind:m  (set-status chat-name [%api ~])
   ::  wait for news with status=done, or interrupt poke
-  ;<  resp=(unit json)  bind:m  (await-call-or-interrupt /api-call call-road)
+  ;<  resp=(unit json)  bind:m
+    (await-call-or-interrupt /api-call call-road (crip "{(trip call-id)}.json"))
   ::  drop subscription
   ;<  ~  bind:m  (drop:io /api-call call-road)
   ::  handle interrupt
@@ -1737,25 +1738,34 @@
 ::  Listens for both news on the call subscription wire and interrupt pokes.
 ::
 ++  await-call-or-interrupt
-  |=  [=wire call-road=road:tarball]
+  |=  [=wire call-road=road:tarball call-name=@ta]
   =/  m  (fiber:fiber:nexus ,(unit json))
   ^-  form:m
   |-
   ;<  got=(unit wave:nexus)  bind:m  (take-news-or-interrupt wire)
   ?~  got  (pure:m ~)  :: interrupted
-  ::  peek at the historical version from the wave (file may be deleted)
-  =/  cas=(unit cass:clay)
+  ::  wave may cover the whole calls dir — only react to our call file
+  =/  hit=(unit cass:clay)
     ?~  fil.u.got  ~
-    =/  files=(list [@ta cass:clay])  ~(tap by file.u.fil.u.got)
-    ?~  files  ~
-    `+.i.files
-  ?~  cas  $
-  ;<  =view:nexus  bind:m  (peek-at:io call-road ~ [%ud ud.u.cas])
-  ?.  ?=([%file *] view)  $
+    (~(get by file.u.fil.u.got) call-name)
+  ?~  hit
+    ~&  >  ["%claw await: wave without our call, looping" call-name]
+    $
+  ::  peek the wave's version of our file: the call fiber self-cleans on
+  ::  completion (final state saved for subscribers, then file deleted),
+  ::  so the current version may already be gone when we get the wave
+  ;<  =view:nexus  bind:m  (peek-at:io call-road ~ [%ud ud.u.hit])
+  ?.  ?=([%file *] view)
+    ~&  >>>  ["%claw await: peek-at not a file, looping" -.view]
+    $
   =/  jon=json  (fall (mole |.(!<(json (need-vase:tarball sang.view)))) *json)
-  ?.  ?=(%o -.jon)  $
+  ?.  ?=(%o -.jon)
+    ~&  >>>  "%claw await: content not json object, looping"
+    $
   =/  status=(unit json)  (~(get by p.jon) 'status')
-  ?.  ?=([~ %s %'done'] status)  $
+  ?.  ?=([~ %s %'done'] status)
+    ~&  >  ["%claw await: status not done, looping" status]
+    $
   =/  resp=json  (fall (~(get by p.jon) 'response') [%o ~])
   (pure:m `resp)
 ::
@@ -2197,7 +2207,7 @@
               ==
             ==
             ;label.cfg-label: Model
-            ;input#cfg-model(type "text", placeholder "claude-sonnet-4-20250514");
+            ;input#cfg-model(type "text", placeholder "claude-sonnet-4-6");
             ;label.cfg-label: Context window (tokens)
             ;input#cfg-window(type "number", placeholder "80000");
             ;label.cfg-label: Message cap (tokens)
@@ -2423,7 +2433,7 @@
     document.getElementById('cfg-backdrop').classList.remove('open');
   };
   document.getElementById('cfg-save').onclick = function() \{
-    var model = document.getElementById('cfg-model').value.trim() || 'claude-sonnet-4-20250514';
+    var model = document.getElementById('cfg-model').value.trim() || 'claude-sonnet-4-6';
     var proxy = document.getElementById('cfg-proxy').value.trim() || 'anthropic';
     var win = parseInt(document.getElementById('cfg-window').value) || 80000;
     var cap = parseInt(document.getElementById('cfg-msgcap').value) || 20000;
@@ -2493,15 +2503,18 @@
         buf = evts.pop();
         for (var i = 0; i < evts.length; i++) \{
           if (!evts[i].trim()) continue;
-          var data = '';
+          var ev = '';
+          var data = [];
           var lines = evts[i].split('\\n');
           for (var j = 0; j < lines.length; j++) \{
-            if (lines[j].indexOf('data: ') === 0) data += lines[j].slice(6);
+            if (lines[j].indexOf('event: ') === 0) ev = lines[j].slice(7);
+            else if (lines[j].indexOf('data: ') === 0) data.push(lines[j].slice(6));
           }
-          if (!data) continue;
+          if (ev !== 'old /chat.json' && ev !== 'upd /chat.json' && ev !== 'new /chat.json') continue;
+          if (!data.length) continue;
           try \{
-            var msgs = JSON.parse(data);
-            renderMessages(msgs);
+            var msgs = JSON.parse(data.join('\\n'));
+            if (Array.isArray(msgs)) renderMessages(msgs);
           } catch(e) \{}
         }
       }
@@ -2695,14 +2708,22 @@
           });
         });
       }
-      var sub = await reg.pushManager.getSubscription();
-      if (sub) return;
       var resp = await fetch('/grubbery/push/vapid-key');
       var vapidKey = await resp.text();
-      sub = await reg.pushManager.subscribe(\{
-        userVisibleOnly: true,
-        applicationServerKey: urlB64ToUint8(vapidKey)
-      });
+      var wantKey = urlB64ToUint8(vapidKey);
+      var sub = await reg.pushManager.getSubscription();
+      if (sub) \{
+        var haveKey = new Uint8Array(sub.options.applicationServerKey || []);
+        var same = haveKey.length === wantKey.length;
+        for (var i = 0; same && i < wantKey.length; i++) same = haveKey[i] === wantKey[i];
+        if (!same) \{ await sub.unsubscribe(); sub = null; }
+      }
+      if (!sub) \{
+        sub = await reg.pushManager.subscribe(\{
+          userVisibleOnly: true,
+          applicationServerKey: wantKey
+        });
+      }
       var p256dh = bufToB64Url(sub.getKey('p256dh'));
       var auth = bufToB64Url(sub.getKey('auth'));
       await fetch('/grubbery/push/subscribe', \{
@@ -3850,7 +3871,7 @@
       (fall (mole |.(!<(json (need-vase:tarball sang.cfg-view)))) *json)
     =/  model=@t
       =/  m  (get-str config 'model')
-      ?:(=('' m) 'claude-sonnet-4-20250514' m)
+      ?:(=('' m) 'claude-sonnet-4-6' m)
     =/  api-name=@t
       =/  p  (get-str config 'api-proxy')
       ?:(=('' p) 'anthropic' p)

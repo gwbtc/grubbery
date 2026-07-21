@@ -62,7 +62,7 @@
           [%fall %& [/ %'usage.json'] [[/ %json] default-usage]]
           [%fall %| /calls empty-dir:loader]
           [%over %& [/ %'page.html'] [[/ %html] (crip (en-xml:html usage-page))]]
-          [%over %& [/man %'readme.md'] [[/ %mime] man]]
+          [%over %& [/ %'README.md'] [[/ %mime] man]]
       ==
     ::
     ++  on-file
@@ -98,6 +98,9 @@
               ['from' s+caller]
           ==
         ;<  ~  bind:m  (make:io call-road |+[[[/ %json] call-content] ~])
+        ::  firm the call grub: the fiber self-cleans on completion, which
+        ::  tombs temp content before subscribers can peek the response
+        ;<  ~  bind:m  (gain:io call-road %.y)
         $
           ::  /calls/[id].json: read request, make HTTP call, write response
           ::
