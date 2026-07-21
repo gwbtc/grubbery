@@ -2336,8 +2336,8 @@
   ^-  tape
   """
   * \{ margin: 0; padding: 0; box-sizing: border-box; }
-  body \{ font-family: -apple-system, system-ui, sans-serif; background: #111; color: #eee; height: 100vh; }
-  #app \{ display: flex; flex-direction: column; height: 100vh; }
+  body \{ font-family: -apple-system, system-ui, sans-serif; background: #111; color: #eee; height: 100vh; height: 100dvh; }
+  #app \{ display: flex; flex-direction: column; height: 100vh; height: 100dvh; }
   #header \{ padding: 12px 16px; border-bottom: 1px solid #333; flex-shrink: 0; display: flex; justify-content: space-between; align-items: flex-start; }
   #header h1 \{ font-size: 20px; font-weight: 700; }
   #header > div \{ display: flex; gap: 6px; }
