@@ -21,7 +21,6 @@
       :~  (manifest:loader 0)
           [%fall %| /tiles empty-dir:loader]
           [%fall %& [/tiles %'landscape.json'] [[/ %json] landscape-tile]]
-          [%over %& [/ %'page.html'] [[/ %html] (crip (en-xml:html (tiles-page "")))]]
           [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
           [%fall %| /requests empty-dir:loader]
           [%over %& [/ %'README.md'] [[/ %mime] man]]
@@ -51,7 +50,7 @@
           ;<  ~  bind:m  (send-simple:srv eyre-id [[403 ~] `(as-octs:mimes:html 'Forbidden')])
           (pure:m ~)
         ;<  here=rail:tarball  bind:m  get-here-abs:io
-        =/  ball-id=tape  (path-to-ball-id path.here)
+        =/  ball-id=tape  (path-to-ball-id (snip path.here))
         =/  prefix=path  /grubbery/tiles
         =/  site=path  site:(parse-url:http-utils url.request.req)
         =/  suffix=path  (slag (lent prefix) site)
@@ -91,11 +90,8 @@
           ;<  ~  bind:m  (send-simple:srv eyre-id (mime-response:http-utils mime))
           (pure:m ~)
         ::  default → serve tiles page
-        ;<  =view:nexus  bind:m  (peek:io [%| 1 %& / %'page.html'] `[/ %mime])
-        ?.  ?=([%file *] view)
-          ;<  ~  bind:m  (send-simple:srv eyre-id [[500 ~] `(as-octs:mimes:html 'Page not ready')])
-          (pure:m ~)
-        =/  =mime  !<(mime (need-vase:tarball sang.view))
+        =/  page=@t  (crip (en-xml:html (tiles-page ball-id)))
+        =/  =mime  [/text/html (as-octs:mimes:html page)]
         ;<  ~  bind:m  (send-simple:srv eyre-id (mime-response:http-utils mime))
         (pure:m ~)
       ==
@@ -281,6 +277,7 @@
   .tile:hover .tile-desc \{ display: block; }
   .tile-actions \{ position: absolute; top: 16px; right: 20px; z-index: 4; display: none; gap: 4px; }
   .tile:hover .tile-actions \{ display: flex; }
+  @media (hover: none) \{ .tile-actions \{ display: flex; } }
   .tile-edit, .tile-del \{ font-size: 12px; padding: 6px 12px; border-radius: 8px; border: none; background: rgba(0,0,0,0.45); color: white; cursor: pointer; backdrop-filter: blur(8px); font-family: inherit; }
   .tile-edit:hover \{ background: rgba(0,0,0,0.65); }
   .tile-del:hover \{ background: rgba(0,0,0,0.65); }
@@ -314,8 +311,11 @@
   var editStatus = document.getElementById('edit-status');
   var editName = '';
   var isNew = false;
+  var tileData = \{};
 
   function renderTiles(tiles) \{
+    tileData = \{};
+    tiles.forEach(function(t) \{ tileData[t.name] = t; });
     var loading = document.getElementById('loading-tile');
     tilesDiv.innerHTML = '';
     if (!tiles.length) \{
@@ -396,17 +396,14 @@
   }
 
   function viewTile(el, name) \{
+    var t = tileData[name];
+    if (!t) return;
     editTitle.textContent = name;
     editStatus.textContent = '';
-    fetch(API + '/file/' + BALL + '/tiles/' + name + '?blot=/json')
-      .then(function(r) \{ return r.json(); })
-      .then(function(j) \{
-        editJson.value = JSON.stringify(j, null, 2);
-        editJson.disabled = true;
-        document.getElementById('edit-save').style.display = 'none';
-        editBack.classList.add('open');
-      })
-      .catch(function() \{});
+    editJson.value = JSON.stringify(t, null, 2);
+    editJson.disabled = true;
+    document.getElementById('edit-save').style.display = 'none';
+    editBack.classList.add('open');
   }
 
   function deleteTile(name) \{
