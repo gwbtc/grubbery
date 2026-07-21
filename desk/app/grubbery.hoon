@@ -5460,7 +5460,7 @@
           body: data.body || '',
           icon: data.icon || '/grubbery/ball/favicon.svg',
           tag: data.tag || 'default',
-          data: { url: data.url || '/grubbery/ball/' }
+          data: { url: data.url || '/grubbery/tiles' }
         };
         event.waitUntil(self.registration.showNotification(title, options));
       });
