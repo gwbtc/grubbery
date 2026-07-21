@@ -5,6 +5,7 @@
 ::  writes or pokes outside their own tree).
 ::
 /&  man  ../../man/claw/app/readme.md
+/&  icon  icon.svg
 =<  ^-  nexus:nexus
     |%
     ++  on-load
@@ -15,12 +16,13 @@
         :~  title+s+'Claw'
             info+s+'Agent container'
             color+s+'#8a4a4a'
-            image+s+''
+            image+s+'/grubbery/tiles/icon/claw'
             href+s+'/grubbery/ball/apps/claw.claw_app/page.html'
         ==
       %+  spin:loader  ball
       :~  (manifest:loader 0)
           [%over %& [/ %'tile.json'] [[/ %json] tile]]
+          [%over %& [/ %'icon.svg'] [[/ %mime] icon]]
           [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
           [%fall %| /apis empty-dir:loader]
           [%fall %| /apis/anthropic [`[`[/claw/api %anthropic] ~ %.n ~] ~]]
