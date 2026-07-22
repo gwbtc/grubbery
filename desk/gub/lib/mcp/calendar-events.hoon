@@ -1,10 +1,10 @@
 /<  tools  /lib/nex/tools.hoon
-/<  cal    /lib/cal.hoon
+/<  cal    /lib/calendar.hoon
 ::  cal-events: list a calendar instance's events
 ::
 ^-  tool:tools
 |%
-++  name  'cal_events'
+++  name  'calendar_events'
 ++  description
   'List all events in a calendar nexus instance: id, name, kind, start, zone.'
 ++  parameters
@@ -44,13 +44,20 @@
     %+  turn  `(list [id=@ta e=event:cal])`rows
     |=  [id=@ta e=event:cal]
     ^-  tape
-    ;:  weld
-      "{(trip id)}: {(trip name.meta.e)}"
-      " [{(trip name.kind.rule.e)}]"
-      " start {(scow %da start.rule.e)}"
-      ?~  zone.rule.e  ""
-      " ({(trip u.zone.rule.e)})"
-      "\0a"
-    ==
+    =/  m=meta:cal  ?-(-.e %timed meta.e, %allday meta.e, %rdate meta.e)
+    =/  detail=tape
+      ?-    -.e
+          %rdate
+        "rdate {(scow %ud month.e)}/{(scow %ud day.e)}"
+      ::
+          %timed
+        =/  k=tape  (trip name.kind.recur.e)
+        ?~  zone.e  k
+        "{k} ({(trip u.zone.e)})"
+      ::
+          %allday
+        "allday×{(scow %ud days.e)} {(trip name.kind.recur.e)}"
+      ==
+    "{(trip id)}: {(trip name.m)}  [{detail}]\0a"
   (pure:m [%text (crip out)])
 --

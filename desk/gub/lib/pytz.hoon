@@ -180,6 +180,11 @@
 :: timezone conversion core
 ::
 |%
+::  +zone-names: every zone in the dataset, sorted
+::
+++  zone-names
+  ^-  (list @t)
+  (sort ~(tap in ~(key by zones)) aor)
 ++  zn
   |_  name=@t
   ++  zone   (~(got by zones) name)

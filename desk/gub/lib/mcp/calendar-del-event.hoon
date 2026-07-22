@@ -3,9 +3,9 @@
 ::
 ^-  tool:tools
 |%
-++  name  'cal_del_event'
+++  name  'calendar_del_event'
 ++  description
-  'Delete an event from a calendar nexus instance by id. Use cal_events to find ids.'
+  'Delete an event from a calendar nexus instance by id. Use calendar_events to find ids.'
 ++  parameters
   ^-  (map @t parameter-def:tools)
   %-  ~(gas by *(map @t parameter-def:tools))

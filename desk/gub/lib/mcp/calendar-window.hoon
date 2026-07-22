@@ -1,10 +1,10 @@
 /<  tools  /lib/nex/tools.hoon
-/<  cal    /lib/cal.hoon
+/<  cal    /lib/calendar.hoon
 ::  cal-window: materialized occurrences in a time window
 ::
 ^-  tool:tools
 |%
-++  name  'cal_window'
+++  name  'calendar_window'
 ++  description
   ^~  %-  crip
   ;:  weld
@@ -41,7 +41,7 @@
   ?:  |(?=(~ from) ?=(~ to))
     (pure:m [%error 'Bad from/to; use urbit dates like ~2026.7.21'])
   ;<  cache-view=view:nexus  bind:m
-    (peek:io [%& %& pax %'order.cal-cache'] ~)
+    (peek:io [%& %& pax %'order.calendar-cache'] ~)
   ;<  cal-view=view:nexus  bind:m
     (peek:io [%& %& pax %'calendar.calendar'] ~)
   ?.  &(?=([%file *] cache-view) ?=([%file *] cal-view))
@@ -63,7 +63,9 @@
     |=  r=ref:cal
     ^-  tape
     =/  ev=(unit event:cal)  (~(get by events.u.c) eid.r)
-    =/  nm=tape  ?~(ev "?" (trip name.meta.u.ev))
+    =/  nm=tape
+      ?~  ev  "?"
+      (trip name:?-(-.u.ev %timed meta.u.ev, %allday meta.u.ev, %rdate meta.u.ev))
     ;:  weld
       (scow %da l.span.r)
       ?:  =(l.span.r r.span.r)  ""

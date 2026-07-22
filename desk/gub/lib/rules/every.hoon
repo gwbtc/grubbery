@@ -1,10 +1,10 @@
-::  every: fixed period from the rule's start. args: period=@dr.
-::  Use with zone=~ — "every 90 minutes" means 90 real minutes.
+::  every: fixed period from the anchor. args: period=@dr.
+::  Use frame %wall zone=~ — the phase is real time, not wall-clock.
 ::
 /<  rules  /lib/rules.hoon
 ^-  kind:rules
 |=  [args=* start=@da idx=@ud]
-^-  (unit [l=@da r=(unit @da)])
+^-  (unit @da)
 =/  period=@dr  ;;(@dr args)
 ?:  =(0 period)  ~
-`[(add start (mul idx period)) ~]
+`(add start (mul idx period))

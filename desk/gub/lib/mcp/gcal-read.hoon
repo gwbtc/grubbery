@@ -2,7 +2,7 @@
 ::  gcal-read: fetch an ICS feed and list events in a date window
 ::
 ::  Windowed VEVENT slice for AI translation into the ship calendar
-::  (cal_add_event). No RRULE expansion: recurring events are listed
+::  (calendar_add_event). No RRULE expansion: recurring events are listed
 ::  once at their DTSTART with a [recurs] marker — expand by hand or
 ::  skip. Times are raw ICS (UTC Z, TZID-local, or all-day dates).
 ::

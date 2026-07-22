@@ -1,32 +1,34 @@
 ::  rules: typed recurrence rules
 ::
-::  A rule is data referencing a kind by rail. Kinds live as files
-::  in the namespace (/lib/rules/<name>.hoon) — adding a recurrence
-::  pattern is adding a file, same as any code. A kind is a gate
-::  from [args start idx] to the local edges of occurrence idx:
+::  A rule is a clock: it ticks at moments. An event is a clock plus
+::  how long each tick lasts (extent), in what time-frame (frame),
+::  over what range (start..dom, except). Those four axes are
+::  orthogonal — the kind knows nothing of them.
 ::
-::    ~                the index doesn't exist (april 31st)
-::    `[l ~]           left edge only; the rule's end= decides the right
-::    `[l `r]          kind computes both edges (e.g. sunset to sunrise)
+::  A kind lives as a file in the namespace (/lib/rules/<name>.hoon)
+::  and is a pure point generator: [args start idx] -> the naive
+::  local left-moment of occurrence idx, or ~ if that index has no
+::  occurrence (april 31st, non-leap feb 29). start anchors idx 0.
+::  Occurrence n is closed-form in n — no iterating, no materialized
+::  schedules.
 ::
-::  Occurrence n is closed-form in n — no iterating forward, no
-::  materialized schedules. Skipping an occurrence is adding its
-::  index to except=; moving one is a skip plus a separate %once
-::  rule. Editing a rule's recurrence reshapes its index space —
-::  clear except= when you do.
-::
-::  +instance turns kind output into concrete UTC spans:
-::    ~[span]        the normal case
-::    ~[span span]   ambiguous wall-clock time (DST fall-back overlap)
-::    ~              dead index, in except=, past dom=, or a local
-::                   time erased by a DST spring-forward gap
+::  +instance dresses each tick into concrete UTC spans:
+::    extent decides the right edge — %instant (a point), %dur (a
+::      fixed real-time length), or %until (a wall-clock end time,
+::      rolling overnight if at/before the left edge).
+::    frame decides projection — %date is timezone-independent (the
+::      moment is a calendar day, UTC-anchored, never zone-shifted);
+::      %wall is a wall-clock instant realized through pytz (zone=~
+::      is UTC), which can yield two UTC spans in a DST fall-back
+::      overlap or none in a spring-forward gap.
 ::  Which realization to fire, and whether a past occurrence still
-::  fires, is entirely the caller's decision.
+::  fires, is the caller's decision.
 ::
-::  Kinds compute wall-clock time; zone=~ makes wall-clock and real
-::  time coincide, which is what absolute kinds (once, every) want.
-::  Zone names are pytz names ('America/New_York'); an unknown name
-::  crashes, so validate at write time.
+::  Skipping an occurrence adds its index to except=; moving one is a
+::  skip plus a separate %once event. Editing the recurrence reshapes
+::  the index space — clear except= when you do. Zone names are pytz
+::  names ('America/New_York'); an unknown name crashes — validate at
+::  write time.
 ::
 /<  pytz  /lib/pytz.hoon
 |%
@@ -34,82 +36,22 @@
 +$  ord   ?(%first %second %third %fourth %last)
 +$  span  [l=@da r=@da]
 ::
-::  what /lib/rules/<name>.hoon evaluates to
+::  a kind is a clock: idx -> a naive local moment, nothing else.
+::  start anchors idx 0. ~ = this index has no occurrence (april
+::  31st, non-leap feb 29). The event layer (lib/calendar) dresses
+::  each moment with a shape (timed/allday) and bounds.
 ::
-+$  kind  $-([args=* start=@da idx=@ud] (unit [l=@da r=(unit @da)]))
++$  kind  $-([args=* start=@da idx=@ud] (unit @da))
 ::
-::  the right edge of instances whose kind gives only a left edge:
-::  ~ = instants (r = l); %for = fixed duration in real time;
-::  %until = wall-clock time of day, rolling overnight if at/or
-::  before the left edge (9pm until 2am works)
-::
-+$  end
-  $@  ~
-  $%  [%for dur=@dr]
-      [%until at=@dr]
-  ==
-::
-+$  rule
-  $:  kind=rail:tarball               ::  e.g. [/lib/rules %weekly]
-      args=*                          ::  kind-specific, kind-validated
-      zone=(unit @t)                  ::  pytz zone name; ~ = UTC
-      start=@da                       ::  anchor of the index space
-      =end
-      dom=(unit @ud)     ::  index cap; ~ = unbounded
-      except=(set @ud)   ::  skipped indices; a moved occurrence is
-  ==                     ::  a skip plus a separate %once rule
-::  +instance: the UTC spans of occurrence idx. The caller resolves
-::  kind.rule from the namespace and passes the compiled gate.
-::
-++  instance
-  |=  [=rule =kind idx=@ud]
-  ^-  (list span)
-  ?:  &(?=(^ dom.rule) (gte idx u.dom.rule))  ~
-  ?:  (~(has in except.rule) idx)  ~
-  =/  got=(unit [l=@da r=(unit @da)])  (kind args.rule start.rule idx)
-  ?~  got  ~
-  %+  murn  (realize rule l.u.got)
-  |=  l=@da
-  ^-  (unit span)
-  =/  r=(unit @da)  (right rule l l.u.got r.u.got)
-  ?~  r  ~
-  ?:  (lth u.r l)  ~
-  `[l u.r]
-::  +right: UTC right edge for one UTC realization of the left edge
-::
-++  right
-  |=  [=rule l=@da local-l=@da kind-r=(unit @da)]
-  ^-  (unit @da)
-  ?^  kind-r  (first-after rule l u.kind-r)
-  ?~  end.rule  `l
-  ?-    -.end.rule
-      %for
-    `(add l dur.end.rule)
-  ::
-      %until
-    =/  loc=@da  (add (day-floor local-l) at.end.rule)
-    =?  loc  (lte loc local-l)  (add loc ~d1)
-    (first-after rule l loc)
-  ==
-::  +realize: all UTC instants of a wall-clock instant. UTC rules
-::  have exactly one; zoned rules get every valid conversion from
-::  pytz (none in a DST gap, two in an overlap).
+::  +realize: all UTC instants of a wall-clock instant. UTC (zone=~)
+::  has exactly one; zoned gets every valid pytz conversion (none in
+::  a DST gap, two in an overlap).
 ::
 ++  realize
-  |=  [=rule local=@da]
+  |=  [zone=(unit @t) local=@da]
   ^-  (list @da)
-  ?~  zone.rule  ~[local]
-  (~(tz-to-utc-list zn:pytz u.zone.rule) local)
-::  +first-after: earliest UTC realization of local at/after l
-::
-++  first-after
-  |=  [=rule l=@da local=@da]
-  ^-  (unit @da)
-  =/  cands=(list @da)  (realize rule local)
-  |-
-  ?~  cands  ~
-  ?:  (gte i.cands l)  `i.cands
-  $(cands t.cands)
+  ?~  zone  ~[local]
+  (~(tz-to-utc-list zn:pytz u.zone) local)
 ::  +wkd-num / +num-wkd: monday-zero weekday numbering
 ::
 ++  wkd-num

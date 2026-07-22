@@ -3,6 +3,6 @@
 /<  rules  /lib/rules.hoon
 ^-  kind:rules
 |=  [args=* start=@da idx=@ud]
-^-  (unit [l=@da r=(unit @da)])
+^-  (unit @da)
 =/  at=@dr  ;;(@dr args)
-`[(add (add (day-floor:rules start) (mul idx ~d1)) at) ~]
+`(add (add (day-floor:rules start) (mul idx ~d1)) at)

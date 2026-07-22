@@ -1,22 +1,40 @@
 ::  calendar: events over the rules library
 ::
 ::  /calendar.calendar   portable intent: config + events (poke CRUD)
-::  /order.cal-cache     derived index, reinflated on calendar news
-::  /main.sig            binds /grubbery/cal
+::  /order.calendar-cache     derived index, reinflated on calendar news
+::  /main.sig            binds /grubbery/calendar
 ::  /requests            window.json + events.json endpoints
 ::
-/<  cal    /lib/cal.hoon
+/<  cal    /lib/calendar.hoon
 /<  rules  /lib/rules.hoon
+/<  pytz   /lib/pytz.hoon
+/&  icon      calendar/icon.svg
+/&  cal-html  calendar/calendar.html
+/&  cal-css   calendar/calendar.css
+/&  cal-js    calendar/calendar.js
 =<  ^-  nexus:nexus
     |%
     ++  on-load
       |=  =ball:tarball
       ^-  bole:tarball
+      =/  tile=json
+        %-  pairs:enjs:format
+        :~  title+s+'Calendar'
+            info+s+'Events and schedules'
+            color+s+'#1e3a5f'
+            image+s+'/grubbery/tiles/icon/calendar'
+            href+s+'/grubbery/calendar'
+        ==
       %+  spin:loader  ball
       :~  (manifest:loader 0)
           [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
           [%fall %& [/ %'calendar.calendar'] [[/ %calendar] fresh-calendar:cal]]
-          [%fall %& [/ %'order.cal-cache'] [[/ %cal-cache] *cache:cal]]
+          [%fall %& [/ %'order.calendar-cache'] [[/ %calendar-cache] *cache:cal]]
+          [%over %& [/ %'tile.json'] [[/ %json] tile]]
+          [%over %& [/ %'icon.svg'] [[/ %mime] icon]]
+          [%over %& [/ %'calendar.html'] [[/ %mime] cal-html]]
+          [%over %& [/ %'calendar.css'] [[/ %mime] cal-css]]
+          [%over %& [/ %'calendar.js'] [[/ %mime] cal-js]]
           [%fall %| /requests empty-dir:loader]
       ==
     ::
@@ -30,7 +48,7 @@
           ::
           [~ %'main.sig']
         ;<  ~  bind:m  (rise-wait:io prod "%calendar main: failed")
-        ;<  ~  bind:m  (bind-http:io [~ /grubbery/cal])
+        ;<  ~  bind:m  (bind-http:io [~ /grubbery/calendar])
         (http-dispatch:io %cal)
           ::
           ::  /calendar.calendar: poke CRUD on events
@@ -48,19 +66,73 @@
           ?:  =('' id)  $
           ;<  ~  bind:m  (replace:io c(events (~(del by events.c) id)))
           $
+        ?:  =('skip-event' act)
+          =/  id=@ta  (crip (trip (gs jon 'id')))
+          =/  idx=(unit @ud)  (gn jon 'idx')
+          ?:  |(=('' id) ?=(~ idx))  $
+          =/  ev=(unit event:cal)  (~(get by events.c) id)
+          ?~  ev  $
+          =/  new=(unit event:cal)
+            ?-  -.u.ev
+              %rdate   ~                ::  rdate can't be skipped
+              %timed   `u.ev(except.bound (~(put in except.bound.u.ev) u.idx))
+              %allday  `u.ev(except.bound (~(put in except.bound.u.ev) u.idx))
+            ==
+          ?~  new  $
+          ;<  ~  bind:m  (replace:io c(events (~(put by events.c) id u.new)))
+          $
+        ?:  =('config' act)
+          =/  ti=@t  (gs jon 'title')
+          =/  zo=@t  (gs jon 'zone')
+          =/  hd=(unit @ud)  (gn jon 'horizon_days')
+          =.  title.c  ?:(=('' ti) title.c ti)
+          =.  zone.c  ?:(=('' zo) zone.c ?:(=('none' zo) ~ `zo))
+          =.  horizon.c  ?~(hd horizon.c (mul u.hd ~d1))
+          ;<  ~  bind:m  (replace:io c)
+          $
+        ?:  =('edit-event' act)
+          =/  id=@ta  (crip (trip (gs jon 'id')))
+          =/  old=(unit event:cal)  (~(get by events.c) id)
+          ?~  old  $
+          =/  ev=(unit event:cal)  (parse-event jon zone.c)
+          ?~  ev
+            ~&  >>>  "%calendar: bad edit-event"
+            $
+          ::  the shape is replaced but exceptions survive the edit
+          =/  merged=event:cal  (carry-except u.old u.ev)
+          ;<  new=event:cal  bind:m  (apply-until merged (gn jon 'until_ms'))
+          ;<  ~  bind:m  (replace:io c(events (~(put by events.c) id new)))
+          $
+        ?:  =('cap-event' act)
+          ::  end the series before index dom (this-and-following edits)
+          =/  id=@ta  (crip (trip (gs jon 'id')))
+          =/  cap=(unit @ud)  (gn jon 'dom')
+          ?:  |(=('' id) ?=(~ cap))  $
+          =/  old=(unit event:cal)  (~(get by events.c) id)
+          ?~  old  $
+          =/  new=(unit event:cal)
+            ?-  -.u.old
+              %rdate   ~
+              %timed   `u.old(dom.bound `u.cap)
+              %allday  `u.old(dom.bound `u.cap)
+            ==
+          ?~  new  $
+          ;<  ~  bind:m  (replace:io c(events (~(put by events.c) id u.new)))
+          $
         ?.  =('add-event' act)  $
-        =/  ev=(unit event:cal)  (parse-event jon)
+        =/  ev=(unit event:cal)  (parse-event jon zone.c)
         ?~  ev
           ~&  >>>  "%calendar: bad add-event"
           $
+        ;<  ev2=event:cal  bind:m  (apply-until u.ev (gn jon 'until_ms'))
         ;<  eny=@uvJ  bind:m  get-entropy:io
         =/  id=@ta  (scot %uv (end [3 8] eny))
-        ;<  ~  bind:m  (replace:io c(events (~(put by events.c) id u.ev)))
+        ;<  ~  bind:m  (replace:io c(events (~(put by events.c) id ev2)))
         $
           ::
-          ::  /order.cal-cache: reinflate on calendar news
+          ::  /order.calendar-cache: reinflate on calendar news
           ::
-          [~ %'order.cal-cache']
+          [~ %'order.calendar-cache']
         ;<  ~  bind:m  (rise-wait:io prod "%calendar cache: failed")
         =/  road  (cord-to-road:tarball './calendar.calendar')
         ;<  *  bind:m  (keep:io /cal road ~)
@@ -76,7 +148,14 @@
         =/  rails=(list rail:tarball)
           %~  tap  in
           %-  sy
-          (turn ~(tap by events.c) |=([@ta e=event:cal] kind.rule.e))
+          %+  murn  ~(tap by events.c)
+          |=  [@ta e=event:cal]
+          ^-  (unit rail:tarball)
+          ?-  -.e
+            %rdate   ~
+            %timed   `kind.recur.e
+            %allday  `kind.recur.e
+          ==
         ;<  kinds=(map rail:tarball kind:rules)  bind:m  (resolve-kinds rails)
         ;<  now=@da  bind:m  get-time:io
         =/  thru=@da  (add now horizon.c)
@@ -97,7 +176,7 @@
           ;<  ~  bind:m  (send-simple:srv eyre-id [[403 ~] `(as-octs:mimes:html 'Forbidden')])
           (pure:m ~)
         =/  [site=path args=quay:eyre]  (parse-url:http-utils url.request.req)
-        =/  suffix=path  (slag (lent `path`/grubbery/cal) site)
+        =/  suffix=path  (slag (lent `path`/grubbery/calendar) site)
         ?:  ?=([%'window.json' ~] suffix)
           =/  from=(unit @da)  (ms-arg args 'from')
           =/  to=(unit @da)    (ms-arg args 'to')
@@ -105,18 +184,19 @@
             ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'need from/to (unix ms)')])
             (pure:m ~)
           ;<  cache-view=view:nexus  bind:m
-            (peek:io (cord-to-road:tarball '../order.cal-cache') ~)
+            (peek:io (cord-to-road:tarball '../order.calendar-cache') ~)
           ;<  cal-view=view:nexus  bind:m
             (peek:io (cord-to-road:tarball '../calendar.calendar') ~)
-          =/  o=order:cal
-            ?.  ?=([%file *] cache-view)  ~
-            order:(fall (mole |.(!<(cache:cal (need-vase:tarball sang.cache-view)))) *cache:cal)
+          =/  ca=cache:cal
+            ?.  ?=([%file *] cache-view)  *cache:cal
+            (fall (mole |.(!<(cache:cal (need-vase:tarball sang.cache-view)))) *cache:cal)
           =/  c=calendar:cal
             ?.  ?=([%file *] cal-view)  fresh-calendar:cal
             %+  fall
               (mole |.(!<(calendar:cal (need-vase:tarball sang.cal-view))))
             fresh-calendar:cal
-          =/  refs=(list ref:cal)  ~(tap in (window:cal o u.from u.to))
+          =/  refs=(list ref:cal)
+            ~(tap in (window:cal order.ca u.from u.to))
           =/  rows=json
             :-  %a
             %+  murn  refs
@@ -128,13 +208,31 @@
             %-  pairs:enjs:format
             :~  ['id' s+eid.r]
                 ['idx' (numb:enjs:format idx.r)]
-                ['name' s+name.meta.u.ev]
-                ['note' s+note.meta.u.ev]
-                ['color' s+color.meta.u.ev]
+                ['name' s+name:(get-meta u.ev)]
+                ['note' s+note:(get-meta u.ev)]
+                ['color' s+color:(get-meta u.ev)]
+                ['cat' s+-.u.ev]
+                ['kind' s+(ev-kind u.ev)]
+                ['all' b+(all-day:cal u.ev)]
                 ['l' (numb:enjs:format (da-to-ms l.span.r))]
                 ['r' (numb:enjs:format (da-to-ms r.span.r))]
             ==
           (send-json eyre-id rows)
+        ::  /event.json?id=: full rule breakdown for the edit form
+        ?:  ?=([%'event.json' ~] suffix)
+          =/  id=@ta  (crip (trip (fall (get-key:kv:html-utils 'id' args) '')))
+          ;<  cal-view=view:nexus  bind:m
+            (peek:io (cord-to-road:tarball '../calendar.calendar') ~)
+          =/  c=calendar:cal
+            ?.  ?=([%file *] cal-view)  fresh-calendar:cal
+            %+  fall
+              (mole |.(!<(calendar:cal (need-vase:tarball sang.cal-view))))
+            fresh-calendar:cal
+          =/  ev=(unit event:cal)  (~(get by events.c) id)
+          ?~  ev
+            ;<  ~  bind:m  (send-simple:srv eyre-id [[404 ~] `(as-octs:mimes:html 'No such event')])
+            (pure:m ~)
+          (send-json eyre-id (event-json:cal id u.ev))
         ?:  ?=([%'events.json' ~] suffix)
           ;<  cal-view=view:nexus  bind:m
             (peek:io (cord-to-road:tarball '../calendar.calendar') ~)
@@ -150,328 +248,78 @@
             ^-  json
             %-  pairs:enjs:format
             :~  ['id' s+id]
-                ['name' s+name.meta.e]
-                ['color' s+color.meta.e]
-                ['kind' s+name.kind.rule.e]
+                ['name' s+name:(get-meta e)]
+                ['color' s+color:(get-meta e)]
+                ['cat' s+-.e]
             ==
           (send-json eyre-id rows)
-        ::  default: serve the calendar page
-        ;<  here=rail:tarball  bind:m  get-here-abs:io
-        =/  ball=tape
-          %-  zing
-          %+  join  "/"
-          ^-  (list tape)
-          (turn (snip path.here) trip)
-        =/  page=@t  (crip (en-xml:html (cal-page ball)))
-        ;<  ~  bind:m
-          (send-simple:srv eyre-id [[200 ['content-type' 'text/html'] ~] `(as-octs:mimes:html page)])
+        ::  /zones.json: every pytz zone name, for dropdowns
+        ?:  ?=([%'zones.json' ~] suffix)
+          %+  send-json  eyre-id
+          [%a (turn zone-names:pytz |=(n=@t `json`s+n))]
+        ::  /config.json: title, display zone, poke target for the client
+        ?:  ?=([%'config.json' ~] suffix)
+          ;<  here=rail:tarball  bind:m  get-here-abs:io
+          =/  ball=tape
+            %-  zing
+            %+  join  "/"
+            ^-  (list tape)
+            (turn (snip path.here) trip)
+          ;<  zone-view=view:nexus  bind:m
+            (peek:io (cord-to-road:tarball '../calendar.calendar') ~)
+          =/  c=calendar:cal
+            ?.  ?=([%file *] zone-view)  fresh-calendar:cal
+            %+  fall
+              (mole |.(!<(calendar:cal (need-vase:tarball sang.zone-view))))
+            fresh-calendar:cal
+          =/  =json
+            %-  pairs:enjs:format
+            :~  ['title' s+title.c]
+                ['zone' ?~(zone.c ~ s+u.zone.c)]
+                ['ball' s+(crip ball)]
+            ==
+          (send-json eyre-id json)
+        ::  static files; the shell is the default
+        =/  filename=@ta
+          ?~  suffix  'calendar.html'
+          i.suffix
+        ;<  file-view=view:nexus  bind:m
+          (peek:io (nex-road:io rail [%& / filename]) `[/ %mime])
+        ?.  ?=([%file *] file-view)
+          ;<  ~  bind:m  (send-simple:srv eyre-id [[404 ~] `(as-octs:mimes:html 'Not found')])
+          (pure:m ~)
+        =/  =mime  !<(mime (need-vase:tarball sang.file-view))
+        ;<  ~  bind:m  (send-simple:srv eyre-id (mime-response:http-utils mime))
         (pure:m ~)
       ==
     --
 |%
 ++  srv  ~(. http-res:io [%| 1 %& ~ %'main.sig'])
 ::
-++  cal-page
-  |=  ball=tape
-  ^-  manx
-  ;html
-    ;head
-      ;title: calendar
-      ;meta(charset "utf-8");
-      ;meta(name "viewport", content "width=device-width, initial-scale=1");
-      ;style
-        ;+  ;/  style-text
-      ==
-    ==
-    ;body
-      ;div#app
-        ;div#header
-          ;div#nav
-            ;button#prev.nav-btn: <
-            ;button#today.nav-btn: today
-            ;button#next.nav-btn: >
-          ==
-          ;span#month-label;
-          ;button#add-btn.nav-btn: + event
-        ==
-        ;div#dow-row;
-        ;div#grid;
-        ;div#modal-back
-          ;div#modal
-            ;div#modal-header
-              ;span: New event
-              ;button#modal-close.nav-btn: close
-            ==
-            ;label.f: name
-            ;input#f-name(type "text");
-            ;label.f: kind
-            ;select#f-kind
-              ;option(value "once"): once
-              ;option(value "daily"): daily
-              ;option(value "weekly", selected ""): weekly
-              ;option(value "monthly"): monthly
-              ;option(value "monthly-nth"): monthly-nth
-              ;option(value "yearly"): yearly
-              ;option(value "every"): every
-            ==
-            ;label.f: start date
-            ;input#f-date(type "date");
-            ;label.f.tf: time
-            ;input#f-time(type "time", value "09:00");
-            ;label.f.wf: weekdays
-            ;div#f-days.wf;
-            ;label.f.mf: day of month
-            ;input#f-day(type "number", min "1", max "31", value "1");
-            ;label.f.nf: ordinal
-            ;select#f-ord
-              ;option(value "first"): first
-              ;option(value "second"): second
-              ;option(value "third"): third
-              ;option(value "fourth"): fourth
-              ;option(value "last"): last
-            ==
-            ;label.f.nf: weekday
-            ;select#f-dow;
-            ;label.f.yf: month
-            ;input#f-month(type "number", min "1", max "12", value "1");
-            ;label.f.ef: period (minutes)
-            ;input#f-period(type "number", min "1", value "60");
-            ;label.f: duration (minutes, 0 = instant)
-            ;input#f-dur(type "number", min "0", value "60");
-            ;label.f: timezone
-            ;input#f-zone(type "text");
-            ;label.f: color
-            ;input#f-color(type "color", value "#4a6a8a");
-            ;div#modal-foot
-              ;span#f-status;
-              ;button#f-save.nav-btn: save
-            ==
-          ==
-        ==
-      ==
-      ;script
-        ;+  ;/  (script-text ball)
-      ==
-    ==
+++  get-meta
+  |=  e=event:cal
+  ^-  meta:cal
+  ?-(-.e %timed meta.e, %allday meta.e, %rdate meta.e)
+::  +ev-kind: the recurrence kind name, or 'rdate'
+::
+++  ev-kind
+  |=  e=event:cal
+  ^-  @t
+  ?-(-.e %rdate 'rdate', %timed name.kind.recur.e, %allday name.kind.recur.e)
+::  +carry-except: preserve the old event's skipped indices onto the
+::  freshly-parsed replacement (only where both have a bound)
+::
+++  carry-except
+  |=  [old=event:cal new=event:cal]
+  ^-  event:cal
+  =/  ex=(set @ud)
+    ?-(-.old %rdate ~, %timed except.bound.old, %allday except.bound.old)
+  ?~  ex  new
+  ?-  -.new
+    %rdate   new
+    %timed   new(except.bound ex)
+    %allday  new(except.bound ex)
   ==
-::
-++  style-text
-  ^-  tape
-  """
-  * \{ margin: 0; padding: 0; box-sizing: border-box; }
-  body \{ font-family: -apple-system, system-ui, sans-serif; background: #111; color: #eee; }
-  #app \{ max-width: 1100px; margin: 0 auto; padding: 16px; display: flex; flex-direction: column; height: 100vh; height: 100dvh; }
-  #header \{ display: flex; align-items: center; gap: 12px; padding-bottom: 12px; }
-  #month-label \{ font-size: 18px; font-weight: 700; flex: 1; }
-  #nav \{ display: flex; gap: 4px; }
-  .nav-btn \{ font-size: 13px; padding: 6px 12px; border-radius: 6px; border: 1px solid #333; background: #1a1a1a; color: #ccc; cursor: pointer; }
-  .nav-btn:hover \{ border-color: #555; color: #fff; }
-  #dow-row \{ display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; padding-bottom: 4px; }
-  .dow \{ font-size: 11px; color: #666; text-align: center; text-transform: uppercase; }
-  #grid \{ display: grid; grid-template-columns: repeat(7, 1fr); grid-auto-rows: 1fr; gap: 4px; flex: 1; min-height: 0; }
-  .cell \{ background: #181818; border: 1px solid #222; border-radius: 6px; padding: 4px; overflow: hidden; display: flex; flex-direction: column; gap: 2px; min-height: 0; }
-  .cell.other \{ opacity: 0.35; }
-  .cell.today \{ border-color: #2563eb; }
-  .dnum \{ font-size: 11px; color: #888; }
-  .chip \{ font-size: 11px; padding: 2px 6px; border-radius: 4px; color: #fff; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex-shrink: 0; }
-  .chip:hover \{ filter: brightness(1.25); }
-  #modal-back \{ display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 100; }
-  #modal-back.open \{ display: flex; align-items: center; justify-content: center; }
-  #modal \{ background: #1a1a1a; border: 1px solid #333; border-radius: 10px; width: 92%; max-width: 380px; padding: 20px; max-height: 90vh; overflow-y: auto; }
-  #modal-header \{ display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
-  #modal-header span \{ font-size: 14px; font-weight: 600; }
-  label.f \{ display: block; font-size: 11px; color: #888; margin: 10px 0 3px; }
-  #modal input, #modal select \{ width: 100%; padding: 7px 9px; border-radius: 6px; border: 1px solid #333; background: #111; color: #eee; font-size: 13px; outline: none; }
-  #modal input:focus, #modal select:focus \{ border-color: #2563eb; }
-  #f-days \{ display: flex; gap: 4px; flex-wrap: wrap; }
-  .day-tog \{ font-size: 11px; padding: 5px 8px; border-radius: 5px; border: 1px solid #333; background: #111; color: #888; cursor: pointer; user-select: none; }
-  .day-tog.on \{ background: #2563eb; border-color: #2563eb; color: #fff; }
-  #modal-foot \{ display: flex; justify-content: space-between; align-items: center; margin-top: 16px; }
-  #f-status \{ font-size: 12px; color: #f87171; }
-  @media (max-width: 600px) \{
-    #app \{ padding: 8px; }
-    .chip \{ font-size: 9px; padding: 1px 4px; }
-    .dnum \{ font-size: 10px; }
-  }
-  """
-::
-++  script-text
-  |=  ball=tape
-  ^-  tape
-  %+  weld
-    "var API='/grubbery/api';var BALL='{ball}';var CAL='/grubbery/cal';\0a"
-  """
-  var cur = new Date(); cur.setDate(1); cur.setHours(0,0,0,0);
-  var grid = document.getElementById('grid');
-  var label = document.getElementById('month-label');
-  var WD = ['mon','tue','wed','thu','fri','sat','sun'];
-  var MN = ['January','February','March','April','May','June','July','August','September','October','November','December'];
-
-  document.getElementById('dow-row').innerHTML =
-    WD.map(function(d) \{ return '<div class="dow">' + d + '</div>'; }).join('');
-
-  function gridRange() \{
-    var s = new Date(cur);
-    s.setDate(1 - ((s.getDay() + 6) % 7));
-    var e = new Date(s);
-    e.setDate(e.getDate() + 42);
-    return [s, e];
-  }
-
-  function dayKey(d) \{
-    return d.getFullYear() + '-' + d.getMonth() + '-' + d.getDate();
-  }
-
-  function load() \{
-    var r = gridRange();
-    label.textContent = MN[cur.getMonth()] + ' ' + cur.getFullYear();
-    fetch(CAL + '/window.json?from=' + r[0].getTime() + '&to=' + r[1].getTime())
-      .then(function(x) \{ return x.json(); })
-      .then(render)
-      .catch(function() \{ render([]); });
-  }
-
-  function render(rows) \{
-    var byDay = \{};
-    rows.forEach(function(ev) \{
-      var d = new Date(ev.l);
-      var k = dayKey(d);
-      (byDay[k] = byDay[k] || []).push(ev);
-    });
-    var r = gridRange();
-    var today = dayKey(new Date());
-    grid.innerHTML = '';
-    var d = new Date(r[0]);
-    for (var i = 0; i < 42; i++) \{
-      var cell = document.createElement('div');
-      cell.className = 'cell' + (d.getMonth() !== cur.getMonth() ? ' other' : '') +
-        (dayKey(d) === today ? ' today' : '');
-      var num = document.createElement('div');
-      num.className = 'dnum';
-      num.textContent = d.getDate();
-      cell.appendChild(num);
-      var evs = (byDay[dayKey(d)] || []).sort(function(a, b) \{ return a.l - b.l; });
-      evs.forEach(function(ev) \{
-        var chip = document.createElement('div');
-        chip.className = 'chip';
-        chip.style.background = ev.color || '#4a6a8a';
-        var t = new Date(ev.l);
-        var hh = ('0' + t.getHours()).slice(-2) + ':' + ('0' + t.getMinutes()).slice(-2);
-        chip.textContent = hh + ' ' + ev.name;
-        chip.title = ev.name + (ev.note ? ' — ' + ev.note : '');
-        chip.onclick = function() \{
-          if (!confirm('Delete "' + ev.name + '" (whole series)?')) return;
-          fetch(API + '/poke/' + BALL + '/calendar.calendar?blot=/json', \{
-            method: 'POST',
-            headers: \{'Content-Type': 'application/json'},
-            body: JSON.stringify(\{action: 'del-event', id: ev.id})
-          }).then(function() \{ setTimeout(load, 400); });
-        };
-        cell.appendChild(chip);
-      });
-      grid.appendChild(cell);
-      d.setDate(d.getDate() + 1);
-    }
-  }
-
-  document.getElementById('prev').onclick = function() \{ cur.setMonth(cur.getMonth() - 1); load(); };
-  document.getElementById('next').onclick = function() \{ cur.setMonth(cur.getMonth() + 1); load(); };
-  document.getElementById('today').onclick = function() \{ cur = new Date(); cur.setDate(1); cur.setHours(0,0,0,0); load(); };
-
-  // modal
-  var back = document.getElementById('modal-back');
-  var kindSel = document.getElementById('f-kind');
-  var dowSel = document.getElementById('f-dow');
-  var daysDiv = document.getElementById('f-days');
-  WD.forEach(function(d) \{
-    var o = document.createElement('option');
-    o.value = d; o.textContent = d;
-    dowSel.appendChild(o);
-    var t = document.createElement('div');
-    t.className = 'day-tog';
-    t.textContent = d;
-    t.dataset.d = d;
-    t.onclick = function() \{ t.classList.toggle('on'); };
-    daysDiv.appendChild(t);
-  });
-  document.getElementById('f-zone').value =
-    (Intl.DateTimeFormat().resolvedOptions().timeZone || '');
-
-  function syncFields() \{
-    var k = kindSel.value;
-    var show = \{
-      tf: k !== 'once' && k !== 'every',
-      wf: k === 'weekly',
-      mf: k === 'monthly' || k === 'yearly',
-      nf: k === 'monthly-nth',
-      yf: k === 'yearly',
-      ef: k === 'every'
-    };
-    ['tf','wf','mf','nf','yf','ef'].forEach(function(c) \{
-      document.querySelectorAll('.' + c).forEach(function(el) \{
-        el.style.display = show[c] ? '' : 'none';
-      });
-    });
-  }
-  kindSel.onchange = syncFields;
-
-  document.getElementById('add-btn').onclick = function() \{
-    document.getElementById('f-date').value = new Date().toISOString().slice(0, 10);
-    syncFields();
-    back.classList.add('open');
-  };
-  document.getElementById('modal-close').onclick = function() \{ back.classList.remove('open'); };
-  back.onclick = function(e) \{ if (e.target === back) back.classList.remove('open'); };
-
-  document.getElementById('f-save').onclick = function() \{
-    var st = document.getElementById('f-status');
-    var name = document.getElementById('f-name').value.trim();
-    var dv = document.getElementById('f-date').value;
-    if (!name || !dv) \{ st.textContent = 'name and date required'; return; }
-    var k = kindSel.value;
-    var p = dv.split('-');
-    var tv = (document.getElementById('f-time').value || '00:00').split(':');
-    var startMs;
-    if (k === 'once' || k === 'every') \{
-      startMs = Date.UTC(+p[0], +p[1] - 1, +p[2], +tv[0], +tv[1]);
-    } else \{
-      startMs = Date.UTC(+p[0], +p[1] - 1, +p[2]);
-    }
-    var body = \{
-      action: 'add-event',
-      name: name,
-      kind: k,
-      start_ms: startMs,
-      color: document.getElementById('f-color').value,
-      note: ''
-    };
-    var zone = document.getElementById('f-zone').value.trim();
-    if (zone) body.zone = zone;
-    var dur = +document.getElementById('f-dur').value;
-    if (dur > 0) body.dur_min = dur;
-    if (k !== 'once' && k !== 'every') body.at_min = (+tv[0]) * 60 + (+tv[1]);
-    if (k === 'weekly') \{
-      var days = [].slice.call(daysDiv.querySelectorAll('.on')).map(function(t) \{ return t.dataset.d; });
-      if (!days.length) \{ st.textContent = 'pick weekdays'; return; }
-      body.days = days;
-    }
-    if (k === 'monthly') body.day = +document.getElementById('f-day').value;
-    if (k === 'monthly-nth') \{ body.ord = document.getElementById('f-ord').value; body.day = dowSel.value; }
-    if (k === 'yearly') \{ body.month = +document.getElementById('f-month').value; body.day = +document.getElementById('f-day').value; }
-    if (k === 'every') body.period_min = +document.getElementById('f-period').value || 60;
-    fetch(API + '/poke/' + BALL + '/calendar.calendar?blot=/json', \{
-      method: 'POST',
-      headers: \{'Content-Type': 'application/json'},
-      body: JSON.stringify(body)
-    }).then(function(r) \{
-      if (!r.ok) \{ st.textContent = 'save failed'; return; }
-      back.classList.remove('open');
-      setTimeout(load, 400);
-    });
-  };
-
-  load();
-  """
 ::
 ++  gs
   |=  [jon=json k=@t]
@@ -522,30 +370,60 @@
   =/  got=(each kind:rules tang)  (mule |.(!<(kind:rules u.code)))
   ?:  ?=(%| -.got)  $(rails t.rails)
   $(rails t.rails, out (~(put by out) i.rails p.got))
-::  +parse-event: json -> event. kind-specific args are built here;
-::  eventually kinds should export their own codecs.
+::  +apply-until: compile an until-date into dom by scanning the
+::  rule's instances. Explicit count (dom already set) wins; sugar
+::  only — the stored rule never knows about the date.
 ::
-++  parse-event
-  |=  jon=json
-  ^-  (unit event:cal)
-  =/  kind=@t  (gs jon 'kind')
-  =/  name=@t  (gs jon 'name')
-  ?:  |(=('' kind) =('' name))  ~
-  =/  =meta:cal
-    :*  name
-        (gs jon 'note')
-        =/(c (gs jon 'color') ?:(=('' c) '#4a6a8a' c))
+++  apply-until
+  ::  compile an until-date into the index cap (dom) by walking the
+  ::  kind's moments. Explicit count wins; only for shapes with a
+  ::  recur (timed/allday). Sugar — the stored event keeps only dom.
+  ::
+  |=  [e=event:cal until=(unit @ud)]
+  =/  m  (fiber:fiber:nexus ,event:cal)
+  ^-  form:m
+  ?~  until  (pure:m e)
+  =/  rd=(unit [=recur:cal dom=(unit @ud)])
+    ?-  -.e
+      %rdate   ~
+      %timed   `[recur.e dom.bound.e]
+      %allday  `[recur.e dom.bound.e]
     ==
+  ?~  rd  (pure:m e)
+  ?.  ?=(~ dom.u.rd)  (pure:m e)  ::  explicit count wins
+  =/  =recur:cal  recur.u.rd
+  =/  lim=@da  (ms-to-da u.until)
+  =/  kr=rail:tarball  kind.recur
+  ;<  code=(unit vase)  bind:m
+    (get-code:io &+&+[(weld /code path.kr) name.kr])
+  ?~  code  (pure:m e)
+  =/  kg=(each kind:rules tang)  (mule |.(!<(kind:rules u.code)))
+  ?:  ?=(%| -.kg)  (pure:m e)
+  =/  cap=@ud
+    =/  idx=@ud  0
+    =/  dead=@ud  0
+    |-  ^-  @ud
+    ?:  |((gth dead 400) (gth idx 10.000))  idx
+    =/  moment=(unit @da)
+      (fall (mole |.((p.kg args.recur start.recur idx))) ~)
+    ?~  moment  $(idx +(idx), dead +(dead))
+    ?:  (gth u.moment lim)  idx
+    $(idx +(idx), dead 0)
+  %-  pure:m
+  ?-  -.e
+    %rdate   e
+    %timed   e(dom.bound `cap)
+    %allday  e(dom.bound `cap)
+  ==
+::  +parse-recur: json -> a shared clock [kind args start].
+::
+++  parse-recur
+  |=  jon=json
+  ^-  (unit recur:cal)
+  =/  kind=@t  (gs jon 'kind')
+  ?:  =('' kind)  ~
   =/  start=(unit @da)  (bind (gn jon 'start_ms') ms-to-da)
   ?~  start  ~
-  =/  zone=(unit @t)
-    =/  z=@t  (gs jon 'zone')
-    ?:(=('' z) ~ `z)
-  =/  =end:rules
-    =/  dur=(unit @ud)  (gn jon 'dur_min')
-    ?~  dur  ~
-    ?:  =(0 u.dur)  ~
-    [%for (mul u.dur ~m1)]
   =/  at=@dr  (mul (fall (gn jon 'at_min') 0) ~m1)
   =/  args=(unit *)
     ?:  =('once' kind)   `~
@@ -577,14 +455,45 @@
       `[u.mo u.dy at]
     ~
   ?~  args  ~
-  =/  =rule:rules
-    :*  [/lib/rules (slav %tas kind)]
-        u.args
-        zone
-        u.start
-        end
-        ~
-        ~
+  `[[/lib/rules (slav %tas kind)] u.args u.start]
+::  +parse-event: json -> one of the three event shapes. dz is the
+::  calendar's default zone for timed events with none named.
+::
+++  parse-event
+  |=  [jon=json dz=(unit @t)]
+  ^-  (unit event:cal)
+  =/  cat=@t  (gs jon 'cat')
+  =/  =meta:cal
+    :*  (gs jon 'name')
+        (gs jon 'note')
+        =/(c (gs jon 'color') ?:(=('' c) '#4a6a8a' c))
     ==
-  `[rule meta]
+  ?:  =('' name.meta)  ~
+  ::  rdate: a bare recurring date, no clock
+  ?:  =('rdate' cat)
+    =/  mo=(unit @ud)  (gn jon 'month')
+    =/  dy=(unit @ud)  (gn jon 'day')
+    ?:  |(?=(~ mo) ?=(~ dy))  ~
+    `[%rdate u.mo u.dy meta]
+  ::  timed / allday both wrap a recur
+  =/  rec=(unit recur:cal)  (parse-recur jon)
+  ?~  rec  ~
+  =/  dom=(unit @ud)
+    =/  n=(unit @ud)  (gn jon 'count')
+    ?~  n  ~
+    ?:(=(0 u.n) ~ n)
+  =/  =bound:cal  [dom ~]
+  ?:  =('allday' cat)
+    =/  days=@ud  (max 1 (fall (gn jon 'span_days') 1))
+    `[%allday u.rec days bound meta]
+  ::  timed
+  =/  zone=(unit @t)
+    =/  z=@t  (gs jon 'zone')
+    ?:  =('none' z)  ~
+    ?:(=('' z) dz `z)
+  =/  =fin:cal
+    =/  f=@t  (gs jon 'fin')
+    ?:  =('to' f)  [%to (fall (bind (gn jon 'end_ms') ms-to-da) *@da)]
+    [%dur (mul (fall (gn jon 'dur_min') 0) ~m1)]
+  `[%timed u.rec zone fin bound meta]
 --

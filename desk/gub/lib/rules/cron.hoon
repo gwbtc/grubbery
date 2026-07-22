@@ -15,7 +15,7 @@
 /<  rules  /lib/rules.hoon
 ^-  kind:rules
 |=  [args=* start=@da idx=@ud]
-^-  (unit [l=@da r=(unit @da)])
+^-  (unit @da)
 =/  a
   ;;  $:  mins=(list @ud)
           hrs=(list @ud)
@@ -57,4 +57,4 @@
   $(day (add day ~d1), seen +(seen), gap 0)
 =/  h=@ud  (snag (div slot (lent mins-l)) hrs-l)
 =/  m=@ud  (snag (mod slot (lent mins-l)) mins-l)
-`[:(add day (mul h ~h1) (mul m ~m1)) ~]
+`:(add day (mul h ~h1) (mul m ~m1))
