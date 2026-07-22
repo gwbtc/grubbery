@@ -1043,7 +1043,6 @@
           (fall (rush p.u.j dem) 0)
         =/  args
           [(gl 'mins') (gl 'hrs') (gl 'doms') (gl 'mons') (gl 'dows')]
-        =/  r=rule:rules  [[/lib/rules %cron] args zone start ~ ~ ~]
         ;<  code=(unit vase)  bind:m  (get-code:io &+&+[/code/lib/rules %cron])
         ?~  code
           ~&  >>>  "%claw schedule: /lib/rules/cron not built"
@@ -1052,19 +1051,23 @@
         ?:  ?=(%| -.kind-r)
           ~&  >>>  "%claw schedule: kind failed to load"
           stay:m
-        ::  advance the cursor past dead and already-past indices
+        ::  advance the cursor past dead and already-past indices.
+        ::  the cron kind gives a naive moment; realize it through the
+        ::  zone to the UTC fire time (first candidate; ~ = DST gap).
         =/  idx=@ud  stored
         =/  fuel=@ud  10.000
         |-
         ?:  =(0 fuel)
           ~&  >>>  "%claw schedule: no future occurrence found"
           stay:m
-        =/  spans=(list span:rules)
-          (fall (mole |.((instance:rules r p.kind-r idx))) ~)
-        ?~  spans
+        =/  moment=(unit @da)
+          (fall (mole |.((p.kind-r args start idx))) ~)
+        ?~  moment
           ~&  >>>  "%claw schedule: rule exhausted or invalid"
           stay:m
-        =/  when=@da  l.i.spans
+        =/  utcs=(list @da)  (realize:rules zone u.moment)
+        ?~  utcs  $(idx +(idx), fuel (dec fuel))  ::  DST gap, skip
+        =/  when=@da  i.utcs
         ;<  now=@da  bind:m  get-time:io
         ?:  (lte when now)
           $(idx +(idx), fuel (dec fuel))
@@ -4300,28 +4303,26 @@
     =/  dows=(list @ud)  (fld 4 0 6)
     ?:  |(=(~ mins) =(~ hrs) =(~ doms) =(~ mons) =(~ dows))
       (pure:m [%error (crip "Invalid cron expression: {(trip u.schedule)}")])
-    ::  build the rule and find the first future fire through the
-    ::  actual kind — validates fields and zone in one shot
+    ::  find the first future fire through the actual cron kind —
+    ::  validates fields + zone in one shot. kind gives a naive
+    ::  moment; realize through the zone to the UTC fire time.
     ;<  now=@da  bind:m  get-time:io
-    =/  r=rule:rules
-      [[/lib/rules %cron] [mins hrs doms mons dows] zone now ~ ~ ~]
-    ~&  >  "%claw schedule_add: parsed, resolving /lib/rules/cron"
+    =/  args  [mins hrs doms mons dows]
     ;<  code=(unit vase)  bind:m  (get-code:io &+&+[/code/lib/rules %cron])
-    ~&  >  ["%claw schedule_add: code resolved" ?=(^ code)]
     ?~  code
       (pure:m [%error '/lib/rules/cron is not built'])
     =/  kind-r=(each kind:rules tang)  (mule |.(!<(kind:rules u.code)))
-    ~&  >  ["%claw schedule_add: kind extracted" -.kind-r]
     ?:  ?=(%| -.kind-r)
       (pure:m [%error 'cron kind failed to load'])
     =/  nxt=(unit [idx=@ud when=@da])
       =/  idx=@ud  0
       |-
       ?:  (gth idx 2.000)  ~
-      =/  spans=(list span:rules)
-        (fall (mole |.((instance:rules r p.kind-r idx))) ~)
-      ?~  spans  ~
-      ?:  (gth l.i.spans now)  `[idx l.i.spans]
+      =/  moment=(unit @da)
+        (fall (mole |.((p.kind-r args now idx))) ~)
+      ?~  moment  ~
+      =/  utcs=(list @da)  (realize:rules zone u.moment)
+      ?:  ?&(?=(^ utcs) (gth i.utcs now))  `[idx i.utcs]
       $(idx +(idx))
     ?~  nxt
       (pure:m [%error 'Invalid schedule or timezone'])
