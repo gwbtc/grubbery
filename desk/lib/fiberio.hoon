@@ -1106,6 +1106,14 @@
     (mole |.(;;([@t @t @t @t] noun.u.raw)))
   ?~  req  $
   ;<  [status=@ud rbody=@t]  bind:m  (handler u.req)
+  ::  skip the reply if the client has already disconnected — a killed/timed-out
+  ::  client would otherwise draw a runtime "not connected" error on the spit.
+  ::  /live is advisory, so only a definitive %.n suppresses; anything else spits.
+  ;<  live=seen:nexus  bind:m  (peek [%& %& (weld /sys/lick name) %live] ~)
+  =/  gone=?
+    ?.  ?=([%& %file *] live)  |
+    =(| (fall (mole |.(!<(? (need-vase:tarball sang.p.live)))) &))
+  ?:  gone  $
   ;<  ~  bind:m  (lick-spit name %res [status rbody])
   $
 ::
