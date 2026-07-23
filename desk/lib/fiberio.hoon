@@ -1097,10 +1097,10 @@
   ;<  *  bind:m  (keep /in [%& %& (weld /sys/lick name) %in] ~)
   |-
   ;<  *  bind:m  (take-news /in)
-  ;<  =seen:nexus  bind:m  (peek [%& %& (weld /sys/lick name) %in] ~)
-  ?.  ?=([%& %file *] seen)  $
+  ;<  =view:nexus  bind:m  (peek [%& %& (weld /sys/lick name) %in] ~)
+  ?.  ?=([%file *] view)  $
   =/  raw=(unit [seq=@ud mark=@tas noun=*])
-    (mole |.(!<([seq=@ud mark=@tas noun=*] (need-vase:tarball sang.p.seen))))
+    (mole |.(!<([seq=@ud mark=@tas noun=*] (need-vase:tarball sang.view))))
   ?~  raw  $
   =/  req=(unit [verb=@t path=@t query=@t body=@t])
     (mole |.(;;([@t @t @t @t] noun.u.raw)))
@@ -1109,10 +1109,10 @@
   ::  skip the reply if the client has already disconnected — a killed/timed-out
   ::  client would otherwise draw a runtime "not connected" error on the spit.
   ::  /live is advisory, so only a definitive %.n suppresses; anything else spits.
-  ;<  live=seen:nexus  bind:m  (peek [%& %& (weld /sys/lick name) %live] ~)
+  ;<  live=view:nexus  bind:m  (peek [%& %& (weld /sys/lick name) %live] ~)
   =/  gone=?
-    ?.  ?=([%& %file *] live)  |
-    =(| (fall (mole |.(!<(? (need-vase:tarball sang.p.live)))) &))
+    ?.  ?=([%file *] live)  |
+    =(| (fall (mole |.(!<(? (need-vase:tarball sang.live)))) &))
   ?:  gone  $
   ;<  ~  bind:m  (lick-spit name %res [status rbody])
   $
