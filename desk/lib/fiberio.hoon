@@ -1075,6 +1075,39 @@
   =/  m  (fiber ,~)
   ^-  form:m
   (poke &+&+[/sys/lick %'main.sig'] [[/ %lick-spit] name mark noun])
+::  +lick-handler: the gate a +lick-serve app supplies — maps an HTTP-like
+::  request [verb path query body] to a fibered [status body] reply.
+++  lick-handler
+  =/  m  (fiber ,[status=@ud rbody=@t])
+  $-([verb=@t path=@t query=@t body=@t] form:m)
+::  +lick-serve: a request/response server over a lick port. Spins the socket
+::  (owner-only, ungained), keeps its inbound grub, and for each inbound frame
+::  decodes [mark [verb path query body]], calls `handler`, and spits back
+::  [%res [status body]]. Generic — the app supplies only `handler`, an
+::  HTTP-like dispatcher; auth is filesystem-presence (the socket lives in the
+::  pier). Requests are assumed synchronous (one in flight), so no seq de-dup.
+::  Wire (per man/lick-echo): 0x00 + LE-u32 len + jam([mark noun]). The runtime
+::  types the inbound noun as *, so it is extracted generally then clammed to the
+::  request tuple — a direct !< to the specific shape nest-fails on the *.
+++  lick-serve
+  |=  [name=path handler=lick-handler]
+  =/  m  (fiber ,~)
+  ^-  form:m
+  ;<  ~  bind:m  (lick-spin name |)
+  ;<  *  bind:m  (keep /in [%& %& (weld /sys/lick name) %in] ~)
+  |-
+  ;<  *  bind:m  (take-news /in)
+  ;<  =seen:nexus  bind:m  (peek [%& %& (weld /sys/lick name) %in] ~)
+  ?.  ?=([%& %file *] seen)  $
+  =/  raw=(unit [seq=@ud mark=@tas noun=*])
+    (mole |.(!<([seq=@ud mark=@tas noun=*] (need-vase:tarball sang.p.seen))))
+  ?~  raw  $
+  =/  req=(unit [verb=@t path=@t query=@t body=@t])
+    (mole |.(;;([@t @t @t @t] noun.u.raw)))
+  ?~  req  $
+  ;<  [status=@ud rbody=@t]  bind:m  (handler u.req)
+  ;<  ~  bind:m  (lick-spit name %res [status rbody])
+  $
 ::
 ::  Gall agent operations (via /sys/gall/ runtime service)
 ::
