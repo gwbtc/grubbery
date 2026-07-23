@@ -1016,16 +1016,6 @@
           |=  k=@t
           ^-  @t
           (fall (bind (~(get by p.st) k) |=(=json ?>(?=(%s -.json) p.json))) '')
-        =/  gl
-          |=  k=@t
-          ^-  (list @ud)
-          =/  j=(unit json)  (~(get by p.st) k)
-          ?~  j  ~
-          ?.  ?=(%a -.u.j)  ~
-          %+  murn  p.u.j
-          |=  =json
-          ?.  ?=(%n -.json)  ~
-          (rush p.json dem)
         =/  chat=@t     (gs 'chat')
         =/  message=@t  (gs 'message')
         =/  start-t=@t  (gs 'start')
@@ -1041,8 +1031,12 @@
           ?~  j  0
           ?.  ?=(%n -.u.j)  0
           (fall (rush p.u.j dem) 0)
-        =/  args
-          [(gl 'mins') (gl 'hrs') (gl 'doms') (gl 'mons') (gl 'dows')]
+        ::  the stored rule fields are already json arrays — pass
+        ::  them through as the kind's args verbatim
+        =/  args=(map @t json)
+          %-  ~(gas by *(map @t json))
+          %+  murn  `(list @t)`~['mins' 'hrs' 'doms' 'mons' 'dows']
+          |=(k=@t (bind (~(get by p.st) k) |=(j=json [k j])))
         ;<  code=(unit vase)  bind:m  (get-code:io &+&+[/code/lib/rules %cron])
         ?~  code
           ~&  >>>  "%claw schedule: /lib/rules/cron not built"
@@ -4307,7 +4301,18 @@
     ::  validates fields + zone in one shot. kind gives a naive
     ::  moment; realize through the zone to the UTC fire time.
     ;<  now=@da  bind:m  get-time:io
-    =/  args  [mins hrs doms mons dows]
+    =/  numb-list
+      |=  ls=(list @ud)
+      ^-  json
+      [%a (turn ls numb:enjs:format)]
+    =/  args=(map @t json)
+      %-  ~(gas by *(map @t json))
+      :~  ['mins' (numb-list mins)]
+          ['hrs' (numb-list hrs)]
+          ['doms' (numb-list doms)]
+          ['mons' (numb-list mons)]
+          ['dows' (numb-list dows)]
+      ==
     ;<  code=(unit vase)  bind:m  (get-code:io &+&+[/code/lib/rules %cron])
     ?~  code
       (pure:m [%error '/lib/rules/cron is not built'])
@@ -4333,10 +4338,6 @@
       (scot %uv (mix now (mug u.schedule)))
     ::  create proc/schedule/{id}: rule fields + cursor at the first
     ::  future index (skips the day's already-past slots)
-    =/  numb-list
-      |=  ls=(list @ud)
-      ^-  json
-      [%a (turn ls numb:enjs:format)]
     =/  job-state=json
       %-  pairs:enjs:format
       :~  ['schedule' s+u.schedule]

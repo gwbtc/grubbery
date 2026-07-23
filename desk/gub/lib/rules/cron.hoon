@@ -1,7 +1,7 @@
 ::  cron: classic five-field cron as a kind. args are the parsed
 ::  field VALUE LISTS, not the expression string — parse at write
-::  time:  [mins=(list @ud) hrs=(list @ud) doms=(list @ud)
-::          mons=(list @ud) dows=(list @ud)]
+::  time:  {mins: [...], hrs: [...], doms: [...],
+::          mons: [...], dows: [...]}
 ::  dows use cron numbering (0=sunday). A "*" field is the full
 ::  range ((gulf 0 59), (gulf 1 31), ...). Standard cron dom/dow
 ::  semantics: when both are restricted, a day matches if EITHER
@@ -14,21 +14,14 @@
 ::
 /<  rules  /lib/rules.hoon
 ^-  kind:rules
-|=  [args=* start=@da idx=@ud]
+|=  [args=(map @t json) start=@da idx=@ud]
 ^-  (unit @da)
-=/  a
-  ;;  $:  mins=(list @ud)
-          hrs=(list @ud)
-          doms=(list @ud)
-          mons=(list @ud)
-          dows=(list @ud)
-      ==
-  args
-=/  mins=(set @ud)  (silt mins.a)
-=/  hrs=(set @ud)   (silt hrs.a)
-=/  doms=(set @ud)  (silt doms.a)
-=/  mons=(set @ud)  (silt mons.a)
-=/  dows=(set @ud)  (silt dows.a)
+=/  a  ~(. ja:rules args)
+=/  mins=(set @ud)  (silt (nums:a 'mins'))
+=/  hrs=(set @ud)   (silt (nums:a 'hrs'))
+=/  doms=(set @ud)  (silt (nums:a 'doms'))
+=/  mons=(set @ud)  (silt (nums:a 'mons'))
+=/  dows=(set @ud)  (silt (nums:a 'dows'))
 =/  fpd=@ud  (mul ~(wyt in mins) ~(wyt in hrs))
 ?:  =(0 fpd)  ~
 =/  dom-star=?  (gte ~(wyt in doms) 31)

@@ -1,5 +1,5 @@
 /<  tools  /lib/nex/tools.hoon
-::  cal-add-event: add an event to a calendar instance
+::  calendar-add-event: add an event to a calendar instance
 ::
 ^-  tool:tools
 |%
@@ -10,31 +10,30 @@
     "Add an event to a calendar. cat picks the shape: "
     "'timed' (a recurrence in a zone, ending after dur_min minutes), "
     "'allday' (a recurrence in date-space lasting span_days whole days), "
-    "'rdate' (a bare recurring date [month day] — birthdays, holidays). "
-    "timed/allday need kind + start + its args: once, every (period_min), "
-    "daily (at_min), weekly (days='mon,wed,fri' + at_min), monthly "
-    "(day=N + at_min), monthly-nth (ord + day=weekday + at_min), yearly "
-    "(month=N + day=N + at_min). at_min is minutes after local midnight "
-    "(570 = 09:30). count ends the series after N occurrences. rdate needs "
-    "only month + day."
+    "'date' (a bare recurring date [month day] — birthdays, holidays; "
+    "needs only month + day). timed/allday need kind + start + args. "
+    "args is a JSON object read by the kind file: "
+    "once \{}, every \{period: minutes}, daily \{at: minutes}, "
+    "weekly \{days: ['mon','fri'], at: minutes}, monthly \{day: N, at: minutes}, "
+    "monthly-nth \{ord: 'second', day: 'tue', at: minutes}, "
+    "yearly \{month: N, day: N, at: minutes}. "
+    "at is minutes after local midnight (570 = 09:30). "
+    "count ends the series after N occurrences."
   ==
 ++  parameters
   ^-  (map @t parameter-def:tools)
   %-  ~(gas by *(map @t parameter-def:tools))
   :~  ['path' [%string 'Calendar instance dir (e.g. "/apps/calendar.calendar")']]
       ['name' [%string 'Event name']]
-      ['cat' [%string 'timed | allday | rdate (default timed)']]
+      ['cat' [%string 'timed | allday | date (default timed)']]
       ['kind' [%string 'timed/allday: once|every|daily|weekly|monthly|monthly-nth|yearly']]
       ['start' [%string 'timed/allday anchor date, urbit format (e.g. "~2026.7.21..18.30.00")']]
+      ['args' [%string 'timed/allday: kind args as a JSON object, e.g. {"days":["mon","fri"],"at":570}']]
       ['zone' [%string 'timed: optional IANA timezone (e.g. "America/New_York")']]
-      ['at_min' [%string 'Minutes after local midnight for wall-clock kinds']]
       ['dur_min' [%string 'timed: duration in minutes (0 = a point)']]
       ['span_days' [%string 'allday: number of whole days (default 1)']]
-      ['days' [%string 'weekly: comma list of weekdays (mon,wed,fri)']]
-      ['day' [%string 'monthly/yearly/rdate: day number; monthly-nth: weekday name']]
-      ['ord' [%string 'monthly-nth: first|second|third|fourth|last']]
-      ['month' [%string 'yearly/rdate: month number 1-12']]
-      ['period_min' [%string 'every: period in minutes']]
+      ['day' [%string 'date: day number 1-31']]
+      ['month' [%string 'date: month number 1-12']]
       ['count' [%string 'Optional: end the series after N occurrences']]
       ['note' [%string 'Optional note']]
       ['color' [%string 'Optional hex color']]
@@ -60,59 +59,49 @@
     |=  k=@t
     ^-  (unit @ud)
     (rush (gs k) dem)
-  =/  split-comma
-    |=  txt=@t
-    ^-  (list @t)
-    =/  chars=tape  (trip txt)
-    =/  out=(list @t)  ~
-    =/  buf=tape  ~
-    |-
-    ?~  chars
-      ?~  buf  (flop out)
-      (flop [(crip (flop buf)) out])
-    ?:  =(i.chars ',')
-      ?~  buf  $(chars t.chars)
-      $(chars t.chars, out [(crip (flop buf)) out], buf ~)
-    $(chars t.chars, buf [i.chars buf])
+  =/  opt
+    |=  [k=@t v=(unit @ud)]
+    ^-  (list [@t json])
+    ?~(v ~ ~[[k (numb:enjs:format u.v)]])
+  =/  meta=json
+    :-  %o
+    %-  ~(gas by *(map @t json))
+    ^-  (list [@t json])
+    ;:  weld
+      ^-  (list [@t json])
+      ~[['name' s+(gs 'name')]]
+      ^-  (list [@t json])
+      ?:(=('' (gs 'note')) ~ ~[['note' s+(gs 'note')]])
+      ^-  (list [@t json])
+      ?:(=('' (gs 'color')) ~ ~[['color' s+(gs 'color')]])
+    ==
   =/  common=(list [@t json])
     :~  ['action' s+'add-event']
         ['cat' s+cat]
-        ['name' s+(gs 'name')]
-        ['note' s+(gs 'note')]
-        ['color' s+(gs 'color')]
+        ['meta' meta]
     ==
   =/  fields=(list [@t json])
-    ?:  =('rdate' cat)
+    ?:  =('date' cat)
       ;:  weld  common
-        ?~((num 'month') ~ ~[['month' (numb:enjs:format (need (num 'month')))]])
-        ?~((num 'day') ~ ~[['day' (numb:enjs:format (need (num 'day')))]])
+        (opt 'month' (num 'month'))
+        (opt 'day' (num 'day'))
       ==
     ::  timed / allday need a start-anchored recurrence
     =/  start=(unit @da)  (slaw %da (gs 'start'))
     ?~  start  common  ::  handler errors below
     =/  ms=@ud  (div (mul (sub u.start ~1970.1.1) 1.000) ~s1)
-    =/  opt
-      |=  [k=@t v=(unit @ud)]
-      ^-  (list [@t json])
-      ?~(v ~ ~[[k (numb:enjs:format u.v)]])
+    =/  kargs=json
+      =/  raw=@t  (gs 'args')
+      ?:  =('' raw)  [%o ~]
+      (fall (de:json:html raw) [%o ~])
     =/  kind-args=(list [@t json])
       ;:  weld
         ^-  (list [@t json])
-        ~[['kind' s+(gs 'kind')] ['start_ms' (numb:enjs:format ms)]]
-        (opt 'at_min' (num 'at_min'))
-        (opt 'period_min' (num 'period_min'))
-        (opt 'month' (num 'month'))
-        (opt 'count' (num 'count'))
-        ^-  (list [@t json])
-        ?:(=('' (gs 'ord')) ~ ~[['ord' s+(gs 'ord')]])
-        ^-  (list [@t json])
-        ?:  =('' (gs 'days'))  ~
-        ~[['days' %a (turn (split-comma (gs 'days')) |=(d=@t `json`s+d))]]
-        ^-  (list [@t json])
-        ?:  =('' (gs 'day'))  ~
-        :~  :-  'day'
-            ?~((rush (gs 'day') dem) s+(gs 'day') (numb:enjs:format (need (rush (gs 'day') dem))))
+        :~  ['kind' s+(gs 'kind')]
+            ['start_ms' (numb:enjs:format ms)]
+            ['args' kargs]
         ==
+        (opt 'count' (num 'count'))
       ==
     =/  shape-args=(list [@t json])
       ?:  =('allday' cat)
@@ -124,7 +113,7 @@
         ~[['fin' s+'dur'] ['dur_min' (numb:enjs:format (fall (num 'dur_min') 0))]]
       ==
     :(weld common kind-args shape-args)
-  ?:  &(!=('rdate' cat) ?=(~ (slaw %da (gs 'start'))))
+  ?:  &(!=('date' cat) ?=(~ (slaw %da (gs 'start'))))
     (pure:m [%error 'Bad or missing start; use e.g. ~2026.7.21..09.00.00'])
   =/  road=road:tarball  [%& %& p.pax-parsed %'calendar.calendar']
   ;<  ~  bind:m  (poke:io road [[/ %json] [%o (~(gas by *(map @t json)) fields)]])

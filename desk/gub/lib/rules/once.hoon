@@ -2,6 +2,6 @@
 ::
 /<  rules  /lib/rules.hoon
 ^-  kind:rules
-|=  [args=* start=@da idx=@ud]
+|=  [args=(map @t json) start=@da idx=@ud]
 ^-  (unit @da)
 ?.(=(0 idx) ~ `start)

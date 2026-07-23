@@ -7,13 +7,18 @@
 ::             meetings, calls.
 ::    %allday  a recurrence in date-space; each tick is N whole
 ::             days, timezone-independent. trips, conferences.
-::    %rdate   a bare recurring calendar date [month day]. no clock,
+::    %date    a bare recurring calendar date [month day]. no clock,
 ::             no anchor, no bounds. birthdays, holidays.
 ::
 ::  %timed and %allday wrap a `recur` — a pure clock (idx -> moment)
 ::  living as a file in /lib/rules/. The recurrence is nested one
 ::  layer in and shared by both shapes: `weekly` is written once and
-::  either shape wraps it. %rdate needs no clock at all.
+::  either shape wraps it. %date needs no clock at all.
+::
+::  recur args are a json object end to end: the client sends them,
+::  the grub stores them, the kind file reads them, the codec emits
+::  them back. Self-describing, no per-kind knowledge outside the
+::  kind file itself.
 ::
 ::  The calendar grub is portable intent: config + events. The order
 ::  index (occurrence times -> refs) is derived state in a sibling
@@ -24,12 +29,17 @@
 /<  rules  /lib/rules.hoon
 |%
 +$  eid    @ta
-+$  meta   [name=@t note=@t color=@t]
+::  display payload, opaque to the engine: a json object read by the
+::  UI and tools, passed through verbatim like recur args. Convention:
+::  'name' (required nonempty at write), 'note', 'color'; anything
+::  else ('location', 'gcal_id', ...) rides along untouched.
+::
++$  meta   (map @t json)
 +$  span   span:rules
 ::  a clock placed in the world: a kind file + its args + the anchor
 ::  for idx 0. shared by %timed and %allday.
 ::
-+$  recur  [kind=rail:tarball args=* start=@da]
++$  recur  [kind=rail:tarball args=(map @t json) start=@da]
 ::  optional clipping of the index space
 ::
 +$  bound  [dom=(unit @ud) except=(set @ud)]
@@ -46,7 +56,7 @@
 +$  event
   $%  [%timed =recur zone=(unit @t) =fin =bound =meta]
       [%allday =recur days=@ud =bound =meta]
-      [%rdate month=@ud day=@ud =meta]
+      [%date month=@ud day=@ud =meta]
   ==
 ::
 +$  calendar
@@ -58,7 +68,11 @@
 ::
 +$  ref    [=eid idx=@ud =span]
 +$  order  ((mop @da (set ref)) lth)
-+$  cache  [thru=@da =order]
+::  thru: the wall we aimed for. stops: per event, where a
+::  fuel-capped walk actually ended short of thru — absent for
+::  events that were fully walked.
+::
++$  cache  [thru=@da stops=(map eid @da) =order]
 ++  on-order  ((on @da (set ref)) lth)
 ::
 ++  fresh-calendar  `calendar`['Calendar' ~ (mul 3 ~d365) ~]
@@ -113,25 +127,28 @@
   ^-  span
   =/  l=@da  (day-floor:rules moment)
   [l (add l (mul (max 1 days) ~d1))]
-::  +inflate: build the order index for all events through thru
+::  +inflate: build the order index for all events through thru.
+::  stops records, per event, where a fuel-capped walk ended short
+::  of thru — the honest per-event walls.
 ::
 ++  inflate
   |=  [events=(map eid event) kinds=(map rail:tarball kind:rules) thru=@da]
-  ^-  order
+  ^-  [stops=(map eid @da) =order]
   =/  out=order  ~
+  =/  stops=(map eid @da)  ~
   =/  todo=(list [=eid =event])  ~(tap by events)
   |-
-  ?~  todo  out
+  ?~  todo  [stops out]
   =/  id=eid  eid.i.todo
   =/  ev=event  event.i.todo
-  =.  out
+  =/  res=[=order stop=(unit @da)]
     ?-    -.ev
-        %rdate
-      (inflate-rdate out id month.ev day.ev thru)
+        %date
+      [(inflate-date out id month.ev day.ev thru) ~]
     ::
         %timed
       =/  k=(unit kind:rules)  (~(get by kinds) kind.recur.ev)
-      ?~  k  out
+      ?~  k  [out ~]
       %^    walk-recur
           [out id recur.ev bound.ev u.k thru]
         idx=0  ^-  $-(@da (list span))
@@ -139,39 +156,46 @@
     ::
         %allday
       =/  k=(unit kind:rules)  (~(get by kinds) kind.recur.ev)
-      ?~  k  out
+      ?~  k  [out ~]
       %^    walk-recur
           [out id recur.ev bound.ev u.k thru]
         idx=0  ^-  $-(@da (list span))
       |=(m=@da ~[(dress-allday days.ev m)])
     ==
+  =.  out  order.res
+  =?  stops  ?=(^ stop.res)  (~(put by stops) id u.stop.res)
   $(todo t.todo)
 ::  +walk-recur: walk idx forward from the anchor, dressing each live
-::  moment, until it passes thru or the dead/fuel guards trip
+::  moment, until it passes thru or the dead/fuel guards trip.
+::  stop is the last walked moment when fuel ran out short of thru —
+::  the event's coverage truly ends there. ~ = fully walked (passed
+::  thru, hit its count, or the rule exhausted).
 ::
 ++  walk-recur
   |=  $:  [out=order id=eid =recur =bound k=kind:rules thru=@da]
           idx=@ud  dress=$-(@da (list span))
       ==
-  ^-  order
+  ^-  [order (unit @da)]
   =/  dead=@ud  0
   =/  fuel=@ud  max-live
+  =/  last=(unit @da)  ~
   |-
-  ?:  |((gth dead max-dead) =(0 fuel))  out
-  ?:  &(?=(^ dom.bound) (gte idx u.dom.bound))  out
+  ?:  =(0 fuel)  [out last]
+  ?:  (gth dead max-dead)  [out ~]
+  ?:  &(?=(^ dom.bound) (gte idx u.dom.bound))  [out ~]
   =/  moment=(unit @da)
     (fall (mole |.((k args.recur start.recur idx))) ~)
   ?~  moment  $(idx +(idx), dead +(dead))
-  ?:  (gth u.moment thru)  out
+  ?:  (gth u.moment thru)  [out ~]
   ?:  (~(has in except.bound) idx)
-    $(idx +(idx), dead 0, fuel (dec fuel))
+    $(idx +(idx), dead 0, fuel (dec fuel), last `u.moment)
   =.  out  (add-spans out id idx (dress u.moment))
-  $(idx +(idx), dead 0, fuel (dec fuel))
-::  +inflate-rdate: a bare [month day] enumerated per year across
+  $(idx +(idx), dead 0, fuel (dec fuel), last `u.moment)
+::  +inflate-date: a bare [month day] enumerated per year across
 ::  [1970, year-of-thru]. idx = year - 1970, a stable per-year handle.
 ::  Surfaces in past windows because it walks from 1970 forward.
 ::
-++  inflate-rdate
+++  inflate-date
   |=  [out=order id=eid month=@ud day=@ud thru=@da]
   ^-  order
   =/  y0=@ud  1.970
@@ -206,71 +230,39 @@
   $(rs t.rs)
 ::  +all-day: does this event render in date-space (no zone)?
 ::
-++  all-day  |=(e=event ?=(?(%allday %rdate) -.e))
-::  +recur-json: kind + its args, decoded per kind name
+++  all-day  |=(e=event ?=(?(%allday %date) -.e))
+::  +meta-str: a string key from a meta map, '' when absent
+::
+++  meta-str
+  |=  [m=meta k=@t]
+  ^-  @t
+  =/  j=(unit json)  (~(get by m) k)
+  ?.(?=([~ %s *] j) '' p.u.j)
+::  +recur-json: kind + anchor + args. args pass through verbatim —
+::  the kind file is the only place that knows what they mean.
 ::
 ++  recur-json
   |=  =recur
   ^-  (list [@t json])
-  =/  kname=@t  name.kind.recur
-  =/  base=(list [@t json])
-    :~  ['kind' s+kname]
-        ['start_ms' (numb:enjs:format (da-to-ms start.recur))]
-    ==
-  =/  extra=(list [@t json])
-    ?:  =('every' kname)
-      =/  p=(unit @dr)  (mole |.(;;(@dr args.recur)))
-      ?~(p ~ ~[['period_min' (numb:enjs:format (div u.p ~m1))]])
-    ?:  =('daily' kname)
-      =/  a=(unit @dr)  (mole |.(;;(@dr args.recur)))
-      ?~(a ~ ~[['at_min' (numb:enjs:format (div u.a ~m1))]])
-    ?:  =('weekly' kname)
-      =/  a=(unit [days=(list wkd:rules) at=@dr])
-        (mole |.(;;([(list wkd:rules) @dr] args.recur)))
-      ?~  a  ~
-      :~  ['days' [%a (turn days.u.a |=(d=wkd:rules `json`s+d))]]
-          ['at_min' (numb:enjs:format (div at.u.a ~m1))]
-      ==
-    ?:  =('monthly' kname)
-      =/  a=(unit [day=@ud at=@dr])  (mole |.(;;([@ud @dr] args.recur)))
-      ?~  a  ~
-      :~  ['day' (numb:enjs:format day.u.a)]
-          ['at_min' (numb:enjs:format (div at.u.a ~m1))]
-      ==
-    ?:  =('monthly-nth' kname)
-      =/  a=(unit [o=ord:rules d=wkd:rules at=@dr])
-        (mole |.(;;([ord:rules wkd:rules @dr] args.recur)))
-      ?~  a  ~
-      :~  ['ord' s+o.u.a]
-          ['day' s+d.u.a]
-          ['at_min' (numb:enjs:format (div at.u.a ~m1))]
-      ==
-    ?:  =('yearly' kname)
-      =/  a=(unit [m=@ud d=@ud at=@dr])  (mole |.(;;([@ud @ud @dr] args.recur)))
-      ?~  a  ~
-      :~  ['month' (numb:enjs:format m.u.a)]
-          ['day' (numb:enjs:format d.u.a)]
-          ['at_min' (numb:enjs:format (div at.u.a ~m1))]
-      ==
-    ~
-  (weld base extra)
+  :~  ['kind' s+name.kind.recur]
+      ['start_ms' (numb:enjs:format (da-to-ms start.recur))]
+      ['args' [%o args.recur]]
+  ==
 ::  +event-json: full event breakdown for the edit form — the
 ::  reverse of the nexus parser, per category.
 ::
 ++  event-json
   |=  [id=@ta e=event]
   ^-  json
-  =/  m=meta  ?-(-.e %timed meta.e, %allday meta.e, %rdate meta.e)
+  =/  m=meta  ?-(-.e %timed meta.e, %allday meta.e, %date meta.e)
   =/  common=(list [@t json])
     :~  ['id' s+id]
         ['cat' s+-.e]
-        ['name' s+name.m]
-        ['note' s+note.m]
-        ['color' s+color.m]
+        ['meta' [%o m]]
     ==
   =/  rest=(list [@t json])
     ?-    -.e
-        %rdate
+        %date
       :~  ['month' (numb:enjs:format month.e)]
           ['day' (numb:enjs:format day.e)]
       ==

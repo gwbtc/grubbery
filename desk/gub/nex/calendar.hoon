@@ -8,6 +8,7 @@
 /<  cal    /lib/calendar.hoon
 /<  rules  /lib/rules.hoon
 /<  pytz   /lib/pytz.hoon
+/<  ics    /lib/ics.hoon
 /&  icon      calendar/icon.svg
 /&  cal-html  calendar/calendar.html
 /&  cal-css   calendar/calendar.css
@@ -30,6 +31,7 @@
           [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
           [%fall %& [/ %'calendar.calendar'] [[/ %calendar] fresh-calendar:cal]]
           [%fall %& [/ %'order.calendar-cache'] [[/ %calendar-cache] *cache:cal]]
+          [%fall %& [/ %'gcal-feeds.json'] [[/ %json] [%o ~]]]
           [%over %& [/ %'tile.json'] [[/ %json] tile]]
           [%over %& [/ %'icon.svg'] [[/ %mime] icon]]
           [%over %& [/ %'calendar.html'] [[/ %mime] cal-html]]
@@ -74,7 +76,7 @@
           ?~  ev  $
           =/  new=(unit event:cal)
             ?-  -.u.ev
-              %rdate   ~                ::  rdate can't be skipped
+              %date   ~                ::  a date can't be skipped
               %timed   `u.ev(except.bound (~(put in except.bound.u.ev) u.idx))
               %allday  `u.ev(except.bound (~(put in except.bound.u.ev) u.idx))
             ==
@@ -89,6 +91,60 @@
           =.  zone.c  ?:(=('' zo) zone.c ?:(=('none' zo) ~ `zo))
           =.  horizon.c  ?~(hd horizon.c (mul u.hd ~d1))
           ;<  ~  bind:m  (replace:io c)
+          $
+        ?:  =('add-feed' act)
+          =/  nm=@t   (gs jon 'name')
+          =/  url=@t  (gs jon 'url')
+          ?:  |(=('' nm) =('' url))  $
+          ;<  fv=view:nexus  bind:m
+            (peek:io (cord-to-road:tarball './gcal-feeds.json') ~)
+          =/  feeds=(map @t json)
+            ?.  ?=([%file *] fv)  ~
+            =/  j=json  (fall (mole |.(!<(json (need-vase:tarball sang.fv)))) *json)
+            ?.(?=(%o -.j) ~ p.j)
+          ;<  ~  bind:m
+            %+  over:io  (cord-to-road:tarball './gcal-feeds.json')
+            [[/ %json] `json`[%o (~(put by feeds) nm s+url)]]
+          $
+        ?:  =('del-feed' act)
+          =/  nm=@t  (gs jon 'name')
+          ?:  =('' nm)  $
+          ;<  fv=view:nexus  bind:m
+            (peek:io (cord-to-road:tarball './gcal-feeds.json') ~)
+          =/  feeds=(map @t json)
+            ?.  ?=([%file *] fv)  ~
+            =/  j=json  (fall (mole |.(!<(json (need-vase:tarball sang.fv)))) *json)
+            ?.(?=(%o -.j) ~ p.j)
+          ;<  ~  bind:m
+            %+  over:io  (cord-to-road:tarball './gcal-feeds.json')
+            [[/ %json] `json`[%o (~(del by feeds) nm)]]
+          $
+        ?:  =('sync-feeds' act)
+          ::  materialize external ICS feeds as events: drop all
+          ::  prior feed-tagged events, re-add fresh (recurring
+          ::  VEVENTs are skipped for now)
+          ;<  feeds-view=view:nexus  bind:m
+            (peek:io (cord-to-road:tarball './gcal-feeds.json') ~)
+          =/  feeds=(list [nm=@t url=@t])
+            ?.  ?=([%file *] feeds-view)  ~
+            =/  j=json
+              (fall (mole |.(!<(json (need-vase:tarball sang.feeds-view)))) *json)
+            ?.  ?=(%o -.j)  ~
+            %+  murn  ~(tap by p.j)
+            |=([k=@t v=json] ?.(?=(%s -.v) ~ `[k p.v]))
+          ?~  feeds
+            ~&  >>>  "%calendar sync: no feeds configured"
+            $
+          ;<  now=@da  bind:m  get-time:io
+          ;<  [synced=(map eid:cal event:cal) skipped=@ud]  bind:m
+            (do-sync feeds (sub now (mul 90 ~d1)) (add now (mul 2 ~d365)))
+          =/  kept=(map eid:cal event:cal)
+            %-  ~(gas by *(map eid:cal event:cal))
+            %+  skim  ~(tap by events.c)
+            |=  [@ta e=event:cal]
+            =('' (meta-str:cal (get-meta e) 'feed'))
+          ~&  >  "%calendar sync: {(scow %ud ~(wyt by synced))} synced, {(scow %ud skipped)} recurring skipped"
+          ;<  ~  bind:m  (replace:io c(events (~(uni by kept) synced)))
           $
         ?:  =('edit-event' act)
           =/  id=@ta  (crip (trip (gs jon 'id')))
@@ -112,7 +168,7 @@
           ?~  old  $
           =/  new=(unit event:cal)
             ?-  -.u.old
-              %rdate   ~
+              %date   ~
               %timed   `u.old(dom.bound `u.cap)
               %allday  `u.old(dom.bound `u.cap)
             ==
@@ -152,15 +208,15 @@
           |=  [@ta e=event:cal]
           ^-  (unit rail:tarball)
           ?-  -.e
-            %rdate   ~
+            %date   ~
             %timed   `kind.recur.e
             %allday  `kind.recur.e
           ==
         ;<  kinds=(map rail:tarball kind:rules)  bind:m  (resolve-kinds rails)
         ;<  now=@da  bind:m  get-time:io
         =/  thru=@da  (add now horizon.c)
-        =/  o=order:cal  (inflate:cal events.c kinds thru)
-        ;<  ~  bind:m  (replace:io `cache:cal`[thru o])
+        =/  [stops=(map eid:cal @da) o=order:cal]  (inflate:cal events.c kinds thru)
+        ;<  ~  bind:m  (replace:io `cache:cal`[thru stops o])
         ;<  *  bind:m  (take-news:io /cal)
         $
           ::
@@ -195,6 +251,36 @@
             %+  fall
               (mole |.(!<(calendar:cal (need-vase:tarball sang.cal-view))))
             fresh-calendar:cal
+          ::  refresh-ahead: the cache is derived state, so a read
+          ::  past the wall (or with under half the horizon left)
+          ::  reinflates and persists rather than serving a silent
+          ::  truncation
+          ;<  now=@da  bind:m  get-time:io
+          ;<  ca=cache:cal  bind:m
+            ?.  ?|  (gth u.to thru.ca)
+                    (lth thru.ca (add now (div horizon.c 2)))
+                ==
+              (pure:(fiber:fiber:nexus ,cache:cal) ca)
+            =/  m  (fiber:fiber:nexus ,cache:cal)
+            =/  rails=(list rail:tarball)
+              %~  tap  in
+              %-  sy
+              %+  murn  ~(tap by events.c)
+              |=  [@ta e=event:cal]
+              ^-  (unit rail:tarball)
+              ?-  -.e
+                %date    ~
+                %timed   `kind.recur.e
+                %allday  `kind.recur.e
+              ==
+            ;<  kinds=(map rail:tarball kind:rules)  bind:m  (resolve-kinds rails)
+            =/  thru=@da  (max (add now horizon.c) u.to)
+            =/  [stops=(map eid:cal @da) o=order:cal]  (inflate:cal events.c kinds thru)
+            =/  new=cache:cal  [thru stops o]
+            ;<  ~  bind:m
+              %+  over:io  (cord-to-road:tarball '../order.calendar-cache')
+              [[/ %calendar-cache] new]
+            (pure:m new)
           =/  refs=(list ref:cal)
             ~(tap in (window:cal order.ca u.from u.to))
           =/  rows=json
@@ -208,16 +294,31 @@
             %-  pairs:enjs:format
             :~  ['id' s+eid.r]
                 ['idx' (numb:enjs:format idx.r)]
-                ['name' s+name:(get-meta u.ev)]
-                ['note' s+note:(get-meta u.ev)]
-                ['color' s+color:(get-meta u.ev)]
+                ['meta' [%o (get-meta u.ev)]]
                 ['cat' s+-.u.ev]
                 ['kind' s+(ev-kind u.ev)]
                 ['all' b+(all-day:cal u.ev)]
                 ['l' (numb:enjs:format (da-to-ms l.span.r))]
                 ['r' (numb:enjs:format (da-to-ms r.span.r))]
             ==
-          (send-json eyre-id rows)
+          =/  caps=json
+            :-  %a
+            %+  murn  ~(tap by stops.ca)
+            |=  [id=@ta stop=@da]
+            ^-  (unit json)
+            =/  ev=(unit event:cal)  (~(get by events.c) id)
+            ?~  ev  ~
+            :-  ~
+            %-  pairs:enjs:format
+            :~  ['id' s+id]
+                ['meta' [%o (get-meta u.ev)]]
+                ['stop' (numb:enjs:format (da-to-ms stop))]
+            ==
+          %+  send-json  eyre-id
+          %-  pairs:enjs:format
+          :~  ['caps' caps]
+              ['rows' rows]
+          ==
         ::  /event.json?id=: full rule breakdown for the edit form
         ?:  ?=([%'event.json' ~] suffix)
           =/  id=@ta  (crip (trip (fall (get-key:kv:html-utils 'id' args) '')))
@@ -248,11 +349,19 @@
             ^-  json
             %-  pairs:enjs:format
             :~  ['id' s+id]
-                ['name' s+name:(get-meta e)]
-                ['color' s+color:(get-meta e)]
+                ['meta' [%o (get-meta e)]]
                 ['cat' s+-.e]
             ==
           (send-json eyre-id rows)
+        ::  /feeds.json: the named external ICS feeds
+        ?:  ?=([%'feeds.json' ~] suffix)
+          ;<  fv=view:nexus  bind:m
+            (peek:io (cord-to-road:tarball '../gcal-feeds.json') ~)
+          =/  feeds=json
+            ?.  ?=([%file *] fv)  [%o ~]
+            =/  j=json  (fall (mole |.(!<(json (need-vase:tarball sang.fv)))) *json)
+            ?:(?=(%o -.j) j [%o ~])
+          (send-json eyre-id feeds)
         ::  /zones.json: every pytz zone name, for dropdowns
         ?:  ?=([%'zones.json' ~] suffix)
           %+  send-json  eyre-id
@@ -299,13 +408,13 @@
 ++  get-meta
   |=  e=event:cal
   ^-  meta:cal
-  ?-(-.e %timed meta.e, %allday meta.e, %rdate meta.e)
-::  +ev-kind: the recurrence kind name, or 'rdate'
+  ?-(-.e %timed meta.e, %allday meta.e, %date meta.e)
+::  +ev-kind: the recurrence kind name, or 'date'
 ::
 ++  ev-kind
   |=  e=event:cal
   ^-  @t
-  ?-(-.e %rdate 'rdate', %timed name.kind.recur.e, %allday name.kind.recur.e)
+  ?-(-.e %date 'date', %timed name.kind.recur.e, %allday name.kind.recur.e)
 ::  +carry-except: preserve the old event's skipped indices onto the
 ::  freshly-parsed replacement (only where both have a bound)
 ::
@@ -313,10 +422,10 @@
   |=  [old=event:cal new=event:cal]
   ^-  event:cal
   =/  ex=(set @ud)
-    ?-(-.old %rdate ~, %timed except.bound.old, %allday except.bound.old)
+    ?-(-.old %date ~, %timed except.bound.old, %allday except.bound.old)
   ?~  ex  new
   ?-  -.new
-    %rdate   new
+    %date   new
     %timed   new(except.bound ex)
     %allday  new(except.bound ex)
   ==
@@ -354,6 +463,71 @@
   ;<  ~  bind:m
     (send-simple:srv eyre-id [[200 ['content-type' 'application/json'] ~] `bod])
   (pure:m ~)
+::  +do-sync: fetch each feed, parse its ICS, and convert single
+::  (non-recurring) vevents inside [lo hi] into events tagged with
+::  feed name + uid. Stable ids: same feed+uid = same event id.
+::
+++  do-sync
+  |=  [feeds=(list [nm=@t url=@t]) lo=@da hi=@da]
+  =/  m  (fiber:fiber:nexus ,[(map eid:cal event:cal) skipped=@ud])
+  ^-  form:m
+  =/  out=(map eid:cal event:cal)  ~
+  =/  skipped=@ud  0
+  |-
+  ?~  feeds  (pure:m [out skipped])
+  ~&  >  "%calendar sync: fetching {(trip nm.i.feeds)}"
+  ;<  body=@t  bind:m  (fetch:io [%'GET' url.i.feeds ~ ~])
+  =/  evs=(list vevent:ics)  ?:(=('' body) ~ (events:ics body))
+  =/  res=[got=(map eid:cal event:cal) sk=@ud]
+    %+  roll  evs
+    |=  [ve=vevent:ics acc=[got=(map eid:cal event:cal) sk=@ud]]
+    ?.  =('' rrule.ve)  acc(sk +(sk.acc))
+    =/  ev=(unit event:cal)  (ics-event ve nm.i.feeds lo hi)
+    ?~  ev  acc
+    =/  id=@ta  (crip "gc-{(trip (scot %uw (mug [nm.i.feeds uid.ve])))}")
+    acc(got (~(put by got.acc) id u.ev))
+  %=  $
+    feeds    t.feeds
+    out      (~(uni by out) got.res)
+    skipped  (add skipped sk.res)
+  ==
+::  +ics-event: one parsed vevent to a ship event. Date-only becomes
+::  %allday; datetimes become a %timed %once, TZID as the zone and
+::  DTEND as an absolute %to end.
+::
+++  ics-event
+  |=  [ve=vevent:ics feed=@t lo=@da hi=@da]
+  ^-  (unit event:cal)
+  ?~  start.ve  ~
+  =/  s=when:ics  u.start.ve
+  =/  sd=@da  ?-(-.s %utc d.s, %local d.s, %day d.s)
+  ?:  |((lth sd lo) (gth sd hi))  ~
+  =/  =meta:cal
+    %-  ~(gas by *(map @t json))
+    ^-  (list [@t json])
+    ;:  weld
+      ^-  (list [@t json])
+      ~[['name' s+?:(=('' summary.ve) 'Untitled' summary.ve)]]
+      ^-  (list [@t json])
+      ?:(=('' location.ve) ~ ~[['note' s+location.ve]])
+      ^-  (list [@t json])
+      ~[['feed' s+feed] ['uid' s+uid.ve]]
+    ==
+  ?:  ?=(%day -.s)
+    =/  days=@ud
+      ?~  end.ve  1
+      ?.  ?=(%day -.u.end.ve)  1
+      (max 1 (div (sub d.u.end.ve d.s) ~d1))
+    `[%allday [[/lib/rules %once] ~ d.s] days [~ ~] meta]
+  =/  zone=(unit @t)  ?:(?=(%local -.s) `zone.s ~)
+  =/  =fin:cal
+    ?~  end.ve  [%dur ~s0]
+    ?-  -.u.end.ve
+      %day    [%dur ~s0]
+      %utc    [%to d.u.end.ve]
+      %local  [%to d.u.end.ve]
+    ==
+  `[%timed [[/lib/rules %once] ~ sd] zone fin [~ ~] meta]
 ::  +resolve-kinds: load kind gates from the code namespace
 ::
 ++  resolve-kinds
@@ -385,7 +559,7 @@
   ?~  until  (pure:m e)
   =/  rd=(unit [=recur:cal dom=(unit @ud)])
     ?-  -.e
-      %rdate   ~
+      %date   ~
       %timed   `[recur.e dom.bound.e]
       %allday  `[recur.e dom.bound.e]
     ==
@@ -411,11 +585,13 @@
     $(idx +(idx), dead 0)
   %-  pure:m
   ?-  -.e
-    %rdate   e
+    %date   e
     %timed   e(dom.bound `cap)
     %allday  e(dom.bound `cap)
   ==
-::  +parse-recur: json -> a shared clock [kind args start].
+::  +parse-recur: json -> a shared clock [kind args start]. args
+::  pass through as the 'args' object verbatim — only the kind file
+::  knows what they mean.
 ::
 ++  parse-recur
   |=  jon=json
@@ -424,38 +600,10 @@
   ?:  =('' kind)  ~
   =/  start=(unit @da)  (bind (gn jon 'start_ms') ms-to-da)
   ?~  start  ~
-  =/  at=@dr  (mul (fall (gn jon 'at_min') 0) ~m1)
-  =/  args=(unit *)
-    ?:  =('once' kind)   `~
-    ?:  =('every' kind)
-      (bind (gn jon 'period_min') |=(p=@ud `*`(mul p ~m1)))
-    ?:  =('daily' kind)  `at
-    ?:  =('weekly' kind)
-      =/  days=(unit json)  ?.(?=(%o -.jon) ~ (~(get by p.jon) 'days'))
-      ?~  days  ~
-      ?.  ?=([~ %a *] days)  ~
-      =/  wl=(list wkd:rules)
-        %+  murn  p.u.days
-        |=  =json
-        ?.  ?=(%s -.json)  ~
-        (mole |.(;;(wkd:rules p.json)))
-      ?~  wl  ~
-      `[wl at]
-    ?:  =('monthly' kind)
-      (bind (gn jon 'day') |=(d=@ud `*`[d at]))
-    ?:  =('monthly-nth' kind)
-      =/  dow=(unit wkd:rules)  (mole |.(;;(wkd:rules (gs jon 'day'))))
-      =/  ord=(unit ord:rules)  (mole |.(;;(ord:rules (gs jon 'ord'))))
-      ?:  |(?=(~ dow) ?=(~ ord))  ~
-      `[u.ord u.dow at]
-    ?:  =('yearly' kind)
-      =/  mo=(unit @ud)  (gn jon 'month')
-      =/  dy=(unit @ud)  (gn jon 'day')
-      ?:  |(?=(~ mo) ?=(~ dy))  ~
-      `[u.mo u.dy at]
-    ~
-  ?~  args  ~
-  `[[/lib/rules (slav %tas kind)] u.args u.start]
+  =/  args=(map @t json)
+    =/  a=(unit json)  (~(get jo:json-utils jon) /args)
+    ?.(?=([~ %o *] a) ~ p.u.a)
+  `[[/lib/rules (slav %tas kind)] args u.start]
 ::  +parse-event: json -> one of the three event shapes. dz is the
 ::  calendar's default zone for timed events with none named.
 ::
@@ -463,18 +611,17 @@
   |=  [jon=json dz=(unit @t)]
   ^-  (unit event:cal)
   =/  cat=@t  (gs jon 'cat')
+  ::  meta passes through verbatim; only 'name' is required
   =/  =meta:cal
-    :*  (gs jon 'name')
-        (gs jon 'note')
-        =/(c (gs jon 'color') ?:(=('' c) '#4a6a8a' c))
-    ==
-  ?:  =('' name.meta)  ~
-  ::  rdate: a bare recurring date, no clock
-  ?:  =('rdate' cat)
+    =/  mj=(unit json)  (~(get jo:json-utils jon) /meta)
+    ?.(?=([~ %o *] mj) ~ p.u.mj)
+  ?:  =('' (meta-str:cal meta 'name'))  ~
+  ::  date: a bare recurring date, no clock
+  ?:  =('date' cat)
     =/  mo=(unit @ud)  (gn jon 'month')
     =/  dy=(unit @ud)  (gn jon 'day')
     ?:  |(?=(~ mo) ?=(~ dy))  ~
-    `[%rdate u.mo u.dy meta]
+    `[%date u.mo u.dy meta]
   ::  timed / allday both wrap a recur
   =/  rec=(unit recur:cal)  (parse-recur jon)
   ?~  rec  ~

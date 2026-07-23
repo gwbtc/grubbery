@@ -1,13 +1,13 @@
 ::  monthly: day N of each month at a wall-clock time; dead index
-::  when the month is too short. args: [day=@ud at=@dr]
+::  when the month is too short. args: {day: N, at: minutes}
 ::
 /<  rules  /lib/rules.hoon
 ^-  kind:rules
-|=  [args=* start=@da idx=@ud]
+|=  [args=(map @t json) start=@da idx=@ud]
 ^-  (unit @da)
-=/  a  ;;([day=@ud at=@dr] args)
+=/  a  ~(. ja:rules args)
 =/  =date  (yore (day-floor:rules start))
 =/  [y=@ud m=@ud]  (month-add:rules y.date m.date idx)
-=/  day=(unit @da)  (on-date:rules y m day.a)
+=/  day=(unit @da)  (on-date:rules y m (num:a 'day'))
 ?~  day  ~
-`(add u.day at.a)
+`(add u.day (mins:a 'at'))

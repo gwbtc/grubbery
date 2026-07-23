@@ -64,13 +64,73 @@ function fmtDate(p) {
   return WDS[dow] + ', ' + MN[p.m - 1].slice(0, 3) + ' ' + p.d;
 }
 
+// ISO 8601 week number: the week of its Thursday, weeks start Monday
+function isoWeek(ser) {
+  var dow = (new Date(ser * MS_DAY).getUTCDay() + 6) % 7;
+  var thu = ser - dow + 3;
+  var y = new Date(thu * MS_DAY).getUTCFullYear();
+  var jan1 = Date.UTC(y, 0, 1) / MS_DAY;
+  return Math.floor((thu - jan1) / 7) + 1;
+}
+
 // ---- data ---------------------------------------------------------
+
+// per-event computation walls: [{id, name, stop}] where an event's
+// occurrence walk was capped short of the requested range
+var CAPS = [];
 
 function fetchWindow(fromMs, toMs, cb) {
   fetch(CAL + '/window.json?from=' + fromMs + '&to=' + toMs)
     .then(function(x) { return x.json(); })
-    .then(cb)
+    .then(function(res) {
+      var rows = res.rows || [];
+      CAPS = (res.caps || []).map(function(cp) {
+        var m = cp.meta || {};
+        return { id: cp.id, name: m.name || '', color: m.color || '', stop: cp.stop };
+      });
+      // meta rides as an object; flatten the display keys onto the row
+      rows.forEach(function(r) {
+        var m = r.meta || {};
+        r.name = m.name || '';
+        r.note = m.note || '';
+        r.color = m.color || '';
+      });
+      cb(rows);
+    })
     .catch(function() { cb([]); });
+}
+
+function capsOn(ser) {
+  return CAPS.filter(function(cp) {
+    return pserial(msToUTC(cp.stop)) === ser;
+  });
+}
+
+function capChip(cp) {
+  var mk = document.createElement('div');
+  mk.className = 'chip cap-chip';
+  mk.textContent = '⇥ ' + cp.name + ' · computed to here';
+  hoverTip(mk,
+    '"' + cp.name + '" continues past this day, but only its first 10,000 ' +
+    'occurrences have been computed — they end here. The series itself has no end.');
+  return mk;
+}
+
+// fixed-position hover tooltip — unclippable by cell overflow
+function hoverTip(el, text) {
+  el.addEventListener('mouseenter', function() {
+    var t = document.createElement('div');
+    t.id = 'tipbox';
+    t.textContent = text;
+    document.body.appendChild(t);
+    var r = el.getBoundingClientRect();
+    t.style.left = Math.min(r.left, window.innerWidth - 260) + 'px';
+    t.style.top = (r.top > 80 ? r.top - t.offsetHeight - 6 : r.bottom + 6) + 'px';
+  });
+  el.addEventListener('mouseleave', function() {
+    var t = document.getElementById('tipbox');
+    if (t) t.remove();
+  });
 }
 
 function poke(body, cb) {
@@ -141,7 +201,7 @@ function showPop(ev, x, y) {
   var note = document.getElementById('pop-note');
   note.textContent = ev.note || '';
   note.style.display = ev.note ? '' : 'none';
-  var series = (ev.cat !== 'rdate' && ev.kind !== 'once');
+  var series = (ev.cat !== 'date' && ev.kind !== 'once');
   document.getElementById('pop-skip').style.display = series ? '' : 'none';
   document.getElementById('pop-del').textContent =
     (ev.kind === 'once') ? 'Delete' : 'Delete series';
@@ -201,6 +261,7 @@ function chipEl(ev, cont) {
 
 var grid = document.getElementById('grid');
 document.getElementById('dow-row').innerHTML =
+  '<div class="dow wk-stub"></div>' +
   WD.map(function(d) { return '<div class="dow">' + WDS[WD.indexOf(d)] + '</div>'; }).join('');
 
 function monthCells() {
@@ -222,11 +283,22 @@ function renderMonth(rows) {
   });
   var today = pserial(parts(Date.now()));
   grid.innerHTML = '';
-  monthCells().forEach(function(c) {
+  monthCells().forEach(function(c, i) {
     var ser = serial(c.y, c.m, c.d);
+    if (i % 7 === 0) {
+      var wk = document.createElement('div');
+      wk.className = 'wknum';
+      wk.textContent = isoWeek(ser);
+      wk.title = 'Week ' + isoWeek(ser);
+      wk.onclick = function() {
+        state.view = 'week'; state.y = c.y; state.m = c.m; state.d = c.d; load();
+      };
+      grid.appendChild(wk);
+    }
     var cell = document.createElement('div');
     cell.className = 'cell' + (c.m !== state.m ? ' other' : '') +
-      (ser === today ? ' today' : '');
+      (ser === today ? ' today' : '') +
+      (ser === serial(state.y, state.m, state.d) ? ' axis' : '');
     var num = document.createElement('div');
     num.className = 'dnum';
     num.textContent = c.d;
@@ -242,6 +314,7 @@ function renderMonth(rows) {
     (byDay[ser] || [])
       .sort(function(a, b) { return (a.cont ? 0 : a.ev.l) - (b.cont ? 0 : b.ev.l); })
       .forEach(function(en) { cell.appendChild(chipEl(en.ev, en.cont)); });
+    capsOn(ser).forEach(function(cp) { cell.appendChild(capChip(cp)); });
     grid.appendChild(cell);
   });
 }
@@ -274,7 +347,8 @@ function renderTimeGrid(rows, n) {
   days.forEach(function(c) {
     var el = document.createElement('div');
     var ser = serial(c.y, c.m, c.d);
-    el.className = 'tg-day' + (ser === today ? ' today' : '');
+    el.className = 'tg-day' + (ser === today ? ' today' : '') +
+      (n === 7 && ser === serial(state.y, state.m, state.d) ? ' axis' : '');
     el.textContent = WDS[(new Date(ser * MS_DAY).getUTCDay() + 6) % 7] + ' ' + c.d;
     el.onclick = function() { state.view = 'day'; state.y = c.y; state.m = c.m; state.d = c.d; load(); };
     tgHead.appendChild(el);
@@ -282,9 +356,10 @@ function renderTimeGrid(rows, n) {
 
   // all-day lane
   tgAllday.innerHTML = '';
-  var lanes = days.map(function() {
+  var lanes = days.map(function(c) {
     var el = document.createElement('div');
     el.className = 'ad-col';
+    capsOn(serial(c.y, c.m, c.d)).forEach(function(cp) { el.appendChild(capChip(cp)); });
     tgAllday.appendChild(el);
     return el;
   });
@@ -404,6 +479,10 @@ function setLabel() {
     var a = ds[0], b = ds[6];
     label.textContent = MN[a.m - 1].slice(0, 3) + ' ' + a.d + ' – ' +
       (a.m === b.m ? '' : MN[b.m - 1].slice(0, 3) + ' ') + b.d + ', ' + b.y + zone;
+    var sub = document.createElement('span');
+    sub.className = 'wk-sub';
+    sub.textContent = 'Week ' + isoWeek(serial(a.y, a.m, a.d));
+    label.appendChild(sub);
   } else {
     var s = serial(state.y, state.m, state.d);
     label.textContent = WDS[(new Date(s * MS_DAY).getUTCDay() + 6) % 7] + ' ' +
@@ -534,10 +613,10 @@ var cat = 'timed';
 
 function syncFields() {
   var k = kindSel.value;
-  var rc = (cat !== 'rdate');   // has a recurrence
+  var rc = (cat !== 'date');   // has a recurrence
   var show = {
     rc: rc,
-    bf: cat === 'rdate',
+    bf: cat === 'date',
     tf: cat === 'timed',
     af: cat === 'allday',
     wf: rc && k === 'weekly',
@@ -605,6 +684,91 @@ function loadZones() {
     .catch(function() {});
 }
 
+// target: pick the axis date all views orient around
+var axisBtn = document.getElementById('axis-btn');
+var axisInput = document.getElementById('axis-input');
+axisBtn.onclick = function() {
+  axisInput.value = state.y + '-' + pad2(state.m) + '-' + pad2(state.d);
+  if (axisInput.showPicker) axisInput.showPicker(); else axisInput.click();
+};
+axisInput.onchange = function() {
+  if (!axisInput.value) return;
+  var p = axisInput.value.split('-');
+  state.y = +p[0]; state.m = +p[1]; state.d = +p[2];
+  load();
+};
+
+// feeds modal: manage the named external ICS urls
+var feedsBack = document.getElementById('feeds-back');
+document.getElementById('feeds-btn').onclick = function() {
+  loadFeeds();
+  feedsBack.classList.add('open');
+};
+document.getElementById('feeds-close').onclick = function() { feedsBack.classList.remove('open'); };
+feedsBack.onclick = function(e) { if (e.target === feedsBack) feedsBack.classList.remove('open'); };
+
+function loadFeeds() {
+  fetch(CAL + '/feeds.json')
+    .then(function(r) { return r.json(); })
+    .then(function(fs) {
+      var list = document.getElementById('feeds-list');
+      list.innerHTML = '';
+      var names = Object.keys(fs);
+      if (!names.length) {
+        list.innerHTML = '<div class="feed-row" style="border:none;color:#666">No feeds yet. Paste your Google Calendar secret iCal address below.</div>';
+        return;
+      }
+      names.forEach(function(n) {
+        var row = document.createElement('div');
+        row.className = 'feed-row';
+        var nm = document.createElement('span');
+        nm.className = 'fn';
+        nm.textContent = n;
+        var u = document.createElement('span');
+        u.className = 'fu';
+        u.textContent = fs[n];
+        var x = document.createElement('button');
+        x.className = 'fx';
+        x.textContent = '✕';
+        x.title = 'Remove feed';
+        x.onclick = function() {
+          poke({ action: 'del-feed', name: n }, function() { setTimeout(loadFeeds, 300); });
+        };
+        row.appendChild(nm); row.appendChild(u); row.appendChild(x);
+        list.appendChild(row);
+      });
+    })
+    .catch(function() {});
+}
+
+document.getElementById('feed-add').onclick = function() {
+  var st = document.getElementById('feeds-status');
+  var n = document.getElementById('feed-name').value.trim();
+  var u = document.getElementById('feed-url').value.trim();
+  if (!n || !u) { st.textContent = 'name and url required'; return; }
+  st.textContent = '';
+  poke({ action: 'add-feed', name: n, url: u }, function(ok) {
+    if (!ok) { st.textContent = 'save failed'; return; }
+    document.getElementById('feed-name').value = '';
+    document.getElementById('feed-url').value = '';
+    setTimeout(loadFeeds, 300);
+  });
+};
+
+// sync: materialize external ICS feeds into this calendar
+var syncBtn = document.getElementById('sync-btn');
+syncBtn.onclick = function() {
+  syncBtn.disabled = true;
+  syncBtn.style.opacity = '0.4';
+  poke({ action: 'sync-feeds' }, function() {
+    setTimeout(function() {
+      syncBtn.disabled = false;
+      syncBtn.style.opacity = '';
+      load();
+    }, 1500);
+  });
+};
+
 var clockBtn = document.getElementById('clock-btn');
 function syncClockBtn() { clockBtn.textContent = H12 ? '12h' : '24h'; }
 syncClockBtn();
@@ -623,6 +787,22 @@ dispSel.onchange = function() {
     loadZones();
     load();
   });
+};
+
+// globe: one click to adopt the browser's timezone as the calendar zone
+var globeBtn = document.getElementById('globe-btn');
+var browserZone = '';
+try { browserZone = Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch (e) {}
+if (browserZone) {
+  globeBtn.title = 'Set calendar timezone to your browser timezone (' + browserZone + ')';
+}
+globeBtn.onclick = function() {
+  if (!browserZone) return;
+  var known = [].some.call(dispSel.options, function(o) { return o.value === browserZone; });
+  if (!known) { alert('The ship does not know the zone ' + browserZone); return; }
+  if (dispSel.value === browserZone) return;
+  dispSel.value = browserZone;
+  dispSel.onchange();
 };
 
 function pad2(x) { return ('0' + x).slice(-2); }
@@ -665,44 +845,46 @@ function msToUTC(ms) {
 function openEdit(d, target) {
   editCtx = { id: d.id, idx: target.idx, occ: parts(target.l) };
   document.getElementById('modal-title').textContent = 'Edit Event';
-  document.getElementById('f-name').value = d.name || '';
-  document.getElementById('f-note').value = d.note || '';
-  document.getElementById('f-color').value = d.color || '#4a6a8a';
+  var dm = d.meta || {};
+  document.getElementById('f-name').value = dm.name || '';
+  document.getElementById('f-note').value = dm.note || '';
+  document.getElementById('f-color').value = dm.color || '#4a6a8a';
 
   // edit scope only for a recurring series
-  var recurring = (d.cat !== 'rdate' && d.kind !== 'once');
+  var recurring = (d.cat !== 'date' && d.kind !== 'once');
   var scope = document.getElementById('edit-scope');
   scope.classList.toggle('on', recurring);
   if (recurring) document.querySelector('input[name="scope"][value="all"]').checked = true;
 
-  if (d.cat === 'rdate') {
+  if (d.cat === 'date') {
     document.getElementById('f-bmonth').value = d.month || 1;
     document.getElementById('f-bday').value = d.day || 1;
-    setCat('rdate');
+    setCat('date');
     back.classList.add('open');
     return;
   }
   kindSel.value = d.kind;
+  var a = d.args || {};
   var sp = msToUTC(d.start_ms);
   document.getElementById('f-date').value = sp.y + '-' + pad2(sp.m) + '-' + pad2(sp.d);
-  var atMin = (d.at_min !== undefined) ? d.at_min : (sp.hh * 60 + sp.mm);
+  var atMin = (a.at !== undefined) ? a.at : (sp.hh * 60 + sp.mm);
   document.getElementById('f-time').value = pad2(Math.floor(atMin / 60)) + ':' + pad2(atMin % 60);
   document.getElementById('f-dur').value = d.dur_min || 0;
   document.getElementById('f-days-n').value = d.span_days || 1;
   document.getElementById('f-count').value = d.count || 0;
   document.getElementById('f-until').value = '';
-  document.getElementById('f-period').value = d.period_min || 60;
-  document.getElementById('f-day').value = d.kind === 'monthly' ? (d.day || 1) : 1;
+  document.getElementById('f-period').value = a.period || 60;
+  document.getElementById('f-day').value = d.kind === 'monthly' ? (a.day || 1) : 1;
   if (d.kind === 'monthly-nth') {
-    document.getElementById('f-ord').value = d.ord || 'first';
-    dowSel.value = d.day || 'mon';
+    document.getElementById('f-ord').value = a.ord || 'first';
+    dowSel.value = a.day || 'mon';
   }
   if (d.kind === 'yearly') {
-    document.getElementById('f-month').value = d.month || 1;
-    document.getElementById('f-yday').value = d.day || 1;
+    document.getElementById('f-month').value = a.month || 1;
+    document.getElementById('f-yday').value = a.day || 1;
   }
   daysDiv.querySelectorAll('.day-tog').forEach(function(t) {
-    t.classList.toggle('on', (d.days || []).indexOf(t.dataset.d) >= 0);
+    t.classList.toggle('on', (a.days || []).indexOf(t.dataset.d) >= 0);
   });
   zoneSel.value = d.zone === 'none' ? 'none' : (d.zone || '');
   setCat(d.cat);
@@ -713,22 +895,24 @@ document.getElementById('add-btn').onclick = function() { openModal(); };
 document.getElementById('modal-close').onclick = function() { back.classList.remove('open'); };
 back.onclick = function(e) { if (e.target === back) back.classList.remove('open'); };
 
-// gather the kind-specific args from the form onto a body
-function addKindArgs(body, k, tv) {
+// the kind-specific args object, keyed the way the kind file reads them
+function kindArgs(k, tv) {
+  var a = {};
   if (k === 'weekly') {
-    body.days = [].slice.call(daysDiv.querySelectorAll('.on')).map(function(t) { return t.dataset.d; });
+    a.days = [].slice.call(daysDiv.querySelectorAll('.on')).map(function(t) { return t.dataset.d; });
   }
-  if (k === 'monthly') body.day = +document.getElementById('f-day').value;
+  if (k === 'monthly') a.day = +document.getElementById('f-day').value;
   if (k === 'monthly-nth') {
-    body.ord = document.getElementById('f-ord').value;
-    body.day = dowSel.value;
+    a.ord = document.getElementById('f-ord').value;
+    a.day = dowSel.value;
   }
   if (k === 'yearly') {
-    body.month = +document.getElementById('f-month').value;
-    body.day = +document.getElementById('f-yday').value;
+    a.month = +document.getElementById('f-month').value;
+    a.day = +document.getElementById('f-yday').value;
   }
-  if (k === 'every') body.period_min = +document.getElementById('f-period').value || 60;
-  if (k !== 'once' && k !== 'every') body.at_min = (+tv[0]) * 60 + (+tv[1]);
+  if (k === 'every') a.period = +document.getElementById('f-period').value || 60;
+  if (k !== 'once' && k !== 'every') a.at = (+tv[0]) * 60 + (+tv[1]);
+  return a;
 }
 
 document.getElementById('f-save').onclick = function() {
@@ -737,9 +921,9 @@ document.getElementById('f-save').onclick = function() {
   if (!name) { st.textContent = 'name required'; return; }
   var color = document.getElementById('f-color').value;
   var note = document.getElementById('f-note').value;
-  var body = { action: 'add-event', cat: cat, name: name, color: color, note: note };
+  var body = { action: 'add-event', cat: cat, meta: { name: name, color: color, note: note } };
 
-  if (cat === 'rdate') {
+  if (cat === 'date') {
     body.month = +document.getElementById('f-bmonth').value;
     body.day = +document.getElementById('f-bday').value;
   } else {
@@ -753,8 +937,8 @@ document.getElementById('f-save').onclick = function() {
     body.start_ms = (cat === 'timed' && (k === 'once' || k === 'every'))
       ? Date.UTC(+p[0], +p[1] - 1, +p[2], +tv[0], +tv[1])
       : Date.UTC(+p[0], +p[1] - 1, +p[2]);
-    addKindArgs(body, k, tv);
-    if (k === 'weekly' && !body.days.length) { st.textContent = 'pick weekdays'; return; }
+    body.args = kindArgs(k, tv);
+    if (k === 'weekly' && !body.args.days.length) { st.textContent = 'pick weekdays'; return; }
     if (cat === 'timed') {
       var zone = zoneSel.value;
       if (zone) body.zone = zone;
@@ -784,7 +968,7 @@ document.getElementById('f-save').onclick = function() {
   if (!editCtx) { poke(body, finish); return; }
 
   var scopeEl = document.querySelector('input[name="scope"]:checked');
-  var recurring = (cat !== 'rdate' && kindSel.value !== 'once');
+  var recurring = (cat !== 'date' && kindSel.value !== 'once');
   var scope = (!recurring || !scopeEl) ? 'all' : scopeEl.value;
 
   if (scope === 'all') {
@@ -800,7 +984,7 @@ document.getElementById('f-save').onclick = function() {
     });
   } else {
     // only this one: skip it, add a one-off replacement in the same category
-    var only = { action: 'add-event', cat: cat, name: body.name, color: body.color, note: body.note, kind: 'once' };
+    var only = { action: 'add-event', cat: cat, meta: body.meta, kind: 'once' };
     if (cat === 'timed') {
       only.start_ms = Date.UTC(editCtx.occ.y, editCtx.occ.m - 1, editCtx.occ.d, editCtx.occ.hh, editCtx.occ.mm);
       if (body.zone) only.zone = body.zone;

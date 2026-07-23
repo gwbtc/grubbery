@@ -17,10 +17,23 @@
         <button id="next" class="nav-btn icon-btn" title="Next">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
         </button>
+        <button id="axis-btn" class="nav-btn icon-btn" title="Set the axis date the view is oriented around">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3.5"/><line x1="12" y1="1.5" x2="12" y2="5"/><line x1="12" y1="19" x2="12" y2="22.5"/><line x1="1.5" y1="12" x2="5" y2="12"/><line x1="19" y1="12" x2="22.5" y2="12"/></svg>
+        </button>
+        <input id="axis-input" type="date" style="position:absolute;opacity:0;pointer-events:none;width:0;height:0;">
       </div>
       <span id="month-label"></span>
       <div id="loader"><div class="spin"></div></div>
       <select id="zone-sel" title="Display timezone"></select>
+      <button id="globe-btn" class="nav-btn icon-btn" title="Set calendar timezone to your browser timezone">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3a15 15 0 0 1 0 18a15 15 0 0 1 0-18"/></svg>
+      </button>
+      <button id="sync-btn" class="nav-btn icon-btn" title="Sync external calendar feeds (Google Calendar etc.)">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><polyline points="21 3 21 9 15 9"/></svg>
+      </button>
+      <button id="feeds-btn" class="nav-btn icon-btn" title="Manage external calendar feeds">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 11a9 9 0 0 1 9 9"/><path d="M4 4a16 16 0 0 1 16 16"/><circle cx="5" cy="19" r="1.5" fill="currentColor" stroke="none"/></svg>
+      </button>
       <button id="clock-btn" class="nav-btn" title="Clock format"></button>
       <div id="views">
         <button id="v-month" class="nav-btn view-btn">Month</button>
@@ -81,10 +94,10 @@
         <div id="cat-seg">
           <button type="button" class="seg-btn on" data-cat="timed">Timed</button>
           <button type="button" class="seg-btn" data-cat="allday">All day</button>
-          <button type="button" class="seg-btn" data-cat="rdate">Birthday</button>
+          <button type="button" class="seg-btn" data-cat="date">Birthday</button>
         </div>
 
-        <!-- birthday (rdate): month + day only -->
+        <!-- birthday (%date): month + day only -->
         <div class="bf nth-row">
           <div>
             <label class="f">Month</label>
@@ -175,6 +188,24 @@
         <div id="modal-foot">
           <span id="f-status"></span>
           <button id="f-save" class="nav-btn">Save</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="feeds-back">
+      <div id="feeds-modal">
+        <div class="feeds-header">
+          <span>External Feeds</span>
+          <button id="feeds-close" class="nav-btn">Close</button>
+        </div>
+        <div id="feeds-list"></div>
+        <label class="f">Name</label>
+        <input id="feed-name" placeholder="main">
+        <label class="f">Secret ICS address</label>
+        <input id="feed-url" placeholder="https://calendar.google.com/calendar/ical/…/basic.ics">
+        <div class="feeds-foot">
+          <span id="feeds-status"></span>
+          <button id="feed-add" class="nav-btn">Add feed</button>
         </div>
       </div>
     </div>

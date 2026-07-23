@@ -38,11 +38,26 @@
 ::
 ::  a kind is a clock: idx -> a naive local moment, nothing else.
 ::  start anchors idx 0. ~ = this index has no occurrence (april
-::  31st, non-leap feb 29). The event layer (lib/calendar) dresses
-::  each moment with a shape (timed/allday) and bounds.
+::  31st, non-leap feb 29). args is a json object (self-describing,
+::  never a raw noun); the kind reads its own args by key via +ja,
+::  so the kind file is the single source of truth for its params.
+::  The event layer (lib/calendar) dresses each moment with a shape.
 ::
-+$  kind  $-([args=* start=@da idx=@ud] (unit @da))
++$  kind  $-([args=(map @t json) start=@da idx=@ud] (unit @da))
+::  +ja: typed reads from a json-arg map, via jo:json-utils + dejs.
+::  Missing key -> zero of the type. Wrong-typed value crashes into
+::  the caller's mole — the event goes quiet rather than lying.
 ::
+++  ja
+  |_  args=(map @t json)
+  ++  dug   |*([k=@t de=$-(json *) fel=*] (fall (bind (~(get by args) k) de) fel))
+  ++  wkdp  (su:dejs:format (perk %mon %tue %wed %thu %fri %sat %sun ~))
+  ++  num   |=(k=@t ^-(@ud (dug k ni:dejs:format 0)))
+  ++  mins  |=(k=@t `@dr`(mul (num k) ~m1))
+  ++  str   |=(k=@t ^-(@t (dug k so:dejs:format '')))
+  ++  wkds  |=(k=@t ^-((list wkd) (dug k (ar:dejs:format wkdp) ~)))
+  ++  nums  |=(k=@t ^-((list @ud) (dug k (ar:dejs:format ni:dejs:format) ~)))
+  --
 ::  +realize: all UTC instants of a wall-clock instant. UTC (zone=~)
 ::  has exactly one; zoned gets every valid pytz conversion (none in
 ::  a DST gap, two in an overlap).

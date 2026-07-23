@@ -44,11 +44,11 @@
     %+  turn  `(list [id=@ta e=event:cal])`rows
     |=  [id=@ta e=event:cal]
     ^-  tape
-    =/  m=meta:cal  ?-(-.e %timed meta.e, %allday meta.e, %rdate meta.e)
+    =/  m=meta:cal  ?-(-.e %timed meta.e, %allday meta.e, %date meta.e)
     =/  detail=tape
       ?-    -.e
-          %rdate
-        "rdate {(scow %ud month.e)}/{(scow %ud day.e)}"
+          %date
+        "date {(scow %ud month.e)}/{(scow %ud day.e)}"
       ::
           %timed
         =/  k=tape  (trip name.kind.recur.e)
@@ -58,6 +58,6 @@
           %allday
         "allday×{(scow %ud days.e)} {(trip name.kind.recur.e)}"
       ==
-    "{(trip id)}: {(trip name.m)}  [{detail}]\0a"
+    "{(trip id)}: {(trip (meta-str:cal m 'name'))}  [{detail}]\0a"
   (pure:m [%text (crip out)])
 --

@@ -1,8 +1,8 @@
-::  daily: every day at a wall-clock time. args: at=@dr (~h9 = 09:00).
+::  daily: every day at a wall-clock time. args: {at: minutes} (540 = 09:00).
 ::
 /<  rules  /lib/rules.hoon
 ^-  kind:rules
-|=  [args=* start=@da idx=@ud]
+|=  [args=(map @t json) start=@da idx=@ud]
 ^-  (unit @da)
-=/  at=@dr  ;;(@dr args)
+=/  at=@dr  (mins:~(. ja:rules args) 'at')
 `(add (add (day-floor:rules start) (mul idx ~d1)) at)

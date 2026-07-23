@@ -1,10 +1,11 @@
-::  every: fixed period from the anchor. args: period=@dr.
+::  every: fixed period from the anchor. args: {period: minutes}.
 ::  Use frame %wall zone=~ — the phase is real time, not wall-clock.
 ::
 /<  rules  /lib/rules.hoon
 ^-  kind:rules
-|=  [args=* start=@da idx=@ud]
+|=  [args=(map @t json) start=@da idx=@ud]
 ^-  (unit @da)
-=/  period=@dr  ;;(@dr args)
+=/  a  ~(. ja:rules args)
+=/  period=@dr  (mins:a 'period')
 ?:  =(0 period)  ~
 `(add start (mul idx period))

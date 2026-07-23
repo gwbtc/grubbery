@@ -65,7 +65,7 @@
     =/  ev=(unit event:cal)  (~(get by events.u.c) eid.r)
     =/  nm=tape
       ?~  ev  "?"
-      (trip name:?-(-.u.ev %timed meta.u.ev, %allday meta.u.ev, %rdate meta.u.ev))
+      (trip (meta-str:cal ?-(-.u.ev %timed meta.u.ev, %allday meta.u.ev, %date meta.u.ev) 'name'))
     ;:  weld
       (scow %da l.span.r)
       ?:  =(l.span.r r.span.r)  ""

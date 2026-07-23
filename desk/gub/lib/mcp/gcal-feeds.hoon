@@ -1,7 +1,8 @@
 /<  tools  /lib/nex/tools.hoon
 ::  gcal-feeds: manage the named map of external ICS feed urls
 ::
-::  Stored as a json grub at /apps/mcp.mcp/gcal-feeds.json:
+::  Stored as a json grub at /apps/calendar.calendar/gcal-feeds.json
+::  (calendar state lives with the calendar):
 ::  {"main": "https://calendar.google.com/calendar/ical/.../basic.ics"}
 ::  Secret addresses are capability urls — they stay in this grub
 ::  and never belong in git.
@@ -37,7 +38,7 @@
     ?~  j  ''
     ?.  ?=(%s -.u.j)  ''
     p.u.j
-  =/  road=road:tarball  [%& %& /apps/[%'mcp.mcp'] %'gcal-feeds.json']
+  =/  road=road:tarball  [%& %& /apps/[%'calendar.calendar'] %'gcal-feeds.json']
   ;<  =view:nexus  bind:m  (peek:io road ~)
   =/  feeds=(map @t json)
     ?.  ?=([%file *] view)  ~

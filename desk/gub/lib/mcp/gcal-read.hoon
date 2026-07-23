@@ -48,7 +48,7 @@
   =/  lo=@ud  (day-num u.from)
   =/  hi=@ud  (day-num u.to)
   ::  look up the feed url
-  =/  feeds-road=road:tarball  [%& %& /apps/[%'mcp.mcp'] %'gcal-feeds.json']
+  =/  feeds-road=road:tarball  [%& %& /apps/[%'calendar.calendar'] %'gcal-feeds.json']
   ;<  =view:nexus  bind:m  (peek:io feeds-road ~)
   =/  url=@t
     ?.  ?=([%file *] view)  ''
