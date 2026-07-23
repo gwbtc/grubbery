@@ -85,13 +85,15 @@
 ++  parse-url
   |=  url=@t
   ^-  [site=path args=quay:eyre]
-  %+  fall
-    %+  rush  url
-    ;~  plug
-      ;~(pfix fas (more fas smeg:de-purl:html))
-      yque:de-purl:html
-    ==
-  [~ ~]
+  =/  result=[site=path args=quay:eyre]
+    %+  fall
+      %+  rush  url
+      ;~  plug
+        ;~(pfix fas (more fas smeg:de-purl:html))
+        yque:de-purl:html
+      ==
+    [~ ~]
+  result
 ::
 ::  URL encoding
 ::

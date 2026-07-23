@@ -1,5 +1,48 @@
 ::  fiberio: helper functions for nexus fibers
 ::
+::  +nonce: tag a wire with an entropy suffix to prevent stale matches.
+::
+::  Problem: fiber wires (/poke, /peek, etc.) are static labels. Within
+::  an uninterrupted run this is fine — fibers are sequential. But if a
+::  fiber crashes and restarts, a stale response from the previous run
+::  can match the restarted fiber's take-* arm on the same wire.
+::
+::  Fix: nonce tags each wire with entropy so stale responses from a
+::  previous run get %skip'd. e.g. /poke → /poke/0v1a.2b3c4
+::
+::  Nonce uses get-entropy which does a raw send-dart poke to
+::  /sys/bowl with a static /sys/eny wire. This avoids infinite recursion
+::  (nonce → get-entropy → poke → nonce → ...) since poke calls nonce.
+::  The static /sys/eny wire is safe because both stale and fresh
+::  responses return valid entropy — consuming the "wrong" one still
+::  produces a unique random nonce.
+::
+::  Subscriptions (keep/drop) are unaffected — caller-provided wires
+::  are stable identifiers, and re-keep on restart is idempotent
+::  (sub-put overwrites, wave-at re-sends initial state).
+::
+::  TODO: vase-free queue storage
+::
+::  Intakes that carry vases (%poke, %peek, %peep, %code) are stored
+::  in the fiber's skip queue as-is. Vases contain type nouns from the
+::  build that produced them. After a code reload, queued vases have
+::  stale types that don't match the new subject — handing these to a
+::  fiber can cause type mismatches or silent corruption.
+::
+::  Fix: split intake into a queue-safe form (nouns only, no vases) and
+::  a fiber-facing form (with vases). On enqueue, strip vases to
+::  [blot noun] (bask). On dequeue, re-vale the noun against the
+::  current type. Affected intakes:
+::    %poke — sage [blot vase] → bask [blot noun], re-vale on dequeue
+::    %peek — sang [blot reus] → [blot noun], re-vale on dequeue
+::    %peep — list of [cass sage] → [cass bask], re-vale on dequeue
+::    %code — built can be [%vase vase] → store as noun, re-vale
+::  Unaffected: %made/%gone/%pack/%sand/%load/%lost/%gain/%held (just
+::  wire+tang), %fell (wire), %news (wave), %here (pant), %veto (dart),
+::  %font (bend), %kept (set bend).
+::
+
+/-  push
 /+  nexus, tarball, server, hu=http-utils
 |%
 ++  fiber   fiber:fiber:nexus
@@ -11,12 +54,9 @@
   |=  =dart
   ^-  tang
   ?-  -.dart
-    %sysc  ~[leaf+"vetoed syscall"]
-    %scry  ~[leaf+"vetoed scry on wire {(spud wire.dart)}"]
-    %bowl  ~[leaf+"vetoed bowl request on wire {(spud wire.dart)}"]
+    %here  ~[leaf+"vetoed here request on wire {(spud wire.dart)}"]
     %kept  ~[leaf+"vetoed kept request on wire {(spud wire.dart)}"]
-    %node  ~[leaf+"vetoed node operation on wire {(spud wire.dart)}"]
-    %manu  ~[leaf+"vetoed manu request on wire {(spud wire.dart)}"]
+    %node  ~[leaf+"vetoed node operation on wire {(spud wire.dart)} dest {<road.dart>} load {<-.load.dart>}"]
   ==
 ::
 ++  send-darts
@@ -24,7 +64,7 @@
   =/  m  (fiber ,~)
   ^-  form:m
   |=  input
-  [darts state %done ~]
+  [darts q.state %done ~]
 ::
 ++  send-dart
   |=  =dart
@@ -32,17 +72,6 @@
   ^-  form:m
   (send-darts dart ~)
 ::
-++  send-card
-  |=  =card:agent:gall
-  =/  m  (fiber ,~)
-  ^-  form:m
-  (send-dart %sysc card)
-::
-++  send-cards
-  |=  cards=(list card:agent:gall)
-  =/  m  (fiber ,~)
-  ^-  form:m
-  (send-darts (turn cards |=(=card:agent:gall [%sysc card])))
 ::
 ++  trace
   |=  =tang
@@ -53,20 +82,20 @@
 ++  fiber-fail
   |=  err=tang
   |=  input
-  [~ state %fail err]
+  [~ q.state %fail err]
 ::
 ++  get-state
   =/  m  (fiber ,vase)
   ^-  form:m
   |=  input
-  [~ state %done state]
+  [~ q.state %done state]
 ::
 ++  get-state-as
   |*  a=mold
   =/  m  (fiber ,a)
   ^-  form:m
   |=  input
-  [~ state %done !<(a state)] :: ;;(a q.state)
+  [~ q.state %done ;;(a q.state)]
 ::
 ++  gut-state-as
   |*  a=mold
@@ -76,12 +105,12 @@
   |=  input
   =/  res  (mule |.(;;(a q.state)))
   ?-  -.res
-    %&  [~ state %done p.res]
-    %|  [~ state %done (gut p.res)]
+    %&  [~ q.state %done p.res]
+    %|  [~ q.state %done (gut p.res)]
   ==
 ::
 ++  replace
-  |=  new=vase
+  |=  new=*
   =/  m  (fiber ,~)
   ^-  form:m
   |=  input
@@ -94,42 +123,85 @@
   ^-  form:m
   |=  input
   ^-  output:m
-  [~ (f state) %done ~]
+  [~ q:(f state) %done ~]
 ::  Wait for any input and return it for manual switching
 ::
 ++  get-input
   =/  m  (fiber ,(unit intake))
   ^-  form:m
   |=  input
-  [~ state %done in]
+  [~ q.state %done in]
 ::
-++  get-bowl
-  |=  =wire
-  =/  m  (fiber ,bowl:nexus)
+++  find-in-here
+  |=  [=here:nexus target=(unit neck:tarball)]
+  ^-  (unit @ud)
+  ::  Scan pant from nearest ancestor (end) for matching neck.
+  ::  Returns steps up from grub to ancestor nexus.
+  ::  Value is directly usable as bend step count in lane-from-bend.
+  =/  rev=pant:nexus  (flop pant.here)
+  =/  steps=@ud  0
+  |-
+  ?~  rev  ~
+  ?~  neck.i.rev  $(rev t.rev, steps +(steps))
+  ?:  ?&  ?=(^ target)
+          !=(u.target u.neck.i.rev)
+      ==
+    $(rev t.rev, steps +(steps))
+  `steps
+::  +ancestor-road: resolve a lane relative to an ancestor nexus
+::
+::  Finds the nearest ancestor with the given neck (e.g. [/claw %agent])
+::  via find-in-here, then builds a road to the given lane within it.
+::  Works from any depth — no hardcoded offsets needed.
+::
+++  ancestor-road
+  |=  [=neck:tarball =lane:tarball]
+  =/  m  (fiber ,road:tarball)
   ^-  form:m
-  ;<  ~  bind:m  (send-dart %bowl wire)
-  (take-bowl wire)
+  ;<  =wire  bind:m  (nonce /ancestor)
+  ;<  ~  bind:m  (send-dart %here wire)
+  ;<  =here:nexus  bind:m  (take-here-raw wire)
+  =/  steps=(unit @ud)  (find-in-here here `neck)
+  ?~  steps
+    ~&  >>>  ["fiberio: couldn't find ancestor" neck]
+    (pure:m [%& lane])
+  (pure:m [%| u.steps lane])
+::  +nex-road: pure road from current rail to nexus-relative lane
 ::
-++  take-bowl
+::  Computes the relative road from the current file's rail to a
+::  nexus-relative destination lane. No fiber IO needed.
+::
+++  nex-road
+  |=  [here=rail:tarball target=lane:tarball]
+  ^-  road:tarball
+  [%| (lent path.here) target]
+::
+++  take-here-raw
   |=  =wire
-  =/  m  (fiber ,bowl:nexus)
+  =/  m  (fiber ,here:nexus)
   ^-  form:m
   |=  input
-  :+  ~  state
+  :+  ~  q.state
   ?+  in  [%skip ~]
       ~  [%wait ~]
       [~ %veto *]
     [%fail (veto-error dart.u.in)]
-      [~ %bowl * *]
+      [~ %here * *]
     ?.  =(wire wire.u.in)
       [%skip ~]
-    [%done bowl.u.in]
+    [%done here.u.in]
   ==
 ::
+++  coerce-here
+  |=  =here:nexus
+  ^-  rail:tarball
+  ?>  root.here
+  [(turn pant.here |=([dir=@ta *] dir)) name.here]
+::
 ++  get-kept
-  |=  =wire
   =/  m  (fiber ,kept:nexus)
   ^-  form:m
+  ;<  =wire  bind:m  (nonce /kept)
   ;<  ~  bind:m  (send-dart %kept wire)
   (take-kept wire)
 ::
@@ -138,7 +210,7 @@
   =/  m  (fiber ,kept:nexus)
   ^-  form:m
   |=  input
-  :+  ~  state
+  :+  ~  q.state
   ?+  in  [%skip ~]
       ~  [%wait ~]
       [~ %veto *]
@@ -148,8 +220,11 @@
       [%skip ~]
     [%done kept.u.in]
   ==
-::  On %rise, log the error and wait for a poke to restart (expect %sig).
-::  On normal startup, continue immediately.
+::  On crash recovery (prod is [~ tang]), log the error and wait for a
+::  poke to restart. On clean start (prod is ~), continue.
+::  Any poke restarts the process — %sig is the convention; a non-sig
+::  poke logs a warning but restarts anyway, and its payload is
+::  consumed (the restarted process never sees it).
 ::  Use at the top of a process to make it restartable:
 ::    ;<  ~  bind:m  (rise-wait prod "my-process: failed")
 ::    ::  startup code continues here
@@ -158,111 +233,61 @@
   |=  [=prod:fiber:nexus msg=tape]
   =/  m  (fiber ,~)
   ^-  form:m
-  ?.  ?=(%rise -.prod)  (pure:m ~)
-  %-  (slog leaf+msg tang.prod)
-  ;<  =cage  bind:m  take-poke
-  ?:  ?=(%sig p.cage)
+  ?~  prod  (pure:m ~)
+  %-  (slog leaf+msg u.prod)
+  ;<  =sage:tarball  bind:m  take-poke
+  ?:  =([/ %sig] p.sage)
     (pure:m ~)
-  (trace leaf+"strange restart mark: {<p.cage>}" ~)
+  (trace leaf+"strange restart mark: {<p.sage>}" ~)
 ::
 ++  take-poke
-  =/  m  (fiber ,cage)
+  =/  m  (fiber ,sage:tarball)
   ^-  form:m
   |=  input
-  :+  ~  state
+  :+  ~  q.state
   ?+  in  [%skip ~]
       ~  [%wait ~]
       [~ %veto *]
     [%fail (veto-error dart.u.in)]
       [~ %poke * *]
-    [%done cage.u.in]
+    [%done sage.u.in]
   ==
 ::  Take a poke and return both its source and payload
 ::
-::  Returns [from cage] where:
-::    from: %.y bend for internal (relative), %.n prov for external
-::    cage: the poke payload
-::
-::  The from is relative to the current file's location.
-::  Use this when you need to verify the poke source for security.
+::  Returns [from sage] where:
+::    from: bend (relative path to sender)
+::    sage: the poke payload
 ::
 ++  take-poke-from
-  =/  m  (fiber ,[from:fiber:nexus cage])
+  =/  m  (fiber ,[from:fiber:nexus sage:tarball])
   ^-  form:m
   |=  input
-  :+  ~  state
+  :+  ~  q.state
   ?+  in  [%skip ~]
       ~  [%wait ~]
       [~ %veto *]
     [%fail (veto-error dart.u.in)]
       [~ %poke * *]
-    [%done [from cage]:u.in]
+    [%done [from sage]:u.in]
   ==
+::  +get-poke-src: extract foreign ship from a poke's from field
 ::
-++  take-watch
-  =/  m  (fiber ,path)
-  ^-  form:m
-  |=  input
-  :+  ~  state
-  ?+  in  [%skip ~]
-      ~  [%wait ~]
-      [~ %veto *]
-    [%fail (veto-error dart.u.in)]
-      [~ %watch *]
-    [%done path.u.in]
-  ==
+::  Remote pokes arrive through /sys/ames/ships/~ship/ in the
+::  namespace, so the bend path starts with /sys/ames/ships/~ship/.
 ::
-++  take-leave
-  =/  m  (fiber ,path)
-  ^-  form:m
-  |=  input
-  :+  ~  state
-  ?+  in  [%skip ~]
-      ~  [%wait ~]
-      [~ %veto *]
-    [%fail (veto-error dart.u.in)]
-      [~ %leave *]
-    [%done path.u.in]
-  ==
-::
-++  take-arvo
-  |=  =wire
-  =/  m  (fiber ,sign-arvo)
-  ^-  form:m
-  |=  input
-  :+  ~  state
-  ?+  in  [%skip ~]
-      ~  [%wait ~]
-      [~ %veto *]
-    [%fail (veto-error dart.u.in)]
-      [~ %arvo * *]
-    ?.  =(wire wire.u.in)
-      [%skip ~]
-    [%done sign.u.in]
-  ==
-::
-++  take-agent
-  |=  =wire
-  =/  m  (fiber ,sign:agent:gall)
-  ^-  form:m
-  |=  input
-  :+  ~  state
-  ?+  in  [%skip ~]
-      ~  [%wait ~]
-      [~ %veto *]
-    [%fail (veto-error dart.u.in)]
-      [~ %agent * *]
-    ?.  =(wire wire.u.in)
-      [%skip ~]
-    [%done sign.u.in]
-  ==
+++  get-poke-src
+  |=  =from:fiber:nexus
+  ^-  (unit @p)
+  =/  pax=path  path.q.from
+  ?.  ?=([%sys %ames %ships @ *] pax)  ~
+  (slaw %p i.t.t.t.pax)
 ::
 ++  take-made
   |=  =wire
   =/  m  (fiber ,~)
   ^-  form:m
   |=  input
-  :+  ~  state
+  :+  ~  q.state
   ?+  in  [%skip ~]
       ~  [%wait ~]
       [~ %veto *]
@@ -280,7 +305,7 @@
   =/  m  (fiber ,~)
   ^-  form:m
   |=  input
-  :+  ~  state
+  :+  ~  q.state
   ?+  in  [%skip ~]
       ~  [%wait ~]
       [~ %veto *]
@@ -295,10 +320,10 @@
 ::
 ++  take-peek
   |=  =wire
-  =/  m  (fiber ,seen:nexus)
+  =/  m  (fiber ,view:nexus)
   ^-  form:m
   |=  input
-  :+  ~  state
+  :+  ~  q.state
   ?+  in  [%skip ~]
       ~  [%wait ~]
       [~ %veto *]
@@ -306,76 +331,192 @@
       [~ %peek * *]
     ?.  =(wire wire.u.in)
       [%skip ~]
-    [%done seen.u.in]
+    [%done view.u.in]
   ==
 ::  File operations: make, poke, peek, cull, sand
 ::
 ++  make
-  |=  [=wire =road:tarball =make:nexus]
+  |=  [=road:tarball =make:nexus]
   =/  m  (fiber ,~)
   ^-  form:m
-  ;<  ~  bind:m  (send-dart %node wire road %make make)
+  ;<  =wire  bind:m  (nonce /make)
+  ;<  ~  bind:m  (send-dart %node wire road %make %.n make)
   (take-made wire)
 ::
+++  make-soft
+  |=  [=road:tarball =make:nexus]
+  =/  m  (fiber ,(unit tang))
+  ^-  form:m
+  ;<  =wire  bind:m  (nonce /make)
+  ;<  ~  bind:m  (send-dart %node wire road %make %.n make)
+  |=  input
+  :+  ~  q.state
+  ?+  in  [%skip ~]
+      ~  [%wait ~]
+      [~ %veto *]
+    [%fail (veto-error dart.u.in)]
+      [~ %made * *]
+    ?.  =(wire wire.u.in)
+      [%skip ~]
+    [%done err.u.in]
+  ==
+::
 ++  poke
-  |=  [=wire =road:tarball =cage]
+  |=  [=road:tarball =bask:tarball]
   =/  m  (fiber ,~)
   ^-  form:m
-  ;<  ~  bind:m  (send-dart %node wire road %poke cage)
+  ;<  =wire  bind:m  (nonce /poke)
+  ;<  ~  bind:m  (send-dart %node wire road %poke bask)
   (take-pack wire)
+::  +poke-soft: poke with timeout, never crashes
+::
+::    Returns ~ on success, (unit tang) on nack or timeout.
+::    Sets a 5s timer; on nack or timeout returns the error.
+::
+++  poke-soft
+  |=  [=road:tarball =bask:tarball]
+  =/  m  (fiber ,(unit tang))
+  ^-  form:m
+  ;<  =wire  bind:m  (nonce /poke)
+  ;<  ~  bind:m  (send-dart %node wire road %poke bask)
+  ;<  now=@da  bind:m  get-time
+  ;<  ~  bind:m  (set-timer wire (add now ~s5))
+  |=  input:fiber:nexus
+  :+  ~  q.state
+  ?+  in  [%skip ~]
+      ~  [%wait ~]
+      [~ %pack * *]
+    ?.  =(wire wire.u.in)  [%skip ~]
+    ?~  err.u.in  [%done ~]
+    [%done `u.err.u.in]
+      [~ %poke * *]
+    ?.  =([/ %timer-wake] p.sage.u.in)  [%skip ~]
+    [%done `~[leaf+"poke timed out after 5s"]]
+  ==
+::  +take-held: wait for a %held response on a wire
+::
+++  take-held
+  |=  =wire
+  =/  m  (fiber ,~)
+  ^-  form:m
+  |=  input
+  :+  ~  q.state
+  ?+  in  [%skip ~]
+      ~  [%wait ~]
+      [~ %veto *]
+    [%fail (veto-error dart.u.in)]
+      [~ %held * *]
+    ?.  =(wire wire.u.in)
+      [%skip ~]
+    ?~  err.u.in
+      [%done ~]
+    [%fail %held-failed u.err.u.in]
+  ==
+::  +checkpoint: promote current hist entry to %firm.
+::  Takes a road: file dests firm the file hist, directory dests
+::  firm the fold hist (whose pace lobe is the subtree merkle root).
+::
+++  checkpoint
+  |=  =road:tarball
+  =/  m  (fiber ,~)
+  ^-  form:m
+  ;<  =wire  bind:m  (nonce /firm)
+  ;<  ~  bind:m
+    (send-dart %node wire road %firm ~)
+  (take-held wire)
+::  +tag: set tags on a hist entry (file or fold, per road)
+::
+++  tag
+  |=  [=road:tarball cas=(unit case:nexus) tags=(set @t)]
+  =/  m  (fiber ,~)
+  ^-  form:m
+  ;<  =wire  bind:m  (nonce /tag)
+  ;<  ~  bind:m
+    (send-dart %node wire road %tag cas tags)
+  (take-held wire)
 ::
 ++  peek
-  |=  [=wire =road:tarball mark=(unit mark)]
-  =/  m  (fiber ,seen:nexus)
+  |=  [=road:tarball blot=(unit blot:tarball)]
+  =/  m  (fiber ,view:nexus)
   ^-  form:m
-  ;<  ~  bind:m  (send-dart %node wire road %peek mark ~ %.n)
+  ;<  =wire  bind:m  (nonce /peek)
+  ;<  ~  bind:m  (send-dart %node wire road %peek blot ~ %.y)
+  (take-peek wire)
+::
+::  Peek a file and extract its value as a typed noun.
+::  Crashes if file not found or wrong type.
+::
+++  peek-as
+  |*  [=road:tarball a=mold]
+  =/  m  (fiber ,(unit a))
+  ^-  form:m
+  ;<  res=view:nexus  bind:m  (peek road ~)
+  ?.  ?=([%file *] res)
+    (pure:m ~)
+  (pure:m `!<(a (need-vase:tarball sang.res)))
+::
+::  Shallow peek: files at this level, subdir names only (no recursion)
+::
+++  peek-shallow
+  |=  [=road:tarball blot=(unit blot:tarball)]
+  =/  m  (fiber ,view:nexus)
+  ^-  form:m
+  ;<  =wire  bind:m  (nonce /peek)
+  ;<  ~  bind:m  (send-dart %node wire road %peek blot ~ %.n)
   (take-peek wire)
 ::
 ::  Peek at a historical version of a file
 ::
 ++  peek-at
-  |=  [=wire =road:tarball mark=(unit mark) =case:nexus]
-  =/  m  (fiber ,seen:nexus)
+  |=  [=road:tarball blot=(unit blot:tarball) =case:nexus]
+  =/  m  (fiber ,view:nexus)
   ^-  form:m
-  ;<  ~  bind:m  (send-dart %node wire road %peek mark `case %.n)
+  ;<  =wire  bind:m  (nonce /peek)
+  ;<  ~  bind:m  (send-dart %node wire road %peek blot `case %.y)
+  (take-peek wire)
+::
+::  Peek a remote ship. Constructs a road targeting
+::  /sys/ames/ships/[ship]/root/[path] so the grubbery routes
+::  the peek cross-ship via the namespace.
+::
+++  peek-remote
+  |=  [=road:tarball =@p case=(unit case:nexus)]
+  =/  m  (fiber ,view:nexus)
+  ^-  form:m
+  =/  remote-road=road:tarball
+    ?-  -.road
+        %|  road  :: relative roads pass through as-is
+        %&
+      =/  prefix=path  /sys/ames/ships/[(scot %p p)]/root
+      ?-  -.p.road
+          %&  :: file: [path name] → /sys/ames/ships/[ship]/root/[path] name
+        [%& %& (weld prefix path.p.p.road) name.p.p.road]
+          %|  :: dir: path → /sys/ames/ships/[ship]/root/[path]
+        [%& %| (weld prefix p.p.road)]
+      ==
+    ==
+  ;<  =wire  bind:m  (nonce /peek)
+  ;<  ~  bind:m  (send-dart %node wire remote-road %peek ~ case %.y)
   (take-peek wire)
 ::
 ::  Check if a target (file or directory) exists at a road.
 ::  Returns %.n on peek failure or %none view, %.y otherwise.
 ::
 ++  peek-exists
-  |=  [=wire =road:tarball]
+  |=  =road:tarball
   =/  m  (fiber ,?)
   ^-  form:m
-  ;<  =seen:nexus  bind:m  (peek wire road ~)
-  (pure:m ?&(?=(%& -.seen) !?=(%none -.p.seen)))
-::
-++  manu
-  |=  [=wire target=(each [=neck:tarball =mana:nexus] road:tarball)]
-  =/  m  (fiber ,@t)
-  ^-  form:m
-  ;<  ~  bind:m  (send-dart %manu wire target)
-  |=  input
-  :+  ~  state
-  ?+  in  [%skip ~]
-      ~  [%wait ~]
-      [~ %veto *]
-    [%fail (veto-error dart.u.in)]
-      [~ %manu * *]
-    ?.  =(wire wire.u.in)
-      [%skip ~]
-    ?:  ?=(%| -.res.u.in)
-      [%fail %manu-failed p.res.u.in]
-    [%done p.res.u.in]
-  ==
+  ;<  =view:nexus  bind:m  (peek road ~)
+  (pure:m !?=(?(%none %miss %veto %tomb) -.view))
 ::
 ++  cull
-  |=  [=wire =road:tarball]
+  |=  =road:tarball
   =/  m  (fiber ,~)
   ^-  form:m
+  ;<  =wire  bind:m  (nonce /cull)
   ;<  ~  bind:m  (send-dart %node wire road %cull ~)
   |=  input
-  :+  ~  state
+  :+  ~  q.state
   ?+  in  [%skip ~]
       ~  [%wait ~]
       [~ %veto *]
@@ -387,14 +528,35 @@
       [%done ~]
     [%fail %cull-failed >road< u.err.u.in]
   ==
+::  Like +cull but logs and continues on error instead of crashing.
+::  Use for best-effort cleanup where the target may already be gone.
+::
+++  cull-soft
+  |=  =road:tarball
+  =/  m  (fiber ,(unit tang))
+  ^-  form:m
+  ;<  =wire  bind:m  (nonce /cull)
+  ;<  ~  bind:m  (send-dart %node wire road %cull ~)
+  |=  input
+  :+  ~  q.state
+  ?+  in  [%skip ~]
+      ~  [%wait ~]
+      [~ %veto *]
+    [%fail (veto-error dart.u.in)]
+      [~ %gone * *]
+    ?.  =(wire wire.u.in)
+      [%skip ~]
+    [%done err.u.in]
+  ==
 ::
 ++  sand
-  |=  [=wire =road:tarball weir=(unit weir:nexus)]
+  |=  [=road:tarball weir=(unit weir:nexus)]
   =/  m  (fiber ,~)
   ^-  form:m
+  ;<  =wire  bind:m  (nonce /sand)
   ;<  ~  bind:m  (send-dart %node wire road %sand weir)
   |=  input
-  :+  ~  state
+  :+  ~  q.state
   ?+  in  [%skip ~]
       ~  [%wait ~]
       [~ %veto *]
@@ -407,13 +569,14 @@
     [%fail %sand-failed u.err.u.in]
   ==
 ::
-++  set-gain
-  |=  [=wire =road:tarball flag=?]
+++  gain
+  |=  [=road:tarball flag=?]
   =/  m  (fiber ,~)
   ^-  form:m
+  ;<  =wire  bind:m  (nonce /gain)
   ;<  ~  bind:m  (send-dart %node wire road %gain flag)
   |=  input
-  :+  ~  state
+  :+  ~  q.state
   ?+  in  [%skip ~]
       ~  [%wait ~]
       [~ %veto *]
@@ -427,12 +590,13 @@
   ==
 ::
 ++  lose
-  |=  [=wire =road:tarball =lose:nexus]
+  |=  [=road:tarball =lose:nexus]
   =/  m  (fiber ,~)
   ^-  form:m
+  ;<  =wire  bind:m  (nonce /lose)
   ;<  ~  bind:m  (send-dart %node wire road %lose lose)
   |=  input
-  :+  ~  state
+  :+  ~  q.state
   ?+  in  [%skip ~]
       ~  [%wait ~]
       [~ %veto *]
@@ -446,12 +610,13 @@
   ==
 ::
 ++  seek
-  |=  [=wire =road:tarball =lobe:clay]
+  |=  [=road:tarball =nobe:nexus]
   =/  m  (fiber ,(each (list [=rail:tarball =cass:clay]) tang))
   ^-  form:m
-  ;<  ~  bind:m  (send-dart %node wire road %seek lobe)
+  ;<  =wire  bind:m  (nonce /seek)
+  ;<  ~  bind:m  (send-dart %node wire road %seek nobe)
   |=  input
-  :+  ~  state
+  :+  ~  q.state
   ?+  in  [%skip ~]
       ~  [%wait ~]
       [~ %veto *]
@@ -463,12 +628,13 @@
   ==
 ::
 ++  peep
-  |=  [=wire =road:tarball =find:nexus]
-  =/  m  (fiber ,(each (list [=cass:clay =cage]) tang))
+  |=  [=road:tarball =find:nexus]
+  =/  m  (fiber ,(each (list [=cass:clay =sage:tarball]) tang))
   ^-  form:m
+  ;<  =wire  bind:m  (nonce /peep)
   ;<  ~  bind:m  (send-dart %node wire road %peep find)
   |=  input
-  :+  ~  state
+  :+  ~  q.state
   ?+  in  [%skip ~]
       ~  [%wait ~]
       [~ %veto *]
@@ -478,64 +644,64 @@
       [%skip ~]
     [%done res.u.in]
   ==
+::  +born: read hist metadata at dest — file (%&) or fold (%|).
+::  Pure metadata: revision, tags, tombstone flag per entry.
+::
+++  born
+  |=  =road:tarball
+  =/  m  (fiber ,(each (list [=cass:clay tags=(set @t) tomb=?]) tang))
+  ^-  form:m
+  ;<  =wire  bind:m  (nonce /born)
+  ;<  ~  bind:m  (send-dart %node wire road %born ~)
+  |=  input
+  :+  ~  q.state
+  ?+  in  [%skip ~]
+      ~  [%wait ~]
+      [~ %veto *]
+    [%fail (veto-error dart.u.in)]
+      [~ %born * *]
+    ?.  =(wire wire.u.in)
+      [%skip ~]
+    [%done res.u.in]
+  ==
 ::
 ++  over
-  |=  [=wire =road:tarball =cage]
+  |=  [=road:tarball =bask:tarball]
   =/  m  (fiber ,~)
   ^-  form:m
-  ;<  ~  bind:m  (send-dart %node wire road %over cage)
-  (take-over wire)
+  ;<  =wire  bind:m  (nonce /make)
+  ;<  ~  bind:m  (send-dart %node wire road %make %.y |+[bask ~])
+  (take-made wire)
+::  +over-as: overwrite with a blot override — the runtime tubes
+::  the given bask to the target blot and validates at destination.
 ::
-++  take-over
-  |=  =wire
+++  over-as
+  |=  [=road:tarball =bask:tarball =blot:tarball]
   =/  m  (fiber ,~)
   ^-  form:m
-  |=  input
-  :+  ~  state
-  ?+  in  [%skip ~]
-      ~  [%wait ~]
-      [~ %veto *]
-    [%fail (veto-error dart.u.in)]
-      [~ %over * *]
-    ?.  =(wire wire.u.in)
-      [%skip ~]
-    ?~  err.u.in
-      [%done ~]
-    [%fail %over-failed u.err.u.in]
-  ==
+  ;<  =wire  bind:m  (nonce /make)
+  ;<  ~  bind:m  (send-dart %node wire road %make %.y |+[bask `blot])
+  (take-made wire)
 ::
-++  diff
-  |=  [=wire =road:tarball =cage]
-  =/  m  (fiber ,~)
-  ^-  form:m
-  ;<  ~  bind:m  (send-dart %node wire road %diff cage)
-  (take-diff wire)
+::  +put: overwrite if exists, create if not
 ::
-++  take-diff
-  |=  =wire
+++  put
+  |=  [=road:tarball =bask:tarball]
   =/  m  (fiber ,~)
   ^-  form:m
-  |=  input
-  :+  ~  state
-  ?+  in  [%skip ~]
-      ~  [%wait ~]
-      [~ %veto *]
-    [%fail (veto-error dart.u.in)]
-      [~ %diff * *]
-    ?.  =(wire wire.u.in)
-      [%skip ~]
-    ?~  err.u.in
-      [%done ~]
-    [%fail %diff-failed u.err.u.in]
-  ==
+  ;<  exists=?  bind:m  (peek-exists road)
+  ?:  exists
+    (over road bask)
+  (make road |+[bask ~])
 ::
 ++  reload
-  |=  [=wire =road:tarball]
+  |=  =road:tarball
   =/  m  (fiber ,~)
   ^-  form:m
+  ;<  =wire  bind:m  (nonce /load)
   ;<  ~  bind:m  (send-dart %node wire road %load ~)
   |=  input
-  :+  ~  state
+  :+  ~  q.state
   ?+  in  [%skip ~]
       ~  [%wait ~]
       [~ %veto *]
@@ -550,10 +716,10 @@
 ::  Subscription operations: keep, drop
 ::
 ++  keep
-  |=  [=wire =road:tarball mark=(unit mark)]
-  =/  m  (fiber ,view:nexus)
+  |=  [=wire =road:tarball blot=(unit blot:tarball)]
+  =/  m  (fiber ,wave:nexus)
   ^-  form:m
-  ;<  ~  bind:m  (send-dart %node wire road %keep mark)
+  ;<  ~  bind:m  (send-dart %node wire road %keep blot)
   (take-bond wire)
 ::
 ++  drop
@@ -565,28 +731,14 @@
 ::
 ++  take-bond
   |=  =wire
-  =/  m  (fiber ,view:nexus)
-  ^-  form:m
-  |=  input
-  :+  ~  state
-  ?+  in  [%skip ~]
-      ~  [%wait ~]
-      [~ %veto *]
-    [%fail (veto-error dart.u.in)]
-      [~ %bond * *]
-    ?.  =(wire wire.u.in)
-      [%skip ~]
-    ?:  ?=(%& -.now.u.in)
-      [%done p.now.u.in]
-    [%fail %keep-failed p.now.u.in]
-  ==
+  (take-news wire)
 ::
 ++  take-fell
   |=  =wire
   =/  m  (fiber ,~)
   ^-  form:m
   |=  input
-  :+  ~  state
+  :+  ~  q.state
   ?+  in  [%skip ~]
       ~  [%wait ~]
       [~ %fell *]
@@ -597,295 +749,423 @@
 ::
 ++  take-news
   |=  =wire
-  =/  m  (fiber ,view:nexus)
+  =/  m  (fiber ,wave:nexus)
   ^-  form:m
   |=  input
-  :+  ~  state
+  :+  ~  q.state
   ?+  in  [%skip ~]
       ~  [%wait ~]
       [~ %news * *]
     ?.  =(wire wire.u.in)
       [%skip ~]
-    [%done view.u.in]
+    [%done wave.u.in]
   ==
-::  Scry helper
+::  Typed scry via /sys/scry/ runtime service
 ::
-++  do-scry
-  |*  [=mold =wire =path]
+::  Scries a vane path and returns the result validated through
+::  the specified mark. The mark must have a marc in the code
+::  namespace so hydration can validate the response.
+::
+++  typed-scry
+  |*  [=mold mark=@tas =path]
   =/  m  (fiber ,mold)
   ^-  form:m
-  ;<  ~  bind:m  (send-dart %scry wire `[mold path])
+  ;<  ~  bind:m
+    (poke &+&+[/sys/scry %'main.sig'] [[/ %scry-request] [mark `^path`path]])
   |=  input
-  :+  ~  state
+  :+  ~  q.state
   ?+  in  [%skip ~]
       ~  [%wait ~]
       [~ %veto *]
     [%fail (veto-error dart.u.in)]
-      [~ %scry * *]
-    ?.  =(wire wire.u.in)
-      [%skip ~]
-    [%done !<(mold vase.u.in)]
+      [~ %poke * *]
+    ?.  =([/ mark] p.sage.u.in)  [%skip ~]
+    [%done !<(mold q.sage.u.in)]
   ==
-::  Clay operations
+::  Clay convenience helpers
 ::
-++  warp
-  |=  [=ship =riff:clay]
-  =/  m  (fiber ,riot:clay)
+++  clay-case
+  |=  dek=desk
+  =/  m  (fiber ,cass:clay)
   ^-  form:m
-  ;<  ~  bind:m  (send-card %pass /warp %arvo %c %warp ship riff)
-  ;<  =sign-arvo  bind:m  (take-arvo /warp)
-  ?>  ?=([%clay %writ *] sign-arvo)
-  (pure:m +>.sign-arvo)
+  (typed-scry cass:clay %clay-case /cw/[dek])
 ::
-::  +get-tube: look up a cached tube from /sys/tubes/
-::
-++  get-tube
-  |=  =mars:clay
-  =/  m  (fiber ,(unit tube:clay))
+++  clay-exists
+  |=  [dek=desk pax=path]
+  =/  m  (fiber ,?)
   ^-  form:m
-  =/  =road:tarball  [%& %& /sys/tubes/[a.mars] b.mars]
-  ;<  =seen:nexus  bind:m  (peek /tube road ~)
-  ?.  ?=([%& %file *] seen)
-    (pure:m ~)
-  (pure:m `!<(tube:clay q.cage.p.seen))
-::  +get-dais: look up a cached dais from /sys/daises/
+  (typed-scry ? %loob (weld /cu/[dek] pax))
 ::
-++  get-dais
-  |=  mak=mark
-  =/  m  (fiber ,(unit dais:clay))
+++  clay-read
+  |=  [dek=desk pax=path]
+  =/  m  (fiber ,*)
   ^-  form:m
-  =/  =road:tarball  [%& %& /sys/daises mak]
-  ;<  =seen:nexus  bind:m  (peek /dais road ~)
-  ?.  ?=([%& %file *] seen)
-    (pure:m ~)
-  (pure:m `!<(dais:clay q.cage.p.seen))
-::  +get-nexus: look up a cached nexus from /sys/nexuses/
+  (typed-scry * %noun (weld /cx/[dek] pax))
 ::
-++  get-nexus
-  |=  neck=@tas
-  =/  m  (fiber ,(unit nexus:nexus))
+++  clay-tree
+  |=  [dek=desk pax=path]
+  =/  m  (fiber ,(list path))
   ^-  form:m
-  =/  =road:tarball  [%& %& /sys/nexuses neck]
-  ;<  =seen:nexus  bind:m  (peek /nexus road ~)
-  ?.  ?=([%& %file *] seen)
-    (pure:m ~)
-  (pure:m `!<(nexus:nexus q.cage.p.seen))
-::  +collect-marks: collect all marks used in cages within a ball (deep)
+  (typed-scry (list path) %clay-tree [%ct dek pax])
+::  Create a new desk via /sys/clay/ runtime service
 ::
-++  collect-marks
-  |=  =ball:tarball
-  ^-  (set mark)
-  =/  marks=(set mark)  ~
-  ::  Collect marks from current node's contents
-  =?  marks  ?=(^ fil.ball)
-    =/  entries=(list (pair @ta content:tarball))
-      ~(tap by contents.u.fil.ball)
-    |-  ^-  (set mark)
-    ?~  entries  marks
-    =*  content  q.i.entries
-    ?:  =(%temp p.cage.content)
-      $(entries t.entries)
-    $(entries t.entries, marks (~(put in marks) p.cage.content))
-  ::  Recurse into subdirectories
-  =/  subdirs=(list (pair @ta ball:tarball))  ~(tap by dir.ball)
-  |-  ^-  (set mark)
-  ?~  subdirs  marks
-  =/  submarks=(set mark)  ^$(ball q.i.subdirs)
-  $(subdirs t.subdirs, marks (~(uni in marks) submarks))
-::  +collect-marks-shallow: collect marks only from immediate files (no recurse)
-::
-++  collect-marks-shallow
-  |=  =ball:tarball
-  ^-  (set mark)
-  ?~  fil.ball  ~
-  =/  entries=(list (pair @ta content:tarball))
-    ~(tap by contents.u.fil.ball)
-  =/  marks=(set mark)  ~
-  |-  ^-  (set mark)
-  ?~  entries  marks
-  =*  ct  q.i.entries
-  ?:  =(%temp p.cage.ct)
-    $(entries t.entries)
-  $(entries t.entries, marks (~(put in marks) p.cage.ct))
-::  +build-mark-conversions: build conversions map for a set of marks
-::
-++  build-mark-conversions
-  |=  marks=(set mark)
-  =/  m  (fiber ,(map mars:clay tube:clay))
-  ^-  form:m
-  =/  mark-list=(list mark)  ~(tap in marks)
-  =/  conversions=(map mars:clay tube:clay)  ~
-  |-  ^-  form:m
-  ?~  mark-list
-    (pure:m conversions)
-  =/  =mars:clay  [i.mark-list %mime]
-  ;<  tube-result=(unit tube:clay)  bind:m
-    (get-tube mars)
-  =?  conversions  ?=(^ tube-result)
-    (~(put by conversions) mars u.tube-result)
-  $(mark-list t.mark-list)
-::  +get-mark-conversions: build mark conversions for all marks in ball (deep)
-::
-++  get-mark-conversions
-  |=  =ball:tarball
-  =/  m  (fiber ,(map mars:clay tube:clay))
-  ^-  form:m
-  (build-mark-conversions (collect-marks ball))
-::  +get-mark-conversions-shallow: build conversions for immediate files only
-::
-++  get-mark-conversions-shallow
-  |=  =ball:tarball
-  =/  m  (fiber ,(map mars:clay tube:clay))
-  ^-  form:m
-  (build-mark-conversions (collect-marks-shallow ball))
-::  +cage-to-mime: convert cage to mime, falling back to jam
-::
-++  cage-to-mime
-  |=  =cage
-  =/  m  (fiber ,mime)
-  ^-  form:m
-  ?:  =(%mime p.cage)
-    (pure:m !<(mime q.cage))
-  ?:  =(%temp p.cage)
-    (pure:m [/application/x-urb-jam (as-octs:mimes:html (jam q.cage))])
-  =/  =mars:clay  [p.cage %mime]
-  ;<  tube=(unit tube:clay)  bind:m
-    (get-tube mars)
-  ?~  tube
-    (pure:m [/application/x-urb-jam (as-octs:mimes:html (jam q.cage))])
-  =/  result=(each vase tang)  (mule |.((u.tube q.cage)))
-  ?:  ?=(%| -.result)
-    (pure:m [/application/x-urb-jam (as-octs:mimes:html (jam q.cage))])
-  =/  extracted  (mule |.(!<(mime p.result)))
-  ?:  ?=(%| -.extracted)
-    (pure:m [/application/x-urb-jam (as-octs:mimes:html (jam q.cage))])
-  (pure:m p.extracted)
-::  Gall agent operations (via syscalls)
-::
-++  gall-poke
-  |=  [=wire =dock =cage]
+++  create-desk
+  |=  dek=desk
   =/  m  (fiber ,~)
   ^-  form:m
-  =/  =card:agent:gall  [%pass wire %agent dock %poke cage]
-  ;<  ~  bind:m  (send-card card)
-  (take-gall-poke-ack wire)
+  (poke &+&+[/sys/clay %'main.clay-state'] [[/ %new-desk] dek])
+::  Write/delete files in a Clay desk via /sys/clay/ runtime service.
+::  No vases — the runtime clams through marks on the destination desk.
 ::
-++  take-gall-poke-ack
+++  clay-info
+  |=  [dek=desk changes=(list [path ?([%ins @tas *] [%del ~])])]
+  =/  m  (fiber ,~)
+  ^-  form:m
+  (poke &+&+[/sys/clay %'main.clay-state'] [[/ %clay-info] [dek changes]])
+::  Send a belt to a dill session via /sys/dill/ runtime service
+::
+++  send-belt
+  |=  [session=@tas =belt:dill]
+  =/  m  (fiber ,~)
+  ^-  form:m
+  (poke &+&+[/sys/dill %'main.sig'] [[/ %dill-belt] [session belt]])
+::  +get-code: peek the code (bins) slice at a road
+::
+++  get-code
+  |=  =road:tarball
+  =/  m  (fiber ,(unit vase))
+  ^-  form:m
+  ;<  =wire  bind:m  (nonce /code)
+  ;<  ~  bind:m  (send-dart %node wire road %code ~)
+  (take-code wire)
+::
+++  take-code
   |=  =wire
-  =/  m  (fiber ,~)
+  =/  m  (fiber ,(unit vase))
   ^-  form:m
   |=  input
-  :+  ~  state
+  :+  ~  q.state
   ?+  in  [%skip ~]
       ~  [%wait ~]
       [~ %veto *]
     [%fail (veto-error dart.u.in)]
-      [~ %agent * *]
+      [~ %code * *]
     ?.  =(wire wire.u.in)
       [%skip ~]
-    ?.  ?=(%poke-ack -.sign.u.in)
+    ?.  ?=(%| -.res.u.in)
       [%skip ~]
-    ?~  p.sign.u.in
-      [%done ~]
-    [%fail %poke-failed u.p.sign.u.in]
-  ==
-::
-++  gall-watch
-  |=  [=wire =dock =path]
-  =/  m  (fiber ,~)
-  ^-  form:m
-  =/  =card:agent:gall  [%pass wire %agent dock %watch path]
-  ;<  ~  bind:m  (send-card card)
-  (take-watch-ack wire)
-::
-++  take-watch-ack
-  |=  =wire
-  =/  m  (fiber ,~)
-  ^-  form:m
-  |=  input
-  :+  ~  state
-  ?+  in  [%skip ~]
-      ~  [%wait ~]
-      [~ %veto *]
-    [%fail (veto-error dart.u.in)]
-      [~ %agent * *]
-    ?.  =(wire wire.u.in)
-      [%skip ~]
-    ?.  ?=(%watch-ack -.sign.u.in)
-      [%skip ~]
-    ?~  p.sign.u.in
-      [%done ~]
-    [%fail %watch-failed u.p.sign.u.in]
-  ==
-::
-++  take-fact
-  |=  =wire
-  =/  m  (fiber ,cage)
-  ^-  form:m
-  |=  input
-  :+  ~  state
-  ?+  in  [%skip ~]
-      ~  [%wait ~]
-      [~ %veto *]
-    [%fail (veto-error dart.u.in)]
-      [~ %agent * *]
-    ?.  =(wire wire.u.in)
-      [%skip ~]
-    ?.  ?=(%fact -.sign.u.in)
-      [%skip ~]
-    [%done cage.sign.u.in]
-  ==
-::
-++  take-kick
-  |=  =wire
-  =/  m  (fiber ,~)
-  ^-  form:m
-  |=  input
-  :+  ~  state
-  ?+  in  [%skip ~]
-      ~  [%wait ~]
-      [~ %veto *]
-    [%fail (veto-error dart.u.in)]
-      [~ %agent * *]
-    ?.  =(wire wire.u.in)
-      [%skip ~]
-    ?.  ?=(%kick -.sign.u.in)
-      [%skip ~]
+    ?:  ?=(%vase -.p.res.u.in)
+      [%done `vase.p.res.u.in]
     [%done ~]
   ==
+::  +get-code-full: peek code slice, returning full built
 ::
-++  gall-leave
-  |=  [=wire =dock]
+++  get-code-full
+  |=  =road:tarball
+  =/  m  (fiber ,built:nexus)
+  ^-  form:m
+  ;<  =wire  bind:m  (nonce /code)
+  ;<  ~  bind:m  (send-dart %node wire road %code ~)
+  |=  input
+  :+  ~  q.state
+  ?+  in  [%skip ~]
+      ~  [%wait ~]
+      [~ %veto *]
+    [%fail (veto-error dart.u.in)]
+      [~ %code * *]
+    ?.  =(wire wire.u.in)
+      [%skip ~]
+    ?.  ?=(%| -.res.u.in)
+      [%skip ~]
+    [%done p.res.u.in]
+  ==
+::  +get-code-tree: peek code slice subtree at a directory road
+::
+++  get-code-tree
+  |=  =road:tarball
+  =/  m  (fiber ,(axal (map @ta built:nexus)))
+  ^-  form:m
+  ;<  =wire  bind:m  (nonce /code)
+  ;<  ~  bind:m  (send-dart %node wire road %code ~)
+  |=  input
+  :+  ~  q.state
+  ?+  in  [%skip ~]
+      ~  [%wait ~]
+      [~ %veto *]
+    [%fail (veto-error dart.u.in)]
+      [~ %code * *]
+    ?.  =(wire wire.u.in)
+      [%skip ~]
+    ?.  ?=(%& -.res.u.in)
+      [%skip ~]
+    [%done p.res.u.in]
+  ==
+::  +get-font: find code responsible for a node
+::  ~: blocked (weir), [~ ~]: definitively none, [~ ~ bend]: found
+::
+++  get-font
+  |=  =road:tarball
+  =/  m  (fiber ,(unit (unit bend:tarball)))
+  ^-  form:m
+  ;<  =wire  bind:m  (nonce /font)
+  ;<  ~  bind:m  (send-dart %node wire road %font ~)
+  |=  input
+  :+  ~  q.state
+  ?+  in  [%skip ~]
+      ~  [%wait ~]
+      [~ %veto *]
+    [%fail (veto-error dart.u.in)]
+      [~ %font * *]
+    ?.  =(wire wire.u.in)
+      [%skip ~]
+    [%done res.u.in]
+  ==
+::  +get-marc: look up a compiled marc from bins
+::
+++  get-marc
+  |=  [cod=road:tarball =blot:tarball]
+  =/  m  (fiber ,(unit marc:tarball))
+  ^-  form:m
+  =/  =road:tarball  (extend-road:tarball cod (weld /mar path.blot) name.blot)
+  ;<  res=(unit vase)  bind:m  (get-code road)
+  ?~  res  (pure:m ~)
+  (pure:m `!<(marc:tarball u.res))
+::  +get-tube: look up a tube via marc grow/grab
+::
+::  Tries source.grow(target) first, then target.grab(source).
+::
+++  get-tube
+  |=  [cod=road:tarball =bars:tarball]
+  =/  m  (fiber ,(unit tube:clay))
+  ^-  form:m
+  ;<  src-marc=(unit marc:tarball)  bind:m  (get-marc cod a.bars)
+  =/  grow-tube=(unit tube:clay)
+    ?~  src-marc  ~
+    (mole |.((grow.u.src-marc b.bars)))
+  ?^  grow-tube  (pure:m grow-tube)
+  ::  Fallback: try target.grab(source)
+  ;<  dst-marc=(unit marc:tarball)  bind:m  (get-marc cod b.bars)
+  ?~  dst-marc  (pure:m ~)
+  =/  grab-tube=(unit tube:clay)
+    (mole |.((grab.u.dst-marc a.bars)))
+  (pure:m grab-tube)
+::  +get-vale: look up a vale via marc
+::
+++  get-vale
+  |=  [cod=road:tarball =blot:tarball]
+  =/  m  (fiber ,(unit $-(* vase)))
+  ^-  form:m
+  ;<  marc-res=(unit marc:tarball)  bind:m  (get-marc cod blot)
+  ?~  marc-res  (pure:m ~)
+  (pure:m `vale.u.marc-res)
+::  +get-nexus: look up a compiled nexus from bins
+::
+++  get-nexus
+  |=  [cod=road:tarball =neck:tarball]
+  =/  m  (fiber ,(unit nexus:nexus))
+  ^-  form:m
+  =/  =road:tarball  (extend-road:tarball cod (weld /nex path.neck) name.neck)
+  ;<  res=(unit vase)  bind:m  (get-code road)
+  ?~  res  (pure:m ~)
+  (pure:m `!<(nexus:nexus u.res))
+::  +collect-blots: collect all blots used in sages within a ball (deep)
+::
+++  collect-blots
+  |=  =ball:tarball
+  ^-  (set blot:tarball)
+  =/  blots=(set blot:tarball)  ~
+  =?  blots  ?=(^ fil.ball)
+    =/  entries=(list [@ta [=sang:tarball gain=? bang=(unit tang)]])
+      ~(tap by contents.u.fil.ball)
+    |-  ^-  (set blot:tarball)
+    ?~  entries  blots
+    $(entries t.entries, blots (~(put in blots) p.sang.i.entries))
+  =/  subdirs=(list (pair @ta ball:tarball))  ~(tap by dir.ball)
+  |-  ^-  (set blot:tarball)
+  ?~  subdirs  blots
+  =/  sub=(set blot:tarball)  ^$(ball q.i.subdirs)
+  $(subdirs t.subdirs, blots (~(uni in blots) sub))
+::  +collect-blots-shallow: collect blots only from immediate files (no recurse)
+::
+++  collect-blots-shallow
+  |=  =ball:tarball
+  ^-  (set blot:tarball)
+  ?~  fil.ball  ~
+  =/  entries=(list [@ta [=sang:tarball gain=? bang=(unit tang)]])
+    ~(tap by contents.u.fil.ball)
+  =/  blots=(set blot:tarball)  ~
+  |-  ^-  (set blot:tarball)
+  ?~  entries  blots
+  $(entries t.entries, blots (~(put in blots) p.sang.i.entries))
+::  +build-blot-conversions: build conversions map for a set of blots
+::
+++  build-blot-conversions
+  |=  blots=(set blot:tarball)
+  =/  m  (fiber ,(map bars:tarball tube:clay))
+  ^-  form:m
+  =/  blot-list=(list blot:tarball)  ~(tap in blots)
+  =/  conversions=(map bars:tarball tube:clay)  ~
+  |-  ^-  form:m
+  ?~  blot-list
+    (pure:m conversions)
+  =/  =bars:tarball  [i.blot-list [/ %mime]]
+  ;<  tube-result=(unit tube:clay)  bind:m
+    (get-tube [%& %| /code] bars)
+  =?  conversions  ?=(^ tube-result)
+    (~(put by conversions) bars u.tube-result)
+  $(blot-list t.blot-list)
+::  +get-blot-conversions: build blot conversions for all blots in ball (deep)
+::
+++  get-blot-conversions
+  |=  =ball:tarball
+  =/  m  (fiber ,(map bars:tarball tube:clay))
+  ^-  form:m
+  (build-blot-conversions (collect-blots ball))
+::  +get-blot-conversions-shallow: build conversions for immediate files only
+::
+++  get-blot-conversions-shallow
+  |=  =ball:tarball
+  =/  m  (fiber ,(map bars:tarball tube:clay))
+  ^-  form:m
+  (build-blot-conversions (collect-blots-shallow ball))
+::  +sage-to-mime: convert sage to mime, falling back to jam
+::
+++  sage-to-mime
+  |=  =sage:tarball
+  =/  m  (fiber ,mime)
+  ^-  form:m
+  ?:  =([/ %mime] p.sage)
+    (pure:m !<(mime q.sage))
+  =/  =bars:tarball  [p.sage [/ %mime]]
+  ;<  tube=(unit tube:clay)  bind:m
+    (get-tube [%& %| /code] bars)
+  ?~  tube
+    (pure:m [/application/x-urb-jam (as-octs:mimes:html (jam q.sage))])
+  =/  result=(each vase tang)  (mule |.((u.tube q.sage)))
+  ?:  ?=(%| -.result)
+    (pure:m [/application/x-urb-jam (as-octs:mimes:html (jam q.sage))])
+  =/  extracted  (mule |.(!<(mime p.result)))
+  ?:  ?=(%| -.extracted)
+    (pure:m [/application/x-urb-jam (as-octs:mimes:html (jam q.sage))])
+  (pure:m p.extracted)
+::  Local IPC (lick vane, via /sys/lick/ runtime service)
+::
+::  +lick-spin: open a local IPC port. vere serves the socket at
+::  <pier>/.urb/dev/grubbery/<name>. Inbound messages materialize at
+::  /sys/lick/<name>/in as [seq=@ud =mark noun=*] (seq bumps per message
+::  so identical payloads still fire a wave); connection state at
+::  /sys/lick/<name>/live. keep the in-grub and take-news to react.
+::
+++  lick-spin
+  |=  [name=path gained=?]
   =/  m  (fiber ,~)
   ^-  form:m
-  =/  =card:agent:gall  [%pass wire %agent dock %leave ~]
-  (send-card card)
-::  Timer helpers
+  (poke &+&+[/sys/lick %'main.sig'] [[/ %lick-spin] name gained])
+::  +lick-shut: close a local IPC port and delete its /sys/lick tree
+::
+++  lick-shut
+  |=  name=path
+  =/  m  (fiber ,~)
+  ^-  form:m
+  (poke &+&+[/sys/lick %'main.sig'] [[/ %lick-shut] name])
+::  +lick-spit: send [mark noun] to the client connected to a port
+::
+++  lick-spit
+  |=  [name=path =mark noun=*]
+  =/  m  (fiber ,~)
+  ^-  form:m
+  (poke &+&+[/sys/lick %'main.sig'] [[/ %lick-spit] name mark noun])
+::  +lick-handler: the gate a +lick-serve app supplies — maps an HTTP-like
+::  request [verb path query body] to a fibered [status body] reply.
+++  lick-handler
+  =/  m  (fiber ,[status=@ud rbody=@t])
+  $-([verb=@t path=@t query=@t body=@t] form:m)
+::  +lick-serve: a request/response server over a lick port. Spins the socket
+::  (owner-only, ungained), keeps its inbound grub, and for each inbound frame
+::  decodes [mark [verb path query body]], calls `handler`, and spits back
+::  [%res [status body]]. Generic — the app supplies only `handler`, an
+::  HTTP-like dispatcher; auth is filesystem-presence (the socket lives in the
+::  pier). Requests are assumed synchronous (one in flight), so no seq de-dup.
+::  Wire (per man/lick-echo): 0x00 + LE-u32 len + jam([mark noun]). The runtime
+::  types the inbound noun as *, so it is extracted generally then clammed to the
+::  request tuple — a direct !< to the specific shape nest-fails on the *.
+++  lick-serve
+  |=  [name=path handler=lick-handler]
+  =/  m  (fiber ,~)
+  ^-  form:m
+  ;<  ~  bind:m  (lick-spin name |)
+  ;<  *  bind:m  (keep /in [%& %& (weld /sys/lick name) %in] ~)
+  |-
+  ;<  *  bind:m  (take-news /in)
+  ;<  =view:nexus  bind:m  (peek [%& %& (weld /sys/lick name) %in] ~)
+  ?.  ?=([%file *] view)  $
+  =/  raw=(unit [seq=@ud mark=@tas noun=*])
+    (mole |.(!<([seq=@ud mark=@tas noun=*] (need-vase:tarball sang.view))))
+  ?~  raw  $
+  =/  req=(unit [verb=@t path=@t query=@t body=@t])
+    (mole |.(;;([@t @t @t @t] noun.u.raw)))
+  ?~  req  $
+  ;<  [status=@ud rbody=@t]  bind:m  (handler u.req)
+  ::  skip the reply if the client has already disconnected — a killed/timed-out
+  ::  client would otherwise draw a runtime "not connected" error on the spit.
+  ::  /live is advisory, so only a definitive %.n suppresses; anything else spits.
+  ;<  live=view:nexus  bind:m  (peek [%& %& (weld /sys/lick name) %live] ~)
+  =/  gone=?
+    ?.  ?=([%file *] live)  |
+    =(| (fall (mole |.(!<(? (need-vase:tarball sang.live)))) &))
+  ?:  gone  $
+  ;<  ~  bind:m  (lick-spit name %res [status rbody])
+  $
+::
+::  Gall agent operations (via /sys/gall/ runtime service)
+::
+++  gall-poke
+  |=  [=dock =page]
+  =/  m  (fiber ,~)
+  ^-  form:m
+  ;<  ~  bind:m
+    (poke &+&+[/sys/gall %'main.sig'] [[/ %gall-poke] [dock page]])
+  |=  input
+  :+  ~  q.state
+  ?+  in  [%skip ~]
+      ~  [%wait ~]
+      [~ %veto *]
+    [%fail (veto-error dart.u.in)]
+      [~ %pack *]
+    ?~  err.u.in  [%done ~]
+    [%fail %poke-failed u.err.u.in]
+  ==
+::  Timer helpers — poke /sys/behn/main.timer-state, receive timer-wake back
+::
+++  set-timer
+  |=  [=wire until=@da]
+  =/  m  (fiber ,~)
+  ^-  form:m
+  (poke &+&+[/sys/behn %'main.timer-state'] [[/ %timer-set] `[^wire @da]`[wire until]])
 ::
 ++  send-wait
   |=  until=@da
   =/  m  (fiber ,~)
   ^-  form:m
-  =/  =card:agent:gall
-    [%pass /wait/(scot %da until) %arvo %b %wait until]
-  (send-card card)
+  (set-timer /wait/(scot %da until) until)
 ::
 ++  take-wake
   |=  until=(unit @da)
   =/  m  (fiber ,~)
   ^-  form:m
   |=  input
-  :+  ~  state
+  :+  ~  q.state
   ?+  in  [%skip ~]
       ~  [%wait ~]
       [~ %veto *]
     [%fail (veto-error dart.u.in)]
-      [~ %arvo [%wait @ ~] %behn %wake *]
-    ?.  |(?=(~ until) =(`u.until (slaw %da i.t.wire.u.in)))
+      [~ %poke * *]
+    ?.  =([/ %timer-wake] p.sage.u.in)
       [%skip ~]
-    ?~  error.sign.u.in
-      [%done ~]
-    [%fail %timer-error u.error.sign.u.in]
+    =/  wak=path  !<(path q.sage.u.in)
+    ?.  |(?=(~ until) ?&(?=([%wait @ ~] wak) =(u.until (slav %da i.t.wak))))
+      [%skip ~]
+    [%done ~]
   ==
 ::
 ++  wait
@@ -899,78 +1179,127 @@
   |=  for=@dr
   =/  m  (fiber ,~)
   ^-  form:m
-  ;<  =bowl:nexus  bind:m  (get-bowl /sleep)
-  (wait (add now.bowl for))
-::  Convenience bowl accessors
+  ;<  now=@da  bind:m  get-time
+  (wait (add now for))
+::  Convenience accessors
 ::
 ++  get-our
   =/  m  (fiber ,ship)
   ^-  form:m
-  ;<  =bowl:nexus  bind:m  (get-bowl /get-our)
-  (pure:m our.bowl)
+  ;<  =wire  bind:m  (nonce /sys/our)
+  ;<  ~  bind:m  (send-dart %node wire &+&+[/sys %'bowl.sig'] %poke [[/ %bowl-req] %our])
+  |=  input
+  :+  ~  q.state
+  ?+  in  [%skip ~]
+      ~  [%wait ~]
+      [~ %pack *]
+    [%wait ~]
+      [~ %poke * *]
+    ?.  =([/ %ship] p.sage.u.in)  [%skip ~]
+    [%done !<(ship q.sage.u.in)]
+  ==
 ::
 ++  get-time
   =/  m  (fiber ,@da)
   ^-  form:m
-  ;<  =bowl:nexus  bind:m  (get-bowl /get-time)
-  (pure:m now.bowl)
+  ;<  =wire  bind:m  (nonce /sys/now)
+  ;<  ~  bind:m  (send-dart %node wire &+&+[/sys %'bowl.sig'] %poke [[/ %bowl-req] %now])
+  |=  input
+  :+  ~  q.state
+  ?+  in  [%skip ~]
+      ~  [%wait ~]
+      [~ %pack *]
+    [%wait ~]
+      [~ %poke * *]
+    ?.  =([/ %time] p.sage.u.in)  [%skip ~]
+    [%done !<(@da q.sage.u.in)]
+  ==
+::  get-entropy uses raw send-dart with a static /sys/eny wire to avoid
+::  recursion: poke → nonce → get-entropy → poke. Static wire is safe
+::  because stale entropy is still valid entropy.
 ::
 ++  get-entropy
   =/  m  (fiber ,@uvJ)
   ^-  form:m
-  ;<  =bowl:nexus  bind:m  (get-bowl /get-entropy)
-  (pure:m eny.bowl)
+  ;<  ~  bind:m  (send-dart %node /sys/eny &+&+[/sys %'bowl.sig'] %poke [[/ %bowl-req] %eny])
+  |=  input
+  :+  ~  q.state
+  ?+  in  [%skip ~]
+      ~  [%wait ~]
+      [~ %pack *]
+    [%wait ~]
+      [~ %poke * *]
+    ?.  =([/ %entropy] p.sage.u.in)  [%skip ~]
+    [%done !<(@uvJ q.sage.u.in)]
+  ==
+::
+++  nonce
+  |=  base=wire
+  =/  m  (fiber ,wire)
+  ^-  form:m
+  ;<  eny=@uvJ  bind:m  get-entropy
+  (pure:m (snoc base (scot %uv (end 5 eny))))
 ::
 ++  get-here
+  =/  m  (fiber ,here:nexus)
+  ^-  form:m
+  ;<  =wire  bind:m  (nonce /here)
+  ;<  ~  bind:m  (send-dart %here wire)
+  (take-here-raw wire)
+::  +get-here-abs: get absolute rail, crashes if blocked from root
+::
+++  get-here-abs
   =/  m  (fiber ,rail:tarball)
   ^-  form:m
-  ;<  =bowl:nexus  bind:m  (get-bowl /get-here)
-  (pure:m here.bowl)
+  ;<  =here:nexus  bind:m  get-here
+  (pure:m (coerce-here here))
 ::
-++  get-agent
-  =/  m  (fiber ,dude:gall)
-  ^-  form:m
-  ;<  =bowl:nexus  bind:m  (get-bowl /get-agent)
-  (pure:m dap.bowl)
+++  dap  %grubbery
+++  dek  %grubbery
+::
 ::
 ++  get-beak
   =/  m  (fiber ,beak)
   ^-  form:m
-  ;<  =bowl:nexus  bind:m  (get-bowl /get-beak)
-  (pure:m byk.bowl)
+  ;<  our=@p  bind:m  get-our
+  ;<  now=@da  bind:m  get-time
+  (pure:m [our dek da+now])
 ::
 ++  get-desk
   =/  m  (fiber ,desk)
   ^-  form:m
-  ;<  =bowl:nexus  bind:m  (get-bowl /get-desk)
-  (pure:m q.byk.bowl)
+  (pure:m dek)
 ::
 ++  get-case
   =/  m  (fiber ,case)
   ^-  form:m
-  ;<  =bowl:nexus  bind:m  (get-bowl /get-case)
-  (pure:m r.byk.bowl)
+  ;<  now=@da  bind:m  get-time
+  (pure:m da+now)
+::
 ::  HTTP client (iris) helpers
+::  Requests go through /sys/iris/ runtime service.
 ::
 ++  send-request
   |=  =request:http
   =/  m  (fiber ,~)
   ^-  form:m
-  (send-card %pass /request %arvo %i %request request *outbound-config:iris)
+  (poke &+&+[/sys/iris %'main.iris-state'] [[/ %iris-request] request])
 ::
 ++  take-client-response
   =/  m  (fiber ,client-response:iris)
   ^-  form:m
   |=  input
-  :+  ~  state
+  :+  ~  q.state
   ?+  in  [%skip ~]
       ~  [%wait ~]
       [~ %veto *]
     [%fail (veto-error dart.u.in)]
-      [~ %arvo [%request ~] %iris %http-response %cancel *]
-    [%fail leaf+"http-request-cancelled" ~]
-      [~ %arvo [%request ~] %iris %http-response %finished *]
-    [%done client-response.sign.u.in]
+      [~ %poke * *]
+    ?.  =([/ %http-response] p.sage.u.in)  [%skip ~]
+    =/  resp=client-response:iris  !<(client-response:iris q.sage.u.in)
+    ?:  ?=(%cancel -.resp)
+      [%fail leaf+"http-request-cancelled" ~]
+    [%done resp]
   ==
 ::
 ++  extract-body
@@ -989,87 +1318,58 @@
   ;<  ~                      bind:m  (send-request request)
   ;<  =client-response:iris  bind:m  take-client-response
   (extract-body client-response)
+::  Push notification helpers
+::  Sends via /sys/push/ runtime service.
+::
+++  push-road  `road:tarball`[%& %& /sys/push %'main.push-state']
+::
+++  send-push
+  |=  =push-send:push
+  =/  m  (fiber ,~)
+  ^-  form:m
+  ;<  eny=@uvJ  bind:m  get-entropy
+  (poke push-road [[/ %push-action] `push-action:nexus`[%send push-send eny]])
+::
+++  init-push
+  |=  sub=@t
+  =/  m  (fiber ,~)
+  ^-  form:m
+  ;<  eny=@uvJ  bind:m  get-entropy
+  (poke push-road [[/ %push-action] `push-action:nexus`[%init eny sub]])
 ::  Poke our own ship
 ::
 ++  gall-poke-our
-  |=  [=dude:gall =cage]
+  |=  [=dude:gall =page]
   =/  m  (fiber ,~)
   ^-  form:m
   ;<  our=@p  bind:m  get-our
-  (gall-poke /poke [our dude] cage)
+  (gall-poke [our dude] page)
 ::  Poke our own ship, returning nack as (unit tang) instead of crashing
 ::
 ++  gall-poke-or-nack
-  |=  [=dude:gall =cage]
+  |=  [=dude:gall =page]
   =/  m  (fiber ,(unit tang))
   ^-  form:m
   ;<  our=@p  bind:m  get-our
-  =/  =card:agent:gall  [%pass /poke %agent [our dude] %poke cage]
-  ;<  ~  bind:m  (send-card card)
+  ;<  ~  bind:m
+    (poke &+&+[/sys/gall %'main.sig'] [[/ %gall-poke] [[our dude] page]])
   |=  input
-  :+  ~  state
+  :+  ~  q.state
   ?+  in  [%skip ~]
       ~  [%wait ~]
       [~ %veto *]
     [%fail (veto-error dart.u.in)]
-      [~ %agent * *]
-    ?.  =(/poke wire.u.in)
-      [%skip ~]
-    ?.  ?=(%poke-ack -.sign.u.in)
-      [%skip ~]
-    [%done p.sign.u.in]
+      [~ %poke * *]
+    ?.  =([/ %poke-ack] p.sage.u.in)  [%skip ~]
+    [%done !<((unit tang) q.sage.u.in)]
   ==
-::
-++  give-response-header
-  |=  [eyre-id=@ta =response-header:http]
-  =/  m  (fiber ,~)
-  ^-  form:m
-  (send-card (give-response-header:hu eyre-id response-header))
-::
-++  give-response-data
-  |=  [eyre-id=@ta data=(unit octs)]
-  =/  m  (fiber ,~)
-  ^-  form:m
-  (send-card (give-response-data:hu eyre-id data))
-::
-++  give-simple-payload
-  |=  [eyre-id=@ta =simple-payload:http]
-  =/  m  (fiber ,~)
-  ^-  form:m
-  %-  send-cards
-  (give-simple-payload:app:server eyre-id simple-payload)
-::
-++  kick-eyre
-  |=  eyre-id=@ta
-  =/  m  (fiber ,~)
-  ^-  form:m
-  (send-card (kick-eyre-sub:hu eyre-id))
-::  SSE helpers
-::
-++  give-sse-header
-  |=  eyre-id=@ta
-  =/  m  (fiber ,~)
-  ^-  form:m
-  (send-card (give-sse-header:hu eyre-id))
-::
-++  give-sse-event
-  |=  [eyre-id=@ta =sse-event:hu]
-  =/  m  (fiber ,~)
-  ^-  form:m
-  (send-card (give-sse-event:hu eyre-id sse-event))
-::
-++  give-sse-keep-alive
-  |=  eyre-id=@ta
-  =/  m  (fiber ,~)
-  ^-  form:m
-  (send-card (give-sse-keep-alive:hu eyre-id))
 ::  +take-news-or-wake: wait for subscription news or timer wake
 ::
 ::    Use this in SSE loops to multiplex between data events and
 ::    keep-alive timers. Returns %news with the update data, or
 ::    %wake when the timer fires.
 +$  news-or-wake
-  $%  [%news =view:nexus]
+  $%  [%news =wave:nexus]
       [%wake ~]
   ==
 ::
@@ -1078,17 +1378,17 @@
   =/  m  (fiber ,news-or-wake)
   ^-  form:m
   |=  input
-  :+  ~  state
+  :+  ~  q.state
   ?+  in  [%skip ~]
       ~  [%wait ~]
       [~ %news * *]
     ?.  =(news-wire wire.u.in)
       [%skip ~]
-    [%done %news view.u.in]
-      [~ %arvo [%wait @ ~] %behn %wake *]
-    ?~  error.sign.u.in
-      [%done %wake ~]
-    [%fail %timer-error u.error.sign.u.in]
+    [%done %news wave.u.in]
+      [~ %poke * *]
+    ?.  =([/ %timer-wake] p.sage.u.in)
+      [%skip ~]
+    [%done %wake ~]
   ==
 ::  Clay file helpers
 ::
@@ -1126,4 +1426,165 @@
   ;<  now=@da   bind:m  get-time
   =/  base=path  /(scot %p our)/[dek]/(scot %da now)
   (pure:m .^(? %cu (weld base pax)))
+::  +copy-grub: copy a file from src to dst
+::
+++  copy-grub
+  |=  [src=road:tarball dst=road:tarball]
+  =/  m  (fiber ,~)
+  ^-  form:m
+  ;<  =view:nexus  bind:m  (peek src ~)
+  ?.  ?=([%file *] view)
+    ~|(%copy-grub-src-not-found !!)
+  (make dst |+[[p.sang.view (sang-noun:tarball sang.view)] ~])
+::  +copy-fold: copy a directory from src to dst
+::
+++  copy-fold
+  |=  [src=road:tarball dst=road:tarball]
+  =/  m  (fiber ,~)
+  ^-  form:m
+  ;<  =view:nexus  bind:m  (peek src ~)
+  ?.  ?=([%ball *] view)
+    ~|(%copy-fold-src-not-found !!)
+  (make dst &+(ball-to-bole:tarball ball.view))
+::  +move-grub: move a file from src to dst (copy + delete)
+::
+++  move-grub
+  |=  [src=road:tarball dst=road:tarball]
+  =/  m  (fiber ,~)
+  ^-  form:m
+  ;<  ~  bind:m  (copy-grub src dst)
+  (cull src)
+::  +move-fold: move a directory from src to dst (copy + delete)
+::
+++  move-fold
+  |=  [src=road:tarball dst=road:tarball]
+  =/  m  (fiber ,~)
+  ^-  form:m
+  ;<  ~  bind:m  (copy-fold src dst)
+  (cull src)
+::
+::  HTTP BINDING + RESPONSE PRIMITIVES
+::
+::  +bind-http: register an eyre binding, sender is the handler.
+::  Resolves caller's absolute position as the handler rail.
+::
+++  bind-http
+  |=  =binding:eyre
+  =/  m  (fiber ,~)
+  ^-  form:m
+  ;<  here=rail:tarball  bind:m  get-here-abs
+  (eyre-poke [%bind binding here])
+::  +unbind-http: remove a binding
+::
+++  unbind-http
+  |=  =binding:eyre
+  =/  m  (fiber ,~)
+  ^-  form:m
+  (eyre-poke [%unbind binding])
+::
+++  server-road  `road:tarball`[%& %& /sys/eyre %'main.server-state']
+::
+++  eyre-poke
+  |=  act=eyre-action:nexus
+  =/  m  (fiber ,~)
+  ^-  form:m
+  (poke server-road [[/ %eyre-action] act])
+::  HTTP response helpers, parameterized on dispatcher road.
+::  Sends route through the dispatcher (main.sig) so the server fiber
+::  sees from=main.sig for cancel-back on orphaned connections.
+::  Usage: =/  srv  ~(. http-res:io [%| 1 %& ~ %'main.sig'])
+::         (send-simple:srv eyre-id payload)
+::
+++  http-res
+  |_  main=road:tarball
+  ++  send
+    |=  [eyre-id=@ta =eyre-update:nexus]
+    =/  m  (fiber ,~)
+    ^-  form:m
+    (poke main [[/ %eyre-action] `eyre-action:nexus`[%send eyre-id eyre-update]])
+  ::
+  ++  send-simple
+    |=  [eyre-id=@ta =simple-payload:http]
+    =/  m  (fiber ,~)
+    ^-  form:m
+    (send eyre-id %simple simple-payload)
+  ::
+  ++  send-header
+    |=  [eyre-id=@ta =response-header:http]
+    =/  m  (fiber ,~)
+    ^-  form:m
+    (send eyre-id %header response-header)
+  ::
+  ++  send-data
+    |=  [eyre-id=@ta data=(unit octs)]
+    =/  m  (fiber ,~)
+    ^-  form:m
+    (send eyre-id %data data)
+  ::
+  ++  send-kick
+    |=  eyre-id=@ta
+    =/  m  (fiber ,~)
+    ^-  form:m
+    (send eyre-id %kick ~)
+  --
+::  Standard HTTP dispatcher loop for nexuses with /requests/ sub-dir.
+::  Spawns per-request processes, forwards responses, handles cancels.
+::
+++  http-dispatch
+  |=  label=@tas
+  =/  m  (fiber ,~)
+  ^-  form:m
+  |-
+  ;<  [=from:fiber:nexus =sage:tarball]  bind:m  take-poke-from
+  ?+    name.p.sage  $
+      %handle-http-request
+    =/  [eyre-id=@ta src=@p req=inbound-request:eyre]
+      !<([eyre-id=@ta @p inbound-request:eyre] q.sage)
+    ~&  >  [label %dispatch eyre-id url.request.req]
+    ;<  ~  bind:m  (make [%| 0 %& /requests eyre-id] |+[[[/ %http-request] [src req]] ~])
+    $
+      %handle-http-cancel
+    =/  eyre-id=@ta  !<(@ta q.sage)
+    ~&  >  [label %cancel eyre-id]
+    ;<  ~  bind:m  (cull [%| 0 %& /requests eyre-id])
+    $
+      %eyre-action
+    ;<  ~  bind:m  (send-dart %node / server-road %poke [p.sage q.q.sage])
+    $
+  ==
+::  +resolve-bend: resolve a fiber bend to an absolute rail
+::
+++  resolve-bend
+  |=  [here=rail:tarball =bend:fiber:nexus]
+  ^-  rail:tarball
+  =/  base=path  path.here
+  =/  up=@ud  p.bend
+  =/  resolved=path
+    |-
+    ?:  =(0 up)  base
+    ?~  base  ~
+    $(up (dec up), base (snip `path`base))
+  [(weld resolved path.q.bend) name.q.bend]
+::  Usergroup registry helpers.
+::
+++  reg-road  `road:tarball`[%& %& /sys/ames %'registry']
+++  reg-blot  `blot:tarball`[/usergroups %registry-action]
+::
+++  reg-poke
+  |=  act=registry-action:nexus
+  =/  m  (fiber ,~)
+  ^-  form:m
+  (poke reg-road [reg-blot act])
+::
+++  reg-register
+  =/  m  (fiber ,~)
+  ^-  form:m
+  ;<  here=rail:tarball  bind:m  get-here-abs
+  (reg-poke [%register here path.here])
+::
+++  reg-how
+  |=  [group=path =weir:nexus]
+  =/  m  (fiber ,~)
+  ^-  form:m
+  (reg-poke [%how group weir])
 --

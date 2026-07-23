@@ -1,0 +1,1615 @@
+::  claude nexus: flat chat with Claude API
+::
+/<  claude  /lib/claude.hoon
+/&  man  ../man/claude/readme.md
+=,  claude
+=<  ^-  nexus:nexus
+    |%
+    ++  on-load
+      |=  =ball:tarball
+      ^-  bole:tarball
+      =/  default-config=json
+        %-  pairs:enjs:format
+        :~  ['api_key' s+'']
+            ['model' s+'claude-sonnet-4-20250514']
+            ['max_tokens' (numb:enjs:format 4.096)]
+        ==
+      %+  spin:loader  ball
+      :~  (manifest:loader 0)
+          [%fall %& [/ %'config.json'] [[/ %json] default-config]]
+          [%fall %& [/ %'messages.claude-messages'] [[/ %claude-messages] [%0 *((mop @ud message) lth)]]]
+          [%fall %& [/ %'custom-prompt.txt'] [[/ %txt] *wain]]
+          [%fall %& [/ %'main.claude-registry'] [[/ %claude-registry] [%0 0 ~ %.y]]]
+          ::  always overwritten
+          [%over %& [/ %'weir.txt'] [[/ %txt] ~['No weir set.']]]
+          [%over %& [/ui %'chat.html'] [[/ %html] (crip (en-xml:html (chat-page ~)))]]
+          [%over %& [/ui/sse %'last-message.html'] [[/ %html] (crip (en-xml:html *manx))]]
+          [%over %& [/ui/sse %'status.json'] [[/ %json] (pairs:enjs:format ~[['loading' b+%.n] ['live' b+%.y]])]]
+          [%over %& [/man %'readme.md'] [[/ %mime] man]]
+      ==
+    ::
+    ++  on-file
+      |=  [=rail:tarball =blot:tarball]
+      ^-  spool:fiber:nexus
+      |=  =prod:fiber:nexus
+      =/  m  (fiber:fiber:nexus ,~)
+      ^-  process:fiber:nexus
+      ?+    rail  stay:m
+      ::  /messages.claude-messages — inert store. Accepts pokes, appends, saves.
+      ::
+          [~ %'messages.claude-messages']
+        ;<  ~  bind:m  (rise-wait:io prod "%claude chat: failed")
+        |-
+        ;<  =sage:tarball  bind:m  take-poke:io
+        ?.  ?=(%claude-action name.p.sage)
+          ~&  >  [%claude-chat %unknown-mark name.p.sage]
+          $
+        =/  =action  !<(action q.sage)
+        ?:  ?=(%live -.action)  $       ::  not a message — skip
+        ?:  ?=(%interrupt -.action)  $  ::  not a message — skip
+        =/  [role=@t text=@t]
+          ?-  -.action
+              %say  ['user' text.action]
+              %add  [role.action text.action]
+          ==
+        ?:  =('' text)  $
+        ;<  msg=messages  bind:m  (get-state-as:io ,messages)
+        =/  idx=@ud
+          =/  top  (ram:mon messages.msg)
+          ?~(top 0 +(key.u.top))
+        =/  new=messages  msg(messages (put:mon messages.msg idx [role text]))
+        ;<  ~  bind:m  (replace:io new)
+        $
+      ::  /main.claude-registry — THE process. Handles user messages, Claude API,
+      ::  everything. Messages file is inert state written via poke:io.
+      ::
+      ::  State: [%0 nex=@ud slots=(map @ud slot)]
+      ::  Every outgoing operation gets a slot. Responses match by wire /slot/N.
+      ::
+      ::  Event loop multiplexes ALL events:
+      ::  - Pokes: user messages (claude-action from UI)
+      ::  - Peek/made/over/gone/pack/diff/sand/manu: async responses
+      ::  - Bond/news/fell: subscription lifecycle
+      ::
+          [~ %'main.claude-registry']
+        ;<  ~  bind:m  (rise-wait:io prod "%claude: failed")
+        =/  msg-road=road:tarball  (cord-to-road:tarball './messages.claude-messages')
+        ::  On restart, just resume. Keeps and flights survive — wires still route.
+        =?  .  ?=(^ prod)  ~&(> %claude-registry-reboot .)
+        (main-loop msg-road)
+      ::  /weir.txt — live view of parent directory weir
+      ::
+          [~ %'weir.txt']
+        ;<  ~  bind:m  (rise-wait:io prod "%claude weir: failed")
+        ;<  init=wave:nexus  bind:m
+          (keep:io /weir (cord-to-road:tarball '../') ~)
+        |-
+        ;<  =view:nexus  bind:m  (peek:io (cord-to-road:tarball '../') ~)
+        ;<  ~  bind:m  (replace:io (render-weir view))
+        ;<  upd=wave:nexus  bind:m  (take-news:io /weir)
+        $
+      ::  /ui/chat.html — watches messages, renders page
+      ::
+          [[%ui ~] %'chat.html']
+        ;<  ~  bind:m  (rise-wait:io prod "%claude page: failed")
+        ;<  init=wave:nexus  bind:m
+          (keep:io /msgs (cord-to-road:tarball '../messages.claude-messages') ~)
+        |-
+        ;<  =view:nexus  bind:m  (peek:io (cord-to-road:tarball '../messages.claude-messages') ~)
+        ?.  ?=([%file *] view)  $
+        =/  msg=messages  !<(messages (need-vase:tarball sang.view))
+        =/  page=manx  (chat-page (tap:mon messages.msg))
+        ;<  ~  bind:m  (replace:io (crip (en-xml:html page)))
+        ;<  upd=wave:nexus  bind:m  (take-news:io /msgs)
+        $
+      ::  /ui/sse/last-message.html — watches messages, emits last as HTML
+      ::
+          [[%ui %sse ~] %'last-message.html']
+        ;<  ~  bind:m  (rise-wait:io prod "%claude sse: failed")
+        ;<  init=wave:nexus  bind:m
+          (keep:io /msgs (cord-to-road:tarball '../../messages.claude-messages') ~)
+        |-
+        ;<  =view:nexus  bind:m  (peek:io (cord-to-road:tarball '../../messages.claude-messages') ~)
+        ?.  ?=([%file *] view)  $
+        =/  msg=messages  !<(messages (need-vase:tarball sang.view))
+        =/  last=(unit [key=@ud val=message])  (ram:mon messages.msg)
+        ?~  last  $
+        ;<  ~  bind:m  (replace:io (crip (en-xml:html (msg-to-manx val.u.last))))
+        ;<  upd=wave:nexus  bind:m  (take-news:io /msgs)
+        $
+      ::  /ui/sse/status.json — loading state, updated by message fiber
+      ::
+          [[%ui %sse ~] %'status.json']
+        ;<  ~  bind:m  (rise-wait:io prod "%claude status: failed")
+        stay:m
+      ==
+    --
+::  helper core
+::
+|%
+::  Main event loop — handles user messages, Claude API, keeps, everything
+::
+::  Multiplexes ALL events: pokes, peeks, acks, keeps, etc.
+::  Every outgoing dart has a slot in the registry. Every response
+::  matches back by wire /slot/N, formats a message, and calls claude-turn.
+::
+++  main-loop
+  |=  msg-road=road:tarball
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  |-
+  ;<  ev=main-event  bind:m  take-main-event
+  ;<  reg=registry  bind:m  (get-state-as:io ,registry)
+  ?-    -.ev
+  ::  User message from UI
+  ::
+      %poke
+    =/  =action  !<(action q.sage.ev)
+    ?:  ?=(%interrupt -.action)
+      ~&  >  %claude-interrupt-no-op
+      $
+    ?:  ?=(%live -.action)
+      ~&  >  [%claude-live flag.action]
+      ;<  ~  bind:m  (set-live flag.action)
+      $
+    =/  [role=@t text=@t]
+      ?-  -.action
+          %say  ['user' text.action]
+          %add  [role.action text.action]
+      ==
+    ?:  =('' text)  $
+    ~&  >  [%claude-say (end [3 80] text)]
+    ::  User message always resumes live mode
+    ?.  live.reg
+      ~&  >  %claude-resuming
+      ;<  ~  bind:m  (set-live %.y)
+      ;<  ~  bind:m  (append-to-msgs msg-road role text)
+      ;<  ~  bind:m  (claude-turn msg-road)
+      $
+    ;<  ~  bind:m  (append-to-msgs msg-road role text)
+    ;<  ~  bind:m  (claude-turn msg-road)
+    $
+  ::  Peek result (file, kids, tree, sand, weir)
+  ::
+      %peek
+    =/  id-slot  (get-slot wire.ev slots.reg)
+    ?~  id-slot
+      ~&  >>>  [%claude-stale-peek wire.ev]
+      $
+    =/  [id=@ud =slot]  u.id-slot
+    ;<  ~  bind:m  (clear-slot id)
+    ;<  [result=@t rev=(unit @ud)]  bind:m  (format-peek slot view.ev)
+    ;<  ~  bind:m  (append-msg msg-road slot result rev)
+    ?.  live.reg  $
+    ;<  ~  bind:m  (claude-turn msg-road)
+    $
+  ::  Ack responses (make, over, cull, poke, sand)
+  ::
+      %made
+    ;<  ~  bind:m  (handle-ack msg-road wire.ev err.ev slots.reg live.reg)
+    $
+      %gone
+    ;<  ~  bind:m  (handle-ack msg-road wire.ev err.ev slots.reg live.reg)
+    $
+      %pack
+    ;<  ~  bind:m  (handle-ack msg-road wire.ev err.ev slots.reg live.reg)
+    $
+      %sand
+    ;<  ~  bind:m  (handle-ack msg-road wire.ev err.ev slots.reg live.reg)
+    $
+  ::  Subscription wave (initial or update)
+  ::
+      %news
+    =/  id-slot  (get-slot wire.ev slots.reg)
+    ?~  id-slot
+      ~&  >>>  [%claude-stale-news wire.ev]
+      $
+    =/  [id=@ud =slot]  u.id-slot
+    ::  Suppress updates for subscriptions being dropped
+    ?:  =(action.slot 'drop')
+      ~&  >  [%claude-news-after-drop path.slot]
+      $
+    ;<  =view:nexus  bind:m  (peek:io (cord-to-road:tarball path.slot) ~)
+    ;<  ~  bind:m  (format-view msg-road path.slot view)
+    ?.  live.reg  $
+    ;<  ~  bind:m  (claude-turn msg-road)
+    $
+  ::  Subscription ended (drop, kicked, deleted, weir change)
+  ::
+      %fell
+    =/  id-slot  (get-slot wire.ev slots.reg)
+    ?~  id-slot
+      ~&  >>>  [%claude-stale-fell wire.ev]
+      $
+    =/  [id=@ud =slot]  u.id-slot
+    ;<  ~  bind:m  (clear-slot id)
+    =/  result=@t
+      ?:  =(action.slot 'drop')  'Unsubscribed'
+      'SUBSCRIPTION ENDED'
+    ;<  ~  bind:m  (append-msg msg-road slot result ~)
+    ?.  live.reg  $
+    ;<  ~  bind:m  (claude-turn msg-road)
+    $
+  ::  Dart vetoed by sandbox
+  ::
+      %veto
+    ~&  >>>  [%claude-veto dart.ev]
+    $
+  ==
+::  Claude conversation turn — call API, parse response, dispatch
+::  Called after any event that should trigger Claude to respond.
+::
+++  claude-turn
+  |=  msg-road=road:tarball
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  =/  errs=@ud  0
+  =/  thinks=@ud  0
+  |-  ::  inner loop for agent turns
+  ;<  msg=messages  bind:m  (read-msgs msg-road)
+    ::  read config for API key
+    ;<  cfg-view=view:nexus  bind:m
+      (peek:io (cord-to-road:tarball './config.json') `[/ %json])
+    =/  cfg=json
+      ?.  ?=([%file *] cfg-view)
+        (need (de:json:html '{}'))
+      !<(json (need-vase:tarball sang.cfg-view))
+    =/  api-key=@t  (jget-t cfg 'api_key' '')
+    ?:  =('' api-key)
+      ~&  >>>  %claude-no-api-key
+      ;<  ~  bind:m  (append-to-msgs msg-road 'user' '<error>No API key set. Add api_key to config.json.</error>')
+      (pure:m ~)
+    =/  model=@t       (jget-t cfg 'model' 'claude-sonnet-4-20250514')
+    =/  max-tokens=@ud  (jget-n cfg 'max_tokens' 4.096)
+    =/  max-messages=@ud  (jget-n cfg 'max_messages' 50)
+    ::  build system prompt
+    ;<  custom-view=view:nexus  bind:m
+      (peek:io (cord-to-road:tarball './custom-prompt.txt') `[/ %txt])
+    ;<  weir-view=view:nexus  bind:m
+      (peek:io (cord-to-road:tarball './weir.txt') `[/ %txt])
+    ;<  our=@p  bind:m  get-our:io
+    ;<  now=@da  bind:m  get-time:io
+    =/  custom=@t
+      ?.  ?=([%file *] custom-view)  ''
+      =/  =wain  !<(wain (need-vase:tarball sang.custom-view))
+      ?~(wain '' (of-wain:format wain))
+    ::  Registry state rendered to text for system prompt
+    ;<  reg=registry  bind:m  (get-state-as:io ,registry)
+    =/  reg-wain=wain
+      =/  slot-list=(list [@ud slot])  ~(tap by slots.reg)
+      :-  ?:(live.reg 'REGISTRY: LIVE' 'REGISTRY: HALTED (waiting for user message to resume)')
+      ?~  slot-list  ~['No active requests.']
+      :-  'ACTIVE REQUESTS:'
+      %+  turn  slot-list
+      |=  [id=@ud =slot]
+      (crip "  [{(a-co:co id)}] {(trip action.slot)} {(trip path.slot)}")
+    =/  reg-text=@t  (of-wain:format reg-wain)
+    =/  weir-text=@t
+      ?.  ?=([%file *] weir-view)  ''
+      =/  =wain  !<(wain (need-vase:tarball sang.weir-view))
+      ?~(wain '' (of-wain:format wain))
+    =/  ship=@t  (scot %p our)
+    =/  msg-count=@t  (crip (a-co:co (lent (tap:mon messages.msg))))
+    =/  system=(unit @t)
+      :-  ~
+      %+  rap  3
+      :~  system-prompt
+          '\0a\0aLIVE CONTEXT: Ship: '
+          ship
+          '. Current time: '
+          (scot %da now)
+          '. Messages in conversation: '
+          msg-count
+          '.'
+          '\0a\0a'
+          reg-text
+          ?:(=('' weir-text) '' (rap 3 ~['\0a\0a' weir-text]))
+          ?:(=('' custom) '' (rap 3 ~['\0a\0aCUSTOM INSTRUCTIONS:\0a' custom]))
+      ==
+    ::  build request — window + filter messages for API payload
+    =/  all-msgs=(list [idx=@ud =message])  (tap:mon messages.msg)
+    =/  msg-count-ud=@ud  (lent all-msgs)
+    =/  windowed=(list [idx=@ud =message])
+      ?:  (lte msg-count-ud max-messages)  all-msgs
+      (slag (sub msg-count-ud max-messages) all-msgs)
+    =/  msgs-json=json
+      :-  %a
+      %+  murn  windowed
+      |=  [idx=@ud =message]
+      ?:  =((end [3 7] content.message) '<error>')  ~
+      :-  ~
+      %-  pairs:enjs:format
+      ~[['role' s+role.message] ['content' s+content.message]]
+    =/  body-pairs=(list [@t json])
+      :~  ['model' s+model]
+          ['max_tokens' (numb:enjs:format max-tokens)]
+          ['messages' msgs-json]
+      ==
+    =?  body-pairs  ?=(^ system)
+      (snoc body-pairs ['system' s+u.system])
+    =/  body-cord=@t  (en:json:html (pairs:enjs:format body-pairs))
+    ~&  >  [%claude-sending (lent (tap:mon messages.msg)) %messages]
+    =/  status-road=road:tarball  (cord-to-road:tarball './ui/sse/status.json')
+    ;<  reg=registry  bind:m  (get-state-as:io ,registry)
+    =/  loading-on=json   (pairs:enjs:format ~[['loading' b+%.y] ['live' b+live.reg]])
+    =/  loading-off=json  (pairs:enjs:format ~[['loading' b+%.n] ['live' b+live.reg]])
+    ;<  ~  bind:m  (over:io status-road [[/ %json] loading-on])
+    =/  =request:http
+      :^  %'POST'  'https://api.anthropic.com/v1/messages'
+        :~  ['content-type' 'application/json']
+            ['x-api-key' api-key]
+            ['anthropic-version' '2023-06-01']
+        ==
+      `(as-octs:mimes:html body-cord)
+    ;<  response=(unit @t)  bind:m  (fetch-or-interrupt request)
+    ;<  ~  bind:m  (over:io status-road [[/ %json] loading-off])
+    ?~  response
+      ~&  >  %claude-interrupted
+      ;<  ~  bind:m  (set-live %.n)
+      ;<  ~  bind:m  (append-to-msgs msg-road 'user' '<error>Interrupted by user.</error>')
+      (pure:m ~)
+    ~&  >  %claude-got-response
+    ::  check for API-level errors
+    =/  err=(unit @t)  (extract-error u.response)
+    ?^  err
+      ~&  >>>  [%claude-api-error u.err]
+      ;<  ~  bind:m  (set-live %.n)
+      ;<  ~  bind:m  (append-to-msgs msg-road 'assistant' (cat 3 '<error>' (cat 3 u.err '</error>')))
+      (pure:m ~)
+    =/  reply=@t  (extract-reply u.response)
+    ?:  =('' reply)
+      ~&  >>>  [%claude-empty-reply u.response]
+      ;<  ~  bind:m  (append-to-msgs msg-road 'user' '<error>Empty response from Claude API — no text content blocks returned.</error>')
+      ?:  (gte +(errs) 3)
+        ~&  >>>  %claude-error-limit-reached
+        ;<  ~  bind:m  (set-live %.n)
+        (pure:m ~)
+      $(errs +(errs))
+    ::  parse XML tags from response
+    =/  tags=(list response-tag)  (parse-responses reply)
+    ::  process tags sequentially
+    =|  did-think=?
+    |-
+    ?~  tags
+      ~&  >>>  [%claude-bad-tag reply]
+      =/  err-msg=@t
+        (rap 3 ~['<error>Invalid response — must be valid XML tags. Your response was: ' reply '</error>'])
+      ;<  ~  bind:m  (sleep:io ~s0..0001)
+      ;<  ~  bind:m  (append-to-msgs msg-road 'user' err-msg)
+      ?:  (gte +(errs) 3)
+        ~&  >>>  %claude-error-limit-reached
+        ;<  ~  bind:m  (set-live %.n)
+        (pure:m ~)
+      $(errs +(errs))
+    ::  valid tag(s) — store and dispatch
+    ;<  ~  bind:m  (append-to-msgs msg-road 'assistant' reply)
+    ;<  ~  bind:m  (sleep:io ~s0..0001)
+    =/  tag=response-tag  i.tags
+    =/  more=?  ?=(^ t.tags)
+    ?-  -.tag
+        %thought
+      ~&  >  [%claude-thought (end [3 80] text.tag)]
+      =.  thinks  +(thinks)
+      ?:  more  $(tags t.tags, did-think %.y)
+      ::  last tag is thought — continue
+      ?:  (gte thinks 5)
+        ~&  >>>  %claude-thought-cap-reached
+        ;<  ~  bind:m  (sleep:io ~s0..0001)
+        ;<  ~  bind:m  (append-to-msgs msg-road 'user' '<error>Thought cap reached (5). You must respond with message, wait, or done.</error>')
+        $(errs 0, thinks 0)
+      ;<  ~  bind:m  (sleep:io ~s0..0001)
+      ;<  ~  bind:m  (append-to-msgs msg-road 'user' '<continue/>')
+      $(errs 0)
+    ::
+        %tool
+      ~&  >  [%claude-tool (lent calls.tag) %calls continue.tag]
+      ?:  more  $(tags t.tags, thinks 0)
+      ?.  continue.tag  (pure:m ~)
+      ;<  ~  bind:m  (sleep:io ~s0..0001)
+      ;<  ~  bind:m  (append-to-msgs msg-road 'user' '<continue/>')
+      $(thinks 0)
+    ::
+        %api
+      ~&  >  [%claude-api action.tag path.tag]
+      ;<  ~  bind:m  (handle-api msg-road action.tag path.tag body.tag)
+      ?:  more  $(tags t.tags, thinks 0)
+      ?.  continue.tag  (pure:m ~)
+      ;<  ~  bind:m  (sleep:io ~s0..0001)
+      ;<  ~  bind:m  (append-to-msgs msg-road 'user' '<continue/>')
+      $(thinks 0)
+    ::
+        %notify
+      ~&  >  [%claude-notify continue.tag]
+      ?:  more  $(tags t.tags, thinks 0)
+      ?.  continue.tag  (pure:m ~)
+      ;<  ~  bind:m  (sleep:io ~s0..0001)
+      ;<  ~  bind:m  (append-to-msgs msg-road 'user' '<continue/>')
+      $(thinks 0)
+    ::
+        %message
+      ~&  >  %claude-message
+      ?:  more  $(tags t.tags, thinks 0)
+      ?.  continue.tag  (pure:m ~)
+      ;<  ~  bind:m  (sleep:io ~s0..0001)
+      ;<  ~  bind:m  (append-to-msgs msg-road 'user' '<continue/>')
+      $(thinks 0)
+    ::
+        %wait
+      ~&  >  %claude-wait
+      ?:  more  $(tags t.tags)
+      (pure:m ~)
+    ::
+        %done
+      ~&  >  [%claude-done output.tag]
+      (pure:m ~)  ::  terminal — even if more tags follow
+    ==
+::  Handle API request — fire-and-forget
+::
+::  Allocates a slot, sends the dart, returns immediately.
+::  The response arrives as a main-event and is handled in main-loop.
+::
+++  handle-api
+  |=  [msg-road=road:tarball act=@t api-path=@t body=@t]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  =/  =road:tarball  (cord-to-road:tarball api-path)
+  ;<  reg=registry  bind:m  (get-state-as:io ,registry)
+  ~&  >  [%claude-api-dispatch act api-path]
+  ::  drop — find existing keep slot, send drop dart on its wire
+  ::
+  ?:  =(act 'drop')
+    =/  keep-id=(unit @ud)
+      =/  slist  ~(tap by slots.reg)
+      |-
+      ?~  slist  ~
+      =/  [id=@ud =slot]  i.slist
+      ?:  &(=('keep' action.slot) =(api-path path.slot))
+        `id
+      $(slist t.slist)
+    ?~  keep-id
+      (append-to-msgs msg-road 'user' (rap 3 ~['<api action="drop" path="' api-path '">Not subscribed to this path.</api>']))
+    ::  Mark slot as "drop" so fell handler knows it was user-initiated
+    ;<  ~  bind:m
+      (replace:io `registry`reg(slots (~(put by slots.reg) u.keep-id ['drop' api-path])))
+    =/  keep-wire=wire  /slot/(scot %ud u.keep-id)
+    (send-dart:io %node keep-wire road %drop ~)
+  ::  keep — check for duplicate
+  ::
+  ?:  =(act 'keep')
+    =/  already=?
+      %+  lien  ~(tap by slots.reg)
+      |=  [id=@ud act=@t pax=@t]
+      &(=('keep' act) =(api-path pax))
+    ?:  already
+      (append-to-msgs msg-road 'user' (rap 3 ~['<api action="keep" path="' api-path '">Already subscribed to this path.</api>']))
+    =/  id=@ud  nex.reg
+    =/  slot-wire=wire  /slot/(scot %ud id)
+    ;<  ~  bind:m
+      (replace:io `registry`reg(nex +(id), slots (~(put by slots.reg) id [act api-path])))
+    (send-dart:io %node slot-wire road %keep ~)
+  ::  All other actions — allocate slot, fire dart
+  ::
+  =/  id=@ud  nex.reg
+  =/  slot-wire=wire  /slot/(scot %ud id)
+  =/  new-reg=registry  reg(nex +(id), slots (~(put by slots.reg) id [act api-path]))
+  ;<  ~  bind:m  (replace:io `registry`new-reg)
+  ?+    act
+    ::  Unknown action — deregister and report error
+    ;<  ~  bind:m  (replace:io `registry`new-reg(slots (~(del by slots.reg) id)))
+    %-  append-to-msgs  :+  msg-road  'user'
+    (rap 3 ~['<api action="' act '" path="' api-path '">ERROR: Unknown action. Valid: file, kids, tree, sand, weir, keep, drop, make, over, rmf, dir, rmd, poke, diff, setweir, rmweir</api>'])
+  ::  reads
+      %'file'   (send-dart:io %node slot-wire road %peek ~ ~ %.y)
+      %'kids'   (send-dart:io %node slot-wire road %peek ~ ~ %.y)
+      %'tree'   (send-dart:io %node slot-wire road %peek ~ ~ %.y)
+      %'sand'   (send-dart:io %node slot-wire road %peek ~ ~ %.y)
+      %'weir'   (send-dart:io %node slot-wire road %peek ~ ~ %.y)
+  ::  writes
+      %'make'
+    =/  =mime  [/text/plain (as-octs:mimes:html body)]
+    (send-dart:io %node slot-wire road %make %.n |+[[[/ %mime] mime] ~])
+      %'dir'
+    (send-dart:io %node slot-wire road %make %.n &+[`[~ ~ %.n ~] ~])
+      %'over'
+    =/  =mime  [/text/plain (as-octs:mimes:html body)]
+    (send-dart:io %node slot-wire road %make %.y |+[[[/ %mime] !>(mime)] ~])
+      %'rmf'   (send-dart:io %node slot-wire road %cull ~)
+      %'rmd'   (send-dart:io %node slot-wire road %cull ~)
+      %'poke'
+    =/  =mime  [/text/plain (as-octs:mimes:html body)]
+    (send-dart:io %node slot-wire road %poke [[/ %mime] !>(mime)])
+      %'diff'
+    =/  =mime  [/text/plain (as-octs:mimes:html body)]
+    (send-dart:io %node slot-wire road %make %.y |+[[[/ %mime] !>(mime)] ~])
+      %'setweir'
+    =/  jon=(unit json)  (de:json:html body)
+    ?~  jon
+      ;<  ~  bind:m  (replace:io `registry`new-reg(slots (~(del by slots.reg) id)))
+      (append-to-msgs msg-road 'user' (rap 3 ~['<api action="setweir" path="' api-path '">ERROR: Invalid JSON body</api>']))
+    =/  parsed=(each weir:nexus tang)
+      (mule |.((weir-from-json:nexus u.jon)))
+    ?:  ?=(%| -.parsed)
+      ;<  ~  bind:m  (replace:io `registry`new-reg(slots (~(del by slots.reg) id)))
+      (append-to-msgs msg-road 'user' (rap 3 ~['<api action="setweir" path="' api-path '">ERROR: Invalid weir JSON</api>']))
+    (send-dart:io %node slot-wire road %sand `p.parsed)
+      %'rmweir'
+    (send-dart:io %node slot-wire road %sand ~)
+  ==
+::  Multiplex ALL events — pokes, responses, subscriptions
+::
++$  main-event
+  $%  [%poke =sage:tarball]
+      [%peek =wire =view:nexus]
+      [%made =wire err=(unit tang)]
+      [%gone =wire err=(unit tang)]
+      [%pack =wire err=(unit tang)]
+      [%sand =wire err=(unit tang)]
+      [%news =wire =wave:nexus]
+      [%fell =wire]
+      [%veto =dart:nexus]
+  ==
+++  take-main-event
+  =/  m  (fiber:fiber:nexus ,main-event)
+  ^-  form:m
+  |=  input:fiber:nexus
+  :+  ~  q.state
+  ?+  in  [%skip ~]
+      ~  [%wait ~]
+      [~ %poke * *]
+    ?.  ?=(%claude-action name.p.sage.u.in)
+      [%skip ~]
+    [%done %poke sage.u.in]
+      [~ %peek * *]   [%done %peek wire.u.in view.u.in]
+      [~ %made * *]   [%done %made wire.u.in err.u.in]
+      [~ %gone * *]   [%done %gone wire.u.in err.u.in]
+      [~ %pack * *]   [%done %pack wire.u.in err.u.in]
+      [~ %sand * *]   [%done %sand wire.u.in err.u.in]
+      [~ %news * *]   [%done %news wire.u.in wave.u.in]
+      [~ %fell *]     [%done %fell wire.u.in]
+      [~ %veto *]     [%done %veto dart.u.in]
+  ==
+++  system-prompt
+  ^~
+  %-  of-wain:format
+  :~  'You are Claude, an AI assistant running natively on an Urbit ship.'
+      'Urbit is a peer-to-peer operating system. You run as a Hoon application on the user\'s personal server.'
+      ''
+      '=== CRITICAL RULES (read these first) ==='
+      ''
+      'XML TAGS ONLY. Your ENTIRE output must be one or more XML tags — nothing else.'
+      'NO PLAIN TEXT OUTSIDE OF TAGS. Every piece of output must be inside a tag.'
+      'Multiple tags in one response are processed left-to-right. The last tag\'s continue flag'
+      'determines whether you get another turn. Earlier tags are processed unconditionally.'
+      ''
+      'FLOW CONTROL:'
+      '- You can include multiple tags in one response. They are processed left-to-right.'
+      '  The LAST tag\'s continue flag determines whether you get another turn.'
+      '  Example: <thought>Let me check.</thought><api action="file" path="./x.txt"/>'
+      '  This thinks AND reads in a single response — no round-trip needed.'
+      '- <thought> for internal reasoning. ALWAYS follow thoughts with action or message.'
+      '  Do not chain more than 2-3 thoughts. After 5, the system forces a non-thought tag.'
+      '- <message> is how you talk to the user. If you want to say something, say it.'
+      '  <message>Text.</message> — says it, then pauses for user input or events.'
+      '  <message>Text.</message><api .../> — says it AND acts in one response.'
+      '- <wait/> pauses with no output. Use this when you genuinely have nothing to say.'
+      '  Do NOT narrate what you are doing. Do NOT explain your own tag choices.'
+      '- <done> ends the session permanently. Optional body (JSON or text).'
+      '- continue="true" on the LAST tag means you get another turn immediately.'
+      '  continue="false" (default) on the LAST tag means pause until user message or event.'
+      ''
+      '<continue/> is a SYSTEM message, NOT from the user. It means "your previous response was'
+      'processed — now respond again." Do NOT treat it as user input. Do NOT ask the'
+      'user to clarify. Do NOT say "the user sent continue." Just proceed with your next response.'
+      'With multi-tag responses, you need fewer continues — put multiple tags in one response.'
+      ''
+      'API results appear under the USER ROLE because that is how the system injects responses.'
+      'They are REAL system-generated messages. Do NOT assume they are fake or user-fabricated.'
+      ''
+      '=== EXAMPLES ==='
+      ''
+      'Read a file:          <api action="file" path="./data.txt"/>'
+      'Read a directory:     <api action="kids" path="./"/>'
+      'Create a file:        <api action="make" path="./notes.txt">Hello world</api>'
+      'Overwrite a file:     <api action="over" path="./notes.txt">New content</api>'
+      'Think then read:      <thought>I should check what files exist.</thought><api action="kids" path="./"/>'
+      'Speak then read:      <message>Let me look that up.</message><api action="file" path="./config.json"/>'
+      'Read two files:       <api action="file" path="./a.txt"/><api action="file" path="./b.txt"/>'
+      'Subscribe:            <api action="keep" path="./logs/"/>'
+      'Unsubscribe:          <api action="drop" path="./logs/"/>'
+      'Use a tool:           <tool>{"name":"echo","args":{"message":"hi"}}</tool>'
+      'Nothing to say:       <wait/>'
+      'End session:          <done>Task complete.</done>'
+      ''
+      'WRONG (text+tag):     Let me check. <api action="file" path="./x"/>'
+      'WRONG (no close tag): <api action="file" path="./x">'
+      ''
+      '=== TAG REFERENCE ==='
+      ''
+      '<thought>Internal reasoning. Not shown to user.</thought>'
+      '<message>Text shown to user.</message>'
+      '<message continue="true">Text shown, then you get another turn.</message>'
+      '<wait/>'
+      '<done>Optional final output.</done>'
+      '<tool continue="true">{"name":"tool_name","args":{"key":"value"}}</tool>'
+      '  Multiple: <tool>[{"name":"a","args":{}},{"name":"b","args":{}}]</tool>'
+      '<api action="ACTION" path="/path" continue="true">optional body</api>  (closing tag REQUIRED)'
+      '<notify continue="true">payload</notify>'
+      ''
+      '=== API REFERENCE ==='
+      ''
+      'The grubbery is a ball — a nested filesystem of typed files (grubs) and directories.'
+      'Files have marks (types) like hoon, txt, json, mime. The system auto-converts to text.'
+      ''
+      'PATHS: Trailing slash = directory, no trailing slash = file. This matters!'
+      '  /path/to/name.ext  — file (name.ext in /path/to/)'
+      '  /path/to/dir/      — directory'
+      '  ./relative          — relative to this nexus (file)'
+      '  ./relative/         — relative to this nexus (directory)'
+      '  ../up/              — up one level then into directory'
+      'The system parses paths strictly. "ui/sse" is a FILE named sse. "ui/sse/" is a DIRECTORY.'
+      ''
+      'READ actions (no body needed, self-closing OK):'
+      '  file  /path/to/name.ext  — read file content (auto-converted to text)'
+      '  kids  /path/             — list immediate files + subdirs as JSON'
+      '  tree  /path/             — recursive tree as JSON'
+      '  sand  /path/             — directory permissions as JSON'
+      '  weir  /path/             — single directory access rule as JSON'
+      '  manu  /path/to/name.ext  — documentation for a file (from nearest nexus)'
+      '  manu  /path/to/dir/     — documentation for a directory (from nearest nexus)'
+      '  keep  /path/             — subscribe to changes (long-lived, streams updates)'
+      '  drop  /path/             — unsubscribe from a keep subscription'
+      ''
+      'WRITE actions (body = text content or JSON):'
+      '  make  /path/to/name.ext  — create new file (body = content, mark from extension)'
+      '  over  /path/to/name.ext  — overwrite existing file (body = new content)'
+      '  rmf   /path/to/name.ext  — delete file'
+      '  dir   /path/             — create directory'
+      '  rmd   /path/             — delete directory'
+      '  poke  /path/to/name.ext  — poke file process (body = payload)'
+      '  diff  /path/to/name.ext  — diff file (body = diff payload)'
+      '  setweir /path/           — set directory access rule (body = weir JSON)'
+      '  rmweir  /path/           — clear directory access rule'
+      ''
+      'RESULTS: All actions are async. Results arrive as user-role messages:'
+      '  <api action="file" path="/the/path">content or error</api>'
+      ''
+      'WEIR (permissions): make (create/delete), poke (write/modify), peek (read).'
+      'Each field lists allowed roads. Empty = no restrictions. Your weir is in LIVE CONTEXT below.'
+      ''
+      'ACTIVE REQUESTS: The registry state is shown in LIVE CONTEXT below.'
+      'ALL api actions are async — results arrive as user-role messages when ready.'
+      'keep subscriptions stay active until you drop them or they are kicked.'
+      'drop cancels a keep by path: <api action="drop" path="/same/path"/>'
+  ==
+::  Registry helpers — slot lookup and cleanup
+::
+++  get-slot
+  |=  [=wire slots=(map @ud slot)]
+  ^-  (unit [@ud slot])
+  ?.  ?=([%slot @ *] wire)  ~
+  =/  id=(unit @ud)  (slaw %ud i.t.wire)
+  ?~  id  ~
+  =/  s=(unit slot)  (~(get by slots) u.id)
+  ?~  s  ~
+  `[u.id u.s]
+::
+++  clear-slot
+  |=  id=@ud
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  ;<  reg=registry  bind:m  (get-state-as:io ,registry)
+  (replace:io `registry`reg(slots (~(del by slots.reg) id)))
+::  Fetch with interrupt: send HTTP request, wait for response OR interrupt poke.
+::  Returns ~ on interrupt, (some body) on HTTP response.
+::
+++  fetch-or-interrupt
+  |=  =request:http
+  =/  m  (fiber:fiber:nexus ,(unit @t))
+  ^-  form:m
+  ;<  ~  bind:m  (send-request:io request)
+  =/  m  (fiber:fiber:nexus ,(unit @t))
+  ^-  form:m
+  |=  input:fiber:nexus
+  :+  ~  q.state
+  ?+  in  [%skip ~]
+      ~  [%wait ~]
+    ::  Interrupt poke — consumed, returns ~
+    ::
+      [~ %poke * *]
+    ?:  =([/ %http-response] p.sage.u.in)
+      =/  resp=client-response:iris  !<(client-response:iris q.sage.u.in)
+      ?:  ?=(%cancel -.resp)  [%done ~]
+      ?>  ?=(%finished -.resp)
+      =/  body=@t
+        ?~(full-file.resp '' q.data.u.full-file.resp)
+      [%done `body]
+    =/  =action  !<(action q.sage.u.in)
+    ?.  ?=(%interrupt -.action)
+      [%skip ~]
+    [%done ~]
+  ==
+::
+++  set-live
+  |=  flag=?
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  ;<  reg=registry  bind:m  (get-state-as:io ,registry)
+  ;<  ~  bind:m  (replace:io `registry`reg(live flag))
+  =/  status-road=road:tarball  (cord-to-road:tarball './ui/sse/status.json')
+  =/  =json  (pairs:enjs:format ~[['loading' b+%.n] ['live' b+flag]])
+  (over:io status-road [[/ %json] json])
+::
+++  append-msg
+  |=  [msg-road=road:tarball =slot result=@t rev=(unit @ud)]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  =/  rev-attr=@t
+    ?~  rev  ''
+    (crip " rev=\"{(a-co:co u.rev)}\"")
+  =/  msg=@t  (rap 3 ~['<api action="' action.slot '" path="' path.slot '"' rev-attr '>' result '</api>'])
+  (append-to-msgs msg-road 'user' msg)
+::  Format peek response based on slot action
+::
+++  format-peek
+  |=  [=slot =view:nexus]
+  =/  m  (fiber:fiber:nexus ,[@t (unit @ud)])
+  ^-  form:m
+  ?+    action.slot
+    (pure:m [(crip "ERROR: Unknown read action {(trip action.slot)}") ~])
+  ::
+      %'file'
+    ?.  ?=([%file *] view)
+      (pure:m [(crip "ERROR: Not found: {(trip path.slot)}") ~])
+    ;<  content=@t  bind:m  (sage-to-txt (need-sage:tarball sang.view))
+    (pure:m [content `ud.cass.view])
+  ::
+      %'kids'
+    ?.  ?=([%ball *] view)
+      (pure:m [(crip "ERROR: Not found: {(trip path.slot)}") ~])
+    =/  b=ball:tarball  ball.view
+    =/  files=(list @ta)
+      ?~(fil.b ~ ~(tap in ~(key by contents.u.fil.b)))
+    =/  dirs=(list @ta)  ~(tap in ~(key by dir.b))
+    =/  result=json
+      %-  pairs:enjs:format
+      :~  ['files' [%a (turn files |=(n=@ta s+n))]]
+          ['dirs' [%a (turn dirs |=(n=@ta s+n))]]
+      ==
+    (pure:m [(en:json:html result) ~])
+  ::
+      %'tree'
+    ?.  ?=([%ball *] view)
+      (pure:m [(crip "ERROR: Not found: {(trip path.slot)}") ~])
+    (pure:m [(en:json:html (tree-to-json:tarball (ball-to-tree:tarball ball.view))) ~])
+  ::
+      %'sand'
+    ?.  ?=([%ball *] view)
+      (pure:m [(crip "ERROR: Not found: {(trip path.slot)}") ~])
+    (pure:m [(en:json:html (ball-weirs-to-json:nexus ball.view)) ~])
+  ::
+      %'weir'
+    ?.  ?=([%ball *] view)
+      (pure:m [(crip "ERROR: Not found: {(trip path.slot)}") ~])
+    =/  =weir:nexus  (fall ?~(fil.ball.view ~ weir.u.fil.ball.view) *weir:nexus)
+    (pure:m [(en:json:html (weir-to-json:nexus weir)) ~])
+  ==
+::  Handle ack response (make, over, cull, poke, diff, sand)
+::
+++  handle-ack
+  |=  [msg-road=road:tarball =wire err=(unit tang) slots=(map @ud slot) live=?]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  =/  id-slot  (get-slot wire slots)
+  ?~  id-slot
+    ~&  >>>  [%claude-stale-ack wire]
+    (pure:m ~)
+  =/  [id=@ud =slot]  u.id-slot
+  ;<  ~  bind:m  (clear-slot id)
+  =/  result=@t
+    ?~  err
+      ?+  action.slot
+        (crip "Done: {(trip action.slot)} {(trip path.slot)}")
+          %'make'     (crip "Created {(trip path.slot)}")
+          %'dir'      (crip "Created directory {(trip path.slot)}")
+          %'over'     (crip "Wrote {(trip path.slot)}")
+          %'rmf'      (crip "Deleted {(trip path.slot)}")
+          %'rmd'      (crip "Deleted directory {(trip path.slot)}")
+          %'poke'     (crip "Poked {(trip path.slot)}")
+          %'diff'     (crip "Diffed {(trip path.slot)}")
+          %'setweir'  (crip "Set weir for {(trip path.slot)}")
+          %'rmweir'   (crip "Cleared weir for {(trip path.slot)}")
+      ==
+    (crip "ERROR: {(trip action.slot)} failed")
+  ;<  ~  bind:m  (append-msg msg-road slot result ~)
+  ?.  live  (pure:m ~)
+  (claude-turn msg-road)
+::  Format a peek result as messages — used by bond and news
+::
+++  format-view
+  |=  [msg-road=road:tarball api-path=@t =view:nexus]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  =/  act=@t  'keep'
+  ?.  !?=(?(%none %miss %veto %tomb) -.view)
+    (append-to-msgs msg-road 'user' (rap 3 ~['<api action="' act '" path="' api-path '">ERROR</api>']))
+  ?-    -.view
+      %none
+    (append-to-msgs msg-road 'user' (rap 3 ~['<api action="' act '" path="' api-path '">DELETED</api>']))
+      %miss
+    (append-to-msgs msg-road 'user' (rap 3 ~['<api action="' act '" path="' api-path '">MISS — data expired, retrying</api>']))
+      %veto
+    (append-to-msgs msg-road 'user' (rap 3 ~['<api action="' act '" path="' api-path '">BLOCKED — no permission</api>']))
+      %tomb
+    (append-to-msgs msg-road 'user' (rap 3 ~['<api action="' act '" path="' api-path '">TOMBSTONED — data removed</api>']))
+      %file
+    ;<  content=@t  bind:m  (sage-to-txt (need-sage:tarball sang.view))
+    =/  rev=@ud  ud.cass.view
+    =/  rev-attr=@t  (crip " rev=\"{(a-co:co rev)}\"")
+    (append-to-msgs msg-road 'user' (rap 3 ~['<api action="' act '" path="' api-path '"' rev-attr '>' content '</api>']))
+      %ball
+    (walk-ball msg-road api-path act ball.view /)
+  ==
+::  Walk a ball recursively, sending a message per file
+::
+++  walk-ball
+  |=  [msg-road=road:tarball api-path=@t act=@t b=ball:tarball here=path]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  ::  Files in this directory
+  ;<  ~  bind:m
+    ?~  fil.b  (pure:m ~)
+    =/  files=(list [@ta [=sang:tarball gain=? bang=(unit tang)]])  ~(tap by contents.u.fil.b)
+    |-
+    ?~  files  (pure:m ~)
+    =/  [file-name=@ta [=sang:tarball gain=? bang=(unit tang)]]  i.files
+    =/  lane-path=@t  (spat (snoc here file-name))
+    ;<  content-text=@t  bind:m  (sage-to-txt (need-sage:tarball sang))
+    =/  msg=@t
+      (rap 3 ~['<api action="' act '" path="' lane-path '">' content-text '</api>'])
+    ;<  ~  bind:m  (append-to-msgs msg-road 'user' msg)
+    $(files t.files)
+  ::  Recurse into subdirectories
+  =/  dirs=(list [@ta ball:tarball])  ~(tap by dir.b)
+  |-
+  ?~  dirs  (pure:m ~)
+  =/  [dir-name=@ta sub=ball:tarball]  i.dirs
+  ;<  ~  bind:m  (walk-ball msg-road api-path act sub (snoc here dir-name))
+  $(dirs t.dirs)
+::
+++  render-weir
+  |=  =view:nexus
+  ^-  wain
+  ?.  ?=([%ball *] view)  ~['No weir set.']
+  =/  =weir:nexus  (fall ?~(fil.ball.view ~ weir.u.fil.ball.view) *weir:nexus)
+  ?:  =(*weir:nexus weir)  ~['No weir set.']
+  ~[(crip "PERMISSIONS (weir): {(trip (en:json:html (weir-to-json:nexus weir)))}")]
+::
+++  sage-to-txt
+  |=  =sage:tarball
+  =/  m  (fiber:fiber:nexus ,@t)
+  ^-  form:m
+  ?:  =(%txt name.p.sage)
+    (pure:m (of-wain:format !<(wain q.sage)))
+  ;<  tube=(unit tube:clay)  bind:m  (get-tube:io [%& %| /code] [p.sage [/ %txt]])
+  ?~  tube
+    ::  Fallback: convert to mime and extract body as text
+    ;<  =mime  bind:m  (sage-to-mime:io sage)
+    (pure:m `@t`(end [3 p.q.mime] q.q.mime))
+  =/  result=(each vase tang)  (mule |.((u.tube q.sage)))
+  ?:  ?=(%| -.result)
+    ;<  =mime  bind:m  (sage-to-mime:io sage)
+    (pure:m `@t`(end [3 p.q.mime] q.q.mime))
+  (pure:m (of-wain:format !<(wain p.result)))
+::
+::  Split a path cord into non-empty segments
+::
+++  segments
+  |=  p=@t
+  ^-  (list @t)
+  %+  turn
+    (skip (split (trip p) '/') |=(t=tape =(~ t)))
+  crip
+::  Split a tape on a delimiter character
+::
+++  split
+  |=  [t=tape d=@t]
+  ^-  (list tape)
+  =|  [acc=(list tape) cur=tape]
+  |-
+  ?~  t  (flop [cur acc])
+  ?:  =(i.t d)
+    $(t t.t, acc [cur acc], cur ~)
+  $(t t.t, cur (snoc cur i.t))
+::
+++  jget-t
+  |=  [j=json key=@t default=@t]
+  ^-  @t
+  ?.  ?=([%o *] j)  default
+  =/  v=(unit json)  (~(get by p.j) key)
+  ?~  v  default
+  ?.  ?=([%s *] u.v)  default
+  p.u.v
+::
+++  jget-n
+  |=  [j=json key=@t default=@ud]
+  ^-  @ud
+  ?.  ?=([%o *] j)  default
+  =/  v=(unit json)  (~(get by p.j) key)
+  ?~  v  default
+  ?.  ?=([%n *] u.v)  default
+  (fall (rush p.u.v dem) default)
+::
+++  jget-tu
+  |=  [j=json key=@t]
+  ^-  (unit @t)
+  ?.  ?=([%o *] j)  ~
+  =/  v=(unit json)  (~(get by p.j) key)
+  ?~  v  ~
+  ?.  ?=([%s *] u.v)  ~
+  `p.u.v
+::
+::  Classified message: shared structure for SSE and Sail rendering
+::  Both renderers consume this, so they can never diverge.
+::
++$  display-msg
+  $:  role=@t     ::  'user' or 'assistant'
+      type=@t     ::  'message', 'thought', 'tool', 'api', 'notify', 'wait', 'done', 'continue', 'error'
+      content=@t  ::  display text
+      sub=@t      ::  sub-label (e.g. 'thought', 'keep /path')
+      action=@t   ::  api action (or '')
+      pax=@t      ::  api path (or '')
+  ==
+::
+::  Classify a raw message into a display-msg — single source of truth
+::
+++  classify
+  |=  =message
+  ^-  display-msg
+  =/  rol=@t  role.message
+  =/  raw=@t  content.message
+  ::  protocol: continue
+  ?:  =('<continue/>' raw)
+    [rol 'continue' '' 'continue' '' '']
+  ::  protocol: error (either role)
+  ?:  =((end [3 7] raw) '<error>')
+    [rol 'error' (extract-inner raw) 'error' '' '']
+  ::  user: tool result
+  ?:  &(=('user' rol) =((end [3 6] raw) '<tool>'))
+    ['user' 'tool' (extract-inner raw) 'tool' '' '']
+  ::  user: api result
+  ?:  &(=('user' rol) |(?=(%'<api>' (end [3 5] raw)) ?=(%'<api ' (end [3 5] raw))))
+    =/  tag-str=tape  (slag 1 (scag (need (find ">" (trip raw))) (trip raw)))
+    =/  a=@t  (get-attr tag-str "action")
+    =/  p=@t  (get-attr tag-str "path")
+    =/  r=@t  (get-attr tag-str "rev")
+    =/  sub=@t
+      ?:  =('' a)  'api'
+      ?:  =('' r)  (crip "{(trip (api-display-name a))} {(trip p)}")
+      (crip "{(trip (api-display-name a))} {(trip p)} (rev {(trip r)})")
+    ['user' 'api' (extract-inner raw) sub a p]
+  ::  user: notify result
+  ?:  &(=('user' rol) =((end [3 8] raw) '<notify>'))
+    ['user' 'notify' (extract-inner raw) 'notify' '' '']
+  ::  user: plain text
+  ?:  =('user' rol)
+    ['user' 'message' raw '' '' '']
+  ::  assistant: parse XML protocol tag(s)
+  =/  tags=(list response-tag)  (parse-responses raw)
+  ?~  tags
+    ['assistant' 'message' raw '' '' '']
+  (tag-to-dm i.tags)
+::  Friendly display name for api actions
+::
+++  api-display-name
+  |=  act=@t
+  ^-  @t
+  ?+  act  act
+    %'file'     'read'
+    %'kids'     'kids'
+    %'tree'     'tree'
+    %'sand'     'sand'
+    %'weir'     'weir'
+    %'manu'     'docs'
+    %'make'     'create'
+    %'over'     'write'
+    %'rmf'      'delete'
+    %'rmd'      'rmdir'
+    %'dir'      'mkdir'
+    %'poke'     'poke'
+    %'diff'     'diff'
+    %'setweir'  'setweir'
+    %'rmweir'   'rmweir'
+    %'bond'     'subscribed'
+    %'keep'     'update'
+    %'drop'     'unsubscribe'
+  ==
+::  Convert a response-tag to a display-msg
+::
+++  tag-to-dm
+  |=  tag=response-tag
+  ^-  display-msg
+  ?-  -.tag
+      %thought   ['assistant' 'thought' text.tag 'thought' '' '']
+      %message   ['assistant' 'message' text.tag '' '' '']
+      %tool
+    =/  names=@t
+      %+  roll  calls.tag
+      |=  [tc=tool-call acc=@t]
+      ?:(=('' acc) name.tc (cat 3 acc (cat 3 ', ' name.tc)))
+    ['assistant' 'tool' names 'tool' '' '']
+      %api
+    =/  sub=@t  (crip "{(trip (api-display-name action.tag))} {(trip path.tag)}")
+    ['assistant' 'api' body.tag sub action.tag path.tag]
+      %notify    ['assistant' 'notify' text.tag 'notify' '' '']
+      %wait      ['assistant' 'wait' '' 'wait' '' '']
+      %done      ['assistant' 'done' output.tag 'done' '' '']
+  ==
+::  Classify a message into a list of display-msgs (multi-tag aware)
+::
+++  classify-multi
+  |=  =message
+  ^-  (list display-msg)
+  =/  rol=@t  role.message
+  =/  raw=@t  content.message
+  ::  non-assistant messages: always a single display-msg
+  ?.  =('assistant' rol)
+    ~[(classify message)]
+  ::  assistant: parse all XML tags
+  =/  tags=(list response-tag)  (parse-responses raw)
+  ?~  tags  ~[(classify message)]
+  (turn tags tag-to-dm)
+::
+::  Render a single display-msg to a manx div
+::
+++  dm-to-manx
+  |=  dm=display-msg
+  ^-  manx
+  =/  role=tape   (trip role.dm)
+  =/  type=tape   (trip type.dm)
+  =/  cls=tape    "msg {type} {role}"
+  =/  sub=tape    (trip sub.dm)
+  =/  body=tape   (trip content.dm)
+  ::  no-content types: one-liners with just role + sub
+  ?:  |(=("continue" type) =("wait" type) &(!=('' sub) =('' body)))
+    ;div(class cls)
+      ;b: {role}
+      ;span(class "sub"): {sub}
+    ==
+  ::  sub + content
+  ?:  !=('' sub)
+    ;div(class cls)
+      ;b: {role}
+      ;span(class "sub"): {sub}
+      ;pre: {body}
+    ==
+  ::  content only
+  ;div(class cls)
+    ;b: {role}
+    ;pre: {body}
+  ==
+::
+::  Render a message to manx — the one true renderer
+::  Used by both SSE (manx->txt via mark) and Sail server render
+::
+++  msg-to-manx
+  |=  =message
+  ^-  manx
+  =/  dms=(list display-msg)  (classify-multi message)
+  ?~  dms  ;div;
+  ?:  ?=(~ t.dms)
+    (dm-to-manx i.dms)
+  ::  multi-tag: wrap in a group div
+  =/  children=(list manx)  (turn dms dm-to-manx)
+  ;div(class "msg-group")
+    ;*  children
+  ==
+::  Trim leading and trailing whitespace from a tape
+::
+++  trim-tape
+  |=  t=tape
+  ^-  tape
+  =|  ws=(set @t)
+  =.  ws  (silt ~[' ' '\09' '\0a' '\0d'])
+  ::  trim leading
+  |-
+  ?~  t  ~
+  ?.  (~(has in ws) i.t)
+    ::  trim trailing
+    =/  r=tape  (flop t)
+    |-
+    ?~  r  ~
+    ?.  (~(has in ws) i.r)
+      (flop r)
+    $(r t.r)
+  $(t t.t)
+::  Read messages from the messages file via peek
+::
+++  read-msgs
+  |=  msg-road=road:tarball
+  =/  m  (fiber:fiber:nexus ,messages)
+  ^-  form:m
+  ;<  view=view:nexus  bind:m  (peek:io msg-road `[/ %claude-messages])
+  ?.  ?=([%file *] view)
+    (pure:m `messages`[%0 *((mop @ud message) lth)])
+  (pure:m !<(messages (need-vase:tarball sang.view)))
+::  Append a message to the messages file via poke
+::
+++  append-to-msgs
+  |=  [msg-road=road:tarball role=@t content=@t]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  (poke:io msg-road [[/ %claude-action] `action`[%add role content]])
+::  Extract inner text from an XML tag like <error>text</error>
+::
+++  extract-inner
+  |=  raw=@t
+  ^-  @t
+  =/  t=tape  (trip raw)
+  =/  gt=(unit @ud)  (find ">" t)
+  ?~  gt  raw
+  =/  after=tape  (slag +(u.gt) t)
+  =/  lt=(unit @ud)  (find "</" after)
+  ?~  lt  (crip after)
+  (crip (scag u.lt after))
+::  Parse Claude's XML-tagged response into a $response-tag
+::
+++  parse-response
+  |=  reply=@t
+  ^-  (unit response-tag)
+  =/  t=tape  (trim-tape (trip reply))
+  ::  Check for self-closing tag: <tag ... />
+  ::  Find first /> to detect self-closing (works even with trailing content)
+  ?~  t  ~
+  ?.  =('<' i.t)  ~
+  =/  sc=(unit @ud)  (find "/>" t)
+  =/  gt=(unit @ud)  (find ">" t)
+  ?:  &(?=(^ sc) ?=(^ gt) =(+(u.sc) u.gt))
+    =/  inner=tape  (slag 1 (scag u.sc `tape`t))
+    =/  tag-name=tape
+      =/  sp=(unit @ud)  (find " " inner)
+      ?~(sp inner (scag u.sp inner))
+    ?:  =("wait" tag-name)     `[%wait ~]
+    ?:  =("api" tag-name)      (parse-api-tag inner '')
+    ?:  =("notify" tag-name)   `[%notify '' (parse-continue inner)]
+    ~
+  ::  Match <tag>content</tag> pattern
+  =/  open=(unit @ud)  (find "<" t)
+  ?~  open  ~
+  =/  close-bracket=(unit @ud)  (find ">" (slag u.open `tape`t))
+  ?~  close-bracket  ~
+  =/  tag-end=@ud  (add u.open +(u.close-bracket))
+  =/  tag-str=tape  (slag +(u.open) (scag (dec tag-end) `tape`t))
+  ::  strip attributes if any
+  =/  tag-name=tape
+    =/  sp=(unit @ud)  (find " " tag-str)
+    ?~  sp  tag-str
+    (scag u.sp tag-str)
+  ::  find closing tag
+  =/  close-tag=tape  "</{tag-name}>"
+  =/  close-pos=(unit @ud)  (find close-tag t)
+  ?~  close-pos  ~
+  ::  extract inner content (everything between open and close tags)
+  =/  inner=@t  (crip (scag (sub u.close-pos tag-end) (slag tag-end `tape`t)))
+  ?:  =("thought" tag-name)  `[%thought inner]
+  ?:  =("message" tag-name)  `[%message inner (parse-continue tag-str)]
+  ?:  =("done" tag-name)     `[%done inner]
+  ?:  =("tool" tag-name)     (parse-tool-tag tag-str inner)
+  ?:  =("api" tag-name)      (parse-api-tag tag-str inner)
+  ?:  =("notify" tag-name)   `[%notify inner (parse-continue tag-str)]
+  ~
+::  Parse multiple XML tags from a single response
+::
+++  parse-responses
+  |=  reply=@t
+  ^-  (list response-tag)
+  =/  t=tape  (trim-tape (trip reply))
+  =|  acc=(list response-tag)
+  |-
+  ?:  =(~ t)  (flop acc)
+  =/  chunk=@t  (crip t)
+  =/  tag=(unit response-tag)  (parse-response chunk)
+  ?~  tag  (flop acc)
+  =/  end=@ud  (find-tag-end t)
+  ?:  =(0 end)  (flop [u.tag acc])
+  $(acc [u.tag acc], t (trim-tape (slag end `tape`t)))
+::  Find the character position after the first complete XML tag
+::
+++  find-tag-end
+  |=  t=tape
+  ^-  @ud
+  ?.  ?=(^ t)  0
+  ?.  =('<' i.t)  0
+  ::  self-closing: <tag ... />
+  =/  sc=(unit @ud)  (find "/>" t)
+  =/  gt=(unit @ud)  (find ">" t)
+  ?~  gt  0
+  ::  if /> appears before or at >  it's self-closing
+  ?:  &(?=(^ sc) =(+(u.sc) u.gt))
+    +(u.gt)
+  ::  paired tag: extract name, find </name>
+  =/  tag-str=tape  (slag 1 (scag u.gt `tape`t))
+  =/  tag-name=tape
+    =/  sp=(unit @ud)  (find " " tag-str)
+    ?~(sp tag-str (scag u.sp tag-str))
+  =/  close-tag=tape  "</{tag-name}>"
+  =/  close-pos=(unit @ud)  (find close-tag t)
+  ?~  close-pos  0
+  (add u.close-pos (lent close-tag))
+::  Parse <tool> tag content as JSON tool calls
+::
+++  parse-tool-tag
+  |=  [tag-str=tape text=@t]
+  ^-  (unit response-tag)
+  =/  cont=?  (parse-continue tag-str)
+  =/  jon=(unit json)  (de:json:html text)
+  ?~  jon  ~
+  ?:  ?=([%a *] u.jon)
+    ::  Array of tool calls
+    =/  calls=(list tool-call)
+      %+  murn  p.u.jon
+      |=  j=json
+      (parse-one-tool j)
+    ?~  calls  ~
+    `[%tool calls cont]
+  ::  Single tool call object
+  =/  call=(unit tool-call)  (parse-one-tool u.jon)
+  ?~  call  ~
+  `[%tool ~[u.call] cont]
+::
+++  parse-one-tool
+  |=  j=json
+  ^-  (unit tool-call)
+  ?.  ?=([%o *] j)  ~
+  =/  name=(unit json)  (~(get by p.j) 'name')
+  ?.  ?=([~ %s *] name)  ~
+  =/  args=(unit json)  (~(get by p.j) 'args')
+  =/  args-t=@t  ?~(args '{}' (en:json:html u.args))
+  `[p.u.name args-t]
+::
+::  Parse <api> tag: extract action and path attributes
+::
+++  parse-api-tag
+  |=  [tag-str=tape body=@t]
+  ^-  (unit response-tag)
+  =/  act=@t   (get-attr tag-str "action")
+  =/  path=@t  (get-attr tag-str "path")
+  ?:  |(=('' act) =('' path))  ~
+  `[%api act path body (parse-continue tag-str)]
+::  Extract an attribute value from a tag string
+::  e.g. (get-attr "api action=\"file\" path=\"/foo\"" "action") -> 'file'
+::
+++  get-attr
+  |=  [tag-str=tape attr=tape]
+  ^-  @t
+  =/  key=tape  (weld attr "=\"")
+  =/  pos=(unit @ud)  (find key tag-str)
+  ?~  pos  ''
+  =/  val-start=tape  (slag (add u.pos (lent key)) tag-str)
+  =/  end=(unit @ud)  (find "\"" val-start)
+  ?~  end  ''
+  (crip (scag u.end val-start))
+::  Parse continue attribute: defaults to true
+::
+++  parse-continue
+  |=  tag-str=tape
+  ^-  ?
+  =/  val=@t  (get-attr tag-str "continue")
+  =('true' val)
+::
+++  extract-error
+  |=  response=@t
+  ^-  (unit @t)
+  =/  res-json=(unit json)  (de:json:html response)
+  ?~  res-json  `'Could not parse API response'
+  ?.  ?=([%o *] u.res-json)  ~
+  =/  type=(unit json)  (~(get by p.u.res-json) 'type')
+  ?.  ?=([~ %s %'error'] type)  ~
+  =/  error=(unit json)  (~(get by p.u.res-json) 'error')
+  ?~  error  `'API error (no details)'
+  ?.  ?=([%o *] u.error)  `'API error (no details)'
+  =/  msg=(unit json)  (~(get by p.u.error) 'message')
+  =/  typ=(unit json)  (~(get by p.u.error) 'type')
+  =/  msg-t=@t  ?:(?=([~ %s *] msg) p.u.msg 'unknown error')
+  =/  typ-t=@t  ?:(?=([~ %s *] typ) p.u.typ 'error')
+  `(crip "Claude API {(trip typ-t)}: {(trip msg-t)}")
+::
+++  extract-reply
+  |=  response=@t
+  ^-  @t
+  =/  res-json=(unit json)  (de:json:html response)
+  ?~  res-json  ''
+  =/  content-blocks=(unit json)
+    ?.  ?=([%o *] u.res-json)  ~
+    (~(get by p.u.res-json) 'content')
+  ?~  content-blocks  ''
+  ?.  ?=([%a *] u.content-blocks)  ''
+  =/  texts=(list @t)
+    %+  murn  p.u.content-blocks
+    |=  block=json
+    ?.  ?=([%o *] block)  ~
+    =/  type=(unit json)  (~(get by p.block) 'type')
+    ?.  ?=([~ %s %'text'] type)  ~
+    =/  text=(unit json)  (~(get by p.block) 'text')
+    ?~  text  ~
+    ?.  ?=([%s *] u.text)  ~
+    `p.u.text
+  ?~  texts  ''
+  (rap 3 texts)
+::
+++  chat-page
+  |=  msgs=(list [idx=@ud =message])
+  ^-  manx
+  =/  api=tape  "/grubbery/api"
+  =/  base=tape  "claude.claude"
+  =/  sp-json=tape  (trip (en:json:html s+system-prompt))
+  =/  js=tape
+    ;:  weld
+      "var API='{api}',BASE='{base}',SYSTEM_PROMPT={sp-json};"
+      "var box=document.getElementById('messages'),input=document.getElementById('input'),form=document.getElementById('form');"
+      "function scrollBottom()\{box.scrollTop=box.scrollHeight}"
+      "setTimeout(scrollBottom,100);setTimeout(scrollBottom,300);window.addEventListener('load',scrollBottom);"
+      "function esc(s)\{var d=document.createElement('div');d.textContent=s;return d.innerHTML}"
+      "function showError(msg)\{var d=document.createElement('div');d.className='msg error';d.innerHTML='<b>system</b><span class=\\'sub\\'>error</span><pre>'+esc(msg)+'</pre>';box.appendChild(d);scrollBottom()}"
+      "function autoResize()\{input.style.height='auto';input.style.height=input.scrollHeight+'px'}"
+      "input.addEventListener('input',autoResize);"
+      "input.addEventListener('keydown',function(e)\{if(e.key==='Enter'&&!e.shiftKey)\{e.preventDefault();form.dispatchEvent(new Event('submit'))}});"
+      "form.onsubmit=async function(e)\{e.preventDefault();var t=input.value.trim();if(!t)return;input.value='';autoResize();var r=await fetch(API+'/poke/'+BASE+'/main.claude-registry?blot=/claude-action',\{method:'POST',headers:\{'Content-Type':'application/json'},body:JSON.stringify(\{text:t})});if(!r.ok)\{var err=await r.text();showError(r.status+': '+err)}};"
+      "function onLastMsg(e)\{if(e.data)\{box.insertAdjacentHTML('beforeend',e.data);scrollBottom()}}"
+      "function connect()\{var es=new EventSource(API+'/keep/'+BASE+'/ui/sse/last-message.html?blot=/txt');es.addEventListener('upd last-message.html',onLastMsg);es.onerror=function()\{es.close();setTimeout(connect,2000)}}"
+      "var intBtn=document.getElementById('interrupt-btn');"
+      "function onStatus(e)\{try\{var s=JSON.parse(e.data);var el=document.getElementById('loading');if(s.loading)\{el.classList.add('active');intBtn.classList.add('active')}else\{el.classList.remove('active');intBtn.classList.remove('active')};if('live' in s)\{setLiveUI(s.live)}}catch(x)\{}}"
+      "intBtn.onclick=async function()\{await fetch(API+'/poke/'+BASE+'/main.claude-registry?blot=/claude-action',\{method:'POST',headers:\{'Content-Type':'application/json'},body:JSON.stringify(\{interrupt:true})})};"
+      "var lastEsc=0;document.addEventListener('keydown',function(e)\{if(e.key==='Escape')\{var now=Date.now();if(now-lastEsc<500)\{intBtn.click();lastEsc=0}else\{lastEsc=now}}});"
+      "function connectStatus()\{var es=new EventSource(API+'/keep/'+BASE+'/ui/sse/status.json?blot=/json');es.addEventListener('upd status.json',onStatus);es.onerror=function()\{es.close();setTimeout(connectStatus,2000)}}"
+    "document.querySelectorAll('#filters input').forEach(function(cb)\{cb.addEventListener('change',function()\{var t=this.getAttribute('data-type');var r=this.getAttribute('data-role');var cls='hide-'+r+'-'+t;if(this.checked)\{box.classList.remove(cls)}else\{box.classList.add(cls)}})});"
+    "var backdrop=document.getElementById('modal-backdrop'),editor=document.getElementById('prompt-editor'),sysDiv=document.getElementById('prompt-system'),saveBtn=document.getElementById('prompt-save');"
+    "document.getElementById('prompt-btn').onclick=async function()\{backdrop.classList.add('open');sysDiv.textContent=SYSTEM_PROMPT;try\{var r=await fetch(API+'/file/'+BASE+'/custom-prompt.txt?blot=/txt');editor.value=r.ok?await r.text():''}catch(e)\{editor.value=''}};"
+    "document.getElementById('prompt-close').onclick=function()\{backdrop.classList.remove('open')};"
+    "backdrop.onclick=function(e)\{if(e.target===backdrop)backdrop.classList.remove('open')};"
+    "saveBtn.onclick=async function()\{try\{var r=await fetch(API+'/over/'+BASE+'/custom-prompt.txt?blot=/txt',\{method:'POST',body:editor.value});if(r.ok)\{backdrop.classList.remove('open')}else\{alert('Save failed: '+r.status)}}catch(e)\{alert('Save failed: '+e.message)}};"
+    "document.querySelectorAll('#modal-tabs button').forEach(function(btn)\{btn.onclick=function()\{document.querySelectorAll('#modal-tabs button').forEach(function(b)\{b.classList.remove('active')});document.querySelectorAll('.tab-pane').forEach(function(p)\{p.classList.remove('active')});btn.classList.add('active');document.getElementById('tab-'+btn.getAttribute('data-tab')).classList.add('active');saveBtn.style.display=btn.getAttribute('data-tab')==='custom'?'':'none'}});"
+    "var regBack=document.getElementById('reg-backdrop'),regContent=document.getElementById('reg-content');"
+    "document.getElementById('registry-btn').onclick=async function()\{regBack.classList.add('open');regContent.innerHTML='<span class=\\'reg-empty\\'>Loading...</span>';try\{var r=await fetch(API+'/file/'+BASE+'/main.claude-registry?blot=/txt');var txt=r.ok?await r.text():'Failed to load';regContent.innerHTML='<pre>'+esc(txt)+'</pre>'}catch(e)\{regContent.innerHTML='<span class=\\'reg-empty\\'>Error: '+esc(e.message)+'</span>'}};"
+    "document.getElementById('reg-close').onclick=function()\{regBack.classList.remove('open')};"
+    "regBack.onclick=function(e)\{if(e.target===regBack)regBack.classList.remove('open')};"
+    "var cfgBack=document.getElementById('cfg-backdrop'),cfgEditor=document.getElementById('cfg-editor');"
+    "document.getElementById('config-btn').onclick=async function()\{cfgBack.classList.add('open');try\{var r=await fetch(API+'/file/'+BASE+'/config.json?blot=/json');cfgEditor.value=r.ok?JSON.stringify(JSON.parse(await r.text()),null,2):''}catch(e)\{cfgEditor.value=''}};"
+    "document.getElementById('cfg-save').onclick=async function()\{try\{var j=JSON.parse(cfgEditor.value);var r=await fetch(API+'/over/'+BASE+'/config.json?blot=/json',\{method:'POST',headers:\{'Content-Type':'application/json'},body:JSON.stringify(j)});if(r.ok)\{cfgBack.classList.remove('open')}else\{alert('Save failed: '+r.status)}}catch(e)\{alert('Invalid JSON: '+e.message)}};"
+    "document.getElementById('cfg-close').onclick=function()\{cfgBack.classList.remove('open')};"
+    "cfgBack.onclick=function(e)\{if(e.target===cfgBack)cfgBack.classList.remove('open')};"
+    "var liveBtn=document.getElementById('live-btn');"
+    "function setLiveUI(on)\{liveBtn.className=on?'on':'off';liveBtn.textContent=on?'live':'halted'}"
+    "liveBtn.onclick=async function()\{var on=liveBtn.className==='off';setLiveUI(on);await fetch(API+'/poke/'+BASE+'/main.claude-registry?blot=/claude-action',\{method:'POST',headers:\{'Content-Type':'application/json'},body:JSON.stringify(\{live:on})})};"
+    "connect();connectStatus();"
+    ==
+  ;html
+    ;head
+      ;title: Claude Chat
+      ;meta(charset "utf-8");
+      ;meta(name "viewport", content "width=device-width, initial-scale=1");
+      ;style
+        ;+  ;/  ;:  weld
+          "* \{ box-sizing: border-box; margin: 0; padding: 0; } "
+          "body \{ font-family: monospace; max-width: 800px; margin: 0 auto; padding: 1rem; height: 100vh; display: flex; flex-direction: column; } "
+          "h1 \{ margin-bottom: 1rem; font-size: 1.2rem; } "
+          "#messages \{ flex: 1; overflow-y: auto; border: 1px solid #ccc; border-radius: 4px; padding: 1rem; margin-bottom: 1rem; } "
+          ".msg-group \{ margin-bottom: 1rem; } "
+          ".msg-group > .msg \{ margin-bottom: 0.25rem; } "
+          ".msg-group > .msg:last-child \{ margin-bottom: 0; } "
+          ".msg \{ margin-bottom: 1rem; } "
+          ".msg b \{ display: inline; text-transform: uppercase; font-size: 0.7rem; opacity: 0.5; } "
+          ".msg .sub \{ font-size: 0.65rem; opacity: 0.4; margin-left: 0.5rem; text-transform: uppercase; } "
+          ".msg header \{ margin-bottom: 0.25rem; } "
+          ".msg pre \{ white-space: pre-wrap; word-wrap: break-word; font-family: monospace; font-size: 0.9rem; line-height: 1.4; } "
+          ".msg.message pre \{ background: #f5f5f5; padding: 0.5rem; border-radius: 4px; } "
+          ".msg.thought \{ opacity: 0.5; } "
+          ".msg.thought pre \{ background: #f0f0ff; padding: 0.5rem; border-radius: 4px; font-style: italic; } "
+          ".msg.tool pre \{ background: #f0fff0; padding: 0.5rem; border-radius: 4px; } "
+          ".msg.tool b \{ color: #060; } "
+          ".msg.done pre \{ background: #fff8e0; padding: 0.5rem; border-radius: 4px; } "
+          ".msg.continue \{ opacity: 0.3; font-size: 0.7rem; } "
+          ".msg.wait \{ opacity: 0.3; font-size: 0.7rem; } "
+          ".msg.result pre \{ background: #e8f4fd; padding: 0.5rem; border-radius: 4px; } "
+          ".msg.result b \{ color: #036; } "
+          ".msg.api pre \{ background: #f0f0ff; padding: 0.5rem; border-radius: 4px; } "
+          ".msg.api b \{ color: #449; } "
+          ".msg.notify pre \{ background: #fff5e6; padding: 0.5rem; border-radius: 4px; } "
+          ".msg.notify b \{ color: #964; } "
+          ".msg.error pre \{ background: #fee; padding: 0.5rem; border-radius: 4px; color: #c00; } "
+          ".msg.error b \{ color: #c00; } "
+          "#form \{ display: flex; gap: 0.5rem; align-items: flex-end; } "
+          "#input \{ flex: 1; padding: 0.5rem; border: 1px solid #ccc; border-radius: 4px; font-family: monospace; font-size: 0.9rem; resize: none; overflow-y: auto; min-height: 2.2rem; max-height: 10rem; } "
+          "#form button \{ padding: 0.5rem 1rem; border: 1px solid #ccc; border-radius: 4px; cursor: pointer; font-family: monospace; } "
+          "#form button:hover \{ background: #eee; } "
+          "#loading \{ height: 2px; background: transparent; margin-bottom: 0.5rem; overflow: hidden; } "
+          "#loading.active \{ background: #e0e0e0; } "
+          "#loading.active::after \{ content: ''; display: block; height: 100%; width: 30%; background: #666; animation: slide 1s ease-in-out infinite; } "
+          "@keyframes slide \{ 0% \{ transform: translateX(-100%) } 100% \{ transform: translateX(400%) } } "
+          "#filters \{ margin-bottom: 0.75rem; } "
+          ".filter-row \{ display: flex; gap: 0.25rem; align-items: center; margin-bottom: 0.25rem; } "
+          ".filter-label \{ font-size: 0.6rem; font-family: monospace; text-transform: uppercase; opacity: 0.3; width: 4.5rem; } "
+          "#filters label \{ font-size: 0.65rem; font-family: monospace; text-transform: uppercase; opacity: 0.5; cursor: pointer; padding: 0.15rem 0.4rem; border: 1px solid #ccc; border-radius: 3px; user-select: none; } "
+          "#filters label:hover \{ opacity: 0.8; } "
+          "#filters input \{ display: none; } "
+          "#filters input:checked + span \{ opacity: 1; } "
+          "#filters input:not(:checked) + span \{ text-decoration: line-through; } "
+          ".hide-assistant-message .msg.message.assistant, .hide-assistant-thought .msg.thought.assistant, .hide-assistant-tool .msg.tool.assistant, .hide-assistant-api .msg.api.assistant, .hide-assistant-notify .msg.notify.assistant, .hide-assistant-wait .msg.wait.assistant, .hide-assistant-done .msg.done.assistant, .hide-assistant-error .msg.error.assistant \{ display: none; } "
+          ".hide-user-message .msg.message.user, .hide-user-error .msg.error.user, .hide-user-tool .msg.tool.user, .hide-user-api .msg.api.user, .hide-user-continue .msg.continue.user \{ display: none; } "
+          "#header \{ display: flex; align-items: baseline; gap: 0.75rem; margin-bottom: 1rem; } "
+          "#header h1 \{ margin-bottom: 0; } "
+          "#prompt-btn, #registry-btn, #config-btn, #live-btn \{ font-family: monospace; font-size: 0.65rem; text-transform: uppercase; opacity: 0.4; cursor: pointer; padding: 0.15rem 0.4rem; border: 1px solid #ccc; border-radius: 3px; background: none; } "
+          "#prompt-btn:hover, #registry-btn:hover, #config-btn:hover, #live-btn:hover \{ opacity: 0.8; } "
+          "#interrupt-btn \{ display: none; color: #c00; border-color: #c00; } "
+          "#interrupt-btn.active \{ display: block; } "
+          "#interrupt-btn:hover \{ background: #fdd; } "
+          "#live-btn.on \{ opacity: 0.8; color: #080; border-color: #080; } "
+          "#live-btn.off \{ opacity: 0.8; color: #c00; border-color: #c00; } "
+          "#reg-backdrop \{ display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.3); z-index: 100; } "
+          "#reg-backdrop.open \{ display: flex; align-items: center; justify-content: center; } "
+          "#reg-modal \{ background: #fff; border: 1px solid #ccc; border-radius: 4px; width: 90%; max-width: 700px; max-height: 70vh; display: flex; flex-direction: column; padding: 1rem; } "
+          "#reg-header \{ display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 0.75rem; } "
+          "#reg-header span \{ font-family: monospace; font-size: 0.8rem; font-weight: bold; text-transform: uppercase; opacity: 0.5; } "
+          "#reg-header button \{ font-family: monospace; font-size: 0.65rem; text-transform: uppercase; padding: 0.2rem 0.5rem; border: 1px solid #ccc; border-radius: 3px; cursor: pointer; background: none; } "
+          "#reg-header button:hover \{ background: #eee; } "
+          "#reg-content \{ overflow-y: auto; font-family: monospace; font-size: 0.8rem; line-height: 1.8; } "
+          "#cfg-backdrop \{ display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.3); z-index: 100; } "
+          "#cfg-backdrop.open \{ display: flex; align-items: center; justify-content: center; } "
+          "#cfg-modal \{ background: #fff; border: 1px solid #ccc; border-radius: 4px; width: 90%; max-width: 700px; height: 50vh; display: flex; flex-direction: column; padding: 1rem; } "
+          "#cfg-header \{ display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 0.75rem; } "
+          "#cfg-header span \{ font-family: monospace; font-size: 0.8rem; font-weight: bold; text-transform: uppercase; opacity: 0.5; } "
+          "#cfg-actions \{ display: flex; gap: 0.5rem; } "
+          "#cfg-actions button \{ font-family: monospace; font-size: 0.65rem; text-transform: uppercase; padding: 0.2rem 0.5rem; border: 1px solid #ccc; border-radius: 3px; cursor: pointer; background: none; } "
+          "#cfg-actions button:hover \{ background: #eee; } "
+          "#cfg-editor \{ flex: 1; font-family: monospace; font-size: 0.8rem; line-height: 1.5; border: 1px solid #ccc; border-radius: 4px; padding: 0.5rem; resize: none; } "
+          ".reg-empty \{ opacity: 0.4; } "
+          ".reg-entry \{ display: flex; justify-content: space-between; align-items: center; padding: 0.3rem 0; border-bottom: 1px solid #eee; } "
+          ".reg-entry .reg-info \{ } "
+          ".reg-entry .reg-type \{ font-size: 0.65rem; text-transform: uppercase; opacity: 0.4; margin-right: 0.5rem; } "
+          ".reg-entry button \{ font-family: monospace; font-size: 0.6rem; text-transform: uppercase; padding: 0.1rem 0.4rem; border: 1px solid #ccc; border-radius: 3px; cursor: pointer; background: none; color: #c00; } "
+          ".reg-entry button:hover \{ background: #fee; } "
+          "#modal-backdrop \{ display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.3); z-index: 100; } "
+          "#modal-backdrop.open \{ display: flex; align-items: center; justify-content: center; } "
+          "#modal \{ background: #fff; border: 1px solid #ccc; border-radius: 4px; width: 90%; max-width: 700px; height: 70vh; display: flex; flex-direction: column; padding: 1rem; } "
+          "#modal-header \{ display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 0.75rem; } "
+          "#modal-header span \{ font-family: monospace; font-size: 0.8rem; font-weight: bold; text-transform: uppercase; opacity: 0.5; } "
+          "#modal-actions \{ display: flex; gap: 0.5rem; } "
+          "#modal-actions button \{ font-family: monospace; font-size: 0.65rem; text-transform: uppercase; padding: 0.2rem 0.5rem; border: 1px solid #ccc; border-radius: 3px; cursor: pointer; background: none; } "
+          "#modal-actions button:hover \{ background: #eee; } "
+          "#modal-tabs \{ display: flex; gap: 0; margin-bottom: 0.75rem; border-bottom: 1px solid #ccc; } "
+          "#modal-tabs button \{ font-family: monospace; font-size: 0.65rem; text-transform: uppercase; padding: 0.3rem 0.6rem; border: 1px solid #ccc; border-bottom: none; border-radius: 3px 3px 0 0; cursor: pointer; background: #f5f5f5; opacity: 0.5; margin-bottom: -1px; } "
+          "#modal-tabs button.active \{ background: #fff; opacity: 1; border-bottom: 1px solid #fff; } "
+          "#modal-tabs button:hover \{ opacity: 0.8; } "
+          ".tab-pane \{ display: none; flex: 1; min-height: 0; } "
+          ".tab-pane.active \{ display: flex; flex-direction: column; flex: 1; } "
+          "#prompt-system \{ flex: 1; font-family: monospace; font-size: 0.8rem; line-height: 1.5; border: 1px solid #e0e0e0; border-radius: 4px; padding: 0.5rem; background: #f8f8f8; color: #666; overflow-y: auto; white-space: pre-wrap; word-wrap: break-word; } "
+          "#prompt-editor \{ flex: 1; font-family: monospace; font-size: 0.8rem; line-height: 1.5; border: 1px solid #ccc; border-radius: 4px; padding: 0.5rem; resize: none; } "
+        ==
+      ==
+    ==
+    ;body
+      ;div#header
+        ;h1: Claude Chat
+        ;button#live-btn.on: live
+        ;button#prompt-btn: prompt
+        ;button#registry-btn: registry
+        ;button#config-btn: config
+      ==
+      ;div#filters
+        ;div(class "filter-row")
+          ;span(class "filter-label"): assistant
+          ;label
+            ;input(type "checkbox", checked "", data-type "message", data-role "assistant");
+            ;span: message
+          ==
+          ;label
+            ;input(type "checkbox", checked "", data-type "thought", data-role "assistant");
+            ;span: thought
+          ==
+          ;label
+            ;input(type "checkbox", checked "", data-type "tool", data-role "assistant");
+            ;span: tool
+          ==
+          ;label
+            ;input(type "checkbox", checked "", data-type "api", data-role "assistant");
+            ;span: api
+          ==
+          ;label
+            ;input(type "checkbox", checked "", data-type "notify", data-role "assistant");
+            ;span: notify
+          ==
+          ;label
+            ;input(type "checkbox", checked "", data-type "done", data-role "assistant");
+            ;span: done
+          ==
+          ;label
+            ;input(type "checkbox", checked "", data-type "wait", data-role "assistant");
+            ;span: wait
+          ==
+          ;label
+            ;input(type "checkbox", checked "", data-type "error", data-role "assistant");
+            ;span: error
+          ==
+        ==
+        ;div(class "filter-row")
+          ;span(class "filter-label"): user
+          ;label
+            ;input(type "checkbox", checked "", data-type "message", data-role "user");
+            ;span: message
+          ==
+          ;label
+            ;input(type "checkbox", checked "", data-type "tool", data-role "user");
+            ;span: tool
+          ==
+          ;label
+            ;input(type "checkbox", checked "", data-type "api", data-role "user");
+            ;span: api
+          ==
+          ;label
+            ;input(type "checkbox", checked "", data-type "continue", data-role "user");
+            ;span: continue
+          ==
+          ;label
+            ;input(type "checkbox", checked "", data-type "error", data-role "user");
+            ;span: error
+          ==
+        ==
+      ==
+      ;div#messages
+        ;*  %+  turn  msgs
+            |=  [idx=@ud =message]
+            (msg-to-manx message)
+      ==
+      ;div#loading;
+      ;form#form
+        ;button#interrupt-btn(type "button"): Stop
+        ;textarea#input(rows "1", placeholder "Type a message...");
+        ;button(type "submit"): Send
+      ==
+      ;div#modal-backdrop
+        ;div#modal
+          ;div#modal-header
+            ;span: Prompt
+            ;div#modal-actions
+              ;button#prompt-save: save
+              ;button#prompt-close: close
+            ==
+          ==
+          ;div#modal-tabs
+            ;button(class "active", data-tab "system"): system
+            ;button(data-tab "custom"): custom
+          ==
+          ;div(id "tab-system", class "tab-pane active")
+            ;div#prompt-system;
+          ==
+          ;div(id "tab-custom", class "tab-pane")
+            ;textarea#prompt-editor;
+          ==
+        ==
+      ==
+      ;div#reg-backdrop
+        ;div#reg-modal
+          ;div#reg-header
+            ;span: Registry
+            ;button#reg-close: close
+          ==
+          ;div#reg-content;
+        ==
+      ==
+      ;div#cfg-backdrop
+        ;div#cfg-modal
+          ;div#cfg-header
+            ;span: Config
+            ;div#cfg-actions
+              ;button#cfg-save: save
+              ;button#cfg-close: close
+            ==
+          ==
+          ;textarea#cfg-editor;
+        ==
+      ==
+      ;script
+        ;+  ;/  js
+      ==
+    ==
+  ==
+--

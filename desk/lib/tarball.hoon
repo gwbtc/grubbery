@@ -2,8 +2,37 @@
 ::
 /+  multipart
 |%
-+$  neck      @tas                :: a "mark" at the directory level
-+$  metadata  (map @t @t)
++$  neck      rail                :: a nexus identity (directory-level mark)
++$  blot      rail                :: a mark identity (hierarchical)
++$  bars      [a=blot b=blot]     :: blot pair for conversions
++$  sage      (pair blot vase)    :: grubbery cage: blot-typed content
++$  boom      [=tang =noun]
++$  reus      (each vase boom)
++$  sang      (pair blot reus)    :: grubbery content: blot + typed vase or error
++$  bask      (pair blot noun)    :: grubbery page: blot-typed noun
++$  metadata  (map @t @t)          :: used only for tar export headers
+::  sang helpers
+::
+++  need-sage  |=(=sang ^-(sage ?>(?=(%& -.q.sang) [p.sang p.q.sang])))
+++  need-vase
+  |=  =sang  ^-  vase
+  ~|  [%need-vase-boom mark=p.sang]
+  ?>(?=(%& -.q.sang) p.q.sang)
+++  is-boom    |=(=sang ^-(? ?=(%| -.q.sang)))
+++  sang-noun  |=(=sang ^-(noun ?-(-.q.sang %& q.p.q.sang, %| noun.p.q.sang)))
+++  sage-to-sang  |=(=sage ^-(sang [p.sage %& q.sage]))
+++  bask-to-sang  |=([=bask err=tang] ^-(sang [p.bask %| [err q.bask]]))
+::  Compiled mark core: built once from mark source, used for vale + tubes
+::
+::
++$  marc
+  $_  ^?
+  |%
+  ++  type  *^type
+  ++  vale  |~(* *vase)
+  ++  grow  |~(blot *tube:clay)
+  ++  grab  |~(blot *tube:clay)
+  --
 ::  Path types with file/directory distinction
 ::
 +$  rail  [=path name=@ta]        :: path to file (dir + filename)
@@ -11,15 +40,44 @@
 +$  lane  (each rail fold)        :: [%& rail] file or [%| fold] directory
 +$  bend  (pair @ud lane)         :: relative: steps up + destination lane
 +$  road  (each lane bend)        :: [%& lane] absolute or [%| bend] relative
+::  A road variant that resolves relative to nexus boundaries (necks)
+::  instead of directory depth. Would eliminate the %| N offset footgun.
+::
+::    */path       -- resolve from the nearest governing nexus (walk up to first neck)
+::    **/path      -- resolve from the nexus above that (walk up past first neck to second)
+::    *[neck]/path -- resolve from the nearest governing nexus with this specific neck
+::                    e.g. *[/claw/app]/config.json finds the nearest /claw/app nexus above
+::
+::  Resolution: walk up from fiber location, check each directory for a neck.
+::  */ stops at the first neck found. *[neck] stops at the first neck matching the name.
+::  ** variants skip the first match and find the next one up.
+::
 ::  Symlink: untyped path reference (resolved at lookup time)
 ::
 +$  symlink   (each path (pair @ud path))
-+$  content   [=metadata =cage]
-+$  lump      [=metadata neck=(unit neck) contents=(map @ta content)]
++$  weir
+  $:  make=(set road)  :: allowed destinations for %make, %cull, %sand
+      poke=(set road)  :: allowed destinations for %poke
+      peek=(set road)  :: allowed destinations for %peek
+  ==
++$  lump
+  $:  neck=(unit neck)
+      weir=(unit weir)
+      gain=?
+      bang=(unit tang)
+      contents=(map @ta [=sang gain=? bang=(unit tang)])
+  ==
 +$  ball      (axal lump)
++$  pulp
+  $:  neck=(unit neck)
+      weir=(unit weir)
+      gain=?
+      contents=(map @ta [=bask gain=?])
+  ==
++$  bole      (axal pulp)
 :: simple descriptive file tree
 ::
-+$  node  [neck=(unit neck) files=(map @ta @tas)]
++$  node  [neck=(unit neck) files=(map @ta blot)]
 +$  tree  (axal node)
 ::  Tarball archive types
 ::
@@ -120,6 +178,15 @@
   |=  [here=rail dest=rail]
   ^-  bend
   (make-bend here [%& dest])
+::  Extend a directory road by appending inner path + filename
+::
+++  extend-road
+  |=  [=road inner=path name=@ta]
+  ^-  ^road
+  ?-  -.road
+      %&  [%& %& (weld ?-(-.p.road %& (snoc path.p.p.road name.p.p.road), %| p.p.road) inner) name]
+      %|  [%| p.p.road %& (weld ?-(-.q.p.road %& (snoc path.p.q.p.road name.p.q.p.road), %| p.q.p.road) inner) name]
+  ==
 ::  Compute common prefix of two paths
 ::
 ++  prefix
@@ -138,19 +205,88 @@
   ?~  pax  ~
   ?.  =(i.pre i.pax)  ~
   $(pre t.pre, pax t.pax)
-::  Helper: wrap symlink as cage for storage
+::  +rail-to-arm: encode a rail as a flat @tas for display/arm names
 ::
-++  symlink-to-cage
+::  [/ %txt] → %txt
+::  [/eyre %bindings] → %eyre--bindings
+::  [/foo/bar %baz] → %foo--bar--baz
+::
+++  rail-to-arm
+  |=  =rail
+  ^-  @tas
+  ?~  path.rail  name.rail
+  %-  crip
+  %-  zing
+  %+  join  "--"
+  (snoc (turn path.rail trip) (trip name.rail))
+::  +arm-to-rail: decode a flat @tas arm name back to a rail
+::
+::  %txt → [/ %txt]
+::  %eyre--bindings → [/eyre %bindings]
+::  %foo--bar--baz → [/foo/bar %baz]
+::
+++  arm-to-rail
+  |=  arm=@tas
+  ^-  rail
+  =/  t=tape  (trip arm)
+  =/  segs=(list tape)  (split-on-double-hyphen t)
+  ?~  segs  [/ arm]
+  ?~  t.segs  [/ arm]
+  :-  (turn (snip `(list tape)`segs) crip)
+  (crip (rear segs))
+::
+++  split-on-double-hyphen
+  |=  t=tape
+  ^-  (list tape)
+  =|  acc=tape
+  =|  res=(list tape)
+  |-
+  ?~  t  (snoc res acc)
+  ?:  ?&  =('-' i.t)
+          ?=(^ t.t)
+          =('-' i.t.t)
+      ==
+    $(t t.t.t, acc ~, res (snoc res acc))
+  $(t t.t, acc (snoc acc i.t))
+::  +ext-to-neck: parse underscore-separated extension into a neck rail
+::
+::  %app → [/ %app]
+::  %wallet_app → [/wallet %app]
+::  %wallet_account → [/wallet %account]
+::
+++  ext-to-neck
+  |=  ext=@ta
+  ^-  rail
+  =/  t=tape  (trip ext)
+  =/  segs=(list tape)  (split-on-underscore t)
+  ?~  segs  [/ ext]
+  ?~  t.segs  [/ ext]
+  :-  (turn (snip `(list tape)`segs) crip)
+  (crip (rear segs))
+::
+++  split-on-underscore
+  |=  t=tape
+  ^-  (list tape)
+  =|  acc=tape
+  =|  res=(list tape)
+  |-
+  ?~  t  (snoc res acc)
+  ?:  =('_' i.t)
+    $(t t.t, acc ~, res (snoc res acc))
+  $(t t.t, acc (snoc acc i.t))
+::  Helper: wrap symlink as sage for storage
+::
+++  symlink-to-sage
   |=  =symlink
-  ^-  cage
-  [%symlink !>(symlink)]
+  ^-  sage
+  [[/ %symlink] !>(symlink)]
 ::
-++  cage-to-symlink
-  |=  =cage
+++  sage-to-symlink
+  |=  =sage
   ^-  (unit symlink)
-  ?.  =(%symlink p.cage)
+  ?.  =([/ %symlink] p.sage)
     ~
-  `!<(symlink q.cage)
+  `!<(symlink q.sage)
 ::
 ++  ext-to-mime
   |=  ext=@ta
@@ -184,7 +320,7 @@
         ==
       ~  ::  must start with letter
     ((sand %ta) (crip text))
-  (cook |=(a=tape (rap 3 ^-((list @) a))) (star ;~(pose aln hep)))
+  (cook |=(a=tape (rap 3 ^-((list @) a))) (star ;~(pose aln hep cab)))
 ::  Extract file extension from filename
 ::  Examples: 'data.json' -> `%json, 'page.html-css' -> `%html-css, 'noext' -> ~
 ::
@@ -195,18 +331,19 @@
   =/  result  (;~(sfix pext dot) [1^1 reversed])
   ?~  q.result  ~
   `p.u.q.result
-::  Convert mime back to cage using mark system
+::  Convert mime back to sage using mark system
 ::  Returns ~ if no extension or no conversion available
 ::
-++  mime-to-cage
-  |=  [conversions=(map mars:clay tube:clay) filename=@ta =mime]
-  ^-  (unit cage)
+++  mime-to-sage
+  |=  [conversions=(map bars tube:clay) filename=@ta =mime]
+  ^-  (unit sage)
   =/  ext=(unit @ta)  (parse-extension filename)
   ?~  ext
     ~
-  ?~  tube=(~(get by conversions) %mime u.ext)
+  =/  =bars  [[/ %mime] [/ u.ext]]
+  ?~  tube=(~(get by conversions) bars)
     ~
-  `[u.ext (u.tube !>(mime))]
+  `[[/ u.ext] (u.tube !>(mime))]
 ::  Determine MIME type from Content-Type header and/or file extension
 ::  Prefers explicit Content-Type, falls back to extension inference
 ::  Returns path-formatted mime type (e.g., /text/plain)
@@ -321,6 +458,21 @@
     ::  Append remaining path
     (weld resolved-base pax)
   ==
+::  Split a tape on '/', filtering empty segments
+::
+++  split-on-slash
+  |=  t=tape
+  ^-  (list tape)
+  =|  acc=(list tape)
+  =|  cur=tape
+  |-
+  ?~  t
+    ?~  cur  (flop acc)
+    (flop [(flop cur) acc])
+  ?:  =(i.t '/')
+    ?~  cur  $(t t.t)
+    $(t t.t, acc [(flop cur) acc], cur ~)
+  $(t t.t, cur [i.t cur])
 ::  Process multipart file uploads into ball
 ::
 ++  from-parts
@@ -328,7 +480,7 @@
           base-path=path
           parts=(list [@t part:multipart])
           now=@da
-          conversions=(map mars:clay tube:clay)
+          conversions=(map bars tube:clay)
       ==
   ^-  ball
   ?~  parts  base
@@ -340,9 +492,11 @@
     ?~  file.file-part
       %uploaded-file
     u.file.file-part
-  ::  Parse filename as path (prepend '/' for stap)
+  ::  Split filename on '/' to get path segments.
+  ::  Can't use stap — it rejects valid filenames like .gitignore.
   =/  filename-path=path
-    (rash (crip (weld "/" (trip filename-raw))) stap)
+    =/  segs=(list tape)  (split-on-slash (trip filename-raw))
+    (turn segs |=(s=tape (crip s)))
   ::  Split into parent directory and filename
   =/  [file-parent=path file-name=@ta]
     ?~  filename-path
@@ -369,11 +523,7 @@
     =/  updated-base=ball
       ?^  dir-exists
         base
-      =/  dir-metadata=(map @t @t)
-        %-  ~(gas by *(map @t @t))
-        :~  ['mtime' (da-oct now)]
-        ==
-      (~(mkd ba base) dir-path dir-metadata dir-neck)
+      (~(mkd ba base) dir-path dir-neck)
     $(base updated-base, current-path dir-path, file-parent t.file-parent)
   ::  Parse filename to extract extension
   =/  parsed=(unit [ext=(unit @ta) pax=path])
@@ -389,26 +539,30 @@
     ?~  ext.u.parsed
       browser-type
     (fall (ext-to-mime u.ext.u.parsed) browser-type)
-  ::  Create file content with metadata
+  ::  Try to convert to sage, otherwise store as %mime sage
   =/  file-size=@ud  (met 3 body.file-part)
-  =/  file-metadata=(map @t @t)
-    %-  ~(gas by *(map @t @t))
-    :~  ['mtime' (da-oct now)]
-        ['size' (scot %ud file-size)]
-    ==
-  ::  Try to convert to cage, otherwise store as %mime cage
   =/  file-mime=mime  [mime-type [file-size body.file-part]]
-  =/  maybe-cage=(unit cage)  (mime-to-cage conversions file-name file-mime)
+  =/  maybe-sage=(unit sage)  (mime-to-sage conversions file-name file-mime)
   ::  Keep full filename as-is (no extension stripping)
-  =/  [store-name=@ta file-content=content]
-    ?~  maybe-cage
-      [file-name [file-metadata [%mime !>(file-mime)]]]
-    [file-name [file-metadata u.maybe-cage]]
+  =/  [store-name=@ta file-content=sang]
+    ?~  maybe-sage
+      [file-name (sage-to-sang [[/ %mime] !>(file-mime)])]
+    [file-name (sage-to-sang u.maybe-sage)]
   ::  Add file to base with explicit directories
   =/  new-base=ball
     (~(put ba base-with-dirs) [full-parent store-name] file-content)
   $(parts t.parts, base new-base)
 ::  Convert ball to tree (structure with marks, no content)
+::
+++  ball-to-bole
+  |=  b=ball
+  ^-  bole
+  :_  (~(run by dir.b) ball-to-bole)
+  ?~  fil.b  ~
+  :-  ~
+  :+  neck.u.fil.b  weir.u.fil.b
+  :-  gain.u.fil.b
+  (~(run by contents.u.fil.b) |=([c=sang gain=? *] [[p.c (sang-noun c)] gain]))
 ::
 ++  ball-to-tree
   |=  b=ball
@@ -417,7 +571,7 @@
   ?~  fil.b  ~
   :-  ~
   :-  neck.u.fil.b
-  (~(run by contents.u.fil.b) |=(c=content p.cage.c))
+  (~(run by contents.u.fil.b) |=([c=sang *] p.c))
 ::  Convert tree to json
 ::
 ++  tree-to-json
@@ -428,9 +582,9 @@
   ?~  fil.tre
     (pairs:enjs:format ~[['dirs' subdirs]])
   =/  files=json
-    [%o (~(run by files.u.fil.tre) |=(m=@tas s+m))]
+    [%o (~(run by files.u.fil.tre) |=(m=blot s+(rail-to-arm m)))]
   =/  neck=json
-    ?~(neck.u.fil.tre ~ s+u.neck.u.fil.tre)
+    ?~(neck.u.fil.tre ~ s+(rail-to-arm u.neck.u.fil.tre))
   %-  pairs:enjs:format
   :~  ['neck' neck]
       ['files' files]
@@ -443,30 +597,32 @@
   ::
   ++  get
     |=  =rail
-    ^-  (unit content)
+    ^-  (unit sang)
     ?~  nod=(~(get of b) path.rail)
       ~
-    (~(get by contents.u.nod) name.rail)
+    =/  got  (~(get by contents.u.nod) name.rail)
+    ?~  got  ~
+    `sang.u.got
   ::  Put a content item at rail (directory path + filename).
   ::  Ensures all directories along the path have lumps.
   ::  Crashes if name collides with existing directory.
   ::
   ++  put
-    |=  [=rail c=content]
+    |=  [=rail c=sang]
     ^-  ball
     ?~  path.rail
       ::  at target dir: file name must not collide with subdir name
       ~|  [%name-collision %file-vs-dir name.rail]
       ?<  (~(has by dir.b) name.rail)
-      =/  lmp=lump  (fall fil.b [~ ~ ~])
-      b(fil `lmp(contents (~(put by contents.lmp) name.rail c)))
+      =/  lmp=lump  (fall fil.b [~ ~ %.n ~ ~])
+      b(fil `lmp(contents (~(put by contents.lmp) name.rail [c %.n ~])))
     ::  creating subdir: name must not collide with file name
     ~|  [%name-collision %dir-vs-file i.path.rail]
     ?<  ?&  ?=(^ fil.b)
             (~(has by contents.u.fil.b) i.path.rail)
         ==
     =/  kid=ball  (~(gut by dir.b) i.path.rail *ball)
-    =/  filled=ball  ?^(fil.kid kid kid(fil `[~ ~ ~]))
+    =/  filled=ball  ?^(fil.kid kid kid(fil `[~ ~ %.n ~ ~]))
     b(dir (~(put by dir.b) i.path.rail (~(put ba filled) [t.path.rail name.rail] c)))
   ::  Touch a file: update mtime, propagate mtime up to parents
   ::  Check if a content item exists
@@ -507,48 +663,48 @@
   ::  Get with default
   ::
   ++  gut
-    |=  [=rail default=content]
+    |=  [=rail default=sang]
     (fall (get rail) default)
-  ::  Get a cage (crash if not found)
+  ::  Get a sage (crash if not found)
   ::
-  ++  got-cage
+  ++  got-sage
     |=  =rail
-    ^-  cage
-    =/  c=content  (got rail)
-    cage.c
-  ::  Get a file as mime (crash if not found or not a mime cage)
+    ^-  sage
+    (need-sage (got rail))
+  ::  Get a file as mime (crash if not found or not a mime sage)
   ::
   ++  got-file
     |=  =rail
     ^-  mime
-    =/  c=content  (got rail)
-    ?.  =(%mime p.cage.c)
+    =/  =sage  (got-sage rail)
+    ?.  =([/ %mime] p.sage)
       ~|("not a mime file: {(spud (snoc path.rail name.rail))}" !!)
-    !<(mime q.cage.c)
+    !<(mime q.sage)
   ::  Get a symlink (crash if not found or not a symlink)
   ::
   ++  got-symlink
     |=  =rail
     ^-  symlink
-    =/  c=content  (got rail)
-    =/  maybe-sym=(unit symlink)  (cage-to-symlink cage.c)
+    =/  =sage  (got-sage rail)
+    =/  maybe-sym=(unit symlink)  (sage-to-symlink sage)
     ?~  maybe-sym
       ~|("not a symlink: {(spud (snoc path.rail name.rail))}" !!)
     u.maybe-sym
-  ::  Get cage and extract as specific type (crash if wrong type)
+  ::  Get sage and extract as specific type (crash if wrong type)
   ::
-  ++  got-cage-as
+  ++  got-sage-as
     |*  [=rail a=mold]
     ^-  a
-    !<(a q:(got-cage rail))
-  ::  Get cage as unit (returns ~ if not found)
+    !<(a q:(got-sage rail))
+  ::  Get sage as unit (returns ~ if not found, ~ if boomed)
   ::
-  ++  get-cage-as
+  ++  get-sage-as
     |*  [=rail a=mold]
     ^-  (unit a)
     ?~  may=(get rail)
       ~
-    `!<(a q.cage.u.may)
+    ?.  ?=(%& -.q.u.may)  ~
+    `!<(a q.p.q.u.may)
   ::  Count total content items across all directories
   ::
   ++  wyt
@@ -556,31 +712,35 @@
     %+  roll  ~(tap of b)
     |=  [[pax=path lmp=lump] acc=@ud]
     (add acc ~(wyt by contents.lmp))
-  ::  Convert entire ball to flat list of [rail content] pairs
+  ::  Convert entire ball to flat list of [rail sang] pairs
   ::
   ++  tap
-    ^-  (list [rail content])
+    ^-  (list [rail sang])
     %-  zing
     %+  turn  ~(tap of b)
     |=  [pax=path lmp=lump]
     %+  turn  ~(tap by contents.lmp)
-    |=  [name=@ta c=content]
-    [[pax name] c]
+    |=  [name=@ta =sang gain=? bang=(unit tang)]
+    [[pax name] sang]
   ::  Apply function to all content items
   ::
   ++  run
-    |=  fn=$-(content content)
+    |=  fn=$-(sang sang)
     ^-  ball
     %+  roll  ~(tap of b)
     |=  [[pax=path lmp=lump] acc=ball]
-    (~(put of acc) pax lmp(contents (~(run by contents.lmp) fn)))
+    %-  ~(put of acc)
+    :-  pax
+    %=  lmp
+      contents  (~(run by contents.lmp) |=([=sang gain=? bang=(unit tang)] [(fn sang) gain bang]))
+    ==
   ::  Insert list of content items
   ::
   ++  gas
-    |=  items=(list [rail content])
+    |=  items=(list [rail sang])
     ^-  ball
     %+  roll  items
-    |=  [[=rail c=content] acc=ball]
+    |=  [[=rail c=sang] acc=ball]
     (~(put ba acc) rail c)
   ::  Reduce over all content items
   ::
@@ -591,52 +751,41 @@
   ::  Check if all content items match predicate
   ::
   ++  all
-    |=  fn=$-(content ?)
+    |=  fn=$-(sang ?)
     ^-  ?
     %+  levy  tap
-    |=  [=rail c=content]
+    |=  [=rail c=sang]
     (fn c)
   ::  Check if any content item matches predicate
   ::
   ++  any
-    |=  fn=$-(content ?)
+    |=  fn=$-(sang ?)
     ^-  ?
     %+  lien  tap
-    |=  [=rail c=content]
+    |=  [=rail c=sang]
     (fn c)
-  ::  Clear all %temp cages from ball
-  ::
-  ++  clear-temp
-    ^-  ball
-    %+  roll  ~(tap of b)
-    |=  [[pax=path lmp=lump] acc=ball]
-    =/  cleaned-contents=(map @ta content)
-      %-  ~(gas by *(map @ta content))
-      %+  skip  ~(tap by contents.lmp)
-      |=([name=@ta c=content] =(%temp p.cage.c))
-    (~(put of acc) pax lmp(contents cleaned-contents))
   ::  Delete entire subtree at path
   ::
   ++  lop
     |=  pax=path
     ^-  ball
     (~(lop of b) pax)
-  ::  Make directory at path with metadata and optional neck.
+  ::  Make directory at path with optional neck.
   ::  Ensures all intermediate directories have lumps.
   ::
   ++  mkd
-    |=  [pax=path met=metadata nec=(unit neck)]
+    |=  [pax=path nec=(unit neck)]
     ^-  ball
     ?~  pax
-      b(fil `[met nec ~])
+      b(fil `[nec ~ %.n ~ ~])
     ::  creating subdir: name must not collide with file name
     ~|  [%name-collision %dir-vs-file i.pax]
     ?<  ?&  ?=(^ fil.b)
             (~(has by contents.u.fil.b) i.pax)
         ==
     =/  kid=ball  (~(gut by dir.b) i.pax *ball)
-    =/  filled=ball  ?^(fil.kid kid kid(fil `[~ ~ ~]))
-    b(dir (~(put by dir.b) i.pax (~(mkd ba filled) t.pax met nec)))
+    =/  filled=ball  ?^(fil.kid kid kid(fil `[~ ~ %.n ~ ~]))
+    b(dir (~(put by dir.b) i.pax (~(mkd ba filled) t.pax nec)))
   ::  Put a ball (subtree) at path, replacing any existing subtree.
   ::  Ensures all intermediate directories have lumps.
   ::  Crashes if path collides with existing file.
@@ -653,7 +802,7 @@
             (~(has by contents.u.fil.b) i.pax)
         ==
     =/  kid=ball  (~(gut by dir.b) i.pax *ball)
-    =/  filled=ball  ?^(fil.kid kid kid(fil `[~ ~ ~]))
+    =/  filled=ball  ?^(fil.kid kid kid(fil `[~ ~ %.n ~ ~]))
     b(dir (~(put by dir.b) i.pax $(b filled, pax t.pax)))
   ::  Descend to subdirectory as new ball
   ::
@@ -686,6 +835,33 @@
     ?~  kids  %.y
     ?.  ^$(b i.kids)  %.n
     $(kids t.kids)
+  --
+::
+++  bo
+  |_  b=bole
+  ++  get
+    |=  =rail
+    ^-  (unit bask)
+    ?~  nod=(~(get of b) path.rail)
+      ~
+    =/  got  (~(get by contents.u.nod) name.rail)
+    ?~  got  ~
+    `bask.u.got
+  ++  put
+    |=  [=rail c=bask]
+    ^-  bole
+    ?~  path.rail
+      ~|  [%name-collision %file-vs-dir name.rail]
+      ?<  (~(has by dir.b) name.rail)
+      =/  plp=pulp  (fall fil.b [~ ~ %.n ~])
+      b(fil `plp(contents (~(put by contents.plp) name.rail [c %.n])))
+    ~|  [%name-collision %dir-vs-file i.path.rail]
+    ?<  ?&  ?=(^ fil.b)
+            (~(has by contents.u.fil.b) i.path.rail)
+        ==
+    =/  kid=bole  (~(gut by dir.b) i.path.rail *bole)
+    =/  filled=bole  ?^(fil.kid kid kid(fil `[~ ~ %.n ~]))
+    b(dir (~(put by dir.b) i.path.rail (~(put bo filled) [t.path.rail name.rail] c)))
   --
 ::  Tarball encoding utilities
 ::
@@ -810,6 +986,67 @@
   =/  data  ?~(data.i.tar 0^0 u.data.i.tar)
   $(tar t.tar, octs (octs-rap octs head data ~))
 ::
+++  oct-to-ud
+  |=  t=@t
+  ^-  @ud
+  =/  =tape  (trip t)
+  =/  clean=^tape  (skim tape |=(c=@t &((gte c '0') (lte c '7'))))
+  =|  acc=@ud
+  |-
+  ?~  clean  acc
+  $(acc (add (sub i.clean '0') (mul 8 acc)), clean t.clean)
+::
+++  decode-header
+  |=  block=octs
+  ^-  (unit tarball-header)
+  ?>  =(512 p.block)
+  ::  empty block (all zeros) signals end of archive
+  ?:  =(0 q.block)  ~
+  =/  get  |=([off=@ud len=@ud] `@t`(cut 3 [off len] q.block))
+  :-  ~
+  :*  (get 0 100)       :: name
+      (get 100 8)        :: mode
+      (get 108 8)        :: uid
+      (get 116 8)        :: gid
+      (get 124 12)       :: size
+      (get 136 12)       :: mtime
+      (get 156 1)        :: typeflag
+      (get 157 100)      :: linkname
+      (get 265 32)       :: uname
+      (get 297 32)       :: gname
+      (get 329 8)        :: devmajor
+      (get 337 8)        :: devminor
+      (get 345 155)      :: prefix
+  ==
+::
+++  decode-tarball
+  |=  data=octs
+  ^-  tarball
+  =|  entries=tarball
+  =/  pos=@ud  0
+  |-
+  ::  need at least 512 bytes for a header
+  ?:  (lth (sub p.data pos) 512)
+    (flop entries)
+  =/  header-block=octs  [512 (cut 3 [pos 512] q.data)]
+  =/  header=(unit tarball-header)  (decode-header header-block)
+  ?~  header
+    ::  empty header = end of archive
+    (flop entries)
+  =/  file-size=@ud  (oct-to-ud size.u.header)
+  ::  data follows header, padded to 512-byte boundary
+  =/  data-start=@ud  (add pos 512)
+  =/  padded-size=@ud
+    ?:  =(0 file-size)  0
+    (mul 512 (div (add file-size 511) 512))
+  =/  file-data=(unit octs)
+    ?:  =(0 file-size)  ~
+    `[file-size (cut 3 [data-start file-size] q.data)]
+  %=  $
+    pos  (add data-start padded-size)
+    entries  [[u.header file-data] entries]
+  ==
+::
 ++  split-path
   |=  =path
   ^-  [prefix=^path name=^path]
@@ -824,33 +1061,31 @@
   $(p t.p, n [i.p n])
 ::
 ++  gen
-  |_  [now=@da conversions=(map mars:clay tube:clay)]
+  |_  [now=@da conversions=(map bars tube:clay)]
   ::  TODO: implement PAX extended headers (typeflag 'x' and 'g')
   ::  to preserve arbitrary metadata fields like date-created
   ::  Format: <length> <key>=<value>\n
   ::
-  ::  Convert cage to mime using mark conversions map
+  ::  Convert sage to mime using blot conversions map
   ::  Falls back to noun jamming if no conversion exists
   ::
-  ++  cage-to-mime
-    |=  =cage
+  ++  sage-to-mime
+    |=  =sage
     ^-  mime
-    ?:  =(%temp p.cage)
-      [/application/x-urb-jam (as-octs:mimes:html (jam q.cage))]
-    =/  key=mars:clay  [a=p.cage b=%mime]
+    =/  key=bars  [p.sage [/ %mime]]
     ?~  tube=(~(get by conversions) key)
       ::  No conversion available, fall back to jamming like mar/noun.hoon
-      [/application/x-urb-jam (as-octs:mimes:html (jam q.cage))]
+      [/application/x-urb-jam (as-octs:mimes:html (jam q.sage))]
     ::  Try the direct tube conversion
-    =/  result=(each vase tang)  (mule |.((u.tube q.cage)))
+    =/  result=(each vase tang)  (mule |.((u.tube q.sage)))
     ?:  ?=([%| *] result)
       ::  Tube conversion failed, fall back to jamming
-      [/application/x-urb-jam (as-octs:mimes:html (jam q.cage))]
+      [/application/x-urb-jam (as-octs:mimes:html (jam q.sage))]
     ::  Successfully converted, check what we got
     ::  The tube should produce a vase of a mime, extract it
     =/  extracted  (mule |.(!<(mime p.result)))
     ?:  ?=([%| *] extracted)
-      [/application/x-urb-jam (as-octs:mimes:html (jam q.cage))]
+      [/application/x-urb-jam (as-octs:mimes:html (jam q.sage))]
     p.extracted
   ::
   ++  generate-header
@@ -902,15 +1137,19 @@
     (generate-entry metadata ~)
   ::
   ++  make-content-entry
-    |=  [=path =content]
+    |=  [=path content=sang]
     ^-  tarball-entry
     =/  [prefix=^path name=^path]  (split-path path)
-    ::  Check if this is a symlink cage
-    =/  maybe-sym=(unit symlink)  (cage-to-symlink cage.content)
+    ::  Boomed files: skip (can't export error state)
+    ?:  (is-boom content)
+      (generate-entry (~(gas by *(map @t @t)) ~[['typeflag' '0'] ['prefix' (rsh [3 1] (spat prefix))] ['name' (rsh [3 1] (spat name))]]) ~)
+    =/  =sage  (need-sage content)
+    ::  Check if this is a symlink sage
+    =/  maybe-sym=(unit symlink)  (sage-to-symlink sage)
     ?^  maybe-sym
       ::  It's a symlink
       =/  sym-metadata=metadata
-        %-  ~(gas by metadata.content)
+        %-  ~(gas by *(map @t @t))
         :~  ['typeflag' '2']
             ['prefix' (rsh [3 1] (spat prefix))]
             ['name' (rsh [3 1] (spat name))]
@@ -918,14 +1157,14 @@
         ==
       (generate-entry sym-metadata ~)
     ::  Regular file
-    =/  =mime  (cage-to-mime cage.content)
-    =/  cage-metadata=metadata
-      %-  ~(gas by metadata.content)
+    =/  =mime  (sage-to-mime sage)
+    =/  sage-metadata=metadata
+      %-  ~(gas by *(map @t @t))
       :~  ['typeflag' '0']
           ['prefix' (rsh [3 1] (spat prefix))]
           ['name' (rsh [3 1] (spat name))]
       ==
-    (generate-entry cage-metadata `q.mime)
+    (generate-entry sage-metadata `q.mime)
   ::
   ++  make-tarball
     |=  [=path =ball]
@@ -933,17 +1172,14 @@
     =/  tar-entries=tarball
       ?~  fil.ball
         ~
-      =/  contents-list=(list [@ta content])  ~(tap by contents.u.fil.ball)
-      =/  exportable=(list [@ta content])
-        %+  skip  contents-list
-        |=([name=@ta c=content] =(%temp p.cage.c))
+      =/  exportable=(list [@ta [=sang gain=? bang=(unit tang)]])  ~(tap by contents.u.fil.ball)
       %+  weld
         ?~  path
           ~
-        [(make-directory-entry path metadata.u.fil.ball) ~]
+        [(make-directory-entry path ~) ~]
       %+  turn  exportable
-      |=  [name=@ta =content]
-      (make-content-entry (snoc path name) content)
+      |=  [name=@ta =sang gain=? bang=(unit tang)]
+      (make-content-entry (snoc path name) sang)
     =/  directories  ~(tap by dir.ball)
     |-
     ?~  directories

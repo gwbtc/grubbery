@@ -1,0 +1,374 @@
+::  git objects: commits, trees, blobs, tags
+::
+::  Ported from hoon-git.
+::
+::  uses bytestream from sut (Clay-compiled, jetted)
+/<  *  /lib/git/hash.hoon
+=>  |%
+::
++$  object-type
+  $?  %commit
+      %tree
+      %blob
+      %tag
+  ==
++$  object-header  [type=object-type size=@ud]
++$  raw-object  [type=object-type size=@ud data=octs]
+::
++$  commit-person  [name=tape email=tape]
++$  commit-time  [date=@da zone=(pair ? @dr)]
++$  commit-signature  $%  [%gpg @t]
+               ==
++$  commit-header  $:  tree=hash
+                       parents=(list hash)
+                       ::
+                       author=commit-person
+                       author-time=commit-time
+                       ::
+                       committer=commit-person
+                       =commit-time
+                       ::
+                       sign=(unit commit-signature)
+                   ==
++$  commit  $+  git-commit
+            $:  commit-header
+                message=tape
+            ==
++$  tree-entry  [name=@ta mode=@ux =hash]
++$  tree-dir  $+(git-tree (list tree-entry))
++$  object  $+  git-object
+  $%  [%commit size=@ud =commit]
+      [%tree size=@ud =tree-dir]
+      [%blob size=@ud data=octs]
+      [%tag size=@ud ~]
+  ==
+::  Git object core
+::
+--
+|%
+++  ud-as-type
+  |=  tid=@ud
+  ^-  (unit object-type)
+  ?+  tid  ~
+    %1  `%commit
+    %2  `%tree
+    %3  `%blob
+    %4  `%tag
+  ==
+++  raw-to-octs
+  |=  rob=raw-object
+  ^-  octs
+  %-  can-octs:bytestream
+  :~  (as-octs:mimes:html type.rob)
+      [1 ' ']
+      (as-octs:mimes:html (crip ((d-co:co 1) size.rob)))
+      [1 0x0]
+      data.rob
+  ==
+++  raw-size
+  |=  rob=raw-object
+  ^-  @ud
+  p.data.rob
+++  raw-data
+  |=  rob=raw-object
+  ^-  octs
+  data.rob
+++  blob-to-raw
+  |=  blob=object
+  ^-  raw-object
+  ?>  ?=(%blob -.blob)
+  [%blob size.blob data.blob]
+++  tree-to-raw
+  |=  [hal=hash-algo dir=object]
+  ^-  raw-object
+  ?>  ?=(%tree -.dir)
+  =+  dir=tree-dir.dir
+  =|  data=bays:bytestream
+  |-
+  ?~  dir
+    [%tree size=(size:bytestream data) (to-octs:bytestream data)]
+  =.  data  %+  append-octs:bytestream  data
+    (as-octt:bytestream (print-octal mode.i.dir))
+  =.  data  %+  append-octs:bytestream  data
+    [1 ' ']
+  =.  data  %+  append-octs:bytestream  data
+    (as-octs:bytestream name.i.dir)
+  =.  data  (append-byte:bytestream data 0x0)
+  =.  data  (append-hash data hal hash.i.dir)
+  $(dir t.dir)
+++  commit-to-raw
+  |=  [hal=hash-algo com=object]
+  ^-  raw-object
+  ?>  ?=(%commit -.com)
+  =|  data=bays:bytestream
+  ::  tree <hash>\n
+  =.  data  (append-octs:bytestream data (as-octt:bytestream "tree "))
+  =.  data  (append-octs:bytestream data (as-octt:bytestream (print-hash hal tree.commit.com)))
+  =.  data  (append-byte:bytestream data 0xa)
+  ::  parent <hash>\n  (0 or more)
+  =.  data
+    %+  roll  parents.commit.com
+    |=  [p=hash d=_data]
+    =.  d  (append-octs:bytestream d (as-octt:bytestream "parent "))
+    =.  d  (append-octs:bytestream d (as-octt:bytestream (print-hash hal p)))
+    (append-byte:bytestream d 0xa)
+  ::  author <name> <<email>> <timestamp> <zone>\n
+  =.  data  (append-octs:bytestream data (as-octt:bytestream "author "))
+  =.  data  (append-octs:bytestream data (as-octt:bytestream (format-person author.commit.com)))
+  =.  data  (append-octs:bytestream data (as-octt:bytestream " "))
+  =.  data  (append-octs:bytestream data (as-octt:bytestream (format-time author-time.commit.com)))
+  =.  data  (append-byte:bytestream data 0xa)
+  ::  committer <name> <<email>> <timestamp> <zone>\n
+  =.  data  (append-octs:bytestream data (as-octt:bytestream "committer "))
+  =.  data  (append-octs:bytestream data (as-octt:bytestream (format-person committer.commit.com)))
+  =.  data  (append-octs:bytestream data (as-octt:bytestream " "))
+  =.  data  (append-octs:bytestream data (as-octt:bytestream (format-time commit-time.commit.com)))
+  =.  data  (append-byte:bytestream data 0xa)
+  ::  \n<message>
+  =.  data  (append-byte:bytestream data 0xa)
+  =.  data  (append-octs:bytestream data (as-octt:bytestream message.commit.com))
+  =/  body=octs  (to-octs:bytestream data)
+  [%commit p.body body]
+::
+++  format-person
+  |=  p=commit-person
+  ^-  tape
+  "{name.p} <{email.p}>"
+::
+++  format-time
+  |=  ct=commit-time
+  ^-  tape
+  =/  unix=@ud
+    ?:  (lth date.ct ~1970.1.1)  0
+    (div (sub date.ct ~1970.1.1) ~s1)
+  =/  zone-sign=tape  ?:(-.zone.ct "+" "-")
+  =/  zone-secs=@ud  (div +.zone.ct ~s1)
+  =/  zone-hrs=@ud  (div zone-secs 3.600)
+  =/  zone-min=@ud  (div (mod zone-secs 3.600) 60)
+  "{((d-co:co 1) unix)} {zone-sign}{(pad-2 zone-hrs)}{(pad-2 zone-min)}"
+::
+++  pad-2
+  |=  n=@ud
+  ^-  tape
+  ?:((lth n 10) "0{((d-co:co 1) n)}" ((d-co:co 1) n))
+++  obj-to-raw
+  |=  [hal=hash-algo obj=object]
+  ^-  raw-object
+  ?-  -.obj
+    %blob    (blob-to-raw obj)
+    %tree    (tree-to-raw hal obj)
+    %commit  (commit-to-raw hal obj)
+    %tag  !!
+  ==
+++  hash-raw-sha-1
+  |=  rob=raw-object
+  ^-  @ux
+  (hash-octs-sha-1 (raw-to-octs rob))
+++  hash-raw
+  |=  [hal=hash-algo rob=raw-object]
+  ^-  @ux
+  ?-  hal
+    %sha-1  (hash-raw-sha-1 rob)
+    %sha-256  !!
+  ==
+++  hash-obj
+  |=  [hal=hash-algo obj=object]
+  ^-  @ux
+  (hash-raw hal (obj-to-raw hal obj))
+++  print-hash
+  |=  [hal=hash-algo =hash]
+  ^-  tape
+  ?-  hal
+    %sha-1
+      (print-hash-sha-1 hash)
+    ::
+    %sha-256  !!
+  ==
+++  raw-from-octs
+  |=  =octs
+  ^-  raw-object
+  =/  pin  (find-byte:bytestream 0x0 (from-octs:bytestream octs))
+  ?~  pin
+    ~|  "Object is corrupted: no header terminator found"  !!
+  =/  txt  (trip (cut 3 [0 u.pin] q.octs))
+  =/  hed  (rust txt ;~(plug sym ;~(pfix ace dim:ag)))
+  ?~  hed
+    ~|  "Object is corrupted: invalid header"  !!
+  =+  [type=@tas size=@ud]=u.hed
+  ?.  =(size (sub p.octs +(u.pin)))
+    ~|  "Object is corrupted: incorrect object length"  !!
+  =/  type=object-type
+    ?+  type  ~|  "Object corrupted: unknown type {<type>}"  !!
+        %blob    %blob
+        %commit  %commit
+        %tree    %tree
+        %tag  !!
+    ==
+  =/  sea=bays:bytestream  (from-octs:bytestream octs)
+  =/  data
+    (peek-octs-end:bytestream (seek-to:bytestream +(u.pin) sea))
+  [type size data]
+++  parse-raw
+  |=  [hal=hash-algo rob=raw-object]
+  ^-  object
+  ?-  type.rob
+    %blob    (parse-blob hal rob)
+    %commit  (parse-commit hal rob)
+    %tree    (parse-tree hal rob)
+    %tag     !!
+  ==
+++  parse-blob
+    |=  [hal=hash-algo rob=raw-object]
+    ^-  object
+    (~(blob parse hal) rob)
+++  parse-commit
+  |=  [hal=hash-algo rob=raw-object]
+  ^-  object
+  ?>  ?=(%commit type.rob)
+  =+  txt=(trip q:(raw-data rob))
+  =+  com=(~(commit parse hal) [[1 1] txt])
+  ?~  q.com
+    ~&  txt
+    ~|  "Failed to parse commit object: syntax error {<p.com>} in {txt}"  !!
+  commit+[size.rob p.u.q.com]
+::
+++  parse-tree
+  |=  [hal=hash-algo rob=raw-object]
+  ^-  object
+  ?>  ?=(%tree type.rob)
+  =/  sea=bays:bytestream  (from-octs:bytestream data.rob)
+  =+  hash-bytes=(hash-bytes hal)
+  =/  tes=(list tree-entry)  ~
+  |-
+  ?:  (is-empty:bytestream sea)
+    tree+[size.rob tes]
+  =/  pin  (find-byte:bytestream 0x0 sea)
+  ?~  pin  !!
+  =^  tex=(unit octs)  sea
+    (read-octs-until-maybe:bytestream u.pin sea)
+  =.  sea  (skip-byte:bytestream sea)
+  ?~  tex
+    ~|  "Corrupted tree object: invalid tree entry"  !!
+  =^  hash=(unit hash)  sea
+    (read-hash-maybe hal sea)
+  ?~  hash
+    ~|  "Corrupted tree object: hash not found"  !!
+  =+  (scan (trip q.u.tex) ;~(plug tree-mode:parse tree-node:parse))
+  =/  ent=tree-entry  [+.- -.- u.hash]
+  $(tes [ent tes])
+++  parse
+  |_  hal=hash-algo
+  ++  hash
+    ^~
+    ?-  hal
+       %sha-1  parse-hash-sha-1
+       %sha-256  parse-hash-sha-256
+    ==
+  ++  blob
+    |=  rob=raw-object
+    ^-  object
+    ?>  ?=(%blob type.rob)
+    blob+[size.rob data.rob]
+  ++  eol  (just '\0a')
+  ++  tree  ;~(pfix (jest 'tree ') hash)
+  ++  parent  ;~(pfix (jest 'parent ') hash)
+  ++  person
+    ;~  plug
+    ;~(sfix (star ;~(less ;~(plug ace gal) prn)) ;~(plug ace gal))
+    ;~(sfix (star ;~(less gar prn)) gar)
+    ==
+  ++  zone
+    %+  cook
+      |=  [s=? hor=@ud min=@ud]
+      ^-  (pair ? @dr)
+      :-  s
+      `@dr`(add (mul hor ~h1) (mul min ~m1))
+    ;~  plug
+      ;~(pose (cold %& lus) (cold %| hep))
+      (bass 10 ;~(plug sid:ab sid:ab (easy ~)))
+      (bass 10 ;~(plug sid:ab sid:ab (easy ~)))
+    ==
+  ++  date
+    %+  cook
+      |=  sec=@ud
+      ^-  @da
+      (add ~1970.1.1 (mul ~s1 sec))
+    dip:ag
+  ++  time
+    ;~(plug date ;~(pfix ace zone))
+  ++  message  (star ;~(pose prn eol))
+  ++  gpg-header-begin
+    ;~  pose
+      (jest '-----BEGIN PGP SIGNATURE-----')
+      (jest '-----BEGIN PGP MESSAGE-----')
+    ==
+  ++  gpg-header-end
+    ;~  pose
+      (jest '-----END PGP SIGNATURE-----')
+      (jest '-----END PGP MESSAGE-----')
+    ==
+  ++  commit-signature
+    ;~  pfix
+      ;~  plug
+        (jest 'gpgsig')
+        ace
+        gpg-header-begin
+      ==
+      ;~  sfix
+        (stag %gpg (cook crip (plus ;~(less hep ;~(pose prn gah)))))
+        ;~(plug gpg-header-end ;~(less prn (star gah)))
+      ==
+    ==
+  ++  commit
+    ;~  plug
+      ;~  plug
+        ;~(sfix tree eol)
+        (star ;~(sfix parent eol))
+        ;~(pfix (jest 'author ') person)
+        ;~(pfix ace ;~(sfix time eol))
+        ;~(pfix (jest 'committer ') person)
+        ;~(pfix ace ;~(sfix time eol))
+        (punt commit-signature)
+      ==
+      ;~(pfix (star gah) message)
+    ==
+  ++  parse-octal  (bass 8 (plus cit))
+  ++  tree-mode  ;~(sfix parse-octal ace)
+  ++  tree-node  (cook crip (plus prn))
+  --
+++  print-octal
+  (em-co:co [8 0] |=([? b=@ c=tape] [(add '0' b) c]))
+++  parse-octal
+  |=  txt=tape
+  (scan txt parse-octal:parse)
+++  ifinvalid  ^~  (parse-octal "0030000")
+++  ifmt    ^~  (parse-octal "0170000")
+++  ifsock  ^~  (parse-octal "0140000")
+++  iflnk   ^~  (parse-octal "0120000")
+++  ifreg   ^~  (parse-octal "0100000")
+++  ifblk   ^~  (parse-octal "0060000")
+++  ifdir   ^~  (parse-octal "0040000")
+++  ifchr   ^~  (parse-octal "0020000")
+++  ififo   ^~  (parse-octal "0010000")
+++  isuid   ^~  (parse-octal "0004000")
+++  isgid   ^~  (parse-octal "0002000")
+++  isvtx   ^~  (parse-octal "0001000")
+++  ifgitlink  ^~  (parse-octal "0160000")
+::
+++  file-type
+  |=  ent=tree-entry
+  ^-  @ux
+  (dis ifmt mode.ent)
+++  is-regular
+  |=  ent=tree-entry
+  ^-  ?
+  =(ifreg (dis ifreg mode.ent))
+++  is-dir
+  |=  ent=tree-entry
+  ^-  ?
+  =(ifdir (dis ifdir mode.ent))
+++  is-gitlink
+  |=  ent=tree-entry
+  ^-  ?
+  =(ifgitlink (dis ifgitlink mode.ent))
+--

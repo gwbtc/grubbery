@@ -1,0 +1,138 @@
+/<  tools  /lib/nex/tools.hoon
+::  batch-edit-clay: edit multiple files in Clay as a single atomic commit
+::
+!:
+^-  tool:tools
+|%
+++  name  'batch_edit_clay'
+++  description
+  ^~  %-  crip
+  ;:  weld
+    "Edit multiple files in Clay as a single atomic commit. "
+    "Takes a desk and an array of edits, each with path, old_string, "
+    "and new_string. All edits are applied in one Clay write so the "
+    "desk only recompiles once. Fails if any old_string is not found "
+    "or matches multiple times."
+  ==
+++  parameters
+  ^-  (map @t parameter-def:tools)
+  %-  ~(gas by *(map @t parameter-def:tools))
+  :~  ['desk' [%string 'Desk name (e.g. "base")']]
+      ['edits' [%array 'Array of {path, old_string, new_string} objects']]
+  ==
+++  required  ~['desk' 'edits']
+++  handler
+  ^-  tool-handler:tools
+  =/  m  (fiber:fiber:nexus ,tool-result:tools)
+  ^-  form:m
+  ;<  st=tool-state:tools  bind:m  (get-state-as:io ,tool-state:tools)
+  ?+  step.st  (pure:m [%error 'Unknown batch-edit step'])
+      %start
+    ;<  err=(unit tang)  bind:m  (sleep-or-crud:tools (div ~s1 10))
+    ?^  err
+      =/  lines=wall  (zing (turn (flop u.err) |=(=tank (wash [0 80] tank))))
+      (pure:m [%error (crip "Clay build failed:\0a{(of-wall:format lines)}")])
+    =/  parsed=(each [@t json] tang)
+      %-  mule  |.
+      :-  %.([%o args.st] (ot:dejs:format ~[['desk' so:dejs:format]]))
+      (~(got by args.st) 'edits')
+    ?:  ?=(%| -.parsed)
+      (pure:m [%error 'Missing or invalid required arguments (desk, edits)'])
+    =/  [desk=@t edits-json=json]  p.parsed
+    ?.  ?=([%a *] edits-json)
+      (pure:m [%error 'edits must be a JSON array'])
+    =/  edit-list=(list json)  p.edits-json
+    ?~  edit-list
+      (pure:m [%error 'edits array is empty'])
+    =/  dek=@tas  (slav %tas desk)
+    ;<  our=@p  bind:m  get-our:io
+    ;<  now=@da  bind:m  get-time:io
+    =/  instructions=(list [pax=path mark=@tas blob=*])  ~
+    =/  file-names=(list @t)  ~
+    =/  remaining=(list json)  edit-list
+    |-
+    ?~  remaining
+      ?~  instructions
+        (pure:m [%error 'no valid edits to apply'])
+      ;<  initial=cass:clay  bind:m  (clay-case:io dek)
+      =/  ins=(list [path %ins @tas *])
+        %+  turn  (flop instructions)
+        |=  [pax=path mark=@tas blob=*]
+        [pax %ins mark blob]
+      =/  write-data=json
+        %-  pairs:enjs:format
+        :~  ['initial-ud' (numb:enjs:format ud.initial)]
+            ['desk' s+desk]
+            ['file-path' s+(crip "{<(lent instructions)>} files")]
+            ['logs' a+~]
+        ==
+      ;<  ~  bind:m
+        (replace:io [tool.st args.st %batch-editing write-data ~])
+      ;<  *  bind:m  (keep:io /dill/logs [%& %& /sys/dill %'logs.dill-told'] ~)
+      ;<  now=@da  bind:m  get-time:io
+      ;<  ~  bind:m
+        (set-timer:io /commit-timeout (add now ~s30))
+      ;<  ~  bind:m
+        (clay-info:io dek ins)
+      ;<  ~  bind:m  collect-logs:tools
+      ;<  ~  bind:m  (drop:io /dill/logs [%& %& /sys/dill %'logs.dill-told'])
+      ;<  st=tool-state:tools  bind:m  (get-state-as:io ,tool-state:tools)
+      ;<  res=tool-result:tools  bind:m  (finish-clay-write:tools args.st data.st)
+      =/  file-summary=tape
+        %+  roll  (flop file-names)
+        |=  [f=@t acc=tape]
+        ?~  acc  (trip f)
+        (zing ~[acc "\0a" (trip f)])
+      ?-  -.res
+        %error  (pure:m res)
+        %mime   (pure:m res)
+        %text   (pure:m [%text (crip (zing ~[(trip text.res) "\0aFiles edited:\0a" file-summary]))])
+      ==
+    =/  edit=json  i.remaining
+    =/  parsed=(unit [file-path=@t old=@t new=@t])
+      %-  mole  |.
+      %.  edit
+      %-  ot:dejs:format
+      :~  ['path' so:dejs:format]
+          ['old_string' so:dejs:format]
+          ['new_string' so:dejs:format]
+      ==
+    ?~  parsed
+      (pure:m [%error 'each edit must have path, old_string, new_string'])
+    =/  pax=path  (stab file-path.u.parsed)
+    ?~  pax
+      (pure:m [%error (crip "empty path in edit")])
+    =/  mark=@tas  (rear pax)
+    ?.  ?=(?(%hoon %json %html %css %js %md %txt) mark)
+      (pure:m [%error (crip "Unsupported mark: %{(trip mark)}. Use hoon, json, html, css, js, md, or txt.")])
+    ;<  has=?  bind:m  (clay-exists:io dek pax)
+    ?.  has
+      (pure:m [%error (crip "File not found: {(trip file-path.u.parsed)}")])
+    ;<  content=*  bind:m  (clay-read:io dek pax)
+    =/  =tang  (pretty-file:pretty-file:tools content)
+    =/  =wain
+      %-  zing
+      %+  turn  tang
+      |=(=tank (turn (wash [0 160] tank) crip))
+    =/  text=tape  (trip (of-wain:format wain))
+    =/  old-tape=tape  (trip old.u.parsed)
+    =/  idx=(unit @ud)  (find old-tape text)
+    ?~  idx
+      (pure:m [%error (crip "old_string not found in {(trip file-path.u.parsed)}")])
+    =/  rest=tape  (slag (add u.idx (lent old-tape)) text)
+    ?.  =(~ (find old-tape rest))
+      (pure:m [%error (crip "old_string matches multiple times in {(trip file-path.u.parsed)}")])
+    =/  new-tape=tape  (trip new.u.parsed)
+    =/  before=tape  (scag u.idx text)
+    =/  after=tape  (slag (add u.idx (lent old-tape)) text)
+    =/  result=@t  (crip (zing ~[before new-tape after]))
+    =/  blob=*  ?:(?=(%txt mark) (to-wain:format result) result)
+    %=  $
+      remaining     t.remaining
+      instructions  [[pax mark blob] instructions]
+      file-names    [file-path.u.parsed file-names]
+    ==
+      %batch-editing
+    (finish-clay-write:tools args.st data.st)
+  ==
+--

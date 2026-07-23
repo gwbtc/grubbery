@@ -1,0 +1,72 @@
+/<  tools  /lib/nex/tools.hoon
+/<  s3t    /lib/nex/s3-tools.hoon
+::  s3-upload: upload a single ball file to S3
+::
+!:
+^-  tool:tools
+|%
+++  name  's3_upload'
+++  description  'Upload a single ball file to S3'
+++  parameters
+  ^-  (map @t parameter-def:tools)
+  %-  ~(gas by *(map @t parameter-def:tools))
+  :~  ['path' [%string 'Ball directory path (e.g. "/mydir")']]
+      ['name' [%string 'Grub filename (e.g. "notes.txt")']]
+      ['s3_key' [%string 'S3 object key (optional, defaults to filename)']]
+  ==
+++  required  ~['path' 'name']
+++  handler
+  ^-  tool-handler:tools
+  =/  m  (fiber:fiber:nexus ,tool-result:tools)
+  ^-  form:m
+  ;<  st=tool-state:tools  bind:m  (get-state-as:io ,tool-state:tools)
+  =/  parsed=(each [@t @t] tang)
+    %-  mule  |.
+    %.  [%o args.st]
+    %-  ot:dejs:format
+    :~  ['path' so:dejs:format]
+        ['name' so:dejs:format]
+    ==
+  ?:  ?=(%| -.parsed)
+    (pure:m [%error 'Missing or invalid required arguments (path, name)'])
+  =/  [file-path=@t file-name=@t]  p.parsed
+  =/  s3-key=@t
+    ?~  sk=(~(get by args.st) 's3_key')  file-name
+    ?.  ?=([%s *] u.sk)  file-name
+    ?:  =('' p.u.sk)  file-name
+    p.u.sk
+  =/  pax=path  (stab file-path)
+  ;<  [grub-name=@ta =view:nexus]  bind:m
+    (lookup-grub:tools pax file-name)
+  ?.  ?=([%file *] view)
+    (pure:m [%error (crip "Not found: {(trip file-path)}/{(trip file-name)}")])
+  ;<  =mime  bind:m  (sage-to-mime:io (need-sage:tarball sang.view))
+  =/  text=@t  ;;(@t q.q.mime)
+  ;<  creds=s3-creds:s3t  bind:m  read-s3-creds:s3t
+  ;<  now=@da  bind:m  get-time:io
+  =/  [amz-date=@t payload-hash=@t authorization=@t]
+    %:  build-signature:s3:s3t
+      'PUT'
+      access-key.creds
+      secret-key.creds
+      region.creds
+      endpoint.creds
+      bucket.creds
+      s3-key
+      ''
+      `text
+      now
+    ==
+  =/  url=@t  (build-url:s3:s3t endpoint.creds bucket.creds s3-key ~)
+  =/  headers=(list [@t @t])  (build-headers:s3:s3t 'PUT' payload-hash amz-date authorization)
+  =/  =request:http
+    [%'PUT' url headers `(as-octs:mimes:html text)]
+  ;<  ~  bind:m  (send-request:io request)
+  ;<  =client-response:iris  bind:m  take-client-response:io
+  ?.  ?=(%finished -.client-response)
+    (pure:m [%error 'S3 upload failed'])
+  =/  code=@ud  status-code.response-header.client-response
+  ?.  (lth code 300)
+    (pure:m [%error (crip "S3 upload error: HTTP {<code>}")])
+  (pure:m [%text (crip "Uploaded {(trip file-path)}/{(trip file-name)} to s3://{(trip s3-key)}")])
+--

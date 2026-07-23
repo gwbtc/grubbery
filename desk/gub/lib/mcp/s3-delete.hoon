@@ -1,0 +1,56 @@
+/<  tools  /lib/nex/tools.hoon
+/<  s3t    /lib/nex/s3-tools.hoon
+::  s3-delete: delete a file from S3
+::
+!:
+^-  tool:tools
+|%
+++  name  's3_delete'
+++  description  'Delete a file from S3'
+++  parameters
+  ^-  (map @t parameter-def:tools)
+  %-  ~(gas by *(map @t parameter-def:tools))
+  :~  ['s3_key' [%string 'S3 object key to delete']]
+  ==
+++  required  ~['s3_key']
+++  handler
+  ^-  tool-handler:tools
+  =/  m  (fiber:fiber:nexus ,tool-result:tools)
+  ^-  form:m
+  ;<  st=tool-state:tools  bind:m  (get-state-as:io ,tool-state:tools)
+  =/  parsed=(each @t tang)
+    %-  mule  |.
+    %.  [%o args.st]
+    %-  ot:dejs:format
+    :~  ['s3_key' so:dejs:format]
+    ==
+  ?:  ?=(%| -.parsed)
+    (pure:m [%error 'Missing or invalid argument: s3_key'])
+  =/  s3-key=@t  p.parsed
+  ;<  creds=s3-creds:s3t  bind:m  read-s3-creds:s3t
+  ;<  now=@da  bind:m  get-time:io
+  =/  [amz-date=@t payload-hash=@t authorization=@t]
+    %:  build-signature:s3:s3t
+      'DELETE'
+      access-key.creds
+      secret-key.creds
+      region.creds
+      endpoint.creds
+      bucket.creds
+      s3-key
+      ''
+      ~
+      now
+    ==
+  =/  url=@t  (build-url:s3:s3t endpoint.creds bucket.creds s3-key ~)
+  =/  headers=(list [@t @t])  (build-headers:s3:s3t 'DELETE' payload-hash amz-date authorization)
+  =/  =request:http  [%'DELETE' url headers ~]
+  ;<  ~  bind:m  (send-request:io request)
+  ;<  =client-response:iris  bind:m  take-client-response:io
+  ?.  ?=(%finished -.client-response)
+    (pure:m [%error 'S3 delete failed'])
+  =/  code=@ud  status-code.response-header.client-response
+  ?.  (lth code 300)
+    (pure:m [%error (crip "S3 delete error: HTTP {<code>}")])
+  (pure:m [%text (crip "Deleted s3://{(trip s3-key)}")])
+--

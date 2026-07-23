@@ -1,0 +1,32 @@
+/<  tools  /lib/nex/tools.hoon
+::  mount-to-grubbery: sync a Clay desk into the grubbery ball
+::
+!:
+^-  tool:tools
+|%
+++  name  'mount_to_grubbery'
+++  description
+  ^~  %-  crip
+  ;:  weld
+    "Mount a Clay desk into the grubbery ball at /sys/clay/desks/[desk]. "
+    "Files are synced and kept up to date as the desk changes."
+  ==
+++  parameters
+  ^-  (map @t parameter-def:tools)
+  (malt ~[['desk' [%string 'Desk name (e.g. "base")']]])
+++  required  ~['desk']
+++  handler
+  ^-  tool-handler:tools
+  =/  m  (fiber:fiber:nexus ,tool-result:tools)
+  ^-  form:m
+  ;<  st=tool-state:tools  bind:m  (get-state-as:io ,tool-state:tools)
+  =/  parsed=(each @t tang)
+    (mule |.((~(dog jo:json-utils [%o args.st]) /desk so:dejs:format)))
+  ?:  ?=(%| -.parsed)
+    (pure:m [%error 'Missing or invalid argument: desk'])
+  =/  desk=@t  p.parsed
+  =/  dek=@tas  (slav %tas desk)
+  ;<  ~  bind:m
+    (poke:io &+&+[/sys/clay %'main.clay-state'] [[/ %mount-desk] dek])
+  (pure:m [%text (crip "Mounted %{(trip dek)} to /sys/clay/desks/{(trip dek)}")])
+--
