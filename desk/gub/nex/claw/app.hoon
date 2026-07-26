@@ -1,11 +1,27 @@
 ::  claw/app: agent container nexus
 ::
-::  Creates and manages claw agents in /agents/. Each agent runs
-::  /claw/agent code with a read-only weir (peek everywhere, no
-::  writes or pokes outside their own tree).
+::  Creates and manages claw agents in /agents/, api proxies in
+::  /apis/, channels in /channels/, and autonomous assistants in
+::  /assistants/ (any <name>.assistant/ dir at any depth; plain dirs
+::  are categories).
 ::
+::  UI is the standard requests pattern: /ui/http.sig binds
+::  /grubbery/claw and dispatches; /ui/requests/* serve the static
+::  shell plus /api/state.json. Mutations are JSON action pokes to
+::  main.sig (via the generic /grubbery/api/poke path).
+::
+/<  rules  /lib/rules.hoon
+/<  asst   /lib/nex/assistant.hoon
 /&  man  ../../man/claw/app/readme.md
 /&  icon  icon.svg
+/&  app-html   app/index.html
+/&  app-js     app/app.js
+/&  app-css    app/style.css
+/&  asst-html   app/assistants.html
+/&  asst-js     app/assistants.js
+/&  asst1-html  app/assistant.html
+/&  asst1-js    app/assistant.js
+/&  cfg-js      app/config-modal.js
 =<  ^-  nexus:nexus
     |%
     ++  on-load
@@ -14,10 +30,10 @@
       =/  tile=json
         %-  pairs:enjs:format
         :~  title+s+'Claw'
-            info+s+'Agent container'
+            info+s+'Agents & assistants'
             color+s+'#8a4a4a'
             image+s+'/grubbery/tiles/icon/claw'
-            href+s+'/grubbery/ball/apps/claw.claw_app/page.html'
+            href+s+'/grubbery/claw'
         ==
       %+  spin:loader  ball
       :~  (manifest:loader 0)
@@ -28,14 +44,19 @@
           [%fall %| /apis/anthropic [`[`[/claw/api %anthropic] ~ %.n ~] ~]]
           [%fall %| /agents empty-dir:loader]
           [%fall %| /agents/main [`[`[/claw %agent] `main-agent-weir %.n ~] ~]]
+          [%fall %| /assistants empty-dir:loader]
           [%fall %| /channels empty-dir:loader]
           [%fall %| /channels/telegram/main-bot [`[`[/claw/channel %telegram] ~ %.n ~] ~]]
-          [%fall %| /ui/sse empty-dir:loader]
-          [%over %& [/ui/sse %'agents.html'] [[/ %html] (crip (en-xml:html (agents-fragment "" ~)))]]
-          [%over %& [/ui/sse %'channels.html'] [[/ %html] (crip (en-xml:html (channels-fragment "" ~)))]]
-          [%over %& [/ui/sse %'apis.html'] [[/ %html] (crip (en-xml:html (apis-fragment "" ~)))]]
-          [%over %& [/ %'page.html'] [[/ %html] (crip (en-xml:html (dashboard-page "" ~ ~ ~)))]]
-          [%over %& [/ %'README.md'] [[/ %mime] man]]
+          [%fall %& [/ui %'http.sig'] [[/ %sig] ~]]
+          [%fall %| /ui/requests empty-dir:loader]
+          [%over %& [/ui %'index.html'] [[/ %mime] app-html]]
+          [%over %& [/ui %'app.js'] [[/ %mime] app-js]]
+          [%over %& [/ui %'style.css'] [[/ %mime] app-css]]
+          [%over %& [/ui %'assistants.html'] [[/ %mime] asst-html]]
+          [%over %& [/ui %'assistants.js'] [[/ %mime] asst-js]]
+          [%over %& [/ui %'assistant.html'] [[/ %mime] asst1-html]]
+          [%over %& [/ui %'assistant.js'] [[/ %mime] asst1-js]]
+          [%over %& [/ui %'config-modal.js'] [[/ %mime] cfg-js]]
       ==
     ::
     ++  on-file
@@ -45,56 +66,97 @@
       =/  m  (fiber:fiber:nexus ,~)
       ^-  process:fiber:nexus
       ?+    rail  stay:m
-        ::
-          [~ %'page.html']
-        ;<  ~  bind:m  (rise-wait:io prod "%claw/app page: failed")
-        ;<  here=rail:tarball  bind:m  get-here-abs:io
-        =/  ball-id=tape  (path-to-ball-id path.here)
-        ;<  *  bind:m  (keep:io /agents (cord-to-road:tarball './agents/') ~)
-        ;<  *  bind:m  (keep:io /channels (cord-to-road:tarball './channels/') ~)
-        ;<  *  bind:m  (keep:io /apis (cord-to-road:tarball './apis/') ~)
+          ::
+          [[%ui ~] %'http.sig']
+        ;<  ~  bind:m  (rise-wait:io prod "%claw/app http: failed")
+        ;<  ~  bind:m  (bind-http:io [~ /grubbery/claw])
+        (http-dispatch:io %claw)
+          ::
+          [[%ui %requests ~] @]
+        ;<  ~  bind:m  (rise-wait:io prod "%claw/app request: failed")
+        =/  eyre-id=@ta  name.rail
+        =/  s  (srv rail)
+        ;<  [src=@p req=inbound-request:eyre]  bind:m
+          (get-state-as:io ,[src=@p inbound-request:eyre])
+        ;<  our=@p  bind:m  get-our:io
+        ?.  =(src our)
+          ;<  ~  bind:m  (send-simple:s eyre-id [[403 ~] `(as-octs:mimes:html 'Forbidden')])
+          (pure:m ~)
+        =/  [site=path args=quay:eyre]  (parse-url:http-utils url.request.req)
+        =/  suffix=path
+          %+  skip  (slag (lent `path`/grubbery/claw) site)
+          |=(s=@ta =('' s))
+        ::  /api/state.json: everything the shell renders
+        ?:  ?=([%api %'state.json' ~] suffix)
+          (serve-state eyre-id rail)
+        ::  /api/tree.json?path=…: files inside one assistant dir
+        ?:  ?=([%api %'tree.json' ~] suffix)
+          (serve-tree eyre-id rail (fall (get-key:kv:html-utils 'path' args) ''))
+        ::  static shell; /assistants is the explorer page and
+        ::  /assistants/<path> the per-assistant detail page
+        =/  filename=@ta
+          ?~  suffix  'index.html'
+          ?:  ?=([%assistants ~] suffix)  'assistants.html'
+          ?:  ?=([%assistants ^] suffix)  'assistant.html'
+          i.suffix
+        ;<  file-view=view:nexus  bind:m
+          (peek:io (nex-road:io rail [%& ~[%ui] filename]) `[/ %mime])
+        ?.  ?=([%file *] file-view)
+          ;<  ~  bind:m  (send-simple:s eyre-id [[404 ~] `(as-octs:mimes:html 'Not found')])
+          (pure:m ~)
+        =/  =mime  !<(mime (need-vase:tarball sang.file-view))
+        ;<  ~  bind:m  (send-simple:s eyre-id (mime-response:http-utils mime))
+        (pure:m ~)
+          ::
+          ::  assistants: any <name>.assistant/ dir under /assistants
+          ::  (at any depth; plain dirs are categories). The fiber
+          ::  walks the recur, waits, runs the code, pushes output.
+          ::  Any poke to main.assistant restarts it. Missed
+          ::  occurrences while the ship slept are skipped.
+          ::
+          [[%assistants *] %'main.assistant']
+        ?.  (asst-dir path.rail)  stay:m
+        =/  who=@t  (crip (spud t.path.rail))
+        ;<  ~  bind:m  (rise-wait:io prod "%assistant {(trip who)}: failed")
         |-
-        ;<  agents=view:nexus  bind:m  (peek:io (cord-to-road:tarball './agents/') ~)
-        ;<  channels=view:nexus  bind:m  (peek:io (cord-to-road:tarball './channels/') ~)
-        ;<  apis=view:nexus  bind:m  (peek:io (cord-to-road:tarball './apis/') ~)
+        ;<  jon=json  bind:m  (get-state-as:io ,json)
+        ?.  (enabled jon)  stay:m
+        =/  code=@t  (gs jon 'code')
+        ?:  =('' code)
+          ~&  >>>  "%assistant {(trip who)}: no code named"
+          stay:m
+        ;<  now=@da  bind:m  get-time:io
+        ;<  when=(unit @da)  bind:m  (next-fire jon now)
+        ?~  when
+          ~&  >>>  "%assistant {(trip who)}: no future occurrence"
+          stay:m
+        ~&  >  "%assistant {(trip who)}: next run {(scow %da u.when)}"
+        ;<  ~  bind:m  (wait:io u.when)
+        ;<  code-vase=(unit vase)  bind:m
+          (get-code:io &+&+[/code/lib/assistants (slav %tas code)])
+        ?~  code-vase
+          ~&  >>>  "%assistant {(trip who)}: /code/lib/assistants/{(trip code)} not built"
+          stay:m
+        =/  gate=(each assistant:asst tang)
+          (mule |.(!<(assistant:asst u.code-vase)))
+        ?:  ?=(%| -.gate)
+          ~&  >>>  "%assistant {(trip who)}: code does not fit the contract"
+          stay:m
+        =/  args=json
+          (fall (~(get by ?:(?=(%o -.jon) p.jon ~)) 'args') [%o ~])
+        ;<  out=output:asst  bind:m  (p.gate args u.when)
+        ~&  >  "%assistant {(trip who)}: run done, output {?~(out "empty" "present")}"
+        ;<  ~  bind:m  (save-output u.when out)
+        ::  no tag: every fire is its own notification — tagged
+        ::  pushes replace silently, which reads as a lost send
         ;<  ~  bind:m
-          (replace:io (crip (en-xml:html (dashboard-page ball-id (read-names agents) (read-entities channels) (read-entities apis)))))
-        ;<  [* *]  bind:m  (take-any-news /agents /channels /apis)
+          ?~  out  (pure:(fiber:fiber:nexus ,~) ~)
+          %-  send-push:io
+          :^  ~  ~  ~
+          [title.u.out body.u.out ~ ~ ~]
+        ~&  >  "%assistant {(trip who)}: push sent"
         $
-        ::
-          [[%ui %sse ~] %'agents.html']
-        ;<  ~  bind:m  (rise-wait:io prod "%claw/app sse/agents: failed")
-        ;<  here=rail:tarball  bind:m  get-here-abs:io
-        =/  ball-id=tape  (path-to-ball-id (snip (snip path.here)))
-        ;<  *  bind:m  (keep:io /agents (cord-to-road:tarball '../../agents/') ~)
-        |-
-        ;<  agents=view:nexus  bind:m  (peek:io (cord-to-road:tarball '../../agents/') ~)
-        ;<  ~  bind:m  (replace:io (crip (en-xml:html (agents-fragment ball-id (read-names agents)))))
-        ;<  *  bind:m  (take-news:io /agents)
-        $
-        ::
-          [[%ui %sse ~] %'channels.html']
-        ;<  ~  bind:m  (rise-wait:io prod "%claw/app sse/channels: failed")
-        ;<  here=rail:tarball  bind:m  get-here-abs:io
-        =/  ball-id=tape  (path-to-ball-id (snip (snip path.here)))
-        ;<  *  bind:m  (keep:io /channels (cord-to-road:tarball '../../channels/') ~)
-        |-
-        ;<  channels=view:nexus  bind:m  (peek:io (cord-to-road:tarball '../../channels/') ~)
-        ;<  ~  bind:m  (replace:io (crip (en-xml:html (channels-fragment ball-id (read-entities channels)))))
-        ;<  *  bind:m  (take-news:io /channels)
-        $
-        ::
-          [[%ui %sse ~] %'apis.html']
-        ;<  ~  bind:m  (rise-wait:io prod "%claw/app sse/apis: failed")
-        ;<  here=rail:tarball  bind:m  get-here-abs:io
-        =/  ball-id=tape  (path-to-ball-id (snip (snip path.here)))
-        ;<  *  bind:m  (keep:io /apis (cord-to-road:tarball '../../apis/') ~)
-        |-
-        ;<  apis=view:nexus  bind:m  (peek:io (cord-to-road:tarball '../../apis/') ~)
-        ;<  ~  bind:m  (replace:io (crip (en-xml:html (apis-fragment ball-id (read-entities apis)))))
-        ;<  *  bind:m  (take-news:io /apis)
-        $
-        ::
+          ::
           [~ %'main.sig']
         ;<  ~  bind:m  (rise-wait:io prod "%claw/app main: failed")
         |-
@@ -178,11 +240,56 @@
           ?:  =('' name)  $
           ;<  ~  bind:m  (cull:io (cord-to-road:tarball (crip "./apis/{(trip name)}/")))
           $
+        ::
+            %'assistant-create'
+          ::  path like "daily/morning" — .assistant suffix appended here
+          =/  pat=@t
+            (fall (bind (~(get by p.jon) 'path') |=(=json ?>(?=(%s -.json) p.json))) '')
+          =/  pax=(unit path)  (parse-asst-path pat)
+          ?~  pax
+            ~&  >>>  "%claw/app: assistant-create bad path"
+            $
+          =/  dir=path  (weld /assistants u.pax)
+          ;<  ~  bind:m
+            (make:io (cord-to-road:tarball (crip "./{(spud dir)}/")) &+[~ ~])
+          ;<  ~  bind:m
+            %+  over:io
+              (cord-to-road:tarball (crip "./{(spud dir)}/main.assistant"))
+            :-  [/ %json]
+            ^-  json
+            %-  pairs:enjs:format
+            :~  ['code' s+'today']
+                ['enabled' b+%.n]
+                ['args' [%o ~]]
+                :-  'recur'
+                %-  pairs:enjs:format
+                :~  ['kind' s+'daily']
+                    ['args' (pairs:enjs:format ~[['at' (numb:enjs:format 480)]])]
+                    ['start_ms' (numb:enjs:format 1.784.937.600.000)]
+                ==
+                ['zone' s+'America/New_York']
+            ==
+          $
+        ::
+            %'assistant-delete'
+          =/  pat=@t
+            (fall (bind (~(get by p.jon) 'path') |=(=json ?>(?=(%s -.json) p.json))) '')
+          =/  pax=(unit path)  (parse-asst-path pat)
+          ?~  pax  $
+          =/  dir=path  (weld /assistants u.pax)
+          ;<  ~  bind:m  (cull:io (cord-to-road:tarball (crip "./{(spud dir)}/")))
+          $
         ==
       ==
     --
 ::
 |%
+::  +srv: the http responder, road derived from the request rail —
+::  never hand-count bend steps
+::
+++  srv
+  |=  =rail:tarball
+  ~(. http-res:io (nex-road:io rail [%& ~[%ui] %'http.sig']))
 ::  +agents-weir: weir for individual agent at ./agents/{name}/
 ::
 ++  agents-weir
@@ -197,12 +304,115 @@
   :+  (sy ~[|+[2 |+/agents]])
     (sy ~[&+[%& /sys %'bowl.sig'] |+[2 |+/apis] |+[2 |+/channels] |+[2 |+/agents] &+[%& /sys/behn %'main.timer-state'] &+[%& /sys/push %'main.push-state']])
   (sy ~[&+[%| /]])
-::  +path-to-ball-id: join a path into a slash-separated tape for URLs
+::  +asst-dir: does this path name an assistant instance — its last
+::  segment carries the .assistant suffix?
 ::
-++  path-to-ball-id
-  |=  =path
-  ^-  tape
-  (zing (join "/" ^-((list tape) (turn path trip))))
+++  asst-dir
+  |=  pax=path
+  ^-  ?
+  ?~  pax  %.n
+  =/  t=tape  (trip (rear pax))
+  =/  len=@ud  (lent t)
+  ?&  (gth len 10)
+      =(".assistant" (slag (sub len 10) t))
+  ==
+::
+++  gs
+  |=  [jon=json k=@t]
+  ^-  @t
+  ?.  ?=(%o -.jon)  ''
+  (fall (bind (~(get by p.jon) k) |=(=json ?>(?=(%s -.json) p.json))) '')
+::
+++  gn
+  |=  [jon=json k=@t]
+  ^-  (unit @ud)
+  ?.  ?=(%o -.jon)  ~
+  =/  j=(unit json)  (~(get by p.jon) k)
+  ?.  ?=([~ %n *] j)  ~
+  (rush p.u.j dem)
+::
+++  enabled
+  |=  jon=json
+  ^-  ?
+  ?.  ?=(%o -.jon)  %.n
+  =/  e=(unit json)  (~(get by p.jon) 'enabled')
+  ?.(?=([~ %b *] e) %.y p.u.e)
+::  +save-output: persist a run's notification as a dated grub in
+::  the instance's own outputs/ dir (relative roads resolve against
+::  the running fiber's rail). Silent runs leave no artifact.
+::
+++  save-output
+  |=  [when=@da out=output:asst]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  ?~  out  (pure:m ~)
+  ;<  *  bind:m  (make-soft:io (cord-to-road:tarball './outputs/') &+[~ ~])
+  =/  txt=@t  (cat 3 title.u.out (cat 3 '\0a\0a' body.u.out))
+  %+  put:io
+    (cord-to-road:tarball (crip "./outputs/{(scow %da when)}.md"))
+  [[/ %txt] (to-wain:format txt)]
+::  +next-fire: walk the recur from idx 0 to the first realized utc
+::  moment strictly after now. ~ = rule exhausted or unresolvable.
+::
+++  next-fire
+  |=  [jon=json now=@da]
+  =/  m  (fiber:fiber:nexus ,(unit @da))
+  ^-  form:m
+  =/  recur=json
+    ?.  ?=(%o -.jon)  *json
+    (fall (~(get by p.jon) 'recur') *json)
+  =/  kind=@t  (gs recur 'kind')
+  =/  start=(unit @da)
+    (bind (gn recur 'start_ms') |=(ms=@ud (add ~1970.1.1 (div (mul ms ~s1) 1.000))))
+  ?:  |(=('' kind) ?=(~ start))  (pure:m ~)
+  =/  kargs=(map @t json)
+    ?.  ?=(%o -.recur)  ~
+    =/  a=(unit json)  (~(get by p.recur) 'args')
+    ?.(?=([~ %o *] a) ~ p.u.a)
+  =/  zone=(unit @t)
+    =/  z=@t  (gs jon 'zone')
+    ?:(=('' z) ~ `z)
+  ;<  kv=(unit vase)  bind:m
+    (get-code:io &+&+[/code/lib/rules (slav %tas kind)])
+  ?~  kv  (pure:m ~)
+  =/  kg=(each kind:rules tang)  (mule |.(!<(kind:rules u.kv)))
+  ?:  ?=(%| -.kg)  (pure:m ~)
+  =/  idx=@ud  0
+  =/  dead=@ud  0
+  =/  fuel=@ud  10.000
+  |-
+  ?:  |((gth dead 400) =(0 fuel))  (pure:m ~)
+  =/  moment=(unit @da)
+    (fall (mole |.((p.kg kargs u.start idx))) ~)
+  ?~  moment  $(idx +(idx), dead +(dead))
+  =/  utcs=(list @da)  (realize:rules zone u.moment)
+  ?:  &(?=(^ utcs) (gth i.utcs now))
+    (pure:m `i.utcs)
+  $(idx +(idx), dead 0, fuel (dec fuel))
+::  +parse-asst-path: "daily/morning" -> /daily/morning.assistant
+::  (suffix appended to the last segment if absent). ~ = invalid.
+::
+++  parse-asst-path
+  |=  pat=@t
+  ^-  (unit path)
+  =/  segs=(list @ta)
+    =/  t=tape  (trip pat)
+    =/  out=(list @ta)  ~
+    =/  buf=tape  ~
+    |-  ^-  (list @ta)
+    ?~  t
+      ?~(buf (flop out) (flop [(crip (flop buf)) out]))
+    ?:  =('/' i.t)
+      ?~(buf $(t t.t) $(t t.t, out [(crip (flop buf)) out], buf ~))
+    $(t t.t, buf [i.t buf])
+  ?~  segs  ~
+  =/  last=@ta  (rear segs)
+  =/  t=tape  (trip last)
+  =/  len=@ud  (lent t)
+  =/  suffixed=@ta
+    ?:  &((gth len 10) =(".assistant" (slag (sub len 10) t)))  last
+    (cat 3 last '.assistant')
+  `(weld (snip `(list @ta)`segs) ~[suffixed])
 ::
 ::  +read-names: extract top-level names from a directory view
 ::
@@ -237,396 +447,111 @@
     :_  name.nk
     (crip (zing (join "/" (turn full trip))))
   (walk-ball full dir.sub)
+::  +find-assistants: usergroups-style suffix walk — every
+::  <name>.assistant dir at any depth, path with suffix stripped
 ::
-::  +agents-fragment: just the agent list HTML for SSE updates
+++  find-assistants
+  |=  [pax=path entries=(map @ta ball:tarball)]
+  ^-  (list path)
+  %-  zing
+  %+  turn  ~(tap by entries)
+  |=  [name=@ta kid=ball:tarball]
+  ^-  (list path)
+  =/  t=tape  (trip name)
+  =/  len=@ud  (lent t)
+  ?:  &((gth len 10) =(".assistant" (slag (sub len 10) t)))
+    ~[(snoc pax (crip (scag (sub len 10) t)))]
+  (find-assistants (snoc pax name) dir.kid)
+::  +serve-tree: file listing of one assistant's directory. pat is
+::  the suffix-less path ("planning/morning"); files come back as
+::  [path blot] pairs, paths relative to the assistant dir.
 ::
-++  agents-fragment
-  |=  [ball-id=tape agents=(list @ta)]
-  ^-  manx
-  =/  sorted=(list @ta)  (sort agents aor)
-  ;div(id "sse-agents")
-    ;*  ?~  sorted
-          =/  empty=manx  ;div.empty: no agents yet
-          ~[empty]
-        (turn sorted |=(n=@ta (agent-card ball-id n)))
-  ==
-::
-::  +dashboard-page: render the agent dashboard
-::
-++  dashboard-page
-  |=  $:  ball-id=tape
-          agents=(list @ta)
-          channels=(list [name=@ta type=@ta])
-          apis=(list [name=@ta type=@ta])
-      ==
-  ^-  manx
-  =/  sorted-agents=(list @ta)  (sort agents aor)
-  =/  sorted-channels=(list [name=@ta type=@ta])
-    (sort channels |=([[a=@ta *] [b=@ta *]] (aor a b)))
-  =/  sorted-apis=(list [name=@ta type=@ta])
-    (sort apis |=([[a=@ta *] [b=@ta *]] (aor a b)))
-  ;html
-    ;head
-      ;title: claw
-      ;meta(charset "utf-8");
-      ;meta(name "viewport", content "width=device-width, initial-scale=1");
-      ;style
-        ;+  ;/  style-text
-      ==
-    ==
-    ;body
-      ;div#app
-        ;div#header
-          ;div
-            ;h1: claw
-            ;div.f3.mono.s-2: agent container
-          ==
-        ==
-        ;div#cfg-backdrop
-          ;div#cfg-modal
-            ;div#cfg-header
-              ;span#cfg-title: Config
-              ;div
-                ;button#cfg-save.hdr-btn: save
-                ;button#cfg-close.hdr-btn: close
-              ==
-            ==
-            ;textarea#cfg-json(rows "8", placeholder "\{}", style "width:100%;font-family:monospace;font-size:12px;border:1px solid #333;border-radius:6px;padding:10px;resize:vertical;background:#111;color:#eee;outline:none;");
-            ;div#cfg-status;
-          ==
-        ==
-        ;div.section-header
-          ;h2.section-title: agents
-        ==
-        ;div.create-bar
-          ;input.create-name(id "agent-name", type "text", placeholder "agent name...", autocomplete "off");
-          ;button.create-btn(onclick "createEntity('agents')"): + new
-        ==
-        ;div#agents
-          ;*  ?~  sorted-agents
-                =/  empty=manx  ;div.empty: no agents yet
-                ~[empty]
-              (turn sorted-agents |=(n=@ta (agent-card ball-id n)))
-        ==
-        ;div.section-header
-          ;h2.section-title: apis
-        ==
-        ;div.create-bar
-          ;input.create-name(id "api-name", type "text", placeholder "name...", autocomplete "off");
-          ;input.create-type(id "api-type", type "text", placeholder "type (e.g. anthropic)", autocomplete "off");
-          ;button.create-btn(onclick "createEntity('apis')"): + new
-        ==
-        ;div#apis
-          ;*  ?~  sorted-apis
-                =/  empty=manx  ;div.empty: no apis yet
-                ~[empty]
-              (turn sorted-apis |=([n=@ta t=@ta] (api-card ball-id n t)))
-        ==
-        ;div.section-header
-          ;h2.section-title: channels
-        ==
-        ;div.create-bar
-          ;input.create-name(id "ch-name", type "text", placeholder "name...", autocomplete "off");
-          ;input.create-type(id "ch-type", type "text", placeholder "type (e.g. telegram)", autocomplete "off");
-          ;button.create-btn(onclick "createEntity('channels')"): + new
-        ==
-        ;div#channels
-          ;*  ?~  sorted-channels
-                =/  empty=manx  ;div.empty: no channels yet
-                ~[empty]
-              (turn sorted-channels |=([n=@ta t=@ta] (channel-card ball-id n t)))
-        ==
-      ==
-      ;script
-        ;+  ;/  (script-text ball-id)
-      ==
-    ==
-  ==
-::
-++  agent-card
-  |=  [ball-id=tape name=@ta]
-  ^-  manx
-  =/  n=tape  (trip name)
-  ;div.agent-card(data-agent n)
-    ;a.agent-name(href "/grubbery/ball/{ball-id}/agents/{n}/page.html"): {n}
-    ;div.card-actions
-      ;button.hdr-btn(onclick "openConfig('agents','{n}')"): config
-      ;button.delete-btn(onclick "deleteEntity('agents','{n}')"): delete
-    ==
-  ==
-::
-++  channel-card
-  |=  [ball-id=tape name=@ta ntype=@ta]
-  ^-  manx
-  =/  n=tape  (trip name)
-  =/  t=tape  (trip ntype)
-  ;div.entity-card(data-channel n)
-    ;div.entity-info
-      ;span.channel-name: {n}
-      ;span.entity-type.channel-type: {t}
-    ==
-    ;div.card-actions
-      ;button.hdr-btn(onclick "openConfig('channels','{n}')"): config
-      ;button.delete-btn(onclick "deleteEntity('channels','{n}')"): delete
-    ==
-  ==
-::
-++  api-card
-  |=  [ball-id=tape name=@ta ntype=@ta]
-  ^-  manx
-  =/  n=tape  (trip name)
-  =/  t=tape  (trip ntype)
-  ;div.entity-card(data-api n)
-    ;div.entity-info
-      ;span.api-name: {n}
-      ;span.entity-type.api-type: {t}
-    ==
-    ;div.card-actions
-      ;button.hdr-btn(onclick "openConfig('apis','{n}')"): config
-      ;button.delete-btn(onclick "deleteEntity('apis','{n}')"): delete
-    ==
-  ==
-::
-++  apis-fragment
-  |=  [ball-id=tape apis=(list [name=@ta type=@ta])]
-  ^-  manx
-  =/  sorted=(list [name=@ta type=@ta])
-    (sort apis |=([[a=@ta *] [b=@ta *]] (aor a b)))
-  ;div(id "sse-apis")
-    ;*  ?~  sorted
-          =/  empty=manx  ;div.empty: no apis yet
-          ~[empty]
-        (turn sorted |=([n=@ta t=@ta] (api-card ball-id n t)))
-  ==
-::
-++  channels-fragment
-  |=  [ball-id=tape channels=(list [name=@ta type=@ta])]
-  ^-  manx
-  =/  sorted=(list [name=@ta type=@ta])
-    (sort channels |=([[a=@ta *] [b=@ta *]] (aor a b)))
-  ;div(id "sse-channels")
-    ;*  ?~  sorted
-          =/  empty=manx  ;div.empty: no channels yet
-          ~[empty]
-        (turn sorted |=([n=@ta t=@ta] (channel-card ball-id n t)))
-  ==
-::
-++  take-any-news
-  |=  [a=wire b=wire c=wire]
-  =/  m  (fiber:fiber:nexus ,[?(%agents %channels %apis) wave:nexus])
+++  serve-tree
+  |=  [eyre-id=@ta =rail:tarball pat=@t]
+  =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
-  |=  input:fiber:nexus
-  :+  ~  q.state
-  ?+  in  [%skip ~]
-      ~  [%wait ~]
-      [~ %news * *]
-    ?:  =(a wire.u.in)  [%done %agents wave.u.in]
-    ?:  =(b wire.u.in)  [%done %channels wave.u.in]
-    ?:  =(c wire.u.in)  [%done %apis wave.u.in]
-    [%skip ~]
-  ==
+  =/  pax=(unit path)  (parse-asst-path pat)
+  ?~  pax
+    ;<  ~  bind:m  (send-simple:(srv rail) eyre-id [[400 ~] `(as-octs:mimes:html 'bad path')])
+    (pure:m ~)
+  =/  dir=path  (weld /assistants u.pax)
+  ;<  =view:nexus  bind:m  (peek:io (nex-road:io rail [%| dir]) ~)
+  ?.  ?=([%ball *] view)
+    ;<  ~  bind:m  (send-simple:(srv rail) eyre-id [[404 ~] `(as-octs:mimes:html 'not found')])
+    (pure:m ~)
+  =/  files=(list json)
+    %+  turn  (walk-files ~ ball.view)
+    |=  [pax=path blot=@ta]
+    (pairs:enjs:format ~[['path' s+(crip (spud pax))] ['blot' s+blot]])
+  =/  bod=octs
+    (as-octs:mimes:html (en:json:html [%a files]))
+  ;<  ~  bind:m
+    (send-simple:(srv rail) eyre-id [[200 ['content-type' 'application/json'] ~] `bod])
+  (pure:m ~)
+::  +walk-files: every file in a ball subtree as [path blot-name]
 ::
-++  style-text
-  ^-  tape
-  """
-  * \{ margin: 0; padding: 0; box-sizing: border-box; }
-  body \{ font-family: -apple-system, system-ui, sans-serif; background: #111; color: #eee; height: 100vh; }
-  #app \{ display: flex; flex-direction: column; height: 100vh; max-width: 700px; margin: 0 auto; padding: 16px; }
-  #header \{ display: flex; justify-content: space-between; align-items: flex-start; padding: 12px 0; border-bottom: 1px solid #333; margin-bottom: 16px; flex-shrink: 0; }
-  #header h1 \{ font-size: 20px; font-weight: 700; }
-  .f3 \{ color: #888; }
-  .mono \{ font-family: monospace; }
-  .s-2 \{ font-size: 12px; }
-  .hdr-btn \{ font-size: 11px; padding: 4px 10px; border-radius: 4px; border: 1px solid #444; background: none; color: #888; cursor: pointer; }
-  .hdr-btn:hover \{ color: #eee; border-color: #666; }
-  #cfg-backdrop \{ display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); z-index: 100; }
-  #cfg-backdrop.open \{ display: flex; align-items: center; justify-content: center; }
-  #cfg-modal \{ background: #1a1a1a; border: 1px solid #333; border-radius: 8px; width: 90%; max-width: 400px; padding: 20px; }
-  #cfg-header \{ display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
-  #cfg-header span \{ font-size: 14px; font-weight: 600; }
-  #cfg-header div \{ display: flex; gap: 6px; }
-  #cfg-status \{ margin-top: 10px; font-size: 12px; color: #4ade80; }
-  .create-bar \{ display: flex; gap: 8px; margin-bottom: 12px; }
-  .create-name \{ flex: 1; padding: 8px 12px; border-radius: 8px; border: 1px solid #333; background: #1a1a1a; color: #eee; font-size: 13px; outline: none; }
-  .create-name:focus \{ border-color: #2563eb; }
-  .create-type \{ width: 140px; padding: 8px 12px; border-radius: 8px; border: 1px solid #333; background: #1a1a1a; color: #eee; font-size: 13px; outline: none; }
-  .create-type:focus \{ border-color: #2563eb; }
-  .create-btn \{ padding: 8px 16px; border-radius: 8px; border: none; background: #2563eb; color: white; font-size: 13px; cursor: pointer; white-space: nowrap; }
-  .create-btn:hover \{ background: #1d4ed8; }
-  .entity-card, .agent-card \{ display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; border-radius: 8px; background: #1a1a1a; border: 1px solid #222; margin-bottom: 6px; }
-  .entity-card:hover, .agent-card:hover \{ border-color: #444; }
-  .entity-info \{ display: flex; align-items: center; gap: 10px; }
-  .entity-type \{ font-size: 12px; color: #444; }
-  .card-actions \{ display: flex; gap: 6px; }
-  .agent-name \{ color: #60a5fa; text-decoration: none; font-size: 14px; font-weight: 500; }
-  .agent-name:hover \{ text-decoration: underline; }
-  .channel-name \{ color: #a78bfa; font-size: 14px; font-weight: 500; }
-  .api-name \{ color: #34d399; font-size: 14px; font-weight: 500; }
-  .delete-btn \{ font-size: 11px; padding: 4px 10px; border-radius: 4px; border: 1px solid transparent; background: none; color: #555; cursor: pointer; }
-  .delete-btn:hover \{ color: #f87171; border-color: #f87171; }
-  .empty \{ color: #555; font-size: 14px; padding: 20px 0; text-align: center; }
-  .section-header \{ margin-top: 20px; margin-bottom: 8px; }
-  .section-title \{ font-size: 13px; font-weight: 600; color: #888; text-transform: uppercase; letter-spacing: 0.05em; }
-  #cfg-json:focus \{ border-color: #2563eb; }
-  @media (max-width: 600px) \{
-    #app \{ padding: 12px; }
-    .create-bar \{ flex-wrap: wrap; }
-    .create-type \{ width: 100%; }
-    .entity-card, .agent-card \{ flex-direction: column; align-items: flex-start; gap: 8px; }
-    .card-actions \{ align-self: flex-end; }
-    #header \{ flex-direction: column; gap: 4px; }
-  }
-  """
+++  walk-files
+  |=  [pax=path bal=ball:tarball]
+  ^-  (list [path @ta])
+  =/  here=(list [path @ta])
+    ?~  fil.bal  ~
+    =/  fis  ~(tap by contents.u.fil.bal)
+    |-  ^-  (list [path @ta])
+    ?~  fis  ~
+    [[(snoc pax p.i.fis) name.p.sang.q.i.fis] $(fis t.fis)]
+  =/  kids  ~(tap by dir.bal)
+  |-  ^-  (list [path @ta])
+  ?~  kids  here
+  (weld (walk-files (snoc pax p.i.kids) q.i.kids) $(kids t.kids))
+::  +serve-state: the one JSON the shell renders from
 ::
-++  script-text
-  |=  ball-id=tape
-  ^-  tape
-  ;:  weld
-    "var API='/grubbery/api';var BALL='{ball-id}';\0a"
-  """
-  var ACTIONS = \{
-    agents:   \{create: 'create',         del: 'delete',         nameId: 'agent-name', dataAttr: 'data-agent'},
-    apis:     \{create: 'create-api',     del: 'delete-api',     nameId: 'api-name',   dataAttr: 'data-api'},
-    channels: \{create: 'create-channel', del: 'delete-channel', nameId: 'ch-name',    dataAttr: 'data-channel'}
-  };
-
-  function createEntity(section) \{
-    var a = ACTIONS[section];
-    var nameEl = document.getElementById(a.nameId);
-    var name = nameEl.value.trim();
-    if (!name) return;
-    var body = \{action: a.create, name: name};
-    if (section !== 'agents') \{
-      var typeEl = document.getElementById(section === 'apis' ? 'api-type' : 'ch-type');
-      var type = typeEl.value.trim();
-      if (!type) \{ alert('Type required'); return; }
-      body.type = type;
-      typeEl.value = '';
-    }
-    nameEl.value = '';
-    fetch(API + '/poke/' + BALL + '/main.sig?blot=/json', \{
-      method: 'POST',
-      headers: \{'Content-Type': 'application/json'},
-      body: JSON.stringify(body)
-    });
-  }
-
-  function deleteEntity(section, name) \{
-    if (!confirm('Delete ' + name + '?')) return;
-    var a = ACTIONS[section];
-    fetch(API + '/poke/' + BALL + '/main.sig?blot=/json', \{
-      method: 'POST',
-      headers: \{'Content-Type': 'application/json'},
-      body: JSON.stringify(\{action: a.del, name: name})
-    });
-    var el = document.querySelector('[' + a.dataAttr + '="' + name + '"]');
-    if (el) el.remove();
-  }
-
-  // Config modal
-  var cfgBack = document.getElementById('cfg-backdrop');
-  var cfgTitle = document.getElementById('cfg-title');
-  var cfgJson = document.getElementById('cfg-json');
-  var cfgStatus = document.getElementById('cfg-status');
-  var cfgSection = '';
-  var cfgName = '';
-
-  function openConfig(section, name) \{
-    cfgSection = section;
-    cfgName = name;
-    cfgTitle.textContent = name + ' config';
-    cfgStatus.textContent = '';
-    cfgStatus.style.color = '#4ade80';
-    fetch(API + '/file/' + BALL + '/' + section + '/' + name + '/config.json?blot=/json')
-      .then(function(r) \{ return r.json() })
-      .then(function(j) \{ cfgJson.value = JSON.stringify(j, null, 2); })
-      .catch(function() \{ cfgJson.value = '\{}'; });
-    cfgBack.classList.add('open');
-  }
-
-  document.getElementById('cfg-close').onclick = function() \{
-    cfgBack.classList.remove('open');
-  };
-
-  cfgBack.onclick = function(e) \{
-    if (e.target === cfgBack) cfgBack.classList.remove('open');
-  };
-
-  document.getElementById('cfg-save').onclick = async function() \{
-    var parsed;
-    try \{ parsed = JSON.parse(cfgJson.value); } catch(e) \{
-      cfgStatus.textContent = 'Invalid JSON';
-      cfgStatus.style.color = '#f87171';
-      return;
-    }
-    var r = await fetch(API + '/over/' + BALL + '/' + cfgSection + '/' + cfgName + '/config.json?blot=/json', \{
-      method: 'POST',
-      headers: \{'Content-Type': 'application/json'},
-      body: JSON.stringify(parsed)
-    });
-    if (r.ok) \{
-      cfgStatus.textContent = 'Saved';
-      cfgStatus.style.color = '#4ade80';
-      setTimeout(function() \{ cfgBack.classList.remove('open'); }, 600);
-    } else \{
-      cfgStatus.textContent = 'Save failed';
-      cfgStatus.style.color = '#f87171';
-    }
-  };
-
-  var SSE_URL = API + '/keep/' + BALL + '/ui/sse?blot=/txt';
-  var sseCtrl = null;
-  var sseRdr = null;
-
-  async function connectSSE() \{
-    if (sseRdr) try \{ sseRdr.cancel(); } catch(e) \{}
-    if (sseCtrl) sseCtrl.abort();
-    sseCtrl = new AbortController();
-    try \{
-      var r = await fetch(SSE_URL, \{
-        headers: \{Accept: 'text/event-stream'},
-        signal: sseCtrl.signal
-      });
-      sseRdr = r.body.getReader();
-      var dec = new TextDecoder();
-      var buf = '';
-      while (true) \{
-        var chunk = await sseRdr.read();
-        if (chunk.done) break;
-        buf += dec.decode(chunk.value, \{stream: true});
-        var parts = buf.split('\\n\\n');
-        buf = parts.pop();
-        for (var i = 0; i < parts.length; i++) \{
-          var lines = parts[i].split('\\n');
-          for (var j = 0; j < lines.length; j++) \{
-            if (lines[j].indexOf('data:') === 0) \{
-              var html = lines[j].slice(5).trim();
-              var tmp = document.createElement('div');
-              tmp.innerHTML = html;
-              var frag = tmp.firstElementChild;
-              if (frag && frag.id === 'sse-agents') \{
-                var el = document.getElementById('agents');
-                if (el) el.innerHTML = frag.innerHTML;
-              } else if (frag && frag.id === 'sse-channels') \{
-                var el = document.getElementById('channels');
-                if (el) el.innerHTML = frag.innerHTML;
-              } else if (frag && frag.id === 'sse-apis') \{
-                var el = document.getElementById('apis');
-                if (el) el.innerHTML = frag.innerHTML;
-              }
-            }
-          }
-        }
-      }
-    } catch (e) \{
-      if (e.name !== 'AbortError') setTimeout(connectSSE, 2000);
-    }
-  }
-  window.addEventListener('beforeunload', function() \{
-    if (sseRdr) try \{ sseRdr.cancel(); } catch(e) \{}
-    if (sseCtrl) sseCtrl.abort();
-  });
-  connectSSE();
-  """
-  ==
+++  serve-state
+  |=  [eyre-id=@ta =rail:tarball]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  ;<  here=rail:tarball  bind:m  get-here-abs:io
+  =/  root=path  (snip (snip path.here))
+  ;<  agents-view=view:nexus  bind:m  (peek:io (nex-road:io rail [%| /agents]) ~)
+  ;<  apis-view=view:nexus  bind:m  (peek:io (nex-road:io rail [%| /apis]) ~)
+  ;<  chans-view=view:nexus  bind:m  (peek:io (nex-road:io rail [%| /channels]) ~)
+  ;<  assts-view=view:nexus  bind:m  (peek:io (nex-road:io rail [%| /assistants]) ~)
+  =/  assts=(list path)
+    ?.  ?=([%ball *] assts-view)  ~
+    (find-assistants ~ dir.ball.assts-view)
+  ::  per-assistant config peek
+  =/  out=(list json)  ~
+  |-
+  ?^  assts
+    =/  dir=path
+      %+  weld  `path`/assistants
+      (snoc (snip i.assts) (cat 3 (rear i.assts) '.assistant'))
+    ;<  cfg-view=view:nexus  bind:m
+      (peek:io (nex-road:io rail [%& dir %'main.assistant']) `[/ %json])
+    =/  cfg=json
+      ?.  ?=([%file *] cfg-view)  *json
+      (fall (mole |.(!<(json (need-vase:tarball sang.cfg-view)))) *json)
+    =/  entry=json
+      %-  pairs:enjs:format
+      :~  ['path' s+(crip (zing (join "/" (turn i.assts trip))))]
+          ['config' cfg]
+      ==
+    $(assts t.assts, out [entry out])
+  =/  =json
+    %-  pairs:enjs:format
+    :~  ['ball' s+(crip (zing (join "/" (turn root trip))))]
+        ['agents' [%a (turn (sort (read-names agents-view) aor) |=(n=@ta `json`s+n))]]
+        :-  'apis'
+        :-  %a
+        %+  turn  (read-entities apis-view)
+        |=([n=@ta t=@ta] (pairs:enjs:format ~[['name' s+n] ['type' s+t]]))
+        :-  'channels'
+        :-  %a
+        %+  turn  (read-entities chans-view)
+        |=([n=@ta t=@ta] (pairs:enjs:format ~[['name' s+n] ['type' s+t]]))
+        ['assistants' [%a (flop out)]]
+    ==
+  =/  bod=octs  (as-octs:mimes:html (en:json:html json))
+  ;<  ~  bind:m
+    (send-simple:(srv rail) eyre-id [[200 ['content-type' 'application/json'] ~] `bod])
+  (pure:m ~)
 --

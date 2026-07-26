@@ -32,6 +32,13 @@
           [%fall %& [/ %'calendar.calendar'] [[/ %calendar] fresh-calendar:cal]]
           [%fall %& [/ %'order.calendar-cache'] [[/ %calendar-cache] *cache:cal]]
           [%fall %& [/ %'gcal-feeds.json'] [[/ %json] [%o ~]]]
+          :*  %fall  %&  [/ %'reminders.json']
+              :-  [/ %json]
+              ^-  json
+              :-  %o
+              %-  ~(gas by *(map @t json))
+              ~[['lead_min' n+'30'] ['fired_ms' n+'0']]
+          ==
           [%over %& [/ %'tile.json'] [[/ %json] tile]]
           [%over %& [/ %'icon.svg'] [[/ %mime] icon]]
           [%over %& [/ %'calendar.html'] [[/ %mime] cal-html]]
@@ -218,6 +225,52 @@
         =/  [stops=(map eid:cal @da) o=order:cal]  (inflate:cal events.c kinds thru)
         ;<  ~  bind:m  (replace:io `cache:cal`[thru stops o])
         ;<  *  bind:m  (take-news:io /cal)
+        $
+          ::
+          ::  /reminders.json: tick on utc 5-minute marks, push-notify
+          ::  timed events starting lead_min ahead. fired_ms is the
+          ::  watermark: everything due in (fired, now] goes out once.
+          ::
+          [~ %'reminders.json']
+        ;<  ~  bind:m  (rise-wait:io prod "%calendar reminders: failed")
+        |-
+        ;<  now=@da  bind:m  get-time:io
+        =/  tick=@da  (add (sub now (mod now ~m5)) ~m5)
+        ;<  ~  bind:m  (wait:io tick)
+        ;<  now=@da  bind:m  get-time:io
+        ;<  st=json  bind:m  (get-state-as:io ,json)
+        =/  lead=@dr  (mul (max 1 (fall (gn st 'lead_min') 30)) ~m1)
+        =/  fired=@da
+          =/  ms=(unit @ud)  (gn st 'fired_ms')
+          ?~(ms *@da (ms-to-da u.ms))
+        ::  cap lookback so a ship that slept doesn't spam stale
+        ::  reminders on wake
+        =/  floor=@da  (sub now ~m15)
+        =/  from=@da  ?:((gth fired floor) fired floor)
+        ;<  cache-view=view:nexus  bind:m
+          (peek:io (cord-to-road:tarball './order.calendar-cache') ~)
+        ;<  cal-view=view:nexus  bind:m
+          (peek:io (cord-to-road:tarball './calendar.calendar') ~)
+        =/  ca=cache:cal
+          ?.  ?=([%file *] cache-view)  *cache:cal
+          (fall (mole |.(!<(cache:cal (need-vase:tarball sang.cache-view)))) *cache:cal)
+        =/  c=calendar:cal
+          ?.  ?=([%file *] cal-view)  fresh-calendar:cal
+          %+  fall
+            (mole |.(!<(calendar:cal (need-vase:tarball sang.cal-view))))
+          fresh-calendar:cal
+        =/  lo=@da  (add from lead)
+        =/  hi=@da  (add now lead)
+        =/  due=(list ref:cal)
+          %+  skim  ~(tap in (window:cal order.ca lo hi))
+          |=  r=ref:cal
+          &((gth l.span.r lo) (lte l.span.r hi))
+        ;<  ~  bind:m  (send-reminders due events.c now)
+        =/  new-st=json
+          :-  %o
+          %-  ~(put by ?:(?=(%o -.st) p.st ~))
+          ['fired_ms' (numb:enjs:format (da-to-ms now))]
+        ;<  ~  bind:m  (replace:io new-st)
         $
           ::
           ::  /requests: window.json, events.json
@@ -463,6 +516,28 @@
   ;<  ~  bind:m
     (send-simple:srv eyre-id [[200 ['content-type' 'application/json'] ~] `bod])
   (pure:m ~)
+::  +send-reminders: one push per due timed occurrence. The tag is
+::  eid+idx so a re-send replaces rather than stacks.
+::
+++  send-reminders
+  |=  [due=(list ref:cal) events=(map eid:cal event:cal) now=@da]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  ?~  due  (pure:m ~)
+  =/  r=ref:cal  i.due
+  =/  ev=(unit event:cal)  (~(get by events) eid.r)
+  ?.  &(?=(^ ev) ?=(%timed -.u.ev))
+    $(due t.due)
+  =/  name=@t  (meta-str:cal (get-meta u.ev) 'name')
+  =/  mins=@ud
+    (div ?:((gth l.span.r now) (sub l.span.r now) 0) ~m1)
+  =/  body=@t
+    (crip ?:(=(0 mins) "starting now" "in {(scow %ud mins)} min"))
+  =/  tag=@t
+    (crip "cal-{(trip eid.r)}-{(scow %ud idx.r)}")
+  ;<  ~  bind:m
+    (send-push:io [~ ~ ~ [name body ~ `'/grubbery/calendar' `tag]])
+  $(due t.due)
 ::  +do-sync: fetch each feed, parse its ICS, and convert single
 ::  (non-recurring) vevents inside [lo hi] into events tagged with
 ::  feed name + uid. Stable ids: same feed+uid = same event id.

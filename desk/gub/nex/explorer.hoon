@@ -4,6 +4,8 @@
 /<  iso-8601  /lib/iso-8601.hoon
 /&  man   ../man/explorer/readme.md
 /&  icon  explorer/icon.svg
+/&  gram     explorer/hoon-grammar.json
+/&  view-js  explorer/view.js
 =<  ^-  nexus:nexus
     |%
     ++  on-load
@@ -24,6 +26,8 @@
           [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
           [%fall %| /requests empty-dir:loader]
           [%over %& [/ %'README.md'] [[/ %mime] man]]
+          [%over %& [/ %'hoon-grammar.json'] [[/ %mime] gram]]
+          [%over %& [/ %'view.js'] [[/ %mime] view-js]]
       ==
     ::
     ++  on-file
@@ -79,13 +83,13 @@
             (pure:m ~)
           ?:  =('POST' method.request.req)
             (handle-post eyre-id raw-path ~ ball.par-view req)
-          (handle-get eyre-id raw-path %.n ~ ball.par-view wave.par-view args)
+          (handle-get eyre-id raw-path %.n ~ ball.par-view wave.par-view args (wants-html req))
         ;<  dir-weir=(unit weir:nexus)  bind:m
           (read-weir-from-parent raw-path)
         ?:  =('POST' method.request.req)
           (handle-post eyre-id raw-path dir-weir ball.dir-view req)
         ~&  >  %explorer-handle-get-start
-        (handle-get eyre-id raw-path %.y dir-weir ball.dir-view wave.dir-view args)
+        (handle-get eyre-id raw-path %.y dir-weir ball.dir-view wave.dir-view args (wants-html req))
       ==
     --
 ::
@@ -93,6 +97,31 @@
 ::  HTTP response door (road from /explorer.explorer/requests/* to /explorer.explorer/main.sig)
 ::
 ++  srv  ~(. http-res:io [%| 1 %& ~ %'main.sig'])
+::  +view-page: source view shell — plain pre, upgraded client-side
+::  by view.js (shiki + the pkova hoon grammar)
+::
+++  wants-html
+  |=  req=inbound-request:eyre
+  ^-  ?
+  =/  acc=(unit @t)  (get-header:http 'accept' header-list.request.req)
+  ?~  acc  %.n
+  ?=(^ (find "text/html" (trip u.acc)))
+::
+++  view-page
+  |=  [name=@ta txt=tape]
+  ^-  manx
+  ;html
+    ;head
+      ;title: {(trip name)}
+      ;meta(charset "utf-8");
+      ;meta(name "viewport", content "width=device-width, initial-scale=1");
+      ;style: body \{ background: #0d1117; color: #e6edf3; margin: 0; } pre \{ margin: 0; padding: 18px; font: 12px/1.5 ui-monospace, monospace; overflow: auto; min-height: 100vh; box-sizing: border-box; } code \{ font: inherit; } #hl-status \{ position: fixed; top: 10px; right: 12px; font: 11px ui-monospace, monospace; color: #8b949e; background: #161b22; border: 1px solid #30363d; border-radius: 12px; padding: 4px 10px; }
+    ==
+    ;body(data-name (trip name))
+      ;pre#src: {txt}
+      ;script(type "module", src "/grubbery/ball/apps/explorer.explorer/view.js");
+    ==
+  ==
 ::  Weir lives in the parent's dir-map, not in the directory's own lump
 ++  read-weir-from-parent
   |=  pax=path
@@ -142,7 +171,7 @@
 ::  Handle GET requests
 ::
 ++  handle-get
-  |=  [eyre-id=@ta tree-path=path is-dir=? dir-weir=(unit weir:nexus) ball=ball:tarball ball-wave=wave:nexus args=(list [key=@t value=@t])]
+  |=  [eyre-id=@ta tree-path=path is-dir=? dir-weir=(unit weir:nexus) ball=ball:tarball ball-wave=wave:nexus args=(list [key=@t value=@t]) html-ok=?]
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
   ~&  >  [%explorer-peek tree-path]
@@ -196,6 +225,25 @@
     ::  ?pretty: render noun as text instead of binary download
     =/  bod=octs  (as-octs:mimes:html (crip (noah q.sage)))
     ;<  ~  bind:m  (send-simple:srv eyre-id (mime-response:http-utils [/text/plain bod]))
+    (pure:m ~)
+  ::  source view: html + syntax highlighting (hoon via shiki + the
+  ::  same pkova grammar github renders with). Default for .hoon
+  ::  when a browser asks (Accept: text/html) — tools and fetch get
+  ::  raw bytes as ever. ?view=1 forces, ?raw=1 suppresses.
+  =/  view-param=(unit @t)  (get-key:kv:html-utils 'view' args)
+  =/  raw-param=(unit @t)  (get-key:kv:html-utils 'raw' args)
+  =/  is-hoon=?
+    =/  t=tape  (trip name)
+    =/  len=@ud  (lent t)
+    &((gth len 5) =(".hoon" (slag (sub len 5) t)))
+  ?:  ?&  ?=(~ raw-param)
+          |(?=(^ view-param) &(is-hoon html-ok))
+      ==
+    ;<  =mime  bind:m  (sage-to-mime:io sage)
+    =/  txt=tape  (trip q.q.mime)
+    =/  bod=octs
+      (as-octs:mimes:html (crip (en-xml:html (view-page name txt))))
+    ;<  ~  bind:m  (send-simple:srv eyre-id (mime-response:http-utils [/text/html bod]))
     (pure:m ~)
   ;<  =mime  bind:m  (sage-to-mime:io sage)
   ;<  ~  bind:m  (send-simple:srv eyre-id (mime-response:http-utils [p.mime q.mime]))

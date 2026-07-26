@@ -1,0 +1,130 @@
+::  weekly-outlook: an intelligent look at the coming week, shaped by
+::  ./context.md. Falls back to a plain day-by-day listing if the LLM
+::  call fails. Meant for a sunday-evening schedule.
+::
+::  args: { "calendar": "/apps/calendar.calendar",   (default shown)
+::          "model": "claude-sonnet-4-6",
+::          "zone": "America/New_York" }
+::
+/<  cal    /lib/calendar.hoon
+/<  rules  /lib/rules.hoon
+/<  asst   /lib/nex/assistant.hoon
+=<  ^-  assistant:asst
+    |=  [args=json now=@da]
+    =/  m  (fiber:fiber:nexus ,output:asst)
+    ^-  form:m
+    =/  base=path   (cal-path args)
+    =/  model=@t    (arg-or args 'model' 'claude-sonnet-4-6')
+    =/  dz=@t       (arg-or args 'zone' 'America/New_York')
+    =/  from=@da    (add (day-floor:rules now) ~d1)
+    ;<  ca=cache:cal        bind:m  (read-cache base)
+    ;<  c=calendar:cal      bind:m  (read-calendar base)
+    ;<  ctx=@t              bind:m  read-context:asst
+    =/  digest=tape  (digest-week c ca from (add from ~d7))
+    ;<  outlook=(unit @t)   bind:m  (think:asst model 600 (system-prompt dz ctx) (user-prompt digest))
+    ?^  outlook  (pure:m `['Week ahead' u.outlook])
+    ?:  =("(empty week)" digest)  (pure:m ~)
+    (pure:m `['Week ahead' (crip digest)])
+|%
+::  +arg-or: string arg with a default
+::
+++  arg-or
+  |=  [args=json k=@t default=@t]
+  ^-  @t
+  ?.  ?=(%o -.args)  default
+  =/  j=(unit json)  (~(get by p.args) k)
+  ?.  ?=([~ %s *] j)  default
+  ?:(=('' p.u.j) default p.u.j)
+::  +cal-path: the calendar instance dir from args
+::
+++  cal-path
+  |=  args=json
+  ^-  path
+  =/  s=@t  (arg-or args 'calendar' '')
+  ?:  =('' s)  /apps/[%'calendar.calendar']
+  (stab s)
+::  +read-cache: the calendar's inflated order index
+::
+++  read-cache
+  |=  base=path
+  =/  m  (fiber:fiber:nexus ,cache:cal)
+  ^-  form:m
+  ;<  =view:nexus  bind:m  (peek:io [%& %& (snip `path`base) %'order.calendar-cache'] ~)
+  %-  pure:m
+  ?.  ?=([%file *] view)  *cache:cal
+  (fall (mole |.(!<(cache:cal (need-vase:tarball sang.view)))) *cache:cal)
+::  +read-calendar: the calendar grub (config + events)
+::
+++  read-calendar
+  |=  base=path
+  =/  m  (fiber:fiber:nexus ,calendar:cal)
+  ^-  form:m
+  ;<  =view:nexus  bind:m  (peek:io [%& %& (snip `path`base) (rear base)] ~)
+  %-  pure:m
+  ?.  ?=([%file *] view)  fresh-calendar:cal
+  (fall (mole |.(!<(calendar:cal (need-vase:tarball sang.view)))) fresh-calendar:cal)
+::  +digest-week: one line per event in [from to), chronological,
+::  prefixed with the weekday — "Mon 13:30 UTC  Name"
+::
+++  digest-week
+  |=  [c=calendar:cal ca=cache:cal from=@da to=@da]
+  ^-  tape
+  =/  refs=(list ref:cal)
+    %+  sort  ~(tap in (window:cal order.ca from to))
+    |=([a=ref:cal b=ref:cal] (lth l.span.a l.span.b))
+  =/  lines=(list tape)
+    %+  murn  refs
+    |=  r=ref:cal
+    ^-  (unit tape)
+    =/  ev=(unit event:cal)  (~(get by events.c) eid.r)
+    ?~  ev  ~
+    =/  nm=tape   (trip (meta-str:cal (get-meta u.ev) 'name'))
+    =/  day=tape  (wd-name l.span.r)
+    ?:  (all-day:cal u.ev)  `"{day} all day  {nm}"
+    `"{day} {(fmt-hm l.span.r)} UTC  {nm}"
+  ?~  lines  "(empty week)"
+  %+  roll  `(list tape)`lines
+  |=  [l=tape acc=tape]
+  ?~(acc l "{acc}\0a{l}")
+::  +get-meta: an event's meta regardless of shape
+::
+++  get-meta
+  |=  e=event:cal
+  ^-  meta:cal
+  ?-(-.e %timed meta.e, %allday meta.e, %date meta.e)
+::  +wd-name: short weekday name for a utc instant
+::
+++  wd-name
+  |=  d=@da
+  ^-  tape
+  (snag (weekday:rules d) `(list tape)`~["Mon" "Tue" "Wed" "Thu" "Fri" "Sat" "Sun"])
+::  +fmt-hm: "HH:MM" from a utc instant
+::
+++  fmt-hm
+  |=  d=@da
+  ^-  tape
+  =/  t  (yore d)
+  "{?:((lth h.t.t 10) "0" "")}{(scow %ud h.t.t)}:{?:((lth m.t.t 10) "0" "")}{(scow %ud m.t.t)}"
+::  +system-prompt: role + style + standing context
+::
+++  system-prompt
+  |=  [dz=@t ctx=@t]
+  ^-  @t
+  %-  crip
+  ;:  weld
+    "You are a personal assistant writing a sunday-evening look at "
+    "the coming week. Be terse and concrete: 3-5 sentences, no "
+    "preamble, no lists, no headers. Convert times from UTC to "
+    "{(trip dz)} local clock time. Point out the shape of the week: "
+    "busy days, empty days, and anything that needs preparation. "
+    "If the week looks socially thin, say so plainly."
+    ?:  =('' ctx)  ""
+    "\0a\0aContext about the user:\0a{(trip ctx)}"
+  ==
+::  +user-prompt: the week's data
+::
+++  user-prompt
+  |=  digest=tape
+  ^-  @t
+  (crip "Next week's calendar (times UTC):\0a{digest}")
+--
