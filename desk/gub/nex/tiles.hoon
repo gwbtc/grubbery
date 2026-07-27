@@ -174,6 +174,10 @@
 ++  find-app-by-slug
   |=  [slug=@ta kids=(map @ta ball:tarball)]
   ^-  (unit @ta)
+  ::  an exact folder name always wins — slugs (the part before the first
+  ::  dot) are ambiguous across e.g. test.guestbook / test.desk, and
+  ::  guestbook's own tile hardcodes the full name in its icon URL.
+  ?:  (~(has by kids) slug)  `slug
   =/  entries=(list [@ta ball:tarball])  ~(tap by kids)
   |-
   ?~  entries  ~
