@@ -56,8 +56,21 @@
     =/  full=@t  ?:(=('/' (end 3 pax)) pax (crip "/{pax-t}"))
     =/  res=(each path tang)  (mule |.((stab full)))
     ?:(?=(%& -.res) p.res /(crip pax-t))
-  =/  bin-name=@ta  (crip (trip nam))
-  ;<  res=built:nexus  bind:m  (get-code-full:io [%& %& (weld code-ns bin-path) bin-name])
+  ::  accept "foo.hoon" for "foo" — bins are keyed by stripped name, and a
+  ::  suffixed lookup otherwise fails with a confusing not-found.
+  =/  bin-name=@ta
+    =/  t=tape  (trip nam)
+    =/  l=@ud  (lent t)
+    ?:  &((gth l 5) =(".hoon" (slag (sub l 5) t)))
+      (crip (scag (sub l 5) t))
+    (crip t)
+  ::  tolerate a path that already carries the code namespace ("/code/lib")
+  ::  — blindly welding produced /code/code/... lookups that always fail.
+  =/  full-path=path
+    ?:  &((gte (lent bin-path) (lent code-ns)) =(code-ns (scag (lent code-ns) bin-path)))
+      bin-path
+    (weld code-ns bin-path)
+  ;<  res=built:nexus  bind:m  (get-code-full:io [%& %& full-path bin-name])
   ?:  ?=(%vase -.res)
     =/  msg=tape  "OK: {(trip pax)}/{(trip nam)} compiled successfully"
     ?.  show
