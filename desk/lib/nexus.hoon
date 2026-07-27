@@ -287,14 +287,18 @@
       |=  input
       ^-  output
       [~ q.state %done value]
-    :: do nothing - forever
+    :: the default for a grub with no handler: wait on rise, CRASH on
+    :: any real input. the failing input nacks its poke; the crashed
+    :: process then nacks further pokes immediately; a prod restarts
+    :: it to wait again, crashing on the next input. pokes into
+    :: handlerless grubs therefore always nack instead of vanishing.
     ::
     ++  stay
       ^-  form
       |=  input
       ^-  output
       ?~  in  [~ q.state %wait ~]
-      [~ q.state %skip ~]
+      [~ q.state %fail ~[leaf+"inert: no handler for input"]]
     ::
     ++  bind
       |*  b=mold

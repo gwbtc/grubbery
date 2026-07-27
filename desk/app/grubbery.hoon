@@ -3172,7 +3172,13 @@
   =/  =pipe:nexus  (fall (~(get of pool) path.here) *pipe:nexus)
   ::  Get proc for this file - must exist
   =/  prc=(unit proc:fiber:nexus)  (~(get by proc.pipe) name.here)
-  ?~  prc  this
+  ?~  prc
+    ::  no process at this rail: nack pokes instead of silently
+    ::  dropping them, and release any silo refs the take carries
+    =.  this  (drop-pend-refs in.take)
+    ?.  ?=([* ~ %poke *] take)  this
+    %+  give-poke-sign  here
+    [take `~[leaf+"no process at {(spud (snoc path.here name.here))}"]]
   =/  =proc:fiber:nexus  u.prc
   ::  Crashed process — nack pokes immediately, queue everything else
   ?:  ?=(%| -.process.proc)
