@@ -173,6 +173,7 @@ function goalRow(id, depth) {
       (kids.length && folded ? '<span class="kid-count">' + kids.length + '</span>' : '') +
     '</div>' +
     '<div class="goal-actions">' +
+      '<button class="mini" data-a="info" title="Details">i</button>' +
       '<button class="mini" data-a="add" title="Add subgoal">+</button>' +
       '<button class="mini del" data-a="del" title="Delete">✕</button>' +
     '</div>';
@@ -188,6 +189,7 @@ function goalRow(id, depth) {
     act(done ? 'undone' : 'done', { id: id });
   };
   row.querySelector('.goal-text').onclick = function() { zoomTo(id); };
+  row.querySelector('[data-a="info"]').onclick = function() { openDetail(id); };
   row.querySelector('[data-a="add"]').onclick = function() { openModal(id, summary); };
   row.querySelector('[data-a="del"]').onclick = function() {
     if (confirm('Delete this goal' + (kids.length ? ' and orphan its children' : '') + '?')) {
@@ -226,10 +228,7 @@ function frontierRow(id) {
       (path ? '<div class="fr-path">' + path + '</div>' : '') +
     '</div>';
   row.querySelector('.check').onchange = function() { act('done', { id: id }); };
-  row.querySelector('.goal-text').onclick = function() {
-    setView('tree');
-    zoomTo(goals[id].parent || '0');
-  };
+  row.querySelector('.goal-text').onclick = function() { openDetail(id); };
   return row;
 }
 
@@ -237,6 +236,84 @@ function setView(v) {
   view = v;
   localStorage.setItem('goals-view', v);
   render();
+}
+
+// explicit precedence edges: predecessors and successors over the
+// start/end inflow/outflow, minus the structural parent/child links
+function depsOf(id) {
+  var g = goals[id];
+  var fam = {};
+  fam[g.parent || '0'] = true;
+  (g.children || []).forEach(function(c) { fam[c] = true; });
+  fam[id] = true;
+  function collect(nodes, dir) {
+    var seen = {};
+    nodes.forEach(function(node) {
+      (((node || {})[dir]) || []).forEach(function(nid) {
+        var gid = nid['goal-id'];
+        if (!fam[gid] && goals[gid]) seen[gid] = true;
+      });
+    });
+    return Object.keys(seen);
+  }
+  return {
+    after: collect([g.start, g.end], 'inflow'),
+    before: collect([g.start, g.end], 'outflow')
+  };
+}
+
+var detailId = null;
+
+function openDetail(id) {
+  var g = goals[id];
+  if (!g) return;
+  detailId = id;
+  var crumbs = lineage(id).slice(0, -1).map(function(a) {
+    return esc(summaryOf(goals[a]));
+  }).join(' › ');
+  el('d-crumbs').textContent = crumbs || '(top level)';
+  el('d-summary').value = summaryOf(g);
+  el('d-actionable').checked = !!g.actionable;
+  el('d-started').checked = nodeDone(g.start);
+  el('d-done').checked = isDone(g);
+  var deps = depsOf(id);
+  var dd = el('d-deps');
+  dd.innerHTML = '';
+  function depSection(label, ids, cls) {
+    if (!ids.length) return;
+    var sec = document.createElement('div');
+    sec.className = 'd-dep-sec';
+    var h = document.createElement('span');
+    h.className = 'd-dep-label ' + cls;
+    h.textContent = label;
+    sec.appendChild(h);
+    ids.forEach(function(did) {
+      var chip = document.createElement('button');
+      chip.className = 'd-dep-chip' + (isDone(goals[did]) ? ' done' : '');
+      chip.textContent = summaryOf(goals[did]);
+      chip.onclick = function() { openDetail(did); };
+      sec.appendChild(chip);
+    });
+    dd.appendChild(sec);
+  }
+  depSection('waiting on', deps.after.filter(function(d) { return !isDone(goals[d]); }), 'wait');
+  depSection('after (done)', deps.after.filter(function(d) { return isDone(goals[d]); }), 'past');
+  depSection('unlocks', deps.before, 'unlock');
+  var kids = (g.children || []).filter(function(c) { return goals[c]; });
+  if (kids.length) {
+    var done = kids.filter(function(c) { return isDone(goals[c]); }).length;
+    var sub = document.createElement('div');
+    sub.className = 'd-dep-sec';
+    sub.innerHTML = '<span class="d-dep-label">subgoals</span><span class="m-note">' +
+      done + ' of ' + kids.length + ' done</span>';
+    dd.appendChild(sub);
+  }
+  el('detail-back').classList.add('open');
+}
+
+function closeDetail() {
+  detailId = null;
+  el('detail-back').classList.remove('open');
 }
 
 // descendants of the zoom root (goal ids), zoom root excluded
@@ -405,10 +482,7 @@ function kanbanCard(id, col, ready) {
     '<div class="kb-text">' + esc(summaryOf(g)) + '</div>' +
     (path ? '<div class="fr-path">' + path + '</div>' : '') +
     '<div class="kb-acts"></div>';
-  card.querySelector('.kb-text').onclick = function() {
-    setView('tree');
-    zoomTo((g.children || []).length ? id : (g.parent || '0'));
-  };
+  card.querySelector('.kb-text').onclick = function() { openDetail(id); };
   var acts = card.querySelector('.kb-acts');
   function btn(label, fn) {
     var b = document.createElement('button');
@@ -565,6 +639,52 @@ el('m-save').onclick = function() {
   if (!summary) return;
   act('create', { parent: parentForNew, summary: summary });
   el('modal-back').classList.remove('open');
+};
+
+el('d-close').onclick = closeDetail;
+el('detail-back').onclick = function(e) {
+  if (e.target === el('detail-back')) closeDetail();
+};
+el('d-zoom').onclick = function() {
+  var id = detailId;
+  closeDetail();
+  setView('tree');
+  zoomTo(id);
+};
+el('d-add').onclick = function() {
+  var id = detailId;
+  closeDetail();
+  openModal(id, summaryOf(goals[id]));
+};
+el('d-save').onclick = function() {
+  var id = detailId;
+  if (!id || !goals[id]) return;
+  var g = goals[id];
+  var pokes = [];
+  var s = el('d-summary').value.trim();
+  if (s && s !== summaryOf(g)) {
+    pokes.push({ type: 'update', id: id, data: JSON.stringify({ summary: s }) });
+  }
+  if (el('d-actionable').checked !== !!g.actionable) {
+    pokes.push({ type: 'set-actionable', id: id, actionable: el('d-actionable').checked });
+  }
+  if (el('d-started').checked !== nodeDone(g.start)) {
+    pokes.push({ type: el('d-started').checked ? 'done' : 'undone', id: id, point: 'start' });
+  }
+  if (el('d-done').checked !== isDone(g)) {
+    pokes.push({ type: el('d-done').checked ? 'done' : 'undone', id: id });
+  }
+  closeDetail();
+  if (!pokes.length) return;
+  var i = 0;
+  (function next() {
+    if (i >= pokes.length) { fetchStore(); return; }
+    var p = pokes[i++];
+    var body = { action: 'goal-action', store: storeName };
+    Object.keys(p).forEach(function(k) { if (k !== 'type') body[k] = p[k]; });
+    body.type = p.type;
+    poke(body, next);
+  })();
 };
 
 window.addEventListener('hashchange', function() {

@@ -91,8 +91,24 @@ body { font-family: -apple-system, system-ui, sans-serif; background: #111; colo
 .hdr-btn.primary:hover { background: #27ab9b; }
 .empty { padding: 40px 0; color: #666; font-size: 13px; text-align: center; }
 
-#modal-back { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 50; align-items: center; justify-content: center; }
-#modal-back.open { display: flex; }
+#modal-back, #detail-back { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 50; align-items: center; justify-content: center; }
+#modal-back.open, #detail-back.open { display: flex; }
+#detail { background: #1c1c1e; border: 1px solid #3a3a40; border-radius: 12px; width: min(520px, calc(100vw - 32px)); max-height: 85vh; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 12px; }
+#d-summary { width: 100%; background: #131315; color: #eee; border: 1px solid #3a3a40; border-radius: 8px; padding: 10px; font-size: 14px; font-family: inherit; resize: vertical; line-height: 1.5; }
+#d-toggles { display: flex; gap: 16px; }
+.d-flag { display: flex; align-items: center; gap: 6px; font-size: 13px; color: #ccc; cursor: pointer; }
+.d-flag input { accent-color: #1f8a7d; }
+#d-deps { display: flex; flex-direction: column; gap: 8px; }
+.d-dep-sec { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.d-dep-label { font-size: 10px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: #8a8a92; min-width: 82px; }
+.d-dep-label.wait { color: #f0c36a; }
+.d-dep-label.unlock { color: #7fd6ca; }
+.d-dep-label.past { color: #6f6f78; }
+.d-dep-chip { font-size: 12px; padding: 4px 10px; border-radius: 7px; border: 1px solid #3a3a40; background: #232327; color: #d8d8dd; cursor: pointer; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: inherit; }
+.d-dep-chip:hover { border-color: #27ab9b; color: #fff; }
+.d-dep-chip.done { opacity: 0.5; text-decoration: line-through; }
+#d-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
+#d-actions #d-zoom { margin-right: auto; }
 #modal { background: #1c1c1e; border: 1px solid #3a3a40; border-radius: 12px; width: min(460px, calc(100vw - 32px)); padding: 20px; display: flex; flex-direction: column; gap: 10px; }
 #modal h2 { font-size: 15px; font-weight: 700; }
 .m-note { font-size: 12px; color: #7fd6ca; }

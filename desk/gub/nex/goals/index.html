@@ -46,6 +46,25 @@
       </div>
     </div>
   </div>
+
+  <div id="detail-back">
+    <div id="detail">
+      <div id="d-crumbs" class="m-note"></div>
+      <textarea id="d-summary" rows="3"></textarea>
+      <div id="d-toggles">
+        <label class="d-flag"><input type="checkbox" id="d-actionable"> actionable</label>
+        <label class="d-flag"><input type="checkbox" id="d-started"> started</label>
+        <label class="d-flag"><input type="checkbox" id="d-done"> done</label>
+      </div>
+      <div id="d-deps"></div>
+      <div id="d-actions">
+        <button id="d-zoom" class="hdr-btn">zoom in</button>
+        <button id="d-add" class="hdr-btn">+ subgoal</button>
+        <button id="d-close" class="hdr-btn">close</button>
+        <button id="d-save" class="hdr-btn primary">save</button>
+      </div>
+    </div>
+  </div>
   <script src="/grubbery/goals/app.js"></script>
 </body>
 </html>
