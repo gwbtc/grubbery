@@ -15,12 +15,12 @@
   |=  name=@ta
   ^-  road:tarball
   =/  fname=@ta  (crip "{(trip name)}.goal-store")
-  [%& %& /'goals.goals'/store fname]
+  [%& %& /apps/'goals.goals'/store fname]
 ::  road to the store directory
 ::
 ++  store-dir-road
   ^-  road:tarball
-  [%& %| /'goals.goals'/store]
+  [%& %| /apps/'goals.goals'/store]
 ::  peek a store, return the goal-store
 ::
 ++  peek-store

@@ -167,16 +167,35 @@
 ::
 /<  goals       /lib/goals.hoon
 /&  man  ../man/goals/readme.md
+/&  goals-html  goals/index.html
+/&  goals-js    goals/app.js
+/&  goals-css   goals/style.css
+/&  icon        goals/icon.svg
 =<  ^-  nexus:nexus
     |%
     ++  on-load
       |=  =ball:tarball
       ^-  bole:tarball
+      =/  tile=json
+        %-  pairs:enjs:format
+        :~  title+s+'Goals'
+            info+s+'Structured intent'
+            color+s+'#1f8a7d'
+            image+s+'/grubbery/tiles/icon/goals.goals'
+            href+s+'/grubbery/goals'
+        ==
       %+  spin:loader  ball
       :~  (manifest:loader 0)
           [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
           [%fall %& [/ %'page.html'] [[/ %html] (crip (en-xml:html (goals-page ~ ~)))]]
           [%fall %| /store empty-dir:loader]
+          [%over %& [/ %'tile.json'] [[/ %json] tile]]
+          [%over %& [/ %'icon.svg'] [[/ %mime] icon]]
+          [%fall %& [/ui %'http.sig'] [[/ %sig] ~]]
+          [%fall %| /ui/requests empty-dir:loader]
+          [%over %& [/ui %'index.html'] [[/ %mime] goals-html]]
+          [%over %& [/ui %'app.js'] [[/ %mime] goals-js]]
+          [%over %& [/ui %'style.css'] [[/ %mime] goals-css]]
           [%over %& [/man %'readme.md'] [[/ %mime] man]]
       ==
     ::
@@ -187,6 +206,37 @@
       =/  m  (fiber:fiber:nexus ,~)
       ^-  process:fiber:nexus
       ?+    rail  stay:m
+          ::
+          [[%ui ~] %'http.sig']
+        ;<  ~  bind:m  (rise-wait:io prod "%goals http: failed")
+        ;<  ~  bind:m  (bind-http:io [~ /grubbery/goals])
+        (http-dispatch:io %goals)
+          ::
+          [[%ui %requests ~] @]
+        ;<  ~  bind:m  (rise-wait:io prod "%goals request: failed")
+        =/  eyre-id=@ta  name.rail
+        =/  s  (srv rail)
+        ;<  [src=@p req=inbound-request:eyre]  bind:m
+          (get-state-as:io ,[src=@p inbound-request:eyre])
+        ;<  our=@p  bind:m  get-our:io
+        ?.  =(src our)
+          ;<  ~  bind:m  (send-simple:s eyre-id [[403 ~] `(as-octs:mimes:html 'Forbidden')])
+          (pure:m ~)
+        =/  [site=path args=quay:eyre]  (parse-url:http-utils url.request.req)
+        =/  suffix=path
+          %+  skip  (slag (lent `path`/grubbery/goals) site)
+          |=(seg=@ta =('' seg))
+        =/  filename=@ta
+          ?~  suffix  'index.html'
+          i.suffix
+        ;<  file-view=view:nexus  bind:m
+          (peek:io (nex-road:io rail [%& ~[%ui] filename]) `[/ %mime])
+        ?.  ?=([%file *] file-view)
+          ;<  ~  bind:m  (send-simple:s eyre-id [[404 ~] `(as-octs:mimes:html 'Not found')])
+          (pure:m ~)
+        =/  =mime  !<(mime (need-vase:tarball sang.file-view))
+        ;<  ~  bind:m  (send-simple:s eyre-id (mime-response:http-utils mime))
+        (pure:m ~)
           ::  /main.sig: create/delete stores, route JSON action pokes
           ::
           [~ %'main.sig']
@@ -252,9 +302,17 @@
                   %'delete'
                 [%delete (~(dog jo:json-utils jon) /id so:dejs:format)]
                   %'done'
-                [%done (~(dog jo:json-utils jon) /id so:dejs:format) %end]
+                :+  %done
+                  (~(dog jo:json-utils jon) /id so:dejs:format)
+                ?:  =('start' (~(dug jo:json-utils jon) /point so:dejs:format 'end'))
+                  %start
+                %end
                   %'undone'
-                [%undone (~(dog jo:json-utils jon) /id so:dejs:format) %end]
+                :+  %undone
+                  (~(dog jo:json-utils jon) /id so:dejs:format)
+                ?:  =('start' (~(dug jo:json-utils jon) /point so:dejs:format 'end'))
+                  %start
+                %end
                   %'set-actionable'
                 :+  %set-actionable
                   (~(dog jo:json-utils jon) /id so:dejs:format)
@@ -324,6 +382,9 @@
       ==
     --
 |%
+++  srv
+  |=  =rail:tarball
+  ~(. http-res:io (nex-road:io rail [%& ~[%ui] %'http.sig']))
 ::  store-fname: build filename from store name (e.g. 'test' -> 'test.goal-store')
 ::
 ++  store-fname
