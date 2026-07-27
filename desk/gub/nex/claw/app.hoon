@@ -150,15 +150,15 @@
         ;<  out=output:asst  bind:m  (p.gate args u.when)
         ~&  >  "%assistant {(trip who)}: run done, output {?~(out "empty" "present")}"
         ;<  ~  bind:m  (save-output u.when out)
+        ;<  here=rail:tarball  bind:m  get-here-abs:io
         ;<  ~  bind:m
           ?~  out  (pure:(fiber:fiber:nexus ,~) ~)
           %+  notify:io  %.y
           %-  pairs:enjs:format
           :~  ['title' s+title.u.out]
               ['body' s+body.u.out]
-              ::  who is '/<name>.assistant' but the detail page
-              ::  address drops the extension
-              ['url' s+(cat 3 '/grubbery/claw/assistants' (end [3 (sub (met 3 who) 10)] who))]
+              ::  link straight to this run's saved output grub
+              ['url' s+(crip "/grubbery/ball{(spud path.here)}/outputs/{(scow %da u.when)}.md")]
           ==
         ~&  >  "%assistant {(trip who)}: notified"
         $

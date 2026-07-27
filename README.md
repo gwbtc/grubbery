@@ -22,6 +22,15 @@ A tree-shaped manager for stateful long-running processes on Urbit.
 
 **Intake** — an event received by a fiber. Intakes are responses to darts (peek results, poke acks), external inputs (incoming pokes, subscription updates), or lifecycle events (process start, restart after failure).
 
+## Design note: ject identity
+
+Jects hash the file-as-experienced — noun, mark (compile key included), and
+health — not bare content. A mark recompile changes what a file means, so it
+changes the file's identity; reload detection, validation caching, the snap
+protocol, and subscriptions all depend on this. Content-only identity (dedup,
+signatures, version control) is a separate layer on top of the namespace, not
+a change to jects.
+
 ## Nexus development notes (hard-won)
 
 - **`/<` import paths resolve relative to the importing FILE's directory.**

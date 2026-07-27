@@ -2,7 +2,7 @@
 ::  shaped by ./context.md in the instance dir. Falls back to a plain
 ::  listing if the LLM call fails.
 ::
-::  args: { "calendar": "/apps/calendar.calendar",   (default shown)
+::  args: { "calendar": "/apps/calendar.calendar/calendar.calendar",
 ::          "model": "claude-sonnet-4-6",
 ::          "zone": "America/New_York" }              (display zone hint)
 ::
@@ -40,7 +40,7 @@
   |=  args=json
   ^-  path
   =/  s=@t  (arg-or args 'calendar' '')
-  ?:  =('' s)  /apps/[%'calendar.calendar']
+  ?:  =('' s)  /apps/[%'calendar.calendar']/[%'calendar.calendar']
   (stab s)
 ::  +read-cache: the calendar's inflated order index
 ::
@@ -79,8 +79,18 @@
     =/  ev=(unit event:cal)  (~(get by events.c) eid.r)
     ?~  ev  ~
     =/  nm=tape  (trip (meta-str:cal (get-meta u.ev) 'name'))
-    ?:  (all-day:cal u.ev)  `"all day  {nm}"
-    `"{(fmt-hm l.span.r)}-{(fmt-hm r.span.r)} UTC  {nm}"
+    ?.  (all-day:cal u.ev)
+      `"{(fmt-hm l.span.r)}-{(fmt-hm r.span.r)} UTC  {nm}"
+    ::  all-day: say where today falls in a multi-day span (spans
+    ::  are [l r) with r exclusive — the last day is r - 1d)
+    =/  days=@ud  (div (sub r.span.r l.span.r) ~d1)
+    ?:  (lte days 1)  `"all day  {nm}"
+    =/  last=tape  (fmt-ymd (sub r.span.r ~d1))
+    ?:  (gte l.span.r from)
+      `"begins today, through {last}  {nm}"
+    ?:  (lte r.span.r to)
+      `"last day  {nm}"
+    `"ongoing (since {(fmt-ymd l.span.r)}, through {last})  {nm}"
   ?~  lines  "(nothing scheduled)"
   %+  roll  `(list tape)`lines
   |=  [l=tape acc=tape]
@@ -91,6 +101,13 @@
   |=  e=event:cal
   ^-  meta:cal
   ?-(-.e %timed meta.e, %allday meta.e, %date meta.e)
+::  +fmt-ymd: "y.m.d" from a utc instant
+::
+++  fmt-ymd
+  |=  d=@da
+  ^-  tape
+  =/  t  (yore d)
+  "{(scow %ud y.t)}.{(scow %ud m.t)}.{(scow %ud d.t.t)}"
 ::  +fmt-hm: "HH:MM" from a utc instant
 ::
 ++  fmt-hm

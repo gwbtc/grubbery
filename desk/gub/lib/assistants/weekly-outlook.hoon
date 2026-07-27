@@ -2,7 +2,7 @@
 ::  ./context.md. Falls back to a plain day-by-day listing if the LLM
 ::  call fails. Meant for a sunday-evening schedule.
 ::
-::  args: { "calendar": "/apps/calendar.calendar",   (default shown)
+::  args: { "calendar": "/apps/calendar.calendar/calendar.calendar",
 ::          "model": "claude-sonnet-4-6",
 ::          "zone": "America/New_York" }
 ::
@@ -41,7 +41,7 @@
   |=  args=json
   ^-  path
   =/  s=@t  (arg-or args 'calendar' '')
-  ?:  =('' s)  /apps/[%'calendar.calendar']
+  ?:  =('' s)  /apps/[%'calendar.calendar']/[%'calendar.calendar']
   (stab s)
 ::  +read-cache: the calendar's inflated order index
 ::
@@ -80,8 +80,17 @@
     ?~  ev  ~
     =/  nm=tape   (trip (meta-str:cal (get-meta u.ev) 'name'))
     =/  day=tape  (wd-name l.span.r)
-    ?:  (all-day:cal u.ev)  `"{day} all day  {nm}"
-    `"{day} {(fmt-hm l.span.r)} UTC  {nm}"
+    ?.  (all-day:cal u.ev)
+      `"{day} {(fmt-hm l.span.r)} UTC  {nm}"
+    ::  all-day: mark multi-day spans (r exclusive; last day r - 1d)
+    =/  days=@ud  (div (sub r.span.r l.span.r) ~d1)
+    ?:  (lte days 1)  `"{day} all day  {nm}"
+    =/  last=tape  (wd-name (sub r.span.r ~d1))
+    ?:  (gte l.span.r from)
+      `"{day} through {last} ({(scow %ud days)}d)  {nm}"
+    ?:  (lte r.span.r to)
+      `"ends {last}  {nm}"
+    `"all week (ongoing)  {nm}"
   ?~  lines  "(empty week)"
   %+  roll  `(list tape)`lines
   |=  [l=tape acc=tape]

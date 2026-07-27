@@ -391,6 +391,14 @@
 ::  jobes; leaf content and bangs are always nobes. Use the alias
 ::  in every signature so kind confusion is visible at the type.
 ::
+::  Jects hash the file-as-experienced: noun, mark (compile key
+::  included), health. A mark recompile changes what a file means,
+::  so it changes the file's identity; reload detection, vale, snap,
+::  and subscribers depend on exactly this. Deliberate — don't
+::  "purify" these to content-only hashes. Anything wanting pure
+::  data identity (dedup, signatures, version control) builds it as
+::  a separate projection on top.
+::
 +$  jobe  lobe:clay                ::  hash naming a ject (jects.silo)
 +$  nobe  lobe:clay                ::  hash naming a noun (nouns.silo)
 +$  leaf
