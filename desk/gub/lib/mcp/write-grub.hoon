@@ -75,7 +75,15 @@
   ;<  exists=?  bind:m  (peek-exists:io road)
   ?:  exists
     ?^  dest-blot
-      (pure:m [%error 'Cannot change blot of existing file. Delete it first, then recreate with the desired blot.'])
+      ::  a same-blot overwrite is just an overwrite — only refuse when the
+      ::  requested blot actually differs from the file's current one.
+      ;<  cur=view:nexus  bind:m  (peek:io road ~)
+      ?.  ?&  ?=([%file *] cur)
+              =(u.dest-blot p.sang.cur)
+          ==
+        (pure:m [%error 'Blot differs from the existing file. Delete it first, then recreate with the desired blot (same-blot overwrites are fine).'])
+      ;<  ~  bind:m  (over:io road [[/ %mime] src-mime])
+      (pure:m [%text (crip "Wrote {(trip file-path)}/{(trip file-name)}")])
     ::  Existing file: %over converts mime to file's blot via warm tube
     ;<  ~  bind:m  (over:io road [[/ %mime] src-mime])
     (pure:m [%text (crip "Wrote {(trip file-path)}/{(trip file-name)}")])
