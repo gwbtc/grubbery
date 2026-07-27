@@ -57,7 +57,7 @@ body { font-family: -apple-system, system-ui, sans-serif; background: #111; colo
 .kb-text:hover { color: #9adcd2; }
 .kb-acts { display: flex; gap: 4px; visibility: hidden; }
 .kb-card:hover .kb-acts { visibility: visible; }
-.kb-btn { width: auto; padding: 2px 8px; font-size: 11px; height: 22px; }
+.mini.kb-btn { width: auto; padding: 2px 8px; font-size: 11px; height: 22px; white-space: nowrap; }
 @media (max-width: 700px) { .kanban { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .caret { width: 20px; height: 20px; flex-shrink: 0; border: none; background: none; color: #6f6f78; cursor: pointer; font-size: 11px; padding: 0; transition: transform 0.12s; margin-top: 1px; }
 .caret.open { transform: rotate(90deg); }
