@@ -306,7 +306,7 @@
   .bn-del:hover \{ background: #fbe9e9; color: #c0392b; }
   .hdr-btn \{ font-size: 13px; padding: 8px 16px; border-radius: 8px; border: 1px solid #ddd; background: white; color: #555; cursor: pointer; font-family: inherit; }
   .hdr-btn:hover \{ background: #f5f5f5; }
-  #tiles \{ display: flex; flex-wrap: wrap; gap: 20px; justify-content: flex-start; }
+  #tiles \{ display: grid; grid-template-columns: repeat(auto-fit, 256px); gap: 20px; justify-content: center; }
   .tile \{ position: relative; width: 256px; height: 256px; border-radius: 16px; overflow: hidden; flex-shrink: 0; }
   .tile.has-img:not(.loaded) \{ display: none; }
   #loading-tile \{ display: none; width: 256px; height: 256px; border-radius: 16px; background: #f5f5f5; align-items: center; justify-content: center; flex-shrink: 0; }
@@ -327,7 +327,7 @@
   .tile-edit:hover \{ background: rgba(0,0,0,0.65); }
   .tile-del:hover \{ background: rgba(0,0,0,0.65); }
   .tile-link \{ position: absolute; inset: 0; z-index: 3; }
-  .empty \{ color: #999; font-size: 14px; padding: 60px 0; text-align: center; width: 100%; }
+  .empty \{ color: #999; font-size: 14px; padding: 60px 0; text-align: center; width: 100%; grid-column: 1 / -1; }
   #edit-backdrop \{ display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.2); z-index: 100; backdrop-filter: blur(2px); }
   #edit-backdrop.open \{ display: flex; align-items: center; justify-content: center; }
   #edit-modal \{ background: white; border: 1px solid #e0e0e0; border-radius: 12px; width: 90%; max-width: 420px; padding: 24px; box-shadow: 0 8px 32px rgba(0,0,0,0.12); }
@@ -337,8 +337,9 @@
   #edit-json \{ width: 100%; font-family: 'SF Mono', Monaco, monospace; font-size: 12px; border: 1px solid #e0e0e0; border-radius: 8px; padding: 12px; resize: vertical; background: #fafafa; color: #333; outline: none; }
   #edit-json:focus \{ border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,0.1); }
   #edit-status \{ margin-top: 10px; font-size: 12px; color: #16a34a; }
-  @media (max-width: 500px) \{
-    .tile, #loading-tile \{ width: calc(50% - 10px); height: auto; aspect-ratio: 1; min-width: 140px; }
+  @media (max-width: 600px) \{
+    #tiles \{ grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+    .tile, #loading-tile \{ width: 100%; height: auto; aspect-ratio: 1; min-width: 0; }
     #app \{ padding: 20px 16px; }
   }
   """
