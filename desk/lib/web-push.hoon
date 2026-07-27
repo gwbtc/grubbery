@@ -42,6 +42,9 @@
       ['Content-Encoding' 'aes128gcm']
       ['Content-Type' 'application/octet-stream']
       ['TTL' '86400']
+      ::  default urgency lets push services delay delivery to
+      ::  power-saving clients — high means deliver-and-wake now
+      ['Urgency' 'high']
   ==
 ++  generate-vapid-keypair
   |=  [eny=@ sub=@t]

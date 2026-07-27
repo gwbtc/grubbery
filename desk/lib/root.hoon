@@ -51,6 +51,7 @@
         [%fall %| /apps/'mcp.mcp' [`[`[/ %mcp] ~ %.n ~] ~]]
         [%fall %| /apps/'peers.peers' [`[`[/ %peers] app-weir %.n ~] ~]]
         [%fall %| /apps/'calendar.calendar' [`[`[/ %calendar] app-weir %.n ~] ~]]
+        [%fall %| /apps/'notifications.notifications' [`[`[/ %notifications] app-weir %.n ~] ~]]
         ::
         [%fall %| /apps/'wallet.git_desk' [`[`[/git %desk] app-weir %.n ~] ~]]
         [%fall %& [/apps/'wallet.git_desk' %'config.json'] [[/ %json] (git-desk-config 'niblyx-malnus/wallet-nexus' 'main')]]

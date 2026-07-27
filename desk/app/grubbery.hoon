@@ -5423,6 +5423,18 @@
   =/  st=push-state:nexus  get-push-state
   =/  push-wire=path  [%push %send segs]
   =.  inflight.st  (~(del by inflight.st) push-wire)
+  ::  self-reporting: record the outcome where tools can read it
+  =.  this
+    %+  save-file  [/sys/push %'last-response.json']
+    :-  [/ %json]
+    ^-  json
+    %-  pairs:enjs:format
+    :~  ['at_ms' (numb:enjs:format (unm:chrono:userlib now.bowl))]
+        :-  'outcome'
+        ?.  ?=(%finished -.client-response)
+          s+(crip "failed: {(trip -.client-response)}")
+        (numb:enjs:format status-code.response-header.client-response)
+    ==
   ::  If push service returns 404/410, subscription is stale — remove it
   ?:  ?=(%finished -.client-response)
     =/  code=@ud  status-code.response-header.client-response
@@ -5459,9 +5471,12 @@
         var options = {
           body: data.body || '',
           icon: data.icon || '/grubbery/ball/favicon.svg',
-          tag: data.tag || 'default',
           data: { url: data.url || '/grubbery/tiles' }
         };
+        // a tag makes same-tag notifications silently REPLACE each
+        // other with no new banner -- only tag if explicitly sent,
+        // and renotify so replacements still alert
+        if (data.tag) { options.tag = data.tag; options.renotify = true; }
         event.waitUntil(self.registration.showNotification(title, options));
       });
 

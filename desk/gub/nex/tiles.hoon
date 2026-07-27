@@ -225,7 +225,23 @@
     ;body
       ;div#app
         ;div#header
+          ;a#bell(href "#", onclick "openBell(event)", title "Notifications")
+            ;+  ;/  "🔔"
+            ;span#bell-count(style "display:none");
+          ==
           ;button#add-btn.hdr-btn(onclick "addTile()"): + new
+        ==
+        ;div#bell-backdrop(onclick "closeBell(event)")
+          ;div#bell-panel
+            ;div#bell-head
+              ;span: Notifications
+              ;div
+                ;button#bell-ack-all.hdr-btn(onclick "bellAckAll()"): Mark all as read
+                ;button.hdr-btn(onclick "closeBellNow()"): close
+              ==
+            ==
+            ;div#bell-notes;
+          ==
         ==
         ;div#edit-backdrop
           ;div#edit-modal
@@ -258,7 +274,32 @@
   * \{ margin: 0; padding: 0; box-sizing: border-box; }
   body \{ font-family: Inter, sans-serif; background: white; min-height: 100vh; }
   #app \{ width: 100%; max-width: 800px; margin: 0 auto; padding: 40px 24px; }
-  #header \{ display: flex; justify-content: flex-end; margin-bottom: 32px; }
+  #header \{ display: flex; justify-content: flex-end; align-items: center; gap: 10px; margin-bottom: 32px; }
+  #bell \{ position: relative; font-size: 17px; text-decoration: none; padding: 6px 10px; border-radius: 8px; border: 1px solid #ddd; line-height: 1; filter: grayscale(1); opacity: 0.75; }
+  #bell:hover \{ background: #f5f5f5; filter: none; opacity: 1; }
+  #bell.live \{ filter: none; opacity: 1; }
+  #bell-count \{ position: absolute; top: -6px; right: -6px; background: #7a5ac0; color: white; font-size: 10px; font-weight: 700; min-width: 16px; height: 16px; border-radius: 8px; display: flex; align-items: center; justify-content: center; padding: 0 4px; }
+  #bell-backdrop \{ display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.25); z-index: 100; align-items: center; justify-content: center; }
+  #bell-backdrop.open \{ display: flex; }
+  #bell-panel \{ width: min(460px, calc(100vw - 32px)); max-height: 80vh; background: white; border: 1px solid #bbb; border-radius: 14px; box-shadow: 0 16px 48px rgba(0,0,0,0.28); display: flex; flex-direction: column; overflow: hidden; }
+  #bell-head \{ display: flex; justify-content: space-between; align-items: center; padding: 14px 16px; border-bottom: 1px solid #ddd; }
+  #bell-head > span \{ font-size: 15px; font-weight: 700; color: #111; }
+  #bell-head > div \{ display: flex; gap: 6px; }
+  #bell-notes \{ overflow-y: auto; padding: 8px; }
+  .bn \{ display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; padding: 12px 12px; border-radius: 10px; border-left: 3px solid transparent; }
+  .bn:not(.acked) \{ border-left-color: #7a5ac0; background: #faf8fe; }
+  .bn:hover \{ background: #f2f2f2; }
+  .bn:not(.acked):hover \{ background: #f2edfb; }
+  .bn.acked \{ opacity: 0.6; }
+  .bn-app \{ font-size: 11px; font-weight: 700; color: #6947b8; background: #ede7fa; border-radius: 6px; padding: 2px 8px; font-family: monospace; }
+  .bn-time \{ font-size: 11px; color: #888; }
+  .bn-title \{ font-size: 14px; font-weight: 700; color: #111; margin-top: 4px; }
+  .bn-body \{ font-size: 13px; color: #333; margin-top: 2px; white-space: pre-wrap; line-height: 1.45; }
+  .bn-empty \{ padding: 24px; text-align: center; color: #888; font-size: 13px; }
+  .bn-acts \{ display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+  .bn-del \{ visibility: hidden; font-size: 11px; width: 24px; height: 24px; border-radius: 6px; border: none; background: none; color: #bbb; cursor: pointer; font-family: inherit; }
+  .bn:hover .bn-del \{ visibility: visible; }
+  .bn-del:hover \{ background: #fbe9e9; color: #c0392b; }
   .hdr-btn \{ font-size: 13px; padding: 8px 16px; border-radius: 8px; border: 1px solid #ddd; background: white; color: #555; cursor: pointer; font-family: inherit; }
   .hdr-btn:hover \{ background: #f5f5f5; }
   #tiles \{ display: flex; flex-wrap: wrap; gap: 20px; justify-content: center; }
@@ -304,6 +345,130 @@
   %+  weld
     "var API='/grubbery/api';var BALL='{ball-id}';\0a"
   """
+  // inbox bell: landscape-style notifications panel over the tiles
+  var NBALL = 'apps/notifications.notifications';
+  var bellNotes = [];
+
+  function bellFetch() \{
+    return fetch('/grubbery/ball/' + NBALL + '/inbox.inbox?blot=/json')
+      .then(function(r) \{ return r.json(); })
+      .then(function(ns) \{ bellNotes = ns || []; bellBadge(); })
+      .catch(function() \{});
+  }
+
+  function bellBadge() \{
+    var n = bellNotes.filter(function(x) \{ return x.mack == null; }).length;
+    var c = document.getElementById('bell-count');
+    c.textContent = n > 99 ? '99+' : n;
+    c.style.display = n ? 'flex' : 'none';
+    document.getElementById('bell').classList.toggle('live', n > 0);
+  }
+
+  function bellAgo(ms) \{
+    var s = Math.floor((Date.now() - ms) / 1000);
+    if (s < 60) return 'now';
+    if (s < 3600) return Math.floor(s / 60) + 'm';
+    if (s < 86400) return Math.floor(s / 3600) + 'h';
+    return Math.floor(s / 86400) + 'd';
+  }
+
+  function bellRender() \{
+    var el = document.getElementById('bell-notes');
+    el.innerHTML = '';
+    var anyUnacked = bellNotes.some(function(n) \{ return n.mack == null; });
+    document.getElementById('bell-ack-all').style.display = anyUnacked ? '' : 'none';
+    if (!bellNotes.length) \{
+      el.innerHTML = '<div class="bn-empty">nothing here — a quiet ship</div>';
+      return;
+    }
+    bellNotes.slice().sort(function(a, b) \{ return b.created_ms - a.created_ms; })
+      .forEach(function(n) \{
+        var md = n.metadata || \{};
+        var acked = n.mack != null;
+        var d = document.createElement('div');
+        d.className = 'bn' + (acked ? ' acked' : '');
+        d.innerHTML =
+          '<div style="min-width:0;flex:1">' +
+            '<span class="bn-app">' + esc(n.app) + '</span> ' +
+            '<span class="bn-time">' + bellAgo(n.created_ms) + '</span>' +
+            '<div class="bn-title">' + esc(md.title || '(untitled)') + '</div>' +
+            (md.body ? '<div class="bn-body">' + esc(md.body) + '</div>' : '') +
+          '</div>';
+        var acts = document.createElement('div');
+        acts.className = 'bn-acts';
+        if (!acked) \{
+          var b = document.createElement('button');
+          b.className = 'hdr-btn';
+          b.textContent = 'Mark as read';
+          b.onclick = function(e) \{ e.stopPropagation(); bellAck(n.id); };
+          acts.appendChild(b);
+        }
+        var t = document.createElement('button');
+        t.className = 'bn-del';
+        t.textContent = '✕';
+        t.title = 'Delete';
+        t.onclick = function(e) \{ e.stopPropagation(); bellClear(n.id); };
+        acts.appendChild(t);
+        d.appendChild(acts);
+        if (md.url || !acked) \{
+          d.style.cursor = 'pointer';
+          d.onclick = function() \{
+            if (!acked) bellAck(n.id);
+            if (md.url) window.open(md.url, '_blank');
+          };
+        }
+        el.appendChild(d);
+      });
+  }
+
+  function bellPoke(body, cb) \{
+    fetch(API + '/poke/' + NBALL + '/main.sig?blot=/json', \{
+      method: 'POST',
+      headers: \{ 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    }).then(function() \{ if (cb) cb(); });
+  }
+
+  function openBell(e) \{
+    e.preventDefault();
+    document.getElementById('bell-backdrop').classList.add('open');
+    bellRender();
+    bellFetch().then(bellRender);
+  }
+  function closeBell(e) \{
+    if (e.target === document.getElementById('bell-backdrop')) closeBellNow();
+  }
+  function closeBellNow() \{
+    document.getElementById('bell-backdrop').classList.remove('open');
+  }
+  function bellClear(id) \{
+    bellPoke(\{ action: 'clear', id: id }, function() \{
+      setTimeout(function() \{ bellFetch().then(bellRender); }, 350);
+    });
+  }
+
+  function bellAck(id) \{
+    bellPoke(\{ action: 'ack', id: id }, function() \{
+      setTimeout(function() \{ bellFetch().then(bellRender); }, 350);
+    });
+  }
+  function bellAckAll() \{
+    var un = bellNotes.filter(function(n) \{ return n.mack == null; });
+    var left = un.length;
+    if (!left) return;
+    un.forEach(function(n) \{
+      bellPoke(\{ action: 'ack', id: n.id }, function() \{
+        if (--left <= 0) setTimeout(function() \{ bellFetch().then(bellRender); }, 350);
+      });
+    });
+  }
+  function esc(s) \{
+    var d = document.createElement('div');
+    d.textContent = s == null ? '' : String(s);
+    return d.innerHTML;
+  }
+  bellFetch();
+
   var tilesDiv = document.getElementById('tiles');
   var editBack = document.getElementById('edit-backdrop');
   var editTitle = document.getElementById('edit-title');

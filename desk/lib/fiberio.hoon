@@ -1323,6 +1323,35 @@
 ::
 ++  push-road  `road:tarball`[%& %& /sys/push %'main.push-state']
 ::
+::  Notification service helpers — the human-addressed message bus
+::  at /apps/notifications.notifications. Register once (a registrant
+::  covers its directory subtree), then notify; payload jobj is
+::  opaque (title/body/url are conventions). The service owns
+::  delivery (push) and ack tracking.
+::
+++  notify-road
+  `road:tarball`[%& %& /apps/[%'notifications.notifications'] %'main.sig']
+::
+++  register-app
+  |=  name=@t
+  =/  m  (fiber ,~)
+  ^-  form:m
+  %+  poke  notify-road
+  :-  [/ %json]
+  (pairs:enjs:format ~[['action' s+'register'] ['name' s+name]])
+::
+++  notify
+  |=  [push=? metadata=json]
+  =/  m  (fiber ,~)
+  ^-  form:m
+  %+  poke  notify-road
+  :-  [/ %json]
+  %-  pairs:enjs:format
+  :~  ['action' s+'notify']
+      ['push' s+?:(push 'true' 'false')]
+      ['metadata' metadata]
+  ==
+::
 ++  send-push
   |=  =push-send:push
   =/  m  (fiber ,~)

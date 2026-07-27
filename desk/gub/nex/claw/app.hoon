@@ -121,6 +121,9 @@
         |-
         ;<  jon=json  bind:m  (get-state-as:io ,json)
         ?.  (enabled jon)  stay:m
+        ::  self-healing registration: cheap, idempotent, and immune
+        ::  to rise-ordering races between claw and the service
+        ;<  ~  bind:m  (register-app:io 'claw')
         =/  code=@t  (gs jon 'code')
         ?:  =('' code)
           ~&  >>>  "%assistant {(trip who)}: no code named"
@@ -147,18 +150,24 @@
         ;<  out=output:asst  bind:m  (p.gate args u.when)
         ~&  >  "%assistant {(trip who)}: run done, output {?~(out "empty" "present")}"
         ;<  ~  bind:m  (save-output u.when out)
-        ::  no tag: every fire is its own notification — tagged
-        ::  pushes replace silently, which reads as a lost send
         ;<  ~  bind:m
           ?~  out  (pure:(fiber:fiber:nexus ,~) ~)
-          %-  send-push:io
-          :^  ~  ~  ~
-          [title.u.out body.u.out ~ ~ ~]
-        ~&  >  "%assistant {(trip who)}: push sent"
+          %+  notify:io  %.y
+          %-  pairs:enjs:format
+          :~  ['title' s+title.u.out]
+              ['body' s+body.u.out]
+              ::  who is '/<name>.assistant' but the detail page
+              ::  address drops the extension
+              ['url' s+(cat 3 '/grubbery/claw/assistants' (end [3 (sub (met 3 who) 10)] who))]
+          ==
+        ~&  >  "%assistant {(trip who)}: notified"
         $
           ::
           [~ %'main.sig']
         ;<  ~  bind:m  (rise-wait:io prod "%claw/app main: failed")
+        ::  claim the 'claw' app name; covers the whole subtree,
+        ::  so every assistant's notifications attribute to it
+        ;<  ~  bind:m  (register-app:io 'claw')
         |-
         ;<  [=from:fiber:nexus =sage:tarball]  bind:m  take-poke-from:io
         =/  jon=json  (fall (mole |.(!<(json q.sage))) *json)
