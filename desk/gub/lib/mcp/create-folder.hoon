@@ -11,7 +11,7 @@
   %-  ~(gas by *(map @t parameter-def:tools))
   :~  ['path' [%string 'Parent directory path (e.g. "/")']]
       ['name' [%string 'Folder name']]
-      ['nexus' [%string 'Nexus type (e.g. "logbook.logbook", "claw.app"). Omit for a plain folder.']]
+      ['nexus' [%string 'Nexus path, parsed as a path with a leading slash (e.g. "/logbook", "/lattice/app"). Omit for a plain folder. NOTE: this is what installs an app - the folder NAME alone never does, even a name like foo.foo_app.']]
   ==
 ++  required  ~['path' 'name']
 ++  handler
