@@ -431,7 +431,10 @@
       [files (~(put by errors) rail ~[leaf+"unresolved import in {(spud (snoc path.rail name.rail))}"])]
     =/  has-file
       |=  =rail:tarball
-      |((~(has by sources) rail) (~(has by mimes) rail))
+      ::  reused rails are removed from sources but still present and
+      ::  seeded — without this check, any rebuilt file importing an
+      ::  unchanged hoon file dies with a phantom "missing import"
+      |((~(has by sources) rail) (~(has by mimes) rail) (~(has by reuse) rail))
     =/  missing=(list resolved-import)
       %+  skip  resolved
       |=  r=resolved-import
