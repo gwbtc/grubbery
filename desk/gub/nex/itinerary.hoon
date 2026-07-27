@@ -17,7 +17,9 @@
         :~  title+s+'Itinerary'
             info+s+'Travel maps & pins'
             color+s+'#27ae60'
-            image+s+'/grubbery/tiles/icon/itinerary'
+            ::  full folder name, not the slug — itinerary.git_desk
+            ::  also slugs to 'itinerary', wins the scan, and 404s
+            image+s+'/grubbery/tiles/icon/itinerary.itinerary'
             href+s+'/grubbery/itinerary'
         ==
       %+  spin:loader  ball

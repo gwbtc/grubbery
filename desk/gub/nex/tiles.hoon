@@ -277,8 +277,8 @@
   """
   * \{ margin: 0; padding: 0; box-sizing: border-box; }
   body \{ font-family: Inter, sans-serif; background: white; min-height: 100vh; }
-  #app \{ width: 100%; max-width: 800px; margin: 0 auto; padding: 40px 24px; }
-  #header \{ display: flex; justify-content: flex-end; align-items: center; gap: 10px; margin-bottom: 32px; }
+  #app \{ width: 100%; max-width: 1440px; margin: 0 auto; padding: 40px 24px; }
+  #header \{ display: flex; justify-content: center; align-items: center; gap: 10px; margin-bottom: 32px; }
   #bell \{ position: relative; font-size: 17px; text-decoration: none; padding: 6px 10px; border-radius: 8px; border: 1px solid #ddd; line-height: 1; filter: grayscale(1); opacity: 0.75; }
   #bell:hover \{ background: #f5f5f5; filter: none; opacity: 1; }
   #bell.live \{ filter: none; opacity: 1; }
@@ -306,7 +306,7 @@
   .bn-del:hover \{ background: #fbe9e9; color: #c0392b; }
   .hdr-btn \{ font-size: 13px; padding: 8px 16px; border-radius: 8px; border: 1px solid #ddd; background: white; color: #555; cursor: pointer; font-family: inherit; }
   .hdr-btn:hover \{ background: #f5f5f5; }
-  #tiles \{ display: flex; flex-wrap: wrap; gap: 20px; justify-content: center; }
+  #tiles \{ display: flex; flex-wrap: wrap; gap: 20px; justify-content: flex-start; }
   .tile \{ position: relative; width: 256px; height: 256px; border-radius: 16px; overflow: hidden; flex-shrink: 0; }
   .tile.has-img:not(.loaded) \{ display: none; }
   #loading-tile \{ display: none; width: 256px; height: 256px; border-radius: 16px; background: #f5f5f5; align-items: center; justify-content: center; flex-shrink: 0; }
