@@ -25,6 +25,15 @@
   ?:  ?=(%| -.parsed)
     (pure:m [%error 'Missing or invalid required arguments (path, name)'])
   =/  [file-path=@t file-name=@t]  p.parsed
-  ;<  ~  bind:m  (cull:io [%& %& (stab file-path) file-name])
+  ::  guard: culling a rail that names a FOLDER (or nothing) silently no-ops,
+  ::  so the old unconditional "Deleted" reply lied for both cases.
+  =/  frail=road:tarball  [%& %& (stab file-path) file-name]
+  ;<  exists=?  bind:m  (peek-exists:io frail)
+  ?.  exists
+    ;<  dv=view:nexus  bind:m  (peek:io [%& %| (snoc (stab file-path) `@ta`file-name)] ~)
+    ?:  ?=([%ball *] dv)
+      (pure:m [%error (crip "{(trip file-path)}/{(trip file-name)} is a folder - use delete_folder")])
+    (pure:m [%error (crip "No such grub: {(trip file-path)}/{(trip file-name)}")])
+  ;<  ~  bind:m  (cull:io frail)
   (pure:m [%text (crip "Deleted {(trip file-path)}/{(trip file-name)}")])
 --
