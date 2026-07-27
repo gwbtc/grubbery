@@ -21,3 +21,26 @@ A tree-shaped manager for stateful long-running processes on Urbit.
 **Dart** — an effect yielded by a fiber. Darts are the fiber's way of interacting with the world: making new grubs, poking files, peeking at state, subscribing to directories, sending gall cards, and so on.
 
 **Intake** — an event received by a fiber. Intakes are responses to darts (peek results, poke acks), external inputs (incoming pokes, subscription updates), or lifecycle events (process start, restart after failure).
+
+## Nexus development notes (hard-won)
+
+- **`/<` import paths resolve relative to the importing FILE's directory.**
+  A nexus at `nex/foo.hoon` imports a sibling as `foo/icon.svg`; a dir-layout
+  nexus at `nex/foo/app.hoon` imports the same file as just `icon.svg`.
+  Copying the flat-layout form into a dir-layout app yields an unresolved
+  import and a BANG.
+- **Big assets are grubs, not core constants.** Embedding a large blob (e.g. a
+  25KB JS bundle) as a cord arm bloats every request-fiber's core — observed
+  wedging ALL of an app's HTTP routes. Ship the asset as a real file, `/<`
+  mime-import it, lay it with an `%over` on-load row, and stream it from the
+  grub in the route.
+- **Apps can ship their own MCP tools.** The mcp nexus scans `/code/lib/mcp`
+  AND every `/apps/*/desk/code/lib/mcp` for `tool:nex-tools` cores — drop
+  `.hoon` tool files there and they serve from `/grubbery/mcp` with no
+  registration, surviving restarts and redeploys. (The lattice app's eleven
+  knowledge tools are a worked example.)
+- **Compiler trap: never weld tape literals against a raw `zing`/`turn`
+  product.** The literal's constant-typed char chain mulled against the
+  computed list type fuse-loops the compiler. Pre-bind every computed tape to
+  a `=/ x=tape` face (or route it through a `^- tape`-cast gate) before
+  welding. HTML-building code hits this constantly.
