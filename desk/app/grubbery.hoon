@@ -2070,7 +2070,7 @@
     $(pax (snip `path`pax))
   ?~  cod  this
   ~&  >>>  "delete: triggering build-code from {(spud dir)}"
-  =.  this  (build-code u.cod)
+  =.  this  (build-code u.cod `(sy `(list rail:tarball)`~[[dir name]]))
   this
 ::  Send ack/nack back to poke source
 ::  - Internal (%&): enqueue %pack intake to source path
@@ -4099,9 +4099,9 @@
       ==
     ::  skip if already registered and built
     ?:  (~(has by code) here)  this
-    ::  register and build
+    ::  register and build (new namespace: no prior graph, full sweep)
     ~&  >  "register-code-namespace: {(spud here)}"
-    =.  this  (build-code here)
+    =.  this  (build-code here ~)
     this
   ::  recurse into children
   =/  kids=(list [@ta bole:tarball])  ~(tap by dir.bol)
@@ -4173,22 +4173,121 @@
   =.  refs.lode  (~(put of refs.lode) ref-path node)
   =.  code.acc  (~(put by code.acc) /code lode)
   acc
+::  Sentinel rail in keys recording the subject hash a lode was
+::  built under. Not a real file (empty name can't exist in a ball);
+::  bins-to-cache skips it (no bins entry), refs never contain it.
+::
+++  sut-rail  `rail:tarball`[/ %$]
+::  +skip-set: rails safe to reuse for an incremental build.
+::
+::    Returns [skip skip-deps] for build-inc; empty means full sweep.
+::    Sweeps unless: the changed set is known, a prior graph exists,
+::    the subject sentinel matches (agent upgrade invalidates all
+::    keys), and no changed rail is new to the graph — creates can
+::    change import resolution of unchanged files, so they always
+::    sweep. This is load-bearing, not an optimization shortcut.
+::    Foundational mark rails are force-injected from gub into every
+::    fold's ball, so they can change without a write under the fold:
+::    always treat them as changed (they cache-hit when stable).
+::    Otherwise every keyed rail outside the reverse closure of the
+::    changed set is reused, carrying its prior key, result (from
+::    bins; missing means rebuild normally), and graph edges.
+::
+++  skip-set
+  |=  [cod=path =lode:nexus changed=(unit (set rail:tarball)) sut-hash=@uv]
+  ^-  $:  skip=(map rail:tarball [key=@uv res=build-result:build])
+          skip-deps=(map rail:tarball (set rail:tarball))
+      ==
+  =/  none
+    ^-  $:  skip=(map rail:tarball [key=@uv res=build-result:build])
+            skip-deps=(map rail:tarball (set rail:tarball))
+        ==
+    [~ ~]
+  ?~  changed  none
+  ?:  =(~ deps.lode)  none
+  ?.  =(`[sut-hash sut-hash] (~(get by keys.lode) sut-rail))
+    ~&  >  "skip-set: subject changed, full sweep"
+    none
+  ::  Relativize changed rails to the fold. A rail outside the fold
+  ::  or absent from the prior graph (a create) forces a sweep.
+  =/  rel=(unit (set rail:tarball))
+    =/  out  *(set rail:tarball)
+    =/  todo  ~(tap in u.changed)
+    |-
+    ?~  todo  `out
+    ?.  =(cod (scag (lent cod) path.i.todo))  ~
+    =/  rr=rail:tarball  [(slag (lent cod) path.i.todo) name.i.todo]
+    ?.  (~(has by deps.lode) rr)  ~
+    $(todo t.todo, out (~(put in out) rr))
+  ?~  rel
+    ~&  >  "skip-set: create or foreign rail in diff, full sweep"
+    none
+  ::  Foundational marks: changed by fiat, every build
+  =/  seed=(set rail:tarball)
+    %+  roll  `(list @ta)`~[%hoon %tang %mime %kelvin]
+    |=  [nam=@ta acc=_u.rel]
+    =/  r=rail:tarball  [/mar (cat 3 nam '.hoon')]
+    ?.((~(has by deps.lode) r) acc (~(put in acc) r))
+  =/  closure=(set rail:tarball)  (reverse-closure:build deps.lode seed)
+  %+  roll  ~(tap by keys.lode)
+  ::  ki/ko, not in/out: `in` would shadow the set door
+  |=  [[=rail:tarball ki=@uv ko=@uv] acc=_none]
+  ?:  =(sut-rail rail)  acc
+  ?:  (~(has in closure) rail)  acc
+  =/  entry=(unit [refs=@ud =built:nexus])  (~(get by bins) ko)
+  ?~  entry  acc
+  =/  res=(unit build-result:build)
+    ?-  -.built.u.entry
+      %vase  `[%& vase.built.u.entry]
+      %tang  `[%| tang.built.u.entry]
+      %mime  ~
+    ==
+  ?~  res  acc
+  :-  (~(put by skip.acc) rail [ki u.res])
+  (~(put by skip-deps.acc) rail (~(gut by deps.lode) rail ~))
+::  +ball-diff: rails that differ between two balls (either side
+::  missing, or blot/content changed).
+::
+++  ball-diff
+  |=  [a=ball:tarball b=ball:tarball]
+  ^-  (set rail:tarball)
+  =/  ma  (~(gas by *(map rail:tarball sang:tarball)) ~(tap ba:tarball a))
+  =/  mb  (~(gas by *(map rail:tarball sang:tarball)) ~(tap ba:tarball b))
+  %-  ~(gas in *(set rail:tarball))
+  %+  weld
+    %+  murn  ~(tap by ma)
+    |=  [r=rail:tarball s=sang:tarball]
+    ^-  (unit rail:tarball)
+    =/  t=(unit sang:tarball)  (~(get by mb) r)
+    ?~  t  `r
+    ?:  ?&(=(p.s p.u.t) =((sang-noun:tarball s) (sang-noun:tarball u.t)))  ~
+    `r
+  %+  murn  ~(tap by mb)
+  |=  [r=rail:tarball *]
+  ^-  (unit rail:tarball)
+  ?:((~(has by ma) r) ~ `r)
 ::  Compile a code nexus into its lode in the code map.
 ::
 ++  build-code
-  |=  cod=path
+  |=  [cod=path changed=(unit (set rail:tarball))]
   ^+  this
   ~&  >  "build-code: start {(spud cod)}"
   ::  1. Source: get ball, force foundational marks
   ::
   =/  src-ball  (peek-ball-now cod)
   =^  src-ball  this  (force-foundational-marks cod src-ball)
-  ::  2. Compile: reconstruct cache, run build-all
+  ::  2. Compile: reconstruct cache, run incremental build
+  ::
+  ::  changed is the set of ball-absolute rails known to have changed;
+  ::  ~ means unknown and forces a full sweep. skip-set turns it into
+  ::  the rails provably safe to reuse.
   ::
   =/  =lode:nexus   (fall (~(get by code) cod) *lode:nexus)
   =/  old-refs       refs.lode
   =/  old-cache      ~>(%bout.[1 %bins-to-cache] (bins-to-cache:build keys.lode bins))
-  =/  res            ~>(%bout.[1 %build-all] (build-all:build sut src-ball old-cache))
+  =/  sut-hash=@uv   ~>(%bout.[1 %build-sut-hash] (sham q:sut))
+  =/  skp            ~>(%bout.[1 %build-skip-set] (skip-set cod lode changed sut-hash))
+  =/  res            ~>(%bout.[1 %build-all] (build-inc:build sut sut-hash src-ball old-cache skp))
   ~&  >  "build-code: compiled {<~(wyt by results.res)>} results"
   ::  3. Index: compute output ckeys, build keys/refs/builds
   ::
@@ -4201,9 +4300,11 @@
   ::  5. GC vale cache: drop entries whose marc was removed
   ::
   =.  vale  (gc-vale-cache vale bins)
-  ::  6. Store lode
+  ::  6. Store lode — with the subject sentinel, so a later
+  ::  incremental build can prove the subject hasn't changed
+  ::  since these keys were computed (agent upgrades change sut)
   ::
-  =.  lode  [new-keys deps.res new-refs]
+  =.  lode  [(~(put by new-keys) sut-rail [sut-hash sut-hash]) deps.res new-refs]
   =.  code  (~(put by code) cod lode)
   ::  7. Validate marks: re-clam grubs through changed marks
   ::
@@ -4648,9 +4749,13 @@
   ~&  >  "sync-gub: load-ball-changes start"
   =.  this  (load-ball-changes /code (ball-to-bole:tarball new-src))
   ~&  >  "sync-gub: load-ball-changes done"
-  ::  Compile
+  ::  Compile — changed set is the ball diff, absolutized to /code
   ~&  >  "sync-gub: build-code start"
-  =.  this  (build-code /code)
+  =/  diff=(set rail:tarball)
+    %-  ~(run in (ball-diff old-src new-src))
+    |=(r=rail:tarball `rail:tarball`[(weld /code path.r) name.r])
+  ~&  >  "sync-gub: {<~(wyt in diff)>} changed rails"
+  =.  this  (build-code /code `diff)
   ~&  >  "sync-gub: build-code done"
   this
 ::  List all files mirrored under a /sys/clay/desks/[desk] path
@@ -5612,7 +5717,7 @@
     $(pax (snip `path`pax))
   =.  this
     ?~  cod  this
-    (build-code u.cod)
+    (build-code u.cod `(sy `(list rail:tarball)`~[here]))
   this
 ::
 ::  /sys/ namespace services

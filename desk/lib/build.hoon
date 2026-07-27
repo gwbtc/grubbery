@@ -39,6 +39,29 @@
       deps=(map rail:tarball (set rail:tarball))
       keys=(map rail:tarball @uv)
   ==
+::  +reverse-closure: seed plus everything transitively depending on it.
+::
+::    Walks the inverted deps graph from the seed set. Used to find
+::    which rails an incremental build must recompute: a changed rail
+::    invalidates its dependents, their dependents, and so on.
+::
+++  reverse-closure
+  |=  [deps=(map rail:tarball (set rail:tarball)) seed=(set rail:tarball)]
+  ^-  (set rail:tarball)
+  =/  rev=(map rail:tarball (set rail:tarball))
+    %+  roll  ~(tap by deps)
+    |=  [[=rail:tarball ds=(set rail:tarball)] acc=(map rail:tarball (set rail:tarball))]
+    %+  roll  ~(tap in ds)
+    |=  [d=rail:tarball a=_acc]
+    (~(put by a) d (~(put in (~(gut by a) d ~)) rail))
+  =/  frontier=(list rail:tarball)  ~(tap in seed)
+  =/  seen=(set rail:tarball)  seed
+  |-
+  ?~  frontier  seen
+  =/  fresh=(list rail:tarball)
+    %+  skim  ~(tap in (~(gut by rev) i.frontier ~))
+    |=(r=rail:tarball !(~(has in seen) r))
+  $(frontier (weld t.frontier fresh), seen (~(gas in seen) fresh))
 ::  +bins-to-cache: reconstruct input-keyed build-cache
 ::  Uses input key for cache lookup, output key for bins lookup.
 ::
@@ -356,8 +379,33 @@
   |=  [sut=vase =ball:tarball =build-cache]
   ^-  build-out
   =/  sut-hash=@uv  ~>(%bout.[1 %build-sut-hash] (sham q.sut))
-  ~&  >  "build-all: {<~(wyt by build-cache)>} cached, hashing subject done"
+  (build-inc sut sut-hash ball build-cache ~ ~)
+::  +build-inc: build-all, reusing prior results for unchanged rails.
+::
+::    reuse maps each reusable rail to its prior cache key and result
+::    ("reuse", not "skip" — the stdlib skip gate is used below);
+::    reuse-deps carries those rails' prior graph edges so the stored
+::    deps stay complete. Reused rails are never read, parsed, or
+::    hashed. The caller owns the correctness argument: a rail may be
+::    reused only if it and its transitive deps are unchanged
+::    (reverse closure of the changed set over the prior deps graph)
+::    and the subject is unchanged. Mimes must never be in reuse.
+::
+++  build-inc
+  |=  $:  sut=vase
+          sut-hash=@uv
+          =ball:tarball
+          =build-cache
+          reuse=(map rail:tarball [key=@uv res=build-result])
+          reuse-deps=(map rail:tarball (set rail:tarball))
+      ==
+  ^-  build-out
+  ~&  >  "build-all: {<~(wyt by build-cache)>} cached, {<~(wyt by reuse)>} reused"
   =/  sources=source-map  (find-hoon-sources ball)
+  =.  sources
+    %+  roll  ~(tap by reuse)
+    |=  [[=rail:tarball *] acc=_sources]
+    (~(del by acc) rail)
   ::  Collect mimes from ball — self-compiled artifacts
   ::
   =/  mimes=(map rail:tarball vase)
@@ -425,9 +473,22 @@
       %mime
     ?-  -.lane.r
       %&  ~[p.lane.r]
-      %|  ~
+        %|
+      ::  directory import: every mime under the fold is a real
+      ::  dependency — without these edges the importer's cache key
+      ::  never changes when dir contents do, and stale vases get
+      ::  reused (the compile-time gather at %mime %| reads the same
+      ::  set, so key inputs and compile inputs must match)
+      %+  murn  ~(tap by mimes)
+      |=  [=rail:tarball *]
+      ?.  =(p.lane.r (scag (lent p.lane.r) path.rail))  ~
+      `rail
     ==
     ==
+  ::  Merge prior edges for reused rails — deps is stored in lode,
+  ::  so it must stay complete or the next incremental run works
+  ::  from a corrupt graph
+  =.  deps  (~(uni by deps) reuse-deps)
   =/  sort-res  (topo-sort deps)
   ::  Phase 3: Compile in topological order
   ::
@@ -467,9 +528,18 @@
     ?:  ?=(%& -.build-result)
       (~(put by acc) rail (sham q.p.build-result))
     (~(put by acc) rail (sham p.build-result))
+  ::  Seed reused rails with their prior results and keys (after
+  ::  the sham-based seeding above, which must not touch them)
+  =.  results
+    (~(uni by results) (~(run by reuse) |=(v=[key=@uv res=build-result] res.v)))
+  =.  key-map
+    (~(uni by key-map) (~(run by reuse) |=(v=[key=@uv res=build-result] key.v)))
   |-
   ?~  order.sort-res  [results build-cache deps key-map]
   =/  =rail:tarball  i.order.sort-res
+  ::  Reused rails are pre-seeded — nothing to compute
+  ?:  (~(has by reuse) rail)
+    $(order.sort-res t.order.sort-res)
   ::  Mimes are already in results — skip
   ?:  (~(has by mimes) rail)
     $(order.sort-res t.order.sort-res)
