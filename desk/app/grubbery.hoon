@@ -339,7 +339,6 @@
       ~&  >  [%eyre-no-binding site]
       :_  this
       (give-simple-payload:app:server eyre-id [[404 ~] `(as-octs:mimes:html 'Not Found')])
-    ~&  >  [%eyre-dispatch binding.u.match handler.u.match]
     =/  new-st  st(conns (~(put by conns.st) eyre-id binding.u.match))
     =^  cards  state
       abet:(poke:(save-server-state:hc new-st) ~ handler.u.match [[/ %handle-http-request] [eyre-id src.bowl req]])

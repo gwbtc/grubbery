@@ -20,7 +20,6 @@
     (send-error eyre-id 403 'Forbidden')
   ?>  ?=([%grubbery %api *] site)
   =/  rest=path  t.t.site
-  ~&  >  [%ball-api-dispatch method.request.req ?~(rest %~ i.rest)]
   ::  Route by first segment: file, kids, tree, tar, dir
   ?~  rest
     (send-error eyre-id 400 'Missing endpoint: file, kids, tree, tar, dir')
