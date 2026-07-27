@@ -567,9 +567,16 @@
   function viewTile(el, name) \{
     var t = tileData[name];
     if (!t) return;
-    editTitle.textContent = name;
+    // header shows the human name; the identity key (<slug>.json,
+    // synthetic for app-derived tiles) stays out of sight
+    var disp = name.slice(-5) === '.json' ? name.slice(0, -5) : name;
+    editTitle.textContent = t.title || disp;
     editStatus.textContent = '';
-    editJson.value = JSON.stringify(t, null, 2);
+    // name is the tile's identity key (its filename), stapled on by the
+    // /tiles.json API -- not part of the grub's content, so don't show it
+    var content = Object.assign(\{}, t);
+    delete content.name;
+    editJson.value = JSON.stringify(content, null, 2);
     editJson.disabled = true;
     document.getElementById('edit-save').style.display = 'none';
     editBack.classList.add('open');
