@@ -1,0 +1,39 @@
+<!doctype html>
+<html>
+<head>
+  <title>desks</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="/grubbery/desks/style.css">
+</head>
+<body>
+  <div id="app">
+    <div id="header">
+      <div>
+        <h1>desks</h1>
+        <div class="sub">install &amp; update apps</div>
+      </div>
+      <div id="hdr-actions">
+        <button id="new-entry" class="hdr-btn primary">+ desk</button>
+      </div>
+      <div id="loader"><div class="spin"></div></div>
+    </div>
+    <div id="entries"></div>
+  </div>
+
+  <div id="modal-back">
+    <div id="modal">
+      <h2>new desk</h2>
+      <label class="m-label">name <input id="m-name" type="text" placeholder="short id, e.g. contacts"></label>
+      <label class="m-label">repo <input id="m-repo" type="text" placeholder="owner/repo"></label>
+      <label class="m-label">ref <input id="m-ref" type="text" placeholder="main" value="main"></label>
+      <label class="m-label">app dir <input id="m-app" type="text" placeholder="contacts.contacts"></label>
+      <div id="m-actions">
+        <button id="m-cancel" class="hdr-btn">cancel</button>
+        <button id="m-save" class="hdr-btn primary">install</button>
+      </div>
+    </div>
+  </div>
+  <script src="/grubbery/desks/app.js"></script>
+</body>
+</html>

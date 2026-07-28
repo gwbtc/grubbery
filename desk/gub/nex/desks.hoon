@@ -24,6 +24,10 @@
 /<  git-pack  /lib/git/pack.hoon
 /<  git-repo  /lib/git/repository.hoon
 /<  git-transport  /lib/git/transport.hoon
+/&  icon        desks/icon.svg
+/&  desks-html  desks/index.html
+/&  desks-js    desks/app.js
+/&  desks-css   desks/style.css
 =<  ^-  nexus:nexus
     |%
     ++  on-load
@@ -33,15 +37,25 @@
         %-  pairs:enjs:format
         :~  title+s+'Desks'
             info+s+'Install & update apps'
-            color+s+'#7a4f9e'
-            href+s+'/grubbery/explorer'
+            color+s+'#8558b0'
+            image+s+'/grubbery/tiles/icon/desks.desks'
+            href+s+'/grubbery/desks'
         ==
       %+  spin:loader  ball
-      :~  (manifest:loader 0)
+      :~  ::  manifest.json declares the desks this manager follows:
+          ::  {version, desks:[{name, repo, ref, app, poll?}]}. empty
+          ::  by default; whoever wants apps here fills it. boot-install
+          ::  seeds an entry per desk and installs any missing app.
+          [%fall %& [/ %'manifest.json'] [[/ %json] init-manifest]]
           [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
-          [%fall %& [/ %'poll.sig'] [[/ %sig] ~]]
           [%fall %| /entries empty-dir:loader]
           [%over %& [/ %'tile.json'] [[/ %json] tile]]
+          [%over %& [/ %'icon.svg'] [[/ %mime] icon]]
+          [%fall %& [/ui %'http.sig'] [[/ %sig] ~]]
+          [%fall %| /ui/requests empty-dir:loader]
+          [%over %& [/ui %'index.html'] [[/ %mime] desks-html]]
+          [%over %& [/ui %'app.js'] [[/ %mime] desks-js]]
+          [%over %& [/ui %'style.css'] [[/ %mime] desks-css]]
       ==
     ::
     ++  on-file
@@ -51,8 +65,43 @@
       =/  m  (fiber:fiber:nexus ,~)
       ^-  process:fiber:nexus
       ?+    rail  stay:m
+          ::
+          [[%ui ~] %'http.sig']
+        ;<  ~  bind:m  (rise-wait:io prod "%desks http: failed")
+        ;<  ~  bind:m  (bind-http:io [~ /grubbery/desks])
+        (http-dispatch:io %desks)
+          ::
+          [[%ui %requests ~] @]
+        ;<  ~  bind:m  (rise-wait:io prod "%desks request: failed")
+        =/  eyre-id=@ta  name.rail
+        =/  s  (srv rail)
+        ;<  [src=@p req=inbound-request:eyre]  bind:m
+          (get-state-as:io ,[src=@p inbound-request:eyre])
+        ;<  our=@p  bind:m  get-our:io
+        ?.  =(src our)
+          ;<  ~  bind:m  (send-simple:s eyre-id [[403 ~] `(as-octs:mimes:html 'Forbidden')])
+          (pure:m ~)
+        =/  [site=path args=quay:eyre]  (parse-url:http-utils url.request.req)
+        =/  suffix=path
+          %+  skip  (slag (lent `path`/grubbery/desks) site)
+          |=(seg=@ta =('' seg))
+        =/  filename=@ta
+          ?~  suffix  'index.html'
+          i.suffix
+        ;<  file-view=view:nexus  bind:m
+          (peek:io (nex-road:io rail [%& ~[%ui] filename]) `[/ %mime])
+        ?.  ?=([%file *] file-view)
+          ;<  ~  bind:m  (send-simple:s eyre-id [[404 ~] `(as-octs:mimes:html 'Not found')])
+          (pure:m ~)
+        =/  =mime  !<(mime (need-vase:tarball sang.file-view))
+        ;<  ~  bind:m  (send-simple:s eyre-id (mime-response:http-utils mime))
+        (pure:m ~)
+          ::
           [~ %'main.sig']
         ;<  ~  bind:m  (rise-wait:io prod "%desks main: failed")
+        ::  on start: read the manifest and install any missing app,
+        ::  then serve the management loop.
+        ;<  ~  bind:m  (boot-deploy rail)
         |-
         ;<  =sage:tarball  bind:m  take-poke:io
         =/  jon=json  (fall (mole |.(!<(json q.sage))) *json)
@@ -83,39 +132,14 @@
           $
         ~&  >>>  [%desks %unknown-action act]
         $
-          ::  poll.sig: sinks only. every entry with poll > 0 gets a
-          ::  periodic sync, and a deploy when the author bumped
-          ::  version.json (synced > deployed). sources (poll 0 or
-          ::  absent) are never touched. watches /entries so config
-          ::  changes re-arm the timer.
-          ::
-          [~ %'poll.sig']
-        ;<  ~  bind:m  (rise-wait:io prod "%desks poll: failed")
-        ;<  here=rail:tarball  bind:m  get-here-abs:io
-        ;<  *  bind:m
-          (keep:io /ent (nex-road:io here [%| /entries]) ~)
-        |-
-        ;<  names=(list @ta)  bind:m  (entry-names here)
-        ;<  min-poll=@ud  bind:m  (min-poll-of here names)
-        ?:  =(0 min-poll)
-          ::  no sinks — sleep until entries change
-          ;<  *  bind:m  (take-news:io /ent)
-          $
-        ;<  now=@da  bind:m  get-time:io
-        ;<  ~  bind:m  (set-timer:io /tick (add now (mul ~m1 min-poll)))
-        ;<  *  bind:m  (take-news-or-wake:io /ent)
-        ;<  due=(list @ta)  bind:m  (entry-names here)
-        |-
-        ?~  due  ^$
-        ;<  cfg=json  bind:m  (read-entry-json here i.due %'config.json')
-        ;<  ~  bind:m
-          ?:  =(0 (jnum cfg 'poll'))  (pure:(fiber:fiber:nexus ,~) ~)
-          (poll-one here i.due)
-        $(due t.due)
       ==
     --
 |%
 ::  json helpers
+::
+++  srv
+  |=  =rail:tarball
+  ~(. http-res:io (nex-road:io rail [%& ~[%ui] %'http.sig']))
 ::
 ++  jstr
   |=  [jon=json k=@t]
@@ -139,33 +163,55 @@
   ;<  =view:nexus  bind:m  (peek:io (nex-road:io rail [%| /entries]) ~)
   ?.  ?=([%ball *] view)  (pure:m ~)
   (pure:m ~(tap in ~(key by dir.ball.view)))
+::  +init-manifest: the empty default — {version, desks:[]}
 ::
-++  min-poll-of
-  |=  [=rail:tarball names=(list @ta)]
-  =/  m  (fiber:fiber:nexus ,@ud)
-  ^-  form:m
-  ?~  names  (pure:m 0)
-  ;<  cfg=json  bind:m  (read-entry-json rail i.names %'config.json')
-  ;<  rest=@ud  bind:m  $(names t.names)
-  =/  p=@ud  (jnum cfg 'poll')
-  %-  pure:m
-  ?:  =(0 p)  rest
-  ?:  =(0 rest)  p
-  (min p rest)
-::  +poll-one: sink maintenance for one entry — sync the mirror,
-::  and deploy only when the author bumped version.json
+++  init-manifest
+  ^-  json
+  %-  pairs:enjs:format
+  :~  ['version' (numb:enjs:format 0)]
+      ['desks' [%a ~]]
+  ==
+::  +boot-deploy: install each manifest desk whose app dir is absent.
 ::
-++  poll-one
-  |=  [=rail:tarball nam=@ta]
+++  boot-deploy
+  |=  =rail:tarball
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
-  ;<  ok=?  bind:m  (do-sync rail nam)
-  ?.  ok  (pure:m ~)
+  ;<  man=(unit json)  bind:m
+    (peek-as:io (nex-road:io rail [%& / %'manifest.json']) ,json)
+  =/  items=(list json)
+    ?.  ?=([~ %o *] man)  ~
+    =/  d  (~(get by p.u.man) 'desks')
+    ?.  ?=([~ %a *] d)  ~
+    p.u.d
+  |-
+  ?~  items  (pure:m ~)
+  =/  nm=@t   (jstr i.items 'name')
+  =/  app=@t  (jstr i.items 'app')
+  ;<  ~  bind:m
+    ?:  |(=('' nm) =('' app))  (pure:(fiber:fiber:nexus ,~) ~)
+    =/  nam=@ta  (crip (trip nm))
+    ;<  live=?  bind:(fiber:fiber:nexus ,~)
+      (peek-exists:io [%& %| /apps/[(crip (trip app))]])
+    ?:  live  (pure:(fiber:fiber:nexus ,~) ~)
+    ~&  >  [%desks nam %installing app]
+    ;<  ~  bind:(fiber:fiber:nexus ,~)  (do-config rail nam i.items)
+    ;<  ok=?  bind:(fiber:fiber:nexus ,~)  (do-sync rail nam)
+    ?.  ok
+      (write-error rail nam 'sync failed')
+    (do-deploy rail nam *json)
+  $(items t.items)
+::  +write-error: record a failure on the entry's state
+::
+++  write-error
+  |=  [=rail:tarball nam=@ta err=@t]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
   ;<  st=json  bind:m  (read-entry-json rail nam %'state.json')
-  ?.  (gth (jnum st 'synced') (jnum st 'deployed'))
-    (pure:m ~)
-  ~&  >  [%desks nam %poll-deploying]
-  (do-deploy rail nam *json)
+  =/  sm=(map @t json)  ?:(?=([%o *] st) p.st ~)
+  =.  sm  (~(put by sm) 'error' s+err)
+  (put:io (entry-file rail nam %'state.json') [[/ %json] [%o sm]])
+::
 ::  entry roads (relative to the nexus root)
 ::
 ++  entry-file
