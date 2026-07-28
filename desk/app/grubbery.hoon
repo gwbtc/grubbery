@@ -2,7 +2,7 @@
 /+  default-agent, dbug, tarball, nexus,
     server, multipart, http-utils, html-utils, json-utils,
     marks, build, fiberio, loader, cram, pretty-file, zlib, bytestream,
-    root, web-push, migrations
+    root, web-push, migrations, wasm-lia
 /=  t-  /tests/nexus
 /=  t-  /tests/tarball
 /=  t-  /tests/build
@@ -44,6 +44,7 @@
 /=  m-  /mar/tree
 /=  m-  /mar/txt
 /=  m-  /mar/ud
+/=  m-  /mar/wasm
 |%
 +$  versioned-state
   $%  state-0:migrations
@@ -69,6 +70,7 @@
             zlib=zlib
             io=fiberio
             cram=cram
+            wasm=wasm-lia
         ==
   !>(..zuse)
 --
