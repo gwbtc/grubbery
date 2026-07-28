@@ -32,6 +32,7 @@
       :~  (manifest:loader 0)
           [%fall %& [/ %'config.json'] [[/ %json] (config-to-json *git-desk-config)]]
           [%fall %& [/ %'sync.sig'] [[/ %sig] ~]]
+          [%fall %& [/ %'push.sig'] [[/ %sig] ~]]
           [%fall %& [/ %'poll.sig'] [[/ %sig] ~]]
           [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
           [%fall %| /requests empty-dir:loader]
@@ -58,6 +59,14 @@
         =/  config=git-desk-config  (json-to-config config-json)
         ;<  ~  bind:m
           ?.  !=('' repo.config)  (pure:m ~)
+          ::  first install only: sync if the desk has never been
+          ::  synced (no version.ud). after that, pulls are manual
+          ::  (sync.sig) or via the opt-in poll — a config edit (e.g.
+          ::  setting the push token) must never clobber live desk
+          ::  edits with a surprise checkout.
+          ;<  ver=(unit @ud)  bind:m
+            (peek-as:io (nex-road:io rail [%& / %'version.ud']) ,@ud)
+          ?^  ver  (pure:m ~)
           ~&  >>  %git-desk-boot-sync
           (poke:io (nex-road:io rail [%& / %'sync.sig']) [[/ %sig] ~])
         |-
@@ -81,6 +90,112 @@
         ;<  ~  bind:m  (replace:io new-json)
         $
           ::  poll.sig: watch config, poke sync.sig on interval
+          ::
+          ::  push.sig: commit the live /desk/code tree to a GitHub
+          ::  branch via the REST API — the remote is the object
+          ::  store, so no local git data is needed. poke json:
+          ::  {branch, message?}. the branch is created off the
+          ::  config ref if it doesn't exist. text files only (the
+          ::  trees api takes inline content).
+          ::
+          [~ %'push.sig']
+        ;<  ~  bind:m  (rise-wait:io prod "%git/desk push: failed")
+        |-
+        ;<  =sage:tarball  bind:m  take-poke:io
+        =/  jon=json  (fall (mole |.(!<(json q.sage))) *json)
+        =/  branch=@t  (jstr jon 'branch')
+        =/  msg=@t
+          =/  t=@t  (jstr jon 'message')
+          ?:(=('' t) 'update from ship' t)
+        ?:  =('' branch)
+          ~&  >>>  "%git/desk push: branch required"
+          $
+        ;<  config-json=(unit json)  bind:m
+          (peek-as:io (nex-road:io rail [%& / %'config.json']) ,json)
+        =/  config=git-desk-config
+          ?~(config-json *git-desk-config (json-to-config u.config-json))
+        ?:  |(=('' repo.config) =('' token.config))
+          ~&  >>>  "%git/desk push: repo and token required in config"
+          $
+        =/  base-branch=@t  ?:(=('' ref.config) 'main' ref.config)
+        ;<  files=(unit (list bfile))  bind:m  (fetch-dir rail /desk/code ~)
+        =/  entries=(list [pax=tape txt=@t])
+          %+  murn  (fall files ~)
+          |=  b=bfile
+          ^-  (unit [tape @t])
+          =/  txt=(unit @t)  (bfile-text b)
+          ?~  txt  ~
+          `[(repo-path pax.b name.b) u.txt]
+        ?:  =(~ entries)
+          ~&  >>>  "%git/desk push: nothing to push"
+          $
+        ~&  >  [%git-desk-push (lent entries) %files %to branch]
+        =/  api=@t  'https://api.github.com'
+        =/  hdr  (gh-headers-d token.config)
+        ;<  [st=@ud base-jon=json]  bind:m
+          (gh-call %'GET' (repo-url api repo.config (cat 3 '/git/ref/heads/' base-branch)) hdr ~)
+        ?.  =(200 st)
+          ~&  >>>  [%git-desk-push %no-base-ref st]
+          $
+        =/  base-sha=@t  (ref-sha base-jon)
+        ;<  [st2=@ud com-jon=json]  bind:m
+          (gh-call %'GET' (repo-url api repo.config (cat 3 '/git/commits/' base-sha)) hdr ~)
+        ?.  =(200 st2)
+          ~&  >>>  [%git-desk-push %no-base-commit st2]
+          $
+        =/  base-tree=@t  (commit-tree-sha com-jon)
+        =/  tree-body=json
+          :-  %o
+          %-  ~(gas by *(map @t json))
+          :~  ['base_tree' s+base-tree]
+              :-  'tree'
+              :-  %a
+              %+  turn  entries
+              |=  [pax=tape txt=@t]
+              %-  pairs:enjs:format
+              :~  ['path' s+(crip pax)]
+                  ['mode' s+'100644']
+                  ['type' s+'blob']
+                  ['content' s+txt]
+              ==
+          ==
+        ;<  [st3=@ud tree-jon=json]  bind:m
+          (gh-call %'POST' (repo-url api repo.config '/git/trees') hdr `tree-body)
+        ?.  =(201 st3)
+          ~&  >>>  [%git-desk-push %tree-failed st3]
+          $
+        =/  tree-sha=@t  (obj-sha tree-jon)
+        =/  commit-body=json
+          %-  pairs:enjs:format
+          :~  ['message' s+msg]
+              ['tree' s+tree-sha]
+              ['parents' a+~[s+base-sha]]
+          ==
+        ;<  [st4=@ud com2=json]  bind:m
+          (gh-call %'POST' (repo-url api repo.config '/git/commits') hdr `commit-body)
+        ?.  =(201 st4)
+          ~&  >>>  [%git-desk-push %commit-failed st4]
+          $
+        =/  new-sha=@t  (obj-sha com2)
+        ;<  [st5=@ud *]  bind:m
+          (gh-call %'GET' (repo-url api repo.config (cat 3 '/git/ref/heads/' branch)) hdr ~)
+        ;<  [st6=@ud *]  bind:m
+          ?:  =(200 st5)
+            %-  gh-call
+            :^    %'PATCH'
+                (repo-url api repo.config (cat 3 '/git/refs/heads/' branch))
+              hdr
+            `(pairs:enjs:format ~[['sha' s+new-sha] ['force' b+%.n]])
+          %-  gh-call
+          :^    %'POST'
+              (repo-url api repo.config '/git/refs')
+            hdr
+          `(pairs:enjs:format ~[['ref' s+(cat 3 'refs/heads/' branch)] ['sha' s+new-sha]])
+        ?.  |(=(200 st6) =(201 st6))
+          ~&  >>>  [%git-desk-push %ref-failed st6]
+          $
+        ~&  >  [%git-desk-push %done branch (crip (scag 7 (trip new-sha)))]
+        $
           ::
           [~ %'poll.sig']
         ;<  ~  bind:m  (rise-wait:io prod "%git/desk poll: failed")
@@ -191,6 +306,7 @@
       ref=@t
       public=?
       poll=@ud
+      token=@t
   ==
 ::
 ++  config-to-json
@@ -201,6 +317,7 @@
       ['ref' s+ref.config]
       ['public' b+public.config]
       ['poll' (numb:enjs:format poll.config)]
+      ['token' s+token.config]
   ==
 ::
 ++  json-to-config
@@ -219,6 +336,7 @@
       ?:(?=([~ %b *] pub) p.u.pub %.n)
       =+  pol=(~(get by p.json) 'poll')
       ?:(?=([~ %n *] pol) (fall (rush p.u.pol dem) 0) 0)
+      (get 'token' '')
   ==
 ::
 ++  desk-slug
@@ -467,6 +585,82 @@
     b(fil `pulp(contents (~(put by contents.pulp) name [bask %.n])))
   =/  kid=bole:tarball  (~(gut by dir.b) i.pax *bole:tarball)
   b(dir (~(put by dir.b) i.pax $(b kid, pax t.pax)))
+::
+::  github REST push helpers
+::
+++  repo-url
+  |=  [api=@t repo=@t tail=@t]
+  ^-  @t
+  (cat 3 api (cat 3 '/repos/' (cat 3 repo tail)))
+::
+++  gh-headers-d
+  |=  token=@t
+  ^-  (list [key=@t value=@t])
+  :~  ['User-Agent' 'grubbery']
+      ['Authorization' (cat 3 'token ' token)]
+      ['Accept' 'application/vnd.github.v3+json']
+      ['Content-Type' 'application/json']
+  ==
+::
+++  gh-call
+  |=  [method=?(%'GET' %'POST' %'PATCH') url=@t hdr=(list [key=@t value=@t]) body=(unit json)]
+  =/  m  (fiber:fiber:nexus ,[@ud json])
+  ^-  form:m
+  =/  buf=(unit octs)
+    ?~  body  ~
+    `(as-octs:mimes:html (en:json:html u.body))
+  ;<  ~  bind:m  (send-request:io [method url hdr buf])
+  ;<  =client-response:iris  bind:m  take-client-response:io
+  ?.  ?=(%finished -.client-response)
+    (pure:m [999 *json])
+  =/  st=@ud  status-code.response-header.client-response
+  =/  jon=json
+    ?~  full-file.client-response  *json
+    (fall (de:json:html q.data.u.full-file.client-response) *json)
+  (pure:m [st jon])
+::
+++  jstr
+  |=  [jon=json k=@t]
+  ^-  @t
+  ?.  ?=(%o -.jon)  ''
+  =/  v  (~(get by p.jon) k)
+  ?.(?=([~ %s *] v) '' p.u.v)
+::
+++  obj-sha  |=(jon=json (jstr jon 'sha'))
+::
+++  ref-sha
+  |=  jon=json
+  ^-  @t
+  ?.  ?=(%o -.jon)  ''
+  =/  obj  (~(get by p.jon) 'object')
+  ?~  obj  ''
+  (jstr u.obj 'sha')
+::
+++  commit-tree-sha
+  |=  jon=json
+  ^-  @t
+  ?.  ?=(%o -.jon)  ''
+  =/  tr  (~(get by p.jon) 'tree')
+  ?~  tr  ''
+  (jstr u.tr 'sha')
+::
+++  repo-path
+  |=  [pax=path name=@ta]
+  ^-  tape
+  %-  zing
+  (join "/" `(list tape)`["code" (snoc (turn `(list @ta)`pax trip) (trip name))])
+::
+++  bfile-text
+  |=  b=bfile
+  ^-  (unit @t)
+  ?:  (is-boom:tarball sang.b)  ~
+  ?:  =([/ %hoon] p.sang.b)
+    `!<(@t (need-vase:tarball sang.b))
+  ?.  =([/ %mime] p.sang.b)  ~
+  ::  inline tree content is text-only; binaries would need the
+  ::  base64 blobs api — desk code trees are text in practice
+  =/  =mime  !<(mime (need-vase:tarball sang.b))
+  `q.q.mime
 ::
 ::  HTTP transport
 ::

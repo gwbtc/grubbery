@@ -6,11 +6,12 @@
 |%
 ++  name  'git-push'
 ++  description
-  'Push local git commits to GitHub. Pokes push.sig on the git/repo nexus.'
+  'Push local git commits to GitHub. Pokes push.sig on the git/repo nexus. Optionally pass branch to push the local HEAD to that remote branch instead (git push origin HEAD:branch); the branch is created on GitHub if it does not exist.'
 ++  parameters
   ^-  (map @t parameter-def:tools)
   %-  ~(gas by *(map @t parameter-def:tools))
   :~  ['path' [%string 'Path to git/repo nexus (e.g. "/git.git_repo")']]
+      ['branch' [%string 'Target remote branch. Omit to push the current branch.']]
   ==
 ++  required  ~['path']
 ++  handler
@@ -31,6 +32,11 @@
     (pure:m [%error p.pax-parsed])
   =/  pax=path  p.pax-parsed
   =/  =road:tarball  [%& %& [(weld pax /actions) %'push.sig']]
-  ;<  ~  bind:m  (poke:io road [[/ %sig] ~])
-  (pure:m [%text 'Push triggered.'])
+  =/  branch=@t  (get-str 'branch' '')
+  ;<  ~  bind:m
+    ?:  =('' branch)  (poke:io road [[/ %sig] ~])
+    (poke:io road [[/ %json] (pairs:enjs:format ~[['branch' s+branch]])])
+  %-  pure:m
+  :-  %text
+  ?:(=('' branch) 'Push triggered.' (crip "Push to {(trip branch)} triggered."))
 --

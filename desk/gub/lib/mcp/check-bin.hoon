@@ -64,10 +64,12 @@
     ?:  &((gth l 5) =(".hoon" (slag (sub l 5) t)))
       (crip (scag (sub l 5) t))
     (crip t)
-  ::  tolerate a path that already carries the code namespace ("/code/lib")
-  ::  — blindly welding produced /code/code/... lookups that always fail.
+  ::  a path with a %code segment anywhere is already fully qualified:
+  ::  "/code/lib" (root namespace) or "/apps/x/desk/code/lib" (per-app
+  ::  namespace). only bare bins paths ("/lib/mcp") get the root code
+  ::  namespace welded on.
   =/  full-path=path
-    ?:  &((gte (lent bin-path) (lent code-ns)) =(code-ns (scag (lent code-ns) bin-path)))
+    ?:  (lien bin-path |=(s=@ta =(%code s)))
       bin-path
     (weld code-ns bin-path)
   ;<  res=built:nexus  bind:m  (get-code-full:io [%& %& full-path bin-name])

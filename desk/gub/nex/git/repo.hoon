@@ -491,7 +491,7 @@
           [[%actions ~] %'push.sig']
         ;<  ~  bind:m  (rise-wait:io prod "%git/repo push: failed")
         |-
-        ;<  *  bind:m  take-poke:io
+        ;<  =sage:tarball  bind:m  take-poke:io
         ;<  cfg=repo-config  bind:m  read-config
         ?:  =('' repo.cfg)
           ~&  >>>  "%git/repo push: no repo configured"
@@ -500,7 +500,15 @@
           ~&  >>>  "%git/repo push: no token configured"
           $
         ;<  ~  bind:m  (set-status 'pushing')
-        =/  branch=@t  ?:(=('' ref.cfg) 'main' ref.cfg)
+        =/  cur=@t  ?:(=('' ref.cfg) 'main' ref.cfg)
+        ::  optional json poke {branch: 'x'} pushes local HEAD to
+        ::  refs/heads/x (git push origin HEAD:x). a plain sig poke
+        ::  keeps the old behavior: push the current branch.
+        =/  jon=json  (fall (mole |.(!<(json q.sage))) *json)
+        =/  target=@t
+          ?.  ?=(%o -.jon)  ''
+          (fall (bind (~(get by p.jon) 'branch') |=(=json ?>(?=(%s -.json) p.json))) '')
+        =/  branch=@t  ?:(=('' target) cur target)
         ::  load repo from namespace
         ;<  repo=repository:git-repo  bind:m  load-repo-from-ns
         =/  sto  store:~(. git-repo repo)
@@ -517,6 +525,20 @@
           ~&  >>  "%git/repo push: nothing to push"
           ;<  ~  bind:m  (set-status 'idle')
           $
+        ::  a target with no tracking ref is a NEW remote branch:
+        ::  base the commit chain on the current branch's remote ref
+        ::  so only local commits are sent, and create the ref
+        ::  instead of patching it
+        =/  new-ref=?  =('' remote-ref)
+        ;<  cur-rd=road:tarball  bind:m
+          (ancestor-road:io [/git %repo] [%& /data/refs/remotes/origin (crip (trip cur))])
+        ;<  cur-view=view:nexus  bind:m  (peek:io cur-rd `[/ %mime])
+        =/  cur-remote=@t
+          ?.  ?=([%file *] cur-view)  ''
+          =/  mim=mime  !<(mime (need-vase:tarball sang.cur-view))
+          (crip (trip q.q.mim))
+        =/  chain-base=@t
+          ?:(&(new-ref !=(branch cur)) cur-remote remote-ref)
         ::  parse hashes
         =/  local-hash=(unit @ux)
           (rust (trip local-ref) parse-hash-sha-1:git-transport)
@@ -525,8 +547,8 @@
           ;<  ~  bind:m  (set-status 'idle')
           $
         =/  remote-hash=@ux
-          ?:  =('' remote-ref)  0x0
-          (fall (rust (trip remote-ref) parse-hash-sha-1:git-transport) 0x0)
+          ?:  =('' chain-base)  0x0
+          (fall (rust (trip chain-base) parse-hash-sha-1:git-transport) 0x0)
         ::  walk commits from local back to remote, collect chain
         =/  chain=(list hash:git-repo)
           =|  acc=(list hash:git-repo)
@@ -547,7 +569,7 @@
         ::  push each commit via GitHub API
         =/  api=@t  'https://api.github.com'
         =/  headers=(list [key=@t value=@t])  (gh-headers token.cfg)
-        =/  parent-sha=@t  remote-ref
+        =/  parent-sha=@t  chain-base
         =/  get-tree=$-(@ux (unit tree-dir:git-repo))
           |=(h=@ux (get-tree:sto h))
         =/  get-blob=$-(@ux (unit octs))
@@ -555,13 +577,23 @@
         =/  remaining=(list hash:git-repo)  chain
         |-
         ?~  remaining
-          ::  all commits pushed — update remote ref on GitHub
-          =/  update-url=@t
-            (cat 3 api (cat 3 '/repos/' (cat 3 repo.cfg (cat 3 '/git/refs/heads/' branch))))
-          =/  update-body=json
-            (pairs:enjs:format ~[['sha' s+parent-sha] ['force' b+%.n]])
-          ;<  *  bind:m  (gh-patch update-url headers update-body)
-          ~&  >>  ["%git/repo push: updated" branch "to" (crip (scag 7 (trip parent-sha)))]
+          ::  all commits pushed — create or update the remote ref
+          ;<  *  bind:m
+            ?:  new-ref
+              =/  create-url=@t
+                (cat 3 api (cat 3 '/repos/' (cat 3 repo.cfg '/git/refs')))
+              =/  create-body=json
+                %-  pairs:enjs:format
+                :~  ['ref' s+(cat 3 'refs/heads/' branch)]
+                    ['sha' s+parent-sha]
+                ==
+              (gh-post create-url headers create-body)
+            =/  update-url=@t
+              (cat 3 api (cat 3 '/repos/' (cat 3 repo.cfg (cat 3 '/git/refs/heads/' branch))))
+            =/  update-body=json
+              (pairs:enjs:format ~[['sha' s+parent-sha] ['force' b+%.n]])
+            (gh-patch update-url headers update-body)
+          ~&  >>  ["%git/repo push:" ?:(new-ref "created" "updated") branch "at" (crip (scag 7 (trip parent-sha)))]
           ::  update local remote tracking ref
           ;<  track-rd=road:tarball  bind:m
             (ancestor-road:io [/git %repo] [%& /data/refs/remotes/origin (crip (trip branch))])
