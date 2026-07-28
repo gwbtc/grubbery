@@ -1569,12 +1569,10 @@
       %handle-http-request
     =/  [eyre-id=@ta src=@p req=inbound-request:eyre]
       !<([eyre-id=@ta @p inbound-request:eyre] q.sage)
-    ~&  >  [label %dispatch eyre-id url.request.req]
     ;<  ~  bind:m  (make [%| 0 %& /requests eyre-id] |+[[[/ %http-request] [src req]] ~])
     $
       %handle-http-cancel
     =/  eyre-id=@ta  !<(@ta q.sage)
-    ~&  >  [label %cancel eyre-id]
     ;<  ~  bind:m  (cull [%| 0 %& /requests eyre-id])
     $
       %eyre-action
