@@ -1386,6 +1386,36 @@
   ?^  cached  [u.cached this]
   =/  res=(each vase tang)  (validate-noun pax blot noun)
   [res (cache-validation pax blot noun res)]
+::  Statically-typed framework marks: validate via a compiled clam,
+::  skipping marc resolution and the interpreted vale slam.  The clam
+::  mirrors each mark's +noun:grab exactly, so the vase type matches
+::  what the marc would produce.  Returns ~ for unknown marks.
+::
+++  validate-static
+  |=  [=blot:tarball noun=*]
+  ^-  (unit (each vase tang))
+  ?:  =([/ %handle-http-request] blot)
+    =/  clam  ,[@ta @p inbound-request:eyre]
+    `(mule |.(!>((clam noun))))
+  ?:  =([/ %http-request] blot)
+    =/  clam  ,[src=@p inbound-request:eyre]
+    `(mule |.(!>((clam noun))))
+  ?:  =([/ %eyre-action] blot)
+    =/  clam  ,eyre-action:nexus
+    `(mule |.(!>((clam noun))))
+  ~
+::  Validate a poke payload.  Poke nouns are transient — never in
+::  nouns.silo — so the sham-keyed vale cache can only miss: probing
+::  it jam-hashes the full payload twice and stores an entry the next
+::  gc-vale-cache sweep deletes.  Validate directly instead, via the
+::  static fast path when the mark is known to the framework.
+::
+++  validate-poke
+  |=  [cod=path =blot:tarball noun=*]
+  ^-  (each vase tang)
+  =/  static  (validate-static blot noun)
+  ?^  static  u.static
+  (validate-noun cod blot noun)
 ::
 ++  get-tube
   |=  [pax=path =bars:tarball]
@@ -2725,8 +2755,8 @@
       =/  dest=rail:tarball  p.u.dest-lane
       ::  /sys/ intercepts: validate and consume immediately
       ?:  ?=([%sys *] path.dest)
-        =^  validated=(each vase tang)  this
-          (validate-cached path.dest p.bask.load.dart q.bask.load.dart)
+        =/  validated=(each vase tang)
+          (validate-poke path.dest p.bask.load.dart q.bask.load.dart)
         ?:  ?=(%| -.validated)
           ::  No marc or validation failed — fall through to general poke
           =/  rel=from:fiber:nexus  (relativize-from:nexus dest here)
@@ -3209,8 +3239,8 @@
   ?+    -.u.in  [&+`u.in this]
       %poke
     ::  bask → sage: validate noun through compiled type
-    =^  validated=(each vase tang)  this
-      (validate-cached cod p.bask.u.in q.bask.u.in)
+    =/  validated=(each vase tang)
+      (validate-poke cod p.bask.u.in q.bask.u.in)
     ?:  ?=(%| -.validated)
       :-  |+[leaf+"hydrate: poke validation failed for {<p.bask.u.in>} at {(spud cod)}" p.validated]
       this
@@ -3582,6 +3612,8 @@
     ::  Validate the bask before storing
     =^  validated=(each vase tang)  this
       ::  ~>  %bout.[1 %make-file-validate]
+      =/  static  (validate-static p.bask q.bask)
+      ?^  static  [u.static this]
       (validate-cached path.dest-rail p.bask q.bask)
     ?:  ?=(%| -.validated)
       ~|("make failed: validation error" (mean p.validated))
