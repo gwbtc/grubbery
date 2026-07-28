@@ -4430,6 +4430,14 @@
 ::  which stays at the sites where lobes die in bulk (drop-hist,
 ::  snap release, build-code).
 ::
+::  NB: precise eviction covers the record/delete path only. Entries
+::  orphaned indirectly (bang-noun ref cascades, the same content
+::  cached under a second mark) persist until a bulk-sweep site runs,
+::  so vale can leak slowly on a quiet ship. If that ever matters,
+::  add an opportunistic full sweep at commit/snap — or size-cap and
+::  clear the whole map, since every entry rebuilds lazily on miss
+::  and staleness is impossible (keys are content-addressed).
+::
 ++  gc-vale-prev
   |=  prev=(unit leaf:nexus)
   ^-  vale:nexus
