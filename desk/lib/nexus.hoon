@@ -1049,6 +1049,8 @@
 ++  diff-born-at
   |=  [here=fold:tarball old=born new=born mode=?(%all %state)]
   ^-  (set lane:tarball)
+  ::  Unchanged subtrees are shared nouns: equal means nothing changed
+  ?:  =(old new)  ~
   =|  result=(set lane:tarball)
   ::  Compare directory-level totes
   =/  old-fold=hist  ?~(fil.old *hist fold.u.fil.old)
@@ -1060,10 +1062,11 @@
     ==
   =?  result  dir-changed
     (~(put in result) |+here)
-  ::  Compare file hists
+  ::  Compare file hists (skip when the map is the shared, unchanged noun)
   =.  result
     =/  old-file=(map @ta hist)  ?~(fil.old ~ file.u.fil.old)
     =/  new-file=(map @ta hist)  ?~(fil.new ~ file.u.fil.new)
+    ?:  =(old-file new-file)  result
     =/  all-names=(list @ta)
       ~(tap in (~(uni in ~(key by old-file)) ~(key by new-file)))
     |-
@@ -1085,7 +1088,7 @@
   ?~  all-kids  result
   =/  old-kid=born  (fall (~(get by dir.old) i.all-kids) *born)
   =/  new-kid=born  (fall (~(get by dir.new) i.all-kids) *born)
-  =.  result
+  =?  result  !=(old-kid new-kid)
     (~(uni in result) (diff-born-at (snoc here i.all-kids) old-kid new-kid mode))
   $(all-kids t.all-kids)
 ::  +changed-lanes: diff two balls, return set of changed lanes
