@@ -53,6 +53,7 @@
 |%
 +$  versioned-state
   $%  state-0:migrations
+      state-1:migrations
   ==
 +$  card  card:agent:gall
 ::  kel: the idea of kelvin-versioning the grubbery runtime itself.
@@ -87,7 +88,7 @@
   !>(..zuse)
 --
 ::
-=|  state-0:migrations
+=|  state-1:migrations
 =*  state  -
 ::
 =<
@@ -111,9 +112,27 @@
 ++  on-load
   |=  old-state=vase
   ^-  (quip card _this)
+  ::  Breaking changes to the core nexus types still mean nuke +
+  ::  fresh start; additive agent-state fields migrate here.
   =/  old  !<(versioned-state old-state)
   ?-    -.old
       %0
+    ::  %0 -> %1: marcs and nexi start empty (marcs repopulates
+    ::  lazily, nexi is warmed by cold-start below). The eyre
+    ::  server-state moves out of the recorded grub into agent
+    ::  state — seed it from the grub AFTER installing the store,
+    ::  so existing bindings and in-flight conns survive the load.
+    =.  state  (state-0-to-1:migrations old)
+    =.  server-state
+      =/  old-grub=(unit sang:tarball)
+        (peek-grub-now [/sys/eyre %'main.server-state'])
+      ?~  old-grub  *server-state:nexus
+      ?:  (is-boom:tarball u.old-grub)  *server-state:nexus
+      !<(server-state:nexus (need-vase:tarball u.old-grub))
+    =^  start-cards  state  abet:cold-start:hc
+    [start-cards this]
+  ::
+      %1
     =.  state  old
     =^  start-cards  state
       abet:cold-start:hc
@@ -457,6 +476,7 @@
   =.  this  (reload-nexus-at / root)
   =.  this  purge-stale-code
   =.  this  (build-new-code-namespaces / (peek-bole-now /))
+  =.  this  warm-nexi
   =.  this  (spawn-all-files / (peek-bole-now /))
   =.  this  sync-dill
   =.  this  sync-clay
@@ -1194,6 +1214,7 @@
     $(keys t.keys)
   =/  old-lode=lode:nexus  (~(got by code) i.keys)
   =.  bins  (refs-dec refs.old-lode)
+  =.  marcs  (gc-marc-cache marcs bins)
   $(keys t.keys, code (~(del by code) i.keys))
 ::  Drop hist entries matching a lose spec, decrementing silo refs
 ::
@@ -1610,6 +1631,8 @@
     =/  nam=@tas  (rail-to-arm:tarball blot)
     ~&  >>>  "get-marc: %{(trip nam)} failed (tang) from {(spud pax)}"
     ~|([%marc-failed nam pax] !!)
+  =/  hav  (marc-hit ckey.u.res)
+  ?^  hav  u.hav
   !<(marc:tarball vase.built.u.res)
 ::
 ++  get-vale
@@ -1632,6 +1655,20 @@
   |=  [lob=nobe:nexus ckey=@uv res=(unit tang)]
   ^+  this
   this(vale (~(put by vale) [lob ckey] res))
+::  Marc cache read: memoized !<(marc:tarball ...) extraction, keyed
+::  by the compiled mark's ckey. The nest check inside !< is paid once
+::  per built mark instead of once per read per event.
+::
+++  marc-hit
+  |=  ckey=@uv
+  ^-  (unit marc:tarball)
+  (~(get by marcs) ckey)
+::  Marc cache write: store an extracted marc
+::
+++  marc-put
+  |=  [ckey=@uv =marc:tarball]
+  ^+  this
+  this(marcs (~(put by marcs) ckey marc))
 ::  Check vale cache for a prior validation result.
 ::  Returns ~ on miss, [~ (each vase tang)] on hit.
 ::  On cached success, reconstructs vase from marc type + noun.
@@ -1647,6 +1684,8 @@
   ?^  u.hit  `|+u.u.hit
   ?.  ?=(%vase -.built.u.built-res)  ~
   =/  marc-res=(each marc:tarball tang)
+    =/  hav  (marc-hit ckey.u.built-res)
+    ?^  hav  &+u.hav
     (mule |.(!<(marc:tarball vase.built.u.built-res)))
   ?.  ?=(%& -.marc-res)  ~
   `&+[type:p.marc-res noun]
@@ -1672,6 +1711,24 @@
   ?^  cached  [u.cached this]
   =/  res=(each vase tang)  (validate-noun pax blot noun)
   [res (cache-validation pax blot noun res)]
+::  Statically-typed framework marks: validate via a compiled clam,
+::  skipping marc resolution and the interpreted vale slam.  The clam
+::  mirrors each mark's +noun:grab exactly, so the vase type matches
+::  what the marc would produce.  Returns ~ for unknown marks.
+::
+++  validate-static
+  |=  [=blot:tarball noun=*]
+  ^-  (unit (each vase tang))
+  ?:  =([/ %handle-http-request] blot)
+    =/  clam  ,[@ta @p inbound-request:eyre]
+    `(mule |.(!>((clam noun))))
+  ?:  =([/ %http-request] blot)
+    =/  clam  ,[src=@p inbound-request:eyre]
+    `(mule |.(!>((clam noun))))
+  ?:  =([/ %eyre-action] blot)
+    =/  clam  ,eyre-action:nexus
+    `(mule |.(!>((clam noun))))
+  ~
 ::
 ++  get-tube
   |=  [pax=path =bars:tarball]
@@ -1693,6 +1750,8 @@
     =/  nam=@tas  (rail-to-arm:tarball blot)
     =/  marc-res=(each marc:tarball tang)
       ~|  [%validate-noun %marc-extract-failed nam pax]
+      =/  hav  (marc-hit ckey.u.res)
+      ?^  hav  &+u.hav
       (mule |.(!<(marc:tarball vase.built.u.res)))
     ?:  ?=(%| -.marc-res)
       |+[leaf+"validate-noun: marc for %{(trip nam)} broke at {(spud pax)}" p.marc-res]
@@ -1774,6 +1833,8 @@
   ?.  ?=(%vase -.built.u.entry)
     `[blot %| [~[leaf+"peek-grub: bins entry not a vase {<blot>} ckey={<ckey>}"] u.raw]]
   =/  marc-res=(each marc:tarball tang)
+    =/  hav  (marc-hit ckey)
+    ?^  hav  &+u.hav
     (mule |.(!<(marc:tarball vase.built.u.entry)))
   ?:  ?=(%| -.marc-res)
     `[blot %| [(weld ~[leaf+"peek-grub: marc extraction failed {<blot>}"] p.marc-res) u.raw]]
@@ -2944,6 +3005,8 @@
     |+~[leaf+"build-nexus: unexpected artifact type {<-.built.u.res>}"]
     %tang  |+tang.built.u.res
     %vase
+  =/  hit=(unit nexus:nexus)  (~(get by nexi) ckey.u.res)
+  ?^  hit  &+u.hit
   =/  nex=(unit nexus:nexus)
     (mole |.(!<(nexus:nexus vase.built.u.res)))
   ?~  nex  |+~[leaf+"build-nexus: failed to extract nexus from vase"]
@@ -4018,6 +4081,9 @@
       [u.blot.p.make q:(tube p.src)]
     ::  Validate the bask before storing
     =^  validated=(each vase tang)  this
+      ::  ~>  %bout.[1 %make-file-validate]
+      =/  static  (validate-static p.bask q.bask)
+      ?^  static  [u.static this]
       (validate-cached path.dest-rail p.bask q.bask)
     ?:  ?=(%| -.validated)
       ~|("make failed: validation error" (mean p.validated))
@@ -4336,10 +4402,13 @@
   =/  entry  (~(get by bins) marc-ckey)
   ?~  entry  this
   ?.  ?=(%vase -.built.u.entry)  this
+  =/  hav  (marc-hit marc-ckey)
   =/  marc-res=(each marc:tarball tang)
+    ?^  hav  &+u.hav
     (mule |.(!<(marc:tarball vase.built.u.entry)))
   ?:  ?=(%| -.marc-res)
     ~|([%record-marc-broken p.bask path.here name.here] !!)
+  =?  this  ?=(~ hav)  (marc-put marc-ckey p.marc-res)
   =/  res=(each vase tang)
     (mule |.((vale:p.marc-res raw)))
   (vale-put nobe marc-ckey ?:(?=(%& -.res) ~ `p.res))
@@ -4644,6 +4713,7 @@
   =/  =built:nexus  [%vase marc-vase]
   =/  ckey=@uv  (sham built)
   =.  bins.acc  (~(put by bins.acc) ckey [1 built])
+  =.  marcs.acc  (~(put by marcs.acc) ckey marc)
   ::  Register in code namespace refs at /mar/{mark-name}
   =/  =lode:nexus  (fall (~(get by code.acc) /code) *lode:nexus)
   =/  ref-path=path  /mar
@@ -4777,15 +4847,19 @@
   ::
   =.  bins  ~>(%bout.[1 %refs-inc] (refs-inc new-refs builds))
   =.  bins  ~>(%bout.[1 %refs-dec] (refs-dec old-refs))
-  ::  5. GC vale cache: drop entries whose marc was removed
+  ::  5. GC vale + marc caches: drop entries whose marc was removed
   ::
   =.  vale  (gc-vale-cache vale bins)
+  =.  marcs  (gc-marc-cache marcs bins)
   ::  6. Store lode — with the subject sentinel, so a later
   ::  incremental build can prove the subject hasn't changed
   ::  since these keys were computed (agent upgrades change sut)
   ::
   =.  lode  [(~(put by new-keys) sut-rail [sut-hash sut-hash]) deps.res new-refs]
   =.  code  (~(put by code) cod lode)
+  ::  6b. Refresh nexi so nexus reloads below hit the cache
+  ::
+  =.  this  warm-nexi
   ::  7. Validate marks: re-clam grubs through changed marks
   ::
   =^  new-refs  this
@@ -4876,6 +4950,15 @@
   |=  [[lob=nobe:nexus ckey=@uv] *]
   ::  drop if mark was removed or lobe was tombstoned from silo
   |(!(~(has by bins) ckey) !(~(has by nouns.silo) lob))
+::  GC marc cache: drop entries whose compiled mark left bins.
+::
+++  gc-marc-cache
+  |=  [marcs=(map @uv marc:tarball) =bins:nexus]
+  ^-  (map @uv marc:tarball)
+  %-  ~(gas by *(map @uv marc:tarball))
+  %+  skip  ~(tap by marcs)
+  |=  [ckey=@uv *]
+  !(~(has by bins) ckey)
 ::  Look up the leaf ject a hist entry points at, if any.
 ::
 ++  hist-leaf
@@ -4909,6 +4992,34 @@
   ?~  prev  vale
   ?:  (~(has by nouns.silo) lobe.u.prev)  vale
   (~(del by vale) [lobe.u.prev ckey.mark.u.prev])
+::  Refresh the nexus-extraction cache: drop entries whose ckey has
+::  left bins, then extract any /nex artifact not yet cached.
+::  Runs from cold-start and build-code only, never per request.
+::
+++  warm-nexi
+  ^+  this
+  =.  nexi
+    %-  ~(gas by *(map @uv nexus:nexus))
+    %+  skip  ~(tap by nexi)
+    |=  [ckey=@uv *]
+    !(~(has by bins) ckey)
+  =.  nexi
+    %+  roll  ~(tap by code)
+    |=  [[* =lode:nexus] acc=_nexi]
+    %+  roll  ~(tap of refs.lode)
+    |=  [[pax=path node=(map @ta @uv)] inner-acc=_acc]
+    ?.  ?=([%nex *] pax)  inner-acc
+    %+  roll  ~(tap by node)
+    |=  [[* ckey=@uv] out=_inner-acc]
+    ?:  (~(has by out) ckey)  out
+    =/  entry=(unit [refs=@ud =built:nexus])  (~(get by bins) ckey)
+    ?~  entry  out
+    ?.  ?=(%vase -.built.u.entry)  out
+    =/  nex=(unit nexus:nexus)
+      (mole |.(!<(nexus:nexus vase.built.u.entry)))
+    ?~  nex  out
+    (~(put by out) ckey u.nex)
+  this
 ::  Validate marks: for each changed mark in bin/mar/, build a vale gate
 ::  Walk ball under a code namespace, pruning at child code namespaces.
 ::  Returns all [fold lump] pairs governed by this code namespace —
@@ -5928,23 +6039,38 @@
   |=  [=binding:eyre *]
   ^-  card
   [%pass /eyre-bind %arvo %e %connect binding dap.bowl]
-::  /sys/eyre: read/write server state, find bindings
+::
+::  /sys/eyre: read/write server state, find bindings.
+::  The authoritative copy is the server-state face in agent state.
+::  The grub at /sys/eyre/main.server-state records bindings only,
+::  written on %bind/%unbind; conns are transient bookkeeping and
+::  never recorded.
 ::
 ++  get-server-state
   ^-  server-state:nexus
-  =/  eyre-rail=rail:tarball  [/sys/eyre %'main.server-state']
-  =/  old=(unit sang:tarball)  (peek-grub-now eyre-rail)
-  ?~  old  *server-state:nexus
-  ?:  (is-boom:tarball u.old)  *server-state:nexus
-  !<(server-state:nexus (need-vase:tarball u.old))
+  server-state
+::  Update the cached copy only — no recorded write. Used for
+::  per-connection conns bookkeeping.
+::
+++  put-server-state
+  |=  st=server-state:nexus
+  ^+  this
+  =.  server-state  st
+  this
+::  Update the cache AND record the grub (bind/unbind). conns are
+::  cleared in the recorded copy so grub content is purely a
+::  function of the binding registry.
 ::
 ++  save-server-state
   |=  st=server-state:nexus
   ^+  this
-  ::  TODO: conns is transient per-request bookkeeping but this records it to
-  ::  the grub. Consider moving conns to agent state to avoid the write.
-  ::  bindings are authoritative and stay in the namespace.
-  (save-file [/sys/eyre %'main.server-state'] [[/ %server-state] st])
+  ::  conns is transient per-request bookkeeping, so it lives in the
+  ::  agent-state copy and is never recorded — that write was two full
+  ::  records (sham of the whole noun, record-trees to root, whole-tree
+  ::  notify) per bound request. bindings ARE authoritative and stay in
+  ::  the namespace, written here on %bind/%unbind.
+  =.  server-state  st
+  (save-file [/sys/eyre %'main.server-state'] [[/ %server-state] st(conns ~)])
 ::  cancel-http: a client dropped an http subscription — cancel its in-flight
 ::  request. no binding means it was a ball-API request (cull the request
 ::  fiber); a bound request is dropped from conns and its handler told to cancel.
@@ -6596,7 +6722,7 @@
       ?~  conn-binding
         (emit-cards crds)
       =.  conns.st  (~(del by conns.st) eyre-id.act)
-      =.  this  (save-server-state st)
+      =.  this  (put-server-state st)
       (emit-cards crds)
     (emit-cards crds)
   ==
