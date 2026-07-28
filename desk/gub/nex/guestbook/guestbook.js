@@ -1,5 +1,23 @@
 const BASE = '/grubbery/guestbook';
 
+async function loadWhoami() {
+  const el = document.getElementById('signer');
+  const form = document.getElementById('post-form');
+  try {
+    const res = await fetch(BASE + '/api/whoami');
+    if (!res.ok) throw new Error(res.statusText);
+    const who = await res.json();
+    if (who.authenticated) {
+      el.innerHTML = 'signing as <span class="ship">' + esc(who.ship) + '</span>';
+      form.hidden = false;
+    } else {
+      el.innerHTML = '<a href="/~/login?redirect=' + encodeURIComponent(BASE) + '">log in</a> to sign';
+    }
+  } catch(e) {
+    el.innerHTML = '<div class="error">failed to load identity: ' + esc(e.message) + '</div>';
+  }
+}
+
 async function loadEntries() {
   const el = document.getElementById('entries');
   try {
@@ -23,14 +41,13 @@ async function loadEntries() {
 
 document.getElementById('post-form').addEventListener('submit', async function(e) {
   e.preventDefault();
-  const name = document.getElementById('name-input').value.trim();
   const msg = document.getElementById('msg-input').value.trim();
-  if (!name || !msg) return;
+  if (!msg) return;
   try {
     const res = await fetch(BASE + '/api/post', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({name: name, message: msg})
+      body: JSON.stringify({message: msg})
     });
     if (!res.ok) throw new Error(res.statusText);
     document.getElementById('msg-input').value = '';
@@ -46,4 +63,5 @@ function esc(s) {
   return d.innerHTML;
 }
 
+loadWhoami();
 loadEntries();

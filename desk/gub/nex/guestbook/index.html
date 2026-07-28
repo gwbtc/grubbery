@@ -13,10 +13,13 @@
   .entry .msg { margin-top: 4px; }
   #entries { margin-top: 10px; }
   .error { color: #f66; margin: 10px 0; }
+  #signer { color: #888; margin-bottom: 10px; }
+  #signer .ship { color: #8cf; }
+  #signer a { color: #8cf; }
 </style>
 <h1>Guestbook</h1>
-<form id="post-form">
-  <input id="name-input" placeholder="name" required maxlength="64">
+<div id="signer"></div>
+<form id="post-form" hidden>
   <input id="msg-input" placeholder="message" required maxlength="256">
   <button type="submit">post</button>
 </form>

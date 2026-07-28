@@ -57,10 +57,6 @@
     =/  srv  ~(. http-res:io (nex-road:io rail [%& ~ %'main.sig']))
     =/  eyre-id=@ta  name.rail
     ;<  [src=@p req=inbound-request:eyre]  bind:m  (get-state-as:io ,[src=@p inbound-request:eyre])
-    ;<  our=@p  bind:m  get-our:io
-    ?.  =(src our)
-      ;<  ~  bind:m  (send-simple:srv eyre-id [[403 ~] `(as-octs:mimes:html 'Forbidden')])
-      (pure:m ~)
     =/  prefix=path  /grubbery/guestbook
     =/  site=path  site:(parse-url:http-utils url.request.req)
     =/  suffix=path  (slag (lent prefix) site)
@@ -76,6 +72,17 @@
         (pure:m ~)
       =/  =mime  !<(mime (need-vase:tarball sang.view))
       ;<  ~  bind:m  (send-simple:srv eyre-id (mime-response:http-utils mime))
+      (pure:m ~)
+        ::
+        [%api %whoami ~]
+      =/  who=json
+        %-  pairs:enjs:format
+        :~  ['ship' s+(scot %p src)]
+            ['authenticated' b+authenticated.req]
+        ==
+      =/  bod=octs  (as-octs:mimes:html (en:json:html who))
+      ;<  ~  bind:m
+        (send-simple:srv eyre-id [[200 ['content-type' 'application/json'] ~] `bod])
       (pure:m ~)
         ::
         [%api %entries ~]
@@ -97,6 +104,9 @@
       ?.  =(%'POST' method.request.req)
         ;<  ~  bind:m  (send-simple:srv eyre-id [[405 ~] `(as-octs:mimes:html 'Method not allowed')])
         (pure:m ~)
+      ?.  authenticated.req
+        ;<  ~  bind:m  (send-simple:srv eyre-id [[403 ~] `(as-octs:mimes:html 'Log in to sign')])
+        (pure:m ~)
       =/  bod=(unit octs)  body.request.req
       ?~  bod
         ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'Missing body')])
@@ -108,14 +118,13 @@
       ?.  ?=([%o *] u.jon)
         ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'Expected object')])
         (pure:m ~)
-      =/  name-val=tape
-        =/  v  (~(get by p.u.jon) 'name')
-        ?~(v ~ ?.(?=([%s *] u.v) ~ (trip p.u.v)))
+      ::  signer identity comes from the eyre session, never the client
+      =/  name-val=tape  (trip (scot %p src))
       =/  msg-val=tape
         =/  v  (~(get by p.u.jon) 'message')
         ?~(v ~ ?.(?=([%s *] u.v) ~ (trip p.u.v)))
-      ?:  |(?~(name-val & |) ?~(msg-val & |))
-        ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'Missing name or message')])
+      ?:  ?~(msg-val & |)
+        ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'Missing message')])
         (pure:m ~)
       ;<  now=@da  bind:m  get-time:io
       =/  sql=tape
