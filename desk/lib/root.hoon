@@ -103,7 +103,6 @@
         [%fall %| /apps/'desks.desks' [`[`[/ %desks] desks-weir %.n ~] ~]]
         [%fall %& [/apps/'desks.desks' %'manifest.json'] [[/ %json] desks-manifest]]
         ::
-        [%fall %| /apps/'obelisk.obelisk_app' [`[`[/obelisk %app] app-weir %.n ~] ~]]
         [%fall %| /apps/'test.web-test' [`[`[/ %web-test] app-weir %.n ~] ~]]
         [%fall %| /apps/'test.guestbook' [`[`[/ %guestbook] app-weir %.n ~] ~]]
         [%fall %| /apps/'test.desk' [`[`[/ %desk] app-weir %.n ~] ~]]
