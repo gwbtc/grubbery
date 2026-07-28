@@ -1373,6 +1373,10 @@
   |=  [pax=path =blot:tarball noun=* res=(each * tang)]
   ^+  this
   =/  lob=nobe:nexus  (sham noun)
+  ::  Only cache silo-resident nouns. One-shot payloads (pokes, http
+  ::  bodies) sham to a key that can never recur, so caching them
+  ::  only grows the map. Recorded grubs get their entry from +record.
+  ?.  (~(has by nouns.silo) lob)  this
   =/  built-res  (resolve-built pax (weld /mar path.blot) name.blot)
   ?~  built-res  this
   (vale-put lob ckey.u.built-res ?:(?=(%& -.res) ~ `p.res))
@@ -2054,11 +2058,16 @@
   =.  this
     ?.  ?=(^ sok)  this
     =/  file-cass=cass:clay  (need (top:hist:nexus u.sok))
+    ::  Capture the leaf being tombed so its vale entry can follow it
+    =/  prev-leaf=(unit leaf:nexus)  (hist-leaf u.sok file-cass)
     =/  [tombed-silo=silo:nexus tombed-hist=hist:nexus]
       (~(tomb-temp si:nexus silo) u.sok file-cass)
     =/  new-cass=cass:clay  (~(next-cass bo:nexus now.bowl born) file-cass)
     =/  new-sok=hist:nexus  (put-pace:hist:nexus tombed-hist new-cass [%temp ~])
-    this(silo tombed-silo, born (~(put bo:nexus now.bowl born) [dir name] new-sok))
+    =.  silo  tombed-silo
+    =.  born  (~(put bo:nexus now.bowl born) [dir name] new-sok)
+    =.  vale  (gc-vale-prev prev-leaf)
+    this
   =.  this  (propagate old-born [dir name])
   =/  old=pipe:nexus  (fall (~(get of pool) dir) *pipe:nexus)
   =/  =pipe:nexus  old(proc (~(del by proc.old) name))
@@ -3853,10 +3862,12 @@
   =/  marc-ckey=@uv   ?~(resolved 0v0 ckey.u.resolved)
   =/  marc-ns=path     ?~(resolved / namespace.u.resolved)
   =/  raw=*  q.bask
+  ::  Capture the leaf being replaced before si-record tombs it
+  =/  prev-leaf=(unit leaf:nexus)  (hist-leaf sok file-cass)
   =/  [=nobe:nexus new-silo=silo:nexus new-sok=hist:nexus]
     (~(record si:nexus silo) raw p.bask marc-ckey marc-ns gain new-cass file-cass sok)
   =.  silo  new-silo
-  =.  vale  (gc-vale-cache vale bins)
+  =.  vale  (gc-vale-prev prev-leaf)
   =.  born  (~(put bo:nexus now.bowl born) here new-sok)
   ::  Populate vale cache so reads never miss
   ?:  =(marc-ckey 0v0)  this
@@ -4400,6 +4411,31 @@
   |=  [[lob=nobe:nexus ckey=@uv] *]
   ::  drop if mark was removed or lobe was tombstoned from silo
   |(!(~(has by bins) ckey) !(~(has by nouns.silo) lob))
+::  Look up the leaf ject a hist entry points at, if any.
+::
+++  hist-leaf
+  |=  [sok=hist:nexus cas=cass:clay]
+  ^-  (unit leaf:nexus)
+  =/  pv=(unit pace:hist:nexus)  (get-pace:hist:nexus sok cas)
+  ?~  pv  ~
+  ?:  ?=(%tomb -.u.pv)  ~
+  ?~  p.u.pv  ~
+  =/  got  (~(get by jects.silo) u.p.u.pv)
+  ?~  got  ~
+  ?.  ?=(%leaf -.ject.u.got)  ~
+  `leaf.ject.u.got
+::  Incremental vale GC for the record/delete hot path: when a
+::  replaced or tombed leaf's noun no longer lives in the silo,
+::  drop just its cache entry. O(log V) instead of the full sweep,
+::  which stays at the sites where lobes die in bulk (drop-hist,
+::  snap release, build-code).
+::
+++  gc-vale-prev
+  |=  prev=(unit leaf:nexus)
+  ^-  vale:nexus
+  ?~  prev  vale
+  ?:  (~(has by nouns.silo) lobe.u.prev)  vale
+  (~(del by vale) [lobe.u.prev ckey.mark.u.prev])
 ::  Validate marks: for each changed mark in bin/mar/, build a vale gate
 ::  Walk ball under a code namespace, pruning at child code namespaces.
 ::  Returns all [fold lump] pairs governed by this code namespace —
