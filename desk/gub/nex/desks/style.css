@@ -10,6 +10,11 @@ body { font-family: -apple-system, system-ui, sans-serif; background: #111; colo
 .spin { width: 14px; height: 14px; border: 2px solid #333; border-top-color: #9a6cc4; border-radius: 50%; animation: rot 0.7s linear infinite; }
 @keyframes rot { to { transform: rotate(360deg); } }
 
+#legend { display: flex; flex-wrap: wrap; gap: 14px; margin-bottom: 14px; padding: 8px 12px; background: #161618; border: 1px solid #242428; border-radius: 8px; }
+#legend span { font-size: 11px; color: #8a8a92; }
+#legend b { color: #b8a8ec; font-weight: 700; }
+#legend em { color: #55555c; font-style: normal; }
+
 .entry { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; background: #1c1c1e; border: 1px solid #2e2e32; border-left: 3px solid #8558b0; border-radius: 10px; padding: 13px 14px; margin-bottom: 8px; }
 .entry:hover { border-color: #4a4a50; }
 .entry-main { min-width: 0; flex: 1; }
@@ -19,6 +24,9 @@ body { font-family: -apple-system, system-ui, sans-serif; background: #111; colo
 .badge.sink { color: #7fd6ca; background: #12332e; }
 .badge.src { color: #b8a8ec; background: #29224a; }
 .entry-repo { font-size: 12px; color: #9a9aa2; font-family: monospace; margin-top: 5px; word-break: break-all; }
+.src-tag { font-size: 9px; font-weight: 700; border-radius: 5px; padding: 1px 5px; font-family: sans-serif; }
+.src-tag.git { color: #b8a8ec; background: #29224a; }
+.src-tag.ship { color: #7fd6ca; background: #12332e; }
 .entry-ver { font-size: 12px; color: #888; margin-top: 6px; display: flex; align-items: center; gap: 7px; }
 .entry-ver b { color: #ddd; font-weight: 700; }
 .arrow { color: #55555c; }
@@ -29,6 +37,10 @@ body { font-family: -apple-system, system-ui, sans-serif; background: #111; colo
 .verb:hover { color: #fff; border-color: #666; }
 .verb.hot { background: #6a5628; border-color: #6a5628; color: #f0c36a; }
 .verb.hot:hover { background: #7d6631; }
+.verb.edit { color: #8a8a92; }
+.verb.danger { color: #e06a6a; border-color: #4a2a2a; }
+.verb.danger:hover { color: #fff; border-color: #e06a6a; background: #3a1f1f; }
+#modal input:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .hdr-btn { font-size: 12px; padding: 6px 12px; border-radius: 6px; border: 1px solid #444; background: none; color: #aaa; cursor: pointer; font-family: inherit; }
 .hdr-btn:hover { color: #fff; border-color: #666; }
@@ -36,11 +48,27 @@ body { font-family: -apple-system, system-ui, sans-serif; background: #111; colo
 .hdr-btn.primary:hover { background: #9a6cc4; }
 .empty { padding: 40px 0; color: #666; font-size: 13px; text-align: center; }
 
-#modal-back { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 50; align-items: center; justify-content: center; }
-#modal-back.open { display: flex; }
-#modal { background: #1c1c1e; border: 1px solid #3a3a40; border-radius: 12px; width: min(440px, calc(100vw - 32px)); padding: 20px; display: flex; flex-direction: column; gap: 12px; }
-#modal h2 { font-size: 15px; font-weight: 700; }
+#modal-back, #push-back, #detail-back { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 50; align-items: center; justify-content: center; }
+#modal-back.open, #push-back.open, #detail-back.open { display: flex; }
+#modal, .pmodal { background: #1c1c1e; border: 1px solid #3a3a40; border-radius: 12px; width: min(440px, calc(100vw - 32px)); padding: 20px; display: flex; flex-direction: column; gap: 12px; }
+#modal h2, .pmodal h2 { font-size: 15px; font-weight: 700; }
+.push-note { font-size: 12px; color: #8a8a92; line-height: 1.55; }
+#push-status { font-size: 12px; color: #7fd6ca; min-height: 14px; }
+.detail-head { display: flex; justify-content: space-between; align-items: center; }
+.detail-section { border-top: 1px solid #2a2a2e; padding-top: 10px; }
+.detail-h { font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: #777; margin-bottom: 6px; }
+.ckpts { display: flex; flex-direction: column; gap: 4px; max-height: 150px; overflow-y: auto; }
+.ckpt { display: flex; justify-content: space-between; gap: 10px; font-size: 12px; color: #cfcfd4; }
+.muted { color: #666; font-size: 12px; }
+#src-seg { display: flex; border: 1px solid #3a3a40; border-radius: 6px; overflow: hidden; margin-bottom: 4px; }
+#src-seg .seg { flex: 1; font-size: 12px; padding: 7px; border: none; background: none; color: #888; cursor: pointer; font-family: inherit; }
+#src-seg .seg + .seg { border-left: 1px solid #3a3a40; }
+#src-seg .seg.active { background: #8558b0; color: #fff; }
+#git-fields, #ship-fields { display: flex; flex-direction: column; gap: 12px; }
 .m-label { font-size: 12px; color: #999; display: flex; flex-direction: column; gap: 4px; }
 .m-label input { background: #131315; color: #eee; border: 1px solid #3a3a40; border-radius: 8px; padding: 9px; font-size: 13px; font-family: inherit; }
 .m-label input:focus { outline: none; border-color: #8558b0; }
+.m-label .hint { color: #55555c; }
+.m-check { font-size: 12px; color: #bbb; display: flex; align-items: center; gap: 8px; cursor: pointer; }
+.m-check input { accent-color: #8558b0; }
 #m-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }

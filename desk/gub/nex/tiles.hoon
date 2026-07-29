@@ -16,6 +16,7 @@
             info+s+'Tlon'
             color+s+'#1a1a1a'
             href+s+'/apps/landscape'
+            image+s+'https://upload.wikimedia.org/wikipedia/commons/thumb/f/fe/Urbit_Logo.svg/3840px-Urbit_Logo.svg.png'
         ==
       %+  spin:loader  ball
       :~  (manifest:loader 0)

@@ -2,8 +2,8 @@
 ::  write-grub: write a text file to the grubbery ball
 ::
 !:
-^-  tool:tools
-|%
+=<  ^-  tool:tools
+    |%
 ++  name  'write_grub'
 ++  description
   ^~  %-  crip
@@ -62,7 +62,7 @@
   =/  road=road:tarball  [%& %& pax file-name]
   ::  Explicit content_type: store as raw mime with that content-type
   ?^  content-type
-    =/  mtype=path  (stab (cat 3 '/' u.content-type))
+    =/  mtype=path  (ct-to-path u.content-type)
     =/  src-mime=mime  [mtype (as-octs:mimes:html content)]
     ;<  exists=?  bind:m  (peek-exists:io road)
     ?:  exists
@@ -70,8 +70,11 @@
       (pure:m [%text (crip "Wrote {(trip file-path)}/{(trip file-name)} [{(trip u.content-type)}]")])
     ;<  ~  bind:m  (make:io road |+[[[/ %mime] src-mime] ~])
     (pure:m [%text (crip "Created {(trip file-path)}/{(trip file-name)} [{(trip u.content-type)}]")])
-  ::  Build mime cage from content
-  =/  src-mime=mime  [/text/plain (as-octs:mimes:html content)]
+  ::  Build mime cage from content. When no blot/content_type is given
+  ::  the file is stored as this mime, so its type must reflect the
+  ::  extension (a .svg served as text/plain won't render) — guess it.
+  =/  src-mime=mime
+    [(ct-to-path (guess-content-type file-name)) (as-octs:mimes:html content)]
   ;<  exists=?  bind:m  (peek-exists:io road)
   ?:  exists
     ?^  dest-blot
@@ -92,4 +95,45 @@
   ;<  ~  bind:m  (make:io road |+[[[/ %mime] src-mime] dest-blot])
   =/  blot-msg=tape  ?~(dest-blot "mime" (spud (rail-to-path:tarball u.dest-blot)))
   (pure:m [%text (crip "Created {(trip file-path)}/{(trip file-name)} [{blot-msg}]")])
+--
+|%
+::  +ct-to-path: a "type/subtype" content-type into a mime path, split
+::  on "/" without stab (which chokes on chars like the "+" in
+::  "image/svg+xml").
+::
+++  ct-to-path
+  |=  ct=@t
+  ^-  path
+  =/  segs=(list @t)
+    |-  ^-  (list @t)
+    =/  t=tape  (trip ct)
+    =/  i=(unit @ud)  (find "/" t)
+    ?~  i  ~[ct]
+    [(crip (scag u.i t)) $(ct (crip (slag +(u.i) t)))]
+  (turn segs |=(seg=@t `@ta`seg))
+::  +guess-content-type: mime type from a filename's extension, so an
+::  extensionless-typed write still stores a sensible type.
+::
+++  guess-content-type
+  |=  filename=@t
+  ^-  @t
+  =/  t=tape  (trip filename)
+  =/  idx=(unit @ud)  (find "." (flop t))
+  =/  ext=@t
+    ?~  idx  ''
+    (crip (slag (sub (lent t) u.idx) t))
+  ?+  ext  'text/plain'
+    %svg   'image/svg+xml'
+    %png   'image/png'
+    %jpg   'image/jpeg'
+    %jpeg  'image/jpeg'
+    %gif   'image/gif'
+    %ico   'image/x-icon'
+    %json  'application/json'
+    %html  'text/html'
+    %css   'text/css'
+    %js    'application/javascript'
+    %md    'text/markdown'
+    %txt   'text/plain'
+  ==
 --

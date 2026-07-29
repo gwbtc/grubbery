@@ -3,9 +3,8 @@
 /+  nexus, tarball, loader, io=fiberio, ball-api, http-utils, server
 =/  app-weir=(unit weir:tarball)
   `[make=~ poke=(sy ~[[%& %| /]]) peek=(sy ~[[%& %| /]])]
-::  the desks manager installs apps, so it needs to make/cull under
-::  /apps (its own subtree makes are downward and always allowed);
-::  poke/peek stay open so it can reach /sys for git http + timers.
+::  desks creates and configures the desk backends, so it needs to make
+::  new instances under /apps; poke/peek stay open to reach siblings.
 =/  desks-weir=(unit weir:tarball)
   `[make=(sy ~[[%& %| /apps]]) poke=(sy ~[[%& %| /]]) peek=(sy ~[[%& %| /]])]
 =/  home-readme=mime
@@ -29,21 +28,6 @@
       ['ref' s+ref]
       ['public' b+%.n]
       ['poll' n+'360']
-  ==
-::  the desks this ship installs on boot — the desks manager's manifest
-=/  desks-manifest
-  ^-  json
-  %-  pairs:enjs:format
-  :~  ['version' n+'0']
-      :-  'desks'
-      :-  %a
-      :~  %-  pairs:enjs:format
-          :~  ['name' s+'contacts']
-              ['repo' s+'niblyx-malnus/contacts-nexus']
-              ['ref' s+'main']
-              ['app' s+'contacts']
-          ==
-      ==
   ==
 ^-  nexus:nexus
 |%
@@ -96,17 +80,19 @@
         [%fall %| /apps/'wallet.git_desk' [`[`[/git %desk] app-weir %.n ~] ~]]
         [%fall %& [/apps/'wallet.git_desk' %'config.json'] [[/ %json] (git-desk-config 'niblyx-malnus/wallet-nexus' 'main')]]
         ::
-        ::  desks manager: its manifest lists the desks to install on
-        ::  first boot (contacts here, replacing contacts.git_desk).
-        ::  the nexus carries the seeded manifest via %fall; installed
-        ::  apps persist via the /apps carry.
+        ::  contacts: a plain git desk (the /git/desk backend), the same
+        ::  way wallet boots. it was briefly the desks
+        ::  manager's boot-install; desks is now only the UI, so it boots
+        ::  as its own git_desk again.
+        [%fall %| /apps/'contacts.git_desk' [`[`[/git %desk] app-weir %.n ~] ~]]
+        [%fall %& [/apps/'contacts.git_desk' %'config.json'] [[/ %json] (git-desk-config 'niblyx-malnus/contacts-nexus' 'main')]]
+        ::
+        ::  desks: the UI over the /desk and /git/desk nexuses. it also
+        ::  creates + configures them, so it makes under /apps.
         [%fall %| /apps/'desks.desks' [`[`[/ %desks] desks-weir %.n ~] ~]]
-        [%fall %& [/apps/'desks.desks' %'manifest.json'] [[/ %json] desks-manifest]]
         ::
         [%fall %| /apps/'test.web-test' [`[`[/ %web-test] app-weir %.n ~] ~]]
         [%fall %| /apps/'test.guestbook' [`[`[/ %guestbook] app-weir %.n ~] ~]]
-        [%fall %| /apps/'test.desk' [`[`[/ %desk] app-weir %.n ~] ~]]
-        [%fall %| /apps/'itinerary.git_desk' [`[`[/git %desk] app-weir %.n ~] ~]]
     ==
 ::
 ++  on-file

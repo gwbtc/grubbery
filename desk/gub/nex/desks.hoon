@@ -1,29 +1,15 @@
-::  desks: unified desk manager — acquire desk trees from sources
-::  (git for now; ship transport later), stage them as inert
-::  mirrors, and deploy them deliberately into app directories.
+::  desks: one UI over the desk nexuses installed in /apps. it owns no
+::  transport of its own — the /desk (cross-ship) and /git/desk (git)
+::  nexuses do the real work. desks discovers their instances by
+::  convention (a dir named <x>.desk or <x>.git_desk), reads their
+::  state (config + version), and drives their actions by poking. this
+::  is the UI half of the desk / tiles / notifications shell.
 ::
-::  /main.sig                 json pokes: install / sync / deploy /
-::                            push / config
-::  /entries/<name>/
-::    config.json             {repo, ref, app, token}
-::    state.json              {synced, deployed}
-::    mirror/                 inert full checkout — NOT a code
-::                            nexus; sync only ever writes here
+::  /main.sig              HTTP at /grubbery/desks
+::  /requests/             per-request handlers; also serves:
+::    GET  /list           discovered desks as json
+::  /index.html /app.js /style.css /icon.svg /tile.json   static UI
 ::
-::  deploy writes /apps/<app>/: code/ (a real code nexus), data/
-::  instance dirs from bill.json (created once, preserved across
-::  deploys), tile.json, icon.svg at the app root.
-::
-::  source vs sink: an entry with poll > 0 (minutes) is a SINK — it
-::  periodically syncs its mirror and deploys when the author bumped
-::  version.json. poll 0 / absent is a SOURCE — you author here, so
-::  nothing is ever pulled or deployed except by explicit poke. sync
-::  only ever writes the mirror either way; the live app moves only
-::  on deploy.
-::
-/<  git-pack  /lib/git/pack.hoon
-/<  git-repo  /lib/git/repository.hoon
-/<  git-transport  /lib/git/transport.hoon
 /&  icon        desks/icon.svg
 /&  desks-html  desks/index.html
 /&  desks-js    desks/app.js
@@ -36,26 +22,20 @@
       =/  tile=json
         %-  pairs:enjs:format
         :~  title+s+'Desks'
-            info+s+'Install & update apps'
+            info+s+'Installed desks'
             color+s+'#8558b0'
             image+s+'/grubbery/tiles/icon/desks.desks'
             href+s+'/grubbery/desks'
         ==
       %+  spin:loader  ball
-      :~  ::  manifest.json declares the desks this manager follows:
-          ::  {version, desks:[{name, repo, ref, app, poll?}]}. empty
-          ::  by default; whoever wants apps here fills it. boot-install
-          ::  seeds an entry per desk and installs any missing app.
-          [%fall %& [/ %'manifest.json'] [[/ %json] init-manifest]]
+      :~  (manifest:loader 0)
           [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
-          [%fall %| /entries empty-dir:loader]
+          [%fall %| /requests empty-dir:loader]
           [%over %& [/ %'tile.json'] [[/ %json] tile]]
           [%over %& [/ %'icon.svg'] [[/ %mime] icon]]
-          [%fall %& [/ui %'http.sig'] [[/ %sig] ~]]
-          [%fall %| /ui/requests empty-dir:loader]
-          [%over %& [/ui %'index.html'] [[/ %mime] desks-html]]
-          [%over %& [/ui %'app.js'] [[/ %mime] desks-js]]
-          [%over %& [/ui %'style.css'] [[/ %mime] desks-css]]
+          [%over %& [/ %'index.html'] [[/ %mime] desks-html]]
+          [%over %& [/ %'app.js'] [[/ %mime] desks-js]]
+          [%over %& [/ %'style.css'] [[/ %mime] desks-css]]
       ==
     ::
     ++  on-file
@@ -66,15 +46,15 @@
       ^-  process:fiber:nexus
       ?+    rail  stay:m
           ::
-          [[%ui ~] %'http.sig']
-        ;<  ~  bind:m  (rise-wait:io prod "%desks http: failed")
+          [~ %'main.sig']
+        ;<  ~  bind:m  (rise-wait:io prod "%desks main: failed")
         ;<  ~  bind:m  (bind-http:io [~ /grubbery/desks])
         (http-dispatch:io %desks)
           ::
-          [[%ui %requests ~] @]
+          [[%requests ~] @]
         ;<  ~  bind:m  (rise-wait:io prod "%desks request: failed")
         =/  eyre-id=@ta  name.rail
-        =/  s  (srv rail)
+        =/  s  ~(. http-res:io (nex-road:io rail [%& / %'main.sig']))
         ;<  [src=@p req=inbound-request:eyre]  bind:m
           (get-state-as:io ,[src=@p inbound-request:eyre])
         ;<  our=@p  bind:m  get-our:io
@@ -85,61 +65,118 @@
         =/  suffix=path
           %+  skip  (slag (lent `path`/grubbery/desks) site)
           |=(seg=@ta =('' seg))
-        =/  filename=@ta
-          ?~  suffix  'index.html'
-          i.suffix
-        ;<  file-view=view:nexus  bind:m
-          (peek:io (nex-road:io rail [%& ~[%ui] filename]) `[/ %mime])
-        ?.  ?=([%file *] file-view)
+        ::  writes: add / configure / drive a backend
+        ?:  =('POST' method.request.req)
+          =/  body=@t  ?~(body.request.req '' q.u.body.request.req)
+          =/  jon=json  (fall (de:json:html body) *json)
+          ?+    suffix
+            ;<  ~  bind:m  (send-simple:s eyre-id [[404 ~] `(as-octs:mimes:html 'Not found')])
+            (pure:m ~)
+              [%add ~]     (do-add rail eyre-id jon)
+              [%config ~]  (do-config rail eyre-id jon)
+              [%sync ~]    (do-sync rail eyre-id jon)
+              [%push ~]    (do-push rail eyre-id jon)
+              [%detail ~]  (do-detail rail eyre-id jon)
+              [%delete ~]  (do-delete rail eyre-id jon)
+          ==
+        ::  reads: the discovered desk list
+        ?:  ?=([%list ~] suffix)
+          ;<  lst=json  bind:m  discover-desks
+          =/  bod=octs  (as-octs:mimes:html (en:json:html lst))
+          ;<  ~  bind:m  (send-simple:s eyre-id (mime-response:http-utils [/application/json bod]))
+          (pure:m ~)
+        ::  otherwise serve a static file from the nexus root
+        =/  filename=@ta  ?~(suffix 'index.html' i.suffix)
+        ;<  fv=view:nexus  bind:m
+          (peek:io (nex-road:io rail [%& / filename]) `[/ %mime])
+        ?.  ?=([%file *] fv)
           ;<  ~  bind:m  (send-simple:s eyre-id [[404 ~] `(as-octs:mimes:html 'Not found')])
           (pure:m ~)
-        =/  =mime  !<(mime (need-vase:tarball sang.file-view))
+        =/  =mime  !<(mime (need-vase:tarball sang.fv))
         ;<  ~  bind:m  (send-simple:s eyre-id (mime-response:http-utils mime))
         (pure:m ~)
-          ::
-          [~ %'main.sig']
-        ;<  ~  bind:m  (rise-wait:io prod "%desks main: failed")
-        ::  on start: read the manifest and install any missing app,
-        ::  then serve the management loop.
-        ;<  ~  bind:m  (boot-deploy rail)
-        |-
-        ;<  =sage:tarball  bind:m  take-poke:io
-        =/  jon=json  (fall (mole |.(!<(json q.sage))) *json)
-        =/  act=@t   (jstr jon 'action')
-        =/  name=@t  (jstr jon 'name')
-        ?:  =('' name)
-          ~&  >>>  "%desks: name required"
-          $
-        =/  nam=@ta  (crip (trip name))
-        ?:  =('install' act)
-          ;<  ~  bind:m  (do-config rail nam jon)
-          ;<  ok=?  bind:m  (do-sync rail nam)
-          ;<  ~  bind:m
-            ?.  ok  (pure:(fiber:fiber:nexus ,~) ~)
-            (do-deploy rail nam jon)
-          $
-        ?:  =('config' act)
-          ;<  ~  bind:m  (do-config rail nam jon)
-          $
-        ?:  =('sync' act)
-          ;<  *  bind:m  (do-sync rail nam)
-          $
-        ?:  =('deploy' act)
-          ;<  ~  bind:m  (do-deploy rail nam jon)
-          $
-        ?:  =('push' act)
-          ;<  ~  bind:m  (do-push rail nam jon)
-          $
-        ~&  >>>  [%desks %unknown-action act]
-        $
       ==
     --
 |%
-::  json helpers
+::  +discover-desks: every /apps/<x>.desk and <x>.git_desk, with its
+::  config (minus any token) and current version, as a json array.
 ::
-++  srv
-  |=  =rail:tarball
-  ~(. http-res:io (nex-road:io rail [%& ~[%ui] %'http.sig']))
+++  discover-desks
+  =/  m  (fiber:fiber:nexus ,json)
+  ^-  form:m
+  ;<  =view:nexus  bind:m  (peek:io [%& %| /apps] ~)
+  ?.  ?=([%ball *] view)  (pure:m a+~)
+  =/  apps=(list @ta)  ~(tap in ~(key by dir.ball.view))
+  ;<  cards=(list json)  bind:m  (gather apps)
+  (pure:m a+cards)
+::
+++  gather
+  |=  apps=(list @ta)
+  =/  m  (fiber:fiber:nexus ,(list json))
+  ^-  form:m
+  ?~  apps  (pure:m ~)
+  ;<  one=(unit json)  bind:m  (desk-card i.apps)
+  ;<  rest=(list json)  bind:m  $(apps t.apps)
+  (pure:m ?~(one rest [u.one rest]))
+::
+++  desk-card
+  |=  app=@ta
+  =/  m  (fiber:fiber:nexus ,(unit json))
+  ^-  form:m
+  =/  typ=(unit @t)  (desk-type app)
+  ?~  typ  (pure:m ~)
+  ;<  cfg=(unit json)  bind:m
+    (peek-as:io [%& %& /apps/[app] %'config.json'] ,json)
+  ;<  ver=(unit @ud)  bind:m
+    (peek-as:io [%& %& /apps/[app] %'version.ud'] ,@ud)
+  =/  cm=(map @t json)  ?:(?=([~ %o *] cfg) p.u.cfg ~)
+  =/  get  |=(k=@t `json`(~(gut by cm) k ~))
+  =/  card=json
+    %-  pairs:enjs:format
+    :~  ['name' s+app]
+        ['type' s+u.typ]
+        ['version' (numb:enjs:format (fall ver 0))]
+        ['repo' (get 'repo')]
+        ['ref' (get 'ref')]
+        ['source' (get 'source')]
+        ['poll' (get 'poll')]
+        ['public' (get 'public')]
+        ['token' (get 'token')]
+        ['url' s+(desk-url app u.typ)]
+    ==
+  (pure:m `card)
+::  +desk-type: 'git' for <x>.git_desk, 'cross-ship' for <x>.desk, else
+::  ~ (not a desk we manage).
+::
+++  desk-type
+  |=  app=@ta
+  ^-  (unit @t)
+  =/  t=tape  (trip app)
+  =/  idx=(unit @ud)  (find "." (flop t))
+  ?~  idx  ~
+  =/  suff=@t  (crip (slag (sub (lent t) u.idx) t))
+  ?:  =('git_desk' suff)  `'git'
+  ?:  =('desk' suff)  `'cross-ship'
+  ~
+::  +desk-url: the backend nexus's own page (until its UI is folded in)
+::
+++  desk-url
+  |=  [app=@ta typ=@t]
+  ^-  @t
+  =/  slug=@t  (desk-slug app)
+  ?:  =('git' typ)  (cat 3 '/grubbery/git-desk/' slug)
+  (cat 3 '/grubbery/desk/' slug)
+::  +desk-slug: the dir name before the first dot ('wallet.git_desk' ->
+::  'wallet'), matching how the backends bind their URLs.
+::
+++  desk-slug
+  |=  app=@ta
+  ^-  @t
+  =/  t=tape  (trip app)
+  =/  idx=(unit @ud)  (find "." t)
+  ?~  idx  app
+  (crip (scag u.idx t))
+::  json helpers
 ::
 ++  jstr
   |=  [jon=json k=@t]
@@ -156,605 +193,181 @@
   ?.  ?=([~ %n *] v)  0
   (fall (rush p.u.v dem) 0)
 ::
-++  entry-names
-  |=  =rail:tarball
-  =/  m  (fiber:fiber:nexus ,(list @ta))
-  ^-  form:m
-  ;<  =view:nexus  bind:m  (peek:io (nex-road:io rail [%| /entries]) ~)
-  ?.  ?=([%ball *] view)  (pure:m ~)
-  (pure:m ~(tap in ~(key by dir.ball.view)))
-::  +init-manifest: the empty default — {version, desks:[]}
+++  jbol
+  |=  [jon=json k=@t]
+  ^-  ?
+  ?.  ?=([%o *] jon)  %.n
+  =/  v  (~(get by p.jon) k)
+  ?.(?=([~ %b *] v) %.n p.u.v)
+::  +app-weir: the standard weir (upward makes vetoed, poke/peek open)
+::  for instances desks creates.
 ::
-++  init-manifest
-  ^-  json
-  %-  pairs:enjs:format
-  :~  ['version' (numb:enjs:format 0)]
-      ['desks' [%a ~]]
-  ==
-::  +boot-deploy: install each manifest desk whose app dir is absent.
+++  app-weir
+  ^-  (unit weir:tarball)
+  `[make=~ poke=(sy ~[[%& %| /]]) peek=(sy ~[[%& %| /]])]
+::  +respond: a plaintext HTTP reply through main.sig
 ::
-++  boot-deploy
-  |=  =rail:tarball
+++  respond
+  |=  [=rail:tarball eyre-id=@ta code=@ud msg=@t]
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
-  ;<  man=(unit json)  bind:m
-    (peek-as:io (nex-road:io rail [%& / %'manifest.json']) ,json)
-  =/  items=(list json)
-    ?.  ?=([~ %o *] man)  ~
-    =/  d  (~(get by p.u.man) 'desks')
-    ?.  ?=([~ %a *] d)  ~
-    p.u.d
-  |-
-  ?~  items  (pure:m ~)
-  =/  nm=@t   (jstr i.items 'name')
-  =/  app=@t  (jstr i.items 'app')
+  %+  ~(send-simple http-res:io (nex-road:io rail [%& / %'main.sig']))
+    eyre-id
+  [[code ~] `(as-octs:mimes:html msg)]
+::  +do-add: create a new backend in /apps and configure it — same
+::  shape as create-desk: make a [/git %desk] or [/ %desk] necked dir,
+::  poke config, and (git with a repo) kick an initial sync.
+::
+++  do-add
+  |=  [=rail:tarball eyre-id=@ta jon=json]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  =/  name=@t  (jstr jon 'name')
+  =/  typ=@t   (jstr jon 'type')
+  =/  is-git=?  =('git' typ)
+  ?:  =('' name)  (respond rail eyre-id 400 'name required')
+  ?.  |(is-git =('cross-ship' typ) =('desk' typ))
+    (respond rail eyre-id 400 'type must be git or cross-ship')
+  =/  dir-name=@ta
+    (cat 3 (crip (trip name)) ?:(is-git '.git_desk' '.desk'))
+  =/  dir-path=path  /apps/[dir-name]
+  ;<  live=?  bind:m  (peek-exists:io [%& %| dir-path])
+  ?:  live  (respond rail eyre-id 409 'a desk by that name already exists')
+  =/  neck=rail:tarball  ?:(is-git [/git %desk] [/ %desk])
   ;<  ~  bind:m
-    ?:  |(=('' nm) =('' app))  (pure:(fiber:fiber:nexus ,~) ~)
-    =/  nam=@ta  (crip (trip nm))
-    ;<  live=?  bind:(fiber:fiber:nexus ,~)
-      (peek-exists:io [%& %| /apps/[(crip (trip app))]])
-    ?:  live  (pure:(fiber:fiber:nexus ,~) ~)
-    ~&  >  [%desks nam %installing app]
-    ;<  ~  bind:(fiber:fiber:nexus ,~)  (do-config rail nam i.items)
-    ;<  ok=?  bind:(fiber:fiber:nexus ,~)  (do-sync rail nam)
-    ?.  ok
-      (write-error rail nam 'sync failed')
-    (do-deploy rail nam *json)
-  $(items t.items)
-::  +write-error: record a failure on the entry's state
-::
-++  write-error
-  |=  [=rail:tarball nam=@ta err=@t]
-  =/  m  (fiber:fiber:nexus ,~)
-  ^-  form:m
-  ;<  st=json  bind:m  (read-entry-json rail nam %'state.json')
-  =/  sm=(map @t json)  ?:(?=([%o *] st) p.st ~)
-  =.  sm  (~(put by sm) 'error' s+err)
-  (put:io (entry-file rail nam %'state.json') [[/ %json] [%o sm]])
-::
-::  entry roads (relative to the nexus root)
-::
-++  entry-file
-  |=  [=rail:tarball nam=@ta file=@ta]
-  ^-  road:tarball
-  (nex-road:io rail [%& /entries/[nam] file])
-::
-++  entry-dir
-  |=  [=rail:tarball nam=@ta sub=path]
-  ^-  road:tarball
-  (nex-road:io rail [%| (weld /entries/[nam] sub)])
-::
-++  read-entry-json
-  |=  [=rail:tarball nam=@ta file=@ta]
-  =/  m  (fiber:fiber:nexus ,json)
-  ^-  form:m
-  ;<  j=(unit json)  bind:m  (peek-as:io (entry-file rail nam file) ,json)
-  (pure:m (fall j *json))
-::  +do-config: merge poked fields into the entry's config.json.
-::  never triggers a sync — configuring and pulling are separate acts.
+    (make:io [%& %| dir-path] &+`bole:tarball`[`[`neck app-weir %.n ~] ~])
+  =/  config=json
+    ?:  is-git
+      %-  pairs:enjs:format
+      :~  ['repo' s+(jstr jon 'repo')]
+          ['ref' s+?:(=('' (jstr jon 'ref')) 'main' (jstr jon 'ref'))]
+          ['public' b+(jbol jon 'public')]
+          ['poll' (numb:enjs:format (jnum jon 'poll'))]
+          ['token' s+(jstr jon 'token')]
+      ==
+    %-  pairs:enjs:format
+    :~  ['source' s+(jstr jon 'source')]
+        ['public' b+(jbol jon 'public')]
+    ==
+  ;<  ~  bind:m  (poke:io [%& %& dir-path %'config.json'] [[/ %json] config])
+  ?:  &(is-git !=('' (jstr jon 'repo')))
+    ;<  ~  bind:m  (poke:io [%& %& dir-path %'sync.sig'] [[/ %sig] ~])
+    (respond rail eyre-id 200 'created')
+  (respond rail eyre-id 200 'created')
+::  +do-config: merge poked fields into a backend's config.json. string
+::  fields overwrite only when non-empty (so a blank token is kept);
+::  poll + public are set whenever the form sends them.
 ::
 ++  do-config
-  |=  [=rail:tarball nam=@ta jon=json]
+  |=  [=rail:tarball eyre-id=@ta jon=json]
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
-  ;<  old=json  bind:m  (read-entry-json rail nam %'config.json')
-  =/  om=(map @t json)  ?:(?=([%o *] old) p.old ~)
-  =/  merge
-    |=  [m=(map @t json) k=@t]
+  =/  app=@t  (jstr jon 'app')
+  ?:  =('' app)  (respond rail eyre-id 400 'app required')
+  =/  cfg-road=road:tarball  [%& %& /apps/[(crip (trip app))] %'config.json']
+  ;<  old=(unit json)  bind:m  (peek-as:io cfg-road ,json)
+  =/  om=(map @t json)  ?:(?=([~ %o *] old) p.u.old ~)
+  =/  jm=(map @t json)  ?:(?=([%o *] jon) p.jon ~)
+  ::  the form is the source of truth — write back exactly the fields it
+  ::  sent (a blank token clears the token; absent fields are untouched).
+  =/  put-present
+    |=  [mp=(map @t json) k=@t]
     ^-  (map @t json)
-    =/  v=@t  (jstr jon k)
-    ?:(=('' v) m (~(put by m) k s+v))
-  =.  om  (merge om 'repo')
-  =.  om  (merge om 'ref')
-  =.  om  (merge om 'app')
-  =.  om  (merge om 'token')
-  ::  poll (minutes) declares sink-hood: > 0 = periodic sync +
-  ::  version-gated deploy; 0/absent = source, everything manual
-  =?  om  ?=([~ %n *] (~(get by ?:(?=([%o *] jon) p.jon ~)) 'poll'))
-    (~(put by om) 'poll' (numb:enjs:format (jnum jon 'poll')))
-  ::  app defaults to the entry name
-  =?  om  !(~(has by om) 'app')  (~(put by om) 'app' s+nam)
-  ;<  *  bind:m  (make-soft:io (entry-dir rail nam /) &+[~ ~])
-  (put:io (entry-file rail nam %'config.json') [[/ %json] [%o om]])
-::  +do-sync: fetch from source and rewrite the mirror. never
-::  touches the live app. returns whether anything was fetched.
+    =/  v  (~(get by jm) k)
+    ?~(v mp (~(put by mp) k u.v))
+  =.  om  (put-present om 'repo')
+  =.  om  (put-present om 'ref')
+  =.  om  (put-present om 'source')
+  =.  om  (put-present om 'token')
+  =.  om  (put-present om 'poll')
+  =.  om  (put-present om 'public')
+  ;<  ~  bind:m  (poke:io cfg-road [[/ %json] [%o om]])
+  (respond rail eyre-id 200 'configured')
+::  +do-detail: a backend's fuller state for the detail modal — its
+::  config, version, and the checkpoint history of its code + data
+::  axes (the "open the desk's page" content, served inline).
+::
+++  do-detail
+  |=  [=rail:tarball eyre-id=@ta jon=json]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  =/  app=@t  (jstr jon 'app')
+  ?:  =('' app)  (respond rail eyre-id 400 'app required')
+  =/  ap=@ta  (crip (trip app))
+  ;<  cfg=(unit json)  bind:m
+    (peek-as:io [%& %& /apps/[ap] %'config.json'] ,json)
+  ;<  ver=(unit @ud)  bind:m
+    (peek-as:io [%& %& /apps/[ap] %'version.ud'] ,@ud)
+  ;<  code=(each binfo tang)  bind:m  (born:io [%& %| (weld /apps/[ap] /desk/code)])
+  ;<  data=(each binfo tang)  bind:m  (born:io [%& %| (weld /apps/[ap] /desk/data)])
+  =/  out=json
+    %-  pairs:enjs:format
+    :~  ['config' (fall cfg [%o ~])]
+        ['version' (numb:enjs:format (fall ver 0))]
+        ['code' (binfo-to-json code)]
+        ['data' (binfo-to-json data)]
+    ==
+  =/  bod=octs  (as-octs:mimes:html (en:json:html out))
+  %+  ~(send-simple http-res:io (nex-road:io rail [%& / %'main.sig']))
+    eyre-id
+  (mime-response:http-utils [/application/json bod])
+::  born-history metadata + its json shape (only firmed, tagged, live
+::  revisions are checkpoints worth showing).
+::
++$  binfo  (list [=cass:clay tags=(set @t) tomb=?])
+::
+++  binfo-to-json
+  |=  res=(each binfo tang)
+  ^-  json
+  :-  %a
+  ?:  ?=(%| -.res)  ~
+  %+  murn  p.res
+  |=  [=cass:clay tags=(set @t) tomb=?]
+  ^-  (unit json)
+  ?:  tomb  ~
+  ?:  =(~ tags)  ~
+  :-  ~
+  %-  pairs:enjs:format
+  :~  ['ud' (numb:enjs:format ud.cass)]
+      ['da' (time:enjs:format da.cass)]
+      ['tags' a+(turn ~(tap in tags) |=(t=@t s+t))]
+  ==
+::  +do-sync: poke a git backend's sync.sig to fetch + install.
 ::
 ++  do-sync
-  |=  [=rail:tarball nam=@ta]
-  =/  m  (fiber:fiber:nexus ,?)
-  ^-  form:m
-  ;<  cfg=json  bind:m  (read-entry-json rail nam %'config.json')
-  =/  repo=@t  (jstr cfg 'repo')
-  ?:  =('' repo)
-    ~&  >>>  [%desks nam %no-repo-configured]
-    (pure:m %.n)
-  ~&  >  [%desks nam %syncing repo]
-  ;<  files=(list [pax=path data=octs])  bind:m
-    (do-fetch repo (jstr cfg 'ref'))
-  ?:  =(~ files)
-    ~&  >>>  [%desks nam %fetch-empty]
-    (pure:m %.n)
-  =/  bfiles=(list bfile)  (filter-prefix files ~)
-  ;<  *  bind:m  (cull-soft:io (entry-dir rail nam /mirror))
-  ;<  ~  bind:m  (make:io (entry-dir rail nam /mirror) &+(files-to-bole bfiles ~))
-  =/  ver=@ud  (fall (extract-version files) 0)
-  ;<  st=json  bind:m  (read-entry-json rail nam %'state.json')
-  =/  sm=(map @t json)  ?:(?=([%o *] st) p.st ~)
-  =.  sm  (~(put by sm) 'synced' (numb:enjs:format ver))
-  ;<  ~  bind:m  (put:io (entry-file rail nam %'state.json') [[/ %json] [%o sm]])
-  ~&  >  [%desks nam %synced (lent bfiles) %files ver=ver]
-  (pure:m %.y)
-::  +do-deploy: mirror -> live app. refuses when the live code tree
-::  differs from the last deploy (local edits) unless force: true.
-::
-++  do-deploy
-  |=  [=rail:tarball nam=@ta jon=json]
+  |=  [=rail:tarball eyre-id=@ta jon=json]
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
-  ;<  cfg=json  bind:m  (read-entry-json rail nam %'config.json')
-  =/  app=@t  (jstr cfg 'app')
-  ?:  =('' app)
-    ~&  >>>  [%desks nam %no-app-configured]
-    (pure:m ~)
-  =/  app-dir=path  /apps/[(crip (trip app))]
-  ;<  mirror=(unit (list bfile))  bind:m
-    (fetch-dir-at (entry-dir rail nam /mirror))
-  ?~  mirror
-    ~&  >>>  [%desks nam %mirror-empty %sync-first]
-    (pure:m ~)
-  ?:  =(~ u.mirror)
-    ~&  >>>  [%desks nam %mirror-empty %sync-first]
-    (pure:m ~)
-  =/  bfiles=(list bfile)  u.mirror
-  =/  code-files=(list bfile)
-    %+  murn  bfiles
-    |=  b=bfile
-    ^-  (unit bfile)
-    ?.  ?=([%code *] pax.b)  ~
-    `b(pax t.pax.b)
-  ;<  st=json  bind:m  (read-entry-json rail nam %'state.json')
-  ::  lay code as a fresh code nexus
-  ;<  *  bind:m  (cull-soft:io [%& %| (snoc app-dir %code)])
-  ;<  *  bind:m  (make-soft:io [%& %| app-dir] &+[~ ~])
+  =/  app=@t  (jstr jon 'app')
+  ?:  =('' app)  (respond rail eyre-id 400 'app required')
   ;<  ~  bind:m
-    (make:io [%& %| (snoc app-dir %code)] &+(files-to-bole code-files `[/ %code]))
-  ::  root files: tile, icon
-  ;<  ~  bind:m
-    =/  tile=(unit bfile)  (find-bfile bfiles ~ %'tile.json')
-    ?~  tile  (pure:(fiber:fiber:nexus ,~) ~)
-    ?:  (is-boom:tarball sang.u.tile)  (pure:(fiber:fiber:nexus ,~) ~)
-    (put:io [%& %& app-dir %'tile.json'] [p.sang.u.tile (sang-noun:tarball sang.u.tile)])
-  ;<  ~  bind:m
-    =/  icon=(unit bfile)  (find-bfile bfiles ~ %'icon.svg')
-    ?~  icon  (pure:(fiber:fiber:nexus ,~) ~)
-    ?:  (is-boom:tarball sang.u.icon)  (pure:(fiber:fiber:nexus ,~) ~)
-    (put:io [%& %& app-dir %'icon.svg'] [p.sang.u.icon (sang-noun:tarball sang.u.icon)])
-  ::  bill instances under data/ — created once, preserved after
-  ;<  *  bind:m  (make-soft:io [%& %| (snoc app-dir %data)] &+[~ ~])
-  ;<  ~  bind:m  (apply-bill-entries app-dir bfiles)
-  =/  ver=@ud
-    =/  vb=(unit bfile)  (find-bfile bfiles ~ %'version.json')
-    ?~  vb  0
-    (fall (version-from-sang sang.u.vb) 0)
-  =/  sm=(map @t json)  ?:(?=([%o *] st) p.st ~)
-  =.  sm  (~(put by sm) 'deployed' (numb:enjs:format ver))
-  ;<  ~  bind:m  (put:io (entry-file rail nam %'state.json') [[/ %json] [%o sm]])
-  ~&  >  [%desks nam %deployed (lent code-files) %code-files %to app-dir]
-  (pure:m ~)
-::  +do-push: live app code -> GitHub via the REST API (the remote
-::  is the object store). poke: {branch, message?}.
+    (poke:io [%& %& /apps/[(crip (trip app))] %'sync.sig'] [[/ %sig] ~])
+  (respond rail eyre-id 200 'syncing')
+::  +do-push: poke a git backend's push.sig with {branch, message}.
 ::
 ++  do-push
-  |=  [=rail:tarball nam=@ta jon=json]
+  |=  [=rail:tarball eyre-id=@ta jon=json]
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
-  ;<  cfg=json  bind:m  (read-entry-json rail nam %'config.json')
-  =/  repo=@t   (jstr cfg 'repo')
-  =/  token=@t  (jstr cfg 'token')
-  =/  app=@t    (jstr cfg 'app')
-  =/  branch=@t  (jstr jon 'branch')
-  =/  msg=@t
-    =/  t=@t  (jstr jon 'message')
-    ?:(=('' t) 'update from ship' t)
-  ?:  |(=('' repo) =('' token) =('' app) =('' branch))
-    ~&  >>>  [%desks nam %push %need-repo-token-app-branch]
-    (pure:m ~)
-  =/  base-branch=@t
-    =/  r=@t  (jstr cfg 'ref')
-    ?:(=('' r) 'main' r)
-  =/  app-dir=path  /apps/[(crip (trip app))]
-  ;<  live=(unit (list bfile))  bind:m
-    (fetch-dir-at [%& %| (snoc app-dir %code)])
-  =/  entries=(list [pax=tape txt=@t])
-    %+  murn  (fall live ~)
-    |=  b=bfile
-    ^-  (unit [tape @t])
-    =/  txt=(unit @t)  (bfile-text b)
-    ?~  txt  ~
-    `[(repo-path pax.b name.b) u.txt]
-  ?:  =(~ entries)
-    ~&  >>>  [%desks nam %push %nothing-to-push]
-    (pure:m ~)
-  ~&  >  [%desks nam %pushing (lent entries) %files %to branch]
-  =/  api=@t  'https://api.github.com'
-  =/  hdr  (gh-headers token)
-  ;<  [st1=@ud base-jon=json]  bind:m
-    (gh-call %'GET' (repo-url api repo (cat 3 '/git/ref/heads/' base-branch)) hdr ~)
-  ?.  =(200 st1)
-    ~&  >>>  [%desks %push %no-base-ref st1]
-    (pure:m ~)
-  =/  base-sha=@t  (ref-sha base-jon)
-  ;<  [st2=@ud com-jon=json]  bind:m
-    (gh-call %'GET' (repo-url api repo (cat 3 '/git/commits/' base-sha)) hdr ~)
-  ?.  =(200 st2)
-    ~&  >>>  [%desks %push %no-base-commit st2]
-    (pure:m ~)
-  =/  base-tree=@t  (commit-tree-sha com-jon)
-  =/  tree-body=json
-    :-  %o
-    %-  ~(gas by *(map @t json))
-    :~  ['base_tree' s+base-tree]
-        :-  'tree'
-        :-  %a
-        %+  turn  entries
-        |=  [pax=tape txt=@t]
-        %-  pairs:enjs:format
-        :~  ['path' s+(crip pax)]
-            ['mode' s+'100644']
-            ['type' s+'blob']
-            ['content' s+txt]
-        ==
-    ==
-  ;<  [st3=@ud tree-jon=json]  bind:m
-    (gh-call %'POST' (repo-url api repo '/git/trees') hdr `tree-body)
-  ?.  =(201 st3)
-    ~&  >>>  [%desks %push %tree-failed st3]
-    (pure:m ~)
-  =/  commit-body=json
+  =/  app=@t  (jstr jon 'app')
+  ?:  =('' app)  (respond rail eyre-id 400 'app required')
+  =/  push-body=json
     %-  pairs:enjs:format
-    :~  ['message' s+msg]
-        ['tree' s+(obj-sha tree-jon)]
-        ['parents' a+~[s+base-sha]]
+    :~  ['branch' s+(jstr jon 'branch')]
+        ['message' s+(jstr jon 'message')]
     ==
-  ;<  [st4=@ud com2=json]  bind:m
-    (gh-call %'POST' (repo-url api repo '/git/commits') hdr `commit-body)
-  ?.  =(201 st4)
-    ~&  >>>  [%desks %push %commit-failed st4]
-    (pure:m ~)
-  =/  new-sha=@t  (obj-sha com2)
-  ;<  [st5=@ud *]  bind:m
-    (gh-call %'GET' (repo-url api repo (cat 3 '/git/ref/heads/' branch)) hdr ~)
-  ;<  [st6=@ud *]  bind:m
-    ?:  =(200 st5)
-      %-  gh-call
-      :^    %'PATCH'
-          (repo-url api repo (cat 3 '/git/refs/heads/' branch))
-        hdr
-      `(pairs:enjs:format ~[['sha' s+new-sha] ['force' b+%.n]])
-    %-  gh-call
-    :^    %'POST'
-        (repo-url api repo '/git/refs')
-      hdr
-    `(pairs:enjs:format ~[['ref' s+(cat 3 'refs/heads/' branch)] ['sha' s+new-sha]])
-  ?.  |(=(200 st6) =(201 st6))
-    ~&  >>>  [%desks %push %ref-failed st6]
-    (pure:m ~)
-  ~&  >  [%desks nam %push %done branch (crip (scag 7 (trip new-sha)))]
-  (pure:m ~)
-::  bfile machinery (shared shapes with git/desk)
+  ;<  ~  bind:m
+    (poke:io [%& %& /apps/[(crip (trip app))] %'push.sig'] [[/ %json] push-body])
+  (respond rail eyre-id 200 'pushing')
+::  +do-delete: remove a desk entirely — cull its /apps/<app> subtree,
+::  the same op delete_folder uses. gone from the ship, not from git.
 ::
-+$  bfile  [pax=path name=@ta =sang:tarball]
-::
-++  filter-prefix
-  |=  [files=(list [pax=path data=octs]) prefix=path]
-  ^-  (list bfile)
-  =/  plen=@ud  (lent prefix)
-  %+  murn  files
-  |=  [pax=path data=octs]
-  ^-  (unit bfile)
-  ?.  =(prefix (scag plen pax))  ~
-  =/  rel=path  (slag plen pax)
-  ?~  rel  ~
-  =/  name=@ta  (rear rel)
-  =/  dir=path  (snip `(list @ta)`rel)
-  =/  is-hoon=?
-    =/  t=tape  (trip name)
-    =/  len=@ud  (lent t)
-    ?&  (gth len 5)
-        =(".hoon" (slag (sub len 5) t))
-    ==
-  ?:  is-hoon
-    `[dir name [/ %hoon] %& !>(`@t`q.data)]
-  =/  =mime  [(guess-mime name) data]
-  `[dir name [/ %mime] %& !>(mime)]
-::
-++  files-to-bole
-  |=  [files=(list bfile) neck=(unit rail:tarball)]
-  ^-  bole:tarball
-  =/  b=bole:tarball  [`[neck ~ %.n ~] ~]
-  |-
-  ?~  files  b
-  ?:  (is-boom:tarball sang.i.files)
-    $(files t.files)
-  =/  =bask:tarball  [p.sang.i.files (sang-noun:tarball sang.i.files)]
-  $(files t.files, b (put-bfile b pax.i.files name.i.files bask))
-::
-++  put-bfile
-  |=  [b=bole:tarball pax=path name=@ta =bask:tarball]
-  ^-  bole:tarball
-  ?~  pax
-    =/  =pulp:tarball  (fall fil.b [~ ~ %.n ~])
-    b(fil `pulp(contents (~(put by contents.pulp) name [bask %.n])))
-  =/  kid=bole:tarball  (~(gut by dir.b) i.pax *bole:tarball)
-  b(dir (~(put by dir.b) i.pax $(b kid, pax t.pax)))
-::
-++  ball-to-files
-  |=  =ball:tarball
-  ^-  (list bfile)
-  =|  base=path
-  |-  ^-  (list bfile)
-  =/  here=(list bfile)
-    ?~  fil.ball  ~
-    %+  turn  ~(tap by contents.u.fil.ball)
-    |=  [name=@ta =sang:tarball gain=? bang=(unit tang)]
-    [base name sang]
-  %-  weld  :-  here
-  =/  kids=(list [@ta ball:tarball])  ~(tap by dir.ball)
-  |-  ^-  (list bfile)
-  ?~  kids  ~
-  %-  weld  :_  $(kids t.kids)
-  ^$(ball +.i.kids, base (snoc base -.i.kids))
-::
-++  fetch-dir-at
-  |=  =road:tarball
-  =/  m  (fiber:fiber:nexus ,(unit (list bfile)))
-  ^-  form:m
-  ;<  =view:nexus  bind:m  (peek:io road ~)
-  ?.  ?=([%ball *] view)  (pure:m ~)
-  (pure:m `(ball-to-files ball.view))
-::
-++  find-bfile
-  |=  [files=(list bfile) pax=path name=@ta]
-  ^-  (unit bfile)
-  ?~  files  ~
-  ?:  &(=(pax pax.i.files) =(name name.i.files))  `i.files
-  $(files t.files)
-++  version-from-sang
-  |=  =sang:tarball
-  ^-  (unit @ud)
-  ?:  (is-boom:tarball sang)  ~
-  =/  jon=(unit json)
-    ?:  =([/ %json] p.sang)
-      `!<(json (need-vase:tarball sang))
-    ?.  =([/ %mime] p.sang)  ~
-    (de:json:html q.q:!<(mime (need-vase:tarball sang)))
-  ?~  jon  ~
-  ?.  ?=([~ %o *] jon)  ~
-  =/  v  (~(get by p.u.jon) 'version')
-  ?.  ?=([~ %n *] v)  ~
-  (rush p.u.v dem)
-::
-++  extract-version
-  |=  files=(list [pax=path data=octs])
-  ^-  (unit @ud)
-  =/  vf=(unit octs)  (extract-file files ~['version.json'])
-  ?~  vf  ~
-  =/  jon=(unit json)  (de:json:html q.u.vf)
-  ?~  jon  ~
-  ?.  ?=([%o *] u.jon)  ~
-  =/  v  (~(get by p.u.jon) 'version')
-  ?.  ?=([~ %n *] v)  ~
-  (rush p.u.v dem)
-::
-++  extract-file
-  |=  [files=(list [pax=path data=octs]) target=path]
-  ^-  (unit octs)
-  ?~  files  ~
-  ?:  =(pax.i.files target)  `data.i.files
-  $(files t.files)
-::  +apply-bill-entries: bill.json -> necked instance dirs under
-::  data/. an existing instance dir is left untouched.
-::
-++  apply-bill-entries
-  |=  [app-dir=path bfiles=(list bfile)]
+++  do-delete
+  |=  [=rail:tarball eyre-id=@ta jon=json]
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
-  =/  bill=(unit bfile)  (find-bfile bfiles ~ %'bill.json')
-  ?~  bill  (pure:m ~)
-  ?:  (is-boom:tarball sang.u.bill)  (pure:m ~)
-  =/  jon=json
-    ?:  =([/ %json] p.sang.u.bill)
-      !<(json (need-vase:tarball sang.u.bill))
-    ?.  =([/ %mime] p.sang.u.bill)  *json
-    (fall (de:json:html q.q:!<(mime (need-vase:tarball sang.u.bill))) *json)
-  ?.  ?=([%o *] jon)  (pure:m ~)
-  =/  entries=(list [k=@t v=json])  ~(tap by p.jon)
-  |-
-  ?~  entries  (pure:m ~)
-  =/  nam=@ta  (crip (trip k.i.entries))
-  =/  cod=(unit path)
-    ?.  ?=(%s -.v.i.entries)  ~
-    (mole |.((stab p.v.i.entries)))
-  ?~  cod  $(entries t.entries)
-  =/  neck=rail:tarball  [(snip u.cod) (rear u.cod)]
-  =/  dir-road=road:tarball  [%& %| (weld app-dir /data/[nam])]
-  ;<  =view:nexus  bind:m  (peek:io dir-road ~)
-  ?:  ?=([%ball *] view)  $(entries t.entries)
-  ~&  >  [%desks %bill-instance nam neck]
-  ;<  ~  bind:m  (make:io dir-road &+`bole:tarball`[`[`neck ~ %.n ~] ~])
-  $(entries t.entries)
-::
-++  guess-mime
-  |=  filename=@t
-  ^-  path
-  =/  ext=@t
-    =/  =tape  (trip filename)
-    =/  idx=(unit @ud)  (find "." (flop tape))
-    ?~  idx  ''
-    (crip (slag (sub (lent tape) u.idx) tape))
-  ?+  ext  /application/octet-stream
-    %hoon  /text/plain
-    %txt   /text/plain
-    %md    /text/plain
-    %json  /application/json
-    %html  /text/html
-    %css   /text/css
-    %js    /application/javascript
-    %svg   /image/'svg+xml'
-  ==
-::  git transport (shared shapes with git/desk)
-::
-++  do-fetch
-  |=  [repo=@t ref=@t]
-  =/  m  (fiber:fiber:nexus ,(list [pax=path data=octs]))
-  ^-  form:m
-  ;<  disc=discovery:git-transport  bind:m  (fetch-discovery repo)
-  =/  ref=@t
-    ?:  =('' ref)
-      (fall (default-branch:git-transport caps.disc) 'main')
-    ref
-  =/  want-hashes=(list @ux)
-    (turn refs.disc |=(r=git-ref:git-transport hash.r))
-  ;<  pack-body=octs  bind:m  (fetch-pack repo want-hashes)
-  =/  pack-data=octs  (extract-pack:git-transport pack-body %.y)
-  =/  =pack:git-pack
-    (read:git-pack (from-octs:bytestream pack-data))
-  =/  repo-obj=repository:git-repo
-    (~(clone-from-pack git-repo *repository:git-repo) pack refs.disc)
-  =/  sto  store:~(. git-repo repo-obj)
-  =/  ref-hash=(unit @ux)
-    =+  got=(get:refs:~(. git-repo repo-obj) ~[ref])
-    ?^  got  got
-    (get:refs:~(. git-repo repo-obj) ~['refs' 'heads' ref])
-  =/  commit-hash=@ux  (fall ref-hash 0x0)
-  =/  com=(unit commit:git-repo)  (get-commit:sto commit-hash)
-  ?~  com
-    ~&  >>>  [%desks %commit-not-found]
-    (pure:m ~)
-  =/  get-tree=$-(@ux (unit tree-dir:git-repo))
-    |=(h=@ux (get-tree:sto h))
-  =/  get-blob=$-(@ux (unit octs))
-    |=(h=@ux (get-blob:sto h))
-  (pure:m (checkout:git-transport get-tree get-blob tree.u.com))
-::
-++  fetch-discovery
-  |=  repo=@t
-  =/  m  (fiber:fiber:nexus ,discovery:git-transport)
-  ^-  form:m
-  =/  url=@t
-    (rap 3 ~['https://github.com/' repo '.git/info/refs?service=git-upload-pack'])
-  ;<  body=octs  bind:m
-    (fetch-with-redirect [%'GET' url ~[['User-Agent' 'grubbery']] ~])
-  (pure:m (parse-discovery:git-transport body))
-::
-++  fetch-pack
-  |=  [repo=@t want=(list @ux)]
-  =/  m  (fiber:fiber:nexus ,octs)
-  ^-  form:m
-  =/  url=@t
-    (rap 3 ~['https://github.com/' repo '.git/git-upload-pack'])
-  =/  body=octs
-    (build-want:git-transport want ~['side-band-64k' 'ofs-delta'] ~ ~)
-  %-  fetch-with-redirect
-  :^    %'POST'
-      url
-    :~  ['User-Agent' 'grubbery']
-        ['Content-Type' 'application/x-git-upload-pack-request']
-    ==
-  `body
-::
-++  fetch-with-redirect
-  |=  [=request:http]
-  =/  m  (fiber:fiber:nexus ,octs)
-  ^-  form:m
-  ;<  ~  bind:m  (send-request:io request)
-  ;<  =client-response:iris  bind:m  take-client-response:io
-  ?.  ?=(%finished -.client-response)
-    ~|  "%desks: request failed"  !!
-  =/  status  status-code.response-header.client-response
-  ?:  ?|  =(status 301)
-          =(status 302)
-          =(status 307)
-      ==
-    =/  location=(unit @t)
-      (~(get by (malt headers.response-header.client-response)) 'location')
-    ?~  location  ~|(%desks-redirect-no-location !!)
-    ;<  ~  bind:m  (send-request:io [%'GET' u.location ~[['User-Agent' 'grubbery']] ~])
-    ;<  =client-response:iris  bind:m  take-client-response:io
-    ?.  ?=(%finished -.client-response)
-      ~|  "%desks: redirect failed"  !!
-    ?~  full-file.client-response
-      ~|  "%desks: empty after redirect"  !!
-    (pure:m data.u.full-file.client-response)
-  ?.  =(200 status)
-    ~|  "%desks: HTTP {<status>}"  !!
-  ?~  full-file.client-response
-    ~|  "%desks: empty response"  !!
-  (pure:m data.u.full-file.client-response)
-::  github REST helpers
-::
-++  repo-url
-  |=  [api=@t repo=@t tail=@t]
-  ^-  @t
-  (cat 3 api (cat 3 '/repos/' (cat 3 repo tail)))
-::
-++  gh-headers
-  |=  token=@t
-  ^-  (list [key=@t value=@t])
-  :~  ['User-Agent' 'grubbery']
-      ['Authorization' (cat 3 'token ' token)]
-      ['Accept' 'application/vnd.github.v3+json']
-      ['Content-Type' 'application/json']
-  ==
-::
-++  gh-call
-  |=  [method=?(%'GET' %'POST' %'PATCH') url=@t hdr=(list [key=@t value=@t]) body=(unit json)]
-  =/  m  (fiber:fiber:nexus ,[@ud json])
-  ^-  form:m
-  =/  buf=(unit octs)
-    ?~  body  ~
-    `(as-octs:mimes:html (en:json:html u.body))
-  ;<  ~  bind:m  (send-request:io [method url hdr buf])
-  ;<  =client-response:iris  bind:m  take-client-response:io
-  ?.  ?=(%finished -.client-response)
-    (pure:m [999 *json])
-  =/  st=@ud  status-code.response-header.client-response
-  =/  jon=json
-    ?~  full-file.client-response  *json
-    (fall (de:json:html q.data.u.full-file.client-response) *json)
-  (pure:m [st jon])
-::
-++  obj-sha  |=(jon=json (jstr jon 'sha'))
-::
-++  ref-sha
-  |=  jon=json
-  ^-  @t
-  ?.  ?=([%o *] jon)  ''
-  =/  obj  (~(get by p.jon) 'object')
-  ?~  obj  ''
-  (jstr u.obj 'sha')
-::
-++  commit-tree-sha
-  |=  jon=json
-  ^-  @t
-  ?.  ?=([%o *] jon)  ''
-  =/  tr  (~(get by p.jon) 'tree')
-  ?~  tr  ''
-  (jstr u.tr 'sha')
-::
-++  repo-path
-  |=  [pax=path name=@ta]
-  ^-  tape
-  %-  zing
-  (join "/" `(list tape)`["code" (snoc (turn `(list @ta)`pax trip) (trip name))])
-::
-++  bfile-text
-  |=  b=bfile
-  ^-  (unit @t)
-  ?:  (is-boom:tarball sang.b)  ~
-  ?:  =([/ %hoon] p.sang.b)
-    `!<(@t (need-vase:tarball sang.b))
-  ?.  =([/ %mime] p.sang.b)  ~
-  =/  =mime  !<(mime (need-vase:tarball sang.b))
-  `q.q.mime
+  =/  app=@t  (jstr jon 'app')
+  ?:  =('' app)  (respond rail eyre-id 400 'app required')
+  ;<  ~  bind:m  (cull:io [%& %| /apps/[(crip (trip app))]])
+  (respond rail eyre-id 200 'deleted')
 --

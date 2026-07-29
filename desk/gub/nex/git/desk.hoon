@@ -103,13 +103,9 @@
         |-
         ;<  =sage:tarball  bind:m  take-poke:io
         =/  jon=json  (fall (mole |.(!<(json q.sage))) *json)
-        =/  branch=@t  (jstr jon 'branch')
         =/  msg=@t
           =/  t=@t  (jstr jon 'message')
           ?:(=('' t) 'update from ship' t)
-        ?:  =('' branch)
-          ~&  >>>  "%git/desk push: branch required"
-          $
         ;<  config-json=(unit json)  bind:m
           (peek-as:io (nex-road:io rail [%& / %'config.json']) ,json)
         =/  config=git-desk-config
@@ -117,48 +113,61 @@
         ?:  |(=('' repo.config) =('' token.config))
           ~&  >>>  "%git/desk push: repo and token required in config"
           $
-        =/  base-branch=@t  ?:(=('' ref.config) 'main' ref.config)
+        ::  push to the configured branch (ref) unless the poke overrides
+        ::  it; base the commit on that same branch's current tip.
+        =/  branch=@t
+          =/  b=@t  (jstr jon 'branch')
+          ?:  !=('' b)  b
+          ?:(=('' ref.config) 'main' ref.config)
+        =/  base-branch=@t  branch
         ;<  files=(unit (list bfile))  bind:m  (fetch-dir rail /desk/code ~)
-        =/  entries=(list [pax=tape txt=@t])
+        =/  code-entries=(list [pax=tape txt=@t])
           %+  murn  (fall files ~)
           |=  b=bfile
           ^-  (unit [tape @t])
           =/  txt=(unit @t)  (bfile-text b)
           ?~  txt  ~
           `[(repo-path pax.b name.b) u.txt]
+        ::  push a WHOLE desk, symmetric with install: the code under
+        ::  code/, plus the root pieces install reads back (bill, tile,
+        ::  icon, and version.ud rendered as version.json).
+        ;<  root-entries=(list [pax=tape txt=@t])  bind:m
+          (push-root-files rail)
+        =/  entries=(list [pax=tape txt=@t])  (weld code-entries root-entries)
         ?:  =(~ entries)
           ~&  >>>  "%git/desk push: nothing to push"
           $
         ~&  >  [%git-desk-push (lent entries) %files %to branch]
         =/  api=@t  'https://api.github.com'
         =/  hdr  (gh-headers-d token.config)
-        ;<  [st=@ud base-jon=json]  bind:m
+        ;<  [st1=@ud base-jon=json]  bind:m
           (gh-call %'GET' (repo-url api repo.config (cat 3 '/git/ref/heads/' base-branch)) hdr ~)
-        ?.  =(200 st)
-          ~&  >>>  [%git-desk-push %no-base-ref st]
-          $
-        =/  base-sha=@t  (ref-sha base-jon)
-        ;<  [st2=@ud com-jon=json]  bind:m
-          (gh-call %'GET' (repo-url api repo.config (cat 3 '/git/commits/' base-sha)) hdr ~)
-        ?.  =(200 st2)
-          ~&  >>>  [%git-desk-push %no-base-commit st2]
-          $
-        =/  base-tree=@t  (commit-tree-sha com-jon)
+        ::  an empty repo has no branch tip to build on — this becomes the
+        ::  INITIAL commit (no base tree, no parent), and we create the
+        ::  ref below instead of moving it.
+        =/  has-base=?  =(200 st1)
+        =/  base-sha=@t  ?:(has-base (ref-sha base-jon) '')
+        ;<  base-tree=@t  bind:m
+          =/  m  (fiber:fiber:nexus ,@t)
+          ?.  has-base  (pure:m '')
+          ;<  [st2=@ud com-jon=json]  bind:m
+            (gh-call %'GET' (repo-url api repo.config (cat 3 '/git/commits/' base-sha)) hdr ~)
+          (pure:m ?:(=(200 st2) (commit-tree-sha com-jon) ''))
+        =/  tree-arr=json
+          :-  %a
+          %+  turn  entries
+          |=  [pax=tape txt=@t]
+          %-  pairs:enjs:format
+          :~  ['path' s+(crip pax)]
+              ['mode' s+'100644']
+              ['type' s+'blob']
+              ['content' s+txt]
+          ==
         =/  tree-body=json
           :-  %o
           %-  ~(gas by *(map @t json))
-          :~  ['base_tree' s+base-tree]
-              :-  'tree'
-              :-  %a
-              %+  turn  entries
-              |=  [pax=tape txt=@t]
-              %-  pairs:enjs:format
-              :~  ['path' s+(crip pax)]
-                  ['mode' s+'100644']
-                  ['type' s+'blob']
-                  ['content' s+txt]
-              ==
-          ==
+          ?:  has-base  ~[['base_tree' s+base-tree] ['tree' tree-arr]]
+          ~[['tree' tree-arr]]
         ;<  [st3=@ud tree-jon=json]  bind:m
           (gh-call %'POST' (repo-url api repo.config '/git/trees') hdr `tree-body)
         ?.  =(201 st3)
@@ -169,7 +178,7 @@
           %-  pairs:enjs:format
           :~  ['message' s+msg]
               ['tree' s+tree-sha]
-              ['parents' a+~[s+base-sha]]
+              ['parents' ?:(has-base a+~[s+base-sha] a+~)]
           ==
         ;<  [st4=@ud com2=json]  bind:m
           (gh-call %'POST' (repo-url api repo.config '/git/commits') hdr `commit-body)
@@ -649,6 +658,33 @@
   ^-  tape
   %-  zing
   (join "/" `(list tape)`["code" (snoc (turn `(list @ta)`pax trip) (trip name))])
+::  +push-root-files: the non-code pieces that make a desk clone-able —
+::  bill.json, tile.json, icon.svg, and version.ud rendered as
+::  version.json — as [repo-path text] entries. the exact inverse of
+::  do-install's root reads, so a push round-trips a whole desk.
+::
+++  push-root-files
+  |=  =rail:tarball
+  =/  m  (fiber:fiber:nexus ,(list [tape @t]))
+  ^-  form:m
+  ;<  bill=(unit json)  bind:m
+    (peek-as:io (nex-road:io rail [%& /desk %'bill.json']) ,json)
+  ;<  tile=(unit json)  bind:m
+    (peek-as:io (nex-road:io rail [%& / %'tile.json']) ,json)
+  ;<  ver=(unit @ud)  bind:m
+    (peek-as:io (nex-road:io rail [%& / %'version.ud']) ,@ud)
+  ;<  icon-view=view:nexus  bind:m
+    (peek:io (nex-road:io rail [%& / %'icon.svg']) `[/ %mime])
+  =|  out=(list [tape @t])
+  =?  out  ?=(^ bill)  [["bill.json" (en:json:html u.bill)] out]
+  =?  out  ?=(^ tile)  [["tile.json" (en:json:html u.tile)] out]
+  =?  out  ?=(^ ver)
+    =/  vj=json  (pairs:enjs:format ~[['version' (numb:enjs:format u.ver)]])
+    [["version.json" (en:json:html vj)] out]
+  =?  out  ?=([%file *] icon-view)
+    =/  =mime  !<(mime (need-vase:tarball sang.icon-view))
+    [["icon.svg" `@t`q.q.mime] out]
+  (pure:m out)
 ::
 ++  bfile-text
   |=  b=bfile

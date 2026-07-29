@@ -6206,19 +6206,21 @@
   ?-    -.act
       %register
     =/  new-prefix  pax.act
-    =/  entries=(list [rail:tarball path])  ~(tap by reg)
-    |-
-    ?~  entries
-      =/  new-reg=(map rail:tarball path)  (~(put by reg) rail.act new-prefix)
-      (save-file reg-rail [[/usergroups %registry] new-reg])
-    =/  [r=rail:tarball existing=path]  i.entries
-    ?:  =(r rail.act)  $(entries t.entries)
-    ?:  ?|  (is-prefix new-prefix existing)
-            (is-prefix existing new-prefix)
-        ==
-      ~&  >>  [%registry-overlap-rejected rail.act new-prefix existing]
-      this
-    $(entries t.entries)
+    ::  last-writer-wins, like eyre bindings: the new registrant claims
+    ::  its prefix, evicting any existing registrant whose prefix
+    ::  overlaps it. auto-heals stale rows left by a deleted nexus that
+    ::  never got to deregister.
+    =/  pruned=(map rail:tarball path)
+      %-  ~(gas by *(map rail:tarball path))
+      %+  skip  ~(tap by reg)
+      |=  [r=rail:tarball existing=path]
+      ^-  ?
+      ?:  =(r rail.act)  %.n
+      ?|  (is-prefix new-prefix existing)
+          (is-prefix existing new-prefix)
+      ==
+    =/  new-reg=(map rail:tarball path)  (~(put by pruned) rail.act new-prefix)
+    (save-file reg-rail [[/usergroups %registry] new-reg])
   ::
       %deregister
     =/  prefix=(unit path)  (~(get by reg) rail.act)
