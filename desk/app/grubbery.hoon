@@ -2732,10 +2732,13 @@
       ::  Poke destination must be a file
       ?>  ?=(%& -.u.dest-lane)
       =/  dest=rail:tarball  p.u.dest-lane
-      ::  /sys/ intercepts: validate and consume immediately
+      ::  /sys/ intercepts: validate and consume immediately.
+      ::  Direct validation, no cache: poke payloads are transient
+      ::  (never silo-resident), so the sham-keyed vale cache can only
+      ::  miss — probing it just hashes the full payload twice.
       ?:  ?=([%sys *] path.dest)
-        =^  validated=(each vase tang)  this
-          (validate-cached path.dest p.bask.load.dart q.bask.load.dart)
+        =/  validated=(each vase tang)
+          (validate-noun path.dest p.bask.load.dart q.bask.load.dart)
         ?:  ?=(%| -.validated)
           ::  No marc or validation failed — fall through to general poke
           =/  rel=from:fiber:nexus  (relativize-from:nexus dest here)
@@ -3217,9 +3220,11 @@
   ?~  in  [&+~ this]
   ?+    -.u.in  [&+`u.in this]
       %poke
-    ::  bask → sage: validate noun through compiled type
-    =^  validated=(each vase tang)  this
-      (validate-cached cod p.bask.u.in q.bask.u.in)
+    ::  bask → sage: validate noun through compiled type.
+    ::  Direct, no cache — transient poke payloads can't hit it (see
+    ::  the /sys/ intercept note at the dispatch site).
+    =/  validated=(each vase tang)
+      (validate-noun cod p.bask.u.in q.bask.u.in)
     ?:  ?=(%| -.validated)
       :-  |+[leaf+"hydrate: poke validation failed for {<p.bask.u.in>} at {(spud cod)}" p.validated]
       this
