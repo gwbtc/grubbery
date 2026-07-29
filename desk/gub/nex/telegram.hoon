@@ -14,7 +14,7 @@
           [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
           [%over %& [/ui %'manage.html'] [[/ %html] (crip (en-xml:html (manage-page ~)))]]
           [%fall %| /bots empty-dir:loader]
-          [%over %& [/man %'readme.md'] [[/ %mime] man]]
+          [%over %& [/ %'README.md'] [[/ %mime] man]]
       ==
     ::
     ++  on-file

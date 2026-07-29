@@ -12,7 +12,7 @@
           [%over %& [/ui/views %'page.html'] [[/ %html] (crip (en-xml:html (counter-page ~)))]]
           [%fall %& [/ui %'main.sig'] [[/ %sig] ~]]
           [%fall %| /ui/requests empty-dir:loader]
-          [%over %& [/man %'readme.md'] [[/ %mime] man]]
+          [%over %& [/ %'README.md'] [[/ %mime] man]]
       ==
     ::
     ++  on-file

@@ -12,7 +12,7 @@
           [%fall %& [/ %'main.txt'] [[/ %txt] *wain]]
           [%fall %& [/ %'mirror.sig'] [[/ %sig] ~]]
           [%fall %| /mirrored empty-dir:loader]
-          [%over %& [/man %'readme.md'] [[/ %mime] man]]
+          [%over %& [/ %'README.md'] [[/ %mime] man]]
       ==
     ::
     ++  on-file

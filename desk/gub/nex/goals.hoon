@@ -196,7 +196,7 @@
           [%over %& [/ui %'index.html'] [[/ %mime] goals-html]]
           [%over %& [/ui %'app.js'] [[/ %mime] goals-js]]
           [%over %& [/ui %'style.css'] [[/ %mime] goals-css]]
-          [%over %& [/man %'readme.md'] [[/ %mime] man]]
+          [%over %& [/ %'README.md'] [[/ %mime] man]]
       ==
     ::
     ++  on-file

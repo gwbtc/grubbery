@@ -31,7 +31,7 @@
           [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
           [%over %& [/ui %'page.html'] [[/ %html] (crip (en-xml:html (oneshot-page '' ~)))]]
           [%over %& [/ui %'briefing.html'] [[/ %html] (crip (en-xml:html briefing-page))]]
-          [%over %& [/man %'readme.md'] [[/ %mime] man]]
+          [%over %& [/ %'README.md'] [[/ %mime] man]]
       ==
     ::
     ++  on-file

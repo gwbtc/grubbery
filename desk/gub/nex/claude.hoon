@@ -25,7 +25,7 @@
           [%over %& [/ui %'chat.html'] [[/ %html] (crip (en-xml:html (chat-page ~)))]]
           [%over %& [/ui/sse %'last-message.html'] [[/ %html] (crip (en-xml:html *manx))]]
           [%over %& [/ui/sse %'status.json'] [[/ %json] (pairs:enjs:format ~[['loading' b+%.n] ['live' b+%.y]])]]
-          [%over %& [/man %'readme.md'] [[/ %mime] man]]
+          [%over %& [/ %'README.md'] [[/ %mime] man]]
       ==
     ::
     ++  on-file

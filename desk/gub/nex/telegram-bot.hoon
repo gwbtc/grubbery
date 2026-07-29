@@ -25,7 +25,7 @@
           [%fall %| /ui/sse empty-dir:loader]
           [%over %& [/ui/sse %'data.html'] [[/ %html] (crip (en-xml:html (sse-data ~ ~)))]]
           [%over %& [/ui %'chat.html'] [[/ %html] (crip (en-xml:html (chat-page "" *(map @t @t) *(list json))))]]
-          [%over %& [/man %'readme.md'] [[/ %mime] man]]
+          [%over %& [/ %'README.md'] [[/ %mime] man]]
       ==
     ::
     ++  on-file

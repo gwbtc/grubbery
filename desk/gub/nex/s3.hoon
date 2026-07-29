@@ -28,7 +28,7 @@
           [%fall %& [/ %'mounts.json'] [[/ %json] [%o ~]]]
           [%fall %| /mounts empty-dir:loader]
           [%over %& [/ %'page.html'] [[/ %html] (crip (en-xml:html s3-page))]]
-          [%over %& [/man %'readme.md'] [[/ %mime] man]]
+          [%over %& [/ %'README.md'] [[/ %mime] man]]
       ==
     ::
     ++  on-file

@@ -20,7 +20,7 @@
           [%fall %& [/ %'page.html'] [[/ %html] (crip (en-xml:html ;div:"rhizome loading..."))]]
           [%fall %| /vault empty-dir:loader]
           [%fall %| /metadata empty-dir:loader]
-          [%over %& [/man %'readme.md'] [[/ %mime] man]]
+          [%over %& [/ %'README.md'] [[/ %mime] man]]
       ==
     ::
     ++  on-file

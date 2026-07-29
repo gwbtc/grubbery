@@ -35,7 +35,7 @@
             [%fall %| /ui/sse empty-dir:loader]
             [%over %& [/ui/sse %'stats.html'] [[/ %html] (crip (en-xml:html ;div;))]]
             [%over %& [/ %'page.html'] [[/ %html] (crip (en-xml:html (btc-page "" ;div; ~ ~)))]]
-            [%over %& [/man %'readme.md'] [[/ %mime] man]]
+            [%over %& [/ %'README.md'] [[/ %mime] man]]
         ==
     ::
     ++  on-file
