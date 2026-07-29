@@ -7,19 +7,6 @@
 ::  new instances under /apps; poke/peek stay open to reach siblings.
 =/  desks-weir=(unit weir:tarball)
   `[make=(sy ~[[%& %| /apps]]) poke=(sy ~[[%& %| /]]) peek=(sy ~[[%& %| /]])]
-=/  home-readme=mime
-  :-  /text/x-markdown
-  %-  as-octs:mimes:html
-  '''
-  # /home
-
-  A place for what you care about and what you are working on: a
-  semantic index of current awareness and intention, pointing at
-  where those things live in the namespace.
-
-  That is the intent. No structure is enforced — its real use is
-  up to the user.
-  '''
 =/  git-desk-config
   |=  [repo=@t ref=@t]
   ^-  json
@@ -39,12 +26,6 @@
         [%load %| / / same-fold:loader]
         [%fall %| /apps [`[~ ~ %.n ~] ~]]
         [%fall %| /docs [`[~ ~ %.n ~] ~]]
-        ::  /home: created but never touched by the runtime. An
-        ::  intention — a place for a structured, semantic index of
-        ::  present awareness and intention. What lives here is the
-        ::  inhabitant's business. The README states exactly that.
-        [%fall %| /home [`[~ ~ %.n ~] ~]]
-        [%fall %& [/home %'README.md'] [[/ %mime] home-readme]]
         ::  /sys/eyre: HTTP server state + request fibers
         ::
         [%fall %| /sys/eyre [`[~ ~ %.n ~] ~]]
