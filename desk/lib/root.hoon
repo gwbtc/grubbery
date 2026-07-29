@@ -50,6 +50,7 @@
         ::  child nexuses
         ::
         [%fall %| /apps/'tiles.tiles' [`[`[/ %tiles] app-weir %.n ~] ~]]
+        [%fall %| /apps/'shell.shell' [`[`[/ %shell] app-weir %.n ~] ~]]
         [%fall %| /apps/'counter.counter' [`[`[/ %counter] app-weir %.n ~] ~]]
         [%fall %| /apps/'explorer.explorer' [`[`[/ %explorer] ~ %.n ~] ~]]
         [%fall %| /apps/'mcp.mcp' [`[`[/ %mcp] ~ %.n ~] ~]]
