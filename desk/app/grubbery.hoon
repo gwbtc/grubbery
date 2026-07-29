@@ -35,7 +35,6 @@
 /=  m-  /mar/mime
 /=  m-  /mar/noun
 /=  m-  /mar/png
-/=  m-  /mar/poke-ack
 /=  m-  /mar/sig
 /=  m-  /mar/subs
 /=  m-  /mar/svg
@@ -6105,10 +6104,12 @@
   =/  rest=wire  (slag path-len t.segs)
   ?>  ?=(^ rest)
   =/  sender=rail:tarball  [from-path i.rest]
-  =/  req-wire=wire  t.rest
-  ::  Route poke-ack back to sender
   ?>  ?=(%poke-ack -.sign)
-  (enqu-take sender ~ ~ %pack req-wire p.sign)
+  ::  Step 3: tell the requester what happened by POKING it back — a
+  ::  poke-ack-marked (unit tang). NOT a %pack (which means "an in-grubbery
+  ::  poke was consumed"; that was already given for the request poke itself).
+  =/  =from:fiber:nexus  (relativize-from:nexus sender [/sys/gall %'main.sig'])
+  (enqu-take sender ~ ~ %poke from [[/ %poke-ack] p.sign])
 ::
 ::  /sys/iris/ HTTP client service
 ::

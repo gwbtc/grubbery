@@ -1131,9 +1131,11 @@
       ~  [%wait ~]
       [~ %veto *]
     [%fail (veto-error dart.u.in)]
-      [~ %pack *]
-    ?~  err.u.in  [%done ~]
-    [%fail %poke-failed u.err.u.in]
+      [~ %poke * *]
+    ?.  =([/ %poke-ack] p.sage.u.in)  [%skip ~]
+    =/  err=(unit tang)  !<((unit tang) q.sage.u.in)
+    ?~  err  [%done ~]
+    [%fail %poke-failed u.err]
   ==
 ::  Timer helpers — poke /sys/behn/main.timer-state, receive timer-wake back
 ::
