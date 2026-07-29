@@ -4,6 +4,8 @@ var itinerary = null;
 var itineraries = [];
 var map;
 var markers = {};
+var gmap = null;
+var gmarkers = [];
 var activeView = 'map';
 var hiddenCats = {};
 var editingPinId = null;
@@ -67,6 +69,7 @@ async function loadItinerary(id) {
   renderFilters();
   renderMarkers();
   renderList();
+  renderGlobe();
 
   if (itinerary.center && itinerary.center.length === 2) {
     map.setView(itinerary.center, itinerary.zoom || 13);
@@ -237,6 +240,7 @@ function renderFilters() {
       else { hiddenCats[cat] = true; btn.classList.add('inactive'); }
       renderMarkers();
       renderList();
+      renderGlobe();
     };
   });
 }
@@ -302,6 +306,7 @@ async function savePin() {
     itinerary = await r.json();
     renderMarkers();
     renderList();
+    renderGlobe();
     closePinForm();
     if (!editingPinId && activeView === 'map') {
       map.setView([lat, lng], Math.max(map.getZoom(), 14));
@@ -320,6 +325,7 @@ async function deletePin() {
     itinerary = await r.json();
     renderMarkers();
     renderList();
+    renderGlobe();
     closePinForm();
   } catch(e) {
     document.getElementById('form-status').textContent = 'Delete failed';
@@ -356,18 +362,82 @@ function openNewItinerary() {
 
 function setView(view) {
   activeView = view;
-  document.getElementById('map-view').classList.toggle('hidden', view !== 'map');
-  document.getElementById('list-view').classList.toggle('hidden', view !== 'list');
-  document.getElementById('btn-map').classList.toggle('active', view === 'map');
-  document.getElementById('btn-list').classList.toggle('active', view === 'list');
+  ['map', 'globe', 'list'].forEach(function(v) {
+    document.getElementById(v + '-view').classList.toggle('hidden', view !== v);
+    document.getElementById('btn-' + v).classList.toggle('active', view === v);
+  });
   if (view === 'map') setTimeout(function() { map.invalidateSize(); }, 50);
+  if (view === 'globe') {
+    initGlobe();
+    setTimeout(function() { resizeGlobe(); renderGlobe(); focusGlobe(); }, 50);
+  }
+}
+
+// -- Globe View (MapLibre GL, globe projection) --
+// Same tiled map as the Leaflet view, but it curls into a globe on zoom-out.
+
+function initGlobe() {
+  if (gmap) return;
+  gmap = new maplibregl.Map({
+    container: 'globe-container',
+    style: {
+      version: 8,
+      sources: {
+        osm: {
+          type: 'raster',
+          tiles: [
+            'https://a.tile.openstreetmap.org/{z}/{x}/{y}.png',
+            'https://b.tile.openstreetmap.org/{z}/{x}/{y}.png',
+            'https://c.tile.openstreetmap.org/{z}/{x}/{y}.png'
+          ],
+          tileSize: 256,
+          attribution: '&copy; OpenStreetMap'
+        }
+      },
+      layers: [{ id: 'osm', type: 'raster', source: 'osm' }]
+    },
+    center: [0, 20],
+    zoom: 1.4
+  });
+  gmap.addControl(new maplibregl.NavigationControl(), 'top-right');
+  gmap.on('style.load', function() { gmap.setProjection({ type: 'globe' }); });
+}
+
+function renderGlobe() {
+  if (!gmap || !itinerary) return;
+  gmarkers.forEach(function(m) { m.remove(); });
+  gmarkers = [];
+  var pins = itinerary.pins || {};
+  Object.keys(pins)
+    .filter(function(id) { return !hiddenCats[pins[id].cat]; })
+    .forEach(function(id) {
+      var p = pins[id];
+      var el = document.createElement('div');
+      el.className = 'globe-pin';
+      el.style.background = catColor(p.cat);
+      el.title = p.name;
+      el.onclick = function(e) { e.stopPropagation(); openPinForm(id); };
+      gmarkers.push(new maplibregl.Marker({ element: el }).setLngLat([p.lng, p.lat]).addTo(gmap));
+    });
+}
+
+function resizeGlobe() {
+  if (gmap) gmap.resize();
+}
+
+function focusGlobe() {
+  if (!gmap || !itinerary) return;
+  var c = itinerary.center;
+  if (c && c.length === 2) gmap.flyTo({ center: [c[1], c[0]], zoom: 3, duration: 800 });
 }
 
 // -- Events --
 
 function bindEvents() {
   document.getElementById('btn-map').onclick = function() { setView('map'); };
+  document.getElementById('btn-globe').onclick = function() { setView('globe'); };
   document.getElementById('btn-list').onclick = function() { setView('list'); };
+  window.addEventListener('resize', function() { if (activeView === 'globe') resizeGlobe(); });
   document.getElementById('btn-add').onclick = function() {
     if (!currentId) { openNewItinerary(); return; }
     var center = map.getCenter();

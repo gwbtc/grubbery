@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Itinerary</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5/dist/maplibre-gl.css" />
   <link rel="stylesheet" href="/grubbery/itinerary/style.css">
 </head>
 <body>
@@ -17,6 +18,7 @@
       <button id="btn-add" title="Add pin">+</button>
       <div id="view-toggle">
         <button id="btn-map" class="active">Map</button>
+        <button id="btn-globe">Globe</button>
         <button id="btn-list">List</button>
       </div>
     </div>
@@ -35,6 +37,10 @@
 
   <div id="map-view">
     <div id="map-container"></div>
+  </div>
+
+  <div id="globe-view" class="hidden">
+    <div id="globe-container"></div>
   </div>
 
   <div id="list-view" class="hidden">
@@ -65,6 +71,7 @@
   </div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/maplibre-gl@5/dist/maplibre-gl.js"></script>
   <script src="/grubbery/itinerary/app.js"></script>
 </body>
 </html>
