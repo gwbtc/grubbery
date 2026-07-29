@@ -1388,9 +1388,12 @@
       ~  [%wait ~]
       [~ %veto *]
     [%fail (veto-error dart.u.in)]
-      [~ %poke * *]
-    ?.  =([/ %poke-ack] p.sage.u.in)  [%skip ~]
-    [%done !<((unit tang) q.sage.u.in)]
+    ::  the ack arrives as a %pack carrying (unit tang), the same shape
+    ::  +gall-poke consumes. It was previously matched as a %poke bearing a
+    ::  [/ %poke-ack] sage, which +take-gall-poke never emits, so this arm
+    ::  could not complete: every caller waited forever.
+      [~ %pack *]
+    [%done err.u.in]
   ==
 ::  +take-news-or-wake: wait for subscription news or timer wake
 ::
