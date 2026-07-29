@@ -1,57 +1,64 @@
 /-  spider, push
-/+  default-agent, dbug, tarball, nexus,
-    server, multipart, http-utils, html-utils, json-utils,
-    marks, build, fiberio, loader, cram, pretty-file, zlib, bytestream,
-    root, web-push, migrations, wasm-lia
-/=  t-  /tests/nexus
-/=  t-  /tests/tarball
-/=  t-  /tests/build
-/=  t-  /tests/loader
-/=  m-  /mar/bill
+/+  nexus, tarball, build, marks,
+    loader, fiberio, migrations, root,
+    default-agent, dbug,
+    server, http-utils, html-utils, json-utils,
+    multipart, web-push,
+    cram, pretty-file, zlib, bytestream,
+    wasm-lia
+/=  m-  /mar/hoon
+/=  m-  /mar/tang
+/=  m-  /mar/mime
+/=  m-  /mar/kelvin
+/=  m-  /mar/noun
+/=  m-  /mar/sig
+/=  m-  /mar/subs
+/=  m-  /mar/kids
+/=  m-  /mar/tree
 /=  m-  /mar/born
-/=  m-  /mar/css
-/=  m-  /mar/dill-blit
-/=  m-  /mar/dill-told
-/=  m-  /mar/docket-0
-/=  m-  /mar/eyre/bindings
+/=  m-  /mar/bill
 /=  m-  /mar/grubbery-ack
 /=  m-  /mar/grubbery-intake
 /=  m-  /mar/grubbery-load
 /=  m-  /mar/grubbery-transfer
-/=  m-  /mar/handle-http-cancel
 /=  m-  /mar/handle-http-request
-/=  m-  /mar/hoon
-/=  m-  /mar/html
+/=  m-  /mar/handle-http-cancel
 /=  m-  /mar/http-request
-/=  m-  /mar/ico
+/=  m-  /mar/eyre/bindings
+/=  m-  /mar/dill-blit
+/=  m-  /mar/dill-told
+/=  m-  /mar/timer-wake
 /=  m-  /mar/jael-private-keys
 /=  m-  /mar/jael-public-keys-result
+/=  m-  /mar/docket-0
+/=  m-  /mar/html
+/=  m-  /mar/manx
+/=  m-  /mar/css
 /=  m-  /mar/js
 /=  m-  /mar/json
-/=  m-  /mar/kelvin
-/=  m-  /mar/kids
-/=  m-  /mar/manx
 /=  m-  /mar/md
-/=  m-  /mar/mime
-/=  m-  /mar/noun
-/=  m-  /mar/png
-/=  m-  /mar/sig
-/=  m-  /mar/subs
-/=  m-  /mar/svg
-/=  m-  /mar/tang
-/=  m-  /mar/timer-wake
-/=  m-  /mar/tree
 /=  m-  /mar/txt
+/=  m-  /mar/png
+/=  m-  /mar/ico
+/=  m-  /mar/svg
 /=  m-  /mar/ud
 /=  m-  /mar/wasm
+/=  t-  /tests/nexus
+/=  t-  /tests/tarball
+/=  t-  /tests/build
+/=  t-  /tests/loader
 |%
 +$  versioned-state
   $%  state-0:migrations
   ==
 +$  card  card:agent:gall
+:: The kelvin version of the grubbery runtime (?)
+::
 ++  kel  21.000.000 :: start big; burn many at once
+:: The subject all code gets compiled against (/nex, /mar or /lib)
+::
 ++  sut
-  :: Need to determine how much actually needs to be in here...
+  :: TODO: Need to determine how much actually needs to be in here...
   ::
   %+  slop
     !>  :*  tarball=tarball
