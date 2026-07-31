@@ -1712,6 +1712,26 @@
   =/  entry  (~(get by dir.tree.ject.u.jot) name)
   ?~  entry  ~
   weir.u.entry
+::  get-neck-for: the neck of the nexus rooted at fold, read straight from its
+::  tree ject in born/silo — no subtree materialization (the get-weir-for
+::  pattern). ~ if there's no node, no live pace, or it isn't a directory tree.
+::
+++  get-neck-for
+  |=  =fold:tarball
+  ^-  (unit neck:tarball)
+  =/  node=(unit [fold=hist:nexus file=(map @ta hist:nexus)])
+    (~(get of born) fold)
+  ?~  node  ~
+  =/  got=(unit [key=cass:clay val=entry:hist:nexus])
+    (ram:hon:hist:nexus fold.u.node)
+  ?~  got  ~
+  =/  =pace:hist:nexus  pace.val.u.got
+  ?:  ?=(%tomb -.pace)  ~
+  ?~  p.pace  ~
+  =/  jot  (~(get by jects.silo) u.p.pace)
+  ?~  jot  ~
+  ?.  ?=(%tree -.ject.u.jot)  ~
+  (bind nek.tree.ject.u.jot |=([=neck:tarball *] neck))
 ::  Shallow peek: files at fold + subdir names, no recursion.
 ::
 ++  peek-ball-shallow-now
@@ -2638,12 +2658,10 @@
   ^-  (unit (pair path neck:tarball))
   =/  here-path=path  (snoc path.here name.here)
   |-
-  =/  sub  (peek-ball-now here-path)
-  ?.  |(?=(^ fil.sub) !=(~ dir.sub))
-    ?~  here-path  ~
-    $(here-path (snip `path`here-path))
-  ?:  ?&(?=(^ fil.sub) ?=(^ neck.u.fil.sub))
-    `[here-path u.neck.u.fil.sub]
+  ::  walk up, reading each level's neck directly from born/silo (no ball
+  ::  materialization); return the nearest ancestor that carries one.
+  =/  nek=(unit neck:tarball)  (get-neck-for here-path)
+  ?^  nek  `[here-path u.nek]
   ?~  here-path  ~
   $(here-path (snip `path`here-path))
 ::
