@@ -92,301 +92,138 @@
     def   ~(. (default-agent this %.n) bowl)
     hc    ~(. +> bowl)
 ::
-++  on-init
-  ^-  (quip card _this)
-  ::  Bootstrap root tree with /code namespace stub.
-  ::  Must run BEFORE sync-gub so sync-gub fills /code rather than
-  ::  the root bole stomping /code's files after the fact.
-  =/  root-bole=bole:tarball
-    :-  `[`[/ %root] ~ %.n ~]
-    (malt ~[[%code [`[`[/ %code] ~ %.n ~] ~]]])
-  =^  init-cards  state  abet:(load-ball-changes:hc / root-bole)
-  =^  start-cards  state  abet:cold-start:hc
-  :_(this (weld init-cards start-cards))
+++  on-fail   on-fail:def
 ::
 ++  on-save
   ^-  vase
+  ::  crash live processes so they rebuild in +on-load
+  ::  without carrying continuations across the upgrade
+  ::
   =.  pool  (bang-pool:hc pool %.y)
   !>(state)
 ::
 ++  on-load
   |=  old-state=vase
   ^-  (quip card _this)
-  ::  No migrations: breaking state changes mean nuke + fresh %0.
   =/  old  !<(versioned-state old-state)
   ?-    -.old
       %0
     =.  state  old
-    =^  start-cards  state  abet:cold-start:hc
+    =^  start-cards  state
+      abet:cold-start:hc
     [start-cards this]
   ==
 ::
-++  on-poke
-  |=  [mak=mark vas=vase]
+++  on-init
   ^-  (quip card _this)
-  ?+    mak  (on-poke:def mak vas)
-      %grubbery-load
-    =+  !<(req=load:remo:nexus vas)
-    ::  All actions route through /sys/ames/ships/[src]/ as a dart
-    ::  from ship.sig.  Our ship has no weir (full access); foreign
-    ::  ships get weir from usergroups.
-    =/  ship-ta=@ta  (scot %p src.bowl)
-    =^  peer-cards  state
-      abet:(ensure-peer-ship:hc src.bowl)
-    =/  ship-rail=rail:tarball  [/sys/ames/ships/[ship-ta] %'ship.sig']
-    ~&  >  [%grubbery-load +<.req src=src.bowl]
-    ?:  ?=(%peek +<.req)
-      =/  dest-lane=lane:tarball  dest.req
-      ::  Weir gate: simulate dart traversal from ship-rail to dest
-      ?:  ?=([~ %|] (allowed:hc %peek ship-rail `dest-lane))
-        =/  resp=transfer:remo:nexus
-          [wire.req %veto dest-lane]
-        :_  this
-        %+  weld  peer-cards
-        ^-  (list card)
-        ~[[%pass /peek/[(scot %p src.bowl)] %agent [src.bowl %grubbery] %poke grubbery-transfer+!>(resp)]]
-      =/  snap=(unit snap:remo:nexus)
-        =/  cas-pace=(unit [=cass:clay =pace:hist:nexus])
-          ?-  -.dest-lane
-              %&
-            =/  r=rail:tarball  p.dest-lane
-            =/  node=(unit [fold=hist:nexus file=(map @ta hist:nexus)])
-              (~(get of born) path.r)
-            ?~  node  ~
-            =/  sk=hist:nexus
-              (fall (~(get by file.u.node) name.r) *hist:nexus)
-            ?~  case.req
-              =/  cas=(unit cass:clay)  (top:hist:nexus sk)
-              ?~  cas  ~
-              =/  pac  (get-pace:hist:nexus sk u.cas)
-              ?~  pac  ~
-              (some [cass=u.cas pace=u.pac])
-            =/  [cas=cass:clay pac=pace:hist:nexus]
-              (resolve-case:nexus u.case.req sk)
-            (some [cass=cas pace=pac])
-              %|
-            =/  dest=fold:tarball  p.dest-lane
-            =/  sub-born=born:nexus  (~(dip of born) dest)
-            ?~  fil.sub-born  ~
-            =/  sk=hist:nexus  fold.u.fil.sub-born
-            ?~  case.req
-              =/  cas=(unit cass:clay)  (top:hist:nexus sk)
-              ?~  cas  ~
-              =/  pac  (get-pace:hist:nexus sk u.cas)
-              ?~  pac  ~
-              (some [cass=u.cas pace=u.pac])
-            =/  [cas=cass:clay pac=pace:hist:nexus]
-              (resolve-case:nexus u.case.req sk)
-            (some [cass=cas pace=pac])
-          ==
-        ?~  cas-pace  ~
-        =/  refs=lobes:nexus
-          ?:  ?=(%tomb -.pace.u.cas-pace)  [~ ~]
-          ?~  p.pace.u.cas-pace  [~ ~]
-          ?:  deep.req
-            (~(reachable si:nexus silo) u.p.pace.u.cas-pace)
-          (~(reachable-shallow si:nexus silo) u.p.pace.u.cas-pace)
-        `[cass.u.cas-pace pace.u.cas-pace refs]
-      =/  snap-id=@uvJ  `@uvJ`(shaz eny.bowl)
-      ~&  >  [%peek-resolved snap=?~(snap %none -.pace.u.snap) refs=?~(snap 0 (add ~(wyt in jects.refs.u.snap) ~(wyt in nouns.refs.u.snap))) snap-id]
-      ::  Pin refs so they survive tombstoning until want arrives.
-      ::  Kind-directed: reachable told us which store each lobe is in.
-      =?  silo  ?=(^ snap)
-        =.  silo
-          %+  roll  ~(tap in jects.refs.u.snap)
-          |=  [=jobe:nexus s=_silo]
-          (~(bump-ject-ref si:nexus s) jobe)
-        %+  roll  ~(tap in nouns.refs.u.snap)
-        |=  [=nobe:nexus s=_silo]
-        (~(bump-ref si:nexus s) nobe)
-      =/  expiry=@da  (add now.bowl ~m5)
-      =?  snaps.remo  ?=(^ snap)
-        (~(put by snaps.remo) [snap-id src.bowl] [dest-lane refs.u.snap expiry])
-      =/  resp=transfer:remo:nexus
-        [wire.req %snap dest-lane snap-id snap]
-      =/  snap-cards=(list card)
-        ?.  ?=(^ snap)  ~
-        :~  [%pass /behn/snap-pin/[(scot %uv snap-id)]/[(scot %p src.bowl)] %arvo %b %wait expiry]
+  ::  genesis-bole: the tree grubbery is born with
+  ::    the root nexus and an empty /code namespace to fill in
+  ::
+  =/  genesis-bole=bole:tarball
+    :: / with neck /root
+    ::
+    :*  fil=`[neck=`[/ %root] weir=~ gain=%.n contents=~]
+        ^=  dir
+        %+  ~(put by *(map @ta bole:tarball))
+          %code
+        :: /code with neck /code
+        ::
+        :*  fil=`[neck=`[/ %code] weir=~ gain=%.n contents=~]
+            dir=~
         ==
-      :_  this
-      :(weld peer-cards snap-cards ^-((list card) ~[[%pass /peek/[(scot %p src.bowl)] %agent [src.bowl %grubbery] %poke grubbery-transfer+!>(resp)]]))
-    ?:  ?=(%keep +<.req)
-      ::  Remote subscribe: register src as watcher via ship.sig rail
-      ~&  >  [%keep-received-from src.bowl dest=dest.req]
-      ::  Weir gate: simulate dart traversal from ship-rail to dest
-      ?:  ?=([~ %|] (allowed:hc %peek ship-rail `dest.req))
-        ~&  >>  [%keep-vetoed src=src.bowl dest=dest.req]
-        :_  this  peer-cards
-      =/  watcher=rail:tarball  [/sys/ames/ships/[ship-ta] %'ship.sig']
-      =^  cards  state
-        abet:(keep:hc watcher dest.req wire.req)
-      [(weld peer-cards cards) this]
-    ?:  ?=(%drop +<.req)
-      ::  Remote unsubscribe: remove src as watcher
-      ~&  >  [%drop-received-from src.bowl dest=dest.req]
-      =/  watcher=rail:tarball  [/sys/ames/ships/[ship-ta] %'ship.sig']
-      =^  cards  state
-        abet:(drop:hc watcher dest.req)
-      [(weld peer-cards cards) this]
-    ::  All other actions route through dart system
-    =/  =load:nexus
-      ?-  +<.req
-        %poke  [%poke bask.req]
-          %make
-        [%make force.req make.req]
-        %cull  [%cull ~]
-        %sand  [%sand weir.req]
-        %load  [%load ~]
-      ==
-    =/  =dart:nexus  [%node /peer [%& dest.req] load]
-    =^  dart-cards  state
-      abet:(process-dart:hc ship-rail dart)
-    [(weld peer-cards dart-cards) this]
-    ::
-      %grubbery-transfer
-    ::  Runtime-to-runtime content-addressed negotiation.
-    ::  Separate from grubbery-load (dart-like operations).
-    =+  !<(req=transfer:remo:nexus vas)
-    =/  ship-ta=@ta  (scot %p src.bowl)
-    =^  peer-cards  state
-      abet:(ensure-peer-ship:hc src.bowl)
-    =/  ship-rail=rail:tarball  [/sys/ames/ships/[ship-ta] %'ship.sig']
-    ~&  >  [%grubbery-transfer +<.req src=src.bowl]
-    ?:  ?=(?(%snap %data %veto %miss) +<.req)
-      ::  Inbound snap/data/veto/miss: process locally (no auth needed, we requested it)
-      =^  cards  state
-        abet:(process-transfer:hc src.bowl req)
-      [(weld peer-cards cards) this]
-    ::  %want: inbound content request — look up pinned snap by ID
-    ?>  ?=(%want +<.req)
-    =/  pin-key=[@uvJ @p]  [snap-id.req src.bowl]
-    =/  pin  (~(get by snaps.remo) pin-key)
-    ?~  pin
-      ~&  >>  [%want-unknown-snap-id snap-id.req src=src.bowl]
-      =/  resp=transfer:remo:nexus  [/want %miss ~]
-      :_  this
-      %+  weld  peer-cards
-      ^-  (list card)
-      ~[[%pass /want/[(scot %p src.bowl)] %agent [src.bowl %grubbery] %poke grubbery-transfer+!>(resp)]]
-    ~&  >  [%want-received-from src.bowl dest=dest.req snap-id=snap-id.req refs=(add ~(wyt in jects.refs.u.pin) ~(wyt in nouns.refs.u.pin))]
-    ::  Serve lobes from pinned refs (weir already checked at snap
-    ::  creation). Kind-directed lookups; a pinned lobe missing from
-    ::  its store is a books error worth hearing about.
-    =/  send=silo:nexus
-      =/  acc=silo:nexus  *silo:nexus
-      =.  acc
-        %+  roll  ~(tap in jects.refs.u.pin)
-        |=  [=jobe:nexus a=_acc]
-        =/  jot  (~(get by jects.silo) jobe)
-        ?~  jot
-          ~&  >>>  [%want-serve-ject-absent jobe]
-          a
-        a(jects (~(put by jects.a) jobe [0 ject.u.jot]))
-      %+  roll  ~(tap in nouns.refs.u.pin)
-      |=  [=nobe:nexus a=_acc]
-      =/  got  (~(get by nouns.silo) nobe)
-      ?~  got
-        ~&  >>>  [%want-serve-noun-absent nobe]
-        a
-      a(nouns (~(put by nouns.a) nobe [0 noun.u.got]))
-    ~&  >  [%want-sending nouns=~(wyt by nouns.send) jects=~(wyt by jects.send)]
-    ::  Release snap, drop refs, cancel timer
-    =.  snaps.remo  (~(del by snaps.remo) pin-key)
-    =.  silo  (release-snap-refs:hc refs.u.pin)
-    =.  vale  (gc-vale-cache vale bins)
-    =/  timer-wire=wire
-      /behn/snap-pin/[(scot %uv snap-id.req)]/[(scot %p src.bowl)]
-    =/  resp=transfer:remo:nexus
-      [/want %data send]
-    ~&  >  [%want-responding-with-data nouns=~(wyt by nouns.send) jects=~(wyt by jects.send) to=src.bowl]
-    :_  this
-    :(weld peer-cards ^-((list card) ~[[%pass timer-wire %arvo %b %rest expiry.u.pin]]) ^-((list card) ~[[%pass /want/[(scot %p src.bowl)] %agent [src.bowl %grubbery] %poke grubbery-transfer+!>(resp)]]))
-    ::
-      %grubbery-intake
-    =+  !<(resp=intake:remo:nexus vas)
-    ~&  >  [%grubbery-intake src=src.bowl dest=dest.resp]
-    =^  cards  state
-      abet:(process-intake:hc src.bowl resp)
-    [cards this]
-    ::  HTTP request from eyre: route directly
-    ::
-      %noun
-    =/  cmd  !<(@tas vas)
-    ?>  =(src.bowl our.bowl)
-    ?+  cmd  ~|(%unknown-noun-poke !!)
-        %reload
-      ~&  >  %grubbery-reload
-      =^  cards  state  abet:cold-start:hc
-      [cards this]
-        %revalidate
-      ~&  >  %grubbery-revalidate
-      =^  cards  state  abet:revalidate-all:hc
-      [cards this]
     ==
+  ::  install the seed tree, then boot it — /code's empty stub must exist
+  ::  before cold-start's sync-gub fills it, or the seed stomps it after.
+  =^  lbc-cards  state  abet:(load-ball-changes:hc / genesis-bole)
+  =^  cs-cards   state  abet:cold-start:hc
+  :_(this (weld lbc-cards cs-cards))
+::
+++  on-poke
+  |=  [=mark =vase]
+  ^-  (quip card _this)
+  ?+    mark  (on-poke:def mark vase)
+    :: handling eyre requests to grubs
     ::
       %handle-http-request
-    =+  !<([eyre-id=@ta req=inbound-request:eyre] vas)
-    =/  [site=path args=quay:eyre]  (parse-url:http-utils url.request.req)
-    ::  Push notification endpoints
-    ?:  ?=([%grubbery %push *] site)
-      =^  cards  state
-        abet:(handle-push-http:hc eyre-id src.bowl req t.t.site args)
-      [cards this]
-    ::  Ball API: spawn request fiber at /sys/eyre/requests/{eyre-id}
-    ?:  ?=([%grubbery %api *] site)
-      ::  ~&  >  [%eyre-api eyre-id url.request.req]
-      =^  cards  state
-        ::  ~>  %bout.[1 %eyre-api-make]
-        abet:(make:hc [%& /sys/eyre/requests eyre-id] %.n [%| [[/ %http-request] [src.bowl req]] ~])
-      [cards this]
-    ::  Binding match: find handler, forward request
-    =/  st=server-state:nexus  get-server-state:hc
-    =/  match=(unit [=binding:eyre handler=rail:tarball])
-      (find-eyre-binding:hc bindings.st site)
-    ?~  match
-      ~&  >  [%eyre-no-binding site]
-      :_  this
-      (give-simple-payload:app:server eyre-id [[404 ~] `(as-octs:mimes:html 'Not Found')])
-    =/  new-st  st(conns (~(put by conns.st) eyre-id binding.u.match))
     =^  cards  state
-      abet:(poke:(save-server-state:hc new-st) ~ handler.u.match [[/ %handle-http-request] [eyre-id src.bowl req]])
+      abet:(route-http:hc !<([@ta inbound-request:eyre] vase))
     [cards this]
-      ::
-      %refresh-sessions
+    ::  remote operation from another ship, over its ship.sig dart
+    ::  a "load" is a payload. it's a request a grub can make with
+    ::  respect to a place in the namespace. (poke, make, peek, etc)
+    ::
+      %grubbery-load
+    =^  cards  state
+      abet:(take-remote-load:hc !<(load:remo:nexus vase))
+    [cards this]
+    ::  runtime-to-runtime content-addressed negotiation
+    ::  cross-ship peek logic
+    ::
+      %grubbery-transfer
+    =^  cards  state
+      abet:(take-remote-transfer:hc !<(transfer:remo:nexus vase))
+    [cards this]
+    :: cross-ship subscription updates
+    ::
+      %grubbery-intake
+    =^  cards  state
+      abet:(process-intake:hc src.bowl !<(intake:remo:nexus vase))
+    [cards this]
     ::  Scry for dill sessions, sync subscriptions and grubs
+    ::  dill sessions have no push signal; only available via scry,
+    ::  so you have to stay up to date manually
+    ::
+      %refresh-sessions
     ?>  =(src our):bowl
     =^  cards  state
       abet:sync-dill:hc
     [cards this]
       ::
-      ::
       %set-upki
     ::  Set the rail whose file backs jael PKI subscriptions.
     ::  Jael subscribes on / and /(scot %p ship); grubbery gives
     ::  %azimuth-udiffs facts when the file at this rail changes.
+    ::  (must be blot /urb-udiffs)
+    ::
     ?>  =(src our):bowl
-    =/  rl=rail:tarball  !<(rail:tarball vas)
-    ~&  >  [%grubbery %set-upki rl]
-    =.  upki  `rl
-    ::  Tell jael to listen to us
-    :-  [%pass /jael-listen %arvo %j %listen ~ [%| %grubbery]]~
-    this
-      ::
-      %gall-watch
+    :_  this(upki [~ !<(rail:tarball vase)])
+    [%pass /jael-listen %arvo %j %listen ~ [%| %grubbery]]~
     ::  Subscribe to a gall agent, materialize at /sys/gall/
+    ::
+      %gall-watch
     ?>  =(src our):bowl
-    =+  !<([=ship agent=dude:gall =path] vas)
+    =+  !<([=ship agent=dude:gall =path] vase)
     =^  cards  state
       abet:(gall-sub:hc ship agent path)
     [cards this]
-      ::
-      %gall-leave
     ::  Unsubscribe from a materialized gall subscription
+    ::
+      %gall-leave
     ?>  =(src our):bowl
-    =+  !<([=ship agent=dude:gall =path] vas)
+    =+  !<([=ship agent=dude:gall =path] vase)
     =^  cards  state
       abet:(gall-unsub:hc ship agent path)
     [cards this]
+    :: easy-to-reach-from-dojo utilities
+    ::
+      %noun
+    =/  cmd  !<(@tas vase)
+    ?>  =(src.bowl our.bowl)
+    ?+  cmd  ~|(%unknown-noun-poke !!)
+      :: Force a reload of the root nexus (reboot the whole namespace)
+      ::
+        %reload
+      ~&  >  %grubbery-reload
+      =^  cards  state
+        abet:cold-start:hc
+      [cards this]
+      ::
+        %revalidate
+      ~&  >  %grubbery-revalidate
+      =^  cards  state
+        abet:revalidate-all:hc
+      [cards this]
+    ==
   ==
 ::
 ++  on-watch
@@ -396,14 +233,17 @@
       [%poke @ *]
     ?>  =(src.bowl (slav %p i.t.path))
     [~ this]
+    ::
       [%http-response *]
     [~ this]
       ::  Jael subscribes on / for all udiffs
+      ::
       ~
     ?:  =(~ upki)  (on-watch:def path)
     =^  cards  state  abet:(serve-jael:hc ~)
     [cards this]
       ::  Jael subscribes on /(scot %p ship) for per-ship udiffs
+      ::
       [@ ~]
     ?:  =(~ upki)  (on-watch:def path)
     =^  cards  state  abet:(serve-jael:hc path)
@@ -416,28 +256,16 @@
   ?+    path  (on-leave:def path)
       [%poke @ *]
     [~ this]
+    ::
       [%http-response @ ~]
-    =/  eyre-id=@ta  i.t.path
-    =/  st=server-state:nexus  get-server-state:hc
-    =/  conn-binding=(unit binding:eyre)  (~(get by conns.st) eyre-id)
-    ::  No binding = ball API request — cull request fiber
-    ?~  conn-binding
-      =^  cards  state
-        abet:(cull-if-exists:hc [%& /sys/eyre/requests eyre-id])
-      [cards this]
-    ::  Bound request — update conns, forward cancel to handler
-    =/  new-st  st(conns (~(del by conns.st) eyre-id))
-    =/  handler=rail:tarball
-      (fall (~(get by bindings.new-st) u.conn-binding) *rail:tarball)
-    =^  cards  state
-      abet:(poke:(save-server-state:hc new-st) ~ handler [[/ %handle-http-cancel] eyre-id])
+    =^  cards  state  abet:(cancel-http:hc i.t.path)
     [cards this]
   ==
 ::
 ++  on-peek
   |=  =path
   ^-  (unit (unit cage))
-  ?+  path  (on-peek:def path)
+  ?+    path  (on-peek:def path)
       [%x %peek %file *]
     ::  Single file's sage, converted to cage for scry
     =/  here=^path  t.t.t.path
@@ -451,32 +279,28 @@
     ::
       [%x %peek %kids *]
     ::  File names at path
-    =/  here=^path  t.t.t.path
-    ``kids+!>((lis-born here))
+    ``kids+!>((lis-born t.t.t.path))
     ::
       [%x %peek %subs *]
     ::  Subdirectory names at path
-    =/  here=^path  t.t.t.path
-    ``kids+!>((lss-born here))
+    ``kids+!>((lss-born t.t.t.path))
     ::
       [%x %peek %tree *]
     ::  Tree structure with marks, no content
-    =/  here=^path  t.t.t.path
-    =/  sub=ball:tarball  (peek-ball-now here)
+    =/  sub=ball:tarball  (peek-ball-now t.t.t.path)
     ``tree+!>((ball-to-tree:tarball sub))
     ::
     ::
       [%x %peek %born *]
     ::  Born (version tracking) subtree
-    =/  here=^path  t.t.t.path
-    ``born+!>((~(dip of born) here))
+    ``born+!>((~(dip of born) t.t.t.path))
     ::
       [%x %peek %silo %lobe @ ~]
     ::  Look up noun in silo by lobe hash
     =/  =nobe:nexus  (slav %uv i.t.t.t.t.path)
     =/  got=(unit noun)  (~(get si:nexus silo) nobe)
     ?~  got  [~ ~]
-    ``%noun^!>(u.got)
+    ``noun+!>(u.got)
     ::
       [%x %peek %subs ~]
     ::  Internal subscriptions
@@ -486,101 +310,104 @@
 ++  on-agent
   |=  [=wire =sign:agent:gall]
   ^-  (quip card _this)
-  ?:  ?=([%gall-poke *] wire)
+  ?+    wire
+    ~&  >>>  "on-agent: unhandled wire {<wire>}"
+    [~ this]
+      ::  ames / remote-scry ack wires. success acks are ignored — the real
+      ::  response arrives as a separate poke.
+      ::  TODO: on a nack, clean up the staged peek/sub and notify the grub;
+      ::        right now error acks leave state dangling.
+      ::
+      [?(%peek %want %keep %drop %wave) *]
+    [~ this]
+    ::
+      [%gall-sub *]
+    =^  cards  state
+      abet:(take-gall-sub:hc t.wire sign)
+    [cards this]
+    ::
+      [%gall-poke *]
     ?>  ?=(%poke-ack -.sign)
     =^  cards  state
       abet:(take-gall-poke:hc t.wire sign)
     [cards this]
-  ?:  ?=([%gall-sub *] wire)
-    =^  cards  state
-      abet:(take-gall-sub:hc t.wire sign)
-    [cards this]
-  ::  TODO: handle %poke-ack failures on these wires — on nack,
-  ::  clean up staged peeks/subs and notify grub of failure.
-  ::  Currently success acks are fine to ignore (real response
-  ::  comes as a separate poke), but error acks leave state dangling.
-  ?:  ?=(?([%peek *] [%want *] [%keep *] [%drop *] [%wave *]) wire)
-    `this
-  ~&  >>>  "on-agent: unhandled wire {<wire>}"
-  `this
+  ==
 ::
 ++  on-arvo
   |=  [=wire sign=sign-arvo]
   ^-  (quip card _this)
-  ?:  ?=([%dill %logs ~] wire)
+  ?+    wire
+    ~&  >>>  "on-arvo: unhandled wire {<wire>}"
+    [~ this]
+    ::
+      [%dill %logs ~]
     ?>  ?=([%dill %logs *] sign)
     =^  cards  state
       abet:(save-file:hc [/sys/dill %'logs.dill-told'] [[/ %dill-told] told.sign])
     [cards this]
-  ?:  ?=([%dill %session @ ~] wire)
+    ::
+      [%dill %session @ ~]
     ?>  ?=([%dill %blit *] sign)
     =/  ses=@tas  i.t.t.wire
     =^  cards  state
       abet:(save-file:hc [/sys/dill/sessions ses] [[/ %dill-blit] p.sign])
     [cards this]
-  ?:  ?=([%lick *] wire)
+    ::
+      [%lick *]
     ?>  ?=([%lick %soak *] sign)
     =^  cards  state
       abet:(take-lick-soak:hc name.sign mark.sign noun.sign)
     [cards this]
-  ?:  ?=([%clay-desk @ ~] wire)
-    ~&  >>  "on-arvo: clay writ on wire {<wire>}"
+    ::
+      [%clay-desk @ ~]
     ?>  ?=([%clay %writ *] sign)
     =/  dek=desk  (slav %tas i.t.wire)
     =^  cards  state
       abet:(on-clay-writ:hc dek +>.sign)
     [cards this]
-  ?:  ?=([%jael %public ~] wire)
+    ::
+      [%jael %public ~]
     ?>  ?=([%jael %public-keys *] sign)
     =^  cards  state
       abet:(on-jael-public:hc public-keys-result.sign)
     [cards this]
-  ?:  ?=([%jael %private ~] wire)
+    ::
+      [%jael %private ~]
     ?>  ?=([%jael %private-keys *] sign)
     =^  cards  state
       abet:(save-file:hc [/sys/jael %'private-keys.jael-private-keys'] [[/ %jael-private-keys] [life.sign vein.sign]])
     [cards this]
-  ?:  ?=([%behn %snap-pin @ @ ~] wire)
+    ::
+      [%behn %snap-pin @ @ ~]
     ?>  ?=([%behn %wake *] sign)
-    ?^  error.sign
-      ~&  >>>  [%snap-pin-timer-error error.sign]
-      `this
-    =/  snap-id=@uvJ  (slav %uv i.t.t.wire)
-    =/  ship=@p  (slav %p i.t.t.t.wire)
-    =/  snap-key=[@uvJ @p]  [snap-id ship]
-    =/  snap  (~(get by snaps.remo) snap-key)
-    ?~  snap
-      ::  Already released (want arrived before timeout)
-      `this
-    ~&  >  [%snap-pin-expired snap-id ship refs=(add ~(wyt in jects.refs.u.snap) ~(wyt in nouns.refs.u.snap))]
-    =.  silo  (release-snap-refs:hc refs.u.snap)
-    =.  vale  (gc-vale-cache vale bins)
-    =.  snaps.remo  (~(del by snaps.remo) snap-key)
-    `this
-  ?:  ?=([%behn %timer @ *] wire)
+    =^  cards  state
+      abet:(expire-snap:hc t.t.wire error.sign)
+    [cards this]
+    ::
+      [%behn %timer @ *]
     ?>  ?=([%behn %wake *] sign)
     =^  cards  state
       abet:(handle-timer-wake:hc t.t.wire error.sign)
     [cards this]
-  ?:  ?=([%iris %request @ *] wire)
+    ::
+      [%iris %request @ *]
     ?>  ?=([%iris %http-response *] sign)
     =^  cards  state
       abet:(handle-iris-response:hc t.t.wire client-response.sign)
     [cards this]
-  ?:  ?=([%push %send @ *] wire)
+    ::
+      [%push %send @ *]
     ?>  ?=([%iris %http-response *] sign)
     =^  cards  state
       abet:(handle-push-response:hc t.t.wire client-response.sign)
     [cards this]
-  ?:  ?=(?([%eyre ~] [%eyre-bind ~] [%eyre-api ~] [%eyre-push ~]) wire)
-    ::  Surface rejected eyre bindings — silence here cost us dearly
+    ::
+      ?([%eyre ~] [%eyre-bind ~] [%eyre-api ~] [%eyre-push ~])
+    ::  surface rejected eyre bindings — silence here cost us dearly
     ~?  >>>  ?&(?=([%eyre %bound *] sign) !accepted.sign)
       [%eyre-rejected-binding path.binding.sign]
-    `this
-  ~&  >>>  "on-arvo: unhandled wire {<wire>}"
-  `this
-::
-++  on-fail   on-fail:def
+    [~ this]
+  ==
 --
 ::  helper core for routing events to processes
 ::
@@ -588,7 +415,6 @@
 =|  takes=(qeu take:nexus)
 |_  =bowl:gall
 +*  this  .
-::
 ++  cold-start
   ^-  _this
   =.  this  bootstrap-marcs
@@ -690,7 +516,187 @@
   =.  this  (enqu-take rail.key ~ ~ %peek wire.key cite)
   =.  peeks.remo  (~(del by peeks.remo) key)
   $(entries t.entries)
-::  +process-intake: handle inbound cross-ship responses.
+::  ship-sig-rail: the /sys/ames/ships/[who]/ship.sig rail a remote ship's
+::  darts arrive from. our own ship has no weir (full access); foreign ships
+::  get their weir from usergroups.
+::
+++  ship-sig-rail
+  |=  who=@p
+  ^-  rail:tarball
+  [/sys/ames/ships/[(scot %p who)] %'ship.sig']
+::  take-remote-load: a remote ship's operation, dispatched by kind. peek/
+::  keep/drop are weir-gated and answered directly; the rest become darts
+::  routed through the peer system from the caller's ship.sig.
+::
+++  take-remote-load
+  |=  req=load:remo:nexus
+  ^+  this
+  =.  this  (ensure-peer-ship src.bowl)
+  =/  caller=rail:tarball  (ship-sig-rail src.bowl)
+  =/  dart  |=(l=load:nexus (process-dart caller [%node /peer [%& dest.req] l]))
+  ?-  +<.req
+    %peek  (process-peek caller req)
+    %keep  (process-keep caller req)
+    %drop  (process-drop caller req)
+    %poke  (dart [%poke bask.req])
+    %make  (dart [%make force.req make.req])
+    %cull  (dart [%cull ~])
+    %sand  (dart [%sand weir.req])
+    %load  (dart [%load ~])
+  ==
+::  process-peek: resolve a remote peek. weir-gate first; a blocked peek is
+::  vetoed. otherwise resolve the case/pace, pin the reachable refs so they
+::  survive tombstoning until the %want arrives (kind-directed — reachable
+::  told us which store each lobe is in), arm a 5-minute expiry, and snap the
+::  result back.
+::
+++  process-peek
+  |=  [caller=rail:tarball req=load:remo:nexus]
+  ^+  this
+  ?>  ?=(%peek +<.req)
+  =/  dest-lane=lane:tarball  dest.req
+  ?:  ?=([~ %|] (allowed %peek caller `dest-lane))
+    (respond-transfer %peek [wire.req %veto dest-lane])
+  =/  snap=(unit snap:remo:nexus)
+    =/  cas-pace=(unit [=cass:clay =pace:hist:nexus])
+      ?-  -.dest-lane
+          %&
+        =/  r=rail:tarball  p.dest-lane
+        =/  node=(unit [fold=hist:nexus file=(map @ta hist:nexus)])
+          (~(get of born) path.r)
+        ?~  node  ~
+        =/  sk=hist:nexus
+          (fall (~(get by file.u.node) name.r) *hist:nexus)
+        ?~  case.req
+          =/  cas=(unit cass:clay)  (top:hist:nexus sk)
+          ?~  cas  ~
+          =/  pac  (get-pace:hist:nexus sk u.cas)
+          ?~  pac  ~
+          (some [cass=u.cas pace=u.pac])
+        =/  [cas=cass:clay pac=pace:hist:nexus]
+          (resolve-case:nexus u.case.req sk)
+        (some [cass=cas pace=pac])
+          %|
+        =/  dest=fold:tarball  p.dest-lane
+        =/  sub-born=born:nexus  (~(dip of born) dest)
+        ?~  fil.sub-born  ~
+        =/  sk=hist:nexus  fold.u.fil.sub-born
+        ?~  case.req
+          =/  cas=(unit cass:clay)  (top:hist:nexus sk)
+          ?~  cas  ~
+          =/  pac  (get-pace:hist:nexus sk u.cas)
+          ?~  pac  ~
+          (some [cass=u.cas pace=u.pac])
+        =/  [cas=cass:clay pac=pace:hist:nexus]
+          (resolve-case:nexus u.case.req sk)
+        (some [cass=cas pace=pac])
+      ==
+    ?~  cas-pace  ~
+    =/  refs=lobes:nexus
+      ?:  ?=(%tomb -.pace.u.cas-pace)  [~ ~]
+      ?~  p.pace.u.cas-pace  [~ ~]
+      ?:  deep.req
+        (~(reachable si:nexus silo) u.p.pace.u.cas-pace)
+      (~(reachable-shallow si:nexus silo) u.p.pace.u.cas-pace)
+    `[cass.u.cas-pace pace.u.cas-pace refs]
+  =/  snap-id=@uvJ  `@uvJ`(shaz eny.bowl)
+  =?  silo  ?=(^ snap)
+    =.  silo
+      %+  roll  ~(tap in jects.refs.u.snap)
+      |=  [=jobe:nexus s=_silo]
+      (~(bump-ject-ref si:nexus s) jobe)
+    %+  roll  ~(tap in nouns.refs.u.snap)
+    |=  [=nobe:nexus s=_silo]
+    (~(bump-ref si:nexus s) nobe)
+  =/  expiry=@da  (add now.bowl ~m5)
+  =?  snaps.remo  ?=(^ snap)
+    (~(put by snaps.remo) [snap-id src.bowl] [dest-lane refs.u.snap expiry])
+  =?  cards  ?=(^ snap)
+    :_  cards
+    [%pass /behn/snap-pin/[(scot %uv snap-id)]/[(scot %p src.bowl)] %arvo %b %wait expiry]
+  (respond-transfer %peek [wire.req %snap dest-lane snap-id snap])
+::  process-keep: register the caller as a remote watcher, unless the weir
+::  gate blocks it (a vetoed subscribe is silently dropped).
+::
+++  process-keep
+  |=  [caller=rail:tarball req=load:remo:nexus]
+  ^+  this
+  ?>  ?=(%keep +<.req)
+  ?:  ?=([~ %|] (allowed %peek caller `dest.req))
+    this
+  (keep caller dest.req wire.req)
+::  process-drop: remove the caller as a remote watcher.
+::
+++  process-drop
+  |=  [caller=rail:tarball req=load:remo:nexus]
+  ^+  this
+  ?>  ?=(%drop +<.req)
+  (drop caller dest.req)
+::  take-remote-transfer: a content-negotiation message. snap/data/veto/miss
+::  are responses to things we asked for (processed locally, no auth); want is
+::  an inbound request we serve from a pinned snap.
+::
+++  take-remote-transfer
+  |=  req=transfer:remo:nexus
+  ^+  this
+  =.  this  (ensure-peer-ship src.bowl)
+  ?-  +<.req
+    %want  (process-want req)
+    ?(%snap %data %veto %miss)  (process-transfer src.bowl req)
+  ==
+::  process-want: a remote ship wants the content behind a snap it holds. look
+::  up the pinned snap; miss if unknown. otherwise serve every pinned lobe from
+::  its store (kind-directed; a pinned lobe gone missing is a books error worth
+::  hearing about), then release the snap and cancel its timer.
+::
+++  process-want
+  |=  req=transfer:remo:nexus
+  ^+  this
+  ?>  ?=(%want +<.req)
+  =/  pin-key=[@uvJ @p]  [snap-id.req src.bowl]
+  =/  pin  (~(get by snaps.remo) pin-key)
+  ?~  pin
+    (respond-transfer %want [/want %miss ~])
+  =/  send=silo:nexus
+    =/  acc=silo:nexus  *silo:nexus
+    =.  acc
+      %+  roll  ~(tap in jects.refs.u.pin)
+      |=  [=jobe:nexus a=_acc]
+      =/  jot  (~(get by jects.silo) jobe)
+      ?~  jot
+        ~&  >>>  [%want-serve-ject-absent jobe]
+        a
+      a(jects (~(put by jects.a) jobe [0 ject.u.jot]))
+    %+  roll  ~(tap in nouns.refs.u.pin)
+    |=  [=nobe:nexus a=_acc]
+    =/  got  (~(get by nouns.silo) nobe)
+    ?~  got
+      ~&  >>>  [%want-serve-noun-absent nobe]
+      a
+    a(nouns (~(put by nouns.a) nobe [0 noun.u.got]))
+  ::  release the snap, drop refs, cancel the pin timer
+  =.  snaps.remo  (~(del by snaps.remo) pin-key)
+  =.  silo  (release-snap-refs refs.u.pin)
+  =.  vale  (gc-vale-cache vale bins)
+  =.  cards
+    :_  cards
+    :*  %pass
+        /behn/snap-pin/[(scot %uv snap-id.req)]/[(scot %p src.bowl)]
+        %arvo  %b  %rest  expiry.u.pin
+    ==
+  (respond-transfer %want [/want %data send])
+::  respond-transfer: poke the caller's grubbery back with a transfer, on
+::  /[tag]/[caller-ship] — tag is the request kind (peek or want).
+::
+++  respond-transfer
+  |=  [tag=@tas resp=transfer:remo:nexus]
+  ^+  this
+  =.  cards
+    :_  cards
+    :*  %pass  /[tag]/[(scot %p src.bowl)]
+        %agent  [src.bowl %grubbery]  %poke  grubbery-transfer+!>(resp)
+    ==
+  this
 ::  +keep: register a remote watcher and send initial wave.
 ::  Called when a remote ship sends %keep load.
 ::
@@ -1808,7 +1814,6 @@
   :_  validated-dir
   ?~  fil.bole  ~
   `[neck.u.fil.bole weir.u.fil.bole gain.u.fil.bole ~ validated-contents]
-::
 ::  +bang-pool: prepare pool for persistence
 ::
 ::  Bangs processes to crash tangs (gates can't survive reload).
@@ -1819,6 +1824,11 @@
 ::  WARNING: clearing queues loses queued inputs. Post-release, fix
 ::  %veto to not carry =dart (root cause of pend referencing load).
 ::
+::  bang-pool: neutralize every running process in the pool, replacing its
+::  live continuation with a %| "rebuild me" marker so on-load re-spawns it
+::  from current source (a continuation can't survive a code change). `latest`:
+::  %.y keeps each process's pending take-queues (in-flight work survives the
+::  reload); %.n clears them too.
 ++  bang-pool
   |=  [=pool:nexus latest=?]
   ^-  pool:nexus
@@ -2723,11 +2733,14 @@
   ?-(-.lane %& [%& real-path name.p.lane], %| [%| real-path])
 ::
 ++  handle-dart
-  |=  [here=rail:tarball =dart:nexus =filt:nexus dest=(unit lane:tarball)]
+  |=  $:  here=rail:tarball
+          =dart:nexus
+          =filt:nexus
+          dest=(unit lane:tarball)
+      ==
   ^+  this
   =/  cod=path  path.here
   ?-    -.dart
-    ::
       %node
     ::  Send load to another path. Road was resolved in process-dart;
     ::  bad roads are dropped there, so %node always has a dest.
@@ -2735,45 +2748,8 @@
     =*  dest-lane  dest
     ?-    -.load.dart
         %poke
-      ::  Poke destination must be a file
-      ?>  ?=(%& -.u.dest-lane)
-      =/  dest=rail:tarball  p.u.dest-lane
-      ::  /sys/ intercepts: validate and consume immediately.
-      ::  Direct validation, no cache: poke payloads are transient
-      ::  (never silo-resident), so the sham-keyed vale cache can only
-      ::  miss — probing it just hashes the full payload twice.
-      ?:  ?=([%sys *] path.dest)
-        =/  validated=(each vase tang)
-          (validate-noun path.dest p.bask.load.dart q.bask.load.dart)
-        ?:  ?=(%| -.validated)
-          ::  No marc or validation failed — fall through to general poke
-          =/  rel=from:fiber:nexus  (relativize-from:nexus dest here)
-          (enqu-take dest `[here wire.dart] ~ %poke rel bask.load.dart)
-        =/  =sage:tarball  [p.bask.load.dart p.validated]
-        ?:  ?&  =([/sys/behn %'main.timer-state'] dest)
-                =([/ %timer-set] p.sage)
-            ==
-          =.  this  (handle-timer-set here wire.dart q.sage)
-          (enqu-take here ~ ~ %pack wire.dart ~)
-        ?:  ?&  =([/sys/eyre %'main.server-state'] dest)
-                =([/ %eyre-action] p.sage)
-            ==
-          =.  this  (handle-eyre-action here wire.dart q.sage)
-          (enqu-take here ~ ~ %pack wire.dart ~)
-        ?:  ?&  =([/sys/push %'main.push-state'] dest)
-                =([/ %push-action] p.sage)
-            ==
-          =.  this  (handle-push-action here wire.dart q.sage)
-          (enqu-take here ~ ~ %pack wire.dart ~)
-        =/  sys=(unit _this)
-          (handle-sys-poke dest here wire.dart sage)
-        ?^  sys  u.sys
-        ::  /sys/ poke not intercepted — enqueue as bask
-        =/  rel=from:fiber:nexus  (relativize-from:nexus dest here)
-        (enqu-take dest `[here wire.dart] ~ %poke rel bask.load.dart)
-      ::  General poke: enqueue as bask, validate at consumption
-      =/  rel=from:fiber:nexus  (relativize-from:nexus dest here)
-      (enqu-take dest `[here wire.dart] ~ %poke rel bask.load.dart)
+      ?>  ?=(^ dest-lane)
+      (dart-poke here dart u.dest-lane)
       ::
         %make
       ::  Create file or directory.
@@ -2822,137 +2798,12 @@
       ==
       ::
         %peek
-      ::  Remote peek: if dest is under /sys/ames/ships/[ship]/root/,
-      ::  stage the peek and send %peek load to the remote ship.
-      ::  The fiber suspends until discharge-peeks sends the intake back.
-      ::
       ?>  ?=(^ dest-lane)
-      =/  remote=(unit [@p lane:tarball])  (resolve-remote u.dest-lane)
-      ?^  remote
-        =/  [target=@p real-dest=lane:tarball]  u.remote
-        =/  key=[rail:tarball wire]  [here wire.dart]
-        =.  peeks.remo
-          %+  ~(put by peeks.remo)  key
-          [target real-dest deep.load.dart blot.load.dart ~ *@uvJ]
-        =/  req=load:remo:nexus
-          [[wire.dart real-dest] %peek case.load.dart deep.load.dart]
-        =.  cards
-          :_  cards
-          [%pass /peek/[(scot %p target)] %agent [target %grubbery] %poke grubbery-load+!>(req)]
-        this
-      ::  Peek at dest - directory returns ball+born, file returns cage
-      ::  Returns %none if directory doesn't exist or has no lump
-      ::  ver: if set, read historical version from hist via silo
-      ?-    -.u.dest-lane
-          %|
-        =/  dest=fold:tarball  p.u.dest-lane
-        =/  sub-born=born:nexus  (~(dip of born) dest)
-        ?:  &(=(~ fil.sub-born) =(~ dir.sub-born))
-          (enqu-take here ~ ~ %peek wire.dart [%none ~])
-        ::  Get root tree ject lobe from born fold hist:
-        ::  historical if case is set, current top otherwise.
-        =/  node=(unit [fold=hist:nexus file=(map @ta hist:nexus)])
-          fil.sub-born
-        =/  root-lobe=(unit jobe:nexus)
-          ?~  node  ~
-          ?^  case.load.dart
-            =/  [* =pace:hist:nexus]
-              (resolve-case:nexus u.case.load.dart fold.u.node)
-            ?:  ?=(%tomb -.pace)  ~
-            p.pace
-          =/  got=(unit [key=cass:clay val=entry:hist:nexus])
-            (ram:hon:hist:nexus fold.u.node)
-          ?~  got  ~
-          ?:  ?=(%tomb -.pace.val.u.got)  ~
-          p.pace.val.u.got
-        ?~  root-lobe
-          (enqu-take here ~ ~ %peek wire.dart [%none ~])
-        ::  Bump ref to keep tree alive while queued
-        =.  silo  (~(bump-ject-ref si:nexus silo) u.root-lobe)
-        =/  =wave:nexus  (wave-from-born:nexus sub-born)
-        (enqu-take here ~ ~ %peek wire.dart [%ball wave u.root-lobe deep.load.dart])
-        ::
-          %&
-        =/  dest=rail:tarball  p.u.dest-lane
-        =/  content  (peek-grub-now path.dest name.dest)
-        ?:  &(?=(~ content) ?=(~ case.load.dart))
-          (enqu-take here ~ ~ %peek wire.dart [%none ~])
-        =/  node=(unit [fold=hist:nexus file=(map @ta hist:nexus)])
-          (~(get of born) path.dest)
-        =/  sk=hist:nexus
-          ?~  node  *hist:nexus
-          (fall (~(get by file.u.node) name.dest) *hist:nexus)
-        ::  Resolve lobe: historical from silo or current from born
-        =/  src-lobe=(unit jobe:nexus)
-          ?^  case.load.dart
-            =/  [* =pace:hist:nexus]
-              (resolve-case:nexus u.case.load.dart sk)
-            ?:  ?=(%tomb -.pace)  ~
-            p.pace
-          ::  Current: get lobe from born pace
-          =/  got=(unit [key=cass:clay val=entry:hist:nexus])
-            (ram:hon:hist:nexus sk)
-          ?~  got  ~
-          ?:  ?=(%tomb -.pace.val.u.got)  ~
-          p.pace.val.u.got
-        ?~  src-lobe
-          (enqu-take here ~ ~ %peek wire.dart [%none ~])
-        ::  Bump silo ref to keep ject alive while queued
-        =.  silo  (~(bump-ject-ref si:nexus silo) u.src-lobe)
-        =/  =cass:clay  (fall (top:hist:nexus sk) *cass:clay)
-        (enqu-take here ~ ~ %peek wire.dart [%file cass u.src-lobe blot.load.dart])
-      ==
+      (dart-peek here dart u.dest-lane)
       ::
         %code
-      ::  Peek the bins slice at dest
-      ::
-      ?-    -.u.dest-lane
-          %|
-        =/  dest=fold:tarball  p.u.dest-lane
-        =/  nex=(unit fold:tarball)
-          =+  pax=dest
-          |-  ?:  (~(has by code) pax)  `pax
-          ?~  pax  ~
-          $(pax (snip `path`pax))
-        ?~  nex
-          (enqu-take here ~ ~ %code wire.dart |+|+~[leaf+"code: no code nexus at {(spud dest)}"])
-        =/  =lode:nexus  (~(got by code) u.nex)
-        =/  inner=fold:tarball  (slag (lent u.nex) dest)
-        =/  sub-refs=refs:nexus  (~(dip of refs.lode) inner)
-        (enqu-take here ~ ~ %code wire.dart &+sub-refs)
-        ::
-          %&
-        =/  dest=rail:tarball  p.u.dest-lane
-        =/  nex=(unit fold:tarball)
-          =+  pax=path.dest
-          |-  ?:  (~(has by code) pax)  `pax
-          ?~  pax  ~
-          $(pax (snip `path`pax))
-        ?~  nex
-          (enqu-take here ~ ~ %code wire.dart |+|+~[leaf+"code: no code nexus at {(spud path.dest)}"])
-        =/  =lode:nexus  (~(got by code) u.nex)
-        =/  inner=path  (slag (lent u.nex) path.dest)
-        =/  node=(unit (map @ta @uv))  (~(get of refs.lode) inner)
-        =/  ckey=(unit @uv)
-          ?~  node  ~
-          (~(get by u.node) name.dest)
-        ?^  ckey
-          (enqu-take here ~ ~ %code wire.dart |+&+u.ckey)
-        ::  Tube requests: /tub/from/to — resolve via marc grow gate
-        ?.  ?=([%tub @ ~] inner)
-          (enqu-take here ~ ~ %code wire.dart |+|+~[leaf+"code: {(trip name.dest)} not found at {(spud path.dest)}"])
-        =/  from=blot:tarball  [/ i.t.inner]
-        =/  to=blot:tarball  [/ name.dest]
-        =/  tube-res=(each tube:clay tang)
-          (mule |.((grow:(get-marc (snip `path`u.nex) from) to)))
-        ?:  ?=(%| -.tube-res)
-          (enqu-take here ~ ~ %code wire.dart |+|+p.tube-res)
-        ::  Store tube in bins so it can be referenced by ckey
-        =/  =built:nexus  [%vase !>(p.tube-res)]
-        =/  tube-ckey=@uv  (sham built)
-        =.  bins  (~(put by bins) tube-ckey [1 built])
-        (enqu-take here ~ ~ %code wire.dart |+&+tube-ckey)
-      ==
+      ?>  ?=(^ dest-lane)
+      (dart-code here dart u.dest-lane)
       ::
         %font
       ::  Find the /code namespace governing this node.
@@ -3016,41 +2867,8 @@
       (enqu-take here ~ ~ %seek wire.dart res)
       ::
         %peep
-      ::  Query hist entries matching find spec, clam pages to cages
-      ?>  ?=(%& -.u.dest-lane)
-      =/  dest=rail:tarball  p.u.dest-lane
-      =/  sk=(unit hist:nexus)  (get-born dest)
-      ?~  sk
-        (enqu-take here ~ ~ %peep wire.dart |+~[leaf+"no history for {(spud (snoc path.dest name.dest))}"])
-      =/  entries=(list [key=cass:clay val=entry:hist:nexus])
-        (tap:hon:hist:nexus u.sk)
-      =/  hits=(list [cass:clay jobe:nexus])
-        %+  murn  entries
-        |=  [key=cass:clay val=entry:hist:nexus]
-        ^-  (unit [cass:clay jobe:nexus])
-        =/  match=?
-          ?-    -.find.load.dart
-              %pick
-            (~(has in cass.find.load.dart) key)
-              %date
-            ?&  (fall (bind from.find.load.dart |=(d=@da (gte da.key d))) %.y)
-                (fall (bind to.find.load.dart |=(d=@da (lte da.key d))) %.y)
-            ==
-              %numb
-            ?&  (fall (bind from.find.load.dart |=(n=@ud (gte ud.key n))) %.y)
-                (fall (bind to.find.load.dart |=(n=@ud (lte ud.key n))) %.y)
-            ==
-          ==
-        ?.  match  ~
-        ?:  ?=(%tomb -.pace.val)  ~
-        ?~  p.pace.val  ~
-        `[key u.p.pace.val]
-      ::  Bump silo refs for all matched lobes (pace lobes are jects)
-      =.  silo
-        %+  roll  hits
-        |=  [[* =jobe:nexus] acc=_silo]
-        (~(bump-ject-ref si:nexus acc) jobe)
-      (enqu-take here ~ ~ %peep wire.dart &+hits)
+      ?>  ?=(^ dest-lane)
+      (dart-peep here dart u.dest-lane)
       ::
         %born
       ::  Read hist metadata at dest: file hist (%&) or fold hist (%|).
@@ -3133,6 +2951,242 @@
       |=(target=lane:tarball (make-bend:tarball here target))
     (enqu-take here ~ ~ %kept wire.dart kept)
   ==
+::  dart-peek: resolve a %peek dart. a remote dest (under /sys/ames/ships/…)
+::  stages the peek and forwards a %peek load to the owning ship, suspending
+::  until the intake discharges it. a local dir returns ball+born, a local
+::  file returns its cage; %none when nothing lives at dest.
+::
+++  dart-peek
+  |=  [here=rail:tarball =dart:nexus dest-lane=lane:tarball]
+  ^+  this
+  ?>  ?=([%node *] dart)
+  ?>  ?=([%peek *] load.dart)
+  ::  Remote peek: if dest is under /sys/ames/ships/[ship]/root/,
+  ::  stage the peek and send %peek load to the remote ship.
+  ::  The fiber suspends until discharge-peeks sends the intake back.
+  =/  remote=(unit [@p lane:tarball])  (resolve-remote dest-lane)
+  ?^  remote
+    =/  [target=@p real-dest=lane:tarball]  u.remote
+    =/  key=[rail:tarball wire]  [here wire.dart]
+    =.  peeks.remo
+      %+  ~(put by peeks.remo)  key
+      [target real-dest deep.load.dart blot.load.dart ~ *@uvJ]
+    =/  req=load:remo:nexus
+      [[wire.dart real-dest] %peek case.load.dart deep.load.dart]
+    =.  cards
+      :_  cards
+      [%pass /peek/[(scot %p target)] %agent [target %grubbery] %poke grubbery-load+!>(req)]
+    this
+  ::  Peek at dest - directory returns ball+born, file returns cage
+  ::  Returns %none if directory doesn't exist or has no lump
+  ::  ver: if set, read historical version from hist via silo
+  ?-    -.dest-lane
+      %|
+    =/  dest=fold:tarball  p.dest-lane
+    =/  sub-born=born:nexus  (~(dip of born) dest)
+    ?:  &(=(~ fil.sub-born) =(~ dir.sub-born))
+      (enqu-take here ~ ~ %peek wire.dart [%none ~])
+    ::  Get root tree ject lobe from born fold hist:
+    ::  historical if case is set, current top otherwise.
+    =/  node=(unit [fold=hist:nexus file=(map @ta hist:nexus)])
+      fil.sub-born
+    =/  root-lobe=(unit jobe:nexus)
+      ?~  node  ~
+      ?^  case.load.dart
+        =/  [* =pace:hist:nexus]
+          (resolve-case:nexus u.case.load.dart fold.u.node)
+        ?:  ?=(%tomb -.pace)  ~
+        p.pace
+      =/  got=(unit [key=cass:clay val=entry:hist:nexus])
+        (ram:hon:hist:nexus fold.u.node)
+      ?~  got  ~
+      ?:  ?=(%tomb -.pace.val.u.got)  ~
+      p.pace.val.u.got
+    ?~  root-lobe
+      (enqu-take here ~ ~ %peek wire.dart [%none ~])
+    ::  Bump ref to keep tree alive while queued
+    =.  silo  (~(bump-ject-ref si:nexus silo) u.root-lobe)
+    =/  =wave:nexus  (wave-from-born:nexus sub-born)
+    (enqu-take here ~ ~ %peek wire.dart [%ball wave u.root-lobe deep.load.dart])
+    ::
+      %&
+    =/  dest=rail:tarball  p.dest-lane
+    =/  content  (peek-grub-now path.dest name.dest)
+    ?:  &(?=(~ content) ?=(~ case.load.dart))
+      (enqu-take here ~ ~ %peek wire.dart [%none ~])
+    =/  node=(unit [fold=hist:nexus file=(map @ta hist:nexus)])
+      (~(get of born) path.dest)
+    =/  sk=hist:nexus
+      ?~  node  *hist:nexus
+      (fall (~(get by file.u.node) name.dest) *hist:nexus)
+    ::  Resolve lobe: historical from silo or current from born
+    =/  src-lobe=(unit jobe:nexus)
+      ?^  case.load.dart
+        =/  [* =pace:hist:nexus]
+          (resolve-case:nexus u.case.load.dart sk)
+        ?:  ?=(%tomb -.pace)  ~
+        p.pace
+      ::  Current: get lobe from born pace
+      =/  got=(unit [key=cass:clay val=entry:hist:nexus])
+        (ram:hon:hist:nexus sk)
+      ?~  got  ~
+      ?:  ?=(%tomb -.pace.val.u.got)  ~
+      p.pace.val.u.got
+    ?~  src-lobe
+      (enqu-take here ~ ~ %peek wire.dart [%none ~])
+    ::  Bump silo ref to keep ject alive while queued
+    =.  silo  (~(bump-ject-ref si:nexus silo) u.src-lobe)
+    =/  =cass:clay  (fall (top:hist:nexus sk) *cass:clay)
+    (enqu-take here ~ ~ %peek wire.dart [%file cass u.src-lobe blot.load.dart])
+  ==
+::  dart-code: peek the /code bins slice at dest — walk up to the governing
+::  code nexus (lode), return its refs at the inner path. a file may resolve a
+::  /tub/from/to tube request via the marc grow gate, caching the built tube in
+::  bins so it can be referenced by ckey.
+::
+++  dart-code
+  |=  [here=rail:tarball =dart:nexus dest-lane=lane:tarball]
+  ^+  this
+  ?>  ?=([%node *] dart)
+  ?-    -.dest-lane
+      %|
+    =/  dest=fold:tarball  p.dest-lane
+    =/  nex=(unit fold:tarball)
+      =+  pax=dest
+      |-  ?:  (~(has by code) pax)  `pax
+      ?~  pax  ~
+      $(pax (snip `path`pax))
+    ?~  nex
+      (enqu-take here ~ ~ %code wire.dart |+|+~[leaf+"code: no code nexus at {(spud dest)}"])
+    =/  =lode:nexus  (~(got by code) u.nex)
+    =/  inner=fold:tarball  (slag (lent u.nex) dest)
+    =/  sub-refs=refs:nexus  (~(dip of refs.lode) inner)
+    (enqu-take here ~ ~ %code wire.dart &+sub-refs)
+    ::
+      %&
+    =/  dest=rail:tarball  p.dest-lane
+    =/  nex=(unit fold:tarball)
+      =+  pax=path.dest
+      |-  ?:  (~(has by code) pax)  `pax
+      ?~  pax  ~
+      $(pax (snip `path`pax))
+    ?~  nex
+      (enqu-take here ~ ~ %code wire.dart |+|+~[leaf+"code: no code nexus at {(spud path.dest)}"])
+    =/  =lode:nexus  (~(got by code) u.nex)
+    =/  inner=path  (slag (lent u.nex) path.dest)
+    =/  node=(unit (map @ta @uv))  (~(get of refs.lode) inner)
+    =/  ckey=(unit @uv)
+      ?~  node  ~
+      (~(get by u.node) name.dest)
+    ?^  ckey
+      (enqu-take here ~ ~ %code wire.dart |+&+u.ckey)
+    ::  Tube requests: /tub/from/to — resolve via marc grow gate
+    ?.  ?=([%tub @ ~] inner)
+      (enqu-take here ~ ~ %code wire.dart |+|+~[leaf+"code: {(trip name.dest)} not found at {(spud path.dest)}"])
+    =/  from=blot:tarball  [/ i.t.inner]
+    =/  to=blot:tarball  [/ name.dest]
+    =/  tube-res=(each tube:clay tang)
+      (mule |.((grow:(get-marc (snip `path`u.nex) from) to)))
+    ?:  ?=(%| -.tube-res)
+      (enqu-take here ~ ~ %code wire.dart |+|+p.tube-res)
+    ::  Store tube in bins so it can be referenced by ckey
+    =/  =built:nexus  [%vase !>(p.tube-res)]
+    =/  tube-ckey=@uv  (sham built)
+    =.  bins  (~(put by bins) tube-ckey [1 built])
+    (enqu-take here ~ ~ %code wire.dart |+&+tube-ckey)
+  ==
+::  dart-poke: route a poke dart to a file. pokes under /sys/ are validated and
+::  consumed immediately — timer-set / eyre-action / push-action and other sys
+::  intercepts are handled inline; everything else (and all non-sys pokes) is
+::  enqueued as a bask, validated at consumption.
+::
+++  dart-poke
+  |=  [here=rail:tarball =dart:nexus dest-lane=lane:tarball]
+  ^+  this
+  ?>  ?=([%node *] dart)
+  ?>  ?=([%poke *] load.dart)
+  ::  Poke destination must be a file
+  ?>  ?=(%& -.dest-lane)
+  =/  dest=rail:tarball  p.dest-lane
+  ::  /sys/ intercepts: validate and consume immediately.
+  ::  Direct validation, no cache: poke payloads are transient
+  ::  (never silo-resident), so the sham-keyed vale cache can only
+  ::  miss — probing it just hashes the full payload twice.
+  ?:  ?=([%sys *] path.dest)
+    =/  validated=(each vase tang)
+      (validate-noun path.dest p.bask.load.dart q.bask.load.dart)
+    ?:  ?=(%| -.validated)
+      ::  No marc or validation failed — fall through to general poke
+      =/  rel=from:fiber:nexus  (relativize-from:nexus dest here)
+      (enqu-take dest `[here wire.dart] ~ %poke rel bask.load.dart)
+    =/  =sage:tarball  [p.bask.load.dart p.validated]
+    ?:  ?&  =([/sys/behn %'main.timer-state'] dest)
+            =([/ %timer-set] p.sage)
+        ==
+      =.  this  (handle-timer-set here wire.dart q.sage)
+      (enqu-take here ~ ~ %pack wire.dart ~)
+    ?:  ?&  =([/sys/eyre %'main.server-state'] dest)
+            =([/ %eyre-action] p.sage)
+        ==
+      =.  this  (handle-eyre-action here wire.dart q.sage)
+      (enqu-take here ~ ~ %pack wire.dart ~)
+    ?:  ?&  =([/sys/push %'main.push-state'] dest)
+            =([/ %push-action] p.sage)
+        ==
+      =.  this  (handle-push-action here wire.dart q.sage)
+      (enqu-take here ~ ~ %pack wire.dart ~)
+    =/  sys=(unit _this)
+      (handle-sys-poke dest here wire.dart sage)
+    ?^  sys  u.sys
+    ::  /sys/ poke not intercepted — enqueue as bask
+    =/  rel=from:fiber:nexus  (relativize-from:nexus dest here)
+    (enqu-take dest `[here wire.dart] ~ %poke rel bask.load.dart)
+  ::  General poke: enqueue as bask, validate at consumption
+  =/  rel=from:fiber:nexus  (relativize-from:nexus dest here)
+  (enqu-take dest `[here wire.dart] ~ %poke rel bask.load.dart)
+::  dart-peep: query the hist entries at a file matching the dart's find spec
+::  (case-set, date range, or block number), returning the matched [cass lobe]
+::  pairs — bumping a silo ref on each so the jects survive while queued.
+::
+++  dart-peep
+  |=  [here=rail:tarball =dart:nexus dest-lane=lane:tarball]
+  ^+  this
+  ?>  ?=([%node *] dart)
+  ?>  ?=([%peep *] load.dart)
+  ?>  ?=(%& -.dest-lane)
+  =/  dest=rail:tarball  p.dest-lane
+  =/  sk=(unit hist:nexus)  (get-born dest)
+  ?~  sk
+    (enqu-take here ~ ~ %peep wire.dart |+~[leaf+"no history for {(spud (snoc path.dest name.dest))}"])
+  =/  entries=(list [key=cass:clay val=entry:hist:nexus])
+    (tap:hon:hist:nexus u.sk)
+  =/  hits=(list [cass:clay jobe:nexus])
+    %+  murn  entries
+    |=  [key=cass:clay val=entry:hist:nexus]
+    ^-  (unit [cass:clay jobe:nexus])
+    =/  match=?
+      ?-    -.find.load.dart
+          %pick
+        (~(has in cass.find.load.dart) key)
+          %date
+        ?&  (fall (bind from.find.load.dart |=(d=@da (gte da.key d))) %.y)
+            (fall (bind to.find.load.dart |=(d=@da (lte da.key d))) %.y)
+        ==
+          %numb
+        ?&  (fall (bind from.find.load.dart |=(n=@ud (gte ud.key n))) %.y)
+            (fall (bind to.find.load.dart |=(n=@ud (lte ud.key n))) %.y)
+        ==
+      ==
+    ?.  match  ~
+    ?:  ?=(%tomb -.pace.val)  ~
+    ?~  p.pace.val  ~
+    `[key u.p.pace.val]
+  ::  Bump silo refs for all matched lobes (pace lobes are jects)
+  =.  silo
+    %+  roll  hits
+    |=  [[* =jobe:nexus] acc=_silo]
+    (~(bump-ject-ref si:nexus acc) jobe)
+  (enqu-take here ~ ~ %peep wire.dart &+hits)
 ::
 ++  spawn-proc
   |=  [here=rail:tarball =prod:fiber:nexus]
@@ -3833,7 +3887,6 @@
   ^+  this
   this(born (~(init bo:nexus now.bowl born) here))
 ::
-::
 ++  propagate
   |=  [old-born=born:nexus here=rail:tarball]
   ^+  this
@@ -3897,12 +3950,11 @@
 ::  parent builds its tree.  New bole is sole source of truth.
 ::
 ++  load-ball-changes
-  |=  [here=fold:tarball new-bole=bole:tarball]
+  |=  [here=fold:tarball =bole:tarball]
   ^+  this
   =/  old-born=born:nexus  born
-  =.  this  (sync-bole here new-bole)
-  =?  this  !=(~ here)
-    (record-trees (snip `path`here))
+  =.  this  (sync-bole here bole)
+  =?  this  !=(~ here)  (record-trees (snip `path`here))
   (notify old-born)
 ::  Bottom-up recursive sync: at each level, record files, delete
 ::  stale refs, build tree from settled born.
@@ -5476,6 +5528,57 @@
   |=  st=server-state:nexus
   ^+  this
   (save-file [/sys/eyre %'main.server-state'] [[/ %server-state] st])
+::  cancel-http: a client dropped an http subscription — cancel its in-flight
+::  request. no binding means it was a ball-API request (cull the request
+::  fiber); a bound request is dropped from conns and its handler told to cancel.
+::
+++  cancel-http
+  |=  eyre-id=@ta
+  ^+  this
+  =/  st=server-state:nexus  get-server-state
+  =/  conn-binding=(unit binding:eyre)  (~(get by conns.st) eyre-id)
+  ?~  conn-binding
+    (cull-if-exists [%& /sys/eyre/requests eyre-id])
+  =/  new-st  st(conns (~(del by conns.st) eyre-id))
+  =/  handler=rail:tarball
+    (fall (~(get by bindings.new-st) u.conn-binding) *rail:tarball)
+  (poke:(save-server-state new-st) ~ handler [[/ %handle-http-cancel] eyre-id])
+::  route-http: dispatch an inbound eyre request by URL.
+::  /grubbery/push is the notification endpoint.
+::  /grubbery/api spawns a ball-API request fiber.
+::  any other path is matched against the eyre bindings.
+::
+++  route-http
+  |=  [eyre-id=@ta req=inbound-request:eyre]
+  ^+  this
+  =/  [site=path args=quay:eyre]  (parse-url:http-utils url.request.req)
+  ?+    site
+    (forward-http eyre-id req site)
+    ::
+      [%grubbery %push *]
+    (handle-push-http eyre-id src.bowl req t.t.site args)
+    ::
+      [%grubbery %api *]
+    :: we +make because we leverage fibers to do eyre requests async
+    ::
+    (make [%& /sys/eyre/requests eyre-id] %.n [%| [[/ %http-request] [src.bowl req]] ~])
+  ==
+::  forward-http: match a request against the eyre bindings and hand it to the
+::  bound handler, recording the connection; 404 if nothing matches.
+::
+++  forward-http
+  |=  [eyre-id=@ta req=inbound-request:eyre site=path]
+  ^+  this
+  =/  st=server-state:nexus  get-server-state
+  =/  match=(unit [=binding:eyre handler=rail:tarball])
+    (find-eyre-binding bindings.st site)
+  ?~  match
+    ~&  >  [%eyre-no-binding site]
+    =.  cards
+      (weld (give-simple-payload:app:server eyre-id [[404 ~] `(as-octs:mimes:html 'Not Found')]) cards)
+    this
+  =/  new-st  st(conns (~(put by conns.st) eyre-id binding.u.match))
+  (poke:(save-server-state new-st) ~ handler.u.match [[/ %handle-http-request] [eyre-id src.bowl req]])
 ::
 ++  find-eyre-binding
   |=  [bindings=(map binding:eyre rail:tarball) site=path]
@@ -5887,6 +5990,26 @@
     (weld path.sender [name.sender wire.req])
   (emit-card [%pass timer-wire %arvo %b %wait when.req])
 ::
+::  expire-snap: a snap-pin timer fired — release the snap's held refs and
+::  drop it. no-op if the snap was already released (a %want beat the timer).
+::  wire tail is [snap-id ship ~].
+::
+++  expire-snap
+  |=  [tail=wire error=(unit tang)]
+  ^+  this
+  ?^  error
+    ~&(>>> [%snap-pin-timer-error u.error] this)
+  ?>  ?=([@ @ ~] tail)
+  =/  snap-id=@uvJ  (slav %uv i.tail)
+  =/  ship=@p       (slav %p i.t.tail)
+  =/  snap-key=[@uvJ @p]  [snap-id ship]
+  =/  snap  (~(get by snaps.remo) snap-key)
+  ?~  snap  this
+  =.  silo         (release-snap-refs refs.u.snap)
+  =.  vale         (gc-vale-cache vale bins)
+  =.  snaps.remo   (~(del by snaps.remo) snap-key)
+  this
+::
 ++  handle-timer-wake
   |=  [segs=wire error=(unit tang)]
   ^+  this
@@ -6290,14 +6413,19 @@
   ?~  full  |
   ?.  =(i.pre i.full)  |
   $(pre t.pre, full t.full)
+::  +ug-extract-dir:
+::    a road's directory — a file's parent, or the dir itself.
+::    we ignore relative roads. normal weirs can have relative roads.
+::    usergroup weirs cannot.
 ::
-++  road-path
+++  ug-extract-dir
   |=  =road:tarball
   ^-  (unit path)
-  ?.  ?=(%& -.road)  ~
+  ?.  ?=(%& -.road)  ~ :: ignore relative roads
+  :-  ~
   ?-  -.p.road
-    %&  `path.p.p.road
-    %|  `p.p.road
+    %|  p.p.road      :: for folders, the path
+    %&  path.p.p.road :: for files, the path of the parent folder
   ==
 ::
 ++  validate-weir-roads
@@ -6308,7 +6436,7 @@
     %+  weld  ~(tap in poke.weir)
     ~(tap in peek.weir)
   |=  =road:tarball
-  =/  pax=(unit path)  (road-path road)
+  =/  pax=(unit path)  (ug-extract-dir road)
   ?~  pax  |  :: reject relative roads
   (is-prefix prefix u.pax)
 ::
@@ -6320,7 +6448,7 @@
     %-  ~(gas in *(set road:tarball))
     %+  skip  ~(tap in cur)
     |=  =road:tarball
-    =/  pax=(unit path)  (road-path road)
+    =/  pax=(unit path)  (ug-extract-dir road)
     ?~  pax  |
     (is-prefix prefix u.pax)
   ::  Add new roads

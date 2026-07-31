@@ -10,7 +10,7 @@
 +$  reus      (each vase boom)
 +$  sang      (pair blot reus)    :: grubbery content: blot + typed vase or error
 +$  bask      (pair blot noun)    :: grubbery page: blot-typed noun
-+$  metadata  (map @t @t)          :: used only for tar export headers
++$  metadata  (map @t @t)         :: used only for tar export headers
 ::  sang helpers
 ::
 ++  need-sage  |=(=sang ^-(sage ?>(?=(%& -.q.sang) [p.sang p.q.sang])))
@@ -54,7 +54,7 @@
 ::
 ::  Symlink: untyped path reference (resolved at lookup time)
 ::
-+$  symlink   (each path (pair @ud path))
++$  symlink  (each path (pair @ud path))
 +$  weir
   $:  make=(set road)  :: allowed destinations for %make, %cull, %sand
       poke=(set road)  :: allowed destinations for %poke
@@ -67,14 +67,14 @@
       bang=(unit tang)
       contents=(map @ta [=sang gain=? bang=(unit tang)])
   ==
-+$  ball      (axal lump)
++$  ball  (axal lump)
 +$  pulp
   $:  neck=(unit neck)
       weir=(unit weir)
       gain=?
       contents=(map @ta [=bask gain=?])
   ==
-+$  bole      (axal pulp)
++$  bole  (axal pulp)
 :: simple descriptive file tree
 ::
 +$  node  [neck=(unit neck) files=(map @ta blot)]
