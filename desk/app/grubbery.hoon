@@ -4474,6 +4474,9 @@
       ?^  val-err
         ~&  >>  "validate-build failed: {(spud (snoc path.rail name.rail))}"
         [%tang u.val-err]
+      ::  TODO: consider extracting the marc or nexus here and storing it as its
+      ::  own type instead of a raw vase, so readers don't !< it on every read.
+      ::  bootstrap-marcs already does this for the foundational marks.
       [%vase p.build-result]
     =/  in-ckey=@uv  (~(got by keys.res) rail)
     =/  out-ckey=@uv  in-ckey
@@ -5545,6 +5548,9 @@
 ++  save-server-state
   |=  st=server-state:nexus
   ^+  this
+  ::  TODO: conns is transient per-request bookkeeping but this records it to
+  ::  the grub. Consider moving conns to agent state to avoid the write.
+  ::  bindings are authoritative and stay in the namespace.
   (save-file [/sys/eyre %'main.server-state'] [[/ %server-state] st])
 ::  cancel-http: a client dropped an http subscription — cancel its in-flight
 ::  request. no binding means it was a ball-API request (cull the request
