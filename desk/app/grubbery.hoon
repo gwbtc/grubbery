@@ -408,7 +408,15 @@
     [~ this]
   ==
 --
-::  helper core for routing events to processes
+::  the grubbery runtime. the gall arms above delegate the bulk of
+::  their computation to this core, draining it through +abet.
+::
+::    A take is a grub input. takes is the queue of pending takes.
+::    +abet lands each take in its grub's own queue and lets the grub
+::    process that queue as far as it will go, which may queue
+::    further takes. This proceeds, accumulating gall effects in
+::    cards and modifying the grubbery namespace and state, until no
+::    takes remain.
 ::
 =|  cards=(list card)
 =|  takes=(qeu take:nexus)
@@ -906,6 +914,7 @@
     |=  [[watcher=rail:tarball =wire blot=(unit blot:tarball)] acc=_this]
     (enqu-take:acc watcher ~ ~ %news wire wave.resp)
   this
+::  +abet: run the take queue dry, then return cards and state
 ::
 ++  abet
   |-
@@ -2325,17 +2334,18 @@
     ::  Non-nexus directory — recurse deeper
     $(kids ~(tap by dir.kid-ball), dest kid-path)
   $(kids t.kids)
-::  Spawn processes for files in new ball, bump if content changed from old
+::  +spawn-all-files: spawn a process for every file in a bole
 ::
-::  Spawn processes for all files in ball recursively.
-::
-::  Tracks the current nexus scope to avoid redundant silo lookups.
-::  Builds the nexus once per scope and passes blot from ball directly.
+::    Walks the bole recursively. At each directory carrying a neck
+::    the governing nexus is built once and passed down as the scope;
+::    each file gets its spool from the scope nexus and is spawned.
+::    Files at levels with no governing nexus are skipped.
 ::
 ++  spawn-all-files
   |=  [here=fold:tarball new=bole:tarball]
   ^+  this
   (spawn-all-files-in here new ~)
+::  +spawn-all-files-in: the recursive worker for +spawn-all-files
 ::
 ++  spawn-all-files-in
   |=  $:  here=fold:tarball
@@ -3907,12 +3917,18 @@
   ^+  this
   this(born (~(init bo:nexus now.bowl born) here))
 ::
+::  +propagate: repair ancestors and notify, after a leaf mutation
+::
+::    The mandatory tail of every write. Whatever was done to the
+::    leaf: recording a new version, tombing a deletion, or syncing
+::    a subtree, the ancestor tree hashes above it must be rebuilt
+::    and watchers notified by diffing against the born from before
+::    the mutation. Callers snapshot old-born first.
+::
 ++  propagate
   |=  [old-born=born:nexus here=rail:tarball]
   ^+  this
-  ::  ~>  %bout.[1 %record-trees]
   =.  this  (record-trees path.here)
-  ::  ~>  %bout.[1 %notify]
   (notify old-born)
 ::  Record tree objects from dir up to root into silo + fold hist.
 ::  Only bumps fold when tree hash actually changes. Stops propagating
@@ -4185,10 +4201,11 @@
   ~&  >>  "sync-clay-desk: subscribing to {<dek>}"
   %-  emit-card
   [%pass /clay-desk/[dek] %arvo %c %warp our.bowl dek `[%next %z da+now.bowl /]]
-::  React to any change under a code nexus.
-::  Enforces: src/ is hoon-only, bin/ is build-managed.
-::  Triggers rebuild when src/ changes.
-::  Walk a newly created ball and build-code for any %code neck directories.
+::  +build-new-code-namespaces: register and build new %code directories
+::
+::    Walks a newly installed bole. Any directory carrying the %code
+::    neck that is not yet in the code map is registered and built
+::    with a full sweep. Recurses into children.
 ::
 ++  build-new-code-namespaces
   |=  [here=fold:tarball bol=bole:tarball]
@@ -4836,47 +4853,59 @@
     ?:(?=(%& -.res) ~ `(weld ~[leaf+"nexus {(trip name.rail)}: type mismatch"] p.res))
   ::  No validation for other paths (e.g. lib/*.hoon)
   ~
-::  Mirror /gub/ from Clay into /code/, then build.
+::  +gub-ball: build the /code ball from the desk's /gub files
+::
+::    Reads every file under /gub in the desk at pax and translates
+::    each into a grub, restoring the dotted filename clay split
+::    apart: /lib/foo/hoon becomes foo.hoon under /lib. A .hoon file
+::    is stored under the hoon mark, sys.kelvin under the kelvin mark
+::    at the root, and any other file is converted to mime through a
+::    clay tube. Files that fail validation are reported and skipped.
+::
+++  gub-ball
+  |=  pax=path
+  ^-  ball:tarball
+  =/  files=(list path)  .^((list path) %ct (weld pax /gub))
+  %+  roll  files
+  |=  [fyl=path acc=ball:tarball]
+  ?.  ?=([@ @ @ *] fyl)  acc
+  =/  mar=@tas   (rear fyl)
+  =/  sans=path  (snip `(list @ta)`fyl)
+  =/  stem=@ta   (rear sans)
+  =/  rel-dir=path  (slag 1 (snip `(list @ta)`sans))
+  =/  name=@ta   (cat 3 stem (cat 3 '.' mar))
+  ::  sys.kelvin: store as kelvin mark at root
+  ?:  =(%'sys.kelvin' name)
+    =/  =vase  .^(vase %cr (weld pax fyl))
+    =/  val=(each ^vase tang)  (validate-noun /code [/ %kelvin] q.vase)
+    ?.  ?=(%& -.val)
+      ~&  >>>  "sync-gub: kelvin validation failed"
+      acc
+    (~(put ba:tarball acc) [/ %'sys.kelvin'] [[/ %kelvin] %& p.val])
+  ?:  =(mar %hoon)
+    =/  =vase  .^(vase %cr (weld pax fyl))
+    =/  val=(each ^vase tang)  (validate-noun /code [/ mar] q.vase)
+    ?.  ?=(%& -.val)
+      ~&  >>>  "sync-gub: validation failed for {(trip name)}: {(trip (render-tang:build p.val))}"
+      acc
+    (~(put ba:tarball acc) [rel-dir name] [[/ mar] %& p.val])
+  ::  Non-hoon: convert to mime via tube, validate as %mime
+  =/  =vase  .^(vase %cr (weld pax fyl))
+  =/  tub=tube:clay  .^(tube:clay %cc (weld pax /[mar]/mime))
+  =/  =mime  !<(mime (tub vase))
+  =/  val=(each ^vase tang)  (validate-noun /code [/ %mime] [p q]:mime)
+  ?.  ?=(%& -.val)
+    ~&  >>>  "sync-gub: mime validation failed for {(trip name)}"
+    acc
+  (~(put ba:tarball acc) [rel-dir name] [[/ %mime] %& p.val])
+::  +sync-gub: mirror /gub/ from clay into /code/, then build
 ::
 ++  sync-gub
   ^+  this
   ~&  >  "sync-gub: start"
   =/  pax=path  /(scot %p our.bowl)/grubbery/(scot %da now.bowl)
-  ::  Build the target ball for /code/
-  =/  files=(list path)  .^((list path) %ct (weld pax /gub))
-  =/  new-src=ball:tarball
-    %+  roll  files
-    |=  [fyl=path acc=ball:tarball]
-    ?.  ?=([@ @ @ *] fyl)  acc
-    =/  mar=@tas   (rear fyl)
-    =/  sans=path  (snip `(list @ta)`fyl)
-    =/  stem=@ta   (rear sans)
-    =/  rel-dir=path  (slag 1 (snip `(list @ta)`sans))
-    =/  name=@ta   (cat 3 stem (cat 3 '.' mar))
-    ::  sys.kelvin: store as kelvin mark at root
-    ?:  =(%'sys.kelvin' name)
-      =/  =vase  .^(vase %cr (weld pax fyl))
-      =/  val=(each ^vase tang)  (validate-noun /code [/ %kelvin] q.vase)
-      ?.  ?=(%& -.val)
-        ~&  >>>  "sync-gub: kelvin validation failed"
-        acc
-      (~(put ba:tarball acc) [/ %'sys.kelvin'] [[/ %kelvin] %& p.val])
-    ?:  =(mar %hoon)
-      =/  =vase  .^(vase %cr (weld pax fyl))
-      =/  val=(each ^vase tang)  (validate-noun /code [/ mar] q.vase)
-      ?.  ?=(%& -.val)
-        ~&  >>>  "sync-gub: validation failed for {(trip name)}: {(trip (render-tang:build p.val))}"
-        acc
-      (~(put ba:tarball acc) [rel-dir name] [[/ mar] %& p.val])
-    ::  Non-hoon: convert to mime via tube, validate as %mime
-    =/  =vase  .^(vase %cr (weld pax fyl))
-    =/  tub=tube:clay  .^(tube:clay %cc (weld pax /[mar]/mime))
-    =/  =mime  !<(mime (tub vase))
-    =/  val=(each ^vase tang)  (validate-noun /code [/ %mime] [p q]:mime)
-    ?.  ?=(%& -.val)
-      ~&  >>>  "sync-gub: mime validation failed for {(trip name)}"
-      acc
-    (~(put ba:tarball acc) [rel-dir name] [[/ %mime] %& p.val])
+  ::  Build the target ball for /code/ (see +gub-ball)
+  =/  new-src=ball:tarball  (gub-ball pax)
   ::  Ensure %code neck on the source ball
   =/  src-lump=lump:tarball  (fall fil.new-src *lump:tarball)
   =.  new-src  new-src(fil `src-lump(neck `[/ %code]))
@@ -4989,6 +5018,7 @@
   %-  emit-cards
   %+  turn  sessions
   |=(ses=@tas [%pass /dill/session/[ses] %arvo %d %shot ses %view ~])
+::  +sync-jael: mirror our keys into /sys/jael and subscribe to jael
 ::
 ++  sync-jael
   ^+  this
@@ -5165,7 +5195,6 @@
   ?~  kids  this
   =.  this  ^$(pax (snoc pax -.i.kids), sub +.i.kids)
   $(kids t.kids)
-::
 ::  /sys/lick: local IPC ports (lick vane; unix sockets under .urb/dev/)
 ::
 ::    - A nexus opens a port by poking /sys/lick with blot [/ %lick-spin]
@@ -5275,15 +5304,7 @@
   ?~  kids  this
   =.  this  ^$(pax (snoc pax -.i.kids), sub +.i.kids)
   $(kids t.kids)
-::
-::  /sys/ames: runtime-owned peer infrastructure
-::
-::  Creates /sys/ames/ directory structure for foreign ship management.
-::  Usergroups are .grp directories under /sys/ames/usergroups/ with
-::  who.ships and how.weir files. Groups can be nested in namespaces
-::  (e.g. /sys/ames/usergroups/contacts/friends.grp/).
-::  Ship directories are created lazily on first foreign poke.
-::  Weirs recompute atomically on any usergroup change.
+::  +sync-bowl: reset bowl service state and ensure /sys/bowl.sig
 ::
 ++  sync-bowl
   ^+  this
@@ -5291,6 +5312,15 @@
   =?  this  =(~ (peek-grub-now [/sys %'bowl.sig']))
     (save-file [/sys %'bowl.sig'] [[/ %sig] ~])
   this
+::  +sync-peer: create the /sys/ames peer infrastructure
+::
+::    Creates the /sys/ames/ directory structure for foreign ship
+::    management. Usergroups are .grp directories under
+::    /sys/ames/usergroups/ with who.ships and how.weir files. Groups
+::    can be nested in namespaces, for example
+::    /sys/ames/usergroups/contacts/friends.grp/. Ship directories
+::    are created lazily on first foreign poke. Weirs recompute
+::    atomically on any usergroup change.
 ::
 ++  sync-peer
   ^+  this
@@ -5896,7 +5926,7 @@
           =(q.new-content (sang-noun:tarball u.old))
       ==
     this
-  ::  Record, propagate, notify — preserve existing gain flag
+  ::  record the new version, then propagate; preserve the gain flag
   =/  old-born=born:nexus  born
   =/  file-gain=?  (lookup-gain here)
   =.  this  (record here new-content file-gain ~)
@@ -5991,7 +6021,6 @@
     =.  this  (handle-ames-registry here wir q.sage)
     `(enqu-take here ~ ~ %pack wir ~)
   ==
-::
 ::  /sys/behn/ timer service
 ::
 ++  handle-timer-set
@@ -6015,7 +6044,6 @@
     :-  (scot %ud (lent path.sender))
     (weld path.sender [name.sender wire.req])
   (emit-card [%pass timer-wire %arvo %b %wait when.req])
-::
 ::  expire-snap: a snap-pin timer fired — release the snap's held refs and
 ::  drop it. no-op if the snap was already released (a %want beat the timer).
 ::  wire tail is [snap-id ship ~].

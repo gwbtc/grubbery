@@ -39,8 +39,10 @@ completely.
 Evaluate clarity by reading, not by inspection tools. Start where a
 newcomer starts: for a gall agent, the state definition, then the
 agent arms in lifecycle order. Read as a fresh reader who knows hoon
-but not this codebase. Descend only through hatches. Do not skip ahead
-on memory of what the code is supposed to say.
+but not this codebase. Descend only through hatches: a pass follows
+the call graph downward from the surface, and position in the file
+means nothing. Do not skip ahead on memory of what the code is
+supposed to say.
 
 The first place you stall is the finding. A stall is any of: an
 inline body long enough to bury the switch it lives in, a case or
