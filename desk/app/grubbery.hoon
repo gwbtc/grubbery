@@ -2546,6 +2546,10 @@
   =.  this
     %-  ~(rep by watchers)
     |=  [[watcher=rail:tarball =wire blot=(unit blot:tarball)] acc=_this]
+    ::  self-heal: a watcher whose grub no longer exists is a leaked
+    ::  subscription; drop it instead of delivering
+    ?~  (peek-grub-now watcher)
+      (sub-del:acc target watcher)
     ::  Remote watcher: poke wave to subscriber ship
     ?:  ?=([%sys %ames %ships @ *] path.watcher)
       =/  dest=@p  (slav %p i.t.t.t.path.watcher)
@@ -5566,7 +5570,6 @@
   |=  [=binding:eyre *]
   ^-  card
   [%pass /eyre-bind %arvo %e %connect binding dap.bowl]
-::
 ::  /sys/eyre: read/write server state, find bindings
 ::
 ++  get-server-state

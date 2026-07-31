@@ -62,12 +62,6 @@
           ?.  ?=([%grubbery %ball *] site)  ~
           t.t.site
 
-        ?:  ?=([%stream ~] raw-path)
-          =/  watch-path=path
-            =/  p=(unit @t)  (get-key:kv:html-utils 'path' args)
-            ?~  p  ~
-            (stab u.p)
-          (handle-stream eyre-id req watch-path)
         ~&  >  %explorer-dispatch-start
         ;<  dir-view=view:nexus  bind:m  (peek-shallow:io [%& %| raw-path] ~)
         ~&  >  %explorer-peek-done
@@ -517,161 +511,6 @@
   |=  [seg=@ta =lump:tarball]
   ^-  (unit [=sang:tarball gain=? bang=(unit tang)])
   (~(get by contents.lump) seg)
-::  Handle SSE stream: subscribe to root, push change events
-::
-++  handle-stream
-  |=  [eyre-id=@ta req=inbound-request:eyre watch-path=path]
-  =/  m  (fiber:fiber:nexus ,~)
-  ^-  form:m
-  ?.  (is-sse-request:http-utils req)
-    ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'SSE only')])
-    (pure:m ~)
-  ;<  ~  bind:m  (send-header:srv eyre-id sse-header:http-utils)
-  ;<  initial-view=view:nexus  bind:m  (peek:io [%& %| ~] ~)
-  =/  prev-wave=wave:nexus
-    ?.  ?=(%ball -.initial-view)
-      *wave:nexus
-    wave.initial-view
-  =/  prev-weir=(unit weir:nexus)
-    ?.  ?=(%ball -.initial-view)
-      ~
-    =/  s=ball:tarball  (~(dip ba:tarball ball.initial-view) watch-path)
-    ?~(fil.s ~ weir.u.fil.s)
-  ;<  *  bind:m  (keep:io /ball [%& %| ~] ~)
-  ;<  now=@da  bind:m  get-time:io
-  ;<  ~  bind:m  (send-wait:io (add now ~s30))
-  |-
-  ;<  nw=news-or-wake:io  bind:m  (take-news-or-wake:io /ball)
-  ?-    -.nw
-      %wake
-    ;<  ~  bind:m  (send-data:srv eyre-id `sse-keep-alive:http-utils)
-    ;<  now=@da  bind:m  get-time:io
-    ;<  ~  bind:m  (send-wait:io (add now ~s30))
-    $
-      %news
-    =/  changes=(map lane:tarball cass:clay)  (diff-wave:nexus prev-wave wave.nw)
-    =/  max-cas=cass:clay
-      %+  roll  ~(val by changes)
-      |=  [c=cass:clay best=cass:clay]
-      ?:((gth ud.c ud.best) c best)
-    ;<  =view:nexus  bind:m  (peek-at:io [%& %| ~] ~ [%ud ud.max-cas])
-    ?.  ?=([%ball *] view)  $
-    =/  root=ball:tarball  ball.view
-    =/  root-wave=wave:nexus  wave.view
-    =/  watch-ball=ball:tarball  (~(dip ba:tarball root) watch-path)
-    =/  new-weir=(unit weir:nexus)  ?~(fil.watch-ball ~ weir.u.fil.watch-ball)
-    =/  what=(set lane:tarball)  ~(key by changes)
-    =.  prev-wave  root-wave
-    =/  par=ball:tarball  (~(dip ba:tarball root) watch-path)
-    =/  par-wave=wave:nexus  (~(dip of root-wave) watch-path)
-    =/  url-prefix=tape  (build-url watch-path)
-    ::  Resolve governing /code namespace so SSE-pushed rows get
-    ::  the same blot & nexus links as the initial page render.
-    ::  The bend is relative to this fiber, so resolve with `here`.
-    ;<  font=(unit (unit bend:tarball))  bind:m
-      (get-font:io [%& %| watch-path])
-    ;<  here=rail:tarball  bind:m  get-here-abs:io
-    =/  code-namespace=(unit path)
-      ?~  font  ~
-      ?~  u.font  ~
-      =/  ns=(unit lane:tarball)
-        (lane-from-bend:tarball [%& here] u.u.font)
-      ?~  ns  ~
-      ?.  ?=(%| -.u.ns)  ~
-      `p.u.ns
-    =/  now=@da  da.max-cas
-    ::  Only build tubes for marks of files that changed in watched dir
-    =/  changed-blots=(set blot:tarball)
-      %-  ~(gas in *(set blot:tarball))
-      %+  murn  ~(tap in what)
-      |=  =lane:tarball
-      ^-  (unit blot:tarball)
-      ?.  ?=(%& -.lane)  ~
-      ?.  =(path.p.lane watch-path)  ~
-      ?~  fil.par  ~
-      =/  ct=(unit [=sang:tarball gain=? bang=(unit tang)])  (~(get by contents.u.fil.par) name.p.lane)
-      ?~  ct  ~
-      `p.sang.u.ct
-    ;<  conversions=(map bars:tarball tube:clay)  bind:m
-      (build-blot-conversions:io changed-blots)
-    =/  lanes=(list lane:tarball)  ~(tap in what)
-    |-
-    ?~  lanes
-      ::  Check if watched directory was deleted
-      =/  still-exists=?
-        ?|  =(~ watch-path)
-            ?=(^ (~(dap ba:tarball root) watch-path))
-        ==
-      ?.  still-exists
-        =/  =json
-          (pairs:enjs:format ~[['action' s+'deleted']])
-        =/  =sse-event:http-utils  [~ `'ball-change' [(en:json:html json)]~]
-        =/  data=octs  (sse-encode:http-utils ~[sse-event])
-        ;<  ~  bind:m  (send-data:srv eyre-id `data)
-        (pure:m ~)
-      ::  Check for weir change
-      ?.  =(prev-weir new-weir)
-        =.  prev-weir  new-weir
-        =/  weir-html=tape
-          (zing (turn (render-weir new-weir url-prefix) en-xml:html))
-        =/  =json
-          %-  pairs:enjs:format
-          :~  ['action' s+'weir']
-              ['html' s+(crip weir-html)]
-          ==
-        =/  =sse-event:http-utils  [~ `'ball-change' [(en:json:html json)]~]
-        =/  data=octs  (sse-encode:http-utils ~[sse-event])
-        ;<  ~  bind:m  (send-data:srv eyre-id `data)
-        ^$
-      ^$
-    =/  [parent=path item=@ta is-file=?]
-      ?-  -.i.lanes
-        %&  [path.p.i.lanes name.p.i.lanes %.y]
-        %|  ?~  p.i.lanes  [~ %$ %.n]
-            [(snip `path`p.i.lanes) (rear p.i.lanes) %.n]
-      ==
-    ::  Skip lanes not matching watched directory
-    ?.  =(parent watch-path)
-      $(lanes t.lanes)
-    =/  exists=?
-      ?:  is-file
-        ?~  fil.par  %.n
-        (~(has by contents.u.fil.par) item)
-      (~(has by dir.par) item)
-    ?:  exists
-      ::  Add: render full row HTML
-      =/  row-html=tape
-        ?:  is-file
-          ?~  fil.par  ""
-          =/  ct=(unit [=sang:tarball gain=? bang=(unit tang)])  (~(get by contents.u.fil.par) item)
-          ?~  ct  ""
-          (en-xml:html (render-grub-row item sang.u.ct url-prefix watch-path par-wave now conversions code-namespace ~))
-        =/  sub=(unit ball:tarball)  (~(get by dir.par) item)
-        ?~  sub  ""
-        (en-xml:html (render-dir-row item u.sub url-prefix ~))
-      =/  =json
-        %-  pairs:enjs:format
-        :~  ['action' s+'add']
-            ['name' s+item]
-            ['html' s+(crip row-html)]
-        ==
-      =/  =sse-event:http-utils  [~ `'ball-change' [(en:json:html json)]~]
-      =/  data=octs  (sse-encode:http-utils ~[sse-event])
-      ;<  ~  bind:m  (send-data:srv eyre-id `data)
-      $(lanes t.lanes)
-    ::  Delete: send name
-    =/  =json
-      %-  pairs:enjs:format
-      :~  ['action' s+'del']
-          ['name' s+item]
-      ==
-    =/  =sse-event:http-utils  [~ `'ball-change' [(en:json:html json)]~]
-    =/  data=octs  (sse-encode:http-utils ~[sse-event])
-    ;<  ~  bind:m  (send-data:srv eyre-id `data)
-    $(lanes t.lanes)
-  ==
-::  Resolve URL path — direct match only
-::
 ++  resolve-url-path
   |=  [raw=path root=ball:tarball]
   ^-  path
@@ -1074,11 +913,11 @@
           ;pre;
         ==
       ==
-      ;script: {(trip sse-script)}
+      ;script: {(trip page-script)}
     ==
   ==
 ::
-++  sse-script
+++  page-script
   ^-  @t
   '''
   var sortCol = 0, sortAsc = true;
@@ -1112,33 +951,7 @@
     else { sortCol = col; sortAsc = true; }
     doSort();
   }
-  (function() {
-    doSort();
-    var tbl = document.getElementById('listing');
-    if (!tbl) return;
-    var tb = tbl.querySelector('tbody') || tbl;
-    var es = new EventSource('/grubbery/ball/stream?path=' + tbl.dataset.path);
-    es.addEventListener('ball-change', function(e) {
-      var d = JSON.parse(e.data);
-      if (d.action === 'weir') {
-        var sb = document.getElementById('sandbox-value');
-        if (sb) sb.innerHTML = d.html;
-        return;
-      }
-      if (d.action === 'deleted') {
-        document.body.innerHTML = '<h1>Directory deleted</h1><p><a href="/grubbery/ball">Back to root</a></p>';
-        es.close();
-        return;
-      }
-      var row = tb.querySelector('tr[data-name="' + d.name + '"]');
-      if (row) row.remove();
-      if (d.action === 'add' && d.html) {
-        tb.insertAdjacentHTML('beforeend', d.html);
-        doSort();
-      }
-    });
-    window.addEventListener('beforeunload', function() { es.close(); });
-  })();
+  doSort();
   function doAction(action, params) {
     var form = document.createElement('form');
     form.method = 'POST';
