@@ -1206,8 +1206,9 @@
   +$  peeks  (map [rail:tarball wire] peek)
   +$  snaps  (map [@uvJ @p] [dest=lane:tarball refs=lobes expiry=@da])
   --
-+$  ack  (unit tang)
++$  ack   (unit tang)
 +$  upki  (unit rail:tarball) :: urbit PKI source in the namespace
++$  last  [now=@da eny=@uvJ]  :: monotonic time and entropy
 ::
 :: ++  deaf
 ::   |=  tap=(trap)

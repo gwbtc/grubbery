@@ -6,6 +6,10 @@
     multipart, web-push,
     cram, pretty-file, zlib, bytestream,
     wasm-lia
+::  These marks and tests are imported only so they compile when the
+::  agent builds. A broken mark or test then fails the commit. The
+::  m- and t- faces are never referenced.
+::
 /=  m-  /mar/hoon
 /=  m-  /mar/tang
 /=  m-  /mar/mime
@@ -17,7 +21,6 @@
 /=  m-  /mar/tree
 /=  m-  /mar/born
 /=  m-  /mar/bill
-/=  m-  /mar/grubbery-ack
 /=  m-  /mar/grubbery-intake
 /=  m-  /mar/grubbery-load
 /=  m-  /mar/grubbery-transfer
@@ -52,9 +55,12 @@
   $%  state-0:migrations
   ==
 +$  card  card:agent:gall
-:: The kelvin version of the grubbery runtime (?)
+::  kel: the idea of kelvin-versioning the grubbery runtime itself.
+::  Start from a large number and burn many kelvins at once as the
+::  space of allowable changes shrinks toward a frozen runtime.
+::  Nothing consumes this yet.
 ::
-++  kel  21.000.000 :: start big; burn many at once
+++  kel  21.000.000
 :: The subject all code gets compiled against (/nex, /mar or /lib)
 ::
 ++  sut
@@ -230,10 +236,6 @@
   |=  =path
   ^-  (quip card _this)
   ?+    path  (on-watch:def path)
-      [%poke @ *]
-    ?>  =(src.bowl (slav %p i.t.path))
-    [~ this]
-    ::
       [%http-response *]
     [~ this]
       ::  Jael subscribes on / for all udiffs
@@ -254,9 +256,6 @@
   |=  =path
   ^-  (quip card _this)
   ?+    path  (on-leave:def path)
-      [%poke @ *]
-    [~ this]
-    ::
       [%http-response @ ~]
     =^  cards  state  abet:(cancel-http:hc i.t.path)
     [cards this]
@@ -281,7 +280,7 @@
     ::  File names at path
     ``kids+!>((lis-born t.t.t.path))
     ::
-      [%x %peek %subs *]
+      [%x %peek %subd *]
     ::  Subdirectory names at path
     ``kids+!>((lss-born t.t.t.path))
     ::
@@ -459,12 +458,12 @@
     =/  new-fold=hist:nexus  (put-pace:hist:nexus fold.node cas pace)
     (~(put of born) dir node(fold new-fold))
   ==
-::  +discharge-peeks: sweep staged peeks, discharge any whose refs
-::  are fully present in the local silo. Discharge means the grub
-::  +release-snap-refs: drop one ref on each lobe, kind-directed.
-::  Only ever the inverse of an explicit bump: the server-side pin
-::  bump at snap creation, or the client-side merge bump in %data.
-::  Never call it with lobes that were not bumped by the caller.
+::  +release-snap-refs: drop the silo refcounts a snap holds
+::
+::    A snap bumps a refcount on every lobe it references so the
+::    content survives tombstoning while the snap is alive. This
+::    undoes exactly those bumps when the snap is released. Call it
+::    only with lobes the snap bumped, or the counts drift.
 ::
 ++  release-snap-refs
   |=  refs=lobes:nexus
@@ -476,9 +475,12 @@
   %+  roll  ~(tap in nouns.refs)
   |=  [=nobe:nexus s=_silo]
   (~(drop si:nexus s) nobe)
-::  +discharge-peeks: sweep staged cross-ship peeks.  If a peek's refs
-::  can now read the content it asked for — notify and remove.
-::  Discharge means the requesting fiber gets its %peek intake.
+::  +discharge-peeks: discharge staged peeks whose refs have all arrived
+::
+::    Sweeps the staged cross-ship peeks. If every ref a peek's snap
+::    names is now in the local silo, the requesting grub can read the
+::    content it asked for: it gets its %peek intake and the staged
+::    peek is removed.
 ::
 ++  discharge-peeks
   ^+  this
@@ -6063,7 +6065,6 @@
   ::  Poke sender back with timer-wake
   =/  rel=from:fiber:nexus  (relativize-from:nexus sender timer-rail)
   (enqu-take sender ~ ~ %poke rel [[/ %timer-wake] req-wire])
-::
 ::  /sys/clay/ desk sync service
 ::
 ++  handle-clay-mount
@@ -6122,7 +6123,6 @@
     .^(noun %cx (scot %p our.bowl) %base (scot %da now.bowl) path)
   =.  this  (emit-card [%pass /new-desk %arvo (new-desk:cloy dek ~ files)])
   (emit-card [%pass /desk-bill %arvo %c %info dek %& [/desk/bill %ins bill+!>(~[dek])]~])
-::
 ::  /sys/clay/ file write service
 ::
 ++  handle-clay-info
@@ -6138,7 +6138,6 @@
       [pax %ins +<.change !>(+>.change)]
     ==
   (emit-card [%pass /clay-info %arvo %c %info dek %& mis])
-::
 ::  /sys/eyre/ HTTP server service
 ::
 ++  eyre-response-cards
@@ -6204,7 +6203,6 @@
       (emit-cards crds)
     (emit-cards crds)
   ==
-::
 ::  /sys/gall/ agent poke service
 ::
 ++  handle-gall-poke
@@ -6264,7 +6262,6 @@
   ::  poke was consumed"; that was already given for the request poke itself).
   =/  =from:fiber:nexus  (relativize-from:nexus sender [/sys/gall %'main.sig'])
   (enqu-take sender ~ ~ %poke from [[/ %poke-ack] p.sign])
-::
 ::  /sys/iris/ HTTP client service
 ::
 ++  handle-iris-request
@@ -6311,7 +6308,6 @@
   ::  Poke sender back with http-response
   =/  rel=from:fiber:nexus  (relativize-from:nexus sender iris-rail)
   (enqu-take sender ~ ~ %poke rel [[/ %http-response] client-response])
-::
 ::  /sys/scry/ typed scry service
 ::
 ++  handle-typed-scry
