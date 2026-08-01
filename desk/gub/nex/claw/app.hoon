@@ -122,7 +122,7 @@
         ;<  jon=json  bind:m  (get-state-as:io ,json)
         ?.  (enabled jon)  stay:m
         ::  self-healing registration: cheap, idempotent, and immune
-        ::  to rise-ordering races between claw and the service
+        ::  to start-ordering races between claw and the service
         ;<  ~  bind:m  (register-app:io 'claw')
         =/  code=@t  (gs jon 'code')
         ?:  =('' code)

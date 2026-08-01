@@ -4,29 +4,38 @@
 ::    "~nec/apps/counter"    (remote ship)
 ::    "/some/local/path"     (local namespace)
 ::
-::  Updates are version-gated: the desk only re-syncs when the
-::  source's version.ud is higher than the local version. Code can
-::  change freely on the source — the desk won't update until the
-::  publisher bumps the version.
+::  Updates are version-gated: the source publishes a version file,
+::  any root file named version.* whose mark renders to text. The
+::  desk re-syncs when its content changes; the text is opaque, used
+::  only as a checkpoint tag. Code can change freely on the source —
+::  the desk won't update until the publisher bumps the version.
 ::
 ::  Layout — host/guest split:
 ::    config.json     source config            (host, root-governed)
-::    version.ud      release version          (host)
+::    version.*       release version          (host)
 ::    main.sig        HTTP UI                  (host)
 ::    /requests/      HTTP request grubs       (host)
 ::    /desk/code/     %code nexus synced from source — governs the
-::                    guest world and nothing else
-::    /desk/bill.json nexus entry manifest synced from source —
-::                    declares which nexuses to create in /desk/data
-::                    on first install (only when /desk/data is empty)
+::                    guest world and nothing else. Carries the whole
+::                    release: code plus bill.json, tile.json, icon.*.
+::                    bill.json declares which nexuses to create in
+::                    /desk/data on first install (only when empty);
+::                    tile.json and icon.* are surfaced to the nexus
+::                    root after install, where the shell looks.
 ::    /desk/data/     working data for the installed desk
+::    /staged/        local working tree: a plain dir, not a code
+::                    nexus, so edits there trigger nothing. Poke
+::                    stage.sig to mirror /staged into /desk/code
+::                    atomically (files missing from /staged are
+::                    removed) — the local dev loop.
+::    stage.sig       poke target for applying /staged
 ::
 ::  The host layer resolves marcs from the root code namespace; the
 ::  guest resolves against /desk/code. Guests distribute every marc
 ::  they use — content-addressing dedupes shared marcs for free.
 ::
 ::  Checkpoints live entirely in the born history. Before each code
-::  update the fold hists of /data and /code (plus version.ud) are
+::  update the fold hists of /data and /code (plus the version file)
 ::  firmed and tagged with the outgoing version — the fold pace lobe
 ::  IS the merkle root of the subtree at that instant. One hash per
 ::  axis per version; no manifest files.
@@ -47,6 +56,8 @@
       [%fall %& [/ %'config.json'] [[/ %json] (config-to-json *desk-config)]]
       [%fall %& [/ %'version.ud'] [[/ %ud] 0]]
       [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
+      [%fall %& [/ %'stage.sig'] [[/ %sig] ~]]
+      [%fall %| /staged empty-dir:loader]
       [%fall %| /requests empty-dir:loader]
       [%fall %| /desk empty-dir:loader]
       [%fall %| /desk/code code-dir]
@@ -71,29 +82,30 @@
     |-
     ;<  config-json=json  bind:m  (get-state-as:io ,json)
     =/  config=desk-config  (json-to-config config-json)
-    ;<  ~  bind:m
-      %-  reg-how:io
-      ?:  &(public.config ?=(~ source.config))
-        :-  /public
-        :+  ~  ~
-        %-  sy
-        :~  [%& %& nex-dir %'version.ud']
-            [%& %| (weld nex-dir /desk/code)]
-            [%& %& (weld nex-dir /desk) %'bill.json']
-        ==
-      [/public *weir:nexus]
+    ;<  ~  bind:m  (apply-share nex-dir ~ share.config)
     ?~  source.config
       ::  no source configured, wait for poke
       ~&  >  %desk-no-source
       ;<  =sage:tarball  bind:m  take-poke:io
       =/  new-json=json  !<(json q.sage)
+      =/  new-config=desk-config  (json-to-config new-json)
+      ;<  ~  bind:m  (apply-share nex-dir share.config share.new-config)
       ;<  ~  bind:m  (replace:io new-json)
       $
-    ::  subscribe to source's version.ud
+    ::  find the source's version file: any root file named version.*
     =/  source-road=road:tarball  (parse-source u.source.config)
-    =/  ver-road=road:tarball  (version-road source-road)
+    ;<  ver-name=(unit @ta)  bind:m  (find-version-name source-road)
+    ?~  ver-name
+      ~&  >>  %desk-no-version-at-source
+      ;<  =sage:tarball  bind:m  take-poke:io
+      =/  new-json=json  !<(json q.sage)
+      =/  new-config=desk-config  (json-to-config new-json)
+      ;<  ~  bind:m  (apply-share nex-dir share.config share.new-config)
+      ;<  ~  bind:m  (replace:io new-json)
+      $
+    =/  ver-road=road:tarball  (version-road source-road u.ver-name)
     ~&  >  [%desk-subscribing u.source.config]
-    ;<  init=wave:nexus  bind:m  (keep:io /ver ver-road `[/ %ud])
+    ;<  init=wave:nexus  bind:m  (keep:io /ver ver-road ~)
     ~&  >  [%desk-subscribed u.source.config]
     ::  install: sync the source's release (pinned, never live),
     ::  apply init on first install (empty /desk/data), and
@@ -102,52 +114,32 @@
     ::  install of the source's current version isn't one.
     ;<  ~  bind:m  (sync-release source-road rail)
     ;<  ~  bind:m  (apply-bill rail)
-    ;<  ver=(unit @ud)  bind:m
-      (peek-as:io (nex-road:io rail [%& / %'version.ud']) ,@ud)
+    ::  re-apply share so the freshly mirrored version file is granted
+    ;<  ~  bind:m  (apply-share nex-dir ~ share.config)
+    ;<  vt=(unit @t)  bind:m
+      (read-version-text (nex-road:io rail [%& / u.ver-name]))
     ;<  ~  bind:m
-      (do-checkpoint rail (sy ~['checkpoint' (version-tag (fall ver 0))]))
+      %^  do-checkpoint  rail  u.ver-name
+      (sy ?~(vt ~['checkpoint'] ~['checkpoint' (version-knot u.vt)]))
     |-
     ;<  res=news-or-poke  bind:m  (take-news-or-poke /ver)
     ?-  -.res
         %news
       ~&  >  %desk-update-received
       ::  checkpoint outgoing state, then sync. Plain 'checkpoint'
-      ::  tag — version tags are the version.ud watcher's job.
-      ;<  ~  bind:m  (do-checkpoint rail (sy ~['checkpoint']))
+      ::  tag — version tags are the version watcher's job.
+      ;<  ~  bind:m  (do-checkpoint rail u.ver-name (sy ~['checkpoint']))
       ;<  ~  bind:m  (sync-release source-road rail)
       $
         %poke
       ::  config change: replace state, drop sub, restart
       =/  new-json=json  !<(json q.sage.res)
       ~&  >  [%desk-config-change new-json]
+      =/  new-config=desk-config  (json-to-config new-json)
+      ;<  ~  bind:m  (apply-share nex-dir share.config share.new-config)
       ;<  ~  bind:m  (replace:io new-json)
       ;<  ~  bind:m  (drop:io /ver ver-road)
       ^$
-    ==
-      ::  version.ud: every version change checkpoints the world.
-      ::  Runs on publisher and subscriber alike — a release IS a
-      ::  checkpoint, tagged with the version it inaugurates.
-      ::
-      [~ %'version.ud']
-    ;<  ~  bind:m  (rise-wait:io prod "%desk version: failed")
-    ::  checkpoint the current version at rise: gives every desk a
-    ::  v0 checkpoint at birth (idempotent re-firm on later rises)
-    ;<  ver0=(unit @ud)  bind:m
-      (peek-as:io (nex-road:io rail [%& / %'version.ud']) ,@ud)
-    ;<  ~  bind:m
-      (do-checkpoint rail (sy ~['checkpoint' (version-tag (fall ver0 0))]))
-    ;<  init=wave:nexus  bind:m
-      (keep:io /self (nex-road:io rail [%& / %'version.ud']) `[/ %ud])
-    |-
-    ;<  res=news-or-poke  bind:m  (take-news-or-poke /self)
-    ?-  -.res
-        %poke  $
-        %news
-      ;<  ver=(unit @ud)  bind:m
-        (peek-as:io (nex-road:io rail [%& / %'version.ud']) ,@ud)
-      ;<  ~  bind:m
-        (do-checkpoint rail (sy ~['checkpoint' (version-tag (fall ver 0))]))
-      $
     ==
       ::  main.sig: HTTP endpoint for desk management UI
       ::
@@ -177,13 +169,79 @@
     ?:  =('POST' method.request.req)
       (handle-post eyre-id suffix req rail)
     (handle-get eyre-id suffix rail)
+      ::  stage.sig: poke to apply /staged to /desk/code — the local
+      ::  dev loop. Checkpoint first; /staged mirrors into code, then
+      ::  bill and shell files apply as in a synced install.
+      ::
+      [~ %'stage.sig']
+    ;<  ~  bind:m  (rise-wait:io prod "%desk stage: failed")
+    |-
+    ;<  *  bind:m  take-poke:io
+    ;<  staged=(unit (list bfile))  bind:m  (fetch-dir rail /staged ~)
+    ?:  =(~ (fall staged ~))
+      ~&  >>  %desk-nothing-staged
+      $
+    ~&  >  %desk-stage-apply
+    ;<  vn=(unit @ta)  bind:m  (own-version-name rail)
+    ;<  ~  bind:m
+      (do-checkpoint rail (fall vn %'version.ud') (sy ~['checkpoint']))
+    ;<  ~  bind:m  (cull-dir rail /desk/code)
+    ;<  ~  bind:m  (write-files rail /desk/code (need staged))
+    ;<  ~  bind:m  (surface-shell-files rail)
+    ;<  ~  bind:m  (apply-bill rail)
+    ~&  >  %desk-stage-applied
+    $
+      ::  version.*: every version change checkpoints the world.
+      ::  Runs on publisher and subscriber alike — a release IS a
+      ::  checkpoint, tagged with the version it inaugurates.
+      ::
+      [~ @]
+    =/  nam=@ta  name.rail
+    ?.  =('version.' (end [3 8] nam))  stay:m
+    ;<  ~  bind:m  (rise-wait:io prod "%desk version: failed")
+    ::  a release must be a complete world, however the code arrived:
+    ::  surface shell files and bootstrap data locally too. Idempotent.
+    ;<  ~  bind:m  (surface-shell-files rail)
+    ;<  ~  bind:m  (apply-bill rail)
+    ::  checkpoint the current version at every process start: gives
+    ::  every desk a birth checkpoint (idempotent re-firm on restarts)
+    ;<  vt0=(unit @t)  bind:m
+      (read-version-text (nex-road:io rail [%& / nam]))
+    ;<  ~  bind:m
+      %^  do-checkpoint  rail  nam
+      (sy ?~(vt0 ~['checkpoint'] ~['checkpoint' (version-knot u.vt0)]))
+    ;<  init=wave:nexus  bind:m
+      (keep:io /self (nex-road:io rail [%& / nam]) ~)
+    =/  prev=(unit @t)  (bind vt0 version-knot)
+    |-
+    ;<  res=news-or-poke  bind:m  (take-news-or-poke /self)
+    ?-  -.res
+        %poke  $
+        %news
+      ;<  ~  bind:m  (surface-shell-files rail)
+      ;<  ~  bind:m  (apply-bill rail)
+      ;<  vt=(unit @t)  bind:m
+        (read-version-text (nex-road:io rail [%& / nam]))
+      =/  new=(unit @t)  (bind vt version-knot)
+      ::  tag the handoff: this state is the old version's final data
+      ::  and the new version's first, under the new version's code.
+      ::  With no prior version the tag reads ->new.
+      =/  tags=(set @t)
+        ?~  new  (sy ~['checkpoint'])
+        %-  sy
+        :~  'checkpoint'
+            (crip "{?~(prev "" (trip u.prev))}->{(trip u.new)}")
+        ==
+      ;<  ~  bind:m  (do-checkpoint rail nam tags)
+      $(prev new)
+    ==
   ==
 --
 ::
 |%
 +$  desk-config
   $:  source=(unit @t)
-      public=?
+      share=(list path)
   ==
 ::
 +$  news-or-poke
@@ -197,12 +255,18 @@
 ::
 +$  binfo  (list [=cass:clay tags=(set @t) tomb=?])
 ::
+::  share holds the usergroup paths the desk is published to, as real
+::  paths; strings exist only in the json. 'public' is emitted as a
+::  derived field (membership of /public) for the UI, and accepted on
+::  read as legacy sugar for share [/public].
+::
 ++  config-to-json
   |=  config=desk-config
   ^-  json
   %-  pairs:enjs:format
   :~  ['source' ?~(source.config ~ s+u.source.config)]
-      ['public' b+public.config]
+      ['share' a+(turn share.config |=(g=path s+(spat g)))]
+      ['public' b+?=(^ (find ~[/public] share.config))]
   ==
 ::
 ++  json-to-config
@@ -210,10 +274,50 @@
   ^-  desk-config
   ?.  ?=(%o -.json)  *desk-config
   =/  src  (~(get by p.json) 'source')
+  =/  shr  (~(get by p.json) 'share')
   =/  pub  (~(get by p.json) 'public')
   :*  ?~(src ~ ?:(?=([~ %s *] src) `p.u.src ~))
-      ?~(pub %.n ?:(?=([~ %b *] pub) p.u.pub %.n))
+      ?:  ?=([~ %a *] shr)
+        %+  murn  p.u.shr
+        |=  j=^json
+        ?.  ?=([%s *] j)  ~
+        (rush p.j stap)
+      ?:  &(?=([~ %b *] pub) p.u.pub)  ~[/public]
+      ~
   ==
+::
+::  +apply-share: register the follow weir with every group in the new
+::  share list, and clear it from groups that were dropped
+::
+::    The weir grants exactly what a follower needs to pull: the
+::    version file, the code tree, and the bill.
+::
+++  apply-share
+  |=  [nex-dir=path old=(list path) new=(list path)]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  ::  grant every root version.* file plus the code tree
+  ;<  =view:nexus  bind:m  (peek:io [%& %| nex-dir] ~)
+  =/  ver-roads=(list road:tarball)
+    ?.  ?=([%ball *] view)  ~
+    ?~  fil.ball.view  ~
+    %+  murn  ~(tap by contents.u.fil.ball.view)
+    |=  [n=@ta *]
+    ?.  =('version.' (end [3 8] n))  ~
+    (some `road:tarball`[%& %& nex-dir n])
+  =/  grant=weir:nexus
+    :+  ~  ~
+    %-  sy
+    [[%& %| (weld nex-dir /desk/code)] ver-roads]
+  =/  jobs=(list [grp=path w=weir:nexus])
+    %+  weld
+      %+  turn  (skip old |=(g=path ?=(^ (find ~[g] new))))
+      |=(g=path [g *weir:nexus])
+    (turn new |=(g=path [g grant]))
+  |-  ^-  form:m
+  ?~  jobs  (pure:m ~)
+  ;<  ~  bind:m  (reg-how:io [grp.i.jobs w.i.jobs])
+  $(jobs t.jobs)
 ::
 ::  desk-slug: URL name for a desk nexus — its dir name minus the
 ::  dot-suffix ('test.desk' -> 'test'). Dots are avoided in eyre
@@ -239,13 +343,13 @@
     [%& %| (weld /sys/ames/ships/[(scot %p target)]/root source-path)]
   [%& %| (stab src)]
 ::
-::  version-road: source's version.ud road from base source road
+::  version-road: the source's version file road, by discovered name
 ::
 ++  version-road
-  |=  source-road=road:tarball
+  |=  [source-road=road:tarball name=@ta]
   ^-  road:tarball
   ?.  ?=([%& %| *] source-road)  ~|(%desk-unexpected-road-shape !!)
-  [%& %& p.p.source-road %'version.ud']
+  [%& %& p.p.source-road name]
 ::  source-dir-road: a directory under the source desk
 ::
 ++  source-dir-road
@@ -261,38 +365,63 @@
   ?.  ?=([%& %| *] source-road)  ~|(%desk-unexpected-road-shape !!)
   [%& %& (weld p.p.source-road dir) name]
 ::  sync-release: mirror the source's RELEASE, never its live tree.
-::  The source's version.ud revision pins the release instant — its
-::  cass carries the da when version N was written, and the source's
+::  The source's version revision pins the release instant — its
+::  cass carries the da when the version was written, and the source's
 ::  watcher checkpointed (firmed) the folds in that same event chain.
 ::  Syncing the folds at that da makes drafts unreachable and every
-::  sync reproducible. Also writes the local version.ud to match.
+::  sync reproducible. Also mirrors the source's version file, raw,
+::  under its own name.
 ::
 ++  sync-release
   |=  [source-road=road:tarball =rail:tarball]
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
+  ;<  ver-name=(unit @ta)  bind:m  (find-version-name source-road)
+  ?~  ver-name
+    ~&  >>  %desk-no-version-at-source
+    (pure:m ~)
   ;<  ver-view=view:nexus  bind:m
-    (peek:io (version-road source-road) `[/ %ud])
+    (peek:io (version-road source-road u.ver-name) ~)
   ?.  ?=([%file *] ver-view)
     ~&  >>  %desk-no-version-at-source
     (pure:m ~)
-  =/  ver=@ud  !<(@ud (need-vase:tarball sang.ver-view))
   =/  at=@da   da.cass.ver-view
-  ~&  >  [%desk-sync-release ver=ver]
+  ~&  >  [%desk-sync-release ver=(version-text sang.ver-view)]
   ;<  ~  bind:m
     (sync-dir (source-dir-road source-road /desk/code) rail /desk/code `[%da at])
-  ;<  bill-view=view:nexus  bind:m
-    (peek-at:io (source-file-road source-road /desk %'bill.json') `[/ %json] [%da at])
-  ;<  ~  bind:m
-    ?.  ?=([%file *] bill-view)  (pure:m ~)
-    =/  bill-json=json  !<(json (need-vase:tarball sang.bill-view))
-    (over:io (nex-road:io rail [%& /desk %'bill.json']) [[/ %json] bill-json])
+  ;<  ~  bind:m  (surface-shell-files rail)
+  =/  content=bask:tarball
+    [p.sang.ver-view (sang-noun:tarball sang.ver-view)]
   ;<  exists=?  bind:m
-    (peek-exists:io (nex-road:io rail [%& / %'version.ud']))
+    (peek-exists:io (nex-road:io rail [%& / u.ver-name]))
   ?.  exists
-    (make:io (nex-road:io rail [%& / %'version.ud']) |+[[[/ %ud] ver] ~])
-  (over:io (nex-road:io rail [%& / %'version.ud']) [[/ %ud] ver])
+    (make:io (nex-road:io rail [%& / u.ver-name]) |+[content ~])
+  (over:io (nex-road:io rail [%& / u.ver-name]) content)
 ::
+::  +surface-shell-files: copy tile.json and icon.* from the installed
+::  code root to the nexus root, where the shell looks for them
+::
+++  surface-shell-files
+  |=  =rail:tarball
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  ;<  =view:nexus  bind:m  (peek:io (nex-road:io rail [%| /desk/code]) ~)
+  ?.  ?=([%ball *] view)  (pure:m ~)
+  ?~  fil.ball.view  (pure:m ~)
+  =/  files=(list [name=@ta =sang:tarball gain=? bang=(unit tang)])
+    ~(tap by contents.u.fil.ball.view)
+  |-
+  ?~  files  (pure:m ~)
+  =/  [name=@ta =sang:tarball gain=? bang=(unit tang)]  i.files
+  ?.  ?&  ?|  =(%'tile.json' name)
+              =('icon.' (end [3 5] name))
+          ==
+          !(is-boom:tarball sang)
+      ==
+    $(files t.files)
+  ;<  ~  bind:m
+    (over:io (nex-road:io rail [%& / name]) [p.sang (sang-noun:tarball sang)])
+  $(files t.files)
 ::  apply-bill: on first install only — if /desk/data is empty,
 ::  read bill.json and create nexus entries in /desk/data.
 ::
@@ -303,7 +432,7 @@
   ;<  cur=(unit (list bfile))  bind:m  (fetch-dir rail /desk/data ~)
   ?.  =(~ (fall cur ~))  (pure:m ~)
   ;<  bill=(unit json)  bind:m
-    (peek-as:io (nex-road:io rail [%& /desk %'bill.json']) ,json)
+    (peek-as:io (nex-road:io rail [%& /desk/code %'bill.json']) ,json)
   ?~  bill
     ~&  >  %desk-no-bill
     (pure:m ~)
@@ -339,12 +468,12 @@
   (write-files rail dir files)
 ::
 ::  do-checkpoint: firm the fold hists of /data and /code plus
-::  version.ud, tagged with the outgoing version. The fold pace
+::  the version file, tagged with the outgoing version. The fold pace
 ::  lobe is the merkle root of the whole subtree — three firms
 ::  checkpoint the entire world.
 ::
 ++  do-checkpoint
-  |=  [=rail:tarball tags=(set @t)]
+  |=  [=rail:tarball ver-name=@ta tags=(set @t)]
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
   ~&  >  [%desk-checkpoint tags=tags]
@@ -352,13 +481,118 @@
   ;<  ~  bind:m  (tag:io (nex-road:io rail [%| /desk/data]) ~ tags)
   ;<  ~  bind:m  (checkpoint:io (nex-road:io rail [%| /desk/code]))
   ;<  ~  bind:m  (tag:io (nex-road:io rail [%| /desk/code]) ~ tags)
-  ;<  ~  bind:m  (checkpoint:io (nex-road:io rail [%& / %'version.ud']))
-  (tag:io (nex-road:io rail [%& / %'version.ud']) ~ tags)
+  ;<  has=?  bind:m
+    (peek-exists:io (nex-road:io rail [%& / ver-name]))
+  ?.  has  (pure:m ~)
+  ;<  ~  bind:m  (checkpoint:io (nex-road:io rail [%& / ver-name]))
+  (tag:io (nex-road:io rail [%& / ver-name]) ~ tags)
 ::
-++  version-tag
-  |=  ver=@ud
+::  +version-text: render a version file's content as text, by mark.
+::  ~ for marks with no text rendering.
+::
+++  version-text
+  |=  =sang:tarball
+  ^-  (unit @t)
+  ?:  (is-boom:tarball sang)  ~
+  =/  nun  (sang-noun:tarball sang)
+  ?+  p.sang  ~
+      [~ %ud]
+    =/  n  ((soft @ud) nun)
+    ?~(n ~ `(crip (a-co:co u.n)))
+      [~ %txt]
+    =/  w  ((soft wain) nun)
+    ?~(w ~ ?~(u.w ~ `i.u.w))
+      [~ %t]
+    ((soft @t) nun)
+      [~ %json]
+    =/  j  ((soft json) nun)
+    ?~  j  ~
+    ?+  -.u.j  ~
+      %s  `p.u.j
+      %n  `p.u.j
+    ==
+  ==
+::  +version-knot: first line of a version text, capped at 64 chars,
+::  sanitized to a safe tag: lowercased, unsafe characters become -
+::
+++  version-knot
+  |=  txt=@t
   ^-  @t
-  (crip "v{(a-co:co ver)}")
+  =/  t=tape  (trip txt)
+  =/  nl=(unit @ud)  (find "\0a" t)
+  =?  t  ?=(^ nl)  (scag u.nl t)
+  =?  t  (gth (lent t) 64)  (scag 64 t)
+  =/  s=tape
+    %+  turn  t
+    |=  c=@tD
+    ?:  ?|  &((gte c 'a') (lte c 'z'))
+            &((gte c '0') (lte c '9'))
+            =(c '.')  =(c '-')  =(c '_')  =(c '~')
+        ==
+      c
+    ?:  &((gte c 'A') (lte c 'Z'))  (add c 32)
+    '-'
+  ?~  s  'v'
+  (crip s)
+::  +pick-version-name: the version file among a dir's file names —
+::  any name starting version. — alphabetical first if several
+::
+++  pick-version-name
+  |=  names=(list @ta)
+  ^-  (unit @ta)
+  =/  vs=(list @ta)
+    (skim names |=(n=@ta =('version.' (end [3 8] n))))
+  ?~  vs  ~
+  `(snag 0 (sort vs aor))
+::  +find-version-name: discover the version file at a source dir
+::
+++  find-version-name
+  |=  source-road=road:tarball
+  =/  m  (fiber:fiber:nexus ,(unit @ta))
+  ^-  form:m
+  ;<  =view:nexus  bind:m  (peek:io source-road ~)
+  ?.  ?=([%ball *] view)  (pure:m ~)
+  ?~  fil.ball.view  (pure:m ~)
+  %-  pure:m
+  %-  pick-version-name
+  (turn ~(tap by contents.u.fil.ball.view) |=([n=@ta *] n))
+::  +read-version-text: peek a version file and render it as text
+::
+++  read-version-text
+  |=  =road:tarball
+  =/  m  (fiber:fiber:nexus ,(unit @t))
+  ^-  form:m
+  ;<  =view:nexus  bind:m  (peek:io road ~)
+  ?.  ?=([%file *] view)  (pure:m ~)
+  (pure:m (version-text sang.view))
+::  +own-version-name: discover this desk's own version file name
+::
+++  own-version-name
+  |=  =rail:tarball
+  =/  m  (fiber:fiber:nexus ,(unit @ta))
+  ^-  form:m
+  ;<  =view:nexus  bind:m  (peek:io (nex-road:io rail [%| /]) ~)
+  ?.  ?=([%ball *] view)  (pure:m ~)
+  ?~  fil.ball.view  (pure:m ~)
+  %-  pure:m
+  %-  pick-version-name
+  (turn ~(tap by contents.u.fil.ball.view) |=([n=@ta *] n))
+::  +own-version: discover this desk's own version file and read it
+::
+++  own-version
+  |=  =rail:tarball
+  =/  m  (fiber:fiber:nexus ,(unit @t))
+  ^-  form:m
+  ;<  =view:nexus  bind:m  (peek:io (nex-road:io rail [%| /]) ~)
+  ?.  ?=([%ball *] view)  (pure:m ~)
+  ?~  fil.ball.view  (pure:m ~)
+  =/  cs  contents.u.fil.ball.view
+  =/  nam=(unit @ta)
+    (pick-version-name (turn ~(tap by cs) |=([n=@ta *] n)))
+  ?~  nam  (pure:m ~)
+  =/  ct  (~(get by cs) u.nam)
+  ?~  ct  (pure:m ~)
+  (pure:m (version-text sang.u.ct))
 ::
 ::  ball-to-files: lift files out of a ball with relative paths
 ::
@@ -539,8 +773,7 @@
     ::  data endpoint: config, version, and both checkpoint lists
     ;<  config-json=(unit json)  bind:m
       (peek-as:io (nex-road:io rail [%& / %'config.json']) ,json)
-    ;<  ver=(unit @ud)  bind:m
-      (peek-as:io (nex-road:io rail [%& / %'version.ud']) ,@ud)
+    ;<  ver=(unit @t)  bind:m  (own-version rail)
     ;<  code-born=(each binfo tang)  bind:m
       (born:io (nex-road:io rail [%| /desk/code]))
     ;<  data-born=(each binfo tang)  bind:m
@@ -548,7 +781,7 @@
     =/  =json
       %-  pairs:enjs:format
       :~  ['config' (fall config-json [%o ~])]
-          ['version' (numb:enjs:format (fall ver 0))]
+          ['version' ?~(ver ~ s+u.ver)]
           ['code' (binfo-to-json code-born)]
           ['data' (binfo-to-json data-born)]
       ==
@@ -608,14 +841,17 @@
     ::  replaces its state and re-applies the registry weir.
     ;<  cur-json=(unit json)  bind:m  (peek-as:io (nex-road:io rail [%& / %'config.json']) ,json)
     =/  cur=desk-config  ?~(cur-json *desk-config (json-to-config u.cur-json))
-    ?:  &(!public.cur ?=(^ source.cur))
-      ;<  ~  bind:m  (respond eyre-id rail 400 'cannot publish while subscribed to a source')
-      (pure:m ~)
-    =/  new-config=desk-config  cur(public !public.cur)
-    ~&  >  [%desk-publish public=public.new-config]
+    =/  had=?  ?=(^ (find ~[/public] share.cur))
+    =/  new-config=desk-config
+      %=  cur
+        share  ?:  had
+                 (skip share.cur |=(g=path =(/public g)))
+               (snoc share.cur /public)
+      ==
+    ~&  >  [%desk-publish public=!had]
     ;<  ~  bind:m
       (poke:io (nex-road:io rail [%& / %'config.json']) [[/ %json] (config-to-json new-config)])
-    (respond eyre-id rail 200 ?:(public.new-config 'published' 'unpublished'))
+    (respond eyre-id rail 200 ?:(had 'unpublished' 'published'))
   ::
       [%fetch-latest ~]
     ::  pull the source's current code and version now. Idempotent:
@@ -631,13 +867,18 @@
       (pure:m ~)
     =/  source-road=road:tarball  (parse-source u.source.config)
     ~&  >  [%desk-fetch-latest u.source.config]
+    ;<  ver-name=(unit @ta)  bind:m  (find-version-name source-road)
+    ?~  ver-name
+      ;<  ~  bind:m  (respond eyre-id rail 400 'no version file at source')
+      (pure:m ~)
     ::  protect current state, then pull
-    ;<  ~  bind:m  (do-checkpoint rail (sy ~['checkpoint']))
+    ;<  ~  bind:m  (do-checkpoint rail u.ver-name (sy ~['checkpoint']))
     ;<  ~  bind:m  (sync-release source-road rail)
-    ;<  ver=(unit @ud)  bind:m
-      (peek-as:io (nex-road:io rail [%& / %'version.ud']) ,@ud)
+    ;<  vt=(unit @t)  bind:m
+      (read-version-text (nex-road:io rail [%& / u.ver-name]))
     ;<  ~  bind:m
-      (do-checkpoint rail (sy ~['checkpoint' (version-tag (fall ver 0))]))
+      %^  do-checkpoint  rail  u.ver-name
+      (sy ?~(vt ~['checkpoint'] ~['checkpoint' (version-knot u.vt)]))
     (respond eyre-id rail 200 'fetched')
   ::
       [%checkpoint ~]
