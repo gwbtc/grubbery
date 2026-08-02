@@ -184,7 +184,7 @@
     ~&  >  %desk-stage-apply
     ;<  vn=(unit @ta)  bind:m  (own-version-name rail)
     ;<  ~  bind:m
-      (do-checkpoint rail (fall vn %'version.ud') (sy ~['checkpoint']))
+      (do-checkpoint rail (fall vn %'version.ud') (sy ~['checkpoint' 'pre-stage']))
     ;<  ~  bind:m  (cull-dir rail /desk/code)
     ;<  ~  bind:m  (write-files rail /desk/code (need staged))
     ;<  ~  bind:m  (surface-shell-files rail)
@@ -315,9 +315,40 @@
       |=(g=path [g *weir:nexus])
     (turn new |=(g=path [g grant]))
   |-  ^-  form:m
-  ?~  jobs  (pure:m ~)
+  ?~  jobs
+    ::  keep the shell's public desk directory current: register when
+    ::  /public is shared, deregister when it was just dropped.
+    ::  Best-effort — a missing shell must not fail the config fiber.
+    =/  has=?  ?=(^ (find ~[/public] new))
+    =/  had=?  ?=(^ (find ~[/public] old))
+    =/  entry=json  s+(spat nex-dir)
+    ?:  has
+      (register-public (pairs:enjs:format ~[['add' entry]]))
+    ?:  had
+      (register-public (pairs:enjs:format ~[['del' entry]]))
+    (pure:m ~)
   ;<  ~  bind:m  (reg-how:io [grp.i.jobs w.i.jobs])
   $(jobs t.jobs)
+::  +register-public: poke the shell's public desk directory, and
+::  swallow the ack — or the veto, if no shell is installed.
+::
+++  register-public
+  |=  cmd=json
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  =/  dir-road=road:tarball  [%& %& /apps/'shell.shell' %'public.json']
+  ;<  ~  bind:m
+    (send-dart:io %node /pub-reg dir-road %poke [[/ %json] cmd])
+  |=  input:fiber:nexus
+  :+  ~  q.state
+  ?+  in  [%skip ~]
+    ~  [%wait ~]
+      [~ %pack *]
+    ?.  =(/pub-reg wire.u.in)  [%skip ~]
+    [%done ~]
+      [~ %veto *]
+    [%done ~]
+  ==
 ::
 ::  desk-slug: URL name for a desk nexus — its dir name minus the
 ::  dot-suffix ('test.desk' -> 'test'). Dots are avoided in eyre

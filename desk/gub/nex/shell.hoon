@@ -10,6 +10,7 @@
       %+  spin:loader  ball
       :~  (manifest:loader 0)
           [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
+          [%fall %& [/ %'public.json'] [[/ %json] [%a ~]]]
           [%fall %| /requests empty-dir:loader]
       ==
     ::
@@ -25,6 +26,43 @@
         ;<  ~  bind:m  (bind-http:io [~ /apps/grubbery])
         ;<  ~  bind:m  (bind-http:io [~ /grubbery/tiles])
         (http-dispatch:io %shell)
+          ::  public.json: this ship's public desk directory — a json
+          ::  array of desk paths, peekable by anyone. Desks register
+          ::  and deregister by poking {"add": path} or {"del": path}
+          ::  when /public enters or leaves their share list. The
+          ::  bootstrap for cross-ship discovery: peek this, then peek
+          ::  each desk for its version and tile through its own
+          ::  public grants.
+          ::
+          [~ %'public.json']
+        ;<  ~  bind:m  (rise-wait:io prod "%shell public: failed")
+        ;<  ~  bind:m  reg-register:io
+        ;<  here=rail:tarball  bind:m  get-here-abs:io
+        =/  nex-dir=path  path.here
+        ;<  ~  bind:m
+          %-  reg-how:io
+          :-  /public
+          [~ ~ (sy `(list road:tarball)`~[[%& %& nex-dir %'public.json']])]
+        |-
+        ;<  =sage:tarball  bind:m  take-poke:io
+        =/  cmd=json  !<(json q.sage)
+        ;<  cur=json  bind:m  (get-state-as:io ,json)
+        =/  paths=(list @t)
+          ?.  ?=(%a -.cur)  ~
+          (murn p.cur |=(j=json ?:(?=([%s *] j) `p.j ~)))
+        =/  next=(list @t)
+          ?.  ?=(%o -.cmd)  paths
+          =/  add  (~(get by p.cmd) 'add')
+          =/  del  (~(get by p.cmd) 'del')
+          ?:  ?=([~ %s *] add)
+            ?:  ?=(^ (find ~[p.u.add] paths))  paths
+            (snoc paths p.u.add)
+          ?:  ?=([~ %s *] del)
+            (skip paths |=(p=@t =(p p.u.del)))
+          paths
+        ;<  ~  bind:m
+          (replace:io `json`a+(turn (sort next aor) |=(p=@t s+p)))
+        $
           ::
           [[%requests ~] @]
         ;<  ~  bind:m  (rise-wait:io prod "%shell request: failed")
