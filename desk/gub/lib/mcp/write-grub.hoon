@@ -66,7 +66,14 @@
     =/  src-mime=mime  [mtype (as-octs:mimes:html content)]
     ;<  exists=?  bind:m  (peek-exists:io road)
     ?:  exists
-      ;<  ~  bind:m  (over:io road [[/ %mime] src-mime])
+      ::  preserve the existing blot: a plain mime over would silently
+      ::  turn the file into /mime, which strands it (a hoon source
+      ::  stops building, a typed file stops clamming)
+      ;<  cur=view:nexus  bind:m  (peek:io road ~)
+      ;<  ~  bind:m
+        ?:  ?&(?=([%file *] cur) !=([/ %mime] p.sang.cur))
+          (over-as:io road [[/ %mime] src-mime] p.sang.cur)
+        (over:io road [[/ %mime] src-mime])
       (pure:m [%text (crip "Wrote {(trip file-path)}/{(trip file-name)} [{(trip u.content-type)}]")])
     ;<  ~  bind:m  (make:io road |+[[[/ %mime] src-mime] ~])
     (pure:m [%text (crip "Created {(trip file-path)}/{(trip file-name)} [{(trip u.content-type)}]")])
@@ -85,10 +92,18 @@
               =(u.dest-blot p.sang.cur)
           ==
         (pure:m [%error 'Blot differs from the existing file. Delete it first, then recreate with the desired blot (same-blot overwrites are fine).'])
-      ;<  ~  bind:m  (over:io road [[/ %mime] src-mime])
+      ;<  ~  bind:m
+        ?:  =([/ %mime] u.dest-blot)
+          (over:io road [[/ %mime] src-mime])
+        (over-as:io road [[/ %mime] src-mime] u.dest-blot)
       (pure:m [%text (crip "Wrote {(trip file-path)}/{(trip file-name)}")])
-    ::  Existing file: %over converts mime to file's blot via warm tube
-    ;<  ~  bind:m  (over:io road [[/ %mime] src-mime])
+    ::  Existing file, no blot given: convert to its current blot so an
+    ::  overwrite never changes a file's type out from under it
+    ;<  cur=view:nexus  bind:m  (peek:io road ~)
+    ;<  ~  bind:m
+      ?:  ?&(?=([%file *] cur) !=([/ %mime] p.sang.cur))
+        (over-as:io road [[/ %mime] src-mime] p.sang.cur)
+      (over:io road [[/ %mime] src-mime])
     (pure:m [%text (crip "Wrote {(trip file-path)}/{(trip file-name)}")])
   ::  New file: pass dest-blot so runtime converts mime before storing.
   ::  If no blot specified, stores as mime.

@@ -59,10 +59,17 @@
     =/  clean=tape  ?:(&(!=(~ t) =('/' (rear t))) (snip t) t)
     ?~  clean  /
     (stab (crip clean))
-  ;<  dir-view=view:nexus  bind:m  (peek:io [%& %| dir-pax] ~)
+  ::  a directory's weir lives in its parent's entry for it, so read
+  ::  through the parent — peeking the directory itself never shows it
+  =/  parent=path  ?~(dir-pax / (snip `path`dir-pax))
+  ;<  parent-view=view:nexus  bind:m  (peek:io [%& %| parent] ~)
   =/  cur=weir:nexus
-    ?.  ?=([%ball *] dir-view)  [~ ~ ~]
-    (fall ?~(fil.ball.dir-view ~ weir.u.fil.ball.dir-view) [~ ~ ~])
+    ?~  dir-pax  [~ ~ ~]
+    ?.  ?=([%ball *] parent-view)  [~ ~ ~]
+    =/  child=(unit ball:tarball)
+      (~(get by dir.ball.parent-view) (rear dir-pax))
+    ?~  child  [~ ~ ~]
+    (fall ?~(fil.u.child ~ weir.u.fil.u.child) [~ ~ ~])
   =/  new=weir:nexus
     ?+  category  cur
       %'write'  cur(make (~(put in make.cur) new-road))
