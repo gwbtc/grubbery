@@ -317,8 +317,20 @@
       ::  TODO: on a nack, clean up the staged peek/sub and notify the grub;
       ::        right now error acks leave state dangling.
       ::
-      [?(%peek %want %keep %drop %wave) *]
+      [?(%peek %want %keep %drop %wave %gack) *]
     [~ this]
+    ::
+      ::  a %poke load we forwarded for a fiber: success acks are
+      ::  ignored — the consumption result arrives separately as a
+      ::  %gack transfer. A nack means their gate refused the load
+      ::  (veto or crash at admission); report that as the %gack.
+      ::
+      [%grub-poke *]
+    ?>  ?=(%poke-ack -.sign)
+    ?~  p.sign  [~ this]
+    =^  cards  state
+      abet:(take-grub-poke-nack:hc wire u.p.sign)
+    [cards this]
     ::
       [%gall-sub *]
     =^  cards  state
@@ -548,7 +560,10 @@
     %peek  (process-peek caller req)
     %keep  (process-keep caller req)
     %drop  (process-drop caller req)
-    %poke  (dart [%poke bask.req])
+    ::  pokes keep the request wire so the consumption %pack lands on
+    ::  the caller's ship.sig with the sender-encoded return address
+    ::  (see the forward in +process-take)
+    %poke  (process-dart caller [%node wire.req [%& dest.req] %poke bask.req])
     %make  (dart [%make force.req make.req])
     %cull  (dart [%cull ~])
     %sand  (dart [%sand weir.req])
@@ -652,8 +667,28 @@
   =.  this  (ensure-peer-ship src.bowl)
   ?-  +<.req
     %want  (process-want req)
+    %gack  (process-gack src.bowl req)
     ?(%snap %data %veto %miss)  (process-transfer src.bowl req)
   ==
+::  process-gack: a remote ship reports the consumption result of a
+::  poke we sent it. Decode the sender from the wire (the encoding
+::  from +dart-poke's remote branch) and poke the originating grub
+::  with the result — the cross-ship sibling of +take-gall-poke.
+::
+++  process-gack
+  |=  [src=@p req=transfer:remo:nexus]
+  ^+  this
+  ?>  ?=(%gack +<.req)
+  =/  segs=wire  wire.req
+  ?.  ?=([%grub-poke @ *] segs)  this
+  =/  path-len=@ud  (slav %ud i.t.segs)
+  =/  from-path=path  (scag path-len t.t.segs)
+  =/  rest=wire  (slag path-len t.t.segs)
+  ?~  rest  this
+  =/  sender=rail:tarball  [from-path i.rest]
+  =/  orig-wire=wire  t.rest
+  =/  =from:fiber:nexus  (relativize-from:nexus sender (ship-sig-rail src))
+  (enqu-take sender ~ ~ %poke from [[/ %gack] `[wire (unit tang)]`[orig-wire err.req]])
 ::  process-want: a remote ship wants the content behind a snap it holds. look
 ::  up the pinned snap; miss if unknown. otherwise serve every pinned lobe from
 ::  its store (kind-directed; a pinned lobe gone missing is a books error worth
@@ -897,6 +932,10 @@
     =.  this  (enqu-take rail.key ~ ~ %peek wire.key [%miss ~])
     =.  peeks.remo  (~(del by peeks.remo) key)
     $(stale t.stale)
+    ::
+      %gack
+    ::  Routed to +process-gack in +take-remote-transfer; unreachable.
+    this
   ==
 ::  Subscription wave from remote watcher. Translate dest back to
 ::  namespaced lane and deliver %news to local watchers.
@@ -912,7 +951,19 @@
   =.  this
     %-  ~(rep by watchers)
     |=  [[watcher=rail:tarball =wire blot=(unit blot:tarball)] acc=_this]
+    ::  self-heal: a watcher whose grub no longer exists is a leaked
+    ::  subscription; drop it instead of delivering
+    ?~  (peek-grub-now watcher)
+      (sub-del:acc ns-lane watcher)
     (enqu-take:acc watcher ~ ~ %news wire wave.resp)
+  ::  nobody watches this lane anymore: unsubscribe from the source,
+  ::  so cross-ship cleanup rides the delivery path the same way
+  ::  local self-heal does
+  ?.  =(~ (fwd-get ns-lane))  this
+  =/  req=load:remo:nexus  [[wire.resp dest.resp] %drop ~]
+  =.  cards
+    :_  cards
+    [%pass /drop/[(scot %p src)] %agent [src %grubbery] %poke grubbery-load+!>(req)]
   this
 ::  +abet: run the take queue dry, then return cards and state
 ::
@@ -1669,6 +1720,25 @@
     [name [`[~ weir %.n ~ ~] ~]]
   [`lump sub-dirs]
 ::  Peek the current sang at a rail (born lookup + peek-grub).
+::
+::  +grub-lives: does a grub currently exist — the hist walk from
+::  +peek-grub-now without the silo fetch, for existence gates on
+::  hot paths
+::
+++  grub-lives
+  |=  =rail:tarball
+  ^-  ?
+  =/  node=(unit [fold=hist:nexus file=(map @ta hist:nexus)])
+    (~(get of born) path.rail)
+  ?~  node  %.n
+  =/  sok=(unit hist:nexus)  (~(get by file.u.node) name.rail)
+  ?~  sok  %.n
+  =/  got=(unit [key=cass:clay val=entry:hist:nexus])
+    (ram:hon:hist:nexus u.sok)
+  ?~  got  %.n
+  =/  =pace:hist:nexus  pace.val.u.got
+  ?:  ?=(%tomb -.pace)  %.n
+  ?=(^ p.pace)
 ::
 ++  peek-grub-now
   |=  =rail:tarball
@@ -2546,6 +2616,10 @@
   =.  this
     %-  ~(rep by watchers)
     |=  [[watcher=rail:tarball =wire blot=(unit blot:tarball)] acc=_this]
+    ::  the registry watches its registrants; it has no fiber, so its
+    ::  news is handled synchronously
+    ?:  =([/sys/ames %'registry'] watcher)
+      (registry-news:acc target)
     ::  self-heal: a watcher whose grub no longer exists is a leaked
     ::  subscription; drop it instead of delivering
     ?~  (peek-grub-now watcher)
@@ -3142,6 +3216,25 @@
   ::  Poke destination must be a file
   ?>  ?=(%& -.dest-lane)
   =/  dest=rail:tarball  p.dest-lane
+  ::  Remote poke: forward a %poke load to the owning ship with the
+  ::  sender and wire encoded for the return trip. No %pack is given
+  ::  here — a %pack means "consumed", and consumption happens on the
+  ::  other ship. The result arrives later as a %gack poke: from
+  ::  +process-gack when their grub consumes it, or from the
+  ::  %grub-poke on-agent case if their gate nacks the load itself.
+  =/  remote=(unit [@p lane:tarball])  (resolve-remote dest-lane)
+  ?^  remote
+    =/  [target=@p real-dest=lane:tarball]  u.remote
+    =/  grub-wire=path
+      :-  %grub-poke
+      :-  (scot %ud (lent path.here))
+      (weld path.here [name.here wire.dart])
+    =/  req=load:remo:nexus
+      [[grub-wire real-dest] %poke bask.load.dart]
+    =.  cards
+      :_  cards
+      [%pass grub-wire %agent [target %grubbery] %poke grubbery-load+!>(req)]
+    this
   ::  /sys/ intercepts: validate and consume immediately.
   ::  Direct validation, no cache: poke payloads are transient
   ::  (never silo-resident), so the sham-keyed vale cache can only
@@ -3275,6 +3368,19 @@
 ++  process-take
   |=  [here=rail:tarball =take:fiber:nexus]
   ^+  this
+  ::  a %pack landing on a ship.sig with a %grub-poke wire is the
+  ::  consumption result of a poke that ship sent us — forward it
+  ::  home as a %gack transfer instead of feeding the representative
+  ::  fiber
+  ?:  ?&  ?=([%sys %ames %ships @ ~] path.here)
+          =(%'ship.sig' name.here)
+          ?=([* ~ %pack * *] take)
+          ?=([%grub-poke *] wire.u.in.take)
+      ==
+    =/  target=(unit @p)  (slaw %p i.t.t.t.path.here)
+    ?~  target  this
+    =/  =transfer:remo:nexus  [wire.u.in.take %gack err.u.in.take]
+    (emit-card [%pass /gack %agent [u.target %grubbery] %poke grubbery-transfer+!>(transfer)])
   ::  Get pipe at directory
   =/  =pipe:nexus  (fall (~(get of pool) path.here) *pipe:nexus)
   ::  Get proc for this file - must exist
@@ -3648,6 +3754,17 @@
         $(force %.y)
       ~|("make failed: directory {(spud dest-path)} already exists" !!)
     =.  this  (load-ball-changes dest-path new-bole)
+    ::  a directory landing inside an existing code namespace changes
+    ::  sources the per-file write path would have registered — resync
+    ::  the governing lode with a full sweep, as +delete already does
+    =.  this
+      =/  cod=(unit path)
+        =+  pax=dest-path
+        |-  ?:  (~(has by code) pax)  `pax
+        ?~  pax  ~
+        $(pax (snip `path`pax))
+      ?~  cod  this
+      (build-code u.cod ~)
     =.  this  (build-new-code-namespaces dest-path new-bole)
     ::  Reload nexuses in the new bole (runs on-load, recurses children)
     =/  sub-ball  (peek-ball-now dest-path)
@@ -6293,6 +6410,23 @@
   ::  poke was consumed"; that was already given for the request poke itself).
   =/  =from:fiber:nexus  (relativize-from:nexus sender [/sys/gall %'main.sig'])
   (enqu-take sender ~ ~ %poke from [[/ %poke-ack] p.sign])
+::  take-grub-poke-nack: a remote ship's gate refused a %poke load we
+::  forwarded (never reached its grub). Decode the sender from the
+::  wire — the same encoding as +take-gall-poke — and report the nack
+::  as a %gack poke, exactly as a consumption nack would arrive.
+::
+++  take-grub-poke-nack
+  |=  [segs=wire err=tang]
+  ^+  this
+  ?>  ?=([%grub-poke ^] segs)
+  =/  path-len=@ud  (slav %ud i.t.segs)
+  =/  from-path=path  (scag path-len t.t.segs)
+  =/  rest=wire  (slag path-len t.t.segs)
+  ?>  ?=(^ rest)
+  =/  sender=rail:tarball  [from-path i.rest]
+  =/  orig-wire=wire  t.rest
+  =/  =from:fiber:nexus  (relativize-from:nexus sender [/sys/gall %'main.sig'])
+  (enqu-take sender ~ ~ %poke from [[/ %gack] `[wire (unit tang)]`[orig-wire `err]])
 ::  /sys/iris/ HTTP client service
 ::
 ++  handle-iris-request
@@ -6372,6 +6506,7 @@
 ::  Namespace ownership + per-group weir management.
 ::  - %register/%deregister: claim/release a path prefix
 ::  - %how: set weir roads for a named group, scoped to owned prefix
+::  - %gc: sweep grants whose managing registrant no longer exists
 ::  - %create-group/%delete-group: group lifecycle
 ::  - %add-ship/%del-ship: group membership
 ::
@@ -6401,12 +6536,21 @@
       ?|  (is-prefix new-prefix existing)
           (is-prefix existing new-prefix)
       ==
+    ::  watch the registrant so its deletion reaches +registry-news;
+    ::  drop the watches of any rows the claim evicted
+    =.  this
+      %+  roll  (skip ~(tap by reg) |=([r=rail:tarball *] (~(has by pruned) r)))
+      |=  [[r=rail:tarball *] acc=_this]
+      ?:  =(r rail.act)  acc
+      (sub-del:acc [%& r] reg-rail)
+    =.  this  (sub-put [%& rail.act] reg-rail /registrant ~)
     =/  new-reg=(map rail:tarball path)  (~(put by pruned) rail.act new-prefix)
     (save-file reg-rail [[/usergroups %registry] new-reg])
   ::
       %deregister
     =/  prefix=(unit path)  (~(get by reg) rail.act)
     ?~  prefix  this
+    =.  this  (sub-del [%& rail.act] reg-rail)
     =/  new-reg=(map rail:tarball path)  (~(del by reg) rail.act)
     =.  this  (save-file reg-rail [[/usergroups %registry] new-reg])
     ?.  clean.act  this
@@ -6447,7 +6591,99 @@
       ==
     =.  this  (save-file how-rail [[/ %weir] new])
     recompute-all-weirs
+  ::
+      %gc
+    ::  Garbage-collect grants by manager existence, not target
+    ::  existence: a grant may legitimately point at a path its
+    ::  manager has not created yet, but a grant whose managing
+    ::  registrant is gone can never be updated or revoked again.
+    ::  Drops ownership rows for dead registrant grubs, then strips
+    ::  every group road no live prefix covers, and re-establishes the
+    ::  registrant watches +registry-news relies on — a full
+    ::  reconciliation, so it also migrates rows that predate the
+    ::  watches. Removal-only on grants, so any local sender may
+    ::  invoke it.
+    =/  rows=(list [r=rail:tarball pre=path])  ~(tap by reg)
+    =/  live=(list path)
+      %+  murn  rows
+      |=([r=rail:tarball pre=path] ?~((peek-grub-now r) ~ `pre))
+    =.  this
+      %+  roll  rows
+      |=  [[r=rail:tarball *] acc=_this]
+      ?~  (peek-grub-now r)
+        (sub-del:acc [%& r] reg-rail)
+      (sub-put:acc [%& r] reg-rail /registrant ~)
+    =/  new-reg=(map rail:tarball path)
+      %-  ~(gas by *(map rail:tarball path))
+      (skip rows |=([r=rail:tarball pre=path] =(~ (peek-grub-now r))))
+    =?  this  !=(new-reg reg)
+      (save-file reg-rail [[/usergroups %registry] new-reg])
+    =/  keep-road
+      |=  =road:tarball
+      ^-  ?
+      =/  pax=(unit path)  (ug-extract-dir road)
+      ?~  pax  |
+      (lien live |=(pre=path (is-prefix pre u.pax)))
+    =/  groups=(list [name=path grp=ball:tarball])
+      (find-groups / (peek-ball-now /sys/ames/usergroups))
+    |-
+    ?~  groups  recompute-all-weirs
+    =/  how-rail=rail:tarball
+      [(grp-storage-path name.i.groups) %'how.weir']
+    =/  cur=weir:nexus  (read-group-weir how-rail)
+    =/  new=weir:nexus
+      :*  (sy (skim ~(tap in make.cur) keep-road))
+          (sy (skim ~(tap in poke.cur) keep-road))
+          (sy (skim ~(tap in peek.cur) keep-road))
+      ==
+    =?  this  !=(new cur)
+      (save-file how-rail [[/ %weir] new])
+    $(groups t.groups)
   ==
+::
+::  +registry-news: a watched registrant grub changed. The registry
+::  subscribes to every registrant at %register, so a registrant's
+::  deletion arrives here as ordinary news. A content change is
+::  ignored; a death sweeps the ownership row, the group grants under
+::  its prefix, and the watch itself.
+::
+++  registry-news
+  |=  target=lane:tarball
+  ^+  this
+  ?.  ?=(%& -.target)  this
+  =/  r=rail:tarball  p.target
+  ?:  (grub-lives r)  this
+  =/  reg-rail=rail:tarball  [/sys/ames %'registry']
+  =.  this  (sub-del target reg-rail)
+  =/  reg=(map rail:tarball path)
+    =/  got=(unit sang:tarball)  (peek-grub-now reg-rail)
+    ?~  got  ~
+    =/  res  (mule |.(!<((map rail:tarball path) (need-vase:tarball u.got))))
+    ?:(?=(%| -.res) ~ p.res)
+  =/  pre=(unit path)  (~(get by reg) r)
+  ?~  pre  this
+  =.  this  (save-file reg-rail [[/usergroups %registry] (~(del by reg) r)])
+  =/  keep-road
+    |=  =road:tarball
+    ^-  ?
+    =/  pax=(unit path)  (ug-extract-dir road)
+    ?~  pax  %.y
+    !(is-prefix u.pre u.pax)
+  =/  groups=(list [name=path grp=ball:tarball])
+    (find-groups / (peek-ball-now /sys/ames/usergroups))
+  |-
+  ?~  groups  recompute-all-weirs
+  =/  how-rail=rail:tarball
+    [(grp-storage-path name.i.groups) %'how.weir']
+  =/  cur=weir:nexus  (read-group-weir how-rail)
+  =/  new=weir:nexus
+    :*  (sy (skim ~(tap in make.cur) keep-road))
+        (sy (skim ~(tap in poke.cur) keep-road))
+        (sy (skim ~(tap in peek.cur) keep-road))
+    ==
+  =?  this  !=(new cur)
+    (save-file how-rail [[/ %weir] new])
+  $(groups t.groups)
 ::
 ++  read-group-weir
   |=  how-rail=rail:tarball

@@ -169,6 +169,7 @@
   $%  [%register =rail:tarball pax=path]
       [%deregister =rail:tarball clean=?]
       [%how group=path =weir]
+      [%gc ~]
   ==
 ::  Clay desk sync service state.
 ::  Stored as a grub at /sys/clay/main.clay-state.
@@ -1191,6 +1192,10 @@
             [%want dest=lane:tarball snap-id=@uvJ]
             [%data =silo]
             [%miss ~]
+            ::  consumption result of a %poke load the sender ran for
+            ::  us; wire is the sender-encoded return address from
+            ::  +dart-poke's remote branch
+            [%gack err=(unit tang)]
         ==
     ==
   +$  make  (each bole:tarball [=bask:tarball blot=(unit blot:tarball)])
