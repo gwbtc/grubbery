@@ -309,28 +309,32 @@
     :+  ~  ~
     %-  sy
     [[%& %| (weld nex-dir /desk/code)] ver-roads]
+  ::  groups to clear: any dropped from the share list, plus /public
+  ::  always — a fresh fiber cannot know what a prior life granted,
+  ::  so the discovery group's state is asserted on every application
+  ::  rather than diffed.
+  =/  clear=(list path)
+    =|  seen=(set path)
+    =/  base=(list path)  (weld old `(list path)`~[/public])
+    |-  ^-  (list path)
+    ?~  base  ~
+    ?:  ?|((~(has in seen) i.base) ?=(^ (find ~[i.base] new)))
+      $(base t.base)
+    [i.base $(base t.base, seen (~(put in seen) i.base))]
   =/  jobs=(list [grp=path w=weir:nexus])
     %+  weld
-      %+  turn  (skip old |=(g=path ?=(^ (find ~[g] new))))
-      |=(g=path [g *weir:nexus])
+      (turn clear |=(g=path [g *weir:nexus]))
     (turn new |=(g=path [g grant]))
   |-  ^-  form:m
   ?~  jobs
-    ::  keep the shell's public desk directory current: register when
-    ::  /public is shared, deregister when it was just dropped.
+    ::  nudge the shell to rescan its public desk directory — the
+    ::  grants it derives that directory from just changed.
     ::  Best-effort — a missing shell must not fail the config fiber.
-    =/  has=?  ?=(^ (find ~[/public] new))
-    =/  had=?  ?=(^ (find ~[/public] old))
-    =/  entry=json  s+(spat nex-dir)
-    ?:  has
-      (register-public (pairs:enjs:format ~[['add' entry]]))
-    ?:  had
-      (register-public (pairs:enjs:format ~[['del' entry]]))
-    (pure:m ~)
+    (register-public (pairs:enjs:format ~[['rescan' b+%.y]]))
   ;<  ~  bind:m  (reg-how:io [grp.i.jobs w.i.jobs])
   $(jobs t.jobs)
-::  +register-public: poke the shell's public desk directory, and
-::  swallow the ack — or the veto, if no shell is installed.
+::  +register-public: poke the shell's public desk directory fiber,
+::  and swallow the ack — or the veto, if no shell is installed.
 ::
 ++  register-public
   |=  cmd=json
@@ -575,18 +579,29 @@
     (skim names |=(n=@ta =('version.' (end [3 8] n))))
   ?~  vs  ~
   `(snag 0 (sort vs aor))
-::  +find-version-name: discover the version file at a source dir
+::  +find-version-name: discover the version file at a source dir.
+::  List the directory and pick any version.* file. Remote roots are
+::  not listable, so when the listing yields nothing, probe the
+::  canonical names directly, in the same alphabetical order the
+::  listing pick would use.
 ::
 ++  find-version-name
   |=  source-road=road:tarball
   =/  m  (fiber:fiber:nexus ,(unit @ta))
   ^-  form:m
   ;<  =view:nexus  bind:m  (peek:io source-road ~)
-  ?.  ?=([%ball *] view)  (pure:m ~)
-  ?~  fil.ball.view  (pure:m ~)
-  %-  pure:m
-  %-  pick-version-name
-  (turn ~(tap by contents.u.fil.ball.view) |=([n=@ta *] n))
+  =/  listed=(unit @ta)
+    ?.  ?=([%ball *] view)  ~
+    ?~  fil.ball.view  ~
+    %-  pick-version-name
+    (turn ~(tap by contents.u.fil.ball.view) |=([n=@ta *] n))
+  ?^  listed  (pure:m listed)
+  =/  names=(list @ta)  ~[%'version.json' %'version.txt' %'version.ud']
+  |-
+  ?~  names  (pure:m ~)
+  ;<  fv=view:nexus  bind:m  (peek:io (version-road source-road i.names) ~)
+  ?:  ?=([%file *] fv)  (pure:m `i.names)
+  $(names t.names)
 ::  +read-version-text: peek a version file and render it as text
 ::
 ++  read-version-text

@@ -234,3 +234,4 @@ el('push-cancel').onclick = closePush;
 el('push-go').onclick = doPush;
 el('detail-close').onclick = closeDetail;
 load();
+

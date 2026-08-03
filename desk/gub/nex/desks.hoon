@@ -73,12 +73,19 @@
             ;<  ~  bind:m  (send-simple:s eyre-id [[404 ~] `(as-octs:mimes:html 'Not found')])
             (pure:m ~)
               [%add ~]     (do-add rail eyre-id jon)
+              [%peers ~]   (do-peers rail eyre-id jon)
               [%config ~]  (do-config rail eyre-id jon)
               [%sync ~]    (do-sync rail eyre-id jon)
               [%push ~]    (do-push rail eyre-id jon)
               [%detail ~]  (do-detail rail eyre-id jon)
               [%delete ~]  (do-delete rail eyre-id jon)
           ==
+        ::  reads: peers' published desks, enriched for the get-apps UI
+        ?:  ?=([%peers ~] suffix)
+          ;<  lst=json  bind:m  gather-peers
+          =/  bod=octs  (as-octs:mimes:html (en:json:html lst))
+          ;<  ~  bind:m  (send-simple:s eyre-id (mime-response:http-utils [/application/json bod]))
+          (pure:m ~)
         ::  reads: the discovered desk list
         ?:  ?=([%list ~] suffix)
           ;<  lst=json  bind:m  discover-desks
@@ -176,6 +183,161 @@
   =/  idx=(unit @ud)  (find "." t)
   ?~  idx  app
   (crip (scag u.idx t))
+::  +do-peers: forward an add/del poke to the shell's peer list
+::
+++  do-peers
+  |=  [=rail:tarball eyre-id=@ta jon=json]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  ;<  ~  bind:m
+    (poke:io [%& %& /apps/'shell.shell' %'peers.json'] [[/ %json] jon])
+  (respond rail eyre-id 200 'ok')
+::  +gather-peers: every mirrored peer directory from the shell,
+::  each desk enriched with tile metadata, icon, and version read
+::  through the peer's public grants.
+::
+++  gather-peers
+  =/  m  (fiber:fiber:nexus ,json)
+  ^-  form:m
+  ;<  =view:nexus  bind:m
+    (peek:io [%& %| /apps/'shell.shell'/peers] ~)
+  ?.  ?=([%ball *] view)  (pure:m a+~)
+  ?~  fil.ball.view  (pure:m a+~)
+  =/  entries=(list [n=@ta =sang:tarball gain=? bang=(unit tang)])
+    ~(tap by contents.u.fil.ball.view)
+  ;<  srcs=(map @t @t)  bind:m  installed-sources
+  ;<  out=(list json)  bind:m  (peer-groups entries srcs)
+  (pure:m a+out)
+::  +installed-sources: source string -> local desk dir name for every
+::  configured local desk, for marking peer listings already installed
+::  here and addressing them for uninstall
+::
+++  installed-sources
+  =/  m  (fiber:fiber:nexus ,(map @t @t))
+  ^-  form:m
+  ;<  =view:nexus  bind:m  (peek-shallow:io [%& %| /apps] ~)
+  ?.  ?=([%ball *] view)  (pure:m ~)
+  =/  kids=(list @ta)  ~(tap in ~(key by dir.ball.view))
+  =|  acc=(map @t @t)
+  |-
+  ?~  kids  (pure:m acc)
+  ;<  cfg=(unit json)  bind:m
+    (peek-as:io [%& %& /apps/[i.kids] %'config.json'] ,json)
+  ?~  cfg  $(kids t.kids)
+  =/  src=@t  (jstr u.cfg 'source')
+  ?:  =('' src)  $(kids t.kids)
+  $(kids t.kids, acc (~(put by acc) src `@t`i.kids))
+::
+++  peer-groups
+  |=  [entries=(list [n=@ta =sang:tarball gain=? bang=(unit tang)]) srcs=(map @t @t)]
+  =/  m  (fiber:fiber:nexus ,(list json))
+  ^-  form:m
+  ?~  entries  (pure:m ~)
+  ;<  one=json  bind:m  (peer-group i.entries srcs)
+  ;<  rest=(list json)  bind:m  $(entries t.entries)
+  (pure:m [one rest])
+::
+++  peer-group
+  |=  [[n=@ta =sang:tarball gain=? bang=(unit tang)] srcs=(map @t @t)]
+  =/  m  (fiber:fiber:nexus ,json)
+  ^-  form:m
+  =/  t=tape  (trip n)
+  =/  s=@t  (crip (scag (sub (lent t) 5) t))
+  =/  paths=(list @t)
+    ?:  (is-boom:tarball sang)  ~
+    =/  r=(each json tang)
+      (mule |.(!<(json (need-vase:tarball sang))))
+    ?:  ?=(%| -.r)  ~
+    ?.  ?=(%a -.p.r)  ~
+    (murn p.p.r |=(j=json ?:(?=([%s *] j) `p.j ~)))
+  ;<  apps=(list json)  bind:m  (peer-apps s paths srcs)
+  (pure:m (pairs:enjs:format ~[['ship' s+s] ['apps' a+apps]]))
+::
+++  peer-apps
+  |=  [s=@t paths=(list @t) srcs=(map @t @t)]
+  =/  m  (fiber:fiber:nexus ,(list json))
+  ^-  form:m
+  ?~  paths  (pure:m ~)
+  ;<  one=json  bind:m  (peer-app s i.paths srcs)
+  ;<  rest=(list json)  bind:m  $(paths t.paths)
+  (pure:m [one rest])
+::  +peer-app: one published desk as a card — tile metadata and icon
+::  from a shallow peek of its code tree, version from the canonical
+::  version file names.
+::
+++  peer-app
+  |=  [s=@t p=@t srcs=(map @t @t)]
+  =/  m  (fiber:fiber:nexus ,json)
+  ^-  form:m
+  =/  dp=(unit path)  (rush p stap)
+  ?~  dp  (pure:m (pairs:enjs:format ~[['path' s+p]]))
+  =/  base=path  (weld /sys/ames/ships/[s]/root u.dp)
+  =/  nam=@t  (desk-slug (rear u.dp))
+  ;<  cv=view:nexus  bind:m
+    (peek-shallow:io [%& %| (weld base /desk/code)] ~)
+  =/  [title=@t info=@t color=@t icon=(unit @ta)]
+    ?.  ?=([%ball *] cv)  [nam '' '' ~]
+    ?~  fil.ball.cv  [nam '' '' ~]
+    =/  cs  contents.u.fil.ball.cv
+    =/  tj=json
+      =/  tf  (~(get by cs) %'tile.json')
+      ?~  tf  [%o ~]
+      ?:  (is-boom:tarball sang.u.tf)  [%o ~]
+      =/  r=(each json tang)
+        (mule |.(!<(json (need-vase:tarball sang.u.tf))))
+      ?:(?=(%| -.r) [%o ~] p.r)
+    =/  ic=(unit @ta)
+      =/  ks=(list @ta)  ~(tap in ~(key by cs))
+      |-  ^-  (unit @ta)
+      ?~  ks  ~
+      ?:  =('icon.' (end [3 5] i.ks))  `i.ks
+      $(ks t.ks)
+    :^    ?:(=('' (jstr tj 'title')) nam (jstr tj 'title'))
+        (jstr tj 'info')
+      (jstr tj 'color')
+    ic
+  ;<  ver=(unit @t)  bind:m  (try-version base)
+  =/  icon-url=json
+    ?~  icon  ~
+    s+(crip "/grubbery/ball{(spud (weld base /desk/code))}/{(trip u.icon)}?raw=1")
+  %-  pure:m
+  %-  pairs:enjs:format
+  :~  ['path' s+p]
+      ['name' s+nam]
+      ['title' s+title]
+      ['info' s+info]
+      ['color' s+color]
+      ['version' ?~(ver ~ s+u.ver)]
+      ['icon' icon-url]
+      ['source' s+(cat 3 s p)]
+      ['installed' b+(~(has by srcs) (cat 3 s p))]
+      ['local' ?~((~(get by srcs) (cat 3 s p)) ~ s+(need (~(get by srcs) (cat 3 s p))))]
+  ==
+::  +try-version: read a remote desk's version through the canonical
+::  file names, since its root is not listable
+::
+++  try-version
+  |=  base=path
+  =/  m  (fiber:fiber:nexus ,(unit @t))
+  ^-  form:m
+  =/  names=(list @ta)  ~[%'version.txt' %'version.ud' %'version.json']
+  |-  ^-  form:m
+  ?~  names  (pure:m ~)
+  ;<  vv=view:nexus  bind:m  (peek:io [%& %& base i.names] ~)
+  ?.  ?=([%file *] vv)  $(names t.names)
+  ?:  (is-boom:tarball sang.vv)  $(names t.names)
+  =/  nun  (sang-noun:tarball sang.vv)
+  ?+    p.sang.vv  $(names t.names)
+      [~ %ud]
+    =/  x  ((soft @ud) nun)
+    ?~  x  $(names t.names)
+    (pure:m `(crip (a-co:co u.x)))
+      [~ %txt]
+    =/  w  ((soft wain) nun)
+    ?~  w  $(names t.names)
+    ?~  u.w  $(names t.names)
+    (pure:m `i.u.w)
+  ==
 ::  json helpers
 ::
 ++  jstr

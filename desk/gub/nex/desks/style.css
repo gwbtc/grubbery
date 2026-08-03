@@ -72,3 +72,4 @@ body { font-family: -apple-system, system-ui, sans-serif; background: #111; colo
 .m-check { font-size: 12px; color: #bbb; display: flex; align-items: center; gap: 8px; cursor: pointer; }
 .m-check input { accent-color: #8558b0; }
 #m-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
+
