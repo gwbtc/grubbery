@@ -16,15 +16,23 @@ Reads ride the built-in keep SSE API (`/grubbery/api/keep/...`): its
 state and reconnect recovery, since reapplying a Yjs update is a
 no-op.
 
+Presence rides the same relay, lossy by design: each editor's
+awareness blob (cursor, selection, typing flag) lands as
+`aware/<ship>`, overwritten in place rather than logged. The browser
+editor is CodeMirror with Yjs bindings — remote cursors render with
+ship names and deterministic per-ship colors.
+
 ## Files
 
 - `main.sig` — registers /public grants, binds `/grubbery/pad`, dispatches HTTP
 - `docs/<doc>/inbox.sig` — the sequencer: pokes in, log grubs out
+- `docs/<doc>/aware.sig` — the presence relay: pokes in, per-ship aware grubs out
 - `mirror/<host>/<doc>/sync.sig` — remote subscription driving the local mirror
 - `index.html`, `pad.js`, `icon.svg`, `tile.json` — web client assets
 
 ## Directories
 
 - `docs/<doc>/log/` — the doc's update log, one blob per grub, named by arrival time
-- `mirror/<host>/<doc>/log/` — local copy of a remote doc's log
+- `docs/<doc>/aware/` — one presence grub per ship, overwritten in place
+- `mirror/<host>/<doc>/` — local copy of a remote doc's log and presence
 - `requests/` — transient per-HTTP-request fibers

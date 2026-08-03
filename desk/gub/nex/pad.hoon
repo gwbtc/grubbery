@@ -61,9 +61,17 @@
           [[%docs @ ~] %'inbox.sig']
         ;<  ~  bind:m  (rise-wait:io prod "%pad /inbox: failed")
         inbox-loop
+          ::  /docs/<doc>/aware.sig: presence relay. Each editor pokes
+          ::  its awareness blob; it lands as /aware/<ship>, overwritten
+          ::  in place — lossy by design, no history worth keeping.
+          ::
+          [[%docs @ ~] %'aware.sig']
+        ;<  ~  bind:m  (rise-wait:io prod "%pad /aware: failed")
+        aware-loop
           ::  /mirror/<host>/<doc>/sync.sig: live local mirror of a
-          ::  remote doc's log. All network traffic for the doc lives
-          ::  in this fiber; an unreachable host blocks nothing else.
+          ::  remote doc's log and presence. All network traffic for
+          ::  the doc lives in this fiber; an unreachable host blocks
+          ::  nothing else.
           ::
           [[%mirror @ @ ~] %'sync.sig']
         ;<  ~  bind:m  (rise-wait:io prod "%pad /mirror: failed")
@@ -114,14 +122,31 @@
     (make-soft:io [%| 0 %& /log (scot %da now)] |+[[[/ %txt] `wain`~[u.blob]] ~])
   ~?  >>>  ?=(^ err)  %pad-log-make-failed
   $
-::  +sync-loop: subscribe to a remote doc's log and copy new entries
-::  into our sibling /log dir, where local browsers watch them
+::  +aware-loop: relay presence blobs into per-ship grubs, overwritten
+::  in place. Bad input is skipped — presence is lossy by design.
+::
+++  aware-loop
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  |-
+  ;<  [=from:fiber:nexus =sage:tarball]  bind:m  take-poke-from:io
+  ;<  our=@p  bind:m  get-our:io
+  =/  blob=(unit @t)  (mole |.((rear !<(wain q.sage))))
+  ?~  blob  $
+  ?:  (gth (met 3 u.blob) max-update-bytes)  $
+  =/  src=@p  (fall (get-poke-src:io from) our)
+  ;<  ~  bind:m
+    (put:io [%| 0 %& /aware (scot %p src)] [[/ %txt] `wain`~[u.blob]])
+  $
+::  +sync-loop: subscribe to a remote doc dir and copy its log and
+::  presence entries into our sibling dirs, where local browsers
+::  watch them
 ::
 ++  sync-loop
   |=  [host=@ta doc=@ta]
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
-  =/  src-path=path  :(weld /sys/ames/ships/[host]/root nex-dir /docs/[doc]/log)
+  =/  src-path=path  :(weld /sys/ames/ships/[host]/root nex-dir /docs/[doc])
   ;<  init=wave:nexus  bind:m  (keep:io /src [%& %| src-path] ~)
   ;<  ~  bind:m  (sync-changes src-path *wave:nexus init)
   =/  prev=wave:nexus  init
@@ -129,7 +154,9 @@
   ;<  next=wave:nexus  bind:m  (take-news:io /src)
   ;<  ~  bind:m  (sync-changes src-path prev next)
   $(prev next)
-::  +sync-changes: peek each changed remote log entry and mirror it
+::  +sync-changes: peek each changed remote entry and mirror it. Only
+::  /log and /aware lanes are data; the doc root holds sig grubs that
+::  must not be copied (a mirrored sig would spawn its fiber here).
 ::
 ++  sync-changes
   |=  [src-path=path prev=wave:nexus cur=wave:nexus]
@@ -140,8 +167,12 @@
   ?~  lanes  (pure:m ~)
   =/  =lane:tarball  lane.i.lanes
   ?:  ?=(%| -.lane)  $(lanes t.lanes)
+  ?.  ?|  ?=([%log *] path.p.lane)
+          ?=([%aware *] path.p.lane)
+      ==
+    $(lanes t.lanes)
   =/  src=road:tarball  [%& %& (weld src-path path.p.lane) name.p.lane]
-  =/  dest=road:tarball  [%| 0 %& (weld /log path.p.lane) name.p.lane]
+  =/  dest=road:tarball  [%| 0 %& path.p.lane name.p.lane]
   ;<  =view:nexus  bind:m  (peek:io src ~)
   ?.  ?=([%file *] view)
     ;<  *  bind:m  (cull-soft:io dest)
@@ -163,7 +194,8 @@
     [%api %docs ~]    (serve-docs eyre-id)
     [%api %create ~]  (serve-create eyre-id src req)
     [%api %open ~]    (serve-open eyre-id src req)
-    [%api %update ~]  (serve-update eyre-id src req)
+    [%api %update ~]  (serve-relay eyre-id src req 'update' %'inbox.sig')
+    [%api %aware ~]   (serve-relay eyre-id src req 'aware' %'aware.sig')
   ==
 ::  +serve-static: serve asset grubs; bare path gets index.html
 ::
@@ -212,8 +244,6 @@
   ?:  |(?=(~ doc) !(valid-name u.doc))
     (reply eyre-id 400 'Bad pad name')
   =/  doc-ta=@ta  `@ta`u.doc
-  ;<  exists=?  bind:m  (peek-exists:io [%| 1 %& /docs/[doc-ta] %'inbox.sig'])
-  ?:  exists  (reply eyre-id 200 'OK')
   ;<  err=(unit tang)  bind:m  (create-doc doc-ta)
   ?^  err  (reply eyre-id 500 'Create failed')
   (reply eyre-id 201 'Created')
@@ -232,16 +262,16 @@
     (reply eyre-id 400 'Bad host or pad name')
   =/  hostta=@ta  (scot %p u.host)
   =/  doc-ta=@ta  `@ta`u.doc
-  ;<  exists=?  bind:m  (peek-exists:io [%| 1 %& /mirror/[hostta]/[doc-ta] %'sync.sig'])
-  ?:  exists  (reply eyre-id 200 'OK')
   ;<  err=(unit tang)  bind:m  (create-mirror hostta doc-ta)
   ?^  err  (reply eyre-id 500 'Open failed')
   (reply eyre-id 201 'Created')
-::  +serve-update: relay one update blob to the doc's inbox — local
-::  poke if we own the doc, remote poke through the gateway if not
+::  +serve-relay: relay one blob to a doc's sequencer sig — local poke
+::  if we own the doc, remote poke through the gateway if not. The
+::  same shape carries updates (to inbox.sig) and presence (to
+::  aware.sig); only the body key and target file differ.
 ::
-++  serve-update
-  |=  [eyre-id=@ta src=@p req=inbound-request:eyre]
+++  serve-relay
+  |=  [eyre-id=@ta src=@p req=inbound-request:eyre key=@t target=@ta]
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
   ;<  our=@p  bind:m  get-our:io
@@ -249,18 +279,20 @@
   =/  jon=(unit json)  (post-json req)
   =/  host=(unit @p)  (biff (jstr jon 'host') (cury slaw %p))
   =/  doc=(unit @t)  (jstr jon 'doc')
-  =/  update=(unit @t)  (jstr jon 'update')
-  ?:  |(?=(~ host) ?=(~ doc) ?=(~ update) !(valid-name u.doc))
-    (reply eyre-id 400 'Bad update')
+  =/  blob=(unit @t)  (jstr jon key)
+  ?:  |(?=(~ host) ?=(~ doc) ?=(~ blob) !(valid-name u.doc))
+    (reply eyre-id 400 'Bad request')
   =/  doc-ta=@ta  `@ta`u.doc
-  =/  inbox=road:tarball
-    ?:  =(u.host our)  [%| 1 %& /docs/[doc-ta] %'inbox.sig']
+  =/  sig=road:tarball
+    ?:  =(u.host our)  [%| 1 %& /docs/[doc-ta] target]
     =/  hostta=@ta  (scot %p u.host)
-    [%& %& :(weld /sys/ames/ships/[hostta]/root nex-dir /docs/[doc-ta]) %'inbox.sig']
-  ;<  err=(unit tang)  bind:m  (poke-road-soft:io inbox [[/ %txt] `wain`~[u.update]])
+    [%& %& :(weld /sys/ames/ships/[hostta]/root nex-dir /docs/[doc-ta]) target]
+  ;<  err=(unit tang)  bind:m  (poke-road-soft:io sig [[/ %txt] `wain`~[u.blob]])
   ?^  err  (reply eyre-id 502 'Delivery failed')
   (reply eyre-id 200 'OK')
-::  +create-doc: dir, log dir, inbox — in order, first failure wins
+::  +create-doc: dirs plus the two sequencer sigs. Idempotent — every
+::  step is exists-guarded or soft, so calling it on an existing doc
+::  repairs missing pieces (docs made before /aware existed).
 ::
 ++  create-doc
   |=  doc=@ta
@@ -270,9 +302,13 @@
   ?^  err  (pure:m err)
   ;<  err=(unit tang)  bind:m  (ensure-dir /docs/[doc]/log)
   ?^  err  (pure:m err)
-  (make-soft:io [%| 1 %& /docs/[doc] %'inbox.sig'] |+[[[/ %sig] ~] ~])
+  ;<  err=(unit tang)  bind:m  (ensure-dir /docs/[doc]/aware)
+  ?^  err  (pure:m err)
+  ;<  ~  bind:m  (ensure-sig /docs/[doc] %'inbox.sig')
+  ;<  ~  bind:m  (ensure-sig /docs/[doc] %'aware.sig')
+  (pure:m ~)
 ::  +create-mirror: mirror dirs plus the sync.sig whose fiber runs
-::  the remote subscription
+::  the remote subscription. Idempotent like +create-doc.
 ::
 ++  create-mirror
   |=  [hostta=@ta doc=@ta]
@@ -284,7 +320,20 @@
   ?^  err  (pure:m err)
   ;<  err=(unit tang)  bind:m  (ensure-dir /mirror/[hostta]/[doc]/log)
   ?^  err  (pure:m err)
-  (make-soft:io [%| 1 %& /mirror/[hostta]/[doc] %'sync.sig'] |+[[[/ %sig] ~] ~])
+  ;<  err=(unit tang)  bind:m  (ensure-dir /mirror/[hostta]/[doc]/aware)
+  ?^  err  (pure:m err)
+  ;<  ~  bind:m  (ensure-sig /mirror/[hostta]/[doc] %'sync.sig')
+  (pure:m ~)
+::  +ensure-sig: create an empty sig grub if absent
+::
+++  ensure-sig
+  |=  [pax=path name=@ta]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  ;<  exists=?  bind:m  (peek-exists:io [%| 1 %& pax name])
+  ?:  exists  (pure:m ~)
+  ;<  *  bind:m  (make-soft:io [%| 1 %& pax name] |+[[[/ %sig] ~] ~])
+  (pure:m ~)
 ::  +ensure-dir: create a nexus-relative dir if absent
 ::
 ++  ensure-dir
