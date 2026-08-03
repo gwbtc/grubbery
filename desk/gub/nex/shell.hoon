@@ -1,7 +1,10 @@
 ::  shell nexus: the home surface. Composes services — the launcher grid
-::  (from the tiles store) and the notifications bell — and owns no data
-::  of its own; all reads/writes go to the sibling services over HTTP.
+::  (from the tiles store) and the notifications bell — over HTTP, and
+::  owns the cross-ship discovery state: public.json, the derived
+::  directory of this ship's shared desks, and /peers/, live mirrors
+::  of other ships' directories.
 ::
+/<  feather-icons  /lib/feather-icons.hoon
 =<  ^-  nexus:nexus
     |%
     ++  on-load
@@ -11,6 +14,8 @@
       :~  (manifest:loader 0)
           [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
           [%fall %& [/ %'public.json'] [[/ %json] [%a ~]]]
+          [%fall %& [/ %'peers.json'] [[/ %json] [%a ~]]]
+          [%fall %| /peers empty-dir:loader]
           [%fall %| /requests empty-dir:loader]
       ==
     ::
@@ -27,12 +32,14 @@
         ;<  ~  bind:m  (bind-http:io [~ /grubbery/tiles])
         (http-dispatch:io %shell)
           ::  public.json: this ship's public desk directory — a json
-          ::  array of desk paths, peekable by anyone. Desks register
-          ::  and deregister by poking {"add": path} or {"del": path}
-          ::  when /public enters or leaves their share list. The
-          ::  bootstrap for cross-ship discovery: peek this, then peek
-          ::  each desk for its version and tile through its own
-          ::  public grants.
+          ::  array of desk paths, peekable by anyone. The bootstrap
+          ::  for cross-ship discovery: peek this, then peek each desk
+          ::  for its version and tile through its own public grants.
+          ::
+          ::  Derived, never pushed: the directory is computed from
+          ::  the /public group's grants, the ground truth for what is
+          ::  followable. Rescans on any poke (desks nudge after their
+          ::  grants change) and on a timer, so it cannot go stale.
           ::
           [~ %'public.json']
         ;<  ~  bind:m  (rise-wait:io prod "%shell public: failed")
@@ -44,24 +51,62 @@
           :-  /public
           [~ ~ (sy `(list road:tarball)`~[[%& %& nex-dir %'public.json']])]
         |-
-        ;<  =sage:tarball  bind:m  take-poke:io
-        =/  cmd=json  !<(json q.sage)
+        ;<  ~  bind:m  (reg-poke:io [%gc ~])
+        ;<  paths=(list @t)  bind:m  scan-public
         ;<  cur=json  bind:m  (get-state-as:io ,json)
-        =/  paths=(list @t)
-          ?.  ?=(%a -.cur)  ~
-          (murn p.cur |=(j=json ?:(?=([%s *] j) `p.j ~)))
-        =/  next=(list @t)
-          ?.  ?=(%o -.cmd)  paths
-          =/  add  (~(get by p.cmd) 'add')
-          =/  del  (~(get by p.cmd) 'del')
-          ?:  ?=([~ %s *] add)
-            ?:  ?=(^ (find ~[p.u.add] paths))  paths
-            (snoc paths p.u.add)
-          ?:  ?=([~ %s *] del)
-            (skip paths |=(p=@t =(p p.u.del)))
-          paths
+        =/  next=json  a+(turn paths |=(p=@t s+p))
         ;<  ~  bind:m
-          (replace:io `json`a+(turn (sort next aor) |=(p=@t s+p)))
+          ?:  =(next cur)  (pure:(fiber:fiber:nexus ,~) ~)
+          (replace:io next)
+        ;<  now=@da  bind:m  get-time:io
+        ;<  ~  bind:m  (set-timer:io /rescan (add now ~m30))
+        ;<  *  bind:m  take-poke:io
+        $
+          ::  peers.json: poke target for managing which ships' public
+          ::  desk directories we mirror. {"add": "~ship"} makes the
+          ::  mirror grub, {"del": "~ship"} culls it. Pure local CRUD:
+          ::  each mirror grub runs its own fiber and owns its own
+          ::  network traffic, so an unreachable ship can never block
+          ::  this loop.
+          ::
+          [~ %'peers.json']
+        ;<  ~  bind:m  (rise-wait:io prod "%shell peers: failed")
+        |-
+        ;<  =sage:tarball  bind:m  take-poke:io
+        =/  cmd=json  (fall (mole |.(!<(json q.sage))) *json)
+        =/  add=(unit @t)  (jget cmd 'add')
+        =/  del=(unit @t)  (jget cmd 'del')
+        ?^  add
+          ?~  (slaw %p u.add)
+            ~&  >>>  [%shell-peers-bad-ship u.add]
+            $
+          =/  =road:tarball  (nex-road:io rail [%& /peers (peer-file u.add)])
+          ;<  has=?  bind:m  (peek-exists:io road)
+          ?:  has  $
+          ;<  err=(unit tang)  bind:m
+            (make-soft:io road |+[[[/ %json] `json`[%a ~]] ~])
+          ~?  >>>  ?=(^ err)  [%shell-peer-make-failed u.add]
+          $
+        ?^  del
+          ;<  err=(unit tang)  bind:m
+            (cull-soft:io (nex-road:io rail [%& /peers (peer-file u.del)]))
+          ~?  >>>  ?=(^ err)  [%shell-peer-cull-failed u.del]
+          $
+        $
+          ::  /peers/<ship>.json: live mirror of one ship's public desk
+          ::  directory, held current by subscription. All network
+          ::  traffic for the ship happens here; if the ship is
+          ::  unreachable, only this fiber waits.
+          ::
+          [[%peers ~] @]
+        ;<  ~  bind:m  (rise-wait:io prod "%shell mirror: failed")
+        =/  s=@t  (mirror-ship name.rail)
+        ?~  (slaw %p s)  (pure:m ~)
+        ;<  *  bind:m  (keep:io /pub (peer-pub-road s) ~)
+        ;<  ~  bind:m  (refresh-mirror s)
+        |-
+        ;<  *  bind:m  (take-news:io /pub)
+        ;<  ~  bind:m  (refresh-mirror s)
         $
           ::
           [[%requests ~] @]
@@ -84,18 +129,12 @@
           ;<  ~  bind:m
             (send-simple:srv eyre-id [[200 ['content-type' 'application/json'] ~] `body])
           (pure:m ~)
-        ::  /grubbery/tiles/icon/<slug> → serve an app's icon
+        ::  /grubbery/tiles/icon/<app> → serve an app's icon file,
+        ::  looked up by full app name
         ?:  ?=([%icon @ ~] suffix)
-          =/  slug=@ta  i.t.suffix
-          ;<  apps=view:nexus  bind:m  (peek:io [%& %| /apps] ~)
-          =/  kid=(unit @ta)
-            ?.  ?=([%ball *] apps)  ~
-            (find-app-by-slug slug dir.ball.apps)
-          ?~  kid
-            ;<  ~  bind:m  (send-simple:srv eyre-id [[404 ~] `(as-octs:mimes:html 'Not found')])
-            (pure:m ~)
+          =/  app=@ta  i.t.suffix
           ;<  kid-root=view:nexus  bind:m
-            (peek:io [%& %| /apps/[u.kid]] ~)
+            (peek:io [%& %| /apps/[app]] ~)
           =/  icon-file=(unit [name=@ta sang=sang:tarball])
             ?.  ?=([%ball *] kid-root)  ~
             =/  =lump:tarball  (fall fil.ball.kid-root *lump:tarball)
@@ -104,12 +143,19 @@
             ?^  out  out
             =/  nam=tape  (trip n)
             ?.  =("icon." (scag 5 nam))  out
+            ?:  (is-boom:tarball s)  out
             `[n s]
           ?~  icon-file
             ;<  ~  bind:m  (send-simple:srv eyre-id [[404 ~] `(as-octs:mimes:html 'Not found')])
             (pure:m ~)
           =/  =mime  !<(mime (need-vase:tarball sang.u.icon-file))
           ;<  ~  bind:m  (send-simple:srv eyre-id (mime-response:http-utils mime))
+          (pure:m ~)
+        ::  /icon.svg → the shell's favicon
+        ?:  ?=([%'icon.svg' ~] suffix)
+          =/  bod=octs  (as-octs:mimes:html shell-icon)
+          ;<  ~  bind:m
+            (send-simple:srv eyre-id [[200 ~[['content-type' 'image/svg+xml']]] `bod])
           (pure:m ~)
         ::  default → serve the home page
         =/  page=@t  (crip (en-xml:html shell-page))
@@ -120,6 +166,80 @@
     --
 |%
 ++  srv  ~(. http-res:io [%| 1 %& ~ %'main.sig'])
+::  the home favicon: the launcher grid itself
+::
+++  shell-icon
+  ^-  @t
+  '''
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+    <rect width="64" height="64" rx="14" fill="#7a5ac0"/>
+    <rect x="12" y="12" width="17" height="17" rx="5" fill="#fff"/>
+    <rect x="35" y="12" width="17" height="17" rx="5" fill="#fff"/>
+    <rect x="12" y="35" width="17" height="17" rx="5" fill="#fff"/>
+    <rect x="35" y="35" width="17" height="17" rx="5" fill="#ede7fa" opacity="0.75"/>
+  </svg>
+  '''
+::  +scan-public: derive the public desk directory from the /public
+::  group's grants. A desk shared to /public grants peeks on its root
+::  version.* files; the directories those grants sit in ARE the
+::  public desks.
+::
+++  scan-public
+  =/  m  (fiber:fiber:nexus ,(list @t))
+  ^-  form:m
+  ;<  =view:nexus  bind:m
+    (peek:io [%& %& /sys/ames/usergroups/'public.grp' %'how.weir'] `[/ %weir])
+  ?.  ?=([%file *] view)  (pure:m ~)
+  ?:  (is-boom:tarball sang.view)  (pure:m ~)
+  =/  =weir:tarball  !<(weir:tarball (need-vase:tarball sang.view))
+  =/  dirs=(set path)
+    %+  roll  ~(tap in peek.weir)
+    |=  [r=road:tarball acc=(set path)]
+    ?.  ?=([%& %& *] r)  acc
+    ?.  =('version.' (end [3 8] name.p.p.r))  acc
+    (~(put in acc) path.p.p.r)
+  %-  pure:m
+  (sort (turn ~(tap in dirs) |=(p=path (crip (spud p)))) aor)
+::  peer directory mirroring
+::
+++  peer-file  |=(s=@t `@ta`(cat 3 s '.json'))
+::
+::  +mirror-ship: a mirror grub's ship, from its file name
+::
+++  mirror-ship
+  |=  n=@ta
+  ^-  @t
+  =/  t=tape  (trip n)
+  ?:  (lth (lent t) 5)  n
+  (crip (scag (sub (lent t) 5) t))
+::
+++  peer-pub-road
+  |=  s=@t
+  ^-  road:tarball
+  [%& %& /sys/ames/ships/[s]/root/apps/'shell.shell' %'public.json']
+::
+++  jget
+  |=  [j=json k=@t]
+  ^-  (unit @t)
+  ?.  ?=(%o -.j)  ~
+  =/  v  (~(get by p.j) k)
+  ?.(?=([~ %s *] v) ~ `p.u.v)
+::
+::  +refresh-mirror: pull the peer's public.json into this mirror grub
+::
+++  refresh-mirror
+  |=  s=@t
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  ;<  pv=view:nexus  bind:m  (peek:io (peer-pub-road s) ~)
+  ?.  ?=([%file *] pv)
+    ~&  >>  [%shell-peer-unreachable s]
+    (pure:m ~)
+  ?:  (is-boom:tarball sang.pv)  (pure:m ~)
+  =/  res=(each json tang)
+    (mule |.(!<(json (need-vase:tarball sang.pv))))
+  ?:  ?=(%| -.res)  (pure:m ~)
+  (replace:io p.res)
 ::
 +$  tile
   $:  name=@ta
@@ -186,9 +306,24 @@
   ?.  ?=([%file *] kid-view)
     $(kids t.kids)
   =/  tile-name=@ta  (crip "{(trip slug)}.json")
-  =/  tile=(unit tile)  (json-to-tile tile-name sang.kid-view)
-  ?~  tile  $(kids t.kids)
-  $(kids t.kids, acc [[u.tile kid] acc])
+  =/  made=(unit tile)  (json-to-tile tile-name sang.kid-view)
+  ?~  made  $(kids t.kids)
+  ::  an app that ships an icon file gets it as the tile image,
+  ::  addressed by full app name
+  ;<  kid-root=view:nexus  bind:m  (peek:io [%& %| /apps/[kid]] ~)
+  =/  icon=(unit @ta)
+    ?.  ?=([%ball *] kid-root)  ~
+    =/  =lump:tarball  (fall fil.ball.kid-root *lump:tarball)
+    %-  ~(rep by contents.lump)
+    |=  [[n=@ta s=sang:tarball g=? b=(unit tang)] out=(unit @ta)]
+    ?^  out  out
+    ?.  =("icon." (scag 5 (trip n)))  out
+    ?:  (is-boom:tarball s)  out
+    `n
+  =/  til=tile
+    ?~  icon  u.made
+    u.made(image (crip "/grubbery/tiles/icon/{(trip kid)}"))
+  $(kids t.kids, acc [[til kid] acc])
 ::
 ++  app-slug
   |=  name=@ta
@@ -197,17 +332,6 @@
   =/  dix=(unit @ud)  (find "." nam)
   ?~  dix  name
   (crip (scag u.dix nam))
-::
-++  find-app-by-slug
-  |=  [slug=@ta kids=(map @ta ball:tarball)]
-  ^-  (unit @ta)
-  ?:  (~(has by kids) slug)  `slug
-  =/  entries=(list [@ta ball:tarball])  ~(tap by kids)
-  |-
-  ?~  entries  ~
-  ?:  =(slug (app-slug -.i.entries))
-    `-.i.entries
-  $(entries t.entries)
 ::
 ++  read-all-tiles
   =/  m  (fiber:fiber:nexus ,(list tile))
@@ -243,6 +367,7 @@
       ;title: home
       ;meta(charset "utf-8");
       ;meta(name "viewport", content "width=device-width, initial-scale=1");
+      ;link(rel "icon", type "image/svg+xml", href "/apps/grubbery/icon.svg");
       ;style
         ;+  ;/  style-text
       ==
@@ -251,10 +376,11 @@
       ;div#app
         ;div#header
           ;a#bell(href "#", onclick "openBell(event)", title "Notifications")
-            ;+  ;/  "🔔"
+            ;+  (make:feather-icons 'bell')
             ;span#bell-count(style "display:none");
           ==
-          ;button#add-btn.hdr-btn(onclick "addTile()"): + new
+          ;button#add-btn.hdr-btn(onclick "addTile()"): + New
+          ;button#get-btn.hdr-btn(onclick "openGet()"): Get Apps
         ==
         ;div#bell-backdrop(onclick "closeBell(event)")
           ;div#bell-panel
@@ -266,6 +392,20 @@
               ==
             ==
             ;div#bell-notes;
+          ==
+        ==
+        ;div#get-backdrop(onclick "closeGet(event)")
+          ;div#get-panel
+            ;div#get-head
+              ;span: Get apps
+              ;button.hdr-btn(onclick "closeGetNow()"): close
+            ==
+            ;div#get-search
+              ;input#peer-ship(type "text", placeholder "search ~ship", autocomplete "off");
+              ;button.hdr-btn(onclick "peerAdd()"): search
+              ;div#peer-suggest;
+            ==
+            ;div#peer-lists;
           ==
         ==
         ;div#edit-backdrop
@@ -300,9 +440,10 @@
   body \{ font-family: Inter, sans-serif; background: white; min-height: 100vh; }
   #app \{ width: 100%; max-width: 1440px; margin: 0 auto; padding: 40px 24px; }
   #header \{ display: flex; justify-content: center; align-items: center; gap: 10px; margin-bottom: 32px; }
-  #bell \{ position: relative; font-size: 17px; text-decoration: none; padding: 6px 10px; border-radius: 8px; border: 1px solid #ddd; line-height: 1; filter: grayscale(1); opacity: 0.75; }
-  #bell:hover \{ background: #f5f5f5; filter: none; opacity: 1; }
-  #bell.live \{ filter: none; opacity: 1; }
+  #bell \{ position: relative; display: flex; align-items: center; text-decoration: none; padding: 7px 9px; border-radius: 8px; border: 1px solid #ddd; color: #555; }
+  #bell svg \{ width: 16px; height: 16px; display: block; }
+  #bell:hover \{ background: #f5f5f5; color: #111; }
+  #bell.live \{ color: #7a5ac0; }
   #bell-count \{ position: absolute; top: -6px; right: -6px; background: #7a5ac0; color: white; font-size: 10px; font-weight: 700; min-width: 16px; height: 16px; border-radius: 8px; display: flex; align-items: center; justify-content: center; padding: 0 4px; }
   #bell-backdrop \{ display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.25); z-index: 100; align-items: center; justify-content: center; }
   #bell-backdrop.open \{ display: flex; }
@@ -358,7 +499,40 @@
   #edit-json \{ width: 100%; font-family: 'SF Mono', Monaco, monospace; font-size: 12px; border: 1px solid #e0e0e0; border-radius: 8px; padding: 12px; resize: vertical; background: #fafafa; color: #333; outline: none; }
   #edit-json:focus \{ border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,0.1); }
   #edit-status \{ margin-top: 10px; font-size: 12px; color: #16a34a; }
-  @media (max-width: 600px) \{
+  #get-backdrop \{ display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.25); z-index: 100; align-items: center; justify-content: center; }
+  #get-backdrop.open \{ display: flex; }
+  #get-panel \{ width: min(760px, calc(100vw - 32px)); height: min(80vh, 720px); background: white; border: 1px solid #bbb; border-radius: 14px; box-shadow: 0 16px 48px rgba(0,0,0,0.28); display: flex; flex-direction: column; overflow: hidden; }
+  #get-head \{ display: flex; justify-content: space-between; align-items: center; padding: 14px 16px; border-bottom: 1px solid #ddd; }
+  #get-head > span \{ font-size: 15px; font-weight: 700; color: #111; }
+  #get-search \{ display: flex; gap: 8px; padding: 12px 16px; border-bottom: 1px solid #eee; }
+  #peer-ship \{ flex: 1; font-size: 14px; padding: 9px 12px; border: 1px solid #ddd; border-radius: 8px; font-family: inherit; outline: none; }
+  #peer-ship:focus \{ border-color: #7a5ac0; box-shadow: 0 0 0 3px rgba(122,90,192,0.12); }
+  #peer-lists \{ overflow-y: auto; padding: 4px 16px 16px; }
+  .peer-head \{ display: flex; justify-content: space-between; align-items: center; padding: 14px 0 6px; }
+  .peer-head b \{ font-size: 12px; font-weight: 700; color: #6947b8; background: #ede7fa; border-radius: 6px; padding: 3px 10px; font-family: monospace; }
+  .peer-rm \{ font-size: 11px; border: none; background: none; color: #bbb; cursor: pointer; font-family: inherit; }
+  .peer-rm:hover \{ color: #c0392b; }
+  .papp \{ display: flex; align-items: center; gap: 14px; padding: 10px 6px; border-radius: 12px; }
+  .papp:hover \{ background: #f7f7f7; }
+  .papp-icon \{ width: 56px; height: 56px; border-radius: 14px; object-fit: cover; flex-shrink: 0; }
+  .papp-body \{ flex: 1; min-width: 0; }
+  .papp-title \{ font-size: 14px; font-weight: 600; color: #111; }
+  .papp-sub \{ font-size: 12px; color: #888; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .papp-get \{ font-size: 12px; font-weight: 600; padding: 7px 18px; border-radius: 16px; border: none; background: #ede7fa; color: #6947b8; cursor: pointer; font-family: inherit; }
+  .papp-get:hover \{ background: #e0d4f7; }
+  .papp-get:disabled \{ opacity: 0.6; cursor: default; }
+  .papp-none \{ color: #999; font-size: 13px; padding: 10px 6px; }
+  .papp-un \{ font-size: 11px; border: none; background: none; color: #bbb; cursor: pointer; font-family: inherit; }
+  .papp-un:hover \{ color: #c0392b; }
+  .peer-spin \{ display: flex; justify-content: center; padding: 32px 0; }
+  #get-search \{ position: relative; }
+  #peer-suggest \{ display: none; position: absolute; top: calc(100% - 8px); left: 16px; right: 16px; background: white; border: 1px solid #ddd; border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,0.15); height: 240px; overflow-y: auto; z-index: 10; }
+  #peer-suggest.open \{ display: block; }
+  .psug \{ display: flex; align-items: baseline; gap: 8px; padding: 9px 12px; cursor: pointer; }
+  .psug:hover \{ background: #f5f2fb; }
+  .psug-nick \{ font-size: 13px; font-weight: 600; color: #111; }
+  .psug-ship \{ font-size: 12px; color: #888; font-family: monospace; }
+    @media (max-width: 600px) \{
     #tiles \{ grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
     .tile, #loading-tile \{ width: 100%; height: auto; aspect-ratio: 1; min-width: 0; }
     #app \{ padding: 20px 16px; }
@@ -576,11 +750,11 @@
     editJson.disabled = false;
     document.getElementById('edit-save').style.display = '';
     editJson.value = JSON.stringify(\{
-      title: 'New tile',
-      info: '',
-      color: '#333',
       image: '',
-      href: ''
+      title: 'New tile',
+      href: '',
+      color: '#333',
+      info: ''
     }, null, 2);
     editBack.classList.add('open');
   }
@@ -644,5 +818,187 @@
   };
 
   loadTiles();
+
+  // -- get apps from ships --
+  var peerGroups = [];
+  function escP(s) \{
+    var d = document.createElement('div');
+    d.textContent = (s == null) ? '' : String(s);
+    return d.innerHTML;
+  }
+  function peerSpin() \{
+    document.getElementById('peer-lists').innerHTML =
+      '<div class="peer-spin"><div class="spinner"></div></div>';
+  }
+  function openGet() \{
+    document.getElementById('get-backdrop').classList.add('open');
+    peerSpin();
+    loadContacts();
+    loadPeers();
+    document.getElementById('peer-ship').focus();
+  }
+  function closeGet(e) \{
+    if (e.target === document.getElementById('get-backdrop')) closeGetNow();
+  }
+  function closeGetNow() \{
+    document.getElementById('get-backdrop').classList.remove('open');
+  }
+  function peerPost(path, body) \{
+    return fetch('/grubbery/desks/' + path, \{
+      method: 'POST',
+      headers: \{ 'content-type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+  }
+  function peerAdd() \{
+    var inp = document.getElementById('peer-ship');
+    var s = inp.value.trim();
+    if (!s) return;
+    if (s[0] !== '~') s = '~' + s;
+    peerSpin();
+    peerPost('peers', \{ add: s }).then(function() \{
+      inp.value = '';
+      setTimeout(loadPeers, 1500);
+    });
+  }
+  function peerDel(s) \{
+    peerPost('peers', \{ del: s }).then(function() \{ setTimeout(loadPeers, 500); });
+  }
+  function installPeerApp(a, btn, name) \{
+    btn.disabled = true;
+    btn.textContent = 'installing...';
+    peerPost('add', \{ name: name || a.name, type: 'cross-ship', source: a.source })
+      .then(function(r) \{
+        if (r.status === 409) \{
+          var alt = prompt('A desk named "' + (name || a.name) + '" already exists here. Install under a different name:');
+          if (alt && alt.trim()) \{ installPeerApp(a, btn, alt.trim()); return; }
+          btn.textContent = 'Get';
+          btn.disabled = false;
+          return;
+        }
+        if (!r.ok) \{
+          btn.textContent = 'failed';
+          btn.disabled = false;
+          return;
+        }
+        btn.textContent = 'installed';
+        setTimeout(loadTiles, 1200);
+        setTimeout(loadPeers, 1500);
+      });
+  }
+  function uninstallPeerApp(a, btn) \{
+    var word = prompt('CAREFUL: this permanently deletes ' + a.local + ' and all its data. Type "' + a.local + '" to confirm:');
+    if (word !== a.local) return;
+    btn.disabled = true;
+    btn.textContent = 'removing...';
+    peerPost('delete', \{ app: a.local })
+      .then(function() \{
+        setTimeout(loadPeers, 800);
+        setTimeout(loadTiles, 1000);
+      });
+  }
+  function loadPeers() \{
+    fetch('/grubbery/desks/peers')
+      .then(function(r) \{ return r.json(); })
+      .then(function(groups) \{
+        peerGroups = groups;
+        var box = document.getElementById('peer-lists');
+        box.innerHTML = '';
+        if (!groups.length) \{
+          box.innerHTML = '<div class="papp-none">no ships yet. search for one above.</div>';
+          return;
+        }
+        groups.forEach(function(g, gi) \{
+          var div = document.createElement('div');
+          var apps = (g.apps || []).map(function(a, ai) \{
+            var icon = a.icon
+              ? '<img class="papp-icon" src="' + escP(a.icon) + '">'
+              : '<div class="papp-icon" style="background:' + escP(a.color || '#8558b0') + '"></div>';
+            return '<div class="papp">' + icon +
+              '<div class="papp-body">' +
+                '<div class="papp-title">' + escP(a.title || a.name) + '</div>' +
+                '<div class="papp-sub">' + escP(a.path) + (a.version ? ' - v' + escP(a.version) : '') + '</div>' +
+              '</div>' +
+              (a.installed
+                ? '<button class="papp-get" disabled>Installed</button>' +
+                  '<button class="papp-un" data-ug="' + gi + '" data-ua="' + ai + '">uninstall</button>'
+                : '<button class="papp-get" data-g="' + gi + '" data-a="' + ai + '">Get</button>') +
+            '</div>';
+          }).join('');
+          div.innerHTML =
+            '<div class="peer-head"><b>' + escP(g.ship) + '</b>' +
+            '<button class="peer-rm" data-ship="' + escP(g.ship) + '">remove</button></div>' +
+            (apps || '<div class="papp-none">nothing published</div>');
+          box.appendChild(div);
+        });
+        Array.prototype.forEach.call(box.querySelectorAll('[data-g]'), function(b) \{
+          b.onclick = function() \{
+            installPeerApp(peerGroups[+b.getAttribute('data-g')].apps[+b.getAttribute('data-a')], b);
+          };
+        });
+        Array.prototype.forEach.call(box.querySelectorAll('[data-ug]'), function(b) \{
+          b.onclick = function() \{
+            uninstallPeerApp(peerGroups[+b.getAttribute('data-ug')].apps[+b.getAttribute('data-ua')], b);
+          };
+        });
+        Array.prototype.forEach.call(box.querySelectorAll('[data-ship]'), function(b) \{
+          b.onclick = function() \{ peerDel(b.getAttribute('data-ship')); };
+        });
+      });
+  }
+  var peerContacts = [];
+  function loadContacts() \{
+    fetch('/grubbery/contacts/api/overlays')
+      .then(function(r) \{ return r.json(); })
+      .then(function(data) \{
+        peerContacts = Object.keys(data).map(function(ship) \{
+          var f = data[ship] || \{};
+          var nick = (f.nickname && f.nickname.s) || f.nickname || '';
+          if (typeof nick !== 'string') nick = '';
+          return \{ ship: ship, nick: nick, sort: nick ? nick.toLowerCase() : ship };
+        });
+        peerContacts.sort(function(a, b) \{ return a.sort < b.sort ? -1 : a.sort > b.sort ? 1 : 0; });
+      })
+      .catch(function() \{ peerContacts = []; });
+  }
+  function hideSuggest() \{
+    document.getElementById('peer-suggest').classList.remove('open');
+  }
+  function renderSuggest() \{
+    var box = document.getElementById('peer-suggest');
+    var raw = document.getElementById('peer-ship').value.trim();
+    if (!raw) \{ hideSuggest(); return; }
+    var q = raw.toLowerCase().replace(/^~/, '');
+    var have = \{};
+    peerGroups.forEach(function(g) \{ have[g.ship] = true; });
+    var matches = peerContacts.filter(function(c) \{
+      if (have[c.ship]) return false;
+      if (!q) return true;
+      return c.ship.replace('~', '').indexOf(q) >= 0 || c.nick.toLowerCase().indexOf(q) >= 0;
+    }).slice(0, 8);
+    if (!matches.length) \{ hideSuggest(); return; }
+    box.innerHTML = matches.map(function(c) \{
+      return '<div class="psug" data-ship="' + escP(c.ship) + '">' +
+        (c.nick ? '<span class="psug-nick">' + escP(c.nick) + '</span>' : '') +
+        '<span class="psug-ship">' + escP(c.ship) + '</span></div>';
+    }).join('');
+    Array.prototype.forEach.call(box.querySelectorAll('.psug'), function(row) \{
+      row.onmousedown = function(e) \{
+        e.preventDefault();
+        document.getElementById('peer-ship').value = row.getAttribute('data-ship');
+        hideSuggest();
+        peerAdd();
+      };
+    });
+    box.classList.add('open');
+  }
+  var peerInp = document.getElementById('peer-ship');
+  peerInp.addEventListener('keydown', function(e) \{
+    if (e.key === 'Enter') \{ hideSuggest(); peerAdd(); }
+    if (e.key === 'Escape') hideSuggest();
+  });
+  peerInp.addEventListener('input', renderSuggest);
+  peerInp.addEventListener('focus', renderSuggest);
+  peerInp.addEventListener('blur', function() \{ setTimeout(hideSuggest, 150); });
   """
 --
