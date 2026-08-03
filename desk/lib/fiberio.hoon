@@ -1137,6 +1137,61 @@
     ?~  err  [%done ~]
     [%fail %poke-failed u.err]
   ==
+::  +road-to-remote: parse a /sys/ames/ships/ road into the target ship
+::  and the real lane on that ship, mirroring the runtime's
+::  +resolve-remote. ~ for local roads.
+::
+++  road-to-remote
+  |=  =road:tarball
+  ^-  (unit [target=@p dest=lane:tarball])
+  ?.  ?=(%& -.road)  ~
+  =/  pax=path
+    ?-(-.p.road %& path.p.p.road, %| p.p.road)
+  ?.  ?=([%sys %ames %ships @ %root *] pax)  ~
+  =/  target=(unit @p)  (slaw %p i.t.t.t.pax)
+  ?~  target  ~
+  =/  real=path  t.t.t.t.t.pax
+  :-  ~  :-  u.target
+  ?-(-.p.road %& [%& real name.p.p.road], %| [%| real])
+::  +poke-road: poke a road, local or remote, with local semantics
+::  either way. A remote poke never yields a local %pack — the
+::  runtime forwards it and the consumption result comes back as a
+::  [/ %gack] poke keyed by our wire. Crashes on nack or timeout.
+::
+++  poke-road
+  |=  [=road:tarball =bask:tarball]
+  =/  m  (fiber ,~)
+  ^-  form:m
+  ?~  (road-to-remote road)  (poke road bask)
+  ;<  err=(unit tang)  bind:m  (poke-road-soft road bask)
+  ?~  err  (pure:m ~)
+  ~|(%remote-poke-failed (mean u.err))
+::  +poke-road-soft: poke-road with poke-soft semantics — ~ on ack,
+::  `tang on nack or timeout, never crashes.
+::
+++  poke-road-soft
+  |=  [=road:tarball =bask:tarball]
+  =/  m  (fiber ,(unit tang))
+  ^-  form:m
+  ?~  (road-to-remote road)  (poke-soft road bask)
+  ;<  =wire  bind:m  (nonce /poke-road)
+  ;<  ~  bind:m  (send-dart %node wire road %poke bask)
+  ;<  now=@da  bind:m  get-time
+  ;<  ~  bind:m  (set-timer wire (add now ~s15))
+  |=  input
+  :+  ~  q.state
+  ?+  in  [%skip ~]
+      ~  [%wait ~]
+      [~ %veto *]
+    [%fail (veto-error dart.u.in)]
+      [~ %poke * *]
+    ?:  =([/ %gack] p.sage.u.in)
+      =/  [w=^wire err=(unit tang)]  !<([^wire (unit tang)] q.sage.u.in)
+      ?.  =(wire w)  [%skip ~]
+      [%done err]
+    ?.  =([/ %timer-wake] p.sage.u.in)  [%skip ~]
+    [%done `~[leaf+"remote poke timed out after 15s"]]
+  ==
 ::  Timer helpers — poke /sys/behn/main.timer-state, receive timer-wake back
 ::
 ++  set-timer

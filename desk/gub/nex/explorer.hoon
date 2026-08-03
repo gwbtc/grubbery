@@ -109,6 +109,7 @@
       ;title: {(trip name)}
       ;meta(charset "utf-8");
       ;meta(name "viewport", content "width=device-width, initial-scale=1");
+      ;link(rel "icon", type "image/svg+xml", href "/grubbery/tiles/icon/explorer.explorer");
       ;style: body \{ background: #0d1117; color: #e6edf3; margin: 0; } pre \{ margin: 0; padding: 18px; font: 12px/1.5 ui-monospace, monospace; overflow: auto; min-height: 100vh; box-sizing: border-box; } code \{ font: inherit; } #hl-status \{ position: fixed; top: 10px; right: 12px; font: 11px ui-monospace, monospace; color: #8b949e; background: #161b22; border: 1px solid #30363d; border-radius: 12px; padding: 4px 10px; }
     ==
     ;body(data-name (trip name))
@@ -540,7 +541,7 @@
     ;title: {title}
     ;meta(charset "utf-8");
     ;meta(name "viewport", content "width=device-width, initial-scale=1");
-    ;link(rel "icon", href "data:,");
+    ;link(rel "icon", type "image/svg+xml", href "/grubbery/tiles/icon/explorer.explorer");
     ;style
       ; body { font-family: monospace; margin: 20px; }
       ; h1 { font-size: 18px; }
@@ -1005,7 +1006,7 @@
     ;head
       ;title: grubbery split view
       ;meta(charset "utf-8");
-      ;link(rel "icon", href "data:,");
+      ;link(rel "icon", type "image/svg+xml", href "/grubbery/tiles/icon/explorer.explorer");
       ;style
         ; * { box-sizing: border-box; margin: 0; padding: 0; }
         ; html, body { height: 100%; font-family: monospace; }

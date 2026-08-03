@@ -13,6 +13,7 @@
 ::  /ui/*             inbox page (requests pattern)
 ::
 /<  nib  /lib/inbox.hoon
+/&  inbox-icon  notifications/icon.svg
 /&  inbox-html  notifications/index.html
 /&  inbox-js    notifications/app.js
 /&  inbox-css   notifications/style.css
@@ -33,6 +34,7 @@
           [%over %& [/ui %'index.html'] [[/ %mime] inbox-html]]
           [%over %& [/ui %'app.js'] [[/ %mime] inbox-js]]
           [%over %& [/ui %'style.css'] [[/ %mime] inbox-css]]
+          [%over %& [/ui %'icon.svg'] [[/ %mime] inbox-icon]]
       ==
     ::
     ++  on-file

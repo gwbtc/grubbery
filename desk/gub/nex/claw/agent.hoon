@@ -2249,6 +2249,7 @@
       ;title: claw
       ;meta(charset "utf-8");
       ;meta(name "viewport", content "width=device-width, initial-scale=1");
+      ;link(rel "icon", type "image/svg+xml", href "/grubbery/tiles/icon/claw.claw_app");
       ;style
         ;+  ;/  style-text
       ==
