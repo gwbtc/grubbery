@@ -5,8 +5,20 @@
   `[make=~ poke=(sy ~[[%& %| /]]) peek=(sy ~[[%& %| /]])]
 ::  desks creates and configures the desk backends, so it needs to make
 ::  new instances under /apps; poke/peek stay open to reach siblings.
+::  the shell culls and rewrites its own peer mirrors under /peers,
+::  so it needs a make hole there on top of the standard app weir.
+=/  shell-weir=(unit weir:tarball)
+  `[make=(sy ~[[%& %| /apps/'shell.shell'/peers]]) poke=(sy ~[[%& %| /]]) peek=(sy ~[[%& %| /]])]
+::  forge creates and manages the git repo instances under its own
+::  /repos subtree, so it gets a make hole there.
+=/  forge-weir=(unit weir:tarball)
+  `[make=(sy ~[[%& %| /apps/'forge.git_forge'/repos]]) poke=(sy ~[[%& %| /]]) peek=(sy ~[[%& %| /]])]
 =/  desks-weir=(unit weir:tarball)
   `[make=(sy ~[[%& %| /apps]]) poke=(sy ~[[%& %| /]]) peek=(sy ~[[%& %| /]])]
+::  pad creates doc and mirror grubs at runtime inside its own
+::  subtree, so it gets a make hole there.
+=/  pad-weir=(unit weir:tarball)
+  `[make=(sy ~[[%& %| /apps/'pad.pad']]) poke=(sy ~[[%& %| /]]) peek=(sy ~[[%& %| /]])]
 =/  git-desk-config
   |=  [repo=@t ref=@t]
   ^-  json
@@ -50,7 +62,7 @@
         ::  child nexuses
         ::
         [%fall %| /apps/'tiles.tiles' [`[`[/ %tiles] app-weir %.n ~] ~]]
-        [%fall %| /apps/'shell.shell' [`[`[/ %shell] app-weir %.n ~] ~]]
+        [%fall %| /apps/'shell.shell' [`[`[/ %shell] shell-weir %.n ~] ~]]
         [%fall %| /apps/'counter.counter' [`[`[/ %counter] app-weir %.n ~] ~]]
         [%fall %| /apps/'explorer.explorer' [`[`[/ %explorer] ~ %.n ~] ~]]
         [%fall %| /apps/'mcp.mcp' [`[`[/ %mcp] ~ %.n ~] ~]]
@@ -73,8 +85,13 @@
         ::  creates + configures them, so it makes under /apps.
         [%fall %| /apps/'desks.desks' [`[`[/ %desks] desks-weir %.n ~] ~]]
         ::
+        ::  forge: the UI over git repo instances, housing them at
+        ::  /repos inside itself.
+        [%fall %| /apps/'forge.git_forge' [`[`[/git %forge] forge-weir %.n ~] ~]]
+        ::
         [%fall %| /apps/'test.web-test' [`[`[/ %web-test] app-weir %.n ~] ~]]
         [%fall %| /apps/'test.guestbook' [`[`[/ %guestbook] app-weir %.n ~] ~]]
+        [%fall %| /apps/'pad.pad' [`[`[/ %pad] pad-weir %.n ~] ~]]
     ==
 ::
 ++  on-file

@@ -99,6 +99,7 @@
           (checkout:git-transport get-tree get-blob parent-tree-hash)
         =/  tree-ball=ball:tarball  (files-to-ball files)
         =.  ball  ball(dir (~(put by dir.ball) 'tree' tree-ball))
+        =.  ball  (write-tree-head ball (print-hash-sha-1:git-transport commit-hash))
         =.  ball  (write-ui-outputs ball sto commit-hash parsed-head head-idx parent-tree-hash)
         ~&  >>  ["%git/data: stashed at" (scag 7 stash-hex)]
         ball
@@ -137,6 +138,9 @@
         =/  files=(list [path octs])
           (checkout:git-transport get-tree get-blob tree.u.stash-com)
         =.  ball  ball(dir (~(put by dir.ball) 'tree' (files-to-ball files)))
+        ::  the restored tree is a dirty working tree over the same
+        ::  HEAD — stamp the marker so reloads preserve it
+        =.  ball  (write-tree-head ball (print-hash-sha-1:git-transport commit-hash))
         ::  pop reflog — drop last entry, get previous stash hash
         =/  pop-result=[prev=(unit hash:git-repo) =ball:tarball]
           (pop-stash-reflog ball)
@@ -247,6 +251,9 @@
           (append-reflog ball (crip (trip u.branch.u.parsed-head)) old-hex new-head-text msg)
         ::  persist only new loose objects (existing ones already in ball)
         =.  ball  (write-loose-to-ball ball new-loose.u.commit-result)
+        ::  tree/ already holds the committed content — move the marker
+        ::  with HEAD so the next reload preserves rather than resets
+        =.  ball  (write-tree-head ball new-head-text)
         ::  clear commit request
         =.  ball  (~(del ba:tarball ball) / %'commit-request.json')
         ::  rebuild outputs with new HEAD
@@ -278,6 +285,17 @@
         ball
       =/  com=commit:git-repo  u.com-maybe
       =/  head-text=tape  (print-hash-sha-1:git-transport commit-hash)
+      ::  tree/ already materialized from this HEAD: it may carry
+      ::  working edits and a staged index — preserve both, refresh
+      ::  only the derived ui. Checkout happens exactly when HEAD
+      ::  moved (switch, checkout, clone), where overwriting is the
+      ::  point.
+      ?:  ?&  (~(has by dir.ball) 'tree')
+              =(`head-text (read-tree-head ball))
+          ==
+        =/  idx=(map path [hash:git-repo mtime=@t])  (read-index ball)
+        =.  ball  (write-ui-outputs ball sto commit-hash parsed-head idx tree.com)
+        ball
       ~&  >>  ["%git/data: checkout" (scag 7 head-text)]
       =/  get-tree=$-(@ux (unit tree-dir:git-repo))
         |=(h=@ux (get-tree:sto h))
@@ -294,6 +312,7 @@
       =.  ball  (write-index ball idx)
       ::  write tree into ball BEFORE computing status
       =.  ball  ball(dir (~(put by dir.ball) 'tree' tree-ball))
+      =.  ball  (write-tree-head ball head-text)
       =.  ball  (write-ui-outputs ball sto commit-hash parsed-head idx tree.com)
       ball
     ::
@@ -307,6 +326,23 @@
     --
 ::
 |%
+::  +read-tree-head: which commit tree/ was last materialized from.
+::  ~ means never recorded — treat as needing checkout.
+::
+++  read-tree-head
+  |=  =ball:tarball
+  ^-  (unit tape)
+  =/  got=(unit sang:tarball)  (~(get ba:tarball ball) [/ %'TREE-HEAD'])
+  ?~  got  ~
+  =/  res  (mule |.(!<(mime (need-vase:tarball u.got))))
+  ?:  ?=(%| -.res)  ~
+  `(trip `@t`q.q.p.res)
+::
+++  write-tree-head
+  |=  [=ball:tarball hex=tape]
+  ^-  ball:tarball
+  %+  ~(put ba:tarball ball)  [/ %'TREE-HEAD']
+  [[/ %mime] %& !>(`mime`[/text/plain (as-octt:bytestream hex)])]
 ::  +append-reflog: append an entry to the reflog for a branch
 ::
 ::    Format: "old-hash new-hash message\n" per entry.

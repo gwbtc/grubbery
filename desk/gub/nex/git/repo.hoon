@@ -16,6 +16,7 @@
 /<  git-pack  /lib/git/pack.hoon
 /<  git-repo  /lib/git/repository.hoon
 /<  git-transport  /lib/git/transport.hoon
+/<  nex-tools  /lib/nex/tools.hoon
 /&  man  ../../man/git/repo/readme.md
 =<  ^-  nexus:nexus
     |%
@@ -43,6 +44,10 @@
           [%fall %& [/actions %'stash.sig'] [[/ %sig] ~]]
           [%fall %& [/actions %'stash-pop.sig'] [[/ %sig] ~]]
           [%fall %& [/actions %'push.sig'] [[/ %sig] ~]]
+          [%fall %| /tools empty-dir:loader]
+          [%fall %| /tools/code [`[`[/ %code] ~ %.n ~] ~]]
+          [%fall %& [/tools %'run.sig'] [[/ %sig] ~]]
+          [%fall %| /tools/proc empty-dir:loader]
           [%fall %| /ui empty-dir:loader]
           [%fall %& [/ui %'status.json'] [[/ %json] (pairs:enjs:format ~[['status' s+'idle']])]]
           [%fall %& [/ui %'commit.json'] [[/ %json] [%a ~]]]
@@ -165,6 +170,75 @@
         ~&  >>  ["%git/repo: bundle parsed" count.pack.bun "objects"]
         ~&  >>  ["%git/repo: refs" (turn refs.header.bun |=([p=* q=*] p))]
         $
+          ::  /tools/run.sig: install a tool as a proc. Poke json:
+          ::  {"name": "bridge", "tool": "mirror-to-desk", "args": {...}}
+          ::  makes /tools/proc/<name> in %start state. Cull the proc
+          ::  grub to stop it.
+          ::
+          [[%tools ~] %'run.sig']
+        ;<  ~  bind:m  (rise-wait:io prod "%git/repo tools/run: failed")
+        |-
+        ;<  =sage:tarball  bind:m  take-poke:io
+        =/  jon=json  (fall (mole |.(!<(json q.sage))) *json)
+        =/  nam=(unit @t)  (jget jon 'name')
+        =/  tul=(unit @t)  (jget jon 'tool')
+        ?~  nam
+          ~&  >>>  %git-repo-run-missing-name
+          $
+        ?~  tul
+          ~&  >>>  %git-repo-run-missing-tool
+          $
+        =/  args=(map @t json)
+          =/  a  ?.(?=(%o -.jon) ~ (~(get by p.jon) 'args'))
+          ?.  ?=([~ %o *] a)  ~
+          p.u.a
+        =/  ts=tool-state:nex-tools  [u.tul args %start ~ ~]
+        =/  proc-road=road:tarball  [%| 0 %& /proc `@ta`u.nam]
+        ;<  err=(unit tang)  bind:m
+          (make-soft:io proc-road |+[[[/ %tool-state] ts] ~])
+        ?^  err
+          ~&  >>>  [%git-repo-run-make-failed u.nam]
+          $
+        ::  procs are results, not scratch: survive their fiber's end
+        ;<  ~  bind:m  (gain:io proc-road %.y)
+        $
+          ::  /tools/proc/*: an installed tool. The grub's tool-state
+          ::  names a tool compiled from this repo's /tools/code and
+          ::  carries its arguments. A handler that returns records
+          ::  its result and stops — a job. One that loops is a
+          ::  daemon. Editing the tool source respins it live; cull
+          ::  the grub to stop it.
+          ::
+          [[%tools %proc ~] @]
+        ;<  ~  bind:m  (rise-wait:io prod "%git/repo tool: failed")
+        ;<  st=tool-state:nex-tools  bind:m
+          (get-state-as:io ,tool-state:nex-tools)
+        ?:  =(%done step.st)  (pure:m ~)
+        ;<  here=rail:tarball  bind:m  get-here-abs:io
+        =/  code-lib=path  (weld (snip path.here) /code/lib/tools)
+        =/  file-name=@ta
+          (crip (turn (trip tool.st) |=(c=@t ?:(=(c '_') '-' c))))
+        ;<  res=built:nexus  bind:m
+          (get-code-full:io [%& %& code-lib file-name])
+        =/  tul=(unit tool:nex-tools)
+          ?.  ?=(%vase -.res)  ~
+          =/  got=(each tool:nex-tools tang)
+            (mule |.(!<(tool:nex-tools vase.res)))
+          ?:(?=(%| -.got) ~ `p.got)
+        ?~  tul
+          ~&  >>>  [%git-repo-tool-build-failed tool.st]
+          =/  result-data=json
+            %-  pairs:enjs:format
+            ~[['type' s+'error'] ['message' s+'tool missing or failed to build']]
+          (replace:io `tool-state:nex-tools`[tool.st args.st %done data.st `result-data])
+        ;<  result=tool-result:nex-tools  bind:m  handler:u.tul
+        =/  result-json=json
+          ?-  -.result
+            %text   (pairs:enjs:format ~[['type' s+'text'] ['text' s+text.result]])
+            %error  (pairs:enjs:format ~[['type' s+'error'] ['message' s+message.result]])
+            %mime   (pairs:enjs:format ~[['type' s+'mime']])
+          ==
+        (replace:io `tool-state:nex-tools`[tool.st args.st %done data.st `result-json])
           ::  /page.html: watches config + repo data, re-renders
           ::
           [~ %'page.html']
@@ -756,6 +830,13 @@
       ref=@t
       token=@t
   ==
+::
+++  jget
+  |=  [j=json k=@t]
+  ^-  (unit @t)
+  ?.  ?=(%o -.j)  ~
+  =/  v  (~(get by p.j) k)
+  ?.(?=([~ %s *] v) ~ `p.u.v)
 ::
 ++  read-config
   =/  m  (fiber:fiber:nexus ,repo-config)
