@@ -92,6 +92,16 @@
           =/  bod=octs  (as-octs:mimes:html (en:json:html lst))
           ;<  ~  bind:m  (send-simple:s eyre-id (mime-response:http-utils [/application/json bod]))
           (pure:m ~)
+        ::  reads: every /apps child name, for install-name availability
+        ?:  ?=([%taken ~] suffix)
+          ;<  =view:nexus  bind:m  (peek-shallow:io [%& %| /apps] ~)
+          =/  names=(list @ta)
+            ?.  ?=([%ball *] view)  ~
+            ~(tap in ~(key by dir.ball.view))
+          =/  lst=json  a+(turn names |=(n=@ta `json`s+`@t`n))
+          =/  bod=octs  (as-octs:mimes:html (en:json:html lst))
+          ;<  ~  bind:m  (send-simple:s eyre-id (mime-response:http-utils [/application/json bod]))
+          (pure:m ~)
         ::  otherwise serve a static file from the nexus root
         =/  filename=@ta  ?~(suffix 'index.html' i.suffix)
         ;<  fv=view:nexus  bind:m
@@ -367,6 +377,98 @@
 ++  app-weir
   ^-  (unit weir:tarball)
   `[make=~ poke=(sy ~[[%& %| /]]) peek=(sy ~[[%& %| /]])]
+::  +sandboxed-weir: a genuinely headless local process. poke:
+::  /sys/bowl.sig (clock, identity, entropy) and /sys/behn (timers) —
+::  bowl.sig is a file directly under /sys so it needs a file road,
+::  behn is a dir. peek: nothing (self-access is ungated, so it still
+::  reads its own files). make: own folder only. It has NO interface
+::  (no /sys/eyre), NO network (no /sys/iris), NO cross-ship (no
+::  /sys/ames), and cannot poke your agents, read your other apps, or
+::  touch the terminal. Inspect its files directly (dojo / MCP).
+::
+++  sandboxed-weir
+  ^-  (unit weir:tarball)
+  :^    ~
+      make=~
+    poke=(sy ~[[%& %& /sys %'bowl.sig'] [%& %| /sys/behn]])
+  peek=~
+::  +read-only-weir: a headless observer. Reads your whole ship
+::  (peek /) but the only things it can poke are its own clock and
+::  timers — it messages no agents and no apps, and creates files
+::  only in its own folder. No interface, no network, no cross-ship.
+::
+++  read-only-weir
+  ^-  (unit weir:tarball)
+  :^    ~
+      make=~
+    poke=(sy ~[[%& %& /sys %'bowl.sig'] [%& %| /sys/behn]])
+  peek=(sy ~[[%& %| /]])
+::  +weir-from-json: an install's requested sandbox. Absent -> the
+::  standard app-weir; "open" -> no weir; {preset: "trusted"|"sandboxed"}
+::  -> a named preset; {make, poke, peek} of path lists -> exactly those
+::  road sets (empty list = closed category, per empty-vs-absent).
+::
+++  weir-from-json
+  |=  jon=json
+  ^-  (unit weir:tarball)
+  =/  spec=(unit json)
+    ?.(?=([%o *] jon) ~ (~(get by p.jon) 'weir'))
+  ?~  spec  app-weir
+  ?:  ?=([%s %open] u.spec)  ~
+  ?.  ?=([%o *] u.spec)  app-weir
+  =/  preset=(unit json)  (~(get by p.u.spec) 'preset')
+  ?:  ?=([~ %s %trusted] preset)    app-weir
+  ?:  ?=([~ %s %readonly] preset)   read-only-weir
+  ?:  ?=([~ %s %sandboxed] preset)  sandboxed-weir
+  =/  fields=(map @t json)  p.u.spec
+  =/  roads
+    |=  k=@t
+    ^-  (set road:tarball)
+    =/  v  (~(get by fields) k)
+    ?.  ?=([~ %a *] v)  ~
+    %-  sy
+    %+  murn  p.u.v
+    |=  j=json
+    ^-  (unit road:tarball)
+    ?.  ?=([%s *] j)  ~
+    (parse-road p.j)
+  `[make=(roads 'make') poke=(roads 'poke') peek=(roads 'peek')]
+::  +parse-road: a weir road from user text — '/foo/bar' is absolute,
+::  '../shared' climbs out of the sandboxed dir ('../..' etc stack)
+::
+::  +parse-road: user weir text -> a road. A trailing slash means a
+::  directory road (/apps/foo/), no trailing slash a single file
+::  (/apps/foo/bar.json). Leading ../ climbs out of the app's own dir
+::  (each ../ is one step up); an absolute path starts with /.
+::
+++  parse-road
+  |=  s=@t
+  ^-  (unit road:tarball)
+  =/  tap=tape  (trip s)
+  =|  ups=@ud
+  |-  ^-  (unit road:tarball)
+  ?:  &((gte (lent tap) 3) =("../" (scag 3 tap)))
+    $(tap (slag 3 tap), ups +(ups))
+  ?:  =(".." tap)
+    $(tap ~, ups +(ups))
+  ::  bare root or empty: a directory road at the (relative) root
+  ?~  tap
+    ?:(=(0 ups) ~ `[%| ups %| /])
+  ?:  =("/" tap)  `[%& %| /]
+  ::  trailing slash => directory road; otherwise a file road whose
+  ::  last segment is the file name. flop/scag avoid wet-gate mull.
+  =/  is-dir=?  =("/" (scag 1 (flop `tape`tap)))
+  =/  core=tape  ?:(is-dir (flop (slag 1 (flop `tape`tap))) tap)
+  =/  txt=@t  (crip ?:(=("/" (scag 1 core)) core ['/' core]))
+  =/  res  (mule |.((stab txt)))
+  ?:  ?=(%| -.res)  ~
+  =/  pax=path  p.res
+  ?:  is-dir
+    ?:(=(0 ups) `[%& %| pax] `[%| ups %| pax])
+  =/  fp=(list @ta)  (flop pax)
+  ?~  fp  ~
+  =/  =rail:tarball  [(flop t.fp) i.fp]
+  ?:(=(0 ups) `[%& %& rail] `[%| ups %& rail])
 ::  +respond: a plaintext HTTP reply through main.sig
 ::
 ++  respond
@@ -396,8 +498,9 @@
   ;<  live=?  bind:m  (peek-exists:io [%& %| dir-path])
   ?:  live  (respond rail eyre-id 409 'a desk by that name already exists')
   =/  neck=rail:tarball  ?:(is-git [/git %desk] [/ %desk])
+  =/  wir=(unit weir:tarball)  (weir-from-json jon)
   ;<  ~  bind:m
-    (make:io [%& %| dir-path] &+`bole:tarball`[`[`neck app-weir %.n ~] ~])
+    (make:io [%& %| dir-path] &+`bole:tarball`[`[`neck wir %.n ~] ~])
   =/  config=json
     ?:  is-git
       %-  pairs:enjs:format
