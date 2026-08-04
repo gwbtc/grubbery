@@ -33,9 +33,14 @@
     .l-name { font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .l-word { font-size: 11px; color: #778; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .l-temp { font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; }
-    .l-del { border: none; background: none; color: #aab; font-size: 14px; cursor: pointer; border-radius: 6px; padding: 2px 6px; visibility: hidden; }
-    .l-row:hover .l-del { visibility: visible; }
-    .l-del:hover { background: #dde3ea; color: #556; }
+    .l-acts { display: flex; }
+    .l-del, .l-move { border: none; background: none; color: #aab; font-size: 14px; cursor: pointer; border-radius: 6px; padding: 2px 6px; visibility: hidden; }
+    .l-row:hover .l-del, .l-row:hover .l-move, .l-row.moving .l-move { visibility: visible; }
+    .l-del:hover, .l-move:hover { background: #dde3ea; color: #556; }
+    .l-row.moving { opacity: 0.5; }
+    .l-row.moving .l-move { color: #4a90d9; }
+    .l-slot { height: 9px; margin: 1px 8px; border-radius: 4px; background: #2e5f94; cursor: pointer; transition: background 0.12s; }
+    .l-slot:hover { background: #7db8ef; }
     #add-row { display: flex; gap: 6px; padding: 10px; border-top: 1px solid #eef1f5; }
     #add-name { flex: 1; min-width: 0; font-size: 13px; padding: 8px 10px; border: 1px solid #ddd; border-radius: 8px; font-family: inherit; outline: none; }
     #add-name:focus { border-color: #4a90d9; box-shadow: 0 0 0 3px rgba(74,144,217,0.15); }

@@ -14,6 +14,7 @@
 ::    GET  /data      config + weather as one json
 ::    POST /add       {"name": "stockholm"} — geocode and add
 ::    POST /del       {"name": "..."}
+::    POST /order     {"order": ["name", ...]} — reorder locations
 ::    POST /units     {"units": "c" | "f"}
 ::    POST /refresh
 ::
@@ -105,6 +106,28 @@
               (write-config rail units (skip locs |=(l=json =(name (jstr l 'name')))))
             ;<  ~  bind:m  (poke:io (nex-road:io rail [%& ~ %'refresh.sig']) [[/ %sig] ~])
             ;<  ~  bind:m  (send-simple:srv eyre-id [[200 ~] `(as-octs:mimes:html 'deleted')])
+            (pure:m ~)
+              ::  reorder: named locations take the given order, any
+              ::  not mentioned keep their old order at the end
+              [%order ~]
+            =/  names=(list @t)
+              ?.  ?=(%o -.jon)  ~
+              =/  v  (~(get by p.jon) 'order')
+              ?.  ?=([~ %a *] v)  ~
+              %+  murn  p.u.v
+              |=(j=json ?:(?=([%s *] j) `p.j ~))
+            ;<  [units=@t locs=(list json)]  bind:m  (read-config rail)
+            =/  ordered=(list json)
+              %+  murn  names
+              |=  n=@t
+              ^-  (unit json)
+              =/  hits  (skim locs |=(l=json =(n (jstr l 'name'))))
+              ?~(hits ~ `i.hits)
+            =/  rest=(list json)
+              %+  skip  locs
+              |=(l=json (lien names |=(n=@t =(n (jstr l 'name')))))
+            ;<  ~  bind:m  (write-config rail units (weld ordered rest))
+            ;<  ~  bind:m  (send-simple:srv eyre-id [[200 ~] `(as-octs:mimes:html 'ok')])
             (pure:m ~)
               [%units ~]
             =/  units=@t  (jstr jon 'units')
@@ -220,10 +243,18 @@
   |=  name=@t
   =/  m  (fiber:fiber:nexus ,(unit json))
   ^-  form:m
+  ::  double-encoded: vere's cttp.c decodes %XX when parsing the url
+  ::  but doesn't re-encode when serializing the request, so a single
+  ::  %20 goes out as a literal space (see +web-url in lib/oneshot)
+  ::
+  =/  enc=tape
+    %-  zing
+    %+  turn  (en-urlt:html (trip name))
+    |=(c=@tD ?:(=('%' c) "%25" (trip c)))
   =/  url=@t
     %+  rap  3
     :~  'https://geocoding-api.open-meteo.com/v1/search?count=1&name='
-        name
+        (crip enc)
     ==
   ;<  bod=(unit @t)  bind:m  (fetch url)
   ?~  bod  (pure:m ~)

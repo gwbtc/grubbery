@@ -133,8 +133,9 @@ function buildCard(name, entry) {
   var tickXs = [['0.0', Math.round(wmin)]];
   for (var t = Math.ceil(wmin / step) * step; t <= wmax; t += step) {
     var tx = (t - wmin) / wspan * 100;
-    if (tx > 7) tickXs.push([tx.toFixed(1), t]);
+    if (tx > 7 && tx < 93) tickXs.push([tx.toFixed(1), t]);
   }
+  tickXs.push(['100.0', Math.round(wmax)]);
   var grid = tickXs.map(function(tk) {
     return '<span class="w-grid" style="left:' + tk[0] + '%"></span>';
   }).join('');
@@ -202,32 +203,65 @@ function load() {
   });
 }
 
-// ── sidebar: the location collection (owns add + delete) ──
+// ── sidebar: the location collection (owns add + delete + order) ──
+// move mode: click ⇅ on a row, the slots between rows become click
+// targets; click one to drop the row there
+var movingLoc = null;
 function renderSide() {
   var locs = (lastData && lastData.locations) || [];
   var wx = (lastData && lastData.weather) || {};
   var list = document.getElementById('loc-list');
   var stamp = '';
+  if (movingLoc && !locs.some(function(l) { return l.name === movingLoc; })) movingLoc = null;
   if (!locs.length) {
     list.innerHTML = '<div class="empty" style="padding:24px 0">no places yet</div>';
   } else {
-    list.innerHTML = locs.map(function(loc) {
+    var movIdx = -1;
+    var rows = locs.map(function(loc, i) {
+      if (loc.name === movingLoc) movIdx = i;
       var entry = wx[loc.name];
       var cur = (entry && entry.resp && entry.resp.current) || {};
       if (entry && entry.at) stamp = entry.at;
       var code = cur.weather_code || 0;
-      return '<div class="l-row' + (loc.name === selected ? ' sel' : '') + '" data-loc="' + esc(loc.name) + '">' +
+      return '<div class="l-row' + (loc.name === selected ? ' sel' : '') +
+        (loc.name === movingLoc ? ' moving' : '') + '" data-loc="' + esc(loc.name) + '">' +
         icon(slugFor(code, cur.is_day == null ? 1 : cur.is_day), 'l-icon') +
         '<span><div class="l-name">' + esc(loc.name) + '</div>' +
           '<div class="l-word">' + esc(WORDS[code] || '') + '</div></span>' +
         '<span class="l-temp">' + (cur.temperature_2m != null ? Math.round(cur.temperature_2m) + '°' : '–') + '</span>' +
-        '<button class="l-del" data-del="' + esc(loc.name) + '">×</button>' +
+        '<span class="l-acts">' +
+          (locs.length > 1 ? '<button class="l-move" data-move="' + esc(loc.name) + '" title="move">⇅</button>' : '') +
+          '<button class="l-del" data-del="' + esc(loc.name) + '">×</button></span>' +
         '</div>';
-    }).join('');
+    });
+    if (movingLoc) {
+      // interleave drop slots; skip the two adjacent to the moving row
+      var out = [];
+      for (var i = 0; i <= rows.length; i++) {
+        if (i !== movIdx && i !== movIdx + 1) {
+          out.push('<div class="l-slot" data-slot="' + i + '"></div>');
+        }
+        if (i < rows.length) out.push(rows[i]);
+      }
+      list.innerHTML = out.join('');
+    } else {
+      list.innerHTML = rows.join('');
+    }
   }
   document.getElementById('stamp').textContent = stamp ? 'updated ' + stamp : '';
   Array.prototype.forEach.call(list.querySelectorAll('.l-row'), function(row) {
     row.onclick = function() { select(row.getAttribute('data-loc')); };
+  });
+  Array.prototype.forEach.call(list.querySelectorAll('.l-move'), function(b) {
+    b.onclick = function(e) {
+      e.stopPropagation();
+      var name = b.getAttribute('data-move');
+      movingLoc = movingLoc === name ? null : name;
+      renderSide();
+    };
+  });
+  Array.prototype.forEach.call(list.querySelectorAll('.l-slot'), function(s) {
+    s.onclick = function() { dropAt(parseInt(s.getAttribute('data-slot'), 10)); };
   });
   Array.prototype.forEach.call(list.querySelectorAll('.l-del'), function(b) {
     b.onclick = function(e) {
@@ -240,6 +274,29 @@ function renderSide() {
     };
   });
 }
+
+function dropAt(slot) {
+  var locs = (lastData && lastData.locations) || [];
+  var from = locs.map(function(l) { return l.name; }).indexOf(movingLoc);
+  if (from < 0) { movingLoc = null; renderSide(); return; }
+  var to = slot > from ? slot - 1 : slot;
+  var reordered = locs.slice();
+  reordered.splice(to, 0, reordered.splice(from, 1)[0]);
+  movingLoc = null;
+  // optimistic: reorder locally, then tell the server
+  lastData.locations = reordered;
+  renderSide();
+  lastDocsJson = '';
+  renderDocs();
+  fetch(API + '/order', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ order: reordered.map(function(l) { return l.name; }) })
+  });
+}
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape' && movingLoc) { movingLoc = null; renderSide(); }
+});
 
 var spyMute = 0;
 function select(name) {
