@@ -108,102 +108,130 @@ function hourlyChart(hourly) {
     temps2 + labels + '</svg>';
 }
 
-// ── cards ──
+// ── forecast document for one location ──
+function buildCard(name, entry) {
+  if (!entry || !entry.resp) {
+    return '<div class="card" style="background:#8d949c">' +
+      '<div class="c-name">' + esc(name) + '</div><div class="c-word">no data yet</div></div>';
+  }
+  var cur = entry.resp.current || {};
+  var daily = entry.resp.daily || {};
+  var hourly = entry.resp.hourly || {};
+  var code = cur.weather_code || 0;
+  var week = '<div class="w-row w-head">' +
+    '<span></span><span></span>' +
+    '<span class="w-pp">rain</span>' +
+    '<span class="w-mid">temperature</span>' +
+    '<span class="w-lo">low</span>' +
+    '<span class="w-hi">high</span>' +
+    '</div>';
+  var dates = daily.time || [];
+  var wmin = Math.min.apply(null, daily.temperature_2m_min || [0]);
+  var wmax = Math.max.apply(null, daily.temperature_2m_max || [1]);
+  var wspan = (wmax - wmin) || 1;
+  var step = [2, 5, 10, 20].filter(function(s) { return wspan / s <= 5; })[0] || 20;
+  var tickXs = [['0.0', Math.round(wmin)]];
+  for (var t = Math.ceil(wmin / step) * step; t <= wmax; t += step) {
+    var tx = (t - wmin) / wspan * 100;
+    if (tx > 7) tickXs.push([tx.toFixed(1), t]);
+  }
+  var grid = tickXs.map(function(tk) {
+    return '<span class="w-grid" style="left:' + tk[0] + '%"></span>';
+  }).join('');
+  for (var i = 0; i < dates.length; i++) {
+    var lo = daily.temperature_2m_min[i], hi = daily.temperature_2m_max[i];
+    var left = ((lo - wmin) / wspan * 100).toFixed(1), right = ((hi - wmin) / wspan * 100).toFixed(1);
+    var pp = (daily.precipitation_probability_max || [])[i];
+    week += '<div class="w-row">' +
+      '<span class="w-day">' + (i === 0 ? 'today' : dayName(dates[i])) + '</span>' +
+      icon(slugFor(daily.weather_code[i], 1), 'w-icon') +
+      '<span class="w-pp">' + (pp > 4 ? pp + '%' : '') + '</span>' +
+      '<span class="w-bar-track">' + grid +
+        '<span class="w-bar" style="left:' + left + '%;width:' + Math.max(3, right - left) +
+        '%;background:linear-gradient(90deg,' + tempColor(lo) + ',' + tempColor(hi) + ')"></span></span>' +
+      '<span class="w-lo">' + Math.round(lo) + '°</span>' +
+      '<span class="w-hi">' + Math.round(hi) + '°</span>' +
+      '</div>';
+  }
+  week += '<div class="w-row w-axis">' +
+    '<span></span><span></span><span></span>' +
+    '<span class="w-axis-track">' + tickXs.map(function(tk) {
+      return '<span class="w-tick" style="left:' + tk[0] + '%">' + tk[1] + '°</span>';
+    }).join('') + '</span>' +
+    '<span></span><span></span></div>';
+  var sr = hhmm((daily.sunrise || [])[0]), ss = hhmm((daily.sunset || [])[0]);
+  var uv = (daily.uv_index_max || [])[0];
+  return '<div class="card" style="background:' + colorFor(code) + '">' +
+    '<div class="c-top"><div class="c-left">' +
+      '<div class="c-name">' + esc(name) + '</div>' +
+      '<div class="c-temp">' + Math.round(cur.temperature_2m) + '°</div>' +
+      '<div class="c-word">' + esc(WORDS[code] || 'weather') + '</div>' +
+      '<div class="c-meta">feels ' + Math.round(cur.apparent_temperature) + '° · wind ' +
+        Math.round(cur.wind_speed_10m) + ' ' + (units === 'f' ? 'mph' : 'km/h') +
+        ' · humidity ' + esc(cur.relative_humidity_2m) + '%' +
+        '<br>sunrise ' + sr + ' · sunset ' + ss + (uv != null ? ' · uv ' + Math.round(uv) : '') + '</div>' +
+    '</div>' + icon(slugFor(code, cur.is_day), 'c-icon') + '</div>' +
+    '<div class="hourly">' + hourlyChart(hourly) + '</div>' +
+    '<div class="week">' + week + '</div>' +
+    '</div>';
+}
+
+// ── state ──
 var units = 'c';
 var lastData = null;
+var selected = null;
+var mode = 'forecast';
+
 function load() {
   fetch(API + '/data').then(function(r) { return r.json(); }).then(function(d) {
     lastData = d;
     units = d.units || 'c';
     document.getElementById('unit-toggle').textContent = units === 'f' ? '°F' : '°C';
-    render(d);
-    if (mapOn) renderMarkers();
+    var locs = d.locations || [];
+    if (!selected || !locs.some(function(l) { return l.name === selected; })) {
+      // add() optimistically selects the typed name; the server may have
+      // stored a different canonical name, so fall back case-insensitively
+      var ci = selected && locs.filter(function(l) {
+        return l.name.toLowerCase() === selected.toLowerCase();
+      })[0];
+      selected = ci ? ci.name : (locs.length ? locs[0].name : null);
+    }
+    renderSide();
+    renderDocs();
+    if (map) renderMarkers();
   });
 }
-function render(d) {
-  var locs = d.locations || [];
-  var wx = d.weather || {};
-  var box = document.getElementById('cards');
-  if (!locs.length) {
-    box.innerHTML = '<div class="empty">no places yet — add one above</div>';
-    document.getElementById('stamp').textContent = '';
-    return;
-  }
+
+// ── sidebar: the location collection (owns add + delete) ──
+function renderSide() {
+  var locs = (lastData && lastData.locations) || [];
+  var wx = (lastData && lastData.weather) || {};
+  var list = document.getElementById('loc-list');
   var stamp = '';
-  box.innerHTML = locs.map(function(loc) {
-    var name = loc.name;
-    var entry = wx[name];
-    if (!entry || !entry.resp) {
-      return '<div class="card" style="background:#8d949c">' +
-        '<div class="c-name">' + esc(name) + '</div><div class="c-word">no data yet</div>' +
-        '<button class="c-del" data-del="' + esc(name) + '">×</button></div>';
-    }
-    stamp = entry.at || stamp;
-    var cur = entry.resp.current || {};
-    var daily = entry.resp.daily || {};
-    var hourly = entry.resp.hourly || {};
-    var code = cur.weather_code || 0;
-    var week = '<div class="w-row w-head">' +
-      '<span></span><span></span>' +
-      '<span class="w-pp">rain</span>' +
-      '<span class="w-mid">temperature</span>' +
-      '<span class="w-lo">low</span>' +
-      '<span class="w-hi">high</span>' +
-      '</div>';
-    var dates = daily.time || [];
-    var wmin = Math.min.apply(null, daily.temperature_2m_min || [0]);
-    var wmax = Math.max.apply(null, daily.temperature_2m_max || [1]);
-    var wspan = (wmax - wmin) || 1;
-    var step = [2, 5, 10, 20].filter(function(s) { return wspan / s <= 5; })[0] || 20;
-    var tickXs = [['0.0', Math.round(wmin)]];
-    for (var t = Math.ceil(wmin / step) * step; t <= wmax; t += step) {
-      var tx = (t - wmin) / wspan * 100;
-      if (tx > 7) tickXs.push([tx.toFixed(1), t]);
-    }
-    var grid = tickXs.map(function(tk) {
-      return '<span class="w-grid" style="left:' + tk[0] + '%"></span>';
-    }).join('');
-    for (var i = 0; i < dates.length; i++) {
-      var lo = daily.temperature_2m_min[i], hi = daily.temperature_2m_max[i];
-      var left = ((lo - wmin) / wspan * 100).toFixed(1), right = ((hi - wmin) / wspan * 100).toFixed(1);
-      var pp = (daily.precipitation_probability_max || [])[i];
-      week += '<div class="w-row">' +
-        '<span class="w-day">' + (i === 0 ? 'today' : dayName(dates[i])) + '</span>' +
-        icon(slugFor(daily.weather_code[i], 1), 'w-icon') +
-        '<span class="w-pp">' + (pp > 4 ? pp + '%' : '') + '</span>' +
-        '<span class="w-bar-track">' + grid +
-          '<span class="w-bar" style="left:' + left + '%;width:' + Math.max(3, right - left) +
-          '%;background:linear-gradient(90deg,' + tempColor(lo) + ',' + tempColor(hi) + ')"></span></span>' +
-        '<span class="w-lo">' + Math.round(lo) + '°</span>' +
-        '<span class="w-hi">' + Math.round(hi) + '°</span>' +
+  if (!locs.length) {
+    list.innerHTML = '<div class="empty" style="padding:24px 0">no places yet</div>';
+  } else {
+    list.innerHTML = locs.map(function(loc) {
+      var entry = wx[loc.name];
+      var cur = (entry && entry.resp && entry.resp.current) || {};
+      if (entry && entry.at) stamp = entry.at;
+      var code = cur.weather_code || 0;
+      return '<div class="l-row' + (loc.name === selected ? ' sel' : '') + '" data-loc="' + esc(loc.name) + '">' +
+        icon(slugFor(code, cur.is_day == null ? 1 : cur.is_day), 'l-icon') +
+        '<span><div class="l-name">' + esc(loc.name) + '</div>' +
+          '<div class="l-word">' + esc(WORDS[code] || '') + '</div></span>' +
+        '<span class="l-temp">' + (cur.temperature_2m != null ? Math.round(cur.temperature_2m) + '°' : '–') + '</span>' +
+        '<button class="l-del" data-del="' + esc(loc.name) + '">×</button>' +
         '</div>';
-    }
-    week += '<div class="w-row w-axis">' +
-      '<span></span><span></span><span></span>' +
-      '<span class="w-axis-track">' + tickXs.map(function(tk) {
-        return '<span class="w-tick" style="left:' + tk[0] + '%">' + tk[1] + '°</span>';
-      }).join('') + '</span>' +
-      '<span></span><span></span></div>';
-    var sr = hhmm((daily.sunrise || [])[0]), ss = hhmm((daily.sunset || [])[0]);
-    var uv = (daily.uv_index_max || [])[0];
-    return '<div class="card" style="background:' + colorFor(code) + '">' +
-      '<button class="c-del" data-del="' + esc(name) + '">×</button>' +
-      '<div class="c-top"><div class="c-left">' +
-        '<div class="c-name">' + esc(name) + '</div>' +
-        '<div class="c-temp">' + Math.round(cur.temperature_2m) + '°</div>' +
-        '<div class="c-word">' + esc(WORDS[code] || 'weather') + '</div>' +
-        '<div class="c-meta">feels ' + Math.round(cur.apparent_temperature) + '° · wind ' +
-          Math.round(cur.wind_speed_10m) + ' ' + (units === 'f' ? 'mph' : 'km/h') +
-          ' · humidity ' + esc(cur.relative_humidity_2m) + '%' +
-          '<br>sunrise ' + sr + ' · sunset ' + ss + (uv != null ? ' · uv ' + Math.round(uv) : '') + '</div>' +
-      '</div>' + icon(slugFor(code, cur.is_day), 'c-icon') + '</div>' +
-      '<div class="hourly">' + hourlyChart(hourly) + '</div>' +
-      '<div class="week">' + week + '</div>' +
-      '</div>';
-  }).join('');
+    }).join('');
+  }
   document.getElementById('stamp').textContent = stamp ? 'updated ' + stamp : '';
-  Array.prototype.forEach.call(box.querySelectorAll('.c-del'), function(b) {
-    b.onclick = function() {
+  Array.prototype.forEach.call(list.querySelectorAll('.l-row'), function(row) {
+    row.onclick = function() { select(row.getAttribute('data-loc')); };
+  });
+  Array.prototype.forEach.call(list.querySelectorAll('.l-del'), function(b) {
+    b.onclick = function(e) {
+      e.stopPropagation();
       fetch(API + '/del', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
@@ -213,8 +241,64 @@ function render(d) {
   });
 }
 
-// ── map view: OSM base + RainViewer radar + temp markers ──
-var map = null, mapOn = false, markers = [], radarFrames = [], radarIdx = -1, radarTimer = null;
+var spyMute = 0;
+function select(name) {
+  selected = name;
+  renderSide();
+  if (mode === 'forecast') {
+    var card = document.querySelector('.doc-card[data-loc="' + CSS.escape(name) + '"]');
+    if (card) {
+      spyMute = Date.now() + 800;
+      card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }
+  if (mode === 'map' && map && lastData) {
+    var loc = (lastData.locations || []).filter(function(l) { return l.name === name; })[0];
+    if (loc) map.flyTo({ center: [parseFloat(loc.lon), parseFloat(loc.lat)], zoom: 7 });
+  }
+}
+
+// ── forecast pane: all locations stacked, scrollable ──
+var lastDocsJson = '';
+function renderDocs() {
+  var doc = document.getElementById('doc');
+  var locs = (lastData && lastData.locations) || [];
+  if (!locs.length) {
+    doc.innerHTML = '<div class="empty">no places yet — add one in the sidebar</div>';
+    lastDocsJson = '';
+    return;
+  }
+  var wx = (lastData && lastData.weather) || {};
+  var json = JSON.stringify([units, locs, wx]);
+  if (json === lastDocsJson) return;
+  lastDocsJson = json;
+  var pane = document.getElementById('pane-forecast');
+  var keep = pane.scrollTop;
+  doc.innerHTML = locs.map(function(loc) {
+    return '<div class="doc-card" data-loc="' + esc(loc.name) + '">' +
+      buildCard(loc.name, wx[loc.name]) + '</div>';
+  }).join('');
+  pane.scrollTop = keep;
+}
+
+// scroll-spy: sidebar highlight follows whichever card is at the top
+document.getElementById('pane-forecast').addEventListener('scroll', function() {
+  if (mode !== 'forecast' || Date.now() < spyMute) return;
+  var pane = this;
+  var cards = pane.querySelectorAll('.doc-card');
+  var best = null, bestD = Infinity;
+  Array.prototype.forEach.call(cards, function(c) {
+    var d = Math.abs(c.getBoundingClientRect().top - pane.getBoundingClientRect().top - 20);
+    if (d < bestD) { bestD = d; best = c; }
+  });
+  if (best && best.getAttribute('data-loc') !== selected) {
+    selected = best.getAttribute('data-loc');
+    renderSide();
+  }
+});
+
+// ── map pane: OSM base + RainViewer radar + temp markers ──
+var map = null, markers = [], radarFrames = [], radarIdx = -1, radarTimer = null;
 function initMap() {
   if (map) return;
   map = new maplibregl.Map({
@@ -292,6 +376,7 @@ function renderMarkers() {
     var el = document.createElement('div');
     el.className = 't-chip';
     el.textContent = (cur.temperature_2m != null ? Math.round(cur.temperature_2m) + '° ' : '') + loc.name;
+    el.onclick = function() { select(loc.name); };
     var lngLat = [parseFloat(loc.lon), parseFloat(loc.lat)];
     markers.push(new maplibregl.Marker({ element: el }).setLngLat(lngLat).addTo(map));
     bounds.push(lngLat);
@@ -303,15 +388,23 @@ function renderMarkers() {
     map.fitBounds(b, { padding: 60, maxZoom: 7 });
   }
 }
-document.getElementById('view-map').onclick = function() {
-  mapOn = !mapOn;
-  this.classList.toggle('active', mapOn);
-  document.getElementById('map-wrap').style.display = mapOn ? 'block' : 'none';
-  if (mapOn) {
+
+// ── mode tabs: forecast (document) vs map (canvas, kept alive) ──
+function setMode(m) {
+  mode = m;
+  Array.prototype.forEach.call(document.querySelectorAll('.mode'), function(b) {
+    b.classList.toggle('active', b.getAttribute('data-mode') === m);
+  });
+  document.getElementById('pane-forecast').style.display = m === 'forecast' ? 'block' : 'none';
+  document.getElementById('pane-map').style.display = m === 'map' ? 'block' : 'none';
+  if (m === 'map') {
     initMap();
     setTimeout(function() { map.resize(); renderMarkers(); }, 60);
   }
-};
+}
+Array.prototype.forEach.call(document.querySelectorAll('.mode'), function(b) {
+  b.onclick = function() { setMode(b.getAttribute('data-mode')); };
+});
 
 // ── controls ──
 function add() {
@@ -325,6 +418,7 @@ function add() {
   }).then(function(r) {
     if (!r.ok) { alert('place not found'); return; }
     inp.value = '';
+    selected = name;
     setTimeout(load, 1500);
     setTimeout(load, 4000);
   });
