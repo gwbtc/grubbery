@@ -30,9 +30,10 @@
     .l-row:hover { background: #f0f3f7; }
     .l-row.sel { background: #e4edf8; }
     .l-icon { width: 30px; height: 30px; }
+    .l-row > span { min-width: 0; }
     .l-name { font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .l-word { font-size: 11px; color: #778; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .l-temp { font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .l-temp { font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; min-width: 38px; text-align: right; }
     .l-acts { display: flex; }
     .l-del, .l-move { border: none; background: none; color: #aab; font-size: 14px; cursor: pointer; border-radius: 6px; padding: 2px 6px; visibility: hidden; }
     .l-row:hover .l-del, .l-row:hover .l-move, .l-row.moving .l-move { visibility: visible; }
@@ -44,6 +45,10 @@
     #add-row { display: flex; gap: 6px; padding: 10px; border-top: 1px solid #eef1f5; }
     #add-name { flex: 1; min-width: 0; font-size: 13px; padding: 8px 10px; border: 1px solid #ddd; border-radius: 8px; font-family: inherit; outline: none; }
     #add-name:focus { border-color: #4a90d9; box-shadow: 0 0 0 3px rgba(74,144,217,0.15); }
+    #add-picks { display: none; border-top: 1px solid #eef1f5; max-height: 220px; overflow-y: auto; }
+    .pick { padding: 8px 12px; font-size: 13px; cursor: pointer; }
+    .pick:hover { background: #f0f6fc; }
+    .pick .pick-sub { color: #8a94a6; font-size: 11px; }
 
     #main { flex: 1; position: relative; min-width: 0; }
     #pane-forecast { position: absolute; inset: 0; overflow-y: auto; padding: 20px; }
@@ -99,6 +104,7 @@
       <div id="modes">
         <button class="mode active" data-mode="forecast">forecast</button>
         <button class="mode" data-mode="map">map</button>
+        <button class="mode" data-mode="globe">globe</button>
       </div>
       <span class="flex"></span>
       <span id="stamp"></span>
@@ -112,6 +118,7 @@
           <input id="add-name" type="text" placeholder="add a city">
           <button class="btn primary" id="add-btn">+</button>
         </div>
+        <div id="add-picks"></div>
       </div>
       <div id="main">
         <div id="pane-forecast"><div id="doc"></div></div>

@@ -401,6 +401,25 @@ function initGlobe() {
   });
   gmap.addControl(new maplibregl.NavigationControl(), 'top-right');
   gmap.on('style.load', function() { gmap.setProjection({ type: 'globe' }); });
+  gmap.on('move', cullGlobeFar);
+}
+// pins are DOM elements over the canvas, so the sphere doesn't
+// occlude them — hide any pin past the horizon (a hair under 90° of
+// great-circle distance from the view center)
+function cullGlobeFar() {
+  if (!gmap) return;
+  var c = gmap.getCenter();
+  gmarkers.forEach(function(m) {
+    var p = m.getLngLat();
+    m.getElement().style.visibility =
+      (gcDist(c.lat, c.lng, p.lat, p.lng) > 85) ? 'hidden' : '';
+  });
+}
+function gcDist(lat1, lon1, lat2, lon2) {
+  var r = Math.PI / 180;
+  var a = Math.sin((lat2 - lat1) * r / 2), b = Math.sin((lon2 - lon1) * r / 2);
+  var h = a * a + Math.cos(lat1 * r) * Math.cos(lat2 * r) * b * b;
+  return 2 * Math.asin(Math.sqrt(h)) / r;
 }
 
 function renderGlobe() {
@@ -419,6 +438,7 @@ function renderGlobe() {
       el.onclick = function(e) { e.stopPropagation(); openPinForm(id); };
       gmarkers.push(new maplibregl.Marker({ element: el }).setLngLat([p.lng, p.lat]).addTo(gmap));
     });
+  cullGlobeFar();
 }
 
 function resizeGlobe() {

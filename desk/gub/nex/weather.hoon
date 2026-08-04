@@ -130,7 +130,15 @@
             ?:  =('' name)
               ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'name required')])
               (pure:m ~)
-            ;<  loc=(unit json)  bind:m  (geocode name)
+            ::  a picked candidate arrives with its coordinates; a
+            ::  bare name geocodes to the first hit as before
+            =/  lat=@t  (jstr jon 'lat')
+            =/  lon=@t  (jstr jon 'lon')
+            ;<  loc=(unit json)  bind:m
+              ?:  |(=('' lat) =('' lon))  (geocode name)
+              %-  pure:(fiber:fiber:nexus ,(unit json))
+              %-  some
+              (pairs:enjs:format ~[['name' s+name] ['lat' s+lat] ['lon' s+lon]])
             ?~  loc
               ;<  ~  bind:m  (send-simple:srv eyre-id [[404 ~] `(as-octs:mimes:html 'place not found')])
               (pure:m ~)
@@ -138,6 +146,18 @@
             ;<  ~  bind:m  (write-config rail units (snoc locs u.loc))
             ;<  ~  bind:m  (poke-supervisor rail)
             ;<  ~  bind:m  (send-simple:srv eyre-id [[200 ~] `(as-octs:mimes:html 'added')])
+            (pure:m ~)
+              ::  search: geocode candidates for the add picker —
+              ::  many cities share a name (see: Portland)
+              [%search ~]
+            =/  q=@t  (jstr jon 'q')
+            ?:  =('' q)
+              ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'q required')])
+              (pure:m ~)
+            ;<  hits=(list json)  bind:m  (geocode-search q)
+            =/  bod=octs  (as-octs:mimes:html (en:json:html a+hits))
+            ;<  ~  bind:m
+              (send-simple:srv eyre-id [[200 ['content-type' 'application/json'] ~] `bod])
             (pure:m ~)
               [%del ~]
             =/  name=@t  (jstr jon 'name')
@@ -463,12 +483,13 @@
   ?:  (gte 320 d)
     (crip ((d-co:co 1) (div (add (sub 320 d) 5) 10)))
   (crip ['-' ((d-co:co 1) (div (add (sub d 320) 5) 10))])
-::  +geocode: place name -> {name, lat, lon} via open-meteo, taking
-::  the first match. lat/lon keep the API's number literals as text.
+::  +geocode-search: place name -> candidate list via open-meteo,
+::  each {name, admin1, country, lat, lon}. lat/lon keep the API's
+::  number literals as text. The picker disambiguates the Portlands.
 ::
-++  geocode
+++  geocode-search
   |=  name=@t
-  =/  m  (fiber:fiber:nexus ,(unit json))
+  =/  m  (fiber:fiber:nexus ,(list json))
   ^-  form:m
   ::  double-encoded: vere's cttp.c decodes %XX when parsing the url
   ::  but doesn't re-encode when serializing the request, so a single
@@ -480,7 +501,7 @@
     |=(c=@tD ?:(=('%' c) "%25" (trip c)))
   =/  url=@t
     %+  rap  3
-    :~  'https://geocoding-api.open-meteo.com/v1/search?count=1&name='
+    :~  'https://geocoding-api.open-meteo.com/v1/search?count=8&name='
         (crip enc)
     ==
   ;<  bod=(unit @t)  bind:m  (fetch url)
@@ -488,18 +509,38 @@
   =/  jon=(unit json)  (de:json:html u.bod)
   ?.  ?&(?=(^ jon) ?=(%o -.u.jon))  (pure:m ~)
   =/  results  (~(get by p.u.jon) 'results')
-  ?.  ?&(?=(^ results) ?=(%a -.u.results) ?=(^ p.u.results))  (pure:m ~)
-  =/  hit=json  i.p.u.results
+  ?.  ?&(?=(^ results) ?=(%a -.u.results))  (pure:m ~)
+  %-  pure:m
+  %+  murn  p.u.results
+  |=  hit=json
+  ^-  (unit json)
   =/  found=@t  (jstr hit 'name')
   =/  lat=@t  (jnumt hit 'latitude')
   =/  lon=@t  (jnumt hit 'longitude')
-  ?:  |(=('' lat) =('' lon))  (pure:m ~)
+  ?:  |(=('' found) =('' lat) =('' lon))  ~
+  %-  some
+  %-  pairs:enjs:format
+  :~  ['name' s+found]
+      ['admin1' s+(jstr hit 'admin1')]
+      ['country' s+(jstr hit 'country')]
+      ['lat' s+lat]
+      ['lon' s+lon]
+  ==
+::  +geocode: first search hit in config-location shape — the
+::  fallback for bare-name adds
+::
+++  geocode
+  |=  name=@t
+  =/  m  (fiber:fiber:nexus ,(unit json))
+  ^-  form:m
+  ;<  hits=(list json)  bind:m  (geocode-search name)
+  ?~  hits  (pure:m ~)
   %-  pure:m
   %-  some
   %-  pairs:enjs:format
-  :~  ['name' s+?:(=('' found) name found)]
-      ['lat' s+lat]
-      ['lon' s+lon]
+  :~  ['name' s+(jstr i.hits 'name')]
+      ['lat' s+(jstr i.hits 'lat')]
+      ['lon' s+(jstr i.hits 'lon')]
   ==
 ::  always metric; units are applied at render time
 ::

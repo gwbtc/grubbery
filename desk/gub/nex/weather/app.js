@@ -240,10 +240,14 @@ function renderSide() {
       var cur = (entry && entry.resp && entry.resp.current) || {};
       if (entry && entry.at) stamp = entry.at;
       var code = cur.weather_code || 0;
+      // rows show the bare city; the qualified name ("Portland,
+      // Oregon") stays the stored identity and surfaces as a tooltip
+      var short = loc.name.split(',')[0];
       return '<div class="l-row' + (loc.name === selected ? ' sel' : '') +
-        (loc.name === movingLoc ? ' moving' : '') + '" data-loc="' + esc(loc.name) + '">' +
+        (loc.name === movingLoc ? ' moving' : '') + '" data-loc="' + esc(loc.name) +
+        '" title="' + esc(loc.name) + '">' +
         icon(slugFor(code, cur.is_day == null ? 1 : cur.is_day), 'l-icon') +
-        '<span><div class="l-name">' + esc(loc.name) + '</div>' +
+        '<span><div class="l-name">' + esc(short) + '</div>' +
           '<div class="l-word">' + esc(WORDS[code] || '') + '</div></span>' +
         '<span class="l-temp">' + (cur.temperature_2m != null ? Math.round(dT(cur.temperature_2m)) + '°' : '–') + '</span>' +
         '<span class="l-acts">' +
@@ -397,7 +401,16 @@ function initMap() {
     zoom: 3
   });
   map.addControl(new maplibregl.NavigationControl(), 'top-right');
+  // map and globe tabs share this one live map; the tab picks the
+  // projection (mercator = whole world at once, globe = the sphere)
+  map.on('style.load', function() { syncProjection(); });
   map.on('load', loadRadar);
+  map.on('move', cullFarSide);
+}
+function syncProjection() {
+  if (!map) return;
+  map.setProjection({ type: mode === 'globe' ? 'globe' : 'mercator' });
+  cullFarSide();
 }
 function loadRadar() {
   fetch('https://api.rainviewer.com/public/weather-maps.json')
@@ -449,7 +462,9 @@ function renderMarkers() {
     var cur = (entry && entry.resp && entry.resp.current) || {};
     var el = document.createElement('div');
     el.className = 't-chip';
-    el.textContent = (cur.temperature_2m != null ? Math.round(dT(cur.temperature_2m)) + '° ' : '') + loc.name;
+    // bare city on the chip — on a map, the position is the "which one"
+    el.textContent = (cur.temperature_2m != null ? Math.round(dT(cur.temperature_2m)) + '° ' : '') + loc.name.split(',')[0];
+    el.title = loc.name;
     el.onclick = function() { select(loc.name); };
     var lngLat = [parseFloat(loc.lon), parseFloat(loc.lat)];
     markers.push(new maplibregl.Marker({ element: el }).setLngLat(lngLat).addTo(map));
@@ -461,6 +476,27 @@ function renderMarkers() {
       new maplibregl.LngLatBounds(bounds[0], bounds[0]));
     map.fitBounds(b, { padding: 60, maxZoom: 7 });
   }
+  cullFarSide();
+}
+// chips are DOM elements over the canvas, so the sphere doesn't
+// occlude them — hide any marker past the horizon (a hair under 90°
+// of great-circle distance from the view center) while on the globe
+function cullFarSide() {
+  if (!map) return;
+  var globe = mode === 'globe';
+  var c = map.getCenter();
+  markers.forEach(function(m) {
+    var el = m.getElement();
+    if (!globe) { el.style.visibility = ''; return; }
+    var p = m.getLngLat();
+    el.style.visibility = angDist(c.lat, c.lng, p.lat, p.lng) > 85 ? 'hidden' : '';
+  });
+}
+function angDist(lat1, lon1, lat2, lon2) {
+  var r = Math.PI / 180;
+  var a = Math.sin((lat2 - lat1) * r / 2), b = Math.sin((lon2 - lon1) * r / 2);
+  var h = a * a + Math.cos(lat1 * r) * Math.cos(lat2 * r) * b * b;
+  return 2 * Math.asin(Math.sqrt(h)) / r;
 }
 
 // ── mode tabs: forecast (document) vs map (canvas, kept alive) ──
@@ -470,9 +506,10 @@ function setMode(m) {
     b.classList.toggle('active', b.getAttribute('data-mode') === m);
   });
   document.getElementById('pane-forecast').style.display = m === 'forecast' ? 'block' : 'none';
-  document.getElementById('pane-map').style.display = m === 'map' ? 'block' : 'none';
-  if (m === 'map') {
+  document.getElementById('pane-map').style.display = (m === 'map' || m === 'globe') ? 'block' : 'none';
+  if (m === 'map' || m === 'globe') {
     initMap();
+    syncProjection();
     setTimeout(function() { map.resize(); renderMarkers(); }, 60);
   }
 }
@@ -481,16 +518,52 @@ Array.prototype.forEach.call(document.querySelectorAll('.mode'), function(b) {
 });
 
 // ── controls ──
+// adding is search-then-pick: many cities share a name (see:
+// Portland), so the submit shows candidates and the pick — with its
+// admin1 folded into the stored name — is what gets added
 function add() {
   var inp = document.getElementById('add-name');
-  var name = inp.value.trim();
-  if (!name) return;
+  var q = inp.value.trim();
+  if (!q) return;
+  fetch(API + '/search', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ q: q })
+  }).then(function(r) { return r.ok ? r.json() : []; }).then(function(hits) {
+    if (!hits || !hits.length) { alert('place not found'); return; }
+    if (hits.length === 1) { doAdd(hits[0]); return; }
+    showPicks(hits);
+  });
+}
+function showPicks(hits) {
+  var box = document.getElementById('add-picks');
+  box.innerHTML = '';
+  hits.forEach(function(h) {
+    var row = document.createElement('div');
+    row.className = 'pick';
+    var sub = [h.admin1, h.country].filter(Boolean).join(', ');
+    row.textContent = h.name + ' ';
+    if (sub) {
+      var s = document.createElement('span');
+      s.className = 'pick-sub';
+      s.textContent = sub;
+      row.appendChild(s);
+    }
+    row.onclick = function() { doAdd(h); };
+    box.appendChild(row);
+  });
+  box.style.display = 'block';
+}
+function doAdd(h) {
+  var inp = document.getElementById('add-name');
+  var name = h.admin1 ? h.name + ', ' + h.admin1 : h.name;
+  document.getElementById('add-picks').style.display = 'none';
   fetch(API + '/add', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ name: name })
+    body: JSON.stringify({ name: name, lat: h.lat, lon: h.lon })
   }).then(function(r) {
-    if (!r.ok) { alert('place not found'); return; }
+    if (!r.ok) { alert('add failed'); return; }
     inp.value = '';
     selected = name;
     setTimeout(load, 1500);
@@ -500,6 +573,9 @@ function add() {
 document.getElementById('add-btn').onclick = add;
 document.getElementById('add-name').addEventListener('keydown', function(e) {
   if (e.key === 'Enter') add();
+});
+document.getElementById('add-name').addEventListener('input', function() {
+  document.getElementById('add-picks').style.display = 'none';
 });
 // data is metric either way — the toggle is a pure re-render plus a
 // config write so the preference (and the shell tile) persists
