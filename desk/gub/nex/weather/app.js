@@ -49,6 +49,9 @@ function tempColor(t) {
   if (c <= 26) return '#ffb14e';
   return '#ff7e5a';
 }
+// data is always metric; units are applied here, at render time
+function dT(t) { return units === 'f' ? t * 9 / 5 + 32 : t; }
+function dW(s) { return units === 'f' ? s * 0.621371 : s; }
 function esc(s) {
   var d = document.createElement('div');
   d.textContent = (s == null) ? '' : String(s);
@@ -77,7 +80,7 @@ function hourlyChart(hourly) {
   }
   var T = [], P = [], L = [];
   for (var i = start; i < Math.min(start + 24, times.length); i++) {
-    T.push(temps[i]); P.push(probs[i] || 0); L.push(times[i].slice(11, 13));
+    T.push(dT(temps[i])); P.push(probs[i] || 0); L.push(times[i].slice(11, 13));
   }
   if (!T.length) return '';
   var W = 700, H = 120, top = 16, bottom = 34;
@@ -126,8 +129,10 @@ function buildCard(name, entry) {
     '<span class="w-hi">high</span>' +
     '</div>';
   var dates = daily.time || [];
-  var wmin = Math.min.apply(null, daily.temperature_2m_min || [0]);
-  var wmax = Math.max.apply(null, daily.temperature_2m_max || [1]);
+  var lows = (daily.temperature_2m_min || [0]).map(dT);
+  var highs = (daily.temperature_2m_max || [1]).map(dT);
+  var wmin = Math.min.apply(null, lows);
+  var wmax = Math.max.apply(null, highs);
   var wspan = (wmax - wmin) || 1;
   var step = [2, 5, 10, 20].filter(function(s) { return wspan / s <= 5; })[0] || 20;
   var tickXs = [['0.0', Math.round(wmin)]];
@@ -140,7 +145,7 @@ function buildCard(name, entry) {
     return '<span class="w-grid" style="left:' + tk[0] + '%"></span>';
   }).join('');
   for (var i = 0; i < dates.length; i++) {
-    var lo = daily.temperature_2m_min[i], hi = daily.temperature_2m_max[i];
+    var lo = lows[i], hi = highs[i];
     var left = ((lo - wmin) / wspan * 100).toFixed(1), right = ((hi - wmin) / wspan * 100).toFixed(1);
     var pp = (daily.precipitation_probability_max || [])[i];
     week += '<div class="w-row">' +
@@ -165,10 +170,10 @@ function buildCard(name, entry) {
   return '<div class="card" style="background:' + colorFor(code) + '">' +
     '<div class="c-top"><div class="c-left">' +
       '<div class="c-name">' + esc(name) + '</div>' +
-      '<div class="c-temp">' + Math.round(cur.temperature_2m) + '°</div>' +
+      '<div class="c-temp">' + Math.round(dT(cur.temperature_2m)) + '°</div>' +
       '<div class="c-word">' + esc(WORDS[code] || 'weather') + '</div>' +
-      '<div class="c-meta">feels ' + Math.round(cur.apparent_temperature) + '° · wind ' +
-        Math.round(cur.wind_speed_10m) + ' ' + (units === 'f' ? 'mph' : 'km/h') +
+      '<div class="c-meta">feels ' + Math.round(dT(cur.apparent_temperature)) + '° · wind ' +
+        Math.round(dW(cur.wind_speed_10m)) + ' ' + (units === 'f' ? 'mph' : 'km/h') +
         ' · humidity ' + esc(cur.relative_humidity_2m) + '%' +
         '<br>sunrise ' + sr + ' · sunset ' + ss + (uv != null ? ' · uv ' + Math.round(uv) : '') + '</div>' +
     '</div>' + icon(slugFor(code, cur.is_day), 'c-icon') + '</div>' +
@@ -186,7 +191,7 @@ var mode = 'forecast';
 function load() {
   fetch(API + '/data').then(function(r) { return r.json(); }).then(function(d) {
     lastData = d;
-    units = d.units || 'c';
+    if (Date.now() - unitsTouched > 5000) units = d.units || 'c';
     document.getElementById('unit-toggle').textContent = units === 'f' ? '°F' : '°C';
     var locs = d.locations || [];
     if (!selected || !locs.some(function(l) { return l.name === selected; })) {
@@ -200,8 +205,20 @@ function load() {
     renderSide();
     renderDocs();
     if (map) renderMarkers();
+    // a city with no forecast yet means a fetch sweep is in flight —
+    // poll fast until it lands instead of waiting out the 60s baseline
+    var wx = d.weather || {};
+    if (locs.some(function(l) { return !wx[l.name]; })) {
+      if (pendingTries++ < 30) {
+        clearTimeout(pendingTimer);
+        pendingTimer = setTimeout(load, 2000);
+      }
+    } else {
+      pendingTries = 0;
+    }
   });
 }
+var pendingTimer = null, pendingTries = 0;
 
 // ── sidebar: the location collection (owns add + delete + order) ──
 // move mode: click ⇅ on a row, the slots between rows become click
@@ -228,7 +245,7 @@ function renderSide() {
         icon(slugFor(code, cur.is_day == null ? 1 : cur.is_day), 'l-icon') +
         '<span><div class="l-name">' + esc(loc.name) + '</div>' +
           '<div class="l-word">' + esc(WORDS[code] || '') + '</div></span>' +
-        '<span class="l-temp">' + (cur.temperature_2m != null ? Math.round(cur.temperature_2m) + '°' : '–') + '</span>' +
+        '<span class="l-temp">' + (cur.temperature_2m != null ? Math.round(dT(cur.temperature_2m)) + '°' : '–') + '</span>' +
         '<span class="l-acts">' +
           (locs.length > 1 ? '<button class="l-move" data-move="' + esc(loc.name) + '" title="move">⇅</button>' : '') +
           '<button class="l-del" data-del="' + esc(loc.name) + '">×</button></span>' +
@@ -432,7 +449,7 @@ function renderMarkers() {
     var cur = (entry && entry.resp && entry.resp.current) || {};
     var el = document.createElement('div');
     el.className = 't-chip';
-    el.textContent = (cur.temperature_2m != null ? Math.round(cur.temperature_2m) + '° ' : '') + loc.name;
+    el.textContent = (cur.temperature_2m != null ? Math.round(dT(cur.temperature_2m)) + '° ' : '') + loc.name;
     el.onclick = function() { select(loc.name); };
     var lngLat = [parseFloat(loc.lon), parseFloat(loc.lat)];
     markers.push(new maplibregl.Marker({ element: el }).setLngLat(lngLat).addTo(map));
@@ -484,14 +501,21 @@ document.getElementById('add-btn').onclick = add;
 document.getElementById('add-name').addEventListener('keydown', function(e) {
   if (e.key === 'Enter') add();
 });
+// data is metric either way — the toggle is a pure re-render plus a
+// config write so the preference (and the shell tile) persists
+var unitsTouched = 0;
 document.getElementById('unit-toggle').onclick = function() {
+  unitsTouched = Date.now();
+  units = units === 'f' ? 'c' : 'f';
+  this.textContent = units === 'f' ? '°F' : '°C';
+  lastDocsJson = '';
+  renderSide();
+  renderDocs();
+  if (map) renderMarkers();
   fetch(API + '/units', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ units: units === 'f' ? 'c' : 'f' })
-  }).then(function() {
-    setTimeout(load, 1500);
-    setTimeout(load, 4000);
+    body: JSON.stringify({ units: units })
   });
 };
 document.getElementById('refresh').onclick = function() {
