@@ -154,31 +154,51 @@
   ;<  next=wave:nexus  bind:m  (take-news:io /src)
   ;<  ~  bind:m  (sync-changes src-path prev next)
   $(prev next)
-::  +sync-changes: peek each changed remote entry and mirror it. Only
-::  /log and /aware lanes are data; the doc root holds sig grubs that
-::  must not be copied (a mirrored sig would spawn its fiber here).
+::  +sync-changes: mirror the changed remote entries. Only /log and
+::  /aware lanes are data; the doc root holds sig grubs that must not
+::  be copied (a mirrored sig would spawn its fiber here). One deep
+::  peek of the doc dir serves every changed lane — a single snap
+::  negotiation per wave instead of a round trip per entry.
 ::
 ++  sync-changes
   |=  [src-path=path prev=wave:nexus cur=wave:nexus]
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
-  =/  lanes=(list [=lane:tarball =cass:clay])  ~(tap by (diff-wave:nexus prev cur))
+  =/  changed=(list [=rail:tarball =cass:clay])
+    %+  murn  ~(tap by (diff-wave:nexus prev cur))
+    |=  [=lane:tarball =cass:clay]
+    ^-  (unit [rail:tarball cass:clay])
+    ?.  ?=(%& -.lane)  ~
+    ?.  ?|  ?=([%log *] path.p.lane)
+            ?=([%aware *] path.p.lane)
+        ==
+      ~
+    `[p.lane cass]
+  ?~  changed  (pure:m ~)
+  ;<  =view:nexus  bind:m  (peek:io [%& %| src-path] ~)
+  ?.  ?=([%ball *] view)  (pure:m ~)
+  =/  todo=(list [=rail:tarball =cass:clay])  changed
   |-
-  ?~  lanes  (pure:m ~)
-  =/  =lane:tarball  lane.i.lanes
-  ?:  ?=(%| -.lane)  $(lanes t.lanes)
-  ?.  ?|  ?=([%log *] path.p.lane)
-          ?=([%aware *] path.p.lane)
-      ==
-    $(lanes t.lanes)
-  =/  src=road:tarball  [%& %& (weld src-path path.p.lane) name.p.lane]
-  =/  dest=road:tarball  [%| 0 %& path.p.lane name.p.lane]
-  ;<  =view:nexus  bind:m  (peek:io src ~)
-  ?.  ?=([%file *] view)
+  ?~  todo  (pure:m ~)
+  =/  =rail:tarball  rail.i.todo
+  =/  dest=road:tarball  [%| 0 %& path.rail name.rail]
+  =/  fil=(unit sang:tarball)  (ball-file ball.view rail)
+  ?~  fil
     ;<  *  bind:m  (cull-soft:io dest)
-    $(lanes t.lanes)
-  ;<  ~  bind:m  (over:io dest [p.sang.view (sang-noun:tarball sang.view)])
-  $(lanes t.lanes)
+    $(todo t.todo)
+  ;<  ~  bind:m  (over:io dest [p.u.fil (sang-noun:tarball u.fil)])
+  $(todo t.todo)
+::  +ball-file: the sang at a rail inside a peeked ball, if present
+::
+++  ball-file
+  |=  [b=ball:tarball =rail:tarball]
+  ^-  (unit sang:tarball)
+  =/  sub=(unit ball:tarball)  (~(dap ba:tarball b) path.rail)
+  ?~  sub  ~
+  ?~  fil.u.sub  ~
+  =/  ent  (~(get by contents.u.fil.u.sub) name.rail)
+  ?~  ent  ~
+  `sang.u.ent
 ::  +serve: route one HTTP request
 ::
 ++  serve
@@ -288,7 +308,9 @@
     =/  hostta=@ta  (scot %p u.host)
     [%& %& :(weld /sys/ames/ships/[hostta]/root nex-dir /docs/[doc-ta]) target]
   ;<  err=(unit tang)  bind:m  (poke-road-soft:io sig [[/ %txt] `wain`~[u.blob]])
-  ?^  err  (reply eyre-id 502 'Delivery failed')
+  ?^  err
+    =/  why=tape  ?~(u.err "no detail" ~(ram re i.u.err))
+    (reply eyre-id 502 (crip "Delivery failed: {why}"))
   (reply eyre-id 200 'OK')
 ::  +create-doc: dirs plus the two sequencer sigs. Idempotent — every
 ::  step is exists-guarded or soft, so calling it on an existing doc

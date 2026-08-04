@@ -1187,7 +1187,11 @@
   ::
   +$  transfer
     $:  =wire
-        $%  [%snap dest=lane:tarball snap-id=@uvJ snap=(unit snap)]
+        ::  %snap's data field carries the content inline when the
+        ::  server judged it cheaper to send than to negotiate — the
+        ::  receiver merges it on arrival and skips the want/data
+        ::  legs. Wire-only: inline data is never stored in a peek.
+        $%  [%snap dest=lane:tarball snap-id=@uvJ snap=(unit snap) data=(unit silo)]
             [%veto dest=lane:tarball]
             [%want dest=lane:tarball snap-id=@uvJ]
             [%data =silo]

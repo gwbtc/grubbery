@@ -213,7 +213,7 @@
     :: easy-to-reach-from-dojo utilities
     ::
       %noun
-    =/  cmd  !<(@tas vase)
+    =/  cmd  ;;(@tas q.vase)
     ?>  =(src.bowl our.bowl)
     ?+  cmd  ~|(%unknown-noun-poke !!)
       :: Force a reload of the root nexus (reboot the whole namespace)
@@ -228,6 +228,15 @@
       ~&  >  %grubbery-revalidate
       =^  cards  state
         abet:revalidate-all:hc
+      [cards this]
+      :: Tomb every audit-damaged version in place (see +repair-silo).
+      :: Explicitly triggered only — corruption stays loud until a
+      :: human asks for the cleanup.
+      ::
+        %silo-repair
+      ~&  >  %grubbery-silo-repair
+      =^  cards  state
+        abet:repair-silo:hc
       [cards this]
     ==
   ==
@@ -304,6 +313,13 @@
       [%x %peek %subs ~]
     ::  Internal subscriptions
     ``subs+!>(subs)
+    ::
+      [%x %peek %audit ~]
+    ::  Silo audit: every referenced-but-absent lobe, rendered as
+    ::  text lines (see +audit-silo / +audit-render)
+    =/  hits  audit-silo:hc
+    ~&  >  [%audit-hits (lent hits)]
+    ``txt+!>(`wain`(audit-render:hc hits))
   ==
 ::
 ++  on-agent
@@ -495,6 +511,157 @@
   %+  roll  ~(tap in nouns.refs)
   |=  [=nobe:nexus s=_silo]
   (~(drop si:nexus s) nobe)
+::  +audit-silo: report every version whose content is not fully
+::  present in the silo — the landmines left by refcount bugs, each a
+::  read that will boom when touched. Read-only by design: repair is
+::  a separate, explicitly-triggered pass, because corruption from a
+::  bug should stay loud until a human has seen it.
+::
+::  No tree traversal (per Thomas): content-addressing gives an
+::  induction — a version's closure is fully present iff its root
+::  ject is present and no present ject anywhere references anything
+::  absent or broken. So: one flat pass over the silo finds broken
+::  jects, a small fixpoint propagates brokenness upward, and each
+::  hist entry is then a single lookup against that set.
+::
+++  audit-silo
+  ^-  (list [pax=path name=(unit @ta) =cass:clay latest=? kind=?(%ject %noun) lobe=@])
+  =/  broken=(set jobe:nexus)  broken-jects
+  =/  hits=(list [pax=path name=(unit @ta) =cass:clay latest=? kind=?(%ject %noun) lobe=@])  ~
+  =/  nodes=(list [pax=path node=_born])  [[/ born] ~]
+  |-  ^+  hits
+  ?~  nodes  hits
+  =/  [pax=path node=_born]  i.nodes
+  =/  more=(list [pax=path node=_born])
+    %+  weld  t.nodes
+    (turn ~(tap by dir.node) |=([k=@ta n=_born] [(snoc pax k) n]))
+  ?~  fil.node  $(nodes more)
+  =/  jobs=(list [name=(unit @ta) sk=hist:nexus])
+    :-  [~ fold.u.fil.node]
+    (turn ~(tap by file.u.fil.node) |=([n=@ta sk=hist:nexus] [`n sk]))
+  |-  ^+  hits
+  ?~  jobs  ^$(nodes more)
+  =/  [name=(unit @ta) sk=hist:nexus]  i.jobs
+  =/  top=(unit cass:clay)  (top:hist:nexus sk)
+  =/  entries=(list [key=cass:clay val=entry:hist:nexus])  (tap:hon:hist:nexus sk)
+  |-  ^+  hits
+  ?~  entries  ^$(jobs t.jobs)
+  =/  [key=cass:clay val=entry:hist:nexus]  i.entries
+  ?:  ?=(%tomb -.pace.val)  $(entries t.entries)
+  ?~  p.pace.val  $(entries t.entries)
+  =/  root=jobe:nexus  u.p.pace.val
+  =/  absent=?  !(~(has by jects.silo) root)
+  ?.  |(absent (~(has in broken) root))
+    $(entries t.entries)
+  =/  latest=?  =(`key top)
+  $(entries t.entries, hits [[pax name key latest %ject `@`root] hits])
+::  +broken-jects: every present ject whose closure is incomplete.
+::  Seed: jects with an absent immediate reference (leaf noun or tree
+::  child). Fixpoint: jects referencing a broken ject are broken.
+::  Rounds bound = damage-chain depth.
+::
+++  broken-jects
+  ^-  (set jobe:nexus)
+  =/  broken=(set jobe:nexus)  ~
+  |-
+  =/  next=(set jobe:nexus)
+    %+  roll  ~(tap by jects.silo)
+    |=  [[j=jobe:nexus jot=[refs=@ud =ject:nexus]] acc=_broken]
+    ?:  (~(has in acc) j)  acc
+    =/  bad=?
+      ?-    -.ject.jot
+          %leaf
+        !(~(has by nouns.silo) lobe.leaf.ject.jot)
+          %tree
+        =/  kids=(list jobe:nexus)
+          %+  weld
+            (turn ~(val by fil.tree.ject.jot) |=(x=jobe:nexus x))
+          (turn ~(val by dir.tree.ject.jot) |=([x=jobe:nexus *] x))
+        %+  lien  kids
+        |=  k=jobe:nexus
+        |(!(~(has by jects.silo) k) (~(has in broken) k))
+      ==
+    ?.(bad acc (~(put in acc) j))
+  ?:  =(~(wyt in next) ~(wyt in broken))  broken
+  $(broken next)
+::  +audit-render: one text line per audit hit, count first
+::
+++  audit-render
+  |=  hits=(list [pax=path name=(unit @ta) =cass:clay latest=? kind=?(%ject %noun) lobe=@])
+  ^-  wain
+  :-  (crip "{(a-co:co (lent hits))} referenced-but-absent lobes")
+  %+  turn  hits
+  |=  h=[pax=path name=(unit @ta) =cass:clay latest=? kind=?(%ject %noun) lobe=@]
+  =/  fil=tape  (spud ?~(name.h pax.h (snoc pax.h u.name.h)))
+  =/  ver=tape  (a-co:co ud.cass.h)
+  =/  lob=tape  (scow %uv lobe.h)
+  (crip "{fil}  v{ver}{?:(latest.h "  LATEST" "")}  %{(trip kind.h)}  {lob}")
+::  +repair-silo: tomb every audit-damaged version in place. The
+::  content is gone; the tomb makes the books say so instead of
+::  booming readers. Latest versions are never touched. Explicitly
+::  triggered only (%silo-repair poke) — never automatic.
+::
+++  repair-silo
+  ^+  this
+  ::  iterate to fixpoint: the audit attributes shared deep damage to
+  ::  one referencing version per walk (the ok cache marks subtrees
+  ::  visited, not verified-clean), so one sweep peels one layer.
+  ::  Loop until a sweep changes nothing — remaining hits are then
+  ::  latest-guarded only, and clear on their next natural demotion.
+  =/  rounds=@ud  0
+  |-
+  ?:  (gte rounds 100)
+    ~&  >>>  [%silo-repair-round-cap rounds]
+    this
+  =/  dmg=(list [pax=path name=(unit @ta) =cass:clay])
+    =-  ~(tap in -)
+    %-  sy
+    %+  turn  audit-silo
+    |=  [pax=path name=(unit @ta) =cass:clay latest=? kind=?(%ject %noun) lobe=@]
+    [pax name cass]
+  ?~  dmg
+    ~&  >  [%silo-repair-clean rounds=rounds]
+    this
+  ~&  >  [%silo-repair round=rounds damaged-versions=(lent dmg)]
+  =/  before  this
+  =/  todo=(list [pax=path name=(unit @ta) =cass:clay])  dmg
+  =.  this
+    |-
+    ?~  todo  this
+    =.  this  (tomb-version [pax name cass]:i.todo)
+    $(todo t.todo)
+  ?:  =(born.before born)
+    ~&  >  [%silo-repair-remaining-latest-guarded (lent dmg)]
+    this
+  $(rounds +(rounds))
+::  +tomb-version: rewrite one hist entry's pace to %tomb, releasing
+::  the ref the pace held (cascade prints for already-absent lobes
+::  are expected and tolerated — that's the corpse being buried)
+::
+++  tomb-version
+  |=  [pax=path name=(unit @ta) =cass:clay]
+  ^+  this
+  =/  node=(unit [fold=hist:nexus file=(map @ta hist:nexus)])
+    (~(get of born) pax)
+  ?~  node  this
+  =/  sk=hist:nexus
+    ?~  name  fold.u.node
+    (fall (~(get by file.u.node) u.name) *hist:nexus)
+  ?:  =(`cass (top:hist:nexus sk))
+    ~&  >>>  [%silo-repair-skipping-latest pax name]
+    this
+  =/  ent=(unit entry:hist:nexus)  (get:hon:hist:nexus sk cass)
+  ?~  ent  this
+  ?:  ?=(%tomb -.pace.u.ent)  this
+  ~&  >  [%silo-tombed pax name ud=ud.cass]
+  =?  silo  ?=(^ p.pace.u.ent)
+    (~(drop-ject si:nexus silo) u.p.pace.u.ent)
+  =/  new-hist=hist:nexus
+    (put:hon:hist:nexus sk cass u.ent(pace [%tomb ~]))
+  =.  born
+    ?~  name  (~(put of born) pax u.node(fold new-hist))
+    (~(put of born) pax u.node(file (~(put by file.u.node) u.name new-hist)))
+  this
 ::  +discharge-peeks: discharge staged peeks whose refs have all arrived
 ::
 ::    Sweeps the staged cross-ship peeks. If every ref a peek's snap
@@ -530,8 +697,13 @@
       %|  [%ball *wave:nexus u.p.pace.u.snap.pk deep.pk]
       %&  [%file cass.u.snap.pk u.p.pace.u.snap.pk blot.pk]
     ==
-  ::  Bump silo ref for data-carrying cites
+  ::  Bump silo ref for data-carrying cites — %file and %ball both
+  ::  carry a lobe that +hydrate drops after reading, so both must
+  ::  bump here or every discharged remote file peek nets -1 and
+  ::  bleeds shared content out of the silo.
   =?  silo  ?=([%ball *] cite)
+    (~(bump-ject-ref si:nexus silo) lobe.cite)
+  =?  silo  ?=([%file *] cite)
     (~(bump-ject-ref si:nexus silo) lobe.cite)
   =?  silo  ?=([%file *] cite)
     (~(bump-ject-ref si:nexus silo) lobe.cite)
@@ -625,7 +797,24 @@
       (~(reachable-shallow si:nexus silo) u.p.pace.u.cas-pace)
     `[cass.u.cas-pace pace.u.cas-pace refs]
   =/  snap-id=@uvJ  `@uvJ`(shaz eny.bowl)
-  =?  silo  ?=(^ snap)
+  ::  Inline the payload when it's cheaper to send than to negotiate:
+  ::  the subset rides in the snap, the receiver skips want/data, and
+  ::  no pin is needed since no %want will ever come.
+  =/  inline=(unit silo:nexus)
+    ?~  snap  ~
+    =/  n-refs=@ud
+      (add ~(wyt in jects.refs.u.snap) ~(wyt in nouns.refs.u.snap))
+    ?:  (gth n-refs max-inline-refs)  ~
+    =/  send=silo:nexus  (snap-subset refs.u.snap)
+    =/  size=@ud
+      %+  roll  ~(tap by nouns.send)
+      |=  [[* refs=@ud =noun] acc=@ud]
+      (add acc ?@(noun (met 3 noun) (met 3 (jam noun))))
+    =.  size  (add size (mul 128 ~(wyt by jects.send)))
+    ?:  (gth size max-inline-bytes)  ~
+    `send
+  =/  pinned=?  &(?=(^ snap) ?=(~ inline))
+  =?  silo  &(?=(^ snap) pinned)
     =.  silo
       %+  roll  ~(tap in jects.refs.u.snap)
       |=  [=jobe:nexus s=_silo]
@@ -634,12 +823,12 @@
     |=  [=nobe:nexus s=_silo]
     (~(bump-ref si:nexus s) nobe)
   =/  expiry=@da  (add now.bowl ~m5)
-  =?  snaps.remo  ?=(^ snap)
+  =?  snaps.remo  &(?=(^ snap) pinned)
     (~(put by snaps.remo) [snap-id src.bowl] [dest-lane refs.u.snap expiry])
-  =?  cards  ?=(^ snap)
+  =?  cards  &(?=(^ snap) pinned)
     :_  cards
     [%pass /behn/snap-pin/[(scot %uv snap-id)]/[(scot %p src.bowl)] %arvo %b %wait expiry]
-  (respond-transfer %peek [wire.req %snap dest-lane snap-id snap])
+  (respond-transfer %peek [wire.req %snap dest-lane snap-id snap inline])
 ::  process-keep: register the caller as a remote watcher, unless the weir
 ::  gate blocks it (a vetoed subscribe is silently dropped).
 ::
@@ -702,23 +891,7 @@
   =/  pin  (~(get by snaps.remo) pin-key)
   ?~  pin
     (respond-transfer %want [/want %miss ~])
-  =/  send=silo:nexus
-    =/  acc=silo:nexus  *silo:nexus
-    =.  acc
-      %+  roll  ~(tap in jects.refs.u.pin)
-      |=  [=jobe:nexus a=_acc]
-      =/  jot  (~(get by jects.silo) jobe)
-      ?~  jot
-        ~&  >>>  [%want-serve-ject-absent jobe]
-        a
-      a(jects (~(put by jects.a) jobe [0 ject.u.jot]))
-    %+  roll  ~(tap in nouns.refs.u.pin)
-    |=  [=nobe:nexus a=_acc]
-    =/  got  (~(get by nouns.silo) nobe)
-    ?~  got
-      ~&  >>>  [%want-serve-noun-absent nobe]
-      a
-    a(nouns (~(put by nouns.a) nobe [0 noun.u.got]))
+  =/  send=silo:nexus  (snap-subset refs.u.pin)
   ::  release the snap, drop refs, cancel the pin timer
   =.  snaps.remo  (~(del by snaps.remo) pin-key)
   =.  silo  (release-snap-refs refs.u.pin)
@@ -730,6 +903,107 @@
         %arvo  %b  %rest  expiry.u.pin
     ==
   (respond-transfer %want [/want %data send])
+::  merge-transfer-data: fold received content into the silo and
+::  settle the peeks it satisfies. Verify hashes, merge (insert at
+::  refcount 1 or bump), discharge, then release exactly what this
+::  handler merged — the transfer is a temporary owner that keeps
+::  the data alive through the discharge sweep, where cites claim
+::  their own refs. Unmerged lobes (hash mismatch, already-present
+::  refs never sent) are never released: release only mirrors this
+::  handler's bumps. Shared by %data transfers and inline snaps.
+::
+++  merge-transfer-data
+  |=  got=silo:nexus
+  ^+  this
+  =/  good-nouns=(list [=nobe:nexus =noun])
+    %+  murn  ~(tap by nouns.got)
+    |=  [=nobe:nexus refs=@ud =noun]
+    ?.  =(nobe `@uvI`(sham noun))
+      ~&  >>  [%data-hash-mismatch %noun nobe]
+      ~
+    `[nobe noun]
+  =/  good-jects=(list [=jobe:nexus =ject:nexus])
+    %+  murn  ~(tap by jects.got)
+    |=  [=jobe:nexus refs=@ud =ject:nexus]
+    ?.  =(jobe `@uvI`(sham ject))
+      ~&  >>  [%data-hash-mismatch %ject jobe]
+      ~
+    `[jobe ject]
+  ::  Merge verified data into silo: insert at refcount 1 if new,
+  ::  bump refcount if already present.
+  =.  silo
+    %+  roll  good-nouns
+    |=  [[=nobe:nexus =noun] s=_silo]
+    =/  existing  (~(get by nouns.s) nobe)
+    ?~  existing
+      s(nouns (~(put by nouns.s) nobe [1 noun]))
+    s(nouns (~(put by nouns.s) nobe u.existing(refs +(refs.u.existing))))
+  ::  Jects must insert bottom-up: put-ject bumps a new ject's
+  ::  children only if they are already present. Topologically
+  ::  insert — a tree waits until its child jects are in the silo.
+  =.  silo
+    =/  pending=(list [=jobe:nexus =ject:nexus])  good-jects
+    |-
+    ?:  =(~ pending)  silo
+    =/  ready=(list [=jobe:nexus =ject:nexus])
+      %+  skim  `(list [=jobe:nexus =ject:nexus])`pending
+      |=  [=jobe:nexus =ject:nexus]
+      ?.  ?=(%tree -.ject)  %.y
+      =/  kids=(list jobe:nexus)
+        %+  weld
+          (turn ~(val by fil.tree.ject) |=(j=jobe:nexus j))
+        (turn ~(val by dir.tree.ject) |=([j=jobe:nexus *] j))
+      %+  levy  kids
+      |=(j=jobe:nexus (~(has by jects.silo) j))
+    ::  Nothing ready but work remains: refs point outside this
+    ::  transfer and are absent — insert anyway rather than loop.
+    =/  batch=(list [=jobe:nexus =ject:nexus])
+      ?~(ready pending ready)
+    ~?  >>  =(~ ready)  [%data-merge-unresolved-children (lent pending)]
+    =.  silo
+      %+  roll  batch
+      |=  [[=jobe:nexus =ject:nexus] s=_silo]
+      +:(~(put-ject si:nexus s) ject)
+    =/  done=(set jobe:nexus)  (sy (turn batch |=([j=jobe:nexus *] j)))
+    %=  $
+      pending  (skip pending |=([j=jobe:nexus *] (~(has in done) j)))
+    ==
+  ~&  >  [%peek-data-received nouns=(lent good-nouns) jects=(lent good-jects)]
+  =/  merged=lobes:nexus
+    :-  (sy (turn good-jects |=([=jobe:nexus *] jobe)))
+    (sy (turn good-nouns |=([=nobe:nexus *] nobe)))
+  =.  this  discharge-peeks
+  =.  silo  (release-snap-refs merged)
+  =.  vale  (gc-vale-cache vale bins)
+  this
+::  snap-subset: the silo subset behind a ref set, served at refcount 0
+::  (the receiver's merge assigns its own counts). A referenced lobe
+::  missing from its store is a books error worth hearing about.
+::
+++  snap-subset
+  |=  refs=lobes:nexus
+  ^-  silo:nexus
+  =/  acc=silo:nexus  *silo:nexus
+  =.  acc
+    %+  roll  ~(tap in jects.refs)
+    |=  [=jobe:nexus a=_acc]
+    =/  jot  (~(get by jects.silo) jobe)
+    ?~  jot
+      ~&  >>>  [%snap-subset-ject-absent jobe]
+      a
+    a(jects (~(put by jects.a) jobe [0 ject.u.jot]))
+  %+  roll  ~(tap in nouns.refs)
+  |=  [=nobe:nexus a=_acc]
+  =/  got  (~(get by nouns.silo) nobe)
+  ?~  got
+    ~&  >>>  [%snap-subset-noun-absent nobe]
+    a
+  a(nouns (~(put by nouns.a) nobe [0 noun.u.got]))
+::  Inline-snap thresholds: payloads under these ride inside the %snap
+::  itself, skipping the want/data legs (see +process-peek).
+::
+++  max-inline-refs   64
+++  max-inline-bytes  8.192
 ::  respond-transfer: poke the caller's grubbery back with a transfer, on
 ::  /[tag]/[caller-ship] — tag is the request kind (peek or want).
 ::
@@ -805,6 +1079,12 @@
       ?.  &(=(ship.pk src) =(dest.pk dest.resp))
         pk
       pk(snap snap.resp, snap-id snap-id.resp)
+    ::  Inline payload: the server sent the content with the snap.
+    ::  Merge it through the same discipline as a %data transfer —
+    ::  the want/data legs are skipped entirely.
+    ?:  ?=(^ data.resp)
+      ~&  >  [%snap-inline-from src]
+      (merge-transfer-data u.data.resp)
     =/  missing=lobes:nexus
       :-  (~(dif in jects.refs.u.snap.resp) ~(key by jects.silo))
       (~(dif in nouns.refs.u.snap.resp) ~(key by nouns.silo))
@@ -829,80 +1109,8 @@
     this
     ::
       %data
-    ::  Received jects/nouns from remote. Verify hashes, merge into
-    ::  local silo, then discharge any staged peeks whose refs are present.
-    ::
-    ::  Refcount discipline: the merge bumps each verified lobe (+1),
-    ::  making this transfer a temporary owner that keeps the data alive
-    ::  through the discharge sweep. After the sweep — where cites claim
-    ::  their own refs — the transfer releases exactly what it merged.
-    ::  Unmerged lobes (hash mismatch, already-present refs never sent)
-    ::  are never released: release only mirrors this handler's bumps.
-    ::
     ~&  >  [%data-received-from src]
-    =/  got=silo:nexus  silo.resp
-    ::  Hash verification: only accept blobs whose content matches their lobe
-    =/  good-nouns=(list [=nobe:nexus =noun])
-      %+  murn  ~(tap by nouns.got)
-      |=  [=nobe:nexus refs=@ud =noun]
-      ?.  =(nobe `@uvI`(sham noun))
-        ~&  >>  [%data-hash-mismatch %noun nobe]
-        ~
-      `[nobe noun]
-    =/  good-jects=(list [=jobe:nexus =ject:nexus])
-      %+  murn  ~(tap by jects.got)
-      |=  [=jobe:nexus refs=@ud =ject:nexus]
-      ?.  =(jobe `@uvI`(sham ject))
-        ~&  >>  [%data-hash-mismatch %ject jobe]
-        ~
-      `[jobe ject]
-    ::  Merge verified data into silo: insert at refcount 1 if new,
-    ::  bump refcount if already present.
-    =.  silo
-      %+  roll  good-nouns
-      |=  [[=nobe:nexus =noun] s=_silo]
-      =/  existing  (~(get by nouns.s) nobe)
-      ?~  existing
-        s(nouns (~(put by nouns.s) nobe [1 noun]))
-      s(nouns (~(put by nouns.s) nobe u.existing(refs +(refs.u.existing))))
-    ::  Jects must insert bottom-up: put-ject bumps a new ject's
-    ::  children only if they are already present. Topologically
-    ::  insert — a tree waits until its child jects are in the silo.
-    =.  silo
-      =/  pending=(list [=jobe:nexus =ject:nexus])  good-jects
-      |-
-      ?:  =(~ pending)  silo
-      =/  ready=(list [=jobe:nexus =ject:nexus])
-        %+  skim  `(list [=jobe:nexus =ject:nexus])`pending
-        |=  [=jobe:nexus =ject:nexus]
-        ?.  ?=(%tree -.ject)  %.y
-        =/  kids=(list jobe:nexus)
-          %+  weld
-            (turn ~(val by fil.tree.ject) |=(j=jobe:nexus j))
-          (turn ~(val by dir.tree.ject) |=([j=jobe:nexus *] j))
-        %+  levy  kids
-        |=(j=jobe:nexus (~(has by jects.silo) j))
-      ::  Nothing ready but work remains: refs point outside this
-      ::  transfer and are absent — insert anyway rather than loop.
-      =/  batch=(list [=jobe:nexus =ject:nexus])
-        ?~(ready pending ready)
-      ~?  >>  =(~ ready)  [%data-merge-unresolved-children (lent pending)]
-      =.  silo
-        %+  roll  batch
-        |=  [[=jobe:nexus =ject:nexus] s=_silo]
-        +:(~(put-ject si:nexus s) ject)
-      =/  done=(set jobe:nexus)  (sy (turn batch |=([j=jobe:nexus *] j)))
-      %=  $
-        pending  (skip pending |=([j=jobe:nexus *] (~(has in done) j)))
-      ==
-    ~&  >  [%peek-data-received nouns=(lent good-nouns) jects=(lent good-jects)]
-    =/  merged=lobes:nexus
-      :-  (sy (turn good-jects |=([=jobe:nexus *] jobe)))
-      (sy (turn good-nouns |=([=nobe:nexus *] nobe)))
-    =.  this  discharge-peeks
-    =.  silo  (release-snap-refs merged)
-    =.  vale  (gc-vale-cache vale bins)
-    this
+    (merge-transfer-data silo.resp)
     ::
       %veto
     ::  Remote peek was blocked by weir. Discharge matching peeks.

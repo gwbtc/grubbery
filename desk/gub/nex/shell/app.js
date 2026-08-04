@@ -371,7 +371,7 @@ var API='/grubbery/api';var BALL='apps/tiles.tiles';
           '<input id="inst-name" spellcheck="false">' +
           '<span class="inst-pre">.desk</span></div>' +
         '<div id="inst-avail"></div>' +
-        '<label class="inst-lab">permissions</label>' +
+        '<label class="inst-lab">permissions <span class="inst-wip">— templates are a work in progress</span></label>' +
         '<div class="inst-warn">' +
           '<b>Warning</b> — these permissions sandbox the app&#39;s backend (its ship-side ' +
           'processes). Two things they do not cover:' +
