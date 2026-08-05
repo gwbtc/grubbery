@@ -19,6 +19,9 @@
 ::  subtree, so it gets a make hole there.
 =/  pad-weir=(unit weir:tarball)
   `[make=(sy ~[[%& %| /apps/'pad.pad']]) poke=(sy ~[[%& %| /]]) peek=(sy ~[[%& %| /]])]
+::  routes saves route grubs at runtime, same shape.
+=/  routes-weir=(unit weir:tarball)
+  `[make=(sy ~[[%& %| /apps/'routes.routes']]) poke=(sy ~[[%& %| /]]) peek=(sy ~[[%& %| /]])]
 =/  git-desk-config
   |=  [repo=@t ref=@t]
   ^-  json
@@ -93,6 +96,7 @@
         [%fall %| /apps/'test.web-test' [`[`[/ %web-test] app-weir %.n ~] ~]]
         [%fall %| /apps/'test.guestbook' [`[`[/ %guestbook] app-weir %.n ~] ~]]
         [%fall %| /apps/'pad.pad' [`[`[/ %pad] pad-weir %.n ~] ~]]
+        [%fall %| /apps/'routes.routes' [`[`[/ %routes] routes-weir %.n ~] ~]]
     ==
 ::
 ++  on-file
