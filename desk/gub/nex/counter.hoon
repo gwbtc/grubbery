@@ -12,6 +12,8 @@
           [%over %& [/ui/views %'page.html'] [[/ %html] (crip (en-xml:html (counter-page ~)))]]
           [%fall %& [/ui %'main.sig'] [[/ %sig] ~]]
           [%fall %| /ui/requests empty-dir:loader]
+          [%over %& [/ %'alias.json'] [[/ %json] (pairs:enjs:format ~[['name' s+'weather'] ['description' s+'A second app also advertising @weather (demo)']])]]
+          [%over %& [/ %'weir.json'] [[/ %json] weir-decl]]
           [%over %& [/ %'README.md'] [[/ %mime] man]]
       ==
     ::
@@ -81,6 +83,16 @@
       ==
     --
 |%
+::  demo weir.json: what this app asks to reach, with a per-line reason
+::
+++  weir-decl
+  ^-  json
+  =/  line  |=([r=@t w=@t] `json`(pairs:enjs:format ~[['road' s+r] ['why' s+w]]))
+  =/  optline  |=([r=@t w=@t] `json`(pairs:enjs:format ~[['road' s+r] ['why' s+w] ['optional' b+&]]))
+  %-  pairs:enjs:format
+  :~  ['poke' [%a ~[(line '@weather/' 'nudge the weather app to refresh')]]]
+      ['peek' [%a ~[(line '@weather/data' 'read current conditions') (optline '/sys/behn' 'schedule its own timers')]]]
+  ==
 ::  HTTP response door (road from /ui/requests/* to /ui/main.sig)
 ::
 ++  srv  ~(. http-res:io [%| 1 %& ~ %'main.sig'])

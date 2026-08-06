@@ -4,9 +4,18 @@
 ::  directory of this ship's shared desks, and /peers/, live mirrors
 ::  of other ships' directories.
 ::
+::  Terminology — the shell/kernel distinction. The "shell" is the
+::  userspace permission MANAGER: it reads apps' declared alias.json /
+::  weir.json, surfaces them, records what you consent to, and writes
+::  weirs. It decides. The "grubbery kernel" (the runtime, formerly
+::  "runtime") is what ENFORCES those weirs — the dart gate. So the
+::  permits registry below lives entirely on the deciding side; the
+::  stopping is the kernel's job. Manager vs enforcer, shell vs kernel.
+::
 /<  feather-icons  /lib/feather-icons.hoon
 /<  app-js         shell/app.js
 /<  app-css        shell/style.css
+/<  permits-html   shell/permits.html
 =<  ^-  nexus:nexus
     |%
     ++  on-load
@@ -17,10 +26,12 @@
           [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
           [%fall %& [/ %'public.json'] [[/ %json] [%a ~]]]
           [%fall %& [/ %'peers.json'] [[/ %json] [%a ~]]]
+          [%fall %& [/ %'permits.json'] [[/ %json] default-permits]]
           [%fall %| /peers empty-dir:loader]
           [%fall %| /requests empty-dir:loader]
           [%over %& [/ %'app.js'] [[/ %mime] app-js]]
           [%over %& [/ %'style.css'] [[/ %mime] app-css]]
+          [%over %& [/ %'permits.html'] [[/ %mime] permits-html]]
       ==
     ::
     ++  on-file
@@ -97,6 +108,55 @@
           ~?  >>>  ?=(^ err)  [%shell-peer-cull-failed u.del]
           $
         $
+          ::  permits.json: the permission registry. Apps declare via
+          ::  alias.json / weir.json (the shell pulls them), so this grub
+          ::  is poked only by the authenticated user (a shell-internal
+          ::  poker) for admin actions — approve/deny a weir.json ask,
+          ::  hide/unhide an alias. Shell is the only weir-writer.
+          ::
+          [~ %'permits.json']
+        ;<  ~  bind:m  (rise-wait:io prod "%shell permits: failed")
+        ;<  here=rail:tarball  bind:m  get-here-abs:io
+        |-
+        ;<  [from=from:fiber:nexus =sage:tarball]  bind:m  take-poke-from:io
+        =/  jon=json  (fall (mole |.(!<(json q.sage))) *json)
+        ?.  ?=(%o -.jon)  $
+        =/  petitioner=rail:tarball  (resolve-bend:io here from)
+        ::  admin actions only, and only from a shell-internal poker (the
+        ::  authenticated HTTP handler, which lives under shell's own tree).
+        =/  shell-root=path  path.here
+        =/  internal=?  =(shell-root (scag (lent shell-root) `(list @ta)`path.petitioner))
+        =/  act=@t  (fall (jget jon 'action') '')
+        =/  is-admin=?
+          ?|  =('approve-weir' act)  =('deny-weir' act)
+              =('alias-suppress' act)  =('alias-unsuppress' act)
+          ==
+        ?:  &(internal is-admin)
+          ;<  now=@da  bind:m  get-time:io
+          ;<  cur=json  bind:m  (get-state-as:io ,json)
+          ::  weir.json consent: approve an app's declared ask as a unit
+          ::  (resolve @refs, sand its weir, record the manifest) or deny.
+          ?:  |(=('approve-weir' act) =('deny-weir' act))
+            =/  app=@t  (fall (jget jon 'app') '')
+            ?:  =('' app)  $
+            =/  picks=json    (fall (~(get by p.jon) 'picks') [%o ~])
+            =/  granted=json  (fall (~(get by p.jon) 'granted') [%o ~])
+            ;<  np=json  bind:m
+              ?:  =('approve-weir' act)  (do-approve-weir cur app picks granted now)
+              (do-deny-weir cur app now)
+            ;<  ~  bind:m  (replace:io np)
+            $
+          ?:  |(=('alias-suppress' act) =('alias-unsuppress' act))
+            =/  alias=@t  (fall (jget jon 'alias') '')
+            =/  path=@t   (fall (jget jon 'path') '')
+            ?:  |(=('' alias) =('' path))  $
+            =/  next=json
+              ?:  =('alias-suppress' act)  (suppress-alias cur alias path)
+              (unsuppress-alias cur alias path)
+            ;<  ~  bind:m  (replace:io next)
+            $
+          $
+        $
           ::  /peers/<ship>.json: live mirror of one ship's public desk
           ::  directory, held current by subscription. All network
           ::  traffic for the ship happens here; if the ship is
@@ -124,6 +184,18 @@
         =/  prefix=path  /grubbery/tiles
         =/  site=path  site:(parse-url:http-utils url.request.req)
         =/  suffix=path  (slag (lent prefix) site)
+        ::  POST /apps/grubbery/permits → a user grant/deny action. We are
+        ::  already gated to src==our above, so this is the authenticated
+        ::  user; forward it as a poke to the permits fiber (single writer,
+        ::  which re-checks the poker is shell-internal).
+        ?:  &(=('POST' method.request.req) ?=([%permits ~] suffix))
+          =/  jon=json
+            %+  fall  (de:json:html ?~(body.request.req '' q.u.body.request.req))
+            *json
+          ;<  ~  bind:m
+            (poke:io (nex-road:io rail [%& ~ %'permits.json']) [/ %json] jon)
+          ;<  ~  bind:m  (send-simple:srv eyre-id [[200 ~] `(as-octs:mimes:html 'ok')])
+          (pure:m ~)
         ::  tile store, served from the tiles data ball over the namespace
         ::  /grubbery/tiles/tiles.json → all tile data
         ?:  ?=([%'tiles.json' ~] suffix)
@@ -133,12 +205,20 @@
           ;<  ~  bind:m
             (send-simple:srv eyre-id [[200 ['content-type' 'application/json'] ~] `body])
           (pure:m ~)
-        ::  /grubbery/tiles/icon/<app> → serve an app's icon file,
-        ::  looked up by full app name
-        ?:  ?=([%icon @ ~] suffix)
-          =/  app=@ta  i.t.suffix
+        ::  /grubbery/tiles/icon/<nexus-root-path> → serve a nexus's icon
+        ::  file. The path may be deep (a desk-install's desk/data/<nexus>).
+        ?:  ?=([%icon ^] suffix)
+          ::  reconstruct the nexus root from the compressed icon path:
+          ::  <desk>/<nexus> -> /apps/<desk>/desk/data/<nexus>, a bare
+          ::  <nexus> -> /apps/<nexus>, or a full /apps/... path as-is.
+          =/  segs=path  t.suffix
+          =/  root=path
+            ?:  ?=([%apps *] segs)  segs
+            ?:  ?=([@ @ ~] segs)  ~[%apps i.segs %desk %data i.t.segs]
+            ?:  ?=([@ ~] segs)  ~[%apps i.segs]
+            [%apps segs]
           ;<  kid-root=view:nexus  bind:m
-            (peek:io [%& %| /apps/[app]] ~)
+            (peek-shallow:io [%& %| root] ~)
           =/  icon-file=(unit [name=@ta sang=sang:tarball])
             ?.  ?=([%ball *] kid-root)  ~
             =/  =lump:tarball  (fall fil.ball.kid-root *lump:tarball)
@@ -157,8 +237,8 @@
           (pure:m ~)
         ::  static assets: the shell's javascript and stylesheet
         ?:  |(?=([%'app.js' ~] suffix) ?=([%'style.css' ~] suffix))
-          =/  fname=@ta  ?:(?=([%'app.js' ~] suffix) 'app.js' 'style.css')
-          =/  ctype=@t   ?:(=('app.js' fname) 'text/javascript' 'text/css')
+          =/  fname=@ta  ?>(?=([@ ~] suffix) i.suffix)
+          =/  ctype=@t   ?:(?=([%'app.js' ~] suffix) 'text/javascript' 'text/css')
           ;<  fv=view:nexus  bind:m
             (peek:io (nex-road:io rail [%& ~ fname]) `[/ %mime])
           ?.  ?=([%file *] fv)
@@ -167,6 +247,56 @@
           =/  =mime  !<(mime (need-vase:tarball sang.fv))
           ;<  ~  bind:m
             (send-simple:srv eyre-id [[200 ~[['content-type' ctype]]] `q.mime])
+          (pure:m ~)
+        ::  /apps/grubbery/permits → the read-only permissions page
+        ?:  ?=([%permits ~] suffix)
+          ;<  fv=view:nexus  bind:m
+            (peek:io (nex-road:io rail [%& ~ %'permits.html']) `[/ %mime])
+          ?.  ?=([%file *] fv)
+            ;<  ~  bind:m  (send-simple:srv eyre-id [[404 ~] `(as-octs:mimes:html 'Not found')])
+            (pure:m ~)
+          =/  =mime  !<(mime (need-vase:tarball sang.fv))
+          ;<  ~  bind:m
+            (send-simple:srv eyre-id [[200 ~[['content-type' 'text/html']]] `q.mime])
+          (pure:m ~)
+        ::  /apps/grubbery/permits.json → the registry state, for the page
+        ?:  ?=([%'permits.json' ~] suffix)
+          ;<  pm=(unit json)  bind:m
+            (peek-as:io (nex-road:io rail [%& ~ %'permits.json']) ,json)
+          =/  bod=octs  (as-octs:mimes:html (en:json:html (fall pm [%o ~])))
+          ;<  ~  bind:m
+            (send-simple:srv eyre-id [[200 ~[['content-type' 'application/json']]] `bod])
+          (pure:m ~)
+        ::  /apps/grubbery/weirs.json → ground truth: the live weir on each
+        ::  governed dir, with the registry's intention overlaid per road.
+        ?:  ?=([%'weirs.json' ~] suffix)
+          ;<  pm=(unit json)  bind:m
+            (peek-as:io (nex-road:io rail [%& ~ %'permits.json']) ,json)
+          =/  st=json  (fall pm [%o ~])
+          ;<  wj=json  bind:m  (read-approved-weirs st)
+          =/  bod=octs  (as-octs:mimes:html (en:json:html wj))
+          ;<  ~  bind:m
+            (send-simple:srv eyre-id [[200 ~[['content-type' 'application/json']]] `bod])
+          (pure:m ~)
+        ::  /apps/grubbery/aliases.json → the alias directory as menus:
+        ::  app-declared alias.json options merged with your stored ones.
+        ?:  ?=([%'aliases.json' ~] suffix)
+          ;<  pm=(unit json)  bind:m
+            (peek-as:io (nex-road:io rail [%& ~ %'permits.json']) ,json)
+          =/  st=json  (fall pm [%o ~])
+          =/  supp=json
+            ?:(?=(%o -.st) (fall (~(get by p.st) 'suppressed') [%o ~]) [%o ~])
+          ;<  menus=json  bind:m  (build-alias-menus supp %.y)
+          =/  bod=octs  (as-octs:mimes:html (en:json:html menus))
+          ;<  ~  bind:m
+            (send-simple:srv eyre-id [[200 ~[['content-type' 'application/json']]] `bod])
+          (pure:m ~)
+        ::  /apps/grubbery/asks.json → each app's declared weir.json ask.
+        ?:  ?=([%'asks.json' ~] suffix)
+          ;<  asks=(list json)  bind:m  read-app-weirs
+          =/  bod=octs  (as-octs:mimes:html (en:json:html [%a asks]))
+          ;<  ~  bind:m
+            (send-simple:srv eyre-id [[200 ~[['content-type' 'application/json']]] `bod])
           (pure:m ~)
         ::  /icon.svg → the shell's favicon
         ?:  ?=([%'icon.svg' ~] suffix)
@@ -241,6 +371,77 @@
   ?.  ?=(%o -.j)  ~
   =/  v  (~(get by p.j) k)
   ?.(?=([~ %s *] v) ~ `p.u.v)
+::  +default-permits: the shell-owned permission registry. `approved`
+::  maps each app to its consented manifest (present grant state, the
+::  system of record — weirs are projected from it); `suppressed` holds
+::  hidden alias options; `log` is the decision history. Shell is the
+::  only writer of weirs, so this grub is the ship's capability broker.
+::
+++  default-permits
+  ^-  json
+  %-  pairs:enjs:format
+  :~  ['approved' [%o ~]]
+      ['suppressed' [%o ~]]
+      ['log' [%a ~]]
+  ==
+::  +suppress-alias: hide an app-declared option (alias name + path) from
+::  the directory. App options are derived from alias.json, so they can't
+::  be deleted outright — this records a suppression the menu builder
+::  filters out, so the option stops being offered.
+::
+++  suppress-alias
+  |=  [pm=json alias=@t path=@t]
+  ^-  json
+  ?.  ?=(%o -.pm)  pm
+  =/  supp=(map @t json)
+    =/  s  (~(get by p.pm) 'suppressed')
+    ?.(?=([~ %o *] s) ~ p.u.s)
+  =/  cur=(list json)
+    =/  e  (~(get by supp) alias)
+    ?.(?=([~ %a *] e) ~ p.u.e)
+  =/  has=?  (lien cur |=(j=json &(?=(%s -.j) =(path p.j))))
+  =/  next=(list json)  ?:(has cur (snoc cur s+path))
+  [%o (~(put by p.pm) 'suppressed' [%o (~(put by supp) alias [%a next])])]
+::  +unsuppress-alias: un-hide a previously suppressed app-declared option.
+::
+++  unsuppress-alias
+  |=  [pm=json alias=@t path=@t]
+  ^-  json
+  ?.  ?=(%o -.pm)  pm
+  =/  supp=(map @t json)
+    =/  s  (~(get by p.pm) 'suppressed')
+    ?.(?=([~ %o *] s) ~ p.u.s)
+  =/  cur=(list json)
+    =/  e  (~(get by supp) alias)
+    ?.(?=([~ %a *] e) ~ p.u.e)
+  =/  next=(list json)  (skip cur |=(j=json &(?=(%s -.j) =(path p.j))))
+  [%o (~(put by p.pm) 'suppressed' [%o (~(put by supp) alias [%a next])])]
+::  +parse-road: road text -> a road. trailing slash = directory, no
+::  slash = file; leading ../ climbs out (one step each). Same as desks.
+::
+++  parse-road
+  |=  s=@t
+  ^-  (unit road:tarball)
+  =/  tap=tape  (trip s)
+  =|  ups=@ud
+  |-  ^-  (unit road:tarball)
+  ?:  &((gte (lent tap) 3) =("../" (scag 3 tap)))
+    $(tap (slag 3 tap), ups +(ups))
+  ?:  =(".." tap)  $(tap ~, ups +(ups))
+  ?~  tap  ?:(=(0 ups) ~ `[%| ups %| /])
+  ?:  =("/" tap)  `[%& %| /]
+  =/  is-dir=?  =("/" (scag 1 (flop `tape`tap)))
+  =/  core=tape  ?:(is-dir (flop (slag 1 (flop `tape`tap))) tap)
+  =/  txt=@t  (crip ?:(=("/" (scag 1 core)) core ['/' core]))
+  =/  res  (mule |.((stab txt)))
+  ?:  ?=(%| -.res)  ~
+  =/  pax=path  p.res
+  ?:  is-dir
+    ?:(=(0 ups) `[%& %| pax] `[%| ups %| pax])
+  =/  fp=(list @ta)  (flop pax)
+  ?~  fp  ~
+  =/  =rail:tarball  [(flop t.fp) i.fp]
+  ?:(=(0 ups) `[%& %& rail] `[%| ups %& rail])
 ::
 ::  +refresh-mirror: pull the peer's public.json into this mirror grub
 ::
@@ -307,27 +508,25 @@
 ++  read-app-tiles
   =/  m  (fiber:fiber:nexus ,(list [tile @ta]))
   ^-  form:m
-  ;<  =view:nexus  bind:m  (peek:io [%& %| /apps] ~)
-  ?.  ?=([%ball *] view)
-    (pure:m ~)
-  =/  kids=(list [@ta ball:tarball])  ~(tap by dir.ball.view)
+  ;<  roots=(list path)  bind:m  app-roots
   =|  acc=(list [tile @ta])
-  |-
-  ?~  kids  (pure:m (flop acc))
-  ?:  =('tiles.tiles' -.i.kids)
-    $(kids t.kids)
-  =/  kid=@ta  -.i.kids
-  =/  slug=@ta  (app-slug kid)
+  |-  ^-  form:m
+  ?~  roots  (pure:m (flop acc))
+  =/  root=path  i.roots
+  =/  leaf=@ta  (rear root)
+  ?:  =('tiles.tiles' leaf)
+    $(roots t.roots)
+  =/  slug=@ta  (app-slug leaf)
   ;<  kid-view=view:nexus  bind:m
-    (peek:io [%& %& /apps/[kid] %'tile.json'] `[/ %json])
+    (peek:io [%& %& [root %'tile.json']] `[/ %json])
   ?.  ?=([%file *] kid-view)
-    $(kids t.kids)
+    $(roots t.roots)
   =/  tile-name=@ta  (crip "{(trip slug)}.json")
   =/  made=(unit tile)  (json-to-tile tile-name sang.kid-view)
-  ?~  made  $(kids t.kids)
-  ::  an app that ships an icon file gets it as the tile image,
-  ::  addressed by full app name
-  ;<  kid-root=view:nexus  bind:m  (peek:io [%& %| /apps/[kid]] ~)
+  ?~  made  $(roots t.roots)
+  ::  an app that ships an icon file gets it as the tile image, addressed
+  ::  by its full nexus-root path.
+  ;<  kid-root=view:nexus  bind:m  (peek-shallow:io [%& %| root] ~)
   =/  icon=(unit @ta)
     ?.  ?=([%ball *] kid-root)  ~
     =/  =lump:tarball  (fall fil.ball.kid-root *lump:tarball)
@@ -337,10 +536,16 @@
     ?.  =("icon." (scag 5 (trip n)))  out
     ?:  (is-boom:tarball s)  out
     `n
+  ::  compress the icon URL: /apps and /desk/data are always boilerplate,
+  ::  so a desk nexus is <desk>/<nexus>, a plain one just <nexus>.
+  =/  icon-segs=path
+    ?:  ?=([%apps @ %desk %data @ ~] root)  ~[i.t.root i.t.t.t.t.root]
+    ?:  ?=([%apps @ ~] root)  ~[i.t.root]
+    root
   =/  til=tile
     ?~  icon  u.made
-    u.made(image (crip "/grubbery/tiles/icon/{(trip kid)}"))
-  $(kids t.kids, acc [[til kid] acc])
+    u.made(image (crip "/grubbery/tiles/icon{(spud icon-segs)}"))
+  $(roots t.roots, acc [[til leaf] acc])
 ::
 ++  app-slug
   |=  name=@ta
@@ -349,6 +554,413 @@
   =/  dix=(unit @ud)  (find "." nam)
   ?~  dix  name
   (crip (scag u.dix nam))
+::  +read-app-aliases: scan /apps for each app's self-declared alias.json
+::  ({name, description}) and build the app-sourced half of the alias
+::  directory: @name -> list of option json {path, description, source}.
+::  Derived — rescanned on read, never stored. A name grants no power, so
+::  declaring one needs no consent; it just appears as a menu option.
+::
+++  app-roots
+  =/  m  (fiber:fiber:nexus ,(list path))
+  ^-  form:m
+  ;<  av=view:nexus  bind:m  (peek-shallow:io [%& %| /apps] ~)
+  ?.  ?=([%ball *] av)  (pure:m ~)
+  =/  kids=(list [@ta ball:tarball])  ~(tap by dir.ball.av)
+  =|  out=(list path)
+  |-  ^-  form:m
+  ?~  kids  (pure:m (flop out))
+  =/  kid=@ta  -.i.kids
+  =/  nek=(unit neck:tarball)
+    ?~(fil.+.i.kids ~ neck.u.fil.+.i.kids)
+  ?.  =(`[/ %desk] nek)
+    ::  a plain nexus is itself the governable app
+    $(kids t.kids, out [/apps/[kid] out])
+  ::  a [/ %desk] install is the git-sync wrapper — its real apps are the
+  ::  neck'd children of desk/data. Descend and enumerate those.
+  ;<  dv=view:nexus  bind:m  (peek-shallow:io [%& %| /apps/[kid]/desk/data] ~)
+  =/  subs=(list path)
+    ?.  ?=([%ball *] dv)  ~
+    %+  murn  ~(tap by dir.ball.dv)
+    |=  [sub=@ta b=ball:tarball]
+    ^-  (unit path)
+    ?~  fil.b  ~
+    ?~  neck.u.fil.b  ~
+    `/apps/[kid]/desk/data/[sub]
+  $(kids t.kids, out (weld subs out))
+::  +read-app-aliases: scan every app root (descending desks) for its
+::  alias.json, building @name -> menu options. Each root is a nexus; its
+::  option path is the nexus root. `name` may be a string or a list of
+::  strings — a nexus can advertise several synonyms, all pointing at it.
+::
+++  read-app-aliases
+  =/  m  (fiber:fiber:nexus ,(map @t (list json)))
+  ^-  form:m
+  ;<  roots=(list path)  bind:m  app-roots
+  =|  acc=(map @t (list json))
+  |-  ^-  form:m
+  ?~  roots  (pure:m acc)
+  =/  root=path  i.roots
+  =/  src=@ta  (rear root)
+  ;<  kv=view:nexus  bind:m
+    (peek:io [%& %& [root %'alias.json']] `[/ %json])
+  ?.  ?=([%file *] kv)  $(roots t.roots)
+  =/  jon=(unit json)  (mole |.(!<(json (need-vase:tarball sang.kv))))
+  ?~  jon  $(roots t.roots)
+  ?.  ?=(%o -.u.jon)  $(roots t.roots)
+  =/  names=(list @t)
+    =/  nv  (~(get by p.u.jon) 'name')
+    ?~  nv  ~
+    ?:  ?=(%s -.u.nv)  ~[p.u.nv]
+    ?.  ?=(%a -.u.nv)  ~
+    (murn p.u.nv |=(j=json ?.(?=(%s -.j) ~ `p.j)))
+  ?:  =(~ names)  $(roots t.roots)
+  =/  opt=json
+    %-  pairs:enjs:format
+    :~  ['path' s+(crip (spud root))]
+        ['description' s+(fall (jget u.jon 'description') '')]
+        ['source' s+src]
+    ==
+  =/  acc2=(map @t (list json))
+    =/  ns=(list @t)  names
+    =/  a=(map @t (list json))  acc
+    |-  ^-  (map @t (list json))
+    ?~  ns  a
+    =/  aname=@t  (cat 3 '@' i.ns)
+    =/  cur=(list json)  (fall (~(get by a) aname) ~)
+    $(ns t.ns, a (~(put by a) aname (snoc cur opt)))
+  $(roots t.roots, acc acc2)
+::  +build-alias-menus: the full alias directory as menus. Merges the
+::  app-scanned options with the user's stored aliases (each a `you`-
+::  sourced option), keyed by @name: {@name: [{path, description,
+::  source}, ...]}. Stored user options are authoritative; app options
+::  are derived. This is what the permission manager renders.
+::
+++  build-alias-menus
+  |=  [suppressed=json show-hidden=?]
+  =/  m  (fiber:fiber:nexus ,json)
+  ^-  form:m
+  ;<  menus=(map @t (list json))  bind:m  read-app-aliases
+  ::  suppressed (hidden) options: for the directory view (show-hidden)
+  ::  they stay, marked `hidden`, so they can be un-hidden; for resolution
+  ::  they're dropped (a hidden option is never offered / resolvable).
+  =/  supp=(map @t json)  ?.(?=(%o -.suppressed) ~ p.suppressed)
+  =.  menus
+    %-  ~(urn by menus)
+    |=  [nm=@t opts=(list json)]
+    =/  hidden=(set @t)
+      =/  h  (~(get by supp) nm)
+      ?.  ?=([~ %a *] h)  ~
+      (silt (murn p.u.h |=(j=json ?.(?=(%s -.j) ~ `p.j))))
+    ?.  show-hidden
+      (skip opts |=(o=json (~(has in hidden) (fall (jget o 'path') ''))))
+    %+  turn  opts
+    |=  o=json
+    ?.  (~(has in hidden) (fall (jget o 'path') ''))  o
+    ?.  ?=(%o -.o)  o
+    [%o (~(put by p.o) 'hidden' b+&)]
+  (pure:m [%o (~(run by menus) |=(opts=(list json) `json`[%a opts]))])
+::  +read-app-weirs: scan /apps for each app's weir.json — its complete
+::  declared permission ask ({poke, peek, make} lists of target roads,
+::  some `@alias` refs). Returns one json per app {app, path, poke,
+::  peek, make}. This is the manifest the user consents to as a unit.
+::
+++  read-app-weirs
+  =/  m  (fiber:fiber:nexus ,(list json))
+  ^-  form:m
+  ;<  roots=(list path)  bind:m  app-roots
+  =|  acc=(list json)
+  |-  ^-  form:m
+  ?~  roots  (pure:m (flop acc))
+  =/  root=path  i.roots
+  ;<  wv=view:nexus  bind:m
+    (peek:io [%& %& [root %'weir.json']] `[/ %json])
+  ?.  ?=([%file *] wv)  $(roots t.roots)
+  =/  jon=(unit json)  (mole |.(!<(json (need-vase:tarball sang.wv))))
+  ?~  jon  $(roots t.roots)
+  ?.  ?=(%o -.u.jon)  $(roots t.roots)
+  ::  the app id IS its nexus-root path (disambiguates two nexuses of the
+  ::  same name in different desks); path is the same.
+  =/  ap=@t  (crip (spud root))
+  =/  ask=json
+    %-  pairs:enjs:format
+    :~  ['app' s+ap]
+        ['path' s+ap]
+        ['poke' (fall (~(get by p.u.jon) 'poke') [%a ~])]
+        ['peek' (fall (~(get by p.u.jon) 'peek') [%a ~])]
+        ['make' (fall (~(get by p.u.jon) 'make') [%a ~])]
+    ==
+  $(roots t.roots, acc [ask acc])
+::  +read-app-weir-json: one app's declared weir.json, if any. `app` is
+::  its nexus-root path.
+::
+++  read-app-weir-json
+  |=  app=@t
+  =/  m  (fiber:fiber:nexus ,(unit json))
+  ^-  form:m
+  =/  tp=(unit path)  (soft-path app)
+  ?~  tp  (pure:m ~)
+  =/  root=path  u.tp
+  ;<  wv=view:nexus  bind:m
+    (peek:io [%& %& [root %'weir.json']] `[/ %json])
+  ?.  ?=([%file *] wv)  (pure:m ~)
+  (pure:m (mole |.(!<(json (need-vase:tarball sang.wv)))))
+::  +road-strs: the string list for one category of a weir.json ask.
+::
+++  road-strs
+  |=  [ask=json cat=@t]
+  ^-  (list @t)
+  ?.  ?=(%o -.ask)  ~
+  =/  v  (~(get by p.ask) cat)
+  ?.  ?=([~ %a *] v)  ~
+  ::  a line is either a bare road string or {road, why}
+  %+  murn  p.u.v
+  |=  j=json
+  ?:  ?=(%s -.j)  `p.j
+  ?.  ?=(%o -.j)  ~
+  =/  r  (~(get by p.j) 'road')
+  ?.(?=([~ %s *] r) ~ `p.u.r)
+::  +cat-arr: pass a category's raw json array through (for the record).
+::
+++  cat-arr
+  |=  [ask=json cat=@t]
+  ^-  json
+  ?.  ?=(%o -.ask)  [%a ~]
+  (fall (~(get by p.ask) cat) [%a ~])
+::  +ref-aliases: the unique @alias names referenced across an ask (the
+::  base, before any /sub-path). For building the app's grant.json map.
+::
+++  ref-aliases
+  |=  ask=json
+  ^-  (list @t)
+  =/  all=(list @t)
+    :(weld (road-strs ask 'poke') (road-strs ask 'peek') (road-strs ask 'make'))
+  =/  names=(set @t)
+    %+  roll  all
+    |=  [s=@t acc=(set @t)]
+    ?.  =("@" (scag 1 (trip s)))  acc
+    =/  tap=tape  (trip s)
+    =/  idx=(unit @ud)  (find "/" tap)
+    (~(put in acc) ?~(idx s (crip (scag u.idx tap))))
+  ~(tap in names)
+::  +resolve-alias-ref: a weir.json target -> concrete road text. A plain
+::  road passes through; an @alias resolves against the menu (first
+::  option's path for now) with everything after the first / appended as
+::  the sub-path. '' when the alias has no options.
+::
+++  resolve-alias-ref
+  |=  [picks=json menus=json ref=@t]
+  ^-  @t
+  ?.  =("@" (scag 1 (trip ref)))  ref
+  =/  tap=tape  (trip ref)
+  =/  idx=(unit @ud)  (find "/" tap)
+  =/  aname=@t  ?~(idx ref (crip (scag u.idx tap)))
+  =/  suffix=@t  ?~(idx '' (crip (slag u.idx tap)))
+  ::  the user's explicit pick for this alias wins; else the first option
+  =/  picked=@t  ?.(?=(%o -.picks) '' (fall (jget picks aname) ''))
+  =/  base=@t
+    ?.  =('' picked)  picked
+    =/  opts=(unit json)  ?.(?=(%o -.menus) ~ (~(get by p.menus) aname))
+    ?~  opts  ''
+    ?.  ?=([%a *] u.opts)  ''
+    ?~  p.u.opts  ''
+    (fall (jget i.p.u.opts 'path') '')
+  ?:(=('' base) '' (cat 3 base suffix))
+::  +add-roads: fold a list of road-text into a category's road set.
+::
+++  add-roads
+  |=  [s=(set road:tarball) strs=(list @t)]
+  ^-  (set road:tarball)
+  %+  roll  strs
+  |=  [str=@t acc=_s]
+  =/  r=(unit road:tarball)  (parse-road str)
+  ?~(r acc (~(put in acc) u.r))
+::  +record-approval: store an app's consented manifest under approved[app]
+::  (the raw declared roads, for the settled/changed diff) and log it. The
+::  approved manifest is present grant state — the system of record.
+::
+++  record-approval
+  |=  [pm=json app=@t declared=json granted=json verdict=@t bindings=json now=@da]
+  ^-  json
+  ?.  ?=(%o -.pm)  pm
+  =/  approved=(map @t json)
+    =/  a  (~(get by p.pm) 'approved')
+    ?.(?=([~ %o *] a) ~ p.u.a)
+  ::  poke/peek/make = the GRANTED subset (drives overlay + grant.json);
+  ::  `declared` = the full ask you ruled on (drives the settled diff, so
+  ::  granting a subset still settles the ask instead of re-nagging).
+  =/  entry=json
+    %-  pairs:enjs:format
+    :~  ['app' s+app]
+        ['poke' (cat-arr granted 'poke')]
+        ['peek' (cat-arr granted 'peek')]
+        ['make' (cat-arr granted 'make')]
+        :-  'declared'
+        %-  pairs:enjs:format
+        :~  ['poke' (cat-arr declared 'poke')]
+            ['peek' (cat-arr declared 'peek')]
+            ['make' (cat-arr declared 'make')]
+        ==
+        ['bindings' bindings]
+        ['verdict' s+verdict]
+        ['at' s+(scot %da now)]
+    ==
+  =/  logged=json
+    %-  pairs:enjs:format
+    :~  ['app' s+app]
+        ['kind' s+'weir']
+        ['verdict' s+verdict]
+        ['at' s+(scot %da now)]
+        ['settled' s+(scot %da now)]
+    ==
+  =/  log=(list json)
+    =/  l  (~(get by p.pm) 'log')
+    ?.(?=([~ %a *] l) ~ p.u.l)
+  =/  m1  (~(put by p.pm) 'approved' [%o (~(put by approved) app entry)])
+  [%o (~(put by m1) 'log' [%a [logged log]])]
+::  +soft-path: parse a cord to a path without crashing (stab throws a
+::  syntax error on bad input; an app id should be a valid path, but a
+::  stale/malformed one must not take down the fiber).
+::
+++  soft-path
+  |=  s=@t
+  ^-  (unit path)
+  =/  r  (mule |.((stab s)))
+  ?:(?=(%| -.r) ~ `p.r)
+::  +read-live-weir: the live weir on a target dir (via its parent entry).
+::
+++  read-live-weir
+  |=  target=path
+  =/  m  (fiber:fiber:nexus ,weir:tarball)
+  ^-  form:m
+  =/  parent=path  (snip `path`target)
+  =/  leaf=@ta  (rear `path`target)
+  ;<  pv=view:nexus  bind:m  (peek-shallow:io [%& %| parent] ~)
+  ?.  ?=([%ball *] pv)  (pure:m [~ ~ ~])
+  =/  child  (~(get by dir.ball.pv) leaf)
+  ?~  child  (pure:m [~ ~ ~])
+  (pure:m (fall ?~(fil.u.child ~ weir.u.fil.u.child) [~ ~ ~]))
+::  +overlay-cat: one category's roads, the approved manifest overlaid on
+::  the live weir. Each approved road (resolved via its bindings) is
+::  `active` if present in the live weir, else `missing` (consented but
+::  gone — drift). Live roads with no approved match are `unmanaged`
+::  (present but never consented — drift the other way).
+::
+++  overlay-cat
+  |=  [entry=json picks=json menus=json live=(set road:tarball) cat=@t]
+  ^-  json
+  =/  pairs=(list [txt=@t r=(unit road:tarball)])
+    %+  turn  (road-strs entry cat)
+    |=  d=@t
+    =/  resolved=@t  (resolve-alias-ref picks menus d)
+    [resolved (parse-road resolved)]
+  =/  approved-set=(set road:tarball)
+    (silt (murn pairs |=([txt=@t r=(unit road:tarball)] r)))
+  =/  approved-json=(list json)
+    %+  turn  pairs
+    |=  [txt=@t r=(unit road:tarball)]
+    =/  active=?  &(?=(^ r) (~(has in live) u.r))
+    (pairs:enjs:format ~[['road' s+txt] ['status' s+?:(active 'active' 'missing')]])
+  =/  extra-json=(list json)
+    %+  turn  (skim ~(tap in live) |=(r=road:tarball !(~(has in approved-set) r)))
+    |=  r=road:tarball
+    (pairs:enjs:format ~[['road' s+(road-to-cord:tarball r)] ['status' s+'unmanaged']])
+  [%a (weld approved-json extra-json)]
+::  +read-approved-weirs: for each consented app, its approved manifest
+::  overlaid on the live weir at its target. The honest per-app picture.
+::
+++  read-approved-weirs
+  |=  st=json
+  =/  m  (fiber:fiber:nexus ,json)
+  ^-  form:m
+  =/  approved=(map @t json)
+    ?.  ?=(%o -.st)  ~
+    =/  a  (~(get by p.st) 'approved')
+    ?.(?=([~ %o *] a) ~ p.u.a)
+  =/  supp=json
+    ?:(?=(%o -.st) (fall (~(get by p.st) 'suppressed') [%o ~]) [%o ~])
+  ;<  menus=json  bind:m  (build-alias-menus supp %.n)
+  =|  out=(map @t json)
+  =/  apps=(list [@t json])  ~(tap by approved)
+  |-  ^-  form:m
+  ?~  apps  (pure:m [%o out])
+  =/  app=@t  -.i.apps
+  =/  entry=json  +.i.apps
+  =/  picks=json
+    ?.(?=(%o -.entry) [%o ~] (fall (~(get by p.entry) 'bindings') [%o ~]))
+  =/  tp=(unit path)  (soft-path app)
+  ?~  tp  $(apps t.apps)
+  =/  target=path  u.tp
+  ;<  live=weir:tarball  bind:m  (read-live-weir target)
+  =/  result=json
+    %-  pairs:enjs:format
+    :~  ['app' s+app]
+        ['target' s+(crip (spud target))]
+        ['verdict' s+(fall (jget entry 'verdict') '')]
+        ['poke' (overlay-cat entry picks menus poke.live 'poke')]
+        ['peek' (overlay-cat entry picks menus peek.live 'peek')]
+        ['make' (overlay-cat entry picks menus make.live 'make')]
+    ==
+  $(apps t.apps, out (~(put by out) app result))
+::  +do-approve-weir: consent to an app's whole weir.json as a unit —
+::  resolve its @alias refs, add the roads to the app's own weir (read-
+::  modify-sand, additive), then record the approved manifest.
+::
+++  do-approve-weir
+  |=  [pm=json app=@t picks=json granted=json now=@da]
+  =/  m  (fiber:fiber:nexus ,json)
+  ^-  form:m
+  ;<  ask=(unit json)  bind:m  (read-app-weir-json app)
+  ?~  ask  (pure:m pm)
+  ?.  ?=(%o -.u.ask)  (pure:m pm)
+  ::  what gets sanded is the granted subset, not the whole declared ask
+  =/  sub=json  ?:(?=(%o -.granted) granted u.ask)
+  =/  supp=json
+    ?:(?=(%o -.pm) (fall (~(get by p.pm) 'suppressed') [%o ~]) [%o ~])
+  ;<  menus=json  bind:m  (build-alias-menus supp %.n)
+  =/  tp=(unit path)  (soft-path app)
+  ?~  tp  (pure:m pm)
+  =/  target=path  u.tp
+  =/  poke-res=(list @t)
+    (turn (road-strs sub 'poke') |=(t=@t (resolve-alias-ref picks menus t)))
+  =/  peek-res=(list @t)
+    (turn (road-strs sub 'peek') |=(t=@t (resolve-alias-ref picks menus t)))
+  =/  make-res=(list @t)
+    (turn (road-strs sub 'make') |=(t=@t (resolve-alias-ref picks menus t)))
+  ::  TOTAL REPLACEMENT: the target weir becomes exactly the granted
+  ::  subset — not a union with what was there. Safe because the sand
+  ::  target is born-locked (a desk's data) or the whole app root, and
+  ::  the manifest is meant to be complete. Wipes any prior drift.
+  =/  new=weir:tarball
+    [(add-roads ~ make-res) (add-roads ~ poke-res) (add-roads ~ peek-res)]
+  ;<  ~  bind:m  (sand:io [%& %| target] `new)
+  ::  write grant.json into the app's sandbox root: its resolved grants +
+  ::  the @alias -> path map, so the app can read what it holds and
+  ::  resolve its own aliases (fill config) without guessing.
+  =/  amap=json
+    :-  %o
+    %-  ~(gas by *(map @t json))
+    %+  turn  (ref-aliases sub)
+    |=(n=@t [n s+(resolve-alias-ref picks menus n)])
+  =/  grant-json=json
+    %-  pairs:enjs:format
+    :~  ['poke' [%a (turn poke-res |=(t=@t s+t))]]
+        ['peek' [%a (turn peek-res |=(t=@t s+t))]]
+        ['make' [%a (turn make-res |=(t=@t s+t))]]
+        ['aliases' amap]
+    ==
+  ;<  ~  bind:m  (put:io [%& %& [target %'grant.json']] [[/ %json] grant-json])
+  (pure:m (record-approval pm app u.ask sub 'granted' picks now))
+::  +do-deny-weir: record an app's weir.json as denied (no sand), so it
+::  stops prompting until the app re-declares a different manifest.
+::
+++  do-deny-weir
+  |=  [pm=json app=@t now=@da]
+  =/  m  (fiber:fiber:nexus ,json)
+  ^-  form:m
+  ;<  ask=(unit json)  bind:m  (read-app-weir-json app)
+  ?~  ask  (pure:m pm)
+  (pure:m (record-approval pm app u.ask [%o ~] 'denied' [%o ~] now))
+::  +do-reapply-weir: re-sand the STORED granted manifest (total replace)
 ::
 ++  read-all-tiles
   =/  m  (fiber:fiber:nexus ,(list tile))

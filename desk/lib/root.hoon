@@ -7,8 +7,10 @@
 ::  new instances under /apps; poke/peek stay open to reach siblings.
 ::  the shell culls and rewrites its own peer mirrors under /peers,
 ::  so it needs a make hole there on top of the standard app weir.
+::  shell is the capability broker: its permits registry allocates
+::  weirs, so it gets make authority over all of /apps to sand them.
 =/  shell-weir=(unit weir:tarball)
-  `[make=(sy ~[[%& %| /apps/'shell.shell'/peers]]) poke=(sy ~[[%& %| /]]) peek=(sy ~[[%& %| /]])]
+  `[make=(sy ~[[%& %| /apps]]) poke=(sy ~[[%& %| /]]) peek=(sy ~[[%& %| /]])]
 ::  forge creates and manages the git repo instances under its own
 ::  /repos subtree, so it gets a make hole there.
 =/  forge-weir=(unit weir:tarball)

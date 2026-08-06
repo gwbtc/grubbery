@@ -1,0 +1,298 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Permissions</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { height: 100%; overflow: hidden; }
+    body { font-family: Inter, -apple-system, system-ui, sans-serif; color: #1a1d24; background: #eef1f5; font-size: 14px; }
+    code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+    button { font-family: inherit; cursor: pointer; }
+
+    #app { display: flex; flex-direction: column; height: 100%; }
+
+    #topbar { flex-shrink: 0; height: 52px; display: flex; align-items: center; gap: 14px; padding: 0 16px; background: white; border-bottom: 1px solid #e2e7ee; }
+    #brand { font-weight: 700; font-size: 15px; }
+    #collapse { border: none; background: none; font-size: 17px; color: #8a94a6; padding: 4px 6px; border-radius: 7px; }
+    #collapse:hover { background: #f0f3f7; color: #445; }
+    #modes { display: flex; gap: 2px; background: #eef1f5; border-radius: 9px; padding: 3px; }
+    #modes button { border: none; background: none; font-size: 13px; padding: 5px 15px; border-radius: 7px; color: #667; }
+    #modes button.active { background: white; color: #111; font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,0.08); }
+    .flex { flex: 1; }
+    #pending-badge { font-size: 12px; color: #3a72b0; background: #eef5fd; border: 1px solid #cfe0f3; border-radius: 20px; padding: 3px 11px; }
+    #pending-badge:empty { display: none; }
+    #loading { position: absolute; top: 52px; left: 0; right: 0; height: 2px; z-index: 50; opacity: 0; transition: opacity .25s; background: linear-gradient(90deg, transparent, #4a90d9, transparent); background-size: 40% 100%; background-repeat: no-repeat; animation: slide 1.1s linear infinite; }
+    #loading.on { opacity: 1; }
+    @keyframes slide { 0% { background-position: -40% 0; } 100% { background-position: 140% 0; } }
+
+    #body { flex: 1; display: flex; min-height: 0; }
+    #sidebar { width: 250px; flex-shrink: 0; background: white; border-right: 1px solid #e2e7ee; overflow-y: auto; transition: width .16s, opacity .16s; }
+    #app.collapsed #sidebar { width: 0; opacity: 0; border-right: none; }
+    #cards { flex: 1; overflow-y: auto; padding: 20px 24px 40vh; }
+    #cards > * { width: 600px; max-width: 100%; margin-left: auto; margin-right: auto; }
+
+    /* sidebar */
+    .side-lab { font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: #b0b8c4; padding: 14px 16px 6px; }
+    .side-row { display: flex; align-items: center; gap: 8px; padding: 9px 14px; margin: 0 6px; border-radius: 9px; cursor: pointer; }
+    .side-row:hover { background: #f2f5f9; }
+    .side-row.sel { background: #e6eefa; }
+    .side-name { flex: 1; min-width: 0; font-size: 13px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .side-count { flex-shrink: 0; font-size: 11px; color: #b0b8c4; }
+    .side-empty { padding: 24px 16px; color: #a0a8b4; font-size: 13px; }
+
+    /* chips */
+    .chip { flex-shrink: 0; font-size: 10px; text-transform: uppercase; letter-spacing: 0.3px; font-weight: 600; padding: 2px 8px; border-radius: 6px; }
+    .chip-pending { color: #3a72b0; background: #eaf2fd; }
+    .chip-drift { color: #c0392b; background: #fdeef0; }
+    .chip-applied { color: #47597a; background: #eceff5; }
+    .chip-frozen { color: #667; background: #eef1f5; }
+    .chip-denied { color: #8a5a5a; background: #f4ecec; }
+    .chip-menu { color: #b5892e; background: #fbf3e2; }
+
+    /* cards */
+    .card { background: white; border: 1px solid #e2e7ee; border-radius: 14px; overflow: hidden; margin-bottom: 12px; }
+    .card.open { border-color: #cfdcec; box-shadow: 0 3px 14px rgba(40,60,90,0.07); }
+    .card.sel { border-color: #9cc0ea; box-shadow: 0 3px 16px rgba(74,120,190,0.16); }
+    .card-head { display: flex; align-items: center; gap: 10px; padding: 14px 16px; cursor: pointer; }
+    .card-head:hover { background: #fafbfc; }
+    .card-name { font-weight: 600; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .card-sub { margin-left: auto; font-size: 12px; color: #9aa4b3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .card-body { padding: 2px 16px 16px; }
+    .card-path { font-size: 11px; color: #a0aab8; font-family: ui-monospace, monospace; word-break: break-all; margin-bottom: 10px; }
+    .card-meta { font-size: 12px; color: #778; margin-bottom: 10px; }
+    .card-meta b { color: #445; }
+    .card-acts { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+
+    .d-intro { font-size: 13px; color: #667; line-height: 1.5; margin-bottom: 12px; }
+    .cat-lab { font-size: 11px; color: #8a94a6; margin: 14px 0 5px; }
+    .cat-lab b { color: #4a90d9; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; }
+    .d-none { color: #a0a8b4; font-size: 13px; padding: 10px 0; }
+
+    .bulk { display: flex; gap: 16px; margin: 2px 0 8px; }
+    .bulk label { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: #667; cursor: pointer; }
+    .row { display: flex; align-items: center; gap: 9px; padding: 8px 11px; margin-top: 5px; border: 1px solid #e7ebf1; border-radius: 9px; }
+    .row.danger-severe { border-color: #e8a6a0; background: #fdf1f0; }
+    .row.danger-caution { border-color: #f0d9a0; background: #fdf9ee; }
+    .row input[type=checkbox] { flex-shrink: 0; }
+    .row code { flex: 0 1 auto; min-width: 0; font-size: 12.5px; color: #223; word-break: break-all; }
+    .row .opt { flex-shrink: 0; font-size: 10px; text-transform: uppercase; letter-spacing: 0.4px; color: #8a94a6; background: #f2f4f7; border-radius: 6px; padding: 1px 7px; }
+    .row .stat { flex-shrink: 0; font-size: 10px; text-transform: uppercase; letter-spacing: 0.4px; padding: 2px 8px; border-radius: 6px; }
+    .stat.active { color: #2e8b57; background: #e9f8f0; }
+    .stat.missing { color: #c0392b; background: #fdeef0; }
+    .stat.unmanaged { color: #b3822a; background: #fbf3e2; }
+    .warn { flex-shrink: 0; font-size: 13px; }
+    .warn.severe { color: #c0392b; }
+    .warn.caution { color: #d6a010; }
+    .ali-pick { display: flex; align-items: center; gap: 9px; padding: 8px 11px; margin-top: 5px; border: 1px solid #e7ebf1; border-radius: 9px; }
+    .ali-pick code { flex-shrink: 0; font-size: 12.5px; color: #4a90d9; font-weight: 600; }
+    .ali-pick .arrow { flex-shrink: 0; color: #b0b8c4; }
+    .ali-pick select { flex: 1 1 auto; min-width: 0; font-family: ui-monospace, monospace; font-size: 11px; padding: 5px 7px; border-radius: 7px; border: 1px solid #dde3ea; }
+
+    .ali-opt { display: flex; align-items: center; gap: 10px; padding: 9px 12px; margin-top: 5px; border: 1px solid #e7ebf1; border-radius: 9px; }
+    .ali-opt.hid { opacity: 0.5; background: #f6f7f9; }
+    .ali-opt .dot { flex-shrink: 0; width: 8px; height: 8px; border-radius: 50%; background: transparent; }
+    .ali-opt .dot.on { background: #2e8b57; }
+    .ali-opt code { flex: 0 1 auto; min-width: 0; font-size: 12.5px; color: #223; word-break: break-all; }
+    .ali-opt .desc { flex: 1 1 auto; min-width: 0; font-size: 12px; color: #8a94a6; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .ali-opt .btn { flex-shrink: 0; margin-left: auto; }
+
+    .btn { font-size: 13px; padding: 7px 15px; border-radius: 9px; border: 1px solid #dde3ea; background: #f8fafc; color: #445; }
+    .btn:hover { background: #eef2f7; }
+    .btn.primary { background: #4a90d9; color: white; border: none; font-weight: 600; box-shadow: 0 1px 2px rgba(74,144,217,0.3); }
+    .btn.primary:hover { background: #3a7fc8; }
+    .btn.danger { color: #c0392b; }
+    .btn.danger:hover { background: #fdecec; border-color: #f0c4b0; }
+    .btn.small { padding: 4px 11px; font-size: 12px; border-radius: 7px; }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <div id="topbar">
+      <button id="collapse" title="toggle sidebar">&#9776;</button>
+      <span id="brand">Permissions</span>
+      <div id="modes">
+        <button data-mode="pending" class="active">Pending</button>
+        <button data-mode="applied">Applied</button>
+        <button data-mode="aliases">Aliases</button>
+      </div>
+      <span class="flex"></span>
+      <span id="pending-badge"></span>
+    </div>
+    <div id="loading"></div>
+    <div id="body">
+      <div id="sidebar"></div>
+      <div id="main"><div id="cards"></div></div>
+    </div>
+  </div>
+  <script>
+    var mode='pending', selected=null, editSet={}, dirty=false;
+    var approvedState={}, weirsState={}, aliasMenus={}, asksData=[];
+
+    function esc(s){ var d=document.createElement('div'); d.textContent=(s==null)?'':String(s); return d.innerHTML; }
+    function leafOf(p){ p=String(p||''); var i=p.lastIndexOf('/'); return i===-1?p:p.slice(i+1); }
+    function cssid(p){ return String(p).replace(/[^a-z0-9]/gi,'_'); }
+    function roadOf(it){ return typeof it==='string'?it:(it&&it.road)||''; }
+    function whyOf(it){ return typeof it==='string'?'':(it&&it.why)||''; }
+    function optOf(it){ return typeof it==='object'&&it&&it.optional; }
+    function sameRoads(a,b){ a=(a||[]).map(roadOf).slice().sort(); b=(b||[]).map(roadOf).slice().sort(); if(a.length!==b.length)return false; for(var i=0;i<a.length;i++)if(a[i]!==b[i])return false; return true; }
+    function aliasNameOf(r){ var i=r.indexOf('/'); return i===-1?r:r.slice(0,i); }
+    function nRoads(o){ return ((o&&o.poke)||[]).length+((o&&o.peek)||[]).length+((o&&o.make)||[]).length; }
+    var VERBS={ poke:'poke', peek:'read', make:'create & remove files' };
+    function dangerLevel(r){ if(r==='/'||r==='/sys')return 'severe'; if(r.indexOf('/sys/')===0)return /^\/sys\/(eyre|iris|ames|scry)(\/|$)/.test(r)?'severe':'caution'; return ''; }
+    function warnMark(r){ var l=dangerLevel(r); if(!l)return ''; return '<span class="warn '+l+'" title="'+(l==='severe'?'high-privilege target':'system service — mostly harmless')+'">&#9888;</span>'; }
+    function fmtDate(s){ if(!s)return ''; var p=s.replace('~','').split('..'), d=(p[0]||'').split('.'), t=(p[1]||'').split('.'); if(d.length<3)return s; var dt=new Date(Date.UTC(+d[0],(+d[1])-1,+d[2],+(t[0]||0),+(t[1]||0),+(t[2]||0))); if(isNaN(dt.getTime()))return s; return dt.toLocaleString(undefined,{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'}); }
+    function act(body){ fetch('/apps/grubbery/permits',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)}).then(function(){ setTimeout(load,300); }); }
+
+    function hasDrift(app){ var w=weirsState[app]; if(!w)return false; return ['poke','peek','make'].some(function(c){ return (w[c]||[]).some(function(r){ return r.status!=='active'; }); }); }
+    function appState(a){
+      var ap=approvedState[a.app], dec=ap&&ap.declared;
+      var settled=dec&&sameRoads(a.poke,dec.poke)&&sameRoads(a.peek,dec.peek)&&sameRoads(a.make,dec.make);
+      if(!ap||!settled)return 'pending';
+      if(ap.verdict==='denied')return 'denied';
+      if(!nRoads(ap))return 'frozen';
+      return hasDrift(a.app)?'drift':'applied';
+    }
+    var ORDER={pending:0,drift:1,frozen:2,denied:3,applied:4};
+    function appRecords(){ return asksData.map(function(a){ return {app:a.app,ask:a,approved:approvedState[a.app],state:appState(a)}; }).sort(function(x,y){ return (ORDER[x.state]-ORDER[y.state])||x.app.localeCompare(y.app); }); }
+
+    // ---- consent checklist ----
+    function checklistHTML(a){
+      var prior=approvedState[a.app], gset=null;
+      if(prior){ gset={}; ['poke','peek','make'].forEach(function(c){ (prior[c]||[]).forEach(function(it){ gset[c+'|'+roadOf(it)]=true; }); }); }
+      var binds=(prior&&prior.bindings)||{};
+      // collect the ambiguous aliases this ask references (one per name)
+      var seen={}, amb=[];
+      ['poke','peek','make'].forEach(function(cat){ (a[cat]||[]).forEach(function(it){ var road=roadOf(it); if(road.charAt(0)==='@'){ var n=aliasNameOf(road), opts=aliasMenus[n]||[]; if(opts.length>1&&!seen[n]){ seen[n]=true; amb.push({name:n,opts:opts}); } } }); });
+      var aliasSec=amb.length?'<div class="cat-lab">resolve <b>aliases</b></div>'+amb.map(function(x){ return '<div class="ali-pick"><code>'+esc(x.name)+'</code><span class="arrow">&#8594;</span><select class="pick" data-alias="'+esc(x.name)+'">'+x.opts.map(function(o){ return '<option value="'+esc(o.path)+'"'+(o.path===binds[x.name]?' selected':'')+'>'+esc(o.path)+'</option>'; }).join('')+'</select></div>'; }).join(''):'';
+      var secs=['poke','peek','make'].map(function(cat){
+        var items=a[cat]||[]; if(!items.length)return '';
+        return '<div class="cat-lab">may <b>'+esc(VERBS[cat]||cat)+'</b></div>'+items.map(function(it){
+          var road=roadOf(it), why=whyOf(it), opt=optOf(it), lvl=dangerLevel(road);
+          var chk=gset?!!gset[cat+'|'+road]:true;
+          return '<label class="row'+(lvl?' danger-'+lvl:'')+'"'+(why?' title="'+esc(why)+'"':'')+'><input type="checkbox" class="chk" data-cat="'+cat+'" data-opt="'+(opt?'1':'0')+'" data-road="'+esc(road)+'"'+(chk?' checked':'')+'>'+warnMark(road)+'<code>'+esc(road)+'</code>'+(opt?'<span class="opt">optional</span>':'')+'</label>';
+        }).join('');
+      }).filter(Boolean).join('');
+      return '<div class="d-intro">Grant the checked paths. Uncheck any you don\'t want. Uncheck everything to freeze.</div>'+
+        aliasSec+
+        '<div class="cat-lab">grant <b>paths</b></div>'+
+        '<div class="bulk"><label><input type="checkbox" class="bk-req" checked> required</label><label><input type="checkbox" class="bk-opt" checked> optional</label></div>'+
+        (secs||'<div class="d-none">nothing declared</div>');
+    }
+    function overlayHTML(app){
+      var w=weirsState[app]; if(!w)return '<div class="d-none">No live weir recorded yet.</div>';
+      var cats=['poke','peek','make'].map(function(cat){ var roads=w[cat]||[]; if(!roads.length)return ''; return '<div class="cat-lab">may <b>'+esc(VERBS[cat]||cat)+'</b></div>'+roads.map(function(r){ return '<div class="row'+(dangerLevel(r.road)?' danger-'+dangerLevel(r.road):'')+'">'+warnMark(r.road)+'<code>'+esc(r.road)+'</code><span class="stat '+esc(r.status)+'">'+esc(r.status)+'</span></div>'; }).join(''); }).filter(Boolean).join('');
+      return cats||'<div class="d-none">Fully sandboxed — no roads granted.</div>';
+    }
+    function cardSummary(r){
+      if(r.state==='pending'){ var n=nRoads(r.ask); return 'requests '+n+' path'+(n===1?'':'s'); }
+      if(r.state==='frozen')return 'frozen — no access';
+      if(r.state==='denied')return 'denied';
+      var g=nRoads(r.approved);
+      return g+' applied'+(r.state==='drift'?' · drift':'');
+    }
+    function cardBody(r){
+      var a=r.ask;
+      var meta=r.approved&&r.approved.verdict?'<div class="card-meta"><b>'+esc(r.approved.verdict)+'</b> · '+esc(fmtDate(r.approved.at))+'</div>':'';
+      if(r.state==='pending'||editSet[r.app]){
+        var adjust=editSet[r.app]&&r.state!=='pending';
+        return '<div class="card-path">'+esc(a.app)+'</div>'+meta+checklistHTML(a)+'<div class="card-acts">'+(adjust?'<button class="btn" data-act="cancel">cancel</button>':'')+'<button class="btn primary" data-act="approve">apply selected</button></div>';
+      }
+      return '<div class="card-path">'+esc(a.app)+'</div>'+meta+overlayHTML(a.app)+'<div class="card-acts"><button class="btn" data-act="adjust">adjust / reapply</button></div>';
+    }
+
+    // ---- render ----
+    function modeRecs(){ var all=appRecords(); return mode==='pending'?all.filter(function(r){return r.state==='pending';}):all.filter(function(r){return r.state!=='pending';}); }
+    function renderSidebar(){
+      var sb=document.getElementById('sidebar');
+      if(mode!=='aliases'){
+        var recs=modeRecs();
+        if(!recs.length){ sb.innerHTML='<div class="side-empty">Nothing '+(mode==='pending'?'pending':'applied')+'.</div>'; return; }
+        sb.innerHTML='<div class="side-lab">'+mode+' · '+recs.length+'</div>'+recs.map(function(r){ return '<div class="side-row'+(r.app===selected?' sel':'')+'" data-sel="'+esc(r.app)+'"><span class="side-name" title="'+esc(r.app)+'">'+esc(leafOf(r.app))+'</span><span class="chip chip-'+r.state+'">'+r.state+'</span></div>'; }).join('');
+      } else {
+        var names=Object.keys(aliasMenus).sort();
+        if(!names.length){ sb.innerHTML='<div class="side-empty">No aliases.</div>'; return; }
+        sb.innerHTML='<div class="side-lab">aliases · '+names.length+'</div>'+names.map(function(n){ return '<div class="side-row'+(n===selected?' sel':'')+'" data-sel="'+esc(n)+'"><span class="side-name">'+esc(n)+'</span><span class="side-count">'+(aliasMenus[n]||[]).length+'</span></div>'; }).join('');
+      }
+      Array.prototype.forEach.call(sb.querySelectorAll('.side-row'),function(el){ el.onclick=function(){ pick(el.getAttribute('data-sel'),true); }; });
+    }
+    function renderCards(){
+      var main=document.getElementById('cards');
+      if(mode!=='aliases'){
+        var recs=modeRecs();
+        if(!recs.length){ main.innerHTML='<div class="d-none" style="text-align:center;margin-top:60px">Nothing '+(mode==='pending'?'pending — all caught up.':'applied yet.')+'</div>'; return; }
+        if(selected===null||!recs.some(function(r){return r.app===selected;})){ selected=recs[0].app; }
+        main.innerHTML=recs.map(function(r){ return '<div class="card open'+(r.app===selected?' sel':'')+'" id="card-'+cssid(r.app)+'" data-sel="'+esc(r.app)+'"><div class="card-head"><span class="card-name">'+esc(leafOf(r.app))+'</span><span class="chip chip-'+r.state+'">'+r.state+'</span><span class="card-sub">'+esc(cardSummary(r))+'</span></div><div class="card-body">'+cardBody(r)+'</div></div>'; }).join('');
+        Array.prototype.forEach.call(main.querySelectorAll('.card'),function(c){ wireCard(c); });
+      } else {
+        var names=Object.keys(aliasMenus).sort();
+        if(!names.length){ main.innerHTML='<div class="d-none" style="text-align:center;margin-top:60px">No aliases declared.</div>'; return; }
+        main.innerHTML=names.map(function(n){
+          var opts=aliasMenus[n]||[];
+          var body=opts.map(function(o){
+            var users=Object.keys(approvedState).filter(function(app){ var b=approvedState[app].bindings; return b&&b[n]===o.path; }).map(leafOf);
+            var dot='<span class="dot'+(users.length?' on':'')+'"'+(users.length?' title="used by '+esc(users.join(', '))+'"':'')+'></span>';
+            return '<div class="ali-opt'+(o.hidden?' hid':'')+'">'+dot+'<code>'+esc(o.path)+'</code><span class="desc">'+esc(o.description||'')+'</span>'+(o.hidden?'<button class="btn small" data-un="'+esc(o.path)+'">unhide</button>':'<button class="btn small danger" data-hide="'+esc(o.path)+'">hide</button>')+'</div>';
+          }).join('');
+          var intro=opts.length>1?'Several apps advertise this name — you pick which one it resolves to when an app asks.':'A name apps can refer to.';
+          return '<div class="card open'+(n===selected?' sel':'')+'" id="card-'+cssid(n)+'"><div class="card-head" style="cursor:default"><span class="card-name">'+esc(n)+'</span>'+(opts.length>1?'<span class="chip chip-menu">menu · '+opts.length+'</span>':'')+'</div><div class="card-body"><div class="d-intro">'+intro+'</div>'+body+'</div></div>';
+        }).join('');
+        Array.prototype.forEach.call(main.querySelectorAll('[data-hide]'),function(b){ b.onclick=function(){ var nm=b.closest('.card').querySelector('.card-name').textContent, p=b.getAttribute('data-hide'); if(confirm('Hide '+nm+' → '+p+'?\n\nThe app declares this itself, so this only stops offering it here. You can unhide it later.')) act({action:'alias-suppress',alias:nm,path:p}); }; });
+        Array.prototype.forEach.call(main.querySelectorAll('[data-un]'),function(b){ b.onclick=function(){ var nm=b.closest('.card').querySelector('.card-name').textContent; act({action:'alias-unsuppress',alias:nm,path:b.getAttribute('data-un')}); }; });
+      }
+    }
+    function wireCard(card){
+      if(!card)return; var app=card.getAttribute('data-sel'); var a=asksData.filter(function(x){return x.app===app;})[0]; if(!a)return;
+      var setg=function(o,v){ Array.prototype.forEach.call(card.querySelectorAll('.chk'),function(c){ if((c.getAttribute('data-opt')==='1')===o)c.checked=v; }); };
+      var rq=card.querySelector('.bk-req'), op=card.querySelector('.bk-opt');
+      if(rq)rq.onchange=function(){ setg(false,this.checked); };
+      if(op)op.onchange=function(){ setg(true,this.checked); };
+      Array.prototype.forEach.call(card.querySelectorAll('.chk,.pick'),function(e){ e.addEventListener('change',function(){ dirty=true; }); });
+      var ap=card.querySelector('[data-act=approve]'); if(ap)ap.onclick=function(){
+        var granted={poke:[],peek:[],make:[]}, picks={};
+        Array.prototype.forEach.call(card.querySelectorAll('.chk'),function(c){ if(c.checked)granted[c.getAttribute('data-cat')].push(c.getAttribute('data-road')); });
+        Array.prototype.forEach.call(card.querySelectorAll('.pick'),function(s){ picks[s.getAttribute('data-alias')]=s.value; });
+        dirty=false; delete editSet[app]; act({action:'approve-weir',app:app,picks:picks,granted:granted});
+      };
+      var ca=card.querySelector('[data-act=cancel]'); if(ca)ca.onclick=function(){ delete editSet[app]; dirty=false; render(); };
+      var adj=card.querySelector('[data-act=adjust]'); if(adj)adj.onclick=function(){ editSet[app]=true; render(); };
+    }
+    function centerCard(id,smooth){
+      var cont=document.getElementById('cards'), el=document.getElementById('card-'+cssid(id));
+      if(!cont||!el)return;
+      var cr=cont.getBoundingClientRect(), er=el.getBoundingClientRect();
+      var top=cont.scrollTop+(er.top-cr.top)-(cont.clientHeight-el.clientHeight)/2;
+      cont.scrollTo({top:Math.max(0,top),behavior:smooth?'smooth':'auto'});
+    }
+    function pick(id,scroll){
+      selected=id;
+      // highlight without rebuilding, so in-progress edits survive
+      Array.prototype.forEach.call(document.querySelectorAll('#cards .card'),function(c){ c.classList.toggle('sel',c.id==='card-'+cssid(id)); });
+      Array.prototype.forEach.call(document.querySelectorAll('#sidebar .side-row'),function(r){ r.classList.toggle('sel',r.getAttribute('data-sel')===id); });
+      if(scroll)centerCard(id,true);
+    }
+    function render(poll){
+      document.getElementById('pending-badge').textContent=(function(){ var n=appRecords().filter(function(r){return r.state==='pending';}).length; return n?n+' pending':''; })();
+      renderSidebar();
+      if(poll&&dirty&&mode!=='aliases')return;
+      renderCards();
+    }
+    Array.prototype.forEach.call(document.querySelectorAll('#modes button'),function(b){ b.onclick=function(){ mode=b.getAttribute('data-mode'); selected=null; editSet={}; dirty=false; Array.prototype.forEach.call(document.querySelectorAll('#modes button'),function(x){ x.classList.toggle('active',x===b); }); render(); }; });
+    document.getElementById('collapse').onclick=function(){ document.getElementById('app').classList.toggle('collapsed'); };
+
+    var loadingEl=document.getElementById('loading'), firstLoad=true;
+    function load(){
+      if(firstLoad)loadingEl.classList.add('on');
+      Promise.all([
+        fetch('/apps/grubbery/permits.json').then(function(r){return r.json();}).then(function(d){ approvedState=(d&&d.approved)||{}; }).catch(function(){}),
+        fetch('/apps/grubbery/weirs.json').then(function(r){return r.json();}).then(function(d){ weirsState=d||{}; }).catch(function(){}),
+        fetch('/apps/grubbery/aliases.json').then(function(r){return r.json();}).then(function(d){ aliasMenus=d||{}; }).catch(function(){}),
+        fetch('/apps/grubbery/asks.json').then(function(r){return r.json();}).then(function(d){ asksData=d||[]; }).catch(function(){})
+      ]).then(function(){ var f=firstLoad; if(firstLoad){ loadingEl.classList.remove('on'); firstLoad=false; } render(true); if(f&&selected){ setTimeout(function(){ centerCard(selected,false); },60); } });
+    }
+    load();
+    setInterval(load,5000);
+  </script>
+</body>
+</html>

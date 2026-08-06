@@ -483,7 +483,11 @@
   =/  cod=path  (stab +.i.entries)
   =/  neck=rail:tarball  [(snip cod) (rear cod)]
   =/  data-road=road:tarball  (nex-road:io rail [%| /desk/data/[nam]])
-  =/  =bole:tarball  [`[`neck ~ %.n ~] ~]
+  ::  created sandboxed: an empty weir [~ ~ ~] (permit nothing) rather than
+  ::  ~ (no filter / wide open). The nexus still materializes its own tree
+  ::  (that rides the make, not a weir-gated dart), but stays runtime-inert
+  ::  — it can reach nothing until its weir.json is approved in the shell.
+  =/  =bole:tarball  [`[`neck `[~ ~ ~] %.n ~] ~]
   ~&  >  [%desk-bill-entry nam neck]
   ;<  ~  bind:m  (make:io data-road &+bole)
   $(entries t.entries)

@@ -39,6 +39,7 @@
           [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
           [%fall %| /requests empty-dir:loader]
           [%fall %& [/ %'tile.json'] [[/ %json] default-tile]]
+          [%over %& [/ %'alias.json'] [[/ %json] (pairs:enjs:format ~[['name' s+'weather'] ['description' s+'Local forecasts and a live weather map']])]]
           [%over %& [/ %'icon.svg'] [[/ %mime] icon]]
           [%over %& [/ %'index.html'] [[/ %mime] index-html]]
           [%over %& [/ %'app.js'] [[/ %mime] app-js]]
