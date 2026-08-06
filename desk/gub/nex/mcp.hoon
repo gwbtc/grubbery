@@ -128,6 +128,7 @@
   ^-  bole:tarball
   %+  spin:loader  ball
   :~  (manifest:loader 0)
+      [%over %& [/ %'alias.json'] [[/ %json] (pairs:enjs:format ~[['name' s+'mcp'] ['description' s+'MCP tool registry and runner']])]]
       [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
       [%fall %| /requests empty-dir:loader]
       [%fall %| /tools empty-dir:loader]

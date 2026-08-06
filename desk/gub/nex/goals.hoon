@@ -186,6 +186,7 @@
         ==
       %+  spin:loader  ball
       :~  (manifest:loader 0)
+          [%over %& [/ %'alias.json'] [[/ %json] (pairs:enjs:format ~[['name' s+'goals'] ['description' s+'Goal decomposition and audits']])]]
           [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
           [%fall %& [/ %'page.html'] [[/ %html] (crip (en-xml:html (goals-page ~ ~)))]]
           [%fall %| /store empty-dir:loader]

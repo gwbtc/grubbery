@@ -29,6 +29,7 @@
         ==
       %+  spin:loader  ball
       :~  (manifest:loader 0)
+          [%over %& [/ %'alias.json'] [[/ %json] (pairs:enjs:format ~[['name' s+'feeds'] ['description' s+'RSS and Atom feed reader']])]]
           [%over %& [/ %'tile.json'] [[/ %json] tile]]
           [%over %& [/ %'icon.svg'] [[/ %mime] icon]]
           [%over %& [/ %'index.html'] [[/ %mime] index-html]]

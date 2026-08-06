@@ -33,6 +33,7 @@
         ==
       %+  spin:loader  ball
       :~  (manifest:loader 0)
+          [%over %& [/ %'alias.json'] [[/ %json] (pairs:enjs:format ~[['name' s+'routes'] ['description' s+'Recurrence rules for schedules']])]]
           [%over %& [/ %'tile.json'] [[/ %json] tile]]
           [%over %& [/ %'icon.svg'] [[/ %mime] icon]]
           [%over %& [/ %'index.html'] [[/ %mime] index-html]]

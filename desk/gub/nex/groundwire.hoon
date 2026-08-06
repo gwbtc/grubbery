@@ -19,6 +19,7 @@
       ^-  bole:tarball
       %+  spin:loader  ball
       :~  (manifest:loader 0)
+          [%over %& [/ %'alias.json'] [[/ %json] (pairs:enjs:format ~[['name' s+'groundwire'] ['description' s+'Groundwire bridge']])]]
             [%fall %& [/ %'config.json'] [[/ %json] default-config]]
             [%fall %& [/ %'height.ud'] [[/ %ud] 0]]
             [%fall %& [/ %'urb-state.urb-state'] [[/ %urb-state] *state:urb]]

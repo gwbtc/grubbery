@@ -29,6 +29,7 @@
         ==
       %+  spin:loader  ball
       :~  (manifest:loader 0)
+          [%over %& [/ %'alias.json'] [[/ %json] (pairs:enjs:format ~[['name' s+'desks'] ['description' s+'Desk manager: sync, deploy, and mirror']])]]
           [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
           [%fall %| /requests empty-dir:loader]
           [%over %& [/ %'tile.json'] [[/ %json] tile]]

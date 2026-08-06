@@ -28,6 +28,7 @@
         ==
       %+  spin:loader  ball
       :~  (manifest:loader 0)
+          [%over %& [/ %'alias.json'] [[/ %json] (pairs:enjs:format ~[['name' s+'calendar'] ['description' s+'Events, schedules, and ICS sync']])]]
           [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
           [%fall %& [/ %'calendar.calendar'] [[/ %calendar] fresh-calendar:cal]]
           [%fall %& [/ %'order.calendar-cache'] [[/ %calendar-cache] *cache:cal]]

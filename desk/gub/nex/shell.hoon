@@ -26,7 +26,18 @@
           [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
           [%fall %& [/ %'public.json'] [[/ %json] [%a ~]]]
           [%fall %& [/ %'peers.json'] [[/ %json] [%a ~]]]
-          [%fall %& [/ %'permits.json'] [[/ %json] default-permits]]
+          ::  authoritative permission state, in two component grubs:
+          ::  permit/approved (app path -> consented manifest) and
+          ::  permit/hidden (suppressed alias options). The derived views
+          ::  (aliases, asks, weirs) are computed live per request from these
+          ::  plus a shallow /apps scan — always fresh, never materialized.
+          [%fall %| /permit empty-dir:loader]
+          [%fall %& [/permit %'approved.json'] [[/ %json] [%o ~]]]
+          [%fall %& [/permit %'hidden.json'] [[/ %json] [%o ~]]]
+          ::  permit/notified holds the notify dedup (app -> mug of the ask
+          ::  version last pinged about) AND hosts the scanner fiber that
+          ::  polls for new/changed unapproved asks and pings notifications.
+          [%fall %& [/permit %'notified.json'] [[/ %json] [%o ~]]]
           [%fall %| /peers empty-dir:loader]
           [%fall %| /requests empty-dir:loader]
           [%over %& [/ %'app.js'] [[/ %mime] app-js]]
@@ -108,54 +119,21 @@
           ~?  >>>  ?=(^ err)  [%shell-peer-cull-failed u.del]
           $
         $
-          ::  permits.json: the permission registry. Apps declare via
-          ::  alias.json / weir.json (the shell pulls them), so this grub
-          ::  is poked only by the authenticated user (a shell-internal
-          ::  poker) for admin actions — approve/deny a weir.json ask,
-          ::  hide/unhide an alias. Shell is the only weir-writer.
+          ::  permit/notified: the notification scanner. Registers with the
+          ::  notifications nexus once, then on a ~m2 heartbeat scans every
+          ::  app's weir.json ask, skips the ones already settled (declared
+          ::  matches permit/approved) or already pinged (mug matches the
+          ::  dedup set), and fires a notification for the rest — updating
+          ::  the dedup set, which is this grub's own state.
           ::
-          [~ %'permits.json']
-        ;<  ~  bind:m  (rise-wait:io prod "%shell permits: failed")
-        ;<  here=rail:tarball  bind:m  get-here-abs:io
+          [[%permit ~] %'notified.json']
+        ;<  ~  bind:m  (rise-wait:io prod "%shell notify-scan: failed")
+        ;<  ~  bind:m  (register-notify rail)
         |-
-        ;<  [from=from:fiber:nexus =sage:tarball]  bind:m  take-poke-from:io
-        =/  jon=json  (fall (mole |.(!<(json q.sage))) *json)
-        ?.  ?=(%o -.jon)  $
-        =/  petitioner=rail:tarball  (resolve-bend:io here from)
-        ::  admin actions only, and only from a shell-internal poker (the
-        ::  authenticated HTTP handler, which lives under shell's own tree).
-        =/  shell-root=path  path.here
-        =/  internal=?  =(shell-root (scag (lent shell-root) `(list @ta)`path.petitioner))
-        =/  act=@t  (fall (jget jon 'action') '')
-        =/  is-admin=?
-          ?|  =('approve-weir' act)  =('deny-weir' act)
-              =('alias-suppress' act)  =('alias-unsuppress' act)
-          ==
-        ?:  &(internal is-admin)
-          ;<  now=@da  bind:m  get-time:io
-          ;<  cur=json  bind:m  (get-state-as:io ,json)
-          ::  weir.json consent: approve an app's declared ask as a unit
-          ::  (resolve @refs, sand its weir, record the manifest) or deny.
-          ?:  |(=('approve-weir' act) =('deny-weir' act))
-            =/  app=@t  (fall (jget jon 'app') '')
-            ?:  =('' app)  $
-            =/  picks=json    (fall (~(get by p.jon) 'picks') [%o ~])
-            =/  granted=json  (fall (~(get by p.jon) 'granted') [%o ~])
-            ;<  np=json  bind:m
-              ?:  =('approve-weir' act)  (do-approve-weir cur app picks granted now)
-              (do-deny-weir cur app now)
-            ;<  ~  bind:m  (replace:io np)
-            $
-          ?:  |(=('alias-suppress' act) =('alias-unsuppress' act))
-            =/  alias=@t  (fall (jget jon 'alias') '')
-            =/  path=@t   (fall (jget jon 'path') '')
-            ?:  |(=('' alias) =('' path))  $
-            =/  next=json
-              ?:  =('alias-suppress' act)  (suppress-alias cur alias path)
-              (unsuppress-alias cur alias path)
-            ;<  ~  bind:m  (replace:io next)
-            $
-          $
+        ;<  ~  bind:m  (scan-and-notify rail)
+        ;<  now=@da  bind:m  get-time:io
+        ;<  ~  bind:m  (set-timer:io /rescan (add now ~m2))
+        ;<  *  bind:m  take-poke:io
         $
           ::  /peers/<ship>.json: live mirror of one ship's public desk
           ::  directory, held current by subscription. All network
@@ -184,16 +162,18 @@
         =/  prefix=path  /grubbery/tiles
         =/  site=path  site:(parse-url:http-utils url.request.req)
         =/  suffix=path  (slag (lent prefix) site)
-        ::  POST /apps/grubbery/permits → a user grant/deny action. We are
-        ::  already gated to src==our above, so this is the authenticated
-        ::  user; forward it as a poke to the permits fiber (single writer,
-        ::  which re-checks the poker is shell-internal).
+        ::  POST /apps/grubbery/permits → a user permission action, applied
+        ::  directly (we are already gated to src==our, the authenticated
+        ::  user). Writes the authoritative component grubs — permit/approved/
+        ::  <app> or permit/hidden — sands the weir, then nudges the derived
+        ::  views to refresh. The shell is the ship's only weir-writer.
         ?:  &(=('POST' method.request.req) ?=([%permits ~] suffix))
           =/  jon=json
             %+  fall  (de:json:html ?~(body.request.req '' q.u.body.request.req))
             *json
-          ;<  ~  bind:m
-            (poke:io (nex-road:io rail [%& ~ %'permits.json']) [/ %json] jon)
+          =/  act=@t  ?.(?=(%o -.jon) '' (fall (jget jon 'action') ''))
+          ;<  now=@da  bind:m  get-time:io
+          ;<  ~  bind:m  (apply-permit-action rail jon act now)
           ;<  ~  bind:m  (send-simple:srv eyre-id [[200 ~] `(as-octs:mimes:html 'ok')])
           (pure:m ~)
         ::  tile store, served from the tiles data ball over the namespace
@@ -259,21 +239,20 @@
           ;<  ~  bind:m
             (send-simple:srv eyre-id [[200 ~[['content-type' 'text/html']]] `q.mime])
           (pure:m ~)
-        ::  /apps/grubbery/permits.json → the registry state, for the page
-        ?:  ?=([%'permits.json' ~] suffix)
-          ;<  pm=(unit json)  bind:m
-            (peek-as:io (nex-road:io rail [%& ~ %'permits.json']) ,json)
-          =/  bod=octs  (as-octs:mimes:html (en:json:html (fall pm [%o ~])))
+        ::  /apps/grubbery/approved.json → the per-app approval records,
+        ::  aggregated into a map keyed by app path (what the UI keys on).
+        ?:  ?=([%'approved.json' ~] suffix)
+          ;<  approved=(map @t json)  bind:m  (read-approved rail)
+          =/  bod=octs  (as-octs:mimes:html (en:json:html [%o approved]))
           ;<  ~  bind:m
             (send-simple:srv eyre-id [[200 ~[['content-type' 'application/json']]] `bod])
           (pure:m ~)
         ::  /apps/grubbery/weirs.json → ground truth: the live weir on each
         ::  governed dir, with the registry's intention overlaid per road.
         ?:  ?=([%'weirs.json' ~] suffix)
-          ;<  pm=(unit json)  bind:m
-            (peek-as:io (nex-road:io rail [%& ~ %'permits.json']) ,json)
-          =/  st=json  (fall pm [%o ~])
-          ;<  wj=json  bind:m  (read-approved-weirs st)
+          ;<  approved=(map @t json)  bind:m  (read-approved rail)
+          ;<  hidden=json  bind:m  (read-hidden rail)
+          ;<  wj=json  bind:m  (read-approved-weirs approved hidden)
           =/  bod=octs  (as-octs:mimes:html (en:json:html wj))
           ;<  ~  bind:m
             (send-simple:srv eyre-id [[200 ~[['content-type' 'application/json']]] `bod])
@@ -281,20 +260,19 @@
         ::  /apps/grubbery/aliases.json → the alias directory as menus:
         ::  app-declared alias.json options merged with your stored ones.
         ?:  ?=([%'aliases.json' ~] suffix)
-          ;<  pm=(unit json)  bind:m
-            (peek-as:io (nex-road:io rail [%& ~ %'permits.json']) ,json)
-          =/  st=json  (fall pm [%o ~])
-          =/  supp=json
-            ?:(?=(%o -.st) (fall (~(get by p.st) 'suppressed') [%o ~]) [%o ~])
-          ;<  menus=json  bind:m  (build-alias-menus supp %.y)
+          ;<  hidden=json  bind:m  (read-hidden rail)
+          ;<  menus=json  bind:m  (build-alias-menus hidden %.y)
           =/  bod=octs  (as-octs:mimes:html (en:json:html menus))
           ;<  ~  bind:m
             (send-simple:srv eyre-id [[200 ~[['content-type' 'application/json']]] `bod])
           (pure:m ~)
         ::  /apps/grubbery/asks.json → each app's declared weir.json ask.
         ?:  ?=([%'asks.json' ~] suffix)
+          ;<  hidden=json  bind:m  (read-hidden rail)
+          ;<  menus=json  bind:m  (build-alias-menus hidden %.n)
           ;<  asks=(list json)  bind:m  read-app-weirs
-          =/  bod=octs  (as-octs:mimes:html (en:json:html [%a asks]))
+          =/  marked=(list json)  (turn asks |=(a=json (mark-unresolved a menus)))
+          =/  bod=octs  (as-octs:mimes:html (en:json:html [%a marked]))
           ;<  ~  bind:m
             (send-simple:srv eyre-id [[200 ~[['content-type' 'application/json']]] `bod])
           (pure:m ~)
@@ -371,51 +349,188 @@
   ?.  ?=(%o -.j)  ~
   =/  v  (~(get by p.j) k)
   ?.(?=([~ %s *] v) ~ `p.u.v)
-::  +default-permits: the shell-owned permission registry. `approved`
-::  maps each app to its consented manifest (present grant state, the
-::  system of record — weirs are projected from it); `suppressed` holds
-::  hidden alias options; `log` is the decision history. Shell is the
-::  only writer of weirs, so this grub is the ship's capability broker.
-::
-++  default-permits
-  ^-  json
-  %-  pairs:enjs:format
-  :~  ['approved' [%o ~]]
-      ['suppressed' [%o ~]]
-      ['log' [%a ~]]
-  ==
 ::  +suppress-alias: hide an app-declared option (alias name + path) from
 ::  the directory. App options are derived from alias.json, so they can't
 ::  be deleted outright — this records a suppression the menu builder
-::  filters out, so the option stops being offered.
+::  filters out, so the option stops being offered. Operates on the
+::  permit/hidden map: alias name -> [suppressed path strings].
 ::
 ++  suppress-alias
-  |=  [pm=json alias=@t path=@t]
+  |=  [hidden=json alias=@t path=@t]
   ^-  json
-  ?.  ?=(%o -.pm)  pm
-  =/  supp=(map @t json)
-    =/  s  (~(get by p.pm) 'suppressed')
-    ?.(?=([~ %o *] s) ~ p.u.s)
+  =/  supp=(map @t json)  ?.(?=(%o -.hidden) ~ p.hidden)
   =/  cur=(list json)
     =/  e  (~(get by supp) alias)
     ?.(?=([~ %a *] e) ~ p.u.e)
   =/  has=?  (lien cur |=(j=json &(?=(%s -.j) =(path p.j))))
   =/  next=(list json)  ?:(has cur (snoc cur s+path))
-  [%o (~(put by p.pm) 'suppressed' [%o (~(put by supp) alias [%a next])])]
+  [%o (~(put by supp) alias [%a next])]
 ::  +unsuppress-alias: un-hide a previously suppressed app-declared option.
 ::
 ++  unsuppress-alias
-  |=  [pm=json alias=@t path=@t]
+  |=  [hidden=json alias=@t path=@t]
   ^-  json
-  ?.  ?=(%o -.pm)  pm
-  =/  supp=(map @t json)
-    =/  s  (~(get by p.pm) 'suppressed')
-    ?.(?=([~ %o *] s) ~ p.u.s)
+  =/  supp=(map @t json)  ?.(?=(%o -.hidden) ~ p.hidden)
   =/  cur=(list json)
     =/  e  (~(get by supp) alias)
     ?.(?=([~ %a *] e) ~ p.u.e)
   =/  next=(list json)  (skip cur |=(j=json &(?=(%s -.j) =(path p.j))))
-  [%o (~(put by p.pm) 'suppressed' [%o (~(put by supp) alias [%a next])])]
+  [%o (~(put by supp) alias [%a next])]
+::  +read-hidden: the permit/hidden grub (suppressed alias options), or an
+::  empty map if absent.
+::
+++  read-hidden
+  |=  rail=rail:tarball
+  =/  m  (fiber:fiber:nexus ,json)
+  ^-  form:m
+  ;<  hv=(unit json)  bind:m
+    (peek-as:io (nex-road:io rail [%& /permit %'hidden.json']) ,json)
+  (pure:m (fall hv [%o ~]))
+::  +do-suppress: read permit/hidden, hide (suppress=%.y) or un-hide an
+::  app-declared option, and write it back.
+::
+++  do-suppress
+  |=  [rail=rail:tarball alias=@t path=@t suppress=?]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  ;<  hidden=json  bind:m  (read-hidden rail)
+  =/  next=json
+    ?:  suppress  (suppress-alias hidden alias path)
+    (unsuppress-alias hidden alias path)
+  (put:io (nex-road:io rail [%& /permit %'hidden.json']) [[/ %json] next])
+::  +read-approved: the permit/approved grub — the map of app path -> its
+::  consented manifest. The system of record for present grant state.
+::
+++  read-approved
+  |=  rail=rail:tarball
+  =/  m  (fiber:fiber:nexus ,(map @t json))
+  ^-  form:m
+  ;<  av=(unit json)  bind:m
+    (peek-as:io (nex-road:io rail [%& /permit %'approved.json']) ,json)
+  (pure:m ?~(av ~ ?.(?=(%o -.u.av) ~ p.u.av)))
+::  +notify-target: poke road to the notifications nexus's main.sig.
+::
+++  notify-target
+  ^-  road:tarball
+  [%& %& [/apps/'notifications.notifications' %'main.sig']]
+::  +register-notify: register the shell with the notifications nexus so
+::  its notify pokes are accepted (senders must be registered). Best-effort.
+::
+++  register-notify
+  |=  rail=rail:tarball
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  =/  payload=json
+    (pairs:enjs:format ~[['action' s+'register'] ['name' s+'permissions']])
+  ;<  *  bind:m  (poke-soft:io notify-target [[/ %json] payload])
+  (pure:m ~)
+::  +weir-key: a version-aware dedup key for an app's weir.json — mug of its
+::  born (version history). Advances on every content CHANGE, so returning
+::  to a previously-declared weir (X -> Y -> X) yields a fresh key (a new
+::  case in the history) and re-notifies, while an idle re-scan does not.
+::
+++  weir-key
+  |=  [rail=rail:tarball app=@t]
+  =/  m  (fiber:fiber:nexus ,@)
+  ^-  form:m
+  =/  tp=(unit path)  (soft-path app)
+  ?~  tp  (pure:m 0)
+  ;<  res=(each (list [=cass:clay tags=(set @t) tomb=?]) tang)  bind:m
+    (born:io [%& %& [u.tp %'weir.json']])
+  ?.  ?=(%& -.res)  (pure:m 0)
+  (pure:m (mug p.res))
+::  +is-settled: has this exact declared ask already been ruled on? True iff
+::  permit/approved holds a record for the app whose `declared` roads match
+::  the current ask (order-insensitive). Settled asks never notify.
+::
+++  is-settled
+  |=  [ask=json approved=(map @t json)]
+  ^-  ?
+  =/  app=@t  (fall (jget ask 'app') '')
+  =/  ap=(unit json)  (~(get by approved) app)
+  ?~  ap  %.n
+  ?.  ?=(%o -.u.ap)  %.n
+  =/  dec=json  (fall (~(get by p.u.ap) 'declared') [%o ~])
+  =/  same=$-([(list @t) (list @t)] ?)
+    |=([a=(list @t) b=(list @t)] =((sort a aor) (sort b aor)))
+  ?&  (same (road-strs ask 'poke') (road-strs dec 'poke'))
+      (same (road-strs ask 'peek') (road-strs dec 'peek'))
+      (same (road-strs ask 'make') (road-strs dec 'make'))
+  ==
+::  +notify-app: ping the notifications nexus about one app's pending ask.
+::  Best-effort (poke-soft): a failed ping never kills the scan loop.
+::
+++  notify-app
+  |=  [rail=rail:tarball app=@t]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  =/  leaf=@t  (rear `path`(fall (soft-path app) /unknown))
+  =/  meta=json
+    %-  pairs:enjs:format
+    :~  ['title' s+'Permission request']
+        ['body' s+(cat 3 leaf ' is requesting access')]
+        ['url' s+'/apps/grubbery/permits']
+    ==
+  =/  payload=json
+    %-  pairs:enjs:format
+    :~  ['action' s+'notify']
+        ['push' s+'true']
+        ['metadata' meta]
+    ==
+  ;<  *  bind:m  (poke-soft:io notify-target [[/ %json] payload])
+  (pure:m ~)
+::  +scan-and-notify: one pass — for every app's weir.json ask, skip the
+::  settled ones and the ones already pinged at this version, ping the rest,
+::  and persist the updated dedup set (this grub's own state).
+::
+++  scan-and-notify
+  |=  rail=rail:tarball
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  ;<  approved=(map @t json)  bind:m  (read-approved rail)
+  ;<  cur=json  bind:m  (get-state-as:io ,json)
+  =/  seen=(map @t @t)
+    ?.  ?=(%o -.cur)  ~
+    (~(urn by p.cur) |=([k=@t v=json] ?:(?=(%s -.v) p.v '')))
+  ;<  asks=(list json)  bind:m  read-app-weirs
+  =/  next=(map @t @t)  seen
+  |-  ^-  form:m
+  ?~  asks
+    (replace:io [%o (~(run by next) |=(v=@t s+v))])
+  =/  ask=json  i.asks
+  =/  app=@t  (fall (jget ask 'app') '')
+  ?:  =('' app)  $(asks t.asks)
+  ?:  (is-settled ask approved)  $(asks t.asks)
+  ;<  key=@  bind:m  (weir-key rail app)
+  =/  keystr=@t  (scot %uv key)
+  ?:  =(`keystr (~(get by next) app))  $(asks t.asks)
+  ;<  ~  bind:m  (notify-app rail app)
+  $(asks t.asks, next (~(put by next) app keystr))
+::  +apply-permit-action: dispatch a validated POST permission action to the
+::  authoritative component grubs. The caller already gated on src==our, so
+::  this is the authenticated user.
+::
+++  apply-permit-action
+  |=  [rail=rail:tarball jon=json act=@t now=@da]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  ?.  ?=(%o -.jon)  (pure:m ~)
+  =/  app=@t    (fall (jget jon 'app') '')
+  =/  alias=@t  (fall (jget jon 'alias') '')
+  =/  path=@t   (fall (jget jon 'path') '')
+  =/  picks=json    (fall (~(get by p.jon) 'picks') [%o ~])
+  =/  granted=json  (fall (~(get by p.jon) 'granted') [%o ~])
+  ?:  ?&(=('approve-weir' act) ?!(=('' app)))
+    ;<  hidden=json  bind:m  (read-hidden rail)
+    (do-approve-weir rail app picks granted hidden now)
+  ?:  ?&(=('deny-weir' act) ?!(=('' app)))
+    (do-deny-weir rail app now)
+  ?:  ?&  ?|(=('alias-suppress' act) =('alias-unsuppress' act))
+          ?!(=('' alias))
+          ?!(=('' path))
+      ==
+    (do-suppress rail alias path =('alias-suppress' act))
+  (pure:m ~)
 ::  +parse-road: road text -> a road. trailing slash = directory, no
 ::  slash = file; leading ../ climbs out (one step each). Same as desks.
 ::
@@ -774,49 +889,31 @@
   |=  [str=@t acc=_s]
   =/  r=(unit road:tarball)  (parse-road str)
   ?~(r acc (~(put in acc) u.r))
-::  +record-approval: store an app's consented manifest under approved[app]
-::  (the raw declared roads, for the settled/changed diff) and log it. The
-::  approved manifest is present grant state — the system of record.
+::  +approval-entry: build one app's approval record — the GRANTED subset
+::  (poke/peek/make, drives overlay + grant.json) plus `declared` (the full
+::  ask ruled on, drives the settled diff so granting a subset still settles
+::  instead of re-nagging), the alias bindings, verdict, and timestamp. This
+::  is the content of its permit/approved/<app> grub — present grant state,
+::  the system of record.
 ::
-++  record-approval
-  |=  [pm=json app=@t declared=json granted=json verdict=@t bindings=json now=@da]
+++  approval-entry
+  |=  [app=@t declared=json granted=json verdict=@t bindings=json now=@da]
   ^-  json
-  ?.  ?=(%o -.pm)  pm
-  =/  approved=(map @t json)
-    =/  a  (~(get by p.pm) 'approved')
-    ?.(?=([~ %o *] a) ~ p.u.a)
-  ::  poke/peek/make = the GRANTED subset (drives overlay + grant.json);
-  ::  `declared` = the full ask you ruled on (drives the settled diff, so
-  ::  granting a subset still settles the ask instead of re-nagging).
-  =/  entry=json
-    %-  pairs:enjs:format
-    :~  ['app' s+app]
-        ['poke' (cat-arr granted 'poke')]
-        ['peek' (cat-arr granted 'peek')]
-        ['make' (cat-arr granted 'make')]
-        :-  'declared'
-        %-  pairs:enjs:format
-        :~  ['poke' (cat-arr declared 'poke')]
-            ['peek' (cat-arr declared 'peek')]
-            ['make' (cat-arr declared 'make')]
-        ==
-        ['bindings' bindings]
-        ['verdict' s+verdict]
-        ['at' s+(scot %da now)]
-    ==
-  =/  logged=json
-    %-  pairs:enjs:format
-    :~  ['app' s+app]
-        ['kind' s+'weir']
-        ['verdict' s+verdict]
-        ['at' s+(scot %da now)]
-        ['settled' s+(scot %da now)]
-    ==
-  =/  log=(list json)
-    =/  l  (~(get by p.pm) 'log')
-    ?.(?=([~ %a *] l) ~ p.u.l)
-  =/  m1  (~(put by p.pm) 'approved' [%o (~(put by approved) app entry)])
-  [%o (~(put by m1) 'log' [%a [logged log]])]
+  %-  pairs:enjs:format
+  :~  ['app' s+app]
+      ['poke' (cat-arr granted 'poke')]
+      ['peek' (cat-arr granted 'peek')]
+      ['make' (cat-arr granted 'make')]
+      :-  'declared'
+      %-  pairs:enjs:format
+      :~  ['poke' (cat-arr declared 'poke')]
+          ['peek' (cat-arr declared 'peek')]
+          ['make' (cat-arr declared 'make')]
+      ==
+      ['bindings' bindings]
+      ['verdict' s+verdict]
+      ['at' s+(scot %da now)]
+  ==
 ::  +soft-path: parse a cord to a path without crashing (stab throws a
 ::  syntax error on bad input; an app id should be a valid path, but a
 ::  stale/malformed one must not take down the fiber).
@@ -845,40 +942,68 @@
 ::  gone — drift). Live roads with no approved match are `unmanaged`
 ::  (present but never consented — drift the other way).
 ::
+::  +optional-roads: the set of road-text an ask marks optional (a weir.json
+::  line with "optional": true), so the overlay can tag them.
+::
+++  optional-roads
+  |=  [ask=json cat=@t]
+  ^-  (set @t)
+  ?.  ?=(%o -.ask)  ~
+  =/  v  (~(get by p.ask) cat)
+  ?.  ?=([~ %a *] v)  ~
+  %-  silt
+  %+  murn  p.u.v
+  |=  j=json
+  ?.  ?=(%o -.j)  ~
+  ?.  =(`[%b &] (~(get by p.j) 'optional'))  ~
+  =/  r  (~(get by p.j) 'road')
+  ?.(?=([~ %s *] r) ~ `p.u.r)
+::
 ++  overlay-cat
   |=  [entry=json picks=json menus=json live=(set road:tarball) cat=@t]
   ^-  json
-  =/  pairs=(list [txt=@t r=(unit road:tarball)])
-    %+  turn  (road-strs entry cat)
+  =/  declared=json
+    ?.  ?=(%o -.entry)  [%o ~]
+    (fall (~(get by p.entry) 'declared') [%o ~])
+  =/  opt-set=(set @t)  (optional-roads declared cat)
+  =/  granted-strs=(list @t)  (road-strs entry cat)
+  ::  build one road json, tagging `optional` when the raw ref was declared so.
+  =/  mk=$-([@t @t @t] json)
+    |=  [d=@t txt=@t stat=@t]
+    =/  base=(list [@t json])  ~[['road' s+txt] ['status' s+stat]]
+    (pairs:enjs:format ?:((~(has in opt-set) d) (snoc base ['optional' b+&]) base))
+  =/  pairs=(list [d=@t txt=@t r=(unit road:tarball)])
+    %+  turn  granted-strs
     |=  d=@t
     =/  resolved=@t  (resolve-alias-ref picks menus d)
-    [resolved (parse-road resolved)]
+    [d resolved (parse-road resolved)]
   =/  approved-set=(set road:tarball)
-    (silt (murn pairs |=([txt=@t r=(unit road:tarball)] r)))
+    (silt (murn pairs |=([d=@t txt=@t r=(unit road:tarball)] r)))
   =/  approved-json=(list json)
     %+  turn  pairs
-    |=  [txt=@t r=(unit road:tarball)]
+    |=  [d=@t txt=@t r=(unit road:tarball)]
     =/  active=?  &(?=(^ r) (~(has in live) u.r))
-    (pairs:enjs:format ~[['road' s+txt] ['status' s+?:(active 'active' 'missing')]])
+    (mk d txt ?:(active 'active' 'missing'))
+  ::  denied: roads the app declared but we withheld (declared - granted),
+  ::  resolved for display (raw @ref if it doesn't resolve).
+  =/  denied-json=(list json)
+    %+  turn  (skip (road-strs declared cat) |=(d=@t (lien granted-strs |=(g=@t =(g d)))))
+    |=  d=@t
+    =/  resolved=@t  (resolve-alias-ref picks menus d)
+    (mk d ?:(=('' resolved) d resolved) 'denied')
   =/  extra-json=(list json)
     %+  turn  (skim ~(tap in live) |=(r=road:tarball !(~(has in approved-set) r)))
     |=  r=road:tarball
     (pairs:enjs:format ~[['road' s+(road-to-cord:tarball r)] ['status' s+'unmanaged']])
-  [%a (weld approved-json extra-json)]
+  [%a :(weld approved-json denied-json extra-json)]
 ::  +read-approved-weirs: for each consented app, its approved manifest
 ::  overlaid on the live weir at its target. The honest per-app picture.
 ::
 ++  read-approved-weirs
-  |=  st=json
+  |=  [approved=(map @t json) hidden=json]
   =/  m  (fiber:fiber:nexus ,json)
   ^-  form:m
-  =/  approved=(map @t json)
-    ?.  ?=(%o -.st)  ~
-    =/  a  (~(get by p.st) 'approved')
-    ?.(?=([~ %o *] a) ~ p.u.a)
-  =/  supp=json
-    ?:(?=(%o -.st) (fall (~(get by p.st) 'suppressed') [%o ~]) [%o ~])
-  ;<  menus=json  bind:m  (build-alias-menus supp %.n)
+  ;<  menus=json  bind:m  (build-alias-menus hidden %.n)
   =|  out=(map @t json)
   =/  apps=(list [@t json])  ~(tap by approved)
   |-  ^-  form:m
@@ -906,19 +1031,17 @@
 ::  modify-sand, additive), then record the approved manifest.
 ::
 ++  do-approve-weir
-  |=  [pm=json app=@t picks=json granted=json now=@da]
-  =/  m  (fiber:fiber:nexus ,json)
+  |=  [rail=rail:tarball app=@t picks=json granted=json hidden=json now=@da]
+  =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
   ;<  ask=(unit json)  bind:m  (read-app-weir-json app)
-  ?~  ask  (pure:m pm)
-  ?.  ?=(%o -.u.ask)  (pure:m pm)
+  ?~  ask  (pure:m ~)
+  ?.  ?=(%o -.u.ask)  (pure:m ~)
   ::  what gets sanded is the granted subset, not the whole declared ask
   =/  sub=json  ?:(?=(%o -.granted) granted u.ask)
-  =/  supp=json
-    ?:(?=(%o -.pm) (fall (~(get by p.pm) 'suppressed') [%o ~]) [%o ~])
-  ;<  menus=json  bind:m  (build-alias-menus supp %.n)
+  ;<  menus=json  bind:m  (build-alias-menus hidden %.n)
   =/  tp=(unit path)  (soft-path app)
-  ?~  tp  (pure:m pm)
+  ?~  tp  (pure:m ~)
   =/  target=path  u.tp
   =/  poke-res=(list @t)
     (turn (road-strs sub 'poke') |=(t=@t (resolve-alias-ref picks menus t)))
@@ -949,18 +1072,42 @@
         ['aliases' amap]
     ==
   ;<  ~  bind:m  (put:io [%& %& [target %'grant.json']] [[/ %json] grant-json])
-  (pure:m (record-approval pm app u.ask sub 'granted' picks now))
+  ::  freeze the FULL resolved binding map (amap), not just the explicit
+  ::  picks — so a menu-of-one (auto-resolved, no picker) still records what
+  ::  it dereferenced to, and the applied overlay shows the concrete path.
+  =/  entry=json  (approval-entry app u.ask sub 'granted' amap now)
+  ;<  cur=(map @t json)  bind:m  (read-approved rail)
+  (put:io (nex-road:io rail [%& /permit %'approved.json']) [[/ %json] [%o (~(put by cur) app entry)]])
 ::  +do-deny-weir: record an app's weir.json as denied (no sand), so it
 ::  stops prompting until the app re-declares a different manifest.
 ::
 ++  do-deny-weir
-  |=  [pm=json app=@t now=@da]
-  =/  m  (fiber:fiber:nexus ,json)
+  |=  [rail=rail:tarball app=@t now=@da]
+  =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
   ;<  ask=(unit json)  bind:m  (read-app-weir-json app)
-  ?~  ask  (pure:m pm)
-  (pure:m (record-approval pm app u.ask [%o ~] 'denied' [%o ~] now))
-::  +do-reapply-weir: re-sand the STORED granted manifest (total replace)
+  ?~  ask  (pure:m ~)
+  =/  entry=json  (approval-entry app u.ask [%o ~] 'denied' [%o ~] now)
+  ;<  cur=(map @t json)  bind:m  (read-approved rail)
+  (put:io (nex-road:io rail [%& /permit %'approved.json']) [[/ %json] [%o (~(put by cur) app entry)]])
+::  +mark-unresolved: flag an ask's @alias refs that can't resolve against
+::  the (hidden-excluded) resolution menu — an unknown name or one whose
+::  every option is hidden. These are surfaced and blocked at consent, not
+::  silently dropped. `menus` is build-alias-menus with show-hidden=%.n.
+::
+++  mark-unresolved
+  |=  [ask=json menus=json]
+  ^-  json
+  ?.  ?=(%o -.ask)  ask
+  =/  refs=(list @t)
+    :(weld (road-strs ask 'poke') (road-strs ask 'peek') (road-strs ask 'make'))
+  =/  bad=(list @t)
+    %+  murn  refs
+    |=  r=@t
+    ?.  =("@" (scag 1 (trip r)))  ~
+    ?.  =('' (resolve-alias-ref [%o ~] menus r))  ~
+    `r
+  [%o (~(put by p.ask) 'unresolved' [%a (turn bad |=(r=@t s+r))])]
 ::
 ++  read-all-tiles
   =/  m  (fiber:fiber:nexus ,(list tile))

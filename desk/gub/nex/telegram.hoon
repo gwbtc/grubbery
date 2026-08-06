@@ -11,6 +11,7 @@
       ^-  bole:tarball
       %+  spin:loader  ball
       :~  (manifest:loader 0)
+          [%over %& [/ %'alias.json'] [[/ %json] (pairs:enjs:format ~[['name' s+'telegram'] ['description' s+'Telegram integration']])]]
           [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
           [%over %& [/ui %'manage.html'] [[/ %html] (crip (en-xml:html (manage-page ~)))]]
           [%fall %| /bots empty-dir:loader]

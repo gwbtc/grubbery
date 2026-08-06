@@ -17,6 +17,7 @@
         ~[['bot-token' s+'']]
       %+  spin:loader  ball
       :~  (manifest:loader 0)
+          [%over %& [/ %'alias.json'] [[/ %json] (pairs:enjs:format ~[['name' s+'telegram-bot'] ['description' s+'Telegram bot endpoint']])]]
           [%fall %& [/ %'config.json'] [[/ %json] default-config]]
           [%fall %& [/ %'offset.ud'] [[/ %ud] 0]]
           [%fall %& [/ %'send.sig'] [[/ %sig] ~]]

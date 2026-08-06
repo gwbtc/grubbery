@@ -9,6 +9,7 @@
       ^-  bole:tarball
       %+  spin:loader  ball
       :~  (manifest:loader 0)
+          [%over %& [/ %'alias.json'] [[/ %json] (pairs:enjs:format ~[['name' s+'logbook'] ['description' s+'Running log of activity']])]]
           [%fall %& [/ %'main.txt'] [[/ %txt] *wain]]
           [%fall %& [/ %'mirror.sig'] [[/ %sig] ~]]
           [%fall %| /mirrored empty-dir:loader]

@@ -26,6 +26,7 @@
       ::  the tiles page renders it as the bell
       %+  spin:loader  ball
       :~  (manifest:loader 0)
+          [%over %& [/ %'alias.json'] [[/ %json] (pairs:enjs:format ~[['name' s+'notifications'] ['description' s+'Notification registry and inbox']])]]
           [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
           [%fall %& [/ %'registry.json'] [[/ %json] [%o ~]]]
           [%fall %& [/ %'inbox.inbox'] [[/ %inbox] *inbox:nib]]

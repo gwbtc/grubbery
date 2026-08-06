@@ -26,6 +26,7 @@
         ==
       %+  spin:loader  ball
       :~  (manifest:loader 0)
+          [%over %& [/ %'alias.json'] [[/ %json] (pairs:enjs:format ~[['name' s+'loops'] ['description' s+'Open loops and running threads']])]]
           [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
           [%fall %| /store empty-dir:loader]
           [%over %& [/ %'tile.json'] [[/ %json] tile]]

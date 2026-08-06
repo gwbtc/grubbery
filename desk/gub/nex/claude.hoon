@@ -16,6 +16,7 @@
         ==
       %+  spin:loader  ball
       :~  (manifest:loader 0)
+          [%over %& [/ %'alias.json'] [[/ %json] (pairs:enjs:format ~[['name' s+'claude'] ['description' s+'Claude assistant processes']])]]
           [%fall %& [/ %'config.json'] [[/ %json] default-config]]
           [%fall %& [/ %'messages.claude-messages'] [[/ %claude-messages] [%0 *((mop @ud message) lth)]]]
           [%fall %& [/ %'custom-prompt.txt'] [[/ %txt] *wain]]

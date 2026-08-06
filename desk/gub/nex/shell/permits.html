@@ -30,6 +30,7 @@
     #body { flex: 1; display: flex; min-height: 0; }
     #sidebar { width: 250px; flex-shrink: 0; background: white; border-right: 1px solid #e2e7ee; overflow-y: auto; transition: width .16s, opacity .16s; }
     #app.collapsed #sidebar { width: 0; opacity: 0; border-right: none; }
+    #main { flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
     #cards { flex: 1; overflow-y: auto; padding: 20px 24px 40vh; }
     #cards > * { width: 600px; max-width: 100%; margin-left: auto; margin-right: auto; }
 
@@ -69,6 +70,9 @@
     .cat-lab { font-size: 11px; color: #8a94a6; margin: 14px 0 5px; }
     .cat-lab b { color: #4a90d9; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; }
     .d-none { color: #a0a8b4; font-size: 13px; padding: 10px 0; }
+    .d-warn { font-size: 12.5px; color: #c0392b; background: #fdeef0; border: 1px solid #f3cfca; border-radius: 9px; padding: 8px 11px; margin-bottom: 10px; line-height: 1.45; }
+    .row .opt.bad { color: #c0392b; background: #fdeef0; }
+    .row input:disabled + * , .row input:disabled ~ code { opacity: 0.55; }
 
     .bulk { display: flex; gap: 16px; margin: 2px 0 8px; }
     .bulk label { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: #667; cursor: pointer; }
@@ -78,10 +82,11 @@
     .row input[type=checkbox] { flex-shrink: 0; }
     .row code { flex: 0 1 auto; min-width: 0; font-size: 12.5px; color: #223; word-break: break-all; }
     .row .opt { flex-shrink: 0; font-size: 10px; text-transform: uppercase; letter-spacing: 0.4px; color: #8a94a6; background: #f2f4f7; border-radius: 6px; padding: 1px 7px; }
-    .row .stat { flex-shrink: 0; font-size: 10px; text-transform: uppercase; letter-spacing: 0.4px; padding: 2px 8px; border-radius: 6px; }
+    .stat { flex-shrink: 0; font-size: 10px; text-transform: uppercase; letter-spacing: 0.4px; padding: 2px 8px; border-radius: 6px; font-weight: 600; }
     .stat.active { color: #2e8b57; background: #e9f8f0; }
     .stat.missing { color: #c0392b; background: #fdeef0; }
     .stat.unmanaged { color: #b3822a; background: #fbf3e2; }
+    .stat.denied { color: #8a5a5a; background: #f4ecec; }
     .warn { flex-shrink: 0; font-size: 13px; }
     .warn.severe { color: #c0392b; }
     .warn.caution { color: #d6a010; }
@@ -89,6 +94,10 @@
     .ali-pick code { flex-shrink: 0; font-size: 12.5px; color: #4a90d9; font-weight: 600; }
     .ali-pick .arrow { flex-shrink: 0; color: #b0b8c4; }
     .ali-pick select { flex: 1 1 auto; min-width: 0; font-family: ui-monospace, monospace; font-size: 11px; padding: 5px 7px; border-radius: 7px; border: 1px solid #dde3ea; }
+    .ali-pick .ali-to { flex: 0 1 auto; min-width: 0; color: #223; font-weight: 400; word-break: break-all; }
+    #legendbar { flex-shrink: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 7px 20px; padding: 8px 16px; background: #f7f9fb; border-bottom: 1px solid #e2e7ee; }
+    #legendbar:empty { display: none; }
+    #legendbar .pair { display: inline-flex; align-items: center; gap: 7px; font-size: 11px; color: #8a94a6; }
 
     .ali-opt { display: flex; align-items: center; gap: 10px; padding: 9px 12px; margin-top: 5px; border: 1px solid #e7ebf1; border-radius: 9px; }
     .ali-opt.hid { opacity: 0.5; background: #f6f7f9; }
@@ -121,6 +130,7 @@
       <span id="pending-badge"></span>
     </div>
     <div id="loading"></div>
+    <div id="legendbar"></div>
     <div id="body">
       <div id="sidebar"></div>
       <div id="main"><div id="cards"></div></div>
@@ -145,7 +155,7 @@
     function fmtDate(s){ if(!s)return ''; var p=s.replace('~','').split('..'), d=(p[0]||'').split('.'), t=(p[1]||'').split('.'); if(d.length<3)return s; var dt=new Date(Date.UTC(+d[0],(+d[1])-1,+d[2],+(t[0]||0),+(t[1]||0),+(t[2]||0))); if(isNaN(dt.getTime()))return s; return dt.toLocaleString(undefined,{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'}); }
     function act(body){ fetch('/apps/grubbery/permits',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)}).then(function(){ setTimeout(load,300); }); }
 
-    function hasDrift(app){ var w=weirsState[app]; if(!w)return false; return ['poke','peek','make'].some(function(c){ return (w[c]||[]).some(function(r){ return r.status!=='active'; }); }); }
+    function hasDrift(app){ var w=weirsState[app]; if(!w)return false; return ['poke','peek','make'].some(function(c){ return (w[c]||[]).some(function(r){ return r.status==='missing'||r.status==='unmanaged'; }); }); }
     function appState(a){
       var ap=approvedState[a.app], dec=ap&&ap.declared;
       var settled=dec&&sameRoads(a.poke,dec.poke)&&sameRoads(a.peek,dec.peek)&&sameRoads(a.make,dec.make);
@@ -162,19 +172,24 @@
       var prior=approvedState[a.app], gset=null;
       if(prior){ gset={}; ['poke','peek','make'].forEach(function(c){ (prior[c]||[]).forEach(function(it){ gset[c+'|'+roadOf(it)]=true; }); }); }
       var binds=(prior&&prior.bindings)||{};
-      // collect the ambiguous aliases this ask references (one per name)
+      var unres={}; (a.unresolved||[]).forEach(function(r){ unres[r]=true; }); var nBad=Object.keys(unres).length;
+      // collect the ambiguous aliases this ask references (one per name),
+      // offering only non-hidden options — the picker must match what
+      // actually resolves at grant time, or hiding would be bypassable.
       var seen={}, amb=[];
-      ['poke','peek','make'].forEach(function(cat){ (a[cat]||[]).forEach(function(it){ var road=roadOf(it); if(road.charAt(0)==='@'){ var n=aliasNameOf(road), opts=aliasMenus[n]||[]; if(opts.length>1&&!seen[n]){ seen[n]=true; amb.push({name:n,opts:opts}); } } }); });
+      ['poke','peek','make'].forEach(function(cat){ (a[cat]||[]).forEach(function(it){ var road=roadOf(it); if(road.charAt(0)==='@'){ var n=aliasNameOf(road), opts=(aliasMenus[n]||[]).filter(function(o){return !o.hidden;}); if(opts.length>1&&!seen[n]){ seen[n]=true; amb.push({name:n,opts:opts}); } } }); });
       var aliasSec=amb.length?'<div class="cat-lab">resolve <b>aliases</b></div>'+amb.map(function(x){ return '<div class="ali-pick"><code>'+esc(x.name)+'</code><span class="arrow">&#8594;</span><select class="pick" data-alias="'+esc(x.name)+'">'+x.opts.map(function(o){ return '<option value="'+esc(o.path)+'"'+(o.path===binds[x.name]?' selected':'')+'>'+esc(o.path)+'</option>'; }).join('')+'</select></div>'; }).join(''):'';
       var secs=['poke','peek','make'].map(function(cat){
         var items=a[cat]||[]; if(!items.length)return '';
         return '<div class="cat-lab">may <b>'+esc(VERBS[cat]||cat)+'</b></div>'+items.map(function(it){
-          var road=roadOf(it), why=whyOf(it), opt=optOf(it), lvl=dangerLevel(road);
-          var chk=gset?!!gset[cat+'|'+road]:true;
-          return '<label class="row'+(lvl?' danger-'+lvl:'')+'"'+(why?' title="'+esc(why)+'"':'')+'><input type="checkbox" class="chk" data-cat="'+cat+'" data-opt="'+(opt?'1':'0')+'" data-road="'+esc(road)+'"'+(chk?' checked':'')+'>'+warnMark(road)+'<code>'+esc(road)+'</code>'+(opt?'<span class="opt">optional</span>':'')+'</label>';
+          var road=roadOf(it), why=whyOf(it), opt=optOf(it), lvl=dangerLevel(road), bad=!!unres[road];
+          var chk=!bad&&(gset?!!gset[cat+'|'+road]:true);
+          return '<label class="row'+(bad?' danger-severe':(lvl?' danger-'+lvl:''))+'"'+(why?' title="'+esc(why)+'"':'')+'><input type="checkbox" class="chk" data-cat="'+cat+'" data-opt="'+(opt?'1':'0')+'" data-road="'+esc(road)+'"'+(bad?' disabled':(chk?' checked':''))+'>'+warnMark(road)+'<code>'+esc(road)+'</code>'+(bad?'<span class="opt bad">unresolvable</span>':(opt?'<span class="opt">optional</span>':''))+'</label>';
         }).join('');
       }).filter(Boolean).join('');
+      var badBanner=nBad?'<div class="d-warn">&#9888; '+nBad+' alias reference'+(nBad>1?'s':'')+' can\'t be resolved — the name is unknown or all its options are hidden. Those rows are disabled; unhide the alias or fix the app\'s weir.json to grant them.</div>':'';
       return '<div class="d-intro">Grant the checked paths. Uncheck any you don\'t want. Uncheck everything to freeze.</div>'+
+        badBanner+
         aliasSec+
         '<div class="cat-lab">grant <b>paths</b></div>'+
         '<div class="bulk"><label><input type="checkbox" class="bk-req" checked> required</label><label><input type="checkbox" class="bk-opt" checked> optional</label></div>'+
@@ -182,8 +197,15 @@
     }
     function overlayHTML(app){
       var w=weirsState[app]; if(!w)return '<div class="d-none">No live weir recorded yet.</div>';
-      var cats=['poke','peek','make'].map(function(cat){ var roads=w[cat]||[]; if(!roads.length)return ''; return '<div class="cat-lab">may <b>'+esc(VERBS[cat]||cat)+'</b></div>'+roads.map(function(r){ return '<div class="row'+(dangerLevel(r.road)?' danger-'+dangerLevel(r.road):'')+'">'+warnMark(r.road)+'<code>'+esc(r.road)+'</code><span class="stat '+esc(r.status)+'">'+esc(r.status)+'</span></div>'; }).join(''); }).filter(Boolean).join('');
+      var cats=['poke','peek','make'].map(function(cat){ var roads=w[cat]||[]; if(!roads.length)return ''; return '<div class="cat-lab">may <b>'+esc(VERBS[cat]||cat)+'</b></div>'+roads.map(function(r){ return '<div class="row'+(dangerLevel(r.road)?' danger-'+dangerLevel(r.road):'')+'">'+warnMark(r.road)+'<code>'+esc(r.road)+'</code>'+(r.optional?'<span class="opt">optional</span>':'')+'<span class="stat '+esc(r.status)+'">'+esc(r.status)+'</span></div>'; }).join(''); }).filter(Boolean).join('');
       return cats||'<div class="d-none">Fully sandboxed — no roads granted.</div>';
+    }
+    function bindingsHTML(app){
+      var b=(approvedState[app]&&approvedState[app].bindings)||{};
+      var keys=Object.keys(b); if(!keys.length)return '';
+      return '<div class="cat-lab">aliases</div>'+keys.sort().map(function(n){
+        return '<div class="ali-pick"><code>'+esc(n)+'</code><span class="arrow">&#8594;</span><code class="ali-to">'+esc(b[n])+'</code></div>';
+      }).join('');
     }
     function cardSummary(r){
       if(r.state==='pending'){ var n=nRoads(r.ask); return 'requests '+n+' path'+(n===1?'':'s'); }
@@ -199,7 +221,7 @@
         var adjust=editSet[r.app]&&r.state!=='pending';
         return '<div class="card-path">'+esc(a.app)+'</div>'+meta+checklistHTML(a)+'<div class="card-acts">'+(adjust?'<button class="btn" data-act="cancel">cancel</button>':'')+'<button class="btn primary" data-act="approve">apply selected</button></div>';
       }
-      return '<div class="card-path">'+esc(a.app)+'</div>'+meta+overlayHTML(a.app)+'<div class="card-acts"><button class="btn" data-act="adjust">adjust / reapply</button></div>';
+      return '<div class="card-path">'+esc(a.app)+'</div>'+meta+bindingsHTML(a.app)+overlayHTML(a.app)+'<div class="card-acts"><button class="btn" data-act="adjust">adjust / reapply</button></div>';
     }
 
     // ---- render ----
@@ -231,7 +253,7 @@
         main.innerHTML=names.map(function(n){
           var opts=aliasMenus[n]||[];
           var body=opts.map(function(o){
-            var users=Object.keys(approvedState).filter(function(app){ var b=approvedState[app].bindings; return b&&b[n]===o.path; }).map(leafOf);
+            var users=Object.keys(approvedState).filter(function(app){ if(!asksData.some(function(a){return a.app===app;}))return false; var b=approvedState[app].bindings; return b&&b[n]===o.path; }).map(leafOf);
             var dot='<span class="dot'+(users.length?' on':'')+'"'+(users.length?' title="used by '+esc(users.join(', '))+'"':'')+'></span>';
             return '<div class="ali-opt'+(o.hidden?' hid':'')+'">'+dot+'<code>'+esc(o.path)+'</code><span class="desc">'+esc(o.description||'')+'</span>'+(o.hidden?'<button class="btn small" data-un="'+esc(o.path)+'">unhide</button>':'<button class="btn small danger" data-hide="'+esc(o.path)+'">hide</button>')+'</div>';
           }).join('');
@@ -244,14 +266,14 @@
     }
     function wireCard(card){
       if(!card)return; var app=card.getAttribute('data-sel'); var a=asksData.filter(function(x){return x.app===app;})[0]; if(!a)return;
-      var setg=function(o,v){ Array.prototype.forEach.call(card.querySelectorAll('.chk'),function(c){ if((c.getAttribute('data-opt')==='1')===o)c.checked=v; }); };
+      var setg=function(o,v){ Array.prototype.forEach.call(card.querySelectorAll('.chk'),function(c){ if((c.getAttribute('data-opt')==='1')===o&&!c.disabled)c.checked=v; }); };
       var rq=card.querySelector('.bk-req'), op=card.querySelector('.bk-opt');
       if(rq)rq.onchange=function(){ setg(false,this.checked); };
       if(op)op.onchange=function(){ setg(true,this.checked); };
       Array.prototype.forEach.call(card.querySelectorAll('.chk,.pick'),function(e){ e.addEventListener('change',function(){ dirty=true; }); });
       var ap=card.querySelector('[data-act=approve]'); if(ap)ap.onclick=function(){
         var granted={poke:[],peek:[],make:[]}, picks={};
-        Array.prototype.forEach.call(card.querySelectorAll('.chk'),function(c){ if(c.checked)granted[c.getAttribute('data-cat')].push(c.getAttribute('data-road')); });
+        Array.prototype.forEach.call(card.querySelectorAll('.chk'),function(c){ if(c.checked&&!c.disabled)granted[c.getAttribute('data-cat')].push(c.getAttribute('data-road')); });
         Array.prototype.forEach.call(card.querySelectorAll('.pick'),function(s){ picks[s.getAttribute('data-alias')]=s.value; });
         dirty=false; delete editSet[app]; act({action:'approve-weir',app:app,picks:picks,granted:granted});
       };
@@ -274,6 +296,12 @@
     }
     function render(poll){
       document.getElementById('pending-badge').textContent=(function(){ var n=appRecords().filter(function(r){return r.state==='pending';}).length; return n?n+' pending':''; })();
+      document.getElementById('legendbar').innerHTML = mode!=='applied' ? '' :
+        '<span class="pair"><span class="stat active">active</span>in force on the weir</span>'+
+        '<span class="pair"><span class="stat denied">denied</span>requested, not granted</span>'+
+        '<span class="pair"><span class="stat missing">missing</span>granted, gone from the weir</span>'+
+        '<span class="pair"><span class="stat unmanaged">unmanaged</span>on the weir, not granted</span>'+
+        '<span class="pair"><span class="chip chip-drift">drift</span>weir differs from the grant (missing or unmanaged)</span>';
       renderSidebar();
       if(poll&&dirty&&mode!=='aliases')return;
       renderCards();
@@ -285,14 +313,13 @@
     function load(){
       if(firstLoad)loadingEl.classList.add('on');
       Promise.all([
-        fetch('/apps/grubbery/permits.json').then(function(r){return r.json();}).then(function(d){ approvedState=(d&&d.approved)||{}; }).catch(function(){}),
+        fetch('/apps/grubbery/approved.json').then(function(r){return r.json();}).then(function(d){ approvedState=d||{}; }).catch(function(){}),
         fetch('/apps/grubbery/weirs.json').then(function(r){return r.json();}).then(function(d){ weirsState=d||{}; }).catch(function(){}),
         fetch('/apps/grubbery/aliases.json').then(function(r){return r.json();}).then(function(d){ aliasMenus=d||{}; }).catch(function(){}),
         fetch('/apps/grubbery/asks.json').then(function(r){return r.json();}).then(function(d){ asksData=d||[]; }).catch(function(){})
       ]).then(function(){ var f=firstLoad; if(firstLoad){ loadingEl.classList.remove('on'); firstLoad=false; } render(true); if(f&&selected){ setTimeout(function(){ centerCard(selected,false); },60); } });
     }
     load();
-    setInterval(load,5000);
   </script>
 </body>
 </html>

@@ -23,6 +23,7 @@
         ==
       %+  spin:loader  ball
       :~  (manifest:loader 0)
+          [%over %& [/ %'alias.json'] [[/ %json] (pairs:enjs:format ~[['name' s+'s3'] ['description' s+'S3 object storage bridge']])]]
           [%fall %& [/ %'main.json'] [[/ %json] (pairs:enjs:format ~[['status' s+'idle']])]]
           [%fall %& [/ %'config.json'] [[/ %json] default-config]]
           [%fall %& [/ %'mounts.json'] [[/ %json] [%o ~]]]

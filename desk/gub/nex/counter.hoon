@@ -12,8 +12,8 @@
           [%over %& [/ui/views %'page.html'] [[/ %html] (crip (en-xml:html (counter-page ~)))]]
           [%fall %& [/ui %'main.sig'] [[/ %sig] ~]]
           [%fall %| /ui/requests empty-dir:loader]
-          [%over %& [/ %'alias.json'] [[/ %json] (pairs:enjs:format ~[['name' s+'weather'] ['description' s+'A second app also advertising @weather (demo)']])]]
-          [%over %& [/ %'weir.json'] [[/ %json] weir-decl]]
+          [%over %& [/ %'alias.json'] [[/ %json] (pairs:enjs:format ~[['name' s+'counter'] ['description' s+'A simple tick-up counter']])]]
+          [%over %& [/ %'weir.json'] [[/ %json] weir-json]]
           [%over %& [/ %'README.md'] [[/ %mime] man]]
       ==
     ::
@@ -83,15 +83,23 @@
       ==
     --
 |%
-::  demo weir.json: what this app asks to reach, with a per-line reason
+::  weir.json: counter's declared permission ask. Two @alias refs resolved
+::  at consent (@notifications, @weather — each a single-option menu) plus
+::  an optional plain /sys road (exercises the required/optional split and
+::  the /sys caution warning).
 ::
-++  weir-decl
+++  weir-json
   ^-  json
-  =/  line  |=([r=@t w=@t] `json`(pairs:enjs:format ~[['road' s+r] ['why' s+w]]))
+  =/  line     |=([r=@t w=@t] `json`(pairs:enjs:format ~[['road' s+r] ['why' s+w]]))
   =/  optline  |=([r=@t w=@t] `json`(pairs:enjs:format ~[['road' s+r] ['why' s+w] ['optional' b+&]]))
   %-  pairs:enjs:format
-  :~  ['poke' [%a ~[(line '@weather/' 'nudge the weather app to refresh')]]]
-      ['peek' [%a ~[(line '@weather/data' 'read current conditions') (optline '/sys/behn' 'schedule its own timers')]]]
+  :~  ['poke' [%a ~[(line '@notifications/' 'post a note when a counter rolls over')]]]
+      :-  'peek'
+      :-  %a
+      :~  (line '@weather/data' 'show the local temperature beside the count')
+          (line '@ghost/status' 'read from an app that does not exist')
+          (optline '/sys/behn' 'schedule its own ticks')
+      ==
   ==
 ::  HTTP response door (road from /ui/requests/* to /ui/main.sig)
 ::
