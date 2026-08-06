@@ -17,10 +17,10 @@
   ^-  tool-handler:tools
   =/  m  (fiber:fiber:nexus ,tool-result:tools)
   ^-  form:m
-  ;<  our=@p   bind:m  get-our:io
-  ;<  now=@da  bind:m  get-time:io
-  =/  =subs:nexus
-    .^(subs:nexus %gx /(scot %p our)/grubbery/(scot %da now)/peek/subs/noun)
+  ::  fibers never scry; route the read through the runtime's scry
+  ::  service (dotket belongs to the grubbery runtime alone)
+  ;<  =subs:nexus  bind:m
+    (typed-scry:io subs:nexus %noun /gx/grubbery/peek/subs/noun)
   =/  render-rail
     |=  r=rail:tarball
     ^-  tape

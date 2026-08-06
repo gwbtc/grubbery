@@ -10,6 +10,27 @@
 ^-  tool:tools
 =>
 |%
+::  fibers never scry; these route clay reads through the runtime's
+::  scry service (dotket belongs to the grubbery runtime alone). A
+::  faulting scry bails the event either way — same as a raw .^ did.
+::
+++  scry-exists
+  |=  [dek=desk pax=path]
+  (typed-scry:io ? %noun (weld /cu/[dek] pax))
+::
+++  scry-tree
+  |=  [dek=desk pax=path]
+  (typed-scry:io (list path) %noun (weld /ct/[dek] pax))
+::
+++  scry-build
+  |=  [dek=desk pax=path]
+  =/  m  (fiber:fiber:nexus ,(unit vase))
+  ^-  form:m
+  ;<  exists=?  bind:m  (scry-exists dek pax)
+  ?.  exists  (pure:m ~)
+  ;<  =vase  bind:m  (typed-scry:io vase %noun (weld /ca/[dek] pax))
+  (pure:m `vase)
+::
 ++  do-tests
   |=  [dek=desk test-files=(list path) test-filter=(unit @tas)]
   =/  m  (fiber:fiber:nexus ,tool-result:tools)
@@ -29,7 +50,7 @@
     (pure:m [%text (of-wain:format all)])
   =/  pax=path  i.test-files
   =/  file-path=path  (snip pax)
-  ;<  cor=(unit vase)  bind:m  (build-clay-file:io dek pax)
+  ;<  cor=(unit vase)  bind:m  (scry-build dek pax)
   ?~  cor
     =/  fail-text=@t  (crip "FAILED  {(spud file-path)} (build)")
     %=  $
@@ -116,11 +137,11 @@
   ::  3. Otherwise, treat last segment as test arm prefix, check parent.
   ::
   =/  test-filter=(unit @tas)  ~
-  ;<  is-file=?  bind:m  (check-clay-file:io dek (snoc test-path %hoon))
+  ;<  is-file=?  bind:m  (scry-exists dek (snoc test-path %hoon))
   ?:  is-file
     =/  test-files=(list path)  ~[(snoc test-path %hoon)]
     (do-tests dek test-files test-filter)
-  ;<  fez=(list path)  bind:m  (list-clay-tree:io dek test-path)
+  ;<  fez=(list path)  bind:m  (scry-tree dek test-path)
   =/  hoon-files=(list path)
     (skim fez |=(p=path =(%hoon (rear p))))
   ?.  =(~ hoon-files)
@@ -129,7 +150,7 @@
   ::  No file or directory — try as test arm prefix
   =/  arm-name=@tas  (rear test-path)
   =/  parent=path  (snip test-path)
-  ;<  parent-exists=?  bind:m  (check-clay-file:io dek (snoc parent %hoon))
+  ;<  parent-exists=?  bind:m  (scry-exists dek (snoc parent %hoon))
   ?.  parent-exists
     (pure:m [%text 'No tests found'])
   =/  test-files=(list path)  ~[(snoc parent %hoon)]
