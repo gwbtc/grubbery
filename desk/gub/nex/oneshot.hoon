@@ -25,6 +25,7 @@
           [%fall %& [/config %'claude.json'] [[/ %json] default-claude]]
           [%fall %& [/config %'brave.json'] [[/ %json] default-brave]]
           [%over %& [/ %'descs.json'] [[/ %json] default-descs]]
+          [%over %& [/ %'weir.json'] [[/ %json] weir-json]]
           [%fall %& [/ %'request.json'] [[/ %json] (pairs:enjs:format ~)]]
           [%fall %& [/ %'result.json'] [[/ %json] (pairs:enjs:format ~[['status' s+'idle']])]]
           [%fall %& [/ %'briefing.json'] [[/ %json] (pairs:enjs:format ~[['step' s+'idle']])]]
@@ -211,6 +212,18 @@
       ==
     --
 |%
+::  +weir-json: a one-shot task runner; its request/result/briefing/config are its own subtree.
+::
+++  weir-json
+  ^-  json
+  =/  line  |=([r=@t w=@t] `json`(pairs:enjs:format ~[['road' s+r] ['why' s+w]]))
+  %-  pairs:enjs:format
+  :~  :-  'poke'
+      :-  %a
+      :~  (line '/sys/bowl.sig' 'read the clock and get entropy — get-time / nonce')
+      ==
+  ==
+::
 ++  read-request
   |=  rel=@t
   =/  m  (fiber:fiber:nexus ,json)

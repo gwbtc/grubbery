@@ -118,6 +118,7 @@
 ::
 +$  eyre-action
   $%  [%bind =binding:eyre handler=rail:tarball]
+      [%bind-self =binding:eyre]
       [%unbind =binding:eyre]
       [%send eyre-id=@ta =eyre-update]
   ==

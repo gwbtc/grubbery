@@ -29,7 +29,8 @@
         ==
       %+  spin:loader  ball
       :~  (manifest:loader 0)
-          [%over %& [/ %'alias.json'] [[/ %json] (pairs:enjs:format ~[['name' s+'desks'] ['description' s+'Desk manager: sync, deploy, and mirror']])]]
+          [%over %& [/ %'alias.json'] [[/ %json] (pairs:enjs:format ~[['name' s+'desks'] ['description' s+'Manage installed desks']])]]
+          [%over %& [/ %'weir.json'] [[/ %json] weir-json]]
           [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
           [%fall %| /requests empty-dir:loader]
           [%over %& [/ %'tile.json'] [[/ %json] tile]]
@@ -49,7 +50,7 @@
           ::
           [~ %'main.sig']
         ;<  ~  bind:m  (rise-wait:io prod "%desks main: failed")
-        ;<  ~  bind:m  (bind-http:io [~ /grubbery/desks])
+        ;<  ~  bind:m  (bind-http-self:io [~ /grubbery/desks])
         (http-dispatch:io %desks)
           ::
           [[%requests ~] @]
@@ -116,6 +117,28 @@
       ==
     --
 |%
+::  +weir-json: desks is the desk manager — broad by nature. Its own ui
+::  grubs are its subtree (not gated). It reads and pokes every app to
+::  sync/deploy/push, and reads remote ships' desks to mirror them.
+::  /sys/ames/ships/ is broad for the same reason it is in pad (see the
+::  cross-ship TODO there); accepted here as a system-level manager.
+::
+++  weir-json
+  ^-  json
+  =/  line  |=([r=@t w=@t] `json`(pairs:enjs:format ~[['road' s+r] ['why' s+w]]))
+  %-  pairs:enjs:format
+  :~  :-  'poke'
+      :-  %a
+      :~  (line '/sys/bowl.sig' 'read our ship — get-our')
+          (line '/sys/eyre/' 'bind its HTTP route and send page responses')
+          (line '/apps/' 'poke any app to write config, trigger sync, or push a deploy')
+      ==
+      :-  'peek'
+      :-  %a
+      :~  (line '/apps/' 'read every app config and version to render the manager')
+          (line '/sys/ames/ships/' 'read remote ships desks to mirror and deploy them')
+      ==
+  ==
 ::  +discover-desks: every /apps/<x>.desk and <x>.git_desk, with its
 ::  config (minus any token) and current version, as a json array.
 ::

@@ -21,7 +21,8 @@
         ==
       %+  spin:loader  ball
       :~  (manifest:loader 0)
-          [%over %& [/ %'alias.json'] [[/ %json] (pairs:enjs:format ~[['name' s+'explorer'] ['description' s+'Browse the namespace']])]]
+          [%over %& [/ %'alias.json'] [[/ %json] (pairs:enjs:format ~[['name' s+'explorer'] ['description' s+'Browse the namespace tree']])]]
+          [%over %& [/ %'weir.json'] [[/ %json] weir-json]]
           [%over %& [/ %'tile.json'] [[/ %json] tile]]
           [%over %& [/ %'icon.svg'] [[/ %mime] icon]]
           [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
@@ -89,6 +90,23 @@
     --
 ::
 |%
+::  +weir-json: the roads explorer reaches. peek / is honest here — a
+::  namespace browser reads arbitrary paths anywhere in the tree.
+::
+++  weir-json
+  ^-  json
+  =/  line  |=([r=@t w=@t] `json`(pairs:enjs:format ~[['road' s+r] ['why' s+w]]))
+  %-  pairs:enjs:format
+  :~  :-  'poke'
+      :-  %a
+      :~  (line '/sys/bowl.sig' 'read the current time and our ship — get-time / get-our')
+          (line '/sys/eyre/' 'bind /grubbery/ball and /grubbery/split and send page responses')
+      ==
+      :-  'peek'
+      :-  %a
+      :~  (line '/' 'browse the whole namespace — reading any path is what an explorer does')
+      ==
+  ==
 ::  HTTP response door (road from /explorer.explorer/requests/* to /explorer.explorer/main.sig)
 ::
 ++  srv  ~(. http-res:io [%| 1 %& ~ %'main.sig'])

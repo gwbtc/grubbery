@@ -9,6 +9,7 @@
 /<  rules  /lib/rules.hoon
 /<  pytz   /lib/pytz.hoon
 /<  ics    /lib/ics.hoon
+/<  sh     /lib/shell.hoon
 /&  icon      calendar/icon.svg
 /&  cal-html  calendar/calendar.html
 /&  cal-css   calendar/calendar.css
@@ -28,7 +29,8 @@
         ==
       %+  spin:loader  ball
       :~  (manifest:loader 0)
-          [%over %& [/ %'alias.json'] [[/ %json] (pairs:enjs:format ~[['name' s+'calendar'] ['description' s+'Events, schedules, and ICS sync']])]]
+          [%over %& [/ %'alias.json'] [[/ %json] (pairs:enjs:format ~[['name' s+'calendar'] ['description' s+'Calendar events']])]]
+          [%over %& [/ %'weir.json'] [[/ %json] weir-json]]
           [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
           [%fall %& [/ %'calendar.calendar'] [[/ %calendar] fresh-calendar:cal]]
           [%fall %& [/ %'order.calendar-cache'] [[/ %calendar-cache] *cache:cal]]
@@ -58,7 +60,7 @@
           ::
           [~ %'main.sig']
         ;<  ~  bind:m  (rise-wait:io prod "%calendar main: failed")
-        ;<  ~  bind:m  (bind-http:io [~ /grubbery/calendar])
+        ;<  ~  bind:m  (bind-http-self:io [~ /grubbery/calendar])
         (http-dispatch:io %cal)
           ::
           ::  /calendar.calendar: poke CRUD on events
@@ -422,12 +424,12 @@
           [%a (turn zone-names:pytz |=(n=@t `json`s+n))]
         ::  /config.json: title, display zone, poke target for the client
         ?:  ?=([%'config.json' ~] suffix)
-          ;<  here=rail:tarball  bind:m  get-here-abs:io
+          ::  our own address, read from grant.json (no peek / walk).
+          ;<  bh=(unit @t)  bind:m  (here:sh rail)
           =/  ball=tape
-            %-  zing
-            %+  join  "/"
-            ^-  (list tape)
-            (turn (snip path.here) trip)
+            ?~  bh  ""
+            =/  bt=tape  (trip u.bh)
+            ?:(?&(?=(^ bt) =('/' i.bt)) t.bt bt)
           ;<  zone-view=view:nexus  bind:m
             (peek:io (cord-to-road:tarball '../calendar.calendar') ~)
           =/  c=calendar:cal
@@ -604,6 +606,22 @@
       %local  [%to d.u.end.ve]
     ==
   `[%timed [[/lib/rules %once] ~ sd] zone fin [~ ~] meta]
+::  +weir-json: the roads calendar actually reaches (declared for the shell).
+::
+++  weir-json
+  ^-  json
+  =/  line  |=([r=@t w=@t] `json`(pairs:enjs:format ~[['road' s+r] ['why' s+w]]))
+  %-  pairs:enjs:format
+  :~  :-  'poke'
+      :-  %a
+      :~  (line '/sys/bowl.sig' 'read the current time and our ship — every fiber uses get-time / get-our')
+          (line '/sys/eyre/' 'bind its HTTP route and send page responses')
+      ==
+      :-  'peek'
+      :-  %a
+      :~  (line '/code/lib/rules/' 'build recurrence-rule kinds from the rules code library')
+      ==
+  ==
 ::  +resolve-kinds: load kind gates from the code namespace
 ::
 ++  resolve-kinds

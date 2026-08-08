@@ -1,29 +1,12 @@
 ::  Root nexus — hardcoded in app/grubbery.hoon, not loaded from code namespace.
 ::
 /+  nexus, tarball, loader, io=fiberio, ball-api, http-utils, server
-=/  app-weir=(unit weir:tarball)
-  `[make=~ poke=(sy ~[[%& %| /]]) peek=(sy ~[[%& %| /]])]
-::  desks creates and configures the desk backends, so it needs to make
-::  new instances under /apps; poke/peek stay open to reach siblings.
-::  the shell culls and rewrites its own peer mirrors under /peers,
-::  so it needs a make hole there on top of the standard app weir.
-::  shell is the capability broker: its permits registry allocates
-::  weirs, so it gets make authority over all of /apps to sand them.
-=/  shell-weir=(unit weir:tarball)
-  `[make=(sy ~[[%& %| /apps]]) poke=(sy ~[[%& %| /]]) peek=(sy ~[[%& %| /]])]
-::  forge creates and manages the git repo instances under its own
-::  /repos subtree, so it gets a make hole there.
-=/  forge-weir=(unit weir:tarball)
-  `[make=(sy ~[[%& %| /apps/'forge.git_forge'/repos]]) poke=(sy ~[[%& %| /]]) peek=(sy ~[[%& %| /]])]
-=/  desks-weir=(unit weir:tarball)
-  `[make=(sy ~[[%& %| /apps]]) poke=(sy ~[[%& %| /]]) peek=(sy ~[[%& %| /]])]
-::  pad creates doc and mirror grubs at runtime inside its own
-::  subtree, so it gets a make hole there.
-=/  pad-weir=(unit weir:tarball)
-  `[make=(sy ~[[%& %| /apps/'pad.pad']]) poke=(sy ~[[%& %| /]]) peek=(sy ~[[%& %| /]])]
-::  routes saves route grubs at runtime, same shape.
-=/  routes-weir=(unit weir:tarball)
-  `[make=(sy ~[[%& %| /apps/'routes.routes']]) poke=(sy ~[[%& %| /]]) peek=(sy ~[[%& %| /]])]
+::  /apps is the trusted system tier: every instance defaults to ~ (no
+::  weir, unrestricted). The weir apparatus exists for the untrusted
+::  userspace tier — desk-installed apps default closed ([~ ~ ~]) and
+::  earn each road through weir.json + shell approval. Built-ins,
+::  including the shell (the capability broker that sands everyone
+::  else), just run open here.
 =/  git-desk-config
   |=  [repo=@t ref=@t]
   ^-  json
@@ -66,39 +49,39 @@
         [%fall %& [/sys/scry %'main.sig'] [[/ %sig] ~]]
         ::  child nexuses
         ::
-        [%fall %| /apps/'tiles.tiles' [`[`[/ %tiles] app-weir %.n ~] ~]]
-        [%fall %| /apps/'shell.shell' [`[`[/ %shell] shell-weir %.n ~] ~]]
-        [%fall %| /apps/'counter.counter' [`[`[/ %counter] app-weir %.n ~] ~]]
+        [%fall %| /apps/'tiles.tiles' [`[`[/ %tiles] ~ %.n ~] ~]]
+        [%fall %| /apps/'shell.shell' [`[`[/ %shell] ~ %.n ~] ~]]
+        [%fall %| /apps/'counter.counter' [`[`[/ %counter] ~ %.n ~] ~]]
         [%fall %| /apps/'explorer.explorer' [`[`[/ %explorer] ~ %.n ~] ~]]
         [%fall %| /apps/'mcp.mcp' [`[`[/ %mcp] ~ %.n ~] ~]]
-        [%fall %| /apps/'peers.peers' [`[`[/ %peers] app-weir %.n ~] ~]]
-        [%fall %| /apps/'calendar.calendar' [`[`[/ %calendar] app-weir %.n ~] ~]]
-        [%fall %| /apps/'notifications.notifications' [`[`[/ %notifications] app-weir %.n ~] ~]]
-        [%fall %| /apps/'feeds.feeds' [`[`[/ %feeds] app-weir %.n ~] ~]]
-        [%fall %| /apps/'weather.weather' [`[`[/ %weather] app-weir %.n ~] ~]]
+        [%fall %| /apps/'peers.peers' [`[`[/ %peers] ~ %.n ~] ~]]
+        [%fall %| /apps/'calendar.calendar' [`[`[/ %calendar] ~ %.n ~] ~]]
+        [%fall %| /apps/'notifications.notifications' [`[`[/ %notifications] ~ %.n ~] ~]]
+        [%fall %| /apps/'feeds.feeds' [`[`[/ %feeds] ~ %.n ~] ~]]
+        [%fall %| /apps/'weather.weather' [`[`[/ %weather] ~ %.n ~] ~]]
         ::
-        [%fall %| /apps/'wallet.git_desk' [`[`[/git %desk] app-weir %.n ~] ~]]
+        [%fall %| /apps/'wallet.git_desk' [`[`[/git %desk] ~ %.n ~] ~]]
         [%fall %& [/apps/'wallet.git_desk' %'config.json'] [[/ %json] (git-desk-config 'niblyx-malnus/wallet-nexus' 'main')]]
         ::
         ::  contacts: a plain git desk (the /git/desk backend), the same
         ::  way wallet boots. it was briefly the desks
         ::  manager's boot-install; desks is now only the UI, so it boots
         ::  as its own git_desk again.
-        [%fall %| /apps/'contacts.git_desk' [`[`[/git %desk] app-weir %.n ~] ~]]
+        [%fall %| /apps/'contacts.git_desk' [`[`[/git %desk] ~ %.n ~] ~]]
         [%fall %& [/apps/'contacts.git_desk' %'config.json'] [[/ %json] (git-desk-config 'niblyx-malnus/contacts-nexus' 'main')]]
         ::
         ::  desks: the UI over the /desk and /git/desk nexuses. it also
         ::  creates + configures them, so it makes under /apps.
-        [%fall %| /apps/'desks.desks' [`[`[/ %desks] desks-weir %.n ~] ~]]
+        [%fall %| /apps/'desks.desks' [`[`[/ %desks] ~ %.n ~] ~]]
         ::
         ::  forge: the UI over git repo instances, housing them at
         ::  /repos inside itself.
-        [%fall %| /apps/'forge.git_forge' [`[`[/git %forge] forge-weir %.n ~] ~]]
+        [%fall %| /apps/'forge.git_forge' [`[`[/git %forge] ~ %.n ~] ~]]
         ::
-        [%fall %| /apps/'test.web-test' [`[`[/ %web-test] app-weir %.n ~] ~]]
-        [%fall %| /apps/'test.guestbook' [`[`[/ %guestbook] app-weir %.n ~] ~]]
-        [%fall %| /apps/'pad.pad' [`[`[/ %pad] pad-weir %.n ~] ~]]
-        [%fall %| /apps/'routes.routes' [`[`[/ %routes] routes-weir %.n ~] ~]]
+        [%fall %| /apps/'test.web-test' [`[`[/ %web-test] ~ %.n ~] ~]]
+        [%fall %| /apps/'test.guestbook' [`[`[/ %guestbook] ~ %.n ~] ~]]
+        [%fall %| /apps/'pad.pad' [`[`[/ %pad] ~ %.n ~] ~]]
+        [%fall %| /apps/'routes.routes' [`[`[/ %routes] ~ %.n ~] ~]]
     ==
 ::
 ++  on-file

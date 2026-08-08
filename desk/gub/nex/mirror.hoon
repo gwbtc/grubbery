@@ -18,6 +18,7 @@
       [%fall %& [/ %'main.json'] [[/ %json] s+'']]
       [%fall %| /data empty-dir:loader]
       [%over %& [/ %'README.md'] [[/ %mime] man]]
+      [%over %& [/ %'weir.json'] [[/ %json] weir-json]]
   ==
 ++  on-file
   |=  [=rail:tarball =blot:tarball]
@@ -63,6 +64,22 @@
   ==
 --
 |%
+::  +weir-json: mirror follows one remote source into its own subtree.
+::
+++  weir-json
+  ^-  json
+  =/  line  |=([r=@t w=@t] `json`(pairs:enjs:format ~[['road' s+r] ['why' s+w]]))
+  %-  pairs:enjs:format
+  :~  :-  'poke'
+      :-  %a
+      :~  (line '/sys/bowl.sig' 'get entropy and our ship — nonce / get-our')
+      ==
+      :-  'peek'
+      :-  %a
+      :~  (line '/sys/ames/ships/' 'subscribe to and read the remote source it mirrors')
+      ==
+  ==
+::
 +$  news-or-poke
   $%  [%news =wave:nexus]
       [%poke =sage:tarball]

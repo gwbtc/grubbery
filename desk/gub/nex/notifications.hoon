@@ -26,7 +26,8 @@
       ::  the tiles page renders it as the bell
       %+  spin:loader  ball
       :~  (manifest:loader 0)
-          [%over %& [/ %'alias.json'] [[/ %json] (pairs:enjs:format ~[['name' s+'notifications'] ['description' s+'Notification registry and inbox']])]]
+          [%over %& [/ %'alias.json'] [[/ %json] (pairs:enjs:format ~[['name' s+'notifications'] ['description' s+'Notifications inbox']])]]
+          [%over %& [/ %'weir.json'] [[/ %json] weir-json]]
           [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
           [%fall %& [/ %'registry.json'] [[/ %json] [%o ~]]]
           [%fall %& [/ %'inbox.inbox'] [[/ %inbox] *inbox:nib]]
@@ -150,6 +151,27 @@
       ==
     --
 |%
+::  +weir-json: notifications is a system hub. Its registry and inbox
+::  grubs are its own subtree (relative ./ roads, not gated). peek / is
+::  broad on purpose — resolve-bend identifies which app poked it, and a
+::  poke can come from anywhere in the tree, so it must resolve senders
+::  against its own absolute rail (get-here-abs walks to root).
+::
+++  weir-json
+  ^-  json
+  =/  line  |=([r=@t w=@t] `json`(pairs:enjs:format ~[['road' s+r] ['why' s+w]]))
+  %-  pairs:enjs:format
+  :~  :-  'poke'
+      :-  %a
+      :~  (line '/sys/bowl.sig' 'read the current time and our ship — get-time / get-our')
+          (line '/sys/eyre/' 'bind its HTTP route and send page responses')
+          (line '/sys/push/' 'deliver web push notifications to subscribed browsers')
+      ==
+      :-  'peek'
+      :-  %a
+      :~  (line '/' 'resolve which app poked it (resolve-bend) — a sender can be anywhere')
+      ==
+  ==
 ++  srv
   |=  =rail:tarball
   ~(. http-res:io (nex-road:io rail [%& ~[%ui] %'http.sig']))

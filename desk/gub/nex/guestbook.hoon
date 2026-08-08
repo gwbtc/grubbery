@@ -15,9 +15,22 @@
         image+s+'/grubbery/tiles/icon/test.guestbook'
         href+s+'/grubbery/guestbook'
     ==
+  ::  what guestbook reaches outside its own tree: just the two /sys
+  ::  services. Its db + files + state are own-tree (exempt). No timers,
+  ::  network, or cross-app. Serves its UI via bind-self, so no peek.
+  =/  wj=json
+    =/  line  |=([r=@t w=@t] `json`(pairs:enjs:format ~[['road' s+r] ['why' s+w]]))
+    %-  pairs:enjs:format
+    :~  :-  'poke'
+        :-  %a
+        :~  (line '/sys/bowl.sig' 'time, identity, entropy — every fiber op needs it')
+            (line '/sys/eyre/' 'serve the guestbook page and handle sign posts')
+        ==
+    ==
   %+  spin:loader  ball
   :~  (manifest:loader 0)
       [%over %& [/ %'alias.json'] [[/ %json] (pairs:enjs:format ~[['name' s+'guestbook'] ['description' s+'Public signed guestbook']])]]
+      [%over %& [/ %'weir.json'] [[/ %json] wj]]
       [%over %& [/ %'tile.json'] [[/ %json] tile]]
       [%over %& [/ %'icon.svg'] [[/ %mime] icon]]
       [%over %& [/ %'index.html'] [[/ %mime] index-html]]
@@ -50,7 +63,7 @@
     ;<  ~  bind:m  (poke:io db-road [[/ %json] init-json])
     ;<  =sage:tarball  bind:m  take-poke:io
     ~&  >  "%guestbook: db initialized"
-    ;<  ~  bind:m  (bind-http:io [~ /grubbery/guestbook])
+    ;<  ~  bind:m  (bind-http-self:io [~ /grubbery/guestbook])
     (http-dispatch:io %guestbook)
       ::
       [[%requests ~] @]

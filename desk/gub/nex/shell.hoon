@@ -414,7 +414,8 @@
   ^-  road:tarball
   [%& %& [/apps/'notifications.notifications' %'main.sig']]
 ::  +register-notify: register the shell with the notifications nexus so
-::  its notify pokes are accepted (senders must be registered). Best-effort.
+::  its notify pokes are accepted (senders must be registered). Poke-soft
+::  so a failed registration is logged, not fatal — re-run on every rise.
 ::
 ++  register-notify
   |=  rail=rail:tarball
@@ -458,17 +459,19 @@
       (same (road-strs ask 'make') (road-strs dec 'make'))
   ==
 ::  +notify-app: ping the notifications nexus about one app's pending ask.
-::  Best-effort (poke-soft): a failed ping never kills the scan loop.
+::  Uses poke-soft so a failed ping returns an error instead of crashing the
+::  scan loop; returns whether it delivered, so the caller retries if not.
 ::
 ++  notify-app
   |=  [rail=rail:tarball app=@t]
-  =/  m  (fiber:fiber:nexus ,~)
+  =/  m  (fiber:fiber:nexus ,?)
   ^-  form:m
   =/  leaf=@t  (rear `path`(fall (soft-path app) /unknown))
+  =/  nm=@t  (app-slug leaf)
   =/  meta=json
     %-  pairs:enjs:format
-    :~  ['title' s+'Permission request']
-        ['body' s+(cat 3 leaf ' is requesting access')]
+    :~  ['title' s+(cat 3 nm ' wants permissions')]
+        ['body' s+'A new access request — tap to review and approve.']
         ['url' s+'/apps/grubbery/permits']
     ==
   =/  payload=json
@@ -477,8 +480,8 @@
         ['push' s+'true']
         ['metadata' meta]
     ==
-  ;<  *  bind:m  (poke-soft:io notify-target [[/ %json] payload])
-  (pure:m ~)
+  ;<  err=(unit tang)  bind:m  (poke-soft:io notify-target [[/ %json] payload])
+  (pure:m =(~ err))
 ::  +scan-and-notify: one pass — for every app's weir.json ask, skip the
 ::  settled ones and the ones already pinged at this version, ping the rest,
 ::  and persist the updated dedup set (this grub's own state).
@@ -504,7 +507,11 @@
   ;<  key=@  bind:m  (weir-key rail app)
   =/  keystr=@t  (scot %uv key)
   ?:  =(`keystr (~(get by next) app))  $(asks t.asks)
-  ;<  ~  bind:m  (notify-app rail app)
+  ::  only mark seen when the ping actually delivered — a failed poke
+  ::  (poke-soft returns an error instead of crashing) must retry next
+  ::  scan, not silently mark itself done.
+  ;<  ok=?  bind:m  (notify-app rail app)
+  ?.  ok  $(asks t.asks)
   $(asks t.asks, next (~(put by next) app keystr))
 ::  +apply-permit-action: dispatch a validated POST permission action to the
 ::  authoritative component grubs. The caller already gated on src==our, so
@@ -1070,6 +1077,10 @@
         ['peek' [%a (turn peek-res |=(t=@t s+t))]]
         ['make' [%a (turn make-res |=(t=@t s+t))]]
         ['aliases' amap]
+        ::  the app's own root path — so it knows its address without a
+        ::  privileged walk to root (get-here-abs). It's just structural
+        ::  boilerplate (/apps/<name> or /apps/<desk>/desk/data/<name>).
+        ['here' s+app]
     ==
   ;<  ~  bind:m  (put:io [%& %& [target %'grant.json']] [[/ %json] grant-json])
   ::  freeze the FULL resolved binding map (amap), not just the explicit

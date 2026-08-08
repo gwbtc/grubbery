@@ -33,7 +33,8 @@
         ==
       %+  spin:loader  ball
       :~  (manifest:loader 0)
-          [%over %& [/ %'alias.json'] [[/ %json] (pairs:enjs:format ~[['name' s+'routes'] ['description' s+'Recurrence rules for schedules']])]]
+          [%over %& [/ %'alias.json'] [[/ %json] (pairs:enjs:format ~[['name' s+'routes'] ['description' s+'Draw running & cycling routes on a map']])]]
+          [%over %& [/ %'weir.json'] [[/ %json] (pairs:enjs:format ~[['poke' a+~[(pairs:enjs:format ~[['road' s+'/sys/bowl.sig'] ['why' s+'time, identity, entropy — every fiber op']]) (pairs:enjs:format ~[['road' s+'/sys/eyre/'] ['why' s+'serve its page over HTTP']])]]])]]
           [%over %& [/ %'tile.json'] [[/ %json] tile]]
           [%over %& [/ %'icon.svg'] [[/ %mime] icon]]
           [%over %& [/ %'index.html'] [[/ %mime] index-html]]
@@ -53,7 +54,7 @@
       ?+    rail  stay:m
           [~ %'main.sig']
         ;<  ~  bind:m  (rise-wait:io prod "%routes /main: failed")
-        ;<  ~  bind:m  (bind-http:io [~ /grubbery/routes])
+        ;<  ~  bind:m  (bind-http-self:io [~ /grubbery/routes])
         (http-dispatch:io %routes)
           ::
           [[%requests ~] @]

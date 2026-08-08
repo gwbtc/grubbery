@@ -123,12 +123,32 @@
     --
 ^-  nexus:nexus
 |%
+::  +weir-json: mcp is broad by nature — it's a system tool runner that
+::  scans every app for tools and builds their code. /tools grubs are its
+::  own subtree (not gated).
+::
+++  weir-json
+  ^-  json
+  =/  line  |=([r=@t w=@t] `json`(pairs:enjs:format ~[['road' s+r] ['why' s+w]]))
+  %-  pairs:enjs:format
+  :~  :-  'poke'
+      :-  %a
+      :~  (line '/sys/bowl.sig' 'read the current time and our ship — get-time / get-our')
+          (line '/sys/eyre/' 'bind its HTTP route and send responses')
+      ==
+      :-  'peek'
+      :-  %a
+      :~  (line '/code/lib/mcp/' 'discover and build the root dynamic tools')
+          (line '/apps/' 'scan every installed app for its own tools and build them')
+      ==
+  ==
 ++  on-load
   |=  =ball:tarball
   ^-  bole:tarball
   %+  spin:loader  ball
   :~  (manifest:loader 0)
-      [%over %& [/ %'alias.json'] [[/ %json] (pairs:enjs:format ~[['name' s+'mcp'] ['description' s+'MCP tool registry and runner']])]]
+      [%over %& [/ %'alias.json'] [[/ %json] (pairs:enjs:format ~[['name' s+'mcp'] ['description' s+'MCP JSON-RPC endpoint for tools']])]]
+      [%over %& [/ %'weir.json'] [[/ %json] weir-json]]
       [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
       [%fall %| /requests empty-dir:loader]
       [%fall %| /tools empty-dir:loader]
@@ -144,7 +164,7 @@
   ?+    rail  stay:m
       [~ %'main.sig']
     ;<  ~  bind:m  (rise-wait:io prod "%mcp /main: failed")
-    ;<  ~  bind:m  (bind-http:io [~ /grubbery/mcp])
+    ;<  ~  bind:m  (bind-http-self:io [~ /grubbery/mcp])
     (http-dispatch:io %mcp)
       ::  /requests/{eyre-id}: parse HTTP, dispatch
       ::

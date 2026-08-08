@@ -16,7 +16,8 @@
         ==
       %+  spin:loader  ball
       :~  (manifest:loader 0)
-          [%over %& [/ %'alias.json'] [[/ %json] (pairs:enjs:format ~[['name' s+'claude'] ['description' s+'Claude assistant processes']])]]
+          [%over %& [/ %'alias.json'] [[/ %json] (pairs:enjs:format ~[['name' s+'claude'] ['description' s+'Chat with Claude']])]]
+          [%over %& [/ %'weir.json'] [[/ %json] weir-json]]
           [%fall %& [/ %'config.json'] [[/ %json] default-config]]
           [%fall %& [/ %'messages.claude-messages'] [[/ %claude-messages] [%0 *((mop @ud message) lth)]]]
           [%fall %& [/ %'custom-prompt.txt'] [[/ %txt] *wain]]
@@ -128,6 +129,20 @@
 ::  helper core
 ::
 |%
+::  +weir-json: the assistant reaches sys services; its messages/config/ui are its own subtree.
+::
+++  weir-json
+  ^-  json
+  =/  line  |=([r=@t w=@t] `json`(pairs:enjs:format ~[['road' s+r] ['why' s+w]]))
+  %-  pairs:enjs:format
+  :~  :-  'poke'
+      :-  %a
+      :~  (line '/sys/bowl.sig' 'read the clock and our ship, and get entropy — get-time / get-our / nonce')
+          (line '/sys/behn/' 'sleep between polls and Claude API retries')
+          (line '/sys/iris/' 'call the Claude API over HTTPS')
+      ==
+  ==
+::
 ::  Main event loop — handles user messages, Claude API, keeps, everything
 ::
 ::  Multiplexes ALL events: pokes, peeks, acks, keeps, etc.

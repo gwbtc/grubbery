@@ -186,7 +186,8 @@
         ==
       %+  spin:loader  ball
       :~  (manifest:loader 0)
-          [%over %& [/ %'alias.json'] [[/ %json] (pairs:enjs:format ~[['name' s+'goals'] ['description' s+'Goal decomposition and audits']])]]
+          [%over %& [/ %'alias.json'] [[/ %json] (pairs:enjs:format ~[['name' s+'goals'] ['description' s+'Track goals as dependency graphs']])]]
+          [%over %& [/ %'weir.json'] [[/ %json] weir-json]]
           [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
           [%fall %& [/ %'page.html'] [[/ %html] (crip (en-xml:html (goals-page ~ ~)))]]
           [%fall %| /store empty-dir:loader]
@@ -210,7 +211,7 @@
           ::
           [[%ui ~] %'http.sig']
         ;<  ~  bind:m  (rise-wait:io prod "%goals http: failed")
-        ;<  ~  bind:m  (bind-http:io [~ /grubbery/goals])
+        ;<  ~  bind:m  (bind-http-self:io [~ /grubbery/goals])
         (http-dispatch:io %goals)
           ::
           [[%ui %requests ~] @]
@@ -383,6 +384,19 @@
       ==
     --
 |%
+::  +weir-json: goals' boundary crossings. Its /ui files and ./store/
+::  grubs are its own subtree (self-darts, not gated).
+::
+++  weir-json
+  ^-  json
+  =/  line  |=([r=@t w=@t] `json`(pairs:enjs:format ~[['road' s+r] ['why' s+w]]))
+  %-  pairs:enjs:format
+  :~  :-  'poke'
+      :-  %a
+      :~  (line '/sys/bowl.sig' 'read the current time and our ship — get-time / get-our')
+          (line '/sys/eyre/' 'bind its HTTP route and send page responses')
+      ==
+  ==
 ++  srv
   |=  =rail:tarball
   ~(. http-res:io (nex-road:io rail [%& ~[%ui] %'http.sig']))

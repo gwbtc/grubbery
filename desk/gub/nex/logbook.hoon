@@ -9,7 +9,8 @@
       ^-  bole:tarball
       %+  spin:loader  ball
       :~  (manifest:loader 0)
-          [%over %& [/ %'alias.json'] [[/ %json] (pairs:enjs:format ~[['name' s+'logbook'] ['description' s+'Running log of activity']])]]
+          [%over %& [/ %'alias.json'] [[/ %json] (pairs:enjs:format ~[['name' s+'logbook'] ['description' s+'An append-only text log']])]]
+          [%over %& [/ %'weir.json'] [[/ %json] weir-json]]
           [%fall %& [/ %'main.txt'] [[/ %txt] *wain]]
           [%fall %& [/ %'mirror.sig'] [[/ %sig] ~]]
           [%fall %| /mirrored empty-dir:loader]
@@ -49,6 +50,22 @@
       ==
     --
 |%
+::  +weir-json: get-here-abs walks to root to build the remote path; it also mirrors remote logs.
+::
+++  weir-json
+  ^-  json
+  =/  line  |=([r=@t w=@t] `json`(pairs:enjs:format ~[['road' s+r] ['why' s+w]]))
+  %-  pairs:enjs:format
+  :~  :-  'poke'
+      :-  %a
+      :~  (line '/sys/bowl.sig' 'read our ship and get entropy — get-our / nonce')
+      ==
+      :-  'peek'
+      :-  %a
+      :~  (line '/' 'get-here-abs walks to root, and it reads remote logs under /sys/ames/ships/')
+      ==
+  ==
+::
 ++  mirror-loop
   |=  target=@p
   =/  m  (fiber:fiber:nexus ,~)

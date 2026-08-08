@@ -46,6 +46,7 @@
     /* chips */
     .chip { flex-shrink: 0; font-size: 10px; text-transform: uppercase; letter-spacing: 0.3px; font-weight: 600; padding: 2px 8px; border-radius: 6px; }
     .chip-pending { color: #3a72b0; background: #eaf2fd; }
+    .chip-changed { color: #b3822a; background: #fbf3e2; }
     .chip-drift { color: #c0392b; background: #fdeef0; }
     .chip-applied { color: #47597a; background: #eceff5; }
     .chip-frozen { color: #667; background: #eef1f5; }
@@ -78,10 +79,12 @@
     .bulk label { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: #667; cursor: pointer; }
     .row { display: flex; align-items: center; gap: 9px; padding: 8px 11px; margin-top: 5px; border: 1px solid #e7ebf1; border-radius: 9px; }
     .row.danger-severe { border-color: #e8a6a0; background: #fdf1f0; }
+    .row.danger-broad { border-color: #e7c49a; background: #fdf6ee; }
     .row.danger-caution { border-color: #f0d9a0; background: #fdf9ee; }
     .row input[type=checkbox] { flex-shrink: 0; }
     .row code { flex: 0 1 auto; min-width: 0; font-size: 12.5px; color: #223; word-break: break-all; }
     .row .opt { flex-shrink: 0; font-size: 10px; text-transform: uppercase; letter-spacing: 0.4px; color: #8a94a6; background: #f2f4f7; border-radius: 6px; padding: 1px 7px; }
+    .row .live { flex-shrink: 0; font-size: 10px; text-transform: uppercase; letter-spacing: 0.4px; color: #2e8b57; background: #e9f8f0; border-radius: 6px; padding: 1px 7px; }
     .stat { flex-shrink: 0; font-size: 10px; text-transform: uppercase; letter-spacing: 0.4px; padding: 2px 8px; border-radius: 6px; font-weight: 600; }
     .stat.active { color: #2e8b57; background: #e9f8f0; }
     .stat.missing { color: #c0392b; background: #fdeef0; }
@@ -89,6 +92,7 @@
     .stat.denied { color: #8a5a5a; background: #f4ecec; }
     .warn { flex-shrink: 0; font-size: 13px; }
     .warn.severe { color: #c0392b; }
+    .warn.broad { color: #cf7b1e; }
     .warn.caution { color: #d6a010; }
     .ali-pick { display: flex; align-items: center; gap: 9px; padding: 8px 11px; margin-top: 5px; border: 1px solid #e7ebf1; border-radius: 9px; }
     .ali-pick code { flex-shrink: 0; font-size: 12.5px; color: #4a90d9; font-weight: 600; }
@@ -150,28 +154,53 @@
     function aliasNameOf(r){ var i=r.indexOf('/'); return i===-1?r:r.slice(0,i); }
     function nRoads(o){ return ((o&&o.poke)||[]).length+((o&&o.peek)||[]).length+((o&&o.make)||[]).length; }
     var VERBS={ poke:'poke', peek:'read', make:'create & remove files' };
-    function dangerLevel(r){ if(r==='/'||r==='/sys')return 'severe'; if(r.indexOf('/sys/')===0)return /^\/sys\/(eyre|iris|ames|scry)(\/|$)/.test(r)?'severe':'caution'; return ''; }
-    function warnMark(r){ var l=dangerLevel(r); if(!l)return ''; return '<span class="warn '+l+'" title="'+(l==='severe'?'high-privilege target':'system service — mostly harmless')+'">&#9888;</span>'; }
+    function dangerLevel(r){
+      var s=String(r).replace(/\/+$/,'');
+      if(s===''||s==='/')return 'severe';                 // root — everything
+      var segs=s.split('/').filter(Boolean);
+      if(s==='/sys'||s.indexOf('/sys/')===0){
+        if(segs.length===1)return 'severe';               // /sys itself
+        return /^\/sys\/(eyre|iris|ames|scry)(\/|$)/.test(s)?'severe':'caution';
+      }
+      return segs.length<=1?'broad':'';                   // /apps, /code, /docs, a root file…
+    }
+    function warnMark(r){ var l=dangerLevel(r); if(!l)return ''; var t=l==='severe'?'high-privilege target':(l==='broad'?'broad — grants a whole top-level tree':'system service — mostly harmless'); return '<span class="warn '+l+'" title="'+t+'">&#9888;</span>'; }
     function fmtDate(s){ if(!s)return ''; var p=s.replace('~','').split('..'), d=(p[0]||'').split('.'), t=(p[1]||'').split('.'); if(d.length<3)return s; var dt=new Date(Date.UTC(+d[0],(+d[1])-1,+d[2],+(t[0]||0),+(t[1]||0),+(t[2]||0))); if(isNaN(dt.getTime()))return s; return dt.toLocaleString(undefined,{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'}); }
     function act(body){ fetch('/apps/grubbery/permits',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)}).then(function(){ setTimeout(load,300); }); }
 
     function hasDrift(app){ var w=weirsState[app]; if(!w)return false; return ['poke','peek','make'].some(function(c){ return (w[c]||[]).some(function(r){ return r.status==='missing'||r.status==='unmanaged'; }); }); }
-    function appState(a){
-      var ap=approvedState[a.app], dec=ap&&ap.declared;
-      var settled=dec&&sameRoads(a.poke,dec.poke)&&sameRoads(a.peek,dec.peek)&&sameRoads(a.make,dec.make);
-      if(!ap||!settled)return 'pending';
-      if(ap.verdict==='denied')return 'denied';
-      if(!nRoads(ap))return 'frozen';
-      return hasDrift(a.app)?'drift':'applied';
-    }
-    var ORDER={pending:0,drift:1,frozen:2,denied:3,applied:4};
-    function appRecords(){ return asksData.map(function(a){ return {app:a.app,ask:a,approved:approvedState[a.app],state:appState(a)}; }).sort(function(x,y){ return (ORDER[x.state]-ORDER[y.state])||x.app.localeCompare(y.app); }); }
+    // Two independent facets, not one exclusive state:
+    //  pending — the current ask differs from what you approved (a decision
+    //    is waiting). grant — the state of the grant actually in force right
+    //    now (null if never approved). An app can be BOTH: a grant is live
+    //    AND it's asking for something new.
+    function isPending(r){ var ap=r.approved, dec=ap&&ap.declared, a=r.ask; return !ap||!(dec&&sameRoads(a.poke,dec.poke)&&sameRoads(a.peek,dec.peek)&&sameRoads(a.make,dec.make)); }
+    function grantState(r){ var ap=r.approved; if(!ap)return null; if(!nRoads(ap))return 'frozen'; return hasDrift(r.app)?'drift':'applied'; }
+    function appRecords(){ return asksData.map(function(a){ var r={app:a.app,ask:a,approved:approvedState[a.app]}; r.pending=isPending(r); r.grant=grantState(r); return r; }).sort(function(x,y){ return x.app.localeCompare(y.app); }); }
+    function cardChip(r){ return mode==='pending' ? (r.grant?'changed':'pending') : r.grant; }
 
+    // resolve a declared @ref the way the backend does: explicit binding
+    // first, else the sole non-hidden menu option. Plain roads pass through.
+    function resolveRef(app,ref){
+      if(ref.charAt(0)!=='@')return ref;
+      var i=ref.indexOf('/'), n=i<0?ref:ref.slice(0,i), suf=i<0?'':ref.slice(i);
+      var b=(approvedState[app]&&approvedState[app].bindings)||{};
+      var base=b[n];
+      if(!base){ var o=(aliasMenus[n]||[]).filter(function(x){return !x.hidden;}); base=o.length?o[0].path:''; }
+      return base?base+suf:'';
+    }
+    // roads presently in force on the weir (active or unmanaged in the overlay)
+    function liveRoads(app){ var w=weirsState[app]||{}, s={}; ['poke','peek','make'].forEach(function(c){ (w[c]||[]).forEach(function(r){ if(r.status==='active'||r.status==='unmanaged')s[r.road]=true; }); }); return s; }
     // ---- consent checklist ----
     function checklistHTML(a){
-      var prior=approvedState[a.app], gset=null;
+      var prior=approvedState[a.app], gset=null, pdset=null;
       if(prior){ gset={}; ['poke','peek','make'].forEach(function(c){ (prior[c]||[]).forEach(function(it){ gset[c+'|'+roadOf(it)]=true; }); }); }
+      // prior DECLARED set: lets us tell a road you denied (seen before, left
+      // unchecked) from a brand-new ask (never declared → default on).
+      if(prior&&prior.declared){ pdset={}; ['poke','peek','make'].forEach(function(c){ ((prior.declared||{})[c]||[]).forEach(function(it){ pdset[c+'|'+roadOf(it)]=true; }); }); }
       var binds=(prior&&prior.bindings)||{};
+      var liveSet=liveRoads(a.app);
+      var reqN=0,reqC=0,optN=0,optC=0;
       var unres={}; (a.unresolved||[]).forEach(function(r){ unres[r]=true; }); var nBad=Object.keys(unres).length;
       // collect the ambiguous aliases this ask references (one per name),
       // offering only non-hidden options — the picker must match what
@@ -183,16 +212,23 @@
         var items=a[cat]||[]; if(!items.length)return '';
         return '<div class="cat-lab">may <b>'+esc(VERBS[cat]||cat)+'</b></div>'+items.map(function(it){
           var road=roadOf(it), why=whyOf(it), opt=optOf(it), lvl=dangerLevel(road), bad=!!unres[road];
-          var chk=!bad&&(gset?!!gset[cat+'|'+road]:true);
-          return '<label class="row'+(bad?' danger-severe':(lvl?' danger-'+lvl:''))+'"'+(why?' title="'+esc(why)+'"':'')+'><input type="checkbox" class="chk" data-cat="'+cat+'" data-opt="'+(opt?'1':'0')+'" data-road="'+esc(road)+'"'+(bad?' disabled':(chk?' checked':''))+'>'+warnMark(road)+'<code>'+esc(road)+'</code>'+(bad?'<span class="opt bad">unresolvable</span>':(opt?'<span class="opt">optional</span>':''))+'</label>';
+          var key=cat+'|'+road;
+          var chk=!bad&&(gset?(pdset&&pdset[key]?!!gset[key]:true):true);
+          var live=!bad&&!!liveSet[resolveRef(a.app,road)];
+          if(!bad){ if(opt){optN++;if(chk)optC++;} else {reqN++;if(chk)reqC++;} }
+          return '<label class="row'+(bad?' danger-severe':(lvl?' danger-'+lvl:''))+'"'+(why?' title="'+esc(why)+'"':'')+'><input type="checkbox" class="chk" data-cat="'+cat+'" data-opt="'+(opt?'1':'0')+'" data-road="'+esc(road)+'"'+(bad?' disabled':(chk?' checked':''))+'>'+warnMark(road)+'<code>'+esc(road)+'</code>'+(live?'<span class="live" title="currently in force on the weir">live</span>':'')+(bad?'<span class="opt bad">unresolvable</span>':(opt?'<span class="opt">optional</span>':''))+'</label>';
         }).join('');
       }).filter(Boolean).join('');
       var badBanner=nBad?'<div class="d-warn">&#9888; '+nBad+' alias reference'+(nBad>1?'s':'')+' can\'t be resolved — the name is unknown or all its options are hidden. Those rows are disabled; unhide the alias or fix the app\'s weir.json to grant them.</div>':'';
+      var bulk=(reqN||optN)?'<div class="bulk">'+
+        (reqN?'<label><input type="checkbox" class="bk-req"'+(reqC===reqN?' checked':'')+'> required</label>':'')+
+        (optN?'<label><input type="checkbox" class="bk-opt"'+(optC===optN?' checked':'')+'> optional</label>':'')+
+        '</div>':'';
       return '<div class="d-intro">Grant the checked paths. Uncheck any you don\'t want. Uncheck everything to freeze.</div>'+
         badBanner+
         aliasSec+
         '<div class="cat-lab">grant <b>paths</b></div>'+
-        '<div class="bulk"><label><input type="checkbox" class="bk-req" checked> required</label><label><input type="checkbox" class="bk-opt" checked> optional</label></div>'+
+        bulk+
         (secs||'<div class="d-none">nothing declared</div>');
     }
     function overlayHTML(app){
@@ -208,30 +244,30 @@
       }).join('');
     }
     function cardSummary(r){
-      if(r.state==='pending'){ var n=nRoads(r.ask); return 'requests '+n+' path'+(n===1?'':'s'); }
-      if(r.state==='frozen')return 'frozen — no access';
-      if(r.state==='denied')return 'denied';
+      if(mode==='pending'){ var n=nRoads(r.ask); return (r.grant?'changed · ':'')+'requests '+n+' path'+(n===1?'':'s'); }
+      if(r.grant==='frozen')return 'frozen — no access';
       var g=nRoads(r.approved);
-      return g+' applied'+(r.state==='drift'?' · drift':'');
+      return g+' applied'+(r.grant==='drift'?' · drift':'');
     }
     function cardBody(r){
       var a=r.ask;
-      var meta=r.approved&&r.approved.verdict?'<div class="card-meta"><b>'+esc(r.approved.verdict)+'</b> · '+esc(fmtDate(r.approved.at))+'</div>':'';
-      if(r.state==='pending'||editSet[r.app]){
-        var adjust=editSet[r.app]&&r.state!=='pending';
+      var meta=r.approved&&r.approved.at?'<div class="card-meta">last ruled <b>'+esc(fmtDate(r.approved.at))+'</b></div>':'';
+      if(mode==='pending'||editSet[r.app]){
+        var adjust=editSet[r.app]&&mode!=='pending';
         return '<div class="card-path">'+esc(a.app)+'</div>'+meta+checklistHTML(a)+'<div class="card-acts">'+(adjust?'<button class="btn" data-act="cancel">cancel</button>':'')+'<button class="btn primary" data-act="approve">apply selected</button></div>';
       }
-      return '<div class="card-path">'+esc(a.app)+'</div>'+meta+bindingsHTML(a.app)+overlayHTML(a.app)+'<div class="card-acts"><button class="btn" data-act="adjust">adjust / reapply</button></div>';
+      var note=r.pending?'<div class="d-warn">This app has changed its ask — there\'s a pending decision in the Pending tab. Below is the grant still in force.</div>':'';
+      return '<div class="card-path">'+esc(a.app)+'</div>'+meta+note+bindingsHTML(a.app)+overlayHTML(a.app)+'<div class="card-acts"><button class="btn" data-act="adjust">adjust / reapply</button></div>';
     }
 
     // ---- render ----
-    function modeRecs(){ var all=appRecords(); return mode==='pending'?all.filter(function(r){return r.state==='pending';}):all.filter(function(r){return r.state!=='pending';}); }
+    function modeRecs(){ var all=appRecords(); return mode==='pending'?all.filter(function(r){return r.pending;}):all.filter(function(r){return r.grant;}); }
     function renderSidebar(){
       var sb=document.getElementById('sidebar');
       if(mode!=='aliases'){
         var recs=modeRecs();
         if(!recs.length){ sb.innerHTML='<div class="side-empty">Nothing '+(mode==='pending'?'pending':'applied')+'.</div>'; return; }
-        sb.innerHTML='<div class="side-lab">'+mode+' · '+recs.length+'</div>'+recs.map(function(r){ return '<div class="side-row'+(r.app===selected?' sel':'')+'" data-sel="'+esc(r.app)+'"><span class="side-name" title="'+esc(r.app)+'">'+esc(leafOf(r.app))+'</span><span class="chip chip-'+r.state+'">'+r.state+'</span></div>'; }).join('');
+        sb.innerHTML='<div class="side-lab">'+mode+' · '+recs.length+'</div>'+recs.map(function(r){ var c=cardChip(r); return '<div class="side-row'+(r.app===selected?' sel':'')+'" data-sel="'+esc(r.app)+'"><span class="side-name" title="'+esc(r.app)+'">'+esc(leafOf(r.app))+'</span><span class="chip chip-'+c+'">'+c+'</span></div>'; }).join('');
       } else {
         var names=Object.keys(aliasMenus).sort();
         if(!names.length){ sb.innerHTML='<div class="side-empty">No aliases.</div>'; return; }
@@ -245,7 +281,7 @@
         var recs=modeRecs();
         if(!recs.length){ main.innerHTML='<div class="d-none" style="text-align:center;margin-top:60px">Nothing '+(mode==='pending'?'pending — all caught up.':'applied yet.')+'</div>'; return; }
         if(selected===null||!recs.some(function(r){return r.app===selected;})){ selected=recs[0].app; }
-        main.innerHTML=recs.map(function(r){ return '<div class="card open'+(r.app===selected?' sel':'')+'" id="card-'+cssid(r.app)+'" data-sel="'+esc(r.app)+'"><div class="card-head"><span class="card-name">'+esc(leafOf(r.app))+'</span><span class="chip chip-'+r.state+'">'+r.state+'</span><span class="card-sub">'+esc(cardSummary(r))+'</span></div><div class="card-body">'+cardBody(r)+'</div></div>'; }).join('');
+        main.innerHTML=recs.map(function(r){ var c=cardChip(r); return '<div class="card open'+(r.app===selected?' sel':'')+'" id="card-'+cssid(r.app)+'" data-sel="'+esc(r.app)+'"><div class="card-head"><span class="card-name">'+esc(leafOf(r.app))+'</span><span class="chip chip-'+c+'">'+c+'</span><span class="card-sub">'+esc(cardSummary(r))+'</span></div><div class="card-body">'+cardBody(r)+'</div></div>'; }).join('');
         Array.prototype.forEach.call(main.querySelectorAll('.card'),function(c){ wireCard(c); });
       } else {
         var names=Object.keys(aliasMenus).sort();
@@ -295,7 +331,7 @@
       if(scroll)centerCard(id,true);
     }
     function render(poll){
-      document.getElementById('pending-badge').textContent=(function(){ var n=appRecords().filter(function(r){return r.state==='pending';}).length; return n?n+' pending':''; })();
+      document.getElementById('pending-badge').textContent=(function(){ var n=appRecords().filter(function(r){return r.pending;}).length; return n?n+' pending':''; })();
       document.getElementById('legendbar').innerHTML = mode!=='applied' ? '' :
         '<span class="pair"><span class="stat active">active</span>in force on the weir</span>'+
         '<span class="pair"><span class="stat denied">denied</span>requested, not granted</span>'+

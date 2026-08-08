@@ -6,12 +6,25 @@
 /&  man  ../man/telegram/readme.md
 =<  ^-  nexus:nexus
     |%
+    ::  +weir-json: a bot manager; its /bots are its own subtree.
+    ::
+    ++  weir-json
+      ^-  json
+      =/  line  |=([r=@t w=@t] `json`(pairs:enjs:format ~[['road' s+r] ['why' s+w]]))
+      %-  pairs:enjs:format
+      :~  :-  'poke'
+          :-  %a
+          :~  (line '/sys/bowl.sig' 'get entropy and our ship — nonce / get-our')
+          ==
+      ==
+    ::
     ++  on-load
       |=  =ball:tarball
       ^-  bole:tarball
       %+  spin:loader  ball
       :~  (manifest:loader 0)
-          [%over %& [/ %'alias.json'] [[/ %json] (pairs:enjs:format ~[['name' s+'telegram'] ['description' s+'Telegram integration']])]]
+          [%over %& [/ %'alias.json'] [[/ %json] (pairs:enjs:format ~[['name' s+'telegram'] ['description' s+'Manage Telegram bots']])]]
+          [%over %& [/ %'weir.json'] [[/ %json] weir-json]]
           [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
           [%over %& [/ui %'manage.html'] [[/ %html] (crip (en-xml:html (manage-page ~)))]]
           [%fall %| /bots empty-dir:loader]

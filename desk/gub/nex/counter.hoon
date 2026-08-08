@@ -57,7 +57,7 @@
           ::
           [[%ui ~] %'main.sig']
         ;<  ~  bind:m  (rise-wait:io prod "%counter /ui/main: failed")
-        ;<  ~  bind:m  (bind-http:io [~ /grubbery/counters])
+        ;<  ~  bind:m  (bind-http-self:io [~ /grubbery/counters])
         (http-dispatch:io %counter)
           ::  /ui/requests/*: individual request handlers
           ::
@@ -83,22 +83,19 @@
       ==
     --
 |%
-::  weir.json: counter's declared permission ask. Two @alias refs resolved
-::  at consent (@notifications, @weather — each a single-option menu) plus
-::  an optional plain /sys road (exercises the required/optional split and
-::  the /sys caution warning).
+::  weir.json: what counter ACTUALLY reaches outside its own tree. Own-tree
+::  access (/counters, /ui, /requests) is exempt — it never crosses counter's
+::  boundary weir. All it needs foreign is three /sys services.
 ::
 ++  weir-json
   ^-  json
-  =/  line     |=([r=@t w=@t] `json`(pairs:enjs:format ~[['road' s+r] ['why' s+w]]))
-  =/  optline  |=([r=@t w=@t] `json`(pairs:enjs:format ~[['road' s+r] ['why' s+w] ['optional' b+&]]))
+  =/  line  |=([r=@t w=@t] `json`(pairs:enjs:format ~[['road' s+r] ['why' s+w]]))
   %-  pairs:enjs:format
-  :~  ['poke' [%a ~[(line '@notifications/' 'post a note when a counter rolls over')]]]
-      :-  'peek'
+  :~  :-  'poke'
       :-  %a
-      :~  (line '@weather/data' 'show the local temperature beside the count')
-          (line '@ghost/status' 'read from an app that does not exist')
-          (optline '/sys/behn' 'schedule its own ticks')
+      :~  (line '/sys/bowl.sig' 'read the current time and our ship — every fiber uses get-time / get-our')
+          (line '/sys/behn/' 'set a timer to tick each counter up every second')
+          (line '/sys/eyre/' 'bind its HTTP route and send page responses')
       ==
   ==
 ::  HTTP response door (road from /ui/requests/* to /ui/main.sig)

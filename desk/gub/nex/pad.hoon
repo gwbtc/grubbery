@@ -29,7 +29,8 @@
         ==
       %+  spin:loader  ball
       :~  (manifest:loader 0)
-          [%over %& [/ %'alias.json'] [[/ %json] (pairs:enjs:format ~[['name' s+'pad'] ['description' s+'Scratch notes and documents']])]]
+          [%over %& [/ %'alias.json'] [[/ %json] (pairs:enjs:format ~[['name' s+'pad'] ['description' s+'Cross-ship collaborative text pads']])]]
+          [%over %& [/ %'weir.json'] [[/ %json] weir-json]]
           [%over %& [/ %'tile.json'] [[/ %json] tile]]
           [%over %& [/ %'icon.svg'] [[/ %mime] icon]]
           [%over %& [/ %'index.html'] [[/ %mime] index-html]]
@@ -53,7 +54,7 @@
           [~ %'main.sig']
         ;<  ~  bind:m  (rise-wait:io prod "%pad /main: failed")
         ;<  ~  bind:m  grant-public
-        ;<  ~  bind:m  (bind-http:io [~ /grubbery/pad])
+        ;<  ~  bind:m  (bind-http-self:io [~ /grubbery/pad])
         (http-dispatch:io %pad)
           ::  /docs/<doc>/inbox.sig: the sequencer. Local and remote
           ::  editors poke a base64 update cord; arrival order here IS
@@ -85,6 +86,35 @@
       ==
     --
 |%
+::  +weir-json: pad's boundary crossings. Its /docs, /mirror, /log
+::  and ui grubs are its own subtree (relative %| roads, not gated);
+::  the cross-boundary reach is to other ships' pad instances.
+::
+::  TODO: /sys/ames/ships/ is broader than pad wants. Its real reach is
+::  /sys/ames/ships/<host>/root/apps/pad.pad/ — "the pad app on any
+::  ship" — but the host sits mid-path and the weir matcher is strict
+::  prefix, so no road expresses it. We are NOT widening what a weir is;
+::  think about how cross-ship apps get scoped without that (a broker
+::  holding the broad grant? per-host grants issued as docs open?).
+::  Related: a cross-ship ALIAS system — remote reaches want the same
+::  @name -> path indirection local grants already have, so users
+::  approve "pad on ~host", not a raw ames path.
+::
+++  weir-json
+  ^-  json
+  =/  line  |=([r=@t w=@t] `json`(pairs:enjs:format ~[['road' s+r] ['why' s+w]]))
+  %-  pairs:enjs:format
+  :~  :-  'poke'
+      :-  %a
+      :~  (line '/sys/bowl.sig' 'read the current time and our ship — get-time / get-our')
+          (line '/sys/eyre/' 'bind its HTTP route and send page responses')
+          (line '/sys/ames/ships/' 'remote-poke a host ship sequencer when editing a doc we do not own')
+      ==
+      :-  'peek'
+      :-  %a
+      :~  (line '/sys/ames/ships/' 'subscribe to and mirror remote docs from their host ships')
+      ==
+  ==
 ::  the instance directory as registered in root.hoon; used to build
 ::  remote roads into other ships' pad instances
 ::

@@ -12,7 +12,8 @@
       ^-  bole:tarball
       %+  spin:loader  ball
       :~  (manifest:loader 0)
-          [%over %& [/ %'alias.json'] [[/ %json] (pairs:enjs:format ~[['name' s+'peers'] ['description' s+'Known peers and cross-ship links']])]]
+          [%over %& [/ %'alias.json'] [[/ %json] (pairs:enjs:format ~[['name' s+'peers'] ['description' s+'Manage ships and usergroups']])]]
+          [%over %& [/ %'weir.json'] [[/ %json] weir-json]]
           [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
           [%fall %| /requests empty-dir:loader]
           [%over %& [/ %'README.md'] [[/ %mime] man]]
@@ -28,7 +29,7 @@
           [~ %'main.sig']
         ;<  ~  bind:m  (rise-wait:io prod "%peers /main: failed")
         ;<  ~  bind:m  reg-register:io
-        ;<  ~  bind:m  (bind-http:io [~ /grubbery/peers])
+        ;<  ~  bind:m  (bind-http-self:io [~ /grubbery/peers])
         (http-dispatch:io %peers)
           [[%requests ~] @]
         ;<  ~  bind:m  (rise-wait:io prod "%peers /requests: failed")
@@ -47,6 +48,22 @@
     --
 ::
 |%
+::  +weir-json: peers server-renders from the ames peer directory.
+::
+++  weir-json
+  ^-  json
+  =/  line  |=([r=@t w=@t] `json`(pairs:enjs:format ~[['road' s+r] ['why' s+w]]))
+  %-  pairs:enjs:format
+  :~  :-  'poke'
+      :-  %a
+      :~  (line '/sys/bowl.sig' 'read our ship — get-our')
+          (line '/sys/eyre/' 'bind its HTTP route and send page responses')
+      ==
+      :-  'peek'
+      :-  %a
+      :~  (line '/sys/ames/' 'browse the ships and usergroups directory it renders')
+      ==
+  ==
 ++  srv  ~(. http-res:io [%| 1 %& ~ %'main.sig'])
 ++  peer-base  /sys/ames
 ::

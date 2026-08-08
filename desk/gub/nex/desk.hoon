@@ -16,12 +16,13 @@
 ::    main.sig        HTTP UI                  (host)
 ::    /requests/      HTTP request grubs       (host)
 ::    /desk/code/     %code nexus synced from source — governs the
-::                    guest world and nothing else. Carries the whole
-::                    release: code plus bill.json, tile.json, icon.*.
-::                    bill.json declares which nexuses to create in
-::                    /desk/data on first install (only when empty);
-::                    tile.json and icon.* are surfaced to the nexus
-::                    root after install, where the shell looks.
+::                    guest world and nothing else. Carries the code
+::                    plus bill.json, which declares which nexuses to
+::                    create in /desk/data on first install (only when
+::                    empty). bill.json is the ONLY desk-level file;
+::                    everything a nexus says about itself (alias, weir,
+::                    tile, icon) is per-nexus, declared in its own
+::                    on-load and read by the shell's desk-data descent.
 ::    /desk/data/     working data for the installed desk
 ::    /staged/        local working tree: a plain dir, not a code
 ::                    nexus, so edits there trigger nothing. Poke
@@ -187,7 +188,6 @@
       (do-checkpoint rail (fall vn %'version.ud') (sy ~['checkpoint' 'pre-stage']))
     ;<  ~  bind:m  (cull-dir rail /desk/code)
     ;<  ~  bind:m  (write-files rail /desk/code (need staged))
-    ;<  ~  bind:m  (surface-shell-files rail)
     ;<  ~  bind:m  (apply-bill rail)
     ~&  >  %desk-stage-applied
     $
@@ -200,8 +200,7 @@
     ?.  =('version.' (end [3 8] nam))  stay:m
     ;<  ~  bind:m  (rise-wait:io prod "%desk version: failed")
     ::  a release must be a complete world, however the code arrived:
-    ::  surface shell files and bootstrap data locally too. Idempotent.
-    ;<  ~  bind:m  (surface-shell-files rail)
+    ::  bootstrap the data nexuses from bill.json locally too. Idempotent.
     ;<  ~  bind:m  (apply-bill rail)
     ::  checkpoint the current version at every process start: gives
     ::  every desk a birth checkpoint (idempotent re-firm on restarts)
@@ -218,7 +217,6 @@
     ?-  -.res
         %poke  $
         %news
-      ;<  ~  bind:m  (surface-shell-files rail)
       ;<  ~  bind:m  (apply-bill rail)
       ;<  vt=(unit @t)  bind:m
         (read-version-text (nex-road:io rail [%& / nam]))
@@ -329,7 +327,8 @@
   ?~  jobs
     ::  nudge the shell to rescan its public desk directory — the
     ::  grants it derives that directory from just changed.
-    ::  Best-effort — a missing shell must not fail the config fiber.
+    ::  register-public accepts pack OR veto as done, so a missing shell
+    ::  (a headless ship with no launcher) doesn't fail the config fiber.
     (register-public (pairs:enjs:format ~[['rescan' b+%.y]]))
   ;<  ~  bind:m  (reg-how:io [grp.i.jobs w.i.jobs])
   $(jobs t.jobs)
@@ -424,7 +423,6 @@
   ~&  >  [%desk-sync-release ver=(version-text sang.ver-view)]
   ;<  ~  bind:m
     (sync-dir (source-dir-road source-road /desk/code) rail /desk/code `[%da at])
-  ;<  ~  bind:m  (surface-shell-files rail)
   =/  content=bask:tarball
     [p.sang.ver-view (sang-noun:tarball sang.ver-view)]
   ;<  exists=?  bind:m
@@ -433,30 +431,6 @@
     (make:io (nex-road:io rail [%& / u.ver-name]) |+[content ~])
   (over:io (nex-road:io rail [%& / u.ver-name]) content)
 ::
-::  +surface-shell-files: copy tile.json and icon.* from the installed
-::  code root to the nexus root, where the shell looks for them
-::
-++  surface-shell-files
-  |=  =rail:tarball
-  =/  m  (fiber:fiber:nexus ,~)
-  ^-  form:m
-  ;<  =view:nexus  bind:m  (peek:io (nex-road:io rail [%| /desk/code]) ~)
-  ?.  ?=([%ball *] view)  (pure:m ~)
-  ?~  fil.ball.view  (pure:m ~)
-  =/  files=(list [name=@ta =sang:tarball gain=? bang=(unit tang)])
-    ~(tap by contents.u.fil.ball.view)
-  |-
-  ?~  files  (pure:m ~)
-  =/  [name=@ta =sang:tarball gain=? bang=(unit tang)]  i.files
-  ?.  ?&  ?|  =(%'tile.json' name)
-              =('icon.' (end [3 5] name))
-          ==
-          !(is-boom:tarball sang)
-      ==
-    $(files t.files)
-  ;<  ~  bind:m
-    (over:io (nex-road:io rail [%& / name]) [p.sang (sang-noun:tarball sang)])
-  $(files t.files)
 ::  apply-bill: on first install only — if /desk/data is empty,
 ::  read bill.json and create nexus entries in /desk/data.
 ::

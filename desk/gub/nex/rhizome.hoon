@@ -16,7 +16,8 @@
       ^-  bole:tarball
       %+  spin:loader  ball
       :~  (manifest:loader 0)
-          [%over %& [/ %'alias.json'] [[/ %json] (pairs:enjs:format ~[['name' s+'rhizome'] ['description' s+'Rhizome network']])]]
+          [%over %& [/ %'alias.json'] [[/ %json] (pairs:enjs:format ~[['name' s+'rhizome'] ['description' s+'Wiki-linked markdown notes with backlinks']])]]
+          [%over %& [/ %'weir.json'] [[/ %json] weir-json]]
           [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
           [%fall %& [/ %'page.html'] [[/ %html] (crip (en-xml:html ;div:"rhizome loading..."))]]
           [%fall %| /vault empty-dir:loader]
@@ -154,6 +155,18 @@
 ::  helper core
 ::
 |%
+::  +weir-json: a notes wiki; its /vault is its own subtree.
+::
+++  weir-json
+  ^-  json
+  =/  line  |=([r=@t w=@t] `json`(pairs:enjs:format ~[['road' s+r] ['why' s+w]]))
+  %-  pairs:enjs:format
+  :~  :-  'poke'
+      :-  %a
+      :~  (line '/sys/bowl.sig' 'get entropy and the clock — nonce / get-time')
+      ==
+  ==
+::
 +$  fwd-index   (map @ta (set @ta))  :: note-fname → set of link targets
 +$  back-index  (map @ta (set @ta))  :: link-target → set of source fnames
 +$  meta-op     $%  [%create mname=@ta =json]

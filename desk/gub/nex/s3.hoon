@@ -23,7 +23,8 @@
         ==
       %+  spin:loader  ball
       :~  (manifest:loader 0)
-          [%over %& [/ %'alias.json'] [[/ %json] (pairs:enjs:format ~[['name' s+'s3'] ['description' s+'S3 object storage bridge']])]]
+          [%over %& [/ %'alias.json'] [[/ %json] (pairs:enjs:format ~[['name' s+'s3'] ['description' s+'S3-compatible object storage']])]]
+          [%over %& [/ %'weir.json'] [[/ %json] (pairs:enjs:format ~[['poke' a+~[(pairs:enjs:format ~[['road' s+'/sys/bowl.sig'] ['why' s+'time, identity, entropy — every fiber op']]) (pairs:enjs:format ~[['road' s+'/sys/iris/'] ['why' s+'talk to the S3 API over HTTP']])]]])]]
           [%fall %& [/ %'main.json'] [[/ %json] (pairs:enjs:format ~[['status' s+'idle']])]]
           [%fall %& [/ %'config.json'] [[/ %json] default-config]]
           [%fall %& [/ %'mounts.json'] [[/ %json] [%o ~]]]

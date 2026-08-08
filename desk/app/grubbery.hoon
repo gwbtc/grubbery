@@ -6526,6 +6526,14 @@
     =.  this  (save-server-state st)
     (emit-card [%pass /eyre-bind %arvo %e %connect binding.act dap.bowl])
   ::
+      %bind-self
+    ::  bind requests to the SENDER — the kernel already knows who poked,
+    ::  so the caller needn't walk to root (get-here-abs) to self-report a
+    ::  handler rail. This is the common case: a nexus serving its own UI.
+    =.  bindings.st  (~(put by bindings.st) binding.act sender)
+    =.  this  (save-server-state st)
+    (emit-card [%pass /eyre-bind %arvo %e %connect binding.act dap.bowl])
+  ::
       %unbind
     =/  orphans=(list @ta)
       %+  murn  ~(tap by conns.st)

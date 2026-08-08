@@ -379,8 +379,6 @@
   ^-  form:m
   ;<  =wire  bind:m  (nonce /poke)
   ;<  ~  bind:m  (send-dart %node wire road %poke bask)
-  ;<  now=@da  bind:m  get-time
-  ;<  ~  bind:m  (set-timer wire (add now ~s5))
   |=  input:fiber:nexus
   :+  ~  q.state
   ?+  in  [%skip ~]
@@ -389,9 +387,6 @@
     ?.  =(wire wire.u.in)  [%skip ~]
     ?~  err.u.in  [%done ~]
     [%done `u.err.u.in]
-      [~ %poke * *]
-    ?.  =([/ %timer-wake] p.sage.u.in)  [%skip ~]
-    [%done `~[leaf+"poke timed out after 5s"]]
   ==
 ::  +take-held: wait for a %held response on a wire
 ::
@@ -1560,6 +1555,16 @@
   ^-  form:m
   ;<  here=rail:tarball  bind:m  get-here-abs
   (eyre-poke [%bind binding here])
+::  +bind-http-self: bind requests to THIS grub, letting the kernel use the
+::  poke's source rail. Avoids get-here-abs — so a nexus serving its own UI
+::  needs no walk to root (no peek /). Use this unless you're binding a route
+::  on behalf of some other grub.
+::
+++  bind-http-self
+  |=  =binding:eyre
+  =/  m  (fiber ,~)
+  ^-  form:m
+  (eyre-poke [%bind-self binding])
 ::  +unbind-http: remove a binding
 ::
 ++  unbind-http
