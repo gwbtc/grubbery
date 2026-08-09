@@ -379,6 +379,15 @@
   ^-  form:m
   ;<  =wire  bind:m  (nonce /poke)
   ;<  ~  bind:m  (send-dart %node wire road %poke bask)
+  ::  RESTORED. 3c1c61b dropped this timer on the reasoning that "local pokes
+  ::  always terminate". When one does not, the fiber waits forever: no error,
+  ::  no response, the HTTP request never returns. That is what took
+  ::  /grubbery/mcp down — its tools/list scans every app and builds each
+  ::  one's tools, so it makes many pokes, and a single non-terminating poke
+  ::  hangs the whole sweep. A timeout that reports is strictly better than a
+  ::  wait that cannot.
+  ;<  now=@da  bind:m  get-time
+  ;<  ~  bind:m  (set-timer wire (add now ~s5))
   |=  input:fiber:nexus
   :+  ~  q.state
   ?+  in  [%skip ~]
@@ -387,6 +396,9 @@
     ?.  =(wire wire.u.in)  [%skip ~]
     ?~  err.u.in  [%done ~]
     [%done `u.err.u.in]
+      [~ %poke * *]
+    ?.  =([/ %timer-wake] p.sage.u.in)  [%skip ~]
+    [%done `~[leaf+"poke timed out after 5s"]]
   ==
 ::  +take-held: wait for a %held response on a wire
 ::
