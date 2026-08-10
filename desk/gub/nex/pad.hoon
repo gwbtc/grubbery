@@ -13,6 +13,7 @@
 /<  index-html  pad/index.html
 /<  pad-js  pad/pad.js
 /<  icon  pad/icon.svg
+/<  sh  /lib/shell.hoon
 /&  man  ../man/pad/readme.md
 =<  ^-  nexus:nexus
     |%
@@ -53,7 +54,7 @@
           ::
           [~ %'main.sig']
         ;<  ~  bind:m  (rise-wait:io prod "%pad /main: failed")
-        ;<  ~  bind:m  grant-public
+        ;<  ~  bind:m  (grant-public rail)
         ;<  ~  bind:m  (bind-http-self:io [~ /grubbery/pad])
         (http-dispatch:io %pad)
           ::  /docs/<doc>/inbox.sig: the sequencer. Local and remote
@@ -127,9 +128,11 @@
 ::  subscribe to doc logs
 ::
 ++  grant-public
+  |=  rail=rail:tarball
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
-  ;<  ~  bind:m  reg-register:io
+  ;<  here=rail:tarball  bind:m  (here-abs:sh rail)
+  ;<  ~  bind:m  (reg-register-at:io here)
   =/  docs=road:tarball  [%& %| (weld nex-dir /docs)]
   (reg-how:io /public [~ (sy ~[docs]) (sy ~[docs])])
 ::  +inbox-loop: sequence update pokes into log grubs. Bad input is

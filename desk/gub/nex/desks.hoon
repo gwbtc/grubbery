@@ -138,6 +138,10 @@
       :~  (line '/apps/' 'read every app config and version to render the manager')
           (line '/sys/ames/ships/' 'read remote ships desks to mirror and deploy them')
       ==
+      :-  'make'
+      :-  %a
+      :~  (line '/apps/' 'create the desk backend instances it installs')
+      ==
   ==
 ::  +discover-desks: every /apps/<x>.desk and <x>.git_desk, with its
 ::  config (minus any token) and current version, as a json array.
@@ -427,19 +431,20 @@
       make=~
     poke=(sy ~[[%& %& /sys %'bowl.sig'] [%& %| /sys/behn]])
   peek=(sy ~[[%& %| /]])
-::  +weir-from-json: an install's requested sandbox. Absent -> the
-::  standard app-weir; "open" -> no weir; {preset: "trusted"|"sandboxed"}
-::  -> a named preset; {make, poke, peek} of path lists -> exactly those
-::  road sets (empty list = closed category, per empty-vs-absent).
+::  +weir-from-json: the WRAPPER's sandbox. Absent -> no weir: the
+::  wrapper is trusted local infra (our desk backend, not the remote's
+::  code) — the remote's apps land in desk/data, each jailed [~ ~ ~] by
+::  apply-bill until its weir.json ask is approved. Explicit specs stay
+::  for the API: {preset: ...} or {make, poke, peek} road lists.
 ::
 ++  weir-from-json
   |=  jon=json
   ^-  (unit weir:tarball)
   =/  spec=(unit json)
     ?.(?=([%o *] jon) ~ (~(get by p.jon) 'weir'))
-  ?~  spec  app-weir
+  ?~  spec  ~
   ?:  ?=([%s %open] u.spec)  ~
-  ?.  ?=([%o *] u.spec)  app-weir
+  ?.  ?=([%o *] u.spec)  ~
   =/  preset=(unit json)  (~(get by p.u.spec) 'preset')
   ?:  ?=([~ %s %trusted] preset)    app-weir
   ?:  ?=([~ %s %readonly] preset)   read-only-weir

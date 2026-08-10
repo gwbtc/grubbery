@@ -1564,7 +1564,27 @@
   |=  =binding:eyre
   =/  m  (fiber ,~)
   ^-  form:m
-  (eyre-poke [%bind-self binding])
+  ::  veto-tolerant: a jailed app (fresh install, weir not yet approved)
+  ::  gets its eyre poke vetoed at rise. Crashing here would park the
+  ::  whole fiber; instead log it and continue — the fiber lands in its
+  ::  normal request loop, and the approval reload re-runs this bind
+  ::  with grants in hand.
+  ::  fixed wire, no nonce: nonce needs entropy (a /sys/bowl.sig poke)
+  ::  which is itself vetoed in jail — the crash would land before the
+  ::  tolerant take below. One bind per fiber; no collision.
+  =/  =wire  /bind-self
+  ;<  ~  bind:m  (send-dart %node wire server-road %poke [[/ %eyre-action] [%bind-self binding]])
+  |=  input
+  :+  ~  q.state
+  ?+  in  [%skip ~]
+      ~  [%wait ~]
+      [~ %veto *]
+    %.  [%done ~]
+    (slog leaf+"bind-http-self: vetoed (sandboxed?) — binding deferred until approval" ~)
+      [~ %pack * *]
+    ?.  =(wire wire.u.in)  [%skip ~]
+    [%done ~]
+  ==
 ::  +unbind-http: remove a binding
 ::
 ++  unbind-http
@@ -1673,6 +1693,15 @@
   =/  m  (fiber ,~)
   ^-  form:m
   ;<  here=rail:tarball  bind:m  get-here-abs
+  (reg-poke [%register here path.here])
+::  +reg-register-at: register a caller-supplied rail (e.g. from its grant
+::  via here-abs:sh) instead of walking to root — lets a granted app
+::  register with no peek /. Niladic +reg-register stays for callers that
+::  want the trustless walk.
+++  reg-register-at
+  |=  here=rail:tarball
+  =/  m  (fiber ,~)
+  ^-  form:m
   (reg-poke [%register here path.here])
 ::
 ++  reg-how

@@ -190,6 +190,30 @@ var API='/grubbery/api';var BALL='apps/tiles.tiles';
     }
   }
 
+  function uninstallTile(t, tiles) {
+    var m = t.root.match(/^\/apps\/([^\/]+)\/desk\/data\/[^\/]+$/);
+    var word, msg;
+    if (m) {
+      var desk = m[1];
+      var shipped = tiles.filter(function(x) {
+        return x.root && x.root.indexOf('/apps/' + desk + '/') === 0;
+      }).map(function(x) { return x.title || x.name; });
+      word = desk;
+      msg = 'CAREFUL: this app ships with the desk "' + desk + '". Uninstalling removes the '
+        + 'WHOLE desk and every app it ships' + (shipped.length ? ':\n\n  ' + shipped.join('\n  ') : '')
+        + '\n\nAll their data is permanently deleted. Type "' + desk + '" to confirm:';
+    } else {
+      word = t.root.replace(/^\/apps\//, '');
+      msg = 'CAREFUL: this permanently deletes ' + t.root + ' and all its data. Type "' + word + '" to confirm:';
+    }
+    if (prompt(msg) !== word) return;
+    fetch('/grubbery/tiles/uninstall', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ root: t.root })
+    }).then(function() { setTimeout(loadTiles, 600); });
+  }
+
   function loadTiles() {
     fetch('/grubbery/tiles/tiles.json')
       .then(function(r) { return r.json(); })
@@ -229,6 +253,28 @@ var API='/grubbery/api';var BALL='apps/tiles.tiles';
     editJson.value = JSON.stringify(content, null, 2);
     editJson.disabled = true;
     document.getElementById('edit-save').style.display = 'none';
+    var un = document.getElementById('edit-uninstall');
+    if (!un) {
+      un = document.createElement('button');
+      un.id = 'edit-uninstall';
+      un.className = 'tile-edit';
+      un.textContent = 'uninstall';
+      document.getElementById('edit-save').parentNode.appendChild(un);
+    }
+    un.style.display = '';
+    if (t.root) {
+      un.textContent = 'uninstall';
+      un.onclick = function() {
+        editBack.classList.remove('open');
+        uninstallTile(t, Object.keys(tileData).map(function(k) { return tileData[k]; }));
+      };
+    } else {
+      un.textContent = 'delete tile';
+      un.onclick = function() {
+        editBack.classList.remove('open');
+        deleteTile(name);
+      };
+    }
     editBack.classList.add('open');
   }
 
@@ -320,16 +366,15 @@ var API='/grubbery/api';var BALL='apps/tiles.tiles';
   function peerDel(s) {
     peerPost('peers', { del: s }).then(function() { setTimeout(loadPeers, 500); });
   }
-  function installPeerApp(a, btn, name, weir) {
+  function installPeerApp(a, btn, name) {
     btn.disabled = true;
     btn.textContent = 'installing...';
     var body = { name: name || a.name, type: 'cross-ship', source: a.source };
-    if (weir !== undefined) body.weir = weir;
     peerPost('add', body)
       .then(function(r) {
         if (r.status === 409) {
           var alt = prompt('A desk named "' + (name || a.name) + '" already exists here. Install under a different name:');
-          if (alt && alt.trim()) { installPeerApp(a, btn, alt.trim(), weir); return; }
+          if (alt && alt.trim()) { installPeerApp(a, btn, alt.trim()); return; }
           btn.textContent = 'Get';
           btn.disabled = false;
           return;
@@ -371,45 +416,12 @@ var API='/grubbery/api';var BALL='apps/tiles.tiles';
           '<input id="inst-name" spellcheck="false">' +
           '<span class="inst-pre">.desk</span></div>' +
         '<div id="inst-avail"></div>' +
-        '<label class="inst-lab">permissions <span class="inst-wip">— templates are a work in progress</span></label>' +
-        '<div class="inst-warn">' +
-          '<b>Warning</b> — these permissions sandbox the app&#39;s backend (its ship-side ' +
-          'processes). Two things they do not cover:' +
-          '<ul>' +
-            '<li><b>The frontend.</b> Opening the app&#39;s web page while logged in gives that ' +
-              'page full access to your ship through your session, regardless of these settings.</li>' +
-            '<li><b>Reads, even from the backend.</b> Until Arvo offers a +mule alternative that ' +
-              'neutralizes dotket (.^), any grub can scry the entire namespace reachable via dotket, ' +
-              'bypassing the read restrictions here — so %grubbery is not yet secure in that respect.</li>' +
-          '</ul>' +
-        '</div>' +
-        '<label class="inst-opt"><input type="radio" name="inst-weir" value="standard" checked>' +
-          '<span><b>trusted</b> — full access: can read and message anything on your ship; only creates, edits, or deletes files in its own directory</span></label>' +
-        '<label class="inst-opt"><input type="radio" name="inst-weir" value="readonly">' +
-          '<span><b>read-only</b> — headless: can compute, keep time, and read and write its own files, ' +
-          'plus read anything on your ship; no interface, no network, no cross-ship, and messages nothing ' +
-          'and changes nothing outside its own folder</span></label>' +
-        '<label class="inst-opt"><input type="radio" name="inst-weir" value="sandboxed">' +
-          '<span><b>sandboxed</b> — headless: can compute, keep time, and read and write its own files; ' +
-          'no interface, no network, no cross-ship, and cannot read or touch anything else</span></label>' +
-        '<label class="inst-opt"><input type="radio" name="inst-weir" value="open">' +
-          '<span><b>unrestricted</b> — no sandbox at all; can also create files anywhere</span></label>' +
-        '<label class="inst-opt"><input type="radio" name="inst-weir" value="custom">' +
-          '<span><b>custom</b> — one path per line; ../ is relative to the app folder; empty = closed. ' +
-          'Add /sys/iris for internet access, /sys/gall to message agents, etc.</span></label>' +
-        '<div id="inst-roads">' +
-          '<label class="inst-lab">create (make)</label>' +
-          '<textarea id="inst-make" placeholder="(closed)"></textarea>' +
-          '<label class="inst-lab">message (poke)</label>' +
-          '<textarea id="inst-poke" placeholder="(closed)"></textarea>' +
-          '<label class="inst-lab">read (peek)</label>' +
-          '<textarea id="inst-peek" placeholder="(closed)"></textarea>' +
-          '<div class="inst-hint">One path per line. A trailing slash means a whole directory ' +
-            '(<code>/apps/notes/</code>); no slash means a single file (<code>/apps/notes/data.json</code>). ' +
-            'Start with <code>../</code> to reach outside this app&#39;s own folder ' +
-            '(<code>../weather/</code>, <code>../notes/config.json</code>). An empty box is closed.</div>' +
-        '</div>' +
-        '<div id="inst-unrestricted" style="display:none">no sandbox — this app can create, message, and read anywhere on your ship.</div>';
+        '<label class="inst-lab">permissions</label>' +
+      '<div class="inst-note">Installs <b>fully sandboxed</b> — the app cannot read, message, ' +
+        'or write anything outside its own folder. If it needs more, it declares each path it ' +
+        'wants and you review and grant them in <a href="/apps/grubbery/permits">Sandbox ' +
+        'Settings</a> after install.</div>' +
+      '';
     document.getElementById('inst-foot').innerHTML =
       '<button id="inst-cancel">cancel</button>' +
       '<button class="go" id="inst-go">install</button>';
@@ -430,53 +442,10 @@ var API='/grubbery/api';var BALL='apps/tiles.tiles';
     }
     nameInp.oninput = checkName;
     checkName();
-    var LF = String.fromCharCode(10);
-    var PRESET_ROADS = {
-      standard: { make: '', poke: '/', peek: '/' },
-      readonly: { make: '', poke: '/sys/bowl.sig' + LF + '/sys/behn/', peek: '/' },
-      sandboxed: { make: '', poke: '/sys/bowl.sig' + LF + '/sys/behn/', peek: '' }
-    };
-    var lastPreset = 'standard';
-    function applyPreset() {
-      var mode = ov.querySelector('input[name=inst-weir]:checked').value;
-      var open = mode === 'open';
-      ov.querySelector('#inst-roads').style.display = open ? 'none' : 'block';
-      ov.querySelector('#inst-unrestricted').style.display = open ? 'block' : 'none';
-      if (open) return;
-      ['make', 'poke', 'peek'].forEach(function(t) {
-        var ta = ov.querySelector('#inst-' + t);
-        if (mode === 'custom') {
-          // editable, seeded from the last preset shown
-          ta.value = PRESET_ROADS[lastPreset][t];
-          ta.readOnly = false;
-          ta.classList.remove('ro');
-        } else {
-          ta.value = PRESET_ROADS[mode][t];
-          ta.readOnly = true;
-          ta.classList.add('ro');
-        }
-      });
-      if (mode !== 'custom') lastPreset = mode;
-    }
-    Array.prototype.forEach.call(ov.querySelectorAll('input[name=inst-weir]'), function(r) {
-      r.onchange = applyPreset;
-    });
-    applyPreset();
     document.getElementById('inst-cancel').onclick = instBack;
     go.onclick = function() {
-      var mode = ov.querySelector('input[name=inst-weir]:checked').value;
-      var weir;
-      if (mode === 'standard') weir = { preset: 'trusted' };
-      if (mode === 'readonly') weir = { preset: 'readonly' };
-      if (mode === 'sandboxed') weir = { preset: 'sandboxed' };
-      if (mode === 'open') weir = 'open';
-      if (mode === 'custom') weir = {
-        make: weirLines(ov.querySelector('#inst-make').value),
-        poke: weirLines(ov.querySelector('#inst-poke').value),
-        peek: weirLines(ov.querySelector('#inst-peek').value)
-      };
       instBack();
-      installPeerApp(a, btn, nameInp.value.trim(), weir);
+      installPeerApp(a, btn, nameInp.value.trim());
     };
   }
   function uninstallPeerApp(a, btn) {

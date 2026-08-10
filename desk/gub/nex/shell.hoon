@@ -24,6 +24,11 @@
       %+  spin:loader  ball
       :~  (manifest:loader 0)
           [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
+          ::  usergroups.sig: the shell's ONE registry liaison. Registrant
+          ::  prefixes nest-clobber (%how replaces every road under the
+          ::  sender's prefix), so exactly one root-prefix fiber makes all
+          ::  of the shell's grants. public.json is inert data it writes.
+          [%fall %& [/ %'usergroups.sig'] [[/ %sig] ~]]
           [%fall %& [/ %'public.json'] [[/ %json] [%a ~]]]
           [%fall %& [/ %'peers.json'] [[/ %json] [%a ~]]]
           ::  authoritative permission state, in two component grubs:
@@ -34,10 +39,39 @@
           [%fall %| /permit empty-dir:loader]
           [%fall %& [/permit %'approved.json'] [[/ %json] [%o ~]]]
           [%fall %& [/permit %'hidden.json'] [[/ %json] [%o ~]]]
-          ::  permit/notified holds the notify dedup (app -> mug of the ask
-          ::  version last pinged about) AND hosts the scanner fiber that
-          ::  polls for new/changed unapproved asks and pings notifications.
-          [%fall %& [/permit %'notified.json'] [[/ %json] [%o ~]]]
+          ::  /cache: REBUILDABLE view caches, follower-maintained — kept
+          ::  apart from /permit so the system-of-record tier is visible
+          ::  at a glance. Losing /cache costs nothing; losing /permit
+          ::  loses consent history.
+          [%fall %| /cache empty-dir:loader]
+          [%fall %& [/cache %'asks.json'] [[/ %json] [%a ~]]]
+          [%fall %& [/cache %'aliases.json'] [[/ %json] [%o ~]]]
+          [%fall %& [/cache %'weirs.json'] [[/ %json] [%o ~]]]
+          ::  permit/share.json: per-alias discovery visibility — the USER's
+          ::  map of @alias -> 'public' | [usergroup paths]. Absent = private
+          ::  (the default): an app never chooses its own discoverability.
+          [%fall %& [/permit %'share.json'] [[/ %json] [%o ~]]]
+          ::  /book: the discovery registry. One grub per @alias holding the
+          ::  current claimants and their locations — the alias menu made
+          ::  materialized-and-subscribable, so peers (local or cross-ship)
+          ::  can `keep` a name and learn where its app lives, and get pushed
+          ::  the new location when it moves.
+          [%fall %| /book empty-dir:loader]
+          ::  sweep.sig: poke target for "new apps may exist — look now".
+          ::  Desk installs poke it after applying their bill, so fresh
+          ::  apps get followers (and their rise-notify) immediately
+          ::  instead of waiting for a permits page load.
+          [%fall %& [/ %'sweep.sig'] [[/ %sig] ~]]
+          ::  /book/main.sig: the discovery-grant fiber. Owns the registry
+          ::  grants for /book files (it sits at /book, so they're in its
+          ::  subtree), recomputed from permit/share.json by subscription.
+
+          ::  /sync: one pure-follower grub per app, mirroring /apps. Each
+          ::  follows its app's files by subscription and pings the scanner
+          ::  to reconcile — so /book (and the asks) stay current without a
+          ::  poll. /sync/main.sig is the coordinator: it watches /apps
+          ::  membership and spawns/keeps the followers.
+          [%fall %| /sync empty-dir:loader]
           [%fall %| /peers empty-dir:loader]
           [%fall %| /requests empty-dir:loader]
           [%over %& [/ %'app.js'] [[/ %mime] app-js]]
@@ -57,36 +91,69 @@
         ;<  ~  bind:m  (bind-http:io [~ /apps/grubbery])
         ;<  ~  bind:m  (bind-http:io [~ /grubbery/tiles])
         (http-dispatch:io %shell)
-          ::  public.json: this ship's public desk directory — a json
-          ::  array of desk paths, peekable by anyone. The bootstrap
-          ::  for cross-ship discovery: peek this, then peek each desk
-          ::  for its version and tile through its own public grants.
+          ::  usergroups.sig: register once, then hold every shell grant
+          ::  current — the base /public grant on public.json plus the
+          ::  per-group /book shares from permit/share.json — and keep
+          ::  public.json (inert json) an honest reflection of the /public
+          ::  group's weir. Event-driven: wakes on share.json changes, on
+          ::  the public group's weir changing (desk grants), or a poke.
           ::
-          ::  Derived, never pushed: the directory is computed from
-          ::  the /public group's grants, the ground truth for what is
-          ::  followable. Rescans on any poke (desks nudge after their
-          ::  grants change) and on a timer, so it cannot go stale.
-          ::
-          [~ %'public.json']
-        ;<  ~  bind:m  (rise-wait:io prod "%shell public: failed")
-        ;<  ~  bind:m  reg-register:io
+          [~ %'usergroups.sig']
+        ;<  ~  bind:m  (rise-wait:io prod "%shell registry: failed")
         ;<  here=rail:tarball  bind:m  get-here-abs:io
+        ;<  ~  bind:m  (reg-register-at:io here)
         =/  nex-dir=path  path.here
-        ;<  ~  bind:m
-          %-  reg-how:io
-          :-  /public
-          [~ ~ (sy `(list road:tarball)`~[[%& %& nex-dir %'public.json']])]
+        ;<  *  bind:m
+          (keep:io /share (nex-road:io rail [%& /permit %'share.json']) ~)
+        ;<  *  bind:m
+          (keep:io /pubw [%& %& /sys/ames/usergroups/'public.grp' %'how.weir'] ~)
+        =|  prev=(set path)
         |-
+        ;<  shares=(map path (set @ta))  bind:m  (read-shares rail nex-dir)
+        ::  one %how per group, total-state: base grant + that group's book
+        ::  shares. /public always recomputes (the base grant rides it);
+        ::  prev keeps un-shared groups in the set once more to clear them.
+        =/  groups=(list path)
+          ~(tap in (~(put in (~(uni in prev) ~(key by shares))) /public))
+        ;<  ~  bind:m
+          =/  m  (fiber:fiber:nexus ,~)
+          |-  ^-  form:m
+          ?~  groups  (pure:m ~)
+          =/  grp=path  i.groups
+          =/  files=(set @ta)  (fall (~(get by shares) grp) ~)
+          =/  base=(set road:tarball)
+            ?.  =(/public grp)  ~
+            (sy `(list road:tarball)`~[[%& %& nex-dir %'public.json']])
+          =/  peeks=(set road:tarball)
+            %-  ~(gas in base)
+            (turn ~(tap in files) |=(f=@ta `road:tarball`[%& %& (weld nex-dir /book) f]))
+          ;<  ~  bind:m  (reg-how:io grp [~ ~ peeks])
+          $(groups t.groups)
+        =.  prev  ~(key by shares)
         ;<  ~  bind:m  (reg-poke:io [%gc ~])
         ;<  paths=(list @t)  bind:m  scan-public
-        ;<  cur=json  bind:m  (get-state-as:io ,json)
+        ;<  cur=(unit json)  bind:m
+          (peek-as:io (nex-road:io rail [%& / %'public.json']) ,json)
         =/  next=json  a+(turn paths |=(p=@t s+p))
         ;<  ~  bind:m
-          ?:  =(next cur)  (pure:(fiber:fiber:nexus ,~) ~)
-          (replace:io next)
-        ;<  now=@da  bind:m  get-time:io
-        ;<  ~  bind:m  (set-timer:io /rescan (add now ~m30))
+          ?:  =(`next cur)  (pure:(fiber:fiber:nexus ,~) ~)
+          (over:io (nex-road:io rail [%& / %'public.json']) [[/ %json] next])
+        ;<  ~  bind:m  take-reg-wake
+        $
+          ::  sweep.sig: on any poke, spawn followers for apps that lack
+          ::  them and refresh the caches if anything new appeared.
+          ::
+          [~ %'sweep.sig']
+        ;<  ~  bind:m  (rise-wait:io prod "%shell sweep: failed")
+        |-
         ;<  *  bind:m  take-poke:io
+        ;<  made=?  bind:m  (spawn-followers rail)
+        ;<  ~  bind:m
+          ?.  made  (pure:(fiber:fiber:nexus ,~) ~)
+          ;<  ~  bind:(fiber:fiber:nexus ,~)  (build-book rail)
+          ;<  ~  bind:(fiber:fiber:nexus ,~)  (build-asks rail)
+          ;<  ~  bind:(fiber:fiber:nexus ,~)  (build-aliases rail)
+          (build-weirs rail)
         $
           ::  peers.json: poke target for managing which ships' public
           ::  desk directories we mirror. {"add": "~ship"} makes the
@@ -119,21 +186,48 @@
           ~?  >>>  ?=(^ err)  [%shell-peer-cull-failed u.del]
           $
         $
-          ::  permit/notified: the notification scanner. Registers with the
-          ::  notifications nexus once, then on a ~m2 heartbeat scans every
-          ::  app's weir.json ask, skips the ones already settled (declared
-          ::  matches permit/approved) or already pinged (mug matches the
-          ::  dedup set), and fires a notification for the rest — updating
-          ::  the dedup set, which is this grub's own state.
+          ::  /sync/<app>: a pure follower. Subscribes to its app's tree and
+          ::  on any change (alias.json, weir.json, …) pings the scanner to
+          ::  reconcile /book and the asks. Holds no state, writes nothing.
           ::
-          [[%permit ~] %'notified.json']
-        ;<  ~  bind:m  (rise-wait:io prod "%shell notify-scan: failed")
-        ;<  ~  bind:m  (register-notify rail)
+          [[%sync *] @]
+        ;<  ~  bind:m  (rise-wait:io prod "%shell follow: failed")
+        =/  ap=(unit path)  (app-path-of rail)
+        ?~  ap  (pure:m ~)
+        ;<  ~  bind:m  drop-stale-subs
+        ::  follow ONLY the declaration files — never the whole app tree, or
+        ::  a ticking app (counter, weather) fires us on every data write.
+        ;<  *  bind:m  (keep:io /alias [%& %& u.ap %'alias.json'] ~)
+        ;<  *  bind:m  (keep:io /weir [%& %& u.ap %'weir.json'] ~)
+        ::  notify at rise too: a fresh install's ask predates this
+        ::  follower, so there is no change-news to catch — and an ask
+        ::  still pending across a reload deserves the re-ping anyway.
+        ;<  ~  bind:m  (notify-if-unsettled rail u.ap)
         |-
-        ;<  ~  bind:m  (scan-and-notify rail)
-        ;<  now=@da  bind:m  get-time:io
-        ;<  ~  bind:m  (set-timer:io /rescan (add now ~m2))
-        ;<  *  bind:m  take-poke:io
+        ;<  ~  bind:m  take-any-news
+        ;<  live=?  bind:m  (peek-exists:io [%& %| u.ap])
+        ?.  live
+          ::  our app was uninstalled — consent dies with the app: drop its
+          ::  approval record so a reinstall asks fresh (a stale record
+          ::  would settle the new ask silently while the fresh instance
+          ::  sits jailed). Then reconcile the caches and self-clean.
+          ;<  approved=(map @t json)  bind:m  (read-approved rail)
+          =/  key=@t  (crip (spud u.ap))
+          ;<  ~  bind:m
+            ?.  (~(has by approved) key)  (pure:(fiber:fiber:nexus ,~) ~)
+            %+  put:io  (nex-road:io rail [%& /permit %'approved.json'])
+            [[/ %json] [%o (~(del by approved) key)]]
+          ;<  ~  bind:m  (build-book rail)
+          ;<  ~  bind:m  (build-asks rail)
+          (pure:m ~)
+        ::  a real change to our app's declarations: notify if the ask is
+        ::  unsettled (the subscription IS the dedup — news only fires on
+        ::  actual change), then refresh the caches.
+        ;<  ~  bind:m  (notify-if-unsettled rail u.ap)
+        ;<  ~  bind:m  (build-book rail)
+        ;<  ~  bind:m  (build-asks rail)
+        ;<  ~  bind:m  (build-aliases rail)
+        ;<  ~  bind:m  (build-weirs rail)
         $
           ::  /peers/<ship>.json: live mirror of one ship's public desk
           ::  directory, held current by subscription. All network
@@ -174,12 +268,39 @@
           =/  act=@t  ?.(?=(%o -.jon) '' (fall (jget jon 'action') ''))
           ;<  now=@da  bind:m  get-time:io
           ;<  ~  bind:m  (apply-permit-action rail jon act now)
+          ::  the action changed the views — rebuild the caches before the
+          ::  UI reloads them.
+          ;<  ~  bind:m  (build-asks rail)
+          ;<  ~  bind:m  (build-aliases rail)
+          ;<  ~  bind:m  (build-weirs rail)
           ;<  ~  bind:m  (send-simple:srv eyre-id [[200 ~] `(as-octs:mimes:html 'ok')])
+          (pure:m ~)
+        ::  POST /uninstall {root}: delete an installed app from its tile.
+        ::  A desk-nested root uninstalls the WHOLE desk (the UI says so
+        ::  and lists what ships with it). Consent records, followers, and
+        ::  caches all reconcile via the follower self-clean.
+        ?:  &(=('POST' method.request.req) ?=([%uninstall ~] suffix))
+          =/  jon=json
+            %+  fall  (de:json:html ?~(body.request.req '' q.u.body.request.req))
+            *json
+          =/  rt=(unit path)  (soft-path (fall (jget jon 'root') ''))
+          =/  target=(unit path)
+            ?~  rt  ~
+            ?:  ?=([%apps @ %desk %data @ ~] u.rt)  `/apps/[i.t.u.rt]
+            ?:  ?=([%apps @ ~] u.rt)  `u.rt
+            ~
+          ?~  target
+            ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'bad root')])
+            (pure:m ~)
+          ;<  err=(unit tang)  bind:m  (cull-soft:io [%& %| u.target])
+          ~?  >>>  ?=(^ err)  [%shell-uninstall-failed u.target]
+          =/  code=@ud  ?~(err 200 500)
+          ;<  ~  bind:m  (send-simple:srv eyre-id [[code ~] `(as-octs:mimes:html ?~(err 'ok' 'failed'))])
           (pure:m ~)
         ::  tile store, served from the tiles data ball over the namespace
         ::  /grubbery/tiles/tiles.json → all tile data
         ?:  ?=([%'tiles.json' ~] suffix)
-          ;<  tiles=(list tile)  bind:m  read-all-tiles
+          ;<  tiles=(list [tile (unit path)])  bind:m  read-all-tiles
           =/  =json  (tiles-to-json tiles)
           =/  body=octs  (as-octs:mimes:html (en:json:html json))
           ;<  ~  bind:m
@@ -230,6 +351,28 @@
           (pure:m ~)
         ::  /apps/grubbery/permits → the read-only permissions page
         ?:  ?=([%permits ~] suffix)
+          ::  the sweep: a UI request IS the scan — pick up any apps that
+          ::  don't have followers yet (new installs). ~25 cheap existence
+          ::  checks; followers do everything else event-driven.
+          ;<  made=?  bind:m  (spawn-followers rail)
+          ::  a fresh follower won't fire until its app NEXT changes, so a
+          ::  sweep that spawned anything rebuilds the caches once now.
+          ;<  ~  bind:m
+            ?.  made  (pure:(fiber:fiber:nexus ,~) ~)
+            ;<  ~  bind:(fiber:fiber:nexus ,~)  (build-book rail)
+            ;<  ~  bind:(fiber:fiber:nexus ,~)  (build-asks rail)
+            ;<  ~  bind:(fiber:fiber:nexus ,~)  (build-aliases rail)
+            (build-weirs rail)
+          ::  lazy seed: if the view caches are empty (fresh boot, never
+          ::  rebuilt), build them once now; afterwards every load is pure
+          ::  cached reads.
+          ;<  av=(unit json)  bind:m
+            (peek-as:io (nex-road:io rail [%& /cache %'aliases.json']) ,json)
+          ;<  ~  bind:m
+            ?.  |(?=(~ av) =([%o ~] u.av))  (pure:(fiber:fiber:nexus ,~) ~)
+            ;<  ~  bind:(fiber:fiber:nexus ,~)  (build-asks rail)
+            ;<  ~  bind:(fiber:fiber:nexus ,~)  (build-aliases rail)
+            (build-weirs rail)
           ;<  fv=view:nexus  bind:m
             (peek:io (nex-road:io rail [%& ~ %'permits.html']) `[/ %mime])
           ?.  ?=([%file *] fv)
@@ -250,29 +393,55 @@
         ::  /apps/grubbery/weirs.json → ground truth: the live weir on each
         ::  governed dir, with the registry's intention overlaid per road.
         ?:  ?=([%'weirs.json' ~] suffix)
-          ;<  approved=(map @t json)  bind:m  (read-approved rail)
-          ;<  hidden=json  bind:m  (read-hidden rail)
-          ;<  wj=json  bind:m  (read-approved-weirs approved hidden)
-          =/  bod=octs  (as-octs:mimes:html (en:json:html wj))
+          ;<  wv=(unit json)  bind:m
+            (peek-as:io (nex-road:io rail [%& /cache %'weirs.json']) ,json)
+          =/  bod=octs  (as-octs:mimes:html (en:json:html (fall wv [%o ~])))
           ;<  ~  bind:m
             (send-simple:srv eyre-id [[200 ~[['content-type' 'application/json']]] `bod])
           (pure:m ~)
         ::  /apps/grubbery/aliases.json → the alias directory as menus:
         ::  app-declared alias.json options merged with your stored ones.
         ?:  ?=([%'aliases.json' ~] suffix)
-          ;<  hidden=json  bind:m  (read-hidden rail)
-          ;<  menus=json  bind:m  (build-alias-menus hidden %.y)
-          =/  bod=octs  (as-octs:mimes:html (en:json:html menus))
+          ;<  av=(unit json)  bind:m
+            (peek-as:io (nex-road:io rail [%& /cache %'aliases.json']) ,json)
+          =/  bod=octs  (as-octs:mimes:html (en:json:html (fall av [%o ~])))
           ;<  ~  bind:m
             (send-simple:srv eyre-id [[200 ~[['content-type' 'application/json']]] `bod])
           (pure:m ~)
         ::  /apps/grubbery/asks.json → each app's declared weir.json ask.
         ?:  ?=([%'asks.json' ~] suffix)
-          ;<  hidden=json  bind:m  (read-hidden rail)
-          ;<  menus=json  bind:m  (build-alias-menus hidden %.n)
-          ;<  asks=(list json)  bind:m  read-app-weirs
-          =/  marked=(list json)  (turn asks |=(a=json (mark-unresolved a menus)))
-          =/  bod=octs  (as-octs:mimes:html (en:json:html [%a marked]))
+          ;<  av=(unit json)  bind:m
+            (peek-as:io (nex-road:io rail [%& /cache %'asks.json']) ,json)
+          =/  bod=octs  (as-octs:mimes:html (en:json:html (fall av [%a ~])))
+          ;<  ~  bind:m
+            (send-simple:srv eyre-id [[200 ~[['content-type' 'application/json']]] `bod])
+          (pure:m ~)
+        ::  /apps/grubbery/share.json → per-alias discovery visibility map.
+        ?:  ?=([%'share.json' ~] suffix)
+          ;<  sv=(unit json)  bind:m
+            (peek-as:io (nex-road:io rail [%& /permit %'share.json']) ,json)
+          =/  bod=octs  (as-octs:mimes:html (en:json:html (fall sv [%o ~])))
+          ;<  ~  bind:m
+            (send-simple:srv eyre-id [[200 ~[['content-type' 'application/json']]] `bod])
+          (pure:m ~)
+        ::  /apps/grubbery/groups.json → the ship's usergroups (names).
+        ?:  ?=([%'groups.json' ~] suffix)
+          ;<  gv=view:nexus  bind:m
+            (peek-shallow:io [%& %| /sys/ames/usergroups] ~)
+          =/  names=(list @t)
+            ?.  ?=([%ball *] gv)  ~
+            ::  storage kids are <group>.grp; the group's path is the stem.
+            %+  turn  (sort ~(tap in ~(key by dir.ball.gv)) aor)
+            |=  g=@ta
+            ^-  @t
+            =/  t=tape  (trip g)
+            =/  stem=tape
+              ?:  &((gth (lent t) 4) =(".grp" (slag (sub (lent t) 4) t)))
+                (scag (sub (lent t) 4) t)
+              t
+            (crip "/{stem}")
+          =/  bod=octs
+            (as-octs:mimes:html (en:json:html a+(turn names |=(g=@t s+g))))
           ;<  ~  bind:m
             (send-simple:srv eyre-id [[200 ~[['content-type' 'application/json']]] `bod])
           (pure:m ~)
@@ -397,7 +566,36 @@
   =/  next=json
     ?:  suppress  (suppress-alias hidden alias path)
     (unsuppress-alias hidden alias path)
-  (put:io (nex-road:io rail [%& /permit %'hidden.json']) [[/ %json] next])
+  ;<  ~  bind:m  (put:io (nex-road:io rail [%& /permit %'hidden.json']) [[/ %json] next])
+  (build-asks rail)
+::  +read-shares: permit/share.json inverted for granting — usergroup
+::  path -> set of /book files it may peek. 'public' maps to /public.
+::
+++  read-shares
+  |=  [rail=rail:tarball nex-dir=path]
+  =/  m  (fiber:fiber:nexus ,(map path (set @ta)))
+  ^-  form:m
+  ;<  sv=(unit json)  bind:m
+    (peek-as:io (nex-road:io rail [%& /permit %'share.json']) ,json)
+  =/  jon=json  (fall sv [%o ~])
+  ?.  ?=(%o -.jon)  (pure:m ~)
+  =|  out=(map path (set @ta))
+  =/  entries=(list [al=@t v=json])  ~(tap by p.jon)
+  |-  ^-  form:m
+  ?~  entries  (pure:m out)
+  =/  file=@ta  (book-file al.i.entries)
+  =/  grps=(list path)
+    ?:  ?=([%s *] v.i.entries)
+      ?:  =('public' p.v.i.entries)  ~[/public]
+      (drop (soft-path p.v.i.entries))
+    ?.  ?=([%a *] v.i.entries)  ~
+    %+  murn  p.v.i.entries
+    |=(g=json ?.(?=([%s *] g) ~ (soft-path p.g)))
+  =/  o=(map path (set @ta))
+    %+  roll  grps
+    |=  [g=path acc=_out]
+    (~(put by acc) g (~(put in (fall (~(get by acc) g) ~)) file))
+  $(entries t.entries, out o)
 ::  +read-approved: the permit/approved grub — the map of app path -> its
 ::  consented manifest. The system of record for present grant state.
 ::
@@ -425,21 +623,6 @@
     (pairs:enjs:format ~[['action' s+'register'] ['name' s+'permissions']])
   ;<  *  bind:m  (poke-soft:io notify-target [[/ %json] payload])
   (pure:m ~)
-::  +weir-key: a version-aware dedup key for an app's weir.json — mug of its
-::  born (version history). Advances on every content CHANGE, so returning
-::  to a previously-declared weir (X -> Y -> X) yields a fresh key (a new
-::  case in the history) and re-notifies, while an idle re-scan does not.
-::
-++  weir-key
-  |=  [rail=rail:tarball app=@t]
-  =/  m  (fiber:fiber:nexus ,@)
-  ^-  form:m
-  =/  tp=(unit path)  (soft-path app)
-  ?~  tp  (pure:m 0)
-  ;<  res=(each (list [=cass:clay tags=(set @t) tomb=?]) tang)  bind:m
-    (born:io [%& %& [u.tp %'weir.json']])
-  ?.  ?=(%& -.res)  (pure:m 0)
-  (pure:m (mug p.res))
 ::  +is-settled: has this exact declared ask already been ruled on? True iff
 ::  permit/approved holds a record for the app whose `declared` roads match
 ::  the current ask (order-insensitive). Settled asks never notify.
@@ -466,8 +649,13 @@
   |=  [rail=rail:tarball app=@t]
   =/  m  (fiber:fiber:nexus ,?)
   ^-  form:m
-  =/  leaf=@t  (rear `path`(fall (soft-path app) /unknown))
-  =/  nm=@t  (app-slug leaf)
+  =/  pax=path  (fall (soft-path app) /unknown)
+  ::  desk-nested apps keep their nested identity in the title:
+  ::  /apps/<desk>/desk/data/<app> -> "<desk>/<app>".
+  =/  nm=@t
+    ?:  ?=([%apps @ %desk %data @ ~] pax)
+      (rap 3 (app-slug i.t.pax) '/' (app-slug i.t.t.t.t.pax) ~)
+    (app-slug (rear pax))
   =/  meta=json
     %-  pairs:enjs:format
     :~  ['title' s+(cat 3 nm ' wants permissions')]
@@ -482,37 +670,6 @@
     ==
   ;<  err=(unit tang)  bind:m  (poke-soft:io notify-target [[/ %json] payload])
   (pure:m =(~ err))
-::  +scan-and-notify: one pass — for every app's weir.json ask, skip the
-::  settled ones and the ones already pinged at this version, ping the rest,
-::  and persist the updated dedup set (this grub's own state).
-::
-++  scan-and-notify
-  |=  rail=rail:tarball
-  =/  m  (fiber:fiber:nexus ,~)
-  ^-  form:m
-  ;<  approved=(map @t json)  bind:m  (read-approved rail)
-  ;<  cur=json  bind:m  (get-state-as:io ,json)
-  =/  seen=(map @t @t)
-    ?.  ?=(%o -.cur)  ~
-    (~(urn by p.cur) |=([k=@t v=json] ?:(?=(%s -.v) p.v '')))
-  ;<  asks=(list json)  bind:m  read-app-weirs
-  =/  next=(map @t @t)  seen
-  |-  ^-  form:m
-  ?~  asks
-    (replace:io [%o (~(run by next) |=(v=@t s+v))])
-  =/  ask=json  i.asks
-  =/  app=@t  (fall (jget ask 'app') '')
-  ?:  =('' app)  $(asks t.asks)
-  ?:  (is-settled ask approved)  $(asks t.asks)
-  ;<  key=@  bind:m  (weir-key rail app)
-  =/  keystr=@t  (scot %uv key)
-  ?:  =(`keystr (~(get by next) app))  $(asks t.asks)
-  ::  only mark seen when the ping actually delivered — a failed poke
-  ::  (poke-soft returns an error instead of crashing) must retry next
-  ::  scan, not silently mark itself done.
-  ;<  ok=?  bind:m  (notify-app rail app)
-  ?.  ok  $(asks t.asks)
-  $(asks t.asks, next (~(put by next) app keystr))
 ::  +apply-permit-action: dispatch a validated POST permission action to the
 ::  authoritative component grubs. The caller already gated on src==our, so
 ::  this is the authenticated user.
@@ -532,6 +689,20 @@
     (do-approve-weir rail app picks granted hidden now)
   ?:  ?&(=('deny-weir' act) ?!(=('' app)))
     (do-deny-weir rail app now)
+  ?:  =('alias-share' act)
+    ?:  =('' alias)  (pure:m ~)
+    ;<  sv=(unit json)  bind:m
+      (peek-as:io (nex-road:io rail [%& /permit %'share.json']) ,json)
+    =/  cur=json  (fall sv [%o ~])
+    =/  mp=(map @t json)  ?.(?=(%o -.cur) ~ p.cur)
+    =/  share=(unit json)  (~(get by p.jon) 'share')
+    =/  nxt=(map @t json)
+      ?~  share  (~(del by mp) alias)
+      ?:  ?=(~ u.share)  (~(del by mp) alias)
+      (~(put by mp) alias u.share)
+    ::  the /book/main.sig fiber keeps share.json — writing it IS the
+    ::  nudge; grants re-apply on the news.
+    (put:io (nex-road:io rail [%& /permit %'share.json']) [[/ %json] [%o nxt]])
   ?:  ?&  ?|(=('alias-suppress' act) =('alias-unsuppress' act))
           ?!(=('' alias))
           ?!(=('' path))
@@ -628,10 +799,10 @@
   ==
 ::
 ++  read-app-tiles
-  =/  m  (fiber:fiber:nexus ,(list [tile @ta]))
+  =/  m  (fiber:fiber:nexus ,(list [tile path]))
   ^-  form:m
   ;<  roots=(list path)  bind:m  app-roots
-  =|  acc=(list [tile @ta])
+  =|  acc=(list [tile path])
   |-  ^-  form:m
   ?~  roots  (pure:m (flop acc))
   =/  root=path  i.roots
@@ -667,7 +838,7 @@
   =/  til=tile
     ?~  icon  u.made
     u.made(image (crip "/grubbery/tiles/icon{(spud icon-segs)}"))
-  $(roots t.roots, acc [[til leaf] acc])
+  $(roots t.roots, acc [[til root] acc])
 ::
 ++  app-slug
   |=  name=@ta
@@ -687,27 +858,30 @@
   ^-  form:m
   ;<  av=view:nexus  bind:m  (peek-shallow:io [%& %| /apps] ~)
   ?.  ?=([%ball *] av)  (pure:m ~)
-  =/  kids=(list [@ta ball:tarball])  ~(tap by dir.ball.av)
+  =/  kids=(list @ta)  ~(tap in ~(key by dir.ball.av))
   =|  out=(list path)
   |-  ^-  form:m
   ?~  kids  (pure:m (flop out))
-  =/  kid=@ta  -.i.kids
+  =/  kid=@ta  i.kids
+  ::  a shallow listing STUBS its dir kids (neck=~ always), so the kid's
+  ::  own neck must come from peeking the kid itself — its own lump
+  ::  carries the real neck.
+  ;<  kv=view:nexus  bind:m  (peek-shallow:io [%& %| /apps/[kid]] ~)
   =/  nek=(unit neck:tarball)
-    ?~(fil.+.i.kids ~ neck.u.fil.+.i.kids)
+    ?.  ?=([%ball *] kv)  ~
+    ?~(fil.ball.kv ~ neck.u.fil.ball.kv)
   ?.  =(`[/ %desk] nek)
     ::  a plain nexus is itself the governable app
     $(kids t.kids, out [/apps/[kid] out])
-  ::  a [/ %desk] install is the git-sync wrapper — its real apps are the
-  ::  neck'd children of desk/data. Descend and enumerate those.
+  ::  a [/ %desk] install is the sync wrapper — trusted local infra, not
+  ::  the remote's code, so it is not itself a governable app. Its real
+  ::  apps are the neck'd children of desk/data (same stub caveat: any
+  ::  dir kid with a manifest is an instance; apply-bill only creates
+  ::  nexus instances there).
   ;<  dv=view:nexus  bind:m  (peek-shallow:io [%& %| /apps/[kid]/desk/data] ~)
   =/  subs=(list path)
     ?.  ?=([%ball *] dv)  ~
-    %+  murn  ~(tap by dir.ball.dv)
-    |=  [sub=@ta b=ball:tarball]
-    ^-  (unit path)
-    ?~  fil.b  ~
-    ?~  neck.u.fil.b  ~
-    `/apps/[kid]/desk/data/[sub]
+    (turn ~(tap in ~(key by dir.ball.dv)) |=(sub=@ta /apps/[kid]/desk/data/[sub]))
   $(kids t.kids, out (weld subs out))
 ::  +read-app-aliases: scan every app root (descending desks) for its
 ::  alias.json, building @name -> menu options. Each root is a nexus; its
@@ -781,6 +955,241 @@
     ?.  ?=(%o -.o)  o
     [%o (~(put by p.o) 'hidden' b+&)]
   (pure:m [%o (~(run by menus) |=(opts=(list json) `json`[%a opts]))])
+::  +book-file: the /book grub name for an @alias. Strips the leading @
+::  and appends .json — '@pad' -> 'pad.json'.
+::
+++  book-file
+  |=  nm=@t
+  ^-  @ta
+  =/  tp=tape  (trip nm)
+  =/  bare=tape  ?~(tp ~ t.tp)
+  (cat 3 (crip bare) '.json')
+::  +spawn-followers: ensure a /sync/<app> follower grub exists for every
+::  top-level app in /apps. Making the grub starts its follower fiber (the
+::  [[%sync ~] @] case). Idempotent — skips ones already present. (Culling
+::  removed apps' followers + descending into desks are later increments.)
+::
+::  +sync-lane: the /sync grub lane for an app-root path. Top-level apps
+::  mirror as /sync/<name>; desk-nested apps drop the /desk/data and mirror
+::  as /sync/<desk>/<sub>. ~ for anything unrecognized.
+::
+++  sync-lane
+  |=  ap=path
+  ^-  (unit lane:tarball)
+  ?+  ap  ~
+    [%apps @ ~]                `[%& [/sync i.t.ap]]
+    [%apps @ %desk %data @ ~]  `[%& [/sync/[i.t.ap] i.t.t.t.t.ap]]
+  ==
+::  +app-road-of: inverse — the app-root road a /sync follower is watching,
+::  from the follower's own rail.
+::
+++  app-path-of
+  |=  =rail:tarball
+  ^-  (unit path)
+  ?+  path.rail  ~
+    [%sync ~]    `~[%apps name.rail]
+    [%sync @ ~]  `~[%apps i.t.path.rail %desk %data name.rail]
+  ==
+::  +drop-stale-subs: subscriptions persist across fiber restarts and are
+::  never auto-cleaned. An earlier follower version kept its app's WHOLE
+::  dir (wire /follow) — those stale dir subs fire on every data write of
+::  the app and must be dropped. Only dir-lane subs are stale; the two
+::  file keeps are ours.
+::
+++  drop-stale-subs
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  ;<  =kept:nexus  bind:m  get-kept:io
+  =/  stale=(list bend:tarball)
+    (skim ~(tap in kept) |=(b=bend:tarball ?=(%| -.q.b)))
+  |-  ^-  form:m
+  ?~  stale  (pure:m ~)
+  ;<  ~  bind:m  (drop:io /follow [%| i.stale])
+  $(stale t.stale)
+::  +take-reg-wake: wake the registry liaison — any news (share.json or
+::  the public group's weir) or any poke.
+::
+++  take-reg-wake
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  |=  input:fiber:nexus
+  :+  ~  q.state
+  ?+  in  [%skip ~]
+      ~  [%wait ~]
+      [~ %news * *]  [%done ~]
+      [~ %poke * *]  [%done ~]
+  ==
+::  +take-any-news: wake on news from our own file keeps only.
+::
+++  take-any-news
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  |=  input:fiber:nexus
+  :+  ~  q.state
+  ?+  in  [%skip ~]
+      ~  [%wait ~]
+      [~ %news * *]
+    ?:  |(=(/alias wire.u.in) =(/weir wire.u.in))  [%done ~]
+    [%skip ~]
+  ==
+::  +spawn-followers: ensure a /sync follower grub exists for every app-root
+::  (descending desks, via app-roots). Making the grub starts its follower
+::  fiber. Idempotent. (Culling removed apps is a later increment.)
+::
+++  spawn-followers
+  |=  rail=rail:tarball
+  =/  m  (fiber:fiber:nexus ,?)
+  ^-  form:m
+  ;<  roots=(list path)  bind:m  app-roots
+  =|  made=?
+  |-  ^-  form:m
+  ?~  roots  (pure:m made)
+  =/  syn=(unit lane:tarball)  (sync-lane i.roots)
+  ?~  syn  $(roots t.roots)
+  =/  fr=road:tarball  (nex-road:io rail u.syn)
+  ;<  has=?  bind:m  (peek-exists:io fr)
+  ?:  has  $(roots t.roots)
+  ::  desk-nested followers live in /sync/<desk>/ — ensure the parent
+  ::  dir exists first (make into a missing dir fails).
+  ;<  ~  bind:m
+    ?.  ?=([%& [%sync @ *] *] u.syn)  (pure:(fiber:fiber:nexus ,~) ~)
+    =/  pdir=road:tarball  (nex-road:io rail [%| /sync/[i.t.path.p.u.syn]])
+    ;<  pex=?  bind:(fiber:fiber:nexus ,~)  (peek-exists:io pdir)
+    ?:  pex  (pure:(fiber:fiber:nexus ,~) ~)
+    ;<  err=(unit tang)  bind:(fiber:fiber:nexus ,~)
+      (make-soft:io pdir &+empty-dir:loader)
+    ~?  >>>  ?=(^ err)  [%shell-sync-dir-failed pdir]
+    (pure:(fiber:fiber:nexus ,~) ~)
+  ;<  err=(unit tang)  bind:m  (make-soft:io fr |+[[[/ %sig] ~] ~])
+  ~?  >>>  ?=(^ err)  [%shell-sync-spawn-failed i.roots]
+  $(roots t.roots, made |(made ?=(~ err)))
+::  +build-book: materialize the discovery registry. For each @alias, write
+::  /book/<name>.json holding its claimants+locations (the alias menu made
+::  a real, subscribable grub). Only writes on a genuine content change, so
+::  an idle rescan doesn't bump versions and spam subscribers. Discovery is
+::  the whole job — the grub holds WHERE apps are, never their data.
+::
+::  INVARIANT: /book MUST always be current. A discovery registry that lags
+::  hands out stale locations — it's worthless if it can be stale. Being
+::  rebuilt on the notify scanner's heartbeat (a POLL) is a placeholder and
+::  is NOT good enough.
+::
+::  TODO (not built yet): drive this by SUBSCRIPTION, never a poll. Seed with
+::  one scan on load, then subscribe to /apps membership (apps installed /
+::  removed / moved) AND to EACH app's alias.json individually as it's
+::  discovered (apps can self-edit alias.json), rebuilding the affected
+::  /book entry the moment any of them fires. Poll drops to a bare backstop
+::  or goes entirely.
+::
+::  TODO (related): alias resolution is frozen into grant.json bindings at
+::  approval time. When /book shows an @alias now resolves to a different
+::  target, every approved weir that referenced that alias is pointing at a
+::  stale path — the shell should surface those and ask the user to re-point
+::  them. /book being live is the signal that a binding went stale.
+::
+++  build-book
+  |=  rail=rail:tarball
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  ;<  menus=(map @t (list json))  bind:m  read-app-aliases
+  =/  entries=(list [nm=@t opts=(list json)])  ~(tap by menus)
+  =/  want=(set @ta)  (silt (turn entries |=([nm=@t *] (book-file nm))))
+  |-  ^-  form:m
+  ?~  entries
+    ::  cull pass: drop /book grubs whose alias no longer has any claimant
+    ;<  bv=view:nexus  bind:m  (peek-shallow:io (nex-road:io rail [%| /book]) ~)
+    ?.  ?=([%ball *] bv)  (pure:m ~)
+    =/  haves=(list @ta)  ~(tap in ~(key by dir.ball.bv))
+    |-  ^-  form:m
+    ?~  haves  (pure:m ~)
+    ?:  (~(has in want) i.haves)  $(haves t.haves)
+    ;<  *  bind:m  (cull-soft:io (nex-road:io rail [%& /book i.haves]))
+    $(haves t.haves)
+  =/  fname=@ta  (book-file nm.i.entries)
+  =/  wj=json   [%a opts.i.entries]
+  ;<  cur=view:nexus  bind:m
+    (peek:io (nex-road:io rail [%& /book fname]) `[/ %json])
+  =/  have=(unit json)
+    ?.  ?=([%file *] cur)  ~
+    (mole |.(!<(json (need-vase:tarball sang.cur))))
+  ?:  =(`wj have)  $(entries t.entries)
+  ;<  ~  bind:m  (put:io (nex-road:io rail [%& /book fname]) [[/ %json] wj])
+  $(entries t.entries)
+::  +build-aliases: materialize the alias directory (menus incl. hidden
+::  marks) into /permit/aliases.json — the permits page reads it ready.
+::
+++  build-aliases
+  |=  rail=rail:tarball
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  ;<  hidden=json  bind:m  (read-hidden rail)
+  ;<  want=json    bind:m  (build-alias-menus hidden %.y)
+  ;<  cur=view:nexus  bind:m
+    (peek:io (nex-road:io rail [%& /cache %'aliases.json']) `[/ %json])
+  =/  have=(unit json)
+    ?.  ?=([%file *] cur)  ~
+    (mole |.(!<(json (need-vase:tarball sang.cur))))
+  ?:  =(`want have)  (pure:m ~)
+  (put:io (nex-road:io rail [%& /cache %'aliases.json']) [[/ %json] want])
+::  +build-weirs: materialize the live-weir overlay view into
+::  /permit/weirs.json.
+::
+++  build-weirs
+  |=  rail=rail:tarball
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  ;<  approved=(map @t json)  bind:m  (read-approved rail)
+  ;<  hidden=json  bind:m  (read-hidden rail)
+  ;<  want=json    bind:m  (read-approved-weirs approved hidden)
+  ;<  cur=view:nexus  bind:m
+    (peek:io (nex-road:io rail [%& /cache %'weirs.json']) `[/ %json])
+  =/  have=(unit json)
+    ?.  ?=([%file *] cur)  ~
+    (mole |.(!<(json (need-vase:tarball sang.cur))))
+  ?:  =(`want have)  (pure:m ~)
+  (put:io (nex-road:io rail [%& /cache %'weirs.json']) [[/ %json] want])
+::  +notify-if-unsettled: one app's weir.json changed — notify unless the
+::  ask is already settled (matches its approved record). No stored dedup:
+::  the follower's subscription only fires on real change.
+::
+++  notify-if-unsettled
+  |=  [rail=rail:tarball ap=path]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  ;<  wv=view:nexus  bind:m  (peek:io [%& %& ap %'weir.json'] `[/ %json])
+  ?.  ?=([%file *] wv)  (pure:m ~)
+  =/  jon=(unit json)  (mole |.(!<(json (need-vase:tarball sang.wv))))
+  ?~  jon  (pure:m ~)
+  ?.  ?=(%o -.u.jon)  (pure:m ~)
+  =/  app=@t  (crip (spud ap))
+  =/  ask=json  [%o (~(put by p.u.jon) 'app' s+app)]
+  ;<  approved=(map @t json)  bind:m  (read-approved rail)
+  ?:  (is-settled ask approved)  (pure:m ~)
+  ;<  ~  bind:m  (register-notify rail)
+  ;<  *  bind:m  (notify-app rail app)
+  (pure:m ~)
+::  +build-asks: materialize the pending-asks view into /permit/asks.json so
+::  the UI fetches a ready grub instead of re-running read-app-weirs +
+::  alias-menu marking on every request. Same diff-then-write discipline as
+::  build-book. Kept fresh by the followers and by
+::  do-suppress (hidden changes affect the @alias resolution marking).
+::
+++  build-asks
+  |=  rail=rail:tarball
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  ;<  hidden=json      bind:m  (read-hidden rail)
+  ;<  menus=json       bind:m  (build-alias-menus hidden %.n)
+  ;<  asks=(list json)  bind:m  read-app-weirs
+  =/  marked=(list json)  (turn asks |=(a=json (mark-unresolved a menus)))
+  =/  want=json  [%a marked]
+  ;<  cur=view:nexus  bind:m
+    (peek:io (nex-road:io rail [%& /cache %'asks.json']) `[/ %json])
+  =/  have=(unit json)
+    ?.  ?=([%file *] cur)  ~
+    (mole |.(!<(json (need-vase:tarball sang.cur))))
+  ?:  =(`want have)  (pure:m ~)
+  (put:io (nex-road:io rail [%& /cache %'asks.json']) [[/ %json] want])
 ::  +read-app-weirs: scan /apps for each app's weir.json — its complete
 ::  declared permission ask ({poke, peek, make} lists of target roads,
 ::  some `@alias` refs). Returns one json per app {app, path, poke,
@@ -1088,7 +1497,11 @@
   ::  it dereferenced to, and the applied overlay shows the concrete path.
   =/  entry=json  (approval-entry app u.ask sub 'granted' amap now)
   ;<  cur=(map @t json)  bind:m  (read-approved rail)
-  (put:io (nex-road:io rail [%& /permit %'approved.json']) [[/ %json] [%o (~(put by cur) app entry)]])
+  ;<  ~  bind:m
+    (put:io (nex-road:io rail [%& /permit %'approved.json']) [[/ %json] [%o (~(put by cur) app entry)]])
+  ::  reboot the app with its new grants: fibers that crashed while jailed
+  ::  (a closed install's rise) come back alive holding what was granted.
+  (reload:io [%& %| target])
 ::  +do-deny-weir: record an app's weir.json as denied (no sand), so it
 ::  stops prompting until the app re-declares a different manifest.
 ::
@@ -1121,23 +1534,27 @@
   [%o (~(put by p.ask) 'unresolved' [%a (turn bad |=(r=@t s+r))])]
 ::
 ++  read-all-tiles
-  =/  m  (fiber:fiber:nexus ,(list tile))
+  =/  m  (fiber:fiber:nexus ,(list [tile root=(unit path)]))
   ^-  form:m
   ;<  local=(list tile)  bind:m  read-local-tiles
   =/  local-names=(set @ta)  (sy (turn local |=(t=tile name.t)))
-  ;<  app-pairs=(list [tile @ta])  bind:m  read-app-tiles
-  =/  app=(list tile)  (turn app-pairs head)
-  =/  merged=(list tile)
-    %+  weld  local
-    (skip app |=(t=tile (~(has in local-names) name.t)))
-  (pure:m (sort merged |=([a=tile b=tile] (aor name.a name.b))))
+  ;<  app-pairs=(list [tile path])  bind:m  read-app-tiles
+  ::  local tiles have no app root (not uninstallable); app tiles carry
+  ::  theirs so the UI can offer uninstall.
+  =/  merged=(list [tile (unit path)])
+    %+  weld  (turn local |=(t=tile [t *(unit path)]))
+    %+  murn  app-pairs
+    |=  [t=tile r=path]
+    ^-  (unit [tile (unit path)])
+    ?:((~(has in local-names) name.t) ~ `[t `r])
+  (pure:m (sort merged |=([a=[tile *] b=[tile *]] (aor name.-.a name.-.b))))
 ::
 ++  tiles-to-json
-  |=  tiles=(list tile)
+  |=  tiles=(list [t=tile root=(unit path)])
   ^-  json
   :-  %a
   %+  turn  tiles
-  |=  t=tile
+  |=  [t=tile root=(unit path)]
   %-  pairs:enjs:format
   :~  name+s+name.t
       title+s+title.t
@@ -1145,6 +1562,7 @@
       color+s+color.t
       image+s+image.t
       href+s+href.t
+      root+?~(root ~ s+(crip (spud u.root)))
   ==
 ::
 ++  shell-page
@@ -1184,6 +1602,7 @@
             ;div#get-head
               ;button#get-back.hdr-btn(onclick "instBack()"): back
               ;span#get-title: Get apps
+              ;a.hdr-btn(href "/apps/grubbery/permits"): Sandbox Settings
               ;button.hdr-btn(onclick "closeGetNow()"): close
             ==
             ;div#get-slider

@@ -616,6 +616,7 @@
       :-  %a
       :~  (line '/sys/bowl.sig' 'read the current time and our ship — every fiber uses get-time / get-our')
           (line '/sys/eyre/' 'bind its HTTP route and send page responses')
+          (line '/sys/behn/' 'the reminders fiber ticks on 5-minute marks to fire due reminders')
       ==
       :-  'peek'
       :-  %a

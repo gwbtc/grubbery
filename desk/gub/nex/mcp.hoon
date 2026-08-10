@@ -9,6 +9,31 @@
 /<  nex-tools   /lib/nex/tools.hoon
 /&  man  ../man/mcp/readme.md
 =>  |%
+    ::  +weir-json: mcp runs ARBITRARY user tools, and those tools execute
+    ::  under mcp's own weir — a tool may scry, poke, or make anything. So
+    ::  mcp cannot be scoped: it needs everything. (Scoping it to tool
+    ::  discovery — peek /code/lib/mcp + /apps — is wrong; it starves tool
+    ::  EXECUTION, e.g. a tool's /sys/scry gets vetoed.) The real fix later
+    ::  is to run each tool under its OWN weir so mcp itself can be narrow;
+    ::  until then mcp is honestly unrestricted.
+    ::
+    ++  weir-json
+      ^-  json
+      =/  line  |=([r=@t w=@t] `json`(pairs:enjs:format ~[['road' s+r] ['why' s+w]]))
+      %-  pairs:enjs:format
+      :~  :-  'poke'
+          :-  %a
+          :~  (line '/' 'runs arbitrary tools under its own weir — a tool may poke anything')
+          ==
+          :-  'peek'
+          :-  %a
+          :~  (line '/' 'a tool may read anything')
+          ==
+          :-  'make'
+          :-  %a
+          :~  (line '/' 'a tool may create grubs anywhere')
+          ==
+      ==
     ++  srv  ~(. http-res:io [%| 1 %& ~ %'main.sig'])
     ::  On crash, write error to tool state so MCP returns it.
     ::  On normal startup, continue.
@@ -123,25 +148,6 @@
     --
 ^-  nexus:nexus
 |%
-::  +weir-json: mcp is broad by nature — it's a system tool runner that
-::  scans every app for tools and builds their code. /tools grubs are its
-::  own subtree (not gated).
-::
-++  weir-json
-  ^-  json
-  =/  line  |=([r=@t w=@t] `json`(pairs:enjs:format ~[['road' s+r] ['why' s+w]]))
-  %-  pairs:enjs:format
-  :~  :-  'poke'
-      :-  %a
-      :~  (line '/sys/bowl.sig' 'read the current time and our ship — get-time / get-our')
-          (line '/sys/eyre/' 'bind its HTTP route and send responses')
-      ==
-      :-  'peek'
-      :-  %a
-      :~  (line '/code/lib/mcp/' 'discover and build the root dynamic tools')
-          (line '/apps/' 'scan every installed app for its own tools and build them')
-      ==
-  ==
 ++  on-load
   |=  =ball:tarball
   ^-  bole:tarball

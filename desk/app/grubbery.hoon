@@ -2060,7 +2060,6 @@
   |=  [cod=path =ball:tarball]
   ^-  [ball:tarball _this]
   =|  here=path
-  ::  ~>  %bout.[1 %validate-ball]
   |-
   =/  validated-contents=(map @ta [=sang:tarball gain=? bang=(unit tang)])
     ?~  fil.ball  ~
@@ -3073,7 +3072,7 @@
       ::  cached tube before storing.
       =/  mak=make:nexus  make.load.dart
       =/  res=(each _this tang)
-        (mule |.((make u.dest-lane force.load.dart mak)))
+        (mule |.((make path.here u.dest-lane force.load.dart mak)))
       ?-  -.res
         %&  (enqu-take:p.res here ~ ~ %made wire.dart ~)
           %|
@@ -3531,12 +3530,9 @@
     this
   ::  Build spool and process — bang file on crash
   =/  spool-got
-    ::  ~>  %bout.[1 %spawn-build-spool]
     (build-spool here)
   =/  spool-res=(each spool:fiber:nexus tang)
-    ::  ~>  %bout.[1 %spawn-mule-spool]
     (mule |.((fall spool-got default-spool)))
-  ::  ~>  %bout.[1 %spawn-proc-with]
   (spawn-proc-with here prod spool-res)
 ::  Spawn a process with a pre-built spool result.
 ::  Used by spawn-all-files to avoid redundant silo lookups.
@@ -3773,7 +3769,6 @@
     =/  =output  p.res
     =/  clam=(each [vase _this] tang)
       ?:  ?=(?(%fail %skip) -.next.output)  [%& state this]
-      ::  ~>  %bout.[1 %clam-output]
       (clam-output here blot state state.output)
     ?:  ?=(%| -.clam)
       =/  =tang  [leaf+"state validation failed at {(spud (snoc path.here name.here))}"]~
@@ -3865,14 +3860,12 @@
   ?:  ?=(%| -.process.proc)  this
   ::  Get file state from ball
   =/  file-data
-    ::  ~>  %bout.[1 %do-next-peek-grub]
     (peek-grub-now path.here name.here)
   ?~  file-data  this
   ?:  (is-boom:tarball u.file-data)  this
   =/  fil-state=vase  (need-vase:tarball u.file-data)
   ::  Run the evaluator (mule to catch hard crashes like !< mismatches)
   =/  eval-res=(each [darts=(list dart:nexus) done=(list took:eval) new-state=vase new-proc=proc:fiber:nexus res=result:eval core=_this] tang)
-    ::  ~>  %bout.[1 %eval-take]
     (mule |.((take:eval here fil-state proc)))
   ?:  ?=(%| -.eval-res)
     ::  Runtime crash — restart process with error prod
@@ -3893,7 +3886,6 @@
   ::  Restore core with updated vale cache
   =.  this  core
   ::  Process darts (emit cards or enqueue takes)
-  ::  ~>  %bout.[1 %process-darts]
   =.  this  (process-darts here darts)
   ::  Ack consumed pokes
   =.  this  (give-poke-signs here done)
@@ -3941,7 +3933,7 @@
   (enqu-take here give ~ %poke rel-from bask)
 ::
 ++  make
-  |=  [dest=lane:tarball force=? =make:nexus]
+  |=  [src=fold:tarball dest=lane:tarball force=? =make:nexus]
   ^+  this
   ?-    -.dest
       %|
@@ -3962,6 +3954,19 @@
         $(force %.y)
       ~|("make failed: directory {(spud dest-path)} already exists" !!)
     =.  this  (load-ball-changes dest-path new-bole)
+    ::  record the made bole's ROOT weir. Kid weirs ride the tree build,
+    ::  but the root's own weir lives in its PARENT's dir entry and was
+    ::  never recorded — making make-with-weir silently partial. Set it
+    ::  before any on-load/spawn below so the nexus never runs unjailed.
+    ::  ONLY when the maker sits OUTSIDE the made dir: sandboxing is
+    ::  imposed from above, and a grub remaking its own root must never
+    ::  smuggle in its own weir (self-escalation by rebirth).
+    =?  this
+      ?&  ?=(^ fil.new-bole)
+          ?=(^ weir.u.fil.new-bole)
+          !=(dest-path (prefix:tarball dest-path src))
+      ==
+      (set-weir dest-path weir.u.fil.new-bole)
     ::  a directory landing inside an existing code namespace changes
     ::  sources the per-file write path would have registered — resync
     ::  the governing lode with a full sweep, as +delete already does
@@ -4003,7 +4008,6 @@
       ~|("make failed: file {(spud (snoc path.dest-rail name.dest-rail))} already exists" !!)
     ::  Convert mark if blot override is set
     =/  =bask:tarball
-      ::  ~>  %bout.[1 %make-file-blot-convert]
       ?.  ?&  ?=(^ blot.p.make)
               !=(p.bask.p.make u.blot.p.make)
           ==
@@ -4014,15 +4018,12 @@
       [u.blot.p.make q:(tube p.src)]
     ::  Validate the bask before storing
     =^  validated=(each vase tang)  this
-      ::  ~>  %bout.[1 %make-file-validate]
       (validate-cached path.dest-rail p.bask q.bask)
     ?:  ?=(%| -.validated)
       ~|("make failed: validation error" (mean p.validated))
     =.  this
-      ::  ~>  %bout.[1 %make-file-save]
       (save-file dest-rail [p.bask q.p.validated])
     ::  Spawn process (respawns if already exists via store-proc)
-    ::  ~>  %bout.[1 %make-file-spawn]
     (spawn-proc dest-rail ~)
   ==
 ::
@@ -4038,6 +4039,38 @@
     ::  Remove from pool
     =.  pool  (~(lop of pool) dest-path)
     =.  this  (load-ball-changes dest-path *bole:tarball)
+    ::  Record the DELETION on every dir history in the culled subtree:
+    ::  the empty-bole sync leaves empty-tree versions ("an empty
+    ::  directory exists") at EVERY level, so without stamping, remaking
+    ::  any path inside a culled tree fails "already exists" (bit us on
+    ::  desk reinstall: apply-bill couldn't recreate desk/data kids).
+    ::  Append the same empty pace file deletion writes, root and all
+    ::  descendants; an intentionally-empty LIVE dir stays distinct.
+    =.  this
+      =/  sub=born:nexus  (~(dip of born) dest-path)
+      =/  stamp
+        |=  [t=_this pax=path node=(unit [fold=hist:nexus file=(map @ta hist:nexus)])]
+        ^+  this
+        =.  this  t
+        ?~  node  this
+        =/  fold-cas=(unit cass:clay)  (top:hist:nexus fold.u.node)
+        ?~  fold-cas  this
+        =/  [tombed-silo=silo:nexus tombed-hist=hist:nexus]
+          (~(tomb-temp si:nexus silo) fold.u.node u.fold-cas)
+        =/  new-cass=cass:clay  (~(next-cass bo:nexus now.bowl born) u.fold-cas)
+        =/  new-fold=hist:nexus  (put-pace:hist:nexus tombed-hist new-cass [%temp ~])
+        =.  silo  tombed-silo
+        =.  born  (~(put of born) pax u.node(fold new-fold))
+        this
+      =/  work=(list [pax=path b=born:nexus])  ~[[dest-path sub]]
+      |-  ^+  this
+      ?~  work  this
+      =/  [pax=path b=born:nexus]  i.work
+      =.  this  (stamp this pax fil.b)
+      =/  more=(list [path born:nexus])
+        %+  turn  ~(tap by dir.b)
+        |=([n=@ta k=born:nexus] [(snoc pax n) k])
+      $(work (weld more t.work))
     ::  Deregister any code namespaces that lived in the culled subtree
     purge-stale-code
     ::
@@ -5945,7 +5978,7 @@
       [%grubbery %api *]
     :: we +make because we leverage fibers to do eyre requests async
     ::
-    (make [%& /sys/eyre/requests eyre-id] %.n [%| [[/ %http-request] [src.bowl req]] ~])
+    (make /sys/eyre [%& /sys/eyre/requests eyre-id] %.n [%| [[/ %http-request] [src.bowl req]] ~])
   ==
 ::  forward-http: match a request against the eyre bindings and hand it to the
 ::  bound handler, recording the connection; 404 if nothing matches.

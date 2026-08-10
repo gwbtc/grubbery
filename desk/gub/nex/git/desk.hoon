@@ -51,8 +51,8 @@
           [~ %'config.json']
         ~&  >>  %git-desk-config-fiber-start
         ;<  ~  bind:m  (rise-wait:io prod "%git/desk config: failed")
-        ;<  ~  bind:m  reg-register:io
         ;<  here=rail:tarball  bind:m  get-here-abs:io
+        ;<  ~  bind:m  (reg-register-at:io here)
         =/  nex-dir=path  path.here
         ~&  >>  [%git-desk-config-at nex-dir]
         ;<  config-json=json  bind:m  (get-state-as:io ,json)

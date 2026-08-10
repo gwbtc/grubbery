@@ -5,6 +5,7 @@
 ::  POST handlers for create/delete/edit operations.
 ::
 /&  man  ../man/peers/readme.md
+/<  sh   /lib/shell.hoon
 =<  ^-  nexus:nexus
     |%
     ++  on-load
@@ -28,7 +29,8 @@
       ?+    rail  stay:m
           [~ %'main.sig']
         ;<  ~  bind:m  (rise-wait:io prod "%peers /main: failed")
-        ;<  ~  bind:m  reg-register:io
+        ;<  here=rail:tarball  bind:m  (here-abs:sh rail)
+        ;<  ~  bind:m  (reg-register-at:io here)
         ;<  ~  bind:m  (bind-http-self:io [~ /grubbery/peers])
         (http-dispatch:io %peers)
           [[%requests ~] @]

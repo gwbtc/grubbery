@@ -77,8 +77,8 @@
       ::
       [~ %'config.json']
     ;<  ~  bind:m  (rise-wait:io prod "%desk config: failed")
-    ;<  ~  bind:m  reg-register:io
     ;<  here=rail:tarball  bind:m  get-here-abs:io
+    ;<  ~  bind:m  (reg-register-at:io here)
     =/  nex-dir=path  path.here
     |-
     ;<  config-json=json  bind:m  (get-state-as:io ,json)
@@ -442,6 +442,17 @@
   ?.  =(~ (fall cur ~))  (pure:m ~)
   ;<  bill=(unit json)  bind:m
     (peek-as:io (nex-road:io rail [%& /desk/code %'bill.json']) ,json)
+  ::  bill.json may live as a json grub OR a plain mime text file in the
+  ::  desk's code tree — accept both: if the json read isn't an object,
+  ::  re-read raw and parse the payload as json text.
+  ;<  bill=(unit json)  bind:m
+    ?:  &(?=(^ bill) ?=([%o *] u.bill))
+      (pure:(fiber:fiber:nexus ,(unit json)) bill)
+    ;<  mim=(unit mime)  bind:(fiber:fiber:nexus ,(unit json))
+      (peek-as:io (nex-road:io rail [%& /desk/code %'bill.json']) ,mime)
+    %-  pure:(fiber:fiber:nexus ,(unit json))
+    ?~  mim  ~
+    (de:json:html q.q.u.mim)
   ?~  bill
     ~&  >  %desk-no-bill
     (pure:m ~)
@@ -451,8 +462,16 @@
   =/  entries=(list [@t @t])
     (turn ~(tap by p.u.bill) |=([k=@t v=json] [k (so:dejs:format v)]))
   ~&  >  [%desk-bill (lent entries)]
+  =|  made-any=?
   |-
-  ?~  entries  (pure:m ~)
+  ?~  entries
+    ::  nudge the shell: new apps exist — sweep now so their followers
+    ::  spawn and their asks notify immediately. Soft: a missing shell
+    ::  must not fail the install.
+    ?.  made-any  (pure:m ~)
+    ;<  *  bind:m
+      (poke-soft:io [%& %& /apps/'shell.shell' %'sweep.sig'] [[/ %sig] ~])
+    (pure:m ~)
   =/  nam=@ta  -.i.entries
   =/  cod=path  (stab +.i.entries)
   =/  neck=rail:tarball  [(snip cod) (rear cod)]
@@ -464,6 +483,7 @@
   =/  =bole:tarball  [`[`neck `[~ ~ ~] %.n ~] ~]
   ~&  >  [%desk-bill-entry nam neck]
   ;<  ~  bind:m  (make:io data-road &+bole)
+  =.  made-any  %.y
   $(entries t.entries)
 ::
 ++  sync-dir

@@ -106,6 +106,10 @@
       :-  %a
       :~  (line '/' 'browse the whole namespace — reading any path is what an explorer does')
       ==
+      :-  'make'
+      :-  %a
+      :~  (line '/' 'create, upload, and delete files anywhere — the editor half of the explorer')
+      ==
   ==
 ::  HTTP response door (road from /explorer.explorer/requests/* to /explorer.explorer/main.sig)
 ::

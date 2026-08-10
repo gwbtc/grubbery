@@ -26,4 +26,18 @@
   ?~  h  (pure:m ~)
   ?.  ?=([%s *] u.h)  (pure:m ~)
   (pure:m `p.u.h)
+::  +here-abs: this fiber's absolute rail, without a %here walk. Reads the
+::  app root from grant.json (here) and welds the caller's own nexus-
+::  relative rail onto it. Falls back to the trustless %here walk only when
+::  there's no grant yet — an unapproved app runs unrestricted, so the walk
+::  succeeds. Lets a granted app register / self-address with NO peek /: it
+::  reads where the shell already told it it is, instead of climbing to root.
+::
+++  here-abs
+  |=  rel=rail:tarball
+  =/  m  (fiber:fiber:nexus ,rail:tarball)
+  ^-  form:m
+  ;<  base=(unit @t)  bind:m  (here rel)
+  ?~  base  get-here-abs:io
+  (pure:m [(weld `path`(stab u.base) path.rel) name.rel])
 --

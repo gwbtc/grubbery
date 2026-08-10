@@ -15,6 +15,11 @@
 
     #topbar { flex-shrink: 0; height: 52px; display: flex; align-items: center; gap: 14px; padding: 0 16px; background: white; border-bottom: 1px solid #e2e7ee; }
     #brand { font-weight: 700; font-size: 15px; }
+    #home-link { font-size: 13px; color: #8a94a6; text-decoration: none; padding: 4px 10px; border-radius: 7px; }
+    #home-link:hover { background: #f0f3f7; color: #445; }
+    .warn-card { width: 600px; max-width: 100%; margin: 0 auto 14px; padding: 11px 14px; border-radius: 10px; background: #fdf3e0; border: 1px solid #f0dbb4; color: #8a6516; font-size: 11.5px; line-height: 1.5; }
+    .warn-card ul { margin: 6px 0 0; padding-left: 18px; }
+    .warn-card li { margin-top: 5px; }
     #collapse { border: none; background: none; font-size: 17px; color: #8a94a6; padding: 4px 6px; border-radius: 7px; }
     #collapse:hover { background: #f0f3f7; color: #445; }
     #modes { display: flex; gap: 2px; background: #eef1f5; border-radius: 9px; padding: 3px; }
@@ -118,6 +123,24 @@
     .btn.danger { color: #c0392b; }
     .btn.danger:hover { background: #fdecec; border-color: #f0c4b0; }
     .btn.small { padding: 4px 11px; font-size: 12px; border-radius: 7px; }
+    .share-row { display:flex; align-items:center; gap:10px; margin-top:14px; padding-top:12px; border-top:1px solid #eef1f5; }
+    .share-lab { font-size:10px; text-transform:uppercase; letter-spacing:0.5px; color:#b0b8c4; }
+    .share-chip { flex-shrink:0; font-size:10px; text-transform:uppercase; letter-spacing:0.3px; font-weight:600; padding:2px 8px; border-radius:6px; }
+    .sh-private { color:#667; background:#eef1f5; }
+    .sh-public { color:#3a72b0; background:#eaf2fd; }
+    .sh-groups-chip { color:#47597a; background:#eceff5; }
+    .sh-edit { margin-left:auto; }
+    .modal-veil { position:fixed; inset:0; background:rgba(26,29,36,.35); display:none; align-items:center; justify-content:center; z-index:50; }
+    .modal-veil.on { display:flex; }
+    .modal { background:white; border:1px solid #e2e7ee; border-radius:14px; box-shadow:0 10px 34px rgba(40,60,90,.18); width:340px; max-height:70vh; overflow:auto; padding:18px; }
+    .modal h3 { margin:0 0 3px; font-size:14px; font-weight:600; }
+    .modal .m-sub { font-size:12px; color:#9aa4b3; line-height:1.45; margin-bottom:12px; }
+    .m-opt { display:flex; align-items:center; gap:10px; padding:9px 12px; margin:0 -4px; border-radius:9px; cursor:pointer; font-size:13px; }
+    .m-opt:hover { background:#f2f5f9; }
+    .m-name { font-size:13px; font-weight:500; }
+    .m-opt input { accent-color:#4a90d9; }
+    .m-none { font-size:13px; color:#a0a8b4; padding:8px 12px; }
+    .m-foot { display:flex; gap:8px; justify-content:flex-end; margin-top:14px; padding-top:12px; border-top:1px solid #eef1f5; }
   </style>
 </head>
 <body>
@@ -125,6 +148,7 @@
     <div id="topbar">
       <button id="collapse" title="toggle sidebar">&#9776;</button>
       <span id="brand">Permissions</span>
+      <a id="home-link" href="/apps/grubbery" title="back to home">home</a>
       <div id="modes">
         <button data-mode="pending" class="active">Pending</button>
         <button data-mode="applied">Applied</button>
@@ -145,7 +169,14 @@
     var approvedState={}, weirsState={}, aliasMenus={}, asksData=[];
 
     function esc(s){ var d=document.createElement('div'); d.textContent=(s==null)?'':String(s); return d.innerHTML; }
-    function leafOf(p){ p=String(p||''); var i=p.lastIndexOf('/'); return i===-1?p:p.slice(i+1); }
+    function leafOf(p){
+      // display name: desk-nested apps keep their nested identity —
+      // /apps/<desk>/desk/data/<app> renders as <desk>/<app>, never bare <app>.
+      p=String(p||'');
+      var m=p.match(/^\/apps\/([^\/]+)\/desk\/data\/([^\/]+)$/);
+      if(m)return m[1]+'/'+m[2];
+      var i=p.lastIndexOf('/'); return i===-1?p:p.slice(i+1);
+    }
     function cssid(p){ return String(p).replace(/[^a-z0-9]/gi,'_'); }
     function roadOf(it){ return typeof it==='string'?it:(it&&it.road)||''; }
     function whyOf(it){ return typeof it==='string'?'':(it&&it.why)||''; }
@@ -166,6 +197,7 @@
     }
     function warnMark(r){ var l=dangerLevel(r); if(!l)return ''; var t=l==='severe'?'high-privilege target':(l==='broad'?'broad — grants a whole top-level tree':'system service — mostly harmless'); return '<span class="warn '+l+'" title="'+t+'">&#9888;</span>'; }
     function fmtDate(s){ if(!s)return ''; var p=s.replace('~','').split('..'), d=(p[0]||'').split('.'), t=(p[1]||'').split('.'); if(d.length<3)return s; var dt=new Date(Date.UTC(+d[0],(+d[1])-1,+d[2],+(t[0]||0),+(t[1]||0),+(t[2]||0))); if(isNaN(dt.getTime()))return s; return dt.toLocaleString(undefined,{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'}); }
+    var shareState={}, groupsList=[];
     function act(body){ fetch('/apps/grubbery/permits',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)}).then(function(){ setTimeout(load,300); }); }
 
     function hasDrift(app){ var w=weirsState[app]; if(!w)return false; return ['poke','peek','make'].some(function(c){ return (w[c]||[]).some(function(r){ return r.status==='missing'||r.status==='unmanaged'; }); }); }
@@ -279,9 +311,10 @@
       var main=document.getElementById('cards');
       if(mode!=='aliases'){
         var recs=modeRecs();
-        if(!recs.length){ main.innerHTML='<div class="d-none" style="text-align:center;margin-top:60px">Nothing '+(mode==='pending'?'pending — all caught up.':'applied yet.')+'</div>'; return; }
+        var warn=mode!=='pending'?'':'<div class="warn-card"><b>Warning</b> — these permissions sandbox an app\'s backend (its ship-side processes). Two things they do not cover:<ul><li><b>The frontend.</b> Opening any HTML file from an app\'s desk in your browser while logged in gives that page full access to your ship through your session — regardless of these settings, and regardless of whether the backend can talk to eyre at all.</li><li><b>Reads, even from the backend.</b> Dotket (.^) is not currently neutralized (WIP): any grub can scry the namespace reachable via dotket, bypassing the read restrictions here.</li></ul></div>';
+        if(!recs.length){ main.innerHTML=warn+'<div class="d-none" style="text-align:center;margin-top:60px">Nothing '+(mode==='pending'?'pending — all caught up.':'applied yet.')+'</div>'; return; }
         if(selected===null||!recs.some(function(r){return r.app===selected;})){ selected=recs[0].app; }
-        main.innerHTML=recs.map(function(r){ var c=cardChip(r); return '<div class="card open'+(r.app===selected?' sel':'')+'" id="card-'+cssid(r.app)+'" data-sel="'+esc(r.app)+'"><div class="card-head"><span class="card-name">'+esc(leafOf(r.app))+'</span><span class="chip chip-'+c+'">'+c+'</span><span class="card-sub">'+esc(cardSummary(r))+'</span></div><div class="card-body">'+cardBody(r)+'</div></div>'; }).join('');
+        main.innerHTML=warn+recs.map(function(r){ var c=cardChip(r); return '<div class="card open'+(r.app===selected?' sel':'')+'" id="card-'+cssid(r.app)+'" data-sel="'+esc(r.app)+'"><div class="card-head"><span class="card-name">'+esc(leafOf(r.app))+'</span><span class="chip chip-'+c+'">'+c+'</span><span class="card-sub">'+esc(cardSummary(r))+'</span></div><div class="card-body">'+cardBody(r)+'</div></div>'; }).join('');
         Array.prototype.forEach.call(main.querySelectorAll('.card'),function(c){ wireCard(c); });
       } else {
         var names=Object.keys(aliasMenus).sort();
@@ -293,9 +326,20 @@
             var dot='<span class="dot'+(users.length?' on':'')+'"'+(users.length?' title="used by '+esc(users.join(', '))+'"':'')+'></span>';
             return '<div class="ali-opt'+(o.hidden?' hid':'')+'">'+dot+'<code>'+esc(o.path)+'</code><span class="desc">'+esc(o.description||'')+'</span>'+(o.hidden?'<button class="btn small" data-un="'+esc(o.path)+'">unhide</button>':'<button class="btn small danger" data-hide="'+esc(o.path)+'">hide</button>')+'</div>';
           }).join('');
+          var sh=shareState[n]; if(sh==='public')sh=['/public'];
+          var shLabel;
+          if(sh==null)shLabel='private';
+          else if(sh.indexOf('/public')>=0)shLabel='public'+(sh.length>1?' +'+(sh.length-1):'');
+          else if(sh.length===1)shLabel=sh[0].replace(/^\//,'');
+          else shLabel=sh.length+' groups';
+          var shClass=sh==null?'sh-private':(sh.indexOf('/public')>=0?'sh-public':'sh-groups-chip');
+          var shareRow='<div class="share-row"><span class="share-lab">discovery</span>'
+            +'<span class="share-chip '+shClass+'">'+esc(shLabel)+'</span>'
+            +'<button class="btn small sh-edit" data-share="'+esc(n)+'">edit</button></div>';
           var intro=opts.length>1?'Several apps advertise this name — you pick which one it resolves to when an app asks.':'A name apps can refer to.';
-          return '<div class="card open'+(n===selected?' sel':'')+'" id="card-'+cssid(n)+'"><div class="card-head" style="cursor:default"><span class="card-name">'+esc(n)+'</span>'+(opts.length>1?'<span class="chip chip-menu">menu · '+opts.length+'</span>':'')+'</div><div class="card-body"><div class="d-intro">'+intro+'</div>'+body+'</div></div>';
+          return '<div class="card open'+(n===selected?' sel':'')+'" id="card-'+cssid(n)+'"><div class="card-head" style="cursor:default"><span class="card-name">'+esc(n)+'</span>'+(opts.length>1?'<span class="chip chip-menu">menu · '+opts.length+'</span>':'')+'</div><div class="card-body"><div class="d-intro">'+intro+'</div>'+body+shareRow+'</div></div>';
         }).join('');
+        Array.prototype.forEach.call(main.querySelectorAll('.sh-edit'),function(b){ b.onclick=function(){ openShareModal(b.getAttribute('data-share')); }; });
         Array.prototype.forEach.call(main.querySelectorAll('[data-hide]'),function(b){ b.onclick=function(){ var nm=b.closest('.card').querySelector('.card-name').textContent, p=b.getAttribute('data-hide'); if(confirm('Hide '+nm+' → '+p+'?\n\nThe app declares this itself, so this only stops offering it here. You can unhide it later.')) act({action:'alias-suppress',alias:nm,path:p}); }; });
         Array.prototype.forEach.call(main.querySelectorAll('[data-un]'),function(b){ b.onclick=function(){ var nm=b.closest('.card').querySelector('.card-name').textContent; act({action:'alias-unsuppress',alias:nm,path:b.getAttribute('data-un')}); }; });
       }
@@ -352,9 +396,37 @@
         fetch('/apps/grubbery/approved.json').then(function(r){return r.json();}).then(function(d){ approvedState=d||{}; }).catch(function(){}),
         fetch('/apps/grubbery/weirs.json').then(function(r){return r.json();}).then(function(d){ weirsState=d||{}; }).catch(function(){}),
         fetch('/apps/grubbery/aliases.json').then(function(r){return r.json();}).then(function(d){ aliasMenus=d||{}; }).catch(function(){}),
-        fetch('/apps/grubbery/asks.json').then(function(r){return r.json();}).then(function(d){ asksData=d||[]; }).catch(function(){})
+        fetch('/apps/grubbery/asks.json').then(function(r){return r.json();}).then(function(d){ asksData=d||[]; }).catch(function(){}),
+        fetch('/apps/grubbery/share.json').then(function(r){return r.json();}).then(function(d){ shareState=d||{}; }).catch(function(){}),
+        fetch('/apps/grubbery/groups.json').then(function(r){return r.json();}).then(function(d){ groupsList=d||[]; }).catch(function(){})
       ]).then(function(){ var f=firstLoad; if(firstLoad){ loadingEl.classList.remove('on'); firstLoad=false; } render(true); if(f&&selected){ setTimeout(function(){ centerCard(selected,false); },60); } });
     }
+    var mv=document.createElement('div'); mv.className='modal-veil';
+    mv.innerHTML='<div class="modal"><h3 id="m-title"></h3><div class="m-sub">Usergroups that can discover this alias from other ships. None checked = private.</div>'
+      +'<div id="m-groups"></div>'
+      +'<div class="m-foot"><button class="btn small" id="m-cancel">cancel</button><button class="btn small primary" id="m-save">save</button></div></div>';
+    document.body.appendChild(mv);
+    var shAlias=null;
+    function openShareModal(n){
+      shAlias=n;
+      document.getElementById('m-title').textContent=n;
+      var sh=shareState[n]; if(sh==='public')sh=['/public'];
+      var gl=document.getElementById('m-groups');
+      gl.innerHTML=groupsList.length?groupsList.map(function(g){
+        var on=Array.isArray(sh)&&sh.indexOf(g)>=0;
+        return '<label class="m-opt"><input type="checkbox" class="m-grp" value="'+esc(g)+'"'+(on?' checked':'')+'><span class="m-name">'+esc(g)+'</span></label>';
+      }).join(''):'<div class="m-none">No usergroups yet — create them in Peers.</div>';
+      mv.classList.add('on');
+    }
+    document.getElementById('m-cancel').onclick=function(){ mv.classList.remove('on'); };
+    mv.onclick=function(e){ if(e.target===mv)mv.classList.remove('on'); };
+    document.getElementById('m-save').onclick=function(){
+      var share=null;
+      var gs=Array.prototype.filter.call(mv.querySelectorAll('.m-grp'),function(c){return c.checked;}).map(function(c){return c.value;});
+      if(gs.length)share=gs;
+      mv.classList.remove('on');
+      act({action:'alias-share',alias:shAlias,share:share});
+    };
     load();
   </script>
 </body>
