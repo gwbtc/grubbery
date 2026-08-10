@@ -379,6 +379,15 @@
   ^-  form:m
   ;<  =wire  bind:m  (nonce /poke)
   ;<  ~  bind:m  (send-dart %node wire road %poke bask)
+  ::  RESTORED. 3c1c61b dropped this timer on the reasoning that "local pokes
+  ::  always terminate". When one does not, the fiber waits forever: no error,
+  ::  no response, the HTTP request never returns. That is what took
+  ::  /grubbery/mcp down — its tools/list scans every app and builds each
+  ::  one's tools, so it makes many pokes, and a single non-terminating poke
+  ::  hangs the whole sweep. A timeout that reports is strictly better than a
+  ::  wait that cannot.
+  ;<  now=@da  bind:m  get-time
+  ;<  ~  bind:m  (set-timer wire (add now ~s5))
   |=  input:fiber:nexus
   :+  ~  q.state
   ?+  in  [%skip ~]
@@ -387,6 +396,22 @@
     ?.  =(wire wire.u.in)  [%skip ~]
     ?~  err.u.in  [%done ~]
     [%done `u.err.u.in]
+      [~ %poke * *]
+    ::  The timeout must be OUR timer's. A timer-wake carries the wire it was
+    ::  set with in its sage (grubbery.hoon pokes back [[/ %timer-wake] wire]),
+    ::  and the sage is the only place it survives — the %poke intake has no
+    ::  wire field of its own, which is why the original could not check it.
+    ::
+    ::  Matching on the mark alone means ANY concurrent poke's wake satisfies
+    ::  this branch, so a fiber reports a timeout for a poke that never timed
+    ::  out. That is the notify loop 3c1c61b escaped by deleting the timer:
+    ::  the scanner read a stray wake as its own timeout, re-notified, armed
+    ::  another timer, and behn filled up. Scoping the wake fixes the loop
+    ::  without giving up the timeout — same idiom as +take-commit-event in
+    ::  gub/lib/nex/tools.hoon.
+    ?.  =([/ %timer-wake] p.sage.u.in)  [%skip ~]
+    ?.  =(wire !<(^wire q.sage.u.in))   [%skip ~]
+    [%done `~[leaf+"poke timed out after 5s"]]
   ==
 ::  +take-held: wait for a %held response on a wire
 ::
