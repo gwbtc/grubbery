@@ -120,28 +120,34 @@
       ?.  ?=(%& -.got)
         (pure:m ~)
       (pure:m `p.got)
+    ::  +weir-json: mcp is broad by nature — it's a system tool runner that
+    ::  scans every app for tools and builds their code. /tools grubs are its
+    ::  own subtree (not gated).
+    ::
+    ::    Lives in this helper core, not in the +nexus core below: that
+    ::    core is cast to nexus:nexus, whose $_ mold nests only on an
+    ::    exact arm count (on-load, on-file). A third arm there is a
+    ::    nest-fail, and +build-nexus's tang is swallowed by
+    ::    +spawn-all-files-in — the nexus just silently never starts.
+    ::
+    ++  weir-json
+      ^-  json
+      =/  line  |=([r=@t w=@t] `json`(pairs:enjs:format ~[['road' s+r] ['why' s+w]]))
+      %-  pairs:enjs:format
+      :~  :-  'poke'
+          :-  %a
+          :~  (line '/sys/bowl.sig' 'read the current time and our ship — get-time / get-our')
+              (line '/sys/eyre/' 'bind its HTTP route and send responses')
+          ==
+          :-  'peek'
+          :-  %a
+          :~  (line '/code/lib/mcp/' 'discover and build the root dynamic tools')
+              (line '/apps/' 'scan every installed app for its own tools and build them')
+          ==
+      ==
     --
 ^-  nexus:nexus
 |%
-::  +weir-json: mcp is broad by nature — it's a system tool runner that
-::  scans every app for tools and builds their code. /tools grubs are its
-::  own subtree (not gated).
-::
-++  weir-json
-  ^-  json
-  =/  line  |=([r=@t w=@t] `json`(pairs:enjs:format ~[['road' s+r] ['why' s+w]]))
-  %-  pairs:enjs:format
-  :~  :-  'poke'
-      :-  %a
-      :~  (line '/sys/bowl.sig' 'read the current time and our ship — get-time / get-our')
-          (line '/sys/eyre/' 'bind its HTTP route and send responses')
-      ==
-      :-  'peek'
-      :-  %a
-      :~  (line '/code/lib/mcp/' 'discover and build the root dynamic tools')
-          (line '/apps/' 'scan every installed app for its own tools and build them')
-      ==
-  ==
 ++  on-load
   |=  =ball:tarball
   ^-  bole:tarball

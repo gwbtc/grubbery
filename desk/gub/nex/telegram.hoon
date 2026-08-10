@@ -6,18 +6,6 @@
 /&  man  ../man/telegram/readme.md
 =<  ^-  nexus:nexus
     |%
-    ::  +weir-json: a bot manager; its /bots are its own subtree.
-    ::
-    ++  weir-json
-      ^-  json
-      =/  line  |=([r=@t w=@t] `json`(pairs:enjs:format ~[['road' s+r] ['why' s+w]]))
-      %-  pairs:enjs:format
-      :~  :-  'poke'
-          :-  %a
-          :~  (line '/sys/bowl.sig' 'get entropy and our ship — nonce / get-our')
-          ==
-      ==
-    ::
     ++  on-load
       |=  =ball:tarball
       ^-  bole:tarball
@@ -117,6 +105,22 @@
       ==
     --
 |%
+::  +weir-json: a bot manager; its /bots are its own subtree.
+::
+::    Lives out here, not in the nexus:nexus core above: that core's
+::    $_ mold nests only on an exact arm count (on-load, on-file), so
+::    a third arm is a nest-fail — and +spawn-all-files-in swallows
+::    +build-nexus's tang, leaving the nexus silently dead.
+::
+++  weir-json
+  ^-  json
+  =/  line  |=([r=@t w=@t] `json`(pairs:enjs:format ~[['road' s+r] ['why' s+w]]))
+  %-  pairs:enjs:format
+  :~  :-  'poke'
+      :-  %a
+      :~  (line '/sys/bowl.sig' 'get entropy and our ship — nonce / get-our')
+      ==
+  ==
 ::
 ++  view-to-bot-names
   |=  =view:nexus
