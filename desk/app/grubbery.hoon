@@ -299,6 +299,27 @@
     ``tree+!>((ball-to-tree:tarball sub))
     ::
     ::
+      [%x %peek %build *]
+    ::  Why did the nexus governing this directory not start? Builds it
+    ::  and hands back the failure tang. A nexus that fails to build has
+    ::  no processes and says nothing, so this is the only way to ask.
+    =/  here=^path  t.t.t.path
+    =/  nek=(unit neck:tarball)  (get-neck-for here)
+    ?~  nek  ``txt+!>(`wain`~['no neck at that path'])
+    =/  res=(each nexus:nexus tang)  (build-nexus here u.nek)
+    ?:  ?=(%& -.res)  ``txt+!>(`wain`~['ok'])
+    =/  =wall  (zing (turn p.res |=(t=tank (wash [0 120] t))))
+    ``txt+!>(`wain`(turn wall crip))
+    ::
+      [%x %peek %built @ ~]
+    ::  Did /nex/<name>.hoon compile? Reads the stored build result, so
+    ::  it answers for a nexus that is not installed anywhere.
+    =/  res  (resolve-built / /nex i.t.t.t.path)
+    ?~  res  ``txt+!>(`wain`~['not found'])
+    ?.  ?=(%tang -.built.u.res)  ``txt+!>(`wain`~['ok'])
+    =/  =wall  (zing (turn tang.built.u.res |=(t=tank (wash [0 120] t))))
+    ``txt+!>(`wain`(turn wall crip))
+    ::
       [%x %peek %born *]
     ::  Born (version tracking) subtree
     ``born+!>((~(dip of born) t.t.t.path))
@@ -2637,7 +2658,15 @@
     ?~  neck.u.fil.new  scope
     =/  nex-res=(each nexus:nexus tang)
       (build-nexus here u.neck.u.fil.new)
-    ?:(?=(%| -.nex-res) scope `[here p.nex-res])
+    ?.  ?=(%| -.nex-res)  `[here p.nex-res]
+    ::  Falling back to the parent scope here is what makes a broken
+    ::  nexus invisible: at /apps that scope is ~, so the block below
+    ::  spawns none of its files and nothing is ever reported. Say so.
+    =/  err=tang
+      :_  p.nex-res
+      leaf+"nexus {(spud here)} failed to build; its files will not spawn"
+    %-  (slog err)
+    scope
   ::  Spawn files at this level
   =/  files=(list [@ta [=bask:tarball gain=?]])
     ?~  fil.new  ~
