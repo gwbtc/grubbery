@@ -770,9 +770,9 @@
           =/  pac  (get-pace:hist:nexus sk u.cas)
           ?~  pac  ~
           (some [cass=u.cas pace=u.pac])
-        =/  [cas=cass:clay pac=pace:hist:nexus]
-          (resolve-case:nexus u.case.req sk)
-        (some [cass=cas pace=pac])
+        =/  cp  (resolve-case:nexus u.case.req sk)
+        ?~  cp  ~
+        (some [cass=cass.u.cp pace=pace.u.cp])
           %|
         =/  dest=fold:tarball  p.dest-lane
         =/  sub-born=born:nexus  (~(dip of born) dest)
@@ -784,9 +784,9 @@
           =/  pac  (get-pace:hist:nexus sk u.cas)
           ?~  pac  ~
           (some [cass=u.cas pace=u.pac])
-        =/  [cas=cass:clay pac=pace:hist:nexus]
-          (resolve-case:nexus u.case.req sk)
-        (some [cass=cas pace=pac])
+        =/  cp  (resolve-case:nexus u.case.req sk)
+        ?~  cp  ~
+        (some [cass=cass.u.cp pace=pace.u.cp])
       ==
     ?~  cas-pace  ~
     =/  refs=lobes:nexus
@@ -1409,10 +1409,12 @@
   =/  node=(unit [fold=hist:nexus file=(map @ta hist:nexus)])
     (~(get of born) pax)
   ?~  node  this
-  =/  target=cass:clay
-    ?~  cas  (need (top:hist:nexus fold.u.node))
-    (head (resolve-case:nexus u.cas fold.u.node))
-  =/  new-hist=hist:nexus  (tag:hist:nexus fold.u.node target tags)
+  =/  target=(unit cass:clay)
+    ?~  cas  (top:hist:nexus fold.u.node)
+    =/  cp  (resolve-case:nexus u.cas fold.u.node)
+    ?~(cp ~ `cass.u.cp)
+  ?~  target  this
+  =/  new-hist=hist:nexus  (tag:hist:nexus fold.u.node u.target tags)
   =.  born  (~(put of born) pax u.node(fold new-hist))
   this
 ::  Set tags on the current hist entry at a rail.
@@ -1425,10 +1427,12 @@
   ?~  node  this
   =/  fh=(unit hist:nexus)  (~(get by file.u.node) name.here)
   ?~  fh  this
-  =/  target=cass:clay
-    ?~  cas  (need (top:hist:nexus u.fh))
-    (head (resolve-case:nexus u.cas u.fh))
-  =/  new-hist=hist:nexus  (tag:hist:nexus u.fh target tags)
+  =/  target=(unit cass:clay)
+    ?~  cas  (top:hist:nexus u.fh)
+    =/  cp  (resolve-case:nexus u.cas u.fh)
+    ?~(cp ~ `cass.u.cp)
+  ?~  target  this
+  =/  new-hist=hist:nexus  (tag:hist:nexus u.fh u.target tags)
   =.  born  (~(put bo:nexus now.bowl born) here new-hist)
   this
 ::  Find all [rail cass] pairs in a subtree whose hist contains a lobe
@@ -3308,17 +3312,21 @@
     =/  root-lobe=(unit jobe:nexus)
       ?~  node  ~
       ?^  case.load.dart
-        =/  [* =pace:hist:nexus]
-          (resolve-case:nexus u.case.load.dart fold.u.node)
-        ?:  ?=(%tomb -.pace)  ~
-        p.pace
+        =/  cp  (resolve-case:nexus u.case.load.dart fold.u.node)
+        ?~  cp  ~
+        ?:  ?=(%tomb -.pace.u.cp)  ~
+        p.pace.u.cp
       =/  got=(unit [key=cass:clay val=entry:hist:nexus])
         (ram:hon:hist:nexus fold.u.node)
       ?~  got  ~
       ?:  ?=(%tomb -.pace.val.u.got)  ~
       p.pace.val.u.got
     ?~  root-lobe
-      (enqu-take here ~ ~ %peek wire.dart [%none ~])
+      ::  empty answer: a cased peek that found nothing is a %miss (the
+      ::  dir exists, that REVISION doesn't) — honest and distinct from
+      ::  %none (nothing here at all).
+      =/  empty=cite:nexus  ?:(?=(^ case.load.dart) [%miss ~] [%none ~])
+      (enqu-take here ~ ~ %peek wire.dart empty)
     ::  Bump ref to keep tree alive while queued
     =.  silo  (~(bump-ject-ref si:nexus silo) u.root-lobe)
     =/  =wave:nexus  (wave-from-born:nexus sub-born)
@@ -3337,10 +3345,10 @@
     ::  Resolve lobe: historical from silo or current from born
     =/  src-lobe=(unit jobe:nexus)
       ?^  case.load.dart
-        =/  [* =pace:hist:nexus]
-          (resolve-case:nexus u.case.load.dart sk)
-        ?:  ?=(%tomb -.pace)  ~
-        p.pace
+        =/  cp  (resolve-case:nexus u.case.load.dart sk)
+        ?~  cp  ~
+        ?:  ?=(%tomb -.pace.u.cp)  ~
+        p.pace.u.cp
       ::  Current: get lobe from born pace
       =/  got=(unit [key=cass:clay val=entry:hist:nexus])
         (ram:hon:hist:nexus sk)
@@ -3348,7 +3356,10 @@
       ?:  ?=(%tomb -.pace.val.u.got)  ~
       p.pace.val.u.got
     ?~  src-lobe
-      (enqu-take here ~ ~ %peek wire.dart [%none ~])
+      ::  a cased peek that found nothing is a %miss (that revision isn't
+      ::  here), distinct from %none (nothing here at all).
+      =/  empty=cite:nexus  ?:(?=(^ case.load.dart) [%miss ~] [%none ~])
+      (enqu-take here ~ ~ %peek wire.dart empty)
     ::  Bump silo ref to keep ject alive while queued
     =.  silo  (~(bump-ject-ref si:nexus silo) u.src-lobe)
     =/  =cass:clay  (fall (top:hist:nexus sk) *cass:clay)
@@ -4039,38 +4050,6 @@
     ::  Remove from pool
     =.  pool  (~(lop of pool) dest-path)
     =.  this  (load-ball-changes dest-path *bole:tarball)
-    ::  Record the DELETION on every dir history in the culled subtree:
-    ::  the empty-bole sync leaves empty-tree versions ("an empty
-    ::  directory exists") at EVERY level, so without stamping, remaking
-    ::  any path inside a culled tree fails "already exists" (bit us on
-    ::  desk reinstall: apply-bill couldn't recreate desk/data kids).
-    ::  Append the same empty pace file deletion writes, root and all
-    ::  descendants; an intentionally-empty LIVE dir stays distinct.
-    =.  this
-      =/  sub=born:nexus  (~(dip of born) dest-path)
-      =/  stamp
-        |=  [t=_this pax=path node=(unit [fold=hist:nexus file=(map @ta hist:nexus)])]
-        ^+  this
-        =.  this  t
-        ?~  node  this
-        =/  fold-cas=(unit cass:clay)  (top:hist:nexus fold.u.node)
-        ?~  fold-cas  this
-        =/  [tombed-silo=silo:nexus tombed-hist=hist:nexus]
-          (~(tomb-temp si:nexus silo) fold.u.node u.fold-cas)
-        =/  new-cass=cass:clay  (~(next-cass bo:nexus now.bowl born) u.fold-cas)
-        =/  new-fold=hist:nexus  (put-pace:hist:nexus tombed-hist new-cass [%temp ~])
-        =.  silo  tombed-silo
-        =.  born  (~(put of born) pax u.node(fold new-fold))
-        this
-      =/  work=(list [pax=path b=born:nexus])  ~[[dest-path sub]]
-      |-  ^+  this
-      ?~  work  this
-      =/  [pax=path b=born:nexus]  i.work
-      =.  this  (stamp this pax fil.b)
-      =/  more=(list [path born:nexus])
-        %+  turn  ~(tap by dir.b)
-        |=([n=@ta k=born:nexus] [(snoc pax n) k])
-      $(work (weld more t.work))
     ::  Deregister any code namespaces that lived in the culled subtree
     purge-stale-code
     ::

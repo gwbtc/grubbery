@@ -44,10 +44,32 @@
           [%fall %& [/actions %'stash.sig'] [[/ %sig] ~]]
           [%fall %& [/actions %'stash-pop.sig'] [[/ %sig] ~]]
           [%fall %& [/actions %'push.sig'] [[/ %sig] ~]]
+          ::  poll.sig: optional polling — config.poll (minutes, 0=off)
+          ::  pokes actions/sync.sig on the interval.
+          [%fall %& [/ %'poll.sig'] [[/ %sig] ~]]
           [%fall %| /tools empty-dir:loader]
           [%fall %| /tools/code [`[`[/ %code] ~ %.n ~] ~]]
           [%fall %& [/tools %'run.sig'] [[/ %sig] ~]]
-          [%fall %| /tools/proc empty-dir:loader]
+          ::  tools/sync.sig: watches the checked-out tree and deploys the
+          ::  repo-shipped tools — the repo's /tools dir mirrors into
+          ::  /tools/code, and /tools/procs.json declares named procs
+          ::  that must be running ("have this tool at this name with
+          ::  this state after pull"). Every checkout converges.
+          [%fall %& [/tools %'sync.sig'] [[/ %sig] ~]]
+          ::  /tools/proc: where repo tools RUN — the sandbox boundary.
+          ::  Born JAILED [~ ~ ~] so pulled code can reach nothing until
+          ::  the user grants roads via tools/weir.sig (edited in forge).
+          [%fall %| /tools/proc [`[~ `[~ ~ ~] %.n ~] ~]]
+          ::  tools/weir.sig: set the sandbox on /tools/proc. Poke a json
+          ::  weir {make,poke,peek: [path strings]} — the roads granted.
+          [%fall %& [/tools %'weir.sig'] [[/ %sig] ~]]
+          ::  tools/docs: tool-owned files. By convention NOTHING repo-
+          ::  controlled writes here — not checkout (that's /data), not
+          ::  tools-sync (that's /tools/code) — so a proc has a durable
+          ::  home for artifacts, logs, and working files that survives
+          ::  every pull. Small state belongs in the proc's own
+          ::  tool-state; /tools/docs is for real files.
+          [%fall %| /tools/docs empty-dir:loader]
           [%fall %| /ui empty-dir:loader]
           [%fall %& [/ui %'status.json'] [[/ %json] (pairs:enjs:format ~[['status' s+'idle']])]]
           [%fall %& [/ui %'commit.json'] [[/ %json] [%a ~]]]
@@ -202,6 +224,34 @@
         ::  procs are results, not scratch: survive their fiber's end
         ;<  ~  bind:m  (gain:io proc-road %.y)
         $
+          ::  /tools/sync.sig: deploy repo-shipped tools on every
+          ::  checkout. Watches /data/tree (any sync/checkout/branch
+          ::  switch fires it); deploy-tools no-ops when the tree has
+          ::  no /tools dir, and content-addressing makes re-mirroring
+          ::  unchanged files free.
+          ::
+          [[%tools ~] %'sync.sig']
+        ;<  ~  bind:m  (rise-wait:io prod "%git/repo tools/sync: failed")
+        ;<  here=rail:tarball  bind:m  get-here-abs:io
+        =/  root=path  (snip path.here)
+        ;<  ~  bind:m  (deploy-tools root)
+        ;<  *  bind:m  (keep:io /tree [%& %| (weld root /data/tree)] ~)
+        |-
+        ;<  *  bind:m  (take-news:io /tree)
+        ;<  ~  bind:m  (deploy-tools root)
+        $
+          ::  /tools/weir.sig: set the sandbox on /tools/proc. Poke a json
+          ::  weir {make,poke,peek: [path strings]} — the roads the user
+          ::  grants the repo's tools. Sanded from above (we own /proc).
+          ::
+          [[%tools ~] %'weir.sig']
+        ;<  ~  bind:m  (rise-wait:io prod "%git/repo tools/weir: failed")
+        |-
+        ;<  =sage:tarball  bind:m  take-poke:io
+        =/  jon=json  (fall (mole |.(!<(json q.sage))) *json)
+        ;<  ~  bind:m
+          (sand:io (nex-road:io rail [%| /tools/proc]) `(weir-from-json jon))
+        $
           ::  /tools/proc/*: an installed tool. The grub's tool-state
           ::  names a tool compiled from this repo's /tools/code and
           ::  carries its arguments. A handler that returns records
@@ -239,6 +289,34 @@
             %mime   (pairs:enjs:format ~[['type' s+'mime']])
           ==
         (replace:io `tool-state:nex-tools`[tool.st args.st %done data.st `result-json])
+          ::  /poll.sig: watch config, poke sync on the interval.
+          ::
+          [~ %'poll.sig']
+        ;<  ~  bind:m  (rise-wait:io prod "%git/repo poll: failed")
+        ;<  cfg-rd=road:tarball  bind:m
+          (ancestor-road:io [/git %repo] [%& / %'config.json'])
+        ;<  *  bind:m  (keep:io /cfg cfg-rd `[/ %json])
+        |-
+        ;<  =view:nexus  bind:m  (peek:io cfg-rd `[/ %json])
+        =/  poll=@ud
+          ?.  ?=([%file *] view)  0
+          =/  j=(unit json)  (mole |.(!<(json (need-vase:tarball sang.view))))
+          ?.  &(?=(^ j) ?=([%o *] u.j))  0
+          =/  v  (~(get by p.u.j) 'poll')
+          ?:  ?=([~ %n *] v)  (fall (rush p.u.v dem) 0)
+          ?:  ?=([~ %s *] v)  (fall (rush p.u.v dem) 0)
+          0
+        ?:  =(0 poll)
+          ;<  *  bind:m  (take-news:io /cfg)
+          $
+        ~&  >  [%git-repo-poll-sleeping poll %minutes]
+        ;<  now=@da  bind:m  get-time:io
+        ;<  ~  bind:m  (set-timer:io /poll (add now (mul ~m1 poll)))
+        ;<  *  bind:m  (take-news-or-wake:io /cfg)
+        ;<  sync-rd=road:tarball  bind:m
+          (ancestor-road:io [/git %repo] [%& /actions %'sync.sig'])
+        ;<  ~  bind:m  (poke:io sync-rd [[/ %sig] ~])
+        $
           ::  /page.html: watches config + repo data, re-renders
           ::
           [~ %'page.html']
@@ -837,6 +915,158 @@
   ?.  ?=(%o -.j)  ~
   =/  v  (~(get by p.j) k)
   ?.(?=([~ %s *] v) ~ `p.u.v)
+::
+::  +ball-files: every file in a ball, with its path relative to the
+::  ball root and its sang.
+::
+++  ball-files
+  |=  [b=ball:tarball pax=path]
+  ^-  (list [pax=path name=@ta =sang:tarball])
+  =/  here=(list [pax=path name=@ta =sang:tarball])
+    ?~  fil.b  ~
+    %+  turn  ~(tap by contents.u.fil.b)
+    |=  [n=@ta =sang:tarball *]
+    [pax n sang]
+  =/  kids=(list [@ta ball:tarball])  ~(tap by dir.b)
+  |-  ^-  (list [pax=path name=@ta =sang:tarball])
+  ?~  kids  here
+  %+  weld  ^$(b +.i.kids, pax (snoc pax -.i.kids))
+  $(kids t.kids)
+::  +deploy-tools: converge this repo's tool surface to what the
+::  checked-out tree ships. Mirror tree /tools/** into /tools/code
+::  (same blots; procs.json + weir.json excluded — manifests, not code),
+::  then reconcile /tools/proc: for each manifest entry {name:
+::  {tool, args}} ensure a proc grub exists with that tool+args
+::  (create in %start if missing; overwrite+respin if it differs;
+::  leave matching ones and hand-made procs alone).
+::
+++  deploy-tools
+  |=  root=path
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  ;<  tv=view:nexus  bind:m
+    (peek:io [%& %| (weld root /data/tree/tools)] ~)
+  ?.  ?=([%ball *] tv)  (pure:m ~)
+  =/  files=(list [pax=path name=@ta =sang:tarball])
+    (ball-files ball.tv /)
+  ::  mirror sources
+  =/  srcs=_files
+    %+  skip  files
+    |=  [pax=path name=@ta *]
+    ?&  =(~ pax)
+        |(=(%'procs.json' name) =(%'weir.json' name))
+    ==
+  ;<  ~  bind:m
+    =/  m  (fiber:fiber:nexus ,~)
+    |-  ^-  form:m
+    ?~  srcs  (pure:m ~)
+    =/  f  i.srcs
+    ?:  (is-boom:tarball sang.f)  $(srcs t.srcs)
+    ::  hoon sources must land AS %hoon in the code namespace — tree
+    ::  files ride as mime, and a mime .hoon is invisible to the build.
+    =/  =bask:tarball
+      =/  t=tape  (trip name.f)
+      ?.  &((gth (lent t) 5) =(".hoon" (slag (sub (lent t) 5) t)))
+        [p.sang.f (sang-noun:tarball sang.f)]
+      ?:  =([/ %hoon] p.sang.f)
+        [p.sang.f (sang-noun:tarball sang.f)]
+      =/  mim=(unit mime)  (mole |.(!<(mime (need-vase:tarball sang.f))))
+      ?~  mim  [p.sang.f (sang-noun:tarball sang.f)]
+      [[/ %hoon] `@t`(crip (trip q.q.u.mim))]
+    ;<  ~  bind:m
+      (put:io [%& %& (weld root (weld /tools/code pax.f)) name.f] bask)
+    $(srcs t.srcs)
+  ::  reconcile the proc manifest — parse it straight from the walked
+  ::  sang (tree json rides as mime text; a json grub works too).
+  =/  manifest=(map @t json)
+    =/  mf=(unit sang:tarball)
+      =/  hit
+        %+  skim  files
+        |=([pax=path name=@ta *] &(=(~ pax) =(%'procs.json' name)))
+      ?~(hit ~ `sang.i.hit)
+    ?~  mf  ~
+    ?:  (is-boom:tarball u.mf)  ~
+    =/  j=(unit json)
+      ?:  =([/ %json] p.u.mf)
+        (mole |.(!<(json (need-vase:tarball u.mf))))
+      =/  mim=(unit mime)  (mole |.(!<(mime (need-vase:tarball u.mf))))
+      ?~  mim  ~
+      (de:json:html q.q.u.mim)
+    ?.(&(?=(^ j) ?=([%o *] u.j)) ~ p.u.j)
+  =/  entries=(list [nam=@t spec=json])  ~(tap by manifest)
+  ~&  >  [%git-repo-deploy-manifest (lent entries)]
+  |-  ^-  form:m
+  ?~  entries  (pure:m ~)
+  =/  [nam=@t spec=json]  i.entries
+  =/  tul=@t  (fall (jget spec 'tool') '')
+  ?:  =('' tul)  $(entries t.entries)
+  =/  args=(map @t json)
+    =/  a  ?.(?=(%o -.spec) ~ (~(get by p.spec) 'args'))
+    ?.(?=([~ %o *] a) ~ p.u.a)
+  =/  want=tool-state:nex-tools  [tul args %start ~ ~]
+  =/  proc-road=road:tarball  [%& %& (weld root /tools/proc) `@ta`nam]
+  ;<  cur=view:nexus  bind:m  (peek:io proc-road ~)
+  ?:  ?=([%file *] cur)
+    =/  st=(unit tool-state:nex-tools)
+      (mole |.(!<(tool-state:nex-tools (need-vase:tarball sang.cur))))
+    ?:  &(?=(^ st) =(tool.u.st tul) =(args.u.st args))
+      $(entries t.entries)
+    ;<  ~  bind:m  (over:io proc-road [[/ %tool-state] want])
+    $(entries t.entries)
+  ;<  err=(unit tang)  bind:m
+    (make-soft:io proc-road |+[[[/ %tool-state] want] ~])
+  ~&  >  [%git-repo-deploy-proc nam ?~(err %made %failed)]
+  ?^  err  ((slog u.err) $(entries t.entries))
+  ;<  ~  bind:m  (gain:io proc-road %.y)
+  $(entries t.entries)
+::
+::  +weir-from-json: {make,poke,peek: [path strings]} -> a weir. Absent
+::  or non-array categories are empty sets (jailed for that category).
+::
+++  weir-from-json
+  |=  jon=json
+  ^-  weir:tarball
+  ?.  ?=(%o -.jon)  [~ ~ ~]
+  =/  roads
+    |=  k=@t
+    ^-  (set road:tarball)
+    =/  v  (~(get by p.jon) k)
+    ?.  ?=([~ %a *] v)  ~
+    %-  sy
+    %+  murn  p.u.v
+    |=  j=json
+    ^-  (unit road:tarball)
+    ?.  ?=([%s *] j)  ~
+    (parse-road p.j)
+  [(roads 'make') (roads 'poke') (roads 'peek')]
+::  +parse-road: a path string to a weir road. '/foo/bar' is an absolute
+::  file road, '/foo/' a dir road; leading '../' counts relative steps.
+::
+++  parse-road
+  |=  s=@t
+  ^-  (unit road:tarball)
+  =/  tap=tape  (trip s)
+  =|  ups=@ud
+  |-  ^-  (unit road:tarball)
+  ?:  &((gte (lent tap) 3) =("../" (scag 3 tap)))
+    $(tap (slag 3 tap), ups +(ups))
+  ?:  =(".." tap)
+    $(tap ~, ups +(ups))
+  ?~  tap
+    ?:(=(0 ups) ~ `[%| ups %| /])
+  ?:  =("/" tap)  `[%& %| /]
+  =/  is-dir=?  =("/" (scag 1 (flop `tape`tap)))
+  =/  core=tape  ?:(is-dir (flop (slag 1 (flop `tape`tap))) tap)
+  =/  txt=@t  (crip ?:(=("/" (scag 1 core)) core ['/' core]))
+  =/  res  (mule |.((stab txt)))
+  ?:  ?=(%| -.res)  ~
+  =/  pax=path  p.res
+  ?:  is-dir
+    ?:(=(0 ups) `[%& %| pax] `[%| ups %| pax])
+  =/  fp=(list @ta)  (flop pax)
+  ?~  fp  ~
+  =/  =rail:tarball  [(flop t.fp) i.fp]
+  ?:(=(0 ups) `[%& %& rail] `[%| ups %& rail])
 ::
 ++  read-config
   =/  m  (fiber:fiber:nexus ,repo-config)

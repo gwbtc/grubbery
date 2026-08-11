@@ -5,10 +5,14 @@ var API = BASE + '/api';
 var repos = [];            // repo cards from /api/list
 var selected = null;       // full instance name, e.g. contacts.git_repo
 var toolDefs = [];         // tool defs for selected repo
+var weirReq = {};          // tools/weir.json request for selected repo
+var weirAct = {};          // weir enforced on /tools/proc right now
 var files = [];            // tools/code file paths for selected repo
 var tree = [];             // working-tree file paths for selected repo
 var branches = [];         // local branch names for selected repo
 var mode = 'files';        // workspace mode: files (repo) | tools
+var toolSub = 'run';       // tools sub-tab: run | permissions
+var permEdit = false;      // permissions: false = view weir, true = edit form
 var tabsBy = { files: [], tools: [] };   // per-mode open tabs [{file, text, dirty}]
 var focusBy = { files: null, tools: null };  // per-mode focused file (null in tools = runner)
 var panel = 'status';      // active bottom pane (files mode)
@@ -95,6 +99,122 @@ function renderMode() {
   renderTabs();
   mountEditor();
 }
+var PERM_CATS = [
+  { k: 'poke', label: 'message (poke)' },
+  { k: 'peek', label: 'read (peek)' },
+  { k: 'make', label: 'create / edit / delete (make)' }
+];
+function renderPermissions() {
+  var pane = document.getElementById('tool-sub-permissions');
+  if (!pane) return;
+  // While editing, NEVER re-render from a poll — it would wipe selections.
+  // Render the edit form once (when entering edit mode) and leave it alone.
+  if (permEdit) { if (!pane.querySelector('.perm-apply')) renderPermEdit(pane); return; }
+  renderPermView(pane);
+}
+function renderPermView(pane) {
+  var totalActive = PERM_CATS.reduce(function(n, c) { return n + wRoads(weirAct, c.k).length; }, 0);
+  var html = '<div class="perm-bar"><div class="perm-title">sandbox — the weir on <code>/tools/proc</code></div>' +
+    '<button class="hdr-btn perm-editbtn">edit</button></div>';
+  if (!totalActive) {
+    html += '<div class="perm-jailed">🔒 <b>jailed</b> — every road below is blocked; tools can only touch their own folder.</div>';
+  }
+  PERM_CATS.forEach(function(c) {
+    var act = wRoads(weirAct, c.k);
+    var reqOnly = wRoads(weirReq, c.k).filter(function(r) { return act.indexOf(r) < 0; });
+    html += '<div class="perm-cat"><div class="perm-cat-head">' + c.label + '</div>';
+    if (!act.length && !reqOnly.length) html += '<div class="perm-empty">blocked — no roads</div>';
+    act.forEach(function(road) {
+      html += '<div class="perm-row"><code>' + esc(road) + '</code>' +
+        '<span class="perm-chip perm-active">active</span></div>';
+    });
+    reqOnly.forEach(function(road) {
+      var rq = (weirReq[c.k] || []).filter(function(x) { return x && typeof x === 'object' && x.road === road; })[0];
+      var why = (rq && rq.why) ? '<span class="perm-why">' + esc(rq.why) + '</span>' : '';
+      html += '<div class="perm-row"><code>' + esc(road) + '</code>' +
+        '<span class="perm-chip perm-requested">requested</span>' + why + '</div>';
+    });
+    html += '</div>';
+  });
+  pane.innerHTML = html;
+  pane.querySelector('.perm-editbtn').onclick = function() { permEdit = true; renderPermissions(); };
+}
+function renderPermEdit(pane) {
+  var html = '<div class="perm-bar"><div class="perm-title">edit sandbox</div>' +
+    '<button class="hdr-btn perm-cancel">cancel</button></div>' +
+    '<div class="perm-intro">Checked = allowed in the sandbox you’re about to apply. ' +
+    'Amber = the tools <b>requested</b> it but it isn’t granted yet. Add custom paths per row.</div>';
+  PERM_CATS.forEach(function(c) {
+    var act = wRoads(weirAct, c.k);
+    var all = act.slice();
+    wRoads(weirReq, c.k).forEach(function(r) { if (all.indexOf(r) < 0) all.push(r); });
+    html += '<div class="perm-cat"><div class="perm-cat-head">' + c.label + '</div>';
+    if (!all.length) html += '<div class="perm-empty">nothing granted or requested</div>';
+    all.forEach(function(road) {
+      var isAct = act.indexOf(road) >= 0;
+      var chip = isAct
+        ? '<span class="perm-chip perm-active">active</span>'
+        : '<span class="perm-chip perm-requested">requested</span>';
+      var rq = (weirReq[c.k] || []).filter(function(x) { return x && typeof x === 'object' && x.road === road; })[0];
+      var why = (rq && rq.why) ? '<span class="perm-why">' + esc(rq.why) + '</span>' : '';
+      html += '<label class="perm-row"><input type="checkbox" class="perm-cb" data-cat="' + c.k + '" data-road="' + esc(road) + '" data-base="' + (isAct ? '1' : '0') + '"' + (isAct ? ' checked' : '') + '>' +
+        '<code>' + esc(road) + '</code>' + chip + why + '<span class="perm-delta"></span></label>';
+    });
+    html += '<div class="perm-add"><input class="perm-add-in" data-cat="' + c.k + '" placeholder="add a path — /sys/iris/ , /apps/foo/ …"></div></div>';
+  });
+  html += '<div class="perm-foot"><span class="perm-note"></span>' +
+    '<button class="hdr-btn primary perm-apply" disabled>no changes</button></div>';
+  pane.innerHTML = html;
+  var btn = pane.querySelector('.perm-apply');
+  var note = pane.querySelector('.perm-note');
+
+  function gather() {
+    var weir = { make: [], poke: [], peek: [] };
+    Array.prototype.forEach.call(pane.querySelectorAll('.perm-cb'), function(cb) {
+      if (cb.checked) weir[cb.getAttribute('data-cat')].push(cb.getAttribute('data-road'));
+    });
+    Array.prototype.forEach.call(pane.querySelectorAll('.perm-add-in'), function(inp) {
+      inp.value.split(/[\n,]/).map(function(s) { return s.trim(); }).filter(Boolean).forEach(function(p) {
+        if (weir[inp.getAttribute('data-cat')].indexOf(p) < 0) weir[inp.getAttribute('data-cat')].push(p);
+      });
+    });
+    return weir;
+  }
+  function refresh() {
+    var adds = 0, revs = 0;
+    Array.prototype.forEach.call(pane.querySelectorAll('.perm-cb'), function(cb) {
+      var base = cb.getAttribute('data-base') === '1';
+      var d = cb.parentNode.querySelector('.perm-delta');
+      if (cb.checked && !base) { d.textContent = '+ granting'; d.className = 'perm-delta perm-add-d'; adds++; }
+      else if (!cb.checked && base) { d.textContent = '− revoking'; d.className = 'perm-delta perm-rev-d'; revs++; }
+      else { d.textContent = ''; d.className = 'perm-delta'; }
+    });
+    var newPaths = 0;
+    Array.prototype.forEach.call(pane.querySelectorAll('.perm-add-in'), function(inp) {
+      newPaths += inp.value.split(/[\n,]/).map(function(s) { return s.trim(); }).filter(Boolean).length;
+    });
+    var changes = adds + revs + newPaths;
+    btn.disabled = !changes;
+    btn.textContent = changes ? 'apply sandbox' : 'no changes';
+    var bits = [];
+    if (adds + newPaths) bits.push('+' + (adds + newPaths) + ' granted');
+    if (revs) bits.push('−' + revs + ' revoked');
+    note.textContent = changes ? bits.join(', ') : 'sandbox matches what’s enforced now';
+  }
+  pane.addEventListener('change', refresh);
+  pane.addEventListener('input', refresh);
+  refresh();
+
+  pane.querySelector('.perm-cancel').onclick = function() { permEdit = false; renderPermissions(); };
+  btn.onclick = function() {
+    btn.textContent = 'applying…';
+    btn.disabled = true;
+    post('/weir', { repo: selected, weir: gather() }).then(function() {
+      permEdit = false;
+      setTimeout(function() { loadTools(); }, 700);
+    });
+  };
+}
 function renderSettings() {
   var r = repos.find(function(x) { return x.name === selected; }) || {};
   var pane = document.getElementById('settings-pane');
@@ -143,6 +263,13 @@ Array.prototype.forEach.call(document.querySelectorAll('.mode-tab'), function(t)
     mode = t.getAttribute('data-mode');
     pushUrl();
     renderMode();
+  };
+});
+Array.prototype.forEach.call(document.querySelectorAll('.tool-subtab'), function(s) {
+  s.onclick = function() {
+    toolSub = s.getAttribute('data-sub');
+    if (toolSub === 'permissions') { permEdit = false; loadTools(); }
+    mountEditor();
   };
 });
 
@@ -293,7 +420,7 @@ function renderFiles() {
   if (!selected) { box.innerHTML = ''; return; }
   box.innerHTML = mode === 'files'
     ? treeRows(tree, 'tree', false)
-    : treeRows(files, 'tools', true);
+    : treeRows(files.filter(function(f) { return f !== 'weir.json' && f !== 'procs.json'; }), 'tools', true);
   wireFileRows(box);
 }
 function wireFileRows(box) {
@@ -350,6 +477,10 @@ function loadTools() {
   if (!selected) return;
   get('/tools?repo=' + encodeURIComponent(selected)).then(function(t) {
     toolDefs = t.tools || [];
+    weirReq = t['weir-requested'] || {};
+    weirAct = t['weir-active'] || {};
+    if (mode === 'tools' && toolSub === 'permissions') renderPermissions();
+    updateTang();
     files = t.files || [];
     tree = t.tree || [];
     procs = t.procs || [];
@@ -363,6 +494,11 @@ function loadTools() {
   });
 }
 var procs = [];
+function wRoads(obj, cat) {
+  return (obj[cat] || []).map(function(r) {
+    return (r && typeof r === 'object') ? r.road : r;
+  }).filter(Boolean);
+}
 function renderToolCards() {
   var box = document.getElementById('run-tools');
   var html = '';
@@ -631,6 +767,18 @@ function highlightInto(el, text) {
   if (!shikiHl) { el.textContent = text; return; }
   el.innerHTML = shikiHl.codeToHtml(text, { lang: 'hoon', theme: 'github-dark' });
 }
+function updateTang() {
+  var el = document.getElementById('ed-tang');
+  var focused = focusedF();
+  var err = null;
+  if (focused && mode === 'tools') {
+    var s = splitId(focused);
+    var def = defForFile(s.file);
+    if (def && def.error) err = def.error;
+  }
+  if (err) { el.textContent = err; el.style.display = ''; }
+  else { el.style.display = 'none'; }
+}
 function mountEditor() {
   var has = !!selected;
   var editorish = has && mode !== 'settings';
@@ -639,9 +787,18 @@ function mountEditor() {
   var runner = editorish && mode === 'tools' && !t;
   document.getElementById('ed-bar').style.display = editorish ? 'flex' : 'none';
   document.getElementById('runner-pane').style.display = runner ? '' : 'none';
+  if (runner) {
+    Array.prototype.forEach.call(document.querySelectorAll('.tool-subtab'), function(s) {
+      s.classList.toggle('active', s.getAttribute('data-sub') === toolSub);
+    });
+    document.getElementById('tool-sub-run').style.display = toolSub === 'run' ? '' : 'none';
+    document.getElementById('tool-sub-permissions').style.display = toolSub === 'permissions' ? '' : 'none';
+    if (toolSub === 'permissions') renderPermissions();
+  }
   document.getElementById('ed-wrap').style.display = (editorish && !runner) ? '' : 'none';
   document.getElementById('ws-empty').style.display = t ? 'none' : 'flex';
   document.getElementById('ed-body').style.display = t ? '' : 'none';
+  updateTang();
   if (!t) return;
   var ta = document.getElementById('ed-ta');
   var hl = document.getElementById('ed-hl');

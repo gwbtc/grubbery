@@ -646,7 +646,7 @@
   =/  lobe3=jobe:nexus  `@uvI`(sham 'ccc')
   =/  hist  (make-hist ~[[1 ~2024.1.1 lobe1 [/ %txt]] [2 ~2024.1.2 lobe2 [/ %txt]] [3 ~2024.1.3 lobe3 [/ %txt]]])
   %+  expect-eq
-    !>  [[2 ~2024.1.2] [%temp `lobe2]]
+    !>  `[[2 ~2024.1.2] [%temp `lobe2]]
   !>  (resolve-case:nexus [%ud 2] hist)
 ::
 ++  test-resolve-case-ud-first
@@ -655,7 +655,7 @@
   =/  lobe2=jobe:nexus  `@uvI`(sham 'bbb')
   =/  hist  (make-hist ~[[1 ~2024.1.1 lobe1 [/ %txt]] [2 ~2024.1.2 lobe2 [/ %txt]]])
   %+  expect-eq
-    !>  [[1 ~2024.1.1] [%temp `lobe1]]
+    !>  `[[1 ~2024.1.1] [%temp `lobe1]]
   !>  (resolve-case:nexus [%ud 1] hist)
 ::
 ++  test-resolve-case-ud-last
@@ -665,18 +665,16 @@
   =/  lobe3=jobe:nexus  `@uvI`(sham 'ccc')
   =/  hist  (make-hist ~[[1 ~2024.1.1 lobe1 [/ %txt]] [2 ~2024.1.2 lobe2 [/ %txt]] [3 ~2024.1.3 lobe3 [/ %txt]]])
   %+  expect-eq
-    !>  [[3 ~2024.1.3] [%temp `lobe3]]
+    !>  `[[3 ~2024.1.3] [%temp `lobe3]]
   !>  (resolve-case:nexus [%ud 3] hist)
 ::
 ++  test-resolve-case-ud-not-found
-  ::  %ud crashes on missing revision
+  ::  %ud returns ~ on missing revision
   =/  lobe1=jobe:nexus  `@uvI`(sham 'aaa')
   =/  hist  (make-hist ~[[1 ~2024.1.1 lobe1 [/ %txt]]])
-  =/  res=(each [cass:clay pace:hist:nexus] tang)
-    (mule |.((resolve-case:nexus [%ud 99] hist)))
   %+  expect-eq
     !>  %.y
-  !>  ?=(%| -.res)
+  !>  =(~ (resolve-case:nexus [%ud 99] hist))
 ::
 ++  test-resolve-case-da-exact
   ::  %da exact date match
@@ -684,7 +682,7 @@
   =/  lobe2=jobe:nexus  `@uvI`(sham 'bbb')
   =/  hist  (make-hist ~[[1 ~2024.1.1 lobe1 [/ %txt]] [2 ~2024.1.2 lobe2 [/ %txt]]])
   %+  expect-eq
-    !>  [[2 ~2024.1.2] [%temp `lobe2]]
+    !>  `[[2 ~2024.1.2] [%temp `lobe2]]
   !>  (resolve-case:nexus [%da ~2024.1.2] hist)
 ::
 ++  test-resolve-case-da-between
@@ -695,7 +693,7 @@
   =/  hist  (make-hist ~[[1 ~2024.1.1 lobe1 [/ %txt]] [2 ~2024.3.1 lobe2 [/ %txt]] [3 ~2024.6.1 lobe3 [/ %txt]]])
   ::  Date between entry 1 and 2 should return lobe1
   %+  expect-eq
-    !>  [[1 ~2024.1.1] [%temp `lobe1]]
+    !>  `[[1 ~2024.1.1] [%temp `lobe1]]
   !>  (resolve-case:nexus [%da ~2024.2.1] hist)
 ::
 ++  test-resolve-case-da-after-all
@@ -704,36 +702,30 @@
   =/  lobe2=jobe:nexus  `@uvI`(sham 'bbb')
   =/  hist  (make-hist ~[[1 ~2024.1.1 lobe1 [/ %txt]] [2 ~2024.3.1 lobe2 [/ %txt]]])
   %+  expect-eq
-    !>  [[2 ~2024.3.1] [%temp `lobe2]]
+    !>  `[[2 ~2024.3.1] [%temp `lobe2]]
   !>  (resolve-case:nexus [%da ~2025.1.1] hist)
 ::
 ++  test-resolve-case-da-before-all
-  ::  %da before all entries crashes
+  ::  %da before all entries returns ~
   =/  lobe1=jobe:nexus  `@uvI`(sham 'aaa')
   =/  hist  (make-hist ~[[1 ~2024.6.1 lobe1 [/ %txt]]])
-  =/  res=(each [cass:clay pace:hist:nexus] tang)
-    (mule |.((resolve-case:nexus [%da ~2024.1.1] hist)))
   %+  expect-eq
     !>  %.y
-  !>  ?=(%| -.res)
+  !>  =(~ (resolve-case:nexus [%da ~2024.1.1] hist))
 ::
 ++  test-resolve-case-da-empty
-  ::  %da on empty hist crashes
+  ::  %da on empty hist returns ~
   =/  =hist:nexus  ~
-  =/  res=(each [cass:clay pace:hist:nexus] tang)
-    (mule |.((resolve-case:nexus [%da ~2024.1.1] hist)))
   %+  expect-eq
     !>  %.y
-  !>  ?=(%| -.res)
+  !>  =(~ (resolve-case:nexus [%da ~2024.1.1] hist))
 ::
 ++  test-resolve-case-ud-empty
-  ::  %ud on empty hist crashes
+  ::  %ud on empty hist returns ~
   =/  =hist:nexus  ~
-  =/  res=(each [cass:clay pace:hist:nexus] tang)
-    (mule |.((resolve-case:nexus [%ud 1] hist)))
   %+  expect-eq
     !>  %.y
-  !>  ?=(%| -.res)
+  !>  =(~ (resolve-case:nexus [%ud 1] hist))
 ::
 ::  ==========================================
 ::  +record-trees tests

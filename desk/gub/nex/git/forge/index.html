@@ -43,10 +43,17 @@
           <button class="hdr-btn primary" id="ed-save" style="display:none">save ⌘S</button>
         </div>
         <div id="runner-pane" style="display:none">
-          <div class="run-cols">
-            <div class="run-col"><div class="run-head">tools</div><div id="run-tools"></div></div>
-            <div class="run-col"><div class="run-head">procs</div><div id="run-procs"></div></div>
+          <div id="tool-subtabs">
+            <button class="tool-subtab active" data-sub="run">run</button>
+            <button class="tool-subtab" data-sub="permissions">permissions</button>
           </div>
+          <div id="tool-sub-run">
+            <div class="run-cols">
+              <div class="run-col"><div class="run-head">tools</div><div id="run-tools"></div></div>
+              <div class="run-col"><div class="run-head">procs</div><div id="run-procs"></div></div>
+            </div>
+          </div>
+          <div id="tool-sub-permissions" style="display:none"></div>
         </div>
         <div id="ed-wrap" style="display:none">
           <div id="ws-empty">open a file from the tree</div>
@@ -54,6 +61,7 @@
             <div id="ed-hl"></div>
             <textarea id="ed-ta" spellcheck="false"></textarea>
           </div>
+          <pre id="ed-tang" style="display:none"></pre>
         </div>
         <div id="settings-pane" style="display:none"></div>
         <div id="landing" style="display:none">

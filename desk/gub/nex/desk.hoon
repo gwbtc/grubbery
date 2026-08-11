@@ -1,11 +1,14 @@
 ::  desk nexus: sync code from a remote source with checkpoint safety
 ::
-::  config.json holds source as JSON string:
-::    "~nec/apps/counter"    (remote ship)
-::    "/some/local/path"     (local namespace)
+::  config.json holds source as JSON string — a path pointing DIRECTLY
+::  at a code directory to mirror, anywhere in the namespace:
+::    "~nec/apps/counter/desk/code"                (remote ship)
+::    "/apps/foo.git_repo/data/tree/code"          (a checked-out repo)
+::  The desk mirrors whatever dir you point it at into its /desk/code;
+::  it assumes NOTHING about the source's internal shape.
 ::
-::  Updates are version-gated: the source publishes a version file,
-::  any root file named version.* whose mark renders to text. The
+::  Updates are version-gated: the source's code dir holds a version
+::  file (any file named version.* whose mark renders to text). The
 ::  desk re-syncs when its content changes; the text is opaque, used
 ::  only as a checkpoint tag. Code can change freely on the source —
 ::  the desk won't update until the publisher bumps the version.
@@ -108,13 +111,11 @@
     ~&  >  [%desk-subscribing u.source.config]
     ;<  init=wave:nexus  bind:m  (keep:io /ver ver-road ~)
     ~&  >  [%desk-subscribed u.source.config]
-    ::  install: sync the source's release (pinned, never live),
-    ::  apply init on first install (empty /desk/data), and
-    ::  checkpoint the installed world under its version — the
-    ::  version watcher only fires on version CHANGES, and an
-    ::  install of the source's current version isn't one.
+    ::  install: sync the source's release. Instance creation (apply-bill)
+    ::  is owned SOLELY by the version.* fiber — mirroring the version file
+    ::  here spawns it, and it apply-bills on spawn. Doing it here too just
+    ::  races that fiber and both try to make the same instance.
     ;<  ~  bind:m  (sync-release source-road rail)
-    ;<  ~  bind:m  (apply-bill rail)
     ::  re-apply share so the freshly mirrored version file is granted
     ;<  ~  bind:m  (apply-share nex-dir ~ share.config)
     ;<  vt=(unit @t)  bind:m
@@ -398,13 +399,14 @@
   ^-  road:tarball
   ?.  ?=([%& %| *] source-road)  ~|(%desk-unexpected-road-shape !!)
   [%& %& (weld p.p.source-road dir) name]
-::  sync-release: mirror the source's RELEASE, never its live tree.
-::  The source's version revision pins the release instant — its
-::  cass carries the da when the version was written, and the source's
-::  watcher checkpointed (firmed) the folds in that same event chain.
-::  Syncing the folds at that da makes drafts unreachable and every
-::  sync reproducible. Also mirrors the source's version file, raw,
-::  under its own name.
+::  sync-release: mirror the source's CURRENT tree when its version
+::  number changes. The version file is only a change signal — we never
+::  read the source at a historical revision (a source need not firm its
+::  folds, and a git-tree source rewrites its history on every checkout,
+::  so any pinned revision can vanish). Reproducibility/restore is a
+::  LOCAL concern: this desk checkpoints its OWN world after each sync
+::  (do-checkpoint), and do-restore reads THIS desk's own history. Also
+::  mirrors the source's version file, raw, under its own name.
 ::
 ++  sync-release
   |=  [source-road=road:tarball =rail:tarball]
@@ -419,10 +421,10 @@
   ?.  ?=([%file *] ver-view)
     ~&  >>  %desk-no-version-at-source
     (pure:m ~)
-  =/  at=@da   da.cass.ver-view
   ~&  >  [%desk-sync-release ver=(version-text sang.ver-view)]
-  ;<  ~  bind:m
-    (sync-dir (source-dir-road source-road /desk/code) rail /desk/code `[%da at])
+  ::  the source IS the code directory (point it anywhere) — mirror it
+  ::  wholesale into our /desk/code, no assumed sub-structure.
+  ;<  ~  bind:m  (sync-dir source-road rail /desk/code ~)
   =/  content=bask:tarball
     [p.sang.ver-view (sang-noun:tarball sang.ver-view)]
   ;<  exists=?  bind:m
@@ -431,15 +433,15 @@
     (make:io (nex-road:io rail [%& / u.ver-name]) |+[content ~])
   (over:io (nex-road:io rail [%& / u.ver-name]) content)
 ::
-::  apply-bill: on first install only — if /desk/data is empty,
-::  read bill.json and create nexus entries in /desk/data.
+::  apply-bill: ensure every nexus the bill declares exists in /desk/data.
+::  Idempotent and runs on every install AND version bump — it MAKES the
+::  entries that aren't there and SKIPS the ones that are, so a bumped
+::  bill adds its new nexuses and re-runs never collide.
 ::
 ++  apply-bill
   |=  =rail:tarball
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
-  ;<  cur=(unit (list bfile))  bind:m  (fetch-dir rail /desk/data ~)
-  ?.  =(~ (fall cur ~))  (pure:m ~)
   ;<  bill=(unit json)  bind:m
     (peek-as:io (nex-road:io rail [%& /desk/code %'bill.json']) ,json)
   ::  bill.json may live as a json grub OR a plain mime text file in the
@@ -476,6 +478,11 @@
   =/  cod=path  (stab +.i.entries)
   =/  neck=rail:tarball  [(snip cod) (rear cod)]
   =/  data-road=road:tarball  (nex-road:io rail [%| /desk/data/[nam]])
+  ::  truly idempotent (as the doc promises): apply-bill fires from BOTH
+  ::  the sync fiber and the version watcher on install — whichever runs
+  ::  second must skip an instance the first already made, not collide.
+  ;<  has=?  bind:m  (peek-exists:io data-road)
+  ?:  has  $(entries t.entries)
   ::  created sandboxed: an empty weir [~ ~ ~] (permit nothing) rather than
   ::  ~ (no filter / wide open). The nexus still materializes its own tree
   ::  (that rides the make, not a weir-gated dart), but stays runtime-inert
@@ -681,10 +688,26 @@
     ~&  >>  [%desk-skip-boom pax.i.files name.i.files]
     $(files t.files)
   ;<  ~  bind:m
-    %+  over:io
-      (nex-road:io rail [%& (weld dir pax.i.files) name.i.files])
-    [p.sang.i.files (sang-noun:tarball sang.i.files)]
+    %+  over:io  (nex-road:io rail [%& (weld dir pax.i.files) name.i.files])
+    (code-bask name.i.files sang.i.files)
   $(files t.files)
+::  code-bask: a .hoon file must land as a %hoon blot or the code
+::  namespace won't compile it — a git-tree source delivers everything as
+::  raw mime, and a mime .hoon is invisible to build-code. Everything else
+::  passes through unchanged.
+::
+++  code-bask
+  |=  [name=@ta =sang:tarball]
+  ^-  bask:tarball
+  =/  t=tape  (trip name)
+  ?.  ?&  (gth (lent t) 5)
+          =(".hoon" (slag (sub (lent t) 5) t))
+          !=([/ %hoon] p.sang)
+      ==
+    [p.sang (sang-noun:tarball sang)]
+  =/  mim=(unit mime)  (mole |.(!<(mime (need-vase:tarball sang))))
+  ?~  mim  [p.sang (sang-noun:tarball sang)]
+  [[/ %hoon] `@t`(crip (trip q.q.u.mim))]
 ::
 ::  cull-dir: remove all current files under a dir (dir survives)
 ::

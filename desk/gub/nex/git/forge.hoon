@@ -1,7 +1,8 @@
-::  git/forge: one UI over git repo instances. Repos live under
+::  git/forge: the single UI over git repo instances. Repos live under
 ::  /repos/<name>.git_repo; forge creates them, reads their state,
 ::  and drives their actions and tools by poking. Transport stays in
-::  /git/repo — this is the visibility layer.
+::  /git/repo — this is the visibility layer. Tools > permissions
+::  sub-tab: view the weir on /tools/proc, or edit to sand a new one.
 ::
 ::  /main.sig    HTTP at /grubbery/forge
 ::  /requests/   per-request handlers. Page URLs:
@@ -83,6 +84,7 @@
               [%api %action ~]  (do-action rail eyre-id jon)
               [%api %run ~]     (do-run rail eyre-id jon)
               [%api %cull ~]    (do-cull rail eyre-id jon)
+              [%api %weir ~]    (do-weir rail eyre-id jon)
           ==
         ?:  ?=([%api %list ~] suffix)
           ;<  lst=json  bind:m  (gather-repos rail)
@@ -261,6 +263,21 @@
 ::  /tools/code, and installed procs from /tools/proc with their
 ::  live step and result
 ::
+::  +weir-to-json: a weir -> {make,poke,peek: [path strings]}, for the UI.
+::
+++  weir-to-json
+  |=  =weir:tarball
+  ^-  json
+  =/  cat
+    |=  rs=(set road:tarball)
+    ^-  json
+    a+(turn ~(tap in rs) |=(r=road:tarball s+(road-to-cord:tarball r)))
+  %-  pairs:enjs:format
+  :~  ['make' (cat make.weir)]
+      ['poke' (cat poke.weir)]
+      ['peek' (cat peek.weir)]
+  ==
+::
 ++  gather-tools
   |=  [=rail:tarball repo=@t]
   =/  m  (fiber:fiber:nexus ,json)
@@ -290,12 +307,35 @@
   |-
   ?~  names
     ;<  procs=json  bind:m  (gather-procs rail kid)
+    ::  requested weir: the repo's tree tools/weir.json — the roads its
+    ::  tools ask for. Shown in the UI as "requested"; the user grants.
+    ;<  wv=view:nexus  bind:m
+      (peek:io (nex-road:io rail [%& /repos/[kid]/data/tree/tools %'weir.json']) ~)
+    =/  requested=json
+      ?.  ?=([%file *] wv)  ~
+      ?:  (is-boom:tarball sang.wv)  ~
+      =/  mim=(unit mime)  (mole |.(!<(mime (need-vase:tarball sang.wv))))
+      ?~  mim  ~
+      (fall (de:json:html q.q.u.mim) ~)
+    ::  active weir: what's enforced on /tools/proc RIGHT NOW (its weir
+    ::  lives in the parent /tools dir entry — deep-peek and read it).
+    ;<  av=view:nexus  bind:m
+      (peek:io (nex-road:io rail [%| /repos/[kid]/tools]) ~)
+    =/  active=json
+      ?.  ?=([%ball *] av)  ~
+      =/  pc=(unit ball:tarball)  (~(get by dir.ball.av) %proc)
+      ?~  pc  ~
+      ?~  fil.u.pc  ~
+      =/  w=(unit weir:tarball)  weir.u.fil.u.pc
+      ?~(w ~ (weir-to-json u.w))
     %-  pure:m
     %-  pairs:enjs:format
     :~  ['tools' a+(flop defs)]
         ['procs' procs]
         ['files' a+(turn files |=(p=path s+(crip (slag 1 (spud p)))))]
         ['tree' a+(turn tree |=(p=path s+(crip (slag 1 (spud p)))))]
+        ['weir-requested' requested]
+        ['weir-active' active]
     ==
   ;<  res=built:nexus  bind:m
     (get-code-full:io (nex-road:io rail [%& /repos/[kid]/tools/code/lib/tools i.names]))
@@ -465,6 +505,8 @@
   =?  om  !=('' ref)  (~(put by om) 'ref' s+ref)
   =/  token=@t  (jstr jon 'token')
   =?  om  !=('' token)  (~(put by om) 'token' s+token)
+  =/  pol=(unit json)  ?.(?=(%o -.jon) ~ (~(get by p.jon) 'poll'))
+  =?  om  ?=([~ %n *] pol)  (~(put by om) 'poll' u.pol)
   ;<  ~  bind:m  (over:io cfg-road [[/ %json] `json`[%o om]])
   (respond rail eyre-id 200 'saved')
 ::  +refresh-status: after a working-tree write, reload the repo's
@@ -539,6 +581,23 @@
   =/  text=@t  (jstr jon 'text')
   ?:  =('' text)  (respond rail eyre-id 400 'text required')
   ;<  ~  bind:m  (poke:io act-road [[/ %txt] (to-wain:format text)])
+  (respond rail eyre-id 200 'ok')
+::
+::  +do-weir: set the sandbox on a repo's tools. Pokes the repo's
+::  tools/weir.sig with {make,poke,peek} road-string lists; the repo
+::  nexus sands its own /tools/proc.
+::
+++  do-weir
+  |=  [=rail:tarball eyre-id=@ta jon=json]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  =/  repo=@t  (jstr jon 'repo')
+  ?:  =('' repo)  (respond rail eyre-id 400 'repo required')
+  =/  weir=(unit json)  ?.(?=(%o -.jon) ~ (~(get by p.jon) 'weir'))
+  ?~  weir  (respond rail eyre-id 400 'weir required')
+  ;<  ~  bind:m
+    %+  poke:io  (nex-road:io rail [%& /repos/[`@ta`repo]/tools %'weir.sig'])
+    [[/ %json] u.weir]
   (respond rail eyre-id 200 'ok')
 ::
 ++  do-run

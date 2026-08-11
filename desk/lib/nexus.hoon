@@ -434,17 +434,21 @@
 ::  %ud: exact match on revision number
 ::  %da: latest entry with da <= target date
 ::
+::  +resolve-case: map a case (version) to its stored revision. A miss
+::  is ~ — an ORDINARY lookup outcome, never a crash. Callers decide
+::  what "that version isn't here" means (a %miss view, a 404, a skip).
+::
 ++  resolve-case
   |=  [cas=case =hist]
-  ^-  [cass:clay pace:^hist]
+  ^-  (unit [cass=cass:clay pace=pace:^hist])
   ?-    -.cas
       %ud
     =/  entries=(list [key=cass:clay val=entry:^hist])
       (tap:hon:^hist hist)
     |-
-    ?~  entries  ~|(%hist-version-not-found !!)
+    ?~  entries  ~
     ?:  =(ud.key.i.entries p.cas)
-      [key.i.entries pace.val.i.entries]
+      `[key.i.entries pace.val.i.entries]
     $(entries t.entries)
       %da
     =/  entries=(list [key=cass:clay val=entry:^hist])
@@ -452,12 +456,8 @@
     ::  tap gives ascending order; find latest entry with da <= target
     =/  best=(unit [cass:clay pace:^hist])  ~
     |-
-    ?~  entries
-      ?~  best  ~|(%hist-version-not-found !!)
-      u.best
-    ?:  (gth da.key.i.entries p.cas)
-      ?~  best  ~|(%hist-version-not-found !!)
-      u.best
+    ?~  entries  best
+    ?:  (gth da.key.i.entries p.cas)  best
     $(entries t.entries, best `[key.i.entries pace.val.i.entries])
   ==
 ::  +record-trees: Snapshot directory state into tree objects.

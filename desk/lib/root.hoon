@@ -16,6 +16,27 @@
       ['public' b+%.n]
       ['poll' n+'360']
   ==
+::  git-repo-config: config for a /git/repo instance — clones + checks
+::  out a github repo. poll drives the periodic re-fetch.
+=/  git-repo-config
+  |=  [repo=@t ref=@t]
+  ^-  json
+  %-  pairs:enjs:format
+  :~  ['repo' s+repo]
+      ['ref' s+ref]
+      ['token' s+'']
+      ['poll' n+'15']
+  ==
+::  desk-source-config: config for a /desk instance — subscribes to a
+::  code dir already in the namespace (here, a git_repo's checked-out
+::  tree) and deploys it. source is that dir's absolute path.
+=/  desk-source-config
+  |=  source=@t
+  ^-  json
+  %-  pairs:enjs:format
+  :~  ['source' s+source]
+      ['share' a+~]
+  ==
 ^-  nexus:nexus
 |%
 ++  on-load
@@ -63,13 +84,6 @@
         [%fall %| /apps/'wallet.git_desk' [`[`[/git %desk] ~ %.n ~] ~]]
         [%fall %& [/apps/'wallet.git_desk' %'config.json'] [[/ %json] (git-desk-config 'niblyx-malnus/wallet-nexus' 'main')]]
         ::
-        ::  contacts: a plain git desk (the /git/desk backend), the same
-        ::  way wallet boots. it was briefly the desks
-        ::  manager's boot-install; desks is now only the UI, so it boots
-        ::  as its own git_desk again.
-        [%fall %| /apps/'contacts.git_desk' [`[`[/git %desk] ~ %.n ~] ~]]
-        [%fall %& [/apps/'contacts.git_desk' %'config.json'] [[/ %json] (git-desk-config 'niblyx-malnus/contacts-nexus' 'main')]]
-        ::
         ::  desks: the UI over the /desk and /git/desk nexuses. it also
         ::  creates + configures them, so it makes under /apps.
         [%fall %| /apps/'desks.desks' [`[`[/ %desks] ~ %.n ~] ~]]
@@ -77,6 +91,17 @@
         ::  forge: the UI over git repo instances, housing them at
         ::  /repos inside itself.
         [%fall %| /apps/'forge.git_forge' [`[`[/git %forge] ~ %.n ~] ~]]
+        ::
+        ::  contacts: git_desk is obviated. A /git/repo (housed in forge's
+        ::  /repos, so it shows in the UI) checks out the github repo; a
+        ::  /desk subscribes to its checked-out code dir and deploys it.
+        ::  Seeded AFTER forge exists — you can't nest into a nexus that
+        ::  hasn't been made yet. Root wires both directly, so no
+        ::  /tools/proc sandbox dance — that's only for forge installs.
+        [%fall %| /apps/'forge.git_forge'/repos/'contacts.git_repo' [`[`[/git %repo] ~ %.n ~] ~]]
+        [%fall %& [/apps/'forge.git_forge'/repos/'contacts.git_repo' %'config.json'] [[/ %json] (git-repo-config 'niblyx-malnus/contacts-nexus' 'main')]]
+        [%fall %| /apps/'contacts.desk' [`[`[/ %desk] ~ %.n ~] ~]]
+        [%fall %& [/apps/'contacts.desk' %'config.json'] [[/ %json] (desk-source-config '/apps/forge.git_forge/repos/contacts.git_repo/data/tree/code')]]
         ::
         [%fall %| /apps/'test.web-test' [`[`[/ %web-test] ~ %.n ~] ~]]
         [%fall %| /apps/'test.guestbook' [`[`[/ %guestbook] ~ %.n ~] ~]]
