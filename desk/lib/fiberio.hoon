@@ -381,11 +381,11 @@
   ;<  ~  bind:m  (send-dart %node wire road %poke bask)
   ::  RESTORED. 3c1c61b dropped this timer on the reasoning that "local pokes
   ::  always terminate". When one does not, the fiber waits forever: no error,
-  ::  no response, the HTTP request never returns. That is what took
-  ::  /grubbery/mcp down — its tools/list scans every app and builds each
-  ::  one's tools, so it makes many pokes, and a single non-terminating poke
-  ::  hangs the whole sweep. A timeout that reports is strictly better than a
-  ::  wait that cannot.
+  ::  no response. The whole point of +poke-soft is that its callers get an
+  ::  error instead of hanging — every one of them is in gub/nex/shell.hoon,
+  ::  and the ping path there says so outright ("uses poke-soft so a failed
+  ::  ping returns an error instead of crashing"). Without the timer that
+  ::  promise only holds for a nack, not for a poke that never answers.
   ;<  now=@da  bind:m  get-time
   ;<  ~  bind:m  (set-timer wire (add now ~s5))
   |=  input:fiber:nexus
@@ -405,8 +405,9 @@
     ::  Matching on the mark alone means ANY concurrent poke's wake satisfies
     ::  this branch, so a fiber reports a timeout for a poke that never timed
     ::  out. That is the notify loop 3c1c61b escaped by deleting the timer:
-    ::  the scanner read a stray wake as its own timeout, re-notified, armed
-    ::  another timer, and behn filled up. Scoping the wake fixes the loop
+    ::  shell's notify scanner read a stray wake as its own timeout,
+    ::  re-notified, armed another timer, and behn filled up. Scoping it
+    ::  fixes the loop
     ::  without giving up the timeout — same idiom as +take-commit-event in
     ::  gub/lib/nex/tools.hoon.
     ?.  =([/ %timer-wake] p.sage.u.in)  [%skip ~]
