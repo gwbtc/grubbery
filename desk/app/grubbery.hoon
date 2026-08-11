@@ -3007,7 +3007,15 @@
   ::  Build the nexus from the neck
   =/  nex-res=(each nexus:nexus tang)
     (build-nexus path.here q.u.nex-info)
-  ?:  ?=(%| -.nex-res)  ~
+  ::  The other two ~ returns above mean "no such file" and "no nexus
+  ::  governs this", which are ordinary answers. This one means the
+  ::  nexus is broken, and the caller cannot tell the difference.
+  ?:  ?=(%| -.nex-res)
+    =/  err=tang
+      :_  p.nex-res
+      leaf+"nexus {(spud p.u.nex-info)} failed to build; no spool for {(spud (snoc path.here name.here))}"
+    %-  (slog err)
+    ~
   ::  Call on-file with rail relative to nexus location
   =/  rel=rail:tarball  (relativize-rail:tarball p.u.nex-info here)
   `(on-file:p.nex-res rel blot)
