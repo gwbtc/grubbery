@@ -361,17 +361,31 @@
     [%done err.u.in]
   ==
 ::
+::  +poke: poke a road, local or remote. Crashes on nack.
+::
 ++  poke
   |=  [=road:tarball =bask:tarball]
   =/  m  (fiber ,~)
   ^-  form:m
-  ;<  =wire  bind:m  (nonce /poke)
-  ;<  ~  bind:m  (send-dart %node wire road %poke bask)
-  (take-pack wire)
-::  +poke-soft: poke with timeout, never crashes
+  ?~  (road-to-remote road)
+    ;<  =wire  bind:m  (nonce /poke)
+    ;<  ~  bind:m  (send-dart %node wire road %poke bask)
+    (take-pack wire)
+  ;<  err=(unit tang)  bind:m  (poke-soft road bask)
+  ?~  err  (pure:m ~)
+  ~|(%remote-poke-failed (mean u.err))
+::  +poke-soft: poke a road, local or remote — ~ on ack, `tang on
+::  nack. Never crashes.
 ::
-::    Returns ~ on success, (unit tang) on nack or timeout.
-::    Sets a 5s timer; on nack or timeout returns the error.
+::    Carries no deadline of its own: local pokes are covered by the
+::    termination guarantee, and a remote gack arrives when the network
+::    delivers it. A caller unwilling to wait wraps this in
+::    +with-timeout.
+::
+::    Completion differs by reach. A local poke gets a framework %pack
+::    on our wire. A remote poke never does — the runtime forwards it,
+::    and the consumption result comes back as a [/ %gack] poke keyed
+::    by our wire.
 ::
 ++  poke-soft
   |=  [=road:tarball =bask:tarball]
@@ -379,14 +393,27 @@
   ^-  form:m
   ;<  =wire  bind:m  (nonce /poke)
   ;<  ~  bind:m  (send-dart %node wire road %poke bask)
+  ?~  (road-to-remote road)
+    |=  input:fiber:nexus
+    :+  ~  q.state
+    ?+  in  [%skip ~]
+        ~  [%wait ~]
+        [~ %pack * *]
+      ?.  =(wire wire.u.in)  [%skip ~]
+      ?~  err.u.in  [%done ~]
+      [%done `u.err.u.in]
+    ==
   |=  input:fiber:nexus
   :+  ~  q.state
   ?+  in  [%skip ~]
       ~  [%wait ~]
-      [~ %pack * *]
-    ?.  =(wire wire.u.in)  [%skip ~]
-    ?~  err.u.in  [%done ~]
-    [%done `u.err.u.in]
+      [~ %veto *]
+    [%fail (veto-error dart.u.in)]
+      [~ %poke * *]
+    ?.  =([/ %gack] p.sage.u.in)  [%skip ~]
+    =/  [w=^wire err=(unit tang)]  !<([^wire (unit tang)] q.sage.u.in)
+    ?.  =(wire w)  [%skip ~]
+    [%done err]
   ==
 ::  +take-held: wait for a %held response on a wire
 ::
@@ -1148,45 +1175,6 @@
   =/  real=path  t.t.t.t.t.pax
   :-  ~  :-  u.target
   ?-(-.p.road %& [%& real name.p.p.road], %| [%| real])
-::  +poke-road: poke a road, local or remote, with local semantics
-::  either way. A remote poke never yields a local %pack — the
-::  runtime forwards it and the consumption result comes back as a
-::  [/ %gack] poke keyed by our wire. Crashes on nack or timeout.
-::
-++  poke-road
-  |=  [=road:tarball =bask:tarball]
-  =/  m  (fiber ,~)
-  ^-  form:m
-  ?~  (road-to-remote road)  (poke road bask)
-  ;<  err=(unit tang)  bind:m  (poke-road-soft road bask)
-  ?~  err  (pure:m ~)
-  ~|(%remote-poke-failed (mean u.err))
-::  +poke-road-soft: poke-road with poke-soft semantics — ~ on ack,
-::  `tang on nack or timeout, never crashes.
-::
-++  poke-road-soft
-  |=  [=road:tarball =bask:tarball]
-  =/  m  (fiber ,(unit tang))
-  ^-  form:m
-  ?~  (road-to-remote road)  (poke-soft road bask)
-  ;<  =wire  bind:m  (nonce /poke-road)
-  ;<  ~  bind:m  (send-dart %node wire road %poke bask)
-  ;<  now=@da  bind:m  get-time
-  ;<  ~  bind:m  (set-timer wire (add now ~s15))
-  |=  input
-  :+  ~  q.state
-  ?+  in  [%skip ~]
-      ~  [%wait ~]
-      [~ %veto *]
-    [%fail (veto-error dart.u.in)]
-      [~ %poke * *]
-    ?:  =([/ %gack] p.sage.u.in)
-      =/  [w=^wire err=(unit tang)]  !<([^wire (unit tang)] q.sage.u.in)
-      ?.  =(wire w)  [%skip ~]
-      [%done err]
-    ?.  =([/ %timer-wake] p.sage.u.in)  [%skip ~]
-    [%done `~[leaf+"remote poke timed out after 15s"]]
-  ==
 ::  Timer helpers — poke /sys/behn/main.timer-state, receive timer-wake back
 ::
 ++  set-timer
@@ -1243,6 +1231,58 @@
   ^-  form:m
   ;<  now=@da  bind:m  get-time
   (wait (add now for))
+::  +with-timeout: run any fiber computation against a deadline.
+::  Returns `value on completion, ~ on timeout — the caller decides
+::  what a timeout means; this arm has no policy of its own.
+::
+::  The timer is scoped to a nonce wire and checked against the wire
+::  a wake carries in its sage, so another fiber's wake can never
+::  satisfy it (the stray-wake loop that got poke-soft's timer deleted
+::  in 3c1c61b). On completion — value or failure — the timer is
+::  cancelled, so no orphan wake is left firing into the process.
+::
+::  The interception must survive the computation's own stepping:
+::  on %cont the continuation is re-wrapped so every subsequent input
+::  still passes through the timeout check first (strandio's
+::  +set-timeout idiom).
+::
+++  with-timeout
+  |*  result=mold
+  =/  m   (fiber ,(unit result))
+  =/  mr  (fiber ,result)
+  |=  [time=@dr computation=form:mr]
+  ^-  form:m
+  ;<  =wire    bind:m  (nonce /timeout)
+  ;<  now=@da  bind:m  get-time
+  ;<  ~        bind:m  (set-timer wire (add now time))
+  |=  input
+  ^-  output:m
+  ::  our own deadline fired before the computation finished
+  ?:  ?&  ?=([~ %poke * *] in)
+          =([/ %timer-wake] p.sage.u.in)
+          =(wire !<(^wire q.sage.u.in))
+      ==
+    [~ q.state %done ~]
+  =/  c-res=output:mr  (computation +<)
+  ?:  ?=(%cont -.next.c-res)
+    [darts.c-res state.c-res %cont ..$(computation self.next.c-res)]
+  ?:  ?=(%done -.next.c-res)
+    =/  fin=form:m
+      ;<  ~  bind:m  (cancel-timer wire)
+      (pure:m `value.next.c-res)
+    [darts.c-res state.c-res %cont fin]
+  ?:  ?=(%fail -.next.c-res)
+    =/  err=tang  err.next.c-res
+    =/  fin=form:m
+      ;<  ~  bind:m  (cancel-timer wire)
+      |=  input
+      [~ q.state %fail err]
+    [darts.c-res state.c-res %cont fin]
+  :+  darts.c-res  state.c-res
+  ?-  -.next.c-res
+    %wait  [%wait ~]
+    %skip  [%skip ~]
+  ==
 ::  Convenience accessors
 ::
 ++  get-our

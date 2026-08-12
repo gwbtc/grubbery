@@ -341,7 +341,13 @@
     ?:  =(u.host our)  [%| 1 %& /docs/[doc-ta] target]
     =/  hostta=@ta  (scot %p u.host)
     [%& %& :(weld /sys/ames/ships/[hostta]/root nex-dir /docs/[doc-ta]) target]
-  ;<  err=(unit tang)  bind:m  (poke-road-soft:io sig [[/ %txt] `wain`~[u.blob]])
+  ::  the deadline is ours, not the poke's: an HTTP request can't wait
+  ::  forever on a dead host
+  ;<  res=(unit (unit tang))  bind:m
+    %+  (with-timeout:io ,(unit tang))  ~s15
+    (poke-soft:io sig [[/ %txt] `wain`~[u.blob]])
+  =/  err=(unit tang)
+    ?~(res `~[leaf+"delivery timed out after 15s"] u.res)
   ?^  err
     =/  why=tape  ?~(u.err "no detail" ~(ram re i.u.err))
     (reply eyre-id 502 (crip "Delivery failed: {why}"))
