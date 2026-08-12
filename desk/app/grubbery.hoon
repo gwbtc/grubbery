@@ -2636,10 +2636,12 @@
   ^+  this
   ::  If this level has a neck, build nexus once (overrides parent scope).
   ::  A failed build bangs the whole subtree and spawns nothing under it —
-  ::  same as the reload path.
+  ::  same as the reload path. The [/ %code] sentinel is not a nexus,
+  ::  it marks a code namespace — no neck as far as spawning goes.
   =/  built=(unit (each nexus:nexus tang))
     ?~  fil.new  ~
     ?~  neck.u.fil.new  ~
+    ?:  =([/ %code] u.neck.u.fil.new)  ~
     `(build-nexus here u.neck.u.fil.new)
   ?:  ?=([~ %| *] built)
     (bang-nexus here p.u.built)
@@ -2948,7 +2950,7 @@
   ^-  (each nexus:nexus tang)
   ?:  =([/ %root] neck)  &+root
   =/  res  (resolve-built pax (weld /nex path.neck) name.neck)
-  ?~  res  |+~[leaf+"build-nexus: {(trip (rail-to-arm:tarball [path.neck name.neck]))} not found from {(spud pax)}"]
+  ?~  res  |+~[leaf+"build-nexus: no built nexus %{(trip (rail-to-arm:tarball [path.neck name.neck]))} at {(spud (weld /nex path.neck))} (from {(spud pax)})"]
   ?+  -.built.u.res
     |+~[leaf+"build-nexus: unexpected artifact type {<-.built.u.res>}"]
     %tang  |+tang.built.u.res
@@ -2980,9 +2982,11 @@
   ?~  file-data  &+~
   ::  Extract blot from the sage
   =/  =blot:tarball  p.u.file-data
-  ::  Find the nearest parent nexus
+  ::  Find the nearest parent nexus. The [/ %code] sentinel marks a
+  ::  code namespace, not a nexus — absence, not failure.
   =/  nex-info  (find-nearest-nexus here)
   ?~  nex-info  &+~
+  ?:  =([/ %code] q.u.nex-info)  &+~
   ::  Build the nexus from the neck.
   ::  A build failure is an answer, not an absence — surface the tang
   ::  so callers bang the file instead of silently spawning default-spool.
