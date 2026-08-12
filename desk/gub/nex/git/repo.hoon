@@ -293,6 +293,12 @@
           ::
           [~ %'poll.sig']
         ;<  ~  bind:m  (rise-wait:io prod "%git/repo poll: failed")
+        ::  pull once here, before the poll loop: a freshly-seeded repo
+        ::  checks out immediately instead of waiting a full poll interval.
+        ::  sync.sig no-ops when no repo is configured.
+        ;<  boot-sync-rd=road:tarball  bind:m
+          (ancestor-road:io [/git %repo] [%& /actions %'sync.sig'])
+        ;<  ~  bind:m  (poke:io boot-sync-rd [[/ %sig] ~])
         ;<  cfg-rd=road:tarball  bind:m
           (ancestor-road:io [/git %repo] [%& / %'config.json'])
         ;<  *  bind:m  (keep:io /cfg cfg-rd `[/ %json])
@@ -547,12 +553,24 @@
         ;<  disc=discovery:git-transport  bind:m
           (fetch-discovery repo.cfg)
         ~&  >>  ["%git/repo: found" (lent refs.disc) "refs"]
-        =?  ref.cfg  =('' ref.cfg)
+        ::  empty ref means "the default branch": resolve it and PIN it so
+        ::  the repo stays on that branch. Pin by read-modify-write on the
+        ::  raw config json — set ref, keep every other field — so we don't
+        ::  clobber poll (etc.) the way a full {repo,ref,token} rewrite did.
+        =/  resolve-ref=?  =('' ref.cfg)
+        =?  ref.cfg  resolve-ref
           (fall (default-branch:git-transport caps.disc) 'main')
-        ;<  sync-cfg-rd=road:tarball  bind:m
-          (ancestor-road:io [/git %repo] [%& / %'config.json'])
         ;<  ~  bind:m
-          (over:io sync-cfg-rd [[/ %json] (pairs:enjs:format ~[['repo' s+repo.cfg] ['ref' s+ref.cfg] ['token' s+token.cfg]])])
+          ?.  resolve-ref  (pure:m ~)
+          ;<  cfg-rd=road:tarball  bind:m
+            (ancestor-road:io [/git %repo] [%& / %'config.json'])
+          ;<  cv=view:nexus  bind:m  (peek:io cfg-rd `[/ %json])
+          =/  obj=(map @t json)
+            ?.  ?=([%file *] cv)  ~
+            =/  j=(unit json)  (mole |.(!<(json (need-vase:tarball sang.cv))))
+            ?:  &(?=(^ j) ?=([%o *] u.j))  p.u.j
+            ~
+          (over:io cfg-rd [[/ %json] o+(~(put by obj) 'ref' s+ref.cfg)])
         ::  check if we already have packs (incremental vs full clone)
         ;<  repo-result=(unit repository:git-repo)  bind:m  load-repo-maybe
         ?^  repo-result

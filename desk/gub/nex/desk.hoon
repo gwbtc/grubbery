@@ -96,32 +96,28 @@
       ;<  ~  bind:m  (apply-share nex-dir share.config share.new-config)
       ;<  ~  bind:m  (replace:io new-json)
       $
-    ::  find the source's version file: any root file named version.*
+    ::  the version file's name is KNOWN from config, so watch its EXACT
+    ::  road — even before it exists (a fresh sub on an absent road is
+    ::  legal and fires when it appears). No discovery-by-peek, so a
+    ::  source that hasn't checked out yet can't deadlock us.
     =/  source-road=road:tarball  (parse-source u.source.config)
-    ;<  ver-name=(unit @ta)  bind:m  (find-version-name source-road)
-    ?~  ver-name
-      ~&  >>  %desk-no-version-at-source
-      ;<  =sage:tarball  bind:m  take-poke:io
-      =/  new-json=json  !<(json q.sage)
-      =/  new-config=desk-config  (json-to-config new-json)
-      ;<  ~  bind:m  (apply-share nex-dir share.config share.new-config)
-      ;<  ~  bind:m  (replace:io new-json)
-      $
-    =/  ver-road=road:tarball  (version-road source-road u.ver-name)
-    ~&  >  [%desk-subscribing u.source.config]
+    =/  ver-name=@ta  version.config
+    =/  ver-road=road:tarball  (version-road source-road ver-name)
+    ~&  >  [%desk-subscribing u.source.config ver-name]
     ;<  init=wave:nexus  bind:m  (keep:io /ver ver-road ~)
     ~&  >  [%desk-subscribed u.source.config]
     ::  install: sync the source's release. Instance creation (apply-bill)
     ::  is owned SOLELY by the version.* fiber — mirroring the version file
     ::  here spawns it, and it apply-bills on spawn. Doing it here too just
-    ::  races that fiber and both try to make the same instance.
+    ::  races that fiber and both try to make the same instance. A no-op
+    ::  until the version file actually exists (source not yet populated).
     ;<  ~  bind:m  (sync-release source-road rail)
     ::  re-apply share so the freshly mirrored version file is granted
     ;<  ~  bind:m  (apply-share nex-dir ~ share.config)
     ;<  vt=(unit @t)  bind:m
-      (read-version-text (nex-road:io rail [%& / u.ver-name]))
+      (read-version-text (nex-road:io rail [%& / ver-name]))
     ;<  ~  bind:m
-      %^  do-checkpoint  rail  u.ver-name
+      %^  do-checkpoint  rail  ver-name
       (sy ?~(vt ~['checkpoint'] ~['checkpoint' (version-knot u.vt)]))
     |-
     ;<  res=news-or-poke  bind:m  (take-news-or-poke /ver)
@@ -130,7 +126,7 @@
       ~&  >  %desk-update-received
       ::  checkpoint outgoing state, then sync. Plain 'checkpoint'
       ::  tag — version tags are the version watcher's job.
-      ;<  ~  bind:m  (do-checkpoint rail u.ver-name (sy ~['checkpoint']))
+      ;<  ~  bind:m  (do-checkpoint rail ver-name (sy ~['checkpoint']))
       ;<  ~  bind:m  (sync-release source-road rail)
       $
         %poke
@@ -241,6 +237,10 @@
 +$  desk-config
   $:  source=(unit @t)
       share=(list path)
+      ::  the source's version file, by FULL name (e.g. 'version.json').
+      ::  Knowing it lets us watch its exact road before it exists —
+      ::  discovery-by-peek can't, since peek needs the file present.
+      version=@t
   ==
 ::
 +$  news-or-poke
@@ -266,6 +266,7 @@
   :~  ['source' ?~(source.config ~ s+u.source.config)]
       ['share' a+(turn share.config |=(g=path s+(spat g)))]
       ['public' b+?=(^ (find ~[/public] share.config))]
+      ['version' s+version.config]
   ==
 ::
 ++  json-to-config
@@ -275,7 +276,9 @@
   =/  src  (~(get by p.json) 'source')
   =/  shr  (~(get by p.json) 'share')
   =/  pub  (~(get by p.json) 'public')
+  =/  ver  (~(get by p.json) 'version')
   :*  ?~(src ~ ?:(?=([~ %s *] src) `p.u.src ~))
+      ::  share
       ?:  ?=([~ %a *] shr)
         %+  murn  p.u.shr
         |=  j=^json
@@ -283,6 +286,9 @@
         (rush p.j stap)
       ?:  &(?=([~ %b *] pub) p.u.pub)  ~[/public]
       ~
+      ::  version — default to the convention when unset or empty
+      ?:  &(?=([~ %s *] ver) !=('' p.u.ver))  p.u.ver
+      %'version.json'
   ==
 ::
 ::  +apply-share: register the follow weir with every group in the new

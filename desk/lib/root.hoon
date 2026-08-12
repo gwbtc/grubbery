@@ -7,15 +7,6 @@
 ::  earn each road through weir.json + shell approval. Built-ins,
 ::  including the shell (the capability broker that sands everyone
 ::  else), just run open here.
-=/  git-desk-config
-  |=  [repo=@t ref=@t]
-  ^-  json
-  %-  pairs:enjs:format
-  :~  ['repo' s+repo]
-      ['ref' s+ref]
-      ['public' b+%.n]
-      ['poll' n+'360']
-  ==
 ::  git-repo-config: config for a /git/repo instance — clones + checks
 ::  out a github repo. poll drives the periodic re-fetch.
 =/  git-repo-config
@@ -36,6 +27,9 @@
   %-  pairs:enjs:format
   :~  ['source' s+source]
       ['share' a+~]
+      ::  full version-file name — lets the desk watch its road before
+      ::  the source (a git_repo) has checked out. See desk.hoon.
+      ['version' s+'version.json']
   ==
 ^-  nexus:nexus
 |%
@@ -81,13 +75,6 @@
         [%fall %| /apps/'feeds.feeds' [`[`[/ %feeds] ~ %.n ~] ~]]
         [%fall %| /apps/'weather.weather' [`[`[/ %weather] ~ %.n ~] ~]]
         ::
-        [%fall %| /apps/'wallet.git_desk' [`[`[/git %desk] ~ %.n ~] ~]]
-        [%fall %& [/apps/'wallet.git_desk' %'config.json'] [[/ %json] (git-desk-config 'niblyx-malnus/wallet-nexus' 'main')]]
-        ::
-        ::  desks: the UI over the /desk and /git/desk nexuses. it also
-        ::  creates + configures them, so it makes under /apps.
-        [%fall %| /apps/'desks.desks' [`[`[/ %desks] ~ %.n ~] ~]]
-        ::
         ::  forge: the UI over git repo instances, housing them at
         ::  /repos inside itself.
         [%fall %| /apps/'forge.git_forge' [`[`[/git %forge] ~ %.n ~] ~]]
@@ -102,6 +89,12 @@
         [%fall %& [/apps/'forge.git_forge'/repos/'contacts.git_repo' %'config.json'] [[/ %json] (git-repo-config 'niblyx-malnus/contacts-nexus' 'main')]]
         [%fall %| /apps/'contacts.desk' [`[`[/ %desk] ~ %.n ~] ~]]
         [%fall %& [/apps/'contacts.desk' %'config.json'] [[/ %json] (desk-source-config '/apps/forge.git_forge/repos/contacts.git_repo/data/tree/code')]]
+        ::
+        ::  wallet: same git_repo + /desk pattern as contacts (was git_desk).
+        [%fall %| /apps/'forge.git_forge'/repos/'wallet.git_repo' [`[`[/git %repo] ~ %.n ~] ~]]
+        [%fall %& [/apps/'forge.git_forge'/repos/'wallet.git_repo' %'config.json'] [[/ %json] (git-repo-config 'niblyx-malnus/wallet-nexus' 'main')]]
+        [%fall %| /apps/'wallet.desk' [`[`[/ %desk] ~ %.n ~] ~]]
+        [%fall %& [/apps/'wallet.desk' %'config.json'] [[/ %json] (desk-source-config '/apps/forge.git_forge/repos/wallet.git_repo/data/tree/code')]]
         ::
         [%fall %| /apps/'test.web-test' [`[`[/ %web-test] ~ %.n ~] ~]]
         [%fall %| /apps/'test.guestbook' [`[`[/ %guestbook] ~ %.n ~] ~]]
