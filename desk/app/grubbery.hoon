@@ -2634,13 +2634,18 @@
           scope=(unit [nex-path=path nex=nexus:nexus])
       ==
   ^+  this
-  ::  If this level has a neck, build nexus once (overrides parent scope)
+  ::  If this level has a neck, build nexus once (overrides parent scope).
+  ::  A failed build bangs the whole subtree and spawns nothing under it —
+  ::  same as the reload path.
+  =/  built=(unit (each nexus:nexus tang))
+    ?~  fil.new  ~
+    ?~  neck.u.fil.new  ~
+    `(build-nexus here u.neck.u.fil.new)
+  ?:  ?=([~ %| *] built)
+    (bang-nexus here p.u.built)
   =/  nex-scope=(unit [nex-path=path nex=nexus:nexus])
-    ?~  fil.new  scope
-    ?~  neck.u.fil.new  scope
-    =/  nex-res=(each nexus:nexus tang)
-      (build-nexus here u.neck.u.fil.new)
-    ?:(?=(%| -.nex-res) scope `[here p.nex-res])
+    ?~  built  scope
+    `[here p.u.built]
   ::  Spawn files at this level
   =/  files=(list [@ta [=bask:tarball gain=?]])
     ?~  fil.new  ~
@@ -2969,22 +2974,24 @@
 ::
 ++  build-spool
   |=  here=rail:tarball
-  ^-  (unit spool:fiber:nexus)
+  ^-  (each (unit spool:fiber:nexus) tang)
   ::  Get the file from the ball - must exist
   =/  file-data  (peek-grub-now path.here name.here)
-  ?~  file-data  ~
+  ?~  file-data  &+~
   ::  Extract blot from the sage
   =/  =blot:tarball  p.u.file-data
   ::  Find the nearest parent nexus
   =/  nex-info  (find-nearest-nexus here)
-  ?~  nex-info  ~
-  ::  Build the nexus from the neck
+  ?~  nex-info  &+~
+  ::  Build the nexus from the neck.
+  ::  A build failure is an answer, not an absence — surface the tang
+  ::  so callers bang the file instead of silently spawning default-spool.
   =/  nex-res=(each nexus:nexus tang)
     (build-nexus path.here q.u.nex-info)
-  ?:  ?=(%| -.nex-res)  ~
+  ?:  ?=(%| -.nex-res)  nex-res
   ::  Call on-file with rail relative to nexus location
   =/  rel=rail:tarball  (relativize-rail:tarball p.u.nex-info here)
-  `(on-file:p.nex-res rel blot)
+  &+`(on-file:p.nex-res rel blot)
 ::
 ++  process-dart
   |=  [here=rail:tarball =dart:nexus]
@@ -3539,11 +3546,12 @@
   ::  Skip if nexus is banged — don't try to build processes
   ?:  (is-nexus-banged here)
     this
-  ::  Build spool and process — bang file on crash
+  ::  Build spool and process — bang file on crash or build failure
   =/  spool-got
     (build-spool here)
   =/  spool-res=(each spool:fiber:nexus tang)
-    (mule |.((fall spool-got default-spool)))
+    ?:  ?=(%| -.spool-got)  spool-got
+    (mule |.((fall p.spool-got default-spool)))
   (spawn-proc-with here prod spool-res)
 ::  Spawn a process with a pre-built spool result.
 ::  Used by spawn-all-files to avoid redundant silo lookups.
@@ -3883,7 +3891,8 @@
     ?:  (is-nexus-banged here)  this
     =/  spool-got  (build-spool here)
     =/  spool-res=(each spool:fiber:nexus tang)
-      (mule |.((fall spool-got default-spool)))
+      ?:  ?=(%| -.spool-got)  spool-got
+      (mule |.((fall p.spool-got default-spool)))
     ?:  ?=(%| -.spool-res)
       (bang-file here p.spool-res)
     =/  proc-res=(each process:fiber:nexus tang)
@@ -3922,7 +3931,8 @@
     ?:  (is-nexus-banged here)  this
     =/  spool-got  (build-spool here)
     =/  spool-res=(each spool:fiber:nexus tang)
-      (mule |.((fall spool-got default-spool)))
+      ?:  ?=(%| -.spool-got)  spool-got
+      (mule |.((fall p.spool-got default-spool)))
     ?:  ?=(%| -.spool-res)
       (bang-file here p.spool-res)
     =/  proc-res=(each process:fiber:nexus tang)
