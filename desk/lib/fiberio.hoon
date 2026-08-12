@@ -1195,6 +1195,16 @@
   ^-  form:m
   (poke &+&+[/sys/behn %'main.timer-state'] [[/ %timer-set] `[^wire @da]`[wire until]])
 ::
+::  +cancel-timer: cancel a timer set with +set-timer on the same wire.
+::  No-op if it already fired — a wake for it may still be in flight,
+::  so intakes must scope wakes by wire regardless.
+::
+++  cancel-timer
+  |=  =wire
+  =/  m  (fiber ,~)
+  ^-  form:m
+  (poke &+&+[/sys/behn %'main.timer-state'] [[/ %timer-rest] `^wire`wire])
+::
 ++  send-wait
   |=  until=@da
   =/  m  (fiber ,~)

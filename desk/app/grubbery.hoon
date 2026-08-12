@@ -3477,6 +3477,11 @@
         ==
       =.  this  (handle-timer-set here wire.dart q.sage)
       (enqu-take here ~ ~ %pack wire.dart ~)
+    ?:  ?&  =([/sys/behn %'main.timer-state'] dest)
+            =([/ %timer-rest] p.sage)
+        ==
+      =.  this  (handle-timer-rest here q.sage)
+      (enqu-take here ~ ~ %pack wire.dart ~)
     ?:  ?&  =([/sys/eyre %'main.server-state'] dest)
             =([/ %eyre-action] p.sage)
         ==
@@ -6394,6 +6399,31 @@
     :-  (scot %ud (lent path.sender))
     (weld path.sender [name.sender wire.req])
   (emit-card [%pass timer-wire %arvo %b %wait when.req])
+::  Cancel a timer previously set with %timer-set, keyed by [sender wire].
+::  No-op if no such timer is live (it already fired or was never set).
+::  %rest must carry the same wire and @da the %wait went out with, so
+::  both are reconstructed from the stored entry.
+::
+++  handle-timer-rest
+  |=  [sender=rail:tarball vaz=vase]
+  ^+  this
+  =/  req=wire  !<(wire vaz)
+  =/  timer-rail=rail:tarball  [/sys/behn %'main.timer-state']
+  =/  old=(unit sang:tarball)  (peek-grub-now timer-rail)
+  =/  st=timer-state:nexus
+    ?~  old  [%0 ~]
+    !<(timer-state:nexus (need-vase:tarball u.old))
+  =/  when=(unit @da)  (~(get by timers.st) [sender req])
+  ?~  when  this
+  =.  timers.st  (~(del by timers.st) [sender req])
+  =.  this  (save-file timer-rail [[/ %timer-state] st])
+  =/  timer-wire=wire
+    :-  %behn
+    :-  %timer
+    :-  (scot %da u.when)
+    :-  (scot %ud (lent path.sender))
+    (weld path.sender [name.sender req])
+  (emit-card [%pass timer-wire %arvo %b %rest u.when])
 ::  expire-snap: a snap-pin timer fired — release the snap's held refs and
 ::  drop it. no-op if the snap was already released (a %want beat the timer).
 ::  wire tail is [snap-id ship ~].
