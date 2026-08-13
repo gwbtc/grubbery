@@ -41,6 +41,10 @@
         [%load %| / / same-fold:loader]
         [%fall %| /apps [`[~ ~ %.n ~] ~]]
         [%fall %| /docs [`[~ ~ %.n ~] ~]]
+        ::  /port: authenticated typed-message ingress. Each /port/<name>
+        ::  is a [/port %cargo] grub that handles its own pokes — poke it a
+        ::  mime and it stamps the sender and stores it. Open weir: any ship.
+        [%fall %| /port [`[`[/ %port] ~ %.n ~] ~]]
         ::  /sys/eyre: HTTP server state + request fibers
         ::
         [%fall %| /sys/eyre [`[~ ~ %.n ~] ~]]
