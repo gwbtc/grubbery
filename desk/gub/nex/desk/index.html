@@ -1,0 +1,126 @@
+<!doctype html>
+<html>
+<head>
+  <title>desk</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="ide">
+    <div id="topbar">
+      <span id="brand">&#9670; desk</span>
+      <span id="tb-name" class="chip"></span>
+      <span id="tb-source"></span>
+      <span id="tb-status" class="off">not configured</span>
+      <div id="tb-actions">
+        <button id="fetch-btn" class="hdr-btn" onclick="fetchLatest()" style="display:none">Fetch Latest</button>
+      </div>
+    </div>
+    <div id="main-tabs">
+      <button class="main-tab" data-view="config">Config</button>
+      <button class="main-tab" data-view="code">Code</button>
+      <button class="main-tab" data-view="data">Data</button>
+    </div>
+    <div id="workspace">
+
+        <div id="view-config" class="view">
+          <div class="view-head">Config</div>
+          <div class="cfg-section">
+            <h3>Source</h3>
+            <p class="muted">This desk follows a source &mdash; a <code>~ship/path</code> or a
+              local <code>/path</code>. When the source bumps its <code>version.json</code>,
+              this desk syncs the new release.</p>
+            <div class="form-row">
+              <input id="source-input" type="text" placeholder="~ship/path or /local/path">
+              <button class="hdr-btn primary" onclick="setSource()">Set Source</button>
+            </div>
+          </div>
+          <div class="cfg-section">
+            <h3>Sharing</h3>
+            <p class="muted">Usergroups allowed to peek <code>/desk/code</code>. Add a path to
+              open the desk to that group; remove it to close.</p>
+            <div id="share-list"><div class="muted">loading&hellip;</div></div>
+            <div class="form-row">
+              <input id="share-input" type="text" placeholder="/usergroup">
+              <button class="hdr-btn primary" onclick="addShare()">Add</button>
+            </div>
+          </div>
+        </div>
+
+        <div id="view-code" class="view wide">
+          <div class="view-head">Code</div>
+          <div class="subtabs">
+            <button class="subtab active" data-sub="files">Files</button>
+            <button class="subtab" data-sub="checkpoints">Checkpoints</button>
+          </div>
+          <div class="sub sub-files">
+            <div class="split">
+              <div class="split-col col-tree">
+                <div class="col-head">files</div>
+                <div id="code-tree" class="tree"></div>
+              </div>
+              <div class="split-col col-view">
+                <div class="col-head">viewer</div>
+                <div id="code-view" class="viewer-pane"><div class="vp-empty muted">select a file</div></div>
+              </div>
+            </div>
+          </div>
+          <div class="sub sub-checkpoints" style="display:none">
+            <div class="form-row">
+              <input id="code-label" type="text" placeholder="label (optional)">
+              <button class="hdr-btn" onclick="checkpointNow('code')">Checkpoint Now</button>
+            </div>
+            <div class="form-row hist-clear">
+              <span class="muted">clear history:</span>
+              <input id="code-clear-before" type="text" placeholder="rev (inclusive)">
+              <button class="hdr-btn danger" onclick="clearBefore('code')">Clear &le; rev</button>
+              <button class="hdr-btn danger" onclick="clearAllCkpts('code')">Clear All</button>
+            </div>
+            <div id="code-ckpts"><div class="muted">loading&hellip;</div></div>
+          </div>
+        </div>
+
+        <div id="view-data" class="view wide">
+          <div class="view-head">Data</div>
+          <div class="subtabs">
+            <button class="subtab active" data-sub="files">Files</button>
+            <button class="subtab" data-sub="checkpoints">Checkpoints</button>
+          </div>
+          <div class="sub sub-files">
+            <div class="split">
+              <div class="split-col col-tree">
+                <div class="col-head">files</div>
+                <div id="data-tree" class="tree"></div>
+              </div>
+              <div class="split-col col-view">
+                <div class="col-head">viewer</div>
+                <div id="data-view" class="viewer-pane"><div class="vp-empty muted">select a file</div></div>
+              </div>
+            </div>
+          </div>
+          <div class="sub sub-checkpoints" style="display:none">
+            <div class="form-row">
+              <input id="data-label" type="text" placeholder="label (optional)">
+              <button class="hdr-btn" onclick="checkpointNow('data')">Checkpoint Now</button>
+            </div>
+            <div class="form-row hist-clear">
+              <span class="muted">clear history:</span>
+              <input id="data-clear-before" type="text" placeholder="rev (inclusive)">
+              <button class="hdr-btn danger" onclick="clearBefore('data')">Clear &le; rev</button>
+              <button class="hdr-btn danger" onclick="clearAllCkpts('data')">Clear All</button>
+            </div>
+            <div id="data-ckpts"><div class="muted">loading&hellip;</div></div>
+          </div>
+        </div>
+
+      </div>
+    <div id="statusbar">
+      <span id="sb-version"></span>
+      <span id="sb-spacer"></span>
+      <button id="refresh-btn" class="icon-btn" onclick="load()">&#8635; refresh</button>
+    </div>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>

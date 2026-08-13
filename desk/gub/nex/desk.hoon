@@ -27,12 +27,6 @@
 ::                    tile, icon) is per-nexus, declared in its own
 ::                    on-load and read by the shell's desk-data descent.
 ::    /desk/data/     working data for the installed desk
-::    /staged/        local working tree: a plain dir, not a code
-::                    nexus, so edits there trigger nothing. Poke
-::                    stage.sig to mirror /staged into /desk/code
-::                    atomically (files missing from /staged are
-::                    removed) — the local dev loop.
-::    stage.sig       poke target for applying /staged
 ::
 ::  The host layer resolves marcs from the root code namespace; the
 ::  guest resolves against /desk/code. Guests distribute every marc
@@ -48,7 +42,10 @@
 ::  /code is nullified first (world stops — /data goes inert),
 ::  then /data loads, then /code loads and everything comes alive.
 ::
-/&  man  ../man/desk/readme.md
+/&  man       ../man/desk/readme.md
+/&  desk-html  desk/index.html
+/&  desk-js    desk/app.js
+/&  desk-css   desk/style.css
 =<  ^-  nexus:nexus
     |%
 ++  on-load
@@ -58,15 +55,21 @@
   %+  spin:loader  ball
   :~  (manifest:loader 0)
       [%fall %& [/ %'config.json'] [[/ %json] (config-to-json *desk-config)]]
-      [%fall %& [/ %'version.ud'] [[/ %ud] 0]]
+      [%fall %& [/ %'version.json'] [[/ %json] (pairs:enjs:format ~[['version' (numb:enjs:format 0)]])]]
       [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
-      [%fall %& [/ %'stage.sig'] [[/ %sig] ~]]
-      [%fall %| /staged empty-dir:loader]
+      ::  share.usergroups: the OPENING state — the set of usergroups this
+      ::  desk grants peek on /desk/code. Poke it {add|remove: <group>};
+      ::  it re-registers the grants. Born empty (open to nobody).
+      [%fall %& [/ %'share.usergroups'] [[/ %usergroups] *(set path)]]
       [%fall %| /requests empty-dir:loader]
       [%fall %| /desk empty-dir:loader]
       [%fall %| /desk/code code-dir]
       [%fall %| /desk/data empty-dir:loader]
       [%over %& [/ %'README.md'] [[/ %mime] man]]
+      ::  the UI shell — external static files, served by handle-get.
+      [%over %& [/ %'index.html'] [[/ %mime] desk-html]]
+      [%over %& [/ %'app.js'] [[/ %mime] desk-js]]
+      [%over %& [/ %'style.css'] [[/ %mime] desk-css]]
   ==
 ::
 ++  on-file
@@ -82,18 +85,14 @@
     ;<  ~  bind:m  (rise-wait:io prod "%desk config: failed")
     ;<  here=rail:tarball  bind:m  get-here-abs:io
     ;<  ~  bind:m  (reg-register-at:io here)
-    =/  nex-dir=path  path.here
     |-
     ;<  config-json=json  bind:m  (get-state-as:io ,json)
     =/  config=desk-config  (json-to-config config-json)
-    ;<  ~  bind:m  (apply-share nex-dir ~ share.config)
     ?~  source.config
       ::  no source configured, wait for poke
       ~&  >  %desk-no-source
       ;<  =sage:tarball  bind:m  take-poke:io
       =/  new-json=json  !<(json q.sage)
-      =/  new-config=desk-config  (json-to-config new-json)
-      ;<  ~  bind:m  (apply-share nex-dir share.config share.new-config)
       ;<  ~  bind:m  (replace:io new-json)
       $
     ::  the version file's name is KNOWN from config, so watch its EXACT
@@ -112,8 +111,6 @@
     ::  races that fiber and both try to make the same instance. A no-op
     ::  until the version file actually exists (source not yet populated).
     ;<  ~  bind:m  (sync-release source-road rail)
-    ::  re-apply share so the freshly mirrored version file is granted
-    ;<  ~  bind:m  (apply-share nex-dir ~ share.config)
     ;<  vt=(unit @t)  bind:m
       (read-version-text (nex-road:io rail [%& / ver-name]))
     ;<  ~  bind:m
@@ -133,12 +130,36 @@
       ::  config change: replace state, drop sub, restart
       =/  new-json=json  !<(json q.sage.res)
       ~&  >  [%desk-config-change new-json]
-      =/  new-config=desk-config  (json-to-config new-json)
-      ;<  ~  bind:m  (apply-share nex-dir share.config share.new-config)
       ;<  ~  bind:m  (replace:io new-json)
       ;<  ~  bind:m  (drop:io /ver ver-road)
       ^$
     ==
+      ::  share.usergroups: the OPENING state. Poke {add|remove: <group>}
+      ::  to open/close this desk to a usergroup — it re-registers the
+      ::  grants (peek on /desk/code + version.json for each open group).
+      ::
+      [~ %'share.usergroups']
+    ;<  ~  bind:m  (rise-wait:io prod "%desk share: failed")
+    ;<  here=rail:tarball  bind:m  get-here-abs:io
+    ;<  ~  bind:m  (reg-register-at:io here)
+    |-
+    ;<  cur=(set path)  bind:m  (get-state-as:io ,(set path))
+    ;<  =sage:tarball  bind:m  take-poke:io
+    =/  jon=json  !<(json q.sage)
+    =/  new=(set path)
+      ?.  ?=(%o -.jon)  cur
+      =/  add=(unit json)  (~(get by p.jon) 'add')
+      =/  rem=(unit json)  (~(get by p.jon) 'remove')
+      ?:  ?=([~ %s *] add)
+        =/  g=(unit path)  (rush p.u.add stap)
+        ?~(g cur (~(put in cur) u.g))
+      ?:  ?=([~ %s *] rem)
+        =/  g=(unit path)  (rush p.u.rem stap)
+        ?~(g cur (~(del in cur) u.g))
+      cur
+    ;<  ~  bind:m  (replace:io new)
+    ;<  ~  bind:m  (apply-share path.here ~(tap in cur) ~(tap in new))
+    $
       ::  main.sig: HTTP endpoint for desk management UI
       ::
       [~ %'main.sig']
@@ -163,31 +184,26 @@
     =/  nex-path=path  (snip path.here)  :: /foo/requests -> /foo
     =/  prefix=path  /grubbery/desk/[(desk-slug nex-path)]
     =/  [site=path args=quay:eyre]  (parse-url:http-utils url.request.req)
-    =/  suffix=path  (slag (lent prefix) site)
+    ::  drop empty segments so a trailing slash (/test/) reads as the
+    ::  page route (~), not a file named ''.
+    =/  suffix=path
+      %+  skip  (slag (lent prefix) site)
+      |=(seg=@ta =('' seg))
+    ::  canonical page URL ends in '/' so the shell's relative asset
+    ::  links (style.css, app.js) resolve under the slug dir. Redirect
+    ::  the bare form once; the slashed form serves index.html.
+    =/  raw=tape  (trip url.request.req)
+    =/  cut=tape  (scag (fall (find "?" raw) (lent raw)) raw)
+    =/  slashed=?  &(?=(^ cut) =('/' `@`(rear cut)))
+    ?:  ?&(=('GET' method.request.req) ?=(~ suffix) !slashed)
+      =/  main-road  (nex-road:io rail [%& ~ %'main.sig'])
+      =/  loc=@t  (crip (weld (spud prefix) "/"))
+      ;<  ~  bind:m  (~(send-header http-res:io main-road) eyre-id [301 ~[['location' loc]]])
+      ;<  ~  bind:m  (~(send-data http-res:io main-road) eyre-id ~)
+      (pure:m ~)
     ?:  =('POST' method.request.req)
       (handle-post eyre-id suffix req rail)
-    (handle-get eyre-id suffix rail)
-      ::  stage.sig: poke to apply /staged to /desk/code — the local
-      ::  dev loop. Checkpoint first; /staged mirrors into code, then
-      ::  bill and shell files apply as in a synced install.
-      ::
-      [~ %'stage.sig']
-    ;<  ~  bind:m  (rise-wait:io prod "%desk stage: failed")
-    |-
-    ;<  *  bind:m  take-poke:io
-    ;<  staged=(unit (list bfile))  bind:m  (fetch-dir rail /staged ~)
-    ?:  =(~ (fall staged ~))
-      ~&  >>  %desk-nothing-staged
-      $
-    ~&  >  %desk-stage-apply
-    ;<  vn=(unit @ta)  bind:m  (own-version-name rail)
-    ;<  ~  bind:m
-      (do-checkpoint rail (fall vn %'version.ud') (sy ~['checkpoint' 'pre-stage']))
-    ;<  ~  bind:m  (cull-dir rail /desk/code)
-    ;<  ~  bind:m  (write-files rail /desk/code (need staged))
-    ;<  ~  bind:m  (apply-bill rail)
-    ~&  >  %desk-stage-applied
-    $
+    (handle-get eyre-id suffix args rail)
       ::  version.*: every version change checkpoints the world.
       ::  Runs on publisher and subscriber alike — a release IS a
       ::  checkpoint, tagged with the version it inaugurates.
@@ -236,7 +252,6 @@
 |%
 +$  desk-config
   $:  source=(unit @t)
-      share=(list path)
       ::  the source's version file, by FULL name (e.g. 'version.json').
       ::  Knowing it lets us watch its exact road before it exists —
       ::  discovery-by-peek can't, since peek needs the file present.
@@ -254,18 +269,15 @@
 ::
 +$  binfo  (list [=cass:clay tags=(set @t) tomb=?])
 ::
-::  share holds the usergroup paths the desk is published to, as real
-::  paths; strings exist only in the json. 'public' is emitted as a
-::  derived field (membership of /public) for the UI, and accepted on
-::  read as legacy sugar for share [/public].
+::  the OPENING state (which usergroups may peek the code) lives in the
+::  share.usergroups grub, not here — a desk-config is just source +
+::  version.
 ::
 ++  config-to-json
   |=  config=desk-config
   ^-  json
   %-  pairs:enjs:format
   :~  ['source' ?~(source.config ~ s+u.source.config)]
-      ['share' a+(turn share.config |=(g=path s+(spat g)))]
-      ['public' b+?=(^ (find ~[/public] share.config))]
       ['version' s+version.config]
   ==
 ::
@@ -274,18 +286,8 @@
   ^-  desk-config
   ?.  ?=(%o -.json)  *desk-config
   =/  src  (~(get by p.json) 'source')
-  =/  shr  (~(get by p.json) 'share')
-  =/  pub  (~(get by p.json) 'public')
   =/  ver  (~(get by p.json) 'version')
   :*  ?~(src ~ ?:(?=([~ %s *] src) `p.u.src ~))
-      ::  share
-      ?:  ?=([~ %a *] shr)
-        %+  murn  p.u.shr
-        |=  j=^json
-        ?.  ?=([%s *] j)  ~
-        (rush p.j stap)
-      ?:  &(?=([~ %b *] pub) p.u.pub)  ~[/public]
-      ~
       ::  version — default to the convention when unset or empty
       ?:  &(?=([~ %s *] ver) !=('' p.u.ver))  p.u.ver
       %'version.json'
@@ -301,19 +303,15 @@
   |=  [nex-dir=path old=(list path) new=(list path)]
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
-  ::  grant every root version.* file plus the code tree
-  ;<  =view:nexus  bind:m  (peek:io [%& %| nex-dir] ~)
-  =/  ver-roads=(list road:tarball)
-    ?.  ?=([%ball *] view)  ~
-    ?~  fil.ball.view  ~
-    %+  murn  ~(tap by contents.u.fil.ball.view)
-    |=  [n=@ta *]
-    ?.  =('version.' (end [3 8] n))  ~
-    (some `road:tarball`[%& %& nex-dir n])
+  ::  what a follower needs to pull: peek the code tree and the version
+  ::  file (stable name — version.json). Stable roads, granted once — no
+  ::  re-apply when the code or version content changes.
   =/  grant=weir:nexus
     :+  ~  ~
     %-  sy
-    [[%& %| (weld nex-dir /desk/code)] ver-roads]
+    :~  [%& %| (weld nex-dir /desk/code)]
+        [%& %& nex-dir %'version.json']
+    ==
   ::  groups to clear: any dropped from the share list, plus /public
   ::  always — a fresh fiber cannot know what a prior life granted,
   ::  so the discovery group's state is asserted on every application
@@ -331,35 +329,9 @@
       (turn clear |=(g=path [g *weir:nexus]))
     (turn new |=(g=path [g grant]))
   |-  ^-  form:m
-  ?~  jobs
-    ::  nudge the shell to rescan its public desk directory — the
-    ::  grants it derives that directory from just changed.
-    ::  register-public accepts pack OR veto as done, so a missing shell
-    ::  (a headless ship with no launcher) doesn't fail the config fiber.
-    (register-public (pairs:enjs:format ~[['rescan' b+%.y]]))
+  ?~  jobs  (pure:m ~)
   ;<  ~  bind:m  (reg-how:io [grp.i.jobs w.i.jobs])
   $(jobs t.jobs)
-::  +register-public: poke the shell's public desk directory fiber,
-::  and swallow the ack — or the veto, if no shell is installed.
-::
-++  register-public
-  |=  cmd=json
-  =/  m  (fiber:fiber:nexus ,~)
-  ^-  form:m
-  =/  dir-road=road:tarball  [%& %& /apps/'shell.shell' %'public.json']
-  ;<  ~  bind:m
-    (send-dart:io %node /pub-reg dir-road %poke [[/ %json] cmd])
-  |=  input:fiber:nexus
-  :+  ~  q.state
-  ?+  in  [%skip ~]
-    ~  [%wait ~]
-      [~ %pack *]
-    ?.  =(/pub-reg wire.u.in)  [%skip ~]
-    [%done ~]
-      [~ %veto *]
-    [%done ~]
-  ==
-::
 ::  desk-slug: URL name for a desk nexus — its dir name minus the
 ::  dot-suffix ('test.desk' -> 'test'). Dots are avoided in eyre
 ::  bindings: eyre parses them as file extensions during matching.
@@ -536,6 +508,34 @@
 ::  +version-text: render a version file's content as text, by mark.
 ::  ~ for marks with no text rendering.
 ::
+::  +file-text: render any file's stored form as text for the viewer.
+::  Tries the common text shapes in turn; ~ for genuinely binary files
+::  (their noun is a cell, so none of the atom/list molds match).
+::
+++  file-text
+  |=  =sang:tarball
+  ^-  (unit @t)
+  ::  sang-noun returns the raw stored noun even for a boom, so we can
+  ::  re-interpret it with the CURRENT marks (molds in this context)
+  ::  rather than the revision's — a file that failed to build against
+  ::  its old bins still renders here.
+  =/  nun  (sang-noun:tarball sang)
+  =/  c  ((soft @t) nun)
+  ?^  c  `u.c
+  =/  t  ((soft tape) nun)
+  ?^  t  `(crip u.t)
+  =/  w  ((soft wain) nun)
+  ?^  w  `(of-wain:format u.w)
+  =/  j  ((soft json) nun)
+  ?^  j  `(en:json:html u.j)
+  ~
+::
+++  quay-get
+  |=  [args=quay:eyre k=@t]
+  ^-  (unit @t)
+  =/  l  (skim args |=([p=@t q=@t] =(p k)))
+  ?~(l ~ `q.i.l)
+::
 ++  version-text
   |=  =sang:tarball
   ^-  (unit @t)
@@ -622,18 +622,6 @@
   ;<  =view:nexus  bind:m  (peek:io road ~)
   ?.  ?=([%file *] view)  (pure:m ~)
   (pure:m (version-text sang.view))
-::  +own-version-name: discover this desk's own version file name
-::
-++  own-version-name
-  |=  =rail:tarball
-  =/  m  (fiber:fiber:nexus ,(unit @ta))
-  ^-  form:m
-  ;<  =view:nexus  bind:m  (peek:io (nex-road:io rail [%| /]) ~)
-  ?.  ?=([%ball *] view)  (pure:m ~)
-  ?~  fil.ball.view  (pure:m ~)
-  %-  pure:m
-  %-  pick-version-name
-  (turn ~(tap by contents.u.fil.ball.view) |=([n=@ta *] n))
 ::  +own-version: discover this desk's own version file and read it
 ::
 ++  own-version
@@ -681,6 +669,45 @@
     (peek-at:io (nex-road:io rail [%| dir]) ~ u.cas)
   ?.  ?=([%ball *] view)  (pure:m ~)
   (pure:m `(ball-to-files ball.view))
+::  +rev-case: parse a trailing URL segment (e.g. /42) into a case
+::
+++  rev-case
+  |=  segs=path
+  ^-  (unit case:nexus)
+  ?~  segs  ~
+  =/  n=(unit @ud)  (rush i.segs dem)
+  ?~(n ~ `[%ud u.n])
+::  +locate-file: find one bfile by full path within an axis dir
+::
+++  locate-file
+  |=  [=rail:tarball dir=path cas=(unit case:nexus) full=path]
+  =/  m  (fiber:fiber:nexus ,(unit bfile))
+  ^-  form:m
+  ;<  files=(unit (list bfile))  bind:m  (fetch-dir rail dir cas)
+  ?~  files  (pure:m ~)
+  |-  ^-  form:m
+  ?~  u.files  (pure:m ~)
+  ?:  =(full (snoc pax.i.u.files name.i.u.files))  (pure:m `i.u.files)
+  $(u.files t.u.files)
+::  +mime-of: a file's mark-converted mime form (~ if no mime tube)
+::
+++  mime-of
+  |=  [=rail:tarball dir=path cas=(unit case:nexus) f=bfile]
+  =/  m  (fiber:fiber:nexus ,(unit mime))
+  ^-  form:m
+  =/  froad=road:tarball  (nex-road:io rail [%& (weld dir pax.f) name.f])
+  ;<  mv=view:nexus  bind:m
+    ?~  cas  (peek:io froad `[/ %mime])
+    (peek-at:io froad `[/ %mime] u.cas)
+  =/  via-tube=(unit mime)
+    ?.  ?=([%file *] mv)  ~
+    =/  res  (mule |.(!<(mime (need-vase:tarball sang.mv))))
+    ?:(?=(%| -.res) ~ `p.res)
+  ?^  via-tube  (pure:m via-tube)
+  ::  the mark's ++mime tube failed (e.g. absent from the revision's
+  ::  bins). But if the file's stored noun already IS a mime, use it
+  ::  directly — the present interpretation, no old mark needed.
+  (pure:m ((soft mime) (sang-noun:tarball sang.f)))
 ::
 ::  write-files: over a list of bfiles into a dir
 ::
@@ -813,9 +840,97 @@
   [[code ~] `(as-octs:mimes:html msg)]
 ::
 ++  handle-get
-  |=  [eyre-id=@ta suffix=path =rail:tarball]
+  |=  [eyre-id=@ta suffix=path args=quay:eyre =rail:tarball]
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
+  ?:  ?=([%cat ?(%code %data) *] suffix)
+    ::  one file's content — current or at a revision (?path=/lib/foo.hoon).
+    ::  Converts via the file's mark to a mime: text types come back as
+    ::  text; others expose their content-type so the UI can <img> them
+    ::  (bytes served by /raw).
+    =/  dir=path  ?:(?=(%code i.t.suffix) /desk/code /desk/data)
+    =/  cas=(unit case:nexus)  (rev-case t.t.suffix)
+    =/  want=(unit @t)  (quay-get args 'path')
+    ?~  want
+      ;<  ~  bind:m  (respond eyre-id rail 400 'path required')
+      (pure:m ~)
+    =/  full=path  (stab u.want)
+    ;<  hit=(unit bfile)  bind:m  (locate-file rail dir cas full)
+    ?~  hit
+      ;<  ~  bind:m  (respond eyre-id rail 404 'no such file')
+      (pure:m ~)
+    ;<  got=(unit mime)  bind:m  (mime-of rail dir cas u.hit)
+    ::  spud a mite -> "/text/x-hoon"; drop the leading slash
+    =/  ctype=@t  ?~(got '' (crip (slag 1 (spud p.u.got))))
+    =/  head=@ta  ?~(got %$ ?~(p.u.got %$ i.p.u.got))
+    =/  texty=?
+      &(?|(=(%text head) =(%application head)) !=('application/octet-stream' ctype))
+    =/  blotp=tape  (spud (snoc path.p.sang.u.hit name.p.sang.u.hit))
+    =/  text=(unit @t)
+      ?~  got  (file-text sang.u.hit)
+      ?:(texty `q.q.u.got ~)
+    ::  when nothing renders, say exactly why (shown verbatim in the UI)
+    =/  reason=@t
+      ?:  ?=(%| -.q.sang.u.hit)
+        ::  boom: the stored noun failed to build under its blot. The
+        ::  failure carries the compiler's error trace — surface it.
+        =/  bm=boom:tarball  p.q.sang.u.hit
+        =/  trace=@t
+          %-  of-wain:format
+          %+  turn  (flop tang.bm)
+          |=(=tank (crip ~(ram re tank)))
+        %-  crip
+        ;:  weld
+          "blot "  blotp
+          " failed to build (boom) — the stored noun did not validate against its blot:\0a"
+          (trip trace)
+        ==
+      ?~  got
+        =/  nun  (sang-noun:tarball sang.u.hit)
+        %-  crip
+        ;:  weld
+          "blot "  blotp
+          " has no ++mime grow tube, and its stored noun "
+          ?:  ?=(@ nun)
+            (weld "is a bare " (weld (scow %ud (met 3 nun)) "-byte atom"))
+          "is a cell"
+          " — not decodable as cord, tape, wain, or json"
+        ==
+      %-  crip
+      ;:  weld
+        "content-type "  (trip ctype)  ", "  (scow %ud p.q.u.got)
+        " bytes — a non-text, non-image type with no inline renderer"
+      ==
+    =/  =json
+      %-  pairs:enjs:format
+      :~  ['path' s+(spat full)]
+          ['blot' s+(spat (snoc path.p.sang.u.hit name.p.sang.u.hit))]
+          ['type' ?~(got ~ s+ctype)]
+          ['text' ?~(text ~ s+u.text)]
+          ['reason' ?~(text s+reason ~)]
+      ==
+    =/  bod=octs  (as-octs:mimes:html (en:json:html json))
+    ;<  ~  bind:m  (~(send-simple http-res:io (nex-road:io rail [%& ~ %'main.sig'])) eyre-id (mime-response:http-utils [/application/json bod]))
+    (pure:m ~)
+  ?:  ?=([%raw ?(%code %data) *] suffix)
+    ::  raw bytes of one file, in its mark's mime form — for <img> etc.
+    =/  dir=path  ?:(?=(%code i.t.suffix) /desk/code /desk/data)
+    =/  cas=(unit case:nexus)  (rev-case t.t.suffix)
+    =/  want=(unit @t)  (quay-get args 'path')
+    ?~  want
+      ;<  ~  bind:m  (respond eyre-id rail 400 'path required')
+      (pure:m ~)
+    =/  full=path  (stab u.want)
+    ;<  hit=(unit bfile)  bind:m  (locate-file rail dir cas full)
+    ?~  hit
+      ;<  ~  bind:m  (respond eyre-id rail 404 'no such file')
+      (pure:m ~)
+    ;<  got=(unit mime)  bind:m  (mime-of rail dir cas u.hit)
+    ?~  got
+      ;<  ~  bind:m  (respond eyre-id rail 404 'no mime form')
+      (pure:m ~)
+    ;<  ~  bind:m  (~(send-simple http-res:io (nex-road:io rail [%& ~ %'main.sig'])) eyre-id (mime-response:http-utils u.got))
+    (pure:m ~)
   ?:  ?=([%tree ?(%code %data) *] suffix)
     ::  file tree of an axis — current, or at a historical revision
     =/  dir=path  ?:(?=(%code i.t.suffix) /desk/code /desk/data)
@@ -851,19 +966,30 @@
       (born:io (nex-road:io rail [%| /desk/code]))
     ;<  data-born=(each binfo tang)  bind:m
       (born:io (nex-road:io rail [%| /desk/data]))
+    ::  share: the usergroups this desk is OPENED to, from the grub
+    ;<  share=(unit (set path))  bind:m
+      (peek-as:io (nex-road:io rail [%& / %'share.usergroups']) ,(set path))
     =/  =json
       %-  pairs:enjs:format
       :~  ['config' (fall config-json [%o ~])]
           ['version' ?~(ver ~ s+u.ver)]
           ['code' (binfo-to-json code-born)]
           ['data' (binfo-to-json data-born)]
+          ['share' a+(turn ~(tap in (fall share ~)) |=(g=path s+(spat g)))]
       ==
     =/  bod=octs  (as-octs:mimes:html (en:json:html json))
     ;<  ~  bind:m  (~(send-simple http-res:io (nex-road:io rail [%& ~ %'main.sig'])) eyre-id (mime-response:http-utils [/application/json bod]))
     (pure:m ~)
-  ::  static shell — the page populates itself from /state
-  =/  bod=octs  (as-octs:mimes:html (crip (en-xml:html render-page)))
-  ;<  ~  bind:m  (~(send-simple http-res:io (nex-road:io rail [%& ~ %'main.sig'])) eyre-id (mime-response:http-utils [/text/html bod]))
+  ::  everything else is a static asset — the shell (index.html) for
+  ::  the page route, or style.css / app.js by name.
+  =/  filename=@ta  ?~(suffix 'index.html' i.suffix)
+  ;<  fv=view:nexus  bind:m
+    (peek:io (nex-road:io rail [%& / filename]) `[/ %mime])
+  ?.  ?=([%file *] fv)
+    (respond eyre-id rail 404 'Not found')
+  =/  =mime  !<(mime (need-vase:tarball sang.fv))
+  ;<  ~  bind:m
+    (~(send-simple http-res:io (nex-road:io rail [%& ~ %'main.sig'])) eyre-id (mime-response:http-utils mime))
   (pure:m ~)
 ::
 ::  binfo-to-json: one fold's checkpoint history — only firmed,
@@ -909,28 +1035,23 @@
       [%restore ~]
     (do-restore eyre-id body rail)
   ::
-      [%publish ~]
-    ::  toggle public exposure. Pokes config.json — the config fiber
-    ::  replaces its state and re-applies the registry weir.
-    ;<  cur-json=(unit json)  bind:m  (peek-as:io (nex-road:io rail [%& / %'config.json']) ,json)
-    =/  cur=desk-config  ?~(cur-json *desk-config (json-to-config u.cur-json))
-    =/  had=?  ?=(^ (find ~[/public] share.cur))
-    =/  new-config=desk-config
-      %=  cur
-        share  ?:  had
-                 (skip share.cur |=(g=path =(/public g)))
-               (snoc share.cur /public)
-      ==
-    ~&  >  [%desk-publish public=!had]
+      [%share ~]
+    ::  open/close a usergroup. Body is the command json
+    ::  {add|remove: <group-path>} — forwarded straight to the
+    ::  share.usergroups grub, which stamps its state and re-grants.
+    =/  cmd=(unit json)  (de:json:html body)
+    ?~  cmd
+      ;<  ~  bind:m  (respond eyre-id rail 400 'bad share command')
+      (pure:m ~)
+    ~&  >  [%desk-share u.cmd]
     ;<  ~  bind:m
-      (poke:io (nex-road:io rail [%& / %'config.json']) [[/ %json] (config-to-json new-config)])
-    (respond eyre-id rail 200 ?:(had 'unpublished' 'published'))
+      (poke:io (nex-road:io rail [%& / %'share.usergroups']) [[/ %json] u.cmd])
+    (respond eyre-id rail 200 'ok')
   ::
       [%fetch-latest ~]
     ::  pull the source's current code and version now. Idempotent:
     ::  content-addressed writes no-op when nothing changed, so this
-    ::  only creates history when the source actually differs. Also
-    ::  the revive lever after clear-contents.
+    ::  only creates history when the source actually differs.
     ;<  config-json=(unit json)  bind:m
       (peek-as:io (nex-road:io rail [%& / %'config.json']) ,json)
     =/  config=desk-config
@@ -976,22 +1097,6 @@
     ;<  ~  bind:m  (tag:io (nex-road:io rail [%| dir]) ~ tags)
     (respond eyre-id rail 200 'checkpointed')
   ::
-      [%clear-contents ~]
-    ::  cull every file under an axis. Clearing /desk/code is the
-    ::  stop-the-world lever: the guest goes inert until code is
-    ::  materialized back in.
-    =/  jon=(unit json)  (de:json:html body)
-    =/  axis
-      ?.  &(?=(^ jon) ?=(%o -.u.jon))  ~
-      (~(get by p.u.jon) 'axis')
-    ?.  ?=([~ %s *] axis)
-      ;<  ~  bind:m  (respond eyre-id rail 400 'need axis')
-      (pure:m ~)
-    =/  dir=path  ?:(=('code' p.u.axis) /desk/code /desk/data)
-    ~&  >  [%desk-clear-contents dir=dir]
-    ;<  ~  bind:m  (cull-dir rail dir)
-    (respond eyre-id rail 200 'cleared')
-  ::
       [%clear ~]
     ::  tombstone a checkpoint: drop the fold hist entry (tags and
     ::  silo refs go with it). The runtime refuses the live top.
@@ -1008,6 +1113,41 @@
     ~&  >  [%desk-clear dir=dir ud=u.ud]
     ;<  ~  bind:m  (lose:io (nex-road:io rail [%| dir]) [%numb `u.ud `u.ud])
     (respond eyre-id rail 200 'cleared')
+  ::
+      [%clear-checkpoints ~]
+    ::  bulk tombstone: every checkpoint, or every one at/below a
+    ::  revision (inclusive). The live top is always spared — the
+    ::  runtime refuses it anyway, and losing it would fail the batch.
+    =/  jon=(unit json)  (de:json:html body)
+    ?.  &(?=(^ jon) ?=(%o -.u.jon))
+      ;<  ~  bind:m  (respond eyre-id rail 400 'bad body')
+      (pure:m ~)
+    =/  axis  (~(get by p.u.jon) 'axis')
+    ?.  ?=([~ %s *] axis)
+      ;<  ~  bind:m  (respond eyre-id rail 400 'need axis')
+      (pure:m ~)
+    =/  dir=path  ?:(=('code' p.u.axis) /desk/code /desk/data)
+    =/  before=(unit @ud)  (json-num (~(get by p.u.jon) 'before'))
+    ;<  hist=(each binfo tang)  bind:m  (born:io (nex-road:io rail [%| dir]))
+    ?:  ?=(%| -.hist)
+      ;<  ~  bind:m  (respond eyre-id rail 400 'cannot read history')
+      (pure:m ~)
+    =/  top=@ud
+      %+  roll  p.hist
+      |=  [b=[=cass:clay tags=(set @t) tomb=?] mx=@ud]
+      (max mx ud.cass.b)
+    =/  targets=(list @ud)
+      %+  murn  p.hist
+      |=  [=cass:clay tags=(set @t) tomb=?]
+      ^-  (unit @ud)
+      ?:  |(tomb =(~ tags) =(ud.cass top))  ~
+      ?.  ?|(?=(~ before) (lte ud.cass u.before))  ~
+      `ud.cass
+    ~&  >  [%desk-clear-checkpoints dir=dir before=before count=(lent targets)]
+    |-  ^-  form:m
+    ?~  targets  (respond eyre-id rail 200 'cleared')
+    ;<  ~  bind:m  (lose:io (nex-road:io rail [%| dir]) [%numb `i.targets `i.targets])
+    $(targets t.targets)
   ==
 ::
 ++  redirect
@@ -1020,211 +1160,4 @@
   ;<  ~  bind:m  (~(send-data http-res:io main-road) eyre-id ~)
   (pure:m ~)
 ::
-::
-::  HTML rendering
-::
-++  render-page
-  ^-  manx
-  ;html
-    ;head
-      ;title: Desk
-      ;meta(charset "utf-8");
-      ;meta(name "viewport", content "width=device-width, initial-scale=1");
-      ;style
-        ;+  ;/  page-css
-      ==
-    ==
-    ;body
-      ;h1: Desk
-      ;div(class "section")
-        ;h2: Source
-        ;div(class "config-form")
-          ;input#source-input(type "text", placeholder "~ship/path or /local/path");
-          ;button(class "btn btn-grn", onclick "setSource()"): Set Source
-          ;button#fetch-btn(class "btn", onclick "fetchLatest()"): Fetch Latest
-          ;button#publish-btn(class "btn", onclick "togglePublish()"): ...
-        ==
-        ;div(class "status")
-          ;span(class "label"): Status:
-          ;span#status: ...
-        ==
-        ;div(class "status")
-          ;span(class "label"): Version:
-          ;span#version: ...
-        ==
-      ==
-      ;div(class "section")
-        ;h2: Code Checkpoints
-        ;div#code-ckpts
-          ;div(class "muted"): loading...
-        ==
-        ;div(class "config-form")
-          ;input#code-label(type "text", placeholder "label (optional)");
-          ;button(class "btn btn-grn", onclick "checkpointNow('code')"): Checkpoint Now
-          ;button(class "btn btn-red", onclick "clearContents('code')"): Clear Contents
-        ==
-        ;div#code-tree(class "tree");
-      ==
-      ;div(class "section")
-        ;h2: Data Checkpoints
-        ;div#data-ckpts
-          ;div(class "muted"): loading...
-        ==
-        ;div(class "config-form")
-          ;input#data-label(type "text", placeholder "label (optional)");
-          ;button(class "btn btn-grn", onclick "checkpointNow('data')"): Checkpoint Now
-        ==
-        ;div#data-tree(class "tree");
-      ==
-      ;script
-        ;+  ;/  page-js
-      ==
-    ==
-  ==
-::
-++  page-css
-  ^-  tape
-  ;:  weld
-    "* \{ margin:0; padding:0; box-sizing:border-box; }"
-    "body \{ font-family:monospace; max-width:600px; margin:0 auto; padding:1.5rem; background:#fafafa; color:#111; font-size:14px; }"
-    "h1 \{ font-size:1.3rem; margin-bottom:1rem; }"
-    "h2 \{ font-size:1rem; margin-bottom:.5rem; }"
-    ".section \{ background:#fff; border:1px solid #ddd; border-radius:6px; padding:.75rem; margin-bottom:.75rem; }"
-    ".config-form \{ display:flex; gap:.5rem; margin-bottom:.5rem; }"
-    ".config-form input \{ font-family:monospace; font-size:16px; padding:.3rem .5rem; border:1px solid #ccc; border-radius:4px; flex:1; min-width:0; }"
-    ".status \{ font-size:.85rem; margin-bottom:.25rem; }"
-    ".status .label \{ font-weight:bold; margin-right:.5rem; }"
-    ".btn \{ font-family:monospace; font-size:.8rem; padding:.3rem .75rem; border:1px solid #ccc; border-radius:4px; background:#fff; cursor:pointer; }"
-    ".btn:hover \{ background:#eee; }"
-    ".btn-grn \{ color:#2a2; border-color:#2a2; }"
-    ".btn-grn:hover \{ background:#dfd; }"
-    ".btn-red \{ color:#c22; border-color:#c22; margin-left:.4rem; }"
-    ".btn-red:hover \{ background:#fdd; }"
-    ".btn-grn \{ margin-left:.4rem; }"
-    ".tree \{ margin-top:.75rem; padding-top:.5rem; border-top:1px solid #ddd; }"
-    ".tree-hdr \{ font-size:.75rem; font-weight:bold; color:#666; margin-bottom:.25rem; }"
-    ".tree-hdr a \{ color:#26c; margin-left:.5rem; font-weight:normal; }"
-    ".tree-row \{ display:flex; justify-content:space-between; font-size:.8rem; padding:.1rem 0; }"
-    ".muted \{ color:#999; font-size:.85rem; }"
-    ".row \{ display:flex; justify-content:space-between; align-items:center; gap:.5rem; font-size:.85rem; padding:.25rem 0; border-bottom:1px solid #eee; }"
-    ".row:last-child \{ border-bottom:none; }"
-    ".row-label \{ flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }"
-    ".btns \{ white-space:nowrap; flex-shrink:0; }"
-    ".btns .btn \{ padding:.15rem .45rem; font-size:.7rem; margin-left:.3rem; }"
-  ==
-::
-++  page-js
-  ^-  tape
-  ;:  weld
-    "var BASE=window.location.pathname;"
-    "if(!BASE.endsWith('/'))BASE+='/';"
-    "function setSource()\{"
-    "  var src=document.getElementById('source-input').value.trim();"
-    "  fetch(BASE+'set-source',\{method:'POST',body:src}).then(function()\{load()});"
-    "}"
-    "function materialize(axis,ud)\{"
-    "  if(!confirm('Materialize '+axis+' at revision '+ud+'?'))return;"
-    "  var body=\{};body[axis]=ud;"
-    "  fetch(BASE+'restore',\{method:'POST',body:JSON.stringify(body)})"
-    "    .then(function()\{load()});"
-    "}"
-    "function clearCkpt(axis,ud)\{"
-    "  if(!confirm('Clear '+axis+' checkpoint at revision '+ud+'? This frees its storage.'))return;"
-    "  fetch(BASE+'clear',\{method:'POST',body:JSON.stringify(\{axis:axis,ud:ud})})"
-    "    .then(function()\{load()});"
-    "}"
-    "function togglePublish()\{"
-    "  fetch(BASE+'publish',\{method:'POST'}).then(function()\{load()});"
-    "}"
-    "function fetchLatest()\{"
-    "  fetch(BASE+'fetch-latest',\{method:'POST'})"
-    "    .then(function(r)\{if(!r.ok)r.text().then(alert);load()});"
-    "}"
-    "function clearContents(axis)\{"
-    "  if(!confirm('Clear ALL current '+axis+' contents? '+(axis==='code'?'The desk goes inert until code is materialized back.':'Current data is removed.')+' Checkpointed history is untouched.'))return;"
-    "  fetch(BASE+'clear-contents',\{method:'POST',body:JSON.stringify(\{axis:axis})})"
-    "    .then(function()\{load()});"
-    "}"
-    "function checkpointNow(axis)\{"
-    "  var label=document.getElementById(axis+'-label').value.trim();"
-    "  fetch(BASE+'checkpoint',\{method:'POST',body:JSON.stringify(\{axis:axis,label:label})})"
-    "    .then(function()\{document.getElementById(axis+'-label').value='';load()});"
-    "}"
-    "function ckptLabel(tags)\{"
-    "  var out=tags.filter(function(t)\{return t!=='checkpoint'});"
-    "  return out.length?out.join(' '):null;"
-    "}"
-    "function renderList(el,rows,axis)\{"
-    "  el.innerHTML='';"
-    "  if(!rows.length)\{el.innerHTML='<div class=muted>no checkpoints yet</div>';return;}"
-    "  rows.slice().reverse().forEach(function(r)\{"
-    "    var div=document.createElement('div');div.className='row';"
-    "    var v=ckptLabel(r.tags);"
-    "    var when=new Date(r.da).toLocaleString();"
-    "    var label=(v?v+' \\u00b7 ':'')+'rev '+r.ud+' \\u00b7 '+when;"
-    "    var span=document.createElement('span');span.textContent=label;"
-    "    span.className='row-label';"
-    "    var btns=document.createElement('span');btns.className='btns';"
-    "    var mat=document.createElement('button');"
-    "    mat.className='btn btn-grn';mat.textContent='Materialize';"
-    "    mat.onclick=function()\{materialize(axis,r.ud)};"
-    "    var pre=document.createElement('button');"
-    "    pre.className='btn';pre.textContent='Preview';"
-    "    pre.onclick=function()\{loadTree(axis,r.ud)};"
-    "    var clr=document.createElement('button');"
-    "    clr.className='btn btn-red';clr.textContent='Clear';"
-    "    clr.onclick=function()\{clearCkpt(axis,r.ud)};"
-    "    btns.appendChild(pre);btns.appendChild(mat);btns.appendChild(clr);"
-    "    div.appendChild(span);div.appendChild(btns);el.appendChild(div);"
-    "  });"
-    "}"
-    "function loadTree(axis,ud)\{"
-    "  var url=BASE+'tree/'+axis+(ud==null?'':'/'+ud);"
-    "  fetch(url).then(function(r)\{return r.json()}).then(function(t)\{"
-    "    renderTree(document.getElementById(axis+'-tree'),axis,t.files,ud);"
-    "  });"
-    "}"
-    "function renderTree(el,axis,files,ud)\{"
-    "  el.innerHTML='';"
-    "  var hdr=document.createElement('div');hdr.className='tree-hdr';"
-    "  hdr.textContent=ud==null?'current files':'files at rev '+ud+' (preview) ';"
-    "  if(ud!=null)\{"
-    "    var back=document.createElement('a');back.href='#';back.textContent='back to current';"
-    "    back.onclick=function(e)\{e.preventDefault();loadTree(axis,null)};"
-    "    hdr.appendChild(back);"
-    "  }"
-    "  el.appendChild(hdr);"
-    "  if(!files.length)\{"
-    "    var mt=document.createElement('div');mt.className='muted';"
-    "    mt.textContent='(empty)';el.appendChild(mt);return;"
-    "  }"
-    "  files.sort(function(a,b)\{return (a.path+a.name)<(b.path+b.name)?-1:1});"
-    "  files.forEach(function(f)\{"
-    "    var div=document.createElement('div');div.className='tree-row';"
-    "    var full=(f.path==='/'?'':f.path)+'/'+f.name;"
-    "    var nm=document.createElement('span');nm.textContent=full;"
-    "    var bl=document.createElement('span');bl.className='muted';bl.textContent=f.blot;"
-    "    div.appendChild(nm);div.appendChild(bl);el.appendChild(div);"
-    "  });"
-    "}"
-    "function load()\{"
-    "  fetch(BASE+'state').then(function(r)\{return r.json()}).then(function(s)\{"
-    "    document.getElementById('source-input').value=s.config.source||'';"
-    "    document.getElementById('status').textContent="
-    "      (s.config.source?'subscribed':'not configured')+"
-    "      (s.config.public?' \\u00b7 published':' \\u00b7 private');"
-    "    document.getElementById('publish-btn').textContent="
-    "      s.config.public?'Unpublish':'Publish';"
-    "    document.getElementById('publish-btn').style.display="
-    "      s.config.source?'none':'';"
-    "    document.getElementById('fetch-btn').style.display="
-    "      s.config.source?'':'none';"
-    "    document.getElementById('version').textContent=s.version;"
-    "    renderList(document.getElementById('code-ckpts'),s.code,'code');"
-    "    renderList(document.getElementById('data-ckpts'),s.data,'data');"
-    "    loadTree('code',null);loadTree('data',null);"
-    "  });"
-    "}"
-    "load();"
-  ==
 --
