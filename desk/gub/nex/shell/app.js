@@ -345,8 +345,58 @@ var API='/grubbery/api';var BALL='apps/tiles.tiles';
   function closeGetNow() {
     document.getElementById('get-backdrop').classList.remove('open');
   }
+  function openDesks() {
+    document.getElementById('desks-backdrop').classList.add('open');
+    loadDesks();
+  }
+  function closeDesks(e) {
+    if (e.target === document.getElementById('desks-backdrop')) closeDesksNow();
+  }
+  function closeDesksNow() {
+    document.getElementById('desks-backdrop').classList.remove('open');
+  }
+  function loadDesks() {
+    var box = document.getElementById('desks-list');
+    box.innerHTML = '<div class="peer-spin"><div class="spinner"></div></div>';
+    fetch('/grubbery/tiles/desks/list')
+      .then(function(r) { return r.json(); })
+      .then(function(desks) {
+        box.innerHTML = '';
+        if (!desks.length) { box.innerHTML = '<div class="papp-none">no desks yet.</div>'; return; }
+        desks.forEach(function(d) {
+          var src = d.source || '';
+          var srcLabel = src ? ((src[0] === '~' ? 'foreign source: ' : 'local source: ') + src) : 'no source';
+          var pub = !!d.public;
+          var row = document.createElement('div');
+          row.className = 'papp';
+          row.innerHTML =
+            '<div class="papp-body">' +
+              '<div class="papp-title">' + escP(d.name) + (d.version ? ' - v' + escP(d.version) : '') + '</div>' +
+              '<div class="papp-sub">' + escP(srcLabel) + '</div>' +
+            '</div>' +
+            '<button class="papp-get" data-app="' + escP(d.name) + '" data-pub="' + (pub ? '1' : '0') + '">' +
+              (pub ? 'Unpublish' : 'Publish') + '</button>';
+          box.appendChild(row);
+        });
+        Array.prototype.forEach.call(box.querySelectorAll('[data-app]'), function(b) {
+          b.onclick = function() {
+            var next = b.getAttribute('data-pub') !== '1';
+            b.disabled = true;
+            b.textContent = '...';
+            fetch('/grubbery/tiles/desks/config', {
+              method: 'POST',
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify({ app: b.getAttribute('data-app'), public: next })
+            }).then(function() { setTimeout(loadDesks, 400); });
+          };
+        });
+      })
+      .catch(function(e) {
+        box.innerHTML = '<div class="papp-none">failed to load desks: ' + escP(String((e && e.message) || e)) + '</div>';
+      });
+  }
   function peerPost(path, body) {
-    return fetch('/grubbery/desks/' + path, {
+    return fetch('/grubbery/tiles/desks/' + path, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(body)
@@ -394,7 +444,7 @@ var API='/grubbery/api';var BALL='apps/tiles.tiles';
       .filter(function(s) { return s.charAt(0) === '/' || s.slice(0, 2) === '..'; });
   }
   function openInstall(a, btn) {
-    fetch('/grubbery/desks/taken')
+    fetch('/grubbery/tiles/desks/taken')
       .then(function(r) { return r.json(); })
       .then(function(taken) { renderInstall(a, btn, taken); });
   }
@@ -460,7 +510,7 @@ var API='/grubbery/api';var BALL='apps/tiles.tiles';
       });
   }
   function loadPeers() {
-    fetch('/grubbery/desks/peers')
+    fetch('/grubbery/tiles/desks/peers')
       .then(function(r) { return r.json(); })
       .then(function(groups) {
         peerGroups = groups;
@@ -506,6 +556,10 @@ var API='/grubbery/api';var BALL='apps/tiles.tiles';
         Array.prototype.forEach.call(box.querySelectorAll('[data-ship]'), function(b) {
           b.onclick = function() { peerDel(b.getAttribute('data-ship')); };
         });
+      })
+      .catch(function(e) {
+        document.getElementById('peer-lists').innerHTML =
+          '<div class="papp-none">failed to load peers: ' + escP(String((e && e.message) || e)) + '</div>';
       });
   }
   var peerContacts = [];

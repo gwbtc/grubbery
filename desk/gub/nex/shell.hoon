@@ -297,6 +297,79 @@
           =/  code=@ud  ?~(err 200 500)
           ;<  ~  bind:m  (send-simple:srv eyre-id [[code ~] `(as-octs:mimes:html ?~(err 'ok' 'failed'))])
           (pure:m ~)
+        ::  POST /desks/peers {add|del: ship}: forward to our own peers.json
+        ::  fiber (folded in from the retired /desks nexus).
+        ?:  &(=('POST' method.request.req) ?=([%desks %peers ~] suffix))
+          =/  jon=json
+            %+  fall  (de:json:html ?~(body.request.req '' q.u.body.request.req))
+            *json
+          ;<  ~  bind:m  (poke:io (nex-road:io rail [%& / %'peers.json']) [[/ %json] jon])
+          ;<  ~  bind:m  (send-simple:srv eyre-id [[200 ~] `(as-octs:mimes:html 'ok')])
+          (pure:m ~)
+        ::  POST /desks/add {name, source, public}: install a peer's shared
+        ::  desk as a local cross-ship /desk (git_desk is retired). Make a
+        ::  trusted [/ %desk] wrapper (weir ~ — it enforces via apply-bill),
+        ::  point its source at the peer, and the /desk syncs it.
+        ?:  &(=('POST' method.request.req) ?=([%desks %add ~] suffix))
+          =/  jon=json
+            %+  fall  (de:json:html ?~(body.request.req '' q.u.body.request.req))
+            *json
+          =/  name=@t  (jstr jon 'name')
+          ?:  =('' name)
+            ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'name required')])
+            (pure:m ~)
+          =/  dir-path=path  /apps/[(cat 3 `@ta`name '.desk')]
+          ;<  live=?  bind:m  (peek-exists:io [%& %| dir-path])
+          ?:  live
+            ;<  ~  bind:m  (send-simple:srv eyre-id [[409 ~] `(as-octs:mimes:html 'a desk by that name already exists')])
+            (pure:m ~)
+          ;<  ~  bind:m
+            (make:io [%& %| dir-path] &+`bole:tarball`[`[`[/ %desk] ~ %.n ~] ~])
+          =/  config=json
+            %-  pairs:enjs:format
+            :~  ['source' s+(jstr jon 'source')]
+                ['public' b+(jbol jon 'public')]
+            ==
+          ;<  ~  bind:m  (poke:io [%& %& dir-path %'config.json'] [[/ %json] config])
+          ;<  ~  bind:m  (send-simple:srv eyre-id [[200 ~] `(as-octs:mimes:html 'created')])
+          (pure:m ~)
+        ::  POST /desks/delete {app}: cull the /apps/<app> subtree.
+        ?:  &(=('POST' method.request.req) ?=([%desks %delete ~] suffix))
+          =/  jon=json
+            %+  fall  (de:json:html ?~(body.request.req '' q.u.body.request.req))
+            *json
+          =/  app=@t  (jstr jon 'app')
+          ?:  =('' app)
+            ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'app required')])
+            (pure:m ~)
+          ;<  ~  bind:m  (cull:io [%& %| /apps/[(crip (trip app))]])
+          ;<  ~  bind:m  (send-simple:srv eyre-id [[200 ~] `(as-octs:mimes:html 'deleted')])
+          (pure:m ~)
+        ::  POST /desks/config {app, source?, public?}: merge into a desk's
+        ::  config.json — the publish toggle (public) and source edits. Only
+        ::  the fields the form sends are written; the rest are untouched.
+        ?:  &(=('POST' method.request.req) ?=([%desks %config ~] suffix))
+          =/  jon=json
+            %+  fall  (de:json:html ?~(body.request.req '' q.u.body.request.req))
+            *json
+          =/  app=@t  (jstr jon 'app')
+          ?:  =('' app)
+            ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'app required')])
+            (pure:m ~)
+          =/  cfg-road=road:tarball  [%& %& /apps/[(crip (trip app))] %'config.json']
+          ;<  old=(unit json)  bind:m  (peek-as:io cfg-road ,json)
+          =/  om=(map @t json)  ?:(?=([~ %o *] old) p.u.old ~)
+          =/  jm=(map @t json)  ?:(?=([%o *] jon) p.jon ~)
+          =/  put-present
+            |=  [mp=(map @t json) k=@t]
+            ^-  (map @t json)
+            =/  v  (~(get by jm) k)
+            ?~(v mp (~(put by mp) k u.v))
+          =.  om  (put-present om 'source')
+          =.  om  (put-present om 'public')
+          ;<  ~  bind:m  (poke:io cfg-road [[/ %json] [%o om]])
+          ;<  ~  bind:m  (send-simple:srv eyre-id [[200 ~] `(as-octs:mimes:html 'configured')])
+          (pure:m ~)
         ::  tile store, served from the tiles data ball over the namespace
         ::  /grubbery/tiles/tiles.json → all tile data
         ?:  ?=([%'tiles.json' ~] suffix)
@@ -401,6 +474,33 @@
           (pure:m ~)
         ::  /apps/grubbery/aliases.json → the alias directory as menus:
         ::  app-declared alias.json options merged with your stored ones.
+        ::  /grubbery/tiles/desks/peers → peers' published desks, enriched
+        ::  for the "add apps" browser (folded in from the retired /desks).
+        ?:  ?=([%desks %peers ~] suffix)
+          ;<  lst=json  bind:m  gather-peers
+          =/  bod=octs  (as-octs:mimes:html (en:json:html lst))
+          ;<  ~  bind:m
+            (send-simple:srv eyre-id [[200 ~[['content-type' 'application/json']]] `bod])
+          (pure:m ~)
+        ::  /grubbery/tiles/desks/taken → every /apps child name, for
+        ::  install-name availability checks.
+        ?:  ?=([%desks %taken ~] suffix)
+          ;<  =view:nexus  bind:m  (peek-shallow:io [%& %| /apps] ~)
+          =/  names=(list @ta)
+            ?.  ?=([%ball *] view)  ~
+            ~(tap in ~(key by dir.ball.view))
+          =/  lst=json  a+(turn names |=(n=@ta `json`s+`@t`n))
+          =/  bod=octs  (as-octs:mimes:html (en:json:html lst))
+          ;<  ~  bind:m
+            (send-simple:srv eyre-id [[200 ~[['content-type' 'application/json']]] `bod])
+          (pure:m ~)
+        ::  /grubbery/tiles/desks/list → your local desks, for the publish UI.
+        ?:  ?=([%desks %list ~] suffix)
+          ;<  lst=json  bind:m  discover-desks
+          =/  bod=octs  (as-octs:mimes:html (en:json:html lst))
+          ;<  ~  bind:m
+            (send-simple:srv eyre-id [[200 ~[['content-type' 'application/json']]] `bod])
+          (pure:m ~)
         ?:  ?=([%'aliases.json' ~] suffix)
           ;<  av=(unit json)  bind:m
             (peek-as:io (nex-road:io rail [%& /cache %'aliases.json']) ,json)
@@ -460,6 +560,221 @@
     --
 |%
 ++  srv  ~(. http-res:io [%| 1 %& ~ %'main.sig'])
+::  === peer-desk storefront (folded in from the retired /desks nexus) ===
+::  +gather-peers: every mirrored peer directory, each published desk
+::  enriched with tile metadata, icon, and version read through the peer's
+::  public grants. This is the "add apps" browser's backend.
+::
+++  gather-peers
+  =/  m  (fiber:fiber:nexus ,json)
+  ^-  form:m
+  ;<  =view:nexus  bind:m
+    (peek:io [%& %| /apps/'shell.shell'/peers] ~)
+  ?.  ?=([%ball *] view)  (pure:m a+~)
+  ?~  fil.ball.view  (pure:m a+~)
+  =/  entries=(list [n=@ta =sang:tarball gain=? bang=(unit tang)])
+    ~(tap by contents.u.fil.ball.view)
+  ;<  srcs=(map @t @t)  bind:m  installed-sources
+  ;<  out=(list json)  bind:m  (peer-groups entries srcs)
+  (pure:m a+out)
+::  +installed-sources: source string -> local desk dir name for every
+::  configured local desk, for marking peer listings already installed.
+::
+++  installed-sources
+  =/  m  (fiber:fiber:nexus ,(map @t @t))
+  ^-  form:m
+  ;<  =view:nexus  bind:m  (peek-shallow:io [%& %| /apps] ~)
+  ?.  ?=([%ball *] view)  (pure:m ~)
+  =/  kids=(list @ta)  ~(tap in ~(key by dir.ball.view))
+  =|  acc=(map @t @t)
+  |-
+  ?~  kids  (pure:m acc)
+  ;<  cfg=(unit json)  bind:m
+    (peek-as:io [%& %& /apps/[i.kids] %'config.json'] ,json)
+  ?~  cfg  $(kids t.kids)
+  =/  src=@t  (jstr u.cfg 'source')
+  ?:  =('' src)  $(kids t.kids)
+  $(kids t.kids, acc (~(put by acc) src `@t`i.kids))
+::
+++  peer-groups
+  |=  [entries=(list [n=@ta =sang:tarball gain=? bang=(unit tang)]) srcs=(map @t @t)]
+  =/  m  (fiber:fiber:nexus ,(list json))
+  ^-  form:m
+  ?~  entries  (pure:m ~)
+  ;<  one=json  bind:m  (peer-group i.entries srcs)
+  ;<  rest=(list json)  bind:m  $(entries t.entries)
+  (pure:m [one rest])
+::
+++  peer-group
+  |=  [[n=@ta =sang:tarball gain=? bang=(unit tang)] srcs=(map @t @t)]
+  =/  m  (fiber:fiber:nexus ,json)
+  ^-  form:m
+  =/  t=tape  (trip n)
+  =/  s=@t  (crip (scag (sub (lent t) 5) t))
+  =/  paths=(list @t)
+    ?:  (is-boom:tarball sang)  ~
+    =/  r=(each json tang)
+      (mule |.(!<(json (need-vase:tarball sang))))
+    ?:  ?=(%| -.r)  ~
+    ?.  ?=(%a -.p.r)  ~
+    (murn p.p.r |=(j=json ?:(?=([%s *] j) `p.j ~)))
+  ;<  apps=(list json)  bind:m  (peer-apps s paths srcs)
+  (pure:m (pairs:enjs:format ~[['ship' s+s] ['apps' a+apps]]))
+::
+++  peer-apps
+  |=  [s=@t paths=(list @t) srcs=(map @t @t)]
+  =/  m  (fiber:fiber:nexus ,(list json))
+  ^-  form:m
+  ?~  paths  (pure:m ~)
+  ;<  one=json  bind:m  (peer-app s i.paths srcs)
+  ;<  rest=(list json)  bind:m  $(paths t.paths)
+  (pure:m [one rest])
+::  +peer-app: one published desk as a card — tile metadata and icon from
+::  a shallow peek of its code tree, version from canonical file names.
+::
+++  peer-app
+  |=  [s=@t p=@t srcs=(map @t @t)]
+  =/  m  (fiber:fiber:nexus ,json)
+  ^-  form:m
+  =/  dp=(unit path)  (rush p stap)
+  ?~  dp  (pure:m (pairs:enjs:format ~[['path' s+p]]))
+  =/  base=path  (weld /sys/ames/ships/[s]/root u.dp)
+  =/  nam=@t  (app-slug (rear u.dp))
+  ;<  cv=view:nexus  bind:m
+    (peek-shallow:io [%& %| (weld base /desk/code)] ~)
+  =/  [title=@t info=@t color=@t icon=(unit @ta)]
+    ?.  ?=([%ball *] cv)  [nam '' '' ~]
+    ?~  fil.ball.cv  [nam '' '' ~]
+    =/  cs  contents.u.fil.ball.cv
+    =/  tj=json
+      =/  tf  (~(get by cs) %'tile.json')
+      ?~  tf  [%o ~]
+      ?:  (is-boom:tarball sang.u.tf)  [%o ~]
+      =/  r=(each json tang)
+        (mule |.(!<(json (need-vase:tarball sang.u.tf))))
+      ?:(?=(%| -.r) [%o ~] p.r)
+    =/  ic=(unit @ta)
+      =/  ks=(list @ta)  ~(tap in ~(key by cs))
+      |-  ^-  (unit @ta)
+      ?~  ks  ~
+      ?:  =('icon.' (end [3 5] i.ks))  `i.ks
+      $(ks t.ks)
+    :^    ?:(=('' (jstr tj 'title')) nam (jstr tj 'title'))
+        (jstr tj 'info')
+      (jstr tj 'color')
+    ic
+  ;<  ver=(unit @t)  bind:m  (try-version base)
+  =/  icon-url=json
+    ?~  icon  ~
+    s+(crip "/grubbery/ball{(spud (weld base /desk/code))}/{(trip u.icon)}?raw=1")
+  %-  pure:m
+  %-  pairs:enjs:format
+  :~  ['path' s+p]
+      ['name' s+nam]
+      ['title' s+title]
+      ['info' s+info]
+      ['color' s+color]
+      ['version' ?~(ver ~ s+u.ver)]
+      ['icon' icon-url]
+      ['source' s+(cat 3 s p)]
+      ['installed' b+(~(has by srcs) (cat 3 s p))]
+      ['local' ?~((~(get by srcs) (cat 3 s p)) ~ s+(need (~(get by srcs) (cat 3 s p))))]
+  ==
+::  +try-version: a remote desk's version through canonical file names,
+::  since its root is not listable.
+::
+++  try-version
+  |=  base=path
+  =/  m  (fiber:fiber:nexus ,(unit @t))
+  ^-  form:m
+  =/  names=(list @ta)  ~[%'version.txt' %'version.ud' %'version.json']
+  |-  ^-  form:m
+  ?~  names  (pure:m ~)
+  ;<  vv=view:nexus  bind:m  (peek:io [%& %& base i.names] ~)
+  ?.  ?=([%file *] vv)  $(names t.names)
+  ?:  (is-boom:tarball sang.vv)  $(names t.names)
+  =/  nun  (sang-noun:tarball sang.vv)
+  ?+    p.sang.vv  $(names t.names)
+      [~ %ud]
+    =/  x  ((soft @ud) nun)
+    ?~  x  $(names t.names)
+    (pure:m `(crip (a-co:co u.x)))
+      [~ %txt]
+    =/  w  ((soft wain) nun)
+    ?~  w  $(names t.names)
+    ?~  u.w  $(names t.names)
+    (pure:m `i.u.w)
+  ==
+::  +jstr: a string field from a json object, '' if absent.
+::
+++  jstr
+  |=  [jon=json k=@t]
+  ^-  @t
+  ?.  ?=([%o *] jon)  ''
+  =/  v  (~(get by p.jon) k)
+  ?.(?=([~ %s *] v) '' p.u.v)
+::  +jbol: a boolean field from a json object, %.n if absent.
+::
+++  jbol
+  |=  [jon=json k=@t]
+  ^-  ?
+  ?.  ?=([%o *] jon)  %.n
+  =/  v  (~(get by p.jon) k)
+  ?.(?=([~ %b *] v) %.n p.u.v)
+::  +discover-desks: every local /apps/<x>.desk with its source, version,
+::  and public flag — the "your desks / publish" list. (git_desk retired.)
+::
+++  discover-desks
+  =/  m  (fiber:fiber:nexus ,json)
+  ^-  form:m
+  ;<  =view:nexus  bind:m  (peek:io [%& %| /apps] ~)
+  ?.  ?=([%ball *] view)  (pure:m a+~)
+  =/  apps=(list @ta)  ~(tap in ~(key by dir.ball.view))
+  ;<  cards=(list json)  bind:m  (gather-desks apps)
+  (pure:m a+cards)
+::
+++  gather-desks
+  |=  apps=(list @ta)
+  =/  m  (fiber:fiber:nexus ,(list json))
+  ^-  form:m
+  ?~  apps  (pure:m ~)
+  ;<  one=(unit json)  bind:m  (desk-card i.apps)
+  ;<  rest=(list json)  bind:m  $(apps t.apps)
+  (pure:m ?~(one rest [u.one rest]))
+::
+++  desk-card
+  |=  app=@ta
+  =/  m  (fiber:fiber:nexus ,(unit json))
+  ^-  form:m
+  ?.  =('desk' (desk-suffix app))  (pure:m ~)
+  ;<  cfg=(unit json)  bind:m
+    (peek-as:io [%& %& /apps/[app] %'config.json'] ,json)
+  ;<  vj=(unit json)  bind:m
+    (peek-as:io [%& %& /apps/[app] %'version.json'] ,json)
+  =/  ver=@ud
+    ?.  ?=([~ %o *] vj)  0
+    =/  v  (~(get by p.u.vj) 'version')
+    ?.  ?=([~ %n *] v)  0
+    (fall (rush p.u.v dem) 0)
+  =/  cm=(map @t json)  ?:(?=([~ %o *] cfg) p.u.cfg ~)
+  =/  get  |=(k=@t `json`(~(gut by cm) k ~))
+  %-  pure:m  :-  ~
+  %-  pairs:enjs:format
+  :~  ['name' s+app]
+      ['version' (numb:enjs:format ver)]
+      ['source' (get 'source')]
+      ['public' (get 'public')]
+      ['url' s+(cat 3 '/grubbery/desk/' (app-slug app))]
+  ==
+::  +desk-suffix: the extension after the last dot ('foo.desk' -> 'desk').
+::
+++  desk-suffix
+  |=  app=@ta
+  ^-  @t
+  =/  t=tape  (trip app)
+  =/  idx=(unit @ud)  (find "." (flop t))
+  ?~  idx  ''
+  (crip (slag (sub (lent t) u.idx) t))
 ::  the home favicon: the launcher grid itself
 ::
 ++  shell-icon
@@ -1584,6 +1899,7 @@
           ==
           ;button#add-btn.hdr-btn(onclick "addTile()"): + New
           ;button#get-btn.hdr-btn(onclick "openGet()"): Get Apps
+          ;button#desks-btn.hdr-btn(onclick "openDesks()"): Desks
         ==
         ;div#bell-backdrop(onclick "closeBell(event)")
           ;div#bell-panel
@@ -1619,6 +1935,15 @@
                 ;div#inst-foot;
               ==
             ==
+          ==
+        ==
+        ;div#desks-backdrop(onclick "closeDesks(event)")
+          ;div#desks-panel
+            ;div#desks-head
+              ;span: Your desks
+              ;button.hdr-btn(onclick "closeDesksNow()"): close
+            ==
+            ;div#desks-list;
           ==
         ==
         ;div#edit-backdrop
