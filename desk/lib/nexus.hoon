@@ -366,15 +366,17 @@
     |=  [=hist cas=cass:clay =pace]
     ^-  ^hist
     (put:hon hist cas [pace ~])
-  ::  +tag: add tags to an existing hist entry (union — tags only
-  ::  accumulate; removal happens via %lose tombstoning the entry)
+  ::  +tag: set the tags on an existing hist entry (replace — the caller
+  ::  hands the full desired set, so this both adds and removes). Tags are
+  ::  ordinary mutable metadata on the entry; %lose still tombstones the
+  ::  whole revision, this just rewrites its label set.
   ::
   ++  tag
     |=  [=hist cas=cass:clay tags=(set @t)]
     ^-  ^hist
     =/  got=(unit entry)  (get:hon hist cas)
     ?~  got  hist
-    (put:hon hist cas u.got(tags (~(uni in tags.u.got) tags)))
+    (put:hon hist cas u.got(tags tags))
   ++  top
     |=  =hist
     ^-  (unit cass:clay)

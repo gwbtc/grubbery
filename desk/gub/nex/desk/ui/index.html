@@ -1,0 +1,141 @@
+<!doctype html>
+<html>
+<head>
+  <title>desk</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2032%2032'%3E%3Crect%20width='32'%20height='32'%20rx='7'%20fill='%236947b8'/%3E%3Cpath%20d='M16%206l10%2010-10%2010L6%2016z'%20fill='white'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="ide">
+    <div id="topbar">
+      <span id="brand">&#9670; desk</span>
+      <span id="tb-name" class="chip"></span>
+      <span id="tb-source"></span>
+      <span id="tb-status" class="off">no source</span>
+      <div id="tb-actions">
+        <button id="fetch-btn" class="hdr-btn" onclick="fetchLatest()" style="display:none">Fetch Latest</button>
+      </div>
+    </div>
+    <div id="main-tabs">
+      <button class="main-tab" data-view="files">Files</button>
+      <button class="main-tab" data-view="snapshots">Snapshots</button>
+      <button class="main-tab" data-view="config">Config</button>
+    </div>
+    <div id="workspace">
+
+      <div id="view-files" class="view wide">
+        <div class="files-bar">
+          <div class="seg" id="axis-seg">
+            <button class="seg-btn active" data-axis="code">Code</button>
+            <button class="seg-btn" data-axis="data">Data</button>
+          </div>
+          <div class="seg" id="mode-seg">
+            <button class="seg-btn active" data-mode="live">Live</button>
+            <button class="seg-btn" data-mode="checkout">Checkout</button>
+          </div>
+          <label class="files-snap">checkout
+            <select id="snap-select"></select>
+          </label>
+          <span id="files-note" class="muted"></span>
+        </div>
+        <div class="split">
+          <div class="split-col col-tree">
+            <div class="col-head">files</div>
+            <div id="file-tree" class="tree"></div>
+          </div>
+          <div class="split-col col-view">
+            <div class="col-head">viewer</div>
+            <div id="file-view" class="viewer-pane"><div class="vp-empty muted">select a file</div></div>
+          </div>
+        </div>
+      </div>
+
+      <div id="view-snapshots" class="view wide">
+        <div class="view-head">Snapshots</div>
+        <p class="muted">Immutable world snapshots (code + data captured together). Take one now,
+          check one out to inspect, or compose a new live world from any of them.</p>
+        <div class="form-row">
+          <button id="snap-now-btn" class="hdr-btn" onclick="snapshotNow()">Snapshot Now</button>
+          <button class="hdr-btn primary" onclick="openCompose()">Compose Live&hellip;</button>
+        </div>
+        <div id="snap-list"><div class="muted">loading&hellip;</div></div>
+      </div>
+
+      <div id="view-config" class="view">
+        <div class="view-head">Config</div>
+        <div class="cfg-section">
+          <h3>Source</h3>
+          <p class="muted">A desk follows a source &mdash; you don't edit it in place. The
+            <b>version</b> file is watched for releases; the <b>code</b> directory is pulled into
+            <code>/desk/code</code> on each bump. Both required. Paths are <code>~ship/path</code>
+            or local <code>/path</code>.</p>
+          <label class="cfg-label">version
+            <input id="source-version" type="text" placeholder="~ship/apps/.../version.json">
+          </label>
+          <label class="cfg-label">code
+            <input id="source-code" type="text" placeholder="~ship/apps/.../code/">
+          </label>
+          <div class="form-row">
+            <button class="hdr-btn primary" onclick="setSource()">Set Source</button>
+          </div>
+        </div>
+        <div class="cfg-section">
+          <h3>Sharing</h3>
+          <p class="muted">Usergroups allowed to peek <code>/desk/code</code>.</p>
+          <div id="share-list"><div class="muted">loading&hellip;</div></div>
+          <div class="form-row">
+            <input id="share-input" type="text" placeholder="/usergroup">
+            <button class="hdr-btn primary" onclick="addShare()">Add</button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+    <div id="statusbar">
+      <span id="sb-version"></span>
+      <span id="sb-spacer"></span>
+      <button id="refresh-btn" class="icon-btn" onclick="load()">&#8635; refresh</button>
+    </div>
+  </div>
+
+  <div id="compose-back" onclick="if(event.target===this)closeCompose()">
+    <div id="compose">
+      <div id="compose-head"><span>Compose Live</span>
+        <button class="hdr-btn" onclick="closeCompose()">close</button></div>
+      <div id="compose-body">
+        <p class="muted">Build a new live world by choosing where code and data come from,
+          independently. The current world is snapshotted first, so this is recoverable.</p>
+        <label class="cfg-label">code from
+          <select id="compose-code"></select>
+        </label>
+        <label class="cfg-label">data from
+          <select id="compose-data"></select>
+        </label>
+        <div class="form-row">
+          <button class="hdr-btn primary" onclick="doCompose()">Compose Live</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="labels-back" onclick="if(event.target===this)closeLabels()">
+    <div id="labels">
+      <div id="labels-head"><span>Labels &middot; snapshot <b id="labels-n"></b></span>
+        <button class="hdr-btn" onclick="closeLabels()">close</button></div>
+      <div id="labels-body">
+        <div id="labels-chips"></div>
+        <div class="form-row">
+          <input id="labels-input" type="text" placeholder="new label" autocomplete="off">
+          <button class="hdr-btn primary" onclick="submitLabel()">Add</button>
+        </div>
+        <p class="muted">Freeform labels for this snapshot. Numbers are reserved for
+          snapshot identity.</p>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

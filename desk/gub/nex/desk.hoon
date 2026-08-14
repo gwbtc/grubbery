@@ -1,4 +1,4 @@
-::  desk nexus: sync code from a remote source with checkpoint safety
+::  desk nexus: sync code from a remote source with snapshot safety
 ::
 ::  source.json holds source as JSON string — a path pointing DIRECTLY
 ::  at a code directory to mirror, anywhere in the namespace:
@@ -10,7 +10,7 @@
 ::  Updates are version-gated: the source's code dir holds a version
 ::  file (any file named version.* whose mark renders to text). The
 ::  desk re-syncs when its content changes; the text is opaque, used
-::  only as a checkpoint tag. Code can change freely on the source —
+::  only as an opaque tag. Code can change freely on the source —
 ::  the desk won't update until the publisher bumps the version.
 ::
 ::  Layout — host/guest split:
@@ -32,26 +32,30 @@
 ::  guest resolves against /desk/code. Guests distribute every marc
 ::  they use — content-addressing dedupes shared marcs for free.
 ::
-::  Checkpoints live entirely in the born history. Before each code
-::  update the fold hists of /data and /code (plus the version file)
-::  firmed and tagged with the outgoing version — the fold pace lobe
-::  IS the merkle root of the subtree at that instant. One hash per
-::  axis per version; no manifest files.
+::  Snapshots are world-level and live in the born history. Each is a
+::  firm of BOTH /code and /data, tagged with a monotonic counter N
+::  (snapshot.ud) — the fold pace lobe IS the merkle root of the subtree
+::  at that instant. The initial snapshot is taken once; thereafter a
+::  version change snapshots the current world before the new code lands.
 ::
-::  Restore materializes any historical /data x /code pair:
-::  /code is nullified first (world stops — /data goes inert),
-::  then /data loads, then /code loads and everything comes alive.
+::  Compose Live (do-compose) is the only thing besides source-sync that
+::  mutates live: it snapshots first, then builds a new live world by
+::  choosing code from {live | snapshot N | none} and data from
+::  {live | snapshot M} — nullify code, load data, load code.
 ::
 /&  man       ../man/desk/readme.md
-/&  desk-html  desk/index.html
-/&  desk-js    desk/app.js
-/&  desk-css   desk/style.css
+/&  desk-html  desk/ui/index.html
+/&  desk-js    desk/ui/app.js
+/&  desk-css   desk/ui/style.css
 =<  ^-  nexus:nexus
     |%
 ++  on-load
   |=  =ball:tarball
   ^-  bole:tarball
   =/  code-dir=bole:tarball  [`[`[/ %code] ~ %.n ~] ~]
+  ::  inert-dir: a neck-less directory sealed with a [~ ~ ~] (permit-nothing)
+  ::  weir — files sit peekable, governed by nothing, able to reach nothing.
+  =/  inert-dir=bole:tarball  [`[~ `[~ ~ ~] %.n ~] ~]
   %+  spin:loader  ball
   :~  (manifest:loader 0)
       [%fall %& [/ %'source.json'] [[/ %json] (source-to-json *source-config)]]
@@ -61,21 +65,48 @@
       ::  desk grants peek on /desk/code. Poke it {add|remove: <group>};
       ::  it re-registers the grants. Born empty (open to nobody).
       [%fall %& [/ %'share.usergroups'] [[/ %usergroups] *(set path)]]
-      ::  checkout.desk_cass: which historical revision is materialized
-      ::  into /checkout (an inert scratch worktree), or ~ for live only.
-      ::  Poke it {ud, da} to check out; poke null to clear back to live.
-      [%fall %& [/ %'checkout.desk_cass'] [[/desk %cass] *(unit cass:clay)]]
+      ::  checkout.desk_snap: which world snapshot (snapshot N) is
+      ::  materialized into /checkout, or ~ for live only. Poke it {n: N}
+      ::  to check that snapshot out (both axes); poke null to clear.
+      ::  Reset to live on every load: /checkout's contents are re-boled
+      ::  (and thus cleared) below, so the pointer must not outlive them.
+      [%over %& [/ %'checkout.desk_snap'] [[/desk %snap] *(unit @ud)]]
+      ::  snapshot.ud: monotonic snapshot counter. Only ever increments
+      ::  (never reused, even after clears), so it is the stable identity
+      ::  of a world snapshot — both axes are tagged `snapshot N`.
+      [%fall %& [/ %'snapshot.ud'] [[/ %ud] 0]]
       [%fall %| /requests empty-dir:loader]
       [%fall %| /desk empty-dir:loader]
       [%fall %| /desk/code code-dir]
       [%fall %| /desk/data empty-dir:loader]
+      ::  /checkout is an inert inspection worktree for one snapshot. It is
+      ::  rebuilt wholesale by the checkout handler (cull + file-level
+      ::  write), so %over here forces the right dir governance on every
+      ::  load — and, since the subdirs are empty except during an active
+      ::  checkout, that wipe is a no-op in the normal case.
+      ::
+      ::  /checkout/code IS a real /code nexus: its marks must compile so
+      ::  /checkout/data files can render under the snapshot's OWN marks.
+      ::  Compiling hoon is inert (it produces bins, runs no app logic), so
+      ::  this stays safe to inspect.
+      ::
+      ::  /checkout/data is neck-STRIPPED: ball-to-files lifts only
+      ::  [path name sang], discarding every sub-nexus's governance, so the
+      ::  checked-out apps land as plain inert files — no neck, nothing to
+      ::  activate. The [~ ~ ~] weir adds nothing at runtime (there is no
+      ::  process to gate); it is a static seal against a FUTURE code path
+      ::  that might wrongly write a neck here.
       [%fall %| /checkout empty-dir:loader]
+      [%over %| /checkout/code code-dir]
+      [%over %| /checkout/data inert-dir]
       [%over %& [/ %'README.md'] [[/ %mime] man]]
-      ::  the UI shell — external static files, served by handle-get.
-      [%over %& [/ %'index.html'] [[/ %mime] desk-html]]
-      [%over %& [/ %'app.js'] [[/ %mime] desk-js]]
-      [%over %& [/ %'style.css'] [[/ %mime] desk-css]]
-  ==
+      ::  the UI shell — external static files under /ui, served by
+      ::  handle-get (URLs stay flat; only the namespace groups them).
+      [%fall %| /ui empty-dir:loader]
+      [%over %& [/ui %'index.html'] [[/ %mime] desk-html]]
+      [%over %& [/ui %'app.js'] [[/ %mime] desk-js]]
+      [%over %& [/ui %'style.css'] [[/ %mime] desk-css]]
+    ==
 ::
 ++  on-file
   |=  [=rail:tarball =blot:tarball]
@@ -110,25 +141,23 @@
     ~&  >  [%desk-subscribing version.u.config code.u.config]
     ;<  init=wave:nexus  bind:m  (keep:io /ver ver-road ~)
     ~&  >  [%desk-subscribed version.u.config]
-    ::  install: sync the source's release. Instance creation (apply-bill)
-    ::  is owned SOLELY by the version.* fiber — mirroring the version file
-    ::  here spawns it, and it apply-bills on spawn. Doing it here too just
-    ::  races that fiber and both try to make the same instance. A no-op
-    ::  until the version file actually exists (source not yet populated).
-    ;<  ~  bind:m  (sync-release ver-road code-road ver-name rail)
-    ;<  vt=(unit @t)  bind:m
-      (read-version-text (nex-road:io rail [%& / ver-name]))
+    ::  the runtime restarts EVERY fiber on a nexus reload, so this handler
+    ::  re-enters from the top constantly. Only pull on start when we're
+    ::  actually BEHIND (the source's version differs from our mirror) —
+    ::  otherwise a reload would peek + re-mirror the whole source tree
+    ::  every time for nothing. A version change in the loop below always
+    ::  pulls. First install: own version is ~, so this is true.
+    ;<  behind=?  bind:m  (source-behind ver-road rail)
     ;<  ~  bind:m
-      %^  do-checkpoint  rail  ver-name
-      (sy ?~(vt ~['checkpoint'] ~['checkpoint' (version-knot u.vt)]))
+      ?.  behind  (pure:m ~)
+      (sync-release ver-road code-road ver-name rail)
     |-
     ;<  res=news-or-poke  bind:m  (take-news-or-poke /ver)
     ?-  -.res
         %news
       ~&  >  %desk-update-received
-      ::  checkpoint outgoing state, then sync. Plain 'checkpoint'
-      ::  tag — version tags are the version watcher's job.
-      ;<  ~  bind:m  (do-checkpoint rail ver-name (sy ~['checkpoint']))
+      ::  snapshot the world, then pull the new release
+      ;<  ~  bind:m  (do-snapshot rail)
       ;<  ~  bind:m  (sync-release ver-road code-road ver-name rail)
       $
         %poke
@@ -152,7 +181,7 @@
     ;<  =sage:tarball  bind:m  take-poke:io
     =/  jon=json  !<(json q.sage)
     =/  new=(set path)
-      ?.  ?=(%o -.jon)  cur
+      ?.  ?=([%o *] jon)  cur
       =/  add=(unit json)  (~(get by p.jon) 'add')
       =/  rem=(unit json)  (~(get by p.jon) 'remove')
       ?:  ?=([~ %s *] add)
@@ -165,33 +194,36 @@
     ;<  ~  bind:m  (replace:io new)
     ;<  ~  bind:m  (apply-share path.here ~(tap in cur) ~(tap in new))
     $
-      ::  checkout.desk_cass: materialize a historical revision of
-      ::  /desk/code into /checkout (an inert scratch worktree) for
-      ::  inspection. Poke {ud} to check that revision out; poke null to
-      ::  clear /checkout back to live only. State is the checked-out cass.
+      ::  checkout.desk_snap: materialize a whole WORLD snapshot
+      ::  (snapshot N) into /checkout/code + /checkout/data — both
+      ::  inert — for inspection. Poke {n: N} to check it out; poke null
+      ::  to clear back to live. State is the checked-out N.
       ::
-      [~ %'checkout.desk_cass']
+      [~ %'checkout.desk_snap']
     ;<  ~  bind:m  (rise-wait:io prod "%desk checkout: failed")
     |-
     ;<  =sage:tarball  bind:m  take-poke:io
     =/  jon=json  !<(json q.sage)
     =/  want=(unit @ud)
-      ?.  ?=(%o -.jon)  ~
-      (json-num (~(get by p.jon) 'ud'))
-    ::  clear /checkout, then lay the requested revision (if any) into it
-    ;<  ~  bind:m  (cull-dir rail /checkout)
+      ?.  ?=([%o *] jon)  ~
+      (json-num (~(get by p.jon) 'n'))
+    ::  clear /checkout, then lay the requested snapshot (if any) into it
+    ;<  ~  bind:m  (cull-dir rail /checkout/code)
+    ;<  ~  bind:m  (cull-dir rail /checkout/data)
     ?~  want
       ~&  >  %desk-checkout-clear
-      ;<  ~  bind:m  (replace:io `(unit cass:clay)`~)
+      ;<  ~  bind:m  (replace:io `(unit @ud)`~)
       $
-    ~&  >  [%desk-checkout ud=u.want]
-    ::  the canonical wholesale mirror — peek /desk/code at the case and
-    ::  materialize it into /checkout (same primitive the source sync and
-    ::  cross-ship pulls use).
-    ;<  ~  bind:m
-      (sync-dir (nex-road:io rail [%| /desk/code]) rail /checkout `[%ud u.want])
-    ;<  hist=(each binfo tang)  bind:m  (born:io (nex-road:io rail [%| /desk/code]))
-    ;<  ~  bind:m  (replace:io (find-cass hist u.want))
+    ~&  >  [%desk-checkout n=u.want]
+    ::  peek the whole /desk subtree as of snapshot N (files come rooted
+    ::  at /desk, e.g. /code/foo, /data/bar) and lay it into /checkout —
+    ::  reconstructing /checkout/code and /checkout/data wholesale.
+    ;<  files=(unit (list bfile))  bind:m  (snap-files rail u.want)
+    ?~  files
+      ;<  ~  bind:m  (replace:io `(unit @ud)`~)
+      $
+    ;<  ~  bind:m  (write-files rail /checkout u.files)
+    ;<  ~  bind:m  (replace:io `(unit @ud)`want)
     $
       ::  main.sig: HTTP endpoint for desk management UI
       ::
@@ -237,47 +269,27 @@
     ?:  =('POST' method.request.req)
       (handle-post eyre-id suffix req rail)
     (handle-get eyre-id suffix args rail)
-      ::  version.*: every version change checkpoints the world.
-      ::  Runs on publisher and subscriber alike — a release IS a
-      ::  checkpoint, tagged with the version it inaugurates.
+      ::  version.*: on every version change, bootstrap the data nexuses
+      ::  the new bill declares (idempotent), and take the baseline
+      ::  snapshot if the counter is still 0 (a no-op otherwise). We own
+      ::  the version file, not snapshot.ud, so do-snapshot's `over` of the
+      ::  counter is an ordinary external write — no self-news loop.
       ::
       [~ @]
     =/  nam=@ta  name.rail
     ?.  =('version.' (end [3 8] nam))  stay:m
     ;<  ~  bind:m  (rise-wait:io prod "%desk version: failed")
-    ::  a release must be a complete world, however the code arrived:
-    ::  bootstrap the data nexuses from bill.json locally too. Idempotent.
     ;<  ~  bind:m  (apply-bill rail)
-    ::  checkpoint the current version at every process start: gives
-    ::  every desk a birth checkpoint (idempotent re-firm on restarts)
-    ;<  vt0=(unit @t)  bind:m
-      (read-version-text (nex-road:io rail [%& / nam]))
-    ;<  ~  bind:m
-      %^  do-checkpoint  rail  nam
-      (sy ?~(vt0 ~['checkpoint'] ~['checkpoint' (version-knot u.vt0)]))
+    ;<  ~  bind:m  (initial-snapshot rail)
     ;<  init=wave:nexus  bind:m
       (keep:io /self (nex-road:io rail [%& / nam]) ~)
-    =/  prev=(unit @t)  (bind vt0 version-knot)
     |-
     ;<  res=news-or-poke  bind:m  (take-news-or-poke /self)
     ?-  -.res
         %poke  $
         %news
       ;<  ~  bind:m  (apply-bill rail)
-      ;<  vt=(unit @t)  bind:m
-        (read-version-text (nex-road:io rail [%& / nam]))
-      =/  new=(unit @t)  (bind vt version-knot)
-      ::  tag the handoff: this state is the old version's final data
-      ::  and the new version's first, under the new version's code.
-      ::  With no prior version the tag reads ->new.
-      =/  tags=(set @t)
-        ?~  new  (sy ~['checkpoint'])
-        %-  sy
-        :~  'checkpoint'
-            (crip "{?~(prev "" (trip u.prev))}->{(trip u.new)}")
-        ==
-      ;<  ~  bind:m  (do-checkpoint rail nam tags)
-      $(prev new)
+      $
     ==
   ==
 --
@@ -299,7 +311,8 @@
 +$  bfile  [pax=path name=@ta =sang:tarball]
 ::  born hist metadata, as returned by born:io
 ::
-+$  binfo  (list [=cass:clay tags=(set @t) tomb=?])
++$  binfo  (list binfo-entry)
++$  binfo-entry  [=cass:clay tags=(set @t) tomb=?]
 ::
 ::  the OPENING state (which usergroups may peek the code) lives in the
 ::  share.usergroups grub, not here.
@@ -316,7 +329,9 @@
 ++  json-to-source
   |=  =json
   ^-  source-config
-  ?.  ?=(%o -.json)  ~
+  ::  match the whole json as an object — `-.json` on a ~ (null, the
+  ::  unconfigured seed) would fault.
+  ?.  ?=([%o *] json)  ~
   =/  verp  (~(get by p.json) 'version')
   =/  codp  (~(get by p.json) 'code')
   ?.  &(?=([~ %s *] verp) ?=([~ %s *] codp))  ~
@@ -406,9 +421,23 @@
 ::  read the source at a historical revision (a source need not firm its
 ::  folds, and a git-tree source rewrites its history on every checkout,
 ::  so any pinned revision can vanish). Reproducibility/restore is a
-::  LOCAL concern: this desk checkpoints its OWN world after each sync
-::  (do-checkpoint), and do-restore reads THIS desk's own history. Also
+::  LOCAL concern: this desk snapshots its OWN world after each sync
+::  (do-snapshot), and do-restore reads THIS desk's own history. Also
 ::  mirrors the source's version file, raw, under its own name.
+::
+::  source-behind: is the source's version different from our mirror?
+::  A cheap single-file peek — the gate that keeps a reload from
+::  re-mirroring the whole source tree when we are already current.
+::
+++  source-behind
+  |=  [ver-road=road:tarball =rail:tarball]
+  =/  m  (fiber:fiber:nexus ,?)
+  ^-  form:m
+  ;<  sv=view:nexus  bind:m  (peek:io ver-road ~)
+  ?.  ?=([%file *] sv)  (pure:m %.n)
+  =/  src-ver=(unit @t)  (version-text sang.sv)
+  ;<  own=(unit @t)  bind:m  (own-version rail)
+  (pure:m !=(src-ver own))
 ::
 ++  sync-release
   |=  [ver-road=road:tarball code-road=road:tarball ver-name=@ta =rail:tarball]
@@ -457,7 +486,7 @@
   ?~  bill
     ~&  >  %desk-no-bill
     (pure:m ~)
-  ?.  ?=(%o -.u.bill)
+  ?.  ?=([%o *] u.bill)
     ~&  >>>  %desk-bill-not-object
     (pure:m ~)
   =/  entries=(list [@t @t])
@@ -506,25 +535,94 @@
   ~&  >  [%desk-sync-files dir (lent files)]
   (write-files rail dir files)
 ::
-::  do-checkpoint: firm the fold hists of /data and /code plus
-::  the version file, tagged with the outgoing version. The fold pace
-::  lobe is the merkle root of the whole subtree — three firms
-::  checkpoint the entire world.
+::  do-snapshot: capture a WORLD snapshot — firm both /data and /code
+::  together and tag both with `snapshot N`, where N is the monotonic
+::  snapshot counter (the snapshot's stable identity). An optional
+::  freeform note rides alongside. Content-addressed, so an axis that
+::  didn't change dedupes to a no-op firm. The counter is the only label
+::  — no version-derived tagging. Every live-mutating action snapshots
+::  first, so this is the universal "save the world" primitive.
 ::
-++  do-checkpoint
-  |=  [=rail:tarball ver-name=@ta tags=(set @t)]
+::  wipe-history: tombstone every firmed revision of the /desk fold
+::  except the live top — a clean slate before the baseline snapshot.
+::
+++  wipe-history
+  |=  =rail:tarball
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
-  ~&  >  [%desk-checkpoint tags=tags]
-  ;<  ~  bind:m  (checkpoint:io (nex-road:io rail [%| /desk/data]))
-  ;<  ~  bind:m  (tag:io (nex-road:io rail [%| /desk/data]) ~ tags)
-  ;<  ~  bind:m  (checkpoint:io (nex-road:io rail [%| /desk/code]))
-  ;<  ~  bind:m  (tag:io (nex-road:io rail [%| /desk/code]) ~ tags)
-  ;<  has=?  bind:m
-    (peek-exists:io (nex-road:io rail [%& / ver-name]))
-  ?.  has  (pure:m ~)
-  ;<  ~  bind:m  (checkpoint:io (nex-road:io rail [%& / ver-name]))
-  (tag:io (nex-road:io rail [%& / ver-name]) ~ tags)
+  ;<  hist=(each binfo tang)  bind:m  (born:io (nex-road:io rail [%| /desk]))
+  ?:  ?=(%| -.hist)  (pure:m ~)
+  =/  uds=(list @ud)  (turn p.hist |=([=cass:clay *] ud.cass))
+  =/  top=@ud  (roll uds max)
+  =/  targets=(list @ud)  (skip uds |=(u=@ud =(u top)))
+  |-  ^-  form:m
+  ?~  targets  (pure:m ~)
+  ;<  ~  bind:m  (lose:io (nex-road:io rail [%| /desk]) [%numb `i.targets `i.targets])
+  $(targets t.targets)
+::  initial-snapshot: take the baseline snapshot iff none exist yet (the
+::  counter is still 0). Wipes any prior /desk history first — resetting
+::  the counter throws the history away, so snapshot 0 is a clean slate.
+::  Idempotent across restarts.
+::
+++  initial-snapshot
+  |=  =rail:tarball
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  ;<  n=(unit @ud)  bind:m
+    (peek-as:io (nex-road:io rail [%& / %'snapshot.ud']) ,@ud)
+  ?.  =(0 (fall n 0))  (pure:m ~)
+  ;<  ~  bind:m  (wipe-history rail)
+  (do-snapshot rail)
+::
+++  do-snapshot
+  |=  =rail:tarball
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  ;<  n=(unit @ud)  bind:m
+    (peek-as:io (nex-road:io rail [%& / %'snapshot.ud']) ,@ud)
+  =/  num=@ud  (fall n 0)
+  ::  one firm of /desk captures the whole world — snapshotting a path
+  ::  recursively firms everything beneath it, so /desk/code and
+  ::  /desk/data ride along. One revision, one number.
+  ;<  ~  bind:m  (checkpoint:io (nex-road:io rail [%| /desk]))
+  ::  a firm of UNCHANGED content dedupes to the existing top revision —
+  ::  which, if the world hasn't moved since the last snapshot, is already
+  ::  a snapshot (carries a numeric tag). Capturing the same world twice is
+  ::  the SAME snapshot: no relabel, no counter bump. Only a genuinely new
+  ::  top (fresh, untagged) earns a new number.
+  ;<  hist=(each binfo tang)  bind:m  (born:io (nex-road:io rail [%| /desk]))
+  ?:  (top-is-snap hist)
+    ~&  >  %desk-snapshot-unchanged
+    (pure:m ~)
+  ~&  >  [%desk-snapshot num=num]
+  ::  stamp the world's current version as a `version: <contents>` label —
+  ::  a convention, not identity. The `version: ` prefix keeps it non-numeric
+  ::  so it never shadows the numeric identity tag (+num-tag / +snap-cass).
+  ;<  ver=(unit @t)  bind:m  (own-version rail)
+  =/  tags=(set @t)
+    =/  base=(set @t)  (sy ~[(scot %ud num)])
+    ?~  ver  base
+    ?:  =('' u.ver)  base
+    (~(put in base) (cat 3 'version: ' u.ver))
+  ;<  ~  bind:m  (tag:io (nex-road:io rail [%| /desk]) ~ tags)
+  ::  tag with the current counter, then bump — snapshots are 0-based
+  (over:io (nex-road:io rail [%& / %'snapshot.ud']) [[/ %ud] +(num)])
+::  top-is-snap: does the newest /desk revision already carry a numeric
+::  (identity) tag — i.e. is the current world already a snapshot?
+::
+++  top-is-snap
+  |=  hist=(each binfo tang)
+  ^-  ?
+  ?:  ?=(%| -.hist)  %.n
+  =/  top=(unit binfo-entry)
+    %+  roll  `binfo`p.hist
+    |=  [e=binfo-entry a=(unit binfo-entry)]
+    ?~  a  `e
+    ?:((gth ud.cass.e ud.cass.u.a) `e a)
+  ?~  top  %.n
+  ?&  !tomb.u.top
+      ?=(^ (skim ~(tap in tags.u.top) num-tag))
+  ==
 ::
 ::  +version-text: render a version file's content as text, by mark.
 ::  ~ for marks with no text rendering.
@@ -578,35 +676,13 @@
     =/  j  ((soft json) nun)
     ?~  j  ~
     =/  v=(unit json)
-      ?:(?=(%o -.u.j) (~(get by p.u.j) 'version') `u.j)
+      ?:(?=([%o *] u.j) (~(get by p.u.j) 'version') `u.j)
     ?~  v  ~
     ?+  -.u.v  ~
       %s  `p.u.v
       %n  `p.u.v
     ==
   ==
-::  +version-knot: first line of a version text, capped at 64 chars,
-::  sanitized to a safe tag: lowercased, unsafe characters become -
-::
-++  version-knot
-  |=  txt=@t
-  ^-  @t
-  =/  t=tape  (trip txt)
-  =/  nl=(unit @ud)  (find "\0a" t)
-  =?  t  ?=(^ nl)  (scag u.nl t)
-  =?  t  (gth (lent t) 64)  (scag 64 t)
-  =/  s=tape
-    %+  turn  t
-    |=  c=@tD
-    ?:  ?|  &((gte c 'a') (lte c 'z'))
-            &((gte c '0') (lte c '9'))
-            =(c '.')  =(c '-')  =(c '_')  =(c '~')
-        ==
-      c
-    ?:  &((gte c 'A') (lte c 'Z'))  (add c 32)
-    '-'
-  ?~  s  'v'
-  (crip s)
 ::  +pick-version-name: the version file among a dir's file names —
 ::  any name starting version. — alphabetical first if several
 ::
@@ -617,15 +693,6 @@
     (skim names |=(n=@ta =('version.' (end [3 8] n))))
   ?~  vs  ~
   `(snag 0 (sort vs aor))
-::  +read-version-text: peek a version file and render it as text
-::
-++  read-version-text
-  |=  =road:tarball
-  =/  m  (fiber:fiber:nexus ,(unit @t))
-  ^-  form:m
-  ;<  =view:nexus  bind:m  (peek:io road ~)
-  ?.  ?=([%file *] view)  (pure:m ~)
-  (pure:m (version-text sang.view))
 ::  +own-version: discover this desk's own version file and read it
 ::
 ++  own-version
@@ -675,23 +742,21 @@
   (pure:m `(ball-to-files ball.view))
 ::  +checkout-cass: the revision currently checked out (~ = live only)
 ::
-++  checkout-cass
+++  checkout-snap
   |=  =rail:tarball
-  =/  m  (fiber:fiber:nexus ,(unit cass:clay))
+  =/  m  (fiber:fiber:nexus ,(unit @ud))
   ^-  form:m
-  ;<  co=(unit (unit cass:clay))  bind:m
-    (peek-as:io (nex-road:io rail [%& / %'checkout.desk_cass']) ,(unit cass:clay))
+  ;<  co=(unit (unit @ud))  bind:m
+    (peek-as:io (nex-road:io rail [%& / %'checkout.desk_snap']) ,(unit @ud))
   (pure:m ?~(co ~ u.co))
-::  +axis-dir: which directory to READ for an axis — the live axis, or
-::  /checkout when a revision is checked out (code only; data is live).
+::  +axis-dir: which directory to READ for an axis — its live dir, or
+::  /checkout/<axis> when a world snapshot is checked out.
 ::
 ++  axis-dir
-  |=  [=rail:tarball axis=?(%code %data)]
-  =/  m  (fiber:fiber:nexus ,path)
-  ^-  form:m
-  ?:  ?=(%data axis)  (pure:m /desk/data)
-  ;<  co=(unit cass:clay)  bind:m  (checkout-cass rail)
-  (pure:m ?~(co /desk/code /checkout))
+  |=  [=rail:tarball axis=?(%code %data) live=?]
+  ^-  path
+  ?:  live  ?:(?=(%code axis) /desk/code /desk/data)
+  ?:(?=(%code axis) /checkout/code /checkout/data)
 ::  +locate-file: find one bfile by full path within an axis dir
 ::
 ++  locate-file
@@ -724,16 +789,100 @@
   ::  directly — the present interpretation, no old mark needed.
   (pure:m ((soft mime) (sang-noun:tarball sang.f)))
 ::
-::  find-cass: the cass in a fold history whose ud matches
+::  snap-cass: the /desk fold revision tagged `snapshot N`
 ::
-++  find-cass
-  |=  [hist=(each binfo tang) ud=@ud]
+++  snap-cass
+  |=  [hist=(each binfo tang) n=@ud]
   ^-  (unit cass:clay)
   ?:  ?=(%| -.hist)  ~
+  =/  tag=@t  (scot %ud n)
   |-  ^-  (unit cass:clay)
   ?~  p.hist  ~
-  ?:  =(ud ud.cass.i.p.hist)  `cass.i.p.hist
+  ?:  (~(has in tags.i.p.hist) tag)  `cass.i.p.hist
   $(p.hist t.p.hist)
+::  snap-tags: the full tag set on the /desk revision for snapshot N (~ if
+::  absent). Includes the numeric identity tag; +user-tags strips that.
+::
+++  snap-tags
+  |=  [hist=(each binfo tang) n=@ud]
+  ^-  (unit (set @t))
+  ?:  ?=(%| -.hist)  ~
+  =/  tag=@t  (scot %ud n)
+  |-  ^-  (unit (set @t))
+  ?~  p.hist  ~
+  ?:  (~(has in tags.i.p.hist) tag)  `tags.i.p.hist
+  $(p.hist t.p.hist)
+::  num-tag: a purely-numeric tag is a snapshot's structural identity, not
+::  a user label — those are reserved so they can't shadow +snap-cass.
+::
+++  num-tag
+  |=  t=@t
+  ^-  ?
+  ?=(^ (rush t dem))
+::  user-tags: the freeform labels on a snapshot (all non-numeric tags),
+::  sorted for stable display.
+::
+++  user-tags
+  |=  tags=(set @t)
+  ^-  (list @t)
+  (sort (skip ~(tap in tags) num-tag) aor)
+::
+::  snap-cass-of: the /desk fold revision for world snapshot N
+::
+++  snap-cass-of
+  |=  [=rail:tarball n=@ud]
+  =/  m  (fiber:fiber:nexus ,(unit cass:clay))
+  ^-  form:m
+  ;<  hist=(each binfo tang)  bind:m  (born:io (nex-road:io rail [%| /desk]))
+  (pure:m (snap-cass hist n))
+::  snap-files: the whole /desk subtree as of snapshot N — files with
+::  paths rooted at /desk (e.g. /code/lib/foo.hoon, /data/bar). Peek
+::  /desk (not the subdir) at the case: resolve-case is per-hist, so
+::  only /desk's own hist carries N.
+::
+++  snap-files
+  |=  [=rail:tarball n=@ud]
+  =/  m  (fiber:fiber:nexus ,(unit (list bfile)))
+  ^-  form:m
+  ;<  cs=(unit cass:clay)  bind:m  (snap-cass-of rail n)
+  ?~  cs  (pure:m ~)
+  (fetch-dir rail /desk `[%ud ud.u.cs])
+::  snap-nums: every world snapshot number present in the /desk history
+::
+++  snap-nums
+  |=  hist=(each binfo tang)
+  ^-  (list @ud)
+  ?:  ?=(%| -.hist)  ~
+  %+  murn  p.hist
+  |=  [=cass:clay tags=(set @t) tomb=?]
+  ^-  (unit @ud)
+  ?:  tomb  ~
+  =/  ns=(list @ud)  (murn ~(tap in tags) |=(t=@t (rush t dem)))
+  ?~(ns ~ `i.ns)
+::  clear-snap: tombstone world snapshot N (one /desk fold revision)
+::
+++  clear-snap
+  |=  [=rail:tarball n=@ud]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  ;<  cs=(unit cass:clay)  bind:m  (snap-cass-of rail n)
+  ?~  cs  (pure:m ~)
+  (lose:io (nex-road:io rail [%| /desk]) [%numb `ud.u.cs `ud.u.cs])
+::  set-snap-tag: add (put=%.y) or remove (put=%.n) one freeform label on
+::  snapshot N. Reads the revision's current tag set and rewrites it whole
+::  — %tag is replace-semantics — so the numeric identity tag rides along
+::  untouched.
+::
+++  set-snap-tag
+  |=  [=rail:tarball n=@ud label=@t put=?]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  ;<  hist=(each binfo tang)  bind:m  (born:io (nex-road:io rail [%| /desk]))
+  =/  cs=(unit cass:clay)  (snap-cass hist n)
+  ?~  cs  (pure:m ~)
+  =/  cur=(set @t)  (fall (snap-tags hist n) ~)
+  =/  new=(set @t)  ?:(put (~(put in cur) label) (~(del in cur) label))
+  (tag:io (nex-road:io rail [%| /desk]) `[%ud ud.u.cs] new)
 ::  write-files: over a list of bfiles into a dir
 ::
 ++  write-files
@@ -781,60 +930,97 @@
     (cull-soft:io (nex-road:io rail [%& (weld dir pax.i.files) name.i.files]))
   $(files t.files)
 ::
-::  do-restore: materialize a historical /data x /code pair.
-::  Fetches everything into memory first — no mutation until both
-::  targets are resolved. Then: nullify /code (world stops), load
-::  /data, load /code (world starts).
+::  live-sub-bole: the current /desk/<axis> subtree as a BOLE — neck-
+::  PRESERVING (ball-to-bole keeps every neck/weir), unlike ball-to-files.
 ::
-++  do-restore
+++  live-sub-bole
+  |=  [=rail:tarball axis=@ta]
+  =/  m  (fiber:fiber:nexus ,bole:tarball)
+  ^-  form:m
+  ;<  =view:nexus  bind:m  (peek:io (nex-road:io rail [%| /desk/[axis]]) ~)
+  ?.  ?=([%ball *] view)  (pure:m *bole:tarball)
+  (pure:m (ball-to-bole:tarball ball.view))
+::  snap-sub-bole: the /desk/<axis> subtree at world snapshot N as a BOLE,
+::  neck-PRESERVING. Peek /desk deep (resolve-case is per-hist, so N only
+::  resolves on /desk's own hist), then descend to /<axis>. Empty bole if
+::  the snapshot or its subtree is absent.
+::
+++  snap-sub-bole
+  |=  [=rail:tarball axis=@ta n=@ud]
+  =/  m  (fiber:fiber:nexus ,bole:tarball)
+  ^-  form:m
+  ;<  cs=(unit cass:clay)  bind:m  (snap-cass-of rail n)
+  ?~  cs  (pure:m *bole:tarball)
+  ;<  =view:nexus  bind:m
+    (peek-at:io (nex-road:io rail [%| /desk]) ~ [%ud ud.u.cs])
+  ?.  ?=([%ball *] view)  (pure:m *bole:tarball)
+  (pure:m (ball-to-bole:tarball (~(dip ba:tarball ball.view) [axis ~])))
+::  do-compose: build a new LIVE world by choosing where code and data
+::  come from, independently. code from {live | snapshot N | none};
+::  data from {live | snapshot M}. Snapshots the current world first (so
+::  nothing is lost), then rebuilds /desk WHOLE — a single cull + make of
+::  the assembled [code data] bole, so both axes reload together and there
+::  is no code-before-data ordering to get wrong. Every subtree rides as a
+::  neck-PRESERVING bole, so data sub-nexuses land GOVERNED, not as dead
+::  files, and /desk/code keeps its [/ %code] neck.
+::
+++  do-compose
   |=  [eyre-id=@ta body=@t =rail:tarball]
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
   =/  jon=(unit json)  (de:json:html body)
-  =/  want-data=(unit @ud)
-    ?.  &(?=(^ jon) ?=(%o -.u.jon))  ~
-    (json-num (~(get by p.u.jon) 'data'))
-  =/  want-code=(unit @ud)
-    ?.  &(?=(^ jon) ?=(%o -.u.jon))  ~
-    (json-num (~(get by p.u.jon) 'code'))
-  ?:  &(?=(~ want-data) ?=(~ want-code))
-    ;<  ~  bind:m  (respond eyre-id rail 400 'nothing to restore')
+  ?.  &(?=(^ jon) ?=([%o *] u.jon))
+    ;<  ~  bind:m  (respond eyre-id rail 400 'bad body')
     (pure:m ~)
-  ~&  >  [%desk-restore data=want-data code=want-code]
-  ::  the numbers are fold REVISIONS (the ud of the hist entry)
-  ;<  data-files=(unit (list bfile))  bind:m
-    =/  m  (fiber:fiber:nexus ,(unit (list bfile)))
-    ?~  want-data  (pure:m ~)
-    (fetch-dir rail /desk/data `[%ud u.want-data])
-  ;<  code-files=(unit (list bfile))  bind:m
-    =/  m  (fiber:fiber:nexus ,(unit (list bfile)))
-    ?~  want-code
-      ::  keeping current code: snapshot live contents
-      ;<  cur=(unit (list bfile))  bind:m  (fetch-dir rail /desk/code ~)
-      (pure:m `(fall cur ~))
-    (fetch-dir rail /desk/code `[%ud u.want-code])
-  ?:  ?|  &(?=(^ want-data) ?=(~ data-files))
-          ?=(~ code-files)
-      ==
-    ;<  ~  bind:m  (respond eyre-id rail 404 'unknown checkpoint revision')
-    (pure:m ~)
-  ::  1. nullify /desk/code — /desk/data goes inert
-  ;<  ~  bind:m  (cull-dir rail /desk/code)
-  ::  2. load /desk/data while the world is stopped
-  ;<  ~  bind:m
-    ?~  data-files  (pure:m ~)
-    ;<  ~  bind:m  (cull-dir rail /desk/data)
-    (write-files rail /desk/data u.data-files)
-  ::  3. load /desk/code — everything comes alive against the new data
-  ;<  ~  bind:m  (write-files rail /desk/code (need code-files))
-  ~&  >  %desk-restore-done
-  (redirect eyre-id rail)
+  =/  code-src=?(%live %none [%snap @ud])
+    =/  c  (~(get by p.u.jon) 'code')
+    ?:  ?=([~ %s %none] c)  %none
+    ?:  ?=([~ %n *] c)  [%snap (rash p.u.c dem)]
+    %live
+  =/  data-src=?(%live [%snap @ud])
+    =/  d  (~(get by p.u.jon) 'data')
+    ?:  ?=([~ %n *] d)  [%snap (rash p.u.d dem)]
+    %live
+  ~&  >  [%desk-compose code=code-src data=data-src]
+  ::  snapshot the current world first — this recomposition is recoverable
+  ;<  ~  bind:m  (do-snapshot rail)
+  ::  resolve each axis as a neck-preserving bole. %none code = a fresh,
+  ::  empty /code nexus (keeps its neck so it's inert but well-formed).
+  ;<  code-bole=bole:tarball  bind:m
+    ?-  code-src
+      %live      (live-sub-bole rail %code)
+      %none      (pure:(fiber:fiber:nexus ,bole:tarball) [`[`[/ %code] ~ %.n ~] ~])
+      [%snap *]  (snap-sub-bole rail %code +.code-src)
+    ==
+  ;<  data-bole=bole:tarball  bind:m
+    ?-  data-src
+      %live      (live-sub-bole rail %data)
+      [%snap *]  (snap-sub-bole rail %data +.data-src)
+    ==
+  ::  assemble the whole /desk: a plain container holding the two subtrees
+  =/  desk-bole=bole:tarball
+    :-  `[~ ~ %.n ~]
+    %-  malt
+    ^-  (list [@ta bole:tarball])
+    ~[[%code code-bole] [%data data-bole]]
+  ::  rebuild /desk in one shot — cull (snapshots live on the fold hist, so
+  ::  they survive) then make the assembled bole, reloading both axes at once
+  ;<  ~  bind:m  (cull:io (nex-road:io rail [%| /desk]))
+  ;<  ~  bind:m  (make:io (nex-road:io rail [%| /desk]) &+desk-bole)
+  ~&  >  %desk-compose-done
+  (respond eyre-id rail 200 'composed')
 ::
 ++  json-num
   |=  j=(unit json)
   ^-  (unit @ud)
   ?.  ?=([~ %n *] j)  ~
   `(rash p.u.j dem)
+::
+++  json-str
+  |=  j=(unit json)
+  ^-  (unit @t)
+  ?.  ?=([~ %s *] j)  ~
+  `p.u.j
 ::
 ++  take-news-or-poke
   |=  news-wire=wire
@@ -873,7 +1059,7 @@
     ::  live dir or /checkout when a revision is checked out. Converts
     ::  via the file's mark to a mime: text types come back as text;
     ::  others expose their content-type so the UI can <img> them.
-    ;<  dir=path  bind:m  (axis-dir rail i.t.suffix)
+    =/  dir=path  (axis-dir rail i.t.suffix =('live' (fall (quay-get args 'mode') 'live')))
     =/  want=(unit @t)  (quay-get args 'path')
     ?~  want
       ;<  ~  bind:m  (respond eyre-id rail 400 'path required')
@@ -938,7 +1124,7 @@
     (pure:m ~)
   ?:  ?=([%raw ?(%code %data) *] suffix)
     ::  raw bytes of one file, in its mark's mime form — for <img> etc.
-    ;<  dir=path  bind:m  (axis-dir rail i.t.suffix)
+    =/  dir=path  (axis-dir rail i.t.suffix =('live' (fall (quay-get args 'mode') 'live')))
     =/  want=(unit @t)  (quay-get args 'path')
     ?~  want
       ;<  ~  bind:m  (respond eyre-id rail 400 'path required')
@@ -956,7 +1142,7 @@
     (pure:m ~)
   ?:  ?=([%tree ?(%code %data) *] suffix)
     ::  file tree of an axis — its live dir, or /checkout when checked out
-    ;<  dir=path  bind:m  (axis-dir rail i.t.suffix)
+    =/  dir=path  (axis-dir rail i.t.suffix =('live' (fall (quay-get args 'mode') 'live')))
     ;<  files=(unit (list bfile))  bind:m  (fetch-dir rail dir ~)
     ?~  files
       ;<  ~  bind:m  (respond eyre-id rail 404 'no tree')
@@ -977,39 +1163,36 @@
     ;<  ~  bind:m  (~(send-simple http-res:io (nex-road:io rail [%& ~ %'main.sig'])) eyre-id (mime-response:http-utils [/application/json bod]))
     (pure:m ~)
   ?:  =(/state suffix)
-    ::  data endpoint: config, version, and both checkpoint lists
+    ::  data endpoint: source, version, the world snapshot list, sharing,
+    ::  and which snapshot (if any) is checked out
     ;<  src-json=(unit json)  bind:m
       (peek-as:io (nex-road:io rail [%& / %'source.json']) ,json)
     ;<  ver=(unit @t)  bind:m  (own-version rail)
-    ;<  code-born=(each binfo tang)  bind:m
-      (born:io (nex-road:io rail [%| /desk/code]))
-    ;<  data-born=(each binfo tang)  bind:m
-      (born:io (nex-road:io rail [%| /desk/data]))
-    ::  share: the usergroups this desk is OPENED to, from the grub
+    ::  the world snapshot list is the /desk fold's tagged history
+    ;<  desk-born=(each binfo tang)  bind:m
+      (born:io (nex-road:io rail [%| /desk]))
     ;<  share=(unit (set path))  bind:m
       (peek-as:io (nex-road:io rail [%& / %'share.usergroups']) ,(set path))
-    ::  checkout: the revision materialized in /checkout, or ~ for live
-    ;<  co=(unit cass:clay)  bind:m  (checkout-cass rail)
+    ;<  co=(unit @ud)  bind:m  (checkout-snap rail)
     =/  =json
       %-  pairs:enjs:format
       :~  ['source' (fall src-json ~)]
           ['version' ?~(ver ~ s+u.ver)]
-          ['code' (binfo-to-json code-born)]
-          ['data' (binfo-to-json data-born)]
+          ['snapshots' (snaps-to-json desk-born)]
           ['share' a+(turn ~(tap in (fall share ~)) |=(g=path s+(spat g)))]
-          :-  'checkout'
-          ?~  co  ~
-          %-  pairs:enjs:format
-          ~[['ud' (numb:enjs:format ud.u.co)] ['da' (time:enjs:format da.u.co)]]
+          ['checkout' ?~(co ~ (numb:enjs:format u.co))]
+          ::  live differs from the top snapshot — a fresh Snapshot Now would
+          ::  actually capture something (else it dedupes to a no-op)
+          ['dirty' b+!(top-is-snap desk-born)]
       ==
     =/  bod=octs  (as-octs:mimes:html (en:json:html json))
     ;<  ~  bind:m  (~(send-simple http-res:io (nex-road:io rail [%& ~ %'main.sig'])) eyre-id (mime-response:http-utils [/application/json bod]))
     (pure:m ~)
-  ::  everything else is a static asset — the shell (index.html) for
-  ::  the page route, or style.css / app.js by name.
+  ::  everything else is a static asset from /ui — the shell (index.html)
+  ::  for the page route, or style.css / app.js by name.
   =/  filename=@ta  ?~(suffix 'index.html' i.suffix)
   ;<  fv=view:nexus  bind:m
-    (peek:io (nex-road:io rail [%& / filename]) `[/ %mime])
+    (peek:io (nex-road:io rail [%& /ui filename]) `[/ %mime])
   ?.  ?=([%file *] fv)
     (respond eyre-id rail 404 'Not found')
   =/  =mime  !<(mime (need-vase:tarball sang.fv))
@@ -1017,24 +1200,27 @@
     (~(send-simple http-res:io (nex-road:io rail [%& ~ %'main.sig'])) eyre-id (mime-response:http-utils mime))
   (pure:m ~)
 ::
-::  binfo-to-json: one fold's checkpoint history — only firmed,
-::  tagged, live revisions are checkpoints worth listing.
+::  snaps-to-json: the world snapshot list from an axis's born — each
+::  `snapshot N` tag becomes {n, da}, newest first.
 ::
-++  binfo-to-json
+++  snaps-to-json
   |=  res=(each binfo tang)
   ^-  json
   :-  %a
   ?:  ?=(%| -.res)  ~
-  %+  murn  p.res
-  |=  [=cass:clay tags=(set @t) tomb=?]
-  ^-  (unit json)
-  ?:  tomb  ~
-  ?:  =(~ tags)  ~
-  :-  ~
+  =/  snaps=(list [n=@ud da=@da tags=(list @t)])
+    %+  murn  p.res
+    |=  [=cass:clay tags=(set @t) tomb=?]
+    ^-  (unit [n=@ud da=@da tags=(list @t)])
+    ?:  tomb  ~
+    =/  ns=(list @ud)  (murn ~(tap in tags) |=(t=@t (rush t dem)))
+    ?~(ns ~ `[i.ns da.cass (user-tags tags)])
+  %+  turn  (sort snaps |=([a=[n=@ud *] b=[n=@ud *]] (gth n.a n.b)))
+  |=  [n=@ud da=@da tags=(list @t)]
   %-  pairs:enjs:format
-  :~  ['ud' (numb:enjs:format ud.cass)]
-      ['da' (time:enjs:format da.cass)]
-      ['tags' a+(turn ~(tap in tags) |=(t=@t s+t))]
+  :~  ['n' (numb:enjs:format n)]
+      ['da' (time:enjs:format da)]
+      ['tags' a+(turn tags |=(t=@t s+t))]
   ==
 ::
 ++  handle-post
@@ -1059,8 +1245,8 @@
       (poke:io (nex-road:io rail [%& / %'source.json']) [[/ %json] clean])
     (respond eyre-id rail 200 'ok')
   ::
-      [%restore ~]
-    (do-restore eyre-id body rail)
+      [%compose ~]
+    (do-compose eyre-id body rail)
   ::
       [%share ~]
     ::  open/close a usergroup. Body is the command json
@@ -1076,15 +1262,15 @@
     (respond eyre-id rail 200 'ok')
   ::
       [%checkout ~]
-    ::  drive the checkout grub. Body {ud: N} checks that revision out
-    ::  into /checkout; {} (or null) clears back to live.
+    ::  drive the checkout grub. Body {n: N} checks that world snapshot
+    ::  out into /checkout; {} (or null) clears back to live.
     =/  cmd=(unit json)  (de:json:html body)
     ?~  cmd
       ;<  ~  bind:m  (respond eyre-id rail 400 'bad checkout command')
       (pure:m ~)
     ~&  >  [%desk-checkout-poke u.cmd]
     ;<  ~  bind:m
-      (poke:io (nex-road:io rail [%& / %'checkout.desk_cass']) [[/ %json] u.cmd])
+      (poke:io (nex-road:io rail [%& / %'checkout.desk_snap']) [[/ %json] u.cmd])
     (respond eyre-id rail 200 'ok')
   ::
       [%fetch-latest ~]
@@ -1102,89 +1288,76 @@
     =/  code-road=road:tarball   (parse-source code.u.config)
     =/  ver-name=@ta             (rear (parse-path version.u.config))
     ~&  >  [%desk-fetch-latest version.u.config code.u.config]
-    ::  protect current state, then pull
-    ;<  ~  bind:m  (do-checkpoint rail ver-name (sy ~['checkpoint']))
+    ::  snapshot the current world, then pull the latest release
+    ;<  ~  bind:m  (do-snapshot rail)
     ;<  ~  bind:m  (sync-release ver-road code-road ver-name rail)
-    ;<  vt=(unit @t)  bind:m
-      (read-version-text (nex-road:io rail [%& / ver-name]))
-    ;<  ~  bind:m
-      %^  do-checkpoint  rail  ver-name
-      (sy ?~(vt ~['checkpoint'] ~['checkpoint' (version-knot u.vt)]))
     (respond eyre-id rail 200 'fetched')
   ::
-      [%checkpoint ~]
-    ::  manual checkpoint: firm the current fold state of one axis,
-    ::  tagged 'checkpoint' plus an optional user label
-    =/  jon=(unit json)  (de:json:html body)
-    ?.  &(?=(^ jon) ?=(%o -.u.jon))
-      ;<  ~  bind:m  (respond eyre-id rail 400 'bad body')
-      (pure:m ~)
-    =/  axis  (~(get by p.u.jon) 'axis')
-    ?.  ?=([~ %s *] axis)
-      ;<  ~  bind:m  (respond eyre-id rail 400 'need axis')
-      (pure:m ~)
-    =/  label=(unit @t)
-      =/  l  (~(get by p.u.jon) 'label')
-      ?:(?=([~ %s *] l) ?:(=('' p.u.l) ~ `p.u.l) ~)
-    =/  dir=path  ?:(=('code' p.u.axis) /desk/code /desk/data)
-    =/  tags=(set @t)
-      (sy ?~(label ~['checkpoint'] ~['checkpoint' u.label]))
-    ~&  >  [%desk-manual-checkpoint dir=dir label=label]
-    ;<  ~  bind:m  (checkpoint:io (nex-road:io rail [%| dir]))
-    ;<  ~  bind:m  (tag:io (nex-road:io rail [%| dir]) ~ tags)
-    (respond eyre-id rail 200 'checkpointed')
+      [%snapshot ~]
+    ::  take a world snapshot now (both axes together)
+    ;<  ~  bind:m  (do-snapshot rail)
+    (respond eyre-id rail 200 'snapshotted')
   ::
       [%clear ~]
-    ::  tombstone a checkpoint: drop the fold hist entry (tags and
-    ::  silo refs go with it). The runtime refuses the live top.
+    ::  drop world snapshot N — tombstone the fold entry tagged
+    ::  `snapshot N` on BOTH axes. The runtime refuses the live top.
     =/  jon=(unit json)  (de:json:html body)
-    ?.  &(?=(^ jon) ?=(%o -.u.jon))
-      ;<  ~  bind:m  (respond eyre-id rail 400 'bad body')
+    =/  n=(unit @ud)
+      ?.  &(?=(^ jon) ?=([%o *] u.jon))  ~
+      (json-num (~(get by p.u.jon) 'n'))
+    ?~  n
+      ;<  ~  bind:m  (respond eyre-id rail 400 'need n')
       (pure:m ~)
-    =/  axis  (~(get by p.u.jon) 'axis')
-    =/  ud=(unit @ud)  (json-num (~(get by p.u.jon) 'ud'))
-    ?.  &(?=([~ %s *] axis) ?=(^ ud))
-      ;<  ~  bind:m  (respond eyre-id rail 400 'need axis and ud')
-      (pure:m ~)
-    =/  dir=path  ?:(=('code' p.u.axis) /desk/code /desk/data)
-    ~&  >  [%desk-clear dir=dir ud=u.ud]
-    ;<  ~  bind:m  (lose:io (nex-road:io rail [%| dir]) [%numb `u.ud `u.ud])
+    ~&  >  [%desk-clear n=u.n]
+    ;<  ~  bind:m  (clear-snap rail u.n)
     (respond eyre-id rail 200 'cleared')
   ::
-      [%clear-checkpoints ~]
-    ::  bulk tombstone: every checkpoint, or every one at/below a
-    ::  revision (inclusive). The live top is always spared — the
-    ::  runtime refuses it anyway, and losing it would fail the batch.
+      [%clear-until ~]
+    ::  bulk drop: every snapshot, or every one at/below N (inclusive).
+    ::  The latest snapshot is always spared — it is the live top.
     =/  jon=(unit json)  (de:json:html body)
-    ?.  &(?=(^ jon) ?=(%o -.u.jon))
-      ;<  ~  bind:m  (respond eyre-id rail 400 'bad body')
-      (pure:m ~)
-    =/  axis  (~(get by p.u.jon) 'axis')
-    ?.  ?=([~ %s *] axis)
-      ;<  ~  bind:m  (respond eyre-id rail 400 'need axis')
-      (pure:m ~)
-    =/  dir=path  ?:(=('code' p.u.axis) /desk/code /desk/data)
-    =/  before=(unit @ud)  (json-num (~(get by p.u.jon) 'before'))
-    ;<  hist=(each binfo tang)  bind:m  (born:io (nex-road:io rail [%| dir]))
-    ?:  ?=(%| -.hist)
-      ;<  ~  bind:m  (respond eyre-id rail 400 'cannot read history')
-      (pure:m ~)
-    =/  top=@ud
-      %+  roll  p.hist
-      |=  [b=[=cass:clay tags=(set @t) tomb=?] mx=@ud]
-      (max mx ud.cass.b)
+    =/  before=(unit @ud)
+      ?.  &(?=(^ jon) ?=([%o *] u.jon))  ~
+      (json-num (~(get by p.u.jon) 'before'))
+    ;<  hist=(each binfo tang)  bind:m  (born:io (nex-road:io rail [%| /desk]))
+    =/  nums=(list @ud)  (snap-nums hist)
+    =/  top=@ud  (roll nums max)
     =/  targets=(list @ud)
-      %+  murn  p.hist
-      |=  [=cass:clay tags=(set @t) tomb=?]
-      ^-  (unit @ud)
-      ?:  |(tomb =(~ tags) =(ud.cass top))  ~
-      ?.  ?|(?=(~ before) (lte ud.cass u.before))  ~
-      `ud.cass
-    ~&  >  [%desk-clear-checkpoints dir=dir before=before count=(lent targets)]
+      %+  skim  nums
+      |=(n=@ud &(!=(n top) ?|(?=(~ before) (lte n u.before))))
+    ~&  >  [%desk-clear-until before=before count=(lent targets)]
     |-  ^-  form:m
     ?~  targets  (respond eyre-id rail 200 'cleared')
-    ;<  ~  bind:m  (lose:io (nex-road:io rail [%| dir]) [%numb `i.targets `i.targets])
+    ;<  ~  bind:m  (clear-snap rail i.targets)
     $(targets t.targets)
+  ::
+      [%tag-add ~]
+    ::  add a freeform label to snapshot N. Numeric labels are reserved
+    ::  (they are snapshot identity), so those are refused.
+    =/  jon=(unit json)  (de:json:html body)
+    ?.  &(?=(^ jon) ?=([%o *] u.jon))
+      (respond eyre-id rail 400 'bad body')
+    =/  n=(unit @ud)     (json-num (~(get by p.u.jon) 'n'))
+    =/  label=(unit @t)  (json-str (~(get by p.u.jon) 'tag'))
+    ?~  n      (respond eyre-id rail 400 'need n')
+    ?~  label  (respond eyre-id rail 400 'need tag')
+    ?:  =('' u.label)  (respond eyre-id rail 400 'empty tag')
+    ?:  (num-tag u.label)
+      (respond eyre-id rail 400 'numeric tags are reserved')
+    ;<  ~  bind:m  (set-snap-tag rail u.n u.label %.y)
+    (respond eyre-id rail 200 'tagged')
+  ::
+      [%tag-del ~]
+    ::  remove a freeform label from snapshot N.
+    =/  jon=(unit json)  (de:json:html body)
+    ?.  &(?=(^ jon) ?=([%o *] u.jon))
+      (respond eyre-id rail 400 'bad body')
+    =/  n=(unit @ud)     (json-num (~(get by p.u.jon) 'n'))
+    =/  label=(unit @t)  (json-str (~(get by p.u.jon) 'tag'))
+    ?~  n      (respond eyre-id rail 400 'need n')
+    ?~  label  (respond eyre-id rail 400 'need tag')
+    ;<  ~  bind:m  (set-snap-tag rail u.n u.label %.n)
+    (respond eyre-id rail 200 'untagged')
   ==
 ::
 ++  redirect
@@ -1196,5 +1369,4 @@
   ;<  ~  bind:m  (~(send-header http-res:io main-road) eyre-id hed)
   ;<  ~  bind:m  (~(send-data http-res:io main-road) eyre-id ~)
   (pure:m ~)
-::
 --
