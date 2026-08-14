@@ -59,7 +59,11 @@
   %+  spin:loader  ball
   :~  (manifest:loader 0)
       [%fall %& [/ %'source.json'] [[/ %json] (source-to-json *source-config)]]
-      [%fall %& [/ %'version.json'] [[/ %json] (pairs:enjs:format ~[['version' (numb:enjs:format 0)]])]]
+      ::  root version.json: which source version we are FOLLOWING. Seeded
+      ::  null — "not synced yet"; the first pull writes the real version
+      ::  (copied from the source's /code/version.json). Never seed a fake
+      ::  number: a fresh follower must read as behind so it actually pulls.
+      [%fall %& [/ %'version.json'] [[/ %json] ~]]
       [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
       ::  share.usergroups: the OPENING state — the set of usergroups this
       ::  desk grants peek on /desk/code. Poke it {add|remove: <group>};
@@ -131,22 +135,23 @@
       =/  new-json=json  !<(json q.sage)
       ;<  ~  bind:m  (replace:io new-json)
       $
-    ::  the version file's road is KNOWN, so watch its EXACT road — even
-    ::  before it exists (a fresh sub on an absent road is legal and
-    ::  fires when it appears). No discovery-by-peek, so a source that
-    ::  hasn't checked out yet can't deadlock us.
-    =/  ver-road=road:tarball    (parse-source-file version.u.config)
-    =/  code-road=road:tarball   (parse-source code.u.config)
-    =/  ver-name=@ta             (rear (parse-path version.u.config))
-    ~&  >  [%desk-subscribing version.u.config code.u.config]
+    ::  follow the source's CODE version — version.json INSIDE its /desk/code,
+    ::  the authored content version (never null), NOT the source's own root
+    ::  version.json (its private follow-state, none of our business). The
+    ::  road is KNOWN, so watch its EXACT road even before it exists.
+    =/  code-path=path           (parse-path code.u.config)
+    =/  code-road=road:tarball   [%& %| code-path]
+    =/  ver-road=road:tarball    [%& %& code-path %'version.json']
+    =/  ver-name=@ta             %'version.json'
+    ~&  >  [%desk-subscribing code.u.config]
     ;<  init=wave:nexus  bind:m  (keep:io /ver ver-road ~)
-    ~&  >  [%desk-subscribed version.u.config]
+    ~&  >  [%desk-subscribed code.u.config]
     ::  the runtime restarts EVERY fiber on a nexus reload, so this handler
-    ::  re-enters from the top constantly. Only pull on start when we're
-    ::  actually BEHIND (the source's version differs from our mirror) —
-    ::  otherwise a reload would peek + re-mirror the whole source tree
-    ::  every time for nothing. A version change in the loop below always
-    ::  pulls. First install: own version is ~, so this is true.
+    ::  re-enters constantly. Pull on start only when actually BEHIND: our
+    ::  root version.json (null until a real sync) differs from the source's
+    ::  /code/version.json. A fresh install is null, so it is always behind
+    ::  and pulls; otherwise a reload re-mirrors nothing. A version change in
+    ::  the loop below always pulls too.
     ;<  behind=?  bind:m  (source-behind ver-road rail)
     ;<  ~  bind:m
       ?.  behind  (pure:m ~)
@@ -279,18 +284,20 @@
     =/  nam=@ta  name.rail
     ?.  =('version.' (end [3 8] nam))  stay:m
     ;<  ~  bind:m  (rise-wait:io prod "%desk version: failed")
-    ;<  ~  bind:m  (apply-bill rail)
-    ;<  ~  bind:m  (initial-snapshot rail)
     ;<  init=wave:nexus  bind:m
       (keep:io /self (nex-road:io rail [%& / nam]) ~)
     |-
-    ;<  res=news-or-poke  bind:m  (take-news-or-poke /self)
-    ?-  -.res
-        %poke  $
-        %news
+    ::  act only on a REAL version. A null root version.json is the "not
+    ::  synced yet" marker — nothing to bill or snapshot until the first
+    ::  pull writes it. apply-bill + initial-snapshot are both idempotent,
+    ::  so re-running them on each real change is safe.
+    ;<  ver=(unit @t)  bind:m  (own-version rail)
+    ;<  ~  bind:m
+      ?~  ver  (pure:m ~)
       ;<  ~  bind:m  (apply-bill rail)
-      $
-    ==
+      (initial-snapshot rail)
+    ;<  *  bind:m  (take-news-or-poke /self)
+    $
   ==
 --
 ::
@@ -675,6 +682,8 @@
     ::  A bare string/number version file is accepted too.
     =/  j  ((soft json) nun)
     ?~  j  ~
+    ::  a null version.json is the "not synced yet" marker — no version.
+    ?~  u.j  ~
     =/  v=(unit json)
       ?:(?=([%o *] u.j) (~(get by p.u.j) 'version') `u.j)
     ?~  v  ~
