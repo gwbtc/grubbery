@@ -47,6 +47,7 @@ document.querySelectorAll('#mode-seg .seg-btn').forEach(function (b) {
     document.querySelectorAll('#mode-seg .seg-btn').forEach(function (x) {
       x.classList.toggle('active', x === b);
     });
+    updateFilesLabels();
     loadTree();
   };
 });
@@ -64,6 +65,28 @@ function updateSnapSelect() {
   note.innerHTML = (MODE === 'live') ? ''
     : (CHECKOUT == null) ? 'checkout is empty — nothing checked out'
     : 'inert &mdash; inspecting snapshot <b>' + CHECKOUT + '</b>';
+  updateFilesLabels();
+}
+// labels for the checked-out snapshot, editable inline in the Files view.
+// Shown only when a snapshot is actually checked out; opens the same modal.
+function updateFilesLabels() {
+  var fl = document.getElementById('files-labels');
+  fl.innerHTML = '';
+  if (MODE !== 'checkout' || CHECKOUT == null) { fl.style.display = 'none'; return; }
+  fl.style.display = '';
+  fl.onclick = function () { openLabels(CHECKOUT); };
+  var snap = null;
+  SNAPS.forEach(function (r) { if (r.n === CHECKOUT) snap = r; });
+  var tags = (snap && snap.tags) || [];
+  if (!tags.length) {
+    var add = document.createElement('span'); add.className = 'lbl-add'; add.textContent = '+ label';
+    fl.appendChild(add);
+  } else {
+    tags.forEach(function (t) {
+      var chip = document.createElement('span'); chip.className = 'tag-chip ro';
+      chip.textContent = t; fl.appendChild(chip);
+    });
+  }
 }
 
 // ── config ──
