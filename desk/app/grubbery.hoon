@@ -405,6 +405,12 @@
       abet:(save-file:hc [/sys/jael %'private-keys.jael-private-keys'] [[/ %jael-private-keys] [life.sign vein.sign]])
     [cards this]
     ::
+      [%keen @ @ *]
+    ?>  ?=([%ames %tune *] sign)
+    =^  cards  state
+      abet:(take-keen-tune:hc t.wire [ship roar]:sign)
+    [cards this]
+    ::
       [%behn %snap-pin @ @ ~]
     ?>  ?=([%behn %wake *] sign)
     =^  cards  state
@@ -878,6 +884,26 @@
   =/  orig-wire=wire  t.rest
   =/  =from:fiber:nexus  (relativize-from:nexus sender (ship-sig-rail src))
   (enqu-take sender ~ ~ %poke from [[/ %gack] `[wire (unit tang)]`[orig-wire err.req]])
+::  take-keen-tune: an ames %tune answered a %keen we passed for a
+::  fiber. Decode the return address from the wire, drop a tune whose
+::  spar names a different ship than the wire asked for, and poke the
+::  originating grub with the roar — the remote-scry sibling of
+::  +process-gack. Wire tail is {ship}/{path-len}/{path...}/{name}/{wire...}.
+::
+++  take-keen-tune
+  |=  [segs=wire =ship roar=(unit roar:ames)]
+  ^+  this
+  ?>  ?=([@ @ *] segs)
+  =/  who=@p  (slav %p i.segs)
+  =/  path-len=@ud  (slav %ud i.t.segs)
+  =/  from-path=path  (scag path-len t.t.segs)
+  =/  rest=wire  (slag path-len t.t.segs)
+  ?~  rest  this
+  =/  sender=rail:tarball  [from-path i.rest]
+  =/  orig-wire=wire  t.rest
+  ?.  =(who ship)  this
+  =/  =from:fiber:nexus  (relativize-from:nexus sender (ship-sig-rail who))
+  (enqu-take sender ~ ~ %poke from [[/ %keen-tune] `[wire (unit roar:ames)]`[orig-wire roar]])
 ::  process-want: a remote ship wants the content behind a snap it holds. look
 ::  up the pinned snap; miss if unknown. otherwise serve every pinned lobe from
 ::  its store (kind-directed; a pinned lobe gone missing is a books error worth
@@ -3038,8 +3064,8 @@
     =/  dest-lane=(unit lane:tarball)  (lane-from-road:tarball [%& here] road.dart)
     :_  dest-lane
     ?-  -.load.dart
-      ?(%peek %keep %drop %seek %peep %code %font %born)  %peek  :: read operations
-      %poke                       %poke
+      ?(%peek %keep %drop %seek %peep %code %font %born %keen)  %peek  :: read operations
+      ?(%poke %grow %tomb)        %poke  :: %grow/%tomb gate like service pokes
         $?  %make  %cull  %sand  %load
             %lose  %gain  %firm  %tag
         ==
@@ -3264,6 +3290,16 @@
         %&  (enqu-take:p.res here ~ ~ %held wire.dart ~)
         %|  (enqu-take here ~ ~ %held wire.dart `p.res)
       ==
+      ::
+        %grow
+      (dart-grow here dart)
+      ::
+        %tomb
+      (dart-tomb here dart)
+      ::
+        %keen
+      ?>  ?=(^ dest-lane)
+      (dart-keen here dart u.dest-lane)
     ==
     ::
       %here
@@ -3376,6 +3412,52 @@
     =/  =cass:clay  (fall (top:hist:nexus sk) *cass:clay)
     (enqu-take here ~ ~ %peek wire.dart [%file cass u.src-lobe blot.load.dart])
   ==
+::  dart-grow: publish a page at spur in our ship's remote-scry
+::  namespace. gall consumes the %grow card directly and gives no sign
+::  back, so the fiber completes with a %pack as soon as the card is
+::  emitted — the fire-and-forget shape of a consumed /sys poke.
+::
+++  dart-grow
+  |=  [here=rail:tarball =dart:nexus]
+  ^+  this
+  ?>  ?=([%node *] dart)
+  ?>  ?=([%grow *] load.dart)
+  =.  this  (emit-card [%pass /grow %grow spur.load.dart page.load.dart])
+  (enqu-take here ~ ~ %pack wire.dart ~)
+::  dart-tomb: tombstone a published revision — gall replaces the bound
+::  value with its hash. Completes fire-and-forget like +dart-grow.
+::  gall's +ap-tomb honors only %ud cases, so the load carries the bare
+::  revision number.
+::
+++  dart-tomb
+  |=  [here=rail:tarball =dart:nexus]
+  ^+  this
+  ?>  ?=([%node *] dart)
+  ?>  ?=([%tomb *] load.dart)
+  =.  this  (emit-card [%pass /tomb %tomb ud+case.load.dart spur.load.dart])
+  (enqu-take here ~ ~ %pack wire.dart ~)
+::  dart-keen: read a path from a remote ship's namespace via ames
+::  remote scry. Nothing is staged: the return address rides the keen
+::  wire (the +handle-timer-set idiom), so the %tune finds its way home
+::  through +take-keen-tune with no state to clean up. A fiber
+::  unwilling to wait forever wraps keen:io in +with-timeout.
+::
+++  dart-keen
+  |=  [here=rail:tarball =dart:nexus dest-lane=lane:tarball]
+  ^+  this
+  ?>  ?=([%node *] dart)
+  ?>  ?=([%keen *] load.dart)
+  ::  the road is the weir gate, the load is the request. a dart whose
+  ::  road names a different ship than its load was hand-rolled to
+  ::  slip the filter — veto it.
+  ?.  =(dest-lane [%| /sys/ames/ships/[(scot %p ship.load.dart)]])
+    (enqu-take here ~ ~ %veto dart)
+  =/  keen-wire=wire
+    :-  %keen
+    :-  (scot %p ship.load.dart)
+    :-  (scot %ud (lent path.here))
+    (weld path.here [name.here wire.dart])
+  (emit-card [%pass keen-wire %keen %.n ship.load.dart path.load.dart])
 ::  dart-code: peek the /code bins slice at dest — walk up to the governing
 ::  code nexus (lode), return its refs at the inner path. a file may resolve a
 ::  /tub/from/to tube request via the marc grow gate, caching the built tube in

@@ -1131,4 +1131,40 @@
     [(put-pace:hist:nexus ~ [1 ~2024.1.1] [%temp `lobe1]) [2 ~2024.1.2] [%temp `lobe2]]
   =/  silo3=silo:nexus  (~(drop-hist si:nexus silo2) hist)
   %+  expect-eq  !>(`@ud`0)  !>(~(wyt by jects.silo3))
+::  ==========================================
+::  remote-scry dart kinds (%grow, %tomb, %keen)
+::  ==========================================
+::
+::  the load union is what crosses the fiber/runtime seam — round-trip
+::  each new kind through the dart mold to pin its shape.
+::
+++  test-dart-grow-round-trip
+  =/  =dart:nexus
+    [%node /grow [%& %| /sys/scry] %grow /pub/note noun+42]
+  %+  expect-eq
+    !>  dart
+  !>  (dart:nexus dart)
+::
+++  test-dart-tomb-round-trip
+  =/  =dart:nexus
+    [%node /tomb [%& %| /sys/scry] %tomb 3 /pub/note]
+  %+  expect-eq
+    !>  dart
+  !>  (dart:nexus dart)
+::
+++  test-dart-keen-round-trip
+  =/  =dart:nexus
+    :*  %node  /keen
+        [%& %| /sys/ames/ships/[(scot %p ~zod)]]
+        %keen  ~zod  /c/x/1/kids/sys/kelvin
+    ==
+  %+  expect-eq
+    !>  dart
+  !>  (dart:nexus dart)
+::
+++  test-raw-filter-keen-gate
+  ::  a peek grant on /sys/ames covers the per-ship keen gate lane
+  %+  expect-eq
+    !>  %.y
+  !>  (raw-filter:nexus |+/sys/ames/ships/[(scot %p ~zod)] |+/sys/ames)
 --

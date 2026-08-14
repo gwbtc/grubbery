@@ -106,6 +106,9 @@
       [%born ~]                 :: read hist metadata at dest (file or fold)
       [%code ~]                 :: look up compiled artifacts at dest
       [%font ~]                 :: find code responsible for dest node
+      [%grow =spur =page]       :: publish a page in our remote-scry namespace
+      [%tomb case=@ud =spur]    :: tombstone a published revision (gall keeps %ud only)
+      [%keen =ship =path]       :: read a path from a remote ship via remote scry
   ==
 +$  dart
   $%  [%node =wire road=road:tarball =load]

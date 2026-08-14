@@ -1159,6 +1159,65 @@
     ?~  err  [%done ~]
     [%fail %poke-failed u.err]
   ==
+::  Remote-scry namespace operations (gall %grow/%tomb, ames %keen)
+::
+::  +grow: publish a page at spur in this ship's remote-scry namespace
+::
+::    gall consumes the %grow card itself and gives no sign back, so
+::    the runtime completes the fiber with a %pack as soon as the card
+::    is emitted — fire-and-forget, like a consumed /sys poke.
+::
+++  grow
+  |=  [=spur =page]
+  =/  m  (fiber ,~)
+  ^-  form:m
+  ;<  =wire  bind:m  (nonce /grow)
+  ;<  ~  bind:m  (send-dart %node wire [%& %| /sys/scry] %grow spur page)
+  (take-pack wire)
+::  +tomb: tombstone revision case of a published spur
+::
+::    The bound content is replaced by its hash; the binding stays.
+::    gall honors only %ud cases, so the dart carries the revision
+::    number bare. Completes like +grow: fire-and-forget.
+::
+++  tomb
+  |=  [case=@ud =spur]
+  =/  m  (fiber ,~)
+  ^-  form:m
+  ;<  =wire  bind:m  (nonce /tomb)
+  ;<  ~  bind:m  (send-dart %node wire [%& %| /sys/scry] %tomb case spur)
+  (take-pack wire)
+::  +keen: read a path from a remote ship's namespace via remote scry
+::
+::    Returns the roar — the remote's signed answer; ~ data inside the
+::    roar means it bound nothing at that path. Carries no deadline of
+::    its own: ames holds the request until the remote answers, which
+::    may be never. A caller unwilling to wait wraps this in
+::    +with-timeout.
+::
+::    Completion mirrors the remote branch of +poke-soft: no local
+::    %pack ever arrives — the %tune comes home through the runtime as
+::    a [/ %keen-tune] poke keyed by our wire.
+::
+++  keen
+  |=  [=ship =path]
+  =/  m  (fiber ,(unit roar:ames))
+  ^-  form:m
+  ;<  =wire  bind:m  (nonce /keen)
+  ;<  ~  bind:m
+    (send-dart %node wire [%& %| /sys/ames/ships/[(scot %p ship)]] %keen ship path)
+  |=  input
+  :+  ~  q.state
+  ?+  in  [%skip ~]
+      ~  [%wait ~]
+      [~ %veto *]
+    [%fail (veto-error dart.u.in)]
+      [~ %poke * *]
+    ?.  =([/ %keen-tune] p.sage.u.in)  [%skip ~]
+    =/  [w=^wire roar=(unit roar:ames)]  !<([^wire (unit roar:ames)] q.sage.u.in)
+    ?.  =(wire w)  [%skip ~]
+    [%done roar]
+  ==
 ::  +road-to-remote: parse a /sys/ames/ships/ road into the target ship
 ::  and the real lane on that ship, mirroring the runtime's
 ::  +resolve-remote. ~ for local roads.
