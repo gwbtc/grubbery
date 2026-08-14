@@ -91,10 +91,9 @@ function updateFilesLabels() {
 
 // ── config ──
 function setSource() {
-  var v = document.getElementById('source-version').value.trim();
   var c = document.getElementById('source-code').value.trim();
-  if (!v || !c) { alert('both a version path and a code path are required'); return; }
-  fetch(BASE + 'set-source', { method: 'POST', body: JSON.stringify({ version: v, code: c }) })
+  if (!c) { alert('a code path is required'); return; }
+  fetch(BASE + 'set-source', { method: 'POST', body: JSON.stringify({ code: c }) })
     .then(function () { load(); });
 }
 function fetchLatest() {
@@ -399,7 +398,6 @@ function load() {
     SNAPS = s.snapshots || [];
     document.getElementById('tb-name').textContent = NAME;
     var src = s.source || null;
-    document.getElementById('source-version').value = src ? src.version : '';
     document.getElementById('source-code').value = src ? src.code : '';
     document.getElementById('tb-source').textContent = src ? src.code : '';
     var st = document.getElementById('tb-status');

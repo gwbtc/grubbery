@@ -69,12 +69,9 @@
         <div class="cfg-section">
           <h3>Source</h3>
           <p class="muted">A desk follows a source &mdash; you don't edit it in place. The
-            <b>version</b> file is watched for releases; the <b>code</b> directory is pulled into
-            <code>/desk/code</code> on each bump. Both required. Paths are <code>~ship/path</code>
+            <b>code</b> directory is pulled into <code>/desk/code</code>, and its
+            <code>version.json</code> is watched for releases. Path is <code>~ship/path</code>
             or local <code>/path</code>.</p>
-          <label class="cfg-label">version
-            <input id="source-version" type="text" placeholder="~ship/apps/.../version.json">
-          </label>
           <label class="cfg-label">code
             <input id="source-code" type="text" placeholder="~ship/apps/.../code/">
           </label>

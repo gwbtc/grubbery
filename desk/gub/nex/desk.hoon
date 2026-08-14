@@ -303,11 +303,11 @@
 ::
 |%
 ::  source.json: optional. ~ = a standalone desk (follows nothing). If
-::  present, BOTH paths are required: `version` is the road to the
-::  source's version file (watched — the release signal) and `code` is
-::  the road to the source's code directory (pulled into /desk/code).
+::  present, `code` is the road to the source's code directory (pulled into
+::  /desk/code). The version road is DERIVED — <code>/version.json, the
+::  authored content version — so it is never stored separately.
 ::
-+$  source-config  (unit [version=@t code=@t])
++$  source-config  (unit [code=@t])
 ::
 +$  news-or-poke
   $%  [%news =wave:nexus]
@@ -328,10 +328,7 @@
   |=  config=source-config
   ^-  json
   ?~  config  ~
-  %-  pairs:enjs:format
-  :~  ['version' s+version.u.config]
-      ['code' s+code.u.config]
-  ==
+  (pairs:enjs:format ~[['code' s+code.u.config]])
 ::
 ++  json-to-source
   |=  =json
@@ -339,11 +336,10 @@
   ::  match the whole json as an object — `-.json` on a ~ (null, the
   ::  unconfigured seed) would fault.
   ?.  ?=([%o *] json)  ~
-  =/  verp  (~(get by p.json) 'version')
   =/  codp  (~(get by p.json) 'code')
-  ?.  &(?=([~ %s *] verp) ?=([~ %s *] codp))  ~
-  ?:  |(=('' p.u.verp) =('' p.u.codp))  ~
-  `[p.u.verp p.u.codp]
+  ?.  ?=([~ %s *] codp)  ~
+  ?:  =('' p.u.codp)  ~
+  `[p.u.codp]
 ::
 ::  +apply-share: register the follow weir with every group in the new
 ::  share list, and clear it from groups that were dropped
@@ -415,13 +411,6 @@
   |=  src=@t
   ^-  road:tarball
   [%& %| (parse-path src)]
-::  parse-source-file: a source string (pointing at a file) as a file road
-::
-++  parse-source-file
-  |=  src=@t
-  ^-  road:tarball
-  =/  p=path  (parse-path src)
-  [%& %& (snip p) (rear p)]
 ::
 ::  sync-release: mirror the source's CURRENT tree when its version
 ::  number changes. The version file is only a change signal — we never
@@ -1244,9 +1233,9 @@
     (pure:m ~)
   ::
       [%set-source ~]
-    ::  set (or clear) the desk's source. Body is {version, code} to
-    ::  follow, or {}/null to go standalone. Normalized through the
-    ::  source-config contract (both paths required) before it lands.
+    ::  set (or clear) the desk's source. Body is {code} to follow, or
+    ::  {}/null to go standalone. Normalized through the source-config
+    ::  contract before it lands.
     =/  jon=json  (fall (de:json:html body) ~)
     =/  clean=json  (source-to-json (json-to-source jon))
     ~&  >  [%desk-set-source clean]
@@ -1293,10 +1282,11 @@
     ?~  config
       ;<  ~  bind:m  (respond eyre-id rail 400 'no source configured')
       (pure:m ~)
-    =/  ver-road=road:tarball    (parse-source-file version.u.config)
-    =/  code-road=road:tarball   (parse-source code.u.config)
-    =/  ver-name=@ta             (rear (parse-path version.u.config))
-    ~&  >  [%desk-fetch-latest version.u.config code.u.config]
+    =/  code-path=path           (parse-path code.u.config)
+    =/  code-road=road:tarball   [%& %| code-path]
+    =/  ver-road=road:tarball    [%& %& code-path %'version.json']
+    =/  ver-name=@ta             %'version.json'
+    ~&  >  [%desk-fetch-latest code.u.config]
     ::  snapshot the current world, then pull the latest release
     ;<  ~  bind:m  (do-snapshot rail)
     ;<  ~  bind:m  (sync-release ver-road code-road ver-name rail)
