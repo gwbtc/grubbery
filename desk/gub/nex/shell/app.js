@@ -366,29 +366,16 @@ var API='/grubbery/api';var BALL='apps/tiles.tiles';
         desks.forEach(function(d) {
           var src = d.source || '';
           var srcLabel = src ? ((src[0] === '~' ? 'foreign source: ' : 'local source: ') + src) : 'no source';
-          var pub = !!d.public;
+          var url = d.url || ('/grubbery/desk/' + String(d.name).split('.')[0]);
           var row = document.createElement('div');
           row.className = 'papp';
           row.innerHTML =
             '<div class="papp-body">' +
-              '<div class="papp-title">' + escP(d.name) + (d.version ? ' - v' + escP(d.version) : '') + '</div>' +
+              '<div class="papp-title">' + escP(d.name) + '</div>' +
               '<div class="papp-sub">' + escP(srcLabel) + '</div>' +
             '</div>' +
-            '<button class="papp-get" data-app="' + escP(d.name) + '" data-pub="' + (pub ? '1' : '0') + '">' +
-              (pub ? 'Unpublish' : 'Publish') + '</button>';
+            '<a class="papp-get" href="' + escP(url) + '">Open</a>';
           box.appendChild(row);
-        });
-        Array.prototype.forEach.call(box.querySelectorAll('[data-app]'), function(b) {
-          b.onclick = function() {
-            var next = b.getAttribute('data-pub') !== '1';
-            b.disabled = true;
-            b.textContent = '...';
-            fetch('/grubbery/tiles/desks/config', {
-              method: 'POST',
-              headers: { 'content-type': 'application/json' },
-              body: JSON.stringify({ app: b.getAttribute('data-app'), public: next })
-            }).then(function() { setTimeout(loadDesks, 400); });
-          };
         });
       })
       .catch(function(e) {
@@ -419,7 +406,7 @@ var API='/grubbery/api';var BALL='apps/tiles.tiles';
   function installPeerApp(a, btn, name) {
     btn.disabled = true;
     btn.textContent = 'installing...';
-    var body = { name: name || a.name, code: a.code, version: a['version-path'] };
+    var body = { name: name || a.name, code: a.code };
     peerPost('add', body)
       .then(function(r) {
         if (r.status === 409) {
@@ -529,7 +516,7 @@ var API='/grubbery/api';var BALL='apps/tiles.tiles';
             return '<div class="papp">' + icon +
               '<div class="papp-body">' +
                 '<div class="papp-title">' + escP(a.title || a.name) + '</div>' +
-                '<div class="papp-sub">' + escP(a.path) + (a.version ? ' - v' + escP(a.version) : '') + '</div>' +
+                '<div class="papp-sub">' + escP(a.path) + '</div>' +
               '</div>' +
               (a.installed
                 ? '<button class="papp-get" disabled>Installed</button>' +

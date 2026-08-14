@@ -39,6 +39,11 @@
           [%fall %| /permit empty-dir:loader]
           [%fall %& [/permit %'approved.json'] [[/ %json] [%o ~]]]
           [%fall %& [/permit %'hidden.json'] [[/ %json] [%o ~]]]
+          ::  permit/notified: app path -> the pending ask we last notified
+          ::  about (same road-shape as an approved manifest's `declared`).
+          ::  Dedups the "wants permissions" banner so a still-pending ask
+          ::  does not re-fire on every reload. Dropped when the app leaves.
+          [%fall %& [/permit %'notified.json'] [[/ %json] [%o ~]]]
           ::  /cache: REBUILDABLE view caches, follower-maintained — kept
           ::  apart from /permit so the system-of-record tier is visible
           ::  at a glance. Losing /cache costs nothing; losing /permit
@@ -234,6 +239,12 @@
             ?.  (~(has by approved) key)  (pure:(fiber:fiber:nexus ,~) ~)
             %+  put:io  (nex-road:io rail [%& /permit %'approved.json'])
             [[/ %json] [%o (~(del by approved) key)]]
+          ::  drop the notify record too, so a reinstall re-surfaces its ask.
+          ;<  notified=(map @t json)  bind:m  (read-notified rail)
+          ;<  ~  bind:m
+            ?.  (~(has by notified) key)  (pure:(fiber:fiber:nexus ,~) ~)
+            %+  put:io  (nex-road:io rail [%& /permit %'notified.json'])
+            [[/ %json] [%o (~(del by notified) key)]]
           ;<  ~  bind:m  (build-book rail)
           ;<  ~  bind:m  (build-asks rail)
           ;<  ~  bind:m  (build-share rail)
@@ -325,23 +336,22 @@
           ;<  ~  bind:m  (poke:io (nex-road:io rail [%& / %'peers.json']) [[/ %json] jon])
           ;<  ~  bind:m  (send-simple:srv eyre-id [[200 ~] `(as-octs:mimes:html 'ok')])
           (pure:m ~)
-        ::  POST /desks/add {name, code, version}: install a peer's shared
-        ::  desk as a local cross-ship /desk. Make a trusted [/ %desk] wrapper
-        ::  (weir ~ — it enforces via apply-bill), then poke its source.json
-        ::  with the peer-prefixed code + version roads (from the peer card);
-        ::  the /desk follows them and syncs the code in.
+        ::  POST /desks/add {name, code}: install a peer's shared desk as a
+        ::  local cross-ship /desk. Make a trusted [/ %desk] wrapper (weir ~ —
+        ::  it enforces via apply-bill), then poke its source.json with the
+        ::  peer-prefixed code road (from the peer card); the /desk follows it
+        ::  and syncs the code in (the version rides inside /code/version.json).
         ?:  &(=('POST' method.request.req) ?=([%desks %add ~] suffix))
           =/  jon=json
             %+  fall  (de:json:html ?~(body.request.req '' q.u.body.request.req))
             *json
-          =/  name=@t     (jstr jon 'name')
-          =/  code=@t     (jstr jon 'code')
-          =/  version=@t  (jstr jon 'version')
+          =/  name=@t  (jstr jon 'name')
+          =/  code=@t  (jstr jon 'code')
           ?:  =('' name)
             ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'name required')])
             (pure:m ~)
-          ?:  |(=('' code) =('' version))
-            ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'code and version required')])
+          ?:  =('' code)
+            ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'code required')])
             (pure:m ~)
           =/  dir-path=path  /apps/[(cat 3 `@ta`name '.desk')]
           ;<  live=?  bind:m  (peek-exists:io [%& %| dir-path])
@@ -350,11 +360,7 @@
             (pure:m ~)
           ;<  ~  bind:m
             (make:io [%& %| dir-path] &+`bole:tarball`[`[`[/ %desk] ~ %.n ~] ~])
-          =/  source=json
-            %-  pairs:enjs:format
-            :~  ['version' s+version]
-                ['code' s+code]
-            ==
+          =/  source=json  (pairs:enjs:format ~[['code' s+code]])
           ;<  ~  bind:m  (poke:io [%& %& dir-path %'source.json'] [[/ %json] source])
           ;<  ~  bind:m  (send-simple:srv eyre-id [[200 ~] `(as-octs:mimes:html 'created')])
           (pure:m ~)
@@ -369,31 +375,6 @@
             (pure:m ~)
           ;<  ~  bind:m  (cull:io [%& %| /apps/[(crip (trip app))]])
           ;<  ~  bind:m  (send-simple:srv eyre-id [[200 ~] `(as-octs:mimes:html 'deleted')])
-          (pure:m ~)
-        ::  POST /desks/config {app, source?, public?}: merge into a desk's
-        ::  config.json — the publish toggle (public) and source edits. Only
-        ::  the fields the form sends are written; the rest are untouched.
-        ?:  &(=('POST' method.request.req) ?=([%desks %config ~] suffix))
-          =/  jon=json
-            %+  fall  (de:json:html ?~(body.request.req '' q.u.body.request.req))
-            *json
-          =/  app=@t  (jstr jon 'app')
-          ?:  =('' app)
-            ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'app required')])
-            (pure:m ~)
-          =/  cfg-road=road:tarball  [%& %& /apps/[(crip (trip app))] %'config.json']
-          ;<  old=(unit json)  bind:m  (peek-as:io cfg-road ,json)
-          =/  om=(map @t json)  ?:(?=([~ %o *] old) p.u.old ~)
-          =/  jm=(map @t json)  ?:(?=([%o *] jon) p.jon ~)
-          =/  put-present
-            |=  [mp=(map @t json) k=@t]
-            ^-  (map @t json)
-            =/  v  (~(get by jm) k)
-            ?~(v mp (~(put by mp) k u.v))
-          =.  om  (put-present om 'source')
-          =.  om  (put-present om 'public')
-          ;<  ~  bind:m  (poke:io cfg-road [[/ %json] [%o om]])
-          ;<  ~  bind:m  (send-simple:srv eyre-id [[200 ~] `(as-octs:mimes:html 'configured')])
           (pure:m ~)
         ::  tile store, served from the tiles data ball over the namespace
         ::  /grubbery/tiles/tiles.json → all tile data
@@ -642,7 +623,7 @@
   =/  t=tape  (trip n)
   =/  s=@t  (crip (scag (sub (lent t) 5) t))
   ::  the mirror holds the peer's /share/public/desks.json — an array of
-  ::  desk cards {name, dir, code, version}, each a desk we may install.
+  ::  desk cards {name, dir, code}, each a desk we may install.
   =/  entries=(list json)
     ?:  (is-boom:tarball sang)  ~
     =/  r=(each json tang)
@@ -671,7 +652,6 @@
   =/  dir=@t    (jstr entry 'dir')       :: the desk's dir name on the peer
   =/  ename=@t  (jstr entry 'name')      :: display name (already slugged)
   =/  codep=@t  (jstr entry 'code')      :: "/apps/<dir>/desk/code"
-  =/  verp=@t   (jstr entry 'version')   :: "/apps/<dir>/version.json"
   ?:  =('' dir)  (pure:m entry)          :: malformed card — pass through
   =/  base=path  (weld /sys/ames/ships/[s]/root /apps/[`@ta`dir])
   ;<  cv=view:nexus  bind:m
@@ -701,11 +681,10 @@
   =/  icon-url=json
     ?~  icon  ~
     s+(crip "/grubbery/ball{(spud (weld base /desk/code))}/{(trip u.icon)}?raw=1")
-  ::  the install roads: peer-prefixed code + version, which /desks/add
-  ::  writes verbatim into the new desk's source.json. `source` doubles as
-  ::  the installed-check key (matches installed-sources' source.json.code).
+  ::  the peer-prefixed code road, which /desks/add writes into the new
+  ::  desk's source.json. `source` doubles as the installed-check key
+  ::  (matches installed-sources' source.json.code).
   =/  code-src=@t  (cat 3 s codep)
-  =/  ver-src=@t   (cat 3 s verp)
   %-  pure:m
   %-  pairs:enjs:format
   :~  ['path' s+(cat 3 '/apps/' dir)]
@@ -717,7 +696,6 @@
       ['icon' icon-url]
       ['ship' s+s]
       ['code' s+code-src]
-      ['version-path' s+ver-src]
       ['source' s+code-src]
       ['installed' b+(~(has by srcs) code-src)]
       ['local' ?~((~(get by srcs) code-src) ~ s+(need (~(get by srcs) code-src)))]
@@ -755,16 +733,8 @@
   ?.  ?=([%o *] jon)  ''
   =/  v  (~(get by p.jon) k)
   ?.(?=([~ %s *] v) '' p.u.v)
-::  +jbol: a boolean field from a json object, %.n if absent.
-::
-++  jbol
-  |=  [jon=json k=@t]
-  ^-  ?
-  ?.  ?=([%o *] jon)  %.n
-  =/  v  (~(get by p.jon) k)
-  ?.(?=([~ %b *] v) %.n p.u.v)
-::  +discover-desks: every local /apps/<x>.desk with its source, version,
-::  and public flag — the "your desks / publish" list. (git_desk retired.)
+::  +discover-desks: every local /apps/<x>.desk with its source and a link
+::  to its own page — the shell's desk launcher (config/publish live there).
 ::
 ++  discover-desks
   =/  m  (fiber:fiber:nexus ,json)
@@ -789,23 +759,15 @@
   =/  m  (fiber:fiber:nexus ,(unit json))
   ^-  form:m
   ?.  =('desk' (desk-suffix app))  (pure:m ~)
-  ;<  cfg=(unit json)  bind:m
-    (peek-as:io [%& %& /apps/[app] %'config.json'] ,json)
-  ;<  vj=(unit json)  bind:m
-    (peek-as:io [%& %& /apps/[app] %'version.json'] ,json)
-  =/  ver=@ud
-    ?.  ?=([~ %o *] vj)  0
-    =/  v  (~(get by p.u.vj) 'version')
-    ?.  ?=([~ %n *] v)  0
-    (fall (rush p.u.v dem) 0)
-  =/  cm=(map @t json)  ?:(?=([~ %o *] cfg) p.u.cfg ~)
-  =/  get  |=(k=@t `json`(~(gut by cm) k ~))
+  ;<  sj=(unit json)  bind:m
+    (peek-as:io [%& %& /apps/[app] %'source.json'] ,json)
+  =/  code=@t  ?~(sj '' (jstr u.sj 'code'))
+  ::  publishing + source editing live in the desk's OWN page now; this list
+  ::  is just navigation, so it carries name, source, and a link to the page.
   %-  pure:m  :-  ~
   %-  pairs:enjs:format
   :~  ['name' s+app]
-      ['version' (numb:enjs:format ver)]
-      ['source' (get 'source')]
-      ['public' (get 'public')]
+      ['source' ?:(=('' code) ~ s+code)]
       ['url' s+(cat 3 '/grubbery/desk/' (app-slug app))]
   ==
 ::  +desk-suffix: the extension after the last dot ('foo.desk' -> 'desk').
@@ -963,6 +925,26 @@
   ;<  av=(unit json)  bind:m
     (peek-as:io (nex-road:io rail [%& /permit %'approved.json']) ,json)
   (pure:m ?~(av ~ ?.(?=(%o -.u.av) ~ p.u.av)))
+::  +read-notified: the permit/notified grub — app path -> the pending ask
+::  we last surfaced a banner for. The "already told you" record.
+::
+++  read-notified
+  |=  rail=rail:tarball
+  =/  m  (fiber:fiber:nexus ,(map @t json))
+  ^-  form:m
+  ;<  nv=(unit json)  bind:m
+    (peek-as:io (nex-road:io rail [%& /permit %'notified.json']) ,json)
+  (pure:m ?~(nv ~ ?.(?=(%o -.u.nv) ~ p.u.nv)))
+::  +mark-notified: record that we have surfaced THIS ask for an app, so an
+::  unchanged pending ask does not re-notify on the next reload.
+::
+++  mark-notified
+  |=  [rail=rail:tarball app=@t ask=json]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  ;<  cur=(map @t json)  bind:m  (read-notified rail)
+  %+  put:io  (nex-road:io rail [%& /permit %'notified.json'])
+  [[/ %json] [%o (~(put by cur) app ask)]]
 ::  +notify-target: poke road to the notifications nexus's main.sig.
 ::
 ++  notify-target
@@ -984,6 +966,20 @@
 ::  permit/approved holds a record for the app whose `declared` roads match
 ::  the current ask (order-insensitive). Settled asks never notify.
 ::
+::  +asks-match: do two ask-shaped jsons declare the same poke/peek/make
+::  roads (order-insensitive)? The shared identity test for both "already
+::  ruled on" (is-settled) and "already surfaced" (is-notified).
+::
+++  asks-match
+  |=  [a=json b=json]
+  ^-  ?
+  =/  same=$-([(list @t) (list @t)] ?)
+    |=([x=(list @t) y=(list @t)] =((sort x aor) (sort y aor)))
+  ?&  (same (road-strs a 'poke') (road-strs b 'poke'))
+      (same (road-strs a 'peek') (road-strs b 'peek'))
+      (same (road-strs a 'make') (road-strs b 'make'))
+  ==
+::
 ++  is-settled
   |=  [ask=json approved=(map @t json)]
   ^-  ?
@@ -992,12 +988,18 @@
   ?~  ap  %.n
   ?.  ?=(%o -.u.ap)  %.n
   =/  dec=json  (fall (~(get by p.u.ap) 'declared') [%o ~])
-  =/  same=$-([(list @t) (list @t)] ?)
-    |=([a=(list @t) b=(list @t)] =((sort a aor) (sort b aor)))
-  ?&  (same (road-strs ask 'poke') (road-strs dec 'poke'))
-      (same (road-strs ask 'peek') (road-strs dec 'peek'))
-      (same (road-strs ask 'make') (road-strs dec 'make'))
-  ==
+  (asks-match ask dec)
+::  +is-notified: have we already surfaced a banner for THIS exact ask? A
+::  changed ask (new roads) fails the match and notifies afresh.
+::
+++  is-notified
+  |=  [ask=json notified=(map @t json)]
+  ^-  ?
+  =/  app=@t  (fall (jget ask 'app') '')
+  =/  rec=(unit json)  (~(get by notified) app)
+  ?~  rec  %.n
+  ?.  ?=(%o -.u.rec)  %.n
+  (asks-match ask u.rec)
 ::  +notify-app: ping the notifications nexus about one app's pending ask.
 ::  Uses poke-soft so a failed ping returns an error instead of crashing the
 ::  scan loop; returns whether it delivered, so the caller retries if not.
@@ -1485,7 +1487,8 @@
   =/  entry=json  (desk-entry i.kids)
   (pure:m (weld (turn ~(tap in u.shr) |=(g=path [g entry])) rest))
 ::  +desk-entry: one shared desk as a discovery card — display name plus the
-::  code + version roads a follower subscribes to (peers prepend the ship).
+::  code road a follower subscribes to (peers prepend the ship; the version
+::  rides inside <code>/version.json).
 ::
 ++  desk-entry
   |=  name=@ta
@@ -1494,7 +1497,6 @@
   :~  ['name' s+(app-slug name)]
       ['dir' s+name]
       ['code' s+(crip "/apps/{(trip name)}/desk/code")]
-      ['version' s+(crip "/apps/{(trip name)}/version.json")]
   ==
 ::
 ++  build-book
@@ -1575,8 +1577,13 @@
   =/  ask=json  [%o (~(put by p.u.jon) 'app' s+app)]
   ;<  approved=(map @t json)  bind:m  (read-approved rail)
   ?:  (is-settled ask approved)  (pure:m ~)
+  ::  already told the user about this exact pending ask? don't re-ping on a
+  ::  reload. A changed ask fails the match below and notifies afresh.
+  ;<  notified=(map @t json)  bind:m  (read-notified rail)
+  ?:  (is-notified ask notified)  (pure:m ~)
   ;<  ~  bind:m  (register-notify rail)
   ;<  *  bind:m  (notify-app rail app)
+  ;<  ~  bind:m  (mark-notified rail app ask)
   (pure:m ~)
 ::  +build-asks: materialize the pending-asks view into /permit/asks.json so
 ::  the UI fetches a ready grub instead of re-running read-app-weirs +

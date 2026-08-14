@@ -92,7 +92,7 @@
   .papp-body { flex: 1; min-width: 0; }
   .papp-title { font-size: 14px; font-weight: 600; color: #111; }
   .papp-sub { font-size: 12px; color: #888; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .papp-get { font-size: 12px; font-weight: 600; padding: 7px 18px; border-radius: 16px; border: none; background: #ede7fa; color: #6947b8; cursor: pointer; font-family: inherit; }
+  .papp-get { font-size: 12px; font-weight: 600; padding: 7px 18px; border-radius: 16px; border: none; background: #ede7fa; color: #6947b8; cursor: pointer; font-family: inherit; display: inline-block; text-decoration: none; }
   .papp-get:hover { background: #e0d4f7; }
   .papp-get:disabled { opacity: 0.6; cursor: default; }
   .papp-none { color: #999; font-size: 13px; padding: 10px 6px; }
