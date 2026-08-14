@@ -72,6 +72,11 @@
           ::  poll. /sync/main.sig is the coordinator: it watches /apps
           ::  membership and spawns/keeps the followers.
           [%fall %| /sync empty-dir:loader]
+          ::  /share: per-usergroup discovery directories, derived from
+          ::  local desks' share.usergroups. /share/<group>/desks.json lists
+          ::  the desks that group may subscribe to and where their code +
+          ::  version live. Rebuilt from the live grants by the followers.
+          [%fall %| /share empty-dir:loader]
           [%fall %| /peers empty-dir:loader]
           [%fall %| /requests empty-dir:loader]
           [%over %& [/ %'app.js'] [[/ %mime] app-js]]
@@ -123,7 +128,13 @@
           =/  files=(set @ta)  (fall (~(get by shares) grp) ~)
           =/  base=(set road:tarball)
             ?.  =(/public grp)  ~
-            (sy `(list road:tarball)`~[[%& %& nex-dir %'public.json']])
+            %-  sy
+            ^-  (list road:tarball)
+            :~  [%& %& nex-dir %'public.json']
+                ::  the new desk storefront — the /public group reads this to
+                ::  discover which desks it may subscribe to and where.
+                [%& %& (weld nex-dir /share/public) %'desks.json']
+            ==
           =/  peeks=(set road:tarball)
             %-  ~(gas in base)
             (turn ~(tap in files) |=(f=@ta `road:tarball`[%& %& (weld nex-dir /book) f]))
@@ -154,6 +165,9 @@
           ;<  ~  bind:(fiber:fiber:nexus ,~)  (build-asks rail)
           ;<  ~  bind:(fiber:fiber:nexus ,~)  (build-aliases rail)
           (build-weirs rail)
+        ::  desk shares change without spawning a follower, so /share must
+        ::  rebuild on every sweep, not only when a new app appeared.
+        ;<  ~  bind:m  (build-share rail)
         $
           ::  peers.json: poke target for managing which ships' public
           ::  desk directories we mirror. {"add": "~ship"} makes the
@@ -199,6 +213,9 @@
         ::  a ticking app (counter, weather) fires us on every data write.
         ;<  *  bind:m  (keep:io /alias [%& %& u.ap %'alias.json'] ~)
         ;<  *  bind:m  (keep:io /weir [%& %& u.ap %'weir.json'] ~)
+        ::  a desk's opening declaration — absent for non-desk apps (a sub on
+        ::  an absent road is legal and fires if it ever appears).
+        ;<  *  bind:m  (keep:io /shareg [%& %& u.ap %'share.usergroups'] ~)
         ::  notify at rise too: a fresh install's ask predates this
         ::  follower, so there is no change-news to catch — and an ask
         ::  still pending across a reload deserves the re-ping anyway.
@@ -219,6 +236,7 @@
             [[/ %json] [%o (~(del by approved) key)]]
           ;<  ~  bind:m  (build-book rail)
           ;<  ~  bind:m  (build-asks rail)
+          ;<  ~  bind:m  (build-share rail)
           (pure:m ~)
         ::  a real change to our app's declarations: notify if the ask is
         ::  unsettled (the subscription IS the dedup — news only fires on
@@ -228,6 +246,7 @@
         ;<  ~  bind:m  (build-asks rail)
         ;<  ~  bind:m  (build-aliases rail)
         ;<  ~  bind:m  (build-weirs rail)
+        ;<  ~  bind:m  (build-share rail)
         $
           ::  /peers/<ship>.json: live mirror of one ship's public desk
           ::  directory, held current by subscription. All network
@@ -306,17 +325,23 @@
           ;<  ~  bind:m  (poke:io (nex-road:io rail [%& / %'peers.json']) [[/ %json] jon])
           ;<  ~  bind:m  (send-simple:srv eyre-id [[200 ~] `(as-octs:mimes:html 'ok')])
           (pure:m ~)
-        ::  POST /desks/add {name, source, public}: install a peer's shared
-        ::  desk as a local cross-ship /desk (git_desk is retired). Make a
-        ::  trusted [/ %desk] wrapper (weir ~ — it enforces via apply-bill),
-        ::  point its source at the peer, and the /desk syncs it.
+        ::  POST /desks/add {name, code, version}: install a peer's shared
+        ::  desk as a local cross-ship /desk. Make a trusted [/ %desk] wrapper
+        ::  (weir ~ — it enforces via apply-bill), then poke its source.json
+        ::  with the peer-prefixed code + version roads (from the peer card);
+        ::  the /desk follows them and syncs the code in.
         ?:  &(=('POST' method.request.req) ?=([%desks %add ~] suffix))
           =/  jon=json
             %+  fall  (de:json:html ?~(body.request.req '' q.u.body.request.req))
             *json
-          =/  name=@t  (jstr jon 'name')
+          =/  name=@t     (jstr jon 'name')
+          =/  code=@t     (jstr jon 'code')
+          =/  version=@t  (jstr jon 'version')
           ?:  =('' name)
             ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'name required')])
+            (pure:m ~)
+          ?:  |(=('' code) =('' version))
+            ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'code and version required')])
             (pure:m ~)
           =/  dir-path=path  /apps/[(cat 3 `@ta`name '.desk')]
           ;<  live=?  bind:m  (peek-exists:io [%& %| dir-path])
@@ -325,12 +350,12 @@
             (pure:m ~)
           ;<  ~  bind:m
             (make:io [%& %| dir-path] &+`bole:tarball`[`[`[/ %desk] ~ %.n ~] ~])
-          =/  config=json
+          =/  source=json
             %-  pairs:enjs:format
-            :~  ['source' s+(jstr jon 'source')]
-                ['public' b+(jbol jon 'public')]
+            :~  ['version' s+version]
+                ['code' s+code]
             ==
-          ;<  ~  bind:m  (poke:io [%& %& dir-path %'config.json'] [[/ %json] config])
+          ;<  ~  bind:m  (poke:io [%& %& dir-path %'source.json'] [[/ %json] source])
           ;<  ~  bind:m  (send-simple:srv eyre-id [[200 ~] `(as-octs:mimes:html 'created')])
           (pure:m ~)
         ::  POST /desks/delete {app}: cull the /apps/<app> subtree.
@@ -436,6 +461,9 @@
             ;<  ~  bind:(fiber:fiber:nexus ,~)  (build-asks rail)
             ;<  ~  bind:(fiber:fiber:nexus ,~)  (build-aliases rail)
             (build-weirs rail)
+          ::  /share tracks desk shares, which move without a new follower —
+          ::  rebuild it on every permits load, not only when one spawned.
+          ;<  ~  bind:m  (build-share rail)
           ::  lazy seed: if the view caches are empty (fresh boot, never
           ::  rebuilt), build them once now; afterwards every load is pure
           ::  cached reads.
@@ -589,12 +617,14 @@
   =|  acc=(map @t @t)
   |-
   ?~  kids  (pure:m acc)
-  ;<  cfg=(unit json)  bind:m
-    (peek-as:io [%& %& /apps/[i.kids] %'config.json'] ,json)
-  ?~  cfg  $(kids t.kids)
-  =/  src=@t  (jstr u.cfg 'source')
-  ?:  =('' src)  $(kids t.kids)
-  $(kids t.kids, acc (~(put by acc) src `@t`i.kids))
+  ::  a local desk's source.json.code is the peer road it follows — the same
+  ::  key a peer card carries, so a mirrored desk shows as already installed.
+  ;<  src=(unit json)  bind:m
+    (peek-as:io [%& %& /apps/[i.kids] %'source.json'] ,json)
+  ?~  src  $(kids t.kids)
+  =/  code=@t  (jstr u.src 'code')
+  ?:  =('' code)  $(kids t.kids)
+  $(kids t.kids, acc (~(put by acc) code `@t`i.kids))
 ::
 ++  peer-groups
   |=  [entries=(list [n=@ta =sang:tarball gain=? bang=(unit tang)]) srcs=(map @t @t)]
@@ -611,40 +641,44 @@
   ^-  form:m
   =/  t=tape  (trip n)
   =/  s=@t  (crip (scag (sub (lent t) 5) t))
-  =/  paths=(list @t)
+  ::  the mirror holds the peer's /share/public/desks.json — an array of
+  ::  desk cards {name, dir, code, version}, each a desk we may install.
+  =/  entries=(list json)
     ?:  (is-boom:tarball sang)  ~
     =/  r=(each json tang)
       (mule |.(!<(json (need-vase:tarball sang))))
     ?:  ?=(%| -.r)  ~
     ?.  ?=(%a -.p.r)  ~
-    (murn p.p.r |=(j=json ?:(?=([%s *] j) `p.j ~)))
-  ;<  apps=(list json)  bind:m  (peer-apps s paths srcs)
+    p.p.r
+  ;<  apps=(list json)  bind:m  (peer-apps s entries srcs)
   (pure:m (pairs:enjs:format ~[['ship' s+s] ['apps' a+apps]]))
 ::
 ++  peer-apps
-  |=  [s=@t paths=(list @t) srcs=(map @t @t)]
+  |=  [s=@t entries=(list json) srcs=(map @t @t)]
   =/  m  (fiber:fiber:nexus ,(list json))
   ^-  form:m
-  ?~  paths  (pure:m ~)
-  ;<  one=json  bind:m  (peer-app s i.paths srcs)
-  ;<  rest=(list json)  bind:m  $(paths t.paths)
+  ?~  entries  (pure:m ~)
+  ;<  one=json  bind:m  (peer-app s i.entries srcs)
+  ;<  rest=(list json)  bind:m  $(entries t.entries)
   (pure:m [one rest])
 ::  +peer-app: one published desk as a card — tile metadata and icon from
 ::  a shallow peek of its code tree, version from canonical file names.
 ::
 ++  peer-app
-  |=  [s=@t p=@t srcs=(map @t @t)]
+  |=  [s=@t entry=json srcs=(map @t @t)]
   =/  m  (fiber:fiber:nexus ,json)
   ^-  form:m
-  =/  dp=(unit path)  (rush p stap)
-  ?~  dp  (pure:m (pairs:enjs:format ~[['path' s+p]]))
-  =/  base=path  (weld /sys/ames/ships/[s]/root u.dp)
-  =/  nam=@t  (app-slug (rear u.dp))
+  =/  dir=@t    (jstr entry 'dir')       :: the desk's dir name on the peer
+  =/  ename=@t  (jstr entry 'name')      :: display name (already slugged)
+  =/  codep=@t  (jstr entry 'code')      :: "/apps/<dir>/desk/code"
+  =/  verp=@t   (jstr entry 'version')   :: "/apps/<dir>/version.json"
+  ?:  =('' dir)  (pure:m entry)          :: malformed card — pass through
+  =/  base=path  (weld /sys/ames/ships/[s]/root /apps/[`@ta`dir])
   ;<  cv=view:nexus  bind:m
     (peek-shallow:io [%& %| (weld base /desk/code)] ~)
   =/  [title=@t info=@t color=@t icon=(unit @ta)]
-    ?.  ?=([%ball *] cv)  [nam '' '' ~]
-    ?~  fil.ball.cv  [nam '' '' ~]
+    ?.  ?=([%ball *] cv)  [ename '' '' ~]
+    ?~  fil.ball.cv  [ename '' '' ~]
     =/  cs  contents.u.fil.ball.cv
     =/  tj=json
       =/  tf  (~(get by cs) %'tile.json')
@@ -659,7 +693,7 @@
       ?~  ks  ~
       ?:  =('icon.' (end [3 5] i.ks))  `i.ks
       $(ks t.ks)
-    :^    ?:(=('' (jstr tj 'title')) nam (jstr tj 'title'))
+    :^    ?:(=('' (jstr tj 'title')) ename (jstr tj 'title'))
         (jstr tj 'info')
       (jstr tj 'color')
     ic
@@ -667,18 +701,26 @@
   =/  icon-url=json
     ?~  icon  ~
     s+(crip "/grubbery/ball{(spud (weld base /desk/code))}/{(trip u.icon)}?raw=1")
+  ::  the install roads: peer-prefixed code + version, which /desks/add
+  ::  writes verbatim into the new desk's source.json. `source` doubles as
+  ::  the installed-check key (matches installed-sources' source.json.code).
+  =/  code-src=@t  (cat 3 s codep)
+  =/  ver-src=@t   (cat 3 s verp)
   %-  pure:m
   %-  pairs:enjs:format
-  :~  ['path' s+p]
-      ['name' s+nam]
+  :~  ['path' s+(cat 3 '/apps/' dir)]
+      ['name' s+ename]
       ['title' s+title]
       ['info' s+info]
       ['color' s+color]
       ['version' ?~(ver ~ s+u.ver)]
       ['icon' icon-url]
-      ['source' s+(cat 3 s p)]
-      ['installed' b+(~(has by srcs) (cat 3 s p))]
-      ['local' ?~((~(get by srcs) (cat 3 s p)) ~ s+(need (~(get by srcs) (cat 3 s p))))]
+      ['ship' s+s]
+      ['code' s+code-src]
+      ['version-path' s+ver-src]
+      ['source' s+code-src]
+      ['installed' b+(~(has by srcs) code-src)]
+      ['local' ?~((~(get by srcs) code-src) ~ s+(need (~(get by srcs) code-src)))]
   ==
 ::  +try-version: a remote desk's version through canonical file names,
 ::  since its root is not listable.
@@ -825,7 +867,7 @@
 ++  peer-pub-road
   |=  s=@t
   ^-  road:tarball
-  [%& %& /sys/ames/ships/[s]/root/apps/'shell.shell' %'public.json']
+  [%& %& /sys/ames/ships/[s]/root/apps/'shell.shell'/share/public %'desks.json']
 ::
 ++  jget
   |=  [j=json k=@t]
@@ -1401,6 +1443,59 @@
 ::  target, every approved weir that referenced that alias is pointing at a
 ::  stale path — the shell should surface those and ask the user to re-point
 ::  them. /book being live is the signal that a binding went stale.
+::
+::  +build-share: invert every local desk's share.usergroups into per-
+::  usergroup discovery directories. /share/<group>/desks.json lists the
+::  desks that group may subscribe to and where their code + version live.
+::  Rebuilt wholesale so a group that lost its last desk clears cleanly.
+::
+++  build-share
+  |=  rail=rail:tarball
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  ;<  =view:nexus  bind:m  (peek-shallow:io [%& %| /apps] ~)
+  ?.  ?=([%ball *] view)  (pure:m ~)
+  =/  kids=(list @ta)  ~(tap in ~(key by dir.ball.view))
+  ;<  pairs=(list [grp=path entry=json])  bind:m  (gather-shares kids)
+  =/  jarred=(jar path json)
+    %+  roll  pairs
+    |=  [[grp=path entry=json] a=(jar path json)]
+    (~(add ja a) grp entry)
+  ::  wipe the old tree, then write one desks.json per group present now
+  ;<  *  bind:m  (cull-soft:io (nex-road:io rail [%| /share]))
+  =/  groups=(list [grp=path es=(list json)])  ~(tap by jarred)
+  |-  ^-  form:m
+  ?~  groups  (pure:m ~)
+  ;<  ~  bind:m
+    %+  over:io  (nex-road:io rail [%& (weld /share grp.i.groups) %'desks.json'])
+    [[/ %json] a+`(list json)`es.i.groups]
+  $(groups t.groups)
+::  +gather-shares: for each local app, read its share.usergroups (absent
+::  for non-desks) and emit one [group, desk-entry] pair per group it opens to.
+::
+++  gather-shares
+  |=  kids=(list @ta)
+  =/  m  (fiber:fiber:nexus ,(list [path json]))
+  ^-  form:m
+  ?~  kids  (pure:m ~)
+  ;<  shr=(unit (set path))  bind:m
+    (peek-as:io [%& %& /apps/[i.kids] %'share.usergroups'] ,(set path))
+  ;<  rest=(list [path json])  bind:m  $(kids t.kids)
+  ?~  shr  (pure:m rest)
+  =/  entry=json  (desk-entry i.kids)
+  (pure:m (weld (turn ~(tap in u.shr) |=(g=path [g entry])) rest))
+::  +desk-entry: one shared desk as a discovery card — display name plus the
+::  code + version roads a follower subscribes to (peers prepend the ship).
+::
+++  desk-entry
+  |=  name=@ta
+  ^-  json
+  %-  pairs:enjs:format
+  :~  ['name' s+(app-slug name)]
+      ['dir' s+name]
+      ['code' s+(crip "/apps/{(trip name)}/desk/code")]
+      ['version' s+(crip "/apps/{(trip name)}/version.json")]
+  ==
 ::
 ++  build-book
   |=  rail=rail:tarball

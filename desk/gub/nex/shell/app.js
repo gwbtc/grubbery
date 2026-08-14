@@ -419,7 +419,7 @@ var API='/grubbery/api';var BALL='apps/tiles.tiles';
   function installPeerApp(a, btn, name) {
     btn.disabled = true;
     btn.textContent = 'installing...';
-    var body = { name: name || a.name, type: 'cross-ship', source: a.source };
+    var body = { name: name || a.name, code: a.code, version: a['version-path'] };
     peerPost('add', body)
       .then(function(r) {
         if (r.status === 409) {
@@ -460,7 +460,7 @@ var API='/grubbery/api';var BALL='apps/tiles.tiles';
     ov.innerHTML =
       '<div class="inst-app">' + icon +
         '<div><div class="inst-app-title">' + escP(a.title || a.name) + '</div>' +
-        '<div class="inst-app-sub">from ' + escP(a.source || '') + '</div></div></div>' +
+        '<div class="inst-app-sub">from ' + escP(a.ship || a.source || '') + '</div></div></div>' +
       '<label class="inst-lab">install as</label>' +
         '<div class="inst-row"><span class="inst-pre">/apps/</span>' +
           '<input id="inst-name" spellcheck="false">' +
