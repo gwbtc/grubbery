@@ -1,6 +1,6 @@
 ::  desk nexus: sync code from a remote source with checkpoint safety
 ::
-::  config.json holds source as JSON string — a path pointing DIRECTLY
+::  source.json holds source as JSON string — a path pointing DIRECTLY
 ::  at a code directory to mirror, anywhere in the namespace:
 ::    "~nec/apps/counter/desk/code"                (remote ship)
 ::    "/apps/foo.git_repo/data/tree/code"          (a checked-out repo)
@@ -14,7 +14,7 @@
 ::  the desk won't update until the publisher bumps the version.
 ::
 ::  Layout — host/guest split:
-::    config.json     source config            (host, root-governed)
+::    source.json     source config            (host, root-governed)
 ::    version.*       release version          (host)
 ::    main.sig        HTTP UI                  (host)
 ::    /requests/      HTTP request grubs       (host)
@@ -54,17 +54,22 @@
   =/  code-dir=bole:tarball  [`[`[/ %code] ~ %.n ~] ~]
   %+  spin:loader  ball
   :~  (manifest:loader 0)
-      [%fall %& [/ %'config.json'] [[/ %json] (config-to-json *desk-config)]]
+      [%fall %& [/ %'source.json'] [[/ %json] (source-to-json *source-config)]]
       [%fall %& [/ %'version.json'] [[/ %json] (pairs:enjs:format ~[['version' (numb:enjs:format 0)]])]]
       [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
       ::  share.usergroups: the OPENING state — the set of usergroups this
       ::  desk grants peek on /desk/code. Poke it {add|remove: <group>};
       ::  it re-registers the grants. Born empty (open to nobody).
       [%fall %& [/ %'share.usergroups'] [[/ %usergroups] *(set path)]]
+      ::  checkout.desk_cass: which historical revision is materialized
+      ::  into /checkout (an inert scratch worktree), or ~ for live only.
+      ::  Poke it {ud, da} to check out; poke null to clear back to live.
+      [%fall %& [/ %'checkout.desk_cass'] [[/desk %cass] *(unit cass:clay)]]
       [%fall %| /requests empty-dir:loader]
       [%fall %| /desk empty-dir:loader]
       [%fall %| /desk/code code-dir]
       [%fall %| /desk/data empty-dir:loader]
+      [%fall %| /checkout empty-dir:loader]
       [%over %& [/ %'README.md'] [[/ %mime] man]]
       ::  the UI shell — external static files, served by handle-get.
       [%over %& [/ %'index.html'] [[/ %mime] desk-html]]
@@ -79,38 +84,38 @@
   =/  m  (fiber:fiber:nexus ,~)
   ^-  process:fiber:nexus
   ?+    rail  stay:m
-      ::  config.json: watch remote source, sync code on updates
+      ::  source.json: watch remote source, sync code on updates
       ::
-      [~ %'config.json']
+      [~ %'source.json']
     ;<  ~  bind:m  (rise-wait:io prod "%desk config: failed")
     ;<  here=rail:tarball  bind:m  get-here-abs:io
     ;<  ~  bind:m  (reg-register-at:io here)
     |-
-    ;<  config-json=json  bind:m  (get-state-as:io ,json)
-    =/  config=desk-config  (json-to-config config-json)
-    ?~  source.config
-      ::  no source configured, wait for poke
+    ;<  src-json=json  bind:m  (get-state-as:io ,json)
+    =/  config=source-config  (json-to-source src-json)
+    ?~  config
+      ::  standalone — no source.json, wait for a poke to start following
       ~&  >  %desk-no-source
       ;<  =sage:tarball  bind:m  take-poke:io
       =/  new-json=json  !<(json q.sage)
       ;<  ~  bind:m  (replace:io new-json)
       $
-    ::  the version file's name is KNOWN from config, so watch its EXACT
-    ::  road — even before it exists (a fresh sub on an absent road is
-    ::  legal and fires when it appears). No discovery-by-peek, so a
-    ::  source that hasn't checked out yet can't deadlock us.
-    =/  source-road=road:tarball  (parse-source u.source.config)
-    =/  ver-name=@ta  version.config
-    =/  ver-road=road:tarball  (version-road source-road ver-name)
-    ~&  >  [%desk-subscribing u.source.config ver-name]
+    ::  the version file's road is KNOWN, so watch its EXACT road — even
+    ::  before it exists (a fresh sub on an absent road is legal and
+    ::  fires when it appears). No discovery-by-peek, so a source that
+    ::  hasn't checked out yet can't deadlock us.
+    =/  ver-road=road:tarball    (parse-source-file version.u.config)
+    =/  code-road=road:tarball   (parse-source code.u.config)
+    =/  ver-name=@ta             (rear (parse-path version.u.config))
+    ~&  >  [%desk-subscribing version.u.config code.u.config]
     ;<  init=wave:nexus  bind:m  (keep:io /ver ver-road ~)
-    ~&  >  [%desk-subscribed u.source.config]
+    ~&  >  [%desk-subscribed version.u.config]
     ::  install: sync the source's release. Instance creation (apply-bill)
     ::  is owned SOLELY by the version.* fiber — mirroring the version file
     ::  here spawns it, and it apply-bills on spawn. Doing it here too just
     ::  races that fiber and both try to make the same instance. A no-op
     ::  until the version file actually exists (source not yet populated).
-    ;<  ~  bind:m  (sync-release source-road rail)
+    ;<  ~  bind:m  (sync-release ver-road code-road ver-name rail)
     ;<  vt=(unit @t)  bind:m
       (read-version-text (nex-road:io rail [%& / ver-name]))
     ;<  ~  bind:m
@@ -124,12 +129,12 @@
       ::  checkpoint outgoing state, then sync. Plain 'checkpoint'
       ::  tag — version tags are the version watcher's job.
       ;<  ~  bind:m  (do-checkpoint rail ver-name (sy ~['checkpoint']))
-      ;<  ~  bind:m  (sync-release source-road rail)
+      ;<  ~  bind:m  (sync-release ver-road code-road ver-name rail)
       $
         %poke
       ::  config change: replace state, drop sub, restart
       =/  new-json=json  !<(json q.sage.res)
-      ~&  >  [%desk-config-change new-json]
+      ~&  >  [%source-config-change new-json]
       ;<  ~  bind:m  (replace:io new-json)
       ;<  ~  bind:m  (drop:io /ver ver-road)
       ^$
@@ -159,6 +164,34 @@
       cur
     ;<  ~  bind:m  (replace:io new)
     ;<  ~  bind:m  (apply-share path.here ~(tap in cur) ~(tap in new))
+    $
+      ::  checkout.desk_cass: materialize a historical revision of
+      ::  /desk/code into /checkout (an inert scratch worktree) for
+      ::  inspection. Poke {ud} to check that revision out; poke null to
+      ::  clear /checkout back to live only. State is the checked-out cass.
+      ::
+      [~ %'checkout.desk_cass']
+    ;<  ~  bind:m  (rise-wait:io prod "%desk checkout: failed")
+    |-
+    ;<  =sage:tarball  bind:m  take-poke:io
+    =/  jon=json  !<(json q.sage)
+    =/  want=(unit @ud)
+      ?.  ?=(%o -.jon)  ~
+      (json-num (~(get by p.jon) 'ud'))
+    ::  clear /checkout, then lay the requested revision (if any) into it
+    ;<  ~  bind:m  (cull-dir rail /checkout)
+    ?~  want
+      ~&  >  %desk-checkout-clear
+      ;<  ~  bind:m  (replace:io `(unit cass:clay)`~)
+      $
+    ~&  >  [%desk-checkout ud=u.want]
+    ::  the canonical wholesale mirror — peek /desk/code at the case and
+    ::  materialize it into /checkout (same primitive the source sync and
+    ::  cross-ship pulls use).
+    ;<  ~  bind:m
+      (sync-dir (nex-road:io rail [%| /desk/code]) rail /checkout `[%ud u.want])
+    ;<  hist=(each binfo tang)  bind:m  (born:io (nex-road:io rail [%| /desk/code]))
+    ;<  ~  bind:m  (replace:io (find-cass hist u.want))
     $
       ::  main.sig: HTTP endpoint for desk management UI
       ::
@@ -250,13 +283,12 @@
 --
 ::
 |%
-+$  desk-config
-  $:  source=(unit @t)
-      ::  the source's version file, by FULL name (e.g. 'version.json').
-      ::  Knowing it lets us watch its exact road before it exists —
-      ::  discovery-by-peek can't, since peek needs the file present.
-      version=@t
-  ==
+::  source.json: optional. ~ = a standalone desk (follows nothing). If
+::  present, BOTH paths are required: `version` is the road to the
+::  source's version file (watched — the release signal) and `code` is
+::  the road to the source's code directory (pulled into /desk/code).
+::
++$  source-config  (unit [version=@t code=@t])
 ::
 +$  news-or-poke
   $%  [%news =wave:nexus]
@@ -270,28 +302,26 @@
 +$  binfo  (list [=cass:clay tags=(set @t) tomb=?])
 ::
 ::  the OPENING state (which usergroups may peek the code) lives in the
-::  share.usergroups grub, not here — a desk-config is just source +
-::  version.
+::  share.usergroups grub, not here.
 ::
-++  config-to-json
-  |=  config=desk-config
+++  source-to-json
+  |=  config=source-config
   ^-  json
+  ?~  config  ~
   %-  pairs:enjs:format
-  :~  ['source' ?~(source.config ~ s+u.source.config)]
-      ['version' s+version.config]
+  :~  ['version' s+version.u.config]
+      ['code' s+code.u.config]
   ==
 ::
-++  json-to-config
+++  json-to-source
   |=  =json
-  ^-  desk-config
-  ?.  ?=(%o -.json)  *desk-config
-  =/  src  (~(get by p.json) 'source')
-  =/  ver  (~(get by p.json) 'version')
-  :*  ?~(src ~ ?:(?=([~ %s *] src) `p.u.src ~))
-      ::  version — default to the convention when unset or empty
-      ?:  &(?=([~ %s *] ver) !=('' p.u.ver))  p.u.ver
-      %'version.json'
-  ==
+  ^-  source-config
+  ?.  ?=(%o -.json)  ~
+  =/  verp  (~(get by p.json) 'version')
+  =/  codp  (~(get by p.json) 'code')
+  ?.  &(?=([~ %s *] verp) ?=([~ %s *] codp))  ~
+  ?:  |(=('' p.u.verp) =('' p.u.codp))  ~
+  `[p.u.verp p.u.codp]
 ::
 ::  +apply-share: register the follow weir with every group in the new
 ::  share list, and clear it from groups that were dropped
@@ -345,38 +375,32 @@
   ?~  dix  (crip nam)
   (crip (scag u.dix nam))
 ::
+::  parse-path: resolve a source string to an absolute namespace path,
+::  routing a ~ship/... prefix through /sys/ames for cross-ship peeks.
+::
+++  parse-path
+  |=  src=@t
+  ^-  path
+  ?.  =('~' (end 3 src))  (stab src)
+  =/  txt=tape  (trip src)
+  =/  ship-end=@  (need (find "/" txt))
+  =/  target=@p  (slav %p (crip (scag ship-end txt)))
+  =/  source-path=path  (stab (crip (slag ship-end txt)))
+  (weld /sys/ames/ships/[(scot %p target)]/root source-path)
+::  parse-source: a source string as a directory road
+::
 ++  parse-source
   |=  src=@t
   ^-  road:tarball
-  ?:  =('~' (end 3 src))
-    =/  txt=tape  (trip src)
-    =/  ship-end=@  (need (find "/" txt))
-    =/  target=@p  (slav %p (crip (scag ship-end txt)))
-    =/  source-path=path  (stab (crip (slag ship-end txt)))
-    [%& %| (weld /sys/ames/ships/[(scot %p target)]/root source-path)]
-  [%& %| (stab src)]
+  [%& %| (parse-path src)]
+::  parse-source-file: a source string (pointing at a file) as a file road
 ::
-::  version-road: the source's version file road, by discovered name
-::
-++  version-road
-  |=  [source-road=road:tarball name=@ta]
+++  parse-source-file
+  |=  src=@t
   ^-  road:tarball
-  ?.  ?=([%& %| *] source-road)  ~|(%desk-unexpected-road-shape !!)
-  [%& %& p.p.source-road name]
-::  source-dir-road: a directory under the source desk
+  =/  p=path  (parse-path src)
+  [%& %& (snip p) (rear p)]
 ::
-++  source-dir-road
-  |=  [source-road=road:tarball dir=path]
-  ^-  road:tarball
-  ?.  ?=([%& %| *] source-road)  ~|(%desk-unexpected-road-shape !!)
-  [%& %| (weld p.p.source-road dir)]
-::  source-file-road: a file under the source desk
-::
-++  source-file-road
-  |=  [source-road=road:tarball dir=path name=@ta]
-  ^-  road:tarball
-  ?.  ?=([%& %| *] source-road)  ~|(%desk-unexpected-road-shape !!)
-  [%& %& (weld p.p.source-road dir) name]
 ::  sync-release: mirror the source's CURRENT tree when its version
 ::  number changes. The version file is only a change signal — we never
 ::  read the source at a historical revision (a source need not firm its
@@ -387,29 +411,26 @@
 ::  mirrors the source's version file, raw, under its own name.
 ::
 ++  sync-release
-  |=  [source-road=road:tarball =rail:tarball]
+  |=  [ver-road=road:tarball code-road=road:tarball ver-name=@ta =rail:tarball]
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
-  ;<  ver-name=(unit @ta)  bind:m  (find-version-name source-road)
-  ?~  ver-name
-    ~&  >>  %desk-no-version-at-source
-    (pure:m ~)
-  ;<  ver-view=view:nexus  bind:m
-    (peek:io (version-road source-road u.ver-name) ~)
+  ::  read the source's version file (the release token) at its known road
+  ;<  ver-view=view:nexus  bind:m  (peek:io ver-road ~)
   ?.  ?=([%file *] ver-view)
     ~&  >>  %desk-no-version-at-source
     (pure:m ~)
   ~&  >  [%desk-sync-release ver=(version-text sang.ver-view)]
-  ::  the source IS the code directory (point it anywhere) — mirror it
-  ::  wholesale into our /desk/code, no assumed sub-structure.
-  ;<  ~  bind:m  (sync-dir source-road rail /desk/code ~)
+  ::  pull the source's code tree wholesale into our /desk/code
+  ;<  ~  bind:m  (sync-dir code-road rail /desk/code ~)
+  ::  mirror the source's version file locally, under its own name, so
+  ::  followers of THIS desk watch our republished version
   =/  content=bask:tarball
     [p.sang.ver-view (sang-noun:tarball sang.ver-view)]
   ;<  exists=?  bind:m
-    (peek-exists:io (nex-road:io rail [%& / u.ver-name]))
+    (peek-exists:io (nex-road:io rail [%& / ver-name]))
   ?.  exists
-    (make:io (nex-road:io rail [%& / u.ver-name]) |+[content ~])
-  (over:io (nex-road:io rail [%& / u.ver-name]) content)
+    (make:io (nex-road:io rail [%& / ver-name]) |+[content ~])
+  (over:io (nex-road:io rail [%& / ver-name]) content)
 ::
 ::  apply-bill: ensure every nexus the bill declares exists in /desk/data.
 ::  Idempotent and runs on every install AND version bump — it MAKES the
@@ -551,11 +572,17 @@
       [~ %t]
     ((soft @t) nun)
       [~ %json]
+    ::  version.json is arbitrary json, but we expect a 'version'
+    ::  property whose value is text-convertible (a string or number).
+    ::  A bare string/number version file is accepted too.
     =/  j  ((soft json) nun)
     ?~  j  ~
-    ?+  -.u.j  ~
-      %s  `p.u.j
-      %n  `p.u.j
+    =/  v=(unit json)
+      ?:(?=(%o -.u.j) (~(get by p.u.j) 'version') `u.j)
+    ?~  v  ~
+    ?+  -.u.v  ~
+      %s  `p.u.v
+      %n  `p.u.v
     ==
   ==
 ::  +version-knot: first line of a version text, capped at 64 chars,
@@ -590,29 +617,6 @@
     (skim names |=(n=@ta =('version.' (end [3 8] n))))
   ?~  vs  ~
   `(snag 0 (sort vs aor))
-::  +find-version-name: discover the version file at a source dir.
-::  List the directory and pick any version.* file. Remote roots are
-::  not listable, so when the listing yields nothing, probe the
-::  canonical names directly, in the same alphabetical order the
-::  listing pick would use.
-::
-++  find-version-name
-  |=  source-road=road:tarball
-  =/  m  (fiber:fiber:nexus ,(unit @ta))
-  ^-  form:m
-  ;<  =view:nexus  bind:m  (peek:io source-road ~)
-  =/  listed=(unit @ta)
-    ?.  ?=([%ball *] view)  ~
-    ?~  fil.ball.view  ~
-    %-  pick-version-name
-    (turn ~(tap by contents.u.fil.ball.view) |=([n=@ta *] n))
-  ?^  listed  (pure:m listed)
-  =/  names=(list @ta)  ~[%'version.json' %'version.txt' %'version.ud']
-  |-
-  ?~  names  (pure:m ~)
-  ;<  fv=view:nexus  bind:m  (peek:io (version-road source-road i.names) ~)
-  ?:  ?=([%file *] fv)  (pure:m `i.names)
-  $(names t.names)
 ::  +read-version-text: peek a version file and render it as text
 ::
 ++  read-version-text
@@ -669,14 +673,25 @@
     (peek-at:io (nex-road:io rail [%| dir]) ~ u.cas)
   ?.  ?=([%ball *] view)  (pure:m ~)
   (pure:m `(ball-to-files ball.view))
-::  +rev-case: parse a trailing URL segment (e.g. /42) into a case
+::  +checkout-cass: the revision currently checked out (~ = live only)
 ::
-++  rev-case
-  |=  segs=path
-  ^-  (unit case:nexus)
-  ?~  segs  ~
-  =/  n=(unit @ud)  (rush i.segs dem)
-  ?~(n ~ `[%ud u.n])
+++  checkout-cass
+  |=  =rail:tarball
+  =/  m  (fiber:fiber:nexus ,(unit cass:clay))
+  ^-  form:m
+  ;<  co=(unit (unit cass:clay))  bind:m
+    (peek-as:io (nex-road:io rail [%& / %'checkout.desk_cass']) ,(unit cass:clay))
+  (pure:m ?~(co ~ u.co))
+::  +axis-dir: which directory to READ for an axis — the live axis, or
+::  /checkout when a revision is checked out (code only; data is live).
+::
+++  axis-dir
+  |=  [=rail:tarball axis=?(%code %data)]
+  =/  m  (fiber:fiber:nexus ,path)
+  ^-  form:m
+  ?:  ?=(%data axis)  (pure:m /desk/data)
+  ;<  co=(unit cass:clay)  bind:m  (checkout-cass rail)
+  (pure:m ?~(co /desk/code /checkout))
 ::  +locate-file: find one bfile by full path within an axis dir
 ::
 ++  locate-file
@@ -709,6 +724,16 @@
   ::  directly — the present interpretation, no old mark needed.
   (pure:m ((soft mime) (sang-noun:tarball sang.f)))
 ::
+::  find-cass: the cass in a fold history whose ud matches
+::
+++  find-cass
+  |=  [hist=(each binfo tang) ud=@ud]
+  ^-  (unit cass:clay)
+  ?:  ?=(%| -.hist)  ~
+  |-  ^-  (unit cass:clay)
+  ?~  p.hist  ~
+  ?:  =(ud ud.cass.i.p.hist)  `cass.i.p.hist
+  $(p.hist t.p.hist)
 ::  write-files: over a list of bfiles into a dir
 ::
 ++  write-files
@@ -844,22 +869,21 @@
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
   ?:  ?=([%cat ?(%code %data) *] suffix)
-    ::  one file's content — current or at a revision (?path=/lib/foo.hoon).
-    ::  Converts via the file's mark to a mime: text types come back as
-    ::  text; others expose their content-type so the UI can <img> them
-    ::  (bytes served by /raw).
-    =/  dir=path  ?:(?=(%code i.t.suffix) /desk/code /desk/data)
-    =/  cas=(unit case:nexus)  (rev-case t.t.suffix)
+    ::  one file's content (?path=/lib/foo.hoon), read from the axis'
+    ::  live dir or /checkout when a revision is checked out. Converts
+    ::  via the file's mark to a mime: text types come back as text;
+    ::  others expose their content-type so the UI can <img> them.
+    ;<  dir=path  bind:m  (axis-dir rail i.t.suffix)
     =/  want=(unit @t)  (quay-get args 'path')
     ?~  want
       ;<  ~  bind:m  (respond eyre-id rail 400 'path required')
       (pure:m ~)
     =/  full=path  (stab u.want)
-    ;<  hit=(unit bfile)  bind:m  (locate-file rail dir cas full)
+    ;<  hit=(unit bfile)  bind:m  (locate-file rail dir ~ full)
     ?~  hit
       ;<  ~  bind:m  (respond eyre-id rail 404 'no such file')
       (pure:m ~)
-    ;<  got=(unit mime)  bind:m  (mime-of rail dir cas u.hit)
+    ;<  got=(unit mime)  bind:m  (mime-of rail dir ~ u.hit)
     ::  spud a mite -> "/text/x-hoon"; drop the leading slash
     =/  ctype=@t  ?~(got '' (crip (slag 1 (spud p.u.got))))
     =/  head=@ta  ?~(got %$ ?~(p.u.got %$ i.p.u.got))
@@ -914,33 +938,28 @@
     (pure:m ~)
   ?:  ?=([%raw ?(%code %data) *] suffix)
     ::  raw bytes of one file, in its mark's mime form — for <img> etc.
-    =/  dir=path  ?:(?=(%code i.t.suffix) /desk/code /desk/data)
-    =/  cas=(unit case:nexus)  (rev-case t.t.suffix)
+    ;<  dir=path  bind:m  (axis-dir rail i.t.suffix)
     =/  want=(unit @t)  (quay-get args 'path')
     ?~  want
       ;<  ~  bind:m  (respond eyre-id rail 400 'path required')
       (pure:m ~)
     =/  full=path  (stab u.want)
-    ;<  hit=(unit bfile)  bind:m  (locate-file rail dir cas full)
+    ;<  hit=(unit bfile)  bind:m  (locate-file rail dir ~ full)
     ?~  hit
       ;<  ~  bind:m  (respond eyre-id rail 404 'no such file')
       (pure:m ~)
-    ;<  got=(unit mime)  bind:m  (mime-of rail dir cas u.hit)
+    ;<  got=(unit mime)  bind:m  (mime-of rail dir ~ u.hit)
     ?~  got
       ;<  ~  bind:m  (respond eyre-id rail 404 'no mime form')
       (pure:m ~)
     ;<  ~  bind:m  (~(send-simple http-res:io (nex-road:io rail [%& ~ %'main.sig'])) eyre-id (mime-response:http-utils u.got))
     (pure:m ~)
   ?:  ?=([%tree ?(%code %data) *] suffix)
-    ::  file tree of an axis — current, or at a historical revision
-    =/  dir=path  ?:(?=(%code i.t.suffix) /desk/code /desk/data)
-    =/  cas=(unit case:nexus)
-      ?~  t.t.suffix  ~
-      =/  n=(unit @ud)  (rush i.t.t.suffix dem)
-      ?~(n ~ `[%ud u.n])
-    ;<  files=(unit (list bfile))  bind:m  (fetch-dir rail dir cas)
+    ::  file tree of an axis — its live dir, or /checkout when checked out
+    ;<  dir=path  bind:m  (axis-dir rail i.t.suffix)
+    ;<  files=(unit (list bfile))  bind:m  (fetch-dir rail dir ~)
     ?~  files
-      ;<  ~  bind:m  (respond eyre-id rail 404 'no tree at that revision')
+      ;<  ~  bind:m  (respond eyre-id rail 404 'no tree')
       (pure:m ~)
     =/  =json
       %-  pairs:enjs:format
@@ -959,8 +978,8 @@
     (pure:m ~)
   ?:  =(/state suffix)
     ::  data endpoint: config, version, and both checkpoint lists
-    ;<  config-json=(unit json)  bind:m
-      (peek-as:io (nex-road:io rail [%& / %'config.json']) ,json)
+    ;<  src-json=(unit json)  bind:m
+      (peek-as:io (nex-road:io rail [%& / %'source.json']) ,json)
     ;<  ver=(unit @t)  bind:m  (own-version rail)
     ;<  code-born=(each binfo tang)  bind:m
       (born:io (nex-road:io rail [%| /desk/code]))
@@ -969,13 +988,19 @@
     ::  share: the usergroups this desk is OPENED to, from the grub
     ;<  share=(unit (set path))  bind:m
       (peek-as:io (nex-road:io rail [%& / %'share.usergroups']) ,(set path))
+    ::  checkout: the revision materialized in /checkout, or ~ for live
+    ;<  co=(unit cass:clay)  bind:m  (checkout-cass rail)
     =/  =json
       %-  pairs:enjs:format
-      :~  ['config' (fall config-json [%o ~])]
+      :~  ['source' (fall src-json ~)]
           ['version' ?~(ver ~ s+u.ver)]
           ['code' (binfo-to-json code-born)]
           ['data' (binfo-to-json data-born)]
           ['share' a+(turn ~(tap in (fall share ~)) |=(g=path s+(spat g)))]
+          :-  'checkout'
+          ?~  co  ~
+          %-  pairs:enjs:format
+          ~[['ud' (numb:enjs:format ud.u.co)] ['da' (time:enjs:format da.u.co)]]
       ==
     =/  bod=octs  (as-octs:mimes:html (en:json:html json))
     ;<  ~  bind:m  (~(send-simple http-res:io (nex-road:io rail [%& ~ %'main.sig'])) eyre-id (mime-response:http-utils [/application/json bod]))
@@ -1024,13 +1049,15 @@
     (pure:m ~)
   ::
       [%set-source ~]
-    ::  poke config.json — the config fiber picks this up
-    ;<  cur-json=(unit json)  bind:m  (peek-as:io (nex-road:io rail [%& / %'config.json']) ,json)
-    =/  cur=desk-config  ?~(cur-json *desk-config (json-to-config u.cur-json))
-    =/  new-config=desk-config  cur(source ?:(=('' body) ~ `body))
+    ::  set (or clear) the desk's source. Body is {version, code} to
+    ::  follow, or {}/null to go standalone. Normalized through the
+    ::  source-config contract (both paths required) before it lands.
+    =/  jon=json  (fall (de:json:html body) ~)
+    =/  clean=json  (source-to-json (json-to-source jon))
+    ~&  >  [%desk-set-source clean]
     ;<  ~  bind:m
-      (poke:io (nex-road:io rail [%& / %'config.json']) [[/ %json] (config-to-json new-config)])
-    (redirect eyre-id rail)
+      (poke:io (nex-road:io rail [%& / %'source.json']) [[/ %json] clean])
+    (respond eyre-id rail 200 'ok')
   ::
       [%restore ~]
     (do-restore eyre-id body rail)
@@ -1048,30 +1075,40 @@
       (poke:io (nex-road:io rail [%& / %'share.usergroups']) [[/ %json] u.cmd])
     (respond eyre-id rail 200 'ok')
   ::
+      [%checkout ~]
+    ::  drive the checkout grub. Body {ud: N} checks that revision out
+    ::  into /checkout; {} (or null) clears back to live.
+    =/  cmd=(unit json)  (de:json:html body)
+    ?~  cmd
+      ;<  ~  bind:m  (respond eyre-id rail 400 'bad checkout command')
+      (pure:m ~)
+    ~&  >  [%desk-checkout-poke u.cmd]
+    ;<  ~  bind:m
+      (poke:io (nex-road:io rail [%& / %'checkout.desk_cass']) [[/ %json] u.cmd])
+    (respond eyre-id rail 200 'ok')
+  ::
       [%fetch-latest ~]
     ::  pull the source's current code and version now. Idempotent:
     ::  content-addressed writes no-op when nothing changed, so this
     ::  only creates history when the source actually differs.
-    ;<  config-json=(unit json)  bind:m
-      (peek-as:io (nex-road:io rail [%& / %'config.json']) ,json)
-    =/  config=desk-config
-      ?~(config-json *desk-config (json-to-config u.config-json))
-    ?~  source.config
+    ;<  src-json=(unit json)  bind:m
+      (peek-as:io (nex-road:io rail [%& / %'source.json']) ,json)
+    =/  config=source-config
+      ?~(src-json ~ (json-to-source u.src-json))
+    ?~  config
       ;<  ~  bind:m  (respond eyre-id rail 400 'no source configured')
       (pure:m ~)
-    =/  source-road=road:tarball  (parse-source u.source.config)
-    ~&  >  [%desk-fetch-latest u.source.config]
-    ;<  ver-name=(unit @ta)  bind:m  (find-version-name source-road)
-    ?~  ver-name
-      ;<  ~  bind:m  (respond eyre-id rail 400 'no version file at source')
-      (pure:m ~)
+    =/  ver-road=road:tarball    (parse-source-file version.u.config)
+    =/  code-road=road:tarball   (parse-source code.u.config)
+    =/  ver-name=@ta             (rear (parse-path version.u.config))
+    ~&  >  [%desk-fetch-latest version.u.config code.u.config]
     ::  protect current state, then pull
-    ;<  ~  bind:m  (do-checkpoint rail u.ver-name (sy ~['checkpoint']))
-    ;<  ~  bind:m  (sync-release source-road rail)
+    ;<  ~  bind:m  (do-checkpoint rail ver-name (sy ~['checkpoint']))
+    ;<  ~  bind:m  (sync-release ver-road code-road ver-name rail)
     ;<  vt=(unit @t)  bind:m
-      (read-version-text (nex-road:io rail [%& / u.ver-name]))
+      (read-version-text (nex-road:io rail [%& / ver-name]))
     ;<  ~  bind:m
-      %^  do-checkpoint  rail  u.ver-name
+      %^  do-checkpoint  rail  ver-name
       (sy ?~(vt ~['checkpoint'] ~['checkpoint' (version-knot u.vt)]))
     (respond eyre-id rail 200 'fetched')
   ::

@@ -54,8 +54,12 @@ body { font-family: Inter, system-ui, sans-serif; background: white; color: #111
 .cfg-section { margin-bottom: 28px; }
 .cfg-section h3 { font-size: 14px; font-weight: 700; margin-bottom: 4px; }
 #share-list { max-height: 38vh; overflow-y: auto; margin-top: 8px; }
+.cfg-label { display: block; font-size: 12px; color: #666; margin: 8px 0; }
+.cfg-label input { display: block; width: 100%; margin-top: 3px; font-size: 13px; padding: 8px 10px; border: 1px solid #ddd; border-radius: 8px; font-family: monospace; outline: none; }
+.cfg-label input:focus { border-color: #3d3a45; }
 .form-row { display: flex; gap: 8px; align-items: center; margin: 12px 0; flex-wrap: wrap; }
 .form-row input { flex: 1; min-width: 160px; font-size: 13px; padding: 8px 10px; border: 1px solid #ddd; border-radius: 8px; font-family: inherit; outline: none; }
+#code-label, #data-label { flex: 0 0 200px; min-width: 0; }
 .hist-clear { align-items: center; }
 .hist-clear input { flex: 0 0 130px; min-width: 0; }
 .form-row input:focus { border-color: #3d3a45; }
@@ -80,6 +84,13 @@ body { font-family: Inter, system-ui, sans-serif; background: white; color: #111
 .ckpt-rev { font-family: monospace; color: #6947b8; font-weight: 700; }
 .ckpt-when { font-family: monospace; color: #888; font-size: 12px; }
 .ckpt-acts { display: flex; gap: 6px; justify-content: flex-start; }
+.ckpt-row.sel { background: #ede7fa; }
+.ckpt-row.sel .ckpt-label { font-weight: 700; }
+
+/* ── checkout banner ── */
+.checkout-bar { flex-shrink: 0; display: flex; align-items: center; gap: 12px; margin-bottom: 12px; padding: 8px 12px; background: #ede7fa; border: 1px solid #d6c9f5; border-radius: 8px; font-size: 13px; color: #3d3a45; }
+.checkout-bar span { flex: 1; }
+.checkout-bar b { font-family: monospace; }
 
 /* ── file tree ── */
 .tree { margin-top: 14px; border: 1px solid #eee; border-radius: 8px; }

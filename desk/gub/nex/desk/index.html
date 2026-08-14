@@ -4,6 +4,7 @@
   <title>desk</title>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2032%2032'%3E%3Crect%20width='32'%20height='32'%20rx='7'%20fill='%236947b8'/%3E%3Cpath%20d='M16%206l10%2010-10%2010L6%2016z'%20fill='white'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -28,12 +29,18 @@
           <div class="view-head">Config</div>
           <div class="cfg-section">
             <h3>Source</h3>
-            <p class="muted">This desk follows a source &mdash; a <code>~ship/path</code> or a
-              local <code>/path</code>. When the source bumps its <code>version.json</code>,
-              this desk syncs the new release.</p>
+            <p class="muted">Follow a source: the <b>version</b> file to watch for releases,
+              and the <b>code</b> directory to pull. Both are required &mdash; or make the
+              desk standalone. Paths are <code>~ship/path</code> or local <code>/path</code>.</p>
+            <label class="cfg-label">version
+              <input id="source-version" type="text" placeholder="~ship/apps/foo.desk/version.json">
+            </label>
+            <label class="cfg-label">code
+              <input id="source-code" type="text" placeholder="~ship/apps/foo.desk">
+            </label>
             <div class="form-row">
-              <input id="source-input" type="text" placeholder="~ship/path or /local/path">
               <button class="hdr-btn primary" onclick="setSource()">Set Source</button>
+              <button class="hdr-btn" onclick="clearSource()">Standalone</button>
             </div>
           </div>
           <div class="cfg-section">
@@ -54,6 +61,7 @@
             <button class="subtab active" data-sub="files">Files</button>
             <button class="subtab" data-sub="checkpoints">Checkpoints</button>
           </div>
+          <div id="code-checkout-bar" class="checkout-bar" style="display:none"></div>
           <div class="sub sub-files">
             <div class="split">
               <div class="split-col col-tree">

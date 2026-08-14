@@ -1,10 +1,13 @@
 // desk workspace — populates the shell from /state and drives the
-// config / sharing / checkpoint endpoints.
+// config / sharing / checkpoint / checkout endpoints.
 
 var BASE = window.location.pathname;
 if (!BASE.endsWith('/')) BASE += '/';
 var parts = BASE.split('/').filter(Boolean);
 var NAME = parts.length ? parts[parts.length - 1] : 'desk';
+
+// the revision currently checked out into /checkout, or null for live.
+var CHECKOUT = null;
 
 // ── view switching ──
 function switchView(name) {
@@ -14,7 +17,7 @@ function switchView(name) {
   document.querySelectorAll('.view').forEach(function (v) {
     v.classList.toggle('active', v.id === 'view-' + name);
   });
-  if (name === 'code' || name === 'data') loadTree(name, null);
+  if (name === 'code' || name === 'data') loadTree(name);
 }
 document.querySelectorAll('.main-tab').forEach(function (it) {
   it.onclick = function () { switchView(it.getAttribute('data-view')); };
@@ -35,8 +38,16 @@ document.querySelectorAll('.subtab').forEach(function (b) {
 
 // ── config ──
 function setSource() {
-  var src = document.getElementById('source-input').value.trim();
-  fetch(BASE + 'set-source', { method: 'POST', body: src }).then(function () { load(); });
+  var v = document.getElementById('source-version').value.trim();
+  var c = document.getElementById('source-code').value.trim();
+  if (!v || !c) { alert('both a version path and a code path are required'); return; }
+  fetch(BASE + 'set-source', { method: 'POST', body: JSON.stringify({ version: v, code: c }) })
+    .then(function () { load(); });
+}
+function clearSource() {
+  if (!confirm('Make this desk standalone (stop following a source)?')) return;
+  fetch(BASE + 'set-source', { method: 'POST', body: JSON.stringify({}) })
+    .then(function () { load(); });
 }
 function fetchLatest() {
   fetch(BASE + 'fetch-latest', { method: 'POST' })
@@ -76,9 +87,32 @@ function renderShare(el, share) {
   });
 }
 
+// ── checkout (code only) ──
+function checkout(ud) {
+  fetch(BASE + 'checkout', { method: 'POST', body: JSON.stringify({ ud: ud }) })
+    .then(function () { switchSub(document.getElementById('view-code'), 'files'); load(); });
+}
+function returnToLive() {
+  fetch(BASE + 'checkout', { method: 'POST', body: JSON.stringify({}) })
+    .then(function () { load(); });
+}
+function updateCheckoutBar() {
+  var bar = document.getElementById('code-checkout-bar');
+  if (!CHECKOUT) { bar.style.display = 'none'; bar.innerHTML = ''; return; }
+  bar.style.display = '';
+  bar.innerHTML = '';
+  var span = document.createElement('span');
+  span.innerHTML = '&#9670; checked out — rev <b>' + CHECKOUT.ud + '</b> · ' +
+    new Date(CHECKOUT.da).toLocaleString();
+  var btn = document.createElement('button');
+  btn.className = 'btn'; btn.textContent = 'Return to Live';
+  btn.onclick = returnToLive;
+  bar.appendChild(span); bar.appendChild(btn);
+}
+
 // ── checkpoints ──
 function materialize(axis, ud) {
-  if (!confirm('Materialize ' + axis + ' at revision ' + ud + '?')) return;
+  if (!confirm('Materialize ' + axis + ' at revision ' + ud + ' into live?')) return;
   var body = {}; body[axis] = ud;
   fetch(BASE + 'restore', { method: 'POST', body: JSON.stringify(body) })
     .then(function () { load(); });
@@ -123,6 +157,8 @@ function renderList(el, rows, axis) {
   table.appendChild(head);
   rows.slice().reverse().forEach(function (r) {
     var row = document.createElement('div'); row.className = 'ckpt-row';
+    var isOut = axis === 'code' && CHECKOUT && CHECKOUT.ud === r.ud;
+    if (isOut) row.classList.add('sel');
     var v = ckptLabel(r.tags);
     var lab = document.createElement('span'); lab.className = 'ckpt-label';
     lab.textContent = v || '—'; if (!v) lab.classList.add('muted');
@@ -130,28 +166,32 @@ function renderList(el, rows, axis) {
     var when = document.createElement('span'); when.className = 'ckpt-when';
     when.textContent = new Date(r.da).toLocaleString();
     var acts = document.createElement('span'); acts.className = 'ckpt-acts';
-    var pre = document.createElement('button');
-    pre.className = 'btn'; pre.textContent = 'Preview';
-    pre.onclick = function () {
-      switchSub(document.getElementById('view-' + axis), 'files');
-      loadTree(axis, r.ud);
-    };
+    // Checkout is a code-only, non-destructive inspection of a revision.
+    if (axis === 'code') {
+      var co = document.createElement('button');
+      co.className = isOut ? 'btn btn-grn' : 'btn';
+      co.textContent = isOut ? 'Checked out' : 'Checkout';
+      co.disabled = !!isOut;
+      co.onclick = function () { checkout(r.ud); };
+      acts.appendChild(co);
+    }
     var mat = document.createElement('button');
     mat.className = 'btn btn-grn'; mat.textContent = 'Materialize';
     mat.onclick = function () { materialize(axis, r.ud); };
     var clr = document.createElement('button');
     clr.className = 'btn btn-red'; clr.textContent = 'Clear';
     clr.onclick = function () { clearCkpt(axis, r.ud); };
-    acts.appendChild(pre); acts.appendChild(mat); acts.appendChild(clr);
+    acts.appendChild(mat); acts.appendChild(clr);
     row.appendChild(lab); row.appendChild(rev); row.appendChild(when); row.appendChild(acts);
     table.appendChild(row);
   });
   el.appendChild(table);
 }
-function loadTree(axis, ud) {
-  var url = BASE + 'tree/' + axis + (ud == null ? '' : '/' + ud);
-  fetch(url).then(function (r) { return r.json(); }).then(function (t) {
-    renderTree(document.getElementById(axis + '-tree'), axis, t.files, ud);
+
+// ── file tree + viewer (reads live, or /checkout when checked out) ──
+function loadTree(axis) {
+  fetch(BASE + 'tree/' + axis).then(function (r) { return r.json(); }).then(function (t) {
+    renderTree(document.getElementById(axis + '-tree'), axis, t.files);
   }).catch(function () { });
 }
 function buildTree(files) {
@@ -167,13 +207,13 @@ function buildTree(files) {
   });
   return root;
 }
-function renderNode(parent, axis, node, ud) {
+function renderNode(parent, axis, node) {
   Object.keys(node.dirs).sort().forEach(function (name) {
     var det = document.createElement('details'); det.open = true; det.className = 'tree-dir';
     var sum = document.createElement('summary'); sum.textContent = name;
     det.appendChild(sum);
     var kids = document.createElement('div'); kids.className = 'tree-kids';
-    renderNode(kids, axis, node.dirs[name], ud);
+    renderNode(kids, axis, node.dirs[name]);
     det.appendChild(kids); parent.appendChild(det);
   });
   node.files.sort(function (a, b) { return a.name < b.name ? -1 : 1; }).forEach(function (f) {
@@ -183,37 +223,26 @@ function renderNode(parent, axis, node, ud) {
     var nm = document.createElement('span'); nm.textContent = f.name;
     var bl = document.createElement('span'); bl.className = 'muted'; bl.textContent = f.blot;
     row.appendChild(nm); row.appendChild(bl);
-    row.onclick = function () { openFile(axis, full, ud); };
+    row.onclick = function () { openFile(axis, full); };
     parent.appendChild(row);
   });
 }
-function renderTree(el, axis, files, ud) {
+function renderTree(el, axis, files) {
   el.innerHTML = '';
-  var hdr = document.createElement('div'); hdr.className = 'tree-hdr';
-  var title = document.createElement('span');
-  title.textContent = ud == null ? 'current files' : 'files at rev ' + ud + ' (preview)';
-  hdr.appendChild(title);
-  if (ud != null) {
-    var back = document.createElement('a'); back.href = '#'; back.textContent = 'back to current';
-    back.onclick = function (e) { e.preventDefault(); loadTree(axis, null); };
-    hdr.appendChild(back);
-  }
-  el.appendChild(hdr);
   if (!files.length) {
     var mt = document.createElement('div'); mt.className = 'tree-empty muted'; mt.textContent = '(empty)';
     el.appendChild(mt); return;
   }
   var body = document.createElement('div'); body.className = 'tree-body';
-  renderNode(body, axis, buildTree(files), ud);
+  renderNode(body, axis, buildTree(files));
   el.appendChild(body);
 }
-function openFile(axis, full, ud) {
-  var url = BASE + 'cat/' + axis + (ud == null ? '' : '/' + ud) + '?path=' + full;
+function openFile(axis, full) {
   document.querySelectorAll('#' + axis + '-tree .tree-file').forEach(function (r) {
     r.classList.toggle('sel', r.getAttribute('data-full') === full);
   });
-  fetch(url).then(function (r) { return r.json(); }).then(function (d) {
-    renderViewer(document.getElementById(axis + '-view'), d, axis, ud);
+  fetch(BASE + 'cat/' + axis + '?path=' + full).then(function (r) { return r.json(); }).then(function (d) {
+    renderViewer(document.getElementById(axis + '-view'), d, axis);
   }).catch(function () { });
 }
 
@@ -242,7 +271,7 @@ function langForName(name) {
   };
   return map[ext] || null;
 }
-function renderViewer(el, d, axis, ud) {
+function renderViewer(el, d, axis) {
   el.innerHTML = '';
   var name = (d.path || '').split('/').filter(Boolean).pop() || '';
   var head = document.createElement('div'); head.className = 'vp-head';
@@ -264,7 +293,7 @@ function renderViewer(el, d, axis, ud) {
   }
   if (d.type && d.type.indexOf('image/') === 0) {
     var img = document.createElement('img'); img.className = 'vp-img';
-    img.src = BASE + 'raw/' + axis + (ud == null ? '' : '/' + ud) + '?path=' + (d.path || '');
+    img.src = BASE + 'raw/' + axis + '?path=' + (d.path || '');
     body.appendChild(img); return;
   }
   var mt = document.createElement('div'); mt.className = 'vp-reason';
@@ -275,22 +304,25 @@ function renderViewer(el, d, axis, ud) {
 // ── load ──
 function load() {
   fetch(BASE + 'state').then(function (r) { return r.json(); }).then(function (s) {
+    CHECKOUT = s.checkout || null;
     document.getElementById('tb-name').textContent = NAME;
-    var configured = !!s.config.source;
-    document.getElementById('source-input').value = s.config.source || '';
-    document.getElementById('tb-source').textContent = s.config.source || '';
+    var src = s.source || null;
+    document.getElementById('source-version').value = src ? src.version : '';
+    document.getElementById('source-code').value = src ? src.code : '';
+    document.getElementById('tb-source').textContent = src ? src.code : '';
     var st = document.getElementById('tb-status');
-    st.textContent = configured ? 'subscribed' : 'not configured';
-    st.classList.toggle('off', !configured);
-    document.getElementById('fetch-btn').style.display = configured ? '' : 'none';
+    st.textContent = src ? 'following' : 'standalone';
+    st.classList.toggle('off', !src);
+    document.getElementById('fetch-btn').style.display = src ? '' : 'none';
     document.getElementById('sb-version').textContent =
-      'version ' + (s.version || '—') + (s.config.source ? ' · ' + s.config.source : '');
+      'version ' + (s.version || '—') + (src ? ' · ' + src.code : '');
+    updateCheckoutBar();
     renderShare(document.getElementById('share-list'), s.share || []);
     renderList(document.getElementById('code-ckpts'), s.code, 'code');
     renderList(document.getElementById('data-ckpts'), s.data, 'data');
     var active = document.querySelector('.main-tab.active');
     var cur = active ? active.getAttribute('data-view') : null;
-    if (cur === 'code' || cur === 'data') loadTree(cur, null);
+    if (cur === 'code' || cur === 'data') loadTree(cur);
   });
 }
 
