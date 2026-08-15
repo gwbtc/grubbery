@@ -1187,6 +1187,42 @@
   ;<  =wire  bind:m  (nonce /tomb)
   ;<  ~  bind:m  (send-dart %node wire [%& %| /sys/scry] %tomb case spur)
   (take-pack wire)
+::  +cull-farm: retract EVERY case bound at a published spur
+::
+::    NOT +cull. +cull above deletes a node from the nexus TREE (a
+::    %cull dart at a road); this deletes bindings from gall's scry
+::    FARM (sky=farm in $yoke), a different namespace with a different
+::    addressing scheme. The names have to stay apart.
+::
+::    Use this, not +tomb, to unpublish. +tomb retracts exactly one
+::    case, and a spur re-grown by a backfill is bound at several: gall
+::    assigns key+1 on every %grow at an already-bound spur, so a page
+::    saved once and regrown twice answers at cases 1, 2 AND 3, and
+::    tombing case 1 leaves 2 and 3 readable to any peer that keens
+::    them.
+::
+::    Carries no case, because the kernel gives no way to name "all of
+::    them": +ap-cull range-checks the case it is handed against the
+::    bound keys and no-ops outside them, so only the spur's top case
+::    clears it. The agent resolves that top case itself (see
+::    +farm-top). Fire-and-forget like +grow / +tomb; a spur that was
+::    never grown is a silent no-op.
+::
+::    NOT idempotent, and this is the one sharp edge: retracting the
+::    same spur twice with no %grow in between crashes the event. gall
+::    keeps the emptied binding after a cull, so the agent's own
+::    "is anything published here" check still says yes, and the
+::    follow-up %gw read misses — and a missed .^ cannot be caught
+::    (see +farm-top). Gate the second call on whatever record says the
+::    thing still exists, the way +apply-pub gates on the vault grub.
+::
+++  cull-farm
+  |=  =spur
+  =/  m  (fiber ,~)
+  ^-  form:m
+  ;<  =wire  bind:m  (nonce /cull-farm)
+  ;<  ~  bind:m  (send-dart %node wire [%& %| /sys/scry] %cull-farm spur)
+  (take-pack wire)
 ::  +keen: read a path from a remote ship's namespace via remote scry
 ::
 ::    Returns the roar — the remote's signed answer; ~ data inside the

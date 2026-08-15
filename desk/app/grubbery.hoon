@@ -3092,7 +3092,7 @@
     :_  dest-lane
     ?-  -.load.dart
       ?(%peek %keep %drop %seek %peep %code %font %born %keen)  %peek  :: read operations
-      ?(%poke %grow %tomb)        %poke  :: %grow/%tomb gate like service pokes
+      ?(%poke %grow %tomb %cull-farm)  %poke  :: scry-farm writes gate like service pokes
         $?  %make  %cull  %sand  %load
             %lose  %gain  %firm  %tag
         ==
@@ -3324,6 +3324,9 @@
         %tomb
       (dart-tomb here dart)
       ::
+        %cull-farm
+      (dart-cull-farm here dart)
+      ::
         %keen
       ?>  ?=(^ dest-lane)
       (dart-keen here dart u.dest-lane)
@@ -3463,6 +3466,92 @@
   ?>  ?=([%tomb *] load.dart)
   =.  this  (emit-card [%pass /tomb %tomb ud+case.load.dart spur.load.dart])
   (enqu-take here ~ ~ %pack wire.dart ~)
+::  dart-cull-farm: retract EVERY case bound at spur in our ship's
+::  remote-scry namespace. Named for the farm (gall's own name for the
+::  scry store, sky=farm in $yoke) because %cull is already the nexus
+::  TREE cull — deleting a grub — and the two have nothing to do with
+::  each other.
+::
+::  Why the dart carries no case, where +dart-tomb carries one: gall's
+::  +ap-cull deletes every case at or below the case it is handed AND
+::  parks it as the spur's high-water mark, but it first range-checks
+::  that case against the bound keys —
+::
+::    ?.  &((gte yon key.fis) (lte yon key.u.las))   :: min, max
+::
+::  — and no-ops (with a trace) outside them. So "cull everything"
+::  cannot be spelled as a large number; the ONLY value that clears a
+::  spur is its current top case. We look that up ourselves with a %gw
+::  scry, gall's own "latest case at this spur" care, so callers never
+::  have to track a count they cannot see. Like +ap-tomb, +ap-cull
+::  crashes on a non-%ud case, so the card is built with ud+.
+::
+::  Fire-and-forget like +dart-grow: gall consumes the card and signs
+::  nothing back, so the fiber completes on the %pack. A spur that was
+::  never grown emits no card at all and still packs. A spur already
+::  fully culled is NOT safe to cull again — see +farm-top for why the
+::  lookup cannot tell those two apart.
+::
+++  dart-cull-farm
+  |=  [here=rail:tarball =dart:nexus]
+  ^+  this
+  ?>  ?=([%node *] dart)
+  ?>  ?=([%cull-farm *] load.dart)
+  =/  top=(unit @ud)  (farm-top spur.load.dart)
+  =?  this  ?=(^ top)
+    (emit-card [%pass /cull-farm %cull ud+u.top spur.load.dart])
+  (enqu-take here ~ ~ %pack wire.dart ~)
+::  farm-top: the highest case currently bound at spur in our own scry
+::  farm, ~ when nothing is published there. gall's %w care answers
+::  exactly this (``case/!>(ud/key.u.las)) at /[our]/[agent]/[now]//1/
+::  [spur] — the empty element addresses the vane rather than the
+::  agent, and the %1 is the namespace version.
+::
+::  %gw is a PARTIAL read: it answers [~ ~] for a spur it does not
+::  hold, which +mink turns into a %2, and a failing .^ CANNOT be
+::  softened from inside the event. +mule does not help — measured on
+::  ~tyr: +mute's virtualization hands the scry back out to the real
+::  namespace through its scry gate, so the crash lands outside the
+::  simulation and takes the whole gall event with it. So %gw is only
+::  ever asked about a spur we have already established is there.
+::
+::  %gt is the total read that establishes it: it skims a listing of
+::  every bound spur, so an unknown prefix is an empty list rather than
+::  a miss. It lists spurs strictly BELOW the path it is given, hence
+::  the (snip spur) — we ask the parent about its children. It also
+::  taps the whole farm to build that listing, so this costs O(bound
+::  spurs) per retraction; fine at present sizes, and the thing to
+::  revisit first if a ship with a large farm feels its deletes.
+::
+::  Precondition this cannot check, and callers must respect: the spur
+::  must still hold at least one case. gall keeps the (now empty) plot
+::  after a full cull, so %gt still lists a spur that has already been
+::  cull-farmed and %gw would crash on it. Retracting the same spur
+::  twice with no %grow in between is the one way to reach that; every
+::  caller today gates its delete on the source record still existing.
+::
+::  Reads the farm as of the START of this event: gall applies the
+::  %grow/%cull cards an agent emits only after the agent returns. A
+::  fiber that grows and culls the same spur inside one event would
+::  cull to the pre-grow top; every caller today grows and deletes in
+::  separate events.
+::
+++  farm-top
+  |=  =spur
+  ^-  (unit @ud)
+  =/  pax=path  spur
+  =/  pre=path  ~[(scot %p our.bowl) dap.bowl (scot %da now.bowl) %$ %'1']
+  ::  pax, not spur: +snip is a wet gate whose product is cast to its
+  ::  sample, so snipping a spur the runtime has narrowed to non-empty
+  ::  asks for a non-empty result and mulls dry. The plain path face
+  ::  keeps the fork.
+  =/  kin=(list path)  .^((list path) %gt (weld pre (snip pax)))
+  ?.  (lien kin |=(p=path =(p pax)))  ~
+  ::  the mold is spelled out rather than named: $case lives in arvo, but
+  ::  nexus defines its own narrower $case, and gall only ever answers %w
+  ::  with ud+key, so ask for exactly that.
+  =/  cas=[%ud p=@ud]  .^([%ud p=@ud] %gw (weld pre spur))
+  `p.cas
 ::  dart-keen: read a path from a remote ship's namespace via ames
 ::  remote scry. Nothing is staged: the return address rides the keen
 ::  wire (the +handle-timer-set idiom), so the %tune finds its way home

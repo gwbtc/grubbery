@@ -1152,6 +1152,25 @@
     !>  dart
   !>  (dart:nexus dart)
 ::
+++  test-dart-cull-farm-round-trip
+  ::  the scry-farm cull. no case rides along — only the top bound case
+  ::  clears a spur and the agent looks it up — and the tag is
+  ::  %cull-farm, not %cull, which is the nexus tree cull below.
+  =/  =dart:nexus
+    [%node /cull-farm [%& %| /sys/scry] %cull-farm /pub/note]
+  %+  expect-eq
+    !>  dart
+  !>  (dart:nexus dart)
+::
+++  test-dart-cull-tree-still-distinct
+  ::  guard the naming hazard: a %cull dart at a road is the TREE cull
+  ::  and must keep round-tripping as its own kind
+  =/  =dart:nexus
+    [%node /cull [%& %& /pub/vault %note] %cull ~]
+  %+  expect-eq
+    !>  dart
+  !>  (dart:nexus dart)
+::
 ++  test-dart-keen-round-trip
   =/  =dart:nexus
     :*  %node  /keen
