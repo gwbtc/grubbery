@@ -50,6 +50,7 @@
 /=  t-  /tests/tarball
 /=  t-  /tests/build
 /=  t-  /tests/loader
+/=  t-  /tests/migrations
 |%
 +$  versioned-state
   $%  state-0:migrations
@@ -111,7 +112,33 @@
 ++  on-load
   |=  old-state=vase
   ^-  (quip card _this)
-  =/  old  !<(versioned-state old-state)
+  ::  !< nest-checks the saved type against today's types, and one
+  ::  breaking change shipped without a version bump: widening the
+  ::  load union (%grow/%tomb/%keen) rewrote the fiber process types,
+  ::  and iron gate samples are contravariant, so a %0 vase saved by
+  ::  pre-widening code refuses to nest even though every value in it
+  ::  still fits. Read the current shapes directly when they nest;
+  ::  otherwise reclaim the vase through the narrow-slot types in
+  ::  lib/migrations. A vase that fits neither crashes: gall then
+  ::  rejects the upgrade atomically and the pier keeps its state and
+  ::  its old code, which beats quietly discarding either.
+  ::
+  =/  wide  (mule |.(!<(versioned-state old-state)))
+  =/  old=versioned-state
+    ?:  ?=(%& -.wide)  p.wide
+    =/  nar  (mule |.(!<(state-0-narrow:migrations old-state)))
+    ?:  ?=(%& -.nar)
+      %.  (state-0-narrow-to-0:migrations p.nar)
+      %+  slog
+        leaf+"grubbery: +on-load: pre-widening %0 state; remolding the pool"
+      ~
+    =/  logged=~
+      %.  ~
+      %+  slog
+        leaf+"grubbery: +on-load: saved state fits no shape this code can read"
+      (scag 3 p.wide)
+    ~|  %grubbery-state-unrecognized
+    !!
   ?-    -.old
       %0
     =.  state  old
