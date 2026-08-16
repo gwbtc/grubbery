@@ -84,7 +84,7 @@
 +$  find  lose
 +$  load
   $%  [%poke =bask:tarball]     :: poke a grub
-      [%make force=? =make]     :: create grub or directory
+      [%make force=? gain=? =make]  :: create grub or directory; gain: born with retention on
       [%cull ~]                 :: delete grub or directory
       [%sand weir=(unit weir)]  :: set weir
       [%load ~]                 :: trigger on-load for a nexus (folds only)
@@ -1175,7 +1175,7 @@
   +$  remo  [=peeks =snaps]
   +$  load
     $:  [=wire dest=lane:tarball]
-        $%  [%make force=? =make]
+        $%  [%make force=? gain=? =make]
             [%cull ~]
             [%sand weir=(unit weir)]
             [%load ~]

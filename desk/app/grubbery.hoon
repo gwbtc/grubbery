@@ -52,7 +52,8 @@
 /=  t-  /tests/loader
 |%
 +$  versioned-state
-  $%  state-0:migrations
+  $%  state-1:migrations
+      state-0:migrations
   ==
 +$  card  card:agent:gall
 ::  kel: the idea of kelvin-versioning the grubbery runtime itself.
@@ -87,7 +88,7 @@
   !>(..zuse)
 --
 ::
-=|  state-0:migrations
+=|  state-1:migrations
 =*  state  -
 ::
 =<
@@ -114,6 +115,13 @@
   =/  old  !<(versioned-state old-state)
   ?-    -.old
       %0
+    ~>  %slog.[0 leaf+"grubbery: migrating state %0 -> %1"]
+    =.  state  (state-0-to-1:migrations old)
+    =^  start-cards  state
+      abet:cold-start:hc
+    [start-cards this]
+  ::
+      %1
     =.  state  old
     =^  start-cards  state
       abet:cold-start:hc
@@ -736,7 +744,7 @@
     ::  the caller's ship.sig with the sender-encoded return address
     ::  (see the forward in +process-take)
     %poke  (process-dart caller [%node wire.req [%& dest.req] %poke bask.req])
-    %make  (dart [%make force.req make.req])
+    %make  (dart [%make force.req gain.req make.req])
     %cull  (dart [%cull ~])
     %sand  (dart [%sand weir.req])
     %load  (dart [%load ~])
@@ -3087,7 +3095,7 @@
       ::  cached tube before storing.
       =/  mak=make:nexus  make.load.dart
       =/  res=(each _this tang)
-        (mule |.((make path.here u.dest-lane force.load.dart mak)))
+        (mule |.((make path.here u.dest-lane force.load.dart gain.load.dart mak)))
       ?-  -.res
         %&  (enqu-take:p.res here ~ ~ %made wire.dart ~)
           %|
@@ -3963,7 +3971,7 @@
   (enqu-take here give ~ %poke rel-from bask)
 ::
 ++  make
-  |=  [src=fold:tarball dest=lane:tarball force=? =make:nexus]
+  |=  [src=fold:tarball dest=lane:tarball force=? gain=? =make:nexus]
   ^+  this
   ?-    -.dest
       %|
@@ -3984,6 +3992,10 @@
         $(force %.y)
       ~|("make failed: directory {(spud dest-path)} already exists" !!)
     =.  this  (load-ball-changes dest-path new-bole)
+    ::  born gained: set retention on the whole made subtree in the same
+    ::  event — after content lands, before anything can run against it.
+    ::  Guarded: an unguarded %.n sweep would strip gains the bole set.
+    =?  this  gain  (set-gain-lane dest %.y)
     ::  record the made bole's ROOT weir. Kid weirs ride the tree build,
     ::  but the root's own weir lives in its PARENT's dir entry and was
     ::  never recorded — making make-with-weir silently partial. Set it
@@ -4053,6 +4065,9 @@
       ~|("make failed: validation error" (mean p.validated))
     =.  this
       (save-file dest-rail [p.bask q.p.validated])
+    ::  born gained: same event as the save — no window for a fast
+    ::  process's self-clean to tomb the grub before retention lands
+    =?  this  gain  (set-gain-lane dest %.y)
     ::  Spawn process (respawns if already exists via store-proc)
     (spawn-proc dest-rail ~)
   ==
@@ -5976,7 +5991,7 @@
       [%grubbery %api *]
     :: we +make because we leverage fibers to do eyre requests async
     ::
-    (make /sys/eyre [%& /sys/eyre/requests eyre-id] %.n [%| [[/ %http-request] [src.bowl req]] ~])
+    (make /sys/eyre [%& /sys/eyre/requests eyre-id] %.n %.n [%| [[/ %http-request] [src.bowl req]] ~])
   ==
 ::  forward-http: match a request against the eyre bindings and hand it to the
 ::  bound handler, recording the connection; 404 if nothing matches.

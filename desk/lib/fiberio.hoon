@@ -340,7 +340,18 @@
   =/  m  (fiber ,~)
   ^-  form:m
   ;<  =wire  bind:m  (nonce /make)
-  ;<  ~  bind:m  (send-dart %node wire road %make %.n make)
+  ;<  ~  bind:m  (send-dart %node wire road %make %.n %.n make)
+  (take-made wire)
+::  +make-gained: make born with gain set — retention on from the
+::  first event. No make-then-gain window for a fast process's
+::  self-clean to slip through.
+::
+++  make-gained
+  |=  [=road:tarball =make:nexus]
+  =/  m  (fiber ,~)
+  ^-  form:m
+  ;<  =wire  bind:m  (nonce /make)
+  ;<  ~  bind:m  (send-dart %node wire road %make %.n %.y make)
   (take-made wire)
 ::
 ++  make-soft
@@ -348,7 +359,7 @@
   =/  m  (fiber ,(unit tang))
   ^-  form:m
   ;<  =wire  bind:m  (nonce /make)
-  ;<  ~  bind:m  (send-dart %node wire road %make %.n make)
+  ;<  ~  bind:m  (send-dart %node wire road %make %.n %.n make)
   |=  input
   :+  ~  q.state
   ?+  in  [%skip ~]
@@ -692,7 +703,7 @@
   =/  m  (fiber ,~)
   ^-  form:m
   ;<  =wire  bind:m  (nonce /make)
-  ;<  ~  bind:m  (send-dart %node wire road %make %.y |+[bask ~])
+  ;<  ~  bind:m  (send-dart %node wire road %make %.y %.n |+[bask ~])
   (take-made wire)
 ::  +over-as: overwrite with a blot override — the runtime tubes
 ::  the given bask to the target blot and validates at destination.
@@ -702,7 +713,7 @@
   =/  m  (fiber ,~)
   ^-  form:m
   ;<  =wire  bind:m  (nonce /make)
-  ;<  ~  bind:m  (send-dart %node wire road %make %.y |+[bask `blot])
+  ;<  ~  bind:m  (send-dart %node wire road %make %.y %.n |+[bask `blot])
   (take-made wire)
 ::
 ::  +put: overwrite if exists, create if not

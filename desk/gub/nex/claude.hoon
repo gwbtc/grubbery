@@ -523,12 +523,12 @@
   ::  writes
       %'make'
     =/  =mime  [/text/plain (as-octs:mimes:html body)]
-    (send-dart:io %node slot-wire road %make %.n |+[[[/ %mime] mime] ~])
+    (send-dart:io %node slot-wire road %make %.n %.n |+[[[/ %mime] mime] ~])
       %'dir'
-    (send-dart:io %node slot-wire road %make %.n &+[`[~ ~ %.n ~] ~])
+    (send-dart:io %node slot-wire road %make %.n %.n &+[`[~ ~ %.n ~] ~])
       %'over'
     =/  =mime  [/text/plain (as-octs:mimes:html body)]
-    (send-dart:io %node slot-wire road %make %.y |+[[[/ %mime] !>(mime)] ~])
+    (send-dart:io %node slot-wire road %make %.y %.n |+[[[/ %mime] !>(mime)] ~])
       %'rmf'   (send-dart:io %node slot-wire road %cull ~)
       %'rmd'   (send-dart:io %node slot-wire road %cull ~)
       %'poke'
@@ -536,7 +536,7 @@
     (send-dart:io %node slot-wire road %poke [[/ %mime] !>(mime)])
       %'diff'
     =/  =mime  [/text/plain (as-octs:mimes:html body)]
-    (send-dart:io %node slot-wire road %make %.y |+[[[/ %mime] !>(mime)] ~])
+    (send-dart:io %node slot-wire road %make %.y %.n |+[[[/ %mime] !>(mime)] ~])
       %'setweir'
     =/  jon=(unit json)  (de:json:html body)
     ?~  jon
