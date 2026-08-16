@@ -1,0 +1,46 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tools</title>
+<link rel="stylesheet" href="/grubbery/mcp/style.css">
+</head>
+<body>
+<header>
+  <h1>Tools</h1>
+  <div class="head-right">
+    <span id="counts"></span>
+    <button id="refresh" title="Refresh">&#8635;</button>
+  </div>
+</header>
+<main>
+  <aside id="tools">
+    <h2>Available tools</h2>
+    <div id="tool-list" class="list"></div>
+  </aside>
+  <section id="runs">
+    <h2>Runs</h2>
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr><th>id</th><th>tool</th><th>step</th><th>result</th></tr>
+        </thead>
+        <tbody id="run-rows"></tbody>
+      </table>
+      <p id="runs-empty" class="empty" hidden>No runs recorded.</p>
+    </div>
+  </section>
+</main>
+<div id="modal" class="modal" hidden>
+  <div class="modal-box">
+    <div class="modal-head">
+      <span id="modal-title"></span>
+      <button id="modal-close">&times;</button>
+    </div>
+    <div id="modal-body"></div>
+  </div>
+</div>
+<script src="/grubbery/mcp/app.js"></script>
+</body>
+</html>
