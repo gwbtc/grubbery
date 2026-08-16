@@ -462,6 +462,7 @@
   ^-  _this
   =.  this  bootstrap-marcs
   =.  this  sync-gub
+  =.  this  rebuild-stale-code
   =.  this  (reload-nexus-at / root)
   =.  this  purge-stale-code
   =.  this  (build-new-code-namespaces / (peek-bole-now /))
@@ -4760,6 +4761,47 @@
   ^-  (unit rail:tarball)
   ?:((~(has by ma) r) ~ `r)
 ::  Compile a code nexus into its lode in the code map.
+::
+::  +rebuild-stale-code: recompile every registered code namespace whose
+::  recorded build subject differs from the current one.
+::
+::  An agent upgrade changes sut, invalidating every compiled artifact:
+::  a cached nexus built against the old subject fails !< extraction at
+::  the kernel boundary. Root /code rebuilds anyway (sync-gub changes
+::  its sources), but a scoped namespace with untouched sources was
+::  skipped by build-new-code-namespaces' already-registered guard, so
+::  its subject sentinel was never consulted and stale artifacts
+::  survived to bang at spawn. Runs before the root reload so nothing
+::  is built-against-stale when nexuses respawn. No-op when the
+::  subject is unchanged — ordinary restarts stay free.
+::
+::  TODO (state-2, deliberate — do NOT rider this onto another change):
+::  the subject hash currently hides in keys.lode under the fake rail
+::  [/ %$] as an [hash hash] pair, with special cases in skip-set and
+::  refs iteration stepping around it. The clean shape, decided but
+::  not yet built:
+::    1. lode gains an explicit sut=@uv field (cheap per-namespace
+::       gate; this arm's lookup becomes one line)
+::    2. build-inc folds sut-hash into every per-file in-hash, so a
+::       stale key CANNOT match by construction — no code path can
+::       bypass what isn't a separate check
+::    3. delete the fake-rail sentinel and all its special cases
+::  Costs: lode reshape = state-2 migration (code is derived state —
+::  map or reset+rebuild), and the hash change itself forces one full
+::  recompile sweep on deploy. Both correct, both loud. Sequence it
+::  as its own change with its own verification.
+::
+++  rebuild-stale-code
+  ^+  this
+  =/  sut-hash=@uv  (sham q:sut)
+  =/  cods=(list [cod=path =lode:nexus])  ~(tap by code)
+  |-
+  ?~  cods  this
+  ?:  =(`[sut-hash sut-hash] (~(get by keys.lode.i.cods) sut-rail))
+    $(cods t.cods)
+  ~&  >  "rebuild-stale-code: subject changed, rebuilding {(spud cod.i.cods)}"
+  =.  this  (build-code cod.i.cods ~)
+  $(cods t.cods)
 ::
 ++  build-code
   |=  [cod=path changed=(unit (set rail:tarball))]
