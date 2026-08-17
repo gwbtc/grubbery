@@ -182,6 +182,153 @@
         (one 'peek' peek.wir)
         (one 'make' make.wir)
       ==
+    ::  +tool-json: one tool as its tools/list entry
+    ::
+    ++  tool-json
+      |=  [nm=@t t=tool:nex-tools]
+      ^-  json
+      =/  props=(list [@t json])
+        %+  turn  ~(tap by parameters:t)
+        |=  [k=@t pd=parameter-def:nex-tools]
+        :-  k
+        %-  pairs:enjs:format
+        :~  ['type' s+`@t`type.pd]
+            ['description' s+description.pd]
+        ==
+      %-  pairs:enjs:format
+      :~  ['name' s+nm]
+          ['description' s+description:t]
+          :-  'inputSchema'
+          %-  pairs:enjs:format
+          :~  ['type' s+'object']
+              ['properties' [%o (~(gas by *(map @t json)) props)]]
+              ['required' a+(turn required:t |=(r=@t s+r))]
+          ==
+      ==
+    ::  +gather-tools-tree: the registry grouped by where the code
+    ::  lives — root /code/lib/mcp plus each app's code namespace.
+    ::
+    ++  gather-tools-tree
+      |=  =rail:tarball
+      =/  m  (fiber:fiber:nexus ,json)
+      ^-  form:m
+      ;<  root=(map @t tool:nex-tools)  bind:m
+        (scan-namespace /code/lib/mcp)
+      =/  root-tree=json  (tools-nest root)
+      ;<  app-paths=(list path)  bind:m  get-app-mcp-paths
+      =|  app-dirs=(list json)
+      |-
+      ?~  app-paths
+        ?>  ?=(%o -.root-tree)
+        =/  dirs=json  (fall (~(get by p.root-tree) 'dirs') [%a ~])
+        ?>  ?=(%a -.dirs)
+        %-  pure:m
+        :-  %o
+        (~(put by p.root-tree) 'dirs' a+(weld p.dirs (flop app-dirs)))
+      ;<  found=(map @t tool:nex-tools)  bind:m  (scan-namespace i.app-paths)
+      ?:  =(~ found)  $(app-paths t.app-paths)
+      =/  app-name=@ta
+        ?>  ?=([%apps @ *] i.app-paths)
+        i.t.i.app-paths
+      =/  sub=json  (tools-nest found)
+      ?>  ?=(%o -.sub)
+      =/  entry=json
+        :-  %o
+        (~(put by p.sub) 'name' s+(crip "apps/{(trip app-name)}"))
+      $(app-paths t.app-paths, app-dirs [entry app-dirs])
+    ::  +tools-nest: a derived-name-keyed tool map as a location tree —
+    ::  {dirs: [{name, dirs, tools}], tools: [...]}. Names round-trip
+    ::  through the bijection, so the tree is recomputed from the keys.
+    ::
+    ++  tools-nest
+      |=  found=(map @t tool:nex-tools)
+      ^-  json
+      =/  entries=(list [sub=path tj=json])
+        %+  turn
+          %+  sort  ~(tap by found)
+          |=([[a=@t *] [b=@t *]] (aor a b))
+        |=  [nm=@t t=tool:nex-tools]
+        [sub:(name-to-place:nex-tools nm) (tool-json nm t)]
+      |^  (nest entries)
+      ++  nest
+        |=  ens=(list [sub=path tj=json])
+        ^-  json
+        =/  here=(list json)
+          (murn ens |=([sub=path tj=json] ?~(sub `tj ~)))
+        =/  kids=(list @ta)
+          =|  seen=(set @ta)
+          =/  e  ens
+          |-  ^-  (list @ta)
+          ?~  e  (sort ~(tap in seen) aor)
+          ?~  sub.i.e  $(e t.e)
+          $(e t.e, seen (~(put in seen) i.sub.i.e))
+        =/  dirs=(list json)
+          %+  turn  kids
+          |=  kid=@ta
+          =/  inner=json
+            %-  nest
+            %+  murn  ens
+            |=  [sub=path tj=json]
+            ?~  sub  ~
+            ?.  =(kid i.sub)  ~
+            `[t.sub tj]
+          ?>  ?=(%o -.inner)
+          [%o (~(put by p.inner) 'name' s+kid)]
+        (pairs:enjs:format ~[['dirs' a+dirs] ['tools' a+here]])
+      --
+    ::  +proc-tree: the /proc namespace as nested json — dirs with
+    ::  their live weirs (a dir's weir rides its parent's view, which
+    ::  the recursion is always holding), files as decoded runs. One
+    ::  peek serves the whole tree; everything else is pure walking.
+    ::
+    ++  proc-tree
+      |=  bal=ball:tarball
+      ^-  json
+      =/  files=(list json)
+        ?~  fil.bal  ~
+        %+  murn
+          %+  sort  ~(tap by contents.u.fil.bal)
+          |=([[a=@ta *] [b=@ta *]] (aor a b))
+        |=  [nam=@ta [=sang:tarball gain=? bang=(unit tang)]]
+        ^-  (unit json)
+        ?:  =(%'weir.json' nam)  ~
+        ?:  (is-boom:tarball sang)  ~
+        =/  got  (mule |.(!<(tool-state:nex-tools (need-vase:tarball sang))))
+        ?:  ?=(%| -.got)  ~
+        =/  st  p.got
+        %-  some
+        %-  pairs:enjs:format
+        :~  ['id' s+nam]
+            ['tool' s+tool.st]
+            ['step' s+step.st]
+            ['args' o+args.st]
+            ['result' (fall update.st ~)]
+        ==
+      =/  dirs=(list json)
+        %+  turn
+          %+  sort  ~(tap by dir.bal)
+          |=([[a=@ta *] [b=@ta *]] (aor a b))
+        |=  [nam=@ta kid=ball:tarball]
+        ^-  json
+        ::  null = no weir (open dir); [] = empty weir (closed)
+        =/  rules=json
+          ?~  fil.kid  ~
+          ?~  weir.u.fil.kid  ~
+          (weir-to-rules u.weir.u.fil.kid)
+        =/  sub=json  (proc-tree kid)
+        =/  sub-dirs=json
+          ?.  ?=(%o -.sub)  [%a ~]
+          (fall (~(get by p.sub) 'dirs') [%a ~])
+        =/  sub-files=json
+          ?.  ?=(%o -.sub)  [%a ~]
+          (fall (~(get by p.sub) 'files') [%a ~])
+        %-  pairs:enjs:format
+        :~  ['name' s+nam]
+            ['rules' rules]
+            ['dirs' sub-dirs]
+            ['files' sub-files]
+        ==
+      (pairs:enjs:format ~[['dirs' a+dirs] ['files' a+files]])
     ::  +gather-sandboxes: every /proc/<name> dir with its live weir.
     ::  A directory's weir lives in its PARENT's entry (peeking the dir
     ::  itself shows weir=~), so one peek of /proc serves everyone —
@@ -210,50 +357,75 @@
     ::  at make via the bole, re-sanded on edit, read back off the
     ::  ball view. No config file, no second copy of the truth.
     ::
+    ::  +sandbox-path: the target dir path (under /proc) from a
+    ::  request's path field ('a/b') or legacy name field.
+    ::
+    ++  sandbox-path
+      |=  jon=json
+      ^-  (unit path)
+      =/  pt=(unit json)
+        =/  p1  (~(get jo:json-utils jon) /path)
+        ?^(p1 p1 (~(get jo:json-utils jon) /name))
+      ?.  ?=([~ %s *] pt)  ~
+      =/  place  (parse-run-path p.u.pt)
+      ?~  place  ~
+      `(snoc dirs.u.place name.u.place)
+    ::
     ++  do-sandbox-add
       |=  [=rail:tarball eyre-id=@ta jon=json]
       =/  m  (fiber:fiber:nexus ,~)
       ^-  form:m
-      =/  nam=(unit json)  (~(get jo:json-utils jon) /name)
-      ?.  ?=([~ %s *] nam)  (reply-txt eyre-id 400 'name required')
-      ?.  ((sane %tas) p.u.nam)  (reply-txt eyre-id 400 'name must be a term')
-      =/  name=@ta  `@ta`p.u.nam
-      =/  rules=json  (fall (~(get jo:json-utils jon) /rules) [%a ~])
-      =/  wir=(each weir:tarball tang)  (mule |.((weir-from-rules rules)))
-      ?:  ?=(%| -.wir)  (reply-txt eyre-id 400 'bad rules')
-      =/  dir-road=road:tarball  (nex-road:io rail [%| /proc/[name]])
+      =/  where=(unit path)  (sandbox-path jon)
+      ?~  where  (reply-txt eyre-id 400 'path required')
+      ::  rules absent or null = a plain directory, no weir (open)
+      =/  rules=(unit json)
+        =/  r  (~(get jo:json-utils jon) /rules)
+        ?~  r  ~
+        ?~(u.r ~ r)
+      =/  wir=(unit weir:tarball)
+        ?~  rules  ~
+        =/  got=(each weir:tarball tang)
+          (mule |.((weir-from-rules u.rules)))
+        ?:(?=(%| -.got) !! `p.got)
+      =/  dir-road=road:tarball
+        (nex-road:io rail [%| (weld /proc u.where)])
       ;<  err=(unit tang)  bind:m
-        (make-soft:io dir-road &+[`[~ `p.wir %.n ~] ~])
-      ?^  err  (reply-txt eyre-id 409 'sandbox already exists')
+        (make-soft:io dir-road &+[`[~ wir %.n ~] ~])
+      ?^  err
+        (reply-txt eyre-id 409 'could not create (exists? parent missing?)')
       (reply-txt eyre-id 200 'ok')
     ::
     ++  do-sandbox-edit
       |=  [=rail:tarball eyre-id=@ta jon=json]
       =/  m  (fiber:fiber:nexus ,~)
       ^-  form:m
-      =/  nam=(unit json)  (~(get jo:json-utils jon) /name)
-      ?.  ?=([~ %s *] nam)  (reply-txt eyre-id 400 'name required')
-      ?.  ((sane %tas) p.u.nam)  (reply-txt eyre-id 400 'name must be a term')
-      =/  name=@ta  `@ta`p.u.nam
-      ;<  =view:nexus  bind:m
-        (peek:io (nex-road:io rail [%| /proc/[name]]) ~)
+      =/  where=(unit path)  (sandbox-path jon)
+      ?~  where  (reply-txt eyre-id 400 'path required')
+      =/  dir-road=road:tarball
+        (nex-road:io rail [%| (weld /proc u.where)])
+      ;<  =view:nexus  bind:m  (peek:io dir-road ~)
       ?.  ?=([%ball *] view)  (reply-txt eyre-id 404 'no such sandbox')
-      =/  rules=json  (fall (~(get jo:json-utils jon) /rules) [%a ~])
-      =/  wir=(each weir:tarball tang)  (mule |.((weir-from-rules rules)))
-      ?:  ?=(%| -.wir)  (reply-txt eyre-id 400 'bad rules')
-      ;<  ~  bind:m  (sand:io (nex-road:io rail [%| /proc/[name]]) `p.wir)
+      ::  rules absent or null = clear the weir (open directory)
+      =/  rules=(unit json)
+        =/  r  (~(get jo:json-utils jon) /rules)
+        ?~  r  ~
+        ?~(u.r ~ r)
+      =/  wir=(unit weir:tarball)
+        ?~  rules  ~
+        =/  got=(each weir:tarball tang)
+          (mule |.((weir-from-rules u.rules)))
+        ?:(?=(%| -.got) !! `p.got)
+      ;<  ~  bind:m  (sand:io dir-road wir)
       (reply-txt eyre-id 200 'ok')
     ::
     ++  do-sandbox-del
       |=  [=rail:tarball eyre-id=@ta jon=json]
       =/  m  (fiber:fiber:nexus ,~)
       ^-  form:m
-      =/  nam=(unit json)  (~(get jo:json-utils jon) /name)
-      ?.  ?=([~ %s *] nam)  (reply-txt eyre-id 400 'name required')
-      ?.  ((sane %tas) p.u.nam)  (reply-txt eyre-id 400 'name must be a term')
-      =/  name=@ta  `@ta`p.u.nam
+      =/  where=(unit path)  (sandbox-path jon)
+      ?~  where  (reply-txt eyre-id 400 'path required')
       ;<  err=(unit tang)  bind:m
-        (cull-soft:io (nex-road:io rail [%| /proc/[name]]))
+        (cull-soft:io (nex-road:io rail [%| (weld /proc u.where)]))
       ?^  err  (reply-txt eyre-id 404 'no such sandbox')
       (reply-txt eyre-id 200 'ok')
     ++  quay-get
@@ -270,22 +442,20 @@
       |=  tool-name=@t
       =/  m  (fiber:fiber:nexus ,(unit [path @t]))
       ^-  form:m
-      =/  fname=@ta
-        %-  crip
-        %+  weld
-          (turn (trip tool-name) |=(c=@tD ?:(=('_' c) '-' c)))
-        ".hoon"
+      =/  [sub=path arm=@ta]  (name-to-place:nex-tools tool-name)
+      =/  fname=@ta  (crip "{(trip arm)}.hoon")
       ;<  app-paths=(list path)  bind:m  get-app-mcp-paths
       =/  dirs=(list path)  [/code/lib/mcp app-paths]
       |-
       ?~  dirs  (pure:m ~)
+      =/  in-dir=path  (weld i.dirs sub)
       ;<  fv=view:nexus  bind:m
-        (peek:io [%& %& i.dirs fname] `[/ %mime])
+        (peek:io [%& %& in-dir fname] `[/ %mime])
       ?.  ?&(?=([%file *] fv) !(is-boom:tarball sang.fv))
         $(dirs t.dirs)
       =/  got  (mule |.(!<(mime (need-vase:tarball sang.fv))))
       ?:  ?=(%| -.got)  $(dirs t.dirs)
-      (pure:m `[(snoc i.dirs fname) `@t`q.q.p.got])
+      (pure:m `[(snoc in-dir fname) `@t`q.q.p.got])
     ::  +gather-runs: every /tools/<id> grub as json — the run history.
     ::  Skips booms and undecodable states rather than failing the page.
     ::
@@ -406,29 +576,37 @@
       $(app-paths t.app-paths, result (~(uni by result) more))
     ::
     ++  scan-namespace
-      |=  code-path=path
+      |=  root=path
       =/  m  (fiber:fiber:nexus ,(map @t tool:nex-tools))
       ^-  form:m
       ;<  src-view=view:nexus  bind:m
-        (peek:io [%& %| code-path] ~)
+        (peek:io [%& %| root] ~)
       ?.  ?=([%ball *] src-view)
         (pure:m ~)
-      ?~  fil.ball.src-view
-        (pure:m ~)
-      =/  names=(list @ta)
-        %+  turn  ~(tap by contents.u.fil.ball.src-view)
-        |=([name=@ta [=sang:tarball gain=? bang=(unit tang)]] (strip-hoon name))
+      =/  pairs=(list [sub=path file=@ta])
+        (ball-code-files ~ ball.src-view)
       =/  result=(map @t tool:nex-tools)  ~
       |-
-      ?~  names  (pure:m result)
-      =/  name=@ta  i.names
-      ;<  res=built:nexus  bind:m  (get-code-full:io [%& %& code-path name])
-      ?.  ?=(%vase -.res)  $(names t.names)
+      ?~  pairs  (pure:m result)
+      =/  [sub=path file=@ta]  i.pairs
+      ;<  res=built:nexus  bind:m
+        (get-code-full:io [%& %& (weld root sub) (strip-hoon:nex-tools file)])
+      ?.  ?=(%vase -.res)  $(pairs t.pairs)
       =/  got=(each tool:nex-tools tang)
         (mule |.(!<(tool:nex-tools vase.res)))
-      ?.  ?=(%& -.got)  $(names t.names)
-      $(names t.names, result (~(put by result) name:p.got p.got))
+      ?.  ?=(%& -.got)  $(pairs t.pairs)
+      $(pairs t.pairs, result (~(put by result) (derive-name:nex-tools sub file) p.got))
+    ::  +ball-code-files: every file in a ball, with its subpath
     ::
+    ++  ball-code-files
+      |=  [sub=path bal=ball:tarball]
+      ^-  (list [path @ta])
+      =/  here=(list [path @ta])
+        ?~  fil.bal  ~
+        (turn ~(tap by contents.u.fil.bal) |=([n=@ta *] [sub n]))
+      %+  roll  ~(tap by dir.bal)
+      |=  [[nam=@ta kid=ball:tarball] acc=_here]
+      (weld acc (ball-code-files (snoc sub nam) kid))
     ++  get-app-mcp-paths
       =/  m  (fiber:fiber:nexus ,(list path))
       ^-  form:m
@@ -449,17 +627,27 @@
       |=  tool-name=@t
       =/  m  (fiber:fiber:nexus ,(each tool:nex-tools tang))
       ^-  form:m
-      =/  file-name=@ta
-        (crip (turn (trip tool-name) |=(c=@t ?:(=(c '_') '-' c))))
+      ::  a leading slash means the tool is addressed by LOCATION —
+      ::  an absolute, extensionless path to its source in any code
+      ::  namespace — rather than by registry name
+      ?:  =('/' (end 3 tool-name))
+        =/  pax=(unit path)  (rush tool-name stap)
+        ?:  |(?=(~ pax) ?=(~ u.pax))
+          (pure:m [%| ~[leaf+"bad tool path: {(trip tool-name)}"]])
+        ;<  got=(unit tool:nex-tools)  bind:m
+          (try-compile (snip `path`u.pax) (rear u.pax))
+        ?^  got  (pure:m [%& u.got])
+        (pure:m [%| ~[leaf+"no tool at {(trip tool-name)}"]])
+      =/  [sub=path arm=@ta]  (name-to-place:nex-tools tool-name)
       ;<  got=(unit tool:nex-tools)  bind:m
-        (try-compile /code/lib/mcp file-name)
+        (try-compile (weld /code/lib/mcp sub) arm)
       ?^  got  (pure:m [%& u.got])
       ;<  app-paths=(list path)  bind:m  get-app-mcp-paths
       |-
       ?~  app-paths
         (pure:m [%| ~[leaf+"tool not found: {(trip tool-name)}"]])
       ;<  got=(unit tool:nex-tools)  bind:m
-        (try-compile i.app-paths file-name)
+        (try-compile (weld i.app-paths sub) arm)
       ?^  got  (pure:m [%& u.got])
       $(app-paths t.app-paths)
     ::
@@ -544,6 +732,18 @@
       ?:  ?=([%api %sandboxes ~] suffix)
         ;<  sbs=json  bind:m  (gather-sandboxes rail)
         (send-json eyre-id sbs)
+      ?:  ?=([%api %tools-tree ~] suffix)
+        ;<  tree=json  bind:m  (gather-tools-tree rail)
+        (send-json eyre-id tree)
+      ?:  ?=([%api %proc ~] suffix)
+        ;<  transport=(list json)  bind:m  (gather-runs-in rail /tools ~)
+        ;<  =view:nexus  bind:m  (peek:io (nex-road:io rail [%| /proc]) ~)
+        =/  tree=json
+          ?.  ?=([%ball *] view)
+            (pairs:enjs:format ~[['dirs' [%a ~]] ['files' [%a ~]]])
+          (proc-tree ball.view)
+        ?>  ?=(%o -.tree)
+        (send-json eyre-id [%o (~(put by p.tree) 'transport' a+transport)])
       ?:  ?=([%api %src ~] suffix)
         =/  tool-name=(unit @t)  (quay-get qargs 'tool')
         ?~  tool-name

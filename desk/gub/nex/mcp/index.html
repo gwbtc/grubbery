@@ -15,43 +15,44 @@
   </div>
 </header>
 <main>
-  <aside id="tools">
-    <h2>Available tools</h2>
-    <div id="tool-list" class="list"></div>
-  </aside>
   <section id="main-pane">
     <div class="pane-tabs">
-      <button id="tab-runs" class="pane-tab active">Runs</button>
-      <button id="tab-sandboxes" class="pane-tab">Sandboxes</button>
+      <button id="tab-tools" class="pane-tab active">Available Tools</button>
+      <button id="tab-instances" class="pane-tab">Tool Instances</button>
     </div>
-    <div id="runs-view">
-      <div class="sb-toolbar">
-        <span class="sb-hint">A run is a tool instance at a path under /proc — the sandbox above it governs what it can reach.</span>
-        <button id="run-new">&#9654; New run</button>
-      </div>
+    <div id="tools-view">
       <div class="scroll">
-        <table>
-          <thead>
-            <tr><th>id</th><th>tool</th><th>sandbox</th><th>step</th><th>result</th><th></th></tr>
-          </thead>
-          <tbody id="run-rows"></tbody>
-        </table>
-        <p id="runs-empty" class="empty" hidden>No runs recorded.</p>
+        <div id="tools-tree"></div>
       </div>
     </div>
-    <div id="sandboxes-view" hidden>
+    <div id="instances-view" hidden>
       <div class="sb-toolbar">
-        <span class="sb-hint">A sandbox is a run-site with a weir: tools run inside it can only reach what its rules allow.</span>
-        <button id="sb-new">+ New sandbox</button>
+        <span class="sb-hint">/proc — directories are sandboxes: their weirs govern everything that runs inside. Files are runs.</span>
+        <button id="proc-new">+ New</button>
       </div>
       <div class="scroll">
-        <div id="sandbox-list"></div>
-        <p id="sb-empty" class="empty" hidden>No sandboxes. Runs without one execute trusted, under mcp's own (unrestricted) weir.</p>
-        <p id="sb-error" class="empty" hidden></p>
+        <div id="proc-tree"></div>
+        <p id="proc-empty" class="empty" hidden>Nothing under /proc. "+ New" to create a sandbox or a run.</p>
       </div>
     </div>
   </section>
 </main>
+<div id="new-modal" class="modal" hidden>
+  <div class="modal-box narrow">
+    <div class="modal-head">
+      <span id="new-modal-title">New</span>
+      <button id="new-modal-close">&times;</button>
+    </div>
+    <div class="chooser">
+      <button id="new-run" class="choice">
+        <b>Run</b><span>a tool instance at this path</span>
+      </button>
+      <button id="new-sandbox" class="choice">
+        <b>Sandbox</b><span>a directory with a weir</span>
+      </button>
+    </div>
+  </div>
+</div>
 <div id="sb-modal" class="modal" hidden>
   <div class="modal-box">
     <div class="modal-head">
@@ -60,9 +61,16 @@
     </div>
     <div class="sb-form">
       <label class="sb-field">
-        <span>name</span>
-        <input id="sb-name" type="text" placeholder="my-sandbox" spellcheck="false">
+        <span>path</span>
+        <input id="sb-name" type="text" placeholder="my-sandbox or parent/nested" spellcheck="false">
       </label>
+      <div class="sb-field">
+        <span>weir</span>
+        <div class="seg-group">
+          <button id="sb-mode-rules" class="seg active">rules</button>
+          <button id="sb-mode-open" class="seg">none — open</button>
+        </div>
+      </div>
       <div class="sb-rules-head">
         <span>weir rules</span>
         <button id="sb-add-rule" class="small">+ rule</button>

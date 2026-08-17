@@ -50,6 +50,62 @@
   --
 ::
 +$  tool-handler  _*form:(fiber:fiber:nexus ,tool-result)
+::  Tool names are file locations under a lib/mcp root: path segments
+::  joined with '__', hyphens rendered as underscores (knots can't
+::  hold underscores). wallet__send <-> wallet/send.hoon. The mapping
+::  is a bijection; the name IS the address.
+::
+++  strip-hoon
+  |=  name=@ta
+  ^-  @ta
+  =/  t=tape  (trip name)
+  =/  len=@ud  (lent t)
+  ?.  (gth len 5)  name
+  ?.  =(".hoon" (slag (sub len 5) t))  name
+  (crip (scag (sub len 5) t))
+::
+++  seg-to-name
+  |=  s=@ta
+  ^-  @t
+  (crip (turn (trip s) |=(c=@tD ?:(=('-' c) '_' c))))
+::
+++  name-to-seg
+  |=  t=tape
+  ^-  @ta
+  (crip (turn t |=(c=@tD ?:(=('_' c) '-' c))))
+::
+++  split-name
+  |=  t=tape
+  ^-  (list tape)
+  =|  cur=tape
+  =|  acc=(list tape)
+  |-
+  ?~  t  (flop [(flop cur) acc])
+  ?:  ?&  =('_' i.t)
+          ?=(^ t.t)
+          =('_' i.t.t)
+      ==
+    $(t t.t.t, acc [(flop cur) acc], cur ~)
+  $(t t.t, cur [i.t cur])
+::
+++  derive-name
+  |=  [sub=path file=@ta]
+  ^-  @t
+  =/  segs=(list @ta)  (snoc sub (strip-hoon file))
+  %-  crip
+  %-  zing
+  %+  join  "__"
+  (turn segs |=(s=@ta (trip (seg-to-name s))))
+::  +name-to-place: a tool name as [subdirs arm]: wallet__send ->
+::  [/wallet %send]. Arm is extensionless, per code lookups.
+::
+++  name-to-place
+  |=  name=@t
+  ^-  [sub=path arm=@ta]
+  =/  parts=(list tape)  (split-name (trip name))
+  =/  segs=(list @ta)  (turn parts name-to-seg)
+  ?~  segs  [~ %$]
+  [(snip `(list @ta)`segs) (rear segs)]
 ::  Simple glob pattern matching (* = any sequence of characters)
 ::
 ++  glob-match
