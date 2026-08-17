@@ -1225,19 +1225,25 @@
   (take-pack wire)
 ::  +keen: read a path from a remote ship's namespace via remote scry
 ::
-::    Returns the roar — the remote's signed answer; ~ data inside the
-::    roar means it bound nothing at that path. Carries no deadline of
-::    its own: ames holds the request until the remote answers, which
-::    may be never. A caller unwilling to wait wraps this in
-::    +with-timeout.
+::    Returns the remote's answer as a (unit page): `[~ [mark noun]]`
+::    is the content bound at the path, `~` means the remote bound
+::    nothing there (or our deadline fired). ames verifies the
+::    publisher's signature before it ever reaches us, so the page is
+::    trusted by the time we see it. Carries no deadline of its own:
+::    ames holds the request until the remote answers, which may be
+::    never. A caller unwilling to wait wraps this in +with-timeout.
 ::
 ::    Completion mirrors the remote branch of +poke-soft: no local
-::    %pack ever arrives — the %tune comes home through the runtime as
-::    a [/ %keen-tune] poke keyed by our wire.
+::    %pack ever arrives — the answer comes home through the runtime
+::    as a [/ %keen-tune] poke keyed by our wire. The kernel delivers
+::    a keen answer as an %ames %sage gift (NOT %tune, which this
+::    kernel's ames marks "unused, left for migration"); +take-keen-tune
+::    in the runtime unwraps the sage's dat=$@(~ (cask)) into this
+::    (unit page).
 ::
 ++  keen
   |=  [=ship =path]
-  =/  m  (fiber ,(unit roar:ames))
+  =/  m  (fiber ,(unit page))
   ^-  form:m
   ;<  =wire  bind:m  (nonce /keen)
   ;<  ~  bind:m
@@ -1250,9 +1256,9 @@
     [%fail (veto-error dart.u.in)]
       [~ %poke * *]
     ?.  =([/ %keen-tune] p.sage.u.in)  [%skip ~]
-    =/  [w=^wire roar=(unit roar:ames)]  !<([^wire (unit roar:ames)] q.sage.u.in)
+    =/  [w=^wire pag=(unit page)]  !<([^wire (unit page)] q.sage.u.in)
     ?.  =(wire w)  [%skip ~]
-    [%done roar]
+    [%done pag]
   ==
 ::  +road-to-remote: parse a /sys/ames/ships/ road into the target ship
 ::  and the real lane on that ship, mirroring the runtime's

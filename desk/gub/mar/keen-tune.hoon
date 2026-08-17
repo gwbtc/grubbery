@@ -1,10 +1,11 @@
 ::  keen-tune: the result of an ames remote scry a fiber asked for —
-::  the asker's original wire plus the roar (~ when no %tune data came)
+::  the asker's original wire plus the page the kernel's verified %sage
+::  carried (~ when the remote bound nothing at that path)
 ::
-|_  keen-tune=[=wire roar=(unit roar:ames)]
+|_  keen-tune=[=wire pag=(unit page)]
 ++  grab
   |%
-  ++  noun  ,[wire (unit roar:ames)]
+  ++  noun  ,[wire (unit page)]
   --
 ++  grow
   |%

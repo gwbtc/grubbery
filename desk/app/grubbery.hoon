@@ -433,9 +433,19 @@
     [cards this]
     ::
       [%keen @ @ *]
-    ?>  ?=([%ames %tune *] sign)
+    ::  The kernel answers a %keen with an %ames %sage gift, delivered to
+    ::  on-arvo verbatim — NOT the %tune this arm once asserted, which this
+    ::  ames marks "unused, migration only". sage = [spar dat=$@(~ (cask))]:
+    ::  the page bound at the path, or ~ for nothing bound (a negative answer
+    ::  is still a %sage). Other ames signs can ride this keen wire (an ack
+    ::  most of all), so anything that is not the %sage answer is ignored,
+    ::  exactly as strandio's +take-sage skips it; the old ?> crashed on it.
+    ::  See +take-keen-tune / +keen:io.
+    ?.  ?=([%ames %sage *] sign)  [~ this]
+    =*  sg  sage.sign
+    =/  pag=(unit page)  ?~(q.sg ~ ``page`q.sg)
     =^  cards  state
-      abet:(take-keen-tune:hc t.wire [ship roar]:sign)
+      abet:(take-keen-tune:hc t.wire ship.p.sg pag)
     [cards this]
     ::
       [%behn %snap-pin @ @ ~]
@@ -911,14 +921,14 @@
   =/  orig-wire=wire  t.rest
   =/  =from:fiber:nexus  (relativize-from:nexus sender (ship-sig-rail src))
   (enqu-take sender ~ ~ %poke from [[/ %gack] `[wire (unit tang)]`[orig-wire err.req]])
-::  take-keen-tune: an ames %tune answered a %keen we passed for a
-::  fiber. Decode the return address from the wire, drop a tune whose
+::  take-keen-tune: an ames %sage answered a %keen we passed for a
+::  fiber. Decode the return address from the wire, drop an answer whose
 ::  spar names a different ship than the wire asked for, and poke the
-::  originating grub with the roar — the remote-scry sibling of
+::  originating grub with the page — the remote-scry sibling of
 ::  +process-gack. Wire tail is {ship}/{path-len}/{path...}/{name}/{wire...}.
 ::
 ++  take-keen-tune
-  |=  [segs=wire =ship roar=(unit roar:ames)]
+  |=  [segs=wire =ship pag=(unit page)]
   ^+  this
   ?>  ?=([@ @ *] segs)
   =/  who=@p  (slav %p i.segs)
@@ -930,7 +940,7 @@
   =/  orig-wire=wire  t.rest
   ?.  =(who ship)  this
   =/  =from:fiber:nexus  (relativize-from:nexus sender (ship-sig-rail who))
-  (enqu-take sender ~ ~ %poke from [[/ %keen-tune] `[wire (unit roar:ames)]`[orig-wire roar]])
+  (enqu-take sender ~ ~ %poke from [[/ %keen-tune] `[wire (unit page)]`[orig-wire pag]])
 ::  process-want: a remote ship wants the content behind a snap it holds. look
 ::  up the pinned snap; miss if unknown. otherwise serve every pinned lobe from
 ::  its store (kind-directed; a pinned lobe gone missing is a books error worth
