@@ -19,19 +19,63 @@
     <h2>Available tools</h2>
     <div id="tool-list" class="list"></div>
   </aside>
-  <section id="runs">
-    <h2>Runs</h2>
-    <div class="scroll">
-      <table>
-        <thead>
-          <tr><th>id</th><th>tool</th><th>step</th><th>result</th></tr>
-        </thead>
-        <tbody id="run-rows"></tbody>
-      </table>
-      <p id="runs-empty" class="empty" hidden>No runs recorded.</p>
+  <section id="main-pane">
+    <div class="pane-tabs">
+      <button id="tab-runs" class="pane-tab active">Runs</button>
+      <button id="tab-sandboxes" class="pane-tab">Sandboxes</button>
+    </div>
+    <div id="runs-view">
+      <div class="sb-toolbar">
+        <span class="sb-hint">A run is a tool instance at a path under /proc — the sandbox above it governs what it can reach.</span>
+        <button id="run-new">&#9654; New run</button>
+      </div>
+      <div class="scroll">
+        <table>
+          <thead>
+            <tr><th>id</th><th>tool</th><th>sandbox</th><th>step</th><th>result</th><th></th></tr>
+          </thead>
+          <tbody id="run-rows"></tbody>
+        </table>
+        <p id="runs-empty" class="empty" hidden>No runs recorded.</p>
+      </div>
+    </div>
+    <div id="sandboxes-view" hidden>
+      <div class="sb-toolbar">
+        <span class="sb-hint">A sandbox is a run-site with a weir: tools run inside it can only reach what its rules allow.</span>
+        <button id="sb-new">+ New sandbox</button>
+      </div>
+      <div class="scroll">
+        <div id="sandbox-list"></div>
+        <p id="sb-empty" class="empty" hidden>No sandboxes. Runs without one execute trusted, under mcp's own (unrestricted) weir.</p>
+        <p id="sb-error" class="empty" hidden></p>
+      </div>
     </div>
   </section>
 </main>
+<div id="sb-modal" class="modal" hidden>
+  <div class="modal-box">
+    <div class="modal-head">
+      <span id="sb-modal-title"></span>
+      <button id="sb-modal-close">&times;</button>
+    </div>
+    <div class="sb-form">
+      <label class="sb-field">
+        <span>name</span>
+        <input id="sb-name" type="text" placeholder="my-sandbox" spellcheck="false">
+      </label>
+      <div class="sb-rules-head">
+        <span>weir rules</span>
+        <button id="sb-add-rule" class="small">+ rule</button>
+      </div>
+      <div id="sb-rules"></div>
+      <p class="sb-note">Each rule permits one dart category on one road prefix. Empty rules = a closed sandbox: the tool can reach nothing.</p>
+      <div class="sb-actions">
+        <button id="sb-cancel" class="small">Cancel</button>
+        <button id="sb-save" class="small primary">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
 <div id="modal" class="modal" hidden>
   <div class="modal-box">
     <div class="modal-head">
