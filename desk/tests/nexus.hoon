@@ -1170,6 +1170,40 @@
   %+  expect-eq
     !>  dart
   !>  (dart:nexus dart)
+::  ==========================================
+::  scry-farm write authorization (%grow / %tomb / %cull-farm)
+::  ==========================================
+::
+::  +dart-to-dest pins these three darts to gate as a %poke at the FIXED
+::  /sys/scry service road, ignoring road.dart (which the emitting fiber
+::  controls and a hostile grub could point at a road its own weir permits).
+::  These pin the weir decision that gate now routes through: the farm is a
+::  ship-global service, reachable only from a fiber whose weir grants /sys.
+::
+++  test-scry-farm-write-vetoed-when-sandboxed
+  ::  a sandboxed grub whose weir grants only its own subtree cannot poke
+  ::  /sys/scry, so its %grow/%tomb/%cull-farm is vetoed — it can hand-build
+  ::  any road into the dart and still not reach the farm.
+  =/  =weir:nexus  [make=~ poke=(sy ~[[%& [%| /apps/mynex]]]) peek=~]
+  %+  expect-eq
+    !>  `filt:nexus`[~ %|]
+  !>  (filter:nexus %poke /apps/mynex/page |+/sys/scry `weir)
+::
+++  test-scry-farm-write-allowed-app-writer
+  ::  the app-level writer runs with no restrictive weir up to its governor,
+  ::  so the same /sys/scry service poke is permissive — the legitimate
+  ::  publish path is unaffected by the guard.
+  %+  expect-eq
+    !>  `filt:nexus`~
+  !>  (filter:nexus %poke /apps/mynex/page |+/sys/scry ~)
+::
+++  test-scry-farm-write-allowed-when-granted
+  ::  a fiber whose weir explicitly grants the farm service passes — the gate
+  ::  is the ordinary weir grant, no special-casing of the scry-farm darts.
+  =/  =weir:nexus  [make=~ poke=(sy ~[[%& [%| /sys/scry]]]) peek=~]
+  %+  expect-eq
+    !>  `filt:nexus`[~ %&]
+  !>  (filter:nexus %poke /apps/mynex/page |+/sys/scry `weir)
 ::
 ++  test-dart-keen-round-trip
   =/  =dart:nexus

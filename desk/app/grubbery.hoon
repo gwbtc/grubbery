@@ -3089,14 +3089,35 @@
   ?+    -.dart  [%peek ~]          :: system darts: no dest, always allowed
       %node                        :: %node darts target a file/dir
     =/  dest-lane=(unit lane:tarball)  (lane-from-road:tarball [%& here] road.dart)
-    :_  dest-lane
     ?-  -.load.dart
-      ?(%peek %keep %drop %seek %peep %code %font %born %keen)  %peek  :: read operations
-      ?(%poke %grow %tomb %cull-farm)  %poke  :: scry-farm writes gate like service pokes
+      ::  reads gate as %peek at the dart's own dest
+      ?(%peek %keep %drop %seek %peep %code %font %born %keen)  [%peek dest-lane]
+      ::  pokes gate as %poke at the dart's own dest
+        %poke  [%poke dest-lane]
+      ::  scry-farm writes (%grow/%tomb/%cull-farm) are a ship-global
+      ::  privileged SERVICE and gate like a /sys service poke — but on the
+      ::  FIXED /sys/scry service road, NOT the dart's own road. The dart is
+      ::  built by the emitting fiber: fiberio's grow/tomb/cull-farm helpers
+      ::  set road=/sys/scry, but a hostile grub can hand-build the same load
+      ::  with road.dart pointed at a road its OWN weir permits, and the check
+      ::  would then pass for a write to an arbitrary spur — hijacking or
+      ::  deleting another nexus's published data. Pinning the gate to
+      ::  /sys/scry means the emitter's weir must grant the farm service
+      ::  itself: a sandboxed grub's weir does not reach /sys, so it is
+      ::  vetoed regardless of road.dart; the app-level writer (no restrictive
+      ::  weir up to its governor) is permitted, exactly as today. The spur
+      ::  the write lands at is not further checked here — the farm is one
+      ::  flat namespace shared by every nexus under this %grubbery yoke, so
+      ::  per-nexus spur ownership cannot be expressed through the tree weir
+      ::  without a new permission model. That residual is the coarse /sys
+      ::  boundary every service poke already has, and is called out in the
+      ::  report rather than papered over.
+        ?(%grow %tomb %cull-farm)  [%poke `[%| /sys/scry]]
+      ::  structural mutations gate as %make at the dart's own dest
         $?  %make  %cull  %sand  %load
             %lose  %gain  %firm  %tag
         ==
-      %make  :: all modify tree structure
+      [%make dest-lane]
     ==
   ==
 ::
