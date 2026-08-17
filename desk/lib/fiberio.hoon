@@ -78,6 +78,26 @@
   =/  m  (fiber ,~)
   ^-  form:m
   (pure:m ((slog tang) ~))
+::  +idle: terminal form for a process that is finished but whose grub
+::  should persist — consumes ANY input without acting and waits.
+::
+::  Not +stay: a chain installs its terminal via %cont, which re-feeds
+::  the event's in-flight input, and stay treats real input as a crash
+::  — %fail then rolls back the event, destroying the final state
+::  write. Idle accepts the leftover input (and any later stray input)
+::  harmlessly, and ends the event through the state-SAVING path.
+::
+::  NB: pokes to an idle process are dropped, not nacked, until the
+::  next reboot re-derives the process from the spool (which should
+::  switch on state and hand finished grubs a stay). That window is
+::  the accepted cost: the input pass-through that makes it exist is
+::  load-bearing everywhere else in how fibers chain.
+::
+++  idle
+  =/  m  (fiber ,~)
+  ^-  form:m
+  |=  input
+  [~ q.state %wait ~]
 ::
 ++  fiber-fail
   |=  err=tang
@@ -353,6 +373,24 @@
   ;<  =wire  bind:m  (nonce /make)
   ;<  ~  bind:m  (send-dart %node wire road %make %.n %.y make)
   (take-made wire)
+::
+++  make-gained-soft
+  |=  [=road:tarball =make:nexus]
+  =/  m  (fiber ,(unit tang))
+  ^-  form:m
+  ;<  =wire  bind:m  (nonce /make)
+  ;<  ~  bind:m  (send-dart %node wire road %make %.n %.y make)
+  |=  input
+  :+  ~  q.state
+  ?+  in  [%skip ~]
+      ~  [%wait ~]
+      [~ %veto *]
+    [%fail (veto-error dart.u.in)]
+      [~ %made * *]
+    ?.  =(wire wire.u.in)
+      [%skip ~]
+    [%done err.u.in]
+  ==
 ::
 ++  make-soft
   |=  [=road:tarball =make:nexus]
