@@ -108,14 +108,15 @@
       [%font ~]                 :: find code responsible for dest node
       [%grow =spur =page]       :: publish a page in our remote-scry namespace
       [%tomb case=@ud =spur]    :: tombstone a published revision (gall keeps %ud only)
-      ::  no case rides on %cull-farm the way one rides on %tomb: gall's
+      ::  no case rides on %cull-farm the way one rides on %tomb. gall's
       ::  +ap-cull deletes every case AT OR BELOW the one it is handed, but
       ::  no-ops when that case falls outside the currently bound range, so
-      ::  "all of them" cannot be spelled as a big number — only the top
+      ::  "all of them" cannot be spelled as a big number. Only the top
       ::  bound case clears a spur, and the agent scries its own farm for it.
-      ::  Named %cull-farm, not %cull: %cull above is the nexus TREE cull.
+      ::  Named %cull-farm, not %cull. %cull above is the nexus TREE cull.
       [%cull-farm =spur]        :: retract EVERY bound case of a published spur
       [%keen =ship =path]       :: read a path from a remote ship via remote scry
+      [%yawn =ship =path]       :: cancel an outstanding %keen (ames holds forever)
   ==
 +$  dart
   $%  [%node =wire road=road:tarball =load]

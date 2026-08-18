@@ -1135,7 +1135,7 @@
 ::  remote-scry dart kinds (%grow, %tomb, %keen)
 ::  ==========================================
 ::
-::  the load union is what crosses the fiber/runtime seam — round-trip
+::  the load union is what crosses the fiber/runtime seam. Round-trip
 ::  each new kind through the dart mold to pin its shape.
 ::
 ++  test-dart-grow-round-trip
@@ -1153,9 +1153,9 @@
   !>  (dart:nexus dart)
 ::
 ++  test-dart-cull-farm-round-trip
-  ::  the scry-farm cull. no case rides along — only the top bound case
-  ::  clears a spur and the agent looks it up — and the tag is
-  ::  %cull-farm, not %cull, which is the nexus tree cull below.
+  ::  the scry-farm cull. No case rides along, because only the top
+  ::  bound case clears a spur and the agent looks that up itself. The
+  ::  tag is %cull-farm, not %cull, which is the nexus tree cull below.
   =/  =dart:nexus
     [%node /cull-farm [%& %| /sys/scry] %cull-farm /pub/note]
   %+  expect-eq
@@ -1177,12 +1177,12 @@
 ::  +dart-to-dest pins these three darts to gate as a %poke at the FIXED
 ::  /sys/scry service road, ignoring road.dart (which the emitting fiber
 ::  controls and a hostile grub could point at a road its own weir permits).
-::  These pin the weir decision that gate now routes through: the farm is a
+::  These pin the weir decision that gate routes through. The farm is a
 ::  ship-global service, reachable only from a fiber whose weir grants /sys.
 ::
 ++  test-scry-farm-write-vetoed-when-sandboxed
   ::  a sandboxed grub whose weir grants only its own subtree cannot poke
-  ::  /sys/scry, so its %grow/%tomb/%cull-farm is vetoed — it can hand-build
+  ::  /sys/scry, so its %grow/%tomb/%cull-farm is vetoed. It can hand-build
   ::  any road into the dart and still not reach the farm.
   =/  =weir:nexus  [make=~ poke=(sy ~[[%& [%| /apps/mynex]]]) peek=~]
   %+  expect-eq
@@ -1191,15 +1191,16 @@
 ::
 ++  test-scry-farm-write-allowed-app-writer
   ::  the app-level writer runs with no restrictive weir up to its governor,
-  ::  so the same /sys/scry service poke is permissive — the legitimate
-  ::  publish path is unaffected by the guard.
+  ::  so the same /sys/scry service poke is permissive. The guard leaves the
+  ::  legitimate publish path open.
   %+  expect-eq
     !>  `filt:nexus`~
   !>  (filter:nexus %poke /apps/mynex/page |+/sys/scry ~)
 ::
 ++  test-scry-farm-write-allowed-when-granted
-  ::  a fiber whose weir explicitly grants the farm service passes — the gate
-  ::  is the ordinary weir grant, no special-casing of the scry-farm darts.
+  ::  a fiber whose weir explicitly grants the farm service passes. The
+  ::  gate is the ordinary weir grant, with no special-casing of the
+  ::  scry-farm darts.
   =/  =weir:nexus  [make=~ poke=(sy ~[[%& [%| /sys/scry]]]) peek=~]
   %+  expect-eq
     !>  `filt:nexus`[~ %&]
@@ -1210,6 +1211,17 @@
     :*  %node  /keen
         [%& %| /sys/ames/ships/[(scot %p ~zod)]]
         %keen  ~zod  /c/x/1/kids/sys/kelvin
+    ==
+  %+  expect-eq
+    !>  dart
+  !>  (dart:nexus dart)
+::
+++  test-dart-yawn-round-trip
+  ::  the keen cancel uses the same road class as the keen it retracts
+  =/  =dart:nexus
+    :*  %node  /yawn
+        [%& %| /sys/ames/ships/[(scot %p ~zod)]]
+        %yawn  ~zod  /c/x/1/kids/sys/kelvin
     ==
   %+  expect-eq
     !>  dart

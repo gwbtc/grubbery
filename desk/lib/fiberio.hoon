@@ -1165,7 +1165,7 @@
 ::
 ::    gall consumes the %grow card itself and gives no sign back, so
 ::    the runtime completes the fiber with a %pack as soon as the card
-::    is emitted — fire-and-forget, like a consumed /sys poke.
+::    is emitted. Fire-and-forget, like a consumed /sys poke.
 ::
 ++  grow
   |=  [=spur =page]
@@ -1208,11 +1208,11 @@
 ::    +farm-top). Fire-and-forget like +grow / +tomb; a spur that was
 ::    never grown is a silent no-op.
 ::
-::    NOT idempotent, and this is the one sharp edge: retracting the
+::    NOT idempotent, and this is the one sharp edge. Retracting the
 ::    same spur twice with no %grow in between crashes the event. gall
 ::    keeps the emptied binding after a cull, so the agent's own
 ::    "is anything published here" check still says yes, and the
-::    follow-up %gw read misses — and a missed .^ cannot be caught
+::    follow-up %gw read misses. A missed .^ cannot be caught
 ::    (see +farm-top). Gate the second call on whatever record says the
 ::    thing still exists, the way +apply-pub gates on the vault grub.
 ::
@@ -1225,21 +1225,21 @@
   (take-pack wire)
 ::  +keen: read a path from a remote ship's namespace via remote scry
 ::
-::    Returns the remote's answer as a (unit page): `[~ [mark noun]]`
-::    is the content bound at the path, `~` means the remote bound
+::    Returns the remote's answer as a (unit page). `[~ [mark noun]]`
+::    is the content bound at the path, and `~` means the remote bound
 ::    nothing there (or our deadline fired). ames verifies the
 ::    publisher's signature before it ever reaches us, so the page is
-::    trusted by the time we see it. Carries no deadline of its own:
+::    trusted by the time we see it. Carries no deadline of its own.
 ::    ames holds the request until the remote answers, which may be
 ::    never. A caller unwilling to wait wraps this in +with-timeout.
 ::
-::    Completion: no local %pack ever arrives. The kernel answers a
-::    keen with an %ames %sage gift (NOT %tune, which this kernel's ames
-::    marks "unused, left for migration"); grubbery's on-arvo hands it to
-::    +take-keen-tune, which resumes us with a typed %tune intake carrying
-::    the page JAMMED (a page's [mark *] wildcard cannot ride a mark's
-::    grab type through a %poke — the marc builder crashes -find.$ on it),
-::    keyed by our wire. We cue it back into a (unit page) here.
+::    No local %pack ever arrives. The kernel answers a keen with an
+::    %ames %sage gift, never %tune. grubbery's on-arvo hands the gift
+::    to +take-keen-tune, which resumes us with a typed %tune intake
+::    keyed by our wire. The intake carries the page JAMMED, because a
+::    page's [mark *] wildcard cannot ride a mark's grab type through
+::    a %poke (the marc builder crashes -find.$ on it). We cue it back
+::    into a (unit page) here.
 ::
 ++  keen
   |=  [=ship =path]
@@ -1260,12 +1260,32 @@
     ::  type without crashing the marc builder). Cue it back into a page in
     ::  THIS context. ~ = the remote bound nothing at the spur.
     ?.  =(wire wire.u.in)  [%skip ~]
-    ::  Clam to a FULLY CONCRETE page shape [p=@tas q=@t]. A wildcard q=* (as
-    ::  in `page`/[mark *]) builds an unusable mold gate here and a runtime clam
-    ::  through it crashes (-find.$). The mesa mirror only ever grows [%gmi @t]
-    ::  bodies, so @t is exact; [p=@tas q=@t] nests under (unit page) cleanly.
-    [%done ?~(pag.u.in ~ `;;([p=@tas q=@t] (cue u.pag.u.in)))]
+    ::  Clam to a FULLY CONCRETE page shape [p=@tas q=@t]. A wildcard q=*
+    ::  (as in `page`/[mark *]) builds an unusable mold gate here. A
+    ::  runtime clam through it crashes with -find.$. The mesa mirror only
+    ::  ever grows [%gmi @t] bodies, so @t is exact. [p=@tas q=@t] nests
+    ::  under (unit page) cleanly. The clam runs in a mole. The jam is the
+    ::  remote publisher's binding, fully attacker-controlled. A cell body,
+    ::  a cell mark, or a malformed jam must read as "bound nothing" (~),
+    ::  not crash the reader's fiber. The clams at +peek-remote and
+    ::  +typed-scry follow the same rule.
+    [%done ?~(pag.u.in ~ (mole |.(;;([p=@tas q=@t] (cue u.pag.u.in)))))]
   ==
+::  +yawn: cancel an outstanding %keen for [ship path]. ames otherwise holds
+::  an unanswerable request forever, so a caller whose +with-timeout deadline
+::  fired should yawn the request it is abandoning. Cancellation is by spar
+::  (ship+path), not by wire. If two fibers keen the same spar, one yawn
+::  retracts both, and the survivor's retry re-requests. Fire-and-forget
+::  like +grow. gall consumes the %arvo card and signs nothing back.
+::
+++  yawn
+  |=  [=ship =path]
+  =/  m  (fiber ,~)
+  ^-  form:m
+  ;<  =wire  bind:m  (nonce /yawn)
+  ;<  ~  bind:m
+    (send-dart %node wire [%& %| /sys/ames/ships/[(scot %p ship)]] %yawn ship path)
+  (take-pack wire)
 ::  +road-to-remote: parse a /sys/ames/ships/ road into the target ship
 ::  and the real lane on that ship, mirroring the runtime's
 ::  +resolve-remote. ~ for local roads.

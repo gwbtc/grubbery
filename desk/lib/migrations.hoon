@@ -1,12 +1,12 @@
 ::  migrations: agent state versions
 ::
-::  The default policy is still nuke-and-restart: the runtime's core
-::  data structures move too fast for every breaking change to earn a
+::  The default policy is nuke-and-restart. The runtime's core data
+::  structures move too fast for every breaking change to earn a
 ::  migration (see ratchet.md). A migration appears here only when a
 ::  change is cheap to cross and the alternative is losing truth
-::  fields on a live pier. First case: the %grow/%tomb/%keen widening
-::  of the load union, which breaks the saved pool's *type* while
-::  every saved *value* still fits — see +state-0-narrow below.
+::  fields on a live pier. The first case is the %grow/%tomb/%keen
+::  widening of the load union, which breaks the saved pool's *type*
+::  while every saved *value* still fits. See +state-0-narrow below.
 ::
 /+  nexus, tarball
 |%
@@ -33,27 +33,31 @@
 ::  state-0-narrow: the %0 state as saved by code from before the
 ::  %grow/%tomb/%keen widening of the load union.
 ::
-::  Same fields, same %0 tag; the difference hides in pool. A fiber
+::  Same fields, same %0 tag. The difference hides in pool. A fiber
 ::  process is an iron gate whose sample embeds the load fork, and
-::  iron samples are contravariant: against the widened fork the
-::  saved pool's type no longer nests, so a plain !< refuses the
-::  whole vase — even though every saved *value* still fits, since
-::  %grow, %tomb, and %keen did not exist when it was written.
+::  iron samples are contravariant. Against the widened fork the
+::  saved pool's type does not nest, so a plain !< refuses the
+::  whole vase. Every saved *value* still fits, since no
+::  pre-widening vase can contain a %grow, %tomb, or %keen.
 ::
-::  We do not vendor the pre-widening fiber types to read it. A live
-::  gate cannot cross a reload in any case, and everything else those
-::  slots can hold nests under %noun — so the changed slots are typed
-::  as raw nouns here (the nest check passes trivially) and
-::  +state-0-narrow-to-0 remolds their values under today's types,
-::  shedding what cannot cross. +on-save banged every live process to
-::  a %| crash tang before the vase was written, so the salvageable
-::  content is exactly: crash tangs, and queued cold takes whose
-::  narrow-load values are a strict subset of the wide-load union.
+::  This reader never vendors the pre-widening fiber types. A live
+::  gate cannot cross a reload in any case, so ONLY the process slot is
+::  typed as a raw noun (the nest check passes trivially) and
+::  +state-0-narrow-to-0 sheds it. The queues are deliberately typed at
+::  TODAY'S take. A queue is a reading position, so the nest check is
+::  covariant, and an additively-widened load/pend union always accepts
+::  the older queues as they are, noun-untouched. Narrowing the queues
+::  to (qeu *) here would be worse than useless. It would make this
+::  narrow state accept a vase whose queue elements do NOT fit today's
+::  types, and the remold would then silently shed queued takes, each
+::  one carrying a give, an ack a poking fiber waits on forever. Typed
+::  at take, a genuinely incompatible future change fails BOTH decodes
+::  and gall rejects the upgrade atomically, which is the contract.
 ::
 +$  proc-narrow
   $:  process=(each * tang)  ::  %&: a live gate, cannot cross; %|: crash tang
-      next=(qeu *)           ::  queued takes, remolded by +remold-queue
-      skip=(qeu *)           ::  ditto
+      next=(qeu take:fiber:nexus)   ::  covariant: old takes nest as-is
+      skip=(qeu take:fiber:nexus)   ::  ditto
   ==
 +$  pipe-narrow  [bang=(unit tang) proc=(map @ta proc-narrow)]
 +$  pool-narrow  (axal pipe-narrow)
@@ -70,7 +74,7 @@
       =upki:nexus
       =last:nexus
   ==
-::  narrow -> 0: rebuild the pool under the widened types; every
+::  narrow -> 0: rebuild the pool under the widened types. Every
 ::  other field's type is unchanged and passes through untouched.
 ::
 ++  state-0-narrow-to-0
@@ -114,9 +118,10 @@
   =/  pro=(each process:fiber:nexus tang)
     ?-    -.process.old
         %|  |+p.process.old
-        ::  should be unreachable — +on-save bangs every live process
-        ::  before the vase is written — but a gate that somehow got
-        ::  here cannot cross, so shed it; a prod respawns from source
+        ::  Should be unreachable, since +on-save bangs every live
+        ::  process before the vase is written. A gate that somehow
+        ::  got here cannot cross, so shed it. A prod respawns from
+        ::  source.
         ::
         %&
       %.  |+~[leaf+"process shed by the load-union migration; prod to respawn"]
@@ -124,34 +129,5 @@
         leaf+"grubbery-migrate: shed live process at {gnome} (+on-save bangs these; seeing one is a bug)"
       ~
     ==
-  :+  pro
-    (remold-queue gnome "next" next.old)
-  (remold-queue gnome "skip" skip.old)
-::  +remold-queue: re-type a queue of narrow takes under the wide
-::  types. Narrow load values are a strict subset of wide ones, so
-::  the whole queue is expected to remold noun-identically in one
-::  pass; if it does not, salvage element-wise and shed (with a slog)
-::  whatever will not fit. The salvage path rebuilds via tap/put, so
-::  it preserves order only as well as those do — acceptable for a
-::  path that only runs on data that is already damaged.
-::
-++  remold-queue
-  |=  [gnome=tape which=tape raw=(qeu *)]
-  ^-  (qeu take:fiber:nexus)
-  =/  whole  (mule |.(;;((qeu take:fiber:nexus) raw)))
-  ?:  ?=(%& -.whole)  p.whole
-  =/  els=(list *)  ~(tap to raw)
-  =|  out=(qeu take:fiber:nexus)
-  =|  shed=@ud
-  |-  ^-  (qeu take:fiber:nexus)
-  ?~  els
-    ?:  =(0 shed)  out
-    %.  out
-    %+  slog
-      leaf+"grubbery-migrate: shed {<shed>} queued input(s) from the {which} queue of {gnome}"
-    ~
-  =/  try  (mule |.(;;(take:fiber:nexus i.els)))
-  ?:  ?=(%& -.try)
-    $(els t.els, out (~(put to out) p.try))
-  $(els t.els, shed +(shed))
+  [pro next.old skip.old]
 --

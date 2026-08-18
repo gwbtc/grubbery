@@ -3,11 +3,12 @@
 ::  ==========================================
 ::  narrow -> wide pool migration tests
 ::
-::  The narrow types stand in for state saved before the
-::  %grow/%tomb/%keen widening of the load union. Narrow load values
-::  are a strict subset of wide ones, so a queued take built from
-::  pre-widening stems must cross noun-identically; a live process
-::  gate and a garbage queue entry must be shed.
+::  The narrow types stand in for state saved before the widening of
+::  the load union. The queues are typed at today's take (covariant, so
+::  pre-widening values nest as they are). Only the process slot is a
+::  raw noun, shed on crossing. A vase whose queues do NOT fit today's
+::  types fails the narrow !< too, and gall rejects the upgrade
+::  atomically. There is deliberately no element-wise shed path.
 ::  ==========================================
 ::
 ::  a representative queued take: a give-back address plus a %veto
@@ -35,7 +36,7 @@
 ++  test-narrow-banged-proc-crosses-whole
   ::  a banged process and its queues cross noun-for-noun
   =/  old=proc-narrow:migrations
-    [|+banged `(qeu *)`example-queue `(qeu *)`example-queue]
+    [|+banged example-queue example-queue]
   =/  new=proc:fiber:nexus
     (proc-narrow-to-proc:migrations [/a %grub] old)
   ;:  weld
@@ -45,10 +46,11 @@
   ==
 ::
 ++  test-narrow-live-proc-is-shed
-  ::  a %& process (a live gate) cannot cross: banged, queues kept
+  ::  a %& process (a live gate) cannot cross. It is banged, and its
+  ::  queues are kept.
   =/  gat=*  |=(* ~)
   =/  old=proc-narrow:migrations
-    [&+gat `(qeu *)`example-queue *(qeu *)]
+    [&+gat example-queue *(qeu take:fiber:nexus)]
   =/  new=proc:fiber:nexus
     (proc-narrow-to-proc:migrations [/a %grub] old)
   ;:  weld
@@ -57,31 +59,37 @@
     (expect-eq !>(*(qeu take:fiber:nexus)) !>(skip.new))
   ==
 ::
-++  test-narrow-garbage-queue-entry-is-shed
-  ::  a queue holding one real take and one alien noun keeps the take
-  =/  raw=(qeu *)
-    =/  q  *(qeu *)
-    =.  q  (~(put to q) `*`example-take)
-    (~(put to q) [%wat %ever ~])
-  =/  out=(qeu take:fiber:nexus)
-    (remold-queue:migrations "/a/grub" "next" raw)
-  ;:  weld
-    (expect-eq !>(1) !>((lent ~(tap to out))))
-    (expect-eq !>(`(unit take:fiber:nexus)`[~ example-take]) !>(~(top to out)))
-  ==
+++  test-narrow-nested-pool-crosses
+  ::  the pool is an axal. A pipe nested two directories deep must cross
+  ::  through +pool-narrow-to-pool's recursive branch, noun-identically,
+  ::  with the here path threaded. The here path is visible only via
+  ::  slogs, and a wrong here would mis-key nothing, so the assertion
+  ::  is the noun.
+  =/  pip=pipe-narrow:migrations
+    :-  bang=`~[leaf+"nexus bang"]
+    (~(put by *(map @ta proc-narrow:migrations)) %grub [|+banged example-queue *(qeu take:fiber:nexus)])
+  =/  deep=pool-narrow:migrations
+    :-  ~
+    %+  ~(put by *(map @ta pool-narrow:migrations))  %sys
+    :-  ~
+    (~(put by *(map @ta pool-narrow:migrations)) %behn [`pip ~])
+  =/  new=pool:nexus  (pool-narrow-to-pool:migrations deep)
+  (expect-eq !>(`*`deep) !>(`*`new))
 ::
 ++  test-narrow-state-passthrough
-  ::  fields other than pool cross untouched; the pool is remolded
-  ::  noun-identically when everything in it can cross
+  ::  fields other than pool cross untouched, born (the unrecoverable
+  ::  truth field) explicitly among them. The pool is remolded
+  ::  noun-identically when everything in it can cross.
   =/  sil=silo:nexus
     :_  ~
     (~(put by *(map nobe:nexus [refs=@ud noun=*])) 0v17 [refs=2 noun='truth'])
   =/  pip=pipe-narrow:migrations
     :-  bang=`~[leaf+"nexus bang"]
-    (~(put by *(map @ta proc-narrow:migrations)) %grub [|+banged `(qeu *)`example-queue *(qeu *)])
+    (~(put by *(map @ta proc-narrow:migrations)) %grub [|+banged example-queue *(qeu take:fiber:nexus)])
   =/  old=state-0-narrow:migrations
     =/  bunt  *state-0-narrow:migrations
     %=  bunt
+      born  *born:nexus
       silo  sil
       pool  [`pip ~]
       last  [now=~2026.8.14 eny=`@uvJ`0v42]
@@ -89,6 +97,7 @@
   =/  new=state-0:migrations
     (state-0-narrow-to-0:migrations old)
   ;:  weld
+    (expect-eq !>(born.old) !>(born.new))
     (expect-eq !>(silo.old) !>(silo.new))
     (expect-eq !>(last.old) !>(last.new))
     (expect-eq !>(`*`pool.old) !>(`*`pool.new))

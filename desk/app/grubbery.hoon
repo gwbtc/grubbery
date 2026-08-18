@@ -132,11 +132,14 @@
       %+  slog
         leaf+"grubbery: +on-load: pre-widening %0 state; remolding the pool"
       ~
+    ::  Slog the NARROW trace. By this line the wide decode has already
+    ::  failed as expected, so the question a debugger needs answered is
+    ::  why the permissive shape refused too.
     =/  logged=~
       %.  ~
       %+  slog
         leaf+"grubbery: +on-load: saved state fits no shape this code can read"
-      (scag 3 p.wide)
+      (scag 6 p.nar)
     ~|  %grubbery-state-unrecognized
     !!
   ?-    -.old
@@ -434,12 +437,12 @@
     ::
       [%keen @ @ *]
     ::  The kernel answers a %keen with an %ames %sage gift, delivered to
-    ::  on-arvo verbatim — NOT the %tune this arm once asserted, which this
-    ::  ames marks "unused, migration only". sage = [spar dat=$@(~ (cask))]:
+    ::  on-arvo verbatim (this ames marks its %tune gift "unused,
+    ::  migration only"). sage = [spar dat=$@(~ (cask))]:
     ::  the page bound at the path, or ~ for nothing bound (a negative answer
-    ::  is still a %sage). Other ames signs can ride this keen wire (an ack
-    ::  most of all), so anything that is not the %sage answer is ignored,
-    ::  exactly as strandio's +take-sage skips it; the old ?> crashed on it.
+    ::  is still a %sage). Other ames signs can ride this keen wire, an ack
+    ::  most of all, so anything that is not the %sage answer is ignored,
+    ::  exactly as strandio's +take-sage skips it.
     ::  See +take-keen-tune / +keen:io.
     ?.  ?=([%ames %sage *] sign)  [~ this]
     =*  sg  sage.sign
@@ -924,7 +927,7 @@
 ::  take-keen-tune: an ames %sage answered a %keen we passed for a
 ::  fiber. Decode the return address from the wire, drop an answer whose
 ::  spar names a different ship than the wire asked for, and poke the
-::  originating grub with the page — the remote-scry sibling of
+::  originating grub with the page. The remote-scry sibling of
 ::  +process-gack. Wire tail is {ship}/{path-len}/{path...}/{name}/{wire...}.
 ::
 ++  take-keen-tune
@@ -3105,28 +3108,29 @@
       %node                        :: %node darts target a file/dir
     =/  dest-lane=(unit lane:tarball)  (lane-from-road:tarball [%& here] road.dart)
     ?-  -.load.dart
-      ::  reads gate as %peek at the dart's own dest
-      ?(%peek %keep %drop %seek %peep %code %font %born %keen)  [%peek dest-lane]
+      ::  reads gate as %peek at the dart's own dest (%yawn cancels a read
+      ::  and gates like the read it cancels)
+      ?(%peek %keep %drop %seek %peep %code %font %born %keen %yawn)  [%peek dest-lane]
       ::  pokes gate as %poke at the dart's own dest
         %poke  [%poke dest-lane]
       ::  scry-farm writes (%grow/%tomb/%cull-farm) are a ship-global
-      ::  privileged SERVICE and gate like a /sys service poke — but on the
-      ::  FIXED /sys/scry service road, NOT the dart's own road. The dart is
-      ::  built by the emitting fiber: fiberio's grow/tomb/cull-farm helpers
-      ::  set road=/sys/scry, but a hostile grub can hand-build the same load
-      ::  with road.dart pointed at a road its OWN weir permits, and the check
-      ::  would then pass for a write to an arbitrary spur — hijacking or
-      ::  deleting another nexus's published data. Pinning the gate to
-      ::  /sys/scry means the emitter's weir must grant the farm service
-      ::  itself: a sandboxed grub's weir does not reach /sys, so it is
-      ::  vetoed regardless of road.dart; the app-level writer (no restrictive
-      ::  weir up to its governor) is permitted, exactly as today. The spur
-      ::  the write lands at is not further checked here — the farm is one
-      ::  flat namespace shared by every nexus under this %grubbery yoke, so
-      ::  per-nexus spur ownership cannot be expressed through the tree weir
-      ::  without a new permission model. That residual is the coarse /sys
-      ::  boundary every service poke already has, and is called out in the
-      ::  report rather than papered over.
+      ::  privileged SERVICE and gate like a /sys service poke, but on the
+      ::  FIXED /sys/scry service road, NOT the dart's own road. The dart
+      ::  is built by the emitting fiber. fiberio's grow/tomb/cull-farm
+      ::  helpers set road=/sys/scry, but a hostile grub can hand-build the
+      ::  same load with road.dart pointed at a road its OWN weir permits.
+      ::  The check would then pass for a write to an arbitrary spur,
+      ::  hijacking or deleting another nexus's published data. Pinning the
+      ::  gate to /sys/scry means the emitter's weir must grant the farm
+      ::  service itself. A sandboxed grub's weir does not reach /sys, so
+      ::  it is vetoed regardless of road.dart. The app-level writer (no
+      ::  restrictive weir up to its governor) is permitted. The spur the
+      ::  write lands at is not further checked here. The farm is one flat
+      ::  namespace shared by every nexus under this %grubbery yoke, so
+      ::  per-nexus spur ownership cannot be expressed through the tree
+      ::  weir without a new permission model. That residual is the coarse
+      ::  /sys boundary every service poke already has, a deliberate and
+      ::  documented limitation.
         ?(%grow %tomb %cull-farm)  [%poke `[%| /sys/scry]]
       ::  structural mutations gate as %make at the dart's own dest
         $?  %make  %cull  %sand  %load
@@ -3366,6 +3370,10 @@
         %keen
       ?>  ?=(^ dest-lane)
       (dart-keen here dart u.dest-lane)
+      ::
+        %yawn
+      ?>  ?=(^ dest-lane)
+      (dart-yawn here dart u.dest-lane)
     ==
     ::
       %here
@@ -3481,7 +3489,7 @@
 ::  dart-grow: publish a page at spur in our ship's remote-scry
 ::  namespace. gall consumes the %grow card directly and gives no sign
 ::  back, so the fiber completes with a %pack as soon as the card is
-::  emitted — the fire-and-forget shape of a consumed /sys poke.
+::  emitted. The fire-and-forget shape of a consumed /sys poke.
 ::
 ++  dart-grow
   |=  [here=rail:tarball =dart:nexus]
@@ -3490,7 +3498,7 @@
   ?>  ?=([%grow *] load.dart)
   =.  this  (emit-card [%pass /grow %grow spur.load.dart page.load.dart])
   (enqu-take here ~ ~ %pack wire.dart ~)
-::  dart-tomb: tombstone a published revision — gall replaces the bound
+::  dart-tomb: tombstone a published revision. gall replaces the bound
 ::  value with its hash. Completes fire-and-forget like +dart-grow.
 ::  gall's +ap-tomb honors only %ud cases, so the load carries the bare
 ::  revision number.
@@ -3505,27 +3513,27 @@
 ::  dart-cull-farm: retract EVERY case bound at spur in our ship's
 ::  remote-scry namespace. Named for the farm (gall's own name for the
 ::  scry store, sky=farm in $yoke) because %cull is already the nexus
-::  TREE cull — deleting a grub — and the two have nothing to do with
+::  TREE cull, which deletes a grub. The two have nothing to do with
 ::  each other.
 ::
 ::  Why the dart carries no case, where +dart-tomb carries one: gall's
 ::  +ap-cull deletes every case at or below the case it is handed AND
 ::  parks it as the spur's high-water mark, but it first range-checks
-::  that case against the bound keys —
+::  that case against the bound keys
 ::
 ::    ?.  &((gte yon key.fis) (lte yon key.u.las))   :: min, max
 ::
-::  — and no-ops (with a trace) outside them. So "cull everything"
-::  cannot be spelled as a large number; the ONLY value that clears a
-::  spur is its current top case. We look that up ourselves with a %gw
-::  scry, gall's own "latest case at this spur" care, so callers never
-::  have to track a count they cannot see. Like +ap-tomb, +ap-cull
-::  crashes on a non-%ud case, so the card is built with ud+.
+::  and no-ops (with a trace) outside them. "Cull everything" cannot
+::  be spelled as a large number. The ONLY value that clears a spur is
+::  its current top case. We look that up ourselves with a %gw scry,
+::  gall's own "latest case at this spur" care, so callers never have
+::  to track a count they cannot see. Like +ap-tomb, +ap-cull crashes
+::  on a non-%ud case, so the card is built with ud+.
 ::
-::  Fire-and-forget like +dart-grow: gall consumes the card and signs
+::  Fire-and-forget like +dart-grow. gall consumes the card and signs
 ::  nothing back, so the fiber completes on the %pack. A spur that was
 ::  never grown emits no card at all and still packs. A spur already
-::  fully culled is NOT safe to cull again — see +farm-top for why the
+::  fully culled is NOT safe to cull again. +farm-top explains why the
 ::  lookup cannot tell those two apart.
 ::
 ++  dart-cull-farm
@@ -3540,24 +3548,25 @@
 ::  farm-top: the highest case currently bound at spur in our own scry
 ::  farm, ~ when nothing is published there. gall's %w care answers
 ::  exactly this (``case/!>(ud/key.u.las)) at /[our]/[agent]/[now]//1/
-::  [spur] — the empty element addresses the vane rather than the
+::  [spur]. The empty element addresses the vane rather than the
 ::  agent, and the %1 is the namespace version.
 ::
-::  %gw is a PARTIAL read: it answers [~ ~] for a spur it does not
+::  %gw is a PARTIAL read. It answers [~ ~] for a spur it does not
 ::  hold, which +mink turns into a %2, and a failing .^ CANNOT be
-::  softened from inside the event. +mule does not help — measured on
+::  softened from inside the event. +mule does not help, measured on
 ::  ~tyr: +mute's virtualization hands the scry back out to the real
 ::  namespace through its scry gate, so the crash lands outside the
 ::  simulation and takes the whole gall event with it. So %gw is only
 ::  ever asked about a spur we have already established is there.
 ::
-::  %gt is the total read that establishes it: it skims a listing of
-::  every bound spur, so an unknown prefix is an empty list rather than
-::  a miss. It lists spurs strictly BELOW the path it is given, hence
-::  the (snip spur) — we ask the parent about its children. It also
-::  taps the whole farm to build that listing, so this costs O(bound
-::  spurs) per retraction; fine at present sizes, and the thing to
-::  revisit first if a ship with a large farm feels its deletes.
+::  %gt is the total read that establishes it. It skims a listing of
+::  every bound spur, so an unknown prefix is an empty list rather
+::  than a miss. It lists spurs strictly BELOW the path it is given,
+::  hence the (snip spur): we ask the parent about its children. It
+::  also taps the whole farm to build that listing, so this costs
+::  O(bound spurs) per retraction. Fine at present sizes, and the
+::  thing to revisit first if a ship with a large farm feels its
+::  deletes.
 ::
 ::  Precondition this cannot check, and callers must respect: the spur
 ::  must still hold at least one case. gall keeps the (now empty) plot
@@ -3566,11 +3575,17 @@
 ::  twice with no %grow in between is the one way to reach that; every
 ::  caller today gates its delete on the source record still existing.
 ::
-::  Reads the farm as of the START of this event: gall applies the
-::  %grow/%cull cards an agent emits only after the agent returns. A
-::  fiber that grows and culls the same spur inside one event would
-::  cull to the pre-grow top; every caller today grows and deletes in
-::  separate events.
+::  The scries read the farm as of the START of this event (gall applies
+::  the %grow/%cull cards an agent emits only after the agent returns).
+::  The base read is then FOLDED FORWARD through this event's
+::  already-emitted farm cards. A pending %grow at the spur raises the
+::  top exactly as gall's key+1 will. A pending %cull clears it while
+::  keeping the high-water mark a later grow builds on. That makes one
+::  event's grow->cull and publish->publish chains see the farm they are
+::  actually building. Several publishes queued behind one another (a
+::  folder move sharing pages) each cull the predecessor the PREVIOUS
+::  one grew, instead of no-opping against the pre-event farm and
+::  leaking the binding forever.
 ::
 ++  farm-top
   |=  =spur
@@ -3582,12 +3597,26 @@
   ::  asks for a non-empty result and mulls dry. The plain path face
   ::  keeps the fork.
   =/  kin=(list path)  .^((list path) %gt (weld pre (snip pax)))
-  ?.  (lien kin |=(p=path =(p pax)))  ~
-  ::  the mold is spelled out rather than named: $case lives in arvo, but
-  ::  nexus defines its own narrower $case, and gall only ever answers %w
-  ::  with ud+key, so ask for exactly that.
-  =/  cas=[%ud p=@ud]  .^([%ud p=@ud] %gw (weld pre spur))
-  `p.cas
+  =/  base=(unit @ud)
+    ?.  (lien kin |=(p=path =(p pax)))  ~
+    ::  the mold is spelled out rather than named: $case lives in arvo, but
+    ::  nexus defines its own narrower $case, and gall only ever answers %w
+    ::  with ud+key, so ask for exactly that.
+    =/  cas=[%ud p=@ud]  .^([%ud p=@ud] %gw (weld pre spur))
+    `p.cas
+  ::  fold this event's pending farm cards, in emission order (cards
+  ::  accumulates reversed; +abet flops it the same way).
+  =/  live=(unit @ud)  base
+  =/  high=@ud  (fall base 0)
+  =/  todo=(list card)  (flop cards)
+  |-  ^-  (unit @ud)
+  ?~  todo  live
+  ?:  ?&(?=([%pass * %grow * *] i.todo) =(pax spur.q.i.todo))
+    =/  nh=@ud  +(high)
+    $(todo t.todo, high nh, live `nh)
+  ?:  ?&(?=([%pass * %cull * *] i.todo) =(pax spur.q.i.todo))
+    $(todo t.todo, live ~)
+  $(todo t.todo)
 ::  dart-keen: read a path from a remote ship's namespace via ames
 ::  remote scry. Nothing is staged: the return address rides the keen
 ::  wire (the +handle-timer-set idiom), so the %tune finds its way home
@@ -3601,7 +3630,7 @@
   ?>  ?=([%keen *] load.dart)
   ::  the road is the weir gate, the load is the request. a dart whose
   ::  road names a different ship than its load was hand-rolled to
-  ::  slip the filter — veto it.
+  ::  slip the filter. Veto it.
   ?.  =(dest-lane [%| /sys/ames/ships/[(scot %p ship.load.dart)]])
     (enqu-take here ~ ~ %veto dart)
   =/  keen-wire=wire
@@ -3610,6 +3639,25 @@
     :-  (scot %ud (lent path.here))
     (weld path.here [name.here wire.dart])
   (emit-card [%pass keen-wire %keen %.n ship.load.dart path.load.dart])
+::  dart-yawn: cancel an outstanding remote-scry request. ames holds an
+::  unanswerable %keen forever, so a fiber that stopped waiting (its
+::  +with-timeout fired) retracts the request instead of leaking it.
+::  gall has no agent-level %yawn card, but agents may pass %arvo notes
+::  directly. ames cancels by spar (ship+path). The cancelled %sage
+::  never arrives, so gall's wire routing for it stays inert.
+::  Fire-and-forget like +dart-grow. Same road-vs-load forgery veto as
+::  +dart-keen.
+::
+++  dart-yawn
+  |=  [here=rail:tarball =dart:nexus dest-lane=lane:tarball]
+  ^+  this
+  ?>  ?=([%node *] dart)
+  ?>  ?=([%yawn *] load.dart)
+  ?.  =(dest-lane [%| /sys/ames/ships/[(scot %p ship.load.dart)]])
+    (enqu-take here ~ ~ %veto dart)
+  =.  this
+    (emit-card [%pass /yawn %arvo %a %yawn ship.load.dart path.load.dart])
+  (enqu-take here ~ ~ %pack wire.dart ~)
 ::  dart-code: peek the /code bins slice at dest — walk up to the governing
 ::  code nexus (lode), return its refs at the inner path. a file may resolve a
 ::  /tub/from/to tube request via the marc grow gate, caching the built tube in
