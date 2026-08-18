@@ -1233,13 +1233,13 @@
 ::    ames holds the request until the remote answers, which may be
 ::    never. A caller unwilling to wait wraps this in +with-timeout.
 ::
-::    Completion mirrors the remote branch of +poke-soft: no local
-::    %pack ever arrives — the answer comes home through the runtime
-::    as a [/ %keen-tune] poke keyed by our wire. The kernel delivers
-::    a keen answer as an %ames %sage gift (NOT %tune, which this
-::    kernel's ames marks "unused, left for migration"); +take-keen-tune
-::    in the runtime unwraps the sage's dat=$@(~ (cask)) into this
-::    (unit page).
+::    Completion: no local %pack ever arrives. The kernel answers a
+::    keen with an %ames %sage gift (NOT %tune, which this kernel's ames
+::    marks "unused, left for migration"); grubbery's on-arvo hands it to
+::    +take-keen-tune, which resumes us with a typed %tune intake carrying
+::    the page JAMMED (a page's [mark *] wildcard cannot ride a mark's
+::    grab type through a %poke — the marc builder crashes -find.$ on it),
+::    keyed by our wire. We cue it back into a (unit page) here.
 ::
 ++  keen
   |=  [=ship =path]
@@ -1254,11 +1254,17 @@
       ~  [%wait ~]
       [~ %veto *]
     [%fail (veto-error dart.u.in)]
-      [~ %poke * *]
-    ?.  =([/ %keen-tune] p.sage.u.in)  [%skip ~]
-    =/  [w=^wire pag=(unit page)]  !<([^wire (unit page)] q.sage.u.in)
-    ?.  =(wire w)  [%skip ~]
-    [%done pag]
+      [~ %tune * *]
+    ::  +take-keen-tune resumes us with a typed %tune intake carrying the
+    ::  page JAMMED (a page's [mark *] wildcard cannot ride a mark's grab
+    ::  type without crashing the marc builder). Cue it back into a page in
+    ::  THIS context. ~ = the remote bound nothing at the spur.
+    ?.  =(wire wire.u.in)  [%skip ~]
+    ::  Clam to a FULLY CONCRETE page shape [p=@tas q=@t]. A wildcard q=* (as
+    ::  in `page`/[mark *]) builds an unusable mold gate here and a runtime clam
+    ::  through it crashes (-find.$). The mesa mirror only ever grows [%gmi @t]
+    ::  bodies, so @t is exact; [p=@tas q=@t] nests under (unit page) cleanly.
+    [%done ?~(pag.u.in ~ `;;([p=@tas q=@t] (cue u.pag.u.in)))]
   ==
 ::  +road-to-remote: parse a /sys/ames/ships/ road into the target ship
 ::  and the real lane on that ship, mirroring the runtime's

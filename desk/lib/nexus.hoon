@@ -208,6 +208,7 @@
   ::
   +$  intake
     $%  [%poke =from =sage:tarball] :: command for a running process (from is relative)
+        [%tune =wire pag=(unit @)] :: remote-scry keen answer, page jammed (~ = unbound)
         [%peek =wire =view] :: local read result
         [%kept =wire =kept]              :: your outgoing subscriptions
         [%made =wire err=(unit tang)] :: response to make
@@ -234,6 +235,7 @@
   ::
   +$  pend
     $%  [%poke =from =bask:tarball]
+        [%tune =wire pag=(unit @)] :: remote-scry keen answer, page jammed; carries no vase, so it hydrates as itself
         [%peek =wire =cite]
         [%peep =wire res=(each (list [=cass:clay lobe=jobe]) tang)]
         [%code =wire res=(each (axal (map @ta @uv)) (each @uv tang))]

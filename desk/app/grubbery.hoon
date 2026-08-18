@@ -939,8 +939,13 @@
   =/  sender=rail:tarball  [from-path i.rest]
   =/  orig-wire=wire  t.rest
   ?.  =(who ship)  this
-  =/  =from:fiber:nexus  (relativize-from:nexus sender (ship-sig-rail who))
-  (enqu-take sender ~ ~ %poke from [[/ %keen-tune] `[wire (unit page)]`[orig-wire pag]])
+  ::  Resume the keening fiber with a TYPED %tune intake carrying the page
+  ::  JAMMED. Not a %poke: a %poke pend hydrates its bask through the noun's
+  ::  mark (+validate-noun -> +build-marc -> a slap), and a page's [mark *]
+  ::  wildcard makes that marc build crash (-find.$). %tune carries no vase,
+  ::  so +hydrate passes it through untouched. +keen:io cues the page back.
+  =/  jam-pag=(unit @)  ?~(pag ~ `(jam u.pag))
+  (enqu-take sender ~ ~ %tune orig-wire jam-pag)
 ::  process-want: a remote ship wants the content behind a snap it holds. look
 ::  up the pinned snap; miss if unknown. otherwise serve every pinned lobe from
 ::  its store (kind-directed; a pinned lobe gone missing is a books error worth
