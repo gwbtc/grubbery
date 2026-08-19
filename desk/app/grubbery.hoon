@@ -431,6 +431,21 @@
       abet:(handle-iris-response:hc t.t.wire client-response.sign)
     [cards this]
     ::
+      [%keen @ @ *]
+    ::  The kernel answers a %keen with an %ames %sage gift, delivered
+    ::  verbatim. sage = [spar dat=$@(~ (cask))]: the page bound at
+    ::  the path, or ~ for nothing bound (a negative answer is still a
+    ::  %sage). Other ames signs can ride this wire, an ack most of
+    ::  all; anything that is not the %sage answer is ignored. dat is
+    ::  already kernel-typed, a plain cast; the page is validated like
+    ::  any poke when it hydrates through %keen-response.
+    ?.  ?=([%ames %sage *] sign)  [~ this]
+    =*  sg  sage.sign
+    =/  pag=(unit page)  ?~(q.sg ~ ``page`q.sg)
+    =^  cards  state
+      abet:(take-keen-sage:hc t.wire ship.p.sg pag)
+    [cards this]
+    ::
       [%push %send @ *]
     ?>  ?=([%iris %http-response *] sign)
     =^  cards  state
@@ -1709,10 +1724,23 @@
       (mule |.(!<(marc:tarball vase.built.u.res)))
     ?:  ?=(%| -.marc-res)
       |+[leaf+"validate-noun: marc for %{(trip nam)} broke at {(spud pax)}" p.marc-res]
+    ::  computing the marc's arms runs +build-vale's slap against the
+    ::  stored artifact. For some artifacts that slap crashes (-find),
+    ::  and an unguarded crash here kills the whole event. Trap both
+    ::  arm computations so a bad artifact reads as a validation error
+    ::  carrying the real trace instead.
+    =/  vale-gate=(each $-(* vase) tang)
+      (mule |.(vale:p.marc-res))
+    ?:  ?=(%| -.vale-gate)
+      |+[leaf+"validate-noun: vale build for %{(trip nam)} crashed at {(spud pax)}" p.vale-gate]
     =/  val-res=(each vase tang)
-      (validate-vase vale:p.marc-res noun)
+      (validate-vase p.vale-gate noun)
     ?:  ?=(%| -.val-res)  val-res
-    &+[type:p.marc-res noun]
+    =/  typ=(each type tang)
+      (mule |.(type:p.marc-res))
+    ?:  ?=(%| -.typ)
+      |+[leaf+"validate-noun: type build for %{(trip nam)} crashed at {(spud pax)}" p.typ]
+    &+[p.typ noun]
   =/  nam=@tas  (rail-to-arm:tarball blot)
   |+~[leaf+"validate-noun: no marc for %{(trip nam)} at {(spud pax)}"]
 ::  Validate a sage at sandbox boundary
@@ -6413,9 +6441,31 @@
     `(enqu-take here ~ ~ %pack wir ~)
   ::
       %scry
-    ?.  =([/ %scry-request] p.sage)  ~
-    =.  this  (handle-typed-scry here wir q.sage)
-    `(enqu-take here ~ ~ %pack wir ~)
+    ?:  =([/ %scry-request] p.sage)
+      =.  this  (handle-typed-scry here wir q.sage)
+      `(enqu-take here ~ ~ %pack wir ~)
+    ::  remote-scry farm writes. Weir-gated as ordinary /sys pokes by
+    ::  arrival here; gall consumes the emitted cards and signs
+    ::  nothing back, so each is fire-and-forget on this %pack.
+    ?:  =([/ %scry-grow] p.sage)
+      =.  this  (handle-scry-grow q.sage)
+      `(enqu-take here ~ ~ %pack wir ~)
+    ?:  =([/ %scry-tomb] p.sage)
+      =.  this  (handle-scry-tomb q.sage)
+      `(enqu-take here ~ ~ %pack wir ~)
+    ?:  =([/ %scry-cull] p.sage)
+      =.  this  (handle-scry-cull q.sage)
+      `(enqu-take here ~ ~ %pack wir ~)
+    ::  remote-scry reads: the answer arrives later as a
+    ::  %keen-response poke-back (see +take-keen-sage); the request
+    ::  itself packs immediately like every consumed service poke.
+    ?:  =([/ %scry-keen] p.sage)
+      =.  this  (handle-scry-keen here q.sage)
+      `(enqu-take here ~ ~ %pack wir ~)
+    ?:  =([/ %scry-yawn] p.sage)
+      =.  this  (handle-scry-yawn q.sage)
+      `(enqu-take here ~ ~ %pack wir ~)
+    ~
   ::
       %lick
     ?:  =([/ %lick-spin] p.sage)
@@ -6814,6 +6864,139 @@
     .^(* i.pat (scot %p our.bowl) i.t.pat (scot %da now.bowl) t.t.pat)
   =/  rel=from:fiber:nexus  (relativize-from:nexus sender scry-rail)
   (enqu-take sender ~ ~ %poke rel [[/ mark] res])
+::  /sys/scry remote-scry farm service, write side. Semantics ported
+::  from nisfeb's PR #41 (the dart-shaped original); delivery moved to
+::  service pokes so weirs gate it with no special cases and no state
+::  migration. Malformed payloads slog and drop rather than crash: the
+::  service is reachable by any fiber whose weir grants /sys.
+::
+::  +handle-scry-grow: publish a page at spur. The page arrives
+::  jammed (a page's [mark *] wildcard is unsafe in a mark's grab
+::  mold); cue and shape-check before emitting.
+::
+++  handle-scry-grow
+  |=  vaz=vase
+  ^+  this
+  =/  req=(unit [pax=path jampag=@])  (mole |.(!<([path @] vaz)))
+  ?~  req  ~&(>>> %scry-grow-malformed this)
+  =/  pag=(unit page)  (mole |.(;;([p=@tas q=*] (cue jampag.u.req))))
+  ?~  pag  ~&(>>> %scry-grow-bad-page this)
+  (emit-card [%pass /scry-grow %grow pax.u.req u.pag])
+::
+++  handle-scry-tomb
+  |=  vaz=vase
+  ^+  this
+  =/  req=(unit [case=@ud pax=path])  (mole |.(!<([@ud path] vaz)))
+  ?~  req  ~&(>>> %scry-tomb-malformed this)
+  (emit-card [%pass /scry-tomb %tomb ud+case.u.req pax.u.req])
+::  +handle-scry-cull: retract every case bound at spur. Only the
+::  spur's current top case clears it (gall's +ap-cull range-checks
+::  and no-ops outside the bound keys), so resolve that top here. A
+::  spur with nothing bound emits no card and still packs.
+::
+++  handle-scry-cull
+  |=  vaz=vase
+  ^+  this
+  =/  req=(unit path)  (mole |.(!<(path vaz)))
+  ?~  req  ~&(>>> %scry-cull-malformed this)
+  =/  top=(unit @ud)  (farm-top u.req)
+  ?~  top  this
+  (emit-card [%pass /scry-cull %cull ud+u.top u.req])
+::  +farm-top: the highest case currently bound at spur in our own
+::  farm, ~ when nothing is published there. Ported from PR #41.
+::
+::  %gw is a PARTIAL read: it answers [~ ~] for a spur it does not
+::  hold, +mink turns that into a crash, and a failing .^ cannot be
+::  softened from inside the event (+mute hands the scry back out to
+::  the real namespace, so the crash lands outside the simulation).
+::  So %gw is only asked about a spur %gt has already listed. %gt is
+::  the total read: it lists every bound spur strictly BELOW the path
+::  it is given (hence the snip: ask the parent about its children)
+::  at O(bound spurs) per call. Caveat carried from the PR: gall
+::  keeps an emptied plot after a full cull, so %gt still lists a
+::  spur %gw would crash on — callers gate re-culls on their own
+::  records (see +cull-farm:io).
+::
+::  The scries read the farm as of the START of this event; gall
+::  applies the %grow/%cull cards an agent emits only after the agent
+::  returns. So the base read is folded forward through this event's
+::  already-emitted farm cards: a pending %grow raises the top exactly
+::  as gall's key+1 will, a pending %cull clears it. Multi-publish
+::  events (a folder move) thus cull the predecessors they grew in
+::  the same event instead of no-opping against the pre-event farm.
+::
+++  farm-top
+  |=  pax=path
+  ^-  (unit @ud)
+  =/  pre=path  ~[(scot %p our.bowl) dap.bowl (scot %da now.bowl) %$ %'1']
+  =/  kin=(list path)  .^((list path) %gt (weld pre (snip pax)))
+  =/  base=(unit @ud)
+    ?.  (lien kin |=(p=path =(p pax)))  ~
+    ::  the mold is spelled out: gall only ever answers %w with ud+key
+    =/  cas=[%ud p=@ud]  .^([%ud p=@ud] %gw (weld pre pax))
+    `p.cas
+  =/  live=(unit @ud)  base
+  =/  high=@ud  (fall base 0)
+  =/  todo=(list card)  (flop cards)
+  |-  ^-  (unit @ud)
+  ?~  todo  live
+  ?:  &(?=([%pass * %grow * *] i.todo) =(pax spur.q.i.todo))
+    =/  nh=@ud  +(high)
+    $(todo t.todo, high nh, live `nh)
+  ?:  &(?=([%pass * %cull * *] i.todo) =(pax spur.q.i.todo))
+    $(todo t.todo, live ~)
+  $(todo t.todo)
+::  +handle-scry-keen: read a path from a remote ship's farm. Nothing
+::  is staged: the requester's return address (rail + wire) rides the
+::  arvo keen wire, the iris idiom, so the %sage finds its way home
+::  through +take-keen-sage with no state to clean up.
+::
+++  handle-scry-keen
+  |=  [sender=rail:tarball vaz=vase]
+  ^+  this
+  =/  req=(unit [who=@p pax=path ret=path])
+    (mole |.(!<([@p path path] vaz)))
+  ?~  req  ~&(>>> %scry-keen-malformed this)
+  =/  keen-wire=wire
+    :-  %keen
+    :-  (scot %p who.u.req)
+    :-  (scot %ud (lent path.sender))
+    (weld path.sender [name.sender ret.u.req])
+  (emit-card [%pass keen-wire %keen %.n who.u.req pax.u.req])
+::  +handle-scry-yawn: cancel an outstanding keen by spar. gall has
+::  no agent-level %yawn card, but agents may pass %arvo notes
+::  directly; ames cancels by [ship path]. The cancelled %sage never
+::  arrives, so the keen wire stays inert.
+::
+++  handle-scry-yawn
+  |=  vaz=vase
+  ^+  this
+  =/  req=(unit [who=@p pax=path])  (mole |.(!<([@p path] vaz)))
+  ?~  req  ~&(>>> %scry-yawn-malformed this)
+  (emit-card [%pass /scry-yawn %arvo %a %yawn who.u.req pax.u.req])
+::  +take-keen-sage: an ames %sage answered a keen we passed for a
+::  fiber. Decode the return address from the wire, drop an answer
+::  whose spar names a different ship than the wire asked for, and
+::  poke the requesting grub back with the page typed as arvo's $page
+::  under the %keen-response mark — hydrated through the normal mark
+::  pipeline like any poke, extracted by the fiber with !<.
+::  Wire tail is {ship}/{path-len}/{path...}/{name}/{ret-wire...}.
+::
+++  take-keen-sage
+  |=  [segs=wire =ship pag=(unit page)]
+  ^+  this
+  ?>  ?=([@ @ *] segs)
+  =/  who=@p  (slav %p i.segs)
+  =/  path-len=@ud  (slav %ud i.t.segs)
+  =/  from-path=path  (scag path-len t.t.segs)
+  =/  rest=wire  (slag path-len t.t.segs)
+  ?~  rest  this
+  =/  sender=rail:tarball  [from-path i.rest]
+  =/  ret=wire  t.rest
+  ?.  =(who ship)  this
+  =/  scry-rail=rail:tarball  [/sys/scry %'main.sig']
+  =/  rel=from:fiber:nexus  (relativize-from:nexus sender scry-rail)
+  (enqu-take sender ~ ~ %poke rel [[/ %keen-response] [ret pag]])
 ::
 ++  handle-bowl-req
   |=  [sender=rail:tarball =wire vaz=vase]

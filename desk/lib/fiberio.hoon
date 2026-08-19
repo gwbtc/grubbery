@@ -853,6 +853,98 @@
     ?.  =([/ mark] p.sage.u.in)  [%skip ~]
     [%done !<(mold q.sage.u.in)]
   ==
+::  Remote-scry farm operations, via the /sys/scry service.
+::
+::  Requests are ordinary pokes to the service grub, so weirs gate
+::  them like any /sys reach: a sandboxed grub (whose weir does not
+::  grant /sys) is vetoed by default, and no special-case gating
+::  exists anywhere. gall consumes the resulting %grow/%tomb/%cull
+::  cards directly and signs nothing back, so all three complete
+::  fire-and-forget on the service %pack.
+::
+::  +grow: publish a page at spur in this ship's remote-scry farm.
+::  The page rides jammed (a page's [mark *] wildcard cannot cross a
+::  mark's grab mold safely); the service cues and shape-checks it.
+::
+++  grow
+  |=  [=spur =page]
+  =/  m  (fiber ,~)
+  ^-  form:m
+  (poke &+&+[/sys/scry %'main.sig'] [[/ %scry-grow] [`path`spur (jam page)]])
+::  +tomb: tombstone revision case of a published spur. The bound
+::  content is replaced by its hash; the binding stays. gall honors
+::  only %ud cases, so the revision rides bare.
+::
+++  tomb
+  |=  [case=@ud =spur]
+  =/  m  (fiber ,~)
+  ^-  form:m
+  (poke &+&+[/sys/scry %'main.sig'] [[/ %scry-tomb] [case `path`spur]])
+::  +cull-farm: retract EVERY case bound at a published spur.
+::
+::  NOT +cull. +cull above deletes a node from the nexus TREE; this
+::  deletes bindings from gall's scry FARM, a different namespace.
+::
+::  Use this, not +tomb, to unpublish: gall assigns key+1 on every
+::  %grow at an already-bound spur, so a regrown spur answers at
+::  several cases and tombing one leaves the rest readable.
+::
+::  NOT idempotent, and this is the one sharp edge: gall keeps the
+::  emptied binding after a cull, and the follow-up top-case read
+::  misses uncatchably (see +farm-top in the agent). Gate a second
+::  cull of the same spur on whatever record says the thing still
+::  exists. A spur that was never grown is a silent no-op.
+::
+++  cull-farm
+  |=  =spur
+  =/  m  (fiber ,~)
+  ^-  form:m
+  (poke &+&+[/sys/scry %'main.sig'] [[/ %scry-cull] `path`spur])
+::  +keen: read a path from a remote ship's farm via remote scry.
+::
+::  Returns the remote's answer as a (unit page): `[mark noun]` is
+::  the content bound at the path, ~ means the remote bound nothing.
+::  ames verifies the publisher's signature before it reaches us, and
+::  the answer hydrates through the %keen-response mark like any poke
+::  (signed but arbitrary content: consumers validate the page's noun
+::  against their own expected shape before trusting its structure).
+::  Carries no deadline of its own — ames holds
+::  the request until the remote answers, which may be never. A
+::  caller unwilling to wait wraps this in +with-timeout, and yawns
+::  the request it abandoned.
+::
+::  The answer arrives as an ordinary %keen-response poke-back from
+::  the /sys/scry service (the iris idiom), correlated by our wire.
+::
+++  keen
+  |=  [=ship =path]
+  =/  m  (fiber ,(unit page))
+  ^-  form:m
+  ;<  =wire  bind:m  (nonce /keen)
+  ;<  ~  bind:m
+    (poke &+&+[/sys/scry %'main.sig'] [[/ %scry-keen] [ship `^path`path wire]])
+  |=  input
+  :+  ~  q.state
+  ?+  in  [%skip ~]
+      ~  [%wait ~]
+      [~ %veto *]
+    [%fail (veto-error dart.u.in)]
+      [~ %poke * *]
+    ?.  =([/ %keen-response] p.sage.u.in)  [%skip ~]
+    =/  [ret=^wire pag=(unit page)]  !<([^wire (unit page)] q.sage.u.in)
+    ?.  =(wire ret)  [%skip ~]
+    [%done pag]
+  ==
+::  +yawn: cancel an outstanding +keen for [ship path]. Cancellation
+::  is by spar (ship+path), not by wire: if two fibers keen the same
+::  spar, one yawn retracts both and the survivor's retry re-asks.
+::  Fire-and-forget; gall consumes the card and signs nothing back.
+::
+++  yawn
+  |=  [=ship =path]
+  =/  m  (fiber ,~)
+  ^-  form:m
+  (poke &+&+[/sys/scry %'main.sig'] [[/ %scry-yawn] [ship `^path`path]])
 ::  Clay convenience helpers
 ::
 ++  clay-case
