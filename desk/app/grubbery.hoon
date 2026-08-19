@@ -6472,7 +6472,7 @@
       =.  this  (handle-scry-keen here q.sage)
       `(enqu-take here ~ ~ %pack wir ~)
     ?:  =([/ %scry-yawn] p.sage)
-      =.  this  (handle-scry-yawn q.sage)
+      =.  this  (handle-scry-yawn here q.sage)
       `(enqu-take here ~ ~ %pack wir ~)
     ~
   ::
@@ -6879,18 +6879,30 @@
 ::  migration. Malformed payloads slog and drop rather than crash: the
 ::  service is reachable by any fiber whose weir grants /sys.
 ::
-::  +handle-scry-grow: publish a page at spur. The page arrives
-::  jammed (a page's [mark *] wildcard is unsafe in a mark's grab
-::  mold); cue and shape-check before emitting.
+::  scry-state: outstanding-keen bookkeeping, in the service's state
+::  grub (the iris-state pattern — a grub, so no agent-state
+::  migration). Entries are added on keen, removed on answer or yawn;
+::  an entry orphaned by a crash is harmless (a %yawn on a dead wire
+::  is a no-op).
+::
+++  scry-state-rail  `rail:tarball`[/sys/scry %'main.scry-state']
+++  get-scry-state
+  ^-  scry-state:nexus
+  =/  old=(unit sang:tarball)  (peek-grub-now scry-state-rail)
+  ?~  old  [%0 ~]
+  !<(scry-state:nexus (need-vase:tarball u.old))
+++  save-scry-state
+  |=  st=scry-state:nexus
+  ^+  this
+  (save-file scry-state-rail [[/ %scry-state] st])
+::  +handle-scry-grow: publish a page at spur, typed as $page.
 ::
 ++  handle-scry-grow
   |=  vaz=vase
   ^+  this
-  =/  req=(unit [pax=path jampag=@])  (mole |.(!<([path @] vaz)))
+  =/  req=(unit [pax=path pag=page])  (mole |.(!<([path page] vaz)))
   ?~  req  ~&(>>> %scry-grow-malformed this)
-  =/  pag=(unit page)  (mole |.(;;([p=@tas q=*] (cue jampag.u.req))))
-  ?~  pag  ~&(>>> %scry-grow-bad-page this)
-  (emit-card [%pass /scry-grow %grow pax.u.req u.pag])
+  (emit-card [%pass /scry-grow %grow pax.u.req pag.u.req])
 ::
 ++  handle-scry-tomb
   |=  vaz=vase
@@ -6971,25 +6983,39 @@
     :-  (scot %p who.u.req)
     :-  (scot %ud (lent path.sender))
     (weld path.sender [name.sender ret.u.req])
+  =/  st=scry-state:nexus  get-scry-state
+  =.  keens.st  (~(put by keens.st) keen-wire [who.u.req pax.u.req sender])
+  =.  this  (save-scry-state st)
   (emit-card [%pass keen-wire %keen %.n who.u.req pax.u.req])
-::  +handle-scry-yawn: cancel an outstanding keen by spar. gall has no
-::  agent-level yawn card, but agents may pass %arvo notes directly.
-::
-::  %wham, not %yawn. ames %yawn (on-cancel-scry all=|) cancels the ONE
-::  listener whose duct matches the yawning duct; a yawn passed on the
-::  static /scry-yawn wire is a different duct than the keen (which rode
-::  a sender-encoded wire), so ames finds no listener and the keen keeps
-::  retransmitting on backoff forever. %wham (all=&) cancels every
-::  listener bound at the spar by path, which is the by-spar semantics
-::  this verb wants: two fibers keening one spar are both retracted, and
-::  a survivor's retry re-asks.
+::  +handle-scry-yawn: cancel the CALLER's outstanding keens at a spar,
+::  precisely. ames %yawn cancels by duct, so the cancel must ride the
+::  same wire the keen did — the service records every keen's wire in
+::  scry-state (see +handle-scry-keen) and replays %yawn on each wire
+::  the yawning grub holds at that spar. Other grubs' keens at the
+::  same spar stay parked: the longpoll pattern has many grubs waiting
+::  on one name, and a by-spar %wham would cancel them all (PR #44's
+::  interim fix). %wham remains only as the fallback when bookkeeping
+::  has no record — better a broad cancel than a keen that
+::  retransmits forever.
 ::
 ++  handle-scry-yawn
-  |=  vaz=vase
+  |=  [sender=rail:tarball vaz=vase]
   ^+  this
   =/  req=(unit [who=@p pax=path])  (mole |.(!<([@p path] vaz)))
   ?~  req  ~&(>>> %scry-yawn-malformed this)
-  (emit-card [%pass /scry-yawn %arvo %a %wham who.u.req pax.u.req])
+  =/  st=scry-state:nexus  get-scry-state
+  =/  mine=(list [=wire * * *])
+    %+  skim  ~(tap by keens.st)
+    |=  [* rec=[=ship pax=path sender=rail:tarball]]
+    &(=(ship.rec who.u.req) =(pax.rec pax.u.req) =(sender.rec sender))
+  ?:  =(~ mine)
+    (emit-card [%pass /scry-yawn %arvo %a %wham who.u.req pax.u.req])
+  =.  keens.st
+    (roll mine |=([[=wire * * *] acc=_keens.st] (~(del by acc) wire)))
+  =.  this  (save-scry-state st)
+  %+  roll  mine
+  |=  [[=wire * * *] acc=_this]
+  (emit-card:acc [%pass wire %arvo %a %yawn who.u.req pax.u.req])
 ::  +take-keen-sage: an ames %sage answered a keen we passed for a
 ::  fiber. Decode the return address from the wire, drop an answer
 ::  whose spar names a different ship than the wire asked for, and
@@ -7010,6 +7036,9 @@
   =/  sender=rail:tarball  [from-path i.rest]
   =/  ret=wire  t.rest
   ?.  =(who ship)  this
+  =/  st=scry-state:nexus  get-scry-state
+  =.  keens.st  (~(del by keens.st) `wire`[%keen segs])
+  =.  this  (save-scry-state st)
   =/  scry-rail=rail:tarball  [/sys/scry %'main.sig']
   =/  rel=from:fiber:nexus  (relativize-from:nexus sender scry-rail)
   (enqu-take sender ~ ~ %poke rel [[/ %keen-response] [ret pag]])

@@ -66,6 +66,7 @@
         ::
         [%fall %| /sys/scry [`[~ ~ %.n ~] ~]]
         [%fall %& [/sys/scry %'main.sig'] [[/ %sig] ~]]
+        [%fall %& [/sys/scry %'main.scry-state'] [[/ %scry-state] *scry-state:nexus]]
         ::  child nexuses
         ::
         [%fall %| /apps/'tiles.tiles' [`[`[/ %tiles] ~ %.n ~] ~]]

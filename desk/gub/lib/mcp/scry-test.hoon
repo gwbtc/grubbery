@@ -17,6 +17,7 @@
       ['value' [%string 'grow only: text to publish (as a noun page)']]
       ['case' [%string 'tomb only: revision number to tombstone']]
       ['ship' [%string 'keen only: ship whose farm to read, e.g. ~zod']]
+      ['timeout' [%string 'keen only: seconds to wait before yawning (default 30)']]
   ==
 ++  required  ~['op' 'spur']
 ++  handler
@@ -73,12 +74,18 @@
         (mole |.((~(dog jo:json-utils jon) /case so:dejs:format)))
       '1'
     =/  kpath=path  (weld /g/x/[cas]/grubbery `path`[%$ '1' u.spur])
+    =/  secs=@ud
+      %+  fall
+        %+  biff
+          (mole |.((~(dog jo:json-utils jon) /timeout so:dejs:format)))
+        |=(t=@t (rush t dem))
+      30
     ;<  res=(unit (unit page))  bind:m
-      %+  (with-timeout:io ,(unit page))  ~s30
+      %+  (with-timeout:io ,(unit page))  (mul secs ~s1)
       (keen:io u.who kpath)
     ?~  res
       ;<  ~  bind:m  (yawn:io u.who kpath)
-      (pure:m [%error 'keen timed out after 30s (request yawned)'])
+      (pure:m [%error (crip "keen timed out after {(scow %ud secs)}s (request yawned)")])
     ?~  u.res
       (pure:m [%text 'remote bound nothing at that path'])
     (pure:m [%text (render-page u.u.res)])

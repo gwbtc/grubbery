@@ -863,14 +863,12 @@
 ::  fire-and-forget on the service %pack.
 ::
 ::  +grow: publish a page at spur in this ship's remote-scry farm.
-::  The page rides jammed (a page's [mark *] wildcard cannot cross a
-::  mark's grab mold safely); the service cues and shape-checks it.
 ::
 ++  grow
   |=  [=spur =page]
   =/  m  (fiber ,~)
   ^-  form:m
-  (poke &+&+[/sys/scry %'main.sig'] [[/ %scry-grow] [`path`spur (jam page)]])
+  (poke &+&+[/sys/scry %'main.sig'] [[/ %scry-grow] [`path`spur page]])
 ::  +tomb: tombstone revision case of a published spur. The bound
 ::  content is replaced by its hash; the binding stays. gall honors
 ::  only %ud cases, so the revision rides bare.
@@ -935,10 +933,10 @@
     ?.  =(wire ret)  [%skip ~]
     [%done pag]
   ==
-::  +yawn: cancel an outstanding +keen for [ship path]. Cancellation
-::  is by spar (ship+path), not by wire: if two fibers keen the same
-::  spar, one yawn retracts both and the survivor's retry re-asks.
-::  Fire-and-forget; gall consumes the card and signs nothing back.
+::  +yawn: cancel this grub's outstanding +keens for [ship path].
+::  Precise: the service records each keen's wire and cancels by
+::  duct, so other grubs parked on the same spar (the longpoll
+::  pattern) stay parked. Fire-and-forget.
 ::
 ++  yawn
   |=  [=ship =path]
