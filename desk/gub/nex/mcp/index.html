@@ -19,10 +19,17 @@
     <div class="pane-tabs">
       <button id="tab-tools" class="pane-tab active">Available Tools</button>
       <button id="tab-instances" class="pane-tab">Tool Instances</button>
+      <button id="tab-reference" class="pane-tab">Reference</button>
     </div>
     <div id="tools-view">
       <div class="scroll">
         <div id="tools-tree"></div>
+      </div>
+    </div>
+    <div id="reference-view" hidden>
+      <div class="ref-layout">
+        <nav id="ref-sidebar" class="ref-sidebar"></nav>
+        <div id="ref-main" class="ref-main scroll"></div>
       </div>
     </div>
     <div id="instances-view" hidden>
@@ -93,6 +100,7 @@
     <div id="modal-body"></div>
   </div>
 </div>
+<script src="/grubbery/mcp/marked.min.js"></script>
 <script src="/grubbery/mcp/app.js"></script>
 </body>
 </html>

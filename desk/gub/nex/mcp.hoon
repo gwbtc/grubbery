@@ -12,6 +12,7 @@
 /&  ui-js     mcp/app.js
 /&  ui-css    mcp/style.css
 /&  ui-icon   mcp/icon.svg
+/&  ui-md     mcp/marked.min.js
 =>  |%
     ::  +weir-json: mcp runs ARBITRARY user tools, and those tools execute
     ::  under mcp's own weir — a tool may scry, poke, or make anything. So
@@ -685,6 +686,7 @@
       [%over %& [/ %'icon.svg'] [[/ %mime] ui-icon]]
       [%over %& [/ %'index.html'] [[/ %mime] ui-html]]
       [%over %& [/ %'app.js'] [[/ %mime] ui-js]]
+      [%over %& [/ %'marked.min.js'] [[/ %mime] ui-md]]
       [%over %& [/ %'style.css'] [[/ %mime] ui-css]]
       [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
       [%fall %| /requests empty-dir:loader]

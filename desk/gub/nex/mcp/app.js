@@ -357,11 +357,165 @@ $('proc-new').addEventListener('click', () => openChooser(''));
 function selectPane(pane) {
   $('tab-tools').classList.toggle('active', pane === 'tools');
   $('tab-instances').classList.toggle('active', pane === 'instances');
+  $('tab-reference').classList.toggle('active', pane === 'reference');
   $('tools-view').hidden = pane !== 'tools';
   $('instances-view').hidden = pane !== 'instances';
+  $('reference-view').hidden = pane !== 'reference';
+  if (pane === 'reference') renderReference();
 }
 $('tab-tools').addEventListener('click', () => selectPane('tools'));
 $('tab-instances').addEventListener('click', () => selectPane('instances'));
+$('tab-reference').addEventListener('click', () => selectPane('reference'));
+
+// ── reference: a docs-style reading surface over the registry ──────
+// Sidebar of tool names grouped by directory; main panel stacks every
+// tool as a readable section: description as markdown, plus a
+// Schema | Source toggle. Source lazy-loads from /api/src.
+
+let refRendered = false;
+
+function refGroups() {
+  const groups = [];
+  (function walk(node, prefix) {
+    const here = prefix || 'lib/mcp';
+    if ((node.tools || []).length) groups.push({ dir: here, tools: node.tools });
+    for (const d of node.dirs || []) walk(d, `${here}/${d.name}`);
+  })(toolsTree, '');
+  return groups;
+}
+
+function md(text) {
+  const el = document.createElement('div');
+  el.className = 'ref-md';
+  el.innerHTML = marked.parse(text || '', { async: false });
+  return el;
+}
+
+function refSchemaTable(t) {
+  const props = (t.inputSchema && t.inputSchema.properties) || {};
+  const required = (t.inputSchema && t.inputSchema.required) || [];
+  const table = document.createElement('table');
+  table.className = 'ref-schema';
+  const head = table.insertRow();
+  for (const h of ['parameter', 'type', 'required', 'description']) {
+    const th = document.createElement('th');
+    th.textContent = h;
+    head.appendChild(th);
+  }
+  for (const key of Object.keys(props)) {
+    const row = table.insertRow();
+    row.insertCell().appendChild(Object.assign(document.createElement('code'), { textContent: key }));
+    row.insertCell().textContent = props[key].type || '';
+    const reqCell = row.insertCell();
+    if (required.includes(key)) {
+      reqCell.textContent = 'yes';
+      reqCell.className = 'ref-req';
+    }
+    row.insertCell().textContent = props[key].description || '';
+  }
+  return table;
+}
+
+function refSection(t) {
+  // shell only: header + placeholder. Body (markdown, schema, source
+  // toggle) fills lazily when the section nears the viewport.
+  const sec = document.createElement('section');
+  sec.className = 'ref-tool';
+  sec.id = `ref-${t.name}`;
+  sec.style.minHeight = '120px';
+
+  const h = document.createElement('h2');
+  h.textContent = fileOf(t.name).replace(/\.hoon$/, '');
+  const call = document.createElement('code');
+  call.className = 'ref-call';
+  call.textContent = t.name;
+  h.appendChild(call);
+  sec.appendChild(h);
+
+  let filled = false;
+  sec.refFill = () => {
+    if (filled) return;
+    filled = true;
+    sec.style.minHeight = '';
+
+    sec.appendChild(md(t.description || ''));
+
+    const toggle = document.createElement('div');
+    toggle.className = 'seg-group ref-toggle';
+    const bSchema = Object.assign(document.createElement('button'), { textContent: 'Schema', className: 'seg active' });
+    const bSource = Object.assign(document.createElement('button'), { textContent: 'Source', className: 'seg' });
+    toggle.append(bSchema, bSource);
+    sec.appendChild(toggle);
+
+    const schemaPane = refSchemaTable(t);
+    const sourcePane = document.createElement('div');
+    sourcePane.className = 'ref-source-wrap';
+    sourcePane.hidden = true;
+    let sourceLoaded = false;
+    sec.append(schemaPane, sourcePane);
+
+    bSchema.addEventListener('click', () => {
+      bSchema.classList.add('active'); bSource.classList.remove('active');
+      schemaPane.hidden = false; sourcePane.hidden = true;
+    });
+    bSource.addEventListener('click', async () => {
+      bSource.classList.add('active'); bSchema.classList.remove('active');
+      schemaPane.hidden = true; sourcePane.hidden = false;
+      if (sourceLoaded) return;
+      sourceLoaded = true;
+      try {
+        const r = await fetchJson(`/grubbery/mcp/api/src?tool=${encodeURIComponent(t.name)}`);
+        sourcePane.textContent = '';
+        sourcePane.appendChild(highlightHoon(r.text));
+      } catch (e) { sourcePane.textContent = `could not load source: ${e.message}`; }
+    });
+  };
+  refObserver.observe(sec);
+  return sec;
+}
+
+const refObserver = new IntersectionObserver((entries) => {
+  for (const e of entries) {
+    if (e.isIntersecting && e.target.refFill) {
+      e.target.refFill();
+      refObserver.unobserve(e.target);
+    }
+  }
+}, { root: null, rootMargin: '600px' });
+
+function renderReference() {
+  if (refRendered) return;
+  refRendered = true;
+  const side = $('ref-sidebar');
+  const main = $('ref-main');
+  side.textContent = '';
+  main.textContent = '';
+  for (const g of refGroups()) {
+    const dirH = document.createElement('div');
+    dirH.className = 'ref-side-dir';
+    dirH.textContent = g.dir + '/';
+    side.appendChild(dirH);
+    const mainDirH = document.createElement('h1');
+    mainDirH.className = 'ref-dir-head';
+    mainDirH.textContent = g.dir + '/';
+    main.appendChild(mainDirH);
+    for (const t of g.tools) {
+      const link = document.createElement('a');
+      link.className = 'ref-side-link';
+      link.textContent = fileOf(t.name).replace(/\.hoon$/, '');
+      link.href = `#ref-${t.name}`;
+      link.addEventListener('click', (e) => {
+        e.preventDefault();
+        const target = document.getElementById(`ref-${t.name}`);
+        if (!target) return;
+        if (target.refFill) target.refFill();
+        target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+      side.appendChild(link);
+      main.appendChild(refSection(t));
+    }
+  }
+}
 
 // ── sandbox editor ─────────────────────────────────────────────────
 
