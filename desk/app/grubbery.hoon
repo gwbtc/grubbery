@@ -436,12 +436,21 @@
     ::  verbatim. sage = [spar dat=$@(~ (cask))]: the page bound at
     ::  the path, or ~ for nothing bound (a negative answer is still a
     ::  %sage). Other ames signs can ride this wire, an ack most of
-    ::  all; anything that is not the %sage answer is ignored. dat is
-    ::  already kernel-typed, a plain cast; the page is validated like
-    ::  any poke when it hydrates through %keen-response.
+    ::  all; anything that is not the %sage answer is ignored.
+    ::
+    ::  dat is the PUBLISHER's binding, fully attacker-controlled. ames
+    ::  verifies the signature, not the shape: a hostile publisher can
+    ::  bind a cell where the page's mark (an atom) belongs. A plain cast
+    ::  passes that through, and the cell mark then crashes the
+    ::  %keen-response vale downstream, which +validate-noun's mule turns
+    ::  into a [%fail] that RESTARTS the reading fiber on every answer.
+    ::  Clam to page inside a mule instead: a well-formed binding (mark
+    ::  atom, body any noun, including a cell body) passes, and anything
+    ::  malformed reads as ~ (nothing bound), a clean miss the reader
+    ::  already handles. Same guard +keen:io keeps on the fiber side.
     ?.  ?=([%ames %sage *] sign)  [~ this]
     =*  sg  sage.sign
-    =/  pag=(unit page)  ?~(q.sg ~ ``page`q.sg)
+    =/  pag=(unit page)  (mole |.(;;(page `*`q.sg)))
     =^  cards  state
       abet:(take-keen-sage:hc t.wire ship.p.sg pag)
     [cards this]
@@ -6963,17 +6972,24 @@
     :-  (scot %ud (lent path.sender))
     (weld path.sender [name.sender ret.u.req])
   (emit-card [%pass keen-wire %keen %.n who.u.req pax.u.req])
-::  +handle-scry-yawn: cancel an outstanding keen by spar. gall has
-::  no agent-level %yawn card, but agents may pass %arvo notes
-::  directly; ames cancels by [ship path]. The cancelled %sage never
-::  arrives, so the keen wire stays inert.
+::  +handle-scry-yawn: cancel an outstanding keen by spar. gall has no
+::  agent-level yawn card, but agents may pass %arvo notes directly.
+::
+::  %wham, not %yawn. ames %yawn (on-cancel-scry all=|) cancels the ONE
+::  listener whose duct matches the yawning duct; a yawn passed on the
+::  static /scry-yawn wire is a different duct than the keen (which rode
+::  a sender-encoded wire), so ames finds no listener and the keen keeps
+::  retransmitting on backoff forever. %wham (all=&) cancels every
+::  listener bound at the spar by path, which is the by-spar semantics
+::  this verb wants: two fibers keening one spar are both retracted, and
+::  a survivor's retry re-asks.
 ::
 ++  handle-scry-yawn
   |=  vaz=vase
   ^+  this
   =/  req=(unit [who=@p pax=path])  (mole |.(!<([@p path] vaz)))
   ?~  req  ~&(>>> %scry-yawn-malformed this)
-  (emit-card [%pass /scry-yawn %arvo %a %yawn who.u.req pax.u.req])
+  (emit-card [%pass /scry-yawn %arvo %a %wham who.u.req pax.u.req])
 ::  +take-keen-sage: an ames %sage answered a keen we passed for a
 ::  fiber. Decode the return address from the wire, drop an answer
 ::  whose spar names a different ship than the wire asked for, and
