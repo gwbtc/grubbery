@@ -53,7 +53,7 @@
         ::  /sys/behn: timer service
         ::
         [%fall %| /sys/behn [`[~ ~ %.n ~] ~]]
-        [%fall %& [/sys/behn %'main.timer-state'] [[/ %timer-state] *timer-state:nexus]]
+        [%fall %& [/sys/behn %'main.behn-state'] [[/ %behn-state] *behn-state:nexus]]
         ::  /sys/iris: HTTP client service
         ::
         [%fall %| /sys/iris [`[~ ~ %.n ~] ~]]

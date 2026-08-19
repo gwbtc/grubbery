@@ -1,9 +1,9 @@
-::  timer-state: timer service state
+::  behn-state: timer service state
 ::
-|_  st=timer-state:nexus
+|_  st=behn-state:nexus
 ++  grab
   |%
-  ++  noun  ,timer-state:nexus
+  ++  noun  ,behn-state:nexus
   --
 ++  grow
   |%

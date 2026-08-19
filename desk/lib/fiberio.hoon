@@ -1314,13 +1314,13 @@
   =/  real=path  t.t.t.t.t.pax
   :-  ~  :-  u.target
   ?-(-.p.road %& [%& real name.p.p.road], %| [%| real])
-::  Timer helpers — poke /sys/behn/main.timer-state, receive timer-wake back
+::  Timer helpers — poke /sys/behn/main.behn-state, receive timer-wake back
 ::
 ++  set-timer
   |=  [=wire until=@da]
   =/  m  (fiber ,~)
   ^-  form:m
-  (poke &+&+[/sys/behn %'main.timer-state'] [[/ %timer-set] `[^wire @da]`[wire until]])
+  (poke &+&+[/sys/behn %'main.behn-state'] [[/ %timer-set] `[^wire @da]`[wire until]])
 ::
 ::  +cancel-timer: cancel a timer set with +set-timer on the same wire.
 ::  No-op if it already fired — a wake for it may still be in flight,
@@ -1330,7 +1330,7 @@
   |=  =wire
   =/  m  (fiber ,~)
   ^-  form:m
-  (poke &+&+[/sys/behn %'main.timer-state'] [[/ %timer-rest] `^wire`wire])
+  (poke &+&+[/sys/behn %'main.behn-state'] [[/ %timer-rest] `^wire`wire])
 ::
 ++  send-wait
   |=  until=@da

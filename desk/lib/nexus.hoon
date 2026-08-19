@@ -138,9 +138,9 @@
       conns=(map @ta binding:eyre)
   ==
 ::  Timer service state.
-::  Stored as a grub at /sys/behn/main.timer-state.
+::  Stored as a grub at /sys/behn/main.behn-state.
 ::
-+$  timer-state
++$  behn-state
   [%0 timers=(map [=rail:tarball =wire] @da)]
 ::  Iris HTTP client service state.
 ::  Stored as a grub at /sys/iris/main.iris-state.

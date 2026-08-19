@@ -482,11 +482,41 @@
 =|  takes=(qeu take:nexus)
 |_  =bowl:gall
 +*  this  .
+::  +carry-behn-state: one-time rename of the behn service grub from
+::  its old name (main.timer-state). Reads the RAW noun via +sang-noun
+::  — no mark, no validation — so it works from any past version, even
+::  though the old mark file is gone and the old grub's view booms.
+::  Union-merges into the new grub (same key = same timer) so a
+::  both-exist pier loses nothing, then culls the old. Idempotent and
+::  inert once no pier holds the old grub; cheap to keep forever.
+::
+++  carry-behn-state
+  ^+  this
+  =/  old-rail=rail:tarball  [/sys/behn %'main.timer-state']
+  =/  new-rail=rail:tarball  [/sys/behn %'main.behn-state']
+  =/  old-file  (peek-grub-now old-rail)
+  ?~  old-file  this
+  =/  old-st=(unit behn-state:nexus)
+    (mole |.(;;(behn-state:nexus (sang-noun:tarball u.old-file))))
+  ?~  old-st
+    ~&  >>>  %carry-behn-state-unreadable-dropped
+    (cull-if-exists %& old-rail)
+  =/  new-file  (peek-grub-now new-rail)
+  =/  new-st=behn-state:nexus
+    ?~  new-file  [%0 ~]
+    %+  fall
+      (mole |.(;;(behn-state:nexus (sang-noun:tarball u.new-file))))
+    [%0 ~]
+  =/  merged=behn-state:nexus
+    [%0 (~(uni by timers.u.old-st) timers.new-st)]
+  =.  this  (save-file new-rail [[/ %behn-state] merged])
+  (cull-if-exists %& old-rail)
 ++  cold-start
   ^-  _this
   =.  this  bootstrap-marcs
   =.  this  sync-gub
   =.  this  rebuild-stale-code
+  =.  this  carry-behn-state
   =.  this  (reload-nexus-at / root)
   =.  this  purge-stale-code
   =.  this  (build-new-code-namespaces / (peek-bole-now /))
@@ -3522,12 +3552,12 @@
       =/  rel=from:fiber:nexus  (relativize-from:nexus dest here)
       (enqu-take dest `[here wire.dart] ~ %poke rel bask.load.dart)
     =/  =sage:tarball  [p.bask.load.dart p.validated]
-    ?:  ?&  =([/sys/behn %'main.timer-state'] dest)
+    ?:  ?&  =([/sys/behn %'main.behn-state'] dest)
             =([/ %timer-set] p.sage)
         ==
       =.  this  (handle-timer-set here wire.dart q.sage)
       (enqu-take here ~ ~ %pack wire.dart ~)
-    ?:  ?&  =([/sys/behn %'main.timer-state'] dest)
+    ?:  ?&  =([/sys/behn %'main.behn-state'] dest)
             =([/ %timer-rest] p.sage)
         ==
       =.  this  (handle-timer-rest here q.sage)
@@ -6502,15 +6532,15 @@
   |=  [sender=rail:tarball =wire vaz=vase]
   ^+  this
   =/  req=[=^wire when=@da]  !<([^wire @da] vaz)
-  =/  timer-rail=rail:tarball  [/sys/behn %'main.timer-state']
+  =/  timer-rail=rail:tarball  [/sys/behn %'main.behn-state']
   ::  Read current state
   =/  old=(unit sang:tarball)  (peek-grub-now timer-rail)
-  =/  st=timer-state:nexus
+  =/  st=behn-state:nexus
     ?~  old  [%0 ~]
-    !<(timer-state:nexus (need-vase:tarball u.old))
+    !<(behn-state:nexus (need-vase:tarball u.old))
   ::  Update state
   =.  timers.st  (~(put by timers.st) [sender wire.req] when.req)
-  =.  this  (save-file timer-rail [[/ %timer-state] st])
+  =.  this  (save-file timer-rail [[/ %behn-state] st])
   ::  Build behn wire: /behn/timer/{da}/{path-len}/{path...}/{name}/{wire...}
   =/  timer-wire=^wire
     :-  %behn
@@ -6528,15 +6558,15 @@
   |=  [sender=rail:tarball vaz=vase]
   ^+  this
   =/  req=wire  !<(wire vaz)
-  =/  timer-rail=rail:tarball  [/sys/behn %'main.timer-state']
+  =/  timer-rail=rail:tarball  [/sys/behn %'main.behn-state']
   =/  old=(unit sang:tarball)  (peek-grub-now timer-rail)
-  =/  st=timer-state:nexus
+  =/  st=behn-state:nexus
     ?~  old  [%0 ~]
-    !<(timer-state:nexus (need-vase:tarball u.old))
+    !<(behn-state:nexus (need-vase:tarball u.old))
   =/  when=(unit @da)  (~(get by timers.st) [sender req])
   ?~  when  this
   =.  timers.st  (~(del by timers.st) [sender req])
-  =.  this  (save-file timer-rail [[/ %timer-state] st])
+  =.  this  (save-file timer-rail [[/ %behn-state] st])
   =/  timer-wire=wire
     :-  %behn
     :-  %timer
@@ -6583,13 +6613,13 @@
   =/  req-wire=wire  t.rest2
   =/  sender=rail:tarball  [from-path from-name]
   ::  Remove from state
-  =/  timer-rail=rail:tarball  [/sys/behn %'main.timer-state']
+  =/  timer-rail=rail:tarball  [/sys/behn %'main.behn-state']
   =/  old=(unit sang:tarball)  (peek-grub-now timer-rail)
-  =/  st=timer-state:nexus
+  =/  st=behn-state:nexus
     ?~  old  [%0 ~]
-    !<(timer-state:nexus (need-vase:tarball u.old))
+    !<(behn-state:nexus (need-vase:tarball u.old))
   =.  timers.st  (~(del by timers.st) [sender req-wire])
-  =.  this  (save-file timer-rail [[/ %timer-state] st])
+  =.  this  (save-file timer-rail [[/ %behn-state] st])
   ::  Poke sender back with timer-wake
   =/  rel=from:fiber:nexus  (relativize-from:nexus sender timer-rail)
   (enqu-take sender ~ ~ %poke rel [[/ %timer-wake] req-wire])

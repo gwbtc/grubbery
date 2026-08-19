@@ -304,14 +304,14 @@
 ++  agents-weir
   ^-  weir:nexus
   :+  ~
-    (sy ~[&+[%& /sys %'bowl.sig'] |+[2 |+/apis] |+[2 |+/channels] &+[%& /sys/behn %'main.timer-state'] &+[%& /sys/push %'main.push-state']])
+    (sy ~[&+[%& /sys %'bowl.sig'] |+[2 |+/apis] |+[2 |+/channels] &+[%& /sys/behn %'main.behn-state'] &+[%& /sys/push %'main.push-state']])
   (sy ~[&+[%| /]])
 ::  +main-agent-weir: agents-weir + make/poke on /agents
 ::
 ++  main-agent-weir
   ^-  weir:nexus
   :+  (sy ~[|+[2 |+/agents]])
-    (sy ~[&+[%& /sys %'bowl.sig'] |+[2 |+/apis] |+[2 |+/channels] |+[2 |+/agents] &+[%& /sys/behn %'main.timer-state'] &+[%& /sys/push %'main.push-state']])
+    (sy ~[&+[%& /sys %'bowl.sig'] |+[2 |+/apis] |+[2 |+/channels] |+[2 |+/agents] &+[%& /sys/behn %'main.behn-state'] &+[%& /sys/push %'main.push-state']])
   (sy ~[&+[%| /]])
 ::  +asst-dir: does this path name an assistant instance — its last
 ::  segment carries the .assistant suffix?
