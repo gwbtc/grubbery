@@ -84,22 +84,25 @@
         ::  /repos inside itself.
         [%fall %| /apps/'forge.git_forge' [`[`[/git %forge] ~ %.n ~] ~]]
         ::
+        ::  contacts + wallet seeds DISABLED: not created by default.
+        ::  Existing instances persist; a deleted one stays deleted.
+        ::  Uncomment to seed on a fresh boot.
         ::  contacts: git_desk is obviated. A /git/repo (housed in forge's
         ::  /repos, so it shows in the UI) checks out the github repo; a
         ::  /desk subscribes to its checked-out code dir and deploys it.
         ::  Seeded AFTER forge exists — you can't nest into a nexus that
         ::  hasn't been made yet. Root wires both directly, so no
         ::  /tools/proc sandbox dance — that's only for forge installs.
-        [%fall %| /apps/'forge.git_forge'/repos/'contacts.git_repo' [`[`[/git %repo] ~ %.n ~] ~]]
-        [%fall %& [/apps/'forge.git_forge'/repos/'contacts.git_repo' %'config.json'] [[/ %json] (git-repo-config 'niblyx-malnus/contacts-nexus' 'main')]]
-        [%fall %| /apps/'contacts.desk' [`[`[/ %desk] ~ %.n ~] ~]]
-        [%fall %& [/apps/'contacts.desk' %'config.json'] [[/ %json] (desk-source-config '/apps/forge.git_forge/repos/contacts.git_repo/data/tree/code')]]
+        ::[%fall %| /apps/'forge.git_forge'/repos/'contacts.git_repo' [`[`[/git %repo] ~ %.n ~] ~]]
+        ::[%fall %& [/apps/'forge.git_forge'/repos/'contacts.git_repo' %'config.json'] [[/ %json] (git-repo-config 'niblyx-malnus/contacts-nexus' 'main')]]
+        ::[%fall %| /apps/'contacts.desk' [`[`[/ %desk] ~ %.n ~] ~]]
+        ::[%fall %& [/apps/'contacts.desk' %'config.json'] [[/ %json] (desk-source-config '/apps/forge.git_forge/repos/contacts.git_repo/data/tree/code')]]
         ::
         ::  wallet: same git_repo + /desk pattern as contacts (was git_desk).
-        [%fall %| /apps/'forge.git_forge'/repos/'wallet.git_repo' [`[`[/git %repo] ~ %.n ~] ~]]
-        [%fall %& [/apps/'forge.git_forge'/repos/'wallet.git_repo' %'config.json'] [[/ %json] (git-repo-config 'niblyx-malnus/wallet-nexus' 'main')]]
-        [%fall %| /apps/'wallet.desk' [`[`[/ %desk] ~ %.n ~] ~]]
-        [%fall %& [/apps/'wallet.desk' %'config.json'] [[/ %json] (desk-source-config '/apps/forge.git_forge/repos/wallet.git_repo/data/tree/code')]]
+        ::[%fall %| /apps/'forge.git_forge'/repos/'wallet.git_repo' [`[`[/git %repo] ~ %.n ~] ~]]
+        ::[%fall %& [/apps/'forge.git_forge'/repos/'wallet.git_repo' %'config.json'] [[/ %json] (git-repo-config 'niblyx-malnus/wallet-nexus' 'main')]]
+        ::[%fall %| /apps/'wallet.desk' [`[`[/ %desk] ~ %.n ~] ~]]
+        ::[%fall %& [/apps/'wallet.desk' %'config.json'] [[/ %json] (desk-source-config '/apps/forge.git_forge/repos/wallet.git_repo/data/tree/code')]]
         ::
         [%fall %| /apps/'test.web-test' [`[`[/ %web-test] ~ %.n ~] ~]]
         [%fall %| /apps/'test.guestbook' [`[`[/ %guestbook] ~ %.n ~] ~]]
