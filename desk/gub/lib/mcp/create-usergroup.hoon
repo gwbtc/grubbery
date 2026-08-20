@@ -52,6 +52,9 @@
   =/  how-road=road:tarball  [%& %& grp-dir %'how.weir']
   ;<  ~  bind:m  (make:io who-road |+[[[/ %ships] members] ~])
   ;<  ~  bind:m  (make:io how-road |+[[[/ %weir] weir] ~])
+  ::  reconcile: the registry's %gc recomputes per-ship weirs from
+  ::  group data — without it the edit never reaches enforcement
+  ;<  ~  bind:m  (reg-poke:io [%gc ~])
   (pure:m [%text (crip "Created usergroup {(spud grp)} with {(a-co:co ~(wyt in members))} members")])
 --
 |%

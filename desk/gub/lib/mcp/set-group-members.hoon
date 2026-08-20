@@ -33,6 +33,7 @@
     |=  t=@t
     (slaw %p (crip (trim (trip t))))
   ;<  ~  bind:m  (over:io [%& %& grp-dir %'who.ships'] [[/ %ships] members])
+  ;<  ~  bind:m  (reg-poke:io [%gc ~])
   (pure:m [%text (crip "Set {(a-co:co ~(wyt in members))} members on {(spud grp)}")])
 --
 |%

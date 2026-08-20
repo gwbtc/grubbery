@@ -24,6 +24,7 @@
   =/  grp=path  (stab p.name-parsed)
   =/  grp-dir=path  (grp-storage-path grp)
   ;<  *  bind:m  (cull-soft:io [%& %| grp-dir])
+  ;<  ~  bind:m  (reg-poke:io [%gc ~])
   (pure:m [%text (crip "Deleted usergroup {(spud grp)}")])
 --
 |%

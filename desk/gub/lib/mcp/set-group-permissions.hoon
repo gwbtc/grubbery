@@ -44,6 +44,7 @@
   =/  =weir:nexus
     [(parse-roads 'make') (parse-roads 'poke') (parse-roads 'peek')]
   ;<  ~  bind:m  (over:io [%& %& grp-dir %'how.weir'] [[/ %weir] weir])
+  ;<  ~  bind:m  (reg-poke:io [%gc ~])
   (pure:m [%text (crip "Set permissions on {(spud grp)}")])
 --
 |%

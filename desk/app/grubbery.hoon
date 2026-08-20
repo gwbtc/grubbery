@@ -1,4 +1,4 @@
-/-  spider, push
+/-  spider, push, grub
 /+  nexus, tarball, build, marks,
     loader, fiberio, migrations, root,
     default-agent, dbug,
@@ -187,6 +187,14 @@
     ::  dill sessions have no push signal; only available via scry,
     ::  so you have to stay up to date manually
     ::
+      %grub-cmd
+    ::  the thin agent-facing surface (sur/grub): plain-typed requests
+    ::  from gall agents, local or remote; outcomes go out as
+    ::  %grub-fact on the caller's /client/[id] subscription
+    =^  cards  state
+      abet:(handle-grub-cmd:hc src.bowl !<(cmd:grub vase))
+    [cards this]
+    ::
       %refresh-sessions
     ?>  =(src our):bowl
     =^  cards  state
@@ -255,6 +263,10 @@
   ?+    path  (on-watch:def path)
       [%http-response *]
     [~ this]
+      ::  agent-facing response channel: subscribe before poking
+      ::  %grub-cmd requests tagged with the same id
+      [%client @ ~]
+    [~ this]
       ::  Jael subscribes on / for all udiffs
       ::
       ~
@@ -275,6 +287,11 @@
   ?+    path  (on-leave:def path)
       [%http-response @ ~]
     =^  cards  state  abet:(cancel-http:hc i.t.path)
+    [cards this]
+      ::  a client channel died: drop the keeps it registered, so no
+      ::  subscription outlives its subscriber
+      [%client @ ~]
+    =^  cards  state  abet:(drop-client-keeps:hc src.bowl i.t.path)
     [cards this]
   ==
 ::
@@ -784,6 +801,149 @@
 ::  take-remote-load: a remote ship's operation, dispatched by kind. peek/
 ::  keep/drop are weir-gated and answered directly; the rest become darts
 ::  routed through the peer system from the caller's ship.sig.
+::
+::  the agent-facing surface (sur/grub): thin plain-typed cmds from
+::  gall agents, local or remote. One identity model for every
+::  caller: the poking SHIP's ship.sig, our own included — local
+::  privilege is the absence of a weir on your own path. Readers get
+::  MATERIALIZED content (gnode: raw [mark noun], simplified trees);
+::  the content-addressed snap protocol stays grubbery-to-grubbery.
+::  Outcomes ride %grub-fact on /client/[id]: peeks answer here
+::  synchronously, dart outcomes arrive via +process-take's client
+::  forward.
+::
+::  +drop-client-keeps: remove every keep a client channel registered
+::  (watcher = the ship.sig, stored wire = the channel). Runs on
+::  on-leave so agent subscriptions never leak. Note: subs key by
+::  watcher RAIL, so two channels of one ship keeping the same target
+::  share (and clobber) one entry — a known v1 limitation.
+::
+++  drop-client-keeps
+  |=  [src=@p id=@ta]
+  ^+  this
+  =/  watcher=rail:tarball  (ship-sig-rail src)
+  =/  cwire=wire  /client/[id]
+  =/  all  tap-fwd
+  |-
+  ?~  all  this
+  =/  [target=lane:tarball watchers=(map rail:tarball [=wire blot=(unit blot:tarball)])]  i.all
+  =/  ent  (~(get by watchers) watcher)
+  =?  this  &(?=(^ ent) =(cwire wire.u.ent))
+    (sub-del target watcher)
+  $(all t.all)
+::
+++  give-client-fact
+  |=  [id=@ta =res:grub]
+  ^+  this
+  (emit-card [%give %fact ~[/client/[id]] %grub-fact !>(`fact:grub`[id res])])
+::
+++  handle-grub-cmd
+  |=  [src=@p =cmd:grub]
+  ^+  this
+  =.  this  (ensure-peer-ship src)
+  =/  caller=rail:tarball  (ship-sig-rail src)
+  =/  cwire=wire  /client/[chan.cmd]
+  =/  op  op.cmd
+  ?-    -.op
+      %poke
+    %+  process-dart  caller
+    [%node cwire [%& %& [path.op name.op]] %poke [[/ mark.op] noun.op]]
+  ::
+      %make-file
+    ::  a conflicting make crashes the event kernel-side; answer it as
+    ::  an error fact instead
+    ?:  &(!force.op ?=(^ (peek-grub-now path.op name.op)))
+      (give-client-fact chan.cmd [%ack `~[leaf+"already exists"]])
+    %+  process-dart  caller
+    :^  %node  cwire  [%& %& [path.op name.op]]
+    [%make force.op %.y %| [[/ mark.op] noun.op] ~]
+  ::
+      %make-dir
+    ?:  &(!force.op ?=(^ (~(get of born) path.op)))
+      (give-client-fact chan.cmd [%ack `~[leaf+"already exists"]])
+    %+  process-dart  caller
+    :^  %node  cwire  [%& %| path.op]
+    [%make force.op %.y %& `[~ ~ %.n ~] ~]
+  ::
+      %cull
+    =/  dest=lane:tarball
+      ?~  name.op  [%| path.op]
+      [%& [path.op u.name.op]]
+    =/  exists=?
+      ?-  -.dest
+        %&  ?=(^ (peek-grub-now p.dest))
+        %|  ?=(^ (~(get of born) p.dest))
+      ==
+    ?.  exists
+      (give-client-fact chan.cmd [%ack `~[leaf+"nothing there"]])
+    (process-dart caller [%node cwire [%& dest] %cull ~])
+  ::
+      %keep
+    ::  subscribe the channel to a target: %news facts on changes.
+    ::  Gated like a read. The watcher is the caller's ship.sig with
+    ::  the client wire — +notify's client branch routes it to facts.
+    =/  target=lane:tarball
+      ?~  name.op  [%| path.op]
+      [%& [path.op u.name.op]]
+    ?:  ?=([~ %|] (allowed %peek caller `target))
+      (give-client-fact chan.cmd [%ack `~[leaf+"vetoed by weir"]])
+    =.  this  (sub-put target caller cwire ~)
+    (give-client-fact chan.cmd [%ack ~])
+  ::
+      %drop
+    =/  target=lane:tarball
+      ?~  name.op  [%| path.op]
+      [%& [path.op u.name.op]]
+    =.  this  (sub-del target caller)
+    (give-client-fact chan.cmd [%ack ~])
+  ::
+      %peek
+    ::  synchronous: the data is local, no snap negotiation. Weir
+    ::  check first; a vetoed or absent read is a clean answer.
+    =/  dest=lane:tarball
+      ?~  name.op  [%| path.op]
+      [%& [path.op u.name.op]]
+    ?:  ?=([~ %|] (allowed %peek caller `dest))
+      (give-client-fact chan.cmd [%ack `~[leaf+"vetoed by weir"]])
+    ?-    -.dest
+        %&
+      =/  got  (peek-grub-now p.dest)
+      ?~  got  (give-client-fact chan.cmd [%miss ~])
+      %+  give-client-fact  chan.cmd
+      [%got %file name.p.u.got (sang-noun:tarball u.got)]
+    ::
+        %|
+      ?~  (~(get of born) p.dest)
+        (give-client-fact chan.cmd [%miss ~])
+      =/  =ball:tarball  (peek-ball-now p.dest)
+      ?.  deep.op
+        %+  give-client-fact  chan.cmd
+        :+  %got  %ls
+        %+  weld
+          ?~(fil.ball ~ (turn ~(tap by contents.u.fil.ball) head))
+        (turn ~(tap by dir.ball) head)
+      (give-client-fact chan.cmd [%got (ball-to-gnode ball)])
+    ==
+  ==
+::  +ball-to-gnode: materialize a peeked ball as a plain tree. Content
+::  goes out raw via +sang-noun — booms included as their underlying
+::  noun, validation is the reader's job.
+::
+++  ball-to-gnode
+  |=  b=ball:tarball
+  ^-  gnode:grub
+  :-  %tree
+  %-  ~(gas by *(map @ta gnode:grub))
+  ^-  (list [@ta gnode:grub])
+  %+  weld
+    ^-  (list [@ta gnode:grub])
+    ?~  fil.b  ~
+    %+  turn  ~(tap by contents.u.fil.b)
+    |=  [nam=@ta ent=[=sang:tarball gain=? bang=(unit tang)]]
+    [nam %file name.p.sang.ent (sang-noun:tarball sang.ent)]
+  %+  turn  ~(tap by dir.b)
+  |=  [nam=@ta sub=ball:tarball]
+  [nam (ball-to-gnode sub)]
 ::
 ++  take-remote-load
   |=  req=load:remo:nexus
@@ -2918,6 +3078,20 @@
     ::  subscription; drop it instead of delivering
     ?~  (peek-grub-now watcher)
       (sub-del:acc target watcher)
+    ::  agent watcher (thin surface): a ship.sig watcher whose wire
+    ::  is a client channel gets a %news fact instead of a grubbery-
+    ::  intake poke — gall fans it to the channel's subscribers,
+    ::  local or cross-ship
+    ?:  ?&  ?=([%sys %ames %ships @ *] path.watcher)
+            ?=([%client @ *] wire)
+        ==
+      =/  id=@ta  i.t.wire
+      =/  news=[=path name=(unit @ta)]
+        ?-  -.target
+          %&  [path.p.target `name.p.target]
+          %|  [p.target ~]
+        ==
+      (give-client-fact:acc id [%news news])
     ::  Remote watcher: poke wave to subscriber ship
     ?:  ?=([%sys %ames %ships @ *] path.watcher)
       =/  dest=@p  (slav %p i.t.t.t.path.watcher)
@@ -3689,6 +3863,29 @@
     ?~  target  this
     =/  =transfer:remo:nexus  [wire.u.in.take %gack err.u.in.take]
     (emit-card [%pass /gack %agent [u.target %grubbery] %poke grubbery-transfer+!>(transfer)])
+  ::  an outcome landing on a ship.sig with a %client wire is the
+  ::  result of a grub-cmd from an external agent on that ship (the
+  ::  thin surface, sur/grub) — give it as a %grub-fact on the
+  ::  client's subscription instead of feeding the representative
+  ::  fiber. %pack/%made/%gone/%sand/%load all carry [wire err].
+  ?:  ?&  ?=([%sys %ames %ships @ ~] path.here)
+          =(%'ship.sig' name.here)
+          ?=(^ in.take)
+          ?=(?(%pack %made %gone %sand %load) -.u.in.take)
+          ?=([%client @ *] wire.u.in.take)
+      ==
+    =/  id=@ta  i.t.wire.u.in.take
+    (give-client-fact id [%ack err.u.in.take])
+  ::  a vetoed client dart: same channel, as an error ack
+  ?:  ?&  ?=([%sys %ames %ships @ ~] path.here)
+          =(%'ship.sig' name.here)
+          ?=(^ in.take)
+          ?=([%veto *] u.in.take)
+          ?=([%node *] dart.u.in.take)
+          ?=([%client @ *] wire.dart.u.in.take)
+      ==
+    =/  id=@ta  i.t.wire.dart.u.in.take
+    (give-client-fact id [%ack `~[leaf+"vetoed by weir"]])
   ::  Get pipe at directory
   =/  =pipe:nexus  (fall (~(get of pool) path.here) *pipe:nexus)
   ::  Get proc for this file - must exist
