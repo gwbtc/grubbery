@@ -223,6 +223,7 @@ function renderSettings() {
     '<label class="m-label">repository <input id="set-origin" type="text" value="' + esc(r.repo || '') + '" placeholder="owner/repo"></label>' +
     '<label class="m-label">ref <input id="set-ref" type="text" value="' + esc(r.ref || '') + '" placeholder="main"></label>' +
     '<label class="m-label">token <span class="hint">(write to change; never shown)</span> <input id="set-token" type="text" placeholder="unchanged"></label>' +
+    '<label class="m-label">poll <span class="hint">(minutes between fetches; 0 = only on demand)</span> <input id="set-poll" type="number" min="0" value="' + esc(String(r.poll == null ? '' : r.poll)) + '" placeholder="15"></label>' +
     '<button class="hdr-btn primary" id="set-save">save config</button></div>' +
     '<div class="set-section"><div class="run-head">actions</div>' +
     '<div class="set-act"><button class="hdr-btn" data-sact="sync">sync</button><span>fetch from the remote and check out the configured ref</span></div>' +
@@ -232,12 +233,15 @@ function renderSettings() {
     '<div class="set-section danger-zone"><div class="run-head">danger</div>' +
     '<div class="set-act"><button class="hdr-btn red" id="set-delete">delete repo</button><span>permanently removes the instance, its tree, tools, and procs</span></div></div>';
   pane.querySelector('#set-save').onclick = function() {
-    post('/config', {
+    var pollRaw = document.getElementById('set-poll').value.trim();
+    var cfg = {
       repo: selected,
       origin: document.getElementById('set-origin').value.trim(),
       ref: document.getElementById('set-ref').value.trim(),
       token: document.getElementById('set-token').value.trim()
-    }).then(function(r2) {
+    };
+    if (pollRaw !== '' && !isNaN(Number(pollRaw))) { cfg.poll = Number(pollRaw); }
+    post('/config', cfg).then(function(r2) {
       if (r2.ok) { refreshSoon(); } else { alert('save failed'); }
     });
   };

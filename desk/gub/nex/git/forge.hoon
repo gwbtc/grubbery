@@ -233,6 +233,10 @@
     :~  ['name' s+kid]
         ['repo' s+?~(cfg '' (jstr u.cfg 'repo'))]
         ['ref' s+?~(cfg '' (jstr u.cfg 'ref'))]
+        :-  'poll'
+        ?~  cfg  ~
+        ?.  ?=(%o -.u.cfg)  ~
+        (fall (~(get by p.u.cfg) 'poll') ~)
         ['current' ?~(cur ~ u.cur)]
         ['last' last]
     ==
