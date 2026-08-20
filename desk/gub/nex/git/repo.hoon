@@ -666,8 +666,16 @@
         ?:  =('' repo.cfg)
           ~&  >>>  "%git/repo push: no repo configured"
           $
-        ?:  =('' token.cfg)
-          ~&  >>>  "%git/repo push: no token configured"
+        ;<  ghc=(unit json)  bind:m
+          (peek-as:io [%& %& gh-nexus %'config.json'] ,json)
+        =/  gh-token=@t
+          ?~  ghc  ''
+          ?.  ?=(%o -.u.ghc)  ''
+          %+  fall
+            (bind (~(get by p.u.ghc) 'token') |=(=json ?>(?=(%s -.json) p.json)))
+          ''
+        ?:  =('' gh-token)
+          ~&  >>>  "%git/repo push: no token in /apps/github.github/config.json"
           $
         ;<  ~  bind:m  (set-status 'pushing')
         =/  cur=@t  ?:(=('' ref.cfg) 'main' ref.cfg)
@@ -737,8 +745,10 @@
           $
         ~&  >>  ["%git/repo push:" (lent chain) "commits to push"]
         ::  push each commit via GitHub API
-        =/  api=@t  'https://api.github.com'
-        =/  headers=(list [key=@t value=@t])  (gh-headers token.cfg)
+        ::  paths are api-relative and unauthenticated here: the
+        ::  github proxy owns the base url and the token
+        =/  api=@t  ''
+        =/  headers=(list [key=@t value=@t])  ~
         =/  parent-sha=@t  chain-base
         =/  get-tree=$-(@ux (unit tree-dir:git-repo))
           |=(h=@ux (get-tree:sto h))
@@ -1505,46 +1515,41 @@
     ==
   ==
 ::
-::  +fetch-with-redirect: GET a URL, follow one redirect
+::  GitHub traffic rides the /apps/github.github proxy (issue #45):
+::  the ship's one token lives there, auth and redirects are handled
+::  there, and this nexus needs no HTTP reach of its own. Lifecycle
+::  per call: keep the lifecycle grub's road, poke main.sig, read the
+::  outcome on news, cull — consumer-culls is the contract.
 ::
-++  fetch-with-redirect
-  |=  [=request:http]
+++  gh-nexus  `path`/apps/'github.github'
+++  gh-call-id
+  =/  m  (fiber:fiber:nexus ,@ta)
+  ^-  form:m
+  ;<  eny=@uvJ  bind:m  get-entropy:io
+  (pure:m (crip ((x-co:co 16) (end 6 eny))))
+::  +github-xfer: one git smart-HTTP exchange through the proxy
+::
+++  github-xfer
+  |=  req=$%([%discovery repo=@t] [%pack repo=@t body=octs])
   =/  m  (fiber:fiber:nexus ,octs)
   ^-  form:m
-  ~&  >  ["%git/repo: HTTP" method.request url.request]
-  ;<  ~  bind:m  (send-request:io request)
-  ;<  =client-response:iris  bind:m  take-client-response:io
-  ?.  ?=(%finished -.client-response)
-    ~|  "%git/repo: request failed (not finished)"  !!
-  =/  status  status-code.response-header.client-response
-  ~&  >  ["%git/repo: HTTP response" status]
-  ?:  ?|  =(status 301)
-          =(status 302)
-          =(status 307)
-      ==
-    =/  location=(unit @t)
-      (~(get by (malt headers.response-header.client-response)) 'location')
-    ?~  location
-      ~|  "%git/repo: redirect without location header"  !!
-    ~&  >  ["%git/repo: following redirect to" u.location]
-    =/  redir=request:http
-      [%'GET' u.location ~[['User-Agent' 'grubbery']] ~]
-    ;<  ~  bind:m  (send-request:io redir)
-    ;<  =client-response:iris  bind:m  take-client-response:io
-    ?.  ?=(%finished -.client-response)
-      ~|  "%git/repo: redirect failed"  !!
-    ?.  =(200 status-code.response-header.client-response)
-      ~&  >>>  ["%git/repo: redirect status" status-code.response-header.client-response]
-      ~|  "%git/repo: non-200 after redirect"  !!
-    ?~  full-file.client-response
-      ~|  "%git/repo: empty response after redirect"  !!
-    (pure:m data.u.full-file.client-response)
-  ?.  =(200 status)
-    ~&  >>>  ["%git/repo: HTTP failed" status method.request url.request]
-    ~|  "%git/repo: unexpected status {<status>}"  !!
-  ?~  full-file.client-response
-    ~|  "%git/repo: empty response"  !!
-  (pure:m data.u.full-file.client-response)
+  ;<  id=@ta  bind:m  gh-call-id
+  =/  grub=road:tarball  [%& %& (weld gh-nexus /xfer) id]
+  ;<  *  bind:m  (keep:io /ghx grub ~)
+  ;<  ~  bind:m  (poke:io [%& %& gh-nexus %'main.sig'] [[/ %noun] [%xfer id req]])
+  |-
+  ;<  *  bind:m  (take-news:io /ghx)
+  ;<  v=view:nexus  bind:m  (peek:io grub ~)
+  ?.  ?=([%file *] v)  $
+  =/  life=(unit $%([%pending *] [%done =octs] [%fail =tang]))
+    (mole |.(;;($%([%pending *] [%done =octs] [%fail =tang]) (sang-noun:tarball sang.v))))
+  ?~  life  $
+  ?:  ?=(%pending -.u.life)  $
+  ;<  ~  bind:m  (drop:io /ghx grub)
+  ;<  *  bind:m  (cull-soft:io grub)
+  ?:  ?=(%fail -.u.life)
+    ~|  "%git/repo: github transfer failed"  ~|  tang.u.life  !!
+  (pure:m octs.u.life)
 ::
 ::  +fetch-discovery: GET /info/refs for a repo
 ::
@@ -1552,11 +1557,7 @@
   |=  repo=@t
   =/  m  (fiber:fiber:nexus ,discovery:git-transport)
   ^-  form:m
-  =/  url=@t
-    (rap 3 ~['https://github.com/' repo '.git/info/refs?service=git-upload-pack'])
-  =/  =request:http
-    [%'GET' url ~[['User-Agent' 'grubbery']] ~]
-  ;<  body=octs  bind:m  (fetch-with-redirect request)
+  ;<  body=octs  bind:m  (github-xfer %discovery repo)
   (pure:m (parse-discovery:git-transport body))
 ::
 ::  +fetch-pack: POST /git-upload-pack for a repo
@@ -1565,73 +1566,63 @@
   |=  [repo=@t want-body=octs]
   =/  m  (fiber:fiber:nexus ,octs)
   ^-  form:m
-  =/  url=@t
-    (rap 3 ~['https://github.com/' repo '.git/git-upload-pack'])
-  =/  =request:http
-    :^  %'POST'  url
-      :~  ['Content-Type' 'application/x-git-upload-pack-request']
-          ['User-Agent' 'grubbery']
-      ==
-    `want-body
-  ;<  body=octs  bind:m  (fetch-with-redirect request)
-  (pure:m body)
+  (github-xfer %pack repo want-body)
 ::
-::  +gh-request: make a GitHub REST API request, follow redirects
+::  +gh-request: one GitHub REST call through the proxy. url is an
+::  api-relative path ('/repos/...'); headers are accepted for
+::  call-site compatibility and ignored — the proxy owns auth.
+::  Crashes on non-2xx with the body, like the old direct client.
 ::
 ++  gh-request
-  |=  [method=method:http url=@t headers=(list [key=@t value=@t]) bod=(unit octs)]
+  |=  [method=@t url=@t headers=(list [key=@t value=@t]) body=(unit json)]
   =/  m  (fiber:fiber:nexus ,json)
   ^-  form:m
-  =/  =request:http  [method url headers bod]
-  ;<  ~  bind:m  (send-request:io request)
-  ;<  =client-response:iris  bind:m  take-client-response:io
-  ?.  ?=(%finished -.client-response)
-    ~|  "%git/repo: GitHub API request did not finish"  !!
-  =/  status=@ud  status-code.response-header.client-response
-  ?:  ?|  =(301 status)
-          =(302 status)
-          =(307 status)
+  ;<  id=@ta  bind:m  gh-call-id
+  =/  grub=road:tarball
+    [%& %& (weld gh-nexus /calls) (crip "{(trip id)}.json")]
+  ;<  *  bind:m  (keep:io /ghr grub ~)
+  =/  req=json
+    %-  pairs:enjs:format
+    :~  ['id' s+id]
+        :-  'req'
+        %-  pairs:enjs:format
+        %+  weld  `(list [@t json])`~[['method' s+method] ['path' s+url]]
+        `(list [@t json])`?~(body ~ ~[['body' u.body]])
+    ==
+  ;<  ~  bind:m  (poke:io [%& %& gh-nexus %'main.sig'] [[/ %json] req])
+  |-
+  ;<  *  bind:m  (take-news:io /ghr)
+  ;<  res=(unit json)  bind:m  (peek-as:io grub ,json)
+  ?~  res  $
+  ?.  ?=(%o -.u.res)  $
+  =/  gets  ~(get by p.u.res)
+  =/  status=@t
+    (fall (bind (gets 'status') |=(=json ?>(?=(%s -.json) p.json))) '')
+  ?.  =('done' status)  $
+  ;<  ~  bind:m  (drop:io /ghr grub)
+  ;<  *  bind:m  (cull-soft:io grub)
+  =/  code=@ud
+    =/  c  (gets 'code')
+    ?:  ?=([~ %n *] c)  (rash p.u.c dem)
+    0
+  =/  bod=json  (fall (gets 'body') *json)
+  ?.  ?&  (gte code 200)
+          (lth code 300)
       ==
-    =/  location=(unit @t)
-      (~(get by (malt headers.response-header.client-response)) 'location')
-    ?~  location
-      ~|  "%git/repo: GitHub API redirect without location"  !!
-    (gh-request method u.location headers bod)
-  ?~  full-file.client-response
-    ~|  "%git/repo: GitHub API empty response (status {<status>})"  !!
-  =/  body=@t  q.data.u.full-file.client-response
-  ?.  ?&  (gte status 200)
-          (lth status 300)
-      ==
-    ~|  "%git/repo: GitHub API error (status {<status>}): {(trip body)}"  !!
-  =/  parsed=(unit json)  (de:json:html body)
-  ?~  parsed
-    ~|  "%git/repo: GitHub API invalid JSON"  !!
-  (pure:m u.parsed)
+    ~|  "%git/repo: GitHub API error (status {<code>})"  ~|  bod  !!
+  (pure:m bod)
 ::
 ++  gh-get
   |=  [url=@t headers=(list [key=@t value=@t])]
-  (gh-request %'GET' url headers ~)
+  (gh-request 'GET' url headers ~)
 ::
 ++  gh-post
   |=  [url=@t headers=(list [key=@t value=@t]) body=json]
-  =/  body-octs=octs  (as-octs:mimes:html (en:json:html body))
-  (gh-request %'POST' url headers `body-octs)
+  (gh-request 'POST' url headers `body)
 ::
 ++  gh-patch
   |=  [url=@t headers=(list [key=@t value=@t]) body=json]
-  =/  body-octs=octs  (as-octs:mimes:html (en:json:html body))
-  (gh-request %'PATCH' url headers `body-octs)
-::
-++  gh-headers
-  |=  token=@t
-  ^-  (list [key=@t value=@t])
-  :~  ['User-Agent' 'grubbery']
-      ['Authorization' (cat 3 'token ' token)]
-      ['Accept' 'application/vnd.github.v3+json']
-      ['Content-Type' 'application/json']
-  ==
-::  +get-sha: extract 'sha' string from a GitHub API JSON object
+  (gh-request 'PATCH' url headers `body)
 ::
 ++  get-sha
   |=  =json

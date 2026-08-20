@@ -1,0 +1,60 @@
+* { box-sizing: border-box; margin: 0; }
+html, body { height: 100%; overflow: hidden; }
+body {
+  display: flex; flex-direction: column;
+  font: 19px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: #16181d; color: #d4d6dd;
+}
+header {
+  display: flex; align-items: baseline; gap: 19px;
+  padding: 19px 27px; border-bottom: 2px solid #2a2d35;
+}
+h1 { font-size: 23px; font-weight: 600; }
+h2 { font-size: 16px; font-weight: 600; color: #e8eaf0; margin-bottom: 11px; }
+.muted { color: #8b8e99; font-size: 16px; }
+main {
+  flex: 1; min-height: 0; overflow: hidden;
+  display: flex; flex-direction: column;
+  width: 100%; max-width: 1170px; margin: 0 auto;
+  padding: 22px 27px 22px;
+}
+.panel {
+  background: #1c1f26; border: 2px solid #2a2d35; border-radius: 11px;
+  padding: 20px 23px; margin-bottom: 22px;
+}
+.panel-head { display: flex; justify-content: space-between; align-items: baseline; }
+.panel.grow { flex: 1; min-height: 0; display: flex; flex-direction: column; margin-bottom: 0; }
+#activity { flex: 1; min-height: 0; overflow-y: auto; }
+.row { display: flex; gap: 11px; align-items: center; flex-wrap: wrap; margin-bottom: 9px; }
+label { color: #8b8e99; font-size: 16px; }
+input, select, textarea, button {
+  font: inherit; color: #d4d6dd; background: #14161b;
+  border: 2px solid #33363f; border-radius: 7px; padding: 6px 11px;
+}
+textarea { width: 100%; font-family: ui-monospace, monospace; font-size: 16px; }
+button {
+  background: #2f3344; cursor: pointer;
+}
+button:hover { background: #3a3f52; }
+button.small { font-size: 15px; padding: 4px 9px; }
+.mono { font-family: ui-monospace, monospace; font-size: 16px; }
+.act-row {
+  display: flex; gap: 12px; align-items: center;
+  padding: 8px 3px; border-bottom: 1px solid #22252c;
+}
+.chip {
+  font-size: 13px; background: #22252c; border-radius: 7px; padding: 2px 9px;
+  color: #8b8e99;
+}
+.status { margin-left: auto; font-size: 15px; }
+.status.ok { color: #98c379; }
+.status.err { color: #e06c75; }
+.status.pend { color: #e5c07b; }
+pre {
+  font: 15px/1.6 ui-monospace, monospace;
+  background: #101216; border: 2px solid #2a2d35; border-radius: 7px;
+  padding: 14px; margin-top: 11px; overflow-x: auto;
+  max-height: 546px; overflow-y: auto;
+  white-space: pre-wrap; word-break: break-word;
+}
+#whoami-out { margin-top: 6px; }

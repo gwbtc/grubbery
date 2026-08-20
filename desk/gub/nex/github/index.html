@@ -1,0 +1,47 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GitHub</title>
+<link rel="stylesheet" href="/grubbery/github/style.css">
+</head>
+<body>
+<header>
+  <h1>GitHub</h1>
+  <span id="status" class="muted"></span>
+</header>
+<main>
+  <section class="panel">
+    <h2>Config</h2>
+    <div class="row">
+      <label>token</label>
+      <input id="token" type="password" placeholder="(write-only — never shown)">
+      <label>api</label>
+      <input id="api" type="text" size="24">
+      <button id="save">Save</button>
+      <button id="whoami">Who am I?</button>
+    </div>
+    <p id="whoami-out" class="muted"></p>
+  </section>
+  <section class="panel">
+    <h2>Run a call</h2>
+    <div class="row">
+      <select id="method"><option>GET</option><option>POST</option><option>PATCH</option><option>PUT</option><option>DELETE</option></select>
+      <input id="path" type="text" placeholder="/repos/owner/name" size="34">
+      <button id="run">Run</button>
+    </div>
+    <textarea id="body" placeholder="json body (optional)" rows="3"></textarea>
+    <pre id="result" hidden></pre>
+  </section>
+  <section class="panel grow">
+    <div class="panel-head">
+      <h2>Activity</h2>
+      <button id="sweep" class="small">Sweep finished</button>
+    </div>
+    <div id="activity"></div>
+  </section>
+</main>
+<script src="/grubbery/github/app.js"></script>
+</body>
+</html>
