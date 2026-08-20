@@ -17,12 +17,24 @@
 ::  Flow (both kinds): keep the lifecycle grub's road FIRST, then poke
 ::  main.sig; read the result on news, then drop. The claw/api pattern.
 ::
-/&  man  ../man/github/readme.md
+/&  man      ../man/github/readme.md
+/<  ui-html  github/index.html
+/<  ui-js    github/app.js
+/<  ui-css   github/style.css
+/<  ui-icon  github/icon.svg
 =<  ^-  nexus:nexus
     |%
     ++  on-load
       |=  =ball:tarball
       ^-  bole:tarball
+      =/  tile=json
+        %-  pairs:enjs:format
+        :~  title+s+'GitHub'
+            info+s+'The ship\'s GitHub proxy'
+            color+s+'#24292f'
+            image+s+'/grubbery/tiles/icon/github.github'
+            href+s+'/grubbery/github'
+        ==
       =/  default-config=json
         %-  pairs:enjs:format
         :~  ['token' s+'']
@@ -32,10 +44,18 @@
       :~  (manifest:loader 0)
           [%over %& [/ %'alias.json'] [[/ %json] (pairs:enjs:format ~[['name' s+'github'] ['description' s+'Local structured proxy for GitHub']])]]
           [%over %& [/ %'weir.json'] [[/ %json] weir-json]]
+          [%over %& [/ %'tile.json'] [[/ %json] tile]]
+          [%over %& [/ %'icon.svg'] [[/ %mime] ui-icon]]
+          [%over %& [/ %'index.html'] [[/ %mime] ui-html]]
+          [%over %& [/ %'app.js'] [[/ %mime] ui-js]]
+          [%over %& [/ %'style.css'] [[/ %mime] ui-css]]
+          [%over %& [/ %'README.md'] [[/ %mime] man]]
           [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
+          [%fall %& [/ %'web.sig'] [[/ %sig] ~]]
           [%fall %& [/ %'config.json'] [[/ %json] default-config]]
           [%fall %| /calls empty-dir:loader]
           [%fall %| /xfer empty-dir:loader]
+          [%fall %| /requests empty-dir:loader]
       ==
     ::
     ++  on-file
@@ -48,6 +68,13 @@
           [~ %'main.sig']
         ;<  ~  bind:m  (rise-wait:io prod "%github/main: failed")
         main-loop
+          [~ %'web.sig']
+        ;<  ~  bind:m  (rise-wait:io prod "%github/web: failed")
+        ;<  ~  bind:m  (bind-http-self:io [~ /grubbery/github])
+        (http-dispatch:io %github)
+          [[%requests ~] @]
+        ;<  ~  bind:m  (rise-wait:io prod "%github/req: failed")
+        (serve name.rail)
           [[%calls ~] @]
         ;<  ~  bind:m  (rise-wait:io prod "%github/call: failed")
         run-call
@@ -64,6 +91,7 @@
   :~  :-  'poke'
       :-  %a
       :~  (line '/sys/bowl.sig' 'read the current time and our ship')
+          (line '/sys/eyre/' 'bind the UI route and send page responses')
           (line '/sys/iris/' 'the only nexus that talks to GitHub over HTTP')
       ==
   ==
@@ -242,6 +270,205 @@
       ['Accept' 'application/vnd.github.v3+json']
       ['Content-Type' 'application/json']
   ==
+::
+++  srv  ~(. http-res:io [%| 1 %& ~ %'web.sig'])
+::  +serve: the introspection UI. Static shell + api:
+::    GET  /api/status          {tokenSet, api, calls, xfers}
+::    GET  /api/activity        recent calls + xfers, summarized
+::    GET  /api/call?id=        one call grub, verbatim
+::    POST /api/config          {token?, api?} merge (token never echoed)
+::    POST /api/call            {method, path, body?} -> {id}
+::    POST /api/sweep           cull every done/failed lifecycle grub
+::
+++  serve
+  |=  eyre-id=@ta
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  ;<  [src=@p req=inbound-request:eyre]  bind:m
+    (get-state-as:io ,[src=@p inbound-request:eyre])
+  ;<  our=@p  bind:m  get-our:io
+  ?.  =(src our)
+    (reply eyre-id 403 'Forbidden')
+  =/  prefix=path  /grubbery/github
+  =/  [site=path args=quay:eyre]  (parse-url:http-utils url.request.req)
+  =/  suffix=path  (slag (lent prefix) site)
+  ?+    suffix  (serve-static eyre-id suffix)
+      [%api %status ~]
+    ;<  cfg=[token=@t api=@t]  bind:m  read-config
+    ;<  calls=view:nexus  bind:m  (peek:io [%| 1 %| /calls] ~)
+    ;<  xfers=view:nexus  bind:m  (peek:io [%| 1 %| /xfer] ~)
+    %+  send-json  eyre-id
+    %-  pairs:enjs:format
+    :~  ['tokenSet' b+!=('' token.cfg)]
+        ['api' s+api.cfg]
+        ['calls' (numb:enjs:format (count-files calls))]
+        ['xfers' (numb:enjs:format (count-files xfers))]
+    ==
+  ::
+      [%api %activity ~]
+    ;<  calls=view:nexus  bind:m  (peek:io [%| 1 %| /calls] ~)
+    ;<  xfers=view:nexus  bind:m  (peek:io [%| 1 %| /xfer] ~)
+    %+  send-json  eyre-id
+    %-  pairs:enjs:format
+    :~  ['calls' a+(call-summaries calls)]
+        ['xfers' a+(xfer-summaries xfers)]
+    ==
+  ::
+      [%api %call ~]
+    =/  id=(unit @t)  (~(get by (malt args)) 'id')
+    ?~  id  (reply eyre-id 400 'id required')
+    ;<  res=(unit json)  bind:m
+      (peek-as:io [%| 1 %& /calls (crip "{(trip u.id)}.json")] ,json)
+    ?~  res  (reply eyre-id 404 'no such call')
+    (send-json eyre-id u.res)
+  ::
+      [%api %config ~]
+    =/  jon=(unit json)  (post-json req)
+    ?~  jon  (reply eyre-id 400 'json body required')
+    ?.  ?=(%o -.u.jon)  (reply eyre-id 400 'object required')
+    ;<  cur=(unit json)  bind:m
+      (peek-as:io [%| 1 %& / %'config.json'] ,json)
+    =/  om=(map @t json)
+      ?~  cur  ~
+      ?.(?=(%o -.u.cur) ~ p.u.cur)
+    =/  tok=(unit json)  (~(get by p.u.jon) 'token')
+    =/  api=(unit json)  (~(get by p.u.jon) 'api')
+    =?  om  &(?=(^ tok) ?=([%s *] u.tok) !=('' p.u.tok))  (~(put by om) 'token' u.tok)
+    =?  om  &(?=(^ api) ?=([%s *] u.api) !=('' p.u.api))  (~(put by om) 'api' u.api)
+    ;<  ~  bind:m  (over:io [%| 1 %& / %'config.json'] [[/ %json] `json`[%o om]])
+    (reply eyre-id 200 'ok')
+  ::
+      [%api %call-new ~]
+    =/  jon=(unit json)  (post-json req)
+    ?~  jon  (reply eyre-id 400 'json body required')
+    ?.  ?=(%o -.u.jon)  (reply eyre-id 400 'object required')
+    ;<  eny=@uvJ  bind:m  get-entropy:io
+    =/  id=@t  (crip ((x-co:co 16) (end 6 eny)))
+    =/  content=json
+      %-  pairs:enjs:format
+      :~  ['status' s+'pending']
+          ['request' u.jon]
+      ==
+    =/  call-road=road:tarball
+      [%| 1 %& /calls (crip "{(trip id)}.json")]
+    ;<  err=(unit tang)  bind:m
+      (make-soft:io call-road |+[[[/ %json] content] ~])
+    ?^  err  (reply eyre-id 500 'could not create call')
+    ;<  ~  bind:m  (gain:io call-road %.y)
+    (send-json eyre-id (pairs:enjs:format ~[['id' s+id]]))
+  ::
+      [%api %sweep ~]
+    ;<  calls=view:nexus  bind:m  (peek:io [%| 1 %| /calls] ~)
+    ;<  xfers=view:nexus  bind:m  (peek:io [%| 1 %| /xfer] ~)
+    =/  done-calls=(list @ta)
+      %+  murn  (file-entries calls)
+      |=  [nam=@ta =sang:tarball]
+      ?:(=('pending' (call-status sang)) ~ `nam)
+    =/  done-xfers=(list @ta)
+      %+  murn  (file-entries xfers)
+      |=  [nam=@ta =sang:tarball]
+      ?:(=(%pending (xfer-status sang)) ~ `nam)
+    =/  culls
+      %+  weld
+        (turn done-calls |=(n=@ta `road:tarball`[%| 1 %& /calls n]))
+      (turn done-xfers |=(n=@ta `road:tarball`[%| 1 %& /xfer n]))
+    =/  n=@ud  (lent culls)
+    |-
+    ?~  culls
+      (send-json eyre-id (pairs:enjs:format ~[['swept' (numb:enjs:format n)]]))
+    ;<  *  bind:m  (cull-soft:io i.culls)
+    $(culls t.culls)
+  ==
+::
+++  serve-static
+  |=  [eyre-id=@ta suffix=path]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  =/  filename=@ta  ?~(suffix 'index.html' i.suffix)
+  ;<  v=view:nexus  bind:m  (peek:io [%| 1 %& ~ filename] `[/ %mime])
+  ?.  ?=([%file *] v)  (reply eyre-id 404 'Not found')
+  =/  =mime  !<(mime (need-vase:tarball sang.v))
+  (send-simple:srv eyre-id (mime-response:http-utils mime))
+::
+++  count-files
+  |=  =view:nexus
+  ^-  @ud
+  ?.  ?=([%ball *] view)  0
+  ?~  fil.ball.view  0
+  ~(wyt by contents.u.fil.ball.view)
+++  file-entries
+  |=  =view:nexus
+  ^-  (list [@ta sang:tarball])
+  ?.  ?=([%ball *] view)  ~
+  ?~  fil.ball.view  ~
+  %+  turn  ~(tap by contents.u.fil.ball.view)
+  |=  [nam=@ta ent=[=sang:tarball *]]
+  [nam sang.ent]
+++  call-status
+  |=  =sang:tarball
+  ^-  @t
+  =/  jon=(unit json)  (mole |.(;;(json (sang-noun:tarball sang))))
+  ?~  jon  ''
+  ?.  ?=(%o -.u.jon)  ''
+  (fall (bind (~(get by p.u.jon) 'status') |=(=json ?>(?=(%s -.json) p.json))) '')
+++  xfer-status
+  |=  =sang:tarball
+  ^-  @tas
+  =/  n=*  (sang-noun:tarball sang)
+  ?@  n  %$
+  ?.  ?=(?(%pending %done %fail) -.n)  %$
+  ;;(@tas -.n)
+++  call-summaries
+  |=  =view:nexus
+  ^-  (list json)
+  %+  turn  (file-entries view)
+  |=  [nam=@ta =sang:tarball]
+  =/  jon=(unit json)  (mole |.(;;(json (sang-noun:tarball sang))))
+  =/  gets
+    |=  pth=(list @t)
+    ^-  @t
+    ?~  jon  ''
+    =/  cur=json  u.jon
+    |-
+    ?~  pth  ?:(?=([%s *] cur) p.cur '')
+    ?.  ?=(%o -.cur)  ''
+    =/  nxt  (~(get by p.cur) i.pth)
+    ?~  nxt  ''
+    $(cur u.nxt, pth t.pth)
+  =/  code=@t
+    ?~  jon  ''
+    ?.  ?=(%o -.u.jon)  ''
+    =/  c  (~(get by p.u.jon) 'code')
+    ?:(?=([~ %n *] c) p.u.c '')
+  %-  pairs:enjs:format
+  :~  ['id' s+nam]
+      ['status' s+(gets ~['status'])]
+      ['method' s+(gets ~['request' 'method'])]
+      ['path' s+(gets ~['request' 'path'])]
+      ['code' s+code]
+  ==
+++  xfer-summaries
+  |=  =view:nexus
+  ^-  (list json)
+  %+  turn  (file-entries view)
+  |=  [nam=@ta =sang:tarball]
+  %-  pairs:enjs:format
+  :~  ['id' s+nam]
+      ['status' s+(xfer-status sang)]
+  ==
+++  post-json
+  |=  req=inbound-request:eyre
+  ^-  (unit json)
+  ?.  =(%'POST' method.request.req)  ~
+  ?~  body.request.req  ~
+  (de:json:html q.u.body.request.req)
+++  reply
+  |=  [eyre-id=@ta code=@ud msg=@t]
+  (send-simple:srv eyre-id [[code ~] `(as-octs:mimes:html msg)])
+++  send-json
+  |=  [eyre-id=@ta jon=json]
+  =/  bod=octs  (as-octs:mimes:html (en:json:html jon))
+  (send-simple:srv eyre-id [[200 ['content-type' 'application/json'] ~] `bod])
 ::
 ++  parse-method
   |=  m=@t
