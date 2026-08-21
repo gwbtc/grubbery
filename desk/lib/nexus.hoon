@@ -129,12 +129,18 @@
       [%kick ~]
       [%simple =simple-payload:http]
   ==
-::  Eyre state: binding registry + active connection tracking.
+::  Eyre state: the binding registry.
 ::  Stored as a grub at /sys/eyre/main.server-state.
 ::
 +$  server-state
   $:  %0
       bindings=(map binding:eyre rail:tarball)
+      ::  the live conns map is grubbery's agent state. keeping it here
+      ::  would make every inbound HTTP request a grub write, which on
+      ::  a real ship measured about 4.5KB of permanent event log and
+      ::  about a second of latency per request. the field stays so
+      ::  stored server-states still nest, and grubbery always writes
+      ::  it as ~.
       conns=(map @ta binding:eyre)
   ==
 ::  Timer service state.
@@ -491,6 +497,19 @@
 ++  record-trees
   |=  [=born =silo =code now=@da dir=path]
   ^-  [^born ^silo]
+  =/  res=[bumped=(set lane:tarball) bon=^born sil=^silo]
+    (record-trees-lanes born silo code now dir ~)
+  [bon.res sil.res]
+::  +record-trees-lanes: +record-trees, reporting the dirs it bumped.
+::
+::    The walk already knows this. It stops the moment a level hashes
+::    the same as before, so every level it passes through is a real
+::    change. Callers that want the change set take it from here
+::    instead of rediscovering it with a whole-namespace diff.
+::
+++  record-trees-lanes
+  |=  [=born =silo =code now=@da dir=path bumped=(set lane:tarball)]
+  ^-  [(set lane:tarball) ^born ^silo]
   =/  sub-born=^born  (~(dip of born) dir)
   =/  boo  ~(. bo now born)
   =/  top-fold  top:hist
@@ -566,8 +585,9 @@
   =/  =tree  [nek tree-gain tree-bang fil dir-map]
   =/  [changed=? new-born=^born new-silo=^silo]
     (put-tree born silo now dir node tree)
-  ?.  changed  [born silo]
-  ?~  dir  [new-born new-silo]
+  ?.  changed  [bumped born silo]
+  =.  bumped  (~(put in bumped) |+dir)
+  ?~  dir  [bumped new-born new-silo]
   $(born new-born, silo new-silo, dir (snip `path`dir))
 ::  +put-tree: store a tree ject at dir, update born fold hist.
 ::  Returns [changed born silo].
@@ -610,7 +630,14 @@
 ::    - top of hist = current version; (top:hist fold) / (top:hist file)
 ::
 ::  Invariants:
-::    - Born records are NEVER deleted (high-water mark for ordering)
+::    - A gained grub's born record is never deleted. It is the
+::      high-water mark that keeps version numbering monotonic across
+::      a delete and a later re-creation, which is what page history
+::      reads. An un-gained grub has no history to order, so its
+::      record goes when the grub does. Keeping it would leave every
+::      request fiber ever run sitting in its directory, and both the
+::      tree walk and the born diff scan that directory on every
+::      later write.
 ::    - Sack hist bumps IFF content changes
 ::    - Tote hist bumps on any descendant change (fold)
 ::    - Weir cass bumps on weir change at that directory
@@ -640,6 +667,17 @@
     =/  node=[fold=hist file=(map @ta hist)]
       (fall (~(get of old) path.here) default-node)
     (~(put of old) path.here node(file (~(put by file.node) name.here sok)))
+  ::  Drop a file's hist entirely. Only ever called for a grub that was
+  ::  never gained, so there is no ordering high-water mark to lose.
+  ::
+  ++  del
+    |=  here=rail:tarball
+    ^-  born
+    =/  node=(unit [fold=hist file=(map @ta hist)])
+      (~(get of old) path.here)
+    ?~  node  old
+    %+  ~(put of old)  path.here
+    u.node(file (~(del by file.u.node) name.here))
   ::  Get dir cass
   ::
   ++  get-dir-cass

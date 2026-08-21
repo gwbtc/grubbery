@@ -52,7 +52,9 @@
 /=  t-  /tests/loader
 |%
 +$  versioned-state
-  $%  state-1:migrations
+  $%  state-3:migrations
+      state-2:migrations
+      state-1:migrations
       state-0:migrations
   ==
 +$  card  card:agent:gall
@@ -88,7 +90,7 @@
   !>(..zuse)
 --
 ::
-=|  state-1:migrations
+=|  state-3:migrations
 =*  state  -
 ::
 =<
@@ -116,12 +118,32 @@
   ?-    -.old
       %0
     ~>  %slog.[0 leaf+"grubbery: migrating state %0 -> %1"]
-    =.  state  (state-0-to-1:migrations old)
+    =/  one=state-1:migrations  (state-0-to-1:migrations old)
+    ~>  %slog.[0 leaf+"grubbery: migrating state %1 -> %2"]
+    =/  two=state-2:migrations  (state-1-to-2:migrations one)
+    ~>  %slog.[0 leaf+"grubbery: migrating state %2 -> %3"]
+    =.  state  (state-2-to-3:migrations two)
     =^  start-cards  state
       abet:cold-start:hc
     [start-cards this]
   ::
       %1
+    ~>  %slog.[0 leaf+"grubbery: migrating state %1 -> %2"]
+    =/  two=state-2:migrations  (state-1-to-2:migrations old)
+    ~>  %slog.[0 leaf+"grubbery: migrating state %2 -> %3"]
+    =.  state  (state-2-to-3:migrations two)
+    =^  start-cards  state
+      abet:cold-start:hc
+    [start-cards this]
+  ::
+      %2
+    ~>  %slog.[0 leaf+"grubbery: migrating state %2 -> %3"]
+    =.  state  (state-2-to-3:migrations old)
+    =^  start-cards  state
+      abet:cold-start:hc
+    [start-cards this]
+  ::
+      %3
     =.  state  old
     =^  start-cards  state
       abet:cold-start:hc
@@ -2624,6 +2646,14 @@
     =/  file-cass=cass:clay  (need (top:hist:nexus u.sok))
     ::  Capture the leaf being tombed so its vale entry can follow it
     =/  prev-leaf=(unit leaf:nexus)  (hist-leaf u.sok file-cass)
+    ::  an un-gained grub leaves nothing behind. one HTTP request makes
+    ::  and culls a grub under the nexus's requests dir, so a record kept
+    ::  here is a record every later request in that dir walks past.
+    ?.  (lookup-gain [dir name])
+      =.  silo  (~(drop-hist si:nexus silo) u.sok)
+      =.  born  (~(del bo:nexus now.bowl born) [dir name])
+      =.  vale  (gc-vale-prev prev-leaf)
+      this
     =/  [tombed-silo=silo:nexus tombed-hist=hist:nexus]
       (~(tomb-temp si:nexus silo) u.sok file-cass)
     =/  new-cass=cass:clay  (~(next-cass bo:nexus now.bowl born) file-cass)
@@ -3032,7 +3062,12 @@
 ++  notify
   |=  old-born=born:nexus
   ^+  this
-  =/  changed=(set lane:tarball)  (diff-born-state:nexus old-born born)
+  (notify-lanes (diff-born-state:nexus old-born born))
+::  +notify-lanes: send %news for a change set the caller already has.
+::
+++  notify-lanes
+  |=  changed=(set lane:tarball)
+  ^+  this
   ?:  =(~ changed)  this
   ::  If the upki file changed, give udiffs to gall subscribers
   =.  this  (maybe-give-jael changed)
@@ -4575,8 +4610,10 @@
 ++  propagate
   |=  [old-born=born:nexus here=rail:tarball]
   ^+  this
-  =.  this  (record-trees path.here)
-  (notify old-born)
+  ::  the walk names the dirs it bumped and the leaf is this very
+  ::  write, so the change set is known. no need to go find it.
+  =^  bumped=(set lane:tarball)  this  (record-trees-lanes path.here)
+  (notify-lanes (~(put in bumped) &+here))
 ::  Record tree objects from dir up to root into silo + fold hist.
 ::  Only bumps fold when tree hash actually changes. Stops propagating
 ::  when a level produces the same hash (nothing above can change).
@@ -4584,9 +4621,15 @@
 ++  record-trees
   |=  dir=path
   ^+  this
-  =/  [new-born=born:nexus new-silo=silo:nexus]
-    (record-trees:nexus born silo code now.bowl dir)
-  this(born new-born, silo new-silo)
+  +:(record-trees-lanes dir)
+::  +record-trees-lanes: +record-trees, handing back the bumped lanes.
+::
+++  record-trees-lanes
+  |=  dir=path
+  ^-  [(set lane:tarball) _this]
+  =/  [bumped=(set lane:tarball) new-born=born:nexus new-silo=silo:nexus]
+    (record-trees-lanes:nexus born silo code now.bowl dir ~)
+  [bumped this(born new-born, silo new-silo)]
 ::  Ensure a directory exists in the namespace.
 ::
 ++  ensure-dir
@@ -5046,7 +5089,7 @@
 ::  is built-against-stale when nexuses respawn. No-op when the
 ::  subject is unchanged — ordinary restarts stay free.
 ::
-::  TODO (state-2, deliberate — do NOT rider this onto another change):
+::  TODO (state-3, deliberate — do NOT rider this onto another change):
 ::  the subject hash currently hides in keys.lode under the fake rail
 ::  [/ %$] as an [hash hash] pair, with special cases in skip-set and
 ::  refs iteration stepping around it. The clean shape, decided but
@@ -5057,7 +5100,7 @@
 ::       stale key CANNOT match by construction — no code path can
 ::       bypass what isn't a separate check
 ::    3. delete the fake-rail sentinel and all its special cases
-::  Costs: lode reshape = state-2 migration (code is derived state —
+::  Costs: lode reshape = state-3 migration (code is derived state —
 ::  map or reset+rebuild), and the hash change itself forces one full
 ::  recompile sweep on deploy. Both correct, both loud. Sequence it
 ::  as its own change with its own verification.
@@ -6267,10 +6310,16 @@
 ++  save-server-state
   |=  st=server-state:nexus
   ^+  this
-  ::  TODO: conns is transient per-request bookkeeping but this records it to
-  ::  the grub. Consider moving conns to agent state to avoid the write.
-  ::  bindings are authoritative and stay in the namespace.
-  (save-file [/sys/eyre %'main.server-state'] [[/ %server-state] st])
+  ::  Call this ONLY when bindings changed. Every call runs the full
+  ::  grub write path (hist rebuild, gc-vale-cache, silo), which on a
+  ::  real ship is about 4.5KB of permanent event log and about a
+  ::  second of eyre latency. bindings are authoritative and stay in
+  ::  the namespace; they change rarely, at bind and unbind time.
+  ::
+  ::  conns goes out as ~ because the live map is agent state. The
+  ::  grub's field survives only so stored server-states still nest,
+  ::  and a stale copy in there would only mislead a reader.
+  (save-file [/sys/eyre %'main.server-state'] [[/ %server-state] st(conns ~)])
 ::  cancel-http: a client dropped an http subscription — cancel its in-flight
 ::  request. no binding means it was a ball-API request (cull the request
 ::  fiber); a bound request is dropped from conns and its handler told to cancel.
@@ -6278,14 +6327,17 @@
 ++  cancel-http
   |=  eyre-id=@ta
   ^+  this
-  =/  st=server-state:nexus  get-server-state
-  =/  conn-binding=(unit binding:eyre)  (~(get by conns.st) eyre-id)
+  =/  conn-binding=(unit binding:eyre)  (~(get by conns) eyre-id)
   ?~  conn-binding
     (cull-if-exists [%& /sys/eyre/requests eyre-id])
-  =/  new-st  st(conns (~(del by conns.st) eyre-id))
+  ::  dropping a connection is agent state only. read the grub after
+  ::  the ball-API case has returned, so the common cancel never pays
+  ::  for a server-state peek.
+  =.  conns  (~(del by conns) eyre-id)
+  =/  st=server-state:nexus  get-server-state
   =/  handler=rail:tarball
-    (fall (~(get by bindings.new-st) u.conn-binding) *rail:tarball)
-  (poke:(save-server-state new-st) ~ handler [[/ %handle-http-cancel] eyre-id])
+    (fall (~(get by bindings.st) u.conn-binding) *rail:tarball)
+  (poke ~ handler [[/ %handle-http-cancel] eyre-id])
 ::  route-http: dispatch an inbound eyre request by URL.
 ::  /grubbery/push is the notification endpoint.
 ::  /grubbery/api spawns a ball-API request fiber.
@@ -6312,16 +6364,17 @@
 ++  forward-http
   |=  [eyre-id=@ta req=inbound-request:eyre site=path]
   ^+  this
-  =/  st=server-state:nexus  get-server-state
   =/  match=(unit [=binding:eyre handler=rail:tarball])
-    (find-eyre-binding bindings.st site)
+    (find-eyre-binding bindings:get-server-state site)
   ?~  match
     ~&  >  [%eyre-no-binding site]
     =.  cards
       (weld (give-simple-payload:app:server eyre-id [[404 ~] `(as-octs:mimes:html 'Not Found')]) cards)
     this
-  =/  new-st  st(conns (~(put by conns.st) eyre-id binding.u.match))
-  (poke:(save-server-state new-st) ~ handler.u.match [[/ %handle-http-request] [eyre-id src.bowl req]])
+  ::  recording the connection is agent state only. this runs on every
+  ::  inbound request, so it must never reach save-server-state.
+  =.  conns  (~(put by conns) eyre-id binding.u.match)
+  (poke ~ handler.u.match [[/ %handle-http-request] [eyre-id src.bowl req]])
 ::
 ++  find-eyre-binding
   |=  [bindings=(map binding:eyre rail:tarball) site=path]
@@ -6937,7 +6990,9 @@
   |=  [sender=rail:tarball =wire vaz=vase]
   ^+  this
   =/  act=eyre-action:nexus  !<(eyre-action:nexus vaz)
-  =/  st=server-state:nexus  get-server-state
+  ::  the server-state grub is read per branch, not up front. %send
+  ::  fires on every header, body chunk and kick, and it needs nothing
+  ::  from the grub.
   ?-    -.act
       %bind
     ::  NB: avoid dots in binding paths. Eyre parses a dotted final
@@ -6945,6 +7000,7 @@
     ::  bindings against the STRIPPED path, so a binding ending in
     ::  a dotted segment never matches a slash-less URL (it falls
     ::  through to docket's catch-all). Bind dot-free paths.
+    =/  st=server-state:nexus  get-server-state
     =.  bindings.st  (~(put by bindings.st) binding.act handler.act)
     =.  this  (save-server-state st)
     (emit-card [%pass /eyre-bind %arvo %e %connect binding.act dap.bowl])
@@ -6953,13 +7009,14 @@
     ::  bind requests to the SENDER — the kernel already knows who poked,
     ::  so the caller needn't walk to root (get-here-abs) to self-report a
     ::  handler rail. This is the common case: a nexus serving its own UI.
+    =/  st=server-state:nexus  get-server-state
     =.  bindings.st  (~(put by bindings.st) binding.act sender)
     =.  this  (save-server-state st)
     (emit-card [%pass /eyre-bind %arvo %e %connect binding.act dap.bowl])
   ::
       %unbind
     =/  orphans=(list @ta)
-      %+  murn  ~(tap by conns.st)
+      %+  murn  ~(tap by conns)
       |=  [eid=@ta =binding:eyre]
       ?.  =(binding binding.act)  ~
       `eid
@@ -6969,25 +7026,24 @@
       |=  eid=@ta
       ^-  card
       [%give %kick ~[/http-response/[eid]] ~]
-    =.  conns.st
+    =.  conns
       %-  ~(gas by *(map @ta binding:eyre))
-      %+  skip  ~(tap by conns.st)
+      %+  skip  ~(tap by conns)
       |=  [eid=@ta =binding:eyre]
       =(binding binding.act)
+    ::  bindings changed, so this one writes the grub.
+    =/  st=server-state:nexus  get-server-state
     =.  bindings.st  (~(del by bindings.st) binding.act)
     (save-server-state st)
   ::
       %send
     =/  crds=(list card)
       (eyre-response-cards eyre-id.act eyre-update.act)
-    =/  conn-binding=(unit binding:eyre)
-      (~(get by conns.st) eyre-id.act)
-    ?:  ?=(?(%kick %simple) -.eyre-update.act)
-      ?~  conn-binding
-        (emit-cards crds)
-      =.  conns.st  (~(del by conns.st) eyre-id.act)
-      =.  this  (save-server-state st)
-      (emit-cards crds)
+    ::  %kick and %simple end the connection, so forget it. %header and
+    ::  %data leave it open. either way this is agent state only, and a
+    ::  del on an absent eyre-id is a no-op.
+    =?  conns  ?=(?(%kick %simple) -.eyre-update.act)
+      (~(del by conns) eyre-id.act)
     (emit-cards crds)
   ==
 ::  /sys/gall/ agent poke service
