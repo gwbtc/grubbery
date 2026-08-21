@@ -487,6 +487,19 @@
 ++  record-trees
   |=  [=born =silo =code now=@da dir=path]
   ^-  [^born ^silo]
+  =/  res=[bumped=(set lane:tarball) bon=^born sil=^silo]
+    (record-trees-lanes born silo code now dir ~)
+  [bon.res sil.res]
+::  +record-trees-lanes: +record-trees, reporting the dirs it bumped.
+::
+::    The walk already knows this. It stops the moment a level hashes
+::    the same as before, so every level it passes through is a real
+::    change. Callers that want the change set take it from here
+::    instead of rediscovering it with a whole-namespace diff.
+::
+++  record-trees-lanes
+  |=  [=born =silo =code now=@da dir=path bumped=(set lane:tarball)]
+  ^-  [(set lane:tarball) ^born ^silo]
   =/  sub-born=^born  (~(dip of born) dir)
   =/  boo  ~(. bo now born)
   =/  top-fold  top:hist
@@ -562,8 +575,9 @@
   =/  =tree  [nek tree-gain tree-bang fil dir-map]
   =/  [changed=? new-born=^born new-silo=^silo]
     (put-tree born silo now dir node tree)
-  ?.  changed  [born silo]
-  ?~  dir  [new-born new-silo]
+  ?.  changed  [bumped born silo]
+  =.  bumped  (~(put in bumped) |+dir)
+  ?~  dir  [bumped new-born new-silo]
   $(born new-born, silo new-silo, dir (snip `path`dir))
 ::  +put-tree: store a tree ject at dir, update born fold hist.
 ::  Returns [changed born silo].

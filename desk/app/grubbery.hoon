@@ -3042,7 +3042,12 @@
 ++  notify
   |=  old-born=born:nexus
   ^+  this
-  =/  changed=(set lane:tarball)  (diff-born-state:nexus old-born born)
+  (notify-lanes (diff-born-state:nexus old-born born))
+::  +notify-lanes: send %news for a change set the caller already has.
+::
+++  notify-lanes
+  |=  changed=(set lane:tarball)
+  ^+  this
   ?:  =(~ changed)  this
   ::  If the upki file changed, give udiffs to gall subscribers
   =.  this  (maybe-give-jael changed)
@@ -4578,8 +4583,10 @@
 ++  propagate
   |=  [old-born=born:nexus here=rail:tarball]
   ^+  this
-  =.  this  (record-trees path.here)
-  (notify old-born)
+  ::  the walk names the dirs it bumped and the leaf is this very
+  ::  write, so the change set is known. no need to go find it.
+  =^  bumped=(set lane:tarball)  this  (record-trees-lanes path.here)
+  (notify-lanes (~(put in bumped) &+here))
 ::  Record tree objects from dir up to root into silo + fold hist.
 ::  Only bumps fold when tree hash actually changes. Stops propagating
 ::  when a level produces the same hash (nothing above can change).
@@ -4587,9 +4594,15 @@
 ++  record-trees
   |=  dir=path
   ^+  this
-  =/  [new-born=born:nexus new-silo=silo:nexus]
-    (record-trees:nexus born silo code now.bowl dir)
-  this(born new-born, silo new-silo)
+  +:(record-trees-lanes dir)
+::  +record-trees-lanes: +record-trees, handing back the bumped lanes.
+::
+++  record-trees-lanes
+  |=  dir=path
+  ^-  [(set lane:tarball) _this]
+  =/  [bumped=(set lane:tarball) new-born=born:nexus new-silo=silo:nexus]
+    (record-trees-lanes:nexus born silo code now.bowl dir ~)
+  [bumped this(born new-born, silo new-silo)]
 ::  Ensure a directory exists in the namespace.
 ::
 ++  ensure-dir
