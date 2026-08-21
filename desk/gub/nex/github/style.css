@@ -166,3 +166,7 @@ button.code:hover { background: #eef0f3; border-color: #c9cfd6; }
 /* run: primary-tinted icon button */
 button.icon.run { color: white; background: #1f883d; border-color: #1f883d; width: 32px; height: 32px; }
 button.icon.run:hover { background: #1a7534; border-color: #1a7534; }
+
+
+#info-modal .modal-card { max-width: 440px; }
+#info-modal p { font-size: 12.5px; line-height: 1.7; color: #3a414a; text-align: left; }

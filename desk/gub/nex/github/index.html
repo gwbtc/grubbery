@@ -11,6 +11,9 @@
 <header>
   <img id="brand-icon" src="/grubbery/github/icon.svg" alt="">
   <h1>GitHub</h1>
+  <button id="info" class="icon plain" title="about this nexus">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+  </button>
   <span id="status"></span>
 </header>
 <main>
@@ -71,6 +74,12 @@
     <p class="muted">The OAuth App identity this ship connects through.<br>Leave empty to use the Grubbery default.</p>
     <input id="client-id" type="text" size="28">
     <button id="cid-save" class="primary">Save</button>
+  </div>
+</div>
+<div id="info-modal" class="modal" hidden>
+  <div class="modal-card">
+    <h2>About this nexus</h2>
+    <p>This nexus is a consolidated endpoint for GitHub — a local, well-structured stand-in for the external service, ideally used as the ship's only door to it. Apps that go through it never hold credentials or reach the internet; they are granted this nexus's road, which makes “may use GitHub” an ordinary capability like any other.</p>
   </div>
 </div>
 <script src="/grubbery/github/app.js"></script>

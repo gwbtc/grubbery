@@ -235,3 +235,7 @@ $('sweep').addEventListener('click', async () => {
 
 refresh();
 setInterval(refresh, 5000);
+
+// info modal
+$('info').addEventListener('click', () => { $('info-modal').hidden = false; });
+$('info-modal').addEventListener('click', (e) => { if (e.target === $('info-modal')) $('info-modal').hidden = true; });

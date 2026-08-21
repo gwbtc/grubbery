@@ -8,6 +8,14 @@ async function jpost(u, b) { const r = await fetch(BASE + u, { method: 'POST', b
 
 const fmt = (n) => (n || 0).toLocaleString();
 const fmtTime = (t) => t ? new Date(t * 1000).toLocaleString() : '–';
+const ago = (t) => {
+  if (!t) return 'never synced';
+  const s = Math.max(0, Date.now() / 1000 - t);
+  if (s < 90) return 'synced just now';
+  if (s < 5400) return `synced ${Math.round(s / 60)}m ago`;
+  if (s < 129600) return `synced ${Math.round(s / 3600)}h ago`;
+  return `synced ${Math.round(s / 86400)}d ago`;
+};
 const fmtCost = (c) => c === 0 ? '$0.00' : c >= 0.01 ? '$' + c.toFixed(2) : '$' + c.toPrecision(2);
 const cost = (c) => parseFloat(c && c.cost != null ? c.cost : 0) || 0;
 
@@ -36,6 +44,7 @@ async function refresh() {
   $('conn-label').textContent = s.keySet ? 'API key set' : 'no API key';
   $('set-key').textContent = s.keySet ? 'Replace API key' : 'Set API key';
   $('key-row').hidden = !s.keySet;
+  $('sync-ago').textContent = ago(s.syncedAt);
   $('models-sync').textContent = s.models ? `Sync models (${s.models})` : 'Sync models';
   if (s.models && !modelsLoaded) loadModels().catch(() => {});
   const g = await jget('/api/usage');
@@ -116,6 +125,27 @@ $('test-run').addEventListener('click', async () => {
 });
 $('test-prompt').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('test-run').click(); });
 
+// rates modal — read-only view of the synced catalog, filterable
+function renderRates() {
+  const q = $('rate-filter').value.trim().toLowerCase();
+  const tb = $('rate-rows');
+  tb.textContent = '';
+  if (!Object.keys(MODELS).length) {
+    tb.innerHTML = '<tr><td colspan="4" class="muted">empty — no catalog yet. Hit Sync models.</td></tr>';
+    return;
+  }
+  for (const m of Object.keys(MODELS).sort()) {
+    if (q && !m.toLowerCase().includes(q)) continue;
+    const r = MODELS[m];
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td class="mono">${m}</td><td class="r">$${(parseFloat(r.prompt) * 1e6).toFixed(2)}</td><td class="r">$${(parseFloat(r.completion) * 1e6).toFixed(2)}</td><td class="r">${fmt(r.context)}</td>`;
+    tb.appendChild(tr);
+  }
+}
+$('rates').addEventListener('click', () => { $('rate-filter').value = ''; renderRates(); $('rates-modal').hidden = false; });
+$('rate-filter').addEventListener('input', renderRates);
+$('rates-modal').addEventListener('click', (e) => { if (e.target === $('rates-modal')) $('rates-modal').hidden = true; });
+
 // key view/hide/copy (SVGs have no .hidden property — toggle the attribute)
 const KEY_DOTS = '••••••••••••••••••••';
 let keyShown = false;
@@ -164,3 +194,7 @@ $('reset').addEventListener('click', async () => {
 
 refresh();
 setInterval(() => refresh().catch(() => {}), 5000);
+
+// info modal
+$('info').addEventListener('click', () => { $('info-modal').hidden = false; });
+$('info-modal').addEventListener('click', (e) => { if (e.target === $('info-modal')) $('info-modal').hidden = true; });

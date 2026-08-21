@@ -137,3 +137,10 @@ th.r, td.r { text-align: right; }
 #test-model { width: 300px; flex: none; font-family: "SF Mono", Menlo, monospace; font-size: 12px; }
 #model-info { margin-top: 6px; min-height: 18px; }
 h2.gap { margin-top: 16px; }
+
+
+#info-modal .modal-card { max-width: 440px; }
+#info-modal p { font-size: 12.5px; line-height: 1.7; color: #3a414a; text-align: left; }
+
+.rates-scroll { max-height: 55vh; overflow-y: auto; width: 100%; }
+#rate-filter { width: 100%; font-family: "SF Mono", Menlo, monospace; font-size: 12px; }

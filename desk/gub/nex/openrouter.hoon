@@ -254,6 +254,10 @@
 ::    POST /api/reset        zero the usage ledger
 ::    POST /api/sweep        cull finished call grubs
 ::
+::  TODO: sync the model catalog on a timer (server-side poll fiber,
+::  stable /wait wire) instead of relying on the manual UI button;
+::  for anthropic that means moving the per-token -> $/M conversion
+::  from the browser into hoon.
 ++  serve
   |=  eyre-id=@ta
   =/  m  (fiber:fiber:nexus ,~)
@@ -280,12 +284,15 @@
       %-  lent
       %+  skim  (file-entries calls)
       |=([nam=@ta =sang:tarball] =('pending' (call-status sang)))
+    ;<  cfg=(unit json)  bind:m  (peek-as:io [%| 1 %& / %'config.json'] ,json)
+    =/  synced=@ud  ?~(cfg 0 (jnum u.cfg 'models-synced' 0))
     %+  send-json  eyre-id
     %-  pairs:enjs:format
     :~  ['keySet' b+!=('' key)]
         ['requests' (numb:enjs:format (jnum usage 'requests' 0))]
         ['pending' (numb:enjs:format pending)]
         ['models' (numb:enjs:format models)]
+        ['syncedAt' (numb:enjs:format synced)]
     ==
   ::
       [%api %usage ~]
@@ -341,6 +348,13 @@
           ['context' ctx]
       ==
     ;<  ~  bind:m  (over:io [%| 1 %& / %'models.json'] [[/ %json] `json`[%o models]])
+    ::  stamp when we synced, so staleness is visible
+    ;<  now=@da  bind:m  get-time:io
+    ;<  cfg=(unit json)  bind:m  (peek-as:io [%| 1 %& / %'config.json'] ,json)
+    =/  om=(map @t json)  ?:(?=([~ %o *] cfg) p.u.cfg ~)
+    ;<  ~  bind:m
+      %+  over:io  [%| 1 %& / %'config.json']
+      [[/ %json] `json`[%o (~(put by om) 'models-synced' (sect:enjs:format now))]]
     (send-json eyre-id (pairs:enjs:format ~[['synced' (numb:enjs:format ~(wyt by models))]]))
   ::
       [%api %call-new ~]

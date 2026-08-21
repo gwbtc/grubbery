@@ -11,6 +11,9 @@
 <header>
   <img id="brand-icon" src="/grubbery/openrouter/icon.svg" alt="">
   <h1>OpenRouter</h1>
+  <button id="info" class="icon plain" title="about this nexus">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+  </button>
   <span id="status"></span>
 </header>
 <main>
@@ -18,7 +21,6 @@
     <div class="conn-row">
       <span id="conn-dot" class="dot"></span>
       <span id="conn-label">checking…</span>
-      <button id="models-sync" class="small">Sync models</button>
       <button id="set-key" class="primary">Set API key</button>
     </div>
     <div class="conn-row" id="key-row" hidden>
@@ -47,10 +49,15 @@
     <p id="model-info" class="muted"></p>
     <pre id="test-out" hidden></pre>
   </section>
-  <section class="panel grow">
+  <section class="panel">
     <div class="panel-head">
       <h2>Usage</h2>
-      <button id="reset" class="small danger">Reset</button>
+      <div class="row">
+        <span id="sync-ago" class="muted"></span>
+        <button id="models-sync" class="small" title="model list, pricing, and context windows from OpenRouter's catalog">Sync models</button>
+        <button id="rates" class="small">Rates</button>
+        <button id="reset" class="small danger">Reset</button>
+      </div>
     </div>
     <div class="stats">
       <div class="stat"><div class="label">Input tokens</div><div class="value" id="in-tok">–</div></div>
@@ -63,7 +70,9 @@
       <thead><tr><th>Caller</th><th>Requests</th><th>In</th><th>Out</th><th class="r">Cost</th></tr></thead>
       <tbody id="caller-log"></tbody>
     </table>
-    <h2 class="gap">Recent calls</h2>
+  </section>
+  <section class="panel grow">
+    <h2>Recent calls</h2>
     <div id="call-scroll">
       <table>
         <thead><tr><th>Time</th><th>Caller</th><th>Model</th><th>In</th><th>Out</th><th class="r">Cost</th></tr></thead>
@@ -78,6 +87,25 @@
     <p class="muted">Stored in config.json, sent only to OpenRouter.<br>Write-only — it is never shown again.</p>
     <input id="key-input" type="password" placeholder="sk-or-…">
     <button id="key-save" class="primary">Save</button>
+  </div>
+</div>
+<div id="info-modal" class="modal" hidden>
+  <div class="modal-card">
+    <h2>About this nexus</h2>
+    <p>This nexus is a consolidated endpoint for OpenRouter — a local, well-structured stand-in for the external service, ideally used as the ship's only door to it. Apps that go through it never hold the key or reach the internet; they are granted this nexus's road, which makes “may use an LLM” an ordinary capability, and every use is metered to its caller at its true cost.</p>
+  </div>
+</div>
+<div id="rates-modal" class="modal" hidden>
+  <div class="modal-card wide">
+    <h2>Model rates ($/million tokens)</h2>
+    <p class="muted">OpenRouter's catalog prices; the actual cost of every call is reported natively and stored in the ledger.</p>
+    <input id="rate-filter" type="text" placeholder="filter models…">
+    <div class="rates-scroll">
+      <table>
+        <thead><tr><th>Model</th><th class="r">$/M in</th><th class="r">$/M out</th><th class="r">Context</th></tr></thead>
+        <tbody id="rate-rows"></tbody>
+      </table>
+    </div>
   </div>
 </div>
 <script src="/grubbery/openrouter/app.js"></script>

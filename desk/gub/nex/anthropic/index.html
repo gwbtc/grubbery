@@ -11,6 +11,9 @@
 <header>
   <img id="brand-icon" src="/grubbery/anthropic/icon.svg" alt="">
   <h1>Anthropic</h1>
+  <button id="info" class="icon plain" title="about this nexus">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+  </button>
   <span id="status"></span>
 </header>
 <main>
@@ -42,12 +45,15 @@
         <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1" stroke-linejoin="round"><polygon points="6 3 20 12 6 21 6 3"/></svg>
       </button>
     </div>
+    <p id="model-info" class="muted"></p>
     <pre id="test-out" hidden></pre>
   </section>
   <section class="panel">
     <div class="panel-head">
       <h2>Usage</h2>
       <div class="row">
+        <span id="sync-ago" class="muted"></span>
+        <button id="models-sync" class="small" title="model list and rates from OpenRouter's public catalog">Sync models</button>
         <button id="rates" class="small">Rates</button>
         <button id="reset" class="small danger">Reset</button>
       </div>
@@ -87,11 +93,19 @@
 <div id="rates-modal" class="modal" hidden>
   <div class="modal-card wide">
     <h2>Rates ($/million tokens)</h2>
-    <div id="rate-rows"></div>
-    <div class="row">
-      <button id="rate-add" class="small">+ add model</button>
-      <button id="rates-save" class="primary">Save</button>
+    <p class="muted">Synced from OpenRouter's public catalog (their listed Anthropic rates match Anthropic's own). Cache reads bill at 0.1×, writes at 1.25× the input rate. Costs are stamped at call time.</p>
+    <div class="rates-scroll">
+      <table>
+        <thead><tr><th>Model</th><th class="r">$/M in</th><th class="r">$/M out</th></tr></thead>
+        <tbody id="rate-rows"></tbody>
+      </table>
     </div>
+  </div>
+</div>
+<div id="info-modal" class="modal" hidden>
+  <div class="modal-card">
+    <h2>About this nexus</h2>
+    <p>This nexus is a consolidated endpoint for the Anthropic API — a local, well-structured stand-in for the external service, ideally used as the ship's only door to it. Apps that go through it never hold the key or reach the internet; they are granted this nexus's road, which makes “may use Claude” an ordinary capability, and every use is metered to its caller.</p>
   </div>
 </div>
 <script src="/grubbery/anthropic/app.js"></script>

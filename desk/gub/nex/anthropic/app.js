@@ -7,15 +7,32 @@ async function jpost(u, b) { const r = await fetch(BASE + u, { method: 'POST', b
 
 const fmt = (n) => (n || 0).toLocaleString();
 const fmtTime = (t) => t ? new Date(t * 1000).toLocaleString() : '–';
+const ago = (t) => {
+  if (!t) return 'never synced';
+  const s = Math.max(0, Date.now() / 1000 - t);
+  if (s < 90) return 'synced just now';
+  if (s < 5400) return `synced ${Math.round(s / 60)}m ago`;
+  if (s < 129600) return `synced ${Math.round(s / 3600)}h ago`;
+  return `synced ${Math.round(s / 86400)}d ago`;
+};
 
 let RATES = {};
+// exact match first, then a rate key that prefixes the model — so a
+// dated id (claude-sonnet-4-5-20250929) finds its undated rate
 function rate(model, dir) {
-  const r = RATES[model];
+  let r = RATES[model];
+  if (!r && model) {
+    const k = Object.keys(RATES).filter(k => model.startsWith(k)).sort((a, b) => b.length - a.length)[0];
+    if (k) r = RATES[k];
+  }
   return r ? parseFloat(r[dir] || '0') : 0;
 }
 const fmtCost = (c) => c === 0 ? '$0.00' : c >= 0.01 ? '$' + c.toFixed(2) : '$' + c.toPrecision(2);
+// prefer the cost STAMPED at call time (rates in force then); compute
+// from current rates only for old entries that predate stamping.
 // cache reads bill at 0.1x input, cache writes at 1.25x input
 function callCost(c) {
+  if (c && c.cost != null) return parseFloat(c.cost) || 0;
   const ri = rate(c.model, 'in'), ro = rate(c.model, 'out');
   return ((c.in || 0) / 1e6) * ri
        + ((c['cache-read'] || 0) / 1e6) * ri * 0.1
@@ -29,9 +46,11 @@ async function refresh() {
   $('conn-label').textContent = s.keySet ? 'API key set' : 'no API key';
   $('set-key').textContent = s.keySet ? 'Replace API key' : 'Set API key';
   $('key-row').hidden = !s.keySet;
+  $('sync-ago').textContent = ago(s.syncedAt);
   const u = await jget('/api/usage');
   RATES = u.rates || {};
   fillModels();
+  showModelInfo();
   const g = u.usage || {};
   $('in-tok').textContent = fmt(g['input-tokens']);
   $('out-tok').textContent = fmt(g['output-tokens']);
@@ -121,6 +140,40 @@ $('test-run').addEventListener('click', async () => {
 });
 $('test-prompt').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('test-run').click(); });
 
+// Sync models: model list + rates from OpenRouter's public catalog
+// (browser-direct, no key). Their listed Anthropic rates match
+// Anthropic's own. Catalog wins on collision; hand-added rows survive.
+$('models-sync').addEventListener('click', async () => {
+  $('models-sync').textContent = 'syncing…';
+  try {
+    const r = await (await fetch('https://openrouter.ai/api/v1/models')).json();
+    const merged = { ...RATES };
+    let n = 0;
+    for (const m of r.data || []) {
+      if (!m.id || !m.id.startsWith('anthropic/')) continue;
+      const key = m.id.slice('anthropic/'.length).replace(/\./g, '-');
+      const p = m.pricing || {};
+      merged[key] = {
+        in: (parseFloat(p.prompt || '0') * 1e6).toFixed(2),
+        out: (parseFloat(p.completion || '0') * 1e6).toFixed(2),
+      };
+      n++;
+    }
+    await jpost('/api/rates', merged);
+    $('models-sync').textContent = `Synced ${n} via OpenRouter`;
+    setTimeout(() => { $('models-sync').textContent = 'Sync models'; }, 2500);
+  } catch (e) { $('models-sync').textContent = 'sync failed'; }
+  refresh();
+});
+
+// live rate line for the selected model
+function showModelInfo() {
+  const r = RATES[$('test-model').value];
+  $('model-info').textContent = !r ? '' :
+    `$${r.in}/M in · $${r.out}/M out · cache read 0.1× / write 1.25×`;
+}
+$('test-model').addEventListener('change', showModelInfo);
+
 // key view/hide/copy (SVGs have no .hidden property — toggle the attribute)
 const KEY_DOTS = '••••••••••••••••••••';
 let keyShown = false;
@@ -161,35 +214,21 @@ $('key-save').addEventListener('click', async () => {
   refresh();
 });
 
-// rates modal
-function addRateRow(model, rin, rout) {
-  const d = document.createElement('div');
-  d.className = 'rate-row';
-  d.innerHTML = `<input class="r-model mono" placeholder="model-id" value="${model}">` +
-    `<input class="r-price" type="number" step="0.01" placeholder="in" value="${rin}">` +
-    `<input class="r-price" type="number" step="0.01" placeholder="out" value="${rout}">` +
-    `<button class="icon r-del" title="remove"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>`;
-  d.querySelector('.r-del').addEventListener('click', () => d.remove());
-  $('rate-rows').appendChild(d);
-}
+// rates modal — read-only; Sync models updates the table
 $('rates').addEventListener('click', () => {
-  $('rate-rows').textContent = '';
-  for (const m of Object.keys(RATES).sort()) addRateRow(m, RATES[m].in || '0', RATES[m].out || '0');
+  const tb = $('rate-rows');
+  tb.textContent = '';
+  if (!Object.keys(RATES).length) {
+    tb.innerHTML = '<tr><td colspan="3" class="muted">empty — no rates yet. Hit Sync models.</td></tr>';
+  }
+  for (const m of Object.keys(RATES).sort()) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td class="mono">${m}</td><td class="r">$${RATES[m].in}</td><td class="r">$${RATES[m].out}</td>`;
+    tb.appendChild(tr);
+  }
   $('rates-modal').hidden = false;
 });
-$('rate-add').addEventListener('click', () => addRateRow('', '', ''));
 $('rates-modal').addEventListener('click', (e) => { if (e.target === $('rates-modal')) $('rates-modal').hidden = true; });
-$('rates-save').addEventListener('click', async () => {
-  const obj = Object.create(null);
-  for (const row of $('rate-rows').querySelectorAll('.rate-row')) {
-    const inputs = row.querySelectorAll('input');
-    const m = inputs[0].value.trim();
-    if (m) obj[m] = { in: inputs[1].value || '0', out: inputs[2].value || '0' };
-  }
-  await jpost('/api/rates', obj);
-  $('rates-modal').hidden = true;
-  refresh();
-});
 
 $('reset').addEventListener('click', async () => {
   if (!confirm('Reset the entire usage ledger? This cannot be undone.')) return;
@@ -199,3 +238,7 @@ $('reset').addEventListener('click', async () => {
 
 refresh();
 setInterval(() => refresh().catch(() => {}), 5000);
+
+// info modal
+$('info').addEventListener('click', () => { $('info-modal').hidden = false; });
+$('info-modal').addEventListener('click', (e) => { if (e.target === $('info-modal')) $('info-modal').hidden = true; });

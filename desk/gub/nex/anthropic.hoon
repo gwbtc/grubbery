@@ -192,6 +192,12 @@
   =/  cache-read=@ud   (jnum u.usage 'cache_read_input_tokens' 0)
   =/  cache-write=@ud  (jnum u.usage 'cache_creation_input_tokens' 0)
   =/  model=@t  (jget resp 'model')
+  ::  stamp the DOLLAR cost now, at the rates in force at call time —
+  ::  a ledger records what was spent, it does not reprice history
+  ;<  urates=(unit json)  bind:m
+    (peek-as:io (cord-to-road:tarball '../rates.json') ,json)
+  =/  cost=@t
+    (compute-cost (fall urates *json) model in-tok out-tok cache-read cache-write)
   =/  usage-road=road:tarball  (cord-to-road:tarball '../usage.json')
   ;<  ucur=(unit json)  bind:m  (peek-as:io usage-road ,json)
   =/  cur=json  (fall ucur [%o ~])
@@ -206,6 +212,7 @@
         ['out' (numb:enjs:format out-tok)]
         ['cache-read' (numb:enjs:format cache-read)]
         ['cache-write' (numb:enjs:format cache-write)]
+        ['cost' [%n cost]]
         ['model' s+model]
         ['from' s+caller]
         ['time' (sect:enjs:format now)]
@@ -220,6 +227,70 @@
         ['calls' [%a (scag 500 `(list json)`[entry old-calls])]]
     ==
   (over:io usage-road [[/ %json] new])
+::  +compute-cost: dollars for one call, fixed-point (units of 1e-10
+::  dollars) so no floats are involved. Rates are $/M-token strings;
+::  cache reads bill at 0.1x input, cache writes at 1.25x.
+::
+++  compute-cost
+  |=  [rates=json model=@t in=@ud out=@ud cr=@ud cw=@ud]
+  ^-  @t
+  =/  [ri=@ud ro=@ud]  (rate-for rates model)
+  =/  units=@ud
+    ;:  add
+      (mul in (mul ri 100))
+      (mul cr (mul ri 10))
+      (mul cw (mul ri 125))
+      (mul out (mul ro 100))
+    ==
+  =/  int=@ud   (div units 10.000.000.000)
+  =/  frac=@ud  (mod units 10.000.000.000)
+  ?:  =(0 frac)  (crip (a-co:co int))
+  =/  padded=tape  =/(r (a-co:co frac) (weld (reap (sub 10 (lent r)) '0') r))
+  (crip "{(a-co:co int)}.{(flop (drop-zeros (flop padded)))}")
+::
+++  drop-zeros
+  |=  t=tape
+  ^-  tape
+  ?~  t  "0"
+  ?:  =('0' i.t)  $(t t.t)
+  t
+::  +rate-for: [in out] rates in hundredths of $/M-token. Exact model
+::  match first, else the longest rate key the model starts with (so
+::  dated ids find their undated rate).
+::
+++  rate-for
+  |=  [rates=json model=@t]
+  ^-  [@ud @ud]
+  ?.  ?=([%o *] rates)  [0 0]
+  =/  ent=(unit json)  (~(get by p.rates) model)
+  =?  ent  ?=(~ ent)
+    =/  mt=tape  (trip model)
+    =/  best=(unit @t)
+      %+  roll  ~(tap in ~(key by p.rates))
+      |=  [k=@t acc=(unit @t)]
+      =/  kt=tape  (trip k)
+      ?.  ?&  (lte (lent kt) (lent mt))
+              =(kt (scag (lent kt) mt))
+          ==
+        acc
+      ?~  acc  `k
+      ?:((gth (lent kt) (met 3 u.acc)) `k acc)
+    ?~(best ~ (~(get by p.rates) u.best))
+  ?~  ent  [0 0]
+  ?.  ?=([%o *] u.ent)  [0 0]
+  :-  (parse-hundredths (jget u.ent 'in'))
+  (parse-hundredths (jget u.ent 'out'))
+::  +parse-hundredths: '5.00' -> 500; tolerant of missing decimals
+::
+++  parse-hundredths
+  |=  s=@t
+  ^-  @ud
+  =/  t=tape  (trip s)
+  =/  dot=(unit @ud)  (find "." t)
+  ?~  dot  (mul 100 (fall (rush s dem) 0))
+  =/  int=@ud  (fall (rush (crip (scag u.dot t)) dem) 0)
+  =/  frac=tape  (scag 2 (weld (slag +(u.dot) t) "00"))
+  (add (mul 100 int) (fall (rush (crip frac) dem) 0))
 ::
 ++  read-config
   =/  m  (fiber:fiber:nexus ,[key=@t url=@t])
@@ -267,6 +338,10 @@
 ::    POST /api/reset    zero the usage ledger
 ::    POST /api/sweep    cull every finished call grub
 ::
+::  TODO: sync the model catalog on a timer (server-side poll fiber,
+::  stable /wait wire) instead of relying on the manual UI button;
+::  for anthropic that means moving the per-token -> $/M conversion
+::  from the browser into hoon.
 ++  serve
   |=  eyre-id=@ta
   =/  m  (fiber:fiber:nexus ,~)
@@ -289,11 +364,14 @@
       %-  lent
       %+  skim  (file-entries calls)
       |=([nam=@ta =sang:tarball] =('pending' (call-status sang)))
+    ;<  ucfg=(unit json)  bind:m  (peek-as:io [%| 1 %& / %'config.json'] ,json)
+    =/  synced=@ud  ?~(ucfg 0 (jnum u.ucfg 'rates-synced' 0))
     %+  send-json  eyre-id
     %-  pairs:enjs:format
     :~  ['keySet' b+!=('' key.cfg)]
         ['requests' (numb:enjs:format (jnum usage 'requests' 0))]
         ['pending' (numb:enjs:format pending)]
+        ['syncedAt' (numb:enjs:format synced)]
     ==
   ::
       [%api %key ~]
@@ -330,6 +408,13 @@
     ?~  jon  (reply eyre-id 400 'json body required')
     ?.  ?=([%o *] u.jon)  (reply eyre-id 400 'object required')
     ;<  ~  bind:m  (over:io [%| 1 %& / %'rates.json'] [[/ %json] u.jon])
+    ::  stamp when rates were synced, so staleness is visible
+    ;<  now=@da  bind:m  get-time:io
+    ;<  cfg=(unit json)  bind:m  (peek-as:io [%| 1 %& / %'config.json'] ,json)
+    =/  om=(map @t json)  ?:(?=([~ %o *] cfg) p.u.cfg ~)
+    ;<  ~  bind:m
+      %+  over:io  [%| 1 %& / %'config.json']
+      [[/ %json] `json`[%o (~(put by om) 'rates-synced' (sect:enjs:format now))]]
     (reply eyre-id 200 'ok')
   ::
       [%api %reset ~]
