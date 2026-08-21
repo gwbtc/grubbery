@@ -125,11 +125,11 @@
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
   ;<  own=json  bind:m  (get-state-as:io ,json)
-  ?.  ?=([%o *] own)  idle:io
-  ?.  =('pending' (jget own 'status'))  idle:io
+  ?.  ?=([%o *] own)  stay:m
+  ?.  =('pending' (jget own 'status'))  stay:m
   =/  request=(unit json)  (~(get by p.own) 'request')
   =/  caller=@t  (jget own 'from')
-  ?~  request  idle:io
+  ?~  request  stay:m
   ;<  key=@t  bind:m  read-key
   ?:  =('' key)
     ;<  ~  bind:m
@@ -138,7 +138,7 @@
       :~  ['status' s+'done']
           ['response' (pairs:enjs:format ~[['error' s+'no api-key configured']])]
       ==
-    idle:io
+    stay:m
   ::  inject usage accounting unless the caller opted out explicitly
   =/  body=json
     ?.  ?=([%o *] u.request)  u.request
@@ -164,7 +164,7 @@
   ;<  ~  bind:m
     %-  replace:io
     (pairs:enjs:format ~[['status' s+'done'] ['response' resp-json]])
-  idle:io
+  stay:m
 ::  +accumulate-usage: fold one response into usage.json. cost is the
 ::  NATIVE number openrouter reports — passed through untouched, never
 ::  parsed server-side. Log capped at 500 entries; totals are forever.

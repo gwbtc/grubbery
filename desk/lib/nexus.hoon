@@ -265,6 +265,16 @@
   ::
   +$  prod  (unit tang)    :: ~ = clean start, [~ tang] = crash recovery
   ::
+  ::  THE TRANSACTION IS THE ARROW: a form is $-(input output), and
+  ::  one invocation — one input (a null kick counts) in, one verb
+  ::  out — is the atomic unit. On %wait/%skip/%cont/%done, everything
+  ::  the invocation produced (state transition, darts) is permanent
+  ::  and complete. On %fail, the invocation contributes nothing but
+  ::  the nack: its state and darts are annulled, and every prior
+  ::  invocation's contribution stands. Consumption follows the same
+  ::  grain: %done/%wait/%cont consume the input (success ack), %fail
+  ::  consumes it (nack), %skip alone defers it to the successor.
+  ::
   ++  output-raw
     |*  value=mold
     $~  [~ * %done *value]

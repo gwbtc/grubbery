@@ -161,12 +161,12 @@
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
   ;<  own=json  bind:m  (get-state-as:io ,json)
-  ?.  ?=(%o -.own)  idle:io
+  ?.  ?=(%o -.own)  stay:m
   =/  status=@t
     (fall (bind (~(get by p.own) 'status') |=(=json ?>(?=(%s -.json) p.json))) '')
-  ?.  =('pending' status)  idle:io      ::  reboot after completion: done
+  ?.  =('pending' status)  stay:m      ::  reboot after completion: done
   =/  req=json  (fall (~(get by p.own) 'request') *json)
-  ?.  ?=(%o -.req)  idle:io
+  ?.  ?=(%o -.req)  stay:m
   =/  gets  ~(get by p.req)
   =/  method=@t
     (fall (bind (gets 'method') |=(=json ?>(?=(%s -.json) p.json))) 'GET')
@@ -195,7 +195,7 @@
         s+q.octs.res
     ==
   ;<  ~  bind:m  (replace:io done)
-  idle:io
+  stay:m
 ::  +run-xfer: execute one transport request. Same lifecycle, noun
 ::  content, raw octs out. Auth rides along when a token is set, which
 ::  is what makes private-repo clone possible at all.
@@ -204,7 +204,7 @@
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
   ;<  own=xlife  bind:m  (get-state-as:io ,xlife)
-  ?.  ?=(%pending -.own)  idle:io
+  ?.  ?=(%pending -.own)  stay:m
   ;<  cfg=[api=@t accounts=(map @t @t)]  bind:m  read-config
   =/  token=@t  (pick-token accounts.cfg account.req.own)
   ::  the git transport endpoints only accept HTTP Basic auth — the
@@ -235,7 +235,7 @@
     ?:  =(200 code.res)  [%done octs.res]
     [%fail ~[leaf+"github xfer: HTTP {(a-co:co code.res)}"]]
   ;<  ~  bind:m  (replace:io out)
-  idle:io
+  stay:m
 ::  +fetch: one HTTP round trip via iris, following one redirect hop
 ::  (github serves 301s for renamed repos and pack endpoints)
 ::
@@ -288,7 +288,7 @@
     =/  expires=@ud   (jnum res 'expires_in' 900)
     ?:  =('' device)
       ;<  ~  bind:m  (replace:io (auth-fail 'no device code from github'))
-      idle:io
+      stay:m
     ;<  now=@da  bind:m  get-time:io
     =/  deadline=@da  (add now (mul expires ~s1))
     ;<  ~  bind:m
@@ -306,9 +306,9 @@
     =/  device=@t     (jget own 'device_code')
     =/  interval=@ud  (jnum own 'interval' 5)
     =/  deadline=@da  (fall (slaw %da (jget own 'deadline')) *@da)
-    ?:  =('' device)  idle:io
+    ?:  =('' device)  stay:m
     (poll-auth cid device interval deadline)
-  idle:io
+  stay:m
 ::
 ++  poll-auth
   |=  [cid=@t device=@t interval=@ud deadline=@da]
@@ -319,7 +319,7 @@
   ;<  now=@da  bind:m  get-time:io
   ?:  (gth now deadline)
     ;<  ~  bind:m  (replace:io (auth-fail 'device code expired'))
-    idle:io
+    stay:m
   ;<  res=json  bind:m
     %+  www-post  'https://github.com/login/oauth/access_token'
     %-  pairs:enjs:format
@@ -333,7 +333,7 @@
   =/  token=@t  (jget res 'access_token')
   ?:  =('' token)
     ;<  ~  bind:m  (replace:io (auth-fail ?:(=('' err) 'no token in response' err)))
-    idle:io
+    stay:m
   ::  identify the account FIRST — tokens are stored keyed by login
   ;<  cur=(unit json)  bind:m
     (peek-as:io (cord-to-road:tarball './config.json') ,json)
@@ -350,7 +350,7 @@
     (jget (fall (de:json:html q.octs.res) *json) 'login')
   ?:  =('' login)
     ;<  ~  bind:m  (replace:io (auth-fail 'token granted but could not read login'))
-    idle:io
+    stay:m
   =/  amap=(map @t json)
     =/  a  (~(get by om) 'accounts')
     ?.(?=([~ %o *] a) ~ p.u.a)
@@ -362,7 +362,7 @@
     [[/ %json] `json`[%o om]]
   ;<  ~  bind:m
     (replace:io (pairs:enjs:format ~[['status' s+'done'] ['login' s+login]]))
-  idle:io
+  stay:m
 ::
 ++  auth-fail
   |=  err=@t

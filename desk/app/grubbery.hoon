@@ -4207,9 +4207,16 @@
     =.  this  (nack-poke-takes here skip.new-proc err)
     (delete path.here name.here)
       %fail
-    ::  Process failed - don't save state, restart. Subs survive (wires still route).
-    ::  Sync queues (consumed takes removed), rebuild process, enqueue
-    ::  Restart via abet. Same pattern as spawn-proc.
+    ::  Progress is STEP-atomic: the failing step contributed nothing
+    ::  (its state and darts were annulled in the eval loop), but every
+    ::  completed step before it stands — commit the accumulated
+    ::  last-validated state, exactly as %next does. (The old don't-
+    ::  save rollback was half a transaction: darts always leaked, so
+    ::  discarding the state only made effects and state diverge —
+    ::  and re-running from stale state double-executed work.)
+    ::  Then restart. Subs survive (wires still route). Sync queues
+    ::  (consumed takes removed), rebuild process, enqueue.
+    =.  this  (save-file here [p.u.file-data q.new-state])
     ?:  (is-nexus-banged here)  this
     =/  spool-got  (build-spool here)
     =/  spool-res=(each spool:fiber:nexus tang)

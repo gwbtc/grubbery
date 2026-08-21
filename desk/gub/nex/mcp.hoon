@@ -905,7 +905,7 @@
         (pairs:enjs:format ~[['type' s+'error'] ['message' s+err-msg]])
       ;<  ~  bind:m
         (replace:io `tool-state:nex-tools`[tool.st args.st %done data.st `result-data])
-      idle:io
+      stay:m
     =/  tl=tool:nex-tools  p.got
     ;<  result=tool-result:nex-tools  bind:m  handler.tl
     =/  result-json=json
@@ -924,9 +924,9 @@
     ;<  ~  bind:m
       (replace:io `tool-state:nex-tools`[tool.st args.st %done data.st `result-json])
     ::  finished: the grub persists at %done until culled by whoever
-    ::  owns this run (transport after reading; UI on delete). Idle
-    ::  until the next reboot; the %done check above makes every
-    ::  rebooted incarnation a stay. See the %halt TODO on idle:io.
-    idle:io
+    ::  owns this run (transport after reading; UI on delete). Stay:
+    ::  %fail commits, so the final write stands and every stray input
+    ::  crash-nacks; rebooted incarnations hit the %done check above.
+    stay:m
   ==
 --

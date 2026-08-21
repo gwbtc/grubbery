@@ -64,6 +64,8 @@
   =/  m  (fiber ,~)
   ^-  form:m
   |=  input
+  ~|  %real-input-to-oneshot-step
+  ?>  =(~ in)
   [darts q.state %done ~]
 ::
 ++  send-dart
@@ -78,26 +80,6 @@
   =/  m  (fiber ,~)
   ^-  form:m
   (pure:m ((slog tang) ~))
-::  +idle: terminal form for a process that is finished but whose grub
-::  should persist — consumes ANY input without acting and waits.
-::
-::  Not +stay: a chain installs its terminal via %cont, which re-feeds
-::  the event's in-flight input, and stay treats real input as a crash
-::  — %fail then rolls back the event, destroying the final state
-::  write. Idle accepts the leftover input (and any later stray input)
-::  harmlessly, and ends the event through the state-SAVING path.
-::
-::  NB: pokes to an idle process are dropped, not nacked, until the
-::  next reboot re-derives the process from the spool (which should
-::  switch on state and hand finished grubs a stay). That window is
-::  the accepted cost: the input pass-through that makes it exist is
-::  load-bearing everywhere else in how fibers chain.
-::
-++  idle
-  =/  m  (fiber ,~)
-  ^-  form:m
-  |=  input
-  [~ q.state %wait ~]
 ::
 ++  fiber-fail
   |=  err=tang
@@ -108,6 +90,8 @@
   =/  m  (fiber ,vase)
   ^-  form:m
   |=  input
+  ~|  %real-input-to-oneshot-step
+  ?>  =(~ in)
   [~ q.state %done state]
 ::
 ++  get-state-as
@@ -115,6 +99,8 @@
   =/  m  (fiber ,a)
   ^-  form:m
   |=  input
+  ~|  %real-input-to-oneshot-step
+  ?>  =(~ in)
   [~ q.state %done ;;(a q.state)]
 ::
 ++  gut-state-as
@@ -123,6 +109,8 @@
   =/  m  (fiber ,a)
   ^-  form:m
   |=  input
+  ~|  %real-input-to-oneshot-step
+  ?>  =(~ in)
   =/  res  (mule |.(;;(a q.state)))
   ?-  -.res
     %&  [~ q.state %done p.res]
@@ -135,6 +123,8 @@
   ^-  form:m
   |=  input
   ^-  output:m
+  ~|  %real-input-to-oneshot-step
+  ?>  =(~ in)
   [~ new %done ~]
 ::
 ++  transform
@@ -143,15 +133,9 @@
   ^-  form:m
   |=  input
   ^-  output:m
+  ~|  %real-input-to-oneshot-step
+  ?>  =(~ in)
   [~ q:(f state) %done ~]
-::  Wait for any input and return it for manual switching
-::
-++  get-input
-  =/  m  (fiber ,(unit intake))
-  ^-  form:m
-  |=  input
-  [~ q.state %done in]
-::
 ++  find-in-here
   |=  [=here:nexus target=(unit neck:tarball)]
   ^-  (unit @ud)

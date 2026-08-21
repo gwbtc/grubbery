@@ -140,11 +140,11 @@
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
   ;<  own=json  bind:m  (get-state-as:io ,json)
-  ?.  ?=([%o *] own)  idle:io
-  ?.  =('pending' (jget own 'status'))  idle:io
+  ?.  ?=([%o *] own)  stay:m
+  ?.  =('pending' (jget own 'status'))  stay:m
   =/  request=(unit json)  (~(get by p.own) 'request')
   =/  caller=@t  (jget own 'from')
-  ?~  request  idle:io
+  ?~  request  stay:m
   ;<  cfg=[key=@t url=@t]  bind:m  read-config
   ?:  =('' key.cfg)
     ;<  ~  bind:m
@@ -153,7 +153,7 @@
       :~  ['status' s+'done']
           ['response' (pairs:enjs:format ~[['error' s+'no api-key configured']])]
       ==
-    idle:io
+    stay:m
   =/  hed=(list [key=@t value=@t])
     :~  ['content-type' 'application/json']
         ['x-api-key' key.cfg]
@@ -174,7 +174,7 @@
   ;<  ~  bind:m
     %-  replace:io
     (pairs:enjs:format ~[['status' s+'done'] ['response' resp-json]])
-  idle:io
+  stay:m
 ::  +accumulate-usage: fold one response's usage into usage.json,
 ::  attributed to the caller. The call log keeps the most recent 500
 ::  entries; the totals are forever.
