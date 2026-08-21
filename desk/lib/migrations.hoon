@@ -16,6 +16,11 @@
 ::  guarantees only %| tangs persist, and old continuations are never
 ::  resumed — they are replaced wholesale by the reload machinery.
 ::
+::  state-1 -> state-2: conns, the eyre-id to binding map, moved out of
+::  the /sys/eyre server-state grub and into agent state. Nothing needs
+::  freezing. conns is a new field of a live type, and state-1 keeps its
+::  live-type references because none of the types it names changed.
+::
 /+  nexus, tarball
 =,  tarball
 =,  nexus
@@ -117,6 +122,32 @@
       =upki:nexus   ::  live: the rail that backs jael pki subscriptions
       =last:nexus   ::  live: monotonic time and entropy for the bowl
   ==
+::  state-2: conns is agent state, not a grub. Same fields as state-1
+::  plus conns, live types.
+::
+::  conns is per-request bookkeeping with no meaning across a reload,
+::  so a grub is the wrong home for it. Holding it there drags the
+::  whole write path on every inbound HTTP request: hist rebuild,
+::  gc-vale-cache, silo. Measured on a real ship, that put about 4.5KB
+::  into the permanent event log for a read-only GET and cost about a
+::  second per request in grubbery's eyre layer. bindings are truth
+::  and stay in the namespace.
+::
++$  state-2
+  $:  %2
+      =born:nexus   ::  truth: version history for every directory and file
+      =silo:nexus   ::  truth: content-addressed object store with refcounts
+      =subs:nexus   ::  live: subscription indexes, by target and by watcher
+      =pool:nexus   ::  live: the running process for each grub
+      =code:nexus   ::  derived: the build index for each code namespace
+      =bins:nexus   ::  derived: compiled artifacts, keyed by build hash
+      =vale:nexus   ::  derived: cached validation results
+      =remo:nexus   ::  live: pending cross-ship peeks and pinned snapshots
+      =upki:nexus   ::  live: the rail that backs jael pki subscriptions
+      =last:nexus   ::  live: monotonic time and entropy for the bowl
+      ::  live: which eyre binding is serving each open eyre-id
+      conns=(map @ta binding:eyre)
+  ==
 ::
 +|  %migrations
 ::
@@ -134,6 +165,23 @@
       remo.old
       upki.old
       last.old
+  ==
+::
+++  state-1-to-2
+  |=  old=state-1
+  ^-  state-2
+  :*  %2
+      born.old
+      silo.old
+      subs.old
+      pool.old
+      code.old
+      bins.old
+      vale.old
+      remo.old
+      upki.old
+      last.old
+      ~
   ==
 ::
 ++  pool-0-to-pool

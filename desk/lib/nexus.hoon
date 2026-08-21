@@ -129,12 +129,18 @@
       [%kick ~]
       [%simple =simple-payload:http]
   ==
-::  Eyre state: binding registry + active connection tracking.
+::  Eyre state: the binding registry.
 ::  Stored as a grub at /sys/eyre/main.server-state.
 ::
 +$  server-state
   $:  %0
       bindings=(map binding:eyre rail:tarball)
+      ::  the live conns map is grubbery's agent state. keeping it here
+      ::  would make every inbound HTTP request a grub write, which on
+      ::  a real ship measured about 4.5KB of permanent event log and
+      ::  about a second of latency per request. the field stays so
+      ::  stored server-states still nest, and grubbery always writes
+      ::  it as ~.
       conns=(map @ta binding:eyre)
   ==
 ::  Timer service state.
