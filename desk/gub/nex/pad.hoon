@@ -344,7 +344,7 @@
   ::  the deadline is ours, not the poke's: an HTTP request can't wait
   ::  forever on a dead host
   ;<  res=(unit (unit tang))  bind:m
-    %+  (with-timeout:io ,(unit tang))  ~s15
+    %^  (with-timeout:io ,(unit tang))  /deliver  ~s15
     (poke-soft:io sig [[/ %txt] `wain`~[u.blob]])
   =/  err=(unit tang)
     ?~(res `~[leaf+"delivery timed out after 15s"] u.res)

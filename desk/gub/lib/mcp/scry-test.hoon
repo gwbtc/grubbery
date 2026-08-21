@@ -81,7 +81,7 @@
         |=(t=@t (rush t dem))
       30
     ;<  res=(unit (unit page))  bind:m
-      %+  (with-timeout:io ,(unit page))  (mul secs ~s1)
+      %^  (with-timeout:io ,(unit page))  /keen  (mul secs ~s1)
       (keen:io u.who kpath)
     ?~  res
       ;<  ~  bind:m  (yawn:io u.who kpath)
@@ -98,7 +98,7 @@
     =/  who=(unit @p)  (biff ship-txt (cury slaw %p))
     ?~  who  (pure:m [%error 'keen-raw needs a ship'])
     ;<  res=(unit (unit page))  bind:m
-      %+  (with-timeout:io ,(unit page))  ~s30
+      %^  (with-timeout:io ,(unit page))  /keen-raw  ~s30
       (keen:io u.who u.spur)
     ?~  res
       ;<  ~  bind:m  (yawn:io u.who u.spur)

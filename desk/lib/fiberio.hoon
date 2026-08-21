@@ -612,8 +612,11 @@
   :+  ~  q.state
   ?+  in  [%skip ~]
       ~  [%wait ~]
+      ::  soft: a vetoed cull returns the veto as an error, it does
+      ::  NOT crash the caller (that is what +cull is for) — the
+      ::  poke-soft precedent
       [~ %veto *]
-    [%fail (veto-error dart.u.in)]
+    [%done `(veto-error dart.u.in)]
       [~ %gone * *]
     ?.  =(wire wire.u.in)
       [%skip ~]
@@ -1336,7 +1339,12 @@
   |=  until=@da
   =/  m  (fiber ,~)
   ^-  form:m
-  (set-timer /wait/(scot %da until) until)
+  ::  STABLE wire: a restarted fiber's next sleep replaces its old
+  ::  behn-state entry instead of accumulating one orphan timer per
+  ::  restart (the reboot fetch-herd bug). behn-state rests the
+  ::  superseded arvo timer and drops stale in-flight wakes, so any
+  ::  delivered /wait wake is the current one.
+  (set-timer /wait until)
 ::
 ++  take-wake
   |=  until=(unit @da)
@@ -1352,7 +1360,9 @@
     ?.  =([/ %timer-wake] p.sage.u.in)
       [%skip ~]
     =/  wak=path  !<(path q.sage.u.in)
-    ?.  |(?=(~ until) ?&(?=([%wait @ ~] wak) =(u.until (slav %da i.t.wak))))
+    ::  behn-state validates wakes against its state, so no da check
+    ::  here; [%wait @ ~] still matches old-format in-flight wakes
+    ?.  ?=([%wait *] wak)
       [%skip ~]
     [%done ~]
   ==
@@ -1374,11 +1384,15 @@
 ::  Returns `value on completion, ~ on timeout — the caller decides
 ::  what a timeout means; this arm has no policy of its own.
 ::
-::  The timer is scoped to a nonce wire and checked against the wire
-::  a wake carries in its sage, so another fiber's wake can never
+::  The timer is scoped to /timeout/[wire] and checked against the
+::  wire a wake carries in its sage, so another timer's wake can never
 ::  satisfy it (the stray-wake loop that got poke-soft's timer deleted
-::  in 3c1c61b). On completion — value or failure — the timer is
-::  cancelled, so no orphan wake is left firing into the process.
+::  in 3c1c61b). The wire is caller-supplied and durable: a restarted
+::  fiber re-runs the same code with the same wire, so its new timer
+::  REPLACES the abandoned one (set-on-same-wire semantics) instead of
+::  orphaning it. Nested timeouts need distinct wires — the caller
+::  writes both levels, so that's theirs to ensure. On completion —
+::  value or failure — the timer is cancelled.
 ::
 ::  The interception must survive the computation's own stepping:
 ::  on %cont the continuation is re-wrapped so every subsequent input
@@ -1389,9 +1403,9 @@
   |*  result=mold
   =/  m   (fiber ,(unit result))
   =/  mr  (fiber ,result)
-  |=  [time=@dr computation=form:mr]
+  |=  [=wire time=@dr computation=form:mr]
   ^-  form:m
-  ;<  =wire    bind:m  (nonce /timeout)
+  =.  wire  (weld /timeout wire)
   ;<  now=@da  bind:m  get-time
   ;<  ~        bind:m  (set-timer wire (add now time))
   |=  input

@@ -6735,6 +6735,17 @@
   =/  st=behn-state:nexus
     ?~  old  [%0 ~]
     !<(behn-state:nexus (need-vase:tarball u.old))
+  ::  Same-key replace: rest the superseded arvo timer so it never
+  ::  fires (its wake would be dropped as stale anyway, but why wake)
+  =/  prev=(unit @da)  (~(get by timers.st) [sender wire.req])
+  =?  this  &(?=(^ prev) !=(u.prev when.req))
+    =/  old-wire=^wire
+      :-  %behn
+      :-  %timer
+      :-  (scot %da u.prev)
+      :-  (scot %ud (lent path.sender))
+      (weld path.sender [name.sender wire.req])
+    (emit-card [%pass old-wire %arvo %b %rest u.prev])
   ::  Update state
   =.  timers.st  (~(put by timers.st) [sender wire.req] when.req)
   =.  this  (save-file timer-rail [[/ %behn-state] st])
@@ -6815,6 +6826,12 @@
   =/  st=behn-state:nexus
     ?~  old  [%0 ~]
     !<(behn-state:nexus (need-vase:tarball u.old))
+  ::  A wake is only delivered if it matches the live entry: a
+  ::  replaced or cancelled timer's in-flight wake is stale — drop it
+  ::  without touching state or the sleeping fiber
+  =/  live=(unit @da)  (~(get by timers.st) [sender req-wire])
+  ?.  &(?=(^ live) =(u.live when))
+    this
   =.  timers.st  (~(del by timers.st) [sender req-wire])
   =.  this  (save-file timer-rail [[/ %behn-state] st])
   ::  Poke sender back with timer-wake

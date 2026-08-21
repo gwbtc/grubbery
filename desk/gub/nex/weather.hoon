@@ -333,12 +333,10 @@
     ?:  =([/ %http-response] p.sage.u.in)  [%skip ~]
     ?.  =([/ %timer-wake] p.sage.u.in)  [%done ~]
     =/  wak=path  !<(path q.sage.u.in)
-    ?:  ?&  ?=(^ until)
-            ?=([%wait @ ~] wak)
-            =(u.until (slav %da i.t.wak))
-        ==
-      [%done ~]
-    [%skip ~]
+    ::  behn-state only delivers the current timer's wake now, so
+    ::  matching the /wait wire shape is enough
+    ?.  ?=([%wait *] wak)  [%skip ~]
+    [%done ~]
   ==
 ::  +take-response-or-timeout: the response, or ~ when our alarm
 ::  fires first (or iris cancels) — the fiber owns its own deadline
