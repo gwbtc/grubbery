@@ -223,6 +223,7 @@ function renderSettings() {
     '<label class="m-label">repository <input id="set-origin" type="text" value="' + esc(r.repo || '') + '" placeholder="owner/repo"></label>' +
     '<label class="m-label">ref <input id="set-ref" type="text" value="' + esc(r.ref || '') + '" placeholder="main"></label>' +
     '<label class="m-label">token <span class="hint">(write to change; never shown)</span> <input id="set-token" type="text" placeholder="unchanged"></label>' +
+    '<label class="m-label">account <span class="hint">(github login to act as; empty = first connected)</span> <input id="set-account" type="text" value="' + esc(r.account || '') + '" placeholder="first"></label>' +
     '<label class="m-label">poll <span class="hint">(minutes between fetches; 0 = only on demand)</span> <input id="set-poll" type="number" min="0" value="' + esc(String(r.poll == null ? '' : r.poll)) + '" placeholder="15"></label>' +
     '<button class="hdr-btn primary" id="set-save">save config</button></div>' +
     '<div class="set-section"><div class="run-head">actions</div>' +
@@ -238,7 +239,8 @@ function renderSettings() {
       repo: selected,
       origin: document.getElementById('set-origin').value.trim(),
       ref: document.getElementById('set-ref').value.trim(),
-      token: document.getElementById('set-token').value.trim()
+      token: document.getElementById('set-token').value.trim(),
+      account: document.getElementById('set-account').value.trim()
     };
     if (pollRaw !== '' && !isNaN(Number(pollRaw))) { cfg.poll = Number(pollRaw); }
     post('/config', cfg).then(function(r2) {

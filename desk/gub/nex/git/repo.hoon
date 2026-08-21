@@ -668,14 +668,15 @@
           $
         ;<  ghc=(unit json)  bind:m
           (peek-as:io [%& %& gh-nexus %'config.json'] ,json)
-        =/  gh-token=@t
-          ?~  ghc  ''
-          ?.  ?=(%o -.u.ghc)  ''
-          %+  fall
-            (bind (~(get by p.u.ghc) 'token') |=(=json ?>(?=(%s -.json) p.json)))
-          ''
-        ?:  =('' gh-token)
-          ~&  >>>  "%git/repo push: no token in /apps/github.github/config.json"
+        =/  gh-auth=?
+          ?~  ghc  %.n
+          ?.  ?=(%o -.u.ghc)  %.n
+          =/  acc  (~(get by p.u.ghc) 'accounts')
+          ?:  &(?=([~ %o *] acc) !=(~ p.u.acc))  %.y
+          =/  tok  (~(get by p.u.ghc) 'token')
+          &(?=([~ %s *] tok) !=('' p.u.tok))
+        ?.  gh-auth
+          ~&  >>>  "%git/repo push: no github account connected"
           $
         ;<  ~  bind:m  (set-status 'pushing')
         =/  cur=@t  ?:(=('' ref.cfg) 'main' ref.cfg)
@@ -684,7 +685,7 @@
         ::  keeps the old behavior: push the current branch.
         =/  jon=json  (fall (mole |.(!<(json q.sage))) *json)
         =/  target=@t
-          ?.  ?=(%o -.jon)  ''
+          ?.  ?=([%o *] jon)  ''
           (fall (bind (~(get by p.jon) 'branch') |=(=json ?>(?=(%s -.json) p.json))) '')
         =/  branch=@t  ?:(=('' target) cur target)
         ::  load repo from namespace
@@ -935,6 +936,7 @@
   $:  repo=@t
       ref=@t
       token=@t
+      account=@t
   ==
 ::
 ++  jget
@@ -1102,17 +1104,17 @@
   ;<  road=road:tarball  bind:m  (ancestor-road:io [/git %repo] [%& / %'config.json'])
   ;<  =view:nexus  bind:m  (peek:io road `[/ %json])
   ?.  ?=([%file *] view)
-    (pure:m ['' 'main' ''])
+    (pure:m ['' 'main' '' ''])
   =/  cfg=json  (fall (mole |.(!<(json (need-vase:tarball sang.view)))) *json)
   ?.  ?=(%o -.cfg)
-    (pure:m ['' 'main' ''])
+    (pure:m ['' 'main' '' ''])
   =/  get
     |=  [key=@t default=@t]
     ^-  @t
     =/  v  (~(get by p.cfg) key)
     ?.  ?=([~ %s *] v)  default
     ?:(=('' p.u.v) default p.u.v)
-  (pure:m [(get 'repo' '') (get 'ref' '') (get 'token' '')])
+  (pure:m [(get 'repo' '') (get 'ref' '') (get 'token' '') (get 'account' '')])
 ::
 ::  +write-repo-file: write or create a file in the repo sub-nexus
 ::
@@ -1533,10 +1535,17 @@
   |=  req=$%([%discovery repo=@t] [%pack repo=@t body=octs])
   =/  m  (fiber:fiber:nexus ,octs)
   ^-  form:m
+  ::  the repo's configured account rides along; '' = first connected
+  ;<  cfg=repo-config  bind:m  read-config
+  =/  xr
+    ?-  -.req
+      %discovery  [%discovery account.cfg repo.req]
+      %pack       [%pack account.cfg repo.req body.req]
+    ==
   ;<  id=@ta  bind:m  gh-call-id
   =/  grub=road:tarball  [%& %& (weld gh-nexus /xfer) id]
   ;<  *  bind:m  (keep:io /ghx grub ~)
-  ;<  ~  bind:m  (poke:io [%& %& gh-nexus %'main.sig'] [[/ %noun] [%xfer id req]])
+  ;<  ~  bind:m  (poke:io [%& %& gh-nexus %'main.sig'] [[/ %noun] [%xfer id xr]])
   |-
   ;<  *  bind:m  (take-news:io /ghx)
   ;<  v=view:nexus  bind:m  (peek:io grub ~)
@@ -1577,6 +1586,7 @@
   |=  [method=@t url=@t headers=(list [key=@t value=@t]) body=(unit json)]
   =/  m  (fiber:fiber:nexus ,json)
   ^-  form:m
+  ;<  cfg=repo-config  bind:m  read-config
   ;<  id=@ta  bind:m  gh-call-id
   =/  grub=road:tarball
     [%& %& (weld gh-nexus /calls) (crip "{(trip id)}.json")]
@@ -1586,8 +1596,11 @@
     :~  ['id' s+id]
         :-  'req'
         %-  pairs:enjs:format
-        %+  weld  `(list [@t json])`~[['method' s+method] ['path' s+url]]
-        `(list [@t json])`?~(body ~ ~[['body' u.body]])
+        ;:  weld
+          `(list [@t json])`~[['method' s+method] ['path' s+url]]
+          `(list [@t json])`?:(=('' account.cfg) ~ ~[['account' s+account.cfg]])
+          `(list [@t json])`?~(body ~ ~[['body' u.body]])
+        ==
     ==
   ;<  ~  bind:m  (poke:io [%& %& gh-nexus %'main.sig'] [[/ %json] req])
   |-
@@ -1682,16 +1695,16 @@
 ++  view-to-config
   |=  =view:nexus
   ^-  repo-config
-  ?.  ?=([%file *] view)  ['' 'main' '']
+  ?.  ?=([%file *] view)  ['' 'main' '' '']
   =/  cfg=json  (fall (mole |.(!<(json (need-vase:tarball sang.view)))) *json)
-  ?.  ?=(%o -.cfg)  ['' 'main' '']
+  ?.  ?=(%o -.cfg)  ['' 'main' '' '']
   =/  get
     |=  [key=@t default=@t]
     ^-  @t
     =/  v  (~(get by p.cfg) key)
     ?.  ?=([~ %s *] v)  default
     ?:(=('' p.u.v) default p.u.v)
-  [(get 'repo' '') (get 'ref' '') (get 'token' '')]
+  [(get 'repo' '') (get 'ref' '') (get 'token' '') (get 'account' '')]
 ::  +text-from-sage: extract text from a poke sage (wain or mime)
 ::
 ++  text-from-sage

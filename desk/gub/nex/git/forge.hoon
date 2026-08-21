@@ -233,6 +233,7 @@
     :~  ['name' s+kid]
         ['repo' s+?~(cfg '' (jstr u.cfg 'repo'))]
         ['ref' s+?~(cfg '' (jstr u.cfg 'ref'))]
+        ['account' s+?~(cfg '' (jstr u.cfg 'account'))]
         :-  'poll'
         ?~  cfg  ~
         ?.  ?=(%o -.u.cfg)  ~
@@ -438,6 +439,7 @@
     :~  ['repo' s+(jstr jon 'repo')]
         ['ref' s+?:(=('' (jstr jon 'ref')) 'main' (jstr jon 'ref'))]
         ['token' s+(jstr jon 'token')]
+        ['account' s+(jstr jon 'account')]
     ==
   ;<  ~  bind:m
     (over:io (nex-road:io rail [%& /repos/[dir-name] %'config.json']) [[/ %json] config])
@@ -511,6 +513,11 @@
   =?  om  !=('' token)  (~(put by om) 'token' s+token)
   =/  pol=(unit json)  ?.(?=(%o -.jon) ~ (~(get by p.jon) 'poll'))
   =?  om  ?=([~ %n *] pol)  (~(put by om) 'poll' u.pol)
+  ::  account is not secret, so the form always echoes it: presence
+  ::  means set, empty string means clear (back to any-account)
+  =/  acc=(unit json)  ?.(?=(%o -.jon) ~ (~(get by p.jon) 'account'))
+  =?  om  ?=([~ %s *] acc)
+    ?:(=('' p.u.acc) (~(del by om) 'account') (~(put by om) 'account' s+p.u.acc))
   ;<  ~  bind:m  (over:io cfg-road [[/ %json] `json`[%o om]])
   (respond rail eyre-id 200 'saved')
 ::  +refresh-status: after a working-tree write, reload the repo's

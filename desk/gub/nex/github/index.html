@@ -4,32 +4,40 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>GitHub</title>
+<link rel="icon" type="image/svg+xml" href="/grubbery/github/icon.svg">
 <link rel="stylesheet" href="/grubbery/github/style.css">
 </head>
 <body>
 <header>
+  <img id="brand-icon" src="/grubbery/github/icon.svg" alt="">
   <h1>GitHub</h1>
-  <span id="status" class="muted"></span>
+  <span id="status"></span>
 </header>
 <main>
   <section class="panel">
-    <h2>Config</h2>
-    <div class="row">
-      <label>token</label>
-      <input id="token" type="password" placeholder="(write-only — never shown)">
-      <label>api</label>
-      <input id="api" type="text" size="24">
-      <button id="save">Save</button>
-      <button id="whoami">Who am I?</button>
+    <div class="conn-row">
+      <span id="conn-dot" class="dot"></span>
+      <span id="conn-label">checking…</span>
+      <button id="connect" class="primary">Connect with GitHub</button>
     </div>
-    <p id="whoami-out" class="muted"></p>
+    <div class="conn-row" id="cid-row">
+      <label>OAuth Client ID</label>
+      <code id="cid-view" class="mono"></code>
+      <button id="cid-edit" class="icon" title="change">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>
+      </button>
+    </div>
+    <div id="accounts"></div>
   </section>
   <section class="panel">
     <h2>Run a call</h2>
     <div class="row">
       <select id="method"><option>GET</option><option>POST</option><option>PATCH</option><option>PUT</option><option>DELETE</option></select>
+      <select id="call-account" title="act as" hidden></select>
       <input id="path" type="text" placeholder="/repos/owner/name" size="34">
-      <button id="run">Run</button>
+      <button id="run" class="icon run" title="run">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1" stroke-linejoin="round"><polygon points="6 3 20 12 6 21 6 3"/></svg>
+      </button>
     </div>
     <textarea id="body" placeholder="json body (optional)" rows="3"></textarea>
     <pre id="result" hidden></pre>
@@ -37,11 +45,34 @@
   <section class="panel grow">
     <div class="panel-head">
       <h2>Activity</h2>
-      <button id="sweep" class="small">Sweep finished</button>
+      <button id="sweep" class="icon" title="sweep finished calls">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+      </button>
     </div>
     <div id="activity"></div>
   </section>
 </main>
+<div id="modal" class="modal" hidden>
+  <div class="modal-card">
+    <h2>Connect with GitHub</h2>
+    <p class="muted">Enter this one-time code on GitHub to authorize your ship.</p>
+    <button id="auth-user-code" class="code" title="click to copy"></button>
+    <p id="auth-copied" class="copied">&nbsp;</p>
+    <a id="auth-link" class="btn-link" target="_blank">Open github.com/login/device ↗</a>
+    <p id="auth-state" class="muted">requesting a code…</p>
+    <button id="modal-close" class="icon" title="close">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    </button>
+  </div>
+</div>
+<div id="cid-modal" class="modal" hidden>
+  <div class="modal-card">
+    <h2>OAuth Client ID</h2>
+    <p class="muted">The OAuth App identity this ship connects through.<br>Leave empty to use the Grubbery default.</p>
+    <input id="client-id" type="text" size="28">
+    <button id="cid-save" class="primary">Save</button>
+  </div>
+</div>
 <script src="/grubbery/github/app.js"></script>
 </body>
 </html>
