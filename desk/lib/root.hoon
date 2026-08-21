@@ -110,6 +110,7 @@
         [%fall %| /apps/'routes.routes' [`[`[/ %routes] ~ %.n ~] ~]]
         [%fall %| /apps/'github.github' [`[`[/ %github] ~ %.n ~] ~]]
         [%fall %| /apps/'anthropic.anthropic' [`[`[/ %anthropic] ~ %.n ~] ~]]
+        [%fall %| /apps/'openrouter.openrouter' [`[`[/ %openrouter] ~ %.n ~] ~]]
     ==
 ::
 ++  on-file
