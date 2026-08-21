@@ -52,7 +52,8 @@
 /=  t-  /tests/loader
 |%
 +$  versioned-state
-  $%  state-2:migrations
+  $%  state-3:migrations
+      state-2:migrations
       state-1:migrations
       state-0:migrations
   ==
@@ -89,7 +90,7 @@
   !>(..zuse)
 --
 ::
-=|  state-2:migrations
+=|  state-3:migrations
 =*  state  -
 ::
 =<
@@ -119,19 +120,30 @@
     ~>  %slog.[0 leaf+"grubbery: migrating state %0 -> %1"]
     =/  one=state-1:migrations  (state-0-to-1:migrations old)
     ~>  %slog.[0 leaf+"grubbery: migrating state %1 -> %2"]
-    =.  state  (state-1-to-2:migrations one)
+    =/  two=state-2:migrations  (state-1-to-2:migrations one)
+    ~>  %slog.[0 leaf+"grubbery: migrating state %2 -> %3"]
+    =.  state  (state-2-to-3:migrations two)
     =^  start-cards  state
       abet:cold-start:hc
     [start-cards this]
   ::
       %1
     ~>  %slog.[0 leaf+"grubbery: migrating state %1 -> %2"]
-    =.  state  (state-1-to-2:migrations old)
+    =/  two=state-2:migrations  (state-1-to-2:migrations old)
+    ~>  %slog.[0 leaf+"grubbery: migrating state %2 -> %3"]
+    =.  state  (state-2-to-3:migrations two)
     =^  start-cards  state
       abet:cold-start:hc
     [start-cards this]
   ::
       %2
+    ~>  %slog.[0 leaf+"grubbery: migrating state %2 -> %3"]
+    =.  state  (state-2-to-3:migrations old)
+    =^  start-cards  state
+      abet:cold-start:hc
+    [start-cards this]
+  ::
+      %3
     =.  state  old
     =^  start-cards  state
       abet:cold-start:hc
@@ -2634,6 +2646,14 @@
     =/  file-cass=cass:clay  (need (top:hist:nexus u.sok))
     ::  Capture the leaf being tombed so its vale entry can follow it
     =/  prev-leaf=(unit leaf:nexus)  (hist-leaf u.sok file-cass)
+    ::  an un-gained grub leaves nothing behind. one HTTP request makes
+    ::  and culls a grub under the nexus's requests dir, so a record kept
+    ::  here is a record every later request in that dir walks past.
+    ?.  (lookup-gain [dir name])
+      =.  silo  (~(drop-hist si:nexus silo) u.sok)
+      =.  born  (~(del bo:nexus now.bowl born) [dir name])
+      =.  vale  (gc-vale-prev prev-leaf)
+      this
     =/  [tombed-silo=silo:nexus tombed-hist=hist:nexus]
       (~(tomb-temp si:nexus silo) u.sok file-cass)
     =/  new-cass=cass:clay  (~(next-cass bo:nexus now.bowl born) file-cass)

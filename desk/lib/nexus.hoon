@@ -620,7 +620,14 @@
 ::    - top of hist = current version; (top:hist fold) / (top:hist file)
 ::
 ::  Invariants:
-::    - Born records are NEVER deleted (high-water mark for ordering)
+::    - A gained grub's born record is never deleted. It is the
+::      high-water mark that keeps version numbering monotonic across
+::      a delete and a later re-creation, which is what page history
+::      reads. An un-gained grub has no history to order, so its
+::      record goes when the grub does. Keeping it would leave every
+::      request fiber ever run sitting in its directory, and both the
+::      tree walk and the born diff scan that directory on every
+::      later write.
 ::    - Sack hist bumps IFF content changes
 ::    - Tote hist bumps on any descendant change (fold)
 ::    - Weir cass bumps on weir change at that directory
@@ -650,6 +657,17 @@
     =/  node=[fold=hist file=(map @ta hist)]
       (fall (~(get of old) path.here) default-node)
     (~(put of old) path.here node(file (~(put by file.node) name.here sok)))
+  ::  Drop a file's hist entirely. Only ever called for a grub that was
+  ::  never gained, so there is no ordering high-water mark to lose.
+  ::
+  ++  del
+    |=  here=rail:tarball
+    ^-  born
+    =/  node=(unit [fold=hist file=(map @ta hist)])
+      (~(get of old) path.here)
+    ?~  node  old
+    %+  ~(put of old)  path.here
+    u.node(file (~(del by file.u.node) name.here))
   ::  Get dir cass
   ::
   ++  get-dir-cass
