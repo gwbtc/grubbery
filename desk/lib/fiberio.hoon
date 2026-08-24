@@ -1422,37 +1422,73 @@
   ==
 ::  Convenience accessors
 ::
+::  Bowl reads (+get-our/+get-time/+get-entropy) poke /sys/bowl.sig and
+::  get back TWO inputs in either order: the %pack ack of the poke and
+::  the response poke. Both must be consumed. The old matchers only
+::  drained a pack that arrived FIRST; a response-first ordering left
+::  the ack stray, skipping past every wire-scoped matcher into the
+::  terminal — invisible while +idle ate strays, a crash-nack per call
+::  under honest +stay. +take-bowl consumes exactly one of each.
+::
+++  take-bowl
+  |*  a=mold
+  |=  =blot:tarball
+  =/  m  (fiber ,a)
+  ^-  form:m
+  ;<  got=(each a ~)  bind:m
+    =/  mi  (fiber ,(each a ~))
+    ^-  form:mi
+    |=  input
+    :+  ~  q.state
+    ?+  in  [%skip ~]
+        ~  [%wait ~]
+        [~ %veto *]
+      [%fail (veto-error dart.u.in)]
+        [~ %pack *]
+      [%done %| ~]
+        [~ %poke * *]
+      ?.  =(blot p.sage.u.in)  [%skip ~]
+      [%done %& !<(a q.sage.u.in)]
+    ==
+  ?:  ?=(%| -.got)
+    ::  ack first: now take the response
+    =/  mr  (fiber ,a)
+    ^-  form:mr
+    |=  input
+    :+  ~  q.state
+    ?+  in  [%skip ~]
+        ~  [%wait ~]
+        [~ %poke * *]
+      ?.  =(blot p.sage.u.in)  [%skip ~]
+      [%done !<(a q.sage.u.in)]
+    ==
+  ::  response first: drain the trailing ack (ours — a fiber is
+  ::  sequential, so no other un-acked dart of ours is outstanding)
+  ;<  ~  bind:m
+    =/  md  (fiber ,~)
+    ^-  form:md
+    |=  input
+    :+  ~  q.state
+    ?+  in  [%skip ~]
+        ~  [%wait ~]
+        [~ %pack *]
+      [%done ~]
+    ==
+  (pure:m p.got)
+::
 ++  get-our
   =/  m  (fiber ,ship)
   ^-  form:m
   ;<  =wire  bind:m  (nonce /sys/our)
   ;<  ~  bind:m  (send-dart %node wire &+&+[/sys %'bowl.sig'] %poke [[/ %bowl-req] %our])
-  |=  input
-  :+  ~  q.state
-  ?+  in  [%skip ~]
-      ~  [%wait ~]
-      [~ %pack *]
-    [%wait ~]
-      [~ %poke * *]
-    ?.  =([/ %ship] p.sage.u.in)  [%skip ~]
-    [%done !<(ship q.sage.u.in)]
-  ==
+  ((take-bowl ship) [/ %ship])
 ::
 ++  get-time
   =/  m  (fiber ,@da)
   ^-  form:m
   ;<  =wire  bind:m  (nonce /sys/now)
   ;<  ~  bind:m  (send-dart %node wire &+&+[/sys %'bowl.sig'] %poke [[/ %bowl-req] %now])
-  |=  input
-  :+  ~  q.state
-  ?+  in  [%skip ~]
-      ~  [%wait ~]
-      [~ %pack *]
-    [%wait ~]
-      [~ %poke * *]
-    ?.  =([/ %time] p.sage.u.in)  [%skip ~]
-    [%done !<(@da q.sage.u.in)]
-  ==
+  ((take-bowl @da) [/ %time])
 ::  get-entropy uses raw send-dart with a static /sys/eny wire to avoid
 ::  recursion: poke → nonce → get-entropy → poke. Static wire is safe
 ::  because stale entropy is still valid entropy.
@@ -1461,16 +1497,7 @@
   =/  m  (fiber ,@uvJ)
   ^-  form:m
   ;<  ~  bind:m  (send-dart %node /sys/eny &+&+[/sys %'bowl.sig'] %poke [[/ %bowl-req] %eny])
-  |=  input
-  :+  ~  q.state
-  ?+  in  [%skip ~]
-      ~  [%wait ~]
-      [~ %pack *]
-    [%wait ~]
-      [~ %poke * *]
-    ?.  =([/ %entropy] p.sage.u.in)  [%skip ~]
-    [%done !<(@uvJ q.sage.u.in)]
-  ==
+  ((take-bowl @uvJ) [/ %entropy])
 ::
 ++  nonce
   |=  base=wire
