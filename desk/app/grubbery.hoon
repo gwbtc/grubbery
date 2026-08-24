@@ -6302,9 +6302,99 @@
     (handle-push-http eyre-id src.bowl req t.t.site args)
     ::
       [%grubbery %api *]
-    :: we +make because we leverage fibers to do eyre requests async
+    ::  ARCHITECTURAL RULE: a request enters the namespace (materializes
+    ::  as a grub in /sys/eyre/requests, spawning a fiber) ONLY if it
+    ::  needs a general-purpose ASYNCHRONOUS script to handle it — one
+    ::  that emits darts and awaits responses (writes, pokes, keep-SSE,
+    ::  upload). A request answerable synchronously from current state —
+    ::  every built-in read — is served inline here: no grub, no
+    ::  make+cull cascade, no permanent event-log record per read.
     ::
+    =/  handled=(unit (list card:agent:gall))
+      (serve-api-read-sync eyre-id src.bowl req)
+    ?^  handled
+      =.  cards  (weld u.handled cards)
+      this
+    ::  needs a fiber: materialize the request grub as before
     (make /sys/eyre [%& /sys/eyre/requests eyre-id] %.n %.n [%| [[/ %http-request] [src.bowl req]] ~])
+  ==
+::  +serve-api-read-sync: answer a /grubbery/api request inline when it
+::  is a pure read of current state. Returns [~ cards] when handled (the
+::  response, or an error response), ~ when the request needs an async
+::  fiber and route-http should +make the grub. Mirrors the read half of
+::  +dispatch:ball-api, but synchronous — the peeks resolve from state
+::  directly and the response is emitted with give-simple-payload rather
+::  than routed up through a request fiber.
+::
+++  serve-api-read-sync
+  |=  [eyre-id=@ta src=@p req=inbound-request:eyre]
+  ^-  (unit (list card:agent:gall))
+  =/  err
+    |=  [code=@ud msg=@t]
+    ^-  (unit (list card:agent:gall))
+    `(give-simple-payload:app:server eyre-id [[code ~] `(as-octs:mimes:html msg)])
+  =/  ok-payload
+    |=  =simple-payload:http
+    ^-  (unit (list card:agent:gall))
+    `(give-simple-payload:app:server eyre-id simple-payload)
+  =/  ok-mime
+    |=  =mime
+    (ok-payload (mime-response:http-utils mime))
+  =/  ok-json
+    |=  =json
+    (ok-mime [/application/json (as-octs:mimes:html (en:json:html json))])
+  ?.  =(src our.bowl)  (err 403 'Forbidden')
+  =/  [site=path args=quay:eyre]  (parse-url:http-utils url.request.req)
+  ?.  ?=([%grubbery %api @ *] site)  ~
+  =/  endpoint=@tas  i.t.t.site
+  =/  api-path=path  t.t.t.site
+  ?+  [method.request.req endpoint]  ~   ::  ~ = not a sync read; needs a fiber
+      [%'GET' %kids]
+    =/  =ball:tarball  (peek-ball-now api-path)
+    %-  ok-json
+    %-  pairs:enjs:format
+    :~  ['files' [%a (turn (~(lis ba:tarball ball) /) |=(n=@ta s+n))]]
+        ['dirs' [%a (turn (~(lss ba:tarball ball) /) |=(n=@ta s+n))]]
+    ==
+  ::
+      [%'GET' %tree]
+    =/  =ball:tarball  (peek-ball-now api-path)
+    (ok-json (tree-to-json:tarball (ball-to-tree:tarball ball)))
+  ::
+      [%'GET' %sand]
+    =/  =ball:tarball  (peek-ball-now api-path)
+    (ok-json (ball-weirs-to-json:nexus ball))
+  ::
+      [%'GET' %weir]
+    =/  =ball:tarball  (peek-ball-now api-path)
+    (ok-json (ball-weirs-to-json:nexus ball))
+  ::
+      [%'GET' %file]
+    ?~  api-path  (err 400 'File path required')
+    =/  dir=path  (snip `path`api-path)
+    =/  name=@ta  (rear api-path)
+    =/  content=(unit sang:tarball)  (peek-grub-now dir name)
+    ?~  content  (err 404 'Not found')
+    =/  =sage:tarball  [p.u.content (need-vase:tarball u.content)]
+    ::  optional ?blot= conversion, then blot->mime, all synchronous via
+    ::  get-tube (resolved from the grub's own governing code nexus)
+    =/  blot-param=(unit @t)  (get-key:kv:html-utils 'blot' args)
+    =/  target=blot:tarball
+      ?~  blot-param  p.sage
+      =/  tp=path  (stab u.blot-param)
+      ?~(tp p.sage [(snip `path`tp) (rear tp)])
+    =/  conv=(each sage:tarball tang)
+      ?:  =(p.sage target)  &+sage
+      (mule |.(`sage:tarball`[target ((get-tube dir [p.sage target]) q.sage)]))
+    ?:  ?=(%| -.conv)  (err 400 'No tube for mark conversion')
+    =/  cs=sage:tarball  p.conv
+    ?:  =([/ %mime] p.cs)
+      (ok-mime !<(mime q.cs))
+    =/  mres=(each vase tang)
+      (mule |.((`tube:clay`(get-tube dir [p.cs [/ %mime]]) q.cs)))
+    ?:  ?=(%| -.mres)
+      (ok-mime [/application/x-urb-jam (as-octs:mimes:html (jam q.cs))])
+    (ok-mime !<(mime p.mres))
   ==
 ::  forward-http: match a request against the eyre bindings and hand it to the
 ::  bound handler, recording the connection; 404 if nothing matches.
