@@ -22,13 +22,26 @@ function esc(s) {
   d.textContent = (s == null) ? '' : String(s);
   return d.innerHTML;
 }
-function get(u) { return fetch(API + u).then(function(r) { return r.json(); }); }
+// ── request loading indicator ──
+// every request goes through get()/post(); we count in-flight requests and
+// show a thin indeterminate top bar while any are pending. The pier is slow
+// (~3s per API call), so this keeps the UI from looking frozen.
+var inflight = 0, loadBar = null;
+function loadBarEl() {
+  if (!loadBar) { loadBar = document.createElement('div'); loadBar.id = 'load-bar'; document.body.appendChild(loadBar); }
+  return loadBar;
+}
+function loadStart() { if (inflight++ === 0) loadBarEl().classList.add('active'); }
+function loadEnd() { if (--inflight <= 0) { inflight = 0; loadBarEl().classList.remove('active'); } }
+function track(p) { loadStart(); return p.then(function(r) { loadEnd(); return r; }, function(e) { loadEnd(); throw e; }); }
+
+function get(u) { return track(fetch(API + u).then(function(r) { return r.json(); })); }
 function post(u, b) {
-  return fetch(API + u, {
+  return track(fetch(API + u, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(b)
-  });
+  }));
 }
 function openTabs() { return tabsBy[mode] || []; }
 function focusedF() { return focusBy[mode]; }
@@ -336,28 +349,24 @@ function renderLanding() {
     };
   });
 }
+// <drop-menu> owns toggle, click-outside, Esc. We inject the items as its
+// children (preserving the slot="trigger" button), and it closes on click.
 function renderRepoMenu() {
   var menu = document.getElementById('repo-menu');
-  menu.innerHTML = repos.map(function(r) {
+  var trigger = menu.querySelector('[slot="trigger"]');
+  menu.innerHTML = '';
+  menu.appendChild(trigger);
+  repos.forEach(function(r) {
     var cur = r.current || {};
-    return '<div class="rm-item' + (r.name === selected ? ' sel' : '') + '" data-repo="' + esc(r.name) + '">' +
-      esc(shortName(r.name)) +
-      (cur.branch ? ' <span class="chip">' + esc(cur.branch) + '</span>' : '') + '</div>';
-  }).join('');
-  Array.prototype.forEach.call(menu.querySelectorAll('.rm-item'), function(el) {
-    el.onclick = function() {
-      menu.classList.remove('open');
-      enterRepo(el.getAttribute('data-repo'));
-    };
+    var el = document.createElement('div');
+    el.className = 'rm-item' + (r.name === selected ? ' sel' : '');
+    el.setAttribute('data-repo', r.name);
+    el.innerHTML = esc(shortName(r.name)) +
+      (cur.branch ? ' <span class="chip">' + esc(cur.branch) + '</span>' : '');
+    el.onclick = function() { enterRepo(r.name); };
+    menu.appendChild(el);
   });
 }
-document.getElementById('tb-repo').onclick = function(e) {
-  e.stopPropagation();
-  document.getElementById('repo-menu').classList.toggle('open');
-};
-document.addEventListener('click', function() {
-  document.getElementById('repo-menu').classList.remove('open');
-});
 
 function onRepoChanged() {
   loadRepos();
@@ -870,65 +879,66 @@ Array.prototype.forEach.call(document.querySelectorAll('.con-tab'), function(t) 
   };
 });
 document.getElementById('con-toggle').onclick = function() {
-  document.getElementById('ide').classList.toggle('con-collapsed');
+  document.getElementById('main').toggle();  // <split-view> collapses the console
 };
 document.getElementById('sb-toggle').onclick = function() {
-  document.getElementById('ide').classList.toggle('sb-collapsed');
+  document.getElementById('body').toggle();  // <split-view> collapses the sidebar
 };
 
 // ── branch switcher ──
+// <drop-menu> owns toggle/click-outside/Esc. We rebuild the branch list each
+// time it opens (dm-open), injecting items as children while preserving the
+// slot="trigger" button. The inline create-branch row is [data-keep-open] so
+// typing in it doesn't close the menu.
 function renderBranchMenu() {
   var cur = ((repos.find(function(x) { return x.name === selected; }) || {}).current || {}).branch;
   var menu = document.getElementById('branch-menu');
-  menu.innerHTML = branches.map(function(b) {
-    return '<div class="rm-item' + (b === cur ? ' sel' : '') + '" data-branch="' + esc(b) + '">' + esc(b) + '</div>';
-  }).join('') +
-  '<div class="bm-new"><input id="bm-name" type="text" placeholder="new branch">' +
-  '<button class="hdr-btn" id="bm-create">create</button></div>';
-  Array.prototype.forEach.call(menu.querySelectorAll('.rm-item'), function(el) {
+  var trigger = menu.querySelector('[slot="trigger"]');
+  menu.innerHTML = '';
+  menu.appendChild(trigger);
+  branches.forEach(function(b) {
+    var el = document.createElement('div');
+    el.className = 'rm-item' + (b === cur ? ' sel' : '');
+    el.setAttribute('data-branch', b);
+    el.textContent = b;
     el.onclick = function() {
-      menu.classList.remove('open');
-      var b = el.getAttribute('data-branch');
       if (b === cur) return;
       var dirty = openTabs().some(function(t) { return t.dirty; });
       if (dirty && !confirm('unsaved editor changes will be left behind — switch anyway?')) return;
       post('/action', { repo: selected, action: 'switch', text: b }).then(refreshSoon);
     };
+    menu.appendChild(el);
   });
-  menu.querySelector('#bm-create').onclick = function(e) {
-    e.stopPropagation();
+  var row = document.createElement('div');
+  row.className = 'bm-new';
+  row.setAttribute('data-keep-open', '');
+  row.innerHTML = '<input id="bm-name" type="text" placeholder="new branch">' +
+    '<button class="hdr-btn" id="bm-create">create</button>';
+  row.querySelector('#bm-create').onclick = function() {
     var name = document.getElementById('bm-name').value.trim();
     if (!name) return;
-    menu.classList.remove('open');
+    menu.close();
     post('/action', { repo: selected, action: 'branch', text: name }).then(refreshSoon);
   };
-  menu.querySelector('#bm-name').onclick = function(e) { e.stopPropagation(); };
+  menu.appendChild(row);
 }
-document.getElementById('tb-branch').onclick = function(e) {
-  e.stopPropagation();
-  renderBranchMenu();
-  document.getElementById('branch-menu').classList.toggle('open');
-};
-document.addEventListener('click', function() {
-  document.getElementById('branch-menu').classList.remove('open');
-});
+document.getElementById('branch-menu').addEventListener('dm-open', renderBranchMenu);
 
 // ── new repo modal ──
-var modalBack = document.getElementById('modal-back');
-document.getElementById('new-repo').onclick = function() { modalBack.classList.add('open'); };
-document.getElementById('m-cancel').onclick = function() { modalBack.classList.remove('open'); };
-modalBack.onclick = function(e) { if (e.target === modalBack) modalBack.classList.remove('open'); };
+// <modal-dialog> handles backdrop-click, Esc, focus-trap, and the [data-close]
+// cancel button itself — we just open it and close it on success.
+var repoModal = document.getElementById('repo-modal');
+document.getElementById('new-repo').onclick = function() { repoModal.show(); };
 document.getElementById('m-save').onclick = function() {
   var name = document.getElementById('m-name').value.trim();
   if (!name) return;
   post('/add', {
     name: name,
     repo: document.getElementById('m-repo').value.trim(),
-    ref: document.getElementById('m-ref').value.trim(),
-    token: document.getElementById('m-token').value.trim()
+    ref: document.getElementById('m-ref').value.trim()
   }).then(function(r) {
     if (!r.ok) { alert('create failed'); return; }
-    modalBack.classList.remove('open');
+    repoModal.close();
     selected = fullName(name);
     pushUrl();
     onRepoChanged();

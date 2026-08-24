@@ -18,6 +18,12 @@
 /&  forge-html  forge/index.html
 /&  forge-js    forge/app.js
 /&  forge-css   forge/style.css
+::  web-component kit: shared sources in /lib/ui (one copy for all nexuses),
+::  welded into one components.js bundle in on-load so a page makes a single
+::  request (no staggered per-file "flash-in").
+/&  modal-js    /lib/ui/modal-dialog.js
+/&  dropmenu-js  /lib/ui/drop-menu.js
+/&  splitview-js  /lib/ui/split-view.js
 =<  ^-  nexus:nexus
     |%
     ++  on-load
@@ -31,6 +37,13 @@
             image+s+'/grubbery/tiles/icon/forge.git_forge'
             href+s+'/grubbery/forge'
         ==
+      ::  kit bundle: weld the components into one file. Each is wrapped in a
+      ::  { } block so top-level consts don't collide; define runs globally.
+      ::  123={  125=}  10=newline.
+      =/  wrap  |=(=mime ^-(@ (rap 3 ~[123 10 q.q.mime 10 125 10])))
+      =/  kit-js=mime
+        :-  /application/javascript
+        (as-octs:mimes:html (rap 3 ~[(wrap modal-js) (wrap dropmenu-js) (wrap splitview-js)]))
       %+  spin:loader  ball
       :~  (manifest:loader 0)
           [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
@@ -41,6 +54,7 @@
           [%over %& [/ %'index.html'] [[/ %mime] forge-html]]
           [%over %& [/ %'app.js'] [[/ %mime] forge-js]]
           [%over %& [/ %'style.css'] [[/ %mime] forge-css]]
+          [%over %& [/ %'components.js'] [[/ %mime] kit-js]]
       ==
     ::
     ++  on-file
