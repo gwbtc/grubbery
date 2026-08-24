@@ -6313,8 +6313,7 @@
     =/  handled=(unit (list card:agent:gall))
       (serve-api-read-sync eyre-id src.bowl req)
     ?^  handled
-      =.  cards  (weld u.handled cards)
-      this
+      (emit-cards u.handled)
     ::  needs a fiber: materialize the request grub as before
     (make /sys/eyre [%& /sys/eyre/requests eyre-id] %.n %.n [%| [[/ %http-request] [src.bowl req]] ~])
   ==
@@ -6407,9 +6406,10 @@
     (find-eyre-binding bindings.st site)
   ?~  match
     ~&  >  [%eyre-no-binding site]
-    =.  cards
-      (weld (give-simple-payload:app:server eyre-id [[404 ~] `(as-octs:mimes:html 'Not Found')]) cards)
-    this
+    ::  emit-cards (flop-correct) NOT a raw weld into `cards`, which is
+    ::  reversed and flopped at abet — a raw weld ships the response
+    ::  facts to eyre in the wrong order (data before header).
+    (emit-cards (give-simple-payload:app:server eyre-id [[404 ~] `(as-octs:mimes:html 'Not Found')]))
   =/  new-st  st(conns (~(put by conns.st) eyre-id binding.u.match))
   (poke:(save-server-state new-st) ~ handler.u.match [[/ %handle-http-request] [eyre-id src.bowl req]])
 ::
