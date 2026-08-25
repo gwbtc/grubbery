@@ -347,7 +347,50 @@ var API='/grubbery/api';var BALL='apps/tiles.tiles';
   }
   function openDesks() {
     document.getElementById('desks-backdrop').classList.add('open');
-    loadDesks();
+    desksTab('mine');
+  }
+  function desksTab(which) {
+    var mine = document.getElementById('desks-list');
+    var stock = document.getElementById('stock-view');
+    var tabs = document.querySelectorAll('#desks-tabs .dtab');
+    for (var i = 0; i < tabs.length; i++) {
+      tabs[i].classList.toggle('active', tabs[i].getAttribute('data-tab') === which);
+    }
+    if (which === 'stock') { mine.style.display = 'none'; stock.style.display = ''; loadStock(); }
+    else { stock.style.display = 'none'; mine.style.display = ''; loadDesks(); }
+  }
+  function loadStock() {
+    var box = document.getElementById('stock-list');
+    box.innerHTML = '<div class="peer-spin"><div class="spinner"></div></div>';
+    fetch('/grubbery/tiles/desks/stock')
+      .then(function(r) { return r.json(); })
+      .then(function(items) {
+        box.innerHTML = '';
+        if (!items.length) { box.innerHTML = '<div class="papp-none">no stock repos.</div>'; return; }
+        items.forEach(function(it) {
+          var badge = it.synced
+            ? '<span class="stock-badge ok">synced</span>'
+            : '<span class="stock-badge no">not synced</span>';
+          var sub = (it.kind === 'code')
+            ? escP(it.code)
+            : (escP(it.repo) + ' · ' + escP(it.ref));
+          var row = document.createElement('div');
+          row.className = 'papp';
+          row.innerHTML =
+            '<div class="papp-body">' +
+              '<div class="papp-title">' + escP(it.name) + ' ' + badge + '</div>' +
+              '<div class="papp-sub">' + sub + '</div>' +
+            '</div>';
+          box.appendChild(row);
+        });
+        var foot = document.createElement('div');
+        foot.className = 'stock-foot';
+        foot.innerHTML = '<button class="hdr-btn primary" onclick="syncDefaults(this)">Sync all</button>';
+        box.appendChild(foot);
+      })
+      .catch(function(e) {
+        box.innerHTML = '<div class="papp-none">failed to load stock: ' + escP(String((e && e.message) || e)) + '</div>';
+      });
   }
   function closeDesks(e) {
     if (e.target === document.getElementById('desks-backdrop')) closeDesksNow();
@@ -381,6 +424,15 @@ var API='/grubbery/api';var BALL='apps/tiles.tiles';
       .catch(function(e) {
         box.innerHTML = '<div class="papp-none">failed to load desks: ' + escP(String((e && e.message) || e)) + '</div>';
       });
+  }
+  function syncDefaults(btn) {
+    if (btn) { btn.disabled = true; btn.textContent = 'Syncing…'; }
+    fetch('/grubbery/tiles/desks/sync-defaults', {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}'
+    })
+      .then(function() { loadStock(); })
+      .catch(function(e) { alert('sync failed: ' + String((e && e.message) || e)); })
+      .then(function() { if (btn) { btn.disabled = false; btn.textContent = 'Sync all'; } });
   }
   function peerPost(path, body) {
     return fetch('/grubbery/tiles/desks/' + path, {

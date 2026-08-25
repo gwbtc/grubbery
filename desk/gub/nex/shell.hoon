@@ -16,6 +16,7 @@
 /<  app-js         shell/app.js
 /<  app-css        shell/style.css
 /<  permits-html   shell/permits.html
+/<  home-html      shell/home.html
 =<  ^-  nexus:nexus
     |%
     ++  on-load
@@ -67,6 +68,11 @@
           ::  apps get followers (and their rise-notify) immediately
           ::  instead of waiting for a permits page load.
           [%fall %& [/ %'sweep.sig'] [[/ %sig] ~]]
+          ::  bootstrap.sig: runs the repos-to-sync setup ONCE on first boot
+          ::  (guarded by the /bootstrapped.json marker it writes), then never
+          ::  again automatically. The marker is NOT seeded here — its absence
+          ::  is what signals "first boot".
+          [%fall %& [/ %'bootstrap.sig'] [[/ %sig] ~]]
           ::  /book/main.sig: the discovery-grant fiber. Owns the registry
           ::  grants for /book files (it sits at /book, so they're in its
           ::  subtree), recomputed from permit/share.json by subscription.
@@ -174,6 +180,23 @@
         ::  rebuild on every sweep, not only when a new app appeared.
         ;<  ~  bind:m  (build-share rail)
         $
+          ::  bootstrap.sig: first-boot setup. On the FIRST rise where the
+          ::  /bootstrapped.json marker is absent, run the repos-to-sync
+          ::  pipeline once and write the marker. The marker persists, so every
+          ::  later rise (restart/crash-recovery) skips — setup runs exactly
+          ::  once. The manual POST /desks/sync-defaults stays available.
+          ::
+          [~ %'bootstrap.sig']
+        ;<  ~  bind:m  (rise-wait:io prod "%shell bootstrap: failed")
+        ;<  done=?  bind:m
+          (peek-exists:io (nex-road:io rail [%& / %'bootstrapped.json']))
+        ?:  done  (pure:m ~)
+        ~&  >  %shell-bootstrap-first-boot
+        ;<  ~  bind:m  sync-defaults
+        ;<  err=(unit tang)  bind:m
+          (make-soft:io (nex-road:io rail [%& / %'bootstrapped.json']) |+[[[/ %json] `json`[%b %.y]] ~])
+        ~?  >>>  ?=(^ err)  %shell-bootstrap-mark-failed
+        (pure:m ~)
           ::  peers.json: poke target for managing which ships' public
           ::  desk directories we mirror. {"add": "~ship"} makes the
           ::  mirror grub, {"del": "~ship"} culls it. Pure local CRUD:
@@ -364,6 +387,16 @@
           ;<  ~  bind:m  (poke:io [%& %& dir-path %'source.json'] [[/ %json] source])
           ;<  ~  bind:m  (send-simple:srv eyre-id [[200 ~] `(as-octs:mimes:html 'created')])
           (pure:m ~)
+        ::  POST /desks/sync-defaults: bootstrap the shipped "repos to sync"
+        ::  list — for each entry, ensure its git_repo (polling github) and a
+        ::  desk following the repo's checked-out tree exist and are wired.
+        ::  Idempotent: guarded makes + a replace-in-place source poke, so it's
+        ::  safe to re-run. This is the shell-owned setup pipeline (replaces the
+        ::  old root.hoon contacts/wallet seeds).
+        ?:  &(=('POST' method.request.req) ?=([%desks %sync-defaults ~] suffix))
+          ;<  ~  bind:m  sync-defaults
+          ;<  ~  bind:m  (send-simple:srv eyre-id [[200 ~] `(as-octs:mimes:html 'synced')])
+          (pure:m ~)
         ::  POST /desks/delete {app}: cull the /apps/<app> subtree.
         ?:  &(=('POST' method.request.req) ?=([%desks %delete ~] suffix))
           =/  jon=json
@@ -510,6 +543,14 @@
           ;<  ~  bind:m
             (send-simple:srv eyre-id [[200 ~[['content-type' 'application/json']]] `bod])
           (pure:m ~)
+        ::  /grubbery/tiles/desks/stock → the vendored default-repos list with
+        ::  each entry's synced status, for the Stock tab.
+        ?:  ?=([%desks %stock ~] suffix)
+          ;<  lst=json  bind:m  stock-status
+          =/  bod=octs  (as-octs:mimes:html (en:json:html lst))
+          ;<  ~  bind:m
+            (send-simple:srv eyre-id [[200 ~[['content-type' 'application/json']]] `bod])
+          (pure:m ~)
         ?:  ?=([%'aliases.json' ~] suffix)
           ;<  av=(unit json)  bind:m
             (peek-as:io (nex-road:io rail [%& /cache %'aliases.json']) ,json)
@@ -560,15 +601,126 @@
           ;<  ~  bind:m
             (send-simple:srv eyre-id [[200 ~[['content-type' 'image/svg+xml']]] `bod])
           (pure:m ~)
-        ::  default → serve the home page
-        =/  page=@t  (crip (en-xml:html shell-page))
-        =/  =mime  [/text/html (as-octs:mimes:html page)]
-        ;<  ~  bind:m  (send-simple:srv eyre-id (mime-response:http-utils mime))
+        ::  default → serve the home page (static file, /<-imported home-html)
+        ;<  ~  bind:m  (send-simple:srv eyre-id (mime-response:http-utils home-html))
         (pure:m ~)
       ==
     --
 |%
 ++  srv  ~(. http-res:io [%| 1 %& ~ %'main.sig'])
+::  === repos-to-sync bootstrap (shell-owned git_repo + desk setup) ===
+::  default-repos: the shipped list of libraries this ship follows by
+::  default. Each becomes a git_repo (polling github) + a desk following
+::  the repo's checked-out tree. Add entries here to bootstrap more.
+::
+::  a stock entry is either a github repo (shell provisions a git_repo that
+::  polls it, then a desk following the checkout) or a direct /code path (just
+::  a desk following that namespace dir, like a plain /desk).
++$  stock-entry
+  $%  [%github name=@t repo=@t ref=@t]
+      [%code name=@t code=@t]
+  ==
+++  default-repos
+  ^-  (list stock-entry)
+  :~  [%github 'contacts' 'niblyx-malnus/contacts-nexus' 'main']
+      [%github 'wallet' 'niblyx-malnus/wallet-nexus' 'main']
+  ==
+::  stock-name / stock-code: pull the name (and, for %code, the code path)
+::  out of an entry regardless of kind.
+++  stock-name  |=(e=stock-entry ?-(-.e %github name.e, %code name.e))
+::  repo-config: the config.json a git_repo instance is seeded with.
+::
+++  repo-config
+  |=  [repo=@t ref=@t]
+  ^-  json
+  %-  pairs:enjs:format
+  :~  ['repo' s+repo]
+      ['ref' s+ref]
+      ['token' s+'']
+      ['poll' n+'15']
+  ==
+::  ensure-pairing: idempotently stand up ONE git_repo + desk pairing.
+::  Guarded makes (skip what exists) + a replace-in-place source poke, so
+::  re-running is safe. The desk follows the repo's /data/tree/code and
+::  the stock desk machinery owns the rest (version watch, sync, bill).
+::
+++  ensure-pairing
+  |=  entry=stock-entry
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  =/  name=@t  (stock-name entry)
+  =/  desk-dir=path  /apps/[(cat 3 `@ta`name '.desk')]
+  ::  the /code path the desk will follow
+  =/  code=@t
+    ?-  -.entry
+      %code    code.entry
+      %github  (crip "/apps/forge.git_forge/repos/{(trip name)}.git_repo/data/tree/code")
+    ==
+  ::  1. a %github entry provisions its source: ensure the git_repo (polls
+  ::  github) and force a fresh pull. A %code entry follows a namespace dir
+  ::  directly — no repo to make.
+  ;<  ~  bind:m
+    ?.  ?=(%github -.entry)  (pure:m ~)
+    =/  repo-dir=path  /apps/'forge.git_forge'/repos/[(cat 3 `@ta`name '.git_repo')]
+    ;<  has-repo=?  bind:m  (peek-exists:io [%& %| repo-dir])
+    ;<  ~  bind:m
+      ?:  has-repo  (pure:m ~)
+      ;<  ~  bind:m  (make:io [%& %| repo-dir] &+`bole:tarball`[`[`[/git %repo] ~ %.n ~] ~])
+      (poke:io [%& %& repo-dir %'config.json'] [[/ %json] (repo-config repo.entry ref.entry)])
+    ::  a new repo boot-syncs on its own; poking sync.sig forces an existing
+    ::  one to re-fetch now, so "sync" always means "pull latest".
+    (poke:io [%& %& (weld repo-dir /actions) %'sync.sig'] [[/ %sig] ~])
+  ::  2. ensure the desk
+  ;<  has-desk=?  bind:m  (peek-exists:io [%& %| desk-dir])
+  ;<  ~  bind:m
+    ?:  has-desk  (pure:m ~)
+    (make:io [%& %| desk-dir] &+`bole:tarball`[`[`[/ %desk] ~ %.n ~] ~])
+  ::  3. always wire the desk's source at the computed code path
+  (poke:io [%& %& desk-dir %'source.json'] [[/ %json] (pairs:enjs:format ~[['code' s+code]])])
+::  sync-defaults: run ensure-pairing over the whole default-repos list.
+::
+++  sync-defaults
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  =/  todo=(list stock-entry)  default-repos
+  |-  ^-  form:m
+  ?~  todo  (pure:m ~)
+  ;<  ~  bind:m  (ensure-pairing i.todo)
+  $(todo t.todo)
+::  stock-status: the default-repos list as json, each with a `synced` flag
+::  (its desk exists and its source is wired). Feeds the Stock tab.
+::
+++  stock-status
+  =/  m  (fiber:fiber:nexus ,json)
+  ^-  form:m
+  =/  todo=(list stock-entry)  default-repos
+  =|  acc=(list json)
+  |-  ^-  form:m
+  ?~  todo  (pure:m a+(flop acc))
+  =/  name=@t  (stock-name i.todo)
+  =/  desk-dir=path  /apps/[(cat 3 `@ta`name '.desk')]
+  ;<  has-desk=?  bind:m  (peek-exists:io [%& %| desk-dir])
+  ;<  src=(unit json)  bind:m
+    ?.  has-desk  (pure:(fiber:fiber:nexus ,(unit json)) ~)
+    (peek-as:io [%& %& desk-dir %'source.json'] ,json)
+  =/  synced=?
+    ?&  has-desk
+        ?=(^ src)
+        ?=([%o *] u.src)
+        ?=([~ %s *] (~(get by p.u.src) 'code'))
+    ==
+  =/  fields=(list [@t json])
+    ?-  -.i.todo
+        %github
+      :~  ['name' s+name]  ['kind' s+'github']
+          ['repo' s+repo.i.todo]  ['ref' s+ref.i.todo]  ['synced' b+synced]
+      ==
+        %code
+      :~  ['name' s+name]  ['kind' s+'code']
+          ['code' s+code.i.todo]  ['synced' b+synced]
+      ==
+    ==
+  $(todo t.todo, acc [(pairs:enjs:format fields) acc])
 ::  === peer-desk storefront (folded in from the retired /desks nexus) ===
 ::  +gather-peers: every mirrored peer directory, each published desk
 ::  enriched with tile metadata, icon, and version read through the peer's
@@ -1980,94 +2132,5 @@
       image+s+image.t
       href+s+href.t
       root+?~(root ~ s+(crip (spud u.root)))
-  ==
-::
-++  shell-page
-  ^-  manx
-  ;html
-    ;head
-      ;title: home
-      ;meta(charset "utf-8");
-      ;meta(name "viewport", content "width=device-width, initial-scale=1");
-      ;link(rel "icon", type "image/svg+xml", href "/apps/grubbery/icon.svg");
-      ;link(rel "stylesheet", href "/grubbery/tiles/style.css");
-    ==
-    ;body
-      ;div#app
-        ;div#header
-          ;a#bell(href "#", onclick "openBell(event)", title "Notifications")
-            ;+  (make:feather-icons 'bell')
-            ;span#bell-count(style "display:none");
-          ==
-          ;button#add-btn.hdr-btn(onclick "addTile()"): + New
-          ;button#get-btn.hdr-btn(onclick "openGet()"): Get Apps
-          ;button#desks-btn.hdr-btn(onclick "openDesks()"): Desks
-        ==
-        ;div#bell-backdrop(onclick "closeBell(event)")
-          ;div#bell-panel
-            ;div#bell-head
-              ;span: Notifications
-              ;div
-                ;button#bell-ack-all.hdr-btn(onclick "bellAckAll()"): Mark all as read
-                ;button.hdr-btn(onclick "closeBellNow()"): close
-              ==
-            ==
-            ;div#bell-notes;
-          ==
-        ==
-        ;div#get-backdrop(onclick "closeGet(event)")
-          ;div#get-panel
-            ;div#get-head
-              ;button#get-back.hdr-btn(onclick "instBack()"): back
-              ;span#get-title: Get apps
-              ;a.hdr-btn(href "/apps/grubbery/permits"): Sandbox Settings
-              ;button.hdr-btn(onclick "closeGetNow()"): close
-            ==
-            ;div#get-slider
-              ;div.get-screen
-                ;div#get-search
-                  ;input#peer-ship(type "text", placeholder "search ~ship", autocomplete "off");
-                  ;button.hdr-btn(onclick "peerAdd()"): search
-                  ;div#peer-suggest;
-                ==
-                ;div#peer-lists;
-              ==
-              ;div.get-screen
-                ;div#inst-screen;
-                ;div#inst-foot;
-              ==
-            ==
-          ==
-        ==
-        ;div#desks-backdrop(onclick "closeDesks(event)")
-          ;div#desks-panel
-            ;div#desks-head
-              ;span: Your desks
-              ;button.hdr-btn(onclick "closeDesksNow()"): close
-            ==
-            ;div#desks-list;
-          ==
-        ==
-        ;div#edit-backdrop
-          ;div#edit-modal
-            ;div#edit-header
-              ;span#edit-title: Edit tile
-              ;div
-                ;button#edit-save.hdr-btn: save
-                ;button#edit-close.hdr-btn: close
-              ==
-            ==
-            ;textarea#edit-json(rows "10", placeholder "\{}");
-            ;div#edit-status;
-          ==
-        ==
-        ;div#tiles
-          ;div#loading-tile
-            ;div.spinner;
-          ==
-        ==
-      ==
-      ;script(src "/grubbery/tiles/app.js");
-    ==
   ==
 --

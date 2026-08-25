@@ -141,3 +141,17 @@
     .tile, #loading-tile { width: 100%; height: auto; aspect-ratio: 1; min-width: 0; }
     #app { padding: 20px 16px; }
   }
+
+/* desks modal: Your desks / Stock tabs */
+#desks-tabs { display: flex; gap: 2px; flex: 1; }   /* flex:1 pushes 'close' to the far right */
+.dtab { appearance: none; background: none; border: none; font: inherit; font-size: 13px; color: #9aa4b3; padding: 6px 10px; cursor: pointer; border-bottom: 2px solid transparent; }
+.dtab:hover { color: #5a6472; }
+.dtab.active { color: #1a1d24; border-bottom-color: #6947b8; font-weight: 600; }
+/* Stock page: give it the same padded, scrollable container as #desks-list */
+#stock-view { flex: 1; overflow-y: auto; padding: 16px; }
+.stock-sub { font-size: 12px; color: #888; margin: 0 0 16px; line-height: 1.45; }
+#stock-list .papp { padding: 12px 10px; }
+.stock-badge { font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 8px; margin-left: 8px; vertical-align: middle; }
+.stock-badge.ok { background: #ece7fa; color: #6947b8; }
+.stock-badge.no { background: #f2f4f7; color: #9aa4b3; }
+.stock-foot { margin-top: 16px; padding-top: 14px; border-top: 1px solid #eee; display: flex; justify-content: flex-end; }

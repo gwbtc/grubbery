@@ -1,0 +1,93 @@
+<html>
+<head>
+  <title>home</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" type="image/svg+xml" href="/apps/grubbery/icon.svg">
+  <link rel="stylesheet" href="/grubbery/tiles/style.css">
+</head>
+<body>
+  <div id="app">
+    <div id="header">
+      <a id="bell" href="#" onclick="openBell(event)" title="Notifications">
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-bell"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
+        <span id="bell-count" style="display:none"></span>
+      </a>
+      <button id="add-btn" class="hdr-btn" onclick="addTile()">+ New</button>
+      <button id="get-btn" class="hdr-btn" onclick="openGet()">Get Apps</button>
+      <button id="desks-btn" class="hdr-btn" onclick="openDesks()">Desks</button>
+    </div>
+    <div id="bell-backdrop" onclick="closeBell(event)">
+      <div id="bell-panel">
+        <div id="bell-head">
+          <span>Notifications</span>
+          <div>
+            <button id="bell-ack-all" class="hdr-btn" onclick="bellAckAll()">Mark all as read</button>
+            <button class="hdr-btn" onclick="closeBellNow()">close</button>
+          </div>
+        </div>
+        <div id="bell-notes"></div>
+      </div>
+    </div>
+    <div id="get-backdrop" onclick="closeGet(event)">
+      <div id="get-panel">
+        <div id="get-head">
+          <button id="get-back" class="hdr-btn" onclick="instBack()">back</button>
+          <span id="get-title">Get apps</span>
+          <a class="hdr-btn" href="/apps/grubbery/permits">Sandbox Settings</a>
+          <button class="hdr-btn" onclick="closeGetNow()">close</button>
+        </div>
+        <div id="get-slider">
+          <div class="get-screen">
+            <div id="get-search">
+              <input id="peer-ship" type="text" placeholder="search ~ship" autocomplete="off">
+              <button class="hdr-btn" onclick="peerAdd()">search</button>
+              <div id="peer-suggest"></div>
+            </div>
+            <div id="peer-lists"></div>
+          </div>
+          <div class="get-screen">
+            <div id="inst-screen"></div>
+            <div id="inst-foot"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div id="desks-backdrop" onclick="closeDesks(event)">
+      <div id="desks-panel">
+        <div id="desks-head">
+          <div id="desks-tabs">
+            <button class="dtab active" data-tab="mine" onclick="desksTab('mine')">Your desks</button>
+            <button class="dtab" data-tab="stock" onclick="desksTab('stock')">Stock</button>
+          </div>
+          <button class="hdr-btn" onclick="closeDesksNow()">close</button>
+        </div>
+        <div id="desks-list"></div>
+        <div id="stock-view" style="display:none">
+          <div class="stock-sub">Vendored repos that ship with the shell.</div>
+          <div id="stock-list"></div>
+        </div>
+      </div>
+    </div>
+    <div id="edit-backdrop">
+      <div id="edit-modal">
+        <div id="edit-header">
+          <span id="edit-title">Edit tile</span>
+          <div>
+            <button id="edit-save" class="hdr-btn">save</button>
+            <button id="edit-close" class="hdr-btn">close</button>
+          </div>
+        </div>
+        <textarea id="edit-json" rows="10" placeholder="{}"></textarea>
+        <div id="edit-status"></div>
+      </div>
+    </div>
+    <div id="tiles">
+      <div id="loading-tile">
+        <div class="spinner"></div>
+      </div>
+    </div>
+  </div>
+  <script src="/grubbery/tiles/app.js"></script>
+</body>
+</html>
