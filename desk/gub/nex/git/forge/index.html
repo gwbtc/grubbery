@@ -52,8 +52,8 @@
           </div>
           <div id="tool-sub-run">
             <div class="run-cols">
-              <div class="run-col"><div class="run-head">tools</div><div id="run-tools"></div></div>
-              <div class="run-col"><div class="run-head">procs</div><div id="run-procs"></div></div>
+              <div class="run-col"><div class="run-head">tools</div><div class="run-sub">definitions from this repo — pick one and run it to spin up a proc</div><div id="run-tools"></div></div>
+              <div class="run-col"><div class="run-head">procs</div><div class="run-sub">running instances of a tool — persist until culled, sandboxed by the weir</div><div id="run-procs"></div></div>
             </div>
           </div>
           <div id="tool-sub-permissions" style="display:none"></div>
@@ -67,7 +67,6 @@
           <div id="ed-preview" style="display:none"></div>
           <pre id="ed-tang" style="display:none"></pre>
         </div>
-        <div id="settings-pane" style="display:none"></div>
         <div id="landing" style="display:none">
           <div id="landing-head">
             <div class="run-head">repos <span id="landing-count"></span></div>
@@ -90,6 +89,8 @@
       </div>
     </div>
     </split-view>
+    <!-- settings is its own full-bleed view, outside the split nest -->
+    <div id="settings-pane" style="display:none"></div>
   </div>
 
   <modal-dialog id="repo-modal">

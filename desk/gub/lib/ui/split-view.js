@@ -136,7 +136,11 @@ TPL.innerHTML = `
 `;
 
 class SplitView extends HTMLElement {
-  static observedAttributes = ['orientation', 'primary', 'size', 'collapsed', 'no-rail'];
+  // hide-primary: transient, host-driven full hide of the primary pane (no
+  // rail, no handle) — like collapsed+no-rail but NOT persisted and orthogonal
+  // to the user's `collapsed` state. Use it to drop a pane per app-mode
+  // (e.g. no console in a tools view) without clobbering the saved layout.
+  static observedAttributes = ['orientation', 'primary', 'size', 'collapsed', 'no-rail', 'hide-primary'];
 
   #handle;
   #rail;
@@ -197,11 +201,12 @@ class SplitView extends HTMLElement {
     this.style.removeProperty('grid-template-columns');
 
     const hs = `var(--sv-handle-size, 6px)`;
+    const hidden = this.hasAttribute('hide-primary');
     let track;
-    if (this.hasAttribute('collapsed')) {
+    if (hidden || this.hasAttribute('collapsed')) {
       // primary → 0, handle → 0, rail takes its reserved sliver at the primary
-      // edge — unless no-rail, where it collapses fully (no reopen sliver).
-      const rail = this.hasAttribute('no-rail') ? '0' : this.#railSize + 'px';
+      // edge — unless no-rail (or hide-primary), where it collapses fully.
+      const rail = (hidden || this.hasAttribute('no-rail')) ? '0' : this.#railSize + 'px';
       track = this.#primaryStart ? `0 0 ${rail} 1fr` : `1fr ${rail} 0 0`;
       // grid needs 4 tracks now (rail is a real cell); reorder slots via order
       this.#applyOrder(true);

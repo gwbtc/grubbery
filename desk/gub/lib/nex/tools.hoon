@@ -50,6 +50,31 @@
   --
 ::
 +$  tool-handler  _*form:(fiber:fiber:nexus ,tool-result)
+::  +guard-proc: crash guard for a running proc. Call at the top of a
+::  proc's on-file arm in place of rise-wait. Returns [go st]:
+::    go=%.y — clean start; run the handler using the returned state.
+::    go=%.n — the caller should go terminal (stay:m), because either the
+::      proc has already settled (%done/%error), OR it just crashed. On a
+::      crash the fiber restarts with prod=[~ tang]; here we record that
+::      tang as the proc's %error result — so a vetoed or boomed proc
+::      reports WHY it died instead of silently re-running its handler.
+::      Dead stays dead: reviving means a fresh %start (cull + re-run).
+::
+++  guard-proc
+  |=  =prod:fiber:nexus
+  =/  m  (fiber:fiber:nexus ,[go=? st=tool-state])
+  ^-  form:m
+  ;<  st=tool-state  bind:m  (get-state-as:io ,tool-state)
+  ?:  ?=(?(%done %error) step.st)  (pure:m [%.n st])
+  ?~  prod  (pure:m [%.y st])
+  ::  crash recovery — render the tang the way booms are surfaced elsewhere
+  =/  msg=@t
+    %-  of-wain:format
+    %+  turn  (flop u.prod)
+    |=(=tank (crip ~(ram re tank)))
+  =/  err=json  (pairs:enjs:format ~[['type' s+'error'] ['message' s+msg]])
+  ;<  ~  bind:m  (replace:io [tool.st args.st %error data.st `err])
+  (pure:m [%.n st])
 ::  Tool names are file locations under a lib/mcp root: path segments
 ::  joined with '__', hyphens rendered as underscores (knots can't
 ::  hold underscores). wallet__send <-> wallet/send.hoon. The mapping

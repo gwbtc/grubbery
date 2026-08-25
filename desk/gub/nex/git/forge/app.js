@@ -99,7 +99,12 @@ function renderMode() {
   document.getElementById('sidebar').style.display = editorish ? '' : 'none';
   document.getElementById('mode-tabs').style.display = has ? 'flex' : 'none';
   document.getElementById('console').style.display = (has && mode === 'files') ? '' : 'none';
-  document.getElementById('settings-pane').style.display = (has && mode === 'settings') ? '' : 'none';
+  // settings is a full-bleed view outside the split nest: swap #main out for it.
+  var settingsOn = has && mode === 'settings';
+  document.getElementById('settings-pane').style.display = settingsOn ? '' : 'none';
+  document.getElementById('main').style.display = settingsOn ? 'none' : '';
+  // no console outside files (transient, doesn't touch the saved layout).
+  document.getElementById('main').toggleAttribute('hide-primary', !(has && mode === 'files'));
   Array.prototype.forEach.call(document.querySelectorAll('.mode-tab'), function(t) {
     t.classList.toggle('active', t.getAttribute('data-mode') === mode);
   });
@@ -433,9 +438,26 @@ function treeRows(paths, root, withMarks) {
 function renderFiles() {
   var box = document.getElementById('sb-list');
   if (!selected) { box.innerHTML = ''; return; }
-  box.innerHTML = mode === 'files'
-    ? treeRows(tree, 'tree', false)
-    : treeRows(files.filter(function(f) { return f !== 'weir.json' && f !== 'procs.json'; }), 'tools', true);
+  if (mode === 'files') {
+    box.innerHTML = treeRows(tree, 'tree', false);
+    wireFileRows(box);
+    return;
+  }
+  // tools mode: deployed tool code, then a config group for the repo's
+  // manifests (weir.json/procs.json). They live in the tree — not /tools/code —
+  // so they open/save as source (root=tree), applied on commit + deploy.
+  var html = treeRows(files, 'tools', true);
+  var cfg = ['tools/weir.json', 'tools/procs.json'].filter(function(f) { return tree.indexOf(f) >= 0; });
+  if (cfg.length) {
+    html += '<div class="sb-group">config</div>';
+    cfg.forEach(function(f) {
+      var id = 'tree:' + f;
+      html += '<div class="ft-file' + (id === focusedF() ? ' sel' : '') +
+        '" data-root="tree" data-file="' + esc(f) + '">' +
+        '<span style="padding-left:12px">' + esc(f.split('/').pop()) + '</span></div>';
+    });
+  }
+  box.innerHTML = html;
   wireFileRows(box);
 }
 function wireFileRows(box) {
@@ -563,7 +585,8 @@ function renderProcs() {
     html += '<div class="proc">' +
       '<span class="p-name">' + esc(p.name) + '</span>' +
       '<span class="chip">' + esc(p.tool || '') + '</span>' +
-      '<span class="p-step ' + (p.step === 'done' ? 'ok' : 'live') + '">' + esc(p.step || '?') + '</span>' +
+      '<span class="p-step ' + (p.step === 'done' ? 'ok' : p.step === 'error' ? 'err' : 'live') + '">' + esc(p.step === 'error' ? 'dead' : (p.step || '?')) + '</span>' +
+      (p.step === 'error' ? '<button class="hdr-btn p-retry" data-proc="' + esc(p.name) + '">retry</button>' : '') +
       '<button class="hdr-btn danger p-del" data-proc="' + esc(p.name) + '">delete</button>' +
       resHtml + '</div>';
   });
@@ -571,6 +594,14 @@ function renderProcs() {
   Array.prototype.forEach.call(box.querySelectorAll('.p-del'), function(b) {
     b.onclick = function() {
       post('/cull', { repo: selected, proc: b.getAttribute('data-proc') }).then(refreshSoon);
+    };
+  });
+  Array.prototype.forEach.call(box.querySelectorAll('.p-retry'), function(b) {
+    b.onclick = function() {
+      var p = procs.find(function(x) { return x.name === b.getAttribute('data-proc'); });
+      if (!p) return;
+      // re-run resets the proc to %start (repo.hoon run.sig upserts)
+      post('/run', { repo: selected, name: p.name, tool: p.tool, args: p.args || {} }).then(refreshSoon);
     };
   });
   Array.prototype.forEach.call(box.querySelectorAll('.p-out'), function(b) {

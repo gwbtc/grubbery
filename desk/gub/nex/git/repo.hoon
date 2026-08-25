@@ -216,6 +216,13 @@
           p.u.a
         =/  ts=tool-state:nex-tools  [u.tul args %start ~ ~]
         =/  proc-road=road:tarball  [%| 0 %& /proc `@ta`u.nam]
+        ;<  cur=view:nexus  bind:m  (peek:io proc-road ~)
+        ?:  ?=([%file *] cur)
+          ::  proc already exists — overwrite its state to %start (make fails
+          ::  on an existing grub). This is the retry / re-arm path: a dead
+          ::  proc runs again, and re-running with new args updates it.
+          ;<  ~  bind:m  (over:io proc-road [[/ %tool-state] ts])
+          $
         ;<  err=(unit tang)  bind:m
           (make-soft:io proc-road |+[[[/ %tool-state] ts] ~])
         ?^  err
@@ -260,10 +267,11 @@
           ::  the grub to stop it.
           ::
           [[%tools %proc ~] @]
-        ;<  ~  bind:m  (rise-wait:io prod "%git/repo tool: failed")
-        ;<  st=tool-state:nex-tools  bind:m
-          (get-state-as:io ,tool-state:nex-tools)
-        ?:  =(%done step.st)  (pure:m ~)
+        ::  crash guard: on a crash-restart, record the tang as %error and
+        ::  go dormant instead of re-running the handler (repo.hoon owns no
+        ::  retry policy — a dead proc reports why and waits to be re-armed).
+        ;<  [go=? st=tool-state:nex-tools]  bind:m  (guard-proc:nex-tools prod)
+        ?.  go  stay:m
         ;<  here=rail:tarball  bind:m  get-here-abs:io
         =/  code-lib=path  (weld (snip path.here) /code/lib/tools)
         =/  file-name=@ta
