@@ -39,6 +39,10 @@
       <div id="workspace" slot="end">
         <div id="ed-bar" style="display:none">
           <div id="ed-tabs"></div>
+          <div id="ed-view" style="display:none">
+            <button class="ed-vtab active" data-view="source">Source</button>
+            <button class="ed-vtab" data-view="preview">Preview</button>
+          </div>
           <button class="hdr-btn primary" id="ed-save" style="display:none">save ⌘S</button>
         </div>
         <div id="runner-pane" style="display:none">
@@ -60,6 +64,7 @@
             <div id="ed-hl"></div>
             <textarea id="ed-ta" spellcheck="false"></textarea>
           </div>
+          <div id="ed-preview" style="display:none"></div>
           <pre id="ed-tang" style="display:none"></pre>
         </div>
         <div id="settings-pane" style="display:none"></div>
@@ -104,6 +109,7 @@
     </div>
   </div>
   <script type="module" src="/grubbery/forge/components.js"></script>
+  <script src="/grubbery/forge/file-preview.js"></script>
   <script src="/grubbery/forge/app.js"></script>
 </body>
 </html>

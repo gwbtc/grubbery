@@ -363,14 +363,36 @@ function langForName(name) {
   var map = { hoon: 'hoon', js: 'javascript', mjs: 'javascript', json: 'json', css: 'css', svg: 'xml', xml: 'xml', html: 'xml', md: 'markdown', markdown: 'markdown' };
   return map[ext] || null;
 }
+// remembers each file's Source|Preview choice across re-renders, keyed by path.
+var PV = {};
 function renderViewer(el, d) {
   el.innerHTML = '';
   var name = (d.path || '').split('/').filter(Boolean).pop() || '';
   var head = document.createElement('div'); head.className = 'vp-head';
   var t = document.createElement('span'); t.className = 'vp-title'; t.textContent = d.path || '';
   var b = document.createElement('span'); b.className = 'vp-blot muted'; b.textContent = d.type || d.blot || '';
-  head.appendChild(t); head.appendChild(b); el.appendChild(head);
+  head.appendChild(t); head.appendChild(b);
+  // svg/html arrive as text — offer a Source|Preview toggle (raster has no source).
+  var fp = window.FilePreview;
+  var pk = fp ? fp.kind(name) : null;
+  var textPreview = (pk === 'svg' || pk === 'html') && d.text != null;
+  if (textPreview) {
+    var view = PV[d.path] || 'source';
+    var tg = document.createElement('div'); tg.className = 'vp-view';
+    ['source', 'preview'].forEach(function (v) {
+      var btn = document.createElement('button');
+      btn.className = 'vp-vtab' + (v === view ? ' active' : '');
+      btn.textContent = v === 'source' ? 'Source' : 'Preview';
+      btn.onclick = function () { PV[d.path] = v; renderViewer(el, d); };
+      tg.appendChild(btn);
+    });
+    head.appendChild(tg);
+  }
+  el.appendChild(head);
   var body = document.createElement('div'); body.className = 'vp-body'; el.appendChild(body);
+  if (textPreview && (PV[d.path] || 'source') === 'preview') {
+    fp.render(body, { name: name, text: d.text }); return;
+  }
   if (d.text != null) {
     var pre = document.createElement('pre'); pre.textContent = d.text; body.appendChild(pre);
     var lang = langForName(name);
@@ -382,8 +404,9 @@ function renderViewer(el, d) {
     return;
   }
   if (d.type && d.type.indexOf('image/') === 0) {
-    var img = document.createElement('img'); img.className = 'vp-img';
-    img.src = BASE + 'raw/' + AXIS + '?path=' + (d.path || '') + '&mode=' + modeParam();
+    var rawUrl = BASE + 'raw/' + AXIS + '?path=' + (d.path || '') + '&mode=' + modeParam();
+    if (fp && fp.render(body, { name: name, rawUrl: rawUrl })) return;
+    var img = document.createElement('img'); img.className = 'vp-img'; img.src = rawUrl;
     body.appendChild(img); return;
   }
   var mt = document.createElement('div'); mt.className = 'vp-reason';

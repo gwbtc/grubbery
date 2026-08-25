@@ -24,6 +24,8 @@
 /&  modal-js    /lib/ui/modal-dialog.js
 /&  dropmenu-js  /lib/ui/drop-menu.js
 /&  splitview-js  /lib/ui/split-view.js
+::  shared classic helper (window.FilePreview) — loaded before app.js
+/&  fp-js       /lib/ui/file-preview.js
 =<  ^-  nexus:nexus
     |%
     ++  on-load
@@ -55,6 +57,7 @@
           [%over %& [/ %'app.js'] [[/ %mime] forge-js]]
           [%over %& [/ %'style.css'] [[/ %mime] forge-css]]
           [%over %& [/ %'components.js'] [[/ %mime] kit-js]]
+          [%over %& [/ %'file-preview.js'] [[/ %mime] fp-js]]
       ==
     ::
     ++  on-file

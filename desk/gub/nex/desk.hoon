@@ -47,6 +47,8 @@
 /&  desk-html  desk/ui/index.html
 /&  desk-js    desk/ui/app.js
 /&  desk-css   desk/ui/style.css
+::  shared classic helper (window.FilePreview) — loaded before app.js
+/&  fp-js      /lib/ui/file-preview.js
 =<  ^-  nexus:nexus
     |%
 ++  on-load
@@ -110,6 +112,7 @@
       [%over %& [/ui %'index.html'] [[/ %mime] desk-html]]
       [%over %& [/ui %'app.js'] [[/ %mime] desk-js]]
       [%over %& [/ui %'style.css'] [[/ %mime] desk-css]]
+      [%over %& [/ui %'file-preview.js'] [[/ %mime] fp-js]]
     ==
 ::
 ++  on-file
@@ -1071,8 +1074,12 @@
     ::  spud a mite -> "/text/x-hoon"; drop the leading slash
     =/  ctype=@t  ?~(got '' (crip (slag 1 (spud p.u.got))))
     =/  head=@ta  ?~(got %$ ?~(p.u.got %$ i.p.u.got))
+    ::  svg is image/* but genuinely text — expose its source so the UI can
+    ::  offer a Source|Preview toggle (and render the svg from that text).
     =/  texty=?
-      &(?|(=(%text head) =(%application head)) !=('application/octet-stream' ctype))
+      ?&  ?|(=(%text head) =(%application head) =('image/svg+xml' ctype))
+          !=('application/octet-stream' ctype)
+      ==
     =/  blotp=tape  (spud (snoc path.p.sang.u.hit name.p.sang.u.hit))
     =/  text=(unit @t)
       ?~  got  (file-text sang.u.hit)

@@ -70,6 +70,15 @@ split-view:not(:defined) { visibility: hidden; }
 #ed-hl code { font: inherit; }
 #ed-ta { background: transparent; color: transparent; caret-color: #fff; border: none; outline: none; resize: none; }
 
+/* ── source | preview toggle ── */
+#ed-view { display: flex; margin: 0 8px; }
+.ed-vtab { appearance: none; background: none; border: 1px solid #d0d7de; font: inherit; font-size: 11px; color: #57606a; padding: 3px 10px; cursor: pointer; }
+.ed-vtab:first-child { border-radius: 6px 0 0 6px; }
+.ed-vtab:last-child { border-radius: 0 6px 6px 0; border-left: none; }
+.ed-vtab.active { background: #3d3a45; color: #fff; border-color: #3d3a45; }
+/* preview surface (checkerboard, sizing) is styled inline by file-preview.js */
+#ed-preview { position: absolute; inset: 0; }
+
 /* ── console panel ── */
 /* #console is now the bottom pane of the #main vertical split (sized/resized
    by it); collapse is the split's job, so the con-collapsed rules are gone. */

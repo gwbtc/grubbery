@@ -144,6 +144,11 @@ body { font-family: Inter, system-ui, sans-serif; background: white; color: #111
 .vp-head { flex-shrink: 0; display: flex; gap: 10px; align-items: center; padding: 7px 12px; background: #f4f4f4; border-bottom: 1px solid #eee; }
 .vp-title { font-family: monospace; font-size: 12px; font-weight: 700; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .vp-blot { font-size: 11px; flex-shrink: 0; }
+.vp-view { display: flex; flex-shrink: 0; }
+.vp-vtab { appearance: none; background: none; border: 1px solid #d0d7de; font: inherit; font-size: 11px; color: #57606a; padding: 2px 9px; cursor: pointer; }
+.vp-vtab:first-child { border-radius: 6px 0 0 6px; }
+.vp-vtab:last-child { border-radius: 0 6px 6px 0; border-left: none; }
+.vp-vtab.active { background: #3d3a45; color: #fff; border-color: #3d3a45; }
 .vp-body { flex: 1; min-height: 0; overflow: auto; background: #fafafa; }
 .vp-body > pre, .vp-pre { margin: 0; padding: 12px 14px; font-family: 'SF Mono', Menlo, monospace; font-size: 12px; line-height: 1.5; white-space: pre; tab-size: 2; min-height: 100%; }
 .vp-body > pre.shiki { background: #24292e !important; }

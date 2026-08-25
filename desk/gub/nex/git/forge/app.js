@@ -794,6 +794,14 @@ function updateTang() {
   if (err) { el.textContent = err; el.style.display = ''; }
   else { el.style.display = 'none'; }
 }
+// ── file preview (Source | Preview toggle) ──
+// render logic lives in the shared window.FilePreview helper (file-preview.js).
+// forge has no raw-byte lane, so raster stays source-only here: only svg/html,
+// which render straight from the buffer text, get a toggle.
+function previewKind(name) {
+  var k = window.FilePreview ? FilePreview.kind(name) : null;
+  return (k === 'svg' || k === 'html') ? k : null;
+}
 function mountEditor() {
   var has = !!selected;
   var editorish = has && mode !== 'settings';
@@ -812,9 +820,27 @@ function mountEditor() {
   }
   document.getElementById('ed-wrap').style.display = (editorish && !runner) ? '' : 'none';
   document.getElementById('ws-empty').style.display = t ? 'none' : 'flex';
-  document.getElementById('ed-body').style.display = t ? '' : 'none';
   updateTang();
-  if (!t) return;
+  if (!t) {
+    document.getElementById('ed-body').style.display = 'none';
+    document.getElementById('ed-preview').style.display = 'none';
+    document.getElementById('ed-view').style.display = 'none';
+    return;
+  }
+  // Source | Preview: previewable files (svg/image/html) can toggle to a
+  // rendered view; everything else stays source-only.
+  var s = splitId(t.file);
+  var kind = previewKind(s.file);
+  var view = (kind && t.view === 'preview') ? 'preview' : 'source';
+  var vbar = document.getElementById('ed-view');
+  vbar.style.display = kind ? '' : 'none';
+  Array.prototype.forEach.call(vbar.querySelectorAll('.ed-vtab'), function(b) {
+    b.classList.toggle('active', b.getAttribute('data-view') === view);
+  });
+  document.getElementById('ed-body').style.display = view === 'source' ? '' : 'none';
+  var prev = document.getElementById('ed-preview');
+  prev.style.display = view === 'preview' ? '' : 'none';
+  if (view === 'preview') { FilePreview.render(prev, { name: s.file, text: t.text }); return; }
   var ta = document.getElementById('ed-ta');
   var hl = document.getElementById('ed-hl');
   ta.value = t.text;
@@ -884,6 +910,15 @@ document.getElementById('con-toggle').onclick = function() {
 document.getElementById('sb-toggle').onclick = function() {
   document.getElementById('body').toggle();  // <split-view> collapses the sidebar
 };
+document.getElementById('ed-view').addEventListener('click', function(e) {
+  var b = e.target.closest('.ed-vtab');
+  if (!b) return;
+  var f = focusedF();
+  var t = f ? tabFor(f) : null;
+  if (!t) return;
+  t.view = b.getAttribute('data-view');
+  mountEditor();
+});
 
 // ── branch switcher ──
 // <drop-menu> owns toggle/click-outside/Esc. We rebuild the branch list each
