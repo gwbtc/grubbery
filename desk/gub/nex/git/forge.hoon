@@ -228,6 +228,8 @@
   =/  kid=@ta  i.kids
   ;<  cfg=(unit json)  bind:m
     (peek-as:io (nex-road:io rail [%& /repos/[kid] %'config.json']) ,json)
+  ;<  poll-cfg=(unit json)  bind:m
+    (peek-as:io (nex-road:io rail [%& /repos/[kid] %'poll.json']) ,json)
   ;<  cur=(unit json)  bind:m
     (peek-as:io (nex-road:io rail [%& /repos/[kid]/data/ui %'current.json']) ,json)
   ;<  commits=(unit json)  bind:m
@@ -241,10 +243,12 @@
         ['repo' s+?~(cfg '' (jstr u.cfg 'repo'))]
         ['ref' s+?~(cfg '' (jstr u.cfg 'ref'))]
         ['account' s+?~(cfg '' (jstr u.cfg 'account'))]
+        ['author_name' s+?~(cfg '' (jstr u.cfg 'author_name'))]
+        ['author_email' s+?~(cfg '' (jstr u.cfg 'author_email'))]
         :-  'poll'
-        ?~  cfg  ~
-        ?.  ?=(%o -.u.cfg)  ~
-        (fall (~(get by p.u.cfg) 'poll') ~)
+        ?~  poll-cfg  ~
+        ?.  ?=(%o -.u.poll-cfg)  ~
+        (fall (~(get by p.u.poll-cfg) 'minutes') ~)
         ['current' ?~(cur ~ u.cur)]
         ['last' last]
     ==
@@ -271,7 +275,7 @@
     (walk-files ball.tv /)
   ::  the command lane's state (queue/active/log), grown to json
   ;<  lv=view:nexus  bind:m
-    (peek:io (nex-road:io rail [%& /repos/[kid]/actions %'run']) ~)
+    (peek:io (nex-road:io rail [%& /repos/[kid] %'run.git-action']) ~)
   =/  lane=json
     ?.  ?=([%file *] lv)  ~
     =/  s=(unit action-state:git-act)
@@ -314,7 +318,8 @@
   ?:  =('' (jstr jon 'repo'))
     (respond rail eyre-id 200 'created')
   ;<  ~  bind:m
-    (poke:io (nex-road:io rail [%& /repos/[dir-name]/actions %'sync.sig']) [[/ %sig] ~])
+    %+  poke:io  (nex-road:io rail [%& /repos/[dir-name] %'run.git-action'])
+    [[/ %json] (pairs:enjs:format ~[['command' s+'pull']])]
   (respond rail eyre-id 200 'created')
 ::  +do-src: write a working-tree file — the in-browser editor's save.
 ::
@@ -375,14 +380,22 @@
   =?  om  !=('' ref)  (~(put by om) 'ref' s+ref)
   =/  token=@t  (jstr jon 'token')
   =?  om  !=('' token)  (~(put by om) 'token' s+token)
+  =/  aname=@t  (jstr jon 'author_name')
+  =?  om  !=('' aname)  (~(put by om) 'author_name' s+aname)
+  =/  aemail=@t  (jstr jon 'author_email')
+  =?  om  !=('' aemail)  (~(put by om) 'author_email' s+aemail)
   =/  pol=(unit json)  ?.(?=(%o -.jon) ~ (~(get by p.jon) 'poll'))
-  =?  om  ?=([~ %n *] pol)  (~(put by om) 'poll' u.pol)
   ::  account is not secret, so the form always echoes it: presence
   ::  means set, empty string means clear (back to any-account)
   =/  acc=(unit json)  ?.(?=(%o -.jon) ~ (~(get by p.jon) 'account'))
   =?  om  ?=([~ %s *] acc)
     ?:(=('' p.u.acc) (~(del by om) 'account') (~(put by om) 'account' s+p.u.acc))
   ;<  ~  bind:m  (over:io cfg-road [[/ %json] `json`[%o om]])
+  ::  the poll interval lives in its own daemon grub (poll.json), not config
+  ;<  ~  bind:m
+    ?.  ?=([~ %n *] pol)  (pure:m ~)
+    %+  over:io  (nex-road:io rail [%& /repos/[`@ta`repo] %'poll.json'])
+    [[/ %json] (pairs:enjs:format ~[['minutes' u.pol]])]
   (respond rail eyre-id 200 'saved')
 ::  +refresh-status: after a working-tree write, reload the repo's
 ::  data nexus so its derived ui (status especially) reflects the
@@ -431,7 +444,7 @@
 ::  a json payload
 ::
 ::  +do-run: submit a git command to a repo's serial command lane. Pokes
-::  /actions/run with {command}; the lane parses and runs it.
+::  /run.git-action with {command}; the lane parses and runs it.
 ::
 ++  do-run
   |=  [=rail:tarball eyre-id=@ta jon=json]
@@ -442,7 +455,7 @@
   ?:  |(=('' repo) =('' command))
     (respond rail eyre-id 400 'repo and command required')
   ;<  ~  bind:m
-    %+  poke:io  (nex-road:io rail [%& /repos/[`@ta`repo]/actions %'run'])
+    %+  poke:io  (nex-road:io rail [%& /repos/[`@ta`repo] %'run.git-action'])
     [[/ %json] (pairs:enjs:format ~[['command' s+command]])]
   (respond rail eyre-id 200 'ok')
 ::

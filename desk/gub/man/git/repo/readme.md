@@ -1,23 +1,25 @@
 # Git Repo
 
-Clone a public git repo into the namespace. Config: repo, ref.
+Clone a public git repo into the namespace and act on it. Config: repo, ref.
 
 ## Files
 
-- `config.json` — Config: repo (owner/repo), ref (branch/tag/sha), token.
-- `page.html` — Dashboard page. Shows config, sync button, file tree.
-- `push.json` — Push request: {message, files: [{path, content}]}.
+- `config.json` — repo (owner/repo), ref (branch/tag/sha), token, account.
+- `run.git-action` — the serial command lane. Poke `{command: "<git command>"}`;
+  it parses and runs one command at a time. Read it for the queue/active/log
+  outcome. This is the single entry point for every git action.
+- `poll.json` — self-configuring sync daemon. Holds `{minutes: N}` (0 = off);
+  its own fiber pokes `pull` on that interval.
+- `data/` — the git object store (packs, refs, HEAD, index) and checked-out tree.
 
-## Actions (`actions/`)
+## Commands (poke `run.git-action`)
 
-- `sync.sig` — Poke to fetch from remote.
-- `switch.sig` — Poke to switch branch locally.
-- `checkout.sig` — Poke with commit hash to checkout.
-- `diff.sig` — Poke with commit hash to compute diff.
-- `add.sig` — Stage files. Poke with json {all: true} or {paths: [...]}.
-- `commit.sig` — Poke with commit message to create local commit.
-- `branch.sig` — Poke with branch name to create at HEAD.
-- `delete-branch.sig` — Poke with branch name to delete.
-- `stash.sig` — Poke to stash dirty index and reset to HEAD.
-- `stash-pop.sig` — Poke to pop the most recent stash.
-- `push.sig` — Poke to push files to GitHub via REST API.
+Standard git, parsed by `lib/git/action`:
+
+- `pull` — fetch from the remote and check out the tracked ref.
+- `push` — push local commits to the remote via the GitHub proxy.
+- `add [path ...]` — stage changes (no paths = all).
+- `commit -m "msg"` — create a local commit from the staged tree.
+- `checkout <branch|commit>` — switch to a branch (attached) or a commit (detached).
+- `branch <name>` / `branch -d <name>` — create / delete a local branch.
+- `stash` / `stash pop` — stash the working tree / restore it.

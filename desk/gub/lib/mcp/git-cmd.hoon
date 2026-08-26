@@ -9,10 +9,10 @@
   ^~  %-  crip
   ;:  weld
     "Run a git command through a git/repo nexus's serial command lane "
-    "(/actions/run), which parses it and runs it one at a time. Examples: "
+    "(/run.git-action), which parses it and runs it one at a time. Examples: "
     "'commit -m \"msg\"', 'add', 'add lib/foo.hoon', 'stash', 'stash pop', "
     "'branch dev', 'branch -d dev', 'checkout main', 'push', 'pull'. "
-    "Read the lane grub (/actions/run) for the outcome log."
+    "Read the lane grub (/run.git-action) for the outcome log."
   ==
 ++  parameters
   ^-  (map @t parameter-def:tools)
@@ -39,7 +39,7 @@
   =/  pax-parsed=(each path @t)  (parse-path:tools nex-path)
   ?:  ?=(%| -.pax-parsed)  (pure:m [%error p.pax-parsed])
   =/  pax=path  p.pax-parsed
-  =/  run-rd=road:tarball  [%& %& [(weld pax /actions) %'run']]
+  =/  run-rd=road:tarball  [%& %& [pax %'run.git-action']]
   =/  req=json  (pairs:enjs:format ~[['command' s+command]])
   ;<  ~  bind:m  (poke:io run-rd [[/ %json] req])
   (pure:m [%text (cat 3 'ran: ' command)])

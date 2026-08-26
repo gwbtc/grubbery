@@ -1,26 +1,50 @@
 ::  git/data nexus: git object store + atomic checkout + local commits
 ::
-::  Stores pack data, index, refs, HEAD. On reload, checks out
-::  the tree at HEAD and builds commit log + branch list.
+::  Reload-driven state machine. Its whole behavior is on-load: given the
+::  git objects (packs + loose) + HEAD + refs, plus at most one pending
+::  request file, it (1) applies the request (stash / pop / add / commit),
+::  (2) checks out the tree at HEAD into tree/, and (3) rebuilds the derived
+::  ui/ views. Ball in -> ball out, recomputed from source on every reload —
+::  so a reboot at any point yields a consistent tree + views with no stale
+::  cache and no separate "refresh the UI" step to race. Mutations arrive as
+::  request files: the parent nexus writes one and reloads us. This on-load
+::  is the single place git state is ever changed.
+::
+::  Git-format boundary: interop with real git happens at the WIRE — the
+::  packs, refs, and object formats that cross to/from GitHub are all real
+::  git. The on-disk /data layout, by contrast, is internal: nothing outside
+::  the ship ever reads it with a real `git` binary. So some encodings below
+::  are Hoon-side conveniences, not git's own formats — marked NON-STD. They
+::  work because they never leave the ship; move them toward git convention
+::  over time (rewriting them into git's real formats buys interop we don't
+::  currently need).
 ::
 ::  Ball layout (inputs — written by parent):
-::    packs/pack-N.pack     raw pack bytes (mime), N = 0, 1, 2, ...
-::    packs/pack-N.idx      pack index: "hex-hash offset\n" per line (mime)
+::    packs/pack-N.pack     raw pack bytes (mime), N = 0, 1, 2, ...   [real git]
+::    packs/pack-N.idx      NON-STD pack index: "hex-hash offset\n" per line
+::                          (git's real .idx is a binary fanout table)
 ::    HEAD                  "ref: refs/heads/<branch>" or raw hash (detached)
-::    refs/heads/<branch>   local branch ref (mime, hash text)
+::    refs/heads/<branch>   local branch ref (mime, hash text)        [real git]
 ::    refs/remotes/origin/<branch>  remote tracking ref (mime, hash text)
 ::    refs/stash            most recent stash commit hash
+::    logs/                 NON-STD stash reflog (custom append format;
+::                          git uses logs/refs/... in its own line format)
 ::    commit-request.json   if present, create commit from current tree/
 ::    stash-request.sig     if present, stash dirty tree and reset
 ::    stash-pop-request.sig if present, pop stash onto working tree
-::    objects/              loose git objects (persisted across reloads)
-::    INDEX                 git index: "mode hash\tpath\n" per entry
+::    objects/              loose git objects (persisted across reloads) [real git]
+::    INDEX                 NON-STD index: "mode hash\tpath\n" per entry
+::                          (git's real index is a binary format)
 ::
-::  Ball layout (outputs — built by on-load):
+::  Ball layout (outputs — cached porcelain: derived views, never
+::  authoritative, rebuilt from git state every reload by +write-ui-outputs.
+::  These correspond to git commands that compute on demand — git stores no
+::  such files itself):
 ::    tree/               checked out files
-::    ui/commits.json     commit log from branch tip (50 max)
-::    ui/branches.json    branch name list
-::    ui/current.json     {"hash": "<HEAD>"}
+::    ui/commits.json     commit log from branch tip (50 max)   = `git log`
+::    ui/branches.json    branch name list                      = `git branch`
+::    ui/current.json     {"hash","branch","remote"}            = resolved HEAD
+::    ui/status.json      {staged,unstaged,untracked,clean,...} = `git status`
 ::
 /<  git-obj  /lib/git/object.hoon
 /<  git-pack  /lib/git/pack.hoon
@@ -33,7 +57,7 @@
       |=  =ball:tarball
       ^-  bole:tarball
       %-  ball-to-bole:tarball
-      =.  ball  (~(put ba:tarball ball) [/man %'readme.md'] [[/ %mime] %& !>(man)])
+      =.  ball  (~(put ba:tarball ball) [/ %'README.md'] [[/ %mime] %& !>(man)])
       ::  load all packs from packs/ directory
       =/  archive=(list pack:git-pack)  (load-packs ball)
       ?~  archive  ball
@@ -59,12 +83,20 @@
         (~(get ba:tarball ball) [/ %'stash-request.sig'])
       ?^  stash-req
         ~&  >>  "%git/data: stash request"
-        =/  full-idx=(map path [hash:git-repo mtime=@t])  (read-index ball)
-        =/  idx=(map path hash:git-repo)  (idx-hashes full-idx)
+        ::  capture the FULL working tree (staged + unstaged, per git
+        ::  convention) — not just the index. Stage everything into a
+        ::  throwaway index first so the stash commit holds every uncommitted
+        ::  change; otherwise unstaged edits are lost on the reset below.
+        =/  current-tree=ball:tarball  (fall (~(get by dir.ball) 'tree') [~ ~])
+        =/  old-idx=(map path [hash:git-repo mtime=@t])  (read-index ball)
+        =/  work=[idx=(map path [hash:git-repo mtime=@t]) new-loose=(map hash:git-repo object:git-obj)]
+          (git-add current-tree old-idx)
+        =.  ball  (write-loose-to-ball ball new-loose.work)
+        =/  idx=(map path hash:git-repo)  (idx-hashes idx.work)
         =/  parent-com=(unit commit:git-repo)  (get-commit:sto commit-hash)
         =/  parent-tree-hash=hash:git-repo
           ?~(parent-com 0x0 tree.u.parent-com)
-        ::  build tree + commit from current index
+        ::  build tree + commit from the full working tree
         =/  stash-result
           (git-commit idx parent-tree-hash commit-hash (pairs:enjs:format ~[['message' s+'stash']]))
         ?~  stash-result
@@ -126,14 +158,15 @@
         =/  head-com=(unit commit:git-repo)  (get-commit:sto commit-hash)
         =/  head-tree-hash=hash:git-repo
           ?~(head-com 0x0 tree.u.head-com)
-        ::  restore index from stash commit tree
         =/  get-tree=$-(@ux (unit tree-dir:git-repo))
           |=(h=@ux (get-tree:sto h))
         =/  get-blob=$-(@ux (unit octs))
           |=(h=@ux (get-blob:sto h))
-        =/  stash-idx=(map path [hash:git-repo mtime=@t])
-          (build-index-from-tree get-tree tree.u.stash-com)
-        =.  ball  (write-index ball stash-idx)
+        ::  index stays at HEAD; the stash tree goes into the working tree.
+        ::  so the restored changes show as UNSTAGED — git's default pop.
+        =/  head-idx=(map path [hash:git-repo mtime=@t])
+          (build-index-from-tree get-tree head-tree-hash)
+        =.  ball  (write-index ball head-idx)
         ::  checkout stash tree into tree/
         =/  files=(list [path octs])
           (checkout:git-transport get-tree get-blob tree.u.stash-com)
@@ -156,7 +189,7 @@
         ::  clear request
         =.  ball  (~(del ba:tarball ball) / %'stash-pop-request.sig')
         ::  build UI outputs — status will show stash diff against HEAD
-        =.  ball  (write-ui-outputs ball sto commit-hash parsed-head stash-idx head-tree-hash)
+        =.  ball  (write-ui-outputs ball sto commit-hash parsed-head head-idx head-tree-hash)
         ~&  >>  ["%git/data: popped stash" (scag 7 (print-hash-sha-1:git-transport u.stash-hash))]
         ball
       ::
@@ -345,8 +378,9 @@
   [[/ %mime] %& !>(`mime`[/text/plain (as-octt:bytestream hex)])]
 ::  +append-reflog: append an entry to the reflog for a branch
 ::
-::    Format: "old-hash new-hash message\n" per entry.
-::    Stored at logs/heads/<branch> as mime.
+::    NON-STD format: "old-hash new-hash message\n" per entry (git's real
+::    reflog line carries committer identity + timestamp too). Internal-only;
+::    move toward git convention over time. Stored at logs/heads/<branch> as mime.
 ::
 ++  append-reflog
   |=  [=ball:tarball branch=@ta old-hex=tape new-hex=tape msg=tape]
@@ -526,7 +560,8 @@
 ::
 ::  +write-index: serialize index as flat file into ball
 ::
-::    Format: "mode hash mtime\tpath\n" per entry
+::    NON-STD format: "mode hash mtime\tpath\n" per entry (git's real index
+::    is a binary format). Internal-only; move toward git convention over time.
 ::    mtime is optional — missing means no cached mtime.
 ::    Stored as INDEX mime file.
 ::
@@ -1025,7 +1060,17 @@
     $(entries t.entries)
   result
 ::
-::  +write-ui-outputs: build and write commits, branches, current, status to ball
+::  +write-ui-outputs: rebuild the derived ui/ views (commits, branches,
+::  current, status) from git state and write them to the ball.
+::
+::    This is the projection/cache step, not git logic: it recomputes the
+::    porcelain views git normally produces on demand (log / branch / status).
+::    It runs as the tail of on-load, where the object store is already loaded
+::    and tree/ freshly checked out, so the rebuild is nearly free and the
+::    views are always consistent with the tree on disk. The args are just the
+::    on-load locals it needs — status is the three-way compare of working
+::    tree vs `idx` (index) vs HEAD tree, so callers pass whichever index/tree
+::    their mutation produced. (Name kept for now; it's a view rebuild, not UI.)
 ::
 ::    Expects tree/ to already be set in ball before calling.
 ::    idx is the current index (may differ from HEAD for staged changes).
