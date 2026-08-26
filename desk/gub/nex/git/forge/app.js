@@ -122,11 +122,6 @@ function renderSettings() {
     '<label class="m-label">account <span class="hint">(github login to act as; empty = first connected)</span> <input id="set-account" type="text" value="' + esc(r.account || '') + '" placeholder="first"></label>' +
     '<label class="m-label">poll <span class="hint">(minutes between fetches; 0 = only on demand)</span> <input id="set-poll" type="number" min="0" value="' + esc(String(r.poll == null ? '' : r.poll)) + '" placeholder="15"></label>' +
     '<button class="hdr-btn primary" id="set-save">save config</button></div>' +
-    '<div class="set-section"><div class="run-head">actions</div>' +
-    '<div class="set-act"><button class="hdr-btn" data-sact="sync">sync</button><span>fetch from the remote and check out the configured ref</span></div>' +
-    '<div class="set-act"><button class="hdr-btn" data-sact="push">push</button><span>publish local commits to the remote</span></div>' +
-    '<div class="set-act"><button class="hdr-btn" data-sact="stash">stash</button><span>set aside staged changes and reset to HEAD</span></div>' +
-    '<div class="set-act"><button class="hdr-btn" data-sact="stash-pop">stash pop</button><span>restore the most recent stash</span></div></div>' +
     '<div class="set-section danger-zone"><div class="run-head">danger</div>' +
     '<div class="set-act"><button class="hdr-btn red" id="set-delete">delete repo</button><span>permanently removes the instance and its working tree</span></div></div>';
   pane.querySelector('#set-save').onclick = function() {
@@ -143,11 +138,6 @@ function renderSettings() {
       if (r2.ok) { refreshSoon(); } else { alert('save failed'); }
     });
   };
-  Array.prototype.forEach.call(pane.querySelectorAll('[data-sact]'), function(b) {
-    b.onclick = function() {
-      post('/action', { repo: selected, action: b.getAttribute('data-sact') }).then(refreshSoon);
-    };
-  });
   pane.querySelector('#set-delete').onclick = function() {
     var word = prompt('CAREFUL: this permanently deletes ' + selected + '. Type "' + shortName(selected) + '" to confirm:');
     if (word !== shortName(selected)) return;
@@ -398,23 +388,7 @@ function renderStatus(st) {
       }).join('') + '</div>';
   }).join('');
   if (!html) html = '<div class="empty">working tree clean</div>';
-  html += '<div class="st-acts">' +
-    '<button class="hdr-btn" id="st-add">stage all</button>' +
-    '<button class="hdr-btn" id="st-stash">stash</button>' +
-    '<input id="st-msg" type="text" placeholder="commit message">' +
-    '<button class="hdr-btn primary" id="st-commit">commit</button></div>';
   pane.innerHTML = html;
-  document.getElementById('st-add').onclick = function() {
-    post('/action', { repo: selected, action: 'add' }).then(refreshSoon);
-  };
-  document.getElementById('st-stash').onclick = function() {
-    post('/action', { repo: selected, action: 'stash' }).then(refreshSoon);
-  };
-  document.getElementById('st-commit').onclick = function() {
-    var msg = document.getElementById('st-msg').value.trim();
-    if (!msg) return;
-    post('/action', { repo: selected, action: 'commit', text: msg }).then(refreshSoon);
-  };
 }
 function renderHistory(commits) {
   var pane = document.getElementById('pane-history');
@@ -422,8 +396,7 @@ function renderHistory(commits) {
     pane.innerHTML = '<div class="empty">no commits</div>';
     return;
   }
-  pane.innerHTML = '<div class="hist-acts"><button class="hdr-btn" id="hist-push">push</button></div>' +
-  commits.map(function(c) {
+  pane.innerHTML = commits.map(function(c) {
     var refs = (c.refs || []).map(function(r) {
       return '<span class="chip">' + esc(r) + '</span>';
     }).join(' ');
@@ -433,10 +406,6 @@ function renderHistory(commits) {
       '<span class="c-author">' + esc(c.author || '') + '</span>' +
       '</div>';
   }).join('');
-  var pb = pane.querySelector('#hist-push');
-  if (pb) pb.onclick = function() {
-    post('/action', { repo: selected, action: 'push' }).then(refreshSoon);
-  };
 }
 
 // ── editor tabs ──
@@ -643,6 +612,9 @@ document.getElementById('con-toggle').onclick = function() {
 document.getElementById('lane-input').addEventListener('keydown', function(e) {
   if (e.key === 'Enter') { e.preventDefault(); submitLane(); }
 });
+document.getElementById('lane-info').onclick = function() {
+  document.getElementById('pane-run').classList.toggle('docs-open');
+};
 document.getElementById('sb-toggle').onclick = function() {
   document.getElementById('body').toggle();  // <split-view> collapses the sidebar
 };
@@ -676,7 +648,7 @@ function renderBranchMenu() {
       if (b === cur) return;
       var dirty = openTabs().some(function(t) { return t.dirty; });
       if (dirty && !confirm('unsaved editor changes will be left behind — switch anyway?')) return;
-      post('/action', { repo: selected, action: 'switch', text: b }).then(refreshSoon);
+      post('/run', { repo: selected, command: 'checkout ' + b }).then(refreshSoon);
     };
     menu.appendChild(el);
   });
@@ -689,7 +661,7 @@ function renderBranchMenu() {
     var name = document.getElementById('bm-name').value.trim();
     if (!name) return;
     menu.close();
-    post('/action', { repo: selected, action: 'branch', text: name }).then(refreshSoon);
+    post('/run', { repo: selected, command: 'branch ' + name }).then(refreshSoon);
   };
   menu.appendChild(row);
 }

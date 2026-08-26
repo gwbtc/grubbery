@@ -74,11 +74,27 @@
         <div id="pane-status" class="con-pane"></div>
         <div id="pane-history" class="con-pane" style="display:none"></div>
         <div id="pane-run" class="con-pane" style="display:none">
-          <div id="lane-log"></div>
-          <div id="lane-row">
-            <span id="lane-prompt">git</span>
-            <input id="lane-input" type="text" spellcheck="false" autocomplete="off"
-                   placeholder='commit -m "message"  ·  add  ·  stash  ·  branch dev  ·  checkout main  ·  push  ·  pull'>
+          <div id="lane-main">
+            <div id="lane-log"></div>
+            <div id="lane-row">
+              <span id="lane-prompt">git ▸</span>
+              <input id="lane-input" type="text" spellcheck="false" autocomplete="off"
+                     placeholder='type a git command — e.g. commit -m "message"'>
+              <button id="lane-info" title="command reference">ⓘ</button>
+            </div>
+          </div>
+          <div id="lane-docs">
+            <div class="docs-head">commands</div>
+            <div class="docs-item"><code>commit -m "msg"</code><span>commit staged changes</span></div>
+            <div class="docs-item"><code>add</code><span>stage everything</span></div>
+            <div class="docs-item"><code>add &lt;paths&gt;</code><span>stage specific files</span></div>
+            <div class="docs-item"><code>stash</code><span>shelve changes, reset to HEAD</span></div>
+            <div class="docs-item"><code>stash pop</code><span>restore the last stash</span></div>
+            <div class="docs-item"><code>branch &lt;name&gt;</code><span>create a branch at HEAD</span></div>
+            <div class="docs-item"><code>branch -d &lt;name&gt;</code><span>delete a branch</span></div>
+            <div class="docs-item"><code>checkout &lt;name&gt;</code><span>switch to a branch</span></div>
+            <div class="docs-item"><code>push</code><span>push commits to the remote</span></div>
+            <div class="docs-item"><code>pull</code><span>fetch + check out the tracked ref</span></div>
           </div>
         </div>
       </div>

@@ -33,16 +33,9 @@
       :~  (manifest:loader 0)
           [%fall %& [/ %'config.json'] [[/ %json] default-config]]
           [%fall %& [/actions %'sync.sig'] [[/ %sig] ~]]
-          [%fall %& [/actions %'switch.sig'] [[/ %sig] ~]]
           [%fall %& [/actions %'checkout.sig'] [[/ %sig] ~]]
           [%fall %& [/actions %'diff.sig'] [[/ %sig] ~]]
-          [%fall %& [/actions %'add.sig'] [[/ %sig] ~]]
-          [%fall %& [/actions %'commit.sig'] [[/ %sig] ~]]
           [%fall %& [/actions %'import.sig'] [[/ %sig] ~]]
-          [%fall %& [/actions %'branch.sig'] [[/ %sig] ~]]
-          [%fall %& [/actions %'delete-branch.sig'] [[/ %sig] ~]]
-          [%fall %& [/actions %'stash.sig'] [[/ %sig] ~]]
-          [%fall %& [/actions %'stash-pop.sig'] [[/ %sig] ~]]
           [%fall %& [/actions %'push.sig'] [[/ %sig] ~]]
           ::  the serial command lane: one stateful grub that runs git
           ::  commands one at a time (a repo has a single working tree /
@@ -67,67 +60,6 @@
       =/  m  (fiber:fiber:nexus ,~)
       ^-  process:fiber:nexus
       ?+    rail  stay:m
-          ::  /actions/branch.sig: create a new branch at HEAD
-          ::
-          [[%actions ~] %'branch.sig']
-        ;<  ~  bind:m  (rise-wait:io prod "%git/repo branch: failed")
-        |-
-        ;<  poke-sage=sage:tarball  bind:m  take-poke:io
-        =/  branch=@t  (of-wain:format !<(wain q.poke-sage))
-        ?:  =('' branch)
-          ~&  >>>  "%git/repo: branch requires a name"
-          $
-        ::  resolve current HEAD to a commit hash
-        ;<  head-hash=@t  bind:m  resolve-head
-        ?:  =('' head-hash)
-          ~&  >>>  "%git/repo: no HEAD to branch from"
-          $
-        ::  check branch doesn't already exist
-        ;<  exists-rd=road:tarball  bind:m
-          (ancestor-road:io [/git %repo] [%& /data/refs/heads (crip (trip branch))])
-        ;<  exists=?  bind:m  (peek-exists:io exists-rd)
-        ?:  exists
-          ~&  >>>  ["%git/repo: branch already exists:" branch]
-          $
-        ::  create refs/heads/<branch> pointing to HEAD
-        =/  ref-octs=octs  (as-octt:bytestream (trip head-hash))
-        ;<  ref-rd=road:tarball  bind:m
-          (ancestor-road:io [/git %repo] [%& /data/refs/heads (crip (trip branch))])
-        ;<  ~  bind:m  (over:io ref-rd [[/ %mime] [/text/plain ref-octs]])
-        ~&  >>  ["%git/repo: created branch" branch "at" head-hash]
-        ::  reload data to rebuild branch list
-        ;<  data-rd=road:tarball  bind:m  (ancestor-road:io [/git %repo] [%| /data])
-        ;<  ~  bind:m  (reload:io data-rd)
-        $
-          ::
-          ::  /actions/delete-branch.sig: delete a local branch
-          ::
-          [[%actions ~] %'delete-branch.sig']
-        ;<  ~  bind:m  (rise-wait:io prod "%git/repo delete-branch: failed")
-        |-
-        ;<  poke-sage=sage:tarball  bind:m  take-poke:io
-        =/  branch=@t  (of-wain:format !<(wain q.poke-sage))
-        ?:  =('' branch)
-          ~&  >>>  "%git/repo: delete-branch requires a name"
-          $
-        ::  read current branch from HEAD to prevent deleting active branch
-        ;<  current-branch=@t  bind:m  read-head-branch
-        ?:  =(branch current-branch)
-          ~&  >>>  ["%git/repo: cannot delete current branch:" branch]
-          $
-        ::  delete refs/heads/<branch>
-        ;<  del-rd=road:tarball  bind:m
-          (ancestor-road:io [/git %repo] [%& /data/refs/heads (crip (trip branch))])
-        ;<  exists=?  bind:m  (peek-exists:io del-rd)
-        ?.  exists
-          ~&  >>>  ["%git/repo: branch not found:" branch]
-          $
-        ;<  ~  bind:m  (drop:io /delete-branch del-rd)
-        ~&  >>  ["%git/repo: deleted branch" branch]
-        ::  reload data to rebuild branch list
-        ;<  data-rd=road:tarball  bind:m  (ancestor-road:io [/git %repo] [%| /data])
-        ;<  ~  bind:m  (reload:io data-rd)
-        $
           ::
           ::  /actions/run: the serial command lane. Poke a command string;
           ::  it parses (lib/git/action), marks the job `active`, runs it to
@@ -157,36 +89,6 @@
         ;<  st2=action-state:git-act  bind:m  (get-state-as:io ,action-state:git-act)
         =/  entry=done:git-act  [id.job u.parsed raw outcome end]
         ;<  ~  bind:m  (replace:io st2(active ~, log [entry log.st2]))
-        $
-          ::
-          ::  /actions/stash.sig: stash dirty index and reset to HEAD
-          ::
-          [[%actions ~] %'stash.sig']
-        ;<  ~  bind:m  (rise-wait:io prod "%git/repo stash: failed")
-        |-
-        ;<  *  bind:m  take-poke:io
-        ~&  >>  "%git/repo: stashing"
-        ::  write stash-request.sig into data ball, reload
-        ;<  req-rd=road:tarball  bind:m
-          (ancestor-road:io [/git %repo] [%& /data %'stash-request.sig'])
-        ;<  ~  bind:m  (write-repo-file req-rd [[/ %sig] ~])
-        ;<  data-rd=road:tarball  bind:m  (ancestor-road:io [/git %repo] [%| /data])
-        ;<  ~  bind:m  (reload:io data-rd)
-        $
-          ::
-          ::  /actions/stash-pop.sig: pop the most recent stash
-          ::
-          [[%actions ~] %'stash-pop.sig']
-        ;<  ~  bind:m  (rise-wait:io prod "%git/repo stash-pop: failed")
-        |-
-        ;<  *  bind:m  take-poke:io
-        ~&  >>  "%git/repo: popping stash"
-        ::  write stash-pop-request.sig into data ball, reload
-        ;<  req-rd=road:tarball  bind:m
-          (ancestor-road:io [/git %repo] [%& /data %'stash-pop-request.sig'])
-        ;<  ~  bind:m  (write-repo-file req-rd [[/ %sig] ~])
-        ;<  data-rd=road:tarball  bind:m  (ancestor-road:io [/git %repo] [%| /data])
-        ;<  ~  bind:m  (reload:io data-rd)
         $
           ::
           ::  /actions/import.sig: bundle import — poke with octs to parse
@@ -310,45 +212,6 @@
         ;<  ~  bind:m  (reload:io data-rd)
         ;<  ~  bind:m  (set-status 'idle')
         $
-          ::  /actions/switch.sig: switch branch locally
-          ::
-          ::  poke with branch name (text). Reads refs/heads/<branch>,
-          ::  updates HEAD + ref, reloads data nexus for checkout.
-          ::
-          [[%actions ~] %'switch.sig']
-        ;<  ~  bind:m  (rise-wait:io prod "%git/repo switch: failed")
-        |-
-        ;<  =sage:tarball  bind:m  take-poke:io
-        =/  branch=@t  (text-from-sage sage)
-        ?:  =('' branch)
-          ~&  >>>  "%git/repo: switch requires a branch name"
-          $
-        ::  block if dirty
-        ;<  status-rd=road:tarball  bind:m
-          (ancestor-road:io [/git %repo] [%& /data/ui %'status.json'])
-        ;<  status-view=view:nexus  bind:m  (peek:io status-rd `[/ %json])
-        =/  is-clean=?
-          =/  status-json=json  (view-to-json status-view)
-          ?.  ?=(%o -.status-json)  %.y
-          =/  cl  (~(get by p.status-json) 'clean')
-          ?+  cl  %.n
-            [~ %b %.y]  %.y
-          ==
-        ?.  is-clean
-          ~&  >>>  "%git/repo: switch blocked — working tree is dirty"
-          $
-        ::  resolve branch ref
-        ;<  ref-hash=@t  bind:m  (resolve-ref branch)
-        ?:  =('' ref-hash)
-          ~&  >>>  ["%git/repo: branch not found:" branch]
-          $
-        ~&  >>  ["%git/repo: switching to" branch]
-        ;<  ~  bind:m  (set-status 'syncing')
-        ;<  ~  bind:m  (write-head (crip "ref: refs/heads/{(trip branch)}"))
-        ;<  data-rd=road:tarball  bind:m  (ancestor-road:io [/git %repo] [%| /data])
-        ;<  ~  bind:m  (reload:io data-rd)
-        ;<  ~  bind:m  (set-status 'idle')
-        $
           ::  /actions/diff.sig: compute diff for a commit
           ::
           [[%actions ~] %'diff.sig']
@@ -397,59 +260,6 @@
           ==
         ;<  commit-rd=road:tarball  bind:m  (ancestor-road:io [/git %repo] [%& /ui %'commit.json'])
         ;<  ~  bind:m  (over:io commit-rd [[/ %json] result])
-        $
-          ::  /actions/add.sig: stage files into index
-          ::
-          ::  poke with json: {"all": true} or {"paths": ["/path/one", ...]}
-          ::  empty poke = add all
-          ::
-          [[%actions ~] %'add.sig']
-        ;<  ~  bind:m  (rise-wait:io prod "%git/repo add: failed")
-        |-
-        ;<  =sage:tarball  bind:m  take-poke:io
-        ::  parse poke — json with paths/all, or empty sig = add all
-        =/  req=json
-          =/  j  (mole |.(!<(json q.sage)))
-          ?~  j  (pairs:enjs:format ~[['all' b+%.y]])
-          ?.  ?=(%o -.u.j)  (pairs:enjs:format ~[['all' b+%.y]])
-          u.j
-        ~&  >>  "%git/repo: staging files"
-        ::  write add-request.json into data nexus
-        ;<  req-rd=road:tarball  bind:m  (ancestor-road:io [/git %repo] [%& /data %'add-request.json'])
-        ;<  ~  bind:m  (write-repo-file req-rd [[/ %json] req])
-        ::  reload data to process add
-        ;<  data-rd=road:tarball  bind:m  (ancestor-road:io [/git %repo] [%| /data])
-        ;<  ~  bind:m  (reload:io data-rd)
-        ~&  >>  "%git/repo: files staged"
-        $
-          ::  /actions/commit.sig: create a local git commit from current tree state
-          ::
-          [[%actions ~] %'commit.sig']
-        ;<  ~  bind:m  (rise-wait:io prod "%git/repo commit: failed")
-        |-
-        ;<  =sage:tarball  bind:m  take-poke:io
-        =/  message=@t  (of-wain:format !<(wain q.sage))
-        ?:  =('' message)
-          ~&  >>>  "%git/repo commit: empty message"
-          $
-        ~&  >>  ["%git/repo: committing:" message]
-        ;<  cfg=repo-config  bind:m  read-config
-        ::  build commit-request.json
-        ;<  now=@da  bind:m  get-time:io
-        =/  req=json
-          %-  pairs:enjs:format
-          :~  ['message' s+message]
-              ['author_name' s+'grubbery']
-              ['author_email' s+'grubbery@urbit.org']
-              ['date' s+(scot %da now)]
-          ==
-        ::  write commit-request.json into data nexus
-        ;<  req-rd=road:tarball  bind:m  (ancestor-road:io [/git %repo] [%& /data %'commit-request.json'])
-        ;<  ~  bind:m  (write-repo-file req-rd [[/ %json] req])
-        ::  reload data to trigger commit creation
-        ;<  data-rd=road:tarball  bind:m  (ancestor-road:io [/git %repo] [%| /data])
-        ;<  ~  bind:m  (reload:io data-rd)
-        ~&  >>  "%git/repo: commit created"
         $
           ::  /actions/sync.sig: clone or re-checkout
           ::

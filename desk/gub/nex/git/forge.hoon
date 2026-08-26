@@ -97,7 +97,6 @@
               [%api %src-delete ~]  (do-src-del rail eyre-id jon)
               [%api %delete ~]  (do-delete rail eyre-id jon)
               [%api %config ~]  (do-config rail eyre-id jon)
-              [%api %action ~]  (do-action rail eyre-id jon)
               [%api %run ~]     (do-run rail eyre-id jon)
           ==
         ?:  ?=([%api %list ~] suffix)
@@ -431,33 +430,6 @@
 ::  take an empty poke, txt actions the text field as a wain, add
 ::  a json payload
 ::
-++  do-action
-  |=  [=rail:tarball eyre-id=@ta jon=json]
-  =/  m  (fiber:fiber:nexus ,~)
-  ^-  form:m
-  =/  repo=@t  (jstr jon 'repo')
-  =/  act=@t   (jstr jon 'action')
-  ?:  |(=('' repo) =('' act))
-    (respond rail eyre-id 400 'repo and action required')
-  =/  kid=@ta  `@ta`repo
-  =/  sig-file=@ta  (cat 3 act '.sig')
-  =/  act-road=road:tarball
-    (nex-road:io rail [%& /repos/[kid]/actions sig-file])
-  ;<  has=?  bind:m  (peek-exists:io act-road)
-  ?.  has  (respond rail eyre-id 404 'no such action')
-  ?:  ?=(^ (find ~[act] ~['sync' 'push' 'stash' 'stash-pop']))
-    ;<  ~  bind:m  (poke:io act-road [[/ %sig] ~])
-    (respond rail eyre-id 200 'ok')
-  ?:  =('add' act)
-    =/  payload=json
-      =/  p  ?.(?=(%o -.jon) ~ (~(get by p.jon) 'payload'))
-      ?^(p u.p (pairs:enjs:format ~[['all' b+%.y]]))
-    ;<  ~  bind:m  (poke:io act-road [[/ %json] payload])
-    (respond rail eyre-id 200 'ok')
-  =/  text=@t  (jstr jon 'text')
-  ?:  =('' text)  (respond rail eyre-id 400 'text required')
-  ;<  ~  bind:m  (poke:io act-road [[/ %txt] (to-wain:format text)])
-  (respond rail eyre-id 200 'ok')
 ::  +do-run: submit a git command to a repo's serial command lane. Pokes
 ::  /actions/run with {command}; the lane parses and runs it.
 ::
