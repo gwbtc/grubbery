@@ -865,14 +865,14 @@
   ?-  -.cmd
     %stash          op-stash
     %stash-pop      op-stash-pop
+    %checkout       (op-checkout branch.cmd)
+    %branch         (op-branch branch.cmd)
+    %branch-delete  (op-branch-delete branch.cmd)
+    %add            (op-add paths.cmd)
+    %commit         (op-commit message.cmd)
+    %push           op-push
+    %pull           op-pull
     %invalid        (pure:m [%error 'unrecognized command'])
-    %add            (pure:m [%error 'add: not yet wired'])
-    %commit         (pure:m [%error 'commit: not yet wired'])
-    %push           (pure:m [%error 'push: not yet wired'])
-    %pull           (pure:m [%error 'pull: not yet wired'])
-    %checkout       (pure:m [%error 'checkout: not yet wired'])
-    %branch         (pure:m [%error 'branch: not yet wired'])
-    %branch-delete  (pure:m [%error 'branch-delete: not yet wired'])
     %stash-list     (pure:m [%error 'stash-list: not yet wired'])
   ==
 ::  +op-stash: stash the dirty index and reset the tree to HEAD. Writes
@@ -899,6 +899,135 @@
   ;<  data-rd=road:tarball  bind:m  (ancestor-road:io [/git %repo] [%| /data])
   ;<  ~  bind:m  (reload:io data-rd)
   (pure:m [%ok 'stash popped'])
+::  +working-tree-clean: read data/ui/status.json and report whether the
+::  tree is clean (checkout/switch refuse to run on a dirty tree).
+::
+++  working-tree-clean
+  =/  m  (fiber:fiber:nexus ,?)
+  ^-  form:m
+  ;<  status-rd=road:tarball  bind:m
+    (ancestor-road:io [/git %repo] [%& /data/ui %'status.json'])
+  ;<  status-view=view:nexus  bind:m  (peek:io status-rd `[/ %json])
+  =/  status-json=json  (view-to-json status-view)
+  ?.  ?=(%o -.status-json)  (pure:m %.y)
+  =/  cl  (~(get by p.status-json) 'clean')
+  ?+  cl  (pure:m %.n)
+    [~ %b %.y]  (pure:m %.y)
+  ==
+::  +op-branch: create refs/heads/<name> at the current HEAD.
+::
+++  op-branch
+  |=  name=branch:git-act
+  =/  m  (fiber:fiber:nexus ,outcome:git-act)
+  ^-  form:m
+  ?:  =('' name)  (pure:m [%error 'branch name required'])
+  ;<  head-hash=@t  bind:m  resolve-head
+  ?:  =('' head-hash)  (pure:m [%error 'no HEAD to branch from'])
+  ;<  ref-rd=road:tarball  bind:m
+    (ancestor-road:io [/git %repo] [%& /data/refs/heads (crip (trip name))])
+  ;<  exists=?  bind:m  (peek-exists:io ref-rd)
+  ?:  exists  (pure:m [%error (crip "branch already exists: {(trip name)}")])
+  =/  ref-octs=octs  (as-octt:bytestream (trip head-hash))
+  ;<  ~  bind:m  (over:io ref-rd [[/ %mime] [/text/plain ref-octs]])
+  ;<  data-rd=road:tarball  bind:m  (ancestor-road:io [/git %repo] [%| /data])
+  ;<  ~  bind:m  (reload:io data-rd)
+  (pure:m [%ok (crip "created branch {(trip name)} at {(trip head-hash)}")])
+::  +op-branch-delete: delete refs/heads/<name> (never the current branch).
+::
+++  op-branch-delete
+  |=  name=branch:git-act
+  =/  m  (fiber:fiber:nexus ,outcome:git-act)
+  ^-  form:m
+  ?:  =('' name)  (pure:m [%error 'branch name required'])
+  ;<  current=@t  bind:m  read-head-branch
+  ?:  =(name current)  (pure:m [%error 'cannot delete the current branch'])
+  ;<  del-rd=road:tarball  bind:m
+    (ancestor-road:io [/git %repo] [%& /data/refs/heads (crip (trip name))])
+  ;<  exists=?  bind:m  (peek-exists:io del-rd)
+  ?.  exists  (pure:m [%error (crip "branch not found: {(trip name)}")])
+  ;<  ~  bind:m  (drop:io /delete-branch del-rd)
+  ;<  data-rd=road:tarball  bind:m  (ancestor-road:io [/git %repo] [%| /data])
+  ;<  ~  bind:m  (reload:io data-rd)
+  (pure:m [%ok (crip "deleted branch {(trip name)}")])
+::  +op-checkout: switch to a local branch (git checkout <branch>). Refuses
+::  on a dirty tree; updates HEAD to the branch ref and reloads.
+::
+++  op-checkout
+  |=  name=branch:git-act
+  =/  m  (fiber:fiber:nexus ,outcome:git-act)
+  ^-  form:m
+  ?:  =('' name)  (pure:m [%error 'branch name required'])
+  ;<  clean=?  bind:m  working-tree-clean
+  ?.  clean  (pure:m [%error 'working tree is dirty — commit or stash first'])
+  ;<  ref-hash=@t  bind:m  (resolve-ref name)
+  ?:  =('' ref-hash)  (pure:m [%error (crip "branch not found: {(trip name)}")])
+  ;<  ~  bind:m  (set-status 'syncing')
+  ;<  ~  bind:m  (write-head (crip "ref: refs/heads/{(trip name)}"))
+  ;<  data-rd=road:tarball  bind:m  (ancestor-road:io [/git %repo] [%| /data])
+  ;<  ~  bind:m  (reload:io data-rd)
+  ;<  ~  bind:m  (set-status 'idle')
+  (pure:m [%ok (crip "switched to {(trip name)}")])
+::  +op-add: stage changes. Empty paths = add all; else selective. Writes
+::  add-request.json into the data ball and reloads.
+::
+++  op-add
+  |=  paths=(list @t)
+  =/  m  (fiber:fiber:nexus ,outcome:git-act)
+  ^-  form:m
+  =/  req=json
+    ?~  paths  (pairs:enjs:format ~[['all' b+%.y]])
+    (pairs:enjs:format ~[['paths' a+(turn paths |=(p=@t s+p))]])
+  ;<  req-rd=road:tarball  bind:m
+    (ancestor-road:io [/git %repo] [%& /data %'add-request.json'])
+  ;<  ~  bind:m  (write-repo-file req-rd [[/ %json] req])
+  ;<  data-rd=road:tarball  bind:m  (ancestor-road:io [/git %repo] [%| /data])
+  ;<  ~  bind:m  (reload:io data-rd)
+  =/  msg=@t
+    ?~  paths  'staged all changes'
+    (crip "staged {(scow %ud (lent paths))} path(s)")
+  (pure:m [%ok msg])
+::  +op-commit: create a local commit from the staged tree.
+::
+++  op-commit
+  |=  message=@t
+  =/  m  (fiber:fiber:nexus ,outcome:git-act)
+  ^-  form:m
+  ?:  =('' message)  (pure:m [%error 'commit message required'])
+  ;<  now=@da  bind:m  get-time:io
+  =/  req=json
+    %-  pairs:enjs:format
+    :~  ['message' s+message]
+        ['author_name' s+'grubbery']
+        ['author_email' s+'grubbery@urbit.org']
+        ['date' s+(scot %da now)]
+    ==
+  ;<  req-rd=road:tarball  bind:m
+    (ancestor-road:io [/git %repo] [%& /data %'commit-request.json'])
+  ;<  ~  bind:m  (write-repo-file req-rd [[/ %json] req])
+  ;<  data-rd=road:tarball  bind:m  (ancestor-road:io [/git %repo] [%| /data])
+  ;<  ~  bind:m  (reload:io data-rd)
+  (pure:m [%ok (crip "committed: {(trip message)}")])
+::  +op-pull / +op-push: network verbs. These delegate to the existing
+::  sync.sig / push.sig fibers (which own the transport logic) rather than
+::  duplicate ~240 lines of pack/negotiation code. They run async in those
+::  fibers, so the lane logs "started", not completion — full extraction
+::  into the lane (for true serialization + progress) is a follow-up.
+::
+++  op-pull
+  =/  m  (fiber:fiber:nexus ,outcome:git-act)
+  ^-  form:m
+  ;<  rd=road:tarball  bind:m
+    (ancestor-road:io [/git %repo] [%& /actions %'sync.sig'])
+  ;<  ~  bind:m  (poke:io rd [[/ %sig] ~])
+  (pure:m [%ok 'pull started (fetch + checkout)'])
+::
+++  op-push
+  =/  m  (fiber:fiber:nexus ,outcome:git-act)
+  ^-  form:m
+  ;<  rd=road:tarball  bind:m
+    (ancestor-road:io [/git %repo] [%& /actions %'push.sig'])
+  ;<  ~  bind:m  (poke:io rd [[/ %sig] ~])
+  (pure:m [%ok 'push started'])
 ::
 ++  jget
   |=  [j=json k=@t]
