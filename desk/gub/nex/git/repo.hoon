@@ -32,18 +32,16 @@
       %+  spin:loader  ball
       :~  (manifest:loader 0)
           [%fall %& [/ %'config.json'] [[/ %json] default-config]]
-          [%fall %& [/actions %'sync.sig'] [[/ %sig] ~]]
           [%fall %& [/actions %'checkout.sig'] [[/ %sig] ~]]
           [%fall %& [/actions %'diff.sig'] [[/ %sig] ~]]
           [%fall %& [/actions %'import.sig'] [[/ %sig] ~]]
-          [%fall %& [/actions %'push.sig'] [[/ %sig] ~]]
           ::  the serial command lane: one stateful grub that runs git
           ::  commands one at a time (a repo has a single working tree /
           ::  index / HEAD, so operations must not interleave). Poke it a
           ::  command string; read it for queue/active/log.
           [%fall %& [/actions %'run'] [[/ %git-action] *action-state:git-act]]
           ::  poll.sig: optional polling — config.poll (minutes, 0=off)
-          ::  pokes actions/sync.sig on the interval.
+          ::  pokes the lane's `pull` on the interval.
           [%fall %& [/ %'poll.sig'] [[/ %sig] ~]]
           [%fall %| /ui empty-dir:loader]
           [%fall %& [/ui %'status.json'] [[/ %json] (pairs:enjs:format ~[['status' s+'idle']])]]
@@ -112,10 +110,10 @@
         ;<  ~  bind:m  (rise-wait:io prod "%git/repo poll: failed")
         ::  pull once here, before the poll loop: a freshly-seeded repo
         ::  checks out immediately instead of waiting a full poll interval.
-        ::  sync.sig no-ops when no repo is configured.
-        ;<  boot-sync-rd=road:tarball  bind:m
-          (ancestor-road:io [/git %repo] [%& /actions %'sync.sig'])
-        ;<  ~  bind:m  (poke:io boot-sync-rd [[/ %sig] ~])
+        ;<  boot-run-rd=road:tarball  bind:m
+          (ancestor-road:io [/git %repo] [%& /actions %'run'])
+        ;<  ~  bind:m
+          (poke:io boot-run-rd [[/ %json] (pairs:enjs:format ~[['command' s+'pull']])])
         ;<  cfg-rd=road:tarball  bind:m
           (ancestor-road:io [/git %repo] [%& / %'config.json'])
         ;<  *  bind:m  (keep:io /cfg cfg-rd `[/ %json])
@@ -136,9 +134,10 @@
         ;<  now=@da  bind:m  get-time:io
         ;<  ~  bind:m  (set-timer:io /poll (add now (mul ~m1 poll)))
         ;<  *  bind:m  (take-news-or-wake:io /cfg)
-        ;<  sync-rd=road:tarball  bind:m
-          (ancestor-road:io [/git %repo] [%& /actions %'sync.sig'])
-        ;<  ~  bind:m  (poke:io sync-rd [[/ %sig] ~])
+        ;<  run-rd=road:tarball  bind:m
+          (ancestor-road:io [/git %repo] [%& /actions %'run'])
+        ;<  ~  bind:m
+          (poke:io run-rd [[/ %json] (pairs:enjs:format ~[['command' s+'pull']])])
         $
           ::  /page.html: watches config + repo data, re-renders
           ::
@@ -261,397 +260,6 @@
         ;<  commit-rd=road:tarball  bind:m  (ancestor-road:io [/git %repo] [%& /ui %'commit.json'])
         ;<  ~  bind:m  (over:io commit-rd [[/ %json] result])
         $
-          ::  /actions/sync.sig: clone or re-checkout
-          ::
-          [[%actions ~] %'sync.sig']
-        ;<  ~  bind:m  (rise-wait:io prod "%git/repo sync: failed")
-        ~&  >>  "%git/repo: sync fiber started, waiting for poke"
-        ;<  *  bind:m  take-poke:io
-        |-
-        ;<  cfg=repo-config  bind:m  read-config
-        ?:  =('' repo.cfg)
-          ~&  >>>  "%git/repo: no repo configured"
-          ;<  *  bind:m  take-poke:io
-          $
-        ;<  ~  bind:m  (set-status 'syncing')
-        ::  discover remote refs
-        ;<  disc=discovery:git-transport  bind:m
-          (fetch-discovery repo.cfg)
-        ~&  >>  ["%git/repo: found" (lent refs.disc) "refs"]
-        ::  empty ref means "the default branch": resolve it and PIN it so
-        ::  the repo stays on that branch. Pin by read-modify-write on the
-        ::  raw config json — set ref, keep every other field — so we don't
-        ::  clobber poll (etc.) the way a full {repo,ref,token} rewrite did.
-        =/  resolve-ref=?  =('' ref.cfg)
-        =?  ref.cfg  resolve-ref
-          (fall (default-branch:git-transport caps.disc) 'main')
-        ;<  ~  bind:m
-          ?.  resolve-ref  (pure:m ~)
-          ;<  cfg-rd=road:tarball  bind:m
-            (ancestor-road:io [/git %repo] [%& / %'config.json'])
-          ;<  cv=view:nexus  bind:m  (peek:io cfg-rd `[/ %json])
-          =/  obj=(map @t json)
-            ?.  ?=([%file *] cv)  ~
-            =/  j=(unit json)  (mole |.(!<(json (need-vase:tarball sang.cv))))
-            ?:  &(?=(^ j) ?=([%o *] u.j))  p.u.j
-            ~
-          (over:io cfg-rd [[/ %json] o+(~(put by obj) 'ref' s+ref.cfg)])
-        ::  check if we already have packs (incremental vs full clone)
-        ;<  repo-result=(unit repository:git-repo)  bind:m  load-repo-maybe
-        ?^  repo-result
-          ::  === incremental fetch ===
-          ~&  >>  "%git/repo: incremental fetch..."
-          =/  repo=repository:git-repo  u.repo-result
-          ::  collect all known hashes as haves
-          =/  have-hashes=(list @ux)
-            %+  roll  archive.object-store.repo
-            |=  [=pack:git-pack acc=(list @ux)]
-            (weld (turn (tap:pack-on:git-pack index.pack) head) acc)
-          =/  have-set=(set @ux)  (silt have-hashes)
-          ::  compute wants: remote ref hashes we don't have
-          =/  want-hashes=(list @ux)
-            %+  murn  refs.disc
-            |=  r=git-ref:git-transport
-            ?:  (~(has in have-set) hash.r)  ~
-            `hash.r
-          ?~  want-hashes
-            ~&  >>  "%git/repo: already up to date"
-            ;<  ~  bind:m  (set-status 'idle')
-            ;<  *  bind:m  take-poke:io
-            $
-          ~&  >>  ["%git/repo: fetching" (lent want-hashes) "new objects"]
-          ;<  pack-body=octs  bind:m
-            (fetch-pack repo.cfg (build-want:git-transport want-hashes ~['side-band-64k' 'ofs-delta'] ~ have-hashes))
-          ~&  >>  ["%git/repo: pack received" p.pack-body "bytes"]
-          =/  new-pack-data=octs
-            (extract-pack:git-transport pack-body %.y)
-          ~&  >>  ["%git/repo: extracted" p.new-pack-data "bytes"]
-          ?:  =(0 p.new-pack-data)
-            ~&  >>  "%git/repo: empty pack, already up to date"
-            ;<  ~  bind:m  (update-refs disc ref.cfg)
-            ;<  sync-data-rd=road:tarball  bind:m
-              (ancestor-road:io [/git %repo] [%| /data])
-            ;<  ~  bind:m  (reload:io sync-data-rd)
-            ;<  ~  bind:m  (set-status 'idle')
-            ;<  *  bind:m  take-poke:io
-            $
-          ::  parse new pack to build its index
-          =/  new-pack=pack:git-pack
-            (read:git-pack (from-octs:bytestream new-pack-data))
-          ~&  >>  ["%git/repo: unpacked" count.new-pack "new objects"]
-          ::  build index text for new pack
-          =/  new-entries=(list [key=hash:git-repo val=@ud])
-            (tap:pack-on:git-pack index.new-pack)
-          =/  idx-text=tape
-            %-  zing
-            %+  turn  new-entries
-            |=  [key=hash:git-repo val=@ud]
-            "{(print-hash-sha-1:git-transport key)} {(a-co:co val)}\0a"
-          ::  next pack number = count of existing packs
-          =/  pack-num=@ud  (lent archive.object-store.repo)
-          ::  extract branch refs
-          =/  branch-refs=(list [name=@t hash=hash:git-repo])
-            %+  murn  refs.disc
-            |=  r=git-ref:git-transport
-            ?.  =(`(list @t)`~['refs' 'heads'] (scag 2 refname.r))  ~
-            =/  branch-name=@t
-              (crip (join:git-transport '/' (turn (slag 2 refname.r) trip)))
-            `[branch-name hash.r]
-          ::  resolve HEAD
-          =/  active-ref=@t  ?:(=('' ref.cfg) 'main' ref.cfg)
-          =/  head-hash=@ux
-            =/  match=(unit hash:git-repo)
-              %-  ~(rep by (malt branch-refs))
-              |=  [[name=@t =hash:git-repo] found=(unit hash:git-repo)]
-              ?^  found  found
-              ?:  =(name active-ref)  `hash
-              ~
-            (fall match 0x0)
-          =/  head-text=@t  (crip (print-hash-sha-1:git-transport head-hash))
-          ~&  >>  ["%git/repo: saving as pack-" pack-num]
-          ;<  ~  bind:m  (save-repo new-pack-data idx-text pack-num branch-refs head-text active-ref)
-          ;<  sync-data-rd=road:tarball  bind:m
-            (ancestor-road:io [/git %repo] [%| /data])
-          ;<  ~  bind:m  (reload:io sync-data-rd)
-          ~&  >>  "%git/repo: incremental fetch complete"
-          ;<  ~  bind:m  (set-status 'idle')
-          ;<  *  bind:m  take-poke:io
-          $
-        ::  === full clone ===
-        ;<  ~  bind:m  (do-full-clone cfg disc)
-        ;<  *  bind:m  take-poke:io
-        $
-          ::  /actions/push.sig: push files to GitHub via REST API
-          ::
-          [[%actions ~] %'push.sig']
-        ;<  ~  bind:m  (rise-wait:io prod "%git/repo push: failed")
-        |-
-        ;<  =sage:tarball  bind:m  take-poke:io
-        ;<  cfg=repo-config  bind:m  read-config
-        ?:  =('' repo.cfg)
-          ~&  >>>  "%git/repo push: no repo configured"
-          $
-        ;<  ghc=(unit json)  bind:m
-          (peek-as:io [%& %& gh-nexus %'config.json'] ,json)
-        =/  gh-auth=?
-          ?~  ghc  %.n
-          ?.  ?=(%o -.u.ghc)  %.n
-          =/  acc  (~(get by p.u.ghc) 'accounts')
-          ?:  &(?=([~ %o *] acc) !=(~ p.u.acc))  %.y
-          =/  tok  (~(get by p.u.ghc) 'token')
-          &(?=([~ %s *] tok) !=('' p.u.tok))
-        ?.  gh-auth
-          ~&  >>>  "%git/repo push: no github account connected"
-          $
-        ;<  ~  bind:m  (set-status 'pushing')
-        =/  cur=@t  ?:(=('' ref.cfg) 'main' ref.cfg)
-        ::  optional json poke {branch: 'x'} pushes local HEAD to
-        ::  refs/heads/x (git push origin HEAD:x). a plain sig poke
-        ::  keeps the old behavior: push the current branch.
-        =/  jon=json  (fall (mole |.(!<(json q.sage))) *json)
-        =/  target=@t
-          ?.  ?=([%o *] jon)  ''
-          (fall (bind (~(get by p.jon) 'branch') |=(=json ?>(?=(%s -.json) p.json))) '')
-        =/  branch=@t  ?:(=('' target) cur target)
-        ::  load repo from namespace
-        ;<  repo=repository:git-repo  bind:m  load-repo-from-ns
-        =/  sto  store:~(. git-repo repo)
-        ::  read local and remote refs
-        ;<  local-ref=@t  bind:m  (resolve-ref ref.cfg)
-        ;<  remote-rd=road:tarball  bind:m
-          (ancestor-road:io [/git %repo] [%& /data/refs/remotes/origin (crip (trip branch))])
-        ;<  remote-view=view:nexus  bind:m  (peek:io remote-rd `[/ %mime])
-        =/  remote-ref=@t
-          ?.  ?=([%file *] remote-view)  ''
-          =/  mim=mime  !<(mime (need-vase:tarball sang.remote-view))
-          (crip (trip q.q.mim))
-        ?:  =(local-ref remote-ref)
-          ~&  >>  "%git/repo push: nothing to push"
-          ;<  ~  bind:m  (set-status 'idle')
-          $
-        ::  a target with no tracking ref is a NEW remote branch:
-        ::  base the commit chain on the current branch's remote ref
-        ::  so only local commits are sent, and create the ref
-        ::  instead of patching it
-        =/  new-ref=?  =('' remote-ref)
-        ;<  cur-rd=road:tarball  bind:m
-          (ancestor-road:io [/git %repo] [%& /data/refs/remotes/origin (crip (trip cur))])
-        ;<  cur-view=view:nexus  bind:m  (peek:io cur-rd `[/ %mime])
-        =/  cur-remote=@t
-          ?.  ?=([%file *] cur-view)  ''
-          =/  mim=mime  !<(mime (need-vase:tarball sang.cur-view))
-          (crip (trip q.q.mim))
-        =/  chain-base=@t
-          ?:(&(new-ref !=(branch cur)) cur-remote remote-ref)
-        ::  parse hashes
-        =/  local-hash=(unit @ux)
-          (rust (trip local-ref) parse-hash-sha-1:git-transport)
-        ?~  local-hash
-          ~&  >>>  "%git/repo push: invalid local ref"
-          ;<  ~  bind:m  (set-status 'idle')
-          $
-        =/  remote-hash=@ux
-          ?:  =('' chain-base)  0x0
-          (fall (rust (trip chain-base) parse-hash-sha-1:git-transport) 0x0)
-        ::  walk commits from local back to remote, collect chain
-        =/  chain=(list hash:git-repo)
-          =|  acc=(list hash:git-repo)
-          =/  h=hash:git-repo  u.local-hash
-          |-
-          ?:  =(h remote-hash)  acc
-          ?:  =(h 0x0)  acc
-          =/  com=(unit commit:git-repo)  (get-commit:sto h)
-          ?~  com  acc
-          =/  new-acc=(list hash:git-repo)  [h acc]
-          ?~  parents.u.com  new-acc
-          $(h i.parents.u.com, acc new-acc)
-        ?~  chain
-          ~&  >>  "%git/repo push: no new commits"
-          ;<  ~  bind:m  (set-status 'idle')
-          $
-        ~&  >>  ["%git/repo push:" (lent chain) "commits to push"]
-        ::  push each commit via GitHub API
-        ::  paths are api-relative and unauthenticated here: the
-        ::  github proxy owns the base url and the token
-        =/  api=@t  ''
-        =/  headers=(list [key=@t value=@t])  ~
-        =/  parent-sha=@t  chain-base
-        =/  get-tree=$-(@ux (unit tree-dir:git-repo))
-          |=(h=@ux (get-tree:sto h))
-        =/  get-blob=$-(@ux (unit octs))
-          |=(h=@ux (get-blob:sto h))
-        =/  remaining=(list hash:git-repo)  chain
-        |-
-        ?~  remaining
-          ::  all commits pushed — create or update the remote ref
-          ;<  *  bind:m
-            ?:  new-ref
-              =/  create-url=@t
-                (cat 3 api (cat 3 '/repos/' (cat 3 repo.cfg '/git/refs')))
-              =/  create-body=json
-                %-  pairs:enjs:format
-                :~  ['ref' s+(cat 3 'refs/heads/' branch)]
-                    ['sha' s+parent-sha]
-                ==
-              (gh-post create-url headers create-body)
-            =/  update-url=@t
-              (cat 3 api (cat 3 '/repos/' (cat 3 repo.cfg (cat 3 '/git/refs/heads/' branch))))
-            =/  update-body=json
-              (pairs:enjs:format ~[['sha' s+parent-sha] ['force' b+%.n]])
-            (gh-patch update-url headers update-body)
-          ~&  >>  ["%git/repo push:" ?:(new-ref "created" "updated") branch "at" (crip (scag 7 (trip parent-sha)))]
-          ::  update local remote tracking ref
-          ;<  track-rd=road:tarball  bind:m
-            (ancestor-road:io [/git %repo] [%& /data/refs/remotes/origin (crip (trip branch))])
-          =/  track-octs=octs  (as-octt:bytestream (trip parent-sha))
-          ;<  ~  bind:m  (write-repo-file track-rd [[/ %mime] [/text/plain track-octs]])
-          ::  reload data to refresh UI
-          ;<  data-rd=road:tarball  bind:m
-            (ancestor-road:io [/git %repo] [%| /data])
-          ;<  ~  bind:m  (reload:io data-rd)
-          ;<  ~  bind:m  (set-status 'idle')
-          ~&  >>  "%git/repo push: done"
-          ^$
-        ::  push current commit
-        =/  commit-hash=hash:git-repo  i.remaining
-        =/  com=(unit commit:git-repo)  (get-commit:sto commit-hash)
-        ?~  com
-          ~&  >>>  ["%git/repo push: commit not found" commit-hash]
-          ;<  ~  bind:m  (set-status 'idle')
-          ^$
-        ~&  >>  ["%git/repo push: pushing" (crip (scag 7 (print-hash-sha-1:git-transport commit-hash)))]
-        ::  get tree changes: diff parent tree vs this commit's tree
-        =/  parent-tree=@ux
-          ?~  parents.u.com  0x0
-          =/  par=(unit commit:git-repo)  (get-commit:sto i.parents.u.com)
-          ?~  par  0x0
-          tree.u.par
-        =/  changes=(list tree-change:git-transport)
-          ?:  =(0x0 parent-tree)
-            ::  first commit: all files are additions
-            =/  top-tree=(unit tree-dir:git-repo)  (get-tree tree.u.com)
-            ?~  top-tree  ~
-            %+  turn  (all-blobs:git-transport get-tree / u.top-tree)
-            |=([p=path h=@ux] `tree-change:git-transport`[%add p h])
-          (diff-trees:git-transport get-tree parent-tree tree.u.com)
-        ::  create blobs on GitHub for added/modified files
-        =/  blob-url=@t
-          (cat 3 api (cat 3 '/repos/' (cat 3 repo.cfg '/git/blobs')))
-        =|  tree-entries=(list json)
-        =/  changes-remaining=(list tree-change:git-transport)  changes
-        |-
-        ?~  changes-remaining
-          ::  create tree on GitHub
-          ::  get parent tree SHA — use GitHub's version
-          ;<  parent-commit-resp=json  bind:m
-            ?:  =('' parent-sha)
-              =/  mj  (fiber:fiber:nexus ,json)
-              (pure:mj *json)
-            (gh-get (cat 3 api (cat 3 '/repos/' (cat 3 repo.cfg (cat 3 '/git/commits/' parent-sha)))) headers)
-          =/  base-tree-sha=(unit @t)
-            ?.  ?=(%o -.parent-commit-resp)  ~
-            =/  tree  (~(get by p.parent-commit-resp) 'tree')
-            ?.  ?=([~ %o *] tree)  ~
-            =/  sha  (~(get by p.u.tree) 'sha')
-            ?.  ?=([~ %s *] sha)  ~
-            `p.u.sha
-          =/  tree-pairs=(list [@t json])
-            :~  ['tree' [%a (flop tree-entries)]]
-            ==
-          =/  tree-pairs=(list [@t json])
-            ?~  base-tree-sha  tree-pairs
-            [['base_tree' s+u.base-tree-sha] tree-pairs]
-          =/  tree-body=json
-            (pairs:enjs:format tree-pairs)
-          =/  tree-url=@t
-            (cat 3 api (cat 3 '/repos/' (cat 3 repo.cfg '/git/trees')))
-          ;<  tree-resp=json  bind:m  (gh-post tree-url headers tree-body)
-          ?.  ?=(%o -.tree-resp)
-            ~|  "%git/repo push: tree create failed"  !!
-          =/  new-tree-sha=@t  (get-sha tree-resp)
-          ::  create commit on GitHub
-          =/  commit-body=json
-            %-  pairs:enjs:format
-            :~  ['message' s+(crip message.u.com)]
-                ['tree' s+new-tree-sha]
-                ['parents' [%a ?:(=('' parent-sha) ~ ~[s+parent-sha])]]
-                :-  'author'
-                %-  pairs:enjs:format
-                :~  ['name' s+(crip name.author.u.com)]
-                    ['email' s+(crip email.author.u.com)]
-                    ['date' s+(timestamp-iso date.author-time.u.com)]
-                ==
-                :-  'committer'
-                %-  pairs:enjs:format
-                :~  ['name' s+(crip name.committer.u.com)]
-                    ['email' s+(crip email.committer.u.com)]
-                    ['date' s+(timestamp-iso date.commit-time.u.com)]
-                ==
-            ==
-          =/  commit-url=@t
-            (cat 3 api (cat 3 '/repos/' (cat 3 repo.cfg '/git/commits')))
-          ;<  commit-resp=json  bind:m  (gh-post commit-url headers commit-body)
-          ?.  ?=(%o -.commit-resp)
-            ~|  "%git/repo push: commit create failed"  !!
-          =/  new-sha=@t  (get-sha commit-resp)
-          ~&  >>  ["%git/repo push: created" (crip (scag 7 (trip new-sha)))]
-          ^$(remaining t.remaining, parent-sha new-sha)
-        ::  process current change
-        =/  change=tree-change:git-transport  i.changes-remaining
-        ?-    -.change
-            %del
-          ::  delete: add entry with sha null
-          =/  entry=json
-            %-  pairs:enjs:format
-            :~  ['path' s+(path-to-github path.change)]
-                ['mode' s+'100644']
-                ['type' s+'blob']
-                ['sha' ~]
-            ==
-          $(changes-remaining t.changes-remaining, tree-entries [entry tree-entries])
-        ::
-            %add
-          =/  blob-data=(unit octs)  (get-blob hash.change)
-          ?~  blob-data
-            $(changes-remaining t.changes-remaining)
-          =/  blob-body=json
-            %-  pairs:enjs:format
-            :~  ['content' s+(crip (trip q.u.blob-data))]
-                ['encoding' s+'utf-8']
-            ==
-          ;<  blob-resp=json  bind:m  (gh-post blob-url headers blob-body)
-          ?.  ?=(%o -.blob-resp)
-            ~|  "%git/repo push: blob create failed"  !!
-          =/  entry=json
-            %-  pairs:enjs:format
-            :~  ['path' s+(path-to-github path.change)]
-                ['mode' s+'100644']
-                ['type' s+'blob']
-                ['sha' s+(get-sha blob-resp)]
-            ==
-          $(changes-remaining t.changes-remaining, tree-entries [entry tree-entries])
-        ::
-            %mod
-          =/  blob-data=(unit octs)  (get-blob new.change)
-          ?~  blob-data
-            $(changes-remaining t.changes-remaining)
-          =/  blob-body=json
-            %-  pairs:enjs:format
-            :~  ['content' s+(crip (trip q.u.blob-data))]
-                ['encoding' s+'utf-8']
-            ==
-          ;<  blob-resp=json  bind:m  (gh-post blob-url headers blob-body)
-          ?.  ?=(%o -.blob-resp)
-            ~|  "%git/repo push: blob create failed"  !!
-          =/  entry=json
-            %-  pairs:enjs:format
-            :~  ['path' s+(path-to-github path.change)]
-                ['mode' s+'100644']
-                ['type' s+'blob']
-                ['sha' s+(get-sha blob-resp)]
-            ==
-          $(changes-remaining t.changes-remaining, tree-entries [entry tree-entries])
-        ==
       ==
     --
 ::
@@ -680,7 +288,7 @@
     %branch-delete  (op-branch-delete branch.cmd)
     %add            (op-add paths.cmd)
     %commit         (op-commit message.cmd)
-    %push           op-push
+    %push           (op-push where.cmd)
     %pull           op-pull
     %invalid        (pure:m [%error 'unrecognized command'])
     %stash-list     (pure:m [%error 'stash-list: not yet wired'])
@@ -817,27 +425,329 @@
   ;<  data-rd=road:tarball  bind:m  (ancestor-road:io [/git %repo] [%| /data])
   ;<  ~  bind:m  (reload:io data-rd)
   (pure:m [%ok (crip "committed: {(trip message)}")])
-::  +op-pull / +op-push: network verbs. These delegate to the existing
-::  sync.sig / push.sig fibers (which own the transport logic) rather than
-::  duplicate ~240 lines of pack/negotiation code. They run async in those
-::  fibers, so the lane logs "started", not completion — full extraction
-::  into the lane (for true serialization + progress) is a follow-up.
+::  +op-pull: fetch from the remote and check out the tracked ref — the full
+::  transport logic (formerly /actions/sync.sig), now inline in the lane:
+::  discovery, resolve+pin the default ref, then an incremental fetch or a
+::  full clone. Reports the real outcome.
 ::
 ++  op-pull
   =/  m  (fiber:fiber:nexus ,outcome:git-act)
   ^-  form:m
-  ;<  rd=road:tarball  bind:m
-    (ancestor-road:io [/git %repo] [%& /actions %'sync.sig'])
-  ;<  ~  bind:m  (poke:io rd [[/ %sig] ~])
-  (pure:m [%ok 'pull started (fetch + checkout)'])
+  ;<  cfg=repo-config  bind:m  read-config
+  ?:  =('' repo.cfg)  (pure:m [%error 'no repo configured'])
+  ;<  ~  bind:m  (set-status 'syncing')
+  ;<  disc=discovery:git-transport  bind:m  (fetch-discovery repo.cfg)
+  ::  empty ref = the default branch: resolve and pin it in config.json
+  =/  resolve-ref=?  =('' ref.cfg)
+  =?  ref.cfg  resolve-ref
+    (fall (default-branch:git-transport caps.disc) 'main')
+  ;<  ~  bind:m
+    =/  m  (fiber:fiber:nexus ,~)
+    ?.  resolve-ref  (pure:m ~)
+    ;<  cfg-rd=road:tarball  bind:m
+      (ancestor-road:io [/git %repo] [%& / %'config.json'])
+    ;<  cv=view:nexus  bind:m  (peek:io cfg-rd `[/ %json])
+    =/  obj=(map @t json)
+      ?.  ?=([%file *] cv)  ~
+      =/  j=(unit json)  (mole |.(!<(json (need-vase:tarball sang.cv))))
+      ?:  &(?=(^ j) ?=([%o *] u.j))  p.u.j
+      ~
+    (over:io cfg-rd [[/ %json] o+(~(put by obj) 'ref' s+ref.cfg)])
+  ;<  repo-result=(unit repository:git-repo)  bind:m  load-repo-maybe
+  ?^  repo-result
+    ::  === incremental fetch ===
+    =/  repo=repository:git-repo  u.repo-result
+    =/  have-hashes=(list @ux)
+      %+  roll  archive.object-store.repo
+      |=  [=pack:git-pack acc=(list @ux)]
+      (weld (turn (tap:pack-on:git-pack index.pack) head) acc)
+    =/  have-set=(set @ux)  (silt have-hashes)
+    =/  want-hashes=(list @ux)
+      %+  murn  refs.disc
+      |=  r=git-ref:git-transport
+      ?:  (~(has in have-set) hash.r)  ~
+      `hash.r
+    ?~  want-hashes
+      ;<  ~  bind:m  (set-status 'idle')
+      (pure:m [%ok 'already up to date'])
+    ;<  pack-body=octs  bind:m
+      (fetch-pack repo.cfg (build-want:git-transport want-hashes ~['side-band-64k' 'ofs-delta'] ~ have-hashes))
+    =/  new-pack-data=octs  (extract-pack:git-transport pack-body %.y)
+    ?:  =(0 p.new-pack-data)
+      ;<  ~  bind:m  (update-refs disc ref.cfg)
+      ;<  data-rd=road:tarball  bind:m  (ancestor-road:io [/git %repo] [%| /data])
+      ;<  ~  bind:m  (reload:io data-rd)
+      ;<  ~  bind:m  (set-status 'idle')
+      (pure:m [%ok 'already up to date'])
+    =/  new-pack=pack:git-pack  (read:git-pack (from-octs:bytestream new-pack-data))
+    =/  new-entries=(list [key=hash:git-repo val=@ud])  (tap:pack-on:git-pack index.new-pack)
+    =/  idx-text=tape
+      %-  zing
+      %+  turn  new-entries
+      |=  [key=hash:git-repo val=@ud]
+      "{(print-hash-sha-1:git-transport key)} {(a-co:co val)}\0a"
+    =/  pack-num=@ud  (lent archive.object-store.repo)
+    =/  branch-refs=(list [name=@t hash=hash:git-repo])
+      %+  murn  refs.disc
+      |=  r=git-ref:git-transport
+      ?.  =(`(list @t)`~['refs' 'heads'] (scag 2 refname.r))  ~
+      =/  branch-name=@t  (crip (join:git-transport '/' (turn (slag 2 refname.r) trip)))
+      `[branch-name hash.r]
+    =/  active-ref=@t  ?:(=('' ref.cfg) 'main' ref.cfg)
+    =/  head-hash=@ux
+      =/  match=(unit hash:git-repo)
+        %-  ~(rep by (malt branch-refs))
+        |=  [[name=@t =hash:git-repo] found=(unit hash:git-repo)]
+        ?^  found  found
+        ?:  =(name active-ref)  `hash
+        ~
+      (fall match 0x0)
+    =/  head-text=@t  (crip (print-hash-sha-1:git-transport head-hash))
+    ;<  ~  bind:m  (save-repo new-pack-data idx-text pack-num branch-refs head-text active-ref)
+    ;<  data-rd=road:tarball  bind:m  (ancestor-road:io [/git %repo] [%| /data])
+    ;<  ~  bind:m  (reload:io data-rd)
+    ;<  ~  bind:m  (set-status 'idle')
+    (pure:m [%ok (crip "fetched {(scow %ud (lent want-hashes))} new objects")])
+  ::  === full clone ===
+  ;<  ~  bind:m  (do-full-clone cfg disc)
+  (pure:m [%ok 'cloned'])
+::  +op-push: push local commits to the remote via the GitHub API — the full
+::  transport logic (formerly /actions/push.sig), inline in the lane. Walks
+::  the commit chain from the local ref back to the remote tracking ref and
+::  replays each commit (blobs -> tree -> commit -> ref) through the proxy.
+::  `where` pushes local HEAD to that named remote branch; ~ pushes current.
 ::
 ++  op-push
+  |=  where=(unit branch:git-act)
   =/  m  (fiber:fiber:nexus ,outcome:git-act)
   ^-  form:m
-  ;<  rd=road:tarball  bind:m
-    (ancestor-road:io [/git %repo] [%& /actions %'push.sig'])
-  ;<  ~  bind:m  (poke:io rd [[/ %sig] ~])
-  (pure:m [%ok 'push started'])
+  ;<  cfg=repo-config  bind:m  read-config
+  ?:  =('' repo.cfg)  (pure:m [%error 'no repo configured'])
+  ;<  ghc=(unit json)  bind:m
+    (peek-as:io [%& %& gh-nexus %'config.json'] ,json)
+  =/  gh-auth=?
+    ?~  ghc  %.n
+    ?.  ?=(%o -.u.ghc)  %.n
+    =/  acc  (~(get by p.u.ghc) 'accounts')
+    ?:  &(?=([~ %o *] acc) !=(~ p.u.acc))  %.y
+    =/  tok  (~(get by p.u.ghc) 'token')
+    &(?=([~ %s *] tok) !=('' p.u.tok))
+  ?.  gh-auth  (pure:m [%error 'no github account connected'])
+  ;<  ~  bind:m  (set-status 'pushing')
+  =/  cur=@t  ?:(=('' ref.cfg) 'main' ref.cfg)
+  =/  target=@t  ?~(where '' u.where)
+  =/  branch=@t  ?:(=('' target) cur target)
+  ;<  repo=repository:git-repo  bind:m  load-repo-from-ns
+  =/  sto  store:~(. git-repo repo)
+  ;<  local-ref=@t  bind:m  (resolve-ref ref.cfg)
+  ;<  remote-rd=road:tarball  bind:m
+    (ancestor-road:io [/git %repo] [%& /data/refs/remotes/origin (crip (trip branch))])
+  ;<  remote-view=view:nexus  bind:m  (peek:io remote-rd `[/ %mime])
+  =/  remote-ref=@t
+    ?.  ?=([%file *] remote-view)  ''
+    =/  mim=mime  !<(mime (need-vase:tarball sang.remote-view))
+    (crip (trip q.q.mim))
+  ?:  =(local-ref remote-ref)
+    ;<  ~  bind:m  (set-status 'idle')
+    (pure:m [%ok 'nothing to push'])
+  =/  new-ref=?  =('' remote-ref)
+  ;<  cur-rd=road:tarball  bind:m
+    (ancestor-road:io [/git %repo] [%& /data/refs/remotes/origin (crip (trip cur))])
+  ;<  cur-view=view:nexus  bind:m  (peek:io cur-rd `[/ %mime])
+  =/  cur-remote=@t
+    ?.  ?=([%file *] cur-view)  ''
+    =/  mim=mime  !<(mime (need-vase:tarball sang.cur-view))
+    (crip (trip q.q.mim))
+  =/  chain-base=@t
+    ?:(&(new-ref !=(branch cur)) cur-remote remote-ref)
+  =/  local-hash=(unit @ux)
+    (rust (trip local-ref) parse-hash-sha-1:git-transport)
+  ?~  local-hash
+    ;<  ~  bind:m  (set-status 'idle')
+    (pure:m [%error 'invalid local ref'])
+  =/  remote-hash=@ux
+    ?:  =('' chain-base)  0x0
+    (fall (rust (trip chain-base) parse-hash-sha-1:git-transport) 0x0)
+  =/  chain=(list hash:git-repo)
+    =|  acc=(list hash:git-repo)
+    =/  h=hash:git-repo  u.local-hash
+    |-
+    ?:  =(h remote-hash)  acc
+    ?:  =(h 0x0)  acc
+    =/  com=(unit commit:git-repo)  (get-commit:sto h)
+    ?~  com  acc
+    =/  new-acc=(list hash:git-repo)  [h acc]
+    ?~  parents.u.com  new-acc
+    $(h i.parents.u.com, acc new-acc)
+  ?~  chain
+    ;<  ~  bind:m  (set-status 'idle')
+    (pure:m [%ok 'nothing to push'])
+  =/  api=@t  ''
+  =/  headers=(list [key=@t value=@t])  ~
+  =/  parent-sha=@t  chain-base
+  =/  get-tree=$-(@ux (unit tree-dir:git-repo))
+    |=(h=@ux (get-tree:sto h))
+  =/  get-blob=$-(@ux (unit octs))
+    |=(h=@ux (get-blob:sto h))
+  =/  pushed=@ud  (lent chain)
+  =/  remaining=(list hash:git-repo)  chain
+  |-
+  ?~  remaining
+    ::  all commits replayed — create or update the remote ref
+    ;<  *  bind:m
+      ?:  new-ref
+        =/  create-url=@t
+          (cat 3 api (cat 3 '/repos/' (cat 3 repo.cfg '/git/refs')))
+        =/  create-body=json
+          %-  pairs:enjs:format
+          :~  ['ref' s+(cat 3 'refs/heads/' branch)]
+              ['sha' s+parent-sha]
+          ==
+        (gh-post create-url headers create-body)
+      =/  update-url=@t
+        (cat 3 api (cat 3 '/repos/' (cat 3 repo.cfg (cat 3 '/git/refs/heads/' branch))))
+      =/  update-body=json
+        (pairs:enjs:format ~[['sha' s+parent-sha] ['force' b+%.n]])
+      (gh-patch update-url headers update-body)
+    ::  update the local remote-tracking ref
+    ;<  track-rd=road:tarball  bind:m
+      (ancestor-road:io [/git %repo] [%& /data/refs/remotes/origin (crip (trip branch))])
+    =/  track-octs=octs  (as-octt:bytestream (trip parent-sha))
+    ;<  ~  bind:m  (write-repo-file track-rd [[/ %mime] [/text/plain track-octs]])
+    ;<  data-rd=road:tarball  bind:m
+      (ancestor-road:io [/git %repo] [%| /data])
+    ;<  ~  bind:m  (reload:io data-rd)
+    ;<  ~  bind:m  (set-status 'idle')
+    (pure:m [%ok (crip "pushed {(scow %ud pushed)} commit(s) to {(trip branch)}")])
+  =/  commit-hash=hash:git-repo  i.remaining
+  =/  com=(unit commit:git-repo)  (get-commit:sto commit-hash)
+  ?~  com
+    ;<  ~  bind:m  (set-status 'idle')
+    (pure:m [%error 'commit not found'])
+  =/  parent-tree=@ux
+    ?~  parents.u.com  0x0
+    =/  par=(unit commit:git-repo)  (get-commit:sto i.parents.u.com)
+    ?~  par  0x0
+    tree.u.par
+  =/  changes=(list tree-change:git-transport)
+    ?:  =(0x0 parent-tree)
+      =/  top-tree=(unit tree-dir:git-repo)  (get-tree tree.u.com)
+      ?~  top-tree  ~
+      %+  turn  (all-blobs:git-transport get-tree / u.top-tree)
+      |=([p=path h=@ux] `tree-change:git-transport`[%add p h])
+    (diff-trees:git-transport get-tree parent-tree tree.u.com)
+  =/  blob-url=@t
+    (cat 3 api (cat 3 '/repos/' (cat 3 repo.cfg '/git/blobs')))
+  =|  tree-entries=(list json)
+  =/  changes-remaining=(list tree-change:git-transport)  changes
+  |-
+  ?~  changes-remaining
+    ::  all blobs created — build the tree + commit on GitHub
+    ;<  parent-commit-resp=json  bind:m
+      ?:  =('' parent-sha)
+        =/  mj  (fiber:fiber:nexus ,json)
+        (pure:mj *json)
+      (gh-get (cat 3 api (cat 3 '/repos/' (cat 3 repo.cfg (cat 3 '/git/commits/' parent-sha)))) headers)
+    =/  base-tree-sha=(unit @t)
+      ?.  ?=(%o -.parent-commit-resp)  ~
+      =/  tree  (~(get by p.parent-commit-resp) 'tree')
+      ?.  ?=([~ %o *] tree)  ~
+      =/  sha  (~(get by p.u.tree) 'sha')
+      ?.  ?=([~ %s *] sha)  ~
+      `p.u.sha
+    =/  tree-pairs=(list [@t json])
+      :~  ['tree' [%a (flop tree-entries)]]
+      ==
+    =/  tree-pairs=(list [@t json])
+      ?~  base-tree-sha  tree-pairs
+      [['base_tree' s+u.base-tree-sha] tree-pairs]
+    =/  tree-body=json
+      (pairs:enjs:format tree-pairs)
+    =/  tree-url=@t
+      (cat 3 api (cat 3 '/repos/' (cat 3 repo.cfg '/git/trees')))
+    ;<  tree-resp=json  bind:m  (gh-post tree-url headers tree-body)
+    ?.  ?=(%o -.tree-resp)
+      ~|  "%git/repo push: tree create failed"  !!
+    =/  new-tree-sha=@t  (get-sha tree-resp)
+    =/  commit-body=json
+      %-  pairs:enjs:format
+      :~  ['message' s+(crip message.u.com)]
+          ['tree' s+new-tree-sha]
+          ['parents' [%a ?:(=('' parent-sha) ~ ~[s+parent-sha])]]
+          :-  'author'
+          %-  pairs:enjs:format
+          :~  ['name' s+(crip name.author.u.com)]
+              ['email' s+(crip email.author.u.com)]
+              ['date' s+(timestamp-iso date.author-time.u.com)]
+          ==
+          :-  'committer'
+          %-  pairs:enjs:format
+          :~  ['name' s+(crip name.committer.u.com)]
+              ['email' s+(crip email.committer.u.com)]
+              ['date' s+(timestamp-iso date.commit-time.u.com)]
+          ==
+      ==
+    =/  commit-url=@t
+      (cat 3 api (cat 3 '/repos/' (cat 3 repo.cfg '/git/commits')))
+    ;<  commit-resp=json  bind:m  (gh-post commit-url headers commit-body)
+    ?.  ?=(%o -.commit-resp)
+      ~|  "%git/repo push: commit create failed"  !!
+    =/  new-sha=@t  (get-sha commit-resp)
+    ^$(remaining t.remaining, parent-sha new-sha)
+  =/  change=tree-change:git-transport  i.changes-remaining
+  ?-    -.change
+      %del
+    =/  entry=json
+      %-  pairs:enjs:format
+      :~  ['path' s+(path-to-github path.change)]
+          ['mode' s+'100644']
+          ['type' s+'blob']
+          ['sha' ~]
+      ==
+    $(changes-remaining t.changes-remaining, tree-entries [entry tree-entries])
+  ::
+      %add
+    =/  blob-data=(unit octs)  (get-blob hash.change)
+    ?~  blob-data
+      $(changes-remaining t.changes-remaining)
+    =/  blob-body=json
+      %-  pairs:enjs:format
+      :~  ['content' s+(crip (trip q.u.blob-data))]
+          ['encoding' s+'utf-8']
+      ==
+    ;<  blob-resp=json  bind:m  (gh-post blob-url headers blob-body)
+    ?.  ?=(%o -.blob-resp)
+      ~|  "%git/repo push: blob create failed"  !!
+    =/  entry=json
+      %-  pairs:enjs:format
+      :~  ['path' s+(path-to-github path.change)]
+          ['mode' s+'100644']
+          ['type' s+'blob']
+          ['sha' s+(get-sha blob-resp)]
+      ==
+    $(changes-remaining t.changes-remaining, tree-entries [entry tree-entries])
+  ::
+      %mod
+    =/  blob-data=(unit octs)  (get-blob new.change)
+    ?~  blob-data
+      $(changes-remaining t.changes-remaining)
+    =/  blob-body=json
+      %-  pairs:enjs:format
+      :~  ['content' s+(crip (trip q.u.blob-data))]
+          ['encoding' s+'utf-8']
+      ==
+    ;<  blob-resp=json  bind:m  (gh-post blob-url headers blob-body)
+    ?.  ?=(%o -.blob-resp)
+      ~|  "%git/repo push: blob create failed"  !!
+    =/  entry=json
+      %-  pairs:enjs:format
+      :~  ['path' s+(path-to-github path.change)]
+          ['mode' s+'100644']
+          ['type' s+'blob']
+          ['sha' s+(get-sha blob-resp)]
+      ==
+    $(changes-remaining t.changes-remaining, tree-entries [entry tree-entries])
+  ==
 ::
 ++  jget
   |=  [j=json k=@t]
