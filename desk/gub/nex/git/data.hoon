@@ -1100,6 +1100,7 @@
   =/  head-tree-idx=(map path hash:git-repo)
     (idx-hashes (build-index-from-tree get-tree head-tree-hash))
   =/  status=json  (build-status ball idx head-tree-idx)
+  =/  stash=json  (build-stash-list ball)
   =.  ball
     (~(put ba:tarball ball) [/ui %'commits.json'] [[/ %json] %& !>(commits)])
   =.  ball
@@ -1108,6 +1109,8 @@
     (~(put ba:tarball ball) [/ui %'current.json'] [[/ %json] %& !>(current)])
   =.  ball
     (~(put ba:tarball ball) [/ui %'status.json'] [[/ %json] %& !>(status)])
+  =.  ball
+    (~(put ba:tarball ball) [/ui %'stash.json'] [[/ %json] %& !>(stash)])
   ball
 ::
 ::  +build-current: build current.json with HEAD, branch, and remote tracking info
@@ -1135,6 +1138,34 @@
   =/  heads=ball:tarball  (get-sub-ball ball /refs/heads)
   ?~  fil.heads  [%a ~]
   [%a (turn ~(tap in ~(key by contents.u.fil.heads)) |=(n=@t s+n))]
+::
+::  +build-stash-list: the stash stack from the logs/stash reflog, newest
+::  first (index 0 = top, git's stash@{0}). Each reflog line is fixed-width
+::  "old-hex(40) new-hex(40) msg"; new-hex is that entry's stash commit.
+::
+++  build-stash-list
+  |=  =ball:tarball
+  ^-  json
+  =/  existing=(unit sang:tarball)  (~(get ba:tarball ball) [/logs %'stash'])
+  ?~  existing  [%a ~]
+  =/  m=mime  !<(mime (need-vase:tarball u.existing))
+  =/  lines=(list @t)  (skip (to-wain:format q.q.m) |=(l=@t =('' l)))
+  ::  newest is last in the reflog; reverse so index 0 = top of stack
+  =/  rlines=(list @t)  (flop lines)
+  :-  %a
+  =|  i=@ud
+  |-  ^-  (list json)
+  ?~  rlines  ~
+  =/  line=tape  (trip i.rlines)
+  =/  new-hex=@t   (crip (scag 40 (slag 41 line)))
+  =/  msg=@t       (crip (slag 82 line))
+  :_  $(rlines t.rlines, i +(i))
+  %-  pairs:enjs:format
+  :~  ['index' n+(scot %ud i)]
+      ['hash' s+new-hex]
+      ['short' s+(crip (scag 7 (trip new-hex)))]
+      ['message' s+msg]
+  ==
 ::
 ::  +build-status: compare working tree vs index vs HEAD tree
 ::

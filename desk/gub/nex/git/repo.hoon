@@ -152,7 +152,7 @@
     %push           (op-push where.cmd)
     %pull           op-pull
     %invalid        (pure:m [%error 'unrecognized command'])
-    %stash-list     (pure:m [%error 'stash-list: not yet wired'])
+    %stash-list     op-stash-list
   ==
 ::  +op-stash: stash the dirty index and reset the tree to HEAD. Writes
 ::  stash-request.sig into the data ball and reloads (the data nexus does
@@ -178,6 +178,31 @@
   ;<  data-rd=road:tarball  bind:m  (ancestor-road:io [/git %repo] [%| /data])
   ;<  ~  bind:m  (reload:io data-rd)
   (pure:m [%ok 'stash popped'])
+::  +op-stash-list: report the stash stack (from data/ui/stash.json, which
+::  the data nexus builds from the reflog) as a one-line lane summary.
+::
+++  op-stash-list
+  =/  m  (fiber:fiber:nexus ,outcome:git-act)
+  ^-  form:m
+  ;<  road=road:tarball  bind:m
+    (ancestor-road:io [/git %repo] [%& /data/ui %'stash.json'])
+  ;<  =view:nexus  bind:m  (peek:io road `[/ %json])
+  =/  jon=json  (view-to-json view)
+  =/  items=(list json)  ?:(?=(%a -.jon) p.jon ~)
+  ?~  items  (pure:m [%ok 'no stashes'])
+  =/  parts=(list tape)
+    %+  turn  items
+    |=  j=json  ^-  tape
+    ?.  ?=(%o -.j)  ""
+    =/  sh=@t  =/(v (~(get by p.j) 'short') ?:(?=([~ %s *] v) p.u.v ''))
+    =/  ix=@t  =/(v (~(get by p.j) 'index') ?:(?=([~ %n *] v) p.u.v '?'))
+    "stash@{(trip ix)}: {(trip sh)}"
+  =/  joined=tape
+    ?~  parts  ""
+    |-  ^-  tape
+    ?~  t.parts  i.parts
+    "{i.parts}, {$(parts t.parts)}"
+  (pure:m [%ok (crip "{(a-co:co (lent items))} stash(es): {joined}")])
 ::  +working-tree-clean: read data/ui/status.json and report whether the
 ::  tree is clean (checkout/switch refuse to run on a dirty tree).
 ::

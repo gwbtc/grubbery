@@ -277,6 +277,8 @@
     (peek-as:io (nex-road:io rail [%& /repos/[kid]/data/ui %'branches.json']) ,json)
   ;<  cur=(unit json)  bind:m
     (peek-as:io (nex-road:io rail [%& /repos/[kid]/data/ui %'current.json']) ,json)
+  ;<  stash=(unit json)  bind:m
+    (peek-as:io (nex-road:io rail [%& /repos/[kid]/data/ui %'stash.json']) ,json)
   ;<  tv=view:nexus  bind:m
     (peek:io (nex-road:io rail [%| /repos/[kid]/data/tree]) ~)
   =/  tree=(list path)
@@ -296,6 +298,7 @@
       ['commits' (fall commits ~)]
       ['branches' (fall branches ~)]
       ['current' (fall cur ~)]
+      ['stash' (fall stash a+~)]
       ['tree' a+(turn tree |=(p=path s+(crip (slag 1 (spud p)))))]
       ['lane' lane]
   ==

@@ -124,6 +124,11 @@ split-view:not(:defined) { visibility: hidden; }
 .st-mark-modified { background: #b8763e; }
 .st-mark-deleted { background: #b91c1c; }
 .st-mark-renamed, .st-mark-copied { background: #6b7280; }
+.st-mark-stash { background: #6d5bd0; width: auto; padding: 0 4px; }
+.st-head { font-size: 12px; color: #444; padding: 4px 6px 10px; margin-bottom: 8px; border-bottom: 1px solid #eee; }
+.st-head code { font-size: 11px; color: #6d5bd0; }
+.st-ahead { color: #b8763e; font-size: 11px; margin-left: 6px; }
+.st-path code { color: #6d5bd0; }
 .st-acts { display: flex; gap: 8px; margin-top: 10px; align-items: center; }
 #st-msg { flex: 1; font-size: 13px; padding: 7px 10px; border: 1px solid #ddd; border-radius: 8px; font-family: inherit; outline: none; }
 #st-msg:focus { border-color: #3d3a45; }

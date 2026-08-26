@@ -337,7 +337,7 @@ function loadDetail() {
     tree = d.tree || [];
     lane = d.lane || null;
     renderTopbar();
-    renderStatus(d.status || {});
+    renderStatus(d.status || {}, d.current || {}, d.stash || []);
     renderHistory(d.commits || []);
     renderLane();
     renderFiles();
@@ -372,14 +372,27 @@ function submitLane() {
     setTimeout(loadDetail, 1500);
   });
 }
-function renderStatus(st) {
+function renderStatus(st, current, stash) {
   var pane = document.getElementById('pane-status');
+  current = current || {};
+  stash = stash || [];
+  // where HEAD sits — branch or detached, + ahead/behind of remote
+  var head = '';
+  if (current.hash) {
+    var where = current.branch
+      ? 'on <b>' + esc(current.branch) + '</b>'
+      : '<b>detached</b>';
+    var ahead = (current.remote && current.remote !== current.hash)
+      ? ' <span class="st-ahead">↑ ahead of remote</span>' : '';
+    head = '<div class="st-head">' + where + ' @ <code>' +
+      esc((current.hash || '').slice(0, 7)) + '</code>' + ahead + '</div>';
+  }
   var groups = [
     ['staged', st.staged || [], 'ok'],
     ['unstaged', st.unstaged || [], 'warn'],
     ['untracked', st.untracked || [], 'muted']
   ];
-  var html = groups.map(function(g) {
+  var body = groups.map(function(g) {
     if (!g[1].length) return '';
     return '<div class="st-group"><div class="st-title ' + g[2] + '">' + g[0] +
       ' (' + g[1].length + ')</div>' +
@@ -392,8 +405,17 @@ function renderStatus(st) {
         return '<div class="st-file">' + mark + '<span class="st-path">' + esc(p) + '</span></div>';
       }).join('') + '</div>';
   }).join('');
-  if (!html) html = '<div class="empty">working tree clean</div>';
-  pane.innerHTML = html;
+  if (!body) body = '<div class="empty">working tree clean</div>';
+  // the stash stack (newest = @0)
+  var stashHtml = '';
+  if (stash.length) {
+    stashHtml = '<div class="st-group"><div class="st-title muted">stash (' + stash.length + ')</div>' +
+      stash.map(function(s) {
+        return '<div class="st-file"><span class="st-mark st-mark-stash">@' + esc(String(s.index)) +
+          '</span><span class="st-path"><code>' + esc(s.short || '') + '</code> ' + esc(s.message || '') + '</span></div>';
+      }).join('') + '</div>';
+  }
+  pane.innerHTML = head + body + stashHtml;
 }
 function renderHistory(commits) {
   var pane = document.getElementById('pane-history');
