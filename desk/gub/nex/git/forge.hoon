@@ -17,6 +17,7 @@
 /&  forge-html  forge/index.html
 /&  forge-js    forge/app.js
 /&  forge-css   forge/style.css
+/&  todo        /lib/todo.md
 ::  web-component kit: shared sources in /lib/ui (one copy for all nexuses),
 ::  welded into one components.js bundle in on-load so a page makes a single
 ::  request (no staggered per-file "flash-in").
@@ -58,6 +59,8 @@
           [%over %& [/ %'icon.svg'] [[/ %mime] icon]]
           [%over %& [/ %'index.html'] [[/ %mime] forge-html]]
           [%over %& [/ %'app.js'] [[/ %mime] forge-js]]
+          ::  the nexus backlog, materialized like README — browsable at root
+          [%over %& [/ %'TODO.md'] [[/ %mime] todo]]
           [%over %& [/ %'style.css'] [[/ %mime] forge-css]]
           [%over %& [/ %'components.js'] [[/ %mime] kit-js]]
           [%over %& [/ %'file-preview.js'] [[/ %mime] fp-js]]
