@@ -16,6 +16,7 @@
 /<  git-pack  /lib/git/pack.hoon
 /<  git-repo  /lib/git/repository.hoon
 /<  git-transport  /lib/git/transport.hoon
+/<  git-act  /lib/git/action.hoon
 /&  man  ../../man/git/repo/readme.md
 =<  ^-  nexus:nexus
     |%
@@ -43,6 +44,11 @@
           [%fall %& [/actions %'stash.sig'] [[/ %sig] ~]]
           [%fall %& [/actions %'stash-pop.sig'] [[/ %sig] ~]]
           [%fall %& [/actions %'push.sig'] [[/ %sig] ~]]
+          ::  the serial command lane: one stateful grub that runs git
+          ::  commands one at a time (a repo has a single working tree /
+          ::  index / HEAD, so operations must not interleave). Poke it a
+          ::  command string; read it for queue/active/log.
+          [%fall %& [/actions %'run'] [[/ %git-action] *action-state:git-act]]
           ::  poll.sig: optional polling — config.poll (minutes, 0=off)
           ::  pokes actions/sync.sig on the interval.
           [%fall %& [/ %'poll.sig'] [[/ %sig] ~]]
@@ -121,6 +127,36 @@
         ::  reload data to rebuild branch list
         ;<  data-rd=road:tarball  bind:m  (ancestor-road:io [/git %repo] [%| /data])
         ;<  ~  bind:m  (reload:io data-rd)
+        $
+          ::
+          ::  /actions/run: the serial command lane. Poke a command string;
+          ::  it parses (lib/git/action), marks the job `active`, runs it to
+          ::  completion, then appends the outcome to `log`. One command at a
+          ::  time — the working tree / index / HEAD are single, so git
+          ::  operations must not interleave.
+          ::
+          [[%actions ~] %'run']
+        ;<  ~  bind:m  (rise-wait:io prod "%git/repo run: failed")
+        |-
+        ;<  poke-sage=sage:tarball  bind:m  take-poke:io
+        =/  jon=json  (fall (mole |.(!<(json q.poke-sage))) *json)
+        =/  raw=@t  (fall (jget jon 'command') '')
+        =/  parsed=(unit git-command:git-act)  (parse-command:git-act raw)
+        ;<  st=action-state:git-act  bind:m  (get-state-as:io ,action-state:git-act)
+        ?~  parsed
+          ::  unparseable — log it and wait for the next command
+          ;<  now=@da  bind:m  get-time:io
+          =/  bad=done:git-act  [next-id.st [%invalid raw] raw [%error 'unrecognized command'] now]
+          ;<  ~  bind:m  (replace:io st(log [bad log.st], next-id +(next-id.st)))
+          $
+        ::  mark the job active, run it, log the outcome
+        =/  =job:git-act  [next-id.st u.parsed raw %start ~]
+        ;<  ~  bind:m  (replace:io st(active `job, next-id +(next-id.st)))
+        ;<  =outcome:git-act  bind:m  (run-command u.parsed)
+        ;<  end=@da  bind:m  get-time:io
+        ;<  st2=action-state:git-act  bind:m  (get-state-as:io ,action-state:git-act)
+        =/  entry=done:git-act  [id.job u.parsed raw outcome end]
+        ;<  ~  bind:m  (replace:io st2(active ~, log [entry log.st2]))
         $
           ::
           ::  /actions/stash.sig: stash dirty index and reset to HEAD
@@ -817,6 +853,52 @@
       token=@t
       account=@t
   ==
+::
+::  +run-command: execute one parsed git command in the serial lane,
+::  yielding its outcome. Verbs are wired incrementally; unwired ones
+::  report an error rather than silently no-op.
+::
+++  run-command
+  |=  cmd=git-command:git-act
+  =/  m  (fiber:fiber:nexus ,outcome:git-act)
+  ^-  form:m
+  ?-  -.cmd
+    %stash          op-stash
+    %stash-pop      op-stash-pop
+    %invalid        (pure:m [%error 'unrecognized command'])
+    %add            (pure:m [%error 'add: not yet wired'])
+    %commit         (pure:m [%error 'commit: not yet wired'])
+    %push           (pure:m [%error 'push: not yet wired'])
+    %pull           (pure:m [%error 'pull: not yet wired'])
+    %checkout       (pure:m [%error 'checkout: not yet wired'])
+    %branch         (pure:m [%error 'branch: not yet wired'])
+    %branch-delete  (pure:m [%error 'branch-delete: not yet wired'])
+    %stash-list     (pure:m [%error 'stash-list: not yet wired'])
+  ==
+::  +op-stash: stash the dirty index and reset the tree to HEAD. Writes
+::  stash-request.sig into the data ball and reloads (the data nexus does
+::  the git work). Same logic the /actions/stash.sig arm ran.
+::
+++  op-stash
+  =/  m  (fiber:fiber:nexus ,outcome:git-act)
+  ^-  form:m
+  ;<  req-rd=road:tarball  bind:m
+    (ancestor-road:io [/git %repo] [%& /data %'stash-request.sig'])
+  ;<  ~  bind:m  (write-repo-file req-rd [[/ %sig] ~])
+  ;<  data-rd=road:tarball  bind:m  (ancestor-road:io [/git %repo] [%| /data])
+  ;<  ~  bind:m  (reload:io data-rd)
+  (pure:m [%ok 'stashed'])
+::  +op-stash-pop: pop the most recent stash onto the working tree.
+::
+++  op-stash-pop
+  =/  m  (fiber:fiber:nexus ,outcome:git-act)
+  ^-  form:m
+  ;<  req-rd=road:tarball  bind:m
+    (ancestor-road:io [/git %repo] [%& /data %'stash-pop-request.sig'])
+  ;<  ~  bind:m  (write-repo-file req-rd [[/ %sig] ~])
+  ;<  data-rd=road:tarball  bind:m  (ancestor-road:io [/git %repo] [%| /data])
+  ;<  ~  bind:m  (reload:io data-rd)
+  (pure:m [%ok 'stash popped'])
 ::
 ++  jget
   |=  [j=json k=@t]
