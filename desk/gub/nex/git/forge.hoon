@@ -12,6 +12,7 @@
 ::    POST /api/add /api/delete /api/action /api/config /api/src
 ::  /repos/      the repo instances
 ::
+/<  git-act  /lib/git/action.hoon
 /&  icon        forge/icon.svg
 /&  forge-html  forge/index.html
 /&  forge-js    forge/app.js
@@ -97,6 +98,7 @@
               [%api %delete ~]  (do-delete rail eyre-id jon)
               [%api %config ~]  (do-config rail eyre-id jon)
               [%api %action ~]  (do-action rail eyre-id jon)
+              [%api %run ~]     (do-run rail eyre-id jon)
           ==
         ?:  ?=([%api %list ~] suffix)
           ;<  lst=json  bind:m  (gather-repos rail)
@@ -268,6 +270,14 @@
   =/  tree=(list path)
     ?.  ?=([%ball *] tv)  ~
     (walk-files ball.tv /)
+  ::  the command lane's state (queue/active/log), grown to json
+  ;<  lv=view:nexus  bind:m
+    (peek:io (nex-road:io rail [%& /repos/[kid]/actions %'run']) ~)
+  =/  lane=json
+    ?.  ?=([%file *] lv)  ~
+    =/  s=(unit action-state:git-act)
+      (mole |.(!<(action-state:git-act (need-vase:tarball sang.lv))))
+    ?~(s ~ (state-to-json:git-act u.s))
   %-  pure:m
   %-  pairs:enjs:format
   :~  ['status' (fall status ~)]
@@ -275,6 +285,7 @@
       ['branches' (fall branches ~)]
       ['current' (fall cur ~)]
       ['tree' a+(turn tree |=(p=path s+(crip (slag 1 (spud p)))))]
+      ['lane' lane]
   ==
 ::  +do-add: create a repo instance under /repos, write its config,
 ::  and kick a first sync when a remote is configured
@@ -446,6 +457,21 @@
   =/  text=@t  (jstr jon 'text')
   ?:  =('' text)  (respond rail eyre-id 400 'text required')
   ;<  ~  bind:m  (poke:io act-road [[/ %txt] (to-wain:format text)])
+  (respond rail eyre-id 200 'ok')
+::  +do-run: submit a git command to a repo's serial command lane. Pokes
+::  /actions/run with {command}; the lane parses and runs it.
+::
+++  do-run
+  |=  [=rail:tarball eyre-id=@ta jon=json]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  =/  repo=@t     (jstr jon 'repo')
+  =/  command=@t  (jstr jon 'command')
+  ?:  |(=('' repo) =('' command))
+    (respond rail eyre-id 400 'repo and command required')
+  ;<  ~  bind:m
+    %+  poke:io  (nex-road:io rail [%& /repos/[`@ta`repo]/actions %'run'])
+    [[/ %json] (pairs:enjs:format ~[['command' s+command]])]
   (respond rail eyre-id 200 'ok')
 ::
 --

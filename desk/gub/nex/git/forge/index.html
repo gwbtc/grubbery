@@ -66,12 +66,21 @@
       <div id="con-bar">
         <button class="con-tab active" data-panel="status">status</button>
         <button class="con-tab" data-panel="history">history</button>
+        <button class="con-tab" data-panel="run">run</button>
         <span id="con-spacer"></span>
         <button id="con-toggle" class="icon-btn" title="toggle panel">▾</button>
       </div>
       <div id="con-body">
         <div id="pane-status" class="con-pane"></div>
         <div id="pane-history" class="con-pane" style="display:none"></div>
+        <div id="pane-run" class="con-pane" style="display:none">
+          <div id="lane-log"></div>
+          <div id="lane-row">
+            <span id="lane-prompt">git</span>
+            <input id="lane-input" type="text" spellcheck="false" autocomplete="off"
+                   placeholder='commit -m "message"  ·  add  ·  stash  ·  branch dev  ·  checkout main  ·  push  ·  pull'>
+          </div>
+        </div>
       </div>
     </div>
     </split-view>

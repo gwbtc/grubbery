@@ -5,6 +5,7 @@ var API = BASE + '/api';
 var repos = [];            // repo cards from /api/list
 var selected = null;       // full instance name, e.g. contacts.git_repo
 var tree = [];             // working-tree file paths for selected repo
+var lane = null;           // command lane state {queue, active, log} for selected repo
 var branches = [];         // local branch names for selected repo
 var mode = 'files';        // workspace mode: files (repo) | settings
 var tabsBy = { files: [] };   // per-mode open tabs [{file, text, dirty}]
@@ -341,10 +342,39 @@ function loadDetail() {
     if (r) r.current = d.current || r.current;
     branches = d.branches || [];
     tree = d.tree || [];
+    lane = d.lane || null;
     renderTopbar();
     renderStatus(d.status || {});
     renderHistory(d.commits || []);
+    renderLane();
     renderFiles();
+  });
+}
+// ── command lane: type git commands, they run through /actions/run ──
+function renderLane() {
+  var log = document.getElementById('lane-log');
+  var entries = (lane && lane.log) || [];
+  if (lane && lane.active) {
+    log.innerHTML = '<div class="lane-line running"><span class="lane-dot">▸</span>' +
+      esc(lane.active.raw) + ' <span class="lane-msg">running…</span></div>';
+  } else {
+    log.innerHTML = '';
+  }
+  log.innerHTML += entries.map(function(e) {
+    var cls = e.ok ? 'ok' : 'err';
+    return '<div class="lane-line ' + cls + '"><span class="lane-dot">' + (e.ok ? '✓' : '✕') + '</span>' +
+      '<span class="lane-cmd">' + esc(e.raw) + '</span> <span class="lane-msg">' + esc(e.message || '') + '</span></div>';
+  }).join('');
+}
+function submitLane() {
+  var inp = document.getElementById('lane-input');
+  var cmd = inp.value.trim();
+  if (!cmd || !selected) return;
+  inp.value = '';
+  post('/run', { repo: selected, command: cmd }).then(function() {
+    // give the lane a beat to process, then refresh its state
+    setTimeout(loadDetail, 400);
+    setTimeout(loadDetail, 1500);
   });
 }
 function renderStatus(st) {
@@ -596,7 +626,7 @@ function renderPanelTabs() {
   Array.prototype.forEach.call(document.querySelectorAll('.con-tab'), function(t) {
     t.classList.toggle('active', t.getAttribute('data-panel') === panel);
   });
-  ['status', 'history'].forEach(function(p) {
+  ['status', 'history', 'run'].forEach(function(p) {
     document.getElementById('pane-' + p).style.display = p === panel ? '' : 'none';
   });
 }
@@ -610,6 +640,9 @@ Array.prototype.forEach.call(document.querySelectorAll('.con-tab'), function(t) 
 document.getElementById('con-toggle').onclick = function() {
   document.getElementById('main').toggle();  // <split-view> collapses the console
 };
+document.getElementById('lane-input').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') { e.preventDefault(); submitLane(); }
+});
 document.getElementById('sb-toggle').onclick = function() {
   document.getElementById('body').toggle();  // <split-view> collapses the sidebar
 };
