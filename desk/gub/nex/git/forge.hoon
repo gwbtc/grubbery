@@ -1,19 +1,17 @@
 ::  git/forge: the single UI over git repo instances. Repos live under
 ::  /repos/<name>.git_repo; forge creates them, reads their state,
-::  and drives their actions and tools by poking. Transport stays in
-::  /git/repo — this is the visibility layer. Tools > permissions
-::  sub-tab: view the weir on /tools/proc, or edit to sand a new one.
+::  and drives their actions by poking. Transport stays in /git/repo —
+::  this is the visibility layer.
 ::
 ::  /main.sig    HTTP at /grubbery/forge
 ::  /requests/   per-request handlers. Page URLs:
 ::    /                      the workspace shell
 ::    /repo/<name>           a repo's workspace (?file=, ?panel=)
 ::  Data endpoints live under /api:
-::    GET  /api/list /api/detail?repo= /api/tools?repo= /api/src
-::    POST /api/add /api/delete /api/action /api/run /api/cull /api/src
+::    GET  /api/list /api/detail?repo= /api/src
+::    POST /api/add /api/delete /api/action /api/config /api/src
 ::  /repos/      the repo instances
 ::
-/<  nex-tools  /lib/nex/tools.hoon
 /&  icon        forge/icon.svg
 /&  forge-html  forge/index.html
 /&  forge-js    forge/app.js
@@ -34,7 +32,7 @@
       =/  tile=json
         %-  pairs:enjs:format
         :~  title+s+'Forge'
-            info+s+'git repos & tools'
+            info+s+'git repos'
             color+s+'#3d3a45'
             image+s+'/grubbery/tiles/icon/forge.git_forge'
             href+s+'/grubbery/forge'
@@ -99,9 +97,6 @@
               [%api %delete ~]  (do-delete rail eyre-id jon)
               [%api %config ~]  (do-config rail eyre-id jon)
               [%api %action ~]  (do-action rail eyre-id jon)
-              [%api %run ~]     (do-run rail eyre-id jon)
-              [%api %cull ~]    (do-cull rail eyre-id jon)
-              [%api %weir ~]    (do-weir rail eyre-id jon)
           ==
         ?:  ?=([%api %list ~] suffix)
           ;<  lst=json  bind:m  (gather-repos rail)
@@ -111,17 +106,12 @@
           ?~  repo  (respond rail eyre-id 400 'repo required')
           ;<  det=json  bind:m  (gather-detail rail u.repo)
           (send-json rail eyre-id det)
-        ?:  ?=([%api %tools ~] suffix)
-          =/  repo=(unit @t)  (quay-get args 'repo')
-          ?~  repo  (respond rail eyre-id 400 'repo required')
-          ;<  tls=json  bind:m  (gather-tools rail u.repo)
-          (send-json rail eyre-id tls)
         ?:  ?=([%api %src ~] suffix)
           =/  repo=(unit @t)  (quay-get args 'repo')
           =/  file=(unit @t)  (quay-get args 'file')
           ?:  |(?=(~ repo) ?=(~ file))
             (respond rail eyre-id 400 'repo and file required')
-          =/  root=path  (src-root (fall (quay-get args 'root') 'tools'))
+          =/  root=path  (src-root (fall (quay-get args 'root') 'tree'))
           =/  pax=(unit [dir=path name=@ta])  (parse-src-path u.file)
           ?~  pax  (respond rail eyre-id 400 'bad path')
           ;<  fv=view:nexus  bind:m
@@ -185,15 +175,14 @@
       eyre-id
     [[200 ~[['content-type' 'application/json']]] `bod]
   (pure:m ~)
-::  +src-root: which subtree of a repo instance a src request targets
+::  +src-root: the subtree a src request targets — the working tree.
 ::
 ++  src-root
   |=  root=@t
   ^-  path
-  ?:(=('tree' root) /data/tree /tools/code)
+  /data/tree
 ::  +parse-src-path: a client file path like "lib/commit-all.hoon"
-::  as [dir name], rejecting anything that could walk out of the
-::  tools/code subtree
+::  as [dir name], rejecting anything that could walk out of the tree
 ::
 ++  parse-src-path
   |=  file=@t
@@ -274,154 +263,18 @@
     (peek-as:io (nex-road:io rail [%& /repos/[kid]/data/ui %'branches.json']) ,json)
   ;<  cur=(unit json)  bind:m
     (peek-as:io (nex-road:io rail [%& /repos/[kid]/data/ui %'current.json']) ,json)
+  ;<  tv=view:nexus  bind:m
+    (peek:io (nex-road:io rail [%| /repos/[kid]/data/tree]) ~)
+  =/  tree=(list path)
+    ?.  ?=([%ball *] tv)  ~
+    (walk-files ball.tv /)
   %-  pure:m
   %-  pairs:enjs:format
   :~  ['status' (fall status ~)]
       ['commits' (fall commits ~)]
       ['branches' (fall branches ~)]
       ['current' (fall cur ~)]
-  ==
-::  +gather-tools: available tool definitions from the repo's
-::  /tools/code, and installed procs from /tools/proc with their
-::  live step and result
-::
-::  +weir-to-json: a weir -> {make,poke,peek: [path strings]}, for the UI.
-::
-++  weir-to-json
-  |=  =weir:tarball
-  ^-  json
-  =/  cat
-    |=  rs=(set road:tarball)
-    ^-  json
-    a+(turn ~(tap in rs) |=(r=road:tarball s+(road-to-cord:tarball r)))
-  %-  pairs:enjs:format
-  :~  ['make' (cat make.weir)]
-      ['poke' (cat poke.weir)]
-      ['peek' (cat peek.weir)]
-  ==
-::
-++  gather-tools
-  |=  [=rail:tarball repo=@t]
-  =/  m  (fiber:fiber:nexus ,json)
-  ^-  form:m
-  =/  kid=@ta  `@ta`repo
-  ;<  lv=view:nexus  bind:m
-    (peek:io (nex-road:io rail [%| /repos/[kid]/tools/code/lib/tools]) ~)
-  =/  names=(list @ta)
-    ?.  ?=([%ball *] lv)  ~
-    ?~  fil.ball.lv  ~
-    %+  murn  ~(tap by contents.u.fil.ball.lv)
-    |=  [n=@ta *]
-    =/  t=tape  (trip n)
-    ?.  =(".hoon" (slag (sub (lent t) 5) t))  ~
-    `(crip (scag (sub (lent t) 5) t))
-  ;<  cv=view:nexus  bind:m
-    (peek:io (nex-road:io rail [%| /repos/[kid]/tools/code]) ~)
-  =/  files=(list path)
-    ?.  ?=([%ball *] cv)  ~
-    (walk-files ball.cv /)
-  ;<  tv=view:nexus  bind:m
-    (peek:io (nex-road:io rail [%| /repos/[kid]/data/tree]) ~)
-  =/  tree=(list path)
-    ?.  ?=([%ball *] tv)  ~
-    (walk-files ball.tv /)
-  =|  defs=(list json)
-  |-
-  ?~  names
-    ;<  procs=json  bind:m  (gather-procs rail kid)
-    ::  requested weir: the repo's tree tools/weir.json — the roads its
-    ::  tools ask for. Shown in the UI as "requested"; the user grants.
-    ;<  wv=view:nexus  bind:m
-      (peek:io (nex-road:io rail [%& /repos/[kid]/data/tree/tools %'weir.json']) ~)
-    =/  requested=json
-      ?.  ?=([%file *] wv)  ~
-      ?:  (is-boom:tarball sang.wv)  ~
-      =/  mim=(unit mime)  (mole |.(!<(mime (need-vase:tarball sang.wv))))
-      ?~  mim  ~
-      (fall (de:json:html q.q.u.mim) ~)
-    ::  active weir: what's enforced on /tools/proc RIGHT NOW (its weir
-    ::  lives in the parent /tools dir entry — deep-peek and read it).
-    ;<  av=view:nexus  bind:m
-      (peek:io (nex-road:io rail [%| /repos/[kid]/tools]) ~)
-    =/  active=json
-      ?.  ?=([%ball *] av)  ~
-      =/  pc=(unit ball:tarball)  (~(get by dir.ball.av) %proc)
-      ?~  pc  ~
-      ?~  fil.u.pc  ~
-      =/  w=(unit weir:tarball)  weir.u.fil.u.pc
-      ?~(w ~ (weir-to-json u.w))
-    %-  pure:m
-    %-  pairs:enjs:format
-    :~  ['tools' a+(flop defs)]
-        ['procs' procs]
-        ['files' a+(turn files |=(p=path s+(crip (slag 1 (spud p)))))]
-        ['tree' a+(turn tree |=(p=path s+(crip (slag 1 (spud p)))))]
-        ['weir-requested' requested]
-        ['weir-active' active]
-    ==
-  ;<  res=built:nexus  bind:m
-    (get-code-full:io (nex-road:io rail [%& /repos/[kid]/tools/code/lib/tools i.names]))
-  =/  err=(unit @t)
-    ?-  -.res
-      %vase  ~
-      %tang  `(render-tang:build tang.res)
-      %mime  `'not hoon: built as mime'
-    ==
-  =/  tul=(unit tool:nex-tools)
-    ?^  err  ~
-    ?.  ?=(%vase -.res)  ~
-    =/  got=(each tool:nex-tools tang)
-      (mule |.(!<(tool:nex-tools vase.res)))
-    ?:(?=(%| -.got) ~ `p.got)
-  ?~  tul
-    =/  bad=json
-      %-  pairs:enjs:format
-      :~  ['file' s+i.names]
-          ['error' s+(fall err 'compiles, but is not a tool core')]
-      ==
-    $(names t.names, defs [bad defs])
-  =/  params=json
-    %-  pairs:enjs:format
-    %+  turn  ~(tap by parameters:u.tul)
-    |=  [k=@t d=parameter-def:nex-tools]
-    :-  k
-    (pairs:enjs:format ~[['type' s+`@t`type.d] ['description' s+description.d]])
-  =/  def=json
-    %-  pairs:enjs:format
-    :~  ['file' s+i.names]
-        ['name' s+name:u.tul]
-        ['description' s+description:u.tul]
-        ['parameters' params]
-        ['required' a+(turn required:u.tul |=(r=@t s+r))]
-    ==
-  $(names t.names, defs [def defs])
-::
-++  gather-procs
-  |=  [=rail:tarball kid=@ta]
-  =/  m  (fiber:fiber:nexus ,json)
-  ^-  form:m
-  ;<  pv=view:nexus  bind:m
-    (peek:io (nex-road:io rail [%| /repos/[kid]/tools/proc]) ~)
-  ?.  ?=([%ball *] pv)  (pure:m a+~)
-  ?~  fil.ball.pv  (pure:m a+~)
-  %-  pure:m
-  :-  %a
-  %+  murn  ~(tap by contents.u.fil.ball.pv)
-  |=  [n=@ta =sang:tarball gain=? bang=(unit tang)]
-  ^-  (unit json)
-  =/  st=(unit tool-state:nex-tools)
-    ?:  (is-boom:tarball sang)  ~
-    =/  got  (mule |.(!<(tool-state:nex-tools (need-vase:tarball sang))))
-    ?:(?=(%| -.got) ~ `p.got)
-  ?~  st
-    `(pairs:enjs:format ~[['name' s+n] ['error' s+'unreadable state']])
-  :-  ~
-  %-  pairs:enjs:format
-  :~  ['name' s+n]
-      ['tool' s+tool.u.st]
-      ['step' s+`@t`step.u.st]
-      ['args' o+args.u.st]
-      ['result' ?~(update.u.st ~ u.update.u.st)]
+      ['tree' a+(turn tree |=(p=path s+(crip (slag 1 (spud p)))))]
   ==
 ::  +do-add: create a repo instance under /repos, write its config,
 ::  and kick a first sync when a remote is configured
@@ -439,18 +292,6 @@
   ;<  ~  bind:m
     (make:io dir-road &+`bole:tarball`[`[`[/git %repo] ~ %.n ~] ~])
   ;<  ~  bind:m  (gain:io dir-road %.y)
-  ::  seed the tool support types so /lib/tools.hoon imports work
-  ::  from the first tool written
-  ;<  lib-view=view:nexus  bind:m
-    (peek:io [%& %& /code/lib/nex %'tools.hoon'] ~)
-  ;<  ~  bind:m
-    ?.  ?=([%file *] lib-view)  (pure:(fiber:fiber:nexus ,~) ~)
-    =/  lib-road=road:tarball
-      (nex-road:io rail [%& /repos/[dir-name]/tools/code/lib %'tools.hoon'])
-    ;<  ~  bind:(fiber:fiber:nexus ,~)
-      %+  make:io  lib-road
-      |+[[p.sang.lib-view (sang-noun:tarball sang.lib-view)] ~]
-    (gain:io lib-road %.y)
   =/  config=json
     %-  pairs:enjs:format
     :~  ['repo' s+(jstr jon 'repo')]
@@ -465,9 +306,7 @@
   ;<  ~  bind:m
     (poke:io (nex-road:io rail [%& /repos/[dir-name]/actions %'sync.sig']) [[/ %sig] ~])
   (respond rail eyre-id 200 'created')
-::  +do-src: write a tool source file — the in-browser editor's save.
-::  Writing into /tools/code is deploying: the code nexus rebuilds
-::  and any procs necked to the file respin on the new source.
+::  +do-src: write a working-tree file — the in-browser editor's save.
 ::
 ++  do-src
   |=  [=rail:tarball eyre-id=@ta jon=json]
@@ -487,8 +326,8 @@
     [%& :(weld /repos/[`@ta`repo] root dir.u.pax) name.u.pax]
   ;<  has=?  bind:m  (peek-exists:io road)
   ?:  has
-    ::  tools sources are hoon; tree files keep whatever blot the
-    ::  checkout gave them (over-as tubes the text through it)
+    ::  tree files keep whatever blot the checkout gave them
+    ::  (over-as tubes the text through it)
     ;<  cur=view:nexus  bind:m  (peek:io road ~)
     =/  src-mime=mime  [/text/plain (as-octs:mimes:html p.u.text)]
     ;<  ~  bind:m
@@ -500,8 +339,6 @@
     ;<  ~  bind:m  (refresh-status rail repo root)
     (respond rail eyre-id 200 'saved')
   =/  =bask:tarball
-    ?:  =(/tools/code root)
-      [[/ %hoon] p.u.text]
     [[/ %mime] `mime`[/text/plain (as-octs:mimes:html p.u.text)]]
   ;<  err=(unit tang)  bind:m  (make-soft:io road |+[bask ~])
   ?^  err  (respond rail eyre-id 500 'create failed')
@@ -540,7 +377,7 @@
 ::  +refresh-status: after a working-tree write, reload the repo's
 ::  data nexus so its derived ui (status especially) reflects the
 ::  edit. The reload is safe for the tree — checkout never clobbers
-::  a live working tree — and a no-op for tools writes.
+::  a live working tree.
 ::
 ++  refresh-status
   |=  [=rail:tarball repo=@t root=path]
@@ -548,7 +385,7 @@
   ^-  form:m
   ?.  =(/data/tree root)  (pure:m ~)
   (reload:io (nex-road:io rail [%| /repos/[`@ta`repo]/data]))
-::  +do-src-del: delete a source file from the tools code tree
+::  +do-src-del: delete a file from the working tree
 ::
 ++  do-src-del
   |=  [=rail:tarball eyre-id=@ta jon=json]
@@ -611,47 +448,4 @@
   ;<  ~  bind:m  (poke:io act-road [[/ %txt] (to-wain:format text)])
   (respond rail eyre-id 200 'ok')
 ::
-::  +do-weir: set the sandbox on a repo's tools. Pokes the repo's
-::  tools/weir.sig with {make,poke,peek} road-string lists; the repo
-::  nexus sands its own /tools/proc.
-::
-++  do-weir
-  |=  [=rail:tarball eyre-id=@ta jon=json]
-  =/  m  (fiber:fiber:nexus ,~)
-  ^-  form:m
-  =/  repo=@t  (jstr jon 'repo')
-  ?:  =('' repo)  (respond rail eyre-id 400 'repo required')
-  =/  weir=(unit json)  ?.(?=(%o -.jon) ~ (~(get by p.jon) 'weir'))
-  ?~  weir  (respond rail eyre-id 400 'weir required')
-  ;<  ~  bind:m
-    %+  poke:io  (nex-road:io rail [%& /repos/[`@ta`repo]/tools %'weir.sig'])
-    [[/ %json] u.weir]
-  (respond rail eyre-id 200 'ok')
-::
-++  do-run
-  |=  [=rail:tarball eyre-id=@ta jon=json]
-  =/  m  (fiber:fiber:nexus ,~)
-  ^-  form:m
-  =/  repo=@t  (jstr jon 'repo')
-  ?:  =('' repo)  (respond rail eyre-id 400 'repo required')
-  ?:  |(=('' (jstr jon 'name')) =('' (jstr jon 'tool')))
-    (respond rail eyre-id 400 'name and tool required')
-  ;<  ~  bind:m
-    %+  poke:io
-      (nex-road:io rail [%& /repos/[`@ta`repo]/tools %'run.sig'])
-    [[/ %json] jon]
-  (respond rail eyre-id 200 'ok')
-::
-++  do-cull
-  |=  [=rail:tarball eyre-id=@ta jon=json]
-  =/  m  (fiber:fiber:nexus ,~)
-  ^-  form:m
-  =/  repo=@t  (jstr jon 'repo')
-  =/  proc=@t  (jstr jon 'proc')
-  ?:  |(=('' repo) =('' proc))
-    (respond rail eyre-id 400 'repo and proc required')
-  ;<  err=(unit tang)  bind:m
-    (cull-soft:io (nex-road:io rail [%& /repos/[`@ta`repo]/tools/proc `@ta`proc]))
-  ?^  err  (respond rail eyre-id 500 'cull failed')
-  (respond rail eyre-id 200 'ok')
 --

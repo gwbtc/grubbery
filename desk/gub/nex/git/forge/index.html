@@ -20,7 +20,6 @@
       </drop-menu>
       <div id="mode-tabs" style="display:none">
         <button class="mode-tab" data-mode="files">repo</button>
-        <button class="mode-tab" data-mode="tools">tools</button>
         <button class="mode-tab" data-mode="settings">settings</button>
       </div>
       <span id="tb-origin"></span>
@@ -32,7 +31,7 @@
         <div class="sb-head" id="sb-head"></div>
         <div id="sb-list"></div>
         <div id="ft-new" style="display:none">
-          <input id="ft-new-name" type="text" placeholder="lib/tools/new-tool.hoon">
+          <input id="ft-new-name" type="text" placeholder="path/to/new-file.md">
           <button class="hdr-btn" id="ft-create">new</button>
         </div>
       </div>
@@ -44,19 +43,6 @@
             <button class="ed-vtab" data-view="preview">Preview</button>
           </div>
           <button class="hdr-btn primary" id="ed-save" style="display:none">save ⌘S</button>
-        </div>
-        <div id="runner-pane" style="display:none">
-          <div id="tool-subtabs">
-            <button class="tool-subtab active" data-sub="run">run</button>
-            <button class="tool-subtab" data-sub="permissions">permissions</button>
-          </div>
-          <div id="tool-sub-run">
-            <div class="run-cols">
-              <div class="run-col"><div class="run-head">tools</div><div class="run-sub">definitions from this repo — pick one and run it to spin up a proc</div><div id="run-tools"></div></div>
-              <div class="run-col"><div class="run-head">procs</div><div class="run-sub">running instances of a tool — persist until culled, sandboxed by the weir</div><div id="run-procs"></div></div>
-            </div>
-          </div>
-          <div id="tool-sub-permissions" style="display:none"></div>
         </div>
         <div id="ed-wrap" style="display:none">
           <div id="ws-empty">open a file from the tree</div>

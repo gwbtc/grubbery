@@ -4,17 +4,11 @@ var API = BASE + '/api';
 // ── state ──
 var repos = [];            // repo cards from /api/list
 var selected = null;       // full instance name, e.g. contacts.git_repo
-var toolDefs = [];         // tool defs for selected repo
-var weirReq = {};          // tools/weir.json request for selected repo
-var weirAct = {};          // weir enforced on /tools/proc right now
-var files = [];            // tools/code file paths for selected repo
 var tree = [];             // working-tree file paths for selected repo
 var branches = [];         // local branch names for selected repo
-var mode = 'files';        // workspace mode: files (repo) | tools
-var toolSub = 'run';       // tools sub-tab: run | permissions
-var permEdit = false;      // permissions: false = view weir, true = edit form
-var tabsBy = { files: [], tools: [] };   // per-mode open tabs [{file, text, dirty}]
-var focusBy = { files: null, tools: null };  // per-mode focused file (null in tools = runner)
+var mode = 'files';        // workspace mode: files (repo) | settings
+var tabsBy = { files: [] };   // per-mode open tabs [{file, text, dirty}]
+var focusBy = { files: null };  // per-mode focused file
 var panel = 'status';      // active bottom pane (files mode)
 
 function esc(s) {
@@ -54,7 +48,7 @@ function fullName(n) {
 
 // ── url routing: /repo/<short>?file=..&panel=.. ──
 function urlState() {
-  var m = location.pathname.match(/\/forge\/repo\/([^\/]+)(?:\/(files|tools|settings))?/);
+  var m = location.pathname.match(/\/forge\/repo\/([^\/]+)(?:\/(files|settings))?/);
   var q = new URLSearchParams(location.search);
   return {
     repo: m ? fullName(decodeURIComponent(m[1])) : null,
@@ -84,8 +78,8 @@ function applyUrl() {
   renderPanelTabs();
   if (st.repo !== selected) {
     selected = st.repo;
-    tabsBy = { files: [], tools: [] };
-    focusBy = { files: null, tools: null };
+    tabsBy = { files: [] };
+    focusBy = { files: null };
     onRepoChanged();
   }
   renderMode();
@@ -108,130 +102,13 @@ function renderMode() {
   Array.prototype.forEach.call(document.querySelectorAll('.mode-tab'), function(t) {
     t.classList.toggle('active', t.getAttribute('data-mode') === mode);
   });
-  document.getElementById('sb-head').textContent = mode === 'files' ? 'files' : 'tools';
+  document.getElementById('sb-head').textContent = 'files';
   document.getElementById('ft-new').style.display = editorish ? 'flex' : 'none';
-  document.getElementById('ft-new-name').placeholder =
-    mode === 'files' ? 'path/to/new-file.md' : 'lib/tools/new-tool.hoon';
+  document.getElementById('ft-new-name').placeholder = 'path/to/new-file.md';
   if (mode === 'settings') { renderSettings(); }
   renderFiles();
   renderTabs();
   mountEditor();
-}
-var PERM_CATS = [
-  { k: 'poke', label: 'message (poke)' },
-  { k: 'peek', label: 'read (peek)' },
-  { k: 'make', label: 'create / edit / delete (make)' }
-];
-function renderPermissions() {
-  var pane = document.getElementById('tool-sub-permissions');
-  if (!pane) return;
-  // While editing, NEVER re-render from a poll — it would wipe selections.
-  // Render the edit form once (when entering edit mode) and leave it alone.
-  if (permEdit) { if (!pane.querySelector('.perm-apply')) renderPermEdit(pane); return; }
-  renderPermView(pane);
-}
-function renderPermView(pane) {
-  var totalActive = PERM_CATS.reduce(function(n, c) { return n + wRoads(weirAct, c.k).length; }, 0);
-  var html = '<div class="perm-bar"><div class="perm-title">sandbox — the weir on <code>/tools/proc</code></div>' +
-    '<button class="hdr-btn perm-editbtn">edit</button></div>';
-  if (!totalActive) {
-    html += '<div class="perm-jailed">🔒 <b>jailed</b> — every road below is blocked; tools can only touch their own folder.</div>';
-  }
-  PERM_CATS.forEach(function(c) {
-    var act = wRoads(weirAct, c.k);
-    var reqOnly = wRoads(weirReq, c.k).filter(function(r) { return act.indexOf(r) < 0; });
-    html += '<div class="perm-cat"><div class="perm-cat-head">' + c.label + '</div>';
-    if (!act.length && !reqOnly.length) html += '<div class="perm-empty">blocked — no roads</div>';
-    act.forEach(function(road) {
-      html += '<div class="perm-row"><code>' + esc(road) + '</code>' +
-        '<span class="perm-chip perm-active">active</span></div>';
-    });
-    reqOnly.forEach(function(road) {
-      var rq = (weirReq[c.k] || []).filter(function(x) { return x && typeof x === 'object' && x.road === road; })[0];
-      var why = (rq && rq.why) ? '<span class="perm-why">' + esc(rq.why) + '</span>' : '';
-      html += '<div class="perm-row"><code>' + esc(road) + '</code>' +
-        '<span class="perm-chip perm-requested">requested</span>' + why + '</div>';
-    });
-    html += '</div>';
-  });
-  pane.innerHTML = html;
-  pane.querySelector('.perm-editbtn').onclick = function() { permEdit = true; renderPermissions(); };
-}
-function renderPermEdit(pane) {
-  var html = '<div class="perm-bar"><div class="perm-title">edit sandbox</div>' +
-    '<button class="hdr-btn perm-cancel">cancel</button></div>' +
-    '<div class="perm-intro">Checked = allowed in the sandbox you’re about to apply. ' +
-    'Amber = the tools <b>requested</b> it but it isn’t granted yet. Add custom paths per row.</div>';
-  PERM_CATS.forEach(function(c) {
-    var act = wRoads(weirAct, c.k);
-    var all = act.slice();
-    wRoads(weirReq, c.k).forEach(function(r) { if (all.indexOf(r) < 0) all.push(r); });
-    html += '<div class="perm-cat"><div class="perm-cat-head">' + c.label + '</div>';
-    if (!all.length) html += '<div class="perm-empty">nothing granted or requested</div>';
-    all.forEach(function(road) {
-      var isAct = act.indexOf(road) >= 0;
-      var chip = isAct
-        ? '<span class="perm-chip perm-active">active</span>'
-        : '<span class="perm-chip perm-requested">requested</span>';
-      var rq = (weirReq[c.k] || []).filter(function(x) { return x && typeof x === 'object' && x.road === road; })[0];
-      var why = (rq && rq.why) ? '<span class="perm-why">' + esc(rq.why) + '</span>' : '';
-      html += '<label class="perm-row"><input type="checkbox" class="perm-cb" data-cat="' + c.k + '" data-road="' + esc(road) + '" data-base="' + (isAct ? '1' : '0') + '"' + (isAct ? ' checked' : '') + '>' +
-        '<code>' + esc(road) + '</code>' + chip + why + '<span class="perm-delta"></span></label>';
-    });
-    html += '<div class="perm-add"><input class="perm-add-in" data-cat="' + c.k + '" placeholder="add a path — /sys/iris/ , /apps/foo/ …"></div></div>';
-  });
-  html += '<div class="perm-foot"><span class="perm-note"></span>' +
-    '<button class="hdr-btn primary perm-apply" disabled>no changes</button></div>';
-  pane.innerHTML = html;
-  var btn = pane.querySelector('.perm-apply');
-  var note = pane.querySelector('.perm-note');
-
-  function gather() {
-    var weir = { make: [], poke: [], peek: [] };
-    Array.prototype.forEach.call(pane.querySelectorAll('.perm-cb'), function(cb) {
-      if (cb.checked) weir[cb.getAttribute('data-cat')].push(cb.getAttribute('data-road'));
-    });
-    Array.prototype.forEach.call(pane.querySelectorAll('.perm-add-in'), function(inp) {
-      inp.value.split(/[\n,]/).map(function(s) { return s.trim(); }).filter(Boolean).forEach(function(p) {
-        if (weir[inp.getAttribute('data-cat')].indexOf(p) < 0) weir[inp.getAttribute('data-cat')].push(p);
-      });
-    });
-    return weir;
-  }
-  function refresh() {
-    var adds = 0, revs = 0;
-    Array.prototype.forEach.call(pane.querySelectorAll('.perm-cb'), function(cb) {
-      var base = cb.getAttribute('data-base') === '1';
-      var d = cb.parentNode.querySelector('.perm-delta');
-      if (cb.checked && !base) { d.textContent = '+ granting'; d.className = 'perm-delta perm-add-d'; adds++; }
-      else if (!cb.checked && base) { d.textContent = '− revoking'; d.className = 'perm-delta perm-rev-d'; revs++; }
-      else { d.textContent = ''; d.className = 'perm-delta'; }
-    });
-    var newPaths = 0;
-    Array.prototype.forEach.call(pane.querySelectorAll('.perm-add-in'), function(inp) {
-      newPaths += inp.value.split(/[\n,]/).map(function(s) { return s.trim(); }).filter(Boolean).length;
-    });
-    var changes = adds + revs + newPaths;
-    btn.disabled = !changes;
-    btn.textContent = changes ? 'apply sandbox' : 'no changes';
-    var bits = [];
-    if (adds + newPaths) bits.push('+' + (adds + newPaths) + ' granted');
-    if (revs) bits.push('−' + revs + ' revoked');
-    note.textContent = changes ? bits.join(', ') : 'sandbox matches what’s enforced now';
-  }
-  pane.addEventListener('change', refresh);
-  pane.addEventListener('input', refresh);
-  refresh();
-
-  pane.querySelector('.perm-cancel').onclick = function() { permEdit = false; renderPermissions(); };
-  btn.onclick = function() {
-    btn.textContent = 'applying…';
-    btn.disabled = true;
-    post('/weir', { repo: selected, weir: gather() }).then(function() {
-      permEdit = false;
-      setTimeout(function() { loadTools(); }, 700);
-    });
-  };
 }
 function renderSettings() {
   var r = repos.find(function(x) { return x.name === selected; }) || {};
@@ -250,7 +127,7 @@ function renderSettings() {
     '<div class="set-act"><button class="hdr-btn" data-sact="stash">stash</button><span>set aside staged changes and reset to HEAD</span></div>' +
     '<div class="set-act"><button class="hdr-btn" data-sact="stash-pop">stash pop</button><span>restore the most recent stash</span></div></div>' +
     '<div class="set-section danger-zone"><div class="run-head">danger</div>' +
-    '<div class="set-act"><button class="hdr-btn red" id="set-delete">delete repo</button><span>permanently removes the instance, its tree, tools, and procs</span></div></div>';
+    '<div class="set-act"><button class="hdr-btn red" id="set-delete">delete repo</button><span>permanently removes the instance and its working tree</span></div></div>';
   pane.querySelector('#set-save').onclick = function() {
     var pollRaw = document.getElementById('set-poll').value.trim();
     var cfg = {
@@ -275,8 +152,8 @@ function renderSettings() {
     if (word !== shortName(selected)) return;
     post('/delete', { repo: selected }).then(function() {
       selected = null;
-      tabsBy = { files: [], tools: [] };
-      focusBy = { files: null, tools: null };
+      tabsBy = { files: [] };
+      focusBy = { files: null };
       pushUrl();
       onRepoChanged();
     });
@@ -289,14 +166,6 @@ Array.prototype.forEach.call(document.querySelectorAll('.mode-tab'), function(t)
     renderMode();
   };
 });
-Array.prototype.forEach.call(document.querySelectorAll('.tool-subtab'), function(s) {
-  s.onclick = function() {
-    toolSub = s.getAttribute('data-sub');
-    if (toolSub === 'permissions') { permEdit = false; loadTools(); }
-    mountEditor();
-  };
-});
-
 // ── repo list (sidebar) ──
 function loadRepos() {
   get('/list').then(function(rs) {
@@ -309,8 +178,8 @@ function loadRepos() {
 function enterRepo(name) {
   if (name === selected) return;
   selected = name;
-  tabsBy = { files: [], tools: [] };
-  focusBy = { files: null, tools: null };
+  tabsBy = { files: [] };
+  focusBy = { files: null };
   mode = 'files';
   pushUrl();
   onRepoChanged();
@@ -345,7 +214,7 @@ function renderLanding() {
       var name = el.getAttribute('data-repo');
       if (e.target.hasAttribute('data-del')) {
         var word = prompt('CAREFUL: this permanently deletes ' + name +
-          ' — its tree, tools, and procs. Type "' + shortName(name) + '" to confirm:');
+          ' and its working tree. Type "' + shortName(name) + '" to confirm:');
         if (word !== shortName(name)) return;
         post('/delete', { repo: name }).then(loadRepos);
         return;
@@ -384,7 +253,6 @@ function onRepoChanged() {
     });
     return;
   }
-  loadTools();
   loadDetail();
 }
 
@@ -403,7 +271,7 @@ function renderTopbar() {
 }
 
 // ── file tree (sidebar) ──
-function treeRows(paths, root, withMarks) {
+function treeRows(paths, root) {
   var seen = {};
   var rows = [];
   paths.forEach(function(f) {
@@ -419,14 +287,6 @@ function treeRows(paths, root, withMarks) {
     var depth = segs.length - 1;
     var base = segs[segs.length - 1];
     var mark = '';
-    if (withMarks) {
-      var def = defForFile(f);
-      mark = def
-        ? (def.error
-          ? ' <span class="ft-err" title="build error">✕</span>'
-          : ' <span class="ft-tool" data-run="1" title="show in tools">▸</span>')
-        : '';
-    }
     var del = '<span class="ft-x" data-del="' + esc(f) + '" title="delete file">×</span>';
     var id = root + ':' + f;
     rows.push('<div class="ft-file' + (id === focusedF() ? ' sel' : '') +
@@ -438,26 +298,7 @@ function treeRows(paths, root, withMarks) {
 function renderFiles() {
   var box = document.getElementById('sb-list');
   if (!selected) { box.innerHTML = ''; return; }
-  if (mode === 'files') {
-    box.innerHTML = treeRows(tree, 'tree', false);
-    wireFileRows(box);
-    return;
-  }
-  // tools mode: deployed tool code, then a config group for the repo's
-  // manifests (weir.json/procs.json). They live in the tree — not /tools/code —
-  // so they open/save as source (root=tree), applied on commit + deploy.
-  var html = treeRows(files, 'tools', true);
-  var cfg = ['tools/weir.json', 'tools/procs.json'].filter(function(f) { return tree.indexOf(f) >= 0; });
-  if (cfg.length) {
-    html += '<div class="sb-group">config</div>';
-    cfg.forEach(function(f) {
-      var id = 'tree:' + f;
-      html += '<div class="ft-file' + (id === focusedF() ? ' sel' : '') +
-        '" data-root="tree" data-file="' + esc(f) + '">' +
-        '<span style="padding-left:12px">' + esc(f.split('/').pop()) + '</span></div>';
-    });
-  }
-  box.innerHTML = html;
+  box.innerHTML = treeRows(tree, 'tree');
   wireFileRows(box);
 }
 function wireFileRows(box) {
@@ -471,16 +312,8 @@ function wireFileRows(box) {
         post('/src-delete', { repo: selected, file: f, root: root }).then(function() {
           var t = tabFor(id);
           if (t) { t.dirty = false; closeTab(id); }
-          loadTools();
-          if (root === 'tree') loadDetail();
+          loadDetail();
         });
-        return;
-      }
-      if (e.target.hasAttribute('data-run')) {
-        focusBy.tools = null;
-        pushUrl();
-        renderTabs();
-        mountEditor();
         return;
       }
       openFile(id);
@@ -490,152 +323,15 @@ function wireFileRows(box) {
 document.getElementById('ft-create').onclick = function() {
   var name = document.getElementById('ft-new-name').value.trim();
   if (!name || !selected) return;
-  var root = mode === 'files' ? 'tree' : 'tools';
-  var seed = root === 'tools' ? '::  ' + name + '\n' : '';
+  var root = 'tree';
+  var seed = '';
   post('/src', { repo: selected, file: name, root: root, text: seed })
     .then(function() {
       document.getElementById('ft-new-name').value = '';
-      loadTools();
+      loadDetail();
       openFile(root + ':' + name);
     });
 };
-
-// ── tools + procs ──
-function defForFile(f) {
-  var base = f.split('/').pop().replace(/\.hoon$/, '');
-  for (var i = 0; i < toolDefs.length; i++) {
-    if (toolDefs[i].file === base) return toolDefs[i];
-  }
-  return null;
-}
-var lastDefs = '';
-var lastFiles = '';
-function loadTools() {
-  if (!selected) return;
-  get('/tools?repo=' + encodeURIComponent(selected)).then(function(t) {
-    toolDefs = t.tools || [];
-    weirReq = t['weir-requested'] || {};
-    weirAct = t['weir-active'] || {};
-    if (mode === 'tools' && toolSub === 'permissions') renderPermissions();
-    updateTang();
-    files = t.files || [];
-    tree = t.tree || [];
-    procs = t.procs || [];
-    var dj = JSON.stringify(toolDefs);
-    var fj = JSON.stringify(files) + '|' + JSON.stringify(tree);
-    var rt = document.getElementById('run-tools');
-    var typing = document.activeElement && rt && rt.contains(document.activeElement);
-    if (fj !== lastFiles) { lastFiles = fj; renderFiles(); }
-    if (dj !== lastDefs && !typing) { lastDefs = dj; renderToolCards(); }
-    renderProcs();
-  });
-}
-var procs = [];
-function wRoads(obj, cat) {
-  return (obj[cat] || []).map(function(r) {
-    return (r && typeof r === 'object') ? r.road : r;
-  }).filter(Boolean);
-}
-function renderToolCards() {
-  var box = document.getElementById('run-tools');
-  var html = '';
-  if (!toolDefs.length) html += '<div class="empty">no tools — create one in lib/tools/</div>';
-  toolDefs.forEach(function(d, i) {
-    if (d.error) {
-      html += '<div class="tool-card"><div class="tc-head"><span class="p-name">' + esc(d.file) + '</span>' +
-        '<button class="hdr-btn tc-edit" data-file="lib/tools/' + esc(d.file) + '.hoon">edit</button></div>' +
-        '<div class="p-result err">' + esc(d.error) + '</div></div>';
-      return;
-    }
-    var params = Object.keys(d.parameters || {}).map(function(k) {
-      var req = (d.required || []).indexOf(k) >= 0;
-      var desc = (d.parameters[k] || {}).description || '';
-      return '<label class="tc-param">' + esc(k) + (req ? ' *' : '') +
-        '<input data-tool="' + i + '" data-param="' + esc(k) + '" type="text" placeholder="' + esc(desc) + '"></label>';
-    }).join('');
-    html += '<div class="tool-card">' +
-      '<div class="tc-head"><span class="p-name">' + esc(d.name) + '</span>' +
-      '<span class="t-desc">' + esc(d.description || '') + '</span>' +
-      '<button class="hdr-btn tc-edit" data-file="lib/tools/' + esc(d.file) + '.hoon">edit</button></div>' +
-      params +
-      '<div class="tc-run"><input data-tool="' + i + '" data-procname="1" type="text" placeholder="proc name">' +
-      '<button class="hdr-btn primary tc-go" data-tool="' + i + '">run</button></div>' +
-      '</div>';
-  });
-  box.innerHTML = html;
-  Array.prototype.forEach.call(box.querySelectorAll('.tc-go'), function(b) {
-    b.onclick = function() { runFromCard(box, +b.getAttribute('data-tool')); };
-  });
-  Array.prototype.forEach.call(box.querySelectorAll('.tc-edit'), function(b) {
-    b.onclick = function() {
-      openFile('tools:' + b.getAttribute('data-file'));
-    };
-  });
-}
-function renderProcs() {
-  var box = document.getElementById('run-procs');
-  var html = '';
-  if (!procs.length) html += '<div class="empty">nothing installed</div>';
-  procs.forEach(function(p) {
-    var res = p.result;
-    var resHtml = '';
-    if (res && res.type === 'text') resHtml = '<div class="p-result">' + esc(res.text) + '</div>';
-    else if (res && res.type === 'error') resHtml = '<div class="p-result err">' + esc(res.message) + '</div>';
-    else if (res) resHtml = '<button class="hdr-btn p-out" data-out="' + esc(p.name) + '">output</button>';
-    html += '<div class="proc">' +
-      '<span class="p-name">' + esc(p.name) + '</span>' +
-      '<span class="chip">' + esc(p.tool || '') + '</span>' +
-      '<span class="p-step ' + (p.step === 'done' ? 'ok' : p.step === 'error' ? 'err' : 'live') + '">' + esc(p.step === 'error' ? 'dead' : (p.step || '?')) + '</span>' +
-      (p.step === 'error' ? '<button class="hdr-btn p-retry" data-proc="' + esc(p.name) + '">retry</button>' : '') +
-      '<button class="hdr-btn danger p-del" data-proc="' + esc(p.name) + '">delete</button>' +
-      resHtml + '</div>';
-  });
-  box.innerHTML = html;
-  Array.prototype.forEach.call(box.querySelectorAll('.p-del'), function(b) {
-    b.onclick = function() {
-      post('/cull', { repo: selected, proc: b.getAttribute('data-proc') }).then(refreshSoon);
-    };
-  });
-  Array.prototype.forEach.call(box.querySelectorAll('.p-retry'), function(b) {
-    b.onclick = function() {
-      var p = procs.find(function(x) { return x.name === b.getAttribute('data-proc'); });
-      if (!p) return;
-      // re-run resets the proc to %start (repo.hoon run.sig upserts)
-      post('/run', { repo: selected, name: p.name, tool: p.tool, args: p.args || {} }).then(refreshSoon);
-    };
-  });
-  Array.prototype.forEach.call(box.querySelectorAll('.p-out'), function(b) {
-    b.onclick = function() {
-      var p = procs.find(function(x) { return x.name === b.getAttribute('data-out'); });
-      if (p) showJson(p.name + ' — ' + (p.tool || ''), p.result);
-    };
-  });
-}
-function showJson(title, obj) {
-  document.getElementById('json-title').textContent = title;
-  document.getElementById('json-pre').textContent = JSON.stringify(obj, null, 2);
-  document.getElementById('json-back').classList.add('open');
-}
-document.getElementById('json-close').onclick = function() {
-  document.getElementById('json-back').classList.remove('open');
-};
-document.getElementById('json-back').onclick = function(e) {
-  if (e.target === document.getElementById('json-back')) e.target.classList.remove('open');
-};
-function runFromCard(box, i) {
-  var d = toolDefs[i];
-  var nameInp = box.querySelector('input[data-procname][data-tool="' + i + '"]');
-  var procName = nameInp.value.trim();
-  if (!procName) { nameInp.focus(); return; }
-  var args = {};
-  Array.prototype.forEach.call(
-    box.querySelectorAll('input[data-param][data-tool="' + i + '"]'),
-    function(inp) {
-      var v = inp.value.trim();
-      if (v) args[inp.getAttribute('data-param')] = v;
-    });
-  post('/run', { repo: selected, name: procName, tool: d.name, args: args }).then(refreshSoon);
-}
 
 // ── detail: status + history panes ──
 function loadDetail() {
@@ -644,9 +340,11 @@ function loadDetail() {
     var r = repos.find(function(x) { return x.name === selected; });
     if (r) r.current = d.current || r.current;
     branches = d.branches || [];
+    tree = d.tree || [];
     renderTopbar();
     renderStatus(d.status || {});
     renderHistory(d.commits || []);
+    renderFiles();
   });
 }
 function renderStatus(st) {
@@ -662,7 +360,11 @@ function renderStatus(st) {
       ' (' + g[1].length + ')</div>' +
       g[1].map(function(f) {
         var p = typeof f === 'string' ? f : (f.path || JSON.stringify(f));
-        return '<div class="st-file">' + esc(p) + '</div>';
+        var s = (typeof f === 'object' && f.status) ? f.status : '';
+        var mark = s
+          ? '<span class="st-mark st-mark-' + esc(s) + '" title="' + esc(s) + '">' + esc(s.charAt(0).toUpperCase()) + '</span>'
+          : '';
+        return '<div class="st-file">' + mark + '<span class="st-path">' + esc(p) + '</span></div>';
       }).join('') + '</div>';
   }).join('');
   if (!html) html = '<div class="empty">working tree clean</div>';
@@ -713,10 +415,10 @@ function tabFor(f) {
 }
 function splitId(id) {
   var i = id.indexOf(':');
-  return i < 0 ? { root: 'tools', file: id } : { root: id.slice(0, i), file: id.slice(i + 1) };
+  return i < 0 ? { root: 'tree', file: id } : { root: id.slice(0, i), file: id.slice(i + 1) };
 }
 function openFile(id, fromUrl) {
-  if (id.indexOf(':') < 0) id = (mode === 'files' ? 'tree:' : 'tools:') + id;
+  if (id.indexOf(':') < 0) id = 'tree:' + id;
   var t = tabFor(id);
   if (t) {
     focusBy[mode] = id;
@@ -760,9 +462,6 @@ function renderTabs() {
   sv.classList.toggle('primary', !!(t && t.dirty));
   var bar = document.getElementById('ed-tabs');
   var html = '';
-  if (mode === 'tools') {
-    html += '<div class="ed-tab runner-tab' + (focused === null ? ' active' : '') + '" data-runner="1">▸ runner</div>';
-  }
   html += openTabs().map(function(t) {
     var s = splitId(t.file);
     return '<div class="ed-tab' + (t.file === focused ? ' active' : '') + '" data-file="' + esc(t.file) + '" title="' + esc(s.root + '/' + s.file) + '">' +
@@ -775,14 +474,6 @@ function renderTabs() {
     el.onclick = function(e) {
       if (e.target.hasAttribute('data-close')) {
         closeTab(e.target.getAttribute('data-close'));
-        return;
-      }
-      if (el.hasAttribute('data-runner')) {
-        focusBy.tools = null;
-        pushUrl();
-        renderTabs();
-        renderFiles();
-        mountEditor();
         return;
       }
       focusBy[mode] = el.getAttribute('data-file');
@@ -814,16 +505,7 @@ function highlightInto(el, text) {
   el.innerHTML = shikiHl.codeToHtml(text, { lang: 'hoon', theme: 'github-dark' });
 }
 function updateTang() {
-  var el = document.getElementById('ed-tang');
-  var focused = focusedF();
-  var err = null;
-  if (focused && mode === 'tools') {
-    var s = splitId(focused);
-    var def = defForFile(s.file);
-    if (def && def.error) err = def.error;
-  }
-  if (err) { el.textContent = err; el.style.display = ''; }
-  else { el.style.display = 'none'; }
+  document.getElementById('ed-tang').style.display = 'none';
 }
 // ── file preview (Source | Preview toggle) ──
 // render logic lives in the shared window.FilePreview helper (file-preview.js).
@@ -838,18 +520,8 @@ function mountEditor() {
   var editorish = has && mode !== 'settings';
   var focused = focusedF();
   var t = focused ? tabFor(focused) : null;
-  var runner = editorish && mode === 'tools' && !t;
   document.getElementById('ed-bar').style.display = editorish ? 'flex' : 'none';
-  document.getElementById('runner-pane').style.display = runner ? '' : 'none';
-  if (runner) {
-    Array.prototype.forEach.call(document.querySelectorAll('.tool-subtab'), function(s) {
-      s.classList.toggle('active', s.getAttribute('data-sub') === toolSub);
-    });
-    document.getElementById('tool-sub-run').style.display = toolSub === 'run' ? '' : 'none';
-    document.getElementById('tool-sub-permissions').style.display = toolSub === 'permissions' ? '' : 'none';
-    if (toolSub === 'permissions') renderPermissions();
-  }
-  document.getElementById('ed-wrap').style.display = (editorish && !runner) ? '' : 'none';
+  document.getElementById('ed-wrap').style.display = editorish ? '' : 'none';
   document.getElementById('ws-empty').style.display = t ? 'none' : 'flex';
   updateTang();
   if (!t) {
@@ -910,7 +582,7 @@ function saveFocused() {
     if (r.ok) {
       t.dirty = false;
       renderTabs();
-      setTimeout(loadTools, 2000);
+      setTimeout(loadDetail, 2000);
     } else {
       alert('save failed');
     }
@@ -1013,8 +685,8 @@ document.getElementById('m-save').onclick = function() {
 };
 
 function refreshSoon() {
-  setTimeout(function() { loadTools(); loadDetail(); loadRepos(); }, 1200);
-  setTimeout(function() { loadTools(); loadDetail(); }, 4000);
+  setTimeout(function() { loadDetail(); loadRepos(); }, 1200);
+  setTimeout(function() { loadDetail(); }, 4000);
 }
 
 // ── boot ──
@@ -1022,5 +694,5 @@ loadRepos();
 applyUrl();
 pushUrl(true);
 setInterval(function() {
-  if (selected) { loadDetail(); if (mode === 'tools') loadTools(); }
+  if (selected) { loadDetail(); }
 }, 8000);
