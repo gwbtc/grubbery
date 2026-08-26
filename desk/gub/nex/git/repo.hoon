@@ -26,7 +26,6 @@
         %-  pairs:enjs:format
         :~  ['repo' s+'']
             ['ref' s+'']
-            ['token' s+'']
         ==
       %+  spin:loader  ball
       :~  (manifest:loader 0)
@@ -129,7 +128,6 @@
 +$  repo-config
   $:  repo=@t
       ref=@t
-      token=@t
       account=@t
       author-name=@t
       author-email=@t
@@ -642,10 +640,10 @@
   ;<  road=road:tarball  bind:m  (ancestor-road:io [/git %repo] [%& / %'config.json'])
   ;<  =view:nexus  bind:m  (peek:io road `[/ %json])
   ?.  ?=([%file *] view)
-    (pure:m ['' 'main' '' '' '' ''])
+    (pure:m ['' 'main' '' '' ''])
   =/  cfg=json  (fall (mole |.(!<(json (need-vase:tarball sang.view)))) *json)
   ?.  ?=(%o -.cfg)
-    (pure:m ['' 'main' '' '' '' ''])
+    (pure:m ['' 'main' '' '' ''])
   =/  get
     |=  [key=@t default=@t]
     ^-  @t
@@ -653,7 +651,7 @@
     ?.  ?=([~ %s *] v)  default
     ?:(=('' p.u.v) default p.u.v)
   %-  pure:m
-  :*  (get 'repo' '')  (get 'ref' '')  (get 'token' '')  (get 'account' '')
+  :*  (get 'repo' '')  (get 'ref' '')  (get 'account' '')
       (get 'author_name' '')  (get 'author_email' '')
   ==
 ::

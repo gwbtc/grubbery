@@ -118,7 +118,6 @@ function renderSettings() {
     '<div class="set-section"><div class="run-head">origin</div>' +
     '<label class="m-label">repository <input id="set-origin" type="text" value="' + esc(r.repo || '') + '" placeholder="owner/repo"></label>' +
     '<label class="m-label">ref <input id="set-ref" type="text" value="' + esc(r.ref || '') + '" placeholder="main"></label>' +
-    '<label class="m-label">token <span class="hint">(write to change; never shown)</span> <input id="set-token" type="text" placeholder="unchanged"></label>' +
     '<label class="m-label">account <span class="hint">(github login to push as; empty = none)</span> <input id="set-account" type="text" value="' + esc(r.account || '') + '" placeholder="none"></label>' +
     '<label class="m-label">poll <span class="hint">(minutes between fetches; 0 = only on demand)</span> <input id="set-poll" type="number" min="0" value="' + esc(String(r.poll == null ? '' : r.poll)) + '" placeholder="15"></label></div>' +
     '<div class="set-section"><div class="run-head">author</div>' +
@@ -133,7 +132,6 @@ function renderSettings() {
       repo: selected,
       origin: document.getElementById('set-origin').value.trim(),
       ref: document.getElementById('set-ref').value.trim(),
-      token: document.getElementById('set-token').value.trim(),
       account: document.getElementById('set-account').value.trim(),
       author_name: document.getElementById('set-author-name').value.trim(),
       author_email: document.getElementById('set-author-email').value.trim()
@@ -693,6 +691,28 @@ document.getElementById('m-save').onclick = function() {
     pushUrl();
     onRepoChanged();
     setTimeout(loadRepos, 3000);
+  });
+};
+
+// ── forge-level defaults modal ──
+var defaultsModal = document.getElementById('defaults-modal');
+document.getElementById('edit-defaults').onclick = function() {
+  get('/defaults').then(function(d) {
+    d = d || {};
+    document.getElementById('d-author-name').value = d.author_name || '';
+    document.getElementById('d-author-email').value = d.author_email || '';
+    document.getElementById('d-account').value = d.account || '';
+    defaultsModal.show();
+  });
+};
+document.getElementById('d-save').onclick = function() {
+  post('/defaults', {
+    author_name: document.getElementById('d-author-name').value.trim(),
+    author_email: document.getElementById('d-author-email').value.trim(),
+    account: document.getElementById('d-account').value.trim()
+  }).then(function(r) {
+    if (!r.ok) { alert('save failed'); return; }
+    defaultsModal.close();
   });
 };
 

@@ -56,6 +56,7 @@
         <div id="landing" style="display:none">
           <div id="landing-head">
             <div class="run-head">repos <span id="landing-count"></span></div>
+            <button id="edit-defaults" class="hdr-btn">⚙ defaults</button>
             <button id="new-repo" class="hdr-btn primary">+ repo</button>
           </div>
           <div id="landing-grid"></div>
@@ -112,6 +113,18 @@
     <div id="m-actions">
       <button id="m-cancel" class="hdr-btn" data-close>cancel</button>
       <button id="m-save" class="hdr-btn primary">create</button>
+    </div>
+  </modal-dialog>
+
+  <modal-dialog id="defaults-modal">
+    <h2>defaults</h2>
+    <p class="m-note">stamped into new repos on create — per-repo settings override</p>
+    <label class="m-label">author name <input id="d-author-name" type="text" placeholder="Your Name"></label>
+    <label class="m-label">author email <input id="d-author-email" type="text" placeholder="you@example.com"></label>
+    <label class="m-label">account <span class="hint">(github login; empty = none)</span> <input id="d-account" type="text" placeholder="none"></label>
+    <div id="m-actions">
+      <button class="hdr-btn" data-close>cancel</button>
+      <button id="d-save" class="hdr-btn primary">save</button>
     </div>
   </modal-dialog>
   <div id="json-back">

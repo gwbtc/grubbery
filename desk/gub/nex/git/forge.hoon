@@ -50,6 +50,10 @@
           [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
           [%fall %| /requests empty-dir:loader]
           [%fall %| /repos empty-dir:loader]
+          ::  forge-level defaults: identity + account stamped into each new
+          ::  repo on create (per-repo config still overrides). Forge's own
+          ::  config — the one thing not scoped to a selected repo.
+          [%fall %& [/ %'defaults.json'] [[/ %json] (pairs:enjs:format ~[['author_name' s+''] ['author_email' s+''] ['account' s+'']])]]
           [%over %& [/ %'tile.json'] [[/ %json] tile]]
           [%over %& [/ %'icon.svg'] [[/ %mime] icon]]
           [%over %& [/ %'index.html'] [[/ %mime] forge-html]]
@@ -97,8 +101,13 @@
               [%api %src-delete ~]  (do-src-del rail eyre-id jon)
               [%api %delete ~]  (do-delete rail eyre-id jon)
               [%api %config ~]  (do-config rail eyre-id jon)
+              [%api %defaults ~]  (do-defaults rail eyre-id jon)
               [%api %run ~]     (do-run rail eyre-id jon)
           ==
+        ?:  ?=([%api %defaults ~] suffix)
+          ;<  cur=(unit json)  bind:m
+            (peek-as:io (nex-road:io rail [%& / %'defaults.json']) ,json)
+          (send-json rail eyre-id (fall cur ~))
         ?:  ?=([%api %list ~] suffix)
           ;<  lst=json  bind:m  (gather-repos rail)
           (send-json rail eyre-id lst)
@@ -212,8 +221,8 @@
   ?~  kids  fils
   %+  weld  ^$(ball +.i.kids, here (snoc here -.i.kids))
   $(kids t.kids)
-::  +gather-repos: every instance under /repos as a card — config
-::  (minus token) plus the current.json its data nexus maintains
+::  +gather-repos: every instance under /repos as a card — config plus
+::  the current.json its data nexus maintains
 ::
 ++  gather-repos
   |=  =rail:tarball
@@ -306,12 +315,23 @@
   ;<  ~  bind:m
     (make:io dir-road &+`bole:tarball`[`[`[/git %repo] ~ %.n ~] ~])
   ;<  ~  bind:m  (gain:io dir-road %.y)
+  ::  stamp forge-level defaults (identity + account) into the new repo;
+  ::  the create form's account wins if supplied, else the default.
+  ;<  defs=(unit json)  bind:m
+    (peek-as:io (nex-road:io rail [%& / %'defaults.json']) ,json)
+  =/  dget
+    |=  key=@t  ^-  @t
+    ?.  ?=([~ %o *] defs)  ''
+    =/  v  (~(get by p.u.defs) key)
+    ?.(?=([~ %s *] v) '' p.u.v)
+  =/  form-account=@t  (jstr jon 'account')
   =/  config=json
     %-  pairs:enjs:format
     :~  ['repo' s+(jstr jon 'repo')]
         ['ref' s+?:(=('' (jstr jon 'ref')) 'main' (jstr jon 'ref'))]
-        ['token' s+(jstr jon 'token')]
-        ['account' s+(jstr jon 'account')]
+        ['account' s+?:(=('' form-account) (dget 'account') form-account)]
+        ['author_name' s+(dget 'author_name')]
+        ['author_email' s+(dget 'author_email')]
     ==
   ;<  ~  bind:m
     (over:io (nex-road:io rail [%& /repos/[dir-name] %'config.json']) [[/ %json] config])
@@ -360,9 +380,9 @@
   ;<  ~  bind:m  (gain:io road %.y)
   ;<  ~  bind:m  (refresh-status rail repo root)
   (respond rail eyre-id 200 'created')
-::  +do-config: merge repo/ref/token fields into a repo's config.
-::  Empty strings leave the existing value alone, so the form can
-::  send only what changed (and never needs to echo the token).
+::  +do-config: merge repo/ref/account/author fields into a repo's config.
+::  Empty strings leave the existing value alone, so the form can send only
+::  what changed. Auth lives in the github proxy, keyed by account.
 ::
 ++  do-config
   |=  [=rail:tarball eyre-id=@ta jon=json]
@@ -378,8 +398,6 @@
   =?  om  !=('' origin)  (~(put by om) 'repo' s+origin)
   =/  ref=@t  (jstr jon 'ref')
   =?  om  !=('' ref)  (~(put by om) 'ref' s+ref)
-  =/  token=@t  (jstr jon 'token')
-  =?  om  !=('' token)  (~(put by om) 'token' s+token)
   =/  aname=@t  (jstr jon 'author_name')
   =?  om  !=('' aname)  (~(put by om) 'author_name' s+aname)
   =/  aemail=@t  (jstr jon 'author_email')
@@ -396,6 +414,23 @@
     ?.  ?=([~ %n *] pol)  (pure:m ~)
     %+  over:io  (nex-road:io rail [%& /repos/[`@ta`repo] %'poll.json'])
     [[/ %json] (pairs:enjs:format ~[['minutes' u.pol]])]
+  (respond rail eyre-id 200 'saved')
+::  +do-defaults: save forge-level defaults (identity + account) stamped
+::  into new repos on create. The editor form echoes all fields, so a full
+::  overwrite is correct — empty means empty.
+::
+++  do-defaults
+  |=  [=rail:tarball eyre-id=@ta jon=json]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  =/  new=json
+    %-  pairs:enjs:format
+    :~  ['author_name' s+(jstr jon 'author_name')]
+        ['author_email' s+(jstr jon 'author_email')]
+        ['account' s+(jstr jon 'account')]
+    ==
+  ;<  ~  bind:m
+    (over:io (nex-road:io rail [%& / %'defaults.json']) [[/ %json] new])
   (respond rail eyre-id 200 'saved')
 ::  +refresh-status: after a working-tree write, reload the repo's
 ::  data nexus so its derived ui (status especially) reflects the

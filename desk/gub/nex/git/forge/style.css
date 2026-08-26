@@ -148,6 +148,7 @@ modal-dialog:not(:defined) { display: none; }   /* no flash before upgrade */
   --md-backdrop: rgba(0,0,0,0.25);
 }
 #repo-modal h2 { font-size: 16px; margin-bottom: 14px; }
+.m-note { font-size: 12px; color: #999; margin-bottom: 14px; margin-top: -4px; }
 .m-label { display: block; font-size: 12px; color: #555; margin-bottom: 10px; }
 .m-label input { display: block; width: 100%; margin-top: 3px; font-size: 13px; padding: 8px 10px; border: 1px solid #ddd; border-radius: 8px; font-family: inherit; outline: none; }
 .m-label input:focus { border-color: #3d3a45; }
