@@ -17,6 +17,10 @@
 /<  app-css        shell/style.css
 /<  permits-html   shell/permits.html
 /<  home-html      shell/home.html
+/<  docs-html      shell/docs.html
+/<  docs-js        shell/docs.js
+/<  marked-js      shell/marked.min.js
+/<  hoon-grammar   shell/hoon-grammar.json
 =<  ^-  nexus:nexus
     |%
     ++  on-load
@@ -90,6 +94,18 @@
           [%fall %| /share empty-dir:loader]
           [%fall %| /peers empty-dir:loader]
           [%fall %| /requests empty-dir:loader]
+          ::  /docs: the grubbery handbook. Markdown grubs served at
+          ::  /apps/grubbery/docs and rendered client-side (marked). Authored
+          ::  in the *-md stubs below and deployed with %over — the Hoon
+          ::  source is the source of truth while there's no in-browser
+          ::  editor. When that editor lands these flip to %fall (seed-once)
+          ::  so live edits win instead of being clobbered on reload.
+          [%fall %| /docs empty-dir:loader]
+          [%over %& [/docs %'intro.md'] [[/ %mime] (md-seed intro-md)]]
+          [%over %& [/docs %'nexuses.md'] [[/ %mime] (md-seed nexuses-md)]]
+          [%over %& [/docs %'grubs.md'] [[/ %mime] (md-seed grubs-md)]]
+          [%over %& [/docs %'fibers.md'] [[/ %mime] (md-seed fibers-md)]]
+          [%over %& [/docs %'roadmap.md'] [[/ %mime] (md-seed roadmap-md)]]
           [%over %& [/ %'app.js'] [[/ %mime] app-js]]
           [%over %& [/ %'style.css'] [[/ %mime] app-css]]
           [%over %& [/ %'permits.html'] [[/ %mime] permits-html]]
@@ -601,6 +617,82 @@
           ;<  ~  bind:m
             (send-simple:srv eyre-id [[200 ~[['content-type' 'image/svg+xml']]] `bod])
           (pure:m ~)
+        ::  /apps/grubbery/docs → the handbook reader shell
+        ?:  ?=([%docs ~] suffix)
+          ;<  ~  bind:m  (send-simple:srv eyre-id (mime-response:http-utils docs-html))
+          (pure:m ~)
+        ::  docs client assets: our reader script + the markdown renderer
+        ?:  ?=([%docs %'docs.js' ~] suffix)
+          ;<  ~  bind:m
+            (send-simple:srv eyre-id [[200 ~[['content-type' 'text/javascript']]] `q.docs-js])
+          (pure:m ~)
+        ?:  ?=([%docs %'marked.min.js' ~] suffix)
+          ;<  ~  bind:m
+            (send-simple:srv eyre-id [[200 ~[['content-type' 'text/javascript']]] `q.marked-js])
+          (pure:m ~)
+        ?:  ?=([%docs %'hoon-grammar.json' ~] suffix)
+          ;<  ~  bind:m
+            (send-simple:srv eyre-id [[200 ~[['content-type' 'application/json']]] `q.hoon-grammar])
+          (pure:m ~)
+        ::  /apps/grubbery/docs/nav.json → the sidebar tree. Served straight
+        ::  from code (docs-nav) so it's one source of truth: adding a doc is
+        ::  a nav line + a seed row. When the in-browser editor lands we can
+        ::  promote this to a live-editable grub without the seed-once trap.
+        ?:  ?=([%docs %'nav.json' ~] suffix)
+          =/  bod=octs  (as-octs:mimes:html (en:json:html docs-nav))
+          ;<  ~  bind:m
+            (send-simple:srv eyre-id [[200 ~[['content-type' 'application/json']]] `bod])
+          (pure:m ~)
+        ::  /apps/grubbery/docs/search?q=<query> → server-side full-text
+        ::  search over the /docs grubs. Returns hits (path+title+snippet);
+        ::  the browser never loads the whole corpus, only what it clicks.
+        ?:  ?=([%docs %search ~] suffix)
+          =/  args=quay:eyre  args:(parse-url:http-utils url.request.req)
+          =/  ql  (skim args |=([p=@t q=@t] =(p 'q')))
+          =/  q=@t  ?~(ql '' q.i.ql)
+          =/  qlow=tape  (cass (trip q))
+          ?:  =(~ qlow)
+            =/  bod=octs  (as-octs:mimes:html (en:json:html [%a ~]))
+            ;<  ~  bind:m
+              (send-simple:srv eyre-id [[200 ~[['content-type' 'application/json']]] `bod])
+            (pure:m ~)
+          =/  items=(list [path=@t title=@t])  docs-list
+          =|  hits=(list json)
+          |-  ^-  process:fiber:nexus
+          ?~  items
+            =/  bod=octs  (as-octs:mimes:html (en:json:html [%a (flop hits)]))
+            ;<  ~  bind:m
+              (send-simple:srv eyre-id [[200 ~[['content-type' 'application/json']]] `bod])
+            (pure:m ~)
+          ;<  fv=view:nexus  bind:m
+            (peek:io (nex-road:io rail [%& /docs `@ta`path.i.items]) `[/ %mime])
+          =/  txt=@t
+            ?.  ?=([%file *] fv)  ''
+            =/  mm=mime  !<(mime (need-vase:tarball sang.fv))
+            `@t`q.q.mm
+          =/  snip=(unit @t)  (find-snippet txt q)
+          =/  tmatch=?  !=(~ (find qlow (cass (trip title.i.items))))
+          =?  hits  |(?=(^ snip) tmatch)
+            =/  s=@t  ?~(snip title.i.items u.snip)
+            [(doc-hit path.i.items title.i.items s) hits]
+          $(items t.items)
+        ::  /apps/grubbery/docs/page?path=<name.md> → one doc's raw markdown
+        ?:  ?=([%docs %page ~] suffix)
+          =/  args=quay:eyre  args:(parse-url:http-utils url.request.req)
+          =/  pl  (skim args |=([p=@t q=@t] =(p 'path')))
+          =/  pax=@t  ?~(pl '' q.i.pl)
+          ?:  =('' pax)
+            ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'path required')])
+            (pure:m ~)
+          ;<  fv=view:nexus  bind:m
+            (peek:io (nex-road:io rail [%& /docs `@ta`pax]) `[/ %mime])
+          ?.  ?=([%file *] fv)
+            ;<  ~  bind:m  (send-simple:srv eyre-id [[404 ~] `(as-octs:mimes:html 'Not found')])
+            (pure:m ~)
+          =/  =mime  !<(mime (need-vase:tarball sang.fv))
+          ;<  ~  bind:m
+            (send-simple:srv eyre-id [[200 ~[['content-type' 'text/plain']]] `q.mime])
+          (pure:m ~)
         ::  default → serve the home page (static file, /<-imported home-html)
         ;<  ~  bind:m  (send-simple:srv eyre-id (mime-response:http-utils home-html))
         (pure:m ~)
@@ -608,6 +700,331 @@
     --
 |%
 ++  srv  ~(. http-res:io [%| 1 %& ~ %'main.sig'])
+::  md-seed: wrap stub markdown text as a text/markdown mime, for seeding
+::  the /docs grubs. Seeds only fire once (%fall), so this is a starting
+::  point the user edits in place — never re-applied over live content.
+++  md-seed
+  |=  t=@t  ^-  mime
+  [/text/markdown (as-octs:mimes:html t)]
+::  docs-nav: the initial sidebar tree, the SUMMARY equivalent. Stored as
+::  an editable grub (nav.json) so reordering/adding is a data edit, not a
+::  code change.
+::  docs-nav: THE single structured source for the docs sidebar, as JSON.
+::  Built with two gates — a `doc` leaf ({title,path}) and a `sec` section
+::  ({title,kids}). A section's kids is just a list of json, so sections
+::  NEST ARBITRARILY: drop a `sec` inside another `sec`'s kids for as many
+::  levels as you like. No custom recursive mold (those loop the build) — we
+::  lean on json's own recursion.
+++  docs-nav
+  ^-  json
+  =/  doc
+    |=  [p=@t t=@t]  ^-  json
+    (pairs:enjs:format ~[['title' s+t] ['path' s+p]])
+  =/  sec
+    |=  [t=@t kids=(list json)]  ^-  json
+    (pairs:enjs:format ~[['title' s+t] ['kids' [%a kids]]])
+  :-  %a
+  :~  (doc 'intro.md' 'Introduction')
+      %+  sec  'Core model'
+      :~  (doc 'nexuses.md' 'Nexuses')
+          (doc 'grubs.md' 'Grubs & the namespace')
+          (doc 'fibers.md' 'Fibers')
+      ==
+      (doc 'roadmap.md' 'TODO & future topics')
+  ==
+::  docs-list: the flat [path title] of every doc, for server-side search.
+::  Derived by walking the docs-nav json tree — recursion in the ARM (fine),
+::  over json's existing recursive type. Arbitrary depth, still one source.
+++  docs-list
+  ^-  (list [path=@t title=@t])
+  |^  (walk docs-nav)
+  ++  walk
+    |=  j=json
+    ^-  (list [path=@t title=@t])
+    ?.  ?=([%a *] j)  ~
+    %-  zing
+    %+  turn  p.j
+    |=  node=json
+    ^-  (list [path=@t title=@t])
+    ?.  ?=([%o *] node)  ~
+    =/  pax  (~(get by p.node) 'path')
+    ?:  ?=([~ %s *] pax)
+      =/  ttl  (~(get by p.node) 'title')
+      ~[[p.u.pax ?:(?=([~ %s *] ttl) p.u.ttl '')]]
+    =/  kids  (~(get by p.node) 'kids')
+    ?~(kids ~ (walk u.kids))
+  --
+::  find-snippet: first line of `text` containing `q` (case-insensitive),
+::  capped for display. ~ if no line matches. Grep's line-as-context trick.
+++  find-snippet
+  |=  [text=@t q=@t]
+  ^-  (unit @t)
+  =/  ql=tape  (cass (trip q))
+  =/  lines=(list @t)  (to-wain:format text)
+  |-  ^-  (unit @t)
+  ?~  lines  ~
+  ?.  =(~ (find ql (cass (trip i.lines))))
+    `(crip (scag 200 (trip i.lines)))
+  $(lines t.lines)
+::  doc-hit: one search result as JSON.
+++  doc-hit
+  |=  [p=@t t=@t snip=@t]
+  ^-  json
+  (pairs:enjs:format ~[['path' s+p] ['title' s+t] ['snippet' s+snip]])
+::  Stub handbook content — deliberately thin. Flesh these out live at
+::  /apps/grubbery/docs; edits persist (grubs), the seeds never overwrite.
+++  intro-md
+  '''
+  # The Grubbery Handbook
+
+  Grubbery is a general-purpose application model for Urbit. A stock Gall app
+  is one agent holding one big state noun, migrated by hand every time that
+  shape changes. Grubbery takes the opposite bet: an application is a set of
+  small **nexuses** composing over a shared **namespace** of content-addressed
+  **grubs**, and all their work runs as restartable **fibers**. State doesn't
+  live in an agent heap — it lives in the namespace, versioned and portable,
+  and code reads it back on demand.
+
+  Three nouns carry the whole model:
+
+  - **Nexus** — the unit of an application. Declares what lives in its slice
+    of the namespace, and answers requests against it.
+  - **Grub** — the unit of state. One content-addressed file carrying a mark
+    (its type).
+  - **Fiber** — the unit of work. A monadic process that reads and writes the
+    namespace and can be rebooted at any point.
+
+  ## Why bother
+
+  The payoff is how it scales. A monolithic agent gets *harder* to extend the
+  bigger it grows — every feature entangles with one state and one event
+  handler. Nexuses compose instead of entangle, so the next feature reuses
+  primitives rather than thickening a core. And because state *is* the
+  namespace, the two worst Gall taxes — hand-written migrations and cross-ship
+  auth boilerplate — mostly evaporate.
+
+  ## Where to start
+
+  - [Nexuses](#nexuses.md) — the unit of an application
+  - [Grubs & the namespace](#grubs.md) — where state actually lives
+  - [Fibers](#fibers.md) — how work gets done
+
+  ## This handbook is live
+
+  > These pages are markdown grubs served by the shell nexus, and they quote
+  > source **straight from the running ship** — no copy-paste, so a snippet
+  > can't drift from the code it describes.
+
+  Here is a whole nexus helper lib, read live from the namespace through the
+  kernel's own file API and highlighted in place:
+
+  ```live
+  /lib/shell.hoon
+  ```
+  '''
+++  nexuses-md
+  '''
+  # Nexuses
+
+  A nexus is the grubbery unit of an application — a core with two arms:
+
+  - **`on-load`** declares what persistently lives in the nexus's subtree of
+    the namespace: the grubs it owns and their initial state.
+  - **`on-file`** answers "given this file — a request, a timer, a
+    subscription update — do the work." HTTP handlers and fibers live here.
+
+  ## on-load: declaring your state
+
+  `on-load` returns a *bole* built by `spin:loader` over a list of loader
+  operations. The two you'll reach for constantly:
+
+  - **`%fall`** seeds a grub *only if absent* — the runtime owns it after, and
+    reloads never clobber it. For state edited at runtime.
+  - **`%over`** *overwrites* on every load — the code is the source of truth.
+    For assets and content authored in-source.
+
+  ```hoon
+  %+  spin:loader  ball
+  :~  (manifest:loader 0)
+      [%fall %& [/ %'main.sig'] [[/ %sig] ~]]      ::  a fiber entrypoint
+      [%fall %| /cache empty-dir:loader]           ::  a rebuildable cache dir
+      [%over %& [/ %'app.js'] [[/ %mime] app-js]]  ::  a served asset
+  ==
+  ```
+
+  Getting these backwards is the classic footgun: seed content with `%fall`
+  and it freezes at first boot; author it with `%over` and every commit
+  redeploys it. It's the same record-vs-cache distinction as
+  [Grubs](#grubs.md).
+
+  ## on-file: doing the work
+
+  Requests route in as the file that represents them. A nexus binds an HTTP
+  path and hands off to a fiber:
+
+  ```hoon
+  [~ %'main.sig']
+    ;<  ~  bind:m  (rise-wait:io prod "failed")
+    ;<  ~  bind:m  (bind-http:io [~ /apps/grubbery])
+    (http-dispatch:io %shell)
+  ```
+
+  The kernel routes matching requests here and spawns a fiber per request.
+
+  ## Reading anything, live
+
+  A nexus can read any file in the running namespace. Here's how a tool greps
+  the whole ball — the same read primitive the live-code embeds use:
+
+  ```live
+  /lib/mcp/grep.hoon 53-64
+  ```
+
+  _TODO: registration via a `%fall` row in `root.hoon`; the full loader
+  vocabulary; declaring weirs._
+  '''
+++  grubs-md
+  '''
+  # Grubs & the namespace
+
+  A **grub** is one file in the namespace: a path, a name, and a **blot** —
+  its content plus a **mark** (its type). Marks are what let the system
+  convert a grub on the way out — the kernel's file API serves a `.hoon` grub
+  as text by running its mark's `mime` tube.
+
+  The **namespace** is the shared tree of every nexus's grubs. It's
+  content-addressed, so identical content is stored once and dedup'd across
+  the whole system. Crucially it *is* the state — there is no separate agent
+  heap to migrate when a type changes.
+
+  ## Two tiers: record vs cache
+
+  Not all state is equal, and grubbery keeps a hard line between:
+
+  - **System of record** — authoritative state, the truth. Lose it and you
+    lose data.
+  - **Cache** — derived, rebuildable state. Lose it and you recompute it.
+
+  The convention is to keep them in *separate sibling grubs* so the tiers are
+  legible at a glance. The shell nexus does exactly this: consent records live
+  under `/permit`, rebuildable views under `/cache`. That split is a design
+  rule, not a suggestion — it's how you know, staring at an `on-load`, what's
+  precious and what's disposable.
+
+  ## %fall vs %over encode lifecycle
+
+  The two loader verbs aren't just "seed" and "write" — they declare who owns
+  a grub:
+
+  - **`%fall`** = "owned at runtime; seed once." Record tier, or anything a
+    user or editor mutates.
+  - **`%over`** = "defined in code; overwrite." Assets, and content with no
+    runtime editor yet.
+
+  ## Reading a grub
+
+  From inside a fiber you `peek` a grub by its road, optionally casting to a
+  mark:
+
+  ```hoon
+  ;<  jon=(unit json)  bind:m
+    (peek-as:io (nex-road:io rail [%& /cache %'weirs.json']) ,json)
+  ```
+
+  A `~` back means "nothing there" — a clean miss the reader handles, not an
+  error.
+
+  _TODO: content-addressing internals; the blot type in depth; marks and
+  tubes; cross-nexus and cross-ship peeks._
+  '''
+++  fibers-md
+  '''
+  # Fibers
+
+  A **fiber** is grubbery's unit of work: a monadic process that reads and
+  writes the namespace, binds HTTP, peeks other nexuses, waits on timers —
+  and, the whole point, **restarts cleanly from state** at any moment.
+
+  ## The monad
+
+  Open a fiber by naming its result type, sequence effects with `;< … bind:m`,
+  finish with `pure:m`:
+
+  ```hoon
+  =/  m  (fiber:fiber:nexus ,~)
+  ;<  now=@da         bind:m  get-time:io
+  ;<  ~               bind:m  (bind-http:io [~ /apps/grubbery])
+  ;<  wv=(unit json)  bind:m  (peek-as:io road ,json)
+  (pure:m ~)
+  ```
+
+  Each `;<` line is one step: run the effect on the right, bind its result on
+  the left, continue. Reads, writes, time, HTTP — everything sequences the
+  same way, and the main arm reads top-to-bottom as the action it performs.
+
+  ## Roads and weirs
+
+  A **road** names a location in the namespace —
+  `(nex-road:io rail [%& /dir %'file'])` addresses a grub relative to the
+  nexus. A **weir** is a *capability*: the set of reaches a nexus declares it
+  may make. Reaching outside your declared weir is refused — that's how
+  cross-nexus and cross-ship reads stay safe without per-call auth checks.
+
+  > An empty weir `{}` means "declared, with no holes"; an *absent* weir `~`
+  > means "no filter at all." That's a real, intentional distinction — not a
+  > typo to paper over.
+
+  ## The restart contract
+
+  The load-bearing invariant: **reboot at any time, recover from state.** A
+  fiber isn't a long-lived thread you must keep alive — it's derived from the
+  namespace, so the runtime can restart it whenever and it resumes from where
+  the state says. This is why grubbery treats restarts as ordinary rather than
+  hazardous, and why a loud crash is a *bug report*, not corruption to hide.
+
+  _TODO: timeouts and `%timer-rest`; `poke` / `poke-soft`; the fiber
+  code-style conventions (one-line binds, helpers in a bottom core)._
+  '''
+++  roadmap-md
+  '''
+  # TODO & future topics
+
+  The doc backlog. Check things off as pages land; add topics freely.
+
+  ## Core model (the fundamentals)
+
+  - [ ] Nexuses: `on-load` vs `on-file`, the request/fiber lifecycle
+  - [ ] The loader vocabulary: `%fall` vs `%over`, `manifest`, `spin`
+  - [ ] Grubs, marks, and content-addressing
+  - [ ] System-of-record vs rebuildable-cache tiers (sibling grubs)
+  - [ ] Fibers: the `bind:m` monad, shadowing `m`, helper cores
+  - [ ] Roads: `nex-road`, `peek`/`peek-as`, cross-nexus reads
+  - [ ] Reboot-anytime + recover-from-state: the core contract
+
+  ## Cross-ship
+
+  - [ ] Weirs: capability-scoped reaches, empty `{}` vs absent `~`
+  - [ ] Cross-ship peeks, veto/tomb, the snap protocol
+  - [ ] Discovery: usergroups, grants, the alias/book registry
+
+  ## Building real things
+
+  - [ ] Serving HTTP: binding, static shell + data endpoints
+  - [ ] The permission system: sources vs views, consent, enforcement
+  - [ ] Desks: install, sync, follower model, publishing
+  - [ ] Dynamic tools: `write_code`, `check_bin`, the MCP surface
+
+  ## Why grubbery (the pitch)
+
+  - [ ] A program vs a substrate: composition beats entanglement
+  - [ ] Migrating a Gall agent: the strangler-fig pattern (see lattice)
+  - [ ] The overlay pattern: keep source in your own repo, sync into gub
+
+  ## Meta
+
+  - [ ] The in-browser editor (`<code-editor>` + save)
+  - [ ] A worked example, end to end
+  '''
 ::  === repos-to-sync bootstrap (shell-owned git_repo + desk setup) ===
 ::  default-repos: the shipped list of libraries this ship follows by
 ::  default. Each becomes a git_repo (polling github) + a desk following
