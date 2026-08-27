@@ -85,9 +85,11 @@
   #empty { color: var(--muted); }
   mark { background: #ffe9a8; color: inherit; border-radius: 2px; }
   #docs-foot {
-    max-width: 720px; margin: 0 auto; padding: 0 40px 40px; color: var(--muted);
-    font-size: 12px; font-style: italic; border-top: 1px solid var(--line);
-    padding-top: 16px;
+    position: fixed; bottom: 0; left: 0; right: 0; z-index: 40;
+    padding: 12px 40px; color: var(--muted); font-size: 12px;
+    font-style: italic; text-align: center;
+    background: rgba(250,250,250,0.92); backdrop-filter: blur(6px);
+    border-top: 1px solid var(--line);
   }
 
   /* live code embeds (real source, shiki-highlighted) */
@@ -117,12 +119,12 @@
       <div id="doc-wrap">
         <article id="doc"><p id="empty">Loading…</p></article>
       </div>
-      <footer id="docs-foot">
-        This handbook began as an LLM-automated first pass and is being adapted
-        by hand — treat specifics as provisional.
-      </footer>
     </main>
   </div>
+  <footer id="docs-foot">
+    This handbook began as an LLM-automated first pass and is being adapted by
+    hand — treat specifics as provisional.
+  </footer>
 
   <script src="/apps/grubbery/docs/marked.min.js"></script>
   <script src="/apps/grubbery/docs/docs.js"></script>
