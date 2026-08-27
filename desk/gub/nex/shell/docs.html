@@ -25,6 +25,13 @@
     font-size: 13px; text-transform: uppercase; letter-spacing: 0.08em;
     color: var(--muted); margin: 0 0 12px; padding: 0 24px;
   }
+  #home-link {
+    display: flex; align-items: center; gap: 7px; padding: 0 24px 14px;
+    margin-bottom: 8px; color: var(--muted); text-decoration: none; font-size: 13px;
+    border-bottom: 1px solid var(--line);
+  }
+  #home-link:hover { color: var(--fg); }
+  #home-link svg { width: 15px; height: 15px; }
   #nav, #nav ul { list-style: none; margin: 0; padding: 0; }
   #nav a {
     display: block; padding: 6px 24px; color: var(--fg);
@@ -106,6 +113,10 @@
 <body>
   <div id="docs">
     <nav id="sidebar">
+      <a id="home-link" href="/apps/grubbery" title="Back to home">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
+        Home
+      </a>
       <h1>Grubbery Docs</h1>
       <ul id="nav"></ul>
     </nav>
