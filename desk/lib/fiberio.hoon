@@ -1341,6 +1341,14 @@
       [~ %veto *]
     [%fail (veto-error dart.u.in)]
       [~ %poke * *]
+    ::  a fire-and-forget poke's ack. Nothing ever awaits one, and %skip
+    ::  DEFERS rather than consumes, so skipping it leaves it in the queue
+    ::  to be re-offered on every later take. A long-lived fiber that pokes
+    ::  once per unit of work therefore accumulates an unbounded skip queue
+    ::  and every take rescans it. %wait consumes the ack and keeps waiting
+    ::  for the timer, which is what the caller asked for.
+    ?:  =([/ %poke-ack] p.sage.u.in)
+      [%wait ~]
     ?.  =([/ %timer-wake] p.sage.u.in)
       [%skip ~]
     =/  wak=path  !<(path q.sage.u.in)
