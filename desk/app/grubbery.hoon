@@ -5764,6 +5764,15 @@
   (weld /gall-sub/[(scot %p ship)]/[agent] path)
 ::  Subscribe to a gall agent, materialize at /sys/gall/
 ::
+::  ============================ TODO ============================
+::  !!  GAIN GALL SUBSCRIPTION GRUBS  !!
+::  The materialized sub state under /sys/gall/subs/<ship>/<agent>/<path>/
+::  (`live` + `data`) is NOT gained, so the self-clean/tomb GC can tomb it
+::  WHILE THE SUBSCRIPTION IS STILL LIVE. Gain these grubs (%.y) for as long
+::  as the sub is alive, so they persist as long as the sub does. Open q:
+::  clear them on reboot if the sub itself doesn't survive a reboot.
+::  =============================================================
+::
 ++  gall-sub
   |=  [=ship agent=dude:gall =path]
   ^+  this
