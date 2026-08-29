@@ -1,9 +1,11 @@
-::  poke-ack: the (unit tang) result of a poke — ~ on ack, [~ tang] on nack
+::  poke-ack: a poke's result keyed by the requester's wire — the
+::  original wire plus ~ on ack, [~ tang] on nack. Wire-correlated so a
+::  caller matches exactly its own ack.
 ::
-|_  ack=(unit tang)
+|_  ack=[=wire err=(unit tang)]
 ++  grab
   |%
-  ++  noun  ,(unit tang)
+  ++  noun  ,[wire (unit tang)]
   --
 ++  grow
   |%

@@ -690,8 +690,14 @@
       [%over %& [/ %'style.css'] [[/ %mime] ui-css]]
       [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
       [%fall %| /requests empty-dir:loader]
-      [%fall %| /tools empty-dir:loader]
-      [%fall %| /proc empty-dir:loader]
+      ::  tools.tools: the tools child nexus instance — owns discovery
+      ::  and execution. Run grubs live at /tools.tools/runs, under its
+      ::  own weir (bounded by mcp). Neck [/ %tools] (code at
+      ::  nex/tools.hoon — a reusable top-level nexus any nexus can
+      ::  mount). The name-encoded instance is a fresh path, so it
+      ::  sidesteps the stale plain /tools dir that %fall would keep
+      ::  unnecked. mcp keeps no run grubs of its own.
+      [%fall %| /'tools.tools' [`[`[/ %tools] ~ %.n ~] ~]]
       [%over %& [/ %'README.md'] [[/ %mime] man]]
   ==
 ::
@@ -738,14 +744,10 @@
         ;<  tree=json  bind:m  (gather-tools-tree rail)
         (send-json eyre-id tree)
       ?:  ?=([%api %proc ~] suffix)
-        ;<  transport=(list json)  bind:m  (gather-runs-in rail /tools ~)
-        ;<  =view:nexus  bind:m  (peek:io (nex-road:io rail [%| /proc]) ~)
-        =/  tree=json
-          ?.  ?=([%ball *] view)
-            (pairs:enjs:format ~[['dirs' [%a ~]] ['files' [%a ~]]])
-          (proc-tree ball.view)
-        ?>  ?=(%o -.tree)
-        (send-json eyre-id [%o (~(put by p.tree) 'transport' a+transport)])
+        ::  active runs now live in the tools child at /tools.tools/runs.
+        ;<  transport=(list json)  bind:m  (gather-runs-in rail /'tools.tools'/runs ~)
+        %+  send-json  eyre-id
+        (pairs:enjs:format ~[['dirs' [%a ~]] ['files' [%a ~]] ['transport' a+transport]])
       ?:  ?=([%api %src ~] suffix)
         =/  tool-name=(unit @t)  (quay-get qargs 'tool')
         ?~  tool-name
@@ -797,48 +799,29 @@
         (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'Missing tool name')])
       ?.  ?=([%s *] u.tool-name)
         (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'Invalid tool name')])
-      =/  tool-args=(map @t json)
-        ?~  arguments  ~
-        ?.  ?=([%o *] u.arguments)  ~
-        p.u.arguments
-      =/  ts=tool-state:nex-tools
-        [p.u.tool-name tool-args %start ~ ~]
-      ::  Optional sandbox: the run grub is placed inside /proc/<name>
-      ::  and executes under that sandbox's weir instead of mcp's.
-      ::  Placement IS the enforcement — the kernel's ancestor walk
-      ::  does the rest.
-      =/  sandbox=(unit @ta)
-        ?~  s=(~(get jo:json-utils u.params) /sandbox)  ~
-        ?.  ?=([%s *] u.s)  ~
-        ?.  ((sane %tas) p.u.s)  ~
-        [~ `@ta`p.u.s]
-      ;<  sb-ok=?  bind:m
-        =/  m  (fiber:fiber:nexus ,?)
-        ?~  sandbox  (pure:m %.y)
-        ;<  =view:nexus  bind:m  (peek:io [%| 1 %| /proc/[u.sandbox]] ~)
-        (pure:m ?=([%ball *] view))
-      ?.  sb-ok
-        (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'unknown sandbox')])
-      ::  Create tool grub and subscribe
+      ::  Delegate the run to the /tools child nexus: subscribe to the
+      ::  run grub, poke the child's main.sig to spawn it, await %done,
+      ::  then poke the child to cull it. The run executes under the
+      ::  child's weir, not mcp's.
       =/  tid=@ta  eyre-id
-      =/  tool-road=road:tarball
-        ?~  sandbox  [%| 1 %& /tools tid]
-        [%| 1 %& /proc/[u.sandbox] tid]
-      ::  The run grub's lifecycle is OURS: we name it (eyre-id — stable
-      ::  across fiber restarts, so a crashed request resumes its run
-      ::  instead of orphaning it) and we cull it after reading the
-      ::  result — runs idle at %done until their owner deletes them.
-      ;<  exists=?  bind:m  (peek-exists:io tool-road)
+      =/  run-road=road:tarball   (nex-road:io rail [%& /'tools.tools'/runs tid])
+      =/  call-road=road:tarball  (nex-road:io rail [%& /'tools.tools' %'main.sig'])
+      =/  call-body=json
+        %-  pairs:enjs:format
+        :~  ['cmd' s+'call']
+            ['id' s+tid]
+            ['name' u.tool-name]
+            ['arguments' (fall arguments [%o ~])]
+        ==
+      ;<  exists=?  bind:m  (peek-exists:io run-road)
       ;<  =kept:nexus  bind:m  get-kept:io
       ;<  ~  bind:m
         ?.  =(~ kept)
           (pure:m ~)
-        ;<  *  bind:m
-          (keep:io /watch tool-road ~)
-        ?.  exists
-          (make:io tool-road |+[[[/ %tool-state] ts] ~])
-        (pure:m ~)
-      ::  Wait for tool to finish
+        ;<  *  bind:m  (keep:io /watch run-road ~)
+        ?:  exists  (pure:m ~)
+        (poke:io call-road [[/ %json] call-body])
+      ::  Wait for the run to finish
       |-
       ;<  nw=news-or-wake:io  bind:m  (take-news-or-wake:io /watch)
       ?:  ?=(%wake -.nw)  $
@@ -846,7 +829,7 @@
         ?~  fil.wave.nw  ~
         (~(get by file.u.fil.wave.nw) tid)
       ?~  cas  $
-      ;<  =view:nexus  bind:m  (peek-at:io tool-road ~ [%ud ud.u.cas])
+      ;<  =view:nexus  bind:m  (peek-at:io run-road ~ [%ud ud.u.cas])
       ?.  ?=([%file *] view)  $
       =/  st=tool-state:nex-tools
         !<(tool-state:nex-tools (need-vase:tarball sang.view))
@@ -868,13 +851,11 @@
       ;<  ~  bind:m
         %-  send-simple:srv
         [eyre-id [[200 ~[['content-type' 'application/json']]] `json-bytes]]
-      ::  requester-owned GC: the run sits idle at %done; result read
-      ::  and delivered, cull it — grub, process, history.
-      ;<  ~  bind:m  (drop:io /watch tool-road)
-      ;<  err=(unit tang)  bind:m  (cull-soft:io tool-road)
-      ?^  err
-        %-  (slog leaf+"mcp: run cleanup failed" u.err)
-        (pure:m ~)
+      ::  requester-owned GC: tell the child to cull the finished run.
+      ;<  ~  bind:m  (drop:io /watch run-road)
+      ;<  ~  bind:m
+        %+  poke:io  call-road
+        [[/ %json] (pairs:enjs:format ~[['cmd' s+'cull'] ['id' s+tid]])]
       (pure:m ~)
     ::  Protocol methods (initialize, tools/list, etc.): handle inline
     ;<  dynamic=(map @t tool:nex-tools)  bind:m  get-dynamic-tools
@@ -884,49 +865,5 @@
     =/  json-bytes=octs  (as-octs:mimes:html (en:json:html u.response))
     %-  send-simple:srv
     [eyre-id [[200 ~[['content-type' 'application/json']]] `json-bytes]]
-      ::  /tools/{id}: tool process
-      ::  Reads tool-state, looks up handler from bins, runs it, writes %done.
-      ::
-      ?([[%tools ~] @] [[%proc *] @])
-    ::  stray config files are not runs — leave them inert
-    ?:  =(%'weir.json' name.rail)  stay:m
-    ;<  ~  bind:m  (rise-tool prod)
-    ;<  st=tool-state:nex-tools  bind:m
-      (get-state-as:io ,tool-state:nex-tools)
-    ::  rebooted at %done: this run is finished — be a stay, so any
-    ::  real input nacks loudly. (The reboot kick is null; stay
-    ::  waits on it.)
-    ?:  =(%done step.st)  stay:m
-    ::  Look up tool handler from bins
-    ;<  got=(each tool:nex-tools tang)  bind:m  (await-tool tool.st)
-    ?:  ?=(%| -.got)
-      =/  err-msg=@t  (render-tang:build p.got)
-      =/  result-data=json
-        (pairs:enjs:format ~[['type' s+'error'] ['message' s+err-msg]])
-      ;<  ~  bind:m
-        (replace:io `tool-state:nex-tools`[tool.st args.st %done data.st `result-data])
-      stay:m
-    =/  tl=tool:nex-tools  p.got
-    ;<  result=tool-result:nex-tools  bind:m  handler.tl
-    =/  result-json=json
-      ?-  -.result
-        %text   (pairs:enjs:format ~[['type' s+'text'] ['text' s+text.result]])
-        %error  (pairs:enjs:format ~[['type' s+'error'] ['message' s+message.result]])
-        %mime
-      =/  media-type=@t  (mite-to-cord:nex-tools p.mime.result)
-      =/  b64=@t  (en:base64:mimes:html q.mime.result)
-      %-  pairs:enjs:format
-      :~  ['type' s+'mime']
-          ['media_type' s+media-type]
-          ['data' s+b64]
-      ==
-      ==
-    ;<  ~  bind:m
-      (replace:io `tool-state:nex-tools`[tool.st args.st %done data.st `result-json])
-    ::  finished: the grub persists at %done until culled by whoever
-    ::  owns this run (transport after reading; UI on delete). Stay:
-    ::  %fail commits, so the final write stands and every stray input
-    ::  crash-nacks; rebooted incarnations hit the %done check above.
-    stay:m
   ==
 --
