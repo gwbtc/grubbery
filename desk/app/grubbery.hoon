@@ -358,7 +358,7 @@
       ::  TODO: on a nack, clean up the staged peek/sub and notify the grub;
       ::        right now error acks leave state dangling.
       ::
-      [?(%peek %want %keep %drop %wave %gack) *]
+      [?(%peek %want %keep %drop %wave %pack) *]
     [~ this]
     ::
       ::  a %poke load we forwarded for a fiber: success acks are
@@ -1079,7 +1079,7 @@
   =.  this  (ensure-peer-ship src.bowl)
   ?-  +<.req
     %want  (process-want req)
-    %gack  (process-gack src.bowl req)
+    %pack  (process-gack src.bowl req)
     ?(%snap %data %veto %miss)  (process-transfer src.bowl req)
   ==
 ::  process-gack: a remote ship reports the consumption result of a
@@ -1090,7 +1090,7 @@
 ++  process-gack
   |=  [src=@p req=transfer:remo:nexus]
   ^+  this
-  ?>  ?=(%gack +<.req)
+  ?>  ?=(%pack +<.req)
   =/  segs=wire  wire.req
   ?.  ?=([%grub-poke @ *] segs)  this
   =/  path-len=@ud  (slav %ud i.t.segs)
@@ -1099,8 +1099,10 @@
   ?~  rest  this
   =/  sender=rail:tarball  [from-path i.rest]
   =/  orig-wire=wire  t.rest
-  =/  =from:fiber:nexus  (relativize-from:nexus sender (ship-sig-rail src))
-  (enqu-take sender ~ ~ %poke from [[/ %gack] `[wire (unit tang)]`[orig-wire err.req]])
+  ::  deliver the cross-ship consumption result as a normal %pack on the
+  ::  sender's wire — identical to a local poke's pack, so awaiters don't
+  ::  fork on reach.
+  (enqu-take sender ~ ~ %pack orig-wire err.req)
 ::  process-want: a remote ship wants the content behind a snap it holds. look
 ::  up the pinned snap; miss if unknown. otherwise serve every pinned lobe from
 ::  its store (kind-directed; a pinned lobe gone missing is a books error worth
@@ -1364,7 +1366,7 @@
     =.  peeks.remo  (~(del by peeks.remo) key)
     $(stale t.stale)
     ::
-      %gack
+      %pack
     ::  Routed to +process-gack in +take-remote-transfer; unreachable.
     this
   ==
@@ -3861,7 +3863,7 @@
       ==
     =/  target=(unit @p)  (slaw %p i.t.t.t.path.here)
     ?~  target  this
-    =/  =transfer:remo:nexus  [wire.u.in.take %gack err.u.in.take]
+    =/  =transfer:remo:nexus  [wire.u.in.take %pack err.u.in.take]
     (emit-card [%pass /gack %agent [u.target %grubbery] %poke grubbery-transfer+!>(transfer)])
   ::  an outcome landing on a ship.sig with a %client wire is the
   ::  result of a grub-cmd from an external agent on that ship (the
@@ -7142,12 +7144,14 @@
   =/  rest=wire  (slag path-len t.segs)
   ?>  ?=(^ rest)
   =/  sender=rail:tarball  [from-path i.rest]
+  =/  orig-wire=wire  t.rest
   ?>  ?=(%poke-ack -.sign)
   ::  Step 3: tell the requester what happened by POKING it back — a
-  ::  poke-ack-marked (unit tang). NOT a %pack (which means "an in-grubbery
-  ::  poke was consumed"; that was already given for the request poke itself).
+  ::  poke-ack-marked [wire (unit tang)], keyed to the requester's own wire
+  ::  so it correlates its own ack (NOT a %pack — that was already given for
+  ::  the request poke to /sys/gall itself).
   =/  =from:fiber:nexus  (relativize-from:nexus sender [/sys/gall %'main.sig'])
-  (enqu-take sender ~ ~ %poke from [[/ %poke-ack] p.sign])
+  (enqu-take sender ~ ~ %poke from [[/ %poke-ack] [orig-wire p.sign]])
 ::  take-grub-poke-nack: a remote ship's gate refused a %poke load we
 ::  forwarded (never reached its grub). Decode the sender from the
 ::  wire — the same encoding as +take-gall-poke — and report the nack
@@ -7163,8 +7167,7 @@
   ?>  ?=(^ rest)
   =/  sender=rail:tarball  [from-path i.rest]
   =/  orig-wire=wire  t.rest
-  =/  =from:fiber:nexus  (relativize-from:nexus sender [/sys/gall %'main.sig'])
-  (enqu-take sender ~ ~ %poke from [[/ %gack] `[wire (unit tang)]`[orig-wire `err]])
+  (enqu-take sender ~ ~ %pack orig-wire `err)
 ::  /sys/iris/ HTTP client service
 ::
 ++  handle-iris-request

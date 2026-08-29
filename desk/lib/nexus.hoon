@@ -1221,8 +1221,8 @@
             [%miss ~]
             ::  consumption result of a %poke load the sender ran for
             ::  us; wire is the sender-encoded return address from
-            ::  +dart-poke's remote branch
-            [%gack err=(unit tang)]
+            ::  +dart-poke's remote branch. The cross-ship form of a %pack.
+            [%pack err=(unit tang)]
         ==
     ==
   +$  make  (each bole:tarball [=bask:tarball blot=(unit blot:tarball)])

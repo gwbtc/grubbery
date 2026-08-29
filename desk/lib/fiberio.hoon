@@ -415,10 +415,9 @@
 ::    delivers it. A caller unwilling to wait wraps this in
 ::    +with-timeout.
 ::
-::    Completion differs by reach. A local poke gets a framework %pack
-::    on our wire. A remote poke never does — the runtime forwards it,
-::    and the consumption result comes back as a [/ %gack] poke keyed
-::    by our wire.
+::    Completion is a framework %pack on our wire, whether the target was
+::    local or on another ship — a cross-ship poke's pack comes back over
+::    the network and is re-injected as a %pack by +process-gack.
 ::
 ++  poke-soft
   |=  [=road:tarball =bask:tarball]
@@ -426,27 +425,19 @@
   ^-  form:m
   ;<  =wire  bind:m  (nonce /poke)
   ;<  ~  bind:m  (send-dart %node wire road %poke bask)
-  ?~  (road-to-remote road)
-    |=  input:fiber:nexus
-    :+  ~  q.state
-    ?+  in  [%skip ~]
-        ~  [%wait ~]
-        [~ %pack * *]
-      ?.  =(wire wire.u.in)  [%skip ~]
-      ?~  err.u.in  [%done ~]
-      [%done `u.err.u.in]
-    ==
+  ::  local OR remote: the consumption result arrives as a %pack on our
+  ::  wire. A cross-ship poke's pack comes back over the network and is
+  ::  re-injected as a %pack by +process-gack — no local/remote fork.
   |=  input:fiber:nexus
   :+  ~  q.state
   ?+  in  [%skip ~]
       ~  [%wait ~]
       [~ %veto *]
     [%fail (veto-error dart.u.in)]
-      [~ %poke * *]
-    ?.  =([/ %gack] p.sage.u.in)  [%skip ~]
-    =/  [w=^wire err=(unit tang)]  !<([^wire (unit tang)] q.sage.u.in)
-    ?.  =(wire w)  [%skip ~]
-    [%done err]
+      [~ %pack * *]
+    ?.  =(wire wire.u.in)  [%skip ~]
+    ?~  err.u.in  [%done ~]
+    [%done `u.err.u.in]
   ==
 ::  +take-held: wait for a %held response on a wire
 ::
@@ -1264,15 +1255,18 @@
   ?:  gone  $
   ;<  ~  bind:m  (lick-spit name %res [status rbody])
   $
-::
 ::  Gall agent operations (via /sys/gall/ runtime service)
 ::
 ++  gall-poke
   |=  [=dock =page]
   =/  m  (fiber ,~)
   ^-  form:m
+  ;<  =wire  bind:m  (nonce /gall-poke)
   ;<  ~  bind:m
-    (poke &+&+[/sys/gall %'main.sig'] [[/ %gall-poke] [dock page]])
+    (send-dart %node wire &+&+[/sys/gall %'main.sig'] %poke [[/ %gall-poke] [dock page]])
+  ::  the /sys/gall grub consumes our request first (%pack on our wire),
+  ::  then the gall agent's ack comes back as a wire-keyed [/ %poke-ack].
+  ;<  ~  bind:m  (take-pack wire)
   |=  input
   :+  ~  q.state
   ?+  in  [%skip ~]
@@ -1281,7 +1275,8 @@
     [%fail (veto-error dart.u.in)]
       [~ %poke * *]
     ?.  =([/ %poke-ack] p.sage.u.in)  [%skip ~]
-    =/  err=(unit tang)  !<((unit tang) q.sage.u.in)
+    =/  [w=^wire err=(unit tang)]  !<([^wire (unit tang)] q.sage.u.in)
+    ?.  =(wire w)  [%skip ~]
     ?~  err  [%done ~]
     [%fail %poke-failed u.err]
   ==
@@ -1646,8 +1641,10 @@
   =/  m  (fiber ,(unit tang))
   ^-  form:m
   ;<  our=@p  bind:m  get-our
+  ;<  =wire  bind:m  (nonce /gall-poke)
   ;<  ~  bind:m
-    (poke &+&+[/sys/gall %'main.sig'] [[/ %gall-poke] [[our dude] page]])
+    (send-dart %node wire &+&+[/sys/gall %'main.sig'] %poke [[/ %gall-poke] [[our dude] page]])
+  ;<  ~  bind:m  (take-pack wire)
   |=  input
   :+  ~  q.state
   ?+  in  [%skip ~]
@@ -1656,7 +1653,9 @@
     [%fail (veto-error dart.u.in)]
       [~ %poke * *]
     ?.  =([/ %poke-ack] p.sage.u.in)  [%skip ~]
-    [%done !<((unit tang) q.sage.u.in)]
+    =/  [w=^wire err=(unit tang)]  !<([^wire (unit tang)] q.sage.u.in)
+    ?.  =(wire w)  [%skip ~]
+    [%done err]
   ==
 ::  +take-news-or-wake: wait for subscription news or timer wake
 ::
