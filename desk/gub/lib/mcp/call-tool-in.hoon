@@ -1,4 +1,4 @@
-/<  tools  /lib/nex/tools.hoon
+/<  tools  /lib/tools.hoon
 ::  call-tool-in: run a tool BY LOCATION, delegating to a run-site.
 ::
 ::    Everything is a rail/path, nothing is a registry name:

@@ -3,7 +3,7 @@
 ::  Thin protocol layer that converts tool definitions from lib/nex/tools
 ::  to MCP JSON-RPC format and routes MCP requests to tool handlers.
 ::
-/<  tools  /lib/nex/tools.hoon
+/<  tools  /lib/tools.hoon
 |%
 ::  JSON-RPC 2.0 error codes
 ::

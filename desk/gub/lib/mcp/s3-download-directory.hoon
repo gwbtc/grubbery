@@ -1,4 +1,4 @@
-/<  tools  /lib/nex/tools.hoon
+/<  tools  /lib/tools.hoon
 /<  s3t    /lib/nex/s3-tools.hoon
 ::  s3-download-directory: download all files under an S3 prefix to the ball
 ::

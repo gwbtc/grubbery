@@ -1,4 +1,4 @@
-/<  tools  /lib/nex/tools.hoon
+/<  tools  /lib/tools.hoon
 ::  mount-to-grubbery: sync a Clay desk into the grubbery ball
 ::
 !:

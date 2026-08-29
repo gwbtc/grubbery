@@ -1,4 +1,4 @@
-/<  tools  /lib/nex/tools.hoon
+/<  tools  /lib/tools.hoon
 ::  copy-dir: copy a directory within the grubbery ball
 ::
 !:

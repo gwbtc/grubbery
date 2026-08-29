@@ -1,4 +1,4 @@
-/<  tools  /lib/nex/tools.hoon
+/<  tools  /lib/tools.hoon
 ::  call-tool: invoke any tool by name, including dynamically added ones
 ::
 !:

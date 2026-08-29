@@ -1,4 +1,4 @@
-/<  tools  /lib/nex/tools.hoon
+/<  tools  /lib/tools.hoon
 ::  remote-cull: delete a file or directory on a remote ship's grubbery
 ::
 !:

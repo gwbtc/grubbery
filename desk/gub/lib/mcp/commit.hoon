@@ -1,4 +1,4 @@
-/<  tools  /lib/nex/tools.hoon
+/<  tools  /lib/tools.hoon
 ::  commit: commit a mounted desk and return version info with logs
 ::
 !:

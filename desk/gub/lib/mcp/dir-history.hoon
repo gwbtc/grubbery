@@ -1,4 +1,4 @@
-/<  tools  /lib/nex/tools.hoon
+/<  tools  /lib/tools.hoon
 ::  dir-history: fold-hist entry count for a directory (structural
 ::  churn: makes+culls ever). Perf evidence tool — the fold hist gains
 ::  ~2 entries per lifecycle grub, so a requests dir's count is ~2x

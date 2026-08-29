@@ -1,4 +1,4 @@
-/<  tools  /lib/nex/tools.hoon
+/<  tools  /lib/tools.hoon
 ::  create-usergroup: create a new usergroup with optional members and permissions
 ::
 ^-  tool:tools

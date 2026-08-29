@@ -1,4 +1,4 @@
-/<  tools  /lib/nex/tools.hoon
+/<  tools  /lib/tools.hoon
 ::  remote-over: overwrite a file on a remote ship's grubbery
 ::
 !:

@@ -1,4 +1,4 @@
-/<  tools  /lib/nex/tools.hoon
+/<  tools  /lib/tools.hoon
 ::  cal-del-event: remove an event from a calendar instance
 ::
 ^-  tool:tools

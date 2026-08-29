@@ -1,4 +1,4 @@
-/<  tools  /lib/nex/tools.hoon
+/<  tools  /lib/tools.hoon
 ::  revive-agent: revive (re-initialize) a nuked Gall agent
 ::
 !:

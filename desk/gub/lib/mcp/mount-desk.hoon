@@ -1,4 +1,4 @@
-/<  tools  /lib/nex/tools.hoon
+/<  tools  /lib/tools.hoon
 ::  mount-desk: mount a desk to the Unix filesystem
 ::
 !:

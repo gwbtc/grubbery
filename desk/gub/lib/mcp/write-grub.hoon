@@ -1,4 +1,4 @@
-/<  tools  /lib/nex/tools.hoon
+/<  tools  /lib/tools.hoon
 ::  write-grub: write a text file to the grubbery ball
 ::
 !:

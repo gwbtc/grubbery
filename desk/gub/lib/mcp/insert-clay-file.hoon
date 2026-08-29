@@ -1,4 +1,4 @@
-/<  tools  /lib/nex/tools.hoon
+/<  tools  /lib/tools.hoon
 ::  insert-clay-file: insert or overwrite a file in Clay
 ::
 !:

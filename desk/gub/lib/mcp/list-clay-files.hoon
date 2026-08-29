@@ -1,4 +1,4 @@
-/<  tools  /lib/nex/tools.hoon
+/<  tools  /lib/tools.hoon
 ::  list-clay-files: list files in Clay under a given path
 ::
 !:

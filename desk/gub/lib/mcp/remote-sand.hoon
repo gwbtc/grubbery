@@ -1,4 +1,4 @@
-/<  tools  /lib/nex/tools.hoon
+/<  tools  /lib/tools.hoon
 ::  remote-sand: set weir on a remote grubbery path
 ::
 !:

@@ -1,4 +1,4 @@
-/<  tools  /lib/nex/tools.hoon
+/<  tools  /lib/tools.hoon
 ::  clear-weir: clear all sandbox rules from a directory
 ::
 !:

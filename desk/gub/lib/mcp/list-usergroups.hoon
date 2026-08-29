@@ -1,4 +1,4 @@
-/<  tools  /lib/nex/tools.hoon
+/<  tools  /lib/tools.hoon
 ::  list-usergroups: show all usergroups with members and permissions
 ::
 ^-  tool:tools

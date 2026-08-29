@@ -1,4 +1,4 @@
-/<  tools  /lib/nex/tools.hoon
+/<  tools  /lib/tools.hoon
 ::  browse: list files and subdirectories at a path in the grubbery ball
 ::
 !:

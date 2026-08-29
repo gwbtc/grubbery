@@ -1,4 +1,4 @@
-/<  tools  /lib/nex/tools.hoon
+/<  tools  /lib/tools.hoon
 ::  send-telegram: send a Telegram message via bot API
 ::
 !:

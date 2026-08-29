@@ -1,4 +1,4 @@
-/<  tools  /lib/nex/tools.hoon
+/<  tools  /lib/tools.hoon
 ^-  tool:tools
 |%
 ++  name  'feeds_remove'

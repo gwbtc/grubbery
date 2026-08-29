@@ -1,4 +1,4 @@
-/<  tools  /lib/nex/tools.hoon
+/<  tools  /lib/tools.hoon
 ::  get-clay-file: fetch a file from Clay and return its contents
 ::
 !:

@@ -1,4 +1,4 @@
-/<  tools  /lib/nex/tools.hoon
+/<  tools  /lib/tools.hoon
 ::  remote-peek: peek a file or directory on a remote grubbery.
 ::  Routes via /sys/ames/ships/[ship]/root/[path] namespace.
 ::  The grubbery handles cross-ship negotiation (snap/want/data)

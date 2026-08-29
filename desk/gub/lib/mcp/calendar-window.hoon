@@ -1,4 +1,4 @@
-/<  tools  /lib/nex/tools.hoon
+/<  tools  /lib/tools.hoon
 /<  cal    /lib/calendar.hoon
 ::  cal-window: materialized occurrences in a time window
 ::

@@ -1,4 +1,4 @@
-/<  tools  /lib/nex/tools.hoon
+/<  tools  /lib/tools.hoon
 ::  silo-repair: tomb audit-damaged versions in place, then re-audit
 ::
 !:

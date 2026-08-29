@@ -1,4 +1,4 @@
-/<  tools  /lib/nex/tools.hoon
+/<  tools  /lib/tools.hoon
 ::  edit-clay-file: edit a file in Clay via exact string replacement
 ::
 !:

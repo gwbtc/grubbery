@@ -1,4 +1,4 @@
-/<  tools  /lib/nex/tools.hoon
+/<  tools  /lib/tools.hoon
 ::  add-mcp-tool: add a custom MCP tool
 ::
 ::    Writes Hoon source to the ball mirror at /code/lib/mcp/

@@ -1,4 +1,4 @@
-/<  tools  /lib/nex/tools.hoon
+/<  tools  /lib/tools.hoon
 /<  rss    /lib/nex/rss.hoon
 ^-  tool:tools
 |%

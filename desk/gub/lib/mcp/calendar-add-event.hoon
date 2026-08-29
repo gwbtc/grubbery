@@ -1,4 +1,4 @@
-/<  tools  /lib/nex/tools.hoon
+/<  tools  /lib/tools.hoon
 ::  calendar-add-event: add an event to a calendar instance
 ::
 ^-  tool:tools

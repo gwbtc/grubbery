@@ -1,4 +1,4 @@
-/<  tools  /lib/nex/tools.hoon
+/<  tools  /lib/tools.hoon
 ::  read-subs: render the agent's internal subscription table legibly
 ::
 ^-  tool:tools

@@ -1,4 +1,4 @@
-/<  tools  /lib/nex/tools.hoon
+/<  tools  /lib/tools.hoon
 ::  silo-audit: report referenced-but-absent silo content
 ::
 !:

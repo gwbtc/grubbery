@@ -1,4 +1,4 @@
-/<  tools  /lib/nex/tools.hoon
+/<  tools  /lib/tools.hoon
 ::  batch-edit-clay: edit multiple files in Clay as a single atomic commit
 ::
 !:

@@ -1,4 +1,4 @@
-/<  tools  /lib/nex/tools.hoon
+/<  tools  /lib/tools.hoon
 ::  create-symlink: create a symlink in the grubbery ball
 ::
 !:

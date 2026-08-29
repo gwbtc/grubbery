@@ -1,4 +1,4 @@
-/<  nex-tools  /lib/nex/tools.hoon
+/<  nex-tools  /lib/tools.hoon
 |_  =tool-state:nex-tools
 ++  grab
   |%

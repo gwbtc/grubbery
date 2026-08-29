@@ -1,4 +1,4 @@
-/<  tools  /lib/nex/tools.hoon
+/<  tools  /lib/tools.hoon
 ::  nuke-agent: permanently wipe the state of a Gall agent
 ::
 !:

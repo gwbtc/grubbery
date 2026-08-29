@@ -3,7 +3,7 @@
 ::  Single tool for all goal operations. Command parameter selects the
 ::  operation. Store files live at /goals.goals/store/*.goal-store.
 ::
-/<  tools  /lib/nex/tools.hoon
+/<  tools  /lib/tools.hoon
 /<  goals  /lib/goals.hoon
 !:
 ^-  tool:tools

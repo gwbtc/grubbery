@@ -1,4 +1,4 @@
-/<  tools  /lib/nex/tools.hoon
+/<  tools  /lib/tools.hoon
 /<  clurd  /lib/nex/clurd.hoon
 ::  run-dojo: execute a dojo command and return the output
 ::

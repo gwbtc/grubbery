@@ -1,4 +1,4 @@
-/<  tools  /lib/nex/tools.hoon
+/<  tools  /lib/tools.hoon
 ::  del-weir: remove a sandbox rule from a directory
 ::
 !:

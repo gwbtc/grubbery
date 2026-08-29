@@ -1,4 +1,4 @@
-/<  tools  /lib/nex/tools.hoon
+/<  tools  /lib/tools.hoon
 ::  install-app: install a desk (local or from a remote ship)
 ::
 !:

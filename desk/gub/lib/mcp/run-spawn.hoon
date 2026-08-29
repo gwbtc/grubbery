@@ -4,7 +4,7 @@
 ::  which mines a funding block, builds commit/reveal chains,
 ::  broadcasts them, and mines confirmation blocks.
 ::
-/<  tools  /lib/nex/tools.hoon
+/<  tools  /lib/tools.hoon
 !:
 ^-  tool:tools
 |%

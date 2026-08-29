@@ -1,4 +1,4 @@
-/<  tools  /lib/nex/tools.hoon
+/<  tools  /lib/tools.hoon
 ::  gcal-feeds: manage the named map of external ICS feed urls
 ::
 ::  Stored as a json grub at /apps/calendar.calendar/gcal-feeds.json

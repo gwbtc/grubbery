@@ -1,4 +1,4 @@
-/<  tools  /lib/nex/tools.hoon
+/<  tools  /lib/tools.hoon
 ::  delete-grub: delete a grub (file) from the grubbery ball
 ::
 !:

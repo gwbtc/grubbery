@@ -1,4 +1,4 @@
-/<  tools  /lib/nex/tools.hoon
+/<  tools  /lib/tools.hoon
 ::  set-group-members: set the members of a usergroup
 ::
 ^-  tool:tools

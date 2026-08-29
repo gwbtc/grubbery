@@ -1,4 +1,4 @@
-/<  tools  /lib/nex/tools.hoon
+/<  tools  /lib/tools.hoon
 ::  delete-usergroup: delete a usergroup
 ::
 ^-  tool:tools

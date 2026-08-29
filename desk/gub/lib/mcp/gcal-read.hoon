@@ -1,4 +1,4 @@
-/<  tools  /lib/nex/tools.hoon
+/<  tools  /lib/tools.hoon
 ::  gcal-read: fetch an ICS feed and list events in a date window
 ::
 ::  Windowed VEVENT slice for AI translation into the ship calendar

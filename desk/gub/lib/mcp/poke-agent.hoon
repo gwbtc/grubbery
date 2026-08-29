@@ -1,4 +1,4 @@
-/<  tools  /lib/nex/tools.hoon
+/<  tools  /lib/tools.hoon
 ::  poke-agent: poke a Gall agent with data of a specified mark
 ::
 !:

@@ -1,4 +1,4 @@
-/<  tools  /lib/nex/tools.hoon
+/<  tools  /lib/tools.hoon
 ::  run-tests: discover and run unit tests from a Clay desk
 ::
 ::  Path resolution follows ted/test.hoon: if the path is a .hoon file,

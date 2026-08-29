@@ -1,6 +1,6 @@
 ::  claw nexus: self-building AI agent
 ::
-/<  nex-tools     /lib/nex/tools.hoon
+/<  nex-tools     /lib/tools.hoon
 /<  iso-8601      /lib/iso-8601.hoon
 /<  cron          /lib/cron.hoon
 /<  rules         /lib/rules.hoon
@@ -514,7 +514,7 @@
               '### Tips'
               ''
               '- Always import the tools library first:'
-              '    /<  tools  /lib/nex/tools.hoon'
+              '    /<  tools  /lib/tools.hoon'
               '    ^-  tool:tools'
               '  This gives you tool-state:tools, tool-result:tools, parameter-def:tools.'
               ''
@@ -533,7 +533,7 @@
               '  Without mark, files store as raw mime and will not compile.'
               ''
               '- Read existing tools in ./apps/code/lib/tools/ for reference.'
-              '  Also read ./apps/code/lib/nex/tools.hoon for the type definitions.'
+              '  Also read ./apps/code/lib/tools.hoon for the type definitions.'
               ''
               ''
               '## Building a custom nexus'

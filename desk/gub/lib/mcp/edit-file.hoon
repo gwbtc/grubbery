@@ -1,4 +1,4 @@
-/<  tools  /lib/nex/tools.hoon
+/<  tools  /lib/tools.hoon
 ::  edit-file: edit a text file in the grubbery ball via string replacement
 ::
 !:

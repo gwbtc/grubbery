@@ -1,4 +1,4 @@
-/<  tools  /lib/nex/tools.hoon
+/<  tools  /lib/tools.hoon
 ::  read-grub: read a grub (file) from the grubbery ball
 ::
 !:

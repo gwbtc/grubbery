@@ -1,4 +1,4 @@
-/<  tools  /lib/nex/tools.hoon
+/<  tools  /lib/tools.hoon
 ::  toggle-permissions: make Clay nodes public or private
 ::
 !:

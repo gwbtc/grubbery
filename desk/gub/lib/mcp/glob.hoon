@@ -1,4 +1,4 @@
-/<  tools  /lib/nex/tools.hoon
+/<  tools  /lib/tools.hoon
 ::  glob: search for files in the grubbery ball by path, name, and/or blot
 ::
 !:

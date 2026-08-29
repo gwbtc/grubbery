@@ -1,4 +1,4 @@
-/<  tools  /lib/nex/tools.hoon
+/<  tools  /lib/tools.hoon
 ::  add-weir: add a sandbox rule to a directory
 ::
 !:

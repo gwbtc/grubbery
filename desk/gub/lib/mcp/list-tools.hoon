@@ -1,4 +1,4 @@
-/<  tools  /lib/nex/tools.hoon
+/<  tools  /lib/tools.hoon
 ::  list-tools: list all available MCP tools with optional filtering
 ::
 ::    Looks up compiled tools from bins via %code darts.

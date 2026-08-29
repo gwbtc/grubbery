@@ -3,7 +3,7 @@
 ::  /apps/loops.loops. Reads peek the store grubs; mutations poke
 ::  main.sig.
 ::
-/<  tools  /lib/nex/tools.hoon
+/<  tools  /lib/tools.hoon
 /<  ol     /lib/open-loops.hoon
 /<  iso    /lib/iso-8601.hoon
 !:

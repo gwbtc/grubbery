@@ -19,7 +19,7 @@
 ::  Tools run under THIS nexus's weir. Contained by a host nexus, it is
 ::  bounded by the host's weir — so where you mount it IS the sandbox.
 ::
-/<  nex-tools   /lib/nex/tools.hoon
+/<  nex-tools   /lib/tools.hoon
 =>  |%
     ::  +weir-json: like mcp, this nexus runs ARBITRARY user tools that
     ::  may scry, poke, or make anything, so it declares wide reach. Its

@@ -1,4 +1,4 @@
-/<  tools  /lib/nex/tools.hoon
+/<  tools  /lib/tools.hoon
 ::  git_cmd: run a git command through a repo's serial command lane.
 ::
 !:

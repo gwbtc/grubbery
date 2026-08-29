@@ -1,4 +1,4 @@
-/<  tools    /lib/nex/tools.hoon
+/<  tools    /lib/tools.hoon
 /<  btc-rpc  /lib/btc-rpc.hoon
 ::  probe-scan: walk back N blocks from the current tip and return
 ::  a one-line-per-block summary of heights, hashes, and tx counts.

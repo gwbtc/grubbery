@@ -1,4 +1,4 @@
-/<  tools  /lib/nex/tools.hoon
+/<  tools  /lib/tools.hoon
 ::  write-code: write hoon to code namespace and check compilation
 ::
 ::  Two modes:

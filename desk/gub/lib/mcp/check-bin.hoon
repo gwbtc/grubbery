@@ -1,4 +1,4 @@
-/<  tools  /lib/nex/tools.hoon
+/<  tools  /lib/tools.hoon
 ::  check-bin: check if a build artifact compiled or has errors
 ::
 ::  Looks up an artifact in bins via %code dart. Returns the

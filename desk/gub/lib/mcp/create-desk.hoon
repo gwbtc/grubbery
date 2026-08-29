@@ -1,4 +1,4 @@
-/<  tools  /lib/nex/tools.hoon
+/<  tools  /lib/tools.hoon
 ::  create-desk: create a source /desk syncer in /apps/. It subscribes to
 ::  a code dir already in the namespace (a git_repo's checked-out tree, a
 ::  remote ship path, or a local path) and deploys it. The git_desk type

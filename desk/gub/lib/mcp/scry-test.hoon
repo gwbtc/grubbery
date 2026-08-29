@@ -1,4 +1,4 @@
-/<  tools  /lib/nex/tools.hoon
+/<  tools  /lib/tools.hoon
 ::  scry-test: exercise the /sys/scry farm write service.
 ::
 ::  op %grow publishes a noun-page at the spur, %tomb retracts one

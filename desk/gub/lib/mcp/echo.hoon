@@ -1,4 +1,4 @@
-/<  tools  /lib/nex/tools.hoon
+/<  tools  /lib/tools.hoon
 ::  echo: simple test tool that echoes back its input
 ::
 ^-  tool:tools

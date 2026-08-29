@@ -1,4 +1,4 @@
-/<  tools      /lib/nex/tools.hoon
+/<  tools      /lib/tools.hoon
 /<  btc        /lib/sur/bitcoin.hoon
 /<  urb        /lib/sur/urb.hoon
 /<  urb-core   /lib/urb-core.hoon

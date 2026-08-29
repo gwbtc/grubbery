@@ -1,4 +1,4 @@
-/<  tools  /lib/nex/tools.hoon
+/<  tools  /lib/tools.hoon
 ::  remote-make: create a file on a remote ship's grubbery
 ::
 !:

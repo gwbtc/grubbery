@@ -5,8 +5,8 @@
 ::    /requests/{id}    parse HTTP, route protocol vs tools/call
 ::    /tools/{id}       tool execution grub (mark %tool-state)
 ::
-/<  nex-mcp     /lib/nex/mcp.hoon
-/<  nex-tools   /lib/nex/tools.hoon
+/<  nex-mcp     /lib/mcp-rpc.hoon
+/<  nex-tools   /lib/tools.hoon
 /&  man       ../man/mcp/readme.md
 /&  ui-html   mcp/index.html
 /&  ui-js     mcp/app.js

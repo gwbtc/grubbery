@@ -1,4 +1,4 @@
-/<  tools    /lib/nex/tools.hoon
+/<  tools    /lib/tools.hoon
 /<  btc-rpc  /lib/btc-rpc.hoon
 ::  indexer-status: check the indexer's state — tip height, cached blocks,
 ::  and optionally dump a specific block's header + tx summary.

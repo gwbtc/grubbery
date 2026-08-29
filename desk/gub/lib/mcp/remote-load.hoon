@@ -1,4 +1,4 @@
-/<  tools  /lib/nex/tools.hoon
+/<  tools  /lib/tools.hoon
 ::  remote-load: trigger on-load for a nexus on a remote grubbery
 ::
 !:

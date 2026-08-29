@@ -1,4 +1,4 @@
-/<  tools  /lib/nex/tools.hoon
+/<  tools  /lib/tools.hoon
 ::  push-notify: send a web push notification to subscribed devices
 ::
 ::  Broadcasts to every stored push subscription (each browser/device
