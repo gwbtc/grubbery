@@ -363,8 +363,8 @@
     ::
       ::  a %poke load we forwarded for a fiber: success acks are
       ::  ignored — the consumption result arrives separately as a
-      ::  %gack transfer. A nack means their gate refused the load
-      ::  (veto or crash at admission); report that as the %gack.
+      ::  %pack transfer. A nack means their gate refused the load
+      ::  (veto or crash at admission); report that as the %pack.
       ::
       [%grub-poke *]
     ?>  ?=(%poke-ack -.sign)
@@ -1079,15 +1079,15 @@
   =.  this  (ensure-peer-ship src.bowl)
   ?-  +<.req
     %want  (process-want req)
-    %pack  (process-gack src.bowl req)
+    %pack  (process-pack src.bowl req)
     ?(%snap %data %veto %miss)  (process-transfer src.bowl req)
   ==
-::  process-gack: a remote ship reports the consumption result of a
+::  process-pack: a remote ship reports the consumption result of a
 ::  poke we sent it. Decode the sender from the wire (the encoding
 ::  from +dart-poke's remote branch) and poke the originating grub
 ::  with the result — the cross-ship sibling of +take-gall-poke.
 ::
-++  process-gack
+++  process-pack
   |=  [src=@p req=transfer:remo:nexus]
   ^+  this
   ?>  ?=(%pack +<.req)
@@ -1367,7 +1367,7 @@
     $(stale t.stale)
     ::
       %pack
-    ::  Routed to +process-gack in +take-remote-transfer; unreachable.
+    ::  Routed to +process-pack in +take-remote-transfer; unreachable.
     this
   ==
 ::  Subscription wave from remote watcher. Translate dest back to
@@ -3700,8 +3700,8 @@
   ::  Remote poke: forward a %poke load to the owning ship with the
   ::  sender and wire encoded for the return trip. No %pack is given
   ::  here — a %pack means "consumed", and consumption happens on the
-  ::  other ship. The result arrives later as a %gack poke: from
-  ::  +process-gack when their grub consumes it, or from the
+  ::  other ship. The result arrives later as a %pack poke: from
+  ::  +process-pack when their grub consumes it, or from the
   ::  %grub-poke on-agent case if their gate nacks the load itself.
   =/  remote=(unit [@p lane:tarball])  (resolve-remote dest-lane)
   ?^  remote
@@ -3854,7 +3854,7 @@
   ^+  this
   ::  a %pack landing on a ship.sig with a %grub-poke wire is the
   ::  consumption result of a poke that ship sent us — forward it
-  ::  home as a %gack transfer instead of feeding the representative
+  ::  home as a %pack transfer instead of feeding the representative
   ::  fiber
   ?:  ?&  ?=([%sys %ames %ships @ ~] path.here)
           =(%'ship.sig' name.here)
@@ -3864,7 +3864,7 @@
     =/  target=(unit @p)  (slaw %p i.t.t.t.path.here)
     ?~  target  this
     =/  =transfer:remo:nexus  [wire.u.in.take %pack err.u.in.take]
-    (emit-card [%pass /gack %agent [u.target %grubbery] %poke grubbery-transfer+!>(transfer)])
+    (emit-card [%pass /pack %agent [u.target %grubbery] %poke grubbery-transfer+!>(transfer)])
   ::  an outcome landing on a ship.sig with a %client wire is the
   ::  result of a grub-cmd from an external agent on that ship (the
   ::  thin surface, sur/grub) — give it as a %grub-fact on the
@@ -7155,7 +7155,7 @@
 ::  take-grub-poke-nack: a remote ship's gate refused a %poke load we
 ::  forwarded (never reached its grub). Decode the sender from the
 ::  wire — the same encoding as +take-gall-poke — and report the nack
-::  as a %gack poke, exactly as a consumption nack would arrive.
+::  as a %pack, exactly as a consumption nack would arrive.
 ::
 ++  take-grub-poke-nack
   |=  [segs=wire err=tang]

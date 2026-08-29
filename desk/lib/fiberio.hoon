@@ -411,13 +411,13 @@
 ::  nack. Never crashes.
 ::
 ::    Carries no deadline of its own: local pokes are covered by the
-::    termination guarantee, and a remote gack arrives when the network
+::    termination guarantee, and a remote pack arrives when the network
 ::    delivers it. A caller unwilling to wait wraps this in
 ::    +with-timeout.
 ::
 ::    Completion is a framework %pack on our wire, whether the target was
 ::    local or on another ship — a cross-ship poke's pack comes back over
-::    the network and is re-injected as a %pack by +process-gack.
+::    the network and is re-injected as a %pack by +process-pack.
 ::
 ++  poke-soft
   |=  [=road:tarball =bask:tarball]
@@ -427,7 +427,7 @@
   ;<  ~  bind:m  (send-dart %node wire road %poke bask)
   ::  local OR remote: the consumption result arrives as a %pack on our
   ::  wire. A cross-ship poke's pack comes back over the network and is
-  ::  re-injected as a %pack by +process-gack — no local/remote fork.
+  ::  re-injected as a %pack by +process-pack — no local/remote fork.
   |=  input:fiber:nexus
   :+  ~  q.state
   ?+  in  [%skip ~]
