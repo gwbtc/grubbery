@@ -242,7 +242,38 @@
     ::  segments) and short: the nexus dir name minus its suffix.
     ::  Public exposure is the config fiber's job.
     ;<  ~  bind:m  (bind-http:io [~ /grubbery/desk/[(desk-slug path.here)]])
-    (http-dispatch:io %desk)
+    ::  main.sig is the desk's action multiplexer: it dispatches eyre's
+    ::  HTTP pokes (spawning /requests grubs — the +http-dispatch cases)
+    ::  AND direct action pokes ({"action": ...} json), so the desk is
+    ::  drivable by poke, not only through eyre.
+    =/  server-road=road:tarball  [%& %& /sys/eyre %'main.server-state']
+    |-
+    ;<  [=from:fiber:nexus =sage:tarball]  bind:m  take-poke-from:io
+    ?+    name.p.sage  $
+        %handle-http-request
+      =/  [eyre-id=@ta src=@p req=inbound-request:eyre]
+        !<([@ta @p inbound-request:eyre] q.sage)
+      ;<  ~  bind:m
+        (make:io [%| 0 %& /requests eyre-id] |+[[[/ %http-request] [src req]] ~])
+      $
+        %handle-http-cancel
+      =/  eyre-id=@ta  !<(@ta q.sage)
+      ;<  ~  bind:m  (cull:io [%| 0 %& /requests eyre-id])
+      $
+        %eyre-action
+      ;<  ~  bind:m  (send-dart:io %node / server-road %poke [p.sage q.q.sage])
+      $
+        %json
+      ::  direct action poke: {"action": "fetch"} pulls from source now
+      ::  (no version bump needed). Extend with more actions as needed.
+      =/  jon=json  !<(json q.sage)
+      =/  action=@t  (~(dog jo:json-utils jon) /action so:dejs:format)
+      ?:  =('fetch' action)
+        ;<  ~  bind:m  (do-fetch rail)
+        $
+      ~&  >>>  ["%desk /main: unknown action" action]
+      $
+    ==
       ::  /requests/*: individual HTTP request handlers
       ::
       [[%requests ~] @]
@@ -1228,6 +1259,30 @@
       ['tags' a+(turn tags |=(t=@t s+t))]
   ==
 ::
+::  +do-fetch: pull the source's current code now, unconditionally (no
+::  version gate). Content-addressed — only real changes write, and
+::  changed nexus code reloads naturally. Both the main.sig action poke
+::  and the HTTP fetch-latest call this.
+::
+++  do-fetch
+  |=  =rail:tarball
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  ;<  src-json=(unit json)  bind:m
+    (peek-as:io (nex-road:io rail [%& / %'source.json']) ,json)
+  =/  config=source-config
+    ?~(src-json ~ (json-to-source u.src-json))
+  ?~  config
+    ~&  >>  %desk-fetch-no-source
+    (pure:m ~)
+  =/  code-path=path           (parse-path code.u.config)
+  =/  code-road=road:tarball   [%& %| code-path]
+  =/  ver-road=road:tarball    [%& %& code-path %'version.json']
+  =/  ver-name=@ta             %'version.json'
+  ~&  >  [%desk-do-fetch code.u.config]
+  ;<  ~  bind:m  (do-snapshot rail)
+  (sync-release ver-road code-road ver-name rail)
+::
 ++  handle-post
   |=  [eyre-id=@ta suffix=path req=inbound-request:eyre =rail:tarball]
   =/  m  (fiber:fiber:nexus ,~)
@@ -1279,24 +1334,9 @@
     (respond eyre-id rail 200 'ok')
   ::
       [%fetch-latest ~]
-    ::  pull the source's current code and version now. Idempotent:
-    ::  content-addressed writes no-op when nothing changed, so this
-    ::  only creates history when the source actually differs.
-    ;<  src-json=(unit json)  bind:m
-      (peek-as:io (nex-road:io rail [%& / %'source.json']) ,json)
-    =/  config=source-config
-      ?~(src-json ~ (json-to-source u.src-json))
-    ?~  config
-      ;<  ~  bind:m  (respond eyre-id rail 400 'no source configured')
-      (pure:m ~)
-    =/  code-path=path           (parse-path code.u.config)
-    =/  code-road=road:tarball   [%& %| code-path]
-    =/  ver-road=road:tarball    [%& %& code-path %'version.json']
-    =/  ver-name=@ta             %'version.json'
-    ~&  >  [%desk-fetch-latest code.u.config]
-    ::  snapshot the current world, then pull the latest release
-    ;<  ~  bind:m  (do-snapshot rail)
-    ;<  ~  bind:m  (sync-release ver-road code-road ver-name rail)
+    ::  pull the source's current code now — same unconditional pull the
+    ::  main.sig {"action":"fetch"} poke runs.
+    ;<  ~  bind:m  (do-fetch rail)
     (respond eyre-id rail 200 'fetched')
   ::
       [%snapshot ~]

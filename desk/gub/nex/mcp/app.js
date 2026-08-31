@@ -116,7 +116,7 @@ function renderToolsNode(node, path, depth, out) {
 function renderToolsTree() {
   const out = $('tools-tree');
   out.textContent = '';
-  // root is implicit /code/lib/mcp: its dirs and tools render at top level
+  // root is implicit /code/lib/tools: its dirs and tools render at top level
   for (const d of toolsTree.dirs || []) renderToolsNode(d, d.name, 0, out);
   for (const t of toolsTree.tools || []) out.appendChild(toolRow(t, 0));
   updateCounts();

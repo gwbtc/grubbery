@@ -11,7 +11,7 @@
 ::  main.sig (via the generic /grubbery/api/poke path).
 ::
 /<  rules  /lib/rules.hoon
-/<  asst   /lib/nex/assistant.hoon
+/<  asst   /lib/assistant.hoon
 /&  man  ../../man/claw/app/readme.md
 /&  icon  icon.svg
 /&  app-html   app/index.html

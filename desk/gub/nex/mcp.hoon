@@ -5,8 +5,9 @@
 ::    /requests/{id}    parse HTTP, route protocol vs tools/call
 ::    /tools/{id}       tool execution grub (mark %tool-state)
 ::
-/<  nex-mcp     /lib/mcp-rpc.hoon
-/<  nex-tools   /lib/tools.hoon
+/<  nex-mcp   /lib/mcp-rpc.hoon
+/<  tools     /lib/tools.hoon
+/&  bundle    /lib/tool-bundle/
 /&  man       ../man/mcp/readme.md
 /&  ui-html   mcp/index.html
 /&  ui-js     mcp/app.js
@@ -17,7 +18,7 @@
     ::  +weir-json: mcp runs ARBITRARY user tools, and those tools execute
     ::  under mcp's own weir — a tool may scry, poke, or make anything. So
     ::  mcp cannot be scoped: it needs everything. (Scoping it to tool
-    ::  discovery — peek /code/lib/mcp + /apps — is wrong; it starves tool
+    ::  discovery — peek /code/lib/tools + /apps — is wrong; it starves tool
     ::  EXECUTION, e.g. a tool's /sys/scry gets vetoed.) The real fix later
     ::  is to run each tool under its OWN weir so mcp itself can be narrow;
     ::  until then mcp is honestly unrestricted.
@@ -132,7 +133,7 @@
       ?~  place  (reply-txt eyre-id 400 'bad path')
       =/  run-road=road:tarball
         (nex-road:io rail [%& (weld /proc dirs.u.place) name.u.place])
-      =/  ts=tool-state:nex-tools  [p.u.tool args %start ~ ~]
+      =/  ts=tool-state:tools  [p.u.tool args %start ~ ~]
       ;<  err=(unit tang)  bind:m
         (make-soft:io run-road |+[[[/ %tool-state] ts] ~])
       ?^  err
@@ -186,11 +187,11 @@
     ::  +tool-json: one tool as its tools/list entry
     ::
     ++  tool-json
-      |=  [nm=@t t=tool:nex-tools]
+      |=  [nm=@t t=tool:tools]
       ^-  json
       =/  props=(list [@t json])
         %+  turn  ~(tap by parameters:t)
-        |=  [k=@t pd=parameter-def:nex-tools]
+        |=  [k=@t pd=parameter-def:tools]
         :-  k
         %-  pairs:enjs:format
         :~  ['type' s+`@t`type.pd]
@@ -207,14 +208,14 @@
           ==
       ==
     ::  +gather-tools-tree: the registry grouped by where the code
-    ::  lives — root /code/lib/mcp plus each app's code namespace.
+    ::  lives — root /code/lib/tools plus each app's code namespace.
     ::
     ++  gather-tools-tree
       |=  =rail:tarball
       =/  m  (fiber:fiber:nexus ,json)
       ^-  form:m
-      ;<  root=(map @t tool:nex-tools)  bind:m
-        (scan-namespace /code/lib/mcp)
+      ;<  root=(map @t tool:tools)  bind:m
+        (get-dynamic-tools rail)
       =/  root-tree=json  (tools-nest root)
       ;<  app-paths=(list path)  bind:m  get-app-mcp-paths
       =|  app-dirs=(list json)
@@ -226,7 +227,7 @@
         %-  pure:m
         :-  %o
         (~(put by p.root-tree) 'dirs' a+(weld p.dirs (flop app-dirs)))
-      ;<  found=(map @t tool:nex-tools)  bind:m  (scan-namespace i.app-paths)
+      ;<  found=(map @t tool:tools)  bind:m  (scan-namespace i.app-paths)
       ?:  =(~ found)  $(app-paths t.app-paths)
       =/  app-name=@ta
         ?>  ?=([%apps @ *] i.app-paths)
@@ -242,14 +243,14 @@
     ::  through the bijection, so the tree is recomputed from the keys.
     ::
     ++  tools-nest
-      |=  found=(map @t tool:nex-tools)
+      |=  found=(map @t tool:tools)
       ^-  json
       =/  entries=(list [sub=path tj=json])
         %+  turn
           %+  sort  ~(tap by found)
           |=([[a=@t *] [b=@t *]] (aor a b))
-        |=  [nm=@t t=tool:nex-tools]
-        [sub:(name-to-place:nex-tools nm) (tool-json nm t)]
+        |=  [nm=@t t=tool:tools]
+        [sub:(name-to-place:tools nm) (tool-json nm t)]
       |^  (nest entries)
       ++  nest
         |=  ens=(list [sub=path tj=json])
@@ -294,7 +295,7 @@
         ^-  (unit json)
         ?:  =(%'weir.json' nam)  ~
         ?:  (is-boom:tarball sang)  ~
-        =/  got  (mule |.(!<(tool-state:nex-tools (need-vase:tarball sang))))
+        =/  got  (mule |.(!<(tool-state:tools (need-vase:tarball sang))))
         ?:  ?=(%| -.got)  ~
         =/  st  p.got
         %-  some
@@ -437,16 +438,16 @@
       $(quay t.quay)
     ::  +find-tool-src: raw source of a tool by its advertised name.
     ::  Same resolution order as +await-tool: underscores to hyphens,
-    ::  root /code/lib/mcp first, then each app's code namespace.
+    ::  root /code/lib/tools first, then each app's code namespace.
     ::
     ++  find-tool-src
       |=  tool-name=@t
       =/  m  (fiber:fiber:nexus ,(unit [path @t]))
       ^-  form:m
-      =/  [sub=path arm=@ta]  (name-to-place:nex-tools tool-name)
+      =/  [sub=path arm=@ta]  (name-to-place:tools tool-name)
       =/  fname=@ta  (crip "{(trip arm)}.hoon")
       ;<  app-paths=(list path)  bind:m  get-app-mcp-paths
-      =/  dirs=(list path)  [/code/lib/mcp app-paths]
+      =/  dirs=(list path)  [/code/lib/tools app-paths]
       |-
       ?~  dirs  (pure:m ~)
       =/  in-dir=path  (weld i.dirs sub)
@@ -483,7 +484,7 @@
         ^-  (unit json)
         ?:  =(%'weir.json' nam)  ~
         ?:  (is-boom:tarball sang)  ~
-        =/  got  (mule |.(!<(tool-state:nex-tools (need-vase:tarball sang))))
+        =/  got  (mule |.(!<(tool-state:tools (need-vase:tarball sang))))
         ?:  ?=(%| -.got)  ~
         =/  st  p.got
         %-  some
@@ -520,7 +521,7 @@
         (peek:io (nex-road:io rail [%& dir tid]) ~)
       ?.  ?=([%file *] fv)  $(ids t.ids)
       ?:  (is-boom:tarball sang.fv)  $(ids t.ids)
-      =/  got  (mule |.(!<(tool-state:nex-tools (need-vase:tarball sang.fv))))
+      =/  got  (mule |.(!<(tool-state:tools (need-vase:tarball sang.fv))))
       ?:  ?=(%| -.got)  $(ids t.ids)
       =/  st  p.got
       =/  run=json
@@ -542,15 +543,15 @@
       ^-  form:m
       ?~  prod  (pure:m ~)
       %-  (slog leaf+"%mcp tool crashed" u.prod)
-      ;<  st=tool-state:nex-tools  bind:m
-        (get-state-as:io ,tool-state:nex-tools)
+      ;<  st=tool-state:tools  bind:m
+        (get-state-as:io ,tool-state:tools)
       ::  a finished run poked post-hoc (stray input nacked by stay)
       ::  is not a failed run — keep its result
       ?:  =(%done step.st)  (pure:m ~)
       =/  err-msg=@t  (render-tang:build u.prod)
       =/  result-data=json
         (pairs:enjs:format ~[['type' s+'error'] ['message' s+(crip "crash\0a{(trip err-msg)}")]])
-      (replace:io `tool-state:nex-tools`[tool.st args.st %done data.st `result-data])
+      (replace:io `tool-state:tools`[tool.st args.st %done data.st `result-data])
     ::  Strip .hoon suffix from grub name
     ::
     ++  strip-hoon
@@ -561,24 +562,97 @@
       ?.  (gth len 5)  name
       ?.  =(".hoon" (slag (sub len 5) t))  name
       (crip (scag (sub len 5) t))
-    ::  Get all compiled tools from bins via %code darts.
-    ::  Scans root /code/lib/mcp and each /apps/*/desk/code/lib/mcp.
+    ::  +get-dynamic-tools: the live tool list, obtained by DELEGATING to
+    ::  the tools.tools child. Only the child can read its own /code (a
+    ::  relative, self-locating read from its own rail); mcp cannot reach
+    ::  in. So mcp pokes the child %list, the child scans its /code and
+    ::  pokes the schema array straight back; mcp reshapes it into the tool
+    ::  map downstream expects.
     ::
     ++  get-dynamic-tools
-      =/  m  (fiber:fiber:nexus ,(map @t tool:nex-tools))
+      |=  =rail:tarball
+      =/  m  (fiber:fiber:nexus ,(map @t tool:tools))
       ^-  form:m
-      ;<  result=(map @t tool:nex-tools)  bind:m
-        (scan-namespace /code/lib/mcp)
-      ;<  app-paths=(list path)  bind:m  get-app-mcp-paths
-      |-
-      ?~  app-paths  (pure:m result)
-      ;<  more=(map @t tool:nex-tools)  bind:m
-        (scan-namespace i.app-paths)
-      $(app-paths t.app-paths, result (~(uni by result) more))
+      ;<  entries=(list json)  bind:m  (request-tool-list rail)
+      %-  pure:m
+      %-  ~(gas by *(map @t tool:tools))
+      %+  murn  entries
+      |=  j=json
+      ^-  (unit [@t tool:tools])
+      =/  t=(unit tool:tools)  (entry-to-tool j)
+      ?~(t ~ `[name:u.t u.t])
+    ::  +request-tool-list: poke the child %list; it computes the list and
+    ::  pokes the schema array straight back. Pure request/response — the
+    ::  main.sig grub that handles the request handles the response.
+    ::
+    ++  request-tool-list
+      |=  =rail:tarball
+      =/  m  (fiber:fiber:nexus ,(list json))
+      ^-  form:m
+      =/  call-road=road:tarball  (nex-road:io rail [%& /'tools.tools' %'main.sig'])
+      ;<  ~  bind:m
+        (poke:io call-road [[/ %json] (pairs:enjs:format ~[['cmd' s+'list']])])
+      ;<  =sage:tarball  bind:m  take-poke:io
+      =/  j=json  !<(json q.sage)
+      (pure:m ?:(?=([%a *] j) p.j ~))
+    ::  +entry-to-tool: one neutral schema entry -> tool:tools (handler is
+    ::  a stub — these values only feed discovery, never execution).
+    ::
+    ++  entry-to-tool
+      |=  j=json
+      ^-  (unit tool:tools)
+      ?.  ?=([%o *] j)  ~
+      =/  nm=@t    (get-str 'name' j)
+      =/  desc=@t  (get-str 'description' j)
+      =/  ps=(map @t parameter-def:tools)
+        (parse-params (~(get by p.j) 'parameters'))
+      =/  rq=(list @t)  (parse-reqd (~(get by p.j) 'required'))
+      ?:  =('' nm)  ~
+      :-  ~
+      ^-  tool:tools
+      |%
+      ++  name         nm
+      ++  description  desc
+      ++  parameters   ps
+      ++  required     rq
+      ++  handler      *tool-handler:tools
+      --
+    ++  get-str
+      |=  [k=@t j=json]
+      ^-  @t
+      ?.  ?=([%o *] j)  ''
+      =/  v=(unit json)  (~(get by p.j) k)
+      ?~  v  ''
+      ?.(?=([%s *] u.v) '' p.u.v)
+    ++  parse-reqd
+      |=  u=(unit json)
+      ^-  (list @t)
+      ?~  u  ~
+      ?.  ?=([%a *] u.u)  ~
+      %+  murn  p.u.u
+      |=(e=json ?.(?=([%s *] e) ~ `p.e))
+    ++  str-to-ptype
+      |=  t=@t
+      ^-  parameter-type:tools
+      ?+  t  %string
+        %number   %number
+        %boolean  %boolean
+        %array    %array
+        %object   %object
+      ==
+    ++  parse-params
+      |=  u=(unit json)
+      ^-  (map @t parameter-def:tools)
+      ?~  u  ~
+      ?.  ?=([%o *] u.u)  ~
+      %-  ~(run by p.u.u)
+      |=  pj=json
+      ^-  parameter-def:tools
+      [(str-to-ptype (get-str 'type' pj)) (get-str 'description' pj)]
     ::
     ++  scan-namespace
       |=  root=path
-      =/  m  (fiber:fiber:nexus ,(map @t tool:nex-tools))
+      =/  m  (fiber:fiber:nexus ,(map @t tool:tools))
       ^-  form:m
       ;<  src-view=view:nexus  bind:m
         (peek:io [%& %| root] ~)
@@ -586,17 +660,17 @@
         (pure:m ~)
       =/  pairs=(list [sub=path file=@ta])
         (ball-code-files ~ ball.src-view)
-      =/  result=(map @t tool:nex-tools)  ~
+      =/  result=(map @t tool:tools)  ~
       |-
       ?~  pairs  (pure:m result)
       =/  [sub=path file=@ta]  i.pairs
       ;<  res=built:nexus  bind:m
-        (get-code-full:io [%& %& (weld root sub) (strip-hoon:nex-tools file)])
+        (get-code-full:io [%& %& (weld root sub) (strip-hoon:tools file)])
       ?.  ?=(%vase -.res)  $(pairs t.pairs)
-      =/  got=(each tool:nex-tools tang)
-        (mule |.(!<(tool:nex-tools vase.res)))
+      =/  got=(each tool:tools tang)
+        (mule |.(!<(tool:tools vase.res)))
       ?.  ?=(%& -.got)  $(pairs t.pairs)
-      $(pairs t.pairs, result (~(put by result) (derive-name:nex-tools sub file) p.got))
+      $(pairs t.pairs, result (~(put by result) (derive-name:tools sub file) p.got))
     ::  +ball-code-files: every file in a ball, with its subpath
     ::
     ++  ball-code-files
@@ -618,7 +692,7 @@
       %-  pure:m
       %+  turn  ~(tap by dir.ball.apps-view)
       |=  [nam=@ta *]
-      (welp ~[%apps nam] /desk/code/lib/mcp)
+      (welp ~[%apps nam] /desk/code/lib/tools)
     ::  +await-tool: look up a compiled tool handler by name
     ::
     ::    Converts underscores to hyphens (get_ship → get-ship).
@@ -626,7 +700,7 @@
     ::
     ++  await-tool
       |=  tool-name=@t
-      =/  m  (fiber:fiber:nexus ,(each tool:nex-tools tang))
+      =/  m  (fiber:fiber:nexus ,(each tool:tools tang))
       ^-  form:m
       ::  a leading slash means the tool is addressed by LOCATION —
       ::  an absolute, extensionless path to its source in any code
@@ -635,32 +709,32 @@
         =/  pax=(unit path)  (rush tool-name stap)
         ?:  |(?=(~ pax) ?=(~ u.pax))
           (pure:m [%| ~[leaf+"bad tool path: {(trip tool-name)}"]])
-        ;<  got=(unit tool:nex-tools)  bind:m
+        ;<  got=(unit tool:tools)  bind:m
           (try-compile (snip `path`u.pax) (rear u.pax))
         ?^  got  (pure:m [%& u.got])
         (pure:m [%| ~[leaf+"no tool at {(trip tool-name)}"]])
-      =/  [sub=path arm=@ta]  (name-to-place:nex-tools tool-name)
-      ;<  got=(unit tool:nex-tools)  bind:m
-        (try-compile (weld /code/lib/mcp sub) arm)
+      =/  [sub=path arm=@ta]  (name-to-place:tools tool-name)
+      ;<  got=(unit tool:tools)  bind:m
+        (try-compile (weld /code/lib/tools sub) arm)
       ?^  got  (pure:m [%& u.got])
       ;<  app-paths=(list path)  bind:m  get-app-mcp-paths
       |-
       ?~  app-paths
         (pure:m [%| ~[leaf+"tool not found: {(trip tool-name)}"]])
-      ;<  got=(unit tool:nex-tools)  bind:m
+      ;<  got=(unit tool:tools)  bind:m
         (try-compile (weld i.app-paths sub) arm)
       ?^  got  (pure:m [%& u.got])
       $(app-paths t.app-paths)
     ::
     ++  try-compile
       |=  [code-path=path file-name=@ta]
-      =/  m  (fiber:fiber:nexus ,(unit tool:nex-tools))
+      =/  m  (fiber:fiber:nexus ,(unit tool:tools))
       ^-  form:m
       ;<  res=built:nexus  bind:m  (get-code-full:io [%& %& code-path file-name])
       ?.  ?=(%vase -.res)
         (pure:m ~)
-      =/  got=(each tool:nex-tools tang)
-        (mule |.(!<(tool:nex-tools vase.res)))
+      =/  got=(each tool:tools tang)
+        (mule |.(!<(tool:tools vase.res)))
       ?.  ?=(%& -.got)
         (pure:m ~)
       (pure:m `p.got)
@@ -670,6 +744,15 @@
 ++  on-load
   |=  =ball:tarball
   ^-  bole:tarball
+  ::  preserve any tools added live: read the current tools.tools/code
+  ::  subtree (just the code — /runs stays a clean slate each reload) and
+  ::  merge the bundle onto it, bundle winning name conflicts, so a reseed
+  ::  updates bundle tools without deleting user-added ones.
+  =/  existing-tools=bole:tarball
+    =/  sub=(unit ball:tarball)  (~(dap ba:tarball ball) /'tools.tools'/code)
+    ?~  sub  *bole:tarball
+    =/  code-bole=bole:tarball  (ball-to-bole:tarball u.sub)
+    [`[`[/ %tools] ~ %.n ~] (malt ~[[%code code-bole]])]
   =/  tile=json
     %-  pairs:enjs:format
     :~  title+s+'Tools'
@@ -697,7 +780,7 @@
       ::  mount). The name-encoded instance is a fresh path, so it
       ::  sidesteps the stale plain /tools dir that %fall would keep
       ::  unnecked. mcp keeps no run grubs of its own.
-      [%fall %| /'tools.tools' [`[`[/ %tools] ~ %.n ~] ~]]
+      [%over %| /'tools.tools' (merge-boles:tools existing-tools (seed-tools:tools bundle))]
       [%over %& [/ %'README.md'] [[/ %mime] man]]
   ==
 ::
@@ -732,7 +815,7 @@
       ?:  ?=([%api %tools ~] suffix)
         ::  the FULL registry, not the three-tool protocol allowlist
         ::  that tools/list advertises to MCP clients
-        ;<  dynamic=(map @t tool:nex-tools)  bind:m  get-dynamic-tools
+        ;<  dynamic=(map @t tool:tools)  bind:m  (get-dynamic-tools rail)
         (send-json eyre-id (mcp-tools-list:nex-mcp dynamic ~))
       ?:  ?=([%api %runs ~] suffix)
         ;<  runs=json  bind:m  (gather-runs rail)
@@ -831,8 +914,8 @@
       ?~  cas  $
       ;<  =view:nexus  bind:m  (peek-at:io run-road ~ [%ud ud.u.cas])
       ?.  ?=([%file *] view)  $
-      =/  st=tool-state:nex-tools
-        !<(tool-state:nex-tools (need-vase:tarball sang.view))
+      =/  st=tool-state:tools
+        !<(tool-state:tools (need-vase:tarball sang.view))
       ?.  =(%done step.st)  $
       ?~  update.st  $
       ::  Done — build JSON-RPC response from update
@@ -858,7 +941,7 @@
         [[/ %json] (pairs:enjs:format ~[['cmd' s+'cull'] ['id' s+tid]])]
       (pure:m ~)
     ::  Protocol methods (initialize, tools/list, etc.): handle inline
-    ;<  dynamic=(map @t tool:nex-tools)  bind:m  get-dynamic-tools
+    ;<  dynamic=(map @t tool:tools)  bind:m  (get-dynamic-tools rail)
     ;<  response=(unit json)  bind:m  (handle-request:nex-mcp u.parsed dynamic)
     ?~  response
       (send-simple:srv eyre-id [[202 ~] ~])

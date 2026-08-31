@@ -355,6 +355,14 @@
       |=  =prod:fiber:nexus
       =/  m  (fiber:fiber:nexus ,~)
       ^-  process:fiber:nexus
+      ::  everything under tree/ is a git blob and must be a %mime grub.
+      ::  a non-mime grub (e.g. %hoon source) would bang ball-to-files on
+      ::  the next add/commit and take the whole nexus inert — so a grub
+      ::  that lands here with any other mark cleans itself up.
+      ?:  ?&  ?=([%tree *] path.rail)
+              !=([/ %mime] blot)
+          ==
+        (pure:m ~)
       stay:m
     --
 ::
@@ -724,7 +732,9 @@
     ?~  fil.ball  ~
     %+  turn  ~(tap by contents.u.fil.ball)
     |=  [name=@t =sang:tarball gain=? bang=(unit tang)]
-    =/  m=mime  !<(mime (need-vase:tarball sang))
+    =/  m=mime
+      ~|  (spud (snoc here name))
+      !<(mime (need-vase:tarball sang))
     [(snoc here name) q.m '']
   =/  sub-files=(list [=path data=octs mtime=@t])
     %-  zing

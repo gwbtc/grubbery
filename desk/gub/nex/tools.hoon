@@ -4,13 +4,14 @@
 ::  shell, delegating discovery and execution here.
 ::
 ::  Tree layout:
-::    /main.sig          supervisor: build the registry, accept calls
-::    /registry.json     cached tool list (name/description/schema),
-::                       rebuilt on rise and on a %refresh poke
+::    /main.sig          supervisor: accept call/cull pokes
+::    /code              this instance's own code nexus, seeded by the
+::                       host with a tool bundle — the tools live here,
+::                       compiled; discovery is just reading it
 ::    /runs/{id}         a tool execution grub (mark %tool-state)
 ::
 ::  Internal API (the calls/ pattern, same as the LLM proxies):
-::    - list: peek /registry.json (a derived cache; %refresh to rebuild)
+::    - list: the host reads /code/lib/tools directly (no cache)
 ::    - call: subscribe to /runs/{id}, poke main.sig with
 ::            {id, name, arguments}; main.sig makes the run grub, the
 ::            run fiber executes the handler and overwrites itself with
@@ -43,10 +44,10 @@
           :~  (line '/' 'a tool may create grubs anywhere')
           ==
       ==
-    ::  +registry-json: the cached tool list — an array of protocol-
-    ::  neutral tool schemas (name/description/parameters/required). A
-    ::  consumer (mcp) reshapes these into whatever wire format it
-    ::  speaks; the engine stays protocol-agnostic.
+    ::  +list-json: serialize a tool map into a protocol-neutral schema
+    ::  array (name/description/parameters/required). The host reshapes
+    ::  this into whatever wire format it speaks. Built fresh on each
+    ::  %list poke from a live scan — not a stored cache.
     ::
     ++  param-type-json
       |=  type=parameter-type:nex-tools
@@ -74,7 +75,7 @@
           ['parameters' [%o properties]]
           ['required' [%a (turn required:tool |=(f=@t s+f))]]
       ==
-    ++  registry-json
+    ++  list-json
       |=  dynamic=(map @t tool:nex-tools)
       ^-  json
       [%a (turn ~(val by dynamic) tool-schema)]
@@ -95,13 +96,39 @@
         (pairs:enjs:format ~[['type' s+'error'] ['message' s+(crip "crash\0a{(trip err-msg)}")]])
       (replace:io `tool-state:nex-tools`[tool.st args.st %done data.st `result-data])
     ::  +get-dynamic-tools: every compiled tool, scanning root
-    ::  /code/lib/mcp and each /apps/*/desk/code/lib/mcp.
+    ::  /code/lib/tools and each /apps/*/desk/code/lib/tools.
     ::
-    ++  get-dynamic-tools
+    ::  +scan-own: scan this instance's OWN /code/lib/tools (relative),
+    ::  compiling each tool where its seeded deps resolve.
+    ::
+    ++  scan-own
+      |=  =rail:tarball
       =/  m  (fiber:fiber:nexus ,(map @t tool:nex-tools))
       ^-  form:m
+      ;<  src-view=view:nexus  bind:m
+        (peek:io (nex-road:io rail [%| /code/lib/tools]) ~)
+      ?.  ?=([%ball *] src-view)  (pure:m ~)
+      =/  pairs=(list [sub=path file=@ta])  (ball-code-files ~ ball.src-view)
+      =/  result=(map @t tool:nex-tools)  ~
+      |-
+      ?~  pairs  (pure:m result)
+      =/  [sub=path file=@ta]  i.pairs
+      ;<  res=built:nexus  bind:m
+        %-  get-code-full:io
+        (nex-road:io rail [%& (weld /code/lib/tools sub) (strip-hoon:nex-tools file)])
+      ?.  ?=(%vase -.res)  $(pairs t.pairs)
+      =/  got=(each tool:nex-tools tang)  (mule |.(!<(tool:nex-tools vase.res)))
+      ?.  ?=(%& -.got)  $(pairs t.pairs)
+      $(pairs t.pairs, result (~(put by result) (derive-name:nex-tools sub file) p.got))
+    ++  get-dynamic-tools
+      |=  =rail:tarball
+      =/  m  (fiber:fiber:nexus ,(map @t tool:nex-tools))
+      ^-  form:m
+      ::  own seeded /code first (self-contained); else root + apps.
+      ;<  own=(map @t tool:nex-tools)  bind:m  (scan-own rail)
+      ?.  =(~ own)  (pure:m own)
       ;<  result=(map @t tool:nex-tools)  bind:m
-        (scan-namespace /code/lib/mcp)
+        (scan-namespace /code/lib/tools)
       ;<  app-paths=(list path)  bind:m  get-app-mcp-paths
       |-
       ?~  app-paths  (pure:m result)
@@ -151,14 +178,24 @@
       %-  pure:m
       %+  turn  ~(tap by dir.ball.apps-view)
       |=  [nam=@ta *]
-      (welp ~[%apps nam] /desk/code/lib/mcp)
+      (welp ~[%apps nam] /desk/code/lib/tools)
     ::  +await-tool: look up a compiled tool handler by name (or by an
     ::  absolute /-prefixed source location in any code namespace).
     ::
     ++  await-tool
-      |=  tool-name=@t
+      |=  [=rail:tarball tool-name=@t]
       =/  m  (fiber:fiber:nexus ,(each tool:nex-tools tang))
       ^-  form:m
+      ::  own seeded /code first (deps resolve there); else fall through.
+      =/  [own-sub=path own-arm=@ta]  (name-to-place:nex-tools tool-name)
+      ;<  own=built:nexus  bind:m
+        %-  get-code-full:io
+        (nex-road:io rail [%& (weld /code/lib/tools own-sub) own-arm])
+      =/  own-tool=(unit tool:nex-tools)
+        ?.  ?=(%vase -.own)  ~
+        =/  g=(each tool:nex-tools tang)  (mule |.(!<(tool:nex-tools vase.own)))
+        ?:(?=(%& -.g) `p.g ~)
+      ?^  own-tool  (pure:m [%& u.own-tool])
       ?:  =('/' (end 3 tool-name))
         =/  pax=(unit path)  (rush tool-name stap)
         ?:  |(?=(~ pax) ?=(~ u.pax))
@@ -169,7 +206,7 @@
         (pure:m [%| ~[leaf+"no tool at {(trip tool-name)}"]])
       =/  [sub=path arm=@ta]  (name-to-place:nex-tools tool-name)
       ;<  got=(unit tool:nex-tools)  bind:m
-        (try-compile (weld /code/lib/mcp sub) arm)
+        (try-compile (weld /code/lib/tools sub) arm)
       ?^  got  (pure:m [%& u.got])
       ;<  app-paths=(list path)  bind:m  get-app-mcp-paths
       |-
@@ -192,14 +229,6 @@
       ?.  ?=(%& -.got)
         (pure:m ~)
       (pure:m `p.got)
-    ::  +build-registry: scan and write /registry.json (the cache).
-    ::
-    ++  build-registry
-      |=  =rail:tarball
-      =/  m  (fiber:fiber:nexus ,~)
-      ^-  form:m
-      ;<  dynamic=(map @t tool:nex-tools)  bind:m  get-dynamic-tools
-      (over:io (nex-road:io rail [%& / %'registry.json']) [[/ %json] (registry-json dynamic)])
     --
 ^-  nexus:nexus
 |%
@@ -211,8 +240,10 @@
       [%over %& [/ %'alias.json'] [[/ %json] (pairs:enjs:format ~[['name' s+'tools'] ['description' s+'tool registry & execution engine']])]]
       [%over %& [/ %'weir.json'] [[/ %json] weir-json]]
       [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
-      [%fall %& [/ %'registry.json'] [[/ %json] [%a ~]]]
       [%fall %| /runs empty-dir:loader]
+      ::  /code: this instance's own code nexus (seeded by the host with
+      ::  a tool bundle). Scanned first; falls back to root /code if empty.
+      [%fall %| /code [`[`[/ %code] ~ %.n ~] ~]]
   ==
 ::
 ++  on-file
@@ -222,15 +253,13 @@
   =/  m  (fiber:fiber:nexus ,~)
   ^-  process:fiber:nexus
   ?+    rail  stay:m
-      ::  supervisor: build the registry on rise, then accept calls.
-      ::  a %call poke {id, name, arguments} spawns a run grub; a
-      ::  %refresh poke rebuilds the cached registry.
+      ::  supervisor: accept calls. a %call poke {id, name, arguments}
+      ::  spawns a run grub; a %cull poke drops a finished run.
       ::
       [~ %'main.sig']
     ;<  ~  bind:m  (rise-wait:io prod "%tools /main: failed")
-    ;<  ~  bind:m  (build-registry rail)
     |-
-    ;<  =sage:tarball  bind:m  take-poke:io
+    ;<  [=from:fiber:nexus =sage:tarball]  bind:m  take-poke-from:io
     ::  every command is a [/ %json] poke keyed by a "cmd" field —
     ::  reusing the json mark (no per-command marks to define, so the
     ::  queued poke stays hydrate-valid).
@@ -239,8 +268,13 @@
       $
     =/  jon=json  !<(json q.sage)
     =/  cmd=@t  (~(dog jo:json-utils jon) /cmd so:dejs:format)
-    ?:  =('refresh' cmd)
-      ;<  ~  bind:m  (build-registry rail)
+    ?:  =('list' cmd)
+      ::  live listing: scan our own /code (relative, self-locating) and
+      ::  poke the schema array straight back to whoever asked — a plain
+      ::  request/response, no grub written anywhere.
+      ;<  dynamic=(map @t tool:nex-tools)  bind:m  (get-dynamic-tools rail)
+      =/  reply=road:tarball  [%| p.from [%& q.from]]
+      ;<  ~  bind:m  (poke:io reply [[/ %json] (list-json dynamic)])
       $
     ?:  =('cull' cmd)
       =/  cid=@t  (~(dog jo:json-utils jon) /id so:dejs:format)
@@ -271,7 +305,7 @@
     ;<  st=tool-state:nex-tools  bind:m
       (get-state-as:io ,tool-state:nex-tools)
     ?:  =(%done step.st)  stay:m
-    ;<  got=(each tool:nex-tools tang)  bind:m  (await-tool tool.st)
+    ;<  got=(each tool:nex-tools tang)  bind:m  (await-tool rail tool.st)
     ?:  ?=(%| -.got)
       =/  err-msg=@t  (render-tang:build p.got)
       =/  result-data=json

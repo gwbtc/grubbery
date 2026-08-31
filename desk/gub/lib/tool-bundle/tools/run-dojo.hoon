@@ -1,5 +1,5 @@
 /<  tools  /lib/tools.hoon
-/<  clurd  /lib/nex/clurd.hoon
+/<  clurd  /lib/clurd.hoon
 ::  run-dojo: execute a dojo command and return the output
 ::
 ::  Sends belt input to a dill session, waits for the prompt

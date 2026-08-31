@@ -168,7 +168,10 @@ modal-dialog:not(:defined) { display: none; }   /* no flash before upgrade */
 #view-tools { flex: 1; min-height: 0; overflow-y: auto; padding: 14px; }
 #ws-none { flex: 1; display: flex; align-items: center; justify-content: center; color: #999; font-size: 13px; }
 .run-head { font-size: 11px; font-weight: 700; color: #888; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px; }
-.ft-dir { padding: 4px 12px 2px; font-family: monospace; font-size: 12px; color: #999; font-weight: 700; }
+.ft-dir { padding: 4px 12px 2px; font-family: monospace; font-size: 12px; color: #999; font-weight: 700; cursor: pointer; user-select: none; }
+.ft-dir:hover { color: #666; }
+.ft-kids { padding-left: 10px; }
+.ft-dir-det > summary { list-style-position: inside; }
 .ft-x { display: none; float: right; color: #bbb; padding: 0 3px; border-radius: 4px; }
 .ft-file:hover .ft-x { display: inline; }
 .ft-x:hover { color: #c0392b; background: #fbe9e9; }

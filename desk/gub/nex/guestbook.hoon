@@ -1,4 +1,4 @@
-/<  odb  /lib/nex/obelisk-db.hoon
+/<  odb  /lib/obelisk-db.hoon
 /<  index-html  guestbook/index.html
 /<  guestbook-js  guestbook/guestbook.js
 /<  icon  guestbook/icon.svg

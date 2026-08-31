@@ -1,5 +1,5 @@
 /<  tools  /lib/tools.hoon
-/<  clurd  /lib/nex/clurd.hoon
+/<  clurd  /lib/clurd.hoon
 ::  read-terminal: read rendered dill terminal output
 ::
 ::  Reads historical blit batches from a dill session and renders

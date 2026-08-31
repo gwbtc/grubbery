@@ -1,5 +1,5 @@
 /<  tools  /lib/tools.hoon
-/<  rss    /lib/nex/rss.hoon
+/<  rss    /lib/rss.hoon
 ^-  tool:tools
 |%
 ++  name  'feeds_list'

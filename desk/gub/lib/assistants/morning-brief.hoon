@@ -8,7 +8,7 @@
 ::
 /<  cal    /lib/calendar.hoon
 /<  rules  /lib/rules.hoon
-/<  asst   /lib/nex/assistant.hoon
+/<  asst   /lib/assistant.hoon
 =<  ^-  assistant:asst
     |=  [args=json now=@da]
     =/  m  (fiber:fiber:nexus ,output:asst)

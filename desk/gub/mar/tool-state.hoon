@@ -1,8 +1,8 @@
-/<  nex-tools  /lib/tools.hoon
-|_  =tool-state:nex-tools
+/<  tools  /lib/tools.hoon
+|_  =tool-state:tools
 ++  grab
   |%
-  ++  noun  tool-state:nex-tools
+  ++  noun  tool-state:tools
   --
 ++  grow
   |%

@@ -1,6 +1,6 @@
 ::  feed: a fetched+parsed RSS/Atom feed, stored by the feeds nexus
 ::
-/<  rss  /lib/nex/rss.hoon
+/<  rss  /lib/rss.hoon
 |_  =feed-store:rss
 ++  grab
   |%

@@ -38,8 +38,10 @@
   ::  Convert underscores to hyphens for filename lookup
   =/  file-name=@ta
     (crip (turn (trip tool-name) |=(c=@t ?:(=(c '_') '-' c))))
-  ::  Look up compiled tool from bins — try root first
-  ;<  res=built:nexus  bind:m  (get-code-full:io [%& %& /code/lib/mcp file-name])
+  ::  Look up compiled tool from bins — try our own nexus /code first,
+  ::  addressed by nex-road from this file's rail (placement-independent).
+  ;<  res=built:nexus  bind:m
+    (get-code-full:io [%| 1 [%& /code/lib/tools file-name]])
   =/  root-got=(unit tool:tools)
     ?.  ?=(%vase -.res)  ~
     =/  r=(each tool:tools tang)  (mule |.(!<(tool:tools vase.res)))
@@ -57,7 +59,7 @@
   |-
   ?~  app-kids
     (pure:m [%error (crip "Tool not found: {(trip tool-name)}")])
-  =/  cp=path  (welp ~[%apps i.app-kids] /desk/code/lib/mcp)
+  =/  cp=path  (welp ~[%apps i.app-kids] /desk/code/lib/tools)
   ;<  ares=built:nexus  bind:m  (get-code-full:io [%& %& cp file-name])
   =/  app-got=(unit tool:tools)
     ?.  ?=(%vase -.ares)  ~

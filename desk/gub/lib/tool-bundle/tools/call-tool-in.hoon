@@ -2,7 +2,7 @@
 ::  call-tool-in: run a tool BY LOCATION, delegating to a run-site.
 ::
 ::    Everything is a rail/path, nothing is a registry name:
-::      code   the tool's source path — /apps/foo/desk/code/lib/mcp/bar
+::      code   the tool's source path — /apps/foo/desk/code/lib/tools/bar
 ::             (absolute, extensionless; any code namespace on the ship)
 ::      run    where the run-state grub lives while it executes —
 ::             /proc/<sandbox>/<id>. Whatever weir governs that
@@ -27,7 +27,7 @@
   ;:  weld
     "Run a tool by LOCATION in a chosen run-site, so it can be "
     "sandboxed. 'code' is the tool source path (absolute, "
-    "extensionless, e.g. /apps/foo/desk/code/lib/mcp/bar). 'run' is "
+    "extensionless, e.g. /apps/foo/desk/code/lib/tools/bar). 'run' is "
     "where the run executes (e.g. /proc/mysandbox/job1) — its weir "
     "governs the run. 'args' are the tool's arguments."
   ==

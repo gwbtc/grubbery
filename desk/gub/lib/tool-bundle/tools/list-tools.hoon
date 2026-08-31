@@ -2,7 +2,7 @@
 ::  list-tools: list all available MCP tools with optional filtering
 ::
 ::    Looks up compiled tools from bins via %code darts.
-::    Scans root /code/lib/mcp and each app's /desk/code/lib/mcp.
+::    Scans root /code/lib/tools and each app's /desk/code/lib/tools.
 ::
 =>  |%
     ++  strip-hoon
@@ -66,11 +66,14 @@
   =/  names-only=?
     ?~  v  %.n
     ?=([%b %.y] u.v)
-  ::  Collect all code-path + name pairs to try
+  ::  Collect all code-path + name pairs to try. A ~ code-path marks a
+  ::  tool in THIS nexus's own /code.
   =/  pairs=(list [path @ta])  ~
-  ::  Root namespace tools
+  ::  Own-nexus tools: a run grub always lives at /runs/{id}, one level
+  ::  below the nexus root, so [%| 1 ...] bends up to the root and into
+  ::  /code/lib/tools — placement-free, no rail needed.
   ;<  src-view=view:nexus  bind:m
-    (peek:io [%& %| /code/lib/mcp] ~)
+    (peek:io [%| 1 [%| /code/lib/tools]] ~)
   =.  pairs
     ?.  ?=([%ball *] src-view)  pairs
     ?~  fil.ball.src-view  pairs
@@ -78,7 +81,7 @@
     ^-  (list [path @ta])
     %+  turn  ~(tap by contents.u.fil.ball.src-view)
     |=  [n=@ta *]
-    [/code/lib/mcp (strip-hoon n)]
+    [~ (strip-hoon n)]
   ::  App namespace tools
   ;<  apps-view=view:nexus  bind:m
     (peek:io [%& %| /apps] ~)
@@ -131,14 +134,17 @@
         out
       (pure:m [%text (crip "{<(lent matches)>} tools found:{result}")])
     =/  [cp=path n=@ta]  `[path @ta]`i.pairs
-    ;<  res=built:nexus  bind:m  (get-code-full:io [%& %& cp n])
+    =/  tool-road=road:tarball
+      ?^  cp  [%& %& cp n]
+      [%| 1 [%& /code/lib/tools n]]
+    ;<  res=built:nexus  bind:m  (get-code-full:io tool-road)
     ?.  ?=(%vase -.res)  $(pairs t.pairs)
     =/  got=(each tool:tools tang)
       (mule |.(!<(tool:tools vase.res)))
     ?.  ?=(%& -.got)  $(pairs t.pairs)
     $(pairs t.pairs, all-tools [p.got all-tools])
   ::  Peek this app's mcp dir and add any tool sources
-  =/  app-path=path  (welp ~[%apps i.app-kids] /desk/code/lib/mcp)
+  =/  app-path=path  (welp ~[%apps i.app-kids] /desk/code/lib/tools)
   ;<  app-src=view:nexus  bind:m
     (peek:io [%& %| app-path] ~)
   =.  pairs

@@ -1,5 +1,5 @@
 /<  tools  /lib/tools.hoon
-/<  s3t    /lib/nex/s3-tools.hoon
+/<  s3t    /lib/s3-tools.hoon
 ::  s3-download: download an S3 file to the grubbery ball
 ::
 !:

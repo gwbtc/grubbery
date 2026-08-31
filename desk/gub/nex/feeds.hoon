@@ -9,7 +9,7 @@
 ::    /rss-parser.wasm  the parser binary (executed via sut wasm engine)
 ::    /requests/{id}    HTTP request fibers
 ::
-/<  rss  /lib/nex/rss.hoon
+/<  rss  /lib/rss.hoon
 /<  parser-wasm  feeds/rss-parser.wasm
 /<  index-html   feeds/index.html
 /<  feeds-js     feeds/feeds.js

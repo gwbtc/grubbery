@@ -1,7 +1,7 @@
 /<  tools  /lib/tools.hoon
 ::  add-mcp-tool: add a custom MCP tool
 ::
-::    Writes Hoon source to the ball mirror at /code/lib/mcp/
+::    Writes Hoon source to the ball mirror at /code/lib/tools/
 ::    so build-code compiles it into bins. Then checks compilation
 ::    result via %code dart.
 ::
@@ -13,7 +13,7 @@
   ^~  %-  crip
   ;:  weld
     "Add a custom MCP tool by writing Hoon source to the "
-    "build pipeline at /code/lib/mcp/. The source is "
+    "build pipeline at /code/lib/tools/. The source is "
     "compiled by build-code and made available via bins. "
     "The source must produce a valid tool:tools. "
     "Use check_bin to verify compilation status."
@@ -38,13 +38,14 @@
     (pure:m [%error 'Missing or invalid required arguments (name, source)'])
   =/  [tool-name=@ta source=@t]  p.parsed
   =/  file-name=@ta  (cat 3 tool-name '.hoon')
-  =/  road=road:tarball
-    [%& %& /code/lib/mcp file-name]
+  ::  write into our own nexus /code, addressed by nex-road from this
+  ::  file's rail (placement-independent).
+  =/  road=road:tarball  [%| 1 [%& /code/lib/tools file-name]]
   ::  Write source to ball mirror
   ;<  exists=?  bind:m  (peek-exists:io road)
   ?:  exists
     ;<  ~  bind:m  (over:io road [[/ %hoon] source])
-    (pure:m [%text (crip "Source written: /code/lib/mcp/{(trip file-name)}. Use check_bin to verify compilation.")])
+    (pure:m [%text (crip "Source written: /code/lib/tools/{(trip file-name)}. Use check_bin to verify compilation.")])
   ;<  ~  bind:m  (make:io road |+[[[/ %hoon] source] ~])
-  (pure:m [%text (crip "Source written: /code/lib/mcp/{(trip file-name)}. Use check_bin to verify compilation.")])
+  (pure:m [%text (crip "Source written: /code/lib/tools/{(trip file-name)}. Use check_bin to verify compilation.")])
 --

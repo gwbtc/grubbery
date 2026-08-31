@@ -1,6 +1,6 @@
 ::  claw nexus: self-building AI agent
 ::
-/<  nex-tools     /lib/tools.hoon
+/<  nex-tools  /lib/tools.hoon
 /<  iso-8601      /lib/iso-8601.hoon
 /<  cron          /lib/cron.hoon
 /<  rules         /lib/rules.hoon
@@ -504,9 +504,9 @@
               'A tool core has these arms:'
               '  ++name         @t cord, the tool name users call'
               '  ++description  @t cord, what it does'
-              '  ++parameters   (map @t parameter-def:tools), input params'
+              '  ++parameters   (map @t parameter-def:nex-tools), input params'
               '  ++required     (list @t), which params are required'
-              '  ++handler      tool-handler:tools, fiber that runs on invocation'
+              '  ++handler      tool-handler:nex-tools, fiber that runs on invocation'
               ''
               'The handler receives tool-state (with args map) via get-state-as:io'
               'and returns a tool-result (%text or %error).'
@@ -515,15 +515,15 @@
               ''
               '- Always import the tools library first:'
               '    /<  tools  /lib/tools.hoon'
-              '    ^-  tool:tools'
-              '  This gives you tool-state:tools, tool-result:tools, parameter-def:tools.'
+              '    ^-  tool:nex-tools'
+              '  This gives you tool-state:nex-tools, tool-result:nex-tools, parameter-def:nex-tools.'
               ''
               '- For entropy use get-entropy:io (returns @uvJ).'
               '  For current time use get-now:io (returns @da).'
               '  For location use get-here:io (returns rail:tarball).'
               ''
               '- Read args from the tool-state args map:'
-              '    ;<  st=tool-state:tools  bind:m  (get-state-as:io ,tool-state:tools)'
+              '    ;<  st=tool-state:nex-tools  bind:m  (get-state-as:io ,tool-state:nex-tools)'
               '    =/  val  (~(get by args.st) <cord-key>)'
               '  JSON numbers: ?>(?=(%n -.j) (rash p.j dem)) gives @ud'
               '  JSON strings: ?>(?=(%s -.j) p.j) gives @t'

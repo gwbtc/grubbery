@@ -459,6 +459,41 @@
     [(~(put by files) rail [src (sham src) resolved body.p.res]) errors]
   =/  files=(map rail:tarball file-info)  files.prep
   =/  errors=(map rail:tarball tang)  errors.prep
+  ::  A /& dir import gathers EVERY file under the fold as a mime — incl
+  ::  %hoon/%txt source (see the %mime %| gather below). Those source
+  ::  files are therefore compile inputs, but +mimes only collected
+  ::  [/ %mime] grubs, so they had no content hash in the key-map and no
+  ::  dep edge to their importer — a source edit under the fold never
+  ::  changed the importer's cache key (stale vase reused). Register every
+  ::  ball file under any /& dir-fold as a mime artifact here, so it enters
+  ::  results/key-map and the +mimes dep-edge loop picks it up.
+  =/  fold-paths=(set path)
+    %-  ~(gas in *(set path))
+    %-  zing
+    ^-  (list (list path))
+    %+  turn  ~(val by files)
+    |=  fi=file-info
+    %+  murn  imports.fi
+    |=  r=resolved-import
+    ^-  (unit path)
+    ?.  ?=(%mime -.r)  ~
+    ?.  ?=(%| -.lane.r)  ~
+    `p.lane.r
+  =/  mimes
+    ^-  (map rail:tarball vase)
+    %-  ~(uni by mimes)
+    %-  ~(gas by *(map rail:tarball vase))
+    %+  murn  ~(tap ba:tarball ball)
+    |=  [=rail:tarball =sang:tarball]
+    ^-  (unit [rail:tarball vase])
+    ?.  %+  lien  ~(tap in fold-paths)
+          |=(fp=path =(fp (scag (lent fp) path.rail)))
+      ~
+    ?:  =([/ %mime] p.sang)
+      `[rail (need-vase:tarball sang)]
+    =/  txt=(unit @t)  (mole |.(!<(@t (need-vase:tarball sang))))
+    ?~  txt  ~
+    `[rail !>(`mime`[/text/plain (met 3 u.txt) u.txt])]
   ::  Phase 2: Topological sort
   ::
   =/  deps=(map rail:tarball (set rail:tarball))
@@ -607,8 +642,15 @@
           %+  roll
             %+  murn  ~(tap ba:tarball sub)
             |=  [=rail:tarball =sang:tarball]
-            ?.  =([/ %mime] p.sang)  ~
-            `[path.rail name.rail !<(mime (need-vase:tarball sang))]
+            ::  treat every file as mime: a %mime grub imports as-is; any
+            ::  other grub whose content is a cord (source — %hoon, %txt,
+            ::  …) imports as a text mime of that source. So a directory
+            ::  of source can be imported, not just static assets.
+            ?:  =([/ %mime] p.sang)
+              `[path.rail name.rail !<(mime (need-vase:tarball sang))]
+            =/  txt=(unit @t)  (mole |.(!<(@t (need-vase:tarball sang))))
+            ?~  txt  ~
+            `[path.rail name.rail [/text/plain [(met 3 u.txt) u.txt]]]
           |=  [[pax=path nam=@ta mym=mime] acc=(axal (map @ta mime))]
           =/  nod=(map @ta mime)
             (fall (~(get of acc) pax) *(map @ta mime))

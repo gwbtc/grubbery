@@ -265,34 +265,61 @@ function renderTopbar() {
 }
 
 // ── file tree (sidebar) ──
-function treeRows(paths, root) {
-  var seen = {};
-  var rows = [];
+// nest a flat list of paths into { dirs, files }
+function buildTree(paths) {
+  var root = { dirs: {}, files: [] };
   paths.forEach(function(f) {
     var segs = f.split('/');
-    for (var d = 0; d < segs.length - 1; d++) {
-      var dir = segs.slice(0, d + 1).join('/');
-      if (!seen[dir]) {
-        seen[dir] = true;
-        rows.push('<div class="ft-dir" style="padding-left:' + (12 + d * 12) + 'px">' +
-          esc(segs[d]) + '/</div>');
-      }
-    }
-    var depth = segs.length - 1;
-    var base = segs[segs.length - 1];
-    var mark = '';
-    var del = '<span class="ft-x" data-del="' + esc(f) + '" title="delete file">×</span>';
-    var id = root + ':' + f;
-    rows.push('<div class="ft-file' + (id === focusedF() ? ' sel' : '') +
-      '" data-root="' + root + '" data-file="' + esc(f) + '">' +
-      '<span style="padding-left:' + (depth * 12) + 'px">' + esc(base) + '</span>' + mark + del + '</div>');
+    segs.pop();
+    var node = root;
+    segs.forEach(function(s) {
+      if (!node.dirs[s]) node.dirs[s] = { dirs: {}, files: [] };
+      node = node.dirs[s];
+    });
+    node.files.push(f);
   });
-  return rows.join('');
+  return root;
+}
+// render dirs as collapsible <details>, files as .ft-file rows (unchanged behavior)
+function renderNode(parent, node, rootName) {
+  Object.keys(node.dirs).sort().forEach(function(name) {
+    var det = document.createElement('details');
+    det.open = true;
+    det.className = 'ft-dir-det';
+    var sum = document.createElement('summary');
+    sum.className = 'ft-dir';
+    sum.textContent = name + '/';
+    det.appendChild(sum);
+    var kids = document.createElement('div');
+    kids.className = 'ft-kids';
+    renderNode(kids, node.dirs[name], rootName);
+    det.appendChild(kids);
+    parent.appendChild(det);
+  });
+  node.files.sort().forEach(function(f) {
+    var base = f.split('/').pop();
+    var id = rootName + ':' + f;
+    var row = document.createElement('div');
+    row.className = 'ft-file' + (id === focusedF() ? ' sel' : '');
+    row.setAttribute('data-root', rootName);
+    row.setAttribute('data-file', f);
+    var nm = document.createElement('span');
+    nm.textContent = base;
+    var del = document.createElement('span');
+    del.className = 'ft-x';
+    del.setAttribute('data-del', f);
+    del.title = 'delete file';
+    del.textContent = '×';
+    row.appendChild(nm);
+    row.appendChild(del);
+    parent.appendChild(row);
+  });
 }
 function renderFiles() {
   var box = document.getElementById('sb-list');
   if (!selected) { box.innerHTML = ''; return; }
-  box.innerHTML = treeRows(tree, 'tree');
+  box.innerHTML = '';
+  renderNode(box, buildTree(tree), 'tree');
   wireFileRows(box);
 }
 function wireFileRows(box) {
