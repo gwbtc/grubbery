@@ -4332,11 +4332,16 @@
       ?:  ?=(%| -.src)  ~|("make: source validation failed" (mean p.src))
       =/  =tube:clay  (get-tube path.dest-rail [p.bask.p.make u.blot.p.make])
       [u.blot.p.make q:(tube p.src)]
-    ::  Validate the bask before storing
+    ::  Validate the bask before storing — but a validation failure (a bad
+    ::  noun, or no marc for this blot) must NEVER drop the write. +record
+    ::  stores the raw noun regardless and a read surfaces the boom lazily,
+    ::  so store it as-is and skip the spawn (a grub that didn't validate has
+    ::  nothing runnable). The stored boom is the loud, inspectable bug report.
     =^  validated=(each vase tang)  this
       (validate-cached path.dest-rail p.bask q.bask)
     ?:  ?=(%| -.validated)
-      ~|("make failed: validation error" (mean p.validated))
+      %-  (slog leaf+"make: stored unvalidated {(spud (snoc path.dest-rail name.dest-rail))}" p.validated)
+      (save-file dest-rail [p.bask q.bask])
     =.  this
       (save-file dest-rail [p.bask q.p.validated])
     ::  born gained: same event as the save — no window for a fast

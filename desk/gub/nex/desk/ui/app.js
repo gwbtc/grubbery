@@ -11,6 +11,23 @@ var SNAPS = [];        // [{n, da, tags}] newest first
 var AXIS = 'code';     // Files: which axis
 var MODE = 'live';     // Files: view the live dir vs the /checkout dir
 
+// ── request loading bar (indeterminate; shown while any fetch is in flight) ──
+// wraps window.fetch once so every request — no matter the call site — drives
+// the bar. mirrors the forge's load-bar.
+var _inflight = 0, _loadBar = null;
+function _loadBarEl() {
+  if (!_loadBar) { _loadBar = document.createElement('div'); _loadBar.id = 'load-bar'; document.body.appendChild(_loadBar); }
+  return _loadBar;
+}
+(function () {
+  var _fetch = window.fetch.bind(window);
+  window.fetch = function (u, o) {
+    if (_inflight++ === 0) _loadBarEl().classList.add('active');
+    var done = function () { if (--_inflight <= 0) { _inflight = 0; _loadBarEl().classList.remove('active'); } };
+    return _fetch(u, o).then(function (r) { done(); return r; }, function (e) { done(); throw e; });
+  };
+})();
+
 // ── top-level tabs ──
 function switchView(name) {
   document.querySelectorAll('.main-tab').forEach(function (it) {
@@ -20,6 +37,7 @@ function switchView(name) {
     v.classList.toggle('active', v.id === 'view-' + name);
   });
   if (name === 'files') loadTree();
+  if (name === 'source') loadIncoming();
 }
 document.querySelectorAll('.main-tab').forEach(function (it) {
   it.onclick = function () { switchView(it.getAttribute('data-view')); };
@@ -98,7 +116,54 @@ function setSource() {
 }
 function fetchLatest() {
   fetch(BASE + 'fetch-latest', { method: 'POST' })
-    .then(function (r) { if (!r.ok) r.text().then(alert); load(); });
+    .then(function (r) { if (!r.ok) r.text().then(alert); load(); loadIncoming(); });
+}
+
+// ── Incoming: how far the source is ahead of our /desk/code head ──
+function loadIncoming() {
+  var head = document.getElementById('incoming-headline');
+  var list = document.getElementById('incoming-list');
+  if (head) { head.className = 'inc-headline muted'; head.textContent = 'checking source…'; }
+  if (list) list.textContent = '';
+  fetch(BASE + 'source-diff').then(function (r) { return r.json(); }).then(renderIncoming)
+    .catch(function () { if (head) head.textContent = 'could not read source'; });
+}
+function renderIncoming(d) {
+  var head = document.getElementById('incoming-headline');
+  var list = document.getElementById('incoming-list');
+  var changes = (d && d.changes) || [];
+  var sv = (d && d.sourceVersion) || null, ov = (d && d.ownVersion) || null;
+  if (head) {
+    if (!d || !d.hasSource) { head.className = 'inc-headline muted'; head.textContent = 'no source configured'; }
+    else {
+      head.className = 'inc-headline';
+      var lead = changes.length
+        ? changes.length + ' incoming change' + (changes.length === 1 ? '' : 's')
+        : 'up to date';
+      var vers = (sv || ov) ? ' — source ' + (sv || '—') + ', head ' + (ov || '—') : '';
+      head.textContent = lead + vers;
+    }
+  }
+  if (!list) return;
+  list.textContent = '';
+  if (!changes.length) {
+    var e = document.createElement('div');
+    e.className = 'muted'; e.style.padding = '8px 4px'; e.textContent = 'nothing to pull';
+    list.appendChild(e); return;
+  }
+  var rank = { add: 0, modify: 1, remove: 2 };
+  changes.slice().sort(function (a, b) {
+    return (rank[a.status] - rank[b.status]) || (a.path < b.path ? -1 : a.path > b.path ? 1 : 0);
+  }).forEach(function (c) {
+    var row = document.createElement('div'); row.className = 'inc-row';
+    var mk = document.createElement('span');
+    mk.className = 'inc-mark inc-' + c.status;
+    mk.textContent = c.status === 'add' ? 'A' : c.status === 'remove' ? 'D' : 'M';
+    mk.title = c.status;
+    var pth = document.createElement('span'); pth.className = 'inc-path'; pth.textContent = c.path;
+    row.appendChild(mk); row.appendChild(pth);
+    list.appendChild(row);
+  });
 }
 
 // ── sharing ──
@@ -291,47 +356,63 @@ function loadTree() {
   var done = function () { if (split) split.classList.remove('busy'); };
   fetch(BASE + 'tree/' + AXIS + '?mode=' + modeParam())
     .then(function (r) { return r.json(); }).then(function (t) {
-      renderTree(document.getElementById('file-tree'), t.files);
+      renderTree(document.getElementById('file-tree'), t.files, t.necks || []);
       done();
     }).catch(done);
 }
 function buildTree(files) {
-  var root = { dirs: {}, files: [] };
+  var root = { dirs: {}, files: [], path: '' };
   files.forEach(function (f) {
     var segs = f.path === '/' ? [] : f.path.split('/').filter(Boolean);
-    var node = root;
-    segs.forEach(function (s) { if (!node.dirs[s]) node.dirs[s] = { dirs: {}, files: [] }; node = node.dirs[s]; });
+    var node = root, p = '';
+    segs.forEach(function (s) {
+      p += '/' + s;
+      if (!node.dirs[s]) node.dirs[s] = { dirs: {}, files: [], path: p };
+      node = node.dirs[s];
+    });
     node.files.push(f);
   });
   return root;
 }
-function renderNode(parent, node) {
+function renderNode(parent, node, neckMap) {
   Object.keys(node.dirs).sort().forEach(function (name) {
+    var child = node.dirs[name];
     var det = document.createElement('details'); det.open = true; det.className = 'tree-dir';
-    var sum = document.createElement('summary'); sum.textContent = name; det.appendChild(sum);
+    var sum = document.createElement('summary'); sum.title = name;
+    var dn = document.createElement('span'); dn.className = 'tree-dirname'; dn.textContent = name;
+    sum.appendChild(dn);
+    var nk = neckMap && neckMap[child.path];
+    if (nk) {
+      var badge = document.createElement('span'); badge.className = 'nexus-badge';
+      badge.textContent = nk; badge.title = 'nexus · governed by ' + nk;
+      sum.appendChild(badge);
+    }
+    det.appendChild(sum);
     var kids = document.createElement('div'); kids.className = 'tree-kids';
-    renderNode(kids, node.dirs[name]);
+    renderNode(kids, child, neckMap);
     det.appendChild(kids); parent.appendChild(det);
   });
   node.files.sort(function (a, b) { return a.name < b.name ? -1 : 1; }).forEach(function (f) {
     var full = (f.path === '/' ? '' : f.path) + '/' + f.name;
     var row = document.createElement('div'); row.className = 'tree-file';
     row.setAttribute('data-full', full);
-    var nm = document.createElement('span'); nm.textContent = f.name;
+    var nm = document.createElement('span'); nm.textContent = f.name; nm.title = full;
     var bl = document.createElement('span'); bl.className = 'muted'; bl.textContent = f.blot;
     row.appendChild(nm); row.appendChild(bl);
     row.onclick = function () { openFile(full); };
     parent.appendChild(row);
   });
 }
-function renderTree(el, files) {
+function renderTree(el, files, necks) {
   el.innerHTML = '';
   if (!files.length) {
     var mt = document.createElement('div'); mt.className = 'tree-empty muted'; mt.textContent = '(empty)';
     el.appendChild(mt); return;
   }
+  var neckMap = {};
+  (necks || []).forEach(function (n) { neckMap[n.path] = n.neck; });
   var body = document.createElement('div'); body.className = 'tree-body';
-  renderNode(body, buildTree(files));
+  renderNode(body, buildTree(files), neckMap);
   el.appendChild(body);
 }
 function openFile(full) {

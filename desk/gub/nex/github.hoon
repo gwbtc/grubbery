@@ -54,6 +54,7 @@
           [%fall %& [/ %'web.sig'] [[/ %sig] ~]]
           [%fall %& [/ %'config.json'] [[/ %json] default-config]]
           [%fall %& [/ %'auth.json'] [[/ %json] (pairs:enjs:format ~[['status' s+'idle']])]]
+          [%fall %& [/ %'activity.json'] [[/ %json] (pairs:enjs:format ~[['entries' [%a ~]]])]]
           [%fall %| /calls empty-dir:loader]
           [%fall %| /xfer empty-dir:loader]
           [%fall %| /requests empty-dir:loader]
@@ -194,6 +195,18 @@
         ?^  body-json  u.body-json
         s+q.octs.res
     ==
+  ;<  now=@da  bind:m  get-time:io
+  ;<  ~  bind:m
+    %-  append-activity
+    %-  pairs:enjs:format
+    :~  ['kind' s+'call']
+        ['method' s+method]
+        ['path' s+pax]
+        ['account' s+account]
+        ['code' (numb:enjs:format code.res)]
+        ['status' s+'done']
+        ['time' (sect:enjs:format now)]
+    ==
   ;<  ~  bind:m  (replace:io done)
   stay:m
 ::  +run-xfer: execute one transport request. Same lifecycle, noun
@@ -234,6 +247,22 @@
   =/  out=xlife
     ?:  =(200 code.res)  [%done octs.res]
     [%fail ~[leaf+"github xfer: HTTP {(a-co:co code.res)}"]]
+  =/  [xkind=@t xrepo=@t]
+    ?-  -.req.own
+      %discovery  ['discovery' repo.req.own]
+      %pack       ['pack' repo.req.own]
+    ==
+  ;<  now=@da  bind:m  get-time:io
+  ;<  ~  bind:m
+    %-  append-activity
+    %-  pairs:enjs:format
+    :~  ['kind' s+'xfer']
+        ['method' s+xkind]
+        ['path' s+xrepo]
+        ['code' (numb:enjs:format code.res)]
+        ['status' s+?:(=(200 code.res) 'done' 'fail')]
+        ['time' (sect:enjs:format now)]
+    ==
   ;<  ~  bind:m  (replace:io out)
   stay:m
 ::  +fetch: one HTTP round trip via iris, following one redirect hop
@@ -500,13 +529,9 @@
     ==
   ::
       [%api %activity ~]
-    ;<  calls=view:nexus  bind:m  (peek:io [%| 1 %| /calls] ~)
-    ;<  xfers=view:nexus  bind:m  (peek:io [%| 1 %| /xfer] ~)
-    %+  send-json  eyre-id
-    %-  pairs:enjs:format
-    :~  ['calls' a+(call-summaries calls)]
-        ['xfers' a+(xfer-summaries xfers)]
-    ==
+    ;<  act=(unit json)  bind:m
+      (peek-as:io [%| 1 %& / %'activity.json'] ,json)
+    (send-json eyre-id (fall act (pairs:enjs:format ~[['entries' [%a ~]]])))
   ::
       [%api %call ~]
     =/  id=(unit @t)  (~(get by (malt args)) 'id')
@@ -630,6 +655,27 @@
   ?.  ?=([%file *] v)  (reply eyre-id 404 'Not found')
   =/  =mime  !<(mime (need-vase:tarball sang.v))
   (send-simple:srv eyre-id (mime-response:http-utils mime))
+::
+::  +append-activity: record one finished call/xfer into the durable
+::  activity.json log (newest-first, capped at 200). This is the source
+::  of truth for the activity view — independent of whether the caller
+::  culls its ephemeral /calls or /xfer grub, so every call shows up
+::  exactly once, in time order.
+::
+++  append-activity
+  |=  entry=json
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  =/  road=road:tarball  (cord-to-road:tarball '../activity.json')
+  ;<  cur=(unit json)  bind:m  (peek-as:io road ,json)
+  =/  old=(list json)
+    ?~  cur  ~
+    ?.  ?=(%o -.u.cur)  ~
+    =/  e  (~(get by p.u.cur) 'entries')
+    ?.(?=([~ %a *] e) ~ p.u.e)
+  =/  new=json
+    (pairs:enjs:format ~[['entries' [%a (scag 200 `(list json)`[entry old])]]])
+  (over:io road [[/ %json] new])
 ::
 ++  count-files
   |=  =view:nexus

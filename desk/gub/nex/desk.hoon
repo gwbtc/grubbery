@@ -49,6 +49,8 @@
 /&  desk-css   desk/ui/style.css
 ::  shared classic helper (window.FilePreview) — loaded before app.js
 /&  fp-js      /lib/ui/file-preview.js
+::  shared <split-view> web component — resizable files sidebar
+/&  splitview-js  /lib/ui/split-view.js
 =<  ^-  nexus:nexus
     |%
 ++  on-load
@@ -74,9 +76,9 @@
       ::  checkout.desk_snap: which world snapshot (snapshot N) is
       ::  materialized into /checkout, or ~ for live only. Poke it {n: N}
       ::  to check that snapshot out (both axes); poke null to clear.
-      ::  Reset to live on every load: /checkout's contents are re-boled
-      ::  (and thus cleared) below, so the pointer must not outlive them.
-      [%over %& [/ %'checkout.desk_snap'] [[/desk %snap] *(unit @ud)]]
+      ::  Persists across loads (%fall): a checkout survives a desk reload,
+      ::  so the pointer stays in sync with /checkout's (also persisted) contents.
+      [%fall %& [/ %'checkout.desk_snap'] [[/desk %snap] *(unit @ud)]]
       ::  snapshot.ud: monotonic snapshot counter. Only ever increments
       ::  (never reused, even after clears), so it is the stable identity
       ::  of a world snapshot — both axes are tagged `snapshot N`.
@@ -86,25 +88,19 @@
       [%fall %| /desk/code code-dir]
       [%fall %| /desk/data empty-dir:loader]
       ::  /checkout is an inert inspection worktree for one snapshot. It is
-      ::  rebuilt wholesale by the checkout handler (cull + file-level
-      ::  write), so %over here forces the right dir governance on every
-      ::  load — and, since the subdirs are empty except during an active
-      ::  checkout, that wipe is a no-op in the normal case.
+      ::  rebuilt wholesale by the checkout handler (cull + file-level write)
+      ::  and PERSISTS across loads (%fall) — a desk reload leaves an active
+      ::  checkout untouched.
       ::
-      ::  /checkout/code IS a real /code nexus: its marks must compile so
-      ::  /checkout/data files can render under the snapshot's OWN marks.
-      ::  Compiling hoon is inert (it produces bins, runs no app logic), so
-      ::  this stays safe to inspect.
-      ::
-      ::  /checkout/data is neck-STRIPPED: ball-to-files lifts only
-      ::  [path name sang], discarding every sub-nexus's governance, so the
-      ::  checked-out apps land as plain inert files — no neck, nothing to
-      ::  activate. The [~ ~ ~] weir adds nothing at runtime (there is no
-      ::  process to gate); it is a static seal against a FUTURE code path
-      ::  that might wrongly write a neck here.
+      ::  BOTH /checkout/code and /checkout/data are INERT — neck-stripped,
+      ::  permit-nothing dirs. Checkout is pure inspection: we only ever want
+      ::  to LOOK at a snapshot's raw files, never compile code or activate a
+      ::  nexus. An app-mark data grub whose marc isn't compiled here lands as
+      ::  a boom (the runtime stores the raw noun on validation failure rather
+      ::  than crashing it) — browsable, not fatal.
       [%fall %| /checkout empty-dir:loader]
-      [%over %| /checkout/code code-dir]
-      [%over %| /checkout/data inert-dir]
+      [%fall %| /checkout/code inert-dir]
+      [%fall %| /checkout/data inert-dir]
       [%over %& [/ %'README.md'] [[/ %mime] man]]
       ::  the UI shell — external static files under /ui, served by
       ::  handle-get (URLs stay flat; only the namespace groups them).
@@ -113,6 +109,7 @@
       [%over %& [/ui %'app.js'] [[/ %mime] desk-js]]
       [%over %& [/ui %'style.css'] [[/ %mime] desk-css]]
       [%over %& [/ui %'file-preview.js'] [[/ %mime] fp-js]]
+      [%over %& [/ui %'split-view.js'] [[/ %mime] splitview-js]]
     ==
 ::
 ++  on-file
@@ -220,6 +217,7 @@
     ;<  ~  bind:m  (cull-dir rail /checkout/data)
     ?~  want
       ~&  >  %desk-checkout-clear
+      ;<  *  bind:m  (cull-soft:io (nex-road:io rail [%& /checkout %'necks.json']))
       ;<  ~  bind:m  (replace:io `(unit @ud)`~)
       $
     ~&  >  [%desk-checkout n=u.want]
@@ -230,7 +228,25 @@
     ?~  files
       ;<  ~  bind:m  (replace:io `(unit @ud)`~)
       $
+    ::  /checkout is inert inspection: nothing is compiled here, so app-mark
+    ::  data grubs have no marc and land as booms (the runtime stores the raw
+    ::  noun on validation failure rather than crashing) — browsable, not fatal.
     ;<  ~  bind:m  (write-files rail /checkout u.files)
+    ::  sidecar the snapshot's necks (stripped from the inert tree) so the
+    ::  checkout file view can still badge nexus dirs. Paths are axis-relative.
+    ;<  necks=(list [=path =neck:tarball])  bind:m  (snap-necks rail u.want)
+    =/  necks-of
+      |=  axis=@ta
+      ^-  (list json)
+      %+  murn  necks
+      |=  [p=path n=neck:tarball]
+      ?.  ?=(^ p)  ~
+      ?.  =(axis i.p)  ~
+      `(pairs:enjs:format ~[['path' s+(spat t.p)] ['neck' s+(spat (snoc path.n name.n))]])
+    ;<  ~  bind:m
+      %+  put:io  (nex-road:io rail [%& /checkout %'necks.json'])
+      :-  [/ %json]
+      (pairs:enjs:format ~[['code' a+(necks-of %code)] ['data' a+(necks-of %data)]])
     ;<  ~  bind:m  (replace:io `(unit @ud)`want)
     $
       ::  main.sig: HTTP endpoint for desk management UI
@@ -563,7 +579,9 @@
     (pure:m ~)
   =/  files=(list bfile)  (ball-to-files ball.view)
   ~&  >  [%desk-sync-files dir (lent files)]
-  (write-files rail dir files)
+  ;<  ~  bind:m  (write-files rail dir files)
+  ::  a sync makes our tree IDENTICAL to source — prune what source dropped
+  (prune-extra rail dir files)
 ::
 ::  do-snapshot: capture a WORLD snapshot — firm both /data and /code
 ::  together and tag both with `snapshot N`, where N is the monotonic
@@ -879,6 +897,22 @@
   ;<  cs=(unit cass:clay)  bind:m  (snap-cass-of rail n)
   ?~  cs  (pure:m ~)
   (fetch-dir rail /desk `[%ud ud.u.cs])
+::  snap-necks: the governed-nexus necks of world snapshot N, read from
+::  the /desk ball at that revision BEFORE the inert-checkout write strips
+::  them. Paths are rooted at /desk (e.g. /data/foo, /code/bar). Written
+::  out as the /checkout/necks.json sidecar so the checkout file view can
+::  badge nexus dirs even though the checked-out tree itself is neck-less.
+::
+++  snap-necks
+  |=  [=rail:tarball n=@ud]
+  =/  m  (fiber:fiber:nexus ,(list [=path =neck:tarball]))
+  ^-  form:m
+  ;<  cs=(unit cass:clay)  bind:m  (snap-cass-of rail n)
+  ?~  cs  (pure:m ~)
+  ;<  =view:nexus  bind:m
+    (peek-at:io (nex-road:io rail [%| /desk]) ~ [%ud ud.u.cs])
+  ?.  ?=([%ball *] view)  (pure:m ~)
+  (pure:m (ball-necks ball.view /))
 ::  snap-nums: every world snapshot number present in the /desk history
 ::
 ++  snap-nums
@@ -916,6 +950,31 @@
   =/  new=(set @t)  ?:(put (~(put in cur) label) (~(del in cur) label))
   (tag:io (nex-road:io rail [%| /desk]) `[%ud ud.u.cs] new)
 ::  write-files: over a list of bfiles into a dir
+::
+::  +prune-extra: delete files under `dir` that source no longer provides,
+::  so a sync makes our tree IDENTICAL to source rather than a superset.
+::  `files` is source's file list; anything present in our tree but absent
+::  from it is a stale orphan and gets culled. This is what makes Fetch (and
+::  the version-bump sync) a true copy-and-replace, not an additive merge.
+::
+++  prune-extra
+  |=  [=rail:tarball dir=path files=(list bfile)]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  =/  keep=(set path)
+    (silt (turn files |=(f=bfile `path`(snoc pax.f name.f))))
+  ;<  =view:nexus  bind:m  (peek:io (nex-road:io rail [%| dir]) ~)
+  ?.  ?=([%ball *] view)  (pure:m ~)
+  =/  extra=(list path)
+    %+  skim
+      (turn (ball-to-files ball.view) |=(f=bfile `path`(snoc pax.f name.f)))
+    |=(p=path !(~(has in keep) p))
+  ~&  >  [%desk-prune dir count=(lent extra)]
+  |-
+  ?~  extra  (pure:m ~)
+  ;<  *  bind:m
+    (cull-soft:io (nex-road:io rail [%& (weld dir (snip i.extra)) (rear i.extra)]))
+  $(extra t.extra)
 ::
 ++  write-files
   |=  [=rail:tarball dir=path files=(list bfile)]
@@ -1112,13 +1171,31 @@
           !=('application/octet-stream' ctype)
       ==
     =/  blotp=tape  (spud (snoc path.p.sang.u.hit name.p.sang.u.hit))
+    ::  empty render == nothing to show; drop to ~ so the reason below fires
+    ::  (never a blank pane, but a clear message rather than a raw noun).
     =/  text=(unit @t)
-      ?~  got  (file-text sang.u.hit)
-      ?:(texty `q.q.u.got ~)
+      =/  r=(unit @t)
+        ?~  got  (file-text sang.u.hit)
+        ?:(texty `q.q.u.got ~)
+      ?~(r ~ ?:(=('' u.r) ~ r))
+    ::  inert checkout has no compiled marcs, so app data can't render under
+    ::  its own mark — say so plainly.
+    =/  checkout=?  !=('live' (fall (quay-get args 'mode') 'live'))
     ::  when nothing renders, say exactly why (shown verbatim in the UI)
     =/  reason=@t
       ?:  ?=(%| -.q.sang.u.hit)
-        ::  boom: the stored noun failed to build under its blot. The
+        ::  in the inert checkout a boom just means "no marc compiled here" —
+        ::  not a real build failure. Say so plainly instead of a scary trace.
+        ?:  checkout
+          %-  crip
+          ;:  weld
+            "mark "  blotp
+            " isn't built here — /checkout is inert (no marcs compiled), so "
+            "app data can't render under its own mark. This view is for "
+            "inspecting raw state only. To build this snapshot into a running "
+            "world and render its data, use Compose Live in the Snapshots tab."
+          ==
+        ::  live boom: the stored noun failed to build under its blot. The
         ::  failure carries the compiler's error trace — surface it.
         =/  bm=boom:tarball  p.q.sang.u.hit
         =/  trace=@t
@@ -1132,6 +1209,15 @@
           (trip trace)
         ==
       ?~  got
+        ?:  checkout
+          %-  crip
+          ;:  weld
+            "mark "  blotp
+            " isn't built here — /checkout is inert (no marcs compiled), so "
+            "app data can't render under its own mark. This view is for "
+            "inspecting raw state only. To build this snapshot into a running "
+            "world and render its data, use Compose Live in the Snapshots tab."
+          ==
         =/  nun  (sang-noun:tarball sang.u.hit)
         %-  crip
         ;:  weld
@@ -1178,11 +1264,15 @@
     (pure:m ~)
   ?:  ?=([%tree ?(%code %data) *] suffix)
     ::  file tree of an axis — its live dir, or /checkout when checked out
-    =/  dir=path  (axis-dir rail i.t.suffix =('live' (fall (quay-get args 'mode') 'live')))
+    =/  live=?  =('live' (fall (quay-get args 'mode') 'live'))
+    =/  dir=path  (axis-dir rail i.t.suffix live)
     ;<  files=(unit (list bfile))  bind:m  (fetch-dir rail dir ~)
     ?~  files
       ;<  ~  bind:m  (respond eyre-id rail 404 'no tree')
       (pure:m ~)
+    ::  nexus-dir necks: live keeps its governance (walk the ball); the
+    ::  inert checkout tree has them stripped, so read the sidecar instead.
+    ;<  necks=(list json)  bind:m  (tree-necks rail dir `@t`i.t.suffix live)
     =/  =json
       %-  pairs:enjs:format
       :~  :-  'files'
@@ -1194,9 +1284,54 @@
               ['name' s+name.f]
               ['blot' s+(spat (snoc path.p.sang.f name.p.sang.f))]
           ==
+          ['necks' a+necks]
       ==
     =/  bod=octs  (as-octs:mimes:html (en:json:html json))
     ;<  ~  bind:m  (~(send-simple http-res:io (nex-road:io rail [%& ~ %'main.sig'])) eyre-id (mime-response:http-utils [/application/json bod]))
+    (pure:m ~)
+  ?:  =(/source-diff suffix)
+    ::  incoming endpoint: how far ahead the source is from our head. Peeks
+    ::  the source's /code tree and our mirrored /desk/code, flattens both,
+    ::  and reports per-file add/modify/remove — exactly what Fetch Latest
+    ::  would pull — plus the source vs own version tokens.
+    ;<  src-json=(unit json)  bind:m
+      (peek-as:io (nex-road:io rail [%& / %'source.json']) ,json)
+    =/  config=source-config
+      ?~(src-json ~ (json-to-source u.src-json))
+    ?~  config
+      =/  =json
+        (pairs:enjs:format ~[['hasSource' b+|] ['sourceVersion' ~] ['ownVersion' ~] ['changes' [%a ~]]])
+      =/  bod=octs  (as-octs:mimes:html (en:json:html json))
+      ;<  ~  bind:m
+        (~(send-simple http-res:io (nex-road:io rail [%& ~ %'main.sig'])) eyre-id (mime-response:http-utils [/application/json bod]))
+      (pure:m ~)
+    =/  code-path=path           (parse-path code.u.config)
+    =/  code-road=road:tarball   [%& %| code-path]
+    =/  ver-road=road:tarball    [%& %& code-path %'version.json']
+    ;<  src-view=view:nexus  bind:m  (peek:io code-road ~)
+    ;<  our-view=view:nexus  bind:m  (peek:io (nex-road:io rail [%| /desk/code]) ~)
+    =/  src-flat=(map path @)
+      ?.(?=([%ball *] src-view) ~ (flat-ball ball.src-view /))
+    =/  our-flat=(map path @)
+      ?.(?=([%ball *] our-view) ~ (flat-ball ball.our-view /))
+    =/  changes=(list [=path status=@t])  (diff-flats src-flat our-flat)
+    ;<  sv=view:nexus  bind:m  (peek:io ver-road ~)
+    =/  src-ver=(unit @t)  ?.(?=([%file *] sv) ~ (version-text sang.sv))
+    ;<  own=(unit @t)  bind:m  (own-version rail)
+    =/  =json
+      %-  pairs:enjs:format
+      :~  ['hasSource' b+&]
+          ['sourceVersion' ?~(src-ver ~ s+u.src-ver)]
+          ['ownVersion' ?~(own ~ s+u.own)]
+          :-  'changes'
+          :-  %a
+          %+  turn  changes
+          |=  [=path status=@t]
+          (pairs:enjs:format ~[['path' s+(spat path)] ['status' s+status]])
+      ==
+    =/  bod=octs  (as-octs:mimes:html (en:json:html json))
+    ;<  ~  bind:m
+      (~(send-simple http-res:io (nex-road:io rail [%& ~ %'main.sig'])) eyre-id (mime-response:http-utils [/application/json bod]))
     (pure:m ~)
   ?:  =(/state suffix)
     ::  data endpoint: source, version, the world snapshot list, sharing,
@@ -1258,6 +1393,94 @@
       ['da' (time:enjs:format da)]
       ['tags' a+(turn tags |=(t=@t s+t))]
   ==
+::
+::  +tree-necks: the nexus-dir necks for a file view, as a json array of
+::  {path, neck}. Live keeps governance (walk the ball); the inert checkout
+::  tree has necks stripped, so read them from the /checkout/necks.json
+::  sidecar written at checkout time.
+::
+++  tree-necks
+  |=  [=rail:tarball dir=path axis=@t live=?]
+  =/  m  (fiber:fiber:nexus ,(list json))
+  ^-  form:m
+  ?:  live
+    ;<  dv=view:nexus  bind:m  (peek:io (nex-road:io rail [%| dir]) ~)
+    %-  pure:m
+    ?.  ?=([%ball *] dv)  ~
+    %+  turn  (ball-necks ball.dv /)
+    |=  [p=path n=neck:tarball]
+    (pairs:enjs:format ~[['path' s+(spat p)] ['neck' s+(spat (snoc path.n name.n))]])
+  ;<  nj=(unit json)  bind:m
+    (peek-as:io (nex-road:io rail [%& /checkout %'necks.json']) ,json)
+  %-  pure:m
+  ?~  nj  ~
+  ?.  ?=(%o -.u.nj)  ~
+  =/  ax=(unit json)  (~(get by p.u.nj) axis)
+  ?.(?=([~ %a *] ax) ~ p.u.ax)
+::  +ball-necks: walk a peeked ball, collecting every SUBDIR that carries
+::  a neck (i.e. is a governed nexus) as [its path, its neck]. Used to
+::  badge nexus directories in the live file view.
+::
+++  ball-necks
+  |=  [bal=ball:tarball here=path]
+  ^-  (list [=path =neck:tarball])
+  %-  zing
+  %+  turn  ~(tap by dir.bal)
+  |=  [nam=@ta kid=ball:tarball]
+  =/  sub=path  (snoc here nam)
+  =/  self=(list [=path =neck:tarball])
+    ?~  fil.kid  ~
+    ?~  neck.u.fil.kid  ~
+    ~[[sub u.neck.u.fil.kid]]
+  (weld self (ball-necks kid sub))
+::  +content-key: a storage-mark-independent identity for one file's
+::  content. A git-tree source stores everything as /mime, while our
+::  /desk/code re-marks by extension (.hoon -> /hoon, whose noun is the
+::  bare source @t = the same bytes as the mime q.q). So normalize: for
+::  a /mime grub use its octs bytes; otherwise the stored noun (a text
+::  mark's @t already equals those bytes; cells jam to a stable atom).
+::  Same content -> same key, regardless of blot.
+::
+++  content-key
+  |=  =sang:tarball
+  ^-  @
+  ?:  =([/ %mime] p.sang)
+    =/  res=(unit mime)  (mole |.(!<(mime (need-vase:tarball sang))))
+    ?~(res 0 q.q.u.res)
+  =/  nun=*  (sang-noun:tarball sang)
+  ?@(nun nun (jam nun))
+::  +flat-ball: walk a peeked ball into a flat path -> content-key map,
+::  so two trees can be compared by path + content across storage marks.
+::
+++  flat-ball
+  |=  [bal=ball:tarball here=path]
+  ^-  (map path @)
+  =/  files=(map path @)
+    ?~  fil.bal  ~
+    %-  ~(gas by *(map path @))
+    %+  turn  ~(tap by contents.u.fil.bal)
+    |=  [nam=@ta =sang:tarball gain=? bang=(unit tang)]
+    [(snoc here nam) (content-key sang)]
+  %+  roll  ~(tap by dir.bal)
+  |=  [[nam=@ta kid=ball:tarball] acc=_files]
+  (~(uni by acc) (flat-ball kid (snoc here nam)))
+::  +diff-flats: source vs our head, per file. add = in source not ours,
+::  remove = in ours not source, modify = present in both but content
+::  differs. Unchanged files are dropped.
+::
+++  diff-flats
+  |=  [src=(map path @) our=(map path @)]
+  ^-  (list [pax=path status=@t])
+  =/  keys=(list path)
+    ~(tap in (~(uni in ~(key by src)) ~(key by our)))
+  %+  murn  keys
+  |=  pax=path
+  ^-  (unit [pax=path status=@t])
+  =/  s=(unit @)  (~(get by src) pax)
+  =/  o=(unit @)  (~(get by our) pax)
+  ?~  s  ?~(o ~ `[pax 'remove'])
+  ?~  o  `[pax 'add']
+  ?:(=(u.s u.o) ~ `[pax 'modify'])
 ::
 ::  +do-fetch: pull the source's current code now, unconditionally (no
 ::  version gate). Content-addressed — only real changes write, and

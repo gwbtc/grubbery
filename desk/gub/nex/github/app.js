@@ -17,12 +17,9 @@ async function refresh() {
   const a = await jget('/api/activity');
   const el = $('activity');
   el.textContent = '';
-  const rows = [
-    ...a.calls.map(c => ({ kind: 'call', ...c })),
-    ...a.xfers.map(x => ({ kind: 'xfer', ...x })),
-  ];
+  const rows = a.entries || [];
   if (!rows.length) {
-    el.innerHTML = '<p class="muted">nothing in flight, nothing finished</p>';
+    el.innerHTML = '<p class="muted">No activity yet — API calls and git transfers will appear here.</p>';
     return;
   }
   for (const r of rows) {
@@ -33,20 +30,14 @@ async function refresh() {
     kind.textContent = r.kind;
     const desc = document.createElement('span');
     desc.className = 'mono';
-    desc.textContent = r.kind === 'call' ? `${r.method} ${r.path}` : r.id;
+    desc.textContent = `${r.method || ''} ${r.path || ''}`.trim();
     const st = document.createElement('span');
     st.className = 'status ' + (r.status === 'done' ? 'ok' : r.status === 'fail' ? 'err' : 'pend');
     st.textContent = r.status + (r.code ? ` ${r.code}` : '');
-    div.append(kind, desc, st);
-    if (r.kind === 'call') {
-      div.style.cursor = 'pointer';
-      div.title = 'show result';
-      div.addEventListener('click', async () => {
-        const full = await jget(`/api/call?id=${encodeURIComponent(r.id)}`);
-        $('result').hidden = false;
-        $('result').textContent = JSON.stringify(full, null, 2);
-      });
-    }
+    const when = document.createElement('span');
+    when.className = 'muted';
+    when.textContent = r.time ? new Date(r.time * 1000).toLocaleString() : '';
+    div.append(kind, desc, st, when);
     el.appendChild(div);
   }
 }

@@ -20,6 +20,7 @@
     </div>
     <div id="main-tabs">
       <button class="main-tab" data-view="files">Files</button>
+      <button class="main-tab" data-view="source">Source</button>
       <button class="main-tab" data-view="snapshots">Snapshots</button>
       <button class="main-tab" data-view="config">Config</button>
     </div>
@@ -42,15 +43,30 @@
           <span id="files-labels" class="ckpt-labels" title="edit labels" style="display:none"></span>
         </div>
         <div class="split">
-          <div class="split-col col-tree">
-            <div class="col-head">files</div>
-            <div id="file-tree" class="tree"></div>
-          </div>
-          <div class="split-col col-view">
-            <div class="col-head">viewer</div>
-            <div id="file-view" class="viewer-pane"><div class="vp-empty muted">select a file</div></div>
-          </div>
+          <split-view class="files-sv" orientation="horizontal" primary="start" size="260" min="160" max="600" persist="desk-files">
+            <div class="split-col col-tree" slot="start">
+              <div class="col-head">files</div>
+              <div id="file-tree" class="tree"></div>
+            </div>
+            <div class="split-col col-view" slot="end">
+              <div class="col-head">viewer</div>
+              <div id="file-view" class="viewer-pane"><div class="vp-empty muted">select a file</div></div>
+            </div>
+          </split-view>
         </div>
+      </div>
+
+      <div id="view-source" class="view">
+        <div class="view-head">Source</div>
+        <p class="muted">How far your source is ahead of <code>/desk/code</code> &mdash; the exact
+          files <b>Fetch Latest</b> would pull. Compares the source's current <code>/code</code>
+          against your head.</p>
+        <div id="incoming-headline" class="inc-headline muted">loading&hellip;</div>
+        <div class="form-row">
+          <button class="hdr-btn primary" onclick="fetchLatest()">Fetch Latest</button>
+          <button class="hdr-btn" onclick="loadIncoming()">Refresh</button>
+        </div>
+        <div id="incoming-list"></div>
       </div>
 
       <div id="view-snapshots" class="view wide">
@@ -134,6 +150,7 @@
     </div>
   </div>
 
+  <script type="module" src="split-view.js"></script>
   <script src="file-preview.js"></script>
   <script src="app.js"></script>
 </body>
