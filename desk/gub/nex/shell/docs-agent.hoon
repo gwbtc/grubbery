@@ -25,7 +25,7 @@
           ::  config modal), not compiled in. %fall = seed once, then user-owned.
           [%fall %& [/ %'system.md'] [[/ %mime] [/text/markdown (as-octs:mimes:html system-seed)]]]
           [%fall %& [/ %'config.json'] [[/ %json] config-seed]]
-          ::  tools.tools: the agent's own tools nexus instance, seeded with
+          ::  tools: the agent's own tools nexus instance, seeded with
           ::  the docs bundle (search_docs, read_doc). Nested here, it is
           ::  clamped by the weir shell set on this agent — so the tools can
           ::  only reach what the agent can. Invoked via the calls protocol.

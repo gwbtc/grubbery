@@ -54,8 +54,8 @@
   }
 
   function build() {
-    fab = el('button', 'da-fab da-hidden', I.spark + '<span>Ask the docs</span>');
-    fab.title = 'Ask the docs assistant';
+    fab = el('button', 'da-fab da-hidden', I.spark + '<span>Ask the docs… &#8984;J</span>');
+    fab.title = 'Ask the docs assistant (⌘J)';
     fab.addEventListener('click', togglePanel);
 
     panel = el('div', 'da-panel da-hidden');
@@ -96,6 +96,13 @@
     loadHistory();
     // reveal the launcher once the reader has settled
     setTimeout(function () { fab.classList.remove('da-hidden'); }, 400);
+    // cmd-J / ctrl-J toggles the chat open and closed
+    document.addEventListener('keydown', function (e) {
+      if ((e.metaKey || e.ctrlKey) && (e.key === 'j' || e.key === 'J')) {
+        e.preventDefault();
+        togglePanel();
+      }
+    });
   }
 
   // ---- panel open/close ----
