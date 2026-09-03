@@ -172,11 +172,24 @@ function markActive(path) {
   }
 }
 
+function showLoading() {
+  DOC.innerHTML =
+    '<div class="doc-skeleton">' +
+      '<div class="sk sk-title"></div>' +
+      '<div class="sk"></div><div class="sk"></div><div class="sk sk-short"></div>' +
+      '<div class="sk-gap"></div>' +
+      '<div class="sk sk-sub"></div>' +
+      '<div class="sk"></div><div class="sk"></div><div class="sk"></div>' +
+      '<div class="sk sk-short"></div>' +
+    '</div>';
+}
+
 function openDoc(path) {
   if (!path) return;
   if (location.hash.slice(1) !== path) location.hash = path;
   markActive(path);
   if (textCache[path] != null) { render(textCache[path]); return; }
+  showLoading();
   fetch(BASE + '/page?path=' + encodeURIComponent(path))
     .then(function (r) { return r.ok ? r.text() : Promise.reject(r.status); })
     .then(function (md) { textCache[path] = md; render(md); })

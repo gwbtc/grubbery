@@ -26,9 +26,8 @@
     color: var(--muted); margin: 0 0 12px; padding: 0 24px;
   }
   #home-link {
-    display: flex; align-items: center; gap: 7px; padding: 0 24px 14px;
-    margin-bottom: 8px; color: var(--muted); text-decoration: none; font-size: 13px;
-    border-bottom: 1px solid var(--line);
+    display: flex; align-items: center; gap: 7px; padding: 0 24px 4px;
+    margin-bottom: 18px; color: var(--muted); text-decoration: none; font-size: 13px;
   }
   #home-link:hover { color: var(--fg); }
   #home-link svg { width: 15px; height: 15px; }
@@ -91,6 +90,20 @@
   #doc blockquote { border-left: 3px solid var(--line); margin: 0; padding-left: 16px; color: var(--muted); }
   #empty { color: var(--muted); }
   mark { background: #ffe9a8; color: inherit; border-radius: 2px; }
+
+  /* skeleton loader shown while a doc's markdown is in flight */
+  .doc-skeleton { animation: sk-fade 0.2s ease; }
+  .sk {
+    height: 15px; margin: 13px 0; border-radius: 6px;
+    background: linear-gradient(90deg, #ececec 25%, #f6f6f6 37%, #ececec 63%);
+    background-size: 400% 100%; animation: sk-shimmer 1.4s ease infinite;
+  }
+  .sk-title { height: 30px; width: 52%; margin: 0 0 28px; }
+  .sk-sub { height: 20px; width: 34%; margin: 30px 0 14px; }
+  .sk-short { width: 42%; }
+  .sk-gap { height: 26px; background: none; animation: none; }
+  @keyframes sk-shimmer { 0% { background-position: 100% 0; } 100% { background-position: 0 0; } }
+  @keyframes sk-fade { from { opacity: 0; } to { opacity: 1; } }
   #docs-foot {
     position: fixed; bottom: 0; left: 0; right: 0; z-index: 40;
     padding: 12px 40px; color: var(--muted); font-size: 12px;
@@ -128,7 +141,16 @@
         </div>
       </header>
       <div id="doc-wrap">
-        <article id="doc"><p id="empty">Loading…</p></article>
+        <article id="doc">
+          <div class="doc-skeleton">
+            <div class="sk sk-title"></div>
+            <div class="sk"></div><div class="sk"></div><div class="sk sk-short"></div>
+            <div class="sk-gap"></div>
+            <div class="sk sk-sub"></div>
+            <div class="sk"></div><div class="sk"></div><div class="sk"></div>
+            <div class="sk sk-short"></div>
+          </div>
+        </article>
       </div>
     </main>
   </div>
@@ -137,7 +159,9 @@
     hand — treat specifics as provisional.
   </footer>
 
+  <link rel="stylesheet" href="/apps/grubbery/docs/chat.css">
   <script src="/apps/grubbery/docs/marked.min.js"></script>
   <script src="/apps/grubbery/docs/docs.js"></script>
+  <script src="/apps/grubbery/docs/chat.js"></script>
 </body>
 </html>

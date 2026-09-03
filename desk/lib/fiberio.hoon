@@ -489,6 +489,25 @@
   ;<  ~  bind:m  (send-dart %node wire road %peek blot ~ %.y)
   (take-peek wire)
 ::
+::  Veto-tolerant peek: a peek whose destination may be outside our weir.
+::  On veto it yields ~ instead of crashing — for scans that reach for
+::  something they might legitimately not be permitted to see.
+::
+++  peek-soft
+  |=  [=road:tarball blot=(unit blot:tarball)]
+  =/  m  (fiber ,(unit view:nexus))
+  ^-  form:m
+  ;<  =wire  bind:m  (nonce /peek)
+  ;<  ~  bind:m  (send-dart %node wire road %peek blot ~ %.y)
+  |=  input
+  :+  ~  q.state
+  ?+  in  [%skip ~]
+      ~  [%wait ~]
+      [~ %veto *]  [%done ~]
+      [~ %peek * *]
+    ?.(=(wire wire.u.in) [%skip ~] [%done `view.u.in])
+  ==
+::
 ::  Peek a file and extract its value as a typed noun.
 ::  Crashes if file not found or wrong type.
 ::

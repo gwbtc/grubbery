@@ -22,28 +22,6 @@
 ::
 /<  nex-tools   /lib/tools.hoon
 =>  |%
-    ::  +weir-json: like mcp, this nexus runs ARBITRARY user tools that
-    ::  may scry, poke, or make anything, so it declares wide reach. Its
-    ::  host bounds it: mounted under a narrow nexus, the kernel's
-    ::  ancestor walk clamps every tool to the host's weir.
-    ::
-    ++  weir-json
-      ^-  json
-      =/  line  |=([r=@t w=@t] `json`(pairs:enjs:format ~[['road' s+r] ['why' s+w]]))
-      %-  pairs:enjs:format
-      :~  :-  'poke'
-          :-  %a
-          :~  (line '/' 'runs arbitrary tools under its own weir — a tool may poke anything')
-          ==
-          :-  'peek'
-          :-  %a
-          :~  (line '/' 'a tool may read anything')
-          ==
-          :-  'make'
-          :-  %a
-          :~  (line '/' 'a tool may create grubs anywhere')
-          ==
-      ==
     ::  +list-json: serialize a tool map into a protocol-neutral schema
     ::  array (name/description/parameters/required). The host reshapes
     ::  this into whatever wire format it speaks. Built fresh on each
@@ -124,17 +102,12 @@
       |=  =rail:tarball
       =/  m  (fiber:fiber:nexus ,(map @t tool:nex-tools))
       ^-  form:m
-      ::  own seeded /code first (self-contained); else root + apps.
+      ::  a tools instance knows exactly one set of tools: its own seeded
+      ::  /code (else the root /code). Scanning /apps for app-shipped tools
+      ::  is an mcp affordance, not this engine's.
       ;<  own=(map @t tool:nex-tools)  bind:m  (scan-own rail)
       ?.  =(~ own)  (pure:m own)
-      ;<  result=(map @t tool:nex-tools)  bind:m
-        (scan-namespace /code/lib/tools)
-      ;<  app-paths=(list path)  bind:m  get-app-mcp-paths
-      |-
-      ?~  app-paths  (pure:m result)
-      ;<  more=(map @t tool:nex-tools)  bind:m
-        (scan-namespace i.app-paths)
-      $(app-paths t.app-paths, result (~(uni by result) more))
+      (scan-namespace /code/lib/tools)
     ::
     ++  scan-namespace
       |=  root=path
@@ -168,17 +141,6 @@
       %+  roll  ~(tap by dir.bal)
       |=  [[nam=@ta kid=ball:tarball] acc=_here]
       (weld acc (ball-code-files (snoc sub nam) kid))
-    ++  get-app-mcp-paths
-      =/  m  (fiber:fiber:nexus ,(list path))
-      ^-  form:m
-      ;<  apps-view=view:nexus  bind:m
-        (peek:io [%& %| /apps] ~)
-      ?.  ?=([%ball *] apps-view)
-        (pure:m ~)
-      %-  pure:m
-      %+  turn  ~(tap by dir.ball.apps-view)
-      |=  [nam=@ta *]
-      (welp ~[%apps nam] /desk/code/lib/tools)
     ::  +await-tool: look up a compiled tool handler by name (or by an
     ::  absolute /-prefixed source location in any code namespace).
     ::
@@ -208,14 +170,7 @@
       ;<  got=(unit tool:nex-tools)  bind:m
         (try-compile (weld /code/lib/tools sub) arm)
       ?^  got  (pure:m [%& u.got])
-      ;<  app-paths=(list path)  bind:m  get-app-mcp-paths
-      |-
-      ?~  app-paths
-        (pure:m [%| ~[leaf+"tool not found: {(trip tool-name)}"]])
-      ;<  got=(unit tool:nex-tools)  bind:m
-        (try-compile (weld i.app-paths sub) arm)
-      ?^  got  (pure:m [%& u.got])
-      $(app-paths t.app-paths)
+      (pure:m [%| ~[leaf+"tool not found: {(trip tool-name)}"]])
     ::
     ++  try-compile
       |=  [code-path=path file-name=@ta]
@@ -235,10 +190,11 @@
 ++  on-load
   |=  =ball:tarball
   ^-  bole:tarball
+  ::  no alias.json / weir.json: a tools instance is a nested execution
+  ::  engine, not an installable app. It is not discoverable, and its reach
+  ::  is the weir its HOST sets on it at mount — never self-declared.
   %+  spin:loader  ball
   :~  (manifest:loader 0)
-      [%over %& [/ %'alias.json'] [[/ %json] (pairs:enjs:format ~[['name' s+'tools'] ['description' s+'tool registry & execution engine']])]]
-      [%over %& [/ %'weir.json'] [[/ %json] weir-json]]
       [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
       [%fall %| /runs empty-dir:loader]
       ::  /code: this instance's own code nexus (seeded by the host with

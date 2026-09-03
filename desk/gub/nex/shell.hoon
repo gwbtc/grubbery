@@ -19,6 +19,8 @@
 /<  home-html      shell/home.html
 /<  docs-html      shell/docs.html
 /<  docs-js        shell/docs.js
+/<  chat-js        shell/chat.js
+/<  chat-css       shell/chat.css
 /<  marked-js      shell/marked.min.js
 /<  hoon-grammar   shell/hoon-grammar.json
 =<  ^-  nexus:nexus
@@ -109,6 +111,13 @@
           [%over %& [/ %'app.js'] [[/ %mime] app-js]]
           [%over %& [/ %'style.css'] [[/ %mime] app-css]]
           [%over %& [/ %'permits.html'] [[/ %mime] permits-html]]
+          ::  docs-agent: the docs chatbot as a CONTAINED, sandboxed nexus
+          ::  (neck [/ %docs-agent], code at nex/docs-agent.hoon). The
+          ::  SANDBOX is the weir WE set on it here (kernel-enforced): the
+          ::  whole agent — and anything it mounts — may only read /docs,
+          ::  root /code, and the raw grubbery desk source, poke the metered
+          ::  provider + bowl, and write within its own subtree.
+          [%fall %| /docs/agent [`[`[/shell %docs-agent] `agent-weir %.n ~] ~]]
       ==
     ::
     ++  on-file
@@ -626,6 +635,15 @@
           ;<  ~  bind:m
             (send-simple:srv eyre-id [[200 ~[['content-type' 'text/javascript']]] `q.docs-js])
           (pure:m ~)
+        ::  the docs assistant widget: sandboxed chatbot UI (js + css)
+        ?:  ?=([%docs %'chat.js' ~] suffix)
+          ;<  ~  bind:m
+            (send-simple:srv eyre-id [[200 ~[['content-type' 'text/javascript']]] `q.chat-js])
+          (pure:m ~)
+        ?:  ?=([%docs %'chat.css' ~] suffix)
+          ;<  ~  bind:m
+            (send-simple:srv eyre-id [[200 ~[['content-type' 'text/css']]] `q.chat-css])
+          (pure:m ~)
         ?:  ?=([%docs %'marked.min.js' ~] suffix)
           ;<  ~  bind:m
             (send-simple:srv eyre-id [[200 ~[['content-type' 'text/javascript']]] `q.marked-js])
@@ -692,6 +710,113 @@
           =/  =mime  !<(mime (need-vase:tarball sang.fv))
           ;<  ~  bind:m
             (send-simple:srv eyre-id [[200 ~[['content-type' 'text/plain']]] `q.mime])
+          (pure:m ~)
+        ::  POST /apps/grubbery/docs/chat → the docs assistant. One metered
+        ::  round-trip through the anthropic proxy; returns {reply}.
+        ?:  &(=('POST' method.request.req) ?=([%docs %chat ~] suffix))
+          =/  jon=json
+            (fall (de:json:html ?~(body.request.req '' q.u.body.request.req)) *json)
+          =/  msg=@t  (fall (jget jon 'message') '')
+          ;<  [reply=@t trace=json]  bind:m  (ask-agent rail msg)
+          =/  bod=octs
+            %-  as-octs:mimes:html
+            %-  en:json:html
+            (pairs:enjs:format ~[['reply' s+reply] ['trace' trace]])
+          ;<  ~  bind:m
+            (send-simple:srv eyre-id [[200 ~[['content-type' 'application/json']]] `bod])
+          (pure:m ~)
+        ::  GET /apps/grubbery/docs/history → the stored conversation, read
+        ::  straight from the agent's chat.json. Restores across refreshes.
+        ?:  ?=([%docs %history ~] suffix)
+          =/  chat-road=road:tarball
+            (nex-road:io rail [%& /docs/agent %'chat.json'])
+          ;<  fv=view:nexus  bind:m  (peek:io chat-road `[/ %json])
+          =/  conv=json
+            ?.  ?=([%file *] fv)  [%a ~]
+            (fall (mole |.(!<(json (need-vase:tarball sang.fv)))) [%a ~])
+          =/  bod=octs  (as-octs:mimes:html (en:json:html conv))
+          ;<  ~  bind:m
+            (send-simple:srv eyre-id [[200 ~[['content-type' 'application/json']]] `bod])
+          (pure:m ~)
+        ::  POST /apps/grubbery/docs/clear → archive + reset the conversation.
+        ?:  &(=('POST' method.request.req) ?=([%docs %clear ~] suffix))
+          ;<  ~  bind:m
+            %-  poke:io
+            :+  (nex-road:io rail [%& /docs/agent %'main.sig'])
+              [/ %json]
+            (pairs:enjs:format ~[['action' s+'clear']])
+          =/  bod=octs
+            (as-octs:mimes:html (en:json:html (pairs:enjs:format ~[['ok' [%b %.y]]])))
+          ;<  ~  bind:m
+            (send-simple:srv eyre-id [[200 ~[['content-type' 'application/json']]] `bod])
+          (pure:m ~)
+        ::  POST /apps/grubbery/docs/say {chat-id, message} → poke the
+        ::  docs-agent turn handler. Sign of life for the new nexus: the
+        ::  message lands as a grub at docs-agent.docs-agent/chats/<id>.json.
+        ?:  &(=('POST' method.request.req) ?=([%docs %say ~] suffix))
+          =/  jon=json
+            (fall (de:json:html ?~(body.request.req '' q.u.body.request.req)) *json)
+          ;<  ~  bind:m
+            (poke:io (nex-road:io rail [%& /docs/agent %'main.sig']) [/ %json] jon)
+          =/  bod=octs
+            (as-octs:mimes:html (en:json:html (pairs:enjs:format ~[['ok' [%b %.y]]])))
+          ;<  ~  bind:m
+            (send-simple:srv eyre-id [[200 ~[['content-type' 'application/json']]] `bod])
+          (pure:m ~)
+        ::  POST /apps/grubbery/docs/stop → interrupt the docs-agent's
+        ::  current turn (manual cancel). Pokes the turn handler, which its
+        ::  in-flight await catches and aborts.
+        ?:  &(=('POST' method.request.req) ?=([%docs %stop ~] suffix))
+          ;<  ~  bind:m
+            %-  poke:io
+            :+  (nex-road:io rail [%& /docs/agent %'main.sig'])
+              [/ %json]
+            (pairs:enjs:format ~[['action' s+'interrupt']])
+          =/  bod=octs
+            (as-octs:mimes:html (en:json:html (pairs:enjs:format ~[['ok' [%b %.y]]])))
+          ;<  ~  bind:m
+            (send-simple:srv eyre-id [[200 ~[['content-type' 'application/json']]] `bod])
+          (pure:m ~)
+        ::  POST /apps/grubbery/docs/config {system, model, max_tokens} →
+        ::  write the agent's prompt + model config grubs.
+        ?:  &(=('POST' method.request.req) ?=([%docs %config ~] suffix))
+          =/  jon=json
+            (fall (de:json:html ?~(body.request.req '' q.u.body.request.req)) *json)
+          =/  po=(map @t json)  ?:(?=([%o *] jon) p.jon ~)
+          =/  sys=@t    (fall (jget jon 'system') '')
+          =/  model=@t  =/(mo=@t (fall (jget jon 'model') '') ?:(=('' mo) 'claude-sonnet-4-6' mo))
+          =/  mt=json   (fall (~(get by po) 'max_tokens') [%n '1024'])
+          ;<  ~  bind:m
+            %-  over:io
+            :-  (nex-road:io rail [%& /docs/agent %'system.md'])
+            [[/ %mime] [/text/markdown (as-octs:mimes:html sys)]]
+          ;<  ~  bind:m
+            %-  over:io
+            :-  (nex-road:io rail [%& /docs/agent %'config.json'])
+            [[/ %json] (pairs:enjs:format ~[['model' s+model] ['max_tokens' mt]])]
+          =/  bod=octs
+            (as-octs:mimes:html (en:json:html (pairs:enjs:format ~[['ok' [%b %.y]]])))
+          ;<  ~  bind:m
+            (send-simple:srv eyre-id [[200 ~[['content-type' 'application/json']]] `bod])
+          (pure:m ~)
+        ::  GET /apps/grubbery/docs/config → the agent's current prompt +
+        ::  model config, for the chat config modal.
+        ?:  ?=([%docs %config ~] suffix)
+          ;<  sv=view:nexus  bind:m
+            (peek:io (nex-road:io rail [%& /docs/agent %'system.md']) `[/ %mime])
+          =/  sys=@t
+            ?.  ?=([%file *] sv)  ''
+            `@t`q.q:!<(mime (need-vase:tarball sang.sv))
+          ;<  cv=view:nexus  bind:m
+            (peek:io (nex-road:io rail [%& /docs/agent %'config.json']) `[/ %json])
+          =/  cfg=json
+            ?.  ?=([%file *] cv)  [%o ~]
+            (fall (mole |.(!<(json (need-vase:tarball sang.cv)))) [%o ~])
+          =/  bod=octs
+            %-  as-octs:mimes:html
+            (en:json:html (pairs:enjs:format ~[['system' s+sys] ['config' cfg]]))
+          ;<  ~  bind:m
+            (send-simple:srv eyre-id [[200 ~[['content-type' 'application/json']]] `bod])
           (pure:m ~)
         ::  default → serve the home page (static file, /<-imported home-html)
         ;<  ~  bind:m  (send-simple:srv eyre-id (mime-response:http-utils home-html))
@@ -771,6 +896,310 @@
   |=  [p=@t t=@t snip=@t]
   ^-  json
   (pairs:enjs:format ~[['path' s+p] ['title' s+t] ['snippet' s+snip]])
+::  docs-system: the assistant's persona and scope. It answers only from
+::  the docs, reached through its two read-only tools.
+++  docs-system
+  ^-  @t
+  '''
+  You are the Grubbery docs assistant, embedded in the Grubbery handbook.
+  Answer questions about Grubbery using ONLY the search_docs and read_doc
+  tools: search first, read the relevant docs, then answer from what they
+  actually say. If the docs do not cover something, say so plainly rather
+  than guessing. Be concrete and brief, and cite doc paths when useful.
+  '''
+::  docs-tools: the Anthropic tool schema for the two scoped capabilities.
+++  docs-tools
+  ^-  json
+  =/  tool
+    |=  [nm=@t desc=@t prop=@t pdesc=@t]
+    ^-  json
+    %-  pairs:enjs:format
+    :~  ['name' s+nm]
+        ['description' s+desc]
+        :-  'input_schema'
+        %-  pairs:enjs:format
+        :~  ['type' s+'object']
+            :-  'properties'
+            %-  pairs:enjs:format
+            :~  :-  prop
+                (pairs:enjs:format ~[['type' s+'string'] ['description' s+pdesc]])
+            ==
+            ['required' [%a ~[s+prop]]]
+        ==
+    ==
+  :-  %a
+  :~  %+  tool  'search_docs'
+        :*  'Full-text search the Grubbery docs. Returns matching doc paths, titles, and snippets.'
+            'query'  'the search terms'
+        ==
+      %+  tool  'read_doc'
+        :*  'Read one Grubbery doc in full by its path (as returned by search_docs).'
+            'path'  'the doc path, e.g. intro.md'
+        ==
+  ==
+::  agent-weir: THE SANDBOX. The complete external reach we grant the
+::  docs-agent when we mount it — the kernel refuses everything else.
+::  Files (sigs) are granted as rails; directories as folds. make stays
+::  empty: writing its own subtree (chats) is inherent, and it writes
+::  nothing outside itself.
+::    peek: the docs, root /code, the raw grubbery desk source, proxy calls
+::    poke: bowl.sig (time + entropy), the proxy's main.sig
+++  agent-weir
+  ^-  weir:tarball
+  =/  dir  |=(p=path `road:tarball`[%& %| p])
+  =/  fil  |=([p=path n=@ta] `road:tarball`[%& %& p n])
+  :*  make=~
+      poke=(sy ~[(fil /sys 'bowl.sig') (fil /apps/'anthropic.anthropic' 'main.sig')])
+      %-  sy
+      :~  (dir /apps/'shell.shell'/docs)
+          (dir /code)
+          (dir /sys/clay/desks/grubbery)
+          (dir /apps/'anthropic.anthropic'/calls)
+      ==
+  ==
+::  ask-agent: bridge one browser turn to the docs-agent nexus. Subscribe
+::  to the conversation grub, poke the agent's main.sig with {chat-id,
+::  message}, await its write, and return the last (assistant) reply +
+::  trace. All the model/tool work runs inside the sandboxed agent.
+++  ask-agent
+  |=  [=rail:tarball message=@t]
+  =/  m  (fiber:fiber:nexus ,[reply=@t trace=json])
+  ^-  form:m
+  =/  chat-road=road:tarball
+    (nex-road:io rail [%& /docs/agent %'chat.json'])
+  =/  main-road=road:tarball
+    (nex-road:io rail [%& /docs/agent %'main.sig'])
+  ;<  *  bind:m  (keep:io /agent chat-road ~)
+  ;<  ~  bind:m
+    %-  poke:io
+    :+  main-road  [/ %json]
+    (pairs:enjs:format ~[['message' s+message]])
+  ;<  conv=json  bind:m  (await-agent chat-road)
+  ;<  ~  bind:m  (drop:io /agent chat-road)
+  =/  msgs=(list json)  ?.(?=([%a *] conv) ~ p.conv)
+  ?~  msgs  (pure:m ['(no reply)' [%a ~]])
+  =/  last=json  (rear msgs)
+  ?.  ?=([%o *] last)  (pure:m ['(no reply)' [%a ~]])
+  =/  reply=@t
+    (fall (bind (~(get by p.last) 'content') |=(j=json ?>(?=(%s -.j) p.j))) '')
+  =/  trace=json  (fall (~(get by p.last) 'trace') [%a ~])
+  (pure:m [reply trace])
+::  await-agent: wait for the agent's ASSISTANT write to the conversation
+::  grub. The agent writes twice per turn (the user message first, then the
+::  completed turn), so we skip news whose last message is still the user's.
+++  await-agent
+  |=  chat-road=road:tarball
+  =/  m  (fiber:fiber:nexus ,json)
+  ^-  form:m
+  |-
+  ;<  ~  bind:m  (take-news /agent)
+  ;<  =view:nexus  bind:m  (peek:io chat-road ~)
+  ?.  ?=([%file *] view)  $
+  =/  conv=json  (fall (mole |.(!<(json (need-vase:tarball sang.view)))) [%a ~])
+  =/  msgs=(list json)  ?.(?=([%a *] conv) ~ p.conv)
+  ?~  msgs  $
+  =/  last=json  (rear msgs)
+  ?.  &(?=([%o *] last) ?=([~ %s %'assistant'] (~(get by p.last) 'role')))  $
+  (pure:m conv)
+::  run-chat: the agent loop. Each turn pokes the metering proxy, and if
+::  the model asks for tools, runs them (scoped to the docs) and loops.
+::  Returns the final text plus a trace of every tool call, for the UI.
+++  run-chat
+  |=  [rail=rail:tarball jon=json]
+  =/  m  (fiber:fiber:nexus ,[reply=@t trace=(list json)])
+  ^-  form:m
+  ::  keep only {role, content} per message — the client also carries a
+  ::  `trace` field for its own UI, which the API rejects as an extra input.
+  =/  msgs=(list json)
+    =/  raw=(list json)
+      ?.  ?=([%o *] jon)  ~
+      =/  mj  (~(get by p.jon) 'messages')
+      ?.(?=([~ %a *] mj) ~ p.u.mj)
+    %+  turn  raw
+    |=  mj=json
+    ^-  json
+    ?.  ?=([%o *] mj)  mj
+    %-  pairs:enjs:format
+    %+  murn  `(list @t)`~['role' 'content']
+    |=  k=@t
+    =/  v=(unit json)  (~(get by p.mj) k)
+    ?~(v ~ `[k u.v])
+  =|  trace=(list json)
+  |-  ^-  form:m
+  =/  body=json
+    %-  pairs:enjs:format
+    :~  ['model' s+'claude-sonnet-4-6']
+        ['max_tokens' (numb:enjs:format 1.024)]
+        ['system' s+docs-system]
+        ['tools' docs-tools]
+        ['messages' [%a msgs]]
+    ==
+  ;<  resp=json  bind:m  (call-anthropic body)
+  =/  content-arr=(list json)
+    ?.  ?=([%o *] resp)  ~
+    =/  c  (~(get by p.resp) 'content')
+    ?.(?=([~ %a *] c) ~ p.u.c)
+  =/  tool-uses=(list json)
+    %+  skim  content-arr
+    |=  b=json
+    ?&(?=([%o *] b) ?=([~ %s %'tool_use'] (~(get by p.b) 'type')))
+  ?~  tool-uses
+    (pure:m [(extract-text resp) (flop trace)])
+  ;<  [results=(list json) new-trace=(list json)]  bind:m
+    (run-tools rail tool-uses)
+  =.  trace  (weld (flop new-trace) trace)
+  =/  asst=json  (pairs:enjs:format ~[['role' s+'assistant'] ['content' [%a content-arr]]])
+  =/  usr=json   (pairs:enjs:format ~[['role' s+'user'] ['content' [%a results]]])
+  $(msgs (weld msgs ~[asst usr]))
+::  call-anthropic: one metered round-trip. Subscribe to the call grub,
+::  poke main.sig with {id, body}, await done, drop. Key custody and
+::  metering live in the proxy.
+++  call-anthropic
+  |=  body=json
+  =/  m  (fiber:fiber:nexus ,json)
+  ^-  form:m
+  ;<  eny=@uvJ  bind:m  get-entropy:io
+  =/  call-id=@t     (scot %uv (end [3 8] eny))
+  =/  call-name=@ta  (crip "{(trip call-id)}.json")
+  =/  main-road=road:tarball  [%& %& /apps/'anthropic.anthropic' %'main.sig']
+  =/  call-road=road:tarball  [%& %& /apps/'anthropic.anthropic'/calls call-name]
+  ;<  *  bind:m  (keep:io /chat-call call-road ~)
+  ;<  ~  bind:m
+    %-  poke:io
+    :+  main-road  [/ %json]
+    (pairs:enjs:format ~[['id' s+call-id] ['body' body]])
+  ;<  resp=json  bind:m  (await-call call-road)
+  ;<  ~  bind:m  (drop:io /chat-call call-road)
+  (pure:m resp)
+::  run-tools: execute each requested tool_use, returning the tool_result
+::  blocks (for the model) and trace entries (for the UI).
+++  run-tools
+  |=  [rail=rail:tarball tool-uses=(list json)]
+  =/  m  (fiber:fiber:nexus ,[(list json) (list json)])
+  ^-  form:m
+  =|  results=(list json)
+  =|  trace=(list json)
+  |-  ^-  form:m
+  ?~  tool-uses  (pure:m [(flop results) (flop trace)])
+  =*  tu  i.tool-uses
+  ?.  ?=([%o *] tu)  $(tool-uses t.tool-uses)
+  =/  tid=@t      (jstr tu 'id')
+  =/  name=@t     (jstr tu 'name')
+  =/  input=json  (fall (~(get by p.tu) 'input') [%o ~])
+  ;<  [out=@t note=@t]  bind:m  (run-one-tool rail name input)
+  =/  result=json
+    %-  pairs:enjs:format
+    :~  ['type' s+'tool_result']
+        ['tool_use_id' s+tid]
+        ['content' s+out]
+    ==
+  =/  arg=@t
+    ?.  ?=([%o *] input)  ''
+    =/  q  (~(get by p.input) 'query')
+    ?:  ?=([~ %s *] q)  p.u.q
+    =/  pa  (~(get by p.input) 'path')
+    ?:(?=([~ %s *] pa) p.u.pa '')
+  =/  te=json
+    (pairs:enjs:format ~[['tool' s+name] ['arg' s+arg] ['note' s+note]])
+  $(tool-uses t.tool-uses, results [result results], trace [te trace])
+::  run-one-tool: dispatch by name to a scoped, read-only capability.
+++  run-one-tool
+  |=  [rail=rail:tarball name=@t input=json]
+  =/  m  (fiber:fiber:nexus ,[@t @t])
+  ^-  form:m
+  ?:  =(name 'search_docs')
+    (tool-search-docs rail ?:(?=([%o *] input) (jstr input 'query') ''))
+  ?:  =(name 'read_doc')
+    (tool-read-doc rail ?:(?=([%o *] input) (jstr input 'path') ''))
+  (pure:m ['unknown tool' 'error'])
+::  tool-search-docs: full-text search over the /docs grubs (the same
+::  corpus the reader's search box uses). Returns a compact hit list.
+++  tool-search-docs
+  |=  [rail=rail:tarball q=@t]
+  =/  m  (fiber:fiber:nexus ,[@t @t])
+  ^-  form:m
+  =/  qlow=tape  (cass (trip q))
+  ?:  =(~ qlow)  (pure:m ['(empty query)' '0 hits'])
+  =/  items=(list [path=@t title=@t])  docs-list
+  =|  hits=(list tape)
+  |-  ^-  form:m
+  ?~  items
+    =/  n=@ud  (lent hits)
+    =/  out=@t
+      ?:  =(0 n)  'No matching docs.'
+      %-  crip
+      %-  zing
+      (turn (flop hits) |=(l=tape (weld l "\0a")))
+    (pure:m [out (crip "{(a-co:co n)} hits")])
+  ;<  fv=view:nexus  bind:m
+    (peek:io (nex-road:io rail [%& /docs `@ta`path.i.items]) `[/ %mime])
+  =/  txt=@t
+    ?.  ?=([%file *] fv)  ''
+    `@t`q.q:!<(mime (need-vase:tarball sang.fv))
+  =/  snip=(unit @t)  (find-snippet txt q)
+  =/  tmatch=?  !=(~ (find qlow (cass (trip title.i.items))))
+  ?.  |(?=(^ snip) tmatch)  $(items t.items)
+  =/  line=tape
+    "{(trip path.i.items)} — {(trip title.i.items)}: {?~(snip "" (trip u.snip))}"
+  $(items t.items, hits [line hits])
+::  tool-read-doc: read one /docs grub in full as markdown.
+++  tool-read-doc
+  |=  [rail=rail:tarball p=@t]
+  =/  m  (fiber:fiber:nexus ,[@t @t])
+  ^-  form:m
+  ?:  =('' p)  (pure:m ['(no path given)' 'error'])
+  ;<  fv=view:nexus  bind:m
+    (peek:io (nex-road:io rail [%& /docs `@ta`p]) `[/ %mime])
+  ?.  ?=([%file *] fv)
+    (pure:m [(crip "no doc at {(trip p)}") 'not found'])
+  =/  txt=@t  `@t`q.q:!<(mime (need-vase:tarball sang.fv))
+  (pure:m [txt (crip "{(a-co:co (met 3 txt))} bytes")])
+::  await-call: loop on news for our call grub until status is done,
+::  then yield the raw provider response json.
+++  await-call
+  |=  call-road=road:tarball
+  =/  m  (fiber:fiber:nexus ,json)
+  ^-  form:m
+  |-
+  ;<  ~  bind:m  (take-news /chat-call)
+  ;<  =view:nexus  bind:m  (peek:io call-road ~)
+  ?.  ?=([%file *] view)  $
+  =/  jon=json  (fall (mole |.(!<(json (need-vase:tarball sang.view)))) *json)
+  ?.  ?=(%o -.jon)  $
+  ?.  ?=([~ %s %'done'] (~(get by p.jon) 'status'))  $
+  (pure:m (fall (~(get by p.jon) 'response') [%o ~]))
+::  take-news: wait for a news wave on `wire`, ignore everything else.
+++  take-news
+  |=  =wire
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  |=  input:fiber:nexus
+  :+  ~  q.state
+  ?+  in  [%skip ~]
+    ~              [%wait ~]
+    [~ %news * *]  ?:(=(wire wire.u.in) [%done ~] [%skip ~])
+  ==
+::  extract-text: concatenate the text blocks of an Anthropic Messages
+::  response; surface proxy/API errors as plain text.
+++  extract-text
+  |=  resp=json
+  ^-  @t
+  ?.  ?=([%o *] resp)  'no response'
+  =/  err=(unit json)  (~(get by p.resp) 'error')
+  ?^  err
+    ?:  ?=(%s -.u.err)  p.u.err
+    (crip "API error: {(trip (en:json:html u.err))}")
+  =/  content=(unit json)  (~(get by p.resp) 'content')
+  ?.  ?=([~ %a *] content)  'no content in response'
+  %-  crip
+  %-  zing
+  %+  turn  p.u.content
+  |=  b=json
+  ^-  tape
+  ?.  ?=([%o *] b)  ""
+  ?.  ?=([~ %s %'text'] (~(get by p.b) 'type'))  ""
+  =/  t=(unit json)  (~(get by p.b) 'text')
+  ?:(?=([~ %s *] t) (trip p.u.t) "")
 ::  Stub handbook content — deliberately thin. Flesh these out live at
 ::  /apps/grubbery/docs; edits persist (grubs), the seeds never overwrite.
 ++  intro-md

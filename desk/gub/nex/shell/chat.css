@@ -1,0 +1,174 @@
+/* Docs assistant — a floating, sandboxed chatbot that can only read and
+   search the docs and the root /code nexus. Light theme, tuned to match
+   docs.html (--accent #3d3a45). All classes are `da-` prefixed so nothing
+   leaks into the reader's own styles. */
+
+.da-fab {
+  position: fixed; bottom: 22px; right: 22px; z-index: 50;
+  display: flex; align-items: center; gap: 8px;
+  height: 46px; padding: 0 18px 0 15px;
+  background: #3d3a45; color: #fff; border: none; border-radius: 23px;
+  font: 600 14px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  cursor: pointer; box-shadow: 0 6px 22px rgba(0,0,0,0.22);
+  transition: transform 0.12s ease, box-shadow 0.12s ease, opacity 0.12s ease;
+}
+.da-fab:hover { transform: translateY(-1px); box-shadow: 0 9px 28px rgba(0,0,0,0.26); }
+.da-fab svg { width: 17px; height: 17px; transition: transform 0.14s ease; }
+.da-fab.da-hidden { opacity: 0; pointer-events: none; transform: translateY(8px); }
+.da-fab.da-active svg { transform: rotate(180deg); }
+
+.da-panel {
+  position: fixed; bottom: 80px; right: 22px; z-index: 51;
+  width: 448px; max-width: calc(100vw - 32px);
+  height: 620px; max-height: calc(100vh - 102px);
+  display: flex; flex-direction: column;
+  background: #fff; border: 1px solid #e6e6e6; border-radius: 14px;
+  box-shadow: 0 18px 60px rgba(0,0,0,0.28);
+  overflow: hidden;
+  transform-origin: bottom right;
+  transition: transform 0.14s ease, opacity 0.14s ease;
+}
+.da-panel.da-hidden { opacity: 0; pointer-events: none; transform: scale(0.96) translateY(8px); }
+
+.da-head {
+  display: flex; align-items: center; gap: 9px;
+  padding: 13px 14px; border-bottom: 1px solid #eee; flex: 0 0 auto;
+}
+.da-head .da-mark { color: #3d3a45; font-size: 15px; }
+.da-head .da-title { font: 600 14px/1.2 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+.da-head .da-sub { font-size: 11px; color: #8a8a8a; margin-top: 1px; }
+.da-head .da-spacer { flex: 1; }
+.da-icon-btn {
+  background: none; border: none; color: #8a8a8a; cursor: pointer;
+  padding: 5px; border-radius: 6px; display: flex; line-height: 0;
+}
+.da-icon-btn:hover { background: #f0f0f0; color: #333; }
+.da-icon-btn svg { width: 16px; height: 16px; }
+
+.da-log {
+  flex: 1; min-height: 0; overflow-y: auto;
+  padding: 16px 14px; display: flex; flex-direction: column; gap: 12px;
+}
+.da-log::-webkit-scrollbar { width: 8px; }
+.da-log::-webkit-scrollbar-thumb { background: #e0e0e0; border-radius: 4px; }
+
+.da-hint {
+  color: #8a8a8a; font-size: 13px; line-height: 1.6; text-align: center;
+  margin: auto; align-self: center; max-width: 320px;
+}
+.da-hint b { color: #555; font-weight: 600; }
+.da-chips { display: flex; flex-wrap: wrap; gap: 7px; justify-content: center; margin-top: 12px; }
+.da-chip {
+  background: #f4f4f5; border: 1px solid #e6e6e6; border-radius: 14px;
+  padding: 6px 12px; font-size: 12px; color: #444; cursor: pointer;
+}
+.da-chip:hover { background: #eef1ff; border-color: #d6ddff; }
+
+.da-msg { display: flex; flex-direction: column; gap: 4px; max-width: 100%; }
+.da-msg.da-user { align-items: flex-end; }
+.da-bubble {
+  padding: 9px 13px; border-radius: 13px; font-size: 14px; line-height: 1.55;
+  max-width: 86%; word-wrap: break-word; overflow-wrap: anywhere;
+}
+.da-user .da-bubble { background: #3d3a45; color: #fff; border-bottom-right-radius: 4px; }
+.da-bot .da-bubble { background: #f4f4f5; color: #1a1a1a; border-bottom-left-radius: 4px; }
+.da-bot .da-bubble p:first-child { margin-top: 0; }
+.da-bot .da-bubble p:last-child { margin-bottom: 0; }
+.da-bot .da-bubble pre {
+  background: #ecebee; padding: 10px 12px; border-radius: 7px; overflow-x: auto;
+  font-size: 12px; margin: 8px 0;
+}
+.da-bot .da-bubble code { background: #e7e7ea; padding: 1px 4px; border-radius: 3px; font-size: 0.88em; }
+.da-bot .da-bubble pre code { background: none; padding: 0; }
+.da-bot .da-bubble a { color: #2b6cb0; }
+
+/* tool-use trace — a compact, collapsible record of what the bot read */
+.da-trace { display: flex; flex-direction: column; gap: 3px; margin: 2px 0 0; }
+.da-step {
+  display: flex; align-items: center; gap: 7px;
+  font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: #7a7a7a; padding: 2px 0;
+}
+.da-step .da-step-ico { width: 13px; height: 13px; flex: 0 0 auto; opacity: 0.7; }
+.da-step .da-step-tool { color: #3d3a45; font-weight: 600; }
+.da-step .da-step-arg { color: #999; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.da-step .da-step-note { color: #b0b0b0; flex: 0 0 auto; }
+
+.da-typing { display: flex; gap: 4px; padding: 4px 2px; }
+.da-typing span {
+  width: 6px; height: 6px; border-radius: 50%; background: #c4c4c4;
+  animation: da-blink 1.2s infinite both;
+}
+.da-typing span:nth-child(2) { animation-delay: 0.2s; }
+.da-typing span:nth-child(3) { animation-delay: 0.4s; }
+@keyframes da-blink { 0%, 80%, 100% { opacity: 0.3; } 40% { opacity: 1; } }
+
+.da-err {
+  color: #b4232a; font-size: 12.5px; background: #fdeeee;
+  border: 1px solid #f6d6d6; border-radius: 8px; padding: 8px 11px; line-height: 1.5;
+}
+
+.da-input {
+  flex: 0 0 auto; border-top: 1px solid #eee; padding: 10px 12px;
+  display: flex; gap: 8px; align-items: flex-end;
+}
+.da-input textarea {
+  flex: 1; resize: none; border: 1px solid #e0e0e0; border-radius: 10px;
+  padding: 9px 12px; font: 14px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: #1a1a1a; outline: none; max-height: 120px;
+  transition: border-color 0.12s, box-shadow 0.12s;
+}
+.da-input textarea:focus { border-color: #3d3a45; box-shadow: 0 0 0 3px rgba(61,58,69,0.1); }
+.da-send {
+  flex: 0 0 auto; width: 38px; height: 38px; border-radius: 10px; border: none;
+  background: #3d3a45; color: #fff; cursor: pointer; display: flex;
+  align-items: center; justify-content: center;
+}
+.da-send:hover { background: #2c2a33; }
+.da-send:disabled { background: #cfcdd4; cursor: default; }
+.da-send svg { width: 17px; height: 17px; }
+
+/* config modal — full-window overlay */
+.da-cfg-back {
+  position: fixed; inset: 0; z-index: 100;
+  background: rgba(20,20,25,0.42); backdrop-filter: blur(3px);
+  display: flex; align-items: center; justify-content: center; padding: 24px;
+}
+.da-cfg-back.da-hidden { display: none; }
+.da-cfg {
+  background: #fff; border-radius: 14px; width: 560px; max-width: 100%;
+  max-height: calc(100vh - 48px);
+  overflow-y: auto; padding: 22px; display: flex; flex-direction: column; gap: 14px;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.34);
+}
+.da-cfg-title { font: 600 15px/1.2 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+.da-cfg-field { display: flex; flex-direction: column; gap: 5px; }
+.da-cfg-label { font-size: 12px; font-weight: 600; color: #6b6b6b; }
+.da-cfg-textarea, .da-cfg-input {
+  border: 1px solid #e0e0e0; border-radius: 8px; padding: 8px 11px;
+  font: 13px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: #1a1a1a; outline: none; width: 100%; box-sizing: border-box;
+  transition: border-color 0.12s, box-shadow 0.12s;
+}
+.da-cfg-textarea {
+  resize: vertical; min-height: 90px; font-family: ui-monospace, Menlo, monospace;
+  white-space: pre; overflow-x: auto; word-wrap: normal;
+}
+.da-cfg-select {
+  appearance: none; -webkit-appearance: none; cursor: pointer;
+  padding-right: 34px; background: #fff;
+  background-image: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='14'%20height='14'%20viewBox='0%200%2024%2024'%20fill='none'%20stroke='%236b6b6b'%20stroke-width='2'%20stroke-linecap='round'%20stroke-linejoin='round'%3E%3Cpolyline%20points='6%209%2012%2015%2018%209'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 11px center;
+}
+.da-cfg-textarea:focus, .da-cfg-input:focus {
+  border-color: #3d3a45; box-shadow: 0 0 0 3px rgba(61,58,69,0.1);
+}
+.da-cfg-foot { display: flex; justify-content: flex-end; gap: 8px; margin-top: 2px; }
+.da-cfg-btn {
+  padding: 8px 16px; border-radius: 8px; border: 1px solid #e0e0e0; background: #fff;
+  color: #333; font: 600 13px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  cursor: pointer;
+}
+.da-cfg-btn:hover { background: #f4f4f5; }
+.da-cfg-save { background: #3d3a45; color: #fff; border-color: #3d3a45; }
+.da-cfg-save:hover { background: #2c2a33; }
