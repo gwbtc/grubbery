@@ -190,7 +190,7 @@
 ++  on-load
   |=  =ball:tarball
   ^-  bole:tarball
-  ::  no alias.json / weir.json: a tools instance is a nested execution
+  ::  no link.json / weir.json: a tools instance is a nested execution
   ::  engine, not an installable app. It is not discoverable, and its reach
   ::  is the weir its HOST sets on it at mount — never self-declared.
   %+  spin:loader  ball

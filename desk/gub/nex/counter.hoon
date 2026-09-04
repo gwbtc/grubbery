@@ -12,7 +12,7 @@
           [%over %& [/ui/views %'page.html'] [[/ %html] (crip (en-xml:html (counter-page ~)))]]
           [%fall %& [/ui %'main.sig'] [[/ %sig] ~]]
           [%fall %| /ui/requests empty-dir:loader]
-          [%over %& [/ %'alias.json'] [[/ %json] (pairs:enjs:format ~[['name' s+'counter'] ['description' s+'A simple tick-up counter']])]]
+          [%over %& [/ %'link.json'] [[/ %json] (pairs:enjs:format ~[['name' s+'counter'] ['description' s+'A simple tick-up counter']])]]
           [%over %& [/ %'weir.json'] [[/ %json] weir-json]]
           [%over %& [/ %'README.md'] [[/ %mime] man]]
       ==

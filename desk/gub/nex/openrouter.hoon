@@ -40,7 +40,7 @@
         ==
       %+  spin:loader  ball
       :~  (manifest:loader 0)
-          [%over %& [/ %'alias.json'] [[/ %json] (pairs:enjs:format ~[['name' s+'openrouter'] ['description' s+'Local structured proxy for OpenRouter']])]]
+          [%over %& [/ %'link.json'] [[/ %json] (pairs:enjs:format ~[['name' s+'openrouter'] ['description' s+'Local structured proxy for OpenRouter']])]]
           [%over %& [/ %'weir.json'] [[/ %json] weir-json]]
           [%over %& [/ %'tile.json'] [[/ %json] tile]]
           [%over %& [/ %'icon.svg'] [[/ %mime] ui-icon]]

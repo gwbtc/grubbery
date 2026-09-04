@@ -29,7 +29,7 @@
         ==
       %+  spin:loader  ball
       :~  (manifest:loader 0)
-          [%over %& [/ %'alias.json'] [[/ %json] (pairs:enjs:format ~[['name' s+'feeds'] ['description' s+'RSS and Atom feed reader']])]]
+          [%over %& [/ %'link.json'] [[/ %json] (pairs:enjs:format ~[['name' s+'feeds'] ['description' s+'RSS and Atom feed reader']])]]
           [%over %& [/ %'weir.json'] [[/ %json] (pairs:enjs:format ~[['poke' a+~[(pairs:enjs:format ~[['road' s+'/sys/bowl.sig'] ['why' s+'time, identity, entropy — every fiber op']]) (pairs:enjs:format ~[['road' s+'/sys/behn/'] ['why' s+'the 15-minute refresh timer']]) (pairs:enjs:format ~[['road' s+'/sys/eyre/'] ['why' s+'serve the reader UI']]) (pairs:enjs:format ~[['road' s+'/sys/iris/'] ['why' s+'fetch RSS/Atom feeds over HTTP']]) (pairs:enjs:format ~[['road' s+'@notifications/main.sig'] ['why' s+'register and post a notification on new items']])]]])]]
           [%over %& [/ %'tile.json'] [[/ %json] tile]]
           [%over %& [/ %'icon.svg'] [[/ %mime] icon]]

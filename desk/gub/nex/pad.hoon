@@ -30,7 +30,7 @@
         ==
       %+  spin:loader  ball
       :~  (manifest:loader 0)
-          [%over %& [/ %'alias.json'] [[/ %json] (pairs:enjs:format ~[['name' s+'pad'] ['description' s+'Cross-ship collaborative text pads']])]]
+          [%over %& [/ %'link.json'] [[/ %json] (pairs:enjs:format ~[['name' s+'pad'] ['description' s+'Cross-ship collaborative text pads']])]]
           [%over %& [/ %'weir.json'] [[/ %json] weir-json]]
           [%over %& [/ %'tile.json'] [[/ %json] tile]]
           [%over %& [/ %'icon.svg'] [[/ %mime] icon]]

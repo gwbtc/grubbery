@@ -9,7 +9,7 @@
       ^-  bole:tarball
       %+  spin:loader  ball
       :~  (manifest:loader 0)
-          [%over %& [/ %'alias.json'] [[/ %json] (pairs:enjs:format ~[['name' s+'logbook'] ['description' s+'An append-only text log']])]]
+          [%over %& [/ %'link.json'] [[/ %json] (pairs:enjs:format ~[['name' s+'logbook'] ['description' s+'An append-only text log']])]]
           [%over %& [/ %'weir.json'] [[/ %json] weir-json]]
           [%fall %& [/ %'main.txt'] [[/ %txt] *wain]]
           [%fall %& [/ %'mirror.sig'] [[/ %sig] ~]]

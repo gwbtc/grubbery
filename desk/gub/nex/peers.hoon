@@ -13,7 +13,7 @@
       ^-  bole:tarball
       %+  spin:loader  ball
       :~  (manifest:loader 0)
-          [%over %& [/ %'alias.json'] [[/ %json] (pairs:enjs:format ~[['name' s+'peers'] ['description' s+'Manage ships and usergroups']])]]
+          [%over %& [/ %'link.json'] [[/ %json] (pairs:enjs:format ~[['name' s+'peers'] ['description' s+'Manage ships and usergroups']])]]
           [%over %& [/ %'weir.json'] [[/ %json] weir-json]]
           [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
           [%fall %| /requests empty-dir:loader]

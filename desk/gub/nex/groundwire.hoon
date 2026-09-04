@@ -19,7 +19,7 @@
       ^-  bole:tarball
       %+  spin:loader  ball
       :~  (manifest:loader 0)
-          [%over %& [/ %'alias.json'] [[/ %json] (pairs:enjs:format ~[['name' s+'groundwire'] ['description' s+'Live Bitcoin block height']])]]
+          [%over %& [/ %'link.json'] [[/ %json] (pairs:enjs:format ~[['name' s+'groundwire'] ['description' s+'Live Bitcoin block height']])]]
           [%over %& [/ %'weir.json'] [[/ %json] (pairs:enjs:format ~[['poke' a+~[(pairs:enjs:format ~[['road' s+'/sys/bowl.sig'] ['why' s+'time, identity, entropy — every fiber op']]) (pairs:enjs:format ~[['road' s+'/sys/behn/'] ['why' s+'the poll loop between RPC calls']]) (pairs:enjs:format ~[['road' s+'/sys/iris/'] ['why' s+'poll the bitcoind RPC over HTTP']])]]])]]
             [%fall %& [/ %'config.json'] [[/ %json] default-config]]
             [%fall %& [/ %'height.ud'] [[/ %ud] 0]]

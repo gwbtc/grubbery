@@ -16,7 +16,7 @@
       ^-  bole:tarball
       %+  spin:loader  ball
       :~  (manifest:loader 0)
-          [%over %& [/ %'alias.json'] [[/ %json] (pairs:enjs:format ~[['name' s+'rhizome'] ['description' s+'Wiki-linked markdown notes with backlinks']])]]
+          [%over %& [/ %'link.json'] [[/ %json] (pairs:enjs:format ~[['name' s+'rhizome'] ['description' s+'Wiki-linked markdown notes with backlinks']])]]
           [%over %& [/ %'weir.json'] [[/ %json] weir-json]]
           [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
           [%fall %& [/ %'page.html'] [[/ %html] (crip (en-xml:html ;div:"rhizome loading..."))]]

@@ -54,7 +54,7 @@
         ==
       %+  spin:loader  ball
       :~  (manifest:loader 0)
-          [%over %& [/ %'alias.json'] [[/ %json] (pairs:enjs:format ~[['name' s+'anthropic'] ['description' s+'Local structured proxy for the Anthropic API']])]]
+          [%over %& [/ %'link.json'] [[/ %json] (pairs:enjs:format ~[['name' s+'anthropic'] ['description' s+'Local structured proxy for the Anthropic API']])]]
           [%over %& [/ %'weir.json'] [[/ %json] weir-json]]
           [%over %& [/ %'tile.json'] [[/ %json] tile]]
           [%over %& [/ %'icon.svg'] [[/ %mime] ui-icon]]

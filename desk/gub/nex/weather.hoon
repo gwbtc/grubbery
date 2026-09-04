@@ -39,7 +39,7 @@
           [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
           [%fall %| /requests empty-dir:loader]
           [%fall %& [/ %'tile.json'] [[/ %json] default-tile]]
-          [%over %& [/ %'alias.json'] [[/ %json] (pairs:enjs:format ~[['name' s+'weather'] ['description' s+'Local forecasts and a live weather map']])]]
+          [%over %& [/ %'link.json'] [[/ %json] (pairs:enjs:format ~[['name' s+'weather'] ['description' s+'Local forecasts and a live weather map']])]]
           [%over %& [/ %'weir.json'] [[/ %json] (pairs:enjs:format ~[['poke' a+~[(pairs:enjs:format ~[['road' s+'/sys/bowl.sig'] ['why' s+'time, identity, entropy — every fiber op']]) (pairs:enjs:format ~[['road' s+'/sys/behn/'] ['why' s+'schedule the ~30-minute refetch per city']]) (pairs:enjs:format ~[['road' s+'/sys/eyre/'] ['why' s+'serve the map and handle refresh']]) (pairs:enjs:format ~[['road' s+'/sys/iris/'] ['why' s+'fetch forecasts from the weather API']])]]])]]
           [%over %& [/ %'icon.svg'] [[/ %mime] icon]]
           [%over %& [/ %'index.html'] [[/ %mime] index-html]]

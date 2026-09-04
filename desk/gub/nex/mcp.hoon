@@ -763,7 +763,7 @@
     ==
   %+  spin:loader  ball
   :~  (manifest:loader 0)
-      [%over %& [/ %'alias.json'] [[/ %json] (pairs:enjs:format ~[['name' s+'mcp'] ['description' s+'MCP JSON-RPC endpoint for tools']])]]
+      [%over %& [/ %'link.json'] [[/ %json] (pairs:enjs:format ~[['name' s+'mcp'] ['description' s+'MCP JSON-RPC endpoint for tools']])]]
       [%over %& [/ %'weir.json'] [[/ %json] weir-json]]
       [%over %& [/ %'tile.json'] [[/ %json] tile]]
       [%over %& [/ %'icon.svg'] [[/ %mime] ui-icon]]

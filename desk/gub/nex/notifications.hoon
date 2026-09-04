@@ -26,7 +26,7 @@
       ::  the tiles page renders it as the bell
       %+  spin:loader  ball
       :~  (manifest:loader 0)
-          [%over %& [/ %'alias.json'] [[/ %json] (pairs:enjs:format ~[['name' s+'notifications'] ['description' s+'Notifications inbox']])]]
+          [%over %& [/ %'link.json'] [[/ %json] (pairs:enjs:format ~[['name' s+'notifications'] ['description' s+'Notifications inbox']])]]
           [%over %& [/ %'weir.json'] [[/ %json] weir-json]]
           [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
           [%fall %& [/ %'registry.json'] [[/ %json] [%o ~]]]

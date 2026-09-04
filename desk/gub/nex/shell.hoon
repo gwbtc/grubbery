@@ -5,7 +5,7 @@
 ::  of other ships' directories.
 ::
 ::  Terminology — the shell/kernel distinction. The "shell" is the
-::  userspace permission MANAGER: it reads apps' declared alias.json /
+::  userspace permission MANAGER: it reads apps' declared link.json /
 ::  weir.json, surfaces them, records what you consent to, and writes
 ::  weirs. It decides. The "grubbery kernel" (the runtime, formerly
 ::  "runtime") is what ENFORCES those weirs — the dart gate. So the
@@ -64,10 +64,9 @@
           ::  (the default): an app never chooses its own discoverability.
           [%fall %& [/permit %'share.json'] [[/ %json] [%o ~]]]
           ::  /sys/link: the discovery registry lives at the system level.
-          ::  One dest.json per @name holding its claimants+locations —
-          ::  the alias menu made materialized-and-subscribable, so peers
-          ::  (local or cross-ship) can `keep` a name and learn where its
-          ::  app lives, and get pushed the new location when it moves.
+          ::  One dest.lanes per @name holding its target lanes — peers
+          ::  (local or cross-ship) can `keep` a name and learn where
+          ::  its app lives.
           ::  sweep.sig: poke target for "new apps may exist — look now".
           ::  Desk installs poke it after applying their bill, so fresh
           ::  apps get followers (and their rise-notify) immediately
@@ -261,7 +260,7 @@
           $
         $
           ::  /sync/<app>: a pure follower. Subscribes to its app's tree and
-          ::  on any change (alias.json, weir.json, …) pings the scanner to
+          ::  on any change (link.json, weir.json, …) pings the scanner to
           ::  reconcile /sys/link and the asks. Holds no state, writes nothing.
           ::
           [[%sync *] @]
@@ -271,7 +270,7 @@
         ;<  ~  bind:m  drop-stale-subs
         ::  follow ONLY the declaration files — never the whole app tree, or
         ::  a ticking app (counter, weather) fires us on every data write.
-        ;<  *  bind:m  (keep:io /alias [%& %& u.ap %'alias.json'] ~)
+        ;<  *  bind:m  (keep:io /alias [%& %& u.ap %'link.json'] ~)
         ;<  *  bind:m  (keep:io /weir [%& %& u.ap %'weir.json'] ~)
         ::  a desk's opening declaration — absent for non-desk apps (a sub on
         ::  an absent road is legal and fires if it ever appears).
@@ -547,7 +546,7 @@
             (send-simple:srv eyre-id [[200 ~[['content-type' 'application/json']]] `bod])
           (pure:m ~)
         ::  /apps/grubbery/aliases.json → the alias directory as menus:
-        ::  app-declared alias.json options merged with your stored ones.
+        ::  app-declared link.json options merged with your stored ones.
         ::  /grubbery/tiles/desks/peers → peers' published desks, enriched
         ::  for the "add apps" browser (folded in from the retired /desks).
         ?:  ?=([%desks %peers ~] suffix)
@@ -1957,7 +1956,7 @@
   =/  v  (~(get by p.j) k)
   ?.(?=([~ %s *] v) ~ `p.u.v)
 ::  +suppress-alias: hide an app-declared option (alias name + path) from
-::  the directory. App options are derived from alias.json, so they can't
+::  the directory. App options are derived from link.json, so they can't
 ::  be deleted outright — this records a suppression the menu builder
 ::  filters out, so the option stops being offered. Operates on the
 ::  permit/hidden map: alias name -> [suppressed path strings].
@@ -2007,7 +2006,7 @@
   ;<  ~  bind:m  (put:io (nex-road:io rail [%& /permit %'hidden.json']) [[/ %json] next])
   (build-asks rail)
 ::  +read-shares: permit/share.json inverted for granting — usergroup
-::  path -> set of /sys/link roads it may peek. 'public' maps to /public.
+::  path -> set of /sys/link dest.lanes roads it may peek.
 ::
 ++  read-shares
   |=  [rail=rail:tarball nex-dir=path]
@@ -2324,7 +2323,7 @@
   =/  dix=(unit @ud)  (find "." nam)
   ?~  dix  name
   (crip (scag u.dix nam))
-::  +read-app-aliases: scan /apps for each app's self-declared alias.json
+::  +read-app-aliases: scan /apps for each app's self-declared link.json
 ::  ({name, description}) and build the app-sourced half of the alias
 ::  directory: @name -> list of option json {path, description, source}.
 ::  Derived — rescanned on read, never stored. A name grants no power, so
@@ -2361,7 +2360,7 @@
     (turn ~(tap in ~(key by dir.ball.dv)) |=(sub=@ta /apps/[kid]/desk/data/[sub]))
   $(kids t.kids, out (weld subs out))
 ::  +read-app-aliases: scan every app root (descending desks) for its
-::  alias.json, building @name -> menu options. Each root is a nexus; its
+::  link.json, building @name -> menu options. Each root is a nexus; its
 ::  option path is the nexus root. `name` may be a string or a list of
 ::  strings — a nexus can advertise several synonyms, all pointing at it.
 ::
@@ -2375,7 +2374,7 @@
   =/  root=path  i.roots
   =/  src=@ta  (rear root)
   ;<  kv=view:nexus  bind:m
-    (peek:io [%& %& [root %'alias.json']] `[/ %json])
+    (peek:io [%& %& [root %'link.json']] `[/ %json])
   ?.  ?=([%file *] kv)  $(roots t.roots)
   =/  jon=(unit json)  (mole |.(!<(json (need-vase:tarball sang.kv))))
   ?~  jon  $(roots t.roots)
@@ -2433,14 +2432,13 @@
     [%o (~(put by p.o) 'hidden' b+&)]
   (pure:m [%o (~(run by menus) |=(opts=(list json) `json`[%a opts]))])
 ::  +link-road: the /sys/link road for an @alias. Strips the leading @
-::  and splits on / to build the path — '@pad' -> /sys/link/pad/dest.json,
-::  '@chat/v1' -> /sys/link/chat/v1/dest.json. The registry lives outside
-::  any nexus subtree so it's world-readable by default.
+::  and splits on / to build the path — '@pad' -> /sys/link/pad/dest.lanes,
+::  '@chat/v1' -> /sys/link/chat/v1/dest.lanes.
 ::
 ++  link-road
   |=  nm=@t
   ^-  road:tarball
-  [%& %& (link-dir nm) %'dest.json']
+  [%& %& (link-dir nm) %'dest.lanes']
 ::  +link-dir: the /sys/link directory path for an @alias (for shallow
 ::  listing during cull).
 ::
@@ -2549,21 +2547,12 @@
   ~?  >>>  ?=(^ err)  [%shell-sync-spawn-failed i.roots]
   $(roots t.roots, made |(made ?=(~ err)))
 ::  +build-links: materialize the discovery registry at /sys/link/. For
-::  each @name, write /sys/link/<segments>/dest.json holding its claimants
-::  and locations. Only writes on a genuine content change, so an idle
-::  rescan doesn't bump versions and spam subscribers. Discovery is the
-::  whole job — the grub holds WHERE apps are, never their data.
+::  each @name, write /sys/link/<segments>/dest.lanes — a (set lane:tarball)
+::  of target locations. Only writes on genuine content change.
 ::
-::  INVARIANT: /sys/link MUST always be current. A discovery registry that
-::  lags hands out stale locations — it's worthless if it can be stale.
+::  INVARIANT: /sys/link MUST always be current.
 ::
 ::  TODO (not built yet): drive this by SUBSCRIPTION, never a poll.
-::
-::  TODO (related): alias resolution is frozen into grant.json bindings at
-::  approval time. When /sys/link shows an @name now resolves to a different
-::  target, every approved weir that referenced that name is pointing at a
-::  stale path — the shell should surface those and ask the user to re-point
-::  them.
 ::
 ::  +build-share: invert every local desk's share.usergroups into per-
 ::  usergroup discovery directories. /share/<group>/desks.json lists the
@@ -2627,7 +2616,7 @@
   =/  want=(set path)  (silt (turn entries |=([nm=@t *] (link-dir nm))))
   |-  ^-  form:m
   ?~  entries
-    ::  cull pass: drop /sys/link dirs whose alias no longer has any claimant
+    ::  cull pass: drop /sys/link dirs whose link no longer has any claimant
     ;<  bv=view:nexus  bind:m  (peek-shallow:io [%& %| /sys/link] ~)
     ?.  ?=([%ball *] bv)  (pure:m ~)
     =/  haves=(list @ta)  ~(tap in ~(key by dir.ball.bv))
@@ -2637,13 +2626,18 @@
     ;<  *  bind:m  (cull-soft:io [%& %| /sys/link/[i.haves]])
     $(haves t.haves)
   =/  road=road:tarball  (link-road nm.i.entries)
-  =/  wj=json   [%a opts.i.entries]
-  ;<  cur=view:nexus  bind:m  (peek:io road `[/ %json])
-  =/  have=(unit json)
+  =/  lanes=(set lane:tarball)
+    %-  silt
+    %+  murn  opts.i.entries
+    |=  o=json
+    =/  p=@t  (fall (jget o 'path') '')
+    ?:(=('' p) ~ `[%| (stab p)])
+  ;<  cur=view:nexus  bind:m  (peek:io road `[/ %lanes])
+  =/  have=(unit (set lane:tarball))
     ?.  ?=([%file *] cur)  ~
-    (mole |.(!<(json (need-vase:tarball sang.cur))))
-  ?:  =(`wj have)  $(entries t.entries)
-  ;<  ~  bind:m  (put:io road [[/ %json] wj])
+    (mole |.(!<((set lane:tarball) (need-vase:tarball sang.cur))))
+  ?:  =(`lanes have)  $(entries t.entries)
+  ;<  ~  bind:m  (over:io road [[/ %lanes] lanes])
   $(entries t.entries)
 ::  +build-aliases: materialize the alias directory (menus incl. hidden
 ::  marks) into /permit/aliases.json — the permits page reads it ready.

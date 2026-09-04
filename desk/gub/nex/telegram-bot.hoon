@@ -17,7 +17,7 @@
         ~[['bot-token' s+'']]
       %+  spin:loader  ball
       :~  (manifest:loader 0)
-          [%over %& [/ %'alias.json'] [[/ %json] (pairs:enjs:format ~[['name' s+'telegram-bot'] ['description' s+'Chat with one Telegram bot']])]]
+          [%over %& [/ %'link.json'] [[/ %json] (pairs:enjs:format ~[['name' s+'telegram-bot'] ['description' s+'Chat with one Telegram bot']])]]
           [%over %& [/ %'weir.json'] [[/ %json] (pairs:enjs:format ~[['poke' a+~[(pairs:enjs:format ~[['road' s+'/sys/bowl.sig'] ['why' s+'time, identity, entropy — every fiber op']]) (pairs:enjs:format ~[['road' s+'/sys/iris/'] ['why' s+'long-poll the Telegram API over HTTP']])]]])]]
           [%fall %& [/ %'config.json'] [[/ %json] default-config]]
           [%fall %& [/ %'offset.ud'] [[/ %ud] 0]]
