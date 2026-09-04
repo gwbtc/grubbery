@@ -32,7 +32,7 @@
 //     --md-pad       card padding (default 22px)
 //     --md-shadow    card box-shadow (default 0 16px 48px rgba(0,0,0,.28))
 //     --md-backdrop  backdrop color (default rgba(0,0,0,.35))
-//   events (state out):
+//   events (state out), all bubbling + composed (library policy):
 //     md-open, md-close   ({ detail: { returnValue } } on close)
 //   methods:
 //     .show(), .close(returnValue)
@@ -100,7 +100,7 @@ class ModalDialog extends HTMLElement {
     if (!this.hasAttribute('open')) return;
     this.removeAttribute('open');
     this.dispatchEvent(new CustomEvent('md-close', {
-      detail: { returnValue }, bubbles: true,
+      detail: { returnValue }, bubbles: true, composed: true,
     }));
   }
 
@@ -115,7 +115,7 @@ class ModalDialog extends HTMLElement {
     if (this.#dialog.open) return;
     this.#dialog.showModal();
     this.setAttribute('open', '');
-    this.dispatchEvent(new CustomEvent('md-open', { bubbles: true }));
+    this.dispatchEvent(new CustomEvent('md-open', { bubbles: true, composed: true }));
   }
 
   close(returnValue = '') {

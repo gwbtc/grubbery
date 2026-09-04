@@ -1,0 +1,335 @@
+<!doctype html>
+<!--
+  desktop demo — a whole little desktop built from two components:
+    <float-window>  draggable/resizable/stackable windows (lib/ui)
+    <desk-bar>      bottom taskbar that discovers + manages them (lib/ui)
+  Served at /grubbery/web-test/ui/desktop.html. The taskbar needs zero
+  wiring: it finds every float-window on the page itself. Launchers on the
+  left are plain slotted buttons. Window geometry persists per window via
+  the persist attribute; ephemeral windows (no persist) just vanish.
+-->
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>desktop</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; overflow: hidden; }
+    body {
+      font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, sans-serif;
+      color: #1f2328;
+      background:
+        radial-gradient(1100px 500px at 75% -10%, #eef2f7 0%, transparent 60%),
+        radial-gradient(900px 600px at -10% 110%, #eaf0f6 0%, transparent 55%),
+        #f3f5f8;
+    }
+    float-window:not(:defined), desk-bar:not(:defined), start-menu:not(:defined) { display: none; }
+
+    /* faint wallpaper mark */
+    #wall {
+      position: fixed; inset: 0; display: grid; place-items: center;
+      color: #dfe5ec; pointer-events: none; user-select: none;
+    }
+    #wall .mark { font-size: 120px; line-height: 1; }
+    #wall .name { font-size: 13px; letter-spacing: .35em; text-transform: uppercase; margin-top: 8px; }
+
+    /* launcher buttons slotted into the desk-bar */
+    .launch {
+      all: unset; cursor: pointer;
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 30px; height: 30px; border-radius: 8px; font-size: 15px;
+    }
+    .launch:hover { background: #eaeef2; }
+
+    /* start-menu items (light DOM — styled by the page, laid out by the menu) */
+    .sm-head { font: 600 12px/1.4 inherit; color: #8b949e; letter-spacing: .06em;
+               text-transform: uppercase; padding: 8px 10px 4px; user-select: none; }
+    .sm-item {
+      all: unset; cursor: pointer;
+      display: flex; align-items: center; gap: 10px;
+      padding: 8px 10px; font-size: 13px; color: #24292f;
+    }
+    .sm-item:hover { background: #eef1f4; }
+    .sm-item span { width: 18px; text-align: center; color: #57606a; }
+    .sm-sep { height: 1px; background: #e2e7ee; margin: 5px 8px; }
+
+    /* window body content */
+    .body { padding: 14px 16px; }
+    .body h2 { font-size: 15px; margin: 0 0 8px; }
+    .body p { margin: 0 0 10px; color: #4b5563; max-width: 52ch; }
+    .body code { font: 12px ui-monospace, Menlo, monospace; background: #f2f4f7; padding: 1px 5px; border-radius: 4px; }
+    .body ul { margin: 0 0 10px; padding-left: 18px; color: #4b5563; }
+    .body li { margin-bottom: 3px; }
+
+    .pad {
+      width: 100%; height: 100%; border: none; outline: none; resize: none;
+      padding: 12px 14px; font: 13px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace;
+      color: #24292f; background: #fffdf5;
+    }
+
+    .chat { display: flex; flex-direction: column; height: 100%; }
+    .chat .log { flex: 1; overflow: auto; padding: 12px 14px; }
+    .chat .msg { max-width: 85%; padding: 7px 11px; border-radius: 10px; margin-bottom: 8px; font-size: 13px; }
+    .chat .them { background: #f2f4f7; }
+    .chat .me { background: #dbe9f9; margin-left: auto; }
+    .chat .bar { display: flex; gap: 8px; padding: 9px; border-top: 1px solid #e2e7ee; }
+    .chat input { flex: 1; padding: 7px 11px; border: 1px solid #d0d7de; border-radius: 8px; font: inherit; font-size: 13px; outline: none; }
+    .chat input:focus { border-color: #0969da; }
+
+    .browser { display: flex; flex-direction: column; height: 100%; }
+    .browser .nav { display: flex; gap: 6px; padding: 8px; border-bottom: 1px solid #e2e7ee; }
+    .browser .nav input {
+      flex: 1; padding: 6px 11px; border: 1px solid #d0d7de; border-radius: 8px;
+      font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; outline: none; color: #24292f;
+    }
+    .browser .nav input:focus { border-color: #0969da; }
+    .browser .nav button {
+      all: unset; cursor: pointer; padding: 4px 10px; border-radius: 7px;
+      font-size: 13px; color: #57606a;
+    }
+    .browser .nav button:hover { background: #eaeef2; color: #24292f; }
+    .browser tab-group { flex: 1; min-height: 0; padding: 0 8px; }
+    .browser .page { height: 100%; }
+    .browser iframe { display: block; width: 100%; height: 100%; border: none; background: #fff; }
+  </style>
+</head>
+<body>
+  <div id="wall">
+    <div>
+      <div class="mark">&#9670;</div>
+      <div class="name">grubbery</div>
+    </div>
+  </div>
+
+  <float-window title="welcome" icon="&#9670;" x="8%" y="10%" width="420" height="330" persist="desk-welcome">
+    <div class="body">
+      <h2>a desktop, apparently</h2>
+      <p>Two components: <code>&lt;float-window&gt;</code> and <code>&lt;desk-bar&gt;</code>. The bar found every window on this page by itself — no registration, no wiring.</p>
+      <ul>
+        <li><strong>drag</strong> the titlebar; <strong>resize</strong> any edge or corner</li>
+        <li><strong>click</strong> a window (or its taskbar button) to foreground it</li>
+        <li><strong>double-click</strong> a titlebar to shade it to just the bar</li>
+        <li><strong>minimize</strong> hides it; its taskbar button dims — click to restore</li>
+        <li><strong>reload</strong> — persisted windows come back exactly where you left them</li>
+        <li><strong>snap</strong> — shove a drag against the left/right edge for a half, a corner for a quarter, the top for full screen; drag away to unsnap</li>
+      </ul>
+      <p>The start menu is bottom-left. The + spawns throwaway windows.</p>
+    </div>
+  </float-window>
+
+  <float-window title="notepad" icon="&#9998;" x="52%" y="16%" width="360" height="280" persist="desk-notepad">
+    <textarea class="pad" id="pad" spellcheck="false" placeholder="scratch space — persists too"></textarea>
+  </float-window>
+
+  <float-window title="docs assistant" icon="&#10022;" x="30%" y="45%" width="380" height="300" persist="desk-chat" minimized>
+    <div class="chat">
+      <div class="log" id="chatlog">
+        <div class="msg them">Imagine the real docs chatbot detached into one of these. Same slotted content, new home.</div>
+      </div>
+      <div class="bar">
+        <input id="chatin" placeholder="say something (it only echoes)">
+      </div>
+    </div>
+  </float-window>
+
+  <float-window title="browser" icon="&#9678;" x="14%" y="8%" width="760" height="540" min-width="420" min-height="260" persist="desk-browser" minimized>
+    <div class="browser">
+      <div class="nav">
+        <input id="urlin" spellcheck="false" placeholder="/grubbery/&hellip; ship path">
+        <button id="b-go" title="open in current tab">go</button>
+        <button id="b-new" title="new tab">+</button>
+      </div>
+      <tab-group id="btabs" closable></tab-group>
+    </div>
+  </float-window>
+
+  <desk-bar>
+    <start-menu id="start" label="start">
+      <div slot="header" class="sm-head">&#9670; grubbery</div>
+      <button class="sm-item" id="l-welcome"><span>&#9670;</span> welcome</button>
+      <button class="sm-item" id="l-notepad"><span>&#9998;</span> notepad</button>
+      <button class="sm-item" id="l-chat"><span>&#10022;</span> docs assistant</button>
+      <button class="sm-item" id="l-browser"><span>&#9678;</span> browser</button>
+      <div class="sm-sep"></div>
+      <button class="sm-item" id="l-kit"><span>&#9646;</span> component kit demo</button>
+      <button class="sm-item" id="l-newm"><span>+</span> new window</button>
+    </start-menu>
+    <button class="launch" id="l-new" title="new window">+</button>
+  </desk-bar>
+
+  <script type="module" src="./components.js"></script>
+  <script type="module">
+    const $ = (id) => document.getElementById(id);
+
+    // launchers: restore/raise the persistent windows, or respawn if closed
+    const SPECS = {
+      'l-welcome': { persist: 'desk-welcome' },
+      'l-notepad': { persist: 'desk-notepad' },
+      'l-chat':    { persist: 'desk-chat' },
+      'l-browser': { persist: 'desk-browser' },
+    };
+    for (const [btn, spec] of Object.entries(SPECS)) {
+      $(btn).addEventListener('click', () => {
+        const w = document.querySelector('float-window[persist="' + spec.persist + '"]');
+        if (!w) { location.reload(); return; }   // closed for good this session
+        w.hasAttribute('minimized') ? w.restore() : w.raise();
+      });
+    }
+
+    // start-menu extras
+    $('l-kit').addEventListener('click', () => { location.href = './demo.html'; });
+    $('l-newm').addEventListener('click', () => $('l-new').click());
+
+    // + spawns ephemeral windows, staggered
+    let n = 0;
+    $('l-new').addEventListener('click', () => {
+      n++;
+      const w = document.createElement('float-window');
+      w.setAttribute('title', 'window ' + n);
+      w.setAttribute('icon', '□');
+      w.setAttribute('x', (140 + (n % 8) * 28) + 'px');
+      w.setAttribute('y', (100 + (n % 8) * 28) + 'px');
+      w.setAttribute('width', '280');
+      w.setAttribute('height', '180');
+      const d = document.createElement('div');
+      d.className = 'body';
+      d.innerHTML = '<p>Ephemeral — no <code>persist</code> attribute, so no saved geometry. Close me without guilt.</p>';
+      w.appendChild(d);
+      document.body.appendChild(w);
+    });
+
+    // notepad persistence — content, not just geometry
+    const pad = $('pad');
+    pad.value = localStorage.getItem('desk-notepad-text') || '';
+    pad.addEventListener('input', () => {
+      try { localStorage.setItem('desk-notepad-text', pad.value); } catch (_) {}
+    });
+
+    // ---- browser: tab-group of iframes over ship paths ----
+    // ship-local pages frame fine; the open web mostly refuses (frame-ancestors)
+    const btabs = $('btabs'), urlin = $('urlin');
+    const HOME = '/grubbery/web-test/ui/demo.html';
+
+    const panels = () => [...btabs.children].filter(c => c.hasAttribute('tab-label'));
+
+    // session persistence, kit-convention localStorage: the open paths (as
+    // navigated-to, not as opened — hookFrame keeps dataset.path current)
+    // plus which tab is active. Chrome state only; nothing domain-shaped.
+    function saveTabs() {
+      try {
+        localStorage.setItem('desk-browser-tabs', JSON.stringify({
+          paths: panels().map(p => p.dataset.path),
+          active: panels().findIndex(p => !p.hidden),
+        }));
+      } catch (_) {}
+    }
+
+    function openTab(path) {
+      const d = document.createElement('div');
+      d.className = 'page';
+      d.setAttribute('tab-label', path.split('/').filter(Boolean).pop() || path);
+      d.dataset.path = path;
+      const f = document.createElement('iframe');
+      f.src = path;
+      hookFrame(d, f);
+      d.appendChild(f);
+      btabs.appendChild(d);
+      saveTabs();
+      // slotchange rebuilds the strip first; then land on the new tab
+      requestAnimationFrame(() => btabs.select(panels().length - 1));
+    }
+
+    // reach into same-origin frames on every load (each navigation is a
+    // fresh document): keep the tab label honest about where the frame
+    // actually is, catch target=_blank links, and catch window.open — both
+    // become tabs HERE instead of escaping to the real browser. Cross-origin
+    // frames are sealed; their links escape and nothing can stop them.
+    function hookFrame(panel, f) {
+      f.addEventListener('load', () => {
+        let doc;
+        try { doc = f.contentDocument; } catch (_) { return; }
+        if (!doc) return;
+        const loc = f.contentWindow.location;
+        const path = loc.pathname + loc.search;
+        panel.dataset.path = path;
+        panel.setAttribute('tab-label', path.split('/').filter(Boolean).pop() || path);
+        const vis = panels().findIndex(x => !x.hidden);
+        btabs.refresh();
+        if (vis >= 0) btabs.select(vis);
+        saveTabs();
+        doc.addEventListener('click', (e) => {
+          const a = e.target && e.target.closest && e.target.closest('a[target="_blank"]');
+          if (!a || !a.href) return;
+          const u = new URL(a.href, loc.href);
+          if (u.origin !== location.origin) return;   // let externals escape
+          e.preventDefault();
+          openTab(u.pathname + u.search);
+        }, true);
+        f.contentWindow.open = (url) => {
+          if (!url) return null;
+          const u = new URL(url, loc.href);
+          if (u.origin === location.origin) { openTab(u.pathname + u.search); return null; }
+          return window.open(u.href);   // externals still escape, explicitly
+        };
+      });
+    }
+
+    function navigate(path) {
+      path = path.trim();
+      if (!path) return;
+      if (!path.startsWith('/')) path = '/' + path;
+      const cur = panels().find(p => !p.hidden);
+      if (!cur) return openTab(path);
+      cur.dataset.path = path;
+      cur.setAttribute('tab-label', path.split('/').filter(Boolean).pop() || path);
+      cur.querySelector('iframe').src = path;
+      btabs.refresh();
+      requestAnimationFrame(() => btabs.select(panels().indexOf(cur)));
+    }
+
+    $('b-go').addEventListener('click', () => navigate(urlin.value));
+    urlin.addEventListener('keydown', (e) => { if (e.key === 'Enter') navigate(urlin.value); });
+    $('b-new').addEventListener('click', () => openTab(HOME));
+
+    btabs.addEventListener('tg-close', (e) => {
+      e.detail.panel.remove();
+      if (panels().length === 0) openTab(HOME);
+      saveTabs();
+    });
+    btabs.addEventListener('tg-change', (e) => {
+      const p = panels()[e.detail.index];
+      if (p) urlin.value = p.dataset.path || '';
+      saveTabs();
+    });
+
+    // restore last session's tabs; each openTab queues its own select, so
+    // queue the saved-active select after them all
+    let session = null;
+    try { session = JSON.parse(localStorage.getItem('desk-browser-tabs') || 'null'); } catch (_) {}
+    if (session && Array.isArray(session.paths) && session.paths.length) {
+      session.paths.forEach(p => openTab(p || HOME));
+      requestAnimationFrame(() =>
+        btabs.select(Math.min(session.active >= 0 ? session.active : 0, panels().length - 1)));
+    } else {
+      openTab(HOME);
+    }
+
+    // toy chat: echo
+    $('chatin').addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter' || !e.target.value.trim()) return;
+      const log = $('chatlog');
+      const add = (cls, text) => {
+        const m = document.createElement('div');
+        m.className = 'msg ' + cls;
+        m.textContent = text;
+        log.appendChild(m);
+        log.scrollTop = log.scrollHeight;
+      };
+      add('me', e.target.value);
+      add('them', e.target.value + ' — yes, quite.');
+      e.target.value = '';
+    });
+  </script>
+</body>
+</html>

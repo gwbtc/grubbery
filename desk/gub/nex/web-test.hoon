@@ -9,8 +9,13 @@
 /&  tg-js        /lib/ui/tab-group.js
 /&  md-js        /lib/ui/modal-dialog.js
 /&  dm-js        /lib/ui/drop-menu.js
+/&  wm-js        /lib/ui/window-manager.js
+/&  fw-js        /lib/ui/float-window.js
+/&  db-js        /lib/ui/desk-bar.js
+/&  sm-js        /lib/ui/start-menu.js
 /&  icons-svg    web-test/ui/icons.svg
 /&  demo-html    web-test/ui/demo.html
+/&  desk-html    web-test/ui/desktop.html
 ^-  nexus:nexus
 |%
 ++  on-load
@@ -29,7 +34,8 @@
   =/  kit-js=mime
     :-  /application/javascript
     %-  as-octs:mimes:html
-    (rap 3 ~[(wrap sv-js) (wrap tg-js) (wrap dm-js) (wrap md-js)])
+    ::  order matters: window-manager must precede float-window (hard dep)
+    (rap 3 ~[(wrap sv-js) (wrap tg-js) (wrap dm-js) (wrap md-js) (wrap wm-js) (wrap fw-js) (wrap db-js) (wrap sm-js)])
   %+  spin:loader  ball
   :~  (manifest:loader 0)
       [%over %& [/ %'bounce.html'] [[/ %mime] bounce-html]]
@@ -40,9 +46,14 @@
       [%over %& [/ui %'tab-group.js'] [[/ %mime] tg-js]]
       [%over %& [/ui %'modal-dialog.js'] [[/ %mime] md-js]]
       [%over %& [/ui %'drop-menu.js'] [[/ %mime] dm-js]]
+      [%over %& [/ui %'window-manager.js'] [[/ %mime] wm-js]]
+      [%over %& [/ui %'float-window.js'] [[/ %mime] fw-js]]
+      [%over %& [/ui %'desk-bar.js'] [[/ %mime] db-js]]
+      [%over %& [/ui %'start-menu.js'] [[/ %mime] sm-js]]
       [%over %& [/ui %'components.js'] [[/ %mime] kit-js]]
       [%over %& [/ui %'icons.svg'] [[/ %mime] icons-svg]]
       [%over %& [/ui %'demo.html'] [[/ %mime] demo-html]]
+      [%over %& [/ui %'desktop.html'] [[/ %mime] desk-html]]
       [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
       [%fall %| /requests empty-dir:loader]
   ==

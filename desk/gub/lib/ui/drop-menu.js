@@ -22,7 +22,7 @@
 //               closes the menu unless the item has [data-keep-open])
 //   css vars (theme in), house-light defaults:
 //     --dm-bg, --dm-border, --dm-radius, --dm-shadow, --dm-min-width, --dm-gap
-//   events (state out):
+//   events (state out), all bubbling + composed (library policy):
 //     dm-open, dm-close
 //   methods:
 //     .open(), .close(), .toggle()
@@ -109,10 +109,10 @@ class DropMenu extends HTMLElement {
     if (name !== 'open') return;
     if (this.hasAttribute('open')) {
       document.addEventListener('pointerdown', this.#onDocPointer, true);
-      this.dispatchEvent(new CustomEvent('dm-open', { bubbles: true }));
+      this.dispatchEvent(new CustomEvent('dm-open', { bubbles: true, composed: true }));
     } else {
       document.removeEventListener('pointerdown', this.#onDocPointer, true);
-      this.dispatchEvent(new CustomEvent('dm-close', { bubbles: true }));
+      this.dispatchEvent(new CustomEvent('dm-close', { bubbles: true, composed: true }));
     }
   }
 

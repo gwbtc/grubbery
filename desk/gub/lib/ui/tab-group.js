@@ -16,6 +16,9 @@
 //   attributes (config in):
 //     active   initial tab, by 0-based index ("0") or by label ("Tools")
 //     persist  localStorage key; when set, the active tab survives reload
+//     closable boolean; each tab gets an ×. Clicking it only EMITS tg-close —
+//              the host removes the panel (slotchange then rebuilds the strip),
+//              so the host stays in charge of teardown/veto.
 //   slots (content in):
 //     default  each direct child is a panel; its tab-label attribute names
 //              the tab. A child with no tab-label is ignored (not a panel).
@@ -26,10 +29,12 @@
 //     --tg-tab-active  active tab text (default #1f2328)
 //     --tg-accent      active tab underline (default #0969da)
 //     --tg-gap         space between tabs (default 4px)
-//   events (state out):
+//   events (state out), all bubbling + composed (library policy):
 //     tg-change   detail: { index, label }
+//     tg-close    detail: { index, label, panel } — × clicked (closable only)
 //   methods:
 //     .select(indexOrLabel)
+//     .refresh()   re-read panels/labels (after in-place tab-label edits)
 //
 // DESIGN NOTES — same as <split-view>: one self-contained file, shadow DOM
 // for isolation, --tg-* vars are the theming surface, four-channel contract,
@@ -83,6 +88,11 @@ TPL.innerHTML = `
       outline-offset: -2px;
       border-radius: 4px;
     }
+    button.tab .x {
+      display: inline-block; margin-left: 7px; padding: 0 3px;
+      border-radius: 4px; opacity: .45; font-weight: 400;
+    }
+    button.tab .x:hover { opacity: 1; background: #e2e7ee; }
     #panels { flex: 1 1 auto; min-height: 0; }
     ::slotted([tab-label]) { height: 100%; }
     ::slotted([hidden]) { display: none !important; }
@@ -131,6 +141,18 @@ class TabGroup extends HTMLElement {
       btn.tabIndex = -1;
       btn.addEventListener('click', () => this.select(i));
       btn.addEventListener('keydown', this.#onKey);
+      if (this.hasAttribute('closable')) {
+        const x = document.createElement('span');
+        x.className = 'x';
+        x.textContent = '×';
+        x.addEventListener('click', (e) => {
+          e.stopPropagation();
+          this.dispatchEvent(new CustomEvent('tg-close', {
+            detail: { index: i, label, panel }, bubbles: true, composed: true,
+          }));
+        });
+        btn.appendChild(x);
+      }
       this.#strip.appendChild(btn);
       panel.setAttribute('role', 'tabpanel');
       panel.setAttribute('aria-labelledby', id);
@@ -163,7 +185,7 @@ class TabGroup extends HTMLElement {
     if (!silent) {
       this.dispatchEvent(new CustomEvent('tg-change', {
         detail: { index: i, label: this.#panels[i].getAttribute('tab-label') },
-        bubbles: true,
+        bubbles: true, composed: true,
       }));
     }
   }
@@ -183,6 +205,10 @@ class TabGroup extends HTMLElement {
   };
 
   get value() { return this.#panels[this.#index]?.getAttribute('tab-label') ?? null; }
+
+  // re-read panels + labels. Needed after changing a panel's tab-label in
+  // place: attribute edits don't fire slotchange, only add/remove do.
+  refresh() { this.#rebuild(); }
 
   #key() {
     const k = this.getAttribute('persist');

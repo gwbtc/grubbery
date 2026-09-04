@@ -26,7 +26,7 @@
 //     --sv-rail-bg        collapsed reopen-rail bg (default #f6f8fa)
 //     --sv-rail-hover     rail hover bg (default #eaeef2)
 //     --sv-border         divider line color (default #e2e7ee)
-//   events (state out):
+//   events (state out), all bubbling + composed (library policy):
 //     sv-resize   detail: { size } px, while/after dragging
 //     sv-collapse detail: { collapsed } bool
 //   methods:
@@ -258,7 +258,7 @@ class SplitView extends HTMLElement {
     let size = this.#primaryStart ? pos : box - pos;
     size = Math.max(this.#min, Math.min(this.#max, size));
     this.setAttribute('size', Math.round(size) + 'px');
-    this.dispatchEvent(new CustomEvent('sv-resize', { detail: { size: Math.round(size) }, bubbles: true }));
+    this.dispatchEvent(new CustomEvent('sv-resize', { detail: { size: Math.round(size) }, bubbles: true, composed: true }));
   };
 
   #onUp = () => {
@@ -278,7 +278,7 @@ class SplitView extends HTMLElement {
     if (!this.#primaryStart) d = -d;
     const size = Math.max(this.#min, Math.min(this.#max, this.#size + d));
     this.setAttribute('size', Math.round(size) + 'px');
-    this.dispatchEvent(new CustomEvent('sv-resize', { detail: { size: Math.round(size) }, bubbles: true }));
+    this.dispatchEvent(new CustomEvent('sv-resize', { detail: { size: Math.round(size) }, bubbles: true, composed: true }));
     this.#save();
     e.preventDefault();
   };
@@ -287,13 +287,13 @@ class SplitView extends HTMLElement {
 
   collapse() {
     this.setAttribute('collapsed', '');
-    this.dispatchEvent(new CustomEvent('sv-collapse', { detail: { collapsed: true }, bubbles: true }));
+    this.dispatchEvent(new CustomEvent('sv-collapse', { detail: { collapsed: true }, bubbles: true, composed: true }));
     this.#save();
   }
 
   expand() {
     this.removeAttribute('collapsed');
-    this.dispatchEvent(new CustomEvent('sv-collapse', { detail: { collapsed: false }, bubbles: true }));
+    this.dispatchEvent(new CustomEvent('sv-collapse', { detail: { collapsed: false }, bubbles: true, composed: true }));
     this.#save();
   }
 
