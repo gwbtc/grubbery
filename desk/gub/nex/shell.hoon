@@ -108,6 +108,20 @@
           [%over %& [/docs %'grubs.md'] [[/ %mime] (md-seed grubs-md)]]
           [%over %& [/docs %'fibers.md'] [[/ %mime] (md-seed fibers-md)]]
           [%over %& [/docs %'roadmap.md'] [[/ %mime] (md-seed roadmap-md)]]
+          ::  tutorials
+          [%over %& [/docs %'hello-nexus.md'] [[/ %mime] (md-seed hello-nexus-md)]]
+          [%over %& [/docs %'serving-a-page.md'] [[/ %mime] (md-seed serving-a-page-md)]]
+          [%over %& [/docs %'talking-to-apis.md'] [[/ %mime] (md-seed talking-to-apis-md)]]
+          ::  principles
+          [%over %& [/docs %'namespace-first.md'] [[/ %mime] (md-seed namespace-first-md)]]
+          [%over %& [/docs %'reboot-anytime.md'] [[/ %mime] (md-seed reboot-anytime-md)]]
+          [%over %& [/docs %'composition.md'] [[/ %mime] (md-seed composition-md)]]
+          ::  subsystems
+          [%over %& [/docs %'permissions.md'] [[/ %mime] (md-seed permissions-md)]]
+          [%over %& [/docs %'desks.md'] [[/ %mime] (md-seed desks-md)]]
+          [%over %& [/docs %'cross-ship.md'] [[/ %mime] (md-seed cross-ship-md)]]
+          [%over %& [/docs %'http-serving.md'] [[/ %mime] (md-seed http-serving-md)]]
+          [%over %& [/docs %'code-nexuses.md'] [[/ %mime] (md-seed code-nexuses-md)]]
           [%over %& [/ %'app.js'] [[/ %mime] app-js]]
           [%over %& [/ %'style.css'] [[/ %mime] app-css]]
           [%over %& [/ %'permits.html'] [[/ %mime] permits-html]]
@@ -850,10 +864,27 @@
     (pairs:enjs:format ~[['title' s+t] ['kids' [%a kids]]])
   :-  %a
   :~  (doc 'intro.md' 'Introduction')
+      %+  sec  'Principles'
+      :~  (doc 'namespace-first.md' 'Namespace-first')
+          (doc 'reboot-anytime.md' 'Reboot-anytime')
+          (doc 'composition.md' 'Composition over entanglement')
+      ==
       %+  sec  'Core model'
       :~  (doc 'nexuses.md' 'Nexuses')
           (doc 'grubs.md' 'Grubs & the namespace')
           (doc 'fibers.md' 'Fibers')
+      ==
+      %+  sec  'Tutorials'
+      :~  (doc 'hello-nexus.md' 'Your first nexus')
+          (doc 'serving-a-page.md' 'Serving a web page')
+          (doc 'talking-to-apis.md' 'Talking to external APIs')
+      ==
+      %+  sec  'Subsystems'
+      :~  (doc 'permissions.md' 'Permissions')
+          (doc 'desks.md' 'Desks')
+          (doc 'cross-ship.md' 'Cross-ship')
+          (doc 'http-serving.md' 'HTTP serving')
+          (doc 'code-nexuses.md' 'Code nexuses')
       ==
       (doc 'roadmap.md' 'TODO & future topics')
   ==
@@ -1453,6 +1484,103 @@
 
   - [ ] The in-browser editor (`<code-editor>` + save)
   - [ ] A worked example, end to end
+  '''
+::
+::  === tutorials ===
+::
+++  hello-nexus-md
+  '''
+  # Your first nexus
+
+  *How to build a minimal nexus from scratch — on-load, on-file, and the fiber lifecycle.*
+
+  (Coming soon)
+  '''
+++  serving-a-page-md
+  '''
+  # Serving a web page
+
+  *Bind an HTTP route, serve static assets, and build a simple UI on grubbery primitives.*
+
+  (Coming soon)
+  '''
+++  talking-to-apis-md
+  '''
+  # Talking to external APIs
+
+  *Use iris to call HTTP APIs, parse JSON responses, and persist results as grubs.*
+
+  (Coming soon)
+  '''
+::
+::  === principles ===
+::
+++  namespace-first-md
+  '''
+  # Namespace-first
+
+  *Authoritative state lives in the namespace. Derived and rebuildable caches go in sibling grubs. Write-cost never justifies moving truth out.*
+
+  (Coming soon)
+  '''
+++  reboot-anytime-md
+  '''
+  # Reboot-anytime
+
+  *The core contract: reboot at any point, recover from persisted state. Restarts are not hazards — they are the normal case.*
+
+  (Coming soon)
+  '''
+++  composition-md
+  '''
+  # Composition over entanglement
+
+  *A program vs a substrate. Nexuses compose through the namespace, not through shared mutable state. The strangler-fig pattern for migrating Gall agents.*
+
+  (Coming soon)
+  '''
+::
+::  === subsystems ===
+::
+++  permissions-md
+  '''
+  # Permissions
+
+  *Sources vs views, grant.json, consent flows, the active/denied/missing/unmanaged overlay.*
+
+  (Coming soon)
+  '''
+++  desks-md
+  '''
+  # Desks
+
+  *Install, sync, the follower model, publishing from a git repo to a desk.*
+
+  (Coming soon)
+  '''
+++  cross-ship-md
+  '''
+  # Cross-ship
+
+  *Weirs, capability-scoped reaches, cross-ship peeks, veto/tomb, the snap protocol.*
+
+  (Coming soon)
+  '''
+++  http-serving-md
+  '''
+  # HTTP serving
+
+  *Binding routes, web.sig, static shell + data endpoints, the serve pattern, content-types.*
+
+  (Coming soon)
+  '''
+++  code-nexuses-md
+  '''
+  # Code nexuses
+
+  *Scoped code builds, find-code resolution, check_bin, dynamic tools.*
+
+  (Coming soon)
   '''
 ::  === repos-to-sync bootstrap (shell-owned git_repo + desk setup) ===
 ::  default-repos: the shipped list of libraries this ship follows by
