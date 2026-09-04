@@ -63,12 +63,11 @@
           ::  map of @alias -> 'public' | [usergroup paths]. Absent = private
           ::  (the default): an app never chooses its own discoverability.
           [%fall %& [/permit %'share.json'] [[/ %json] [%o ~]]]
-          ::  /book: the discovery registry. One grub per @alias holding the
-          ::  current claimants and their locations — the alias menu made
-          ::  materialized-and-subscribable, so peers (local or cross-ship)
-          ::  can `keep` a name and learn where its app lives, and get pushed
-          ::  the new location when it moves.
-          [%fall %| /book empty-dir:loader]
+          ::  /sys/link: the discovery registry lives at the system level.
+          ::  One dest.json per @name holding its claimants+locations —
+          ::  the alias menu made materialized-and-subscribable, so peers
+          ::  (local or cross-ship) can `keep` a name and learn where its
+          ::  app lives, and get pushed the new location when it moves.
           ::  sweep.sig: poke target for "new apps may exist — look now".
           ::  Desk installs poke it after applying their bill, so fresh
           ::  apps get followers (and their rise-notify) immediately
@@ -79,13 +78,9 @@
           ::  again automatically. The marker is NOT seeded here — its absence
           ::  is what signals "first boot".
           [%fall %& [/ %'bootstrap.sig'] [[/ %sig] ~]]
-          ::  /book/main.sig: the discovery-grant fiber. Owns the registry
-          ::  grants for /book files (it sits at /book, so they're in its
-          ::  subtree), recomputed from permit/share.json by subscription.
-
           ::  /sync: one pure-follower grub per app, mirroring /apps. Each
           ::  follows its app's files by subscription and pings the scanner
-          ::  to reconcile — so /book (and the asks) stay current without a
+          ::  to reconcile — so /sys/link (and the asks) stay current without a
           ::  poll. /sync/main.sig is the coordinator: it watches /apps
           ::  membership and spawns/keeps the followers.
           [%fall %| /sync empty-dir:loader]
@@ -148,7 +143,7 @@
         (http-dispatch:io %shell)
           ::  usergroups.sig: register once, then hold every shell grant
           ::  current — the base /public grant on public.json plus the
-          ::  per-group /book shares from permit/share.json — and keep
+          ::  per-group /sys/link shares from permit/share.json — and keep
           ::  public.json (inert json) an honest reflection of the /public
           ::  group's weir. Event-driven: wakes on share.json changes, on
           ::  the public group's weir changing (desk grants), or a poke.
@@ -164,8 +159,8 @@
           (keep:io /pubw [%& %& /sys/ames/usergroups/'public.grp' %'how.weir'] ~)
         =|  prev=(set path)
         |-
-        ;<  shares=(map path (set @ta))  bind:m  (read-shares rail nex-dir)
-        ::  one %how per group, total-state: base grant + that group's book
+        ;<  shares=(map path (set road:tarball))  bind:m  (read-shares rail nex-dir)
+        ::  one %how per group, total-state: base grant + that group's name
         ::  shares. /public always recomputes (the base grant rides it);
         ::  prev keeps un-shared groups in the set once more to clear them.
         =/  groups=(list path)
@@ -175,7 +170,7 @@
           |-  ^-  form:m
           ?~  groups  (pure:m ~)
           =/  grp=path  i.groups
-          =/  files=(set @ta)  (fall (~(get by shares) grp) ~)
+          =/  link-roads=(set road:tarball)  (fall (~(get by shares) grp) ~)
           =/  base=(set road:tarball)
             ?.  =(/public grp)  ~
             %-  sy
@@ -185,9 +180,7 @@
                 ::  discover which desks it may subscribe to and where.
                 [%& %& (weld nex-dir /share/public) %'desks.json']
             ==
-          =/  peeks=(set road:tarball)
-            %-  ~(gas in base)
-            (turn ~(tap in files) |=(f=@ta `road:tarball`[%& %& (weld nex-dir /book) f]))
+          =/  peeks=(set road:tarball)  (~(uni in base) link-roads)
           ;<  ~  bind:m  (reg-how:io grp [~ ~ peeks])
           $(groups t.groups)
         =.  prev  ~(key by shares)
@@ -211,7 +204,7 @@
         ;<  made=?  bind:m  (spawn-followers rail)
         ;<  ~  bind:m
           ?.  made  (pure:(fiber:fiber:nexus ,~) ~)
-          ;<  ~  bind:(fiber:fiber:nexus ,~)  (build-book rail)
+          ;<  ~  bind:(fiber:fiber:nexus ,~)  (build-links rail)
           ;<  ~  bind:(fiber:fiber:nexus ,~)  (build-asks rail)
           ;<  ~  bind:(fiber:fiber:nexus ,~)  (build-aliases rail)
           (build-weirs rail)
@@ -269,7 +262,7 @@
         $
           ::  /sync/<app>: a pure follower. Subscribes to its app's tree and
           ::  on any change (alias.json, weir.json, …) pings the scanner to
-          ::  reconcile /book and the asks. Holds no state, writes nothing.
+          ::  reconcile /sys/link and the asks. Holds no state, writes nothing.
           ::
           [[%sync *] @]
         ;<  ~  bind:m  (rise-wait:io prod "%shell follow: failed")
@@ -307,7 +300,7 @@
             ?.  (~(has by notified) key)  (pure:(fiber:fiber:nexus ,~) ~)
             %+  put:io  (nex-road:io rail [%& /permit %'notified.json'])
             [[/ %json] [%o (~(del by notified) key)]]
-          ;<  ~  bind:m  (build-book rail)
+          ;<  ~  bind:m  (build-links rail)
           ;<  ~  bind:m  (build-asks rail)
           ;<  ~  bind:m  (build-share rail)
           (pure:m ~)
@@ -315,7 +308,7 @@
         ::  unsettled (the subscription IS the dedup — news only fires on
         ::  actual change), then refresh the caches.
         ;<  ~  bind:m  (notify-if-unsettled rail u.ap)
-        ;<  ~  bind:m  (build-book rail)
+        ;<  ~  bind:m  (build-links rail)
         ;<  ~  bind:m  (build-asks rail)
         ;<  ~  bind:m  (build-aliases rail)
         ;<  ~  bind:m  (build-weirs rail)
@@ -510,7 +503,7 @@
           ::  sweep that spawned anything rebuilds the caches once now.
           ;<  ~  bind:m
             ?.  made  (pure:(fiber:fiber:nexus ,~) ~)
-            ;<  ~  bind:(fiber:fiber:nexus ,~)  (build-book rail)
+            ;<  ~  bind:(fiber:fiber:nexus ,~)  (build-links rail)
             ;<  ~  bind:(fiber:fiber:nexus ,~)  (build-asks rail)
             ;<  ~  bind:(fiber:fiber:nexus ,~)  (build-aliases rail)
             (build-weirs rail)
@@ -1465,7 +1458,7 @@
 
   - [ ] Weirs: capability-scoped reaches, empty `{}` vs absent `~`
   - [ ] Cross-ship peeks, veto/tomb, the snap protocol
-  - [ ] Discovery: usergroups, grants, the alias/book registry
+  - [ ] Discovery: usergroups, grants, the /sys/link registry
 
   ## Building real things
 
@@ -2014,21 +2007,21 @@
   ;<  ~  bind:m  (put:io (nex-road:io rail [%& /permit %'hidden.json']) [[/ %json] next])
   (build-asks rail)
 ::  +read-shares: permit/share.json inverted for granting — usergroup
-::  path -> set of /book files it may peek. 'public' maps to /public.
+::  path -> set of /sys/link roads it may peek. 'public' maps to /public.
 ::
 ++  read-shares
   |=  [rail=rail:tarball nex-dir=path]
-  =/  m  (fiber:fiber:nexus ,(map path (set @ta)))
+  =/  m  (fiber:fiber:nexus ,(map path (set road:tarball)))
   ^-  form:m
   ;<  sv=(unit json)  bind:m
     (peek-as:io (nex-road:io rail [%& /permit %'share.json']) ,json)
   =/  jon=json  (fall sv [%o ~])
   ?.  ?=(%o -.jon)  (pure:m ~)
-  =|  out=(map path (set @ta))
+  =|  out=(map path (set road:tarball))
   =/  entries=(list [al=@t v=json])  ~(tap by p.jon)
   |-  ^-  form:m
   ?~  entries  (pure:m out)
-  =/  file=@ta  (book-file al.i.entries)
+  =/  road=road:tarball  (link-road al.i.entries)
   =/  grps=(list path)
     ?:  ?=([%s *] v.i.entries)
       ?:  =('public' p.v.i.entries)  ~[/public]
@@ -2036,10 +2029,10 @@
     ?.  ?=([%a *] v.i.entries)  ~
     %+  murn  p.v.i.entries
     |=(g=json ?.(?=([%s *] g) ~ (soft-path p.g)))
-  =/  o=(map path (set @ta))
+  =/  o=(map path (set road:tarball))
     %+  roll  grps
     |=  [g=path acc=_out]
-    (~(put by acc) g (~(put in (fall (~(get by acc) g) ~)) file))
+    (~(put by acc) g (~(put in (fall (~(get by acc) g) ~)) road))
   $(entries t.entries, out o)
 ::  +read-approved: the permit/approved grub — the map of app path -> its
 ::  consented manifest. The system of record for present grant state.
@@ -2185,8 +2178,7 @@
       ?~  share  (~(del by mp) alias)
       ?:  ?=(~ u.share)  (~(del by mp) alias)
       (~(put by mp) alias u.share)
-    ::  the /book/main.sig fiber keeps share.json — writing it IS the
-    ::  nudge; grants re-apply on the news.
+    ::  writing share.json IS the nudge; grants re-apply on the news.
     (put:io (nex-road:io rail [%& /permit %'share.json']) [[/ %json] [%o nxt]])
   ?:  ?&  ?|(=('alias-suppress' act) =('alias-unsuppress' act))
           ?!(=('' alias))
@@ -2440,15 +2432,23 @@
     ?.  ?=(%o -.o)  o
     [%o (~(put by p.o) 'hidden' b+&)]
   (pure:m [%o (~(run by menus) |=(opts=(list json) `json`[%a opts]))])
-::  +book-file: the /book grub name for an @alias. Strips the leading @
-::  and appends .json — '@pad' -> 'pad.json'.
+::  +link-road: the /sys/link road for an @alias. Strips the leading @
+::  and splits on / to build the path — '@pad' -> /sys/link/pad/dest.json,
+::  '@chat/v1' -> /sys/link/chat/v1/dest.json. The registry lives outside
+::  any nexus subtree so it's world-readable by default.
 ::
-++  book-file
+++  link-road
   |=  nm=@t
-  ^-  @ta
-  =/  tp=tape  (trip nm)
-  =/  bare=tape  ?~(tp ~ t.tp)
-  (cat 3 (crip bare) '.json')
+  ^-  road:tarball
+  [%& %& (link-dir nm) %'dest.json']
+::  +link-dir: the /sys/link directory path for an @alias (for shallow
+::  listing during cull).
+::
+++  link-dir
+  |=  nm=@t
+  ^-  path
+  =/  bare=tape  ?~((trip nm) ~ (slag 1 (trip nm)))
+  (weld /sys/link (stab (crip (weld "/" bare))))
 ::  +spawn-followers: ensure a /sync/<app> follower grub exists for every
 ::  top-level app in /apps. Making the grub starts its follower fiber (the
 ::  [[%sync ~] @] case). Idempotent — skips ones already present. (Culling
@@ -2548,29 +2548,22 @@
   ;<  err=(unit tang)  bind:m  (make-soft:io fr |+[[[/ %sig] ~] ~])
   ~?  >>>  ?=(^ err)  [%shell-sync-spawn-failed i.roots]
   $(roots t.roots, made |(made ?=(~ err)))
-::  +build-book: materialize the discovery registry. For each @alias, write
-::  /book/<name>.json holding its claimants+locations (the alias menu made
-::  a real, subscribable grub). Only writes on a genuine content change, so
-::  an idle rescan doesn't bump versions and spam subscribers. Discovery is
-::  the whole job — the grub holds WHERE apps are, never their data.
+::  +build-links: materialize the discovery registry at /sys/link/. For
+::  each @name, write /sys/link/<segments>/dest.json holding its claimants
+::  and locations. Only writes on a genuine content change, so an idle
+::  rescan doesn't bump versions and spam subscribers. Discovery is the
+::  whole job — the grub holds WHERE apps are, never their data.
 ::
-::  INVARIANT: /book MUST always be current. A discovery registry that lags
-::  hands out stale locations — it's worthless if it can be stale. Being
-::  rebuilt on the notify scanner's heartbeat (a POLL) is a placeholder and
-::  is NOT good enough.
+::  INVARIANT: /sys/link MUST always be current. A discovery registry that
+::  lags hands out stale locations — it's worthless if it can be stale.
 ::
-::  TODO (not built yet): drive this by SUBSCRIPTION, never a poll. Seed with
-::  one scan on load, then subscribe to /apps membership (apps installed /
-::  removed / moved) AND to EACH app's alias.json individually as it's
-::  discovered (apps can self-edit alias.json), rebuilding the affected
-::  /book entry the moment any of them fires. Poll drops to a bare backstop
-::  or goes entirely.
+::  TODO (not built yet): drive this by SUBSCRIPTION, never a poll.
 ::
 ::  TODO (related): alias resolution is frozen into grant.json bindings at
-::  approval time. When /book shows an @alias now resolves to a different
-::  target, every approved weir that referenced that alias is pointing at a
+::  approval time. When /sys/link shows an @name now resolves to a different
+::  target, every approved weir that referenced that name is pointing at a
 ::  stale path — the shell should surface those and ask the user to re-point
-::  them. /book being live is the signal that a binding went stale.
+::  them.
 ::
 ::  +build-share: invert every local desk's share.usergroups into per-
 ::  usergroup discovery directories. /share/<group>/desks.json lists the
@@ -2625,33 +2618,32 @@
       ['code' s+(crip "/apps/{(trip name)}/desk/code")]
   ==
 ::
-++  build-book
+++  build-links
   |=  rail=rail:tarball
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
   ;<  menus=(map @t (list json))  bind:m  read-app-aliases
   =/  entries=(list [nm=@t opts=(list json)])  ~(tap by menus)
-  =/  want=(set @ta)  (silt (turn entries |=([nm=@t *] (book-file nm))))
+  =/  want=(set path)  (silt (turn entries |=([nm=@t *] (link-dir nm))))
   |-  ^-  form:m
   ?~  entries
-    ::  cull pass: drop /book grubs whose alias no longer has any claimant
-    ;<  bv=view:nexus  bind:m  (peek-shallow:io (nex-road:io rail [%| /book]) ~)
+    ::  cull pass: drop /sys/link dirs whose alias no longer has any claimant
+    ;<  bv=view:nexus  bind:m  (peek-shallow:io [%& %| /sys/link] ~)
     ?.  ?=([%ball *] bv)  (pure:m ~)
     =/  haves=(list @ta)  ~(tap in ~(key by dir.ball.bv))
     |-  ^-  form:m
     ?~  haves  (pure:m ~)
-    ?:  (~(has in want) i.haves)  $(haves t.haves)
-    ;<  *  bind:m  (cull-soft:io (nex-road:io rail [%& /book i.haves]))
+    ?:  (~(has in want) /sys/link/[i.haves])  $(haves t.haves)
+    ;<  *  bind:m  (cull-soft:io [%& %| /sys/link/[i.haves]])
     $(haves t.haves)
-  =/  fname=@ta  (book-file nm.i.entries)
+  =/  road=road:tarball  (link-road nm.i.entries)
   =/  wj=json   [%a opts.i.entries]
-  ;<  cur=view:nexus  bind:m
-    (peek:io (nex-road:io rail [%& /book fname]) `[/ %json])
+  ;<  cur=view:nexus  bind:m  (peek:io road `[/ %json])
   =/  have=(unit json)
     ?.  ?=([%file *] cur)  ~
     (mole |.(!<(json (need-vase:tarball sang.cur))))
   ?:  =(`wj have)  $(entries t.entries)
-  ;<  ~  bind:m  (put:io (nex-road:io rail [%& /book fname]) [[/ %json] wj])
+  ;<  ~  bind:m  (put:io road [[/ %json] wj])
   $(entries t.entries)
 ::  +build-aliases: materialize the alias directory (menus incl. hidden
 ::  marks) into /permit/aliases.json — the permits page reads it ready.
@@ -2714,8 +2706,8 @@
 ::  +build-asks: materialize the pending-asks view into /permit/asks.json so
 ::  the UI fetches a ready grub instead of re-running read-app-weirs +
 ::  alias-menu marking on every request. Same diff-then-write discipline as
-::  build-book. Kept fresh by the followers and by
-::  do-suppress (hidden changes affect the @alias resolution marking).
+::  build-links. Kept fresh by the followers and by
+::  do-suppress (hidden changes affect the @name resolution marking).
 ::
 ++  build-asks
   |=  rail=rail:tarball
@@ -2800,6 +2792,28 @@
   ^-  json
   ?.  ?=(%o -.ask)  [%a ~]
   (fall (~(get by p.ask) cat) [%a ~])
+::  +parse-at-ref: split an @-prefixed ref into [name suffix]. Handles
+::  both @simple/suffix and @'quoted/name'/suffix forms.
+::
+++  parse-at-ref
+  |=  ref=@t
+  ^-  [aname=@t suffix=@t]
+  =/  tap=tape  (trip ref)
+  ?~  tap  [ref '']
+  ?.  =('@' i.tap)  [ref '']
+  =/  rest=tape  t.tap
+  ?~  rest  [ref '']
+  ?:  =(39 i.rest)
+    =/  close=(unit @ud)  (find "'" t.rest)
+    ?~  close  [ref '']
+    =/  name=@t  (crip (scag u.close t.rest))
+    =/  after=tape  (slag +(u.close) t.rest)
+    [(cat 3 '@' name) ?~(after '' (crip after))]
+  =/  idx=(unit @ud)  (find "/" rest)
+  ?~  idx  [ref '']
+  =/  aname=@t  (crip (scag +(u.idx) `tape`tap))
+  =/  suffix=@t  (crip (slag u.idx `tape`rest))
+  [aname suffix]
 ::  +ref-aliases: the unique @alias names referenced across an ask (the
 ::  base, before any /sub-path). For building the app's grant.json map.
 ::
@@ -2812,23 +2826,19 @@
     %+  roll  all
     |=  [s=@t acc=(set @t)]
     ?.  =("@" (scag 1 (trip s)))  acc
-    =/  tap=tape  (trip s)
-    =/  idx=(unit @ud)  (find "/" tap)
-    (~(put in acc) ?~(idx s (crip (scag u.idx tap))))
+    (~(put in acc) aname:(parse-at-ref s))
   ~(tap in names)
 ::  +resolve-alias-ref: a weir.json target -> concrete road text. A plain
 ::  road passes through; an @alias resolves against the menu (first
-::  option's path for now) with everything after the first / appended as
-::  the sub-path. '' when the alias has no options.
+::  option's path for now) with everything after the @name appended as
+::  the sub-path. Supports @'multi/segment' names. '' when the alias
+::  has no options.
 ::
 ++  resolve-alias-ref
   |=  [picks=json menus=json ref=@t]
   ^-  @t
   ?.  =("@" (scag 1 (trip ref)))  ref
-  =/  tap=tape  (trip ref)
-  =/  idx=(unit @ud)  (find "/" tap)
-  =/  aname=@t  ?~(idx ref (crip (scag u.idx tap)))
-  =/  suffix=@t  ?~(idx '' (crip (slag u.idx tap)))
+  =/  [aname=@t suffix=@t]  (parse-at-ref ref)
   ::  the user's explicit pick for this alias wins; else the first option
   =/  picked=@t  ?.(?=(%o -.picks) '' (fall (jget picks aname) ''))
   =/  base=@t
