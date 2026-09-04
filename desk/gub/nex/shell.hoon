@@ -83,6 +83,10 @@
           ::  poll. /sync/main.sig is the coordinator: it watches /apps
           ::  membership and spawns/keeps the followers.
           [%fall %| /sync empty-dir:loader]
+          ::  /desks: installed remote code (desk nexus instances). Lives
+          ::  under the shell, not /apps — desks need permission management,
+          ::  built-in apps at /apps don't.
+          [%fall %| /desks empty-dir:loader]
           ::  /share: per-usergroup discovery directories, derived from
           ::  local desks' share.usergroups. /share/<group>/desks.json lists
           ::  the desks that group may subscribe to and where their code +
@@ -370,7 +374,8 @@
           =/  rt=(unit path)  (soft-path (fall (jget jon 'root') ''))
           =/  target=(unit path)
             ?~  rt  ~
-            ?:  ?=([%apps @ %desk %data @ ~] u.rt)  `/apps/[i.t.u.rt]
+            ?:  ?=([%apps %'shell.shell' %desks @ %desk %data @ ~] u.rt)
+              `/apps/'shell.shell'/desks/[i.t.t.t.u.rt]
             ?:  ?=([%apps @ ~] u.rt)  `u.rt
             ~
           ?~  target
@@ -407,7 +412,8 @@
           ?:  =('' code)
             ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'code required')])
             (pure:m ~)
-          =/  dir-path=path  /apps/[(cat 3 `@ta`name '.desk')]
+          =/  dir-path=path
+            /apps/'shell.shell'/desks/[(cat 3 `@ta`name '.desk')]
           ;<  live=?  bind:m  (peek-exists:io [%& %| dir-path])
           ?:  live
             ;<  ~  bind:m  (send-simple:srv eyre-id [[409 ~] `(as-octs:mimes:html 'a desk by that name already exists')])
@@ -428,7 +434,7 @@
           ;<  ~  bind:m  sync-defaults
           ;<  ~  bind:m  (send-simple:srv eyre-id [[200 ~] `(as-octs:mimes:html 'synced')])
           (pure:m ~)
-        ::  POST /desks/delete {app}: cull the /apps/<app> subtree.
+        ::  POST /desks/delete {app}: cull a desk from /desks/<app>.
         ?:  &(=('POST' method.request.req) ?=([%desks %delete ~] suffix))
           =/  jon=json
             %+  fall  (de:json:html ?~(body.request.req '' q.u.body.request.req))
@@ -437,7 +443,8 @@
           ?:  =('' app)
             ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'app required')])
             (pure:m ~)
-          ;<  ~  bind:m  (cull:io [%& %| /apps/[(crip (trip app))]])
+          ;<  ~  bind:m
+            (cull:io (nex-road:io rail [%| /desks/[(crip (trip app))]]))
           ;<  ~  bind:m  (send-simple:srv eyre-id [[200 ~] `(as-octs:mimes:html 'deleted')])
           (pure:m ~)
         ::  tile store, served from the tiles data ball over the namespace
@@ -453,12 +460,13 @@
         ::  file. The path may be deep (a desk-install's desk/data/<nexus>).
         ?:  ?=([%icon ^] suffix)
           ::  reconstruct the nexus root from the compressed icon path:
-          ::  <desk>/<nexus> -> /apps/<desk>/desk/data/<nexus>, a bare
-          ::  <nexus> -> /apps/<nexus>, or a full /apps/... path as-is.
+          ::  <desk>/<nexus> -> /apps/shell.shell/desks/<desk>/desk/data/<nexus>,
+          ::  a bare <nexus> -> /apps/<nexus>, or a full /apps/... path as-is.
           =/  segs=path  t.suffix
           =/  root=path
             ?:  ?=([%apps *] segs)  segs
-            ?:  ?=([@ @ ~] segs)  ~[%apps i.segs %desk %data i.t.segs]
+            ?:  ?=([@ @ ~] segs)
+              ~[%apps %'shell.shell' %desks i.segs %desk %data i.t.segs]
             ?:  ?=([@ ~] segs)  ~[%apps i.segs]
             [%apps segs]
           ;<  kid-root=view:nexus  bind:m
@@ -555,10 +563,11 @@
           ;<  ~  bind:m
             (send-simple:srv eyre-id [[200 ~[['content-type' 'application/json']]] `bod])
           (pure:m ~)
-        ::  /grubbery/tiles/desks/taken → every /apps child name, for
+        ::  /grubbery/tiles/desks/taken → every /desks child name, for
         ::  install-name availability checks.
         ?:  ?=([%desks %taken ~] suffix)
-          ;<  =view:nexus  bind:m  (peek-shallow:io [%& %| /apps] ~)
+          ;<  =view:nexus  bind:m
+            (peek-shallow:io [%& %| /apps/'shell.shell'/desks] ~)
           =/  names=(list @ta)
             ?.  ?=([%ball *] view)  ~
             ~(tap in ~(key by dir.ball.view))
@@ -1615,7 +1624,7 @@
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
   =/  name=@t  (stock-name entry)
-  =/  desk-dir=path  /apps/[(cat 3 `@ta`name '.desk')]
+  =/  desk-dir=path  /apps/'shell.shell'/desks/[(cat 3 `@ta`name '.desk')]
   ::  the /code path the desk will follow
   =/  code=@t
     ?-  -.entry
@@ -1664,7 +1673,7 @@
   |-  ^-  form:m
   ?~  todo  (pure:m a+(flop acc))
   =/  name=@t  (stock-name i.todo)
-  =/  desk-dir=path  /apps/[(cat 3 `@ta`name '.desk')]
+  =/  desk-dir=path  /apps/'shell.shell'/desks/[(cat 3 `@ta`name '.desk')]
   ;<  has-desk=?  bind:m  (peek-exists:io [%& %| desk-dir])
   ;<  src=(unit json)  bind:m
     ?.  has-desk  (pure:(fiber:fiber:nexus ,(unit json)) ~)
@@ -1710,16 +1719,15 @@
 ++  installed-sources
   =/  m  (fiber:fiber:nexus ,(map @t @t))
   ^-  form:m
-  ;<  =view:nexus  bind:m  (peek-shallow:io [%& %| /apps] ~)
+  ;<  =view:nexus  bind:m
+    (peek-shallow:io [%& %| /apps/'shell.shell'/desks] ~)
   ?.  ?=([%ball *] view)  (pure:m ~)
   =/  kids=(list @ta)  ~(tap in ~(key by dir.ball.view))
   =|  acc=(map @t @t)
   |-
   ?~  kids  (pure:m acc)
-  ::  a local desk's source.json.code is the peer road it follows — the same
-  ::  key a peer card carries, so a mirrored desk shows as already installed.
   ;<  src=(unit json)  bind:m
-    (peek-as:io [%& %& /apps/[i.kids] %'source.json'] ,json)
+    (peek-as:io [%& %& /apps/'shell.shell'/desks/[i.kids] %'source.json'] ,json)
   ?~  src  $(kids t.kids)
   =/  code=@t  (jstr u.src 'code')
   ?:  =('' code)  $(kids t.kids)
@@ -1851,13 +1859,14 @@
   ?.  ?=([%o *] jon)  ''
   =/  v  (~(get by p.jon) k)
   ?.(?=([~ %s *] v) '' p.u.v)
-::  +discover-desks: every local /apps/<x>.desk with its source and a link
+::  +discover-desks: every local desk instance with its source and a link
 ::  to its own page — the shell's desk launcher (config/publish live there).
 ::
 ++  discover-desks
   =/  m  (fiber:fiber:nexus ,json)
   ^-  form:m
-  ;<  =view:nexus  bind:m  (peek:io [%& %| /apps] ~)
+  ;<  =view:nexus  bind:m
+    (peek:io [%& %| /apps/'shell.shell'/desks] ~)
   ?.  ?=([%ball *] view)  (pure:m a+~)
   =/  apps=(list @ta)  ~(tap in ~(key by dir.ball.view))
   ;<  cards=(list json)  bind:m  (gather-desks apps)
@@ -1876,9 +1885,8 @@
   |=  app=@ta
   =/  m  (fiber:fiber:nexus ,(unit json))
   ^-  form:m
-  ?.  =('desk' (desk-suffix app))  (pure:m ~)
   ;<  sj=(unit json)  bind:m
-    (peek-as:io [%& %& /apps/[app] %'source.json'] ,json)
+    (peek-as:io [%& %& /apps/'shell.shell'/desks/[app] %'source.json'] ,json)
   =/  code=@t  ?~(sj '' (jstr u.sj 'code'))
   ::  publishing + source editing live in the desk's OWN page now; this list
   ::  is just navigation, so it carries name, source, and a link to the page.
@@ -2128,10 +2136,10 @@
   ^-  form:m
   =/  pax=path  (fall (soft-path app) /unknown)
   ::  desk-nested apps keep their nested identity in the title:
-  ::  /apps/<desk>/desk/data/<app> -> "<desk>/<app>".
+  ::  /apps/shell.shell/desks/<desk>/desk/data/<app> -> "<desk>/<app>".
   =/  nm=@t
-    ?:  ?=([%apps @ %desk %data @ ~] pax)
-      (rap 3 (app-slug i.t.pax) '/' (app-slug i.t.t.t.t.pax) ~)
+    ?:  ?=([%apps %'shell.shell' %desks @ %desk %data @ ~] pax)
+      (rap 3 (app-slug i.t.t.t.pax) '/' (app-slug i.t.t.t.t.t.t.pax) ~)
     (app-slug (rear pax))
   =/  meta=json
     %-  pairs:enjs:format
@@ -2332,33 +2340,27 @@
 ++  app-roots
   =/  m  (fiber:fiber:nexus ,(list path))
   ^-  form:m
+  ::  built-in apps: every direct child of /apps (no neck check needed)
   ;<  av=view:nexus  bind:m  (peek-shallow:io [%& %| /apps] ~)
-  ?.  ?=([%ball *] av)  (pure:m ~)
-  =/  kids=(list @ta)  ~(tap in ~(key by dir.ball.av))
+  =/  builtins=(list path)
+    ?.  ?=([%ball *] av)  ~
+    (turn ~(tap in ~(key by dir.ball.av)) |=(k=@ta /apps/[k]))
+  ::  desk apps: each child of /desks is a desk wrapper; its real apps
+  ::  are the children of /desk/data (what apply-bill creates).
+  ;<  dv=view:nexus  bind:m
+    (peek-shallow:io [%& %| /apps/'shell.shell'/desks] ~)
+  ?.  ?=([%ball *] dv)  (pure:m builtins)
+  =/  desks=(list @ta)  ~(tap in ~(key by dir.ball.dv))
   =|  out=(list path)
   |-  ^-  form:m
-  ?~  kids  (pure:m (flop out))
-  =/  kid=@ta  i.kids
-  ::  a shallow listing STUBS its dir kids (neck=~ always), so the kid's
-  ::  own neck must come from peeking the kid itself — its own lump
-  ::  carries the real neck.
-  ;<  kv=view:nexus  bind:m  (peek-shallow:io [%& %| /apps/[kid]] ~)
-  =/  nek=(unit neck:tarball)
-    ?.  ?=([%ball *] kv)  ~
-    ?~(fil.ball.kv ~ neck.u.fil.ball.kv)
-  ?.  =(`[/ %desk] nek)
-    ::  a plain nexus is itself the governable app
-    $(kids t.kids, out [/apps/[kid] out])
-  ::  a [/ %desk] install is the sync wrapper — trusted local infra, not
-  ::  the remote's code, so it is not itself a governable app. Its real
-  ::  apps are the neck'd children of desk/data (same stub caveat: any
-  ::  dir kid with a manifest is an instance; apply-bill only creates
-  ::  nexus instances there).
-  ;<  dv=view:nexus  bind:m  (peek-shallow:io [%& %| /apps/[kid]/desk/data] ~)
+  ?~  desks  (pure:m (weld builtins (flop out)))
+  ;<  sv=view:nexus  bind:m
+    (peek-shallow:io [%& %| /apps/'shell.shell'/desks/[i.desks]/desk/data] ~)
   =/  subs=(list path)
-    ?.  ?=([%ball *] dv)  ~
-    (turn ~(tap in ~(key by dir.ball.dv)) |=(sub=@ta /apps/[kid]/desk/data/[sub]))
-  $(kids t.kids, out (weld subs out))
+    ?.  ?=([%ball *] sv)  ~
+    %+  turn  ~(tap in ~(key by dir.ball.sv))
+    |=(sub=@ta /apps/'shell.shell'/desks/[i.desks]/desk/data/[sub])
+  $(desks t.desks, out (weld subs out))
 ::  +read-app-aliases: scan every app root (descending desks) for its
 ::  link.json, building @name -> menu options. Each root is a nexus; its
 ::  option path is the nexus root. `name` may be a string or a list of
@@ -2452,26 +2454,31 @@
 ::  [[%sync ~] @] case). Idempotent — skips ones already present. (Culling
 ::  removed apps' followers + descending into desks are later increments.)
 ::
-::  +sync-lane: the /sync grub lane for an app-root path. Top-level apps
-::  mirror as /sync/<name>; desk-nested apps drop the /desk/data and mirror
-::  as /sync/<desk>/<sub>. ~ for anything unrecognized.
+::  +sync-lane: the /sync grub lane for an app-root path. Built-in apps
+::  at /apps/<name> mirror as /sync/<name>; desk sub-apps at
+::  /apps/shell.shell/desks/<desk>/desk/data/<sub> mirror as
+::  /sync/<desk>/<sub>. ~ for anything unrecognized.
 ::
 ++  sync-lane
   |=  ap=path
   ^-  (unit lane:tarball)
   ?+  ap  ~
-    [%apps @ ~]                `[%& [/sync i.t.ap]]
-    [%apps @ %desk %data @ ~]  `[%& [/sync/[i.t.ap] i.t.t.t.t.ap]]
+    [%apps @ ~]
+      `[%& [/sync i.t.ap]]
+    [%apps %'shell.shell' %desks @ %desk %data @ ~]
+      `[%& [/sync/[i.t.t.t.ap] i.t.t.t.t.t.t.ap]]
   ==
-::  +app-road-of: inverse — the app-root road a /sync follower is watching,
+::  +app-path-of: inverse — the app-root path a /sync follower watches,
 ::  from the follower's own rail.
 ::
 ++  app-path-of
   |=  =rail:tarball
   ^-  (unit path)
   ?+  path.rail  ~
-    [%sync ~]    `~[%apps name.rail]
-    [%sync @ ~]  `~[%apps i.t.path.rail %desk %data name.rail]
+    [%sync ~]
+      `~[%apps name.rail]
+    [%sync @ ~]
+      `~[%apps %'shell.shell' %desks i.t.path.rail %desk %data name.rail]
   ==
 ::  +drop-stale-subs: subscriptions persist across fiber restarts and are
 ::  never auto-cleaned. An earlier follower version kept its app's WHOLE
@@ -2563,7 +2570,8 @@
   |=  rail=rail:tarball
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
-  ;<  =view:nexus  bind:m  (peek-shallow:io [%& %| /apps] ~)
+  ;<  =view:nexus  bind:m
+    (peek-shallow:io [%& %| /apps/'shell.shell'/desks] ~)
   ?.  ?=([%ball *] view)  (pure:m ~)
   =/  kids=(list @ta)  ~(tap in ~(key by dir.ball.view))
   ;<  pairs=(list [grp=path entry=json])  bind:m  (gather-shares kids)
@@ -2589,7 +2597,7 @@
   ^-  form:m
   ?~  kids  (pure:m ~)
   ;<  shr=(unit (set path))  bind:m
-    (peek-as:io [%& %& /apps/[i.kids] %'share.usergroups'] ,(set path))
+    (peek-as:io [%& %& /apps/'shell.shell'/desks/[i.kids] %'share.usergroups'] ,(set path))
   ;<  rest=(list [path json])  bind:m  $(kids t.kids)
   ?~  shr  (pure:m rest)
   =/  entry=json  (desk-entry i.kids)
@@ -2604,7 +2612,7 @@
   %-  pairs:enjs:format
   :~  ['name' s+(app-slug name)]
       ['dir' s+name]
-      ['code' s+(crip "/apps/{(trip name)}/desk/code")]
+      ['code' s+(crip "/apps/shell.shell/desks/{(trip name)}/desk/code")]
   ==
 ::
 ++  build-links
@@ -3035,7 +3043,7 @@
         ['aliases' amap]
         ::  the app's own root path — so it knows its address without a
         ::  privileged walk to root (get-here-abs). It's just structural
-        ::  boilerplate (/apps/<name> or /apps/<desk>/desk/data/<name>).
+        ::  boilerplate (/apps/<name> or /desks/<desk>/desk/data/<name>).
         ['here' s+app]
     ==
   ;<  ~  bind:m  (put:io [%& %& [target %'grant.json']] [[/ %json] grant-json])

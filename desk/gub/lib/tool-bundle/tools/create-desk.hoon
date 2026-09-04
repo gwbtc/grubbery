@@ -1,9 +1,5 @@
 /<  tools  /lib/tools.hoon
-::  create-desk: create a source /desk syncer in /apps/. It subscribes to
-::  a code dir already in the namespace (a git_repo's checked-out tree, a
-::  remote ship path, or a local path) and deploys it. The git_desk type
-::  is retired — clone-from-github is a /git/repo now, and a /desk consumes
-::  its tree.
+::  create-desk: create a /desk syncer under /apps/shell.shell/desks/.
 ::
 !:
 ^-  tool:tools
@@ -12,14 +8,14 @@
 ++  description
   ^~  %-  crip
   ;:  weld
-    "Create a new /desk syncer in /apps/. It syncs from a source code dir "
-    "already in the namespace and deploys it. Provide source (~ship/path "
-    "or /local/path — e.g. a git_repo's /data/tree/code)."
+    "Create a new /desk syncer in /apps/shell.shell/desks/. It syncs from "
+    "a source code dir already in the namespace and deploys it. Provide "
+    "source (~ship/path or /local/path — e.g. a git_repo's /data/tree/code)."
   ==
 ++  parameters
   ^-  (map @t parameter-def:tools)
   %-  ~(gas by *(map @t parameter-def:tools))
-  :~  ['name' [%string 'App name (e.g. "myapp") — becomes /apps/myapp.desk']]
+  :~  ['name' [%string 'App name (e.g. "myapp") — becomes /apps/shell.shell/desks/myapp.desk']]
       ['source' [%string 'Source path (e.g. "~nec/apps/counter" or "/local/path")']]
       ['public' [%boolean 'Whether the desk code namespace is publicly readable (default false)']]
   ==
@@ -33,7 +29,7 @@
   ?~  nam  (pure:m [%error 'Missing required argument: name'])
   =/  app-name=@ta  u.nam
   =/  dir-name=@ta  (cat 3 app-name '.desk')
-  =/  dir-path=path  /apps/[dir-name]
+  =/  dir-path=path  /apps/'shell.shell'/desks/[dir-name]
   =/  app-weir=(unit weir:nexus)
     `[make=~ poke=(sy ~[[%& %| /]]) peek=(sy ~[[%& %| /]])]
   =/  =bole:tarball  [`[`[/ %desk] app-weir %.n ~] ~]

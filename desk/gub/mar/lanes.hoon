@@ -1,4 +1,3 @@
-=,  html
 |_  lanes=(set lane:tarball)
 ++  grab
   |%
@@ -15,6 +14,6 @@
     s+(crip ?-(-.lane %& (spud (snoc path.p.lane name.p.lane)), %| (spud p.lane)))
   ++  mime
     =/  txt=@t  (en:json:html json)
-    [/application/json (as-octs:mimes txt)]
+    [/application/json (as-octs:mimes:html txt)]
   --
 --

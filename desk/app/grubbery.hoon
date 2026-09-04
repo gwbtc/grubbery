@@ -2780,6 +2780,8 @@
   =/  sub-ball  (peek-ball-now dest)
   ?~  fil.sub-ball  ~|("no nexus at destination" !!)
   ?~  neck.u.fil.sub-ball  ~|("no nexus at destination" !!)
+  ?:  =([/ %code] u.neck.u.fil.sub-ball)
+    (build-code dest ~)
   =/  nex=(each nexus:nexus tang)
     (build-nexus dest u.neck.u.fil.sub-ball)
   ?:  ?=(%| -.nex)
@@ -2790,6 +2792,7 @@
   ::  or create new ones (register) — reconcile both ways.
   =.  this  purge-stale-code
   =.  this  (build-new-code-namespaces dest (peek-bole-now dest))
+  =.  this  (rebuild-descendant-code dest sub-ball)
   (spawn-all-files dest (peek-bole-now dest))
 ::  Run on-load for a nexus at dest and apply results
 ::
@@ -2840,18 +2843,19 @@
   =/  kid-path=fold:tarball  (snoc dest kid-name)
   =.  this
     ::  Directory with a neck — reload it (recurses into its children)
-    ::  Skip /code — it has a neck but is the code compiler, not a nexus
-    ?:  ?&  ?=(^ fil.kid-ball)
+    ?.  ?&  ?=(^ fil.kid-ball)
             ?=(^ neck.u.fil.kid-ball)
-            !=([/ %code] u.neck.u.fil.kid-ball)
         ==
-      =/  kid-nex=(each nexus:nexus tang)
-        (build-nexus kid-path u.neck.u.fil.kid-ball)
-      ?:  ?=(%| -.kid-nex)
-        (bang-nexus kid-path p.kid-nex)
-      (reload-nexus-at kid-path p.kid-nex)
-    ::  Non-nexus directory — recurse deeper
-    $(kids ~(tap by dir.kid-ball), dest kid-path)
+      ::  Non-nexus directory — recurse deeper
+      $(kids ~(tap by dir.kid-ball), dest kid-path)
+    ::  /code necks are code namespaces, not nexuses — skip entirely
+    ?:  =([/ %code] u.neck.u.fil.kid-ball)
+      this
+    =/  kid-nex=(each nexus:nexus tang)
+      (build-nexus kid-path u.neck.u.fil.kid-ball)
+    ?:  ?=(%| -.kid-nex)
+      (bang-nexus kid-path p.kid-nex)
+    (reload-nexus-at kid-path p.kid-nex)
   $(kids t.kids)
 ::  +spawn-all-files: spawn a process for every file in a bole
 ::
@@ -5080,6 +5084,36 @@
   ~&  >  "rebuild-stale-code: subject changed, rebuilding {(spud cod.i.cods)}"
   =.  this  (build-code cod.i.cods ~)
   $(cods t.cods)
+::  +rebuild-descendant-code: incrementally rebuild descendant code
+::  namespaces whose source changed. Diffs old-ball against the current
+::  ball under root, groups changed rails by enclosing code namespace,
+::  and calls build-code with only the affected rails.
+::
+++  rebuild-descendant-code
+  |=  [root=path old-ball=ball:tarball]
+  ^+  this
+  =/  new-ball=ball:tarball  (peek-ball-now root)
+  =/  diff=(set rail:tarball)
+    %-  ~(run in (ball-diff old-ball new-ball))
+    |=(r=rail:tarball `rail:tarball`[(weld root path.r) name.r])
+  ?:  =(~ diff)  this
+  =/  affected=(map path (set rail:tarball))
+    %+  roll  ~(tap in diff)
+    |=  [r=rail:tarball acc=(map path (set rail:tarball))]
+    =/  cod=(unit path)
+      =+  pax=path.r
+      |-  ?:  (~(has by code) pax)  `pax
+      ?~  pax  ~
+      $(pax (snip `path`pax))
+    ?~  cod  acc
+    ?:  =(u.cod root)  acc
+    (~(put by acc) u.cod (~(put in (fall (~(get by acc) u.cod) ~)) r))
+  =/  todo=(list [cod=path rails=(set rail:tarball)])  ~(tap by affected)
+  |-
+  ?~  todo  this
+  ~&  >  "rebuild-descendant-code: {(spud cod.i.todo)} ({<~(wyt in rails.i.todo)>} changed)"
+  =.  this  (build-code cod.i.todo `rails.i.todo)
+  $(todo t.todo)
 ::
 ++  build-code
   |=  [cod=path changed=(unit (set rail:tarball))]
@@ -5520,10 +5554,14 @@
     =.  this  (bang-nexus dest p.nex-res)
     $(dir-remaining t.dir-remaining)
   ~&  >  "reload-changed-nexuses: reloading {(spud (weld path.neck ~[name.neck]))} at {(spud dest)}"
+  =/  old-ball  (peek-ball-now dest)
   ~&  >  "reload-changed-nexuses: reload-nexus-at start"
   =.  this  (reload-nexus-at dest p.nex-res)
   ~&  >  "reload-changed-nexuses: reload-nexus-at done"
+  =.  this  purge-stale-code
   =/  reload-bole  (peek-bole-now dest)
+  =.  this  (build-new-code-namespaces dest reload-bole)
+  =.  this  (rebuild-descendant-code dest old-ball)
   ~&  >  "reload-changed-nexuses: spawn-all-files start"
   =.  this  (spawn-all-files dest reload-bole)
   ~&  >  "reload-changed-nexuses: spawn-all-files done"
