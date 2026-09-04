@@ -143,6 +143,7 @@ class DeskBar extends HTMLElement {
   #render() {
     this.#wins.textContent = '';
     for (const w of document.querySelectorAll('float-window')) {
+      if (w.hasAttribute('closed')) continue;
       const b = document.createElement('button');
       const glyph = document.createElement('span');
       glyph.className = 'glyph';

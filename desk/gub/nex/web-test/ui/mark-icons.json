@@ -1,0 +1,21 @@
+{
+  "_comment": "mark/extension → desktop icon glyph. Special keys: dir (plain folder), dir-app (app dir with no icon.* — gets the badge), badge (overlaid on dir-app), file (unknown-mark fallback).",
+  "dir": "📁",
+  "dir-app": "📁",
+  "badge": "☀️",
+  "file": "📄",
+  "md": "📝",
+  "txt": "📄",
+  "json": "🔧",
+  "hoon": "🌀",
+  "js": "📜",
+  "html": "🌐",
+  "css": "🎨",
+  "svg": "🖼️",
+  "png": "🖼️",
+  "jpg": "🖼️",
+  "gif": "🖼️",
+  "sig": "✳️",
+  "csv": "📊",
+  "pdf": "📕"
+}

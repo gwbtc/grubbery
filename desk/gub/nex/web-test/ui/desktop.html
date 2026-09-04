@@ -34,6 +34,35 @@
     #wall .mark { font-size: 120px; line-height: 1; }
     #wall .name { font-size: 13px; letter-spacing: .35em; text-transform: uppercase; margin-top: 8px; }
 
+    /* desktop icons: real children of /docs/desktop, rendered on the
+       wallpaper below every window (windows start at z-index 100+) */
+    #icons { position: fixed; inset: 0 0 44px 0; z-index: 5; }
+    .dicon {
+      position: absolute; width: 84px;
+      display: flex; flex-direction: column; align-items: center; gap: 3px;
+      padding: 8px 4px 6px; border-radius: 10px;
+      cursor: default; user-select: none; text-align: center;
+    }
+    .dicon:hover { background: rgba(31,35,40,.05); }
+    .dicon.sel { background: rgba(9,105,218,.12); }
+    .dicon .gl { font-size: 34px; line-height: 1.15; position: relative; }
+    .dicon .gl .badge { position: absolute; right: -7px; bottom: -3px; font-size: 15px; }
+    .dicon img { width: 40px; height: 40px; object-fit: contain; display: block; }
+    .dicon .lb {
+      font-size: 11px; line-height: 1.25; color: #3b434b; max-width: 80px;
+      overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+      overflow-wrap: anywhere;
+    }
+
+    /* desktop-loading chip: sits where the first icon will appear */
+    .dload {
+      position: absolute; top: 26px; left: 26px;
+      display: flex; align-items: center; gap: 8px;
+      font-size: 12px; color: #8b949e; user-select: none;
+    }
+    .dload .d { animation: dpulse 1.1s ease-in-out infinite; }
+    @keyframes dpulse { 50% { opacity: .2; } }
+
     /* launcher buttons slotted into the desk-bar */
     .launch {
       all: unset; cursor: pointer;
@@ -101,6 +130,8 @@
       <div class="name">grubbery</div>
     </div>
   </div>
+
+  <div id="icons"></div>
 
   <float-window title="welcome" icon="&#9670;" x="8%" y="10%" width="420" height="330" persist="desk-welcome">
     <div class="body">
@@ -172,7 +203,8 @@
     for (const [btn, spec] of Object.entries(SPECS)) {
       $(btn).addEventListener('click', () => {
         const w = document.querySelector('float-window[persist="' + spec.persist + '"]');
-        if (!w) { location.reload(); return; }   // closed for good this session
+        if (!w) return;
+        if (w.hasAttribute('closed')) return w.reopen();
         w.hasAttribute('minimized') ? w.restore() : w.raise();
       });
     }
@@ -314,6 +346,101 @@
     } else {
       openTab(HOME);
     }
+
+    // ---- desktop icons: the real contents of /docs/desktop ----
+    // desktop.json comes from the web-test nexus (which creates the dir on
+    // first read). Icon resolution mirrors the shell's tile convention:
+    // dir with tile.json/icon.* = app (own face, opens tile href); plain
+    // dir/file = registry glyph, opens in explorer (/grubbery/ball).
+    // Positions are chrome state → localStorage, keyed by child name.
+    async function loadDesktopIcons() {
+      const layer = $('icons');
+      layer.innerHTML = '<div class="dload"><span class="d">&#9670;</span> loading desktop&hellip;</div>';
+      let listing = null, glyphs = {};
+      try {
+        [listing, glyphs] = await Promise.all([
+          fetch('/grubbery/web-test/desktop.json').then(r => r.json()),
+          fetch('./mark-icons.json').then(r => r.json()),
+        ]);
+      } catch (_) {
+        layer.innerHTML = '<div class="dload">desktop unavailable</div>';
+        return;
+      }
+      if (!listing || !Array.isArray(listing.children)) {
+        layer.innerHTML = '<div class="dload">desktop unavailable</div>';
+        return;
+      }
+      layer.textContent = '';
+      const pos = JSON.parse(localStorage.getItem('desk-icon-pos') || '{}');
+      const rows = Math.max(1, Math.floor((innerHeight - 44 - 24) / 104));
+      listing.children.forEach((c, i) => {
+        const isApp = c.kind === 'dir' && (c.icon || c.tile);
+        const el = document.createElement('div');
+        el.className = 'dicon';
+        const gl = document.createElement('div');
+        gl.className = 'gl';
+        if (c.icon) {
+          const img = document.createElement('img');
+          img.src = '/grubbery/ball/docs/desktop/' + c.name + '/' + c.icon + '?raw=1';
+          gl.appendChild(img);
+        } else if (c.kind === 'dir') {
+          gl.textContent = isApp ? (glyphs['dir-app'] || '📁') : (glyphs['dir'] || '📁');
+          if (isApp) {
+            const b = document.createElement('span');
+            b.className = 'badge';
+            b.textContent = glyphs['badge'] || '☀️';
+            gl.appendChild(b);
+          }
+        } else {
+          const ext = c.name.includes('.') ? c.name.split('.').pop().toLowerCase() : '';
+          gl.textContent = glyphs[ext] || glyphs['file'] || '📄';
+        }
+        const lb = document.createElement('div');
+        lb.className = 'lb';
+        lb.textContent = (isApp && c.tile && c.tile.title) ? c.tile.title : c.name;
+        el.append(gl, lb);
+        const p = pos[c.name] ||
+          { x: 18 + Math.floor(i / rows) * 96, y: 18 + (i % rows) * 104 };
+        el.style.left = p.x + 'px';
+        el.style.top = p.y + 'px';
+        wireIcon(el, c, isApp);
+        layer.appendChild(el);
+      });
+    }
+
+    function wireIcon(el, c, isApp) {
+      el.addEventListener('pointerdown', (e) => {
+        if (e.button !== 0) return;
+        document.querySelectorAll('.dicon.sel').forEach(x => x.classList.remove('sel'));
+        el.classList.add('sel');
+        const sx = e.clientX - el.offsetLeft, sy = e.clientY - el.offsetTop;
+        el.setPointerCapture(e.pointerId);
+        const onMove = (ev) => {
+          el.style.left = Math.max(0, ev.clientX - sx) + 'px';
+          el.style.top = Math.max(0, ev.clientY - sy) + 'px';
+        };
+        el.addEventListener('pointermove', onMove);
+        el.addEventListener('pointerup', () => {
+          el.removeEventListener('pointermove', onMove);
+          const pos = JSON.parse(localStorage.getItem('desk-icon-pos') || '{}');
+          pos[c.name] = { x: el.offsetLeft, y: el.offsetTop };
+          try { localStorage.setItem('desk-icon-pos', JSON.stringify(pos)); } catch (_) {}
+        }, { once: true });
+      });
+      el.addEventListener('dblclick', () => {
+        const target = (isApp && c.tile && c.tile.href)
+          ? c.tile.href
+          : '/grubbery/ball/docs/desktop/' + c.name;
+        const bw = document.querySelector('float-window[persist="desk-browser"]');
+        if (bw) {
+          if (bw.hasAttribute('closed')) bw.reopen();
+          else bw.hasAttribute('minimized') ? bw.restore() : bw.raise();
+        }
+        openTab(target);
+      });
+    }
+
+    loadDesktopIcons();
 
     // toy chat: echo
     $('chatin').addEventListener('keydown', (e) => {

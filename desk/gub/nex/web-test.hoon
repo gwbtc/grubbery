@@ -16,6 +16,7 @@
 /&  icons-svg    web-test/ui/icons.svg
 /&  demo-html    web-test/ui/demo.html
 /&  desk-html    web-test/ui/desktop.html
+/&  mi-json      web-test/ui/mark-icons.json
 ^-  nexus:nexus
 |%
 ++  on-load
@@ -54,6 +55,7 @@
       [%over %& [/ui %'icons.svg'] [[/ %mime] icons-svg]]
       [%over %& [/ui %'demo.html'] [[/ %mime] demo-html]]
       [%over %& [/ui %'desktop.html'] [[/ %mime] desk-html]]
+      [%over %& [/ui %'mark-icons.json'] [[/ %mime] mi-json]]
       [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
       [%fall %| /requests empty-dir:loader]
   ==
@@ -85,6 +87,71 @@
     =/  prefix=path  /grubbery/web-test
     =/  site=path  site:(parse-url:http-utils url.request.req)
     =/  suffix=path  (slag (lent prefix) site)
+    ::  /desktop.json: live listing of /docs/desktop for the desktop UI.
+    ::  Same conventions as the shell's read-app-tiles: a child dir with
+    ::  tile.json/icon.* presents as an app (tile metadata + icon face);
+    ::  everything else is a plain dir or file. Creates /docs/desktop on
+    ::  first read so the desktop always has somewhere real to look.
+    ?:  ?=([%'desktop.json' ~] suffix)
+      =/  base=path  /docs/desktop
+      ;<  dv=view:nexus  bind:m  (peek-shallow:io [%& %| base] ~)
+      ;<  dv=view:nexus  bind:m
+        =/  m  (fiber:fiber:nexus ,view:nexus)
+        ^-  form:m
+        ?:  ?=([%ball *] dv)  (pure:m dv)
+        ;<  ~  bind:m
+          (make:io [%& %| base] &+(ball-to-bole:tarball `ball:tarball`[`[~ ~ %.n ~ ~] ~]))
+        (peek-shallow:io [%& %| base] ~)
+      ?.  ?=([%ball *] dv)
+        ;<  ~  bind:m  (send-simple:srv eyre-id [[500 ~] `(as-octs:mimes:html 'desktop unavailable')])
+        (pure:m ~)
+      =/  subs=(list @ta)  (sort ~(tap in ~(key by dir.ball.dv)) aor)
+      =/  fils=(list @ta)
+        ?~  fil.ball.dv  ~
+        %+  sort
+          %+  murn  ~(tap by contents.u.fil.ball.dv)
+          |=  [n=@ta s=sang:tarball g=? b=(unit tang)]
+          ^-  (unit @ta)
+          ?:  (is-boom:tarball s)  ~
+          `n
+        aor
+      =|  kids=(list json)
+      |-
+      ?^  subs
+        =/  name=@ta  i.subs
+        ;<  tv=view:nexus  bind:m
+          (peek:io [%& %& (snoc base name) %'tile.json'] `[/ %json])
+        =/  tile-jon=json
+          ?.  ?=([%file *] tv)  ~
+          (fall (mole |.(!<(json (need-vase:tarball sang.tv)))) ~)
+        ;<  rv=view:nexus  bind:m  (peek-shallow:io [%& %| (snoc base name)] ~)
+        =/  icon=(unit @ta)
+          ?.  ?=([%ball *] rv)  ~
+          ?~  fil.ball.rv  ~
+          %-  ~(rep by contents.u.fil.ball.rv)
+          |=  [[n=@ta s=sang:tarball g=? b=(unit tang)] out=(unit @ta)]
+          ?^  out  out
+          ?.  =("icon." (scag 5 (trip n)))  out
+          ?:  (is-boom:tarball s)  out
+          `n
+        =/  kid=json
+          %-  pairs:enjs:format
+          :~  ['name' s+`@t`name]
+              ['kind' s+'dir']
+              ['tile' tile-jon]
+              ['icon' ?~(icon ~ s+`@t`u.icon)]
+          ==
+        $(subs t.subs, kids [kid kids])
+      =/  fkids=(list json)
+        %+  turn  fils
+        |=  nam=@ta
+        ^-  json
+        (pairs:enjs:format ~[['name' s+`@t`nam] ['kind' s+'file'] ['tile' ~] ['icon' ~]])
+      =/  out=json  (pairs:enjs:format ~[['children' a+(weld (flop kids) fkids)]])
+      =/  bod=octs  (as-octs:mimes:html (en:json:html out))
+      ;<  ~  bind:m
+        (send-simple:srv eyre-id [[200 ~[['content-type' 'application/json']]] `bod])
+      (pure:m ~)
     ::  resolve nested paths: split into [dir file] so /ui/split-view.js
     ::  serves the grub at [/ui %'split-view.js'], not a flat filename.
     ::  snag/scag take any list (no lest proof needed); guard on length
