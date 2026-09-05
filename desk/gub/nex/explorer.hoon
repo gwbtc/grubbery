@@ -6,6 +6,17 @@
 /&  icon  explorer/icon.svg
 /&  gram     explorer/hoon-grammar.json
 /&  view-js  explorer/view.js
+/&  fp-js    /lib/ui/file-preview.js
+/&  marked-js  shell/marked.min.js
+/&  cm-js      /lib/cm/codemirror.min.js
+/&  cm-css     /lib/cm/codemirror.min.css
+/&  cm-vim     /lib/cm/vim.min.js
+/&  cm-m-js    /lib/cm/javascript.min.js
+/&  cm-m-css   /lib/cm/css.min.js
+/&  cm-m-xml   /lib/cm/xml.min.js
+/&  cm-m-md    /lib/cm/markdown.min.js
+/&  cm-m-html  /lib/cm/htmlmixed.min.js
+/&  cm-m-hoon  /lib/cm/hoon-mode.js
 =<  ^-  nexus:nexus
     |%
     ++  on-load
@@ -19,6 +30,22 @@
             image+s+'/grubbery/tiles/icon/explorer'
             href+s+'/grubbery/ball'
         ==
+      ::  editor bundle: codemirror + vim keymap + modes welded into one
+      ::  served file (same pattern as web-test's components.js)
+      =/  cm-wrap  |=(=mime `@`(rap 3 ~[10 q.q.mime 10]))
+      =/  cm-bundle=mime
+        :-  /application/javascript
+        %-  as-octs:mimes:html
+        %+  rap  3
+        :~  (cm-wrap cm-js)
+            (cm-wrap cm-vim)
+            (cm-wrap cm-m-js)
+            (cm-wrap cm-m-css)
+            (cm-wrap cm-m-xml)
+            (cm-wrap cm-m-md)
+            (cm-wrap cm-m-html)
+            (cm-wrap cm-m-hoon)
+        ==
       %+  spin:loader  ball
       :~  (manifest:loader 0)
           [%over %& [/ %'link.json'] [[/ %json] (pairs:enjs:format ~[['name' s+'explorer'] ['description' s+'Browse the namespace tree']])]]
@@ -30,6 +57,10 @@
           [%over %& [/ %'README.md'] [[/ %mime] man]]
           [%over %& [/ %'hoon-grammar.json'] [[/ %mime] gram]]
           [%over %& [/ %'view.js'] [[/ %mime] view-js]]
+          [%over %& [/ %'file-preview.js'] [[/ %mime] fp-js]]
+          [%over %& [/ %'marked.min.js'] [[/ %mime] marked-js]]
+          [%over %& [/ %'cm.js'] [[/ %mime] cm-bundle]]
+          [%over %& [/ %'cm.css'] [[/ %mime] cm-css]]
       ==
     ::
     ++  on-file
@@ -124,8 +155,25 @@
   ?~  acc  %.n
   ?=(^ (find "text/html" (trip u.acc)))
 ::
+::  +texty-mite: is this mime type sensibly shown/edited as text?
+::
+++  texty-mite
+  |=  =mite
+  ^-  ?
+  ?~  mite  %.n
+  ?:  =(%text i.mite)  %.y
+  ?:  =(/application/json mite)  %.y
+  ?:  =(/application/javascript mite)  %.y
+  ?:  =(/application/xml mite)  %.y
+  ?:  =(~[%image %'svg+xml'] mite)  %.y
+  %.n
+::  +view-page: file page — Text (editable when the mime is texty and a
+::  tube exists) | Mime (FilePreview render / raw). Saving posts back to
+::  the file URL as action=write-text; the server tubes the mime through
+::  the grub's own blot, so the marc validates the edit (see handle-post).
+::
 ++  view-page
-  |=  [name=@ta txt=tape]
+  |=  [name=@ta txt=tape blot-tape=tape mite-tape=tape texty=? jammed=?]
   ^-  manx
   ;html
     ;head
@@ -133,12 +181,95 @@
       ;meta(charset "utf-8");
       ;meta(name "viewport", content "width=device-width, initial-scale=1");
       ;link(rel "icon", type "image/svg+xml", href "/grubbery/tiles/icon/explorer.explorer");
-      ;style: body \{ background: #0d1117; color: #e6edf3; margin: 0; } pre \{ margin: 0; padding: 18px; font: 12px/1.5 ui-monospace, monospace; overflow: auto; min-height: 100vh; box-sizing: border-box; } code \{ font: inherit; } #hl-status \{ position: fixed; top: 10px; right: 12px; font: 11px ui-monospace, monospace; color: #8b949e; background: #161b22; border: 1px solid #30363d; border-radius: 12px; padding: 4px 10px; }
+      ;style: {view-css}
     ==
-    ;body(data-name (trip name))
-      ;pre#src: {txt}
+    ;body(data-name (trip name), data-texty ?:(texty "1" "0"), data-jammed ?:(jammed "1" "0"), data-mite mite-tape)
+      ;div#bar
+        ;button#tab-text: Source
+        ;button#tab-mime: Preview
+        ;span#fname: {(trip name)}
+        ;span.chip
+          ;span.k: blot
+          ;span.v: {blot-tape}
+        ==
+        ;span.chip
+          ;span.k: mime
+          ;span.v: {mite-tape}
+        ==
+        ;span.grow;
+      ==
+      ;div#tools
+        ;button#edit: Edit
+        ;button#save(disabled ""): Save
+        ;button#live: Live
+        ;button#wrap: Wrap
+        ;span#status;
+      ==
+      ;div#text-view
+        ;+  ?:  &(texty !jammed)
+              ;div.edwrap
+                ;div#src-display;
+                ;textarea#ed(spellcheck "false", style "display:none"): {txt}
+              ==
+            ?:  jammed
+              ;pre#src: {txt}
+            ;pre#src.dim: binary content
+      ==
+      ;div#mime-view(style "display:none");
+      ;script(src "/grubbery/ball/apps/explorer.explorer/file-preview.js");
       ;script(type "module", src "/grubbery/ball/apps/explorer.explorer/view.js");
     ==
+  ==
+::  the file page's css, kept out of the manx for legibility
+::
+++  view-css
+  ^-  tape
+  ::  cords, not tapes: css braces would read as tape interpolation.
+  ::  house-light, per the kit.
+  %-  trip
+  %+  rap  3
+  :~
+      'body { background: #ffffff; color: #1f2328; margin: 0; height: 100vh; display: flex; flex-direction: column; font: 13px/1.5 -apple-system, BlinkMacSystemFont, sans-serif; }'
+      '#bar { flex: none; display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: #f6f8fa; border-bottom: 1px solid #d0d7de; }'
+      '#fname { font-weight: 600; margin-left: 8px; }'
+      '.chip { display: inline-flex; align-items: center; gap: 5px; background: #eef1f4; border: 1px solid #e2e7ee; border-radius: 6px; padding: 2px 8px; }'
+      '.chip .k { font-size: 10px; text-transform: uppercase; letter-spacing: .05em; color: #8b949e; }'
+      '.chip .v { font: 11px ui-monospace, SFMono-Regular, Menlo, monospace; color: #24292f; }'
+      '.grow { flex: 1; }'
+      '#bar button { all: unset; cursor: pointer; padding: 4px 12px; border-radius: 7px; font-size: 12px; color: #57606a; }'
+      '#bar button:hover { color: #24292f; background: #eaeef2; }'
+      '#bar button.on { color: #24292f; background: #ffffff; border: 1px solid #d0d7de; font-weight: 600; padding: 3px 11px; }'
+      '#tools { flex: none; display: flex; align-items: center; gap: 8px; padding: 6px 12px; background: #fff; border-bottom: 1px solid #e2e7ee; }'
+      '#tools button { all: unset; cursor: pointer; padding: 3px 12px; border-radius: 7px; font-size: 12px; border: 1px solid #d0d7de; color: #24292f; }'
+      '#tools button:hover { background: #f6f8fa; }'
+      '#tools button.on { background: #ddf4ff; border-color: #54aeff; color: #0969da; font-weight: 600; }'
+      '#save:not([disabled]) { background: #0969da; border-color: #0969da; color: #fff; }'
+      '#save:not([disabled]):hover { background: #0857b8; }'
+      '#save[disabled] { color: #8b949e; cursor: default; }'
+      '#tools button[disabled] { color: #8b949e; cursor: default; background: none; }'
+      '#status { font: 11px ui-monospace, monospace; color: #57606a; max-width: 40ch; overflow: hidden; text-overflow: ellipsis; white-space: pre; }'
+      '#status.err { color: #cf222e; white-space: pre-wrap; }'
+      '#text-view, #mime-view { flex: 1; min-height: 0; overflow: auto; }'
+      '.edwrap, #src-display { height: 100%; }'
+      'body.wrap #text-view pre { white-space: pre-wrap; overflow-wrap: anywhere; }'
+      'body:not(.wrap) #ed { white-space: pre; overflow-x: auto; }'
+      'pre { margin: 0; padding: 18px; font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; overflow: auto; box-sizing: border-box; min-height: 100%; }'
+      'pre.dim { color: #8b949e; }'
+      'code { font: inherit; }'
+      '#ed { width: 100%; height: 100%; box-sizing: border-box; background: #fff; color: #1f2328; border: none; outline: none; resize: none; padding: 18px; font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; }'
+      '#ed[readonly] { background: #fbfcfd; color: #3b434b; }'
+      '#hl-status { position: fixed; top: 48px; right: 12px; font: 11px ui-monospace, monospace; color: #57606a; background: #f6f8fa; border: 1px solid #d0d7de; border-radius: 12px; padding: 4px 10px; }'
+      '.md { max-width: 74ch; padding: 24px 32px; line-height: 1.65; }'
+      '.md h1, .md h2, .md h3 { border-bottom: 1px solid #e2e7ee; padding-bottom: .3em; }'
+      '.md code { background: #f2f4f7; padding: 1px 5px; border-radius: 5px; font: 12px ui-monospace, monospace; }'
+      '.md pre { background: #f6f8fa; border-radius: 8px; min-height: 0; }'
+      '.md pre code { background: none; padding: 0; }'
+      '.md a { color: #0969da; }'
+      '.md blockquote { border-left: 3px solid #d0d7de; margin-left: 0; padding-left: 14px; color: #57606a; }'
+      'table.csv { border-collapse: collapse; margin: 20px; font: 12px ui-monospace, monospace; }'
+      'table.csv th, table.csv td { border: 1px solid #d0d7de; padding: 5px 12px; text-align: left; }'
+      'table.csv th { background: #f6f8fa; }'
+      'table.csv tr:nth-child(even) td { background: #fbfcfd; }'
   ==
 ::  Weir lives in the parent's dir-map, not in the directory's own lump
 ++  read-weir-from-parent
@@ -250,17 +381,25 @@
   ::  raw bytes as ever. ?view=1 forces, ?raw=1 suppresses.
   =/  view-param=(unit @t)  (get-key:kv:html-utils 'view' args)
   =/  raw-param=(unit @t)  (get-key:kv:html-utils 'raw' args)
-  =/  is-hoon=?
-    =/  t=tape  (trip name)
-    =/  len=@ud  (lent t)
-    &((gth len 5) =(".hoon" (slag (sub len 5) t)))
+  ::  file view page: Text (editable, tubed both ways) | Mime (rendered).
+  ::  Default when a browser asks for html; tools and fetch still get raw
+  ::  bytes (?raw=1 always does, ?view=1 always forces the page).
   ?:  ?&  ?=(~ raw-param)
-          |(?=(^ view-param) &(is-hoon html-ok))
+          |(?=(^ view-param) html-ok)
       ==
     ;<  =mime  bind:m  (sage-to-mime:io sage)
-    =/  txt=tape  (trip q.q.mime)
+    ::  x-urb-jam is sage-to-mime's no-tube fallback: show the noun
+    ::  pretty-printed, read-only. Binary mites: mime view only.
+    =/  jammed=?  =(/application/x-urb-jam p.mime)
+    =/  texty=?  &(!jammed (texty-mite p.mime))
+    =/  txt=tape
+      ?:  jammed  (noah q.sage)
+      ?:  texty  (trip q.q.mime)
+      ""
     =/  bod=octs
-      (as-octs:mimes:html (crip (en-xml:html (view-page name txt))))
+      %-  as-octs:mimes:html  %-  crip  %-  en-xml:html
+      =/  blot-tape=tape  (spud (snoc path.p.sage name.p.sage))
+      (view-page name txt blot-tape (spud p.mime) texty jammed)
     ;<  ~  bind:m  (send-simple:srv eyre-id (mime-response:http-utils [/text/html bod]))
     (pure:m ~)
   ;<  =mime  bind:m  (sage-to-mime:io sage)
@@ -296,6 +435,50 @@
     ::  cull road: up 3 from /explorer.explorer/requests/[id] to root, then file
     ;<  ~  bind:m  (cull:io [%& %& tree-path filename])
     ;<  ~  bind:m  (send-simple:srv eyre-id [[303 ~[['location' (crip redirect-url)]]] ~])
+    (pure:m ~)
+  ::
+      ::  write-text: the file view's save. POSTed to the FILE url, so
+      ::  tree-path here is the file's own path. The edited text goes in
+      ::  as mime and the runtime tubes it through the grub's existing
+      ::  blot — the marc's mime grab IS the validation. Mirrors forge's
+      ::  do-src: %hoon takes text directly, %mime stays mime (keeping
+      ::  its mite), everything else rides over-as-soft so a failed
+      ::  parse comes back as a tang for the editor, not a crash.
+      ::
+      %'write-text'
+    ?~  tree-path
+      ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'no file')])
+      (pure:m ~)
+    =/  fdir=path  (snip `path`tree-path)
+    =/  fnam=@ta  (rear tree-path)
+    =/  content=@t  (fall (get-key:kv:html-utils 'content' args) '')
+    ;<  cur=view:nexus  bind:m  (peek:io [%& %& fdir fnam] ~)
+    ?.  ?=([%file *] cur)
+      ;<  ~  bind:m  (send-simple:srv eyre-id [[404 ~] `(as-octs:mimes:html 'not a file')])
+      (pure:m ~)
+    =/  ok=octs  (as-octs:mimes:html 'saved')
+    ?:  =([/ %hoon] p.sang.cur)
+      ;<  ~  bind:m  (over:io [%& %& fdir fnam] [[/ %hoon] content])
+      ;<  ~  bind:m  (send-simple:srv eyre-id [[200 ~] `ok])
+      (pure:m ~)
+    ?:  =([/ %mime] p.sang.cur)
+      =/  cur-mime=mime  !<(mime (need-vase:tarball sang.cur))
+      ;<  ~  bind:m
+        (over:io [%& %& fdir fnam] [[/ %mime] `mime`[p.cur-mime (as-octs:mimes:html content)]])
+      ;<  ~  bind:m  (send-simple:srv eyre-id [[200 ~] `ok])
+      (pure:m ~)
+    ;<  err=(unit tang)  bind:m
+      %^    over-as-soft:io
+          [%& %& fdir fnam]
+        [[/ %mime] `mime`[/text/plain (as-octs:mimes:html content)]]
+      p.sang.cur
+    ?~  err
+      ;<  ~  bind:m  (send-simple:srv eyre-id [[200 ~] `ok])
+      (pure:m ~)
+    =/  msg=tape
+      (of-wall:format (render-tang-to-wall:http-utils 80 u.err))
+    ;<  ~  bind:m
+      (send-simple:srv eyre-id [[422 ~] `(as-octs:mimes:html (crip msg))])
     (pure:m ~)
   ::
       %'delete-folder'
@@ -566,65 +749,79 @@
     ;meta(name "viewport", content "width=device-width, initial-scale=1");
     ;link(rel "icon", type "image/svg+xml", href "/grubbery/tiles/icon/explorer.explorer");
     ;style
-      ; body { font-family: monospace; margin: 20px; }
-      ; h1 { font-size: 18px; }
-      ; table { border-collapse: collapse; width: 100%; }
-      ; th, td { text-align: left; padding: 8px; }
-      ; th { border-bottom: 1px solid #ccc; }
-      ; a { color: #0366d6; text-decoration: none; }
+      ; * { box-sizing: border-box; }
+      ; body { font: 13px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #1f2328; background: #fff; margin: 0; padding-bottom: 48px; }
+      ; h1 { display: none; }
+      ; a { color: #0969da; text-decoration: none; }
       ; a:hover { text-decoration: underline; }
-      ; .breadcrumb { margin-bottom: 10px; }
-      ; .breadcrumb a { margin: 0 2px; }
-      ; .info { margin: 10px 0; padding: 10px; background: #f6f8fa; border-radius: 6px; }
-      ; .info dt { font-weight: bold; float: left; width: 100px; }
-      ; .info dd { margin-left: 110px; margin-bottom: 4px; }
-      ; button { padding: 2px 8px; cursor: pointer; font-family: monospace; font-size: 12px; }
+      ; .breadcrumb { position: sticky; top: 0; display: flex; align-items: center; flex-wrap: wrap; gap: 2px; padding: 10px 20px; background: #f6f8fa; border-bottom: 1px solid #d0d7de; font: 600 13px ui-monospace, SFMono-Regular, Menlo, monospace; z-index: 5; }
+      ; .breadcrumb a { color: #57606a; padding: 2px 4px; border-radius: 5px; margin: 0; }
+      ; .breadcrumb a:hover { color: #24292f; background: #eaeef2; text-decoration: none; }
+      ; .breadcrumb a:last-child { color: #24292f; }
+      ; .info { margin: 16px 20px 4px; padding: 0; background: none; border-radius: 0; }
+      ; .info dl { display: grid; grid-template-columns: max-content 1fr; gap: 3px 14px; margin: 0 0 12px; }
+      ; .info dt { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: #8b949e; float: none; width: auto; align-self: center; }
+      ; .info dd { margin: 0; font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; color: #24292f; }
+      ; button { font: 12px -apple-system, BlinkMacSystemFont, sans-serif; padding: 4px 12px; cursor: pointer; color: #24292f; background: #fff; border: 1px solid #d0d7de; border-radius: 7px; }
+      ; button:hover { background: #f6f8fa; }
+      ; input[type="text"] { font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; padding: 4px 9px; border: 1px solid #d0d7de; border-radius: 7px; outline: none; }
+      ; input[type="text"]:focus { border-color: #0969da; }
+      ; input[type="file"] { font: 12px -apple-system, sans-serif; color: #57606a; }
+      ; select { font: 12px -apple-system, sans-serif; padding: 4px 6px; border: 1px solid #d0d7de; border-radius: 7px; background: #fff; color: #24292f; }
       ; .del-form { display: inline; }
-      ; .symlink-target { color: #6a737d; }
-      ; .mark-mismatch { color: #cb2431; font-weight: bold; }
-      ; .action-row { margin: 6px 0; display: flex; gap: 6px; align-items: center; }
-      ; .action-row label { font-weight: bold; min-width: 110px; }
-      ; .inline-form { display: flex; gap: 4px; align-items: center; }
-      ; .inline-form input[type="text"] { padding: 2px 4px; font-family: monospace; font-size: 12px; width: 120px; }
-      ; .weir-system { color: #e36209; font-weight: bold; }
-      ; .weir-label { color: #6a737d; margin-right: 4px; }
-      ; .weir-roads { color: #6f42c1; }
+      ; .symlink-target { color: #8b949e; }
+      ; .mark-mismatch { color: #cf222e; font-weight: 600; }
+      ; details.tools { margin: 0 0 8px; }
+      ; details.tools summary { cursor: pointer; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: #57606a; user-select: none; padding: 3px 0; width: max-content; }
+      ; details.tools summary:hover { color: #24292f; }
+      ; details.tools[open] summary { margin-bottom: 8px; }
+      ; .action-row { margin: 0 0 7px; display: flex; gap: 8px; align-items: center; }
+      ; .action-row label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: #8b949e; min-width: 110px; }
+      ; .inline-form { display: flex; gap: 6px; align-items: center; }
+      ; .inline-form input[type="text"] { width: 150px; padding: 4px 9px; font-size: 12px; }
+      ; .weir-system { color: #bc4c00; font-weight: 600; }
+      ; .weir-label { color: #8b949e; margin-right: 4px; }
+      ; .weir-roads { color: #8250df; }
       ; .weir-road-item { margin-right: 8px; }
-      ; .weir-del { font-size: 10px; padding: 0 4px; margin-left: 2px; color: #cb2431; cursor: pointer; }
-      ; select { padding: 2px 4px; font-family: monospace; font-size: 12px; }
+      ; .weir-del { font-size: 10px; padding: 0 5px; margin-left: 2px; color: #cf222e; cursor: pointer; border-radius: 5px; }
+      ; table { border-collapse: collapse; width: calc(100% - 40px); margin: 10px 20px; }
+      ; th, td { text-align: left; padding: 7px 10px; }
+      ; th { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: #8b949e; border-bottom: 1px solid #d0d7de; }
+      ; td { border-bottom: 1px solid #eef1f4; font-size: 13px; }
+      ; td a { font: 12.5px ui-monospace, SFMono-Regular, Menlo, monospace; }
+      ; td:nth-child(2), td:nth-child(3), td:nth-child(4), td:nth-child(5) { font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; color: #57606a; }
+      ; tr:hover td { background: #f6f8fa; }
       ; .sortable { cursor: pointer; user-select: none; }
-      ; .sortable:hover { background: #f0f0f0; }
-      ; .sortable::after { content: ' \2195'; opacity: 0.3; }
+      ; .sortable:hover { color: #24292f; background: none; }
+      ; .sortable::after { content: ' \2195'; opacity: 0.35; }
       ; .sortable.asc::after { content: ' \2191'; opacity: 1; }
       ; .sortable.desc::after { content: ' \2193'; opacity: 1; }
-      ; .boom-banner { margin: 10px 0; padding: 10px; background: #ffeef0; border: 1px solid #cb2431; border-radius: 6px; cursor: pointer; }
-      ; .boom-banner:hover { background: #fdd; }
-      ; .boom-icon { color: #cb2431; font-weight: bold; cursor: pointer; margin-left: 4px; display: inline; }
+      ; .actions-cell { white-space: nowrap; text-align: right; }
+      ; .actions-cell button, .actions-cell .del-form button { padding: 3px 10px; border-color: transparent; background: none; color: #57606a; opacity: 0; transition: opacity .1s; }
+      ; tr:hover .actions-cell button { opacity: 1; }
+      ; .actions-cell button:hover { background: #eaeef2; color: #24292f; }
+      ; .actions-cell .del-form button:hover { background: #ffebe9; color: #cf222e; }
+      ; .boom-banner { margin: 12px 20px; padding: 10px 14px; background: #fff8f8; border: 1px solid #ffcecb; border-radius: 8px; cursor: pointer; color: #cf222e; }
+      ; .boom-banner:hover { background: #ffebe9; }
+      ; .boom-icon { color: #cf222e; font-weight: 600; cursor: pointer; margin-left: 4px; display: inline; }
       ; .boom-icon:hover { text-decoration: underline; }
-      ; .boom-modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.4); z-index: 1000; }
+      ; .boom-modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(31,35,40,0.4); z-index: 1000; }
       ; .boom-modal-overlay.active { display: flex; align-items: center; justify-content: center; }
-      ; .boom-modal { background: #fff; border: 2px solid #cb2431; border-radius: 8px; padding: 16px; max-width: 80vw; max-height: 80vh; overflow: auto; min-width: 400px; }
-      ; .boom-modal h3 { color: #cb2431; margin: 0 0 8px; }
-      ; .boom-modal pre { white-space: pre-wrap; font-size: 12px; margin: 0; max-height: 60vh; overflow: auto; background: #ffeef0; padding: 8px; border-radius: 4px; }
-      ; .actions-cell { white-space: nowrap; }
-      ; .actions-cell button, .actions-cell .del-form button { padding: 4px 8px; }
+      ; .boom-modal { background: #fff; border: 1px solid #ffcecb; border-radius: 12px; box-shadow: 0 12px 36px rgba(31,35,40,.22); padding: 18px; max-width: 80vw; max-height: 80vh; overflow: auto; min-width: 400px; }
+      ; .boom-modal h3 { color: #cf222e; margin: 0 0 8px; font-size: 14px; }
+      ; .boom-modal pre { white-space: pre-wrap; font: 12px/1.5 ui-monospace, Menlo, monospace; margin: 0; max-height: 60vh; overflow: auto; background: #fff8f8; padding: 10px; border-radius: 8px; }
       ; @media (max-width: 768px) {
-      ;   body { margin: 10px; font-size: 14px; }
-      ;   h1 { font-size: 16px; }
       ;   .col-blot, .col-mime, .col-mtime { display: none; }
-      ;   .actions-cell button, .actions-cell .del-form button { padding: 6px 10px; }
       ;   .action-row { flex-wrap: wrap; }
       ;   .action-row label { min-width: unset; width: 100%; margin-bottom: 4px; }
       ;   .inline-form { flex-wrap: wrap; width: 100%; }
       ;   .inline-form input[type="text"] { width: 100%; min-width: 0; }
-      ;   .info dt { float: none; width: auto; }
-      ;   .info dd { margin-left: 0; }
       ;   table { font-size: 13px; }
       ;   th, td { padding: 6px 4px; }
+      ;   .actions-cell button { opacity: 1; }
       ;   .boom-modal { min-width: unset; width: 90vw; }
       ; }
       ; @media (max-width: 480px) {
-      ;   body { margin: 6px; }
       ;   .actions-cell { display: flex; flex-wrap: wrap; gap: 4px; }
       ;   .col-size { display: none; }
       ; }
@@ -700,6 +897,8 @@
               ==
             ==
         ==
+    ;details.tools
+    ;summary:  manage
     ;*  ?.  ?&(?=(^ fil.b) ?=(^ neck.u.fil.b))  ~
         :~  ;div.action-row
               ;form.inline-form(method "POST", action url-prefix)
@@ -752,6 +951,7 @@
         ;input(type "file", name "file", webkitdirectory "", directory "");
         ;button(type "submit"): Upload Directory
       ==
+    ==
     ==
   ==
 ::

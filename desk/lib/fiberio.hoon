@@ -750,6 +750,27 @@
   ;<  =wire  bind:m  (nonce /make)
   ;<  ~  bind:m  (send-dart %node wire road %make %.y %.n |+[bask `blot])
   (take-made wire)
+::  +over-as-soft: over-as that hands the failure back — a bad tube or
+::  vale at the destination comes back as `tang for the caller to
+::  present, instead of crashing the fiber. An editor's save path.
+::
+++  over-as-soft
+  |=  [=road:tarball =bask:tarball =blot:tarball]
+  =/  m  (fiber ,(unit tang))
+  ^-  form:m
+  ;<  =wire  bind:m  (nonce /make)
+  ;<  ~  bind:m  (send-dart %node wire road %make %.y %.n |+[bask `blot])
+  |=  input
+  :+  ~  q.state
+  ?+  in  [%skip ~]
+      ~  [%wait ~]
+      [~ %veto *]
+    [%fail (veto-error dart.u.in)]
+      [~ %made * *]
+    ?.  =(wire wire.u.in)
+      [%skip ~]
+    [%done err.u.in]
+  ==
 ::
 ::  +put: overwrite if exists, create if not
 ::

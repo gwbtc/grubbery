@@ -28,6 +28,7 @@
     if (ext === 'svg') return 'svg';
     if (ext === 'html' || ext === 'htm') return 'html';
     if (['png', 'jpg', 'jpeg', 'gif', 'webp', 'ico', 'bmp', 'avif'].indexOf(ext) >= 0) return 'image';
+    if (ext === 'pdf') return 'pdf';
     return null;
   }
 
@@ -41,6 +42,7 @@
   //  svg   : from text via a script-safe <img data:> ( <script> never runs )
   //  html  : from text via a sandboxed iframe ( no scripts / no same-origin )
   //  image : raster bytes from rawUrl ( the editor's text can't represent them )
+  //  pdf   : raw bytes from rawUrl in a plain iframe ( browser's native viewer )
   function render(el, o) {
     var k = kind(o.name);
     if (k === 'svg' && (o.text != null || o.rawUrl)) {
@@ -62,6 +64,12 @@
     } else if (k === 'image' && o.rawUrl) {
       surface(el);
       el.innerHTML = '<img style="' + IMG + '" src="' + o.rawUrl + '">';
+    } else if (k === 'pdf' && o.rawUrl) {
+      el.innerHTML = '';
+      var pf = document.createElement('iframe');
+      pf.style.cssText = 'width:100%;height:100%;border:none';
+      pf.src = o.rawUrl;
+      el.appendChild(pf);
     } else {
       el.innerHTML = '';
       return null;
