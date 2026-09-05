@@ -22,6 +22,33 @@ const wrapBtn = document.getElementById('wrap');
 const status = document.getElementById('status');
 
 const ext = (name.match(/\.([a-z0-9]+)$/i) || [, ''])[1].toLowerCase();
+
+// breadcrumbs to every ancestor, in the bar before the filename —
+// the file page's way back into the browse app
+(function crumbs() {
+  const bar = document.getElementById('bar');
+  const fname = document.getElementById('fname');
+  const parts = location.pathname.replace('/grubbery/ball', '').split('/').filter(Boolean);
+  const wrap = document.createElement('span');
+  wrap.style.cssText = 'display:flex;align-items:center;gap:2px;font:600 12px ui-monospace,SFMono-Regular,Menlo,monospace;margin-left:4px;';
+  const mk = (t, href) => {
+    const a = document.createElement('a');
+    a.href = href;
+    a.textContent = t;
+    a.style.cssText = 'color:#57606a;padding:2px 4px;border-radius:5px;text-decoration:none;';
+    a.onmouseenter = () => { a.style.background = '#eaeef2'; a.style.color = '#24292f'; };
+    a.onmouseleave = () => { a.style.background = ''; a.style.color = '#57606a'; };
+    return a;
+  };
+  let acc = '/grubbery/ball';
+  wrap.appendChild(mk('/', acc));
+  parts.slice(0, -1).forEach(s => {
+    acc += '/' + s;
+    wrap.appendChild(mk(s + '/', acc));
+  });
+  bar.insertBefore(wrap, fname);
+  fname.style.marginLeft = '0';
+})();
 const SHIKI_LANG = { js: 'javascript', mjs: 'javascript', ts: 'typescript',
                      json: 'json', css: 'css', hoon: 'hoon' };
 

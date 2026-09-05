@@ -7,6 +7,10 @@
 /&  gram     explorer/hoon-grammar.json
 /&  view-js  explorer/view.js
 /&  fp-js    /lib/ui/file-preview.js
+/&  md-js    /lib/ui/modal-dialog.js
+/&  dm2-js   /lib/ui/drop-menu.js
+/&  browse-html  explorer/ui/browse.html
+/&  browse-js    explorer/ui/browse.js
 /&  marked-js  shell/marked.min.js
 /&  cm-js      /lib/cm/codemirror.min.js
 /&  cm-css     /lib/cm/codemirror.min.css
@@ -58,6 +62,10 @@
           [%over %& [/ %'hoon-grammar.json'] [[/ %mime] gram]]
           [%over %& [/ %'view.js'] [[/ %mime] view-js]]
           [%over %& [/ %'file-preview.js'] [[/ %mime] fp-js]]
+          [%over %& [/ %'modal-dialog.js'] [[/ %mime] md-js]]
+          [%over %& [/ %'drop-menu.js'] [[/ %mime] dm2-js]]
+          [%over %& [/ %'browse.html'] [[/ %mime] browse-html]]
+          [%over %& [/ %'browse.js'] [[/ %mime] browse-js]]
           [%over %& [/ %'marked.min.js'] [[/ %mime] marked-js]]
           [%over %& [/ %'cm.js'] [[/ %mime] cm-bundle]]
           [%over %& [/ %'cm.css'] [[/ %mime] cm-css]]
@@ -328,6 +336,15 @@
   ?:  is-dir
     ?:  ?&(?=(^ download-param) =(u.download-param 'tar'))
       (serve-tarball eyre-id tree-path ball)
+    ::  browsers get the static browse app immediately — it fetches
+    ::  ?list=1 itself. Everything below (time, conversions, font) is
+    ::  only needed to BUILD a listing or the ?legacy sail page.
+    ?:  ?&  html-ok
+            ?=(~ (get-key:kv:html-utils 'list' args))
+            ?=(~ (get-key:kv:html-utils 'legacy' args))
+        ==
+      ;<  ~  bind:m  (send-simple:srv eyre-id (mime-response:http-utils browse-html))
+      (pure:m ~)
     ~&  >  %explorer-get-time
     ;<  now=@da  bind:m  get-time:io
     ~&  >  %explorer-get-conversions
@@ -347,6 +364,14 @@
       ?~  ns  ~
       ?.  ?=(%| -.u.ns)  ~
       `p.u.ns
+    ::  ?list=1: the same data render-dir renders, as JSON — the static
+    ::  browse app's feed (and anyone else's)
+    ?:  ?=(^ (get-key:kv:html-utils 'list' args))
+      =/  jon=json  (listing-json tree-path ball ball-wave now conversions code-namespace dir-weir)
+      =/  bod=octs  (as-octs:mimes:html (en:json:html jon))
+      ;<  ~  bind:m
+        (send-simple:srv eyre-id [[200 ~[['content-type' 'application/json']]] `bod])
+      (pure:m ~)
     ::  ~>(%bout.[1 %explorer-render-dir] ...)
     =/  page=manx  (render-dir tree-path ball ball-wave now conversions code-namespace dir-weir)
     ::  ~>(%bout.[1 %explorer-manx-to-octs] ...)
@@ -1042,6 +1067,129 @@
     "{(trip (spat path.p.lane))}/{(trip name.p.lane)}"
       %|
     ?~(p.lane "/" "{(trip (spat p.lane))}/")
+  ==
+::
+::  +listing-json: the dir listing as data — everything render-dir shows,
+::  one child object per subdir and grub. Pure given its inputs (the mime
+::  conversions ride the prefetched tube map, via gen:tarball).
+::
+++  listing-json
+  |=  $:  pax=path
+          b=ball:tarball
+          b-wave=wave:nexus
+          now=@da
+          conversions=(map bars:tarball tube:clay)
+          code-namespace=(unit path)
+          dir-weir=(unit weir:nexus)
+      ==
+  ^-  json
+  =/  str  |=(t=tape `json`s+(crip t))
+  =/  neck-url=(unit tape)
+    ?~  code-namespace  ~
+    ?~  fil.b  ~
+    ?~  neck.u.fil.b  ~
+    `"/grubbery/ball{(trip (spat (weld u.code-namespace /nex)))}{(trip (spat (rail-to-path:tarball u.neck.u.fil.b)))}.hoon"
+  =/  neck-display=tape
+    ?~  fil.b  "-"
+    ?~  neck.u.fil.b  "-"
+    (trip (spat (rail-to-path:tarball u.neck.u.fil.b)))
+  =/  file-contents=(map @ta [=sang:tarball gain=? bang=(unit tang)])
+    ?~  fil.b  ~
+    contents.u.fil.b
+  =/  mtime
+    |=  name=@ta
+    ^-  json
+    ?~  fil.b-wave  ~
+    =/  cas=(unit cass:clay)  (~(get by file.u.fil.b-wave) name)
+    ?~  cas  ~
+    (str (en:datetime-local:iso-8601 da.u.cas))
+  =/  dirs=(list json)
+    %+  turn
+      (sort ~(tap by dir.b) |=([[a=@ta *] [b=@ta *]] (aor a b)))
+    |=  [name=@ta kid=ball:tarball]
+    ^-  json
+    =/  neck-json=json
+      ?~  fil.kid  ~
+      ?~  neck.u.fil.kid  ~
+      s+(crip (spud (rail-to-path:tarball u.neck.u.fil.kid)))
+    (pairs:enjs:format ~[['name' s+`@t`name] ['kind' s+'dir'] ['neck' neck-json]])
+  =/  files=(list json)
+    %+  turn
+      (sort ~(tap by file-contents) |=([[a=@ta *] [b=@ta *]] (aor a b)))
+    |=  [name=@ta =sang:tarball gain=? bang=(unit tang)]
+    ^-  json
+    ?:  (is-boom:tarball sang)
+      =/  boom-tang=tang  ?~(bang ~[leaf+"validation failed"] u.bang)
+      %-  pairs:enjs:format
+      :~  ['name' s+`@t`name]
+          ['kind' s+'boom']
+          ['blot' (str (spud (rail-to-path:tarball p.sang)))]
+          ['boom' (str (render-tang boom-tang))]
+          ['modified' (mtime name)]
+      ==
+    =/  sag=sage:tarball  (need-sage:tarball sang)
+    ?:  =(%symlink name.p.sag)
+      =/  sym  !<(symlink:tarball q.sag)
+      %-  pairs:enjs:format
+      :~  ['name' s+`@t`name]
+          ['kind' s+'symlink']
+          ['target' (str (trip (encode-symlink:tarball sym)))]
+          ['resolved' (str (trip (spat (resolve-symlink:tarball sym pax))))]
+          ['modified' (mtime name)]
+      ==
+    =/  =mime
+      ?:  =(%mime name.p.sag)
+        !<(mime q.sag)
+      (~(sage-to-mime gen:tarball [now conversions]) sag)
+    =/  mime-raw=tape  (trip (spat p.mime))
+    =/  ext=(unit @ta)  (parse-extension:tarball name)
+    =/  rail-ext=@ta
+      %-  crip  %-  zing
+      %+  join  "_"
+      (turn (rail-to-path:tarball p.sag) trip)
+    =/  mark-url=json
+      ?~  code-namespace  ~
+      =/  mar-path=path
+        (weld u.code-namespace (weld /mar (rail-to-path:tarball p.sag)))
+      (str "/grubbery/ball{(trip (spat mar-path))}.hoon")
+    %-  pairs:enjs:format
+    :~  ['name' s+`@t`name]
+        ['kind' s+'file']
+        ['blot' (str (spud (rail-to-path:tarball p.sag)))]
+        ['blot-url' mark-url]
+        ['mismatch' b+?~(ext %.y !=(u.ext rail-ext))]
+        ['mime' (str ?~(mime-raw "" (tail mime-raw)))]
+        ['size' (numb:enjs:format p.q.mime)]
+        ['binary' b+=(p.mime /application/x-urb-jam)]
+        ['bang' ?~(bang ~ (str (render-tang u.bang)))]
+        ['modified' (mtime name)]
+    ==
+  =/  weir-json=json
+    ?~  dir-weir  ~
+    =/  cat
+      |=  roads=(set road:tarball)
+      ^-  json
+      a+(turn ~(tap in roads) |=(r=road:tarball `json`s+(crip (road-to-form r))))
+    %-  pairs:enjs:format
+    :~  ['write' (cat make.u.dir-weir)]
+        ['poke' (cat poke.u.dir-weir)]
+        ['read' (cat peek.u.dir-weir)]
+    ==
+  =/  nexus-bang=json
+    ?~  fil.b  ~
+    ?~  bang.u.fil.b  ~
+    (str (render-tang u.bang.u.fil.b))
+  %-  pairs:enjs:format
+  :~  ['path' (str ?~(pax "/" (trip (spat pax))))]
+      ['root' b+?=(~ pax)]
+      :-  'nexus'
+      %-  pairs:enjs:format
+      :~  ['display' (str neck-display)]
+          ['url' ?~(neck-url ~ (str u.neck-url))]
+      ==
+      ['weir' weir-json]
+      ['bang' nexus-bang]
+      ['children' a+(weld dirs files)]
   ==
 ::
 ++  render-dir

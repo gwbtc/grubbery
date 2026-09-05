@@ -1,0 +1,183 @@
+<!doctype html>
+<!--
+  explorer browse app — the static shell for directory views. Served for
+  every dir URL (html requests; ?raw / ?list / ?legacy bypass); one file,
+  all state fetched from <dir>?list=1 and rendered by browse.js. Kit
+  components (modal-dialog) do the dialogs. This replaces the sail
+  render-dir page; ?legacy=1 still serves the old one during migration.
+-->
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>explorer</title>
+  <link rel="icon" type="image/svg+xml" href="/grubbery/tiles/icon/explorer.explorer">
+  <style>
+    * { box-sizing: border-box; }
+    body { font: 13px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #1f2328; background: #fff; margin: 0; padding-bottom: 48px; }
+    a { color: #0969da; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    modal-dialog:not(:defined) { display: none; }
+
+    #bar { position: sticky; top: 0; display: flex; align-items: center; gap: 8px; padding: 8px 14px; background: #f6f8fa; border-bottom: 1px solid #d0d7de; z-index: 5; }
+    #crumbs { display: flex; align-items: center; flex-wrap: wrap; gap: 2px; font: 600 13px ui-monospace, SFMono-Regular, Menlo, monospace; }
+    #crumbs a { color: #57606a; padding: 2px 4px; border-radius: 5px; }
+    #crumbs a:hover { color: #24292f; background: #eaeef2; text-decoration: none; }
+    #crumbs .here { color: #24292f; padding: 2px 4px; }
+    .grow { flex: 1; }
+    .chip { display: inline-flex; align-items: center; gap: 5px; background: #eef1f4; border: 1px solid #e2e7ee; border-radius: 6px; padding: 2px 8px; white-space: nowrap; }
+    .chip .k { font-size: 10px; text-transform: uppercase; letter-spacing: .05em; color: #8b949e; }
+    .chip .v { font: 11px ui-monospace, SFMono-Regular, Menlo, monospace; color: #24292f; }
+    .chip .v a { font: inherit; }
+    .chip.warn .v { color: #bc4c00; font-weight: 600; }
+    #bar button, .btn { all: unset; cursor: pointer; padding: 4px 12px; border-radius: 7px; font-size: 12px; color: #24292f; border: 1px solid #d0d7de; background: #fff; }
+    #bar button:hover, .btn:hover { background: #f6f8fa; }
+
+    #bang { margin: 12px 20px; padding: 10px 14px; background: #fff8f8; border: 1px solid #ffcecb; border-radius: 8px; cursor: pointer; color: #cf222e; }
+    #bang:hover { background: #ffebe9; }
+    .dload { display: inline-block; animation: dpulse 1.1s ease-in-out infinite; }
+    @keyframes dpulse { 50% { opacity: .2; } }
+    #status { position: fixed; bottom: 14px; left: 50%; transform: translateX(-50%); background: #24292f; color: #fff; font-size: 12px; padding: 7px 16px; border-radius: 8px; box-shadow: 0 8px 24px rgba(31,35,40,.25); display: none; max-width: 70vw; white-space: pre-wrap; z-index: 50; }
+    #status.err { background: #cf222e; }
+
+    table { border-collapse: collapse; width: calc(100% - 40px); margin: 10px 20px; }
+    th, td { text-align: left; padding: 7px 10px; }
+    th { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: #8b949e; border-bottom: 1px solid #d0d7de; cursor: pointer; user-select: none; white-space: nowrap; }
+    th:hover { color: #24292f; }
+    th .arr { opacity: .35; }
+    th.sorted .arr { opacity: 1; }
+    table { table-layout: fixed; }
+    td { border-bottom: 1px solid #eef1f4; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    th.c-name { width: 30%; } th.c-blot { width: 14%; }
+    th.c-mime { width: 15%; } th.c-size { width: 8%; } th.c-mod { width: 16%; }
+    td a.name { font: 12.5px ui-monospace, SFMono-Regular, Menlo, monospace; }
+    td.mono { font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; color: #57606a; }
+    td.mono a { font: inherit; }
+    tr:hover td { background: #f6f8fa; }
+    .sym { color: #8b949e; font-size: 12px; }
+    .boomch { color: #cf222e; font-weight: 700; cursor: pointer; margin-left: 5px; }
+    td.acts { white-space: nowrap; text-align: right; overflow: visible; text-overflow: clip; }
+    td.acts .dots { all: unset; cursor: pointer; padding: 1px 9px; border-radius: 7px; font-size: 15px; color: #57606a; opacity: 0; transition: opacity .1s; }
+    tr:hover td.acts .dots, td.acts drop-menu[open] .dots { opacity: 1; }
+    td.acts .dots:hover { background: #eaeef2; color: #24292f; }
+    drop-menu button.mi { all: unset; display: block; cursor: pointer; padding: 6px 14px; font-size: 12.5px; color: #24292f; border-radius: 7px; text-align: left; min-width: 110px; }
+    drop-menu button.mi:hover { background: #eef1f4; }
+    drop-menu button.mi.danger:hover { background: #ffebe9; color: #cf222e; }
+
+    /* modal internals */
+    .m-title { margin: 0 0 12px; font-size: 15px; }
+    .m-sec { margin-bottom: 14px; }
+    .m-sec h4 { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: #8b949e; margin: 0 0 6px; }
+    .m-row { display: flex; gap: 6px; align-items: center; margin-bottom: 6px; flex-wrap: wrap; }
+    .m-row input[type="text"] { flex: 1; min-width: 120px; font: 12px ui-monospace, Menlo, monospace; padding: 5px 9px; border: 1px solid #d0d7de; border-radius: 7px; outline: none; }
+    .m-row input[type="text"]:focus { border-color: #0969da; }
+    .picked { flex: 1; font-size: 12px; color: #8b949e; font-style: italic; }
+    .m-row select { font-size: 12px; padding: 4px 6px; border: 1px solid #d0d7de; border-radius: 7px; background: #fff; }
+    .m-row button, .m-actions button { all: unset; cursor: pointer; padding: 4px 12px; border-radius: 7px; font-size: 12px; border: 1px solid #d0d7de; color: #24292f; }
+    .m-row button:hover, .m-actions button:hover { background: #f6f8fa; }
+    .m-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
+    .m-actions button.primary { background: #0969da; border-color: #0969da; color: #fff; }
+    .m-actions button.primary:hover { background: #0857b8; }
+    .weir-road { display: inline-flex; align-items: center; gap: 4px; background: #eef1f4; border-radius: 6px; padding: 1px 4px 1px 8px; margin: 0 4px 4px 0; font: 11px ui-monospace, Menlo, monospace; color: #8250df; }
+    .weir-road button { all: unset; cursor: pointer; color: #cf222e; padding: 0 4px; border-radius: 4px; }
+    .weir-road button:hover { background: #ffebe9; }
+    #boom-text { white-space: pre-wrap; font: 12px/1.5 ui-monospace, Menlo, monospace; max-height: 60vh; overflow: auto; background: #fff8f8; padding: 10px; border-radius: 8px; margin: 0; }
+  </style>
+</head>
+<body>
+  <div id="bar">
+    <div id="crumbs"></div>
+    <span class="grow"></span>
+    <span id="chips"></span>
+    <button id="manage-btn" title="manage this directory">manage</button>
+  </div>
+  <div id="bang" style="display:none"></div>
+  <table id="listing">
+    <thead>
+      <tr>
+        <th data-k="name" class="sorted c-name">name <span class="arr">&#8593;</span></th>
+        <th data-k="blot" class="c-blot">blot / neck <span class="arr">&#8597;</span></th>
+        <th data-k="mime" class="c-mime">mime type <span class="arr">&#8597;</span></th>
+        <th data-k="size" class="c-size">size <span class="arr">&#8597;</span></th>
+        <th data-k="modified" class="c-mod">modified <span class="arr">&#8597;</span></th>
+        <th style="cursor:default"></th>
+      </tr>
+    </thead>
+    <tbody id="rows">
+      <tr id="loading-row"><td colspan="6" style="color:#8b949e"><span class="dload">&#9670;</span> loading&hellip;</td></tr>
+    </tbody>
+  </table>
+  <div id="status"></div>
+
+  <modal-dialog id="manage-modal" style="--md-width: 520px">
+    <h3 class="m-title">manage <span id="m-path" style="font: 600 13px ui-monospace, Menlo, monospace; color: #57606a"></span></h3>
+    <div class="m-sec" id="m-weir-sec">
+      <h4>weir</h4>
+      <div id="m-weir-roads"></div>
+      <div class="m-row">
+        <select id="m-weir-cat">
+          <option value="write">write</option>
+          <option value="poke">poke</option>
+          <option value="read">read</option>
+        </select>
+        <input type="text" id="m-weir-road" placeholder="/path or /path/">
+        <button id="m-weir-add">add</button>
+      </div>
+    </div>
+    <div class="m-sec">
+      <h4>create</h4>
+      <div class="m-row">
+        <input type="text" id="m-folder" placeholder="folder-name">
+        <button id="m-folder-go">create folder</button>
+      </div>
+      <div class="m-row">
+        <input type="text" id="m-link" placeholder="link-name">
+        <input type="text" id="m-target" placeholder="target-path">
+        <button id="m-link-go">create symlink</button>
+      </div>
+    </div>
+    <div class="m-sec">
+      <h4>upload</h4>
+      <div class="m-row">
+        <button id="m-files-pick">choose files&hellip;</button>
+        <span class="picked" id="m-files-n">nothing chosen</span>
+        <button id="m-files-go">upload</button>
+        <input type="file" id="m-files" multiple hidden>
+      </div>
+      <div class="m-row">
+        <button id="m-dir-pick">choose directory&hellip;</button>
+        <span class="picked" id="m-dir-n">nothing chosen</span>
+        <button id="m-dir-go">upload directory</button>
+        <input type="file" id="m-dir" webkitdirectory directory hidden>
+      </div>
+    </div>
+    <div class="m-sec">
+      <h4>this directory</h4>
+      <div class="m-row">
+        <a class="btn" id="m-tar" href="?download=tar">download as tarball</a>
+        <button id="m-reload" style="display:none">reload nexus</button>
+      </div>
+    </div>
+    <div class="m-actions"><button data-close>done</button></div>
+  </modal-dialog>
+
+  <modal-dialog id="ask-modal">
+    <h3 class="m-title" id="ask-title"></h3>
+    <div class="m-row"><input type="text" id="ask-input"></div>
+    <div class="m-actions">
+      <button data-close>cancel</button>
+      <button class="primary" id="ask-go">ok</button>
+    </div>
+  </modal-dialog>
+
+  <modal-dialog id="boom-modal" style="--md-width: 640px">
+    <h3 class="m-title" style="color:#cf222e">crash details</h3>
+    <pre id="boom-text"></pre>
+    <div class="m-actions"><button data-close>close</button></div>
+  </modal-dialog>
+
+  <script type="module" src="/grubbery/ball/apps/explorer.explorer/modal-dialog.js"></script>
+  <script type="module" src="/grubbery/ball/apps/explorer.explorer/drop-menu.js"></script>
+  <script type="module" src="/grubbery/ball/apps/explorer.explorer/browse.js"></script>
+</body>
+</html>
