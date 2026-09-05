@@ -1,4 +1,7 @@
 /-  spider, push, grub
+::  TODO: root is compiled into the kernel at build time. When lib/root.hoon
+::  changes on disk, we should reload the root nexus at / so the new on-load
+::  takes effect without a full kernel upgrade.
 /+  nexus, tarball, build, marks,
     loader, fiberio, migrations, root,
     default-agent, dbug,
@@ -254,6 +257,26 @@
       =^  cards  state
         abet:repair-silo:hc
       [cards this]
+      ::  Emergency hatch: clear the /apps weir directly at agent level.
+      ::  A weir on /apps locks every tool that could remove it (including
+      ::  the sand dart path if anything re-establishes it at boot) — this
+      ::  bypasses darts, gates, and state replay entirely.
+      ::
+        %open-apps
+      ~&  >  %grubbery-open-apps
+      =^  cards  state
+        abet:(set-weir:hc /apps ~)
+      [cards this]
+      ::  Read the /apps weir from BOTH sources of truth. get-weir-for
+      ::  reads the materialized ball; peek-weir reads the born/silo tree
+      ::  entry (what +allowed actually gates on). If they disagree,
+      ::  set-weir's are-we-already-there short-circuit no-ops against
+      ::  the wrong one and sands silently do nothing.
+      ::
+        %show-apps-weir
+      ~&  >  [%apps-weir-ball (get-weir-for:hc /apps)]
+      ~&  >  [%apps-weir-born (peek-weir:hc /apps)]
+      [~ this]
     ==
   ==
 ::
@@ -3367,10 +3390,17 @@
       ::  Set weir at dest (must be a directory)
       ?>  ?=(%| -.u.dest-lane)
       =/  dest=fold:tarball  p.u.dest-lane
+      ~&  >>  [%sand-applying dest=dest weir=weir.load.dart from=path.here]
       =/  res=(each _this tang)  (mule |.((set-weir dest weir.load.dart)))
       ?-  -.res
-        %&  (enqu-take:p.res here ~ ~ %sand wire.dart ~)
-        %|  (enqu-take here ~ ~ %sand wire.dart `p.res)
+        %&  ~&  >  [%sand-applied dest=dest]
+            (enqu-take:p.res here ~ ~ %sand wire.dart ~)
+          %|
+        ::  a sand that dies in the mule mails its tang to a take nobody
+        ::  may be listening to — say it out loud too
+        ~&  >>>  [%sand-crashed dest=dest]
+        %-  (slog p.res)
+        (enqu-take here ~ ~ %sand wire.dart `p.res)
       ==
       ::
         %load
@@ -4527,6 +4557,8 @@
   =/  next=filt:nexus
     (next-filt:nexus filt (filter:nexus jump path.here dest-lane weir-here))
   ?:  ?=([~ %|] next)
+    ::  name the boundary that said no — a veto without a WHERE is torture
+    ~&  >>>  [%weir-veto-at boundary=path.here weir=weir-here jump=jump dest=dest-lane]
     [~ |]
   ::  Reached root - stop
   ?~  path.here

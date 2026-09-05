@@ -39,7 +39,13 @@
   %+  spin:loader  ball
     :~  (manifest:loader 0)
         [%load %| / / same-fold:loader]
-        [%fall %| /apps [`[~ ~ %.n ~] ~]]
+        ::  /apps is the trusted tier and MUST stay unweired: a weir here
+        ::  locks the whole system including every tool that could remove
+        ::  it (learned the hard way). Each load forcibly resets /apps'
+        ::  own fil to the open default — an invariant, not healing.
+        ::  Children untouched (%load extracts the old subtree and
+        ::  transforms only the top fil).
+        [%load %| /apps /apps |=(b=bole:tarball b(fil `[~ ~ %.n ~]))]
         [%fall %| /docs [`[~ ~ %.n ~] ~]]
         ::  /sys/eyre: HTTP server state + request fibers
         ::

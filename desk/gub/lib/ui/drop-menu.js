@@ -50,6 +50,8 @@ TPL.innerHTML = `
       flex-direction: column;
     }
     :host([open]) #panel { display: flex; }
+    /* flip: opens upward when the panel would run off the viewport bottom */
+    :host([flip]) #panel { top: auto; bottom: calc(100% + 4px); }
     :host(:not([align="end"])) #panel { left: 0; }
     :host([align="end"]) #panel { right: 0; }
     /* style slotted menu items into a consistent list */
@@ -138,7 +140,18 @@ class DropMenu extends HTMLElement {
     items[next < 0 ? 0 : next].focus();
   };
 
-  open() { this.setAttribute('open', ''); }
+  open() {
+    this.setAttribute('open', '');
+    // flip upward when the panel would run off the bottom and there's
+    // more room above. Measured synchronously post-open (layout is
+    // forced, nothing has painted) so there's no flash at the wrong spot.
+    this.removeAttribute('flip');
+    const panel = this.shadowRoot.getElementById('panel');
+    const p = panel.getBoundingClientRect();
+    const t = this.getBoundingClientRect();
+    const below = innerHeight - t.bottom;
+    if (p.bottom > innerHeight - 8 && t.top > below) this.setAttribute('flip', '');
+  }
   close() { this.removeAttribute('open'); }
   toggle() { this.hasAttribute('open') ? this.close() : this.open(); }
 }

@@ -1,3 +1,9 @@
+// TODO: extract the file/dir table into a <file-table> web component in
+// lib/ui/. Accept rows as a JS property, declare columns via config, emit
+// events (file-rename, file-move, file-delete, etc.) instead of POSTing
+// directly. Host page wires events to its backend. Enables a Finder-like
+// app and other directory UIs to reuse the same table.
+//
 // explorer browse app. Renders a directory from <dir>?list=1 and drives
 // every action through the same POST endpoints the sail page used —
 // success re-fetches the listing in place (no page reloads), failure
@@ -56,6 +62,7 @@ async function load() {
   renderBang();
   renderRows();
   renderManage();
+  if ($('weir-modal').hasAttribute('open')) renderWeir();
 }
 
 function renderCrumbs() {
@@ -110,7 +117,81 @@ function renderChips() {
   }
   c.appendChild(chip('items', String(data.children.length)));
   const open = data.root || !data.weir;
-  c.appendChild(chip('sandbox', open ? 'unrestricted' : 'weir', open));
+  const sb = chip('sandbox', open ? 'unrestricted' : 'restricted', open);
+  // load-bearing weirs are not offered: restricting /apps (or explorer
+  // itself) locks the tools that manage weirs — server refuses too
+  const PROTECTED = ['/apps', '/apps/explorer.explorer'];
+  if (!data.root && !PROTECTED.includes(dirPath)) {
+    sb.classList.add('click');
+    sb.title = 'manage this sandbox';
+    sb.addEventListener('click', () => { renderWeir(); $('weir-modal').show(); });
+  } else if (PROTECTED.includes(dirPath)) {
+    sb.classList.add('locked');
+    sb.querySelector('.v').append(' \ud83d\udd12');
+    sb.title = 'load-bearing: restricting this directory would make grubbery painfully difficult to interface with from the outside — the server refuses it';
+  }
+  c.appendChild(sb);
+}
+
+function renderWeir() {
+  $('w-path').textContent = dirPath;
+  const roads = $('m-weir-roads');
+  roads.textContent = '';
+  $('m-weir-clear').style.display = data.weir ? '' : 'none';
+  $('m-weir-make').style.display = data.weir ? 'none' : '';
+  if (!data.weir) {
+    const p = document.createElement('div');
+    p.className = 'w-none';
+    p.textContent = 'unrestricted — no weir. Restricting starts fully closed; open it road by road.';
+    roads.appendChild(p);
+    return;
+  }
+  for (const cat of ['write', 'poke', 'read']) {
+    const row = document.createElement('div');
+    row.className = 'w-cat';
+    const k = document.createElement('span');
+    k.className = 'w-k';
+    k.textContent = cat;
+    const rs = document.createElement('div');
+    rs.className = 'w-roads';
+    for (const rd of (data.weir[cat] || [])) {
+      const s = document.createElement('span');
+      s.className = 'weir-road';
+      s.append(rd);
+      const x = document.createElement('button');
+      x.textContent = '\u00d7';
+      x.title = 'remove road';
+      x.addEventListener('click', () =>
+        post({ action: 'del-weir-road', category: cat, 'road-path': rd }));
+      s.appendChild(x);
+      rs.appendChild(s);
+    }
+    // per-row +: swaps into an inline input; Enter adds, Esc backs out
+    const plus = document.createElement('button');
+    plus.className = 'w-plus';
+    plus.textContent = '+';
+    plus.title = 'add ' + cat + ' road';
+    plus.addEventListener('click', () => {
+      const inp = document.createElement('input');
+      inp.className = 'w-inline';
+      inp.placeholder = '/path or /path/';
+      inp.spellcheck = false;
+      rs.replaceChild(inp, plus);
+      inp.focus();
+      const done = () => { if (inp.parentNode) rs.replaceChild(plus, inp); };
+      inp.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && inp.value.trim()) {
+          post({ action: 'add-weir-road', category: cat, 'road-path': inp.value.trim() });
+          done();
+        }
+        if (e.key === 'Escape') done();
+      });
+      inp.addEventListener('blur', done);
+    });
+    rs.appendChild(plus);
+    row.append(k, rs);
+    roads.appendChild(row);
+  }
 }
 
 function renderBang() {
@@ -205,7 +286,7 @@ function row(c) {
     a.dataset.nav = '1';
     nameCell.appendChild(a);
     tr.append(td('', nameCell), td('mono', c.neck || '–'),
-              td('mono', '–'), td('mono', '–'), td('mono', '–'));
+              td('mono', '–'), td('mono', '–'), td('mono', c.modified || '–'));
     tr.appendChild(actsCell([
       actBtn('Download', () => { location.href = base + '?download=tar'; }),
       actBtn('Rename', () => ask('rename ' + c.name, c.name, nn =>
@@ -352,50 +433,37 @@ function showBoom(text) {
 }
 
 function renderManage() {
-  $('m-path').textContent = dirPath;
-  $('m-tar').href = here + '?download=tar';
-  $('m-reload').style.display = (data.nexus && data.nexus.display !== '-') ? '' : 'none';
-  const sec = $('m-weir-sec');
-  sec.style.display = data.root ? 'none' : '';
-  const roads = $('m-weir-roads');
-  roads.textContent = '';
-  if (data.weir) {
-    for (const [cat, key] of [['write', 'write'], ['poke', 'poke'], ['read', 'read']]) {
-      for (const rd of (data.weir[key] || [])) {
-        const s = document.createElement('span');
-        s.className = 'weir-road';
-        s.append(cat + ' ' + rd);
-        const x = document.createElement('button');
-        x.textContent = '×';
-        x.title = 'remove road';
-        x.addEventListener('click', () =>
-          post({ action: 'del-weir-road', category: cat, 'road-path': rd }));
-        s.appendChild(x);
-        roads.appendChild(s);
-      }
-    }
-    const clr = document.createElement('button');
-    clr.className = 'btn';
-    clr.textContent = 'clear weir';
-    clr.addEventListener('click', () =>
-      confirm('Remove weir? This gives unrestricted access.') &&
-      post({ action: 'clear-weir' }));
-    roads.appendChild(clr);
-  }
+  $('mi-reload').style.display = (data.nexus && data.nexus.display !== '-') ? '' : 'none';
 }
 
-$('manage-btn').addEventListener('click', () => $('manage-modal').show());
-$('m-weir-add').addEventListener('click', () => {
-  const rd = $('m-weir-road').value.trim();
-  if (rd) post({ action: 'add-weir-road', category: $('m-weir-cat').value, 'road-path': rd });
-});
+// manage menu: each item opens its own small modal; download + reload act
+function openModal(id, focus) {
+  $(id).show();
+  if (focus) { $(focus).focus(); }
+}
+$('mi-folder').addEventListener('click', () => openModal('folder-modal', 'm-folder'));
+$('mi-symlink').addEventListener('click', () => openModal('symlink-modal', 'm-link'));
+$('mi-upload').addEventListener('click', () => openModal('upload-modal'));
+$('mi-upload-dir').addEventListener('click', () => openModal('upload-dir-modal'));
+$('mi-download').addEventListener('click', () => { location.href = here + '?download=tar'; });
+$('mi-reload').addEventListener('click', () => post({ action: 'reload-nexus' }));
+$('m-weir-make').addEventListener('click', () => post({ action: 'make-weir' }));
+$('m-weir-clear').addEventListener('click', () =>
+  confirm('Remove weir? This gives unrestricted access.') &&
+  post({ action: 'clear-weir' }));
 $('m-folder-go').addEventListener('click', () => {
   const n = $('m-folder').value.trim();
-  if (n) { post({ action: 'create-folder', foldername: n }); $('m-folder').value = ''; }
+  if (!n) return;
+  post({ action: 'create-folder', foldername: n });
+  $('m-folder').value = '';
+  $('folder-modal').close();
 });
+$('m-folder').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('m-folder-go').click(); });
 $('m-link-go').addEventListener('click', () => {
   const n = $('m-link').value.trim(), t = $('m-target').value.trim();
-  if (n && t) post({ action: 'create-symlink', linkname: n, target: t });
+  if (!(n && t)) return;
+  post({ action: 'create-symlink', linkname: n, target: t });
+  $('symlink-modal').close();
 });
 // hidden file inputs, driven by styled buttons; the label shows the haul
 function wirePicker(pick, input, label, what) {
@@ -409,9 +477,14 @@ function wirePicker(pick, input, label, what) {
 }
 wirePicker('m-files-pick', 'm-files', 'm-files-n', 'files');
 wirePicker('m-dir-pick', 'm-dir', 'm-dir-n', 'files in directory');
-$('m-files-go').addEventListener('click', () => upload([...$('m-files').files], false));
-$('m-dir-go').addEventListener('click', () => upload([...$('m-dir').files], true));
-$('m-reload').addEventListener('click', () => post({ action: 'reload-nexus' }));
+$('m-files-go').addEventListener('click', () => {
+  upload([...$('m-files').files], false);
+  $('upload-modal').close();
+});
+$('m-dir-go').addEventListener('click', () => {
+  upload([...$('m-dir').files], true);
+  $('upload-dir-modal').close();
+});
 
 // ---- toast ----
 let toastTimer = null;

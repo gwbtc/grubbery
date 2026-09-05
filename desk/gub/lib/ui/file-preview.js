@@ -25,16 +25,25 @@
   // image's natural size (or its rendered size when intrinsic is unknown,
   // e.g. dimensionless svg). double-click toggles fit <-> 1:1.
   function attachZoom(el, img) {
+    // el becomes a fixed frame (checkerboard + pinned controls); the image
+    // lives in an inner scroller so panning never moves the buttons.
+    // auto margins center the image AND keep every edge scroll-reachable
+    // (flex centering makes the overflow's start side unreachable).
+    el.style.overflow = 'hidden';
     el.style.position = 'relative';
-    el.style.alignItems = 'center';
+    el.style.padding = '0';
+    var scroller = document.createElement('div');
+    scroller.style.cssText = 'position:absolute;inset:0;overflow:auto;display:flex;padding:20px;box-sizing:border-box';
+    scroller.appendChild(img);
+    el.appendChild(scroller);
     img.style.cssText = '';
     var mode = 'fit';        // 'fit' | number (scale factor vs natural)
     function base() { return img.naturalWidth || img.clientWidth || 420; }
     function apply() {
       if (mode === 'fit') {
-        img.style.cssText = 'max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain';
+        img.style.cssText = 'margin:auto;max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain';
       } else {
-        img.style.cssText = 'flex:none;max-width:none;max-height:none;height:auto;width:' +
+        img.style.cssText = 'margin:auto;flex:none;max-width:none;max-height:none;height:auto;width:' +
           Math.round(base() * mode) + 'px';
       }
       pct.textContent = mode === 'fit' ? 'fit'

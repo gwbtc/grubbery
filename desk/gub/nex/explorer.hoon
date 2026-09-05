@@ -367,7 +367,25 @@
     ::  ?list=1: the same data render-dir renders, as JSON — the static
     ::  browse app's feed (and anyone else's)
     ?:  ?=(^ (get-key:kv:html-utils 'list' args))
-      =/  jon=json  (listing-json tree-path ball ball-wave now conversions code-namespace dir-weir)
+      ::  child necks: the shallow peek of THIS dir returns subdirs as
+      ::  names only, so each child is peeked for its own fil.neck (the
+      ::  same per-root scan the shell's tile reader does)
+      ;<  necks=(map @ta path)  bind:m
+        =/  m  (fiber:fiber:nexus ,(map @ta path))
+        ^-  form:m
+        =/  subs=(list @ta)  ~(tap in ~(key by dir.ball))
+        =|  acc=(map @ta path)
+        |-
+        ?~  subs  (pure:m acc)
+        ;<  kv=view:nexus  bind:m
+          (peek-shallow:io [%& %| (snoc tree-path i.subs)] ~)
+        =?  acc  ?&  ?=([%ball *] kv)
+                     ?=(^ fil.ball.kv)
+                     ?=(^ neck.u.fil.ball.kv)
+                 ==
+          (~(put by acc) i.subs (rail-to-path:tarball u.neck.u.fil.ball.kv))
+        $(subs t.subs)
+      =/  jon=json  (listing-json tree-path ball ball-wave now conversions code-namespace dir-weir necks)
       =/  bod=octs  (as-octs:mimes:html (en:json:html jon))
       ;<  ~  bind:m
         (send-simple:srv eyre-id [[200 ~[['content-type' 'application/json']]] `bod])
@@ -542,6 +560,13 @@
     (pure:m ~)
   ::
       %'add-weir-road'
+    ::  load-bearing weirs: a weir on /apps (or on explorer itself) locks
+    ::  the very tools that manage weirs — including THIS request fiber,
+    ::  which then dies un-self-cleaned and replays its sand on every
+    ::  restart (learned the hard way). Flatly refuse.
+    ?:  |(=(/apps tree-path) =(/apps/'explorer.explorer' tree-path))
+      ;<  ~  bind:m  (send-simple:srv eyre-id [[403 ~] `(as-octs:mimes:html 'this weir is load-bearing: restricting it would make grubbery painfully difficult to interface with from the outside')])
+      (pure:m ~)
     =/  category=@t  (fall (get-key:kv:html-utils 'category' args) '')
     =/  road-path=@t  (fall (get-key:kv:html-utils 'road-path' args) '')
     ?:  |(=('' category) =('' road-path))
@@ -559,7 +584,30 @@
     ;<  ~  bind:m  (send-simple:srv eyre-id [[303 ~[['location' (crip redirect-url)]]] ~])
     (pure:m ~)
   ::
+      ::  make-weir: create an EMPTY weir — a filter with no holes, i.e.
+      ::  fully closed until roads are added (absent weir = unrestricted)
+      ::
+      %'make-weir'
+    ::  load-bearing weirs: a weir on /apps (or on explorer itself) locks
+    ::  the very tools that manage weirs — including THIS request fiber,
+    ::  which then dies un-self-cleaned and replays its sand on every
+    ::  restart (learned the hard way). Flatly refuse.
+    ?:  |(=(/apps tree-path) =(/apps/'explorer.explorer' tree-path))
+      ;<  ~  bind:m  (send-simple:srv eyre-id [[403 ~] `(as-octs:mimes:html 'this weir is load-bearing: restricting it would make grubbery painfully difficult to interface with from the outside')])
+      (pure:m ~)
+    =/  new=weir:nexus  [~ ~ ~]
+    ;<  ~  bind:m  (sand:io [%& %| tree-path] `new)
+    ;<  ~  bind:m  (send-simple:srv eyre-id [[303 ~[['location' (crip redirect-url)]]] ~])
+    (pure:m ~)
+  ::
       %'del-weir-road'
+    ::  load-bearing weirs: a weir on /apps (or on explorer itself) locks
+    ::  the very tools that manage weirs — including THIS request fiber,
+    ::  which then dies un-self-cleaned and replays its sand on every
+    ::  restart (learned the hard way). Flatly refuse.
+    ?:  |(=(/apps tree-path) =(/apps/'explorer.explorer' tree-path))
+      ;<  ~  bind:m  (send-simple:srv eyre-id [[403 ~] `(as-octs:mimes:html 'this weir is load-bearing: restricting it would make grubbery painfully difficult to interface with from the outside')])
+      (pure:m ~)
     =/  category=@t  (fall (get-key:kv:html-utils 'category' args) '')
     =/  road-path=@t  (fall (get-key:kv:html-utils 'road-path' args) '')
     ?:  =('' category)
@@ -578,6 +626,13 @@
     (pure:m ~)
   ::
       %'clear-weir'
+    ::  load-bearing weirs: a weir on /apps (or on explorer itself) locks
+    ::  the very tools that manage weirs — including THIS request fiber,
+    ::  which then dies un-self-cleaned and replays its sand on every
+    ::  restart (learned the hard way). Flatly refuse.
+    ?:  |(=(/apps tree-path) =(/apps/'explorer.explorer' tree-path))
+      ;<  ~  bind:m  (send-simple:srv eyre-id [[403 ~] `(as-octs:mimes:html 'this weir is load-bearing: restricting it would make grubbery painfully difficult to interface with from the outside')])
+      (pure:m ~)
     ;<  ~  bind:m  (sand:io [%& %| tree-path] ~)
     ;<  ~  bind:m  (send-simple:srv eyre-id [[303 ~[['location' (crip redirect-url)]]] ~])
     (pure:m ~)
@@ -1081,6 +1136,7 @@
           conversions=(map bars:tarball tube:clay)
           code-namespace=(unit path)
           dir-weir=(unit weir:nexus)
+          necks=(map @ta path)
       ==
   ^-  json
   =/  str  |=(t=tape `json`s+(crip t))
@@ -1109,10 +1165,15 @@
     |=  [name=@ta kid=ball:tarball]
     ^-  json
     =/  neck-json=json
-      ?~  fil.kid  ~
-      ?~  neck.u.fil.kid  ~
-      s+(crip (spud (rail-to-path:tarball u.neck.u.fil.kid)))
-    (pairs:enjs:format ~[['name' s+`@t`name] ['kind' s+'dir'] ['neck' neck-json]])
+      =/  np=(unit path)  (~(get by necks) name)
+      ?~  np  ~
+      s+(crip (spud u.np))
+    =/  dir-mod=json
+      =/  kid-wave=(unit wave:nexus)  (~(get by dir.b-wave) name)
+      ?~  kid-wave  ~
+      ?~  fil.u.kid-wave  ~
+      (str (en:datetime-local:iso-8601 da.fold.u.fil.u.kid-wave))
+    (pairs:enjs:format ~[['name' s+`@t`name] ['kind' s+'dir'] ['neck' neck-json] ['modified' dir-mod]])
   =/  files=(list json)
     %+  turn
       (sort ~(tap by file-contents) |=([[a=@ta *] [b=@ta *]] (aor a b)))
