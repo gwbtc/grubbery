@@ -12,8 +12,10 @@
   $:  file=(unit @t)                   ::  filename
       type=(unit mite)                 ::  content-type
       code=(unit @t)                   ::  content-transfer-encoding
-      body=@t                          ::  content
-  ==
+      body=octs                        ::  content, LENGTH PRESERVED — a
+  ==                                   ::  bare atom silently drops
+                                       ::  trailing zero bytes (real webp
+                                       ::  uploads died of this)
 ::
 ++  de-request
   |=  [=header-list:http body=(unit octs)]
@@ -51,7 +53,8 @@
   ::  Extract header (small, tape is fine) and body (atom slice)
   =/  hdr=@t  (cut 3 [cur (sub u.sep cur)] raw)
   =/  body-off=@ud  (add u.sep 4)
-  =/  bod=@t  (cut 3 [body-off (sub u.nxt body-off)] raw)
+  =/  body-len=@ud  (sub u.nxt body-off)
+  =/  bod=octs  [body-len (cut 3 [body-off body-len] raw)]
   ::  Parse part headers
   =/  parsed=(unit [@t part])  (de-part-header hdr bod)
   ::  Advance past \r\n--boundary
@@ -81,7 +84,7 @@
 ::  Parse a part's header lines to extract name, filename, type, encoding.
 ::
 ++  de-part-header
-  |=  [hdr=@t bod=@t]
+  |=  [hdr=@t bod=octs]
   ^-  (unit [@t part])
   =/  hed=tape  (trip hdr)
   =/  lines=wall  (split-crlf hed)

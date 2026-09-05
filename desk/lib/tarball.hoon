@@ -540,8 +540,9 @@
       browser-type
     (fall (ext-to-mime u.ext.u.parsed) browser-type)
   ::  Try to convert to sage, otherwise store as %mime sage
-  =/  file-size=@ud  (met 3 body.file-part)
-  =/  file-mime=mime  [mime-type [file-size body.file-part]]
+  ::  (body is octs: length preserved from the multipart parse — never
+  ::  re-measure with met, that drops trailing zero bytes)
+  =/  file-mime=mime  [mime-type body.file-part]
   =/  maybe-sage=(unit sage)  (mime-to-sage conversions file-name file-mime)
   ::  Keep full filename as-is (no extension stripping)
   =/  [store-name=@ta file-content=sang]

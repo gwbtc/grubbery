@@ -380,7 +380,7 @@
   =/  full-path=path  (weld tree-path file-parent)
   ::  Build mime cage and try mark conversion
   =/  file-mime=mime
-    :_  (as-octs:mimes:html body.file-part)
+    :_  body.file-part
     (fall type.file-part /application/octet-stream)
   =/  mime-sage=sage:tarball  [[/ %mime] !>(file-mime)]
   =/  ext=(unit @ta)  (parse-extension:tarball file-name)
