@@ -48,6 +48,7 @@ TPL.innerHTML = `
       padding: var(--dm-gap, 4px);
       display: none;
       flex-direction: column;
+      overflow: hidden;
     }
     :host([open]) #panel { display: flex; }
     /* flip: opens upward when the panel would run off the viewport bottom */

@@ -24,6 +24,13 @@ const wrapBtn = document.getElementById('wrap');
 const status = document.getElementById('status');
 const tools = document.getElementById('tools');
 const buildStatus = document.body.dataset.build || '';
+const errOverlay = document.getElementById('save-err-overlay');
+const errBody = document.getElementById('save-err-body');
+const errClose = document.getElementById('save-err-close');
+if (errClose) {
+  errClose.addEventListener('click', () => { errOverlay.style.display = 'none'; });
+  errOverlay.addEventListener('click', (e) => { if (e.target === errOverlay) errOverlay.style.display = 'none'; });
+}
 
 const ext = (name.match(/\.([a-z0-9]+)$/i) || [, ''])[1].toLowerCase();
 
@@ -178,12 +185,22 @@ if (ed) {
         mimeView.textContent = '';
         setTimeout(() => { if (status.textContent === 'saved ✓') status.textContent = ''; }, 2500);
       } else {
-        status.className = 'err';
-        status.textContent = body || ('save failed (' + res.status + ')');
+        ed.value = clean;
+        syncSaveBtn();
+        status.textContent = '';
+        if (errOverlay) {
+          errBody.textContent = body || ('save failed (' + res.status + ')');
+          errOverlay.style.display = '';
+        }
       }
     } catch (e) {
-      status.className = 'err';
-      status.textContent = 'save failed: ' + e;
+      ed.value = clean;
+      syncSaveBtn();
+      status.textContent = '';
+      if (errOverlay) {
+        errBody.textContent = 'save failed: ' + e;
+        errOverlay.style.display = '';
+      }
     }
   }
   saveBtn.addEventListener('click', () => {

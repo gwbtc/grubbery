@@ -97,6 +97,15 @@
   <div id="bang" style="display:none"></div>
   <file-table id="ft"></file-table>
   <div id="status"></div>
+  <drop-menu id="ctx-menu" style="position:fixed; display:none; z-index:2147483647;">
+    <button slot="trigger" style="display:none"></button>
+    <button class="mi" data-ctx="folder">New folder&hellip;</button>
+    <button class="mi" data-ctx="nexus">New nexus&hellip;</button>
+    <button class="mi" data-ctx="file">New file&hellip;</button>
+    <button class="mi" data-ctx="symlink">New symlink&hellip;</button>
+    <button class="mi" data-ctx="upload">Upload files&hellip;</button>
+    <button class="mi" data-ctx="upload-dir">Upload directory&hellip;</button>
+  </drop-menu>
 
   <modal-dialog id="folder-modal">
     <h3 class="m-title">new folder</h3>

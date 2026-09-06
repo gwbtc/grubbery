@@ -228,6 +228,7 @@ class FileTable extends HTMLElement {
 
   #row(item) {
     const tr = document.createElement('tr');
+    tr.__item = item;
     for (const col of this.#columns) {
       const raw = item[col.key];
       const display = col.format ? col.format(raw, item) : (raw ?? '–');

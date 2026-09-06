@@ -230,6 +230,15 @@
       ==
       ;div#mime-view(style "display:none");
       ;pre#build-view(style "display:none"): {build-detail}
+      ;div#save-err-overlay(style "display:none")
+        ;div#save-err-box
+          ;div#save-err-bar
+            ;span#save-err-title: save failed
+            ;button#save-err-close: ×
+          ==
+          ;pre#save-err-body;
+        ==
+      ==
       ;script(src "/grubbery/ball/apps/explorer.explorer/file-preview.js");
       ;script(type "module", src "/grubbery/ball/apps/explorer.explorer/view.js");
     ==
@@ -289,6 +298,13 @@
       '#build-badge.ok { background: #dafbe1; color: #116329; }'
       '#build-badge.err { background: #ffebe9; color: #cf222e; }'
       '#build-badge.raw { background: #fff8c5; color: #6a5c00; }'
+      '#save-err-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.35); z-index: 100; display: flex; align-items: center; justify-content: center; }'
+      '#save-err-box { background: #fff; border-radius: 12px; box-shadow: 0 16px 48px rgba(0,0,0,.2); width: min(640px, 90vw); max-height: 80vh; display: flex; flex-direction: column; }'
+      '#save-err-bar { display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; border-bottom: 1px solid #ffcecb; }'
+      '#save-err-title { font: 600 14px -apple-system, sans-serif; color: #cf222e; }'
+      '#save-err-close { all: unset; cursor: pointer; font-size: 18px; color: #57606a; padding: 2px 8px; border-radius: 6px; }'
+      '#save-err-close:hover { background: #f2f4f7; }'
+      '#save-err-body { flex: 1; overflow: auto; margin: 0; padding: 14px 16px; font: 12px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; color: #cf222e; }'
   ==
 ::  Weir lives in the parent's dir-map, not in the directory's own lump
 ++  read-weir-from-parent

@@ -66,12 +66,11 @@ ft.columns = [
     format: (v, item) => {
       if (item.kind === 'dir') return item.neck || '–';
       if (item.kind === 'symlink') return 'symlink';
-      if (item.kind === 'boom') return '–';
       return v || '–';
     },
     link: (item) => {
       if (item.kind === 'dir' && item['neck-url']) return item['neck-url'];
-      if (item.kind !== 'boom' && item['blot-url']) return item['blot-url'];
+      if (item['blot-url']) return item['blot-url'];
       return null;
     },
   },
@@ -105,16 +104,13 @@ ft.actions = (item) => {
   if (item.kind === 'symlink') {
     return [{ label: 'Delete', action: 'delete', danger: true }];
   }
-  const acts = [];
-  if (item.kind !== 'boom') {
-    acts.push(
-      { label: 'Download', action: 'download' },
-      { label: 'Rename', action: 'rename' },
-      { label: 'Move', action: 'move' },
-      { label: 'Copy', action: 'copy' },
-    );
-  }
-  acts.push({ label: 'Delete', action: 'delete', danger: true });
+  const acts = [
+    { label: 'Download', action: 'download' },
+    { label: 'Rename', action: 'rename' },
+    { label: 'Move', action: 'move' },
+    { label: 'Copy', action: 'copy' },
+    { label: 'Delete', action: 'delete', danger: true },
+  ];
   return acts;
 };
 
@@ -440,6 +436,75 @@ $('m-files-go').addEventListener('click', () => {
 $('m-dir-go').addEventListener('click', () => {
   upload([...$('m-dir').files], true);
   $('upload-dir-modal').close();
+});
+
+// ---- context menu ----
+const ctx = $('ctx-menu');
+const CTX_MAP = {
+  folder: 'folder-modal', nexus: 'nexus-modal', file: 'file-modal',
+  symlink: 'symlink-modal', upload: 'upload-modal', 'upload-dir': 'upload-dir-modal',
+};
+const CTX_FOCUS = {
+  folder: 'm-folder', nexus: 'm-nexus-name', file: 'm-file-name', symlink: 'm-link',
+};
+ctx.querySelectorAll('[data-ctx]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const k = btn.dataset.ctx;
+    openModal(CTX_MAP[k], CTX_FOCUS[k]);
+  });
+});
+
+function showCtx(x, y) {
+  ctx.style.display = '';
+  ctx.style.left = x + 'px';
+  ctx.style.top = y + 'px';
+  ctx.removeAttribute('flip');
+  ctx.open();
+}
+
+function showItemCtx(item, x, y) {
+  const acts = ft.actions(item);
+  if (!acts || !acts.length) return;
+  // remove any prior item-action buttons
+  ctx.querySelectorAll('[data-item-act]').forEach(b => b.remove());
+  // hide the dir-action buttons
+  ctx.querySelectorAll('[data-ctx]').forEach(b => { b.style.display = 'none'; });
+  // add item actions
+  for (const a of acts) {
+    const b = document.createElement('button');
+    b.className = 'mi';
+    if (a.danger) b.classList.add('danger');
+    b.textContent = a.label;
+    b.setAttribute('data-item-act', '');
+    b.addEventListener('click', () => {
+      ft.dispatchEvent(new CustomEvent('ft-action', {
+        bubbles: true, composed: true,
+        detail: { action: a.action, item },
+      }));
+    });
+    ctx.appendChild(b);
+  }
+  showCtx(x, y);
+}
+
+document.addEventListener('contextmenu', (e) => {
+  if (e.target.closest('drop-menu, modal-dialog, #bar')) return;
+  e.preventDefault();
+  const row = e.composedPath().find(el => el.tagName === 'TR');
+  if (row && row.__item) {
+    showItemCtx(row.__item, e.clientX, e.clientY);
+    return;
+  }
+  // whitespace: show dir actions, hide any leftover item actions
+  ctx.querySelectorAll('[data-item-act]').forEach(b => b.remove());
+  ctx.querySelectorAll('[data-ctx]').forEach(b => { b.style.display = ''; });
+  showCtx(e.clientX, e.clientY);
+});
+ctx.addEventListener('dm-close', () => {
+  ctx.style.display = 'none';
+  // clean up item actions on close
+  ctx.querySelectorAll('[data-item-act]').forEach(b => b.remove());
+  ctx.querySelectorAll('[data-ctx]').forEach(b => { b.style.display = ''; });
 });
 
 // ---- toast ----

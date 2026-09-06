@@ -24,7 +24,7 @@
         radial-gradient(900px 600px at -10% 110%, #eaf0f6 0%, transparent 55%),
         #f3f5f8;
     }
-    float-window:not(:defined), desk-bar:not(:defined), start-menu:not(:defined) { display: none; }
+    float-window:not(:defined), desk-bar:not(:defined), start-menu:not(:defined), drop-menu:not(:defined), modal-dialog:not(:defined) { display: none; }
 
     /* faint wallpaper mark */
     #wall {
@@ -108,6 +108,27 @@
 
     browser-frame { height: 100%; }
     browser-frame:not(:defined) { display: none; }
+
+    /* context menu items */
+    .mi {
+      all: unset; cursor: pointer; display: block; width: 100%;
+      padding: 7px 10px; font-size: 13px; border-radius: 6px; white-space: nowrap;
+    }
+    .mi:hover { background: #f2f4f7; }
+
+    /* modal internals */
+    .m-title { margin: 0 0 12px; font-size: 15px; }
+    .m-row { display: flex; gap: 6px; align-items: center; margin-bottom: 6px; flex-wrap: wrap; }
+    .m-row input[type="text"] { flex: 1; min-width: 120px; font: 12px ui-monospace, Menlo, monospace; padding: 5px 9px; border: 1px solid #d0d7de; border-radius: 7px; outline: none; }
+    .m-row input[type="text"]:focus { border-color: #0969da; }
+    .m-row button { all: unset; cursor: pointer; padding: 4px 12px; border-radius: 7px; font-size: 12px; border: 1px solid #d0d7de; color: #24292f; }
+    .m-row button:hover { background: #f6f8fa; }
+    .picked { flex: 1; font-size: 12px; color: #8b949e; font-style: italic; }
+    .m-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
+    .m-actions button { all: unset; cursor: pointer; padding: 4px 12px; border-radius: 7px; font-size: 12px; border: 1px solid #d0d7de; color: #24292f; }
+    .m-actions button:hover { background: #f6f8fa; }
+    .m-actions button.primary { background: #0969da; border-color: #0969da; color: #fff; }
+    .m-actions button.primary:hover { background: #0857b8; }
   </style>
 </head>
 <body>
@@ -168,6 +189,63 @@
     </start-menu>
     <button class="launch" id="l-new" title="new window">+</button>
   </desk-bar>
+
+  <drop-menu id="ctx-menu" style="position:fixed; display:none; z-index:2147483647;">
+    <button slot="trigger" style="display:none"></button>
+    <button class="mi" data-ctx="folder">New folder&hellip;</button>
+    <button class="mi" data-ctx="nexus">New nexus&hellip;</button>
+    <button class="mi" data-ctx="file">New file&hellip;</button>
+    <button class="mi" data-ctx="symlink">New symlink&hellip;</button>
+    <button class="mi" data-ctx="upload">Upload files&hellip;</button>
+    <button class="mi" data-ctx="upload-dir">Upload directory&hellip;</button>
+  </drop-menu>
+
+  <modal-dialog id="folder-modal">
+    <h3 class="m-title">new folder</h3>
+    <div class="m-row"><input type="text" id="m-folder" placeholder="folder-name"></div>
+    <div class="m-actions"><button class="primary" id="m-folder-go">create</button></div>
+  </modal-dialog>
+
+  <modal-dialog id="nexus-modal">
+    <h3 class="m-title">new nexus</h3>
+    <div class="m-row"><input type="text" id="m-nexus-name" placeholder="folder-name"></div>
+    <div class="m-row"><input type="text" id="m-nexus-neck" placeholder="neck path (e.g. /tools, /wallet/account)"></div>
+    <div class="m-actions"><button class="primary" id="m-nexus-go">create</button></div>
+  </modal-dialog>
+
+  <modal-dialog id="file-modal">
+    <h3 class="m-title">new file</h3>
+    <div class="m-row"><input type="text" id="m-file-name" placeholder="filename.ext"></div>
+    <div class="m-row"><input type="text" id="m-file-blot" placeholder="mark path (e.g. /hoon, /json) — optional"></div>
+    <div class="m-actions"><button class="primary" id="m-file-go">create</button></div>
+  </modal-dialog>
+
+  <modal-dialog id="symlink-modal">
+    <h3 class="m-title">new symlink</h3>
+    <div class="m-row"><input type="text" id="m-link" placeholder="link-name"></div>
+    <div class="m-row"><input type="text" id="m-target" placeholder="target-path"></div>
+    <div class="m-actions"><button class="primary" id="m-link-go">create</button></div>
+  </modal-dialog>
+
+  <modal-dialog id="upload-modal">
+    <h3 class="m-title">upload files</h3>
+    <div class="m-row">
+      <button id="m-files-pick">choose files&hellip;</button>
+      <span class="picked" id="m-files-n">nothing chosen</span>
+      <input type="file" id="m-files" multiple hidden>
+    </div>
+    <div class="m-actions"><button class="primary" id="m-files-go">upload</button></div>
+  </modal-dialog>
+
+  <modal-dialog id="upload-dir-modal">
+    <h3 class="m-title">upload directory</h3>
+    <div class="m-row">
+      <button id="m-dir-pick">choose directory&hellip;</button>
+      <span class="picked" id="m-dir-n">nothing chosen</span>
+      <input type="file" id="m-dir" webkitdirectory directory hidden>
+    </div>
+    <div class="m-actions"><button class="primary" id="m-dir-go">upload</button></div>
+  </modal-dialog>
 
   <script type="module" src="./components.js"></script>
   <script type="module">
@@ -280,6 +358,7 @@
     }
 
     function wireIcon(el, c, isApp) {
+      el.__item = c;
       el.addEventListener('pointerdown', (e) => {
         if (e.button !== 0) return;
         document.querySelectorAll('.dicon.sel').forEach(x => x.classList.remove('sel'));
@@ -312,6 +391,179 @@
     }
 
     loadDesktopIcons();
+
+    // ---- desktop context menu + file management ----
+    const DESK_DIR = '/grubbery/ball/docs/desktop';
+    const ctx = $('ctx-menu');
+    async function deskPost(params) {
+      try {
+        const r = await fetch(DESK_DIR, {
+          method: 'POST',
+          headers: { 'content-type': 'application/x-www-form-urlencoded' },
+          redirect: 'manual',
+          body: new URLSearchParams(params),
+        });
+        loadDesktopIcons();
+      } catch (_) {}
+    }
+
+    const CTX_MAP = {
+      folder: 'folder-modal', nexus: 'nexus-modal', file: 'file-modal',
+      symlink: 'symlink-modal', upload: 'upload-modal', 'upload-dir': 'upload-dir-modal',
+    };
+    const CTX_FOCUS = { folder: 'm-folder', nexus: 'm-nexus-name', file: 'm-file-name', symlink: 'm-link' };
+    ctx.querySelectorAll('[data-ctx]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const k = btn.dataset.ctx;
+        const m = $(CTX_MAP[k]);
+        m.show();
+        const f = CTX_FOCUS[k];
+        if (f) $(f).focus();
+      });
+    });
+
+    function showCtx(x, y) {
+      ctx.style.display = '';
+      ctx.style.left = x + 'px';
+      ctx.style.top = y + 'px';
+      ctx.removeAttribute('flip');
+      ctx.open();
+    }
+
+    function iconActions(c) {
+      const acts = [
+        { label: 'Rename', action: 'rename' },
+        { label: 'Move', action: 'move' },
+        { label: 'Copy', action: 'copy' },
+      ];
+      if (c.kind !== 'dir') acts.unshift({ label: 'Download', action: 'download' });
+      acts.push({ label: 'Delete', action: 'delete', danger: true });
+      return acts;
+    }
+
+    function showIconCtx(c, x, y) {
+      const acts = iconActions(c);
+      ctx.querySelectorAll('[data-item-act]').forEach(b => b.remove());
+      ctx.querySelectorAll('[data-ctx]').forEach(b => { b.style.display = 'none'; });
+      for (const a of acts) {
+        const b = document.createElement('button');
+        b.className = 'mi';
+        if (a.danger) b.classList.add('danger');
+        b.textContent = a.label;
+        b.setAttribute('data-item-act', '');
+        b.addEventListener('click', () => handleIconAction(a.action, c));
+        ctx.appendChild(b);
+      }
+      showCtx(x, y);
+    }
+
+    function handleIconAction(action, c) {
+      const name = c.name;
+      if (action === 'download') {
+        const a = document.createElement('a');
+        a.href = DESK_DIR + '/' + name + '?raw=1';
+        a.download = name;
+        a.click();
+      } else if (action === 'rename') {
+        const nw = prompt('Rename "' + name + '" to:');
+        if (nw && nw.trim()) deskPost({ action: 'rename', oldname: name, newname: nw.trim() });
+      } else if (action === 'move') {
+        const dest = prompt('Move "' + name + '" to path:');
+        if (dest && dest.trim()) deskPost({ action: 'move', filename: name, destination: dest.trim() });
+      } else if (action === 'copy') {
+        const nw = prompt('Copy "' + name + '" as:');
+        if (nw && nw.trim()) deskPost({ action: 'copy', filename: name, newname: nw.trim() });
+      } else if (action === 'delete') {
+        if (confirm('Delete "' + name + '"?')) deskPost({ action: 'delete', filename: name });
+      }
+    }
+
+    document.addEventListener('contextmenu', (e) => {
+      if (e.target.closest('float-window, desk-bar, start-menu, drop-menu, modal-dialog'))
+        return;
+      e.preventDefault();
+      const icon = e.target.closest('.dicon');
+      if (icon && icon.__item) {
+        document.querySelectorAll('.dicon.sel').forEach(x => x.classList.remove('sel'));
+        icon.classList.add('sel');
+        showIconCtx(icon.__item, e.clientX, e.clientY);
+        return;
+      }
+      ctx.querySelectorAll('[data-item-act]').forEach(b => b.remove());
+      ctx.querySelectorAll('[data-ctx]').forEach(b => { b.style.display = ''; });
+      showCtx(e.clientX, e.clientY);
+    });
+    ctx.addEventListener('dm-close', () => {
+      ctx.style.display = 'none';
+      ctx.querySelectorAll('[data-item-act]').forEach(b => b.remove());
+      ctx.querySelectorAll('[data-ctx]').forEach(b => { b.style.display = ''; });
+    });
+
+    $('m-folder-go').addEventListener('click', () => {
+      const n = $('m-folder').value.trim();
+      if (!n) return;
+      deskPost({ action: 'create-folder', foldername: n });
+      $('m-folder').value = '';
+      $('folder-modal').close();
+    });
+    $('m-folder').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('m-folder-go').click(); });
+
+    $('m-nexus-go').addEventListener('click', () => {
+      const n = $('m-nexus-name').value.trim();
+      const neck = $('m-nexus-neck').value.trim();
+      if (!n) return;
+      deskPost({ action: 'create-nexus', foldername: n, ...(neck ? { neck } : {}) });
+      $('m-nexus-name').value = '';
+      $('m-nexus-neck').value = '';
+      $('nexus-modal').close();
+    });
+    $('m-nexus-name').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('m-nexus-go').click(); });
+    $('m-nexus-neck').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('m-nexus-go').click(); });
+
+    $('m-file-go').addEventListener('click', () => {
+      const n = $('m-file-name').value.trim();
+      if (!n) return;
+      const blot = $('m-file-blot').value.trim();
+      deskPost({ action: 'create-file', filename: n, ...(blot ? { blot } : {}) });
+      $('m-file-name').value = '';
+      $('m-file-blot').value = '';
+      $('file-modal').close();
+    });
+    $('m-file-name').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('m-file-go').click(); });
+    $('m-file-blot').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('m-file-go').click(); });
+
+    $('m-link-go').addEventListener('click', () => {
+      const n = $('m-link').value.trim(), t = $('m-target').value.trim();
+      if (!(n && t)) return;
+      deskPost({ action: 'create-symlink', linkname: n, target: t });
+      $('symlink-modal').close();
+    });
+
+    function wirePicker(pick, input, label, what) {
+      $(pick).addEventListener('click', () => $(input).click());
+      $(input).addEventListener('change', () => {
+        const n = $(input).files.length;
+        $(label).textContent = n === 0 ? 'nothing chosen' : n === 1 ? $(input).files[0].name : n + ' ' + what;
+      });
+    }
+    wirePicker('m-files-pick', 'm-files', 'm-files-n', 'files');
+    wirePicker('m-dir-pick', 'm-dir', 'm-dir-n', 'files in directory');
+
+    async function deskUpload(files, withPaths) {
+      if (!files.length) return;
+      const fd = new FormData();
+      for (const f of files) fd.append('file', f, (withPaths && f.webkitRelativePath) || f.name);
+      try { await fetch(DESK_DIR, { method: 'POST', redirect: 'manual', body: fd }); } catch (_) {}
+      loadDesktopIcons();
+    }
+    $('m-files-go').addEventListener('click', () => {
+      deskUpload([...$('m-files').files], false);
+      $('upload-modal').close();
+    });
+    $('m-dir-go').addEventListener('click', () => {
+      deskUpload([...$('m-dir').files], true);
+      $('upload-dir-modal').close();
+    });
 
     // toy chat: echo
     $('chatin').addEventListener('keydown', (e) => {
