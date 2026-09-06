@@ -1,3 +1,6 @@
+// TODO: icon/thumbnail column — file-type icons (folder, code, image, doc)
+// or actual image thumbnails for raster files.
+//
 // <file-table> — a sortable file/directory listing table with row actions.
 //
 // USAGE
