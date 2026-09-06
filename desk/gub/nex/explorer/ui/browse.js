@@ -374,6 +374,8 @@ function openModal(id, focus) {
   if (focus) { $(focus).focus(); }
 }
 $('mi-folder').addEventListener('click', () => openModal('folder-modal', 'm-folder'));
+$('mi-nexus').addEventListener('click', () => openModal('nexus-modal', 'm-nexus-name'));
+$('mi-file').addEventListener('click', () => openModal('file-modal', 'm-file-name'));
 $('mi-symlink').addEventListener('click', () => openModal('symlink-modal', 'm-link'));
 $('mi-upload').addEventListener('click', () => openModal('upload-modal'));
 $('mi-upload-dir').addEventListener('click', () => openModal('upload-dir-modal'));
@@ -391,6 +393,25 @@ $('m-folder-go').addEventListener('click', () => {
   $('folder-modal').close();
 });
 $('m-folder').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('m-folder-go').click(); });
+$('m-nexus-go').addEventListener('click', () => {
+  const n = $('m-nexus-name').value.trim();
+  const neck = $('m-nexus-neck').value.trim();
+  if (!n) return;
+  post({ action: 'create-nexus', foldername: n, ...(neck ? { neck } : {}) });
+  $('m-nexus-name').value = '';
+  $('m-nexus-neck').value = '';
+  $('nexus-modal').close();
+});
+$('m-nexus-name').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('m-nexus-go').click(); });
+$('m-nexus-neck').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('m-nexus-go').click(); });
+$('m-file-go').addEventListener('click', () => {
+  const n = $('m-file-name').value.trim();
+  if (!n) return;
+  post({ action: 'create-file', filename: n });
+  $('m-file-name').value = '';
+  $('file-modal').close();
+});
+$('m-file-name').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('m-file-go').click(); });
 $('m-link-go').addEventListener('click', () => {
   const n = $('m-link').value.trim(), t = $('m-target').value.trim();
   if (!(n && t)) return;

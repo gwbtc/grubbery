@@ -536,11 +536,42 @@
       %'create-folder'
     =/  foldername=@t  (fall (get-key:kv:html-utils 'foldername' args) '')
     =/  dir-name=@ta  foldername
+    =/  folder-path=path  (snoc tree-path dir-name)
+    =/  new-ball=ball:tarball  [`[~ ~ %.n ~ ~] ~]
+    ;<  ~  bind:m  (make:io [%& %| folder-path] &+(ball-to-bole:tarball new-ball))
+    ;<  ~  bind:m  (send-simple:srv eyre-id [[303 ~[['location' (crip redirect-url)]]] ~])
+    (pure:m ~)
+  ::
+      %'create-nexus'
+    =/  foldername=@t  (fall (get-key:kv:html-utils 'foldername' args) '')
+    =/  dir-name=@ta  foldername
+    =/  neck-str=@t  (fall (get-key:kv:html-utils 'neck' args) '')
     =/  dir-neck=(unit neck:tarball)
-      (bind (parse-extension:tarball dir-name) ext-to-neck:tarball)
+      ?:  =('' neck-str)  ~
+      `(ext-to-neck:tarball neck-str)
     =/  folder-path=path  (snoc tree-path dir-name)
     =/  new-ball=ball:tarball  [`[dir-neck ~ %.n ~ ~] ~]
     ;<  ~  bind:m  (make:io [%& %| folder-path] &+(ball-to-bole:tarball new-ball))
+    ;<  ~  bind:m  (send-simple:srv eyre-id [[303 ~[['location' (crip redirect-url)]]] ~])
+    (pure:m ~)
+  ::
+      %'create-file'
+    =/  filename=@t  (fall (get-key:kv:html-utils 'filename' args) '')
+    ?:  =('' filename)
+      ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'Missing filename')])
+      (pure:m ~)
+    =/  ext=(unit @ta)  (parse-extension:tarball filename)
+    ?~  ext
+      ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'Filename needs an extension')])
+      (pure:m ~)
+    =/  =blot:tarball  [/ u.ext]
+    ;<  marc=(unit marc:tarball)  bind:m  (get-marc:io [%& %| /code] blot)
+    ?~  marc
+      ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'No mark found for that extension')])
+      (pure:m ~)
+    =/  content=vase  bunt.u.marc
+    =/  =sang:tarball  [blot [%& q.content]]
+    ;<  ~  bind:m  (make:io [%& %& tree-path filename] |+[sang ~])
     ;<  ~  bind:m  (send-simple:srv eyre-id [[303 ~[['location' (crip redirect-url)]]] ~])
     (pure:m ~)
   ::

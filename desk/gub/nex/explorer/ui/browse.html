@@ -85,6 +85,8 @@
     <drop-menu align="end" id="manage-menu">
       <button slot="trigger" id="manage-btn" title="manage this directory">manage &#9662;</button>
       <button class="mi" id="mi-folder">New folder&hellip;</button>
+      <button class="mi" id="mi-nexus">New nexus&hellip;</button>
+      <button class="mi" id="mi-file">New file&hellip;</button>
       <button class="mi" id="mi-symlink">New symlink&hellip;</button>
       <button class="mi" id="mi-upload">Upload files&hellip;</button>
       <button class="mi" id="mi-upload-dir">Upload directory&hellip;</button>
@@ -100,6 +102,19 @@
     <h3 class="m-title">new folder</h3>
     <div class="m-row"><input type="text" id="m-folder" placeholder="folder-name"></div>
     <div class="m-actions"><button class="primary" id="m-folder-go">create</button></div>
+  </modal-dialog>
+
+  <modal-dialog id="nexus-modal">
+    <h3 class="m-title">new nexus</h3>
+    <div class="m-row"><input type="text" id="m-nexus-name" placeholder="nexus-name"></div>
+    <div class="m-row"><input type="text" id="m-nexus-neck" placeholder="neck (e.g. hoon, json)"></div>
+    <div class="m-actions"><button class="primary" id="m-nexus-go">create</button></div>
+  </modal-dialog>
+
+  <modal-dialog id="file-modal">
+    <h3 class="m-title">new file</h3>
+    <div class="m-row"><input type="text" id="m-file-name" placeholder="filename.ext"></div>
+    <div class="m-actions"><button class="primary" id="m-file-go">create</button></div>
   </modal-dialog>
 
   <modal-dialog id="symlink-modal">
