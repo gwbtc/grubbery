@@ -17,6 +17,8 @@
 /&  demo-html    web-test/ui/demo.html
 /&  desk-html    web-test/ui/desktop.html
 /&  mi-json      web-test/ui/mark-icons.json
+/&  ft-js        /lib/ui/file-table.js
+/&  ftd-html     web-test/ui/file-table-demo.html
 ^-  nexus:nexus
 |%
 ++  on-load
@@ -56,6 +58,8 @@
       [%over %& [/ui %'demo.html'] [[/ %mime] demo-html]]
       [%over %& [/ui %'desktop.html'] [[/ %mime] desk-html]]
       [%over %& [/ui %'mark-icons.json'] [[/ %mime] mi-json]]
+      [%over %& [/ui %'file-table.js'] [[/ %mime] ft-js]]
+      [%over %& [/ui %'file-table-demo.html'] [[/ %mime] ftd-html]]
       [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
       [%fall %| /requests empty-dir:loader]
   ==

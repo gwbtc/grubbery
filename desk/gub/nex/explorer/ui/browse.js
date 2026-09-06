@@ -1,30 +1,20 @@
-// TODO: extract the file/dir table into a <file-table> web component in
-// lib/ui/. Accept rows as a JS property, declare columns via config, emit
-// events (file-rename, file-move, file-delete, etc.) instead of POSTing
-// directly. Host page wires events to its backend. Enables a Finder-like
-// app and other directory UIs to reuse the same table.
-//
-// explorer browse app. Renders a directory from <dir>?list=1 and drives
-// every action through the same POST endpoints the sail page used —
-// success re-fetches the listing in place (no page reloads), failure
-// shows the server's text in the status toast. Dialogs are kit
-// <modal-dialog>s. Navigation is plain links: the server serves this
-// same shell for every directory.
+// explorer browse app. Renders a directory listing via <file-table> and
+// drives every action through POST endpoints — success re-fetches the
+// listing in place (no page reloads), failure shows the server's text
+// in the status toast. Dialogs are kit <modal-dialog>s. Navigation is
+// client-side for dirs, normal for files.
 const $ = (id) => document.getElementById(id);
 const PREFIX = '/grubbery/ball';
-let here = location.pathname;                         // /grubbery/ball/docs/desktop
-let dirPath = here.slice(PREFIX.length) || '/';       // /docs/desktop
+let here = location.pathname;
+let dirPath = here.slice(PREFIX.length) || '/';
 
-// dir navigation is client-side: swap the path, refetch the listing —
-// one request instead of shell + peek + listing. File links (different
-// page) still navigate normally; only links we mark data-nav intercept.
 function nav(p, push) {
   here = p;
   dirPath = p.slice(PREFIX.length) || '/';
   if (push !== false) history.pushState(null, '', p);
   document.title = dirPath;
   renderCrumbs();
-  showLoading();
+  ft.showLoading();
   load();
 }
 document.addEventListener('click', (e) => {
@@ -35,20 +25,147 @@ document.addEventListener('click', (e) => {
 });
 window.addEventListener('popstate', () => nav(location.pathname, false));
 
-function showLoading() {
-  $('rows').innerHTML =
-    '<tr><td colspan="6" style="color:#8b949e"><span class="dload">\u25c6</span> loading\u2026</td></tr>';
+let data = null;
+const ft = $('ft');
+
+function fmtSize(n) {
+  if (n == null) return '–';
+  if (n < 1024) return n + ' B';
+  if (n < 1024 * 1024) return Math.round(n / 1024) + ' KB';
+  return (n / (1024 * 1024)).toFixed(1) + ' MB';
 }
 
-let data = null;
-let sortKey = 'name';
-let sortDir = 1;
+// ---- file-table setup ----
+ft.columns = [
+  {
+    key: 'name', label: 'Name', width: '30%',
+    format: (v, item) => {
+      if (item.kind === 'dir') return v + '/';
+      return v;
+    },
+    link: (item) => {
+      if (item.kind === 'dir') return here.replace(/\/$/, '') + '/' + item.name;
+      if (item.kind === 'symlink') return PREFIX + item.resolved;
+      if (item.binary) return here.replace(/\/$/, '') + '/' + item.name + '?pretty';
+      return here.replace(/\/$/, '') + '/' + item.name;
+    },
+    decorate: (cell, item) => {
+      const bangText = item.kind === 'boom' ? item.boom : item.bang;
+      if (bangText) {
+        const x = document.createElement('span');
+        x.style.cssText = 'color:#cf222e;font-weight:700;cursor:pointer;margin-left:5px;';
+        x.textContent = '!';
+        x.title = 'crash details';
+        x.addEventListener('click', (e) => { e.stopPropagation(); showBoom(bangText); });
+        cell.appendChild(x);
+      }
+    },
+  },
+  {
+    key: 'blot', label: 'Blot / Neck', cls: 'mono',
+    format: (v, item) => {
+      if (item.kind === 'dir') return item.neck || '–';
+      if (item.kind === 'symlink') return 'symlink';
+      if (item.kind === 'boom') return '–';
+      return v || '–';
+    },
+    link: (item) => {
+      if (item.kind !== 'boom' && item['blot-url']) return item['blot-url'];
+      return null;
+    },
+  },
+  {
+    key: 'mime', label: 'Mime Type', cls: 'mono',
+    format: (v, item) => {
+      if (item.kind === 'dir' || item.kind === 'symlink' || item.kind === 'boom') return '–';
+      return v || '–';
+    },
+  },
+  {
+    key: 'size', label: 'Size', cls: 'mono',
+    format: (v, item) => {
+      if (item.kind === 'dir' || item.kind === 'symlink' || item.kind === 'boom') return '–';
+      return fmtSize(v);
+    },
+  },
+  { key: 'modified', label: 'Modified', cls: 'mono' },
+];
 
-// the URL alone renders the crumbs — do it before any network
+ft.actions = (item) => {
+  if (item.kind === 'dir') {
+    return [
+      { label: 'Download', action: 'download' },
+      { label: 'Rename', action: 'rename' },
+      { label: 'Move', action: 'move' },
+      { label: 'Copy', action: 'copy' },
+      { label: 'Delete', action: 'delete', danger: true },
+    ];
+  }
+  if (item.kind === 'symlink') {
+    return [{ label: 'Delete', action: 'delete', danger: true }];
+  }
+  const acts = [];
+  if (item.kind !== 'boom') {
+    acts.push(
+      { label: 'Download', action: 'download' },
+      { label: 'Rename', action: 'rename' },
+      { label: 'Move', action: 'move' },
+      { label: 'Copy', action: 'copy' },
+    );
+  }
+  acts.push({ label: 'Delete', action: 'delete', danger: true });
+  return acts;
+};
+
+ft.addEventListener('ft-navigate', (e) => {
+  const { item, href } = e.detail;
+  if (!item) { nav(href); return; }
+  if (item.kind === 'dir') { nav(href); return; }
+  location.href = href;
+});
+
+ft.addEventListener('ft-action', (e) => {
+  const { action, item } = e.detail;
+  const base = here.replace(/\/$/, '') + '/' + item.name;
+  if (item.kind === 'dir') {
+    switch (action) {
+      case 'download': location.href = base + '?download=tar'; break;
+      case 'rename': ask('rename ' + item.name, item.name, nn =>
+        post({ action: 'rename-folder', foldername: item.name, newname: nn })); break;
+      case 'move': ask('move ' + item.name + ' to', dirPath + '/' + item.name, d =>
+        post({ action: 'move-folder', foldername: item.name, dest: d })); break;
+      case 'copy': ask('copy ' + item.name + ' to', dirPath + '/' + item.name + '-copy', d =>
+        post({ action: 'copy-folder', foldername: item.name, dest: d })); break;
+      case 'delete': if (confirm('Delete ' + item.name + '/?'))
+        post({ action: 'delete-folder', foldername: item.name }); break;
+    }
+    return;
+  }
+  if (item.kind === 'symlink') {
+    if (action === 'delete' && confirm('Delete ' + item.name + '?'))
+      post({ action: 'delete-grub', filename: item.name });
+    return;
+  }
+  switch (action) {
+    case 'download': {
+      const l = document.createElement('a');
+      l.href = base + '?raw=1'; l.download = item.name; l.click();
+    } break;
+    case 'rename': ask('rename ' + item.name, item.name, nn =>
+      post({ action: 'rename-grub', filename: item.name, newname: nn })); break;
+    case 'move': ask('move ' + item.name + ' to', dirPath + '/' + item.name, d =>
+      post({ action: 'move-grub', filename: item.name, dest: d })); break;
+    case 'copy': ask('copy ' + item.name + ' to', dirPath + '/' + item.name, d =>
+      post({ action: 'copy-grub', filename: item.name, dest: d })); break;
+    case 'delete': if (confirm('Delete ' + item.name + '?'))
+      post({ action: 'delete-grub', filename: item.name }); break;
+  }
+});
+
+// ---- fetch + render ----
 renderCrumbs();
 document.title = dirPath;
 
-// ---- fetch + render ----
 async function load() {
   try {
     const r = await fetch(here + '?list=1');
@@ -60,7 +177,8 @@ async function load() {
   }
   renderChips();
   renderBang();
-  renderRows();
+  ft.parentHref = dirPath !== '/' ? PREFIX + (dirPath.split('/').slice(0, -1).join('/') || '') : null;
+  ft.items = data.children;
   renderManage();
   if ($('weir-modal').hasAttribute('open')) renderWeir();
 }
@@ -118,8 +236,6 @@ function renderChips() {
   c.appendChild(chip('items', String(data.children.length)));
   const open = data.root || !data.weir;
   const sb = chip('sandbox', open ? 'unrestricted' : 'restricted', open);
-  // load-bearing weirs are not offered: restricting /apps (or explorer
-  // itself) locks the tools that manage weirs — server refuses too
   const PROTECTED = ['/apps', '/apps/explorer.explorer'];
   if (!data.root && !PROTECTED.includes(dirPath)) {
     sb.classList.add('click');
@@ -127,7 +243,7 @@ function renderChips() {
     sb.addEventListener('click', () => { renderWeir(); $('weir-modal').show(); });
   } else if (PROTECTED.includes(dirPath)) {
     sb.classList.add('locked');
-    sb.querySelector('.v').append(' \ud83d\udd12');
+    sb.querySelector('.v').append(' 🔒');
     sb.title = 'load-bearing: restricting this directory would make grubbery painfully difficult to interface with from the outside — the server refuses it';
   }
   c.appendChild(sb);
@@ -159,14 +275,13 @@ function renderWeir() {
       s.className = 'weir-road';
       s.append(rd);
       const x = document.createElement('button');
-      x.textContent = '\u00d7';
+      x.textContent = '×';
       x.title = 'remove road';
       x.addEventListener('click', () =>
         post({ action: 'del-weir-road', category: cat, 'road-path': rd }));
       s.appendChild(x);
       rs.appendChild(s);
     }
-    // per-row +: swaps into an inline input; Enter adds, Esc backs out
     const plus = document.createElement('button');
     plus.className = 'w-plus';
     plus.textContent = '+';
@@ -201,188 +316,6 @@ function renderBang() {
   b.textContent = 'nexus crashed — click for details';
   b.onclick = () => showBoom(data.bang);
 }
-
-function fmtSize(n) {
-  if (n == null) return '–';
-  if (n < 1024) return n + ' B';
-  if (n < 1024 * 1024) return Math.round(n / 1024) + ' KB';
-  return (n / (1024 * 1024)).toFixed(1) + ' MB';
-}
-
-function sorted() {
-  const ks = { name: c => c.name, blot: c => c.blot || c.neck || '',
-               mime: c => c.mime || '', size: c => c.size ?? -1,
-               modified: c => c.modified || '' };
-  const f = ks[sortKey] || ks.name;
-  return [...data.children].sort((a, b) => {
-    if (a.kind === 'dir' && b.kind !== 'dir') return -1;   // dirs first, always
-    if (b.kind === 'dir' && a.kind !== 'dir') return 1;
-    const x = f(a), y = f(b);
-    return (x < y ? -1 : x > y ? 1 : 0) * sortDir;
-  });
-}
-
-function td(cls, content) {
-  const t = document.createElement('td');
-  if (cls) t.className = cls;
-  if (content instanceof Node) t.appendChild(content);
-  else t.textContent = content;
-  const full = t.textContent.trim();
-  if (full && full !== '\u2013') t.title = full;
-  return t;
-}
-
-function actBtn(label, fn, danger) {
-  const b = document.createElement('button');
-  b.className = 'mi' + (danger ? ' danger' : '');
-  b.textContent = label;
-  b.addEventListener('click', fn);
-  return b;
-}
-
-// the actions cell: one quiet dots-trigger opening a kit drop-menu
-function actsCell(buttons) {
-  const cell = td('acts', '');
-  cell.removeAttribute('title');
-  const dm = document.createElement('drop-menu');
-  dm.setAttribute('align', 'end');
-  const trig = document.createElement('button');
-  trig.slot = 'trigger';
-  trig.className = 'dots';
-  trig.textContent = '\u22ef';
-  trig.title = 'actions';
-  dm.append(trig, ...buttons);
-  cell.appendChild(dm);
-  return cell;
-}
-
-function renderRows() {
-  const tb = $('rows');
-  tb.textContent = '';
-  if (dirPath !== '/') {
-    const tr = document.createElement('tr');
-    const up = document.createElement('a');
-    up.className = 'name';
-    up.href = PREFIX + (dirPath.split('/').slice(0, -1).join('/') || '');
-    up.textContent = '../';
-    up.dataset.nav = '1';
-    tr.append(td('', up), td('mono', '–'), td('mono', '–'),
-              td('mono', '–'), td('mono', '–'), td('acts', ''));
-    tb.appendChild(tr);
-  }
-  for (const c of sorted()) tb.appendChild(row(c));
-}
-
-function row(c) {
-  const tr = document.createElement('tr');
-  const base = here.replace(/\/$/, '') + '/' + c.name;
-  const nameCell = document.createElement('span');
-
-  if (c.kind === 'dir') {
-    const a = document.createElement('a');
-    a.className = 'name';
-    a.href = base;
-    a.textContent = c.name + '/';
-    a.dataset.nav = '1';
-    nameCell.appendChild(a);
-    tr.append(td('', nameCell), td('mono', c.neck || '–'),
-              td('mono', '–'), td('mono', '–'), td('mono', c.modified || '–'));
-    tr.appendChild(actsCell([
-      actBtn('Download', () => { location.href = base + '?download=tar'; }),
-      actBtn('Rename', () => ask('rename ' + c.name, c.name, nn =>
-        post({ action: 'rename-folder', foldername: c.name, newname: nn }))),
-      actBtn('Move', () => ask('move ' + c.name + ' to', dirPath + '/' + c.name, d =>
-        post({ action: 'move-folder', foldername: c.name, dest: d }))),
-      actBtn('Copy', () => ask('copy ' + c.name + ' to', dirPath + '/' + c.name + '-copy', d =>
-        post({ action: 'copy-folder', foldername: c.name, dest: d }))),
-      actBtn('Delete', () => confirm('Delete ' + c.name + '/?') &&
-        post({ action: 'delete-folder', foldername: c.name }), true),
-    ]));
-    return tr;
-  }
-
-  if (c.kind === 'symlink') {
-    const a = document.createElement('a');
-    a.className = 'name';
-    a.href = PREFIX + c.resolved;
-    a.textContent = c.name;
-    const t = document.createElement('span');
-    t.className = 'sym';
-    t.textContent = ' → ' + c.target;
-    nameCell.append(a, t);
-    tr.append(td('', nameCell), td('mono', 'symlink'), td('mono', '–'),
-              td('mono', '–'), td('mono', c.modified || '–'));
-    tr.appendChild(actsCell([
-      actBtn('Delete', () => confirm('Delete ' + c.name + '?') &&
-        post({ action: 'delete-grub', filename: c.name }), true),
-    ]));
-    return tr;
-  }
-
-  // file (or boom)
-  const boom = c.kind === 'boom';
-  const a = document.createElement('a');
-  a.className = 'name';
-  a.href = c.binary ? base + '?pretty' : base;
-  a.textContent = c.name;
-  nameCell.appendChild(a);
-  const bangText = boom ? c.boom : c.bang;
-  if (bangText) {
-    const x = document.createElement('span');
-    x.className = 'boomch';
-    x.textContent = '!';
-    x.title = 'crash details';
-    x.addEventListener('click', (e) => { e.preventDefault(); showBoom(bangText); });
-    nameCell.appendChild(x);
-  }
-  let blot = document.createTextNode(c.blot || '–');
-  if (!boom && c['blot-url']) {
-    blot = document.createElement('a');
-    blot.href = c['blot-url'];
-    blot.textContent = c.blot;
-  }
-  const blotTd = td('mono', blot);
-  tr.append(td('', nameCell), blotTd,
-            td('mono', boom ? '–' : (c.mime || '–')),
-            td('mono', boom ? '–' : fmtSize(c.size)),
-            td('mono', c.modified || '–'));
-  const buttons = [];
-  if (!boom) {
-    buttons.push(
-      actBtn('Download', () => {
-        const l = document.createElement('a');
-        l.href = base + '?raw=1';
-        l.download = c.name;
-        l.click();
-      }),
-      actBtn('Rename', () => ask('rename ' + c.name, c.name, nn =>
-        post({ action: 'rename-grub', filename: c.name, newname: nn }))),
-      actBtn('Move', () => ask('move ' + c.name + ' to', dirPath + '/' + c.name, d =>
-        post({ action: 'move-grub', filename: c.name, dest: d }))),
-      actBtn('Copy', () => ask('copy ' + c.name + ' to', dirPath + '/' + c.name, d =>
-        post({ action: 'copy-grub', filename: c.name, dest: d }))));
-  }
-  buttons.push(actBtn('Delete', () => confirm('Delete ' + c.name + '?') &&
-    post({ action: 'delete-grub', filename: c.name }), true));
-  tr.appendChild(actsCell(buttons));
-  return tr;
-}
-
-// ---- sorting ----
-document.querySelectorAll('th[data-k]').forEach(th => {
-  th.addEventListener('click', () => {
-    const k = th.dataset.k;
-    if (sortKey === k) sortDir = -sortDir;
-    else { sortKey = k; sortDir = 1; }
-    document.querySelectorAll('th').forEach(h => {
-      h.classList.toggle('sorted', h.dataset.k === sortKey);
-      const arr = h.querySelector('.arr');
-      if (arr) arr.innerHTML = h.dataset.k === sortKey
-        ? (sortDir === 1 ? '&#8593;' : '&#8595;') : '&#8597;';
-    });
-    renderRows();
-  });
-});
 
 // ---- actions ----
 async function post(params) {
@@ -436,7 +369,6 @@ function renderManage() {
   $('mi-reload').style.display = (data.nexus && data.nexus.display !== '-') ? '' : 'none';
 }
 
-// manage menu: each item opens its own small modal; download + reload act
 function openModal(id, focus) {
   $(id).show();
   if (focus) { $(focus).focus(); }
@@ -465,7 +397,6 @@ $('m-link-go').addEventListener('click', () => {
   post({ action: 'create-symlink', linkname: n, target: t });
   $('symlink-modal').close();
 });
-// hidden file inputs, driven by styled buttons; the label shows the haul
 function wirePicker(pick, input, label, what) {
   $(pick).addEventListener('click', () => $(input).click());
   $(input).addEventListener('change', () => {

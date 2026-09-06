@@ -1,0 +1,142 @@
+<!doctype html>
+<!--
+  file-table demo — exercises the <file-table> web component with dummy data.
+  Served at /grubbery/ball/apps/test.web-test/ui/file-table-demo.html
+-->
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>file-table demo</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font: 13px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: #1f2328; background: #fff; margin: 0; padding: 0;
+    }
+    file-table:not(:defined) { display: none; }
+    #bar {
+      position: sticky; top: 0; height: 38px; display: flex;
+      align-items: center; gap: 8px; padding: 0 14px;
+      background: #f6f8fa; border-bottom: 1px solid #d0d7de; z-index: 5;
+    }
+    #bar h3 { margin: 0; font-size: 13px; }
+    .grow { flex: 1; }
+    #bar button {
+      all: unset; cursor: pointer; padding: 4px 12px; border-radius: 7px;
+      font-size: 12px; color: #24292f; border: 1px solid #d0d7de; background: #fff;
+    }
+    #bar button:hover { background: #eaeef2; }
+    #log {
+      max-height: 180px; overflow: auto; margin: 0; padding: 10px 14px;
+      font: 12px/1.5 ui-monospace, Menlo, monospace; color: #57606a;
+      background: #f6f8fa; border-top: 1px solid #d0d7de;
+      position: fixed; bottom: 0; left: 0; right: 0;
+    }
+    file-table { padding-bottom: 200px; }
+  </style>
+</head>
+<body>
+  <div id="bar">
+    <h3>file-table demo</h3>
+    <span class="grow"></span>
+    <button onclick="loadSet('files')">files</button>
+    <button onclick="loadSet('empty')">empty</button>
+    <button onclick="loadSet('big')">100 items</button>
+  </div>
+
+  <file-table id="ft"></file-table>
+  <pre id="log"></pre>
+
+  <script type="module" src="./drop-menu.js"></script>
+  <script type="module" src="./file-table.js"></script>
+  <script type="module">
+    const ft = document.getElementById('ft');
+    const log = document.getElementById('log');
+
+    function emit(msg) {
+      log.textContent = msg + '\n' + log.textContent;
+    }
+
+    ft.addEventListener('ft-action', e => {
+      emit('action: ' + e.detail.action + ' on ' + e.detail.item.name);
+    });
+    ft.addEventListener('ft-navigate', e => {
+      emit('navigate: ' + (e.detail.item ? e.detail.item.name : '..') + ' → ' + e.detail.href);
+    });
+    ft.addEventListener('ft-sort', e => {
+      emit('sort: ' + e.detail.key + ' ' + (e.detail.dir === 1 ? 'asc' : 'desc'));
+    });
+
+    ft.columns = [
+      {
+        key: 'name', label: 'Name', width: '30%',
+        format: (v, item) => item.kind === 'dir' ? v + '/' : v,
+        link: (item) => '#/' + item.name
+      },
+      { key: 'blot', label: 'Blot / Neck', cls: 'mono' },
+      { key: 'mime', label: 'Mime Type', cls: 'mono' },
+      {
+        key: 'size', label: 'Size', cls: 'mono',
+        format: v => {
+          if (v == null) return '–';
+          if (v < 1024) return v + ' B';
+          if (v < 1024 * 1024) return Math.round(v / 1024) + ' KB';
+          return (v / (1024 * 1024)).toFixed(1) + ' MB';
+        }
+      },
+      { key: 'modified', label: 'Modified', cls: 'mono' },
+    ];
+
+    ft.actions = (item) => {
+      const acts = [
+        { label: 'Download', action: 'download' },
+        { label: 'Rename', action: 'rename' },
+        { label: 'Move', action: 'move' },
+        { label: 'Copy', action: 'copy' },
+      ];
+      acts.push({ label: 'Delete', action: 'delete', danger: true });
+      return acts;
+    };
+
+    const SETS = {
+      files: {
+        parentHref: '#/',
+        items: [
+          { name: 'docs', kind: 'dir', blot: null, mime: null, size: null, modified: '2026-09-05T14:22:00' },
+          { name: 'src', kind: 'dir', blot: null, mime: null, size: null, modified: '2026-09-04T09:15:30' },
+          { name: 'node_modules', kind: 'dir', blot: null, mime: null, size: null, modified: '2026-08-20T11:00:00' },
+          { name: 'README.md', kind: 'file', blot: '/mime', mime: 'text/markdown', size: 2048, modified: '2026-09-05T14:20:00' },
+          { name: 'index.html', kind: 'file', blot: '/mime', mime: 'text/html', size: 4512, modified: '2026-09-05T10:30:00' },
+          { name: 'app.js', kind: 'file', blot: '/mime', mime: 'application/javascript', size: 12800, modified: '2026-09-04T16:45:00' },
+          { name: 'styles.css', kind: 'file', blot: '/mime', mime: 'text/css', size: 3200, modified: '2026-09-03T08:00:00' },
+          { name: 'config.json', kind: 'file', blot: '/json', mime: 'application/json', size: 256, modified: '2026-09-01T12:00:00' },
+          { name: 'backup', kind: 'symlink', blot: null, mime: null, size: null, target: '../backups/latest', modified: '2026-08-15T00:00:00' },
+          { name: 'broken.hoon', kind: 'boom', blot: '/hoon', mime: null, size: null, modified: '2026-09-05T15:00:00' },
+        ]
+      },
+      empty: { parentHref: '#/', items: [] },
+      big: {
+        parentHref: '#/',
+        items: Array.from({ length: 100 }, (_, i) => ({
+          name: i < 20 ? 'dir-' + String(i).padStart(3, '0') : 'file-' + String(i).padStart(3, '0') + '.txt',
+          kind: i < 20 ? 'dir' : 'file',
+          blot: i < 20 ? null : '/mime',
+          mime: i < 20 ? null : 'text/plain',
+          size: i < 20 ? null : Math.floor(Math.random() * 100000),
+          modified: '2026-09-0' + (1 + (i % 5)) + 'T' + String(8 + (i % 12)).padStart(2, '0') + ':00:00',
+        }))
+      }
+    };
+
+    function loadSet(name) {
+      const set = SETS[name];
+      ft.parentHref = set.parentHref;
+      ft.items = set.items;
+      emit('loaded set: ' + name + ' (' + set.items.length + ' items)');
+    }
+
+    loadSet('files');
+  </script>
+</body>
+</html>

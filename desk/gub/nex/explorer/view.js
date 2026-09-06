@@ -20,6 +20,7 @@ const saveBtn = document.getElementById('save');
 const liveBtn = document.getElementById('live');
 const wrapBtn = document.getElementById('wrap');
 const status = document.getElementById('status');
+const tools = document.getElementById('tools');
 
 const ext = (name.match(/\.([a-z0-9]+)$/i) || [, ''])[1].toLowerCase();
 
@@ -66,6 +67,7 @@ function show(which) {
   mimeView.style.display = text ? 'none' : '';
   tabText.classList.toggle('on', text);
   tabMime.classList.toggle('on', !text);
+  if (tools) tools.style.display = text ? '' : 'none';
   if (!text && !mimeRendered) { renderMime(); mimeRendered = true; }
 }
 tabText.addEventListener('click', () => show('text'));

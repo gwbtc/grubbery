@@ -14,13 +14,13 @@
   <link rel="icon" type="image/svg+xml" href="/grubbery/tiles/icon/explorer.explorer">
   <style>
     * { box-sizing: border-box; }
-    body { font: 13px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #1f2328; background: #fff; margin: 0; padding-bottom: 48px; }
+    body { font: 13px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #1f2328; background: #fff; margin: 0; padding-bottom: 48px; min-width: max-content; }
     a { color: #0969da; text-decoration: none; }
     a:hover { text-decoration: underline; }
     modal-dialog:not(:defined), drop-menu:not(:defined) { display: none; }
 
-    #bar { position: sticky; top: 0; height: 38px; display: flex; align-items: center; gap: 8px; padding: 0 14px; background: #f6f8fa; border-bottom: 1px solid #d0d7de; z-index: 5; }
-    #crumbs { display: flex; align-items: center; flex-wrap: wrap; gap: 2px; font: 600 13px ui-monospace, SFMono-Regular, Menlo, monospace; }
+    #bar { position: sticky; top: 0; height: 38px; display: flex; align-items: center; gap: 8px; padding: 0 14px; background: #f6f8fa; border-bottom: 1px solid #d0d7de; z-index: 5; min-width: max-content; }
+    #crumbs { display: flex; align-items: center; gap: 2px; font: 600 13px ui-monospace, SFMono-Regular, Menlo, monospace; }
     #crumbs a { color: #57606a; padding: 2px 4px; border-radius: 5px; }
     #crumbs a:hover { color: #24292f; background: #eaeef2; text-decoration: none; }
     #crumbs .here { color: #24292f; padding: 2px 4px; }
@@ -44,27 +44,8 @@
     #status { position: fixed; bottom: 14px; left: 50%; transform: translateX(-50%); background: #24292f; color: #fff; font-size: 12px; padding: 7px 16px; border-radius: 8px; box-shadow: 0 8px 24px rgba(31,35,40,.25); display: none; max-width: 70vw; white-space: pre-wrap; z-index: 50; }
     #status.err { background: #cf222e; }
 
-    table { border-collapse: collapse; width: calc(100% - 40px); margin: 10px 20px; }
-    th, td { text-align: left; padding: 7px 10px; }
-    th { position: sticky; top: 39px; background: #fff; z-index: 4; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: #8b949e; border-bottom: 1px solid #d0d7de; cursor: pointer; user-select: none; white-space: nowrap; }
-    th:hover { color: #24292f; }
-    th .arr { opacity: .35; }
-    th.sorted .arr { opacity: 1; }
-    table { table-layout: fixed; }
-    td { border-bottom: 1px solid #eef1f4; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    th.c-name { width: 30%; } th.c-blot { width: 14%; }
-    th.c-mime { width: 15%; } th.c-size { width: 8%; } th.c-mod { width: 16%; }
-    td a.name { font: 12.5px ui-monospace, SFMono-Regular, Menlo, monospace; }
-    td.mono { font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; color: #57606a; }
-    td.mono a { font: inherit; }
-    tr:hover td { background: #f6f8fa; }
-    .sym { color: #8b949e; font-size: 12px; }
-    .boomch { color: #cf222e; font-weight: 700; cursor: pointer; margin-left: 5px; }
-    td.acts { white-space: nowrap; text-align: right; overflow: visible; text-overflow: clip; }
-    td.acts .dots { all: unset; cursor: pointer; padding: 1px 9px; border-radius: 7px; font-size: 15px; color: #57606a; opacity: 0; transition: opacity .1s; }
-    tr:hover td.acts .dots, td.acts drop-menu[open] .dots { opacity: 1; }
-    td.acts .dots:hover { background: #eaeef2; color: #24292f; }
-    drop-menu button.mi.danger:hover { background: #ffebe9; color: #cf222e; }
+    file-table { margin: 0 20px; --ft-header-top: auto; }
+    file-table:not(:defined) { display: none; }
 
     /* modal internals */
     .m-title { margin: 0 0 12px; font-size: 15px; }
@@ -112,21 +93,7 @@
     </drop-menu>
   </div>
   <div id="bang" style="display:none"></div>
-  <table id="listing">
-    <thead>
-      <tr>
-        <th data-k="name" class="sorted c-name">name <span class="arr">&#8593;</span></th>
-        <th data-k="blot" class="c-blot">blot / neck <span class="arr">&#8597;</span></th>
-        <th data-k="mime" class="c-mime">mime type <span class="arr">&#8597;</span></th>
-        <th data-k="size" class="c-size">size <span class="arr">&#8597;</span></th>
-        <th data-k="modified" class="c-mod">modified <span class="arr">&#8597;</span></th>
-        <th style="cursor:default"></th>
-      </tr>
-    </thead>
-    <tbody id="rows">
-      <tr id="loading-row"><td colspan="6" style="color:#8b949e"><span class="dload">&#9670;</span> loading&hellip;</td></tr>
-    </tbody>
-  </table>
+  <file-table id="ft"></file-table>
   <div id="status"></div>
 
   <modal-dialog id="folder-modal">
@@ -186,6 +153,7 @@
 
   <script type="module" src="/grubbery/ball/apps/explorer.explorer/modal-dialog.js"></script>
   <script type="module" src="/grubbery/ball/apps/explorer.explorer/drop-menu.js"></script>
+  <script type="module" src="/grubbery/ball/apps/explorer.explorer/file-table.js"></script>
   <script type="module" src="/grubbery/ball/apps/explorer.explorer/browse.js"></script>
 </body>
 </html>
