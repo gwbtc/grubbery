@@ -13,6 +13,7 @@
 /&  fw-js        /lib/ui/float-window.js
 /&  db-js        /lib/ui/desk-bar.js
 /&  sm-js        /lib/ui/start-menu.js
+/&  bf-js        /lib/ui/browser-frame.js
 /&  icons-svg    web-test/ui/icons.svg
 /&  demo-html    web-test/ui/demo.html
 /&  desk-html    web-test/ui/desktop.html
@@ -38,7 +39,7 @@
     :-  /application/javascript
     %-  as-octs:mimes:html
     ::  order matters: window-manager must precede float-window (hard dep)
-    (rap 3 ~[(wrap sv-js) (wrap tg-js) (wrap dm-js) (wrap md-js) (wrap wm-js) (wrap fw-js) (wrap db-js) (wrap sm-js)])
+    (rap 3 ~[(wrap sv-js) (wrap tg-js) (wrap dm-js) (wrap md-js) (wrap wm-js) (wrap fw-js) (wrap db-js) (wrap sm-js) (wrap bf-js)])
   %+  spin:loader  ball
   :~  (manifest:loader 0)
       [%over %& [/ %'bounce.html'] [[/ %mime] bounce-html]]
@@ -53,6 +54,7 @@
       [%over %& [/ui %'float-window.js'] [[/ %mime] fw-js]]
       [%over %& [/ui %'desk-bar.js'] [[/ %mime] db-js]]
       [%over %& [/ui %'start-menu.js'] [[/ %mime] sm-js]]
+      [%over %& [/ui %'browser-frame.js'] [[/ %mime] bf-js]]
       [%over %& [/ui %'components.js'] [[/ %mime] kit-js]]
       [%over %& [/ui %'icons.svg'] [[/ %mime] icons-svg]]
       [%over %& [/ui %'demo.html'] [[/ %mime] demo-html]]

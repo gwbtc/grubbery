@@ -106,21 +106,8 @@
     .chat input { flex: 1; padding: 7px 11px; border: 1px solid #d0d7de; border-radius: 8px; font: inherit; font-size: 13px; outline: none; }
     .chat input:focus { border-color: #0969da; }
 
-    .browser { display: flex; flex-direction: column; height: 100%; }
-    .browser .nav { display: flex; gap: 6px; padding: 8px; border-bottom: 1px solid #e2e7ee; }
-    .browser .nav input {
-      flex: 1; padding: 6px 11px; border: 1px solid #d0d7de; border-radius: 8px;
-      font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; outline: none; color: #24292f;
-    }
-    .browser .nav input:focus { border-color: #0969da; }
-    .browser .nav button {
-      all: unset; cursor: pointer; padding: 4px 10px; border-radius: 7px;
-      font-size: 13px; color: #57606a;
-    }
-    .browser .nav button:hover { background: #eaeef2; color: #24292f; }
-    .browser tab-group { flex: 1; min-height: 0; padding: 0 8px; }
-    .browser .page { height: 100%; }
-    .browser iframe { display: block; width: 100%; height: 100%; border: none; background: #fff; }
+    browser-frame { height: 100%; }
+    browser-frame:not(:defined) { display: none; }
   </style>
 </head>
 <body>
@@ -165,14 +152,7 @@
   </float-window>
 
   <float-window title="browser" icon="&#9678;" x="14%" y="8%" width="760" height="540" min-width="420" min-height="260" persist="desk-browser" minimized>
-    <div class="browser">
-      <div class="nav">
-        <input id="urlin" spellcheck="false" placeholder="/grubbery/&hellip; ship path">
-        <button id="b-go" title="open in current tab">go</button>
-        <button id="b-new" title="new tab">+</button>
-      </div>
-      <tab-group id="btabs" closable></tab-group>
-    </div>
+    <browser-frame home="/grubbery/web-test/ui/demo.html" persist="desk-browser-tabs"></browser-frame>
   </float-window>
 
   <desk-bar>
@@ -237,115 +217,6 @@
     pad.addEventListener('input', () => {
       try { localStorage.setItem('desk-notepad-text', pad.value); } catch (_) {}
     });
-
-    // ---- browser: tab-group of iframes over ship paths ----
-    // ship-local pages frame fine; the open web mostly refuses (frame-ancestors)
-    const btabs = $('btabs'), urlin = $('urlin');
-    const HOME = '/grubbery/web-test/ui/demo.html';
-
-    const panels = () => [...btabs.children].filter(c => c.hasAttribute('tab-label'));
-
-    // session persistence, kit-convention localStorage: the open paths (as
-    // navigated-to, not as opened — hookFrame keeps dataset.path current)
-    // plus which tab is active. Chrome state only; nothing domain-shaped.
-    function saveTabs() {
-      try {
-        localStorage.setItem('desk-browser-tabs', JSON.stringify({
-          paths: panels().map(p => p.dataset.path),
-          active: panels().findIndex(p => !p.hidden),
-        }));
-      } catch (_) {}
-    }
-
-    function openTab(path) {
-      const d = document.createElement('div');
-      d.className = 'page';
-      d.setAttribute('tab-label', path.split('/').filter(Boolean).pop() || path);
-      d.dataset.path = path;
-      const f = document.createElement('iframe');
-      f.src = path;
-      hookFrame(d, f);
-      d.appendChild(f);
-      btabs.appendChild(d);
-      saveTabs();
-      // slotchange rebuilds the strip first; then land on the new tab
-      requestAnimationFrame(() => btabs.select(panels().length - 1));
-    }
-
-    // reach into same-origin frames on every load (each navigation is a
-    // fresh document): keep the tab label honest about where the frame
-    // actually is, catch target=_blank links, and catch window.open — both
-    // become tabs HERE instead of escaping to the real browser. Cross-origin
-    // frames are sealed; their links escape and nothing can stop them.
-    function hookFrame(panel, f) {
-      f.addEventListener('load', () => {
-        let doc;
-        try { doc = f.contentDocument; } catch (_) { return; }
-        if (!doc) return;
-        const loc = f.contentWindow.location;
-        const path = loc.pathname + loc.search;
-        panel.dataset.path = path;
-        panel.setAttribute('tab-label', path.split('/').filter(Boolean).pop() || path);
-        const vis = panels().findIndex(x => !x.hidden);
-        btabs.refresh();
-        if (vis >= 0) btabs.select(vis);
-        saveTabs();
-        doc.addEventListener('click', (e) => {
-          const a = e.target && e.target.closest && e.target.closest('a[target="_blank"]');
-          if (!a || !a.href) return;
-          const u = new URL(a.href, loc.href);
-          if (u.origin !== location.origin) return;   // let externals escape
-          e.preventDefault();
-          openTab(u.pathname + u.search);
-        }, true);
-        f.contentWindow.open = (url) => {
-          if (!url) return null;
-          const u = new URL(url, loc.href);
-          if (u.origin === location.origin) { openTab(u.pathname + u.search); return null; }
-          return window.open(u.href);   // externals still escape, explicitly
-        };
-      });
-    }
-
-    function navigate(path) {
-      path = path.trim();
-      if (!path) return;
-      if (!path.startsWith('/')) path = '/' + path;
-      const cur = panels().find(p => !p.hidden);
-      if (!cur) return openTab(path);
-      cur.dataset.path = path;
-      cur.setAttribute('tab-label', path.split('/').filter(Boolean).pop() || path);
-      cur.querySelector('iframe').src = path;
-      btabs.refresh();
-      requestAnimationFrame(() => btabs.select(panels().indexOf(cur)));
-    }
-
-    $('b-go').addEventListener('click', () => navigate(urlin.value));
-    urlin.addEventListener('keydown', (e) => { if (e.key === 'Enter') navigate(urlin.value); });
-    $('b-new').addEventListener('click', () => openTab(HOME));
-
-    btabs.addEventListener('tg-close', (e) => {
-      e.detail.panel.remove();
-      if (panels().length === 0) openTab(HOME);
-      saveTabs();
-    });
-    btabs.addEventListener('tg-change', (e) => {
-      const p = panels()[e.detail.index];
-      if (p) urlin.value = p.dataset.path || '';
-      saveTabs();
-    });
-
-    // restore last session's tabs; each openTab queues its own select, so
-    // queue the saved-active select after them all
-    let session = null;
-    try { session = JSON.parse(localStorage.getItem('desk-browser-tabs') || 'null'); } catch (_) {}
-    if (session && Array.isArray(session.paths) && session.paths.length) {
-      session.paths.forEach(p => openTab(p || HOME));
-      requestAnimationFrame(() =>
-        btabs.select(Math.min(session.active >= 0 ? session.active : 0, panels().length - 1)));
-    } else {
-      openTab(HOME);
-    }
 
     // ---- desktop icons: the real contents of /docs/desktop ----
     // desktop.json comes from the web-test nexus (which creates the dir on
