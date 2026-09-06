@@ -241,7 +241,7 @@ class FileTable extends HTMLElement {
           a.textContent = display;
           a.addEventListener('click', (e) => {
             e.preventDefault();
-            this.#emit('ft-navigate', { item, href });
+            this.#emit('ft-navigate', { item, href, column: col.key });
           });
           const cell = this.#td(col.cls || '', a);
           if (item.kind === 'symlink' && col.key === 'name' && item.target) {

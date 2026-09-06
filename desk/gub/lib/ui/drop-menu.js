@@ -73,6 +73,10 @@ TPL.innerHTML = `
       background: var(--dm-item-hover, #f2f4f7);
       outline: none;
     }
+    ::slotted(.danger:hover) {
+      background: #ffebe9;
+      color: #cf222e;
+    }
   </style>
   <slot name="trigger"></slot>
   <div id="panel" part="panel" role="menu"><slot></slot></div>
@@ -102,7 +106,7 @@ class DropMenu extends HTMLElement {
     });
     this.addEventListener('keydown', this.#onKey);
     // click / focus outside closes — bound once, active only while open
-    this.#onDocPointer = (e) => { if (!this.contains(e.target)) this.close(); };
+    this.#onDocPointer = (e) => { if (!e.composedPath().includes(this)) this.close(); };
   }
 
   #onDocPointer;
