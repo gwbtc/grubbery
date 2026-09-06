@@ -13,14 +13,17 @@ const ed = document.getElementById('ed');
 const display = document.getElementById('src-display');
 const textView = document.getElementById('text-view');
 const mimeView = document.getElementById('mime-view');
+const buildView = document.getElementById('build-view');
 const tabText = document.getElementById('tab-text');
 const tabMime = document.getElementById('tab-mime');
+const tabBuild = document.getElementById('tab-build');
 const editBtn = document.getElementById('edit');
 const saveBtn = document.getElementById('save');
 const liveBtn = document.getElementById('live');
 const wrapBtn = document.getElementById('wrap');
 const status = document.getElementById('status');
 const tools = document.getElementById('tools');
+const buildStatus = document.body.dataset.build || '';
 
 const ext = (name.match(/\.([a-z0-9]+)$/i) || [, ''])[1].toLowerCase();
 
@@ -61,27 +64,27 @@ const previewable =
 
 // ---- panes & tabs ----
 let mimeRendered = false;
+let buildRendered = false;
 function show(which) {
-  const text = which === 'text';
-  textView.style.display = text ? '' : 'none';
-  mimeView.style.display = text ? 'none' : '';
-  tabText.classList.toggle('on', text);
-  tabMime.classList.toggle('on', !text);
-  if (tools) tools.style.display = text ? '' : 'none';
-  if (!text && !mimeRendered) { renderMime(); mimeRendered = true; }
+  textView.style.display = which === 'text' ? '' : 'none';
+  mimeView.style.display = which === 'mime' ? '' : 'none';
+  buildView.style.display = which === 'build' ? '' : 'none';
+  tabText.classList.toggle('on', which === 'text');
+  tabMime.classList.toggle('on', which === 'mime');
+  if (tabBuild) tabBuild.classList.toggle('on', which === 'build');
+  if (tools) tools.style.display = which === 'text' ? '' : 'none';
+  if (which === 'mime' && !mimeRendered) { renderMime(); mimeRendered = true; }
+  if (which === 'build' && !buildRendered) { renderBuild(); buildRendered = true; }
 }
 tabText.addEventListener('click', () => show('text'));
 tabMime.addEventListener('click', () => show('mime'));
+if (tabBuild) tabBuild.addEventListener('click', () => show('build'));
 
 if (!previewable) {
-  // single pane: the source IS the view
-  tabText.style.display = 'none';
-  tabMime.style.display = 'none';
+  if (!buildStatus) { tabText.style.display = 'none'; tabMime.style.display = 'none'; }
   show('text');
 } else if (!texty) {
-  // binary: preview is the only view
-  tabText.style.display = 'none';
-  tabMime.style.display = 'none';
+  if (!buildStatus) { tabText.style.display = 'none'; tabMime.style.display = 'none'; }
   show('mime');
 } else {
   show('mime');
@@ -287,4 +290,29 @@ async function getShiki(lang) {
     }
   }
   return hl;
+}
+
+function renderBuild() {
+  if (!buildView || !buildStatus) return;
+  const detail = buildView.textContent;
+  buildView.textContent = '';
+  const badge = document.createElement('div');
+  badge.id = 'build-badge';
+  if (buildStatus === 'vase') {
+    badge.className = 'ok';
+    badge.textContent = 'compiled';
+  } else if (buildStatus === 'tang') {
+    badge.className = 'err';
+    badge.textContent = 'build error';
+  } else {
+    badge.className = 'raw';
+    badge.textContent = 'raw ' + buildStatus;
+  }
+  buildView.appendChild(badge);
+  if (detail) {
+    const pre = document.createElement('pre');
+    pre.style.cssText = 'margin:0;white-space:pre-wrap;overflow-wrap:anywhere;';
+    pre.textContent = detail;
+    buildView.appendChild(pre);
+  }
 }

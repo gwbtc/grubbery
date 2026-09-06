@@ -70,6 +70,7 @@ ft.columns = [
       return v || '–';
     },
     link: (item) => {
+      if (item.kind === 'dir' && item['neck-url']) return item['neck-url'];
       if (item.kind !== 'boom' && item['blot-url']) return item['blot-url'];
       return null;
     },
@@ -118,9 +119,9 @@ ft.actions = (item) => {
 };
 
 ft.addEventListener('ft-navigate', (e) => {
-  const { item, href } = e.detail;
+  const { item, href, column } = e.detail;
   if (!item) { nav(href); return; }
-  if (item.kind === 'dir') { nav(href); return; }
+  if (item.kind === 'dir' && column === 'name') { nav(href); return; }
   location.href = href;
 });
 
@@ -407,11 +408,14 @@ $('m-nexus-neck').addEventListener('keydown', (e) => { if (e.key === 'Enter') $(
 $('m-file-go').addEventListener('click', () => {
   const n = $('m-file-name').value.trim();
   if (!n) return;
-  post({ action: 'create-file', filename: n });
+  const blot = $('m-file-blot').value.trim();
+  post({ action: 'create-file', filename: n, ...(blot ? { blot } : {}) });
   $('m-file-name').value = '';
+  $('m-file-blot').value = '';
   $('file-modal').close();
 });
 $('m-file-name').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('m-file-go').click(); });
+$('m-file-blot').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('m-file-go').click(); });
 $('m-link-go').addEventListener('click', () => {
   const n = $('m-link').value.trim(), t = $('m-target').value.trim();
   if (!(n && t)) return;

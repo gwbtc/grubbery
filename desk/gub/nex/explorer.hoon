@@ -183,7 +183,9 @@
 ::  the grub's own blot, so the marc validates the edit (see handle-post).
 ::
 ++  view-page
-  |=  [name=@ta txt=tape blot-tape=tape mite-tape=tape texty=? jammed=?]
+  |=  $:  name=@ta  txt=tape  blot-tape=tape  mite-tape=tape
+          texty=?  jammed=?  build-status=tape  build-detail=tape
+      ==
   ^-  manx
   ;html
     ;head
@@ -193,10 +195,11 @@
       ;link(rel "icon", type "image/svg+xml", href "/grubbery/tiles/icon/explorer.explorer");
       ;style: {view-css}
     ==
-    ;body(data-name (trip name), data-texty ?:(texty "1" "0"), data-jammed ?:(jammed "1" "0"), data-mite mite-tape)
+    ;body(data-name (trip name), data-texty ?:(texty "1" "0"), data-jammed ?:(jammed "1" "0"), data-mite mite-tape, data-build build-status)
       ;div#bar
         ;button#tab-text: Source
         ;button#tab-mime: Preview
+        ;button#tab-build(style ?:(=(~ build-status) "display:none" "")): Build
         ;span#fname: {(trip name)}
         ;span.chip
           ;span.k: blot
@@ -226,6 +229,7 @@
             ;pre#src.dim: binary content
       ==
       ;div#mime-view(style "display:none");
+      ;pre#build-view(style "display:none"): {build-detail}
       ;script(src "/grubbery/ball/apps/explorer.explorer/file-preview.js");
       ;script(type "module", src "/grubbery/ball/apps/explorer.explorer/view.js");
     ==
@@ -280,6 +284,11 @@
       'table.csv th, table.csv td { border: 1px solid #d0d7de; padding: 5px 12px; text-align: left; }'
       'table.csv th { background: #f6f8fa; }'
       'table.csv tr:nth-child(even) td { background: #fbfcfd; }'
+      '#build-view { flex: 1; min-height: 0; overflow: auto; margin: 0; padding: 18px; font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; }'
+      '#build-badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 7px; font-size: 12px; font-weight: 600; margin-bottom: 14px; }'
+      '#build-badge.ok { background: #dafbe1; color: #116329; }'
+      '#build-badge.err { background: #ffebe9; color: #cf222e; }'
+      '#build-badge.raw { background: #fff8c5; color: #6a5c00; }'
   ==
 ::  Weir lives in the parent's dir-map, not in the directory's own lump
 ++  read-weir-from-parent
@@ -357,12 +366,11 @@
     ;<  font=(unit (unit bend:tarball))  bind:m
       (get-font:io [%& %| tree-path])
     ~&  >  %explorer-get-font-done
-    ;<  here=rail:tarball  bind:m  get-here-abs:io
     =/  code-namespace=(unit path)
       ?~  font  ~
       ?~  u.font  ~
       =/  ns=(unit lane:tarball)
-        (lane-from-bend:tarball [%& here] u.u.font)
+        (lane-from-bend:tarball [%| tree-path] u.u.font)
       ?~  ns  ~
       ?.  ?=(%| -.u.ns)  ~
       `p.u.ns
@@ -372,11 +380,11 @@
       ::  child necks: the shallow peek of THIS dir returns subdirs as
       ::  names only, so each child is peeked for its own fil.neck (the
       ::  same per-root scan the shell's tile reader does)
-      ;<  necks=(map @ta path)  bind:m
-        =/  m  (fiber:fiber:nexus ,(map @ta path))
+      ;<  necks=(map @ta [neck=path code-ns=(unit path)])  bind:m
+        =/  m  (fiber:fiber:nexus ,(map @ta [neck=path code-ns=(unit path)]))
         ^-  form:m
         =/  subs=(list @ta)  ~(tap in ~(key by dir.ball))
-        =|  acc=(map @ta path)
+        =|  acc=(map @ta [neck=path code-ns=(unit path)])
         |-
         ?~  subs  (pure:m acc)
         ;<  kv=view:nexus  bind:m
@@ -385,7 +393,10 @@
                      ?=(^ fil.ball.kv)
                      ?=(^ neck.u.fil.ball.kv)
                  ==
-          (~(put by acc) i.subs (rail-to-path:tarball u.neck.u.fil.ball.kv))
+          =/  child-code=(unit path)
+            ?.  (~(has by dir.ball.kv) %code)  ~
+            `(snoc (snoc tree-path i.subs) %code)
+          (~(put by acc) i.subs [(rail-to-path:tarball u.neck.u.fil.ball.kv) child-code])
         $(subs t.subs)
       =/  jon=json  (listing-json tree-path ball ball-wave now conversions code-namespace dir-weir necks)
       =/  bod=octs  (as-octs:mimes:html (en:json:html jon))
@@ -441,10 +452,43 @@
       ?:  jammed  (noah q.sage)
       ?:  texty  (trip q.q.mime)
       ""
+    ::  code build status: check if this file lives under a /code nexus
+    =/  code-name=@ta
+      =/  raw=@ta  (rear tree-path)
+      =/  t=tape  (trip raw)
+      =/  len=@ud  (lent t)
+      ?.  &((gth len 5) =(".hoon" (slag (sub len 5) t)))
+        raw
+      (crip (scag (sub len 5) t))
+    =/  file-road=road:tarball  [%& %& (snip `path`tree-path) code-name]
+    ;<  font=(unit (unit bend:tarball))  bind:m
+      (get-font:io file-road)
+    =/  has-code=?  &(?=(^ font) ?=(^ u.font))
+    ;<  build-info=[build-status=tape build-detail=tape]  bind:m
+      ?.  has-code  (pure:(fiber:fiber:nexus ,[tape tape]) ["" ""])
+      ;<  =built:nexus  bind:(fiber:fiber:nexus ,[tape tape])
+        (get-code-full:io file-road)
+      %-  pure:(fiber:fiber:nexus ,[tape tape])
+      ?-  -.built
+          %vase
+        =/  printed=tape  ~(ram re (sell vase.built))
+        :-  "vase"
+        ?:  (lth (lent printed) 4.000)  printed
+        (weld (scag 4.000 printed) "...")
+          %tang
+        :-  "tang"
+        %-  zing
+        %+  turn  (render-tang-to-wall:http-utils [160 tang.built])
+        |=(t=tape (weld t "\0a"))
+          %mime
+        ["mime" "raw mime (no compilation)"]
+      ==
+    =/  build-status=tape  build-status.build-info
+    =/  build-detail=tape  build-detail.build-info
     =/  bod=octs
       %-  as-octs:mimes:html  %-  crip  %-  en-xml:html
       =/  blot-tape=tape  (spud (snoc path.p.sage name.p.sage))
-      (view-page name txt blot-tape (spud p.mime) texty jammed)
+      (view-page name txt blot-tape (spud p.mime) texty jammed build-status build-detail)
     ;<  ~  bind:m  (send-simple:srv eyre-id (mime-response:http-utils [/text/html bod]))
     (pure:m ~)
   ;<  =mime  bind:m  (sage-to-mime:io sage)
@@ -548,7 +592,9 @@
     =/  neck-str=@t  (fall (get-key:kv:html-utils 'neck' args) '')
     =/  dir-neck=(unit neck:tarball)
       ?:  =('' neck-str)  ~
-      `(ext-to-neck:tarball neck-str)
+      =/  pax=path  (stab neck-str)
+      ?~  pax  ~
+      `[(snip `(list @ta)`pax) (rear pax)]
     =/  folder-path=path  (snoc tree-path dir-name)
     =/  new-ball=ball:tarball  [`[dir-neck ~ %.n ~ ~] ~]
     ;<  ~  bind:m  (make:io [%& %| folder-path] &+(ball-to-bole:tarball new-ball))
@@ -560,18 +606,30 @@
     ?:  =('' filename)
       ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'Missing filename')])
       (pure:m ~)
-    =/  ext=(unit @ta)  (parse-extension:tarball filename)
-    ?~  ext
-      ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'Filename needs an extension')])
+    =/  blot-str=@t  (fall (get-key:kv:html-utils 'blot' args) '')
+    =/  blt=(unit blot:tarball)
+      ?.  =('' blot-str)
+        =/  pax=path  (stab blot-str)
+        ?~  pax  ~
+        `[(snip `(list @ta)`pax) (rear pax)]
+      =/  ext=(unit @ta)  (parse-extension:tarball filename)
+      ?~  ext  ~
+      `[/ u.ext]
+    ?~  blt
+      ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'Filename needs an extension or a mark path')])
       (pure:m ~)
-    =/  =blot:tarball  [/ u.ext]
+    =/  =blot:tarball  u.blt
     ;<  marc=(unit marc:tarball)  bind:m  (get-marc:io [%& %| /code] blot)
     ?~  marc
       ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'No mark found for that extension')])
       (pure:m ~)
-    =/  content=vase  bunt.u.marc
-    =/  =sang:tarball  [blot [%& q.content]]
-    ;<  ~  bind:m  (make:io [%& %& tree-path filename] |+[sang ~])
+    =/  content=(each vase tang)  (mule |.(bunt.u.marc))
+    ?.  ?=(%& -.content)
+      %-  (slog p.content)
+      ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'Mark bunt crashed')])
+      (pure:m ~)
+    =/  =bask:tarball  [blot q.p.content]
+    ;<  ~  bind:m  (make:io [%& %& tree-path filename] |+[bask ~])
     ;<  ~  bind:m  (send-simple:srv eyre-id [[303 ~[['location' (crip redirect-url)]]] ~])
     (pure:m ~)
   ::
@@ -983,6 +1041,14 @@
       ;dt: nexus
       ;dd
         ;*  ?~  neck-url
+              =/  is-code=?
+                ?&  ?=(^ fil.b)
+                    ?=(^ neck.u.fil.b)
+                    =([/ %code] u.neck.u.fil.b)
+                ==
+              ?:  is-code
+                :~  ;span(title "hardcoded /code nexus"): {neck-display}
+                ==
               :~  ;span: {neck-display}
               ==
             :~  ;a/"{u.neck-url}": {neck-display}
@@ -1169,14 +1235,15 @@
           conversions=(map bars:tarball tube:clay)
           code-namespace=(unit path)
           dir-weir=(unit weir:nexus)
-          necks=(map @ta path)
+          necks=(map @ta [neck=path code-ns=(unit path)])
       ==
   ^-  json
   =/  str  |=(t=tape `json`s+(crip t))
   =/  neck-url=(unit tape)
-    ?~  code-namespace  ~
     ?~  fil.b  ~
     ?~  neck.u.fil.b  ~
+    ?:  =([/ %code] u.neck.u.fil.b)  ~
+    ?~  code-namespace  ~
     `"/grubbery/ball{(trip (spat (weld u.code-namespace /nex)))}{(trip (spat (rail-to-path:tarball u.neck.u.fil.b)))}.hoon"
   =/  neck-display=tape
     ?~  fil.b  "-"
@@ -1197,16 +1264,22 @@
       (sort ~(tap by dir.b) |=([[a=@ta *] [b=@ta *]] (aor a b)))
     |=  [name=@ta kid=ball:tarball]
     ^-  json
+    =/  neck-entry=(unit [neck=path code-ns=(unit path)])  (~(get by necks) name)
     =/  neck-json=json
-      =/  np=(unit path)  (~(get by necks) name)
-      ?~  np  ~
-      s+(crip (spud u.np))
+      ?~  neck-entry  ~
+      s+(crip (spud neck.u.neck-entry))
+    =/  neck-url-json=json
+      ?~  neck-entry  ~
+      ?:  =(/code neck.u.neck-entry)  ~
+      =/  ns=(unit path)  ?^(code-ns.u.neck-entry code-ns.u.neck-entry code-namespace)
+      ?~  ns  ~
+      (str "/grubbery/ball{(trip (spat (weld u.ns /nex)))}{(trip (spat neck.u.neck-entry))}.hoon")
     =/  dir-mod=json
       =/  kid-wave=(unit wave:nexus)  (~(get by dir.b-wave) name)
       ?~  kid-wave  ~
       ?~  fil.u.kid-wave  ~
       (str (en:datetime-local:iso-8601 da.fold.u.fil.u.kid-wave))
-    (pairs:enjs:format ~[['name' s+`@t`name] ['kind' s+'dir'] ['neck' neck-json] ['modified' dir-mod]])
+    (pairs:enjs:format ~[['name' s+`@t`name] ['kind' s+'dir'] ['neck' neck-json] ['neck-url' neck-url-json] ['modified' dir-mod]])
   =/  files=(list json)
     %+  turn
       (sort ~(tap by file-contents) |=([[a=@ta *] [b=@ta *]] (aor a b)))
@@ -1296,13 +1369,11 @@
           dir-weir=(unit weir:nexus)
       ==
   ^-  manx
-  ::  Nexus source link: combines the governing /code namespace
-  ::  with the directory's neck rail to form a URL to the .hoon source.
-  ::  e.g. /grubbery/ball/code/nex/wallet/account.hoon
   =/  neck-url=(unit tape)
-    ?~  code-namespace  ~
     ?~  fil.b  ~
     ?~  neck.u.fil.b  ~
+    ?:  =([/ %code] u.neck.u.fil.b)  ~
+    ?~  code-namespace  ~
     `"/grubbery/ball{(trip (spat (weld u.code-namespace /nex)))}{(trip (spat (rail-to-path:tarball u.neck.u.fil.b)))}.hoon"
   =/  path-display=tape
     ?~  pax  "/"
