@@ -277,6 +277,27 @@
       ~&  >  [%apps-weir-ball (get-weir-for:hc /apps)]
       ~&  >  [%apps-weir-born (peek-weir:hc /apps)]
       [~ this]
+      ::
+        %show-code-map
+      ~&  >  [%code-namespaces ~(tap in ~(key by code))]
+      [~ this]
+      ::
+        %show-code-refs
+      =/  ns-list=(list path)  ~(tap in ~(key by code))
+      |-
+      ?~  ns-list  [~ this]
+      =/  =lode:nexus  (~(got by code) i.ns-list)
+      ~&  >  [%code-ns i.ns-list refs=(turn ~(tap of refs.lode) |=([p=path n=(map @ta @uv)] [p ~(tap in ~(key by n))]))]
+      $(ns-list t.ns-list)
+      ::
+        %show-bins
+      ~&  >  [%bins-count ~(wyt by bins)]
+      =/  entries=(list [@uv @ud ?(%vase %tang %mime)])
+        %+  turn  ~(tap by bins)
+        |=  [k=@uv refs=@ud =built:nexus]
+        [k refs -.built]
+      ~&  >  [%bins-summary (scag 50 entries)]
+      [~ this]
     ==
   ==
 ::
@@ -2033,7 +2054,11 @@
   =/  =blot:tarball  blot.mark.leaf.jt
   =/  ckey=@uv  ckey.mark.leaf.jt
   =/  hit  (vale-hit lobe.leaf.jt ckey)
-  =/  entry  (~(get by bins) ckey)
+  =/  entry=(unit [refs=@ud =built:nexus])  (~(get by bins) ckey)
+  =?  entry  ?=(~ entry)
+    =/  res  (resolve-built ns.mark.leaf.jt (weld /mar path.blot) name.blot)
+    ?~  res  ~
+    (~(get by bins) ckey.u.res)
   ?~  entry
     `[blot %| [~[leaf+"peek-grub: mark not in bins {<blot>} ckey={<ckey>}"] u.raw]]
   ?.  ?=(%vase -.built.u.entry)
@@ -5218,7 +5243,6 @@
   =.  sat  (record:sat dest [[/ %hoon] q.src] %.n ~)
   ::  inject into src-ball
   [(~(put ba:tarball acc) [/mar (cat 3 nam '.hoon')] sang) sat]
-::
 ++  index-results
   |=  [res=build-out:build =lode:nexus src-ball=ball:tarball]
   ^-  [keys:nexus refs:nexus (map @uv built:nexus)]
