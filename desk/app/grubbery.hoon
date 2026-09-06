@@ -4667,7 +4667,8 @@
   =/  marc-res=(each marc:tarball tang)
     (mule |.(!<(marc:tarball vase.built.u.entry)))
   ?:  ?=(%| -.marc-res)
-    ~|([%record-marc-broken p.bask path.here name.here] !!)
+    ~&  >>  "record: marc stale for {(spud path.p.bask)}/{(trip name.p.bask)}"
+    this
   =/  res=(each vase tang)
     (mule |.((vale:p.marc-res raw)))
   (vale-put nobe marc-ckey ?:(?=(%& -.res) ~ `p.res))
@@ -5225,7 +5226,8 @@
     ~(tap ba:tarball src-ball)
   ::  Seed with mime files
   =/  mime-files=(list [=rail:tarball =sang:tarball])
-    (skim all-files |=([* =sang:tarball] =([/ %mime] p.sang)))
+    %+  skim  all-files
+    |=([* =sang:tarball] &(=([/ %mime] p.sang) ?=(%& -.q.sang)))
   =/  [refs=refs:nexus builds=(map @uv built:nexus)]
     %+  roll  mime-files
     |=  [[=rail:tarball =sang:tarball] [acc=refs:nexus bld=(map @uv built:nexus)]]

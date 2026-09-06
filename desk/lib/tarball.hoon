@@ -29,6 +29,7 @@
   $_  ^?
   |%
   ++  type  *^type
+  ++  bunt  *vase
   ++  vale  |~(* *vase)
   ++  grow  |~(blot *tube:clay)
   ++  grab  |~(blot *tube:clay)
