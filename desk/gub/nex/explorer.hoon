@@ -172,7 +172,7 @@
 ++  texty-mite
   |=  =mite
   ^-  ?
-  ?~  mite  %.n
+  ?~  mite  %.y
   ?:  =(%text i.mite)  %.y
   ?:  =(/application/json mite)  %.y
   ?:  =(/application/javascript mite)  %.y
@@ -186,7 +186,7 @@
 ::
 ++  view-page
   |=  $:  name=@ta  txt=tape  blot-tape=tape  mite-tape=tape
-          texty=?  jammed=?  build-status=tape  build-detail=tape
+          texty=?  jammed=?  blot=tape  build-status=tape  build-detail=tape
       ==
   ^-  manx
   ;html
@@ -197,7 +197,7 @@
       ;link(rel "icon", type "image/svg+xml", href "/grubbery/tiles/icon/explorer.explorer");
       ;style: {view-css}
     ==
-    ;body(data-name (trip name), data-texty ?:(texty "1" "0"), data-jammed ?:(jammed "1" "0"), data-mite mite-tape, data-build build-status)
+    ;body(data-name (trip name), data-texty ?:(texty "1" "0"), data-jammed ?:(jammed "1" "0"), data-mite mite-tape, data-blot blot, data-build build-status)
       ;div#bar
         ;button#tab-text: Source
         ;button#tab-mime: Preview
@@ -219,6 +219,10 @@
         ;button#live: Live
         ;button#wrap: Wrap
         ;span#status;
+      ==
+      ;div#mime-row
+        ;label.tool-label(for "mime-input"): mime type
+        ;input#mime-input(type "text", value mite-tape, spellcheck "false", readonly "");
       ==
       ;div#text-view
         ;+  ?:  &(texty !jammed)
@@ -272,6 +276,11 @@
       '#save:not([disabled]):hover { background: #0857b8; }'
       '#save[disabled] { color: #8b949e; cursor: default; }'
       '#tools button[disabled] { color: #8b949e; cursor: default; background: none; }'
+      '#mime-row { display: flex; align-items: center; gap: 8px; padding: 4px 12px; background: #f6f8fa; border-bottom: 1px solid #e2e7ee; }'
+      '#mime-row .tool-label { font: 10px/1 -apple-system, sans-serif; text-transform: uppercase; letter-spacing: .05em; color: #8b949e; }'
+      '#mime-input { font: 11px ui-monospace, SFMono-Regular, Menlo, monospace; padding: 2px 6px; border: 1px solid transparent; border-radius: 5px; width: 200px; outline: none; background: transparent; color: #57606a; }'
+      '#mime-input:not([readonly]) { border-color: #d0d7de; background: #fff; color: #24292f; }'
+      '#mime-input:not([readonly]):focus { border-color: #0969da; }'
       '#status { font: 11px ui-monospace, monospace; color: #57606a; max-width: 40ch; overflow: hidden; text-overflow: ellipsis; white-space: pre; }'
       '#status.err { color: #cf222e; white-space: pre-wrap; }'
       '#text-view, #mime-view { flex: 1; min-height: 0; overflow: auto; }'
@@ -506,7 +515,7 @@
     =/  bod=octs
       %-  as-octs:mimes:html  %-  crip  %-  en-xml:html
       =/  blot-tape=tape  (spud (snoc path.p.sage name.p.sage))
-      (view-page name txt blot-tape (spud p.mime) texty jammed build-status build-detail)
+      (view-page name txt blot-tape (spud p.mime) texty jammed blot-tape build-status build-detail)
     ;<  ~  bind:m  (send-simple:srv eyre-id (mime-response:http-utils [/text/html bod]))
     (pure:m ~)
   ;<  =mime  bind:m  (sage-to-mime:io sage)
@@ -570,8 +579,13 @@
       (pure:m ~)
     ?:  =([/ %mime] p.sang.cur)
       =/  cur-mime=mime  !<(mime (need-vase:tarball sang.cur))
+      =/  new-mite=mite
+        =/  mt=(unit @t)  (get-key:kv:html-utils 'mite' args)
+        ?~  mt  p.cur-mime
+        ?:  =('' u.mt)  ~
+        (fall (rush u.mt ;~(pfix (punt fas) (more fas sym))) p.cur-mime)
       ;<  ~  bind:m
-        (over:io [%& %& fdir fnam] [[/ %mime] `mime`[p.cur-mime (as-octs:mimes:html content)]])
+        (over:io [%& %& fdir fnam] [[/ %mime] `mime`[new-mite (as-octs:mimes:html content)]])
       ;<  ~  bind:m  (send-simple:srv eyre-id [[200 ~] `ok])
       (pure:m ~)
     ;<  err=(unit tang)  bind:m

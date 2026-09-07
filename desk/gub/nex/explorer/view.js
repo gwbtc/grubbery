@@ -8,7 +8,9 @@
 // status chip.
 const name = document.body.dataset.name || '';
 const texty = document.body.dataset.texty === '1';
-const mite = document.body.dataset.mite || '';
+const blot = document.body.dataset.blot || '';
+let mite = document.body.dataset.mite || '';
+let miteChanged = false;
 const ed = document.getElementById('ed');
 const display = document.getElementById('src-display');
 const textView = document.getElementById('text-view');
@@ -31,6 +33,8 @@ if (errClose) {
   errClose.addEventListener('click', () => { errOverlay.style.display = 'none'; });
   errOverlay.addEventListener('click', (e) => { if (e.target === errOverlay) errOverlay.style.display = 'none'; });
 }
+
+const mimeInput = document.getElementById('mime-input');
 
 const ext = (name.match(/\.([a-z0-9]+)$/i) || [, ''])[1].toLowerCase();
 
@@ -135,6 +139,7 @@ if (ed) {
     editBtn.classList.toggle('on', editing);
     ed.style.display = editing ? '' : 'none';
     display.style.display = editing ? 'none' : '';
+    if (mimeInput) mimeInput.readOnly = !editing;
     if (editing) { show('text'); ed.focus(); }
     else renderSource();
   });
@@ -156,7 +161,7 @@ if (ed) {
   });
   // Live owns saving while it's on — the Save button stands down
   function syncSaveBtn() {
-    if (live || ed.value === clean) saveBtn.setAttribute('disabled', '');
+    if (live || (ed.value === clean && !miteChanged)) saveBtn.setAttribute('disabled', '');
     else saveBtn.removeAttribute('disabled');
   }
   function scheduleLive() {
@@ -167,6 +172,12 @@ if (ed) {
     syncSaveBtn();
     if (live) scheduleLive();
   });
+  if (mimeInput) {
+    mimeInput.addEventListener('input', () => {
+      miteChanged = mimeInput.value.trim() !== mite;
+      syncSaveBtn();
+    });
+  }
   async function save() {
     status.textContent = 'saving…';
     status.className = '';
@@ -174,11 +185,16 @@ if (ed) {
       const res = await fetch(location.pathname, {
         method: 'POST',
         headers: { 'content-type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({ action: 'write-text', content: ed.value }),
+        body: new URLSearchParams(Object.assign(
+          { action: 'write-text', content: ed.value },
+          miteChanged ? { mite: mimeInput.value.trim() } : {}
+        )),
       });
       const body = await res.text();
       if (res.ok) {
         clean = ed.value;
+        if (mimeInput) mite = mimeInput.value.trim();
+        miteChanged = false;
         syncSaveBtn();
         status.textContent = 'saved ✓';
         mimeRendered = false;
