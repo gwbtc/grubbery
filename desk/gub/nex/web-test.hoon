@@ -19,6 +19,7 @@
 /&  desk-html    web-test/ui/desktop.html
 /&  mi-json      web-test/ui/mark-icons.json
 /&  ft-js        /lib/ui/file-table.js
+/&  fg-js        /lib/ui/file-grid.js
 /&  ftd-html     web-test/ui/file-table-demo.html
 ^-  nexus:nexus
 |%
@@ -39,7 +40,7 @@
     :-  /application/javascript
     %-  as-octs:mimes:html
     ::  order matters: window-manager must precede float-window (hard dep)
-    (rap 3 ~[(wrap sv-js) (wrap tg-js) (wrap dm-js) (wrap md-js) (wrap wm-js) (wrap fw-js) (wrap db-js) (wrap sm-js) (wrap bf-js)])
+    (rap 3 ~[(wrap sv-js) (wrap tg-js) (wrap dm-js) (wrap md-js) (wrap wm-js) (wrap fw-js) (wrap db-js) (wrap sm-js) (wrap bf-js) (wrap fg-js)])
   %+  spin:loader  ball
   :~  (manifest:loader 0)
       [%over %& [/ %'bounce.html'] [[/ %mime] bounce-html]]
@@ -61,6 +62,7 @@
       [%over %& [/ui %'desktop.html'] [[/ %mime] desk-html]]
       [%over %& [/ui %'mark-icons.json'] [[/ %mime] mi-json]]
       [%over %& [/ui %'file-table.js'] [[/ %mime] ft-js]]
+      [%over %& [/ui %'file-grid.js'] [[/ %mime] fg-js]]
       [%over %& [/ui %'file-table-demo.html'] [[/ %mime] ftd-html]]
       [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
       [%fall %| /requests empty-dir:loader]

@@ -10,6 +10,7 @@
 /&  md-js    /lib/ui/modal-dialog.js
 /&  dm2-js   /lib/ui/drop-menu.js
 /&  ft-js    /lib/ui/file-table.js
+/&  fg-js    /lib/ui/file-grid.js
 /&  browse-html  explorer/ui/browse.html
 /&  browse-js    explorer/ui/browse.js
 /&  marked-js  shell/marked.min.js
@@ -66,6 +67,7 @@
           [%over %& [/ %'modal-dialog.js'] [[/ %mime] md-js]]
           [%over %& [/ %'drop-menu.js'] [[/ %mime] dm2-js]]
           [%over %& [/ %'file-table.js'] [[/ %mime] ft-js]]
+          [%over %& [/ %'file-grid.js'] [[/ %mime] fg-js]]
           [%over %& [/ %'browse.html'] [[/ %mime] browse-html]]
           [%over %& [/ %'browse.js'] [[/ %mime] browse-js]]
           [%over %& [/ %'marked.min.js'] [[/ %mime] marked-js]]

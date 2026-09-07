@@ -14,7 +14,7 @@ function nav(p, push) {
   if (push !== false) history.pushState(null, '', p);
   document.title = dirPath;
   renderCrumbs();
-  ft.showLoading();
+  if (view === 'list') ft.showLoading(); else fg.showLoading();
   load();
 }
 document.addEventListener('click', (e) => {
@@ -114,14 +114,44 @@ ft.actions = (item) => {
   return acts;
 };
 
+// ---- file-grid setup ----
+const fg = $('fg');
+fg.baseHref = here;
+fg.actions = ft.actions;
+
+// ---- view toggle ----
+const vList = $('v-list');
+const vGrid = $('v-grid');
+let view = localStorage.getItem('explorer-view') || 'list';
+
+function setView(v) {
+  view = v;
+  try { localStorage.setItem('explorer-view', v); } catch (_) {}
+  ft.style.display = v === 'list' ? '' : 'none';
+  fg.style.display = v === 'grid' ? '' : 'none';
+  vList.classList.toggle('on', v === 'list');
+  vGrid.classList.toggle('on', v === 'grid');
+}
+vList.addEventListener('click', () => setView('list'));
+vGrid.addEventListener('click', () => setView('grid'));
+setView(view);
+
+// ---- navigation (shared by both views) ----
+function handleNavigate(e) {
+  const { item, href } = e.detail;
+  if (!item) { nav(href); return; }
+  if (item.kind === 'dir') { nav(href); return; }
+  location.href = href;
+}
 ft.addEventListener('ft-navigate', (e) => {
   const { item, href, column } = e.detail;
   if (!item) { nav(href); return; }
   if (item.kind === 'dir' && column === 'name') { nav(href); return; }
   location.href = href;
 });
+fg.addEventListener('ft-navigate', handleNavigate);
 
-ft.addEventListener('ft-action', (e) => {
+function handleAction(e) {
   const { action, item } = e.detail;
   const base = here.replace(/\/$/, '') + '/' + item.name;
   if (item.kind === 'dir') {
@@ -157,7 +187,9 @@ ft.addEventListener('ft-action', (e) => {
     case 'delete': if (confirm('Delete ' + item.name + '?'))
       post({ action: 'delete-grub', filename: item.name }); break;
   }
-});
+}
+ft.addEventListener('ft-action', handleAction);
+fg.addEventListener('ft-action', handleAction);
 
 // ---- fetch + render ----
 renderCrumbs();
@@ -176,6 +208,8 @@ async function load() {
   renderBang();
   ft.parentHref = dirPath !== '/' ? PREFIX + (dirPath.split('/').slice(0, -1).join('/') || '') : null;
   ft.items = data.children;
+  fg.baseHref = here;
+  fg.items = data.children;
   renderManage();
   if ($('weir-modal').hasAttribute('open')) renderWeir();
 }
@@ -465,11 +499,9 @@ function showCtx(x, y) {
 function showItemCtx(item, x, y) {
   const acts = ft.actions(item);
   if (!acts || !acts.length) return;
-  // remove any prior item-action buttons
   ctx.querySelectorAll('[data-item-act]').forEach(b => b.remove());
-  // hide the dir-action buttons
   ctx.querySelectorAll('[data-ctx]').forEach(b => { b.style.display = 'none'; });
-  // add item actions
+  const target = view === 'list' ? ft : fg;
   for (const a of acts) {
     const b = document.createElement('button');
     b.className = 'mi';
@@ -477,7 +509,7 @@ function showItemCtx(item, x, y) {
     b.textContent = a.label;
     b.setAttribute('data-item-act', '');
     b.addEventListener('click', () => {
-      ft.dispatchEvent(new CustomEvent('ft-action', {
+      target.dispatchEvent(new CustomEvent('ft-action', {
         bubbles: true, composed: true,
         detail: { action: a.action, item },
       }));
@@ -490,9 +522,9 @@ function showItemCtx(item, x, y) {
 document.addEventListener('contextmenu', (e) => {
   if (e.target.closest('drop-menu, modal-dialog, #bar')) return;
   e.preventDefault();
-  const row = e.composedPath().find(el => el.tagName === 'TR');
-  if (row && row.__item) {
-    showItemCtx(row.__item, e.clientX, e.clientY);
+  const hit = e.composedPath().find(el => el.__item);
+  if (hit) {
+    showItemCtx(hit.__item, e.clientX, e.clientY);
     return;
   }
   // whitespace: show dir actions, hide any leftover item actions
