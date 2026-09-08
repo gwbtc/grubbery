@@ -5672,6 +5672,14 @@
 ::    at the root, and any other file is converted to mime through a
 ::    clay tube. Files that fail validation are reported and skipped.
 ::
+::    Exception: anything under a tool-bundle/ directory is DATA to the
+::    nexus that imports it, not code of this namespace. A host nexus
+::    /&-imports the bundle and seeds it into a tools nexus's own /code,
+::    where it compiles against that nexus's subject. Compiling it here
+::    would run it against the wrong subject and, under /nex, validate it
+::    as a nexus — a failure that bangs the host nexus for a file it
+::    never executes. So bundle sources are stored as mime, untouched.
+::
 ++  gub-ball
   |=  pax=path
   ^-  ball:tarball
@@ -5684,6 +5692,7 @@
   =/  stem=@ta   (rear sans)
   =/  rel-dir=path  (slag 1 (snip `(list @ta)`sans))
   =/  name=@ta   (cat 3 stem (cat 3 '.' mar))
+  =/  bundled=?  (lien rel-dir |=(seg=@ta =(%'tool-bundle' seg)))
   ::  sys.kelvin: store as kelvin mark at root
   ?:  =(%'sys.kelvin' name)
     =/  =vase  .^(vase %cr (weld pax fyl))
@@ -5692,7 +5701,7 @@
       ~&  >>>  "sync-gub: kelvin validation failed"
       acc
     (~(put ba:tarball acc) [/ %'sys.kelvin'] [[/ %kelvin] %& p.val])
-  ?:  =(mar %hoon)
+  ?:  &(=(mar %hoon) !bundled)
     =/  =vase  .^(vase %cr (weld pax fyl))
     =/  val=(each ^vase tang)  (validate-noun /code [/ mar] q.vase)
     ?.  ?=(%& -.val)
