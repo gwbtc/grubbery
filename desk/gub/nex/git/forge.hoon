@@ -26,6 +26,8 @@
 /&  splitview-js  /lib/ui/split-view.js
 ::  shared classic helper (window.FilePreview) — loaded before app.js
 /&  fp-js       /lib/ui/file-preview.js
+/<  nex-tools   /lib/tools.hoon
+/&  forge-tools  forge/tool-bundle/
 =<  ^-  nexus:nexus
     |%
     ++  on-load
@@ -64,6 +66,7 @@
           [%over %& [/ %'style.css'] [[/ %mime] forge-css]]
           [%over %& [/ %'components.js'] [[/ %mime] kit-js]]
           [%over %& [/ %'file-preview.js'] [[/ %mime] fp-js]]
+          [%over %| /tools (seed-tools:nex-tools forge-tools)]
       ==
     ::
     ++  on-file

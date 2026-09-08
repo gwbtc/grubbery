@@ -344,7 +344,11 @@
   ^-  form:m
   ;<  cfg=repo-config  bind:m  read-config
   ?:  =('' repo.cfg)  (pure:m [%error 'no repo configured'])
-  ;<  disc=discovery:git-transport  bind:m  (fetch-discovery repo.cfg)
+  ;<  disc-res=(each discovery:git-transport tang)  bind:m  (fetch-discovery repo.cfg)
+  ?:  ?=(%| -.disc-res)
+    =/  msg=tape  (zing (turn (scag 1 p.disc-res) |=(=tank ~(ram re tank))))
+    (pure:m [%error (crip "fetch failed: {msg}")])
+  =/  disc=discovery:git-transport  p.disc-res
   ::  empty ref = the default branch: resolve and pin it in config.json
   =/  resolve-ref=?  =('' ref.cfg)
   =?  ref.cfg  resolve-ref
@@ -377,8 +381,12 @@
       `hash.r
     ?~  want-hashes
       (pure:m [%ok 'already up to date'])
-    ;<  pack-body=octs  bind:m
+    ;<  pack-res=(each octs tang)  bind:m
       (fetch-pack repo.cfg (build-want:git-transport want-hashes ~['side-band-64k' 'ofs-delta'] ~ have-hashes))
+    ?:  ?=(%| -.pack-res)
+      =/  msg=tape  (zing (turn (scag 1 p.pack-res) |=(=tank ~(ram re tank))))
+      (pure:m [%error (crip "fetch-pack failed: {msg}")])
+    =/  pack-body=octs  p.pack-res
     =/  new-pack-data=octs  (extract-pack:git-transport pack-body %.y)
     ?:  =(0 p.new-pack-data)
       ;<  ~  bind:m  (update-refs disc ref.cfg)
@@ -414,7 +422,8 @@
     ;<  ~  bind:m  (reload:io data-rd)
     (pure:m [%ok (crip "fetched {(scow %ud (lent want-hashes))} new objects")])
   ::  === full clone ===
-  ;<  ~  bind:m  (do-full-clone cfg disc)
+  ;<  clone-err=(unit @t)  bind:m  (do-full-clone cfg disc)
+  ?^  clone-err  (pure:m [%error u.clone-err])
   (pure:m [%ok 'cloned'])
 ::  +op-push: push local commits to the remote via the GitHub API — the full
 ::  transport logic (formerly /actions/push.sig), inline in the lane. Walks
@@ -695,14 +704,18 @@
 ::
 ++  do-full-clone
   |=  [cfg=repo-config disc=discovery:git-transport]
-  =/  m  (fiber:fiber:nexus ,~)
+  =/  m  (fiber:fiber:nexus ,(unit @t))
   ^-  form:m
   ~&  >>  "%git/repo: full clone..."
   ~&  >>  "%git/repo: fetching pack..."
   =/  want-hashes=(list @ux)
     (turn refs.disc |=(r=git-ref:git-transport hash.r))
-  ;<  pack-body=octs  bind:m
+  ;<  pack-res=(each octs tang)  bind:m
     (fetch-pack repo.cfg (build-want:git-transport want-hashes ~['side-band-64k' 'ofs-delta'] ~ ~))
+  ?:  ?=(%| -.pack-res)
+    =/  msg=tape  (zing (turn (scag 1 p.pack-res) |=(=tank ~(ram re tank))))
+    (pure:m `(crip "clone fetch failed: {msg}"))
+  =/  pack-body=octs  p.pack-res
   ~&  >>  ["%git/repo: pack received" p.pack-body "bytes"]
   =/  pack-data=octs
     (extract-pack:git-transport pack-body %.y)
@@ -746,7 +759,8 @@
   ;<  sync-data-rd=road:tarball  bind:m
     (ancestor-road:io [/git %repo] [%| /data])
   ~&  >>  "%git/repo: clone complete"
-  (reload:io sync-data-rd)
+  ;<  ~  bind:m  (reload:io sync-data-rd)
+  (pure:m ~)
 ::
 ::  +update-refs: write updated remote refs without touching pack
 ::
@@ -1019,7 +1033,7 @@
 ::
 ++  github-xfer
   |=  req=$%([%discovery repo=@t] [%pack repo=@t body=octs])
-  =/  m  (fiber:fiber:nexus ,octs)
+  =/  m  (fiber:fiber:nexus ,(each octs tang))
   ^-  form:m
   ::  the repo's configured account rides along; '' = first connected
   ;<  cfg=repo-config  bind:m  read-config
@@ -1043,23 +1057,24 @@
   ;<  ~  bind:m  (drop:io /ghx grub)
   ;<  *  bind:m  (cull-soft:io grub)
   ?:  ?=(%fail -.u.life)
-    ~|  "%git/repo: github transfer failed"  ~|  tang.u.life  !!
-  (pure:m octs.u.life)
+    (pure:m [%| tang.u.life])
+  (pure:m [%& octs.u.life])
 ::
 ::  +fetch-discovery: GET /info/refs for a repo
 ::
 ++  fetch-discovery
   |=  repo=@t
-  =/  m  (fiber:fiber:nexus ,discovery:git-transport)
+  =/  m  (fiber:fiber:nexus ,(each discovery:git-transport tang))
   ^-  form:m
-  ;<  body=octs  bind:m  (github-xfer %discovery repo)
-  (pure:m (parse-discovery:git-transport body))
+  ;<  res=(each octs tang)  bind:m  (github-xfer %discovery repo)
+  ?:  ?=(%| -.res)  (pure:m [%| p.res])
+  (pure:m [%& (parse-discovery:git-transport p.res)])
 ::
 ::  +fetch-pack: POST /git-upload-pack for a repo
 ::
 ++  fetch-pack
   |=  [repo=@t want-body=octs]
-  =/  m  (fiber:fiber:nexus ,octs)
+  =/  m  (fiber:fiber:nexus ,(each octs tang))
   ^-  form:m
   (github-xfer %pack repo want-body)
 ::

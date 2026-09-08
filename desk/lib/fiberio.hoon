@@ -994,13 +994,15 @@
   ^-  form:m
   (poke &+&+[/sys/clay %'main.clay-state'] [[/ %new-desk] dek])
 ::  Write/delete files in a Clay desk via /sys/clay/ runtime service.
-::  No vases — the runtime clams through marks on the destination desk.
+::  Every file goes in as a mime, exactly like a Unix |commit: the
+::  kernel wraps it as a %mime cage and Clay tube-converts to the mark
+::  named by the path's last segment. ~ deletes the path.
 ::
 ++  clay-info
-  |=  [dek=desk changes=(list [path ?([%ins @tas *] [%del ~])])]
+  |=  [dek=desk files=(list [path (unit mime)])]
   =/  m  (fiber ,~)
   ^-  form:m
-  (poke &+&+[/sys/clay %'main.clay-state'] [[/ %clay-info] [dek changes]])
+  (poke &+&+[/sys/clay %'main.clay-state'] [[/ %clay-info] [dek files]])
 ::  Send a belt to a dill session via /sys/dill/ runtime service
 ::
 ++  send-belt

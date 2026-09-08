@@ -47,7 +47,7 @@
     =/  dek=@tas  (slav %tas desk)
     ;<  our=@p  bind:m  get-our:io
     ;<  now=@da  bind:m  get-time:io
-    =/  instructions=(list [pax=path mark=@tas blob=*])  ~
+    =/  instructions=(list [pax=path =mime])  ~
     =/  file-names=(list @t)  ~
     =/  remaining=(list json)  edit-list
     |-
@@ -55,10 +55,10 @@
       ?~  instructions
         (pure:m [%error 'no valid edits to apply'])
       ;<  initial=cass:clay  bind:m  (clay-case:io dek)
-      =/  ins=(list [path %ins @tas *])
+      =/  ins=(list [path (unit mime)])
         %+  turn  (flop instructions)
-        |=  [pax=path mark=@tas blob=*]
-        [pax %ins mark blob]
+        |=  [pax=path =mime]
+        [pax `mime]
       =/  write-data=json
         %-  pairs:enjs:format
         :~  ['initial-ud' (numb:enjs:format ud.initial)]
@@ -126,10 +126,10 @@
     =/  before=tape  (scag u.idx text)
     =/  after=tape  (slag (add u.idx (lent old-tape)) text)
     =/  result=@t  (crip (zing ~[before new-tape after]))
-    =/  blob=*  ?:(?=(%txt mark) (to-wain:format result) result)
+    =/  =mime  [/text/plain (as-octs:mimes:html result)]
     %=  $
       remaining     t.remaining
-      instructions  [[pax mark blob] instructions]
+      instructions  [[pax mime] instructions]
       file-names    [file-path.u.parsed file-names]
     ==
       %batch-editing

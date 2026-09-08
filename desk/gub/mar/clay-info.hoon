@@ -1,9 +1,10 @@
-::  clay-info: mark for file write payload [desk changes]
+::  clay-info: mark for file write payload [desk files]
+::  each file is a (unit mime): ~ deletes the path, `mime inserts it.
 ::
-|_  val=[desk (list [path ?([%ins @tas *] [%del ~])])]
+|_  val=[desk (list [path (unit mime)])]
 ++  grab
   |%
-  ++  noun  ,[desk (list [path ?([%ins @tas *] [%del ~])])]
+  ++  noun  ,[desk (list [path (unit mime)])]
   --
 ++  grow
   |%

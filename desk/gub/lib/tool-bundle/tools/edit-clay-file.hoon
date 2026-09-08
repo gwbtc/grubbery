@@ -87,8 +87,8 @@
     ;<  ~  bind:m
       (set-timer:io /commit-timeout (add now ~s30))
     ;<  ~  bind:m
-      =/  blob=*  ?:(?=(%txt mark) (to-wain:format result) result)
-      (clay-info:io dek [pax %ins mark blob]~)
+      =/  =mime  [/text/plain (as-octs:mimes:html result)]
+      (clay-info:io dek [pax `mime]~)
     ;<  ~  bind:m  collect-logs:tools
     ;<  ~  bind:m  (drop:io /dill/logs [%& %& /sys/dill %'logs.dill-told'])
     ;<  st=tool-state:tools  bind:m  (get-state-as:io ,tool-state:tools)

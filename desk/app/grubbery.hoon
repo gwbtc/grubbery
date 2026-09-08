@@ -6863,9 +6863,9 @@
       =.  this  (handle-clay-new-desk dek)
       `(enqu-take here ~ ~ %pack wir ~)
     ?:  =([/ %clay-info] p.sage)
-      =/  [dek=desk changes=(list [path ?([%ins @tas *] [%del ~])])]
-        !<([desk (list [path ?([%ins @tas *] [%del ~])])] q.sage)
-      =.  this  (handle-clay-info dek changes)
+      =/  [dek=desk files=(list [path (unit mime)])]
+        !<([desk (list [path (unit mime)])] q.sage)
+      =.  this  (handle-clay-info dek files)
       `(enqu-take here ~ ~ %pack wir ~)
     ~  :: unknown clay poke, fall through
   ::
@@ -7015,7 +7015,7 @@
   |=  [segs=wire error=(unit tang)]
   ^+  this
   ?^  error
-    ~&  >>>  ["%behn: timer error" u.error]
+    %-  (slog leaf+"%behn: timer error" u.error)
     this
   ::  Decode wire: {da}/{path-len}/{path...}/{name}/{wire...}
   ?>  ?=(^ segs)
@@ -7106,18 +7106,22 @@
   (emit-card [%pass /desk-bill %arvo %c %info dek %& [/desk/bill %ins bill+!>(~[dek])]~])
 ::  /sys/clay/ file write service
 ::
+::  Every file arrives as a mime and goes to Clay as a %mime cage, the
+::  same way a Unix |commit does. Clay tube-converts to the mark named
+::  by the path's last segment. The mime is wrapped with !> here, in
+::  agent context, so the cage carries a real vase; grubs never build
+::  cages, and a malformed payload is rejected at the poke boundary by
+::  the clay-info mark instead of crashing inside Clay.
+::
 ++  handle-clay-info
-  |=  [dek=desk changes=(list [path ?([%ins @tas *] [%del ~])])]
+  |=  [dek=desk files=(list [path (unit mime)])]
   ^+  this
   =/  mis=(list [path miso:clay])
-    %+  turn  changes
-    |=  [pax=path change=?([%ins @tas *] [%del ~])]
+    %+  turn  files
+    |=  [pax=path fil=(unit mime)]
     ^-  [path miso:clay]
-    ?-  -.change
-        %del  [pax %del ~]
-        %ins
-      [pax %ins +<.change !>(+>.change)]
-    ==
+    ?~  fil  [pax %del ~]
+    [pax %ins %mime !>(u.fil)]
   (emit-card [%pass /clay-info %arvo %c %info dek %& mis])
 ::  /sys/eyre/ HTTP server service
 ::

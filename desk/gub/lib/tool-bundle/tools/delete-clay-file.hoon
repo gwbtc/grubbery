@@ -63,7 +63,7 @@
     ;<  ~  bind:m
       (set-timer:io /commit-timeout (add now ~s30))
     ;<  ~  bind:m
-      (clay-info:io dek [pax %del ~]~)
+      (clay-info:io dek [pax ~]~)
     ;<  ~  bind:m  collect-logs:tools
     ;<  ~  bind:m  (drop:io /dill/logs [%& %& /sys/dill %'logs.dill-told'])
     ;<  st=tool-state:tools  bind:m  (get-state-as:io ,tool-state:tools)

@@ -50,7 +50,8 @@
     =/  mark=@tas  (rear pax)
     ?.  ?=(?(%hoon %json %html %css %js %md %txt) mark)
       (pure:m [%error (crip "Unsupported mark: %{(trip mark)}. Use hoon, json, html, css, js, md, or txt.")])
-    =/  blob=*  ?:(?=(%txt mark) (to-wain:format content) content)
+    ::  every file goes to Clay as a mime; the desk's mark converts it
+    =/  =mime  [/text/plain (as-octs:mimes:html content)]
     ;<  initial=cass:clay  bind:m  (clay-case:io dek)
     =/  write-data=json
       %-  pairs:enjs:format
@@ -66,7 +67,7 @@
     ;<  ~  bind:m
       (set-timer:io /commit-timeout (add now ~s30))
     ;<  ~  bind:m
-      (clay-info:io dek [pax %ins mark blob]~)
+      (clay-info:io dek [pax `mime]~)
     ;<  ~  bind:m  collect-logs:tools
     ;<  ~  bind:m  (drop:io /dill/logs [%& %& /sys/dill %'logs.dill-told'])
     ;<  st=tool-state:tools  bind:m  (get-state-as:io ,tool-state:tools)
