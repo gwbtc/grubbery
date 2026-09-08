@@ -111,6 +111,9 @@
 ++  main-loop
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
+  ::  learn where we are once; each poke's relative bend is then
+  ::  written into the ledger as the caller's real path
+  ;<  loc=here:nexus  bind:m  get-here:io
   |-
   ;<  [=from:fiber:nexus =sage:tarball]  bind:m  take-poke-from:io
   =/  jon=json  (fall (mole |.(!<(json q.sage))) *json)
@@ -120,7 +123,7 @@
   ?:  |(=('' id) ?=(~ body))
     ~&  >>>  "%anthropic: poke missing id or body"
     $
-  =/  caller=@t  (from-to-cord from)
+  =/  caller=@t  (caller-path loc from)
   =/  call-road=road:tarball
     (cord-to-road:tarball (crip "./calls/{(trip id)}.json"))
   =/  content=json
@@ -303,17 +306,30 @@
   :-  (jget cfg 'api-key')
   ?:(=('' url) 'https://api.anthropic.com/v1/messages' url)
 ::
-++  from-to-cord
-  |=  =from:fiber:nexus
+::  +caller-path: a poke's from is a bend relative to this grub. Render
+::  it absolute when our %here walk reached root; otherwise relative,
+::  one ../ per step up, so a weir-blocked walk still yields an honest
+::  path instead of a crash.
+::
+++  caller-path
+  |=  [loc=here:nexus =from:fiber:nexus]
   ^-  @t
-  =/  =rail:tarball  q.from
-  %-  crip
-  =/  parts=(list @ta)  (snoc path.rail name.rail)
-  =|  acc=tape
-  |-
-  ?~  parts  acc
-  ?~  acc  $(parts t.parts, acc (trip i.parts))
-  $(parts t.parts, acc (weld acc `tape`['/' (trip i.parts)]))
+  =/  tail=path  (snoc path.q.from name.q.from)
+  ?:  root.loc
+    =/  base=path  path:(coerce-here:io loc)
+    (crip (spud (weld (resolve-up base p.from) tail)))
+  =/  rel=tape  (slag 1 (spud tail))
+  =/  up=@ud  p.from
+  |-  ^-  @t
+  ?:  =(0 up)  (crip rel)
+  $(up (dec up), rel (weld "../" rel))
+::
+++  resolve-up
+  |=  [base=path up=@ud]
+  ^-  path
+  ?:  =(0 up)  base
+  ?~  base  ~
+  $(up (dec up), base (snip `path`base))
 ::
 ++  jget
   |=  [jon=json k=@t]
@@ -436,17 +452,12 @@
     ?.  ?=([%o *] u.jon)  (reply eyre-id 400 'object required')
     ;<  eny=@uvJ  bind:m  get-entropy:io
     =/  id=@t  (crip ((x-co:co 16) (end 6 eny)))
-    =/  content=json
-      %-  pairs:enjs:format
-      :~  ['status' s+'pending']
-          ['request' u.jon]
-          ['from' s+'ui']
-      ==
-    =/  call-road=road:tarball  [%| 1 %& /calls (crip "{(trip id)}.json")]
+    ::  through the front door: poke our own main.sig like any other
+    ::  caller, so the kernel records this request grub as the caller
     ;<  err=(unit tang)  bind:m
-      (make-soft:io call-road |+[[[/ %json] content] ~])
+      %+  poke-soft:io  [%| 1 %& / %'main.sig']
+      [[/ %json] (pairs:enjs:format ~[['id' s+id] ['body' u.jon]])]
     ?^  err  (reply eyre-id 500 'could not create call')
-    ;<  ~  bind:m  (gain:io call-road %.y)
     (send-json eyre-id (pairs:enjs:format ~[['id' s+id]]))
   ::
       [%api %call ~]

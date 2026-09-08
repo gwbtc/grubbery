@@ -76,6 +76,9 @@
           ::
           [~ %'main.sig']
         ;<  ~  bind:m  (rise-wait:io prod "%api/anthropic: failed")
+        ::  learn where we are once; each poke's relative bend is then
+        ::  written into the ledger as the caller's real path
+        ;<  loc=here:nexus  bind:m  get-here:io
         |-
         ;<  [=from:fiber:nexus =sage:tarball]  bind:m  take-poke-from:io
         =/  jon=json  (fall (mole |.(!<(json q.sage))) *json)
@@ -86,8 +89,7 @@
         ?:  |(=('' id) ?=(~ body))
           ~&  >>>  "%api/anthropic: missing id or body in poke"
           $
-        ::  extract caller identity from poke source
-        =/  caller=@t  (from-to-cord from)
+        =/  caller=@t  (caller-path loc from)
         ~&  >  ["%api/anthropic: creating call" id caller]
         =/  call-road=road:tarball
           (cord-to-road:tarball (crip "./calls/{(trip id)}.json"))
@@ -242,19 +244,30 @@
   ;<  ~  bind:m  (over:io usage-road [/ %json] new)
   (pure:m ~)
 ::
-::  +from-to-cord: convert poke source to a readable identifier
+::  +caller-path: a poke's from is a bend relative to this grub. Render
+::  it absolute when our %here walk reached root; otherwise relative,
+::  one ../ per step up, so a weir-blocked walk still yields an honest
+::  path instead of a crash.
 ::
-++  from-to-cord
-  |=  =from:fiber:nexus
+++  caller-path
+  |=  [loc=here:nexus =from:fiber:nexus]
   ^-  @t
-  =/  =rail:tarball  q.from
-  %-  crip
-  =/  parts=(list @ta)  (snoc path.rail name.rail)
-  =|  acc=tape
-  |-
-  ?~  parts  acc
-  ?~  acc  $(parts t.parts, acc (trip i.parts))
-  $(parts t.parts, acc (weld acc `tape`['/' (trip i.parts)]))
+  =/  tail=path  (snoc path.q.from name.q.from)
+  ?:  root.loc
+    =/  base=path  path:(coerce-here:io loc)
+    (crip (spud (weld (resolve-up base p.from) tail)))
+  =/  rel=tape  (slag 1 (spud tail))
+  =/  up=@ud  p.from
+  |-  ^-  @t
+  ?:  =(0 up)  (crip rel)
+  $(up (dec up), rel (weld "../" rel))
+::
+++  resolve-up
+  |=  [base=path up=@ud]
+  ^-  path
+  ?:  =(0 up)  base
+  ?~  base  ~
+  $(up (dec up), base (snip `path`base))
 ::
 ++  get-num
   |=  [obj=json key=@t]
