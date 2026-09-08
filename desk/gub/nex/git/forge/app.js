@@ -562,11 +562,11 @@ function updateTang() {
 }
 // ── file preview (Source | Preview toggle) ──
 // render logic lives in the shared window.FilePreview helper (file-preview.js).
-// forge has no raw-byte lane, so raster stays source-only here: only svg/html,
-// which render straight from the buffer text, get a toggle.
+// forge has no raw-byte lane, so raster stays source-only here: only
+// svg/html/json, which render straight from the buffer text, get a toggle.
 function previewKind(name) {
   var k = window.FilePreview ? FilePreview.kind(name) : null;
-  return (k === 'svg' || k === 'html') ? k : null;
+  return (k === 'svg' || k === 'html' || k === 'json') ? k : null;
 }
 function mountEditor() {
   var has = !!selected;
