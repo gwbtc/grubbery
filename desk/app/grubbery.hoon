@@ -2700,15 +2700,19 @@
 ::  - Internal (%&): enqueue %pack intake to source path
 ::  - External (%|): emit gall card
 ::
-::  For internal pokes, sanitizes error if source can't peek target.
+::  For internal pokes, sanitizes a nack's tang if the source can't peek
+::  the target. That check is a probe, not a gate — it decides the
+::  message, blocks nothing — so it runs quiet and only when there is
+::  an error to sanitize.
 ::
 ++  give-poke-ack
   |=  [here=rail:tarball =from:nexus =wire err=(unit tang)]
   ^+  this
   =/  err=(unit tang)
-    ?.  ?=([~ %|] (allowed %peek from `[%& here]))
+    ?~  err  ~
+    ?.  ?=([~ %|] (allowed-quiet %peek from `[%& here]))
       err
-    ?~(err ~ `~[leaf+"poke failed"])
+    `~[leaf+"poke failed"]
   (enqu-take from ~ ~ %pack wire err)
 ::
 ++  give-poke-sign
@@ -4568,6 +4572,20 @@
 ++  allowed
   |=  [=jump:nexus here=rail:tarball dest=(unit lane:tarball)]
   ^-  filt:nexus
+  (allowed-loud & jump here dest)
+::  +allowed-quiet: the same check with no veto printf. For probes that
+::  only ask the question (e.g. +give-poke-ack deciding whether to
+::  sanitize a nack) — a veto there blocks nothing, so it must not log
+::  as one.
+::
+++  allowed-quiet
+  |=  [=jump:nexus here=rail:tarball dest=(unit lane:tarball)]
+  ^-  filt:nexus
+  (allowed-loud | jump here dest)
+::
+++  allowed-loud
+  |=  [loud=? =jump:nexus here=rail:tarball dest=(unit lane:tarball)]
+  ^-  filt:nexus
   ::  No destination (%kept): crosses no boundary, no weir has jurisdiction
   ?~  dest  ~
   =/  gov=(unit fold:tarball)  (nearest-governor here dest)
@@ -4583,7 +4601,8 @@
     (next-filt:nexus filt (filter:nexus jump path.here dest-lane weir-here))
   ?:  ?=([~ %|] next)
     ::  name the boundary that said no — a veto without a WHERE is torture
-    ~&  >>>  [%weir-veto-at boundary=path.here weir=weir-here jump=jump dest=dest-lane]
+    ~?  >>>  loud
+      [%weir-veto-at boundary=path.here weir=weir-here jump=jump dest=dest-lane]
     [~ |]
   ::  Reached root - stop
   ?~  path.here
