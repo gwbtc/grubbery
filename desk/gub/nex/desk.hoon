@@ -69,6 +69,17 @@
       ::  number: a fresh follower must read as behind so it actually pulls.
       [%fall %& [/ %'version.json'] [[/ %json] ~]]
       [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
+      ::  ask.json: the desk-level consent ask — the union of every
+      ::  /desk/data child's weir.json, one entry per child, tagged by
+      ::  app. Derived, rebuilt wholesale by +aggregate-asks. This is the
+      ::  single opaque unit the shell will gate, and what the UI reads.
+      ::  Born empty; +aggregate-asks fills it after each sync.
+      [%fall %& [/ %'ask.json'] [[/ %json] [%a ~]]]
+      ::  asks.sig: poke to (re)compute ask.json on demand (the UI
+      ::  refresh button). apply-bill calls the same +aggregate-asks
+      ::  automatically after every sync, so this is the manual path to
+      ::  an action other parts trigger on their own.
+      [%fall %& [/ %'asks.sig'] [[/ %sig] ~]]
       ::  share.usergroups: the OPENING state — the set of usergroups this
       ::  desk grants peek on /desk/code. Poke it {add|remove: <group>};
       ::  it re-registers the grants. Born empty (open to nobody).
@@ -198,6 +209,17 @@
       cur
     ;<  ~  bind:m  (replace:io new)
     ;<  ~  bind:m  (apply-share path.here ~(tap in cur) ~(tap in new))
+    $
+      ::  asks.sig: (re)compute the desk-level ask.json from the
+      ::  children's weir.json asks. Recomputes once at rise (so a reload
+      ::  refreshes it) and on every poke — the UI button pokes this.
+      ::  apply-bill calls the same +aggregate-asks after each sync.
+      ::
+      [~ %'asks.sig']
+    ;<  ~  bind:m  (rise-wait:io prod "%desk asks: failed")
+    |-
+    ;<  ~  bind:m  (aggregate-asks rail)
+    ;<  =sage:tarball  bind:m  take-poke:io
     $
       ::  checkout.desk_snap: materialize a whole WORLD snapshot
       ::  (snapshot N) into /checkout/code + /checkout/data — both
@@ -541,6 +563,10 @@
   =|  made-any=?
   |-
   ?~  entries
+    ::  refresh the desk-level ask now that the children are settled — the
+    ::  same action asks.sig triggers by hand. Always, since a sync can
+    ::  change a child's weir.json without adding a new child.
+    ;<  ~  bind:m  (aggregate-asks rail)
     ::  nudge the shell: new apps exist — sweep now so their followers
     ::  spawn and their asks notify immediately. Soft: a missing shell
     ::  must not fail the install.
@@ -567,6 +593,43 @@
   =.  made-any  %.y
   $(entries t.entries)
 ::
+::  +aggregate-asks: union every /desk/data child's weir.json ask into a
+::  single desk-level ask.json — a list of {app, poke, peek, make}, one
+::  entry per child that declares a weir. The consolidated, child-tagged
+::  unit the shell will gate as one opaque desk-level consent, and the
+::  source the UI viewer reads. Idempotent: reads the children, rewrites
+::  ask.json wholesale. The reaches in each child's weir.json are already
+::  absolute, so they pass through verbatim under their app tag.
+::
+++  aggregate-asks
+  |=  =rail:tarball
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  ;<  dv=view:nexus  bind:m
+    (peek:io (nex-road:io rail [%| /desk/data]) ~)
+  =/  kids=(list @ta)
+    ?.  ?=([%ball *] dv)  ~
+    ~(tap in ~(key by dir.ball.dv))
+  =|  acc=(list json)
+  |-  ^-  form:m
+  ?~  kids
+    (put:io (nex-road:io rail [%& / %'ask.json']) [[/ %json] [%a (flop acc)]])
+  =/  child=@ta  i.kids
+  ;<  wv=view:nexus  bind:m
+    (peek:io (nex-road:io rail [%& /desk/data/[child] %'weir.json']) `[/ %json])
+  ?.  ?=([%file *] wv)  $(kids t.kids)
+  =/  jon=(unit json)  (mole |.(!<(json (need-vase:tarball sang.wv))))
+  ?~  jon  $(kids t.kids)
+  ?.  ?=(%o -.u.jon)  $(kids t.kids)
+  =/  ask=json
+    %-  pairs:enjs:format
+    :~  ['app' s+child]
+        ['poke' (fall (~(get by p.u.jon) 'poke') [%a ~])]
+        ['peek' (fall (~(get by p.u.jon) 'peek') [%a ~])]
+        ['make' (fall (~(get by p.u.jon) 'make') [%a ~])]
+    ==
+  $(kids t.kids, acc [ask acc])
+::
 ++  sync-dir
   |=  [source-dir=road:tarball =rail:tarball dir=path cas=(unit case:nexus)]
   =/  m  (fiber:fiber:nexus ,~)
@@ -577,11 +640,21 @@
   ?.  ?=([%ball *] view)
     ~&  >>  [%desk-nothing-at-source dir]
     (pure:m ~)
-  =/  files=(list bfile)  (ball-to-files ball.view)
-  ~&  >  [%desk-sync-files dir (lent files)]
-  ;<  ~  bind:m  (write-files rail dir files)
-  ::  a sync makes our tree IDENTICAL to source — prune what source dropped
-  (prune-extra rail dir files)
+  ~&  >  [%desk-sync-dir dir]
+  ::  overwrite the whole source subtree in ONE event with over-fold (the
+  ::  %over analog for directories) — a per-file write triggers a full
+  ::  build-code for every file (a rebuild storm on a /code dir). git
+  ::  delivers .hoon as mime; code-bole rewrites those to %hoon blots so
+  ::  build-code sees them. preserve the dest dir's own neck (code vs
+  ::  inert) so the overwrite doesn't strip what on-load established.
+  =/  bol=bole:tarball  (code-bole ball.view)
+  ;<  cur=view:nexus  bind:m  (peek:io (nex-road:io rail [%| dir]) ~)
+  =/  nek
+    ?.  ?=([%ball *] cur)  ~
+    ?~(fil.ball.cur ~ neck.u.fil.ball.cur)
+  =/  root=pulp:tarball  (fall fil.bol `pulp:tarball`[~ ~ %.n ~])
+  =.  bol  bol(fil `root(neck nek))
+  (over-fold:io (nex-road:io rail [%| dir]) bol)
 ::
 ::  do-snapshot: capture a WORLD snapshot — firm both /data and /code
 ::  together and tag both with `snapshot N`, where N is the monotonic
@@ -708,30 +781,24 @@
   ^-  (unit @t)
   ?:  (is-boom:tarball sang)  ~
   =/  nun  (sang-noun:tarball sang)
-  ?+  p.sang  ~
-      [~ %ud]
-    =/  n  ((soft @ud) nun)
-    ?~(n ~ `(crip (a-co:co u.n)))
-      [~ %txt]
-    =/  w  ((soft wain) nun)
-    ?~(w ~ ?~(u.w ~ `i.u.w))
-      [~ %t]
-    ((soft @t) nun)
-      [~ %json]
-    ::  version.json is arbitrary json, but we expect a 'version'
-    ::  property whose value is text-convertible (a string or number).
-    ::  A bare string/number version file is accepted too.
-    =/  j  ((soft json) nun)
-    ?~  j  ~
-    ::  a null version.json is the "not synced yet" marker — no version.
-    ?~  u.j  ~
-    =/  v=(unit json)
-      ?:(?=([%o *] u.j) (~(get by p.u.j) 'version') `u.j)
-    ?~  v  ~
-    ?+  -.u.v  ~
-      %s  `p.u.v
-      %n  `p.u.v
-    ==
+  ::  the version file is json. it reaches us as a %json grub (its noun
+  ::  is already json) or, checked out from git, as a %mime file (raw
+  ::  bytes to parse) — the same content in two representations. normalize
+  ::  to json, then read the 'version' property, or accept a bare value.
+  =/  j=(unit json)
+    ?:  =([~ %json] p.sang)  ((soft json) nun)
+    ?.  =([~ %mime] p.sang)  ~
+    =/  mim  ((soft mime) nun)
+    ?~(mim ~ (de:json:html q.q.u.mim))
+  ?~  j  ~
+  ::  a null version file is the "not synced yet" marker — no version.
+  ?~  u.j  ~
+  =/  v=(unit json)
+    ?:(?=([%o *] u.j) (~(get by p.u.j) 'version') `u.j)
+  ?~  v  ~
+  ?+  -.u.v  ~
+    %s  `p.u.v
+    %n  `p.u.v
   ==
 ::  +pick-version-name: the version file among a dir's file names —
 ::  any name starting version. — alphabetical first if several
@@ -989,6 +1056,39 @@
     %+  over:io  (nex-road:io rail [%& (weld dir pax.i.files) name.i.files])
     (code-bask name.i.files sang.i.files)
   $(files t.files)
+::  code-bole: a source tree (raw git mime) prepared as one bole for a
+::  bulk make into a /code dir — every .hoon mime file rewritten to a
+::  %hoon blot (build-code ignores a mime .hoon), the rest untouched.
+::
+++  code-bole
+  |=  b=ball:tarball
+  ^-  bole:tarball
+  (hoonify-bole (ball-to-bole:tarball b))
+::
+++  hoonify-bole
+  |=  bol=bole:tarball
+  ^-  bole:tarball
+  =?  fil.bol  ?=(^ fil.bol)
+    =/  p=pulp:tarball  u.fil.bol
+    =.  contents.p
+      %-  ~(urn by contents.p)
+      |=  [name=@ta [=bask:tarball gain=?]]
+      [(hoonify-bask name bask) gain]
+    `p
+  bol(dir (~(run by dir.bol) hoonify-bole))
+::
+++  hoonify-bask
+  |=  [name=@ta =bask:tarball]
+  ^-  bask:tarball
+  =/  t=tape  (trip name)
+  ?.  ?&  (gth (lent t) 5)
+          =(".hoon" (slag (sub (lent t) 5) t))
+          =([/ %mime] p.bask)
+      ==
+    bask
+  =/  mim=(unit mime)  ((soft mime) q.bask)
+  ?~  mim  bask
+  [[/ %hoon] `@t`(crip (trip q.q.u.mim))]
 ::  code-bask: a .hoon file must land as a %hoon blot or the code
 ::  namespace won't compile it — a git-tree source delivers everything as
 ::  raw mime, and a mime .hoon is invisible to build-code. Everything else

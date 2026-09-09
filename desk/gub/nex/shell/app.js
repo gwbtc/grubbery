@@ -380,7 +380,8 @@ var API='/grubbery/api';var BALL='apps/tiles.tiles';
             '<div class="papp-body">' +
               '<div class="papp-title">' + escP(it.name) + ' ' + badge + '</div>' +
               '<div class="papp-sub">' + sub + '</div>' +
-            '</div>';
+            '</div>' +
+            '<button class="papp-get" data-name="' + escP(it.name) + '" onclick="syncOne(this)">Sync</button>';
           box.appendChild(row);
         });
         var foot = document.createElement('div');
@@ -423,6 +424,20 @@ var API='/grubbery/api';var BALL='apps/tiles.tiles';
       })
       .catch(function(e) {
         box.innerHTML = '<div class="papp-none">failed to load desks: ' + escP(String((e && e.message) || e)) + '</div>';
+      });
+  }
+  function syncOne(btn) {
+    var name = btn.getAttribute('data-name');
+    var orig = btn.textContent;
+    btn.disabled = true; btn.textContent = 'Syncing…';
+    fetch('/grubbery/tiles/desks/sync', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: name })
+    })
+      .then(function() { loadStock(); })
+      .catch(function(e) {
+        alert('sync failed: ' + String((e && e.message) || e));
+        btn.disabled = false; btn.textContent = orig;
       });
   }
   function syncDefaults(btn) {

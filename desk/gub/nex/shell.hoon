@@ -434,6 +434,21 @@
           ;<  ~  bind:m  sync-defaults
           ;<  ~  bind:m  (send-simple:srv eyre-id [[200 ~] `(as-octs:mimes:html 'synced')])
           (pure:m ~)
+        ::  POST /desks/sync {name}: sync ONE stock desk — find its entry and
+        ::  run the same +ensure-pairing the "Sync all" path uses per entry.
+        ?:  &(=('POST' method.request.req) ?=([%desks %sync ~] suffix))
+          =/  jon=json
+            %+  fall  (de:json:html ?~(body.request.req '' q.u.body.request.req))
+            *json
+          =/  name=@t  (jstr jon 'name')
+          =/  match=(unit stock-entry)  (find-stock name)
+          ?~  match
+            ;<  ~  bind:m
+              (send-simple:srv eyre-id [[404 ~] `(as-octs:mimes:html 'no such stock desk')])
+            (pure:m ~)
+          ;<  ~  bind:m  (ensure-pairing u.match)
+          ;<  ~  bind:m  (send-simple:srv eyre-id [[200 ~] `(as-octs:mimes:html 'synced')])
+          (pure:m ~)
         ::  POST /desks/delete {app}: cull a desk from /desks/<app>.
         ?:  &(=('POST' method.request.req) ?=([%desks %delete ~] suffix))
           =/  jon=json
@@ -1640,11 +1655,30 @@
     ;<  has-repo=?  bind:m  (peek-exists:io [%& %| repo-dir])
     ;<  ~  bind:m
       ?:  has-repo  (pure:m ~)
-      ;<  ~  bind:m  (make:io [%& %| repo-dir] &+`bole:tarball`[`[`[/git %repo] ~ %.n ~] ~])
-      (poke:io [%& %& repo-dir %'config.json'] [[/ %json] (repo-config repo.entry ref.entry)])
-    ::  a new repo boot-syncs on its own; poking sync.sig forces an existing
-    ::  one to re-fetch now, so "sync" always means "pull latest".
-    (poke:io [%& %& (weld repo-dir /actions) %'sync.sig'] [[/ %sig] ~])
+      (make:io [%& %| repo-dir] &+`bole:tarball`[`[`[/git %repo] ~ %.n ~] ~])
+    ::  ensure the repo's remote matches the stock entry — an existing repo
+    ::  may have been made empty or misconfigured (repo:""), so set config
+    ::  whenever it differs from intended, not only on first make, else the
+    ::  pull below has no github remote to follow. write only on a real
+    ::  difference, so a correct repo isn't clobbered (and its config fiber
+    ::  needlessly restarted) on every sync.
+    ;<  cur=(unit json)  bind:m
+      (peek-as:io [%& %& repo-dir %'config.json'] ,json)
+    =/  cur-obj=(map @t json)
+      ?~(cur ~ ?:(?=([%o *] u.cur) p.u.cur ~))
+    =/  cur-repo=@t
+      =/(v (~(get by cur-obj) 'repo') ?:(?=([~ %s *] v) p.u.v ''))
+    =/  cur-ref=@t
+      =/(v (~(get by cur-obj) 'ref') ?:(?=([~ %s *] v) p.u.v ''))
+    ;<  ~  bind:m
+      ?:  &(=(cur-repo repo.entry) =(cur-ref ref.entry))  (pure:m ~)
+      ::  config.json is a plain data grub (no poke handler), so overwrite
+      ::  it with over:io — poke:io would nack and crash this handler.
+      (over:io [%& %& repo-dir %'config.json'] [[/ %json] (repo-config repo.entry ref.entry)])
+    ::  a pull on the run.git-action serial lane forces a re-fetch now, so
+    ::  "sync" always means "pull latest".
+    %+  poke:io  [%& %& repo-dir %'run.git-action']
+    [[/ %json] (pairs:enjs:format ~[['command' s+'pull']])]
   ::  2. ensure the desk
   ;<  has-desk=?  bind:m  (peek-exists:io [%& %| desk-dir])
   ;<  ~  bind:m
@@ -1652,6 +1686,16 @@
     (make:io [%& %| desk-dir] &+`bole:tarball`[`[`[/ %desk] ~ %.n ~] ~])
   ::  3. always wire the desk's source at the computed code path
   (poke:io [%& %& desk-dir %'source.json'] [[/ %json] (pairs:enjs:format ~[['code' s+code]])])
+::  find-stock: the default-repos entry whose name matches, if any.
+::
+++  find-stock
+  |=  nom=@t
+  ^-  (unit stock-entry)
+  =/  todo=(list stock-entry)  default-repos
+  |-  ^-  (unit stock-entry)
+  ?~  todo  ~
+  ?:  =(nom (stock-name i.todo))  `i.todo
+  $(todo t.todo)
 ::  sync-defaults: run ensure-pairing over the whole default-repos list.
 ::
 ++  sync-defaults

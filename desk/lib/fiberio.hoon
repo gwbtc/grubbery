@@ -346,6 +346,19 @@
   ;<  =wire  bind:m  (nonce /make)
   ;<  ~  bind:m  (send-dart %node wire road %make %.n %.n make)
   (take-made wire)
+::  +over-fold: overwrite a directory subtree from a bole in ONE event —
+::  the %over analog for directories. It force-makes, so it REPLACES an
+::  existing dir (applying the bole via the kernel's load-ball-changes)
+::  instead of failing "already exists" like +make. One build, not one
+::  per file. Set the bole root's neck if you want the dir's neck kept.
+::
+++  over-fold
+  |=  [=road:tarball bole=bole:tarball]
+  =/  m  (fiber ,~)
+  ^-  form:m
+  ;<  =wire  bind:m  (nonce /make)
+  ;<  ~  bind:m  (send-dart %node wire road %make %.y %.n &+bole)
+  (take-made wire)
 ::  +make-gained: make born with gain set — retention on from the
 ::  first event. No make-then-gain window for a fast process's
 ::  self-clean to slip through.
