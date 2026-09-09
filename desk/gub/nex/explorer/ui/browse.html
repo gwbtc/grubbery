@@ -1,10 +1,10 @@
 <!doctype html>
 <!--
   explorer browse app — the static shell for directory views. Served for
-  every dir URL (html requests; ?raw / ?list / ?legacy bypass); one file,
+  every dir URL a browser asks for (?list / ?download bypass); one file,
   all state fetched from <dir>?list=1 and rendered by browse.js. Kit
-  components (modal-dialog) do the dialogs. This replaces the sail
-  render-dir page; ?legacy=1 still serves the old one during migration.
+  components (modal-dialog, drop-menu, file-table, file-grid) do the
+  widgets. The file page is view.html, on the same pattern.
 -->
 <html>
 <head>

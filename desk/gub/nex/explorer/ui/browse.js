@@ -65,7 +65,6 @@ ft.columns = [
     key: 'blot', label: 'Blot / Neck', cls: 'mono',
     format: (v, item) => {
       if (item.kind === 'dir') return item.neck || '–';
-      if (item.kind === 'symlink') return 'symlink';
       return v || '–';
     },
     link: (item) => {
@@ -100,9 +99,6 @@ ft.actions = (item) => {
       { label: 'Copy', action: 'copy' },
       { label: 'Delete', action: 'delete', danger: true },
     ];
-  }
-  if (item.kind === 'symlink') {
-    return [{ label: 'Delete', action: 'delete', danger: true }];
   }
   const acts = [
     { label: 'Download', action: 'download' },
@@ -166,11 +162,6 @@ function handleAction(e) {
       case 'delete': if (confirm('Delete ' + item.name + '/?'))
         post({ action: 'delete-folder', foldername: item.name }); break;
     }
-    return;
-  }
-  if (item.kind === 'symlink') {
-    if (action === 'delete' && confirm('Delete ' + item.name + '?'))
-      post({ action: 'delete-grub', filename: item.name });
     return;
   }
   switch (action) {

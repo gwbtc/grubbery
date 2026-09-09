@@ -1,77 +1,139 @@
-// file view. One pane when source and preview would be the same thing
-// (code, plain text — shown highlighted); Source | Preview tabs only when
-// a genuinely different rendering exists (md, csv, svg, html, images,
-// binary). Edit toggles the source pane between highlighted display and a
-// textarea; Save is always present, enabled when dirty, and POSTs
-// action=write-text to the file's own URL — the server tubes it through
-// the grub's blot, so a failed parse comes back as a 422 tang in the
-// status chip.
-const name = document.body.dataset.name || '';
-const texty = document.body.dataset.texty === '1';
-const blot = document.body.dataset.blot || '';
-let mite = document.body.dataset.mite || '';
-let miteChanged = false;
-const ed = document.getElementById('ed');
-const display = document.getElementById('src-display');
-const textView = document.getElementById('text-view');
-const mimeView = document.getElementById('mime-view');
-const buildView = document.getElementById('build-view');
-const tabText = document.getElementById('tab-text');
-const tabMime = document.getElementById('tab-mime');
-const tabBuild = document.getElementById('tab-build');
-const editBtn = document.getElementById('edit');
-const saveBtn = document.getElementById('save');
-const liveBtn = document.getElementById('live');
-const wrapBtn = document.getElementById('wrap');
-const status = document.getElementById('status');
-const tools = document.getElementById('tools');
-const buildStatus = document.body.dataset.build || '';
-const errOverlay = document.getElementById('save-err-overlay');
-const errBody = document.getElementById('save-err-body');
-const errClose = document.getElementById('save-err-close');
-if (errClose) {
-  errClose.addEventListener('click', () => { errOverlay.style.display = 'none'; });
-  errOverlay.addEventListener('click', (e) => { if (e.target === errOverlay) errOverlay.style.display = 'none'; });
-}
-
-const mimeInput = document.getElementById('mime-input');
-
+// file view. Static shell (view.html) driven by two fetches of the file's
+// own URL: ?info=1 says what it is (blot, mime, build status, fiber bang;
+// or kind=boom with the tang, or kind=missing), ?raw=1 gives the bytes.
+// One pane when source and preview would be the same thing (code, plain
+// text — shown highlighted); Source | Preview tabs only when a genuinely
+// different rendering exists (md, csv, svg, html, images, binary). Edit
+// toggles the source pane between highlighted display and a textarea;
+// Save is always present, enabled when dirty, and POSTs action=write-text
+// to the file's own URL — the server tubes it through the grub's blot, so
+// a failed parse comes back as a 422 tang in the error overlay.
+const $ = (id) => document.getElementById(id);
+const here = location.pathname;
+const name = decodeURIComponent(here.split('/').filter(Boolean).pop() || '');
 const ext = (name.match(/\.([a-z0-9]+)$/i) || [, ''])[1].toLowerCase();
 
-// breadcrumbs to every ancestor, in the bar before the filename —
-// the file page's way back into the browse app
+const ed = $('ed');
+const edwrap = $('edwrap');
+const display = $('src-display');
+const src = $('src');
+const textView = $('text-view');
+const mimeView = $('mime-view');
+const buildView = $('build-view');
+const tabText = $('tab-text');
+const tabMime = $('tab-mime');
+const tabBuild = $('tab-build');
+const editBtn = $('edit');
+const saveBtn = $('save');
+const liveBtn = $('live');
+const wrapBtn = $('wrap');
+const status = $('status');
+const tools = $('tools');
+const mimeInput = $('mime-input');
+const errOverlay = $('save-err-overlay');
+const errBody = $('save-err-body');
+
+// ---- bar: crumbs, name, chips ----
+document.title = name || 'explorer';
+$('fname').textContent = name;
 (function crumbs() {
-  const bar = document.getElementById('bar');
-  const fname = document.getElementById('fname');
-  const parts = location.pathname.replace('/grubbery/ball', '').split('/').filter(Boolean);
-  const wrap = document.createElement('span');
-  wrap.style.cssText = 'display:flex;align-items:center;gap:2px;font:600 12px ui-monospace,SFMono-Regular,Menlo,monospace;margin-left:4px;';
+  const wrap = $('crumbs');
+  const parts = here.replace('/grubbery/ball', '').split('/').filter(Boolean);
   const mk = (t, href) => {
     const a = document.createElement('a');
-    a.href = href;
-    a.textContent = t;
-    a.style.cssText = 'color:#57606a;padding:2px 4px;border-radius:5px;text-decoration:none;';
-    a.onmouseenter = () => { a.style.background = '#eaeef2'; a.style.color = '#24292f'; };
-    a.onmouseleave = () => { a.style.background = ''; a.style.color = '#57606a'; };
+    a.href = href; a.textContent = t;
     return a;
   };
   let acc = '/grubbery/ball';
   wrap.appendChild(mk('/', acc));
-  parts.slice(0, -1).forEach(s => {
-    acc += '/' + s;
-    wrap.appendChild(mk(s + '/', acc));
-  });
-  bar.insertBefore(wrap, fname);
-  fname.style.marginLeft = '0';
+  parts.slice(0, -1).forEach(s => { acc += '/' + s; wrap.appendChild(mk(s + '/', acc)); });
 })();
+function chip(id, text) {
+  const c = $(id);
+  c.querySelector('.v').textContent = text;
+  c.style.display = '';
+}
+
+// ---- the one error overlay, titled per use ----
+$('save-err-close').addEventListener('click', () => { errOverlay.style.display = 'none'; });
+errOverlay.addEventListener('click', (e) => { if (e.target === errOverlay) errOverlay.style.display = 'none'; });
+function showErr(title, text) {
+  $('save-err-title').textContent = title;
+  errBody.textContent = text;
+  errOverlay.style.display = '';
+}
+
+// ---- boot ----
+let info = null;
+let mite = '';
+let texty = false;
+let editable = false;
+let buildStatus = '';
+(async function boot() {
+  try {
+    info = await (await fetch(here + '?info=1', { headers: { accept: 'application/json' } })).json();
+  } catch (e) {
+    showErr('explorer', 'could not load file info: ' + e);
+    return;
+  }
+  if (info.bang) {
+    const b = $('bang-chip');
+    b.style.display = '';
+    b.addEventListener('click', () => showErr('fiber crashed', info.bang));
+  }
+  if (info.kind === 'missing') return renderMissing();
+  if (info.kind === 'boom') return renderBoom();
+  await renderFile();
+})();
+
+function renderMissing() {
+  const parent = here.replace(/\/[^/]*$/, '') || '/grubbery/ball';
+  $('missing-path').textContent = 'There is no file or directory at ' + (info.path || here.replace('/grubbery/ball', '') || '/') + '.';
+  const up = $('missing-up');
+  up.href = parent;
+  up.textContent = 'back to ' + (parent.replace('/grubbery/ball', '') || '/');
+  $('missing').style.display = '';
+}
+
+function renderBoom() {
+  chip('chip-blot', info.blot || '');
+  chip('chip-mime', 'boomed');
+  src.className = 'boom';
+  src.textContent = info.boom || 'validation failed';
+  src.style.display = '';
+}
+
+async function renderFile() {
+  mite = info.mite || '';
+  texty = !!info.texty;
+  editable = texty && !info.jammed;
+  buildStatus = (info.build && info.build.status) || '';
+  chip('chip-blot', info.blot || '');
+  chip('chip-mime', mite);
+  mimeInput.value = mite;
+  tools.style.display = '';
+  $('mime-row').style.display = '';
+  if (buildStatus) tabBuild.style.display = '';
+
+  if (editable) {
+    ed.value = await (await fetch(here + '?raw=1')).text();
+    edwrap.style.display = '';
+  } else if (info.jammed) {
+    src.textContent = info.text || '';
+    src.style.display = '';
+  } else {
+    src.className = 'dim';
+    src.textContent = 'binary content';
+    src.style.display = '';
+  }
+  setupPanes();
+  setupWrap();
+  setupEditor();
+  renderSource();
+}
+
 const SHIKI_LANG = { js: 'javascript', mjs: 'javascript', ts: 'typescript',
                      json: 'json', css: 'css', hoon: 'hoon' };
-
-// does this file have a preview that differs from its source?
-const previewable =
-  ['md', 'markdown', 'csv'].includes(ext) ||
-  !!(window.FilePreview && FilePreview.kind(name)) ||
-  !texty;
 
 // ---- panes & tabs ----
 let mimeRendered = false;
@@ -82,77 +144,84 @@ function show(which) {
   buildView.style.display = which === 'build' ? '' : 'none';
   tabText.classList.toggle('on', which === 'text');
   tabMime.classList.toggle('on', which === 'mime');
-  if (tabBuild) tabBuild.classList.toggle('on', which === 'build');
-  if (tools) tools.style.display = which === 'text' ? '' : 'none';
+  tabBuild.classList.toggle('on', which === 'build');
+  tools.style.display = which === 'text' ? '' : 'none';
   if (which === 'mime' && !mimeRendered) { renderMime(); mimeRendered = true; }
   if (which === 'build' && !buildRendered) { renderBuild(); buildRendered = true; }
 }
-tabText.addEventListener('click', () => show('text'));
-tabMime.addEventListener('click', () => show('mime'));
-if (tabBuild) tabBuild.addEventListener('click', () => show('build'));
-
-if (!previewable) {
-  if (!buildStatus) { tabText.style.display = 'none'; tabMime.style.display = 'none'; }
-  show('text');
-} else if (!texty) {
-  if (!buildStatus) { tabText.style.display = 'none'; tabMime.style.display = 'none'; }
-  show('mime');
-} else {
-  show('mime');
+function setupPanes() {
+  // does this file have a preview that differs from its source?
+  const previewable =
+    ['md', 'markdown', 'csv'].includes(ext) ||
+    !!(window.FilePreview && FilePreview.kind(name)) ||
+    !texty;
+  tabText.addEventListener('click', () => show('text'));
+  tabMime.addEventListener('click', () => show('mime'));
+  tabBuild.addEventListener('click', () => show('build'));
+  const showTabs = previewable || buildStatus;
+  tabText.style.display = showTabs ? '' : 'none';
+  tabMime.style.display = showTabs ? '' : 'none';
+  if (!previewable) show('text');
+  else show('mime');
 }
 
 // ---- wrap toggle: applies to source display AND editor, remembered ----
-let wrap = (localStorage.getItem('explorer-wrap') ?? '1') === '1';
-function applyWrap() {
-  document.body.classList.toggle('wrap', wrap);
-  wrapBtn.classList.toggle('on', wrap);
-}
-wrapBtn.addEventListener('click', () => {
-  wrap = !wrap;
-  try { localStorage.setItem('explorer-wrap', wrap ? '1' : '0'); } catch (_) {}
+function setupWrap() {
+  let wrap = true;
+  try { wrap = (localStorage.getItem('explorer-wrap') ?? '1') === '1'; } catch (_) {}
+  const applyWrap = () => {
+    document.body.classList.toggle('wrap', wrap);
+    wrapBtn.classList.toggle('on', wrap);
+  };
+  wrapBtn.addEventListener('click', () => {
+    wrap = !wrap;
+    try { localStorage.setItem('explorer-wrap', wrap ? '1' : '0'); } catch (_) {}
+    applyWrap();
+  });
   applyWrap();
-});
-applyWrap();
+}
 
 // ---- source display: highlighted, rebuilt from the textarea ----
 async function renderSource() {
-  if (!display || !ed) return;
-  const src = ed.value;
+  if (!editable) return;
+  const text = ed.value;
   display.textContent = '';
   const p = document.createElement('pre');
-  p.textContent = src;
+  p.textContent = text;
   display.appendChild(p);
   if (SHIKI_LANG[ext]) {
     try {
       const hl = await getShiki(SHIKI_LANG[ext]);
-      p.outerHTML = hl.codeToHtml(src, { lang: SHIKI_LANG[ext], theme: 'github-light' });
+      p.outerHTML = hl.codeToHtml(text, { lang: SHIKI_LANG[ext], theme: 'github-light' });
     } catch (_) {}
   }
 }
-renderSource();
 
-// ---- edit toggle ----
-let editing = false;
-if (ed) {
+// ---- edit toggle + save (+ optional Live autosave, default off: fine
+// for plain text, noisy for anything a marc validates — invalid
+// mid-states would 422) ----
+function setupEditor() {
+  if (!editable) {
+    editBtn.setAttribute('disabled', '');
+    saveBtn.setAttribute('disabled', '');
+    liveBtn.setAttribute('disabled', '');
+    return;
+  }
+  let editing = false;
   editBtn.addEventListener('click', () => {
     editing = !editing;
     editBtn.classList.toggle('on', editing);
     ed.style.display = editing ? '' : 'none';
     display.style.display = editing ? 'none' : '';
-    if (mimeInput) mimeInput.readOnly = !editing;
+    mimeInput.readOnly = !editing;
     if (editing) { show('text'); ed.focus(); }
     else renderSource();
   });
-} else {
-  editBtn.setAttribute('disabled', '');
-}
 
-// ---- save (+ optional Live autosave, default off: fine for plain text,
-// noisy for anything a marc validates — invalid mid-states would 422) ----
-if (ed) {
   let clean = ed.value;
   let live = false;
   let liveTimer = null;
+  let miteChanged = false;
   liveBtn.addEventListener('click', () => {
     live = !live;
     liveBtn.classList.toggle('on', live);
@@ -172,17 +241,15 @@ if (ed) {
     syncSaveBtn();
     if (live) scheduleLive();
   });
-  if (mimeInput) {
-    mimeInput.addEventListener('input', () => {
-      miteChanged = mimeInput.value.trim() !== mite;
-      syncSaveBtn();
-    });
-  }
+  mimeInput.addEventListener('input', () => {
+    miteChanged = mimeInput.value.trim() !== mite;
+    syncSaveBtn();
+  });
   async function save() {
     status.textContent = 'saving…';
     status.className = '';
     try {
-      const res = await fetch(location.pathname, {
+      const res = await fetch(here, {
         method: 'POST',
         headers: { 'content-type': 'application/x-www-form-urlencoded' },
         body: new URLSearchParams(Object.assign(
@@ -193,7 +260,7 @@ if (ed) {
       const body = await res.text();
       if (res.ok) {
         clean = ed.value;
-        if (mimeInput) mite = mimeInput.value.trim();
+        mite = mimeInput.value.trim();
         miteChanged = false;
         syncSaveBtn();
         status.textContent = 'saved ✓';
@@ -204,19 +271,13 @@ if (ed) {
         ed.value = clean;
         syncSaveBtn();
         status.textContent = '';
-        if (errOverlay) {
-          errBody.textContent = body || ('save failed (' + res.status + ')');
-          errOverlay.style.display = '';
-        }
+        showErr('save failed', body || ('save failed (' + res.status + ')'));
       }
     } catch (e) {
       ed.value = clean;
       syncSaveBtn();
       status.textContent = '';
-      if (errOverlay) {
-        errBody.textContent = 'save failed: ' + e;
-        errOverlay.style.display = '';
-      }
+      showErr('save failed', 'save failed: ' + e);
     }
   }
   saveBtn.addEventListener('click', () => {
@@ -236,15 +297,12 @@ if (ed) {
     ed.setRangeText('  ', s, epos, 'end');
     ed.dispatchEvent(new Event('input'));
   });
-} else {
-  saveBtn.setAttribute('disabled', '');
-  liveBtn.setAttribute('disabled', '');
 }
 
 // ---- preview renderers ----
 async function renderMime() {
-  const rawUrl = location.pathname + '?raw=1';
-  const text = ed ? ed.value : (document.getElementById('src')?.textContent ?? '');
+  const rawUrl = here + '?raw=1';
+  const text = editable ? ed.value : (src.textContent ?? '');
   mimeView.textContent = '';
 
   // rendered markdown, via the same marked the docs use
@@ -326,8 +384,8 @@ async function getShiki(lang) {
 }
 
 function renderBuild() {
-  if (!buildView || !buildStatus) return;
-  const detail = buildView.textContent;
+  if (!buildStatus) return;
+  const detail = (info.build && info.build.detail) || '';
   buildView.textContent = '';
   const badge = document.createElement('div');
   badge.id = 'build-badge';

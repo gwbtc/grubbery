@@ -13,6 +13,7 @@
 /&  fg-js    /lib/ui/file-grid.js
 /&  browse-html  explorer/ui/browse.html
 /&  browse-js    explorer/ui/browse.js
+/&  view-html    explorer/ui/view.html
 /&  marked-js  shell/marked.min.js
 /&  cm-js      /lib/cm/codemirror.min.js
 /&  cm-css     /lib/cm/codemirror.min.css
@@ -70,6 +71,7 @@
           [%over %& [/ %'file-grid.js'] [[/ %mime] fg-js]]
           [%over %& [/ %'browse.html'] [[/ %mime] browse-html]]
           [%over %& [/ %'browse.js'] [[/ %mime] browse-js]]
+          [%over %& [/ %'view.html'] [[/ %mime] view-html]]
           [%over %& [/ %'marked.min.js'] [[/ %mime] marked-js]]
           [%over %& [/ %'cm.js'] [[/ %mime] cm-bundle]]
           [%over %& [/ %'cm.css'] [[/ %mime] cm-css]]
@@ -84,9 +86,8 @@
       ?+    rail  stay:m
           [~ %'main.sig']
         ;<  ~  bind:m  (rise-wait:io prod "%explorer /main: failed, poke to restart")
-        ~&  >  "%explorer /main: binding /grubbery/ball and /grubbery/split"
+        ~&  >  "%explorer /main: binding /grubbery/ball"
         ;<  ~  bind:m  (bind-http:io [~ /grubbery/ball])
-        ;<  ~  bind:m  (bind-http:io [~ /grubbery/split])
         ~&  >  "%explorer /main: ready"
         (http-dispatch:io %explorer)
           [[%requests ~] @]
@@ -99,10 +100,6 @@
           (pure:m ~)
         ~&  >  [%explorer-request eyre-id url.request.req]
         =/  [site=path args=quay:eyre]  (parse-url:http-utils url.request.req)
-        ?:  ?=([%grubbery %split *] site)
-          =/  bod=octs  (manx-to-octs:server render-split)
-          ;<  ~  bind:m  (send-simple:srv eyre-id (mime-response:http-utils [/text/html bod]))
-          (pure:m ~)
         =/  raw-path=path
           ?.  ?=([%grubbery %ball *] site)  ~
           t.t.site
@@ -118,7 +115,7 @@
           =/  parent=path  (snip `path`raw-path)
           ;<  par-view=view:nexus  bind:m  (peek-shallow:io [%& %| parent] ~)
           ?.  ?=([%ball *] par-view)
-            ;<  ~  bind:m  (send-simple:srv eyre-id [[404 ~] `(as-octs:mimes:html 'Not found')])
+            ;<  ~  bind:m  (send-missing eyre-id raw-path args (wants-html req))
             (pure:m ~)
           ?:  =('POST' method.request.req)
             (handle-post eyre-id raw-path ~ ball.par-view req)
@@ -133,6 +130,10 @@
     --
 ::
 |%
+::  +kid-info: what the listing learns about a subdirectory from its own
+::  shallow peek — its neck, its /code namespace if any, its fiber bang
+::
++$  kid-info  [neck=(unit path) code-ns=(unit path) bang=(unit tang)]
 ::  +weir-json: the roads explorer reaches. peek / is honest here — a
 ::  namespace browser reads arbitrary paths anywhere in the tree.
 ::
@@ -143,7 +144,7 @@
   :~  :-  'poke'
       :-  %a
       :~  (line '/sys/bowl.sig' 'read the current time and our ship — get-time / get-our')
-          (line '/sys/eyre/' 'bind /grubbery/ball and /grubbery/split and send page responses')
+          (line '/sys/eyre/' 'bind /grubbery/ball and send page responses')
       ==
       :-  'peek'
       :-  %a
@@ -157,8 +158,32 @@
 ::  HTTP response door (road from /explorer.explorer/requests/* to /explorer.explorer/main.sig)
 ::
 ++  srv  ~(. http-res:io [%| 1 %& ~ %'main.sig'])
-::  +view-page: source view shell — plain pre, upgraded client-side
-::  by view.js (shiki + the pkova hoon grammar)
+::  +send-json: a json body with the given status
+::
+++  send-json
+  |=  [eyre-id=@ta status=@ud jon=json]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  =/  bod=octs  (as-octs:mimes:html (en:json:html jon))
+  (send-simple:srv eyre-id [[status ~[['content-type' 'application/json']]] `bod])
+::  +send-missing: 404 for a path with nothing at it. Browsers get the
+::  static file shell (which asks ?info=1 and hears kind=missing); the
+::  ?info=1 ask itself gets that json; tools and fetches get plain text.
+::
+++  send-missing
+  |=  [eyre-id=@ta pax=path args=(list [key=@t value=@t]) html-ok=?]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  ?:  ?=(^ (get-key:kv:html-utils 'info' args))
+    %^  send-json  eyre-id  404
+    %-  pairs:enjs:format
+    :~  ['kind' s+'missing']
+        ['name' s+?~(pax '' (rear pax))]
+        ['path' s+(crip ?~(pax "/" (trip (spat pax))))]
+    ==
+  ?.  html-ok
+    (send-simple:srv eyre-id [[404 ~] `(as-octs:mimes:html 'Not found')])
+  (send-simple:srv eyre-id [[404 ~[['content-type' 'text/html']]] `q.view-html])
 ::
 ++  wants-html
   |=  req=inbound-request:eyre
@@ -178,146 +203,10 @@
   ?:  =(/application/javascript mite)  %.y
   ?:  =(/application/xml mite)  %.y
   ?:  =(~[%image %'svg+xml'] mite)  %.y
+  ?:  =(/inode/symlink mite)  %.y
   %.n
-::  +view-page: file page — Text (editable when the mime is texty and a
-::  tube exists) | Mime (FilePreview render / raw). Saving posts back to
-::  the file URL as action=write-text; the server tubes the mime through
-::  the grub's own blot, so the marc validates the edit (see handle-post).
-::
-++  view-page
-  |=  $:  name=@ta  txt=tape  blot-tape=tape  mite-tape=tape
-          texty=?  jammed=?  blot=tape  build-status=tape  build-detail=tape
-      ==
-  ^-  manx
-  ;html
-    ;head
-      ;title: {(trip name)}
-      ;meta(charset "utf-8");
-      ;meta(name "viewport", content "width=device-width, initial-scale=1");
-      ;link(rel "icon", type "image/svg+xml", href "/grubbery/tiles/icon/explorer.explorer");
-      ;style: {view-css}
-    ==
-    ;body(data-name (trip name), data-texty ?:(texty "1" "0"), data-jammed ?:(jammed "1" "0"), data-mite mite-tape, data-blot blot, data-build build-status)
-      ;div#bar
-        ;button#tab-text: Source
-        ;button#tab-mime: Preview
-        ;button#tab-build(style ?:(=(~ build-status) "display:none" "")): Build
-        ;span#fname: {(trip name)}
-        ;span.chip
-          ;span.k: blot
-          ;span.v: {blot-tape}
-        ==
-        ;span.chip
-          ;span.k: mime
-          ;span.v: {mite-tape}
-        ==
-        ;span.grow;
-      ==
-      ;div#tools
-        ;button#edit: Edit
-        ;button#save(disabled ""): Save
-        ;button#live: Live
-        ;button#wrap: Wrap
-        ;span#status;
-      ==
-      ;div#mime-row
-        ;label.tool-label(for "mime-input"): mime type
-        ;input#mime-input(type "text", value mite-tape, spellcheck "false", readonly "");
-      ==
-      ;div#text-view
-        ;+  ?:  &(texty !jammed)
-              ;div.edwrap
-                ;div#src-display;
-                ;textarea#ed(spellcheck "false", style "display:none"): {txt}
-              ==
-            ?:  jammed
-              ;pre#src: {txt}
-            ;pre#src.dim: binary content
-      ==
-      ;div#mime-view(style "display:none");
-      ;pre#build-view(style "display:none"): {build-detail}
-      ;div#save-err-overlay(style "display:none")
-        ;div#save-err-box
-          ;div#save-err-bar
-            ;span#save-err-title: save failed
-            ;button#save-err-close: ×
-          ==
-          ;pre#save-err-body;
-        ==
-      ==
-      ;script(src "/grubbery/ball/apps/explorer.explorer/file-preview.js");
-      ;script(type "module", src "/grubbery/ball/apps/explorer.explorer/view.js");
-    ==
-  ==
-::  the file page's css, kept out of the manx for legibility
-::
-++  view-css
-  ^-  tape
-  ::  cords, not tapes: css braces would read as tape interpolation.
-  ::  house-light, per the kit.
-  %-  trip
-  %+  rap  3
-  :~
-      'body { background: #ffffff; color: #1f2328; margin: 0; height: 100vh; display: flex; flex-direction: column; font: 13px/1.5 -apple-system, BlinkMacSystemFont, sans-serif; }'
-      '#bar { flex: none; display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: #f6f8fa; border-bottom: 1px solid #d0d7de; }'
-      '#fname { font-weight: 600; margin-left: 8px; }'
-      '.chip { display: inline-flex; align-items: center; gap: 5px; background: #eef1f4; border: 1px solid #e2e7ee; border-radius: 6px; padding: 2px 8px; }'
-      '.chip .k { font-size: 10px; text-transform: uppercase; letter-spacing: .05em; color: #8b949e; }'
-      '.chip .v { font: 11px ui-monospace, SFMono-Regular, Menlo, monospace; color: #24292f; }'
-      '.grow { flex: 1; }'
-      '#bar button { all: unset; cursor: pointer; padding: 4px 12px; border-radius: 7px; font-size: 12px; color: #57606a; }'
-      '#bar button:hover { color: #24292f; background: #eaeef2; }'
-      '#bar button.on { color: #24292f; background: #ffffff; border: 1px solid #d0d7de; font-weight: 600; padding: 3px 11px; }'
-      '#tools { flex: none; display: flex; align-items: center; gap: 8px; padding: 6px 12px; background: #fff; border-bottom: 1px solid #e2e7ee; }'
-      '#tools button { all: unset; cursor: pointer; padding: 3px 12px; border-radius: 7px; font-size: 12px; border: 1px solid #d0d7de; color: #24292f; }'
-      '#tools button:hover { background: #f6f8fa; }'
-      '#tools button.on { background: #ddf4ff; border-color: #54aeff; color: #0969da; font-weight: 600; }'
-      '#save:not([disabled]) { background: #0969da; border-color: #0969da; color: #fff; }'
-      '#save:not([disabled]):hover { background: #0857b8; }'
-      '#save[disabled] { color: #8b949e; cursor: default; }'
-      '#tools button[disabled] { color: #8b949e; cursor: default; background: none; }'
-      '#mime-row { display: flex; align-items: center; gap: 8px; padding: 4px 12px; background: #f6f8fa; border-bottom: 1px solid #e2e7ee; }'
-      '#mime-row .tool-label { font: 10px/1 -apple-system, sans-serif; text-transform: uppercase; letter-spacing: .05em; color: #8b949e; }'
-      '#mime-input { font: 11px ui-monospace, SFMono-Regular, Menlo, monospace; padding: 2px 6px; border: 1px solid transparent; border-radius: 5px; width: 200px; outline: none; background: transparent; color: #57606a; }'
-      '#mime-input:not([readonly]) { border-color: #d0d7de; background: #fff; color: #24292f; }'
-      '#mime-input:not([readonly]):focus { border-color: #0969da; }'
-      '#status { font: 11px ui-monospace, monospace; color: #57606a; max-width: 40ch; overflow: hidden; text-overflow: ellipsis; white-space: pre; }'
-      '#status.err { color: #cf222e; white-space: pre-wrap; }'
-      '#text-view, #mime-view { flex: 1; min-height: 0; overflow: auto; }'
-      '.edwrap, #src-display { height: 100%; }'
-      'body.wrap #text-view pre { white-space: pre-wrap; overflow-wrap: anywhere; }'
-      'body:not(.wrap) #ed { white-space: pre; overflow-x: auto; }'
-      'pre { margin: 0; padding: 18px; font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; overflow: auto; box-sizing: border-box; min-height: 100%; }'
-      'pre.dim { color: #8b949e; }'
-      'code { font: inherit; }'
-      '#ed { width: 100%; height: 100%; box-sizing: border-box; background: #fff; color: #1f2328; border: none; outline: none; resize: none; padding: 18px; font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; }'
-      '#ed[readonly] { background: #fbfcfd; color: #3b434b; }'
-      '#hl-status { position: fixed; top: 48px; right: 12px; font: 11px ui-monospace, monospace; color: #57606a; background: #f6f8fa; border: 1px solid #d0d7de; border-radius: 12px; padding: 4px 10px; }'
-      '.md { max-width: 74ch; padding: 24px 32px; line-height: 1.65; }'
-      '.md h1, .md h2, .md h3 { border-bottom: 1px solid #e2e7ee; padding-bottom: .3em; }'
-      '.md code { background: #f2f4f7; padding: 1px 5px; border-radius: 5px; font: 12px ui-monospace, monospace; }'
-      '.md pre { background: #f6f8fa; border-radius: 8px; min-height: 0; }'
-      '.md pre code { background: none; padding: 0; }'
-      '.md a { color: #0969da; }'
-      '.md blockquote { border-left: 3px solid #d0d7de; margin-left: 0; padding-left: 14px; color: #57606a; }'
-      'table.csv { border-collapse: collapse; margin: 20px; font: 12px ui-monospace, monospace; }'
-      'table.csv th, table.csv td { border: 1px solid #d0d7de; padding: 5px 12px; text-align: left; }'
-      'table.csv th { background: #f6f8fa; }'
-      'table.csv tr:nth-child(even) td { background: #fbfcfd; }'
-      '#build-view { flex: 1; min-height: 0; overflow: auto; margin: 0; padding: 18px; font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; }'
-      '#build-badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 7px; font-size: 12px; font-weight: 600; margin-bottom: 14px; }'
-      '#build-badge.ok { background: #dafbe1; color: #116329; }'
-      '#build-badge.err { background: #ffebe9; color: #cf222e; }'
-      '#build-badge.raw { background: #fff8c5; color: #6a5c00; }'
-      '#save-err-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.35); z-index: 100; display: flex; align-items: center; justify-content: center; }'
-      '#save-err-box { background: #fff; border-radius: 12px; box-shadow: 0 16px 48px rgba(0,0,0,.2); width: min(640px, 90vw); max-height: 80vh; display: flex; flex-direction: column; }'
-      '#save-err-bar { display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; border-bottom: 1px solid #ffcecb; }'
-      '#save-err-title { font: 600 14px -apple-system, sans-serif; color: #cf222e; }'
-      '#save-err-close { all: unset; cursor: pointer; font-size: 18px; color: #57606a; padding: 2px 8px; border-radius: 6px; }'
-      '#save-err-close:hover { background: #f2f4f7; }'
-      '#save-err-body { flex: 1; overflow: auto; margin: 0; padding: 14px 16px; font: 12px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; color: #cf222e; }'
-  ==
 ::  Weir lives in the parent's dir-map, not in the directory's own lump
+::
 ++  read-weir-from-parent
   |=  pax=path
   =/  m  (fiber:fiber:nexus ,(unit weir:nexus))
@@ -376,11 +265,8 @@
       (serve-tarball eyre-id tree-path ball)
     ::  browsers get the static browse app immediately — it fetches
     ::  ?list=1 itself. Everything below (time, conversions, font) is
-    ::  only needed to BUILD a listing or the ?legacy sail page.
-    ?:  ?&  html-ok
-            ?=(~ (get-key:kv:html-utils 'list' args))
-            ?=(~ (get-key:kv:html-utils 'legacy' args))
-        ==
+    ::  only needed to BUILD the listing.
+    ?:  &(html-ok ?=(~ (get-key:kv:html-utils 'list' args)))
       ;<  ~  bind:m  (send-simple:srv eyre-id (mime-response:http-utils browse-html))
       (pure:m ~)
     ~&  >  %explorer-get-time
@@ -401,40 +287,35 @@
       ?~  ns  ~
       ?.  ?=(%| -.u.ns)  ~
       `p.u.ns
-    ::  ?list=1: the same data render-dir renders, as JSON — the static
-    ::  browse app's feed (and anyone else's)
-    ?:  ?=(^ (get-key:kv:html-utils 'list' args))
-      ::  child necks: the shallow peek of THIS dir returns subdirs as
-      ::  names only, so each child is peeked for its own fil.neck (the
-      ::  same per-root scan the shell's tile reader does)
-      ;<  necks=(map @ta [neck=path code-ns=(unit path)])  bind:m
-        =/  m  (fiber:fiber:nexus ,(map @ta [neck=path code-ns=(unit path)]))
-        ^-  form:m
-        =/  subs=(list @ta)  ~(tap in ~(key by dir.ball))
-        =|  acc=(map @ta [neck=path code-ns=(unit path)])
-        |-
-        ?~  subs  (pure:m acc)
-        ;<  kv=view:nexus  bind:m
-          (peek-shallow:io [%& %| (snoc tree-path i.subs)] ~)
-        =?  acc  ?&  ?=([%ball *] kv)
-                     ?=(^ fil.ball.kv)
-                     ?=(^ neck.u.fil.ball.kv)
-                 ==
-          =/  child-code=(unit path)
-            ?.  (~(has by dir.ball.kv) %code)  ~
-            `(snoc (snoc tree-path i.subs) %code)
-          (~(put by acc) i.subs [(rail-to-path:tarball u.neck.u.fil.ball.kv) child-code])
-        $(subs t.subs)
-      =/  jon=json  (listing-json tree-path ball ball-wave now conversions code-namespace dir-weir necks)
-      =/  bod=octs  (as-octs:mimes:html (en:json:html jon))
-      ;<  ~  bind:m
-        (send-simple:srv eyre-id [[200 ~[['content-type' 'application/json']]] `bod])
-      (pure:m ~)
-    ::  ~>(%bout.[1 %explorer-render-dir] ...)
-    =/  page=manx  (render-dir tree-path ball ball-wave now conversions code-namespace dir-weir)
-    ::  ~>(%bout.[1 %explorer-manx-to-octs] ...)
-    =/  bod=octs  (manx-to-octs:server page)
-    ;<  ~  bind:m  (send-simple:srv eyre-id (mime-response:http-utils [/text/html bod]))
+    ::  ?list=1: the listing as JSON — the static browse app's feed (and
+    ::  anyone else's). Non-html non-list requests for a dir get it too.
+    ::  child necks: the shallow peek of THIS dir returns subdirs as
+    ::  names only, so each child is peeked for its own fil.neck (the
+    ::  same per-root scan the shell's tile reader does)
+    ::  the same peek also yields each child's own fiber bang, so
+    ::  the row can flag a crashed sub-nexus like the old listing did
+    ;<  necks=(map @ta kid-info)  bind:m
+      =/  m  (fiber:fiber:nexus ,(map @ta kid-info))
+      ^-  form:m
+      =/  subs=(list @ta)  ~(tap in ~(key by dir.ball))
+      =|  acc=(map @ta kid-info)
+      |-
+      ?~  subs  (pure:m acc)
+      ;<  kv=view:nexus  bind:m
+        (peek-shallow:io [%& %| (snoc tree-path i.subs)] ~)
+      =?  acc  ?&  ?=([%ball *] kv)
+                   ?=(^ fil.ball.kv)
+               ==
+        =/  child-code=(unit path)
+          ?.  (~(has by dir.ball.kv) %code)  ~
+          `(snoc (snoc tree-path i.subs) %code)
+        =/  neck=(unit path)
+          ?~  neck.u.fil.ball.kv  ~
+          `(rail-to-path:tarball u.neck.u.fil.ball.kv)
+        (~(put by acc) i.subs [neck child-code bang.u.fil.ball.kv])
+      $(subs t.subs)
+    =/  jon=json  (listing-json tree-path ball ball-wave now conversions code-namespace dir-weir necks)
+    ;<  ~  bind:m  (send-json eyre-id 200 jon)
     (pure:m ~)
   ::  File view — ball is the parent directory
   ?~  tree-path
@@ -445,81 +326,106 @@
     ?~  fil.ball  ~
     (find-grub name u.fil.ball)
   ?~  content-data
-    ;<  ~  bind:m  (send-simple:srv eyre-id [[404 ~] `(as-octs:mimes:html 'Not found')])
+    ;<  ~  bind:m  (send-missing eyre-id tree-path args html-ok)
     (pure:m ~)
+  =/  str  |=(t=tape `json`s+(crip t))
+  =/  info-param=(unit @t)  (get-key:kv:html-utils 'info' args)
+  =/  raw-param=(unit @t)  (get-key:kv:html-utils 'raw' args)
+  =/  view-param=(unit @t)  (get-key:kv:html-utils 'view' args)
+  =/  pretty-param=(unit @t)  (get-key:kv:html-utils 'pretty' args)
+  ::  the static file shell (view.html + view.js): it asks ?info=1 for
+  ::  what it is and ?raw=1 for the bytes. Default when a browser asks
+  ::  for html; ?view=1 forces it; ?raw ?info ?pretty bypass it.
+  ?:  ?&  ?=(~ raw-param)  ?=(~ info-param)  ?=(~ pretty-param)
+          |(?=(^ view-param) html-ok)
+      ==
+    ;<  ~  bind:m  (send-simple:srv eyre-id (mime-response:http-utils view-html))
+    (pure:m ~)
+  =/  blot-tape=tape
+    (spud (snoc path.p.sang.u.content-data name.p.sang.u.content-data))
   ?:  (is-boom:tarball sang.u.content-data)
     ~&  >>  [%explorer-file-boomed (rear tree-path)]
-    ;<  ~  bind:m  (send-simple:srv eyre-id [[500 ~] `(as-octs:mimes:html 'File is boomed')])
+    ::  no bytes to give: the shell hears kind=boom with the tang,
+    ::  everyone else gets a plain 500
+    ?~  info-param
+      ;<  ~  bind:m  (send-simple:srv eyre-id [[500 ~] `(as-octs:mimes:html 'File is boomed')])
+      (pure:m ~)
+    =/  boom-tang=tang
+      ?^  bang.u.content-data  u.bang.u.content-data
+      ?:  ?=(%| -.q.sang.u.content-data)  tang.p.q.sang.u.content-data
+      ~[leaf+"validation failed"]
+    ;<  ~  bind:m
+      %^  send-json  eyre-id  200
+      %-  pairs:enjs:format
+      :~  ['kind' s+'boom']
+          ['name' s+name]
+          ['blot' (str blot-tape)]
+          ['boom' (str (render-tang boom-tang))]
+      ==
     (pure:m ~)
   =/  =sage:tarball  (need-sage:tarball sang.u.content-data)
-  =/  pretty-param=(unit @t)  (get-key:kv:html-utils 'pretty' args)
   ?^  pretty-param
     ::  ?pretty: render noun as text instead of binary download
     =/  bod=octs  (as-octs:mimes:html (crip (noah q.sage)))
     ;<  ~  bind:m  (send-simple:srv eyre-id (mime-response:http-utils [/text/plain bod]))
     (pure:m ~)
-  ::  source view: html + syntax highlighting (hoon via shiki + the
-  ::  same pkova grammar github renders with). Default for .hoon
-  ::  when a browser asks (Accept: text/html) — tools and fetch get
-  ::  raw bytes as ever. ?view=1 forces, ?raw=1 suppresses.
-  =/  view-param=(unit @t)  (get-key:kv:html-utils 'view' args)
-  =/  raw-param=(unit @t)  (get-key:kv:html-utils 'raw' args)
-  ::  file view page: Text (editable, tubed both ways) | Mime (rendered).
-  ::  Default when a browser asks for html; tools and fetch still get raw
-  ::  bytes (?raw=1 always does, ?view=1 always forces the page).
-  ?:  ?&  ?=(~ raw-param)
-          |(?=(^ view-param) html-ok)
-      ==
-    ;<  =mime  bind:m  (sage-to-mime:io sage)
-    ::  x-urb-jam is sage-to-mime's no-tube fallback: show the noun
-    ::  pretty-printed, read-only. Binary mites: mime view only.
-    =/  jammed=?  =(/application/x-urb-jam p.mime)
-    =/  texty=?  &(!jammed (texty-mite p.mime))
-    =/  txt=tape
-      ?:  jammed  (noah q.sage)
-      ?:  texty  (trip q.q.mime)
-      ""
-    ::  code build status: check if this file lives under a /code nexus
-    =/  code-name=@ta
-      =/  raw=@ta  (rear tree-path)
-      =/  t=tape  (trip raw)
-      =/  len=@ud  (lent t)
-      ?.  &((gth len 5) =(".hoon" (slag (sub len 5) t)))
-        raw
-      (crip (scag (sub len 5) t))
-    =/  file-road=road:tarball  [%& %& (snip `path`tree-path) code-name]
-    ;<  font=(unit (unit bend:tarball))  bind:m
-      (get-font:io file-road)
-    =/  has-code=?  &(?=(^ font) ?=(^ u.font))
-    ;<  build-info=[build-status=tape build-detail=tape]  bind:m
-      ?.  has-code  (pure:(fiber:fiber:nexus ,[tape tape]) ["" ""])
-      ;<  =built:nexus  bind:(fiber:fiber:nexus ,[tape tape])
-        (get-code-full:io file-road)
-      %-  pure:(fiber:fiber:nexus ,[tape tape])
-      ?-  -.built
-          %vase
-        =/  printed=tape  ~(ram re (sell vase.built))
-        :-  "vase"
-        ?:  (lth (lent printed) 4.000)  printed
-        (weld (scag 4.000 printed) "...")
-          %tang
-        :-  "tang"
-        %-  zing
-        %+  turn  (render-tang-to-wall:http-utils [160 tang.built])
-        |=(t=tape (weld t "\0a"))
-          %mime
-        ["mime" "raw mime (no compilation)"]
-      ==
-    =/  build-status=tape  build-status.build-info
-    =/  build-detail=tape  build-detail.build-info
-    =/  bod=octs
-      %-  as-octs:mimes:html  %-  crip  %-  en-xml:html
-      =/  blot-tape=tape  (spud (snoc path.p.sage name.p.sage))
-      (view-page name txt blot-tape (spud p.mime) texty jammed blot-tape build-status build-detail)
-    ;<  ~  bind:m  (send-simple:srv eyre-id (mime-response:http-utils [/text/html bod]))
-    (pure:m ~)
   ;<  =mime  bind:m  (sage-to-mime:io sage)
-  ;<  ~  bind:m  (send-simple:srv eyre-id (mime-response:http-utils [p.mime q.mime]))
+  ?~  info-param
+    ;<  ~  bind:m  (send-simple:srv eyre-id (mime-response:http-utils [p.mime q.mime]))
+    (pure:m ~)
+  ::  ?info=1: the file as data. x-urb-jam is sage-to-mime's no-tube
+  ::  fallback: the noun pretty-printed rides along as text, read-only.
+  ::  Texty content the shell fetches itself via ?raw=1.
+  =/  jammed=?  =(/application/x-urb-jam p.mime)
+  =/  texty=?  &(!jammed (texty-mite p.mime))
+  ::  code build status: does this file live under a /code nexus?
+  =/  code-name=@ta
+    =/  raw=@ta  (rear tree-path)
+    =/  t=tape  (trip raw)
+    =/  len=@ud  (lent t)
+    ?.  &((gth len 5) =(".hoon" (slag (sub len 5) t)))
+      raw
+    (crip (scag (sub len 5) t))
+  =/  file-road=road:tarball  [%& %& (snip `path`tree-path) code-name]
+  ;<  font=(unit (unit bend:tarball))  bind:m
+    (get-font:io file-road)
+  =/  has-code=?  &(?=(^ font) ?=(^ u.font))
+  ;<  build-info=[build-status=tape build-detail=tape]  bind:m
+    ?.  has-code  (pure:(fiber:fiber:nexus ,[tape tape]) ["" ""])
+    ;<  =built:nexus  bind:(fiber:fiber:nexus ,[tape tape])
+      (get-code-full:io file-road)
+    %-  pure:(fiber:fiber:nexus ,[tape tape])
+    ?-  -.built
+        %vase
+      =/  printed=tape  ~(ram re (sell vase.built))
+      :-  "vase"
+      ?:  (lth (lent printed) 4.000)  printed
+      (weld (scag 4.000 printed) "...")
+        %tang
+      :-  "tang"
+      %-  zing
+      %+  turn  (render-tang-to-wall:http-utils [160 tang.built])
+      |=(t=tape (weld t "\0a"))
+        %mime
+      ["mime" "raw mime (no compilation)"]
+    ==
+  ;<  ~  bind:m
+    %^  send-json  eyre-id  200
+    %-  pairs:enjs:format
+    :~  ['kind' s+'file']
+        ['name' s+name]
+        ['blot' (str blot-tape)]
+        ['mite' (str (spud p.mime))]
+        ['texty' b+texty]
+        ['jammed' b+jammed]
+        ['text' ?.(jammed ~ (str (noah q.sage)))]
+        :-  'build'
+        %-  pairs:enjs:format
+        :~  ['status' (str build-status.build-info)]
+            ['detail' (str build-detail.build-info)]
+        ==
+        ['bang' ?~(bang.u.content-data ~ (str (render-tang u.bang.u.content-data)))]
+    ==
   (pure:m ~)
 ::  Handle POST requests (delete actions)
 ::
@@ -921,316 +827,6 @@
   |=  [seg=@ta =lump:tarball]
   ^-  (unit [=sang:tarball gain=? bang=(unit tang)])
   (~(get by contents.lump) seg)
-++  resolve-url-path
-  |=  [raw=path root=ball:tarball]
-  ^-  path
-  =/  current=ball:tarball  root
-  =/  result=path  ~
-  |-
-  ?~  raw  result
-  =/  child=(unit ball:tarball)  (~(get by dir.current) i.raw)
-  ?^  child
-    $(raw t.raw, result (snoc result i.raw), current u.child)
-  ::  No match — keep segment as-is
-  $(raw t.raw, result (snoc result i.raw))
-::  Build URL path from segments
-::
-++  build-url
-  |=  pax=path
-  ^-  tape
-  =/  acc=tape  "/grubbery/ball"
-  |-
-  ?~  pax  acc
-  $(pax t.pax, acc (weld acc "/{(trip i.pax)}"))
-::
-++  page-head
-  |=  title=tape
-  ^-  manx
-  ;head
-    ;title: {title}
-    ;meta(charset "utf-8");
-    ;meta(name "viewport", content "width=device-width, initial-scale=1");
-    ;link(rel "icon", type "image/svg+xml", href "/grubbery/tiles/icon/explorer.explorer");
-    ;style
-      ; * { box-sizing: border-box; }
-      ; body { font: 13px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #1f2328; background: #fff; margin: 0; padding-bottom: 48px; }
-      ; h1 { display: none; }
-      ; a { color: #0969da; text-decoration: none; }
-      ; a:hover { text-decoration: underline; }
-      ; .breadcrumb { position: sticky; top: 0; display: flex; align-items: center; flex-wrap: wrap; gap: 2px; padding: 10px 20px; background: #f6f8fa; border-bottom: 1px solid #d0d7de; font: 600 13px ui-monospace, SFMono-Regular, Menlo, monospace; z-index: 5; }
-      ; .breadcrumb a { color: #57606a; padding: 2px 4px; border-radius: 5px; margin: 0; }
-      ; .breadcrumb a:hover { color: #24292f; background: #eaeef2; text-decoration: none; }
-      ; .breadcrumb a:last-child { color: #24292f; }
-      ; .info { margin: 16px 20px 4px; padding: 0; background: none; border-radius: 0; }
-      ; .info dl { display: grid; grid-template-columns: max-content 1fr; gap: 3px 14px; margin: 0 0 12px; }
-      ; .info dt { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: #8b949e; float: none; width: auto; align-self: center; }
-      ; .info dd { margin: 0; font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; color: #24292f; }
-      ; button { font: 12px -apple-system, BlinkMacSystemFont, sans-serif; padding: 4px 12px; cursor: pointer; color: #24292f; background: #fff; border: 1px solid #d0d7de; border-radius: 7px; }
-      ; button:hover { background: #f6f8fa; }
-      ; input[type="text"] { font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; padding: 4px 9px; border: 1px solid #d0d7de; border-radius: 7px; outline: none; }
-      ; input[type="text"]:focus { border-color: #0969da; }
-      ; input[type="file"] { font: 12px -apple-system, sans-serif; color: #57606a; }
-      ; select { font: 12px -apple-system, sans-serif; padding: 4px 6px; border: 1px solid #d0d7de; border-radius: 7px; background: #fff; color: #24292f; }
-      ; .del-form { display: inline; }
-      ; .symlink-target { color: #8b949e; }
-      ; .mark-mismatch { color: #cf222e; font-weight: 600; }
-      ; details.tools { margin: 0 0 8px; }
-      ; details.tools summary { cursor: pointer; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: #57606a; user-select: none; padding: 3px 0; width: max-content; }
-      ; details.tools summary:hover { color: #24292f; }
-      ; details.tools[open] summary { margin-bottom: 8px; }
-      ; .action-row { margin: 0 0 7px; display: flex; gap: 8px; align-items: center; }
-      ; .action-row label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: #8b949e; min-width: 110px; }
-      ; .inline-form { display: flex; gap: 6px; align-items: center; }
-      ; .inline-form input[type="text"] { width: 150px; padding: 4px 9px; font-size: 12px; }
-      ; .weir-system { color: #bc4c00; font-weight: 600; }
-      ; .weir-label { color: #8b949e; margin-right: 4px; }
-      ; .weir-roads { color: #8250df; }
-      ; .weir-road-item { margin-right: 8px; }
-      ; .weir-del { font-size: 10px; padding: 0 5px; margin-left: 2px; color: #cf222e; cursor: pointer; border-radius: 5px; }
-      ; table { border-collapse: collapse; width: calc(100% - 40px); margin: 10px 20px; }
-      ; th, td { text-align: left; padding: 7px 10px; }
-      ; th { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: #8b949e; border-bottom: 1px solid #d0d7de; }
-      ; td { border-bottom: 1px solid #eef1f4; font-size: 13px; }
-      ; td a { font: 12.5px ui-monospace, SFMono-Regular, Menlo, monospace; }
-      ; td:nth-child(2), td:nth-child(3), td:nth-child(4), td:nth-child(5) { font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; color: #57606a; }
-      ; tr:hover td { background: #f6f8fa; }
-      ; .sortable { cursor: pointer; user-select: none; }
-      ; .sortable:hover { color: #24292f; background: none; }
-      ; .sortable::after { content: ' \2195'; opacity: 0.35; }
-      ; .sortable.asc::after { content: ' \2191'; opacity: 1; }
-      ; .sortable.desc::after { content: ' \2193'; opacity: 1; }
-      ; .actions-cell { white-space: nowrap; text-align: right; }
-      ; .actions-cell button, .actions-cell .del-form button { padding: 3px 10px; border-color: transparent; background: none; color: #57606a; opacity: 0; transition: opacity .1s; }
-      ; tr:hover .actions-cell button { opacity: 1; }
-      ; .actions-cell button:hover { background: #eaeef2; color: #24292f; }
-      ; .actions-cell .del-form button:hover { background: #ffebe9; color: #cf222e; }
-      ; .boom-banner { margin: 12px 20px; padding: 10px 14px; background: #fff8f8; border: 1px solid #ffcecb; border-radius: 8px; cursor: pointer; color: #cf222e; }
-      ; .boom-banner:hover { background: #ffebe9; }
-      ; .boom-icon { color: #cf222e; font-weight: 600; cursor: pointer; margin-left: 4px; display: inline; }
-      ; .boom-icon:hover { text-decoration: underline; }
-      ; .boom-modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(31,35,40,0.4); z-index: 1000; }
-      ; .boom-modal-overlay.active { display: flex; align-items: center; justify-content: center; }
-      ; .boom-modal { background: #fff; border: 1px solid #ffcecb; border-radius: 12px; box-shadow: 0 12px 36px rgba(31,35,40,.22); padding: 18px; max-width: 80vw; max-height: 80vh; overflow: auto; min-width: 400px; }
-      ; .boom-modal h3 { color: #cf222e; margin: 0 0 8px; font-size: 14px; }
-      ; .boom-modal pre { white-space: pre-wrap; font: 12px/1.5 ui-monospace, Menlo, monospace; margin: 0; max-height: 60vh; overflow: auto; background: #fff8f8; padding: 10px; border-radius: 8px; }
-      ; @media (max-width: 768px) {
-      ;   .col-blot, .col-mime, .col-mtime { display: none; }
-      ;   .action-row { flex-wrap: wrap; }
-      ;   .action-row label { min-width: unset; width: 100%; margin-bottom: 4px; }
-      ;   .inline-form { flex-wrap: wrap; width: 100%; }
-      ;   .inline-form input[type="text"] { width: 100%; min-width: 0; }
-      ;   table { font-size: 13px; }
-      ;   th, td { padding: 6px 4px; }
-      ;   .actions-cell button { opacity: 1; }
-      ;   .boom-modal { min-width: unset; width: 90vw; }
-      ; }
-      ; @media (max-width: 480px) {
-      ;   .actions-cell { display: flex; flex-wrap: wrap; gap: 4px; }
-      ;   .col-size { display: none; }
-      ; }
-    ==
-  ==
-::
-++  breadcrumb
-  |=  pax=path
-  ^-  manx
-  =/  seg-data=(list [seg=@ta url=tape])
-    =/  built=path  ~
-    =/  acc=(list [seg=@ta url=tape])  ~
-    =/  rem=path  pax
-    |-
-    ?~  rem  (flop acc)
-    =.  built  (snoc built i.rem)
-    =/  url=tape  (build-url built)
-    $(rem t.rem, acc [[i.rem url] acc])
-  =/  crumbs=(list manx)
-    :~  ;a/"/grubbery/ball": /
-    ==
-  =.  crumbs
-    %+  weld  crumbs
-    %+  turn  seg-data
-    |=  [seg=@ta url=tape]
-    ^-  manx
-    ;a/"{url}": {(trip seg)}/
-  ;div.breadcrumb
-    ;*  crumbs
-  ==
-::
-++  dir-info
-  |=  [b=ball:tarball url-prefix=tape dir-weir=(unit weir:nexus) pax=path neck-url=(unit tape)]
-  ^-  manx
-  =/  neck-display=tape
-    ?~  fil.b  "-"
-    ?~  neck.u.fil.b  "-"
-    (trip (spat (rail-to-path:tarball u.neck.u.fil.b)))
-  =/  nkids=@ud
-    %+  add
-      ~(wyt by dir.b)
-    ?~(fil.b 0 ~(wyt by contents.u.fil.b))
-  =/  download-url=tape  "{url-prefix}?download=tar"
-  ;div.info
-    ;dl
-      ;dt: nexus
-      ;dd
-        ;*  ?~  neck-url
-              =/  is-code=?
-                ?&  ?=(^ fil.b)
-                    ?=(^ neck.u.fil.b)
-                    =([/ %code] u.neck.u.fil.b)
-                ==
-              ?:  is-code
-                :~  ;span(title "hardcoded /code nexus"): {neck-display}
-                ==
-              :~  ;span: {neck-display}
-              ==
-            :~  ;a/"{u.neck-url}": {neck-display}
-            ==
-      ==
-      ;dt: items
-      ;dd: {(scow %ud nkids)}
-      ;dt: sandbox
-      ;dd#sandbox-value
-        ;*  (render-sandbox dir-weir url-prefix pax)
-      ==
-    ==
-    ;*  ?.  ?=(^ pax)  ~
-        :~  ;div.action-row
-              ;form.inline-form(method "POST", action url-prefix)
-                ;label: Add to Weir:
-                ;select(name "category")
-                  ;option(value "write"): write
-                  ;option(value "poke"): poke
-                  ;option(value "read"): read
-                ==
-                ;input(type "text", name "road-path", placeholder "/path or /path/", required "");
-                ;input(type "hidden", name "action", value "add-weir-road");
-                ;button(type "submit"): Add
-              ==
-            ==
-        ==
-    ;details.tools
-    ;summary:  manage
-    ;*  ?.  ?&(?=(^ fil.b) ?=(^ neck.u.fil.b))  ~
-        :~  ;div.action-row
-              ;form.inline-form(method "POST", action url-prefix)
-                ;label: Nexus:
-                ;input(type "hidden", name "action", value "reload-nexus");
-                ;button(type "submit"): Reload
-              ==
-            ==
-        ==
-    ;div.action-row
-      ;label: Download:
-      ;a/"{download-url}"
-        ;button(type "button"): Download as Tarball
-      ==
-    ==
-    ;div.action-row
-      ;form.inline-form(method "POST", action url-prefix)
-        ;label: Create Folder:
-        ;input(type "text", name "foldername", placeholder "folder-name", required "");
-        ;input(type "hidden", name "action", value "create-folder");
-        ;button(type "submit"): Create
-      ==
-    ==
-    ;div.action-row
-      ;form.inline-form(method "POST", action url-prefix)
-        ;label: Create Symlink:
-        ;input(type "text", name "linkname", placeholder "link-name", required "");
-        ;input(type "text", name "target", placeholder "target-path", required "");
-        ;input(type "hidden", name "action", value "create-symlink");
-        ;button(type "submit"): Create
-      ==
-    ==
-    ;div.action-row
-      ;form.inline-form(method "POST", action url-prefix, enctype "multipart/form-data")
-        ;label: Upload Grub:
-        ;input(type "file", name "file");
-        ;button(type "submit"): Upload
-      ==
-    ==
-    ;div.action-row
-      ;form.inline-form(method "POST", action url-prefix, enctype "multipart/form-data")
-        ;label: Upload Grubs:
-        ;input(type "file", name "file", multiple "");
-        ;button(type "submit"): Upload All
-      ==
-    ==
-    ;div.action-row
-      ;form.inline-form(method "POST", action url-prefix, enctype "multipart/form-data")
-        ;label: Upload Directory:
-        ;input(type "file", name "file", webkitdirectory "", directory "");
-        ;button(type "submit"): Upload Directory
-      ==
-    ==
-    ==
-  ==
-::
-++  render-sandbox
-  |=  [dir-weir=(unit weir:nexus) url-prefix=tape pax=path]
-  ^-  (list manx)
-  ?.  ?=(^ pax)
-    :~  ;span.weir-system: unrestricted
-    ==
-  (render-weir dir-weir url-prefix)
-::
-++  render-weir
-  |=  [dir-weir=(unit weir:nexus) url-prefix=tape]
-  ^-  (list manx)
-  ?~  dir-weir
-    :~  ;span.weir-system: unrestricted
-    ==
-  =/  items=(list manx)
-    ;:  weld
-      (render-weir-category "write" make.u.dir-weir url-prefix)
-      (render-weir-category "poke" poke.u.dir-weir url-prefix)
-      (render-weir-category "read" peek.u.dir-weir url-prefix)
-    ==
-  %+  snoc  items
-  ;form.del-form(method "POST", action url-prefix)
-    ;input(type "hidden", name "action", value "clear-weir");
-    ;button.weir-del(type "submit", onclick "return confirm('Remove weir? This gives unrestricted access.')"): clear weir
-  ==
-::
-++  render-weir-category
-  |=  [label=tape roads=(set road:tarball) url-prefix=tape]
-  ^-  (list manx)
-  =/  road-items=(list manx)
-    %+  turn  ~(tap in roads)
-    |=  =road:tarball
-    ^-  manx
-    =/  road-path=tape  (road-to-form road)
-    ;span.weir-road-item
-      ;span.weir-roads: {road-path}
-      ;form.del-form(method "POST", action url-prefix)
-        ;input(type "hidden", name "action", value "del-weir-road");
-        ;input(type "hidden", name "category", value label);
-        ;input(type "hidden", name "road-path", value road-path);
-        ;button.weir-del(type "submit"): x
-      ==
-    ==
-  %+  weld
-    :~  ;span.weir-label: {label}:
-    ==
-  ?~  road-items
-    :~  ;span.weir-roads: -
-        ;br;
-    ==
-  (snoc road-items ;br;)
-::
-++  render-road
-  |=  =road:tarball
-  ^-  tape
-  ?-    -.road
-      %&  (render-lane p.road)
-      %|
-    =/  ups=tape  ?:(=(0 p.p.road) "./" (zing (reap p.p.road "../")))
-    =/  lane=tape  (render-lane q.p.road)
-    ::  strip leading / since ups already provides the prefix
-    =/  trimmed=tape  ?:(&(?=(^ lane) =(i.lane '/')) t.lane lane)
-    "{ups}{trimmed}"
-  ==
-::
 ++  road-to-form
   |=  =road:tarball
   ^-  tape
@@ -1255,7 +851,7 @@
     ?~(p.lane "/" "{(trip (spat p.lane))}/")
   ==
 ::
-::  +listing-json: the dir listing as data — everything render-dir shows,
+::  +listing-json: the dir listing as data — everything the browse app shows,
 ::  one child object per subdir and grub. Pure given its inputs (the mime
 ::  conversions ride the prefetched tube map, via gen:tarball).
 ::
@@ -1267,7 +863,7 @@
           conversions=(map bars:tarball tube:clay)
           code-namespace=(unit path)
           dir-weir=(unit weir:nexus)
-          necks=(map @ta [neck=path code-ns=(unit path)])
+          necks=(map @ta kid-info)
       ==
   ^-  json
   =/  str  |=(t=tape `json`s+(crip t))
@@ -1296,22 +892,28 @@
       (sort ~(tap by dir.b) |=([[a=@ta *] [b=@ta *]] (aor a b)))
     |=  [name=@ta kid=ball:tarball]
     ^-  json
-    =/  neck-entry=(unit [neck=path code-ns=(unit path)])  (~(get by necks) name)
+    =/  kid=(unit kid-info)  (~(get by necks) name)
     =/  neck-json=json
-      ?~  neck-entry  ~
-      s+(crip (spud neck.u.neck-entry))
+      ?~  kid  ~
+      ?~  neck.u.kid  ~
+      s+(crip (spud u.neck.u.kid))
     =/  neck-url-json=json
-      ?~  neck-entry  ~
-      ?:  =(/code neck.u.neck-entry)  ~
-      =/  ns=(unit path)  ?^(code-ns.u.neck-entry code-ns.u.neck-entry code-namespace)
+      ?~  kid  ~
+      ?~  neck.u.kid  ~
+      ?:  =(/code u.neck.u.kid)  ~
+      =/  ns=(unit path)  ?^(code-ns.u.kid code-ns.u.kid code-namespace)
       ?~  ns  ~
-      (str "/grubbery/ball{(trip (spat (weld u.ns /nex)))}{(trip (spat neck.u.neck-entry))}.hoon")
+      (str "/grubbery/ball{(trip (spat (weld u.ns /nex)))}{(trip (spat u.neck.u.kid))}.hoon")
+    =/  kid-bang=json
+      ?~  kid  ~
+      ?~  bang.u.kid  ~
+      (str (render-tang u.bang.u.kid))
     =/  dir-mod=json
       =/  kid-wave=(unit wave:nexus)  (~(get by dir.b-wave) name)
       ?~  kid-wave  ~
       ?~  fil.u.kid-wave  ~
       (str (en:datetime-local:iso-8601 da.fold.u.fil.u.kid-wave))
-    (pairs:enjs:format ~[['name' s+`@t`name] ['kind' s+'dir'] ['neck' neck-json] ['neck-url' neck-url-json] ['modified' dir-mod]])
+    (pairs:enjs:format ~[['name' s+`@t`name] ['kind' s+'dir'] ['neck' neck-json] ['neck-url' neck-url-json] ['bang' kid-bang] ['modified' dir-mod]])
   =/  files=(list json)
     %+  turn
       (sort ~(tap by file-contents) |=([[a=@ta *] [b=@ta *]] (aor a b)))
@@ -1327,11 +929,19 @@
           ['modified' (mtime name)]
       ==
     =/  sag=sage:tarball  (need-sage:tarball sang)
+    =/  blot-json=json  (str (spud (rail-to-path:tarball p.sag)))
+    =/  mark-url=json
+      ?~  code-namespace  ~
+      =/  mar-path=path
+        (weld u.code-namespace (weld /mar (rail-to-path:tarball p.sag)))
+      (str "/grubbery/ball{(trip (spat mar-path))}.hoon")
     ?:  =(%symlink name.p.sag)
       =/  sym  !<(symlink:tarball q.sag)
       %-  pairs:enjs:format
       :~  ['name' s+`@t`name]
           ['kind' s+'symlink']
+          ['blot' blot-json]
+          ['blot-url' mark-url]
           ['target' (str (trip (encode-symlink:tarball sym)))]
           ['resolved' (str (trip (spat (resolve-symlink:tarball sym pax))))]
           ['modified' (mtime name)]
@@ -1346,15 +956,10 @@
       %-  crip  %-  zing
       %+  join  "_"
       (turn (rail-to-path:tarball p.sag) trip)
-    =/  mark-url=json
-      ?~  code-namespace  ~
-      =/  mar-path=path
-        (weld u.code-namespace (weld /mar (rail-to-path:tarball p.sag)))
-      (str "/grubbery/ball{(trip (spat mar-path))}.hoon")
     %-  pairs:enjs:format
     :~  ['name' s+`@t`name]
         ['kind' s+'file']
-        ['blot' (str (spud (rail-to-path:tarball p.sag)))]
+        ['blot' blot-json]
         ['blot-url' mark-url]
         ['mismatch' b+?~(ext %.y !=(u.ext rail-ext))]
         ['mime' (str ?~(mime-raw "" (tail mime-raw)))]
@@ -1391,461 +996,10 @@
       ['children' a+(weld dirs files)]
   ==
 ::
-++  render-dir
-  |=  $:  pax=path
-          b=ball:tarball
-          b-wave=wave:nexus
-          now=@da
-          conversions=(map bars:tarball tube:clay)
-          code-namespace=(unit path)
-          dir-weir=(unit weir:nexus)
-      ==
-  ^-  manx
-  =/  neck-url=(unit tape)
-    ?~  fil.b  ~
-    ?~  neck.u.fil.b  ~
-    ?:  =([/ %code] u.neck.u.fil.b)  ~
-    ?~  code-namespace  ~
-    `"/grubbery/ball{(trip (spat (weld u.code-namespace /nex)))}{(trip (spat (rail-to-path:tarball u.neck.u.fil.b)))}.hoon"
-  =/  path-display=tape
-    ?~  pax  "/"
-    (trip (spat pax))
-  =/  kids  dir.b
-  =/  file-contents=(map @ta [=sang:tarball gain=? bang=(unit tang)])
-    ?~  fil.b  ~
-    contents.u.fil.b
-  =/  subdirs=(list @ta)  ~(tap in ~(key by kids))
-  =/  files=(list @ta)  ~(tap in ~(key by file-contents))
-  =/  url-prefix=tape  (build-url pax)
-  ::  Error state at this level
-  =/  nexus-bang=(unit tang)  ?~(fil.b ~ bang.u.fil.b)
-  ;html
-    ;+  (page-head "Index of {path-display}")
-    ;body
-      ;+  (breadcrumb pax)
-      ;h1: Index of {path-display}
-      ;+  (dir-info b url-prefix dir-weir pax neck-url)
-      ;*  ?~  nexus-bang  ~
-          =/  rendered=tape  (render-tang u.nexus-bang)
-          :~  ;div.boom-banner(data-tang rendered, onclick "showBoom(this)")
-                nexus crashed — click for details
-              ==
-          ==
-      ;table#listing(data-path (trip (spat pax)))
-        ;tr
-          ;th.sortable(data-col "0", onclick "sortTable(0)"): Name
-          ;th.sortable.col-blot(data-col "1", onclick "sortTable(1)"): Blot
-          ;th.sortable.col-mime(data-col "2", onclick "sortTable(2)"): Mime Type
-          ;th.sortable(data-col "3", onclick "sortTable(3)"): Size
-          ;th.sortable.col-mtime(data-col "4", onclick "sortTable(4)"): Modified
-          ;th: Actions
-        ==
-        ;*
-        =/  rows=(list manx)  ~
-        ::  Parent link
-        =?  rows  ?=(^ pax)
-          =/  parent=path  (snip `path`pax)
-          =/  parent-url=tape  (build-url parent)
-          %+  snoc  rows
-          ;tr
-            ;td
-              ;a/"{parent-url}": ../
-            ==
-            ;td.col-blot: -
-            ;td.col-mime: -
-            ;td: -
-            ;td.col-mtime: -
-            ;td: -
-          ==
-        ::  Subdirectories
-        =.  rows
-          %+  weld  rows
-          %+  turn  subdirs
-          |=  name=@ta
-          ^-  manx
-          =/  sub=ball:tarball  (~(got by kids) name)
-          =/  sub-bang=(unit tang)  ?~(fil.sub ~ bang.u.fil.sub)
-          (render-dir-row name sub url-prefix sub-bang)
-        ::  Grubs
-        =.  rows
-          %+  weld  rows
-          %+  turn  files
-          |=  name=@ta
-          ^-  manx
-          =/  [=sang:tarball gain=? bang=(unit tang)]  (~(got by file-contents) name)
-          (render-grub-row name sang url-prefix pax b-wave now conversions code-namespace bang)
-        rows
-      ==
-      ;div#boom-overlay.boom-modal-overlay
-        ;div.boom-modal
-          ;h3: Error
-          ;pre;
-        ==
-      ==
-      ;script: {(trip page-script)}
-    ==
-  ==
-::
-++  page-script
-  ^-  @t
-  '''
-  var sortCol = 0, sortAsc = true;
-  function getRows() {
-    var tbl = document.getElementById('listing');
-    return Array.from(tbl.querySelectorAll('tr[data-name]'));
-  }
-  function sortVal(row, col) {
-    if (col === 3) return parseInt(row.dataset.size || '0') || 0;
-    return (row.cells[col] && row.cells[col].textContent || '').toLowerCase();
-  }
-  function doSort() {
-    var tbl = document.getElementById('listing');
-    var tb = tbl.querySelector('tbody') || tbl;
-    var rows = getRows();
-    rows.sort(function(a, b) {
-      var ta = a.dataset.type || '', tb2 = b.dataset.type || '';
-      if (ta !== tb2) { var df = ta === 'dir' ? -1 : 1; return sortAsc ? df : -df; }
-      var va = sortVal(a, sortCol), vb = sortVal(b, sortCol);
-      var cmp = (typeof va === 'number') ? va - vb : (va < vb ? -1 : va > vb ? 1 : 0);
-      return sortAsc ? cmp : -cmp;
-    });
-    rows.forEach(function(r) { tb.appendChild(r); });
-    tbl.querySelectorAll('th.sortable').forEach(function(th) {
-      th.classList.remove('asc', 'desc');
-      if (parseInt(th.dataset.col) === sortCol) th.classList.add(sortAsc ? 'asc' : 'desc');
-    });
-  }
-  function sortTable(col) {
-    if (sortCol === col) { sortAsc = !sortAsc; }
-    else { sortCol = col; sortAsc = true; }
-    doSort();
-  }
-  doSort();
-  function doAction(action, params) {
-    var form = document.createElement('form');
-    form.method = 'POST';
-    form.action = location.pathname;
-    var a = document.createElement('input');
-    a.type = 'hidden'; a.name = 'action'; a.value = action;
-    form.appendChild(a);
-    for (var k in params) {
-      var i = document.createElement('input');
-      i.type = 'hidden'; i.name = k; i.value = params[k];
-      form.appendChild(i);
-    }
-    document.body.appendChild(form);
-    form.submit();
-  }
-  function renameItem(type, name) {
-    var n = prompt('New name for ' + name + ':', name);
-    if (!n || n === name) return;
-    doAction('rename-' + type, type === 'grub' ? {filename: name, newname: n} : {foldername: name, newname: n});
-  }
-  function moveItem(type, name) {
-    var cur = location.pathname.replace('/grubbery/ball', '') || '/';
-    var d = prompt('Move ' + name + ' to (full path):', cur + (cur === '/' ? '' : '/') + name);
-    if (!d) return;
-    doAction('move-' + type, type === 'grub' ? {filename: name, dest: d} : {foldername: name, dest: d});
-  }
-  function copyItem(type, name) {
-    var cur = location.pathname.replace('/grubbery/ball', '') || '/';
-    var d = prompt('Copy ' + name + ' to (full path):', cur + (cur === '/' ? '' : '/') + name);
-    if (!d) return;
-    doAction('copy-' + type, type === 'grub' ? {filename: name, dest: d} : {foldername: name, dest: d});
-  }
-  function showBoom(el) {
-    var pre = el.dataset.tang;
-    var ov = document.getElementById('boom-overlay');
-    ov.querySelector('pre').textContent = pre;
-    ov.classList.add('active');
-  }
-  document.addEventListener('click', function(e) {
-    var ov = document.getElementById('boom-overlay');
-    if (e.target === ov) ov.classList.remove('active');
-  });
-  document.addEventListener('keydown', function(e) {
-    if (e.key === 'Escape') document.getElementById('boom-overlay').classList.remove('active');
-  });
-  '''
-::
-++  render-split
-  ^-  manx
-  ;html
-    ;head
-      ;title: grubbery split view
-      ;meta(charset "utf-8");
-      ;link(rel "icon", type "image/svg+xml", href "/grubbery/tiles/icon/explorer.explorer");
-      ;style
-        ; * { box-sizing: border-box; margin: 0; padding: 0; }
-        ; html, body { height: 100%; font-family: monospace; }
-        ; .split-header { display: flex; height: 32px; background: #f6f8fa; border-bottom: 1px solid #ccc; }
-        ; .pane-bar { display: flex; align-items: center; padding: 0 6px; gap: 4px; }
-        ; .pane-bar.left { flex: 1; border-right: 1px solid #ccc; }
-        ; .pane-bar.right { flex: 1; }
-        ; .pane-bar input { flex: 1; font-family: monospace; font-size: 12px; border: 1px solid #ccc; padding: 2px 6px; min-width: 0; }
-        ; .pane-bar button { background: none; border: 1px solid #ccc; cursor: pointer; font-family: monospace; font-size: 12px; padding: 2px 6px; }
-        ; .pane-bar button:hover { background: #e1e4e8; }
-        ; .split-container { display: flex; height: calc(100% - 32px); }
-        ; .split-container iframe { border: none; height: 100%; }
-        ; #left-frame { flex: 1; border-right: 1px solid #ccc; }
-        ; #right-frame { flex: 1; }
-      ==
-    ==
-    ;body
-      ;div.split-header
-        ;div.pane-bar.left
-          ;button(onclick "goBack('left-frame')"): ←
-          ;button(onclick "goFwd('left-frame')"): →
-          ;input#left-url(type "text", value "/grubbery/ball", placeholder "/grubbery/ball/...", onkeydown "if(event.key==='Enter')navLeft()");
-          ;button(onclick "navLeft()"): go
-          ;button(onclick "mirrorRight()"): mirror →
-        ==
-        ;div.pane-bar.right
-          ;button(onclick "goBack('right-frame')"): ←
-          ;button(onclick "goFwd('right-frame')"): →
-          ;input#right-url(type "text", value "/grubbery/ball", placeholder "/grubbery/ball/...", onkeydown "if(event.key==='Enter')navRight()");
-          ;button(onclick "navRight()"): go
-          ;button(onclick "mirrorLeft()"): mirror ←
-        ==
-      ==
-      ;div#split.split-container
-        ;iframe#left-frame(src "/grubbery/ball");
-        ;iframe#right-frame(src "/grubbery/ball");
-      ==
-      ;script: {(trip split-script)}
-    ==
-  ==
-::
-++  split-script
-  ^-  @t
-  '''
-  var hist = { 'left-frame': [], 'right-frame': [] };
-  var fwd  = { 'left-frame': [], 'right-frame': [] };
-  function navTo(id, inputId, url) {
-    var f = document.getElementById(id);
-    try { var cur = f.contentWindow.location.href; if (cur && cur !== 'about:blank') hist[id].push(cur); } catch(e) {}
-    fwd[id] = [];
-    f.src = url;
-    document.getElementById(inputId).value = url;
-  }
-  function navLeft() {
-    var url = document.getElementById('left-url').value.trim();
-    if (url) navTo('left-frame', 'left-url', url);
-  }
-  function navRight() {
-    var url = document.getElementById('right-url').value.trim();
-    if (url) navTo('right-frame', 'right-url', url);
-  }
-  function mirrorLeft() {
-    try {
-      var loc = document.getElementById('left-frame').contentWindow.location.href;
-      navTo('right-frame', 'right-url', loc);
-    } catch(e) {}
-  }
-  function mirrorRight() {
-    try {
-      var loc = document.getElementById('right-frame').contentWindow.location.href;
-      navTo('left-frame', 'left-url', loc);
-    } catch(e) {}
-  }
-  function goBack(id) {
-    if (!hist[id].length) return;
-    var inputId = id === 'left-frame' ? 'left-url' : 'right-url';
-    var f = document.getElementById(id);
-    try { var cur = f.contentWindow.location.href; if (cur && cur !== 'about:blank') fwd[id].push(cur); } catch(e) {}
-    var prev = hist[id].pop();
-    f.src = prev;
-    document.getElementById(inputId).value = prev;
-  }
-  function goFwd(id) {
-    if (!fwd[id].length) return;
-    var inputId = id === 'left-frame' ? 'left-url' : 'right-url';
-    var f = document.getElementById(id);
-    try { var cur = f.contentWindow.location.href; if (cur && cur !== 'about:blank') hist[id].push(cur); } catch(e) {}
-    var next = fwd[id].pop();
-    f.src = next;
-    document.getElementById(inputId).value = next;
-  }
-  function trackFrame(id, inputId) {
-    var frame = document.getElementById(id);
-    frame.addEventListener('load', function() {
-      try {
-        var loc = frame.contentWindow.location.href;
-        if (loc && loc !== 'about:blank') {
-          document.getElementById(inputId).value = loc;
-        }
-      } catch(e) {}
-    });
-  }
-  trackFrame('left-frame', 'left-url');
-  trackFrame('right-frame', 'right-url');
-  '''
-::
 ++  render-tang
   |=  =tang
   ^-  tape
   %-  zing
   %+  turn  (flop tang)
   |=(=tank (weld ~(ram re tank) "\0a"))
-::
-++  format-size
-  |=  n=@ud
-  ^-  tape
-  ?:  (lth n 1.024)
-    "{(scow %ud n)} B"
-  ?:  (lth n 1.048.576)
-    "{(scow %ud (div n 1.024))} KB"
-  "{(scow %ud (div n 1.048.576))} MB"
-::
-++  render-dir-row
-  |=  [name=@ta sub=ball:tarball url-prefix=tape nexus-bang=(unit tang)]
-  ^-  manx
-  =/  dir-url=tape  "{url-prefix}/{(trip name)}"
-  ;tr(data-name (trip name), data-type "dir")
-    ;td
-      ;a/"{dir-url}": {(trip name)}/
-      ;*  ?~  nexus-bang  ~
-          =/  rendered=tape  (render-tang u.nexus-bang)
-          :~  ;span.boom-icon(data-tang rendered, onclick "showBoom(this)"): !
-          ==
-    ==
-    ;td.col-blot: -
-    ;td.col-mime: -
-    ;td: -
-    ;td.col-mtime: -
-    ;td.actions-cell
-      ;a/"{dir-url}?download=tar"
-        ;button(type "button"): Download
-      ==
-      ;button(type "button", onclick "renameItem('folder','{(trip name)}')"): Rename
-      ;button(type "button", onclick "moveItem('folder','{(trip name)}')"): Move
-      ;button(type "button", onclick "copyItem('folder','{(trip name)}')"): Copy
-      ;form.del-form(method "POST", action url-prefix)
-        ;input(type "hidden", name "action", value "delete-folder");
-        ;input(type "hidden", name "foldername", value (trip name));
-        ;button(type "submit", onclick "return confirm('Delete folder {(trip name)} and all its contents?')"): Delete
-      ==
-    ==
-  ==
-::
-++  render-grub-row
-  |=  $:  name=@ta
-          =sang:tarball
-          url-prefix=tape
-          pax=path
-          dir-wave=wave:nexus
-          now=@da
-          conversions=(map bars:tarball tube:clay)
-          code-namespace=(unit path)
-          file-bang=(unit tang)
-      ==
-  ^-  manx
-  =/  mtime-display=tape
-    ?~  fil.dir-wave  "-"
-    =/  cas=(unit cass:clay)  (~(get by file.u.fil.dir-wave) name)
-    ?~  cas  "-"
-    (en:datetime-local:iso-8601 da.u.cas)
-  =/  display-name=tape  (trip name)
-  =/  file-url=tape  "{url-prefix}/{display-name}"
-  ::  Boom file: render error row instead of crashing
-  ?:  (is-boom:tarball sang)
-    =/  boom-tang=tang
-      ?~  file-bang  ~[leaf+"validation failed"]
-      u.file-bang
-    =/  rendered=tape  (render-tang boom-tang)
-    ;tr.boom-row(data-name display-name, data-type "grub")
-      ;td
-        ;a/"{file-url}": {display-name}
-        ;span.boom-icon(data-tang rendered, onclick "showBoom(this)"): !
-      ==
-      ;td.col-blot: {(spud (rail-to-path:tarball p.sang))}
-      ;td.col-mime: -
-      ;td: -
-      ;td.col-mtime: {mtime-display}
-      ;td.actions-cell
-        ;form.del-form(method "POST", action url-prefix)
-          ;input(type "hidden", name "action", value "delete-grub");
-          ;input(type "hidden", name "filename", value display-name);
-          ;button(type "submit", onclick "return confirm('Delete {display-name}?')"): Delete
-        ==
-      ==
-    ==
-  =/  sag=sage:tarball  (need-sage:tarball sang)
-  ?:  =(%symlink name.p.sag)
-    =/  sym  !<(symlink:tarball q.sag)
-    =/  target-display=tape  (trip (encode-symlink:tarball sym))
-    =/  resolved-path=path  (resolve-symlink:tarball sym pax)
-    =/  target-url=tape  "/grubbery/ball{(trip (spat resolved-path))}"
-    ;tr(data-name (trip name), data-type "grub")
-      ;td
-        ;a/"{target-url}": {(trip name)}
-        ;span.symlink-target:  -> {target-display}
-      ==
-      ;td.col-blot: symlink
-      ;td.col-mime: -
-      ;td: -
-      ;td.col-mtime: {mtime-display}
-      ;td.actions-cell
-        ;form.del-form(method "POST", action url-prefix)
-          ;input(type "hidden", name "action", value "delete-grub");
-          ;input(type "hidden", name "filename", value (trip name));
-          ;button(type "submit", onclick "return confirm('Delete {(trip name)}?')"): Delete
-        ==
-      ==
-    ==
-  =/  mark-name=tape  (spud (rail-to-path:tarball p.sag))
-  =/  ext=(unit @ta)  (parse-extension:tarball name)
-  =/  rail-ext=@ta
-    %-  crip  %-  zing
-    %+  join  "_"
-    (turn (rail-to-path:tarball p.sag) trip)
-  =/  mark-matches=?
-    ?~  ext  %.n
-    =(u.ext rail-ext)
-  =/  mark-class=tape  ?:(mark-matches "" " mark-mismatch")
-  =/  =mime
-    ?:  =(%mime name.p.sag)
-      !<(mime q.sag)
-    (~(sage-to-mime gen:tarball [now conversions]) sag)
-  =/  mime-raw=tape  (trip (spat p.mime))
-  =/  mime-display=tape  ?~(mime-raw "" (tail mime-raw))
-  =/  is-binary=?  =(p.mime /application/x-urb-jam)
-  =/  view-url=tape  ?:(is-binary "{file-url}?pretty" file-url)
-  ;tr(data-name (trip name), data-type "grub", data-size (scow %ud p.q.mime))
-    ;td
-      ;a/"{view-url}": {display-name}
-      ;*  ?~  file-bang  ~
-          =/  rendered=tape  (render-tang u.file-bang)
-          :~  ;span.boom-icon(data-tang rendered, onclick "showBoom(this)"): !
-          ==
-    ==
-    ::  Blot link: governing /code namespace + /mar/ + blot rail
-    ;td.col-blot(class mark-class)
-      ;*  =/  mark-url=(unit tape)
-            ?~  code-namespace  ~
-            =/  mar-path=path  (weld u.code-namespace (weld /mar (rail-to-path:tarball p.sag)))
-            `"/grubbery/ball{(trip (spat mar-path))}.hoon"
-          ?~  mark-url
-            :~  ;span: {mark-name}
-            ==
-          :~  ;a/"{u.mark-url}": {mark-name}
-          ==
-    ==
-    ;td.col-mime: {mime-display}
-    ;td: {(format-size p.q.mime)}
-    ;td.col-mtime: {mtime-display}
-    ;td.actions-cell
-      ;a/"{file-url}"(download display-name)
-        ;button(type "button"): Download
-      ==
-      ;button(type "button", onclick "renameItem('grub','{display-name}')"): Rename
-      ;button(type "button", onclick "moveItem('grub','{display-name}')"): Move
-      ;button(type "button", onclick "copyItem('grub','{display-name}')"): Copy
-      ;form.del-form(method "POST", action url-prefix)
-        ;input(type "hidden", name "action", value "delete-grub");
-        ;input(type "hidden", name "filename", value (trip name));
-        ;button(type "submit", onclick "return confirm('Delete {(trip name)}?')"): Delete
-      ==
-    ==
-  ==
 --
