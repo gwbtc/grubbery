@@ -116,7 +116,7 @@ async function renderFile() {
   if (buildStatus) tabBuild.style.display = '';
 
   if (editable) {
-    ed.value = await (await fetch(here + '?raw=1')).text();
+    ed.value = present(await readRaw());
     edwrap.style.display = '';
   } else if (info.jammed) {
     src.textContent = info.text || '';
@@ -130,6 +130,23 @@ async function renderFile() {
   setupWrap();
   setupEditor();
   renderSource();
+}
+
+// ---- what the editor shows is the server's bytes, presented ----
+// The marc, not the editor, owns the canonical form: json comes back
+// compact whatever you typed. So every read from the backend goes
+// through present() before it lands in the textarea — json gets the
+// same pretty-print the Preview's text mode uses; everything else is
+// shown as-is. After a save the file is re-read and re-presented, so
+// the pane always shows what is actually stored.
+function readRaw() {
+  return fetch(here + '?raw=1').then(r => r.text());
+}
+function present(text) {
+  if (ext === 'json') {
+    try { return JSON.stringify(JSON.parse(text), null, 2); } catch (_) {}
+  }
+  return text;
 }
 
 const SHIKI_LANG = { js: 'javascript', mjs: 'javascript', ts: 'typescript',
@@ -248,18 +265,28 @@ function setupEditor() {
   async function save() {
     status.textContent = 'saving…';
     status.className = '';
+    const sent = ed.value;
     try {
       const res = await fetch(here, {
         method: 'POST',
         headers: { 'content-type': 'application/x-www-form-urlencoded' },
         body: new URLSearchParams(Object.assign(
-          { action: 'write-text', content: ed.value },
+          { action: 'write-text', content: sent },
           miteChanged ? { mite: mimeInput.value.trim() } : {}
         )),
       });
       const body = await res.text();
       if (res.ok) {
-        clean = ed.value;
+        // read back what the marc actually stored; only swap the pane
+        // if nothing was typed while the save was in flight
+        const stored = present(await readRaw());
+        clean = stored;
+        if (ed.value === sent && stored !== sent) {
+          const [s, epos] = [ed.selectionStart, ed.selectionEnd];
+          ed.value = stored;
+          ed.setSelectionRange(Math.min(s, stored.length), Math.min(epos, stored.length));
+          if (!editing) renderSource();
+        }
         mite = mimeInput.value.trim();
         miteChanged = false;
         syncSaveBtn();
