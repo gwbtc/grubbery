@@ -812,6 +812,22 @@
       %+  skip  (slag (lent `path`/grubbery/mcp) site)
       |=(seg=@ta =('' seg))
     ?:  =('GET' method.request.req)
+      ::  MCP Streamable HTTP: a GET that asks for an event stream is a
+      ::  client opening the server-initiated channel. This nexus has no
+      ::  such channel, and the spec's answer for that is 405 — a client
+      ::  told 405 stops asking. Answering with the Tools PAGE instead
+      ::  (200, text/html) reads to the client as a stream that closed at
+      ::  once, so it reconnects, for ever. Measured on a live ship: one
+      ::  ~6.5s request every ~6s per connected client, on a ship that runs
+      ::  its events one at a time — two idle clients saturated it and left
+      ::  behn an hour behind schedule. Browsers ask for text/html and are
+      ::  unaffected; the UI's own /api/* fetches ask for json.
+      =/  accept=tape
+        (trip (fall (get-header:http 'accept' header-list.request.req) ''))
+      ?:  ?=(^ (find "text/event-stream" accept))
+        %+  send-simple:srv  eyre-id
+        :-  [405 ~[['allow' 'POST']]]
+        `(as-octs:mimes:html 'Method Not Allowed')
       ?:  ?=([%api %tools ~] suffix)
         ::  the FULL registry, not the three-tool protocol allowlist
         ::  that tools/list advertises to MCP clients
