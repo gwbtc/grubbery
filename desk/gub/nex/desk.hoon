@@ -1003,7 +1003,7 @@
   (lose:io (nex-road:io rail [%| /desk]) [%numb `ud.u.cs `ud.u.cs])
 ::  set-snap-tag: add (put=%.y) or remove (put=%.n) one freeform label on
 ::  snapshot N. Reads the revision's current tag set and rewrites it whole
-::  — %tag is replace-semantics — so the numeric identity tag rides along
+::  — %tags is replace-semantics — so the numeric identity tag rides along
 ::  untouched.
 ::
 ++  set-snap-tag

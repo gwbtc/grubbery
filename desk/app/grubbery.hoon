@@ -55,7 +55,8 @@
 /=  t-  /tests/loader
 |%
 +$  versioned-state
-  $%  state-1:migrations
+  $%  state-2:migrations
+      state-1:migrations
       state-0:migrations
   ==
 +$  card  card:agent:gall
@@ -91,7 +92,12 @@
   !>(..zuse)
 --
 ::
-=|  state-1:migrations
+::  The build subject's hash, pinned once when gall constructs the
+::  agent core. A leg, not an arm: an arm would rehash on every
+::  reference, and it only changes with the agent itself.
+::
+=/  sut-hash=@uv  (sham q:sut)
+=|  state-2:migrations
 =*  state  -
 ::
 =<
@@ -118,13 +124,20 @@
   =/  old  !<(versioned-state old-state)
   ?-    -.old
       %0
-    ~>  %slog.[0 leaf+"grubbery: migrating state %0 -> %1"]
-    =.  state  (state-0-to-1:migrations old)
+    ~>  %slog.[0 leaf+"grubbery: migrating state %0 -> %1 -> %2"]
+    =.  state  (state-1-to-2:migrations (state-0-to-1:migrations old))
     =^  start-cards  state
       abet:cold-start:hc
     [start-cards this]
   ::
       %1
+    ~>  %slog.[0 leaf+"grubbery: migrating state %1 -> %2"]
+    =.  state  (state-1-to-2:migrations old)
+    =^  start-cards  state
+      abet:cold-start:hc
+    [start-cards this]
+  ::
+      %2
     =.  state  old
     =^  start-cards  state
       abet:cold-start:hc
@@ -575,12 +588,14 @@
 ++  cold-start
   ^-  _this
   =.  this  bootstrap-marcs
-  =.  this  sync-gub
-  =.  this  rebuild-stale-code
+  ::  /code source is mirrored and built here without a reload cascade;
+  ::  the single reload from root below makes every other code
+  ::  namespace fresh on the way down (reload-child-nexuses), before
+  ::  anything it governs is touched
+  =.  this  (sync-gub %.n)
   =.  this  carry-behn-state
   =.  this  (reload-nexus-at / root)
   =.  this  purge-stale-code
-  =.  this  (build-new-code-namespaces / (peek-bole-now /))
   =.  this  (spawn-all-files / (peek-bole-now /))
   =.  this  sync-dill
   =.  this  sync-clay
@@ -2840,10 +2855,9 @@
     ~&  >>  "reload-nexus: build error at {(spud dest)}"
     (bang-nexus dest p.nex)
   =.  this  (reload-nexus-at dest p.nex)
-  ::  A reload can drop subdirs that carried code necks (deregister)
-  ::  or create new ones (register) — reconcile both ways.
+  ::  A reload can drop subdirs that carried code necks — deregister.
+  ::  (New ones were registered by the reload walk itself.)
   =.  this  purge-stale-code
-  =.  this  (build-new-code-namespaces dest (peek-bole-now dest))
   =.  this  (rebuild-descendant-code dest sub-ball)
   (spawn-all-files dest (peek-bole-now dest))
 ::  Run on-load for a nexus at dest and apply results
@@ -2884,10 +2898,19 @@
 ::  Recursively reload all child nexuses top-to-bottom.
 ::  Every directory with a neck loads state and recurses into its children.
 ::
+::  Code namespaces go first. dest/code governs everything below dest
+::  (never dest itself), so making it fresh before any sibling is
+::  touched guarantees that every nexus built on the way down resolves
+::  into a namespace already compiled against the current agent
+::  subject. This ordering IS the stale-code and new-namespace pass:
+::  there is no separate sweep.
+::
 ++  reload-child-nexuses
   |=  dest=fold:tarball
   ^+  this
   =/  sub  (peek-ball-now dest)
+  =?  this  (~(has by dir.sub) %code)
+    (ensure-code-namespace (snoc dest %code))
   =/  kids=(list [@ta ball:tarball])  ~(tap by dir.sub)
   |-
   ?~  kids  this
@@ -2898,9 +2921,9 @@
     ?.  ?&  ?=(^ fil.kid-ball)
             ?=(^ neck.u.fil.kid-ball)
         ==
-      ::  Non-nexus directory — recurse deeper
-      $(kids ~(tap by dir.kid-ball), dest kid-path)
-    ::  /code necks are code namespaces, not nexuses — skip entirely
+      ::  Non-nexus directory — recurse deeper (its own /code first)
+      ^$(dest kid-path)
+    ::  /code necks are code namespaces, not nexuses — handled above
     ?:  =([/ %code] u.neck.u.fil.kid-ball)
       this
     =/  kid-nex=(each nexus:nexus tang)
@@ -2909,6 +2932,30 @@
       (bang-nexus kid-path p.kid-nex)
     (reload-nexus-at kid-path p.kid-nex)
   $(kids t.kids)
+::  +ensure-code-namespace: make a code namespace fresh, if it is one.
+::
+::    A code namespace is a directory named code whose neck is /code
+::    (find-code-ns resolves by that name). Unregistered: register and
+::    build. Registered but compiled against a previous agent subject
+::    (sentinel mismatch): rebuild. Otherwise nothing — source changes
+::    at runtime already build on write. Never cascades reloads: the
+::    caller is the walk.
+::
+++  ensure-code-namespace
+  |=  here=fold:tarball
+  ^+  this
+  ?~  here  this
+  ?.  =(%code (rear here))  this
+  =/  sub  (peek-ball-now here)
+  ?.  ?&(?=(^ fil.sub) ?=(^ neck.u.fil.sub) =([/ %code] u.neck.u.fil.sub))
+    this
+  =/  lod=(unit lode:nexus)  (~(get by code) here)
+  ?~  lod
+    ~&  >  "register-code-namespace: {(spud here)}"
+    (build-code-with here ~ %.n)
+  ?:  =(`[sut-hash sut-hash] (~(get by keys.u.lod) sut-rail))  this
+  ~&  >  "ensure-code-namespace: subject changed, rebuilding {(spud here)}"
+  (build-code-with here ~ %.n)
 ::  +spawn-all-files: spawn a process for every file in a bole
 ::
 ::    Walks the bole recursively. At each directory carrying a neck
@@ -3257,16 +3304,31 @@
   |=  [pax=path =neck:tarball]
   ^-  (each nexus:nexus tang)
   ?:  =([/ %root] neck)  &+root
+  =/  nek=tape  (trip (rail-to-arm:tarball [path.neck name.neck]))
   =/  res  (resolve-built pax (weld /nex path.neck) name.neck)
-  ?~  res  |+~[leaf+"build-nexus: no built nexus %{(trip (rail-to-arm:tarball [path.neck name.neck]))} at {(spud (weld /nex path.neck))} (from {(spud pax)})"]
+  ?~  res  |+~[leaf+"build-nexus: no built nexus %{nek} at {(spud (weld /nex path.neck))} (from {(spud pax)})"]
+  =/  where=tape  "%{nek} in {(spud namespace.u.res)} (from {(spud pax)})"
   ?+  -.built.u.res
-    |+~[leaf+"build-nexus: unexpected artifact type {<-.built.u.res>}"]
+    |+~[leaf+"build-nexus: unexpected artifact type {<-.built.u.res>} for {where}"]
     %tang  |+tang.built.u.res
     %vase
   =/  nex=(unit nexus:nexus)
     (mole |.(!<(nexus:nexus vase.built.u.res)))
-  ?~  nex  |+~[leaf+"build-nexus: failed to extract nexus from vase"]
-  &+u.nex
+  ?^  nex  &+u.nex
+  ::  the compiled type doesn't nest the kernel's nexus:nexus. That
+  ::  means a namespace built against an older agent subject and not
+  ::  rebuilt yet — name it, and say whether its sentinel agrees.
+  =/  stale=?
+    =/  lod=(unit lode:nexus)  (~(get by code) namespace.u.res)
+    ?~  lod  %.y
+    !=(`[sut-hash sut-hash] (~(get by keys.u.lod) sut-rail))
+  :-  %|
+  :~  leaf+"build-nexus: failed to extract nexus {where}"
+      :-  %leaf
+      ?:  stale
+        "namespace {(spud namespace.u.res)} was built against an older agent subject and has not been rebuilt"
+      "namespace {(spud namespace.u.res)} is current, yet the compiled type does not nest nexus:nexus"
+  ==
   ==
 ::
 ++  find-nearest-nexus
@@ -3349,7 +3411,7 @@
       ?(%peek %keep %drop %seek %peep %code %font %born)  %peek  :: read operations
       %poke                       %poke
         $?  %make  %cull  %sand  %load
-            %lose  %gain  %firm  %tag
+            %lose  %gain  %firm  %tags
         ==
       %make  :: all modify tree structure
     ==
@@ -3567,7 +3629,7 @@
         %|  (enqu-take here ~ ~ %held wire.dart `p.res)
       ==
       ::
-        %tag
+        %tags
       ::  Set tags on current hist entry (file or fold).
       =/  res=(each _this tang)
         %-  mule  |.
@@ -4357,7 +4419,9 @@
         $(pax (snip `path`pax))
       ?~  cod  this
       (build-code u.cod ~)
-    =.  this  (build-new-code-namespaces dest-path new-bole)
+    ::  the made directory may itself be a code namespace: register it
+    ::  before its siblings and children are reloaded
+    =.  this  (ensure-code-namespace dest-path)
     ::  Reload nexuses in the new bole (runs on-load, recurses children)
     =/  sub-ball  (peek-ball-now dest-path)
     =.  this
@@ -4366,10 +4430,6 @@
           (build-nexus dest-path u.neck.u.fil.sub-ball)
         ?:(?=(%| -.nex) (bang-nexus dest-path p.nex) (reload-nexus-at dest-path p.nex))
       (reload-child-nexuses dest-path)
-    ::  On-loads can CREATE %code-necked subdirs (e.g. the desk
-    ::  nexus's /desk/code) — re-scan the realized tree so they
-    ::  register now, not at the next cold-start. Idempotent.
-    =.  this  (build-new-code-namespaces dest-path (peek-bole-now dest-path))
     (spawn-all-files dest-path (peek-bole-now dest-path))
     ::
       %&
@@ -4936,33 +4996,6 @@
   ~&  >>  "sync-clay-desk: subscribing to {<dek>}"
   %-  emit-card
   [%pass /clay-desk/[dek] %arvo %c %warp our.bowl dek `[%next %z da+now.bowl /]]
-::  +build-new-code-namespaces: register and build new %code directories
-::
-::    Walks a newly installed bole. Any directory carrying the %code
-::    neck that is not yet in the code map is registered and built
-::    with a full sweep. Recurses into children.
-::
-++  build-new-code-namespaces
-  |=  [here=fold:tarball bol=bole:tarball]
-  ^+  this
-  ::  check if this directory has a %code neck
-  ?:  ?&  ?=(^ fil.bol)
-          ?=(^ neck.u.fil.bol)
-          =([/ %code] u.neck.u.fil.bol)
-      ==
-    ::  skip if already registered and built
-    ?:  (~(has by code) here)  this
-    ::  register and build (new namespace: no prior graph, full sweep)
-    ~&  >  "register-code-namespace: {(spud here)}"
-    =.  this  (build-code here ~)
-    this
-  ::  recurse into children
-  =/  kids=(list [@ta bole:tarball])  ~(tap by dir.bol)
-  |-
-  ?~  kids  this
-  =.  this  ^$(here (snoc here -.i.kids), bol +.i.kids)
-  $(kids t.kids)
-::
 ::  +refs-inc: increment refcounts for all ckeys in a refs axal
 ::  For new ckeys, stores the built value from the provided map.
 ::
@@ -5121,46 +5154,42 @@
   ?:((~(has by ma) r) ~ `r)
 ::  Compile a code nexus into its lode in the code map.
 ::
-::  +rebuild-stale-code: recompile every registered code namespace whose
-::  recorded build subject differs from the current one.
+::  Subject sentinel. An agent upgrade changes sut, invalidating every
+::  compiled artifact: a nexus built against the old subject fails !<
+::  extraction at the kernel boundary. Each lode records the subject
+::  it was built against under sut-rail; +ensure-code-namespace
+::  consults it as the reload walk enters each directory, so a stale
+::  namespace is rebuilt before anything it governs is reloaded. No-op
+::  when the subject is unchanged — ordinary restarts stay free.
 ::
-::  An agent upgrade changes sut, invalidating every compiled artifact:
-::  a cached nexus built against the old subject fails !< extraction at
-::  the kernel boundary. Root /code rebuilds anyway (sync-gub changes
-::  its sources), but a scoped namespace with untouched sources was
-::  skipped by build-new-code-namespaces' already-registered guard, so
-::  its subject sentinel was never consulted and stale artifacts
-::  survived to bang at spawn. Runs before the root reload so nothing
-::  is built-against-stale when nexuses respawn. No-op when the
-::  subject is unchanged — ordinary restarts stay free.
+::  TODO (its own state version, deliberate — do NOT rider this onto
+::  another change): the subject is a DEPENDENCY, not a property.
 ::
-::  TODO (state-2, deliberate — do NOT rider this onto another change):
-::  the subject hash currently hides in keys.lode under the fake rail
-::  [/ %$] as an [hash hash] pair, with special cases in skip-set and
-::  refs iteration stepping around it. The clean shape, decided but
-::  not yet built:
-::    1. lode gains an explicit sut=@uv field (cheap per-namespace
-::       gate; this arm's lookup becomes one line)
-::    2. build-inc folds sut-hash into every per-file in-hash, so a
-::       stale key CANNOT match by construction — no code path can
-::       bypass what isn't a separate check
-::    3. delete the fake-rail sentinel and all its special cases
-::  Costs: lode reshape = state-2 migration (code is derived state —
-::  map or reset+rebuild), and the hash change itself forces one full
-::  recompile sweep on deploy. Both correct, both loud. Sequence it
-::  as its own change with its own verification.
+::  It already behaves like one where it matters: every ckey is
+::  sham [sut-hash src-hash path dep-keys], so a stale artifact cannot
+::  be cache-hit by construction. What's left is that the subject node
+::  lives in keys.lode under the fake rail [/ %$] but not in deps.lode,
+::  so skip-set checks it by hand and the keys iterators step around
+::  a key with no artifact. Decided shape:
+::    1. the subject is an ordinary node in deps.lode — every file
+::       depends on it; its key is sut-hash
+::    2. skip-set drops its sentinel branch: a changed subject puts the
+::       node in the changed set, its reverse closure is every file,
+::       the normal rule says sweep
+::    3. +ensure-code-namespace asks "is the subject node's recorded
+::       key current", the same question it asks of any dep
+::    4. delete sut-rail and every special case
+::  No lode field, no new data: a rename of a concept plus removing
+::  the branches that treat it as special. code is derived state, so
+::  the migration is map-or-rebuild.
 ::
-++  rebuild-stale-code
-  ^+  this
-  =/  sut-hash=@uv  (sham q:sut)
-  =/  cods=(list [cod=path =lode:nexus])  ~(tap by code)
-  |-
-  ?~  cods  this
-  ?:  =(`[sut-hash sut-hash] (~(get by keys.lode.i.cods) sut-rail))
-    $(cods t.cods)
-  ~&  >  "rebuild-stale-code: subject changed, rebuilding {(spud cod.i.cods)}"
-  =.  this  (build-code cod.i.cods ~)
-  $(cods t.cods)
+::  Same pattern, next candidates: +purge-stale-code and
+::  +rebuild-descendant-code both scan the tree AFTER a reload to
+::  reconcile derived state with it. The reload walk already visits
+::  every directory; both belong in it, as +ensure-code-namespace now
+::  does. Things that scan the tree separately should become
+::  properties of the one walk.
+::
 ::  +rebuild-descendant-code: incrementally rebuild descendant code
 ::  namespaces whose source changed. Diffs old-ball against the current
 ::  ball under root, groups changed rails by enclosing code namespace,
@@ -5195,6 +5224,19 @@
 ++  build-code
   |=  [cod=path changed=(unit (set rail:tarball))]
   ^+  this
+  (build-code-with cod changed %.y)
+::  +build-code-with: build-code, choosing whether to cascade reloads.
+::
+::  reload=%.n when the caller is itself a reload walk (cold-start's
+::  sync-gub, ensure-code-namespace): the walk reloads everything the
+::  namespace governs on its way down. Cascading from inside the build
+::  would reload directories whose nexuses resolve into namespaces the
+::  walk hasn't reached yet — stale artifacts, failed extracts, bangs.
+::  %.y for a live source change, where the build is the only trigger.
+::
+++  build-code-with
+  |=  [cod=path changed=(unit (set rail:tarball)) reload=?]
+  ^+  this
   ~&  >  "build-code: start {(spud cod)}"
   ::  1. Source: get ball, force foundational marks
   ::
@@ -5209,7 +5251,6 @@
   =/  =lode:nexus   (fall (~(get by code) cod) *lode:nexus)
   =/  old-refs       refs.lode
   =/  old-cache      ~>(%bout.[1 %bins-to-cache] (bins-to-cache:build keys.lode bins))
-  =/  sut-hash=@uv   ~>(%bout.[1 %build-sut-hash] (sham q:sut))
   =/  skp            ~>(%bout.[1 %build-skip-set] (skip-set cod lode changed sut-hash))
   =/  res            ~>(%bout.[1 %build-all] (build-inc:build sut sut-hash src-ball old-cache skp))
   ~&  >  "build-code: compiled {<~(wyt by results.res)>} results"
@@ -5237,9 +5278,10 @@
   =.  code
     =/  upd=lode:nexus  (fall (~(get by code) cod) *lode:nexus)
     (~(put by code) cod upd(refs new-refs))
-  ::  8. Reload nexuses whose compiled code changed
+  ::  8. Reload nexuses whose compiled code changed (unless the caller
+  ::  reloads the whole tree afterwards — cold-start)
   ::
-  =.  this
+  =?  this  reload
     ~>(%bout.[1 %reload-changed-nexuses] (reload-changed-nexuses cod old-refs new-refs))
   ~&  >  "build-code: done"
   this
@@ -5637,7 +5679,6 @@
   ~&  >  "reload-changed-nexuses: reload-nexus-at done"
   =.  this  purge-stale-code
   =/  reload-bole  (peek-bole-now dest)
-  =.  this  (build-new-code-namespaces dest reload-bole)
   =.  this  (rebuild-descendant-code dest old-ball)
   ~&  >  "reload-changed-nexuses: spawn-all-files start"
   =.  this  (spawn-all-files dest reload-bole)
@@ -5717,9 +5758,12 @@
     ~&  >>>  "sync-gub: mime validation failed for {(trip name)}"
     acc
   (~(put ba:tarball acc) [rel-dir name] [[/ %mime] %& p.val])
-::  +sync-gub: mirror /gub/ from clay into /code/, then build
+::  +sync-gub: mirror /gub/ from clay into /code/, then build.
+::  reload=%.n at cold-start (the tree is reloaded once from root after
+::  every namespace is rebuilt); %.y on a live clay change.
 ::
 ++  sync-gub
+  |=  reload=?
   ^+  this
   ~&  >  "sync-gub: start"
   =/  pax=path  /(scot %p our.bowl)/grubbery/(scot %da now.bowl)
@@ -5740,7 +5784,7 @@
     %-  ~(run in (ball-diff old-src new-src))
     |=(r=rail:tarball `rail:tarball`[(weld /code path.r) name.r])
   ~&  >  "sync-gub: {<~(wyt in diff)>} changed rails"
-  =.  this  (build-code /code `diff)
+  =.  this  (build-code-with /code `diff reload)
   ~&  >  "sync-gub: build-code done"
   this
 ::  List all files mirrored under a /sys/clay/desks/[desk] path
@@ -5800,7 +5844,7 @@
   =.  this  (sync-clay-desk dek)
   =?  this  =(dek %grubbery)
     ~&  >>  "on-clay-writ: triggering sync-gub"
-    sync-gub
+    (sync-gub %.y)
   this
 ::
 ++  unmount-clay-desk

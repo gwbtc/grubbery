@@ -100,7 +100,7 @@
       [%lose =lose]             :: drop hist entries, decrement silo refs
       [%gain flag=?]            :: set gain flag (recursive on directories)
       [%firm ~]                 :: promote current entry to %firm
-      [%tag case=(unit case) tags=(set @t)]  :: set tags on hist entry (~ = current)
+      [%tags case=(unit case) tags=(set @t)]  :: set tags on hist entry (~ = current)
       [%seek =nobe]              :: find all [rail cass] pairs with this hash
       [%peep =find]
       [%born ~]                 :: read hist metadata at dest (file or fold)

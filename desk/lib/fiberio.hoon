@@ -491,7 +491,7 @@
   ^-  form:m
   ;<  =wire  bind:m  (nonce /tag)
   ;<  ~  bind:m
-    (send-dart %node wire road %tag cas tags)
+    (send-dart %node wire road %tags cas tags)
   (take-held wire)
 ::
 ++  peek
