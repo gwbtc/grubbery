@@ -1,27 +1,21 @@
-// mcp ui: tool registry (left) + the /proc tree (right).
-// Data: GET /grubbery/mcp/api/tools  (JSON-RPC tools/list shape, full registry)
-//       GET /grubbery/mcp/api/proc   ({dirs, files, transport} tree)
+// mcp ui: tool registry, runs in flight, and a reference reader.
+// Data: GET /grubbery/mcp/api/tools-tree  (registry as a location tree)
+//       GET /grubbery/mcp/api/runs        (run grubs in the tools child)
 //       GET /grubbery/mcp/api/src?tool=
-//       POST /grubbery/mcp/api/run | run-del | sandbox-add | sandbox-edit | sandbox-del
+//       POST /grubbery/mcp                (JSON-RPC tools/call — the same
+//                                          path every MCP client uses)
 
 const $ = (id) => document.getElementById(id);
 
 let tools = [];        // flat, for the run form's tool select
-let toolsTree = { dirs: [], tools: [] }; // location tree, root = lib/mcp
-let proc = { dirs: [], files: [], transport: [] };
-const collapsed = new Set();     // /proc dir paths the user closed
+let toolsTree = { dirs: [], tools: [] }; // location tree, root = lib/tools
+let runs = [];
 const toolsCollapsed = new Set(); // registry group paths the user closed
 
 async function fetchJson(url) {
   const res = await fetch(url);
   if (!res.ok) throw new Error(`${url}: ${res.status}`);
   return res.json();
-}
-
-async function postJson(url, body) {
-  const res = await fetch(url, { method: 'POST', body: JSON.stringify(body) });
-  if (!res.ok) throw new Error(`${url}: ${res.status} ${await res.text()}`);
-  return res;
 }
 
 // ── tools pane ─────────────────────────────────────────────────────
@@ -43,6 +37,13 @@ function lastSeg(name) {
 
 function fileOf(name) {
   return lastSeg(name).replace(/_/g, '-') + '.hoon';
+}
+
+function row(depth) {
+  const el = document.createElement('div');
+  el.className = 'tree-row';
+  el.style.paddingLeft = `${8 + depth * 20}px`;
+  return el;
 }
 
 function toolRow(t, depth) {
@@ -122,17 +123,11 @@ function renderToolsTree() {
   updateCounts();
 }
 
-// ── the /proc tree ─────────────────────────────────────────────────
+// ── runs pane: run grubs in the tools child, in flight ─────────────
 
-async function loadProc() {
-  proc = await fetchJson('/grubbery/mcp/api/proc');
-  renderProc();
-}
-
-function countRuns(node) {
-  let n = (node.files || []).length;
-  for (const d of node.dirs || []) n += countRuns(d);
-  return n;
+async function loadRuns() {
+  runs = await fetchJson('/grubbery/mcp/api/runs');
+  renderRuns();
 }
 
 function stepClass(step) {
@@ -152,219 +147,53 @@ function resultSummary(run) {
   return { text: 'result', cls: '' };
 }
 
-function row(depth) {
-  const el = document.createElement('div');
-  el.className = 'tree-row';
-  el.style.paddingLeft = `${8 + depth * 20}px`;
-  return el;
-}
-
-function dirRow(node, path, depth) {
-  const el = row(depth);
-  el.classList.add('tree-dir');
-
-  const caret = document.createElement('button');
-  caret.className = 'caret';
-  caret.textContent = collapsed.has(path) ? '▸' : '▾';
-  caret.addEventListener('click', (e) => {
-    e.stopPropagation();
-    if (collapsed.has(path)) collapsed.delete(path);
-    else collapsed.add(path);
-    renderProc();
-  });
-
-  const name = document.createElement('span');
-  name.className = 'dir-name mono';
-  name.textContent = node.name + '/';
-
-  const rules = document.createElement('span');
-  rules.className = 'sb-count';
-  if (node.rules === null || node.rules === undefined) {
-    rules.textContent = 'open';
-    rules.title = 'no weir: nothing filtered';
-  } else if (!node.rules.length) {
-    rules.textContent = 'closed';
-    rules.title = 'empty weir: reaches nothing';
-  } else {
-    rules.textContent = `${node.rules.length} rule${node.rules.length === 1 ? '' : 's'}`;
-    rules.title = node.rules.map((r) => `${r.kind} ${r.road}`).join('\n');
-  }
-
-  const spacer = document.createElement('span');
-  spacer.className = 'sb-spacer';
-
-  const add = document.createElement('button');
-  add.className = 'small';
-  add.textContent = '+';
-  add.title = `New run or sandbox inside ${path}`;
-  add.addEventListener('click', (e) => { e.stopPropagation(); openChooser(path + '/'); });
-
-  const edit = document.createElement('button');
-  edit.className = 'small';
-  edit.textContent = 'edit';
-  edit.title = 'Edit this sandbox’s weir';
-  edit.addEventListener('click', (e) => { e.stopPropagation(); openEditor(path, node.rules); });
-
-  const del = document.createElement('button');
-  del.className = 'small danger';
-  del.textContent = '×';
-  del.title = 'Delete this sandbox and everything inside it';
-  del.addEventListener('click', async (e) => {
-    e.stopPropagation();
-    if (!confirm(`Delete sandbox "${path}" and everything inside it?`)) return;
-    try {
-      await postJson('/grubbery/mcp/api/sandbox-del', { path });
-      await loadProc();
-    } catch (err) { alert(err.message); }
-  });
-
-  el.append(caret, name, rules, spacer, add, edit, del);
-  el.addEventListener('click', () => openEditor(path, node.rules));
-  return el;
-}
-
-function fileRow(run, dirPath, depth, transport) {
-  const el = row(depth);
+function runRow(run) {
+  const el = row(0);
   el.classList.add('tree-file');
-
   const pad = document.createElement('span');
   pad.className = 'caret-pad';
-
   const id = document.createElement('span');
   id.className = 'file-id mono';
   id.textContent = run.id;
-
   const tool = document.createElement('span');
   tool.className = 'file-tool';
   tool.textContent = run.tool;
-
   const step = document.createElement('span');
   step.className = stepClass(run.step);
   step.textContent = run.step;
-
   const sum = resultSummary(run);
   const result = document.createElement('span');
   result.className = 'file-result ' + sum.cls;
   result.textContent = sum.text;
-
-  const spacer = document.createElement('span');
-  spacer.className = 'sb-spacer';
-
-  el.append(pad, id, tool, step, result, spacer);
-
-  if (!transport) {
-    const del = document.createElement('button');
-    del.className = 'small danger';
-    del.textContent = '×';
-    del.title = 'Delete this run';
-    del.addEventListener('click', async (e) => {
-      e.stopPropagation();
-      const path = dirPath ? `${dirPath}/${run.id}` : run.id;
-      if (!confirm(`Delete run "${path}"? Its result and history go with it.`)) return;
-      try {
-        await postJson('/grubbery/mcp/api/run-del', { path });
-        await loadProc();
-      } catch (err) { alert(err.message); }
-    });
-    el.appendChild(del);
-  }
-
+  el.append(pad, id, tool, step, result);
   el.addEventListener('click', () =>
-    showModal(`${run.tool} · ${dirPath ? dirPath + '/' : ''}${run.id}`,
-      JSON.stringify(run, null, 2)));
+    showModal(`${run.tool} · ${run.id}`, JSON.stringify(run, null, 2)));
   return el;
 }
 
-function renderNode(node, path, depth, out) {
-  out.appendChild(dirRow(node, path, depth));
-  if (collapsed.has(path)) return;
-  const dirs = node.dirs || [];
-  const files = node.files || [];
-  if (!dirs.length && !files.length) {
-    const el = row(depth + 1);
-    el.classList.add('tree-empty');
-    const pad = document.createElement('span');
-    pad.className = 'caret-pad';
-    const msg = document.createElement('span');
-    msg.className = 'muted';
-    msg.textContent = 'no running processes';
-    el.append(pad, msg);
-    out.appendChild(el);
-    return;
-  }
-  for (const d of dirs) {
-    renderNode(d, path ? `${path}/${d.name}` : d.name, depth + 1, out);
-  }
-  for (const f of files) {
-    out.appendChild(fileRow(f, path, depth + 1, false));
-  }
-}
-
-function renderProc() {
-  const out = $('proc-tree');
+function renderRuns() {
+  const out = $('runs-list');
   out.textContent = '';
-  for (const d of proc.dirs || []) renderNode(d, d.name, 0, out);
-  for (const f of proc.files || []) out.appendChild(fileRow(f, '', 0, false));
-
-  const transport = proc.transport || [];
-  if (transport.length) {
-    const hdr = row(0);
-    hdr.classList.add('tree-dir', 'transport');
-    const pad = document.createElement('span');
-    pad.className = 'caret-pad';
-    const name = document.createElement('span');
-    name.className = 'dir-name mono';
-    name.textContent = 'tools/ (transport, in flight)';
-    hdr.append(pad, name);
-    out.appendChild(hdr);
-    for (const f of transport) out.appendChild(fileRow(f, null, 1, true));
-  }
-
-  $('proc-empty').hidden =
-    (proc.dirs || []).length !== 0 ||
-    (proc.files || []).length !== 0 ||
-    transport.length !== 0;
+  for (const r of runs) out.appendChild(runRow(r));
+  $('runs-empty').hidden = runs.length !== 0;
   updateCounts();
 }
 
 function updateCounts() {
-  $('counts').textContent =
-    `${tools.length} tools · ${countRuns(proc)} runs`;
+  $('counts').textContent = `${tools.length} tools · ${runs.length} runs`;
 }
-
-// ── creation: chooser -> run form / sandbox editor ─────────────────
-
-let chooserPrefix = '';
-
-function openChooser(prefix) {
-  chooserPrefix = prefix || '';
-  $('new-modal-title').textContent =
-    chooserPrefix ? `New in ${chooserPrefix}` : 'New';
-  $('new-modal').hidden = false;
-}
-
-$('new-run').addEventListener('click', () => {
-  $('new-modal').hidden = true;
-  showRunModal(chooserPrefix);
-});
-$('new-sandbox').addEventListener('click', () => {
-  $('new-modal').hidden = true;
-  openEditor(null, null, chooserPrefix);
-});
-$('new-modal-close').addEventListener('click', () => { $('new-modal').hidden = true; });
-$('proc-new').addEventListener('click', () => openChooser(''));
 
 function selectPane(pane) {
   $('tab-tools').classList.toggle('active', pane === 'tools');
-  $('tab-instances').classList.toggle('active', pane === 'instances');
+  $('tab-runs').classList.toggle('active', pane === 'runs');
   $('tab-reference').classList.toggle('active', pane === 'reference');
   $('tools-view').hidden = pane !== 'tools';
-  $('instances-view').hidden = pane !== 'instances';
+  $('runs-view').hidden = pane !== 'runs';
   $('reference-view').hidden = pane !== 'reference';
   if (pane === 'reference') renderReference();
 }
 $('tab-tools').addEventListener('click', () => selectPane('tools'));
-$('tab-instances').addEventListener('click', () => selectPane('instances'));
+$('tab-runs').addEventListener('click', () => selectPane('runs'));
 $('tab-reference').addEventListener('click', () => selectPane('reference'));
 
 // ── reference: a docs-style reading surface over the registry ──────
@@ -377,7 +206,7 @@ let refRendered = false;
 function refGroups() {
   const groups = [];
   (function walk(node, prefix) {
-    const here = prefix || 'lib/mcp';
+    const here = prefix || 'lib/tools';
     if ((node.tools || []).length) groups.push({ dir: here, tools: node.tools });
     for (const d of node.dirs || []) walk(d, `${here}/${d.name}`);
   })(toolsTree, '');
@@ -517,97 +346,7 @@ function renderReference() {
   }
 }
 
-// ── sandbox editor ─────────────────────────────────────────────────
-
-const KINDS = ['poke', 'peek', 'make'];
-
-// Every tool needs these two boundary crossings just to run. Pre-filled,
-// not hidden — delete them and the sandbox can't run anything, which is
-// a legitimate choice.
-const BASELINE_RULES = [
-  { kind: 'poke', road: '/sys/bowl.sig' },  // fiber runtime: time, identity, entropy
-  { kind: 'peek', road: '/code/' },         // load tool code (app tools also need /apps/)
-];
-
-function ruleRow(rule) {
-  const rowEl = document.createElement('div');
-  rowEl.className = 'sb-rule-row';
-  const kind = document.createElement('select');
-  for (const k of KINDS) {
-    const opt = document.createElement('option');
-    opt.value = k;
-    opt.textContent = k;
-    if (rule && rule.kind === k) opt.selected = true;
-    kind.appendChild(opt);
-  }
-  const road = document.createElement('input');
-  road.type = 'text';
-  road.placeholder = '/sys/eyre/  (trailing / = subtree)';
-  road.spellcheck = false;
-  road.value = rule ? rule.road : '';
-  const rm = document.createElement('button');
-  rm.className = 'small danger';
-  rm.textContent = '×';
-  rm.addEventListener('click', () => rowEl.remove());
-  rowEl.append(kind, road, rm);
-  return rowEl;
-}
-
-// editPath = existing sandbox path (edit mode); prefix = for new nested
-function openEditor(editPath, rules, prefix) {
-  $('sb-modal-title').textContent = editPath ? `Edit sandbox: ${editPath}` : 'New sandbox';
-  $('sb-name').value = editPath ? editPath : (prefix || '');
-  $('sb-name').disabled = !!editPath;
-  setWeirMode(editPath ? (rules === null || rules === undefined) : false);
-  $('sb-rules').textContent = '';
-  for (const r of (editPath ? (rules || []) : BASELINE_RULES)) {
-    $('sb-rules').appendChild(ruleRow(r));
-  }
-  $('sb-modal').hidden = false;
-}
-
-let weirOpen = false;
-function setWeirMode(open) {
-  weirOpen = open;
-  $('sb-mode-rules').classList.toggle('active', !open);
-  $('sb-mode-open').classList.toggle('active', open);
-  $('sb-rules').style.display = open ? 'none' : '';
-  $('sb-add-rule').disabled = open;
-}
-$('sb-mode-rules').addEventListener('click', () => setWeirMode(false));
-$('sb-mode-open').addEventListener('click', () => setWeirMode(true));
-
-function readEditor() {
-  const path = $('sb-name').value.trim().replace(/^\/+|\/+$/g, '');
-  if (!path || !/^[a-z0-9-]+(\/[a-z0-9-]+)*$/.test(path)) {
-    throw new Error('path must be segments of lowercase, digits, hyphens');
-  }
-  if (weirOpen) return { path, rules: null };
-  const rules = [];
-  for (const rowEl of $('sb-rules').children) {
-    const [kind, road] = rowEl.children;
-    if (!road.value.trim()) continue;
-    if (!road.value.startsWith('/')) throw new Error(`road must start with /: ${road.value}`);
-    rules.push({ kind: kind.value, road: road.value.trim() });
-  }
-  return { path, rules };
-}
-
-$('sb-add-rule').addEventListener('click', () => $('sb-rules').appendChild(ruleRow()));
-$('sb-cancel').addEventListener('click', () => { $('sb-modal').hidden = true; });
-$('sb-modal-close').addEventListener('click', () => { $('sb-modal').hidden = true; });
-$('sb-save').addEventListener('click', async () => {
-  let body;
-  try { body = readEditor(); } catch (err) { alert(err.message); return; }
-  const isEdit = $('sb-name').disabled;
-  try {
-    await postJson(`/grubbery/mcp/api/sandbox-${isEdit ? 'edit' : 'add'}`, body);
-    $('sb-modal').hidden = true;
-    await loadProc();
-  } catch (err) { alert(err.message); }
-});
-
-// ── modals: raw view, tool detail, run form ────────────────────────
+// ── modals: raw view, tool detail (schema | source | run) ──────────
 
 function showModal(title, text) {
   $('modal-title').textContent = title;
@@ -665,7 +404,7 @@ function showToolModal(t) {
       return;
     }
     if (tab === 'run') {
-      panel.replaceChildren(runForm(t, ''));
+      panel.replaceChildren(runForm(t));
       return;
     }
     if (sourceEl) { panel.replaceChildren(sourceEl); return; }
@@ -694,37 +433,22 @@ function showToolModal(t) {
   $('modal').hidden = false;
 }
 
-function showRunModal(prefix) {
-  $('modal-title').textContent = 'New run';
-  const wrap = document.createElement('div');
-  const picker = document.createElement('label');
-  picker.className = 'sb-field run-field pad-top';
-  const pickName = document.createElement('span');
-  pickName.textContent = 'tool';
-  const sel = document.createElement('select');
-  const blank = document.createElement('option');
-  blank.value = '';
-  blank.textContent = 'select a tool…';
-  sel.appendChild(blank);
-  for (const t of tools) {
-    const opt = document.createElement('option');
-    opt.value = t.name;
-    opt.textContent = t.name;
-    sel.appendChild(opt);
-  }
-  picker.append(pickName, sel);
-  const formSlot = document.createElement('div');
-  sel.addEventListener('change', () => {
-    const t = tools.find((x) => x.name === sel.value);
-    formSlot.replaceChildren();
-    if (t) formSlot.appendChild(runForm(t, prefix || ''));
+// The Run tab is an MCP client: it POSTs a JSON-RPC tools/call to the
+// endpoint itself, so a UI run is exactly what a Claude run is — same
+// path, same tools child, same weir. The result lands in the form.
+let rpcId = 0;
+async function callTool(name, args) {
+  const res = await fetch('/grubbery/mcp', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ jsonrpc: '2.0', id: ++rpcId, method: 'tools/call',
+                           params: { name, arguments: args } }),
   });
-  wrap.append(picker, formSlot);
-  $('modal-body').replaceChildren(wrap);
-  $('modal').hidden = false;
+  if (!res.ok) throw new Error(`tools/call: ${res.status} ${await res.text()}`);
+  return res.json();
 }
 
-function runForm(t, prefix) {
+function runForm(t) {
   const body = document.createElement('div');
   body.className = 'sb-form';
 
@@ -763,21 +487,11 @@ function runForm(t, prefix) {
     body.appendChild(none);
   }
 
-  const place = document.createElement('label');
-  place.className = 'sb-field run-field';
-  const placeName = document.createElement('span');
-  placeName.textContent = 'path';
-  placeName.title = 'Where under /proc this run lives. Blank = auto id at /proc root.';
-  const placeInput = document.createElement('input');
-  placeInput.type = 'text';
-  placeInput.placeholder = 'sandbox/run-name — blank for auto';
-  placeInput.spellcheck = false;
-  placeInput.value = prefix || '';
-  place.append(placeName, placeInput);
-  body.appendChild(place);
-
   const status = document.createElement('p');
   status.className = 'sb-note';
+  const out = document.createElement('pre');
+  out.className = 'run-result';
+  out.hidden = true;
   const actions = document.createElement('div');
   actions.className = 'sb-actions';
   const runBtn = document.createElement('button');
@@ -810,24 +524,27 @@ function runForm(t, prefix) {
       status.textContent = String(err.message || err);
       return;
     }
-    const req = { tool: t.name, args };
-    const pathVal = placeInput.value.trim().replace(/^\/+|\/+$/g, '');
-    if (pathVal) req.path = pathVal;
     runBtn.disabled = true;
-    status.textContent = 'Starting…';
+    status.textContent = 'Running…';
+    out.hidden = true;
+    loadRuns().catch(() => {});
     try {
-      await postJson('/grubbery/mcp/api/run', req);
-      $('modal').hidden = true;
-      selectPane('instances');
-      await loadProc();
+      const rpc = await callTool(t.name, args);
+      status.textContent = rpc.error ? 'error' : 'done';
+      const text = rpc.error
+        ? rpc.error.message
+        : ((rpc.result && rpc.result.content) || []).map((c) => c.text ?? JSON.stringify(c)).join('\n');
+      out.textContent = text || JSON.stringify(rpc, null, 2);
+      out.hidden = false;
     } catch (err) {
       status.textContent = String(err.message || err);
     } finally {
       runBtn.disabled = false;
+      loadRuns().catch(() => {});
     }
   });
   actions.appendChild(runBtn);
-  body.append(status, actions);
+  body.append(status, actions, out);
   return body;
 }
 
@@ -889,18 +606,14 @@ $('modal').addEventListener('click', (e) => {
   if (e.target === $('modal')) $('modal').hidden = true;
 });
 document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape') {
-    $('modal').hidden = true;
-    $('sb-modal').hidden = true;
-    $('new-modal').hidden = true;
-  }
+  if (e.key === 'Escape') $('modal').hidden = true;
 });
 
 // ── boot ───────────────────────────────────────────────────────────
 
 async function refresh() {
   try {
-    await Promise.all([loadTools(), loadProc()]);
+    await Promise.all([loadTools(), loadRuns()]);
   } catch (err) {
     $('counts').textContent = String(err);
   }
@@ -908,4 +621,4 @@ async function refresh() {
 
 $('refresh').addEventListener('click', refresh);
 refresh();
-setInterval(loadProc, 10000);
+setInterval(() => loadRuns().catch(() => {}), 10000);

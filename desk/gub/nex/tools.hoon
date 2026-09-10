@@ -1,6 +1,6 @@
 ::  tools nexus: the tool registry + execution engine. A reusable
 ::  top-level nexus (neck [/ %tools]) that any nexus mounts an instance
-::  of — mcp mounts one at /tools.tools and keeps the HTTP/JSON-RPC
+::  of — mcp mounts one at /tools and keeps the HTTP/JSON-RPC
 ::  shell, delegating discovery and execution here.
 ::
 ::  Tree layout:

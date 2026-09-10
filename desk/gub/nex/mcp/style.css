@@ -590,3 +590,6 @@ pre.hoon {
   line-height: 1.6;
   padding: 24px 28px;
 }
+
+/* run result (Run tab) */
+.run-result { margin: 0 24px 24px; padding: 12px 14px; background: #1b1d24; border: 1px solid #2a2d35; border-radius: 8px; font: 12px/1.5 ui-monospace, Menlo, monospace; white-space: pre-wrap; overflow: auto; max-height: 40vh; }

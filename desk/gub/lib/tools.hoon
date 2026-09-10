@@ -83,7 +83,7 @@
 ::  mirrors /lib, so it lands at /code/lib.
 ::
 ::    /&  bundle  /lib/tool-bundle/
-::    [%over %| /'tools.tools' (seed-tools bundle)]
+::    [%over %| /tools (seed-tools bundle)]
 ::
 ++  seed-tools
   |=  srcs=(axal (map @ta mime))
@@ -94,7 +94,7 @@
 ::  +merge-boles: overlay `over` onto `base`, OVER winning every conflict.
 ::  File contents are unioned per node (over's grubs replace same-named
 ::  base grubs; base-only grubs survive), and kids recurse. Used to reseed
-::  the bundle over the live tools.tools subtree without deleting tools a
+::  the bundle over the live tools subtree without deleting tools a
 ::  user added at runtime (they live in base, absent from the bundle).
 ::
 ++  merge-boles
