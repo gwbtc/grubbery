@@ -667,7 +667,7 @@
   ;<  cur=view:nexus  bind:m  (peek:io dst ~)
   =/  have=ball:tarball  ?.(?=([%ball *] cur) *ball:tarball ball.cur)
   =/  bol=bole:tarball
-    (prune-bole (ball-to-bole:tarball ball.view) have omit /)
+    (prune-bole (ball-to-bole:tarball ball.view) omit /)
   ::  preserve the destination's own neck, exactly as +sync-dir does: the
   ::  overwrite must not strip what the instance's on-load established.
   =/  nek  ?~(fil.have ~ neck.u.fil.have)
@@ -675,53 +675,47 @@
   =.  bol  bol(fil `root(neck nek))
   ~&  >  [%desk-adopt nam from]
   (over-fold:io dst bol)
-::  +prune-bole: keep only what the destination does not already have.
+::  +prune-bole: drop processes, and drop what the app says to leave.
 ::
-::    THE RULE: a grub the destination already holds is host- or code-laid,
-::    and it wins. Its on-load ran when apply-bill made the instance, so
-::    by the time we fold, everything that instance declares about itself
-::    is already in place - its .sig processes, its %over assets (weir.json,
-::    alias.json, the UI bundle, the tile), its declared empty dirs. Only
-::    what is ABSENT can be the old instance's data.
+::    A .sig grub is a PROCESS. The destination runs its own from its own
+::    on-load and a second copy of an app's writer is the one mistake with
+::    no recovery, so these are dropped unconditionally, whatever the bill
+::    says.
 ::
-::    Written the other way round - fold everything, let %over rows restore
-::    themselves on the next load - the instance would run on the OLD app's
-::    assets and the OLD app's weir.json until something reloaded it. That
-::    is a window where the shell reads a road set the code did not ask for.
+::    Everything else is folded, and `omit` - the app's own list from
+::    bill.json - is how the app protects what its on-load lays for
+::    itself: the UI bundle, weir.json, alias.json, the tile. Entries name
+::    either a directory or a single file, relative to the instance root.
 ::
-::    It also makes the whole operation idempotent for free: run it twice
-::    and the second run folds nothing.
-::
-::    `omit` is the app's own list, from bill.json, of subtrees to leave
-::    behind even when absent - transient request dirs and the like. Paths
-::    are relative to the instance root.
+::    IT WAS THE OTHER WAY ROUND, and that lost data. "Fold only what the
+::    destination lacks" reads well and is wrong, because a %fall row lays
+::    a grub with its mark's BUNT: a fresh lattice has /bookmarks,
+::    /history, /pub/index and seven more already present and empty. All
+::    ten were skipped as "already there" and the user's bookmarks were
+::    silently dropped. Nothing in the ball distinguishes a %fall
+::    placeholder from an %over asset - both are simply grubs that exist -
+::    so the app has to say, and the failure to guard against is losing
+::    data rather than briefly serving a stale asset.
 ::
 ++  prune-bole
-  |=  [bol=bole:tarball have=ball:tarball omit=(list path) here=path]
+  |=  [bol=bole:tarball omit=(list path) here=path]
   ^-  bole:tarball
   ?:  (lien omit |=(o=path =(o here)))  [~ ~]
-  =/  mine=(map @ta *)
-    ?~  fil.have  ~
-    (~(run by contents.u.fil.have) |=(* ~))
   =?  fil.bol  ?=(^ fil.bol)
     =/  p=pulp:tarball  u.fil.bol
     =.  contents.p
       %-  ~(gas by *(map @ta [bask:tarball ?]))
       %+  skip  ~(tap by contents.p)
       |=  [nm=@ta [=bask:tarball gain=?]]
-      ?|  (~(has by mine) nm)
-          ::  belt and braces: a .sig is a process even if the destination
-          ::  somehow lacks it, and spawning a second copy of the app's
-          ::  writer is the one mistake with no recovery.
-          =(%sig name.p.bask)
+      ?|  =(%sig name.p.bask)
+          ::  a file-level omit: the app naming one grub rather than a dir
+          (lien omit |=(o=path =(o (snoc here nm))))
       ==
     `p
   %=    bol
       dir
     %-  ~(urn by dir.bol)
-    |=  [k=@ta v=bole:tarball]
-    =/  sub=ball:tarball  (fall (~(get by dir.have) k) *ball:tarball)
-    (prune-bole v sub omit (snoc here k))
+    |=([k=@ta v=bole:tarball] (prune-bole v omit (snoc here k)))
   ==
 ::  +aggregate-asks: union every /desk/data child's weir.json ask into a
 ::  single desk-level ask.json — a list of {app, poke, peek, make}, one
