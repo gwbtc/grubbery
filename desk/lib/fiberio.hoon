@@ -420,8 +420,21 @@
   ;<  err=(unit tang)  bind:m  (poke-soft road bask)
   ?~  err  (pure:m ~)
   ~|(%remote-poke-failed (mean u.err))
-::  +poke-soft: poke a road, local or remote — ~ on ack, `tang on
-::  nack. Never crashes.
+::  +poke-soft: poke a road, local or remote — ~ on ack, `tang on nack
+::  OR on veto. Never crashes.
+::
+::    A veto used to %fail here, which made "never crashes" untrue for the
+::    one failure a caller cannot predict, and left this asymmetric with
+::    +peek-soft, whose whole reason to exist is that it answers a veto
+::    with a value. The asymmetry was a trap: three callers in this repo
+::    reach for poke-soft precisely to survive a refusal, and one of them
+::    (+apply-bill's shell nudge) says so in a comment - "Soft: a missing
+::    shell must not fail the install" - while a PRESENT shell behind a
+::    weir that refuses would have failed it.
+::
+::    A veto and a nack are both "the poke did not land, here is why", and
+::    the return type already says that. Callers that want a refusal to be
+::    fatal have +poke.
 ::
 ::    Carries no deadline of its own: local pokes are covered by the
 ::    termination guarantee, and a remote pack arrives when the network
@@ -446,7 +459,7 @@
   ?+  in  [%skip ~]
       ~  [%wait ~]
       [~ %veto *]
-    [%fail (veto-error dart.u.in)]
+    [%done `(veto-error dart.u.in)]
       [~ %pack * *]
     ?.  =(wire wire.u.in)  [%skip ~]
     ?~  err.u.in  [%done ~]
@@ -1977,4 +1990,22 @@
   =/  m  (fiber ,~)
   ^-  form:m
   (reg-poke [%how group weir])
+::
+++  reg-poke-soft
+  |=  act=registry-action:nexus
+  =/  m  (fiber ,(unit tang))
+  ^-  form:m
+  (poke-soft reg-road [reg-blot act])
+::
+++  reg-register-at-soft
+  |=  here=rail:tarball
+  =/  m  (fiber ,(unit tang))
+  ^-  form:m
+  (reg-poke-soft [%register here path.here])
+::
+++  reg-how-soft
+  |=  [group=path =weir:nexus]
+  =/  m  (fiber ,(unit tang))
+  ^-  form:m
+  (reg-poke-soft [%how group weir])
 --

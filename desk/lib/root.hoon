@@ -50,17 +50,16 @@
         [%fall %& [/sys/scry %'main.scry-state'] [[/ %scry-state] *scry-state:nexus]]
         ::  child nexuses
         ::
-        ::  This is the lattice distribution. Grubbery's default app tier is
-        ::  deliberately absent: a ship built from this branch boots with
-        ::  lattice and nothing else, because lattice IS the product here
-        ::  rather than one tile among many. The nexus sources for the
-        ::  removed apps are gone from the desk too, so a cold build does
-        ::  not pay for code no instance will ever use.
+        ::  Lattice is NOT declared here any more, and that is the whole
+        ::  point of the migration: it installs as a stock desk under the
+        ::  shell, from its own repo, exactly as auspex, contacts and
+        ::  wallet do. A row here would boot a second instance that fights
+        ::  the desk's one for the /apps/lattice eyre binding.
         ::
-        ::  Everything lattice needs is core rather than app tier. Its
-        ::  permissions live in /sys/ames/usergroups, its routes bind
-        ::  through eyre directly, and its only reference to another app
-        ::  was a tile.json for the launcher, which is cosmetic.
+        ::  What remains below is the core tier plus the apps a grubbery
+        ::  ship needs in order to install anything at all: the shell to
+        ::  consent, the forge to check out source, mcp to be reachable
+        ::  from a tool, explorer to look at the namespace.
         ::
         ::  the shell: the home surface and the userspace permission
         ::  MANAGER. It reads each app's alias.json and weir.json, records
@@ -70,15 +69,16 @@
         ::  upstream in the develop merge: the 2026-09-05 trim had deleted
         ::  it because at the time nothing reached it.
         [%fall %| /apps/'shell.shell' [`[`[/ %shell] ~ %.n ~] ~]]
-        [%fall %| /apps/'lattice.lattice_app' [`[`[/lattice %app] ~ %.n ~] ~]]
         ::
-        ::  mcp is the ONE survivor of the app tier, and it is not an
-        ::  exception made lightly. Lattice ships its tool surface as
-        ::  lib/mcp/lattice-*.hoon and serves no /mcp route of its own, so
-        ::  the mcp nexus is what hosts lattice-list, lattice-read,
-        ::  lattice-save and the rest. Removing it would leave the memory
-        ::  store reachable only over HTTP, which is the feature most of
-        ::  this distribution's users are here for.
+        ::  mcp hosts the memory tool surface. Lattice serves no /mcp
+        ::  route of its own, so lattice-list, lattice-read, lattice-save
+        ::  and the rest live in gub/lib/tool-bundle/ here - a hermetic
+        ::  namespace carrying its own copies of the two lattice libs its
+        ::  tools import. Those tools reach the lattice instance through
+        ::  one constant, +base in tool-bundle/lattice-mcp.hoon, which the
+        ::  desk migration repoints at the shell's data tree. Removing mcp
+        ::  would leave the memory store reachable only over HTTP, which
+        ::  is the feature most of this distribution's users are here for.
         ::
         [%fall %| /apps/'mcp.mcp' [`[`[/ %mcp] ~ %.n ~] ~]]
         ::
