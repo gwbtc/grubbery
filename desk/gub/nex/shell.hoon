@@ -1614,6 +1614,20 @@
   ^-  (list stock-entry)
   :~  [%github 'contacts' 'niblyx-malnus/contacts-nexus' 'main']
       [%github 'wallet' 'niblyx-malnus/wallet-nexus' 'main']
+      ::  lattice ships as a stock desk from here on. It used to be a
+      ::  %fall row in root.hoon creating an instance under /apps
+      ::  directly, and this entry is what replaces it: the shell
+      ::  provisions the git_repo, the desk follows the checkout, and
+      ::  apply-bill creates the instance - adopting the old one's data
+      ::  if a previous version of grubbery left one behind, which
+      ::  lattice's bill.json declares.
+      ::
+      ::  A ship upgrading past the removal of that root.hoon row finds
+      ::  its old instance dormant, its data intact, and this entry
+      ::  brings the new one up beside it. The user is asked to approve
+      ::  the new instance's roads, because it is a new instance and has
+      ::  no consent recorded - that prompt is part of the upgrade.
+      [%github 'lattice' 'nisfeb/lattice' 'main']
   ==
 ::  stock-name / stock-code: pull the name (and, for %code, the code path)
 ::  out of an entry regardless of kind.
