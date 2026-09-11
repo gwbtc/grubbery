@@ -154,6 +154,37 @@
   ?~  pax  (flop [root acc])
   ?~  t.pax  (flop [root acc])
   $(pax (snip `path`pax), acc [(snoc (snip `path`pax) %code) acc])
+::  Source addressing. A mark or nexus is identified by its blot or neck
+::  (a rail like [/ %json] or [/wallet %account]); its SOURCE is the
+::  file /mar/<path>/<name>.hoon or /nex/<path>/<name>.hoon within a
+::  code namespace. These two arms are that bijection, defined once for
+::  the kernel's artifact index and every namespace walker.
+::
+::  +source-rail: blot or neck -> source rail, relative to a namespace
+::
+++  source-rail
+  |=  [kind=?(%mar %nex) addr=rail]
+  ^-  rail
+  [(weld /[kind] path.addr) (source-name name.addr)]
+::  +source-name: a bare name means the .hoon source of that name; a
+::  name that already carries an extension is a source filename as-is
+::
+++  source-name
+  |=  name=@ta
+  ^-  @ta
+  ?^  (find "." (trip name))  name
+  (cat 3 name '.hoon')
+::  +rail-addr: source rail -> [kind blot-or-neck], for a .hoon source
+::  under /mar or /nex; ~ for anything else
+::
+++  rail-addr
+  |=  r=rail
+  ^-  (unit [?(%mar %nex) rail])
+  ?.  ?=([?(%mar %nex) *] path.r)  ~
+  =/  t=tape  (trip name.r)
+  =/  len=@ud  (lent t)
+  ?.  &((gth len 5) =(".hoon" (slag (sub len 5) t)))  ~
+  `[i.path.r [t.path.r (crip (scag (sub len 5) t))]]
 ::
 ++  lane-from-bend
   |=  [loc=lane =bend]

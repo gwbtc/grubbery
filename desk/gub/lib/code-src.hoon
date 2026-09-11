@@ -23,13 +23,14 @@
       ?=(^ fil.ball.v)
       =(`[/ %code] neck.u.fil.ball.v)
   ==
-::  +source-file: the source rail for an address within a code
-::  namespace: /mar/<path>/<name>.hoon or /nex/<path>/<name>.hoon.
+::  +source-file: the absolute source rail for an address within a
+::  code namespace — source-rail:tarball, placed under the namespace.
 ::
 ++  source-file
   |=  [ns=fold:tarball kind=?(%mar %nex) addr=rail:tarball]
   ^-  rail:tarball
-  [(weld ns (weld /[kind] path.addr)) (cat 3 name.addr '.hoon')]
+  =/  r=rail:tarball  (source-rail:tarball kind addr)
+  [(weld ns path.r) name.r]
 ::  +resolve: from directory `from`, the source rail of the marc (%mar)
 ::  or nexus (%nex) at `addr` — a blot or neck rail like [/ %json] or
 ::  [/wallet %account]. ~ when no candidate has it.

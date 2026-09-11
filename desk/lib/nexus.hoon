@@ -20,9 +20,17 @@
 ::
 +$  deps  (map rail:tarball (set rail:tarball))
 ++  sut-rail  `rail:tarball`[/ %sut]
-+$  refs  (axal (map @ta @uv))
-+$  lode  [=keys =deps =refs]
+::  lode: a code namespace's build index. Artifacts are addressed by
+::  their SOURCE RAIL — the marc for blot [/ %json] is the artifact of
+::  /mar/json.hoon — so keys is also the artifact index; there is no
+::  second one.
+::
++$  lode  [=keys =deps]
 +$  code  (map fold:tarball lode)
+::  +artifacts: the keys that have an artifact in bins — every rail
+::  but the subject node, which is an input.
+::
+++  artifacts  |=(=keys ^-(^keys (~(del by keys) sut-rail)))
 +$  bins  (map @uv [refs=@ud =built])
 ::  A "grub" is the entity that lives at a rail: its file content and
 ::  its running process, considered as one thing. You create, delete,
@@ -522,22 +530,20 @@
     ?~  existing-tree  ~
     ?~  nek.u.existing-tree  ~
     =/  =neck:tarball  neck.u.nek.u.existing-tree
-    =/  nex-ns=(unit fold:tarball)
-      =/  pax=path  dir
+    ::  the namespace whose artifact governs this nexus: the first
+    ::  candidate (code-candidates order) whose keys have its source
+    =/  src=rail:tarball  (source-rail:tarball %nex neck)
+    =/  hit=(unit [ns=fold:tarball ckey=@uv])
+      =/  cands=(list fold:tarball)  (code-candidates:tarball dir)
       |-
-      =/  cod=(list @ta)
-        ?~  pax  /code
-        (snoc (snip `(list @ta)`pax) %code)
-      ?:  (~(has by code) cod)  `cod
-      ?~  pax  ~
-      $(pax (snip `(list @ta)`pax))
-    =/  nex-ckey=@uv
-      ?~  nex-ns  0v0
-      =/  =lode  (~(got by code) u.nex-ns)
-      =/  node=(unit (map @ta @uv))  (~(get of refs.lode) (weld /nex path.neck))
-      ?~  node  0v0
-      (fall (~(get by u.node) name.neck) 0v0)
-    `[neck nex-ckey (fall nex-ns /)]
+      ?~  cands  ~
+      =/  lod=(unit lode)  (~(get by code) i.cands)
+      ?~  lod  $(cands t.cands)
+      =/  k=(unit @uv)  (~(get by keys.u.lod) src)
+      ?~  k  $(cands t.cands)
+      `[i.cands u.k]
+    ?~  hit  `[neck 0v0 /]
+    `[neck ckey.u.hit ns.u.hit]
   ::  fil: each grub's current ject-lobe from hist (skip deleted/tombed)
   =/  fil=(map @ta jobe)
     %-  ~(rep by file.node)

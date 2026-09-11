@@ -27,6 +27,10 @@
 ::  state-3 -> state-4: the %font load and take are gone (the question
 ::  it answered — which /code governs a path — is a namespace fact,
 ::  see /lib/code-src). A persisted %font veto is dropped.
+::  state-4 -> state-5: lode loses refs. It was a second index of keys
+::  (artifact stem -> key, as an axal) carrying the same values; an
+::  artifact is addressed by its source rail, which keys already maps.
+::  Derived state: a field drop, pure map.
 ::
 /+  nexus, tarball
 =,  tarball
@@ -161,10 +165,18 @@
 ::  and out, always equal) and the subject hash smuggled into keys as a
 ::  [hash hash] pair under the fake rail [/ %$], absent from deps.
 ::
++$  refs-4  (axal (map @ta @uv))
 +$  keys-2  (map rail:tarball [in=@uv out=@uv])
-+$  lode-2  [keys=keys-2 =deps:nexus =refs:nexus]
++$  lode-2  [keys=keys-2 =deps:nexus refs=refs-4]
 +$  code-2  (map fold:tarball lode-2)
 ++  sut-rail-2  `rail:tarball`[/ %$]
+::
++|  %frozen-4
+::  The build index through state-4: one key per rail, subject as a
+::  dep, plus the refs axal that keys made redundant.
+::
++$  lode-4  [=keys:nexus =deps:nexus refs=refs-4]
++$  code-4  (map fold:tarball lode-4)
 ::
 +|  %frozen-3
 ::  load-3: the load with %font, as it was through state-3; pend-3 has
@@ -280,7 +292,8 @@
       =upki:nexus   ::  live: the rail that backs jael pki subscriptions
       =last:nexus   ::  live: monotonic time and entropy for the bowl
   ==
-::  state-3: one key per rail, subject as a dep. Pool frozen (still %font).
+::  state-3: one key per rail, subject as a dep. Pool frozen (still
+::  %font); code frozen (still refs).
 ::
 +$  state-3
   $:  %3
@@ -288,7 +301,7 @@
       =silo:nexus   ::  truth: content-addressed object store with refcounts
       =subs:nexus   ::  live: subscription indexes, by target and by watcher
       pool=pool-3   ::  live: the running process for each grub (frozen)
-      =code:nexus   ::  derived: the build index for each code namespace
+      code=code-4   ::  derived: the build index for each code namespace (frozen)
       =bins:nexus   ::  derived: compiled artifacts, keyed by build hash
       =vale:nexus   ::  derived: cached validation results
       =remo:nexus   ::  live: pending cross-ship peeks and pinned snapshots
@@ -296,10 +309,26 @@
       =last:nexus   ::  live: monotonic time and entropy for the bowl
   ==
 ::
-::  state-4: no %font. Same fields, live types.
+::  state-4: no %font. Pool live; code frozen (still refs).
 ::
 +$  state-4
   $:  %4
+      =born:nexus   ::  truth: version history for every directory and file
+      =silo:nexus   ::  truth: content-addressed object store with refcounts
+      =subs:nexus   ::  live: subscription indexes, by target and by watcher
+      =pool:nexus   ::  live: the running process for each grub
+      code=code-4   ::  derived: the build index for each code namespace (frozen)
+      =bins:nexus   ::  derived: compiled artifacts, keyed by build hash
+      =vale:nexus   ::  derived: cached validation results
+      =remo:nexus   ::  live: pending cross-ship peeks and pinned snapshots
+      =upki:nexus   ::  live: the rail that backs jael pki subscriptions
+      =last:nexus   ::  live: monotonic time and entropy for the bowl
+  ==
+::
+::  state-5: lode is [keys deps]. Same fields, live types.
+::
++$  state-5
+  $:  %5
       =born:nexus   ::  truth: version history for every directory and file
       =silo:nexus   ::  truth: content-addressed object store with refcounts
       =subs:nexus   ::  live: subscription indexes, by target and by watcher
@@ -354,7 +383,7 @@
       silo.old
       subs.old
       pool.old
-      (code-2-to-code code.old)
+      (code-2-to-4 code.old)
       bins.old
       vale.old
       remo.old
@@ -371,6 +400,22 @@
       subs.old
       (pool-3-to-pool pool.old)
       code.old
+      bins.old
+      vale.old
+      remo.old
+      upki.old
+      last.old
+  ==
+::
+++  state-4-to-5
+  |=  old=state-4
+  ^-  state-5
+  :*  %5
+      born.old
+      silo.old
+      subs.old
+      pool.old
+      (code-4-to-code code.old)
       bins.old
       vale.old
       remo.old
@@ -524,7 +569,7 @@
   ?<  ?=(%font -.load.d)
   [%node wire.d road.d load.d]
 ::
-+|  %code-2-to-live
++|  %code-2-to-4
 ::  Per lode: the sentinel pair becomes the subject node's key under
 ::  sut-rail:nexus; every other key keeps its (single) hash; every
 ::  file's deps gain the subject; the subject node has no deps. refs
@@ -533,12 +578,12 @@
 ::  match new keys on the next build — one full recompile per
 ::  namespace, then steady state. Correct and loud.
 ::
-++  code-2-to-code
+++  code-2-to-4
   |=  c=code-2
-  ^-  code:nexus
+  ^-  code-4
   %-  ~(run by c)
   |=  l=lode-2
-  ^-  lode:nexus
+  ^-  lode-4
   =/  sut-key=(unit @uv)
     =/  pair  (~(get by keys.l) sut-rail-2)
     ?~(pair ~ `in.u.pair)
@@ -554,4 +599,13 @@
       sut-rail:nexus
     ~
   [keys deps refs.l]
+::
++|  %code-4-to-live
+::  Drop refs. keys already maps every artifact's source rail to its
+::  key; the stem-keyed axal was the same information.
+::
+++  code-4-to-code
+  |=  c=code-4
+  ^-  code:nexus
+  (~(run by c) |=(l=lode-4 `lode:nexus`[keys.l deps.l]))
 --
