@@ -55,7 +55,9 @@
 /=  t-  /tests/loader
 |%
 +$  versioned-state
-  $%  state-2:migrations
+  $%  state-4:migrations
+      state-3:migrations
+      state-2:migrations
       state-1:migrations
       state-0:migrations
   ==
@@ -97,7 +99,7 @@
 ::  reference, and it only changes with the agent itself.
 ::
 =/  sut-hash=@uv  (sham q:sut)
-=|  state-2:migrations
+=|  state-4:migrations
 =*  state  -
 ::
 =<
@@ -122,27 +124,22 @@
   |=  old-state=vase
   ^-  (quip card _this)
   =/  old  !<(versioned-state old-state)
-  ?-    -.old
-      %0
-    ~>  %slog.[0 leaf+"grubbery: migrating state %0 -> %1 -> %2"]
-    =.  state  (state-1-to-2:migrations (state-0-to-1:migrations old))
-    =^  start-cards  state
-      abet:cold-start:hc
-    [start-cards this]
-  ::
-      %1
-    ~>  %slog.[0 leaf+"grubbery: migrating state %1 -> %2"]
-    =.  state  (state-1-to-2:migrations old)
-    =^  start-cards  state
-      abet:cold-start:hc
-    [start-cards this]
-  ::
-      %2
-    =.  state  old
-    =^  start-cards  state
-      abet:cold-start:hc
-    [start-cards this]
-  ==
+  ::  every version funnels forward through the chain to the current one
+  =/  to-3=(unit state-3:migrations)
+    ?-  -.old
+      %0  `(state-2-to-3:migrations (state-1-to-2:migrations (state-0-to-1:migrations old)))
+      %1  `(state-2-to-3:migrations (state-1-to-2:migrations old))
+      %2  `(state-2-to-3:migrations old)
+      %3  `old
+      %4  ~
+    ==
+  =?  state  ?=(^ to-3)
+    ~>  %slog.[0 leaf+"grubbery: migrating state {<-.old>} -> %4"]
+    (state-3-to-4:migrations u.to-3)
+  =?  state  ?=(%4 -.old)  old
+  =^  start-cards  state
+    abet:cold-start:hc
+  [start-cards this]
 ::
 ++  on-init
   ^-  (quip card _this)
@@ -1813,13 +1810,11 @@
 ++  find-code-ns
   |=  pax=path
   ^-  (unit fold:tarball)
+  =/  cands=(list fold:tarball)  (code-candidates:tarball pax)
   |-
-  =/  cod=path
-    ?~  pax  /code
-    (snoc (snip `(list @ta)`pax) %code)
-  ?^  (~(get by code) cod)  `cod
-  ?~  pax  ~
-  $(pax (snip `(list @ta)`pax))
+  ?~  cands  ~
+  ?:  (~(has by code) i.cands)  `i.cands
+  $(cands t.cands)
 ::  +seek-built: find a compiled artifact in the governing namespace
 ::
 ++  seek-built
@@ -1849,25 +1844,17 @@
 ++  resolve-built
   |=  [pax=path =path name=@ta]
   ^-  (unit [namespace=fold:tarball source=rail:tarball ckey=@uv =built:nexus])
+  =/  cands=(list fold:tarball)  (code-candidates:tarball pax)
   |-
-  =/  cod=^path
-    ?~  pax  /code
-    (snoc (snip `(list @ta)`pax) %code)
-  =/  ns  (~(get by code) cod)
-  ?^  ns
-    =/  lod=lode:nexus  u.ns
-    =/  node=(unit (map @ta @uv))
-      (~(get of refs.lod) path)
-    =/  ckey=(unit @uv)
-      ?~(node ~ (~(get by u.node) name))
-    ?^  ckey
-      =/  entry=(unit [refs=@ud =built:nexus])  (~(get by bins) u.ckey)
-      ?~  entry  ~
-      `[cod [path name] u.ckey built.u.entry]
-    ?~  pax  ~
-    $(pax (snip `(list @ta)`pax))
-  ?~  pax  ~
-  $(pax (snip `(list @ta)`pax))
+  ?~  cands  ~
+  =/  ns=(unit lode:nexus)  (~(get by code) i.cands)
+  ?~  ns  $(cands t.cands)
+  =/  node=(unit (map @ta @uv))  (~(get of refs.u.ns) path)
+  =/  ckey=(unit @uv)  ?~(node ~ (~(get by u.node) name))
+  ?~  ckey  $(cands t.cands)
+  =/  entry=(unit [refs=@ud =built:nexus])  (~(get by bins) u.ckey)
+  ?~  entry  ~
+  `[i.cands [path name] u.ckey built.u.entry]
 ::
 ++  find-built
   |=  [pax=path =path name=@ta]
@@ -2953,7 +2940,7 @@
   ?~  lod
     ~&  >  "register-code-namespace: {(spud here)}"
     (build-code-with here ~ %.n)
-  ?:  =(`[sut-hash sut-hash] (~(get by keys.u.lod) sut-rail))  this
+  ?:  =(`sut-hash (~(get by keys.u.lod) sut-rail:nexus))  this
   ~&  >  "ensure-code-namespace: subject changed, rebuilding {(spud here)}"
   (build-code-with here ~ %.n)
 ::  +spawn-all-files: spawn a process for every file in a bole
@@ -3321,7 +3308,7 @@
   =/  stale=?
     =/  lod=(unit lode:nexus)  (~(get by code) namespace.u.res)
     ?~  lod  %.y
-    !=(`[sut-hash sut-hash] (~(get by keys.u.lod) sut-rail))
+    !=(`sut-hash (~(get by keys.u.lod) sut-rail:nexus))
   :-  %|
   :~  leaf+"build-nexus: failed to extract nexus {where}"
       :-  %leaf
@@ -3408,7 +3395,7 @@
     =/  dest-lane=(unit lane:tarball)  (lane-from-road:tarball [%& here] road.dart)
     :_  dest-lane
     ?-  -.load.dart
-      ?(%peek %keep %drop %seek %peep %code %font %born)  %peek  :: read operations
+      ?(%peek %keep %drop %seek %peep %code %born)  %peek  :: read operations
       %poke                       %poke
         $?  %make  %cull  %sand  %load
             %lose  %gain  %firm  %tags
@@ -3511,25 +3498,6 @@
         %code
       ?>  ?=(^ dest-lane)
       (dart-code here dart u.dest-lane)
-      ::
-        %font
-      ::  Find the /code namespace governing this node.
-      ::  Walks up from dest to the nearest /code lode.
-      ::  ~: blocked (weir), [~ ~]: definitively none, [~ ~ bend]: found.
-      =/  pax=path
-        ?-(-.u.dest-lane %| p.u.dest-lane, %& path.p.u.dest-lane)
-      =/  ns=(unit fold:tarball)  (find-code-ns pax)
-      ?~  ns
-        ::  No code nexus anywhere. But can the querier see all the way up?
-        =/  =filt:nexus  (allowed %peek here `[%| /])
-        ?:  ?=([~ %|] filt)
-          (enqu-take here ~ ~ %font wire.dart ~)
-        (enqu-take here ~ ~ %font wire.dart `~)
-      =/  =filt:nexus  (allowed %peek here `[%| u.ns])
-      ?:  ?=([~ %|] filt)
-        (enqu-take here ~ ~ %font wire.dart ~)
-      =/  =bend:tarball  (make-bend:tarball here [%| u.ns])
-      (enqu-take here ~ ~ %font wire.dart ``bend)
       ::
         %keep
       ::  Subscribe to changes at dest (uses peek permission)
@@ -5059,28 +5027,25 @@
   =.  refs.lode  (~(put of refs.lode) ref-path node)
   =.  code.acc  (~(put by code.acc) /code lode)
   acc
-::  Sentinel rail in keys recording the subject hash a lode was
-::  built under. Not a real file (empty name can't exist in a ball);
-::  bins-to-cache skips it (no bins entry), refs never contain it.
-::
-++  sut-rail  `rail:tarball`[/ %$]
 ::  +skip-set: rails safe to reuse for an incremental build.
 ::
 ::    Returns [skip skip-deps] for build-inc; empty means full sweep.
-::    Sweeps unless: the changed set is known, a prior graph exists,
-::    the subject sentinel matches (agent upgrade invalidates all
-::    keys), and no changed rail is new to the graph — creates can
-::    change import resolution of unchanged files, so they always
-::    sweep. This is load-bearing, not an optimization shortcut.
+::    Sweeps unless the changed set is known, a prior graph exists,
+::    and no changed rail is new to the graph — creates can change
+::    import resolution of unchanged files, so they always sweep.
+::    This is load-bearing, not an optimization shortcut.
 ::    Foundational mark rails are force-injected from gub into every
 ::    fold's ball, so they can change without a write under the fold:
-::    always treat them as changed (they cache-hit when stable).
+::    always treat them as changed (they cache-hit when stable). The
+::    subject is a dep of every file: if its recorded key is not the
+::    current hash it is a changed dep, and its reverse closure is
+::    everything — the ordinary rule sweeps, no sentinel branch.
 ::    Otherwise every keyed rail outside the reverse closure of the
 ::    changed set is reused, carrying its prior key, result (from
 ::    bins; missing means rebuild normally), and graph edges.
 ::
 ++  skip-set
-  |=  [cod=path =lode:nexus changed=(unit (set rail:tarball)) sut-hash=@uv]
+  |=  [cod=path =lode:nexus changed=(unit (set rail:tarball))]
   ^-  $:  skip=(map rail:tarball [key=@uv res=build-result:build])
           skip-deps=(map rail:tarball (set rail:tarball))
       ==
@@ -5091,9 +5056,6 @@
     [~ ~]
   ?~  changed  none
   ?:  =(~ deps.lode)  none
-  ?.  =(`[sut-hash sut-hash] (~(get by keys.lode) sut-rail))
-    ~&  >  "skip-set: subject changed, full sweep"
-    none
   ::  Relativize changed rails to the fold. A rail outside the fold
   ::  or absent from the prior graph (a create) forces a sweep.
   =/  rel=(unit (set rail:tarball))
@@ -5114,13 +5076,15 @@
     |=  [nam=@ta acc=_u.rel]
     =/  r=rail:tarball  [/mar (cat 3 nam '.hoon')]
     ?.((~(has by deps.lode) r) acc (~(put in acc) r))
+  ::  The subject: a changed dep like any other
+  =?  seed  !=(`sut-hash (~(get by keys.lode) sut-rail:nexus))
+    ~&  >  "skip-set: subject changed"
+    (~(put in seed) sut-rail:nexus)
   =/  closure=(set rail:tarball)  (reverse-closure:build deps.lode seed)
   %+  roll  ~(tap by keys.lode)
-  ::  ki/ko, not in/out: `in` would shadow the set door
-  |=  [[=rail:tarball ki=@uv ko=@uv] acc=_none]
-  ?:  =(sut-rail rail)  acc
+  |=  [[=rail:tarball key=@uv] acc=_none]
   ?:  (~(has in closure) rail)  acc
-  =/  entry=(unit [refs=@ud =built:nexus])  (~(get by bins) ko)
+  =/  entry=(unit [refs=@ud =built:nexus])  (~(get by bins) key)
   ?~  entry  acc
   =/  res=(unit build-result:build)
     ?-  -.built.u.entry
@@ -5129,7 +5093,7 @@
       %mime  ~
     ==
   ?~  res  acc
-  :-  (~(put by skip.acc) rail [ki u.res])
+  :-  (~(put by skip.acc) rail [key u.res])
   (~(put by skip-deps.acc) rail (~(gut by deps.lode) rail ~))
 ::  +ball-diff: rails that differ between two balls (either side
 ::  missing, or blot/content changed).
@@ -5154,36 +5118,17 @@
   ?:((~(has by ma) r) ~ `r)
 ::  Compile a code nexus into its lode in the code map.
 ::
-::  Subject sentinel. An agent upgrade changes sut, invalidating every
-::  compiled artifact: a nexus built against the old subject fails !<
-::  extraction at the kernel boundary. Each lode records the subject
-::  it was built against under sut-rail; +ensure-code-namespace
-::  consults it as the reload walk enters each directory, so a stale
-::  namespace is rebuilt before anything it governs is reloaded. No-op
-::  when the subject is unchanged — ordinary restarts stay free.
+::  The subject is a dependency. An agent upgrade changes sut, and a
+::  nexus built against the old subject fails !< extraction at the
+::  kernel boundary — so every file depends on sut-rail:nexus, a node
+::  in deps.lode keyed by the subject hash (state %3). A changed
+::  subject is a changed dep: skip-set's reverse closure sweeps
+::  everything, and +ensure-code-namespace asks the same "is this
+::  dep's recorded key current" as it would of any file, as the reload
+::  walk enters each directory. No-op when the subject is unchanged —
+::  ordinary restarts stay free.
 ::
-::  TODO (its own state version, deliberate — do NOT rider this onto
-::  another change): the subject is a DEPENDENCY, not a property.
-::
-::  It already behaves like one where it matters: every ckey is
-::  sham [sut-hash src-hash path dep-keys], so a stale artifact cannot
-::  be cache-hit by construction. What's left is that the subject node
-::  lives in keys.lode under the fake rail [/ %$] but not in deps.lode,
-::  so skip-set checks it by hand and the keys iterators step around
-::  a key with no artifact. Decided shape:
-::    1. the subject is an ordinary node in deps.lode — every file
-::       depends on it; its key is sut-hash
-::    2. skip-set drops its sentinel branch: a changed subject puts the
-::       node in the changed set, its reverse closure is every file,
-::       the normal rule says sweep
-::    3. +ensure-code-namespace asks "is the subject node's recorded
-::       key current", the same question it asks of any dep
-::    4. delete sut-rail and every special case
-::  No lode field, no new data: a rename of a concept plus removing
-::  the branches that treat it as special. code is derived state, so
-::  the migration is map-or-rebuild.
-::
-::  Same pattern, next candidates: +purge-stale-code and
+::  Next candidates for the same pattern: +purge-stale-code and
 ::  +rebuild-descendant-code both scan the tree AFTER a reload to
 ::  reconcile derived state with it. The reload walk already visits
 ::  every directory; both belong in it, as +ensure-code-namespace now
@@ -5251,13 +5196,14 @@
   =/  =lode:nexus   (fall (~(get by code) cod) *lode:nexus)
   =/  old-refs       refs.lode
   =/  old-cache      ~>(%bout.[1 %bins-to-cache] (bins-to-cache:build keys.lode bins))
-  =/  skp            ~>(%bout.[1 %build-skip-set] (skip-set cod lode changed sut-hash))
-  =/  res            ~>(%bout.[1 %build-all] (build-inc:build sut sut-hash src-ball old-cache skp))
+  =/  skp            ~>(%bout.[1 %build-skip-set] (skip-set cod lode changed))
+  =/  res            ~>(%bout.[1 %build-all] (build-inc:build sut src-ball old-cache skp))
   ~&  >  "build-code: compiled {<~(wyt by results.res)>} results"
-  ::  3. Index: compute output ckeys, build keys/refs/builds
+  ::  3. Index: build refs/builds from the results (keys come straight
+  ::  from the build — one key per rail, subject node included)
   ::
-  =/  [new-keys=keys:nexus new-refs=refs:nexus builds=(map @uv built:nexus)]
-      ~>(%bout.[1 %index-results] (index-results res lode src-ball))
+  =/  [new-refs=refs:nexus builds=(map @uv built:nexus)]
+      ~>(%bout.[1 %index-results] (index-results res src-ball))
   ::  4. Update bins: increment new refs, decrement old
   ::
   =.  bins  ~>(%bout.[1 %refs-inc] (refs-inc new-refs builds))
@@ -5265,11 +5211,11 @@
   ::  5. GC vale cache: drop entries whose marc was removed
   ::
   =.  vale  (gc-vale-cache vale bins)
-  ::  6. Store lode — with the subject sentinel, so a later
-  ::  incremental build can prove the subject hasn't changed
-  ::  since these keys were computed (agent upgrades change sut)
+  ::  6. Store lode. keys.res carries the subject node's key (the hash
+  ::  it was built under) alongside every file's, so a later build can
+  ::  see a changed subject as a changed dep.
   ::
-  =.  lode  [(~(put by new-keys) sut-rail [sut-hash sut-hash]) deps.res new-refs]
+  =.  lode  [keys.res deps.res new-refs]
   =.  code  (~(put by code) cod lode)
   ::  7. Validate marks: re-clam grubs through changed marks
   ::
@@ -5305,8 +5251,8 @@
   ::  inject into src-ball
   [(~(put ba:tarball acc) [/mar (cat 3 nam '.hoon')] sang) sat]
 ++  index-results
-  |=  [res=build-out:build =lode:nexus src-ball=ball:tarball]
-  ^-  [keys:nexus refs:nexus (map @uv built:nexus)]
+  |=  [res=build-out:build src-ball=ball:tarball]
+  ^-  [refs:nexus (map @uv built:nexus)]
   =/  all-files=(list [=rail:tarball =sang:tarball])
     ~(tap ba:tarball src-ball)
   ::  Seed with mime files
@@ -5323,15 +5269,15 @@
       (fall (~(get of acc) path.rail) *(map @ta @uv))
     [(~(put of acc) path.rail (~(put by node) name.rail ckey)) (~(put by bld) ckey built)]
   ::  Add compiled hoon results
-  =/  [new-keys=keys:nexus refs=_refs builds=_builds]
+  =/  [refs=_refs builds=_builds]
     %+  roll  ~(tap by results.res)
     |=  $:  [=rail:tarball =build-result:build]
-            [kz=keys:nexus acc=_refs bld=_builds]
+            [acc=_refs bld=_builds]
         ==
     ::  skip mimes — already handled in mime-files loop above
     =/  sang=(unit sang:tarball)  (~(get ba:tarball src-ball) rail)
     ?:  ?&(?=(^ sang) =([/ %mime] p.u.sang))
-      [kz acc bld]
+      [acc bld]
     =/  stem=@ta  (strip-hoon:build name.rail)
     =/  =built:nexus
       ?:  ?=(%| -.build-result)
@@ -5345,14 +5291,12 @@
       ::  own type instead of a raw vase, so readers don't !< it on every read.
       ::  bootstrap-marcs already does this for the foundational marks.
       [%vase p.build-result]
-    =/  in-ckey=@uv  (~(got by keys.res) rail)
-    =/  out-ckey=@uv  in-ckey
+    =/  ckey=@uv  (~(got by keys.res) rail)
     =/  node=(map @ta @uv)
       (fall (~(get of acc) path.rail) *(map @ta @uv))
-    :+  (~(put by kz) rail [in-ckey out-ckey])
-      (~(put of acc) path.rail (~(put by node) stem out-ckey))
-    (~(put by bld) out-ckey built)
-  [new-keys refs builds]
+    :-  (~(put of acc) path.rail (~(put by node) stem ckey))
+    (~(put by bld) ckey built)
+  [refs builds]
 ::
 ++  gc-vale-cache
   |=  [=vale:nexus =bins:nexus]

@@ -2,6 +2,7 @@
 ::
 /<  feather  /lib/feather.hoon
 /<  iso-8601  /lib/iso-8601.hoon
+/<  cs        /lib/code-src.hoon
 /&  man   ../man/explorer/readme.md
 /&  icon  explorer/icon.svg
 /&  gram     explorer/hoon-grammar.json
@@ -130,10 +131,10 @@
     --
 ::
 |%
-::  +kid-info: what the listing learns about a subdirectory from its own
-::  shallow peek — its neck, its /code namespace if any, its fiber bang
+::  +kid-info: what the listing learns about a subdirectory — its neck
+::  (as a rail), the source file of that neck's nexus, its fiber bang
 ::
-+$  kid-info  [neck=(unit path) code-ns=(unit path) bang=(unit tang)]
++$  kid-info  [neck=(unit rail:tarball) neck-url=(unit tape) bang=(unit tang)]
 ::  +weir-json: the roads explorer reaches. peek / is honest here — a
 ::  namespace browser reads arbitrary paths anywhere in the tree.
 ::
@@ -275,18 +276,6 @@
     ;<  conversions=(map bars:tarball tube:clay)  bind:m
       (get-blot-conversions-shallow:io ball)
     ~&  >  %explorer-get-conversions-done
-    ~&  >  %explorer-get-font
-    ;<  font=(unit (unit bend:tarball))  bind:m
-      (get-font:io [%& %| tree-path])
-    ~&  >  %explorer-get-font-done
-    =/  code-namespace=(unit path)
-      ?~  font  ~
-      ?~  u.font  ~
-      =/  ns=(unit lane:tarball)
-        (lane-from-bend:tarball [%| tree-path] u.u.font)
-      ?~  ns  ~
-      ?.  ?=(%| -.u.ns)  ~
-      `p.u.ns
     ::  ?list=1: the listing as JSON — the static browse app's feed (and
     ::  anyone else's). Non-html non-list requests for a dir get it too.
     ::  child necks: the shallow peek of THIS dir returns subdirs as
@@ -303,18 +292,41 @@
       ?~  subs  (pure:m acc)
       ;<  kv=view:nexus  bind:m
         (peek-shallow:io [%& %| (snoc tree-path i.subs)] ~)
-      =?  acc  ?&  ?=([%ball *] kv)
-                   ?=(^ fil.ball.kv)
-               ==
-        =/  child-code=(unit path)
-          ?.  (~(has by dir.ball.kv) %code)  ~
-          `(snoc (snoc tree-path i.subs) %code)
-        =/  neck=(unit path)
-          ?~  neck.u.fil.ball.kv  ~
-          `(rail-to-path:tarball u.neck.u.fil.ball.kv)
-        (~(put by acc) i.subs [neck child-code bang.u.fil.ball.kv])
-      $(subs t.subs)
-    =/  jon=json  (listing-json tree-path ball ball-wave now conversions code-namespace dir-weir necks)
+      ?.  ?&(?=([%ball *] kv) ?=(^ fil.ball.kv))
+        $(subs t.subs)
+      =/  neck=(unit rail:tarball)  neck.u.fil.ball.kv
+      ::  the child's nexus source, resolved from the child's own place
+      ;<  src=(unit rail:tarball)  bind:m
+        ?~  neck  (pure:(fiber:fiber:nexus ,(unit rail:tarball)) ~)
+        ?:  =([/ %code] u.neck)  (pure:(fiber:fiber:nexus ,(unit rail:tarball)) ~)
+        (resolve:cs (snoc tree-path i.subs) %nex u.neck)
+      =/  neck-url=(unit tape)  ?~(src ~ `(url:cs u.src))
+      %=  $
+        subs  t.subs
+        acc   (~(put by acc) i.subs [neck neck-url bang.u.fil.ball.kv])
+      ==
+    ::  source links: this dir's own nexus, and the marc of every
+    ::  distinct blot among its files — resolved by the namespace walk,
+    ::  so the link is the file that actually governs here, shadowing
+    ::  included
+    ;<  own-url=(unit tape)  bind:m
+      =/  m  (fiber:fiber:nexus ,(unit tape))
+      ?~  fil.ball  (pure:m ~)
+      ?~  neck.u.fil.ball  (pure:m ~)
+      ?:  =([/ %code] u.neck.u.fil.ball)  (pure:m ~)
+      ;<  src=(unit rail:tarball)  bind:m  (resolve:cs tree-path %nex u.neck.u.fil.ball)
+      (pure:m ?~(src ~ `(url:cs u.src)))
+    ;<  blot-urls=(map rail:tarball (unit tape))  bind:m
+      =/  m  (fiber:fiber:nexus ,(map rail:tarball (unit tape)))
+      =/  blots=(list rail:tarball)
+        ?~  fil.ball  ~
+        =-  ~(tap in -)
+        %-  ~(gas in *(set rail:tarball))
+        (turn ~(val by contents.u.fil.ball) |=([=sang:tarball *] p.sang))
+      ;<  got=(map rail:tarball (unit rail:tarball))  bind:m
+        (resolve-many:cs tree-path %mar blots)
+      (pure:m (~(run by got) |=(s=(unit rail:tarball) ?~(s ~ `(url:cs u.s)))))
+    =/  jon=json  (listing-json tree-path ball ball-wave now conversions own-url blot-urls dir-weir necks)
     ;<  ~  bind:m  (send-json eyre-id 200 jon)
     (pure:m ~)
   ::  File view — ball is the parent directory
@@ -387,9 +399,10 @@
       raw
     (crip (scag (sub len 5) t))
   =/  file-road=road:tarball  [%& %& (snip `path`tree-path) code-name]
-  ;<  font=(unit (unit bend:tarball))  bind:m
-    (get-font:io file-road)
-  =/  has-code=?  &(?=(^ font) ?=(^ u.font))
+  ::  the Build tab is for files a code namespace compiles: .hoon files
+  ::  inside one (owner = containment, from the namespace, no dart)
+  ;<  own=(unit fold:tarball)  bind:m  (owner:cs [(snip `path`tree-path) name])
+  =/  has-code=?  &(?=(^ own) !=(code-name name))
   ;<  build-info=[build-status=tape build-detail=tape]  bind:m
     ?.  has-code  (pure:(fiber:fiber:nexus ,[tape tape]) ["" ""])
     ;<  =built:nexus  bind:(fiber:fiber:nexus ,[tape tape])
@@ -861,18 +874,13 @@
           b-wave=wave:nexus
           now=@da
           conversions=(map bars:tarball tube:clay)
-          code-namespace=(unit path)
+          neck-url=(unit tape)
+          blot-urls=(map rail:tarball (unit tape))
           dir-weir=(unit weir:nexus)
           necks=(map @ta kid-info)
       ==
   ^-  json
   =/  str  |=(t=tape `json`s+(crip t))
-  =/  neck-url=(unit tape)
-    ?~  fil.b  ~
-    ?~  neck.u.fil.b  ~
-    ?:  =([/ %code] u.neck.u.fil.b)  ~
-    ?~  code-namespace  ~
-    `"/grubbery/ball{(trip (spat (weld u.code-namespace /nex)))}{(trip (spat (rail-to-path:tarball u.neck.u.fil.b)))}.hoon"
   =/  neck-display=tape
     ?~  fil.b  "-"
     ?~  neck.u.fil.b  "-"
@@ -896,14 +904,11 @@
     =/  neck-json=json
       ?~  kid  ~
       ?~  neck.u.kid  ~
-      s+(crip (spud u.neck.u.kid))
+      s+(crip (spud (rail-to-path:tarball u.neck.u.kid)))
     =/  neck-url-json=json
       ?~  kid  ~
-      ?~  neck.u.kid  ~
-      ?:  =(/code u.neck.u.kid)  ~
-      =/  ns=(unit path)  ?^(code-ns.u.kid code-ns.u.kid code-namespace)
-      ?~  ns  ~
-      (str "/grubbery/ball{(trip (spat (weld u.ns /nex)))}{(trip (spat u.neck.u.kid))}.hoon")
+      ?~  neck-url.u.kid  ~
+      (str u.neck-url.u.kid)
     =/  kid-bang=json
       ?~  kid  ~
       ?~  bang.u.kid  ~
@@ -931,10 +936,10 @@
     =/  sag=sage:tarball  (need-sage:tarball sang)
     =/  blot-json=json  (str (spud (rail-to-path:tarball p.sag)))
     =/  mark-url=json
-      ?~  code-namespace  ~
-      =/  mar-path=path
-        (weld u.code-namespace (weld /mar (rail-to-path:tarball p.sag)))
-      (str "/grubbery/ball{(trip (spat mar-path))}.hoon")
+      =/  u=(unit (unit tape))  (~(get by blot-urls) p.sag)
+      ?~  u  ~
+      ?~  u.u  ~
+      (str u.u.u)
     ?:  =(%symlink name.p.sag)
       =/  sym  !<(symlink:tarball q.sag)
       %-  pairs:enjs:format

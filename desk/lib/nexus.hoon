@@ -7,8 +7,19 @@
       [%tang =tang]
       [%mime =mime]
   ==
-+$  keys  (map rail:tarball [in=@uv out=@uv])
+::  keys: one content-addressed build key per rail. The key of a file
+::  is sham [its source hash, its path, its deps' keys] — the same key
+::  is both cache lookup and bins address.
+::
++$  keys  (map rail:tarball @uv)
+::  deps: the dependency graph. Every file depends on sut-rail, the
+::  build subject: it is a node like any other, keyed by the subject
+::  hash, with no artifact (it is an input, not an output). A subject
+::  change is then just a changed dep — its reverse closure is every
+::  file — with no sentinel to check by hand.
+::
 +$  deps  (map rail:tarball (set rail:tarball))
+++  sut-rail  `rail:tarball`[/ %sut]
 +$  refs  (axal (map @ta @uv))
 +$  lode  [=keys =deps =refs]
 +$  code  (map fold:tarball lode)
@@ -105,7 +116,6 @@
       [%peep =find]
       [%born ~]                 :: read hist metadata at dest (file or fold)
       [%code ~]                 :: look up compiled artifacts at dest
-      [%font ~]                 :: find code responsible for dest node
   ==
 +$  dart
   $%  [%node =wire road=road:tarball =load]
@@ -226,7 +236,6 @@
         [%news =wire =wave] :: subscription wave (initial or update)
         [%veto =dart] :: notify that a dart was sandboxed
         [%code =wire res=(each (axal (map @ta built)) built)]  :: code subtree or single artifact
-        [%font =wire res=(unit (unit bend:tarball))]  :: ~: blocked, [~ ~]: none, [~ ~ bend]: found
         [%here =wire =here]
     ==
   ::  +$  pend: cold intake for queuing. No vases — lobes and ckeys only.
@@ -251,7 +260,6 @@
         [%born =wire res=(each (list [=cass:clay tags=(set @t) tomb=?]) tang)]
         [%fell =wire]
         [%veto =dart]
-        [%font =wire res=(unit (unit bend:tarball))]
         [%here =wire =here]
     ==
   ::

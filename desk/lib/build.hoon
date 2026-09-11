@@ -62,19 +62,20 @@
     %+  skim  ~(tap in (~(gut by rev) i.frontier ~))
     |=(r=rail:tarball !(~(has in seen) r))
   $(frontier (weld t.frontier fresh), seen (~(gas in seen) fresh))
-::  +bins-to-cache: reconstruct input-keyed build-cache
-::  Uses input key for cache lookup, output key for bins lookup.
+::  +bins-to-cache: reconstruct the build-cache from a lode's keys —
+::  a key is both the cache address and the bins address. Rails with no
+::  artifact (the subject node, mimes) simply miss.
 ::
 ++  bins-to-cache
   |=  [=keys:nexus =bins:nexus]
   ^-  build-cache
   %+  roll  ~(tap by keys)
-  |=  [[=rail:tarball in=@uv out=@uv] acc=build-cache]
-  ?:  (~(has by acc) in)  acc
-  =/  entry=(unit [refs=@ud =built:nexus])  (~(get by bins) out)
+  |=  [[=rail:tarball key=@uv] acc=build-cache]
+  ?:  (~(has by acc) key)  acc
+  =/  entry=(unit [refs=@ud =built:nexus])  (~(get by bins) key)
   ?~  entry  acc
   ?.  ?=(%vase -.built.u.entry)  acc
-  (~(put by acc) in vase.built.u.entry)
+  (~(put by acc) key vase.built.u.entry)
 ::  +parse-imports: extract /<  imports from source text
 ::
 ::    Returns list of imports and remaining source (as cord).
@@ -378,8 +379,7 @@
 ++  build-all
   |=  [sut=vase =ball:tarball =build-cache]
   ^-  build-out
-  =/  sut-hash=@uv  ~>(%bout.[1 %build-sut-hash] (sham q.sut))
-  (build-inc sut sut-hash ball build-cache ~ ~)
+  (build-inc sut ball build-cache ~ ~)
 ::  +build-inc: build-all, reusing prior results for unchanged rails.
 ::
 ::    reuse maps each reusable rail to its prior cache key and result
@@ -393,7 +393,6 @@
 ::
 ++  build-inc
   |=  $:  sut=vase
-          sut-hash=@uv
           =ball:tarball
           =build-cache
           reuse=(map rail:tarball [key=@uv res=build-result])
@@ -529,13 +528,24 @@
   ::  so it must stay complete or the next incremental run works
   ::  from a corrupt graph
   =.  deps  (~(uni by deps) reuse-deps)
+  ::  The subject is a dependency of every file: a node with no deps of
+  ::  its own, whose key is the subject hash. It rides into every ckey
+  ::  through dep-keys like any other dep, and a changed subject is a
+  ::  changed dep — nothing special to check.
+  =.  deps
+    %+  ~(put by (~(run by deps) |=(s=(set rail:tarball) (~(put in s) sut-rail:nexus))))
+      sut-rail:nexus
+    ~
   =/  sort-res  (topo-sort deps)
   ::  Phase 3: Compile in topological order
   ::
-  ::  Seed results with mimes (self-compiled) and errors
+  ::  Seed results with the inputs that need no compiling: the subject,
+  ::  mimes (self-compiled), and errors
+  =/  given=(set rail:tarball)  (~(put in ~(key by mimes)) sut-rail:nexus)
   =/  results=(map rail:tarball build-result)
     %-  ~(uni by `(map rail:tarball build-result)`(~(run by mimes) |=(v=vase `build-result`[%& v])))
-    `(map rail:tarball build-result)`(~(run by errors) |=(t=tang `build-result`[%| t]))
+    %-  ~(put by `(map rail:tarball build-result)`(~(run by errors) |=(t=tang `build-result`[%| t])))
+    [sut-rail:nexus [%& sut]]
   ::  Add cycle errors
   =/  all-known=(set rail:tarball)  ~(key by deps)
   =.  results
@@ -575,13 +585,16 @@
   =.  key-map
     (~(uni by key-map) (~(run by reuse) |=(v=[key=@uv res=build-result] key.v)))
   |-
-  ?~  order.sort-res  [results build-cache deps key-map]
+  ?~  order.sort-res
+    ::  the subject is an input: it has a key (so it can be checked
+    ::  like any dep) but no result to index or store
+    [(~(del by results) sut-rail:nexus) build-cache deps key-map]
   =/  =rail:tarball  i.order.sort-res
   ::  Reused rails are pre-seeded — nothing to compute
   ?:  (~(has by reuse) rail)
     $(order.sort-res t.order.sort-res)
-  ::  Mimes are already in results — skip
-  ?:  (~(has by mimes) rail)
+  ::  Given inputs (subject, mimes) are already in results — skip
+  ?:  (~(has in given) rail)
     $(order.sort-res t.order.sort-res)
   =/  fi=file-info  (~(got by files) rail)
   ::  Check if any dep failed
@@ -593,7 +606,7 @@
   =/  dep-keys=(list @uv)
     (turn ~(tap in my-deps) |=(d=rail:tarball (~(got by key-map) d)))
   ?:  dep-failed
-    =/  ckey=@uv  (sham [sut-hash src-hash.fi (snoc path.rail name.rail) (sort dep-keys lth)])
+    =/  ckey=@uv  (sham [src-hash.fi (snoc path.rail name.rail) (sort dep-keys lth)])
     =/  bad=(list rail:tarball)
       %+  skim  ~(tap in my-deps)
       |=(d=rail:tarball !?=([~ %& *] (~(get by results) d)))
@@ -602,7 +615,7 @@
       results  (~(put by results) rail [%| [leaf+"dep failed in {(spud (snoc path.rail name.rail))}:" (turn bad |=(d=rail:tarball leaf+"{(spud (snoc path.d name.d))}"))]])
       key-map  (~(put by key-map) rail ckey)
     ==
-  =/  ckey=@uv  (sham [sut-hash src-hash.fi (snoc path.rail name.rail) (sort dep-keys lth)])
+  =/  ckey=@uv  (sham [src-hash.fi (snoc path.rail name.rail) (sort dep-keys lth)])
   ::  Cache hit → reuse
   ?:  (~(has by build-cache) ckey)
     ~&  >  "build: cache hit {(spud (snoc path.rail name.rail))}"

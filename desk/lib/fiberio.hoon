@@ -39,7 +39,7 @@
 ::    %code — built can be [%vase vase] → store as noun, re-vale
 ::  Unaffected: %made/%gone/%pack/%sand/%load/%lost/%gain/%held (just
 ::  wire+tang), %fell (wire), %news (wave), %here (pant), %veto (dart),
-::  %font (bend), %kept (set bend).
+::  %kept (set bend).
 ::
 
 /-  push
@@ -1093,26 +1093,6 @@
     ?.  ?=(%& -.res.u.in)
       [%skip ~]
     [%done p.res.u.in]
-  ==
-::  +get-font: find code responsible for a node
-::  ~: blocked (weir), [~ ~]: definitively none, [~ ~ bend]: found
-::
-++  get-font
-  |=  =road:tarball
-  =/  m  (fiber ,(unit (unit bend:tarball)))
-  ^-  form:m
-  ;<  =wire  bind:m  (nonce /font)
-  ;<  ~  bind:m  (send-dart %node wire road %font ~)
-  |=  input
-  :+  ~  q.state
-  ?+  in  [%skip ~]
-      ~  [%wait ~]
-      [~ %veto *]
-    [%fail (veto-error dart.u.in)]
-      [~ %font * *]
-    ?.  =(wire wire.u.in)
-      [%skip ~]
-    [%done res.u.in]
   ==
 ::  +get-marc: look up a compiled marc from bins
 ::

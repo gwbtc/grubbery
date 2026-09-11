@@ -93,8 +93,6 @@
               '  A bang means the process at that path has crashed and needs fixing.'
               '- man pages: each nexus has a /man/readme.md file with documentation.'
               '  Read them with: read road="/some/path/man/readme.md"'
-              '- read_font: find which code namespace (./apps/code/) is responsible for'
-              '  compiling the code that governs a given path.'
               ''
               '## Nexus management'
               '- create_nexus: create a child nexus in ./children/ from compiled code.'
@@ -1429,7 +1427,6 @@
       [name:delete-nexus-tool delete-nexus-tool]
       [name:check-bin-tool check-bin-tool]
       [name:check-bang-tool check-bang-tool]
-      [name:read-font-tool read-font-tool]
       [name:read-weir-tool read-weir-tool]
       [name:add-weir-tool add-weir-tool]
       [name:del-weir-tool del-weir-tool]
@@ -3159,31 +3156,6 @@
     =/  road=road:tarball  (agent-road u.raw)
     ;<  ~  bind:m  (cull:io road)
     (pure:m [%text (crip "Deleted nexus {(trip u.raw)}")])
-  --
-::
-++  read-font-tool
-  ^-  tool:nex-tools
-  |%
-  ++  name  'read_font'
-  ++  description  'Find which code namespace governs a path.'
-  ++  parameters
-    ^-  (map @t parameter-def:nex-tools)
-    (malt ~[['road' [%string 'Road to query']]])
-  ++  required  ~['road']
-  ++  handler
-    ^-  tool-handler:nex-tools
-    =/  m  (fiber:fiber:nexus ,tool-result:nex-tools)
-    ^-  form:m
-    ;<  st=tool-state:nex-tools  bind:m  (get-state-as:io ,tool-state:nex-tools)
-    ?~  raw=(get-arg st 'road')
-      (pure:m [%error 'Missing required argument: road'])
-    =/  road=road:tarball  (agent-road u.raw)
-    ;<  res=(unit (unit bend:tarball))  bind:m  (get-font:io road)
-    ?~  res
-      (pure:m [%text (crip "Blocked: cannot see code governing {(trip u.raw)}")])
-    ?~  u.res
-      (pure:m [%text (crip "No code found governing {(trip u.raw)}")])
-    (pure:m [%text (crip "Code: {(trip (road-to-cord:tarball [%| u.u.res]))}")])
   --
 ::
 ++  read-weir-tool

@@ -138,6 +138,23 @@
   [(need (decap base path.rail)) name.rail]
 ::  Resolve a bend relative to a location to get an absolute lane.
 ::
+::  +code-candidates: the code namespaces that may govern a path, in
+::  resolution order — the path's sibling /code (its parent's child),
+::  then each ancestor's, ending at root /code. X/code governs X's
+::  children and below, never X itself. One definition of governance,
+::  shared by the kernel (find-code-ns, resolve-built) and by anyone
+::  walking the namespace to find the source behind a blot or neck.
+::
+++  code-candidates
+  |=  pax=path
+  ^-  (list fold)
+  =/  root=fold  /code
+  =|  acc=(list fold)
+  |-
+  ?~  pax  (flop [root acc])
+  ?~  t.pax  (flop [root acc])
+  $(pax (snip `path`pax), acc [(snoc (snip `path`pax) %code) acc])
+::
 ++  lane-from-bend
   |=  [loc=lane =bend]
   ^-  (unit lane)
