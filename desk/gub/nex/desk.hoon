@@ -557,8 +557,36 @@
   ?.  ?=([%o *] u.bill)
     ~&  >>>  %desk-bill-not-object
     (pure:m ~)
+  ::  bill.json's instance rows are `"<name>": "<code path>"`. An optional
+  ::  top-level "adopt" object carries, per instance name,
+  ::    {"from": "<absolute source path>", "omit": ["/sub/tree", …]}
+  ::  and is read here rather than in the row so the row format is
+  ::  unchanged and a bill with no adopt behaves exactly as before.
+  =/  adopt=(map @t [from=path omit=(list path)])
+    =/  av  (~(get by p.u.bill) 'adopt')
+    ?.  ?=([~ %o *] av)  ~
+    %-  ~(gas by *(map @t [path (list path)]))
+    %+  murn  ~(tap by p.u.av)
+    |=  [k=@t v=json]
+    ^-  (unit [@t path (list path)])
+    ?.  ?=([%o *] v)  ~
+    =/  f  (~(get by p.v) 'from')
+    ?.  ?=([~ %s *] f)  ~
+    =/  fp=(each path tang)  (mule |.((stab p.u.f)))
+    ?:  ?=(%| -.fp)  ~
+    =/  om=(list path)
+      =/  o  (~(get by p.v) 'omit')
+      ?.  ?=([~ %a *] o)  ~
+      %+  murn  p.u.o
+      |=(j=json ?.(?=([%s *] j) ~ =/(q (mule |.((stab p.j))) ?:(?=(%| -.q) ~ `p.q))))
+    `[k p.fp om]
   =/  entries=(list [@t @t])
-    (turn ~(tap by p.u.bill) |=([k=@t v=json] [k (so:dejs:format v)]))
+    %+  murn  ~(tap by p.u.bill)
+    |=  [k=@t v=json]
+    ^-  (unit [@t @t])
+    ?:  =('adopt' k)  ~
+    ?.  ?=([%s *] v)  ~
+    `[k p.v]
   ~&  >  [%desk-bill (lent entries)]
   =|  made-any=?
   |-
@@ -590,9 +618,111 @@
   =/  =bole:tarball  [`[`neck `[~ ~ ~] %.n ~] ~]
   ~&  >  [%desk-bill-entry nam neck]
   ;<  ~  bind:m  (make:io data-road &+bole)
+  ::  ADOPT, if the bill names a source for this instance. Only here, in
+  ::  the branch that just CREATED it - the peek-exists above already
+  ::  returned for an instance that existed, so a re-run can never copy
+  ::  over data the user has since changed. That is what makes this safe
+  ::  to leave in the bill forever rather than something to remove after
+  ::  one release.
+  =/  ad  (~(get by adopt) `@t`nam)
+  ;<  ~  bind:m
+    ?~  ad  (pure:(fiber:fiber:nexus ,~) ~)
+    (adopt-dir rail nam from.u.ad omit.u.ad)
   =.  made-any  %.y
   $(entries t.entries)
 ::
+::  +adopt-dir: copy an instance's data from somewhere ELSE in the
+::  namespace into the instance this bill just created. Once, on the
+::  install that creates it, and never again.
+::
+::  This is the missing half of apply-bill. It can create an instance and
+::  it cannot adopt data that already exists, so an app moving INTO a desk
+::  from wherever it used to live had no way to bring its users' data with
+::  it. That is what this does, and it is deliberately generic: the desk
+::  knows how to copy a subtree, and the app's own bill.json says what to
+::  copy and what to leave.
+::
+::  The source is read with an ABSOLUTE road. That is correct here and
+::  almost nowhere else: this nexus is host layer, so it has no weir, and
+::  the place it is reading is by definition not its own tree.
+::
+::  It reads through +ball-to-bole, which runs +sang-noun over every entry
+::  - so a grub whose marc is GONE (the app's old code removed from the
+::  ball) still copies, as the raw noun it is, and re-validates on write
+::  because the marcs travel with the desk's code directory. That is the
+::  whole reason this can run after the old code is retired rather than
+::  needing to run before.
+::
+++  adopt-dir
+  |=  [=rail:tarball nam=@ta from=path omit=(list path)]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  ;<  =view:nexus  bind:m  (peek:io [%& %| from] ~)
+  ?.  ?=([%ball *] view)
+    ~&  >>  [%desk-adopt-nothing-at from]
+    (pure:m ~)
+  =/  dst=road:tarball  (nex-road:io rail [%| /desk/data/[nam]])
+  ::  the destination as it stands, which is whatever its own on-load just
+  ::  laid: its sigs, its %over assets, its declared empty dirs.
+  ;<  cur=view:nexus  bind:m  (peek:io dst ~)
+  =/  have=ball:tarball  ?.(?=([%ball *] cur) *ball:tarball ball.cur)
+  =/  bol=bole:tarball
+    (prune-bole (ball-to-bole:tarball ball.view) have omit /)
+  ::  preserve the destination's own neck, exactly as +sync-dir does: the
+  ::  overwrite must not strip what the instance's on-load established.
+  =/  nek  ?~(fil.have ~ neck.u.fil.have)
+  =/  root=pulp:tarball  (fall fil.bol `pulp:tarball`[~ ~ %.n ~])
+  =.  bol  bol(fil `root(neck nek))
+  ~&  >  [%desk-adopt nam from]
+  (over-fold:io dst bol)
+::  +prune-bole: keep only what the destination does not already have.
+::
+::    THE RULE: a grub the destination already holds is host- or code-laid,
+::    and it wins. Its on-load ran when apply-bill made the instance, so
+::    by the time we fold, everything that instance declares about itself
+::    is already in place - its .sig processes, its %over assets (weir.json,
+::    alias.json, the UI bundle, the tile), its declared empty dirs. Only
+::    what is ABSENT can be the old instance's data.
+::
+::    Written the other way round - fold everything, let %over rows restore
+::    themselves on the next load - the instance would run on the OLD app's
+::    assets and the OLD app's weir.json until something reloaded it. That
+::    is a window where the shell reads a road set the code did not ask for.
+::
+::    It also makes the whole operation idempotent for free: run it twice
+::    and the second run folds nothing.
+::
+::    `omit` is the app's own list, from bill.json, of subtrees to leave
+::    behind even when absent - transient request dirs and the like. Paths
+::    are relative to the instance root.
+::
+++  prune-bole
+  |=  [bol=bole:tarball have=ball:tarball omit=(list path) here=path]
+  ^-  bole:tarball
+  ?:  (lien omit |=(o=path =(o here)))  [~ ~]
+  =/  mine=(map @ta *)
+    ?~  fil.have  ~
+    (~(run by contents.u.fil.have) |=(* ~))
+  =?  fil.bol  ?=(^ fil.bol)
+    =/  p=pulp:tarball  u.fil.bol
+    =.  contents.p
+      %-  ~(gas by *(map @ta [bask:tarball ?]))
+      %+  skip  ~(tap by contents.p)
+      |=  [nm=@ta [=bask:tarball gain=?]]
+      ?|  (~(has by mine) nm)
+          ::  belt and braces: a .sig is a process even if the destination
+          ::  somehow lacks it, and spawning a second copy of the app's
+          ::  writer is the one mistake with no recovery.
+          =(%sig name.p.bask)
+      ==
+    `p
+  %=    bol
+      dir
+    %-  ~(urn by dir.bol)
+    |=  [k=@ta v=bole:tarball]
+    =/  sub=ball:tarball  (fall (~(get by dir.have) k) *ball:tarball)
+    (prune-bole v sub omit (snoc here k))
+  ==
 ::  +aggregate-asks: union every /desk/data child's weir.json ask into a
 ::  single desk-level ask.json — a list of {app, poke, peek, make}, one
 ::  entry per child that declares a weir. The consolidated, child-tagged
