@@ -155,8 +155,24 @@
 ::  name, so a by-spar %wham would cancel them all.
 ::  Stored as a grub at /sys/scry/main.scry-state.
 ::
+::  farm: what WE have bound in our own scry farm, spur -> top case.
+::  The authority for +farm-top, and it exists because the namespace
+::  cannot be asked safely. gall keeps an emptied plot after a full
+::  cull: %gt still lists that spur and %gw CRASHES on it, and a
+::  failing .^ cannot be softened from inside the event. Every %grow
+::  and %cull in this system is emitted by the two handlers beside
+::  +farm-top, so the ledger is complete by construction for anything
+::  grown since it existed - and a spur grown BEFORE it simply reads
+::  as unbound, which makes a re-cull leak rather than crash.
+::
 +$  scry-state
-  [%0 keens=(map wire [=ship pax=path sender=rail:tarball])]
+  $%  [%0 keens=(map wire [=ship pax=path sender=rail:tarball])]
+      $:  %1
+          keens=(map wire [=ship pax=path sender=rail:tarball])
+          farm=(map path @ud)
+      ==
+  ==
++$  scry-state-1  [%1 keens=(map wire [=ship pax=path sender=rail:tarball]) farm=(map path @ud)]
 ::  Push notification service state.
 ::  Stored as a grub at /sys/push/main.push-state.
 ::
