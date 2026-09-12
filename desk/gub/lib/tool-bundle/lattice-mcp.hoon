@@ -6,7 +6,21 @@
 ::  are compact mirrors of the know-* HTTP responses.
 /<  lk  /lib/lattice-know.hoon
 |%
-++  base  `path`/apps/'lattice.lattice_app'
+::  +base: where the lattice instance lives.
+::
+::    This moves with the release that makes lattice a stock desk, and it has to
+::    move in the SAME release: once lattice's code leaves the ball, the old
+::    instance at /apps/lattice.lattice_app keeps its data but loses its marks,
+::    so every typed grub there reads as a boom. +walk skips booms, which means
+::    pointing at the old path after the move reports an EMPTY vault rather than
+::    an error - memory that answers "nothing remembered", forever, quietly.
+::
+::    Between the release landing and the user granting the new instance's
+::    roads, this path has no data yet and the tools report an empty vault for
+::    the same reason. That window is the upgrade prompt's length and is
+::    accepted; the permanent version of it is not.
+++  base
+  `path`/apps/'shell.shell'/desks/'lattice.desk'/desk/data/'lattice.lattice_app'
 ::  +read-vault: every live knowledge entry, keyed by its path-like key.
 ::
 ++  read-vault
