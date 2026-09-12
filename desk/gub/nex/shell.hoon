@@ -1629,15 +1629,23 @@
       ::  %fall row in root.hoon creating an instance under /apps
       ::  directly, and this entry is what replaces it: the shell
       ::  provisions the git_repo, the desk follows the checkout, and
-      ::  apply-bill creates the instance - adopting the old one's data
-      ::  if a previous version of grubbery left one behind, which
-      ::  lattice's bill.json declares.
+      ::  apply-bill creates the instance.
       ::
       ::  A ship upgrading past the removal of that root.hoon row finds
-      ::  its old instance dormant, its data intact, and this entry
-      ::  brings the new one up beside it. The user is asked to approve
-      ::  the new instance's roads, because it is a new instance and has
-      ::  no consent recorded - that prompt is part of the upgrade.
+      ::  its old instance DORMANT with its data intact - the code left
+      ::  the ball, so its typed grubs read as booms, but the nouns are
+      ::  still there and +ball-to-bole revalidates them against the
+      ::  marks that travel with the desk's code.
+      ::
+      ::  Carrying that data across is lattice's own job, not this
+      ::  file's and not desk.hoon's: +carry-old-data runs on the new
+      ::  instance's writer rise, which is reached only once consent has
+      ::  been granted, and it copies rather than moves - the old
+      ::  instance is left untouched.
+      ::
+      ::  The user IS asked to approve the new instance's roads, because
+      ::  it is a new instance with no consent recorded, and lattice is
+      ::  unavailable until they do. That prompt is the upgrade.
       [%github 'lattice' 'nisfeb/lattice' 'main']
   ==
 ::  stock-name / stock-code: pull the name (and, for %code, the code path)
