@@ -1,0 +1,49 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Geocode</title>
+<link rel="icon" type="image/svg+xml" href="/grubbery/geocode/icon.svg">
+<link rel="stylesheet" href="/grubbery/geocode/style.css">
+</head>
+<body>
+<header>
+  <img id="brand-icon" src="/grubbery/geocode/icon.svg" alt="">
+  <h1>Geocode</h1>
+  <span id="status"></span>
+</header>
+<main>
+  <section class="panel">
+    <div class="stats">
+      <div class="stat"><div class="label">Cached lookups</div><div class="value" id="cache-count">–</div></div>
+      <div class="stat"><div class="label">Calls served</div><div class="value" id="calls-count">–</div></div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>Try a lookup</h2>
+    <div class="test-row">
+      <select id="t-kind">
+        <option value="search">search</option>
+        <option value="autocomplete">autocomplete</option>
+        <option value="reverse">reverse</option>
+      </select>
+      <input id="t-q" type="text" placeholder="query (search / autocomplete)">
+      <input id="t-lat" type="text" placeholder="lat" class="coord">
+      <input id="t-lon" type="text" placeholder="lon" class="coord">
+      <label class="chk"><input id="t-poly" type="checkbox"> polygon</label>
+      <button id="t-run" class="primary">Run</button>
+    </div>
+    <pre id="t-out" class="muted">results appear here</pre>
+  </section>
+
+  <section class="panel">
+    <h2>Config</h2>
+    <table id="cfg-table"><tbody></tbody></table>
+    <p class="muted">Edit config.json in the explorer to change endpoints or the User-Agent.</p>
+  </section>
+</main>
+<script src="/grubbery/geocode/app.js"></script>
+</body>
+</html>

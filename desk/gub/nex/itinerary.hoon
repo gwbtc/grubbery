@@ -1,4 +1,4 @@
-::  itinerary nexus: travel maps with pins and metadata
+::  itinerary nexus: travel maps with pins, zones and metadata
 ::
 ::  Each itinerary is one JSON file under /itineraries/.
 ::  The backend handles pin and zone CRUD by modifying the document
@@ -43,7 +43,7 @@
       %+  spin:loader  ball
       :~  (manifest:loader 0)
           [%over %& [/ %'link.json'] [[/ %json] (pairs:enjs:format ~[['name' s+'itinerary'] ['description' s+'Travel maps with pins']])]]
-          [%over %& [/ %'weir.json'] [[/ %json] (pairs:enjs:format ~[['poke' a+~[(pairs:enjs:format ~[['road' s+'/sys/bowl.sig'] ['why' s+'time, identity, entropy — every fiber op']]) (pairs:enjs:format ~[['road' s+'/sys/eyre/'] ['why' s+'serve its page over HTTP']])]]])]]
+          [%over %& [/ %'weir.json'] [[/ %json] (pairs:enjs:format ~[['poke' a+~[(pairs:enjs:format ~[['road' s+'/sys/bowl.sig'] ['why' s+'time, identity, entropy — every fiber op']]) (pairs:enjs:format ~[['road' s+'/sys/eyre/'] ['why' s+'serve its page over HTTP']]) (pairs:enjs:format ~[['road' s+'/apps/geocode.geocode/main.sig'] ['why' s+'map search box geocoding']])]]])]]
           [%over %& [/ %'tile.json'] [[/ %json] tile]]
           [%over %& [/ %'icon.svg'] [[/ %mime] icon]]
           [%over %& [/ %'index.html'] [[/ %mime] index-html]]
@@ -145,6 +145,26 @@
         ::
         ?:  ?&(=(%'DELETE' method) ?=([%api %i @ %zone @ ~] suffix))
           (del-entry eyre-id i.t.t.suffix 'zones' i.t.t.t.t.suffix)
+        ::
+        ::  GET /api/geocode?kind=...&q=...&lat=...&lon=... — bridge the
+        ::  map search box to the geocode nexus (calls protocol).
+        ::
+        ?:  ?&(=(%'GET' method) =([%api %geocode ~] suffix))
+          =/  gq
+            |=  key=@t
+            ^-  @t
+            =/  v  (~(get by (malt args)) key)
+            (fall v '')
+          ;<  resp=json  bind:m
+            %:  ask-geocode  rail
+                (gq 'kind')
+                (gq 'q')
+                (gq 'lat')
+                (gq 'lon')
+                (gq 'polygon')
+                (gq 'featuretype')
+            ==
+          (send-json eyre-id (en:json:html resp))
         ::
         ::  chat widget assets
         ::
@@ -481,6 +501,44 @@
   =/  last=json  (rear msgs)
   ?.  &(?=([%o *] last) ?=([~ %s %'assistant'] (~(get by p.last) 'role')))  $
   (pure:m conv)
+::  +ask-geocode: one geocode round-trip through the proxy nexus —
+::  entropy id, keep the call grub, poke, await done, cull our sub.
+++  ask-geocode
+  |=  [=rail:tarball kind=@t q=@t lat=@t lon=@t poly=@t ftype=@t]
+  =/  m  (fiber:fiber:nexus ,json)
+  ^-  form:m
+  =/  proxy=path  /apps/'geocode.geocode'
+  ;<  eny=@uvJ  bind:m  get-entropy:io
+  =/  call-id=@t     (scot %uv (end [3 8] eny))
+  =/  call-name=@ta  (crip "{(trip call-id)}.json")
+  =/  main-road=road:tarball  [%& %& proxy %'main.sig']
+  =/  call-road=road:tarball  [%& %& (snoc proxy %calls) call-name]
+  ;<  *  bind:m  (keep:io /geo call-road ~)
+  ;<  ~  bind:m
+    %-  poke:io
+    :+  main-road  [/ %json]
+    %-  pairs:enjs:format
+    :~  ['id' s+call-id]
+        ['kind' s+kind]
+        ['query' s+q]
+        ['lat' s+lat]
+        ['lon' s+lon]
+        ['polygon' s+poly]
+        ['featuretype' s+ftype]
+    ==
+  =|  tries=@ud
+  |-  ^-  form:m
+  ;<  ~  bind:m  (take-news /geo)
+  ;<  res=(unit json)  bind:m  (peek-as:io call-road ,json)
+  ?~  res
+    ?:  (gte tries 20)
+      ;<  ~  bind:m  (drop:io /geo call-road)
+      (pure:m (pairs:enjs:format ~[['error' s+'geocode timed out']]))
+    $(tries +(tries))
+  ?.  ?&(?=([%o *] u.res) ?=([~ %s %'done'] (~(get by p.u.res) 'status')))
+    $(tries +(tries))
+  ;<  ~  bind:m  (drop:io /geo call-road)
+  (pure:m (fall (~(get by p.u.res) 'response') [%o ~]))
 ::  +take-news: wait for a news wave on a wire.
 ++  take-news
   |=  =wire

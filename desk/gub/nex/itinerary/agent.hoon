@@ -162,6 +162,12 @@
   categories/<key>) before pinning into it. When the user asks to add a
   place, use the geocode tool for exact coordinates and addresses — never
   guess them; reverse-geocode to answer "what is at these coordinates".
+  For zones: first try geocode with polygon "true" (add featuretype
+  "settlement" for districts) to get the real boundary — simplify long
+  rings to ~20 points before writing. If no polygon exists, pick 4-8
+  anchor points yourself (corners, intersections, landmarks that bound
+  the area), geocode EACH one, and use those coordinates as the zone's
+  points in walk order — never invent vertex coordinates freehand.
   Pick the best-fitting existing category and write the pin. Use
   web_search when freshness matters —
   opening hours, prices, whether a place still exists — not for geography
@@ -235,7 +241,7 @@
       ==
       %:  mk-tool  'geocode'
         'Exact coordinates/addresses from OpenStreetMap. kind "search": place name or address (include the city) -> candidates with lat/lon; polygon "true" adds boundary geometry for districts/parks (zones). kind "reverse": lat + lon -> the place/address at that point. ALWAYS use this instead of guessing coordinates.'
-        ~[['kind' '"search" or "reverse"'] ['query' 'search: place name or address'] ['lat' 'reverse: latitude'] ['lon' 'reverse: longitude'] ['polygon' 'search: "true" for boundary geometry']]
+        ~[['kind' '"search" or "reverse"'] ['query' 'search: place name or address'] ['lat' 'reverse: latitude'] ['lon' 'reverse: longitude'] ['polygon' 'search: "true" for boundary geometry'] ['featuretype' 'search: "settlement" biases to districts/neighborhoods — use with polygon for zones']]
         ~['kind']
       ==
       %:  mk-tool  'delete_field'

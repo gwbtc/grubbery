@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Itinerary</title>
   <link rel="icon" type="image/svg+xml" href="/grubbery/itinerary/icon.svg">
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5/dist/maplibre-gl.css" />
   <link rel="stylesheet" href="/grubbery/itinerary/style.css">
   <link rel="stylesheet" href="/grubbery/itinerary/chat.css">
@@ -39,6 +38,10 @@
     <split-view id="panel-split" orientation="horizontal" primary="end" size="280" min="160" max="720" persist="itin-panel">
       <div slot="start" id="map-wrap">
         <div id="map-container"></div>
+        <div id="map-search">
+          <input id="search-input" type="text" placeholder="Search places..." autocomplete="off">
+          <div id="search-results" class="hidden"></div>
+        </div>
         <div id="draw-bar" class="hidden">
           <span id="draw-hint">Click the map to outline a zone</span>
           <button id="draw-finish">Finish</button>
@@ -124,7 +127,6 @@
   </modal-dialog>
 
   <script type="module" src="/grubbery/itinerary/ui/components.js"></script>
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://unpkg.com/maplibre-gl@5/dist/maplibre-gl.js"></script>
   <script src="/grubbery/itinerary/app.js"></script>
   <script src="/grubbery/itinerary/marked.min.js"></script>

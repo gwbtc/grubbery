@@ -39,6 +39,7 @@
       ['lat' [%string 'reverse only: latitude']]
       ['lon' [%string 'reverse only: longitude']]
       ['polygon' [%string 'search only: "true" to include boundary geometry']]
+      ['featuretype' [%string 'search only: bias to a feature class — settlement, city, street']]
   ==
 ++  required  ~['kind']
 ++  handler
@@ -71,6 +72,7 @@
         ['lat' s+(jstr 'lat')]
         ['lon' s+(jstr 'lon')]
         ['polygon' s+(jstr 'polygon')]
+        ['featuretype' s+(jstr 'featuretype')]
     ==
   =|  tries=@ud
   |-  ^-  form:m
