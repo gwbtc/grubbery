@@ -1973,15 +1973,19 @@
 ::  The same three, soft. Registering with the usergroup machinery is an
 ::  OPTIONAL road for most apps: refuse it and the app keeps every local
 ::  feature and loses only the ability to publish itself for cross-ship
-::  reads. That promise is what these make keepable, because the hard
-::  versions take the caller's earlier writes down with them - a veto is a
-::  crashed event, and the event rolls back whatever the fiber had already
-::  done before it reached here.
+::  reads. That promise is what these make keepable: the hard versions
+::  %fail the fiber on a veto, and a %fail annuls the failing INVOCATION
+::  — its state and darts — and leaves the fiber failed. Prior
+::  invocations stand (a write awaited through put:io is one), so this
+::  is not an event rollback; it is a fiber that dies at an optional
+::  step and never does the work after it.
 ::
-::  Observed: auspex proved its key road, poked itself %set-caps, wrote
-::  /caps, and then ran rise work that called +reg-register-at. The veto
-::  rolled the event back including the /caps write, so the app reported
-::  "not granted the key road" on a ship where that road WAS granted.
+::  Observed: an app proved its key road, poked itself %set-caps, wrote
+::  /caps, and then ran rise work that called +reg-register-at, which
+::  was vetoed. The fiber failed there, so the app never reached the
+::  state it reports from, and reported "not granted the key road" on a
+::  ship where that road WAS granted — the veto was for a road it had
+::  never declared, and nothing named it.
 ::
 ++  reg-poke-soft
   |=  act=registry-action:nexus
