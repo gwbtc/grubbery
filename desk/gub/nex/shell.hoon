@@ -431,8 +431,11 @@
         ::  safe to re-run. This is the shell-owned setup pipeline (replaces the
         ::  old root.hoon contacts/wallet seeds).
         ?:  &(=('POST' method.request.req) ?=([%desks %sync-defaults ~] suffix))
+          ::  answer first, for the reason spelled out at /desks/sync below:
+          ::  syncing every stock entry touches the network once per entry, and
+          ::  an HTTP request held open across that stalls the server.
+          ;<  ~  bind:m  (send-simple:srv eyre-id [[200 ~] `(as-octs:mimes:html 'syncing')])
           ;<  ~  bind:m  sync-defaults
-          ;<  ~  bind:m  (send-simple:srv eyre-id [[200 ~] `(as-octs:mimes:html 'synced')])
           (pure:m ~)
         ::  POST /desks/sync {name}: sync ONE stock desk — find its entry and
         ::  run the same +ensure-pairing the "Sync all" path uses per entry.
@@ -446,8 +449,16 @@
             ;<  ~  bind:m
               (send-simple:srv eyre-id [[404 ~] `(as-octs:mimes:html 'no such stock desk')])
             (pure:m ~)
+          ::  ANSWER FIRST, then do the work. +ensure-pairing touches the
+          ::  network, and holding an HTTP request open across that is how this
+          ::  route took the whole server down: the pairing blocked on a fetch
+          ::  that never answered, so this request never completed, and every
+          ::  request behind it went with it — including the shell's own consent
+          ::  page, which is the one page a user needs in order to fix anything.
+          ::  The caller learns the outcome from /desks/stock, which reports each
+          ::  entry's synced flag; it does not need this response to carry it.
+          ;<  ~  bind:m  (send-simple:srv eyre-id [[200 ~] `(as-octs:mimes:html 'syncing')])
           ;<  ~  bind:m  (ensure-pairing u.match)
-          ;<  ~  bind:m  (send-simple:srv eyre-id [[200 ~] `(as-octs:mimes:html 'synced')])
           (pure:m ~)
         ::  POST /desks/delete {app}: cull a desk from /desks/<app>.
         ?:  &(=('POST' method.request.req) ?=([%desks %delete ~] suffix))
