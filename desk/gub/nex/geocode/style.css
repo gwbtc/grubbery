@@ -65,4 +65,15 @@ h2 { font-size: 13px; font-weight: 650; margin-bottom: 12px; }
 #cfg-table td { padding: 6px 10px 6px 0; border-bottom: 1px solid #f0f2f4; vertical-align: top; }
 #cfg-table td:first-child { color: #57606a; white-space: nowrap; width: 160px; }
 #cfg-table tr:last-child td { border-bottom: none; }
-#cfg-table + p { margin-top: 10px; }
+.cfg-input {
+  width: 100%; padding: 5px 8px; border: 1px solid transparent;
+  border-radius: 6px; font-size: 12px; outline: none; background: transparent;
+}
+.cfg-input:hover { border-color: #e4e7eb; }
+.cfg-input:focus { border-color: #16a085; background: #fff; }
+.cfg-actions { display: flex; align-items: center; justify-content: flex-end; gap: 10px; margin-top: 10px; }
+.plain-btn {
+  padding: 7px 14px; border: 1px solid #d6dae0; border-radius: 7px;
+  background: #fff; font: inherit; font-size: 13px; cursor: pointer;
+}
+.plain-btn:hover { background: #f6f8fa; }

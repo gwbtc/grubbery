@@ -1,8 +1,8 @@
 ::  itinerary nexus: travel maps with pins, zones and metadata
 ::
-::  Each itinerary is one JSON file under /itineraries/.
+::  Each itinerary lives as one JSON file under /itineraries/.
 ::  The backend handles pin and zone CRUD by modifying the document
-::  server-side.
+::  server-side, behind the eyre boundary.
 ::
 /&  index-html  itinerary/index.html
 /&  app-js      itinerary/app.js
@@ -163,6 +163,8 @@
                 (gq 'lon')
                 (gq 'polygon')
                 (gq 'featuretype')
+                (gq 'tag')
+                (gq 'radius')
             ==
           (send-json eyre-id (en:json:html resp))
         ::
@@ -504,7 +506,7 @@
 ::  +ask-geocode: one geocode round-trip through the proxy nexus —
 ::  entropy id, keep the call grub, poke, await done, cull our sub.
 ++  ask-geocode
-  |=  [=rail:tarball kind=@t q=@t lat=@t lon=@t poly=@t ftype=@t]
+  |=  [=rail:tarball kind=@t q=@t lat=@t lon=@t poly=@t ftype=@t tag=@t radius=@t]
   =/  m  (fiber:fiber:nexus ,json)
   ^-  form:m
   =/  proxy=path  /apps/'geocode.geocode'
@@ -525,6 +527,8 @@
         ['lon' s+lon]
         ['polygon' s+poly]
         ['featuretype' s+ftype]
+        ['tag' s+tag]
+        ['radius' s+radius]
     ==
   =|  tries=@ud
   |-  ^-  form:m

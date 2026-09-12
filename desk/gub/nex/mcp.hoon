@@ -1,4 +1,4 @@
-::  mcp nexus: MCP JSON-RPC endpoint for grubbery
+::  mcp nexus: the MCP JSON-RPC endpoint for grubbery
 ::
 ::  Tree layout:
 ::    /main.sig         bind HTTP path, dispatch requests
@@ -438,7 +438,7 @@
     :~  title+s+'Tools'
         info+s+'tool registry & runs'
         color+s+'#232630'
-        image+s+'/grubbery/tiles/icon/mcp.mcp'
+        image+s+'/grubbery/mcp/icon.svg'
         href+s+'/grubbery/mcp'
     ==
   %+  spin:loader  ball

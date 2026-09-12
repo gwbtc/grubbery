@@ -8,6 +8,9 @@
 ::    autocomplete: {id, kind: 'autocomplete', query, lat?, lon?} — Photon,
 ::                  built for search-as-you-type (Nominatim policy forbids
 ::                  autocomplete traffic); lat/lon bias results near a point
+::    nearby:       {id, kind: 'nearby', tag, lat, lon, radius?} — Overpass,
+::                  every POI with an osm tag (e.g. shop:tobacco,
+::                  amenity:fuel) within radius meters of a point
 ::
 ::  Every result is cached forever under /cache keyed on the request
 ::  url (Nominatim's usage policy asks for caching; repeat lookups
@@ -39,6 +42,7 @@
             ['search-url' s+'https://nominatim.openstreetmap.org/search']
             ['reverse-url' s+'https://nominatim.openstreetmap.org/reverse']
             ['autocomplete-url' s+'https://photon.komoot.io/api/']
+            ['nearby-url' s+'https://overpass-api.de/api/interpreter']
         ==
       =/  tile=json
         %-  pairs:enjs:format
@@ -105,7 +109,28 @@
   =/  prefix=path  /grubbery/geocode
   =/  [site=path args=quay:eyre]  (parse-url:http-utils url.request.req)
   =/  suffix=path  (slag (lent prefix) site)
+  =/  method=@t  method.request.req
   ?+    suffix  (serve-static eyre-id suffix)
+      [%api %config ~]
+    ?.  =('POST' method)  (reply eyre-id 405 'POST only')
+    =/  jon=(unit json)
+      (de:json:html ?~(body.request.req '' q.u.body.request.req))
+    ?.  ?&(?=(^ jon) ?=([%o *] u.jon))  (reply eyre-id 400 'Bad JSON')
+    ::  accept only the known keys, all strings; keep anything the
+    ::  posted object omits
+    ;<  cur=json  bind:m  (read-config-at rail)
+    =/  curm=(map @t json)  ?:(?=([%o *] cur) p.cur ~)
+    =/  keys=(list @t)  ~['user-agent' 'search-url' 'reverse-url' 'autocomplete-url']
+    =/  merged=(map @t json)
+      %+  roll  keys
+      |=  [k=@t acc=_curm]
+      =/  v=(unit json)  (~(get by p.u.jon) k)
+      ?.  ?=([~ %s *] v)  acc
+      (~(put by acc) k u.v)
+    ;<  ~  bind:m
+      (over:io (nex-road:io rail [%& ~ %'config.json']) [[/ %json] [%o merged]])
+    (send-json eyre-id (pairs:enjs:format ~[['ok' [%b %.y]]]))
+  ::
       [%api %info ~]
     ;<  cfg=json  bind:m  (read-config-at rail)
     ;<  cachev=view:nexus  bind:m  (peek:io (nex-road:io rail [%| /cache]) ~)
@@ -256,10 +281,42 @@
     %-  some
     %+  rap  3
     :~  (jstr cfg 'autocomplete-url')
-        '?limit=6&q='
+        '?limit=10&q='
         (crip (double-enc query))
         ?:  |(=('' lat) =('' lon))  ''
         (rap 3 ~['&lat=' lat '&lon=' lon])
+    ==
+  ?:  =('nearby' kind)
+    =/  tag=@t  (jstr jon 'tag')
+    =/  lat=@t  (jstr jon 'lat')
+    =/  lon=@t  (jstr jon 'lon')
+    ?:  |(=('' tag) =('' lat) =('' lon))  ~
+    =/  radius=@t  =/(r (jstr jon 'radius') ?:(=('' r) '1500' r))
+    =/  t=tape  (trip tag)
+    =/  idx=(unit @ud)  (find ":" t)
+    ?~  idx  ~
+    =/  key=tape  (scag u.idx t)
+    =/  val=tape  (slag +(u.idx) t)
+    ?.  &((safe-ident key) (safe-ident val))  ~
+    =/  ql=@t
+      %+  rap  3
+      :~  '[out:json][timeout:10];nwr['
+          (crip key)
+          '='
+          (crip val)
+          '](around:'
+          radius
+          ','
+          lat
+          ','
+          lon
+          ');out center 40;'
+      ==
+    %-  some
+    %+  rap  3
+    :~  (jstr cfg 'nearby-url')
+        '?data='
+        (crip (double-enc ql))
     ==
   ?:  =('reverse' kind)
     =/  lat=@t  (jstr jon 'lat')
@@ -274,6 +331,20 @@
         lon
     ==
   ~
+::  +safe-ident: osm tag keys/values we will splice into Overpass QL —
+::  lowercase alnum, underscore, hyphen only (no quotes, no QL syntax)
+::
+++  safe-ident
+  |=  t=tape
+  ^-  ?
+  ?~  t  %.n
+  %+  levy  `tape`t
+  |=  c=@tD
+  ?|  &((gte c 'a') (lte c 'z'))
+      &((gte c '0') (lte c '9'))
+      =('_' c)
+      =('-' c)
+  ==
 ::  +double-enc: DOUBLE percent-encode a value for an outbound url
 ::  (vere cttp bug — see +build-url comment)
 ::

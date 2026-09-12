@@ -40,6 +40,8 @@
       ['lon' [%string 'reverse only: longitude']]
       ['polygon' [%string 'search only: "true" to include boundary geometry']]
       ['featuretype' [%string 'search only: bias to a feature class — settlement, city, street']]
+      ['tag' [%string 'nearby only: osm tag key:value, e.g. shop:tobacco, amenity:fuel']]
+      ['radius' [%string 'nearby only: meters around lat/lon (default 1500)']]
   ==
 ++  required  ~['kind']
 ++  handler
@@ -73,6 +75,8 @@
         ['lon' s+(jstr 'lon')]
         ['polygon' s+(jstr 'polygon')]
         ['featuretype' s+(jstr 'featuretype')]
+        ['tag' s+(jstr 'tag')]
+        ['radius' s+(jstr 'radius')]
     ==
   =|  tries=@ud
   |-  ^-  form:m

@@ -1,4 +1,4 @@
-::  explorer nexus: tarball tree browser
+::  explorer nexus: the tarball tree browser
 ::
 /<  feather  /lib/feather.hoon
 /<  iso-8601  /lib/iso-8601.hoon

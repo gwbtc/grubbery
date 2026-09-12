@@ -41,7 +41,12 @@
   <section class="panel">
     <h2>Config</h2>
     <table id="cfg-table"><tbody></tbody></table>
-    <p class="muted">Edit config.json in the explorer to change endpoints or the User-Agent.</p>
+    <div class="cfg-actions">
+      <span id="cfg-status" class="muted"></span>
+      <button id="cfg-edit" class="plain-btn">Edit</button>
+      <button id="cfg-cancel" class="plain-btn" hidden>Cancel</button>
+      <button id="cfg-save" class="primary" hidden>Save</button>
+    </div>
   </section>
 </main>
 <script src="/grubbery/geocode/app.js"></script>

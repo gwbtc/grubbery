@@ -82,19 +82,55 @@ function initMap() {
       updateDrawLayer();
       return;
     }
-    // a click on a zone opens its popup instead of the pin form
+    // zones the click landed in ride along on the what's-here card
     var hits = mapReady ? map.queryRenderedFeatures(e.point, { layers: ['zones-fill'] }) : [];
-    if (hits.length) {
-      var zid = hits[0].properties.id;
-      var zone = (itinerary.zones || {})[zid];
-      if (zone) {
-        openPopupAt([e.lngLat.lng, e.lngLat.lat],
-          popupDom(zone.name, zone.desc, null, 'edit', function() { openZoneForm(zid); }));
-      }
-      return;
-    }
-    openPinForm(null, e.lngLat.lat, e.lngLat.lng);
+    var zoneIds = hits.map(function(h) { return h.properties.id; });
+    whatsHere(e.lngLat.lat, e.lngLat.lng, zoneIds);
   });
+}
+
+// -- "What's here?": reverse geocode a bare map click into a place
+// card, with add-pin pre-filled from the answer.
+async function whatsHere(lat, lng, zoneIds) {
+  var loading = popupDom('Looking\u2026', null, null, null, null);
+  openPopupAt([lng, lat], loading);
+  var data;
+  try {
+    data = await fetch(API + '/geocode?kind=reverse&lat=' + lat.toFixed(6) +
+      '&lon=' + lng.toFixed(6)).then(function(r) { return r.json(); });
+  } catch(e) { data = null; }
+  // user may have clicked elsewhere meanwhile
+  if (!activePopup || !activePopup.isOpen()) return;
+  var name = (data && data.name) || '';
+  var addr = (data && data.display_name) || '';
+  if (!name && data && data.address) {
+    name = [data.address.road, data.address.house_number].filter(Boolean).join(' ');
+  }
+  if (!name) name = 'Unnamed spot';
+  // trim the display name down to the local part
+  var shortAddr = addr.split(', ').slice(0, 3).join(', ');
+  var dom = popupDom(name, shortAddr, null, 'add pin', function() {
+    openPinForm(null, lat, lng);
+    document.getElementById('pin-name').value = name === 'Unnamed spot' ? '' : name;
+  });
+  (zoneIds || []).forEach(function(zid) {
+    var zone = itinerary && (itinerary.zones || {})[zid];
+    if (!zone) return;
+    var row = document.createElement('div');
+    row.className = 'popup-zone';
+    var dot = document.createElement('span');
+    dot.className = 'popup-zone-dot';
+    dot.style.borderColor = catColor(zone.cat);
+    var label = document.createElement('span');
+    label.textContent = 'in ' + zone.name;
+    var edit = document.createElement('span');
+    edit.className = 'popup-edit';
+    edit.textContent = 'edit zone';
+    edit.onclick = function() { closePopups(); openZoneForm(zid); };
+    row.append(dot, label, edit);
+    dom.appendChild(row);
+  });
+  openPopupAt([lng, lat], dom);
 }
 
 function emptyFC() { return { type: 'FeatureCollection', features: [] }; }
@@ -376,6 +412,52 @@ async function saveAbout() {
 var searchTimer = null;
 var searchMarker = null;
 
+// category keywords -> osm tags: typing one flips the search box into
+// "nearby" mode (Overpass around the map center) instead of name search
+var NEARBY_KEYWORDS = {
+  tobacco: 'shop:tobacco', tabacchi: 'shop:tobacco',
+  gas: 'amenity:fuel', fuel: 'amenity:fuel', benzina: 'amenity:fuel',
+  pharmacy: 'amenity:pharmacy', farmacia: 'amenity:pharmacy',
+  atm: 'amenity:atm', bancomat: 'amenity:atm',
+  supermarket: 'shop:supermarket', grocery: 'shop:supermarket',
+  cafe: 'amenity:cafe', coffee: 'amenity:cafe',
+  restaurant: 'amenity:restaurant',
+  bar: 'amenity:bar',
+  bakery: 'shop:bakery',
+  gelato: 'amenity:ice_cream',
+  laundry: 'shop:laundry',
+  hospital: 'amenity:hospital',
+  pizza: 'cuisine:pizza', pizzeria: 'cuisine:pizza',
+  bank: 'amenity:bank',
+  hotel: 'tourism:hotel',
+  parking: 'amenity:parking',
+  wine: 'shop:wine', enoteca: 'shop:wine',
+  bus: 'highway:bus_stop',
+  train: 'railway:station'
+};
+
+function nearbyTag(q) {
+  var k = q.toLowerCase();
+  if (NEARBY_KEYWORDS[k]) return NEARBY_KEYWORDS[k];
+  // plural / trailing-s forgiveness
+  if (k.length > 3 && k.slice(-1) === 's' && NEARBY_KEYWORDS[k.slice(0, -1)]) {
+    return NEARBY_KEYWORDS[k.slice(0, -1)];
+  }
+  return null;
+}
+
+// nearby radius follows the viewport: half the visible diagonal,
+// clamped to something Overpass-friendly
+function viewportRadius() {
+  var b = map.getBounds();
+  var ne = b.getNorthEast();
+  var sw = b.getSouthWest();
+  var latM = (ne.lat - sw.lat) * 111000;
+  var lngM = (ne.lng - sw.lng) * 111000 * Math.cos(map.getCenter().lat * Math.PI / 180);
+  var r = Math.round(Math.sqrt(latM * latM + lngM * lngM) / 4);
+  return Math.max(500, Math.min(8000, r));
+}
+
 function searchLabel(props) {
   var bits = [];
   if (props.name) bits.push(props.name);
@@ -393,15 +475,28 @@ function hideSearchResults() {
 async function runSearch(q) {
   var box = document.getElementById('search-results');
   var c = map.getCenter();
-  var url = API + '/geocode?kind=autocomplete&q=' + encodeURIComponent(q) +
-    '&lat=' + c.lat.toFixed(4) + '&lon=' + c.lng.toFixed(4);
+  var tag = nearbyTag(q);
+  var url;
+  if (tag) {
+    url = API + '/geocode?kind=nearby&tag=' + encodeURIComponent(tag) +
+      '&lat=' + c.lat.toFixed(4) + '&lon=' + c.lng.toFixed(4) +
+      '&radius=' + viewportRadius();
+  } else {
+    url = API + '/geocode?kind=autocomplete&q=' + encodeURIComponent(q) +
+      '&lat=' + c.lat.toFixed(4) + '&lon=' + c.lng.toFixed(4);
+  }
+  box.innerHTML = '<div class="search-empty"><span class="search-spin"></span>Searching\u2026</div>';
+  box.classList.remove('hidden');
   var data;
   try {
     data = await fetch(url).then(function(r) { return r.json(); });
-  } catch(e) { return; }
+  } catch(e) {
+    box.innerHTML = '<div class="search-empty">Search failed</div>';
+    return;
+  }
   // stale response guard: only render if the input still matches
   if (document.getElementById('search-input').value.trim() !== q) return;
-  var feats = (data && data.features) || [];
+  var feats = tag ? overpassToFeatures(data, c) : ((data && data.features) || []);
   if (!feats.length) {
     box.innerHTML = '<div class="search-empty">No results</div>';
     box.classList.remove('hidden');
@@ -422,6 +517,28 @@ async function runSearch(q) {
       pickSearchHit(f);
     };
   });
+}
+
+// normalize Overpass elements into Photon-feature shape, nearest first
+function overpassToFeatures(data, center) {
+  var els = (data && data.elements) || [];
+  var feats = els.map(function(el) {
+    var lat = el.lat != null ? el.lat : (el.center && el.center.lat);
+    var lon = el.lon != null ? el.lon : (el.center && el.center.lon);
+    if (lat == null) return null;
+    var t = el.tags || {};
+    return {
+      properties: {
+        name: t.name || t.brand || '(unnamed)',
+        street: [t['addr:street'], t['addr:housenumber']].filter(Boolean).join(' '),
+        city: t['addr:city'] || ''
+      },
+      geometry: { coordinates: [lon, lat] },
+      _d: Math.pow(lat - center.lat, 2) + Math.pow(lon - center.lng, 2)
+    };
+  }).filter(Boolean);
+  feats.sort(function(a, b) { return a._d - b._d; });
+  return feats.slice(0, 12);
 }
 
 function pickSearchHit(f) {

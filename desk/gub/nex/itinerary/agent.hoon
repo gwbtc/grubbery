@@ -240,8 +240,8 @@
         ~['itinerary' 'path' 'value']
       ==
       %:  mk-tool  'geocode'
-        'Exact coordinates/addresses from OpenStreetMap. kind "search": place name or address (include the city) -> candidates with lat/lon; polygon "true" adds boundary geometry for districts/parks (zones). kind "reverse": lat + lon -> the place/address at that point. ALWAYS use this instead of guessing coordinates.'
-        ~[['kind' '"search" or "reverse"'] ['query' 'search: place name or address'] ['lat' 'reverse: latitude'] ['lon' 'reverse: longitude'] ['polygon' 'search: "true" for boundary geometry'] ['featuretype' 'search: "settlement" biases to districts/neighborhoods — use with polygon for zones']]
+        'Exact coordinates/addresses from OpenStreetMap. kind "search": place name or address (include the city) -> candidates with lat/lon; polygon "true" adds boundary geometry for districts/parks (zones). kind "reverse": lat + lon -> the place/address at that point. kind "nearby": every POI with an osm tag (shop:tobacco, amenity:fuel, amenity:pharmacy...) within radius meters of lat/lon — use for "nearest X" questions. ALWAYS use this instead of guessing coordinates.'
+        ~[['kind' '"search", "reverse" or "nearby"'] ['query' 'search: place name or address'] ['lat' 'reverse/nearby: latitude'] ['lon' 'reverse/nearby: longitude'] ['polygon' 'search: "true" for boundary geometry'] ['featuretype' 'search: "settlement" biases to districts/neighborhoods — use with polygon for zones'] ['tag' 'nearby: osm tag key:value, e.g. shop:tobacco'] ['radius' 'nearby: meters (default 1500)']]
         ~['kind']
       ==
       %:  mk-tool  'delete_field'
