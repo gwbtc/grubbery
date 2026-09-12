@@ -7617,19 +7617,35 @@
   ?-    -.act
       %register
     =/  new-prefix  pax.act
-    ::  last-writer-wins, like eyre bindings: the new registrant claims
-    ::  its prefix, evicting any existing registrant whose prefix
-    ::  overlaps it. auto-heals stale rows left by a deleted nexus that
-    ::  never got to deregister.
+    ::  last-writer-wins for the SAME prefix: a new registrant claiming a
+    ::  prefix evicts the row that already claimed exactly that prefix,
+    ::  which auto-heals a stale row left by a deleted nexus that never got
+    ::  to deregister.
+    ::
+    ::  It deliberately does NOT evict OVERLAPPING claims, which is what
+    ::  this did before, and that broke delegation completely: the root
+    ::  nexus registers `/`, and `/` is a prefix of every path, so the
+    ::  symmetric overlap test meant the root's own re-registration evicted
+    ::  every other registrant on the ship. After any rebuild that re-rose
+    ::  the root — which is every rebuild — `reg` held exactly one row and
+    ::  every delegated grant was refused with %how-rejected-not-registered.
+    ::  A desk sharing its code cross-ship stopped being able to, silently:
+    ::  the follower saw an empty /desk/code, no error, nothing in a log.
+    ::
+    ::  Nesting is unambiguous for everything that reads this map. %how
+    ::  looks a registrant up by its EXACT rail and scopes its roads to that
+    ::  registrant's own prefix, so a parent and a child holding nested
+    ::  prefixes never contend for a road. And stale rows do not need this
+    ::  rule anyway: the /registrant subscription below reports a
+    ::  registrant's deletion to +registry-news, and %gc sweeps grants whose
+    ::  registrant is gone.
     =/  pruned=(map rail:tarball path)
       %-  ~(gas by *(map rail:tarball path))
       %+  skip  ~(tap by reg)
       |=  [r=rail:tarball existing=path]
       ^-  ?
       ?:  =(r rail.act)  %.n
-      ?|  (is-prefix new-prefix existing)
-          (is-prefix existing new-prefix)
-      ==
+      =(new-prefix existing)
     ::  watch the registrant so its deletion reaches +registry-news;
     ::  drop the watches of any rows the claim evicted
     =.  this
