@@ -55,6 +55,7 @@ async function refresh() {
   $('in-tok').textContent = fmt(g['input-tokens']);
   $('out-tok').textContent = fmt(g['output-tokens']);
   $('cache-read').textContent = fmt(g['cache-read-tokens']);
+  $('web-searches').textContent = fmt(g['web-searches']);
   $('cache-write').textContent = fmt(g['cache-write-tokens']);
   $('requests').textContent = fmt(g.requests);
   const calls = g.calls || [];
@@ -83,7 +84,7 @@ async function refresh() {
   tb.textContent = '';
   for (const c of calls) {
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td>${fmtTime(c.time)}</td><td class="caller mono" title="${c.from || '–'}">${c.from || '–'}</td><td class="mono">${c.model || '–'}</td><td>${fmt(c.in)}</td><td>${fmt(c['cache-read'])}</td><td>${fmt(c['cache-write'])}</td><td>${fmt(c.out)}</td><td class="r cost">${fmtCost(callCost(c))}</td>`;
+    tr.innerHTML = `<td>${fmtTime(c.time)}</td><td class="caller mono" title="${c.from || '–'}">${c.from || '–'}</td><td class="mono">${c.model || '–'}</td><td>${fmt(c.in)}</td><td>${fmt(c['cache-read'])}</td><td>${fmt(c['cache-write'])}</td><td>${fmt(c.out)}</td><td>${fmt(c.searches)}</td><td class="r cost">${fmtCost(callCost(c))}</td>`;
     tb.appendChild(tr);
   }
 }

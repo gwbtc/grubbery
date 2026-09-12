@@ -194,13 +194,17 @@
   =/  out-tok=@ud      (jnum u.usage 'output_tokens' 0)
   =/  cache-read=@ud   (jnum u.usage 'cache_read_input_tokens' 0)
   =/  cache-write=@ud  (jnum u.usage 'cache_creation_input_tokens' 0)
+  =/  searches=@ud
+    =/  stu=(unit json)  (~(get by p.u.usage) 'server_tool_use')
+    ?.  ?=([~ %o *] stu)  0
+    (jnum u.stu 'web_search_requests' 0)
   =/  model=@t  (jget resp 'model')
   ::  stamp the DOLLAR cost now, at the rates in force at call time —
   ::  a ledger records what was spent, it does not reprice history
   ;<  urates=(unit json)  bind:m
     (peek-as:io (cord-to-road:tarball '../rates.json') ,json)
   =/  cost=@t
-    (compute-cost (fall urates *json) model in-tok out-tok cache-read cache-write)
+    (compute-cost (fall urates *json) model in-tok out-tok cache-read cache-write searches)
   =/  usage-road=road:tarball  (cord-to-road:tarball '../usage.json')
   ;<  ucur=(unit json)  bind:m  (peek-as:io usage-road ,json)
   =/  cur=json  (fall ucur [%o ~])
@@ -215,6 +219,7 @@
         ['out' (numb:enjs:format out-tok)]
         ['cache-read' (numb:enjs:format cache-read)]
         ['cache-write' (numb:enjs:format cache-write)]
+        ['searches' (numb:enjs:format searches)]
         ['cost' [%n cost]]
         ['model' s+model]
         ['from' s+caller]
@@ -227,15 +232,17 @@
         ['cache-read-tokens' (numb:enjs:format (add cache-read (jnum cur 'cache-read-tokens' 0)))]
         ['cache-write-tokens' (numb:enjs:format (add cache-write (jnum cur 'cache-write-tokens' 0)))]
         ['requests' (numb:enjs:format (add 1 (jnum cur 'requests' 0)))]
+        ['web-searches' (numb:enjs:format (add searches (jnum cur 'web-searches' 0)))]
         ['calls' [%a (scag 500 `(list json)`[entry old-calls])]]
     ==
   (over:io usage-road [[/ %json] new])
 ::  +compute-cost: dollars for one call, fixed-point (units of 1e-10
 ::  dollars) so no floats are involved. Rates are $/M-token strings;
-::  cache reads bill at 0.1x input, cache writes at 1.25x.
+::  cache reads bill at 0.1x input, cache writes at 1.25x. Server-side
+::  web searches bill flat at $10/1k ($0.01 each).
 ::
 ++  compute-cost
-  |=  [rates=json model=@t in=@ud out=@ud cr=@ud cw=@ud]
+  |=  [rates=json model=@t in=@ud out=@ud cr=@ud cw=@ud ws=@ud]
   ^-  @t
   =/  [ri=@ud ro=@ud]  (rate-for rates model)
   =/  units=@ud
@@ -244,6 +251,7 @@
       (mul cr (mul ri 10))
       (mul cw (mul ri 125))
       (mul out (mul ro 100))
+      (mul ws 100.000.000)
     ==
   =/  int=@ud   (div units 10.000.000.000)
   =/  frac=@ud  (mod units 10.000.000.000)

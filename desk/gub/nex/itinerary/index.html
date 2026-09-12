@@ -4,18 +4,26 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Itinerary</title>
-  <link rel="icon" type="image/svg+xml" href="/grubbery/tiles/icon/itinerary.itinerary">
+  <link rel="icon" type="image/svg+xml" href="/grubbery/itinerary/icon.svg">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5/dist/maplibre-gl.css" />
   <link rel="stylesheet" href="/grubbery/itinerary/style.css">
+  <link rel="stylesheet" href="/grubbery/itinerary/chat.css">
 </head>
 <body>
   <div id="toolbar">
     <div id="toolbar-left">
-      <button id="btn-sidebar" title="Itineraries">&#9776;</button>
-      <span id="map-name">Itinerary</span>
+      <drop-menu id="itin-menu" align="start">
+        <button slot="trigger" id="btn-itins" title="Itineraries">
+          <span id="map-name">Itinerary</span> &#9662;
+        </button>
+        <div id="itin-menu-items"></div>
+        <button id="menu-new" data-keep-open>+ New itinerary</button>
+      </drop-menu>
     </div>
     <div id="toolbar-right">
+      <button id="btn-panel" title="Pin panel">&#8981;</button>
+      <button id="btn-zone" title="Draw zone">&#9634;</button>
       <button id="btn-add" title="Add pin">+</button>
       <div id="view-toggle">
         <button id="btn-map" class="active">Map</button>
@@ -25,19 +33,37 @@
     </div>
   </div>
 
-  <div id="sidebar-overlay" class="hidden"></div>
-  <div id="sidebar" class="hidden">
-    <div id="sidebar-header">
-      <span>Itineraries</span>
-      <button id="sidebar-new" title="New itinerary">+</button>
-    </div>
-    <div id="sidebar-list"></div>
-  </div>
-
   <div id="filters"></div>
 
   <div id="map-view">
-    <div id="map-container"></div>
+    <split-view id="panel-split" orientation="horizontal" primary="end" size="280" min="160" max="720" persist="itin-panel">
+      <div slot="start" id="map-wrap">
+        <div id="map-container"></div>
+        <div id="draw-bar" class="hidden">
+          <span id="draw-hint">Click the map to outline a zone</span>
+          <button id="draw-finish">Finish</button>
+          <button id="draw-cancel">Cancel</button>
+        </div>
+      </div>
+      <div slot="end" id="side-panel">
+        <tab-group id="side-tabs" persist="itin-side-tabs">
+          <div tab-label="Trip" id="trip-panel">
+            <div id="about-head">
+              <span>About</span>
+              <button id="about-edit">edit</button>
+            </div>
+            <div id="about-md" class="about-empty">No description yet.</div>
+            <div class="section-label">Zones</div>
+            <div id="zone-list"></div>
+          </div>
+          <div tab-label="Pins" id="pin-panel">
+            <input id="panel-search" type="text" placeholder="Search pins..." autocomplete="off">
+            <div id="panel-list"></div>
+          </div>
+          <div tab-label="Chat" id="chat-mount"></div>
+        </tab-group>
+      </div>
+    </split-view>
   </div>
 
   <div id="globe-view" class="hidden">
@@ -48,31 +74,60 @@
     <div id="pin-list"></div>
   </div>
 
-  <div id="pin-modal" class="hidden">
-    <div id="pin-form">
-      <div id="form-header">
-        <span id="form-title">Add Pin</span>
-        <button id="form-close">&times;</button>
-      </div>
-      <input id="pin-name" type="text" placeholder="Name" autocomplete="off">
-      <input id="pin-desc" type="text" placeholder="Description" autocomplete="off">
-      <select id="pin-cat"></select>
-      <input id="pin-from" type="text" placeholder="Recommended by (comma-separated)" autocomplete="off">
-      <textarea id="pin-notes" rows="3" placeholder="Notes (optional)"></textarea>
-      <div id="pin-coords">
-        <input id="pin-lat" type="number" step="any" placeholder="Latitude">
-        <input id="pin-lng" type="number" step="any" placeholder="Longitude">
-      </div>
-      <div id="form-actions">
-        <button id="form-delete" class="btn-danger hidden">Delete</button>
-        <button id="form-save" class="btn-primary">Save</button>
-      </div>
-      <div id="form-status"></div>
+  <modal-dialog id="pin-modal">
+    <div class="form-header">
+      <span id="form-title">Add Pin</span>
     </div>
-  </div>
+    <input id="pin-name" type="text" placeholder="Name" autocomplete="off">
+    <input id="pin-desc" type="text" placeholder="Description" autocomplete="off">
+    <select id="pin-cat"></select>
+    <input id="pin-from" type="text" placeholder="Recommended by (comma-separated)" autocomplete="off">
+    <textarea id="pin-notes" rows="3" placeholder="Notes (optional)"></textarea>
+    <div id="pin-coords">
+      <input id="pin-lat" type="number" step="any" placeholder="Latitude">
+      <input id="pin-lng" type="number" step="any" placeholder="Longitude">
+    </div>
+    <div class="form-actions">
+      <button id="form-delete" class="btn-danger hidden">Delete</button>
+      <button data-close class="btn-plain">Cancel</button>
+      <button id="form-save" class="btn-primary">Save</button>
+    </div>
+    <div id="form-status" class="form-status"></div>
+  </modal-dialog>
 
+  <modal-dialog id="zone-modal">
+    <div class="form-header">
+      <span id="zone-form-title">Add Zone</span>
+    </div>
+    <input id="zone-name" type="text" placeholder="Name" autocomplete="off">
+    <input id="zone-desc" type="text" placeholder="Description" autocomplete="off">
+    <select id="zone-cat"></select>
+    <textarea id="zone-notes" rows="3" placeholder="Notes (optional)"></textarea>
+    <div class="form-actions">
+      <button id="zone-delete" class="btn-danger hidden">Delete</button>
+      <button data-close class="btn-plain">Cancel</button>
+      <button id="zone-save" class="btn-primary">Save</button>
+    </div>
+    <div id="zone-form-status" class="form-status"></div>
+  </modal-dialog>
+
+  <modal-dialog id="about-modal">
+    <div class="form-header">
+      <span>About this trip</span>
+    </div>
+    <textarea id="about-text" rows="12" placeholder="Trip purpose, plans, links — markdown"></textarea>
+    <div class="form-actions">
+      <button data-close class="btn-plain">Cancel</button>
+      <button id="about-save" class="btn-primary">Save</button>
+    </div>
+    <div id="about-status" class="form-status"></div>
+  </modal-dialog>
+
+  <script type="module" src="/grubbery/itinerary/ui/components.js"></script>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://unpkg.com/maplibre-gl@5/dist/maplibre-gl.js"></script>
   <script src="/grubbery/itinerary/app.js"></script>
+  <script src="/grubbery/itinerary/marked.min.js"></script>
+  <script src="/grubbery/itinerary/chat.js"></script>
 </body>
 </html>
