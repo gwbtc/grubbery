@@ -45,11 +45,24 @@ ft.columns = [
     },
     link: (item) => {
       if (item.kind === 'dir') return here.replace(/\/$/, '') + '/' + item.name;
-      if (item.kind === 'symlink') return PREFIX + item.resolved;
       if (item.binary) return here.replace(/\/$/, '') + '/' + item.name + '?pretty';
+      // a symlink's name opens the link itself (its editor); the target
+      // arrow, added below, is what follows it
       return here.replace(/\/$/, '') + '/' + item.name;
     },
     decorate: (cell, item) => {
+      if (item.kind === 'symlink' && item.target) {
+        const arrow = document.createElement('span');
+        arrow.className = 'sym';
+        arrow.textContent = ' → ';
+        const a = document.createElement('a');
+        a.className = 'sym';
+        a.href = PREFIX + item.resolved;
+        a.textContent = item.target;
+        a.title = 'follow the link';
+        a.addEventListener('click', (e) => { e.stopPropagation(); });
+        cell.append(arrow, a);
+      }
       const bangText = item.kind === 'boom' ? item.boom : item.bang;
       if (bangText) {
         const x = document.createElement('span');

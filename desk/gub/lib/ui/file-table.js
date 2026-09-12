@@ -245,12 +245,6 @@ class FileTable extends HTMLElement {
             this.#emit('ft-navigate', { item, href, column: col.key });
           });
           const cell = this.#td(col.cls || '', a);
-          if (item.kind === 'symlink' && col.key === 'name' && item.target) {
-            const sym = document.createElement('span');
-            sym.className = 'sym';
-            sym.textContent = ' → ' + item.target;
-            cell.appendChild(sym);
-          }
           if (col.decorate) col.decorate(cell, item);
           tr.appendChild(cell);
           continue;
