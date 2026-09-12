@@ -161,7 +161,8 @@ split-view:not(:defined) { flex: 1; }
 /* Side panel (split-view end pane): Pins / Chat tabs */
 #side-panel { height: 100%; overflow: hidden; background: #fff; }
 #side-panel tab-group { height: 100%; }
-#chat-mount { height: 100%; overflow: hidden; }
+#chat-mount { height: 100%; overflow-y: hidden; overflow-x: auto; }
+#chat-mount .da-panel { min-width: 300px; }
 
 /* Trip tab */
 #trip-panel {

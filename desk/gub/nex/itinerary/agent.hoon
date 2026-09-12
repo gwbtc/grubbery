@@ -159,9 +159,11 @@
   (write_entry, delete_entry) and everything else — trip description,
   categories, name, map center — via write_field/delete_field. A pin's cat
   must be an existing category key; create the category (write_field on
-  categories/<key>) before pinning into it. When the user asks to add a place, geocode it from your own
-  knowledge of the city (lat/lng to 4 decimals), pick the best-fitting
-  existing category, and write it. Use web_search when freshness matters —
+  categories/<key>) before pinning into it. When the user asks to add a
+  place, use the geocode tool for exact coordinates and addresses — never
+  guess them; reverse-geocode to answer "what is at these coordinates".
+  Pick the best-fitting existing category and write the pin. Use
+  web_search when freshness matters —
   opening hours, prices, whether a place still exists — not for geography
   you already know. Read the itinerary first so ids, categories
   and existing entries inform your edit. Keep descriptions short and concrete.
@@ -230,6 +232,11 @@
         'Set ANY field in the itinerary document by slash path: "desc" (markdown trip notes), "name", "center", "zoom", "categories/<key>" ({"label","color"}), or nested paths like "pins/<id>/notes". value is JSON as a string. Empty path replaces the whole document.'
         ~[['itinerary' 'the itinerary id'] ['path' 'slash path from the document root'] ['value' 'the new value as a JSON string']]
         ~['itinerary' 'path' 'value']
+      ==
+      %:  mk-tool  'geocode'
+        'Exact coordinates/addresses from OpenStreetMap. kind "search": place name or address (include the city) -> candidates with lat/lon; polygon "true" adds boundary geometry for districts/parks (zones). kind "reverse": lat + lon -> the place/address at that point. ALWAYS use this instead of guessing coordinates.'
+        ~[['kind' '"search" or "reverse"'] ['query' 'search: place name or address'] ['lat' 'reverse: latitude'] ['lon' 'reverse: longitude'] ['polygon' 'search: "true" for boundary geometry']]
+        ~['kind']
       ==
       %:  mk-tool  'delete_field'
         'Delete any field from the itinerary document by slash path, e.g. "categories/landmark" or "pins/old-pin".'

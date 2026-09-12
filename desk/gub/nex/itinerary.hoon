@@ -1,6 +1,6 @@
 ::  itinerary nexus: travel maps with pins and metadata
 ::
-::  Each itinerary is a single JSON file under /itineraries/.
+::  Each itinerary is one JSON file under /itineraries/.
 ::  The backend handles pin and zone CRUD by modifying the document
 ::  server-side.
 ::
@@ -427,10 +427,15 @@
   =/  dir  |=(p=path `road:tarball`[%& %| p])
   =/  fil  |=([p=path n=@ta] `road:tarball`[%& %& p n])
   :*  make=(sy ~[(dir /apps/itinerary/itineraries)])
-      poke=(sy ~[(fil /sys 'bowl.sig') (fil /apps/'anthropic.anthropic' 'main.sig')])
+      %-  sy
+      :~  (fil /sys 'bowl.sig')
+          (fil /apps/'anthropic.anthropic' 'main.sig')
+          (fil /apps/'geocode.geocode' 'main.sig')
+      ==
       %-  sy
       :~  (dir /apps/itinerary/itineraries)
           (dir /apps/'anthropic.anthropic'/calls)
+          (dir /apps/'geocode.geocode'/calls)
       ==
   ==
 ::  +ask-agent: bridge one browser turn to the agent nexus. Subscribe to
