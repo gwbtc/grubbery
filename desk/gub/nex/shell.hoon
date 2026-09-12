@@ -1664,11 +1664,24 @@
       ::  (share.usergroups grants peek on /desk/code and version.json).
       ::  Without the grant a subscriber gets a desk that mirrors nothing:
       ::  desk present, code empty, no instance, and no error to read.
-      ?:  =(our ~ricsul-bilwyt)
+      ?:  =(our distributor)
         [%github 'lattice' 'nisfeb/lattice' 'main']
-      :+  %code  'lattice'
-      '~ricsul-bilwyt/apps/shell.shell/desks/lattice.desk/desk/code'
+      [%code 'lattice' lattice-source]
   ==
+::  distributor: the ship that publishes lattice to this fleet. Named ONCE,
+::  because +lattice-source derives the subscriber's path from it — two
+::  hand-written copies of a ship name drift, and the failure that drift
+::  produces is a desk that mirrors nothing without saying so.
+::
+++  distributor  ~ricsul-bilwyt
+::  lattice-source: the subscriber's source.json path — the distributor's own
+::  lattice desk code dir, read cross-ship. +parse-path turns the "~ship/"
+::  prefix into /sys/ames/ships/<ship>/root/.
+::
+++  lattice-source
+  ^-  @t
+  %-  crip
+  "{<distributor>}/apps/shell.shell/desks/lattice.desk/desk/code"
 ::  stock-name / stock-code: pull the name (and, for %code, the code path)
 ::  out of an entry regardless of kind.
 ++  stock-name  |=(e=stock-entry ?-(-.e %github name.e, %code name.e))
