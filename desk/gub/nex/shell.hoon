@@ -444,7 +444,8 @@
             %+  fall  (de:json:html ?~(body.request.req '' q.u.body.request.req))
             *json
           =/  name=@t  (jstr jon 'name')
-          =/  match=(unit stock-entry)  (find-stock name)
+          ;<  our=@p  bind:m  get-our:io
+          =/  match=(unit stock-entry)  (find-stock our name)
           ?~  match
             ;<  ~  bind:m
               (send-simple:srv eyre-id [[404 ~] `(as-octs:mimes:html 'no such stock desk')])
@@ -1621,15 +1622,22 @@
   $%  [%github name=@t repo=@t ref=@t]
       [%code name=@t code=@t]
   ==
+::  Takes `our` because one entry differs on the distributor. Every ship
+::  follows ~ricsul-bilwyt's lattice desk; ~ricsul-bilwyt cannot follow itself
+::  — a source of "~ricsul-bilwyt/..." resolves on ricsul to a remote read of
+::  its own namespace, which would make the desk its own source and mirror
+::  nothing — so the distributor follows its forge checkout instead.
+::
 ++  default-repos
+  |=  our=@p
   ^-  (list stock-entry)
   :~  [%github 'contacts' 'niblyx-malnus/contacts-nexus' 'main']
       [%github 'wallet' 'niblyx-malnus/wallet-nexus' 'main']
       ::  lattice ships as a stock desk from here on. It used to be a
       ::  %fall row in root.hoon creating an instance under /apps
-      ::  directly, and this entry is what replaces it: the shell
-      ::  provisions the git_repo, the desk follows the checkout, and
-      ::  apply-bill creates the instance.
+      ::  directly, and this entry is what replaces it: the shell stands
+      ::  up the desk, the desk mirrors its source's code, and apply-bill
+      ::  creates the instance from bill.json.
       ::
       ::  A ship upgrading past the removal of that root.hoon row finds
       ::  its old instance DORMANT with its data intact - the code left
@@ -1646,7 +1654,20 @@
       ::  The user IS asked to approve the new instance's roads, because
       ::  it is a new instance with no consent recorded, and lattice is
       ::  unavailable until they do. That prompt is the upgrade.
-      [%github 'lattice' 'nisfeb/lattice' 'main']
+      ::  +parse-path turns a "~ship/..." source into
+      ::  /sys/ames/ships/<ship>/root/..., so this is a cross-ship read of
+      ::  ricsul's own lattice desk — code is distributed BY ricsul, not
+      ::  fetched from github by every ship. Version-gated: a subscriber
+      ::  re-syncs only when ricsul bumps the code's version.json.
+      ::
+      ::  ricsul must OPEN that desk to its subscribers' usergroup
+      ::  (share.usergroups grants peek on /desk/code and version.json).
+      ::  Without the grant a subscriber gets a desk that mirrors nothing:
+      ::  desk present, code empty, no instance, and no error to read.
+      ?:  =(our ~ricsul-bilwyt)
+        [%github 'lattice' 'nisfeb/lattice' 'main']
+      :+  %code  'lattice'
+      '~ricsul-bilwyt/apps/shell.shell/desks/lattice.desk/desk/code'
   ==
 ::  stock-name / stock-code: pull the name (and, for %code, the code path)
 ::  out of an entry regardless of kind.
@@ -1738,9 +1759,9 @@
 ::  find-stock: the default-repos entry whose name matches, if any.
 ::
 ++  find-stock
-  |=  nom=@t
+  |=  [our=@p nom=@t]
   ^-  (unit stock-entry)
-  =/  todo=(list stock-entry)  default-repos
+  =/  todo=(list stock-entry)  (default-repos our)
   |-  ^-  (unit stock-entry)
   ?~  todo  ~
   ?:  =(nom (stock-name i.todo))  `i.todo
@@ -1750,7 +1771,8 @@
 ++  sync-defaults
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
-  =/  todo=(list stock-entry)  default-repos
+  ;<  our=@p  bind:m  get-our:io
+  =/  todo=(list stock-entry)  (default-repos our)
   |-  ^-  form:m
   ?~  todo  (pure:m ~)
   ;<  ~  bind:m  (ensure-pairing i.todo)
@@ -1761,7 +1783,8 @@
 ++  stock-status
   =/  m  (fiber:fiber:nexus ,json)
   ^-  form:m
-  =/  todo=(list stock-entry)  default-repos
+  ;<  our=@p  bind:m  get-our:io
+  =/  todo=(list stock-entry)  (default-repos our)
   =|  acc=(list json)
   |-  ^-  form:m
   ?~  todo  (pure:m a+(flop acc))
