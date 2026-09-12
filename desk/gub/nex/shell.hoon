@@ -1640,18 +1640,30 @@
   ^-  form:m
   =/  name=@t  (stock-name entry)
   =/  desk-dir=path  /apps/'shell.shell'/desks/[(cat 3 `@ta`name '.desk')]
+  =/  repo-dir=path  /apps/'forge.git_forge'/repos/[(cat 3 `@ta`name '.git_repo')]
   ::  the /code path the desk will follow
   =/  code=@t
     ?-  -.entry
       %code    code.entry
       %github  (crip "/apps/forge.git_forge/repos/{(trip name)}.git_repo/data/tree/code")
     ==
-  ::  1. a %github entry provisions its source: ensure the git_repo (polls
-  ::  github) and force a fresh pull. A %code entry follows a namespace dir
-  ::  directly — no repo to make.
+  ::  ORDER MATTERS HERE, and it used to leave a user with a repo, no desk,
+  ::  and nothing at all in the log.
+  ::
+  ::  The fresh pull was fired at the END of step 1 as a HARD poke, with the
+  ::  desk made after it. A pull is a clone on the run.git-action serial lane;
+  ::  if that fetch is lost, this fiber blocks forever on the ack and steps 2
+  ::  and 3 never run. A blocked fiber has not failed, so there is nothing to
+  ::  read anywhere — the symptom is simply an absent desk.
+  ::
+  ::  So: everything that needs no network is made FIRST, and the network is
+  ::  touched LAST and softly. A slow or failed fetch now costs this sync its
+  ::  "latest" and nothing else; the desk exists and picks the code up when it
+  ::  lands, and the repo's own poll loop pulls again on its interval.
+  ::
+  ::  1. the repo instance and its remote — no fetch yet
   ;<  ~  bind:m
     ?.  ?=(%github -.entry)  (pure:m ~)
-    =/  repo-dir=path  /apps/'forge.git_forge'/repos/[(cat 3 `@ta`name '.git_repo')]
     ;<  has-repo=?  bind:m  (peek-exists:io [%& %| repo-dir])
     ;<  ~  bind:m
       ?:  has-repo  (pure:m ~)
@@ -1670,22 +1682,26 @@
       =/(v (~(get by cur-obj) 'repo') ?:(?=([~ %s *] v) p.u.v ''))
     =/  cur-ref=@t
       =/(v (~(get by cur-obj) 'ref') ?:(?=([~ %s *] v) p.u.v ''))
-    ;<  ~  bind:m
-      ?:  &(=(cur-repo repo.entry) =(cur-ref ref.entry))  (pure:m ~)
-      ::  config.json is a plain data grub (no poke handler), so overwrite
-      ::  it with over:io — poke:io would nack and crash this handler.
-      (over:io [%& %& repo-dir %'config.json'] [[/ %json] (repo-config repo.entry ref.entry)])
-    ::  a pull on the run.git-action serial lane forces a re-fetch now, so
-    ::  "sync" always means "pull latest".
-    %+  poke:io  [%& %& repo-dir %'run.git-action']
-    [[/ %json] (pairs:enjs:format ~[['command' s+'pull']])]
-  ::  2. ensure the desk
+    ?:  &(=(cur-repo repo.entry) =(cur-ref ref.entry))  (pure:m ~)
+    ::  config.json is a plain data grub (no poke handler), so overwrite
+    ::  it with over:io — poke:io would nack and crash this handler.
+    (over:io [%& %& repo-dir %'config.json'] [[/ %json] (repo-config repo.entry ref.entry)])
+  ::  2. the desk, BEFORE any network work
   ;<  has-desk=?  bind:m  (peek-exists:io [%& %| desk-dir])
   ;<  ~  bind:m
     ?:  has-desk  (pure:m ~)
     (make:io [%& %| desk-dir] &+`bole:tarball`[`[`[/ %desk] ~ %.n ~] ~])
   ::  3. always wire the desk's source at the computed code path
-  (poke:io [%& %& desk-dir %'source.json'] [[/ %json] (pairs:enjs:format ~[['code' s+code]])])
+  ;<  ~  bind:m
+    (poke:io [%& %& desk-dir %'source.json'] [[/ %json] (pairs:enjs:format ~[['code' s+code]])])
+  ::  4. LAST, and SOFT: ask for a fresh fetch, so "sync" still means "pull
+  ::  latest" when the network cooperates. Soft because a nack here would
+  ::  otherwise roll back steps 1-3 with it.
+  ?.  ?=(%github -.entry)  (pure:m ~)
+  ;<  *  bind:m
+    %+  poke-soft:io  [%& %& repo-dir %'run.git-action']
+    [[/ %json] (pairs:enjs:format ~[['command' s+'pull']])]
+  (pure:m ~)
 ::  find-stock: the default-repos entry whose name matches, if any.
 ::
 ++  find-stock
