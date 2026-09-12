@@ -1046,19 +1046,49 @@
   =/  grub=road:tarball  [%& %& (weld gh-nexus /xfer) id]
   ;<  *  bind:m  (keep:io /ghx grub ~)
   ;<  ~  bind:m  (poke:io [%& %& gh-nexus %'main.sig'] [[/ %noun] [%xfer id xr]])
+  ::  A DEADLINE. This wait used to be unbounded, and an unbounded wait here
+  ::  stops the ship's whole install path.
+  ::
+  ::  +take-news blocks until the xfer grub changes. If the github app never
+  ::  writes a terminal %done or %fail — it died, its request vanished, the
+  ::  grub was never created — nothing ever wakes this loop. +run-command then
+  ::  never returns, so the run.git-action serial lane keeps active=pull
+  ::  step=start permanently, and every command queued behind it is waiting on
+  ::  a fetch that is never coming. Observed: a repo provisioned with no desk
+  ::  for half an hour and not one line of error, because a blocked fiber has
+  ::  not failed — it is still waiting.
+  ::
+  ::  So arm a timer beside the watch and take whichever arrives first. A
+  ::  timeout is reported as an ordinary [%| tang], which every caller already
+  ::  handles: +op-pull turns it into "fetch failed" in the lane log, the job
+  ::  completes, and the lane moves on.
+  ;<  now=@da  bind:m  get-time:io
+  ;<  ~  bind:m  (set-timer:io /ghx-deadline (add now xfer-deadline))
   |-
-  ;<  *  bind:m  (take-news:io /ghx)
+  ;<  res=news-or-wake:io  bind:m  (take-news-or-wake:io /ghx)
+  ?:  ?=(%wake -.res)
+    ;<  ~  bind:m  (drop:io /ghx grub)
+    ;<  *  bind:m  (cull-soft:io grub)
+    %-  pure:m
+    :-  %|
+    ~[leaf+"github xfer: no answer within {<`@dr`xfer-deadline>}"]
   ;<  v=view:nexus  bind:m  (peek:io grub ~)
   ?.  ?=([%file *] v)  $
   =/  life=(unit $%([%pending *] [%done =octs] [%fail =tang]))
     (mole |.(;;($%([%pending *] [%done =octs] [%fail =tang]) (sang-noun:tarball sang.v))))
   ?~  life  $
   ?:  ?=(%pending -.u.life)  $
+  ;<  ~  bind:m  (cancel-timer:io /ghx-deadline)
   ;<  ~  bind:m  (drop:io /ghx grub)
   ;<  *  bind:m  (cull-soft:io grub)
   ?:  ?=(%fail -.u.life)
     (pure:m [%| tang.u.life])
   (pure:m [%& octs.u.life])
+::  +xfer-deadline: how long one git smart-HTTP exchange may take before it is
+::  called a failure. Generous — a cold clone of a large repo is a real
+::  several-minute fetch — but finite, which is the whole point.
+::
+++  xfer-deadline  ~m10
 ::
 ::  +fetch-discovery: GET /info/refs for a repo
 ::
