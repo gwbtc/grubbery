@@ -5,7 +5,7 @@
 ::  Conversation history lives in chats/ as grubs — durable and inspectable.
 ::  Bespoke for now; the reusable agent library will precipitate from here.
 /<  nex-tools  /lib/tools.hoon
-/&  bundle     /lib/docs-tools/
+/&  bundle     /lib/docs-bundle/
 =<  ^-  nexus:nexus
     |%
     ++  on-load

@@ -163,7 +163,7 @@
     ==
   ::  install the seed tree, then boot it — /code's empty stub must exist
   ::  before cold-start's sync-gub fills it, or the seed stomps it after.
-  =^  lbc-cards  state  abet:(load-ball-changes:hc / genesis-bole)
+  =^  lbc-cards  state  abet:(load-ball-changes:hc / genesis-bole %.n)
   =^  cs-cards   state  abet:cold-start:hc
   :_(this (weld lbc-cards cs-cards))
 ::
@@ -594,7 +594,6 @@
   =.  this  (sync-gub %.n)
   =.  this  carry-behn-state
   =.  this  (reload-nexus-at / root)
-  =.  this  purge-stale-code
   =.  this  (spawn-all-files / (peek-bole-now /))
   =.  this  sync-dill
   =.  this  sync-clay
@@ -1465,19 +1464,6 @@
   =^  [here=rail:tarball =take:fiber:nexus]  takes  ~(get to takes)
   =.  this  (process-take here take)
   $
-::  Purge code map entries whose paths no longer exist as code nexuses.
-::
-++  purge-stale-code
-  ^+  this
-  =/  keys=(list path)  ~(tap in ~(key by code))
-  |-
-  ?~  keys  this
-  =/  sub  (peek-ball-now i.keys)
-  ?:  ?&(?=(^ fil.sub) ?=(^ neck.u.fil.sub) =([/ %code] u.neck.u.fil.sub))
-    $(keys t.keys)
-  =/  old-lode=lode:nexus  (~(got by code) i.keys)
-  =.  bins  (refs-dec (artifacts:nexus keys.old-lode))
-  $(keys t.keys, code (~(del by code) i.keys))
 ::  Drop hist entries matching a lose spec, decrementing silo refs
 ::
 ++  drop-hist
@@ -2656,10 +2642,7 @@
   =.  pool  (~(put of pool) dir pipe)
   ::  Rebuild if deletion is inside a code nexus
   =/  cod=(unit path)
-    =+  pax=dir
-    |-  ?:  (~(has by code) pax)  `pax
-    ?~  pax  ~
-    $(pax (snip `path`pax))
+    (owner-code dir)
   ?~  cod  this
   ~&  >>>  "delete: triggering build-code from {(spud dir)}"
   =.  this  (build-code u.cod `(sy `(list rail:tarball)`~[[dir name]]))
@@ -2808,10 +2791,6 @@
     ~&  >>  "reload-nexus: build error at {(spud dest)}"
     (bang-nexus dest p.nex)
   =.  this  (reload-nexus-at dest p.nex)
-  ::  A reload can drop subdirs that carried code necks — deregister.
-  ::  (New ones were registered by the reload walk itself.)
-  =.  this  purge-stale-code
-  =.  this  (rebuild-descendant-code dest sub-ball)
   (spawn-all-files dest (peek-bole-now dest))
 ::  Run on-load for a nexus at dest and apply results
 ::
@@ -2841,7 +2820,7 @@
   =.  upd-bole
     upd-bole(fil `restored-pulp(neck parent-neck, weir parent-weir))
   ::  Put results back — load-ball-changes writes bole and does bookkeeping
-  =.  this  (load-ball-changes dest upd-bole)
+  =.  this  (load-ball-changes dest upd-bole %.n)
   =.  this  (bump-weir-changes dest (ball-to-bole:tarball old-sub) upd-bole)
   =.  this  (audit-weir dest)
   =.  this  (reload-child-nexuses dest)
@@ -3700,10 +3679,7 @@
       %|
     =/  dest=fold:tarball  p.dest-lane
     =/  nex=(unit fold:tarball)
-      =+  pax=dest
-      |-  ?:  (~(has by code) pax)  `pax
-      ?~  pax  ~
-      $(pax (snip `path`pax))
+      (owner-code dest)
     ?~  nex
       (enqu-take here ~ ~ %code wire.dart |+|+~[leaf+"code: no code nexus at {(spud dest)}"])
     =/  =lode:nexus  (~(got by code) u.nex)
@@ -3721,10 +3697,7 @@
       %&
     =/  dest=rail:tarball  p.dest-lane
     =/  nex=(unit fold:tarball)
-      =+  pax=path.dest
-      |-  ?:  (~(has by code) pax)  `pax
-      ?~  pax  ~
-      $(pax (snip `path`pax))
+      (owner-code path.dest)
     ?~  nex
       (enqu-take here ~ ~ %code wire.dart |+|+~[leaf+"code: no code nexus at {(spud path.dest)}"])
     =/  =lode:nexus  (~(got by code) u.nex)
@@ -4331,7 +4304,7 @@
       ?:  &(?=(^ cur-pace) ?=(?(%temp %firm) -.u.cur-pace) =(~ p.u.cur-pace))
         $(force %.y)
       ~|("make failed: directory {(spud dest-path)} already exists" !!)
-    =.  this  (load-ball-changes dest-path new-bole)
+    =.  this  (load-ball-changes dest-path new-bole %.n)
     ::  born gained: set retention on the whole made subtree in the same
     ::  event — after content lands, before anything can run against it.
     ::  Guarded: an unguarded %.n sweep would strip gains the bole set.
@@ -4349,17 +4322,6 @@
           !=(dest-path (prefix:tarball dest-path src))
       ==
       (set-weir dest-path weir.u.fil.new-bole)
-    ::  a directory landing inside an existing code namespace changes
-    ::  sources the per-file write path would have registered — resync
-    ::  the governing lode with a full sweep, as +delete already does
-    =.  this
-      =/  cod=(unit path)
-        =+  pax=dest-path
-        |-  ?:  (~(has by code) pax)  `pax
-        ?~  pax  ~
-        $(pax (snip `path`pax))
-      ?~  cod  this
-      (build-code u.cod ~)
     ::  the made directory may itself be a code namespace: register it
     ::  before its siblings and children are reloaded
     =.  this  (ensure-code-namespace dest-path)
@@ -4426,9 +4388,7 @@
     =.  this  (nack-pool dest-path (~(dip of pool) dest-path) ~[leaf+"culled"])
     ::  Remove from pool
     =.  pool  (~(lop of pool) dest-path)
-    =.  this  (load-ball-changes dest-path *bole:tarball)
-    ::  Deregister any code namespaces that lived in the culled subtree
-    purge-stale-code
+    (load-ball-changes dest-path *bole:tarball %.y)
     ::
       %&
     ::  Cull file - delete single file
@@ -4682,7 +4642,7 @@
   ^+  this
   =/  node  (~(get of born) here)
   ?^  node  this
-  (load-ball-changes here [`[~ ~ %.n ~] ~])
+  (load-ball-changes here [`[~ ~ %.n ~] ~] %.y)
 ::  Record noun+blot in silo and append to file hist.
 ::
 ++  record
@@ -4721,13 +4681,78 @@
 ::  cull (cull = empty bole).  Bottom-up walk: children settle before
 ::  parent builds its tree.  New bole is sole source of truth.
 ::
+::  +owner-code: the code namespace a path is INSIDE — the nearest
+::  ancestor (itself included) registered in the code map. Containment,
+::  not governance: the namespace whose build a source file belongs to.
+::
+++  owner-code
+  |=  pax=path
+  ^-  (unit fold:tarball)
+  |-
+  ?:  (~(has by code) pax)  `pax
+  ?~  pax  ~
+  $(pax (snip `path`pax))
+::  +load-ball-changes: land a bole at here — the one bulk write path
+::  (reloads, makes, culls, syncs all come through it). Derived build
+::  state follows the write, here, once: code namespaces that no longer
+::  exist under here are deregistered, and every changed source rebuilds
+::  the namespace it is inside — one build per namespace, with exactly
+::  the changed rails. Nothing rescans the tree afterwards.
+::
+::  reload=%.n when a reload walk follows (it reloads what the builds
+::  changed); %.y when this write is the only trigger.
+::
 ++  load-ball-changes
-  |=  [here=fold:tarball =bole:tarball]
+  |=  [here=fold:tarball =bole:tarball reload=?]
   ^+  this
   =/  old-born=born:nexus  born
+  =/  old-ball=ball:tarball  (peek-ball-now here)
   =.  this  (sync-bole here bole)
   =?  this  !=(~ here)  (record-trees (snip `path`here))
+  =/  new-ball=ball:tarball  (peek-ball-now here)
+  =.  this  (deregister-code-under here new-ball)
+  =.  this  (rebuild-changed here old-ball new-ball reload)
   (notify old-born)
+::  +deregister-code-under: drop lodes whose directory under here is
+::  gone or no longer carries the /code neck; release their artifacts.
+::
+++  deregister-code-under
+  |=  [here=fold:tarball new-ball=ball:tarball]
+  ^+  this
+  =/  cods=(list fold:tarball)  ~(tap in ~(key by code))
+  |-
+  ?~  cods  this
+  ?.  =(here (scag (lent here) i.cods))  $(cods t.cods)
+  =/  sub=(unit ball:tarball)
+    (~(dap ba:tarball new-ball) (slag (lent here) i.cods))
+  ?:  ?&  ?=(^ sub)  ?=(^ fil.u.sub)  ?=(^ neck.u.fil.u.sub)
+          =([/ %code] u.neck.u.fil.u.sub)
+      ==
+    $(cods t.cods)
+  ~&  >  "deregister-code-namespace: {(spud i.cods)}"
+  =/  =lode:nexus  (~(got by code) i.cods)
+  =.  bins  (refs-dec (artifacts:nexus keys.lode))
+  $(cods t.cods, code (~(del by code) i.cods))
+::  +rebuild-changed: the rails that differ between the ball before and
+::  after a write, grouped by the code namespace each is inside; each
+::  namespace built once with just those rails.
+::
+++  rebuild-changed
+  |=  [here=fold:tarball old=ball:tarball new=ball:tarball reload=?]
+  ^+  this
+  =/  affected=(map fold:tarball (set rail:tarball))
+    %+  roll  ~(tap in (ball-diff old new))
+    |=  [r=rail:tarball acc=(map fold:tarball (set rail:tarball))]
+    =/  abs=rail:tarball  [(weld here path.r) name.r]
+    =/  cod=(unit fold:tarball)  (owner-code path.abs)
+    ?~  cod  acc
+    (~(put by acc) u.cod (~(put in (~(gut by acc) u.cod ~)) abs))
+  =/  todo=(list [cod=fold:tarball rails=(set rail:tarball)])  ~(tap by affected)
+  |-
+  ?~  todo  this
+  ~&  >  "rebuild-changed: {(spud cod.i.todo)} ({<~(wyt in rails.i.todo)>} changed)"
+  =.  this  (build-code-with cod.i.todo `rails.i.todo reload)
+  $(todo t.todo)
 ::  Bottom-up recursive sync: at each level, record files, delete
 ::  stale refs, build tree from settled born.
 ::
@@ -5082,43 +5107,10 @@
 ::  walk enters each directory. No-op when the subject is unchanged —
 ::  ordinary restarts stay free.
 ::
-::  Next candidates for the same pattern: +purge-stale-code and
-::  +rebuild-descendant-code both scan the tree AFTER a reload to
-::  reconcile derived state with it. The reload walk already visits
-::  every directory; both belong in it, as +ensure-code-namespace now
-::  does. Things that scan the tree separately should become
-::  properties of the one walk.
-::
-::  +rebuild-descendant-code: incrementally rebuild descendant code
-::  namespaces whose source changed. Diffs old-ball against the current
-::  ball under root, groups changed rails by enclosing code namespace,
-::  and calls build-code with only the affected rails.
-::
-++  rebuild-descendant-code
-  |=  [root=path old-ball=ball:tarball]
-  ^+  this
-  =/  new-ball=ball:tarball  (peek-ball-now root)
-  =/  diff=(set rail:tarball)
-    %-  ~(run in (ball-diff old-ball new-ball))
-    |=(r=rail:tarball `rail:tarball`[(weld root path.r) name.r])
-  ?:  =(~ diff)  this
-  =/  affected=(map path (set rail:tarball))
-    %+  roll  ~(tap in diff)
-    |=  [r=rail:tarball acc=(map path (set rail:tarball))]
-    =/  cod=(unit path)
-      =+  pax=path.r
-      |-  ?:  (~(has by code) pax)  `pax
-      ?~  pax  ~
-      $(pax (snip `path`pax))
-    ?~  cod  acc
-    ?:  =(u.cod root)  acc
-    (~(put by acc) u.cod (~(put in (fall (~(get by acc) u.cod) ~)) r))
-  =/  todo=(list [cod=path rails=(set rail:tarball)])  ~(tap by affected)
-  |-
-  ?~  todo  this
-  ~&  >  "rebuild-descendant-code: {(spud cod.i.todo)} ({<~(wyt in rails.i.todo)>} changed)"
-  =.  this  (build-code cod.i.todo `rails.i.todo)
-  $(todo t.todo)
+::  The same rule elsewhere: derived state is updated at the write that
+::  changes the truth it derives from. +load-ball-changes deregisters
+::  vanished namespaces and rebuilds changed sources as part of the
+::  write; nothing rescans the tree afterwards.
 ::
 ++  build-code
   |=  [cod=path changed=(unit (set rail:tarball))]
@@ -5223,9 +5215,15 @@
     ?^  val-err
       ~&  >>  "validate-build failed: {(spud (snoc path.rail name.rail))}"
       [%tang u.val-err]
-    ::  TODO: consider extracting the marc or nexus here and storing it as its
-    ::  own type instead of a raw vase, so readers don't !< it on every read.
-    ::  bootstrap-marcs already does this for the foundational marks.
+    ::  Stored as a raw vase; every reader (+get-marc, +build-nexus, the
+    ::  %code take) does the !< extraction again, and validate-build has
+    ::  just done it once here to check the shape. The clean form is a
+    ::  built kind per artifact — [%marc marc], [%nexus nexus] — extracted
+    ::  once at index time, as bootstrap-marcs already does for the
+    ::  foundational marks. Not built: built is in bins and in the %code
+    ::  take, so it is a derived-state migration plus a type ripple
+    ::  through every reader, for a per-read saving. Do it when the
+    ::  readers are being touched anyway.
     [%vase p.build-result]
   (~(put by bld) (~(got by keys.res) rail) built)
 ::
@@ -5352,7 +5350,15 @@
   ^+  this
   =/  changed=(list [ckey=@uv =blot:tarball =built:nexus])
     (changed-artifacts %mar old new)
-  ::  Collect all grubs whose mark.ns = this code namespace
+  ::  Collect all grubs whose mark.ns = this code namespace.
+  ::
+  ::  This is a scan of every grub in born, per build, as is the
+  ::  directory scan in +reload-changed-nexuses. Correct, and O(the
+  ::  whole tree) each time. When builds are noticeably slow the fix is
+  ::  a reverse index maintained at write time — blot -> grubs here,
+  ::  neck -> directories there — so a changed artifact finds its
+  ::  consumers by lookup. Not built: it is new state with its own
+  ::  invariants, and nothing is slow yet.
   =/  all-grubs=(list [=rail:tarball lob=jobe:nexus =leaf:nexus])
     %-  zing
     %+  turn  ~(tap of born)
@@ -5531,13 +5537,10 @@
     =.  this  (bang-nexus dest p.nex-res)
     $(dir-remaining t.dir-remaining)
   ~&  >  "reload-changed-nexuses: reloading {(spud (weld path.neck ~[name.neck]))} at {(spud dest)}"
-  =/  old-ball  (peek-ball-now dest)
   ~&  >  "reload-changed-nexuses: reload-nexus-at start"
   =.  this  (reload-nexus-at dest p.nex-res)
   ~&  >  "reload-changed-nexuses: reload-nexus-at done"
-  =.  this  purge-stale-code
   =/  reload-bole  (peek-bole-now dest)
-  =.  this  (rebuild-descendant-code dest old-ball)
   ~&  >  "reload-changed-nexuses: spawn-all-files start"
   =.  this  (spawn-all-files dest reload-bole)
   ~&  >  "reload-changed-nexuses: spawn-all-files done"
@@ -5571,13 +5574,27 @@
 ::    at the root, and any other file is converted to mime through a
 ::    clay tube. Files that fail validation are reported and skipped.
 ::
-::    Exception: anything under a tool-bundle/ directory is DATA to the
-::    nexus that imports it, not code of this namespace. A host nexus
-::    /&-imports the bundle and seeds it into a tools nexus's own /code,
-::    where it compiles against that nexus's subject. Compiling it here
-::    would run it against the wrong subject and, under /nex, validate it
-::    as a nexus — a failure that bangs the host nexus for a file it
-::    never executes. So bundle sources are stored as mime, untouched.
+::    Convention: a directory named bundle/ or *-bundle/ is a BUNDLE —
+::    source that is DATA to the nexus that imports it, not code of this
+::    namespace. A host nexus /&-imports the bundle and seeds it into a
+::    tools nexus's own /code, where it compiles against that nexus's
+::    subject. Compiling it here would run it against the wrong subject
+::    and, under /nex, validate it as a nexus — a failure that bangs the
+::    host nexus for a file it never executes. So everything under a
+::    bundle directory is stored as mime, untouched. (tool-bundle,
+::    docs-bundle, itinerary-bundle, forge/tool-bundle.)
+::
+::  +is-bundle-dir: the bundle convention — a directory segment that is
+::  bundle or ends in -bundle
+::
+++  is-bundle-dir
+  |=  seg=@ta
+  ^-  ?
+  =/  t=tape  (trip seg)
+  =/  len=@ud  (lent t)
+  ?|  =("bundle" t)
+      &((gth len 7) =("-bundle" (slag (sub len 7) t)))
+  ==
 ::
 ++  gub-ball
   |=  pax=path
@@ -5591,7 +5608,7 @@
   =/  stem=@ta   (rear sans)
   =/  rel-dir=path  (slag 1 (snip `(list @ta)`sans))
   =/  name=@ta   (cat 3 stem (cat 3 '.' mar))
-  =/  bundled=?  (lien rel-dir |=(seg=@ta =(%'tool-bundle' seg)))
+  =/  bundled=?  (lien rel-dir is-bundle-dir)
   ::  sys.kelvin: store as kelvin mark at root
   ?:  =(%'sys.kelvin' name)
     =/  =vase  .^(vase %cr (weld pax fyl))
@@ -5630,21 +5647,13 @@
   ::  Ensure %code neck on the source ball
   =/  src-lump=lump:tarball  (fall fil.new-src *lump:tarball)
   =.  new-src  new-src(fil `src-lump(neck `[/ %code]))
-  ::  Get old ball at /code/
-  =/  old-src  (peek-ball-now /code)
-  ::  Diff and bump src changes (born, silo, hist, notify)
+  ::  Land the source. The write rebuilds /code with exactly the changed
+  ::  rails; then make sure /code is registered and current (first boot,
+  ::  agent upgrade).
   ~&  >  "sync-gub: load-ball-changes start"
-  =.  this  (load-ball-changes /code (ball-to-bole:tarball new-src))
+  =.  this  (load-ball-changes /code (ball-to-bole:tarball new-src) reload)
   ~&  >  "sync-gub: load-ball-changes done"
-  ::  Compile — changed set is the ball diff, absolutized to /code
-  ~&  >  "sync-gub: build-code start"
-  =/  diff=(set rail:tarball)
-    %-  ~(run in (ball-diff old-src new-src))
-    |=(r=rail:tarball `rail:tarball`[(weld /code path.r) name.r])
-  ~&  >  "sync-gub: {<~(wyt in diff)>} changed rails"
-  =.  this  (build-code-with /code `diff reload)
-  ~&  >  "sync-gub: build-code done"
-  this
+  (ensure-code-namespace /code)
 ::  List all files mirrored under a /sys/clay/desks/[desk] path
 ::  Returns Clay-style paths (like /app/foo/hoon) with mark as last element
 ::
@@ -5829,7 +5838,7 @@
   =.  this  (emit-card [%pass wir %agent [ship agent] %leave ~])
   ::  Delete the subscription tree
   =.  pool  (~(lop of pool) dir)
-  (load-ball-changes dir *bole:tarball)
+  (load-ball-changes dir *bole:tarball %.y)
 ::  Handle signs from materialized gall subscriptions
 ::
 ++  take-gall-sub
@@ -5976,7 +5985,7 @@
   ~&  >  "lick: shutting {(spud name)}"
   =.  this  (emit-card [%pass (lick-wire name) %arvo %l %shut name])
   =.  pool  (~(lop of pool) dir)
-  (load-ball-changes dir *bole:tarball)
+  (load-ball-changes dir *bole:tarball %.y)
 ::
 ++  handle-lick-spit
   |=  req=[name=path =mark noun=*]
@@ -6751,10 +6760,7 @@
   =.  this  (record here new-content file-gain ~)
   =.  this  (propagate old-born here)
   =/  cod=(unit path)
-    =+  pax=path.here
-    |-  ?:  (~(has by code) pax)  `pax
-    ?~  pax  ~
-    $(pax (snip `path`pax))
+    (owner-code path.here)
   =.  this
     ?~  cod  this
     (build-code u.cod `(sy `(list rail:tarball)`~[here]))

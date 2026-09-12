@@ -368,18 +368,31 @@
 ::    paths, topologically sorts, and compiles bottom-up. Each file's
 ::    imports are added as named faces in its compilation subject.
 ::
-::    Cache keys are content-based: hash of (subject + source + path +
-::    sorted dep cache keys). Same inputs = same key = cache hit.
+::    Cache keys are content-based: hash of (source + path + sorted dep
+::    cache keys), where the subject is one of the deps. Same inputs =
+::    same key = cache hit.
 ::
 ::    Every file gets a key regardless of compilation outcome — parse
 ::    errors, cycle errors, dep failures, and compile failures all
 ::    produce deterministic keys from their inputs. This ensures the
-::    reload-changed-nexuses invariant holds: same key ↔ same artifact.
+::    reload-changed-nexuses invariant holds: same key <-> same artifact.
 ::
 ++  build-all
   |=  [sut=vase =ball:tarball =build-cache]
   ^-  build-out
   (build-inc sut ball build-cache ~ ~)
+::  +grub-mime: a [/ %mime] grub as its mime; anything else is not a
+::  mime. The only way a grub enters a build as data — by file import or
+::  under a /& directory. Source that other namespaces will compile
+::  (tool bundles) is mirrored into the namespace as %mime for exactly
+::  this reason; the build never reads a noun through a marc.
+::
+++  grub-mime
+  |=  =sang:tarball
+  ^-  (unit mime)
+  ?.  =([/ %mime] p.sang)  ~
+  ?:  (is-boom:tarball sang)  ~
+  (mole |.(!<(mime (need-vase:tarball sang))))
 ::  +build-inc: build-all, reusing prior results for unchanged rails.
 ::
 ::    reuse maps each reusable rail to its prior cache key and result
@@ -388,8 +401,11 @@
 ::    deps stay complete. Reused rails are never read, parsed, or
 ::    hashed. The caller owns the correctness argument: a rail may be
 ::    reused only if it and its transitive deps are unchanged
-::    (reverse closure of the changed set over the prior deps graph)
-::    and the subject is unchanged. Mimes must never be in reuse.
+::    (reverse closure of the changed set over the prior deps graph).
+::    Mimes must never be in reuse.
+::
+::    Phases, each an arm below: sources -> parse -> mimes -> graph ->
+::    seed -> compile. The compile loop closes over the phase products.
 ::
 ++  build-inc
   |=  $:  sut=vase
@@ -400,77 +416,200 @@
       ==
   ^-  build-out
   ~&  >  "build-all: {<~(wyt by build-cache)>} cached, {<~(wyt by reuse)>} reused"
-  =/  sources=source-map  (find-hoon-sources ball)
-  =.  sources
-    %+  roll  ~(tap by reuse)
-    |=  [[=rail:tarball *] acc=_sources]
-    (~(del by acc) rail)
-  ::  Collect mimes from ball — self-compiled artifacts
-  ::
+  =/  sources=source-map  (sources-to-build ball ~(key by reuse))
+  =/  plain=(map rail:tarball vase)  (mime-grubs ball)
+  =/  known=(set rail:tarball)
+    %-  ~(uni in ~(key by sources))
+    (~(uni in ~(key by plain)) ~(key by reuse))
+  =/  [files=(map rail:tarball file-info) errors=(map rail:tarball tang)]
+    (parse-sources sources known)
   =/  mimes=(map rail:tarball vase)
-    %-  ~(gas by *(map rail:tarball vase))
-    %+  murn  ~(tap ba:tarball ball)
-    |=  [=rail:tarball =sang:tarball]
-    ?.  =([/ %mime] p.sang)  ~
-    ?:  (is-boom:tarball sang)  ~
-    `[rail (need-vase:tarball sang)]
-  ::  Phase 1: Parse and resolve all sources
+    (~(uni by plain) (fold-mimes ball files))
+  =/  deps=(map rail:tarball (set rail:tarball))
+    (dep-graph files mimes reuse-deps)
+  =/  sorted  (topo-sort deps)
+  =/  [results=(map rail:tarball build-result) keys=(map rail:tarball @uv)]
+    (seed-results sut mimes errors deps cycle.sorted reuse)
+  |^  (compile-loop order.sorted results keys build-cache)
+  ::  +compile-loop: walk the topological order; reused and given
+  ::  inputs are already in results, everything else is keyed and then
+  ::  cache-hit or compiled
   ::
-  =/  prep
-    %+  roll  ~(tap by sources)
-    |=  $:  [=rail:tarball src=@t]
-            [files=(map rail:tarball file-info) errors=(map rail:tarball tang)]
+  ++  compile-loop
+    |=  $:  order=(list rail:tarball)
+            results=(map rail:tarball build-result)
+            keys=(map rail:tarball @uv)
+            cache=(map @uv vase)
         ==
-    =/  res  (parse-imports src)
-    ?:  ?=(%| -.res)
-      [files (~(put by errors) rail p.res)]
-    =/  raw=(list import)  imports.p.res
-    =/  resolved=(list resolved-import)
-      (murn raw |=(=import (resolve-import rail import)))
-    ?.  =((lent raw) (lent resolved))
-      [files (~(put by errors) rail ~[leaf+"unresolved import in {(spud (snoc path.rail name.rail))}"])]
-    =/  has-file
-      |=  =rail:tarball
-      ::  reused rails are removed from sources but still present and
-      ::  seeded — without this check, any rebuilt file importing an
-      ::  unchanged hoon file dies with a phantom "missing import"
-      |((~(has by sources) rail) (~(has by mimes) rail) (~(has by reuse) rail))
-    =/  missing=(list resolved-import)
-      %+  skip  resolved
+    ^-  build-out
+    =/  given=(set rail:tarball)  (~(put in ~(key by mimes)) sut-rail:nexus)
+    |-
+    ?~  order
+      ::  the subject is an input: it has a key (so it can be checked
+      ::  like any dep) but no result to index or store
+      [(~(del by results) sut-rail:nexus) cache deps keys]
+    =/  =rail:tarball  i.order
+    ?:  |((~(has by reuse) rail) (~(has in given) rail))
+      $(order t.order)
+    =/  fi=file-info  (~(got by files) rail)
+    =/  my-deps=(list rail:tarball)  ~(tap in (~(gut by deps) rail ~))
+    =/  key=@uv
+      =/  dep-keys=(list @uv)  (turn my-deps |=(d=rail:tarball (~(got by keys) d)))
+      (sham [src-hash.fi (snoc path.rail name.rail) (sort dep-keys lth)])
+    =/  bad=(list rail:tarball)
+      (skim my-deps |=(d=rail:tarball !?=([~ %& *] (~(get by results) d))))
+    ?^  bad
+      =/  err=tang
+        :-  leaf+"dep failed in {(spud (snoc path.rail name.rail))}:"
+        (turn bad |=(d=rail:tarball leaf+"{(spud (snoc path.d name.d))}"))
+      $(order t.order, results (~(put by results) rail [%| err]), keys (~(put by keys) rail key))
+    ?^  hit=(~(get by cache) key)
+      ~&  >  "build: cache hit {(spud (snoc path.rail name.rail))}"
+      $(order t.order, results (~(put by results) rail [%& u.hit]), keys (~(put by keys) rail key))
+    ~&  >>  "build: cache MISS {(spud (snoc path.rail name.rail))}"
+    =/  res=build-result  (compile-one rail fi results)
+    %=  $
+      order    t.order
+      results  (~(put by results) rail res)
+      keys     (~(put by keys) rail key)
+      cache    ?:(?=(%& -.res) (~(put by cache) key p.res) cache)
+    ==
+  ::  +compile-one: augment the subject with the file's imports, compile,
+  ::  and for a mark turn the raw door into a marc
+  ::
+  ++  compile-one
+    |=  [=rail:tarball fi=file-info results=(map rail:tarball build-result)]
+    ^-  build-result
+    =/  aug=vase  (augment imports.fi results)
+    =/  import-lines=@ud
+      (sub (lent (to-wain:format src.fi)) (lent (to-wain:format body.fi)))
+    =/  res=build-result
+      ~>  %bout.[1 (crip "compile {(spud (snoc path.rail name.rail))}")]
+      =/  r  (mule |.((build-hoon aug (snoc path.rail name.rail) body.fi import-lines)))
+      ?:(?=(%& -.r) p.r [%| ~[leaf+"crash compiling {(spud (snoc path.rail name.rail))}"]])
+    ?.  &(?=(%& -.res) ?=([%mar *] path.rail))  res
+    =/  marc-res=(each marc:tarball tang)  (mule |.((build-marc:marks p.res)))
+    ?:(?=(%| -.marc-res) [%| p.marc-res] [%& !>(p.marc-res)])
+  ::  +augment: the compilation subject — sut plus one named face per
+  ::  import. A file import is its vase; a bare import splops it in; a
+  ::  mime file import is its mime; a mime directory import is an
+  ::  (axal (map @ta mime)) of everything gathered under the fold — read
+  ::  from the same mimes the graph keyed, so compile inputs and key
+  ::  inputs are the same set by construction.
+  ::
+  ++  augment
+    |=  [imports=(list resolved-import) results=(map rail:tarball build-result)]
+    ^-  vase
+    %+  roll  imports
+    |=  [r=resolved-import acc=_sut]
+    =/  face  |=([n=@ta v=vase] (slop [[%face n p.v] q.v] acc))
+    ?-    -.r
+        %file  (face name.r (need-built rail.r results))
+        %bare  (slop (need-built rail.r results) acc)
+        %mime
+      ?-    -.lane.r
+          %&
+        ?~  got=(~(get by results) p.lane.r)
+          ~|  %mime-not-found
+          ~|  "  /& {(trip name.r)} {(spud (snoc path.p.lane.r name.p.lane.r))}"
+          ~|  "  file does not exist (for a directory, add trailing /)"
+          !!
+        ?>  ?=(%& -.u.got)
+        (face name.r p.u.got)
+          %|
+        (face name.r !>((fold-axal p.lane.r mimes)))
+      ==
+    ==
+  ::
+  ++  need-built
+    |=  [=rail:tarball results=(map rail:tarball build-result)]
+    ^-  vase
+    =/  got=build-result  (~(got by results) rail)
+    ?>  ?=(%& -.got)
+    p.got
+  --
+::  +sources-to-build: every %hoon source in the ball minus the rails
+::  being reused from a prior build
+::
+++  sources-to-build
+  |=  [=ball:tarball reused=(set rail:tarball)]
+  ^-  source-map
+  %+  roll  ~(tap in reused)
+  |=  [=rail:tarball acc=_(find-hoon-sources ball)]
+  (~(del by acc) rail)
+::  +mime-grubs: every [/ %mime] grub in the ball — self-compiled
+::  artifacts, available to import by file
+::
+++  mime-grubs
+  |=  =ball:tarball
+  ^-  (map rail:tarball vase)
+  %-  ~(gas by *(map rail:tarball vase))
+  %+  murn  ~(tap ba:tarball ball)
+  |=  [=rail:tarball =sang:tarball]
+  ^-  (unit [rail:tarball vase])
+  ?~  m=(grub-mime sang)  ~
+  `[rail !>(u.m)]
+::  +parse-sources: parse every source's imports and resolve them.
+::  known is every rail an import may name: sources, mimes, reused
+::  rails (removed from sources but still present — without them a
+::  rebuilt file importing an unchanged one dies with a phantom
+::  "missing import"). A file that fails here gets an error, not a
+::  file-info.
+::
+++  parse-sources
+  |=  [sources=source-map known=(set rail:tarball)]
+  ^-  [(map rail:tarball file-info) (map rail:tarball tang)]
+  %+  roll  ~(tap by sources)
+  |=  $:  [=rail:tarball src=@t]
+          [files=(map rail:tarball file-info) errors=(map rail:tarball tang)]
+      ==
+  =/  res  (parse-imports src)
+  ?:  ?=(%| -.res)
+    [files (~(put by errors) rail p.res)]
+  =/  raw=(list import)  imports.p.res
+  =/  resolved=(list resolved-import)
+    (murn raw |=(=import (resolve-import rail import)))
+  ?.  =((lent raw) (lent resolved))
+    [files (~(put by errors) rail ~[leaf+"unresolved import in {(spud (snoc path.rail name.rail))}"])]
+  =/  missing=(list resolved-import)
+    %+  skip  resolved
+    |=  r=resolved-import
+    ?-  -.r
+      %file  (~(has in known) rail.r)
+      %bare  (~(has in known) rail.r)
+      %mime  %.y  :: resolved at compile time from the gathered mimes
+    ==
+  ?.  =(~ missing)
+    =/  miss-paths=tape
+      %-  zing
+      ^-  (list tape)
+      %+  join  ", "
+      %+  turn  missing
       |=  r=resolved-import
       ?-  -.r
-        %file  (has-file rail.r)
-        %bare  (has-file rail.r)
-        %mime  %.y  :: resolved at compile time from ball
+        %file  (spud (snoc path.rail.r name.rail.r))
+        %bare  (spud (snoc path.rail.r name.rail.r))
+        %mime  "mime"
       ==
-    ?.  =(~ missing)
-      =/  miss-paths=tape
-        %-  zing
-        ^-  (list tape)
-        %+  join  ", "
-        %+  turn  missing
-        |=  r=resolved-import
-        ?-  -.r
-          %file  (spud (snoc path.rail.r name.rail.r))
-          %bare  (spud (snoc path.rail.r name.rail.r))
-          %mime  "mime"
-        ==
-      [files (~(put by errors) rail ~[leaf+"missing import in {(spud (snoc path.rail name.rail))}: {miss-paths}"])]
-    [(~(put by files) rail [src (sham src) resolved body.p.res]) errors]
-  =/  files=(map rail:tarball file-info)  files.prep
-  =/  errors=(map rail:tarball tang)  errors.prep
-  ::  A /& dir import gathers EVERY file under the fold as a mime — incl
-  ::  %hoon/%txt source (see the %mime %| gather below). Those source
-  ::  files are therefore compile inputs, but +mimes only collected
-  ::  [/ %mime] grubs, so they had no content hash in the key-map and no
-  ::  dep edge to their importer — a source edit under the fold never
-  ::  changed the importer's cache key (stale vase reused). Register every
-  ::  ball file under any /& dir-fold as a mime artifact here, so it enters
-  ::  results/key-map and the +mimes dep-edge loop picks it up.
-  =/  fold-paths=(set path)
-    %-  ~(gas in *(set path))
+    [files (~(put by errors) rail ~[leaf+"missing import in {(spud (snoc path.rail name.rail))}: {miss-paths}"])]
+  ::  src-hash is (sham src). The silo already holds exactly this
+  ::  number as the grub's noun lobe (nobe = sham noun, and a %hoon
+  ::  grub's noun is its source cord), so this is a second hash of
+  ::  content the namespace hashed at write. Not reused: the ball the
+  ::  build receives carries sangs, not lobes. Worth threading through
+  ::  if builds get slow; one sham per file per build until then.
+  [(~(put by files) rail [src (sham src) resolved body.p.res]) errors]
+::  +fold-mimes: every mime grub under any /& directory import. These
+::  are compile inputs (the importer receives them), so they must be
+::  keyed and edged like any input — otherwise an edit under the fold
+::  never changed the importer's cache key and a stale vase was reused.
+::  Non-mime grubs under the fold are not imported.
+::
+++  fold-mimes
+  |=  [=ball:tarball files=(map rail:tarball file-info)]
+  ^-  (map rail:tarball vase)
+  =/  folds=(list path)
     %-  zing
-    ^-  (list (list path))
     %+  turn  ~(val by files)
     |=  fi=file-info
     %+  murn  imports.fi
@@ -479,24 +618,38 @@
     ?.  ?=(%mime -.r)  ~
     ?.  ?=(%| -.lane.r)  ~
     `p.lane.r
-  =/  mimes
-    ^-  (map rail:tarball vase)
-    %-  ~(uni by mimes)
-    %-  ~(gas by *(map rail:tarball vase))
-    %+  murn  ~(tap ba:tarball ball)
-    |=  [=rail:tarball =sang:tarball]
-    ^-  (unit [rail:tarball vase])
-    ?.  %+  lien  ~(tap in fold-paths)
-          |=(fp=path =(fp (scag (lent fp) path.rail)))
-      ~
-    ?:  =([/ %mime] p.sang)
-      ?:  (is-boom:tarball sang)  ~
-      `[rail (need-vase:tarball sang)]
-    =/  txt=(unit @t)  (mole |.(;;(@t (sang-noun:tarball sang))))
-    ?~  txt  ~
-    `[rail !>(`mime`[/text/plain (met 3 u.txt) u.txt])]
-  ::  Phase 2: Topological sort
-  ::
+  %-  ~(gas by *(map rail:tarball vase))
+  %+  murn  ~(tap ba:tarball ball)
+  |=  [=rail:tarball =sang:tarball]
+  ^-  (unit [rail:tarball vase])
+  ?.  (lien folds |=(f=path =(f (scag (lent f) path.rail))))  ~
+  ?~  m=(grub-mime sang)  ~
+  `[rail !>(u.m)]
+::  +fold-axal: a directory import's value — the gathered mimes under
+::  the fold as (axal (map @ta mime)), paths relative to the fold
+::
+++  fold-axal
+  |=  [fold=path mimes=(map rail:tarball vase)]
+  ^-  (axal (map @ta mime))
+  %+  roll  ~(tap by mimes)
+  |=  [[=rail:tarball v=vase] acc=(axal (map @ta mime))]
+  ?.  =(fold (scag (lent fold) path.rail))  acc
+  =/  rel=path  (slag (lent fold) path.rail)
+  =/  nod=(map @ta mime)  (fall (~(get of acc) rel) *(map @ta mime))
+  (~(put of acc) rel (~(put by nod) name.rail !<(mime v)))
+::  +dep-graph: every file's edges — imports by file or bare, a mime
+::  file, or every gathered mime under an imported fold — plus the prior
+::  edges of reused rails (deps is stored, so it must stay complete),
+::  plus the subject: a dependency of every file, a node with no deps of
+::  its own, whose key is the subject hash. A changed subject is then a
+::  changed dep like any other.
+::
+++  dep-graph
+  |=  $:  files=(map rail:tarball file-info)
+          mimes=(map rail:tarball vase)
+          reuse-deps=(map rail:tarball (set rail:tarball))
+      ==
+  ^-  (map rail:tarball (set rail:tarball))
   =/  deps=(map rail:tarball (set rail:tarball))
     %-  ~(uni by (~(run by mimes) |=(* *(set rail:tarball))))
     %-  ~(run by files)
@@ -513,188 +666,54 @@
     ?-  -.lane.r
       %&  ~[p.lane.r]
         %|
-      ::  directory import: every mime under the fold is a real
-      ::  dependency — without these edges the importer's cache key
-      ::  never changes when dir contents do, and stale vases get
-      ::  reused (the compile-time gather at %mime %| reads the same
-      ::  set, so key inputs and compile inputs must match)
       %+  murn  ~(tap by mimes)
       |=  [=rail:tarball *]
       ?.  =(p.lane.r (scag (lent p.lane.r) path.rail))  ~
       `rail
     ==
     ==
-  ::  Merge prior edges for reused rails — deps is stored in lode,
-  ::  so it must stay complete or the next incremental run works
-  ::  from a corrupt graph
   =.  deps  (~(uni by deps) reuse-deps)
-  ::  The subject is a dependency of every file: a node with no deps of
-  ::  its own, whose key is the subject hash. It rides into every ckey
-  ::  through dep-keys like any other dep, and a changed subject is a
-  ::  changed dep — nothing special to check.
-  =.  deps
-    %+  ~(put by (~(run by deps) |=(s=(set rail:tarball) (~(put in s) sut-rail:nexus))))
-      sut-rail:nexus
-    ~
-  =/  sort-res  (topo-sort deps)
-  ::  Phase 3: Compile in topological order
-  ::
-  ::  Seed results with the inputs that need no compiling: the subject,
-  ::  mimes (self-compiled), and errors
-  =/  given=(set rail:tarball)  (~(put in ~(key by mimes)) sut-rail:nexus)
+  %+  ~(put by (~(run by deps) |=(s=(set rail:tarball) (~(put in s) sut-rail:nexus))))
+    sut-rail:nexus
+  ~
+::  +seed-results: what the compile loop starts from — the inputs that
+::  need no compiling (the subject, mimes, parse errors, cycle errors),
+::  each with its key (a content hash, or the reused key), plus the
+::  reused rails' prior results and keys
+::
+++  seed-results
+  |=  $:  sut=vase
+          mimes=(map rail:tarball vase)
+          errors=(map rail:tarball tang)
+          deps=(map rail:tarball (set rail:tarball))
+          cycle=(set rail:tarball)
+          reuse=(map rail:tarball [key=@uv res=build-result])
+      ==
+  ^-  [(map rail:tarball build-result) (map rail:tarball @uv)]
   =/  results=(map rail:tarball build-result)
     %-  ~(uni by `(map rail:tarball build-result)`(~(run by mimes) |=(v=vase `build-result`[%& v])))
     %-  ~(put by `(map rail:tarball build-result)`(~(run by errors) |=(t=tang `build-result`[%| t])))
     [sut-rail:nexus [%& sut]]
-  ::  Add cycle errors
   =/  all-known=(set rail:tarball)  ~(key by deps)
   =.  results
-    %+  roll  ~(tap in cycle.sort-res)
+    %+  roll  ~(tap in cycle)
     |=  [r=rail:tarball acc=_results]
     =/  my-deps=(set rail:tarball)  (~(gut by deps) r ~)
-    =/  cycle-deps=(set rail:tarball)  (~(int in my-deps) cycle.sort-res)
-    =/  missing-deps=(set rail:tarball)  (~(dif in my-deps) all-known)
+    =/  missing=(set rail:tarball)  (~(dif in my-deps) all-known)
+    =/  names  |=(s=(set rail:tarball) (zing (join ", " (turn ~(tap in s) |=(d=rail:tarball (spud (snoc path.d name.d)))))))
     =/  err=tang
-      ?:  ?=(^ ~(tap in missing-deps))
-        =/  miss=tape
-          %-  zing
-          ^-  (list tape)
-          %+  join  ", "
-          %+  turn  ~(tap in missing-deps)
-          |=(d=rail:tarball (spud (snoc path.d name.d)))
-        ~[leaf+"unresolved dependency in {(spud (snoc path.r name.r))}: {miss}"]
-      =/  cyc=tape
-        %-  zing
-        ^-  (list tape)
-        %+  join  ", "
-        %+  turn  ~(tap in cycle-deps)
-        |=(d=rail:tarball (spud (snoc path.d name.d)))
-      ~[leaf+"circular dependency in {(spud (snoc path.r name.r))} on {cyc}"]
+      ?:  ?=(^ ~(tap in missing))
+        ~[leaf+"unresolved dependency in {(spud (snoc path.r name.r))}: {(names missing)}"]
+      ~[leaf+"circular dependency in {(spud (snoc path.r name.r))} on {(names (~(int in my-deps) cycle))}"]
     (~(put by acc) r [%| err])
-  ::  Seed key-map: mime content hashes + all pre-loop error tang hashes
-  =/  key-map=(map rail:tarball @uv)
+  ::  keys: a content hash for every seeded result (the subject's is the
+  ::  subject hash by construction), then the reused rails' prior keys
+  =/  keys=(map rail:tarball @uv)
     %+  roll  ~(tap by results)
     |=  [[=rail:tarball =build-result] acc=(map rail:tarball @uv)]
     ?:  ?=(%& -.build-result)
       (~(put by acc) rail (sham q.p.build-result))
     (~(put by acc) rail (sham p.build-result))
-  ::  Seed reused rails with their prior results and keys (after
-  ::  the sham-based seeding above, which must not touch them)
-  =.  results
-    (~(uni by results) (~(run by reuse) |=(v=[key=@uv res=build-result] res.v)))
-  =.  key-map
-    (~(uni by key-map) (~(run by reuse) |=(v=[key=@uv res=build-result] key.v)))
-  |-
-  ?~  order.sort-res
-    ::  the subject is an input: it has a key (so it can be checked
-    ::  like any dep) but no result to index or store
-    [(~(del by results) sut-rail:nexus) build-cache deps key-map]
-  =/  =rail:tarball  i.order.sort-res
-  ::  Reused rails are pre-seeded — nothing to compute
-  ?:  (~(has by reuse) rail)
-    $(order.sort-res t.order.sort-res)
-  ::  Given inputs (subject, mimes) are already in results — skip
-  ?:  (~(has in given) rail)
-    $(order.sort-res t.order.sort-res)
-  =/  fi=file-info  (~(got by files) rail)
-  ::  Check if any dep failed
-  =/  my-deps=(set rail:tarball)  (~(gut by deps) rail ~)
-  =/  dep-failed=?
-    %+  lien  ~(tap in my-deps)
-    |=(d=rail:tarball !?=([~ %& *] (~(get by results) d)))
-  ::  Compute cache key: own hash + sorted dep cache keys
-  =/  dep-keys=(list @uv)
-    (turn ~(tap in my-deps) |=(d=rail:tarball (~(got by key-map) d)))
-  ?:  dep-failed
-    =/  ckey=@uv  (sham [src-hash.fi (snoc path.rail name.rail) (sort dep-keys lth)])
-    =/  bad=(list rail:tarball)
-      %+  skim  ~(tap in my-deps)
-      |=(d=rail:tarball !?=([~ %& *] (~(get by results) d)))
-    %=  $
-      order.sort-res  t.order.sort-res
-      results  (~(put by results) rail [%| [leaf+"dep failed in {(spud (snoc path.rail name.rail))}:" (turn bad |=(d=rail:tarball leaf+"{(spud (snoc path.d name.d))}"))]])
-      key-map  (~(put by key-map) rail ckey)
-    ==
-  =/  ckey=@uv  (sham [src-hash.fi (snoc path.rail name.rail) (sort dep-keys lth)])
-  ::  Cache hit → reuse
-  ?:  (~(has by build-cache) ckey)
-    ~&  >  "build: cache hit {(spud (snoc path.rail name.rail))}"
-    %=  $
-      order.sort-res  t.order.sort-res
-      results  (~(put by results) rail [%& (~(got by build-cache) ckey)])
-      key-map  (~(put by key-map) rail ckey)
-    ==
-  ~&  >>  "build: cache MISS {(spud (snoc path.rail name.rail))}"
-  ::  Build augmented subject with named dep faces
-  =/  aug=vase
-    %+  roll  imports.fi
-    |=  [r=resolved-import acc=_sut]
-    ?-    -.r
-        %file
-      =/  dep-res=build-result  (~(got by results) rail.r)
-      ?>  ?=(%& -.dep-res)
-      =/  dep=vase  p.dep-res
-      (slop [[%face name.r p.dep] q.dep] acc)
-        %bare
-      =/  dep-res=build-result  (~(got by results) rail.r)
-      ?>  ?=(%& -.dep-res)
-      (slop p.dep-res acc)
-        %mime
-      ?-    -.lane.r
-          %&  :: file: single mime
-        =/  dep-res=(unit build-result)  (~(get by results) p.lane.r)
-        ?~  dep-res
-          ~|  %mime-not-found
-          ~|  "  /& {(trip name.r)} {(spud (snoc path.p.lane.r name.p.lane.r))}"
-          ~|  "  file does not exist (for a directory, add trailing /)"
-          !!
-        ?>  ?=(%& -.u.dep-res)
-        =/  dep=vase  p.u.dep-res
-        (slop [[%face name.r p.dep] q.dep] acc)
-          %|  :: directory: (axal (map @ta mime))
-        =/  sub=ball:tarball  (~(dip ba:tarball ball) p.lane.r)
-        =/  axl=(axal (map @ta mime))
-          %+  roll
-            %+  murn  ~(tap ba:tarball sub)
-            |=  [=rail:tarball =sang:tarball]
-            ::  treat every file as mime: a %mime grub imports as-is; any
-            ::  other grub whose content is a cord (source — %hoon, %txt,
-            ::  …) imports as a text mime of that source. So a directory
-            ::  of source can be imported, not just static assets.
-            ?:  =([/ %mime] p.sang)
-              ?:  (is-boom:tarball sang)  ~
-              `[path.rail name.rail !<(mime (need-vase:tarball sang))]
-            =/  txt=(unit @t)  (mole |.(;;(@t (sang-noun:tarball sang))))
-            ?~  txt  ~
-            `[path.rail name.rail [/text/plain [(met 3 u.txt) u.txt]]]
-          |=  [[pax=path nam=@ta mym=mime] acc=(axal (map @ta mime))]
-          =/  nod=(map @ta mime)
-            (fall (~(get of acc) pax) *(map @ta mime))
-          (~(put of acc) pax (~(put by nod) nam mym))
-        =/  dep=vase  !>(axl)
-        (slop [[%face name.r p.dep] q.dep] acc)
-      ==
-    ==
-  ::  Compile
-  =/  import-lines=@ud
-    (sub (lent (to-wain:format src.fi)) (lent (to-wain:format body.fi)))
-  =/  res=build-result
-    ~>  %bout.[1 (crip "compile {(spud (snoc path.rail name.rail))}")]
-    =/  r  (mule |.((build-hoon aug (snoc path.rail name.rail) body.fi import-lines)))
-    ?:(?=(%& -.r) p.r [%| ~[leaf+"crash compiling {(spud (snoc path.rail name.rail))}"]])
-  ::  For marks: compile raw door into marc
-  =.  res
-    ?.  ?&  ?=(%& -.res)
-            ?=([%mar *] path.rail)
-        ==
-      res
-    =/  marc-res=(each marc:tarball tang)
-      (mule |.((build-marc:marks p.res)))
-    ?:(?=(%| -.marc-res) [%| p.marc-res] [%& !>(p.marc-res)])
-  %=  $
-    order.sort-res  t.order.sort-res
-    results      (~(put by results) rail res)
-    key-map      (~(put by key-map) rail ckey)
-    build-cache  ?:(?=(%& -.res) (~(put by build-cache) ckey p.res) build-cache)
-  ==
+  :-  (~(uni by results) (~(run by reuse) |=(v=[key=@uv res=build-result] res.v)))
+  (~(uni by keys) (~(run by reuse) |=(v=[key=@uv res=build-result] key.v)))
 --
