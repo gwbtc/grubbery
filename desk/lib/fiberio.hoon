@@ -837,6 +837,28 @@
   ;<  ~  bind:m  (send-dart %node wire road %keep blot)
   (take-bond wire)
 ::
+::  +keep-soft: +keep with a deadline. ~ if the subscription was not
+::  established within `lull`.
+::
+::    +keep waits on +take-bond with nothing to end the wait. For a LOCAL road
+::    that is fine — the termination guarantee covers it. For a REMOTE one the
+::    wait is on a peer, and a follower whose publisher is unreachable parks
+::    forever: nothing subscribed, no error, no retry. Callers following a
+::    remote source need to be able to give up and try again.
+::
+++  keep-soft
+  |=  [=wire =road:tarball blot=(unit blot:tarball) lull=@dr]
+  =/  m  (fiber ,(unit wave:nexus))
+  ^-  form:m
+  ;<  ~  bind:m  (send-dart %node wire road %keep blot)
+  ;<  now=@da  bind:m  get-time
+  =/  dead=^wire  (weld wire /keep-deadline)
+  ;<  ~  bind:m  (set-timer dead (add now lull))
+  ;<  res=news-or-wake  bind:m  (take-news-or-wake wire)
+  ?:  ?=(%wake -.res)  (pure:m ~)
+  ;<  ~  bind:m  (cancel-timer dead)
+  (pure:m `wave.res)
+::
 ++  drop
   |=  [=wire =road:tarball]
   =/  m  (fiber ,~)
