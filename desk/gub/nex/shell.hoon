@@ -388,6 +388,21 @@
             (build-weirs rail)
           ;<  ~  bind:m  (send-simple:srv eyre-id [[200 ~] `(as-octs:mimes:html 'ok')])
           (pure:m ~)
+        ::  POST /permits/reload {app}: reboot an app after a grant, so the
+        ::  fibers that crashed while jailed come back holding what was
+        ::  granted. Its own request because a reboot takes seconds (lattice:
+        ::  6s on ~wex) and the approve answer must not wait on it.
+        ?:  &(=('POST' method.request.req) ?=([%permits %reload ~] suffix))
+          =/  jon=json
+            %+  fall  (de:json:html ?~(body.request.req '' q.u.body.request.req))
+            *json
+          =/  tp=(unit path)
+            (soft-path ?.(?=(%o -.jon) '' (fall (jget jon 'app') '')))
+          ;<  ~  bind:m
+            ?~  tp  (pure:(fiber:fiber:nexus ,~) ~)
+            (reload:io [%& %| u.tp])
+          ;<  ~  bind:m  (send-simple:srv eyre-id [[200 ~] `(as-octs:mimes:html 'ok')])
+          (pure:m ~)
         ::  POST /uninstall {root}: delete an installed app from its tile.
         ::  A desk-nested root uninstalls the WHOLE desk (the UI says so
         ::  and lists what ships with it). Consent records, followers, and
@@ -3252,9 +3267,10 @@
   =/  wm=(map @t json)  ?.(?=([~ %o *] wv) ~ p.u.wv)
   ;<  ~  bind:m
     (put:io (nex-road:io rail [%& /cache %'weirs.json']) [[/ %json] [%o (~(put by wm) app overlay)]])
-  ::  reboot the app with its new grants: fibers that crashed while jailed
-  ::  (a closed install's rise) come back alive holding what was granted.
-  (reload:io [%& %| target])
+  ::  the reboot that makes the grant live - fibers that crashed while
+  ::  jailed come back holding it - is POST /permits/reload, the page's
+  ::  next request: a reboot takes seconds and this answer must not wait.
+  (pure:m ~)
 ::  +do-deny-weir: record an app's weir.json as denied (no sand), so it
 ::  stops prompting until the app re-declares a different manifest.
 ::
