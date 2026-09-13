@@ -1650,9 +1650,10 @@
 ++  default-repos
   |=  our=@p
   ^-  (list stock-entry)
-  :~  [%github 'contacts' 'niblyx-malnus/contacts-nexus' 'main']
-      [%github 'wallet' 'niblyx-malnus/wallet-nexus' 'main']
-      ::  lattice ships as a stock desk from here on. It used to be a
+  ::  Only what ~ricsul-bilwyt distributes. Upstream's own stock entries
+  ::  (contacts, wallet) are not part of this release; a ship that wants
+  ::  them adds a desk by hand.
+  :~  ::  lattice ships as a stock desk from here on. It used to be a
       ::  %fall row in root.hoon creating an instance under /apps
       ::  directly, and this entry is what replaces it: the shell stands
       ::  up the desk, the desk mirrors its source's code, and apply-bill
