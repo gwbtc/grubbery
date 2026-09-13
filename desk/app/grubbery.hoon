@@ -69,6 +69,13 @@
 ::  Nothing consumes this yet.
 ::
 ++  kel  21.000.000
+::  +dbg: the traces below print only when this is yes. They were on
+::  unconditionally - a few lines per sync tick, per commit, per request -
+::  and in production they bury the warnings. ~? costs nothing when it is
+::  |; flip to & and recompile to see them again. Warnings (>> and >>>)
+::  are not behind it.
+::
+++  dbg  ^-(? |)
 :: The subject all code gets compiled against (/nex, /mar or /lib)
 ::
 ++  sut
@@ -250,13 +257,13 @@
       :: Force a reload of the root nexus (reboot the whole namespace)
       ::
         %reload
-      ~&  >  %grubbery-reload
+      ~?  >  dbg  %grubbery-reload
       =^  cards  state
         abet:cold-start:hc
       [cards this]
       ::
         %revalidate
-      ~&  >  %grubbery-revalidate
+      ~?  >  dbg  %grubbery-revalidate
       =^  cards  state
         abet:revalidate-all:hc
       [cards this]
@@ -265,7 +272,7 @@
       :: human asks for the cleanup.
       ::
         %silo-repair
-      ~&  >  %grubbery-silo-repair
+      ~?  >  dbg  %grubbery-silo-repair
       =^  cards  state
         abet:repair-silo:hc
       [cards this]
@@ -275,7 +282,7 @@
       ::  bypasses darts, gates, and state replay entirely.
       ::
         %open-apps
-      ~&  >  %grubbery-open-apps
+      ~?  >  dbg  %grubbery-open-apps
       =^  cards  state
         abet:(set-weir:hc /apps ~)
       [cards this]
@@ -286,12 +293,12 @@
       ::  the wrong one and sands silently do nothing.
       ::
         %show-apps-weir
-      ~&  >  [%apps-weir-ball (get-weir-for:hc /apps)]
-      ~&  >  [%apps-weir-born (peek-weir:hc /apps)]
+      ~?  >  dbg  [%apps-weir-ball (get-weir-for:hc /apps)]
+      ~?  >  dbg  [%apps-weir-born (peek-weir:hc /apps)]
       [~ this]
       ::
         %show-code-map
-      ~&  >  [%code-namespaces ~(tap in ~(key by code))]
+      ~?  >  dbg  [%code-namespaces ~(tap in ~(key by code))]
       [~ this]
       ::
         %show-code-refs
@@ -299,16 +306,16 @@
       |-
       ?~  ns-list  [~ this]
       =/  =lode:nexus  (~(got by code) i.ns-list)
-      ~&  >  [%code-ns i.ns-list keys=~(tap in ~(key by keys.lode))]
+      ~?  >  dbg  [%code-ns i.ns-list keys=~(tap in ~(key by keys.lode))]
       $(ns-list t.ns-list)
       ::
         %show-bins
-      ~&  >  [%bins-count ~(wyt by bins)]
+      ~?  >  dbg  [%bins-count ~(wyt by bins)]
       =/  entries=(list [@uv @ud ?(%vase %tang %mime)])
         %+  turn  ~(tap by bins)
         |=  [k=@uv refs=@ud =built:nexus]
         [k refs -.built]
-      ~&  >  [%bins-summary (scag 50 entries)]
+      ~?  >  dbg  [%bins-summary (scag 50 entries)]
       [~ this]
     ==
   ==
@@ -399,7 +406,7 @@
     ::  Silo audit: every referenced-but-absent lobe, rendered as
     ::  text lines (see +audit-silo / +audit-render)
     =/  hits  audit-silo:hc
-    ~&  >  [%audit-hits (lent hits)]
+    ~?  >  dbg  [%audit-hits (lent hits)]
     ``txt+!>(`wain`(audit-render:hc hits))
   ==
 ::
@@ -757,9 +764,9 @@
     |=  [pax=path name=(unit @ta) =cass:clay latest=? kind=?(%ject %noun) lobe=@]
     [pax name cass]
   ?~  dmg
-    ~&  >  [%silo-repair-clean rounds=rounds]
+    ~?  >  dbg  [%silo-repair-clean rounds=rounds]
     this
-  ~&  >  [%silo-repair round=rounds damaged-versions=(lent dmg)]
+  ~?  >  dbg  [%silo-repair round=rounds damaged-versions=(lent dmg)]
   =/  before  this
   =/  todo=(list [pax=path name=(unit @ta) =cass:clay])  dmg
   =.  this
@@ -768,7 +775,7 @@
     =.  this  (tomb-version [pax name cass]:i.todo)
     $(todo t.todo)
   ?:  =(born.before born)
-    ~&  >  [%silo-repair-remaining-latest-guarded (lent dmg)]
+    ~?  >  dbg  [%silo-repair-remaining-latest-guarded (lent dmg)]
     this
   $(rounds +(rounds))
 ::  +tomb-version: rewrite one hist entry's pace to %tomb, releasing
@@ -790,7 +797,7 @@
   =/  ent=(unit entry:hist:nexus)  (get:hon:hist:nexus sk cass)
   ?~  ent  this
   ?:  ?=(%tomb -.pace.u.ent)  this
-  ~&  >  [%silo-tombed pax name ud=ud.cass]
+  ~?  >  dbg  [%silo-tombed pax name ud=ud.cass]
   =?  silo  ?=(^ p.pace.u.ent)
     (~(drop-ject si:nexus silo) u.p.pace.u.ent)
   =/  new-hist=hist:nexus
@@ -826,7 +833,7 @@
     $(entries t.entries)
   ::  All refs present — discharge: build view from snap+silo,
   ::  send %peek intake to the requesting fiber.
-  ~&  >  [%peek-discharged ship.pk dest.pk key=key peeks-remaining=~(wyt by peeks.remo)]
+  ~?  >  dbg  [%peek-discharged ship.pk dest.pk key=key peeks-remaining=~(wyt by peeks.remo)]
   =/  =cite:nexus
     ?:  ?=(%tomb -.pace.u.snap.pk)  [%none ~]
     ?~  p.pace.u.snap.pk  [%none ~]
@@ -1250,7 +1257,7 @@
     %=  $
       pending  (skip pending |=([j=jobe:nexus *] (~(has in done) j)))
     ==
-  ~&  >  [%peek-data-received nouns=(lent good-nouns) jects=(lent good-jects)]
+  ~?  >  dbg  [%peek-data-received nouns=(lent good-nouns) jects=(lent good-jects)]
   =/  merged=lobes:nexus
     :-  (sy (turn good-jects |=([=jobe:nexus *] jobe)))
     (sy (turn good-nouns |=([=nobe:nexus *] nobe)))
@@ -1344,7 +1351,7 @@
       &(=(ship.pk src) =(dest.pk dest.resp))
     ?~  snap.resp
       ::  Nothing exists at dest — discharge with %none and remove peeks
-      ~&  >  [%snap-not-found dest=dest.resp]
+      ~?  >  dbg  [%snap-not-found dest=dest.resp]
       =/  to-discharge=(list [[=rail:tarball =wire] =peek:remo:nexus])
         %+  skim  ~(tap by peeks.remo)
         |=  [[=rail:tarball =wire] pk=peek:remo:nexus]
@@ -1365,19 +1372,19 @@
     ::  Merge it through the same discipline as a %data transfer —
     ::  the want/data legs are skipped entirely.
     ?:  ?=(^ data.resp)
-      ~&  >  [%snap-inline-from src]
+      ~?  >  dbg  [%snap-inline-from src]
       (merge-transfer-data u.data.resp)
     =/  missing=lobes:nexus
       :-  (~(dif in jects.refs.u.snap.resp) ~(key by jects.silo))
       (~(dif in nouns.refs.u.snap.resp) ~(key by nouns.silo))
     =/  n-missing=@ud  (add ~(wyt in jects.missing) ~(wyt in nouns.missing))
-    ~&  >  [%snap-processed refs=(add ~(wyt in jects.refs.u.snap.resp) ~(wyt in nouns.refs.u.snap.resp)) missing=n-missing]
+    ~?  >  dbg  [%snap-processed refs=(add ~(wyt in jects.refs.u.snap.resp) ~(wyt in nouns.refs.u.snap.resp)) missing=n-missing]
     ?:  =(0 n-missing)
       ::  All refs already in silo — discharge immediately
-      ~&  >  %snap-all-refs-present-discharging
+      ~?  >  dbg  %snap-all-refs-present-discharging
       discharge-peeks
     ::  Send %want with snap-id — server uses it to look up pinned refs
-    ~&  >  [%snap-sending-want missing=n-missing snap-id=snap-id.resp]
+    ~?  >  dbg  [%snap-sending-want missing=n-missing snap-id=snap-id.resp]
     =/  want-req=transfer:remo:nexus
       [/want %want dest.resp snap-id.resp]
     =.  cards
@@ -1391,7 +1398,7 @@
     this
     ::
       %data
-    ~&  >  [%data-received-from src]
+    ~?  >  dbg  [%data-received-from src]
     (merge-transfer-data silo.resp)
     ::
       %veto
@@ -1433,7 +1440,7 @@
 ++  process-intake
   |=  [src=@p resp=intake:remo:nexus]
   ^+  this
-  ~&  >  [%wave-received-from src dest=dest.resp]
+  ~?  >  dbg  [%wave-received-from src dest=dest.resp]
   =/  ns-lane=lane:tarball
     =/  prefix=path  /sys/ames/ships/[(scot %p src)]/root
     ?-(-.dest.resp %& [%& (weld prefix path.p.dest.resp) name.p.dest.resp], %| [%| (weld prefix p.dest.resp)])
@@ -2883,10 +2890,10 @@
     this
   =/  lod=(unit lode:nexus)  (~(get by code) here)
   ?~  lod
-    ~&  >  "register-code-namespace: {(spud here)}"
+    ~?  >  dbg  "register-code-namespace: {(spud here)}"
     (build-code-with here ~ %.n)
   ?:  =(`sut-hash (~(get by keys.u.lod) sut-rail:nexus))  this
-  ~&  >  "ensure-code-namespace: subject changed, rebuilding {(spud here)}"
+  ~?  >  dbg  "ensure-code-namespace: subject changed, rebuilding {(spud here)}"
   (build-code-with here ~ %.n)
 ::  +spawn-all-files: spawn a process for every file in a bole
 ::
@@ -3316,7 +3323,7 @@
       [~ %|]
     ::  Vetoed — crash for foreign ship darts (gall nacks the sender),
     ::  send %veto intake back to source for internal darts.
-    ~&  >>>  [%process-dart-vetoed jump=jump here=here dest=dest filt=filt dart-type=-.dart]
+    ~&  >>>  [%process-dart-vetoed jump=jump here=(snoc path.here name.here) dest=dest dart-type=-.dart]
     ?:  ?=([%sys %ames %ships @ ~] path.here)
       ~|  [%peer-vetoed name.here dest]
       !!
@@ -4563,7 +4570,7 @@
   ?:  ?=([~ %|] next)
     ::  name the boundary that said no — a veto without a WHERE is torture
     ~?  >>>  loud
-      [%weir-veto-at boundary=path.here weir=weir-here jump=jump dest=dest-lane]
+      [%weir-veto-at boundary=path.here jump=jump dest=dest-lane]
     [~ |]
   ::  Reached root - stop
   ?~  path.here
@@ -4729,7 +4736,7 @@
           =([/ %code] u.neck.u.fil.u.sub)
       ==
     $(cods t.cods)
-  ~&  >  "deregister-code-namespace: {(spud i.cods)}"
+  ~?  >  dbg  "deregister-code-namespace: {(spud i.cods)}"
   =/  =lode:nexus  (~(got by code) i.cods)
   =.  bins  (refs-dec (artifacts:nexus keys.lode))
   $(cods t.cods, code (~(del by code) i.cods))
@@ -4750,7 +4757,7 @@
   =/  todo=(list [cod=fold:tarball rails=(set rail:tarball)])  ~(tap by affected)
   |-
   ?~  todo  this
-  ~&  >  "rebuild-changed: {(spud cod.i.todo)} ({<~(wyt in rails.i.todo)>} changed)"
+  ~?  >  dbg  "rebuild-changed: {(spud cod.i.todo)} ({<~(wyt in rails.i.todo)>} changed)"
   =.  this  (build-code-with cod.i.todo `rails.i.todo reload)
   $(todo t.todo)
 ::  Bottom-up recursive sync: at each level, record files, delete
@@ -5047,7 +5054,7 @@
     ?.  (~(has by deps.lode) rr)  ~
     $(todo t.todo, out (~(put in out) rr))
   ?~  rel
-    ~&  >  "skip-set: create or foreign rail in diff, full sweep"
+    ~?  >  dbg  "skip-set: create or foreign rail in diff, full sweep"
     none
   ::  Foundational marks: changed by fiat, every build
   =/  seed=(set rail:tarball)
@@ -5057,7 +5064,7 @@
     ?.((~(has by deps.lode) r) acc (~(put in acc) r))
   ::  The subject: a changed dep like any other
   =?  seed  !=(`sut-hash (~(get by keys.lode) sut-rail:nexus))
-    ~&  >  "skip-set: subject changed"
+    ~?  >  dbg  "skip-set: subject changed"
     (~(put in seed) sut-rail:nexus)
   =/  closure=(set rail:tarball)  (reverse-closure:build deps.lode seed)
   %+  roll  ~(tap by keys.lode)
@@ -5128,7 +5135,7 @@
 ++  build-code-with
   |=  [cod=path changed=(unit (set rail:tarball)) reload=?]
   ^+  this
-  ~&  >  "build-code: start {(spud cod)}"
+  ~?  >  dbg  "build-code: start {(spud cod)}"
   ::  1. Source: get ball, force foundational marks
   ::
   =/  src-ball  (peek-ball-now cod)
@@ -5144,7 +5151,7 @@
   =/  old-cache      ~>(%bout.[1 %bins-to-cache] (bins-to-cache:build keys.lode bins))
   =/  skp            ~>(%bout.[1 %build-skip-set] (skip-set cod lode changed))
   =/  res            ~>(%bout.[1 %build-all] (build-inc:build sut src-ball old-cache skp))
-  ~&  >  "build-code: compiled {<~(wyt by results.res)>} results"
+  ~?  >  dbg  "build-code: compiled {<~(wyt by results.res)>} results"
   ::  3. Index: the built artifact for each result, by key
   ::
   =/  builds=(map @uv built:nexus)
@@ -5171,7 +5178,7 @@
   ::
   =?  this  reload
     ~>(%bout.[1 %reload-changed-nexuses] (reload-changed-nexuses cod old-keys keys.res))
-  ~&  >  "build-code: done"
+  ~?  >  dbg  "build-code: done"
   this
 ::  Force foundational mark sources into born and the src-ball.
 ::  Overwrites any user modifications; these marks are immutable.
@@ -5426,12 +5433,12 @@
       (save-file rail [blot noun])
     =.  n-boom  +(n-boom)
     $(grubs t.grubs)
-  ~&  >  "validate-marks: {(trip nam)} — {<n-ok>} ok, {<n-boom>} boom"
+  ~?  >  dbg  "validate-marks: {(trip nam)} — {<n-ok>} ok, {<n-boom>} boom"
   $(remaining t.remaining)
 ::
 ++  revalidate-all
   ^+  this
-  ~&  >  "revalidate-all: start"
+  ~?  >  dbg  "revalidate-all: start"
   =/  all-grubs=(list [=rail:tarball lob=jobe:nexus =leaf:nexus])
     %-  zing
     %+  turn  ~(tap of born)
@@ -5447,11 +5454,11 @@
     ?~  entry  ~
     ?.  ?=(%leaf -.ject.u.entry)  ~
     `[[fold name] u.p.pace.val.u.top leaf.ject.u.entry]
-  ~&  >  "revalidate-all: {<(lent all-grubs)>} grubs"
+  ~?  >  dbg  "revalidate-all: {<(lent all-grubs)>} grubs"
   =/  [n-ok=@ud n-boom=@ud n-skip=@ud]  [0 0 0]
   |-
   ?~  all-grubs
-    ~&  >  "revalidate-all: done — {<n-ok>} ok, {<n-boom>} boom, {<n-skip>} skip"
+    ~?  >  dbg  "revalidate-all: done — {<n-ok>} ok, {<n-boom>} boom, {<n-skip>} skip"
     this
   =/  [=rail:tarball lob=jobe:nexus =leaf:nexus]  i.all-grubs
   =/  nam=@tas  (rail-to-arm:tarball blot.mark.leaf)
@@ -5536,14 +5543,14 @@
     ~&  >>  "reload-changed-nexuses: bang {(spud (weld path.neck ~[name.neck]))} at {(spud dest)}"
     =.  this  (bang-nexus dest p.nex-res)
     $(dir-remaining t.dir-remaining)
-  ~&  >  "reload-changed-nexuses: reloading {(spud (weld path.neck ~[name.neck]))} at {(spud dest)}"
-  ~&  >  "reload-changed-nexuses: reload-nexus-at start"
+  ~?  >  dbg  "reload-changed-nexuses: reloading {(spud (weld path.neck ~[name.neck]))} at {(spud dest)}"
+  ~?  >  dbg  "reload-changed-nexuses: reload-nexus-at start"
   =.  this  (reload-nexus-at dest p.nex-res)
-  ~&  >  "reload-changed-nexuses: reload-nexus-at done"
+  ~?  >  dbg  "reload-changed-nexuses: reload-nexus-at done"
   =/  reload-bole  (peek-bole-now dest)
-  ~&  >  "reload-changed-nexuses: spawn-all-files start"
+  ~?  >  dbg  "reload-changed-nexuses: spawn-all-files start"
   =.  this  (spawn-all-files dest reload-bole)
-  ~&  >  "reload-changed-nexuses: spawn-all-files done"
+  ~?  >  dbg  "reload-changed-nexuses: spawn-all-files done"
   $(dir-remaining t.dir-remaining)
 ::  Validate a compiled artifact based on its source path.
 ::
@@ -5640,7 +5647,7 @@
 ++  sync-gub
   |=  reload=?
   ^+  this
-  ~&  >  "sync-gub: start"
+  ~?  >  dbg  "sync-gub: start"
   =/  pax=path  /(scot %p our.bowl)/grubbery/(scot %da now.bowl)
   ::  Build the target ball for /code/ (see +gub-ball)
   =/  new-src=ball:tarball  (gub-ball pax)
@@ -5650,9 +5657,9 @@
   ::  Land the source. The write rebuilds /code with exactly the changed
   ::  rails; then make sure /code is registered and current (first boot,
   ::  agent upgrade).
-  ~&  >  "sync-gub: load-ball-changes start"
+  ~?  >  dbg  "sync-gub: load-ball-changes start"
   =.  this  (load-ball-changes /code (ball-to-bole:tarball new-src) reload)
-  ~&  >  "sync-gub: load-ball-changes done"
+  ~?  >  dbg  "sync-gub: load-ball-changes done"
   (ensure-code-namespace /code)
 ::  List all files mirrored under a /sys/clay/desks/[desk] path
 ::  Returns Clay-style paths (like /app/foo/hoon) with mark as last element
@@ -5825,7 +5832,7 @@
   ::  Create live file (%.y = subscribing)
   =.  this  (save-file [dir %live] [[/ %loob] %.y])
   ::  Subscribe
-  ~&  >  "gall-sub: subscribing to {<ship>}/{(trip agent)}/{(spud path)}"
+  ~?  >  dbg  "gall-sub: subscribing to {<ship>}/{(trip agent)}/{(spud path)}"
   (emit-card [%pass wir %agent [ship agent] %watch path])
 ::  Unsubscribe from a materialized gall subscription
 ::
@@ -5834,7 +5841,7 @@
   ^+  this
   =/  dir=^path  (gall-sub-dir ship agent path)
   =/  wir=wire   (gall-sub-wire ship agent path)
-  ~&  >  "gall-unsub: leaving {<ship>}/{(trip agent)}/{(spud path)}"
+  ~?  >  dbg  "gall-unsub: leaving {<ship>}/{(trip agent)}/{(spud path)}"
   =.  this  (emit-card [%pass wir %agent [ship agent] %leave ~])
   ::  Delete the subscription tree
   =.  pool  (~(lop of pool) dir)
@@ -5858,7 +5865,7 @@
       %watch-ack
     ?~  p.sign
       ::  Success — set live to %.y
-      ~&  >  "gall-sub: watch-ack ok {<ship>}/{(trip agent)}/{(spud path)}"
+      ~?  >  dbg  "gall-sub: watch-ack ok {<ship>}/{(trip agent)}/{(spud path)}"
       (save-file [dir %live] [[/ %loob] %.y])
     ::  Failed — set live to %.n, don't retry
     ~&  >>>  "gall-sub: watch-ack failed {<ship>}/{(trip agent)}/{(spud path)}"
@@ -5876,7 +5883,7 @@
       (mole |.(vale:!<(marc:tarball vase.u.res)))
     ?~  vale
       ::  No marc — fall back to page (original mark + raw noun)
-      ~&  >  "gall-sub: no marc for {<mar>}, storing as page"
+      ~?  >  dbg  "gall-sub: no marc for {<mar>}, storing as page"
       (save-file [dir %data] [[/ %page] `[p=@tas q=*]`[mar q.q.cage.sign]])
     =/  res=(each vase tang)
       (validate-vase u.vale q.q.cage.sign)
@@ -5887,7 +5894,7 @@
   ::
       %kick
     ::  Set live to %.n, auto-resubscribe
-    ~&  >  "gall-sub: kicked from {<ship>}/{(trip agent)}/{(spud path)}, resubscribing"
+    ~?  >  dbg  "gall-sub: kicked from {<ship>}/{(trip agent)}/{(spud path)}, resubscribing"
     =.  this  (save-file [dir %live] [[/ %loob] %.n])
     (emit-card [%pass (gall-sub-wire ship agent path) %agent [ship agent] %watch path])
   ==
@@ -5926,7 +5933,7 @@
     =/  =ship  (slav %p ship-ta)
     =/  agent=dude:gall  agent-ta
     =/  wir=wire  (gall-sub-wire ship agent pax)
-    ~&  >  "sync-gall: resubscribing {<ship>}/{(trip agent)}/{(spud pax)}"
+    ~?  >  dbg  "sync-gall: resubscribing {<ship>}/{(trip agent)}/{(spud pax)}"
     (emit-card [%pass wir %agent [ship agent] %watch pax])
   ::  Recurse into subdirectories
   =/  kids=(list [@ta ball:tarball])  ~(tap by dir.sub)
@@ -5975,14 +5982,14 @@
     (save-file [dir %live] [[/ %loob] %.n])
   =?  this  gained
     (set-gain-lane [%& dir %in] %.y)
-  ~&  >  "lick: spinning {(spud name)}"
+  ~?  >  dbg  "lick: spinning {(spud name)}"
   (emit-card [%pass (lick-wire name) %arvo %l %spin name])
 ::
 ++  handle-lick-shut
   |=  name=path
   ^+  this
   =/  dir=path  (lick-dir name)
-  ~&  >  "lick: shutting {(spud name)}"
+  ~?  >  dbg  "lick: shutting {(spud name)}"
   =.  this  (emit-card [%pass (lick-wire name) %arvo %l %shut name])
   =.  pool  (~(lop of pool) dir)
   (load-ball-changes dir *bole:tarball %.y)
@@ -6036,7 +6043,7 @@
   ::  %.n. %connect/%disconnect soaks own /live.
   =.  this
     ?.  has-live  this
-    ~&  >  "sync-lick: respinning {(spud pax)}"
+    ~?  >  dbg  "sync-lick: respinning {(spud pax)}"
     (emit-card [%pass (lick-wire pax) %arvo %l %spin pax])
   =/  kids=(list [@ta ball:tarball])  ~(tap by dir.sub)
   |-
@@ -6456,7 +6463,7 @@
   =/  match=(unit [=binding:eyre handler=rail:tarball])
     (find-eyre-binding bindings.st site)
   ?~  match
-    ~&  >  [%eyre-no-binding site]
+    ~?  >  dbg  [%eyre-no-binding site]
     ::  emit-cards (flop-correct) NOT a raw weld into `cards`, which is
     ::  reversed and flopped at abet — a raw weld ships the response
     ::  facts to eyre in the wrong order (data before header).
