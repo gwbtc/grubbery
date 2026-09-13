@@ -53,6 +53,13 @@
 /&  splitview-js  /lib/ui/split-view.js
 =<  ^-  nexus:nexus
     |%
+::  +dbg: the traces below print only when this is yes. They were on
+::  unconditionally - a few lines per sync tick, per commit, per request -
+::  and in production they bury the warnings. ~? costs nothing when it is
+::  |; flip to & and recompile to see them again. Warnings (>> and >>>)
+::  are not behind it.
+::
+++  dbg  ^-(? |)
 ++  on-load
   |=  =ball:tarball
   ^-  bole:tarball
@@ -154,9 +161,9 @@
     =/  code-road=road:tarball   [%& %| code-path]
     =/  ver-road=road:tarball    [%& %& code-path %'version.json']
     =/  ver-name=@ta             %'version.json'
-    ~&  >  [%desk-subscribing code.u.config]
+    ~?  >  dbg  [%desk-subscribing code.u.config]
     ;<  ~  bind:m  (await-source /ver ver-road code.u.config)
-    ~&  >  [%desk-subscribed code.u.config]
+    ~?  >  dbg  [%desk-subscribed code.u.config]
     ::  the runtime restarts EVERY fiber on a nexus reload, so this handler
     ::  re-enters constantly. Pull on start only when actually BEHIND: our
     ::  root version.json (null until a real sync) differs from the source's
@@ -171,7 +178,7 @@
     ;<  res=news-or-poke  bind:m  (take-news-or-poke /ver)
     ?-  -.res
         %news
-      ~&  >  %desk-update-received
+      ~?  >  dbg  %desk-update-received
       ::  snapshot the world, then pull the new release
       ;<  ~  bind:m  (do-snapshot rail)
       ;<  ~  bind:m  (sync-release ver-road code-road ver-name rail)
@@ -179,7 +186,7 @@
         %poke
       ::  config change: replace state, drop sub, restart
       =/  new-json=json  !<(json q.sage.res)
-      ~&  >  [%source-config-change new-json]
+      ~?  >  dbg  [%source-config-change new-json]
       ;<  ~  bind:m  (replace:io new-json)
       ;<  ~  bind:m  (drop:io /ver ver-road)
       ^$
@@ -256,11 +263,11 @@
     ;<  ~  bind:m  (cull-dir rail /checkout/code)
     ;<  ~  bind:m  (cull-dir rail /checkout/data)
     ?~  want
-      ~&  >  %desk-checkout-clear
+      ~?  >  dbg  %desk-checkout-clear
       ;<  *  bind:m  (cull-soft:io (nex-road:io rail [%& /checkout %'necks.json']))
       ;<  ~  bind:m  (replace:io `(unit @ud)`~)
       $
-    ~&  >  [%desk-checkout n=u.want]
+    ~?  >  dbg  [%desk-checkout n=u.want]
     ::  peek the whole /desk subtree as of snapshot N (files come rooted
     ::  at /desk, e.g. /code/foo, /data/bar) and lay it into /checkout —
     ::  reconstructing /checkout/code and /checkout/data wholesale.
@@ -561,7 +568,7 @@
   ?.  ?=([%file *] ver-view)
     ~&  >>  %desk-no-version-at-source
     (pure:m ~)
-  ~&  >  [%desk-sync-release ver=(version-text sang.ver-view)]
+  ~?  >  dbg  [%desk-sync-release ver=(version-text sang.ver-view)]
   ::  pull the source's code tree wholesale into our /desk/code
   ;<  ~  bind:m  (sync-dir code-road rail /desk/code ~)
   ::  mirror the source's version file locally, under its own name, so
@@ -597,7 +604,7 @@
     ?~  mim  ~
     (de:json:html q.q.u.mim)
   ?~  bill
-    ~&  >  %desk-no-bill
+    ~?  >  dbg  %desk-no-bill
     (pure:m ~)
   ?.  ?=([%o *] u.bill)
     ~&  >>>  %desk-bill-not-object
@@ -619,7 +626,7 @@
       ~&  >>>  [%desk-bill-entry-unreadable k]
       ~
     `[k p.v]
-  ~&  >  [%desk-bill (lent entries)]
+  ~?  >  dbg  [%desk-bill (lent entries)]
   =|  made-any=?
   |-
   ?~  entries
@@ -648,7 +655,7 @@
   ::  (that rides the make, not a weir-gated dart), but stays runtime-inert
   ::  — it can reach nothing until its weir.json is approved in the shell.
   =/  =bole:tarball  [`[`neck `[~ ~ ~] %.n ~] ~]
-  ~&  >  [%desk-bill-entry nam neck]
+  ~?  >  dbg  [%desk-bill-entry nam neck]
   ;<  ~  bind:m  (make:io data-road &+bole)
   =.  made-any  %.y
   $(entries t.entries)
@@ -700,7 +707,7 @@
   ?.  ?=([%ball *] view)
     ~&  >>  [%desk-nothing-at-source dir]
     (pure:m ~)
-  ~&  >  [%desk-sync-dir dir]
+  ~?  >  dbg  [%desk-sync-dir dir]
   ::  overwrite the whole source subtree in ONE event with over-fold (the
   ::  %over analog for directories) — a per-file write triggers a full
   ::  build-code for every file (a rebuild storm on a /code dir). git
@@ -773,9 +780,9 @@
   ::  top (fresh, untagged) earns a new number.
   ;<  hist=(each binfo tang)  bind:m  (born:io (nex-road:io rail [%| /desk]))
   ?:  (top-is-snap hist)
-    ~&  >  %desk-snapshot-unchanged
+    ~?  >  dbg  %desk-snapshot-unchanged
     (pure:m ~)
-  ~&  >  [%desk-snapshot num=num]
+  ~?  >  dbg  [%desk-snapshot num=num]
   ::  stamp the world's current version as a `version: <contents>` label —
   ::  a convention, not identity. The `version: ` prefix keeps it non-numeric
   ::  so it never shadows the numeric identity tag (+num-tag / +snap-cass).
@@ -1096,7 +1103,7 @@
     %+  skim
       (turn (ball-to-files ball.view) |=(f=bfile `path`(snoc pax.f name.f)))
     |=(p=path !(~(has in keep) p))
-  ~&  >  [%desk-prune dir count=(lent extra)]
+  ~?  >  dbg  [%desk-prune dir count=(lent extra)]
   |-
   ?~  extra  (pure:m ~)
   ;<  *  bind:m
@@ -1232,7 +1239,7 @@
     =/  d  (~(get by p.u.jon) 'data')
     ?:  ?=([~ %n *] d)  [%snap (rash p.u.d dem)]
     %live
-  ~&  >  [%desk-compose code=code-src data=data-src]
+  ~?  >  dbg  [%desk-compose code=code-src data=data-src]
   ::  snapshot the current world first — this recomposition is recoverable
   ;<  ~  bind:m  (do-snapshot rail)
   ::  resolve each axis as a neck-preserving bole. %none code = a fresh,
@@ -1258,7 +1265,7 @@
   ::  they survive) then make the assembled bole, reloading both axes at once
   ;<  ~  bind:m  (cull:io (nex-road:io rail [%| /desk]))
   ;<  ~  bind:m  (make:io (nex-road:io rail [%| /desk]) &+desk-bole)
-  ~&  >  %desk-compose-done
+  ~?  >  dbg  %desk-compose-done
   (respond eyre-id rail 200 'composed')
 ::
 ++  json-num
@@ -1667,7 +1674,7 @@
   =/  code-road=road:tarball   [%& %| code-path]
   =/  ver-road=road:tarball    [%& %& code-path %'version.json']
   =/  ver-name=@ta             %'version.json'
-  ~&  >  [%desk-do-fetch code.u.config]
+  ~?  >  dbg  [%desk-do-fetch code.u.config]
   ;<  ~  bind:m  (do-snapshot rail)
   (sync-release ver-road code-road ver-name rail)
 ::
@@ -1688,7 +1695,7 @@
     ::  contract before it lands.
     =/  jon=json  (fall (de:json:html body) ~)
     =/  clean=json  (source-to-json (json-to-source jon))
-    ~&  >  [%desk-set-source clean]
+    ~?  >  dbg  [%desk-set-source clean]
     ;<  ~  bind:m
       (poke:io (nex-road:io rail [%& / %'source.json']) [[/ %json] clean])
     (respond eyre-id rail 200 'ok')
@@ -1704,7 +1711,7 @@
     ?~  cmd
       ;<  ~  bind:m  (respond eyre-id rail 400 'bad share command')
       (pure:m ~)
-    ~&  >  [%desk-share u.cmd]
+    ~?  >  dbg  [%desk-share u.cmd]
     ;<  ~  bind:m
       (poke:io (nex-road:io rail [%& / %'share.usergroups']) [[/ %json] u.cmd])
     (respond eyre-id rail 200 'ok')
@@ -1716,7 +1723,7 @@
     ?~  cmd
       ;<  ~  bind:m  (respond eyre-id rail 400 'bad checkout command')
       (pure:m ~)
-    ~&  >  [%desk-checkout-poke u.cmd]
+    ~?  >  dbg  [%desk-checkout-poke u.cmd]
     ;<  ~  bind:m
       (poke:io (nex-road:io rail [%& / %'checkout.desk_snap']) [[/ %json] u.cmd])
     (respond eyre-id rail 200 'ok')
@@ -1742,7 +1749,7 @@
     ?~  n
       ;<  ~  bind:m  (respond eyre-id rail 400 'need n')
       (pure:m ~)
-    ~&  >  [%desk-clear n=u.n]
+    ~?  >  dbg  [%desk-clear n=u.n]
     ;<  ~  bind:m  (clear-snap rail u.n)
     (respond eyre-id rail 200 'cleared')
   ::
@@ -1759,7 +1766,7 @@
     =/  targets=(list @ud)
       %+  skim  nums
       |=(n=@ud &(!=(n top) ?|(?=(~ before) (lte n u.before))))
-    ~&  >  [%desk-clear-until before=before count=(lent targets)]
+    ~?  >  dbg  [%desk-clear-until before=before count=(lent targets)]
     |-  ^-  form:m
     ?~  targets  (respond eyre-id rail 200 'cleared')
     ;<  ~  bind:m  (clear-snap rail i.targets)
