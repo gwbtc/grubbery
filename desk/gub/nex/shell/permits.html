@@ -214,8 +214,10 @@
       var card=body.app?document.querySelector('.card[data-sel="'+body.app+'"]'):null;
       if(card){ card.classList.add('applying'); Array.prototype.forEach.call(card.querySelectorAll('button,input,select'),function(e){ e.disabled=true; }); }
       fetch('/apps/grubbery/permits',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)})
+        .then(function(){ return load(); })  // the answer is authoritative: re-render now
         .then(function(){
-          load();  // the answer is authoritative: re-render now, the slow work runs behind it
+          // the slow work only after the reads are back: the ship runs one
+          // event at a time, and a read queued behind a 6s reboot is a 6s read
           if(body.action==='approve-weir'&&body.app){ fetch('/apps/grubbery/permits/reload',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({app:body.app})}).catch(function(){}); }
           refresh(true);
         })
@@ -414,7 +416,7 @@
     var loadingEl=document.getElementById('loading'), firstLoad=true;
     function load(){
       if(firstLoad)loadingEl.classList.add('on');
-      Promise.all([
+      return Promise.all([
         fetch('/apps/grubbery/approved.json').then(function(r){return r.json();}).then(function(d){ approvedState=d||{}; }).catch(function(){}),
         fetch('/apps/grubbery/weirs.json').then(function(r){return r.json();}).then(function(d){ weirsState=d||{}; }).catch(function(){}),
         fetch('/apps/grubbery/aliases.json').then(function(r){return r.json();}).then(function(d){ aliasMenus=d||{}; }).catch(function(){}),
