@@ -208,14 +208,6 @@
         ?~(g cur (~(del in cur) u.g))
       cur
     ;<  ~  bind:m  (replace:io new)
-    ::  re-assert the registration before granting. The registry lives in a
-    ::  grub this nexus does not own, so a registration can be gone without
-    ::  this fiber ever knowing — and a %how from an unregistered rail is
-    ::  REFUSED with a printf and nothing else, which makes the share appear
-    ::  to succeed while granting nobody anything. Registering is idempotent
-    ::  and costs one poke, so assert it on the path that depends on it
-    ::  rather than only once at rise.
-    ;<  ~  bind:m  (reg-register-at:io here)
     ;<  ~  bind:m  (apply-share path.here ~(tap in cur) ~(tap in new))
     $
       ::  asks.sig: (re)compute the desk-level ask.json from the
