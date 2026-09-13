@@ -1065,7 +1065,7 @@
   ;<  now=@da  bind:m  get-time:io
   ;<  ~  bind:m  (set-timer:io /ghx-deadline (add now xfer-deadline))
   |-
-  ;<  res=news-or-wake:io  bind:m  (take-news-or-wake:io /ghx)
+  ;<  res=news-or-wake:io  bind:m  (take-news-or-wake-on:io /ghx /ghx-deadline)
   ?:  ?=(%wake -.res)
     ;<  ~  bind:m  (drop:io /ghx grub)
     ;<  *  bind:m  (cull-soft:io grub)
