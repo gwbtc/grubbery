@@ -34,7 +34,7 @@
 ++  parameters
   ^-  (map @t parameter-def:tools)
   %-  ~(gas by *(map @t parameter-def:tools))
-  :~  ['itinerary' [%string 'the itinerary id, e.g. turin']]
+  :~  ['itinerary' [%string 'the itinerary id, e.g. my-trip']]
       ['path' [%string 'slash path from the document root']]
   ==
 ++  required  ~['itinerary' 'path']

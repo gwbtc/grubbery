@@ -1,10 +1,11 @@
 ::  itinerary nexus: travel maps with pins, zones and metadata
 ::
-::  Each itinerary lives as one JSON file under /itineraries/.
+::  Per trip — a single JSON document under /itineraries/.
 ::  The backend handles pin and zone CRUD by modifying the document
 ::  server-side, behind the eyre boundary.
 ::
 /&  index-html  itinerary/index.html
+/&  home-html   itinerary/home.html
 /&  app-js      itinerary/app.js
 /&  style-css   itinerary/style.css
 /&  icon        itinerary/icon.svg
@@ -47,6 +48,7 @@
           [%over %& [/ %'tile.json'] [[/ %json] tile]]
           [%over %& [/ %'icon.svg'] [[/ %mime] icon]]
           [%over %& [/ %'index.html'] [[/ %mime] index-html]]
+          [%over %& [/ %'home.html'] [[/ %mime] home-html]]
           [%over %& [/ %'app.js'] [[/ %mime] app-js]]
           [%over %& [/ %'style.css'] [[/ %mime] style-css]]
           [%fall %| /ui empty-dir:loader]
@@ -91,13 +93,15 @@
         ::
         ?:  ?&  =(%'GET' method)
                 ?|  =(~ suffix)
+                    =([%app ~] suffix)
                     =([%'app.js' ~] suffix)
                     =([%'style.css' ~] suffix)
                     =([%'icon.svg' ~] suffix)
                 ==
             ==
           =/  filename=@ta
-            ?~  suffix  'index.html'
+            ?~  suffix  'home.html'
+            ?:  =([%app ~] suffix)  'index.html'
             i.suffix
           (serve-file eyre-id / filename)
         ::
@@ -189,14 +193,18 @@
           =/  jon=json
             (fall (de:json:html ?~(body.request.req '' q.u.body.request.req)) *json)
           =/  msg=@t  (fall (jget jon 'message') '')
-          ;<  [reply=@t trace=json parts=json]  bind:m  (ask-agent rail msg)
+          =/  chat=@t  =/(c (fall (jget jon 'chat') '') ?:(=('' c) 'main' c))
+          ;<  [reply=@t trace=json parts=json]  bind:m  (ask-agent rail msg chat)
           (send-json eyre-id (en:json:html (pairs:enjs:format ~[['reply' s+reply] ['trace' trace] ['parts' parts]])))
         ::
         ::  GET /history → the stored conversation from the agent's chat.json
         ::
         ?:  ?=([%history ~] suffix)
+          =/  chat=@t
+            =/  c=@t  (fall (~(get by (malt args)) 'chat') '')
+            ?:(=('' c) 'main' c)
           =/  chat-road=road:tarball
-            (nex-road:io rail [%& /agent %'chat.json'])
+            (nex-road:io rail [%& /agent/chats (crip "{(trip chat)}.json")])
           ;<  fv=view:nexus  bind:m  (peek:io chat-road `[/ %json])
           =/  conv=json
             ?.  ?=([%file *] fv)  [%a ~]
@@ -206,11 +214,14 @@
         ::  POST /clear → archive + reset the conversation
         ::
         ?:  &(=('POST' method) ?=([%clear ~] suffix))
+          =/  jon=json
+            (fall (de:json:html ?~(body.request.req '' q.u.body.request.req)) *json)
+          =/  chat=@t  =/(c (fall (jget jon 'chat') '') ?:(=('' c) 'main' c))
           ;<  ~  bind:m
             %-  poke:io
             :+  (nex-road:io rail [%& /agent %'main.sig'])
               [/ %json]
-            (pairs:enjs:format ~[['action' s+'clear']])
+            (pairs:enjs:format ~[['action' s+'clear'] ['chat' s+chat]])
           (send-json eyre-id '{"ok":true}')
         ::
         ::  POST /stop → interrupt the agent's current turn
@@ -464,18 +475,18 @@
 ::  the conversation grub, poke the agent's main.sig, await its assistant
 ::  write, and return the reply + trace.
 ++  ask-agent
-  |=  [=rail:tarball message=@t]
+  |=  [=rail:tarball message=@t chat=@t]
   =/  m  (fiber:fiber:nexus ,[reply=@t trace=json parts=json])
   ^-  form:m
   =/  chat-road=road:tarball
-    (nex-road:io rail [%& /agent %'chat.json'])
+    (nex-road:io rail [%& /agent/chats (crip "{(trip chat)}.json")])
   =/  main-road=road:tarball
     (nex-road:io rail [%& /agent %'main.sig'])
   ;<  *  bind:m  (keep:io /agent chat-road ~)
   ;<  ~  bind:m
     %-  poke:io
     :+  main-road  [/ %json]
-    (pairs:enjs:format ~[['message' s+message]])
+    (pairs:enjs:format ~[['message' s+message] ['chat' s+chat]])
   ;<  conv=json  bind:m  (await-agent chat-road)
   ;<  ~  bind:m  (drop:io /agent chat-road)
   =/  msgs=(list json)  ?.(?=([%a *] conv) ~ p.conv)

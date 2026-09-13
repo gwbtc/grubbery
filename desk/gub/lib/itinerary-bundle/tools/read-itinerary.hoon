@@ -6,11 +6,11 @@
 ^-  tool:tools
 |%
 ++  name  'read_itinerary'
-++  description  'Read one itinerary document in full by id (e.g. "turin"). Returns its JSON: name, center, zoom, categories, pins, zones.'
+++  description  'Read one itinerary document in full by id (e.g. "my-trip"). Returns its JSON: name, center, zoom, categories, pins, zones.'
 ++  parameters
   ^-  (map @t parameter-def:tools)
   %-  ~(gas by *(map @t parameter-def:tools))
-  :~  ['id' [%string 'the itinerary id, e.g. turin']]
+  :~  ['id' [%string 'the itinerary id, e.g. my-trip']]
   ==
 ++  required  ~['id']
 ++  handler

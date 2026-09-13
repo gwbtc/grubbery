@@ -1,0 +1,33 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Places</title>
+<link rel="icon" type="image/svg+xml" href="/grubbery/places/icon.svg">
+<link rel="stylesheet" href="/grubbery/places/style.css">
+</head>
+<body>
+<header>
+  <img id="brand-icon" src="/grubbery/places/icon.svg" alt="">
+  <h1>Places</h1>
+  <span id="status"></span>
+</header>
+<main>
+  <section class="panel">
+    <h2>Cities</h2>
+    <div id="city-list" class="muted">loading…</div>
+  </section>
+  <section class="panel">
+    <h2>Import a city</h2>
+    <p class="muted">Extract with <span class="mono">scripts/extract-places.py</span> (Overture Maps), then drop the JSON here.</p>
+    <div id="drop">
+      <input id="file" type="file" accept=".json,application/json">
+      <span>drop a city .json or click to choose</span>
+    </div>
+    <div id="up-status" class="muted"></div>
+  </section>
+</main>
+<script src="/grubbery/places/app.js"></script>
+</body>
+</html>

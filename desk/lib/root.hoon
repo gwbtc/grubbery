@@ -100,6 +100,7 @@
         [%fall %| /apps/'anthropic.anthropic' [`[`[/ %anthropic] ~ %.n ~] ~]]
         [%fall %| /apps/'openrouter.openrouter' [`[`[/ %openrouter] ~ %.n ~] ~]]
         [%fall %| /apps/'geocode.geocode' [`[`[/ %geocode] ~ %.n ~] ~]]
+        [%fall %| /apps/'places.places' [`[`[/ %places] ~ %.n ~] ~]]
     ==
 ::
 ++  on-file

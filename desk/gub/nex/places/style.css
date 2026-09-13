@@ -1,0 +1,41 @@
+/* places nexus — house style, violet accent */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  font-family: Inter, -apple-system, sans-serif;
+  font-size: 13px; line-height: 1.5;
+  background: #f6f7f9; color: #1f2328;
+  display: flex; flex-direction: column;
+  -webkit-font-smoothing: antialiased;
+}
+header {
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px 20px; background: white;
+  border-bottom: 1px solid #e4e7eb; flex-shrink: 0;
+}
+#brand-icon { width: 22px; height: 22px; border-radius: 6px; }
+h1 { font-size: 15px; font-weight: 650; }
+#status { margin-left: auto; font-size: 11px; color: #79808a; }
+.muted { color: #79808a; font-size: 12px; }
+.mono { font-family: ui-monospace, Menlo, monospace; font-size: 12px; }
+main {
+  flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 16px;
+  width: 100%; max-width: 720px; margin: 0 auto; padding: 20px;
+}
+.panel { background: white; border: 1px solid #e4e7eb; border-radius: 10px; padding: 16px 18px; }
+h2 { font-size: 13px; font-weight: 650; margin-bottom: 12px; }
+.city-row { display: flex; align-items: center; gap: 12px; padding: 8px 0; border-bottom: 1px solid #f0f2f4; }
+.city-row:last-child { border-bottom: none; }
+.city-name { font-weight: 600; flex: 1; }
+.danger {
+  padding: 4px 10px; border: 1px solid #e0b4b4; border-radius: 6px;
+  background: #fff; color: #c0392b; font: inherit; font-size: 12px; cursor: pointer;
+}
+.danger:hover { background: #fdf3f2; }
+#drop {
+  position: relative; border: 2px dashed #d6dae0; border-radius: 10px;
+  padding: 28px; text-align: center; color: #79808a; margin-top: 10px;
+}
+#drop.over { border-color: #8e6bbf; color: #8e6bbf; background: #faf8fd; }
+#drop input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+#up-status { margin-top: 10px; }

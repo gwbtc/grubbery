@@ -9,7 +9,7 @@
 ++  parameters
   ^-  (map @t parameter-def:tools)
   %-  ~(gas by *(map @t parameter-def:tools))
-  :~  ['itinerary' [%string 'the itinerary id, e.g. turin']]
+  :~  ['itinerary' [%string 'the itinerary id, e.g. my-trip']]
       ['field' [%string '"pins" or "zones"']]
       ['id' [%string 'the entry id to delete']]
   ==

@@ -13,6 +13,9 @@
   var ENDPOINT = '/grubbery/itinerary/chat';
   var HISTORY = '/grubbery/itinerary/history';
 
+  // one conversation per itinerary; the map page exposes the current id
+  function chatId() { return window.currentId || 'main'; }
+
   // local mirror of the conversation, for rendering: [{role, content, trace}]
   var history = [];
   var busy = false;
@@ -138,7 +141,11 @@
   }
   function clearChat() {
     // archive the current conversation server-side, then reset locally
-    fetch('/grubbery/itinerary/clear', { method: 'POST' }).catch(function () {});
+    fetch('/grubbery/itinerary/clear', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ chat: chatId() }),
+    }).catch(function () {});
     if (currentCtrl) currentCtrl.abort();
     history = [];
     busy = false;
@@ -148,7 +155,7 @@
 
   // restore the conversation from the namespace-backed history
   function loadHistory() {
-    fetch(HISTORY)
+    fetch(HISTORY + '?chat=' + encodeURIComponent(chatId()))
       .then(function (r) { return r.ok ? r.json() : []; })
       .then(function (arr) {
         if (!Array.isArray(arr) || !arr.length) return;
@@ -266,6 +273,13 @@
   }
   function ask(text) { input.value = text; submit(); }
 
+  // reload the transcript when the map switches itineraries
+  window.addEventListener('itin-changed', function () {
+    history = [];
+    renderLog();
+    loadHistory();
+  });
+
   function submit() {
     var text = input.value.trim();
     if (!text || busy) return;
@@ -290,7 +304,7 @@
     fetch(ENDPOINT, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ message: text }),
+      body: JSON.stringify({ message: text, chat: chatId() }),
       signal: currentCtrl.signal,
     })
       .then(function (r) {
