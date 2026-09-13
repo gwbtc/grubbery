@@ -1255,6 +1255,11 @@
       [%skip ~]
     [%done %news wave.u.in]
       [~ %poke * *]
+    ::  a behn wake is a poke too. One can arrive here after +await-source
+    ::  returns — a deadline that fired at the instant it was cancelled has
+    ::  its wake still in flight — and taking it as a source-config change
+    ::  feeds a timer path to !<(json ...) and kills the fiber.
+    ?:  =([/ %timer-wake] p.sage.u.in)  [%skip ~]
     [%done %poke sage.u.in]
   ==
 ::

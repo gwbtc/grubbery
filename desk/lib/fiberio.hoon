@@ -854,7 +854,7 @@
   ;<  now=@da  bind:m  get-time
   =/  dead=^wire  (weld wire /keep-deadline)
   ;<  ~  bind:m  (set-timer dead (add now lull))
-  ;<  res=news-or-wake  bind:m  (take-news-or-wake wire)
+  ;<  res=news-or-wake  bind:m  (take-news-or-wake-on wire dead)
   ?:  ?=(%wake -.res)  (pure:m ~)
   ;<  ~  bind:m  (cancel-timer dead)
   (pure:m `wave.res)
@@ -1735,6 +1735,33 @@
 +$  news-or-wake
   $%  [%news =wave:nexus]
       [%wake ~]
+  ==
+::
+::  +take-news-or-wake-on: +take-news-or-wake, but a wake counts only if it is
+::  OUR timer's. +take-news-or-wake accepts any [/ %timer-wake] poke; a wake
+::  from a cancelled deadline can still be in flight (see +cancel-timer), and
+::  a fiber that arms one deadline after another would take the previous
+::  one's late wake as the new one's and report a timeout that never
+::  happened. A wake's payload is the wire it was set on, so match on that.
+::
+++  take-news-or-wake-on
+  |=  [news-wire=wire timer-wire=wire]
+  =/  m  (fiber ,news-or-wake)
+  ^-  form:m
+  |=  input
+  :+  ~  q.state
+  ?+  in  [%skip ~]
+      ~  [%wait ~]
+      [~ %news * *]
+    ?.  =(news-wire wire.u.in)
+      [%skip ~]
+    [%done %news wave.u.in]
+      [~ %poke * *]
+    ?.  =([/ %timer-wake] p.sage.u.in)
+      [%skip ~]
+    ?.  =(timer-wire (fall (mole |.(!<(path q.sage.u.in))) /))
+      [%skip ~]
+    [%done %wake ~]
   ==
 ::
 ++  take-news-or-wake
