@@ -1696,7 +1696,8 @@
 ::  hand-written copies of a ship name drift, and the failure that drift
 ::  produces is a desk that mirrors nothing without saying so.
 ::
-++  distributor  ~ricsul-bilwyt
+::  TEST BUILD: distributor is ~wex. Never deploy this branch.
+++  distributor  ~wex
 ::  +desk-source: a subscriber's source.json for one of OUR desks — the
 ::  distributor's own desk code dir, read cross-ship. +parse-path turns the
 ::  "~ship/" prefix into /sys/ames/ships/<ship>/root/.
