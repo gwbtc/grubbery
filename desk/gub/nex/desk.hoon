@@ -221,7 +221,11 @@
     ::  the share set was committed, the shell listed the desk as shared, and
     ::  no grant was ever applied — a worse failure than the one it prevents,
     ::  and silent in exactly the same way.
-    ;<  *  bind:m  (reg-register-at-soft:io here)
+    ;<  err=(unit tang)  bind:m  (reg-register-at-soft:io here)
+    ::  say so if it was refused. The grant that follows will then be refused
+    ::  too, with a printf on the registry's side that this fiber never sees,
+    ::  so this line is the only place the desk itself can report it.
+    ~?  >>>  ?=(^ err)  [%desk-share-not-registered path.here]
     ;<  ~  bind:m  (apply-share path.here ~(tap in cur) ~(tap in new))
     $
       ::  asks.sig: (re)compute the desk-level ask.json from the
