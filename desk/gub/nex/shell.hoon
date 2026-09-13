@@ -1664,24 +1664,48 @@
       ::  (share.usergroups grants peek on /desk/code and version.json).
       ::  Without the grant a subscriber gets a desk that mirrors nothing:
       ::  desk present, code empty, no instance, and no error to read.
-      ?:  =(our distributor)
-        [%github 'lattice' 'nisfeb/lattice' 'main']
-      [%code 'lattice' lattice-source]
+      (published our 'lattice' 'nisfeb/lattice' 'main')
+      ::  auspex ships the same way, from the same distributor. Its repo's
+      ::  default branch is master, not main.
+      (published our 'auspex' 'nisfeb/auspex' 'master')
   ==
-::  distributor: the ship that publishes lattice to this fleet. Named ONCE,
-::  because +lattice-source derives the subscriber's path from it — two
+::  +published: the stock entry for an app WE publish, which differs on the one
+::  ship that cannot follow itself.
+::
+::    A subscriber follows the distributor's own desk, read cross-ship: code is
+::    distributed BY the distributor, and no subscriber talks to github. It is
+::    version-gated, so a subscriber re-syncs only when the distributor bumps
+::    that desk's code/version.json.
+::
+::    The distributor gets the %github entry instead, because a
+::    "~<distributor>/..." source resolves ON the distributor to a remote read of
+::    its own namespace — the desk would be its own source and mirror nothing.
+::
+::    THE DISTRIBUTOR MUST OPEN EACH OF THESE DESKS to its subscribers'
+::    usergroup; share.usergroups grants peek on /desk/code and version.json.
+::    Without the grant a subscriber gets a desk that mirrors nothing: desk
+::    present, code empty, no instance, and no error to read anywhere.
+::
+++  published
+  |=  [our=@p nom=@t repo=@t ref=@t]
+  ^-  stock-entry
+  ?:  =(our distributor)  [%github nom repo ref]
+  [%code nom (desk-source nom)]
+::  distributor: the ship that publishes our apps to this fleet. Named ONCE,
+::  because +desk-source derives every subscriber path from it — two
 ::  hand-written copies of a ship name drift, and the failure that drift
 ::  produces is a desk that mirrors nothing without saying so.
 ::
 ++  distributor  ~ricsul-bilwyt
-::  lattice-source: the subscriber's source.json path — the distributor's own
-::  lattice desk code dir, read cross-ship. +parse-path turns the "~ship/"
-::  prefix into /sys/ames/ships/<ship>/root/.
+::  +desk-source: a subscriber's source.json for one of OUR desks — the
+::  distributor's own desk code dir, read cross-ship. +parse-path turns the
+::  "~ship/" prefix into /sys/ames/ships/<ship>/root/.
 ::
-++  lattice-source
+++  desk-source
+  |=  nom=@t
   ^-  @t
   %-  crip
-  "{<distributor>}/apps/shell.shell/desks/lattice.desk/desk/code"
+  "{<distributor>}/apps/shell.shell/desks/{(trip nom)}.desk/desk/code"
 ::  stock-name / stock-code: pull the name (and, for %code, the code path)
 ::  out of an entry regardless of kind.
 ++  stock-name  |=(e=stock-entry ?-(-.e %github name.e, %code name.e))
