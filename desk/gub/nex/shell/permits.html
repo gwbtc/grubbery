@@ -166,7 +166,7 @@
     </div>
   </div>
   <script>
-    var mode='pending', selected=null, editSet={}, dirty=false;
+    var mode='pending', selected=(new URLSearchParams(location.search).get('app'))||null, editSet={}, dirty=false;
     var approvedState={}, weirsState={}, aliasMenus={}, asksData=[];
 
     function esc(s){ var d=document.createElement('div'); d.textContent=(s==null)?'':String(s); return d.innerHTML; }
@@ -199,18 +199,22 @@
     function warnMark(r){ var l=dangerLevel(r); if(!l)return ''; var t=l==='severe'?'high-privilege target':(l==='broad'?'broad — grants a whole top-level tree':'system service — mostly harmless'); return '<span class="warn '+l+'" title="'+t+'">&#9888;</span>'; }
     function fmtDate(s){ if(!s)return ''; var p=s.replace('~','').split('..'), d=(p[0]||'').split('.'), t=(p[1]||'').split('.'); if(d.length<3)return s; var dt=new Date(Date.UTC(+d[0],(+d[1])-1,+d[2],+(t[0]||0),+(t[1]||0),+(t[2]||0))); if(isNaN(dt.getTime()))return s; return dt.toLocaleString(undefined,{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'}); }
     var shareState={}, groupsList=[];
-    // A follow-up reload. The server answers an action after rebuilding
-    // asks.json only; aliases and weirs rebuild after it responds. And a page
-    // served on a fresh boot can arrive before its caches were ever built.
-    // Either way the data settles a few seconds later, so reload once more.
-    var settleTimer=null;
-    function reloadSoon(ms){ clearTimeout(settleTimer); settleTimer=setTimeout(load,ms); }
+    // The slow work runs on OUR schedule, not the user's: the server serves
+    // the page and applies actions without rebuilding anything, and this
+    // asks for the rebuild in the background, then reloads when it is done.
+    var refreshing=null;
+    function refresh(full){
+      if(refreshing)return refreshing;
+      refreshing=fetch('/apps/grubbery/permits/refresh',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({full:!!full})})
+        .catch(function(){}).then(function(){ refreshing=null; load(); });
+      return refreshing;
+    }
     function act(body){
-      // show the click landed: the acted-on card goes quiet until the reload
+      // the acted-on card goes quiet until the data comes back
       var card=body.app?document.querySelector('.card[data-sel="'+body.app+'"]'):null;
       if(card){ card.classList.add('applying'); Array.prototype.forEach.call(card.querySelectorAll('button,input,select'),function(e){ e.disabled=true; }); }
       fetch('/apps/grubbery/permits',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)})
-        .then(function(){ load(); reloadSoon(5000); })
+        .then(function(){ refresh(true); })
         .catch(function(){ if(card){ card.classList.remove('applying'); } });
     }
 
@@ -413,7 +417,7 @@
         fetch('/apps/grubbery/asks.json').then(function(r){return r.json();}).then(function(d){ asksData=d||[]; }).catch(function(){}),
         fetch('/apps/grubbery/share.json').then(function(r){return r.json();}).then(function(d){ shareState=d||{}; }).catch(function(){}),
         fetch('/apps/grubbery/groups.json').then(function(r){return r.json();}).then(function(d){ groupsList=d||[]; }).catch(function(){})
-      ]).then(function(){ var f=firstLoad; if(firstLoad){ loadingEl.classList.remove('on'); firstLoad=false; reloadSoon(4000); } render(true); if(f&&selected){ setTimeout(function(){ centerCard(selected,false); },60); } });
+      ]).then(function(){ var f=firstLoad; if(firstLoad){ loadingEl.classList.remove('on'); firstLoad=false; refresh(false); } render(true); if(f&&selected){ setTimeout(function(){ centerCard(selected,false); },60); } });
     }
     var mv=document.createElement('div'); mv.className='modal-veil';
     mv.innerHTML='<div class="modal"><h3 id="m-title"></h3><div class="m-sub">Usergroups that can discover this alias from other ships. None checked = private.</div>'
