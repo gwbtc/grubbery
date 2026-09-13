@@ -1,11 +1,27 @@
+::  What every ship that installs this desk sees in Landscape.
+::
+::  It says Grubbery, not Lattice, and that is the point of this release. The
+::  desk used to be lattice and nothing else, so pointing the tile straight at
+::  /apps/lattice was honest. It stops being honest the moment lattice installs
+::  itself as a desk from a repo and stands beside other apps: the thing a user
+::  installs here is the launcher, and lattice is one of the things inside it.
+::
+::  site is /apps/grubbery, the shell's own binding — the home surface where a
+::  user consents to an app's roads and adds another publisher's desks. A tile
+::  pointing at /apps/lattice would 404 on a fresh install, because lattice has
+::  no instance until its desk is provisioned and its roads are granted.
+::
+::  Anyone who installed something called Lattice will find something called
+::  Grubbery with Lattice inside it. Worth saying plainly here rather than
+::  leaving them to discover it.
 :~
-  title+'Lattice'
-  info+'Pages, a private knowledge store, and MCP memory for AI agents. Runs on grubbery.'
-  color+0x10.1541
-  image+'https://raw.githubusercontent.com/nisfeb/lattice/main/desktop/icons/icon.png'
-  base+'lattice'
-  site+/apps/lattice
-  version+[1 0 0]
+  title+'Grubbery'
+  info+'The launcher and the apps inside it. Ships with Lattice: pages, a private knowledge store, and MCP memory for AI agents.'
+  color+0x8b.4513
+  image+'https://raw.githubusercontent.com/gwbtc/grubbery/39a144c/grub.png'
+  base+'grubbery'
+  site+/apps/grubbery
+  version+[1 1 0]
   website+'https://github.com/nisfeb/lattice'
   license+'MIT'
 ==
