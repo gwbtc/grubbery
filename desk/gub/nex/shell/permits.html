@@ -214,7 +214,11 @@
       var card=body.app?document.querySelector('.card[data-sel="'+body.app+'"]'):null;
       if(card){ card.classList.add('applying'); Array.prototype.forEach.call(card.querySelectorAll('button,input,select'),function(e){ e.disabled=true; }); }
       fetch('/apps/grubbery/permits',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)})
-        .then(function(){ load(); refresh(true); })  // re-render on the answer; the cache sweep runs behind it
+        .then(function(){
+          load();  // the answer is authoritative: re-render now, the slow work runs behind it
+          if(body.action==='approve-weir'&&body.app){ fetch('/apps/grubbery/permits/reload',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({app:body.app})}).catch(function(){}); }
+          refresh(true);
+        })
         .catch(function(){ if(card){ card.classList.remove('applying'); } });
     }
 
