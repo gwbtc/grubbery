@@ -3076,7 +3076,11 @@
   ?.  ?=(%o -.u.ask)  (pure:m ~)
   ::  what gets sanded is the granted subset, not the whole declared ask
   =/  sub=json  ?:(?=(%o -.granted) granted u.ask)
-  ;<  menus=json  bind:m  (build-alias-menus hidden %.n)
+  ::  the alias directory costs a peek per installed app - most of this
+  ::  fiber's time - and only an ask that names an @alias needs it.
+  ;<  menus=json  bind:m
+    ?:  =(~ (ref-aliases sub))  (pure:(fiber:fiber:nexus ,json) [%o ~])
+    (build-alias-menus hidden %.n)
   =/  tp=(unit path)  (soft-path app)
   ?~  tp  (pure:m ~)
   =/  target=path  u.tp
@@ -3120,6 +3124,24 @@
   ;<  cur=(map @t json)  bind:m  (read-approved rail)
   ;<  ~  bind:m
     (put:io (nex-road:io rail [%& /permit %'approved.json']) [[/ %json] [%o (~(put by cur) app entry)]])
+  ::  this one app's live-weir overlay, written now: the page reloads the
+  ::  moment this answers and must see the grant applied, not the stale
+  ::  cache. The full rebuild (every app, a peek each) runs behind it.
+  ;<  live=weir:tarball  bind:m  (read-live-weir target)
+  =/  overlay=json
+    %-  pairs:enjs:format
+    :~  ['app' s+app]
+        ['target' s+(crip (spud target))]
+        ['verdict' s+'granted']
+        ['poke' (overlay-cat entry amap menus poke.live 'poke')]
+        ['peek' (overlay-cat entry amap menus peek.live 'peek')]
+        ['make' (overlay-cat entry amap menus make.live 'make')]
+    ==
+  ;<  wv=(unit json)  bind:m
+    (peek-as:io (nex-road:io rail [%& /cache %'weirs.json']) ,json)
+  =/  wm=(map @t json)  ?.(?=([~ %o *] wv) ~ p.u.wv)
+  ;<  ~  bind:m
+    (put:io (nex-road:io rail [%& /cache %'weirs.json']) [[/ %json] [%o (~(put by wm) app overlay)]])
   ::  reboot the app with its new grants: fibers that crashed while jailed
   ::  (a closed install's rise) come back alive holding what was granted.
   (reload:io [%& %| target])

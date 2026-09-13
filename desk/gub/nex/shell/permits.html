@@ -214,7 +214,7 @@
       var card=body.app?document.querySelector('.card[data-sel="'+body.app+'"]'):null;
       if(card){ card.classList.add('applying'); Array.prototype.forEach.call(card.querySelectorAll('button,input,select'),function(e){ e.disabled=true; }); }
       fetch('/apps/grubbery/permits',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)})
-        .then(function(){ refresh(true); })
+        .then(function(){ load(); refresh(true); })  // re-render on the answer; the cache sweep runs behind it
         .catch(function(){ if(card){ card.classList.remove('applying'); } });
     }
 
