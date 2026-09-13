@@ -3198,6 +3198,23 @@
   ;<  local=(list tile)  bind:m  read-local-tiles
   =/  local-names=(set @ta)  (sy (turn local |=(t=tile name.t)))
   ;<  app-pairs=(list [tile path])  bind:m  read-app-tiles
+  ::  A root instance /apps/X whose code has moved into a desk - the same X
+  ::  installed at /apps/shell.shell/desks/<d>/desk/data/X - is dormant: it
+  ::  keeps its tile.json but nothing behind it runs, and its address is
+  ::  the desk install's now. One icon, not two. Same rule as read-app-weirs.
+  =/  leaves=(list @ta)
+    %+  murn  app-pairs
+    |=  [* r=path]
+    ^-  (unit @ta)
+    ?.  ?=([%apps @ta %desks @ta %desk %data @ta ~] r)  ~
+    `i.t.t.t.t.t.t.r
+  =.  app-pairs
+    %+  skip  app-pairs
+    |=  [* r=path]
+    ^-  ?
+    ?.  ?=([%apps @ta ~] r)  |
+    =/  leaf=@ta  i.t.r
+    (lien leaves |=(l=@ta =(l leaf)))
   ::  local tiles have no app root (not uninstallable); app tiles carry
   ::  theirs so the UI can offer uninstall.
   =/  merged=(list [tile (unit path)])
