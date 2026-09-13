@@ -356,12 +356,17 @@
           =/  act=@t  ?.(?=(%o -.jon) '' (fall (jget jon 'action') ''))
           ;<  now=@da  bind:m  get-time:io
           ;<  ~  bind:m  (apply-permit-action rail jon act now)
-          ::  the action changed the views — rebuild the caches before the
-          ::  UI reloads them.
+          ::  The action changed the views. Rebuild asks.json - the one the
+          ::  page reloads to drop the card it just acted on - and ANSWER; the
+          ::  other two caches rebuild after the response. Each builder is a
+          ::  round-trip per app, so holding the request across all three was
+          ::  seven seconds of nothing after every click on an eight-app ship,
+          ::  and it grows with the ship. The page reloads once more a few
+          ::  seconds later to pick these up.
           ;<  ~  bind:m  (build-asks rail)
+          ;<  ~  bind:m  (send-simple:srv eyre-id [[200 ~] `(as-octs:mimes:html 'ok')])
           ;<  ~  bind:m  (build-aliases rail)
           ;<  ~  bind:m  (build-weirs rail)
-          ;<  ~  bind:m  (send-simple:srv eyre-id [[200 ~] `(as-octs:mimes:html 'ok')])
           (pure:m ~)
         ::  POST /uninstall {root}: delete an installed app from its tile.
         ::  A desk-nested root uninstalls the WHOLE desk (the UI says so
@@ -529,6 +534,21 @@
           (pure:m ~)
         ::  /apps/grubbery/permits → the read-only permissions page
         ?:  ?=([%permits ~] suffix)
+          ::  Serve the page FIRST. Nothing in the HTML depends on the sweep
+          ::  below, and the sweep is a dozen-plus serialized round-trips - it
+          ::  was the whole reason this page took ten to twenty seconds to
+          ::  appear. The page's own JSON loads read cache grubs that the
+          ::  followers keep fresh event-driven; the sweep and the share
+          ::  rebuild now run after the response, and the page reloads its
+          ::  data once more a few seconds in to pick up anything they changed.
+          ;<  fv=view:nexus  bind:m
+            (peek:io (nex-road:io rail [%& ~ %'permits.html']) `[/ %mime])
+          ?.  ?=([%file *] fv)
+            ;<  ~  bind:m  (send-simple:srv eyre-id [[404 ~] `(as-octs:mimes:html 'Not found')])
+            (pure:m ~)
+          =/  =mime  !<(mime (need-vase:tarball sang.fv))
+          ;<  ~  bind:m
+            (send-simple:srv eyre-id [[200 ~[['content-type' 'text/html']]] `q.mime])
           ::  the sweep: a UI request IS the scan — pick up any apps that
           ::  don't have followers yet (new installs). ~25 cheap existence
           ::  checks; followers do everything else event-driven.
@@ -554,14 +574,6 @@
             ;<  ~  bind:(fiber:fiber:nexus ,~)  (build-asks rail)
             ;<  ~  bind:(fiber:fiber:nexus ,~)  (build-aliases rail)
             (build-weirs rail)
-          ;<  fv=view:nexus  bind:m
-            (peek:io (nex-road:io rail [%& ~ %'permits.html']) `[/ %mime])
-          ?.  ?=([%file *] fv)
-            ;<  ~  bind:m  (send-simple:srv eyre-id [[404 ~] `(as-octs:mimes:html 'Not found')])
-            (pure:m ~)
-          =/  =mime  !<(mime (need-vase:tarball sang.fv))
-          ;<  ~  bind:m
-            (send-simple:srv eyre-id [[200 ~[['content-type' 'text/html']]] `q.mime])
           (pure:m ~)
         ::  /apps/grubbery/approved.json → the per-app approval records,
         ::  aggregated into a map keyed by app path (what the UI keys on).
