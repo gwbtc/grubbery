@@ -1688,6 +1688,8 @@
       ::  auspex ships the same way, from the same distributor. Its repo's
       ::  default branch is master, not main.
       (published our 'auspex' 'nisfeb/auspex' 'master')
+      ::  TEST (wex only for now): the calendar as a stock desk.
+      (published our 'calendar' 'nisfeb/calendar' 'main')
   ==
 ::  +published: the stock entry for an app WE publish, which differs on the one
 ::  ship that cannot follow itself.
