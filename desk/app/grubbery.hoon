@@ -2502,8 +2502,11 @@
 ++  bang-file
   |=  [here=rail:tarball err=tang]
   ^+  this
-  ~&  >>>  "BANG file {(spud (snoc path.here name.here))}"
-  %-  (slog (scag 10 err))
+  ::  no print here: +bang-nexus already printed the nexus and the error
+  ::  once, and this runs for every grub under it. A dormant instance
+  ::  whose code left the ball - the old lattice after the move, with 764
+  ::  grubs on one ship - put thousands of lines on the console on every
+  ::  rebuild, each one the same error.
   ::  Set bang on pipe/proc
   =/  =pipe:nexus  (fall (~(get of pool) path.here) *pipe:nexus)
   =/  old=(unit proc:fiber:nexus)  (~(get by proc.pipe) name.here)
