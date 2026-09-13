@@ -854,7 +854,7 @@
   ;<  now=@da  bind:m  get-time
   =/  dead=^wire  (weld wire /keep-deadline)
   ;<  ~  bind:m  (set-timer dead (add now lull))
-  ;<  res=news-or-wake  bind:m  (take-news-or-wake wire)
+  ;<  res=news-or-wake  bind:m  (take-news-or-wake-on wire dead)
   ?:  ?=(%wake -.res)  (pure:m ~)
   ;<  ~  bind:m  (cancel-timer dead)
   (pure:m `wave.res)
