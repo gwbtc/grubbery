@@ -7280,13 +7280,24 @@
 ::  is a no-op).
 ::
 ++  scry-state-rail  `rail:tarball`[/sys/scry %'main.scry-state']
+::  Always answers the CURRENT shape. A pier carrying the %0 grub keeps
+::  its keens and starts with an empty farm ledger, which is the honest
+::  state: we do not know what it bound before the ledger existed, and
+::  +farm-top treats not-known as not-bound (leak, never crash).
+::
 ++  get-scry-state
-  ^-  scry-state:nexus
+  ^-  scry-state-1:nexus
   =/  old=(unit sang:tarball)  (peek-grub-now scry-state-rail)
-  ?~  old  [%0 ~]
-  !<(scry-state:nexus (need-vase:tarball u.old))
+  ?~  old  [%1 ~ ~]
+  =/  st=(unit scry-state:nexus)
+    (mole |.(!<(scry-state:nexus (need-vase:tarball u.old))))
+  ?~  st  [%1 ~ ~]
+  ?-  -.u.st
+    %1  u.st
+    %0  [%1 keens.u.st ~]
+  ==
 ++  save-scry-state
-  |=  st=scry-state:nexus
+  |=  st=scry-state-1:nexus
   ^+  this
   (save-file scry-state-rail [[/ %scry-state] st])
 ::  +handle-scry-grow: publish a page at spur, typed as $page.
@@ -7296,6 +7307,13 @@
   ^+  this
   =/  req=(unit [pax=path pag=page])  (mole |.(!<([path page] vaz)))
   ?~  req  ~&(>>> %scry-grow-malformed this)
+  ::  record the case this grow lands on, so +farm-top never has to ask
+  ::  the namespace. gall's +grow takes key+1, so the new top is one
+  ::  above whatever is there now (0 when nothing is).
+  =/  st=scry-state-1:nexus  get-scry-state
+  =/  nxt=@ud  +((fall (~(get by farm.st) pax.u.req) 0))
+  =.  farm.st  (~(put by farm.st) pax.u.req nxt)
+  =.  this  (save-scry-state st)
   (emit-card [%pass /scry-grow %grow pax.u.req pag.u.req])
 ::
 ++  handle-scry-tomb
@@ -7315,52 +7333,47 @@
   =/  req=(unit path)  (mole |.(!<(path vaz)))
   ?~  req  ~&(>>> %scry-cull-malformed this)
   =/  top=(unit @ud)  (farm-top u.req)
+  ::  nothing we know of is bound there: no card, and no crash. This is
+  ::  the re-cull an app used to have to prevent by bookkeeping.
   ?~  top  this
+  =/  st=scry-state-1:nexus  get-scry-state
+  =.  farm.st  (~(del by farm.st) u.req)
+  =.  this  (save-scry-state st)
   (emit-card [%pass /scry-cull %cull ud+u.top u.req])
 ::  +farm-top: the highest case currently bound at spur in our own
-::  farm, ~ when nothing is published there. Ported from PR #41.
+::  farm, ~ when nothing is published there. Ported from PR #41, and
+::  no longer a scry.
 ::
-::  %gw is a PARTIAL read: it answers [~ ~] for a spur it does not
-::  hold, +mink turns that into a crash, and a failing .^ cannot be
-::  softened from inside the event (+mute hands the scry back out to
-::  the real namespace, so the crash lands outside the simulation).
-::  So %gw is only asked about a spur %gt has already listed. %gt is
-::  the total read: it lists every bound spur strictly BELOW the path
-::  it is given (hence the snip: ask the parent about its children)
-::  at O(bound spurs) per call. Caveat carried from the PR: gall
-::  keeps an emptied plot after a full cull, so %gt still lists a
-::  spur %gw would crash on — callers gate re-culls on their own
-::  records (see +cull-farm:io).
+::  It used to be a %gt/%gw pair, and the PR's own caveat said why that
+::  can never be safe: gall keeps an emptied plot after a full cull, so
+::  %gt still lists a spur %gw would crash on. %gw is a PARTIAL read -
+::  it answers [~ ~] for a spur it does not hold, +mink turns that into
+::  a crash, and a failing .^ cannot be softened from inside the event
+::  (+mute hands the scry back out to the real namespace, so the crash
+::  lands outside the simulation). The caveat's advice was that callers
+::  "gate re-culls on their own records".
 ::
-::  The scries read the farm as of the START of this event; gall
-::  applies the %grow/%cull cards an agent emits only after the agent
-::  returns. So the base read is folded forward through this event's
-::  already-emitted farm cards: a pending %grow raises the top exactly
-::  as gall's key+1 will, a pending %cull clears it. Multi-publish
-::  events (a folder move) thus cull the predecessors they grew in
-::  the same event instead of no-opping against the pre-event farm.
+::  That advice is the bug. A caller keeping a parallel count of what it
+::  has grown is a second record of one truth, with no way to compare
+::  the two and no recovery when they diverge - and one divergence makes
+::  every later cull crash an event, with a stack trace containing no
+::  caller code at all. Observed in lattice, which kept exactly such a
+::  counter: every publish answered 500 and its own repair route died on
+::  the same read.
+::
+::  So the record lives here instead, in scry-state's `farm`. Every
+::  %grow and %cull in the system is emitted by the two handlers above,
+::  which means the ledger is complete by construction and no app needs
+::  to keep one. It also subsumes what the old pending-card fold was
+::  for: a multi-publish event (a folder move) saw its own earlier grows
+::  only because the fold replayed this event's cards, and the ledger is
+::  simply written before each card is emitted.
 ::
 ++  farm-top
   |=  pax=path
   ^-  (unit @ud)
-  =/  pre=path  ~[(scot %p our.bowl) dap.bowl (scot %da now.bowl) %$ %'1']
-  =/  kin=(list path)  .^((list path) %gt (weld pre (snip pax)))
-  =/  base=(unit @ud)
-    ?.  (lien kin |=(p=path =(p pax)))  ~
-    ::  the mold is spelled out: gall only ever answers %w with ud+key
-    =/  cas=[%ud p=@ud]  .^([%ud p=@ud] %gw (weld pre pax))
-    `p.cas
-  =/  live=(unit @ud)  base
-  =/  high=@ud  (fall base 0)
-  =/  todo=(list card)  (flop cards)
-  |-  ^-  (unit @ud)
-  ?~  todo  live
-  ?:  &(?=([%pass * %grow * *] i.todo) =(pax spur.q.i.todo))
-    =/  nh=@ud  +(high)
-    $(todo t.todo, high nh, live `nh)
-  ?:  &(?=([%pass * %cull * *] i.todo) =(pax spur.q.i.todo))
-    $(todo t.todo, live ~)
-  $(todo t.todo)
+  ::  A lookup, not a scry. See above for why.
+  (~(get by farm:get-scry-state) pax)
 ::  +handle-scry-keen: read a path from a remote ship's farm. Nothing
 ::  is staged: the requester's return address (rail + wire) rides the
 ::  arvo keen wire, the iris idiom, so the %sage finds its way home
@@ -7377,7 +7390,7 @@
     :-  (scot %p who.u.req)
     :-  (scot %ud (lent path.sender))
     (weld path.sender [name.sender ret.u.req])
-  =/  st=scry-state:nexus  get-scry-state
+  =/  st=scry-state-1:nexus  get-scry-state
   =.  keens.st  (~(put by keens.st) keen-wire [who.u.req pax.u.req sender])
   =.  this  (save-scry-state st)
   (emit-card [%pass keen-wire %keen %.n who.u.req pax.u.req])
@@ -7397,7 +7410,7 @@
   ^+  this
   =/  req=(unit [who=@p pax=path])  (mole |.(!<([@p path] vaz)))
   ?~  req  ~&(>>> %scry-yawn-malformed this)
-  =/  st=scry-state:nexus  get-scry-state
+  =/  st=scry-state-1:nexus  get-scry-state
   =/  mine=(list [=wire * * *])
     %+  skim  ~(tap by keens.st)
     |=  [* rec=[=ship pax=path sender=rail:tarball]]
@@ -7430,7 +7443,7 @@
   =/  sender=rail:tarball  [from-path i.rest]
   =/  ret=wire  t.rest
   ?.  =(who ship)  this
-  =/  st=scry-state:nexus  get-scry-state
+  =/  st=scry-state-1:nexus  get-scry-state
   =.  keens.st  (~(del by keens.st) `wire`[%keen segs])
   =.  this  (save-scry-state st)
   =/  scry-rail=rail:tarball  [/sys/scry %'main.sig']
