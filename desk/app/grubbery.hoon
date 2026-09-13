@@ -7614,6 +7614,61 @@
     =/  res  (mule |.(!<((map rail:tarball path) (need-vase:tarball u.got))))
     ?:(?=(%| -.res) *(map rail:tarball path) p.res)
   =/  act  !<(registry-action:nexus vaz)
+  ::  A sandboxed nexus cannot name its own absolute rail: its fibers see
+  ::  a pant relative to their own root. So an app registers the rail it
+  ::  knows - lattice and auspex send [/ %main.sig] - and grants roads in
+  ::  the relative form, [%| up lane]. Resolve both against the sender,
+  ::  whose absolute rail the kernel does know. Before this the relative
+  ::  rail collided with the root nexus's own [/ %main.sig] row, the %how
+  ::  from the app's real rail found no registrant, and every cross-ship
+  ::  grant from a desk-installed app was refused with nothing to show for
+  ::  it but a missing road.
+  ::
+  ::  A rail is relative when its path is a suffix of the sender's path:
+  ::  the sender's own absolute rail passes through unchanged, and a
+  ::  delegated registration of another grub (the shell registering a
+  ::  desk's share.usergroups) does not match and stays absolute.
+  =/  nexus-dir
+    |=  rel=path
+    ^-  (unit path)
+    =/  n=@ud  (lent path.sender)
+    =/  k=@ud  (lent rel)
+    ?:  (gth k n)  ~
+    ?.  =(rel (slag (sub n k) path.sender))  ~
+    `(scag (sub n k) path.sender)
+  =/  abs-road
+    |=  r=road:tarball
+    ^-  road:tarball
+    ?:  ?=(%& -.r)  r
+    =/  base=path
+      =/  up=@ud  p.p.r
+      =/  b=path  path.sender
+      |-  ^-  path
+      ?:  |(=(0 up) ?=(~ b))  b
+      $(up (dec up), b (snip `path`b))
+    ?-  -.q.p.r
+      %&  [%& %& [(weld base path.p.q.p.r) name.p.q.p.r]]
+      %|  [%& %| (weld base p.q.p.r)]
+    ==
+  =.  act
+    ?+    -.act  act
+        %register
+      =/  nd=(unit path)  (nexus-dir path.rail.act)
+      ?~  nd  act
+      act(rail sender, pax (weld u.nd pax.act))
+        %deregister
+      =/  nd=(unit path)  (nexus-dir path.rail.act)
+      ?~  nd  act
+      act(rail sender)
+        %how
+      %=  act
+        weir
+        :*  (~(run in make.weir.act) abs-road)
+            (~(run in poke.weir.act) abs-road)
+            (~(run in peek.weir.act) abs-road)
+        ==
+      ==
+    ==
   ?-    -.act
       %register
     =/  new-prefix  pax.act
