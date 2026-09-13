@@ -53,13 +53,6 @@
 /&  splitview-js  /lib/ui/split-view.js
 =<  ^-  nexus:nexus
     |%
-::  +dbg: the traces below print only when this is yes. They were on
-::  unconditionally - a few lines per sync tick, per commit, per request -
-::  and in production they bury the warnings. ~? costs nothing when it is
-::  |; flip to & and recompile to see them again. Warnings (>> and >>>)
-::  are not behind it.
-::
-++  dbg  ^-(? |)
 ++  on-load
   |=  =ball:tarball
   ^-  bole:tarball
@@ -399,6 +392,13 @@
 --
 ::
 |%
+::  +dbg: the traces below print only when this is yes. They were on
+::  unconditionally - a few lines per sync tick, per commit, per request -
+::  and in production they bury the warnings. ~? costs nothing when it is
+::  |; flip to & and recompile to see them again. Warnings (>> and >>>)
+::  are not behind it.
+::
+++  dbg  ^-(? |)
 ::  source.json: optional. ~ = a standalone desk (follows nothing). If
 ::  present, `code` is the road to the source's code directory (pulled into
 ::  /desk/code). The version road is DERIVED — <code>/version.json, the
