@@ -155,7 +155,7 @@
     =/  ver-road=road:tarball    [%& %& code-path %'version.json']
     =/  ver-name=@ta             %'version.json'
     ~&  >  [%desk-subscribing code.u.config]
-    ;<  init=wave:nexus  bind:m  (keep:io /ver ver-road ~)
+    ;<  ~  bind:m  (await-source /ver ver-road code.u.config)
     ~&  >  [%desk-subscribed code.u.config]
     ::  the runtime restarts EVERY fiber on a nexus reload, so this handler
     ::  re-enters constantly. Pull on start only when actually BEHIND: our
@@ -464,6 +464,33 @@
   =/  dix=(unit @ud)  (find "." nam)
   ?~  dix  (crip nam)
   (crip (scag u.dix nam))
+::
+::  +await-source: establish the version subscription, retrying with backoff.
+::
+::    +keep on a REMOTE road waits on the publisher and has no deadline of its
+::    own, so a follower whose publisher is unreachable parks forever: nothing
+::    subscribed, /desk/code empty, no instance created, and not one line
+::    logged. Observed on a test ship, which sat that way until source.json was
+::    poked by hand — the desk had no way back on its own.
+::
+::    It RETRIES rather than failing. A publisher that is down now is usually up
+::    later, and a follower should pick the code up when it returns without
+::    anyone having to notice it was stuck. Backoff doubles from a minute to an
+::    hour, so a publisher that stays down costs one request an hour instead of
+::    a spin, and the wait rides behn rather than a busy loop.
+::
+++  await-source
+  |=  [=wire rod=road:tarball src=@t]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  =/  lull=@dr  ~m1
+  |-  ^-  form:m
+  ;<  sub=(unit wave:nexus)  bind:m  (keep-soft:io wire rod ~ ~m2)
+  ?^  sub  (pure:m ~)
+  ~&  >>  [%desk-source-unreachable src retry-in=lull]
+  ;<  now=@da  bind:m  get-time:io
+  ;<  ~  bind:m  (send-wait:io (add now lull))
+  $(lull ?:((gte lull ~h1) ~h1 (mul 2 lull)))
 ::
 ::  parse-path: resolve a source string to an absolute namespace path,
 ::  routing a ~ship/... prefix through /sys/ames for cross-ship peeks.
