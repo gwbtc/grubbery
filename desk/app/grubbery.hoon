@@ -4632,8 +4632,12 @@
   =/  next=filt:nexus
     (next-filt:nexus filt (filter:nexus jump path.here dest-lane weir-here))
   ?:  ?=([~ %|] next)
-    ::  name the boundary that said no — a veto without a WHERE is torture
-    ~?  >>>  loud
+    ::  name the boundary that said no — a veto without a WHERE is torture.
+    ::  Except one: a nexus peeking its own root directory. That is how a
+    ::  sandboxed fiber learns where it is (+walk-here climbs until the
+    ::  governor says no, and this is the no), so it fires on most requests
+    ::  and is not a fault. Still vetoed; just not announced.
+    ~?  >>>  &(loud !=(dest-lane [%| path.here]))
       [%weir-veto-at boundary=path.here jump=jump dest=dest-lane]
     [~ |]
   ::  Reached root - stop
