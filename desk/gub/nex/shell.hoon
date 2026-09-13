@@ -2901,10 +2901,10 @@
   ::  "pending" on every ship that ever migrated an app. Skip it.
   =/  leaves=(list @ta)
     %+  murn  roots
-    |=(p=path ?:(?=([%apps @ %desks @ %desk %data @ ~] p) `(rear p) ~))
+    |=(p=path ?:(?=([%apps @ta %desks @ta %desk %data @ta ~] p) `(rear p) ~))
   =.  roots
     %+  skip  roots
-    |=(p=path &(?=([%apps @ ~] p) (lien leaves |=(l=@ta =(l (rear p))))))
+    |=(p=path &(?=([%apps @ta ~] p) (lien leaves |=(l=@ta =(l (rear p))))))
   =|  acc=(list json)
   |-  ^-  form:m
   ?~  roots  (pure:m (flop acc))
