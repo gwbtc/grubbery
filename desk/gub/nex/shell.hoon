@@ -3302,6 +3302,9 @@
     `r
   [%o (~(put by p.ask) 'unresolved' [%a (turn bad |=(r=@t s+r))])]
 ::
+++  hidden-tiles
+  ^-  (set path)
+  (sy ~[/apps/'github.github'])
 ++  read-all-tiles
   =/  m  (fiber:fiber:nexus ,(list [tile root=(unit path)]))
   ^-  form:m
@@ -3325,6 +3328,13 @@
     ?.  ?=([%apps @ta ~] r)  |
     =/  leaf=@ta  i.t.r
     (lien leaves |=(l=@ta =(l leaf)))
+  ::  infrastructure the shell itself depends on is not a launcher app:
+  ::  github is how desks get their code. Its instance stays; its tile
+  ::  does not.
+  =.  app-pairs
+    %+  skip  app-pairs
+    |=  [* r=path]
+    (~(has in hidden-tiles) r)
   ::  local tiles have no app root (not uninstallable); app tiles carry
   ::  theirs so the UI can offer uninstall.
   =/  merged=(list [tile (unit path)])
