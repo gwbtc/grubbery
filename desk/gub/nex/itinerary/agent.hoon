@@ -16,8 +16,10 @@
       %+  spin:loader  ball
       :~  (manifest:loader 0)
           [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
-          ::  one conversation, one grub. Clearing archives it under /archive.
-          [%fall %& [/ %'chat.json'] [[/ %json] [%a ~]]]
+          ::  one conversation per itinerary, one grub each under /chats
+          ::  (chats/main.json when no itinerary is active). Clearing
+          ::  archives under /archive.
+          [%fall %| /chats empty-dir:loader]
           [%fall %| /archive empty-dir:loader]
           ::  the system prompt + model config are materialized grubs — the
           ::  agent's context lives in the namespace, editable (via the chat
@@ -49,11 +51,12 @@
         =/  act=(unit @t)
           ?.  ?=([%o *] jon)  ~
           (bind (~(get by p.jon) 'action') |=(j=json ?>(?=(%s -.j) p.j)))
+        =/  chat=@t  =/(c (jstr jon 'chat') ?:(=('' c) 'main' c))
         ?:  ?=([~ %'clear'] act)
-          ;<  ~  bind:m  (do-clear rail)
+          ;<  ~  bind:m  (do-clear rail chat)
           $
         ?:  ?=([~ %'interrupt'] act)  $
-        ;<  ~  bind:m  (turn rail jon)
+        ;<  ~  bind:m  (turn rail jon chat)
         $
       ==
     --
@@ -62,13 +65,14 @@
 ::  +turn: one conversation turn. Load history, append the user message,
 ::  run the loop, append the assistant reply (with its tool trace), persist.
 ++  turn
-  |=  [=rail:tarball jon=json]
+  |=  [=rail:tarball jon=json chat=@t]
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
   ?.  ?=([%o *] jon)  (pure:m ~)
   =/  msg=(unit @t)  (bind (~(get by p.jon) 'message') |=(j=json ?>(?=(%s -.j) p.j)))
   ?~  msg  (pure:m ~)
-  =/  chat-road=road:tarball  (nex-road:io rail [%& / %'chat.json'])
+  =/  chat-road=road:tarball
+    (nex-road:io rail [%& /chats (crip "{(trip chat)}.json")])
   ;<  cur=view:nexus  bind:m  (peek:io chat-road `[/ %json])
   =/  history=(list json)
     ?.  ?=([%file *] cur)  ~
@@ -105,6 +109,9 @@
     (fall (mole |.(!<(json (need-vase:tarball sang.cv)))) config-seed)
   =/  model=@t  =/(mo=@t (jstr cfg 'model') ?:(=('' mo) 'claude-sonnet-4-6' mo))
   =/  max-toks=@ud  (jnum cfg 'max_tokens' 1.024)
+  ::  the conversation is scoped to one itinerary — tell the model which
+  =?  sys  !=('main' chat)
+    (rap 3 ~[sys '\0a\0aThe user is currently working on the itinerary with id "' chat '". Default to it unless they name another.'])
   ;<  [reply=@t trace=(list json) parts=(list json)]  bind:m  (run-loop rail clean sys model max-toks)
   =/  asst=json
     %-  pairs:enjs:format
@@ -131,17 +138,18 @@
 ::  +do-clear: archive the current conversation under /archive/<time>.json,
 ::  then reset chat.json to empty. A no-op if there's nothing to archive.
 ++  do-clear
-  |=  =rail:tarball
+  |=  [=rail:tarball chat=@t]
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
-  =/  chat-road=road:tarball  (nex-road:io rail [%& / %'chat.json'])
+  =/  chat-road=road:tarball
+    (nex-road:io rail [%& /chats (crip "{(trip chat)}.json")])
   ;<  cur=view:nexus  bind:m  (peek:io chat-road `[/ %json])
   =/  conv=json
     ?.  ?=([%file *] cur)  [%a ~]
     (fall (mole |.(!<(json (need-vase:tarball sang.cur)))) [%a ~])
   ?.  ?=([%a ^] conv)  (pure:m ~)
   ;<  now=@da  bind:m  get-time:io
-  =/  aname=@ta  (crip "{(scow %da now)}.json")
+  =/  aname=@ta  (crip "{(trip chat)}-{(scow %da now)}.json")
   =/  arch-road=road:tarball  (nex-road:io rail [%& /archive aname])
   ;<  err=(unit tang)  bind:m  (make-soft:io arch-road |+[[[/ %json] conv] ~])
   ~?  >>>  ?=(^ err)  %itinerary-agent-archive-failed
@@ -168,12 +176,25 @@
   anchor points yourself (corners, intersections, landmarks that bound
   the area), geocode EACH one, and use those coordinates as the zone's
   points in walk order — never invent vertex coordinates freehand.
+  The doc may also carry dates {start, end}, tz, and a schedule map:
+  {id: {title, date (YYYY-MM-DD), start/end (HH:MM, local to tz),
+  status "fixed" or "tentative", pin (optional pin id), notes}}. Color
+  and filtering come from the linked pin's category. A todos map may
+  also exist: {id: {text, done (bool)}} — the trip checklist; check
+  items off by setting done true, never by deleting them.
+  When proposing activities, write them into free gaps as status
+  "tentative" (write_field on schedule/<id>) — never move or overwrite
+  fixed blocks; the user confirms by flipping tentative to fixed. An
+  entry with an EMPTY date sits in the idea bank (unslotted proposals);
+  slot one by setting its date.
+  In notes, state where information comes from explicitly as "— source: X"
+  and attribute your own inferences to "AI assistant".
   Pick the best-fitting existing category and write the pin. Use
-  web_search when freshness matters —
-  opening hours, prices, whether a place still exists — not for geography
-  you already know. Read the itinerary first so ids, categories
-  and existing entries inform your edit. Keep descriptions short and concrete.
-  Confirm what you changed in one sentence. If a request is ambiguous, ask.
+  web_search when freshness matters — opening hours, prices, whether a
+  place still exists — not for geography you already know. Read the
+  itinerary first so ids, categories and existing entries inform your
+  edit. Keep descriptions short and concrete. Confirm what you changed in
+  one sentence. If a request is ambiguous, ask.
   '''
 ::  +config-seed: default model config, seeded into config.json on load.
 ++  config-seed

@@ -1,0 +1,206 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Itineraries</title>
+<link rel="icon" type="image/svg+xml" href="/grubbery/itinerary/icon.svg">
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5/dist/maplibre-gl.css" />
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  font-family: Inter, -apple-system, sans-serif;
+  font-size: 14px; color: #1f2328; background: #f6f7f9;
+  display: flex; flex-direction: column;
+  -webkit-font-smoothing: antialiased;
+}
+header {
+  display: flex; align-items: center; gap: 12px;
+  padding: 14px 22px; background: #1a1a1a; color: #fff;
+}
+header img { width: 24px; height: 24px; border-radius: 6px; }
+header h1 { font-size: 16px; font-weight: 650; letter-spacing: -0.01em; }
+header .sub { color: #9aa0a8; font-size: 12px; margin-left: 4px; }
+#new-trip {
+  margin-left: auto; padding: 7px 16px; border: 1px solid #444;
+  border-radius: 8px; background: transparent; color: #fff;
+  font: inherit; font-size: 13px; cursor: pointer;
+}
+#new-trip:hover { background: #333; }
+main { flex: 1; min-height: 0; display: flex; }
+#trips {
+  flex: 0 0 400px; overflow-y: auto; padding: 20px;
+  display: flex; flex-direction: column; gap: 14px;
+}
+.trip-card {
+  background: #fff; border: 1px solid #e4e7eb; border-radius: 12px;
+  padding: 16px 18px; cursor: pointer;
+  transition: box-shadow 0.12s, transform 0.12s;
+}
+.trip-card:hover {
+  box-shadow: 0 4px 16px rgba(0,0,0,0.09);
+  transform: translateY(-1px);
+}
+.trip-name { font-size: 16px; font-weight: 650; margin-bottom: 3px; }
+.trip-dates { font-size: 12.5px; color: #57606a; margin-bottom: 8px; }
+.trip-desc {
+  font-size: 12.5px; color: #79808a; line-height: 1.45;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  overflow: hidden; margin-bottom: 10px;
+}
+.trip-meta { display: flex; gap: 8px; flex-wrap: wrap; }
+.chip {
+  font-size: 11px; padding: 2px 9px; border-radius: 11px;
+  background: #f0f2f4; color: #57606a;
+}
+.empty { color: #79808a; text-align: center; padding: 40px 12px; }
+#map { flex: 1; min-width: 0; }
+.home-pin {
+  width: 16px; height: 16px; border-radius: 50%;
+  background: #1a1a1a; border: 3px solid #fff;
+  box-shadow: 0 1px 5px rgba(0,0,0,0.4); cursor: pointer;
+}
+@media (max-width: 760px) {
+  main { flex-direction: column; }
+  #trips { flex: 1; }
+  #map { flex: 0 0 40%; }
+}
+</style>
+</head>
+<body>
+<header>
+  <img src="/grubbery/itinerary/icon.svg" alt="">
+  <h1>Itineraries</h1>
+  <span class="sub">travel maps &amp; plans</span>
+  <button id="new-trip">+ New trip</button>
+</header>
+<main>
+  <div id="trips"><div class="empty">loading&hellip;</div></div>
+  <div id="map"></div>
+</main>
+<script src="https://unpkg.com/maplibre-gl@5/dist/maplibre-gl.js"></script>
+<script>
+'use strict';
+// legacy deep links: /grubbery/itinerary#turin/map -> the app
+if (/^#[a-z0-9-]+\//.test(location.hash)) {
+  location.replace('/grubbery/itinerary/app' + location.hash);
+}
+
+var API = '/grubbery/itinerary/api';
+
+function openTrip(id) {
+  location.href = '/grubbery/itinerary/app#' + encodeURIComponent(id) + '/map';
+}
+
+var map = new maplibregl.Map({
+  container: 'map',
+  style: 'https://tiles.openfreemap.org/styles/liberty',
+  center: [10, 30],
+  zoom: 1.4,
+  attributionControl: { compact: true }
+});
+map.on('style.load', function() { map.setProjection({ type: 'globe' }); });
+
+async function load() {
+  var list;
+  try {
+    list = await fetch(API + '/list').then(function(r) { return r.json(); });
+  } catch(e) { list = []; }
+  var box = document.getElementById('trips');
+  box.textContent = '';
+  if (!list.length) {
+    box.innerHTML = '<div class="empty">No trips yet — hit “+ New trip”.</div>';
+    return;
+  }
+  var bounds = new maplibregl.LngLatBounds();
+  for (var i = 0; i < list.length; i++) {
+    var it = list[i];
+    var doc;
+    try {
+      doc = await fetch(API + '/i/' + it.id).then(function(r) { return r.json(); });
+    } catch(e) { continue; }
+    renderCard(it.id, doc, box);
+    if (doc.center && doc.center.length === 2) {
+      var ll = [doc.center[1], doc.center[0]];
+      bounds.extend(ll);
+      addMarker(it.id, doc, ll);
+    }
+  }
+  if (!bounds.isEmpty()) {
+    setTimeout(function() { map.fitBounds(bounds, { padding: 120, maxZoom: 5 }); }, 250);
+  }
+}
+
+function renderCard(id, doc, box) {
+  var card = document.createElement('div');
+  card.className = 'trip-card';
+  var name = document.createElement('div');
+  name.className = 'trip-name';
+  name.textContent = doc.name || id;
+  card.appendChild(name);
+  if (doc.dates && doc.dates.start) {
+    var dt = document.createElement('div');
+    dt.className = 'trip-dates';
+    dt.textContent = fmtRange(doc.dates.start, doc.dates.end);
+    card.appendChild(dt);
+  }
+  var firstLine = (doc.desc || '').split('\n')[0].replace(/[*_#]/g, '');
+  if (firstLine) {
+    var de = document.createElement('div');
+    de.className = 'trip-desc';
+    de.textContent = firstLine;
+    card.appendChild(de);
+  }
+  var meta = document.createElement('div');
+  meta.className = 'trip-meta';
+  [Object.keys(doc.pins || {}).length + ' pins',
+   Object.keys(doc.zones || {}).length + ' zones',
+   Object.keys(doc.schedule || {}).length + ' scheduled'].forEach(function(t) {
+    var c = document.createElement('span');
+    c.className = 'chip';
+    c.textContent = t;
+    meta.appendChild(c);
+  });
+  card.appendChild(meta);
+  card.onclick = function() { openTrip(id); };
+  box.appendChild(card);
+}
+
+function addMarker(id, doc, ll) {
+  var el = document.createElement('div');
+  el.className = 'home-pin';
+  el.title = doc.name || id;
+  el.addEventListener('click', function(ev) {
+    ev.stopPropagation();
+    openTrip(id);
+  });
+  new maplibregl.Marker({ element: el }).setLngLat(ll).addTo(map);
+}
+
+function fmtRange(a, b) {
+  function f(s) {
+    var d = new Date(s + 'T12:00:00');
+    return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+  }
+  return b && b !== a ? f(a) + ' → ' + f(b) : f(a);
+}
+
+document.getElementById('new-trip').onclick = async function() {
+  var name = prompt('Trip name:');
+  if (!name) return;
+  var id = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  if (!id) return;
+  var doc = { name: name, center: [0, 0], zoom: 2, pins: {}, zones: {}, schedule: {} };
+  var r = await fetch(API + '/i/' + id, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(doc)
+  });
+  if (r.ok) openTrip(id);
+};
+
+load();
+</script>
+</body>
+</html>

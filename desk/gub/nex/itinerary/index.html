@@ -12,6 +12,7 @@
 <body>
   <div id="toolbar">
     <div id="toolbar-left">
+      <a id="btn-home" href="/grubbery/itinerary" title="All trips"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></a>
       <drop-menu id="itin-menu" align="start">
         <button slot="trigger" id="btn-itins" title="Itineraries">
           <span id="map-name">Itinerary</span> &#9662;
@@ -21,13 +22,11 @@
       </drop-menu>
     </div>
     <div id="toolbar-right">
-      <button id="btn-panel" title="Pin panel">&#8981;</button>
       <button id="btn-zone" title="Draw zone">&#9634;</button>
       <button id="btn-add" title="Add pin">+</button>
       <div id="view-toggle">
         <button id="btn-map" class="active">Map</button>
-        <button id="btn-globe">Globe</button>
-        <button id="btn-list">List</button>
+        <button id="btn-sched">Schedule</button>
       </div>
     </div>
   </div>
@@ -35,46 +34,72 @@
   <div id="filters"></div>
 
   <div id="map-view">
-    <split-view id="panel-split" orientation="horizontal" primary="end" size="280" min="160" max="720" persist="itin-panel">
-      <div slot="start" id="map-wrap">
+    <split-view id="panel-split" orientation="horizontal" primary="end" size="340" min="300" max="720" persist="itin-panel">
+      <div slot="start" id="map-wrap-outer">
+        <div id="sched-wrap" class="hidden">
+          <div id="sched-head">
+            <span id="sched-title">Schedule</span>
+            <span id="sched-tz" class="sched-muted"></span>
+            <span id="sched-legend"></span>
+          </div>
+          <div id="sched-scroll"><div id="sched-days"></div></div>
+        </div>
+      <div id="map-wrap">
         <div id="map-container"></div>
         <div id="map-search">
           <input id="search-input" type="text" placeholder="Search places..." autocomplete="off">
           <div id="search-results" class="hidden"></div>
         </div>
+        <button id="btn-proj" title="Globe view">&#127760;</button>
+        <button id="btn-zones" title="Show/hide zones">&#9634;</button>
         <div id="draw-bar" class="hidden">
           <span id="draw-hint">Click the map to outline a zone</span>
           <button id="draw-finish">Finish</button>
           <button id="draw-cancel">Cancel</button>
         </div>
       </div>
+      </div>
       <div slot="end" id="side-panel">
+        <button id="panel-collapse" title="Collapse sidebar">&#x276F;</button>
         <tab-group id="side-tabs" persist="itin-side-tabs">
           <div tab-label="Trip" id="trip-panel">
             <div id="about-head">
-              <span>About</span>
               <button id="about-edit">edit</button>
             </div>
             <div id="about-md" class="about-empty">No description yet.</div>
-            <div class="section-label">Zones</div>
-            <div id="zone-list"></div>
           </div>
-          <div tab-label="Pins" id="pin-panel">
-            <input id="panel-search" type="text" placeholder="Search pins..." autocomplete="off">
-            <div id="panel-list"></div>
+          <div tab-label="Todos" id="todos-panel">
+            <div id="todo-list"></div>
+            <div id="todo-new-row">
+              <input id="todo-new" type="text" placeholder="Add a to-do..." autocomplete="off">
+            </div>
+          </div>
+          <div tab-label="Places" id="pin-panel">
+            <tab-group id="places-tabs" persist="itin-places-tabs">
+              <div tab-label="Pins" id="pins-sub">
+                <input id="panel-search" type="text" placeholder="Search pins..." autocomplete="off">
+                <div id="panel-list"></div>
+              </div>
+              <div tab-label="Zones" id="zones-sub">
+                <div id="zone-list"></div>
+              </div>
+            </tab-group>
+          </div>
+          <div tab-label="Events" id="events-panel">
+            <tab-group id="events-tabs" persist="itin-events-tabs">
+              <div tab-label="Scheduled" id="events-actual">
+                <div id="actual-list" class="event-list"></div>
+              </div>
+              <div tab-label="Unscheduled" id="events-proposed">
+                <div id="proposed-list" class="event-list"></div>
+                <button id="idea-add">+ New event</button>
+              </div>
+            </tab-group>
           </div>
           <div tab-label="Chat" id="chat-mount"></div>
         </tab-group>
       </div>
     </split-view>
-  </div>
-
-  <div id="globe-view" class="hidden">
-    <div id="globe-container"></div>
-  </div>
-
-  <div id="list-view" class="hidden">
-    <div id="pin-list"></div>
   </div>
 
   <modal-dialog id="pin-modal">
@@ -112,6 +137,42 @@
       <button id="zone-save" class="btn-primary">Save</button>
     </div>
     <div id="zone-form-status" class="form-status"></div>
+  </modal-dialog>
+
+  <modal-dialog id="sched-modal">
+    <div id="sched-view" class="hidden">
+      <div id="sv-title"></div>
+      <div id="sv-when"></div>
+      <div id="sv-badges"></div>
+      <div id="sv-notes"></div>
+      <div class="form-actions">
+        <button data-close class="btn-plain">Close</button>
+        <button id="sv-edit" class="btn-primary">Edit</button>
+      </div>
+    </div>
+    <div id="sched-form-fields">
+    <div class="form-header">
+      <span id="sched-form-title">Add to schedule</span>
+    </div>
+    <input id="sched-name" type="text" placeholder="Title" autocomplete="off">
+    <div id="sched-when">
+      <input id="sched-date" type="date">
+      <input id="sched-start" type="time">
+      <input id="sched-end" type="time">
+    </div>
+    <select id="sched-status">
+      <option value="fixed">fixed</option>
+      <option value="tentative">tentative</option>
+    </select>
+    <select id="sched-pin"></select>
+    <textarea id="sched-notes" rows="2" placeholder="Notes (optional)"></textarea>
+    <div class="form-actions">
+      <button id="sched-delete" class="btn-danger hidden">Delete</button>
+      <button data-close class="btn-plain">Cancel</button>
+      <button id="sched-save" class="btn-primary">Save</button>
+    </div>
+    <div id="sched-form-status" class="form-status"></div>
+    </div>
   </modal-dialog>
 
   <modal-dialog id="about-modal">
