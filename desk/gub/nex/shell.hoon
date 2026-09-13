@@ -356,17 +356,37 @@
           =/  act=@t  ?.(?=(%o -.jon) '' (fall (jget jon 'action') ''))
           ;<  now=@da  bind:m  get-time:io
           ;<  ~  bind:m  (apply-permit-action rail jon act now)
-          ::  The action changed the views. Rebuild asks.json - the one the
-          ::  page reloads to drop the card it just acted on - and ANSWER; the
-          ::  other two caches rebuild after the response. Each builder is a
-          ::  round-trip per app, so holding the request across all three was
-          ::  seven seconds of nothing after every click on an eight-app ship,
-          ::  and it grows with the ship. The page reloads once more a few
-          ::  seconds later to pick these up.
-          ;<  ~  bind:m  (build-asks rail)
+          ::  Apply and ANSWER. The three cache rebuilds this used to run here -
+          ::  a round-trip per app, each - were seven seconds of nothing after
+          ::  every click, and they cannot be deferred inside this fiber either
+          ::  (the response waits for the fiber). The page requests them through
+          ::  POST /permits/refresh the moment this returns, and reloads when
+          ::  that completes.
           ;<  ~  bind:m  (send-simple:srv eyre-id [[200 ~] `(as-octs:mimes:html 'ok')])
-          ;<  ~  bind:m  (build-aliases rail)
-          ;<  ~  bind:m  (build-weirs rail)
+          (pure:m ~)
+        ::  POST /permits/refresh {full}: the slow work, on the page's schedule
+        ::  rather than the user's. The follower sweep (new installs get their
+        ::  followers), the share view, and - with full - every cache the
+        ::  permissions page reads. The page fires this in the background after
+        ::  it renders and after every action, and reloads its data when it
+        ::  answers. Same total work as before; none of it in front of a click.
+        ?:  &(=('POST' method.request.req) ?=([%permits %refresh ~] suffix))
+          =/  jon=json
+            %+  fall  (de:json:html ?~(body.request.req '' q.u.body.request.req))
+            *json
+          =/  full=?  ?.(?=(%o -.jon) | =([~ %b &] (~(get by p.jon) 'full')))
+          ;<  made=?  bind:m  (spawn-followers rail)
+          ;<  ~  bind:m  (build-share rail)
+          ;<  av=(unit json)  bind:m
+            (peek-as:io (nex-road:io rail [%& /cache %'aliases.json']) ,json)
+          =/  seed=?  |(?=(~ av) =([%o ~] u.av))
+          ;<  ~  bind:m
+            ?.  |(full made seed)  (pure:(fiber:fiber:nexus ,~) ~)
+            ;<  ~  bind:(fiber:fiber:nexus ,~)  (build-links rail)
+            ;<  ~  bind:(fiber:fiber:nexus ,~)  (build-asks rail)
+            ;<  ~  bind:(fiber:fiber:nexus ,~)  (build-aliases rail)
+            (build-weirs rail)
+          ;<  ~  bind:m  (send-simple:srv eyre-id [[200 ~] `(as-octs:mimes:html 'ok')])
           (pure:m ~)
         ::  POST /uninstall {root}: delete an installed app from its tile.
         ::  A desk-nested root uninstalls the WHOLE desk (the UI says so
@@ -534,13 +554,12 @@
           (pure:m ~)
         ::  /apps/grubbery/permits → the read-only permissions page
         ?:  ?=([%permits ~] suffix)
-          ::  Serve the page FIRST. Nothing in the HTML depends on the sweep
-          ::  below, and the sweep is a dozen-plus serialized round-trips - it
-          ::  was the whole reason this page took ten to twenty seconds to
-          ::  appear. The page's own JSON loads read cache grubs that the
-          ::  followers keep fresh event-driven; the sweep and the share
-          ::  rebuild now run after the response, and the page reloads its
-          ::  data once more a few seconds in to pick up anything they changed.
+          ::  Serve the page and NOTHING else. This route used to run a follower
+          ::  sweep and a share rebuild first, and that is why the page took ten
+          ::  to twenty seconds to appear. Doing that work after the send did not
+          ::  help either: the response is not released until the request fiber
+          ::  finishes. So the page itself asks for that work, in the background,
+          ::  once it has rendered - see POST /permits/refresh below.
           ;<  fv=view:nexus  bind:m
             (peek:io (nex-road:io rail [%& ~ %'permits.html']) `[/ %mime])
           ?.  ?=([%file *] fv)
@@ -549,34 +568,7 @@
           =/  =mime  !<(mime (need-vase:tarball sang.fv))
           ;<  ~  bind:m
             (send-simple:srv eyre-id [[200 ~[['content-type' 'text/html']]] `q.mime])
-          ::  the sweep: a UI request IS the scan — pick up any apps that
-          ::  don't have followers yet (new installs). ~25 cheap existence
-          ::  checks; followers do everything else event-driven.
-          ;<  made=?  bind:m  (spawn-followers rail)
-          ::  a fresh follower won't fire until its app NEXT changes, so a
-          ::  sweep that spawned anything rebuilds the caches once now.
-          ;<  ~  bind:m
-            ?.  made  (pure:(fiber:fiber:nexus ,~) ~)
-            ;<  ~  bind:(fiber:fiber:nexus ,~)  (build-links rail)
-            ;<  ~  bind:(fiber:fiber:nexus ,~)  (build-asks rail)
-            ;<  ~  bind:(fiber:fiber:nexus ,~)  (build-aliases rail)
-            (build-weirs rail)
-          ::  /share tracks desk shares, which move without a new follower —
-          ::  rebuild it on every permits load, not only when one spawned.
-          ;<  ~  bind:m  (build-share rail)
-          ::  lazy seed: if the view caches are empty (fresh boot, never
-          ::  rebuilt), build them once now; afterwards every load is pure
-          ::  cached reads.
-          ;<  av=(unit json)  bind:m
-            (peek-as:io (nex-road:io rail [%& /cache %'aliases.json']) ,json)
-          ;<  ~  bind:m
-            ?.  |(?=(~ av) =([%o ~] u.av))  (pure:(fiber:fiber:nexus ,~) ~)
-            ;<  ~  bind:(fiber:fiber:nexus ,~)  (build-asks rail)
-            ;<  ~  bind:(fiber:fiber:nexus ,~)  (build-aliases rail)
-            (build-weirs rail)
           (pure:m ~)
-        ::  /apps/grubbery/approved.json → the per-app approval records,
-        ::  aggregated into a map keyed by app path (what the UI keys on).
         ?:  ?=([%'approved.json' ~] suffix)
           ;<  approved=(map @t json)  bind:m  (read-approved rail)
           =/  bod=octs  (as-octs:mimes:html (en:json:html [%o approved]))
@@ -2901,6 +2893,17 @@
   =/  m  (fiber:fiber:nexus ,(list json))
   ^-  form:m
   ;<  roots=(list path)  bind:m  app-roots
+  ::  A root instance /apps/X whose code has moved into a desk - the same X
+  ::  installed at /apps/shell.shell/desks/<d>/desk/data/X - is dormant: its
+  ::  code left the ball, its data was carried, and it keeps its weir.json.
+  ::  It is not an ask anyone can act on, and listing it puts a permanent
+  ::  "pending" on every ship that ever migrated an app. Skip it.
+  =/  leaves=(list @ta)
+    %+  murn  roots
+    |=(p=path ?:(?=([%apps @ %desks @ %desk %data @ ~] p) `(rear p) ~))
+  =.  roots
+    %+  skip  roots
+    |=(p=path &(?=([%apps @ ~] p) (lien leaves |=(l=@ta =(l (rear p))))))
   =|  acc=(list json)
   |-  ^-  form:m
   ?~  roots  (pure:m (flop acc))
