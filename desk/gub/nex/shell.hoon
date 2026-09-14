@@ -1675,6 +1675,21 @@
       ::  config.json is a plain data grub (no poke handler), so overwrite
       ::  it with over:io — poke:io would nack and crash this handler.
       (over:io [%& %& repo-dir %'config.json'] [[/ %json] (repo-config repo.entry ref.entry)])
+    ::  the poll daemon reads poll.json, not config.json's `poll`: a repo
+    ::  is seeded with minutes 0 (off) and nothing ever copied the cadence
+    ::  across, so a stock mirror only pulled when something poked it —
+    ::  a version pushed to github never reached the distributor on its
+    ::  own. Turn the daemon on once; a cadence someone set stays.
+    ;<  poll=(unit json)  bind:m
+      (peek-as:io [%& %& repo-dir %'poll.json'] ,json)
+    =/  minutes=@ud
+      ?~  poll  0
+      ?.  ?=([%o *] u.poll)  0
+      =/  v  (~(get by p.u.poll) 'minutes')
+      ?:(?=([~ %n *] v) (fall (rush p.u.v dem) 0) 0)
+    ;<  ~  bind:m
+      ?.  =(0 minutes)  (pure:m ~)
+      (over:io [%& %& repo-dir %'poll.json'] [[/ %json] (pairs:enjs:format ~[['minutes' n+'15']])])
     ::  a pull on the run.git-action serial lane forces a re-fetch now, so
     ::  "sync" always means "pull latest".
     %+  poke:io  [%& %& repo-dir %'run.git-action']
