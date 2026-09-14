@@ -84,6 +84,12 @@
       mode = mode === 'fit' ? 1 : 'fit';
       apply();
     });
+    // shift-scroll zooms; plain scroll keeps panning the scroller
+    el.addEventListener('wheel', function (ev) {
+      if (!ev.shiftKey) return;
+      ev.preventDefault();
+      step((ev.deltaY || ev.deltaX) < 0 ? 1 : -1);
+    }, { passive: false });
     // wrap so the bar floats over the image area without joining the flex flow
     var wrap = document.createElement('div');
     wrap.style.cssText = 'position:absolute;top:8px;right:12px;z-index:3';
