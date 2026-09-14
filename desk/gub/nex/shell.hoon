@@ -225,6 +225,7 @@
         ;<  ~  bind:m  (rise-wait:io prod "%shell bootstrap: failed")
         ;<  done=?  bind:m
           (peek-exists:io (nex-road:io rail [%& / %'bootstrapped.json']))
+        ;<  ~  bind:m  ensure-polls
         ?:  done  (pure:m ~)
         ~&  >  %shell-bootstrap-first-boot
         ;<  ~  bind:m  sync-defaults
@@ -1680,16 +1681,7 @@
     ::  across, so a stock mirror only pulled when something poked it —
     ::  a version pushed to github never reached the distributor on its
     ::  own. Turn the daemon on once; a cadence someone set stays.
-    ;<  poll=(unit json)  bind:m
-      (peek-as:io [%& %& repo-dir %'poll.json'] ,json)
-    =/  minutes=@ud
-      ?~  poll  0
-      ?.  ?=([%o *] u.poll)  0
-      =/  v  (~(get by p.u.poll) 'minutes')
-      ?:(?=([~ %n *] v) (fall (rush p.u.v dem) 0) 0)
-    ;<  ~  bind:m
-      ?.  =(0 minutes)  (pure:m ~)
-      (over:io [%& %& repo-dir %'poll.json'] [[/ %json] (pairs:enjs:format ~[['minutes' n+'15']])])
+    ;<  ~  bind:m  (ensure-poll repo-dir)
     ::  a pull on the run.git-action serial lane forces a re-fetch now, so
     ::  "sync" always means "pull latest".
     %+  poke:io  [%& %& repo-dir %'run.git-action']
@@ -1701,6 +1693,37 @@
     (make:io [%& %| desk-dir] &+`bole:tarball`[`[`[/ %desk] ~ %.n ~] ~])
   ::  3. always wire the desk's source at the computed code path
   (poke:io [%& %& desk-dir %'source.json'] [[/ %json] (pairs:enjs:format ~[['code' s+code]])])
+::  ensure-poll: turn a stock mirror's poll daemon on if it is off. Runs
+::  from +ensure-pairing and on every shell boot, so a ship that already
+::  has its mirrors gets them polling without anyone pressing Sync.
+::
+++  ensure-poll
+  |=  repo-dir=path
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  ;<  poll=(unit json)  bind:m
+    (peek-as:io [%& %& repo-dir %'poll.json'] ,json)
+  =/  minutes=@ud
+    ?~  poll  0
+    ?.  ?=([%o *] u.poll)  0
+    =/  v  (~(get by p.u.poll) 'minutes')
+    ?:(?=([~ %n *] v) (fall (rush p.u.v dem) 0) 0)
+  ?.  =(0 minutes)  (pure:m ~)
+  (over:io [%& %& repo-dir %'poll.json'] [[/ %json] (pairs:enjs:format ~[['minutes' n+'15']])])
+::  ensure-polls: every github stock entry whose mirror exists
+::
+++  ensure-polls
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  ;<  our=@p  bind:m  get-our:io
+  =/  todo=(list stock-entry)  (default-repos our)
+  |-  ^-  form:m
+  ?~  todo  (pure:m ~)
+  ?.  ?=(%github -.i.todo)  $(todo t.todo)
+  =/  repo-dir=path  /apps/'forge.git_forge'/repos/[(cat 3 `@ta`(stock-name i.todo) '.git_repo')]
+  ;<  has=?  bind:m  (peek-exists:io [%& %| repo-dir])
+  ;<  ~  bind:m  ?.(has (pure:m ~) (ensure-poll repo-dir))
+  $(todo t.todo)
 ::  find-stock: the default-repos entry whose name matches, if any.
 ::
 ++  find-stock
