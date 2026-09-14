@@ -225,6 +225,7 @@
         ;<  ~  bind:m  (rise-wait:io prod "%shell bootstrap: failed")
         ;<  done=?  bind:m
           (peek-exists:io (nex-road:io rail [%& / %'bootstrapped.json']))
+        ;<  ~  bind:m  ensure-polls
         ?:  done  (pure:m ~)
         ~&  >  %shell-bootstrap-first-boot
         ;<  ~  bind:m  sync-defaults
@@ -1806,15 +1807,7 @@
   ::  its own. Turn the daemon on once; a cadence someone set stays.
   ;<  ~  bind:m
     ?.  ?=(%github -.entry)  (pure:m ~)
-    ;<  poll=(unit json)  bind:m
-      (peek-as:io [%& %& repo-dir %'poll.json'] ,json)
-    =/  minutes=@ud
-      ?~  poll  0
-      ?.  ?=([%o *] u.poll)  0
-      =/  v  (~(get by p.u.poll) 'minutes')
-      ?:(?=([~ %n *] v) (fall (rush p.u.v dem) 0) 0)
-    ?.  =(0 minutes)  (pure:m ~)
-    (over:io [%& %& repo-dir %'poll.json'] [[/ %json] (pairs:enjs:format ~[['minutes' n+'15']])])
+    (ensure-poll repo-dir)
   ::  2. the desk, BEFORE any network work
   ;<  has-desk=?  bind:m  (peek-exists:io [%& %| desk-dir])
   ;<  ~  bind:m
@@ -1831,6 +1824,37 @@
     %+  poke-soft:io  [%& %& repo-dir %'run.git-action']
     [[/ %json] (pairs:enjs:format ~[['command' s+'pull']])]
   (pure:m ~)
+::  ensure-poll: turn a stock mirror's poll daemon on if it is off. Runs
+::  from +ensure-pairing and on every shell boot, so a ship that already
+::  has its mirrors gets them polling without anyone pressing Sync.
+::
+++  ensure-poll
+  |=  repo-dir=path
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  ;<  poll=(unit json)  bind:m
+    (peek-as:io [%& %& repo-dir %'poll.json'] ,json)
+  =/  minutes=@ud
+    ?~  poll  0
+    ?.  ?=([%o *] u.poll)  0
+    =/  v  (~(get by p.u.poll) 'minutes')
+    ?:(?=([~ %n *] v) (fall (rush p.u.v dem) 0) 0)
+  ?.  =(0 minutes)  (pure:m ~)
+  (over:io [%& %& repo-dir %'poll.json'] [[/ %json] (pairs:enjs:format ~[['minutes' n+'15']])])
+::  ensure-polls: every github stock entry whose mirror exists
+::
+++  ensure-polls
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  ;<  our=@p  bind:m  get-our:io
+  =/  todo=(list stock-entry)  (default-repos our)
+  |-  ^-  form:m
+  ?~  todo  (pure:m ~)
+  ?.  ?=(%github -.i.todo)  $(todo t.todo)
+  =/  repo-dir=path  /apps/'forge.git_forge'/repos/[(cat 3 `@ta`(stock-name i.todo) '.git_repo')]
+  ;<  has=?  bind:m  (peek-exists:io [%& %| repo-dir])
+  ;<  ~  bind:m  ?.(has (pure:m ~) (ensure-poll repo-dir))
+  $(todo t.todo)
 ::  find-stock: the default-repos entry whose name matches, if any.
 ::
 ++  find-stock
