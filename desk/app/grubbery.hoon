@@ -3476,7 +3476,13 @@
         =.  cards
           :_  cards
           [%pass /drop/[(scot %p target)] %agent [target %grubbery] %poke grubbery-load+!>(req)]
-        this
+        ::  the peer never answers a drop, so the %fell the dropping fiber
+        ::  waits on (+drop = send %drop, +take-fell) has to come from here,
+        ::  as it does for a local road. Without it a fiber that drops a
+        ::  remote subscription parks forever — a desk following another
+        ::  ship's code did, on every source.json poke, and stopped
+        ::  following version bumps with no line logged.
+        (enqu-take here ~ ~ %fell wire.dart)
       =.  this  (sub-del u.dest-lane here)
       (enqu-take here ~ ~ %fell wire.dart)
       ::
