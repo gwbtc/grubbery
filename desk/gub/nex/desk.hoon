@@ -275,6 +275,8 @@
       ::
       [~ %'main.sig']
     ;<  ~  bind:m  (rise-wait:io prod "%desk /main: failed")
+    ::  repair a neck-less /desk/code before anything reads it
+    ;<  ~  bind:m  (ensure-code-nexus rail)
     ;<  here=rail:tarball  bind:m  get-here-abs:io
     ::  Bind /grubbery/desk/<slug> — dot-free (eyre mangles dotted
     ::  segments) and short: the nexus dir name minus its suffix.
@@ -629,6 +631,41 @@
         ['make' (fall (~(get by p.u.jon) 'make') [%a ~])]
     ==
   $(kids t.kids, acc [ask acc])
+::
+::  +ensure-code-nexus: /desk/code must BE a code nexus, not merely exist.
+::
+::  The load row is `[%fall %| /desk/code code-dir]`, and a %fall row keeps
+::  whatever is already there — governance included. So a desk whose
+::  /desk/code was created as a plain directory (by an older kernel, or by
+::  hand) keeps a neck-less code dir forever: the .hoon files land with the
+::  right blots, nothing compiles them, apply-bill finds no built nexus, and
+::  the app never rises. Reloads do not fix it, and neither does a pull —
+::  +sync-dir deliberately PRESERVES the destination's neck so an overwrite
+::  cannot strip what on-load established.
+::
+::  Nothing reported it either: the desk page compares file trees, finds
+::  them identical, and says "nothing to pull" while the instance sits
+::  banged with "no code nexus at <desk>/desk/code/nex/<app>". Seen on a
+::  real subscriber (2026-09-15) with lattice and auspex wedged that way.
+::
+::  So assert it on every rise: read the dir, and if its neck is not
+::  [/ %code], re-fold the SAME contents under the right one. Contents are
+::  untouched (this is the neck-only case of what +sync-dir does with a
+::  freshly pulled tree), and it is a no-op on a healthy desk.
+++  ensure-code-nexus
+  |=  =rail:tarball
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  =/  code-road=road:tarball  (nex-road:io rail [%| /desk/code])
+  ;<  cur=view:nexus  bind:m  (peek:io code-road ~)
+  ?.  ?=([%ball *] cur)  (pure:m ~)
+  =/  nek=(unit neck:tarball)  ?~(fil.ball.cur ~ neck.u.fil.ball.cur)
+  ?:  =(nek `[/ %code])  (pure:m ~)
+  ~&  >>  [%desk-code-nexus-repaired path.rail]
+  =/  bol=bole:tarball  (ball-to-bole:tarball ball.cur)
+  =/  root=pulp:tarball  (fall fil.bol `pulp:tarball`[~ ~ %.n ~])
+  =.  bol  bol(fil `root(neck `[/ %code]))
+  (over-fold:io code-road bol)
 ::
 ++  sync-dir
   |=  [source-dir=road:tarball =rail:tarball dir=path cas=(unit case:nexus)]
