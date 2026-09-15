@@ -521,6 +521,28 @@
   ~&  >  [%desk-sync-release ver=(version-text sang.ver-view)]
   ::  pull the source's code tree wholesale into our /desk/code
   ;<  ~  bind:m  (sync-dir code-road rail /desk/code ~)
+  ::  Mirroring is not enough on its own. +sync-dir PRESERVES the
+  ::  destination's neck, so a /desk/code that is a plain directory stays
+  ::  one — and a dir without the [/ %code] neck is not a code namespace,
+  ::  so grubbery never runs +build-code over it. Nothing compiles what we
+  ::  just wrote, +resolve-built keeps finding nothing, and every instance
+  ::  the bill declares holds its "no built nexus %<app>--app" BANG
+  ::  through release after release.
+  ::
+  ::  Measured end to end (2026-09-15). On a real subscriber lattice took
+  ::  a version bump, mirrored the new tree, reported itself up to date on
+  ::  its desk page, and its route still hung — it came back only when the
+  ::  desk nexus was reloaded by hand so the repair below could run. Then
+  ::  reproduced on a test ship: with the neck absent, a sync left the
+  ::  instance banged; a rise fixed it in one pass.
+  ::
+  ::  +ensure-code-nexus IS that repair, and it was only ever called on
+  ::  rise — which a subscriber does not do by itself. Call it here too,
+  ::  where a release actually arrives. On a healthy desk it is one peek
+  ::  that returns at once (the neck already matches), so this costs a
+  ::  sync nothing; on a wedged one it fixes the neck and restarts the
+  ::  instances that could never build.
+  ;<  ~  bind:m  (ensure-code-nexus rail)
   ::  mirror the source's version file locally, under its own name, so
   ::  followers of THIS desk watch our republished version
   =/  content=bask:tarball
@@ -648,7 +670,9 @@
 ::  banged with "no code nexus at <desk>/desk/code/nex/<app>". Seen on a
 ::  real subscriber (2026-09-15) with lattice and auspex wedged that way.
 ::
-::  So assert it on every rise: read the dir, and if its neck is not
+::  So assert it on every rise AND after every sync (+sync-release calls
+::  this once the mirror has landed, because a subscriber never rises on
+::  its own): read the dir, and if its neck is not
 ::  [/ %code], re-fold the SAME contents under the right one. Contents are
 ::  untouched (this is the neck-only case of what +sync-dir does with a
 ::  freshly pulled tree), and it is a no-op on a healthy desk.
