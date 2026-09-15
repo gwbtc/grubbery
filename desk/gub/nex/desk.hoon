@@ -732,7 +732,62 @@
   =/  bol=bole:tarball  (ball-to-bole:tarball ball.cur)
   =/  root=pulp:tarball  (fall fil.bol `pulp:tarball`[~ ~ %.n ~])
   =.  bol  bol(fil `root(neck `[/ %code]))
-  (over-fold:io code-road bol)
+  ;<  ~  bind:m  (over-fold:io code-road bol)
+  ::  Governance alone is not the whole repair. An instance that rose while
+  ::  the dir was neck-less holds a BANG — "no built nexus %<app>--app" —
+  ::  recorded when its code could not compile, and nothing re-evaluates
+  ::  that on its own. +apply-bill cannot: it MAKES instances that are
+  ::  missing and skips ones that exist, and these exist. So the desk's
+  ::  code compiles, the desk page says up to date, and the app still 404s
+  ::  (or hangs, where a dead ball-era instance holds its route).
+  ::
+  ::  Measured on a real subscriber: after the governance repair shipped,
+  ::  auspex and lattice both compiled and both stayed dead until each
+  ::  instance was reloaded by hand — and the permits page offers a reload
+  ::  only as a side effect of approving a grant, so an already-approved
+  ::  app has no button at all. Nobody unaided finds the explorer's
+  ::  "Reload nexus".
+  ::
+  ::  So reload what the bill declares, right here, on the same rise that
+  ::  fixed the neck. Runs ONLY on the repair path (a healthy desk returned
+  ::  above), so this is not a reload storm: it is the one restart the
+  ::  affected instances never got.
+  (reload-billed rail)
+::  +reload-billed: reload every instance this desk's bill declares.
+::  Mirrors +apply-bill's read of bill.json (json grub or mime text, and a
+::  key this version cannot read is reported, not fatal) but reloads the
+::  /desk/data children instead of making them. Soft per entry: one
+::  instance that refuses to come back must not strand the others.
+++  reload-billed
+  |=  =rail:tarball
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  ;<  bill=(unit json)  bind:m
+    (peek-as:io (nex-road:io rail [%& /desk/code %'bill.json']) ,json)
+  ;<  bill=(unit json)  bind:m
+    ?:  &(?=(^ bill) ?=([%o *] u.bill))
+      (pure:(fiber:fiber:nexus ,(unit json)) bill)
+    ;<  mim=(unit mime)  bind:(fiber:fiber:nexus ,(unit json))
+      (peek-as:io (nex-road:io rail [%& /desk/code %'bill.json']) ,mime)
+    %-  pure:(fiber:fiber:nexus ,(unit json))
+    ?~  mim  ~
+    (de:json:html q.q.u.mim)
+  ?~  bill  (pure:m ~)
+  ?.  ?=([%o *] u.bill)  (pure:m ~)
+  =/  names=(list @ta)
+    %+  murn  ~(tap by p.u.bill)
+    |=  [k=@t v=json]
+    ^-  (unit @ta)
+    ?.(?=([%s *] v) ~ `k)
+  |-
+  ?~  names  (pure:m ~)
+  =/  data-road=road:tarball  (nex-road:io rail [%| /desk/data/[i.names]])
+  ;<  has=?  bind:m  (peek-exists:io data-road)
+  ?.  has  $(names t.names)
+  ~&  >>  [%desk-instance-reloaded i.names]
+  ;<  err=(unit tang)  bind:m  (reload-soft:io data-road)
+  ~?  >>>  ?=(^ err)  [%desk-instance-reload-failed i.names]
+  $(names t.names)
 ::
 ++  sync-dir
   |=  [source-dir=road:tarball =rail:tarball dir=path cas=(unit case:nexus)]
