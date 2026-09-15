@@ -275,6 +275,8 @@
       ::
       [~ %'main.sig']
     ;<  ~  bind:m  (rise-wait:io prod "%desk /main: failed")
+    ::  repair a neck-less /desk/code before anything reads it
+    ;<  ~  bind:m  (ensure-code-nexus rail)
     ;<  here=rail:tarball  bind:m  get-here-abs:io
     ::  Bind /grubbery/desk/<slug> — dot-free (eyre mangles dotted
     ::  segments) and short: the nexus dir name minus its suffix.
@@ -519,6 +521,28 @@
   ~&  >  [%desk-sync-release ver=(version-text sang.ver-view)]
   ::  pull the source's code tree wholesale into our /desk/code
   ;<  ~  bind:m  (sync-dir code-road rail /desk/code ~)
+  ::  Mirroring is not enough on its own. +sync-dir PRESERVES the
+  ::  destination's neck, so a /desk/code that is a plain directory stays
+  ::  one — and a dir without the [/ %code] neck is not a code namespace,
+  ::  so grubbery never runs +build-code over it. Nothing compiles what we
+  ::  just wrote, +resolve-built keeps finding nothing, and every instance
+  ::  the bill declares holds its "no built nexus %<app>--app" BANG
+  ::  through release after release.
+  ::
+  ::  Measured end to end (2026-09-15). On a real subscriber lattice took
+  ::  a version bump, mirrored the new tree, reported itself up to date on
+  ::  its desk page, and its route still hung — it came back only when the
+  ::  desk nexus was reloaded by hand so the repair below could run. Then
+  ::  reproduced on a test ship: with the neck absent, a sync left the
+  ::  instance banged; a rise fixed it in one pass.
+  ::
+  ::  +ensure-code-nexus IS that repair, and it was only ever called on
+  ::  rise — which a subscriber does not do by itself. Call it here too,
+  ::  where a release actually arrives. On a healthy desk it is one peek
+  ::  that returns at once (the neck already matches), so this costs a
+  ::  sync nothing; on a wedged one it fixes the neck and restarts the
+  ::  instances that could never build.
+  ;<  ~  bind:m  (ensure-code-nexus rail)
   ::  mirror the source's version file locally, under its own name, so
   ::  followers of THIS desk watch our republished version
   =/  content=bask:tarball
@@ -629,6 +653,98 @@
         ['make' (fall (~(get by p.u.jon) 'make') [%a ~])]
     ==
   $(kids t.kids, acc [ask acc])
+::
+::  +ensure-code-nexus: /desk/code must BE a code nexus, not merely exist.
+::
+::  The load row is `[%fall %| /desk/code code-dir]`, and a %fall row keeps
+::  whatever is already there — governance included. So a desk whose
+::  /desk/code was created as a plain directory (by an older kernel, or by
+::  hand) keeps a neck-less code dir forever: the .hoon files land with the
+::  right blots, nothing compiles them, apply-bill finds no built nexus, and
+::  the app never rises. Reloads do not fix it, and neither does a pull —
+::  +sync-dir deliberately PRESERVES the destination's neck so an overwrite
+::  cannot strip what on-load established.
+::
+::  Nothing reported it either: the desk page compares file trees, finds
+::  them identical, and says "nothing to pull" while the instance sits
+::  banged with "no code nexus at <desk>/desk/code/nex/<app>". Seen on a
+::  real subscriber (2026-09-15) with lattice and auspex wedged that way.
+::
+::  So assert it on every rise AND after every sync (+sync-release calls
+::  this once the mirror has landed, because a subscriber never rises on
+::  its own): read the dir, and if its neck is not
+::  [/ %code], re-fold the SAME contents under the right one. Contents are
+::  untouched (this is the neck-only case of what +sync-dir does with a
+::  freshly pulled tree), and it is a no-op on a healthy desk.
+++  ensure-code-nexus
+  |=  =rail:tarball
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  =/  code-road=road:tarball  (nex-road:io rail [%| /desk/code])
+  ;<  cur=view:nexus  bind:m  (peek:io code-road ~)
+  ?.  ?=([%ball *] cur)  (pure:m ~)
+  =/  nek=(unit neck:tarball)  ?~(fil.ball.cur ~ neck.u.fil.ball.cur)
+  ?:  =(nek `[/ %code])  (pure:m ~)
+  ~&  >>  [%desk-code-nexus-repaired path.rail]
+  =/  bol=bole:tarball  (ball-to-bole:tarball ball.cur)
+  =/  root=pulp:tarball  (fall fil.bol `pulp:tarball`[~ ~ %.n ~])
+  =.  bol  bol(fil `root(neck `[/ %code]))
+  ;<  ~  bind:m  (over-fold:io code-road bol)
+  ::  Governance alone is not the whole repair. An instance that rose while
+  ::  the dir was neck-less holds a BANG — "no built nexus %<app>--app" —
+  ::  recorded when its code could not compile, and nothing re-evaluates
+  ::  that on its own. +apply-bill cannot: it MAKES instances that are
+  ::  missing and skips ones that exist, and these exist. So the desk's
+  ::  code compiles, the desk page says up to date, and the app still 404s
+  ::  (or hangs, where a dead ball-era instance holds its route).
+  ::
+  ::  Measured on a real subscriber: after the governance repair shipped,
+  ::  auspex and lattice both compiled and both stayed dead until each
+  ::  instance was reloaded by hand — and the permits page offers a reload
+  ::  only as a side effect of approving a grant, so an already-approved
+  ::  app has no button at all. Nobody unaided finds the explorer's
+  ::  "Reload nexus".
+  ::
+  ::  So reload what the bill declares, right here, on the same rise that
+  ::  fixed the neck. Runs ONLY on the repair path (a healthy desk returned
+  ::  above), so this is not a reload storm: it is the one restart the
+  ::  affected instances never got.
+  (reload-billed rail)
+::  +reload-billed: reload every instance this desk's bill declares.
+::  Mirrors +apply-bill's read of bill.json (json grub or mime text, and a
+::  key this version cannot read is reported, not fatal) but reloads the
+::  /desk/data children instead of making them. Soft per entry: one
+::  instance that refuses to come back must not strand the others.
+++  reload-billed
+  |=  =rail:tarball
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  ;<  bill=(unit json)  bind:m
+    (peek-as:io (nex-road:io rail [%& /desk/code %'bill.json']) ,json)
+  ;<  bill=(unit json)  bind:m
+    ?:  &(?=(^ bill) ?=([%o *] u.bill))
+      (pure:(fiber:fiber:nexus ,(unit json)) bill)
+    ;<  mim=(unit mime)  bind:(fiber:fiber:nexus ,(unit json))
+      (peek-as:io (nex-road:io rail [%& /desk/code %'bill.json']) ,mime)
+    %-  pure:(fiber:fiber:nexus ,(unit json))
+    ?~  mim  ~
+    (de:json:html q.q.u.mim)
+  ?~  bill  (pure:m ~)
+  ?.  ?=([%o *] u.bill)  (pure:m ~)
+  =/  names=(list @ta)
+    %+  murn  ~(tap by p.u.bill)
+    |=  [k=@t v=json]
+    ^-  (unit @ta)
+    ?.(?=([%s *] v) ~ `k)
+  |-
+  ?~  names  (pure:m ~)
+  =/  data-road=road:tarball  (nex-road:io rail [%| /desk/data/[i.names]])
+  ;<  has=?  bind:m  (peek-exists:io data-road)
+  ?.  has  $(names t.names)
+  ~&  >>  [%desk-instance-reloaded i.names]
+  ;<  err=(unit tang)  bind:m  (reload-soft:io data-road)
+  ~?  >>>  ?=(^ err)  [%desk-instance-reload-failed i.names]
+  $(names t.names)
 ::
 ++  sync-dir
   |=  [source-dir=road:tarball =rail:tarball dir=path cas=(unit case:nexus)]

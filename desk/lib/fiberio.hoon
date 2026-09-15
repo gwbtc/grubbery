@@ -828,6 +828,32 @@
       [%done ~]
     [%fail %load-failed u.err.u.in]
   ==
+::  +reload-soft: +reload that ANSWERS with its failure instead of taking
+::  the caller down — the +cull-soft / +poke-soft precedent. ~ on success,
+::  `tang on a veto or a failed load.
+::
+::  For a caller reloading several nexuses in a row (the desk repairing the
+::  instances its bill declares), the hard form is wrong: one instance that
+::  refuses to come back would crash the fiber and strand every instance
+::  after it in the list, which is the opposite of a repair.
+::
+++  reload-soft
+  |=  =road:tarball
+  =/  m  (fiber ,(unit tang))
+  ^-  form:m
+  ;<  =wire  bind:m  (nonce /load)
+  ;<  ~  bind:m  (send-dart %node wire road %load ~)
+  |=  input
+  :+  ~  q.state
+  ?+  in  [%skip ~]
+      ~  [%wait ~]
+      [~ %veto *]
+    [%done `(veto-error dart.u.in)]
+      [~ %load * *]
+    ?.  =(wire wire.u.in)
+      [%skip ~]
+    [%done err.u.in]
+  ==
 ::  Subscription operations: keep, drop
 ::
 ++  keep
