@@ -838,9 +838,15 @@
   ::  carry a lobe that +hydrate drops after reading, so both must
   ::  bump here or every discharged remote file peek nets -1 and
   ::  bleeds shared content out of the silo.
+  ::
+  ::  Exactly ONE bump per cite. The %file branch was written twice: the
+  ::  second copy arrived with the audit tooling, whose author added this
+  ::  comment and a %file bump that already existed a month earlier. So
+  ::  every discharged remote FILE peek netted +1 — two bumps against
+  ::  +hydrate's single drop — and a ject whose refcount never reaches
+  ::  zero is never collected, so the silo grew for the life of the ship.
+  ::  %ball was correct throughout; only the duplicate is removed.
   =?  silo  ?=([%ball *] cite)
-    (~(bump-ject-ref si:nexus silo) lobe.cite)
-  =?  silo  ?=([%file *] cite)
     (~(bump-ject-ref si:nexus silo) lobe.cite)
   =?  silo  ?=([%file *] cite)
     (~(bump-ject-ref si:nexus silo) lobe.cite)

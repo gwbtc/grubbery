@@ -1,6 +1,22 @@
 /-  push
 /+  tarball
 |%
+::  +dbg: the silo refcount traces below print only when this is yes.
+::
+::    They were unconditional `~& >>>` and they bury real warnings: one
+::    ship logged 3.041 identical lines for a SINGLE lobe in one burst.
+::    Measured 2026-09-15 — and that lobe did not appear in +audit-silo's
+::    report at all, i.e. it was already fully collected with nothing
+::    referencing it, so the print was not telling anyone about damage.
+::
+::    A drop or bump against an absent lobe is still worth knowing about,
+::    but per-occurrence is the wrong surface: this core is pure and holds
+::    no state, so it cannot dedupe by lobe. +audit-silo is the authority
+::    — it reports every referenced-but-absent lobe with the path and
+::    version that names it, and it is readable without a poke at
+::    .^(wain %gx /=grubbery=/peek/audit/txt). Flip this to & when
+::    chasing a live refcount bug.
+++  dbg  ^-(? |)
 +$  card  card:agent:gall
 +$  built
   $%  [%vase =vase]
@@ -711,7 +727,7 @@
     ^-  ^silo
     =/  got  (~(get by nouns.silo) lobe)
     ?~  got
-      ~&  >>>  [%silo-drop-noun-absent lobe]
+      ~?  >>>  dbg  [%silo-drop-noun-absent lobe]
       silo
     ?:  (lte refs.u.got 1)
       silo(nouns (~(del by nouns.silo) lobe))
@@ -744,7 +760,7 @@
     ^-  ^silo
     =/  got  (~(get by nouns.silo) lobe)
     ?~  got
-      ~&  >>>  [%silo-bump-noun-absent lobe]
+      ~?  >>>  dbg  [%silo-bump-noun-absent lobe]
       silo
     silo(nouns (~(put by nouns.silo) lobe [+(refs.u.got) noun.u.got]))
   ::  Increment ject refcount by lobe (must exist).
@@ -754,7 +770,7 @@
     ^-  ^silo
     =/  got  (~(get by jects.silo) lobe)
     ?~  got
-      ~&  >>>  [%silo-bump-ject-absent lobe]
+      ~?  >>>  dbg  [%silo-bump-ject-absent lobe]
       silo
     silo(jects (~(put by jects.silo) lobe [+(refs.u.got) ject.u.got]))
   ::  Insert ject, increment refcount if exists.
@@ -796,7 +812,7 @@
     ^-  ^silo
     =/  got  (~(get by jects.silo) lobe)
     ?~  got
-      ~&  >>>  [%silo-drop-ject-absent lobe]
+      ~?  >>>  dbg  [%silo-drop-ject-absent lobe]
       silo
     ?.  (lte refs.u.got 1)
       silo(jects (~(put by jects.silo) lobe [refs=(dec refs.u.got) ject.u.got]))
