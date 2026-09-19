@@ -557,8 +557,23 @@
   ?.  ?=([%o *] u.bill)
     ~&  >>>  %desk-bill-not-object
     (pure:m ~)
+  ::  A bill entry is "<instance name>": "<code path>", both strings. so:dejs
+  ::  CRASHES on any other shape, and a crash here loses the WHOLE bill — every
+  ::  valid entry along with the bad one — so the desk ends up with no instance,
+  ::  no consent ask, manifest.json at version 0, and nothing in the log,
+  ::  because a crashed fiber rolls its event back. It reads as a slow clone.
+  ::
+  ::  Report the unreadable key and install the entries that ARE readable. A
+  ::  bill that carries a key this version does not understand — a leftover, or
+  ::  one written for a newer desk.hoon — must not take the install down with it.
   =/  entries=(list [@t @t])
-    (turn ~(tap by p.u.bill) |=([k=@t v=json] [k (so:dejs:format v)]))
+    %+  murn  ~(tap by p.u.bill)
+    |=  [k=@t v=json]
+    ^-  (unit [@t @t])
+    ?.  ?=([%s *] v)
+      ~&  >>>  [%desk-bill-entry-unreadable k]
+      ~
+    `[k p.v]
   ~&  >  [%desk-bill (lent entries)]
   =|  made-any=?
   |-
