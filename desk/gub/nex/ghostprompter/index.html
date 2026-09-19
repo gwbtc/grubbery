@@ -1,0 +1,95 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ghostprompter</title>
+<link rel="icon" type="image/svg+xml" href="/grubbery/ghostprompter/icon.svg">
+<link rel="stylesheet" href="/grubbery/ghostprompter/style.css">
+</head>
+<body>
+<header>
+  <img src="/grubbery/ghostprompter/icon.svg" alt="">
+  <h1>Ghostprompter</h1>
+  <span class="sub">drafts from your library, cued by the flow</span>
+  <button id="btn-refresh" title="Refresh flow &amp; proposals">&#8635;</button>
+</header>
+
+<split-view id="gp-split" orientation="horizontal" primary="end" size="400" min="320" max="720" persist="gp-chat">
+  <div slot="start" id="main-wrap">
+    <split-view id="inputs-split" orientation="horizontal" primary="start" size="330" min="270" max="560" persist="gp-inputs">
+      <div slot="start" id="inputs-panel">
+        <tab-group id="inputs-tabs" persist="gp-inputs-tabs">
+          <div tab-label="Flow" id="flow-tab">
+            <div class="tab-head">
+              <span id="flow-count" class="count"></span>
+            </div>
+            <div id="flow-list" class="scroll"><div class="empty">loading&hellip;</div></div>
+          </div>
+          <div tab-label="Library" id="lib-tab">
+            <div class="tab-head">
+              <span id="lib-count" class="count"></span>
+            </div>
+            <div id="lib-list" class="scroll"></div>
+            <div id="lib-add">
+              <input id="lib-name" placeholder="note-name.md" spellcheck="false">
+              <textarea id="lib-text" rows="4" placeholder="Paste a note, essay, or extracted text&hellip;"></textarea>
+              <button id="lib-save">Add to library</button>
+            </div>
+          </div>
+        </tab-group>
+      </div>
+      <div slot="end" id="props-panel">
+        <div class="panel-head">
+          <h2>Proposals</h2>
+          <span id="prop-count" class="count"></span>
+          <button id="btn-summon" title="Ask the ghost for fresh proposals">&#10024; Summon proposals</button>
+        </div>
+        <div id="prop-list" class="scroll"></div>
+      </div>
+    </split-view>
+  </div>
+  <div slot="end" id="chat-panel">
+    <div class="panel-head">
+      <h2>The ghost</h2>
+      <button id="chat-config" title="System prompt &amp; model">&#9881;</button>
+      <button id="chat-stop" title="Interrupt">&#9632;</button>
+      <button id="chat-clear" title="Clear conversation">&#10005;</button>
+    </div>
+    <div id="chat-log" class="scroll"></div>
+    <form id="chat-form">
+      <textarea id="chat-input" rows="2" placeholder="Talk to the ghost&hellip;"></textarea>
+      <button id="chat-send" type="submit">Send</button>
+    </form>
+  </div>
+</split-view>
+
+<modal-dialog id="post-modal">
+  <div id="post-modal-head"></div>
+  <div id="post-modal-body"></div>
+  <div id="post-modal-nav" class="hidden">
+    <button id="pm-prev" title="Previous">&#8249;</button>
+    <span id="pm-count"></span>
+    <button id="pm-next" title="Next">&#8250;</button>
+  </div>
+  <div id="post-modal-id"></div>
+</modal-dialog>
+
+<modal-dialog id="config-modal">
+  <h3>The ghost's configuration</h3>
+  <label>System prompt <span class="cfg-note">(product code — edited in gub, deployed with the nexus)</span></label>
+  <textarea id="cfg-system" rows="14" spellcheck="false" readonly></textarea>
+  <div id="cfg-row">
+    <label>Model <input id="cfg-model" spellcheck="false"></label>
+    <label>Max tokens <input id="cfg-max" type="number" min="256" step="256"></label>
+  </div>
+  <div id="cfg-actions">
+    <button id="cfg-cancel">Cancel</button>
+    <button id="cfg-save" class="primary">Save</button>
+  </div>
+</modal-dialog>
+
+<script type="module" src="/grubbery/ghostprompter/ui/components.js"></script>
+<script src="/grubbery/ghostprompter/app.js"></script>
+</body>
+</html>

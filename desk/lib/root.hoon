@@ -101,6 +101,9 @@
         [%fall %| /apps/'openrouter.openrouter' [`[`[/ %openrouter] ~ %.n ~] ~]]
         [%fall %| /apps/'geocode.geocode' [`[`[/ %geocode] ~ %.n ~] ~]]
         [%fall %| /apps/'places.places' [`[`[/ %places] ~ %.n ~] ~]]
+        ::  ghostprompter mounts at the plain name (like /apps/itinerary):
+        ::  its agent tools address /apps/ghostprompter/... absolutely
+        [%fall %| /apps/ghostprompter [`[`[/ %ghostprompter] ~ %.n ~] ~]]
     ==
 ::
 ++  on-file

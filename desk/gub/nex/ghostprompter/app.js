@@ -1,0 +1,697 @@
+'use strict';
+var API = '/grubbery/ghostprompter';
+var busy = false;
+
+// ---------- the flow ----------
+
+async function loadFeed() {
+  var box = document.getElementById('flow-list');
+  var data;
+  try {
+    data = await fetch(API + '/api/feed?limit=40').then(function(r) { return r.json(); });
+  } catch (e) { data = null; }
+  var posts = data && Array.isArray(data.posts) ? data.posts : null;
+  var profiles = (data && data.profiles) || {};
+  box.textContent = '';
+  if (!posts) {
+    box.innerHTML = '<div class="empty">Flow unreachable — is nostrill up?</div>';
+    document.getElementById('flow-count').textContent = '';
+    return;
+  }
+  document.getElementById('flow-count').textContent = posts.length + ' posts';
+  if (!posts.length) {
+    box.innerHTML = '<div class="empty">The flow is quiet.</div>';
+    return;
+  }
+  posts.forEach(function(p) {
+    var prof = profiles[p.pubkey] || {};
+    var item = document.createElement('div');
+    item.className = 'flow-item';
+
+    var head = document.createElement('div');
+    head.className = 'flow-head';
+    head.appendChild(avatarEl(prof, p.pubkey));
+    var who = document.createElement('span');
+    who.className = 'flow-name';
+    who.textContent = prof.name || (p.pubkey || '').slice(0, 8);
+    if (!prof.name) who.classList.add('pk');
+    var age = document.createElement('span');
+    age.className = 'flow-age';
+    age.textContent = fmtAge(p.at);
+    head.append(who, age);
+
+    var content = document.createElement('div');
+    content.className = 'flow-content';
+    renderText(content, p.content || '');
+    item.append(head, content);
+    var media = mediaOf(p.content || '');
+    if (media.length) item.appendChild(attachmentsEl(media, 'thumb', null));
+    item.addEventListener('click', function(e) {
+      if (e.target.closest('a')) return;  // links navigate
+      openPost(p, prof);
+    });
+    box.appendChild(item);
+  });
+}
+
+// ---------- post modal: page 0 = the post, pages 1..N = its media ----------
+
+var modalState = { p: null, prof: null, media: [], page: 0 };
+
+function openPost(p, prof) {
+  modalState = { p: p, prof: prof, media: mediaOf(p.content || ''), page: 0 };
+  renderModalPage();
+  document.getElementById('post-modal').show();
+}
+
+function renderModalPage() {
+  var st = modalState;
+  var head = document.getElementById('post-modal-head');
+  var body = document.getElementById('post-modal-body');
+  var idEl = document.getElementById('post-modal-id');
+  var nav = document.getElementById('post-modal-nav');
+  head.textContent = '';
+  body.textContent = '';
+
+  head.appendChild(avatarEl(st.prof, st.p.pubkey));
+  var who = document.createElement('div');
+  who.className = 'post-modal-who';
+  var nm = document.createElement('div');
+  nm.className = 'flow-name';
+  nm.textContent = st.prof.name || (st.p.pubkey || '').slice(0, 12);
+  if (!st.prof.name) nm.classList.add('pk');
+  var when = document.createElement('div');
+  when.className = 'post-modal-when';
+  when.textContent = st.p.at ? new Date(st.p.at * 1000).toLocaleString() : '';
+  who.append(nm, when);
+  head.appendChild(who);
+
+  body.classList.toggle('media-page', st.page > 0);
+  if (st.page === 0) {
+    // the whole post: text, then the attachments expanded below;
+    // clicking an image jumps to its focused page
+    var txt = document.createElement('div');
+    txt.className = 'pm-text';
+    renderText(txt, st.p.content || '');
+    if (txt.textContent.trim()) body.appendChild(txt);
+    if (st.media.length) {
+      body.appendChild(attachmentsEl(st.media, 'full', function(idx) {
+        modalState.page = idx + 1;
+        renderModalPage();
+      }));
+    }
+  } else {
+    var m = st.media[st.page - 1];
+    var wrap = document.createElement('div');
+    wrap.className = 'pm-media';
+    if (m.video) {
+      var vel = document.createElement('video');
+      vel.controls = true;
+      vel.preload = 'metadata';
+      vel.src = m.url;
+      wrap.appendChild(vel);
+      body.appendChild(wrap);
+    } else {
+      wrap.classList.add('fp');
+      body.appendChild(wrap);
+      pmViewer(wrap, m.url);
+    }
+  }
+
+  var pages = 1 + st.media.length;
+  nav.classList.toggle('hidden', pages < 2);
+  document.getElementById('pm-count').textContent =
+    st.page === 0 ? 'post · ' + st.media.length + ' media' : st.page + ' / ' + st.media.length;
+  document.getElementById('pm-prev').disabled = st.page === 0;
+  document.getElementById('pm-next').disabled = st.page >= pages - 1;
+  idEl.textContent = 'event ' + (st.p.id || '');
+}
+
+// image viewer for media pages: black canvas, drag to reposition,
+// shift-scroll (or pinch) to zoom toward the cursor, dblclick to
+// toggle, plus the explorer-style − / % / + / fit / 1:1 bar.
+function pmViewer(wrap, url) {
+  var img = document.createElement('img');
+  img.draggable = false;
+  img.src = url;
+  wrap.appendChild(img);
+
+  var scale = 1, tx = 0, ty = 0, drag = null;
+  function nat() { return img.naturalWidth || img.clientWidth || 1; }
+  function apply() {
+    img.style.transform = 'translate(' + tx + 'px,' + ty + 'px) scale(' + scale + ')';
+    wrap.classList.toggle('zoomed', scale > 1.001);
+    pct.textContent = Math.round(scale * (img.clientWidth / nat()) * 100) + '%';
+  }
+  function setScale(next, cx, cy) {
+    next = Math.max(0.2, Math.min(12, next));
+    if (next === scale) return;
+    if (cx !== undefined) {
+      var r = img.getBoundingClientRect();
+      var px = cx - (r.left + r.width / 2);
+      var py = cy - (r.top + r.height / 2);
+      tx -= px * (next / scale - 1);
+      ty -= py * (next / scale - 1);
+    }
+    if (next <= 1.001) { tx = 0; ty = 0; }
+    scale = next;
+    apply();
+  }
+  // drag owns repositioning, so the wheel owns zoom — no modifier
+  wrap.addEventListener('wheel', function(e) {
+    e.preventDefault();
+    var d = e.deltaY || e.deltaX;
+    setScale(scale * (d < 0 ? 1.15 : 1 / 1.15), e.clientX, e.clientY);
+  }, { passive: false });
+  img.addEventListener('dblclick', function(e) {
+    setScale(scale > 1.001 ? 1 : 2.5, e.clientX, e.clientY);
+  });
+  img.addEventListener('pointerdown', function(e) {
+    e.preventDefault();
+    drag = { x: e.clientX - tx, y: e.clientY - ty };
+    wrap.classList.add('dragging');
+    img.setPointerCapture(e.pointerId);
+  });
+  img.addEventListener('pointermove', function(e) {
+    if (!drag) return;
+    tx = e.clientX - drag.x;
+    ty = e.clientY - drag.y;
+    apply();
+  });
+  img.addEventListener('pointerup', function() {
+    drag = null;
+    wrap.classList.remove('dragging');
+  });
+
+  var bar = document.createElement('div');
+  bar.className = 'pmv-bar';
+  function btn(label, title, fn) {
+    var b = document.createElement('button');
+    b.textContent = label;
+    b.title = title;
+    b.addEventListener('click', fn);
+    return b;
+  }
+  var pct = document.createElement('span');
+  pct.className = 'pmv-pct';
+  bar.appendChild(btn('−', 'zoom out', function() { setScale(scale / 1.25); }));
+  bar.appendChild(pct);
+  bar.appendChild(btn('+', 'zoom in', function() { setScale(scale * 1.25); }));
+  bar.appendChild(btn('fit', 'fit to view', function() { setScale(1); }));
+  bar.appendChild(btn('1:1', 'actual size', function() {
+    setScale(nat() / (img.clientWidth || 1));
+  }));
+  wrap.appendChild(bar);
+  if (img.complete) apply();
+  else img.addEventListener('load', apply, { once: true });
+}
+
+// open-state via the component's own events — offsetParent is unreliable
+// across the shadow/top-layer boundary
+var pmOpen = false;
+document.getElementById('post-modal').addEventListener('md-open', function() { pmOpen = true; });
+document.getElementById('post-modal').addEventListener('md-close', function() {
+  pmOpen = false;
+  document.getElementById('post-modal-body').textContent = '';  // stops video
+});
+
+function modalStep(d) {
+  if (!pmOpen) return;
+  var pages = 1 + modalState.media.length;
+  var next = modalState.page + d;
+  if (next < 0 || next >= pages) return;
+  modalState.page = next;
+  renderModalPage();
+}
+
+document.getElementById('pm-prev').onclick = function() { modalStep(-1); };
+document.getElementById('pm-next').onclick = function() { modalStep(1); };
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'ArrowLeft') modalStep(-1);
+  if (e.key === 'ArrowRight') modalStep(1);
+});
+
+// avatar: profile picture, or a tinted initial disc derived from the pubkey
+function avatarEl(prof, pubkey) {
+  var wrap = document.createElement('span');
+  wrap.className = 'flow-avatar';
+  var hue = 0;
+  for (var i = 0; i < Math.min(8, (pubkey || '').length); i++) {
+    hue = (hue * 31 + pubkey.charCodeAt(i)) % 360;
+  }
+  wrap.style.background = 'hsl(' + hue + ', 32%, 82%)';
+  wrap.style.color = 'hsl(' + hue + ', 45%, 30%)';
+  wrap.textContent = (prof.name || pubkey || '?').slice(0, 1).toUpperCase();
+  if (prof.picture && /^https?:\/\//.test(prof.picture)) {
+    var img = document.createElement('img');
+    img.loading = 'lazy';
+    img.referrerPolicy = 'no-referrer';
+    img.src = prof.picture;
+    img.onerror = function() { img.remove(); };
+    wrap.appendChild(img);
+  }
+  return wrap;
+}
+
+// media classification shared by the feed cards and the post modal
+var IMG_RE = /\.(jpe?g|png|gif|webp|avif)(\?\S*)?$/i;
+var VID_RE = /\.(mp4|webm|mov|m4v)(\?\S*)?$/i;
+function classify(url) {
+  if (VID_RE.test(url)) return 'video';
+  if (IMG_RE.test(url) || /picsum\.photos|\/media\./.test(url)) return 'image';
+  return 'link';
+}
+function mediaOf(text) {
+  var out = [];
+  text.split(/(https?:\/\/\S+)/g).forEach(function(part) {
+    if (!/^https?:\/\//.test(part)) return;
+    var kind = classify(part);
+    if (kind !== 'link') out.push({ url: part, video: kind === 'video' });
+  });
+  return out;
+}
+
+// A post is TEXT plus ATTACHED MEDIA. The text renders with media URLs
+// removed (plain links stay clickable); the media renders as its own
+// attachment block below — thumbnails in the feed, expanded and
+// playable in the modal.
+function renderText(el, text) {
+  var parts = text.split(/(https?:\/\/\S+)/g).filter(function(x) { return x; });
+  var isMedia = function(x) { return /^https?:\/\//.test(x) && classify(x) !== 'link'; };
+  parts.forEach(function(part, i) {
+    if (/^https?:\/\//.test(part)) {
+      if (!isMedia(part)) el.appendChild(linkEl(part));
+      return;
+    }
+    var t = part.replace(/\n{3,}/g, '\n\n');
+    if (t.trim() === '') {
+      if ((i > 0 && isMedia(parts[i - 1])) || (i < parts.length - 1 && isMedia(parts[i + 1]))) return;
+    }
+    if (i > 0 && isMedia(parts[i - 1])) t = t.replace(/^\s+/, '');
+    if (i < parts.length - 1 && isMedia(parts[i + 1])) t = t.replace(/\s+$/, '');
+    el.appendChild(document.createTextNode(t));
+  });
+}
+
+// attachment block. mode 'thumb': cropped previews in a grid (feed
+// card). mode 'full': natural-size, centered, videos playable (modal
+// page 0). onMedia(i) fires on click when given.
+function attachmentsEl(media, mode, onMedia) {
+  var box = document.createElement('div');
+  box.className = 'attach ' + mode;
+  media.forEach(function(m, i) {
+    var cell = document.createElement('div');
+    cell.className = 'attach-cell';
+    var el;
+    if (m.video) {
+      if (mode === 'full') {
+        el = document.createElement('video');
+        el.controls = true;
+        el.preload = 'metadata';
+        el.playsInline = true;
+      } else {
+        el = document.createElement('video');
+        el.muted = true;
+        el.playsInline = true;
+        el.preload = 'metadata';
+        var badge = document.createElement('span');
+        badge.className = 'flow-vid-badge';
+        badge.textContent = '▶';
+        cell.appendChild(badge);
+      }
+    } else {
+      el = document.createElement('img');
+      el.loading = 'lazy';
+      el.referrerPolicy = 'no-referrer';
+      el.onerror = function() { cell.remove(); };
+      if (mode === 'thumb') {
+        // mark clipped previews so the fade + expand badge show
+        el.onload = function() {
+          if (el.offsetHeight > cell.clientHeight + 2) cell.classList.add('cut');
+        };
+      }
+    }
+    el.src = m.url;
+    cell.insertBefore(el, cell.firstChild);
+    if (onMedia && !(m.video && mode === 'full')) {
+      cell.addEventListener('click', function(e) { e.stopPropagation(); onMedia(i); });
+      cell.classList.add('clickable');
+    }
+    box.appendChild(cell);
+  });
+  return box;
+}
+
+function linkEl(url) {
+  var a = document.createElement('a');
+  a.className = 'flow-link';
+  a.href = url;
+  a.target = '_blank';
+  a.rel = 'noopener noreferrer';
+  var short = url.replace(/^https?:\/\/(www\.)?/, '');
+  a.textContent = short.length > 42 ? short.slice(0, 42) + '…' : short;
+  return a;
+}
+
+function fmtAge(unix) {
+  if (!unix) return '';
+  var s = Math.max(0, Math.floor(Date.now() / 1000) - unix);
+  if (s < 60) return 'now';
+  if (s < 3600) return Math.floor(s / 60) + 'm';
+  if (s < 86400) return Math.floor(s / 3600) + 'h';
+  return Math.floor(s / 86400) + 'd';
+}
+
+// ---------- library ----------
+
+async function loadLibrary() {
+  var box = document.getElementById('lib-list');
+  var docs;
+  try {
+    docs = await fetch(API + '/api/library').then(function(r) { return r.json(); });
+  } catch (e) { docs = []; }
+  if (!Array.isArray(docs)) docs = [];
+  document.getElementById('lib-count').textContent = docs.length + ' docs';
+  box.textContent = '';
+  docs.sort(function(a, b) { return (a.name || '').localeCompare(b.name || ''); });
+  docs.forEach(function(d) {
+    var row = document.createElement('div');
+    row.className = 'lib-row';
+    var nm = document.createElement('span');
+    nm.className = 'nm';
+    nm.textContent = d.name;
+    var sz = document.createElement('span');
+    sz.className = 'sz';
+    sz.textContent = fmtSize(d.size);
+    var del = document.createElement('span');
+    del.className = 'lib-del';
+    del.textContent = '×';
+    del.title = 'Remove';
+    del.onclick = async function() {
+      if (!confirm('Remove ' + d.name + ' from the library?')) return;
+      await fetch(API + '/api/library/' + encodeURIComponent(d.name), { method: 'DELETE' });
+      loadLibrary();
+    };
+    row.append(nm, sz, del);
+    box.appendChild(row);
+  });
+}
+
+function fmtSize(n) {
+  if (!n) return '';
+  if (n < 1024) return n + 'B';
+  return (n / 1024).toFixed(1) + 'KB';
+}
+
+document.getElementById('lib-save').onclick = async function() {
+  var name = document.getElementById('lib-name').value.trim();
+  var text = document.getElementById('lib-text').value;
+  if (!name || !text.trim()) return;
+  if (!/\.[a-z]+$/.test(name)) name += '.md';
+  name = name.toLowerCase().replace(/[^a-z0-9._-]+/g, '-');
+  await fetch(API + '/api/library/' + encodeURIComponent(name), {
+    method: 'PUT', body: text
+  });
+  document.getElementById('lib-name').value = '';
+  document.getElementById('lib-text').value = '';
+  loadLibrary();
+};
+
+// ---------- proposals ----------
+
+async function loadProposals() {
+  var box = document.getElementById('prop-list');
+  var props;
+  try {
+    props = await fetch(API + '/api/proposals').then(function(r) { return r.json(); });
+  } catch (e) { props = []; }
+  if (!Array.isArray(props)) props = [];
+  document.getElementById('prop-count').textContent = props.length ? props.length + '' : '';
+  box.textContent = '';
+  if (!props.length) {
+    box.innerHTML = '<div class="empty">Nothing yet. Feed the library, then summon the ghost — it reads the flow and drafts what you might say.</div>';
+    return;
+  }
+  props.sort(function(a, b) { return ((b.doc || {}).at || 0) - ((a.doc || {}).at || 0); });
+  props.forEach(function(p) {
+    var d = p.doc || {};
+    var card = document.createElement('div');
+    card.className = 'prop-card';
+
+    // a connection is an INDEX ENTRY: topic label + raw material from
+    // both sides, juxtaposed. Nothing on this card was written by AI.
+    var top = document.createElement('div');
+    top.className = 'prop-top';
+    if (d.topic) {
+      var topic = document.createElement('div');
+      topic.className = 'prop-topic';
+      topic.textContent = d.topic;
+      top.appendChild(topic);
+    }
+    var age = document.createElement('span');
+    age.className = 'prop-age';
+    age.textContent = fmtAge(d.at);
+    top.appendChild(age);
+    card.appendChild(top);
+
+    if (d.question) {
+      var qn = document.createElement('div');
+      qn.className = 'prop-question';
+      qn.textContent = d.question;
+      card.appendChild(qn);
+    }
+    if (d.posts) {
+      var flowSec = document.createElement('div');
+      flowSec.className = 'prop-side';
+      var fl = document.createElement('div');
+      fl.className = 'prop-side-label';
+      fl.textContent = 'in the flow';
+      flowSec.appendChild(fl);
+      d.posts.split('\n').forEach(function(line) {
+        line = line.trim();
+        if (!line) return;
+        var seg = line.split('|');
+        var row = document.createElement('div');
+        row.className = 'prop-post';
+        if (seg.length >= 3) {
+          var meta = document.createElement('span');
+          meta.className = 'prop-post-meta';
+          meta.textContent = seg[0].trim() + ' · ' + seg[1].trim();
+          var ex = document.createElement('span');
+          ex.textContent = ' ' + seg.slice(2).join('|').trim();
+          row.append(meta, ex);
+        } else {
+          row.textContent = line;
+        }
+        flowSec.appendChild(row);
+      });
+      card.appendChild(flowSec);
+    }
+    if (d.passage) {
+      var libSec = document.createElement('div');
+      libSec.className = 'prop-side';
+      var ll = document.createElement('div');
+      ll.className = 'prop-side-label';
+      ll.textContent = 'in your library';
+      libSec.appendChild(ll);
+      var q = document.createElement('blockquote');
+      q.className = 'prop-quote';
+      q.textContent = d.passage;
+      if (d.source) {
+        var cite = document.createElement('div');
+        cite.className = 'prop-cite';
+        cite.textContent = '— ' + d.source;
+        q.appendChild(cite);
+      }
+      libSec.appendChild(q);
+      card.appendChild(libSec);
+    }
+    // legacy shapes from earlier iterations render muted
+    ['draft', 'points', 'why', 'quote'].forEach(function(k) {
+      if (!d[k] || (k === 'quote' && d.passage)) return;
+      var lg = document.createElement('div');
+      lg.className = 'prop-draft legacy';
+      lg.textContent = d[k];
+      card.appendChild(lg);
+    });
+
+    var actions = document.createElement('div');
+    actions.className = 'prop-actions';
+    var copyText = d.passage || d.quote || '';
+    if (copyText) {
+      var copy = document.createElement('button');
+      copy.className = 'prop-copy';
+      copy.textContent = 'Copy passage';
+      copy.onclick = async function() {
+        try {
+          await navigator.clipboard.writeText(copyText);
+          copy.textContent = 'Copied ✓';
+          copy.classList.add('copied');
+          setTimeout(function() {
+            copy.textContent = 'Copy passage';
+            copy.classList.remove('copied');
+          }, 1600);
+        } catch (e) {}
+      };
+      actions.appendChild(copy);
+    }
+    var dismiss = document.createElement('button');
+    dismiss.className = 'prop-dismiss';
+    dismiss.textContent = 'Dismiss';
+    dismiss.onclick = async function() {
+      await fetch(API + '/api/proposals/' + encodeURIComponent(p.id), { method: 'DELETE' });
+      loadProposals();
+    };
+    actions.appendChild(dismiss);
+    card.appendChild(actions);
+    box.appendChild(card);
+  });
+}
+
+document.getElementById('btn-summon').onclick = function() {
+  sendMessage('Index the current flow against my library: file the 2-3 strongest topic connections with the propose tool. Raw material only.');
+};
+
+// ---------- chat ----------
+
+async function loadHistory() {
+  var log = document.getElementById('chat-log');
+  var conv;
+  try {
+    conv = await fetch(API + '/history').then(function(r) { return r.json(); });
+  } catch (e) { conv = []; }
+  if (!Array.isArray(conv)) conv = [];
+  log.textContent = '';
+  conv.forEach(function(m) { renderMsg(log, m); });
+  log.scrollTop = log.scrollHeight;
+}
+
+function renderMsg(log, m) {
+  if (!m || typeof m.content !== 'string') return;
+  if (m.role === 'user') {
+    var u = document.createElement('div');
+    u.className = 'msg user';
+    u.textContent = m.content;
+    log.appendChild(u);
+    return;
+  }
+  // assistant: interleave parts (text + tool chips) when present
+  var parts = Array.isArray(m.parts) && m.parts.length
+    ? m.parts
+    : [{ type: 'text', text: m.content }];
+  parts.forEach(function(p) {
+    if (p.type === 'tool') {
+      var chip = document.createElement('div');
+      chip.className = 'tool-chip';
+      chip.textContent = '⚙ ' + p.tool + (p.arg ? ' · ' + p.arg : '');
+      log.appendChild(chip);
+    } else if (p.text && p.text.trim()) {
+      var a = document.createElement('div');
+      a.className = 'msg asst';
+      a.textContent = p.text;
+      log.appendChild(a);
+    }
+  });
+}
+
+async function sendMessage(text) {
+  if (busy || !text.trim()) return;
+  busy = true;
+  var log = document.getElementById('chat-log');
+  var send = document.getElementById('chat-send');
+  var summon = document.getElementById('btn-summon');
+  send.disabled = true;
+  summon.disabled = true;
+
+  var u = document.createElement('div');
+  u.className = 'msg user';
+  u.textContent = text;
+  log.appendChild(u);
+  var pending = document.createElement('div');
+  pending.className = 'msg pending';
+  pending.textContent = 'the ghost is thinking…';
+  log.appendChild(pending);
+  log.scrollTop = log.scrollHeight;
+
+  try {
+    await fetch(API + '/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: text })
+    });
+  } catch (e) {}
+  busy = false;
+  send.disabled = false;
+  summon.disabled = false;
+  await loadHistory();
+  loadProposals();
+}
+
+document.getElementById('chat-form').onsubmit = function(e) {
+  e.preventDefault();
+  var input = document.getElementById('chat-input');
+  var text = input.value;
+  input.value = '';
+  sendMessage(text);
+};
+
+document.getElementById('chat-input').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    document.getElementById('chat-form').requestSubmit();
+  }
+});
+
+document.getElementById('chat-clear').onclick = async function() {
+  if (!confirm('Clear the conversation? (It gets archived.)')) return;
+  await fetch(API + '/clear', { method: 'POST' });
+  loadHistory();
+};
+
+document.getElementById('chat-stop').onclick = function() {
+  fetch(API + '/stop', { method: 'POST' });
+};
+
+// ---------- config modal ----------
+
+document.getElementById('chat-config').onclick = async function() {
+  var cfg;
+  try {
+    cfg = await fetch(API + '/config').then(function(r) { return r.json(); });
+  } catch (e) { cfg = {}; }
+  document.getElementById('cfg-system').value = cfg.system || '';
+  var c = cfg.config || {};
+  document.getElementById('cfg-model').value = c.model || 'claude-sonnet-4-6';
+  document.getElementById('cfg-max').value = c.max_tokens || 2048;
+  document.getElementById('config-modal').show();
+};
+
+document.getElementById('cfg-cancel').onclick = function() {
+  document.getElementById('config-modal').close();
+};
+
+document.getElementById('cfg-save').onclick = async function() {
+  await fetch(API + '/config', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: document.getElementById('cfg-model').value.trim(),
+      max_tokens: parseInt(document.getElementById('cfg-max').value, 10) || 2048
+    })
+  });
+  document.getElementById('config-modal').close();
+};
+
+// ---------- boot ----------
+
+document.getElementById('btn-refresh').onclick = function() {
+  loadFeed();
+  loadProposals();
+  loadLibrary();
+};
+
+loadFeed();
+loadLibrary();
+loadProposals();
+loadHistory();
+setInterval(loadFeed, 120000);
