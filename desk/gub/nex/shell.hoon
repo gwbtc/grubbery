@@ -756,10 +756,10 @@
             (send-simple:srv eyre-id [[200 ~[['content-type' 'application/json']]] `bod])
           (pure:m ~)
         ::  GET /apps/grubbery/docs/history → the stored conversation, read
-        ::  straight from the agent's chat.json. Restores across refreshes.
+        ::  straight from the agent's chats/main.json. Restores across refreshes.
         ?:  ?=([%docs %history ~] suffix)
           =/  chat-road=road:tarball
-            (nex-road:io rail [%& /docs/agent %'chat.json'])
+            (nex-road:io rail [%& /docs/agent/chats %'main.json'])
           ;<  fv=view:nexus  bind:m  (peek:io chat-road `[/ %json])
           =/  conv=json
             ?.  ?=([%file *] fv)  [%a ~]
@@ -1013,7 +1013,7 @@
   =/  m  (fiber:fiber:nexus ,[reply=@t trace=json])
   ^-  form:m
   =/  chat-road=road:tarball
-    (nex-road:io rail [%& /docs/agent %'chat.json'])
+    (nex-road:io rail [%& /docs/agent/chats %'main.json'])
   =/  main-road=road:tarball
     (nex-road:io rail [%& /docs/agent %'main.sig'])
   ;<  *  bind:m  (keep:io /agent chat-road ~)

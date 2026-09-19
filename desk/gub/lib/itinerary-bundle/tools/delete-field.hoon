@@ -34,29 +34,28 @@
 ++  parameters
   ^-  (map @t parameter-def:tools)
   %-  ~(gas by *(map @t parameter-def:tools))
-  :~  ['itinerary' [%string 'the itinerary id, e.g. my-trip']]
-      ['path' [%string 'slash path from the document root']]
+  :~  ['path' [%string 'slash path from the document root']]
   ==
-++  required  ~['itinerary' 'path']
+++  required  ~['path']
 ++  handler
   ^-  tool-handler:tools
   =/  m  (fiber:fiber:nexus ,tool-result:tools)
   ^-  form:m
   ;<  st=tool-state:tools  bind:m  (get-state-as:io ,tool-state:tools)
   =/  deg  ~(deg jo:json-utils [%o args.st])
-  =/  itin=(unit @t)  (deg /itinerary so:dejs:format)
   =/  pat=(unit @t)   (deg /path so:dejs:format)
-  ?:  |(?=(~ itin) ?=(~ pat))
+  ?:  |(?=(~ pat))
     (pure:m [%error 'Missing required argument'])
   =/  segs=(list @t)  (split-path u.pat)
   ?~  segs  (pure:m [%error 'path is empty'])
-  =/  fname=@ta  (crip "{(trip u.itin)}.json")
-  =/  doc-road  `road:tarball`[%& %& /apps/itinerary/itineraries fname]
+  ;<  dr=(unit road:tarball)  bind:m  trip-doc:tools
+  ?~  dr  (pure:m [%error 'not running inside a trip agent'])
+  =/  doc-road=road:tarball  u.dr
   ;<  fv=view:nexus  bind:m  (peek:io doc-road `[/ %json])
   ?.  ?=([%file *] fv)
-    (pure:m [%error (crip "No itinerary with id {(trip u.itin)}")])
+    (pure:m [%error (crip "No itinerary document in this trip")])
   =/  doc=json  (fall (mole |.(!<(json (need-vase:tarball sang.fv)))) *json)
   =/  updated=json  (del-at doc segs)
   ;<  ~  bind:m  (over:io doc-road [[/ %json] updated])
-  (pure:m [%text (crip "Deleted {(trip u.pat)} from {(trip u.itin)}")])
+  (pure:m [%text (crip "Deleted {(trip u.pat)}")])
 --

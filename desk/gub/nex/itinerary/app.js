@@ -165,11 +165,12 @@ function openPopupAt(lngLat, dom) {
 }
 
 // popup body: name, desc, optional from-list, one action link
-function popupDom(name, desc, from, action, onAction) {
+function popupDom(name, desc, from, action, onAction, notes) {
   var d = document.createElement('div');
   var n = document.createElement('div'); n.className = 'popup-name'; n.textContent = name || '';
   d.appendChild(n);
   if (desc) { var ds = document.createElement('div'); ds.className = 'popup-desc'; ds.textContent = desc; d.appendChild(ds); }
+  if (notes) { var no = document.createElement('div'); no.className = 'popup-notes'; no.innerHTML = mdNotes(notes); d.appendChild(no); }
   if (from && from.length) { var f = document.createElement('div'); f.className = 'popup-from'; f.textContent = from.join(', '); d.appendChild(f); }
   if (action) {
     var a = document.createElement('span'); a.className = 'popup-edit'; a.textContent = action;
@@ -289,7 +290,7 @@ function renderMarkers() {
     el.addEventListener('click', function(ev) {
       ev.stopPropagation();
       openPopupAt([pin.lng, pin.lat],
-        popupDom(pin.name, pin.desc, pin.from, 'edit', function() { openPinForm(id); }));
+        popupDom(pin.name, pin.desc, pin.from, 'edit', function() { openPinForm(id); }, pin.notes));
     });
     markers[id] = new maplibregl.Marker({ element: el })
       .setLngLat([pin.lng, pin.lat])
@@ -338,19 +339,54 @@ function renderPanel() {
     '</div>' +
     rows.map(function(id) {
       var pin = pins[id];
-      return '<div class="panel-row" data-id="' + id + '">' +
-        '<div class="pin-dot" style="background:' + catColor(pin.cat) + '"></div>' +
+      var inner =
+        '<div class="pin-dot" style="background:' + catColor(pin.cat) + '" data-fly="' + id + '" title="Show on map"></div>' +
         '<div class="panel-row-text">' +
           '<div class="panel-row-name">' + esc(pin.name) + '</div>' +
           (pin.desc ? '<div class="panel-row-desc">' + esc(pin.desc) + '</div>' : '') +
-        '</div>' +
-      '</div>';
+        '</div>';
+      if (!pin.notes) {
+        return '<div class="panel-row" data-id="' + id + '">' + inner + '</div>';
+      }
+      // native disclosure: the row is the summary, notes collapse under it
+      return '<details class="panel-details" data-id="' + id + '"' + (expandedPins[id] ? ' open' : '') + '>' +
+        '<summary class="panel-row">' + inner + '</summary>' +
+        '<div class="panel-row-notes">' + mdNotes(pin.notes) + '</div>' +
+      '</details>';
     }).join('');
   }).join('');
 
-  list.querySelectorAll('.panel-row').forEach(function(row) {
+  // plain rows (no notes): click flies the map
+  list.querySelectorAll('.panel-row[data-id]').forEach(function(row) {
     row.onclick = function() { focusPin(row.getAttribute('data-id')); };
   });
+  // details rows: click toggles the disclosure AND highlights the pin
+  list.querySelectorAll('.panel-details summary').forEach(function(sum) {
+    sum.addEventListener('click', function() {
+      focusPin(sum.closest('.panel-details').getAttribute('data-id'));
+    });
+  });
+  // the category dot always flies, even inside a details summary
+  list.querySelectorAll('.pin-dot[data-fly]').forEach(function(dot) {
+    dot.onclick = function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      focusPin(dot.getAttribute('data-fly'));
+    };
+  });
+  // remember open/closed across rerenders
+  list.querySelectorAll('.panel-details').forEach(function(det) {
+    det.addEventListener('toggle', function() {
+      expandedPins[det.getAttribute('data-id')] = det.open;
+    });
+  });
+}
+var expandedPins = {};
+
+// notes are markdown: tables, lists and emphasis render properly
+function mdNotes(notes) {
+  if (window.marked) { try { return marked.parse(notes); } catch (e) {} }
+  return esc(notes);
 }
 
 function focusPin(id) {
@@ -361,7 +397,7 @@ function focusPin(id) {
   var marker = markers[id];
   if (!marker) return;
   openPopupAt([pin.lng, pin.lat],
-    popupDom(pin.name, pin.desc, pin.from, 'edit', function() { openPinForm(id); }));
+    popupDom(pin.name, pin.desc, pin.from, 'edit', function() { openPinForm(id); }, pin.notes));
   var el = marker.getElement();
   if (el) {
     el.classList.remove('pin-pulse');

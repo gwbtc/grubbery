@@ -17,33 +17,32 @@
 ++  parameters
   ^-  (map @t parameter-def:tools)
   %-  ~(gas by *(map @t parameter-def:tools))
-  :~  ['itinerary' [%string 'the itinerary id, e.g. my-trip']]
-      ['field' [%string '"pins" or "zones"']]
+  :~  ['field' [%string '"pins" or "zones"']]
       ['id' [%string 'the entry id, kebab-case, e.g. caffe-torino']]
       ['entry' [%string 'the pin or zone as a JSON object string']]
   ==
-++  required  ~['itinerary' 'field' 'id' 'entry']
+++  required  ~['field' 'id' 'entry']
 ++  handler
   ^-  tool-handler:tools
   =/  m  (fiber:fiber:nexus ,tool-result:tools)
   ^-  form:m
   ;<  st=tool-state:tools  bind:m  (get-state-as:io ,tool-state:tools)
   =/  deg  ~(deg jo:json-utils [%o args.st])
-  =/  itin=(unit @t)   (deg /itinerary so:dejs:format)
   =/  field=(unit @t)  (deg /field so:dejs:format)
   =/  eid=(unit @t)    (deg /id so:dejs:format)
   =/  entry=(unit @t)  (deg /entry so:dejs:format)
-  ?:  |(?=(~ itin) ?=(~ field) ?=(~ eid) ?=(~ entry))
+  ?:  |(?=(~ field) ?=(~ eid) ?=(~ entry))
     (pure:m [%error 'Missing required argument'])
   ?.  |(=('pins' u.field) =('zones' u.field))
     (pure:m [%error 'field must be "pins" or "zones"'])
   =/  ej=(unit json)  (de:json:html u.entry)
   ?~  ej  (pure:m [%error 'entry is not valid JSON'])
-  =/  fname=@ta  (crip "{(trip u.itin)}.json")
-  =/  doc-road  `road:tarball`[%& %& /apps/itinerary/itineraries fname]
+  ;<  dr=(unit road:tarball)  bind:m  trip-doc:tools
+  ?~  dr  (pure:m [%error 'not running inside a trip agent'])
+  =/  doc-road=road:tarball  u.dr
   ;<  fv=view:nexus  bind:m  (peek:io doc-road `[/ %json])
   ?.  ?=([%file *] fv)
-    (pure:m [%error (crip "No itinerary with id {(trip u.itin)}")])
+    (pure:m [%error (crip "No itinerary document in this trip")])
   =/  doc=json  (fall (mole |.(!<(json (need-vase:tarball sang.fv)))) *json)
   ?.  ?=([%o *] doc)
     (pure:m [%error 'Bad itinerary format'])
@@ -54,5 +53,5 @@
   =/  updated=json
     [%o (~(put by p.doc) u.field [%o (~(put by old) `@t`u.eid u.ej)])]
   ;<  ~  bind:m  (over:io doc-road [[/ %json] updated])
-  (pure:m [%text (crip "Wrote {(trip u.field)}/{(trip u.eid)} in {(trip u.itin)}")])
+  (pure:m [%text (crip "Wrote {(trip u.field)}/{(trip u.eid)}")])
 --

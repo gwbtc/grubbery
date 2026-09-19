@@ -170,6 +170,8 @@ class FileGrid extends HTMLElement {
       const lb = document.createElement('div');
       lb.className = 'lb';
       lb.textContent = this.#labelFn ? this.#labelFn(item) : item.name;
+      // the label clamps to two lines; hover shows the full name
+      el.title = item.name;
 
       el.append(gl, lb);
 

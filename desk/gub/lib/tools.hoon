@@ -369,6 +369,17 @@
   ^-  ?
   %-  ~(has in `(set @tas)`(sy ~[%json %txt %hoon %html %css %js %csv %xml %md %sig]))
   name
+::  +norm-mite: files uploaded before the multipart fix carry their
+::  content-type as ONE segment ('image/jpeg'); split it so the checks
+::  below see /image/jpeg. Already-split mites pass through.
+::
+++  norm-mite
+  |=  =mite
+  ^-  ^mite
+  ?.  ?=([@ ~] mite)  mite
+  =/  t=tape  (trip i.mite)
+  ?~  sl=(find "/" t)  mite
+  ~[(crip (scag u.sl t)) (crip (slag +(u.sl) t))]
 ::  Is this mime media type representable as text?
 ::
 ++  is-text-mime
@@ -401,6 +412,7 @@
 ++  render-mime
   |=  out=mime
   ^-  tool-result
+  =.  p.out  (norm-mite p.out)
   ?:  (is-text-mime p.out)
     [%text (crip (trip q.q.out))]
   ?:  (is-multimodal-mime p.out)

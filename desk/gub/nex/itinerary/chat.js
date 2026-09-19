@@ -13,8 +13,9 @@
   var ENDPOINT = '/grubbery/itinerary/chat';
   var HISTORY = '/grubbery/itinerary/history';
 
-  // one conversation per itinerary; the map page exposes the current id
-  function chatId() { return window.currentId || 'main'; }
+  // one agent (and one conversation) per itinerary; the map page exposes
+  // the current id. Empty when no trip is open — the server refuses then.
+  function chatId() { return window.currentId || ''; }
 
   // local mirror of the conversation, for rendering: [{role, content, trace}]
   var history = [];
@@ -230,7 +231,7 @@
   }
 
   function loadConfigValues() {
-    fetch('/grubbery/itinerary/config')
+    fetch('/grubbery/itinerary/config?chat=' + encodeURIComponent(chatId()))
       .then(function (r) { return r.json(); })
       .then(function (d) {
         var c = (d && d.config) || {};
@@ -254,6 +255,7 @@
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
+        chat: chatId(),
         system: cfgSys.value,
         model: cfgModel.value.trim(),
         max_tokens: parseInt(cfgMax.value, 10) || 1024,
@@ -339,7 +341,11 @@
   // manual interrupt: tell the agent to abort its current turn, and drop
   // our own in-flight request so the UI frees up immediately.
   function stop() {
-    fetch('/grubbery/itinerary/stop', { method: 'POST' }).catch(function () {});
+    fetch('/grubbery/itinerary/stop', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ chat: chatId() }),
+    }).catch(function () {});
     if (currentCtrl) currentCtrl.abort();
   }
 

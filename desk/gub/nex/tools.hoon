@@ -73,8 +73,8 @@
       =/  result-data=json
         (pairs:enjs:format ~[['type' s+'error'] ['message' s+(crip "crash\0a{(trip err-msg)}")]])
       (replace:io `tool-state:nex-tools`[tool.st args.st %done data.st `result-data])
-    ::  +get-dynamic-tools: every compiled tool, scanning root
-    ::  /code/lib/tools and each /apps/*/desk/code/lib/tools.
+    ::  +get-dynamic-tools: every compiled tool in this instance's own
+    ::  seeded /code/lib/tools — nothing else.
     ::
     ::  +scan-own: scan this instance's OWN /code/lib/tools (relative),
     ::  compiling each tool where its seeded deps resolve.
@@ -103,33 +103,10 @@
       =/  m  (fiber:fiber:nexus ,(map @t tool:nex-tools))
       ^-  form:m
       ::  a tools instance knows exactly one set of tools: its own seeded
-      ::  /code (else the root /code). Scanning /apps for app-shipped tools
-      ::  is an mcp affordance, not this engine's.
-      ;<  own=(map @t tool:nex-tools)  bind:m  (scan-own rail)
-      ?.  =(~ own)  (pure:m own)
-      (scan-namespace /code/lib/tools)
-    ::
-    ++  scan-namespace
-      |=  root=path
-      =/  m  (fiber:fiber:nexus ,(map @t tool:nex-tools))
-      ^-  form:m
-      ;<  src-view=view:nexus  bind:m
-        (peek:io [%& %| root] ~)
-      ?.  ?=([%ball *] src-view)
-        (pure:m ~)
-      =/  pairs=(list [sub=path file=@ta])
-        (ball-code-files ~ ball.src-view)
-      =/  result=(map @t tool:nex-tools)  ~
-      |-
-      ?~  pairs  (pure:m result)
-      =/  [sub=path file=@ta]  i.pairs
-      ;<  res=built:nexus  bind:m
-        (get-code-full:io [%& %& (weld root sub) (strip-hoon:nex-tools file)])
-      ?.  ?=(%vase -.res)  $(pairs t.pairs)
-      =/  got=(each tool:nex-tools tang)
-        (mule |.(!<(tool:nex-tools vase.res)))
-      ?.  ?=(%& -.got)  $(pairs t.pairs)
-      $(pairs t.pairs, result (~(put by result) (derive-name:nex-tools sub file) p.got))
+      ::  /code. No fallback to root /code — what the host seeded is what
+      ::  you get; falling back is a /code-level mar/nex affordance, not
+      ::  this engine's. Scanning /apps for app-shipped tools is mcp's.
+      (scan-own rail)
     ::  +ball-code-files: every file in a ball, with its subpath
     ::
     ++  ball-code-files
@@ -141,49 +118,36 @@
       %+  roll  ~(tap by dir.bal)
       |=  [[nam=@ta kid=ball:tarball] acc=_here]
       (weld acc (ball-code-files (snoc sub nam) kid))
-    ::  +await-tool: look up a compiled tool handler by name (or by an
-    ::  absolute /-prefixed source location in any code namespace).
+    ::  +await-tool: look up a compiled tool handler by name in this
+    ::  instance's own seeded /code (or by an absolute /-prefixed source
+    ::  location — an explicit address, which the weir governs). No
+    ::  fallback anywhere: a tool that fails to build reports its build
+    ::  tang as the run's error, never a lookup elsewhere.
     ::
     ++  await-tool
       |=  [=rail:tarball tool-name=@t]
       =/  m  (fiber:fiber:nexus ,(each tool:nex-tools tang))
       ^-  form:m
-      ::  own seeded /code first (deps resolve there); else fall through.
-      =/  [own-sub=path own-arm=@ta]  (name-to-place:nex-tools tool-name)
-      ;<  own=built:nexus  bind:m
-        %-  get-code-full:io
-        (nex-road:io rail [%& (weld /code/lib/tools own-sub) own-arm])
-      =/  own-tool=(unit tool:nex-tools)
-        ?.  ?=(%vase -.own)  ~
-        =/  g=(each tool:nex-tools tang)  (mule |.(!<(tool:nex-tools vase.own)))
-        ?:(?=(%& -.g) `p.g ~)
-      ?^  own-tool  (pure:m [%& u.own-tool])
-      ?:  =('/' (end 3 tool-name))
+      =/  road=(each road:tarball tang)
+        ?.  =('/' (end 3 tool-name))
+          =/  [sub=path arm=@ta]  (name-to-place:nex-tools tool-name)
+          [%& (nex-road:io rail [%& (weld /code/lib/tools sub) arm])]
         =/  pax=(unit path)  (rush tool-name stap)
         ?:  |(?=(~ pax) ?=(~ u.pax))
-          (pure:m [%| ~[leaf+"bad tool path: {(trip tool-name)}"]])
-        ;<  got=(unit tool:nex-tools)  bind:m
-          (try-compile (snip `path`u.pax) (rear u.pax))
-        ?^  got  (pure:m [%& u.got])
-        (pure:m [%| ~[leaf+"no tool at {(trip tool-name)}"]])
-      =/  [sub=path arm=@ta]  (name-to-place:nex-tools tool-name)
-      ;<  got=(unit tool:nex-tools)  bind:m
-        (try-compile (weld /code/lib/tools sub) arm)
-      ?^  got  (pure:m [%& u.got])
-      (pure:m [%| ~[leaf+"tool not found: {(trip tool-name)}"]])
-    ::
-    ++  try-compile
-      |=  [code-path=path file-name=@ta]
-      =/  m  (fiber:fiber:nexus ,(unit tool:nex-tools))
-      ^-  form:m
-      ;<  res=built:nexus  bind:m  (get-code-full:io [%& %& code-path file-name])
-      ?.  ?=(%vase -.res)
-        (pure:m ~)
-      =/  got=(each tool:nex-tools tang)
-        (mule |.(!<(tool:nex-tools vase.res)))
-      ?.  ?=(%& -.got)
-        (pure:m ~)
-      (pure:m `p.got)
+          [%| ~[leaf+"bad tool path: {(trip tool-name)}"]]
+        [%& [%& %& (snip `path`u.pax) (rear u.pax)]]
+      ?:  ?=(%| -.road)  (pure:m road)
+      ;<  res=built:nexus  bind:m  (get-code-full:io p.road)
+      ?-    -.res
+          %tang
+        (pure:m [%| [leaf+"tool {(trip tool-name)} failed to build:" tang.res]])
+          %mime
+        (pure:m [%| ~[leaf+"tool {(trip tool-name)} is not hoon source"]])
+          %vase
+        =/  got=(each tool:nex-tools tang)  (mule |.(!<(tool:nex-tools vase.res)))
+        ?:  ?=(%& -.got)  (pure:m [%& p.got])
+        (pure:m [%| [leaf+"tool {(trip tool-name)} is not a tool:" p.got]])
+      ==
     --
 ^-  nexus:nexus
 |%
@@ -198,7 +162,7 @@
       [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
       [%fall %| /runs empty-dir:loader]
       ::  /code: this instance's own code nexus (seeded by the host with
-      ::  a tool bundle). Scanned first; falls back to root /code if empty.
+      ::  a tool bundle). The only place tools come from — no fallback.
       [%fall %| /code [`[`[/ %code] ~ %.n ~] ~]]
   ==
 ::

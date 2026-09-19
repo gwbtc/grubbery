@@ -1,30 +1,26 @@
 /<  tools  /lib/tools.hoon
-::  read_itinerary: return one itinerary document (pins, zones, categories)
-::  as JSON text.
+::  read_itinerary: return this trip's itinerary document (pins, zones,
+::  categories, schedule, todos) as JSON text. The trip is the one the
+::  agent lives in — there is no other.
 ::
 !:
 ^-  tool:tools
 |%
 ++  name  'read_itinerary'
-++  description  'Read one itinerary document in full by id (e.g. "my-trip"). Returns its JSON: name, center, zoom, categories, pins, zones.'
+++  description  'Read the itinerary document in full. Returns its JSON: name, desc, dates, tz, center, zoom, categories, pins, zones, schedule, todos.'
 ++  parameters
   ^-  (map @t parameter-def:tools)
-  %-  ~(gas by *(map @t parameter-def:tools))
-  :~  ['id' [%string 'the itinerary id, e.g. my-trip']]
-  ==
-++  required  ~['id']
+  ~
+++  required  ~
 ++  handler
   ^-  tool-handler:tools
   =/  m  (fiber:fiber:nexus ,tool-result:tools)
   ^-  form:m
-  ;<  st=tool-state:tools  bind:m  (get-state-as:io ,tool-state:tools)
-  =/  id=(unit @t)  (~(deg jo:json-utils [%o args.st]) /id so:dejs:format)
-  ?~  id  (pure:m [%error 'Missing required argument: id'])
-  =/  fname=@ta  (crip "{(trip u.id)}.json")
-  ;<  fv=view:nexus  bind:m
-    (peek:io [%& %& /apps/itinerary/itineraries fname] `[/ %json])
+  ;<  dr=(unit road:tarball)  bind:m  trip-doc:tools
+  ?~  dr  (pure:m [%error 'not running inside a trip agent'])
+  ;<  fv=view:nexus  bind:m  (peek:io u.dr `[/ %json])
   ?.  ?=([%file *] fv)
-    (pure:m [%error (crip "No itinerary with id {(trip u.id)}")])
+    (pure:m [%error 'No itinerary document in this trip'])
   =/  jon=json  (fall (mole |.(!<(json (need-vase:tarball sang.fv)))) *json)
   (pure:m [%text (en:json:html jon)])
 --

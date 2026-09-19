@@ -1,6 +1,7 @@
 ::  itinerary nexus: travel maps with pins, zones and metadata
+::  (respin: details rows also fly/pulse the pin on click)
 ::
-::  Per trip — a single JSON document under /itineraries/.
+::  Per trip — a dir under /itineraries/: itinerary.json + files/.
 ::  The backend handles pin and zone CRUD by modifying the document
 ::  server-side, behind the eyre boundary.
 ::
@@ -11,12 +12,18 @@
 /&  icon        itinerary/icon.svg
 /<  chat-js     itinerary/chat.js
 /<  chat-css    itinerary/chat.css
+/<  files-js    itinerary/files.js
 /<  marked-js   itinerary/marked.min.js
 ::  shared web components from /lib/ui (see web-test.hoon for the pattern)
 /&  sv-js       /lib/ui/split-view.js
 /&  tg-js       /lib/ui/tab-group.js
 /&  dm-js       /lib/ui/drop-menu.js
 /&  md-js       /lib/ui/modal-dialog.js
+/&  ft-js       /lib/ui/file-table.js
+/&  fg-js       /lib/ui/file-grid.js
+::  classic-script preview surface (svg/html/json/image/pdf) for the
+::  Files tab viewer — served separately, not welded (it isn't a module)
+/&  fp-js       /lib/ui/file-preview.js
 =<  ^-  nexus:nexus
     |%
     ++  on-load
@@ -30,7 +37,7 @@
       =/  kit-js=mime
         :-  /application/javascript
         %-  as-octs:mimes:html
-        (rap 3 ~[(wrap sv-js) (wrap tg-js) (wrap dm-js) (wrap md-js)])
+        (rap 3 ~[(wrap sv-js) (wrap tg-js) (wrap dm-js) (wrap md-js) (wrap ft-js) (wrap fg-js)])
       =/  tile=json
         %-  pairs:enjs:format
         :~  title+s+'Itinerary'
@@ -53,14 +60,16 @@
           [%over %& [/ %'style.css'] [[/ %mime] style-css]]
           [%fall %| /ui empty-dir:loader]
           [%over %& [/ui %'components.js'] [[/ %mime] kit-js]]
+          [%over %& [/ui %'file-preview.js'] [[/ %mime] fp-js]]
           [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
           [%fall %| /requests empty-dir:loader]
+          ::  /itineraries/<id>/ is a trip: itinerary.json (the doc) and
+          ::  files/ (attachments, managed via the explorer's list/POST
+          ::  endpoints and the agent's file tools). One dir per trip, so
+          ::  one grant covers everything per-trip and delete is one cull.
           [%fall %| /itineraries empty-dir:loader]
-          ::  the itinerary agent: a contained, sandboxed chatbot nexus
-          ::  (code at nex/itinerary/agent.hoon), following the docs-agent
-          ::  pattern. Its weir grants it the itineraries documents and the
-          ::  metered anthropic proxy — nothing else.
-          [%fall %| /agent [`[`[/itinerary %agent] `agent-weir %.n ~] ~]]
+          ::  no shared agent: every trip dir carries its own sandboxed
+          ::  agent at /itineraries/<id>/agent (mounted by +ensure-trip)
       ==
     ::
     ++  on-file
@@ -109,6 +118,8 @@
         ::
         ?:  ?&(=(%'GET' method) =([%ui %'components.js' ~] suffix))
           (serve-file eyre-id /ui 'components.js')
+        ?:  ?&(=(%'GET' method) =([%ui %'file-preview.js' ~] suffix))
+          (serve-file eyre-id /ui 'file-preview.js')
         ::
         ::  GET /api/list — list all itineraries
         ::
@@ -182,6 +193,11 @@
           ;<  ~  bind:m
             (send-simple:srv eyre-id [[200 ~[['content-type' 'text/css']]] `q.chat-css])
           (pure:m ~)
+        ::  files tab: explorer-scrap file manager scoped to the trip's files/
+        ?:  ?=([%'files.js' ~] suffix)
+          ;<  ~  bind:m
+            (send-simple:srv eyre-id [[200 ~[['content-type' 'text/javascript']]] `q.files-js])
+          (pure:m ~)
         ?:  ?=([%'marked.min.js' ~] suffix)
           ;<  ~  bind:m
             (send-simple:srv eyre-id [[200 ~[['content-type' 'text/javascript']]] `q.marked-js])
@@ -193,19 +209,21 @@
           =/  jon=json
             (fall (de:json:html ?~(body.request.req '' q.u.body.request.req)) *json)
           =/  msg=@t  (fall (jget jon 'message') '')
-          =/  chat=@t  =/(c (fall (jget jon 'chat') '') ?:(=('' c) 'main' c))
-          ;<  [reply=@t trace=json parts=json]  bind:m  (ask-agent rail msg chat)
+          =/  chat=@t  (fall (jget jon 'chat') '')
+          ?:  =('' chat)
+            ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'no itinerary selected')])
+            (pure:m ~)
+          ;<  ~  bind:m  (ensure-trip chat)
+          ;<  [reply=@t trace=json parts=json]  bind:m  (ask-agent chat msg)
           (send-json eyre-id (en:json:html (pairs:enjs:format ~[['reply' s+reply] ['trace' trace] ['parts' parts]])))
         ::
         ::  GET /history → the stored conversation from the agent's chat.json
         ::
         ?:  ?=([%history ~] suffix)
-          =/  chat=@t
-            =/  c=@t  (fall (~(get by (malt args)) 'chat') '')
-            ?:(=('' c) 'main' c)
-          =/  chat-road=road:tarball
-            (nex-road:io rail [%& /agent/chats (crip "{(trip chat)}.json")])
-          ;<  fv=view:nexus  bind:m  (peek:io chat-road `[/ %json])
+          =/  chat=@t  (fall (~(get by (malt args)) 'chat') '')
+          ?:  =('' chat)  (send-json eyre-id '[]')
+          ;<  fv=view:nexus  bind:m
+            (peek:io (agent-road chat [%& /chats %'main.json']) `[/ %json])
           =/  conv=json
             ?.  ?=([%file *] fv)  [%a ~]
             (fall (mole |.(!<(json (need-vase:tarball sang.fv)))) [%a ~])
@@ -216,20 +234,25 @@
         ?:  &(=('POST' method) ?=([%clear ~] suffix))
           =/  jon=json
             (fall (de:json:html ?~(body.request.req '' q.u.body.request.req)) *json)
-          =/  chat=@t  =/(c (fall (jget jon 'chat') '') ?:(=('' c) 'main' c))
+          =/  chat=@t  (fall (jget jon 'chat') '')
+          ?:  =('' chat)  (send-json eyre-id '{"ok":false}')
           ;<  ~  bind:m
             %-  poke:io
-            :+  (nex-road:io rail [%& /agent %'main.sig'])
+            :+  (agent-road chat [%& / %'main.sig'])
               [/ %json]
-            (pairs:enjs:format ~[['action' s+'clear'] ['chat' s+chat]])
+            (pairs:enjs:format ~[['action' s+'clear'] ['chat' s+'main']])
           (send-json eyre-id '{"ok":true}')
         ::
         ::  POST /stop → interrupt the agent's current turn
         ::
         ?:  &(=('POST' method) ?=([%stop ~] suffix))
+          =/  jon=json
+            (fall (de:json:html ?~(body.request.req '' q.u.body.request.req)) *json)
+          =/  chat=@t  (fall (jget jon 'chat') '')
+          ?:  =('' chat)  (send-json eyre-id '{"ok":false}')
           ;<  ~  bind:m
             %-  poke:io
-            :+  (nex-road:io rail [%& /agent %'main.sig'])
+            :+  (agent-road chat [%& / %'main.sig'])
               [/ %json]
             (pairs:enjs:format ~[['action' s+'interrupt']])
           (send-json eyre-id '{"ok":true}')
@@ -240,29 +263,35 @@
           =/  jon=json
             (fall (de:json:html ?~(body.request.req '' q.u.body.request.req)) *json)
           =/  po=(map @t json)  ?:(?=([%o *] jon) p.jon ~)
+          =/  chat=@t  (fall (jget jon 'chat') '')
+          ?:  =('' chat)  (send-json eyre-id '{"ok":false}')
+          ;<  ~  bind:m  (ensure-trip chat)
           =/  sys=@t    (fall (jget jon 'system') '')
           =/  model=@t  =/(mo=@t (fall (jget jon 'model') '') ?:(=('' mo) 'claude-sonnet-4-6' mo))
           =/  mt=json   (fall (~(get by po) 'max_tokens') [%n '1024'])
           ;<  ~  bind:m
             %-  over:io
-            :-  (nex-road:io rail [%& /agent %'system.md'])
+            :-  (agent-road chat [%& / %'system.md'])
             [[/ %mime] [/text/markdown (as-octs:mimes:html sys)]]
           ;<  ~  bind:m
             %-  over:io
-            :-  (nex-road:io rail [%& /agent %'config.json'])
+            :-  (agent-road chat [%& / %'config.json'])
             [[/ %json] (pairs:enjs:format ~[['model' s+model] ['max_tokens' mt]])]
           (send-json eyre-id '{"ok":true}')
         ::
         ::  GET /config → the agent's current prompt + model config
         ::
         ?:  ?=([%config ~] suffix)
+          =/  chat=@t  (fall (~(get by (malt args)) 'chat') '')
+          ?:  =('' chat)  (send-json eyre-id '{}')
+          ;<  ~  bind:m  (ensure-trip chat)
           ;<  sv=view:nexus  bind:m
-            (peek:io (nex-road:io rail [%& /agent %'system.md']) `[/ %mime])
+            (peek:io (agent-road chat [%& / %'system.md']) `[/ %mime])
           =/  sys=@t
             ?.  ?=([%file *] sv)  ''
             `@t`q.q:!<(mime (need-vase:tarball sang.sv))
           ;<  cv=view:nexus  bind:m
-            (peek:io (nex-road:io rail [%& /agent %'config.json']) `[/ %json])
+            (peek:io (agent-road chat [%& / %'config.json']) `[/ %json])
           =/  cfg=json
             ?.  ?=([%file *] cv)  [%o ~]
             (fall (mole |.(!<(json (need-vase:tarball sang.cv)))) [%o ~])
@@ -277,10 +306,44 @@
 |%
 ++  srv  ~(. http-res:io [%| 1 %& ~ %'main.sig'])
 ::
+::  a trip is the dir /itineraries/<id>/; its doc is itinerary.json inside
+++  itin-dir
+  |=  itin-id=@ta
+  ^-  road:tarball
+  [%| 1 %| (snoc `path`/itineraries itin-id)]
 ++  itin-road
   |=  itin-id=@ta
   ^-  road:tarball
-  [%| 1 %& /itineraries (cat 3 itin-id '.json')]
+  [%| 1 %& (snoc `path`/itineraries itin-id) %'itinerary.json']
+::  the trip's own agent lives at /itineraries/<id>/agent
+++  agent-path
+  |=  itin-id=@ta
+  ^-  path
+  (weld (snoc `path`/itineraries itin-id) `path`/agent)
+++  agent-road
+  |=  [itin-id=@ta =lane:tarball]
+  ^-  road:tarball
+  ?-  -.lane
+    %&  [%| 1 %& (weld (agent-path itin-id) path.p.lane) name.p.lane]
+    %|  [%| 1 %| (weld (agent-path itin-id) p.lane)]
+  ==
+::  +agent-bole: a fresh agent mount — the agent nexus under its weir
+++  agent-bole
+  ^-  bole:tarball
+  [`[`[/itinerary %agent] `agent-weir %.n ~] ~]
+::  +ensure-trip: the trip dir and its agent exist. Idempotent; called
+::  before any write or chat so pre-agent trips get their agent lazily.
+++  ensure-trip
+  |=  itin-id=@ta
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  ;<  dv=view:nexus  bind:m  (peek:io (itin-dir itin-id) ~)
+  ?.  ?=([%ball *] dv)
+    %+  make:io  (itin-dir itin-id)
+    &+[`[~ ~ %.n ~] (malt ~[[%agent agent-bole]])]
+  ;<  av=view:nexus  bind:m  (peek:io (agent-road itin-id [%| /]) ~)
+  ?:  ?=([%ball *] av)  (pure:m ~)
+  (make:io (agent-road itin-id [%| /]) &+agent-bole)
 ::
 ++  serve-file
   |=  [eyre-id=@ta dir=path filename=@ta]
@@ -306,13 +369,6 @@
   ?~  body.request.req  ~
   (de:json:html q.u.body.request.req)
 ::
-++  strip-ext
-  |=  name=@ta
-  ^-  @t
-  =/  parts=(list tape)  (rash name (more dot (star ;~(less dot prn))))
-  ?~  parts  name
-  (crip i.parts)
-::
 ::  +load-itinerary: read an itinerary file, return its json
 ::
 ++  load-itinerary
@@ -333,6 +389,7 @@
   |=  [itin-id=@ta jon=json]
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
+  ;<  ~  bind:m  (ensure-trip itin-id)
   (over:io (itin-road itin-id) [[/ %json] jon])
 ::
 ::  +list-itineraries: return [{id, name}, ...] for all itineraries
@@ -345,24 +402,24 @@
   ?.  ?=([%ball *] dir-view)
     ;<  ~  bind:m  (send-json eyre-id '[]')
     (pure:m ~)
-  =/  =lump:tarball  (fall fil.ball.dir-view *lump:tarball)
-  =/  entries=(list json)
-    %+  murn  ~(tap by contents.lump)
-    |=  [name=@ta =sang:tarball gain=? bang=(unit tang)]
-    ?.  =(%json name.p.sang)  ~
-    ?:  (is-boom:tarball sang)  ~
-    =/  jon=(unit json)  (mole |.(!<(json (need-vase:tarball sang))))
-    ?~  jon  ~
-    =/  id=@t  (strip-ext name)
-    =/  itin-name=@t
-      ?.  ?=([%o *] u.jon)  id
-      =/  n=(unit json)  (~(get by p.u.jon) 'name')
-      ?~  n  id
-      ?.  ?=([%s @] u.n)  id
-      p.u.n
-    `(pairs:enjs:format ~[['id' s+id] ['name' s+itin-name]])
-  ;<  ~  bind:m  (send-json eyre-id (en:json:html a+entries))
-  (pure:m ~)
+  ::  every subdir is a trip; read each doc for its display name
+  =/  ids=(list @ta)  (sort ~(tap in ~(key by dir.ball.dir-view)) aor)
+  =|  entries=(list json)
+  |-
+  ?~  ids
+    ;<  ~  bind:m  (send-json eyre-id (en:json:html a+(flop entries)))
+    (pure:m ~)
+  ;<  jon=(unit json)  bind:m  (load-itinerary i.ids)
+  ?~  jon  $(ids t.ids)
+  =/  id=@t  i.ids
+  =/  itin-name=@t
+    ?.  ?=([%o *] u.jon)  id
+    =/  n=(unit json)  (~(get by p.u.jon) 'name')
+    ?~  n  id
+    ?.  ?=([%s @] u.n)  id
+    p.u.n
+  =/  entry=json  (pairs:enjs:format ~[['id' s+id] ['name' s+itin-name]])
+  $(ids t.ids, entries [entry entries])
 ::
 ::  +get-itinerary: return full itinerary document
 ::
@@ -374,6 +431,8 @@
   ?~  jon
     ;<  ~  bind:m  (send-simple:srv eyre-id [[404 ~] `(as-octs:mimes:html 'Not found')])
     (pure:m ~)
+  ::  opening a trip is the moment a pre-agent trip gets its agent
+  ;<  ~  bind:m  (ensure-trip itin-id)
   ;<  ~  bind:m  (send-json eyre-id (en:json:html u.jon))
   (pure:m ~)
 ::
@@ -391,13 +450,13 @@
   ;<  ~  bind:m  (send-simple:srv eyre-id [[200 ~] `(as-octs:mimes:html 'ok')])
   (pure:m ~)
 ::
-::  +del-itinerary: delete itinerary file
+::  +del-itinerary: delete the trip — doc and attachments, one dir
 ::
 ++  del-itinerary
   |=  [eyre-id=@ta itin-id=@ta]
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
-  ;<  *  bind:m  (cull-soft:io (itin-road itin-id))
+  ;<  *  bind:m  (cull-soft:io (itin-dir itin-id))
   ;<  ~  bind:m  (send-simple:srv eyre-id [[200 ~] `(as-octs:mimes:html 'ok')])
   (pure:m ~)
 ::
@@ -450,23 +509,26 @@
   ;<  ~  bind:m  (save-itinerary itin-id updated)
   ;<  ~  bind:m  (send-json eyre-id (en:json:html updated))
   (pure:m ~)
-::  agent-weir: THE SANDBOX. The complete external reach we grant the
-::  itinerary agent when we mount it — the kernel refuses everything else.
-::    make: the itineraries documents (the tools write pins/zones)
-::    poke: bowl.sig (time + entropy), the proxy's main.sig
-::    peek: the itineraries documents, proxy calls
+::  agent-weir: THE SANDBOX. The complete external reach we grant a
+::  trip's agent when we mount it — the kernel refuses everything else.
+::  The agent sits at /itineraries/<id>/agent, so "one dir up" is the
+::  trip itself: its doc, its files/, and the agent's own subtree.
+::    make: the trip dir (tools write the doc and attachments)
+::    poke: bowl.sig (time + entropy), the proxies' main.sig
+::    peek: the trip dir, proxy calls
 ++  agent-weir
   ^-  weir:tarball
+  =/  trip  `road:tarball`[%| 1 %| /]
   =/  dir  |=(p=path `road:tarball`[%& %| p])
   =/  fil  |=([p=path n=@ta] `road:tarball`[%& %& p n])
-  :*  make=(sy ~[(dir /apps/itinerary/itineraries)])
+  :*  make=(sy ~[trip])
       %-  sy
       :~  (fil /sys 'bowl.sig')
           (fil /apps/'anthropic.anthropic' 'main.sig')
           (fil /apps/'geocode.geocode' 'main.sig')
       ==
       %-  sy
-      :~  (dir /apps/itinerary/itineraries)
+      :~  trip
           (dir /apps/'anthropic.anthropic'/calls)
           (dir /apps/'geocode.geocode'/calls)
       ==
@@ -475,18 +537,16 @@
 ::  the conversation grub, poke the agent's main.sig, await its assistant
 ::  write, and return the reply + trace.
 ++  ask-agent
-  |=  [=rail:tarball message=@t chat=@t]
+  |=  [itin-id=@ta message=@t]
   =/  m  (fiber:fiber:nexus ,[reply=@t trace=json parts=json])
   ^-  form:m
-  =/  chat-road=road:tarball
-    (nex-road:io rail [%& /agent/chats (crip "{(trip chat)}.json")])
-  =/  main-road=road:tarball
-    (nex-road:io rail [%& /agent %'main.sig'])
+  =/  chat-road=road:tarball  (agent-road itin-id [%& /chats %'main.json'])
+  =/  main-road=road:tarball  (agent-road itin-id [%& / %'main.sig'])
   ;<  *  bind:m  (keep:io /agent chat-road ~)
   ;<  ~  bind:m
     %-  poke:io
     :+  main-road  [/ %json]
-    (pairs:enjs:format ~[['message' s+message] ['chat' s+chat]])
+    (pairs:enjs:format ~[['message' s+message] ['chat' s+'main']])
   ;<  conv=json  bind:m  (await-agent chat-road)
   ;<  ~  bind:m  (drop:io /agent chat-road)
   =/  msgs=(list json)  ?.(?=([%a *] conv) ~ p.conv)

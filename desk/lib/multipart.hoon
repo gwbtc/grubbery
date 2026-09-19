@@ -113,7 +113,13 @@
   ?~  rest  `[name file typ cod bod]
   =/  line=tape  i.rest
   =?  typ  &(?=(~ typ) ?=(^ (find "Content-Type: " line)))
-    (rush (crip (slag 14 line)) (more fas (cook (cury rap 3) (plus qit))))
+    ::  "image/jpeg" -> /image/jpeg. qit matches '/' too, so the segment
+    ::  parser must stop at fas or the whole type lands in ONE segment
+    ::  (which every mime check downstream then misreads as unknown).
+    ::  A trailing "; charset=..." is dropped.
+    =/  ct=tape  (slag 14 line)
+    =/  ct  ?~(sc=(find ";" ct) ct (scag u.sc ct))
+    (rush (crip ct) (more fas (cook (cury rap 3) (plus ;~(less fas qit)))))
   =?  cod  &(?=(~ cod) ?=(^ (find "Content-Transfer-Encoding: " line)))
     `(crip (slag 27 line))
   $(rest t.rest)
