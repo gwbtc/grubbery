@@ -1,4 +1,5 @@
 ::  git/forge: the single UI over git repo instances. Repos live under
+::  (respin: single expand/collapse-all toggle, label = pending action)
 ::  /repos/<name>.git_repo; forge creates them, reads their state,
 ::  and drives their actions by poking. Transport stays in /git/repo —
 ::  this is the visibility layer.
@@ -18,12 +19,15 @@
 /&  forge-js    forge/app.js
 /&  forge-css   forge/style.css
 /&  todo        /lib/todo.md
+::  the self-hosting development flow, materialized like TODO.md
+/&  ratchet-md  forge/ratchet.md
 ::  web-component kit: shared sources in /lib/ui (one copy for all nexuses),
 ::  welded into one components.js bundle in on-load so a page makes a single
 ::  request (no staggered per-file "flash-in").
 /&  modal-js    /lib/ui/modal-dialog.js
 /&  dropmenu-js  /lib/ui/drop-menu.js
 /&  splitview-js  /lib/ui/split-view.js
+/&  tabgroup-js  /lib/ui/tab-group.js
 ::  shared classic helper (window.FilePreview) — loaded before app.js
 /&  fp-js       /lib/ui/file-preview.js
 /<  nex-tools   /lib/tools.hoon
@@ -47,7 +51,7 @@
       =/  wrap  |=(=mime ^-(@ (rap 3 ~[123 10 q.q.mime 10 125 10])))
       =/  kit-js=mime
         :-  /application/javascript
-        (as-octs:mimes:html (rap 3 ~[(wrap modal-js) (wrap dropmenu-js) (wrap splitview-js)]))
+        (as-octs:mimes:html (rap 3 ~[(wrap modal-js) (wrap dropmenu-js) (wrap splitview-js) (wrap tabgroup-js)]))
       %+  spin:loader  ball
       :~  (manifest:loader 0)
           [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
@@ -63,6 +67,8 @@
           [%over %& [/ %'app.js'] [[/ %mime] forge-js]]
           ::  the nexus backlog, materialized like README — browsable at root
           [%over %& [/ %'TODO.md'] [[/ %mime] todo]]
+          ::  the ratchet: how grubbery develops itself from in-ship
+          [%over %& [/ %'RATCHET.md'] [[/ %mime] ratchet-md]]
           [%over %& [/ %'style.css'] [[/ %mime] forge-css]]
           [%over %& [/ %'components.js'] [[/ %mime] kit-js]]
           [%over %& [/ %'file-preview.js'] [[/ %mime] fp-js]]
@@ -114,6 +120,8 @@
           ;<  cur=(unit json)  bind:m
             (peek-as:io (nex-road:io rail [%& / %'defaults.json']) ,json)
           (send-json rail eyre-id (fall cur ~))
+        ?:  ?=([%api %stock ~] suffix)
+          (send-json rail eyre-id stock-repos)
         ?:  ?=([%api %list ~] suffix)
           ;<  lst=json  bind:m  (gather-repos rail)
           (send-json rail eyre-id lst)
@@ -158,6 +166,22 @@
       ==
     --
 |%
+::  +stock-repos: the house catalog — one-click clones surfaced on the
+::  landing page. Names here become <name>.git_repo instances; do-add
+::  handles the rest exactly as if typed into the create form.
+++  stock-repos
+  ^-  json
+  =/  entry
+    |=  [name=@t repo=@t desc=@t]
+    ^-  json
+    %-  pairs:enjs:format
+    :~  ['name' s+name]  ['repo' s+repo]  ['ref' s+'main']  ['desc' s+desc]
+    ==
+  :-  %a
+  :~  (entry 'grubbery' 'gwbtc/grubbery' 'grubbery itself — kernel + desk. The self-hosting ratchet: see RATCHET.md')
+      (entry 'wallet' 'niblyx-malnus/wallet-nexus' 'the wallet nexus')
+      (entry 'contacts' 'niblyx-malnus/contacts-nexus' 'the contacts nexus')
+  ==
 ++  jstr
   |=  [j=json k=@t]
   ^-  @t

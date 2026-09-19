@@ -103,7 +103,25 @@ function renderMode() {
   Array.prototype.forEach.call(document.querySelectorAll('.mode-tab'), function(t) {
     t.classList.toggle('active', t.getAttribute('data-mode') === mode);
   });
-  document.getElementById('sb-head').textContent = 'files';
+  var sbh = document.getElementById('sb-head');
+  sbh.innerHTML = 'files' +
+    '<span class="ft-all"><button id="ft-toggle" title="expand/collapse all"></button></span>';
+  var setAll = function(open) {
+    loadTreeState();
+    var walk = function(node, here) {
+      Object.keys(node.dirs).forEach(function(name) {
+        treeState[here + name + '/'] = open;
+        walk(node.dirs[name], here + name + '/');
+      });
+    };
+    walk(buildTree(tree), '');
+    saveTreeState();
+    renderFiles();
+  };
+  document.getElementById('ft-toggle').onclick = function() {
+    // the label is the action about to happen
+    setAll(document.getElementById('ft-toggle').textContent === 'expand all');
+  };
   document.getElementById('ft-new').style.display = editorish ? 'flex' : 'none';
   document.getElementById('ft-new-name').placeholder = 'path/to/new-file.md';
   if (mode === 'settings') { renderSettings(); }
@@ -165,9 +183,43 @@ function loadRepos() {
   get('/list').then(function(rs) {
     repos = rs;
     renderLanding();
+    renderStock();
     renderRepoMenu();
     renderTopbar();
   });
+}
+// ── stock repos: the house catalog, one-click clone ──
+var stock = null;
+function renderStock() {
+  var grid = document.getElementById('stock-grid');
+  if (!grid) return;
+  var draw = function() {
+    var have = {};
+    repos.forEach(function(r) { have[shortName(r.name)] = true; });
+    grid.innerHTML = stock.map(function(s) {
+      var action = have[s.name]
+        ? '<span class="stock-have">cloned ✓</span>'
+        : '<button class="hdr-btn stock-clone" data-name="' + esc(s.name) + '">clone</button>';
+      return '<div class="repo-row stock-row' + (have[s.name] ? ' have' : '') + '" data-stock="' + esc(s.name) + '">' +
+        '<span class="rr-name">' + esc(s.name) + '</span>' +
+        '<span class="rr-origin">' + esc(s.repo) + '</span>' +
+        '<span class="chip">' + esc(s.ref) + '</span>' +
+        '<span class="rr-last">' + esc(s.desc || '') + '</span>' +
+        action +
+        '</div>';
+    }).join('');
+    Array.prototype.forEach.call(grid.querySelectorAll('.stock-clone'), function(btn) {
+      btn.onclick = function() {
+        var s = stock.find(function(x) { return x.name === btn.getAttribute('data-name'); });
+        if (!s) return;
+        btn.disabled = true;
+        btn.textContent = 'cloning…';
+        post('/add', { name: s.name, repo: s.repo, ref: s.ref }).then(loadRepos);
+      };
+    });
+  };
+  if (stock) return draw();
+  get('/stock').then(function(s) { stock = s || []; draw(); });
 }
 function enterRepo(name) {
   if (name === selected) return;
@@ -280,19 +332,43 @@ function buildTree(paths) {
   });
   return root;
 }
+// open/closed dir state, per repo, survives the poll's rerenders
+// (and page reloads — localStorage). Default open; only an explicit
+// collapse is remembered as closed.
+var treeState = {};
+function treeKey() { return 'forge-tree:' + selected; }
+function loadTreeState() {
+  try { treeState = JSON.parse(localStorage.getItem(treeKey())) || {}; }
+  catch (e) { treeState = {}; }
+}
+function saveTreeState() {
+  try { localStorage.setItem(treeKey(), JSON.stringify(treeState)); } catch (e) {}
+}
 // render dirs as collapsible <details>, files as .ft-file rows (unchanged behavior)
-function renderNode(parent, node, rootName) {
+function renderNode(parent, node, rootName, here) {
+  here = here || '';
   Object.keys(node.dirs).sort().forEach(function(name) {
+    var dirPath = here + name + '/';
     var det = document.createElement('details');
-    det.open = true;
+    // fully collapsed by default — only a recorded open stays open
+    det.open = treeState[dirPath] === true;
     det.className = 'ft-dir-det';
+    det.addEventListener('toggle', function() {
+      treeState[dirPath] = det.open;
+      saveTreeState();
+      var tog = document.getElementById('ft-toggle');
+      var box = document.getElementById('sb-list');
+      if (tog && box) {
+        tog.textContent = box.querySelector('.ft-dir-det[open]') ? 'collapse all' : 'expand all';
+      }
+    });
     var sum = document.createElement('summary');
     sum.className = 'ft-dir';
     sum.textContent = name + '/';
     det.appendChild(sum);
     var kids = document.createElement('div');
     kids.className = 'ft-kids';
-    renderNode(kids, node.dirs[name], rootName);
+    renderNode(kids, node.dirs[name], rootName, dirPath);
     det.appendChild(kids);
     parent.appendChild(det);
   });
@@ -318,9 +394,17 @@ function renderNode(parent, node, rootName) {
 function renderFiles() {
   var box = document.getElementById('sb-list');
   if (!selected) { box.innerHTML = ''; return; }
+  loadTreeState();
+  var keep = box.scrollTop;
   box.innerHTML = '';
   renderNode(box, buildTree(tree), 'tree');
   wireFileRows(box);
+  box.scrollTop = keep;
+  // the toggle advertises the action it will take
+  var tog = document.getElementById('ft-toggle');
+  if (tog) {
+    tog.textContent = box.querySelector('.ft-dir-det[open]') ? 'collapse all' : 'expand all';
+  }
 }
 function wireFileRows(box) {
   Array.prototype.forEach.call(box.querySelectorAll('.ft-file'), function(el) {

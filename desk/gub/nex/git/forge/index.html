@@ -59,7 +59,10 @@
             <button id="edit-defaults" class="hdr-btn">defaults</button>
             <button id="new-repo" class="hdr-btn primary">+ repo</button>
           </div>
-          <div id="landing-grid"></div>
+          <tab-group id="landing-tabs" persist="forge-landing">
+            <div tab-label="repos"><div id="landing-grid"></div></div>
+            <div tab-label="stock"><div id="stock-grid"></div></div>
+          </tab-group>
         </div>
       </div>
     </split-view>
