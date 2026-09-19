@@ -7474,19 +7474,35 @@
   ?-    -.act
       %register
     =/  new-prefix  pax.act
-    ::  last-writer-wins, like eyre bindings: the new registrant claims
-    ::  its prefix, evicting any existing registrant whose prefix
-    ::  overlaps it. auto-heals stale rows left by a deleted nexus that
-    ::  never got to deregister.
+    ::  last-writer-wins for the SAME prefix: a new registrant claiming a
+    ::  prefix evicts the row that already claimed exactly that prefix,
+    ::  which auto-heals a stale row left by a deleted nexus that never got
+    ::  to deregister.
+    ::
+    ::  It deliberately does NOT evict OVERLAPPING claims, which is what
+    ::  this did before, and that broke delegation completely: the root
+    ::  nexus registers `/`, and `/` is a prefix of every path, so the
+    ::  symmetric overlap test meant the root's own re-registration evicted
+    ::  every other registrant on the ship. After any rebuild that re-rose
+    ::  the root — which is every rebuild — `reg` held exactly one row and
+    ::  every delegated grant was refused with %how-rejected-not-registered.
+    ::  A desk sharing its code cross-ship stopped being able to, silently:
+    ::  the follower saw an empty /desk/code, no error, nothing in a log.
+    ::
+    ::  Nesting is unambiguous for everything that reads this map. %how
+    ::  looks a registrant up by its EXACT rail and scopes its roads to that
+    ::  registrant's own prefix, so a parent and a child holding nested
+    ::  prefixes never contend for a road. And stale rows do not need this
+    ::  rule anyway: the /registrant subscription below reports a
+    ::  registrant's deletion to +registry-news, and %gc sweeps grants whose
+    ::  registrant is gone.
     =/  pruned=(map rail:tarball path)
       %-  ~(gas by *(map rail:tarball path))
       %+  skip  ~(tap by reg)
       |=  [r=rail:tarball existing=path]
       ^-  ?
       ?:  =(r rail.act)  %.n
-      ?|  (is-prefix new-prefix existing)
-          (is-prefix existing new-prefix)
-      ==
+      =(new-prefix existing)
     ::  watch the registrant so its deletion reaches +registry-news;
     ::  drop the watches of any rows the claim evicted
     =.  this
@@ -7505,7 +7521,16 @@
     =/  new-reg=(map rail:tarball path)  (~(del by reg) rail.act)
     =.  this  (save-file reg-rail [[/usergroups %registry] new-reg])
     ?.  clean.act  this
-    ::  Strip roads under prefix from ALL groups
+    ::  Strip roads under prefix from ALL groups. Same exclusion as %how: a
+    ::  deregistering outer registrant must not take a nested registrant's
+    ::  grants with it. `new-reg` is used, not `reg`, so the row just removed
+    ::  is already gone and cannot exclude itself.
+    =/  inner=(list path)
+      %+  murn  ~(tap by new-reg)
+      |=  [r=rail:tarball pre=path]
+      ?:  =(u.prefix pre)  ~
+      ?.  (is-prefix u.prefix pre)  ~
+      `pre
     =/  groups=(list [name=path grp=ball:tarball])
       (find-groups / (peek-ball-now /sys/ames/usergroups))
     |-
@@ -7513,9 +7538,9 @@
     =/  how-rail=rail:tarball  [(grp-storage-path name.i.groups) %'how.weir']
     =/  cur=weir:nexus  (read-group-weir how-rail)
     =/  new=weir:nexus
-      :*  (replace-roads make.cur ~ u.prefix)
-          (replace-roads poke.cur ~ u.prefix)
-          (replace-roads peek.cur ~ u.prefix)
+      :*  (replace-roads make.cur ~ u.prefix inner)
+          (replace-roads poke.cur ~ u.prefix inner)
+          (replace-roads peek.cur ~ u.prefix inner)
       ==
     =.  this  (save-file how-rail [[/ %weir] new])
     $(groups t.groups)
@@ -7535,10 +7560,19 @@
     ?.  (validate-weir-roads weir.act u.prefix)
       ~&  >>  [%how-rejected-roads-outside-prefix sender group.act u.prefix]
       this
+    ::  the prefixes of other registrants nested inside ours — their roads are
+    ::  not ours to strip. See +replace-roads.
+    =/  inner=(list path)
+      %+  murn  ~(tap by reg)
+      |=  [r=rail:tarball pre=path]
+      ?:  =(r sender)  ~
+      ?:  =(u.prefix pre)  ~
+      ?.  (is-prefix u.prefix pre)  ~
+      `pre
     =/  new=weir:nexus
-      :*  (replace-roads make.cur make.weir.act u.prefix)
-          (replace-roads poke.cur poke.weir.act u.prefix)
-          (replace-roads peek.cur peek.weir.act u.prefix)
+      :*  (replace-roads make.cur make.weir.act u.prefix inner)
+          (replace-roads poke.cur poke.weir.act u.prefix inner)
+          (replace-roads peek.cur peek.weir.act u.prefix inner)
       ==
     =.  this  (save-file how-rail [[/ %weir] new])
     recompute-all-weirs
@@ -7679,16 +7713,39 @@
   (is-prefix prefix u.pax)
 ::
 ++  replace-roads
-  |=  [cur=(set road:tarball) new=(set road:tarball) prefix=path]
+  |=  $:  cur=(set road:tarball)
+          new=(set road:tarball)
+          prefix=path
+          inner=(list path)
+      ==
   ^-  (set road:tarball)
-  ::  Strip roads under prefix from current
-  =/  stripped=(set road:tarball)
-    %-  ~(gas in *(set road:tarball))
-    %+  skip  ~(tap in cur)
+  ::  Strip the roads this registrant OWNS, then add the ones it is claiming.
+  ::
+  ::  Owning a prefix is not the same as owning every road under it. Registrants
+  ::  nest: the shell owns /apps/shell.shell, and a desk inside it owns
+  ::  /apps/shell.shell/desks/<x>.desk. `inner` is the prefixes of the OTHER
+  ::  registrants that sit inside ours, and roads under those are theirs.
+  ::
+  ::  Without that exclusion the outer registrant erases the inner one's grants
+  ::  every time it re-applies its own, which the shell does whenever a desk's
+  ::  share state changes — so a desk sharing its code always lost the race and
+  ::  the grant vanished a moment after it landed:
+  ::
+  ::    [%how-written public.grp peeks=4]   <- the desk's two roads arrive
+  ::    [%how-written public.grp peeks=2]   <- the shell re-applies, they are gone
+  ::
+  ::  with nothing refused and nothing logged.
+  =/  mine
     |=  =road:tarball
+    ^-  ?
     =/  pax=(unit path)  (ug-extract-dir road)
     ?~  pax  |
-    (is-prefix prefix u.pax)
+    ?.  (is-prefix prefix u.pax)  |
+    ::  inside our prefix, but under a nested registrant's: not ours
+    !(lien inner |=(i=path (is-prefix i u.pax)))
+  =/  stripped=(set road:tarball)
+    %-  ~(gas in *(set road:tarball))
+    (skip ~(tap in cur) mine)
   ::  Add new roads
   (~(uni in stripped) new)
 ::
