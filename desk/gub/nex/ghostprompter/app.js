@@ -363,59 +363,14 @@ function fmtAge(unix) {
 }
 
 // ---------- library ----------
-
-async function loadLibrary() {
-  var box = document.getElementById('lib-list');
-  var docs;
-  try {
-    docs = await fetch(API + '/api/library').then(function(r) { return r.json(); });
-  } catch (e) { docs = []; }
-  if (!Array.isArray(docs)) docs = [];
-  document.getElementById('lib-count').textContent = docs.length + ' docs';
-  box.textContent = '';
-  docs.sort(function(a, b) { return (a.name || '').localeCompare(b.name || ''); });
-  docs.forEach(function(d) {
-    var row = document.createElement('div');
-    row.className = 'lib-row';
-    var nm = document.createElement('span');
-    nm.className = 'nm';
-    nm.textContent = d.name;
-    var sz = document.createElement('span');
-    sz.className = 'sz';
-    sz.textContent = fmtSize(d.size);
-    var del = document.createElement('span');
-    del.className = 'lib-del';
-    del.textContent = '×';
-    del.title = 'Remove';
-    del.onclick = async function() {
-      if (!confirm('Remove ' + d.name + ' from the library?')) return;
-      await fetch(API + '/api/library/' + encodeURIComponent(d.name), { method: 'DELETE' });
-      loadLibrary();
-    };
-    row.append(nm, sz, del);
-    box.appendChild(row);
-  });
-}
-
-function fmtSize(n) {
-  if (!n) return '';
-  if (n < 1024) return n + 'B';
-  return (n / 1024).toFixed(1) + 'KB';
-}
-
-document.getElementById('lib-save').onclick = async function() {
-  var name = document.getElementById('lib-name').value.trim();
-  var text = document.getElementById('lib-text').value;
-  if (!name || !text.trim()) return;
-  if (!/\.[a-z]+$/.test(name)) name += '.md';
-  name = name.toLowerCase().replace(/[^a-z0-9._-]+/g, '-');
-  await fetch(API + '/api/library/' + encodeURIComponent(name), {
-    method: 'PUT', body: text
-  });
-  document.getElementById('lib-name').value = '';
-  document.getElementById('lib-text').value = '';
-  loadLibrary();
-};
+// a plain directory under the nexus; the shared file-manager is the whole
+// surface (list/grid, upload, new file, edit, preview, delete)
+var libFm = FileManager.mount(document.getElementById('lib-mount'), {
+  root: '/grubbery/ball/apps/ghostprompter/library',
+  rootLabel: 'library',
+  persist: 'gp-lib-view',
+});
+function loadLibrary() { libFm.ready.then(function () { libFm.load(); }); }
 
 // ---------- proposals ----------
 
@@ -691,7 +646,6 @@ document.getElementById('btn-refresh').onclick = function() {
 };
 
 loadFeed();
-loadLibrary();
 loadProposals();
 loadHistory();
 setInterval(loadFeed, 120000);

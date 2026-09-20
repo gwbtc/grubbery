@@ -24,6 +24,7 @@
 ::  classic-script preview surface (svg/html/json/image/pdf) for the
 ::  Files tab viewer — served separately, not welded (it isn't a module)
 /&  fp-js       /lib/ui/file-preview.js
+/&  fmgr-js     /lib/ui/file-manager.js
 =<  ^-  nexus:nexus
     |%
     ++  on-load
@@ -61,6 +62,7 @@
           [%fall %| /ui empty-dir:loader]
           [%over %& [/ui %'components.js'] [[/ %mime] kit-js]]
           [%over %& [/ui %'file-preview.js'] [[/ %mime] fp-js]]
+          [%over %& [/ui %'file-manager.js'] [[/ %mime] fmgr-js]]
           [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
           [%fall %| /requests empty-dir:loader]
           ::  /itineraries/<id>/ is a trip: itinerary.json (the doc) and
@@ -120,6 +122,8 @@
           (serve-file eyre-id /ui 'components.js')
         ?:  ?&(=(%'GET' method) =([%ui %'file-preview.js' ~] suffix))
           (serve-file eyre-id /ui 'file-preview.js')
+        ?:  ?&(=(%'GET' method) =([%ui %'file-manager.js' ~] suffix))
+          (serve-file eyre-id /ui 'file-manager.js')
         ::
         ::  GET /api/list — list all itineraries
         ::

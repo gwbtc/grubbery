@@ -35,7 +35,7 @@ header .sub { color: #b3aec9; font-size: 12.5px; margin-left: 2px; }
 #chat-panel { border-left: 1px solid #e4e7eb; }
 
 #inputs-tabs { flex: 1; min-height: 0; display: flex; flex-direction: column; }
-#flow-tab, #lib-tab {
+#flow-tab {
   height: 100%; min-height: 0;
   display: flex; flex-direction: column;
 }
@@ -214,32 +214,8 @@ header .sub { color: #b3aec9; font-size: 12.5px; margin-left: 2px; }
   font-size: 11px; color: #c4c8cd; word-break: break-all;
 }
 
-/* ---- library ---- */
-.lib-row {
-  display: flex; align-items: center; gap: 9px;
-  padding: 8px 16px; border-bottom: 1px solid #f2f4f6; font-size: 13.5px;
-}
-.lib-row .nm { flex: 1; font-family: ui-monospace, monospace; font-size: 13px; }
-.lib-row .sz { color: #9aa0a8; font-size: 12px; }
-.lib-del { color: #c4c8cd; cursor: pointer; padding: 0 5px; font-size: 15px; }
-.lib-del:hover { color: #c0392b; }
-#lib-add {
-  padding: 12px 16px; display: flex; flex-direction: column; gap: 7px;
-  border-top: 1px solid #eef0f3; flex: 0 0 auto;
-}
-#lib-add input, #lib-add textarea {
-  width: 100%; padding: 8px 10px; border: 1.5px dashed #d6dae0;
-  border-radius: 8px; font: inherit; font-size: 13px; outline: none;
-  background: none; resize: vertical;
-}
-#lib-add input { font-family: ui-monospace, monospace; }
-#lib-add input:focus, #lib-add textarea:focus { border-color: #3d3a52; border-style: solid; }
-#lib-save {
-  align-self: flex-end; padding: 7px 15px; border: none; border-radius: 8px;
-  background: #3d3a52; color: #fff; font: inherit; font-size: 13px;
-  cursor: pointer;
-}
-#lib-save:hover { background: #4c4864; }
+/* ---- library: the file-manager lib owns everything inside the mount ---- */
+#lib-mount { height: 100%; min-height: 0; }
 
 /* ---- proposals ---- */
 #btn-summon {

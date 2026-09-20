@@ -16,6 +16,12 @@
 /&  sv-js       /lib/ui/split-view.js
 /&  tg-js       /lib/ui/tab-group.js
 /&  md-js       /lib/ui/modal-dialog.js
+/&  dm-js       /lib/ui/drop-menu.js
+/&  ft-js       /lib/ui/file-table.js
+/&  fg-js       /lib/ui/file-grid.js
+::  classic scripts for the library's file manager (not modules; served as files)
+/&  fp-js       /lib/ui/file-preview.js
+/&  fmgr-js     /lib/ui/file-manager.js
 =<  ^-  nexus:nexus
     |%
     ++  on-load
@@ -29,7 +35,7 @@
       =/  kit-js=mime
         :-  /application/javascript
         %-  as-octs:mimes:html
-        (rap 3 ~[(wrap sv-js) (wrap tg-js) (wrap md-js)])
+        (rap 3 ~[(wrap sv-js) (wrap tg-js) (wrap md-js) (wrap dm-js) (wrap ft-js) (wrap fg-js)])
       =/  weir-json=json
         %-  pairs:enjs:format
         :~  :-  'poke'
@@ -58,6 +64,8 @@
           [%over %& [/ %'style.css'] [[/ %mime] style-css]]
           [%fall %| /ui empty-dir:loader]
           [%over %& [/ui %'components.js'] [[/ %mime] kit-js]]
+          [%over %& [/ui %'file-preview.js'] [[/ %mime] fp-js]]
+          [%over %& [/ui %'file-manager.js'] [[/ %mime] fmgr-js]]
           [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
           [%fall %| /requests empty-dir:loader]
           ::  the user's material: mime grubs (markdown, notes, extracted
@@ -114,6 +122,10 @@
         ::
         ?:  ?&(=(%'GET' method) =([%ui %'components.js' ~] suffix))
           (serve-file eyre-id /ui 'components.js')
+        ?:  ?&(=(%'GET' method) =([%ui %'file-preview.js' ~] suffix))
+          (serve-file eyre-id /ui 'file-preview.js')
+        ?:  ?&(=(%'GET' method) =([%ui %'file-manager.js' ~] suffix))
+          (serve-file eyre-id /ui 'file-manager.js')
         ::
         ::  GET /api/feed?limit=n — the compacted nostrill timeline
         ::
@@ -137,32 +149,8 @@
           =/  nm=@ta  i.t.t.suffix
           ;<  *  bind:m  (cull-soft:io (nex-road:io rail [%& /proposals nm]))
           (send-json eyre-id '{"ok":true}')
-        ::
-        ::  GET /api/library — names + sizes
-        ::
-        ?:  ?&(=(%'GET' method) =([%api %library ~] suffix))
-          ;<  out=json  bind:m  (list-library rail)
-          (send-json eyre-id (en:json:html out))
-        ::
-        ::  PUT /api/library/[name] — add or replace a document (text body)
-        ::
-        ?:  ?&(=(%'PUT' method) ?=([%api %library @ ~] suffix))
-          =/  nm=@ta  i.t.t.suffix
-          =/  txt=@t  ?~(body.request.req '' q.u.body.request.req)
-          =/  doc-road=road:tarball  (nex-road:io rail [%& /library nm])
-          =/  =bask:tarball  [[/ %mime] [/text/markdown (as-octs:mimes:html txt)]]
-          ;<  err=(unit tang)  bind:m  (make-soft:io doc-road |+[bask ~])
-          ;<  ~  bind:m
-            ?~  err  (pure:m ~)
-            (over:io doc-road bask)
-          (send-json eyre-id '{"ok":true}')
-        ::
-        ::  DELETE /api/library/[name]
-        ::
-        ?:  ?&(=(%'DELETE' method) ?=([%api %library @ ~] suffix))
-          =/  nm=@ta  i.t.t.suffix
-          ;<  *  bind:m  (cull-soft:io (nex-road:io rail [%& /library nm]))
-          (send-json eyre-id '{"ok":true}')
+        ::  the library is a plain directory (/library); its file surface is
+        ::  the explorer's ?list=1 + POST actions, driven by lib/ui/file-manager
         ::
         ::  POST /chat → the ghost. Returns {reply, trace, parts}.
         ::
@@ -395,25 +383,6 @@
   =/  jon=(unit json)  (mole |.(;;(json (sang-noun:tarball sang.ent))))
   ?~  jon  ~
   `(pairs:enjs:format ~[['id' s+nm] ['doc' u.jon]])
-::  +list-library: names + byte sizes of the library grubs.
-++  list-library
-  |=  =rail:tarball
-  =/  m  (fiber:fiber:nexus ,json)
-  ^-  form:m
-  ;<  dv=view:nexus  bind:m  (peek:io (nex-road:io rail [%| /library]) ~)
-  =/  entries
-    ?.  ?=([%ball *] dv)  ~
-    ?~  fil.ball.dv  ~
-    ~(tap by contents.u.fil.ball.dv)
-  %-  pure:m
-  :-  %a
-  %+  turn  entries
-  |=  [nm=@ta ent=[=sang:tarball *]]
-  ^-  json
-  =/  size=@ud
-    =/  mv=(unit mime)  (mole |.(;;(mime (sang-noun:tarball sang.ent))))
-    ?~(mv 0 (met 3 q.q.u.mv))
-  (pairs:enjs:format ~[['name' s+nm] ['size' (numb:enjs:format size)]])
 ::  +ask-agent: bridge one browser turn to the agent nexus. Subscribe to
 ::  the conversation grub, poke the agent's main.sig, await its assistant
 ::  write, and return the reply + trace.

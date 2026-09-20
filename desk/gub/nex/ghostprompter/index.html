@@ -26,17 +26,7 @@
             </div>
             <div id="flow-list" class="scroll"><div class="empty">loading&hellip;</div></div>
           </div>
-          <div tab-label="Library" id="lib-tab">
-            <div class="tab-head">
-              <span id="lib-count" class="count"></span>
-            </div>
-            <div id="lib-list" class="scroll"></div>
-            <div id="lib-add">
-              <input id="lib-name" placeholder="note-name.md" spellcheck="false">
-              <textarea id="lib-text" rows="4" placeholder="Paste a note, essay, or extracted text&hellip;"></textarea>
-              <button id="lib-save">Add to library</button>
-            </div>
-          </div>
+          <div tab-label="Library" id="lib-mount"></div>
         </tab-group>
       </div>
       <div slot="end" id="props-panel">
@@ -90,6 +80,8 @@
 </modal-dialog>
 
 <script type="module" src="/grubbery/ghostprompter/ui/components.js"></script>
+<script src="/grubbery/ghostprompter/ui/file-preview.js"></script>
+<script src="/grubbery/ghostprompter/ui/file-manager.js"></script>
 <script src="/grubbery/ghostprompter/app.js"></script>
 </body>
 </html>
