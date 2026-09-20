@@ -137,6 +137,25 @@
           ;<  posts=json  bind:m  (fetch-feed limit)
           (send-json eyre-id (en:json:html posts))
         ::
+        ::  GET /api/post?id=<id> — one flow post by id (for a proposal's
+        ::  references); same shape as a feed entry, plus its profile
+        ::
+        ?:  ?&(=(%'GET' method) =([%api %post ~] suffix))
+          =/  want=@t  (fall (~(get by (malt args)) 'id') '')
+          ;<  feed=json  bind:m  (fetch-feed 400)
+          =/  posts=(list json)
+            ?.  ?=([%o *] feed)  ~
+            =/  p  (~(get by p.feed) 'posts')
+            ?.(?=([~ %a *] p) ~ p.u.p)
+          =/  hit=(unit json)
+            |-
+            ?~  posts  ~
+            ?:  =(want (jget-s i.posts 'id'))  `i.posts
+            $(posts t.posts)
+          ?~  hit  (send-json eyre-id '{"error":"not in the current feed"}')
+          =/  profs=json  ?.(?=([%o *] feed) [%o ~] (fall (~(get by p.feed) 'profiles') [%o ~]))
+          (send-json eyre-id (en:json:html (pairs:enjs:format ~[['post' u.hit] ['profiles' profs]])))
+        ::
         ::  GET /api/proposals — every proposal, with its id
         ::
         ?:  ?&(=(%'GET' method) =([%api %proposals ~] suffix))
@@ -254,6 +273,13 @@
       ==
   ==
 ::
+::  +jget-s: a json object's string field, or ''
+++  jget-s
+  |=  [j=json k=@t]
+  ^-  @t
+  ?.  ?=([%o *] j)  ''
+  =/  v  (~(get by p.j) k)
+  ?:(?=([~ %s *] v) p.u.v '')
 ++  serve-file
   |=  [eyre-id=@ta dir=path filename=@ta]
   =/  m  (fiber:fiber:nexus ,~)

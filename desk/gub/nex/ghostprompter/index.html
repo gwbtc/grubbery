@@ -11,46 +11,57 @@
 <header>
   <img src="/grubbery/ghostprompter/icon.svg" alt="">
   <h1>Ghostprompter</h1>
-  <span class="sub">drafts from your library, cued by the flow</span>
+  <span class="sub">connections between the flow and your library</span>
   <button id="btn-refresh" title="Refresh flow &amp; proposals">&#8635;</button>
 </header>
 
-<split-view id="gp-split" orientation="horizontal" primary="end" size="400" min="320" max="720" persist="gp-chat">
-  <div slot="start" id="main-wrap">
-    <split-view id="inputs-split" orientation="horizontal" primary="start" size="330" min="270" max="560" persist="gp-inputs">
-      <div slot="start" id="inputs-panel">
-        <tab-group id="inputs-tabs" persist="gp-inputs-tabs">
-          <div tab-label="Flow" id="flow-tab">
-            <div class="tab-head">
-              <span id="flow-count" class="count"></span>
-            </div>
-            <div id="flow-list" class="scroll"><div class="empty">loading&hellip;</div></div>
-          </div>
-          <div tab-label="Library" id="lib-mount"></div>
-        </tab-group>
-      </div>
-      <div slot="end" id="props-panel">
-        <div class="panel-head">
-          <h2>Proposals</h2>
-          <span id="prop-count" class="count"></span>
-          <button id="btn-summon" title="Ask the ghost for fresh proposals">&#10024; Summon proposals</button>
-        </div>
-        <div id="prop-list" class="scroll"></div>
-      </div>
-    </split-view>
-  </div>
-  <div slot="end" id="chat-panel">
-    <div class="panel-head">
-      <h2>The ghost</h2>
-      <button id="chat-config" title="System prompt &amp; model">&#9881;</button>
-      <button id="chat-stop" title="Interrupt">&#9632;</button>
-      <button id="chat-clear" title="Clear conversation">&#10005;</button>
+<split-view id="gp-split" orientation="horizontal" primary="end" size="380" min="300" max="720" persist="gp-side">
+  <div slot="start" id="main">
+    <div id="deck-bar">
+      <h2>Connections</h2>
+      <span id="prop-count" class="count"></span>
+      <span class="grow"></span>
+      <button id="btn-summon" title="Ask the ghost for fresh connections">&#10024; Summon</button>
     </div>
-    <div id="chat-log" class="scroll"></div>
-    <form id="chat-form">
-      <textarea id="chat-input" rows="2" placeholder="Talk to the ghost&hellip;"></textarea>
-      <button id="chat-send" type="submit">Send</button>
-    </form>
+    <div id="deck">
+      <button id="deck-prev" class="deck-arrow" title="Previous (←)">&#8249;</button>
+      <div id="deck-stage"></div>
+      <button id="deck-next" class="deck-arrow" title="Next (→)">&#8250;</button>
+    </div>
+    <div id="deck-dots"></div>
+    <div id="refs">
+      <div id="refs-flow" class="refs-col">
+        <div class="refs-label">in the flow</div>
+        <div id="refs-flow-body" class="scroll"></div>
+      </div>
+      <div id="refs-lib" class="refs-col">
+        <div class="refs-label">in your library</div>
+        <div id="refs-lib-body" class="scroll"></div>
+      </div>
+    </div>
+  </div>
+  <div slot="end" id="side-panel">
+    <button id="panel-collapse" title="Collapse sidebar">&#x276F;</button>
+    <tab-group id="side-tabs" persist="gp-side-tabs">
+      <div tab-label="Flow" id="flow-tab">
+        <div class="tab-head"><span id="flow-count" class="count"></span></div>
+        <div id="flow-list" class="scroll"><div class="empty">loading&hellip;</div></div>
+      </div>
+      <div tab-label="Library" id="lib-mount"></div>
+      <div tab-label="Chat" id="chat-panel">
+        <div class="panel-head">
+          <h2>The ghost</h2>
+          <button id="chat-config" title="System prompt &amp; model">&#9881;</button>
+          <button id="chat-stop" title="Interrupt">&#9632;</button>
+          <button id="chat-clear" title="Clear conversation">&#10005;</button>
+        </div>
+        <div id="chat-log" class="scroll"></div>
+        <form id="chat-form">
+          <textarea id="chat-input" rows="2" placeholder="Talk to the ghost&hellip;"></textarea>
+          <button id="chat-send" type="submit">Send</button>
+        </form>
+      </div>
+    </tab-group>
   </div>
 </split-view>
 

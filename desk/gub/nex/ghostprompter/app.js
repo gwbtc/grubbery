@@ -372,139 +372,273 @@ var libFm = FileManager.mount(document.getElementById('lib-mount'), {
 });
 function loadLibrary() { libFm.ready.then(function () { libFm.load(); }); }
 
-// ---------- proposals ----------
+// ---------- connections: a deck you page through; references below ----------
+//
+// The card is the connection at a glance (topic, question, source
+// pointers). The references panel underneath is the same connection at
+// full zoom: the cited posts rendered like the flow, the passage with
+// its document and lines. Structured refs (post_ids, source+from/to)
+// drive that; older proposals carry only pasted text and render that.
+
+var props = [];
+var deckIdx = 0;
+var refsToken = 0;
 
 async function loadProposals() {
-  var box = document.getElementById('prop-list');
-  var props;
   try {
     props = await fetch(API + '/api/proposals').then(function(r) { return r.json(); });
   } catch (e) { props = []; }
   if (!Array.isArray(props)) props = [];
-  document.getElementById('prop-count').textContent = props.length ? props.length + '' : '';
-  box.textContent = '';
+  props.sort(function(a, b) { return ((b.doc && b.doc.at) || 0) - ((a.doc && a.doc.at) || 0); });
+  document.getElementById('prop-count').textContent = props.length ? props.length + ' filed' : '';
+  if (deckIdx >= props.length) deckIdx = Math.max(0, props.length - 1);
+  renderDeck();
+}
+
+function showCard(i) {
+  if (!props.length) return;
+  deckIdx = (i + props.length) % props.length;
+  renderDeck();
+}
+
+function renderDeck() {
+  var stage = document.getElementById('deck-stage');
+  var dots = document.getElementById('deck-dots');
+  stage.textContent = '';
+  dots.textContent = '';
+  var prev = document.getElementById('deck-prev'), next = document.getElementById('deck-next');
+  prev.disabled = next.disabled = props.length < 2;
   if (!props.length) {
-    box.innerHTML = '<div class="empty">Nothing yet. Feed the library, then summon the ghost — it reads the flow and drafts what you might say.</div>';
+    stage.innerHTML = '<div class="deck-empty">No connections yet. Summon the ghost to index the flow against your library.</div>';
+    renderRefs(null);
     return;
   }
-  props.sort(function(a, b) { return ((b.doc || {}).at || 0) - ((a.doc || {}).at || 0); });
-  props.forEach(function(p) {
-    var d = p.doc || {};
-    var card = document.createElement('div');
-    card.className = 'prop-card';
+  // neighbors peek at the edges: prev | current | next
+  [-1, 0, 1].forEach(function(off) {
+    var j = deckIdx + off;
+    if (props.length < 3 && (j < 0 || j >= props.length)) return;
+    var p = props[(j + props.length) % props.length];
+    var card = cardEl(p, off === 0);
+    card.classList.add(off === 0 ? 'cur' : off < 0 ? 'prev' : 'next');
+    if (off !== 0) card.onclick = function() { showCard(j); };
+    stage.appendChild(card);
+  });
+  props.forEach(function(_, i) {
+    var d = document.createElement('span');
+    d.className = 'dot' + (i === deckIdx ? ' on' : '');
+    d.onclick = function() { showCard(i); };
+    dots.appendChild(d);
+  });
+  renderRefs(props[deckIdx]);
+}
 
-    // a connection is an INDEX ENTRY: topic label + raw material from
-    // both sides, juxtaposed. Nothing on this card was written by AI.
-    var top = document.createElement('div');
-    top.className = 'prop-top';
-    if (d.topic) {
-      var topic = document.createElement('div');
-      topic.className = 'prop-topic';
-      topic.textContent = d.topic;
-      top.appendChild(topic);
-    }
-    var age = document.createElement('span');
-    age.className = 'prop-age';
-    age.textContent = fmtAge(d.at);
-    top.appendChild(age);
-    card.appendChild(top);
-
-    if (d.question) {
-      var qn = document.createElement('div');
-      qn.className = 'prop-question';
-      qn.textContent = d.question;
-      card.appendChild(qn);
-    }
-    if (d.posts) {
-      var flowSec = document.createElement('div');
-      flowSec.className = 'prop-side';
-      var fl = document.createElement('div');
-      fl.className = 'prop-side-label';
-      fl.textContent = 'in the flow';
-      flowSec.appendChild(fl);
-      d.posts.split('\n').forEach(function(line) {
-        line = line.trim();
-        if (!line) return;
-        var seg = line.split('|');
-        var row = document.createElement('div');
-        row.className = 'prop-post';
-        if (seg.length >= 3) {
-          var meta = document.createElement('span');
-          meta.className = 'prop-post-meta';
-          meta.textContent = seg[0].trim() + ' · ' + seg[1].trim();
-          var ex = document.createElement('span');
-          ex.textContent = ' ' + seg.slice(2).join('|').trim();
-          row.append(meta, ex);
-        } else {
-          row.textContent = line;
-        }
-        flowSec.appendChild(row);
-      });
-      card.appendChild(flowSec);
-    }
-    if (d.passage) {
-      var libSec = document.createElement('div');
-      libSec.className = 'prop-side';
-      var ll = document.createElement('div');
-      ll.className = 'prop-side-label';
-      ll.textContent = 'in your library';
-      libSec.appendChild(ll);
-      var q = document.createElement('blockquote');
-      q.className = 'prop-quote';
-      q.textContent = d.passage;
-      if (d.source) {
-        var cite = document.createElement('div');
-        cite.className = 'prop-cite';
-        cite.textContent = '— ' + d.source;
-        q.appendChild(cite);
-      }
-      libSec.appendChild(q);
-      card.appendChild(libSec);
-    }
-    // legacy shapes from earlier iterations render muted
-    ['draft', 'points', 'why', 'quote'].forEach(function(k) {
-      if (!d[k] || (k === 'quote' && d.passage)) return;
-      var lg = document.createElement('div');
-      lg.className = 'prop-draft legacy';
-      lg.textContent = d[k];
-      card.appendChild(lg);
-    });
-
+function cardEl(p, live) {
+  var d = p.doc || {};
+  var card = document.createElement('div');
+  card.className = 'card';
+  var top = document.createElement('div');
+  top.className = 'card-top';
+  var topic = document.createElement('div');
+  topic.className = 'card-topic';
+  topic.textContent = d.topic || '(untitled)';
+  var age = document.createElement('span');
+  age.className = 'card-age';
+  age.textContent = d.at ? fmtAge(d.at) : '';
+  top.append(topic, age);
+  card.appendChild(top);
+  if (d.question) {
+    var q = document.createElement('div');
+    q.className = 'card-question';
+    q.textContent = d.question;
+    card.appendChild(q);
+  }
+  // source pointers: what this connection is made of
+  var srcs = document.createElement('div');
+  srcs.className = 'card-srcs';
+  var nPosts = (d.posts || '').split('\n').filter(function(l) { return l.trim(); }).length;
+  if (nPosts) srcs.appendChild(chip('flow', nPosts + (nPosts === 1 ? ' post' : ' posts')));
+  if (d.passage) srcs.appendChild(chip('library', (d.source || 'a document') + (d.from ? ' · ' + d.from + (d.to && d.to !== d.from ? '–' + d.to : '') : '')));
+  card.appendChild(srcs);
+  if (live) {
     var actions = document.createElement('div');
-    actions.className = 'prop-actions';
-    var copyText = d.passage || d.quote || '';
-    if (copyText) {
+    actions.className = 'card-actions';
+    if (d.passage) {
       var copy = document.createElement('button');
-      copy.className = 'prop-copy';
       copy.textContent = 'Copy passage';
-      copy.onclick = async function() {
-        try {
-          await navigator.clipboard.writeText(copyText);
-          copy.textContent = 'Copied ✓';
-          copy.classList.add('copied');
-          setTimeout(function() {
-            copy.textContent = 'Copy passage';
-            copy.classList.remove('copied');
-          }, 1600);
-        } catch (e) {}
+      copy.onclick = async function(e) {
+        e.stopPropagation();
+        try { await navigator.clipboard.writeText(d.passage); copy.textContent = 'Copied ✓'; setTimeout(function() { copy.textContent = 'Copy passage'; }, 1600); } catch (_) {}
       };
       actions.appendChild(copy);
     }
     var dismiss = document.createElement('button');
-    dismiss.className = 'prop-dismiss';
+    dismiss.className = 'danger';
     dismiss.textContent = 'Dismiss';
-    dismiss.onclick = async function() {
+    dismiss.onclick = async function(e) {
+      e.stopPropagation();
       await fetch(API + '/api/proposals/' + encodeURIComponent(p.id), { method: 'DELETE' });
       loadProposals();
     };
     actions.appendChild(dismiss);
     card.appendChild(actions);
-    box.appendChild(card);
-  });
+  }
+  return card;
 }
 
+function chip(kind, text) {
+  var c = document.createElement('span');
+  c.className = 'src-chip ' + kind;
+  c.textContent = text;
+  return c;
+}
+
+// ---- references: the connection at full zoom ----
+async function renderRefs(p) {
+  var token = ++refsToken;
+  var flowBody = document.getElementById('refs-flow-body');
+  var libBody = document.getElementById('refs-lib-body');
+  flowBody.textContent = '';
+  libBody.textContent = '';
+  if (!p) return;
+  var d = p.doc || {};
+
+  // flow side: the posts as they were when the connection was filed
+  // (snapshotted by propose); older proposals fall back to a live lookup
+  // by id, and before that to the pasted lines
+  var snap = Array.isArray(d.post_snap) ? d.post_snap : [];
+  var ids = Array.isArray(d.post_ids) ? d.post_ids.filter(Boolean) : [];
+  if (snap.length) {
+    snap.forEach(function(sp) {
+      flowBody.appendChild(postEl({ id: sp.id, pubkey: sp.pubkey, at: sp.at, content: sp.content }, { name: sp.name, picture: sp.picture }));
+    });
+    if (d.posts) flowBody.appendChild(excerptsEl(d.posts));
+  } else if (ids.length) {
+    flowBody.innerHTML = '<div class="empty">loading posts…</div>';
+    var got = await Promise.all(ids.map(function(id) {
+      return fetch(API + '/api/post?id=' + encodeURIComponent(id)).then(function(r) { return r.json(); }).catch(function() { return null; });
+    }));
+    if (token !== refsToken) return;
+    flowBody.textContent = '';
+    got.forEach(function(res, i) {
+      if (res && res.post) { flowBody.appendChild(postEl(res.post, (res.profiles || {})[res.post.pubkey] || {})); return; }
+      var miss = document.createElement('div');
+      miss.className = 'ref-missing';
+      miss.textContent = 'post ' + ids[i].slice(0, 12) + '… is no longer in the feed';
+      flowBody.appendChild(miss);
+    });
+    // the agent's excerpts, as a caption under the real posts
+    if (d.posts) flowBody.appendChild(excerptsEl(d.posts));
+  } else if (d.posts) {
+    flowBody.appendChild(excerptsEl(d.posts));
+  } else {
+    flowBody.innerHTML = '<div class="empty">no flow side</div>';
+  }
+
+  // library side: the passage, then the actual lines around it
+  if (!d.passage) { libBody.innerHTML = '<div class="empty">no library side</div>'; return; }
+  var q = document.createElement('blockquote');
+  q.className = 'ref-quote';
+  q.textContent = d.passage;
+  libBody.appendChild(q);
+  var cite = document.createElement('div');
+  cite.className = 'ref-cite';
+  cite.textContent = d.source ? '— ' + d.source + (d.from ? ', lines ' + d.from + (d.to && d.to !== d.from ? '–' + d.to : '') : '') : '';
+  libBody.appendChild(cite);
+  if (d.source && d.from) {
+    var lo = Math.max(1, d.from - 15), hi = (d.to || d.from) + 15;
+    var ctx = document.createElement('pre');
+    ctx.className = 'ref-context';
+    ctx.textContent = 'loading context…';
+    libBody.appendChild(ctx);
+    try {
+      var raw = await fetch('/grubbery/ball/apps/ghostprompter/library/' + encodeURIComponent(d.source) + '?raw=1').then(function(r) { return r.text(); });
+      if (token !== refsToken) return;
+      var lines = raw.split('\n');
+      ctx.textContent = '';
+      for (var n = lo; n <= Math.min(hi, lines.length); n++) {
+        var ln = document.createElement('div');
+        ln.className = 'ref-line' + (n >= d.from && n <= (d.to || d.from) ? ' hit' : '');
+        ln.innerHTML = '<span class="ln">' + n + '</span>';
+        ln.appendChild(document.createTextNode(lines[n - 1]));
+        ctx.appendChild(ln);
+      }
+      var open = document.createElement('a');
+      open.className = 'ref-open';
+      open.textContent = 'open ' + d.source + ' in the library ↗';
+      open.href = '/grubbery/ball/apps/ghostprompter/library/' + encodeURIComponent(d.source);
+      open.target = '_blank';
+      libBody.appendChild(open);
+    } catch (e) { ctx.textContent = 'could not load ' + d.source; }
+  }
+}
+
+function excerptsEl(posts) {
+  var wrap = document.createElement('div');
+  wrap.className = 'ref-excerpts';
+  posts.split('\n').forEach(function(line) {
+    line = line.trim();
+    if (!line) return;
+    var seg = line.split('|');
+    var row = document.createElement('div');
+    row.className = 'ref-excerpt';
+    if (seg.length >= 3) {
+      var meta = document.createElement('span');
+      meta.className = 'ref-excerpt-meta';
+      meta.textContent = seg[0].trim() + ' · ' + seg[1].trim() + ' ';
+      row.appendChild(meta);
+      row.appendChild(document.createTextNode(seg.slice(2).join('|').trim()));
+    } else row.textContent = line;
+    wrap.appendChild(row);
+  });
+  return wrap;
+}
+
+// a flow post rendered the way the flow tab does it, click = the post modal
+function postEl(p, prof) {
+  var item = document.createElement('div');
+  item.className = 'flow-item ref-post';
+  var head = document.createElement('div');
+  head.className = 'flow-head';
+  head.appendChild(avatarEl(prof, p.pubkey));
+  var who = document.createElement('span');
+  who.className = 'flow-name';
+  who.textContent = prof.name || (p.pubkey || '').slice(0, 8);
+  if (!prof.name) who.classList.add('pk');
+  var age = document.createElement('span');
+  age.className = 'flow-age';
+  age.textContent = fmtAge(p.at);
+  head.append(who, age);
+  var content = document.createElement('div');
+  content.className = 'flow-content';
+  renderText(content, p.content || '');
+  item.append(head, content);
+  var media = mediaOf(p.content || '');
+  if (media.length) item.appendChild(attachmentsEl(media, 'thumb', null));
+  item.addEventListener('click', function(e) { if (!e.target.closest('a')) openPost(p, prof); });
+  return item;
+}
+
+document.getElementById('deck-prev').onclick = function() { showCard(deckIdx - 1); };
+document.getElementById('deck-next').onclick = function() { showCard(deckIdx + 1); };
+document.addEventListener('keydown', function(e) {
+  if (e.target.closest('input, textarea') || document.querySelector('modal-dialog[open]')) return;
+  if (e.key === 'ArrowLeft') showCard(deckIdx - 1);
+  if (e.key === 'ArrowRight') showCard(deckIdx + 1);
+});
+// swipe on touch
+(function() {
+  var x0 = null, stage = document.getElementById('deck-stage');
+  stage.addEventListener('touchstart', function(e) { x0 = e.touches[0].clientX; }, { passive: true });
+  stage.addEventListener('touchend', function(e) {
+    if (x0 == null) return;
+    var dx = e.changedTouches[0].clientX - x0; x0 = null;
+    if (Math.abs(dx) > 40) showCard(deckIdx + (dx < 0 ? 1 : -1));
+  }, { passive: true });
+})();
+document.getElementById('panel-collapse').onclick = function() { document.getElementById('gp-split').collapse(); };
+
 document.getElementById('btn-summon').onclick = function() {
-  sendMessage('Index the current flow against my library: file the 2-3 strongest topic connections with the propose tool. Raw material only.');
+  sendMessage('Index the current flow against my library: file the 2-3 strongest topic connections with the propose tool. Raw material only — include full post ids and the passage line range.');
 };
 
 // ---------- chat ----------

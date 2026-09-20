@@ -466,9 +466,16 @@
     (pure:m `update.st)
   --
 ::  +mk-tool: one entry of an Anthropic tool schema, all-string params.
+::  +mk-tool-typed: the same with a type per param — 'string', 'number',
+::  'boolean', or 'string[]' (an array of strings).
 ::
 ++  mk-tool
   |=  [nm=@t desc=@t params=(list [p=@t d=@t]) req=(list @t)]
+  ^-  json
+  (mk-tool-typed nm desc (turn params |=([p=@t d=@t] [p 'string' d])) req)
+::
+++  mk-tool-typed
+  |=  [nm=@t desc=@t params=(list [p=@t t=@t d=@t]) req=(list @t)]
   ^-  json
   %-  pairs:enjs:format
   :~  ['name' s+nm]
@@ -479,8 +486,15 @@
           :-  'properties'
           %-  pairs:enjs:format
           %+  turn  params
-          |=  [p=@t d=@t]
-          [p (pairs:enjs:format ~[['type' s+'string'] ['description' s+d]])]
+          |=  [p=@t t=@t d=@t]
+          :-  p
+          ?.  =('string[]' t)
+            (pairs:enjs:format ~[['type' s+t] ['description' s+d]])
+          %-  pairs:enjs:format
+          :~  ['type' s+'array']
+              ['items' (pairs:enjs:format ~[['type' s+'string']])]
+              ['description' s+d]
+          ==
           ['required' [%a (turn req |=(r=@t s+r))]]
       ==
   ==

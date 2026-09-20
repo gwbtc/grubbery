@@ -20,16 +20,19 @@
     ?.  ?=([%ball *] dv)  ~
     ?~  fil.ball.dv  ~
     contents.u.fil.ball.dv
-  =/  rows=(list [n=@ta size=@ud lines=@ud])
-    %+  sort
-      %+  murn  ~(tap by cs)
-      |=  [n=@ta [c=sang:tarball gain=? bang=(unit tang)]]
-      ^-  (unit [@ta @ud @ud])
-      ?:  (is-boom:tarball c)  ~
-      =/  mv=(unit mime)  (mole |.(;;(mime (sang-noun:tarball c))))
-      ?~  mv  ~
+  =/  names=(list @ta)  (sort ~(tap in ~(key by cs)) aor)
+  ::  a file peek with the mime mark yields the bytes (the shallow dir
+  ::  view above does not carry them); ten files, ten peeks, fine
+  =/  rows=(list [n=@ta size=@ud lines=@ud])  ~
+  |-
+  ?^  names
+    ;<  fv=view:nexus  bind:m
+      (peek:io [%& %& /apps/ghostprompter/library i.names] `[/ %mime])
+    =/  row=[n=@ta size=@ud lines=@ud]
+      ?.  ?=([%file *] fv)  [i.names 0 0]
+      =/  mv=(unit mime)  (mole |.(!<(mime (need-vase:tarball sang.fv))))
+      ?~  mv  [i.names 0 0]
       =/  bytes=@ud  p.q.u.mv
-      ::  newline count is the line count, near enough, without a wain
       =/  nl=@ud
         =/  t=@  q.q.u.mv
         =/  i=@ud  0
@@ -37,8 +40,8 @@
         |-
         ?:  (gte i bytes)  k
         $(i +(i), k ?:(=(10 (cut 3 [i 1] t)) +(k) k))
-      `[n bytes +(nl)]
-    |=([a=[n=@ta *] b=[n=@ta *]] (aor n.a n.b))
+      [i.names bytes +(nl)]
+    $(names t.names, rows (snoc rows row))
   ?~  rows  (pure:m [%text 'The library is empty.'])
   %-  pure:m
   :-  %text

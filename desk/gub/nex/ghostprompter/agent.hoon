@@ -54,9 +54,9 @@
         'List the proposals already on the dashboard, so you never file a duplicate.'
         ~  ~
       ==
-      %:  mk-tool:clanker  'propose'
+      %:  mk-tool-typed:clanker  'propose'
         'File a connection on the dashboard: a topic label, raw material, and at most one genuine open question. posts is the flow side (newline-separated "id-prefix | author-prefix | verbatim excerpt" lines); passage is a VERBATIM library passage; source names its document. No other invented text.'
-        ~[['topic' 'a plain noun-phrase label for the shared topic'] ['question' 'optional: one genuine open question the material raises — never a take in disguise'] ['posts' 'newline-separated "id | author | verbatim excerpt" lines from get_feed output'] ['passage' 'one passage copied verbatim from a library document'] ['source' 'the library document the passage comes from']]
+        ~[['topic' 'string' 'a plain noun-phrase label for the shared topic'] ['question' 'string' 'optional: one genuine open question the material raises — never a take in disguise'] ['posts' 'string' 'newline-separated "id | author | verbatim excerpt" lines from get_feed output'] ['post_ids' 'string[]' 'the FULL ids of the cited posts (get_feed prints them)'] ['passage' 'string' 'one passage copied verbatim from a library document'] ['source' 'string' 'the document filename from list_library'] ['from' 'string' 'first line number of the passage (read_doc shows line numbers)'] ['to' 'string' 'last line number of the passage']]
         ~['topic']
       ==
   ==
@@ -84,7 +84,9 @@
   material, list_proposals to avoid duplicates, then propose. The
   library holds whole books: never read one end to end. Use read_doc
   with find to locate lines on a topic, then read a from/to range
-  around a hit; cite the document AND the line range as the source. A
+  around a hit. When you propose, give the passage's source filename
+  and from/to line numbers, and the full ids of the cited posts —
+  the dashboard opens the real post and jumps to the real lines. A
   connection is: a topic label; optionally that one question; the
   flow side (lines of "id-prefix | author-prefix | verbatim excerpt",
   copied exactly from get_feed output); the library side (a passage

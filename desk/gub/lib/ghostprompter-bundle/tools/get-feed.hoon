@@ -106,6 +106,6 @@
       ^-  tape
       =/  tt=tape  (trip t)
       ?:((lte (lent tt) n) tt (weld (scag n tt) "..."))
-    "[{age}] {(short pk 8)} (id {(short id 12)}): {(short txt 400)}\0a"
+    "[{age}] {(short pk 8)} (id {(trip id)}): {(short txt 400)}\0a"
   (pure:m [%text (crip (zing lines))])
 --
