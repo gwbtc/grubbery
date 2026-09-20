@@ -1,17 +1,34 @@
 /<  tools  /lib/tools.hoon
-::  read_doc: one library document's text, by name (as list_library
-::  prints it). Documents are mime grubs — markdown, notes, extracted
-::  pdf text.
+::  read_doc: a library document by name, in ranges. Documents are whole
+::  books and long notes; nothing is chunked on disk. Without a range the
+::  tool returns the first 200 lines plus the total, so a careless call
+::  never floods the context. `find` greps the document and reports
+::  matching line numbers, so the agent locates a passage first, then
+::  reads around it. Lines are 1-based inclusive; bytes are 0-based.
 ::
 !:
-^-  tool:tools
-|%
+=<  ^-  tool:tools
+    |%
 ++  name  'read_doc'
-++  description  'Read one library document in full by name (from list_library).'
+++  description
+  '''
+  Read a library document by name (from list_library). Optional ranges:
+  from/to = 1-based line numbers, inclusive; or offset/length = a byte
+  range. With no range: the first 200 lines and the total line count.
+  find = a search string: returns every matching line with its number
+  (no text otherwise) — use it to locate a passage, then read a line
+  range around it. Every reply starts with a header naming the document
+  and the range returned.
+  '''
 ++  parameters
   ^-  (map @t parameter-def:tools)
   %-  ~(gas by *(map @t parameter-def:tools))
-  :~  ['name' [%string 'the document name, e.g. notes.md']]
+  :~  ['name' [%string 'the document name, e.g. montaigne-essays.txt']]
+      ['from' [%string 'first line to return (1-based)']]
+      ['to' [%string 'last line to return (inclusive); at most 400 lines per call']]
+      ['offset' [%string 'byte offset to start at (0-based) — alternative to from/to']]
+      ['length' [%string 'bytes to return from offset; at most 40000']]
+      ['find' [%string 'search string (case-insensitive): returns matching line numbers + lines, up to 60 hits']]
   ==
 ++  required  ~['name']
 ++  handler
@@ -19,14 +36,79 @@
   =/  m  (fiber:fiber:nexus ,tool-result:tools)
   ^-  form:m
   ;<  st=tool-state:tools  bind:m  (get-state-as:io ,tool-state:tools)
-  =/  nm=@t
-    =/  v  (~(get by args.st) 'name')
-    ?:(?=([~ %s *] v) p.u.v '')
+  =/  deg  ~(deg jo:json-utils [%o args.st])
+  =/  nm=@t  (fall (deg /name so:dejs:format) '')
   ?:  =('' nm)  (pure:m [%error 'name is required'])
+  =/  from=(unit @ud)    (num (deg /from so:dejs:format))
+  =/  to=(unit @ud)      (num (deg /to so:dejs:format))
+  =/  offset=(unit @ud)  (num (deg /offset so:dejs:format))
+  =/  length=(unit @ud)  (num (deg /length so:dejs:format))
+  =/  query=(unit @t)    (deg /find so:dejs:format)
   ;<  fv=view:nexus  bind:m
     (peek:io [%& %& /apps/ghostprompter/library `@ta`nm] `[/ %mime])
   ?.  ?=([%file *] fv)
     (pure:m [%error (cat 3 'no such document: ' nm)])
   =/  =mime  !<(mime (need-vase:tarball sang.fv))
-  (pure:m [%text `@t`q.q.mime])
+  =/  txt=@t  `@t`q.q.mime
+  =/  size=@ud  p.q.mime
+  ::  byte range: exact slice, no line math
+  ?^  offset
+    =/  len=@ud  (min (fall length 40.000) 40.000)
+    =/  off=@ud  (min u.offset size)
+    =/  end=@ud  (min (add off len) size)
+    =/  bytes=@t  (cut 3 [off (sub end off)] txt)
+    %-  pure:m
+    :-  %text
+    (crip "[{(trip nm)} — bytes {(a-co:co off)}–{(a-co:co end)} of {(a-co:co size)}]\0a{(trip bytes)}")
+  =/  lines=(list @t)  (to-wain:format txt)
+  =/  total=@ud  (lent lines)
+  ::  search: matching line numbers, no range
+  ?^  query
+    =/  needle=tape  (cass (trip u.query))
+    =/  hits=(list [n=@ud l=@t])
+      =|  acc=(list [n=@ud l=@t])
+      =/  i=@ud  1
+      |-
+      ?~  lines  (flop acc)
+      ?:  (gte (lent acc) 60)  (flop acc)
+      ?~  (find needle (cass (trip i.lines)))
+        $(lines t.lines, i +(i))
+      $(lines t.lines, i +(i), acc [[i i.lines] acc])
+    ?~  hits
+      (pure:m [%text (crip "[{(trip nm)} — no lines match \"{(trip u.query)}\" ({(a-co:co total)} lines)]")])
+    =/  head=tape
+      "[{(trip nm)} — {(a-co:co (lent hits))} matching lines of {(a-co:co total)}; read a from/to range around one]\0a"
+    =/  rows=tape
+      %-  zing
+      ^-  (list tape)
+      %+  turn  hits
+      |=  [n=@ud l=@t]
+      ^-  tape
+      "{(a-co:co n)}: {(trip l)}\0a"
+    (pure:m [%text (crip (weld head rows))])
+  ::  line range (default: the head of the document)
+  =/  lo=@ud  (max 1 (fall from 1))
+  =/  hi=@ud  (min total (fall to (add lo 199)))
+  =/  hi=@ud  (min hi (add lo 399))
+  ?:  (gth lo total)
+    (pure:m [%error (crip "from {(a-co:co lo)} is past the end ({(a-co:co total)} lines)")])
+  =/  body=tape
+    %-  zing
+    ^-  (list tape)
+    %+  turn  (scag (sub +(hi) lo) (slag (dec lo) lines))
+    |=(l=@t ^-(tape (weld (trip l) "\0a")))
+  =/  more=tape
+    ?:  (gte hi total)  ""
+    " — continue with from={(a-co:co +(hi))}"
+  %-  pure:m
+  :-  %text
+  (crip "[{(trip nm)} — lines {(a-co:co lo)}–{(a-co:co hi)} of {(a-co:co total)}{more}]\0a{body}")
+--
+|%
+::  +num: a string argument as a number (the schema is all-string)
+++  num
+  |=  v=(unit @t)
+  ^-  (unit @ud)
+  ?~  v  ~
+  (rush u.v dem)
 --

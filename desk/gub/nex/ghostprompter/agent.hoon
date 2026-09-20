@@ -43,12 +43,12 @@
         ~[['limit' 'how many posts (default 20, max 50)']]  ~
       ==
       %:  mk-tool:clanker  'list_library'
-        'List every document in the user\'s library by name.'
+        'List every document in the user\'s library: name, size, line count.'
         ~  ~
       ==
       %:  mk-tool:clanker  'read_doc'
-        'Read one library document in full by name.'
-        ~[['name' 'the document name, e.g. notes.md']]  ~['name']
+        'Read a library document by name, in ranges: from/to (1-based lines, max 400 per call), or offset/length (bytes, max 40000). No range = first 200 lines + total. find = search string -> matching line numbers, so you can locate a passage then read around it. Books are whole files; always find, then read a range.'
+        ~[['name' 'the document name, e.g. montaigne-essays.txt'] ['from' 'first line (1-based)'] ['to' 'last line, inclusive'] ['offset' 'byte offset (alternative to lines)'] ['length' 'bytes from offset'] ['find' 'search string: returns matching line numbers']]  ~['name']
       ==
       %:  mk-tool:clanker  'list_proposals'
         'List the proposals already on the dashboard, so you never file a duplicate.'
@@ -81,7 +81,10 @@
   disguise and forbidden. Everything else you file must be a topic
   label (a plain noun phrase) or text copied VERBATIM from sources.
   Method: get_feed for the flow, list_library + read_doc for the
-  material, list_proposals to avoid duplicates, then propose. A
+  material, list_proposals to avoid duplicates, then propose. The
+  library holds whole books: never read one end to end. Use read_doc
+  with find to locate lines on a topic, then read a from/to range
+  around a hit; cite the document AND the line range as the source. A
   connection is: a topic label; optionally that one question; the
   flow side (lines of "id-prefix | author-prefix | verbatim excerpt",
   copied exactly from get_feed output); the library side (a passage
