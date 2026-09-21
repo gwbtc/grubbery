@@ -23,12 +23,9 @@
       <span class="grow"></span>
       <button id="btn-summon" title="Ask the ghost for fresh connections">&#10024; Summon</button>
     </div>
-    <div id="deck">
-      <button id="deck-prev" class="deck-arrow" title="Previous (←)">&#8249;</button>
-      <div id="deck-stage"></div>
-      <button id="deck-next" class="deck-arrow" title="Next (→)">&#8250;</button>
-    </div>
-    <div id="deck-dots"></div>
+    <card-deck id="deck" persist="gp-deck" loop>
+      <span slot="empty">No connections yet. Summon the ghost to index the flow against your library.</span>
+    </card-deck>
     <div id="refs">
       <div id="refs-flow" class="refs-col">
         <div class="refs-label">in the flow</div>

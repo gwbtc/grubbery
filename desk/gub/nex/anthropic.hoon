@@ -16,6 +16,8 @@
 /<  ui-js    anthropic/app.js
 /<  ui-css   anthropic/style.css
 /<  ui-icon  anthropic/icon.svg
+::  kit: the usage|calls tabs
+/&  tg-js    /lib/ui/tab-group.js
 =<  ^-  nexus:nexus
     |%
     ++  on-load
@@ -61,6 +63,7 @@
           [%over %& [/ %'index.html'] [[/ %mime] ui-html]]
           [%over %& [/ %'app.js'] [[/ %mime] ui-js]]
           [%over %& [/ %'style.css'] [[/ %mime] ui-css]]
+          [%over %& [/ %'tab-group.js'] [[/ %mime] tg-js]]
           [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
           [%fall %& [/ %'web.sig'] [[/ %sig] ~]]
           [%fall %& [/ %'config.json'] [[/ %json] default-config]]

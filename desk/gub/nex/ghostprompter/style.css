@@ -239,35 +239,11 @@ header .sub { color: #b3aec9; font-size: 12.5px; margin-left: 2px; }
 }
 #deck-bar h2 { font-size: 14px; font-weight: 650; letter-spacing: -0.01em; }
 #deck-bar .grow { flex: 1; }
-#deck {
-  display: grid; grid-template-columns: 44px 1fr 44px; align-items: center;
-  padding: 6px 10px; flex: 0 0 auto;
-}
-.deck-arrow {
-  width: 36px; height: 36px; margin: auto; border-radius: 50%;
-  border: 1px solid #d6dae0; background: #fff; color: #57606a;
-  font-size: 22px; line-height: 1; cursor: pointer;
-}
-.deck-arrow:hover { background: #f0f2f4; color: #1f2328; }
-.deck-arrow:disabled { opacity: 0.3; cursor: default; }
-#deck-stage {
-  position: relative; height: 230px; overflow: hidden;
-  display: flex; align-items: center; justify-content: center;
-}
-.card {
-  position: absolute; width: min(640px, 78%);
+#deck { --cd-height: 240px; --cd-accent: #3d3a52; padding: 4px 10px 14px; flex: 0 0 auto; }
+.conn {
   border: 1px solid #e4e7eb; border-radius: 14px; background: #fff;
   padding: 18px 22px; box-shadow: 0 6px 22px rgba(31,35,40,0.06);
-  transition: transform .22s ease, opacity .22s ease;
 }
-.card.cur { transform: translateX(0) scale(1); z-index: 3; }
-.card.prev, .card.next {
-  z-index: 1; opacity: 0.45; cursor: pointer; pointer-events: auto;
-  transform: translateX(-72%) scale(0.88);
-}
-.card.next { transform: translateX(72%) scale(0.88); }
-.card.prev:hover, .card.next:hover { opacity: 0.7; }
-.deck-empty { color: #9aa0a8; font-size: 13.5px; line-height: 1.5; text-align: center; max-width: 420px; }
 .card-top { display: flex; align-items: baseline; gap: 10px; margin-bottom: 8px; }
 .card-topic { font-size: 17px; font-weight: 650; letter-spacing: -0.01em; color: #1f2328; }
 .card-age { margin-left: auto; font-size: 12px; color: #9aa0a8; flex: 0 0 auto; }
@@ -289,10 +265,6 @@ header .sub { color: #b3aec9; font-size: 12.5px; margin-left: 2px; }
 .card-actions button:hover { background: #f0f2f4; }
 .card-actions button.danger { color: #9aa0a8; }
 .card-actions button.danger:hover { color: #c0392b; border-color: #c0392b; }
-#deck-dots { display: flex; justify-content: center; gap: 6px; padding: 2px 0 8px; flex: 0 0 auto; }
-.dot { width: 7px; height: 7px; border-radius: 50%; background: #d6dae0; cursor: pointer; }
-.dot.on { background: #3d3a52; }
-
 /* ---- references: the connection at full zoom ---- */
 #refs {
   flex: 1; min-height: 0; display: grid; grid-template-columns: 1fr 1fr;
@@ -401,3 +373,19 @@ header .sub { color: #b3aec9; font-size: 12.5px; margin-left: 2px; }
 }
 #cfg-actions button.primary { background: #3d3a52; border-color: #3d3a52; color: #fff; }
 #cfg-actions button.primary:hover { background: #4c4864; }
+
+/* ---- narrow: deck first, sidebar as an overlay ---- */
+@media (max-width: 700px) {
+  header .sub { display: none; }
+  #deck-bar { padding: 10px 14px 2px; }
+  #refs { grid-template-columns: 1fr; padding: 0 14px 14px; gap: 10px; }
+  .refs-col { max-height: 46vh; }
+  #deck { --cd-height: 250px; }
+  .conn { padding: 14px 16px; }
+  .card-topic { font-size: 15px; }
+  .card-question { font-size: 13px; margin-bottom: 9px; }
+  /* the sidebar, when opened from its rail, covers the deck */
+  body.narrow #gp-split:not([collapsed]) #side-panel {
+    position: fixed; inset: 0; z-index: 40; width: 100% !important;
+  }
+}

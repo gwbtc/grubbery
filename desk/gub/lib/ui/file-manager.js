@@ -20,6 +20,8 @@
 //   });
 //   fm.setRoot(url)   // re-fence (e.g. when the host switches documents)
 //   fm.load()         // (re)fetch the listing
+//   fm.open(path, {from, to})   // viewer, scrolled to + highlighting lines
+//   fm.open(path, {edit: true}) // viewer in edit mode
 //
 // The fence is client-side by construction: nav() never climbs above root,
 // move/copy destinations are relative to it. The root dir itself is created
@@ -33,7 +35,7 @@
 // The host sizes the mount element; everything inside is the lib's.
 (function () {
   'use strict';
-  var CSS = '/* file-manager: the browse surface */\n.files-panel {\n  font: 13px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;\n  color: #1f2328;\n  height: 100%;\n  display: flex;\n  flex-direction: column;\n  overflow: hidden;\n  position: relative;\n  background: #fff;\n}\n.files-bar {\n  display: flex;\n  align-items: center;\n  gap: 6px;\n  padding: 6px 10px;\n  border-bottom: 1px solid #eee;\n  min-height: 38px;\n}\n.files-bar .grow { flex: 1; }\n.files-crumbs {\n  display: flex;\n  align-items: center;\n  gap: 1px;\n  font: 600 12px ui-monospace, SFMono-Regular, Menlo, monospace;\n  white-space: nowrap;\n  overflow: hidden;\n  text-overflow: ellipsis;\n}\n.files-crumbs a { color: #57606a; padding: 2px 3px; border-radius: 5px; text-decoration: none; }\n.files-crumbs a:hover { color: #24292f; background: #eaeef2; }\n.files-crumbs .here { color: #24292f; padding: 2px 3px; }\n.files-view { display: inline-flex; gap: 2px; }\n.files-view button,\n.files-add {\n  all: unset;\n  cursor: pointer;\n  padding: 3px 9px;\n  border-radius: 6px;\n  font-size: 12px;\n  color: #57606a;\n  border: 1px solid #ddd;\n  background: #fff;\n  line-height: 1.4;\n}\n.files-view button:hover, .files-add:hover { background: #f5f5f5; color: #24292f; }\n.files-view button.on { background: #f0f0f0; color: #1a1a1a; border-color: #ccc; }\n.files-menu button:not([slot]), .files-ctx button:not([slot]) {\n  display: block;\n  width: 100%;\n  text-align: left;\n  padding: 7px 14px;\n  border: none;\n  background: none;\n  font-size: 13px;\n  font-family: inherit;\n  color: #333;\n  cursor: pointer;\n  border-radius: 6px;\n  white-space: nowrap;\n}\n.files-menu button:not([slot]):hover, .files-ctx button:not([slot]):hover { background: #f5f5f5; }\n.files-ctx button.danger { color: #cf222e; }\n.files-body { flex: 1; overflow: auto; position: relative; min-height: 0; }\n.files-body file-table { --ft-header-top: 0; font-size: 12px; }\n.files-body file-grid { padding: 6px; }\n.files-empty {\n  padding: 28px 16px;\n  text-align: center;\n  color: #9aa0a6;\n  font-size: 13px;\n}\n.files-drop {\n  position: absolute;\n  inset: 6px;\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  border: 2px dashed #1a1a1a;\n  border-radius: 10px;\n  background: rgba(255,255,255,0.85);\n  color: #1a1a1a;\n  font-weight: 600;\n  font-size: 14px;\n  pointer-events: none;\n  z-index: 3;\n}\n.files-status {\n  display: none;\n  position: absolute;\n  left: 10px;\n  bottom: 10px;\n  padding: 6px 12px;\n  border-radius: 8px;\n  background: #1a1a1a;\n  color: #fff;\n  font-size: 12px;\n  z-index: 4;\n  box-shadow: 0 4px 14px rgba(0,0,0,0.18);\n}\n.files-status.err { background: #cf222e; }\n.files-ask-modal input { width: 100%; }\n\n/* file-manager: the viewer modal */\n.file-modal { --md-width: min(1000px, 94vw); --md-pad: 0; }\n.fm-wrap { display: flex; flex-direction: column; height: min(80vh, 760px); }\n.fm-bar {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  padding: 8px 12px;\n  border-bottom: 1px solid #eee;\n  background: #fafafa;\n  min-height: 42px;\n}\n.fm-bar .grow { flex: 1; }\n.fm-tabs { display: inline-flex; gap: 2px; }\n.fm-tabs button {\n  all: unset;\n  cursor: pointer;\n  padding: 3px 10px;\n  border-radius: 6px;\n  font-size: 12px;\n  color: #57606a;\n}\n.fm-tabs button:hover { background: #eef0f2; color: #24292f; }\n.fm-tabs button.on { background: #1a1a1a; color: #fff; }\n.fm-name {\n  font: 600 13px ui-monospace, SFMono-Regular, Menlo, monospace;\n  color: #24292f;\n  white-space: nowrap;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  margin-left: 6px;\n}\n.fm-chip { display: inline-flex; align-items: center; gap: 4px; padding: 1px 7px; border-radius: 6px; background: #eef1f4; border: 1px solid #e2e7ee; font: 11px ui-monospace, Menlo, monospace; color: #57606a; white-space: nowrap; }\n.fm-chip:empty { display: none; }\n.fm-status { font-size: 12px; color: #57606a; max-width: 40%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }\n.fm-status.err { color: #cf222e; }\n.fm-tool {\n  all: unset;\n  cursor: pointer;\n  padding: 3px 10px;\n  border-radius: 6px;\n  font-size: 12px;\n  color: #24292f;\n  border: 1px solid #ddd;\n  background: #fff;\n  line-height: 1.4;\n  text-decoration: none;\n}\n.fm-tool:hover { background: #f5f5f5; }\n.fm-tool.on { background: #1a1a1a; color: #fff; border-color: #1a1a1a; }\n.fm-tool[disabled] { opacity: .4; cursor: default; }\n.fm-close { font-size: 16px; padding: 1px 8px; }\n.fm-body { flex: 1; min-height: 0; position: relative; display: flex; flex-direction: column; }\n.fm-src, .fm-ed {\n  flex: 1;\n  min-height: 0;\n  margin: 0;\n  padding: 14px 18px;\n  overflow: auto;\n  font: 12.5px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace;\n  color: #24292f;\n  white-space: pre-wrap;\n  overflow-wrap: anywhere;\n  background: #fff;\n}\n.fm-ed {\n  border: none;\n  outline: none;\n  resize: none;\n  white-space: pre;\n  box-shadow: inset 0 0 0 2px #e8f0fe;\n}\n.fm-prev { flex: 1; min-height: 0; overflow: auto; }\n.fm-prev .fm-md { max-width: 74ch; padding: 20px 28px; line-height: 1.65; font-size: 14px; color: #24292f; }\n.fm-prev .fm-md h1, .fm-prev .fm-md h2, .fm-prev .fm-md h3 { border-bottom: 1px solid #e2e7ee; padding-bottom: .3em; }\n.fm-prev .fm-md code { background: #f2f4f7; padding: 1px 5px; border-radius: 5px; font: 12px ui-monospace, monospace; }\n.fm-prev .fm-md pre { background: #f6f8fa; border-radius: 8px; padding: 10px 12px; overflow: auto; }\n.fm-prev .fm-md pre code { background: none; padding: 0; }\n.fm-prev .fm-md table { border-collapse: collapse; }\n.fm-prev .fm-md th, .fm-prev .fm-md td { border: 1px solid #d0d7de; padding: 4px 10px; }\n.fm-prev .fm-md blockquote { border-left: 3px solid #d0d7de; margin-left: 0; padding-left: 14px; color: #57606a; }\n.fm-prev .fm-csv { border-collapse: collapse; margin: 20px; font: 12px ui-monospace, monospace; }\n.fm-prev .fm-csv th, .fm-prev .fm-csv td { border: 1px solid #d0d7de; padding: 5px 12px; text-align: left; }\n.fm-prev .fm-csv th { background: #f6f8fa; }\n\n.files-panel .hidden { display: none !important; }\n.files-panel .grow { flex: 1; }\n.files-ask-modal { --md-width: 420px; }\n.fm-ask-head { font-weight: 600; font-size: 14px; margin-bottom: 10px; }\n.files-ask-modal input { width: 100%; box-sizing: border-box; padding: 8px 10px; border: 1px solid #ddd; border-radius: 8px; font: 13px ui-monospace, Menlo, monospace; }\n.fm-ask-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }\n';
+  var CSS = '/* file-manager: the browse surface */\n.files-panel {\n  font: 13px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;\n  color: #1f2328;\n  height: 100%;\n  display: flex;\n  flex-direction: column;\n  overflow: hidden;\n  position: relative;\n  background: #fff;\n}\n.files-bar {\n  display: flex;\n  align-items: center;\n  gap: 6px;\n  padding: 6px 10px;\n  border-bottom: 1px solid #eee;\n  min-height: 38px;\n}\n.files-bar .grow { flex: 1; }\n.files-crumbs {\n  display: flex;\n  align-items: center;\n  gap: 1px;\n  font: 600 12px ui-monospace, SFMono-Regular, Menlo, monospace;\n  white-space: nowrap;\n  overflow: hidden;\n  text-overflow: ellipsis;\n}\n.files-crumbs a { color: #57606a; padding: 2px 3px; border-radius: 5px; text-decoration: none; }\n.files-crumbs a:hover { color: #24292f; background: #eaeef2; }\n.files-crumbs .here { color: #24292f; padding: 2px 3px; }\n.files-view { display: inline-flex; gap: 2px; }\n.files-view button,\n.files-add {\n  all: unset;\n  cursor: pointer;\n  padding: 3px 9px;\n  border-radius: 6px;\n  font-size: 12px;\n  color: #57606a;\n  border: 1px solid #ddd;\n  background: #fff;\n  line-height: 1.4;\n}\n.files-view button:hover, .files-add:hover { background: #f5f5f5; color: #24292f; }\n.files-view button.on { background: #f0f0f0; color: #1a1a1a; border-color: #ccc; }\n.files-menu button:not([slot]), .files-ctx button:not([slot]) {\n  display: block;\n  width: 100%;\n  text-align: left;\n  padding: 7px 14px;\n  border: none;\n  background: none;\n  font-size: 13px;\n  font-family: inherit;\n  color: #333;\n  cursor: pointer;\n  border-radius: 6px;\n  white-space: nowrap;\n}\n.files-menu button:not([slot]):hover, .files-ctx button:not([slot]):hover { background: #f5f5f5; }\n.files-ctx button.danger { color: #cf222e; }\n.files-body { flex: 1; overflow: auto; position: relative; min-height: 0; }\n.files-body file-table { --ft-header-top: 0; font-size: 12px; }\n.files-body file-grid { padding: 6px; }\n.files-empty {\n  padding: 28px 16px;\n  text-align: center;\n  color: #9aa0a6;\n  font-size: 13px;\n}\n.files-drop {\n  position: absolute;\n  inset: 6px;\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  border: 2px dashed #1a1a1a;\n  border-radius: 10px;\n  background: rgba(255,255,255,0.85);\n  color: #1a1a1a;\n  font-weight: 600;\n  font-size: 14px;\n  pointer-events: none;\n  z-index: 3;\n}\n.files-status {\n  display: none;\n  position: absolute;\n  left: 10px;\n  bottom: 10px;\n  padding: 6px 12px;\n  border-radius: 8px;\n  background: #1a1a1a;\n  color: #fff;\n  font-size: 12px;\n  z-index: 4;\n  box-shadow: 0 4px 14px rgba(0,0,0,0.18);\n}\n.files-status.err { background: #cf222e; }\n.files-ask-modal input { width: 100%; }\n\n/* file-manager: the viewer modal */\n.file-modal { --md-width: min(1000px, 94vw); --md-pad: 0; }\n.fm-wrap { display: flex; flex-direction: column; height: min(80vh, 760px); }\n.fm-bar {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  padding: 8px 12px;\n  border-bottom: 1px solid #eee;\n  background: #fafafa;\n  min-height: 42px;\n}\n.fm-bar .grow { flex: 1; }\n.fm-tabs { display: inline-flex; gap: 2px; }\n.fm-tabs button {\n  all: unset;\n  cursor: pointer;\n  padding: 3px 10px;\n  border-radius: 6px;\n  font-size: 12px;\n  color: #57606a;\n}\n.fm-tabs button:hover { background: #eef0f2; color: #24292f; }\n.fm-tabs button.on { background: #1a1a1a; color: #fff; }\n.fm-name {\n  font: 600 13px ui-monospace, SFMono-Regular, Menlo, monospace;\n  color: #24292f;\n  white-space: nowrap;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  margin-left: 6px;\n}\n.fm-chip { display: inline-flex; align-items: center; gap: 4px; padding: 1px 7px; border-radius: 6px; background: #eef1f4; border: 1px solid #e2e7ee; font: 11px ui-monospace, Menlo, monospace; color: #57606a; white-space: nowrap; }\n.fm-chip:empty { display: none; }\n.fm-status { font-size: 12px; color: #57606a; max-width: 40%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }\n.fm-status.err { color: #cf222e; }\n.fm-tool {\n  all: unset;\n  cursor: pointer;\n  padding: 3px 10px;\n  border-radius: 6px;\n  font-size: 12px;\n  color: #24292f;\n  border: 1px solid #ddd;\n  background: #fff;\n  line-height: 1.4;\n  text-decoration: none;\n}\n.fm-tool:hover { background: #f5f5f5; }\n.fm-tool.on { background: #1a1a1a; color: #fff; border-color: #1a1a1a; }\n.fm-tool[disabled] { opacity: .4; cursor: default; }\n.fm-close { font-size: 16px; padding: 1px 8px; }\n.fm-body { flex: 1; min-height: 0; position: relative; display: flex; flex-direction: column; }\n.fm-src, .fm-ed {\n  flex: 1;\n  min-height: 0;\n  margin: 0;\n  padding: 14px 18px;\n  overflow: auto;\n  font: 12.5px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace;\n  color: #24292f;\n  white-space: pre-wrap;\n  overflow-wrap: anywhere;\n  background: #fff;\n}\n.fm-src { padding-left: 0; }\n.fm-line { display: flex; }\n.fm-line .ln { flex: 0 0 52px; padding-right: 12px; text-align: right; color: #c4c8cd; user-select: none; }\n.fm-line .lt { flex: 1; min-width: 0; padding-right: 18px; white-space: pre-wrap; overflow-wrap: anywhere; }\n.fm-line.hit { background: #fff8c5; }\n.fm-line.hit .ln { color: #6a5c00; }\n.fm-src.plain { padding-left: 18px; }\n.fm-ed {\n  border: none;\n  outline: none;\n  resize: none;\n  white-space: pre;\n  box-shadow: inset 0 0 0 2px #e8f0fe;\n}\n.fm-prev { flex: 1; min-height: 0; overflow: auto; }\n.fm-prev .fm-md { max-width: 74ch; padding: 20px 28px; line-height: 1.65; font-size: 14px; color: #24292f; }\n.fm-prev .fm-md h1, .fm-prev .fm-md h2, .fm-prev .fm-md h3 { border-bottom: 1px solid #e2e7ee; padding-bottom: .3em; }\n.fm-prev .fm-md code { background: #f2f4f7; padding: 1px 5px; border-radius: 5px; font: 12px ui-monospace, monospace; }\n.fm-prev .fm-md pre { background: #f6f8fa; border-radius: 8px; padding: 10px 12px; overflow: auto; }\n.fm-prev .fm-md pre code { background: none; padding: 0; }\n.fm-prev .fm-md table { border-collapse: collapse; }\n.fm-prev .fm-md th, .fm-prev .fm-md td { border: 1px solid #d0d7de; padding: 4px 10px; }\n.fm-prev .fm-md blockquote { border-left: 3px solid #d0d7de; margin-left: 0; padding-left: 14px; color: #57606a; }\n.fm-prev .fm-csv { border-collapse: collapse; margin: 20px; font: 12px ui-monospace, monospace; }\n.fm-prev .fm-csv th, .fm-prev .fm-csv td { border: 1px solid #d0d7de; padding: 5px 12px; text-align: left; }\n.fm-prev .fm-csv th { background: #f6f8fa; }\n\n.files-panel .hidden { display: none !important; }\n.files-panel .grow { flex: 1; }\n.files-ask-modal { --md-width: 420px; }\n.fm-ask-head { font-weight: 600; font-size: 14px; margin-bottom: 10px; }\n.files-ask-modal input { width: 100%; box-sizing: border-box; padding: 8px 10px; border: 1px solid #ddd; border-radius: 8px; font: 13px ui-monospace, Menlo, monospace; }\n.fm-ask-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }\n';
   var MARKUP = '<div class="files-panel">\n  <div class="files-bar">\n    <span class="files-crumbs" id="files-crumbs"></span>\n    <span class="grow"></span>\n    <span class="files-view">\n      <button id="fv-list" class="on" title="list view">&#9776;</button>\n      <button id="fv-grid" title="grid view">&#9638;</button>\n    </span>\n    <drop-menu align="end" class="files-menu">\n      <button slot="trigger" class="files-add" title="add">+ &#9662;</button>\n      <button class="mi" data-fm="new-file">New file&hellip;</button>\n      <button class="mi" data-fm="upload">Upload files&hellip;</button>\n      <button class="mi" data-fm="upload-dir">Upload directory&hellip;</button>\n      <button class="mi" data-fm="folder">New folder&hellip;</button>\n      <button class="mi" data-fm="download">Download all</button>\n    </drop-menu>\n  </div>\n  <div class="files-body" id="files-body">\n    <file-table id="files-ft"></file-table>\n    <file-grid id="files-fg" style="display:none"></file-grid>\n    <div class="files-empty hidden" id="files-empty">No files yet. Drop files here or use +.</div>\n    <div class="files-drop hidden" id="files-drop">Drop to upload</div>\n  </div>\n  <div class="files-status" id="files-status"></div>\n  <drop-menu class="files-ctx" id="files-ctx" style="position:fixed; display:none; z-index:50;">\n    <button slot="trigger" style="display:none"></button>\n    <button class="mi" data-fm="new-file">New file&hellip;</button>\n    <button class="mi" data-fm="upload">Upload files&hellip;</button>\n    <button class="mi" data-fm="upload-dir">Upload directory&hellip;</button>\n    <button class="mi" data-fm="folder">New folder&hellip;</button>\n  </drop-menu>\n  <modal-dialog class="files-ask-modal" id="files-ask-modal">\n    <div class="fm-ask-head" id="files-ask-title"></div>\n    <input id="files-ask-input" type="text" autocomplete="off" spellcheck="false">\n    <div class="fm-ask-actions">\n      <button data-close class="fm-tool">Cancel</button>\n      <button id="files-ask-go" class="fm-tool on">OK</button>\n    </div>\n  </modal-dialog>\n  <modal-dialog class="file-modal" id="file-modal" no-x>\n    <div class="fm-wrap">\n      <div class="fm-bar">\n        <span class="fm-tabs">\n          <button id="fm-tab-src">Source</button>\n          <button id="fm-tab-prev">Preview</button>\n        </span>\n        <span class="fm-name" id="fm-name"></span>\n        <span class="fm-chip" id="fm-blot" title="blot (the grub\'s type)"></span>\n        <span class="fm-chip" id="fm-mime" title="mime type"></span>\n        <span class="grow"></span>\n        <span class="fm-status" id="fm-status"></span>\n        <button id="fm-edit" class="fm-tool">Edit</button>\n        <button id="fm-save" class="fm-tool" disabled>Save</button>\n        <a id="fm-ext" class="fm-tool" target="_blank" rel="noopener" title="open in the explorer">&#8599;</a>\n        <button class="fm-tool fm-close" data-close title="close">&times;</button>\n      </div>\n      <div class="fm-body">\n        <pre class="fm-src" id="fm-src"></pre>\n        <textarea class="fm-ed hidden" id="fm-ed" spellcheck="false"></textarea>\n        <div class="fm-prev hidden" id="fm-prev"></div>\n      </div>\n    </div>\n  </modal-dialog>\n  <input type="file" id="files-pick" multiple hidden>\n  <input type="file" id="files-pick-dir" webkitdirectory directory hidden>\n</div>';
   var styled = false;
   var seq = 0;
@@ -320,7 +322,7 @@
           ask('New file', 'untitled.md', function (n) {
             if (!n) return;
             post({ action: 'create-file', filename: n }).then(function () {
-              openViewer({ name: n, kind: 'file' }, true);
+              openViewer({ name: n, kind: 'file' }, { edit: true });
             });
           });
           break;
@@ -404,7 +406,40 @@
     var fmSrc = $('fm-src'), fmEd = $('fm-ed'), fmPrev = $('fm-prev');
     var fmEdit = $('fm-edit'), fmSave = $('fm-save'), fmStatus = $('fm-status');
     var fmTabSrc = $('fm-tab-src'), fmTabPrev = $('fm-tab-prev');
-    var vf = null;   // { url, name, ext, editable, clean, editing, tab, mite }
+    var vf = null;   // { url, name, ext, editable, clean, editing, tab, mite, src }
+    // the read view is a numbered row per line, so lines are addressable
+    // (scroll-to, highlight). A plain string (binary note) has no gutter.
+    function setSrc(text, plain) {
+      if (vf) vf.src = text;
+      fmSrc.textContent = '';
+      fmSrc.classList.toggle('plain', !!plain);
+      if (plain) { fmSrc.textContent = text; return; }
+      var frag = document.createDocumentFragment();
+      var lines = text.split('\n');
+      for (var i = 0; i < lines.length; i++) {
+        var row = document.createElement('div');
+        row.className = 'fm-line';
+        row.dataset.n = String(i + 1);
+        var ln = document.createElement('span'); ln.className = 'ln'; ln.textContent = String(i + 1);
+        var lt = document.createElement('span'); lt.className = 'lt'; lt.textContent = lines[i];
+        row.append(ln, lt);
+        frag.appendChild(row);
+      }
+      fmSrc.appendChild(frag);
+    }
+    function goToLine(from, to) {
+      if (!vf || !from) return;
+      to = to || from;
+      fmSrc.querySelectorAll('.fm-line.hit').forEach(function (r) { r.classList.remove('hit'); });
+      var first = null;
+      for (var n = from; n <= to; n++) {
+        var r = fmSrc.querySelector('.fm-line[data-n="' + n + '"]');
+        if (!r) continue;
+        r.classList.add('hit');
+        if (!first) first = r;
+      }
+      if (first) first.scrollIntoView({ block: 'center' });
+    }
 
     function extOf(name) {
       var m = /\.([a-z0-9]+)$/i.exec(name || '');
@@ -439,7 +474,9 @@
       fmStatus.title = err ? msg : '';
     }
 
-    async function openViewer(item, startEditing) {
+    async function openViewer(item, opts) {
+      opts = opts || {};
+      var startEditing = !!opts.edit;
       var url = join(here, item.name);
       vf = { url: url, name: item.name, ext: extOf(item.name), editable: false,
              clean: '', editing: false, tab: 'src', mite: item.mime || '' };
@@ -447,7 +484,7 @@
       $('fm-blot').textContent = '';
       $('fm-mime').textContent = '';
       $('fm-ext').href = url;
-      fmSrc.textContent = '';
+      setSrc('', true);
       fmEd.value = '';
       fmPrev.textContent = '';
       fmEdit.classList.remove('on');
@@ -469,11 +506,11 @@
         } catch (e) { fmSetStatus('could not read file', true); return; }
         if (!vf || vf.url !== url) return;
         fmEd.value = vf.clean;
-        fmSrc.textContent = vf.clean;
+        setSrc(vf.clean);
       } else if (info.jammed) {
-        fmSrc.textContent = info.text || '';
+        setSrc(info.text || '');
       } else {
-        fmSrc.textContent = 'binary content — ' + vf.mite;
+        setSrc('binary content — ' + vf.mite, true);
       }
       fmSetStatus('');
       fmEdit.disabled = !vf.editable;
@@ -482,6 +519,7 @@
       fmTabSrc.classList.toggle('hidden', !prev);
       fmTabPrev.classList.toggle('hidden', !prev);
       if (startEditing && vf.editable) { vf.editing = true; fmEdit.classList.add('on'); fmShow('src'); fmEd.focus(); return; }
+      if (opts.from) { fmShow('src'); goToLine(opts.from, opts.to); return; }
       fmShow(prev ? 'prev' : 'src');
     }
 
@@ -501,7 +539,7 @@
 
     function renderPreview() {
       var kind = kindOf(vf.name, vf.mite);
-      var text = vf.editable ? fmEd.value : (fmSrc.textContent || '');
+      var text = vf.editable ? fmEd.value : (vf.src || '');
       var rawUrl = vf.url + '?raw=1';
       fmPrev.textContent = '';
       fmPrev.removeAttribute('style');
@@ -537,7 +575,7 @@
       if (!vf || !vf.editable) return;
       vf.editing = !vf.editing;
       fmEdit.classList.toggle('on', vf.editing);
-      if (!vf.editing) fmSrc.textContent = fmEd.value;
+      if (!vf.editing) setSrc(fmEd.value);
       fmShow('src');
       if (vf.editing) fmEd.focus();
     });
@@ -571,7 +609,7 @@
         var stored = present(await (await fetch(url + '?raw=1')).text(), vf.ext);
         vf.clean = stored;
         if (fmEd.value === sent && stored !== sent) fmEd.value = stored;
-        fmSrc.textContent = fmEd.value;
+        setSrc(fmEd.value);
         fmSave.disabled = fmEd.value === vf.clean;
         fmSetStatus('saved ✓');
         setTimeout(function () { if (fmStatus.textContent === 'saved ✓') fmSetStatus(''); }, 2500);
@@ -612,6 +650,18 @@
     }
     handle.setRoot = setRoot;
     handle.load = function () { if (root) nav(root); };
+    // open a file (path relative to root) in the viewer modal — for hosts
+    // that cite files from elsewhere in their UI
+    // opts: { edit } to open in edit mode, { from, to } to scroll to and
+    // highlight a 1-based line range on the source view
+    handle.open = function (relPath, opts) {
+      if (!root) return;
+      var parts = String(relPath).replace(/^\/+/, '').split('/');
+      var name = parts.pop();
+      here = parts.length ? join(root, parts.join('/')) : root;
+      openViewer({ name: name, kind: 'file' }, opts === true ? { edit: true } : (opts || {}));
+    };
+    handle.goToLine = goToLine;
     if (opts.root) setRoot(opts.root);
   }
 

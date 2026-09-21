@@ -48,9 +48,8 @@
     <p id="model-info" class="muted"></p>
     <pre id="test-out" hidden></pre>
   </section>
-  <section class="panel">
+  <section class="panel grow" id="ledger">
     <div class="panel-head">
-      <h2>Usage</h2>
       <div class="row">
         <span id="sync-ago" class="muted"></span>
         <button id="models-sync" class="small" title="model list and rates from OpenRouter's public catalog">Sync models</button>
@@ -58,29 +57,32 @@
         <button id="reset" class="small danger">Reset</button>
       </div>
     </div>
-    <div class="stats">
-      <div class="stat"><div class="label">Input tokens</div><div class="value" id="in-tok">–</div></div>
-      <div class="stat"><div class="label">Output tokens</div><div class="value" id="out-tok">–</div></div>
-      <div class="stat"><div class="label">Cache read</div><div class="value" id="cache-read">–</div></div>
-      <div class="stat"><div class="label">Web searches</div><div class="value" id="web-searches">–</div></div>
-      <div class="stat"><div class="label">Cache write</div><div class="value" id="cache-write">–</div></div>
-      <div class="stat"><div class="label">Requests</div><div class="value" id="requests">–</div></div>
-      <div class="stat"><div class="label">Est. cost</div><div class="value cost" id="total-cost">–</div></div>
-    </div>
-    <h2>Cost by caller</h2>
-    <table>
-      <thead><tr><th>Caller</th><th>Requests</th><th>In</th><th>Out</th><th class="r">Cost</th></tr></thead>
-      <tbody id="caller-log"></tbody>
-    </table>
-  </section>
-  <section class="panel grow">
-    <h2>Recent calls</h2>
-    <div id="call-scroll">
-      <table>
-        <thead><tr><th>Time</th><th>Caller</th><th>Model</th><th>In</th><th>Cache R</th><th>Cache W</th><th>Out</th><th>Srch</th><th class="r">Cost</th></tr></thead>
-        <tbody id="call-log"></tbody>
-      </table>
-    </div>
+    <tab-group id="ledger-tabs" persist="anthropic-ledger">
+      <div tab-label="Usage" id="usage-tab">
+        <div class="stats">
+          <div class="stat"><div class="label">Input tokens</div><div class="value" id="in-tok">–</div></div>
+          <div class="stat"><div class="label">Output tokens</div><div class="value" id="out-tok">–</div></div>
+          <div class="stat"><div class="label">Cache read</div><div class="value" id="cache-read">–</div></div>
+          <div class="stat"><div class="label">Web searches</div><div class="value" id="web-searches">–</div></div>
+          <div class="stat"><div class="label">Cache write</div><div class="value" id="cache-write">–</div></div>
+          <div class="stat"><div class="label">Requests</div><div class="value" id="requests">–</div></div>
+          <div class="stat"><div class="label">Est. cost</div><div class="value cost" id="total-cost">–</div></div>
+        </div>
+        <h2>Cost by caller</h2>
+        <table>
+          <thead><tr><th>Caller</th><th>Requests</th><th>In</th><th>Out</th><th class="r">Cost</th></tr></thead>
+          <tbody id="caller-log"></tbody>
+        </table>
+      </div>
+      <div tab-label="Recent calls" id="calls-tab">
+        <div id="call-scroll">
+          <table>
+            <thead><tr><th>Time</th><th>Caller</th><th>Model</th><th>In</th><th>Cache R</th><th>Cache W</th><th>Out</th><th>Srch</th><th class="r">Cost</th></tr></thead>
+            <tbody id="call-log"></tbody>
+          </table>
+        </div>
+      </div>
+    </tab-group>
   </section>
 </main>
 <div id="key-modal" class="modal" hidden>
@@ -109,6 +111,7 @@
     <p>This nexus is a consolidated endpoint for the Anthropic API — a local, well-structured stand-in for the external service, ideally used as the ship's only door to it. Apps that go through it never hold the key or reach the internet; they are granted this nexus's road, which makes “may use Claude” an ordinary capability, and every use is metered to its caller.</p>
   </div>
 </div>
+<script type="module" src="/grubbery/anthropic/tab-group.js"></script>
 <script src="/grubbery/anthropic/app.js"></script>
 </body>
 </html>

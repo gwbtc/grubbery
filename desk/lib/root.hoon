@@ -104,6 +104,8 @@
         ::  ghostprompter mounts at the plain name (like /apps/itinerary):
         ::  its agent tools address /apps/ghostprompter/... absolutely
         [%fall %| /apps/ghostprompter [`[`[/ %ghostprompter] ~ %.n ~] ~]]
+        ::  nostr mirrored into the namespace; plain name, shared by readers
+        [%fall %| /apps/nostr [`[`[/ %nostr] ~ %.n ~] ~]]
     ==
 ::
 ++  on-file

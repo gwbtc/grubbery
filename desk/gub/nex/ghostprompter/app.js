@@ -1,6 +1,7 @@
 'use strict';
 var API = '/grubbery/ghostprompter';
 var busy = false;
+var liveProfiles = {};   // pubkey -> profile, from the last feed load
 
 // ---------- the flow ----------
 
@@ -12,6 +13,7 @@ async function loadFeed() {
   } catch (e) { data = null; }
   var posts = data && Array.isArray(data.posts) ? data.posts : null;
   var profiles = (data && data.profiles) || {};
+  liveProfiles = profiles;
   box.textContent = '';
   if (!posts) {
     box.innerHTML = '<div class="empty">Flow unreachable — is nostrill up?</div>';
@@ -381,8 +383,10 @@ function loadLibrary() { libFm.ready.then(function () { libFm.load(); }); }
 // drive that; older proposals carry only pasted text and render that.
 
 var props = [];
-var deckIdx = 0;
 var refsToken = 0;
+var deck = document.getElementById('deck');
+deck.render = function(p, i, isCurrent) { return cardEl(p, isCurrent); };
+deck.addEventListener('cd-change', function(e) { renderRefs(e.detail.item); });
 
 async function loadProposals() {
   try {
@@ -391,51 +395,14 @@ async function loadProposals() {
   if (!Array.isArray(props)) props = [];
   props.sort(function(a, b) { return ((b.doc && b.doc.at) || 0) - ((a.doc && a.doc.at) || 0); });
   document.getElementById('prop-count').textContent = props.length ? props.length + ' filed' : '';
-  if (deckIdx >= props.length) deckIdx = Math.max(0, props.length - 1);
-  renderDeck();
-}
-
-function showCard(i) {
-  if (!props.length) return;
-  deckIdx = (i + props.length) % props.length;
-  renderDeck();
-}
-
-function renderDeck() {
-  var stage = document.getElementById('deck-stage');
-  var dots = document.getElementById('deck-dots');
-  stage.textContent = '';
-  dots.textContent = '';
-  var prev = document.getElementById('deck-prev'), next = document.getElementById('deck-next');
-  prev.disabled = next.disabled = props.length < 2;
-  if (!props.length) {
-    stage.innerHTML = '<div class="deck-empty">No connections yet. Summon the ghost to index the flow against your library.</div>';
-    renderRefs(null);
-    return;
-  }
-  // neighbors peek at the edges: prev | current | next
-  [-1, 0, 1].forEach(function(off) {
-    var j = deckIdx + off;
-    if (props.length < 3 && (j < 0 || j >= props.length)) return;
-    var p = props[(j + props.length) % props.length];
-    var card = cardEl(p, off === 0);
-    card.classList.add(off === 0 ? 'cur' : off < 0 ? 'prev' : 'next');
-    if (off !== 0) card.onclick = function() { showCard(j); };
-    stage.appendChild(card);
-  });
-  props.forEach(function(_, i) {
-    var d = document.createElement('span');
-    d.className = 'dot' + (i === deckIdx ? ' on' : '');
-    d.onclick = function() { showCard(i); };
-    dots.appendChild(d);
-  });
-  renderRefs(props[deckIdx]);
+  deck.items = props;
+  renderRefs(deck.current || null);
 }
 
 function cardEl(p, live) {
   var d = p.doc || {};
   var card = document.createElement('div');
-  card.className = 'card';
+  card.className = 'conn';
   var top = document.createElement('div');
   top.className = 'card-top';
   var topic = document.createElement('div');
@@ -509,7 +476,11 @@ async function renderRefs(p) {
   var ids = Array.isArray(d.post_ids) ? d.post_ids.filter(Boolean) : [];
   if (snap.length) {
     snap.forEach(function(sp) {
-      flowBody.appendChild(postEl({ id: sp.id, pubkey: sp.pubkey, at: sp.at, content: sp.content }, { name: sp.name, picture: sp.picture }));
+      // the snapshot keeps the post as it was; the author's profile is
+      // whatever we know now, live feed first, snapshot as fallback
+      var live = liveProfiles[sp.pubkey] || {};
+      var prof = { name: sp.name || live.name, picture: sp.picture || live.picture };
+      flowBody.appendChild(postEl({ id: sp.id, pubkey: sp.pubkey, at: sp.at, content: sp.content }, prof));
     });
     if (d.posts) flowBody.appendChild(excerptsEl(d.posts));
   } else if (ids.length) {
@@ -542,7 +513,13 @@ async function renderRefs(p) {
   libBody.appendChild(q);
   var cite = document.createElement('div');
   cite.className = 'ref-cite';
-  cite.textContent = d.source ? '— ' + d.source + (d.from ? ', lines ' + d.from + (d.to && d.to !== d.from ? '–' + d.to : '') : '') : '';
+  if (d.source) {
+    var srcLink = document.createElement('a');
+    srcLink.href = '#';
+    srcLink.textContent = d.source;
+    srcLink.addEventListener('click', function(e) { e.preventDefault(); libFm.ready.then(function() { libFm.open(d.source, { from: d.from, to: d.to }); }); });
+    cite.append('— ', srcLink, d.from ? ', lines ' + d.from + (d.to && d.to !== d.from ? '–' + d.to : '') : '');
+  }
   libBody.appendChild(cite);
   if (d.source && d.from) {
     var lo = Math.max(1, d.from - 15), hi = (d.to || d.from) + 15;
@@ -564,9 +541,12 @@ async function renderRefs(p) {
       }
       var open = document.createElement('a');
       open.className = 'ref-open';
-      open.textContent = 'open ' + d.source + ' in the library ↗';
-      open.href = '/grubbery/ball/apps/ghostprompter/library/' + encodeURIComponent(d.source);
-      open.target = '_blank';
+      open.textContent = 'open ' + d.source + ' in the library';
+      open.href = '#';
+      open.addEventListener('click', function(e) {
+        e.preventDefault();
+        libFm.ready.then(function() { libFm.open(d.source, { from: d.from, to: d.to }); });
+      });
       libBody.appendChild(open);
     } catch (e) { ctx.textContent = 'could not load ' + d.source; }
   }
@@ -618,24 +598,19 @@ function postEl(p, prof) {
   return item;
 }
 
-document.getElementById('deck-prev').onclick = function() { showCard(deckIdx - 1); };
-document.getElementById('deck-next').onclick = function() { showCard(deckIdx + 1); };
-document.addEventListener('keydown', function(e) {
-  if (e.target.closest('input, textarea') || document.querySelector('modal-dialog[open]')) return;
-  if (e.key === 'ArrowLeft') showCard(deckIdx - 1);
-  if (e.key === 'ArrowRight') showCard(deckIdx + 1);
-});
-// swipe on touch
-(function() {
-  var x0 = null, stage = document.getElementById('deck-stage');
-  stage.addEventListener('touchstart', function(e) { x0 = e.touches[0].clientX; }, { passive: true });
-  stage.addEventListener('touchend', function(e) {
-    if (x0 == null) return;
-    var dx = e.changedTouches[0].clientX - x0; x0 = null;
-    if (Math.abs(dx) > 40) showCard(deckIdx + (dx < 0 ? 1 : -1));
-  }, { passive: true });
-})();
 document.getElementById('panel-collapse').onclick = function() { document.getElementById('gp-split').collapse(); };
+// narrow screens: the deck is the app; the sidebar starts collapsed and
+// opens as a full-width overlay from its rail
+(function() {
+  var split = document.getElementById('gp-split');
+  var mq = window.matchMedia('(max-width: 700px)');
+  function apply() {
+    document.body.classList.toggle('narrow', mq.matches);
+    if (mq.matches && !split.hasAttribute('collapsed')) split.collapse();
+  }
+  mq.addEventListener('change', apply);
+  customElements.whenDefined('split-view').then(apply);
+})();
 
 document.getElementById('btn-summon').onclick = function() {
   sendMessage('Index the current flow against my library: file the 2-3 strongest topic connections with the propose tool. Raw material only — include full post ids and the passage line range.');

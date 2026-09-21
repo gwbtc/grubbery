@@ -1,0 +1,31 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nostr</title>
+<link rel="icon" type="image/svg+xml" href="/grubbery/nostr/icon.svg">
+<link rel="stylesheet" href="/grubbery/nostr/style.css">
+</head>
+<body>
+<header>
+  <img id="brand-icon" src="/grubbery/nostr/icon.svg" alt="">
+  <h1>Nostr</h1>
+  <span class="sub">your feed, mirrored into the namespace</span>
+  <span id="status"></span>
+  <button id="sync" class="small" title="pull from nostrill now">Sync</button>
+</header>
+<main>
+  <section class="panel grow">
+    <div class="panel-head">
+      <h2>Feed</h2>
+      <span id="feed-count" class="muted"></span>
+      <span class="grow"></span>
+      <a class="muted mono" href="/grubbery/ball/apps/nostr" target="_blank" title="the grubs behind this page">/apps/nostr ↗</a>
+    </div>
+    <div id="feed" class="scroll"><div class="empty">loading…</div></div>
+  </section>
+</main>
+<script src="/grubbery/nostr/app.js"></script>
+</body>
+</html>
