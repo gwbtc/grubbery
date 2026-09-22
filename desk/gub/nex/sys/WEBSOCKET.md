@@ -144,7 +144,7 @@ A fiber per relay under `/apps/nostr/relays/<host>.json`: connect, send
 ev]` → `make-soft` `/events/<id>.json` (idempotent, same as the poller),
 `["EOSE"]` → mark synced, on close → sleep/backoff → reconnect. Keys and
 signing (`lib/nostr/keys.hoon`, ~50 lines, kernel secp) port as a lib for
-publishing. The poller in `nostr.hoon` retires; every reader is already
+publishing. The poller in `nostr.hoon` gives way to it; every reader is already
 on the namespace.
 
 ## Order
@@ -152,4 +152,4 @@ on the namespace.
 1. `ws.ws-state` in app/grubbery.hoon + the four fiberio arms. Test with an
    echo server (`wss://echo.websocket.org` or a local one).
 2. `/apps/nostr` relay fibers alongside the poller; compare event sets.
-3. Retire the poller; drop `/sys/scry` from nostr's weir.
+3. Remove the poller; drop `/sys/scry` from nostr's weir.

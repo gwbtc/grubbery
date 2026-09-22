@@ -8,7 +8,8 @@
 ::  clients (one fiber per relay, over /sys/iris/ws.ws-state) pull the
 ::  posts and profiles of the pubkeys in follows.json and push the
 ::  events we sign. Everything downstream — the page, ghostprompter,
-::  the explorer — reads the namespace. No gall agent is involved.
+::  the explorer — reads the namespace. The protocol handling follows
+::  nostrill, the gall-agent client this grew out of.
 ::
 ::    me/identity.json        {pubkey, npub, since}: the public half of
 ::                            our key — our name on the network. Empty
@@ -57,10 +58,7 @@
 ::                            exists for every configured relay, every
 ::                            `interval` seconds and on any poke.
 ::
-::  TODO publishing: signing needs our nostr private key as a grub with a
-::  weir only the publisher may read (nostrill: lib/nostr/keys.hoon,
-::  schnorr over the event hash). TODO verify inbound signatures; today,
-::  like nostrill, we trust the relay.
+::  The road to a full client, and what is done: nostr/TODO.md.
 ::    web.sig                 the page: static files + a JSON api over
 ::                            the grubs above (see +serve).
 ::
@@ -157,7 +155,7 @@
       :~  (line '/sys/bowl.sig' 'time + entropy')
           (line '/sys/behn/' 'supervisor and reconnect timers')
           (line '/sys/eyre/' 'serve the feed page over HTTP')
-          (line '/sys/iris/ws.ws-state' 'websockets to nostr relays (the client that will replace the poller)')
+          (line '/sys/iris/ws.ws-state' 'websockets to nostr relays')
       ==
   ==
 ::
