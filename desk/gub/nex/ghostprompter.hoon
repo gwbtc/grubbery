@@ -1,8 +1,9 @@
 ::  ghostprompter nexus: a ghostwriting dashboard over the nostr flow.
 ::  (respin: indexer connections + one genuine open question allowed)
 ::
-::  Three surfaces: the flow (nostrill's live timeline, read over
-::  loopback HTTP), the library (the user's own material as mime grubs
+::  Three surfaces: the flow (the nostr timeline, read from the
+::  /apps/nostr mirror: feed.json for the order, one grub per event and
+::  per profile), the library (the user's own material as mime grubs
 ::  under /library), and proposals (drafts the sandboxed agent files
 ::  under /proposals). The agent cross-references flow and library and
 ::  proposes posts/replies; nothing is ever posted automatically — the
@@ -43,7 +44,10 @@
             :-  %a
             :~  (pairs:enjs:format ~[['road' s+'/sys/bowl.sig'] ['why' s+'time, identity, entropy — every fiber op']])
                 (pairs:enjs:format ~[['road' s+'/sys/eyre/'] ['why' s+'serve the dashboard over HTTP']])
-                (pairs:enjs:format ~[['road' s+'/sys/scry/main.sig'] ['why' s+'read the nostrill feed (gall scry service)']])
+            ==
+            :-  'peek'
+            :-  %a
+            :~  (pairs:enjs:format ~[['road' s+'/apps/nostr/'] ['why' s+'the flow: feed.json, events/, profiles/ (the nostr mirror)']])
             ==
         ==
       =/  tile=json
@@ -128,7 +132,7 @@
         ?:  ?&(=(%'GET' method) =([%ui %'file-manager.js' ~] suffix))
           (serve-file eyre-id /ui 'file-manager.js')
         ::
-        ::  GET /api/feed?limit=n — the compacted nostrill timeline
+        ::  GET /api/feed?limit=n — the timeline, from the nostr mirror
         ::
         ?:  ?&(=(%'GET' method) =([%api %feed ~] suffix))
           =/  limit=@ud
@@ -138,24 +142,17 @@
           ;<  posts=json  bind:m  (fetch-feed limit)
           (send-json eyre-id (en:json:html posts))
         ::
-        ::  GET /api/post?id=<id> — one flow post by id (for a proposal's
-        ::  references); same shape as a feed entry, plus its profile
+        ::  GET /api/post?id=<id> — one flow post by id (a proposal's
+        ::  references). Events are immutable grubs, so this is the
+        ::  post exactly as it was when cited; plus its author's profile
         ::
         ?:  ?&(=(%'GET' method) =([%api %post ~] suffix))
           =/  want=@t  (fall (~(get by (malt args)) 'id') '')
-          ;<  feed=json  bind:m  (fetch-feed 400)
-          =/  posts=(list json)
-            ?.  ?=([%o *] feed)  ~
-            =/  p  (~(get by p.feed) 'posts')
-            ?.(?=([~ %a *] p) ~ p.u.p)
-          =/  hit=(unit json)
-            |-
-            ?~  posts  ~
-            ?:  =(want (jget-s i.posts 'id'))  `i.posts
-            $(posts t.posts)
-          ?~  hit  (send-json eyre-id '{"error":"not in the current feed"}')
-          =/  profs=json  ?.(?=([%o *] feed) [%o ~] (fall (~(get by p.feed) 'profiles') [%o ~]))
-          (send-json eyre-id (en:json:html (pairs:enjs:format ~[['post' u.hit] ['profiles' profs]])))
+          ;<  ev=(unit json)  bind:m  (peek-event want)
+          ?~  ev  (send-json eyre-id '{"error":"no such event in the mirror"}')
+          =/  post=json  (compact-post u.ev)
+          ;<  profs=(list [@t json])  bind:m  (fetch-profiles ~[(jget-s post 'pubkey')])
+          (send-json eyre-id (en:json:html (pairs:enjs:format ~[['post' post] ['profiles' [%o (malt profs)]]])))
         ::
         ::  GET /api/proposals — every proposal, with its id
         ::
@@ -254,9 +251,9 @@
 ::  agent-weir: THE SANDBOX. The complete external reach we grant the
 ::  ghostprompter agent when we mount it — the kernel refuses all else.
 ::    make: /proposals (the propose tool files drafts)
-::    poke: bowl.sig (time + entropy), the anthropic proxy's main.sig,
-::          the /sys/scry service (get_feed reads nostrill's gall state)
-::    peek: /library, /proposals, proxy calls
+::    poke: bowl.sig (time + entropy), the anthropic proxy's main.sig
+::    peek: /library, /proposals, proxy calls, and /apps/nostr — the
+::          flow (get_feed reads the mirror's feed.json + event grubs)
 ++  agent-weir
   ^-  weir:tarball
   =/  dir  |=(p=path `road:tarball`[%& %| p])
@@ -265,12 +262,12 @@
       %-  sy
       :~  (fil /sys 'bowl.sig')
           (fil /apps/'anthropic.anthropic' 'main.sig')
-          (fil /sys/scry 'main.sig')
       ==
       %-  sy
       :~  (dir /apps/ghostprompter/library)
           (dir /apps/ghostprompter/proposals)
           (dir /apps/'anthropic.anthropic'/calls)
+          (dir /apps/nostr)
       ==
   ==
 ::
@@ -298,86 +295,76 @@
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
   (send-simple:srv eyre-id [[200 ~[['content-type' 'application/json']]] `(as-octs:mimes:html body)])
-::  +fetch-feed: nostrill's timeline through the /sys/scry service,
-::  compacted for the dashboard: [{id, pubkey, content, at}] newest
-::  first.
+::  +fetch-feed: the timeline from the /apps/nostr mirror, compacted
+::  for the dashboard: {posts: [{id, pubkey, content, at}] newest
+::  first, profiles: {pubkey: {name, picture}}}. feed.json gives the
+::  order; each event and profile is its own grub.
 ++  fetch-feed
   |=  limit=@ud
   =/  m  (fiber:fiber:nexus ,json)
   ^-  form:m
-  ;<  feed-jon=json  bind:m  (typed-scry:io json %json /gx/nostrill/j/nostr/json)
-  =/  jon=(unit json)  `feed-jon
-  ?.  ?&(?=(^ jon) ?=([%o *] u.jon))
-    (pure:m (pairs:enjs:format ~[['error' s+'nostrill returned no feed']]))
-  =/  feeds=(list json)
-    =/  tl=(unit json)  (~(get by p.u.jon) 'timeline')
-    =/  pick=(list [@t json])
-      ?^  tl  [['timeline' u.tl] ~]
-      ~(tap by p.u.jon)
-    %-  zing
-    %+  turn  pick
-    |=  [* srcs=json]
-    ^-  (list json)
-    ?.  ?=([%o *] srcs)  ~
-    %-  zing
-    %+  turn  ~(tap by p.srcs)
-    |=  [* sf=json]
-    ^-  (list json)
-    ?.  ?=([%o *] sf)  ~
-    =/  f  (~(get by p.sf) 'feed')
-    ?.(?=([~ %a *] f) ~ p.u.f)
-  =/  events=(list [at=@ud ev=json])
-    =<  out
-    %+  roll  feeds
-    |=  [ev=json acc=[seen=(set @t) out=(list [at=@ud ev=json])]]
-    ?.  ?=([%o *] ev)  acc
-    =/  id=@t  =/(v (~(get by p.ev) 'id') ?:(?=([~ %s *] v) p.u.v ''))
-    ?:  |(=('' id) (~(has in seen.acc) id))  acc
-    =/  kind=@ud
-      =/  v  (~(get by p.ev) 'kind')
-      ?~  v  0
-      (fall (mole |.((ni:dejs:format u.v))) 0)
-    ?.  =(1 kind)  acc
-    =/  at=@ud
-      =/  v  (~(get by p.ev) 'created_at')
-      ?~  v  0
-      (fall (mole |.((ni:dejs:format u.v))) 0)
-    [(~(put in seen.acc) id) [[at ev] out.acc]]
-  =/  sorted  (sort events |=([a=[at=@ud *] b=[at=@ud *]] (gth at.a at.b)))
-  =/  take=(list [at=@ud ev=json])  (scag limit sorted)
-  =/  posts=(list json)
-    %+  turn  take
-    |=  [at=@ud ev=json]
-    ^-  json
-    ?.  ?=([%o *] ev)  ev
-    =/  g  |=(k=@t =/(v (~(get by p.ev) k) ?:(?=([~ %s *] v) p.u.v '')))
-    %-  pairs:enjs:format
-    :~  ['id' s+(g 'id')]
-        ['pubkey' s+(g 'pubkey')]
-        ['content' s+(g 'content')]
-        ['at' (numb:enjs:format at)]
-    ==
-  ::  join profiles for the distinct authors on this page (nostrill's
-  ::  per-user scry; plain-hex pubkey). Keep name + picture only.
+  ;<  ids=(list @t)  bind:m  (feed-ids limit)
+  ;<  evs=(list json)  bind:m  (peek-events ids)
+  =/  posts=(list json)  (turn evs compact-post)
   =/  pks=(list @t)
     =|  seen=(set @t)
     =|  out=(list @t)
     |-  ^-  (list @t)
-    ?~  take  (flop out)
-    =/  pk=@t
-      ?.  ?=([%o *] ev.i.take)  ''
-      =/  v  (~(get by p.ev.i.take) 'pubkey')
-      ?:(?=([~ %s *] v) p.u.v '')
-    ?:  |(=('' pk) (~(has in seen) pk))  $(take t.take)
-    $(take t.take, seen (~(put in seen) pk), out [pk out])
+    ?~  posts  (flop out)
+    =/  pk=@t  (jget-s i.posts 'pubkey')
+    ?:  |(=('' pk) (~(has in seen) pk))  $(posts t.posts)
+    $(posts t.posts, seen (~(put in seen) pk), out [pk out])
   ;<  profs=(list [@t json])  bind:m  (fetch-profiles (scag 40 pks))
   %-  pure:m
   %-  pairs:enjs:format
   :~  ['posts' [%a posts]]
       ['profiles' [%o (malt profs)]]
   ==
-::  +fetch-profiles: one profile scry per pubkey, trimmed to what the
-::  flow cards render.
+::  +feed-ids: the first n ids of the mirror's index (newest first)
+++  feed-ids
+  |=  limit=@ud
+  =/  m  (fiber:fiber:nexus ,(list @t))
+  ^-  form:m
+  ;<  idx=(unit json)  bind:m  (peek-as:io [%& %& /apps/nostr %'feed.json'] ,json)
+  %-  pure:m
+  ?~  idx  ~
+  ?.  ?=([%o *] u.idx)  ~
+  =/  a  (~(get by p.u.idx) 'ids')
+  ?.  ?=([~ %a *] a)  ~
+  (murn (scag limit p.u.a) |=(j=json ?:(?=([%s *] j) `p.j ~)))
+::  +peek-event / +peek-events: event grubs by id; missing ones skipped
+++  peek-event
+  |=  id=@t
+  =/  m  (fiber:fiber:nexus ,(unit json))
+  ^-  form:m
+  ?:  =('' id)  (pure:m ~)
+  (peek-as:io [%& %& /apps/nostr/events (cat 3 id '.json')] ,json)
+++  peek-events
+  |=  ids=(list @t)
+  =/  m  (fiber:fiber:nexus ,(list json))
+  ^-  form:m
+  =|  out=(list json)
+  |-  ^-  form:m
+  ?~  ids  (pure:m (flop out))
+  ;<  ev=(unit json)  bind:m  (peek-event i.ids)
+  $(ids t.ids, out ?~(ev out [u.ev out]))
+::  +compact-post: an event grub as the dashboard's post shape
+++  compact-post
+  |=  ev=json
+  ^-  json
+  =/  at=@ud
+    ?.  ?=([%o *] ev)  0
+    =/  v  (~(get by p.ev) 'created_at')
+    ?~  v  0
+    (fall (mole |.((ni:dejs:format u.v))) 0)
+  %-  pairs:enjs:format
+  :~  ['id' s+(jget-s ev 'id')]
+      ['pubkey' s+(jget-s ev 'pubkey')]
+      ['content' s+(jget-s ev 'content')]
+      ['at' (numb:enjs:format at)]
+  ==
+::  +fetch-profiles: profiles/<pk>.json per pubkey, trimmed to what the
+::  flow cards render; an unknown author gets an empty profile
 ++  fetch-profiles
   |=  pks=(list @t)
   =/  m  (fiber:fiber:nexus ,(list [@t json]))
@@ -385,12 +372,11 @@
   =|  out=(list [@t json])
   |-  ^-  form:m
   ?~  pks  (pure:m (flop out))
-  =/  pax=path  /gx/nostrill/j/profile/nostr/[i.pks]/json
-  ;<  prof=json  bind:m  (typed-scry:io json %json pax)
+  ;<  prof=(unit json)  bind:m
+    (peek-as:io [%& %& /apps/nostr/profiles (cat 3 i.pks '.json')] ,json)
   =/  slim=json
-    ?.  ?=([%o *] prof)  [%o ~]
-    =/  g  |=(k=@t =/(v (~(get by p.prof) k) ?:(?=([~ %s *] v) p.u.v '')))
-    (pairs:enjs:format ~[['name' s+(g 'name')] ['picture' s+(g 'picture')]])
+    ?~  prof  [%o ~]
+    (pairs:enjs:format ~[['name' s+(jget-s u.prof 'name')] ['picture' s+(jget-s u.prof 'picture')]])
   $(pks t.pks, out [[i.pks slim] out])
 ::  +list-dir-json: every json grub in a dir as [{id, doc}].
 ++  list-dir-json

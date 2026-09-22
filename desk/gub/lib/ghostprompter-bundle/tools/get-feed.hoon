@@ -1,8 +1,8 @@
 /<  tools  /lib/tools.hoon
-::  get_feed: the live nostr timeline, compacted. Reads nostrill's
-::  gall state through the /sys/scry service (typed-scry:io) — the
-::  agent weir grants that one poke. Returns the latest N posts as
-::  plain lines the model can reason over, newest first, truncated.
+::  get_feed: the nostr timeline, compacted. Reads the /apps/nostr
+::  mirror (feed.json for the order, one grub per event) — the agent
+::  weir grants that peek. Returns the latest N posts as plain lines
+::  the model can reason over, newest first, truncated.
 ::
 =>  |%
     ::  +jget: object field
@@ -54,38 +54,21 @@
       ?:  ?=([~ %n *] v)  (fall (rush p.u.v dem) 20)
       20
     ?:(=(0 n) 20 (min n 50))
-  ;<  feed-jon=json  bind:m  (typed-scry:io json %json /gx/nostrill/j/nostr/json)
-  =/  jon=(unit json)  `feed-jon
-  ?.  ?&(?=(^ jon) ?=([%o *] u.jon))
-    (pure:m [%error 'nostrill returned no feed'])
-  ::  {name: {relay-url: {sub, feed: [event...]}}} — prefer the
-  ::  "timeline" feed, else union everything; dedupe by id.
-  =/  feeds=(list json)
-    =/  tl=(unit json)  (~(get by p.u.jon) 'timeline')
-    =/  pick=(list [@t json])
-      ?^  tl  [['timeline' u.tl] ~]
-      ~(tap by p.u.jon)
-    %-  zing
-    %+  turn  pick
-    |=  [* srcs=json]
-    ^-  (list json)
-    ?.  ?=([%o *] srcs)  ~
-    %-  zing
-    %+  turn  ~(tap by p.srcs)
-    |=  [* sf=json]
-    ^-  (list json)
-    =/  f  (jget sf 'feed')
-    ?.(?=([~ %a *] f) ~ p.u.f)
-  =/  seen=(set @t)  ~
-  =/  events=(list [at=@ud id=@t pk=@t txt=@t])
-    =<  out
-    %+  roll  feeds
-    |=  [ev=json acc=[seen=(set @t) out=(list [at=@ud id=@t pk=@t txt=@t])]]
-    =/  id=@t  (jstr ev 'id')
-    ?:  |(=('' id) (~(has in seen.acc) id))  acc
-    ?.  =(1 (jnum ev 'kind'))  acc
-    :-  (~(put in seen.acc) id)
-    [[(jnum ev 'created_at') id (jstr ev 'pubkey') (jstr ev 'content')] out.acc]
+  ;<  idx=(unit json)  bind:m  (peek-as:io [%& %& /apps/nostr %'feed.json'] ,json)
+  =/  ids=(list @t)
+    ?~  idx  ~
+    =/  a  (jget u.idx 'ids')
+    ?.  ?=([~ %a *] a)  ~
+    (murn (scag limit p.u.a) |=(j=json ?:(?=([%s *] j) `p.j ~)))
+  ;<  events=(list [at=@ud id=@t pk=@t txt=@t])  bind:m
+    =/  m  (fiber:fiber:nexus ,(list [at=@ud id=@t pk=@t txt=@t]))
+    =|  out=(list [at=@ud id=@t pk=@t txt=@t])
+    |-  ^-  form:m
+    ?~  ids  (pure:m (flop out))
+    ;<  ev=(unit json)  bind:m
+      (peek-as:io [%& %& /apps/nostr/events (cat 3 i.ids '.json')] ,json)
+    ?~  ev  $(ids t.ids)
+    $(ids t.ids, out [[(jnum u.ev 'created_at') i.ids (jstr u.ev 'pubkey') (jstr u.ev 'content')] out])
   =/  sorted  (sort events |=([a=[at=@ud *] b=[at=@ud *]] (gth at.a at.b)))
   =/  take  (scag limit sorted)
   ?~  take  (pure:m [%text 'The feed is empty.'])

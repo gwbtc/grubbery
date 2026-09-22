@@ -7,8 +7,8 @@
 ::  the writing are the user's.
 ::
 !:
-=<  ^-  tool:tools
-    |%
+^-  tool:tools
+|%
 ++  name  'propose'
 ++  description
   '''
@@ -54,9 +54,8 @@
     ?.  ?=([~ %a *] v)  ~
     %+  murn  p.u.v
     |=(j=json ?:(?=([%s *] j) `p.j ~))
-  ::  snapshot the cited posts NOW: the flow is a moving window and a
-  ::  connection is about what was there when it was made
-  ;<  snap=(list json)  bind:m  (snapshot-posts ids)
+  ::  no snapshot of the cited posts: events are immutable grubs in
+  ::  /apps/nostr, so post_ids alone recover them exactly as cited
   =/  doc=json
     %-  pairs:enjs:format
     :~  ['topic' s+(jstr 'topic')]
@@ -67,7 +66,6 @@
         ['from' (num 'from')]
         ['to' (num 'to')]
         ['post_ids' [%a (turn ids |=(i=@t s+i))]]
-        ['post_snap' [%a snap]]
         ['at' (sect:enjs:format now)]
     ==
   =/  =road:tarball
@@ -75,78 +73,4 @@
   ;<  err=(unit tang)  bind:m  (make-soft:io road |+[[[/ %json] doc] ~])
   ?^  err  (pure:m [%error 'failed to write the connection'])
   (pure:m [%text (cat 3 'Filed connection ' id)])
---
-|%
-::  +snapshot-posts: the cited posts as {id, pubkey, at, content, name},
-::  read from nostrill the way get_feed does. Ids not in the current
-::  feed are skipped (the pasted excerpt still records them).
-++  snapshot-posts
-  |=  ids=(list @t)
-  =/  m  (fiber:fiber:nexus ,(list json))
-  ^-  form:m
-  ?~  ids  (pure:m ~)
-  ;<  feed=json  bind:m  (typed-scry:io json %json /gx/nostrill/j/nostr/json)
-  ?.  ?=([%o *] feed)  (pure:m ~)
-  =/  want=(set @t)  (sy ids)
-  ::  every event in every feed of every source; profiles by pubkey
-  =/  srcs=(list json)  (turn ~(tap by p.feed) |=([* j=json] j))
-  =/  events=(list json)
-    %-  zing
-    %+  turn  srcs
-    |=  src=json
-    ^-  (list json)
-    ?.  ?=([%o *] src)  ~
-    %-  zing
-    %+  turn  ~(tap by p.src)
-    |=  [* relay=json]
-    ^-  (list json)
-    ?.  ?=([%o *] relay)  ~
-    =/  f  (~(get by p.relay) 'feed')
-    ?.(?=([~ %a *] f) ~ p.u.f)
-  =/  profiles=(map @t json)
-    %-  ~(gas by *(map @t json))
-    %+  murn  events
-    |=  ev=json
-    ^-  (unit [@t json])
-    ?.  =(0 (jnum ev 'kind'))  ~
-    =/  pk=@t  (jstr-of ev 'pubkey')
-    =/  meta=(unit json)  (de:json:html (jstr-of ev 'content'))
-    ?~  meta  ~
-    `[pk u.meta]
-  ::  the same event arrives from every relay that carries it: one copy
-  %-  pure:m
-  =<  out
-  %+  roll  events
-  |=  [ev=json acc=[seen=(set @t) out=(list json)]]
-  =/  id=@t  (jstr-of ev 'id')
-  ?.  (~(has in want) id)  acc
-  ?:  (~(has in seen.acc) id)  acc
-  ?.  =(1 (jnum ev 'kind'))  acc
-  =/  pk=@t  (jstr-of ev 'pubkey')
-  =/  prof=json  (fall (~(get by profiles) pk) [%o ~])
-  =/  row=json
-    %-  pairs:enjs:format
-    :~  ['id' s+id]
-        ['pubkey' s+pk]
-        ['at' (numb:enjs:format (jnum ev 'created_at'))]
-        ['content' s+(jstr-of ev 'content')]
-        ['name' s+(jstr-of prof 'name')]
-        ['picture' s+(jstr-of prof 'picture')]
-    ==
-  [(~(put in seen.acc) id) (snoc out.acc row)]
-++  jstr-of
-  |=  [j=json k=@t]
-  ^-  @t
-  ?.  ?=([%o *] j)  ''
-  =/  v  (~(get by p.j) k)
-  ?:(?=([~ %s *] v) p.u.v '')
-++  jnum
-  |=  [j=json k=@t]
-  ^-  @ud
-  ?.  ?=([%o *] j)  0
-  =/  v  (~(get by p.j) k)
-  ?~  v  0
-  ?:  ?=([%n *] u.v)  (fall (rush p.u.v dem) 0)
-  ?:  ?=([%s *] u.v)  (fall (rush p.u.v dem) 0)
-  0
 --

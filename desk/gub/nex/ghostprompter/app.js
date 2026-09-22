@@ -16,7 +16,7 @@ async function loadFeed() {
   liveProfiles = profiles;
   box.textContent = '';
   if (!posts) {
-    box.innerHTML = '<div class="empty">Flow unreachable — is nostrill up?</div>';
+    box.innerHTML = '<div class="empty">Flow unreachable — is the nostr mirror (/apps/nostr) up?</div>';
     document.getElementById('flow-count').textContent = '';
     return;
   }
@@ -469,21 +469,12 @@ async function renderRefs(p) {
   if (!p) return;
   var d = p.doc || {};
 
-  // flow side: the posts as they were when the connection was filed
-  // (snapshotted by propose); older proposals fall back to a live lookup
-  // by id, and before that to the pasted lines
-  var snap = Array.isArray(d.post_snap) ? d.post_snap : [];
+  // flow side: the cited posts, read by id from the nostr mirror.
+  // Events are immutable grubs there, so this is the post exactly as
+  // it was when the connection was filed; proposals without ids fall
+  // back to the pasted lines
   var ids = Array.isArray(d.post_ids) ? d.post_ids.filter(Boolean) : [];
-  if (snap.length) {
-    snap.forEach(function(sp) {
-      // the snapshot keeps the post as it was; the author's profile is
-      // whatever we know now, live feed first, snapshot as fallback
-      var live = liveProfiles[sp.pubkey] || {};
-      var prof = { name: sp.name || live.name, picture: sp.picture || live.picture };
-      flowBody.appendChild(postEl({ id: sp.id, pubkey: sp.pubkey, at: sp.at, content: sp.content }, prof));
-    });
-    if (d.posts) flowBody.appendChild(excerptsEl(d.posts));
-  } else if (ids.length) {
+  if (ids.length) {
     flowBody.innerHTML = '<div class="empty">loading posts…</div>';
     var got = await Promise.all(ids.map(function(id) {
       return fetch(API + '/api/post?id=' + encodeURIComponent(id)).then(function(r) { return r.json(); }).catch(function() { return null; });
@@ -494,7 +485,7 @@ async function renderRefs(p) {
       if (res && res.post) { flowBody.appendChild(postEl(res.post, (res.profiles || {})[res.post.pubkey] || {})); return; }
       var miss = document.createElement('div');
       miss.className = 'ref-missing';
-      miss.textContent = 'post ' + ids[i].slice(0, 12) + '… is no longer in the feed';
+      miss.textContent = 'post ' + ids[i].slice(0, 12) + '… is not in the mirror';
       flowBody.appendChild(miss);
     });
     // the agent's excerpts, as a caption under the real posts

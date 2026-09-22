@@ -1,7 +1,7 @@
 ::  ghostprompter agent: the ghostwriting chatbot as a CONTAINED, sandboxed
 ::  nexus, following the docs-agent/itinerary-agent pattern. Its weir is set
 ::  by the ghostprompter nexus when it mounts /agent: it may read the
-::  library, write proposals, fetch the nostrill feed over loopback iris,
+::  library, write proposals, read the flow from the /apps/nostr mirror,
 ::  and poke the metered provider proxy — nothing else. Conversation
 ::  history lives in chats/main.json, durable and inspectable.
 /<  clanker  /lib/clanker.hoon

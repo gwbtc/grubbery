@@ -165,6 +165,37 @@
 ::
 +$  iris-state
   [%0 requests=(map wire [sender=rail:tarball url=@t])]
+::  Websocket client service (groundwire vere, UIP-125). Grubbery ships
+::  its own copies of the runtime's frame and event shapes so the desk
+::  builds on any runtime; where the vane lacks websockets, a connect
+::  fails with a tang instead of the build failing. The faces match the
+::  runtime's (opcode/message/data) so vases nest both ways at the
+::  agent boundary.
+::
++$  ws-message  [opcode=@ud message=(unit data=octs)]
++$  ws-event
+  $%  [%accept ~]
+      [%reject ~]
+      [%disconnect ~]
+      [%message message=ws-message]
+  ==
+::  the service table. Like behn's timers, a socket is keyed by
+::  [owner key]: the fiber that asked and the wire it asked on. A
+::  connect on a key that already has a socket closes that socket
+::  first (a respun fiber reconnects on the same key and gets a clean
+::  replacement; it carries no state and reads no table). Rows sit in
+::  `pending` under the arvo wire of the connect (which spells owner +
+::  key) until iris subscribes for frames, then in `open` by wid.
+::  Sockets do not survive the runtime; a row for a dead socket lingers
+::  until its key is reused or its owner closes it.
+::  Stored as a grub at /sys/iris/ws.ws-state.
+::
++$  ws-row  [owner=rail:tarball key=wire url=@t]
++$  ws-state
+  $:  %0
+      pending=(map wire ws-row)
+      open=(map @ud ws-row)
+  ==
 ::  Remote-scry service state: outstanding keens, keyed by the arvo
 ::  wire each was passed on. Lets a yawn cancel by duct (ames %yawn
 ::  matches the listener's duct, i.e. the original wire) exactly the

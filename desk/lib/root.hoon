@@ -60,6 +60,8 @@
         ::
         [%fall %| /sys/iris [`[~ ~ %.n ~] ~]]
         [%fall %& [/sys/iris %'main.iris-state'] [[/ %iris-state] *iris-state:nexus]]
+        ::  websocket client table (groundwire runtime only); same vane
+        [%fall %& [/sys/iris %'ws.ws-state'] [[/ %ws-state] *ws-state:nexus]]
         ::  /sys/clay: desk sync service (state + desks/ subdir)
         ::
         [%fall %& [/sys/clay %'main.clay-state'] [[/ %clay-state] *clay-state:nexus]]

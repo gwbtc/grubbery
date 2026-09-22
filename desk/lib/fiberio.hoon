@@ -514,7 +514,6 @@
   ;<  =wire  bind:m  (nonce /peek)
   ;<  ~  bind:m  (send-dart %node wire road %peek blot ~ %.y)
   (take-peek wire)
-::
 ::  Veto-tolerant peek: a peek whose destination may be outside our weir.
 ::  On veto it yields ~ instead of crashing — for scans that reach for
 ::  something they might legitimately not be permitted to see.
@@ -1609,6 +1608,83 @@
     ?:  ?=(%cancel -.resp)
       [%fail leaf+"http-request-cancelled" ~]
     [%done resp]
+  ==
+::  websocket client, at /sys/iris/ws.ws-state (a weir must allow the
+::  poke). A socket is a wid; frames arrive as pokes [/ %ws-frame]
+::  [wid msg] on the fiber's rail and are picked up by +take-ws-frame.
+::  Text frames only for now. Sockets die with a runtime restart and
+::  no poke says so: a fiber blocked in +take-ws-frame owns its own
+::  timeout/reconnect policy. On a runtime without websocket support
+::  +ws-connect returns ~ (the tang is printed) instead of the desk
+::  failing to build. Shape of a client:
+::
+::    ;<  wid=(unit @ud)  bind:m  (ws-connect:io url)
+::    ?~  wid  (pure:m ~)
+::    ;<  ~  bind:m  (ws-send:io u.wid '["REQ", ...]')
+::    |-
+::    ;<  frame=(unit @t)  bind:m  (take-ws-frame:io u.wid)
+::    ?~  frame  ...reconnect...
+::    ...handle u.frame...
+::    $
+::
+::  +ws-connect: open a socket under `key`; `wid once live, ~ on
+::  reject/drop. Like set-timer's wire: a fiber may hold one socket per
+::  key, and connecting again on a key closes the socket it had there —
+::  so a respun fiber just connects again and gets a clean one.
+++  ws-connect
+  |=  [key=wire url=@t]
+  =/  m  (fiber ,(unit @ud))
+  ^-  form:m
+  ;<  ~  bind:m  (poke &+&+[/sys/iris %'ws.ws-state'] [[/ %ws-connect] [key url]])
+  |=  input
+  :+  ~  q.state
+  ?+  in  [%skip ~]
+      ~  [%wait ~]
+      [~ %veto *]  [%fail (veto-error dart.u.in)]
+      [~ %poke * *]
+    ?:  =([/ %ws-open] p.sage.u.in)  [%done `!<(@ud q.sage.u.in)]
+    ?:  =([/ %ws-fail] p.sage.u.in)
+      ~&  >>>  [%ws-connect-failed !<(tang q.sage.u.in)]
+      [%done ~]
+    [%skip ~]
+  ==
+::  +ws-send: one text frame down an open socket
+++  ws-send
+  |=  [wid=@ud text=@t]
+  =/  m  (fiber ,~)
+  ^-  form:m
+  (poke &+&+[/sys/iris %'ws.ws-state'] [[/ %ws-send] [wid text]])
+::  +ws-close: close it. The %ws-closed poke follows once iris leaves.
+++  ws-close
+  |=  wid=@ud
+  =/  m  (fiber ,~)
+  ^-  form:m
+  (poke &+&+[/sys/iris %'ws.ws-state'] [[/ %ws-close] wid])
+::  +take-ws-frame: the next text frame on `wid` as a cord; ~ when the
+::  socket closes. Any other poke (an interrupt, say) is skipped, so a
+::  caller that wants cancellation composes its own intake.
+++  take-ws-frame
+  |=  wid=@ud
+  =/  m  (fiber ,(unit @t))
+  ^-  form:m
+  |=  input
+  :+  ~  q.state
+  ?+  in  [%skip ~]
+      ~  [%wait ~]
+      [~ %veto *]  [%fail (veto-error dart.u.in)]
+      [~ %poke * *]
+    ::  a frame or close for another socket is dropped (%wait), not
+    ::  skipped: %skip retains the input and re-offers it on every later
+    ::  step, and nobody else can want a socket this fiber owns
+    ?:  =([/ %ws-closed] p.sage.u.in)
+      ?.  =(wid !<(@ud q.sage.u.in))  [%wait ~]
+      [%done ~]
+    ?.  =([/ %ws-frame] p.sage.u.in)  [%skip ~]
+    =/  [w=@ud msg=ws-message:nexus]  !<([@ud ws-message:nexus] q.sage.u.in)
+    ?.  =(w wid)  [%wait ~]
+    ?~  message.msg  [%wait ~]
+    =/  bytes=octs  u.message.msg
+    [%done `q.bytes]
   ==
 ::
 ++  extract-body

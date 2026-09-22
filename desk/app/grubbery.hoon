@@ -174,8 +174,19 @@
     :: handling eyre requests to grubs
     ::
       %handle-http-request
+    ::  profiling (kept for now): which request, and how long its whole
+    ::  event took. Every request pays ~110ms in this path as of 2026-09.
+    =/  req=[@ta inbound-request:eyre]  !<([@ta inbound-request:eyre] vase)
+    ~&  [%http method.request.+.req url.request.+.req]
     =^  cards  state
-      abet:(route-http:hc !<([@ta inbound-request:eyre] vase))
+      ~>(%bout abet:(route-http:hc req))
+    [cards this]
+    ::  a frame from a websocket we opened (groundwire eyre pokes these)
+    ::
+      %websocket-client-message
+    ::  profiling (kept for now): how long one inbound frame's event took
+    =^  cards  state
+      ~>(%bout abet:(handle-ws-frame:hc !<([wid=@ud ws-message:nexus] vase)))
     [cards this]
     ::  remote operation from another ship, over its ship.sig dart
     ::  a "load" is a payload. it's a request a grub can make with
@@ -319,6 +330,12 @@
   ?+    path  (on-watch:def path)
       [%http-response *]
     [~ this]
+      ::  iris subscribing to pull outbound frames: this IS the accept
+      ::  signal for a websocket we opened (the %accept sign is not
+      ::  relied on); the wid's url comes from iris's own table
+      [%websocket-client @ ~]
+    =^  cards  state  abet:(handle-ws-watch:hc (slav %ud i.t.path))
+    [cards this]
       ::  agent-facing response channel: subscribe before poking
       ::  %grub-cmd requests tagged with the same id
       [%client @ ~]
@@ -343,6 +360,10 @@
   ?+    path  (on-leave:def path)
       [%http-response @ ~]
     =^  cards  state  abet:(cancel-http:hc i.t.path)
+    [cards this]
+      ::  iris left the frame path: the socket is gone
+      [%websocket-client @ ~]
+    =^  cards  state  abet:(handle-ws-gone:hc (slav %ud i.t.path))
     [cards this]
       ::  a client channel died: drop the keeps it registered, so no
       ::  subscription outlives its subscriber
@@ -494,14 +515,27 @@
     ::
       [%behn %timer @ *]
     ?>  ?=([%behn %wake *] sign)
+    ::  profiling (kept for now): how long this wake's whole event took
     =^  cards  state
-      abet:(handle-timer-wake:hc t.t.wire error.sign)
+      ~>(%bout abet:(handle-timer-wake:hc t.t.wire error.sign))
     [cards this]
     ::
       [%iris %request @ *]
     ?>  ?=([%iris %http-response *] sign)
     =^  cards  state
       abet:(handle-iris-response:hc t.t.wire client-response.sign)
+    [cards this]
+    ::
+      [%ws %connect @ *]
+    ::  [%iris %websocket-response wid event] on a groundwire runtime.
+    ::  Matched as a noun: a stock lull has no such gift, and this must
+    ::  build there too. The event is cast to grubbery's own copy.
+    =/  raw=*  sign
+    ?.  ?=([%iris %websocket-response @ *] raw)  [~ this]
+    =/  wid=@ud  ;;(@ud +>-.raw)
+    =/  event=ws-event:nexus  ;;(ws-event:nexus +>+.raw)
+    =^  cards  state
+      abet:(handle-ws-sign:hc t.t.wire event wid)
     [cards this]
     ::
       [%keen @ @ *]
@@ -2422,20 +2456,30 @@
   =.  this  (bang-fold dest err)
   ::  Bang every file under dest (set process to |+err)
   =/  sub  (peek-ball-now dest)
+  ::  silently per file, one count line for the sweep: the tang printed
+  ::  once above, and a nexus with a thousand grubs must not print a
+  ::  thousand lines
+  =/  files=(list [=rail:tarball *])  ~(tap ba:tarball sub)
+  ~&  >>>  "BANG nexus {(spud dest)}: {<(lent files)>} files marked"
   =.  this
-    %+  roll  ~(tap ba:tarball sub)
+    %+  roll  files
     |=  [[=rail:tarball *] acc=_this]
-    (bang-file:acc [(weld dest path.rail) name.rail] err)
+    (mark-bang:acc [(weld dest path.rail) name.rail] err %.n)
   ::  Replace all processes under dest with +stay
   (stay-all-procs dest)
 ::  Bang a file — store tang on its process and persist to ject.
-::  Records trees and notifies subscribers.
+::  Records trees and notifies subscribers. Loud (a file failing on
+::  its own) prints the head of the tang; the line always prints.
 ::
 ++  bang-file
   |=  [here=rail:tarball err=tang]
   ^+  this
-  ~&  >>>  "BANG file {(spud (snoc path.here name.here))}"
-  %-  (slog (scag 10 err))
+  (mark-bang here err %.y)
+++  mark-bang
+  |=  [here=rail:tarball err=tang loud=?]
+  ^+  this
+  ~?  >>>  loud  "BANG file {(spud (snoc path.here name.here))}"
+  %-  ?.(loud same (slog (scag 10 err)))
   ::  Set bang on pipe/proc
   =/  =pipe:nexus  (fall (~(get of pool) path.here) *pipe:nexus)
   =/  old=(unit proc:fiber:nexus)  (~(get by proc.pipe) name.here)
@@ -6817,9 +6861,20 @@
     `(enqu-take here ~ ~ %pack wir ~)
   ::
       %iris
-    ?.  =([/ %iris-request] p.sage)  ~
-    =.  this  (handle-iris-request here wir q.sage)
-    `(enqu-take here ~ ~ %pack wir ~)
+    ?:  =([/ %iris-request] p.sage)
+      =.  this  (handle-iris-request here wir q.sage)
+      `(enqu-take here ~ ~ %pack wir ~)
+    ::  the websocket table, /sys/iris/ws.ws-state
+    ?:  =([/ %ws-connect] p.sage)
+      =.  this  (handle-ws-connect here wir !<([key=wire url=@t] q.sage))
+      `(enqu-take here ~ ~ %pack wir ~)
+    ?:  =([/ %ws-send] p.sage)
+      =.  this  (handle-ws-send !<([wid=@ud text=@t] q.sage))
+      `(enqu-take here ~ ~ %pack wir ~)
+    ?:  =([/ %ws-close] p.sage)
+      =.  this  (handle-ws-close !<(@ud q.sage))
+      `(enqu-take here ~ ~ %pack wir ~)
+    ~
   ::
       %scry
     ?:  =([/ %scry-request] p.sage)
@@ -7255,6 +7310,212 @@
   ::  Poke sender back with http-response
   =/  rel=from:fiber:nexus  (relativize-from:nexus sender iris-rail)
   (enqu-take sender ~ ~ %poke rel [[/ %http-response] client-response])
+::  /sys/iris/ws.ws-state websocket client service (groundwire vere, UIP-125).
+::  Design and lessons: gub/nex/sys/WEBSOCKET.md.
+::
+::  The fiber-facing contract, all at that rail:
+::    [/ %ws-connect] [key url]    → [/ %ws-open] wid | [/ %ws-fail] tang
+::                                 key = a wire the fiber chooses; one
+::                                 socket per [owner key], a connect on
+::                                 a key it already holds closes that
+::                                 socket first (behn's same-key rule)
+::    [/ %ws-send] [wid text]      one text frame out
+::    [/ %ws-close] wid            → [/ %ws-closed] wid
+::    inbound frames               → [/ %ws-frame] [wid ws-message]
+::    socket gone                  → [/ %ws-closed] wid
+::  Nothing in it names the vane; only the arms below know arvo.
+::
+::  How the runtime side works (groundwire iris):
+::    connect  %websocket-connect task, passed on a wire that encodes
+::             the sender rail; the row parks in `pending` under it.
+::    accept   iris gives %websocket-response %accept on that wire AND
+::             THEN subscribes to us on /websocket-client/<wid> to pull
+::             outbound frames. The subscription is the promotion point
+::             (on-watch → handle-ws-watch): promoting on the sign let
+::             the owner send before anyone was subscribed and gall
+::             dropped the fact. The wid's url comes from iris's own
+::             table (%ix scry /ws/<app>/id/<wid>) to find the row.
+::    frames   eyre pokes us %websocket-client-message [wid msg]; the
+::             row's owner is poked [/ %ws-frame].
+::    send     a %fact [%message msg] on /websocket-client/<wid>.
+::    close    a %fact %disconnect there; the row is dropped and the
+::             owner told at once, not when iris leaves — after a
+::             runtime restart iris never will.
+::    gone     iris leaving the path (on-leave), or %reject/%disconnect
+::             on the connect wire before accept → row dropped, owner
+::             told [/ %ws-fail] or [/ %ws-closed].
+::
+::  Respins and restarts: a respun fiber connects again on its key and
+::  the service closes what that key held — the fiber carries no state
+::  and reads no table. Sockets die with the runtime and no sign says
+::  so; a row for a dead socket lingers until its key is reused or its
+::  owner closes it, and when the runtime reuses its wid the watch
+::  evicts it (owner told [/ %ws-closed]). An accept with no pending
+::  row (its connect was replaced, or its fiber died) is closed on the
+::  spot. Types are grubbery's own (ws-message/ws-event in lib/nexus)
+::  and the connect card is built from a vase, so the desk builds on a
+::  stock runtime and connects there fail with a tang instead.
+::
+++  ws-rail  ^-  rail:tarball  [/sys/iris %'ws.ws-state']
+++  ws-st
+  ^-  ws-state:nexus
+  =/  old=(unit sang:tarball)  (peek-grub-now ws-rail)
+  ?~  old  *ws-state:nexus
+  ::  a table written by an older shape is only stale rows: start fresh
+  (fall (mole |.(!<(ws-state:nexus (need-vase:tarball u.old)))) *ws-state:nexus)
+++  save-ws  |=(st=ws-state:nexus (save-file ws-rail [[/ %ws-state] st]))
+++  ws-tell
+  |=  [owner=rail:tarball =blot:tarball =noun]
+  ^+  this
+  =/  rel=from:fiber:nexus  (relativize-from:nexus owner ws-rail)
+  (enqu-take owner ~ ~ %poke rel [blot noun])
+::
+++  handle-ws-connect
+  |=  [sender=rail:tarball =wire key=path url=@t]
+  ^+  this
+  ::  /ws/connect/{path-len}/{path...}/{name}/{key...}/{nonce}: the
+  ::  sender and its key (the socket's identity), plus a nonce so this
+  ::  connect's signs are its own — the socket being replaced under
+  ::  the same key still has %disconnect in flight on ITS wire, and
+  ::  must not be read as this handshake failing
+  =/  ws-wire=path
+    :-  %ws
+    :-  %connect
+    :-  (scot %ud (lent path.sender))
+    (weld path.sender [name.sender (snoc key (scot %uv (end 6 eny.bowl)))])
+  ::  the task is built from a vase, not written as a card: on a stock
+  ::  lull %websocket-connect is not an iris task and the nest fails at
+  ::  runtime rather than the desk failing to build. That failure is the
+  ::  answer: the runtime has no websockets.
+  =/  try=(each card tang)
+    %-  mule
+    |.  !<(card !>([%pass ws-wire %arvo %i %websocket-connect dap.bowl url]))
+  ?:  ?=(%| -.try)
+    (ws-tell sender [/ %ws-fail] `tang`~[leaf+"runtime has no websocket support"])
+  ::  same-key replace, as behn does for timers: whatever this owner
+  ::  already has under this key goes. An open socket is closed and its
+  ::  owner told; a pending handshake is forgotten (when it accepts, no
+  ::  row matches and handle-ws-watch closes it as an orphan).
+  =/  st=ws-state:nexus  ws-st
+  =/  olds=(list @ud)
+    %+  murn  ~(tap by open.st)
+    |=([wid=@ud r=ws-row:nexus] ?:(&(=(owner.r sender) =(key.r key)) `wid ~))
+  =.  this
+    |-
+    ?~  olds  this
+    =.  this  (handle-ws-close i.olds)
+    $(olds t.olds)
+  =/  st=ws-state:nexus  ws-st
+  ::  a pending handshake under this key is forgotten too (its accept,
+  ::  if it comes, is an orphan and gets closed)
+  =.  pending.st
+    %-  ~(gas by *(map path ws-row:nexus))
+    %+  skip  ~(tap by pending.st)
+    |=([* r=ws-row:nexus] &(=(owner.r sender) =(key.r key)))
+  =.  pending.st  (~(put by pending.st) ws-wire [sender key url])
+  =.  this  (save-ws st)
+  (emit-card p.try)
+::
+++  handle-ws-sign
+  |=  [segs=wire event=ws-event:nexus wid=@ud]
+  ^+  this
+  =/  ws-wire=path  [%ws %connect segs]
+  =/  st=ws-state:nexus  ws-st
+  =/  row=(unit ws-row:nexus)  (~(get by pending.st) ws-wire)
+  ?-  -.event
+      ::  the handshake succeeded, but iris has not yet subscribed for
+      ::  our outbound frames (that watch follows this sign): promoting
+      ::  here would let the owner send into nothing. handle-ws-watch
+      ::  promotes; the row stays pending until then.
+      %accept  this
+  ::
+      %reject
+    ?~  row  this
+    =.  pending.st  (~(del by pending.st) ws-wire)
+    =.  this  (save-ws st)
+    (ws-tell owner.u.row [/ %ws-fail] `tang`~[leaf+"websocket rejected: {(trip url.u.row)}"])
+  ::
+      %disconnect
+    ::  before %accept: a failed connect. after: iris also leaves the
+    ::  /websocket-client path, which is where we drop the open row
+    ?~  row  this
+    =.  pending.st  (~(del by pending.st) ws-wire)
+    =.  this  (save-ws st)
+    (ws-tell owner.u.row [/ %ws-fail] `tang`~[leaf+"websocket dropped during connect: {(trip url.u.row)}"])
+  ::
+      %message  this
+  ==
+::
+::  +handle-ws-watch: iris opened /websocket-client/<wid>: the socket is
+::  live. Its url (scried from iris) picks the pending row to promote.
+++  handle-ws-watch
+  |=  wid=@ud
+  ^+  this
+  =/  st=ws-state:nexus  ws-st
+  ::  a row already open on this wid is a socket that died with a
+  ::  previous runtime (wids restart from 0): tell its owner, take over
+  =.  this
+    ?~  old=(~(get by open.st) wid)  this
+    (ws-tell owner.u.old [/ %ws-closed] wid)
+  =.  open.st  (~(del by open.st) wid)
+  =/  sock=(unit [wid=@ud url=@t status=?(%accepted %pending)])
+    .^  (unit [wid=@ud url=@t status=?(%accepted %pending)])
+        %ix
+        /(scot %p our.bowl)//(scot %da now.bowl)/ws/[dap.bowl]/id/(scot %ud wid)
+    ==
+  ?~  sock
+    ~&  >>>  [%ws-watch-unknown-wid wid]
+    this
+  =/  rows=(list [=wire r=ws-row:nexus])  ~(tap by pending.st)
+  =/  hit=(unit [=wire r=ws-row:nexus])
+    |-  ^-  (unit [=wire r=ws-row:nexus])
+    ?~  rows  ~
+    ?:  =(url.u.sock url.r.i.rows)  `i.rows
+    $(rows t.rows)
+  ?~  hit
+    ::  an orphan: its connect was replaced (same key again) or its
+    ::  fiber is gone. Nobody will ever read it, so close it now rather
+    ::  than let it stream into nothing.
+    ~&  >>>  [%ws-watch-orphan-closed wid url.u.sock]
+    (emit-card [%give %fact ~[/websocket-client/(scot %ud wid)] %disconnect !>(~)])
+  =.  pending.st  (~(del by pending.st) wire.u.hit)
+  =.  open.st  (~(put by open.st) wid r.u.hit)
+  =.  this  (save-ws st)
+  (ws-tell owner.r.u.hit [/ %ws-open] wid)
+::
+++  handle-ws-frame
+  |=  [wid=@ud msg=ws-message:nexus]
+  ^+  this
+  =/  st=ws-state:nexus  ws-st
+  =/  row=(unit ws-row:nexus)  (~(get by open.st) wid)
+  ?~  row
+    ~&  >>>  [%ws-frame-unknown-wid wid]
+    this
+  (ws-tell owner.u.row [/ %ws-frame] [wid msg])
+::
+++  handle-ws-send
+  |=  [wid=@ud text=@t]
+  ^+  this
+  =/  msg=ws-message:nexus  [1 `(as-octs:mimes:html text)]
+  (emit-card [%give %fact ~[/websocket-client/(scot %ud wid)] %message !>(msg)])
+::
+++  handle-ws-close
+  |=  wid=@ud
+  ^+  this
+  =.  this  (emit-card [%give %fact ~[/websocket-client/(scot %ud wid)] %disconnect !>(~)])
+  ::  drop the row now: if the socket is already dead (runtime restart)
+  ::  iris never leaves the path and handle-ws-gone never runs
+  (handle-ws-gone wid)
+::
+++  handle-ws-gone
+  |=  wid=@ud
+  ^+  this
+  =/  st=ws-state:nexus  ws-st
+  =/  row=(unit ws-row:nexus)  (~(get by open.st) wid)
+  ?~  row  this
+  =.  open.st  (~(del by open.st) wid)
+  =.  this  (save-ws st)
+  (ws-tell owner.u.row [/ %ws-closed] wid)
 ::  /sys/scry/ typed scry service
 ::
 ++  handle-typed-scry
