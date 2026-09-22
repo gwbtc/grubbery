@@ -24,13 +24,22 @@
         <h2>Feed</h2>
         <span id="feed-count" class="muted"></span>
         <span class="grow"></span>
-        <a class="muted mono" href="/grubbery/ball/apps/nostr/events" target="_blank" title="the grubs behind this page">events/ ↗</a>
+        <button id="fill" class="small" title="ask every relay for the profiles of authors we hold posts by but no profile for, and for the root posts of threads we only hold replies to">Fill in unknowns</button>
+        <span id="fill-note" class="muted"></span>
       </div>
       <p class="explain">
         Posts by the people you follow, newest first. Each one is a signed
         event a relay handed us, stored verbatim as <code>events/&lt;id&gt;.json</code>
         and never changed; <code>feed.json</code> is just the order.
       </p>
+      <div class="row filters" id="feed-filters">
+        <span class="muted">show</span>
+        <button class="chip on" data-filter="all">All</button>
+        <button class="chip" data-filter="posts">Posts</button>
+        <button class="chip" data-filter="replies">Replies</button>
+        <button class="chip" data-filter="reposts">Reposts</button>
+        <span class="muted" id="feed-filter-note"></span>
+      </div>
       <div id="feed" class="scroll"></div>
     </section>
 
@@ -39,7 +48,6 @@
         <h2>People</h2>
         <span id="people-count" class="muted"></span>
         <span class="grow"></span>
-        <a class="muted mono" href="/grubbery/ball/apps/nostr/follows.json" target="_blank">follows.json ↗</a>
       </div>
       <p class="explain">
         On nostr a person is a public key: 64 hex characters, or the same
@@ -63,7 +71,6 @@
       <div class="panel-head">
         <h2>Relays</h2>
         <span class="grow"></span>
-        <a class="muted mono" href="/grubbery/ball/apps/nostr/relays" target="_blank">relays/ ↗</a>
       </div>
       <p class="explain">
         A relay is a plain websocket server anyone can run. It stores the
@@ -91,7 +98,6 @@
       <div class="panel-head">
         <h2>Profile</h2>
         <span class="grow"></span>
-        <a class="muted mono" href="/grubbery/ball/apps/nostr/me" target="_blank">me/ ↗</a>
       </div>
       <div class="scroll">
         <p class="explain">
@@ -137,7 +143,6 @@
         <h2>Posts</h2>
         <span id="outbox-count" class="muted"></span>
         <span class="grow"></span>
-        <a class="muted mono" href="/grubbery/ball/apps/nostr/outbox" target="_blank">outbox/ ↗</a>
       </div>
       <div class="scroll">
         <p class="explain">
@@ -161,8 +166,16 @@
 <modal-dialog id="relay-modal">
   <div id="relay-modal-body"></div>
 </modal-dialog>
-<script type="module" src="/grubbery/nostr/tab-group.js"></script>
-<script type="module" src="/grubbery/nostr/modal-dialog.js"></script>
+<modal-dialog id="thread-modal">
+  <div id="thread-modal-body"></div>
+</modal-dialog>
+<modal-dialog id="tag-modal">
+  <div id="tag-modal-body"></div>
+</modal-dialog>
+<modal-dialog id="person-modal">
+  <div id="person-modal-body"></div>
+</modal-dialog>
+<script type="module" src="/grubbery/nostr/components.js"></script>
 <script src="/grubbery/nostr/app.js"></script>
 </body>
 </html>

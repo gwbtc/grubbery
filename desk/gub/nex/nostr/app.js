@@ -35,71 +35,345 @@ function ago(unix) {
   return 'indexed ' + Math.round(s / 3600) + 'h ago';
 }
 
-function avatarEl(prof, pubkey) {
-  const wrap = document.createElement('span');
-  wrap.className = 'avatar';
-  let hue = 0;
-  for (let i = 0; i < Math.min(8, (pubkey || '').length); i++) hue = (hue * 31 + pubkey.charCodeAt(i)) % 360;
-  wrap.style.background = 'hsl(' + hue + ', 32%, 82%)';
-  wrap.style.color = 'hsl(' + hue + ', 45%, 30%)';
-  wrap.textContent = (prof.name || pubkey || '?').slice(0, 1).toUpperCase();
-  if (prof.picture && /^https?:\/\//.test(prof.picture)) {
-    const img = document.createElement('img');
-    img.loading = 'lazy';
-    img.referrerPolicy = 'no-referrer';
-    img.src = prof.picture;
-    img.onerror = () => img.remove();
-    wrap.appendChild(img);
-  }
-  return wrap;
+// an <avatar-pic> from a profile (the kit component; see lib/ui/avatar-pic.js)
+function avatarEl(prof, pubkey, size) {
+  const av = document.createElement('avatar-pic');
+  av.setAttribute('name', (prof && prof.name) || '');
+  av.setAttribute('seed', pubkey || '');
+  av.setAttribute('src', (prof && prof.picture) || '');
+  if (size) av.setAttribute('size', String(size));
+  return av;
 }
 
-// text with bare URLs turned into links; everything else is text nodes
+// mentions in text: the lib decodes them, we say who a key is
+const nameCache = {};
+async function nameFor(pk) {
+  if (nameCache[pk] !== undefined) return nameCache[pk];
+  try { const p = await jget('/api/person?pubkey=' + pk); nameCache[pk] = (p.profile && p.profile.name) || ''; }
+  catch (e) { nameCache[pk] = ''; }
+  return nameCache[pk];
+}
+
+// text via the shared lib (lib/ui/post-text.js): links, mentions, and
+// media urls pulled out to render as attachments under the text
 function renderText(el, text) {
-  const re = /https?:\/\/[^\s<>"')\]]+/g;
-  let last = 0, m;
-  while ((m = re.exec(text))) {
-    if (m.index > last) el.appendChild(document.createTextNode(text.slice(last, m.index)));
-    const a = document.createElement('a');
-    a.href = m[0]; a.target = '_blank'; a.rel = 'noopener';
-    let label = m[0].replace(/^https?:\/\/(www\.)?/, '');
-    if (label.length > 48) label = label.slice(0, 45) + '…';
-    a.textContent = label;
-    el.appendChild(a);
-    last = m.index + m[0].length;
-  }
-  if (last < text.length) el.appendChild(document.createTextNode(text.slice(last)));
+  PostText.render(el, text, { onPerson: openPerson, onPost: openThread, onTag: openTag, nameFor });
 }
 
-function postEl(p) {
-  const prof = p.profile || {};
-  const item = document.createElement('div');
-  item.className = 'post';
-  const head = document.createElement('div');
-  head.className = 'post-head';
-  head.appendChild(avatarEl(prof, p.pubkey));
-  const who = document.createElement('span');
-  who.className = 'who' + (prof.name ? '' : ' pk');
-  who.textContent = prof.name || (p.pubkey || '').slice(0, 12);
-  who.title = p.pubkey || '';
-  const age = document.createElement('span');
-  age.className = 'age';
-  age.textContent = fmtAge(p.created_at);
-  age.title = p.created_at ? new Date(p.created_at * 1000).toLocaleString() : '';
-  head.append(who, age);
-  const content = document.createElement('div');
-  content.className = 'content';
-  renderText(content, p.content || '');
-  const id = document.createElement('div');
-  id.className = 'post-id';
-  const a = document.createElement('a');
-  a.href = '/grubbery/ball/apps/nostr/events/' + encodeURIComponent(p.id) + '.json';
-  a.target = '_blank';
-  a.textContent = (p.id || '').slice(0, 16) + '…';
-  a.title = 'the event grub';
-  id.appendChild(a);
-  item.append(head, content, id);
-  return item;
+// ---- a hashtag: the posts we hold under tags/<t>.json, and a fetch ----
+async function openTag(t) {
+  const body = $('tag-modal-body');
+  busy(body, 'reading #' + t + '…');
+  $('tag-modal').show();
+  await renderTag(t);
+}
+async function renderTag(t) {
+  const body = $('tag-modal-body');
+  let d; try { d = await jget('/api/tag?t=' + encodeURIComponent(t)); } catch (e) { d = null; }
+  body.textContent = '';
+  if (!d) { body.innerHTML = '<div class="empty">could not read this tag</div>'; return; }
+  const h = document.createElement('h4'); h.textContent = '#' + d.tag; body.appendChild(h);
+  const p = document.createElement('p'); p.className = 'explain tight';
+  p.textContent = 'Posts we hold carrying this tag (tags/' + d.tag + '.json), newest first: ' + d.count + '. Fetch asks each connected relay for the 50 latest posts tagged this way, from anyone.';
+  body.appendChild(p);
+  const row = document.createElement('div'); row.className = 'relay-actions';
+  const fb = document.createElement('button'); fb.className = 'small'; fb.textContent = 'Fetch from relays';
+  const fn = document.createElement('span'); fn.className = 'cmd-note muted';
+  fb.onclick = async () => {
+    spinBtn(fb, true); fn.textContent = ''; fn.appendChild(spinner('asking relays…'));
+    await fetch(BASE + '/api/fetch-tag', { method: 'POST', body: JSON.stringify({ tag: t }) });
+    await new Promise((r) => setTimeout(r, 3000));
+    await renderTag(t);
+  };
+  const rb = document.createElement('button'); rb.className = 'small'; rb.textContent = 'Rebuild index';
+  rb.title = 'walk every held post and re-file it under its hashtags (t tags and #words in the text)';
+  rb.onclick = async () => {
+    spinBtn(rb, true); fn.textContent = ''; fn.appendChild(spinner('walking events/…'));
+    let r; try { r = await (await fetch(BASE + '/api/reindex-tags', { method: 'POST' })).json(); } catch (e) { r = null; }
+    fn.textContent = r ? 'looked at ' + r.events + ' events' : 'failed';
+    await renderTag(t);
+  };
+  row.append(fb, rb, fn); body.appendChild(row);
+  const list = document.createElement('div'); list.className = 'thread';
+  if (!d.posts.length) list.innerHTML = '<div class="empty">none indexed — Fetch asks relays; Rebuild index re-reads what we already hold</div>';
+  d.posts.forEach((x) => list.appendChild(postEl(x, { onChange: () => renderTag(t) })));
+  body.appendChild(list);
+}
+
+// ---- a person: profile, follow state, posts we hold, fetch from relays ----
+async function openPerson(pk) {
+  const body = $('person-modal-body');
+  busy(body, 'reading the profile…');
+  $('person-modal').show();
+  await renderPerson(pk);
+}
+
+async function renderPerson(pk) {
+  const body = $('person-modal-body');
+  let d;
+  try { d = await jget('/api/person?pubkey=' + pk); } catch (e) { d = null; }
+  body.textContent = '';
+  if (!d) { body.innerHTML = '<div class="empty">could not read this person</div>'; return; }
+  const prof = d.profile || {};
+  const head = document.createElement('div'); head.className = 'person-head';
+  head.appendChild(avatarEl(prof, pk, 52));
+  const names = document.createElement('div'); names.className = 'person-names';
+  const n1 = document.createElement('div'); n1.className = 'who' + (prof.name ? '' : ' pk');
+  n1.textContent = prof.display_name || prof.name || pk.slice(0, 16) + '…';
+  const n2 = document.createElement('div'); n2.className = 'muted';
+  n2.textContent = [prof.name && prof.display_name ? '@' + prof.name : '', prof.nip05 || ''].filter(Boolean).join(' · ');
+  names.append(n1, n2);
+  head.appendChild(names);
+  body.appendChild(head);
+  if (!d.known) {
+    const w = document.createElement('p'); w.className = 'explain tight';
+    w.textContent = 'No profile event has reached us for this key yet. Fetch asks the relays for their kind-0 and recent posts.';
+    body.appendChild(w);
+  }
+  if (prof.about) { const ab = document.createElement('div'); ab.className = 'about'; renderText(ab, prof.about); body.appendChild(ab); }
+  const grid = document.createElement('div'); grid.className = 'kvs';
+  const site = (prof.website || '').trim();
+  const siteHref = site ? (/^https?:\/\//i.test(site) ? site : 'https://' + site) : '';
+  const ln = prof.lud16 || prof.lud06 || '';
+  [
+    ['npub', d.npub || '', null, 'copy'],
+    ['pubkey', pk, null, 'copy'],
+    ['website', site, siteHref, null],
+    ['lightning', ln, ln && ln.includes('@') ? 'lightning:' + ln : null, 'copy'],
+  ].filter(([, v]) => v).forEach(([k, v, href, extra]) => {
+    const kv = document.createElement('div'); kv.className = 'kv';
+    const kk = document.createElement('span'); kk.className = 'k'; kk.textContent = k;
+    const vv = document.createElement('span'); vv.className = 'v';
+    if (href) {
+      const link = document.createElement('a'); link.href = href; link.textContent = v;
+      if (href.startsWith('http')) { link.target = '_blank'; link.rel = 'noopener'; }
+      vv.appendChild(link);
+    } else {
+      const code = document.createElement('code'); code.textContent = v; vv.appendChild(code);
+    }
+    if (extra === 'copy') {
+      const cp = document.createElement('button'); cp.className = 'small copy'; cp.textContent = 'copy';
+      cp.onclick = async () => { try { await navigator.clipboard.writeText(v); cp.textContent = 'copied'; setTimeout(() => { cp.textContent = 'copy'; }, 1200); } catch (e) {} };
+      vv.appendChild(cp);
+    }
+    kv.append(kk, vv); grid.appendChild(kv);
+  });
+  body.appendChild(grid);
+  const actions = document.createElement('div'); actions.className = 'relay-actions';
+  const fol = document.createElement('button'); fol.className = 'small' + (d.followed ? '' : ' primary');
+  fol.textContent = d.followed ? 'Unfollow' : 'Follow';
+  fol.onclick = async () => {
+    spinBtn(fol, true);
+    await fetch(BASE + '/api/follows', { method: 'POST', body: JSON.stringify({ pubkey: pk, action: d.followed ? 'remove' : 'add' }) });
+    await renderPerson(pk); loadPeople();
+  };
+  const fb = document.createElement('button'); fb.className = 'small'; fb.textContent = 'Fetch from relays';
+  fb.title = 'ask every connected relay for this key\'s profile and its 40 latest posts';
+  const note = document.createElement('span'); note.className = 'cmd-note muted';
+  fb.onclick = async () => {
+    spinBtn(fb, true); note.textContent = ''; note.appendChild(spinner('asking relays…'));
+    await fetch(BASE + '/api/fetch-person', { method: 'POST', body: JSON.stringify({ pubkey: pk }) });
+    await new Promise((r) => setTimeout(r, 2500));
+    delete nameCache[pk];
+    await renderPerson(pk);
+  };
+  actions.append(fol, fb, note);
+  body.appendChild(actions);
+  const h = document.createElement('h4'); h.textContent = 'Posts we hold (' + d.posts.length + ')'; body.appendChild(h);
+  const list = document.createElement('div'); list.className = 'thread';
+  if (!d.posts.length) list.innerHTML = '<div class="empty">none yet — try Fetch</div>';
+  d.posts.forEach((p) => list.appendChild(postEl(p, { onChange: () => renderPerson(pk) })));
+  body.appendChild(list);
+}
+
+// a <post-card> (lib/ui/post-card.js) wired to this page: the card draws
+// the header and the standard row and asks for everything else by event;
+// we render the text (mentions, links) into its content slot and answer
+// its events with the endpoints. `opts.inThread` = part of a thread view
+// (indent from opts.depth, Reply selects the target via opts.onReply).
+function postEl(p, opts) {
+  opts = opts || {};
+  const card = document.createElement('post-card');
+  if (opts.inThread) card.setAttribute('in-thread', '');
+  if (opts.depth) card.setAttribute('depth', String(opts.depth));
+  if (opts.compact) card.setAttribute('compact', '');
+  card.post = p;
+  const content = document.createElement('div'); content.slot = 'content';
+  // trimmed: the slot is pre-wrap, so stray newlines would be blank lines
+  renderText(content, (p.content || '').trim());
+  const media = PostText.mediaOf(p.content || '');
+  if (media.length) content.appendChild(PostText.attachments(media, 'thumb', (i) => openViewer(p, i + 1)));
+  // a mentioned post (nostr:note… / nevent…) renders inline as a quote,
+  // and the "note abc…" link comes out of the text (the quote IS the link)
+  if (!opts.compact) {
+    const seen = {};
+    const links = [...content.querySelectorAll('a.mention.post')].filter((m) => m.title && m.title !== p.id);
+    links.forEach((m) => {
+      const id = m.title;
+      if (seen[id]) { m.remove(); return; }
+      seen[id] = true;
+      if (Object.keys(seen).length > 3) return;
+      // trim the whitespace the link sat in, so no blank line is left
+      const prev = m.previousSibling, next = m.nextSibling;
+      if (prev && prev.nodeType === 3) prev.textContent = prev.textContent.replace(/\s+$/, '');
+      if (next && next.nodeType === 3) next.textContent = next.textContent.replace(/^\s+/, '');
+      m.remove();
+      content.appendChild(quoteEl(id));
+    });
+  }
+  card.appendChild(content);
+  card.addEventListener('pc-open', () => openThread(p.id));
+  card.addEventListener('pc-person', (e) => openPerson(e.detail.pubkey));
+  card.addEventListener('pc-reply', () => { if (opts.inThread) { if (opts.onReply) opts.onReply(); } else openThread(p.id, p.id); });
+  card.addEventListener('pc-react', async (e) => {
+    const r = await fetch(BASE + '/api/react', { method: 'POST', body: JSON.stringify({ id: p.id, content: e.detail.content }) });
+    e.detail.done();
+    if (!r.ok) { alert(await r.text()); return; }
+    if (opts.onChange) opts.onChange();
+  });
+  card.addEventListener('pc-who', () => toggleWho(card, p));
+  card.addEventListener('pc-repost', async (e) => {
+    const r = await fetch(BASE + '/api/repost', { method: 'POST', body: JSON.stringify({ id: p.id }) });
+    e.detail.done();
+    if (!r.ok) { alert(await r.text()); return; }
+    if (opts.onChange) opts.onChange();
+  });
+  return card;
+}
+
+// a quoted post: the compact card when we hold it, else a gap with a
+// Fetch (by id, on every relay) that fills in when it arrives
+function quoteEl(id) {
+  const box = document.createElement('div'); box.className = 'quote';
+  const load = async () => {
+    busy(box, 'quoted post…');
+    let d; try { d = await jget('/api/post?id=' + encodeURIComponent(id)); } catch (e) { d = null; }
+    box.textContent = '';
+    if (d && d.held) { box.appendChild(postEl(d.post, { compact: true })); return; }
+    const gap = document.createElement('div'); gap.className = 'quote-missing';
+    const t = document.createElement('span'); t.textContent = 'quoted post not here yet (' + id.slice(0, 12) + '…)';
+    const b = document.createElement('button'); b.className = 'small'; b.textContent = 'Fetch';
+    b.onclick = async (e) => {
+      e.stopPropagation(); spinBtn(b, true);
+      await fetch(BASE + '/api/fetch', { method: 'POST', body: JSON.stringify({ id }) });
+      await new Promise((r) => setTimeout(r, 2500));
+      load();
+    };
+    gap.append(t, b); box.appendChild(gap);
+  };
+  load();
+  return box;
+}
+
+// the post popup (lib/ui/post-viewer.js): page 0 the post, then its media
+function openViewer(p, page) {
+  PostViewer.open({ post: p, profile: p.profile || {}, page: page || 0, renderText, onPerson: openPerson });
+}
+
+// the who-list under a card: who reposted and who reacted with what.
+// Names come from the thread endpoint's engagement (events we hold), so
+// the list can be shorter than the count — the count is from refs/.
+async function toggleWho(card, p) {
+  const cur = card.querySelector('[slot="who"]');
+  if (cur) { cur.remove(); return; }
+  const box = document.createElement('div'); box.slot = 'who'; box.className = 'who-list';
+  busy(box, 'who…'); card.appendChild(box);
+  let d; try { d = await jget('/api/thread?id=' + encodeURIComponent(p.id)); } catch (x) { d = null; }
+  if (!box.isConnected) return;
+  const shown = (x) => x.kind === 6 ? '🔁' : (x.content === '+' || !x.content) ? '👍' : x.content;
+  const eng = (d && Array.isArray(d.engagement) ? d.engagement : []).filter((x) => x.on === p.id);
+  box.textContent = '';
+  if (!eng.length) { box.innerHTML = '<div class="empty tight">nobody we know of — the count is from refs/, the names from events we hold</div>'; return; }
+  eng.forEach((x) => {
+    const r = document.createElement('div'); r.className = 'eng-row';
+    r.appendChild(avatarEl({ name: x.name, picture: x.picture }, x.pubkey, 22));
+    const nm = document.createElement('span'); nm.className = 'who clickable' + (x.name ? '' : ' pk');
+    nm.textContent = x.name || x.pubkey.slice(0, 12); nm.title = x.pubkey;
+    nm.onclick = (ev) => { ev.stopPropagation(); openPerson(x.pubkey); };
+    const what = document.createElement('span'); what.className = 'what'; what.textContent = shown(x);
+    const at = document.createElement('span'); at.className = 'muted'; at.textContent = fmtAge(x.at);
+    r.append(nm, what, at);
+    box.appendChild(r);
+  });
+}
+
+// ---- thread: the root and every reply in refs/<root>, as a tree ----
+let threadState = { id: null, replyTo: null };
+
+async function openThread(id, replyTo) {
+  threadState = { id, replyTo: replyTo || null };
+  const body = $('thread-modal-body');
+  busy(body, 'reading the thread…');
+  $('thread-modal').show();
+  await renderThread();
+}
+
+async function renderThread() {
+  const body = $('thread-modal-body');
+  let d;
+  try { d = await jget('/api/thread?id=' + encodeURIComponent(threadState.id)); } catch (e) { d = null; }
+  body.textContent = '';
+  if (!d || !Array.isArray(d.posts)) { body.innerHTML = '<div class="empty">could not read the thread</div>'; return; }
+  const h = document.createElement('h4'); h.textContent = 'Thread'; body.appendChild(h);
+  const p = document.createElement('p'); p.className = 'explain tight';
+  p.textContent = 'The root post and every reply that points at it (refs/' + d.root.slice(0, 12) + '….json), in time order, indented by what each answers. This is what has reached us so far, not everything that exists: no relay has everything. Fetch asks each connected relay for anything pointing at this thread.';
+  body.appendChild(p);
+  const fetchRow = document.createElement('div'); fetchRow.className = 'relay-actions';
+  const fb = document.createElement('button'); fb.className = 'small'; fb.textContent = 'Fetch from relays';
+  fb.title = 'ask every connected relay for the root by id and for anything pointing at it, then re-read';
+  const fn = document.createElement('span'); fn.className = 'cmd-note muted';
+  fb.onclick = async () => {
+    spinBtn(fb, true); fn.textContent = ''; fn.appendChild(spinner('asking relays…'));
+    await fetch(BASE + '/api/fetch', { method: 'POST', body: JSON.stringify({ id: d.root }) });
+    await new Promise((r) => setTimeout(r, 2500));
+    await renderThread();
+  };
+  fetchRow.append(fb, fn);
+  body.appendChild(fetchRow);
+  // depth by parent chain
+  const byId = {}; d.posts.forEach((x) => { byId[x.id] = x; });
+  const depth = (x) => { let n = 0, cur = x; while (cur && cur.reply_to && byId[cur.reply_to.parent] && n < 12) { cur = byId[cur.reply_to.parent]; n++; } return n; };
+  const list = document.createElement('div'); list.className = 'thread';
+  if (d.root_held === false) {
+    const gap = document.createElement('div'); gap.className = 'root-missing';
+    const h = document.createElement('div'); h.className = 'rm-head'; h.textContent = 'Root post missing';
+    const t = document.createElement('div'); t.className = 'rm-text';
+    t.textContent = 'These are replies to a post that has not reached us (' + d.root.slice(0, 16) + '…). No relay we asked has sent it yet.';
+    const b = document.createElement('button'); b.className = 'small primary'; b.textContent = 'Fetch the root from relays';
+    b.onclick = async () => { spinBtn(b, true); await fetch(BASE + '/api/fetch', { method: 'POST', body: JSON.stringify({ id: d.root }) }); await new Promise((r) => setTimeout(r, 2500)); await renderThread(); };
+    gap.append(h, t, b);
+    list.appendChild(gap);
+  }
+  d.posts.forEach((x) => {
+    const el = postEl(x, { inThread: true, depth: x.id === d.root ? 0 : depth(x), onChange: renderThread,
+                           onReply: () => { threadState.replyTo = x.id; renderThread(); } });
+    if (x.id === threadState.replyTo) el.setAttribute('target', '');
+    list.appendChild(el);
+  });
+  body.appendChild(list);
+  // reply box: to the selected post, else the root
+  // reply to the selected post, else the root, else (root missing) the first reply we hold
+  const target = byId[threadState.replyTo] || byId[d.root] || d.posts[0];
+  if (!target) return;
+  const form = document.createElement('form'); form.className = 'card form reply-form';
+  const replyLabel = document.createElement('div'); replyLabel.className = 'muted';
+  replyLabel.textContent = 'replying to ' + ((target.profile && target.profile.name) || (target.pubkey || '').slice(0, 12)) + (target.id === d.root ? ' (the root)' : '');
+  const ta = document.createElement('textarea'); ta.rows = 3; ta.placeholder = 'your reply';
+  const rowEl = document.createElement('div'); rowEl.className = 'row';
+  const send = document.createElement('button'); send.className = 'small primary'; send.type = 'submit'; send.textContent = 'Reply';
+  const msg = document.createElement('span'); msg.className = 'muted';
+  rowEl.append(send, msg);
+  form.append(replyLabel, ta, rowEl);
+  form.onsubmit = async (e) => {
+    e.preventDefault();
+    const content = ta.value.trim(); if (!content) return;
+    msg.textContent = ''; msg.appendChild(spinner('signing…'));
+    const r = await fetch(BASE + '/api/reply', { method: 'POST', body: JSON.stringify({ parent: target.id, content }) });
+    if (!r.ok) { msg.textContent = await r.text(); return; }
+    ta.value = '';
+    await renderThread();
+  };
+  body.appendChild(form);
 }
 
 function relayChip(r) {
@@ -124,17 +398,49 @@ async function loadStatus() {
   } catch (e) { $('status').textContent = ''; }
 }
 
+// the feed filter is a view, not a query: the index is the record, the
+// page chooses what to show from it
+let feedPosts = [];
+let feedFilter = 'all';
+try { feedFilter = localStorage.getItem('nostr-feed-filter') || 'all'; } catch (e) {}
+
+function renderFeed() {
+  const box = $('feed');
+  box.textContent = '';
+  const shown = feedPosts.filter((p) =>
+    feedFilter === 'all' ? true : feedFilter === 'replies' ? !!p.reply_to : feedFilter === 'reposts' ? !!p.repost : !p.reply_to);
+  $('feed-filter-note').textContent = feedFilter === 'all' ? '' : shown.length + ' of ' + feedPosts.length;
+  document.querySelectorAll('#feed-filters .chip').forEach((b) => b.classList.toggle('on', b.dataset.filter === feedFilter));
+  if (!feedPosts.length) { box.innerHTML = '<div class="empty">Nothing yet — the relay clients fill this in as events arrive.</div>'; return; }
+  if (!shown.length) { box.innerHTML = '<div class="empty">nothing of that kind in the last ' + feedPosts.length + '</div>'; return; }
+  shown.forEach((p) => box.appendChild(postEl(p, { onChange: loadFeed })));
+}
+
 async function loadFeed() {
   const box = $('feed');
-  busy(box, 'reading the feed…');
+  if (!feedPosts.length) busy(box, 'reading the feed…');
   let d;
   try { d = await jget('/api/feed?limit=80'); } catch (e) { d = null; }
-  box.textContent = '';
-  if (!d || !Array.isArray(d.posts)) { box.innerHTML = '<div class="empty">could not read the feed</div>'; return; }
+  if (!d || !Array.isArray(d.posts)) { box.textContent = ''; box.innerHTML = '<div class="empty">could not read the feed</div>'; return; }
   $('feed-count').textContent = d.count + ' posts';
-  if (!d.posts.length) { box.innerHTML = '<div class="empty">Nothing yet — the relay clients fill this in as events arrive.</div>'; return; }
-  d.posts.forEach((p) => box.appendChild(postEl(p)));
+  feedPosts = d.posts;
+  renderFeed();
 }
+
+// the relay clients ask for unknown profiles and missing roots as
+// events arrive; this asks for everything still missing, at once
+$('fill').onclick = async () => {
+  const b = $('fill'), note = $('fill-note');
+  spinBtn(b, true); note.textContent = ''; note.appendChild(spinner('listing gaps…'));
+  let r; try { r = await (await fetch(BASE + '/api/fill', { method: 'POST' })).json(); } catch (e) { r = null; }
+  spinBtn(b, false);
+  note.textContent = !r ? 'failed' : (!r.authors && !r.roots) ? 'nothing missing' : 'asked for ' + r.authors + ' profiles, ' + r.roots + ' roots';
+  setTimeout(() => { note.textContent = ''; loadAll(); }, 4000);
+};
+
+document.querySelectorAll('#feed-filters .chip').forEach((b) => {
+  b.onclick = () => { feedFilter = b.dataset.filter; try { localStorage.setItem('nostr-feed-filter', feedFilter); } catch (e) {} renderFeed(); };
+});
 
 // ---- people: follows joined with profiles ----
 async function loadPeople() {
@@ -151,7 +457,9 @@ async function loadPeople() {
   if (!d.people.length) { box.innerHTML = '<div class="empty">Following nobody. Add a pubkey above.</div>'; return; }
   d.people.forEach((p) => {
     const row = document.createElement('div');
-    row.className = 'person';
+    row.className = 'person clickable';
+    row.title = 'open';
+    row.onclick = (e) => { if (e.target.closest('button')) return; openPerson(p.pubkey); };
     row.appendChild(avatarEl(p, p.pubkey));
     const body = document.createElement('div');
     body.className = 'person-body';
@@ -390,11 +698,8 @@ function renderOutbox(items) {
     });
     const id = document.createElement('div');
     id.className = 'post-id';
-    const a = document.createElement('a');
-    a.href = '/grubbery/ball/apps/nostr/outbox/' + encodeURIComponent(ev.id) + '.json';
-    a.target = '_blank';
-    a.textContent = (ev.id || '').slice(0, 16) + '…';
-    id.appendChild(a);
+    id.textContent = (ev.id || '').slice(0, 16) + '…';
+    id.title = ev.id || '';
     card.append(head, content, verdicts, id);
     box.appendChild(card);
   });

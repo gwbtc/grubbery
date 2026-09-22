@@ -52,27 +52,20 @@ main {
 }
 .panel-head h2 { font-size: 14px; font-weight: 650; }
 .panel-head .grow { flex: 1; }
+#fill-note { font-size: 11.5px; }
+#fill-note .loading { display: inline-flex; padding: 0; }
 .scroll { flex: 1; overflow-y: auto; min-height: 0; }
 .empty { color: #9aa0a8; padding: 20px 18px; font-size: 13.5px; }
 
-/* ---- posts ---- */
-.post { padding: 13px 18px; border-bottom: 1px solid #f2f4f6; }
-.post-head { display: flex; align-items: center; gap: 9px; margin-bottom: 6px; }
-.avatar {
-  position: relative; width: 30px; height: 30px; border-radius: 50%; flex: none;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 12px; font-weight: 650; overflow: hidden;
-}
-.avatar img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+/* ---- posts: <post-card> and <avatar-pic> draw themselves; slotted content is styled here ---- */
+post-card [slot="content"] a { color: #6b3fd6; text-decoration: none; }
+post-card [slot="content"] a:hover { text-decoration: underline; }
+post-card:not(:defined), avatar-pic:not(:defined) { visibility: hidden; }
+.quote { display: block; line-height: 1.2; }
+.quote .loading { padding: 6px 0 0; }
+.quote-missing { display: flex; align-items: center; gap: 10px; margin-top: 8px; padding: 8px 12px; border: 1px dashed #d6dae0; border-radius: 10px; color: #79808a; font-size: 12px; }
 .who { font-weight: 650; font-size: 13.5px; }
 .who.pk { font-family: "SF Mono", Menlo, monospace; font-weight: 500; color: #57606a; }
-.age { margin-left: auto; font-size: 12px; color: #9aa0a8; }
-.content { font-size: 14px; line-height: 1.55; white-space: pre-wrap; word-break: break-word; color: #1f2328; }
-.content a { color: #6b3fd6; text-decoration: none; }
-.content a:hover { text-decoration: underline; }
-.post-id { margin-top: 6px; font-family: "SF Mono", Menlo, monospace; font-size: 10.5px; color: #c4c8cd; }
-.post-id a { color: inherit; text-decoration: none; }
-.post-id a:hover { color: #6b3fd6; }
 
 /* ---- tabs: the page is fixed to the viewport; each panel scrolls
    inside its own .scroll, never the body ---- */
@@ -97,12 +90,13 @@ button.primary { background: #6b3fd6; color: #fff; border-color: #6b3fd6; }
 button.primary:hover { background: #5b32bd; }
 h3 { font-size: 13px; font-weight: 650; padding: 16px 18px 4px; color: #1f2328; }
 .card { margin: 8px 18px; padding: 12px 14px; border: 1px solid #e4e7eb; border-radius: 10px; background: #fafbfc; }
-.card p { font-size: 13px; color: #57606a; margin-bottom: 8px; }
+.card p { font-size: 13px; color: #57606a; margin-bottom: 12px; }
 .form label { display: block; font-size: 11.5px; color: #79808a; margin-bottom: 8px; }
 .form label input, .form label textarea { margin-top: 3px; }
-.form .row { padding: 4px 0 0; border: 0; }
+.form .row { padding: 10px 0 2px; border: 0; gap: 12px; }
 .kvs { display: grid; grid-template-columns: 1fr; gap: 3px; margin-top: 8px; }
-.kv { display: flex; gap: 10px; font-size: 12.5px; line-height: 1.5; align-items: baseline; }
+.kv { display: flex; gap: 12px; font-size: 12.5px; line-height: 1.5; align-items: center; min-height: 26px; }
+.kv .v button.small { margin: 2px 8px 2px 0; }
 .kv .k { flex: 0 0 120px; color: #79808a; font-size: 11.5px; text-transform: uppercase; letter-spacing: .03em; }
 .kv .v { word-break: break-all; }
 code.secret { background: #fff4e5; color: #8a4b00; border: 1px solid #f5d9a8; }
@@ -119,6 +113,10 @@ code.secret { background: #fff4e5; color: #8a4b00; border: 1px solid #f5d9a8; }
 .relay-card .relay-head code { flex: 1; }
 
 /* ---- outbox ---- */
+.outbox-item .post-head { display: flex; align-items: center; gap: 9px; margin-bottom: 6px; }
+.outbox-item .age { margin-left: auto; font-size: 12px; color: #9aa0a8; }
+.outbox-item .content, #person-modal-body .about { font-size: 14px; line-height: 1.55; white-space: pre-wrap; word-break: break-word; }
+.outbox-item .content a, .about a { color: #6b3fd6; text-decoration: none; }
 .outbox-item .kind { font-size: 11px; font-weight: 650; color: #6b3fd6; text-transform: uppercase; letter-spacing: .04em; }
 .verdicts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 .verdict { font-size: 11px; padding: 2px 8px; border-radius: 999px; border: 1px solid #e4e7eb; background: #fff; color: #57606a; }
@@ -170,3 +168,62 @@ button.busy::after {
   border: 2px solid #e4e7eb; border-top-color: #6b3fd6; border-radius: 50%; animation: spin .8s linear infinite;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
+
+/* ---- threads, replies, reactions ---- */
+.who-list { border: 1px solid #eef0f3; border-radius: 10px; overflow: hidden; margin-top: 6px; }
+.who-list .empty.tight { padding: 8px 12px; font-size: 12px; }
+#thread-modal { --md-border: 1px solid #e4e7eb; --md-width: 720px; }
+#thread-modal-body { max-height: 80vh; overflow-y: auto; overflow-x: hidden; font-size: 13px; }
+#thread-modal-body * { box-sizing: border-box; min-width: 0; }
+#thread-modal-body h4 { font-size: 13px; font-weight: 650; margin: 2px 32px 6px 0; }
+#thread-modal-body .thread { border: 1px solid #eef0f3; border-radius: 10px; overflow: hidden; }
+#thread-modal-body .thread post-card:last-child { --pc-border: none; }
+#thread-modal-body .reply-form { margin: 16px 0 4px; }
+#thread-modal-body .reply-form textarea { margin: 6px 0; }
+.eng-row { display: flex; align-items: center; gap: 8px; padding: 7px 12px; border-bottom: 1px solid #f2f4f6; font-size: 12.5px; }
+.eng-row .what { color: #57606a; font-size: 14px; }
+#thread-modal-body .relay-actions { margin: 0 0 10px; }
+
+/* ---- people and mentions ---- */
+.clickable { cursor: pointer; }
+.who.clickable:hover { text-decoration: underline; }
+a.mention { color: #6b3fd6; text-decoration: none; font-weight: 500; }
+a.mention:hover { text-decoration: underline; }
+a.mention.post { font-family: "SF Mono", Menlo, ui-monospace, monospace; font-size: 12px; }
+#person-modal, #tag-modal { --md-border: 1px solid #e4e7eb; --md-width: 720px; }
+#tag-modal-body { max-height: 80vh; overflow-y: auto; overflow-x: hidden; font-size: 13px; }
+#tag-modal-body * { box-sizing: border-box; min-width: 0; }
+#tag-modal-body h4 { font-size: 15px; font-weight: 650; margin: 2px 32px 6px 0; color: #6b3fd6; }
+#tag-modal-body .relay-actions { gap: 10px; margin: 10px 0 18px; }
+#tag-modal-body .loading { padding: 28px 12px; }
+#person-modal-body { max-height: 80vh; overflow-y: auto; overflow-x: hidden; font-size: 13px; }
+#person-modal-body * { box-sizing: border-box; min-width: 0; }
+.person-head { display: flex; align-items: center; gap: 12px; margin: 2px 32px 10px 0; }
+.person-names .who { font-size: 16px; }
+#person-modal-body .about { white-space: pre-wrap; word-break: break-word; color: #57606a; margin-bottom: 10px; }
+#person-modal-body .kvs { margin-bottom: 10px; }
+#person-modal-body h4 { font-size: 12px; font-weight: 650; margin: 14px 0 6px; }
+#person-modal-body .kv .v { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+#person-modal-body .kv .v a { color: #6b3fd6; text-decoration: none; word-break: break-all; }
+#person-modal-body .kv .v a:hover { text-decoration: underline; }
+button.small.copy { padding: 1px 8px; font-size: 11px; }
+
+/* ---- summaries and spacing ---- */
+#person-modal-body .relay-actions, #thread-modal-body .relay-actions, #relay-modal-body .relay-actions { gap: 10px; margin: 10px 0 18px; }
+#person-modal-body .loading, #thread-modal-body .loading, #relay-modal-body .loading { padding: 28px 12px; }
+.cmd-note .loading, #pf-msg .loading, #post-msg .loading { padding: 0 6px; }
+.reply-form .row { padding: 10px 0 2px; gap: 12px; }
+.root-missing { padding: 14px 18px 16px; border-bottom: 1px solid #f2f4f6; background: #fff8e6; border-left: 3px solid #d4a72c; }
+.root-missing .rm-head { font-weight: 650; color: #6a5c00; margin-bottom: 4px; }
+.root-missing .rm-text { color: #57606a; font-size: 12.5px; margin-bottom: 10px; }
+post-card [slot="content"] a.hashtag, .about a.hashtag { color: #6b3fd6; font-weight: 500; }
+.cmd-note { margin-left: 6px; }
+.filters { gap: 6px; padding: 8px 18px; }
+.filters .muted { font-size: 12px; margin-right: 4px; }
+button.chip {
+  padding: 3px 10px; border-radius: 999px; font: inherit; font-size: 12px; cursor: pointer;
+  border: 1px solid #d6dae0; background: #fff; color: #57606a;
+}
+button.chip:hover { background: #f0f2f4; }
+button.chip.on { background: #f1ecfb; border-color: #c9b8f2; color: #4b2ca8; font-weight: 600; }
+.outbox-item .post-id { margin-top: 6px; font-family: "SF Mono", Menlo, monospace; font-size: 10.5px; color: #c4c8cd; }

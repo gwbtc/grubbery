@@ -21,6 +21,9 @@
 /&  ft-js       /lib/ui/file-table.js
 /&  fg-js       /lib/ui/file-grid.js
 /&  cd-js       /lib/ui/card-deck.js
+/&  pt-js       /lib/ui/post-text.js
+/&  pv-js       /lib/ui/post-viewer.js
+/&  av-js       /lib/ui/avatar-pic.js
 ::  classic scripts for the library's file manager (not modules; served as files)
 /&  fp-js       /lib/ui/file-preview.js
 /&  fmgr-js     /lib/ui/file-manager.js
@@ -37,7 +40,7 @@
       =/  kit-js=mime
         :-  /application/javascript
         %-  as-octs:mimes:html
-        (rap 3 ~[(wrap sv-js) (wrap tg-js) (wrap md-js) (wrap dm-js) (wrap ft-js) (wrap fg-js) (wrap cd-js)])
+        (rap 3 ~[(wrap sv-js) (wrap tg-js) (wrap md-js) (wrap dm-js) (wrap ft-js) (wrap fg-js) (wrap cd-js) (wrap av-js) (wrap pt-js) (wrap pv-js)])
       =/  weir-json=json
         %-  pairs:enjs:format
         :~  :-  'poke'
