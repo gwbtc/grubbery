@@ -42,7 +42,8 @@
 ++  parameters
   ^-  (map @t parameter-def:tools)
   %-  ~(gas by *(map @t parameter-def:tools))
-  :~  ['name' [%string 'Glob filter on tool names (* wildcards, e.g. "*clay*", "get_*")']]
+  :~  ['path' [%string 'A tools nexus to list, e.g. "/apps/nostr/tools" (its tools live at <path>/code/lib/tools). Omit for the root registry.']]
+      ['name' [%string 'Glob filter on tool names (* wildcards, e.g. "*clay*", "get_*")']]
       ['search' [%string 'Substring search in tool descriptions (case-insensitive, e.g. "clay", "custom")']]
       ['names_only' [%boolean 'If true, return only tool names (compact listing)']]
   ==
@@ -82,12 +83,25 @@
     %+  turn  ~(tap by contents.u.fil.ball.src-view)
     |=  [n=@ta *]
     [~ (strip-hoon n)]
-  ::  App namespace tools
-  ;<  apps-view=view:nexus  bind:m
-    (peek:io [%& %| /apps] ~)
-  =/  app-kids=(list @ta)
-    ?.  ?=([%ball *] apps-view)  ~
-    (turn ~(tap by dir.ball.apps-view) |=([nam=@ta *] nam))
+  ::  a tools nexus named by path replaces the root registry
+  =/  at=(unit path)
+    =/  v  (~(get by args.st) 'path')
+    ?.  ?=([~ %s *] v)  ~
+    ?:  =('' p.u.v)  ~
+    (rush p.u.v stap)
+  ;<  pairs=(list [path @ta])  bind:m
+    =/  m  (fiber:fiber:nexus ,(list [path @ta]))
+    ?~  at  (pure:m pairs)
+    =/  app-path=path  (welp u.at /code/lib/tools)
+    ;<  app-src=view:nexus  bind:m  (peek:io [%& %| app-path] ~)
+    %-  pure:m
+    ?.  ?=([%ball *] app-src)  ~
+    ?~  fil.ball.app-src  ~
+    ^-  (list [path @ta])
+    %+  turn  ~(tap by contents.u.fil.ball.app-src)
+    |=  [n=@ta *]
+    [app-path (strip-hoon n)]
+  =/  app-kids=(list @ta)  ~
   |-
   ?~  app-kids
     ::  All pairs collected, now compile and filter
@@ -143,17 +157,5 @@
       (mule |.(!<(tool:tools vase.res)))
     ?.  ?=(%& -.got)  $(pairs t.pairs)
     $(pairs t.pairs, all-tools [p.got all-tools])
-  ::  Peek this app's mcp dir and add any tool sources
-  =/  app-path=path  (welp ~[%apps i.app-kids] /desk/code/lib/tools)
-  ;<  app-src=view:nexus  bind:m
-    (peek:io [%& %| app-path] ~)
-  =.  pairs
-    ?.  ?=([%ball *] app-src)  pairs
-    ?~  fil.ball.app-src  pairs
-    %+  weld  pairs
-    ^-  (list [path @ta])
-    %+  turn  ~(tap by contents.u.fil.ball.app-src)
-    |=  [n=@ta *]
-    [app-path (strip-hoon n)]
   $(app-kids t.app-kids)
 --

@@ -51,6 +51,11 @@
 //                picker; the source button spins until done() is called
 //     pc-who     the 👥 chip clicked: show who reacted and reposted
 //     pc-repost  { done() } — Repost pressed; the button spins until done()
+//     pc-unreact { content, id, done() } — one of our own reaction chips
+//                clicked (post.my_reactions maps emoji -> our reaction id)
+//   Chip clicks (react / unreact) ask first in a small dialog: Enter
+//   confirms, Esc cancels. Picks from the picker do not. The dialog is
+//   exposed as window.confirmModal(text, okLabel) -> Promise<boolean>.
 //
 // DESIGN NOTES — chips are buttons inside the shadow root so the host's
 // button styles don't leak in; the who slot sits under the row inside the
@@ -100,6 +105,8 @@ TPL.innerHTML = `
     }
     button.act:hover { background: #f0f2f4; }
     button.stat.emoji { font-size: 13px; }
+    button.stat.mine { background: #f1ecfb; border-color: #c9b8f2; color: #4b2ca8; }
+    button.stat.mine:hover { background: #e6dcfa; }
     button.busy { position: relative; color: transparent; pointer-events: none; }
     button.busy::after {
       content: ''; position: absolute; inset: 0; margin: auto; width: 12px; height: 12px;
@@ -201,11 +208,25 @@ class PostCard extends HTMLElement {
       btn.classList.add('busy');
       this.#emit('pc-react', { content, done: () => btn.classList.remove('busy') });
     };
+    const mine = p.my_reactions || {};
+    const whoName = (prof.name || pk.slice(0, 12));
     Object.keys(emojis).sort((x, y) => emojis[y] - emojis[x]).forEach((k) => {
       const shown = (k === '+' || !k) ? '👍' : k;
-      const b = document.createElement('button'); b.className = 'stat emoji'; b.textContent = shown + ' ' + emojis[k];
-      b.title = 'react ' + shown + ' too';
-      b.addEventListener('click', (e) => { e.stopPropagation(); react(k === '' ? '+' : k, b); });
+      const key = k === '' ? '+' : k;
+      const own = mine[key];
+      const b = document.createElement('button'); b.className = 'stat emoji' + (own ? ' mine' : ''); b.textContent = shown + ' ' + emojis[k];
+      b.title = own ? 'you reacted ' + shown + ' — click to take it back' : 'react ' + shown + ' too';
+      b.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        if (own) {
+          if (!(await confirmModal('Take back your ' + shown + ' on ' + whoName + "'s post?", 'Unreact'))) return;
+          b.classList.add('busy');
+          this.#emit('pc-unreact', { content: key, id: own, done: () => b.classList.remove('busy') });
+        } else {
+          if (!(await confirmModal('React ' + shown + ' to ' + whoName + "'s post?", 'React ' + shown))) return;
+          react(key, b);
+        }
+      });
       row.appendChild(b);
     });
     if (c.reposts || c.reactions || Object.keys(emojis).length) stat('👥', 'who reacted and reposted', () => this.#emit('pc-who', {}));
@@ -224,6 +245,34 @@ class PostCard extends HTMLElement {
     if (link) { const a = id.querySelector('a'); a.href = link; a.textContent = (p.id || '').slice(0, 16) + '…'; a.title = 'the event grub'; }
   }
 }
+
+// a small confirm: Enter confirms (the OK button has focus), Esc cancels
+let confirmDlg = null, confirmRes = null;
+function confirmModal(text, okLabel) {
+  if (!confirmDlg) {
+    const st = document.createElement('style');
+    st.textContent = '.pc-confirm { --md-width: 360px; --md-pad: 18px 20px; --md-radius: 14px; }' +
+      '.pc-confirm .msg { font-size: 14px; color: #1f2328; margin: 0 24px 14px 0; line-height: 1.5; }' +
+      '.pc-confirm .btns { display: flex; justify-content: flex-end; gap: 8px; }' +
+      '.pc-confirm button { padding: 6px 14px; border-radius: 8px; font: inherit; font-size: 13px; cursor: pointer; border: 1px solid #d6dae0; background: #fff; color: #1f2328; }' +
+      '.pc-confirm button.ok { background: #6b3fd6; border-color: #6b3fd6; color: #fff; }' +
+      '.pc-confirm button.ok:focus { outline: 2px solid #c9b8f2; outline-offset: 2px; }';
+    document.head.appendChild(st);
+    confirmDlg = document.createElement('modal-dialog'); confirmDlg.className = 'pc-confirm'; confirmDlg.setAttribute('no-x', '');
+    confirmDlg.innerHTML = '<div class="msg"></div><div class="btns"><button class="cancel" type="button">Cancel</button><button class="ok" type="button">OK</button></div>';
+    confirmDlg.querySelector('.cancel').onclick = () => { const r = confirmRes; confirmRes = null; confirmDlg.close(); if (r) r(false); };
+    confirmDlg.querySelector('.ok').onclick = () => { const r = confirmRes; confirmRes = null; confirmDlg.close(); if (r) r(true); };
+    confirmDlg.addEventListener('md-close', () => { const r = confirmRes; confirmRes = null; if (r) r(false); });
+    confirmDlg.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); confirmDlg.querySelector('.ok').click(); } });
+    document.body.appendChild(confirmDlg);
+  }
+  confirmDlg.querySelector('.msg').textContent = text;
+  confirmDlg.querySelector('.ok').textContent = okLabel || 'OK';
+  return new Promise((res) => { confirmRes = res; confirmDlg.show(); setTimeout(() => confirmDlg.querySelector('.ok').focus(), 0); });
+}
+
+// the confirm is useful to the host page too (destructive buttons)
+window.confirmModal = confirmModal;
 
 // one <modal-dialog> holding one <emoji-picker>, shared by every card on
 // the page; created on first use, appended to the document body

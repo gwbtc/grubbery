@@ -28,7 +28,10 @@ basic discovery of people and relays.
 - [x] Storage: `events/<id>.json` (verbatim, immutable),
       `profiles/<pk>.json`, `feed.json` index, `follows.json`,
       `config.json`, `defaults.json` (shipped starting points + reset).
-- [x] Identity: `me/identity.json`, `me/secret.json`, `me/profile.json`;
+- [x] Identity: `accounts/<pubkey>/{secret,identity,profile}.json`, one
+      dir per keypair; `me.json` names the current one, which every
+      signing action uses. Generate, import an nsec, switch, remove.
+      (The older single `me/` layout migrates on first use.)
       `lib/nostr.hoon` (keys, id, schnorr sign/verify, npub/nsec).
 - [x] Publishing path: `outbox/<id>.json` with per-relay OK verdicts;
       kind 0 (profile) and kind 1 (post) from the page.
@@ -37,10 +40,9 @@ basic discovery of people and relays.
 
 ## Verify first
 
-- [ ] Generate a key on the page, save a profile, publish a post; confirm
-      the outbox shows an `OK` from each relay and the post appears on a
-      public client (e.g. njump.me/<id>). Nothing below matters until
-      this round-trips.
+- [x] Generate a key on the page, publish a post; the outbox shows an
+      `OK` from each relay (2026-09-22, both relays accepted). Not yet
+      checked on a public client (njump.me/<id>).
 - [ ] `check-event` on inbound events (id recomputes, sig verifies):
       decide whether to drop bad events or flag them. nostrill trusts
       the relay; we can do better cheaply.
@@ -63,8 +65,15 @@ basic discovery of people and relays.
       React picker offers a dozen plus free text; 👥 lists who.
 - [ ] Custom emoji reactions (NIP-30 `:shortcode:` with an `emoji` tag
       carrying the image url); the picker sends any string already.
-- [ ] Mark our own reactions on the chips, and un-react (a kind-5
-      deletion of our kind-7). Needs our pubkey in the refs rows check.
+- [x] Our own reactions are highlighted chips; clicking one unreacts: a
+      kind-5 deletion request (NIP-09) and the row leaves refs/. Chip
+      clicks confirm first (Enter / Esc).
+- [x] Others' deletion requests are asked for (kind 5 by follows and
+      by `#e`) and honored: the retracted events leave refs/ and the
+      feed index and their grubs are culled; the kind 5 is kept.
+- [ ] Delete our own posts (kind 5 on a kind 1) from the page.
+- [ ] Deletions of things indexed elsewhere (authors/, tags/) leave
+      those indexes stale until rebuilt.
 - [x] Reposts: a follow's kind 6 is a feed item shown as the original
       post with a "reposted by" line (the embedded original is filed as
       its own event grub); Repost from the page publishes a kind 6 with
@@ -89,7 +98,11 @@ basic discovery of people and relays.
 
 ## People and discovery (NIP-02, 05, 50, 65)
 
-- [ ] Our contact list: publish `follows.json` as kind 3 when it
+- [x] Follows are per account (`accounts/<pk>/follows.json`, from the
+      defaults or the old ship-level list); relay clients subscribe to
+      the union, feed.json carries authors so one shared index serves
+      every account's feed.
+- [ ] Our contact list: publish the account's follows as kind 3 when it
       changes; read our own kind 3 back on a fresh ship (the follow list
       then round-trips through relays, and other clients see it).
 - [ ] NIP-05 lookup: `name@domain` → `/.well-known/nostr.json` → pubkey,

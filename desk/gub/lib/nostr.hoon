@@ -45,6 +45,24 @@
   |=  [hrp=@t a=@ux]
   ^-  @t
   (encode-raw:b32 (trip hrp) %.n (to-atoms:bit:bcu 5 [256 `@ub`a]))
+::  +from-bech: the 32-byte payload of an npub/nsec (NIP-19), if the
+::  string is bech32 with that prefix and a 256-bit body
+++  from-bech
+  |=  [hrp=@t body=@t]
+  ^-  (unit @ux)
+  =/  d=(unit raw-decoded:b32)  (decode-raw:b32 body)
+  ?~  d  ~
+  ?.  =((trip hrp) hrp.u.d)  ~
+  =/  bs=bits:bcu  (from-atoms:bit:bcu 5 data.u.d)
+  ?.  (gte wid.bs 256)  ~
+  `dat:(take:bit:bcu 256 bs)
+::  +parse-key: a private or public key as hex (64) or bech32 (nsec/npub)
+++  parse-key
+  |=  [hrp=@t t=@t]
+  ^-  (unit @ux)
+  =/  s=@t  (crip (cass (trip t)))
+  ?:  =(64 (met 3 s))  (parse-hex s)
+  (from-bech hrp s)
 ::  +serial: the NIP-01 id preimage
 ++  serial
   |=  [pub=@ux at=@ud kind=@ud tags=(list (list @t)) content=@t]

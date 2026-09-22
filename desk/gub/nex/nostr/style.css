@@ -18,6 +18,26 @@ h1 { font-size: 15px; font-weight: 650; letter-spacing: -0.01em; }
 header .sub { color: #79808a; font-size: 12px; }
 #status { margin-left: auto; font-size: 11px; color: #79808a; font-variant-numeric: tabular-nums; }
 #relays { display: flex; gap: 6px; }
+/* one fixed box in every state (loading, an account, none): only the
+   contents change, never the size */
+.me-chip {
+  display: inline-flex; align-items: center; gap: 7px; padding: 0 10px 0 4px; border-radius: 999px;
+  height: 26px; width: 170px; box-sizing: border-box; overflow: hidden; white-space: nowrap; line-height: 1;
+  border: 1px solid #c9b8f2; background: #f1ecfb; color: #4b2ca8; font: inherit; font-size: 12px; font-weight: 600; cursor: pointer;
+}
+.me-chip .nm { overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 1; text-align: left; }
+.me-chip avatar-pic, .me-chip .blank-av { flex: none; }
+.me-chip:hover { background: #e6dcfa; }
+.me-chip.me-loading .blank-av { background: #e6dcfa; color: transparent; }
+.me-chip.none { border-color: #f1b8bd; background: #fff1f2; color: #a40e26; }
+.me-chip.none:hover { background: #ffe4e6; }
+.me-chip .more { font-weight: 500; color: #6b3fd6; opacity: .8; }
+.me-chip.none .more { color: #a40e26; opacity: .75; }
+.me-chip.none .more::before { content: '·'; margin-right: 6px; }
+.me-chip .blank-av {
+  display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 50%;
+  background: #f1b8bd; color: #a40e26; font-size: 11px; font-weight: 650; flex: none;
+}
 .relay {
   font-size: 11px; padding: 2px 8px; border-radius: 999px;
   background: #f0f2f4; color: #57606a; border: 1px solid #e4e7eb;
@@ -100,6 +120,49 @@ h3 { font-size: 13px; font-weight: 650; padding: 16px 18px 4px; color: #1f2328; 
 .kv .k { flex: 0 0 120px; color: #79808a; font-size: 11.5px; text-transform: uppercase; letter-spacing: .03em; }
 .kv .v { word-break: break-all; }
 code.secret { background: #fff4e5; color: #8a4b00; border: 1px solid #f5d9a8; }
+
+/* ---- accounts: the chip's menu and the manage modal ---- */
+#me-menu { --dm-min-width: 240px; }
+#me-menu-items button.mi {
+  display: flex; align-items: center; gap: 8px; width: 100%; text-align: left;
+  padding: 7px 12px; border: 0; background: none; font: inherit; font-size: 13px; color: #1f2328; cursor: pointer; border-radius: 6px; white-space: nowrap;
+}
+#me-menu-items button.mi:hover { background: #f5f5f7; }
+#me-menu-items button.mi .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; font-weight: 600; }
+#me-menu-items button.mi.current { background: #f8f5ff; }
+#me-menu-items button.mi.current .muted { color: #6b3fd6; font-weight: 600; }
+#me-menu-items .sep { height: 1px; background: #eef0f3; margin: 4px 6px; }
+#accounts-modal { --md-border: 1px solid #e4e7eb; --md-width: 720px; }
+#accounts-modal-body { max-height: 80vh; overflow-y: auto; overflow-x: hidden; font-size: 13px; }
+#accounts-modal-body * { box-sizing: border-box; min-width: 0; }
+#accounts-modal-body .acct-head { display: flex; align-items: center; gap: 10px; margin: 2px 32px 8px 0; }
+#accounts-modal-body .acct-head h4 { font-size: 14px; font-weight: 650; margin: 0; }
+#accounts-modal-body .acct-head .grow { flex: 1; }
+#accounts-modal-body .explain.tight { padding: 0 0 10px; }
+#accounts-modal-body .row { padding: 8px 0; }
+#accounts-modal-body #accounts { border: 1px solid #eef0f3; border-radius: 10px; overflow: hidden; }
+#accounts-modal-body .account:last-child { border-bottom: 0; }
+
+/* ---- accounts ---- */
+.account { border-bottom: 1px solid #f2f4f6; }
+.account.current { background: #faf8ff; }
+.account-head { display: flex; align-items: center; gap: 12px; padding: 11px 18px 11px 12px; cursor: pointer; }
+.account-head:hover { background: #f6f7f9; }
+.account.current .account-head:hover { background: #f3effd; }
+.account .caret { color: #9aa0a8; width: 12px; flex: none; }
+.account-body { flex: 1; min-width: 0; }
+.account-detail { padding: 4px 18px 16px 58px; }
+.account-detail h4 { font-size: 12px; font-weight: 650; margin: 14px 0 4px; }
+.account-detail .kvs { margin-top: 4px; }
+.account-detail .form label { margin-top: 8px; }
+.account-detail .explain.tight { padding: 0 0 6px; }
+#acct-msg .loading { display: inline-flex; padding: 0; }
+.account .keys { font-family: "SF Mono", Menlo, ui-monospace, monospace; font-size: 10.5px; color: #9aa0a8; word-break: break-all; margin-top: 2px; }
+.account-actions { display: flex; gap: 8px; flex: none; }
+.current-tag { margin-left: 8px; font-size: 10.5px; font-weight: 650; text-transform: uppercase; letter-spacing: .04em; color: #6b3fd6; background: #f1ecfb; padding: 1px 7px; border-radius: 999px; vertical-align: 1px; }
+button.small.danger { color: #a40e26; border-color: #f1b8bd; }
+button.small.danger:hover { background: #fff1f2; }
+#import-form input { font-size: 12px; }
 
 /* ---- people ---- */
 .person { display: flex; gap: 10px; padding: 11px 18px; border-bottom: 1px solid #f2f4f6; align-items: flex-start; }
@@ -227,3 +290,4 @@ button.chip {
 button.chip:hover { background: #f0f2f4; }
 button.chip.on { background: #f1ecfb; border-color: #c9b8f2; color: #4b2ca8; font-weight: 600; }
 .outbox-item .post-id { margin-top: 6px; font-family: "SF Mono", Menlo, monospace; font-size: 10.5px; color: #c4c8cd; }
+#import-form[hidden], .row[hidden] { display: none; }

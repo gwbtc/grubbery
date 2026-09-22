@@ -11,14 +11,17 @@
 ::  the explorer — reads the namespace. The protocol handling follows
 ::  nostrill, the gall-agent client this grew out of.
 ::
-::    me/identity.json        {pubkey, npub, since}: the public half of
-::                            our key — our name on the network. Empty
-::                            until a key is generated.
-::    me/secret.json          {privkey, nsec}: the private half. Signs
-::                            everything we publish; never leaves the
-::                            ship. Absent until generated.
-::    me/profile.json         {name, about, picture}: what we publish
-::                            as our kind-0 (profile) event.
+::    accounts/<pk>/          one dir per keypair this ship holds:
+::      identity.json         {pubkey, npub, since}: the public half —
+::                            the account's name on the network
+::      secret.json           {privkey, nsec}: the private half. Signs
+::                            everything it publishes; never leaves
+::                            the ship
+::      profile.json          {name, about, picture}: what it publishes
+::                            as its kind-0 (profile) event
+::    me.json                 {current: <pk>}: the account every action
+::                            here signs as (post, reply, react, repost,
+::                            profile). Switch it on the Profile tab.
 ::    outbox/<id>.json        {event, relays: {host: {ok, message, at}},
 ::                            at}: an event we signed and sent, with
 ::                            each relay's verdict on it.
@@ -50,7 +53,12 @@
 ::                            replaced from the source on every reload.
 ::                            Nothing reads it but the seeds below and
 ::                            the reset buttons.
-::    follows.json            {pubkeys: [hex]} — whose posts we want. The
+::      follows.json          {pubkeys: [hex]} — whose posts this account
+::                            wants (its kind-3 contact list, unpublished
+::                            yet). Relay clients subscribe to the union
+::                            over accounts; the feed shows the current
+::                            account's.
+::    (follows.json at the root, from before accounts, migrates in.) The
 ::                            system of record for the follow list,
 ::                            seeded once from defaults.json (this ship
 ::                            has no nostr key, so no kind-3 contact list
@@ -83,12 +91,17 @@
 ::  the kit components this page uses, welded into one served file
 /&  tg-js    /lib/ui/tab-group.js
 /&  md-js    /lib/ui/modal-dialog.js
+/&  dm-js    /lib/ui/drop-menu.js
 /&  av-js    /lib/ui/avatar-pic.js
 /&  pc-js    /lib/ui/post-card.js
 /&  pt-js    /lib/ui/post-text.js
 /&  pv-js    /lib/ui/post-viewer.js
 /&  ep-js    /lib/ui/emoji-picker.js
 /<  nl       /lib/nostr.hoon
+::  the MCP tools that read and drive this nexus (its own bundle, its
+::  own tools-nexus instance at /tools — the ghostprompter pattern)
+/<  nex-tools  /lib/tools.hoon
+/&  bundle   /lib/nostr-bundle/
 =<  ^-  nexus:nexus
     |%
     ++  on-load
@@ -102,18 +115,18 @@
       =/  kit-js=mime
         :-  /application/javascript
         %-  as-octs:mimes:html
-        (rap 3 ~[(wrap tg-js) (wrap md-js) (wrap av-js) (wrap ep-js) (wrap pc-js) (wrap pt-js) (wrap pv-js)])
+        (rap 3 ~[(wrap tg-js) (wrap md-js) (wrap dm-js) (wrap av-js) (wrap ep-js) (wrap pc-js) (wrap pt-js) (wrap pv-js)])
       =/  tile=json
         %-  pairs:enjs:format
         :~  title+s+'Nostr'
-            info+s+'Your nostr feed, in the namespace'
+            info+s+'A nostr client: feed, people, relays, accounts'
             color+s+'#f1ecfb'
             image+s+'/grubbery/tiles/icon/nostr'
             href+s+'/grubbery/nostr'
         ==
       %+  spin:loader  ball
       :~  (manifest:loader 0)
-          [%over %& [/ %'link.json'] [[/ %json] (pairs:enjs:format ~[['name' s+'nostr'] ['description' s+'nostr events and profiles, mirrored']])]]
+          [%over %& [/ %'link.json'] [[/ %json] (pairs:enjs:format ~[['name' s+'nostr'] ['description' s+'a nostr client in the namespace: events, profiles, relays, accounts']])]]
           [%over %& [/ %'weir.json'] [[/ %json] weir-json]]
           [%over %& [/ %'tile.json'] [[/ %json] tile]]
           [%over %& [/ %'icon.svg'] [[/ %mime] icon]]
@@ -125,14 +138,13 @@
           [%over %& [/ %'TODO.md'] [[/ %mime] todo-md]]
           [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
           [%fall %& [/ %'web.sig'] [[/ %sig] ~]]
-          [%fall %| /me empty-dir:loader]
-          [%fall %& [/me %'identity.json'] [[/ %json] (pairs:enjs:format ~[['pubkey' s+''] ['npub' s+'']])]]
-          [%fall %& [/me %'profile.json'] [[/ %json] [%o ~]]]
+          [%fall %| /accounts empty-dir:loader]
+          [%over %| /tools (seed-tools:nex-tools bundle)]
+          [%fall %& [/ %'me.json'] [[/ %json] (pairs:enjs:format ~[['current' s+'']])]]
           [%fall %| /outbox empty-dir:loader]
           [%fall %| /requests empty-dir:loader]
           [%fall %& [/ %'config.json'] [[/ %json] default-config]]
           [%fall %& [/ %'feed.json'] [[/ %json] (feed-index ~ 0)]]
-          [%fall %& [/ %'follows.json'] [[/ %json] (pairs:enjs:format ~[['pubkeys' [%a (jarr defaults 'follows')]]])]]
           [%fall %| /events empty-dir:loader]
           [%fall %| /profiles empty-dir:loader]
           [%fall %| /relays empty-dir:loader]
@@ -213,11 +225,12 @@
 ::  parallel list of created_at, so a relay session can carry the index
 ::  forward without re-reading every event, and `since` falls out of it.
 ++  feed-index
-  |=  [ents=(list [id=@t t=@ud]) at=@ud]
+  |=  [ents=(list [id=@t t=@ud a=@t]) at=@ud]
   ^-  json
   %-  pairs:enjs:format
   :~  ['ids' [%a (turn ents |=([i=@t *] s+i))]]
-      ['times' [%a (turn ents |=([* t=@ud] (numb:enjs:format t)))]]
+      ['times' [%a (turn ents |=([* t=@ud *] (numb:enjs:format t)))]]
+      ['authors' [%a (turn ents |=([* * a=@t] s+a))]]
       ['count' (numb:enjs:format (lent ents))]
       ['at' (numb:enjs:format at)]
   ==
@@ -289,13 +302,52 @@
   ^-  form:m
   ;<  cfg=(unit json)  bind:m  (peek-as:io (nex-road:io rail [%& / %'config.json']) ,json)
   (pure:m (fall cfg default-config))
+::  +read-follows: the CURRENT account's follows (accounts/<pk>/
+::  follows.json). An account without the file gets one: the ship-level
+::  follows.json of the single-account days if it is still there (moved
+::  in, once), else defaults.json's list. No account: no follows.
 ++  read-follows
   |=  =rail:tarball
   =/  m  (fiber:fiber:nexus ,(list @t))
   ^-  form:m
-  ;<  f=(unit json)  bind:m  (peek-as:io (nex-road:io rail [%& / %'follows.json']) ,json)
-  %-  pure:m
-  (murn (jarr (fall f [%o ~]) 'pubkeys') |=(p=json ?:(?=([%s *] p) `p.p ~)))
+  ;<  cur=(unit @t)  bind:m  (current-pk rail)
+  ?~  cur  (pure:m ~)
+  (account-follows rail u.cur)
+++  account-follows
+  |=  [=rail:tarball pk=@t]
+  =/  m  (fiber:fiber:nexus ,(list @t))
+  ^-  form:m
+  =/  road=road:tarball  (nex-road:io rail [%& (acct pk) %'follows.json'])
+  ;<  f=(unit json)  bind:m  (peek-as:io road ,json)
+  ?^  f  (pure:m (pks-of u.f))
+  ;<  old=(unit json)  bind:m  (peek-as:io (nex-road:io rail [%& / %'follows.json']) ,json)
+  =/  start=(list @t)  ?~(old default-follows (pks-of u.old))
+  ;<  *  bind:m  (make-soft:io road |+[[[/ %json] (follows-doc start)] ~])
+  ;<  *  bind:m
+    ?~  old  (pure:(fiber:fiber:nexus ,(unit tang)) ~)
+    ~&  [%nostr-accounts %migrated-follows pk (lent start)]
+    (cull-soft:io (nex-road:io rail [%& / %'follows.json']))
+  (pure:m start)
+++  pks-of
+  |=  f=json
+  ^-  (list @t)
+  (murn (jarr f 'pubkeys') |=(p=json ?:(?=([%s *] p) `p.p ~)))
+++  follows-doc
+  |=  pks=(list @t)
+  ^-  json
+  (pairs:enjs:format ~[['pubkeys' [%a (turn pks |=(p=@t s+p))]]])
+::  +all-follows: the union over every account (what the relay clients
+::  subscribe to, so switching accounts needs no reconnect)
+++  all-follows
+  |=  =rail:tarball
+  =/  m  (fiber:fiber:nexus ,(list @t))
+  ^-  form:m
+  ;<  pks=(list @t)  bind:m  (account-pks rail)
+  =|  acc=(set @t)
+  |-
+  ?~  pks  (pure:m ~(tap in acc))
+  ;<  fs=(list @t)  bind:m  (account-follows rail i.pks)
+  $(pks t.pks, acc (~(gas in acc) fs))
 ::  ---------------------------------------------------------------------
 ::  the relay client
 ::
@@ -328,7 +380,7 @@
   ^-  form:m
   =/  st=relay-st  [host 'starting' ~ 0 0 0 0 '' '' tries 0 '' 0 ~]
   =/  report  |=(st=relay-st (relay-status rail st))
-  ;<  follows=(list @t)  bind:m  (read-follows rail)
+  ;<  follows=(list @t)  bind:m  (all-follows rail)
   ::  =(~ ...) rather than ?~: no type narrowing, so the wet gates
   ::  below (lien, turn) see the plain list
   ?:  =(~ follows)
@@ -357,10 +409,10 @@
   =.  st  st(wid wid, stage 'open')
   ;<  ~  bind:m  (report st)
   ;<  cfg=json  bind:m  (read-config rail)
-  ;<  idx=(map @t @ud)  bind:m  (load-index rail)
+  ;<  idx=feed-idx  bind:m  (load-index rail)
   ;<  now=@da  bind:m  get-time:io
   =/  now-unix=@ud  (div (sub now ~1970.1.1) ~s1)
-  =/  newest=@ud  (roll ~(val by idx) max)
+  =/  newest=@ud  (roll (turn ~(val by idx) |=([t=@ud *] t)) max)
   =/  since=@ud
     ?:  =(0 newest)  (sub now-unix (mul 86.400 (jnum cfg 'backfill_days' 30)))
     newest
@@ -373,15 +425,15 @@
     %-  en:json:html
     :-  %a
     :~  s+'REQ'  s+'timeline'
-        (filter ~[1 6] follows `since)
+        (filter ~[1 6 5] follows `since)
         (filter ~[0] follows prof-since)
         ::  what points at the follows: replies to them, reposts and
         ::  reactions of their posts (all carry a p tag for the author)
-        (filter-tag ~[1 6 7] 'p' follows `since)
+        (filter-tag ~[1 6 7 5] 'p' follows `since)
     ==
   ;<  ~  bind:m  (ws-send:io u.wid req)
   =.  st  (note-frame st '> ' req)
-  =.  st  st(since since, req (crip "kinds 1,6 by + kinds 1,6,7 #p the {<(lent follows)>} follows since {<since>}; kinds 0 since {<(fall prof-since 0)>}"))
+  =.  st  st(since since, req (crip "kinds 1,6,5 by + kinds 1,6,7,5 #p the {<(lent follows)>} follows since {<since>}; kinds 0 since {<(fall prof-since 0)>}"))
   ;<  ~  bind:m  (report st)
   =/  keep=@ud  (jnum cfg 'keep' 500)
   =|  eose=?
@@ -454,7 +506,7 @@
         :-  %a
         :~  s+'REQ'  s+'fill-e'
             (pairs:enjs:format ~[['ids' [%a (turn ids |=(i=@t s+i))]]])
-            (filter-tag ~[1 6 7] 'e' ids ~)
+            (filter-tag ~[1 6 7 5] 'e' ids ~)
         ==
       =.  st  (note-frame st '> ' (crip "fill: {<(lent authors)>} profiles, {<(lent ids)>} roots"))
       ;<  ~  bind:m  (report st)
@@ -543,9 +595,17 @@
     ;<  ~  bind:m  (put-profile rail (jstr ev 'pubkey') ev)
     =.  st  st(profiles +(profiles.st))
     $
-  ?.  ?=(?(%1 %6 %7) kind)  $
+  ?.  ?=(?(%1 %6 %7 %5) kind)  $
   =/  id=@t  (jstr ev 'id')
   ?:  =('' id)  $
+  ::  a deletion request (kind 5, NIP-09): the author retracting their
+  ::  own events. Honored here for what we hold: the retracted events
+  ::  leave refs/ and the feed index, and their grubs are culled; the
+  ::  request itself is kept as the record of why.
+  ;<  gone=(list @t)  bind:m
+    ?.  =(5 kind)  (pure:(fiber:fiber:nexus ,(list @t)) ~)
+    (apply-deletion rail ev)
+  =.  idx  (roll gone |=([i=@t acc=_idx] (~(del by acc) i)))
   ::  the feed index is the follows' own kind-1 posts (replies included,
   ::  the card says what they answer); everything else is reachable
   ::  through refs/
@@ -553,7 +613,7 @@
   ::  by that name; a linear scan of 75 follows is fine)
   =/  author=@t  (jstr ev 'pubkey')
   =?  idx  &(?=(?(%1 %6) kind) (lien follows |=(p=@t =(p author))))
-    (~(put by idx) id (jnum ev 'created_at' 0))
+    (~(put by idx) id [(jnum ev 'created_at' 0) author])
   =/  road=road:tarball  (nex-road:io rail [%& /events (cat 3 id '.json')])
   ;<  have=?  bind:m  (peek-exists:io road)
   =.  st  st(events +(events.st), new ?:(have new.st +(new.st)))
@@ -721,39 +781,134 @@
 ::  the account: identity, publishing, follows, relay config. Each is a
 ::  file; these arms are the only writers the page uses.
 ::
-::  +me-keys: our keypair from me/secret.json + me/identity.json, or ~
-++  me-keys
+::  ACCOUNTS. One keypair is one dir, accounts/<pubkey>/ holding
+::  secret.json, identity.json and profile.json; me.json says which one
+::  is current, and everything that signs (post, reply, react, repost,
+::  profile) signs as the current one. The older single me/ layout is
+::  moved into accounts/ the first time anything asks.
+::
+::  +acct: the dir path of one account
+++  acct
+  |=  pk=@t
+  ^-  path
+  [%accounts `@ta`pk ~]
+::  +current-pk: the current account's pubkey (hex), or ~ when none
+++  current-pk
   |=  =rail:tarball
-  =/  m  (fiber:fiber:nexus ,(unit keys:nl))
+  =/  m  (fiber:fiber:nexus ,(unit @t))
+  ^-  form:m
+  ;<  me=(unit json)  bind:m  (peek-as:io (nex-road:io rail [%& / %'me.json']) ,json)
+  =/  cur=@t  (jstr (fall me [%o ~]) 'current')
+  ?.  =('' cur)  (pure:m `cur)
+  ::  nothing current: an old me/ may still be there to migrate, or
+  ::  there may be accounts and no choice yet — take the first
+  ;<  moved=(unit @t)  bind:m  (migrate-me rail)
+  ?^  moved  (pure:m moved)
+  ;<  pks=(list @t)  bind:m  (account-pks rail)
+  ?~  pks  (pure:m ~)
+  ;<  ~  bind:m  (set-current rail i.pks)
+  (pure:m `i.pks)
+++  set-current
+  |=  [=rail:tarball pk=@t]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  (over:io (nex-road:io rail [%& / %'me.json']) [[/ %json] (pairs:enjs:format ~[['current' s+pk]])])
+::  +account-pks: every accounts/<pubkey>/ dir name
+++  account-pks
+  |=  =rail:tarball
+  =/  m  (fiber:fiber:nexus ,(list @t))
+  ^-  form:m
+  ;<  v=view:nexus  bind:m  (peek-shallow:io (nex-road:io rail [%| /accounts]) ~)
+  %-  pure:m
+  ?.  ?=([%ball *] v)  ~
+  ::  subdirectories are the ball's dir map (contents lists files only)
+  (turn ~(tap in ~(key by dir.ball.v)) |=(name=@ta `@t`name))
+::  +migrate-me: me/secret.json (+ identity, profile) -> accounts/<pk>/,
+::  made current; the old files are culled. ~ when there is nothing.
+++  migrate-me
+  |=  =rail:tarball
+  =/  m  (fiber:fiber:nexus ,(unit @t))
   ^-  form:m
   ;<  sec=(unit json)  bind:m  (peek-as:io (nex-road:io rail [%& /me %'secret.json']) ,json)
   ?~  sec  (pure:m ~)
   =/  priv=(unit @ux)  (parse-hex:nl (jstr u.sec 'privkey'))
   ?~  priv  (pure:m ~)
+  ;<  idn=(unit json)  bind:m  (peek-as:io (nex-road:io rail [%& /me %'identity.json']) ,json)
+  ;<  prof=(unit json)  bind:m  (peek-as:io (nex-road:io rail [%& /me %'profile.json']) ,json)
+  =/  since=@ud  (jnum (fall idn [%o ~]) 'since' 0)
+  ;<  pk=(unit @t)  bind:m  (add-account rail u.priv since (fall prof [%o ~]))
+  ?~  pk  (pure:m ~)
+  ;<  *  bind:m  (cull-soft:io (nex-road:io rail [%& /me %'secret.json']))
+  ;<  *  bind:m  (cull-soft:io (nex-road:io rail [%& /me %'identity.json']))
+  ;<  *  bind:m  (cull-soft:io (nex-road:io rail [%& /me %'profile.json']))
+  ~&  [%nostr-accounts %migrated-me u.pk]
+  (pure:m pk)
+::  +add-account: file a keypair as accounts/<pk>/ and make it current.
+::  An existing account of the same key is left alone (just made current).
+++  add-account
+  |=  [=rail:tarball priv=@ux since=@ud prof=json]
+  =/  m  (fiber:fiber:nexus ,(unit @t))
+  ^-  form:m
+  =/  pub=@ux  x:(priv-to-pub:secp256k1:secp:crypto priv)
+  =/  pk=@t  (to-hex:nl 64 pub)
+  =/  dir=road:tarball  (nex-road:io rail [%| (acct pk)])
+  ;<  have=?  bind:m  (peek-exists:io dir)
+  ;<  ~  bind:m
+    ?:  have  (pure:(fiber:fiber:nexus ,~) ~)
+    ;<  now=@da  bind:(fiber:fiber:nexus ,~)  get-time:io
+    =/  at=@ud  ?:(=(0 since) (div (sub now ~1970.1.1) ~s1) since)
+    =/  sec=json  (pairs:enjs:format ~[['privkey' s+(to-hex:nl 64 priv)] ['nsec' s+(nsec:nl priv)]])
+    =/  idn=json
+      (pairs:enjs:format ~[['pubkey' s+pk] ['npub' s+(npub:nl pub)] ['since' (numb:enjs:format at)]])
+    ;<  err=(unit tang)  bind:(fiber:fiber:nexus ,~)  (make-soft:io dir &+[`[~ ~ %.n ~] ~])
+    ;<  *  bind:(fiber:fiber:nexus ,~)  (make-soft:io (nex-road:io rail [%& (acct pk) %'secret.json']) |+[[[/ %json] sec] ~])
+    ;<  *  bind:(fiber:fiber:nexus ,~)  (make-soft:io (nex-road:io rail [%& (acct pk) %'identity.json']) |+[[[/ %json] idn] ~])
+    ;<  *  bind:(fiber:fiber:nexus ,~)  (make-soft:io (nex-road:io rail [%& (acct pk) %'profile.json']) |+[[[/ %json] prof] ~])
+    ::  (follows.json is made on first read: the old ship-level list if
+    ::  there is one, else the defaults — see +account-follows)
+    (pure:(fiber:fiber:nexus ,~) ~)
+  ;<  ~  bind:m  (set-current rail pk)
+  (pure:m `pk)
+::  +me-keys: the current account's keypair, or ~
+++  me-keys
+  |=  =rail:tarball
+  =/  m  (fiber:fiber:nexus ,(unit keys:nl))
+  ^-  form:m
+  ;<  cur=(unit @t)  bind:m  (current-pk rail)
+  ?~  cur  (pure:m ~)
+  ;<  sec=(unit json)  bind:m  (peek-as:io (nex-road:io rail [%& (acct u.cur) %'secret.json']) ,json)
+  ?~  sec  (pure:m ~)
+  =/  priv=(unit @ux)  (parse-hex:nl (jstr u.sec 'privkey'))
+  ?~  priv  (pure:m ~)
   (pure:m `[x:(priv-to-pub:secp256k1:secp:crypto u.priv) u.priv])
-::  +generate-identity: a fresh keypair, unless one exists
+::  +generate-identity: a fresh keypair as a new account, made current
 ++  generate-identity
   |=  =rail:tarball
-  =/  m  (fiber:fiber:nexus ,?)
+  =/  m  (fiber:fiber:nexus ,(unit @t))
   ^-  form:m
-  =/  secret=road:tarball  (nex-road:io rail [%& /me %'secret.json'])
-  ;<  have=?  bind:m  (peek-exists:io secret)
-  ?:  have  (pure:m |)
   ;<  eny=@uvJ  bind:m  get-entropy:io
-  ;<  now=@da  bind:m  get-time:io
   =/  k=keys:nl  (gen-keys:nl eny)
-  =/  sec=json
-    (pairs:enjs:format ~[['privkey' s+(to-hex:nl 64 priv.k)] ['nsec' s+(nsec:nl priv.k)]])
-  =/  idn=json
+  (add-account rail priv.k 0 [%o ~])
+::  +account-rows: every account with its identity and profile, for the page
+++  account-rows
+  |=  [=rail:tarball cur=(unit @t)]
+  =/  m  (fiber:fiber:nexus ,(list json))
+  ^-  form:m
+  ;<  pks=(list @t)  bind:m  (account-pks rail)
+  =|  out=(list json)
+  |-
+  ?~  pks  (pure:m (flop out))
+  ;<  idn=(unit json)  bind:m  (peek-as:io (nex-road:io rail [%& (acct i.pks) %'identity.json']) ,json)
+  ;<  prof=(unit json)  bind:m  (peek-as:io (nex-road:io rail [%& (acct i.pks) %'profile.json']) ,json)
+  =/  row=json
     %-  pairs:enjs:format
-    :~  ['pubkey' s+(to-hex:nl 64 pub.k)]
-        ['npub' s+(npub:nl pub.k)]
-        ['since' (numb:enjs:format (div (sub now ~1970.1.1) ~s1))]
+    :~  ['pubkey' s+i.pks]
+        ['npub' s+(jstr (fall idn [%o ~]) 'npub')]
+        ['since' (numb:enjs:format (jnum (fall idn [%o ~]) 'since' 0))]
+        ['profile' (fall prof [%o ~])]
+        ['current' b+=(cur `i.pks)]
     ==
-  ;<  err=(unit tang)  bind:m  (make-soft:io secret |+[[[/ %json] sec] ~])
-  ?^  err  (pure:m |)
-  ;<  ~  bind:m  (over:io (nex-road:io rail [%& /me %'identity.json']) [[/ %json] idn])
-  (pure:m &)
+  $(pks t.pks, out [row out])
 ::  +publish: sign an event, file it in outbox/, push it down every
 ::  relay client. Returns the event id, or ~ without a key.
 ++  publish
@@ -807,7 +962,7 @@
     :-  %a
     :~  s+'REQ'  s+'disc-e'
         (pairs:enjs:format ~[['ids' [%a (turn (scag 20 want-e) |=(i=@t s+i))]]])
-        (filter-tag ~[1 6 7] 'e' (scag 20 want-e) ~)
+        (filter-tag ~[1 6 7 5] 'e' (scag 20 want-e) ~)
     ==
   =/  sent-e=?  &(!busy-e !=(~ want-e))
   %-  pure:m
@@ -828,7 +983,7 @@
   :-  %a
   :~  s+'REQ'  s+(cat 3 'fetch-' (end [3 12] id))
       (pairs:enjs:format ~[['ids' [%a ~[s+id]]]])
-      (filter-tag ~[1 6 7] 'e' ~[id] ~)
+      (filter-tag ~[1 6 7 5] 'e' ~[id] ~)
       (filter-tag ~[1 6 7] 'q' ~[id] ~)
   ==
 ::  +relay-names: the grubs under relays/ with a given extension
@@ -850,14 +1005,18 @@
   =/  l=@ud  (lent ext)
   ?.  &((gth (lent n) l) =(ext (slag (sub (lent n) l) n)))  ~
   `name
-::  +set-follows: follows.json, then every client reconnects with it
+::  +set-follows: the current account's follows.json, then every relay
+::  client reconnects (their subscription is the union over accounts)
 ++  set-follows
   |=  [=rail:tarball pks=(list @t)]
-  =/  m  (fiber:fiber:nexus ,~)
+  =/  m  (fiber:fiber:nexus ,?)
   ^-  form:m
-  =/  doc=json  (pairs:enjs:format ~[['pubkeys' [%a (turn pks |=(p=@t s+p))]]])
-  ;<  ~  bind:m  (over:io (nex-road:io rail [%& / %'follows.json']) [[/ %json] doc])
-  (poke-relays rail (pairs:enjs:format ~[['action' s+'reconnect']]))
+  ;<  cur=(unit @t)  bind:m  (current-pk rail)
+  ?~  cur  (pure:m |)
+  ;<  *  bind:m  (account-follows rail u.cur)
+  ;<  ~  bind:m  (over:io (nex-road:io rail [%& (acct u.cur) %'follows.json']) [[/ %json] (follows-doc pks)])
+  ;<  ~  bind:m  (poke-relays rail (pairs:enjs:format ~[['action' s+'reconnect']]))
+  (pure:m &)
 ::  +set-relays: config.json relays; new ones spawn, dropped ones stop
 ::  and their grubs go
 ++  set-relays
@@ -932,6 +1091,48 @@
   =/  last=@t  id:(rear all)
   =/  rt=@t  (fall root first)
   `[rt (fall reply ?:(=(1 (lent es)) rt last))]
+::  +apply-deletion: honor a kind 5 for every listed event we hold that
+::  the same key signed: out of its target's refs row, its grub culled.
+::  Returns the ids that were kind-1 posts (to drop from a feed index).
+++  apply-deletion
+  |=  [=rail:tarball del=json]
+  =/  m  (fiber:fiber:nexus ,(list @t))
+  ^-  form:m
+  =/  who=@t  (jstr del 'pubkey')
+  =/  ids=(list @t)
+    %+  murn  (tags del)
+    |=(t=(list @t) ?.(?=([%e @ *] t) ~ `i.t.t))
+  =|  posts=(list @t)
+  |-
+  ?~  ids  (pure:m posts)
+  =/  road=road:tarball  (nex-road:io rail [%& /events (cat 3 i.ids '.json')])
+  ;<  ev=(unit json)  bind:m  (peek-as:io road ,json)
+  ?~  ev  $(ids t.ids)
+  ?.  =(who (jstr u.ev 'pubkey'))  $(ids t.ids)
+  =/  kind=@ud  (jnum u.ev 'kind' 1)
+  ;<  ~  bind:m  (unnote-refs rail u.ev)
+  ;<  *  bind:m  (cull-soft:io road)
+  ~&  [%nostr %deleted i.ids %kind kind %by (end [3 12] who)]
+  $(ids t.ids, posts ?:(=(1 kind) [i.ids posts] posts))
+::  +unnote-refs: the inverse of note-refs: one event's row leaves the
+::  refs of what it pointed at
+++  unnote-refs
+  |=  [=rail:tarball ev=json]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  =/  kind=@ud  (jnum ev 'kind' 1)
+  ?.  ?=(?(%1 %6 %7) kind)  (pure:m ~)
+  =/  refs=(unit [root=@t parent=@t])  (e-refs ev)
+  ?~  refs  (pure:m ~)
+  =/  under=@t  ?:(=(1 kind) root.u.refs parent.u.refs)
+  =/  field=@t  ?+(kind 'replies' %6 'reposts', %7 'reactions')
+  =/  id=@t  (jstr ev 'id')
+  =/  road=road:tarball  (nex-road:io rail [%& /refs (cat 3 under '.json')])
+  ;<  cur=(unit json)  bind:m  (peek-as:io road ,json)
+  ?~  cur  (pure:m ~)
+  ?.  ?=([%o *] u.cur)  (pure:m ~)
+  =/  kept=(list json)  (skip (jarr u.cur field) |=(j=json =(id (jstr j 'id'))))
+  (over:io road [[/ %json] [%o (~(put by p.u.cur) field [%a kept])]])
 ::  +note-refs: file one event's pointers. A reply goes under its thread
 ::  root (with its parent, so a tree can be built); a repost or reaction
 ::  goes under its target. refs/<id>.json = {replies, reposts, reactions}
@@ -940,6 +1141,9 @@
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
   =/  kind=@ud  (jnum ev 'kind' 1)
+  ::  only replies, reposts and reactions are references; a kind 5
+  ::  (deletion request) also carries e tags but is not one
+  ?.  ?=(?(%1 %6 %7) kind)  (pure:m ~)
   =/  refs=(unit [root=@t parent=@t])  (e-refs ev)
   ?~  refs  (pure:m ~)
   =/  under=@t  ?:(=(1 kind) root.u.refs parent.u.refs)
@@ -1165,29 +1369,41 @@
   ;<  err=(unit tang)  bind:m  (make-soft:io road |+[[[/ %json] u.prof] ~])
   (pure:m ~)
 ::  +load-index / +save-index: feed.json as a map id -> created_at
+::  the feed index: id -> [time author]. The author is what lets one
+::  shared index serve every account: each sees the ids whose author
+::  is in its own follows. (An index written before authors were kept
+::  has '' there; the feed route resolves those and filters after.)
++$  feed-idx  (map @t [t=@ud a=@t])
 ++  load-index
   |=  =rail:tarball
-  =/  m  (fiber:fiber:nexus ,(map @t @ud))
+  =/  m  (fiber:fiber:nexus ,feed-idx)
   ^-  form:m
   ;<  idx=(unit json)  bind:m  (peek-as:io (nex-road:io rail [%& / %'feed.json']) ,json)
   =/  j=json  (fall idx [%o ~])
   =/  ids=(list @t)  (murn (jarr j 'ids') |=(i=json ?:(?=([%s *] i) `p.i ~)))
   =/  times=(list @ud)  (turn (jarr j 'times') |=(t=json ?:(?=([%n *] t) (fall (rush p.t dem) 0) 0)))
-  =|  out=(map @t @ud)
+  =/  authors=(list @t)  (turn (jarr j 'authors') |=(a=json ?:(?=([%s *] a) p.a '')))
+  =|  out=feed-idx
   |-
   ?~  ids  (pure:m out)
   =/  t=@ud  ?~(times 0 i.times)
-  $(ids t.ids, times ?~(times ~ t.times), out (~(put by out) i.ids t))
+  =/  a=@t  ?~(authors '' i.authors)
+  %=  $
+    ids      t.ids
+    times    ?~(times ~ t.times)
+    authors  ?~(authors ~ t.authors)
+    out      (~(put by out) i.ids [t a])
+  ==
 ++  save-index
-  |=  [=rail:tarball idx=(map @t @ud) keep=@ud]
+  |=  [=rail:tarball idx=feed-idx keep=@ud]
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
   ;<  now=@da  bind:m  get-time:io
   =/  now-unix=@ud  (div (sub now ~1970.1.1) ~s1)
-  =/  ents=(list [id=@t t=@ud])
+  =/  ents=(list [id=@t t=@ud a=@t])
     %+  scag  keep
     %+  sort  ~(tap by idx)
-    |=([a=[@t t=@ud] b=[@t t=@ud]] (gth t.a t.b))
+    |=([a=[@t t=@ud @t] b=[@t t=@ud @t]] (gth t.a t.b))
   (over:io (nex-road:io rail [%& / %'feed.json']) [[/ %json] (feed-index ents now-unix)])
 ::  +serve: the reader. Static shell + api, all from the namespace:
 ::    GET /api/status          {events, profiles, at, interval, relays:
@@ -1211,42 +1427,95 @@
   =/  body=json
     (fall (de:json:html ?~(body.request.req '' q.u.body.request.req)) *json)
   ?+    suffix  (serve-static eyre-id suffix)
-      ::  who am I: the public identity, the profile we publish, whether
-      ::  a key exists, and what we have published (newest first)
+      ::  who am I: the accounts on this ship, which is current, its
+      ::  profile, and what it has published (newest first)
       [%api %me ~]
-    ;<  idn=(unit json)  bind:m  (peek-as:io (nex-road:io rail [%& /me %'identity.json']) ,json)
-    ;<  prof=(unit json)  bind:m  (peek-as:io (nex-road:io rail [%& /me %'profile.json']) ,json)
-    ;<  has=?  bind:m  (peek-exists:io (nex-road:io rail [%& /me %'secret.json']))
-    ;<  outbox=(list json)  bind:m  (read-outbox rail 50)
+    ;<  cur=(unit @t)  bind:m  (current-pk rail)
+    ;<  rows=(list json)  bind:m  (account-rows rail cur)
+    ;<  idn=(unit json)  bind:m
+      ?~  cur  (pure:(fiber:fiber:nexus ,(unit json)) ~)
+      (peek-as:io (nex-road:io rail [%& (acct u.cur) %'identity.json']) ,json)
+    ;<  prof=(unit json)  bind:m
+      ?~  cur  (pure:(fiber:fiber:nexus ,(unit json)) ~)
+      (peek-as:io (nex-road:io rail [%& (acct u.cur) %'profile.json']) ,json)
+    ;<  outbox=(list json)  bind:m  (read-outbox rail 200)
+    =/  mine=(list json)
+      ?~  cur  ~
+      (scag 50 (skim outbox |=(o=json =(u.cur (jstr (jget o 'event') 'pubkey')))))
     %+  send-json  eyre-id
     %-  pairs:enjs:format
-    :~  ['identity' (fall idn [%o ~])]
+    :~  ['current' ?~(cur ~ s+u.cur)]
+        ['accounts' [%a rows]]
+        ['identity' (fall idn [%o ~])]
         ['profile' (fall prof [%o ~])]
-        ['has_key' b+has]
-        ['outbox' [%a outbox]]
+        ['has_key' b+?=(^ cur)]
+        ['outbox' [%a mine]]
     ==
   ::
+      ::  secret: of one account (?pubkey=), default the current one
       [%api %me %secret ~]
-    ;<  sec=(unit json)  bind:m  (peek-as:io (nex-road:io rail [%& /me %'secret.json']) ,json)
+    ;<  cur=(unit @t)  bind:m  (current-pk rail)
+    =/  want=@t  (fall (~(get by (malt args)) 'pubkey') '')
+    =/  pk=(unit @t)  ?:(=('' want) cur `want)
+    ?~  pk  (send-json eyre-id [%o ~])
+    ;<  sec=(unit json)  bind:m  (peek-as:io (nex-road:io rail [%& (acct u.pk) %'secret.json']) ,json)
     (send-json eyre-id (fall sec [%o ~]))
   ::
       [%api %me %generate ~]
     ?.  =('POST' method)  (reply eyre-id 405 'POST')
-    ;<  made=?  bind:m  (generate-identity rail)
-    (send-json eyre-id (pairs:enjs:format ~[['generated' b+made]]))
+    ;<  pk=(unit @t)  bind:m  (generate-identity rail)
+    (send-json eyre-id (pairs:enjs:format ~[['pubkey' ?~(pk ~ s+u.pk)]]))
   ::
-      ::  the profile we publish: write it, then publish it as kind 0
+      ::  import: an nsec or 64-hex private key becomes an account
+      [%api %me %import ~]
+    ?.  =('POST' method)  (reply eyre-id 405 'POST')
+    =/  priv=(unit @ux)  (parse-key:nl 'nsec' (jstr body 'key'))
+    ?~  priv  (reply eyre-id 400 'not an nsec or a 64-hex private key')
+    ;<  pk=(unit @t)  bind:m  (add-account rail u.priv 0 [%o ~])
+    (send-json eyre-id (pairs:enjs:format ~[['pubkey' ?~(pk ~ s+u.pk)]]))
+  ::
+      [%api %me %use ~]
+    ?.  =('POST' method)  (reply eyre-id 405 'POST')
+    =/  pk=@t  (jstr body 'pubkey')
+    ;<  have=?  bind:m  (peek-exists:io (nex-road:io rail [%| (acct pk)]))
+    ?.  have  (reply eyre-id 404 'no such account')
+    ;<  ~  bind:m  (set-current rail pk)
+    (send-json eyre-id (pairs:enjs:format ~[['current' s+pk]]))
+  ::
+      ::  remove: the account dir is culled (its secret with it); if it
+      ::  was current, whichever account is left becomes current
+      [%api %me %remove ~]
+    ?.  =('POST' method)  (reply eyre-id 405 'POST')
+    =/  pk=@t  (jstr body 'pubkey')
+    ;<  *  bind:m  (cull-soft:io (nex-road:io rail [%| (acct pk)]))
+    ;<  cur=(unit @t)  bind:m  (current-pk rail)
+    ;<  ~  bind:m
+      ?.  =(cur `pk)  (pure:(fiber:fiber:nexus ,~) ~)
+      (set-current rail '')
+    (send-json eyre-id (pairs:enjs:format ~[['removed' s+pk]]))
+  ::
+      ::  the profile of one account (body.pubkey, default current):
+      ::  written, and published as its kind 0 if it is the current one
+      ::  (only the current account signs)
       [%api %me %profile ~]
     ?.  =('POST' method)  (reply eyre-id 405 'POST')
+    ;<  cur=(unit @t)  bind:m  (current-pk rail)
+    =/  want=@t  (jstr body 'pubkey')
+    =/  pk=(unit @t)  ?:(=('' want) cur `want)
+    ?~  pk  (reply eyre-id 409 'no account: generate or import one first')
+    ;<  have=?  bind:m  (peek-exists:io (nex-road:io rail [%| (acct u.pk)]))
+    ?.  have  (reply eyre-id 404 'no such account')
     =/  prof=json
       %-  pairs:enjs:format
       :~  ['name' s+(jstr body 'name')]
           ['about' s+(jstr body 'about')]
           ['picture' s+(jstr body 'picture')]
       ==
-    ;<  ~  bind:m  (over:io (nex-road:io rail [%& /me %'profile.json']) [[/ %json] prof])
-    ;<  id=(unit @t)  bind:m  (publish rail 0 ~ (en:json:html prof))
-    (send-json eyre-id (pairs:enjs:format ~[['published' ?~(id ~ s+u.id)]]))
+    ;<  ~  bind:m  (over:io (nex-road:io rail [%& (acct u.pk) %'profile.json']) [[/ %json] prof])
+    ;<  id=(unit @t)  bind:m
+      ?.  =(cur pk)  (pure:(fiber:fiber:nexus ,(unit @t)) ~)
+      (publish rail 0 ~ (en:json:html prof))
+    (send-json eyre-id (pairs:enjs:format ~[['published' ?~(id ~ s+u.id)] ['current' b+=(cur pk)]]))
   ::
       [%api %publish ~]
     ?.  =('POST' method)  (reply eyre-id 405 'POST')
@@ -1282,7 +1551,8 @@
       ?:  =('reset' action)  default-follows
       ?:  =('remove' action)  (skip cur |=(p=@t =(p pk)))
       ?:((lien cur |=(p=@t =(p pk))) cur (snoc cur pk))
-    ;<  ~  bind:m  (set-follows rail next)
+    ;<  ok=?  bind:m  (set-follows rail next)
+    ?.  ok  (reply eyre-id 409 'no account: generate or import one first')
     (send-json eyre-id (pairs:enjs:format ~[['count' (numb:enjs:format (lent next))]]))
   ::
       ::  one relay client: reconnect (new session), stop (end the
@@ -1348,16 +1618,29 @@
       =/  v=@t  (fall (~(get by (malt args)) 'limit') '')
       =/  n=@ud  (fall (rush v dem) 40)
       ?:(=(0 n) 40 (min n 200))
-    ;<  idx=(unit json)  bind:m  (peek-as:io (nex-road:io rail [%& / %'feed.json']) ,json)
+    ::  the shared index, seen through the current account's follows:
+    ::  entries with a known author are filtered here; entries written
+    ::  before authors were indexed ('') are resolved and filtered after
+    ;<  follows=(list @t)  bind:m  (read-follows rail)
+    =/  fs=(set @t)  (silt follows)
+    ;<  idx=feed-idx  bind:m  (load-index rail)
     =/  ids=(list @t)
-      ?~  idx  ~
-      ?.  ?=([%o *] u.idx)  ~
-      =/  a  (~(get by p.u.idx) 'ids')
-      ?.  ?=([~ %a *] a)  ~
-      (murn (scag limit p.u.a) |=(j=json ?:(?=([%s *] j) `p.j ~)))
+      %+  turn
+        %+  scag  limit
+        %+  sort
+          %+  skim  ~(tap by idx)
+          |=([* * a=@t] |(=('' a) (~(has in fs) a)))
+        |=([a=[@t t=@ud @t] b=[@t t=@ud @t]] (gth t.a t.b))
+      |=([i=@t *] i)
     ;<  posts=(list json)  bind:m  (resolve rail ids)
+    =/  mine=(list json)
+      %+  skim  posts
+      |=  p=json
+      =/  rp=json  (jget p 'repost')
+      =/  by=@t  ?:(?=([%o *] rp) (jstr rp 'pubkey') (jstr p 'pubkey'))
+      (~(has in fs) by)
     %+  send-json  eyre-id
-    (pairs:enjs:format ~[['posts' [%a posts]] ['count' (numb:enjs:format (lent posts))]])
+    (pairs:enjs:format ~[['posts' [%a mine]] ['count' (numb:enjs:format (lent mine))] ['follows' (numb:enjs:format (lent follows))]])
   ::
       ::  a thread: the root (found from any post in it), every reply in
       ::  refs/<root> resolved with its parent, newest last
@@ -1551,6 +1834,27 @@
     ?~  id  (reply eyre-id 409 'no key: generate one first')
     (send-json eyre-id (pairs:enjs:format ~[['id' s+u.id]]))
   ::
+      ::  unreact: a NIP-09 deletion request (kind 5) for one of our
+      ::  reactions, and the reaction leaves refs/ here. Relays may
+      ::  honor it or not; the event grub stays (the record)
+      [%api %unreact ~]
+    ?.  =('POST' method)  (reply eyre-id 405 'POST')
+    =/  rid=@t  (jstr body 'id')
+    ?:  =('' rid)  (reply eyre-id 400 'id')
+    ;<  cur=(unit @t)  bind:m  (current-pk rail)
+    ?~  cur  (reply eyre-id 409 'no account')
+    ;<  ev=(unit json)  bind:m  (peek-as:io (nex-road:io rail [%& /events (cat 3 rid '.json')]) ,json)
+    ?~  ev  (reply eyre-id 404 'no such event')
+    ?.  =(u.cur (jstr u.ev 'pubkey'))  (reply eyre-id 403 'not ours')
+    ?.  =(7 (jnum u.ev 'kind' 1))  (reply eyre-id 400 'not a reaction')
+    =/  tgs=(list (list @t))  ~[`(list @t)`~['e' rid] `(list @t)`~['k' '7']]
+    ;<  id=(unit @t)  bind:m  (publish rail 5 tgs '')
+    ?~  id  (reply eyre-id 409 'no key')
+    ::  out of the target's refs row, and the reaction's grub goes
+    ;<  ~  bind:m  (unnote-refs rail u.ev)
+    ;<  *  bind:m  (cull-soft:io (nex-road:io rail [%& /events (cat 3 rid '.json')]))
+    (send-json eyre-id (pairs:enjs:format ~[['deleted' s+rid] ['request' s+u.id]]))
+  ::
       [%api %sync ~]
     ?.  =('POST' method)  (reply eyre-id 405 'POST')
     ;<  ~  bind:m
@@ -1572,6 +1876,7 @@
   |=  [=rail:tarball ids=(list @t)]
   =/  m  (fiber:fiber:nexus ,(list json))
   ^-  form:m
+  ;<  cur=(unit @t)  bind:m  (current-pk rail)
   =|  out=(list json)
   =|  profs=(map @t json)
   |-
@@ -1623,6 +1928,15 @@
     =/  c=@t  (jstr r 'content')
     =/  c=@t  ?:(|(=('' c) =('+' c)) '+' c)
     (~(put by acc) c +((~(gut by acc) c 0)))
+  ::  the current account's own reactions, emoji -> reaction id (for
+  ::  the highlighted chip and for unreacting)
+  =/  mine=(list [@t json])
+    ?~  cur  ~
+    %+  murn  reactions
+    |=  r=json
+    ?.  =(u.cur (jstr r 'pubkey'))  ~
+    =/  c=@t  (jstr r 'content')
+    `[?:(|(=('' c) =('+' c)) '+' c) s+(jstr r 'id')]
   =/  post=json
     %-  pairs:enjs:format
     %+  weld  `(list [@t json])`~(tap by p.u.ev)
@@ -1637,6 +1951,7 @@
             ['reactions' (numb:enjs:format (lent reactions))]
         ==
         ['reactions' [%o (~(run by by-emoji) numb:enjs:format)]]
+        ['my_reactions' (pairs:enjs:format mine)]
     ==
   $(ids t.ids, out [post out], profs (~(put by profs) pk prof))
 ::

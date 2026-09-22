@@ -232,6 +232,12 @@ function postEl(p, opts) {
     if (opts.onChange) opts.onChange();
   });
   card.addEventListener('pc-who', () => toggleWho(card, p));
+  card.addEventListener('pc-unreact', async (e) => {
+    const r = await fetch(BASE + '/api/unreact', { method: 'POST', body: JSON.stringify({ id: e.detail.id }) });
+    e.detail.done();
+    if (!r.ok) { alert(await r.text()); return; }
+    if (opts.onChange) opts.onChange();
+  });
   card.addEventListener('pc-repost', async (e) => {
     const r = await fetch(BASE + '/api/repost', { method: 'POST', body: JSON.stringify({ id: p.id }) });
     e.detail.done();
@@ -453,7 +459,7 @@ async function loadPeople() {
   $('people-count').textContent = d.count + ' followed';
   $('follows-note').textContent = d.is_default
     ? 'This is the starting list from defaults.json: ' + d.default_count + ' well-known accounts (nostrill\'s defaults), not people you chose. Follow or unfollow to make it yours.'
-    : 'Your own list (follows.json). defaults.json has ' + d.default_count + '.';
+    : 'This account\'s own list (its follows.json). defaults.json has ' + d.default_count + '.';
   if (!d.people.length) { box.innerHTML = '<div class="empty">Following nobody. Add a pubkey above.</div>'; return; }
   d.people.forEach((p) => {
     const row = document.createElement('div');
@@ -489,7 +495,7 @@ async function loadPeople() {
 }
 
 $('follows-reset').onclick = async () => {
-  if (!confirm('Replace follows.json with the default list?')) return;
+  if (!(await confirmModal('Replace this account\'s follows with the default list?', 'Reset'))) return;
   await fetch(BASE + '/api/follows', { method: 'POST', body: JSON.stringify({ action: 'reset' }) });
   loadPeople();
 };
@@ -643,22 +649,170 @@ $('relay-form').onsubmit = async (e) => {
 let me = null;
 
 async function loadMe() {
-  if (!me) { busy($('outbox'), 'reading me/ and outbox/…'); }
+  if (!me) { busy($('outbox'), 'reading accounts and outbox/…'); busy($('accounts'), 'reading accounts…'); }
   try { me = await jget('/api/me'); } catch (e) { me = null; }
-  if (!me) { busy($('outbox'), 'could not read me/'); return; }
-  const has = !!me.has_key && me.identity && me.identity.pubkey;
-  $('me-nokey').hidden = !!has;
-  $('me-key').hidden = !has;
-  if (has) {
-    $('me-pubkey').textContent = me.identity.pubkey;
-    $('me-npub').textContent = me.identity.npub || '';
-    $('me-since').textContent = fmtUnix(me.identity.since);
-  }
-  $('pf-name').value = me.profile.name || '';
-  $('pf-about').value = me.profile.about || '';
-  $('pf-picture').value = me.profile.picture || '';
+  if (!me) { busy($('outbox'), 'could not read the accounts'); return; }
+  renderAccounts(me.accounts || [], me.current);
+  renderMeChip(me);
+  renderMeMenu(me);
   renderOutbox(me.outbox || []);
   $('outbox-count').textContent = (me.outbox || []).length + ' published';
+}
+
+// the header chip: who we are right now, or that we are nobody yet
+function renderMeChip(me) {
+  const chip = $('me-chip');
+  chip.textContent = ''; chip.classList.remove('me-loading');
+  const n = (me.accounts || []).length;
+  if (!me.current) {
+    // same shape as the filled chip: a blank avatar, then what to do
+    chip.classList.add('none');
+    const av = document.createElement('span'); av.className = 'blank-av'; av.textContent = '?';
+    const nm = document.createElement('span'); nm.className = 'nm';
+    nm.textContent = n ? 'No account chosen' : 'No account yet';
+    const cta = document.createElement('span'); cta.className = 'more'; cta.textContent = n ? 'choose one' : 'set one up';
+    chip.append(av, nm, cta);
+    chip.title = n ? 'accounts exist but none is current — pick one on the Accounts tab' : 'nothing signs yet: generate or import an account';
+    return;
+  }
+  chip.classList.remove('none');
+  const prof = me.profile || {};
+  chip.appendChild(avatarEl(prof, me.current, 20));
+  const nm = document.createElement('span'); nm.className = 'nm';
+  nm.textContent = prof.name || (me.identity && me.identity.npub ? me.identity.npub.slice(0, 12) + '…' : me.current.slice(0, 12) + '…');
+  chip.appendChild(nm);
+  if (n > 1) { const more = document.createElement('span'); more.className = 'more'; more.textContent = '+' + (n - 1); more.title = (n - 1) + ' other account' + (n > 2 ? 's' : ''); chip.appendChild(more); }
+  chip.title = 'signing as ' + (prof.name || me.current) + ' — click to switch or add accounts';
+}
+// the chip's menu: every account (Use on the others), then add and manage
+function renderMeMenu(me) {
+  const box = $('me-menu-items');
+  box.textContent = '';
+  const rows = (me.accounts || []).slice().sort((x, y) => (y.current ? 1 : 0) - (x.current ? 1 : 0) || (x.since || 0) - (y.since || 0));
+  rows.forEach((r) => {
+    const prof = r.profile || {};
+    const b = document.createElement('button'); b.className = 'mi acct' + (r.current ? ' current' : '');
+    b.appendChild(avatarEl(prof, r.pubkey, 22));
+    const nm = document.createElement('span'); nm.className = 'nm'; nm.textContent = prof.name || r.pubkey.slice(0, 12) + '…';
+    const tag = document.createElement('span'); tag.className = 'muted'; tag.textContent = r.current ? 'current' : 'use';
+    b.append(nm, tag);
+    b.title = r.current ? 'signing as this account' : 'sign as this account from now on';
+    b.onclick = async () => {
+      if (r.current) { openAccountsModal(); return; }
+      await fetch(BASE + '/api/me/use', { method: 'POST', body: JSON.stringify({ pubkey: r.pubkey }) });
+      feedPosts = []; loadAll();
+    };
+    box.appendChild(b);
+  });
+  if (rows.length) { const hr = document.createElement('div'); hr.className = 'sep'; box.appendChild(hr); }
+  const mk = (text, fn) => { const b = document.createElement('button'); b.className = 'mi'; b.textContent = text; b.onclick = fn; box.appendChild(b); };
+  mk('+ Generate a keypair', () => { openAccountsModal(); $('gen-key').click(); });
+  mk('+ Import an nsec…', () => { openAccountsModal(); $('import-form').hidden = false; setTimeout(() => $('import-key').focus(), 50); });
+  mk('Manage accounts…', () => openAccountsModal());
+}
+function openAccountsModal() { $('accounts-modal').show(); renderAccounts(me ? me.accounts || [] : [], me ? me.current : null); }
+
+// the accounts: a list of cards. Each row is one keypair; it opens into
+// its keys (pubkey, npub, since, the secret behind a reveal) and the
+// profile it publishes. Use makes it current; Remove deletes it.
+// openAccount: a pubkey, '' for none (the user closed it), or null for
+// no choice yet (the current one opens)
+let openAccount = null;
+try { openAccount = localStorage.getItem('nostr-open-account'); } catch (e) {}
+
+function renderAccounts(rows, current) {
+  const box = $('accounts');
+  box.textContent = '';
+  $('acct-count').textContent = rows.length ? rows.length + (rows.length === 1 ? ' account' : ' accounts') + (current ? '' : ' · none current') : '';
+  if (!rows.length) { box.innerHTML = '<div class="empty">No accounts. Generate a keypair, or import the nsec of one you already have. Add as many as you like; one is current at a time.</div>'; return; }
+  rows.sort((x, y) => (y.current ? 1 : 0) - (x.current ? 1 : 0) || (x.since || 0) - (y.since || 0));
+  if (openAccount && !rows.some((r) => r.pubkey === openAccount)) openAccount = null;
+  if (openAccount === null) openAccount = (rows.find((r) => r.current) || rows[0]).pubkey;
+  rows.forEach((r) => box.appendChild(accountCard(r)));
+}
+
+function accountCard(r) {
+  const prof = r.profile || {};
+  const isOpen = openAccount === r.pubkey;
+  const card = document.createElement('div'); card.className = 'account' + (r.current ? ' current' : '') + (isOpen ? ' open' : '');
+  // the row: avatar, name, tag, actions; click opens
+  const head = document.createElement('div'); head.className = 'account-head';
+  const caret = document.createElement('span'); caret.className = 'caret'; caret.textContent = isOpen ? '▾' : '▸';
+  head.appendChild(caret);
+  head.appendChild(avatarEl(prof, r.pubkey, 34));
+  const body = document.createElement('div'); body.className = 'account-body';
+  const nm = document.createElement('div'); nm.className = 'who' + (prof.name ? '' : ' pk');
+  nm.textContent = prof.name || r.pubkey.slice(0, 16) + '…';
+  if (r.current) { const tag = document.createElement('span'); tag.className = 'current-tag'; tag.textContent = 'current'; nm.appendChild(tag); }
+  const keys = document.createElement('div'); keys.className = 'keys'; keys.textContent = r.npub || r.pubkey;
+  body.append(nm, keys);
+  const acts = document.createElement('div'); acts.className = 'account-actions';
+  if (!r.current) {
+    const use = document.createElement('button'); use.className = 'small primary'; use.textContent = 'Use';
+    use.title = 'sign everything as this account from now on';
+    use.onclick = async (e) => { e.stopPropagation(); spinBtn(use, true); await fetch(BASE + '/api/me/use', { method: 'POST', body: JSON.stringify({ pubkey: r.pubkey }) }); feedPosts = []; loadAll(); };
+    acts.appendChild(use);
+  }
+  const rm = document.createElement('button'); rm.className = 'small danger'; rm.textContent = 'Remove';
+  rm.title = 'delete this account from the ship, secret included — unrecoverable unless you kept the nsec';
+  rm.onclick = async (e) => {
+    e.stopPropagation();
+    const who = prof.name || r.pubkey.slice(0, 16) + '…';
+    if (!(await confirmModal('Remove ' + who + ' from this ship? Its secret goes with it. Unless you kept the nsec, this account is gone for good.', 'Remove'))) return;
+    spinBtn(rm, true); await fetch(BASE + '/api/me/remove', { method: 'POST', body: JSON.stringify({ pubkey: r.pubkey }) }); loadMe();
+  };
+  acts.appendChild(rm);
+  head.append(body, acts);
+  head.onclick = () => { openAccount = isOpen ? '' : r.pubkey; try { localStorage.setItem('nostr-open-account', openAccount); } catch (e) {} renderAccounts(me.accounts || [], me.current); };
+  card.appendChild(head);
+  if (!isOpen) return card;
+
+  // the open card: keys, then the profile
+  const det = document.createElement('div'); det.className = 'account-detail';
+  const kvs = document.createElement('div'); kvs.className = 'kvs';
+  const kv = (k, node) => { const row = document.createElement('div'); row.className = 'kv'; const kk = document.createElement('span'); kk.className = 'k'; kk.textContent = k; const vv = document.createElement('span'); vv.className = 'v'; vv.appendChild(node); row.append(kk, vv); kvs.appendChild(row); };
+  const code = (t) => { const c = document.createElement('code'); c.textContent = t; return c; };
+  kv('pubkey', code(r.pubkey));
+  kv('npub', code(r.npub || ''));
+  kv('since', document.createTextNode(fmtUnix(r.since)));
+  const sec = document.createElement('span');
+  const reveal = document.createElement('button'); reveal.className = 'small'; reveal.textContent = 'Reveal nsec';
+  const nsec = document.createElement('code'); nsec.className = 'secret'; nsec.hidden = true;
+  reveal.onclick = async () => {
+    if (!nsec.hidden) { nsec.hidden = true; reveal.textContent = 'Reveal nsec'; return; }
+    const s = await jget('/api/me/secret?pubkey=' + r.pubkey);
+    nsec.textContent = s.nsec || s.privkey || '(none)'; nsec.hidden = false; reveal.textContent = 'Hide';
+  };
+  const warn = document.createElement('span'); warn.className = 'muted'; warn.textContent = ' anyone holding it can post as this account';
+  sec.append(reveal, nsec, warn);
+  kv('secret', sec);
+  det.appendChild(kvs);
+  const h = document.createElement('h4'); h.textContent = 'Profile — what others see'; det.appendChild(h);
+  const ex = document.createElement('p'); ex.className = 'explain tight';
+  ex.textContent = r.current
+    ? 'Saving writes this account\'s profile.json and publishes it as its kind-0 event to every connected relay.'
+    : 'Saving writes this account\'s profile.json. It publishes when this account is current (only the current one signs).';
+  det.appendChild(ex);
+  const form = document.createElement('form'); form.className = 'form';
+  const field = (label, el) => { const l = document.createElement('label'); l.textContent = label + ' '; l.appendChild(el); form.appendChild(l); return el; };
+  const fName = field('name', Object.assign(document.createElement('input'), { placeholder: 'display name', value: prof.name || '' }));
+  const fAbout = field('about', Object.assign(document.createElement('textarea'), { rows: 2, placeholder: 'a line about you', value: prof.about || '' }));
+  const fPic = field('picture', Object.assign(document.createElement('input'), { className: 'mono', placeholder: 'https://…', value: prof.picture || '' }));
+  const row = document.createElement('div'); row.className = 'row';
+  const save = document.createElement('button'); save.className = 'small primary'; save.type = 'submit'; save.textContent = r.current ? 'Save & publish' : 'Save';
+  const msg = document.createElement('span'); msg.className = 'muted';
+  row.append(save, msg); form.appendChild(row);
+  form.onsubmit = async (e) => {
+    e.preventDefault();
+    msg.textContent = ''; msg.appendChild(spinner(r.current ? 'signing and publishing…' : 'saving…'));
+    const res = await fetch(BASE + '/api/me/profile', { method: 'POST', body: JSON.stringify({ pubkey: r.pubkey, name: fName.value.trim(), about: fAbout.value.trim(), picture: fPic.value.trim() }) });
+    const d = await res.json().catch(() => ({}));
+    msg.textContent = d.published ? 'saved and published as ' + d.published.slice(0, 12) + '…' : (res.ok ? 'saved' : 'failed');
+    setTimeout(loadMe, 1500);
+  };
+  det.appendChild(form);
+  card.appendChild(det);
+  return card;
 }
 
 function renderOutbox(items) {
@@ -707,30 +861,32 @@ function renderOutbox(items) {
 
 $('gen-key').onclick = async () => {
   const b = $('gen-key');
-  spinBtn(b, true); b.textContent = 'Generating…';
-  await fetch(BASE + '/api/me/generate', { method: 'POST' });
-  spinBtn(b, false); b.textContent = 'Generate a keypair';
+  spinBtn(b, true); note('generating a keypair…', true);
+  const r = await (await fetch(BASE + '/api/me/generate', { method: 'POST' })).json().catch(() => ({}));
+  spinBtn(b, false);
+  note(r.pubkey ? 'new account ' + r.pubkey.slice(0, 12) + '… — it is current now' : 'failed');
+  if (r.pubkey) openAccount = r.pubkey;
   loadMe();
 };
+function note(text, busyNow) {
+  const n = $('acct-msg'); n.hidden = false; n.textContent = '';
+  if (busyNow) n.appendChild(spinner(text)); else { n.textContent = text; setTimeout(() => { n.hidden = true; }, 5000); }
+}
 
-$('reveal').onclick = async () => {
-  const code = $('me-nsec');
-  if (!code.hidden) { code.hidden = true; $('reveal').textContent = 'Reveal nsec'; return; }
-  const s = await jget('/api/me/secret');
-  code.textContent = s.nsec || s.privkey || '(none)';
-  code.hidden = false;
-  $('reveal').textContent = 'Hide';
-};
-
-$('profile-form').onsubmit = async (e) => {
+$('import-toggle').onclick = () => { const f = $('import-form'); f.hidden = !f.hidden; if (!f.hidden) $('import-key').focus(); };
+$('import-cancel').onclick = () => { $('import-form').hidden = true; $('import-key').value = ''; };
+$('import-form').onsubmit = async (e) => {
   e.preventDefault();
-  const msg = $('pf-msg');
-  msg.textContent = ''; msg.appendChild(spinner('signing and publishing…'));
-  const r = await fetch(BASE + '/api/me/profile', { method: 'POST', body: JSON.stringify({
-    name: $('pf-name').value.trim(), about: $('pf-about').value.trim(), picture: $('pf-picture').value.trim() }) });
-  const d = await r.json().catch(() => ({}));
-  msg.textContent = d.published ? 'saved and published as ' + d.published.slice(0, 12) + '…' : 'saved (no key: not published)';
-  setTimeout(loadMe, 1500);
+  const key = $('import-key').value.trim();
+  if (!key) return;
+  note('importing…', true);
+  const r = await fetch(BASE + '/api/me/import', { method: 'POST', body: JSON.stringify({ key }) });
+  if (!r.ok) { note(await r.text()); return; }
+  const d = await r.json();
+  $('import-key').value = ''; $('import-form').hidden = true;
+  note('imported ' + (d.pubkey || '').slice(0, 12) + '… — it is current now');
+  if (d.pubkey) openAccount = d.pubkey;
+  loadMe();
 };
 
 $('post-form').onsubmit = async (e) => {

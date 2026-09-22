@@ -11,9 +11,13 @@
 <header>
   <img id="brand-icon" src="/grubbery/nostr/icon.svg" alt="">
   <h1>Nostr</h1>
-  <span class="sub">an account, as files</span>
+  <span class="sub">a client, in the namespace</span>
   <span id="status"></span>
   <span id="relays" title="relay clients (relays/*.json)"></span>
+  <drop-menu id="me-menu" align="end">
+    <button slot="trigger" id="me-chip" class="me-chip me-loading" title="the account everything here signs as — switch, add, manage"><span class="blank-av"></span><span class="nm">…</span></button>
+    <div id="me-menu-items"></div>
+  </drop-menu>
   <button id="refresh" class="small" title="re-read everything">Refresh</button>
 </header>
 <main>
@@ -28,7 +32,7 @@
         <span id="fill-note" class="muted"></span>
       </div>
       <p class="explain">
-        Posts by the people you follow, newest first. Each one is a signed
+        Posts by the people the current account follows, newest first. Each one is a signed
         event a relay handed us, stored verbatim as <code>events/&lt;id&gt;.json</code>
         and never changed; <code>feed.json</code> is just the order.
       </p>
@@ -52,8 +56,10 @@
       <p class="explain">
         On nostr a person is a public key: 64 hex characters, or the same
         number written as <code>npub…</code>. There is no directory; you know
-        someone by their key. <code>follows.json</code> is the list of keys
-        whose posts the relay clients ask for. What we know about each person
+        someone by their key. Each account has its own list, its
+        <code>follows.json</code>; this is the current account's. The relay
+        clients ask for every account's follows at once, and the feed shows
+        the current one's. What we know about each person
         is their own profile event (kind 0), kept as
         <code>profiles/&lt;pubkey&gt;.json</code> and replaced whenever a relay
         sends a newer one.
@@ -73,6 +79,8 @@
         <span class="grow"></span>
       </div>
       <p class="explain">
+        Relays are the ship's, not an account's: one socket per relay
+        serves every account here, subscribed to all their follows at once.
         A relay is a plain websocket server anyone can run. It stores the
         events people send it and answers subscriptions: a client opens a
         socket, sends <code>["REQ", …filter]</code>, and the relay streams
@@ -94,50 +102,6 @@
       <div id="relay-list" class="scroll"></div>
     </section>
 
-    <section tab-label="Profile" class="panel grow">
-      <div class="panel-head">
-        <h2>Profile</h2>
-        <span class="grow"></span>
-      </div>
-      <div class="scroll">
-        <p class="explain">
-          Your identity is one keypair. The public key is your name on the
-          network (<code>me/identity.json</code>). The private key signs
-          everything you publish and is the only proof a post is yours
-          (<code>me/secret.json</code>); it never leaves this ship. Anyone
-          holding it can post as you, so treat the reveal below like a
-          password.
-        </p>
-        <div id="me-nokey" class="card" hidden>
-          <p>No key yet. This ship has never generated a nostr identity.</p>
-          <button id="gen-key" class="small primary">Generate a keypair</button>
-        </div>
-        <div id="me-key" class="card" hidden>
-          <div class="kv"><span class="k">pubkey</span><code id="me-pubkey" class="v"></code></div>
-          <div class="kv"><span class="k">npub</span><code id="me-npub" class="v"></code></div>
-          <div class="kv"><span class="k">since</span><span id="me-since" class="v"></span></div>
-          <div class="kv"><span class="k">secret</span>
-            <span class="v">
-              <button id="reveal" class="small">Reveal nsec</button>
-              <code id="me-nsec" class="secret" hidden></code>
-            </span>
-          </div>
-        </div>
-        <h3>What others see</h3>
-        <p class="explain">
-          Saving writes <code>me/profile.json</code> and publishes it as your
-          kind-0 event to every connected relay. Relays keep only the newest
-          one per key, so this replaces what they had.
-        </p>
-        <form id="profile-form" class="card form">
-          <label>name <input id="pf-name" placeholder="display name"></label>
-          <label>about <textarea id="pf-about" rows="2" placeholder="a line about you"></textarea></label>
-          <label>picture <input id="pf-picture" class="mono" placeholder="https://…"></label>
-          <div class="row"><button class="small primary" type="submit">Save &amp; publish</button><span id="pf-msg" class="muted"></span></div>
-        </form>
-      </div>
-    </section>
-
     <section tab-label="Posts" class="panel grow">
       <div class="panel-head">
         <h2>Posts</h2>
@@ -146,11 +110,11 @@
       </div>
       <div class="scroll">
         <p class="explain">
-          A post is a kind-1 event: your key, a timestamp, the text, a
-          signature. It is written to <code>outbox/&lt;id&gt;.json</code>
+          A post is a kind-1 event: the current account's key, a timestamp,
+          the text, a signature. It is written to <code>outbox/&lt;id&gt;.json</code>
           first, then pushed down every open relay socket; each relay answers
           <code>OK</code> (accepted or not) and that verdict lands in the same
-          file. Publishing needs a key (Profile tab).
+          file. Publishing needs a current account (Accounts tab).
         </p>
         <form id="post-form" class="card form">
           <textarea id="post-content" rows="4" placeholder="what's happening"></textarea>
@@ -168,6 +132,30 @@
 </modal-dialog>
 <modal-dialog id="thread-modal">
   <div id="thread-modal-body"></div>
+</modal-dialog>
+<modal-dialog id="accounts-modal">
+  <div id="accounts-modal-body">
+    <div class="acct-head">
+      <h4>Accounts</h4>
+      <span id="acct-count" class="muted"></span>
+      <span class="grow"></span>
+      <button id="gen-key" class="small primary">+ Generate</button>
+      <button id="import-toggle" class="small">+ Import nsec</button>
+    </div>
+    <p class="explain tight">
+      An account is one keypair, kept as <code>accounts/&lt;pubkey&gt;/</code>.
+      This ship holds any number; the <b>current</b> one (<code>me.json</code>)
+      is what every action signs as, and what the feed, people and posts are
+      of. Each one opens into its keys and the profile it publishes.
+    </p>
+    <form id="import-form" class="row" hidden>
+      <input id="import-key" class="mono" placeholder="nsec1… or 64 hex chars — the private key of an existing account" spellcheck="false" autocomplete="off">
+      <button class="small primary" type="submit">Import</button>
+      <button class="small" type="button" id="import-cancel">Cancel</button>
+    </form>
+    <div id="acct-msg" class="note" hidden></div>
+    <div id="accounts"></div>
+  </div>
 </modal-dialog>
 <modal-dialog id="tag-modal">
   <div id="tag-modal-body"></div>
