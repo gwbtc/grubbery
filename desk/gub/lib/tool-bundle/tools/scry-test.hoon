@@ -11,13 +11,13 @@
 ++  description  'Test remote-scry farm writes: grow/tomb/cull a page at a spur'
 ++  parameters
   ^-  (map @t parameter-def:tools)
-  %-  malt
-  :~  ['op' [%string 'One of: grow, tomb, cull, keen']]
+  %-  ~(gas by *(map @t parameter-def:tools))
+  :~  ['op' [%string 'What to do. One of: grow | tomb | cull | keen.']]
       ['spur' [%string 'Farm spur to operate on, e.g. /test/hello']]
       ['value' [%string 'grow only: text to publish (as a noun page)']]
-      ['case' [%string 'tomb only: revision number to tombstone']]
+      ['case' [%number 'tomb only: the revision number to tombstone']]
       ['ship' [%string 'keen only: ship whose farm to read, e.g. ~zod']]
-      ['timeout' [%string 'keen only: seconds to wait before yawning (default 30)']]
+      ['timeout' [%number 'keen only: seconds to wait before yawning. (default: 30)']]
   ==
 ++  required  ~['op' 'spur']
 ++  handler
@@ -52,7 +52,7 @@
     (pure:m [%text (crip "grew {(spud u.spur)}")])
   ::
       %tomb
-    =/  case-txt=(unit @t)  (mole |.((~(dog jo:json-utils jon) /case so:dejs:format)))
+    =/  case-txt=(unit @t)  (mole |.((~(dog jo:json-utils jon) /case so-loose:tools)))
     =/  case=(unit @ud)  ?~(case-txt ~ (rush u.case-txt dem))
     ?~  case  (pure:m [%error 'tomb needs a numeric case'])
     ;<  ~  bind:m  (tomb:io u.case u.spur)
@@ -71,13 +71,13 @@
     ?~  who  (pure:m [%error 'keen needs a ship, e.g. ~zod'])
     =/  cas=@ta
       %+  fall
-        (mole |.((~(dog jo:json-utils jon) /case so:dejs:format)))
+        (mole |.((~(dog jo:json-utils jon) /case so-loose:tools)))
       '1'
     =/  kpath=path  (weld /g/x/[cas]/grubbery `path`[%$ '1' u.spur])
     =/  secs=@ud
       %+  fall
         %+  biff
-          (mole |.((~(dog jo:json-utils jon) /timeout so:dejs:format)))
+          (mole |.((~(dog jo:json-utils jon) /timeout so-loose:tools)))
         |=(t=@t (rush t dem))
       30
     ;<  res=(unit (unit page))  bind:m

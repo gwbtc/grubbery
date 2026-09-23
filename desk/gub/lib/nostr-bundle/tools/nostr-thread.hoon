@@ -123,11 +123,11 @@
 |%
 ++  name  'nostr_thread'
 ++  description
-  'A thread by any event id in it: the root post, the replies we hold (refs/<root>.json) in time order with their parent, and reactions/reposts by name. Says when the root is not held.'
+  'Reconstruct a nostr thread from any event in it. A nostr event has a unique 64-hex id; a reply carries a tag pointing at the post it answers, and the thread root is the post at the top of that chain. Given any id in the thread, the root or any reply, this finds the root and shows: the root post, every reply this ship has stored, in time order and each labeled with the post it replies to, and the reactions and reposts on the root, with pubkeys resolved to profile names. It reads only what this ship already holds; if the root has never been fetched, it says so instead of reaching out to a relay.'
 ++  parameters
   ^-  (map @t parameter-def:tools)
   %-  ~(gas by *(map @t parameter-def:tools))
-  :~  ['id' [%string 'an event id (64 hex) — the root or any reply']]
+  :~  ['id' [%string 'The event to start from: any post in the thread, as its 64-hex event id. It need not be the root; the tool walks up the reply chain to find the root itself.']]
   ==
 ++  required  ~['id']
 ++  handler

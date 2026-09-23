@@ -39,7 +39,7 @@
 ++  parameters
   ^-  (map @t parameter-def:tools)
   %-  ~(gas by *(map @t parameter-def:tools))
-  :~  ['limit' [%string 'how many posts (default 20, max 50)']]
+  :~  ['limit' [%number 'The maximum number of posts to return, newest first. (default: 20, max: 50)']]
   ==
 ++  required  *(list @t)
 ++  handler

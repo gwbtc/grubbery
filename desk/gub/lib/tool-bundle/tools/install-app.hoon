@@ -10,7 +10,7 @@
   ^-  (map @t parameter-def:tools)
   %-  ~(gas by *(map @t parameter-def:tools))
   :~  ['desk' [%string 'Desk name to install']]
-      ['ship' [%string 'Source ship (optional, defaults to own ship)']]
+      ['ship' [%string 'the ship to install the desk from. (default: your own ship)']]
   ==
 ++  required  ~['desk']
 ++  handler

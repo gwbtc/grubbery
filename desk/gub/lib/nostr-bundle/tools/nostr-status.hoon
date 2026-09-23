@@ -123,7 +123,7 @@
 |%
 ++  name  'nostr_status'
 ++  description
-  'The nostr client (/apps/nostr) as its grubs say: relay clients (stage, tries, events this session, subscription), counts (events, profiles, refs, outbox), accounts and which is current, its follows count.'
+  'Report the state of the nostr client, read from its stored grubs: each relay client (its connection stage, retry count, events seen this session, and subscription), the stored counts (events, profiles, refs, outbox), the accounts and which is current, and the current account\'s follows count.'
 ++  parameters  *(map @t parameter-def:tools)
 ++  required  *(list @t)
 ++  handler

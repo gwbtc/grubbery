@@ -17,7 +17,7 @@
 ++  parameters
   ^-  (map @t parameter-def:tools)
   %-  malt
-  :~  ['height' [%string 'Optional: specific block height to inspect']]
+  :~  ['height' [%number 'a specific block height to inspect; omit for the latest']]
   ==
 ++  required  *(list @t)
 ++  handler
@@ -26,7 +26,7 @@
   ^-  form:m
   ;<  st=tool-state:tools  bind:m  (get-state-as:io ,tool-state:tools)
   =/  arg-height=(unit @t)
-    (~(deg jo:json-utils [%o args.st]) /height so:dejs:format)
+    (~(deg jo:json-utils [%o args.st]) /height so-loose:tools)
   ::  read tip
   ;<  tip-view=view:nexus  bind:m
     (peek:io [%& %& /['indexer.indexer_app'] %'tip.ud'] ~)

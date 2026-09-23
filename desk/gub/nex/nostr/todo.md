@@ -198,6 +198,13 @@ for other social-ish nexuses (feeds, chat, guestbook).
       `lib/ui/post-text.js` (`PostText`), which ghostprompter and this
       page both call, so posts render the same everywhere.
 
+## Relay liveness
+
+- [ ] A socket that goes quiet is not known to be dead: both relays
+      reported "live" with no frame for 14 hours (2026-09-23). Add an
+      idle watchdog to the relay session: no frame in N minutes sends a
+      ping (a cheap REQ/CLOSE) and reconnects on no answer.
+
 ## Performance (the ship, not nostr)
 
 - Every HTTP request through grubbery costs ~110ms before any work

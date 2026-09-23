@@ -123,12 +123,12 @@
 |%
 ++  name  'nostr_feed'
 ++  description
-  'The current account\'s feed (newest first): [age] name (id prefix): text · replies/reposts/reactions. Reposts show who reposted. limit defaults to 20 (max 60). pubkey (optional) reads the feed as another account on this ship would see it.'
+  'Read the current account\'s feed: the posts from the accounts it follows, newest first. Each entry shows the post\'s age, the author\'s name, a prefix of the event id, the text, and counts of its replies, reposts, and reactions; a repost also names who reposted.'
 ++  parameters
   ^-  (map @t parameter-def:tools)
   %-  ~(gas by *(map @t parameter-def:tools))
-  :~  ['limit' [%number 'how many posts (default 20, max 60)']]
-      ['pubkey' [%string 'an account on this ship (default: the current one)']]
+  :~  ['limit' [%number 'The maximum number of posts to return, newest first. (default: 20, max: 60)']]
+      ['pubkey' [%string 'An account on this ship, as a 64-hex pubkey, whose feed to read instead of the current account\'s. (default: the current account.)']]
   ==
 ++  required  *(list @t)
 ++  handler

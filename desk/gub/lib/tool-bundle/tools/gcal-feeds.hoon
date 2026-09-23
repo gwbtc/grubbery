@@ -21,7 +21,7 @@
 ++  parameters
   ^-  (map @t parameter-def:tools)
   %-  ~(gas by *(map @t parameter-def:tools))
-  :~  ['action' [%string 'list | add | del']]
+  :~  ['action' [%string 'What to do. One of: list | add | del.']]
       ['name' [%string 'Feed name (for add/del)']]
       ['url' [%string 'ICS url (for add)']]
   ==

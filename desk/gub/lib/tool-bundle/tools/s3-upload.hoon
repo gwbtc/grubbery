@@ -12,7 +12,7 @@
   %-  ~(gas by *(map @t parameter-def:tools))
   :~  ['path' [%string 'Ball directory path (e.g. "/mydir")']]
       ['name' [%string 'Grub filename (e.g. "notes.txt")']]
-      ['s3_key' [%string 'S3 object key (optional, defaults to filename)']]
+      ['s3_key' [%string 'the S3 object key to store under. (default: the source filename)']]
   ==
 ++  required  ~['path' 'name']
 ++  handler

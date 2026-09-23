@@ -25,8 +25,8 @@
       ['posts' [%string 'flow side: newline-separated lines, each "id-prefix | author-prefix | verbatim excerpt from the post"']]
       ['passage' [%string 'library side: one passage copied VERBATIM from a library document']]
       ['source' [%string 'the library document the passage comes from (its filename from list_library)']]
-      ['from' [%string 'library side: first line number of the passage (from read_doc output)']]
-      ['to' [%string 'library side: last line number of the passage']]
+      ['from' [%number 'library side: first line number of the passage (from read_doc output)']]
+      ['to' [%number 'library side: last line number of the passage']]
       ['post_ids' [%array 'flow side: the FULL post ids of every post cited in posts (from get_feed output)']]
   ==
 ++  required  ~['topic']
@@ -48,7 +48,21 @@
   =/  id=@t  (scot %uv (end [3 6] eny))
   ::  structured references beside the verbatim text, so the dashboard
   ::  can open the actual post and jump to the actual lines
-  =/  num  |=(k=@t ^-(json ?~(v=(rush (jstr k) dem) ~ (numb:enjs:format u.v))))
+  ::  read a line number the caller may send as a JSON number (%n) or, being
+  ::  a fuzzy LLM client, as a string (%s); write it back as a JSON number.
+  =/  num
+    |=  k=@t
+    ^-  json
+    =/  v=(unit json)  (~(get by args.st) k)
+    ?~  v  ~
+    =/  raw=@t
+      ?+  u.v  ''
+        [%n *]  p.u.v
+        [%s *]  p.u.v
+      ==
+    =/  parsed=(unit @ud)  (rush raw dem)
+    ?~  parsed  ~
+    (numb:enjs:format u.parsed)
   =/  ids=(list @t)
     =/  v=(unit json)  (~(get by args.st) 'post_ids')
     ?.  ?=([~ %a *] v)  ~

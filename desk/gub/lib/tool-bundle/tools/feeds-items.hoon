@@ -4,11 +4,11 @@
 |%
 ++  name  'feeds_items'
 ++  description
-  'Recent items across all feeds, newest first. Optional limit (default 20).'
+  'List recent items across all subscribed feeds, newest first.'
 ++  parameters
   ^-  (map @t parameter-def:tools)
   %-  ~(gas by *(map @t parameter-def:tools))
-  :~  ['limit' [%number 'Max items to return (default 20)']]
+  :~  ['limit' [%number 'the maximum number of items to return. (default: 20)']]
   ==
 ++  required  ~
 ++  handler

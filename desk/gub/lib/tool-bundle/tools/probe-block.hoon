@@ -154,7 +154,7 @@
   ^-  (map @t parameter-def:tools)
   %-  malt
   :~  ['hash' [%string 'Block hash hex (no 0x prefix). Optional — defaults to tip.']]
-      ['stage' [%string 'Pipeline stage: parse (default) | reveals | enrich | precommit | apply']]
+      ['stage' [%string 'the pipeline stage to run through. One of: parse | reveals | enrich | precommit | apply (default: parse).']]
       ['url' [%string 'Override RPC url. Optional — defaults to config.json.']]
       ['auth' [%string 'Override RPC auth header. Optional — defaults to config.json.']]
   ==

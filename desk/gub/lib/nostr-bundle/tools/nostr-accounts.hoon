@@ -124,12 +124,12 @@
 |%
 ++  name  'nostr_accounts'
 ++  description
-  'Accounts on this ship. action=list (default) shows them with names, follows counts and which is current. action=use pubkey=<hex> makes one current. action=follow / unfollow pubkey=<hex> edits the current account\'s follows and reconnects the relay clients.'
+  'List or manage the nostr accounts held on this ship. An account is a keypair this ship posts and reads as; one of them is the current account, the identity every other action works through, and its follows are the pubkeys whose posts fill the feed. action=list (the default) shows each account with its name, follows count, and which is current. action=use switches the current account to the given pubkey. action=follow and action=unfollow add or remove a pubkey from the current account\'s follows, then reconnect the relay clients so their subscriptions match the new follow set.'
 ++  parameters
   ^-  (map @t parameter-def:tools)
   %-  ~(gas by *(map @t parameter-def:tools))
-  :~  ['action' [%string 'list | use | follow | unfollow']]
-      ['pubkey' [%string 'a pubkey (64 hex): the account to use, or the person to follow/unfollow']]
+  :~  ['action' [%string 'What to do. One of: list | use | follow | unfollow (default: list).']]
+      ['pubkey' [%string 'The account to switch to, or the person to follow or unfollow, as a 64-hex pubkey. Required for use, follow, and unfollow; ignored by list.']]
   ==
 ++  required  *(list @t)
 ++  handler

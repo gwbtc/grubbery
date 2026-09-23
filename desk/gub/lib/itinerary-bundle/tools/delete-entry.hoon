@@ -9,8 +9,8 @@
 ++  parameters
   ^-  (map @t parameter-def:tools)
   %-  ~(gas by *(map @t parameter-def:tools))
-  :~  ['field' [%string '"pins" or "zones"']]
-      ['id' [%string 'the entry id to delete']]
+  :~  ['field' [%string 'which list the entry is in. One of: pins | zones.']]
+      ['id' [%string 'the id of the entry to delete, as shown in read_itinerary (kebab-case, e.g. caffe-torino)']]
   ==
 ++  required  ~['field' 'id']
 ++  handler

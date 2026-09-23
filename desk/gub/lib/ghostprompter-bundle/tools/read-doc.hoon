@@ -24,10 +24,10 @@
   ^-  (map @t parameter-def:tools)
   %-  ~(gas by *(map @t parameter-def:tools))
   :~  ['name' [%string 'the document name, e.g. montaigne-essays.txt']]
-      ['from' [%string 'first line to return (1-based)']]
-      ['to' [%string 'last line to return (inclusive); at most 400 lines per call']]
-      ['offset' [%string 'byte offset to start at (0-based) — alternative to from/to']]
-      ['length' [%string 'bytes to return from offset; at most 40000']]
+      ['from' [%number 'first line to return, 1-based. Pairs with to.']]
+      ['to' [%number 'last line to return, inclusive; at most 400 lines per call. Pairs with from.']]
+      ['offset' [%number 'byte offset to start at, 0-based — an alternative to from/to. Pairs with length.']]
+      ['length' [%number 'bytes to return from offset; at most 40000. Pairs with offset.']]
       ['find' [%string 'search string (case-insensitive): returns matching line numbers + lines, up to 60 hits']]
   ==
 ++  required  ~['name']
@@ -39,10 +39,10 @@
   =/  deg  ~(deg jo:json-utils [%o args.st])
   =/  nm=@t  (fall (deg /name so:dejs:format) '')
   ?:  =('' nm)  (pure:m [%error 'name is required'])
-  =/  from=(unit @ud)    (num (deg /from so:dejs:format))
-  =/  to=(unit @ud)      (num (deg /to so:dejs:format))
-  =/  offset=(unit @ud)  (num (deg /offset so:dejs:format))
-  =/  length=(unit @ud)  (num (deg /length so:dejs:format))
+  =/  from=(unit @ud)    (jnum args.st 'from')
+  =/  to=(unit @ud)      (jnum args.st 'to')
+  =/  offset=(unit @ud)  (jnum args.st 'offset')
+  =/  length=(unit @ud)  (jnum args.st 'length')
   =/  query=(unit @t)    (deg /find so:dejs:format)
   ;<  fv=view:nexus  bind:m
     (peek:io [%& %& /apps/ghostprompter/library `@ta`nm] `[/ %mime])
@@ -106,9 +106,15 @@
 --
 |%
 ::  +num: a string argument as a number (the schema is all-string)
-++  num
-  |=  v=(unit @t)
+::  read a number the caller may send as a JSON number (%n) or, being a
+::  fuzzy LLM client, as a string (%s); either way parse to (unit @ud).
+++  jnum
+  |=  [args=(map @t json) k=@t]
   ^-  (unit @ud)
+  =/  v  (~(get by args) k)
   ?~  v  ~
-  (rush u.v dem)
+  ?+  u.v  ~
+    [%n *]  (rush p.u.v dem)
+    [%s *]  (rush p.u.v dem)
+  ==
 --

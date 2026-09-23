@@ -5,7 +5,7 @@ Model Context Protocol JSON-RPC tool server. Exposes Hoon-defined tools to AI cl
 ## Files
 
 - `main.sig` — HTTP binding process. Registers `/grubbery/mcp` with the server, handles JSON-RPC dispatch.
-- `index.html`, `app.js`, `style.css` — the UI: tool registry, runs in flight, reference reader. Its Run tab is an ordinary MCP client (JSON-RPC `tools/call`).
+- `index.html`, `app.js`, `style.css`, `components.js` — the UI on the kit (tab-group, modal-dialog). It is a viewer for ONE tools nexus, the one its URL names: `/grubbery/mcp` shows this endpoint's own `tools/`, `/grubbery/mcp/apps/nostr/tools` shows the nostr app's. Tools with a detail modal (about, schema, source, run) and the runs in flight. The Run form is an ordinary MCP client (JSON-RPC `tools/call`; for another nexus's tool, `call_tool` with `path`). There is no registry and nothing scans: any nexus can mount a tools nexus, and says where in its readme; `list_tools` / `call_tool` take a `path` to reach it.
 
 ## Directories
 

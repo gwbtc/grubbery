@@ -5,15 +5,15 @@
 ^-  tool:tools
 |%
 ++  name  'add_weir'
-++  description  'Add a sandbox (weir) rule to a directory. Categories: write, poke, read. Road types: dir, file. Use steps_up for relative roads.'
+++  description  'Add a sandbox rule (a "weir") to a directory. A weir bounds what code under that directory may reach: it grants one category of access — read, poke, or write — along one road. The road is road_path, taken as absolute unless steps_up is given, which makes it relative to this directory. road_type says whether the road names a single file or a whole directory subtree.'
 ++  parameters
   ^-  (map @t parameter-def:tools)
   %-  ~(gas by *(map @t parameter-def:tools))
-  :~  ['path' [%string 'Directory to add the weir rule to (e.g. "/mcp.mcp")']]
-      ['category' [%string 'Rule category: "write", "poke", or "read"']]
-      ['road_path' [%string 'Allowed road path (e.g. "/")']]
-      ['road_type' [%string 'Road type: "dir" or "file"']]
-      ['steps_up' [%string 'Steps up for relative road (e.g. "1" means ../, "0" means ./). Omit for absolute road.']]
+  :~  ['path' [%string 'the directory to add the weir rule to (e.g. "/apps/example")']]
+      ['category' [%string 'the kind of access the rule grants. One of: read | poke | write.']]
+      ['road_path' [%string 'the road the rule allows, a path (e.g. "/"). Absolute unless steps_up is set.']]
+      ['road_type' [%string 'whether the road names one file or a directory subtree. One of: dir | file (default: dir).']]
+      ['steps_up' [%number 'makes road_path relative to this directory: 1 means one level up (../), 0 means this directory (./). Omit for an absolute road.']]
   ==
 ++  required  ~['path' 'category' 'road_path']
 ++  handler
@@ -34,9 +34,12 @@
     ?.  ?=([%s *] u.rt)  'dir'
     p.u.rt
   =/  steps-up=(unit @ud)
-    ?~  su=(~(get jo:json-utils [%o args.st]) /'steps_up')  ~
-    ?.  ?=([%s *] u.su)  ~
-    `(rash p.u.su dem)
+    =/  su  (~(get jo:json-utils [%o args.st]) /'steps_up')
+    ?~  su  ~
+    ?+  u.su  ~
+      [%s *]  `(rash p.u.su dem)
+      [%n *]  `(rash p.u.su dem)
+    ==
   =/  pax=path
     =/  t=tape  (trip road-path)
     =/  clean=tape  ?:(&(!=(~ t) =('/' (rear t))) (snip t) t)

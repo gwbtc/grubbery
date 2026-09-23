@@ -21,6 +21,7 @@
 ::  bounded by the host's weir — so where you mount it IS the sandbox.
 ::
 /<  nex-tools   /lib/tools.hoon
+/&  standard    ../man/tools/standard.md
 =>  |%
     ::  +list-json: serialize a tool map into a protocol-neutral schema
     ::  array (name/description/parameters/required). The host reshapes
@@ -159,6 +160,7 @@
   ::  is the weir its HOST sets on it at mount — never self-declared.
   %+  spin:loader  ball
   :~  (manifest:loader 0)
+      [%over %& [/ %'standard.md'] [[/ %mime] standard]]
       [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
       [%fall %| /runs empty-dir:loader]
       ::  /code: this instance's own code nexus (seeded by the host with

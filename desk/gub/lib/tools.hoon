@@ -50,6 +50,18 @@
   --
 ::
 +$  tool-handler  _*form:(fiber:fiber:nexus ,tool-result)
+::  +so-loose: a lenient string decoder for a parameter typed %number.
+::  The honest schema type is %number, so a well-behaved client sends a
+::  JSON number (%n); a fuzzy LLM client may still send a string (%s).
+::  This reads the raw cord from either, and defers to so:dejs:format for
+::  a %s (and for the crash on a genuinely wrong type). Use it in place of
+::  so:dejs:format at a jo deg/dog site whose parameter is now %number.
+++  so-loose
+  |=  j=json
+  ^-  @t
+  ?+  j  (so:dejs:format j)
+    [%n *]  p.j
+  ==
 ::  Tool names are file locations under a lib/mcp root: path segments
 ::  joined with '__', hyphens rendered as underscores (knots can't
 ::  hold underscores). wallet__send <-> wallet/send.hoon. The mapping

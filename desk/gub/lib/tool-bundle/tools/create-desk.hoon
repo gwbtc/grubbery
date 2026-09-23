@@ -17,7 +17,7 @@
   %-  ~(gas by *(map @t parameter-def:tools))
   :~  ['name' [%string 'App name (e.g. "myapp") — becomes /apps/shell.shell/desks/myapp.desk']]
       ['source' [%string 'Source path (e.g. "~nec/apps/counter" or "/local/path")']]
-      ['public' [%boolean 'Whether the desk code namespace is publicly readable (default false)']]
+      ['public' [%boolean 'whether the desk code namespace is publicly readable. (default: false)']]
   ==
 ++  required  ~['name']
 ++  handler

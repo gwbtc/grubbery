@@ -15,7 +15,7 @@
   :~  ['ship' [%string 'Target ship (e.g. "~nec")']]
       ['path' [%string 'Directory path (e.g. "/logbook")']]
       ['name' [%string 'Filename for file peek. Omit for directory peek.']]
-      ['case' [%string 'Version number (e.g. "3"). Omit for latest.']]
+      ['case' [%number 'a version number (e.g. 3); omit for the latest']]
   ==
 ++  required  ~['ship' 'path']
 ++  handler
@@ -26,7 +26,7 @@
   =/  ship-raw=(unit @t)  (~(deg jo:json-utils [%o args.st]) /ship so:dejs:format)
   =/  path-raw=(unit @t)  (~(deg jo:json-utils [%o args.st]) /path so:dejs:format)
   =/  name-raw=(unit @t)  (~(deg jo:json-utils [%o args.st]) /name so:dejs:format)
-  =/  case-raw=(unit @t)  (~(deg jo:json-utils [%o args.st]) /case so:dejs:format)
+  =/  case-raw=(unit @t)  (~(deg jo:json-utils [%o args.st]) /case so-loose:tools)
   ?~  ship-raw  (pure:m [%error 'Missing required argument: ship'])
   ?~  path-raw  (pure:m [%error 'Missing required argument: path'])
   =/  target=@p  (slav %p u.ship-raw)

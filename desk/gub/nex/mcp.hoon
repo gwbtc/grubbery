@@ -13,7 +13,8 @@
 /&  ui-js     mcp/app.js
 /&  ui-css    mcp/style.css
 /&  ui-icon   mcp/icon.svg
-/&  ui-md     mcp/marked.min.js
+/&  tg-js     /lib/ui/tab-group.js
+/&  md-js     /lib/ui/modal-dialog.js
 =>  |%
     ::  +weir-json: mcp runs ARBITRARY user tools, and those tools execute
     ::  under mcp's own weir — a tool may scry, poke, or make anything. So
@@ -74,37 +75,23 @@
               ['required' a+(turn required:t |=(r=@t s+r))]
           ==
       ==
-    ::  +gather-tools-tree: the registry grouped by where the code
-    ::  lives — root /code/lib/tools plus each app's code namespace.
+    ::  +gather-tools-tree: the tools of ONE tools nexus, named by its
+    ::  absolute path, as a location tree. The page is a viewer for any
+    ::  tools nexus: /grubbery/mcp/<path> shows the one at <path>; no
+    ::  registry, no scanning, the URL is the address. Our own /tools is
+    ::  read by delegation (only the child reads its own /code); any
+    ::  other by peeking <path>/code/lib/tools directly.
     ::
     ++  gather-tools-tree
-      |=  =rail:tarball
+      |=  [=rail:tarball at=path own=?]
       =/  m  (fiber:fiber:nexus ,json)
       ^-  form:m
-      ;<  root=(map @t tool:tools)  bind:m
-        (get-dynamic-tools rail)
-      =/  root-tree=json  (tools-nest root)
-      ;<  app-paths=(list path)  bind:m  get-app-mcp-paths
-      =|  app-dirs=(list json)
-      |-
-      ?~  app-paths
-        ?>  ?=(%o -.root-tree)
-        =/  dirs=json  (fall (~(get by p.root-tree) 'dirs') [%a ~])
-        ?>  ?=(%a -.dirs)
-        %-  pure:m
-        :-  %o
-        (~(put by p.root-tree) 'dirs' a+(weld p.dirs (flop app-dirs)))
-      ;<  found=(map @t tool:tools)  bind:m  (scan-namespace i.app-paths)
-      ?:  =(~ found)  $(app-paths t.app-paths)
-      =/  app-name=@ta
-        ?>  ?=([%apps @ *] i.app-paths)
-        i.t.i.app-paths
-      =/  sub=json  (tools-nest found)
-      ?>  ?=(%o -.sub)
-      =/  entry=json
-        :-  %o
-        (~(put by p.sub) 'name' s+(crip "apps/{(trip app-name)}"))
-      $(app-paths t.app-paths, app-dirs [entry app-dirs])
+      ;<  found=(map @t tool:tools)  bind:m
+        ?:  own  (get-dynamic-tools rail)
+        (scan-namespace (welp at /code/lib/tools))
+      =/  tree=json  (tools-nest found)
+      ?>  ?=(%o -.tree)
+      (pure:m [%o (~(put by p.tree) 'path' s+(spat at))])
     ::  +tools-nest: a derived-name-keyed tool map as a location tree —
     ::  {dirs: [{name, dirs, tools}], tools: [...]}. Names round-trip
     ::  through the bijection, so the tree is recomputed from the keys.
@@ -152,43 +139,38 @@
       ?:  =(key p.i.quay)  `q.i.quay
       $(quay t.quay)
     ::  +find-tool-src: raw source of a tool by its advertised name.
-    ::  Same resolution order as +await-tool: underscores to hyphens,
-    ::  root /code/lib/tools first, then each app's code namespace.
+    ::  Underscores to hyphens, then <path>/code/lib/tools/<sub>/<name>.hoon.
     ::
     ++  find-tool-src
-      |=  tool-name=@t
+      |=  [at=path tool-name=@t]
       =/  m  (fiber:fiber:nexus ,(unit [path @t]))
       ^-  form:m
       =/  [sub=path arm=@ta]  (name-to-place:tools tool-name)
       =/  fname=@ta  (crip "{(trip arm)}.hoon")
-      ;<  app-paths=(list path)  bind:m  get-app-mcp-paths
-      =/  dirs=(list path)  [/code/lib/tools app-paths]
-      |-
-      ?~  dirs  (pure:m ~)
-      =/  in-dir=path  (weld i.dirs sub)
+      =/  in-dir=path  (weld (welp at /code/lib/tools) sub)
       ;<  fv=view:nexus  bind:m
         (peek:io [%& %& in-dir fname] `[/ %mime])
       ?.  ?&(?=([%file *] fv) !(is-boom:tarball sang.fv))
-        $(dirs t.dirs)
+        (pure:m ~)
       =/  got  (mule |.(!<(mime (need-vase:tarball sang.fv))))
-      ?:  ?=(%| -.got)  $(dirs t.dirs)
+      ?:  ?=(%| -.got)  (pure:m ~)
       (pure:m `[(snoc in-dir fname) `@t`q.q.p.got])
     ::  +gather-runs: every run grub in the tools child — runs in
     ::  flight. Skips booms and undecodable states rather than failing
     ::  the page.
     ::
     ++  gather-runs
-      |=  =rail:tarball
+      |=  at=path
       =/  m  (fiber:fiber:nexus ,json)
       ^-  form:m
-      ;<  runs=(list json)  bind:m  (gather-runs-in rail /tools/runs)
+      ;<  runs=(list json)  bind:m  (gather-runs-in (welp at /runs))
       (pure:m a+runs)
     ::
     ++  gather-runs-in
-      |=  [=rail:tarball dir=path]
+      |=  dir=path
       =/  m  (fiber:fiber:nexus ,(list json))
       ^-  form:m
-      ;<  =view:nexus  bind:m  (peek:io (nex-road:io rail [%| dir]) ~)
+      ;<  =view:nexus  bind:m  (peek:io [%& %| dir] ~)
       ?.  ?=([%ball *] view)  (pure:m ~)
       ?~  fil.ball.view  (pure:m ~)
       =/  ids=(list @ta)
@@ -199,7 +181,7 @@
       =/  tid=@ta  i.ids
       ?:  =('weir.json' tid)  $(ids t.ids)
       ;<  fv=view:nexus  bind:m
-        (peek:io (nex-road:io rail [%& dir tid]) ~)
+        (peek:io [%& %& dir tid] ~)
       ?.  ?=([%file *] fv)  $(ids t.ids)
       ?:  (is-boom:tarball sang.fv)  $(ids t.ids)
       =/  got  (mule |.(!<(tool-state:tools (need-vase:tarball sang.fv))))
@@ -362,50 +344,6 @@
       %+  roll  ~(tap by dir.bal)
       |=  [[nam=@ta kid=ball:tarball] acc=_here]
       (weld acc (ball-code-files (snoc sub nam) kid))
-    ++  get-app-mcp-paths
-      =/  m  (fiber:fiber:nexus ,(list path))
-      ^-  form:m
-      ;<  apps-view=view:nexus  bind:m
-        (peek:io [%& %| /apps] ~)
-      ?.  ?=([%ball *] apps-view)
-        (pure:m ~)
-      %-  pure:m
-      %+  turn  ~(tap by dir.ball.apps-view)
-      |=  [nam=@ta *]
-      (welp ~[%apps nam] /desk/code/lib/tools)
-    ::  +await-tool: look up a compiled tool handler by name
-    ::
-    ::    Converts underscores to hyphens (get_ship → get-ship).
-    ::    Checks root code namespace, then each app's code namespace.
-    ::
-    ++  await-tool
-      |=  tool-name=@t
-      =/  m  (fiber:fiber:nexus ,(each tool:tools tang))
-      ^-  form:m
-      ::  a leading slash means the tool is addressed by LOCATION —
-      ::  an absolute, extensionless path to its source in any code
-      ::  namespace — rather than by registry name
-      ?:  =('/' (end 3 tool-name))
-        =/  pax=(unit path)  (rush tool-name stap)
-        ?:  |(?=(~ pax) ?=(~ u.pax))
-          (pure:m [%| ~[leaf+"bad tool path: {(trip tool-name)}"]])
-        ;<  got=(unit tool:tools)  bind:m
-          (try-compile (snip `path`u.pax) (rear u.pax))
-        ?^  got  (pure:m [%& u.got])
-        (pure:m [%| ~[leaf+"no tool at {(trip tool-name)}"]])
-      =/  [sub=path arm=@ta]  (name-to-place:tools tool-name)
-      ;<  got=(unit tool:tools)  bind:m
-        (try-compile (weld /code/lib/tools sub) arm)
-      ?^  got  (pure:m [%& u.got])
-      ;<  app-paths=(list path)  bind:m  get-app-mcp-paths
-      |-
-      ?~  app-paths
-        (pure:m [%| ~[leaf+"tool not found: {(trip tool-name)}"]])
-      ;<  got=(unit tool:tools)  bind:m
-        (try-compile (weld i.app-paths sub) arm)
-      ?^  got  (pure:m [%& u.got])
-      $(app-paths t.app-paths)
-    ::
     ++  try-compile
       |=  [code-path=path file-name=@ta]
       =/  m  (fiber:fiber:nexus ,(unit tool:tools))
@@ -425,7 +363,8 @@
   |=  =ball:tarball
   ^-  bole:tarball
   ::  preserve any tools added live: read the current tools/code
-  ::  subtree (just the code — /runs stays a clean slate each reload) and
+  ::  subtree (just the code — /runs is left untouched, its %fall %|
+  ::  row in nex/tools.hoon keeps existing run grubs across a reload) and
   ::  merge the bundle onto it, bundle winning name conflicts, so a reseed
   ::  updates bundle tools without deleting user-added ones.
   =/  existing-tools=bole:tarball
@@ -441,6 +380,10 @@
         image+s+'/grubbery/mcp/icon.svg'
         href+s+'/grubbery/mcp'
     ==
+  ::  the kit components the page uses, welded into one served file
+  =/  wrap  |=(=mime ^-(@ (rap 3 ~[123 10 q.q.mime 10 125 10])))
+  =/  kit-js=mime
+    [/application/javascript (as-octs:mimes:html (rap 3 ~[(wrap tg-js) (wrap md-js)]))]
   %+  spin:loader  ball
   :~  (manifest:loader 0)
       [%over %& [/ %'link.json'] [[/ %json] (pairs:enjs:format ~[['name' s+'mcp'] ['description' s+'MCP JSON-RPC endpoint for tools']])]]
@@ -449,7 +392,7 @@
       [%over %& [/ %'icon.svg'] [[/ %mime] ui-icon]]
       [%over %& [/ %'index.html'] [[/ %mime] ui-html]]
       [%over %& [/ %'app.js'] [[/ %mime] ui-js]]
-      [%over %& [/ %'marked.min.js'] [[/ %mime] ui-md]]
+      [%over %& [/ %'components.js'] [[/ %mime] kit-js]]
       [%over %& [/ %'style.css'] [[/ %mime] ui-css]]
       [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
       [%fall %| /requests empty-dir:loader]
@@ -506,31 +449,45 @@
         %+  send-simple:srv  eyre-id
         :-  [405 ~[['allow' 'POST']]]
         `(as-octs:mimes:html 'Method Not Allowed')
+      ::  which tools nexus the data routes are about: ?path=<abs>,
+      ::  default our own /tools (this request grub sits at <mcp>/requests/<id>)
+      ;<  here=rail:tarball  bind:m  get-here-abs:io
+      =/  own=path  (welp (snip `path`path.here) /tools)
+      =/  at=path
+        =/  p=(unit @t)  (quay-get qargs 'path')
+        ?~  p  own
+        (fall (rush u.p stap) own)
+      =/  is-own=?  =(at own)
       ?:  ?=([%api %tools ~] suffix)
         ::  the FULL registry, not the three-tool protocol allowlist
         ::  that tools/list advertises to MCP clients
         ;<  dynamic=(map @t tool:tools)  bind:m  (get-dynamic-tools rail)
         (send-json eyre-id (mcp-tools-list:nex-mcp dynamic ~))
       ?:  ?=([%api %runs ~] suffix)
-        ;<  runs=json  bind:m  (gather-runs rail)
+        ;<  runs=json  bind:m  (gather-runs at)
         (send-json eyre-id runs)
       ?:  ?=([%api %tools-tree ~] suffix)
-        ;<  tree=json  bind:m  (gather-tools-tree rail)
-        (send-json eyre-id tree)
+        ;<  tree=json  bind:m  (gather-tools-tree rail at is-own)
+        ?>  ?=(%o -.tree)
+        (send-json eyre-id [%o (~(put by p.tree) 'own' b+is-own)])
       ?:  ?=([%api %src ~] suffix)
         =/  tool-name=(unit @t)  (quay-get qargs 'tool')
         ?~  tool-name
           (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'tool required')])
-        ;<  res=(unit [pax=path txt=@t])  bind:m  (find-tool-src u.tool-name)
+        ;<  res=(unit [pax=path txt=@t])  bind:m  (find-tool-src at u.tool-name)
         ?~  res
           (send-simple:srv eyre-id [[404 ~] `(as-octs:mimes:html 'not found')])
         %+  send-json  eyre-id
         (pairs:enjs:format ~[['path' s+(spat pax.u.res)] ['text' s+txt.u.res]])
-      =/  filename=@ta
-        ?~  suffix  'index.html'
-        i.suffix
+      ::  a one-segment suffix that names a file here is that file; any
+      ::  other suffix is a tools-nexus path and gets the page, which
+      ::  reads the path back out of its URL
       ;<  fv=view:nexus  bind:m
-        (peek:io (nex-road:io rail [%& / filename]) `[/ %mime])
+        ?.  ?=([@ ~] suffix)  (pure:(fiber:fiber:nexus ,view:nexus) [%none ~])
+        (peek:io (nex-road:io rail [%& / i.suffix]) `[/ %mime])
+      ;<  fv=view:nexus  bind:m
+        ?:  ?=([%file *] fv)  (pure:(fiber:fiber:nexus ,view:nexus) fv)
+        (peek:io (nex-road:io rail [%& / %'index.html']) `[/ %mime])
       ?.  ?=([%file *] fv)
         (send-simple:srv eyre-id [[404 ~] `(as-octs:mimes:html 'Not found')])
       =/  =mime  !<(mime (need-vase:tarball sang.fv))

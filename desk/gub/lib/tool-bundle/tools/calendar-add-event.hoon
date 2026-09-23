@@ -25,16 +25,16 @@
   %-  ~(gas by *(map @t parameter-def:tools))
   :~  ['path' [%string 'Calendar instance dir (e.g. "/apps/calendar.calendar")']]
       ['name' [%string 'Event name']]
-      ['cat' [%string 'timed | allday | date (default timed)']]
-      ['kind' [%string 'timed/allday: once|every|daily|weekly|monthly|monthly-nth|yearly']]
-      ['start' [%string 'timed/allday anchor date, urbit format (e.g. "~2026.7.21..18.30.00")']]
-      ['args' [%string 'timed/allday: kind args as a JSON object, e.g. {"days":["mon","fri"],"at":570}']]
+      ['cat' [%string 'the event shape. One of: timed | allday | date (default: timed).']]
+      ['kind' [%string 'timed/allday: the recurrence kind. One of: once | every | daily | weekly | monthly | monthly-nth | yearly.']]
+      ['start' [%string 'timed/allday: anchor date in urbit format (e.g. "~2026.7.21..18.30.00")']]
+      ['args' [%string 'timed/allday: the kind\'s args as a JSON object, e.g. {"days":["mon","fri"],"at":570}']]
       ['zone' [%string 'timed: optional IANA timezone (e.g. "America/New_York")']]
-      ['dur_min' [%string 'timed: duration in minutes (0 = a point)']]
-      ['span_days' [%string 'allday: number of whole days (default 1)']]
-      ['day' [%string 'date: day number 1-31']]
-      ['month' [%string 'date: month number 1-12']]
-      ['count' [%string 'Optional: end the series after N occurrences']]
+      ['dur_min' [%number 'timed: duration in minutes (0 = a point in time)']]
+      ['span_days' [%number 'allday: number of whole days. (default: 1)']]
+      ['day' [%number 'date: day of the month, 1-31']]
+      ['month' [%number 'date: month of the year, 1-12']]
+      ['count' [%number 'end the recurring series after this many occurrences']]
       ['note' [%string 'Optional note']]
       ['color' [%string 'Optional hex color']]
   ==
@@ -49,8 +49,11 @@
     ^-  @t
     =/  j=(unit json)  (~(get by args.st) k)
     ?~  j  ''
-    ?.  ?=(%s -.u.j)  ''
-    p.u.j
+    ::  accept a string (%s) or, for a %number param, a JSON number (%n)
+    ?+  u.j  ''
+      [%s *]  p.u.j
+      [%n *]  p.u.j
+    ==
   =/  pax-parsed=(each path @t)  (parse-path:tools (gs 'path'))
   ?:  ?=(%| -.pax-parsed)
     (pure:m [%error p.pax-parsed])

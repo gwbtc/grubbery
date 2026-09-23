@@ -17,7 +17,7 @@
 ++  parameters
   ^-  (map @t parameter-def:tools)
   %-  ~(gas by *(map @t parameter-def:tools))
-  :~  ['field' [%string '"pins" or "zones"']]
+  :~  ['field' [%string 'which list the entry goes in. One of: pins | zones.']]
       ['id' [%string 'the entry id, kebab-case, e.g. caffe-torino']]
       ['entry' [%string 'the pin or zone as a JSON object string']]
   ==

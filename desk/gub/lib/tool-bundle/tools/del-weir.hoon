@@ -5,15 +5,15 @@
 ^-  tool:tools
 |%
 ++  name  'del_weir'
-++  description  'Remove a sandbox (weir) rule from a directory'
+++  description  'Remove a sandbox rule (a "weir") from a directory. Identifies the rule to remove exactly as add_weir created it: by its category, road_path, and road_type on the given directory. See add_weir for what a weir bounds.'
 ++  parameters
   ^-  (map @t parameter-def:tools)
   %-  ~(gas by *(map @t parameter-def:tools))
-  :~  ['path' [%string 'Directory to remove the weir rule from']]
-      ['category' [%string 'Rule category: "write", "poke", or "read"']]
-      ['road_path' [%string 'Road path to remove']]
-      ['road_type' [%string 'Road type: "dir" or "file"']]
-      ['steps_up' [%string 'Steps up for relative road (e.g. "1"). Omit for absolute road.']]
+  :~  ['path' [%string 'the directory to remove the weir rule from (e.g. "/apps/example")']]
+      ['category' [%string 'the category of the rule to remove. One of: read | poke | write.']]
+      ['road_path' [%string 'the road_path of the rule to remove; must match how it was added']]
+      ['road_type' [%string 'the road_type of the rule to remove. One of: dir | file (default: dir).']]
+      ['steps_up' [%number 'the steps_up of the rule to remove, if it was added as a relative road. Omit for an absolute road.']]
   ==
 ++  required  ~['path' 'category' 'road_path']
 ++  handler
@@ -34,9 +34,12 @@
     ?.  ?=([%s *] u.rt)  'dir'
     p.u.rt
   =/  steps-up=(unit @ud)
-    ?~  su=(~(get jo:json-utils [%o args.st]) /'steps_up')  ~
-    ?.  ?=([%s *] u.su)  ~
-    `(rash p.u.su dem)
+    =/  su  (~(get jo:json-utils [%o args.st]) /'steps_up')
+    ?~  su  ~
+    ?+  u.su  ~
+      [%s *]  `(rash p.u.su dem)
+      [%n *]  `(rash p.u.su dem)
+    ==
   =/  pax=path
     =/  t=tape  (trip road-path)
     =/  clean=tape  ?:(&(!=(~ t) =('/' (rear t))) (snip t) t)

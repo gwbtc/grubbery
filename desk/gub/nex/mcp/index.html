@@ -9,51 +9,62 @@
 </head>
 <body>
 <header>
+  <img id="brand-icon" src="/grubbery/mcp/icon.svg" alt="">
   <h1>Tools</h1>
-  <div class="head-right">
-    <span id="counts"></span>
-    <button id="refresh" title="Refresh">&#8635;</button>
-  </div>
+  <span class="sub">a tools nexus, by where it lives</span>
+  <form id="at-form" class="at">
+    <span class="muted">at</span>
+    <input id="at" class="mono" spellcheck="false" autocomplete="off" placeholder="/apps/nostr/tools">
+    <button class="small" type="submit">Go</button>
+  </form>
+  <span id="counts"></span>
+  <button id="refresh" class="small" title="re-read this tools nexus">Refresh</button>
 </header>
 <main>
-  <section id="main-pane">
-    <div class="pane-tabs">
-      <button id="tab-tools" class="pane-tab active">Available Tools</button>
-      <button id="tab-runs" class="pane-tab">Runs</button>
-      <button id="tab-reference" class="pane-tab">Reference</button>
-    </div>
-    <div id="tools-view">
-      <div class="scroll">
-        <div id="tools-tree"></div>
+  <tab-group id="tabs" persist="mcp-tab">
+
+    <section tab-label="Tools" class="panel grow">
+      <div class="panel-head">
+        <h2>Tools</h2>
+        <span id="tools-count" class="muted"></span>
+        <span class="grow"></span>
+        <input id="tools-filter" placeholder="filter by name or description" spellcheck="false" autocomplete="off">
       </div>
-    </div>
-    <div id="reference-view" hidden>
-      <div class="ref-layout">
-        <nav id="ref-sidebar" class="ref-sidebar"></nav>
-        <div id="ref-main" class="ref-main scroll"></div>
+      <p class="explain" id="tools-explain">
+        The tools of one tools nexus: the one at the path above, whose code
+        namespace is <code>&lt;path&gt;/code/lib/tools</code>. A tool is one
+        Hoon file compiled to a <code>tool</code>; its name is its file name
+        with hyphens as underscores. Click one for its schema, source, and a
+        form to run it. Any nexus can mount a tools nexus of its own; this page
+        shows whichever one its URL names, <code>/grubbery/mcp/&lt;path&gt;</code>.
+      </p>
+      <div id="tools" class="scroll"></div>
+    </section>
+
+    <section tab-label="Runs" class="panel grow">
+      <div class="panel-head">
+        <h2>Runs</h2>
+        <span id="runs-count" class="muted"></span>
+        <span class="grow"></span>
       </div>
-    </div>
-    <div id="runs-view" hidden>
-      <div class="sb-toolbar">
-        <span class="sb-hint">tools/runs — every tool call in flight. Finished runs are culled by their caller.</span>
-      </div>
-      <div class="scroll">
-        <div id="runs-list"></div>
-        <p id="runs-empty" class="empty" hidden>No runs in flight.</p>
-      </div>
-    </div>
-  </section>
+      <p class="explain">
+        Every tool call in flight in this tools nexus, one grub each under its <code>runs/</code>.
+        A run's fiber executes the handler and writes the result into its own
+        grub; the caller reads it and culls the grub. What stays here is what
+        no caller has collected.
+      </p>
+      <div id="runs" class="scroll"></div>
+    </section>
+
+  </tab-group>
 </main>
-<div id="modal" class="modal" hidden>
-  <div class="modal-box">
-    <div class="modal-head">
-      <span id="modal-title"></span>
-      <button id="modal-close">&times;</button>
-    </div>
-    <div id="modal-body"></div>
-  </div>
-</div>
-<script src="/grubbery/mcp/marked.min.js"></script>
+<modal-dialog id="tool-modal">
+  <div id="tool-modal-body"></div>
+</modal-dialog>
+<modal-dialog id="run-modal">
+  <div id="run-modal-body"></div>
+</modal-dialog>
+<script type="module" src="/grubbery/mcp/components.js"></script>
 <script src="/grubbery/mcp/app.js"></script>
 </body>
 </html>

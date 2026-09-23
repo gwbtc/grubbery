@@ -90,7 +90,7 @@
 ++  parameters
   ^-  (map @t parameter-def:tools)
   %-  ~(gas by *(map @t parameter-def:tools))
-  :~  ['command' [%string 'Operation: create-store, delete-store, list-stores, act, list, get, frontier, lineage']]
+  :~  ['command' [%string 'What to do. One of: create-store | delete-store | list-stores | act | list | get | frontier | lineage.']]
       ['store' [%string 'Store name (e.g. "my-project")']]
       ['action' [%string 'JSON action for act command (e.g. {"type":"create","parent":"0","data":{"summary":"design"}}). id/parent optional for create.']]
       ['goal_id' [%string 'Goal ID for get/frontier/lineage (e.g. "a")']]

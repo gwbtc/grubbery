@@ -20,7 +20,7 @@
 ++  parameters
   ^-  (map @t parameter-def:tools)
   %-  malt
-  :~  ['sed' [%string 'Wallet seed (positive integer). Default 42.']]
+  :~  ['sed' [%number 'wallet seed, a positive integer. (default: 42)']]
   ==
 ++  required  *(list @t)
 ++  handler
@@ -29,7 +29,7 @@
   ^-  form:m
   ;<  st=tool-state:tools  bind:m  (get-state-as:io ,tool-state:tools)
   =/  arg-sed=(unit @t)
-    (~(deg jo:json-utils [%o args.st]) /sed so:dejs:format)
+    (~(deg jo:json-utils [%o args.st]) /sed so-loose:tools)
   =/  sed=@ud  ?~(arg-sed 42 (fall (rush u.arg-sed dem) 42))
   ::  build the poke json: {"action":"spawn","sed":N}
   =/  poke-json=json

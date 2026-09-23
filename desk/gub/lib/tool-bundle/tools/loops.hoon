@@ -45,7 +45,12 @@
   |=  [args=(map @t json) k=@t]
   ^-  @t
   =/  j=(unit json)  (~(get by args) k)
-  ?.(?=([~ %s *] j) '' p.u.j)
+  ::  accept a string (%s) or, for a %number param, a JSON number (%n)
+  ?~  j  ''
+  ?+  u.j  ''
+    [%s *]  p.u.j
+    [%n *]  p.u.j
+  ==
 ::
 ++  trim-sp
   |=  t=tape
@@ -82,11 +87,11 @@
 ++  parameters
   ^-  (map @t parameter-def:tools)
   %-  ~(gas by *(map @t parameter-def:tools))
-  :~  ['command' [%string 'contexts | list | open | close | reopen | delete | label | best-by | text']]
-      ['context' [%string 'Store name (e.g. "urbit"). Required for everything except contexts.']]
-      ['status' [%string 'For list: open (default) | closed | all']]
-      ['text' [%string 'Loop text (open, text)']]
-      ['id' [%string 'Loop id (close, reopen, delete, label, best-by, text)']]
+  :~  ['command' [%string 'What to do. One of: contexts | list | open | close | reopen | delete | label | best-by | text.']]
+      ['context' [%string 'the store (loop context) to act in, e.g. "urbit". Required for every command except contexts.']]
+      ['status' [%string 'list only: which loops to show. One of: open | closed | all (default: open).']]
+      ['text' [%string 'the loop text. Used by open and text.']]
+      ['id' [%number 'the loop id. Used by close, reopen, delete, label, best-by, text.']]
       ['labels' [%string 'Comma-separated labels (open)']]
       ['add' [%string 'Comma-separated labels to add (label)']]
       ['del' [%string 'Comma-separated labels to remove (label)']]

@@ -116,8 +116,8 @@
   ==
 ++  parameters
   ^-  (map @t parameter-def:tools)
-  %-  malt
-  :~  ['count' [%string 'Number of blocks to scan back from tip (default 30)']]
+  %-  ~(gas by *(map @t parameter-def:tools))
+  :~  ['count' [%number 'number of blocks to scan back from the tip. (default: 30)']]
       ['url' [%string 'Override RPC url. Optional.']]
       ['auth' [%string 'Override RPC auth header. Optional.']]
   ==
@@ -128,7 +128,7 @@
   ^-  form:m
   ;<  st=tool-state:tools  bind:m  (get-state-as:io ,tool-state:tools)
   =/  arg-count=(unit @t)
-    (~(deg jo:json-utils [%o args.st]) /count so:dejs:format)
+    (~(deg jo:json-utils [%o args.st]) /count so-loose:tools)
   =/  arg-url=(unit @t)
     (~(deg jo:json-utils [%o args.st]) /url so:dejs:format)
   =/  arg-auth=(unit @t)

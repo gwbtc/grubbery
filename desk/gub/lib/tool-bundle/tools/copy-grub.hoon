@@ -12,7 +12,7 @@
   :~  ['src_path' [%string 'Source directory (e.g. "/code/lib/nex")']]
       ['src_name' [%string 'Source filename (e.g. "tools.hoon")']]
       ['dst_path' [%string 'Destination directory (e.g. "/claw.claw_app/agents/testing/apps/code/lib/nex")']]
-      ['dst_name' [%string 'Destination filename (defaults to src_name if omitted)']]
+      ['dst_name' [%string 'destination filename. (default: the source filename)']]
   ==
 ++  required  ~['src_path' 'src_name' 'dst_path']
 ++  handler
