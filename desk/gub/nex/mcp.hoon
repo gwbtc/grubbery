@@ -77,7 +77,7 @@
       ==
     ::  +gather-tools-tree: the tools of ONE tools nexus, named by its
     ::  absolute path, as a location tree. The page is a viewer for any
-    ::  tools nexus: /grubbery/mcp/<path> shows the one at <path>; no
+    ::  tools nexus: /grubbery/tools/<path> shows the one at <path>; no
     ::  registry, no scanning, the URL is the address. Our own /tools is
     ::  read by delegation (only the child reads its own /code); any
     ::  other by peeking <path>/code/lib/tools directly.
@@ -377,8 +377,8 @@
     :~  title+s+'Tools'
         info+s+'tool registry & runs'
         color+s+'#232630'
-        image+s+'/grubbery/mcp/icon.svg'
-        href+s+'/grubbery/mcp'
+        image+s+'/grubbery/tools/icon.svg'
+        href+s+'/grubbery/tools'
     ==
   ::  the kit components the page uses, welded into one served file
   =/  wrap  |=(=mime ^-(@ (rap 3 ~[123 10 q.q.mime 10 125 10])))
@@ -414,7 +414,7 @@
   ?+    rail  stay:m
       [~ %'main.sig']
     ;<  ~  bind:m  (rise-wait:io prod "%mcp /main: failed")
-    ;<  ~  bind:m  (bind-http-self:io [~ /grubbery/mcp])
+    ;<  ~  bind:m  (bind-http-self:io [~ /grubbery/tools])
     (http-dispatch:io %mcp)
       ::  /requests/{eyre-id}: parse HTTP, dispatch
       ::
@@ -430,7 +430,7 @@
     ::  JSON-RPC protocol path below, unchanged.
     =/  [site=path qargs=quay:eyre]  (parse-url:http-utils url.request.req)
     =/  suffix=path
-      %+  skip  (slag (lent `path`/grubbery/mcp) site)
+      %+  skip  (slag (lent `path`/grubbery/tools) site)
       |=(seg=@ta =('' seg))
     ?:  =('GET' method.request.req)
       ::  MCP Streamable HTTP: a GET that asks for an event stream is a

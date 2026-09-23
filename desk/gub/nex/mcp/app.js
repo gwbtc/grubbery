@@ -2,18 +2,18 @@
 // the page is a plain JSON-RPC tools/call to the endpoint — the same
 // request every MCP client makes.
 // The page is a viewer for ONE tools nexus, the one its URL names:
-// /grubbery/mcp                 this endpoint's own tools
-// /grubbery/mcp/apps/nostr/tools   the nostr app's
+// /grubbery/tools                 this endpoint's own tools
+// /grubbery/tools/apps/nostr/tools   the nostr app's
 // Every data route takes ?path=; no registry, no scanning.
-//   GET  /grubbery/mcp/api/tools-tree?path=  {path, own, dirs, tools}
-//   GET  /grubbery/mcp/api/runs?path=        [{id, tool, step, args, result}]
-//   GET  /grubbery/mcp/api/src?path=&tool=   {path, text}
-//   POST /grubbery/mcp                       JSON-RPC
+//   GET  /grubbery/tools/api/tools-tree?path=  {path, own, dirs, tools}
+//   GET  /grubbery/tools/api/runs?path=        [{id, tool, step, args, result}]
+//   GET  /grubbery/tools/api/src?path=&tool=   {path, text}
+//   POST /grubbery/tools                       JSON-RPC
 'use strict';
 const $ = (id) => document.getElementById(id);
-const BASE = '/grubbery/mcp';
+const BASE = '/grubbery/tools';
 // the tools nexus this page is about: the URL suffix, or none for our own
-const AT = (() => { const s = location.pathname.replace(/^\/grubbery\/mcp\/?/, '').replace(/\/$/, ''); return s ? '/' + s : ''; })();
+const AT = (() => { const s = location.pathname.replace(/^\/grubbery\/tools\/?/, '').replace(/\/$/, ''); return s ? '/' + s : ''; })();
 const Q = AT ? '?path=' + encodeURIComponent(AT) : '';
 const jget = async (u) => { const r = await fetch(BASE + u + (u.includes('?') ? (AT ? '&path=' + encodeURIComponent(AT) : '') : Q)); if (!r.ok) throw new Error(u + ': ' + r.status + ' ' + await r.text()); return r.json(); };
 
