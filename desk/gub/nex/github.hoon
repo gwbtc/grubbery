@@ -22,6 +22,7 @@
 /<  ui-js    github/app.js
 /<  ui-css   github/style.css
 /<  ui-icon  github/icon.svg
+/<  nw       /lib/nexus-web.hoon
 =<  ^-  nexus:nexus
     |%
     ++  on-load
@@ -425,24 +426,6 @@
   ;<  res=[code=@ud =octs]  bind:m  (fetch request)
   (pure:m (fall (de:json:html q.octs.res) *json))
 ::
-++  jget
-  |=  [jon=json k=@t]
-  ^-  @t
-  ?.  ?=(%o -.jon)  ''
-  =/  v  (~(get by p.jon) k)
-  ?.(?=([~ %s *] v) '' p.u.v)
-++  jnum
-  |=  [jon=json k=@t d=@ud]
-  ^-  @ud
-  ?.  ?=(%o -.jon)  d
-  =/  v  (~(get by p.jon) k)
-  ?.  ?=([~ %n *] v)  d
-  (fall (rush p.u.v dem) d)
-::
-::  +read-config: api base + the connected accounts (login -> token).
-::  A legacy top-level 'token' folds in under login '' so old configs
-::  keep working until the next connect rewrites them properly.
-::
 ++  read-config
   =/  m  (fiber:fiber:nexus ,[api=@t accounts=(map @t @t)])
   ^-  form:m
@@ -484,7 +467,16 @@
       ['Content-Type' 'application/json']
   ==
 ::
-++  srv  ~(. http-res:io [%| 1 %& ~ %'web.sig'])
+++  web  ~(. web:nw [%| 1 %& ~ %'web.sig'])
+++  reply         reply:web
+++  send-json     send-json:web
+++  serve-static  serve-static:web
+++  jget          jget:nw
+++  jnum          jnum:nw
+++  post-json     post-json:nw
+++  count-files   count-files:nw
+++  file-entries  file-entries:nw
+++  call-status   call-status:nw
 ::  +serve: the introspection UI. Static shell + api:
 ::    GET  /api/status          {tokenSet, api, calls, xfers}
 ::    GET  /api/activity        recent calls + xfers, summarized
@@ -646,22 +638,6 @@
     $(culls t.culls)
   ==
 ::
-++  serve-static
-  |=  [eyre-id=@ta suffix=path]
-  =/  m  (fiber:fiber:nexus ,~)
-  ^-  form:m
-  =/  filename=@ta  ?~(suffix 'index.html' i.suffix)
-  ;<  v=view:nexus  bind:m  (peek:io [%| 1 %& ~ filename] `[/ %mime])
-  ?.  ?=([%file *] v)  (reply eyre-id 404 'Not found')
-  =/  =mime  !<(mime (need-vase:tarball sang.v))
-  (send-simple:srv eyre-id (mime-response:http-utils mime))
-::
-::  +append-activity: record one finished call/xfer into the durable
-::  activity.json log (newest-first, capped at 200). This is the source
-::  of truth for the activity view — independent of whether the caller
-::  culls its ephemeral /calls or /xfer grub, so every call shows up
-::  exactly once, in time order.
-::
 ++  append-activity
   |=  entry=json
   =/  m  (fiber:fiber:nexus ,~)
@@ -677,27 +653,6 @@
     (pairs:enjs:format ~[['entries' [%a (scag 200 `(list json)`[entry old])]]])
   (over:io road [[/ %json] new])
 ::
-++  count-files
-  |=  =view:nexus
-  ^-  @ud
-  ?.  ?=([%ball *] view)  0
-  ?~  fil.ball.view  0
-  ~(wyt by contents.u.fil.ball.view)
-++  file-entries
-  |=  =view:nexus
-  ^-  (list [@ta sang:tarball])
-  ?.  ?=([%ball *] view)  ~
-  ?~  fil.ball.view  ~
-  %+  turn  ~(tap by contents.u.fil.ball.view)
-  |=  [nam=@ta ent=[=sang:tarball *]]
-  [nam sang.ent]
-++  call-status
-  |=  =sang:tarball
-  ^-  @t
-  =/  jon=(unit json)  (mole |.(;;(json (sang-noun:tarball sang))))
-  ?~  jon  ''
-  ?.  ?=(%o -.u.jon)  ''
-  (fall (bind (~(get by p.u.jon) 'status') |=(=json ?>(?=(%s -.json) p.json))) '')
 ++  xfer-status
   |=  =sang:tarball
   ^-  @tas
@@ -743,20 +698,6 @@
   :~  ['id' s+nam]
       ['status' s+(xfer-status sang)]
   ==
-++  post-json
-  |=  req=inbound-request:eyre
-  ^-  (unit json)
-  ?.  =(%'POST' method.request.req)  ~
-  ?~  body.request.req  ~
-  (de:json:html q.u.body.request.req)
-++  reply
-  |=  [eyre-id=@ta code=@ud msg=@t]
-  (send-simple:srv eyre-id [[code ~] `(as-octs:mimes:html msg)])
-++  send-json
-  |=  [eyre-id=@ta jon=json]
-  =/  bod=octs  (as-octs:mimes:html (en:json:html jon))
-  (send-simple:srv eyre-id [[200 ['content-type' 'application/json'] ~] `bod])
-::
 ++  parse-method
   |=  m=@t
   ^-  method:http

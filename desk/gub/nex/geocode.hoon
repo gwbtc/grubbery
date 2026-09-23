@@ -21,6 +21,7 @@
 /&  ui-js     geocode/app.js
 /&  ui-css    geocode/style.css
 /&  ui-icon   geocode/icon.svg
+/<  nw       /lib/nexus-web.hoon
 =<  ^-  nexus:nexus
     |%
     ++  on-load
@@ -94,6 +95,10 @@
     --
 |%
 ++  srv  ~(. http-res:io [%| 1 %& ~ %'web.sig'])
+++  web  ~(. web:nw [%| 1 %& ~ %'web.sig'])
+++  reply         reply:web
+++  send-json     send-json:web
+++  count-files   count-files:nw
 ::  +serve: the dashboard. Static shell + api:
 ::    GET /api/info                       {config, cache, calls}
 ::    GET /api/test?kind=&q=&lat=&lon=... one lookup, straight through
@@ -173,23 +178,6 @@
   =/  =mime  !<(mime (need-vase:tarball sang.v))
   (send-simple:srv eyre-id (mime-response:http-utils mime))
 ::
-++  reply
-  |=  [eyre-id=@ta code=@ud msg=@t]
-  (send-simple:srv eyre-id [[code ~] `(as-octs:mimes:html msg)])
-::
-++  send-json
-  |=  [eyre-id=@ta jon=json]
-  =/  bod=octs  (as-octs:mimes:html (en:json:html jon))
-  (send-simple:srv eyre-id [[200 ['content-type' 'application/json'] ~] `bod])
-::
-++  count-files
-  |=  =view:nexus
-  ^-  @ud
-  ?.  ?=([%ball *] view)  0
-  ?~  fil.ball.view  0
-  ~(wyt by contents.u.fil.ball.view)
-::  +read-config-at: config from an arbitrary fiber's rail (the main
-::  loop and request fibers sit at different depths).
 ++  read-config-at
   |=  =rail:tarball
   =/  m  (fiber:fiber:nexus ,json)
