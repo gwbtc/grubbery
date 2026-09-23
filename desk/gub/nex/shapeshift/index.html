@@ -1,0 +1,63 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Shapeshift</title>
+<link rel="icon" type="image/svg+xml" href="/grubbery/shapeshift/icon.svg">
+<link rel="stylesheet" href="/grubbery/shapeshift/style.css">
+</head>
+<body>
+<header>
+  <img id="brand-icon" src="/grubbery/shapeshift/icon.svg" alt="">
+  <h1>Shapeshift</h1>
+  <span class="muted">an input that becomes what you mean</span>
+  <span id="hud" class="hud"></span>
+  <button id="model-toggle" class="small" title="toggle the model call; the keyword classifier always runs">model</button>
+  <button id="inspect-toggle" class="small" title="offline vs model answers, raw replies, the trace log, the question schema">inspect</button>
+</header>
+<split-view id="split" orientation="horizontal" primary="end" size="460" min="320" max="820" persist="ss-inspect" collapsed no-rail>
+  <div slot="start" id="page">
+    <main>
+      <div id="shell" data-state="input">
+        <div class="input-row">
+          <input id="input" type="text" autocomplete="off" spellcheck="false" placeholder="Type anything…">
+          <button id="save" class="primary" disabled>Save</button>
+        </div>
+        <div id="model-error" class="model-error" hidden>
+          <span class="model-error-icon">⚠</span>
+          <span id="model-error-text"></span>
+          <button id="model-retry" class="small">Retry from scratch</button>
+        </div>
+        <div id="chips" class="chips" hidden></div>
+        <div id="palette" class="palette" hidden></div>
+        <div id="stage"></div>
+        <div id="hints" class="hints"></div>
+      </div>
+      <div id="saved-head" class="saved-head" hidden><h2>Saved</h2></div>
+      <div id="saved" class="saved"></div>
+    </main>
+    <footer class="muted">Enter saves · Esc clears · Tab keeps a faint preview · ← → picks a chip · / opens every card · ⌘/ toggles examples · model <span id="model-name" class="mono"></span></footer>
+  </div>
+  <aside slot="end" id="inspector">
+    <div class="insp-head">
+      <div id="insp-tabs">
+        <button data-tab="live" class="active">Live</button>
+        <button data-tab="model">Model</button>
+        <button data-tab="trace">Trace</button>
+        <button data-tab="questions">Questions</button>
+      </div>
+      <button id="insp-close" class="small">✕</button>
+    </div>
+    <div id="insp-body"></div>
+  </aside>
+</split-view>
+<script type="module" src="/grubbery/shapeshift/ui/split-view.js"></script>
+<script src="/grubbery/shapeshift/chrono.js"></script>
+<script src="/grubbery/shapeshift/parse.js"></script>
+<script src="/grubbery/shapeshift/classify.js"></script>
+<script src="/grubbery/shapeshift/decide.js"></script>
+<script src="/grubbery/shapeshift/cards.js"></script>
+<script src="/grubbery/shapeshift/app.js"></script>
+</body>
+</html>

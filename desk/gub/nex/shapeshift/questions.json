@@ -1,0 +1,104 @@
+{
+  "intent": {
+    "type": "choice",
+    "instructions": "What is the person trying to create with this text",
+    "criteria": {
+      "event": "Scheduling a meeting, meal, call or gathering at a time, usually with other people",
+      "reminder": "Asking to be reminded to do a single task themselves, e.g. 'remind me to…'",
+      "todo": "Listing several separate things to do or buy",
+      "timer": "Starting a timer, countdown, focus session or stopwatch for a duration",
+      "habit": "Something they want to do repeatedly as a routine, e.g. daily or weekly",
+      "color": "Referring to a color: a hex code, rgb value, or a described color",
+      "split": "Dividing an amount of money between several people",
+      "expense": "Recording money they spent on something",
+      "convert": "Converting a value from one unit of measurement to another",
+      "calc": "A math calculation or percentage that is not splitting money or converting units",
+      "travel": "Planning a trip, flight, train or stay to a destination",
+      "poll": "Asking a group to choose between options",
+      "contact": "Saving a person's name with a phone number or email address",
+      "link": "Saving a web link or URL, optionally with a note",
+      "countdown": "Counting the days until a future date, holiday or event",
+      "timezone": "Converting a time of day between time zones or cities, or asking the time somewhere",
+      "random": "Asking for a random result: rolling dice, flipping a coin, a random number or letting chance pick",
+      "goal": "Tracking progress toward a numeric target, such as 4 of 12 books read or money saved",
+      "note": "Writing a thought, idea or note that is none of the above",
+      "none": "Too short, unclear or unfinished to tell yet"
+    }
+  },
+  "readiness": {
+    "type": "score",
+    "instructions": "How complete is this input for what the person is creating",
+    "criteria": ["Just started, key details missing", "Partially specified, some details present", "Fully specified, ready to act on"]
+  },
+  "isQuestion": { "type": "noul", "instructions": "The text is a question rather than an instruction or statement" },
+  "recurring": { "type": "noul", "instructions": "The text describes something that repeats on a schedule" },
+  "urgency": {
+    "type": "score",
+    "instructions": "How urgent or time-sensitive the text sounds",
+    "criteria": ["Not urgent at all", "Somewhat time-sensitive", "Urgent, needs attention immediately"]
+  },
+  "tone": {
+    "type": "choice",
+    "instructions": "The emotional tone of the text",
+    "criteria": {
+      "neutral": "Plain and factual, no clear emotion",
+      "positive": "Happy, grateful or content",
+      "excited": "Enthusiastic or looking forward to something",
+      "stressed": "Worried, frustrated or under pressure",
+      "reflective": "Thoughtful, calm or introspective"
+    }
+  },
+  "eventMode": {
+    "type": "choice",
+    "instructions": "How the gathering or meeting would take place",
+    "criteria": {
+      "in_person": "Meeting physically at a place",
+      "video_call": "A video call such as Zoom, Meet or FaceTime",
+      "phone_call": "A phone call",
+      "unspecified": "Not mentioned or not a meeting"
+    }
+  },
+  "transport": {
+    "type": "choice",
+    "instructions": "How the person would travel",
+    "criteria": { "flight": "By plane", "train": "By train", "bus": "By bus", "car": "By car or road trip", "unspecified": "Not mentioned or not about travel" }
+  },
+  "tripType": {
+    "type": "choice",
+    "instructions": "The purpose of the trip",
+    "criteria": { "work": "Work or business travel", "leisure": "Holiday, vacation or personal visit", "unspecified": "Not mentioned or not about travel" }
+  },
+  "expenseCategory": {
+    "type": "choice",
+    "instructions": "What the money was spent on",
+    "criteria": {
+      "food": "Food, groceries, restaurants or drinks",
+      "transport": "Cabs, fuel, tickets or commuting",
+      "shopping": "Clothes, gadgets or other purchases",
+      "bills": "Rent, utilities, subscriptions or recharges",
+      "entertainment": "Movies, events, games or outings",
+      "health": "Medicine, doctor or fitness",
+      "other": "Something else or not about spending"
+    }
+  },
+  "colorMood": {
+    "type": "choice",
+    "instructions": "The feel of the color described",
+    "criteria": { "warm": "Reds, oranges, yellows", "cool": "Blues, greens, purples", "neutral": "Greys, beiges, off-whites", "vivid": "Very bright and saturated", "pastel": "Soft and light", "dark": "Deep and dark" }
+  },
+  "timerKind": {
+    "type": "choice",
+    "instructions": "What kind of timer is wanted",
+    "criteria": { "countdown": "A plain countdown for a duration", "focus": "A focus or deep-work session", "break": "A rest or break", "stopwatch": "Counting up with no end time" }
+  },
+  "hasExplicitOptions": { "type": "noul", "instructions": "The text names two or more explicit options to pick between" },
+  "isShoppingList": { "type": "noul", "instructions": "The listed items are things to buy" },
+  "fromZone": {
+    "type": "text",
+    "instructions": "If the text converts a time between places or zones, the IANA time zone name (like America/New_York) of the SOURCE: the zone a stated clock time belongs to, or the place the person is asking from. Empty string if none is named or this is not about time zones."
+  },
+  "toZone": {
+    "type": "text",
+    "instructions": "If the text asks what time it is somewhere or converts a time TO a place or zone, the IANA time zone name (like Asia/Tokyo) of that destination. Empty string if none or not about time zones."
+  }
+}
