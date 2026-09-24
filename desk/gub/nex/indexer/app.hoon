@@ -14,6 +14,10 @@
 ::
 /<  btc      /lib/sur/bitcoin.hoon
 /<  btc-rpc  /lib/btc-rpc.hoon
+::  the MCP tools that read and drive this nexus (its own bundle, its
+::  own tools-nexus instance at /tools — the nostr pattern)
+/<  nex-tools  /lib/tools.hoon
+/&  bundle   /lib/indexer-bundle/
 /&  man  ../../man/indexer/app/readme.md
 =,  btc
 =<  ^-  nexus:nexus
@@ -34,6 +38,7 @@
           [%over %& [/ %'poller.sig'] [[/ %sig] ~]]
           [%fall %| /blocks empty-dir:loader]
           [%over %& [/man %'readme.md'] [[/ %mime] man]]
+          [%over %| /tools (seed-tools:nex-tools bundle)]
       ==
     ::
     ++  on-file

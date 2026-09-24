@@ -1,0 +1,120 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>S3</title>
+<link rel="icon" type="image/svg+xml" href="/grubbery/s3/icon.svg">
+<link rel="stylesheet" href="/grubbery/s3/style.css">
+</head>
+<body>
+<header>
+  <img id="brand-icon" src="/grubbery/s3/icon.svg" alt="">
+  <h1>S3</h1>
+  <button id="info" class="icon plain" title="about this nexus">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+  </button>
+  <span id="status"></span>
+</header>
+<main>
+  <section class="panel">
+    <div class="panel-head">
+      <h2>Buckets</h2>
+      <button id="bucket-new" class="small primary">Add bucket</button>
+    </div>
+    <p class="muted hint">Remote object storage this ship can reach. Explore opens a live view of what's in the bucket.</p>
+    <table>
+      <thead><tr><th>Name</th><th>Bucket</th><th>Endpoint</th><th>Region</th><th class="r"></th></tr></thead>
+      <tbody id="bucket-rows"></tbody>
+    </table>
+  </section>
+  <section class="panel">
+    <div class="panel-head">
+      <h2>Mounts</h2>
+    </div>
+    <p class="muted hint">A mount is a path of a bucket mirrored into the namespace at <code class="mono">/apps/s3/mounts/&lt;bucket&gt;/&lt;path&gt;</code>: a folder, a single file, or the whole bucket. Pull downloads it; Push uploads it back; Open browses the local copy.</p>
+    <table>
+      <thead><tr><th>Bucket</th><th>Path</th><th class="r">Files</th><th class="r"></th></tr></thead>
+      <tbody id="mount-rows"></tbody>
+    </table>
+    <div class="row add-row">
+      <select id="mount-bucket" title="bucket"></select>
+      <input id="mount-path" list="prefix-list" type="text" placeholder="path in the bucket: photos/ or notes/todo.txt (blank = whole bucket)" class="mono grow">
+      <datalist id="prefix-list"></datalist>
+      <button id="mount-add" class="small">Mount</button>
+    </div>
+  </section>
+  <section class="panel grow">
+    <div class="panel-head">
+      <h2>Recent activity</h2>
+      <div class="row">
+        <button id="sweep" class="small" title="cull finished call grubs">Sweep</button>
+      </div>
+    </div>
+    <div id="act-scroll">
+      <table>
+        <thead><tr><th>Time</th><th>Caller</th><th>Op</th><th>Target</th><th class="r">Result</th></tr></thead>
+        <tbody id="act-rows"></tbody>
+      </table>
+    </div>
+  </section>
+</main>
+
+<!-- the explorer: one surface over either a remote bucket (live listing
+     from the provider) or a local mount (the namespace directory). The tag
+     in the header says which. Click a folder to enter it, a file to view
+     it in place; the crumbs take you back. -->
+<modal-dialog id="explorer" class="explorer">
+  <div class="ex-head">
+    <span class="ex-kind" id="ex-kind"></span>
+    <span class="ex-title mono" id="ex-title"></span>
+    <span class="ex-sub muted" id="ex-sub"></span>
+  </div>
+  <div class="ex-bar">
+    <span class="ex-crumbs mono" id="ex-crumbs"></span>
+    <span class="grow"></span>
+    <button id="ex-mount" class="small" hidden>Mount this folder</button>
+    <button id="ex-reload" class="small">Reload</button>
+  </div>
+  <div class="ex-body">
+    <file-table id="ex-table"></file-table>
+    <div class="ex-empty" id="ex-empty" hidden></div>
+    <div id="ex-view" hidden></div>
+  </div>
+  <div class="ex-foot muted">
+    <span id="ex-foot-text"></span>
+    <span class="grow"></span>
+    <span id="ex-status"></span>
+  </div>
+</modal-dialog>
+
+<modal-dialog id="bucket-modal" class="form">
+  <h2 id="bucket-modal-title">Bucket</h2>
+  <p class="muted">Stored in config.json, sent only to the endpoint.</p>
+  <label>name (local label) <input id="cfg-name" type="text" placeholder="photos" class="mono"></label>
+  <label>endpoint <input id="cfg-endpoint" type="text" placeholder="nyc3.digitaloceanspaces.com" class="mono"></label>
+  <label>region <input id="cfg-region" type="text" placeholder="nyc3" class="mono"></label>
+  <label>bucket <input id="cfg-bucket" type="text" placeholder="my-bucket" class="mono"></label>
+  <label>access key <input id="cfg-access" type="text" class="mono"></label>
+  <label>secret key
+    <div class="row">
+      <input id="cfg-secret" type="password" class="mono grow">
+      <button id="secret-toggle" class="icon plain" title="show secret" type="button">
+        <svg id="eye-open" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+        <svg id="eye-shut" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" hidden><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><path d="M14.12 14.12A3 3 0 1 1 9.88 9.88"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+      </button>
+    </div>
+  </label>
+  <div class="row end"><button data-close>Cancel</button><button id="cfg-save" class="primary">Save</button></div>
+</modal-dialog>
+
+<modal-dialog id="info-modal" class="form">
+  <h2>About this nexus</h2>
+  <p>This nexus is the ship's one door to S3-compatible buckets. Apps that use it never hold the credentials or reach the internet; they poke a call and read the result, and every operation is logged to its caller. A bucket meets the namespace through mounts: a named folder mirrored as a directory, pulled from the bucket and pushed back to it.</p>
+</modal-dialog>
+
+<script type="module" src="/grubbery/s3/components.js"></script>
+<script src="/grubbery/s3/file-preview.js"></script>
+<script src="/grubbery/s3/app.js"></script>
+</body>
+</html>

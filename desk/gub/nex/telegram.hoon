@@ -4,6 +4,10 @@
 ::    UI at /ui/manage.html for adding/deleting bots.
 ::
 /&  man  ../man/telegram/readme.md
+::  the MCP tools that drive this nexus (its own bundle, its own
+::  tools-nexus instance at /tools — the nostr pattern)
+/<  nex-tools  /lib/tools.hoon
+/&  bundle   /lib/telegram-bundle/
 =<  ^-  nexus:nexus
     |%
     ++  on-load
@@ -17,6 +21,7 @@
           [%over %& [/ui %'manage.html'] [[/ %html] (crip (en-xml:html (manage-page ~)))]]
           [%fall %| /bots empty-dir:loader]
           [%over %& [/ %'README.md'] [[/ %mime] man]]
+          [%over %| /tools (seed-tools:nex-tools bundle)]
       ==
     ::
     ++  on-file
@@ -114,6 +119,7 @@
   :~  :-  'poke'
       :-  %a
       :~  (line '/sys/bowl.sig' 'get entropy and our ship — nonce / get-our')
+          (line '/sys/iris/' 'the send_telegram tool posts to the Telegram bot API')
       ==
   ==
 ::

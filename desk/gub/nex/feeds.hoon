@@ -10,6 +10,10 @@
 ::    /requests/{id}    HTTP request fibers
 ::
 /<  rss  /lib/rss.hoon
+::  the MCP tools that read and drive this nexus (its own bundle, its
+::  own tools-nexus instance at /tools — the nostr pattern)
+/<  nex-tools  /lib/tools.hoon
+/&  bundle   /lib/feeds-bundle/
 /<  parser-wasm  feeds/rss-parser.wasm
 /<  index-html   feeds/index.html
 /<  feeds-js     feeds/feeds.js
@@ -41,6 +45,7 @@
           [%fall %& [/ %'refresh.sig'] [[/ %sig] ~]]
           [%fall %| /store empty-dir:loader]
           [%fall %| /requests empty-dir:loader]
+          [%over %| /tools (seed-tools:nex-tools bundle)]
       ==
     ::
     ++  on-file

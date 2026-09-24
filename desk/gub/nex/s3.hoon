@@ -1,36 +1,88 @@
-::  s3: S3-compatible object storage nexus
+::  s3: the ship's door to S3-compatible buckets, in the openrouter/
+::  github proxy shape. Every operation is a call grub with its caller
+::  recorded; the namespace surface is /mounts, where prefixes of the
+::  buckets are mirrored as directories.
 ::
-::  config.json  -- access-key, secret-key, region, bucket, endpoint
-::  mounts.json  -- {name: prefix, ...} mapping
-::  main.json    -- poke {op, ...} to run operations, result written here
-::  mounts/      -- each subdirectory is a mount, populated by refresh
-::  page.html    -- control panel UI
+::    config.json   -- {buckets: {name: {access-key, secret-key, region,
+::                     bucket, endpoint}}}; name is the local label
+::    mounts.json   -- {bucket: [path, ...]}: the mirrored paths. A path is
+::                     a folder ('a/b/', '' = whole bucket) or one key
+::    mounts/<b>/<path> -- the local mirror; pulls land here, pushes read
+::                     from here
+::    activity.json -- caller-attributed op log
+::    main.sig      -- poke {id, body: {op, ...}} to create a call
+::    calls/        -- per-op lifecycle grubs (consumer culls)
+::    tools/        -- this nexus's MCP tools (its own bundle, its own
+::                     tools-nexus instance)
 ::
-/<  *  /lib/s3.hoon
-/&  man  ../man/s3/readme.md
+::  ops (the body of a call), every one naming a bucket:
+::    list    {bucket, prefix?}  -> {keys, count}
+::    delete  {bucket, key}      -> {key, ok, code}
+::    pull    {bucket, path}     -> {pulled, failed}  path inside a mount
+::    push    {bucket, path}     -> {pushed, failed}  path inside a mount
+::
+/<  s3l      /lib/s3.hoon
+/<  nw       /lib/nexus-web.hoon
+/<  nex-tools  /lib/tools.hoon
+/&  bundle   /lib/s3-bundle/
+/&  man      ../man/s3/readme.md
+/<  ui-html  s3/index.html
+/<  ui-js    s3/app.js
+/<  ui-css   s3/style.css
+/<  ui-icon  s3/icon.svg
+::  shared web components from /lib/ui: the kit (module) plus the
+::  classic file-preview script the explorer's viewer uses
+/&  md-js    /lib/ui/modal-dialog.js
+/&  ft-js    /lib/ui/file-table.js
+/&  dm-js    /lib/ui/drop-menu.js
+/&  fp-js    /lib/ui/file-preview.js
 =<  ^-  nexus:nexus
     |%
     ++  on-load
       |=  =ball:tarball
       ^-  bole:tarball
-      =/  default-config=json
+      ::  weld the component modules into one served file, each wrapped
+      ::  in { } so top-level consts don't collide
+      =/  wrap
+        |=  =mime  ^-  @
+        (rap 3 ~[123 10 q.q.mime 10 125 10])
+      =/  kit-js=mime
+        :-  /application/javascript
+        %-  as-octs:mimes:html
+        (rap 3 ~[(wrap md-js) (wrap ft-js) (wrap dm-js)])
+      =/  tile=json
         %-  pairs:enjs:format
-        :~  ['access-key' s+'']
-            ['secret-key' s+'']
-            ['region' s+'us-east-1']
-            ['bucket' s+'']
-            ['endpoint' s+'']
+        :~  title+s+'S3'
+            info+s+'Buckets, mirrored into the namespace'
+            color+s+'#e07a2f'
+            image+s+'/grubbery/tiles/icon/s3'
+            href+s+'/grubbery/s3'
         ==
+      =/  default-config=json
+        (pairs:enjs:format ~[['buckets' [%o ~]]])
+      =/  default-activity=json
+        (pairs:enjs:format ~[['requests' (numb:enjs:format 0)] ['log' [%a ~]]])
       %+  spin:loader  ball
       :~  (manifest:loader 0)
-          [%over %& [/ %'link.json'] [[/ %json] (pairs:enjs:format ~[['name' s+'s3'] ['description' s+'S3-compatible object storage']])]]
-          [%over %& [/ %'weir.json'] [[/ %json] (pairs:enjs:format ~[['poke' a+~[(pairs:enjs:format ~[['road' s+'/sys/bowl.sig'] ['why' s+'time, identity, entropy — every fiber op']]) (pairs:enjs:format ~[['road' s+'/sys/iris/'] ['why' s+'talk to the S3 API over HTTP']])]]])]]
-          [%fall %& [/ %'main.json'] [[/ %json] (pairs:enjs:format ~[['status' s+'idle']])]]
+          [%over %& [/ %'link.json'] [[/ %json] (pairs:enjs:format ~[['name' s+'s3'] ['description' s+'Local structured proxy for S3-compatible object storage']])]]
+          [%over %& [/ %'weir.json'] [[/ %json] weir-json]]
+          [%over %& [/ %'tile.json'] [[/ %json] tile]]
+          [%over %& [/ %'icon.svg'] [[/ %mime] ui-icon]]
+          [%over %& [/ %'index.html'] [[/ %mime] ui-html]]
+          [%over %& [/ %'app.js'] [[/ %mime] ui-js]]
+          [%over %& [/ %'style.css'] [[/ %mime] ui-css]]
+          [%over %& [/ %'components.js'] [[/ %mime] kit-js]]
+          [%over %& [/ %'file-preview.js'] [[/ %mime] fp-js]]
+          [%over %& [/ %'README.md'] [[/ %mime] man]]
+          [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
+          [%fall %& [/ %'web.sig'] [[/ %sig] ~]]
           [%fall %& [/ %'config.json'] [[/ %json] default-config]]
           [%fall %& [/ %'mounts.json'] [[/ %json] [%o ~]]]
+          [%fall %& [/ %'activity.json'] [[/ %json] default-activity]]
           [%fall %| /mounts empty-dir:loader]
-          [%over %& [/ %'page.html'] [[/ %html] (crip (en-xml:html s3-page))]]
-          [%over %& [/ %'README.md'] [[/ %mime] man]]
+          [%fall %| /calls empty-dir:loader]
+          [%fall %| /requests empty-dir:loader]
+          [%over %| /tools (seed-tools:nex-tools bundle)]
       ==
     ::
     ++  on-file
@@ -40,116 +92,23 @@
       =/  m  (fiber:fiber:nexus ,~)
       ^-  process:fiber:nexus
       ?+    rail  stay:m
-          [~ %'main.json']
-        ;<  ~  bind:m  (rise-wait:io prod "%s3: failed")
-        |-
-        ;<  [=from:fiber:nexus =sage:tarball]  bind:m  take-poke-from:io
-        =/  jon=json  (fall (mole |.(!<(json q.sage))) *json)
-        ?.  ?=(%o -.jon)  $
-        =/  op=@t  (get-str jon 'op')
-        ?:  =('' op)  $
-        ::  mark as working
-        ;<  ~  bind:m  (replace:io (pairs:enjs:format ~[['status' s+'working'] ['op' s+op]]))
-        ::  read config
-        ;<  cfg=s3-config  bind:m  read-config
-        ?:  ?&  !=(op 'add-mount')
-                !=(op 'remove-mount')
-                !=(op 'get-mounts')
-                |(=('' access-key.cfg) =('' secret-key.cfg) =('' bucket.cfg) =('' endpoint.cfg))
-            ==
-          ;<  ~  bind:m  (replace:io (pairs:enjs:format ~[['status' s+'error'] ['error' s+'missing S3 credentials']]))
-          $
-        ::  read mounts
-        ;<  mounts=(map @t @t)  bind:m  read-mounts
-        ::  dispatch
-        ;<  ~  bind:m
-          ?+    op
-            (replace:io (pairs:enjs:format ~[['status' s+'error'] ['error' s+(crip "unknown op: {(trip op)}")]]))
-            ::
-              %'get-mounts'
-            =/  entries=(list [@t json])
-              %+  turn  ~(tap by mounts)
-              |=([n=@t p=@t] [n s+p])
-            %-  replace:io
-            %-  pairs:enjs:format
-            :~  ['status' s+'done']
-                ['op' s+'get-mounts']
-                ['mounts' [%o (malt entries)]]
-            ==
-            ::
-              %'add-mount'
-            =/  name=@t  (get-str jon 'name')
-            =/  prefix=@t  (get-str jon 'prefix')
-            ?:  |(=('' name) =('' prefix))
-              (replace:io (pairs:enjs:format ~[['status' s+'error'] ['error' s+'name and prefix required']]))
-            =/  new-mounts=(map @t @t)  (~(put by mounts) name prefix)
-            ;<  ~  bind:m  (write-mounts new-mounts)
-            ::  create mount directory
-            ;<  mount-road=road:tarball  bind:m
-              (ancestor-road:io [/ %s3] [%| /mounts/[name]])
-            ;<  exists=?  bind:m  (peek-exists:io mount-road)
-            ;<  *  bind:m
-              ?.  exists
-                (make-soft:io mount-road &+*bole:tarball)
-              (pure:m ~)
-            %-  replace:io
-            %-  pairs:enjs:format
-            :~  ['status' s+'done']
-                ['op' s+'add-mount']
-                ['name' s+name]
-                ['prefix' s+prefix]
-            ==
-            ::
-              %'remove-mount'
-            =/  name=@t  (get-str jon 'name')
-            ?:  =('' name)
-              (replace:io (pairs:enjs:format ~[['status' s+'error'] ['error' s+'name required']]))
-            =/  new-mounts=(map @t @t)  (~(del by mounts) name)
-            ;<  ~  bind:m  (write-mounts new-mounts)
-            %-  replace:io
-            %-  pairs:enjs:format
-            :~  ['status' s+'done']
-                ['op' s+'remove-mount']
-                ['name' s+name]
-            ==
-            ::
-              %'list-all'
-            (do-list cfg '' '')
-            ::
-              %list
-            =/  name=@t  (get-str jon 'name')
-            =/  prefix=@t  (fall (~(get by mounts) name) '')
-            ?:  =('' prefix)
-              (replace:io (pairs:enjs:format ~[['status' s+'error'] ['error' s+(crip "unknown mount: {(trip name)}")]]))
-            (do-list cfg prefix name)
-            ::
-              %refresh
-            =/  name=@t  (get-str jon 'name')
-            =/  prefix=@t  (fall (~(get by mounts) name) '')
-            ?:  =('' prefix)
-              (replace:io (pairs:enjs:format ~[['status' s+'error'] ['error' s+(crip "unknown mount: {(trip name)}")]]))
-            (do-refresh cfg prefix name)
-            ::
-              %pull
-            =/  name=@t  (get-str jon 'name')
-            =/  key=@t  (get-str jon 'key')
-            =/  prefix=@t  (fall (~(get by mounts) name) '')
-            ?:  =('' prefix)
-              (replace:io (pairs:enjs:format ~[['status' s+'error'] ['error' s+(crip "unknown mount: {(trip name)}")]]))
-            (do-pull cfg key name)
-            ::
-              %delete
-            =/  name=@t  (get-str jon 'name')
-            =/  key=@t  (get-str jon 'key')
-            (do-delete cfg key name)
-          ==
-        $
+          [~ %'main.sig']
+        ;<  ~  bind:m  (rise-wait:io prod "%s3/main: failed")
+        (main-loop rail)
+          [~ %'web.sig']
+        ;<  ~  bind:m  (rise-wait:io prod "%s3/web: failed")
+        ;<  ~  bind:m  (bind-http-self:io [~ /grubbery/s3])
+        (http-dispatch:io %s3)
+          [[%requests ~] @]
+        ;<  ~  bind:m  (rise-wait:io prod "%s3/req: failed")
+        (serve rail name.rail)
+          [[%calls ~] @]
+        ;<  ~  bind:m  (rise-wait:io prod "%s3/call: failed")
+        (run-call rail)
       ==
     --
-::
-::  helpers
-::
 |%
+::  one bucket's credentials
 +$  s3-config
   $:  access-key=@t
       secret-key=@t
@@ -157,63 +116,260 @@
       bucket=@t
       endpoint=@t
   ==
-::
-++  read-config
-  =/  m  (fiber:fiber:nexus ,s3-config)
-  ^-  form:m
-  ;<  cfg-road=road:tarball  bind:m
-    (ancestor-road:io [/ %s3] [%& / %'config.json'])
-  ;<  cfg-view=view:nexus  bind:m  (peek:io cfg-road ~)
-  =/  jon=json
-    ?.  ?=([%file *] cfg-view)  [%o ~]
-    (fall (mole |.(!<(json (need-vase:tarball sang.cfg-view)))) [%o ~])
-  ?.  ?=(%o -.jon)
-    (pure:m *s3-config)
-  %-  pure:m
-  :*  (get-str jon 'access-key')
-      (get-str jon 'secret-key')
-      (get-str jon 'region')
-      (get-str jon 'bucket')
-      (get-str jon 'endpoint')
++$  buckets  (map @t s3-config)
+::  the mirrored paths of each bucket. A path is an S3 prefix ('' for the
+::  whole bucket, 'a/b/' for a folder) or a key ('a/b.txt' for one file);
+::  it lives locally at mounts/<bucket>/<path>.
++$  mounts   (map @t (set @t))
+++  weir-json
+  ^-  json
+  =/  line  |=([r=@t w=@t] `json`(pairs:enjs:format ~[['road' s+r] ['why' s+w]]))
+  %-  pairs:enjs:format
+  :~  :-  'poke'
+      :-  %a
+      :~  (line '/sys/bowl.sig' 'read the current time and our ship')
+          (line '/sys/eyre/' 'bind the UI route and send page responses')
+          (line '/sys/iris/' 'the only nexus that talks to the buckets over HTTP')
+      ==
   ==
+::  +at: a road to a lane of this nexus, from any grub in it
 ::
-++  read-mounts
-  =/  m  (fiber:fiber:nexus ,(map @t @t))
-  ^-  form:m
-  ;<  rd=road:tarball  bind:m
-    (ancestor-road:io [/ %s3] [%& / %'mounts.json'])
-  ;<  =view:nexus  bind:m  (peek:io rd ~)
-  =/  jon=json
-    ?.  ?=([%file *] view)  [%o ~]
-    (fall (mole |.(!<(json (need-vase:tarball sang.view)))) [%o ~])
-  ?.  ?=(%o -.jon)
-    (pure:m *(map @t @t))
-  %-  pure:m
-  %-  ~(gas by *(map @t @t))
-  %+  murn  ~(tap by p.jon)
-  |=  [k=@t v=json]
-  ?.  ?=(%s -.v)  ~
-  `[k p.v]
+++  at
+  |=  [=rail:tarball =lane:tarball]
+  ^-  road:tarball
+  (nex-road:io rail lane)
+::  +main-loop: accept {id, body} pokes and create call grubs, with
+::  the poke source recorded as the caller
 ::
-++  write-mounts
-  |=  mounts=(map @t @t)
+++  main-loop
+  |=  =rail:tarball
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
-  =/  entries=(list [@t json])
-    %+  turn  ~(tap by mounts)
-    |=([n=@t p=@t] [n s+p])
-  ;<  rd=road:tarball  bind:m
-    (ancestor-road:io [/ %s3] [%& / %'mounts.json'])
-  (over:io rd [[/ %json] [%o (malt entries)]])
+  ;<  loc=here:nexus  bind:m  get-here:io
+  |-
+  ;<  [=from:fiber:nexus =sage:tarball]  bind:m  take-poke-from:io
+  =/  jon=json  (fall (mole |.(!<(json q.sage))) *json)
+  ?.  ?=([%o *] jon)  $
+  =/  id=@t  (jget jon 'id')
+  =/  body=(unit json)  (~(get by p.jon) 'body')
+  ?:  |(=('' id) ?=(~ body))
+    ~&  >>>  "%s3: poke missing id or body"
+    $
+  =/  caller=@t  (caller-path loc from)
+  =/  call-road=road:tarball  (at rail [%& /calls (crip "{(trip id)}.json")])
+  =/  content=json
+    %-  pairs:enjs:format
+    :~  ['status' s+'pending']
+        ['request' u.body]
+        ['from' s+caller]
+    ==
+  ;<  ~  bind:m  (make:io call-road |+[[[/ %json] content] ~])
+  ;<  ~  bind:m  (gain:io call-road %.y)
+  $
+::  +run-call: execute one op. The response always lands as
+::  {status: done, response}; a failure is response.error.
 ::
-++  get-str
-  |=  [jon=json key=@t]
-  ^-  @t
-  ?.  ?=(%o -.jon)  ''
-  =/  val=(unit json)  (~(get by p.jon) key)
-  ?~  val  ''
-  ?.  ?=(%s -.u.val)  ''
-  p.u.val
+++  run-call
+  |=  =rail:tarball
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  ;<  own=json  bind:m  (get-state-as:io ,json)
+  ?.  ?=([%o *] own)  stay:m
+  ?.  =('pending' (jget own 'status'))  stay:m
+  =/  request=(unit json)  (~(get by p.own) 'request')
+  =/  caller=@t  (jget own 'from')
+  ?~  request  stay:m
+  ;<  resp=json  bind:m  (run-op rail u.request)
+  ;<  ~  bind:m  (log-activity rail u.request resp caller)
+  ;<  ~  bind:m
+    (replace:io (pairs:enjs:format ~[['status' s+'done'] ['response' resp]]))
+  stay:m
+::
+++  err
+  |=  t=@t
+  ^-  json
+  (pairs:enjs:format ~[['error' s+t]])
+::  +is-dir: a path names a folder (or the whole bucket)
+::
+++  is-dir
+  |=  p=@t
+  ^-  ?
+  ?:  =('' p)  %.y
+  =('/' (rear (trip p)))
+::  +covered: some mounted path of the bucket contains this path
+::
+++  covered
+  |=  [mts=mounts bucket=@t path=@t]
+  ^-  ?
+  =/  paths=(set @t)  (fall (~(get by mts) bucket) ~)
+  %+  lien  ~(tap in paths)
+  |=  m=@t
+  ?:  (is-dir m)  =(m (end [3 (met 3 m)] path))
+  =(m path)
+::  +run-op: dispatch on body.op. Every op names a bucket; pull and push
+::  name a path inside one of its mounts.
+::
+++  run-op
+  |=  [=rail:tarball req=json]
+  =/  m  (fiber:fiber:nexus ,json)
+  ^-  form:m
+  =/  op=@t  (jget req 'op')
+  ;<  bks=buckets  bind:m  (read-buckets rail)
+  =/  bucket-name=@t  (jget req 'bucket')
+  =/  cfg=(unit s3-config)  (~(get by bks) bucket-name)
+  ?~  cfg
+    %-  pure:m
+    %-  err
+    ?:  =('' bucket-name)  'bucket required'
+    (crip "unknown bucket: {(trip bucket-name)}")
+  ?:  |(=('' access-key.u.cfg) =('' secret-key.u.cfg) =('' bucket.u.cfg) =('' endpoint.u.cfg))
+    (pure:m (err (crip "bucket {(trip bucket-name)} is missing credentials")))
+  ;<  mts=mounts  bind:m  (read-mounts rail)
+  =/  path=@t  (jget req 'path')
+  =/  base=^path  /mounts/[bucket-name]
+  ?+    op  (pure:m (err (crip "unknown op: {(trip op)}")))
+      %list
+    ;<  keys=(each (list @t) @t)  bind:m  (list-keys u.cfg (jget req 'prefix'))
+    ?:  ?=(%| -.keys)  (pure:m (err p.keys))
+    %-  pure:m
+    %-  pairs:enjs:format
+    :~  ['keys' [%a (turn p.keys |=(k=@t s+k))]]
+        ['count' (numb:enjs:format (lent p.keys))]
+    ==
+  ::
+      %delete
+    =/  key=@t  (jget req 'key')
+    ?:  =('' key)  (pure:m (err 'key required'))
+    ;<  resp=client-response:iris  bind:m  (s3-request u.cfg 'DELETE' key '' ~)
+    ?.  ?=(%finished -.resp)  (pure:m (err 'delete failed'))
+    =/  code=@ud  status-code.response-header.resp
+    %-  pure:m
+    %-  pairs:enjs:format
+    :~  ['key' s+key]
+        ['ok' b+(lth code 300)]
+        ['code' (numb:enjs:format code)]
+    ==
+  ::  pull: the bucket's path into mounts/<bucket>/<path>. A file path
+  ::  pulls one object; a folder path pulls everything under it.
+      %pull
+    ?.  (covered mts bucket-name path)
+      (pure:m (err (crip "{(trip path)} is not inside a mount of {(trip bucket-name)}")))
+    ?.  (is-dir path)
+      ;<  got=(unit @t)  bind:m  (pull-one rail u.cfg base path path)
+      ?~  got  (pure:m (err (crip "download failed: {(trip path)}")))
+      (pure:m (pairs:enjs:format ~[['pulled' (numb:enjs:format 1)] ['failed' [%a ~]] ['file' s+u.got]]))
+    ;<  keys=(each (list @t) @t)  bind:m  (list-keys u.cfg path)
+    ?:  ?=(%| -.keys)  (pure:m (err p.keys))
+    =/  todo=(list @t)  p.keys
+    =|  pulled=@ud
+    =|  failed=(list @t)
+    |-
+    ?~  todo
+      %-  pure:m
+      %-  pairs:enjs:format
+      :~  ['pulled' (numb:enjs:format pulled)]
+          ['failed' [%a (turn (flop failed) |=(k=@t s+k))]]
+      ==
+    ?:  (is-dir i.todo)  $(todo t.todo)
+    ;<  got=(unit @t)  bind:m  (pull-one rail u.cfg base i.todo i.todo)
+    ?~  got  $(todo t.todo, failed [i.todo failed])
+    $(todo t.todo, pulled +(pulled))
+  ::  push: mounts/<bucket>/<path> up to the bucket. A file path pushes
+  ::  one file; a folder path pushes everything under it.
+      %push
+    ?.  (covered mts bucket-name path)
+      (pure:m (err (crip "{(trip path)} is not inside a mount of {(trip bucket-name)}")))
+    ?.  (is-dir path)
+      =/  dirs=^path  (key-to-dirs path)
+      =/  name=@ta  (extract-filename:s3l path)
+      ;<  bad=(unit @t)  bind:m  (push-one rail u.cfg base dirs name path)
+      ?^  bad  (pure:m (err u.bad))
+      (pure:m (pairs:enjs:format ~[['pushed' (numb:enjs:format 1)] ['failed' [%a ~]] ['key' s+path]]))
+    =/  sub=^path  (key-to-dirs (cat 3 path 'x'))
+    ;<  dir=view:nexus  bind:m  (peek:io (at rail [%| (weld base sub)]) ~)
+    ?.  ?=([%ball *] dir)  (pure:m (err 'nothing pulled there yet'))
+    =/  todo=(list [^path @ta])
+      %+  turn  (collect-files-recursive:s3l ball.dir ~)
+      |=([p=^path n=@ta] [(weld sub p) n])
+    =|  pushed=@ud
+    =|  failed=(list @t)
+    |-
+    ?~  todo
+      %-  pure:m
+      %-  pairs:enjs:format
+      :~  ['pushed' (numb:enjs:format pushed)]
+          ['failed' [%a (turn (flop failed) |=(k=@t s+k))]]
+      ==
+    =/  [dirs=^path name=@ta]  i.todo
+    =/  key=@t  (path-to-s3-key:s3l (snoc dirs name))
+    ;<  bad=(unit @t)  bind:m  (push-one rail u.cfg base dirs name key)
+    ?^  bad  $(todo t.todo, failed [key failed])
+    $(todo t.todo, pushed +(pushed))
+  ==
+::  +list-keys: every object key under a prefix, or an error
+::
+++  list-keys
+  |=  [cfg=s3-config prefix=@t]
+  =/  m  (fiber:fiber:nexus ,(each (list @t) @t))
+  ^-  form:m
+  =/  qs=@t  (build-list-query:s3l prefix)
+  ;<  resp=client-response:iris  bind:m  (s3-request cfg 'GET' '' qs ~)
+  ?.  ?=(%finished -.resp)  (pure:m [%| 'list failed'])
+  =/  code=@ud  status-code.response-header.resp
+  ?.  (lth code 300)  (pure:m [%| (crip "list error: HTTP {<code>}")])
+  ?~  full-file.resp  (pure:m [%& ~])
+  (pure:m [%& (parse-list-response:s3l q.data.u.full-file.resp)])
+::  +pull-one: GET a key into mounts/<mount>/<rel>. Returns the file's
+::  nexus-relative path on success.
+::
+++  pull-one
+  |=  [=rail:tarball cfg=s3-config base=path key=@t rel=@t]
+  =/  m  (fiber:fiber:nexus ,(unit @t))
+  ^-  form:m
+  ;<  resp=client-response:iris  bind:m  (s3-request cfg 'GET' key '' ~)
+  ?.  ?=(%finished -.resp)  (pure:m ~)
+  ?.  (lth status-code.response-header.resp 300)  (pure:m ~)
+  ?~  full-file.resp  (pure:m ~)
+  =/  ct=(unit @t)  (extract-content-type:s3l headers.response-header.resp)
+  =/  filename=@ta  (extract-filename:s3l rel)
+  =/  dirs=path  (weld base (key-to-dirs rel))
+  =/  mtype=path  (determine-mime-type:tarball ct filename)
+  =/  file-mime=mime  [mtype (as-octs:mimes:html q.data.u.full-file.resp)]
+  =/  file-road=road:tarball  (at rail [%& dirs filename])
+  ;<  ~  bind:m  (land-file file-road file-mime filename)
+  (pure:m `(crip (spud (snoc dirs filename))))
+::  +land-file: write a pulled object; over if present, else make with
+::  the extension's mark, falling back to plain mime
+::
+++  land-file
+  |=  [file-road=road:tarball file-mime=mime filename=@ta]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  ;<  exists=?  bind:m  (peek-exists:io file-road)
+  ?:  exists
+    (over:io file-road [[/ %mime] file-mime])
+  =/  ext=(unit blot:tarball)  (bind (parse-extension:tarball filename) |=(e=@ta [/ e]))
+  ;<  bad=(unit tang)  bind:m  (make-soft:io file-road |+[[[/ %mime] file-mime] ext])
+  ?~  bad  (pure:m ~)
+  (make:io file-road |+[[[/ %mime] file-mime] ~])
+::  +push-one: PUT one mount file to a key. Returns an error text, or ~.
+::
+++  push-one
+  |=  [=rail:tarball cfg=s3-config base=path dirs=path name=@ta key=@t]
+  =/  m  (fiber:fiber:nexus ,(unit @t))
+  ^-  form:m
+  =/  file-road=road:tarball  (at rail [%& (weld base dirs) name])
+  ;<  v=view:nexus  bind:m  (peek:io file-road ~)
+  ?.  ?=([%file *] v)
+    (pure:m `(crip "not found in mount: {(spud (snoc dirs name))}"))
+  ;<  =mime  bind:m  (sage-to-mime:io (need-sage:tarball sang.v))
+  ;<  resp=client-response:iris  bind:m
+    (s3-request cfg 'PUT' key '' `q.q.mime)
+  ?.  ?=(%finished -.resp)  (pure:m `'upload failed')
+  =/  code=@ud  status-code.response-header.resp
+  ?.  (lth code 300)  (pure:m `(crip "upload error: HTTP {<code>}"))
+  (pure:m ~)
+::  +s3-request: one signed request to a bucket
 ::
 ++  s3-request
   |=  [cfg=s3-config method=@t key=@t qs=@t content=(unit @t)]
@@ -221,7 +377,7 @@
   ^-  form:m
   ;<  now=@da  bind:m  get-time:io
   =/  [amz-date=@t payload-hash=@t authorization=@t]
-    %:  build-signature
+    %:  build-signature:s3l
       method=method
       access-key=access-key.cfg
       secret-key=secret-key.cfg
@@ -233,165 +389,173 @@
       content=content
       now=now
     ==
-  =/  url=@t  (build-url endpoint.cfg bucket.cfg key ?:(=('' qs) ~ `qs))
-  =/  hed=(list [@t @t])  (build-headers method payload-hash amz-date authorization)
+  =/  url=@t  (build-url:s3l endpoint.cfg bucket.cfg key ?:(=('' qs) ~ `qs))
+  =/  hed=(list [@t @t])  (build-headers:s3l method payload-hash amz-date authorization)
   =/  bod=(unit octs)  (bind content |=(c=@t (as-octs:mimes:html c)))
   =/  meth=method:http  ;;(method:http method)
   ;<  ~  bind:m  (send-request:io [meth url hed bod])
   take-client-response:io
+::  +log-activity: one line per call into activity.json, capped at 500
 ::
-::  ops
-::
-++  do-list
-  |=  [cfg=s3-config prefix=@t name=@t]
+++  log-activity
+  |=  [=rail:tarball req=json resp=json caller=@t]
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
-  =/  qs=@t  (build-list-query prefix)
-  ;<  resp=client-response:iris  bind:m  (s3-request cfg 'GET' '' qs ~)
-  ?.  ?=(%finished -.resp)
-    (replace:io (pairs:enjs:format ~[['status' s+'error'] ['error' s+'request failed']]))
-  ?~  full-file.resp
-    (replace:io (pairs:enjs:format ~[['status' s+'done'] ['op' s+'list'] ['name' s+name] ['keys' [%a ~]]]))
-  =/  body=@t  q.data.u.full-file.resp
-  =/  keys=(list @t)  (parse-list-response body)
-  %-  replace:io
-  %-  pairs:enjs:format
-  :~  ['status' s+'done']
-      ['op' s+'list']
-      ['name' s+name]
-      ['keys' [%a (turn keys |=(k=@t s+k))]]
-      ['count' (numb:enjs:format (lent keys))]
-  ==
-::
-++  do-refresh
-  |=  [cfg=s3-config prefix=@t name=@t]
-  =/  m  (fiber:fiber:nexus ,~)
-  ^-  form:m
-  ::  list all objects under prefix
-  =/  qs=@t  (build-list-query prefix)
-  ;<  resp=client-response:iris  bind:m  (s3-request cfg 'GET' '' qs ~)
-  ?.  ?=(%finished -.resp)
-    (replace:io (pairs:enjs:format ~[['status' s+'error'] ['error' s+'list failed']]))
-  ?~  full-file.resp
-    (replace:io (pairs:enjs:format ~[['status' s+'done'] ['op' s+'refresh'] ['name' s+name] ['pulled' (numb:enjs:format 0)]]))
-  =/  body=@t  q.data.u.full-file.resp
-  =/  keys=(list @t)  (parse-list-response body)
-  ::  pull each object
-  =/  pulled=@ud  0
-  |-
-  ?~  keys
-    %-  replace:io
+  =/  road=road:tarball  (at rail [%& / %'activity.json'])
+  ;<  ucur=(unit json)  bind:m  (peek-as:io road ,json)
+  =/  cur=json  (fall ucur [%o ~])
+  ?.  ?=([%o *] cur)  (pure:m ~)
+  =/  old=(list json)
+    =/  l  (~(get by p.cur) 'log')
+    ?.(?=([~ %a *] l) ~ p.u.l)
+  ;<  now=@da  bind:m  get-time:io
+  =/  target=@t
+    =/  what=@t
+      =/  key=@t  (jget req 'key')
+      ?.  =('' key)  key
+      =/  path=@t  (jget req 'path')
+      ?.  =('' path)  path
+      (jget req 'prefix')
+    ?:  =('' what)  (jget req 'bucket')
+    (rap 3 ~[(jget req 'bucket') ' ' what])
+  =/  error=@t  (jget resp 'error')
+  =/  entry=json
     %-  pairs:enjs:format
-    :~  ['status' s+'done']
-        ['op' s+'refresh']
-        ['name' s+name]
-        ['pulled' (numb:enjs:format pulled)]
+    :~  ['op' s+(jget req 'op')]
+        ['target' s+target]
+        ['ok' b+=('' error)]
+        ['error' s+error]
+        ['from' s+caller]
+        ['time' (sect:enjs:format now)]
     ==
-  =/  key=@t  i.keys
-  ::  strip prefix from key to get relative path
-  =/  rel=@t
-    =/  pre=tape  (trip prefix)
-    =/  k=tape  (trip key)
-    ?:  =(pre (scag (lent pre) k))
-      (crip (slag (lent pre) k))
-    key
-  ::  skip "directory" keys (ending in /)
-  ?:  |(=('' rel) =('/' (rear (trip rel))))
-    $(keys t.keys)
-  ;<  ~  bind:m  (pull-one cfg key rel name)
-  $(keys t.keys, pulled +(pulled))
+  =/  new=json
+    %-  pairs:enjs:format
+    :~  ['requests' (numb:enjs:format (add 1 (jnum cur 'requests' 0)))]
+        ['log' [%a (scag 500 `(list json)`[entry old])]]
+    ==
+  (over:io road [[/ %json] new])
+::  +read-buckets: config.json's buckets map
 ::
-++  pull-one
-  |=  [cfg=s3-config key=@t rel=@t name=@t]
-  =/  m  (fiber:fiber:nexus ,~)
+++  read-buckets
+  |=  =rail:tarball
+  =/  m  (fiber:fiber:nexus ,buckets)
   ^-  form:m
-  ;<  resp=client-response:iris  bind:m  (s3-request cfg 'GET' key '' ~)
-  ?.  ?=(%finished -.resp)  (pure:m ~)
-  ?~  full-file.resp  (pure:m ~)
-  =/  content=@t  q.data.u.full-file.resp
-  =/  ct=(unit @t)  (extract-content-type headers.response-header.resp)
-  =/  filename=@ta  (extract-filename rel)
-  =/  rel-path=path  (key-to-path rel)
-  =/  mtype=path  (determine-mime-type:tarball ct filename)
-  =/  file-mime=mime  [mtype (as-octs:mimes:html content)]
-  =/  full-path=path  (weld /mounts/[name] rel-path)
-  ;<  file-road=road:tarball  bind:m
-    (ancestor-road:io [/ %s3] [%& full-path filename])
-  ;<  exists=?  bind:m  (peek-exists:io file-road)
-  ?:  exists
-    (over:io file-road [[/ %mime] file-mime])
-  =/  ext=(unit blot:tarball)  (bind (parse-extension:tarball filename) |=(e=@ta [/ e]))
-  ;<  err=(unit tang)  bind:m
-    (make-soft:io file-road |+[[[/ %mime] file-mime] ext])
-  ?~  err  (pure:m ~)
-  ::  mark not found, retry as plain mime
-  (make:io file-road |+[[[/ %mime] file-mime] ~])
+  ;<  ucfg=(unit json)  bind:m  (peek-as:io (at rail [%& / %'config.json']) ,json)
+  (pure:m (buckets-of (fall ucfg [%o ~])))
 ::
-++  do-pull
-  |=  [cfg=s3-config key=@t name=@t]
-  =/  m  (fiber:fiber:nexus ,~)
-  ^-  form:m
-  ;<  resp=client-response:iris  bind:m  (s3-request cfg 'GET' key '' ~)
-  ?.  ?=(%finished -.resp)
-    (replace:io (pairs:enjs:format ~[['status' s+'error'] ['error' s+'download failed']]))
-  ?~  full-file.resp
-    (replace:io (pairs:enjs:format ~[['status' s+'error'] ['error' s+'empty response']]))
-  =/  content=@t  q.data.u.full-file.resp
-  =/  ct=(unit @t)  (extract-content-type headers.response-header.resp)
-  =/  filename=@ta  (extract-filename key)
-  =/  rel-path=path  (key-to-path key)
-  =/  mtype=path  (determine-mime-type:tarball ct filename)
-  =/  file-mime=mime  [mtype (as-octs:mimes:html content)]
-  =/  full-path=path  (weld /mounts/[name] rel-path)
-  ;<  file-road=road:tarball  bind:m
-    (ancestor-road:io [/ %s3] [%& full-path filename])
-  ;<  exists=?  bind:m  (peek-exists:io file-road)
-  ;<  ~  bind:m
-    ?:  exists
-      (over:io file-road [[/ %mime] file-mime])
-    =/  ext=(unit blot:tarball)  (bind (parse-extension:tarball filename) |=(e=@ta [/ e]))
-    ;<  err=(unit tang)  bind:m
-      (make-soft:io file-road |+[[[/ %mime] file-mime] ext])
-    ?~  err  (pure:m ~)
-    (make:io file-road |+[[[/ %mime] file-mime] ~])
-  %-  replace:io
-  %-  pairs:enjs:format
-  :~  ['status' s+'done']
-      ['op' s+'pull']
-      ['key' s+key]
-      ['name' s+name]
+++  buckets-of
+  |=  jon=json
+  ^-  buckets
+  ?.  ?=([%o *] jon)  ~
+  =/  b  (~(get by p.jon) 'buckets')
+  ?.  ?=([~ %o *] b)  ~
+  %-  ~(gas by *buckets)
+  %+  murn  ~(tap by p.u.b)
+  |=  [k=@t v=json]
+  ^-  (unit [@t s3-config])
+  ?.  ?=([%o *] v)  ~
+  :-  ~
+  :-  k
+  :*  (jget v 'access-key')
+      (jget v 'secret-key')
+      (jget v 'region')
+      (jget v 'bucket')
+      (jget v 'endpoint')
   ==
 ::
-++  do-delete
-  |=  [cfg=s3-config key=@t name=@t]
-  =/  m  (fiber:fiber:nexus ,~)
-  ^-  form:m
-  ;<  resp=client-response:iris  bind:m  (s3-request cfg 'DELETE' key '' ~)
-  ?.  ?=(%finished -.resp)
-    (replace:io (pairs:enjs:format ~[['status' s+'error'] ['error' s+'delete failed']]))
-  =/  code=@ud  status-code.response-header.resp
-  %-  replace:io
+++  bucket-json
+  |=  cfg=s3-config
+  ^-  json
   %-  pairs:enjs:format
-  :~  ['status' s+'done']
-      ['op' s+'delete']
-      ['key' s+key]
-      ['name' s+name]
-      ['ok' [%b (lth code 300)]]
+  :~  ['access-key' s+access-key.cfg]
+      ['secret-key' s+secret-key.cfg]
+      ['region' s+region.cfg]
+      ['bucket' s+bucket.cfg]
+      ['endpoint' s+endpoint.cfg]
   ==
 ::
-++  key-to-path
+++  write-buckets
+  |=  [=rail:tarball bks=buckets]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  =/  entries=(list [@t json])
+    (turn ~(tap by bks) |=([n=@t c=s3-config] [n (bucket-json c)]))
+  %+  over:io  (at rail [%& / %'config.json'])
+  [[/ %json] (pairs:enjs:format ~[['buckets' [%o (malt entries)]]])]
+::
+++  read-mounts
+  |=  =rail:tarball
+  =/  m  (fiber:fiber:nexus ,mounts)
+  ^-  form:m
+  ;<  ujon=(unit json)  bind:m  (peek-as:io (at rail [%& / %'mounts.json']) ,json)
+  =/  jon=json  (fall ujon [%o ~])
+  ?.  ?=([%o *] jon)  (pure:m *mounts)
+  %-  pure:m
+  %-  ~(gas by *mounts)
+  %+  murn  ~(tap by p.jon)
+  |=  [k=@t v=json]
+  ^-  (unit [@t (set @t)])
+  ?.  ?=([%a *] v)  ~
+  `[k (sy (murn p.v |=(x=json ?:(?=([%s *] x) `p.x ~))))]
+::
+++  write-mounts
+  |=  [=rail:tarball mts=mounts]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  =/  entries=(list [@t json])
+    %+  turn  ~(tap by mts)
+    |=  [b=@t ps=(set @t)]
+    [b [%a (turn (sort ~(tap in ps) aor) |=(p=@t s+p))]]
+  (over:io (at rail [%& / %'mounts.json']) [[/ %json] [%o (malt entries)]])
+::  +local-files: how many files a mounted path holds locally
+::
+++  local-files
+  |=  [=rail:tarball bucket=@t path=@t]
+  =/  m  (fiber:fiber:nexus ,@ud)
+  ^-  form:m
+  =/  base=^path  /mounts/[bucket]
+  ?.  (is-dir path)
+    ;<  there=?  bind:m
+      (peek-exists:io (at rail [%& (weld base (key-to-dirs path)) (extract-filename:s3l path)]))
+    (pure:m ?:(there 1 0))
+  =/  sub=^path  (key-to-dirs (cat 3 path 'x'))
+  ;<  dir=view:nexus  bind:m  (peek:io (at rail [%| (weld base sub)]) ~)
+  %-  pure:m
+  ?.  ?=([%ball *] dir)  0
+  (lent (collect-files-recursive:s3l ball.dir ~))
+::  key helpers. A prefix is stored as given; joining normalises the
+::  single slash between prefix and the rest.
+::
+++  join-key
+  |=  [prefix=@t rest=@t]
+  ^-  @t
+  ?:  =('' prefix)  rest
+  ?:  =('/' (rear (trip prefix)))  (cat 3 prefix rest)
+  (rap 3 ~[prefix '/' rest])
+::  +strip-prefix: the part of key after prefix (and its slash); the
+::  whole key if it does not start with prefix
+::
+++  strip-prefix
+  |=  [prefix=@t key=@t]
+  ^-  @t
+  =/  pre=tape  (trip prefix)
+  =/  k=tape  (trip key)
+  ?:  =('' prefix)  key
+  ?.  =(pre (scag (lent pre) k))  key
+  =/  rest=tape  (slag (lent pre) k)
+  ?:  ?=([%'/' *] rest)  (crip t.rest)
+  (crip rest)
+::  +key-to-dirs: the directory segments of a slash path, sans file
+::
+++  key-to-dirs
   |=  key=@t
   ^-  path
-  =/  parts=(list @t)  (split-cord key '/')
-  ?:  (lte (lent parts) 1)  /
-  (turn (snip `(list @t)`parts) |=(s=@t `@ta`s))
+  =/  parts=(list @t)  (split-on (trip key) '/')
+  =/  segs=(list @t)  (skip parts |=(s=@t =('' s)))
+  ?:  (lte (lent segs) 1)  /
+  (turn (snip `(list @t)`segs) |=(s=@t `@ta`s))
 ::
-++  split-cord
-  |=  [t=@t del=@t]
-  ^-  (list @t)
-  (split (trip t) del)
-::
-++  split
+++  split-on
   |=  [t=tape del=@t]
   ^-  (list @t)
   =|  acc=(list @t)
@@ -402,292 +566,207 @@
     $(t t.t, acc [(crip (flop cur)) acc], cur ~)
   $(t t.t, cur [i.t cur])
 ::
-::  page
+++  jget          jget:nw
+++  jnum          jnum:nw
+++  post-json     post-json:nw
+++  count-files   count-files:nw
+++  file-entries  file-entries:nw
+++  call-status   call-status:nw
+++  caller-path   caller-path:nw
+::  +serve: static shell + api:
+::    GET  /api/status         {buckets, mounts, pending, requests}
+::    GET  /api/buckets        {name: {access-key, secret-key, region, bucket, endpoint}}
+::    POST /api/bucket-set     {name, ...fields} merge (secret only if non-empty)
+::    POST /api/bucket-remove  {name}
+::    GET  /api/mounts         [{bucket, path, files}]
+::    POST /api/mount-add      {bucket, path}
+::    POST /api/mount-remove   {bucket, path}   (the mapping; the files stay)
+::    GET  /api/activity       activity.json verbatim
+::    POST /api/call-new       {op, ...} -> {id} (caller = request grub)
+::    GET  /api/call?id=
+::    POST /api/call-cull      {id}
+::    POST /api/sweep          cull finished call grubs
 ::
-++  s3-page
-  ^-  manx
-  ;html
-    ;head
-      ;title: S3 Storage
-      ;meta(charset "utf-8");
-      ;style
-        ;+  ;/  %-  trip  %-  crip
-          ;:  weld
-            "* \{ margin: 0; padding: 0; box-sizing: border-box; }"
-            "body \{ font-family: -apple-system, system-ui, sans-serif; background: #0a0a0a; color: #eee; padding: 24px; max-width: 900px; margin: 0 auto; }"
-            "h1 \{ font-size: 18px; margin-bottom: 16px; }"
-            "h2 \{ font-size: 14px; color: #888; margin-top: 20px; margin-bottom: 8px; }"
-            ".hdr \{ display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }"
-            ".btn \{ background: none; border: 1px solid #333; color: #aaa; padding: 4px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; }"
-            ".btn:hover \{ border-color: #666; color: #fff; }"
-            ".btn:disabled \{ opacity: 0.4; cursor: default; }"
-            ".btn-grn \{ border-color: #2a5a2a; color: #6c6; }"
-            ".btn-grn:hover \{ border-color: #4a8a4a; }"
-            ".btn-red \{ border-color: #5a2a2a; color: #c66; }"
-            ".btn-red:hover \{ border-color: #8a4a4a; }"
-            "table \{ width: 100%; border-collapse: collapse; margin-top: 8px; }"
-            "th \{ text-align: left; color: #666; font-size: 11px; text-transform: uppercase; padding: 6px 8px; border-bottom: 1px solid #333; }"
-            "td \{ padding: 6px 8px; border-bottom: 1px solid #1a1a1a; font-size: 13px; font-family: monospace; }"
-            "#msg \{ font-size: 12px; margin-bottom: 8px; min-height: 16px; }"
-            ".mount \{ border: 1px solid #222; border-radius: 8px; padding: 12px; margin-bottom: 12px; }"
-            ".mount-hdr \{ display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }"
-            ".mount-name \{ font-weight: bold; font-size: 14px; }"
-            ".mount-prefix \{ color: #666; font-size: 12px; font-family: monospace; }"
-            ".modal-bg \{ display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); z-index: 100; align-items: center; justify-content: center; }"
-            ".modal-bg.open \{ display: flex; }"
-            ".modal \{ background: #111; border: 1px solid #333; border-radius: 12px; padding: 20px; width: 420px; }"
-            ".modal h2 \{ margin-top: 0; }"
-            ".lbl \{ display: block; color: #888; font-size: 11px; text-transform: uppercase; margin-bottom: 4px; margin-top: 12px; }"
-            ".inp \{ width: 100%; padding: 8px 10px; border-radius: 6px; border: 1px solid #333; background: #111; color: #eee; font-size: 13px; font-family: monospace; outline: none; box-sizing: border-box; }"
-            ".modal .btn \{ margin-top: 16px; }"
-          ==
-      ==
+++  serve
+  |=  [=rail:tarball eyre-id=@ta]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  =/  web  ~(. web:nw (at rail [%& ~ %'web.sig']))
+  =/  reply  reply:web
+  =/  send-json  send-json:web
+  ;<  [src=@p req=inbound-request:eyre]  bind:m
+    (get-state-as:io ,[src=@p inbound-request:eyre])
+  ;<  our=@p  bind:m  get-our:io
+  ?.  =(src our)
+    (reply eyre-id 403 'Forbidden')
+  =/  prefix=path  /grubbery/s3
+  =/  [site=path args=quay:eyre]  (parse-url:http-utils url.request.req)
+  =/  suffix=path  (slag (lent prefix) site)
+  ?+    suffix  (serve-static:web eyre-id suffix)
+      [%api %status ~]
+    ;<  bks=buckets  bind:m  (read-buckets rail)
+    ;<  mts=mounts  bind:m  (read-mounts rail)
+    ;<  calls=view:nexus  bind:m  (peek:io (at rail [%| /calls]) ~)
+    =/  pending=@ud
+      %-  lent
+      %+  skim  (file-entries calls)
+      |=([nam=@ta =sang:tarball] =('pending' (call-status sang)))
+    ;<  uact=(unit json)  bind:m  (peek-as:io (at rail [%& / %'activity.json']) ,json)
+    =/  act=json  (fall uact [%o ~])
+    %+  send-json  eyre-id
+    %-  pairs:enjs:format
+    :~  ['buckets' (numb:enjs:format ~(wyt by bks))]
+        ['mounts' (numb:enjs:format (roll (turn ~(tap by mts) |=([* ps=(set @t)] ~(wyt in ps))) add))]
+        ['pending' (numb:enjs:format pending)]
+        ['requests' (numb:enjs:format (jnum act 'requests' 0))]
     ==
-    ;body
-      ;div(class "hdr")
-        ;h1: S3 Storage
-        ;button(class "btn", onclick "openConfig()"): Config
-        ;button(class "btn", onclick "doListAll()"): List All
-        ;button(class "btn btn-grn", onclick "openAddMount()"): + Mount
+  ::
+      [%api %buckets ~]
+    ;<  bks=buckets  bind:m  (read-buckets rail)
+    %+  send-json  eyre-id
+    [%o (malt (turn ~(tap by bks) |=([n=@t c=s3-config] [n (bucket-json c)])))]
+  ::
+      [%api %bucket-set ~]
+    =/  jon=(unit json)  (post-json req)
+    ?~  jon  (reply eyre-id 400 'json body required')
+    ?.  ?=([%o *] u.jon)  (reply eyre-id 400 'object required')
+    =/  name=@t  (jget u.jon 'name')
+    ?:  =('' name)  (reply eyre-id 400 'name required')
+    ?~  (rush name sym)  (reply eyre-id 400 'name must be a lowercase term')
+    ;<  bks=buckets  bind:m  (read-buckets rail)
+    =/  cur=s3-config  (fall (~(get by bks) name) *s3-config)
+    =/  pick  |=([k=@t old=@t] =/(v (jget u.jon k) ?:(=('' v) old v)))
+    =/  new=s3-config
+      :*  (pick 'access-key' access-key.cur)
+          (pick 'secret-key' secret-key.cur)
+          (pick 'region' region.cur)
+          (pick 'bucket' bucket.cur)
+          (pick 'endpoint' endpoint.cur)
       ==
-      ;div(id "msg");
-      ;div(id "mounts");
-      ::  config modal
-      ;div(class "modal-bg", id "cfg-bg")
-        ;div(class "modal")
-          ;h2: S3 Configuration
-          ;label(class "lbl"): Access Key
-          ;input(class "inp", id "cfg-ak", type "text");
-          ;label(class "lbl"): Secret Key
-          ;input(class "inp", id "cfg-sk", type "password");
-          ;label(class "lbl"): Region
-          ;input(class "inp", id "cfg-rg", type "text");
-          ;label(class "lbl"): Bucket
-          ;input(class "inp", id "cfg-bk", type "text");
-          ;label(class "lbl"): Endpoint
-          ;input(class "inp", id "cfg-ep", type "text");
-          ;button(class "btn", onclick "saveConfig()"): Save
-          ;div(id "cfg-msg", style "font-size: 12px; margin-top: 8px;");
-        ==
+    ;<  ~  bind:m  (write-buckets rail (~(put by bks) name new))
+    (reply eyre-id 200 'ok')
+  ::
+      [%api %bucket-remove ~]
+    =/  jon=(unit json)  (post-json req)
+    ?~  jon  (reply eyre-id 400 'json body required')
+    =/  name=@t  (jget u.jon 'name')
+    ?:  =('' name)  (reply eyre-id 400 'name required')
+    ;<  bks=buckets  bind:m  (read-buckets rail)
+    ;<  ~  bind:m  (write-buckets rail (~(del by bks) name))
+    (reply eyre-id 200 'ok')
+  ::
+      [%api %mounts ~]
+    ;<  mts=mounts  bind:m  (read-mounts rail)
+    =/  all=(list [b=@t p=@t])
+      %-  zing
+      %+  turn  ~(tap by mts)
+      |=([b=@t ps=(set @t)] (turn (sort ~(tap in ps) aor) |=(p=@t [b p])))
+    =|  out=(list json)
+    |-
+    ?~  all
+      (send-json eyre-id [%a (flop out)])
+    ;<  files=@ud  bind:m  (local-files rail b.i.all p.i.all)
+    =/  entry=json
+      %-  pairs:enjs:format
+      :~  ['bucket' s+b.i.all]
+          ['path' s+p.i.all]
+          ['files' (numb:enjs:format files)]
       ==
-      ::  add mount modal
-      ;div(class "modal-bg", id "mount-bg")
-        ;div(class "modal")
-          ;h2: Add Mount
-          ;label(class "lbl"): Name
-          ;input(class "inp", id "mount-name", type "text", placeholder "e.g. blog-images");
-          ;label(class "lbl"): S3 Prefix
-          ;input(class "inp", id "mount-prefix", type "text", placeholder "e.g. blog-images/");
-          ;button(class "btn btn-grn", onclick "addMount()"): Create
-          ;div(id "mount-msg", style "font-size: 12px; margin-top: 8px;");
-        ==
-      ==
-      ;script
-        ;+  ;/  %-  trip  %-  crip
-          ;:  weld
-            "var P=location.pathname.replace(/page\\.html$/,'');\0a"
-            "var OVER=P.replace('/ball/','/api/over/');\0a"
-            "var POKE=P.replace('/ball/','/api/poke/');\0a"
-            "function $(id)\{ return document.getElementById(id); }\0a"
-            "var busy=false;\0a"
-            ::
-            "function msg(t,err)\{ $('msg').textContent=t; $('msg').style.color=err?'#f55':'#666'; }\0a"
-            ::
-            ::  modals
-            ::
-            "document.querySelectorAll('.modal-bg').forEach(bg=>\{\0a"
-            "  bg.onclick=function(e)\{ if(e.target===bg) bg.classList.remove('open'); };\0a"
-            "});\0a"
-            ::
-            ::  config
-            ::
-            "function openConfig()\{\0a"
-            "  $('cfg-msg').textContent='';\0a"
-            "  fetch(P+'config.json').then(r=>r.json()).then(c=>\{\0a"
-            "    $('cfg-ak').value=c['access-key']||'';\0a"
-            "    $('cfg-sk').value=c['secret-key']||'';\0a"
-            "    $('cfg-rg').value=c.region||'';\0a"
-            "    $('cfg-bk').value=c.bucket||'';\0a"
-            "    $('cfg-ep').value=c.endpoint||'';\0a"
-            "  }).catch(()=>\{});\0a"
-            "  $('cfg-bg').classList.add('open');\0a"
-            "}\0a"
-            "function saveConfig()\{\0a"
-            "  fetch(OVER+'config.json?blot=/json',\{method:'POST',headers:\{'content-type':'application/json'},\0a"
-            "    body:JSON.stringify(\{\0a"
-            "      'access-key':$('cfg-ak').value.trim(),\0a"
-            "      'secret-key':$('cfg-sk').value.trim(),\0a"
-            "      region:$('cfg-rg').value.trim()||'us-east-1',\0a"
-            "      bucket:$('cfg-bk').value.trim(),\0a"
-            "      endpoint:$('cfg-ep').value.trim()\0a"
-            "    })\0a"
-            "  }).then(r=>\{\0a"
-            "    $('cfg-msg').textContent=r.ok?'Saved':'Error';\0a"
-            "    $('cfg-msg').style.color=r.ok?'#4f4':'#f55';\0a"
-            "    if(r.ok) setTimeout(()=>$('cfg-bg').classList.remove('open'),600);\0a"
-            "  });\0a"
-            "}\0a"
-            ::
-            ::  poke + sse
-            ::
-            "var KEEP=P.replace('/ball/','/api/keep/');\0a"
-            "function poke(payload,cb)\{\0a"
-            "  if(busy)\{ msg('Busy...', false); return; }\0a"
-            "  busy=true;\0a"
-            "  msg('Working...', false);\0a"
-            "  fetch(POKE+'main.json?blot=/json',\{method:'POST',headers:\{'content-type':'application/json'},\0a"
-            "    body:JSON.stringify(payload)\0a"
-            "  }).then(r=>\{\0a"
-            "    if(!r.ok)\{ msg('Poke failed (HTTP '+r.status+')', true); busy=false; return; }\0a"
-            "    watchResult(cb);\0a"
-            "  }).catch(e=>\{ msg('Request failed: '+e, true); busy=false; });\0a"
-            "}\0a"
-            "function watchResult(cb)\{\0a"
-            "  fetch(KEEP+'main.json?blot=/json',\{headers:\{Accept:'text/event-stream'}})\0a"
-            "  .then(r=>\{\0a"
-            "    var rd=r.body.getReader(),dec=new TextDecoder(),buf='';\0a"
-            "    function pump()\{\0a"
-            "      rd.read().then(res=>\{\0a"
-            "        if(res.done)\{ busy=false; return; }\0a"
-            "        buf+=dec.decode(res.value,\{stream:true});\0a"
-            "        var ps=buf.split('\\n\\n'); buf=ps.pop();\0a"
-            "        for(var i=0;i<ps.length;i++)\{\0a"
-            "          if(!ps[i].trim()) continue;\0a"
-            "          var ls=ps[i].split('\\n'),data='';\0a"
-            "          for(var j=0;j<ls.length;j++)\{\0a"
-            "            if(ls[j].indexOf('data: ')===0) data+=ls[j].slice(6); }\0a"
-            "          try\{ var d=JSON.parse(data);\0a"
-            "            if(d.status==='working')\{ pump(); return; }\0a"
-            "            rd.cancel(); busy=false;\0a"
-            "            if(d.status==='error')\{ msg(d.error||'Failed',true); return; }\0a"
-            "            cb(d);\0a"
-            "            return;\0a"
-            "          }catch(e)\{}\0a"
-            "        }\0a"
-            "        pump();\0a"
-            "      }).catch(()=>\{ busy=false; });\0a"
-            "    }\0a"
-            "    pump();\0a"
-            "  }).catch(e=>\{ msg('SSE failed: '+e,true); busy=false; });\0a"
-            "}\0a"
-            ::
-            ::  mounts
-            ::
-            "function openAddMount()\{\0a"
-            "  $('mount-msg').textContent='';\0a"
-            "  $('mount-name').value='';\0a"
-            "  $('mount-prefix').value='';\0a"
-            "  $('mount-bg').classList.add('open');\0a"
-            "}\0a"
-            "function addMount()\{\0a"
-            "  var n=$('mount-name').value.trim();\0a"
-            "  var p=$('mount-prefix').value.trim();\0a"
-            "  if(!n||!p)\{ $('mount-msg').textContent='Name and prefix required'; $('mount-msg').style.color='#f55'; return; }\0a"
-            "  poke(\{op:'add-mount',name:n,prefix:p},function(d)\{\0a"
-            "    $('mount-bg').classList.remove('open');\0a"
-            "    msg('Mount added: '+n, false);\0a"
-            "    loadMounts();\0a"
-            "  });\0a"
-            "}\0a"
-            "function removeMount(name)\{\0a"
-            "  if(!confirm('Remove mount '+name+'?')) return;\0a"
-            "  poke(\{op:'remove-mount',name:name},function()\{\0a"
-            "    msg('Removed '+name, false);\0a"
-            "    loadMounts();\0a"
-            "  });\0a"
-            "}\0a"
-            "function loadMounts()\{\0a"
-            "  poke(\{op:'get-mounts'},function(d)\{\0a"
-            "    var el=$('mounts'); el.innerHTML='';\0a"
-            "    var m=d.mounts||\{};\0a"
-            "    var names=Object.keys(m);\0a"
-            "    if(names.length===0)\{ msg('No mounts. Click + Mount to add one.', false); return; }\0a"
-            "    msg(names.length+' mount'+(names.length===1?'':'s'), false);\0a"
-            "    names.forEach(function(n)\{\0a"
-            "      var div=document.createElement('div');\0a"
-            "      div.className='mount';\0a"
-            "      div.id='mount-'+n;\0a"
-            "      div.innerHTML='<div class=mount-hdr>'\0a"
-            "        +'<span class=mount-name>'+n+'</span>'\0a"
-            "        +'<span class=mount-prefix>'+m[n]+'</span>'\0a"
-            "        +'<button class=\"btn btn-grn\" onclick=\"doRefresh(\\''+n+'\\')\">&darr; Refresh</button>'\0a"
-            "        +'<button class=\"btn\" onclick=\"doListMount(\\''+n+'\\')\">&equiv; List</button>'\0a"
-            "        +'<button class=\"btn btn-red\" onclick=\"removeMount(\\''+n+'\\')\">&times;</button>'\0a"
-            "        +'</div>'\0a"
-            "        +'<div id=\"files-'+n+'\"></div>';\0a"
-            "      el.appendChild(div);\0a"
-            "    });\0a"
-            "  });\0a"
-            "}\0a"
-            ::
-            ::  list all
-            ::
-            "function doListAll()\{\0a"
-            "  poke(\{op:'list-all'},function(d)\{\0a"
-            "    var keys=d.keys||[];\0a"
-            "    var el=$('mounts');\0a"
-            "    if(keys.length===0)\{ msg('Bucket is empty', false); return; }\0a"
-            "    msg(keys.length+' object'+(keys.length===1?'':'s')+' in bucket', false);\0a"
-            "    var h='<div class=mount><div class=mount-hdr><span class=mount-name>All Objects</span></div>';\0a"
-            "    h+='<table><thead><tr><th>Key</th></tr></thead><tbody>';\0a"
-            "    keys.forEach(function(k)\{\0a"
-            "      h+='<tr><td style=\"font-size:12px;font-family:monospace\">'+k+'</td></tr>';\0a"
-            "    });\0a"
-            "    h+='</tbody></table></div>';\0a"
-            "    el.insertAdjacentHTML('afterbegin',h);\0a"
-            "  });\0a"
-            "}\0a"
-            ::
-            ::  list mount contents
-            ::
-            "function doListMount(name)\{\0a"
-            "  poke(\{op:'list',name:name},function(d)\{\0a"
-            "    var el=$('files-'+name); if(!el) return;\0a"
-            "    var keys=d.keys||[];\0a"
-            "    if(keys.length===0)\{ el.innerHTML='<div style=\"color:#666;font-size:12px\">Empty</div>'; return; }\0a"
-            "    var h='<table><thead><tr><th>Key</th><th></th></tr></thead><tbody>';\0a"
-            "    keys.forEach(function(k)\{\0a"
-            "      h+='<tr><td style=\"font-size:12px;font-family:monospace\">'+k+'</td><td>'\0a"
-            "        +'<button class=\"btn btn-grn\" style=\"font-size:11px;padding:2px 8px\" onclick=\"doPull(\\''+name+'\\',\\''+k+'\\')\">&darr;</button> '\0a"
-            "        +'<button class=\"btn btn-red\" style=\"font-size:11px;padding:2px 8px\" onclick=\"doDel(\\''+name+'\\',\\''+k+'\\')\">&times;</button>'\0a"
-            "        +'</td></tr>';\0a"
-            "    });\0a"
-            "    h+='</tbody></table>';\0a"
-            "    el.innerHTML=h;\0a"
-            "  });\0a"
-            "}\0a"
-            ::
-            ::  refresh
-            ::
-            "function doRefresh(name)\{\0a"
-            "  poke(\{op:'refresh',name:name},function(d)\{\0a"
-            "    msg('Refreshed '+name+': '+(d.pulled||0)+' files pulled', false);\0a"
-            "  });\0a"
-            "}\0a"
-            ::
-            ::  pull single
-            ::
-            "function doPull(name,key)\{\0a"
-            "  poke(\{op:'pull',name:name,key:key},function(d)\{\0a"
-            "    msg('Pulled '+key, false);\0a"
-            "  });\0a"
-            "}\0a"
-            ::
-            ::  delete
-            ::
-            "function doDel(name,key)\{\0a"
-            "  if(!confirm('Delete '+key+' from S3?')) return;\0a"
-            "  poke(\{op:'delete',name:name,key:key},function(d)\{\0a"
-            "    if(d.ok) \{ msg('Deleted '+key, false); doListMount(name); }\0a"
-            "    else msg('Delete failed', true);\0a"
-            "  });\0a"
-            "}\0a"
-            ::
-            ::  init
-            ::
-            "loadMounts();\0a"
-          ==
-      ==
-    ==
+    $(all t.all, out [entry out])
+  ::
+      [%api %mount-add ~]
+    =/  jon=(unit json)  (post-json req)
+    ?~  jon  (reply eyre-id 400 'json body required')
+    ?.  ?=([%o *] u.jon)  (reply eyre-id 400 'object required')
+    =/  bucket-name=@t  (jget u.jon 'bucket')
+    =/  path=@t  (jget u.jon 'path')
+    ;<  bks=buckets  bind:m  (read-buckets rail)
+    ?.  (~(has by bks) bucket-name)  (reply eyre-id 400 'unknown bucket')
+    ;<  mts=mounts  bind:m  (read-mounts rail)
+    =/  cur=(set @t)  (fall (~(get by mts) bucket-name) ~)
+    ;<  ~  bind:m  (write-mounts rail (~(put by mts) bucket-name (~(put in cur) path)))
+    (reply eyre-id 200 'ok')
+  ::
+      [%api %mount-remove ~]
+    =/  jon=(unit json)  (post-json req)
+    ?~  jon  (reply eyre-id 400 'json body required')
+    ?.  ?=([%o *] u.jon)  (reply eyre-id 400 'object required')
+    =/  bucket-name=@t  (jget u.jon 'bucket')
+    =/  path=@t  (jget u.jon 'path')
+    ;<  mts=mounts  bind:m  (read-mounts rail)
+    =/  cur=(set @t)  (fall (~(get by mts) bucket-name) ~)
+    ;<  ~  bind:m  (write-mounts rail (~(put by mts) bucket-name (~(del in cur) path)))
+    (reply eyre-id 200 'ok')
+  ::
+      [%api %activity ~]
+    ;<  uact=(unit json)  bind:m  (peek-as:io (at rail [%& / %'activity.json']) ,json)
+    (send-json eyre-id (fall uact *json))
+  ::  one object's bytes, streamed through to the page for viewing.
+  ::  Nothing lands in the namespace: this request grub is the only
+  ::  place the bytes exist, and it is culled once the reply goes out.
+      [%api %object ~]
+    =/  qm=(map @t @t)  (malt args)
+    =/  bucket-name=@t  (fall (~(get by qm) 'bucket') '')
+    =/  key=@t  (fall (~(get by qm) 'key') '')
+    ?:  |(=('' bucket-name) =('' key))  (reply eyre-id 400 'bucket and key required')
+    ;<  bks=buckets  bind:m  (read-buckets rail)
+    =/  cfg=(unit s3-config)  (~(get by bks) bucket-name)
+    ?~  cfg  (reply eyre-id 404 'unknown bucket')
+    ;<  resp=client-response:iris  bind:m  (s3-request u.cfg 'GET' key '' ~)
+    ?.  ?=(%finished -.resp)  (reply eyre-id 502 'fetch failed')
+    =/  code=@ud  status-code.response-header.resp
+    ?.  (lth code 300)  (reply eyre-id code 'the bucket refused')
+    ?~  full-file.resp  (reply eyre-id 502 'empty response')
+    =/  ct=(unit @t)  (extract-content-type:s3l headers.response-header.resp)
+    =/  mite=path
+      ?~  ct  /application/octet-stream
+      =/  parts=(list @t)  (split-on (trip u.ct) '/')
+      ?.  ?=([@ @ ~] parts)  /application/octet-stream
+      ~[`@ta`i.parts `@ta`i.t.parts]
+    %-  send-simple:srv:web  :-  eyre-id
+    (mime-response:http-utils [mite data.u.full-file.resp])
+  ::
+      [%api %call-new ~]
+    =/  jon=(unit json)  (post-json req)
+    ?~  jon  (reply eyre-id 400 'json body required')
+    ?.  ?=([%o *] u.jon)  (reply eyre-id 400 'object required')
+    ;<  eny=@uvJ  bind:m  get-entropy:io
+    =/  id=@t  (crip ((x-co:co 16) (end 6 eny)))
+    ::  through the front door: poke our own main.sig like any other
+    ::  caller, so the kernel records this request grub as the caller
+    ;<  bad=(unit tang)  bind:m
+      %+  poke-soft:io  (at rail [%& / %'main.sig'])
+      [[/ %json] (pairs:enjs:format ~[['id' s+id] ['body' u.jon]])]
+    ?^  bad  (reply eyre-id 500 'could not create call')
+    (send-json eyre-id (pairs:enjs:format ~[['id' s+id]]))
+  ::
+      [%api %call ~]
+    =/  id=(unit @t)  (~(get by (malt args)) 'id')
+    ?~  id  (reply eyre-id 400 'id required')
+    ;<  res=(unit json)  bind:m
+      (peek-as:io (at rail [%& /calls (crip "{(trip u.id)}.json")]) ,json)
+    ?~  res  (reply eyre-id 404 'no such call')
+    (send-json eyre-id u.res)
+  ::
+      [%api %call-cull ~]
+    =/  jon=(unit json)  (post-json req)
+    ?~  jon  (reply eyre-id 400 'json body required')
+    =/  id=@t  (jget u.jon 'id')
+    ?:  =('' id)  (reply eyre-id 400 'id required')
+    ;<  *  bind:m  (cull-soft:io (at rail [%& /calls (crip "{(trip id)}.json")]))
+    (reply eyre-id 200 'ok')
+  ::
+      [%api %sweep ~]
+    ;<  calls=view:nexus  bind:m  (peek:io (at rail [%| /calls]) ~)
+    =/  done=(list @ta)
+      %+  murn  (file-entries calls)
+      |=  [nam=@ta =sang:tarball]
+      ?:(=('pending' (call-status sang)) ~ `nam)
+    =/  n=@ud  (lent done)
+    |-
+    ?~  done
+      (send-json eyre-id (pairs:enjs:format ~[['swept' (numb:enjs:format n)]]))
+    ;<  *  bind:m  (cull-soft:io (at rail [%& /calls i.done]))
+    $(done t.done)
   ==
 --

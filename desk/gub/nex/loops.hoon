@@ -7,6 +7,10 @@
 ::
 /<  ol   /lib/open-loops.hoon
 /<  iso  /lib/iso-8601.hoon
+::  the MCP tools that read and drive this nexus (its own bundle, its
+::  own tools-nexus instance at /tools — the nostr pattern)
+/<  nex-tools  /lib/tools.hoon
+/&  bundle   /lib/loops-bundle/
 /&  loops-html  loops/index.html
 /&  loops-js    loops/app.js
 /&  loops-css   loops/style.css
@@ -37,6 +41,7 @@
           [%over %& [/ui %'index.html'] [[/ %mime] loops-html]]
           [%over %& [/ui %'app.js'] [[/ %mime] loops-js]]
           [%over %& [/ui %'style.css'] [[/ %mime] loops-css]]
+          [%over %| /tools (seed-tools:nex-tools bundle)]
       ==
     ::
     ++  on-file

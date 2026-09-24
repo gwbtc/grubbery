@@ -1,0 +1,125 @@
+/* s3 nexus — the house style (see github, openrouter), amber accent. */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  font-family: Inter, -apple-system, sans-serif;
+  font-size: 13px; line-height: 1.5;
+  background: #f6f7f9; color: #1f2328;
+  overflow: hidden; display: flex; flex-direction: column;
+  -webkit-font-smoothing: antialiased;
+}
+
+header {
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px 20px; background: white;
+  border-bottom: 1px solid #e4e7eb; flex-shrink: 0;
+}
+#brand-icon { width: 22px; height: 22px; border-radius: 6px; }
+h1 { font-size: 15px; font-weight: 650; letter-spacing: -0.01em; }
+#status { margin-left: auto; font-size: 11px; color: #79808a; font-variant-numeric: tabular-nums; }
+.muted { color: #79808a; font-size: 12px; }
+
+main {
+  flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 16px;
+  width: 100%; max-width: 860px; margin: 0 auto; padding: 20px;
+  overflow-y: auto;
+}
+.panel {
+  background: white; border: 1px solid #e4e7eb; border-radius: 12px;
+  padding: 18px 20px; flex-shrink: 0;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+}
+.panel.grow { flex: 1; min-height: 200px; display: flex; flex-direction: column; }
+.panel-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 10px; }
+.panel-head h2 { margin-bottom: 0; }
+h2 {
+  font-size: 11px; font-weight: 650; color: #79808a;
+  text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 10px;
+}
+#act-scroll { flex: 1; min-height: 0; overflow-y: auto; }
+
+label { font-size: 12px; color: #79808a; font-weight: 500; display: flex; flex-direction: column; gap: 4px; }
+input, select {
+  font-family: inherit; font-size: 13px; color: #1f2328;
+  height: 32px; padding: 0 10px;
+  background: #f6f8fa; border: 1px solid #dfe3e8; border-radius: 8px;
+  outline: none; transition: border-color 0.12s, background 0.12s, box-shadow 0.12s;
+}
+input:focus { background: white; border-color: #e07a2f; box-shadow: 0 0 0 3px rgba(224, 122, 47, 0.16); }
+input.grow { flex: 1; min-width: 0; }
+button {
+  font-family: inherit; font-size: 12.5px; font-weight: 550;
+  height: 32px; padding: 0 14px; border-radius: 8px;
+  border: 1px solid #dfe3e8; background: white; color: #3a414a;
+  cursor: pointer; transition: background 0.12s, border-color 0.12s, color 0.12s;
+  white-space: nowrap;
+}
+button:hover { background: #f6f8fa; border-color: #c9cfd6; }
+button:disabled { opacity: 0.5; cursor: default; }
+button.primary { background: #e07a2f; border-color: #e07a2f; color: white; }
+button.primary:hover { background: #c6681f; border-color: #c6681f; }
+button.small { height: 26px; padding: 0 10px; font-size: 11.5px; }
+button.small.danger:hover { color: #cf222e; border-color: #e5b5b5; background: #fdeef0; }
+button.icon {
+  width: 28px; height: 28px; padding: 0; flex: none;
+  display: inline-flex; align-items: center; justify-content: center;
+  color: #79808a; border-color: transparent; background: transparent;
+}
+button.icon.plain:hover { color: #1f2328; background: #f0f2f4; }
+button.icon svg[hidden] { display: none; }
+.row { display: flex; gap: 8px; align-items: center; }
+.row.end { justify-content: flex-end; }
+.add-row { margin-top: 10px; }
+.hint { margin-bottom: 8px; }
+.mono { font-family: "SF Mono", Menlo, monospace; font-size: 12px; }
+code.mono { font-size: 11px; background: #f0f2f4; padding: 1px 5px; border-radius: 4px; }
+
+table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+th {
+  text-align: left; font-size: 10.5px; font-weight: 650; color: #9aa1ab;
+  text-transform: uppercase; letter-spacing: 0.05em;
+  padding: 6px 8px; border-bottom: 1px solid #eef0f3;
+  position: sticky; top: 0; background: white;
+}
+td { padding: 6px 8px; border-bottom: 1px solid #f0f2f4; font-size: 12px; }
+td.caller, td.target { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+th.r, td.r { text-align: right; }
+td.r .row { justify-content: flex-end; }
+td.ok { color: #1a7534; }
+td.bad { color: #cf222e; }
+tr.empty td { color: #9aa1ab; }
+
+/* modals: <modal-dialog> owns backdrop/card; these style the slotted body */
+modal-dialog.form { --md-width: 520px; }
+modal-dialog.form h2 { font-size: 15px; font-weight: 650; color: #1f2328; text-transform: none; letter-spacing: -0.01em; margin-bottom: 8px; }
+modal-dialog.form p { font-size: 12.5px; line-height: 1.7; color: #3a414a; margin-bottom: 10px; }
+modal-dialog.form label { margin-bottom: 8px; }
+modal-dialog.form .row.end { margin-top: 6px; }
+
+/* the two explorers. REMOTE is amber-tagged, LOCAL is green-tagged, so the
+   header says at a glance which side of the wire you are looking at. */
+modal-dialog.explorer { --md-width: min(960px, 94vw); --md-pad: 0; }
+.ex-head { display: flex; align-items: baseline; gap: 10px; padding: 14px 18px 10px; border-bottom: 1px solid #eef0f3; }
+.ex-kind { font-size: 10px; font-weight: 700; letter-spacing: 0.08em; padding: 2px 7px; border-radius: 5px; }
+.remote .ex-kind { background: #fdebd9; color: #b45a12; }
+.local .ex-kind { background: #dcf3e3; color: #1a7534; }
+.ex-title { font-size: 14px; font-weight: 650; color: #1f2328; }
+.ex-sub { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ex-bar { display: flex; align-items: center; gap: 8px; padding: 8px 18px; border-bottom: 1px solid #eef0f3; background: #fafbfc; }
+.ex-crumbs { font-size: 12px; font-weight: 600; color: #57606a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ex-crumbs a { color: #57606a; text-decoration: none; padding: 2px 3px; border-radius: 5px; }
+.ex-crumbs a:hover { color: #24292f; background: #eaeef2; }
+.ex-body { height: min(60vh, 560px); overflow: auto; position: relative; }
+.ex-empty { padding: 28px 16px; text-align: center; color: #9aa0a6; font-size: 13px; }
+.ex-foot { display: flex; align-items: center; gap: 8px; padding: 8px 18px; border-top: 1px solid #eef0f3; }
+.grow { flex: 1; }
+.ov-text { margin: 0; padding: 14px 18px; font: 12.5px/1.55 "SF Mono", Menlo, monospace; white-space: pre-wrap; overflow-wrap: anywhere; color: #24292f; }
+#ex-view { position: absolute; inset: 0; overflow: auto; }
+.ex-crumbs .here { color: #24292f; }
+.ex-embed { position: absolute; inset: 0; }
+.ex-loading {
+  position: absolute; inset: 0; z-index: 2; display: flex; align-items: center; justify-content: center; gap: 10px;
+  background: rgba(255,255,255,0.85); color: #57606a; font-size: 13px;
+}
+.spinner { width: 16px; height: 16px; border-radius: 50%; border: 2px solid #dfe3e8; border-top-color: #e07a2f; animation: spin 0.8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }

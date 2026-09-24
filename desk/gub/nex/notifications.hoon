@@ -13,6 +13,10 @@
 ::  /ui/*             inbox page (requests pattern)
 ::
 /<  nib  /lib/inbox.hoon
+::  the MCP tools that read and drive this nexus (its own bundle, its
+::  own tools-nexus instance at /tools — the nostr pattern)
+/<  nex-tools  /lib/tools.hoon
+/&  bundle   /lib/notifications-bundle/
 /&  inbox-icon  notifications/icon.svg
 /&  inbox-html  notifications/index.html
 /&  inbox-js    notifications/app.js
@@ -37,6 +41,7 @@
           [%over %& [/ui %'app.js'] [[/ %mime] inbox-js]]
           [%over %& [/ui %'style.css'] [[/ %mime] inbox-css]]
           [%over %& [/ui %'icon.svg'] [[/ %mime] inbox-icon]]
+          [%over %| /tools (seed-tools:nex-tools bundle)]
       ==
     ::
     ++  on-file

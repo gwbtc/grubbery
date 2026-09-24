@@ -166,6 +166,10 @@
 ::      real dependencies, not just preferred order.
 ::
 /<  goals       /lib/goals.hoon
+::  the MCP tools that read and drive this nexus (its own bundle, its
+::  own tools-nexus instance at /tools — the nostr pattern)
+/<  nex-tools  /lib/tools.hoon
+/&  bundle   /lib/goals-bundle/
 /&  man  ../man/goals/readme.md
 /&  goals-html  goals/index.html
 /&  goals-js    goals/app.js
@@ -199,6 +203,7 @@
           [%over %& [/ui %'app.js'] [[/ %mime] goals-js]]
           [%over %& [/ui %'style.css'] [[/ %mime] goals-css]]
           [%over %& [/ %'README.md'] [[/ %mime] man]]
+          [%over %| /tools (seed-tools:nex-tools bundle)]
       ==
     ::
     ++  on-file

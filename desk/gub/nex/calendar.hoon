@@ -10,6 +10,10 @@
 /<  pytz   /lib/pytz.hoon
 /<  ics    /lib/ics.hoon
 /<  sh     /lib/shell.hoon
+::  the MCP tools that read and drive this nexus (its own bundle, its
+::  own tools-nexus instance at /tools — the nostr pattern)
+/<  nex-tools  /lib/tools.hoon
+/&  bundle   /lib/calendar-bundle/
 /&  icon      calendar/icon.svg
 /&  cal-html  calendar/calendar.html
 /&  cal-css   calendar/calendar.css
@@ -48,6 +52,7 @@
           [%over %& [/ %'calendar.css'] [[/ %mime] cal-css]]
           [%over %& [/ %'calendar.js'] [[/ %mime] cal-js]]
           [%fall %| /requests empty-dir:loader]
+          [%over %| /tools (seed-tools:nex-tools bundle)]
       ==
     ::
     ++  on-file
@@ -617,6 +622,7 @@
       :~  (line '/sys/bowl.sig' 'read the current time and our ship — every fiber uses get-time / get-our')
           (line '/sys/eyre/' 'bind its HTTP route and send page responses')
           (line '/sys/behn/' 'the reminders fiber ticks on 5-minute marks to fire due reminders')
+          (line '/sys/iris/' 'the gcal_read tool fetches external ICS feeds over HTTP')
       ==
       :-  'peek'
       :-  %a
