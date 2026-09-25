@@ -4303,6 +4303,20 @@
     ::  (consumed takes removed), rebuild process, enqueue.
     =.  this  (save-file here [p.u.file-data q.new-state])
     ?:  (is-nexus-banged here)  this
+    ::  A dart the weir refused is refused again on every retry, so a
+    ::  fiber that crashed consuming a %veto is a permanent loop, not a
+    ::  transient fault. The failing take is the head of `done`; if its
+    ::  input was a %veto, park the fiber (bang) instead of restarting.
+    ::  A reload after the app's permits are granted revives it. Every
+    ::  other failure still restarts as before.
+    =/  culprit=(unit pend:fiber:nexus)
+      ?~  done  ~
+      in.take.i.done
+    ?:  ?=([~ %veto *] culprit)
+      %+  bang-file  here
+      :~  leaf+"fiber parked: a dart was refused by the weir"
+          leaf+"grant this app's permits, then reload to retry"
+      ==
     =/  spool-got  (build-spool here)
     =/  spool-res=(each spool:fiber:nexus tang)
       ?:  ?=(%| -.spool-got)  spool-got
