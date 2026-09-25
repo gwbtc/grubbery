@@ -141,6 +141,7 @@
     .m-opt input { accent-color:#4a90d9; }
     .m-none { font-size:13px; color:#a0a8b4; padding:8px 12px; }
     .m-foot { display:flex; gap:8px; justify-content:flex-end; margin-top:14px; padding-top:12px; border-top:1px solid #eef1f5; }
+      .card.applying { opacity: .55; pointer-events: none; }
   </style>
 </head>
 <body>
@@ -165,7 +166,7 @@
     </div>
   </div>
   <script>
-    var mode='pending', selected=null, editSet={}, dirty=false;
+    var mode='pending', selected=(new URLSearchParams(location.search).get('app'))||null, editSet={}, dirty=false;
     var approvedState={}, weirsState={}, aliasMenus={}, asksData=[];
 
     function esc(s){ var d=document.createElement('div'); d.textContent=(s==null)?'':String(s); return d.innerHTML; }
@@ -198,7 +199,30 @@
     function warnMark(r){ var l=dangerLevel(r); if(!l)return ''; var t=l==='severe'?'high-privilege target':(l==='broad'?'broad — grants a whole top-level tree':'system service — mostly harmless'); return '<span class="warn '+l+'" title="'+t+'">&#9888;</span>'; }
     function fmtDate(s){ if(!s)return ''; var p=s.replace('~','').split('..'), d=(p[0]||'').split('.'), t=(p[1]||'').split('.'); if(d.length<3)return s; var dt=new Date(Date.UTC(+d[0],(+d[1])-1,+d[2],+(t[0]||0),+(t[1]||0),+(t[2]||0))); if(isNaN(dt.getTime()))return s; return dt.toLocaleString(undefined,{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'}); }
     var shareState={}, groupsList=[];
-    function act(body){ fetch('/apps/grubbery/permits',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)}).then(function(){ setTimeout(load,300); }); }
+    // The slow work runs on OUR schedule, not the user's: the server serves
+    // the page and applies actions without rebuilding anything, and this
+    // asks for the rebuild in the background, then reloads when it is done.
+    var refreshing=null;
+    function refresh(full){
+      if(refreshing)return refreshing;
+      refreshing=fetch('/apps/grubbery/permits/refresh',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({full:!!full})})
+        .catch(function(){}).then(function(){ refreshing=null; load(); });
+      return refreshing;
+    }
+    function act(body){
+      // the acted-on card goes quiet until the data comes back
+      var card=body.app?document.querySelector('.card[data-sel="'+body.app+'"]'):null;
+      if(card){ card.classList.add('applying'); Array.prototype.forEach.call(card.querySelectorAll('button,input,select'),function(e){ e.disabled=true; }); }
+      fetch('/apps/grubbery/permits',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)})
+        .then(function(){ return load(); })  // the answer is authoritative: re-render now
+        .then(function(){
+          // the slow work only after the reads are back: the ship runs one
+          // event at a time, and a read queued behind a 6s reboot is a 6s read
+          if(body.action==='approve-weir'&&body.app){ fetch('/apps/grubbery/permits/reload',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({app:body.app})}).catch(function(){}); }
+          refresh(true);
+        })
+        .catch(function(){ if(card){ card.classList.remove('applying'); } });
+    }
 
     function hasDrift(app){ var w=weirsState[app]; if(!w)return false; return ['poke','peek','make'].some(function(c){ return (w[c]||[]).some(function(r){ return r.status==='missing'||r.status==='unmanaged'; }); }); }
     // Two independent facets, not one exclusive state:
@@ -392,14 +416,14 @@
     var loadingEl=document.getElementById('loading'), firstLoad=true;
     function load(){
       if(firstLoad)loadingEl.classList.add('on');
-      Promise.all([
+      return Promise.all([
         fetch('/apps/grubbery/approved.json').then(function(r){return r.json();}).then(function(d){ approvedState=d||{}; }).catch(function(){}),
         fetch('/apps/grubbery/weirs.json').then(function(r){return r.json();}).then(function(d){ weirsState=d||{}; }).catch(function(){}),
         fetch('/apps/grubbery/aliases.json').then(function(r){return r.json();}).then(function(d){ aliasMenus=d||{}; }).catch(function(){}),
         fetch('/apps/grubbery/asks.json').then(function(r){return r.json();}).then(function(d){ asksData=d||[]; }).catch(function(){}),
         fetch('/apps/grubbery/share.json').then(function(r){return r.json();}).then(function(d){ shareState=d||{}; }).catch(function(){}),
         fetch('/apps/grubbery/groups.json').then(function(r){return r.json();}).then(function(d){ groupsList=d||[]; }).catch(function(){})
-      ]).then(function(){ var f=firstLoad; if(firstLoad){ loadingEl.classList.remove('on'); firstLoad=false; } render(true); if(f&&selected){ setTimeout(function(){ centerCard(selected,false); },60); } });
+      ]).then(function(){ var f=firstLoad; if(firstLoad){ loadingEl.classList.remove('on'); firstLoad=false; refresh(false); } render(true); if(f&&selected){ setTimeout(function(){ centerCard(selected,false); },60); } });
     }
     var mv=document.createElement('div'); mv.className='modal-veil';
     mv.innerHTML='<div class="modal"><h3 id="m-title"></h3><div class="m-sub">Usergroups that can discover this alias from other ships. None checked = private.</div>'
