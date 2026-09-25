@@ -1492,11 +1492,35 @@
 ::  +abet: run the take queue dry, then return cards and state
 ::
 ++  abet
+  ::  restart-cap: how many times one fiber may (re)start within a single
+  ::  drain before it is parked. A fiber that fails on start is restarted
+  ::  at once with a fresh start take (both fields null), drained in this
+  ::  same loop; a deterministic failure - a dart the weir refused on an
+  ::  unapproved app, poison state, a poison timer - then loops forever
+  ::  inside one gall event, pegging the ship and answering nothing. The
+  ::  cap turns that infinite loop into a parked fiber and a finished
+  ::  event. 32 is far above any legitimate per-event restart count.
+  =/  restart-cap=@ud  32
+  =|  spins=(map rail:tarball @ud)
   |-
   ?:  =(~ takes)
     [(flop cards) state]
   =^  [here=rail:tarball =take:fiber:nexus]  takes  ~(get to takes)
+  =/  is-start=?  &(?=(~ give.take) ?=(~ in.take))
+  ::  a fiber that has already (re)started restart-cap times this event is
+  ::  looping: park it (bang) instead of running it again, and drop this
+  ::  start take. A reload revives it - after its permits are granted, if
+  ::  a refused dart was the cause.
+  ?:  &(is-start (gte (~(gut by spins) here 0) restart-cap))
+    =.  this
+      %+  bang-file  here
+      :~  leaf+"fiber parked: restarted over {(scow %ud restart-cap)} times in one event"
+          leaf+"reload to retry (grant this app's permits first if a dart was refused)"
+      ==
+    $
   =.  this  (process-take here take)
+  =?  spins  is-start
+    (~(put by spins) here +((~(gut by spins) here 0)))
   $
 ::  Drop hist entries matching a lose spec, decrementing silo refs
 ::
