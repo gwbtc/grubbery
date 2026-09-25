@@ -3,7 +3,7 @@
 // request every MCP client makes.
 // The page is a viewer for ONE tools nexus, the one its URL names:
 // /grubbery/tools                 this endpoint's own tools
-// /grubbery/tools/apps/nostr/tools   the nostr app's
+// /grubbery/tools/apps/.../tools  some app's tools
 // Every data route takes ?path=; no registry, no scanning.
 //   GET  /grubbery/tools/api/tools-tree?path=  {path, own, dirs, tools}
 //   GET  /grubbery/tools/api/runs?path=        [{id, tool, step, args, result}]

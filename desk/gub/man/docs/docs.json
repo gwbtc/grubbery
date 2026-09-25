@@ -1,0 +1,41 @@
+{
+  "ignore": [
+    "/tests",
+    "/lib/wasm",
+    "/desk.bill",
+    "/desk.docket-0",
+    "/sys.kelvin",
+    "/sur/wasm",
+    "/sur/spider.hoon",
+    "/sur/docket.hoon"
+  ],
+  "nav": [
+    { "title": "Introduction", "path": "intro.md" },
+    { "title": "Principles", "kids": [
+      { "title": "Namespace-first", "path": "namespace-first.md" },
+      { "title": "Reboot-anytime", "path": "reboot-anytime.md" },
+      { "title": "Composition over entanglement", "path": "composition.md" }
+    ] },
+    { "title": "Core model", "kids": [
+      { "title": "Nexuses", "path": "nexuses.md" },
+      { "title": "Grubs & the namespace", "path": "grubs.md" },
+      { "title": "Fibers", "path": "fibers.md" }
+    ] },
+    { "title": "Tutorials", "kids": [
+      { "title": "Your first nexus", "path": "hello-nexus.md" },
+      { "title": "Serving a web page", "path": "serving-a-page.md" },
+      { "title": "Talking to external APIs", "path": "talking-to-apis.md" }
+    ] },
+    { "title": "Subsystems", "kids": [
+      { "title": "Permissions", "path": "permissions.md" },
+      { "title": "Desks", "path": "desks.md" },
+      { "title": "Cross-ship", "path": "cross-ship.md" },
+      { "title": "HTTP serving", "path": "http-serving.md" },
+      { "title": "Code nexuses", "path": "code-nexuses.md" }
+    ] },
+    { "title": "TODO & future topics", "path": "roadmap.md" },
+    { "title": "Design", "kids": [
+      { "title": "Documenting the codebase", "path": "direction.md" }
+    ] }
+  ]
+}

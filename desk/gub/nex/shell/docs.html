@@ -11,16 +11,42 @@
     --code-bg: #f4f4f5;
   }
   * { box-sizing: border-box; }
+  /* web components load as modules (own scope, no global-name collisions), so
+     they're briefly undefined during parse. Hide them until they upgrade — and
+     permanently if a script ever fails — so slotted content never renders in raw
+     stacked flow. split-view holds the whole layout; float-window the chat. */
+  split-view:not(:defined), float-window:not(:defined) { display: none !important; }
+  /* while split-view is still upgrading it's display:none, so the footer would
+     be the only flex child and render at the TOP. Hide it until split-view is
+     defined, so the whole layout appears together, footer at the bottom. */
+  #docs:not(:defined) ~ #docs-foot { display: none !important; }
   body {
     margin: 0; background: var(--bg); color: var(--fg);
     font: 15px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    display: flex; flex-direction: column; height: 100vh; overflow: hidden;
   }
-  #docs { display: flex; min-height: 100vh; }
+  /* the resizable <split-view> fills everything above the footer; the footer
+     sits below it in normal flow, so it never overlaps the sidebar. */
+  #docs {
+    flex: 1 1 auto; min-height: 0;
+    --sv-border: var(--line);
+  }
   #sidebar {
-    width: 240px; flex: 0 0 240px; background: var(--sidebar);
-    border-right: 1px solid var(--line); padding: 24px 0; position: sticky;
-    top: 0; height: 100vh; overflow-y: auto;
+    position: relative;
+    height: 100%; background: var(--sidebar);
+    border-right: 1px solid var(--line); padding: 24px 0;
+    overflow-y: auto; overflow-x: hidden;
+    /* a floor so the nav never compresses to the point of wrapping — below
+       this the pane just clips, it never reflows the labels. */
+    min-width: 190px;
   }
+  #sb-collapse {
+    position: absolute; top: 10px; right: 8px; z-index: 2;
+    width: 22px; height: 22px; display: flex; align-items: center;
+    justify-content: center; border: none; background: none; cursor: pointer;
+    color: var(--muted); border-radius: 5px; font-size: 15px; line-height: 1;
+  }
+  #sb-collapse:hover { background: #ececec; color: var(--fg); }
   #sidebar h1 {
     font-size: 13px; text-transform: uppercase; letter-spacing: 0.08em;
     color: var(--muted); margin: 0 0 12px; padding: 0 24px;
@@ -35,6 +61,7 @@
   #nav a {
     display: block; padding: 6px 24px; color: var(--fg);
     text-decoration: none; border-left: 2px solid transparent;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
   #nav a:hover { background: #f0f0f0; }
   #nav a.active { border-left-color: var(--accent); font-weight: 600; background: #f0f0f0; }
@@ -42,13 +69,21 @@
     padding: 8px 24px 4px; font-size: 12px; text-transform: uppercase;
     letter-spacing: 0.06em; color: var(--muted); cursor: pointer;
     user-select: none; display: flex; align-items: center; gap: 6px;
+    white-space: nowrap; overflow: hidden;
   }
   #nav .sec-head::before { content: "▾"; font-size: 10px; transition: transform 0.1s; }
   #nav .sec.collapsed > .sec-head::before { transform: rotate(-90deg); }
   #nav .sec.collapsed > ul { display: none; }
   #nav .sec ul a { padding-left: 36px; }
+  #nav .sec-cov {
+    display: block; padding: 6px 24px; color: var(--fg); text-decoration: none;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  #nav .sec-cov:hover { background: #f0f0f0; }
+  .sec-cov-handle { color: #b0b6bd; cursor: pointer; font-size: 11px; padding: 0 4px; }
+  .sec-cov-handle:hover { color: var(--accent); }
 
-  #content { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  #content { height: 100%; min-width: 0; display: flex; flex-direction: column; overflow-y: auto; }
   #topbar {
     position: sticky; top: 0; z-index: 20; background: rgba(255,255,255,0.9);
     backdrop-filter: blur(6px); border-bottom: 1px solid var(--line);
@@ -78,7 +113,7 @@
   #search-results .no-hits { padding: 14px; color: var(--muted); font-style: italic; text-align: center; }
 
   #doc-wrap { flex: 1; display: flex; justify-content: center; }
-  #doc { max-width: 720px; width: 100%; padding: 40px 40px 96px; }
+  #doc { max-width: 720px; width: 100%; padding: 40px 40px 64px; }
   #doc h1 { font-size: 30px; margin: 0 0 8px; }
   #doc h2 { font-size: 21px; margin: 36px 0 10px; border-bottom: 1px solid var(--line); padding-bottom: 6px; }
   #doc h3 { font-size: 17px; margin: 28px 0 8px; }
@@ -104,11 +139,19 @@
   .sk-gap { height: 26px; background: none; animation: none; }
   @keyframes sk-shimmer { 0% { background-position: 100% 0; } 100% { background-position: 0 0; } }
   @keyframes sk-fade { from { opacity: 0; } to { opacity: 1; } }
+  /* code-shaped shimmer, shown where a source snippet is in flight (live embeds,
+     the coverage heatmap source) instead of a bare "loading…" line. */
+  .code-sk { padding: 14px 16px; animation: sk-fade 0.2s ease; }
+  .code-sk i {
+    display: block; height: 10px; margin: 8px 0; border-radius: 4px;
+    background: linear-gradient(90deg, #ececec 25%, #f6f6f6 37%, #ececec 63%);
+    background-size: 400% 100%; animation: sk-shimmer 1.4s ease infinite;
+  }
   #docs-foot {
-    position: fixed; bottom: 0; left: 0; right: 0; z-index: 40;
-    padding: 12px 40px; color: var(--muted); font-size: 12px;
+    flex: 0 0 auto;
+    padding: 10px 40px; color: var(--muted); font-size: 12px;
     font-style: italic; text-align: center;
-    background: rgba(250,250,250,0.92); backdrop-filter: blur(6px);
+    background: var(--sidebar);
     border-top: 1px solid var(--line);
   }
 
@@ -124,8 +167,9 @@
 </style>
 </head>
 <body>
-  <div id="docs">
-    <nav id="sidebar">
+  <split-view id="docs" size="240px" min="190" max="420" persist="docs-sidebar">
+    <nav id="sidebar" slot="start">
+      <button id="sb-collapse" title="Collapse sidebar" aria-label="Collapse sidebar">‹</button>
       <a id="home-link" href="/apps/grubbery" title="Back to home">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
         Home
@@ -133,7 +177,7 @@
       <h1>Grubbery Docs</h1>
       <ul id="nav"></ul>
     </nav>
-    <main id="content">
+    <main id="content" slot="end">
       <header id="topbar">
         <div id="search-wrap">
           <input id="search-input" type="text" placeholder="Search docs…  ⌘K" autocomplete="off" spellcheck="false">
@@ -153,13 +197,22 @@
         </article>
       </div>
     </main>
-  </div>
+  </split-view>
   <footer id="docs-foot">
     This handbook began as an LLM-automated first pass and is being adapted by
     hand — treat specifics as provisional.
   </footer>
 
   <link rel="stylesheet" href="/apps/grubbery/docs/chat.css">
+  <!-- Shared UI components load as ES modules so each gets its own scope — as
+       bare classic scripts they share one global and their top-level names
+       (e.g. `const TPL`) collide. window-manager must precede float-window (it
+       publishes window.floatwm). Modules run after the classic scripts below and
+       before DOMContentLoaded, so the elements are defined before docs.js/chat.js
+       instantiate them. -->
+  <script type="module" src="/apps/grubbery/docs/split-view.js"></script>
+  <script type="module" src="/apps/grubbery/docs/window-manager.js"></script>
+  <script type="module" src="/apps/grubbery/docs/float-window.js"></script>
   <script src="/apps/grubbery/docs/marked.min.js"></script>
   <script src="/apps/grubbery/docs/docs.js"></script>
   <script src="/apps/grubbery/docs/chat.js"></script>

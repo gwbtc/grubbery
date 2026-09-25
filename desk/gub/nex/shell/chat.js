@@ -2,11 +2,11 @@
 // reader. It can ONLY read/search the docs and the root /code nexus — its
 // tools are scoped to exactly those two read-only namespaces, server-side.
 //
-// This file is the UI half: launcher + panel, conversation state, and the
-// wire protocol. It POSTs the running transcript to /apps/grubbery/docs/chat
-// and renders the reply plus a trace of which tools the bot used. The backend
-// (the actual model loop) is built separately; until it answers, the panel
-// degrades to a clear "not wired up yet" notice.
+// This file is the UI half: launcher + a draggable/resizable <float-window>,
+// conversation state, and the wire protocol. It POSTs the running transcript to
+// /apps/grubbery/docs/chat and renders the reply plus a trace of which tools the
+// bot used. The backend (the actual model loop) is built separately; until it
+// answers, the window degrades to a clear "not wired up yet" notice.
 'use strict';
 
 (function () {
@@ -35,6 +35,7 @@
     stop: '<svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>',
     search: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>',
     file: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>',
+    reset: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>',
   };
 
   // map a tool name → the glyph shown in its trace line
@@ -44,7 +45,12 @@
   }
 
   // ---- element construction ----
-  var fab, panel, log, input, sendBtn;
+  // The assistant lives in a <float-window> (draggable + resizable, geometry
+  // persisted). `content` is the chat column; it's built once and moved into a
+  // fresh window on reset, so the conversation survives a reset-to-default.
+  var fab, win, content, log, input, sendBtn;
+
+  var DEF = { w: 452, h: 620 };             // default window size
 
   function el(tag, cls, html) {
     var e = document.createElement(tag);
@@ -53,18 +59,20 @@
     return e;
   }
 
-  function build() {
-    fab = el('button', 'da-fab da-hidden', I.spark + '<span>Ask the docs… &#8984;J</span>');
-    fab.title = 'Ask the docs assistant (⌘J)';
-    fab.addEventListener('click', togglePanel);
+  // default top-left: docked bottom-right, sitting ABOVE the launcher FAB (which
+  // is ~68px tall at bottom:22) so the window never covers it. Clamped on-screen.
+  function defaultPos() {
+    var rightGap = 22, bottomGap = 88;
+    return {
+      x: Math.max(22, window.innerWidth - DEF.w - rightGap),
+      y: Math.max(22, window.innerHeight - DEF.h - bottomGap),
+    };
+  }
 
-    panel = el('div', 'da-panel da-hidden');
-
-    var head = el('div', 'da-head');
-    var mark = el('span', 'da-mark', '&#9670;');
-    var titleWrap = el('div');
-    titleWrap.appendChild(el('div', 'da-title', 'Docs assistant'));
-    titleWrap.appendChild(el('div', 'da-sub', 'reads the docs &amp; /code — nothing else'));
+  // build the chat column ONCE — toolbar (config / clear / reset) + log + input.
+  function buildContent() {
+    var toolbar = el('div', 'da-toolbar');
+    var sub = el('div', 'da-sub', 'reads the docs &amp; /code — nothing else');
     var spacer = el('div', 'da-spacer');
     var cfgBtn = el('button', 'da-icon-btn', I.gear);
     cfgBtn.title = 'Configure';
@@ -72,10 +80,10 @@
     var clearBtn = el('button', 'da-icon-btn', I.trash);
     clearBtn.title = 'Clear conversation';
     clearBtn.addEventListener('click', clearChat);
-    var minBtn = el('button', 'da-icon-btn', I.min);
-    minBtn.title = 'Minimize';
-    minBtn.addEventListener('click', closePanel);
-    head.append(mark, titleWrap, spacer, cfgBtn, clearBtn, minBtn);
+    var resetBtn = el('button', 'da-icon-btn', I.reset);
+    resetBtn.title = 'Reset window size & position';
+    resetBtn.addEventListener('click', resetWindow);
+    toolbar.append(sub, spacer, cfgBtn, clearBtn, resetBtn);
 
     log = el('div', 'da-log');
 
@@ -89,9 +97,44 @@
     sendBtn.addEventListener('click', function () { if (busy) stop(); else submit(); });
     inputBar.append(input, sendBtn);
 
+    var root = el('div', 'da-win');
+    root.append(toolbar, log, inputBar);
+    return root;
+  }
+
+  // a fresh <float-window> at the DEFAULT geometry, hosting the shared content
+  // column. Deliberately NO `persist`: the window never remembers a moved or
+  // resized geometry, so every open — and the reset button — starts at the
+  // default size and position. The window exists in the DOM only while open.
+  function makeWindow() {
+    var w = document.createElement('float-window');
+    w.setAttribute('title', 'Docs assistant');
+    w.setAttribute('icon', '◆');
+    var p = defaultPos();
+    w.setAttribute('x', p.x + 'px');
+    w.setAttribute('y', p.y + 'px');
+    w.setAttribute('width', DEF.w);
+    w.setAttribute('height', DEF.h);
+    w.setAttribute('min-width', 320);
+    w.setAttribute('min-height', 320);
+    w.appendChild(content);
+    // keep the FAB's active state honest when the window is closed/minimized via
+    // its own titlebar chrome rather than the launcher.
+    w.addEventListener('fw-close', function () { win = null; deactivateFab(); });
+    w.addEventListener('fw-minimize', function (e) { if (e.detail && e.detail.minimized) deactivateFab(); });
+    w.addEventListener('fw-focus', function () { fab.classList.add('da-active'); });
+    return w;
+  }
+  function deactivateFab() { fab.classList.remove('da-active'); }
+
+  function build() {
+    fab = el('button', 'da-fab da-hidden', I.spark + '<span>Ask the docs… &#8984;J</span>');
+    fab.title = 'Ask the docs assistant (⌘J)';
+    fab.addEventListener('click', togglePanel);
+
+    content = buildContent();
     buildConfig();
-    panel.append(head, log, inputBar);
-    document.body.append(fab, panel, cfgBack);
+    document.body.append(fab, cfgBack);   // the window mounts on first open
     renderLog();
     loadHistory();
     // reveal the launcher once the reader has settled
@@ -105,24 +148,34 @@
     });
   }
 
-  // ---- panel open/close ----
-  // The launcher stays put at the bottom and toggles the panel, which opens
-  // just above it — so the same button opens and closes it. The header
-  // chevron minimizes too. Neither path clears the conversation.
+  // ---- window open/close ----
+  // Each open builds a FRESH window at the default geometry — closing and
+  // reopening always returns to the default size and position. The conversation
+  // is preserved (the content column moves into each new window, not cleared).
+  function isOpen() {
+    return !!(win && win.isConnected && !win.hasAttribute('minimized'));
+  }
   function togglePanel() {
-    if (panel.classList.contains('da-hidden')) openPanel();
-    else closePanel();
+    if (isOpen()) closePanel();
+    else openPanel();
   }
   function openPanel() {
-    panel.classList.remove('da-hidden');
+    if (win) win.remove();            // discard any prior window + its geometry
+    win = makeWindow();               // fresh, at the default size/position
+    document.body.appendChild(win);
+    win.raise();
     fab.classList.add('da-active');
     setTimeout(function () { input.focus(); }, 120);
     scrollToEnd();
   }
   function closePanel() {
-    panel.classList.add('da-hidden');
+    if (win) { win.remove(); win = null; }
     fab.classList.remove('da-active');
   }
+
+  // reset-to-default: identical to a fresh open — rebuild at the default
+  // geometry, keeping the conversation.
+  function resetWindow() { openPanel(); }
   function clearChat() {
     // archive the current conversation server-side, then reset locally
     fetch('/apps/grubbery/docs/clear', { method: 'POST' }).catch(function () {});

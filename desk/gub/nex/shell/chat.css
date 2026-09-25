@@ -17,27 +17,19 @@
 .da-fab.da-hidden { opacity: 0; pointer-events: none; transform: translateY(8px); }
 .da-fab.da-active svg { transform: rotate(180deg); }
 
-.da-panel {
-  position: fixed; bottom: 80px; right: 22px; z-index: 51;
-  width: 448px; max-width: calc(100vw - 32px);
-  height: 620px; max-height: calc(100vh - 102px);
-  display: flex; flex-direction: column;
-  background: #fff; border: 1px solid #e6e6e6; border-radius: 14px;
-  box-shadow: 0 18px 60px rgba(0,0,0,0.28);
-  overflow: hidden;
-  transform-origin: bottom right;
-  transition: transform 0.14s ease, opacity 0.14s ease;
+/* the assistant lives in a <float-window>; make its body a flex column with no
+   padding so our own toolbar/log/input fill the frame and the log scrolls. */
+float-window::part(body) { padding: 0; display: flex; flex-direction: column; }
+.da-win {
+  flex: 1; min-height: 0; display: flex; flex-direction: column; background: #fff;
 }
-.da-panel.da-hidden { opacity: 0; pointer-events: none; transform: scale(0.96) translateY(8px); }
 
-.da-head {
-  display: flex; align-items: center; gap: 9px;
-  padding: 13px 14px; border-bottom: 1px solid #eee; flex: 0 0 auto;
+.da-toolbar {
+  display: flex; align-items: center; gap: 3px;
+  padding: 8px 9px 8px 14px; border-bottom: 1px solid #eee; flex: 0 0 auto;
 }
-.da-head .da-mark { color: #3d3a45; font-size: 15px; }
-.da-head .da-title { font: 600 14px/1.2 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
-.da-head .da-sub { font-size: 11px; color: #8a8a8a; margin-top: 1px; }
-.da-head .da-spacer { flex: 1; }
+.da-toolbar .da-sub { font-size: 11px; color: #8a8a8a; }
+.da-toolbar .da-spacer { flex: 1; }
 .da-icon-btn {
   background: none; border: none; color: #8a8a8a; cursor: pointer;
   padding: 5px; border-radius: 6px; display: flex; line-height: 0;

@@ -35,30 +35,21 @@
   ^-  json
   :-  %a
   :~  %:  mk-tool:clanker  'search_docs'
-        'Full-text search the Grubbery handbook docs. Returns matching doc filenames and snippet lines.'
+        'Full-text search the handbook docs. Returns matching doc filenames and snippet lines.'
         ~[['query' 'the search terms']]  ~['query']
       ==
       %:  mk-tool:clanker  'read_doc'
-        'Read one Grubbery handbook doc in full by its filename (as returned by search_docs).'
+        'Read one handbook doc in full by its filename (as returned by search_docs), e.g. intro.md.'
         ~[['path' 'the doc filename, e.g. intro.md']]  ~['path']
       ==
-      %:  mk-tool:clanker  'search_code'
-        'Search the Grubbery SOURCE TREE (the root /code nexus — the actual .hoon implementation) for a string. Returns matching lines with file paths + line numbers.'
-        ~[['pattern' 'text to search for'] ['path' 'optional path glob to filter files, e.g. /lib/* or *nexus*']]
+      %:  mk-tool:clanker  'search_source'
+        'Search the documented target SOURCE — the whole mirrored desk (the actual .hoon implementation plus marks, man pages, sys files). Returns matching lines with file paths + line numbers.'
+        ~[['pattern' 'text to search for'] ['path' 'optional path glob to filter files, e.g. /gub/lib/* or *nexus*']]
         ~['pattern']
       ==
-      %:  mk-tool:clanker  'read_code'
-        'Read a source file from the root /code nexus (the Grubbery source tree). Path like /lib/nexus.hoon or /nex/shell/docs-agent.hoon.'
-        ~[['path' 'file path under /code, e.g. /lib/tarball.hoon']]  ~['path']
-      ==
-      %:  mk-tool:clanker  'search_desk'
-        'Search the raw Grubbery Clay desk — the full source desk, including runtime/kernel and non-/code files (marks, man pages, sys.kelvin). Returns matching lines with file paths + line numbers.'
-        ~[['pattern' 'text to search for'] ['path' 'optional path glob, e.g. /mar/* or *kelvin*']]
-        ~['pattern']
-      ==
-      %:  mk-tool:clanker  'read_desk'
-        'Read a file from the raw Grubbery Clay desk (source desk — includes files not in /code, like marks, man pages, sys.kelvin). Path like /mar/md.hoon.'
-        ~[['path' 'file path within the desk, e.g. /mar/md.hoon']]  ~['path']
+      %:  mk-tool:clanker  'read_source'
+        'Read a source file from the documented target (the mirrored desk). Path relative to the collection root, e.g. /gub/lib/nexus.hoon, /mar/md.hoon, or /sys.kelvin.'
+        ~[['path' 'file path within the target, e.g. /gub/lib/nexus.hoon']]  ~['path']
       ==
   ==
 ::  +run-loop: the agent loop. Each turn pokes the metering proxy; if the
@@ -67,13 +58,14 @@
 ++  system-seed
   ^-  @t
   '''
-  You are the Grubbery assistant, embedded in the Grubbery handbook. You can
-  search and read both the handbook docs (search_docs, read_doc) AND the
-  actual Grubbery source tree — the root /code nexus (search_code, read_code).
-  Search first, read the relevant docs or source, then answer from what they
-  actually say. Use the handbook for concepts and the source for exact
-  implementation detail. If something isn't covered, say so plainly rather
-  than guessing. Be concrete and brief, and cite doc or file paths.
+  You are the documentation assistant, embedded in a Grubbery handbook. You
+  read from a local mirror of the documented project: its handbook docs
+  (search_docs, read_doc) AND its full source — the whole mirrored desk, the
+  actual .hoon implementation plus marks and sys files (search_source,
+  read_source). Search first, read the relevant docs or source, then answer
+  from what they actually say. Use the handbook for concepts and the source for
+  exact implementation detail. If something isn't covered, say so plainly
+  rather than guessing. Be concrete and brief, and cite doc or file paths.
   '''
 ::  +config-seed: default model config, seeded into config.json on load.
 ++  config-seed
