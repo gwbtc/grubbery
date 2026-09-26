@@ -33,6 +33,27 @@
       { "title": "HTTP serving", "path": "http-serving.md" },
       { "title": "Code nexuses", "path": "code-nexuses.md" }
     ] },
+    { "title": "The build system",
+      "scope": [
+        "/lib/build.hoon",
+        "/lib/loader.hoon",
+        "/lib/nexus.hoon 5-34",
+        "/lib/tarball.hoon 5-43",
+        "/lib/tarball.hoon 64-71",
+        "/lib/tarball.hoon 148-212",
+        "/lib/tarball.hoon 767-774",
+        "/app/grubbery.hoon 72-102",
+        "/app/grubbery.hoon 1815-1852",
+        "/app/grubbery.hoon 5002-5022",
+        "/app/grubbery.hoon 5070-5120",
+        "/app/grubbery.hoon 5172-5219"
+      ],
+      "kids": [
+        { "title": "Overview", "path": "build-overview.md" },
+        { "title": "The compiler", "path": "build-compiler.md" },
+        { "title": "Storage & scopes", "path": "build-storage.md" },
+        { "title": "The substrate", "path": "build-substrate.md" }
+      ] },
     { "title": "TODO & future topics", "path": "roadmap.md" },
     { "title": "Design", "kids": [
       { "title": "Documenting the codebase", "path": "direction.md" }

@@ -152,31 +152,69 @@
         ;<  ~  bind:m  (bind-http:io [~ /apps/grubbery])
         ;<  ~  bind:m  (bind-http:io [~ /grubbery/tiles])
         (http-dispatch:io %shell)
-          ::  mirror.sig: on rise, copy every target directory's source into our
-          ::  own /docs/mirror (each mounted by +mirror-mount), so
-          ::  coverage computes from local data. Re-mirrors on rise and whenever
-          ::  targets.json changes; the mirror is not pruned, so coverage counts
-          ::  only files under a current target (+under-roots).
+          ::  mirror.sig: keep a local copy of every target's source under
+          ::  /docs/mirror (each mounted by +mirror-mount), so coverage computes
+          ::  from local data. FOLLOWS each target by SUBSCRIPTION: the kernel
+          ::  mirrors Clay desks into the namespace as real grubs (see
+          ::  +sync-clay-desk), so /sys/clay/desks/<desk> is a live grubbery
+          ::  subtree — a directory keep on it wakes us when the target changes.
+          ::  +sync-keeps subscribes to the registry AND every target directory;
+          ::  a +mug check skips re-copying a target whose ball is unchanged.
+          ::  The mirror is not pruned, so coverage counts only current targets.
           [~ %'mirror.sig']
         ;<  ~  bind:m  (rise-wait:io prod "%shell mirror: failed")
         |^
-        ;<  ~  bind:m  do-mirror
-        ::  wake and re-mirror whenever the target list changes
-        ;<  *  bind:m  (keep:io /cfg-t (nex-road:io rail [%& /docs %'targets.json']) `[/ %json])
+        ;<  seen0=(map path @)  bind:m  (do-mirror ~)
+        ;<  kept0=(set path)    bind:m  (sync-keeps ~)
+        =/  seen=(map path @)   seen0
+        =/  kept=(set path)     kept0
         |-  ^-  process:fiber:nexus
-        ;<  ~  bind:m  take-any-news
-        ;<  ~  bind:m  do-mirror
-        $
+        ::  wake whenever the registry OR any watched target's source changes
+        ;<  ~  bind:m  take-mirror-news
+        ;<  seen1=(map path @)  bind:m  (do-mirror seen)
+        ;<  kept1=(set path)    bind:m  (sync-keeps kept)
+        $(seen seen1, kept kept1)
+        ::  +do-mirror: mirror every current target, skipping those whose source
+        ::  ball is unchanged since we last copied it. seen maps a target path to
+        ::  the mug it was last mirrored at; returns the updated map.
         ++  do-mirror
-          =/  m  (fiber:fiber:nexus ,~)
+          |=  seen=(map path @)
+          =/  m  (fiber:fiber:nexus ,(map path @))
           ^-  form:m
           ;<  tgs=(unit json)  bind:m
             (peek-as:io (nex-road:io rail [%& /docs %'targets.json']) ,json)
-          =/  dirs=(list @t)  (turn (targ-list tgs) |=([t=@t *] t))
+          =/  dirs=(list path)  (turn (targ-list tgs) |=([t=@t *] (target-path t)))
+          =/  out=(map path @)  seen
           |-  ^-  form:m
-          ?~  dirs  (pure:m ~)
-          ;<  ~  bind:m  (mirror-dir rail (target-path i.dirs))
+          ?~  dirs  (pure:m out)
+          ;<  got=(unit @)  bind:m  (mirror-dir rail i.dirs (~(get by seen) i.dirs))
+          =?  out  ?=(^ got)  (~(put by out) i.dirs u.got)
           $(dirs t.dirs)
+        ::  +sync-keeps: subscribe to targets.json and to each current target
+        ::  directory; drop subscriptions for targets no longer registered.
+        ::  Keeps only the newly-added targets and drops the removed ones
+        ::  (idempotent per wire). Returns the new set of watched target paths.
+        ++  sync-keeps
+          |=  old=(set path)
+          =/  m  (fiber:fiber:nexus ,(set path))
+          ^-  form:m
+          ;<  *  bind:m
+            (keep:io /cfg-t (nex-road:io rail [%& /docs %'targets.json']) `[/ %json])
+          ;<  tgs=(unit json)  bind:m
+            (peek-as:io (nex-road:io rail [%& /docs %'targets.json']) ,json)
+          =/  now=(set path)
+            %-  ~(gas in *(set path))
+            (turn (targ-list tgs) |=([t=@t *] (target-path t)))
+          =/  gone=(list path)   ~(tap in (~(dif in old) now))
+          =/  fresh=(list path)  ~(tap in (~(dif in now) old))
+          |-  ^-  form:m
+          ?^  gone
+            ;<  ~  bind:m  (drop:io (welp /tgt i.gone) [%& %| i.gone])
+            $(gone t.gone)
+          ?^  fresh
+            ;<  *  bind:m  (keep:io (welp /tgt i.fresh) [%& %| i.fresh] ~)
+            $(fresh t.fresh)
+          (pure:m now)
         --
           ::  usergroups.sig: register once, then hold every shell grant
           ::  current — the base /public grant on public.json plus the
@@ -2557,7 +2595,7 @@
   |=  code=path
   ^-  path
   (welp /docs/mirror code)
-::  +coll-mirror: the mirror subtree of one collection (its target path).
+::  +coll-mirror: the mirror subtree of one collection (its own target path).
 ++  coll-mirror
   |=  c=path
   ^-  path
@@ -2580,11 +2618,15 @@
 ::  later, at compute time.
 ::
 ++  mirror-dir
-  |=  [=rail:tarball code=path]
-  =/  m  (fiber:fiber:nexus ,~)
+  |=  [=rail:tarball code=path prior=(unit @)]
+  =/  m  (fiber:fiber:nexus ,(unit @))
   ^-  form:m
   ;<  =view:nexus  bind:m  (peek:io [%& %| code] ~)
   ?.  ?=([%ball *] view)  (pure:m ~)
+  ::  a mug of the source ball is the change check — same mug as last time
+  ::  means the target hasn't changed, so skip the (expensive) re-copy.
+  =/  mg=@  (mug ball.view)
+  ?:  =(`mg prior)  (pure:m ~)
   =/  mir=path  (mirror-mount code)
   =/  bol=bole:tarball  (ball-to-bole:tarball ball.view)
   ::  preserve the dest dir's own neck (what on-load established) so the
@@ -2593,7 +2635,8 @@
   =/  nek  ?.(?=([%ball *] cur) ~ ?~(fil.ball.cur ~ neck.u.fil.ball.cur))
   =/  root=pulp:tarball  (fall fil.bol `pulp:tarball`[~ ~ %.n ~])
   =.  bol  bol(fil `root(neck nek))
-  (over-fold:io (nex-road:io rail [%| mir]) bol)
+  ;<  ~  bind:m  (over-fold:io (nex-road:io rail [%| mir]) bol)
+  (pure:m `mg)
 ::  +triml: drop leading spaces from a tape.
 ::
 ++  triml
@@ -2784,6 +2827,20 @@
       [~ %news * *]
     ?:  |(=(/alias wire.u.in) =(/weir wire.u.in))  [%done ~]
     [%skip ~]
+  ==
+::  +take-mirror-news: wake on ANY news this fiber receives. The mirror.sig
+::  fiber only holds mirror subscriptions (the registry + each target dir), so
+::  every news that reaches it is one of ours — unlike +take-any-news, which is
+::  wired to the usergroups fiber's /alias and /weir and drops everything else.
+::
+++  take-mirror-news
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  |=  input:fiber:nexus
+  :+  ~  q.state
+  ?+  in  [%skip ~]
+    ~              [%wait ~]
+    [~ %news * *]  [%done ~]
   ==
 ::  +spawn-followers: ensure a /sync follower grub exists for every app-root
 ::  (descending desks, via app-roots). Making the grub starts its follower
