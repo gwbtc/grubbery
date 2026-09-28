@@ -399,11 +399,9 @@ function docLink(it) {
   return a;
 }
 
-// open a section's sub-coverage view (its declared scope).
+// open a section's dedicated coverage page (linkable, refresh-safe).
 function openSection(name) {
-  CUR_SECTION = name;
-  if (decodeURIComponent(location.hash.slice(1)) === CUR + '/coverage') renderCoverage();
-  else location.hash = hashFor('coverage');
+  location.hash = hashFor('coverage/' + encodeURIComponent(name));
 }
 
 function renderTree(items, container) {
@@ -411,6 +409,20 @@ function renderTree(items, container) {
     if (it.path) {
       var li = document.createElement('li');
       li.appendChild(docLink(it));
+      // a page can declare its own coverage scope; if so, give it a ◆ handle
+      // (like a section) that opens its coverage, alongside its doc link.
+      if (it.cov) {
+        li.style.display = 'flex';
+        li.style.alignItems = 'center';
+        li.firstChild.style.flex = '1';
+        li.firstChild.style.overflow = 'hidden';
+        var pcv = document.createElement('span');
+        pcv.textContent = '◆';
+        pcv.className = 'sec-cov-handle';
+        pcv.title = 'coverage of what this page documents';
+        (function (nm) { pcv.onclick = function (e) { e.stopPropagation(); openSection(nm); }; })(it.title);
+        li.appendChild(pcv);
+      }
       container.appendChild(li);
     } else {
       // a section: the collapsible doc group, plus a ◆ handle that opens its
@@ -630,6 +642,26 @@ function coverageStyles() {
   s.id = 'cov-style';
   s.textContent =
     '.cov h1{margin:0 0 4px}.cov .sub{color:#79808a;margin:0 0 20px}' +
+    '.cov-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px}' +
+    '.cov-link{font-size:12px;color:#57606a;text-decoration:none;border:1px solid #e2e7ee;border-radius:7px;padding:4px 10px;white-space:nowrap}' +
+    '.cov-link:hover{background:#fafbfc;color:#1f2328}' +
+    '.cov-back{display:inline-block;font-size:12px;color:#79808a;text-decoration:none;margin:0 0 10px}' +
+    '.cov-back:hover{color:#1f2328}' +
+    '.cov-file-rng{color:#8a929c;font-weight:400}' +
+    '.cov-target{display:flex;align-items:center;gap:10px;margin:0 0 20px}' +
+    '.cov-target-lab{font:10.5px -apple-system,sans-serif;text-transform:uppercase;letter-spacing:.05em;color:#9aa0a8}' +
+    '.cov-target-path{font:12px ui-monospace,monospace;color:#57606a}' +
+    '.cov-seclist{display:flex;flex-direction:column;gap:8px}' +
+    '.cov-secrow{display:grid;grid-template-columns:1fr 52px 120px 14px;gap:14px;align-items:center;padding:13px 14px;border:1px solid #eef0f3;border-radius:8px;text-decoration:none;background:#fff}' +
+    '.cov-secrow:hover{background:#fafbfc;border-color:#e2e7ee}' +
+    '.cov-secrow.dr{border-color:#f0dcae;background:#fffdf8}' +
+    '.cov-secrow-main{min-width:0}' +
+    '.cov-secrow-name{font:14px -apple-system,sans-serif;font-weight:600;color:#1f2328}' +
+    '.cov-secrow-sub{font:11.5px ui-monospace,monospace;color:#8a929c;margin-top:2px}' +
+    '.cov-secrow.dr .cov-secrow-sub{color:#9a6700}' +
+    '.cov-secrow-pct{font:15px -apple-system,sans-serif;font-weight:600;color:#1f2328;text-align:right}' +
+    '.cov-secrow-go{color:#b0b6bd;font-size:16px;text-align:center}' +
+    '.cov-secgroup{font:11px -apple-system,sans-serif;text-transform:uppercase;letter-spacing:.05em;color:#9aa0a8;margin:12px 0 0}' +
     '.cov-row{display:grid;grid-template-columns:1fr 84px 108px 108px 20px;gap:12px;align-items:center;padding:9px 4px;border-bottom:1px solid #f2f4f6;cursor:pointer}' +
     '.cov-row:hover{background:#fafbfc}.cov-row.cov-gap{cursor:default}.cov-row.cov-gap .cov-file{color:#a40e26}' +
     '.cov-file{font:12.5px ui-monospace,monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}' +
@@ -653,9 +685,15 @@ function coverageStyles() {
     '.cov-src .ln[data-line]:hover{filter:brightness(0.97)}' +
     '.cov-src{margin:0;border:1px solid #eef0f3;border-radius:6px;overflow:auto;max-height:60vh}' +
     '.cov-src pre{margin:0;font:11.5px/1.5 ui-monospace,monospace}' +
-    '.cov-src .ln{display:block;padding:0 10px;white-space:pre;color:#8a929c}' +
+    '.cov-src .ln{display:block;padding:0 10px;white-space:pre;color:#8a929c;border-left:2px solid transparent}' +
     '.cov-src .ln.on{background:#e6f4ea;color:#1f2328;box-shadow:inset 3px 0 #1a7f37}' +
     '.cov-src .ln.dr{background:#fff4e0;box-shadow:inset 3px 0 #9a6700}' +
+    // scope outline: dim lines outside a section\'s scope, bracket those inside it
+    '.cov-src .ln.sc-out{opacity:.32}' +
+    '.cov-src .ln.sc{border-left-color:#8b93e6}' +
+    '.cov-src .ln.sc-top{border-top:1px solid #8b93e6}' +
+    '.cov-src .ln.sc-bot{border-bottom:1px solid #8b93e6}' +
+    '.cov-scope-note{font:11px -apple-system,sans-serif;color:#5960b8;background:#f2f3ff;padding:5px 12px;border-bottom:1px solid #e3e5fb;position:sticky;top:0}' +
     '.cov-modal{position:fixed;inset:0;z-index:100;background:rgba(20,22,26,.44);display:flex;align-items:center;justify-content:center;padding:4vh 4vw}' +
     '.cov-modal-panel{background:#fff;border-radius:10px;box-shadow:0 12px 48px rgba(0,0,0,.28);width:min(940px,100%);max-height:92vh;display:flex;flex-direction:column;overflow:hidden}' +
     '.cov-modal-hdr{display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid #eef0f3}' +
@@ -747,16 +785,36 @@ function renderHeatmap(f) {
     }
   });
   wrap.appendChild(slices);
+  // in-scope line set — when a section scopes this file to certain ranges, we
+  // outline those ranges in the source and dim everything outside them.
+  var scopeSet = {};
+  (f.scope || []).forEach(function (r) { for (var n = r[0]; n <= r[1]; n++) scopeSet[n] = true; });
   var src = el('div', 'cov-src'); src.appendChild(codeSkeleton(10));
   wrap.appendChild(src);
   fetch(withC(BASE + '/mirror?path=' + encodeURIComponent(f.file)), { cache: 'no-store' })
     .then(function (r) { return r.ok ? r.text() : ''; })
     .then(function (text) {
       src.textContent = '';
+      var nLines = text.split('\n').length;
+      var scopeCount = Object.keys(scopeSet).length;
+      // only outline when scope is a proper subset (a section) — not the whole
+      // file (the whole-collection view, where every line is "in scope").
+      var partial = (f.scope && f.scope.length) && scopeCount > 0 && scopeCount < nLines;
+      if (partial) {
+        var note = el('div', 'cov-scope-note', '◈ outlined lines are this section’s scope');
+        src.appendChild(note);
+      }
       var pre = document.createElement('pre');
       text.split('\n').forEach(function (line, i) {
         var n = i + 1;
         var cls = 'ln' + (driftSet[n] ? ' dr' : coveredSet[n] ? ' on' : '');
+        if (partial) {
+          if (scopeSet[n]) {
+            cls += ' sc';
+            if (!scopeSet[n - 1]) cls += ' sc-top';
+            if (!scopeSet[n + 1]) cls += ' sc-bot';
+          } else cls += ' sc-out';
+        }
         var d = el('span', cls, (n + '  ').slice(0, 4) + '  ' + line + '\n');
         d.dataset.line = n;
         var a = lineDoc[n];
@@ -805,11 +863,21 @@ function showHeatmapModal(f, focusLine) {
 
 // one file's coverage row: bar, percent, freshness flags, click-to-expand.
 // Everything is read from the ship's coverage.json — no client computation.
-function fileRow(f, label) {
+// format compressed [lo,hi] ranges as "12–40, 88" (single-line lines collapse).
+function rangeText(ranges) {
+  return (ranges || []).map(function (r) { return r[0] === r[1] ? ('' + r[0]) : (r[0] + '–' + r[1]); }).join(', ');
+}
+function fileRow(f, label, showScope) {
   var gap = !f.covered && !f.extra;
   var row = el('div', 'cov-row' + (gap ? ' cov-gap' : '') + (f.extra ? ' cov-extra' : ''));
   row.dataset.file = f.file;
   var nm = el('div', 'cov-file', label || f.file); nm.title = f.file;
+  // when a file is in scope only for certain line ranges (a section), show them
+  if (showScope && f.scope && f.scope.length) {
+    var rt = el('span', 'cov-file-rng', ' ' + rangeText(f.scope));
+    rt.title = 'in scope: lines ' + rangeText(f.scope);
+    nm.appendChild(rt);
+  }
   if (f.extra) { var xc = el('span', 'cov-xc', 'extra credit'); xc.title = 'documented but excluded from the count (ignored path)'; nm.append(document.createTextNode(' ')); nm.append(xc); }
   row.append(nm);
   var bar = el('div', 'cov-bar'); var fill = document.createElement('i');
@@ -851,123 +919,143 @@ function legendTrigger() {
   return w;
 }
 
+// shared: the spinner while coverage loads, and the big "% covered" header.
+function covSpinner(body) {
+  var load = el('div', 'cov-load');
+  load.append(el('span', 'spinner'), el('span', null, 'reading coverage…'));
+  body.appendChild(load);
+}
+function fillOverall(overall, c, nFiles) {
+  overall.innerHTML = '';
+  if (c.totalLines) {
+    overall.append(el('b', null, Math.round(100 * (c.coveredLines || 0) / c.totalLines) + '%'),
+      el('span', null, (c.coveredLines || 0) + ' / ' + c.totalLines + ' lines · ' + nFiles + ' files · '),
+      el('span', null, (c.fresh || 0) + ' fresh, ' + (c.drifted || 0) + ' drifted, ' + (c.gone || 0) + ' gone'));
+  } else {
+    overall.append(el('span', null, 'No coverage yet.'));
+  }
+  overall.appendChild(legendTrigger());
+}
+
+// whole-collection coverage: overall %, then the file tree. Sections have their
+// own pages (the sidebar ◆); config (target + ignored) has its own page.
+// coverage landing = a sections overview: every documented section that
+// declares a scope, with its % and freshness, linking to its own page. The
+// target is shown read-only (it's registered on the index, not editable here).
 function renderCoverage() {
+  CUR_SECTION = '';
   markActive('coverage');
   DOC.innerHTML = '';
   coverageStyles();
   var root = el('div', 'cov');
   root.appendChild(el('h1', null, 'Coverage'));
-  root.appendChild(el('p', 'sub', 'How much of the source we mean to document actually is. Targets are directories the ship mirrors; coverage and freshness are computed on the ship.'));
-  var overall = el('div', 'cov-overall'); root.appendChild(overall);
+  root.appendChild(el('p', 'sub', 'Each documented section and how much of the code it covers — measured on the ship against the mirrored target.'));
+  var tgt = el('div', 'cov-target');
+  tgt.append(el('span', 'cov-target-lab', 'Target'), el('span', 'cov-target-path', CUR || '(none)'));
+  root.appendChild(tgt);
   var body = el('div', null); root.appendChild(body);
   DOC.appendChild(root);
-  var load = el('div', 'cov-load');
-  load.append(el('span', 'spinner'), el('span', null, 'reading coverage…'));
-  body.appendChild(load);
-  var targets = [], ignore = [];
-  Promise.all([loadTargets(), loadCoverage(), loadIgnore(), delay(300)]).then(function (r) {
-    targets = r[0];
-    ignore = r[2];
-    var c = r[1] || { files: [] };
+  covSpinner(body);
+  Promise.all([loadCoverage(), delay(300)]).then(function (r) {
+    var c = r[0] || {};
     body.textContent = '';
-    var files = (c.files || []).slice().sort(function (a, b) { return pct(b) - pct(a); });
-    overall.innerHTML = '';
-    if (c.totalLines) {
-      overall.append(el('b', null, Math.round(100 * (c.coveredLines || 0) / c.totalLines) + '%'),
-        el('span', null, (c.coveredLines || 0) + ' / ' + c.totalLines + ' lines · ' + files.length + ' files · '),
-        el('span', null, (c.fresh || 0) + ' fresh, ' + (c.drifted || 0) + ' drifted, ' + (c.gone || 0) + ' gone'));
-    } else {
-      overall.append(el('span', null, 'No coverage yet — add a target directory below.'));
+    var secs = c.sections || [];
+    if (!secs.length) {
+      body.appendChild(el('div', 'cov-secsub', 'No sections declare coverage yet. Give a nav section a "scope" in the target’s man/docs/docs.json to measure it.'));
+      return;
     }
-    overall.appendChild(legendTrigger());
-    // active section indicator — sub-coverage is entered from the sidebar's ◆
-    // section handles; here we show which section is in view and offer a way
-    // back to the whole collection. No section = the whole collection.
-    if (CUR_SECTION) {
-      var secBar = el('div', 'cov-secbar');
-      secBar.appendChild(el('span', 'cov-secbar-lab', 'Section'));
-      secBar.appendChild(el('span', 'cov-secname', CUR_SECTION));
-      var allBtn = el('button', 'cov-secpill', '× whole collection');
-      allBtn.onclick = function () { CUR_SECTION = ''; renderCoverage(); };
-      secBar.appendChild(allBtn);
-      body.appendChild(secBar);
-    }
-    // section drift: soft "code changed, re-audit" prompt (not a doc lying).
-    if (c.section && c.section.status === 'drifted') {
-      var warn = el('div', 'cov-secwarn');
-      warn.appendChild(el('span', 'cov-secwarn-txt', '⟳ ' + c.section.name + ' changed since it was last confirmed — worth a re-audit'));
-      var rcs = el('button', 'cov-secwarn-btn', 're-confirm section');
-      rcs.onclick = function () { rcs.textContent = '…'; confirmSection(c.section.name).then(function () { renderCoverage(); }); };
-      warn.appendChild(rcs);
-      body.appendChild(warn);
-    }
-    // two sub-views: Files (the coverage data you read) and Config (the
-    // targets + ignore you set once). Files leads; config tucks behind a tab.
-    var tabbar = el('div', 'cov-tabs');
-    var tabFiles = el('button', 'cov-tab', 'Files');
-    var tabConf = el('button', 'cov-tab', 'Config');
-    tabbar.append(tabFiles, tabConf); body.appendChild(tabbar);
-    var filesPanel = el('div', null), confPanel = el('div', null);
-    body.append(filesPanel, confPanel);
-    // ── Config panel: this collection's target (READ-ONLY). The registry —
-    // adding/removing collections — lives on the index, not here. ──
-    confPanel.appendChild(el('h3', 'cov-sec', 'Target'));
-    confPanel.appendChild(el('div', 'cov-secsub', 'The namespace directory this collection mirrors and measures. Registered on the index (All collections).'));
-    var tscroll = el('div', 'cov-scroll cov-scroll-t');
-    var trow = el('div', 'cov-tgt'); trow.append(el('span', 'cov-file', CUR || '(none)'));
-    tscroll.appendChild(trow);
-    confPanel.appendChild(tscroll);
-    // ── Config panel: Ignored (READ-ONLY) — authored in the target's own
-    // man/docs manifest, so it's shown here but edited in the desk source. ──
-    confPanel.appendChild(el('h3', 'cov-sec', 'Ignored'));
-    confPanel.appendChild(el('div', 'cov-secsub', 'Paths under a target excluded from the count — vendored code, tests, anything that should not count. Declared in the target’s man/docs/docs.json, so edit it there, not here.'));
-    var igscroll = el('div', 'cov-scroll cov-scroll-t');
-    if (!ignore.length) igscroll.appendChild(el('div', 'cov-secsub', 'Nothing ignored.'));
-    ignore.forEach(function (ig) {
-      var irow = el('div', 'cov-tgt');
-      irow.append(el('span', 'cov-file', ig));
-      igscroll.appendChild(irow);
-    });
-    confPanel.appendChild(igscroll);
-    // ── Files panel: collapsible tree, each dir showing its aggregate coverage ──
-    var fhdr = el('div', 'cov-files-hdr');
-    fhdr.append(el('span', 'cov-secsub', files.length + ' files under a target'));
-    var tog = el('button', 'cov-tree-toggle', 'expand all'); tog.id = 'cov-tree-toggle';
-    fhdr.append(tog);
-    filesPanel.appendChild(fhdr);
-    loadCovTreeState();
-    var fscroll = el('div', 'cov-scroll cov-scroll-f'); fscroll.id = 'cov-tree';
-    if (!files.length) fscroll.appendChild(el('div', 'cov-secsub', 'No mirrored files yet — add a target in Config.'));
-    else renderCovNode(fscroll, buildCovTree(files), '');
-    filesPanel.appendChild(fscroll);
-    tog.onclick = function () {
-      var expand = tog.textContent === 'expand all';
-      Array.prototype.forEach.call(fscroll.querySelectorAll('.cov-dir-det'), function (d) { d.open = expand; });
-      // toggle events fire per <details> and update state + label
-    };
-    updateCovToggle();
-    // tab switching — Files by default, remembered across visits
-    function pickTab(name) {
-      var isF = name !== 'config';
-      try { localStorage.setItem('docs-cov-tab', isF ? 'files' : 'config'); } catch (e) {}
-      filesPanel.hidden = !isF; confPanel.hidden = isF;
-      tabFiles.classList.toggle('on', isF); tabConf.classList.toggle('on', !isF);
-    }
-    tabFiles.onclick = function () { pickTab('files'); };
-    tabConf.onclick = function () { pickTab('config'); };
-    var startTab = 'files';
-    try { startTab = localStorage.getItem('docs-cov-tab') || 'files'; } catch (e) {}
-    if (covFocus) startTab = 'files';
-    pickTab(startTab);
-    // arrived from a doc block's ◆ link: open that file's reader on the line
-    if (covFocus) {
-      var want = covFocus; covFocus = null;
-      var wf = files.filter(function (x) { return x.file === want.file; })[0];
-      if (wf && wf.anchors && wf.anchors.length) showHeatmapModal(wf, want.from);
-    }
+    var byName = {}; secs.forEach(function (s) { byName[s.name] = s; });
+    var list = el('div', 'cov-seclist');
+    renderCovSections(tree, list, 0, byName);   // walk the nav tree, keep its hierarchy
+    body.appendChild(list);
   });
 }
 
+// does this nav node, or anything under it, declare a coverage scope?
+function hasScopedDescendant(node) {
+  if (node.cov) return true;
+  return (node.kids || []).some(hasScopedDescendant);
+}
+// render every scoped node (section OR page) in its nav-tree position: a scoped
+// node is a coverage row, an unscoped section that only groups scoped children
+// is a plain header, nesting is shown by indent. Unscoped pages and empty
+// branches are skipped.
+function renderCovSections(nodes, container, depth, byName) {
+  (nodes || []).forEach(function (node) {
+    if (!hasScopedDescendant(node)) return;   // nothing measured here or below
+    if (node.cov) {
+      container.appendChild(covSectionRow(node.title, byName[node.title], depth));
+    } else if (!node.path) {
+      var h = el('div', 'cov-secgroup', node.title);
+      h.style.marginLeft = (depth * 18) + 'px';
+      container.appendChild(h);
+    }
+    renderCovSections(node.kids, container, depth + 1, byName);
+  });
+}
+function covSectionRow(name, s, depth) {
+  s = s || { covered: 0, total: 0, status: 'fresh' };
+  var p = s.total ? Math.round(100 * s.covered / s.total) : 0;
+  var drift = s.status === 'drifted';
+  var row = el('a', 'cov-secrow' + (drift ? ' dr' : ''));
+  row.style.marginLeft = (depth * 18) + 'px';
+  row.href = hashFor('coverage/' + encodeURIComponent(name));
+  (function (nm) { row.onclick = function (e) { e.preventDefault(); location.hash = hashFor('coverage/' + encodeURIComponent(nm)); }; })(name);
+  var main = el('div', 'cov-secrow-main');
+  main.appendChild(el('div', 'cov-secrow-name', name));
+  main.appendChild(el('div', 'cov-secrow-sub', s.covered + ' / ' + s.total + ' lines' + (drift ? '  ·  ⟳ drifted' : '')));
+  var bar = el('div', 'cov-bar'); var fill = document.createElement('i');
+  fill.style.width = p + '%'; if (drift) fill.style.background = '#9a6700';
+  bar.appendChild(fill);
+  row.append(main, el('div', 'cov-secrow-pct', p + '%'), bar, el('span', 'cov-secrow-go', '›'));
+  return row;
+}
+
+// one section's own coverage page: its scope as a flat file list WITH line
+// ranges, its coverage %, its drift + re-confirm. Linkable at
+// #<collection>/coverage/<section>; reached from the sidebar ◆.
+function renderSection(name) {
+  CUR_SECTION = name;
+  markActive('coverage');
+  DOC.innerHTML = '';
+  coverageStyles();
+  var root = el('div', 'cov');
+  var back = el('a', 'cov-back', '‹ Coverage');
+  back.href = hashFor('coverage');
+  back.onclick = function (e) { e.preventDefault(); location.hash = hashFor('coverage'); };
+  root.appendChild(back);
+  root.appendChild(el('h1', null, name));
+  root.appendChild(el('p', 'sub', 'Coverage of the code this section documents — its scope, and how much of it a live block embeds.'));
+  var overall = el('div', 'cov-overall'); root.appendChild(overall);
+  var body = el('div', null); root.appendChild(body);
+  DOC.appendChild(root);
+  covSpinner(body);
+  Promise.all([loadCoverage(), delay(300)]).then(function (r) {
+    var c = r[0] || { files: [] };
+    body.textContent = '';
+    var files = (c.files || []).slice().sort(function (a, b) { return pct(b) - pct(a); });
+    fillOverall(overall, c, files.length);
+    if (c.section && c.section.status === 'drifted') {
+      var warn = el('div', 'cov-secwarn');
+      warn.appendChild(el('span', 'cov-secwarn-txt', '⟳ ' + name + ' changed since it was last confirmed — worth a re-audit'));
+      var rcs = el('button', 'cov-secwarn-btn', 're-confirm section');
+      rcs.onclick = function () { rcs.textContent = '…'; confirmSection(name).then(function () { renderSection(name); }); };
+      warn.appendChild(rcs);
+      body.appendChild(warn);
+    }
+    var hdr = el('div', 'cov-files-hdr');
+    hdr.append(el('span', 'cov-secsub', 'Scope — ' + files.length + ' file' + (files.length === 1 ? '' : 's')));
+    body.appendChild(hdr);
+    var fscroll = el('div', 'cov-scroll cov-scroll-f');
+    if (!files.length) fscroll.appendChild(el('div', 'cov-secsub', 'This section declares no coverage scope.'));
+    files.forEach(function (f) { fscroll.appendChild(fileRow(f, f.file, true)); });
+    body.appendChild(fscroll);
+  });
+}
+
+// the collection's config, read-only, on its own page (out of coverage). Target
+// is registered on the index; ignored is authored in the target's man/docs
+// manifest — shown here for reference, edited at their source.
 // ---- boot ----
 
 // collapse the sidebar via <split-view> (the component shows a reopen rail and
@@ -1041,6 +1129,7 @@ function route() {
     var tail = h.slice(col.length).replace(/^\//, '');
     var show = function () {
       if (tail === 'coverage') renderCoverage();
+      else if (tail.indexOf('coverage/') === 0) renderSection(tail.slice(9));
       else openDoc(tail || (leaves[0] && leaves[0].path));
     };
     if (col === CUR && tree.length) { show(); return; }   // same collection, nav cached

@@ -44,6 +44,9 @@
           ::  mirror dir is rebuildable cache, never user data.
           [%fall %& [/ %'mirror.sig'] [[/ %sig] ~]]
           [%fall %| /docs/mirror empty-dir:loader]
+          ::  /docs/cache: the ship-computed coverage cache (one json grub per
+          ::  collection), recomputed on change — rebuildable, never user data.
+          [%fall %| /docs/cache empty-dir:loader]
           ::  usergroups.sig: the shell's ONE registry liaison. Registrant
           ::  prefixes nest-clobber (%how replaces every road under the
           ::  sender's prefix), so exactly one root-prefix fiber makes all
@@ -165,13 +168,16 @@
         ;<  ~  bind:m  (rise-wait:io prod "%shell mirror: failed")
         |^
         ;<  seen0=(map path @)  bind:m  (do-mirror ~)
+        ;<  ~  bind:m  recompute-all
         ;<  kept0=(set path)    bind:m  (sync-keeps ~)
         =/  seen=(map path @)   seen0
         =/  kept=(set path)     kept0
         |-  ^-  process:fiber:nexus
-        ::  wake whenever the registry OR any watched target's source changes
+        ::  wake whenever the registry, any watched target's source, or the pins
+        ::  change — then re-mirror and recompute coverage into the cache.
         ;<  ~  bind:m  take-mirror-news
         ;<  seen1=(map path @)  bind:m  (do-mirror seen)
+        ;<  ~  bind:m  recompute-all
         ;<  kept1=(set path)    bind:m  (sync-keeps kept)
         $(seen seen1, kept kept1)
         ::  +do-mirror: mirror every current target, skipping those whose source
@@ -190,6 +196,18 @@
           ;<  got=(unit @)  bind:m  (mirror-dir rail i.dirs (~(get by seen) i.dirs))
           =?  out  ?=(^ got)  (~(put by out) i.dirs u.got)
           $(dirs t.dirs)
+        ::  +recompute-all: rebuild the coverage cache for every registered
+        ::  collection (matching +coll-of's c = the stabbed target string).
+        ++  recompute-all
+          =/  m  (fiber:fiber:nexus ,~)
+          ^-  form:m
+          ;<  tgs=(unit json)  bind:m
+            (peek-as:io (nex-road:io rail [%& /docs %'targets.json']) ,json)
+          =/  cs=(list path)  (turn (targ-list tgs) |=([t=@t *] (stab t)))
+          |-  ^-  form:m
+          ?~  cs  (pure:m ~)
+          ;<  ~  bind:m  (recompute-coverage rail i.cs)
+          $(cs t.cs)
         ::  +sync-keeps: subscribe to targets.json and to each current target
         ::  directory; drop subscriptions for targets no longer registered.
         ::  Keeps only the newly-added targets and drops the removed ones
@@ -200,6 +218,10 @@
           ^-  form:m
           ;<  *  bind:m
             (keep:io /cfg-t (nex-road:io rail [%& /docs %'targets.json']) `[/ %json])
+          ::  also watch the pins: a re-confirm changes freshness, so the cache
+          ::  must be recomputed. (Our own stamp settles in one extra pass.)
+          ;<  *  bind:m
+            (keep:io /cfg-p (nex-road:io rail [%& /docs %'pins.json']) `[/ %json])
           ;<  tgs=(unit json)  bind:m
             (peek-as:io (nex-road:io rail [%& /docs %'targets.json']) ,json)
           =/  now=(set path)
@@ -774,11 +796,8 @@
         ?:  ?=([%docs %'nav.json' ~] suffix)
           ;<  c=path  bind:m  (coll-of rail url.request.req)
           ;<  [* nav=json]  bind:m  (read-docs-config rail c)
-          ::  tag each section with whether it has coverage (a ◆ in the reader).
-          ;<  anchors=(list [doc=@t file=@t from=@ud to=@ud])  bind:m
-            (gather-all-anchors rail c)
-          =/  anchored=(set @t)  (silt (turn anchors |=(a=[doc=@t *] doc.a)))
-          =/  bod=octs  (as-octs:mimes:html (en:json:html (annotate-nav nav anchored)))
+          ::  tag each section with whether it declares a coverage scope (a ◆).
+          =/  bod=octs  (as-octs:mimes:html (en:json:html (annotate-nav nav)))
           ;<  ~  bind:m
             (send-simple:srv eyre-id [[200 ~[['content-type' 'application/json']]] `bod])
           (pure:m ~)
@@ -862,195 +881,33 @@
             =/  sl  (skim qa |=([p=@t q=@t] =(p 'section')))
             ?~(sl '' q.i.sl)
           =/  in-section=?  !=('' sec)
-          ::  enumerate this collection's mirror subtree: source-path (relative
-          ::  to the collection root) -> its lines. Ignored files are kept in the
-          ::  set — they stay resolvable so a doc block on one reads as EXTRA
-          ::  CREDIT, not gone; the ignore filter applies to the denominator.
-          ;<  mv=view:nexus  bind:m  (peek:io (nex-road:io rail [%| (coll-mirror c)]) ~)
-          =/  finfo=(map @t (list @t))
-            ?.  ?=([%ball *] mv)  ~
-            %-  malt
-            %+  murn  ~(tap ba:tarball ball.mv)
-            |=  [=rail:tarball =sang:tarball]
-            =/  src=@t  (spat (snoc path.rail name.rail))
-            `[src (to-wain:format (sang-text sang))]
-          ::  which enumerated files are ignored — excluded from the count but
-          ::  still shown (as extra credit) when a doc block covers them.
-          =/  ig-set=(set @t)
-            (silt (skim ~(tap in ~(key by finfo)) |=(s=@t (ignored s ignore))))
-          ::  gather anchors first — a section's scope, when not declared
-          ::  explicitly, is DERIVED from them (the whole files this section's
-          ::  own docs reference), so every section covers what it documents.
-          ;<  anchors=(list [doc=@t file=@t from=@ud to=@ud])  bind:m
-            (gather-all-anchors rail c)
-          =/  scope-strs=(list @t)
-            ?:(=('' sec) ~ (section-scope nav anchors sec))
-          ::  when a section is active, the lines in scope per file — the "path
-          ::  [range]" selectors resolved against the mirror. Denominator + cover
-          ::  restrict to these; empty means the file isn't in the section.
-          =/  scope-lines=(map @t (set @ud))
-            ?.(in-section ~ (ref-lines finfo scope-strs))
-          ::  ranged ignores: an ignore entry that carries a range (has a space)
-          ::  excludes just those lines — a license header, a generated table —
-          ::  rather than the whole file. Whole-file ignores stay prefix-matched
-          ::  (ig-set above); these subtract lines from the denominator.
-          =/  ignore-lines=(map @t (set @ud))
-            (ref-lines finfo (skim ignore |=(e=@t !=(~ (find " " (trip e))))))
-          ::  pins: the ship's own freshness store (mug per span, stamp-once)
+          ::  serve the ship-computed coverage CACHE. It's recomputed on a change
+          ::  (+recompute-coverage, driven by the mirror fiber), so a view is a
+          ::  read — not a full recompute. The cache holds the whole-collection
+          ::  result plus a per-section view. A miss (first boot, before the
+          ::  fiber has run) falls back to computing on demand.
+          ;<  cj=(unit json)  bind:m
+            (peek-as:io (nex-road:io rail [%& /docs/cache (cache-name c)]) ,json)
+          ?^  cj
+            =/  cache=(map @t json)  ?:(?=([%o *] u.cj) p.u.cj ~)
+            =/  whole=json  (fall (~(get by cache) 'whole') [%o ~])
+            =/  out=json
+              ?.  in-section  whole
+              =/  vj=json  (fall (~(get by cache) 'views') [%o ~])
+              =/  vm=(map @t json)  ?:(?=([%o *] vj) p.vj ~)
+              (fall (~(get by vm) sec) whole)
+            ;<  ~  bind:m
+              (send-simple:srv eyre-id [[200 ~[['content-type' 'application/json']]] `(as-octs:mimes:html (en:json:html out))])
+            (pure:m ~)
+          ::  cache miss: compute now, stamp the pins it returns, serve.
+          ;<  [resp=json np=(map @t @t)]  bind:m  (compute-coverage rail c ignore nav sec)
           ;<  pj=(unit json)  bind:m
             (peek-as:io (nex-road:io rail [%& /docs %'pins.json']) ,json)
           =/  pins=(map @t json)  ?~(pj ~ ?:(?=([%o *] u.pj) p.u.pj ~))
-          ::  fold the anchors into covered-line sets, per-file fresh/drift/gone
-          ::  flags, and any new pins to stamp.
-          =+  ^=  res
-            =|  cov=(map @t (set @ud))
-            =|  flg=(map @t [f=@ud d=@ud g=@ud])
-            =|  np=(map @t @t)
-            =|  ancs=(map @t (list json))
-            |-  ^-  [(map @t (set @ud)) (map @t [f=@ud d=@ud g=@ud]) (map @t @t) (map @t (list json))]
-            ?~  anchors  [cov flg np ancs]
-            =/  a  i.anchors
-            =/  fl=[f=@ud d=@ud g=@ud]  (fall (~(get by flg) file.a) [0 0 0])
-            =/  al=(list json)  (fall (~(get by ancs) file.a) ~)
-            =/  mka
-              |=  st=@t
-              ^-  json
-              %-  pairs:enjs:format
-              :~  ['doc' s+doc.a]
-                  ['from' (numb:enjs:format from.a)]
-                  ['to' (numb:enjs:format to.a)]
-                  ['status' s+st]
-              ==
-            =/  ls=(unit (list @t))  (~(get by finfo) file.a)
-            ?:  |(?=(~ ls) (gth from.a (lent u.ls)))
-              %=  $
-                anchors  t.anchors
-                flg   (~(put by flg) file.a fl(g +(g.fl)))
-                ancs  (~(put by ancs) file.a [(mka 'gone') al])
-              ==
-            =/  total=@ud  (lent u.ls)
-            =/  hi=@ud  (min total ?:(=(0 to.a) total to.a))
-            =/  s=(set @ud)  (fall (~(get by cov) file.a) ~)
-            =.  s
-              =/  ln=@ud  from.a
-              |-  ^-  (set @ud)
-              ?:  (gth ln hi)  s
-              $(ln +(ln), s (~(put in s) ln))
-            =/  span=(list @t)  (swag [(dec from.a) +((sub hi from.a))] u.ls)
-            =/  hash=@t  `@t`(scot %ux (mug span))
-            =/  rng=@t  ?:(=(0 to.a) 'all' (crip "{(a-co:co from.a)}-{(a-co:co to.a)}"))
-            ::  pin key carries the collection, so one pins store holds every
-            ::  collection's freshness without cross-contamination.
-            =/  key=@t  (crip "{(spud c)}|{(trip doc.a)}|{(trip file.a)}|{(trip rng)}")
-            =/  stored=(unit json)  (~(get by pins) key)
-            =+  ^=  fps
-              ?~  stored  [fl(f +(f.fl)) (~(put by np) key hash) 'fresh']
-              ?:  =(hash ?:(?=([%s *] u.stored) p.u.stored ''))
-                [fl(f +(f.fl)) np 'fresh']
-              [fl(d +(d.fl)) np 'drifted']
-            %=  $
-              anchors  t.anchors
-              cov   (~(put by cov) file.a s)
-              flg   (~(put by flg) file.a -.fps)
-              np    +<.fps
-              ancs  (~(put by ancs) file.a [(mka +>.fps) al])
-            ==
-          =/  covered=(map @t (set @ud))  -.res
-          =/  flags=(map @t [f=@ud d=@ud g=@ud])  +<.res
-          =/  newpins=(map @t @t)  +>-.res
-          =/  fancs=(map @t (list json))  +>+.res
-          ::  section freshness: mug the whole scope's content and compare to its
-          ::  pin (key "<c>|§<section>"). Stamp-once on first sight; a mismatch =
-          ::  the section's code changed since vouched → a soft "re-audit" signal.
-          =/  section-key=@t  ?:(in-section (crip "{(spud c)}|§{(trip sec)}") '')
-          =/  section-mug=@t
-            ?.(in-section '' (scot %ux (mug (scope-content finfo scope-lines))))
-          =/  section-stored=(unit json)  ?:(in-section (~(get by pins) section-key) ~)
-          =/  section-status=@t
-            ?.  in-section  ''
-            ?~  section-stored  'fresh'
-            ?:  =(section-mug ?:(?=([%s *] u.section-stored) p.u.section-stored ''))
-              'fresh'
-            'drifted'
-          =?  newpins  &(in-section ?=(~ section-stored))
-            (~(put by newpins) section-key section-mug)
-          ::  ship-side auto-pin: persist the freshly stamped spans
           ;<  ~  bind:m
-            ?:  =(~ newpins)  (pure:(fiber:fiber:nexus ,~) ~)
+            ?:  =(~ np)  (pure:(fiber:fiber:nexus ,~) ~)
             %+  over:io  (nex-road:io rail [%& /docs %'pins.json'])
-            [[/ %json] [%o (~(uni by pins) (~(run by newpins) |=(h=@t `json`s+h)))]]
-          ::  emit per-file coverage + freshness + covered ranges + anchors. An
-          ::  ignored file appears only when a doc block covers it, flagged
-          ::  extra (extra credit); an ignored, undocumented file is dropped.
-          ::  in-scope lines for a file: the section's selected lines, or the
-          ::  whole file when no section is active.
-          =/  in-scope
-            |=  [src=@t ls=(list @t)]
-            ^-  (set @ud)
-            =/  base=(set @ud)
-              ?.  in-section
-                =/  n=@ud  1
-                =|  s=(set @ud)
-                |-  ^-  (set @ud)
-                ?:  (gth n (lent ls))  s
-                $(n +(n), s (~(put in s) n))
-              (fall (~(get by scope-lines) src) ~)
-            (~(dif in base) (fall (~(get by ignore-lines) src) ~))
-          =/  file-jsons=(list json)
-            %+  murn  (sort ~(tap by finfo) |=([[a=@t *] [b=@t *]] (aor a b)))
-            |=  [src=@t ls=(list @t)]
-            ^-  (unit json)
-            =/  sc=(set @ud)  (in-scope src ls)
-            ?:  &(in-section =(~ sc))  ~   :: file not in this section
-            =/  ig=?  (~(has in ig-set) src)
-            =/  fl=[f=@ud d=@ud g=@ud]  (fall (~(get by flags) src) [0 0 0])
-            =/  documented=?  |(!=(0 f.fl) !=(0 d.fl) !=(0 g.fl))
-            ?:  &(ig !documented)  ~
-            =/  cset=(set @ud)  (~(int in (fall (~(get by covered) src) ~)) sc)
-            :-  ~
-            %-  pairs:enjs:format
-            :~  ['file' s+src]
-                ['extra' [%b ig]]
-                ['total' (numb:enjs:format ~(wyt in sc))]
-                ['covered' (numb:enjs:format ~(wyt in cset))]
-                ['fresh' (numb:enjs:format f.fl)]
-                ['drifted' (numb:enjs:format d.fl)]
-                ['gone' (numb:enjs:format g.fl)]
-                :-  'ranges'
-                :-  %a
-                %+  turn  (ranges cset)
-                |=([lo=@ud hi=@ud] `json`[%a ~[(numb:enjs:format lo) (numb:enjs:format hi)]])
-                ['anchors' [%a (flop (fall (~(get by fancs) src) ~))]]
-            ==
-          ::  the denominator excludes ignored files (they are extra credit) and,
-          ::  under a section, restricts to that section's scoped lines.
-          =/  tot-lines=@ud
-            %+  roll  ~(tap by finfo)
-            |=  [[s=@t l=(list @t)] a=@ud]
-            ?:  (~(has in ig-set) s)  a
-            (add a ~(wyt in (in-scope s l)))
-          =/  tot-cov=@ud
-            %+  roll  ~(tap by covered)
-            |=  [[s=@t c=(set @ud)] a=@ud]
-            ?:  (~(has in ig-set) s)  a
-            (add a ~(wyt in (~(int in c) (in-scope s (fall (~(get by finfo) s) ~)))))
-          =/  tf=[f=@ud d=@ud g=@ud]
-            %+  roll  ~(tap by flags)
-            |=  [[s=@t x=[f=@ud d=@ud g=@ud]] a=[f=@ud d=@ud g=@ud]]
-            ?:  &(in-section =(~ (fall (~(get by scope-lines) s) *(set @ud))))  a
-            [(add f.x f.a) (add d.x d.a) (add g.x g.a)]
-          =/  resp=json
-            %-  pairs:enjs:format
-            :~  ['files' [%a file-jsons]]
-                ['totalLines' (numb:enjs:format tot-lines)]
-                ['coveredLines' (numb:enjs:format tot-cov)]
-                ['fresh' (numb:enjs:format f.tf)]
-                ['drifted' (numb:enjs:format d.tf)]
-                ['gone' (numb:enjs:format g.tf)]
-                :-  'section'
-                ?:  =('' sec)  ~
-                (pairs:enjs:format ~[['name' s+sec] ['status' s+section-status]])
-            ==
+            [[/ %json] [%o (~(uni by pins) (~(run by np) |=(h=@t `json`s+h)))]]
           ;<  ~  bind:m
             (send-simple:srv eyre-id [[200 ~[['content-type' 'application/json']]] `(as-octs:mimes:html (en:json:html resp))])
           (pure:m ~)
@@ -1210,7 +1067,7 @@
           =/  updated=(map @t json)
             %+  roll  sections
             |=  [name=@t acc=(map @t json)]
-            =/  strs=(list @t)  (section-scope nav anchors name)
+            =/  strs=(list @t)  (node-cover-scope nav name)
             ?~  strs  acc
             =/  mg=@t  (scot %ux (mug (scope-content finfo (ref-lines finfo strs))))
             (~(put by acc) (crip "{(spud c)}|§{(trip name)}") s+mg)
@@ -1417,85 +1274,59 @@
     =/  kids  (~(get by p.node) 'kids')
     ?~(kids ~ (walk u.kids))
   --
-::  nav-scope: the `scope` selectors of the nav section titled `name` — a list
-::  of "path [range]" strings defining a sub-coverage. ~ if no such section or
-::  it declares no scope (then coverage falls back to the whole collection).
-++  nav-scope
-  |=  [nav=json name=@t]
-  ^-  (list @t)
-  |^  (find nav)
-  ++  find
-    |=  j=json
-    ^-  (list @t)
-    ?.  ?=([%a *] j)  ~
-    |-  ^-  (list @t)
-    ?~  p.j  ~
-    =/  got=(list @t)  (node i.p.j)
-    ?^(got got $(p.j t.p.j))
-  ++  node
-    |=  nd=json
-    ^-  (list @t)
-    ?.  ?=([%o *] nd)  ~
-    =/  ttl  (~(get by p.nd) 'title')
-    ?:  ?&(?=([~ %s *] ttl) =(name p.u.ttl))
-      (json-strs (~(get by p.nd) 'scope'))
-    =/  kids  (~(get by p.nd) 'kids')
-    ?~(kids ~ (find u.kids))
-  --
-::  nav-section-docs: every doc path under the nav section titled `name` — used
-::  to DERIVE a section's coverage scope (the whole files its docs reference)
-::  when it declares no explicit scope. So every section gets coverage of the
-::  code it documents, for free.
-++  nav-section-docs
-  |=  [nav=json name=@t]
-  ^-  (set @t)
-  =<  (silt (walk nav %.n))
-  |%
-  ++  walk
-    |=  [j=json in=?]
-    ^-  (list @t)
-    ?.  ?=([%a *] j)  ~
-    %-  zing
-    %+  turn  p.j
-    |=  nd=json
-    ^-  (list @t)
-    ?.  ?=([%o *] nd)  ~
-    =/  ttl  (~(get by p.nd) 'title')
-    =/  here=?  |(in ?&(?=([~ %s *] ttl) =(name p.u.ttl)))
-    =/  pax  (~(get by p.nd) 'path')
-    =/  self=(list @t)  ?:(?&(here ?=([~ %s *] pax)) ~[p.u.pax] ~)
-    =/  kids  (~(get by p.nd) 'kids')
-    (weld self ?~(kids ~ (walk u.kids here)))
-  --
-::  section-scope: a section's coverage scope — its declared `scope` selectors,
-::  or (when none) the whole files its own docs reference, derived from anchors.
-++  section-scope
-  |=  [nav=json anchors=(list [doc=@t file=@t from=@ud to=@ud]) name=@t]
-  ^-  (list @t)
-  =/  explicit=(list @t)  (nav-scope nav name)
-  ?^  explicit  explicit
-  =/  sec-docs=(set @t)  (nav-section-docs nav name)
-  %~  tap  in
-  %-  silt
-  %+  murn  anchors
-  |=  a=[doc=@t file=@t from=@ud to=@ud]
-  ?:((~(has in sec-docs) doc.a) `file.a ~)
-::  docs-in-node: every doc path beneath one nav node (a leaf is itself).
-++  docs-in-node
+::  subtree-scopes: every `scope` selector in a node's subtree (its own plus all
+::  its descendants'). A grouping section's coverage rolls up to this union.
+++  subtree-scopes
   |=  nd=json
   ^-  (list @t)
   ?.  ?=([%o *] nd)  ~
-  =/  pax  (~(get by p.nd) 'path')
-  ?:  ?=([~ %s *] pax)  ~[p.u.pax]
+  =/  own=(list @t)  (json-strs (~(get by p.nd) 'scope'))
   =/  kids  (~(get by p.nd) 'kids')
-  ?~  kids  ~
-  ?.  ?=([%a *] u.kids)  ~
-  (zing (turn p.u.kids docs-in-node))
-::  annotate-nav: tag each section with `cov` — whether it has any coverage to
-::  show (a declared scope, or docs that reference code). The reader shows a ◆
-::  handle only where cov is true, at any depth.
+  =/  sub=(list @t)
+    ?~  kids  ~
+    ?.  ?=([%a *] u.kids)  ~
+    (zing (turn p.u.kids subtree-scopes))
+  (weld own sub)
+::  find-node: the nav node titled `name`, at any depth.
+++  find-node
+  |=  [nav=json name=@t]
+  ^-  (unit json)
+  ?.  ?=([%a *] nav)  ~
+  |-  ^-  (unit json)
+  ?~  p.nav  ~
+  =/  nd  i.p.nav
+  ?.  ?=([%o *] nd)  $(p.nav t.p.nav)
+  =/  ttl  (~(get by p.nd) 'title')
+  ?:  ?&(?=([~ %s *] ttl) =(name p.u.ttl))  `nd
+  =/  kids  (~(get by p.nd) 'kids')
+  =/  sub  ?~(kids ~ (find-node u.kids name))
+  ?^(sub sub $(p.nav t.p.nav))
+::  node-cover-scope: a node's coverage scope — its own `scope` selectors, or
+::  (for a grouping node with none) the UNION of its scoped descendants' scopes.
+::  So a page or section measures its own code, and a parent rolls its children
+::  up. ~ if there's no scope anywhere in the node's subtree.
+++  node-cover-scope
+  |=  [nav=json name=@t]
+  ^-  (list @t)
+  =/  nd=(unit json)  (find-node nav name)
+  ?~  nd  ~
+  =/  own=(list @t)  (json-strs (~(get by ?:(?=([%o *] u.nd) p.u.nd ~)) 'scope'))
+  ?^  own  own
+  (subtree-scopes u.nd)
+::  any-cov: does any node in this annotated nav array carry cov=true?
+++  any-cov
+  |=  nav=json
+  ^-  ?
+  ?.  ?=([%a *] nav)  |
+  %+  lien  p.nav
+  |=(nd=json &(?=([%o *] nd) =([~ %b %.y] (~(get by p.nd) 'cov'))))
+::  annotate-nav: tag each node with `cov` — whether it has measured coverage:
+::  its own `scope`, OR any scoped descendant (a grouping section rolls its
+::  children up). Coverage is opt-in on ANY node — a section or a leaf page. A
+::  node with no scope anywhere under it just has loose live blocks, unmeasured.
+::  The reader shows a ◆ handle wherever cov is true.
 ++  annotate-nav
-  |=  [nav=json anchored=(set @t)]
+  |=  nav=json
   ^-  json
   ?.  ?=([%a *] nav)  nav
   :-  %a
@@ -1503,13 +1334,284 @@
   |=  nd=json
   ^-  json
   ?.  ?=([%o *] nd)  nd
-  ?:  ?=([~ %s *] (~(get by p.nd) 'path'))  nd
   =/  kids  (~(get by p.nd) 'kids')
-  =/  po=(map @t json)
-    ?~(kids p.nd (~(put by p.nd) 'kids' (annotate-nav u.kids anchored)))
-  =/  has-scope=?  ?=(^ (~(get by po) 'scope'))
-  =/  has-anc=?  (lien (docs-in-node nd) |=(d=@t (~(has in anchored) d)))
-  [%o (~(put by po) 'cov' [%b |(has-scope has-anc)])]
+  =/  ann=(unit json)  ?~(kids ~ `(annotate-nav u.kids))
+  =/  po=(map @t json)  ?~(ann p.nd (~(put by p.nd) 'kids' u.ann))
+  =/  own=?  ?=(^ (~(get by po) 'scope'))
+  =/  kidcov=?  ?~(ann | (any-cov u.ann))
+  [%o (~(put by po) 'cov' [%b |(own kidcov)])]
+::  scoped-sections: the titles of every nav node with measured coverage — its
+::  own scope OR any scoped descendant — at any depth. So a grouping section (its
+::  rolled-up aggregate) appears alongside the pages/sections that scope directly.
+++  scoped-sections
+  |=  nav=json
+  ^-  (list @t)
+  ?.  ?=([%a *] nav)  ~
+  %-  zing
+  %+  turn  p.nav
+  |=  nd=json
+  ^-  (list @t)
+  ?.  ?=([%o *] nd)  ~
+  =/  ttl  (~(get by p.nd) 'title')
+  =/  self=(list @t)
+    ?:(?&(?=([~ %s *] ttl) ?=(^ (subtree-scopes nd))) ~[p.u.ttl] ~)
+  =/  kids  (~(get by p.nd) 'kids')
+  (weld self ?~(kids ~ (scoped-sections u.kids)))
+::  section-summaries: one summary per scoped section — {name, covered, total,
+::  status} — for the coverage overview. Reuses the already-computed finfo,
+::  covered and pins; per section it resolves the scope, intersects with the
+::  covered lines, and compares the scope's content mug to its pin for drift.
+::  Read-only: it reports drift but never stamps (the section page does that).
+++  section-summaries
+  |=  $:  nav=json
+          finfo=(map @t (list @t))
+          covered=(map @t (set @ud))
+          ig-set=(set @t)
+          ignore-lines=(map @t (set @ud))
+          pins=(map @t json)
+          c=path
+      ==
+  ^-  json
+  :-  %a
+  %+  turn  (scoped-sections nav)
+  |=  name=@t
+  ^-  json
+  =/  scope-lines=(map @t (set @ud))  (ref-lines finfo (node-cover-scope nav name))
+  =/  in-scope
+    |=  f=@t
+    ^-  (set @ud)
+    ?:  (~(has in ig-set) f)  ~
+    (~(dif in (fall (~(get by scope-lines) f) ~)) (fall (~(get by ignore-lines) f) ~))
+  =/  keys=(list @t)  ~(tap in ~(key by scope-lines))
+  =/  total=@ud
+    (roll keys |=([f=@t a=@ud] (add a ~(wyt in (in-scope f)))))
+  =/  cov=@ud
+    %+  roll  keys
+    |=  [f=@t a=@ud]
+    (add a ~(wyt in (~(int in (fall (~(get by covered) f) ~)) (in-scope f))))
+  =/  smug=@t  (scot %ux (mug (scope-content finfo scope-lines)))
+  =/  stored=(unit json)  (~(get by pins) (crip "{(spud c)}|§{(trip name)}"))
+  =/  status=@t
+    ?~  stored  'fresh'
+    ?:(=(smug ?:(?=([%s *] u.stored) p.u.stored '')) 'fresh' 'drifted')
+  %-  pairs:enjs:format
+  :~  ['name' s+name]
+      ['covered' (numb:enjs:format cov)]
+      ['total' (numb:enjs:format total)]
+      ['status' s+status]
+  ==
+::  compute-coverage: the coverage result for collection c (whole, or scoped to
+::  a section) — per-file numbers, overall totals, section drift, the sections
+::  overview — PLUS the freshness pins it wants stamped. Pure computation over
+::  the mirror; the caller (the recompute fiber, or the endpoint as a fallback)
+::  decides when to run it and stamps the returned pins. This is the expensive
+::  work — peek the whole mirror, parse it, fold every anchor — so it runs on a
+::  change, not on every view.
+++  compute-coverage
+  |=  [=rail:tarball c=path ignore=(list @t) nav=json sec=@t]
+  =/  m  (fiber:fiber:nexus ,[resp=json np=(map @t @t)])
+  ^-  form:m
+  =/  in-section=?  !=('' sec)
+  ;<  mv=view:nexus  bind:m  (peek:io (nex-road:io rail [%| (coll-mirror c)]) ~)
+  =/  finfo=(map @t (list @t))
+    ?.  ?=([%ball *] mv)  ~
+    %-  malt
+    %+  murn  ~(tap ba:tarball ball.mv)
+    |=  [=rail:tarball =sang:tarball]
+    =/  src=@t  (spat (snoc path.rail name.rail))
+    `[src (to-wain:format (sang-text sang))]
+  =/  ig-set=(set @t)
+    (silt (skim ~(tap in ~(key by finfo)) |=(s=@t (ignored s ignore))))
+  ;<  anchors=(list [doc=@t file=@t from=@ud to=@ud])  bind:m
+    (gather-all-anchors rail c)
+  =/  scope-strs=(list @t)
+    ?:(=('' sec) ~ (node-cover-scope nav sec))
+  =/  scope-lines=(map @t (set @ud))
+    ?.(in-section ~ (ref-lines finfo scope-strs))
+  =/  ignore-lines=(map @t (set @ud))
+    (ref-lines finfo (skim ignore |=(e=@t !=(~ (find " " (trip e))))))
+  ;<  pj=(unit json)  bind:m
+    (peek-as:io (nex-road:io rail [%& /docs %'pins.json']) ,json)
+  =/  pins=(map @t json)  ?~(pj ~ ?:(?=([%o *] u.pj) p.u.pj ~))
+  =+  ^=  res
+    =|  cov=(map @t (set @ud))
+    =|  flg=(map @t [f=@ud d=@ud g=@ud])
+    =|  np=(map @t @t)
+    =|  ancs=(map @t (list json))
+    |-  ^-  [(map @t (set @ud)) (map @t [f=@ud d=@ud g=@ud]) (map @t @t) (map @t (list json))]
+    ?~  anchors  [cov flg np ancs]
+    =/  a  i.anchors
+    =/  fl=[f=@ud d=@ud g=@ud]  (fall (~(get by flg) file.a) [0 0 0])
+    =/  al=(list json)  (fall (~(get by ancs) file.a) ~)
+    =/  mka
+      |=  st=@t
+      ^-  json
+      %-  pairs:enjs:format
+      :~  ['doc' s+doc.a]
+          ['from' (numb:enjs:format from.a)]
+          ['to' (numb:enjs:format to.a)]
+          ['status' s+st]
+      ==
+    =/  ls=(unit (list @t))  (~(get by finfo) file.a)
+    ?:  |(?=(~ ls) (gth from.a (lent u.ls)))
+      %=  $
+        anchors  t.anchors
+        flg   (~(put by flg) file.a fl(g +(g.fl)))
+        ancs  (~(put by ancs) file.a [(mka 'gone') al])
+      ==
+    =/  total=@ud  (lent u.ls)
+    =/  hi=@ud  (min total ?:(=(0 to.a) total to.a))
+    =/  s=(set @ud)  (fall (~(get by cov) file.a) ~)
+    =.  s
+      =/  ln=@ud  from.a
+      |-  ^-  (set @ud)
+      ?:  (gth ln hi)  s
+      $(ln +(ln), s (~(put in s) ln))
+    =/  span=(list @t)  (swag [(dec from.a) +((sub hi from.a))] u.ls)
+    =/  hash=@t  `@t`(scot %ux (mug span))
+    =/  rng=@t  ?:(=(0 to.a) 'all' (crip "{(a-co:co from.a)}-{(a-co:co to.a)}"))
+    =/  key=@t  (crip "{(spud c)}|{(trip doc.a)}|{(trip file.a)}|{(trip rng)}")
+    =/  stored=(unit json)  (~(get by pins) key)
+    =+  ^=  fps
+      ?~  stored  [fl(f +(f.fl)) (~(put by np) key hash) 'fresh']
+      ?:  =(hash ?:(?=([%s *] u.stored) p.u.stored ''))
+        [fl(f +(f.fl)) np 'fresh']
+      [fl(d +(d.fl)) np 'drifted']
+    %=  $
+      anchors  t.anchors
+      cov   (~(put by cov) file.a s)
+      flg   (~(put by flg) file.a -.fps)
+      np    +<.fps
+      ancs  (~(put by ancs) file.a [(mka +>.fps) al])
+    ==
+  =/  covered=(map @t (set @ud))  -.res
+  =/  flags=(map @t [f=@ud d=@ud g=@ud])  +<.res
+  =/  newpins=(map @t @t)  +>-.res
+  =/  fancs=(map @t (list json))  +>+.res
+  =/  section-key=@t  ?:(in-section (crip "{(spud c)}|§{(trip sec)}") '')
+  =/  section-mug=@t
+    ?.(in-section '' (scot %ux (mug (scope-content finfo scope-lines))))
+  =/  section-stored=(unit json)  ?:(in-section (~(get by pins) section-key) ~)
+  =/  section-status=@t
+    ?.  in-section  ''
+    ?~  section-stored  'fresh'
+    ?:  =(section-mug ?:(?=([%s *] u.section-stored) p.u.section-stored ''))
+      'fresh'
+    'drifted'
+  =?  newpins  &(in-section ?=(~ section-stored))
+    (~(put by newpins) section-key section-mug)
+  =/  in-scope
+    |=  [src=@t ls=(list @t)]
+    ^-  (set @ud)
+    =/  base=(set @ud)
+      ?.  in-section
+        =/  n=@ud  1
+        =|  s=(set @ud)
+        |-  ^-  (set @ud)
+        ?:  (gth n (lent ls))  s
+        $(n +(n), s (~(put in s) n))
+      (fall (~(get by scope-lines) src) ~)
+    (~(dif in base) (fall (~(get by ignore-lines) src) ~))
+  =/  file-jsons=(list json)
+    %+  murn  (sort ~(tap by finfo) |=([[a=@t *] [b=@t *]] (aor a b)))
+    |=  [src=@t ls=(list @t)]
+    ^-  (unit json)
+    =/  sc=(set @ud)  (in-scope src ls)
+    ?:  &(in-section =(~ sc))  ~
+    =/  ig=?  (~(has in ig-set) src)
+    =/  fl=[f=@ud d=@ud g=@ud]  (fall (~(get by flags) src) [0 0 0])
+    =/  documented=?  |(!=(0 f.fl) !=(0 d.fl) !=(0 g.fl))
+    ?:  &(ig !documented)  ~
+    =/  cset=(set @ud)  (~(int in (fall (~(get by covered) src) ~)) sc)
+    :-  ~
+    %-  pairs:enjs:format
+    :~  ['file' s+src]
+        ['extra' [%b ig]]
+        ['total' (numb:enjs:format ~(wyt in sc))]
+        ['covered' (numb:enjs:format ~(wyt in cset))]
+        ['fresh' (numb:enjs:format f.fl)]
+        ['drifted' (numb:enjs:format d.fl)]
+        ['gone' (numb:enjs:format g.fl)]
+        :-  'ranges'
+        :-  %a
+        %+  turn  (ranges cset)
+        |=([lo=@ud hi=@ud] `json`[%a ~[(numb:enjs:format lo) (numb:enjs:format hi)]])
+        :-  'scope'
+        :-  %a
+        %+  turn  (ranges sc)
+        |=([lo=@ud hi=@ud] `json`[%a ~[(numb:enjs:format lo) (numb:enjs:format hi)]])
+        ['anchors' [%a (flop (fall (~(get by fancs) src) ~))]]
+    ==
+  =/  tot-lines=@ud
+    %+  roll  ~(tap by finfo)
+    |=  [[s=@t l=(list @t)] a=@ud]
+    ?:  (~(has in ig-set) s)  a
+    (add a ~(wyt in (in-scope s l)))
+  =/  tot-cov=@ud
+    %+  roll  ~(tap by covered)
+    |=  [[s=@t c=(set @ud)] a=@ud]
+    ?:  (~(has in ig-set) s)  a
+    (add a ~(wyt in (~(int in c) (in-scope s (fall (~(get by finfo) s) ~)))))
+  =/  tf=[f=@ud d=@ud g=@ud]
+    %+  roll  ~(tap by flags)
+    |=  [[s=@t x=[f=@ud d=@ud g=@ud]] a=[f=@ud d=@ud g=@ud]]
+    ?:  &(in-section =(~ (fall (~(get by scope-lines) s) *(set @ud))))  a
+    [(add f.x f.a) (add d.x d.a) (add g.x g.a)]
+  =/  resp=json
+    %-  pairs:enjs:format
+    :~  ['files' [%a file-jsons]]
+        ['totalLines' (numb:enjs:format tot-lines)]
+        ['coveredLines' (numb:enjs:format tot-cov)]
+        ['fresh' (numb:enjs:format f.tf)]
+        ['drifted' (numb:enjs:format d.tf)]
+        ['gone' (numb:enjs:format g.tf)]
+        :-  'section'
+        ?:  =('' sec)  ~
+        (pairs:enjs:format ~[['name' s+sec] ['status' s+section-status]])
+        :-  'sections'
+        ?:  in-section  [%a ~]
+        (section-summaries nav finfo covered ig-set ignore-lines pins c)
+    ==
+  (pure:m [resp newpins])
+::  cache-name: the coverage cache grub for a collection — one json grub under
+::  /docs/cache, keyed by a mug of the collection path (outside /docs/mirror, so
+::  a re-mirror never wipes it).
+++  cache-name
+  |=  c=path
+  ^-  @ta
+  `@ta`(rap 3 'cov-' (scot %uv (mug c)) '.json' ~)
+::  recompute-coverage: (re)build and STORE the coverage cache for one collection
+::  — the whole-collection result plus each scoped section's view — and stamp the
+::  freshness pins once. Driven by the mirror fiber when a target's source (code
+::  or docs) or the pins change; the endpoint only reads what this writes.
+++  recompute-coverage
+  |=  [=rail:tarball c=path]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  ;<  [ignore=(list @t) nav=json]  bind:m  (read-docs-config rail c)
+  ;<  [whole=json wnp=(map @t @t)]  bind:m  (compute-coverage rail c ignore nav '')
+  =/  secs=(list @t)  (scoped-sections nav)
+  =|  views=(map @t json)
+  =/  allnp=(map @t @t)  wnp
+  |-  ^-  form:m
+  ?^  secs
+    ;<  [v=json vnp=(map @t @t)]  bind:m  (compute-coverage rail c ignore nav i.secs)
+    $(secs t.secs, views (~(put by views) i.secs v), allnp (~(uni by allnp) vnp))
+  ::  stamp every new pin once, then store the cache grub for this collection.
+  ;<  pj=(unit json)  bind:m
+    (peek-as:io (nex-road:io rail [%& /docs %'pins.json']) ,json)
+  =/  pins=(map @t json)  ?~(pj ~ ?:(?=([%o *] u.pj) p.u.pj ~))
+  ;<  ~  bind:m
+    ?:  =(~ allnp)  (pure:(fiber:fiber:nexus ,~) ~)
+    %+  over:io  (nex-road:io rail [%& /docs %'pins.json'])
+    [[/ %json] [%o (~(uni by pins) (~(run by allnp) |=(h=@t `json`s+h)))]]
+  ::  the overview reads `whole` only for its totals + section summaries, never
+  ::  the 1600-file list — so strip files from the cached whole (each section
+  ::  view keeps its own scoped, small file list).
+  =/  whole-slim=json
+    ?.(?=([%o *] whole) whole [%o (~(put by p.whole) 'files' [%a ~])])
+  =/  cache=json  (pairs:enjs:format ~[['whole' whole-slim] ['views' [%o views]]])
+  (over:io (nex-road:io rail [%& /docs/cache (cache-name c)]) [[/ %json] cache])
 ::  ref-lines: resolve a list of "path [range]" selectors against the mirror
 ::  line map into per-file line sets — the shared primitive for section scopes
 ::  and ranged ignores. A bare path (no range) selects the whole file.
