@@ -15,7 +15,7 @@ file up front. A `build-result` is a compiled `vase` or an error `tang`. And
 dependency graph `deps`, and each rail's `key`.
 
 ```live
-/lib/build.hoon 17-41
+/grubbery/lib/build.hoon 17-41
 ```
 
 ## Step 1 — find the imports
@@ -25,7 +25,7 @@ the source top-down, skipping blanks and `::` comments, trying each import rune
 against the line until it hits code — everything from there down is the *body*.
 
 ```live
-/lib/build.hoon 86-118
+/grubbery/lib/build.hoon 86-118
 ```
 
 The runes themselves are a little parser combinator grammar. `/<  name  path`
@@ -35,7 +35,7 @@ trailing slash, a whole directory gathered as `(axal (map @ta mime))`. Paths are
 absolute (`/lib/foo.hoon`) or relative with a `../` up-count.
 
 ```live
-/lib/build.hoon 127-207
+/grubbery/lib/build.hoon 127-207
 ```
 
 ## Step 2 — resolve, parse, compile one file
@@ -47,7 +47,7 @@ directory) by resolving it against the file's own location. The heavy lifting is
 import kind.
 
 ```live
-/lib/build.hoon 286-307
+/grubbery/lib/build.hoon 286-307
 ```
 
 Parsing the body into a Hoon AST is `parse-hoon`. The one subtle thing: it sets
@@ -57,7 +57,7 @@ build points at the real source location, Clay-style. A *parse* error is
 rendered by hand as the offending line with a `^` caret under the column.
 
 ```live
-/lib/build.hoon 217-234
+/grubbery/lib/build.hoon 217-234
 ```
 
 Compilation is `slap` against a subject vase, wrapped in `mule` with `!.` so the
@@ -65,7 +65,7 @@ caller's own stack traces are suppressed and only the source's `%dbug`
 annotations survive into the error. `build-hoon` chains the two.
 
 ```live
-/lib/build.hoon 244-261
+/grubbery/lib/build.hoon 244-261
 ```
 
 A few small readers sit alongside: `extract-src` pulls text out of a `%hoon` or
@@ -73,7 +73,7 @@ A few small readers sit alongside: `extract-src` pulls text out of a `%hoon` or
 `find-hoon-sources` / `has-hoon-ext` select the `.hoon` grubs out of a ball.
 
 ```live
-/lib/build.hoon 266-337
+/grubbery/lib/build.hoon 266-337
 ```
 
 ## Step 3 — order by dependency
@@ -83,7 +83,7 @@ peels off the nodes whose dependencies are all already done — a leaves-first
 order — and returns whatever's left stuck in a cycle.
 
 ```live
-/lib/build.hoon 343-364
+/grubbery/lib/build.hoon 343-364
 ```
 
 ## The engine: build-inc
@@ -93,7 +93,7 @@ in `build-inc`, and it's organized as a sequence of phases, each an arm below,
 feeding the next. Read the phase list in the comment, then the setup:
 
 ```live
-/lib/build.hoon 380-433
+/grubbery/lib/build.hoon 380-433
 ```
 
 The phases, in order:
@@ -116,15 +116,15 @@ The phases, in order:
   the mimes, and the parse/cycle errors, each already carrying its key.
 
 ```live
-/lib/build.hoon 534-601
+/grubbery/lib/build.hoon 534-601
 ```
 
 ```live
-/lib/build.hoon 608-678
+/grubbery/lib/build.hoon 608-678
 ```
 
 ```live
-/lib/build.hoon 684-718
+/grubbery/lib/build.hoon 684-718
 ```
 
 ## The compile loop
@@ -137,7 +137,7 @@ stored vase on a **cache hit**, or actually **compile** and store the result
 under that key.
 
 ```live
-/lib/build.hoon 438-476
+/grubbery/lib/build.hoon 438-476
 ```
 
 Because the key folds in the *keys of the dependencies*, a change anywhere
@@ -159,7 +159,7 @@ imports onto the base subject (`augment`), compile the body, and — if the file
 is a mark (`/mar/*`) — turn the compiled door into a `marc`.
 
 ```live
-/lib/build.hoon 480-492
+/grubbery/lib/build.hoon 480-492
 ```
 
 `augment` is where imports become the subject. Each import adds one named face:
@@ -169,7 +169,7 @@ gathered `(axal (map @ta mime))` — read from the very same mimes the graph
 keyed, so the compile inputs and the key inputs are identical by construction.
 
 ```live
-/lib/build.hoon 500-529
+/grubbery/lib/build.hoon 500-529
 ```
 
 ## Incremental support
@@ -180,7 +180,7 @@ it returns them plus everyone who transitively depends on them — the exact set
 that must recompile. Everything else is safe to reuse.
 
 ```live
-/lib/build.hoon 48-64
+/grubbery/lib/build.hoon 48-64
 ```
 
 And `bins-to-cache` rebuilds the compiler's `cache` from the [store's
@@ -189,7 +189,7 @@ artifact address, the stored artifacts are already a content-addressed cache —
 this just re-presents them in the shape `build-inc` wants.
 
 ```live
-/lib/build.hoon 69-78
+/grubbery/lib/build.hoon 69-78
 ```
 
 That's the compiler whole. Next: where its output lives, how artifacts are

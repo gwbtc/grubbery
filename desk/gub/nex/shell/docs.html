@@ -80,8 +80,26 @@
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
   #nav .sec-cov:hover { background: #f0f0f0; }
-  .sec-cov-handle { color: #b0b6bd; cursor: pointer; font-size: 11px; padding: 0 4px; }
-  .sec-cov-handle:hover { color: var(--accent); }
+  /* dashboard mode: a freshness-colored % beside a scoped node's name, itself
+     the link into that node's coverage view */
+  .nav-cov-pct {
+    font: 10px ui-monospace, monospace; flex: 0 0 auto; text-align: right;
+    padding: 1px 24px 1px 8px; cursor: pointer;
+  }
+  #nav .sec-head .nav-cov-pct { padding-right: 6px; }
+  .nav-cov-pct:hover { text-decoration: underline; }
+  .nav-cov-pct.f { color: #1a7f37; }
+  .nav-cov-pct.d { color: #9a6700; }
+  /* the coverage row atop the sidebar: a link to the full overview + the apex % */
+  #nav .cov-toggle {
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    padding: 4px 24px 10px;
+  }
+  #nav .cov-toggle .nav-cov-pct { padding-right: 0; }
+  #nav .cov-toplink {
+    font-size: 13px; font-weight: 600; color: var(--fg); text-decoration: none;
+  }
+  #nav .cov-toplink:hover { text-decoration: underline; }
 
   #content { height: 100%; min-width: 0; display: flex; flex-direction: column; overflow-y: auto; }
   #topbar {
@@ -112,17 +130,56 @@
   }
   #search-results .no-hits { padding: 14px; color: var(--muted); font-style: italic; text-align: center; }
 
-  #doc-wrap { flex: 1; display: flex; justify-content: center; }
+  #doc-wrap { flex: 1; display: flex; justify-content: center; align-items: flex-start; gap: 24px; }
   #doc { max-width: 720px; width: 100%; padding: 40px 40px 64px; }
+  /* "On this page": the current doc's headings, sticky on the right, with a
+     scroll-spy highlight. Hidden on non-doc views and on narrow viewports. */
+  #onthispage {
+    position: sticky; top: 58px; align-self: flex-start;
+    flex: 0 0 190px; width: 190px; padding: 8px 24px 40px 0;
+    max-height: calc(100vh - 78px); overflow-y: auto;
+    font: 12.5px/1.4 -apple-system, system-ui, sans-serif;
+  }
+  #onthispage .otp-h {
+    text-transform: uppercase; letter-spacing: 0.05em; font-size: 10.5px;
+    font-weight: 600; color: var(--muted); margin: 0 0 10px 12px;
+  }
+  #onthispage a {
+    display: block; color: var(--muted); text-decoration: none;
+    padding: 3px 0 3px 12px; border-left: 2px solid var(--line);
+    white-space: normal;
+  }
+  #onthispage a:hover { color: var(--fg); }
+  #onthispage a.active { color: var(--fg); border-left-color: var(--accent); }
+  #onthispage a.lvl3 { padding-left: 24px; font-size: 12px; }
+  #onthispage a.lvl4 { padding-left: 36px; font-size: 11.5px; }
+  @media (max-width: 1080px) { #onthispage { display: none !important; } }
+  /* leave room for the sticky topbar when scrolling a heading into view
+     (On-this-page clicks, anchor jumps) so it isn't hidden beneath it */
+  #doc h1, #doc h2, #doc h3, #doc h4 { scroll-margin-top: 72px; }
   #doc h1 { font-size: 30px; margin: 0 0 8px; }
   #doc h2 { font-size: 21px; margin: 36px 0 10px; border-bottom: 1px solid var(--line); padding-bottom: 6px; }
   #doc h3 { font-size: 17px; margin: 28px 0 8px; }
+  #doc h4 { font-size: 15px; margin: 22px 0 6px; }
   #doc p, #doc li { color: #2a2a2a; }
   #doc code { background: var(--code-bg); padding: 2px 5px; border-radius: 4px; font-size: 0.9em; }
   #doc pre { background: var(--code-bg); padding: 16px; border-radius: 8px; overflow-x: auto; }
   #doc pre code { background: none; padding: 0; }
   #doc a { color: #2b6cb0; }
   #doc blockquote { border-left: 3px solid var(--line); margin: 0; padding-left: 16px; color: var(--muted); }
+  /* callouts: `> [!type] title` admonition boxes (see upgradeCallouts) */
+  #doc .callout { border: 1px solid; border-radius: 8px; padding: 12px 16px; margin: 0 0 18px; }
+  #doc .callout .callout-h { font-weight: 600; font-size: 12.5px; margin-bottom: 5px; }
+  #doc .callout > p { margin: 6px 0 0; }
+  #doc .callout > p:first-of-type { margin-top: 0; }
+  #doc .callout-background { background: #f6f5fb; border-color: #e5e0f2; }
+  #doc .callout-background .callout-h { color: #6b5fa8; }
+  #doc .callout-note { background: #eef4fb; border-color: #d6e3f2; }
+  #doc .callout-note .callout-h { color: #2b6cb0; }
+  #doc .callout-tip { background: #eef7f0; border-color: #d4e8db; }
+  #doc .callout-tip .callout-h { color: #1a7f37; }
+  #doc .callout-warn, #doc .callout-warning { background: #fff8ec; border-color: #f0dcae; }
+  #doc .callout-warn .callout-h, #doc .callout-warning .callout-h { color: #9a6700; }
   #empty { color: var(--muted); }
   mark { background: #ffe9a8; color: inherit; border-radius: 2px; }
 
@@ -195,6 +252,7 @@
             <div class="sk sk-short"></div>
           </div>
         </article>
+        <aside id="onthispage" hidden></aside>
       </div>
     </main>
   </split-view>

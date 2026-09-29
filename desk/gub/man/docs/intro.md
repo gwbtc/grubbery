@@ -42,5 +42,5 @@ Here is a whole nexus helper lib, read live from the namespace through the
 kernel's own file API and highlighted in place:
 
 ```live
-/gub/lib/shell.hoon
+/grubbery/gub/lib/shell.hoon
 ```

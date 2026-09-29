@@ -1,13 +1,13 @@
 {
   "ignore": [
-    "/tests",
-    "/lib/wasm",
-    "/desk.bill",
-    "/desk.docket-0",
-    "/sys.kelvin",
-    "/sur/wasm",
-    "/sur/spider.hoon",
-    "/sur/docket.hoon"
+    "/grubbery/tests",
+    "/grubbery/lib/wasm",
+    "/grubbery/desk.bill",
+    "/grubbery/desk.docket-0",
+    "/grubbery/sys.kelvin",
+    "/grubbery/sur/wasm",
+    "/grubbery/sur/spider.hoon",
+    "/grubbery/sur/docket.hoon"
   ],
   "nav": [
     { "title": "Introduction", "path": "intro.md" },
@@ -31,33 +31,60 @@
       { "title": "Desks", "path": "desks.md" },
       { "title": "Cross-ship", "path": "cross-ship.md" },
       { "title": "HTTP serving", "path": "http-serving.md" },
-      { "title": "Code nexuses", "path": "code-nexuses.md" }
+      { "title": "Code nexuses", "path": "code-nexuses.md" },
+      { "title": "Remote scry", "path": "remote-scry.md",
+        "scope": [
+          "/grubbery/lib/fiberio.hoon 899-988",
+          "/grubbery/lib/nexus.hoon 199-208",
+          "/grubbery/app/grubbery.hoon 6879-6904",
+          "/grubbery/app/grubbery.hoon 7553-7662",
+          "/base/sys/lull.hoon 4019-4027",
+          "/base/sys/vane/gall.hoon 1447-1456",
+          "/base/sys/vane/gall.hoon 1459-1483",
+          "/base/sys/vane/gall.hoon 1489-1512",
+          "/base/sys/vane/ames.hoon 4351-4360",
+          "/base/sys/lull.hoon 895-898",
+          "/base/sys/lull.hoon 1055",
+          "/base/sys/vane/ames.hoon 5643-5677",
+          "/base/sys/vane/ames.hoon 5696-5741",
+          "/base/sys/hoon.hoon 13782",
+          "/base/sys/arvo.hoon 56",
+          "/base/sys/arvo.hoon 38-48",
+          "/base/sys/lull.hoon 3696-3700",
+          "/base/sys/lull.hoon 3706-3713"
+        ] },
+      { "title": "Local scry", "path": "local-scry.md",
+        "scope": [
+          "/grubbery/lib/fiberio.hoon 877-898",
+          "/grubbery/lib/fiberio.hoon 991-1013"
+        ] }
     ] },
     { "title": "The build system", "kids": [
         { "title": "Overview", "path": "build-overview.md" },
         { "title": "The compiler", "path": "build-compiler.md",
-          "scope": ["/lib/build.hoon"] },
+          "scope": ["/grubbery/lib/build.hoon"] },
         { "title": "Storage & scopes", "path": "build-storage.md",
           "scope": [
-            "/lib/nexus.hoon 5-34",
-            "/app/grubbery.hoon 72-102",
-            "/app/grubbery.hoon 1815-1852",
-            "/app/grubbery.hoon 5002-5022",
-            "/app/grubbery.hoon 5070-5120",
-            "/app/grubbery.hoon 5172-5219"
+            "/grubbery/lib/nexus.hoon 5-34",
+            "/grubbery/app/grubbery.hoon 72-102",
+            "/grubbery/app/grubbery.hoon 1815-1852",
+            "/grubbery/app/grubbery.hoon 5002-5022",
+            "/grubbery/app/grubbery.hoon 5070-5120",
+            "/grubbery/app/grubbery.hoon 5172-5219"
           ] },
         { "title": "The substrate", "path": "build-substrate.md",
           "scope": [
-            "/lib/tarball.hoon 5-43",
-            "/lib/tarball.hoon 64-71",
-            "/lib/tarball.hoon 148-212",
-            "/lib/tarball.hoon 767-774",
-            "/lib/loader.hoon"
+            "/grubbery/lib/tarball.hoon 5-43",
+            "/grubbery/lib/tarball.hoon 64-71",
+            "/grubbery/lib/tarball.hoon 148-212",
+            "/grubbery/lib/tarball.hoon 767-774",
+            "/grubbery/lib/loader.hoon"
           ] }
       ] },
     { "title": "TODO & future topics", "path": "roadmap.md" },
     { "title": "Design", "kids": [
-      { "title": "Documenting the codebase", "path": "direction.md" }
+      { "title": "Documenting the codebase", "path": "direction.md" },
+      { "title": "The writing standard", "path": "writing-standard.md" }
     ] }
   ]
 }

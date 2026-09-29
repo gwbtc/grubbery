@@ -51,7 +51,7 @@ A nexus can read any file in the running namespace. Here's how a tool greps
 the whole ball — the same read primitive the live-code embeds use:
 
 ```live
-/gub/lib/tool-bundle/tools/grep.hoon 1-14
+/grubbery/gub/lib/tool-bundle/tools/grep.hoon 1-14
 ```
 
 _TODO: registration via a `%fall` row in `root.hoon`; the full loader

@@ -44,6 +44,10 @@
           ::  mirror dir is rebuildable cache, never user data.
           [%fall %& [/ %'mirror.sig'] [[/ %sig] ~]]
           [%fall %| /docs/mirror empty-dir:loader]
+          ::  /docs/hb: the mirrored HANDBOOK prose per collection (its docs
+          ::  home), kept apart from /docs/mirror (the code sources) so coverage
+          ::  never counts the markdown. Rebuildable cache, never user data.
+          [%fall %| /docs/hb empty-dir:loader]
           ::  /docs/cache: the ship-computed coverage cache (one json grub per
           ::  collection), recomputed on change — rebuildable, never user data.
           [%fall %| /docs/cache empty-dir:loader]
@@ -156,7 +160,7 @@
         ;<  ~  bind:m  (bind-http:io [~ /grubbery/tiles])
         (http-dispatch:io %shell)
           ::  mirror.sig: keep a local copy of every target's source under
-          ::  /docs/mirror (each mounted by +mirror-mount), so coverage computes
+          ::  /docs/mirror (per source, under its tag), so coverage computes
           ::  from local data. FOLLOWS each target by SUBSCRIPTION: the kernel
           ::  mirrors Clay desks into the namespace as real grubs (see
           ::  +sync-clay-desk), so /sys/clay/desks/<desk> is a live grubbery
@@ -189,29 +193,31 @@
           ^-  form:m
           ;<  tgs=(unit json)  bind:m
             (peek-as:io (nex-road:io rail [%& /docs %'targets.json']) ,json)
-          =/  dirs=(list path)  (turn (targ-list tgs) |=([t=@t *] (target-path t)))
+          =/  jobs=(list [dest=path src=path])  (mirror-jobs (colls tgs))
           =/  out=(map path @)  seen
           |-  ^-  form:m
-          ?~  dirs  (pure:m out)
-          ;<  got=(unit @)  bind:m  (mirror-dir rail i.dirs (~(get by seen) i.dirs))
-          =?  out  ?=(^ got)  (~(put by out) i.dirs u.got)
-          $(dirs t.dirs)
+          ?~  jobs  (pure:m out)
+          ;<  got=(unit @)  bind:m
+            (mirror-dir rail dest.i.jobs src.i.jobs (~(get by seen) dest.i.jobs))
+          =?  out  ?=(^ got)  (~(put by out) dest.i.jobs u.got)
+          $(jobs t.jobs)
         ::  +recompute-all: rebuild the coverage cache for every registered
-        ::  collection (matching +coll-of's c = the stabbed target string).
+        ::  collection (its c = the collection's name as a one-segment path).
         ++  recompute-all
           =/  m  (fiber:fiber:nexus ,~)
           ^-  form:m
           ;<  tgs=(unit json)  bind:m
             (peek-as:io (nex-road:io rail [%& /docs %'targets.json']) ,json)
-          =/  cs=(list path)  (turn (targ-list tgs) |=([t=@t *] (stab t)))
+          =/  cs=(list path)  (turn (colls tgs) |=([name=@t *] ~[name]))
           |-  ^-  form:m
           ?~  cs  (pure:m ~)
           ;<  ~  bind:m  (recompute-coverage rail i.cs)
           $(cs t.cs)
-        ::  +sync-keeps: subscribe to targets.json and to each current target
-        ::  directory; drop subscriptions for targets no longer registered.
-        ::  Keeps only the newly-added targets and drops the removed ones
-        ::  (idempotent per wire). Returns the new set of watched target paths.
+        ::  +sync-keeps: subscribe to targets.json, the pins, and every source
+        ::  directory a collection mirrors (its code sources AND its handbook
+        ::  home); drop subscriptions for sources no longer registered. Keeps the
+        ::  newly-added and drops the removed (idempotent per wire). Returns the
+        ::  new set of watched source paths.
         ++  sync-keeps
           |=  old=(set path)
           =/  m  (fiber:fiber:nexus ,(set path))
@@ -226,7 +232,7 @@
             (peek-as:io (nex-road:io rail [%& /docs %'targets.json']) ,json)
           =/  now=(set path)
             %-  ~(gas in *(set path))
-            (turn (targ-list tgs) |=([t=@t *] (target-path t)))
+            (turn (mirror-jobs (colls tgs)) |=([* src=path] src))
           =/  gone=(list path)   ~(tap in (~(dif in old) now))
           =/  fresh=(list path)  ~(tap in (~(dif in now) old))
           |-  ^-  form:m
@@ -840,7 +846,6 @@
         ?:  ?=([%docs %'anchors.json' ~] suffix)
           ;<  c=path  bind:m  (coll-of rail url.request.req)
           ;<  [* nav=json]  bind:m  (read-docs-config rail c)
-          ;<  dc=path  bind:m  (docs-of rail c)
           =/  items=(list [path=@t title=@t])  (nav-items nav)
           =|  all=(list json)
           |-  ^-  process:fiber:nexus
@@ -850,7 +855,7 @@
               (send-simple:srv eyre-id [[200 ~[['content-type' 'application/json']]] `bod])
             (pure:m ~)
           ;<  fv=view:nexus  bind:m
-            (peek:io (nex-road:io rail [%& (coll-docs c dc) `@ta`path.i.items]) ~)
+            (peek:io (nex-road:io rail [%& (coll-docs c) `@ta`path.i.items]) ~)
           =/  txt=@t  (grub-text fv)
           =.  all
             %+  weld  all
@@ -962,7 +967,6 @@
               (send-simple:srv eyre-id [[200 ~[['content-type' 'application/json']]] `bod])
             (pure:m ~)
           ;<  [* nav=json]  bind:m  (read-docs-config rail c)
-          ;<  dc=path  bind:m  (docs-of rail c)
           =/  items=(list [path=@t title=@t])  (nav-items nav)
           =|  hits=(list json)
           |-  ^-  process:fiber:nexus
@@ -972,7 +976,7 @@
               (send-simple:srv eyre-id [[200 ~[['content-type' 'application/json']]] `bod])
             (pure:m ~)
           ;<  fv=view:nexus  bind:m
-            (peek:io (nex-road:io rail [%& (coll-docs c dc) `@ta`path.i.items]) ~)
+            (peek:io (nex-road:io rail [%& (coll-docs c) `@ta`path.i.items]) ~)
           =/  txt=@t  (grub-text fv)
           =/  snip=(unit @t)  (find-snippet txt q)
           =/  tmatch=?  !=(~ (find qlow (cass (trip title.i.items))))
@@ -992,9 +996,8 @@
           ::  prose lives in the collection's target: serve it straight from its
           ::  mirror handbook dir — the same source coverage measures. No seed
           ::  fallback; a page absent from the mirror is a real 404.
-          ;<  dc=path  bind:m  (docs-of rail c)
           ;<  mv=view:nexus  bind:m
-            (peek:io (nex-road:io rail [%& (coll-docs c dc) `@ta`pax]) ~)
+            (peek:io (nex-road:io rail [%& (coll-docs c) `@ta`pax]) ~)
           =/  mtxt=@t  (grub-text mv)
           ?:  =('' mtxt)
             ;<  ~  bind:m  (send-simple:srv eyre-id [[404 ~] `(as-octs:mimes:html 'Not found')])
@@ -1064,13 +1067,27 @@
             =/  span=(list @t)  (swag [(dec from.rng) +((sub hi from.rng))] u.ls)
             =/  key=@t  (crip "{(spud c)}|{(trip doc.b)}|{(trip file.b)}|{(trip range.b)}")
             (~(put by acc) key s+`@t`(scot %ux (mug span)))
+          ::  re-confirming a section re-stamps the anchor pins of every block on
+          ::  its own page(s) — freshness is the block aggregate, so this clears
+          ::  the section's drift by clearing the blocks that caused it.
           =/  updated=(map @t json)
             %+  roll  sections
             |=  [name=@t acc=(map @t json)]
-            =/  strs=(list @t)  (node-cover-scope nav name)
-            ?~  strs  acc
-            =/  mg=@t  (scot %ux (mug (scope-content finfo (ref-lines finfo strs))))
-            (~(put by acc) (crip "{(spud c)}|§{(trip name)}") s+mg)
+            =/  nd=(unit json)  (find-node nav name)
+            ?~  nd  acc
+            =/  docs=(set @t)  (~(gas in *(set @t)) (subtree-docs u.nd))
+            %+  roll  anchors
+            |=  [a=[doc=@t file=@t from=@ud to=@ud] ac=_acc]
+            ?.  (~(has in docs) doc.a)  ac
+            =/  ls=(unit (list @t))  (~(get by finfo) file.a)
+            ?~  ls  ac
+            =/  total=@ud  (lent u.ls)
+            ?:  (gth from.a total)  ac
+            =/  hi=@ud  (min total ?:(=(0 to.a) total to.a))
+            =/  span=(list @t)  (swag [(dec from.a) +((sub hi from.a))] u.ls)
+            =/  rng=@t  ?:(=(0 to.a) 'all' (crip "{(a-co:co from.a)}-{(a-co:co to.a)}"))
+            =/  key=@t  (crip "{(spud c)}|{(trip doc.a)}|{(trip file.a)}|{(trip rng)}")
+            (~(put by ac) key s+`@t`(scot %ux (mug span)))
           =.  updated  (~(uni by updated) block-updates)
           ;<  ~  bind:m
             ?:  =(~ updated)  (pure:(fiber:fiber:nexus ,~) ~)
@@ -1082,10 +1099,9 @@
           ;<  ~  bind:m
             (send-simple:srv eyre-id [[200 ~[['content-type' 'application/json']]] `bod])
           (pure:m ~)
-        ::  POST /apps/grubbery/docs/targets  [{"path","docs"}, ...] → replace
-        ::  the registry with the posted json array. Each entry names a target and
-        ::  its handbook subpath (see +targ-list); stored verbatim, legacy bare
-        ::  strings tolerated on read.
+        ::  POST /apps/grubbery/docs/targets  [{name, docs, sources}, ...] →
+        ::  replace the registry with the posted json array. Each entry is a
+        ::  collection (see +colls); stored verbatim.
         ?:  &(=('POST' method.request.req) ?=([%docs %targets ~] suffix))
           =/  jon=json
             (fall (de:json:html ?~(body.request.req '' q.u.body.request.req)) [%a ~])
@@ -1211,44 +1227,31 @@
 |%
 ++  srv  ~(. http-res:io [%| 1 %& ~ %'main.sig'])
 ::  coll-of: the collection a request is scoped to — the `c` query param (a
-::  target path). Absent, we fall back to the first registered collection, so
-::  a bare request still resolves the default.
+::  collection name). Absent, we fall back to the first registered collection,
+::  so a bare request still resolves the default. Returns the one-segment path.
 ++  coll-of
   |=  [=rail:tarball url=@t]
   =/  m  (fiber:fiber:nexus ,path)
   ^-  form:m
   =/  qa=quay:eyre  args:(parse-url:http-utils url)
   =/  cl  (skim qa |=([p=@t q=@t] =(p 'c')))
-  ?^  cl  (pure:m (stab q.i.cl))
+  ?^  cl  (pure:m ~[q.i.cl])
   ;<  tg=(unit json)  bind:m
     (peek-as:io (nex-road:io rail [%& /docs %'targets.json']) ,json)
-  =/  ts=(list [t=@t docs=path])  (targ-list tg)
-  (pure:m ?~(ts ~ (stab t.i.ts)))
-::  docs-of: a collection's handbook subpath within its target, from the registry.
-::  Defaults to /man/docs when the target isn't found or names no docs path — the
-::  same default +targ-list applies to a legacy bare-string entry.
-++  docs-of
-  |=  [=rail:tarball c=path]
-  =/  m  (fiber:fiber:nexus ,path)
-  ^-  form:m
-  ;<  tg=(unit json)  bind:m
-    (peek-as:io (nex-road:io rail [%& /docs %'targets.json']) ,json)
-  =/  ts=(list [t=@t docs=path])  (targ-list tg)
-  =/  hit  (skim ts |=([t=@t *] =((stab t) c)))
-  (pure:m ?~(hit /man/docs docs.i.hit))
-::  read-docs-config: a collection's handbook manifest, read from its mirror's
-::  man/docs/docs.json — {ignore, nav}. Config lives WITH the documented target
-::  (the desk owns its coverage exclusions and its sidebar shape), not in the
-::  shell. Empty when the manifest isn't mirrored yet.
+  =/  cs  (colls tg)
+  (pure:m ?~(cs ~ ~[name.i.cs]))
+::  read-docs-config: a collection's handbook manifest, read from its mirrored
+::  handbook — {ignore, nav}. Config lives WITH the documented handbook (the desk
+::  owns its coverage exclusions and its sidebar shape), not in the shell. Empty
+::  when the manifest isn't mirrored yet.
 ++  read-docs-config
   |=  [=rail:tarball c=path]
   =/  m  (fiber:fiber:nexus ,[ignore=(list @t) nav=json])
   ^-  form:m
   ::  the manifest is a %json grub in the mirror — clam it to json directly,
   ::  not through grub-text (which extracts source TEXT, not a json noun).
-  ;<  dc=path  bind:m  (docs-of rail c)
   ;<  ju=(unit json)  bind:m
-    (peek-as:io (nex-road:io rail [%& (coll-docs c dc) %'docs.json']) ,json)
+    (peek-as:io (nex-road:io rail [%& (coll-docs c) %'docs.json']) ,json)
   =/  obj=(map @t json)  ?~(ju ~ ?:(?=([%o *] u.ju) p.u.ju ~))
   =/  nav=json  (fall (~(get by obj) 'nav') [%a ~])
   (pure:m [(json-strs (~(get by obj) 'ignore')) nav])
@@ -1357,19 +1360,43 @@
     ?:(?&(?=([~ %s *] ttl) ?=(^ (subtree-scopes nd))) ~[p.u.ttl] ~)
   =/  kids  (~(get by p.nd) 'kids')
   (weld self ?~(kids ~ (scoped-sections u.kids)))
+::  section-status-of: a section's freshness — drifted iff any live block in its
+::  own page (or, for a grouping node, any descendant page) is drifted. An
+::  anchor's `doc` ties a block to its section, so this is just the aggregate of
+::  the section's blocks: no separate scope pin (adding a file to the scope
+::  can't drift it), no cross-section bleed (a shared source file's drift only
+::  counts against the section whose page anchored the changed block).
+++  section-status-of
+  |=  [nav=json name=@t doc-drift=(set @t)]
+  ^-  @t
+  =/  nd=(unit json)  (find-node nav name)
+  ?~  nd  'fresh'
+  ?:((lien (subtree-docs u.nd) |=(d=@t (~(has in doc-drift) d))) 'drifted' 'fresh')
+::  subtree-docs: every page path in the nav subtree at nd — its own `path` plus
+::  all descendants'. These are the .md files whose live blocks the section owns.
+++  subtree-docs
+  |=  nd=json
+  ^-  (list @t)
+  ?.  ?=([%o *] nd)  ~
+  =/  own=(list @t)
+    =/  p  (~(get by p.nd) 'path')
+    ?:(?=([~ %s *] p) ~[p.u.p] ~)
+  =/  kids  (~(get by p.nd) 'kids')
+  =/  kd=(list @t)
+    ?.  ?=([~ %a *] kids)  ~
+    (zing (turn p.u.kids |=(k=json (subtree-docs k))))
+  (weld own kd)
 ::  section-summaries: one summary per scoped section — {name, covered, total,
-::  status} — for the coverage overview. Reuses the already-computed finfo,
-::  covered and pins; per section it resolves the scope, intersects with the
-::  covered lines, and compares the scope's content mug to its pin for drift.
-::  Read-only: it reports drift but never stamps (the section page does that).
+::  status} — for the coverage overview. Reuses the already-computed finfo and
+::  covered for the numbers; freshness is the block aggregate via `doc-drift`
+::  (the set of pages with a drifted live block). Read-only.
 ++  section-summaries
   |=  $:  nav=json
           finfo=(map @t (list @t))
           covered=(map @t (set @ud))
           ig-set=(set @t)
           ignore-lines=(map @t (set @ud))
-          pins=(map @t json)
-          c=path
+          doc-drift=(set @t)
       ==
   ^-  json
   :-  %a
@@ -1389,11 +1416,7 @@
     %+  roll  keys
     |=  [f=@t a=@ud]
     (add a ~(wyt in (~(int in (fall (~(get by covered) f) ~)) (in-scope f))))
-  =/  smug=@t  (scot %ux (mug (scope-content finfo scope-lines)))
-  =/  stored=(unit json)  (~(get by pins) (crip "{(spud c)}|§{(trip name)}"))
-  =/  status=@t
-    ?~  stored  'fresh'
-    ?:(=(smug ?:(?=([%s *] u.stored) p.u.stored '')) 'fresh' 'drifted')
+  =/  status=@t  (section-status-of nav name doc-drift)
   %-  pairs:enjs:format
   :~  ['name' s+name]
       ['covered' (numb:enjs:format cov)]
@@ -1488,18 +1511,27 @@
   =/  flags=(map @t [f=@ud d=@ud g=@ud])  +<.res
   =/  newpins=(map @t @t)  +>-.res
   =/  fancs=(map @t (list json))  +>+.res
-  =/  section-key=@t  ?:(in-section (crip "{(spud c)}|§{(trip sec)}") '')
-  =/  section-mug=@t
-    ?.(in-section '' (scot %ux (mug (scope-content finfo scope-lines))))
-  =/  section-stored=(unit json)  ?:(in-section (~(get by pins) section-key) ~)
+  ::  doc-drift: the pages that carry at least one drifted live block. A
+  ::  section's freshness is the aggregate of the blocks on its own page(s) —
+  ::  no separate section pin, so adding scope can't spuriously drift it.
+  =/  doc-drift=(set @t)
+    %-  ~(gas in *(set @t))
+    %-  zing
+    %+  turn  ~(val by fancs)
+    |=  js=(list json)
+    ^-  (list @t)
+    %+  murn  js
+    |=  j=json
+    ^-  (unit @t)
+    ?.  ?=([%o *] j)  ~
+    =/  st  (~(get by p.j) 'status')
+    =/  dc  (~(get by p.j) 'doc')
+    ?.  ?=([~ %s *] st)  ~
+    ?.  =('drifted' p.u.st)  ~
+    ?.  ?=([~ %s *] dc)  ~
+    `p.u.dc
   =/  section-status=@t
-    ?.  in-section  ''
-    ?~  section-stored  'fresh'
-    ?:  =(section-mug ?:(?=([%s *] u.section-stored) p.u.section-stored ''))
-      'fresh'
-    'drifted'
-  =?  newpins  &(in-section ?=(~ section-stored))
-    (~(put by newpins) section-key section-mug)
+    ?.(in-section '' (section-status-of nav sec doc-drift))
   =/  in-scope
     |=  [src=@t ls=(list @t)]
     ^-  (set @ud)
@@ -1570,7 +1602,7 @@
         (pairs:enjs:format ~[['name' s+sec] ['status' s+section-status]])
         :-  'sections'
         ?:  in-section  [%a ~]
-        (section-summaries nav finfo covered ig-set ignore-lines pins c)
+        (section-summaries nav finfo covered ig-set ignore-lines doc-drift)
     ==
   (pure:m [resp newpins])
 ::  cache-name: the coverage cache grub for a collection — one json grub under
@@ -2652,66 +2684,98 @@
   ?~  j  ~
   ?.  ?=([%a *] u.j)  ~
   (murn p.u.j |=(x=json ?:(?=([%s *] x) `p.x ~)))
-::  +targ-list: parse targets.json into [target-string, docs-subpath] pairs. Each
-::  entry is an object {"path","docs"}: path = the target we mirror, docs = where
-::  the handbook (docs.json + .md) lives within it. docs omitted defaults to
-::  /man/docs; grubbery's entry sets /gub/man/docs (its manuals live under gub/).
-++  targ-list
+::  +colls: parse targets.json into the collection registry. Each entry is
+::  {name, docs, sources}: `name` is the collection's identity (its URL key),
+::  `docs` the namespace dir its handbook prose lives in, `sources` the tagged
+::  source roots it documents. A live block or scope selector names a source by
+::  its tag as the leading path segment (/gub/lib/build.hoon), so the tag is
+::  literally where that source mounts under the collection's mirror.
+++  colls
   |=  j=(unit json)
-  ^-  (list [t=@t docs=path])
+  ^-  (list [name=@t docs=path sources=(list [tag=@t path=path])])
   ?~  j  ~
   ?.  ?=([%a *] u.j)  ~
   %+  murn  p.u.j
   |=  x=json
-  ^-  (unit [t=@t docs=path])
+  ^-  (unit [name=@t docs=path sources=(list [tag=@t path=path])])
   ?.  ?=([%o *] x)  ~
-  =/  pt  (~(get by p.x) 'path')
-  ?~  pt  ~
-  ?.  ?=([%s *] u.pt)  ~
+  =/  nm  (~(get by p.x) 'name')
+  ?.  ?=([~ %s *] nm)  ~
   =/  dc  (~(get by p.x) 'docs')
-  =/  docs=path
-    ?~  dc  /man/docs
-    ?.(?=([%s *] u.dc) /man/docs (stab p.u.dc))
-  `[p.u.pt docs]
-::  +target-path: a configured target string to the namespace path it names.
-::  Targets are namespace directories we subscribe to and mirror (ignore, by
-::  contrast, is mirror-relative and never passes through here). A path rooted
-::  at a known namespace top (/code, /sys, /apps, /docs) is taken as-is — so a
-::  target can point at the raw grubbery desk source under /sys/clay/desks/
-::  grubbery, not just /code. Anything else is /code-relative (a bare "/lib/..."
-::  means "/code/lib/...").
+  =/  docs=path  ?.(?=([~ %s *] dc) ~ (stab p.u.dc))
+  =/  sj  (~(get by p.x) 'sources')
+  =/  sources=(list [tag=@t path=path])
+    ?.  ?=([~ %a *] sj)  ~
+    %+  murn  p.u.sj
+    |=  s=json
+    ^-  (unit [tag=@t path=path])
+    ?.  ?=([%o *] s)  ~
+    =/  tg  (~(get by p.s) 'tag')
+    =/  pp  (~(get by p.s) 'path')
+    ?.  ?&(?=([~ %s *] tg) ?=([~ %s *] pp))  ~
+    `[p.u.tg (stab p.u.pp)]
+  `[p.u.nm docs sources]
+::  +col-name: a collection path's identity — its single name segment.
+++  col-name
+  |=  c=path
+  ^-  @t
+  ?~(c '' i.c)
+::  +coll-rec: the registry record for a collection path, matched by name.
+++  coll-rec
+  |=  [=rail:tarball c=path]
+  =/  m  (fiber:fiber:nexus ,(unit [name=@t docs=path sources=(list [tag=@t path=path])]))
+  ^-  form:m
+  ;<  tg=(unit json)  bind:m
+    (peek-as:io (nex-road:io rail [%& /docs %'targets.json']) ,json)
+  =/  hit  (skim (colls tg) |=([nm=@t *] =(nm (col-name c))))
+  (pure:m ?~(hit ~ `i.hit))
+::  +src-path: a source's configured path to the namespace path it names. A path
+::  rooted at a known namespace top (/code, /sys, /apps, /docs) is taken as-is
+::  — so a source can point at raw desk source under /sys/clay/desks/<desk> —
+::  anything else is /code-relative (a bare "/lib/..." means "/code/lib/...").
 ::
-++  target-path
-  |=  t=@t
+++  src-path
+  |=  t=path
   ^-  path
-  =/  p=path  (stab t)
-  ?~  p  p
-  ?:  ?=(?(%code %sys %apps %docs) i.p)  p
-  [%code p]
-::  +mirror-mount: the /docs/mirror path a target directory mounts at —
-::  /docs/mirror ++ its own full path, so collections never collide and a request
-::  scopes by /docs/mirror ++ c. The full path is kept (not stripped) precisely so
-::  distinct targets stay distinct; anchor paths are correspondingly target-rooted.
-::  The mirror lives under /docs so the whole docs subsystem is one subtree.
-++  mirror-mount
-  |=  code=path
-  ^-  path
-  (welp /docs/mirror code)
-::  +coll-mirror: the mirror subtree of one collection (its own target path).
+  ?~  t  t
+  ?:  ?=(?(%code %sys %apps %docs) i.t)  t
+  [%code t]
+::  +coll-mirror: the mirror subtree holding a collection's CODE sources, each
+::  under its tag (/docs/mirror/<name>/<tag>/...). Coverage peeks this root, so a
+::  mirrored file keys as /<tag>/<desk-path> — the tag is just the first segment.
 ++  coll-mirror
   |=  c=path
   ^-  path
   (welp /docs/mirror c)
-::  +coll-docs: a collection's handbook directory in the mirror. The handbook's
-::  location WITHIN the target is target-specific — man/docs is a grubbery-relative
-::  convention (each nexus's manuals live under gub/…/man/), so grubbery's handbook
-::  is at gub/man/docs, while a bare Clay desk has no such convention. So dc (the
-::  docs subpath) is carried per-target in the registry and resolved by +docs-of;
-::  this gate just joins it onto the mirror. dc is target-relative.
-++  coll-docs
-  |=  [c=path dc=path]
+::  +source-mirror: where one tagged source of a collection mounts.
+++  source-mirror
+  |=  [c=path tag=@t]
   ^-  path
-  (welp /docs/mirror (welp c dc))
+  (welp (coll-mirror c) ~[tag])
+::  +coll-docs: the mirror subtree holding a collection's HANDBOOK prose (its
+::  docs home), under /docs/hb — kept out of /docs/mirror so the markdown never
+::  counts as code. nav/page/search read straight from here.
+++  coll-docs
+  |=  c=path
+  ^-  path
+  (welp /docs/hb c)
+::  +mirror-jobs: the [dest src] copies that keep the mirror current — one per
+::  source (its namespace dir → /docs/mirror/<name>/<tag>) plus the handbook
+::  (its docs home → /docs/hb/<name>). do-mirror runs them; sync-keeps watches
+::  their src sides.
+++  mirror-jobs
+  |=  cs=(list [name=@t docs=path sources=(list [tag=@t path=path])])
+  ^-  (list [dest=path src=path])
+  %-  zing
+  %+  turn  cs
+  |=  co=[name=@t docs=path sources=(list [tag=@t path=path])]
+  ^-  (list [dest=path src=path])
+  =/  c=path  ~[name.co]
+  %+  weld
+    ?~(docs.co ~ ~[[(coll-docs c) docs.co]])
+  %+  turn  sources.co
+  |=  s=[tag=@t path=path]
+  [(source-mirror c tag.s) (src-path path.s)]
 ::  +mirror-dir: mirror one target directory subtree into our own /docs/mirror
 ::  in a single event — a deep peek of the whole subtree as a ball,
 ::  written back with over-fold (the %over analog for directories). The
@@ -2720,24 +2784,23 @@
 ::  later, at compute time.
 ::
 ++  mirror-dir
-  |=  [=rail:tarball code=path prior=(unit @)]
+  |=  [=rail:tarball dest=path src=path prior=(unit @)]
   =/  m  (fiber:fiber:nexus ,(unit @))
   ^-  form:m
-  ;<  =view:nexus  bind:m  (peek:io [%& %| code] ~)
+  ;<  =view:nexus  bind:m  (peek:io [%& %| src] ~)
   ?.  ?=([%ball *] view)  (pure:m ~)
   ::  a mug of the source ball is the change check — same mug as last time
-  ::  means the target hasn't changed, so skip the (expensive) re-copy.
+  ::  means the source hasn't changed, so skip the (expensive) re-copy.
   =/  mg=@  (mug ball.view)
   ?:  =(`mg prior)  (pure:m ~)
-  =/  mir=path  (mirror-mount code)
   =/  bol=bole:tarball  (ball-to-bole:tarball ball.view)
   ::  preserve the dest dir's own neck (what on-load established) so the
   ::  overwrite doesn't strip it — the same care sync-dir takes in nex/desk.
-  ;<  cur=view:nexus  bind:m  (peek:io (nex-road:io rail [%| mir]) ~)
+  ;<  cur=view:nexus  bind:m  (peek:io (nex-road:io rail [%| dest]) ~)
   =/  nek  ?.(?=([%ball *] cur) ~ ?~(fil.ball.cur ~ neck.u.fil.ball.cur))
   =/  root=pulp:tarball  (fall fil.bol `pulp:tarball`[~ ~ %.n ~])
   =.  bol  bol(fil `root(neck nek))
-  ;<  ~  bind:m  (over-fold:io (nex-road:io rail [%| mir]) bol)
+  ;<  ~  bind:m  (over-fold:io (nex-road:io rail [%| dest]) bol)
   (pure:m `mg)
 ::  +triml: drop leading spaces from a tape.
 ::
@@ -2796,13 +2859,12 @@
   =/  m  (fiber:fiber:nexus ,(list [doc=@t file=@t from=@ud to=@ud]))
   ^-  form:m
   ;<  [* nav=json]  bind:m  (read-docs-config rail c)
-  ;<  dc=path  bind:m  (docs-of rail c)
   =/  items=(list [path=@t title=@t])  (nav-items nav)
   =|  all=(list [@t @t @ud @ud])
   |-  ^-  form:m
   ?~  items  (pure:m (flop all))
   ;<  fv=view:nexus  bind:m
-    (peek:io (nex-road:io rail [%& (coll-docs c dc) `@ta`path.i.items]) ~)
+    (peek:io (nex-road:io rail [%& (coll-docs c) `@ta`path.i.items]) ~)
   =/  txt=@t  (grub-text fv)
   =.  all
     %+  weld  all

@@ -20,7 +20,7 @@ top, plus an absolute/relative distinction for imports.
   relative.
 
 ```live
-/lib/tarball.hoon 39-43
+/grubbery/lib/tarball.hoon 39-43
 ```
 
 ```
@@ -40,7 +40,7 @@ directory out of `here`, walks up the bend's step count, then welds the base
 back onto the destination, preserving the file-vs-directory tag.
 
 ```live
-/lib/tarball.hoon 189-212
+/grubbery/lib/tarball.hoon 189-212
 ```
 
 ## Content: blot, sang, sage, boom
@@ -53,7 +53,7 @@ namespace store. The helpers below coerce between them — `need-vase` asserts
 success, `is-boom` tests for error, `sang-noun` extracts the raw noun either way.
 
 ```live
-/lib/tarball.hoon 5-24
+/grubbery/lib/tarball.hoon 5-24
 ```
 
 ## The ball
@@ -65,7 +65,7 @@ filename to that grub's built `sang`. Files live in `contents`; subdirectories
 are the axal's children.
 
 ```live
-/lib/tarball.hoon 64-71
+/grubbery/lib/tarball.hoon 64-71
 ```
 
 ```
@@ -86,7 +86,7 @@ call `find-hoon-sources` and `mime-grubs` lean on — flattens the whole tree in
 `put`, `has`, …).
 
 ```live
-/lib/tarball.hoon 767-774
+/grubbery/lib/tarball.hoon 767-774
 ```
 
 ## Marks and source addressing
@@ -97,7 +97,7 @@ out of and into other marks). The build turns a compiled `/mar` door into a marc
 in [`compile-one`](#build-compiler.md).
 
 ```live
-/lib/tarball.hoon 28-36
+/grubbery/lib/tarball.hoon 28-36
 ```
 
 Marks and nexuses are addressed by their blot/neck, and their *source* lives at
@@ -107,7 +107,7 @@ a derived path — the marc for `[/ %json]` is the artifact of `/mar/json.hoon`.
 ordering [find-code](#build-storage.md) uses).
 
 ```live
-/lib/tarball.hoon 148-187
+/grubbery/lib/tarball.hoon 148-187
 ```
 
 ## The loader lays the ball
@@ -118,7 +118,7 @@ applies each row against the *old* ball, layering results forward — so anythin
 no row mentions is simply dropped. No explicit deletes.
 
 ```live
-/lib/loader.hoon 53-116
+/grubbery/lib/loader.hoon 53-116
 ```
 
 A row is a **verb** (`%stay` / `%fall` / `%over` / `%load`) crossed with a
@@ -131,7 +131,7 @@ A row is a **verb** (`%stay` / `%fall` / `%over` / `%load`) crossed with a
   migrations).
 
 ```live
-/lib/loader.hoon 24-33
+/grubbery/lib/loader.hoon 24-33
 ```
 
 The seed-once-vs-overwrite distinction is purely presence-based: `%fall` reads
@@ -140,7 +140,7 @@ the old ball and uses its default *only* when nothing is already there, while
 at that rail" — there is no provenance flag.
 
 ```live
-/lib/loader.hoon 77-99
+/grubbery/lib/loader.hoon 77-99
 ```
 
 `manifest` is not a row variant but a helper that emits an `%over` row writing
@@ -149,7 +149,7 @@ are the small helpers that seed an empty directory and splice a sub-bole into
 place.
 
 ```live
-/lib/loader.hoon 35-52
+/grubbery/lib/loader.hoon 35-52
 ```
 
 That's the ground the build stands on. Back up to

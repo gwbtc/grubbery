@@ -17,7 +17,7 @@ index. `code` maps every scoped `/code` namespace (by `fold`) to its lode. And
 carrying a **reference count** alongside its `built`.
 
 ```live
-/lib/nexus.hoon 5-34
+/grubbery/lib/nexus.hoon 5-34
 ```
 
 The key move: an artifact is addressed by its content key, and a rail's key is
@@ -31,7 +31,7 @@ it's allowed to lean on. It's assembled once, in `sut`: a record of the libs
 (`tarball`, `nexus`, `build`, `io=fiberio`, …) slopped onto `..zuse`.
 
 ```live
-/app/grubbery.hoon 72-95
+/grubbery/app/grubbery.hoon 72-95
 ```
 
 Its hash is pinned once as a leg, `sut-hash`. This hash is what makes "the whole
@@ -40,7 +40,7 @@ this hash, so a kernel upgrade is detected as one changed dependency rather than
 by re-checking every file.
 
 ```live
-/app/grubbery.hoon 98-102
+/grubbery/app/grubbery.hoon 98-102
 ```
 
 ## The one write path
@@ -50,7 +50,7 @@ namespace: `build-code-with`. It's eight numbered steps, and it's worth reading
 in full because it's the entire lifecycle of a build in one place:
 
 ```live
-/app/grubbery.hoon 5172-5219
+/grubbery/app/grubbery.hoon 5172-5219
 ```
 
 Walking the steps: **(1)** get the namespace's source ball and force in the
@@ -75,7 +75,7 @@ closure, and reuses every keyed rail outside it — pulling each one's prior res
 straight from `bins`.
 
 ```live
-/app/grubbery.hoon 5070-5120
+/grubbery/app/grubbery.hoon 5070-5120
 ```
 
 ## Reference counting
@@ -87,7 +87,7 @@ both never transiently drops to zero and gets evicted. A bin hits zero and is
 deleted only when nothing keys it any more.
 
 ```live
-/app/grubbery.hoon 5002-5022
+/grubbery/app/grubbery.hoon 5002-5022
 ```
 
 ```
@@ -109,7 +109,7 @@ and returns the first one whose lode has a key for that source and whose artifac
 is in `bins`.
 
 ```live
-/app/grubbery.hoon 1815-1852
+/grubbery/app/grubbery.hoon 1815-1852
 ```
 
 ```
