@@ -1304,17 +1304,15 @@
   =/  kids  (~(get by p.nd) 'kids')
   =/  sub  ?~(kids ~ (find-node u.kids name))
   ?^(sub sub $(p.nav t.p.nav))
-::  node-cover-scope: a node's coverage scope — its own `scope` selectors, or
-::  (for a grouping node with none) the UNION of its scoped descendants' scopes.
-::  So a page or section measures its own code, and a parent rolls its children
-::  up. ~ if there's no scope anywhere in the node's subtree.
+::  node-cover-scope: a node's coverage scope — its own `scope` selectors UNIONED
+::  with every scoped descendant's. So a leaf measures its own code, a scopeless
+::  parent rolls its children up, and a parent that ALSO declares a scope adds
+::  that on top of the roll-up. ~ if there's no scope anywhere in the subtree.
 ++  node-cover-scope
   |=  [nav=json name=@t]
   ^-  (list @t)
   =/  nd=(unit json)  (find-node nav name)
   ?~  nd  ~
-  =/  own=(list @t)  (json-strs (~(get by ?:(?=([%o *] u.nd) p.u.nd ~)) 'scope'))
-  ?^  own  own
   (subtree-scopes u.nd)
 ::  any-cov: does any node in this annotated nav array carry cov=true?
 ++  any-cov

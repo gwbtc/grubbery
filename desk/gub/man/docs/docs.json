@@ -17,9 +17,12 @@
       { "title": "Composition over entanglement", "path": "composition.md" }
     ] },
     { "title": "Core model", "kids": [
-      { "title": "Nexuses", "path": "nexuses.md" },
-      { "title": "Grubs & the namespace", "path": "grubs.md" },
-      { "title": "Fibers", "path": "fibers.md" }
+      { "title": "Nexuses", "path": "nexuses.md",
+        "scope": ["/grubbery/lib/nexus.hoon", "/grubbery/lib/root.hoon"] },
+      { "title": "Grubs & the namespace", "path": "grubs.md",
+        "scope": ["/grubbery/lib/grub.hoon", "/grubbery/sur/grub.hoon"] },
+      { "title": "Fibers", "path": "fibers.md",
+        "scope": ["/grubbery/lib/fiberio.hoon"] }
     ] },
     { "title": "Tutorials", "kids": [
       { "title": "Your first nexus", "path": "hello-nexus.md" },
@@ -27,11 +30,27 @@
       { "title": "Talking to external APIs", "path": "talking-to-apis.md" }
     ] },
     { "title": "Subsystems", "kids": [
-      { "title": "Permissions", "path": "permissions.md" },
-      { "title": "Desks", "path": "desks.md" },
-      { "title": "Cross-ship", "path": "cross-ship.md" },
-      { "title": "HTTP serving", "path": "http-serving.md" },
-      { "title": "Code nexuses", "path": "code-nexuses.md" },
+      { "title": "Permissions", "path": "permissions.md",
+        "scope": [
+          "/grubbery/lib/nexus.hoon 47-72",
+          "/grubbery/lib/nexus.hoon 1331-1402"
+        ] },
+      { "title": "Desks", "path": "desks.md",
+        "scope": ["/grubbery/gub/nex/desk.hoon"] },
+      { "title": "Cross-ship", "path": "cross-ship.md",
+        "scope": [
+          "/grubbery/lib/nexus.hoon 97-133",
+          "/grubbery/lib/nexus.hoon 1169-1285",
+          "/grubbery/app/grubbery.hoon 640-1500"
+        ] },
+      { "title": "HTTP serving", "path": "http-serving.md",
+        "scope": ["/grubbery/lib/server.hoon"] },
+      { "title": "Code nexuses", "path": "code-nexuses.md",
+        "scope": [
+          "/grubbery/lib/nexus.hoon 10-34",
+          "/grubbery/lib/marks.hoon",
+          "/grubbery/app/grubbery.hoon 1822-1852"
+        ] },
       { "title": "Remote scry", "path": "remote-scry.md",
         "scope": [
           "/grubbery/lib/fiberio.hoon 899-988",
@@ -74,10 +93,7 @@
           ] },
         { "title": "The substrate", "path": "build-substrate.md",
           "scope": [
-            "/grubbery/lib/tarball.hoon 5-43",
-            "/grubbery/lib/tarball.hoon 64-71",
-            "/grubbery/lib/tarball.hoon 148-212",
-            "/grubbery/lib/tarball.hoon 767-774",
+            "/grubbery/lib/tarball.hoon",
             "/grubbery/lib/loader.hoon"
           ] }
       ] },
