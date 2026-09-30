@@ -8,10 +8,12 @@
 /&  gram     explorer/hoon-grammar.json
 /&  view-js  explorer/view.js
 /&  fp-js    /lib/ui/file-preview.js
+/&  fv-js    /lib/ui/file-view.js
 /&  md-js    /lib/ui/modal-dialog.js
 /&  dm2-js   /lib/ui/drop-menu.js
 /&  ft-js    /lib/ui/file-table.js
 /&  fg-js    /lib/ui/file-grid.js
+/&  sv-js    /lib/ui/split-view.js
 /&  browse-html  explorer/ui/browse.html
 /&  browse-js    explorer/ui/browse.js
 /&  view-html    explorer/ui/view.html
@@ -66,10 +68,12 @@
           [%over %& [/ %'hoon-grammar.json'] [[/ %mime] gram]]
           [%over %& [/ %'view.js'] [[/ %mime] view-js]]
           [%over %& [/ %'file-preview.js'] [[/ %mime] fp-js]]
+          [%over %& [/ %'file-view.js'] [[/ %mime] fv-js]]
           [%over %& [/ %'modal-dialog.js'] [[/ %mime] md-js]]
           [%over %& [/ %'drop-menu.js'] [[/ %mime] dm2-js]]
           [%over %& [/ %'file-table.js'] [[/ %mime] ft-js]]
           [%over %& [/ %'file-grid.js'] [[/ %mime] fg-js]]
+          [%over %& [/ %'split-view.js'] [[/ %mime] sv-js]]
           [%over %& [/ %'browse.html'] [[/ %mime] browse-html]]
           [%over %& [/ %'browse.js'] [[/ %mime] browse-js]]
           [%over %& [/ %'view.html'] [[/ %mime] view-html]]

@@ -108,12 +108,35 @@
   function kind(name) {
     var m = /\.([a-z0-9]+)$/i.exec(name || '');
     var ext = m ? m[1].toLowerCase() : '';
+    if (ext === 'md' || ext === 'markdown') return 'md';
+    if (ext === 'csv') return 'csv';
     if (ext === 'svg') return 'svg';
     if (ext === 'html' || ext === 'htm') return 'html';
     if (ext === 'json') return 'json';
     if (['png', 'jpg', 'jpeg', 'gif', 'webp', 'ico', 'bmp', 'avif'].indexOf(ext) >= 0) return 'image';
     if (ext === 'pdf') return 'pdf';
     return null;
+  }
+
+  // md / csv styling, injected once — the container itself carries no CSS.
+  var styled = false;
+  function injectStyle() {
+    if (styled) return;
+    styled = true;
+    var s = document.createElement('style');
+    s.textContent =
+      '.fp-md{max-width:74ch;padding:24px 32px;line-height:1.65}' +
+      '.fp-md h1,.fp-md h2,.fp-md h3{border-bottom:1px solid #e2e7ee;padding-bottom:.3em}' +
+      '.fp-md code{background:#f2f4f7;padding:1px 5px;border-radius:5px;font:12px ui-monospace,monospace}' +
+      '.fp-md pre{background:#f6f8fa;border-radius:8px;padding:12px 14px;overflow:auto}' +
+      '.fp-md pre code{background:none;padding:0}' +
+      '.fp-md a{color:#0969da}' +
+      '.fp-md img{max-width:100%}' +
+      '.fp-md blockquote{border-left:3px solid #d0d7de;margin-left:0;padding-left:14px;color:#57606a}' +
+      '.fp-csv{border-collapse:collapse;margin:20px;font:12px ui-monospace,monospace}' +
+      '.fp-csv th,.fp-csv td{border:1px solid #d0d7de;padding:5px 12px;text-align:left}' +
+      '.fp-csv th{background:#f6f8fa}';
+    document.head.appendChild(s);
   }
 
   // ---- json: a collapsible tree like the browser's native viewer ----
@@ -316,7 +339,9 @@
   //  image : raster bytes from rawUrl ( the editor's text can't represent them )
   //  pdf   : raw bytes from rawUrl in a plain iframe ( browser's native viewer )
   function render(el, o) {
-    var k = kind(o.name);
+    // o.kind lets a caller with better type info (e.g. mime-first detection)
+    // override the name-based guess; otherwise derive it from the filename.
+    var k = o.kind || kind(o.name);
     if (k === 'json' && o.text != null) {
       renderJson(el, o.text);
     } else if (k === 'svg' && (o.text != null || o.rawUrl)) {
@@ -346,6 +371,33 @@
       pf.style.cssText = 'width:100%;height:100%;border:none';
       pf.src = o.rawUrl;
       el.appendChild(pf);
+    } else if (k === 'md' && o.text != null) {
+      // rendered markdown via window.marked (the host loads it); if it isn't
+      // there, fall back to the raw text rather than nothing.
+      injectStyle();
+      el.style.cssText += ';overflow:auto;background:#fff';
+      el.innerHTML = '';
+      var md = document.createElement('div');
+      md.className = 'fp-md';
+      try { md.innerHTML = window.marked ? marked.parse(o.text) : o.text; }
+      catch (_) { md.textContent = o.text; }
+      el.appendChild(md);
+    } else if (k === 'csv' && o.text != null) {
+      injectStyle();
+      el.style.cssText += ';overflow:auto;background:#fff';
+      el.innerHTML = '';
+      var tbl = document.createElement('table');
+      tbl.className = 'fp-csv';
+      o.text.replace(/\n+$/, '').split('\n').forEach(function (row, i) {
+        var tr = document.createElement('tr');
+        row.split(',').forEach(function (c) {
+          var cell = document.createElement(i === 0 ? 'th' : 'td');
+          cell.textContent = c.trim();
+          tr.appendChild(cell);
+        });
+        tbl.appendChild(tr);
+      });
+      el.appendChild(tbl);
     } else {
       el.innerHTML = '';
       return null;

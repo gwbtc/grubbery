@@ -28,8 +28,12 @@
 /&  dropmenu-js  /lib/ui/drop-menu.js
 /&  splitview-js  /lib/ui/split-view.js
 /&  tabgroup-js  /lib/ui/tab-group.js
-::  shared classic helper (window.FilePreview) — loaded before app.js
+::  shared classic helpers — the FileView editor (and the FilePreview renderer
+::  it leans on) reused from the explorer, loaded before app.js
 /&  fp-js       /lib/ui/file-preview.js
+/&  fv-js       /lib/ui/file-view.js
+::  marked: renders markdown previews (window.marked), loaded before app.js
+/&  marked-js   forge/marked.min.js
 /<  nex-tools   /lib/tools.hoon
 /&  forge-tools  forge/tool-bundle/
 =<  ^-  nexus:nexus
@@ -72,6 +76,8 @@
           [%over %& [/ %'style.css'] [[/ %mime] forge-css]]
           [%over %& [/ %'components.js'] [[/ %mime] kit-js]]
           [%over %& [/ %'file-preview.js'] [[/ %mime] fp-js]]
+          [%over %& [/ %'file-view.js'] [[/ %mime] fv-js]]
+          [%over %& [/ %'marked.min.js'] [[/ %mime] marked-js]]
           [%over %| /tools (seed-tools:nex-tools forge-tools)]
       ==
     ::
@@ -222,19 +228,25 @@
   ^-  path
   /data/tree
 ::  +parse-src-path: a client file path like "lib/commit-all.hoon"
-::  as [dir name], rejecting anything that could walk out of the tree
+::  as [dir name], rejecting anything that could walk out of the tree.
+::  Splits on "/" allowing any printable non-slash char per segment —
+::  NOT `stap`, whose @ta segments are lowercase-only and so reject
+::  uppercase names like README.md / LICENSE.txt (grub names carry case
+::  fine; only the parser choked).
 ::
 ++  parse-src-path
   |=  file=@t
   ^-  (unit [dir=path name=@ta])
   =/  t=tape  (trip file)
   =.  t  ?:(&(?=(^ t) =('/' i.t)) t.t t)
-  =/  pax=(unit path)  (rush (crip (weld "/" t)) stap)
-  ?~  pax  ~
-  ?.  %+  levy  `path`u.pax
+  =/  segs=(unit (list tape))
+    (rush (crip t) (more fas (plus ;~(less fas prn))))
+  ?~  segs  ~
+  =/  pax=path  (turn u.segs |=(s=tape `@ta`(crip s)))
+  ?.  %+  levy  pax
       |=(seg=@ta !|(=('' seg) =('.' seg) =('..' seg)))
     ~
-  =/  flopped=path  (flop `path`u.pax)
+  =/  flopped=path  (flop pax)
   ?~  flopped  ~
   `[(flop `path`t.flopped) i.flopped]
 ::  +walk-files: every file path in a ball, depth-first, sorted

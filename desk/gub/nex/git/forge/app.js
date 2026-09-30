@@ -78,6 +78,10 @@ function applyUrl() {
   mode = st.mode;
   renderPanelTabs();
   if (st.repo !== selected) {
+    // switching repos: tear down the old repo's cached FileViews + hosts
+    (tabsBy.files || []).forEach(function(x) { if (x.fv) x.fv.destroy(); });
+    var stk = document.getElementById('ed-fv');
+    if (stk) stk.innerHTML = '';
     selected = st.repo;
     tabsBy = { files: [] };
     focusBy = { files: null };
@@ -556,30 +560,16 @@ function splitId(id) {
 }
 function openFile(id, fromUrl) {
   if (id.indexOf(':') < 0) id = 'tree:' + id;
-  var t = tabFor(id);
-  if (t) {
-    focusBy[mode] = id;
-    if (!fromUrl) pushUrl();
-    renderTabs();
-    renderFiles();
-    mountEditor();
-    return;
-  }
-  var s = splitId(id);
-  get('/src?repo=' + encodeURIComponent(selected) + '&file=' + encodeURIComponent(s.file) +
-      '&root=' + s.root)
-    .then(function(d) {
-      openTabs().push({ file: id, text: d.text || '', dirty: false });
-      focusBy[mode] = id;
-      if (!fromUrl) pushUrl();
-      renderTabs();
-      renderFiles();
-      mountEditor();
-    });
+  if (!tabFor(id)) openTabs().push({ file: id });
+  focusBy[mode] = id;
+  if (!fromUrl) pushUrl();
+  renderTabs();
+  renderFiles();
+  mountEditor();
 }
 function closeTab(f) {
-  var t = tabFor(f);
-  if (t && t.dirty && !confirm('discard unsaved changes to ' + f + '?')) return;
+  var ct = tabFor(f);
+  if (ct) { if (ct.fv) ct.fv.destroy(); if (ct.host) ct.host.remove(); }
   tabsBy[mode] = openTabs().filter(function(x) { return x.file !== f; });
   if (focusedF() === f) {
     var ts = openTabs();
@@ -592,17 +582,10 @@ function closeTab(f) {
 }
 function renderTabs() {
   var focused = focusedF();
-  var t = focused ? tabFor(focused) : null;
-  var sv = document.getElementById('ed-save');
-  sv.style.display = t ? '' : 'none';
-  sv.disabled = !(t && t.dirty);
-  sv.classList.toggle('primary', !!(t && t.dirty));
   var bar = document.getElementById('ed-tabs');
-  var html = '';
-  html += openTabs().map(function(t) {
+  var html = openTabs().map(function(t) {
     var s = splitId(t.file);
     return '<div class="ed-tab' + (t.file === focused ? ' active' : '') + '" data-file="' + esc(t.file) + '" title="' + esc(s.root + '/' + s.file) + '">' +
-      (t.dirty ? '<span class="dot">●</span>' : '') +
       esc(s.file.split('/').pop()) +
       '<span class="x" data-close="' + esc(t.file) + '">×</span></div>';
   }).join('');
@@ -646,12 +629,22 @@ function updateTang() {
 }
 // ── file preview (Source | Preview toggle) ──
 // render logic lives in the shared window.FilePreview helper (file-preview.js).
-// forge has no raw-byte lane, so raster stays source-only here: only
-// svg/html/json, which render straight from the buffer text, get a toggle.
+// text kinds render from the buffer; raster (image/pdf/svg) loads bytes from the
+// generic namespace lane (/grubbery/ball/<repo file>?raw=1) — no forge endpoint.
 function previewKind(name) {
-  var k = window.FilePreview ? FilePreview.kind(name) : null;
-  return (k === 'svg' || k === 'html' || k === 'json') ? k : null;
+  return window.FilePreview ? FilePreview.kind(name) : null;
 }
+// bytes for the selected repo's file, via the shared namespace serving.
+function rawUrlFor(file) {
+  return '/grubbery/ball/apps/forge.git_forge/repos/' +
+    selected + '/data/tree/' + file + '?raw=1';
+}
+function isRaster(k) { return k === 'image' || k === 'pdf'; }
+// forge's file panes are the shared <FileView> (lib/ui/file-view.js) — the same
+// editor the explorer file page and finder use. One FileView per open tab,
+// mounted once over the tab's /grubbery/ball URL and CACHED: switching tabs is
+// just show/hide (its scroll, edit mode, and unsaved text all persist), no
+// refetch. Each tab keeps its own host in the #ed-fv stack.
 function mountEditor() {
   var has = !!selected;
   var editorish = has && mode !== 'settings';
@@ -660,56 +653,20 @@ function mountEditor() {
   document.getElementById('ed-bar').style.display = editorish ? 'flex' : 'none';
   document.getElementById('ed-wrap').style.display = editorish ? '' : 'none';
   document.getElementById('ws-empty').style.display = t ? 'none' : 'flex';
-  updateTang();
-  if (!t) {
-    document.getElementById('ed-body').style.display = 'none';
-    document.getElementById('ed-preview').style.display = 'none';
-    document.getElementById('ed-view').style.display = 'none';
-    return;
-  }
-  // Source | Preview: previewable files (svg/image/html) can toggle to a
-  // rendered view; everything else stays source-only.
-  var s = splitId(t.file);
-  var kind = previewKind(s.file);
-  var view = (kind && t.view === 'preview') ? 'preview' : 'source';
-  var vbar = document.getElementById('ed-view');
-  vbar.style.display = kind ? '' : 'none';
-  Array.prototype.forEach.call(vbar.querySelectorAll('.ed-vtab'), function(b) {
-    b.classList.toggle('active', b.getAttribute('data-view') === view);
+  var stack = document.getElementById('ed-fv');
+  stack.style.display = t ? '' : 'none';
+  openTabs().forEach(function(x) {
+    if (x.host) x.host.style.display = (x === t) ? '' : 'none';
   });
-  document.getElementById('ed-body').style.display = view === 'source' ? '' : 'none';
-  var prev = document.getElementById('ed-preview');
-  prev.style.display = view === 'preview' ? '' : 'none';
-  if (view === 'preview') { FilePreview.render(prev, { name: s.file, text: t.text }); return; }
-  var ta = document.getElementById('ed-ta');
-  var hl = document.getElementById('ed-hl');
-  ta.value = t.text;
-  highlightInto(hl, t.text);
-  ensureShiki().then(function() { highlightInto(hl, ta.value); });
-  var deb = null;
-  ta.oninput = function() {
-    t.text = ta.value;
-    if (!t.dirty) { t.dirty = true; renderTabs(); }
-    clearTimeout(deb);
-    deb = setTimeout(function() { highlightInto(hl, ta.value); }, 150);
-  };
-  ta.onscroll = function() {
-    hl.scrollTop = ta.scrollTop;
-    hl.scrollLeft = ta.scrollLeft;
-  };
-  ta.onkeydown = function(e) {
-    if ((e.metaKey || e.ctrlKey) && e.key === 's') {
-      e.preventDefault();
-      saveFocused();
-    }
-    if (e.key === 'Tab') {
-      e.preventDefault();
-      var s = ta.selectionStart;
-      ta.value = ta.value.slice(0, s) + '  ' + ta.value.slice(ta.selectionEnd);
-      ta.selectionStart = ta.selectionEnd = s + 2;
-      ta.oninput();
-    }
-  };
+  if (!t) return;
+  if (!t.host) {
+    t.host = document.createElement('div');
+    t.host.style.cssText = 'position:absolute;inset:0';
+    stack.appendChild(t.host);
+    var s = splitId(t.file);
+    var url = '/grubbery/ball/apps/forge.git_forge/repos/' + selected + '/data/tree/' + s.file;
+    t.fv = window.FileView.mount(t.host, { url: url, wrapKey: 'forge-wrap' });
+  }
 }
 function saveFocused() {
   var t = focusedF() ? tabFor(focusedF()) : null;
@@ -725,8 +682,6 @@ function saveFocused() {
     }
   });
 }
-
-document.getElementById('ed-save').onclick = saveFocused;
 
 // ── console panel chrome ──
 function renderPanelTabs() {
@@ -756,16 +711,6 @@ document.getElementById('lane-info').onclick = function() {
 document.getElementById('sb-toggle').onclick = function() {
   document.getElementById('body').toggle();  // <split-view> collapses the sidebar
 };
-document.getElementById('ed-view').addEventListener('click', function(e) {
-  var b = e.target.closest('.ed-vtab');
-  if (!b) return;
-  var f = focusedF();
-  var t = f ? tabFor(f) : null;
-  if (!t) return;
-  t.view = b.getAttribute('data-view');
-  mountEditor();
-});
-
 // ── branch switcher ──
 // <drop-menu> owns toggle/click-outside/Esc. We rebuild the branch list each
 // time it opens (dm-open), injecting items as children while preserving the

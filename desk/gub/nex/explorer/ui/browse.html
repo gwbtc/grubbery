@@ -14,7 +14,7 @@
   <link rel="icon" type="image/svg+xml" href="/grubbery/tiles/icon/explorer.explorer">
   <style>
     * { box-sizing: border-box; }
-    body { font: 13px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #1f2328; background: #fff; margin: 0; padding-bottom: 48px; min-width: max-content; }
+    body { font: 13px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #1f2328; background: #fff; margin: 0; padding-bottom: 48px; }
     a { color: #0969da; text-decoration: none; }
     a:hover { text-decoration: underline; }
     modal-dialog:not(:defined), drop-menu:not(:defined), file-grid:not(:defined) { display: none; }
@@ -46,8 +46,26 @@
 
     file-table { margin: 0 20px; --ft-header-top: auto; }
     file-table:not(:defined) { display: none; }
+    /* the list-view table keeps its intrinsic width (page scrolls for it); the
+       body itself does NOT, so the finder's editor content can't inflate it */
+    #ft { min-width: max-content; }
     file-grid { margin: 8px 16px; }
     #view-toggle button.on { background: #ddf4ff; border-color: #54aeff; color: #0969da; font-weight: 600; }
+
+    /* finder view: listing on the left, a read-only quick-look on the right */
+    #finder { height: calc(100vh - 38px); }
+    #finder-list { height: 100%; overflow: auto; }
+    #finder-list file-table { margin: 0; --ft-header-top: auto; }
+    #finder-lhead { position: sticky; top: 0; z-index: 2; display: flex; justify-content: flex-end; padding: 4px 6px; background: #fff; border-bottom: 1px solid #eaeef2; }
+    #finder-collapse { all: unset; cursor: pointer; padding: 1px 9px; border-radius: 6px; color: #57606a; font-size: 15px; line-height: 1.2; }
+    #finder-collapse:hover { background: #eaeef2; color: #24292f; }
+    #finder-preview { height: 100%; overflow: hidden; background: #fff; display: flex; flex-direction: column; }
+    .finder-pbody { flex: 1; min-height: 0; overflow: auto; }
+    .finder-head { position: sticky; top: 0; z-index: 1; display: flex; align-items: center; gap: 10px; padding: 8px 16px; background: #f6f8fa; border-bottom: 1px solid #d0d7de; font: 600 12px ui-monospace, SFMono-Regular, Menlo, monospace; color: #24292f; white-space: nowrap; }
+    .finder-head a { font: inherit; color: #0969da; }
+    .finder-src { margin: 0; padding: 14px 18px; font: 12.5px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; overflow-wrap: anywhere; color: #24292f; }
+    .finder-empty { padding: 48px 24px; text-align: center; color: #9aa0a6; }
+    .finder-dl { display: inline-block; margin: 24px; color: #0969da; }
 
     /* modal internals */
     .m-title { margin: 0 0 12px; font-size: 15px; }
@@ -87,6 +105,7 @@
     <span id="view-toggle" style="display:inline-flex; gap:2px;">
       <button id="v-list" class="on" title="list view">&#9776;</button>
       <button id="v-grid" title="grid view">&#9638;</button>
+      <button id="v-cols" title="finder view">&#9707;</button>
     </span>
     <drop-menu align="end" id="manage-menu">
       <button slot="trigger" id="manage-btn" title="manage this directory">manage &#9662;</button>
@@ -103,6 +122,14 @@
   <div id="bang" style="display:none"></div>
   <file-table id="ft"></file-table>
   <file-grid id="fg" style="display:none"></file-grid>
+  <split-view id="finder" orientation="horizontal" primary="start"
+              size="300px" min="180" max="560" persist="explorer-finder" style="display:none">
+    <div slot="start" id="finder-list">
+      <div id="finder-lhead"><button id="finder-collapse" title="collapse sidebar">&#8676;</button></div>
+      <file-table id="finder-ft"></file-table>
+    </div>
+    <div slot="end" id="finder-preview"><div class="finder-empty">Select a file to preview</div></div>
+  </split-view>
   <div id="status"></div>
   <drop-menu id="ctx-menu" style="position:fixed; display:none; z-index:50;">
     <button slot="trigger" style="display:none"></button>
@@ -187,6 +214,10 @@
   <script type="module" src="/grubbery/ball/apps/explorer.explorer/drop-menu.js"></script>
   <script type="module" src="/grubbery/ball/apps/explorer.explorer/file-table.js"></script>
   <script type="module" src="/grubbery/ball/apps/explorer.explorer/file-grid.js"></script>
+  <script type="module" src="/grubbery/ball/apps/explorer.explorer/split-view.js"></script>
+  <script src="/grubbery/ball/apps/explorer.explorer/marked.min.js"></script>
+  <script src="/grubbery/ball/apps/explorer.explorer/file-preview.js"></script>
+  <script src="/grubbery/ball/apps/explorer.explorer/file-view.js"></script>
   <script type="module" src="/grubbery/ball/apps/explorer.explorer/browse.js"></script>
 </body>
 </html>

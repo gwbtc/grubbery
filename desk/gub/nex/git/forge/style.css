@@ -77,8 +77,8 @@ split-view:not(:defined) { visibility: hidden; }
 .ed-vtab:first-child { border-radius: 6px 0 0 6px; }
 .ed-vtab:last-child { border-radius: 0 6px 6px 0; border-left: none; }
 .ed-vtab.active { background: #3d3a45; color: #fff; border-color: #3d3a45; }
-/* preview surface (checkerboard, sizing) is styled inline by file-preview.js */
-#ed-preview { position: absolute; inset: 0; }
+/* the shared FileView fills the workspace; its own chrome/styles live in file-view.js */
+#ed-fv { position: absolute; inset: 0; }
 
 /* ── console panel ── */
 /* #console is now the bottom pane of the #main vertical split (sized/resized

@@ -332,37 +332,12 @@ async function renderMime() {
   const text = editable ? ed.value : (src.textContent ?? '');
   mimeView.textContent = '';
 
-  // rendered markdown, via the same marked the docs use
-  if (ext === 'md' || ext === 'markdown') {
-    const d = document.createElement('div');
-    d.className = 'md';
-    try {
-      if (!window.marked) await loadScript('/grubbery/ball/apps/explorer.explorer/marked.min.js');
-      d.innerHTML = marked.parse(text);
-    } catch (_) { d.textContent = text; }
-    mimeView.appendChild(d);
-    return;
+  // md needs marked loaded before the shared renderer runs
+  if ((ext === 'md' || ext === 'markdown') && !window.marked) {
+    try { await loadScript('/grubbery/ball/apps/explorer.explorer/marked.min.js'); } catch (_) {}
   }
 
-  // csv → table (simple split; quoted commas render imperfectly, fine)
-  if (ext === 'csv') {
-    const rows = text.trim().split('\n').map(r => r.split(','));
-    const t = document.createElement('table');
-    t.className = 'csv';
-    rows.forEach((r, i) => {
-      const tr = document.createElement('tr');
-      r.forEach(c => {
-        const cell = document.createElement(i === 0 ? 'th' : 'td');
-        cell.textContent = c.trim();
-        tr.appendChild(cell);
-      });
-      t.appendChild(tr);
-    });
-    mimeView.appendChild(t);
-    return;
-  }
-
-  // svg / html / raster via the shared FilePreview surface
+  // md / csv / svg / html / json / raster all via the shared FilePreview
   if (window.FilePreview && FilePreview.kind(name)) {
     FilePreview.render(mimeView, { name, text, rawUrl });
     return;

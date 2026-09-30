@@ -128,9 +128,45 @@ const fg = $('fg');
 fg.baseHref = here;
 fg.actions = ft.actions;
 
+// ---- finder (cols) view: the listing on the left, a read-only quick-look
+// on the right (the shared FilePreview + marked, same renderers as the file
+// page). Dirs navigate; files preview in place. ----
+const finder = $('finder');
+const finderPrev = $('finder-preview');
+const finderFt = $('finder-ft');
+finderFt.columns = [{
+  key: 'name', label: 'Name',
+  format: (v, item) => item.kind === 'dir' ? v + '/' : v,
+  link: (item) => here.replace(/\/$/, '') + '/' + item.name,
+}];
+finderFt.actions = ft.actions;
+finderFt.addEventListener('ft-navigate', (e) => {
+  const { item, href } = e.detail;
+  if (!item) { nav(href); return; }
+  if (item.kind === 'dir') { nav(href); return; }
+  previewFile(item);
+});
+finderFt.addEventListener('ft-action', handleAction);
+
+// the preview pane is the shared <FileView> — full Source|Preview|Edit|Save,
+// mounted over the selected file's own URL. Same component as the file page.
+let finderFv = null;
+function clearFv() { if (finderFv) { finderFv.destroy(); finderFv = null; } }
+function resetPreview() {
+  clearFv();
+  finderPrev.classList.remove('fv');
+  finderPrev.innerHTML = '<div class="finder-empty">Select a file to preview</div>';
+}
+function previewFile(item) {
+  clearFv();
+  const url = here.replace(/\/$/, '') + '/' + item.name;
+  finderFv = window.FileView.mount(finderPrev, { url, wrapKey: 'explorer-wrap' });
+}
+
 // ---- view toggle ----
 const vList = $('v-list');
 const vGrid = $('v-grid');
+const vCols = $('v-cols');
 let view = localStorage.getItem('explorer-view') || 'list';
 
 function setView(v) {
@@ -138,11 +174,16 @@ function setView(v) {
   try { localStorage.setItem('explorer-view', v); } catch (_) {}
   ft.style.display = v === 'list' ? '' : 'none';
   fg.style.display = v === 'grid' ? '' : 'none';
+  finder.style.display = v === 'cols' ? 'grid' : 'none';
   vList.classList.toggle('on', v === 'list');
   vGrid.classList.toggle('on', v === 'grid');
+  vCols.classList.toggle('on', v === 'cols');
+  if (v === 'cols' && data) finderFt.items = data.children;
 }
 vList.addEventListener('click', () => setView('list'));
 vGrid.addEventListener('click', () => setView('grid'));
+vCols.addEventListener('click', () => setView('cols'));
+$('finder-collapse').addEventListener('click', () => finder.toggle());
 setView(view);
 
 // ---- navigation (shared by both views) ----
@@ -214,6 +255,9 @@ async function load() {
   ft.items = data.children;
   fg.baseHref = here;
   fg.items = data.children;
+  finderFt.parentHref = ft.parentHref;
+  finderFt.items = data.children;
+  resetPreview();
   renderManage();
   if ($('weir-modal').hasAttribute('open')) renderWeir();
 }
