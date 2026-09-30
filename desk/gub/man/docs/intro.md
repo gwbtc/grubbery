@@ -1,32 +1,58 @@
-# The Grubbery Handbook
+# Grubbery
 
-Grubbery is a general-purpose application model for Urbit. A stock Gall app
-is one agent holding one big state noun, migrated by hand every time that
-shape changes. Grubbery takes the opposite bet: an application is a set of
-small **nexuses** composing over a shared **namespace** of content-addressed
-**grubs**, and all their work runs as restartable **fibers**. State doesn't
-live in an agent heap — it lives in the namespace, versioned and portable,
-and code reads it back on demand.
+A tree-shaped manager for stateful long-running processes on Urbit.
 
-Three nouns carry the whole model:
+- **Grub-based Shrubbery** — active, bug-like processes inspired by %spider,
+  in a file system inspired by Shrubbery. Emphasis on *doing* over *being*.
+- **Grug-brained Shrubbery** — a simple, mechanical feel with few moving
+  parts.
+- **Groundwire Shrubbery** — asynchronous monadic processes make complex
+  blockchain operations easy to express. Sandboxing provides security.
 
-- **Nexus** — the unit of an application. Declares what lives in its slice
-  of the namespace, and answers requests against it.
-- **Grub** — the unit of state. One content-addressed file carrying a mark
-  (its type).
-- **Fiber** — the unit of work. A monadic process that reads and writes the
-  namespace and can be rebooted at any point.
+## Core concepts
 
-## Why bother
+**Grub** — a file and its running process. Files are the leaves of the tree.
+Each has content (a marked noun) and a long-running fiber that operates on
+it. When a grub's process completes, the grub is deleted; when it fails, it
+restarts. See [Grubs & the namespace](#grubs.md).
 
-The payoff is how it scales. A monolithic agent gets *harder* to extend the
-bigger it grows — every feature entangles with one state and one event
-handler. Nexuses compose instead of entangle, so the next feature reuses
-primitives rather than thickening a core. And because state *is* the
-namespace, the two worst Gall taxes — hand-written migrations and cross-ship
-auth boilerplate — mostly evaporate.
+**Nexus** — the behavior definition for a directory. Each directory has a
+nexus that defines how its grubs are initialized (`on-load`) and run
+(`on-file`). Nexus definitions live in `nex/` and are compiled into the tree
+at load time. See [Nexuses](#nexuses.md).
 
-Three commitments follow from that bet, and every page here assumes them:
+**Tarball** — the filesystem. An `(axal lump)` tree where each node holds
+content, metadata, a nexus identifier, and version history. The tarball is
+the single source of truth for all state in grubbery. See
+[The ball](#ball.md) and [The content-addressed store](#silo.md).
+
+**Fiber** — the process monad. Grub processes are monadic computations that
+yield effects (darts) and receive events (intakes). A fiber can poke other
+grubs, peek at their state, watch directories for changes, reach the Urbit
+kernel through `/sys`, sleep, and more. Fibers survive agent reloads: on
+load, every process is rebuilt from its nexus and restarted. See
+[Fibers](#fibers.md).
+
+**Weir** — sandbox filter. A weir sits on a directory and controls what its
+children can reach: the allowed destinations for make, poke, and peek.
+Kernel access is blocked by any weir on the path to root. External ships
+enter the tree through a gateway and are subject to weirs like any other
+process. See [Sandboxing & weirs](#weirs.md).
+
+**Dart** — an effect yielded by a fiber: make a grub, poke a file, peek at
+state, subscribe to a directory, and so on. Darts travel up the tree to the
+nearest common ancestor with their destination, then down, passing every
+weir on the upward leg.
+
+**Intake** — an event received by a fiber: responses to darts (peek results,
+poke acks), external inputs (incoming pokes, subscription news), or
+lifecycle events (start, restart after failure).
+
+## Why this shape
+
+A stock Gall app is one agent holding one big state noun, migrated by hand
+every time that shape changes. Grubbery takes the opposite bet, and three
+commitments follow from it:
 
 - **The namespace is the truth.** Authoritative state lives in grubs; derived
   or rebuildable caches go in sibling grubs. Write cost never justifies
@@ -36,11 +62,15 @@ Three commitments follow from that bet, and every page here assumes them:
 - **Compose, don't entangle.** Nexuses meet through the namespace, never
   through shared mutable state.
 
-## Where to start
+## Design note: ject identity
 
-- [Nexuses](#nexuses.md) — the unit of an application
-- [Grubs & the namespace](#grubs.md) — where state actually lives
-- [Fibers](#fibers.md) — how work gets done
+Jects hash the file-as-experienced: noun, mark (compile key included), and
+health, not bare content. A mark recompile changes what a file means, so it
+changes the file's identity; reload detection, validation caching, the snap
+protocol, and subscriptions all depend on this. Content-only identity
+(dedup, signatures, version control) is a separate layer on top of the
+namespace, not a change to jects. See
+[The content-addressed store](#silo.md).
 
 ## This handbook is live
 
