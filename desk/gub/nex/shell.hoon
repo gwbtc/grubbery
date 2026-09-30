@@ -179,7 +179,8 @@
         |-  ^-  process:fiber:nexus
         ::  wake whenever the registry, any watched target's source, or the pins
         ::  change — then re-mirror and recompute coverage into the cache.
-        ;<  ~  bind:m  take-mirror-news
+        ;<  woke=wire  bind:m  take-mirror-news
+        ~&  >  [%shell-docs-mirror-wake woke]
         ;<  seen1=(map path @)  bind:m  (do-mirror seen)
         ;<  ~  bind:m  recompute-all
         ;<  kept1=(set path)    bind:m  (sync-keeps kept)
@@ -1421,20 +1422,33 @@
       ['total' (numb:enjs:format total)]
       ['status' s+status]
   ==
-::  compute-coverage: the coverage result for collection c (whole, or scoped to
-::  a section) — per-file numbers, overall totals, section drift, the sections
-::  overview — PLUS the freshness pins it wants stamped. Pure computation over
-::  the mirror; the caller (the recompute fiber, or the endpoint as a fallback)
-::  decides when to run it and stamps the returned pins. This is the expensive
-::  work — peek the whole mirror, parse it, fold every anchor — so it runs on a
-::  change, not on every view.
-++  compute-coverage
-  |=  [=rail:tarball c=path ignore=(list @t) nav=json sec=@t]
-  =/  m  (fiber:fiber:nexus ,[resp=json np=(map @t @t)])
+::  cov-state: everything coverage needs from the mirror, loaded ONCE per
+::  collection: the line map of every mirrored file, the ignore sets, and the
+::  fold over every live-block anchor (covered lines, per-file fresh/drifted/
+::  gone counts, the pins to stamp, the per-file anchor json, the pages with a
+::  drifted block). Every section view is then a pure render over this.
++$  cov-state
+  $:  finfo=(map @t (list @t))
+      ig-set=(set @t)
+      ignore-lines=(map @t (set @ud))
+      covered=(map @t (set @ud))
+      flags=(map @t [f=@ud d=@ud g=@ud])
+      newpins=(map @t @t)
+      fancs=(map @t (list json))
+      doc-drift=(set @t)
+      nanc=@ud
+  ==
+::  load-coverage: the expensive half of coverage — peek the whole mirror, split
+::  every file into lines, gather every anchor, fold them against the pins.
+::  Runs once per recompute; +render-coverage derives each view from it.
+++  load-coverage
+  |=  [=rail:tarball c=path ignore=(list @t)]
+  =/  m  (fiber:fiber:nexus ,cov-state)
   ^-  form:m
-  =/  in-section=?  !=('' sec)
   ;<  mv=view:nexus  bind:m  (peek:io (nex-road:io rail [%| (coll-mirror c)]) ~)
+  ~&  >  [%shell-docs-split c]
   =/  finfo=(map @t (list @t))
+    ~>  %bout
     ?.  ?=([%ball *] mv)  ~
     %-  malt
     %+  murn  ~(tap ba:tarball ball.mv)
@@ -1445,15 +1459,12 @@
     (silt (skim ~(tap in ~(key by finfo)) |=(s=@t (ignored s ignore))))
   ;<  anchors=(list [doc=@t file=@t from=@ud to=@ud])  bind:m
     (gather-all-anchors rail c)
-  =/  scope-strs=(list @t)
-    ?:(=('' sec) ~ (node-cover-scope nav sec))
-  =/  scope-lines=(map @t (set @ud))
-    ?.(in-section ~ (ref-lines finfo scope-strs))
   =/  ignore-lines=(map @t (set @ud))
     (ref-lines finfo (skim ignore |=(e=@t !=(~ (find " " (trip e))))))
   ;<  pj=(unit json)  bind:m
     (peek-as:io (nex-road:io rail [%& /docs %'pins.json']) ,json)
   =/  pins=(map @t json)  ?~(pj ~ ?:(?=([%o *] u.pj) p.u.pj ~))
+  =/  nanc=@ud  (lent anchors)
   =+  ^=  res
     =|  cov=(map @t (set @ud))
     =|  flg=(map @t [f=@ud d=@ud g=@ud])
@@ -1505,9 +1516,6 @@
       np    +<.fps
       ancs  (~(put by ancs) file.a [(mka +>.fps) al])
     ==
-  =/  covered=(map @t (set @ud))  -.res
-  =/  flags=(map @t [f=@ud d=@ud g=@ud])  +<.res
-  =/  newpins=(map @t @t)  +>-.res
   =/  fancs=(map @t (list json))  +>+.res
   ::  doc-drift: the pages that carry at least one drifted live block. A
   ::  section's freshness is the aggregate of the blocks on its own page(s) —
@@ -1528,6 +1536,34 @@
     ?.  =('drifted' p.u.st)  ~
     ?.  ?=([~ %s *] dc)  ~
     `p.u.dc
+  %-  pure:m
+  :*  finfo
+      ig-set
+      ignore-lines
+      -.res
+      +<.res
+      +>-.res
+      fancs
+      doc-drift
+      nanc
+  ==
+::  render-coverage: the coverage result for collection c (whole, or scoped to
+::  a section) — per-file numbers, overall totals, section drift, the sections
+::  overview — as a pure function of a loaded cov-state. Called once per view.
+::  want-files=%.n skips the per-file list (the cached whole view strips it
+::  anyway). The whole view never materializes "every line of every file" as
+::  a set — totals come from file lengths minus ignores, coverage from the
+::  anchored sets minus ignores — because that set costs a put per line of
+::  the mirror (~17s over 2k files) and is only needed to paint one file.
+++  render-coverage
+  |=  [cs=cov-state nav=json sec=@t want-files=?]
+  ^-  json
+  =,  cs
+  =/  in-section=?  !=('' sec)
+  =/  scope-strs=(list @t)
+    ?:(=('' sec) ~ (node-cover-scope nav sec))
+  =/  scope-lines=(map @t (set @ud))
+    ?.(in-section ~ (ref-lines finfo scope-strs))
   =/  section-status=@t
     ?.(in-section '' (section-status-of nav sec doc-drift))
   =/  in-scope
@@ -1542,7 +1578,12 @@
         $(n +(n), s (~(put in s) n))
       (fall (~(get by scope-lines) src) ~)
     (~(dif in base) (fall (~(get by ignore-lines) src) ~))
+  =/  ign
+    |=  src=@t
+    ^-  (set @ud)
+    (fall (~(get by ignore-lines) src) ~)
   =/  file-jsons=(list json)
+    ?.  want-files  ~
     %+  murn  (sort ~(tap by finfo) |=([[a=@t *] [b=@t *]] (aor a b)))
     |=  [src=@t ls=(list @t)]
     ^-  (unit json)
@@ -1576,33 +1617,42 @@
     %+  roll  ~(tap by finfo)
     |=  [[s=@t l=(list @t)] a=@ud]
     ?:  (~(has in ig-set) s)  a
+    ?.  in-section  (add a (sub (lent l) ~(wyt in (ign s))))
     (add a ~(wyt in (in-scope s l)))
   =/  tot-cov=@ud
     %+  roll  ~(tap by covered)
     |=  [[s=@t c=(set @ud)] a=@ud]
     ?:  (~(has in ig-set) s)  a
+    ?.  in-section  (add a ~(wyt in (~(dif in c) (ign s))))
     (add a ~(wyt in (~(int in c) (in-scope s (fall (~(get by finfo) s) ~)))))
   =/  tf=[f=@ud d=@ud g=@ud]
     %+  roll  ~(tap by flags)
     |=  [[s=@t x=[f=@ud d=@ud g=@ud]] a=[f=@ud d=@ud g=@ud]]
     ?:  &(in-section =(~ (fall (~(get by scope-lines) s) *(set @ud))))  a
     [(add f.x f.a) (add d.x d.a) (add g.x g.a)]
-  =/  resp=json
-    %-  pairs:enjs:format
-    :~  ['files' [%a file-jsons]]
-        ['totalLines' (numb:enjs:format tot-lines)]
-        ['coveredLines' (numb:enjs:format tot-cov)]
-        ['fresh' (numb:enjs:format f.tf)]
-        ['drifted' (numb:enjs:format d.tf)]
-        ['gone' (numb:enjs:format g.tf)]
-        :-  'section'
-        ?:  =('' sec)  ~
-        (pairs:enjs:format ~[['name' s+sec] ['status' s+section-status]])
-        :-  'sections'
-        ?:  in-section  [%a ~]
-        (section-summaries nav finfo covered ig-set ignore-lines doc-drift)
-    ==
-  (pure:m [resp newpins])
+  %-  pairs:enjs:format
+  :~  ['files' [%a file-jsons]]
+      ['totalLines' (numb:enjs:format tot-lines)]
+      ['coveredLines' (numb:enjs:format tot-cov)]
+      ['fresh' (numb:enjs:format f.tf)]
+      ['drifted' (numb:enjs:format d.tf)]
+      ['gone' (numb:enjs:format g.tf)]
+      :-  'section'
+      ?:  =('' sec)  ~
+      (pairs:enjs:format ~[['name' s+sec] ['status' s+section-status]])
+      :-  'sections'
+      ?:  in-section  [%a ~]
+      (section-summaries nav finfo covered ig-set ignore-lines doc-drift)
+  ==
+::  compute-coverage: one view (whole, or a section) plus the pins it wants
+::  stamped — load then render. The endpoint's cache-miss fallback; the
+::  recompute fiber loads once and renders every view itself.
+++  compute-coverage
+  |=  [=rail:tarball c=path ignore=(list @t) nav=json sec=@t]
+  =/  m  (fiber:fiber:nexus ,[resp=json np=(map @t @t)])
+  ^-  form:m
+  ;<  cs=cov-state  bind:m  (load-coverage rail c ignore)
+  (pure:m [(render-coverage cs nav sec %.y) newpins.cs])
 ::  cache-name: the coverage cache grub for a collection — one json grub under
 ::  /docs/cache, keyed by a mug of the collection path (outside /docs/mirror, so
 ::  a re-mirror never wipes it).
@@ -1613,34 +1663,40 @@
 ::  recompute-coverage: (re)build and STORE the coverage cache for one collection
 ::  — the whole-collection result plus each scoped section's view — and stamp the
 ::  freshness pins once. Driven by the mirror fiber when a target's source (code
-::  or docs) or the pins change; the endpoint only reads what this writes.
+::  or docs) or the pins change; the endpoint only reads what this writes. The
+::  mirror is loaded ONCE; every view renders from that load. Prints one timing
+::  line per collection.
 ++  recompute-coverage
   |=  [=rail:tarball c=path]
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
   ;<  [ignore=(list @t) nav=json]  bind:m  (read-docs-config rail c)
-  ;<  [whole=json wnp=(map @t @t)]  bind:m  (compute-coverage rail c ignore nav '')
+  ;<  cs=cov-state  bind:m  (load-coverage rail c ignore)
   =/  secs=(list @t)  (scoped-sections nav)
-  =|  views=(map @t json)
-  =/  allnp=(map @t @t)  wnp
-  |-  ^-  form:m
-  ?^  secs
-    ;<  [v=json vnp=(map @t @t)]  bind:m  (compute-coverage rail c ignore nav i.secs)
-    $(secs t.secs, views (~(put by views) i.secs v), allnp (~(uni by allnp) vnp))
-  ::  stamp every new pin once, then store the cache grub for this collection.
-  ;<  pj=(unit json)  bind:m
-    (peek-as:io (nex-road:io rail [%& /docs %'pins.json']) ,json)
-  =/  pins=(map @t json)  ?~(pj ~ ?:(?=([%o *] u.pj) p.u.pj ~))
-  ;<  ~  bind:m
-    ?:  =(~ allnp)  (pure:(fiber:fiber:nexus ,~) ~)
-    %+  over:io  (nex-road:io rail [%& /docs %'pins.json'])
-    [[/ %json] [%o (~(uni by pins) (~(run by allnp) |=(h=@t `json`s+h)))]]
+  ::  %bout: vere prints the wall time of the wrapped render (in-event time
+  ::  is otherwise unobservable — the bowl clock only ticks per event).
+  ~&  >  [%shell-docs-render c sections=(lent secs)]
+  =/  [whole=json views=(map @t json)]
+    ~>  %bout
+    :-  (render-coverage cs nav '' %.n)
+    %-  malt
+    %+  turn  secs
+    |=(s=@t [s (render-coverage cs nav s %.y)])
   ::  the overview reads `whole` only for its totals + section summaries, never
   ::  the 1600-file list — so strip files from the cached whole (each section
   ::  view keeps its own scoped, small file list).
   =/  whole-slim=json
     ?.(?=([%o *] whole) whole [%o (~(put by p.whole) 'files' [%a ~])])
   =/  cache=json  (pairs:enjs:format ~[['whole' whole-slim] ['views' [%o views]]])
+  ~&  >  [%shell-docs-recompute c files=~(wyt by finfo.cs) anchors=nanc.cs]
+  ::  stamp every new pin once, then store the cache grub for this collection.
+  ;<  pj=(unit json)  bind:m
+    (peek-as:io (nex-road:io rail [%& /docs %'pins.json']) ,json)
+  =/  pins=(map @t json)  ?~(pj ~ ?:(?=([%o *] u.pj) p.u.pj ~))
+  ;<  ~  bind:m
+    ?:  =(~ newpins.cs)  (pure:(fiber:fiber:nexus ,~) ~)
+    %+  over:io  (nex-road:io rail [%& /docs %'pins.json'])
+    [[/ %json] [%o (~(uni by pins) (~(run by newpins.cs) |=(h=@t `json`s+h)))]]
   (over:io (nex-road:io rail [%& /docs/cache (cache-name c)]) [[/ %json] cache])
 ::  ref-lines: resolve a list of "path [range]" selectors against the mirror
 ::  line map into per-file line sets — the shared primitive for section scopes
@@ -2996,13 +3052,13 @@
 ::  wired to the usergroups fiber's /alias and /weir and drops everything else.
 ::
 ++  take-mirror-news
-  =/  m  (fiber:fiber:nexus ,~)
+  =/  m  (fiber:fiber:nexus ,wire)
   ^-  form:m
   |=  input:fiber:nexus
   :+  ~  q.state
   ?+  in  [%skip ~]
     ~              [%wait ~]
-    [~ %news * *]  [%done ~]
+    [~ %news * *]  [%done wire.u.in]
   ==
 ::  +spawn-followers: ensure a /sync follower grub exists for every app-root
 ::  (descending desks, via app-roots). Making the grub starts its follower

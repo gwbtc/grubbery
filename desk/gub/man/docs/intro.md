@@ -26,6 +26,16 @@ primitives rather than thickening a core. And because state *is* the
 namespace, the two worst Gall taxes — hand-written migrations and cross-ship
 auth boilerplate — mostly evaporate.
 
+Three commitments follow from that bet, and every page here assumes them:
+
+- **The namespace is the truth.** Authoritative state lives in grubs; derived
+  or rebuildable caches go in sibling grubs. Write cost never justifies
+  moving truth out.
+- **Reboot anytime.** A fiber can be killed at any step and recovers from
+  persisted state. Restarts are the normal case, not a hazard.
+- **Compose, don't entangle.** Nexuses meet through the namespace, never
+  through shared mutable state.
+
 ## Where to start
 
 - [Nexuses](#nexuses.md) — the unit of an application

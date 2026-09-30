@@ -75,6 +75,10 @@
   #nav .sec.collapsed > .sec-head::before { transform: rotate(-90deg); }
   #nav .sec.collapsed > ul { display: none; }
   #nav .sec ul a { padding-left: 36px; }
+  /* a section nested in a section: its head and pages step in one level and
+     the head drops the uppercase so it reads as a subsection */
+  #nav .sec .sec > .sec-head { padding-left: 36px; text-transform: none; letter-spacing: 0; font-size: 12.5px; }
+  #nav .sec .sec ul a { padding-left: 48px; }
   #nav .sec-cov {
     display: block; padding: 6px 24px; color: var(--fg); text-decoration: none;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;

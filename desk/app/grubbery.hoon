@@ -4953,45 +4953,49 @@
   ::  Scry for all file paths in desk
   ::  Each path is like /app/foo/hoon where last element is mark
   =/  files=(list path)  .^((list path) %ct pax)
-  ::  Get current files in tarball at this desk's mirror path
-  =/  clay-files  (list-clay-files base)
-  =/  old-files=(set path)  (silt clay-files)
-  ::  Capture born before sync for change detection (grubbery desk)
-  =/  pre-born=born:nexus  born
-  ::  Save each Clay file into tarball
-  =/  new-files=(set path)  (silt files)
-  =.  this
+  ::  Build the desk as ONE bole and land it with a single ball update:
+  ::  one notify for the whole commit (a dir keep gets one news, not one
+  ::  per file), and files gone from Clay are tombed by +sync-bole because
+  ::  they are absent from the bole. Unchanged files cost nothing —
+  ::  +record:si skips when content, blot, marc and gain all match.
+  =/  bol=bole:tarball
     %+  roll  files
-    |=  [fyl=path acc=_this]
+    |=  [fyl=path acc=bole:tarball]
     ^+  acc
     ?.  ?=([@ @ *] fyl)  acc
     =/  mar=@tas   (rear fyl)
     =/  sans=path  (snip `(list @ta)`fyl)
     =/  stem=@ta   (rear sans)
-    =/  dir=path   (weld base (snip `(list @ta)`sans))
+    =/  dir=path   (snip `(list @ta)`sans)
     =/  name=@ta   (cat 3 stem (cat 3 '.' mar))
     =/  new-vase=vase  .^(vase %cr (weld pax fyl))
-    =/  old  (peek-grub-now:acc dir name)
     =/  res=(each vase tang)
-      (validate-noun:acc / [/ mar] q.new-vase)
+      (validate-noun / [/ mar] q.new-vase)
     ?.  ?=(%& -.res)
       ~&  [%sync-clay-vale-failed mar fyl]
       acc
-    (save-file:acc [dir name] [[/ mar] q.p.res])
-  ::  Delete files that no longer exist in Clay
-  =/  removed=(list path)
-    %+  skim  ~(tap in old-files)
-    |=(p=path !(~(has in new-files) p))
-  =.  this
-    %+  roll  removed
-    |=  [fyl=path acc=_this]
-    ?.  ?=([@ @ *] fyl)  acc
-    =/  mar=@tas   (rear fyl)
-    =/  sans=path  (snip `(list @ta)`fyl)
-    =/  stem=@ta   (rear sans)
-    =/  dir=path   (weld base (snip `(list @ta)`sans))
-    =/  name=@ta   (cat 3 stem (cat 3 '.' mar))
-    (delete:acc dir name)
+    (~(put bo:tarball acc) [dir name] [[/ mar] q.p.res])
+  ::  per-file gain from born (+put:bo writes %.n), so a bulk write never
+  ::  flips a file's gain; the root pulp keeps the dir's own neck/weir/gain.
+  =.  bol
+    =/  cur=lump:tarball  (fall fil:(peek-ball-now base) *lump:tarball)
+    =/  root=pulp:tarball  (fall fil.bol *pulp:tarball)
+    =.  bol  bol(fil `root(neck neck.cur, weir weir.cur, gain gain.cur))
+    |^  (walk bol base)
+    ++  walk
+      |=  [b=bole:tarball at=path]
+      ^-  bole:tarball
+      :_  (~(urn by dir.b) |=([k=@ta kid=bole:tarball] (walk kid (snoc at k))))
+      ?~  fil.b  ~
+      :-  ~
+      %=  u.fil.b
+        contents
+          %-  ~(urn by contents.u.fil.b)
+          |=  [name=@ta e=[=bask:tarball gain=?]]
+          e(gain (lookup-gain [at name]))
+      ==
+    --
+  =.  this  (load-ball-changes base bol %.y)
   ::  Subscribe to %next %z on desk root
   ~&  >>  "sync-clay-desk: subscribing to {<dek>}"
   %-  emit-card
