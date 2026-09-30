@@ -27,6 +27,39 @@ don't mix them in a paragraph.
 A reader should be able to stop after the paradigm and know what the thing is
 for; descend only as far as they need.
 
+## The process
+
+The order the work happens in, learned writing the remote-scry page. Each step
+produces something the next one checks against.
+
+1. **Scope.** Name the files and line ranges that back the phenomenon: the
+   code a reader would have to read to see it happen. That list is the page's
+   `scope` in the nav, and it is the denominator for everything after. If you
+   can't draw the boundary, you don't have a topic yet; you have two, or half
+   of one.
+2. **Failure modes.** Before writing, collect what has actually gone wrong in
+   that scope: the concrete failures the code has produced. Each one is
+   something the page must make legible — a reader who finished the page
+   should be able to see why that failure was possible. This is the best test
+   that the prose explains the mechanism rather than restating the code.
+3. **Joints.** Split the topic where it actually divides, and split each part
+   the same way, until a reader can get the shape of the whole from the
+   headers alone. Test it: cover the body, read only the headers, ask whether
+   the mechanism is visible.
+4. **Orient.** Open with the shapes: the objects, and the context they live
+   in. Then how those objects change, or act on their context. Then what that
+   buys: why it's useful here, and how that usefulness feeds the section above
+   it. Each page motivates itself one level up and links; the chain to the top
+   runs across pages, not inside each one.
+5. **Read it once, in order.** Nothing — no object, concept, or arm — may be
+   used before it has been introduced. A reader goes through top to bottom
+   once and never has to jump ahead. A concept whose home is another page may
+   appear if it is linked at first mention; a concept whose home is this page
+   may not appear before its own introduction.
+6. **Check the failure modes again.** Go back to step 2's list. If a failure
+   isn't legible from the finished page, the page is missing a beat, or the
+   scope was wrong.
+
 ## The shape of a page
 
 1. **Open at the top.** One paragraph: what this is and why, in plain language,
@@ -93,6 +126,20 @@ shape; a decorative one is noise.
   crashes the event"), not that it's dangerous. Difficulty is never a label or a
   headline — only, at most, a described property of the mechanism.
 - **Explain why,** not just what. The mechanism and the reason it's that way.
+- **Never fabricate a why.** The "why" slot is easy to pad with a plausible
+  justification that isn't true ("validated through its mark by definition").
+  State only what's verified. An empty why is honest; a false one is worse
+  than none.
+- **Verify a claim rather than softening it.** Hedging ("probably," "in most
+  cases") is the tell that you didn't check. Check, then state it plainly or
+  cut it.
+- **Docs describe what is. Critique lives in callouts.** "That caveat is the
+  subsystem's real weakness" is not description; put it in a note. A note
+  offers *one possible solution*, never *the fix*: the handbook doesn't
+  prescribe changes to the code it describes.
+- **The handbook describes the system, not how we work.** No PR conventions,
+  workflow, or process in any page. That material has its own home (this
+  section), and it is guidance, not a spec.
 - **Clarity over completeness.** Leave out what the structure or the code already
   shows. Prose carries only what they can't.
 - **Concrete over abstract.** Name the real arm, the real failure, the real
