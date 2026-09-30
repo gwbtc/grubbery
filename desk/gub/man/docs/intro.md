@@ -14,7 +14,7 @@ A tree-shaped manager for stateful long-running processes on Urbit.
 **Grub** — a file and its running process. Files are the leaves of the tree.
 Each has content (a marked noun) and a long-running fiber that operates on
 it. When a grub's process completes, the grub is deleted; when it fails, it
-restarts. See [Grubs & the namespace](#grubs.md).
+restarts. See [The namespace](#namespace.md).
 
 **Nexus** — the behavior definition for a directory. Each directory has a
 nexus that defines how its grubs are initialized (`on-load`) and run

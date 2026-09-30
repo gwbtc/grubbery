@@ -29,36 +29,36 @@ for; descend only as far as they need.
 
 ## The process
 
-The order the work happens in, learned writing the remote-scry page. Each step
-produces something the next one checks against.
+The order the work happens in. It is a way of finding the structure that is
+there, and the structure that wants to be there.
 
 1. **Scope.** Name the files and line ranges that back the phenomenon: the
    code a reader would have to read to see it happen. That list is the page's
-   `scope` in the nav, and it is the denominator for everything after. If you
-   can't draw the boundary, you don't have a topic yet; you have two, or half
-   of one.
-2. **Failure modes.** Before writing, collect what has actually gone wrong in
-   that scope: the concrete failures the code has produced. Each one is
-   something the page must make legible — a reader who finished the page
-   should be able to see why that failure was possible. This is the best test
-   that the prose explains the mechanism rather than restating the code.
-3. **Joints.** Split the topic where it actually divides, and split each part
-   the same way, until a reader can get the shape of the whole from the
-   headers alone. Test it: cover the body, read only the headers, ask whether
-   the mechanism is visible.
-4. **Orient.** Open with the shapes: the objects, and the context they live
+   `scope` in the nav. If you can't draw the boundary, you don't have a topic
+   yet; you have two, or half of one.
+2. **Joints.** Split the topic where it actually divides, and split each part
+   the same way, until the shape of the whole shows from the headers alone.
+   Test it: cover the body, read only the headers, ask whether the mechanism
+   is visible. Headers name the things in the subject — "Lanes and waves,"
+   "The two indices" — never the step of this process that produced them.
+   "The objects," "The shape," "Orientation" are the scaffold, and the
+   scaffold does not appear in the page.
+3. **Orient.** Open with the shapes: the objects, and the context they live
    in. Then how those objects change, or act on their context. Then what that
    buys: why it's useful here, and how that usefulness feeds the section above
    it. Each page motivates itself one level up and links; the chain to the top
    runs across pages, not inside each one.
-5. **Read it once, in order.** Nothing — no object, concept, or arm — may be
-   used before it has been introduced. A reader goes through top to bottom
+4. **Write it in order, and let it unfold.** Nothing — no object, concept, or
+   arm — is used before it has been introduced. The page is written top to
+   bottom, each beat standing on the ones before it, so a reader goes through
    once and never has to jump ahead. A concept whose home is another page may
    appear if it is linked at first mention; a concept whose home is this page
    may not appear before its own introduction.
-6. **Check the failure modes again.** Go back to step 2's list. If a failure
-   isn't legible from the finished page, the page is missing a beat, or the
-   scope was wrong.
+
+What you find along the way that isn't structure — a concrete failure, a
+place the code fights the explanation — goes in a callout, not in the spine
+of the page. Recording it is part of the work; organizing the page around it
+is not.
 
 ## The shape of a page
 
@@ -80,8 +80,6 @@ produces something the next one checks against.
    failure ("a re-cull crashes the event"), not a vague caution. Its own section
    or a beat inline is a judgment call: a big or subtle trap earns a section, a
    one-liner doesn't.
-5. **Close with the shape.** One line that names the whole: "five verbs, one
-   service, one fragile arm." The reader leaves with a handle.
 
 ## Live blocks embed the real code
 
@@ -102,8 +100,30 @@ coverage, so the reader is reading the kernel and your prose together.
 
 An unexplained noun is a hole the reader falls into. The first time a type, arm,
 or concept appears, say what it is. For a big concept with its own home, link it
-([Grubs](#grubs.md)) rather than reprinting the explanation in every page that
-touches it. Reference over repetition.
+rather than reprinting the explanation in every page that touches it.
+Reference over repetition.
+
+A link is a promise that the target explains the thing. Never link a stub, or
+a page that exists but doesn't yet cover what you're citing it for: that is a
+hole with a door painted on it. Until the home page is written, explain in
+place, in a clause, and add the link when the page can carry it.
+
+## Naming code in prose
+
+A name in prose says what kind of thing it is by its sigil, in backticks:
+`$wave` is a type, `+notify` is an arm, `%news` is a tag. A face or a field
+with no sigil of its own is plain in backticks: `wire`, `fwd`. A path is
+plain in backticks too: `/sys/ames`. The sigil is the reader's cue for where
+to look in the source, so it is never dropped and never guessed.
+
+## Callouts
+
+A callout is a blockquote whose first paragraph is the marker: `> [!note]
+Title`, then a bare `>` line, then the body. Without the blank quote line
+the title runs into the body and the box has no head. Types: `note`,
+`tip`, `warn`, `background`. The title says what the box is about at a
+glance; a reader skimming should be able to skip it or stop on it from the
+title alone.
 
 ## Diagrams carry relationships
 
@@ -134,9 +154,9 @@ shape; a decorative one is noise.
   cases") is the tell that you didn't check. Check, then state it plainly or
   cut it.
 - **Docs describe what is. Critique lives in callouts.** "That caveat is the
-  subsystem's real weakness" is not description; put it in a note. A note
-  offers *one possible solution*, never *the fix*: the handbook doesn't
-  prescribe changes to the code it describes.
+  subsystem's real weakness" is not description; put it in a note. When the
+  fix is clear, the note says it plainly: "the field should be dropped."
+  Never pad a note with alternatives that aren't real to look even-handed.
 - **The handbook describes the system, not how we work.** No PR conventions,
   workflow, or process in any page. That material has its own home (this
   section), and it is guidance, not a spec.

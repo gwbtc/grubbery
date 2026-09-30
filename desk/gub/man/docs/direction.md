@@ -129,8 +129,8 @@ is already costing people. A run of PRs with the same shape, say a fiber
 waiting on an answer the other side never sends with nothing logged, is one
 contract that one page should state in a sentence, and that page goes first.
 
-Those rediscovered invariants are exactly the *failure modes* the writing
-standard asks for: the concrete failures a page must make legible.
+Those rediscovered invariants are what the page has to state, in the place
+its structure puts them.
 
 One possible standard, offered rather than imposed: a PR either references
 documented behavior, the page and section its change is about, or documents

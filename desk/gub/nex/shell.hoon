@@ -1385,14 +1385,27 @@
     ?.  ?=([~ %a *] kids)  ~
     (zing (turn p.u.kids |=(k=json (subtree-docs k))))
   (weld own kd)
+::  section-covered: the lines covered by a section's OWN pages — the union of
+::  the per-page covered sets over subtree-docs. A section's number is what
+::  its pages cite, not what any page anywhere cites inside its scope.
+++  section-covered
+  |=  [doc-cov=(map @t (map @t (set @ud))) nav=json name=@t]
+  ^-  (map @t (set @ud))
+  =/  nd=(unit json)  (find-node nav name)
+  ?~  nd  ~
+  %+  roll  (subtree-docs u.nd)
+  |=  [d=@t acc=(map @t (set @ud))]
+  %+  roll  ~(tap by (fall (~(get by doc-cov) d) ~))
+  |=  [[f=@t s=(set @ud)] a=_acc]
+  (~(put by a) f (~(uni in (fall (~(get by a) f) ~)) s))
 ::  section-summaries: one summary per scoped section — {name, covered, total,
-::  status} — for the coverage overview. Reuses the already-computed finfo and
-::  covered for the numbers; freshness is the block aggregate via `doc-drift`
-::  (the set of pages with a drifted live block). Read-only.
+::  status} — for the coverage overview. Numbers come from the section's own
+::  pages' blocks (section-covered); freshness is the block aggregate via
+::  `doc-drift` (the set of pages with a drifted live block). Read-only.
 ++  section-summaries
   |=  $:  nav=json
           finfo=(map @t (list @t))
-          covered=(map @t (set @ud))
+          doc-cov=(map @t (map @t (set @ud)))
           ig-set=(set @t)
           ignore-lines=(map @t (set @ud))
           doc-drift=(set @t)
@@ -1403,6 +1416,7 @@
   |=  name=@t
   ^-  json
   =/  scope-lines=(map @t (set @ud))  (ref-lines finfo (node-cover-scope nav name))
+  =/  covered=(map @t (set @ud))  (section-covered doc-cov nav name)
   =/  in-scope
     |=  f=@t
     ^-  (set @ud)
@@ -1426,7 +1440,9 @@
 ::  collection: the line map of every mirrored file, the ignore sets, and the
 ::  fold over every live-block anchor (covered lines, per-file fresh/drifted/
 ::  gone counts, the pins to stamp, the per-file anchor json, the pages with a
-::  drifted block). Every section view is then a pure render over this.
+::  drifted block, and the covered lines PER PAGE, so a section view counts only
+::  the blocks on its own pages). Every section view is then a pure render over
+::  this.
 +$  cov-state
   $:  finfo=(map @t (list @t))
       ig-set=(set @t)
@@ -1437,6 +1453,7 @@
       fancs=(map @t (list json))
       doc-drift=(set @t)
       nanc=@ud
+      doc-cov=(map @t (map @t (set @ud)))
   ==
 ::  load-coverage: the expensive half of coverage — peek the whole mirror, split
 ::  every file into lines, gather every anchor, fold them against the pins.
@@ -1470,8 +1487,14 @@
     =|  flg=(map @t [f=@ud d=@ud g=@ud])
     =|  np=(map @t @t)
     =|  ancs=(map @t (list json))
-    |-  ^-  [(map @t (set @ud)) (map @t [f=@ud d=@ud g=@ud]) (map @t @t) (map @t (list json))]
-    ?~  anchors  [cov flg np ancs]
+    =|  dcv=(map @t (map @t (set @ud)))
+    |-  ^-  $:  (map @t (set @ud))
+                (map @t [f=@ud d=@ud g=@ud])
+                (map @t @t)
+                (map @t (list json))
+                (map @t (map @t (set @ud)))
+            ==
+    ?~  anchors  [cov flg np ancs dcv]
     =/  a  i.anchors
     =/  fl=[f=@ud d=@ud g=@ud]  (fall (~(get by flg) file.a) [0 0 0])
     =/  al=(list json)  (fall (~(get by ancs) file.a) ~)
@@ -1494,11 +1517,13 @@
     =/  total=@ud  (lent u.ls)
     =/  hi=@ud  (min total ?:(=(0 to.a) total to.a))
     =/  s=(set @ud)  (fall (~(get by cov) file.a) ~)
-    =.  s
+    =/  dm=(map @t (set @ud))  (fall (~(get by dcv) doc.a) ~)
+    =/  ds=(set @ud)  (fall (~(get by dm) file.a) ~)
+    =^  ds  s
       =/  ln=@ud  from.a
-      |-  ^-  (set @ud)
-      ?:  (gth ln hi)  s
-      $(ln +(ln), s (~(put in s) ln))
+      |-  ^-  [(set @ud) (set @ud)]
+      ?:  (gth ln hi)  [ds s]
+      $(ln +(ln), s (~(put in s) ln), ds (~(put in ds) ln))
     =/  span=(list @t)  (swag [(dec from.a) +((sub hi from.a))] u.ls)
     =/  hash=@t  `@t`(scot %ux (mug span))
     =/  rng=@t  ?:(=(0 to.a) 'all' (crip "{(a-co:co from.a)}-{(a-co:co to.a)}"))
@@ -1512,11 +1537,12 @@
     %=  $
       anchors  t.anchors
       cov   (~(put by cov) file.a s)
+      dcv   (~(put by dcv) doc.a (~(put by dm) file.a ds))
       flg   (~(put by flg) file.a -.fps)
       np    +<.fps
       ancs  (~(put by ancs) file.a [(mka +>.fps) al])
     ==
-  =/  fancs=(map @t (list json))  +>+.res
+  =/  fancs=(map @t (list json))  +>+<.res
   ::  doc-drift: the pages that carry at least one drifted live block. A
   ::  section's freshness is the aggregate of the blocks on its own page(s) —
   ::  no separate section pin, so adding scope can't spuriously drift it.
@@ -1546,6 +1572,7 @@
       fancs
       doc-drift
       nanc
+      +>+>.res
   ==
 ::  render-coverage: the coverage result for collection c (whole, or scoped to
 ::  a section) — per-file numbers, overall totals, section drift, the sections
@@ -1560,6 +1587,10 @@
   ^-  json
   =,  cs
   =/  in-section=?  !=('' sec)
+  ::  a section counts only the live blocks on its own page(s); the whole
+  ::  view counts every block in the collection
+  =/  covered=(map @t (set @ud))
+    ?.(in-section covered.cs (section-covered doc-cov nav sec))
   =/  scope-strs=(list @t)
     ?:(=('' sec) ~ (node-cover-scope nav sec))
   =/  scope-lines=(map @t (set @ud))
@@ -1642,7 +1673,7 @@
       (pairs:enjs:format ~[['name' s+sec] ['status' s+section-status]])
       :-  'sections'
       ?:  in-section  [%a ~]
-      (section-summaries nav finfo covered ig-set ignore-lines doc-drift)
+      (section-summaries nav finfo doc-cov ig-set ignore-lines doc-drift)
   ==
 ::  compute-coverage: one view (whole, or a section) plus the pins it wants
 ::  stamped — load then render. The endpoint's cache-miss fallback; the
