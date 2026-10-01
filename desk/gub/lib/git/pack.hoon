@@ -120,9 +120,6 @@
   ^-  [[pack (list raw-object)] bays:bytestream]
   =+  start=pos.sea
   =|  count=@ud
-  =/  step=@ud
-    =-  ?:((gth - 0) - 1)
-    (div count.header 10)
   =|  index=pack-index
   =+  cache-limit=10
   =|  cache=pack-cache
@@ -135,8 +132,6 @@
     ?:  (is-empty:bytestream sea)
       ~|  "Expected {<count.header>} objects ({<count>} processed)"
         !!
-    ~?  >  =(0 (mod count step))
-      indexing-objects+"{<+(count)>}/{<count.header>}"
     =+  beg=pos.sea
     =^  pob=pack-object  sea  (read-pack-object sea)
     =/  [rob=raw-object miso=(unit raw-object)]

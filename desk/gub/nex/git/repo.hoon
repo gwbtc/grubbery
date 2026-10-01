@@ -111,7 +111,7 @@
         ?:  =(0 poll)
           ;<  *  bind:m  (take-news:io /poll)
           $
-        ~&  >  [%git-repo-poll-sleeping poll %minutes]
+        ~?  dbg  [%git-repo-poll-sleeping poll %minutes]
         ;<  now=@da  bind:m  get-time:io
         ;<  ~  bind:m  (set-timer:io /timer (add now (mul ~m1 poll)))
         ;<  *  bind:m  (take-news-or-wake:io /poll)
@@ -124,6 +124,10 @@
     --
 ::
 |%
+::  +dbg: the routine traces print only when this is yes. It lives in this
+::  helper core, where the nexus core above can see it.
+::
+++  dbg  ^-(? |)
 ::
 +$  repo-config
   $:  repo=@t
@@ -706,8 +710,8 @@
   |=  [cfg=repo-config disc=discovery:git-transport]
   =/  m  (fiber:fiber:nexus ,(unit @t))
   ^-  form:m
-  ~&  >>  "%git/repo: full clone..."
-  ~&  >>  "%git/repo: fetching pack..."
+  ~?  dbg  "%git/repo: full clone..."
+  ~?  dbg  "%git/repo: fetching pack..."
   =/  want-hashes=(list @ux)
     (turn refs.disc |=(r=git-ref:git-transport hash.r))
   ;<  pack-res=(each octs tang)  bind:m
@@ -716,13 +720,13 @@
     =/  msg=tape  (zing (turn (scag 1 p.pack-res) |=(=tank ~(ram re tank))))
     (pure:m `(crip "clone fetch failed: {msg}"))
   =/  pack-body=octs  p.pack-res
-  ~&  >>  ["%git/repo: pack received" p.pack-body "bytes"]
+  ~?  dbg  ["%git/repo: pack received" p.pack-body "bytes"]
   =/  pack-data=octs
     (extract-pack:git-transport pack-body %.y)
-  ~&  >>  "%git/repo: parsing pack..."
+  ~?  dbg  "%git/repo: parsing pack..."
   =/  =pack:git-pack
     (read:git-pack (from-octs:bytestream pack-data))
-  ~&  >>  ["%git/repo: unpacked" count.pack "objects"]
+  ~?  dbg  ["%git/repo: unpacked" count.pack "objects"]
   =/  repo=repository:git-repo
     (~(clone-from-pack git-repo *repository:git-repo) pack refs.disc)
   ::  build index text
@@ -751,14 +755,14 @@
     (get:refs:~(. git-repo repo) ~['refs' 'heads' active-ref])
   =/  head-hash=@ux  (fall ref-hash 0x0)
   =/  head-text=@t  (crip (print-hash-sha-1:git-transport head-hash))
-  ~&  >>  "%git/repo: saving to data nexus"
+  ~?  dbg  "%git/repo: saving to data nexus"
   ::  clear old packs before writing fresh clone
   ;<  packs-rd=road:tarball  bind:m  (ancestor-road:io [/git %repo] [%| /data/packs])
   ;<  *  bind:m  (cull-soft:io packs-rd)
   ;<  ~  bind:m  (save-repo pack-data idx-text 0 branch-refs head-text active-ref)
   ;<  sync-data-rd=road:tarball  bind:m
     (ancestor-road:io [/git %repo] [%| /data])
-  ~&  >>  "%git/repo: clone complete"
+  ~?  dbg  "%git/repo: clone complete"
   ;<  ~  bind:m  (reload:io sync-data-rd)
   (pure:m ~)
 ::

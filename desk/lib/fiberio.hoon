@@ -1915,9 +1915,10 @@
   :+  ~  q.state
   ?+  in  [%skip ~]
       ~  [%wait ~]
+    ::  refused in jail: expected, and silent. The approval reload
+    ::  re-runs this bind.
       [~ %veto *]
-    %.  [%done ~]
-    (slog leaf+"bind-http-self: vetoed (sandboxed?) — binding deferred until approval" ~)
+    [%done ~]
       [~ %pack * *]
     ?.  =(wire wire.u.in)  [%skip ~]
     [%done ~]

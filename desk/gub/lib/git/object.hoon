@@ -228,7 +228,6 @@
   =+  txt=(trip q:(raw-data rob))
   =+  com=(~(commit parse hal) [[1 1] txt])
   ?~  q.com
-    ~&  txt
     ~|  "Failed to parse commit object: syntax error {<p.com>} in {txt}"  !!
   commit+[size.rob p.u.q.com]
 ::

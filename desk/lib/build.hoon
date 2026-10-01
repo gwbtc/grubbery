@@ -14,6 +14,10 @@
 ::
 /+  tarball, nexus, marks
 |%
+::  +dbg: the build's progress and timing prints only when this is yes.
+::  It lives here because a lib cannot see the kernel's flag.
+::
+++  dbg  ^-(? |)
 +$  import
   $%  [%file name=@tas =road:tarball]       ::  /<  name  path
       [%bare =road:tarball]                  ::  /<  *  path
@@ -415,7 +419,7 @@
           reuse-deps=(map rail:tarball (set rail:tarball))
       ==
   ^-  build-out
-  ~&  >  "build-all: {<~(wyt by build-cache)>} cached, {<~(wyt by reuse)>} reused"
+  ~?  dbg  "build-all: {<~(wyt by build-cache)>} cached, {<~(wyt by reuse)>} reused"
   =/  sources=source-map  (sources-to-build ball ~(key by reuse))
   =/  plain=(map rail:tarball vase)  (mime-grubs ball)
   =/  known=(set rail:tarball)
@@ -464,9 +468,9 @@
         (turn bad |=(d=rail:tarball leaf+"{(spud (snoc path.d name.d))}"))
       $(order t.order, results (~(put by results) rail [%| err]), keys (~(put by keys) rail key))
     ?^  hit=(~(get by cache) key)
-      ~&  >  "build: cache hit {(spud (snoc path.rail name.rail))}"
+      ~?  dbg  "build: cache hit {(spud (snoc path.rail name.rail))}"
       $(order t.order, results (~(put by results) rail [%& u.hit]), keys (~(put by keys) rail key))
-    ~&  >>  "build: cache MISS {(spud (snoc path.rail name.rail))}"
+    ~?  dbg  "build: cache MISS {(spud (snoc path.rail name.rail))}"
     =/  res=build-result  (compile-one rail fi results)
     %=  $
       order    t.order
@@ -484,9 +488,12 @@
     =/  import-lines=@ud
       (sub (lent (to-wain:format src.fi)) (lent (to-wain:format body.fi)))
     =/  res=build-result
-      ~>  %bout.[1 (crip "compile {(spud (snoc path.rail name.rail))}")]
-      =/  r  (mule |.((build-hoon aug (snoc path.rail name.rail) body.fi import-lines)))
-      ?:(?=(%& -.r) p.r [%| ~[leaf+"crash compiling {(spud (snoc path.rail name.rail))}"]])
+      =/  run
+        |.  ^-  build-result
+        =/  r  (mule |.((build-hoon aug (snoc path.rail name.rail) body.fi import-lines)))
+        ?:(?=(%& -.r) p.r [%| ~[leaf+"crash compiling {(spud (snoc path.rail name.rail))}"]])
+      ?.  dbg  (run)
+      ~>(%bout.[1 (crip "compile {(spud (snoc path.rail name.rail))}")] (run))
     ?.  &(?=(%& -.res) ?=([%mar *] path.rail))  res
     =/  marc-res=(each marc:tarball tang)  (mule |.((build-marc:marks p.res)))
     ?:(?=(%| -.marc-res) [%| p.marc-res] [%& !>(p.marc-res)])

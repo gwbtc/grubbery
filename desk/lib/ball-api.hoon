@@ -109,7 +109,6 @@
     ;<  ~  bind:m  (send-error eyre-id 400 'No tube for mark conversion')
     (pure:m ~)
   =/  result=(each vase tang)
-    ~>  %bout.[1 %convert-apply-tube]
     (mule |.((u.tube q.sage)))
   ?:  ?=(%| -.result)
     ;<  ~  bind:m  (send-error eyre-id 500 'Mark conversion failed')

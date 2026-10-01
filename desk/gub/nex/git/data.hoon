@@ -82,7 +82,7 @@
       =/  stash-req=(unit sang:tarball)
         (~(get ba:tarball ball) [/ %'stash-request.sig'])
       ?^  stash-req
-        ~&  >>  "%git/data: stash request"
+        ~?  dbg  "%git/data: stash request"
         ::  capture the FULL working tree (staged + unstaged, per git
         ::  convention) — not just the index. Stage everything into a
         ::  throwaway index first so the stash commit holds every uncommitted
@@ -100,7 +100,7 @@
         =/  stash-result
           (git-commit idx parent-tree-hash commit-hash (pairs:enjs:format ~[['message' s+'stash']]))
         ?~  stash-result
-          ~&  >>  "%git/data: nothing to stash (clean)"
+          ~?  dbg  "%git/data: nothing to stash (clean)"
           =.  ball  (~(del ba:tarball ball) / %'stash-request.sig')
           ball
         ::  merge loose objects
@@ -133,7 +133,7 @@
         =.  ball  ball(dir (~(put by dir.ball) 'tree' tree-ball))
         =.  ball  (write-tree-head ball (print-hash-sha-1:git-transport commit-hash))
         =.  ball  (write-ui-outputs ball sto commit-hash parsed-head head-idx parent-tree-hash)
-        ~&  >>  ["%git/data: stashed at" (scag 7 stash-hex)]
+        ~?  dbg  ["%git/data: stashed at" (scag 7 stash-hex)]
         ball
       ::
       ::  === stash pop request handling ===
@@ -142,7 +142,7 @@
       =/  pop-req=(unit sang:tarball)
         (~(get ba:tarball ball) [/ %'stash-pop-request.sig'])
       ?^  pop-req
-        ~&  >>  "%git/data: stash pop request"
+        ~?  dbg  "%git/data: stash pop request"
         =/  stash-hash=(unit hash:git-repo)
           (read-ref-file ball /refs 'stash')
         ?~  stash-hash
@@ -190,7 +190,7 @@
         =.  ball  (~(del ba:tarball ball) / %'stash-pop-request.sig')
         ::  build UI outputs — status will show stash diff against HEAD
         =.  ball  (write-ui-outputs ball sto commit-hash parsed-head head-idx head-tree-hash)
-        ~&  >>  ["%git/data: popped stash" (scag 7 (print-hash-sha-1:git-transport u.stash-hash))]
+        ~?  dbg  ["%git/data: popped stash" (scag 7 (print-hash-sha-1:git-transport u.stash-hash))]
         ball
       ::
       ::  === add request handling ===
@@ -198,7 +198,7 @@
       ::
       =/  add-req=(unit json)  (read-add-request ball)
       ?^  add-req
-        ~&  >>  "%git/data: add request found"
+        ~?  dbg  "%git/data: add request found"
         ?>  ?=(%o -.u.add-req)
         =/  req-map=(map @t json)  p.u.add-req
         =/  current-tree=ball:tarball
@@ -234,7 +234,7 @@
         =/  status=json  (build-status ball idx.add-result head-tree-idx)
         =.  ball
           (~(put ba:tarball ball) [/ui %'status.json'] [[/ %json] %& !>(status)])
-        ~&  >>  "%git/data: staged files"
+        ~?  dbg  "%git/data: staged files"
         ball
       ::
       ::  === commit request handling ===
@@ -243,7 +243,7 @@
       ::
       =/  commit-req=(unit json)  (read-commit-request ball)
       ?^  commit-req
-        ~&  >>  "%git/data: commit request found"
+        ~?  dbg  "%git/data: commit request found"
         ::  read index as-is (staging is done by add-request)
         =/  full-idx=(map path [hash:git-repo mtime=@t])  (read-index ball)
         =/  idx=(map path hash:git-repo)  (idx-hashes full-idx)
@@ -253,7 +253,7 @@
         =/  commit-result
           (git-commit idx parent-tree-hash commit-hash u.commit-req)
         ?~  commit-result
-          ~&  >>  "%git/data: no changes, skipping commit"
+          ~?  dbg  "%git/data: no changes, skipping commit"
           =.  ball  (~(del ba:tarball ball) / %'commit-request.json')
           ball
         ::  merge new loose objects
@@ -329,7 +329,7 @@
         =/  idx=(map path [hash:git-repo mtime=@t])  (read-index ball)
         =.  ball  (write-ui-outputs ball sto commit-hash parsed-head idx tree.com)
         ball
-      ~&  >>  ["%git/data: checkout" (scag 7 head-text)]
+      ~?  dbg  ["%git/data: checkout" (scag 7 head-text)]
       =/  get-tree=$-(@ux (unit tree-dir:git-repo))
         |=(h=@ux (get-tree:sto h))
       =/  get-blob=$-(@ux (unit octs))
@@ -337,7 +337,7 @@
       ::  checkout tree
       =/  files=(list [path octs])
         (checkout:git-transport get-tree get-blob tree.com)
-      ~&  >>  ["%git/data: checked out" (lent files) "files"]
+      ~?  dbg  ["%git/data: checked out" (lent files) "files"]
       =/  tree-ball=ball:tarball  (files-to-ball files)
       ::  build index from commit tree (path -> blob-hash flat map)
       =/  idx=(map path [hash:git-repo mtime=@t])
@@ -367,6 +367,10 @@
     --
 ::
 |%
+::  +dbg: the routine traces print only when this is yes. It lives in this
+::  helper core, where the nexus core above can see it.
+::
+++  dbg  ^-(? |)
 ::  +read-tree-head: which commit tree/ was last materialized from.
 ::  ~ means never recorded — treat as needing checkout.
 ::
