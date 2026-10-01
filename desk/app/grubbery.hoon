@@ -3922,8 +3922,16 @@
   =/  old=(unit proc:fiber:nexus)  (~(get by proc.pipe) name.here)
   =/  old-next=(qeu take:fiber:nexus)  ?~(old ~ next.u.old)
   =/  old-skip=(qeu take:fiber:nexus)  ?~(old ~ skip.u.old)
+  ::
+  ::  Except %veto takes, which are dropped. Each answers a dart the OLD
+  ::  process sent, and a fiber parked by a veto keeps that veto queued
+  ::  (+bang-file carries next and skip over). Merged back, it fails the
+  ::  fresh fiber's first wait and parks it again before it sends a
+  ::  thing, so "grant the permits, then reload" never revived anything.
   =/  merged-skip=(qeu take:fiber:nexus)
-    (~(gas to old-skip) ~(tap to old-next))
+    %-  ~(gas to *(qeu take:fiber:nexus))
+    %+  skip  (weld ~(tap to old-skip) ~(tap to old-next))
+    |=(=take:fiber:nexus ?=([~ %veto *] in.take))
   =.  this  (store-proc here [&+process ~ merged-skip])
   (enqu-take here ~ ~)
 ::
