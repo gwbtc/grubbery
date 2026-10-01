@@ -453,46 +453,41 @@
             },
             {
               "title": "/sys/scry",
-              "path": "sys-scry.md",
-              "scope": [
-                "/grubbery/app/grubbery.hoon 7525-7534",
-                "/grubbery/lib/fiberio.hoon 877-898",
-                "/grubbery/lib/nexus.hoon 199-208",
-                "/grubbery/app/grubbery.hoon 7634-7703",
-                "/grubbery/app/grubbery.hoon 541-562",
-                "/grubbery/lib/fiberio.hoon 899-988"
-              ]
-            },
-            {
-              "title": "Remote scry",
-              "path": "remote-scry.md",
-              "scope": [
-                "/grubbery/lib/fiberio.hoon 899-988",
-                "/grubbery/lib/nexus.hoon 199-208",
-                "/grubbery/app/grubbery.hoon 6883-6908",
-                "/grubbery/app/grubbery.hoon 7557-7666",
-                "/base/sys/lull.hoon 4019-4027",
-                "/base/sys/vane/gall.hoon 1447-1456",
-                "/base/sys/vane/gall.hoon 1459-1483",
-                "/base/sys/vane/gall.hoon 1489-1512",
-                "/base/sys/vane/ames.hoon 4351-4360",
-                "/base/sys/lull.hoon 895-898",
-                "/base/sys/lull.hoon 1055",
-                "/base/sys/vane/ames.hoon 5643-5677",
-                "/base/sys/vane/ames.hoon 5696-5741",
-                "/base/sys/hoon.hoon 13782",
-                "/base/sys/arvo.hoon 56",
-                "/base/sys/arvo.hoon 38-48",
-                "/base/sys/lull.hoon 3696-3700",
-                "/base/sys/lull.hoon 3706-3713"
-              ]
-            },
-            {
-              "title": "Local scry",
-              "path": "local-scry.md",
-              "scope": [
-                "/grubbery/lib/fiberio.hoon 877-898",
-                "/grubbery/lib/fiberio.hoon 991-1013"
+              "kids": [
+                {
+                  "title": "Local scry",
+                  "path": "local-scry.md",
+                  "scope": [
+                    "/grubbery/lib/fiberio.hoon 877-898",
+                    "/grubbery/lib/fiberio.hoon 991-1013"
+                  ]
+                },
+                {
+                  "title": "Remote scry",
+                  "path": "remote-scry.md",
+                  "scope": [
+                    "/grubbery/lib/fiberio.hoon 899-988",
+                    "/grubbery/lib/nexus.hoon 199-208",
+                    "/grubbery/app/grubbery.hoon 6883-6908",
+                    "/grubbery/app/grubbery.hoon 7557-7666",
+                    "/base/sys/lull.hoon 4019-4027",
+                    "/base/sys/vane/gall.hoon 1447-1456",
+                    "/base/sys/vane/gall.hoon 1459-1483",
+                    "/base/sys/vane/gall.hoon 1489-1512",
+                    "/base/sys/vane/ames.hoon 4351-4360",
+                    "/base/sys/lull.hoon 895-898",
+                    "/base/sys/lull.hoon 1055",
+                    "/base/sys/vane/ames.hoon 5643-5677",
+                    "/base/sys/vane/ames.hoon 5696-5741",
+                    "/base/sys/hoon.hoon 13782",
+                    "/base/sys/arvo.hoon 56",
+                    "/base/sys/arvo.hoon 38-48",
+                    "/base/sys/lull.hoon 3696-3700",
+                    "/base/sys/lull.hoon 3706-3713",
+                    "/grubbery/app/grubbery.hoon 541-562",
+                    "/grubbery/app/grubbery.hoon 7686-7703"
+                  ]
+                }
               ]
             },
             {
@@ -582,6 +577,39 @@
             "/grubbery/gub/nex/shell.hoon 1843-1936",
             "/grubbery/lib/root.hoon 21-33",
             "/grubbery/gub/mar/desk/snap.hoon"
+          ]
+        },
+        {
+          "title": "Forge and the git nexuses",
+          "path": "forge.md",
+          "scope": [
+            "/grubbery/gub/nex/git/forge.hoon 60-82",
+            "/grubbery/gub/nex/git/repo.hoon 22-45",
+            "/grubbery/gub/nex/git/data.hoon 1-11",
+            "/grubbery/gub/nex/git/data.hoon 13-47",
+            "/grubbery/gub/nex/git/repo.hoon 898-924",
+            "/grubbery/gub/nex/git/data.hoon 56-78",
+            "/grubbery/gub/nex/git/data.hoon 310-350",
+            "/grubbery/gub/nex/git/data.hoon 370-386",
+            "/grubbery/gub/nex/git/data.hoon 352-368",
+            "/grubbery/gub/nex/git/data.hoon 240-308",
+            "/grubbery/gub/lib/git/action.hoon 1-53",
+            "/grubbery/gub/nex/git/repo.hoon 47-83",
+            "/grubbery/gub/nex/git/repo.hoon 136-157",
+            "/grubbery/gub/nex/git/repo.hoon 290-336",
+            "/grubbery/gub/nex/git/repo.hoon 256-289",
+            "/grubbery/gub/nex/git/repo.hoon 337-427",
+            "/grubbery/gub/nex/git/repo.hoon 1026-1061",
+            "/grubbery/gub/nex/git/repo.hoon 788-828",
+            "/grubbery/gub/nex/git/repo.hoon 428-496",
+            "/grubbery/gub/nex/git/repo.hoon 84-122",
+            "/grubbery/gub/nex/git/forge.hoon 100-138",
+            "/grubbery/gub/nex/git/forge.hoon 269-346",
+            "/grubbery/gub/nex/git/forge.hoon 347-389",
+            "/grubbery/gub/nex/git/forge.hoon 178-190",
+            "/grubbery/gub/nex/git/forge/tool-bundle/tools/git-cmd.hoon 1-23",
+            "/grubbery/gub/nex/shell.hoon 1874-1899",
+            "/grubbery/gub/nex/shell.hoon 1900-1956"
           ]
         },
         {

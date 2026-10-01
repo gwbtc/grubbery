@@ -313,6 +313,24 @@ waiting on the name) only when it finds no record.
 /grubbery/app/grubbery.hoon 7625-7662
 ```
 
+The answer comes back as an `ames` `%sage` sign on the keen's wire. The page in
+it is the publisher's binding: signed, so its origin is proven, but not shaped —
+a hostile publisher can bind a cell where the page's mark should be an atom, and
+a plain cast would pass that through and crash the `%keen-response` validation
+downstream, restarting the reading fiber on every answer. So the sign is matched
+as a noun and the page clammed inside a `mule`: a well-formed binding passes, and
+a malformed one reads as `~`, nothing bound — a miss the reader already handles.
+`take-keen-sage` then drops an answer whose spar names a different ship than the
+wire asked for, clears the keen from `scry-state`, and pokes the requester.
+
+```live
+/grubbery/app/grubbery.hoon 541-562
+```
+
+```live
+/grubbery/app/grubbery.hoon 7686-7703
+```
+
 ### The fiberio utility surface
 
 Nexuses never touch `gall` or `ames` directly; they call five `fiberio` helpers,
