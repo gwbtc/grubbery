@@ -161,6 +161,34 @@ comparison of one hash, so an ordinary restart builds nothing.
 /grubbery/app/grubbery.hoon 2884-2909
 ```
 
+### When a rebuild reloads
+
+A recompile reloads the directories it governs. After a namespace
+rebuilds, `+reload-changed-nexuses` finds every directory in the tree
+whose recorded namespace is the one that rebuilt and whose nexus
+artifact changed, and reloads it. The recorded namespace is stamped on
+the directory's tree ject when the tree is built, from the ordinary
+resolution, so the filter is a lookup, not a walk through the candidate
+list, and a directory governed by a nearer namespace that has not yet
+built is left alone.
+
+```live
+/grubbery/app/grubbery.hoon 5551-5583
+```
+
+The one caller that asks the build not to cascade is the boot walk,
+which reloads the whole tree itself on the way down; cascading there
+would reload everything twice.
+
+> [!note] Wart: a forced make of a code namespace reloaded nothing
+> `+make` landed its bole with the cascade off and relied on walking the
+> made subtree. A desk delivers a release by making `/desk/code` alone,
+> whose subtree holds no nexus, while the apps it governs live beside it
+> under `/desk/data`; a release changed their code and nothing reloaded
+> them. `+make` now cascades like any other write. The section above is a
+> stub: the stamp, the filter, and the boot exception deserve a full
+> account.
+
 ## Reading artifacts
 
 A fiber reads the store with a `%code` dart, routed and fenced like a

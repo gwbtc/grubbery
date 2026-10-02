@@ -43,8 +43,6 @@
       config-seed=json     ::  initial {model, max_tokens}
   ==
 ::
-++  proxy  `path`/apps/'anthropic.anthropic'
-::
 ++  clanker
   |_  cfg=config
   ::  +rows: the on-load spin rows. `prompt-how` is %fall (seed once,
@@ -272,6 +270,11 @@
     |=  body=json
     =/  m  (fiber:fiber:nexus ,(unit json))
     ^-  form:m
+    ::  the proxy is found by NAME: /sys/link/anthropic names whichever
+    ::  instance claims it, so the agent's weir grants peek there
+    ;<  root=(unit lane:tarball)  bind:m  (resolve-link:io '@anthropic')
+    ?.  ?=([~ %| *] root)  (pure:m ~)
+    =/  proxy=path  p.u.root
     ;<  eny=@uvJ  bind:m  get-entropy:io
     =/  call-id=@t     (scot %uv (end [3 8] eny))
     =/  call-name=@ta  (crip "{(trip call-id)}.json")

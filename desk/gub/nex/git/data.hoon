@@ -213,7 +213,11 @@
           %+  turn  p.u.p
           |=  j=json
           ?.  ?=(%s -.j)  /
-          (stab (crip (weld "/" (trip p.j))))
+          ::  split on '/', never +stab: a file name is any text (README.md),
+          ::  not a knot, and +stab crashed the whole data nexus on it
+          %+  turn
+            (skip (split:git-transport (trip p.j) '/') |=(t=tape =(~ t)))
+          crip
         =/  add-result=[idx=(map path [hash:git-repo mtime=@t]) new-loose=(map hash:git-repo object:git-obj)]
           ?~  add-paths
             ::  add all

@@ -2030,6 +2030,17 @@
 ::  Peek a single file by ject-lobe.  Looks up the leaf ject in silo,
 ::  fetches the raw noun, validates via vale cache, returns sang.
 ::
+::  TODO: a grub under a desk read from OUTSIDE the desk comes back as a
+::  boom, "mark not in bins", while the desk's own code resolves the mark
+::  fine (seen 2026-10-02 on the wallet desk's stores: every one read as a
+::  boom from the mcp tools instance, and copied fine as a raw noun). The
+::  leaf's recorded namespace is what the lookup below trusts; when that
+::  record is stale or `/`, the fallback resolves against the wrong place.
+::  Resolve the marc from the GRUB's position (code-candidates of its own
+::  path), not from the record, and keep the record as a cache only. Until
+::  then a reader that cannot build the vase should be told so distinctly
+::  rather than handed a boom indistinguishable from bad data.
+::
 ++  peek-grub
   |=  =jobe:nexus
   ^-  (unit sang:tarball)
@@ -4348,7 +4359,15 @@
       ?:  &(?=(^ cur-pace) ?=(?(%temp %firm) -.u.cur-pace) =(~ p.u.cur-pace))
         $(force %.y)
       ~|("make failed: directory {(spud dest-path)} already exists" !!)
-    =.  this  (load-ball-changes dest-path new-bole %.n)
+    ::  reload=%.y: a recompile reloads the directories it governs, always.
+    ::  The walk below covers only the MADE subtree, and a namespace's
+    ::  governed directories need not be under it (a desk lands /desk/code
+    ::  alone; its apps live beside it). The cascade is filtered to the
+    ::  directories whose recorded namespace is the one that rebuilt, so a
+    ::  bole carrying both a /code and its apps reloads those apps twice,
+    ::  once here and once in the walk — wasted, not wrong. Only the boot
+    ::  walk, which reloads everything anyway, passes %.n.
+    =.  this  (load-ball-changes dest-path new-bole %.y)
     ::  born gained: set retention on the whole made subtree in the same
     ::  event — after content lands, before anything can run against it.
     ::  Guarded: an unguarded %.n sweep would strip gains the bole set.

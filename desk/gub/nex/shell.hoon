@@ -141,10 +141,10 @@
           ::  docs-agent: the docs chatbot as a CONTAINED, sandboxed nexus
           ::  (neck [/ %docs-agent], code at nex/docs-agent.hoon). The
           ::  SANDBOX is the weir WE set on it here (kernel-enforced): the
-          ::  whole agent — and anything it mounts — may only read /docs,
-          ::  root /code, and the raw grubbery desk source, poke the metered
+          ::  whole agent — and anything it mounts — may only read /docs
+          ::  (which holds the source mirror + registry), poke the metered
           ::  provider + bowl, and write within its own subtree.
-          [%fall %| /docs/agent [`[`[/shell %docs-agent] `agent-weir %.n ~] ~]]
+          [%fall %| /docs/agent [`[`[/shell %docs-agent] `(agent-weir ~) %.n ~] ~]]
       ==
     ::
     ++  on-file
@@ -156,6 +156,15 @@
       ?+    rail  stay:m
           [~ %'main.sig']
         ;<  ~  bind:m  (rise-wait:io prod "%shell main: failed")
+        ::  the docs agent reaches the anthropic proxy by NAME. on-load has
+        ::  no fiber to look the name up, so the agent is born with the base
+        ::  weir and sanded here with the resolved roads once per rise.
+        ;<  anth=(unit lane:tarball)  bind:m  (resolve-link:io '@anthropic')
+        ;<  ~  bind:m
+          ?.  ?=([~ %| *] anth)
+            ~&  >>>  %shell-docs-agent-no-anthropic
+            (pure:(fiber:fiber:nexus ,~) ~)
+          (sand:io (nex-road:io rail [%| /docs/agent]) `(agent-weir `p.u.anth))
         ;<  ~  bind:m  (bind-http:io [~ /apps/grubbery])
         ;<  ~  bind:m  (bind-http:io [~ /grubbery/tiles])
         (http-dispatch:io %shell)
@@ -1796,18 +1805,21 @@
 ::  documented target's source AND handbook), the registry (targets.json), and
 ::  its own chats. No /code or raw-desk grant: the mirror already contains that
 ::  source, so the sandbox stays the docs' own data.
-::    peek: /docs (mirror + registry + own subtree), proxy calls
-::    poke: bowl.sig (time + entropy), the proxy's main.sig
+::    peek: /docs (mirror + registry + own subtree), the anthropic name
+::          in /sys/link, and the proxy's calls once resolved
+::    poke: bowl.sig (time + entropy), the proxy's main.sig once resolved
 ++  agent-weir
+  |=  anth=(unit path)
   ^-  weir:tarball
   =/  dir  |=(p=path `road:tarball`[%& %| p])
   =/  fil  |=([p=path n=@ta] `road:tarball`[%& %& p n])
   :*  make=~
-      poke=(sy ~[(fil /sys 'bowl.sig') (fil /apps/'anthropic.anthropic' 'main.sig')])
       %-  sy
-      :~  (dir /apps/'shell.shell'/docs)
-          (dir /apps/'anthropic.anthropic'/calls)
-      ==
+      %+  weld  ~[(fil /sys 'bowl.sig')]
+      ?~(anth ~ ~[(fil u.anth 'main.sig')])
+      %-  sy
+      %+  weld  ~[(dir /apps/'shell.shell'/docs) (dir /sys/link/anthropic)]
+      ?~(anth ~ ~[(dir (snoc u.anth %calls))])
   ==
 ::  ask-agent: bridge one browser turn to the docs-agent nexus. Subscribe
 ::  to the conversation grub, poke the agent's main.sig with {chat-id,
@@ -1880,8 +1892,7 @@
   ==
 ++  default-repos
   ^-  (list stock-entry)
-  :~  [%github 'contacts' 'niblyx-malnus/contacts-nexus' 'main']
-      [%github 'wallet' 'niblyx-malnus/wallet-nexus' 'main']
+  :~  [%github 'hatchery' 'gwbtc/hatchery' 'main']
   ==
 ::  stock-name / stock-code: pull the name (and, for %code, the code path)
 ::  out of an entry regardless of kind.
@@ -1908,18 +1919,24 @@
   ^-  form:m
   =/  name=@t  (stock-name entry)
   =/  desk-dir=path  /apps/'shell.shell'/desks/[(cat 3 `@ta`name '.desk')]
+  ::  forge houses the repo instances; it is found by name
+  ;<  fr=(unit lane:tarball)  bind:m  (resolve-link:io '@forge')
+  ?.  ?=([~ %| *] fr)
+    ~&  >>>  %shell-pairing-no-forge
+    (pure:m ~)
+  =/  forge=path  p.u.fr
   ::  the /code path the desk will follow
   =/  code=@t
     ?-  -.entry
       %code    code.entry
-      %github  (crip "/apps/forge.git_forge/repos/{(trip name)}.git_repo/data/tree/code")
+      %github  (crip "{(spud forge)}/repos/{(trip name)}.git_repo/data/tree/code")
     ==
   ::  1. a %github entry provisions its source: ensure the git_repo (polls
   ::  github) and force a fresh pull. A %code entry follows a namespace dir
   ::  directly — no repo to make.
   ;<  ~  bind:m
     ?.  ?=(%github -.entry)  (pure:m ~)
-    =/  repo-dir=path  /apps/'forge.git_forge'/repos/[(cat 3 `@ta`name '.git_repo')]
+    =/  repo-dir=path  (weld forge /repos/[(cat 3 `@ta`name '.git_repo')])
     ;<  has-repo=?  bind:m  (peek-exists:io [%& %| repo-dir])
     ;<  ~  bind:m
       ?:  has-repo  (pure:m ~)
@@ -2383,11 +2400,10 @@
   ;<  cur=(map @t json)  bind:m  (read-notified rail)
   %+  put:io  (nex-road:io rail [%& /permit %'notified.json'])
   [[/ %json] [%o (~(put by cur) app ask)]]
-::  +notify-target: poke road to the notifications nexus's main.sig.
+::  +notify-target: the notifications nexus's main.sig, found by name
 ::
 ++  notify-target
-  ^-  road:tarball
-  [%& %& [/apps/'notifications.notifications' %'main.sig']]
+  (resolve-link-at:io '@notifications' [%& / %'main.sig'])
 ::  +register-notify: register the shell with the notifications nexus so
 ::  its notify pokes are accepted (senders must be registered). Poke-soft
 ::  so a failed registration is logged, not fatal — re-run on every rise.
@@ -2398,7 +2414,9 @@
   ^-  form:m
   =/  payload=json
     (pairs:enjs:format ~[['action' s+'register'] ['name' s+'permissions']])
-  ;<  *  bind:m  (poke-soft:io notify-target [[/ %json] payload])
+  ;<  nt=(unit road:tarball)  bind:m  notify-target
+  ?~  nt  (pure:m ~)
+  ;<  *  bind:m  (poke-soft:io u.nt [[/ %json] payload])
   (pure:m ~)
 ::  +is-settled: has this exact declared ask already been ruled on? True iff
 ::  permit/approved holds a record for the app whose `declared` roads match
@@ -2465,7 +2483,10 @@
         ['push' s+'true']
         ['metadata' meta]
     ==
-  ;<  err=(unit tang)  bind:m  (poke-soft:io notify-target [[/ %json] payload])
+  ;<  nt=(unit road:tarball)  bind:m  notify-target
+  ;<  err=(unit tang)  bind:m
+    ?~  nt  (pure:(fiber:fiber:nexus ,(unit tang)) `~[leaf+"notifications is not in /sys/link"])
+    (poke-soft:io u.nt [[/ %json] payload])
   (pure:m =(~ err))
 ::  +apply-permit-action: dispatch a validated POST permission action to the
 ::  authoritative component grubs. The caller already gated on src==our, so
@@ -2562,7 +2583,10 @@
 ++  read-local-tiles
   =/  m  (fiber:fiber:nexus ,(list tile))
   ^-  form:m
-  ;<  =view:nexus  bind:m  (peek:io [%& %| /apps/'tiles.tiles'/tiles] ~)
+  ;<  tl=(unit lane:tarball)  bind:m  (resolve-link:io '@tiles')
+  ?.  ?=([~ %| *] tl)  (pure:m ~)
+  =/  tiles-root=path  p.u.tl
+  ;<  =view:nexus  bind:m  (peek:io [%& %| (weld tiles-root /tiles)] ~)
   ?.  ?=([%ball *] view)
     (pure:m ~)
   =/  subdirs=(list [@ta ball:tarball])  ~(tap by dir.ball.view)
@@ -2571,7 +2595,7 @@
   ?~  subdirs  (pure:m (flop acc))
   =/  name=@ta  -.i.subdirs
   ;<  tv=view:nexus  bind:m
-    (peek:io [%& %& /apps/'tiles.tiles'/tiles/[name] %'tile.json'] `[/ %json])
+    (peek:io [%& %& (weld tiles-root /tiles/[name]) %'tile.json'] `[/ %json])
   ?.  ?=([%file *] tv)
     $(subdirs t.subdirs)
   =/  til=(unit tile)  (json-to-tile name sang.tv)
@@ -3123,12 +3147,12 @@
   ~?  >>>  ?=(^ err)  [%shell-sync-spawn-failed i.roots]
   $(roots t.roots, made |(made ?=(~ err)))
 ::  +build-links: materialize the discovery registry at /sys/link/. For
-::  each @name, write /sys/link/<segments>/dest.lanes — a (set lane:tarball)
-::  of target locations. Only writes on genuine content change.
+::  each @name, write /sys/link/<segments>/dest.lanes — a (list lane:tarball)
+::  of target locations, earliest claimant first. Only writes on genuine
+::  content change. Driven by the /sync followers (each app's link.json is
+::  kept by subscription), not by a poll.
 ::
 ::  INVARIANT: /sys/link MUST always be current.
-::
-::  TODO (not built yet): drive this by SUBSCRIPTION, never a poll.
 ::
 ::  +build-share: invert every local desk's share.usergroups into per-
 ::  usergroup discovery directories. /share/<group>/desks.json lists the
@@ -3203,17 +3227,26 @@
     ;<  *  bind:m  (cull-soft:io [%& %| /sys/link/[i.haves]])
     $(haves t.haves)
   =/  road=road:tarball  (link-road nm.i.entries)
-  =/  lanes=(set lane:tarball)
-    %-  silt
+  =/  want=(list lane:tarball)
     %+  murn  opts.i.entries
     |=  o=json
     =/  p=@t  (fall (jget o 'path') '')
     ?:(=('' p) ~ `[%| (stab p)])
   ;<  cur=view:nexus  bind:m  (peek:io road `[/ %lanes])
-  =/  have=(unit (set lane:tarball))
+  =/  have=(list lane:tarball)
     ?.  ?=([%file *] cur)  ~
-    (mole |.(!<((set lane:tarball) (need-vase:tarball sang.cur))))
-  ?:  =(`lanes have)  $(entries t.entries)
+    (fall (mole |.(!<((list lane:tarball) (need-vase:tarball sang.cur)))) ~)
+  ::  the list is ORDERED, earliest claimant first, and the order is
+  ::  kept across rebuilds: claimants already listed stay in place,
+  ::  claimants gone are dropped, new ones are appended. So the head is
+  ::  whoever claimed the name first, and a resolver may take it as the
+  ::  default without the shell having to remember anything else.
+  =/  want-set=(set lane:tarball)  (silt want)
+  =/  kept=(list lane:tarball)  (skim have |=(l=lane:tarball (~(has in want-set) l)))
+  =/  kept-set=(set lane:tarball)  (silt kept)
+  =/  lanes=(list lane:tarball)
+    (weld kept (skip want |=(l=lane:tarball (~(has in kept-set) l))))
+  ?:  =(lanes have)  $(entries t.entries)
   ;<  ~  bind:m  (over:io road [[/ %lanes] lanes])
   $(entries t.entries)
 ::  +build-aliases: materialize the alias directory (menus incl. hidden

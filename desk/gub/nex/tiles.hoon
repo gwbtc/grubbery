@@ -18,6 +18,9 @@
     ==
   %+  spin:loader  ball
   :~  (manifest:loader 0)
+      ::  the store is found by name (@tiles) by the shell, so a move of
+      ::  this nexus changes nothing there
+      [%over %& [/ %'link.json'] [[/ %json] (pairs:enjs:format ~[['name' s+'tiles'] ['description' s+'the home page tile store']])]]
       [%fall %| /tiles empty-dir:loader]
       [%fall %| /tiles/landscape empty-dir:loader]
       [%fall %& [/tiles/landscape %'tile.json'] [[/ %json] landscape-tile]]

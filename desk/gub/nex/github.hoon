@@ -111,6 +111,8 @@
 +$  xreq
   $%  [%discovery account=@t repo=@t]
       [%pack account=@t repo=@t body=octs]
+      [%push-discovery account=@t repo=@t]
+      [%push account=@t repo=@t body=octs]
   ==
 +$  xlife                            ::  xfer/[id] grub content
   $%  [%pending req=xreq]
@@ -243,15 +245,33 @@
             ['User-Agent' 'grubbery']
         ==
       `body.req.own
+        %push-discovery
+      :^  %'GET'
+          (rap 3 ~['https://github.com/' repo.req.own '.git/info/refs?service=git-receive-pack'])
+        (weld auth ~[['User-Agent' 'grubbery']])
+      ~
+        %push
+      :^  %'POST'
+          (rap 3 ~['https://github.com/' repo.req.own '.git/git-receive-pack'])
+        %+  weld  auth
+        :~  ['Content-Type' 'application/x-git-receive-pack-request']
+            ['User-Agent' 'grubbery']
+        ==
+      `body.req.own
     ==
   ;<  res=[code=@ud =octs]  bind:m  (fetch request)
   =/  out=xlife
     ?:  =(200 code.res)  [%done octs.res]
-    [%fail ~[leaf+"github xfer: HTTP {(a-co:co code.res)}"]]
+    ::  keep what the server said: a 4xx from a git endpoint carries the
+    ::  reason as text, and the caller's log is the only place it shows
+    =/  said=tape  (trip (end [3 (min 300 p.octs.res)] q.octs.res))
+    [%fail ~[leaf+"github xfer: HTTP {(a-co:co code.res)} {said}"]]
   =/  [xkind=@t xrepo=@t]
     ?-  -.req.own
-      %discovery  ['discovery' repo.req.own]
-      %pack       ['pack' repo.req.own]
+      %discovery       ['discovery' repo.req.own]
+      %pack            ['pack' repo.req.own]
+      %push-discovery  ['push-discovery' repo.req.own]
+      %push            ['push' repo.req.own]
     ==
   ;<  now=@da  bind:m  get-time:io
   ;<  ~  bind:m

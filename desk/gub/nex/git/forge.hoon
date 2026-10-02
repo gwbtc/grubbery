@@ -66,6 +66,7 @@
           ::  config — the one thing not scoped to a selected repo.
           [%fall %& [/ %'defaults.json'] [[/ %json] (pairs:enjs:format ~[['author_name' s+''] ['author_email' s+''] ['account' s+'']])]]
           [%over %& [/ %'tile.json'] [[/ %json] tile]]
+          [%over %& [/ %'link.json'] [[/ %json] (pairs:enjs:format ~[['name' s+'forge'] ['description' s+'git repos: the UI over repo instances']])]]
           [%over %& [/ %'icon.svg'] [[/ %mime] icon]]
           [%over %& [/ %'index.html'] [[/ %mime] forge-html]]
           [%over %& [/ %'app.js'] [[/ %mime] forge-js]]
@@ -185,8 +186,7 @@
     ==
   :-  %a
   :~  (entry 'grubbery' 'gwbtc/grubbery' 'grubbery itself — kernel + desk. The self-hosting ratchet: see RATCHET.md')
-      (entry 'wallet' 'niblyx-malnus/wallet-nexus' 'the wallet nexus')
-      (entry 'contacts' 'niblyx-malnus/contacts-nexus' 'the contacts nexus')
+      (entry 'hatchery' 'gwbtc/hatchery' 'experimental apps migrated out of the kernel, followed as a desk')
   ==
 ++  jstr
   |=  [j=json k=@t]

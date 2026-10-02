@@ -1,5 +1,7 @@
 /<  tools  /lib/tools.hoon
-::  copy-grub: copy a file within the grubbery ball
+::  copy-grub: copy a file within the grubbery ball. Copies the NOUN under
+::  its mark, not the vase: a boom (a noun its mark refused) copies too,
+::  and re-validates at the destination under the marks that govern there.
 ::
 !:
 ^-  tool:tools
@@ -37,8 +39,8 @@
   ::  write destination
   ;<  exists=?  bind:m  (peek-exists:io dst-road)
   ?:  exists
-    ;<  ~  bind:m  (over:io dst-road [p.sang.view q:(need-vase:tarball sang.view)])
+    ;<  ~  bind:m  (over:io dst-road [p.sang.view (sang-noun:tarball sang.view)])
     (pure:m [%text (crip "Copied {(trip u.src-path)}/{(trip u.src-name)} -> {(trip u.dst-path)}/{(trip dn)}")])
-  ;<  ~  bind:m  (make:io dst-road |+[[p.sang.view q:(need-vase:tarball sang.view)] ~])
+  ;<  ~  bind:m  (make:io dst-road |+[[p.sang.view (sang-noun:tarball sang.view)] ~])
   (pure:m [%text (crip "Copied {(trip u.src-path)}/{(trip u.src-name)} -> {(trip u.dst-path)}/{(trip dn)}")])
 --

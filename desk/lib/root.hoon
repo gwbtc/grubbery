@@ -78,14 +78,10 @@
         ::
         [%fall %| /apps/'tiles.tiles' [`[`[/ %tiles] ~ %.n ~] ~]]
         [%fall %| /apps/'shell.shell' [`[`[/ %shell] ~ %.n ~] ~]]
-        [%fall %| /apps/'counter.counter' [`[`[/ %counter] ~ %.n ~] ~]]
         [%fall %| /apps/'explorer.explorer' [`[`[/ %explorer] ~ %.n ~] ~]]
         [%fall %| /apps/'mcp.mcp' [`[`[/ %mcp] ~ %.n ~] ~]]
         [%fall %| /apps/'peers.peers' [`[`[/ %peers] ~ %.n ~] ~]]
-        [%fall %| /apps/'calendar.calendar' [`[`[/ %calendar] ~ %.n ~] ~]]
         [%fall %| /apps/'notifications.notifications' [`[`[/ %notifications] ~ %.n ~] ~]]
-        [%fall %| /apps/'feeds.feeds' [`[`[/ %feeds] ~ %.n ~] ~]]
-        [%fall %| /apps/'weather.weather' [`[`[/ %weather] ~ %.n ~] ~]]
         ::
         ::  forge: the UI over git repo instances, housing them at
         ::  /repos inside itself.
@@ -94,20 +90,7 @@
         ::  contacts + wallet seeds DISABLED: desks are managed by the
         ::  shell's sync-defaults pipeline now.
         ::
-        [%fall %| /apps/'test.web-test' [`[`[/ %web-test] ~ %.n ~] ~]]
-        [%fall %| /apps/'test.guestbook' [`[`[/ %guestbook] ~ %.n ~] ~]]
-        [%fall %| /apps/'pad.pad' [`[`[/ %pad] ~ %.n ~] ~]]
-        [%fall %| /apps/'routes.routes' [`[`[/ %routes] ~ %.n ~] ~]]
         [%fall %| /apps/'github.github' [`[`[/ %github] ~ %.n ~] ~]]
-        [%fall %| /apps/'anthropic.anthropic' [`[`[/ %anthropic] ~ %.n ~] ~]]
-        [%fall %| /apps/'openrouter.openrouter' [`[`[/ %openrouter] ~ %.n ~] ~]]
-        [%fall %| /apps/'geocode.geocode' [`[`[/ %geocode] ~ %.n ~] ~]]
-        [%fall %| /apps/'places.places' [`[`[/ %places] ~ %.n ~] ~]]
-        ::  ghostprompter mounts at the plain name (like /apps/itinerary):
-        ::  its agent tools address /apps/ghostprompter/... absolutely
-        [%fall %| /apps/ghostprompter [`[`[/ %ghostprompter] ~ %.n ~] ~]]
-        ::  nostr mirrored into the namespace; plain name, shared by readers
-        [%fall %| /apps/nostr [`[`[/ %nostr] ~ %.n ~] ~]]
     ==
 ::
 ++  on-file

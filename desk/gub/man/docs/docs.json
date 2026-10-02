@@ -293,6 +293,7 @@
             "/grubbery/app/grubbery.hoon 4739-4761",
             "/grubbery/app/grubbery.hoon 4763-4799",
             "/grubbery/app/grubbery.hoon 2884-2909",
+            "/grubbery/app/grubbery.hoon 5551-5583",
             "/grubbery/app/grubbery.hoon 3718-3754",
             "/grubbery/app/grubbery.hoon 4083-4105",
             "/grubbery/lib/fiberio.hoon 1038-1066",
@@ -496,7 +497,8 @@
               "scope": [
                 "/grubbery/lib/root.hoon 69-71",
                 "/grubbery/gub/nex/shell.hoon 2748-2763",
-                "/grubbery/gub/nex/shell.hoon 3187-3218"
+                "/grubbery/gub/nex/shell.hoon 3188-3228",
+                "/grubbery/lib/fiberio.hoon 2083-2171"
               ]
             }
           ]

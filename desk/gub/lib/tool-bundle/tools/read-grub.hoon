@@ -4,6 +4,12 @@
 !:
 ^-  tool:tools
 |%
+::  TODO: this tool converts under ITS OWN position (/apps/mcp.mcp/tools/
+::  runs), so a grub under a desk whose mark lives only in that desk's code
+::  reads as "no marc for %x--y" here even though it is a valid grub. Fall
+::  back to the raw noun with its blot when no conversion is reachable
+::  from here, instead of reporting a boom.
+::
 ++  name  'read_grub'
 ++  description  'Read a grub (file) from the grubbery ball. Returns JSON content directly, other marks as text.'
 ++  parameters

@@ -534,6 +534,14 @@
 ::  entries that aren't there and SKIPS the ones that are, so a bumped
 ::  bill adds its new nexuses and re-runs never collide.
 ::
+::  TODO: a desk should ship only the marks it owns. The retired wallet
+::  repo carried a mar/ full of copies of kernel marks (json, mime, hoon,
+::  eyre-action, ...); landing those in a desk's code namespace re-keys
+::  every grub under them against the desk's copy, nearest-first, and a
+::  stale copy diverges from the kernel's silently. The sync should refuse
+::  (or at least warn on) a /mar entry whose source also exists in root
+::  /code, and the hatchery carries only mar/wallet for this reason.
+::
 ++  apply-bill
   |=  =rail:tarball
   =/  m  (fiber:fiber:nexus ,~)

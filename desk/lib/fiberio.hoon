@@ -1714,14 +1714,14 @@
 ::  opaque (title/body/url are conventions). The service owns
 ::  delivery (push) and ack tracking.
 ::
-++  notify-road
-  `road:tarball`[%& %& /apps/[%'notifications.notifications'] %'main.sig']
+::  The bus is found by NAME: a caller needs peek on /sys/link/ in its
+::  weir, and the poke on @notifications/main.sig, as for any name.
 ::
 ++  register-app
   |=  name=@t
   =/  m  (fiber ,~)
   ^-  form:m
-  %+  poke  notify-road
+  %^  poke-link  '@notifications'  [%& / %'main.sig']
   :-  [/ %json]
   (pairs:enjs:format ~[['action' s+'register'] ['name' s+name]])
 ::
@@ -1729,7 +1729,7 @@
   |=  [push=? metadata=json]
   =/  m  (fiber ,~)
   ^-  form:m
-  %+  poke  notify-road
+  %^  poke-link  '@notifications'  [%& / %'main.sig']
   :-  [/ %json]
   %-  pairs:enjs:format
   :~  ['action' s+'notify']
@@ -2080,4 +2080,144 @@
   =/  m  (fiber ,(unit tang))
   ^-  form:m
   (reg-poke-soft [%how group weir])
+::  Discovery (/sys/link) helpers.
+::
+::  An app is addressed by NAME, not by where it is installed: a name
+::  resolves through /sys/link/<name>/dest.lanes, the list of app roots
+::  claiming it, earliest claimant first (the shell keeps the list). A
+::  caller that needs another app's grub asks for the name and appends
+::  the grub's place under that app, so a move from /apps/x to a desk
+::  changes nothing for its callers. Reads are peeks, so the caller's
+::  weir must grant peek on /sys/link/ (local) or on the publisher's
+::  ships prefix (remote). ~ means no claimant.
+::
+::  +link-segs: '@chat/v1' or 'chat/v1' -> /chat/v1
+::
+++  link-segs
+  |=  name=@t
+  ^-  path
+  =/  t=tape  (trip name)
+  =?  t  &(?=(^ t) =('@' i.t))  t.t
+  (stab (crip ['/' t]))
+::  +link-road: the dest.lanes grub for a name
+::
+++  link-road
+  |=  name=@t
+  ^-  road:tarball
+  [%& %& (weld /sys/link (link-segs name)) %'dest.lanes']
+::  +link-lanes: every root claiming a name, earliest first; ~ if none
+::
+++  link-lanes
+  |=  name=@t
+  =/  m  (fiber ,(list lane:tarball))
+  ^-  form:m
+  ;<  got=(unit (list lane:tarball))  bind:m
+    (peek-as (link-road name) ,(list lane:tarball))
+  (pure:m (fall got ~))
+::  +resolve-link: the default root for a name — the earliest claimant
+::
+++  resolve-link
+  |=  name=@t
+  =/  m  (fiber ,(unit lane:tarball))
+  ^-  form:m
+  ;<  lanes=(list lane:tarball)  bind:m  (link-lanes name)
+  (pure:m ?~(lanes ~ `i.lanes))
+::  +resolve-link-at: a place under the app that claims a name, as a
+::  road: (resolve-link-at '@anthropic' [%& / %'main.sig']) is the
+::  anthropic nexus's main.sig wherever that nexus lives. A file
+::  resolves only under a directory root (every claimant is one).
+::
+++  resolve-link-at
+  |=  [name=@t at=lane:tarball]
+  =/  m  (fiber ,(unit road:tarball))
+  ^-  form:m
+  ;<  root=(unit lane:tarball)  bind:m  (resolve-link name)
+  ?~  root  (pure:m ~)
+  ?.  ?=(%| -.u.root)  (pure:m ~)
+  %-  pure:m
+  :-  ~
+  ?-  -.at
+    %&  [%& %& (weld p.u.root path.p.at) name.p.at]
+    %|  [%& %| (weld p.u.root p.at)]
+  ==
+::  +link-lanes-on: a name's claimants on ANOTHER ship, each prefixed
+::  with that ship's place in our tree, so the result is addressable
+::  here as it stands. The publisher grants the read through usergroups.
+::
+++  link-lanes-on
+  |=  [=ship name=@t]
+  =/  m  (fiber ,(list lane:tarball))
+  ^-  form:m
+  ;<  =view:nexus  bind:m  (peek-remote (link-road name) ship ~)
+  ?.  ?=([%file *] view)  (pure:m ~)
+  =/  got=(unit (list lane:tarball))
+    (mole |.(!<((list lane:tarball) (need-vase:tarball sang.view))))
+  ?~  got  (pure:m ~)
+  =/  prefix=path  /sys/ames/ships/[(scot %p ship)]/root
+  %-  pure:m
+  %+  turn  u.got
+  |=  l=lane:tarball
+  ?-  -.l
+    %&  [%& (weld prefix path.p.l) name.p.l]
+    %|  [%| (weld prefix p.l)]
+  ==
+::  +resolve-link-on: the default root for a name on another ship
+::
+++  resolve-link-on
+  |=  [=ship name=@t]
+  =/  m  (fiber ,(unit lane:tarball))
+  ^-  form:m
+  ;<  lanes=(list lane:tarball)  bind:m  (link-lanes-on ship name)
+  (pure:m ?~(lanes ~ `i.lanes))
+::  +no-link: the failure a name with no claimant raises. A caller
+::  handles it as it handles a veto: the place it named is not there.
+::
+++  no-link
+  |=  name=@t
+  ^-  tang
+  ~[leaf+"link: no claimant for {(trip name)}"]
+::  The verbs by name. Each resolves the name, then acts at the place
+::  under the claimant's root, and fails the fiber with +no-link when
+::  nothing claims the name. Nothing here asks the kernel for anything
+::  special: the caller's weir must grant peek on /sys/link/<name>/
+::  and the act itself on the resolved road, and the shell resolves
+::  the same @name in the caller's weir.json ask at approval, so the
+::  two agree as long as the registry does.
+::
+++  poke-link
+  |=  [name=@t at=lane:tarball =bask:tarball]
+  =/  m  (fiber ,~)
+  ^-  form:m
+  ;<  road=(unit road:tarball)  bind:m  (resolve-link-at name at)
+  ?~  road  |=(input [~ q.state %fail (no-link name)])
+  (poke u.road bask)
+::
+++  peek-link
+  |=  [name=@t at=lane:tarball blot=(unit blot:tarball)]
+  =/  m  (fiber ,view:nexus)
+  ^-  form:m
+  ;<  road=(unit road:tarball)  bind:m  (resolve-link-at name at)
+  ?~  road  |=(input [~ q.state %fail (no-link name)])
+  (peek u.road blot)
+::
+++  make-link
+  |=  [name=@t at=lane:tarball mak=make:nexus]
+  =/  m  (fiber ,~)
+  ^-  form:m
+  ;<  road=(unit road:tarball)  bind:m  (resolve-link-at name at)
+  ?~  road  |=(input [~ q.state %fail (no-link name)])
+  (make u.road mak)
+::  +keep-link: keep a place by name. Also keeps the name's registry
+::  grub, on /link/<wire>, so the caller is told when the claimant
+::  changes: on news there, drop `wire` and call +keep-link again,
+::  which keeps the new place. Returns the target's initial wave.
+::
+++  keep-link
+  |=  [=wire name=@t at=lane:tarball blot=(unit blot:tarball)]
+  =/  m  (fiber ,wave:nexus)
+  ^-  form:m
+  ;<  road=(unit road:tarball)  bind:m  (resolve-link-at name at)
+  ?~  road  |=(input [~ q.state %fail (no-link name)])
+  ;<  *  bind:m  (keep (weld /link wire) (link-road name) ~)
+  (keep wire u.road blot)
 --

@@ -38,7 +38,9 @@
   =/  remote=@t  (get-str 'remote' '')
   =/  ref=@t  (get-str 'ref' 'main')
   =/  dir-name=@ta  (cat 3 repo-name '.git_repo')
-  =/  forge-base=path  /apps/'forge.git_forge'
+  ;<  fb=(unit lane:tarball)  bind:m  (resolve-link:io '@forge')
+  ?.  ?=([~ %| *] fb)  (pure:m [%error 'forge is not in /sys/link'])
+  =/  forge-base=path  p.u.fb
   =/  repo-path=path  (weld forge-base /repos/[dir-name])
   ;<  =view:nexus  bind:m  (peek:io [%& %| repo-path] ~)
   ?:  ?=([%ball *] view)

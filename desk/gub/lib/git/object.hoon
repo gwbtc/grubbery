@@ -241,7 +241,9 @@
   =/  tes=(list tree-entry)  ~
   |-
   ?:  (is-empty:bytestream sea)
-    tree+[size.rob tes]
+    ::  entries were consed on as read, so flop to the stored order:
+    ::  git's sorted order, which the hash depends on when re-serialized
+    tree+[size.rob (flop tes)]
   =/  pin  (find-byte:bytestream 0x0 sea)
   ?~  pin  !!
   =^  tex=(unit octs)  sea

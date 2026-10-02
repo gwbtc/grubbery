@@ -1,7 +1,11 @@
-|_  lanes=(set lane:tarball)
+::  lanes: the app roots that claim a /sys/link name, earliest claimant
+::  first. The shell keeps the order across rebuilds (see +build-links);
+::  a resolver takes the head unless the user has chosen otherwise.
+::
+|_  lanes=(list lane:tarball)
 ++  grab
   |%
-  ++  noun  ,(set lane:tarball)
+  ++  noun  ,(list lane:tarball)
   --
 ++  grow
   |%
@@ -9,7 +13,7 @@
   ++  json
     ^-  ^json
     :-  %a
-    %+  turn  ~(tap in lanes)
+    %+  turn  lanes
     |=  =lane:tarball
     s+(crip ?-(-.lane %& (spud (snoc path.p.lane name.p.lane)), %| (spud p.lane)))
   ++  mime

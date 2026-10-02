@@ -1,7 +1,8 @@
 ::  docs-agent: the grubbery docs chatbot as a CONTAINED, sandboxed nexus.
 ::  Its weir.json IS the sandbox — the WHOLE agent (turn handler and tools)
-::  runs bounded by it: it may only READ /docs, the root /code nexus, and
-::  the raw grubbery desk source, and POKE the metered provider proxy.
+::  runs bounded by it: it may only READ /docs (which holds the mirror of
+::  every documented target's source AND handbook), and POKE the metered
+::  provider proxy.
 ::  Conversation history lives in chats/ as grubs — durable and inspectable.
 ::  Built on lib/clanker — the shared chatbot toolkit.
 /<  clanker  /lib/clanker.hoon
