@@ -4314,6 +4314,11 @@
     ::  (consumed takes removed), rebuild process, enqueue.
     =.  this  (save-file here [p.u.file-data q.new-state])
     ?:  (is-nexus-banged here)  this
+    ::  A consumed take never comes back. The eval popped the failing take
+    ::  from new-proc; store that copy before any bang below, since
+    ::  +mark-bang carries the pool's queues and the pool still holds the
+    ::  pre-step snapshot with the take in it.
+    =.  this  (store-proc here new-proc)
     =/  spool-got  (build-spool here)
     =/  spool-res=(each spool:fiber:nexus tang)
       ?:  ?=(%| -.spool-got)  spool-got
