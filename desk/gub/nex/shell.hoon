@@ -2051,8 +2051,7 @@
 ++  ensure-polls
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
-  ;<  our=@p  bind:m  get-our:io
-  =/  todo=(list stock-entry)  (default-repos our)
+  =/  todo=(list stock-entry)  default-repos
   |-  ^-  form:m
   ?~  todo  (pure:m ~)
   ?.  ?=(%github -.i.todo)  $(todo t.todo)
