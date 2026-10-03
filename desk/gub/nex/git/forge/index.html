@@ -29,19 +29,16 @@
     <split-view id="body" slot="start" orientation="horizontal" primary="start" size="240" min="160" max="480" persist="forge-sidebar">
       <div id="sidebar" slot="start">
         <div class="sb-head" id="sb-head"></div>
-        <div id="sb-list"></div>
-        <div id="ft-new" style="display:none">
-          <input id="ft-new-name" type="text" placeholder="path/to/new-file.md">
-          <button class="hdr-btn" id="ft-create">new</button>
-        </div>
+        <tree-view id="sb-list"></tree-view>
       </div>
       <div id="workspace" slot="end">
-        <div id="ed-bar" style="display:none">
-          <div id="ed-tabs"></div>
-        </div>
         <div id="ed-wrap" style="display:none">
-          <div id="ws-empty">open a file from the tree</div>
-          <div id="ed-fv" style="display:none"></div>
+          <tab-group id="ed-tabs" closable style="display:none">
+            <!-- tab 0, fixed (no ×): the directory view — the repo root until
+                 a sidebar directory is clicked, then that one. app.js
+                 retargets its label/title. Never above the repo. -->
+            <div id="ed-dir" tab-label="/" tab-title="/" tab-fixed tab-icon="folder"><file-table id="ed-dir-ft"></file-table></div>
+          </tab-group>
         </div>
         <div id="landing" style="display:none">
           <div id="landing-head">
@@ -120,13 +117,25 @@
       <button id="d-save" class="hdr-btn primary">save</button>
     </div>
   </modal-dialog>
+  <!-- sidebar file row context menu — right-click, same interaction model
+       as explorer's own row actions, scoped to what the server supports -->
+  <drop-menu id="sb-ctx" style="position:fixed; display:none; z-index:50;">
+    <button slot="trigger" style="display:none"></button>
+    <!-- items are built per right-click by app.js (rowActions) -->
+  </drop-menu>
   <div id="json-back">
     <div id="json-modal">
       <div id="json-head"><span id="json-title"></span><button class="hdr-btn" id="json-close">close</button></div>
       <pre id="json-pre"></pre>
     </div>
   </div>
-  <script type="module" src="/grubbery/forge/components.js"></script>
+  <!-- classic, not module: the bundle is plain concatenated component
+       source (see forge.hoon's "weld" comment), no import/export. A module
+       script defers until after all classic scripts below it have already
+       run — app.js's synchronous boot (applyUrl→openFile) can call
+       tab-group's methods before the element upgrades. Loading it as a
+       normal classic script keeps it in document order, before app.js. -->
+  <script src="/grubbery/forge/components.js"></script>
   <script src="/grubbery/forge/marked.min.js"></script>
   <script src="/grubbery/forge/file-preview.js"></script>
   <script src="/grubbery/forge/file-view.js"></script>

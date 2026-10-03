@@ -14,6 +14,8 @@
 /&  ft-js    /lib/ui/file-table.js
 /&  fg-js    /lib/ui/file-grid.js
 /&  sv-js    /lib/ui/split-view.js
+/&  tg-js    /lib/ui/tab-group.js
+/&  tv-js    /lib/ui/tree-view.js
 /&  browse-html  explorer/ui/browse.html
 /&  browse-js    explorer/ui/browse.js
 /&  view-html    explorer/ui/view.html
@@ -56,6 +58,29 @@
             (cm-wrap cm-m-html)
             (cm-wrap cm-m-hoon)
         ==
+      ::  kit bundle: the shared ui components + file viewer welded into ONE
+      ::  file, so the browse page makes a single request for all of them —
+      ::  on a pier that serializes requests, ten separate scripts cost ten
+      ::  round trips. Each wrapped in { } so top-level consts don't collide;
+      ::  define/window assignments run globally. The per-file grubs below
+      ::  stay: view.html and FileView's own on-demand loads still use them.
+      ::  123={  125=}  10=newline.
+      =/  wrap  |=(=mime ^-(@ (rap 3 ~[123 10 q.q.mime 10 125 10])))
+      =/  kit-js=mime
+        :-  /application/javascript
+        %-  as-octs:mimes:html
+        %+  rap  3
+        :~  (wrap md-js)
+            (wrap dm2-js)
+            (wrap ft-js)
+            (wrap fg-js)
+            (wrap sv-js)
+            (wrap tg-js)
+            (wrap tv-js)
+            (wrap marked-js)
+            (wrap fp-js)
+            (wrap fv-js)
+        ==
       %+  spin:loader  ball
       :~  (manifest:loader 0)
           [%over %& [/ %'link.json'] [[/ %json] (pairs:enjs:format ~[['name' s+'explorer'] ['description' s+'Browse the namespace tree']])]]
@@ -74,6 +99,9 @@
           [%over %& [/ %'file-table.js'] [[/ %mime] ft-js]]
           [%over %& [/ %'file-grid.js'] [[/ %mime] fg-js]]
           [%over %& [/ %'split-view.js'] [[/ %mime] sv-js]]
+          [%over %& [/ %'tab-group.js'] [[/ %mime] tg-js]]
+          [%over %& [/ %'tree-view.js'] [[/ %mime] tv-js]]
+          [%over %& [/ %'kit.js'] [[/ %mime] kit-js]]
           [%over %& [/ %'browse.html'] [[/ %mime] browse-html]]
           [%over %& [/ %'browse.js'] [[/ %mime] browse-js]]
           [%over %& [/ %'view.html'] [[/ %mime] view-html]]
@@ -238,6 +266,39 @@
     ?~  seg  $(chars t.chars)
     $(chars t.chars, seg ~, out [(crip seg) out])
   $(chars t.chars, seg (snoc seg i.chars))
+::  +safe-seg-char: the character set New Folder/New Nexus names may use.
+::  Deliberately conservative — real dir/nexus/mark names in this codebase
+::  are all within this set, and a 400 here is far better than passing an
+::  unvalidated byte (a literal '/' especially) into Clay's path machinery.
+::
+++  safe-seg-char
+  |=  c=@
+  ^-  ?
+  ?|  &((gte c 'a') (lte c 'z'))
+      &((gte c '0') (lte c '9'))
+      =(c '-')  =(c '.')  =(c '~')  =(c '_')
+  ==
+::  +resolve-rel-path: resolve a typed name like "sub/dir" or "../sibling"
+::  against `base`, the directory it was typed into — same semantics as a
+::  normal relative filesystem path: "." is a no-op, ".." pops one segment
+::  off the accumulator (wherever it appears, not just leading), each real
+::  segment is validated char-by-char before being appended. Never crashes
+::  on bad input — returns [%| reason] instead.
+::
+++  resolve-rel-path
+  |=  [base=path rel=@t]
+  ^-  (each path @t)
+  =/  segs=(list @t)  (split-fas rel)
+  =/  acc=path  base
+  |-  ^-  (each path @t)
+  ?~  segs  [%& acc]
+  ?:  =('.' i.segs)  $(segs t.segs)
+  ?:  =('..' i.segs)
+    ?~  acc  [%| 'cannot go above root']
+    $(segs t.segs, acc (snip `path`acc))
+  ?.  (levy (trip i.segs) safe-seg-char)
+    [%| 'invalid characters in path segment (use a-z 0-9 . - _ ~)']
+  $(segs t.segs, acc (snoc acc i.segs))
 ::  +parse-road-input: parse "../../foo/bar" into a proper road
 ::  Counts leading "../" as relative steps, remainder as the lane.
 ::
@@ -268,6 +329,16 @@
   ?:  is-dir
     ?:  ?&(?=(^ download-param) =(u.download-param 'tar'))
       (serve-tarball eyre-id tree-path ball)
+    ::  ?tree=1: the WHOLE subtree under this dir as one nested JSON
+    ::  document, names only — one deep peek, one response. The sidebar
+    ::  tree is built from this, never from per-directory round trips.
+    ?:  ?=(^ (get-key:kv:html-utils 'tree' args))
+      ;<  deep=view:nexus  bind:m  (peek:io [%& %| tree-path] ~)
+      ?.  ?=([%ball *] deep)
+        ;<  ~  bind:m  (send-simple:srv eyre-id [[404 ~] `(as-octs:mimes:html 'Not found')])
+        (pure:m ~)
+      ;<  ~  bind:m  (send-json eyre-id 200 (tree-json ball.deep))
+      (pure:m ~)
     ::  browsers get the static browse app immediately — it fetches
     ::  ?list=1 itself. Everything below (time, conversions, font) is
     ::  only needed to BUILD the listing.
@@ -534,8 +605,17 @@
   ::
       %'create-folder'
     =/  foldername=@t  (fall (get-key:kv:html-utils 'foldername' args) '')
-    =/  dir-name=@ta  foldername
-    =/  folder-path=path  (snoc tree-path dir-name)
+    ?:  =('' foldername)
+      ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'Missing foldername')])
+      (pure:m ~)
+    =/  resolved=(each path @t)  (resolve-rel-path tree-path foldername)
+    ?:  ?=(%| -.resolved)
+      ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html p.resolved)])
+      (pure:m ~)
+    =/  folder-path=path  p.resolved
+    ?:  =(folder-path tree-path)
+      ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'Nothing to create')])
+      (pure:m ~)
     =/  new-ball=ball:tarball  [`[~ ~ %.n ~ ~] ~]
     ;<  ~  bind:m  (make:io [%& %| folder-path] &+(ball-to-bole:tarball new-ball))
     ;<  ~  bind:m  (send-simple:srv eyre-id [[303 ~[['location' (crip redirect-url)]]] ~])
@@ -543,14 +623,23 @@
   ::
       %'create-nexus'
     =/  foldername=@t  (fall (get-key:kv:html-utils 'foldername' args) '')
-    =/  dir-name=@ta  foldername
+    ?:  =('' foldername)
+      ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'Missing foldername')])
+      (pure:m ~)
     =/  neck-str=@t  (fall (get-key:kv:html-utils 'neck' args) '')
     =/  dir-neck=(unit neck:tarball)
       ?:  =('' neck-str)  ~
       =/  pax=path  (stab neck-str)
       ?~  pax  ~
       `[(snip `(list @ta)`pax) (rear pax)]
-    =/  folder-path=path  (snoc tree-path dir-name)
+    =/  resolved=(each path @t)  (resolve-rel-path tree-path foldername)
+    ?:  ?=(%| -.resolved)
+      ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html p.resolved)])
+      (pure:m ~)
+    =/  folder-path=path  p.resolved
+    ?:  =(folder-path tree-path)
+      ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'Nothing to create')])
+      (pure:m ~)
     =/  new-ball=ball:tarball  [`[dir-neck ~ %.n ~ ~] ~]
     ;<  ~  bind:m  (make:io [%& %| folder-path] &+(ball-to-bole:tarball new-ball))
     ;<  ~  bind:m  (send-simple:srv eyre-id [[303 ~[['location' (crip redirect-url)]]] ~])
@@ -866,6 +955,20 @@
     "{(trip (spat path.p.lane))}/{(trip name.p.lane)}"
       %|
     ?~(p.lane "/" "{(trip (spat p.lane))}/")
+  ==
+::
+::  +tree-json: a whole subtree as nested JSON, names only —
+::  {"dirs": {name: <subtree>}, "files": [name]}. Pure: walks the ball a
+::  deep peek already returned, no further peeks. Nothing about a file but
+::  its name (no blot/mime/size) — that's the listing's job, per directory.
+::
+++  tree-json
+  |=  b=ball:tarball
+  ^-  json
+  =/  files=(list @ta)  ?~(fil.b ~ ~(tap in ~(key by contents.u.fil.b)))
+  %-  pairs:enjs:format
+  :~  ['dirs' o+`(map @t json)`(~(run by dir.b) tree-json)]
+      ['files' a+(turn files |=(n=@ta s+n))]
   ==
 ::
 ::  +listing-json: the dir listing as data — everything the browse app shows,

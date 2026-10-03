@@ -46,24 +46,35 @@ split-view:not(:defined) { visibility: hidden; }
 .repo-item:hover { background: #f5f5f5; }
 .repo-item.sel { background: #f4f2f8; font-weight: 600; }
 .ri-sub { font-size: 11px; color: #999; font-family: monospace; }
-.ft-file { padding: 4px 12px; cursor: pointer; font-family: monospace; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.ft-file:hover { background: #f5f5f5; }
-.ft-file.sel { background: #f4f2f8; color: #3d3a45; font-weight: 700; }
-#ft-new { display: flex; gap: 4px; padding: 8px 12px; margin-top: auto; border-top: 1px solid #eee; }
-#ft-new input { flex: 1; min-width: 0; font-size: 11px; font-family: monospace; padding: 4px 6px; border: 1px solid #ddd; border-radius: 6px; outline: none; }
-#ft-new .hdr-btn { font-size: 11px; padding: 4px 8px; }
+/* sidebar tree — <tree-view> (lib/ui/tree-view.js), no overrides: this is
+   the component's own look, unchanged, same as explorer's sidebar — same
+   component, same interaction model (right-click for actions; see the
+   document-level contextmenu wiring below), scoped to this repo only
+   (no onOpenDir — a directory has nowhere to navigate to outside the repo). */
+#sb-list { display: block; }
+#sb-list:not(:defined) { display: none; }
 
 /* ── workspace: tabs + editor ── */
 #workspace { height: 100%; min-width: 0; display: flex; flex-direction: column; }
-#ed-tabs { display: flex; border-bottom: 1px solid #ddd; overflow-x: auto; flex-shrink: 0; }
-.ed-tab { display: flex; align-items: center; gap: 6px; padding: 8px 12px; font-size: 12px; font-family: monospace; color: #888; cursor: pointer; border-right: 1px solid #eee; white-space: nowrap; }
-.ed-tab.active { color: #111; font-weight: 600; box-shadow: inset 0 -2px 0 #3d3a45; }
-.ed-tab .dot { color: #b8763e; font-weight: 700; }
-.ed-tab .x { color: #bbb; padding: 0 2px; border-radius: 4px; }
-.ed-tab .x:hover { color: #c0392b; background: #fbe9e9; }
-#ed-save-state { font-size: 11px; color: #b8763e; }
-#ed-wrap { flex: 1; min-height: 0; position: relative; background: #24292e; }
-#ws-empty { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #667; font-size: 13px; background: #fafafa; }
+/* ed-tabs is the shared <tab-group> — same component as explorer's cols
+   view, themed to the editor's existing light strip look instead of its
+   GitHub-light defaults. Each open file is a slotted panel (height:100%
+   from tab-group's own ::slotted rule) hosting a cached <FileView>. */
+#ed-tabs {
+  position: absolute; inset: 0;
+  background: #fff;
+  font-family: monospace;
+  --tg-border: #ddd; --tg-font-size: 12px;
+  --tg-tab-color: #888; --tg-tab-hover: #111; --tg-tab-active: #111;
+  --tg-accent: #3d3a45;
+}
+/* was #24292e (a pre-FileView dark editor bg) — FileView's own chrome is
+   house-light, and the old dark color was now showing through behind the
+   tab strip, which lives inside ed-wrap now instead of a separate sibling */
+#ed-wrap { flex: 1; min-height: 0; position: relative; background: #fff; }
+/* tab 0's directory view: the kit <file-table>, scrolling inside its panel */
+#ed-dir { height: 100%; overflow: auto; }
+#ed-dir-ft { --ft-header-top: 0; }
 #ed-body { position: absolute; inset: 0; }
 #ed-hl, #ed-ta { position: absolute; inset: 0; padding: 12px 14px; font-family: 'SF Mono', Menlo, monospace; font-size: 12.5px; line-height: 1.5; white-space: pre; overflow: auto; tab-size: 2; }
 #ed-hl { pointer-events: none; color: #e1e4e8; }
@@ -77,8 +88,7 @@ split-view:not(:defined) { visibility: hidden; }
 .ed-vtab:first-child { border-radius: 6px 0 0 6px; }
 .ed-vtab:last-child { border-radius: 0 6px 6px 0; border-left: none; }
 .ed-vtab.active { background: #3d3a45; color: #fff; border-color: #3d3a45; }
-/* the shared FileView fills the workspace; its own chrome/styles live in file-view.js */
-#ed-fv { position: absolute; inset: 0; }
+/* the shared FileView fills each tab's own panel; its chrome/styles live in file-view.js */
 
 /* ── console panel ── */
 /* #console is now the bottom pane of the #main vertical split (sized/resized
@@ -175,13 +185,6 @@ modal-dialog:not(:defined) { display: none; }   /* no flash before upgrade */
 #view-tools { flex: 1; min-height: 0; overflow-y: auto; padding: 14px; }
 #ws-none { flex: 1; display: flex; align-items: center; justify-content: center; color: #999; font-size: 13px; }
 .run-head { font-size: 11px; font-weight: 700; color: #888; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px; }
-.ft-dir { padding: 4px 12px 2px; font-family: monospace; font-size: 12px; color: #999; font-weight: 700; cursor: pointer; user-select: none; }
-.ft-dir:hover { color: #666; }
-.ft-kids { padding-left: 10px; }
-.ft-dir-det > summary { list-style-position: inside; }
-.ft-x { display: none; float: right; color: #bbb; padding: 0 3px; border-radius: 4px; }
-.ft-file:hover .ft-x { display: inline; }
-.ft-x:hover { color: #c0392b; background: #fbe9e9; }
 
 /* ── landing + repo switcher ── */
 #landing { flex: 1; overflow-y: auto; padding: 20px; }
@@ -199,15 +202,13 @@ modal-dialog:not(:defined) { display: none; }   /* no flash before upgrade */
 .rm-item { padding: 7px 10px; font-size: 13px; cursor: pointer; border-radius: 6px; }
 .rm-item:hover { background: #f5f5f5; }
 .rm-item.sel { background: #f4f2f8; font-weight: 600; }
+.rm-item.danger:hover { color: #c0392b; background: #fbe9e9; }
 #json-back { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.25); z-index: 100; align-items: center; justify-content: center; }
 #json-back.open { display: flex; }
 #json-modal { background: white; border: 1px solid #bbb; border-radius: 14px; width: min(520px, calc(100vw - 32px)); max-height: 70vh; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 16px 48px rgba(0,0,0,0.28); }
 #json-head { display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; border-bottom: 1px solid #ddd; }
 #json-title { font-size: 13px; font-weight: 600; font-family: monospace; }
 #json-pre { overflow: auto; padding: 12px 14px; font-size: 12px; font-family: 'SF Mono', Menlo, monospace; margin: 0; }
-#ed-bar { display: flex; align-items: center; border-bottom: 1px solid #ddd; flex-shrink: 0; }
-#ed-bar #ed-tabs { border-bottom: none; flex: 1; }
-#ed-bar #ed-save { margin-right: 8px; font-size: 11px; padding: 4px 10px; }
 #ed-save:disabled { opacity: 0.45; cursor: default; }
 .tab-root { font-size: 9px; font-weight: 700; color: #6947b8; background: #ede7fa; border-radius: 4px; padding: 1px 4px; }
 #sb-tree { margin-bottom: 4px; }

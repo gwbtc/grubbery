@@ -10,6 +10,13 @@
 //   var fv = FileView.mount(document.getElementById('fv'), {
 //     url: '/grubbery/ball/apps/foo/data/tree/readme.md',  // the file's own URL
 //     wrapKey: 'explorer-wrap',   // localStorage key for the wrap toggle
+//     crumbBase: '/grubbery/ball/apps/some/internal/storage/root',
+//       // optional — the breadcrumb normally shows `url` relative to the
+//       // namespace root (/grubbery/ball). A host whose file lives several
+//       // levels inside its own internal storage layout (a repo's working
+//       // tree, say) can pass that storage root here so the crumb shows the
+//       // host-relative path instead of the internal plumbing in between.
+//       // "/" still links to crumbBase itself, same as any other crumb link.
 //   });
 //   fv.setUrl(url)   // re-point at a different file (re-fetches, re-renders)
 //
@@ -180,6 +187,24 @@
     var here = opts.url;
     var name = decodeURIComponent((here.split('/').filter(Boolean).pop()) || '');
     var ext = (name.match(/\.([a-z0-9]+)$/i) || [, ''])[1].toLowerCase();
+    // mime-first kind detection — a mime type the server actually resolved
+    // (via its marc) is more trustworthy than a filename's extension, which
+    // a grub needn't even have (e.g. a mark path's own grub, "run.git-action"
+    // style names with no .ext at all). Falls back to extension-based
+    // FilePreview.kind() when the mime doesn't say anything specific.
+    function mimeKind() {
+      if (/json/i.test(mite)) return 'json';
+      if (/svg/i.test(mite)) return 'svg';
+      if (/(^|\/)html/i.test(mite)) return 'html';
+      if (/^text\/(x-)?markdown/i.test(mite)) return 'md';
+      if (/csv/i.test(mite)) return 'csv';
+      if (/^image\//i.test(mite)) return 'image';
+      if (/pdf/i.test(mite)) return 'pdf';
+      return null;
+    }
+    function effectiveKind() {
+      return mimeKind() || (window.FilePreview && FilePreview.kind(name)) || null;
+    }
 
     var ed = $('ed'), edwrap = $('edwrap'), display = $('src-display'), src = $('src');
     var textView = $('text-view'), mimeView = $('mime-view'), buildView = $('build-view');
@@ -209,9 +234,11 @@
     $('fname').textContent = name;
     (function crumbs() {
       var wrap = $('crumbs');
-      var parts = here.replace('/grubbery/ball', '').split('/').filter(Boolean);
+      var base = opts.crumbBase || '/grubbery/ball';
+      var rel = here.indexOf(base) === 0 ? here.slice(base.length) : here.replace('/grubbery/ball', '');
+      var parts = rel.split('/').filter(Boolean);
       var mk = function (t, href) { var a = document.createElement('a'); a.href = href; a.textContent = t; return a; };
-      var acc = '/grubbery/ball';
+      var acc = base;
       wrap.appendChild(mk('/', acc));
       parts.slice(0, -1).forEach(function (s) { acc += '/' + s; wrap.appendChild(mk(s + '/', acc)); });
     })();
@@ -271,7 +298,7 @@
 
     function readRaw() { return fetch(here + '?raw=1').then(function (r) { return r.text(); }); }
     function present(text) {
-      if (ext === 'json') { try { return JSON.stringify(JSON.parse(text), null, 2); } catch (_) {} }
+      if (effectiveKind() === 'json') { try { return JSON.stringify(JSON.parse(text), null, 2); } catch (_) {} }
       return text;
     }
 
@@ -287,8 +314,7 @@
       if (which === 'build' && !buildRendered) { renderBuild(); buildRendered = true; }
     }
     function setupPanes() {
-      var previewable = ['md', 'markdown', 'csv'].indexOf(ext) >= 0 ||
-        !!(window.FilePreview && FilePreview.kind(name)) || !texty;
+      var previewable = !!effectiveKind() || !texty;
       tabText.addEventListener('click', function () { show('text'); });
       tabMime.addEventListener('click', function () { show('mime'); });
       tabBuild.addEventListener('click', function () { show('build'); });
@@ -405,11 +431,12 @@
       var rawUrl = here + '?raw=1';
       var text = editable ? ed.value : (src.textContent || '');
       mimeView.textContent = '';
-      if ((ext === 'md' || ext === 'markdown') && !window.marked) {
+      var k = effectiveKind();
+      if (k === 'md' && !window.marked) {
         try { await loadScript('/grubbery/ball/apps/explorer.explorer/marked.min.js'); } catch (_) {}
       }
-      if (window.FilePreview && FilePreview.kind(name)) {
-        FilePreview.render(mimeView, { name: name, text: text, rawUrl: rawUrl });
+      if (window.FilePreview && k) {
+        FilePreview.render(mimeView, { name: name, text: text, rawUrl: rawUrl, kind: k });
         return;
       }
       var p = document.createElement('pre'); p.className = 'dim';

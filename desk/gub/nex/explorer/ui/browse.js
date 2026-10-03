@@ -11,6 +11,7 @@ let dirPath = here.slice(PREFIX.length) || '/';
 function nav(p, push) {
   here = p;
   dirPath = p.slice(PREFIX.length) || '/';
+  dirViewPath = p; // the directory tab follows the breadcrumbs
   if (push !== false) history.pushState(null, '', p);
   document.title = dirPath;
   renderCrumbs();
@@ -106,6 +107,10 @@ ft.columns = [
 ft.actions = (item) => {
   if (item.kind === 'dir') {
     return [
+      { label: 'New folder…', action: 'new-folder' },
+      { label: 'New nexus…', action: 'new-nexus' },
+      { label: 'New file…', action: 'new-file' },
+      { label: 'New symlink…', action: 'new-symlink' },
       { label: 'Download', action: 'download' },
       { label: 'Rename', action: 'rename' },
       { label: 'Move', action: 'move' },
@@ -128,39 +133,223 @@ const fg = $('fg');
 fg.baseHref = here;
 fg.actions = ft.actions;
 
-// ---- finder (cols) view: the listing on the left, a read-only quick-look
-// on the right (the shared FilePreview + marked, same renderers as the file
-// page). Dirs navigate; files preview in place. ----
+// ---- finder (cols) view: the whole subtree rooted at the current
+// directory, via the shared <tree-view> (lib/ui/tree-view.js) — the whole
+// subtree's names prefetch in the background right after render (the
+// component's own job, see tree-view.js), a dir's name navigates the page
+// (same data-nav handling as the breadcrumbs), a file opens/focuses a tab.
+// A tabbed FileView preview sits on the right. The component's own defaults
+// are already explorer's look, so no --tv-* overrides are needed here.
 const finder = $('finder');
-const finderPrev = $('finder-preview');
-const finderFt = $('finder-ft');
-finderFt.columns = [{
-  key: 'name', label: 'Name',
-  format: (v, item) => item.kind === 'dir' ? v + '/' : v,
-  link: (item) => here.replace(/\/$/, '') + '/' + item.name,
-}];
-finderFt.actions = ft.actions;
-finderFt.addEventListener('ft-navigate', (e) => {
-  const { item, href } = e.detail;
-  if (!item) { nav(href); return; }
-  if (item.kind === 'dir') { nav(href); return; }
-  previewFile(item);
-});
-finderFt.addEventListener('ft-action', handleAction);
+const finderTree = $('finder-tree'); // a <tree-view> element
+const finderTreeToggle = $('finder-tree-toggle');
 
-// the preview pane is the shared <FileView> — full Source|Preview|Edit|Save,
-// mounted over the selected file's own URL. Same component as the file page.
-let finderFv = null;
-function clearFv() { if (finderFv) { finderFv.destroy(); finderFv = null; } }
-function resetPreview() {
-  clearFv();
-  finderPrev.classList.remove('fv');
-  finderPrev.innerHTML = '<div class="finder-empty">Select a file to preview</div>';
+// the whole subtree under `here` comes down as ONE nested document from
+// ?tree=1 ({dirs: {name: subtree}, files: [name]}, names only — see
+// explorer.hoon's +tree-json); getChildren answers from it synchronously.
+let treeDoc = null;
+function treeNodeAt(path) {
+  const rel = path.slice(here.length).split('/').filter(Boolean);
+  let node = treeDoc;
+  for (const seg of rel) {
+    node = node && node.dirs && node.dirs[seg];
+    if (!node) return null;
+  }
+  return node;
 }
-function previewFile(item) {
-  clearFv();
-  const url = here.replace(/\/$/, '') + '/' + item.name;
-  finderFv = window.FileView.mount(finderPrev, { url, wrapKey: 'explorer-wrap' });
+function getChildren(path) {
+  const node = treeNodeAt(path);
+  if (!node) return [];
+  return Object.keys(node.dirs).map((n) => ({ name: n, isDir: true, kind: 'dir' }))
+    .concat(node.files.map((n) => ({ name: n, isDir: false, kind: 'file' })));
+}
+finderTree.getChildren = getChildren;
+finderTree.onOpenDir = (item, path) => showDirView(path);
+finderTree.onOpenFile = (item, path) => openTab(path);
+finderTree.decorateRow = (row, item, path) => {
+  // item.__dir is the directory this item actually lives in —
+  // handleAction posts there, not to the page's current root
+  item.__dir = path.slice(0, path.lastIndexOf('/')) || PREFIX;
+  row.__item = item;
+};
+async function renderFinderTree() {
+  const root = here;
+  try {
+    const r = await fetch(root + '?tree=1');
+    if (!r.ok) throw new Error(r.status);
+    treeDoc = await r.json();
+  } catch (e) { toast('tree failed: ' + e, true); return; }
+  if (root !== here) return; // navigated again while this was in flight
+  finderTree.root = here;
+  finderTree.persistKey = 'explorer-tree:' + here;
+  finderTree.upRow = null; // the breadcrumbs are the way up
+  finderTree.render(getChildren(here));
+  finderTree.markActive(activeTabPath);
+  updateTreeToggleLabel();
+}
+function updateTreeToggleLabel() {
+  finderTreeToggle.textContent = finderTree.anyOpen ? 'collapse all' : 'expand all';
+}
+finderTreeToggle.addEventListener('click', async () => {
+  if (finderTreeToggle.textContent === 'expand all') await finderTree.expandAll();
+  else await finderTree.collapseAll();
+  updateTreeToggleLabel();
+});
+
+// the preview pane is a <tab-group> of shared <FileView>s — full Source|
+// Preview|Edit|Save per open file, same component as the file page. Tabs
+// persist across directory navigation (and across reloads, via
+// localStorage): opening a file adds or focuses a tab, it doesn't replace
+// whatever else is already open.
+const TABS_KEY = 'explorer-tabs';
+const finderTabs = $('finder-tabs');
+const finderDir = $('finder-dir');  // tab 0, fixed: the directory view
+const dirFt = $('finder-dir-ft');
+const openFiles = new Map(); // path -> { panel, fv }
+let activeTabPath = null;
+let dirViewPath = here; // what the directory tab shows: follows nav, retargets on sidebar clicks
+// the tab-group's children are NOT all tabs — #finder-dir (the directory
+// view) lives in there too, with no tab-label. tab-group's own indices only
+// count labelled panels, so anything that indexes or persists tabs must go
+// through this, never finderTabs.children directly.
+const tabPanels = () => [...finderTabs.children].filter((p) => p.hasAttribute('tab-label'));
+
+// reflect the active tab onto its tree row (cheap — no re-render)
+function markActiveInTree(path) {
+  activeTabPath = path;
+  finderTree.markActive(path);
+}
+
+function selectPath(path) {
+  const panels = tabPanels();
+  const idx = panels.findIndex(p => p.dataset.path === path);
+  if (idx >= 0) finderTabs.select(idx);
+  markActiveInTree(path);
+}
+
+// persisted: the open FILE tabs (the directory tab is always there, never
+// persisted) and which is active — '' meaning the directory tab
+function saveTabs() {
+  const panels = tabPanels();
+  const activePanel = panels.find(p => !p.hidden);
+  try {
+    localStorage.setItem(TABS_KEY, JSON.stringify({
+      paths: panels.map(p => p.dataset.path).filter(Boolean),
+      active: activePanel === finderDir ? '' : (activePanel && activePanel.dataset.path),
+    }));
+  } catch (_) {}
+}
+
+function mountTab(path) {
+  const name = path.slice(path.lastIndexOf('/') + 1) || path;
+  const panel = document.createElement('div');
+  panel.setAttribute('tab-label', name);
+  panel.setAttribute('tab-title', path.slice(PREFIX.length) || path);
+  panel.dataset.path = path;
+  panel.style.height = '100%';
+  finderTabs.appendChild(panel);
+  // the FileView itself mounts lazily, on first selection — a FileView
+  // fires two requests (?info=1, ?raw=1) the moment it mounts, and on a
+  // pier that serializes requests, restoring N persisted tabs eagerly costs
+  // 2N round trips before the page is usable
+  openFiles.set(path, { panel, fv: null });
+  return panel;
+}
+function ensureMounted(path) {
+  const entry = openFiles.get(path);
+  if (!entry || entry.fv) return;
+  entry.fv = window.FileView.mount(entry.panel, { url: path, wrapKey: 'explorer-wrap' });
+}
+
+function openTab(path) {
+  const isNew = !openFiles.has(path);
+  if (isNew) mountTab(path);
+  finderTabs.refresh();
+  const settle = () => { selectPath(path); saveTabs(); };
+  settle();
+  // appendChild above queues a native slotchange that tab-group's own
+  // listener rebuilds on asynchronously, defaulting back to tab 0 (nothing
+  // here is `persist`ed) — that clobbers the select() just above. Re-assert
+  // it once that settles.
+  if (isNew) queueMicrotask(settle);
+}
+
+function closeTab(path) {
+  const entry = openFiles.get(path);
+  if (!entry) return;
+  if (entry.fv) entry.fv.destroy();
+  entry.panel.remove();
+  openFiles.delete(path);
+  finderTabs.refresh();
+  const stillActive = tabPanels().find(p => !p.hidden);
+  markActiveInTree(stillActive ? stillActive.dataset.path : null);
+  saveTabs();
+}
+
+finderTabs.addEventListener('tg-close', (e) => closeTab(e.detail.panel.dataset.path));
+finderTabs.addEventListener('tg-change', (e) => {
+  const panel = tabPanels()[e.detail.index];
+  if (panel) ensureMounted(panel.dataset.path);
+  markActiveInTree(panel ? panel.dataset.path : null);
+  saveTabs();
+});
+
+// restore persisted tabs on load (independent of which view is active —
+// mounting is cheap and they should be there the moment you switch to cols)
+(function restoreTabs() {
+  let saved;
+  try { saved = JSON.parse(localStorage.getItem(TABS_KEY) || 'null'); } catch (_) { saved = null; }
+  // a bad persisted entry must never take the whole page down with it —
+  // this runs at module top level, an exception here aborts everything
+  const paths = (saved && Array.isArray(saved.paths) ? saved.paths : []).filter((p) => typeof p === 'string');
+  if (!paths.length) return; // tab-group's own rebuild selects tab 0: the directory tab
+  for (const path of paths) mountTab(path);
+  finderTabs.refresh();
+  // only the active tab's FileView mounts now (the others on first click);
+  // '' = the directory tab was active
+  if (saved.active === '') { finderTabs.select(0); return; }
+  const active = paths.includes(saved.active) ? saved.active : paths[0];
+  selectPath(active);
+  // belt and braces: the appendChilds above queued a native slotchange
+  // whose rebuild keeps the current selection, but re-assert once it settles
+  queueMicrotask(() => selectPath(active));
+})();
+
+// ---- directory view: tab 0, fixed. Shows a directory's listing (the same
+// <file-table> the list view uses, scoped to that directory). It follows
+// the breadcrumbs (nav() retargets it to `here`) and clicking a directory
+// in the sidebar retargets it to that one and selects it. No page
+// navigation from the sidebar — `here` only moves via the breadcrumbs. A
+// dir row in the listing drills further in; a file row opens a tab.
+dirFt.columns = ft.columns.map((c) => c.key !== 'name' ? c : Object.assign({}, c, {
+  link: (item) => dirViewPath.replace(/\/$/, '') + '/' + item.name,
+}));
+dirFt.actions = ft.actions;
+dirFt.addEventListener('ft-navigate', (e) => {
+  const { item, href } = e.detail;
+  if (!item) return;
+  if (item.kind === 'dir') showDirView(href); else openTab(href);
+});
+dirFt.addEventListener('ft-action', handleAction);
+// select=false refreshes what the tab shows without stealing the selection
+// (a nav or an action changed things while a file tab is up front)
+async function showDirView(path, select = true) {
+  dirViewPath = path;
+  const disp = path.slice(PREFIX.length) || '/';
+  finderDir.setAttribute('tab-label', disp === '/' ? '/' : disp.slice(disp.lastIndexOf('/') + 1) + '/');
+  finderDir.setAttribute('tab-title', disp);
+  finderTabs.refresh(); // attr edits don't fire slotchange; keeps the selection
+  if (select) { finderTabs.select(0); markActiveInTree(null); }
+  dirFt.showLoading();
+  let d;
+  try {
+    const r = await fetch(path + '?list=1');
+    if (!r.ok) throw new Error(r.status);
+    d = await r.json();
+  } catch (e) { toast('listing failed: ' + e, true); return; }
+  if (dirViewPath !== path) return; // moved on while this was in flight
+  d.children.forEach((c) => { c.__dir = path; }); // handleAction posts there
+  dirFt.items = d.children;
 }
 
 // ---- view toggle ----
@@ -178,7 +367,7 @@ function setView(v) {
   vList.classList.toggle('on', v === 'list');
   vGrid.classList.toggle('on', v === 'grid');
   vCols.classList.toggle('on', v === 'cols');
-  if (v === 'cols' && data) finderFt.items = data.children;
+  if (v === 'cols' && data) renderFinderTree();
 }
 vList.addEventListener('click', () => setView('list'));
 vGrid.addEventListener('click', () => setView('grid'));
@@ -203,18 +392,29 @@ fg.addEventListener('ft-navigate', handleNavigate);
 
 function handleAction(e) {
   const { action, item } = e.detail;
-  const base = here.replace(/\/$/, '') + '/' + item.name;
+  // item.__dir is the directory this item actually lives in — set by the
+  // tree for nested items; ft/fg only ever show `here`'s own children, so
+  // it's absent there and `here` is correct. Actions always POST to the
+  // item's OWN directory (that's what the server-side handler resolves
+  // bare names against), never blindly to the page's current root.
+  const itemDir = item.__dir || here;
+  const itemDirDisp = itemDir.slice(PREFIX.length) || '/';
+  const base = itemDir.replace(/\/$/, '') + '/' + item.name;
   if (item.kind === 'dir') {
     switch (action) {
+      case 'new-folder': openModal('folder-modal', 'm-folder', base); break;
+      case 'new-nexus': openModal('nexus-modal', 'm-nexus-name', base); break;
+      case 'new-file': openModal('file-modal', 'm-file-name', base); break;
+      case 'new-symlink': openModal('symlink-modal', 'm-link', base); break;
       case 'download': location.href = base + '?download=tar'; break;
       case 'rename': ask('rename ' + item.name, item.name, nn =>
-        post({ action: 'rename-folder', foldername: item.name, newname: nn })); break;
-      case 'move': ask('move ' + item.name + ' to', dirPath + '/' + item.name, d =>
-        post({ action: 'move-folder', foldername: item.name, dest: d })); break;
-      case 'copy': ask('copy ' + item.name + ' to', dirPath + '/' + item.name + '-copy', d =>
-        post({ action: 'copy-folder', foldername: item.name, dest: d })); break;
+        post({ action: 'rename-folder', foldername: item.name, newname: nn }, itemDir)); break;
+      case 'move': ask('move ' + item.name + ' to', itemDirDisp + '/' + item.name, d =>
+        post({ action: 'move-folder', foldername: item.name, dest: d }, itemDir)); break;
+      case 'copy': ask('copy ' + item.name + ' to', itemDirDisp + '/' + item.name + '-copy', d =>
+        post({ action: 'copy-folder', foldername: item.name, dest: d }, itemDir)); break;
       case 'delete': if (confirm('Delete ' + item.name + '/?'))
-        post({ action: 'delete-folder', foldername: item.name }); break;
+        post({ action: 'delete-folder', foldername: item.name }, itemDir); break;
     }
     return;
   }
@@ -224,13 +424,13 @@ function handleAction(e) {
       l.href = base + '?raw=1'; l.download = item.name; l.click();
     } break;
     case 'rename': ask('rename ' + item.name, item.name, nn =>
-      post({ action: 'rename-grub', filename: item.name, newname: nn })); break;
-    case 'move': ask('move ' + item.name + ' to', dirPath + '/' + item.name, d =>
-      post({ action: 'move-grub', filename: item.name, dest: d })); break;
-    case 'copy': ask('copy ' + item.name + ' to', dirPath + '/' + item.name, d =>
-      post({ action: 'copy-grub', filename: item.name, dest: d })); break;
+      post({ action: 'rename-grub', filename: item.name, newname: nn }, itemDir)); break;
+    case 'move': ask('move ' + item.name + ' to', itemDirDisp + '/' + item.name, d =>
+      post({ action: 'move-grub', filename: item.name, dest: d }, itemDir)); break;
+    case 'copy': ask('copy ' + item.name + ' to', itemDirDisp + '/' + item.name, d =>
+      post({ action: 'copy-grub', filename: item.name, dest: d }, itemDir)); break;
     case 'delete': if (confirm('Delete ' + item.name + '?'))
-      post({ action: 'delete-grub', filename: item.name }); break;
+      post({ action: 'delete-grub', filename: item.name }, itemDir); break;
   }
 }
 ft.addEventListener('ft-action', handleAction);
@@ -255,9 +455,8 @@ async function load() {
   ft.items = data.children;
   fg.baseHref = here;
   fg.items = data.children;
-  finderFt.parentHref = ft.parentHref;
-  finderFt.items = data.children;
-  resetPreview();
+  renderFinderTree(); // re-points the tree at the new root; drops stale caches
+  showDirView(dirViewPath, false); // refresh tab 0: follows nav, and an action may have changed it
   renderManage();
   if ($('weir-modal').hasAttribute('open')) renderWeir();
 }
@@ -397,9 +596,9 @@ function renderBang() {
 }
 
 // ---- actions ----
-async function post(params) {
+async function post(params, dir) {
   try {
-    const r = await fetch(here, {
+    const r = await fetch(dir || here, {
       method: 'POST',
       headers: { 'content-type': 'application/x-www-form-urlencoded' },
       redirect: 'manual',
@@ -448,7 +647,22 @@ function renderManage() {
   $('mi-reload').style.display = (data.nexus && data.nexus.display !== '-') ? '' : 'none';
 }
 
-function openModal(id, focus) {
+// create-modals default to `here`; a directory's own right-click actions
+// (new-folder/new-nexus/new-file/new-symlink) pass that directory's own
+// path instead, so the thing they create lands under the row you clicked,
+// not under whatever directory the page happens to be showing
+let createTarget = here;
+const CREATE_TITLES = {
+  'folder-modal': 'new folder', 'nexus-modal': 'new nexus',
+  'file-modal': 'new file', 'symlink-modal': 'new symlink',
+};
+function openModal(id, focus, targetDir) {
+  createTarget = targetDir || here;
+  const label = CREATE_TITLES[id];
+  if (label) {
+    $(id).querySelector('.m-title').textContent = createTarget === here
+      ? label : label + ' in ' + (createTarget.slice(PREFIX.length) || '/');
+  }
   $(id).show();
   if (focus) { $(focus).focus(); }
 }
@@ -467,7 +681,7 @@ $('m-weir-clear').addEventListener('click', () =>
 $('m-folder-go').addEventListener('click', () => {
   const n = $('m-folder').value.trim();
   if (!n) return;
-  post({ action: 'create-folder', foldername: n });
+  post({ action: 'create-folder', foldername: n }, createTarget);
   $('m-folder').value = '';
   $('folder-modal').close();
 });
@@ -476,7 +690,7 @@ $('m-nexus-go').addEventListener('click', () => {
   const n = $('m-nexus-name').value.trim();
   const neck = $('m-nexus-neck').value.trim();
   if (!n) return;
-  post({ action: 'create-nexus', foldername: n, ...(neck ? { neck } : {}) });
+  post({ action: 'create-nexus', foldername: n, ...(neck ? { neck } : {}) }, createTarget);
   $('m-nexus-name').value = '';
   $('m-nexus-neck').value = '';
   $('nexus-modal').close();
@@ -487,7 +701,7 @@ $('m-file-go').addEventListener('click', () => {
   const n = $('m-file-name').value.trim();
   if (!n) return;
   const blot = $('m-file-blot').value.trim();
-  post({ action: 'create-file', filename: n, ...(blot ? { blot } : {}) });
+  post({ action: 'create-file', filename: n, ...(blot ? { blot } : {}) }, createTarget);
   $('m-file-name').value = '';
   $('m-file-blot').value = '';
   $('file-modal').close();
@@ -497,7 +711,7 @@ $('m-file-blot').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('
 $('m-link-go').addEventListener('click', () => {
   const n = $('m-link').value.trim(), t = $('m-target').value.trim();
   if (!(n && t)) return;
-  post({ action: 'create-symlink', linkname: n, target: t });
+  post({ action: 'create-symlink', linkname: n, target: t }, createTarget);
   $('symlink-modal').close();
 });
 function wirePicker(pick, input, label, what) {

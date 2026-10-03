@@ -28,6 +28,8 @@
 /&  dropmenu-js  /lib/ui/drop-menu.js
 /&  splitview-js  /lib/ui/split-view.js
 /&  tabgroup-js  /lib/ui/tab-group.js
+/&  treeview-js  /lib/ui/tree-view.js
+/&  filetable-js  /lib/ui/file-table.js
 ::  shared classic helpers — the FileView editor (and the FilePreview renderer
 ::  it leans on) reused from the explorer, loaded before app.js
 /&  fp-js       /lib/ui/file-preview.js
@@ -55,7 +57,7 @@
       =/  wrap  |=(=mime ^-(@ (rap 3 ~[123 10 q.q.mime 10 125 10])))
       =/  kit-js=mime
         :-  /application/javascript
-        (as-octs:mimes:html (rap 3 ~[(wrap modal-js) (wrap dropmenu-js) (wrap splitview-js) (wrap tabgroup-js)]))
+        (as-octs:mimes:html (rap 3 ~[(wrap modal-js) (wrap dropmenu-js) (wrap splitview-js) (wrap tabgroup-js) (wrap treeview-js) (wrap filetable-js)]))
       %+  spin:loader  ball
       :~  (manifest:loader 0)
           [%fall %& [/ %'main.sig'] [[/ %sig] ~]]

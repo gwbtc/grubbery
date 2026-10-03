@@ -19,11 +19,15 @@
     a:hover { text-decoration: underline; }
     modal-dialog:not(:defined), drop-menu:not(:defined), file-grid:not(:defined) { display: none; }
 
-    #bar { position: sticky; top: 0; height: 38px; display: flex; align-items: center; gap: 8px; padding: 0 14px; background: #f6f8fa; border-bottom: 1px solid #d0d7de; z-index: 5; min-width: max-content; }
-    #crumbs { display: flex; align-items: center; gap: 2px; font: 600 13px ui-monospace, SFMono-Regular, Menlo, monospace; }
-    #crumbs a { color: #57606a; padding: 2px 4px; border-radius: 5px; }
-    #crumbs a:hover { color: #24292f; background: #eaeef2; text-decoration: none; }
-    #crumbs .here { color: #24292f; padding: 2px 4px; }
+    /* body > … on purpose: the mounted FileView (light DOM, not shadow) has
+       its OWN #bar / #crumbs / #status inside it. An unscoped #bar rule
+       made its bar sticky + z-indexed too, and being later in the DOM it
+       painted over this bar's own dropdowns. */
+    body > #bar { position: sticky; top: 0; height: 38px; display: flex; align-items: center; gap: 8px; padding: 0 14px; background: #f6f8fa; border-bottom: 1px solid #d0d7de; z-index: 20; min-width: max-content; }
+    body > #bar > #crumbs { display: flex; align-items: center; gap: 2px; font: 600 13px ui-monospace, SFMono-Regular, Menlo, monospace; }
+    body > #bar > #crumbs a { color: #57606a; padding: 2px 4px; border-radius: 5px; }
+    body > #bar > #crumbs a:hover { color: #24292f; background: #eaeef2; text-decoration: none; }
+    body > #bar > #crumbs .here { color: #24292f; padding: 2px 4px; }
     .grow { flex: 1; }
     #chips { display: inline-flex; align-items: center; gap: 7px; }
     .chip { display: inline-flex; align-items: center; gap: 5px; background: #eef1f4; border: 1px solid #e2e7ee; border-radius: 6px; padding: 2px 8px; white-space: nowrap; }
@@ -34,15 +38,15 @@
     .chip .v { font: 11px ui-monospace, SFMono-Regular, Menlo, monospace; color: #24292f; }
     .chip .v a { font: inherit; }
     .chip.warn .v { color: #bc4c00; font-weight: 600; }
-    #bar button:not(.mi), .btn { all: unset; cursor: pointer; padding: 4px 12px; border-radius: 7px; font-size: 12px; color: #24292f; border: 1px solid #d0d7de; background: #fff; }
-    #bar button:not(.mi):hover, .btn:hover { background: #f6f8fa; }
+    body > #bar button:not(.mi), .btn { all: unset; cursor: pointer; padding: 4px 12px; border-radius: 7px; font-size: 12px; color: #24292f; border: 1px solid #d0d7de; background: #fff; }
+    body > #bar button:not(.mi):hover, .btn:hover { background: #f6f8fa; }
 
     #bang { margin: 12px 20px; padding: 10px 14px; background: #fff8f8; border: 1px solid #ffcecb; border-radius: 8px; cursor: pointer; color: #cf222e; }
     #bang:hover { background: #ffebe9; }
     .dload { display: inline-block; animation: dpulse 1.1s ease-in-out infinite; }
     @keyframes dpulse { 50% { opacity: .2; } }
-    #status { position: fixed; bottom: 14px; left: 50%; transform: translateX(-50%); background: #24292f; color: #fff; font-size: 12px; padding: 7px 16px; border-radius: 8px; box-shadow: 0 8px 24px rgba(31,35,40,.25); display: none; max-width: 70vw; white-space: pre-wrap; z-index: 50; }
-    #status.err { background: #cf222e; }
+    body > #status { position: fixed; bottom: 14px; left: 50%; transform: translateX(-50%); background: #24292f; color: #fff; font-size: 12px; padding: 7px 16px; border-radius: 8px; box-shadow: 0 8px 24px rgba(31,35,40,.25); display: none; max-width: 70vw; white-space: pre-wrap; z-index: 50; }
+    body > #status.err { background: #cf222e; }
 
     file-table { margin: 0 20px; --ft-header-top: auto; }
     file-table:not(:defined) { display: none; }
@@ -55,11 +59,22 @@
     /* finder view: listing on the left, a read-only quick-look on the right */
     #finder { height: calc(100vh - 38px); }
     #finder-list { height: 100%; overflow: auto; }
-    #finder-list file-table { margin: 0; --ft-header-top: auto; }
-    #finder-lhead { position: sticky; top: 0; z-index: 2; display: flex; justify-content: flex-end; padding: 4px 6px; background: #fff; border-bottom: 1px solid #eaeef2; }
+    #finder-lhead { position: sticky; top: 0; z-index: 2; display: flex; align-items: center; justify-content: space-between; gap: 4px; padding: 4px 6px; background: #fff; border-bottom: 1px solid #eaeef2; }
     #finder-collapse { all: unset; cursor: pointer; padding: 1px 9px; border-radius: 6px; color: #57606a; font-size: 15px; line-height: 1.2; }
     #finder-collapse:hover { background: #eaeef2; color: #24292f; }
+    .ft-all button { all: unset; cursor: pointer; padding: 2px 8px; border-radius: 6px; font-size: 11px; color: #57606a; }
+    .ft-all button:hover { color: #24292f; background: #eaeef2; }
+    /* <tree-view> is shadow DOM — its own defaults already match this
+       look, so no --tv-* overrides are needed here (see lib/ui/tree-view.js) */
+    #finder-tree { display: block; padding: 4px 4px 10px; }
+    #finder-tree:not(:defined) { display: none; }
     #finder-preview { height: 100%; overflow: hidden; background: #fff; display: flex; flex-direction: column; }
+    #finder-tabs { flex: 1; min-height: 0; }
+    #finder-tabs[hidden] { display: none; }
+    #finder-preview .finder-empty { flex: 1; }
+    #finder-tabs [tab-label] { overflow: auto; }
+    #finder-dir { height: 100%; overflow: auto; }
+    #finder-dir-ft { margin: 0; min-width: max-content; }
     .finder-pbody { flex: 1; min-height: 0; overflow: auto; }
     .finder-head { position: sticky; top: 0; z-index: 1; display: flex; align-items: center; gap: 10px; padding: 8px 16px; background: #f6f8fa; border-bottom: 1px solid #d0d7de; font: 600 12px ui-monospace, SFMono-Regular, Menlo, monospace; color: #24292f; white-space: nowrap; }
     .finder-head a { font: inherit; color: #0969da; }
@@ -125,10 +140,20 @@
   <split-view id="finder" orientation="horizontal" primary="start"
               size="300px" min="180" max="560" persist="explorer-finder" style="display:none">
     <div slot="start" id="finder-list">
-      <div id="finder-lhead"><button id="finder-collapse" title="collapse sidebar">&#8676;</button></div>
-      <file-table id="finder-ft"></file-table>
+      <div id="finder-lhead">
+        <button id="finder-collapse" title="collapse sidebar">&#8676;</button>
+        <span class="ft-all"><button id="finder-tree-toggle" title="expand/collapse all"></button></span>
+      </div>
+      <tree-view id="finder-tree"></tree-view>
     </div>
-    <div slot="end" id="finder-preview"><div class="finder-empty">Select a file to preview</div></div>
+    <div slot="end" id="finder-preview">
+      <tab-group id="finder-tabs" closable>
+        <!-- tab 0, fixed (no ×): the directory view. Shows the page's own
+             directory until a sidebar directory is clicked, then that one;
+             browse.js retargets its label/title. Follows the breadcrumbs. -->
+        <div id="finder-dir" tab-label="/" tab-title="/" tab-fixed tab-icon="folder"><file-table id="finder-dir-ft"></file-table></div>
+      </tab-group>
+    </div>
   </split-view>
   <div id="status"></div>
   <drop-menu id="ctx-menu" style="position:fixed; display:none; z-index:50;">
@@ -210,14 +235,10 @@
     <pre id="boom-text"></pre>
   </modal-dialog>
 
-  <script type="module" src="/grubbery/ball/apps/explorer.explorer/modal-dialog.js"></script>
-  <script type="module" src="/grubbery/ball/apps/explorer.explorer/drop-menu.js"></script>
-  <script type="module" src="/grubbery/ball/apps/explorer.explorer/file-table.js"></script>
-  <script type="module" src="/grubbery/ball/apps/explorer.explorer/file-grid.js"></script>
-  <script type="module" src="/grubbery/ball/apps/explorer.explorer/split-view.js"></script>
-  <script src="/grubbery/ball/apps/explorer.explorer/marked.min.js"></script>
-  <script src="/grubbery/ball/apps/explorer.explorer/file-preview.js"></script>
-  <script src="/grubbery/ball/apps/explorer.explorer/file-view.js"></script>
+  <!-- one request for every component + the file viewer (welded in
+       explorer.hoon's on-load), classic so it runs before browse.js, which
+       is a module and therefore deferred -->
+  <script src="/grubbery/ball/apps/explorer.explorer/kit.js"></script>
   <script type="module" src="/grubbery/ball/apps/explorer.explorer/browse.js"></script>
 </body>
 </html>

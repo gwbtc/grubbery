@@ -40,6 +40,12 @@ function post(u, b) {
 }
 function openTabs() { return tabsBy[mode] || []; }
 function focusedF() { return focusBy[mode]; }
+// tear down every open tab's cached FileView + panel — call before
+// resetting tabsBy (switching repos, deleting the current repo).
+function clearTabs() {
+  openTabs().forEach(function(t) { if (t.fv) t.fv.destroy(); if (t.host) t.host.remove(); });
+  dirViewPath = ''; // the directory tab goes back to the (next) repo's root
+}
 function shortName(n) {
   return n && n.slice(-9) === '.git_repo' ? n.slice(0, -9) : n;
 }
@@ -78,10 +84,7 @@ function applyUrl() {
   mode = st.mode;
   renderPanelTabs();
   if (st.repo !== selected) {
-    // switching repos: tear down the old repo's cached FileViews + hosts
-    (tabsBy.files || []).forEach(function(x) { if (x.fv) x.fv.destroy(); });
-    var stk = document.getElementById('ed-fv');
-    if (stk) stk.innerHTML = '';
+    clearTabs();
     selected = st.repo;
     tabsBy = { files: [] };
     focusBy = { files: null };
@@ -89,7 +92,7 @@ function applyUrl() {
   }
   renderMode();
   if (st.file && st.file !== focusedF()) openFile(st.file, true);
-  if (!st.file && focusedF()) { focusBy[mode] = null; renderTabs(); mountEditor(); }
+  if (!st.file && focusedF()) { focusBy[mode] = null; edTabsEl().select(0); mountEditor(); }
 }
 function renderMode() {
   var has = !!selected;
@@ -110,27 +113,14 @@ function renderMode() {
   var sbh = document.getElementById('sb-head');
   sbh.innerHTML = 'files' +
     '<span class="ft-all"><button id="ft-toggle" title="expand/collapse all"></button></span>';
-  var setAll = function(open) {
-    loadTreeState();
-    var walk = function(node, here) {
-      Object.keys(node.dirs).forEach(function(name) {
-        treeState[here + name + '/'] = open;
-        walk(node.dirs[name], here + name + '/');
-      });
-    };
-    walk(buildTree(tree), '');
-    saveTreeState();
-    renderFiles();
-  };
   document.getElementById('ft-toggle').onclick = function() {
     // the label is the action about to happen
-    setAll(document.getElementById('ft-toggle').textContent === 'expand all');
+    var p = document.getElementById('ft-toggle').textContent === 'expand all'
+      ? sidebarTree.expandAll() : Promise.resolve(sidebarTree.collapseAll());
+    p.then(updateFtToggle);
   };
-  document.getElementById('ft-new').style.display = editorish ? 'flex' : 'none';
-  document.getElementById('ft-new-name').placeholder = 'path/to/new-file.md';
   if (mode === 'settings') { renderSettings(); }
   renderFiles();
-  renderTabs();
   mountEditor();
 }
 function renderSettings() {
@@ -167,6 +157,7 @@ function renderSettings() {
     var word = prompt('CAREFUL: this permanently deletes ' + selected + '. Type "' + shortName(selected) + '" to confirm:');
     if (word !== shortName(selected)) return;
     post('/delete', { repo: selected }).then(function() {
+      clearTabs();
       selected = null;
       tabsBy = { files: [] };
       focusBy = { files: null };
@@ -227,6 +218,7 @@ function renderStock() {
 }
 function enterRepo(name) {
   if (name === selected) return;
+  clearTabs();
   selected = name;
   tabsBy = { files: [] };
   focusBy = { files: null };
@@ -297,7 +289,7 @@ function onRepoChanged() {
   renderTopbar();
   renderMode();
   if (!selected) {
-    document.getElementById('sb-list').innerHTML = '';
+    sidebarTree.render([]); // <tree-view>'s content is shadow DOM — innerHTML can't touch it
     ['status', 'history'].forEach(function(p) {
       document.getElementById('pane-' + p).innerHTML = '';
     });
@@ -320,7 +312,11 @@ function renderTopbar() {
 
 }
 
-// ── file tree (sidebar) ──
+// ── file tree (sidebar) ── the shared TreeView (lib/ui/tree-view.js) — same
+// component as explorer's cols sidebar, here fed eagerly from the already-
+// fully-known working-tree path list instead of a lazy per-dir fetch, and
+// with no onOpenDir: this is one bounded repo, not a namespace to climb
+// around in, so a dir's row only ever toggles, never navigates anywhere.
 // nest a flat list of paths into { dirs, files }
 function buildTree(paths) {
   var root = { dirs: {}, files: [] };
@@ -336,112 +332,166 @@ function buildTree(paths) {
   });
   return root;
 }
-// open/closed dir state, per repo, survives the poll's rerenders
-// (and page reloads — localStorage). Default open; only an explicit
-// collapse is remembered as closed.
-var treeState = {};
-function treeKey() { return 'forge-tree:' + selected; }
-function loadTreeState() {
-  try { treeState = JSON.parse(localStorage.getItem(treeKey())) || {}; }
-  catch (e) { treeState = {}; }
+// sidebarTree is the <tree-view> element itself (see index.html's #sb-list).
+// Same model as explorer's sidebar, scoped to this repo: a directory's name
+// opens it in the directory tab (tab 0), a file opens a tab, and every row
+// carries its item (row.__item) for the right-click menu below. Paths here
+// are repo-relative ('' = the repo root); nothing ever points above it.
+var sidebarTree = document.getElementById('sb-list');
+var treeRoot = { dirs: {}, files: [] }; // buildTree(tree), rebuilt per render
+function nodeAt(path) {
+  var node = treeRoot;
+  if (!path) return node;
+  var segs = path.split('/');
+  for (var i = 0; i < segs.length; i++) {
+    node = node.dirs[segs[i]];
+    if (!node) return { dirs: {}, files: [] };
+  }
+  return node;
 }
-function saveTreeState() {
-  try { localStorage.setItem(treeKey(), JSON.stringify(treeState)); } catch (e) {}
+function joinRel(dir, name) { return dir ? dir + '/' + name : name; }
+// a level's children as items: { name, isDir, kind, path } — kind/path are
+// what file-table rows and the action menu read
+function childrenAt(path) {
+  var node = nodeAt(path);
+  return Object.keys(node.dirs).map(function (n) {
+    return { name: n, isDir: true, kind: 'dir', path: joinRel(path, n) };
+  }).concat(node.files.map(function (f) {
+    return { name: f.split('/').pop(), isDir: false, kind: 'file', path: f };
+  }));
 }
-// render dirs as collapsible <details>, files as .ft-file rows (unchanged behavior)
-function renderNode(parent, node, rootName, here) {
-  here = here || '';
-  Object.keys(node.dirs).sort().forEach(function(name) {
-    var dirPath = here + name + '/';
-    var det = document.createElement('details');
-    // fully collapsed by default — only a recorded open stays open
-    det.open = treeState[dirPath] === true;
-    det.className = 'ft-dir-det';
-    det.addEventListener('toggle', function() {
-      treeState[dirPath] = det.open;
-      saveTreeState();
-      var tog = document.getElementById('ft-toggle');
-      var box = document.getElementById('sb-list');
-      if (tog && box) {
-        tog.textContent = box.querySelector('.ft-dir-det[open]') ? 'collapse all' : 'expand all';
-      }
-    });
-    var sum = document.createElement('summary');
-    sum.className = 'ft-dir';
-    sum.textContent = name + '/';
-    det.appendChild(sum);
-    var kids = document.createElement('div');
-    kids.className = 'ft-kids';
-    renderNode(kids, node.dirs[name], rootName, dirPath);
-    det.appendChild(kids);
-    parent.appendChild(det);
-  });
-  node.files.sort().forEach(function(f) {
-    var base = f.split('/').pop();
-    var id = rootName + ':' + f;
-    var row = document.createElement('div');
-    row.className = 'ft-file' + (id === focusedF() ? ' sel' : '');
-    row.setAttribute('data-root', rootName);
-    row.setAttribute('data-file', f);
-    var nm = document.createElement('span');
-    nm.textContent = base;
-    var del = document.createElement('span');
-    del.className = 'ft-x';
-    del.setAttribute('data-del', f);
-    del.title = 'delete file';
-    del.textContent = '×';
-    row.appendChild(nm);
-    row.appendChild(del);
-    parent.appendChild(row);
-  });
-}
+sidebarTree.onOpenFile = function (item, path) { openFile('tree:' + path); };
+sidebarTree.onOpenDir = function (item, path) { showDirView(path); };
+sidebarTree.decorateRow = function (row, item) { row.__item = item; };
 function renderFiles() {
-  var box = document.getElementById('sb-list');
-  if (!selected) { box.innerHTML = ''; return; }
-  loadTreeState();
-  var keep = box.scrollTop;
-  box.innerHTML = '';
-  renderNode(box, buildTree(tree), 'tree');
-  wireFileRows(box);
-  box.scrollTop = keep;
-  // the toggle advertises the action it will take
-  var tog = document.getElementById('ft-toggle');
-  if (tog) {
-    tog.textContent = box.querySelector('.ft-dir-det[open]') ? 'collapse all' : 'expand all';
+  if (!selected) { sidebarTree.render([]); return; }
+  var keepScroll = sidebarTree.scrollTop;
+  treeRoot = buildTree(tree);
+  sidebarTree.root = '';
+  sidebarTree.persistKey = 'forge-tree:' + selected;
+  sidebarTree.getChildren = childrenAt;
+  sidebarTree.render(childrenAt(''));
+  sidebarTree.markActive(focusedF() ? splitId(focusedF()).file : null);
+  sidebarTree.scrollTop = keepScroll;
+  updateFtToggle();
+  showDirView(dirViewPath, false); // refresh tab 0's listing from the new tree
+}
+// ── directory view: tab 0, fixed. A directory's listing (the kit
+// <file-table>, names only — a working tree has nothing else to show per
+// file), built from the already-known tree, no request. Starts at the repo
+// root; a sidebar directory click retargets it to that directory and
+// selects it. A dir row drills further in; a file row opens a tab.
+var dirViewPath = '';
+var dirFt = document.getElementById('ed-dir-ft');
+dirFt.columns = [{
+  key: 'name', label: 'Name',
+  format: function (v, item) { return item.kind === 'dir' ? v + '/' : v; },
+  link: function (item) { return '#' + item.path; }, // a clickable name; never followed
+}];
+dirFt.actions = rowActions;
+dirFt.addEventListener('ft-navigate', function (e) {
+  var item = e.detail.item;
+  if (!item) return;
+  if (item.kind === 'dir') showDirView(item.path); else openFile('tree:' + item.path);
+});
+dirFt.addEventListener('ft-action', function (e) { doAction(e.detail.action, e.detail.item); });
+// select=false refreshes the listing without stealing the selection
+function showDirView(path, select) {
+  if (select === undefined) select = true;
+  dirViewPath = path;
+  var ed = document.getElementById('ed-dir');
+  ed.setAttribute('tab-label', path ? path.slice(path.lastIndexOf('/') + 1) + '/' : '/');
+  ed.setAttribute('tab-title', '/' + path);
+  edTabsEl().refresh(); // attr edits don't fire slotchange; keeps the selection
+  dirFt.items = childrenAt(path);
+  if (select) edTabsEl().select(0); // → tg-change: focus cleared, url + sidebar updated
+}
+
+// ── row actions — one set, used by the right-click menu (sidebar rows,
+// listing rows, and the empty space of either, which acts on the directory
+// being shown) and by the listing's own ⋯ menu. Scoped to what the server
+// supports: write a file, delete a file. Deleting a directory = deleting
+// every file under it, which in a working tree IS deleting the directory.
+function rowActions(item) {
+  if (item.kind === 'dir') {
+    var acts = [{ label: 'New file…', action: 'new-file' }];
+    if (item.path) acts.push({ label: 'Delete', action: 'delete', danger: true });
+    return acts;
+  }
+  return [
+    { label: 'Download', action: 'download' },
+    { label: 'Delete', action: 'delete', danger: true },
+  ];
+}
+function filesUnder(dir) { return tree.filter(function (f) { return f.indexOf(dir + '/') === 0; }); }
+function createFile(name) {
+  post('/src', { repo: selected, file: name, root: 'tree', text: '' }).then(function () {
+    loadDetail();
+    openFile('tree:' + name);
+  });
+}
+function deleteFiles(files) {
+  return files.reduce(function (p, f) {
+    return p.then(function () {
+      return post('/src-delete', { repo: selected, file: f, root: 'tree' }).then(function () {
+        var t = tabFor('tree:' + f);
+        if (t) { t.dirty = false; closeTab('tree:' + f); }
+      });
+    });
+  }, Promise.resolve()).then(function () { loadDetail(); });
+}
+function doAction(action, item) {
+  if (action === 'new-file') {
+    var name = prompt('new file in ' + (item.path ? item.path + '/' : '/') + ':', '');
+    if (name && name.trim()) createFile(joinRel(item.path, name.trim()));
+  } else if (action === 'download') {
+    var a = document.createElement('a');
+    a.href = rawUrlFor(item.path); a.download = item.name; a.click();
+  } else if (action === 'delete') {
+    var files = item.kind === 'dir' ? filesUnder(item.path) : [item.path];
+    var what = item.kind === 'dir' ? files.length + ' file(s) under ' + item.path + '/' : item.path;
+    if (!files.length || !confirm('delete ' + what + '?')) return;
+    deleteFiles(files);
   }
 }
-function wireFileRows(box) {
-  Array.prototype.forEach.call(box.querySelectorAll('.ft-file'), function(el) {
-    el.onclick = function(e) {
-      var f = el.getAttribute('data-file');
-      var root = el.getAttribute('data-root');
-      var id = root + ':' + f;
-      if (e.target.hasAttribute('data-del')) {
-        if (!confirm('delete ' + f + '?')) return;
-        post('/src-delete', { repo: selected, file: f, root: root }).then(function() {
-          var t = tabFor(id);
-          if (t) { t.dirty = false; closeTab(id); }
-          loadDetail();
-        });
-        return;
-      }
-      openFile(id);
-    };
-  });
-}
-document.getElementById('ft-create').onclick = function() {
-  var name = document.getElementById('ft-new-name').value.trim();
-  if (!name || !selected) return;
-  var root = 'tree';
-  var seed = '';
-  post('/src', { repo: selected, file: name, root: root, text: seed })
-    .then(function() {
-      document.getElementById('ft-new-name').value = '';
-      loadDetail();
-      openFile(root + ':' + name);
-    });
-};
 
+// ── right-click menu: the kit <drop-menu> forge already uses for
+// repo-menu/branch-menu, its items rebuilt per click from rowActions. A row
+// (row.__item, set by the sidebar's decorateRow and by file-table on its
+// own rows) acts on itself; empty space in the sidebar acts on the repo
+// root, empty space in the directory view on the directory it's showing.
+var sbCtx = document.getElementById('sb-ctx');
+var sidebarEl = document.getElementById('sidebar');
+var edDirEl = document.getElementById('ed-dir');
+document.addEventListener('contextmenu', function (e) {
+  var path = e.composedPath();
+  var hit = path.find(function (el) { return el && el.__item; });
+  var inSidebar = path.indexOf(sidebarEl) >= 0;
+  var inDirView = path.indexOf(edDirEl) >= 0;
+  if (!hit && !inSidebar && !inDirView) return;
+  if (!selected) return;
+  e.preventDefault();
+  var item = hit ? hit.__item
+    : { name: '', isDir: true, kind: 'dir', path: inDirView ? dirViewPath : '' };
+  Array.prototype.forEach.call(sbCtx.querySelectorAll('[data-act]'), function (b) { b.remove(); });
+  rowActions(item).forEach(function (act) {
+    var b = document.createElement('button');
+    b.className = 'rm-item' + (act.danger ? ' danger' : '');
+    b.setAttribute('data-act', act.action);
+    b.textContent = act.label;
+    b.onclick = function () { sbCtx.close(); doAction(act.action, item); };
+    sbCtx.appendChild(b);
+  });
+  sbCtx.style.display = ''; // the host starts display:none — .open() alone doesn't clear it
+  sbCtx.style.left = e.clientX + 'px';
+  sbCtx.style.top = e.clientY + 'px';
+  sbCtx.open();
+});
+sbCtx.addEventListener('dm-close', function () { sbCtx.style.display = 'none'; });
+function updateFtToggle() {
+  var tog = document.getElementById('ft-toggle');
+  if (tog) tog.textContent = sidebarTree.anyOpen ? 'collapse all' : 'expand all';
+}
 // ── detail: status + history panes ──
 function loadDetail() {
   if (!selected) return;
@@ -558,12 +608,42 @@ function splitId(id) {
   var i = id.indexOf(':');
   return i < 0 ? { root: 'tree', file: id } : { root: id.slice(0, i), file: id.slice(i + 1) };
 }
+// ed-tabs is the shared <tab-group> (same component, same pattern as
+// explorer's cols-view finder tabs) — each open file is a slotted panel
+// hosting its own cached <FileView>, created once at open time and shown/
+// hidden by tab-group itself from then on.
+function edTabsEl() { return document.getElementById('ed-tabs'); }
+function mountTabPanel(t) {
+  var s = splitId(t.file);
+  var host = document.createElement('div');
+  host.setAttribute('tab-label', s.file.split('/').pop());
+  host.setAttribute('tab-title', s.root + '/' + s.file);
+  host.dataset.file = t.file;
+  host.style.height = '100%';
+  edTabsEl().appendChild(host);
+  var repoRoot = '/grubbery/ball/apps/forge.git_forge/repos/' + selected + '/data/tree';
+  var url = repoRoot + '/' + s.file;
+  t.fv = window.FileView.mount(host, { url: url, wrapKey: 'forge-wrap', crumbBase: repoRoot });
+  t.host = host;
+}
+function selectTab(f) {
+  var panels = Array.prototype.slice.call(edTabsEl().children);
+  var idx = panels.findIndex(function(p) { return p.dataset.file === f; });
+  if (idx >= 0) edTabsEl().select(idx);
+}
 function openFile(id, fromUrl) {
   if (id.indexOf(':') < 0) id = 'tree:' + id;
-  if (!tabFor(id)) openTabs().push({ file: id });
+  var isNew = !tabFor(id);
+  if (isNew) { openTabs().push({ file: id }); mountTabPanel(tabFor(id)); }
   focusBy[mode] = id;
   if (!fromUrl) pushUrl();
-  renderTabs();
+  edTabsEl().refresh();
+  var settle = function() { selectTab(id); };
+  settle();
+  // appendChild above queues a native slotchange tab-group's own listener
+  // rebuilds on asynchronously, defaulting back to tab 0 — re-assert the
+  // selection once that settles (same race explorer's tabs hit).
+  if (isNew) queueMicrotask(settle);
   renderFiles();
   mountEditor();
 }
@@ -571,39 +651,23 @@ function closeTab(f) {
   var ct = tabFor(f);
   if (ct) { if (ct.fv) ct.fv.destroy(); if (ct.host) ct.host.remove(); }
   tabsBy[mode] = openTabs().filter(function(x) { return x.file !== f; });
+  edTabsEl().refresh();
   if (focusedF() === f) {
     var ts = openTabs();
     focusBy[mode] = ts.length ? ts[ts.length - 1].file : null;
+    if (focusBy[mode]) selectTab(focusBy[mode]); else edTabsEl().select(0); // the directory tab
   }
   pushUrl();
-  renderTabs();
   renderFiles();
   mountEditor();
 }
-function renderTabs() {
-  var focused = focusedF();
-  var bar = document.getElementById('ed-tabs');
-  var html = openTabs().map(function(t) {
-    var s = splitId(t.file);
-    return '<div class="ed-tab' + (t.file === focused ? ' active' : '') + '" data-file="' + esc(t.file) + '" title="' + esc(s.root + '/' + s.file) + '">' +
-      esc(s.file.split('/').pop()) +
-      '<span class="x" data-close="' + esc(t.file) + '">×</span></div>';
-  }).join('');
-  bar.innerHTML = html;
-  Array.prototype.forEach.call(bar.querySelectorAll('.ed-tab'), function(el) {
-    el.onclick = function(e) {
-      if (e.target.hasAttribute('data-close')) {
-        closeTab(e.target.getAttribute('data-close'));
-        return;
-      }
-      focusBy[mode] = el.getAttribute('data-file');
-      pushUrl();
-      renderTabs();
-      renderFiles();
-      mountEditor();
-    };
-  });
-}
+edTabsEl().addEventListener('tg-close', function(e) { closeTab(e.detail.panel.dataset.file); });
+edTabsEl().addEventListener('tg-change', function(e) {
+  var panel = edTabsEl().children[e.detail.index];
+  focusBy[mode] = (panel && panel.dataset.file) ? panel.dataset.file : null; // tab 0 has none
+  pushUrl();
+  renderFiles();
+});
 
 // ── the editor: transparent textarea over a shiki-rendered pre ──
 var shikiHl = null;
@@ -644,29 +708,12 @@ function isRaster(k) { return k === 'image' || k === 'pdf'; }
 // editor the explorer file page and finder use. One FileView per open tab,
 // mounted once over the tab's /grubbery/ball URL and CACHED: switching tabs is
 // just show/hide (its scroll, edit mode, and unsaved text all persist), no
-// refetch. Each tab keeps its own host in the #ed-fv stack.
+// refetch. Each tab is its own panel inside the shared <tab-group> #ed-tabs.
 function mountEditor() {
   var has = !!selected;
   var editorish = has && mode !== 'settings';
-  var focused = focusedF();
-  var t = focused ? tabFor(focused) : null;
-  document.getElementById('ed-bar').style.display = editorish ? 'flex' : 'none';
   document.getElementById('ed-wrap').style.display = editorish ? '' : 'none';
-  document.getElementById('ws-empty').style.display = t ? 'none' : 'flex';
-  var stack = document.getElementById('ed-fv');
-  stack.style.display = t ? '' : 'none';
-  openTabs().forEach(function(x) {
-    if (x.host) x.host.style.display = (x === t) ? '' : 'none';
-  });
-  if (!t) return;
-  if (!t.host) {
-    t.host = document.createElement('div');
-    t.host.style.cssText = 'position:absolute;inset:0';
-    stack.appendChild(t.host);
-    var s = splitId(t.file);
-    var url = '/grubbery/ball/apps/forge.git_forge/repos/' + selected + '/data/tree/' + s.file;
-    t.fv = window.FileView.mount(t.host, { url: url, wrapKey: 'forge-wrap' });
-  }
+  edTabsEl().style.display = editorish ? '' : 'none'; // tab 0 is always there: never empty
 }
 function saveFocused() {
   var t = focusedF() ? tabFor(focusedF()) : null;
@@ -675,7 +722,6 @@ function saveFocused() {
   post('/src', { repo: selected, file: s.file, root: s.root, text: t.text }).then(function(r) {
     if (r.ok) {
       t.dirty = false;
-      renderTabs();
       setTimeout(loadDetail, 2000);
     } else {
       alert('save failed');

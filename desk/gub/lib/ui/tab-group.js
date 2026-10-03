@@ -22,6 +22,16 @@
 //   slots (content in):
 //     default  each direct child is a panel; its tab-label attribute names
 //              the tab. A child with no tab-label is ignored (not a panel).
+//              tab-title, if present, becomes the tab button's title
+//              (tooltip) instead of repeating tab-label — for cases like a
+//              file path where the tab shows the basename but hover should
+//              reveal the full path.
+//              tab-fixed marks a tab that never gets an × even when the
+//              group is closable — a permanent place (a home, a folder
+//              view) among closable ones. Put it first in the DOM to pin
+//              it at the front; order is document order.
+//              tab-icon="folder" draws a small inline icon before the
+//              label (built-in set, see ICONS below — add names there).
 //   css vars (theme in), house-light defaults:
 //     --tg-border      strip underline / divider color (default #e2e7ee)
 //     --tg-tab-color   idle tab text (default #57606a)
@@ -29,12 +39,15 @@
 //     --tg-tab-active  active tab text (default #1f2328)
 //     --tg-accent      active tab underline (default #0969da)
 //     --tg-gap         space between tabs (default 4px)
+//     --tg-font-size   tab label size (default 13px) — family/weight still
+//                       just inherit from the host's own font, unset here
 //   events (state out), all bubbling + composed (library policy):
 //     tg-change   detail: { index, label }
 //     tg-close    detail: { index, label, panel } — × clicked (closable only)
 //   methods:
 //     .select(indexOrLabel)
-//     .refresh()   re-read panels/labels (after in-place tab-label edits)
+//     .refresh()   re-read panels/labels (after in-place tab-label edits);
+//                  keeps the current tab selected
 //
 // DESIGN NOTES — same as <split-view>: one self-contained file, shadow DOM
 // for isolation, --tg-* vars are the theming surface, four-channel contract,
@@ -68,8 +81,8 @@ TPL.innerHTML = `
       background: none;
       border: none;
       font: inherit;
-      font-size: 13px;
       color: var(--tg-tab-color, #57606a);
+      font-size: var(--tg-font-size, 13px);
       padding: 8px 12px;
       cursor: pointer;
       white-space: nowrap;
@@ -92,6 +105,8 @@ TPL.innerHTML = `
       display: inline-block; margin-left: 7px; padding: 0 3px;
       border-radius: 4px; opacity: .45; font-weight: 400;
     }
+    button.tab .ico { display: inline-block; width: 14px; height: 14px; margin-right: 6px; vertical-align: -2px; }
+    button.tab .ico svg { width: 100%; height: 100%; display: block; }
     button.tab .x:hover { opacity: 1; background: #e2e7ee; }
     #panels { flex: 1 1 auto; min-height: 0; }
     ::slotted([tab-label]) { height: 100%; }
@@ -100,6 +115,12 @@ TPL.innerHTML = `
   <div id="strip" part="strip" role="tablist"></div>
   <div id="panels" part="panels"><slot></slot></div>
 `;
+
+// built-in tab-icon set: Feather paths, 24x24 viewBox, stroked in currentColor
+const ICONS = {
+  folder: '<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>',
+};
+const SVG_OPEN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">';
 
 class TabGroup extends HTMLElement {
   static observedAttributes = ['active'];
@@ -134,14 +155,23 @@ class TabGroup extends HTMLElement {
       const id = `tg-tab-${i}`;
       const btn = document.createElement('button');
       btn.className = 'tab';
-      btn.textContent = label;
+      const icon = panel.getAttribute('tab-icon');
+      if (icon && ICONS[icon]) {
+        const ico = document.createElement('span');
+        ico.className = 'ico';
+        ico.innerHTML = SVG_OPEN + ICONS[icon] + '</svg>';
+        btn.appendChild(ico);
+      }
+      btn.appendChild(document.createTextNode(label));
       btn.id = id;
+      const tip = panel.getAttribute('tab-title');
+      if (tip) btn.title = tip;
       btn.setAttribute('role', 'tab');
       btn.setAttribute('type', 'button');
       btn.tabIndex = -1;
       btn.addEventListener('click', () => this.select(i));
       btn.addEventListener('keydown', this.#onKey);
-      if (this.hasAttribute('closable')) {
+      if (this.hasAttribute('closable') && !panel.hasAttribute('tab-fixed')) {
         const x = document.createElement('span');
         x.className = 'x';
         x.textContent = '×';
@@ -158,8 +188,11 @@ class TabGroup extends HTMLElement {
       panel.setAttribute('aria-labelledby', id);
     });
     if (!this.#panels.length) return;
-    // pick the starting tab: persisted, else the `active` attr, else 0
-    const start = this.#load() ?? this.getAttribute('active') ?? 0;
+    // pick the starting tab: persisted, else whatever was already selected
+    // (a rebuild from a slotchange or refresh() must not reset the host's
+    // selection), else the `active` attr, else 0
+    const keep = this.#index >= 0 && this.#index < this.#panels.length ? this.#index : null;
+    const start = this.#load() ?? keep ?? this.getAttribute('active') ?? 0;
     this.select(start, true);
   };
 
