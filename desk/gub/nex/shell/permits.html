@@ -132,7 +132,7 @@
     .sh-edit { margin-left:auto; }
     .modal-veil { position:fixed; inset:0; background:rgba(26,29,36,.35); display:none; align-items:center; justify-content:center; z-index:50; }
     .modal-veil.on { display:flex; }
-    .modal { background:white; border:1px solid #e2e7ee; border-radius:14px; box-shadow:0 10px 34px rgba(40,60,90,.18); width:340px; max-height:70vh; overflow:auto; padding:18px; }
+    .modal { background:white; border:1px solid #e2e7ee; border-radius:14px; box-shadow:0 10px 34px rgba(40,60,90,.18); width:340px; max-width:calc(100vw - 24px); max-height:70vh; overflow:auto; padding:18px; }
     .modal h3 { margin:0 0 3px; font-size:14px; font-weight:600; }
     .modal .m-sub { font-size:12px; color:#9aa4b3; line-height:1.45; margin-bottom:12px; }
     .m-opt { display:flex; align-items:center; gap:10px; padding:9px 12px; margin:0 -4px; border-radius:9px; cursor:pointer; font-size:13px; }
@@ -142,6 +142,19 @@
     .m-none { font-size:13px; color:#a0a8b4; padding:8px 12px; }
     .m-foot { display:flex; gap:8px; justify-content:flex-end; margin-top:14px; padding-top:12px; border-top:1px solid #eef1f5; }
       .card.applying { opacity: .55; pointer-events: none; }
+
+    /* mobile: the sidebar overlays #main instead of splitting the row away
+       from the cards, and the topbar sheds its labels so the controls fit */
+    @media (max-width: 640px) {
+      #topbar { gap: 8px; padding: 0 10px; }
+      #brand { display: none; }
+      #home-link { padding: 4px 8px; }
+      #modes button { padding: 5px 11px; font-size: 12px; }
+      #cards { padding: 14px 12px 40vh; }
+      #body { position: relative; }
+      #sidebar { position: absolute; top: 0; bottom: 0; left: 0; width: 82%; max-width: 300px; z-index: 40; box-shadow: 2px 0 16px rgba(40,60,90,.18); }
+      #app.collapsed #sidebar { box-shadow: none; }
+    }
   </style>
 </head>
 <body>
@@ -397,6 +410,8 @@
       Array.prototype.forEach.call(document.querySelectorAll('#cards .card'),function(c){ c.classList.toggle('sel',c.id==='card-'+cssid(id)); });
       Array.prototype.forEach.call(document.querySelectorAll('#sidebar .side-row'),function(r){ r.classList.toggle('sel',r.getAttribute('data-sel')===id); });
       if(scroll)centerCard(id,true);
+      // picking from the overlay sidebar on mobile closes it so the card shows
+      if(scroll&&window.matchMedia('(max-width:640px)').matches)document.getElementById('app').classList.add('collapsed');
     }
     function render(poll){
       document.getElementById('pending-badge').textContent=(function(){ var n=appRecords().filter(function(r){return r.pending;}).length; return n?n+' pending':''; })();
@@ -412,6 +427,8 @@
     }
     Array.prototype.forEach.call(document.querySelectorAll('#modes button'),function(b){ b.onclick=function(){ mode=b.getAttribute('data-mode'); selected=null; editSet={}; dirty=false; Array.prototype.forEach.call(document.querySelectorAll('#modes button'),function(x){ x.classList.toggle('active',x===b); }); render(); }; });
     document.getElementById('collapse').onclick=function(){ document.getElementById('app').classList.toggle('collapsed'); };
+    // on a phone the sidebar starts closed — the cards get the full width
+    if(window.matchMedia('(max-width:640px)').matches)document.getElementById('app').classList.add('collapsed');
 
     var loadingEl=document.getElementById('loading'), firstLoad=true;
     function load(){
