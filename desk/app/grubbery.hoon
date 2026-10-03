@@ -55,7 +55,8 @@
 /=  t-  /tests/loader
 |%
 +$  versioned-state
-  $%  state-5:migrations
+  $%  state-6:migrations
+      state-5:migrations
       state-4:migrations
       state-3:migrations
       state-2:migrations
@@ -100,7 +101,7 @@
 ::  reference, and it only changes with the agent itself.
 ::
 =/  sut-hash=@uv  (sham q:sut)
-=|  state-5:migrations
+=|  state-6:migrations
 =*  state  -
 ::
 =<
@@ -125,7 +126,14 @@
   |=  old-state=vase
   ^-  (quip card _this)
   =/  old  !<(versioned-state old-state)
-  ::  every version funnels forward through the chain to the current one
+  ?:  ?=(%6 -.old)
+    ::  steady: already carries the #80 skip-queue correction
+    =.  state  old
+    =^  start-cards  state
+      abet:cold-start:hc
+    [start-cards this]
+  ::  below %6: funnel up to a %5 value, run the one-time skip-queue
+  ::  correction (+fsr-pool, #80), then become %6 so it runs just once.
   =/  to-4=(unit state-4:migrations)
     ?-  -.old
       %0  `(state-3-to-4:migrations (state-2-to-3:migrations (state-1-to-2:migrations (state-0-to-1:migrations old))))
@@ -134,11 +142,15 @@
       %3  `(state-3-to-4:migrations old)
       %4  `old
       %5  ~
+      %6  ~
     ==
-  =?  state  ?=(^ to-4)
+  =/  as-5=state-5:migrations
+    ?~  to-4  ?>(?=(%5 -.old) old)
     ~>  %slog.[0 leaf+"grubbery: migrating state {<-.old>} -> %5"]
     (state-4-to-5:migrations u.to-4)
-  =?  state  ?=(%5 -.old)  old
+  =.  state  (state-5-to-6:migrations as-5)
+  =^  pol=pool:nexus  silo  (fsr-pool:hc pool silo)
+  =.  pool  pol
   =^  start-cards  state
     abet:cold-start:hc
   [start-cards this]
@@ -618,6 +630,63 @@
     [%0 (~(uni by timers.u.old-st) timers.new-st)]
   =.  this  (save-file new-rail [[/ %behn-state] merged])
   (cull-if-exists %& old-rail)
+++  fsr-pool
+  |=  [pol=pool:nexus sil=silo:nexus]
+  ^-  [pool:nexus silo:nexus]
+  =^  nfil  sil
+    ?~  fil.pol  [fil.pol sil]
+    =^  procs  sil  (fsr-procs proc.u.fil.pol sil)
+    [`u.fil.pol(proc procs) sil]
+  =^  ndir  sil
+    =/  kids=(list [p=@ta q=pool:nexus])  ~(tap by dir.pol)
+    =|  acc=(map @ta pool:nexus)
+    |-  ^-  [(map @ta pool:nexus) silo:nexus]
+    ?~  kids  [acc sil]
+    =^  sub  sil  (fsr-pool q.i.kids sil)
+    $(kids t.kids, acc (~(put by acc) p.i.kids sub))
+  [[nfil ndir] sil]
+++  fsr-procs
+  |=  [ps=(map @ta proc:fiber:nexus) sil=silo:nexus]
+  ^-  [(map @ta proc:fiber:nexus) silo:nexus]
+  =/  items=(list [p=@ta q=proc:fiber:nexus])  ~(tap by ps)
+  =|  acc=(map @ta proc:fiber:nexus)
+  |-  ^-  [(map @ta proc:fiber:nexus) silo:nexus]
+  ?~  items  [acc sil]
+  =^  sk  sil  (fsr-queue skip.q.i.items sil)
+  $(items t.items, acc (~(put by acc) p.i.items q.i.items(skip sk)))
+++  fsr-queue
+  |=  [q=(qeu take:fiber:nexus) sil=silo:nexus]
+  ^-  [(qeu take:fiber:nexus) silo:nexus]
+  =/  items=(list take:fiber:nexus)  ~(tap to q)
+  =|  acc=(list take:fiber:nexus)
+  |-  ^-  [(qeu take:fiber:nexus) silo:nexus]
+  ?~  items  [(~(gas to *(qeu take:fiber:nexus)) (flop acc)) sil]
+  =^  tk  sil  (fsr-take i.items sil)
+  $(items t.items, acc [tk acc])
+++  fsr-take
+  |=  [tk=take:fiber:nexus sil=silo:nexus]
+  ^-  [take:fiber:nexus silo:nexus]
+  ?~  in.tk  [tk sil]
+  ?+    -.u.in.tk  [tk sil]
+      %peep
+    ?.  ?=(%& -.res.u.in.tk)  [tk sil]
+    =/  present=(list [=cass:clay lobe=jobe:nexus])
+      (skim p.res.u.in.tk |=([* lobe=jobe:nexus] (~(has by jects.sil) lobe)))
+    =.  sil
+      %+  roll  present
+      |=  [[* lobe=jobe:nexus] s=_sil]
+      (~(bump-ject-ref si:nexus s) lobe)
+    [tk(in `[%peep wire.u.in.tk &+present]) sil]
+  ::
+      %peek
+    ?+    -.cite.u.in.tk  [tk sil]
+        ?(%file %ball)
+      =/  lobe=jobe:nexus  lobe.cite.u.in.tk
+      ?:  (~(has by jects.sil) lobe)
+        [tk (~(bump-ject-ref si:nexus sil) lobe)]
+      [tk(in `[%peek wire.u.in.tk [%none ~]]) sil]
+    ==
+  ==
 ++  cold-start
   ^-  _this
   =.  this  bootstrap-marcs
