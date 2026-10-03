@@ -1,6 +1,11 @@
 /-  push
 /+  tarball
 |%
+::  +dbg: the silo refcount traces print only when this is yes. They
+::  fire per occurrence from a pure core that cannot dedupe them, and
+::  unconditionally they bury real warnings.
+::
+++  dbg  ^-(? |)
 +$  card  card:agent:gall
 +$  built
   $%  [%vase =vase]
@@ -742,7 +747,7 @@
     ^-  ^silo
     =/  got  (~(get by nouns.silo) lobe)
     ?~  got
-      ~&  >>>  [%silo-drop-noun-absent lobe]
+      ~?  dbg  [%silo-drop-noun-absent lobe]
       silo
     ?:  (lte refs.u.got 1)
       silo(nouns (~(del by nouns.silo) lobe))
@@ -775,7 +780,7 @@
     ^-  ^silo
     =/  got  (~(get by nouns.silo) lobe)
     ?~  got
-      ~&  >>>  [%silo-bump-noun-absent lobe]
+      ~?  dbg  [%silo-bump-noun-absent lobe]
       silo
     silo(nouns (~(put by nouns.silo) lobe [+(refs.u.got) noun.u.got]))
   ::  Increment ject refcount by lobe (must exist).
@@ -785,7 +790,7 @@
     ^-  ^silo
     =/  got  (~(get by jects.silo) lobe)
     ?~  got
-      ~&  >>>  [%silo-bump-ject-absent lobe]
+      ~?  dbg  [%silo-bump-ject-absent lobe]
       silo
     silo(jects (~(put by jects.silo) lobe [+(refs.u.got) ject.u.got]))
   ::  Insert ject, increment refcount if exists.
@@ -827,7 +832,7 @@
     ^-  ^silo
     =/  got  (~(get by jects.silo) lobe)
     ?~  got
-      ~&  >>>  [%silo-drop-ject-absent lobe]
+      ~?  dbg  [%silo-drop-ject-absent lobe]
       silo
     ?.  (lte refs.u.got 1)
       silo(jects (~(put by jects.silo) lobe [refs=(dec refs.u.got) ject.u.got]))

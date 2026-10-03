@@ -1163,7 +1163,6 @@
     =/  tf=@t  (~(got by fields) 'typeflag')
     ~?  >>>  &(?=(^ data) ?=(?(%'1' %'2' %'3' %'4' %'5' %'6') tf))
       `@t`(cat 3 'tarball: unexpected data for header with typeflag ' tf)
-    ~?  >>  (~(has by fields) 'size')  'tarball: ignoring size field'
     =.  fields
       %+  ~(put by fields)
         'size'
