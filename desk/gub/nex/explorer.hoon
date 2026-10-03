@@ -131,15 +131,15 @@
         ?.  =(src our)
           ;<  ~  bind:m  (send-simple:srv eyre-id [[403 ~] `(as-octs:mimes:html 'Forbidden')])
           (pure:m ~)
-        ~&  >  [%explorer-request eyre-id url.request.req]
+        ~?  >  dbg  [%explorer-request eyre-id url.request.req]
         =/  [site=path args=quay:eyre]  (parse-url:http-utils url.request.req)
         =/  raw-path=path
           ?.  ?=([%grubbery %ball *] site)  ~
           t.t.site
 
-        ~&  >  %explorer-dispatch-start
+        ~?  >  dbg  %explorer-dispatch-start
         ;<  dir-view=view:nexus  bind:m  (peek-shallow:io [%& %| raw-path] ~)
-        ~&  >  %explorer-peek-done
+        ~?  >  dbg  %explorer-peek-done
         ?.  ?=([%ball *] dir-view)
           ::  Not a directory — try parent for file view
           ?~  raw-path
@@ -157,7 +157,7 @@
           (read-weir-from-parent raw-path)
         ?:  =('POST' method.request.req)
           (handle-post eyre-id raw-path dir-weir ball.dir-view req)
-        ~&  >  %explorer-handle-get-start
+        ~?  >  dbg  %explorer-handle-get-start
         (handle-get eyre-id raw-path %.y dir-weir ball.dir-view wave.dir-view args (wants-html req))
       ==
     --
@@ -324,7 +324,7 @@
   |=  [eyre-id=@ta tree-path=path is-dir=? dir-weir=(unit weir:nexus) ball=ball:tarball ball-wave=wave:nexus args=(list [key=@t value=@t]) html-ok=?]
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
-  ~&  >  [%explorer-peek tree-path]
+  ~?  >  dbg  [%explorer-peek tree-path]
   =/  download-param=(unit @t)  (get-key:kv:html-utils 'download' args)
   ?:  is-dir
     ?:  ?&(?=(^ download-param) =(u.download-param 'tar'))
@@ -345,12 +345,12 @@
     ?:  &(html-ok ?=(~ (get-key:kv:html-utils 'list' args)))
       ;<  ~  bind:m  (send-simple:srv eyre-id (mime-response:http-utils browse-html))
       (pure:m ~)
-    ~&  >  %explorer-get-time
+    ~?  >  dbg  %explorer-get-time
     ;<  now=@da  bind:m  get-time:io
-    ~&  >  %explorer-get-conversions
+    ~?  >  dbg  %explorer-get-conversions
     ;<  conversions=(map bars:tarball tube:clay)  bind:m
       (get-blot-conversions-shallow:io ball)
-    ~&  >  %explorer-get-conversions-done
+    ~?  >  dbg  %explorer-get-conversions-done
     ::  ?list=1: the listing as JSON — the static browse app's feed (and
     ::  anyone else's). Non-html non-list requests for a dir get it too.
     ::  child necks: the shallow peek of THIS dir returns subdirs as
@@ -517,6 +517,12 @@
   (pure:m ~)
 ::  Handle POST requests (delete actions)
 ::
+::  +dbg: the per-request traces below print only when this is yes. They
+::  were on unconditionally, which is a line or four on the console for
+::  every explorer request in production. Flip to & and recompile to see
+::  them again; ~? costs nothing when it is |.
+::
+++  dbg  ^-(? |)
 ++  handle-post
   |=  [eyre-id=@ta tree-path=path dir-weir=(unit weir:nexus) root=ball:tarball req=inbound-request:eyre]
   =/  m  (fiber:fiber:nexus ,~)
