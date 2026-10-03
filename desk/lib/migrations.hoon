@@ -340,6 +340,22 @@
       =upki:nexus   ::  live: the rail that backs jael pki subscriptions
       =last:nexus   ::  live: monotonic time and entropy for the bowl
   ==
+::  state-6: the cite-drop fix (#80) plus its one-time skip-queue
+::  correction. Shape-identical to %5; the version only records that the
+::  correction has run, so it runs exactly once, at the upgrade.
++$  state-6
+  $:  %6
+      =born:nexus
+      =silo:nexus
+      =subs:nexus
+      =pool:nexus
+      =code:nexus
+      =bins:nexus
+      =vale:nexus
+      =remo:nexus
+      =upki:nexus
+      =last:nexus
+  ==
 ::
 +|  %migrations
 ::
@@ -407,6 +423,13 @@
       last.old
   ==
 ::
+++  state-5-to-6
+  |=  old=state-5
+  ^-  state-6
+  :*  %6
+      born.old  silo.old  subs.old  pool.old  code.old
+      bins.old  vale.old  remo.old  upki.old  last.old
+  ==
 ++  state-4-to-5
   |=  old=state-4
   ^-  state-5
