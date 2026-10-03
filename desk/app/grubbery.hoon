@@ -4053,9 +4053,10 @@
           (peek-ball-shallow lobe.cite)
         [%ball wave.cite sub-ball]
       ==
-    ::  Drop silo refs after hydrating
-    =?  silo  ?=(%file -.cite)  (~(drop-ject si:nexus silo) lobe.cite)
-    =?  silo  ?=(%ball -.cite)  (~(drop-ject si:nexus silo) lobe.cite)
+    ::  The cite's ref is released by the eval loop when THIS take is
+    ::  CONSUMED (+drop-pend-refs), not here. A skipped take is hydrated
+    ::  again on every re-offer; dropping per read over-drops the jobe and
+    ::  deletes a live grub's shared, content-addressed leaf. See #80.
     [&+`[%peek wire.u.in view] this]
       %peep
     ::  Resolve lobes to sages
@@ -4074,11 +4075,8 @@
       =/  res  (validate-bask cod [blot.mark.leaf.jt u.got])
       ?:  ?=(%| -.res)  ~
       `[cas p.res]
-    ::  Drop silo refs (pace lobes are jects)
-    =.  silo
-      %+  roll  p.res.u.in
-      |=  [[* =jobe:nexus] acc=_silo]
-      (~(drop-ject si:nexus acc) jobe)
+    ::  Refs released on consume (+drop-pend-refs), not per read: see the
+    ::  %peek note above and #80.
     [&+`[%peep wire.u.in &+hits] this]
       %code
     ::  Resolve ckeys to builts
@@ -4130,6 +4128,7 @@
       (hydrate path.here in.take)
     ?:  ?=(%| -.hydrated)
       =/  =tang  [leaf+"hydrate failed" p.hydrated]
+      =.  this  (drop-pend-refs in.take)
       :*  darts
           :_(done [take `tang])
           state
@@ -4145,6 +4144,7 @@
       =/  =tang  [leaf+"crash" p.res]
       %-  (slog ~[leaf+"%fiber-crash {(spud (snoc path.here name.here))} in={<in-tag=?~(in.take ~ `-.u.in.take)>}"])
       %-  (slog tang)
+      =.  this  (drop-pend-refs in.take)
       :*  darts
           :_(done [take `tang])
           state
@@ -4158,6 +4158,7 @@
       (clam-output here blot state state.output)
     ?:  ?=(%| -.clam)
       =/  =tang  [leaf+"state validation failed at {(spud (snoc path.here name.here))}"]~
+      =.  this  (drop-pend-refs in.take)
       :*  darts
           :_(done [take `tang])
           state
@@ -4167,6 +4168,10 @@
       ==
     =.  this  +.p.clam
     =/  val=vase  -.p.clam
+    ::  consume releases the cite's ref exactly once; a %skip re-queues the
+    ::  take with its ref intact, to be released when it is really consumed
+    ::  (or when the process dies, via +nack-poke-takes). See #80.
+    =?  this  !?=(%skip -.next.output)  (drop-pend-refs in.take)
     ?-    -.next.output
         %fail
       :*  darts
