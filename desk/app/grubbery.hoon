@@ -157,7 +157,6 @@
       %3  `(state-3-to-4:migrations old)
       %4  `old
       %5  ~
-      %6  ~
     ==
   =/  as-5=state-5:migrations
     ?~  to-4  ?>(?=(%5 -.old) old)
