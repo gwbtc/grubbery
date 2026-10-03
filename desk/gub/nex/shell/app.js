@@ -3,12 +3,43 @@ var API='/grubbery/api';var BALL='apps/tiles.tiles';
   var NBALL = 'apps/notifications.notifications';
   var bellNotes = [];
 
+  // Pending permission requests belong in the bell too. An app that has asked
+  // for roads and not been answered is exactly the thing this panel exists to
+  // draw the user to, and until now nothing did: the shell's own notify goes to
+  // a notifications nexus this distribution does not carry. So the bell reads
+  // the permissions caches directly and lists each unanswered ask as an item
+  // that opens the permissions page on that app. They are not read or
+  // dismissed here; they resolve by being granted.
+  function sameRoads(a, b) { a = (a || []).slice().sort(); b = (b || []).slice().sort(); return a.length === b.length && a.every(function(x, i) { return x === b[i]; }); }
+  function roadsOf(x) { return (x || []).map(function(r) { return typeof r === 'string' ? r : r.road; }); }
+  function pendingAsks() {
+    return Promise.all([
+      fetch('/apps/grubbery/asks.json').then(function(r) { return r.json(); }).catch(function() { return []; }),
+      fetch('/apps/grubbery/approved.json').then(function(r) { return r.json(); }).catch(function() { return {}; })
+    ]).then(function(res) {
+      var asks = res[0] || [], approved = res[1] || {};
+      return asks.filter(function(a) {
+        var ap = approved[a.app], dec = ap && ap.declared;
+        return !ap || !(dec && sameRoads(roadsOf(a.poke), roadsOf(dec.poke)) && sameRoads(roadsOf(a.peek), roadsOf(dec.peek)) && sameRoads(roadsOf(a.make), roadsOf(dec.make)));
+      }).map(function(a) {
+        var n = roadsOf(a.poke).length + roadsOf(a.peek).length + roadsOf(a.make).length;
+        var leaf = a.app.split('/').pop();
+        return { id: 'ask:' + a.app, app: leaf, created_ms: 0, mack: null, ask: true,
+                 metadata: { title: 'wants ' + n + ' permission' + (n === 1 ? '' : 's'),
+                             body: 'Open to review and grant.',
+                             url: '/apps/grubbery/permits?app=' + encodeURIComponent(a.app) } };
+      });
+    });
+  }
   function bellFetch() {
-    return fetch('/grubbery/ball/' + NBALL + '/inbox.inbox?blot=/json')
-      .then(function(r) { return r.json(); })
-      .then(function(ns) { bellNotes = ns || []; bellBadge(); })
+    return Promise.all([
+      fetch('/grubbery/ball/' + NBALL + '/inbox.inbox?blot=/json').then(function(r) { return r.json(); }).catch(function() { return []; }),
+      pendingAsks()
+    ]).then(function(res) { bellNotes = (res[1] || []).concat(res[0] || []); bellBadge(); })
       .catch(function() {});
   }
+  // asks change when a user grants or an app installs; keep the pip honest
+  setInterval(function() { bellFetch().then(function() { if (document.getElementById('bell-backdrop').classList.contains('open')) bellRender(); }); }, 60000);
 
   function bellBadge() {
     var n = bellNotes.filter(function(x) { return x.mack == null; }).length;
@@ -29,7 +60,7 @@ var API='/grubbery/api';var BALL='apps/tiles.tiles';
   function bellRender() {
     var el = document.getElementById('bell-notes');
     el.innerHTML = '';
-    var anyUnacked = bellNotes.some(function(n) { return n.mack == null; });
+    var anyUnacked = bellNotes.some(function(n) { return n.mack == null && !n.ask; });
     document.getElementById('bell-ack-all').style.display = anyUnacked ? '' : 'none';
     if (!bellNotes.length) {
       el.innerHTML = '<div class="bn-empty">nothing here — a quiet ship</div>';
@@ -50,6 +81,18 @@ var API='/grubbery/api';var BALL='apps/tiles.tiles';
           '</div>';
         var acts = document.createElement('div');
         acts.className = 'bn-acts';
+        if (n.ask) {
+          var g = document.createElement('button');
+          g.className = 'hdr-btn';
+          g.textContent = 'Review';
+          g.onclick = function(e) { e.stopPropagation(); location.href = md.url; };
+          acts.appendChild(g);
+          d.appendChild(acts);
+          d.style.cursor = 'pointer';
+          d.onclick = function() { location.href = md.url; };
+          el.appendChild(d);
+          return;
+        }
         if (!acked) {
           var b = document.createElement('button');
           b.className = 'hdr-btn';
@@ -107,7 +150,7 @@ var API='/grubbery/api';var BALL='apps/tiles.tiles';
     });
   }
   function bellAckAll() {
-    var un = bellNotes.filter(function(n) { return n.mack == null; });
+    var un = bellNotes.filter(function(n) { return n.mack == null && !n.ask; });
     var left = un.length;
     if (!left) return;
     un.forEach(function(n) {
