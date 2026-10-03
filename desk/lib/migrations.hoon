@@ -356,6 +356,32 @@
       =upki:nexus
       =last:nexus
   ==
+::  state-7: conns, the eyre-id to binding map, is agent state, not a
+::  grub. Same fields as %6 plus conns.
+::
+::  conns is per-request bookkeeping with no meaning across a reload, so
+::  a grub is the wrong home for it. Holding it there drags the whole
+::  write path on every inbound HTTP request: hist rebuild, gc-vale-cache,
+::  silo. Measured on a real ship, that put about 4.5KB into the
+::  permanent event log for a read-only GET and cost about a second per
+::  request in grubbery's eyre layer. bindings are truth and stay in the
+::  namespace.
+::
++$  state-7
+  $:  %7
+      =born:nexus
+      =silo:nexus
+      =subs:nexus
+      =pool:nexus
+      =code:nexus
+      =bins:nexus
+      =vale:nexus
+      =remo:nexus
+      =upki:nexus
+      =last:nexus
+      ::  live: which eyre binding is serving each open eyre-id
+      conns=(map @ta binding:eyre)
+  ==
 ::
 +|  %migrations
 ::
@@ -422,6 +448,58 @@
       upki.old
       last.old
   ==
+::
+::  state-6 -> state-7: conns moves into agent state (starts empty), and a
+::  one-time sweep of born. Until now a culled grub left its record behind,
+::  so a ship that had served traffic carried one dead record per request
+::  ever made. Both the tree walk and the born diff scan those records on
+::  every later write in the same directory. New ones stop appearing at
+::  the source (+cull drops an un-gained grub's record), and this clears
+::  what already piled up.
+::
+++  state-6-to-7
+  |=  old=state-6
+  ^-  state-7
+  :*  %7
+      (prune-dead-born born.old)
+      silo.old  subs.old  pool.old  code.old
+      bins.old  vale.old  remo.old  upki.old  last.old
+      ~
+  ==
+::  +prune-dead-born: drop file records with nothing left to read.
+::
+::    A record survives if any revision still points at a ject. A gained
+::    grub keeps its revisions, so it survives a delete and keeps ordering
+::    its future re-creations. An un-gained one has had its revisions
+::    tombed already, so nothing here is reachable and nothing references
+::    the silo. Dropping it releases no refcounts because it holds none.
+::
+++  prune-dead-born
+  |=  bon=born:nexus
+  ^-  born:nexus
+  =?  fil.bon  ?=(^ fil.bon)
+    :-  ~
+    %=    u.fil.bon
+        file
+      %-  ~(rep by file.u.fil.bon)
+      |=  [[nom=@ta sk=hist:nexus] out=(map @ta hist:nexus)]
+      ?.  (hist-readable sk)  out
+      (~(put by out) nom sk)
+    ==
+  %=    bon
+      dir
+    %-  ~(run by dir.bon)
+    |=(kid=born:nexus ^$(bon kid))
+  ==
+::  +hist-readable: does any revision of this file still point at a ject?
+::
+++  hist-readable
+  |=  sk=hist:nexus
+  ^-  ?
+  %+  lien  (tap:hon:hist:nexus sk)
+  |=  [key=cass:clay val=entry:hist:nexus]
+  ?:  ?=(%tomb -.pace.val)  %.n
+  ?=(^ p.pace.val)
 ::
 ++  state-5-to-6
   |=  old=state-5
