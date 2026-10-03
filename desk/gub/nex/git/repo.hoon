@@ -111,7 +111,7 @@
         ?:  =(0 poll)
           ;<  *  bind:m  (take-news:io /poll)
           $
-        ~&  >  [%git-repo-poll-sleeping poll %minutes]
+        ~?  >  dbg  [%git-repo-poll-sleeping poll %minutes]
         ;<  now=@da  bind:m  get-time:io
         ;<  ~  bind:m  (set-timer:io /timer (add now (mul ~m1 poll)))
         ;<  *  bind:m  (take-news-or-wake:io /poll)
@@ -137,6 +137,13 @@
 ::  yielding its outcome. Verbs are wired incrementally; unwired ones
 ::  report an error rather than silently no-op.
 ::
+::  +dbg: the traces below print only when this is yes. They were on
+::  unconditionally - a few lines per sync tick, per commit, per request -
+::  and in production they bury the warnings. ~? costs nothing when it is
+::  |; flip to & and recompile to see them again. Warnings (>> and >>>)
+::  are not behind it.
+::
+++  dbg  ^-(? |)
 ++  run-command
   |=  cmd=git-command:git-act
   =/  m  (fiber:fiber:nexus ,outcome:git-act)
