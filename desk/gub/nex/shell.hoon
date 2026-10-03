@@ -189,7 +189,7 @@
         ::  wake whenever the registry, any watched target's source, or the pins
         ::  change — then re-mirror and recompute coverage into the cache.
         ;<  woke=wire  bind:m  take-mirror-news
-        ~&  >  [%shell-docs-mirror-wake woke]
+        ~?  dbg  [%shell-docs-mirror-wake woke]
         ;<  seen1=(map path @)  bind:m  (do-mirror seen)
         ;<  ~  bind:m  recompute-all
         ;<  kept1=(set path)    bind:m  (sync-keeps kept)
@@ -337,7 +337,7 @@
           (peek-exists:io (nex-road:io rail [%& / %'bootstrapped.json']))
         ;<  ~  bind:m  ensure-polls
         ?:  done  (pure:m ~)
-        ~&  >  %shell-bootstrap-first-boot
+        ~?  dbg  %shell-bootstrap-first-boot
         ;<  ~  bind:m  sync-defaults
         ;<  err=(unit tang)  bind:m
           (make-soft:io (nex-road:io rail [%& / %'bootstrapped.json']) |+[[[/ %json] `json`[%b %.y]] ~])
@@ -1266,6 +1266,10 @@
       ==
     --
 |%
+::  +dbg: the routine traces print only when this is yes. It lives in this
+::  helper core, where the nexus core above can see it.
+::
+++  dbg  ^-(? |)
 ++  srv  ~(. http-res:io [%| 1 %& ~ %'main.sig'])
 ::  coll-of: the collection a request is scoped to — the `c` query param (a
 ::  collection name). Absent, we fall back to the first registered collection,
@@ -1503,7 +1507,7 @@
   =/  m  (fiber:fiber:nexus ,cov-state)
   ^-  form:m
   ;<  mv=view:nexus  bind:m  (peek:io (nex-road:io rail [%| (coll-mirror c)]) ~)
-  ~&  >  [%shell-docs-split c]
+  ~?  dbg  [%shell-docs-split c]
   =/  finfo=(map @t (list @t))
     ~>  %bout
     ?.  ?=([%ball *] mv)  ~
@@ -1746,7 +1750,7 @@
   =/  secs=(list @t)  (scoped-sections nav)
   ::  %bout: vere prints the wall time of the wrapped render (in-event time
   ::  is otherwise unobservable — the bowl clock only ticks per event).
-  ~&  >  [%shell-docs-render c sections=(lent secs)]
+  ~?  dbg  [%shell-docs-render c sections=(lent secs)]
   =/  [whole=json views=(map @t json)]
     ~>  %bout
     :-  (render-coverage cs nav '' %.n)
@@ -1759,7 +1763,7 @@
   =/  whole-slim=json
     ?.(?=([%o *] whole) whole [%o (~(put by p.whole) 'files' [%a ~])])
   =/  cache=json  (pairs:enjs:format ~[['whole' whole-slim] ['views' [%o views]]])
-  ~&  >  [%shell-docs-recompute c files=~(wyt by finfo.cs) anchors=nanc.cs]
+  ~?  dbg  [%shell-docs-recompute c files=~(wyt by finfo.cs) anchors=nanc.cs]
   ::  stamp every new pin once, then store the cache grub for this collection.
   ;<  pj=(unit json)  bind:m
     (peek-as:io (nex-road:io rail [%& /docs %'pins.json']) ,json)
