@@ -474,10 +474,16 @@
     =/  bod=octs  (as-octs:mimes:html (crip (noah q.sage)))
     ;<  ~  bind:m  (send-simple:srv eyre-id (mime-response:http-utils [/text/plain bod]))
     (pure:m ~)
-  ;<  =mime  bind:m  (sage-to-mime:io sage)
+  ::  ?raw (and the default non-info, non-pretty byte serve): delegate to the
+  ::  kernel ball-peek api (/grubbery/api/file) so the serve-sandbox applies —
+  ::  a grub that can't itself poke/make /sys/eyre gets runnable content served
+  ::  inert (text/plain + nosniff) there. We only ever served the stored bytes
+  ::  here, so a 307 is transparent to fetch()/img/download consumers.
   ?~  info-param
-    ;<  ~  bind:m  (send-simple:srv eyre-id (mime-response:http-utils [p.mime q.mime]))
+    =/  loc=@t  (crip (weld "/grubbery/api/file" (spud `path`tree-path)))
+    ;<  ~  bind:m  (send-simple:srv eyre-id [[307 ~[['location' loc]]] ~])
     (pure:m ~)
+  ;<  =mime  bind:m  (sage-to-mime:io sage)
   ::  ?info=1: the file as data. x-urb-jam is sage-to-mime's no-tube
   ::  fallback: the noun pretty-printed rides along as text, read-only.
   ::  Texty content the shell fetches itself via ?raw=1.

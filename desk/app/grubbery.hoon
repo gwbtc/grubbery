@@ -6696,13 +6696,41 @@
       (mule |.(`sage:tarball`[target ((get-tube dir [p.sage target]) q.sage)]))
     ?:  ?=(%| -.conv)  (err 400 'No tube for mark conversion')
     =/  cs=sage:tarball  p.conv
+    ::  serve-sandbox: a grub may be served to the browser as runnable code
+    ::  only if it could itself poke or make /sys/eyre unmolested by its own
+    ::  weir — browser execution runs with the session's authority, so
+    ::  serving a sandboxed grub runnable would elevate it past its weir.
+    ::  Otherwise downgrade to inert text/plain (+ nosniff vs MIME sniffing).
+    ::  The gate is pure +allowed, no /sys special-case; a grub with no
+    ::  restricting weir passes (privilege is the absence of a weir).
+    =/  eyre-lane=lane:tarball  [%& /sys/eyre %'main.server-state']
+    =/  file-rail=rail:tarball  [dir name]
+    =/  eyre-privileged=?
+      ?|  !?=([~ %|] (allowed-quiet %poke file-rail `eyre-lane))
+          !?=([~ %|] (allowed-quiet %make file-rail `eyre-lane))
+      ==
+    =/  serve-mime
+      |=  =mime  ^-  (unit (list card:agent:gall))
+      ::  content-type as a cord (a path literal can't hold the '+' in
+      ::  svg+xml / xhtml+xml)
+      =/  ct=@t  (spat `path`p.mime)
+      =/  runnable=?
+        ?|  =('/text/html' ct)         =('/application/javascript' ct)
+            =('/text/javascript' ct)   =('/application/ecmascript' ct)
+            =('/image/svg+xml' ct)     =('/application/wasm' ct)
+            =('/application/xhtml+xml' ct)
+        ==
+      ?:  |(eyre-privileged !runnable)  (ok-mime mime)
+      %-  ok-payload
+      :-  [200 ~[['content-type' 'text/plain'] ['x-content-type-options' 'nosniff']]]
+      `q.mime
     ?:  =([/ %mime] p.cs)
-      (ok-mime !<(mime q.cs))
+      (serve-mime !<(mime q.cs))
     =/  mres=(each vase tang)
       (mule |.((`tube:clay`(get-tube dir [p.cs [/ %mime]]) q.cs)))
     ?:  ?=(%| -.mres)
-      (ok-mime [/application/x-urb-jam (as-octs:mimes:html (jam q.cs))])
-    (ok-mime !<(mime p.mres))
+      (serve-mime [/application/x-urb-jam (as-octs:mimes:html (jam q.cs))])
+    (serve-mime !<(mime p.mres))
   ==
 ::  forward-http: match a request against the eyre bindings and hand it to the
 ::  bound handler, recording the connection; 404 if nothing matches.

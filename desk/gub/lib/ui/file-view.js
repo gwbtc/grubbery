@@ -120,6 +120,7 @@
       '<label class="tool-label" for="mime-input">mime type</label>' +
       '<input id="mime-input" type="text" spellcheck="false" readonly>' +
     '</div>' +
+    '<div id="sandbox-banner" style="display:none;margin:8px 12px;padding:10px 12px;border:1px solid #f0d9a8;background:#fff8ec;border-radius:8px;font:12px/1.5 -apple-system,BlinkMacSystemFont,sans-serif;color:#7a5900"></div>' +
     '<div id="text-view">' +
       '<div class="edwrap" id="edwrap" style="display:none">' +
         '<div id="src-display"></div>' +
@@ -245,7 +246,18 @@
     function chip(id, text) { var c = $(id); c.querySelector('.v').textContent = text; c.style.display = ''; }
 
     var info = null, mite = '', texty = false, editable = false, buildStatus = '';
-    var mimeRendered = false, buildRendered = false;
+    var mimeRendered = false, buildRendered = false, sandboxed = false;
+    // a grub whose mite is runnable in a browser — the only kinds the kernel
+    // serve-sandbox ever downgrades, so the only ones worth a header check
+    function runnableMite(m) {
+      return /(^|\/)html/i.test(m) || /javascript|ecmascript/i.test(m) ||
+        /svg/i.test(m) || /wasm/i.test(m) || /xhtml/i.test(m);
+    }
+    function showSandboxBanner() {
+      var b = $('sandbox-banner');
+      b.innerHTML = '<strong>Sandboxed</strong> — this file’s directory isn’t granted <code>/sys/eyre</code> access, so grubbery serves it as inert <code>text/plain</code> (with <code>nosniff</code>): it cannot run as code in your browser. The real type is still <code>' + (mite || '?') + '</code>; the bytes just aren’t delivered as it.';
+      b.style.display = '';
+    }
 
     (async function boot() {
       try {
@@ -284,6 +296,14 @@
       mimeInput.value = mite;
       tools.style.display = '';
       $('mime-row').style.display = '';
+      // only runnable types can be downgraded; one header check tells us if
+      // the kernel serve-sandbox fired for this file, from any pane
+      if (runnableMite(mite)) {
+        try {
+          var hr = await fetch(here + '?raw=1');
+          if (hr.headers.get('x-content-type-options') === 'nosniff') { sandboxed = true; showSandboxBanner(); }
+        } catch (_) {}
+      }
       if (buildStatus) tabBuild.style.display = '';
       if (editable) {
         ed.value = present(await readRaw());
@@ -432,6 +452,17 @@
       var text = editable ? ed.value : (src.textContent || '');
       mimeView.textContent = '';
       var k = effectiveKind();
+      // kernel serve-sandbox (detected at boot): a runnable grub whose
+      // directory can't reach /sys/eyre is served inert — rendering a live
+      // preview would just show that inert text or a broken image, so show
+      // the source; the banner up top explains why.
+      if (sandboxed) {
+        var spre = document.createElement('pre'); spre.className = 'dim';
+        spre.style.cssText = 'margin:0;white-space:pre-wrap;overflow-wrap:anywhere;';
+        spre.textContent = text;
+        mimeView.appendChild(spre);
+        return;
+      }
       if (k === 'md' && !window.marked) {
         try { await loadScript('/grubbery/ball/apps/explorer.explorer/marked.min.js'); } catch (_) {}
       }
