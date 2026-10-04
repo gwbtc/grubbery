@@ -88,6 +88,45 @@ ft.columns = [
     },
   },
   {
+    key: 'weir', label: 'Weir', cls: 'mono',
+    // dirs only: a small restricted/unrestricted tag, the same thing as the
+    // top-bar sandbox chip. Click to edit that directory's roads in the weir
+    // modal — writes target that row's own URL, so the server edits it, not
+    // the directory we're viewing.
+    format: (v, item) => item.kind === 'dir' ? (item.weir ? 'restricted' : 'unrestricted') : '',
+    decorate: (cell, item) => {
+      if (item.kind !== 'dir') return;
+      cell.style.cursor = 'pointer';
+      cell.style.color = item.weir ? '#9a6700' : '#1a7f37';
+      cell.title = "edit this directory's weir";
+      cell.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const dp = here.replace(/\/$/, '') + '/' + item.name;
+        const show = (w) => renderWeir(w || null, dp, true, dp);
+        // after an edit, load() refreshes children; re-read this row's weir
+        weirRefresh = () => {
+          const fresh = (data.children || []).find((c) => c.name === item.name);
+          show(fresh ? fresh.weir : null);
+        };
+        show(item.weir);
+        $('weir-modal').show();
+      });
+    },
+  },
+  {
+    key: 'built', label: 'Build', cls: 'mono',
+    // ✓ compiled, ✗ build error, blank for non-code or non-hoon. Click the
+    // file (its name) to open the viewer's Build tab for the detail/tang.
+    format: (v) => v === 'vase' ? '✓' : v === 'tang' ? '✗' : '',
+    decorate: (cell, item) => {
+      if (item.built === 'vase') { cell.style.color = '#116329'; }
+      else if (item.built === 'tang') {
+        cell.style.color = '#cf222e'; cell.style.fontWeight = '700';
+        cell.title = 'build error — open the file for the tang';
+      }
+    },
+  },
+  {
     key: 'mime', label: 'Mime Type', cls: 'mono',
     format: (v, item) => {
       if (item.kind === 'dir' || item.kind === 'symlink' || item.kind === 'boom') return '–';
@@ -143,6 +182,9 @@ fg.actions = ft.actions;
 const finder = $('finder');
 const finderTree = $('finder-tree'); // a <tree-view> element
 const finderTreeToggle = $('finder-tree-toggle');
+const badgesToggle = $('finder-badges-toggle');
+let badgesOn = true;
+try { badgesOn = localStorage.getItem('explorer-badges') !== 'off'; } catch (e) {}
 
 // the whole subtree under `here` comes down as ONE nested document from
 // ?tree=1 ({dirs: {name: subtree}, files: [name]}, names only — see
@@ -160,8 +202,12 @@ function treeNodeAt(path) {
 function getChildren(path) {
   const node = treeNodeAt(path);
   if (!node) return [];
-  return Object.keys(node.dirs).map((n) => ({ name: n, isDir: true, kind: 'dir' }))
-    .concat(node.files.map((n) => ({ name: n, isDir: false, kind: 'file' })));
+  return Object.entries(node.dirs).map(([n, sub]) => ({
+    name: n, isDir: true, kind: 'dir',
+    hasWeir: !!(sub && sub.weir), neck: (sub && sub.neck) || null,
+  })).concat(node.files.map((f) => ({
+    name: f.name, isDir: false, kind: 'file', blot: f.blot || null,
+  })));
 }
 finderTree.getChildren = getChildren;
 finderTree.onOpenDir = (item, path) => showDirView(path);
@@ -171,7 +217,35 @@ finderTree.decorateRow = (row, item, path) => {
   // handleAction posts there, not to the page's current root
   item.__dir = path.slice(0, path.lastIndexOf('/')) || PREFIX;
   row.__item = item;
+  // badges come from the shared kit builder (lib/ui/badges.js). The ?tree=1
+  // payload carries presence + names only, so each click fetches that row's
+  // listing lazily: weir → the editable modal, neck/blot → navigate.
+  window.attachBadges(row, item, {
+    enabled: badgesOn,
+    onWeir: () => openWeirFor(path),
+    onNeck: () => openRefFor(item.__dir, item.name, 'neck'),
+    onBlot: () => openRefFor(item.__dir, item.name, 'blot'),
+  });
 };
+// a sidebar badge click fetches that row's listing lazily — the tree payload
+// carries only presence, not the roads/ref the detail views need.
+function openWeirFor(url) {
+  fetch(url + '?list=1').then((r) => r.json()).then((d) => {
+    const show = (w) => renderWeir(w || null, url, true, url);
+    weirRefresh = () =>
+      fetch(url + '?list=1').then((r) => r.json()).then((dd) => show(dd.weir)).catch(() => {});
+    show(d.weir);
+    $('weir-modal').show();
+  }).catch((e) => toast('weir load failed: ' + e, true));
+}
+function openRefFor(dirUrl, name, kind) {
+  fetch(dirUrl + '?list=1').then((r) => r.json()).then((d) => {
+    const it = (d.children || []).find((c) => c.name === name);
+    const u = it && (kind === 'neck' ? it['neck-url'] : it['blot-url']);
+    if (u) { location.href = u; return; }
+    toast('no ' + kind + ' link', true);
+  }).catch((e) => toast(kind + ' load failed: ' + e, true));
+}
 async function renderFinderTree() {
   const root = here;
   try {
@@ -195,6 +269,17 @@ finderTreeToggle.addEventListener('click', async () => {
   else await finderTree.collapseAll();
   updateTreeToggleLabel();
 });
+function updateBadgesToggleLabel() {
+  badgesToggle.textContent = badgesOn ? 'hide badges' : 'show badges';
+}
+badgesToggle.addEventListener('click', () => {
+  badgesOn = !badgesOn;
+  try { localStorage.setItem('explorer-badges', badgesOn ? 'on' : 'off'); } catch (e) {}
+  for (const b of finderTree.shadowRoot.querySelectorAll('.row-badges'))
+    b.style.display = badgesOn ? 'inline-flex' : 'none';
+  updateBadgesToggleLabel();
+});
+updateBadgesToggleLabel();
 
 // the preview pane is a <tab-group> of shared <FileView>s — full Source|
 // Preview|Edit|Save per open file, same component as the file page. Tabs
@@ -458,7 +543,7 @@ async function load() {
   renderFinderTree(); // re-points the tree at the new root; drops stale caches
   showDirView(dirViewPath, false); // refresh tab 0: follows nav, and an action may have changed it
   renderManage();
-  if ($('weir-modal').hasAttribute('open')) renderWeir();
+  if ($('weir-modal').hasAttribute('open')) weirRefresh();
 }
 
 function renderCrumbs() {
@@ -518,7 +603,11 @@ function renderChips() {
   if (!data.root && !PROTECTED.includes(dirPath)) {
     sb.classList.add('click');
     sb.title = 'manage this sandbox';
-    sb.addEventListener('click', () => { renderWeir(); $('weir-modal').show(); });
+    sb.addEventListener('click', () => {
+      weirRefresh = () => renderWeir();
+      renderWeir();
+      $('weir-modal').show();
+    });
   } else if (PROTECTED.includes(dirPath)) {
     sb.classList.add('locked');
     sb.querySelector('.v').append(' 🔒');
@@ -527,16 +616,32 @@ function renderChips() {
   c.appendChild(sb);
 }
 
-function renderWeir() {
-  $('w-path').textContent = dirPath;
+// which dir the open weir modal writes to (the top bar edits the current dir;
+// the column edits the clicked row's dir). Reset by every renderWeir call.
+let weirEndpoint = here;
+// how to re-render the open modal after a load() — the top bar re-reads the
+// current dir; the column re-reads its row from the freshly loaded children.
+let weirRefresh = () => renderWeir();
+
+// renderWeir(weir, dpath, editable, endpoint): the top bar calls it with no
+// args — the current dir's weir, editable, writing to `here`. The per-directory
+// column calls it with that row's weir and URL, so edits target that dir.
+function renderWeir(weir, dpath, editable, endpoint) {
+  if (weir === undefined) weir = data.weir;
+  if (dpath === undefined) dpath = dirPath;
+  if (editable === undefined) editable = true;
+  weirEndpoint = endpoint || here;
+  $('w-path').textContent = dpath;
   const roads = $('m-weir-roads');
   roads.textContent = '';
-  $('m-weir-clear').style.display = data.weir ? '' : 'none';
-  $('m-weir-make').style.display = data.weir ? 'none' : '';
-  if (!data.weir) {
+  $('m-weir-clear').style.display = (editable && weir) ? '' : 'none';
+  $('m-weir-make').style.display = (editable && !weir) ? '' : 'none';
+  if (!weir) {
     const p = document.createElement('div');
     p.className = 'w-none';
-    p.textContent = 'unrestricted — no weir. Restricting starts fully closed; open it road by road.';
+    p.textContent = editable
+      ? 'unrestricted — no weir. Restricting starts fully closed; open it road by road.'
+      : 'unrestricted — no weir on this directory.';
     roads.appendChild(p);
     return;
   }
@@ -548,40 +653,44 @@ function renderWeir() {
     k.textContent = cat;
     const rs = document.createElement('div');
     rs.className = 'w-roads';
-    for (const rd of (data.weir[cat] || [])) {
+    for (const rd of (weir[cat] || [])) {
       const s = document.createElement('span');
       s.className = 'weir-road';
       s.append(rd);
-      const x = document.createElement('button');
-      x.textContent = '×';
-      x.title = 'remove road';
-      x.addEventListener('click', () =>
-        post({ action: 'del-weir-road', category: cat, 'road-path': rd }));
-      s.appendChild(x);
+      if (editable) {
+        const x = document.createElement('button');
+        x.textContent = '×';
+        x.title = 'remove road';
+        x.addEventListener('click', () =>
+          post({ action: 'del-weir-road', category: cat, 'road-path': rd }, weirEndpoint));
+        s.appendChild(x);
+      }
       rs.appendChild(s);
     }
-    const plus = document.createElement('button');
-    plus.className = 'w-plus';
-    plus.textContent = '+';
-    plus.title = 'add ' + cat + ' road';
-    plus.addEventListener('click', () => {
-      const inp = document.createElement('input');
-      inp.className = 'w-inline';
-      inp.placeholder = '/path or /path/';
-      inp.spellcheck = false;
-      rs.replaceChild(inp, plus);
-      inp.focus();
-      const done = () => { if (inp.parentNode) rs.replaceChild(plus, inp); };
-      inp.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' && inp.value.trim()) {
-          post({ action: 'add-weir-road', category: cat, 'road-path': inp.value.trim() });
-          done();
-        }
-        if (e.key === 'Escape') done();
+    if (editable) {
+      const plus = document.createElement('button');
+      plus.className = 'w-plus';
+      plus.textContent = '+';
+      plus.title = 'add ' + cat + ' road';
+      plus.addEventListener('click', () => {
+        const inp = document.createElement('input');
+        inp.className = 'w-inline';
+        inp.placeholder = '/path or /path/';
+        inp.spellcheck = false;
+        rs.replaceChild(inp, plus);
+        inp.focus();
+        const done = () => { if (inp.parentNode) rs.replaceChild(plus, inp); };
+        inp.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' && inp.value.trim()) {
+            post({ action: 'add-weir-road', category: cat, 'road-path': inp.value.trim() }, weirEndpoint);
+            done();
+          }
+          if (e.key === 'Escape') done();
+        });
+        inp.addEventListener('blur', done);
       });
-      inp.addEventListener('blur', done);
-    });
-    rs.appendChild(plus);
+      rs.appendChild(plus);
+    }
     row.append(k, rs);
     roads.appendChild(row);
   }
@@ -674,10 +783,10 @@ $('mi-upload').addEventListener('click', () => openModal('upload-modal'));
 $('mi-upload-dir').addEventListener('click', () => openModal('upload-dir-modal'));
 $('mi-download').addEventListener('click', () => { location.href = here + '?download=tar'; });
 $('mi-reload').addEventListener('click', () => post({ action: 'reload-nexus' }));
-$('m-weir-make').addEventListener('click', () => post({ action: 'make-weir' }));
+$('m-weir-make').addEventListener('click', () => post({ action: 'make-weir' }, weirEndpoint));
 $('m-weir-clear').addEventListener('click', () =>
   confirm('Remove weir? This gives unrestricted access.') &&
-  post({ action: 'clear-weir' }));
+  post({ action: 'clear-weir' }, weirEndpoint));
 $('m-folder-go').addEventListener('click', () => {
   const n = $('m-folder').value.trim();
   if (!n) return;

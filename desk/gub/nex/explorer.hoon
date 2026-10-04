@@ -16,6 +16,7 @@
 /&  sv-js    /lib/ui/split-view.js
 /&  tg-js    /lib/ui/tab-group.js
 /&  tv-js    /lib/ui/tree-view.js
+/&  ba-js    /lib/ui/badges.js
 /&  browse-html  explorer/ui/browse.html
 /&  browse-js    explorer/ui/browse.js
 /&  view-html    explorer/ui/view.html
@@ -77,6 +78,7 @@
             (wrap sv-js)
             (wrap tg-js)
             (wrap tv-js)
+            (wrap ba-js)
             (wrap marked-js)
             (wrap fp-js)
             (wrap fv-js)
@@ -101,6 +103,7 @@
           [%over %& [/ %'split-view.js'] [[/ %mime] sv-js]]
           [%over %& [/ %'tab-group.js'] [[/ %mime] tg-js]]
           [%over %& [/ %'tree-view.js'] [[/ %mime] tv-js]]
+          [%over %& [/ %'badges.js'] [[/ %mime] ba-js]]
           [%over %& [/ %'kit.js'] [[/ %mime] kit-js]]
           [%over %& [/ %'browse.html'] [[/ %mime] browse-html]]
           [%over %& [/ %'browse.js'] [[/ %mime] browse-js]]
@@ -405,7 +408,18 @@
       ;<  got=(map rail:tarball (unit rail:tarball))  bind:m
         (resolve-many:cs tree-path %mar blots)
       (pure:m (~(run by got) |=(s=(unit rail:tarball) ?~(s ~ `(url:cs u.s)))))
-    =/  jon=json  (listing-json tree-path ball ball-wave now conversions own-url blot-urls dir-weir necks)
+    ::  per-file build status: the pass/fail mark for .hoon under a code
+    ::  namespace (the file view carries the full tang; this is the summary)
+    ;<  builds=(map @ta @tas)  bind:m
+      =/  m  (fiber:fiber:nexus ,(map @ta @tas))
+      ^-  form:m
+      =/  names=(list @ta)  ?~(fil.ball ~ ~(tap in ~(key by contents.u.fil.ball)))
+      =|  acc=(map @ta @tas)
+      |-  ^-  form:m
+      ?~  names  (pure:m acc)
+      ;<  bs=(unit @tas)  bind:m  (built-status tree-path i.names)
+      $(names t.names, acc ?~(bs acc (~(put by acc) i.names u.bs)))
+    =/  jon=json  (listing-json tree-path ball ball-wave now conversions own-url blot-urls dir-weir necks builds)
     ;<  ~  bind:m  (send-json eyre-id 200 jon)
     (pure:m ~)
   ::  File view — ball is the parent directory
@@ -969,15 +983,56 @@
 ++  tree-json
   |=  b=ball:tarball
   ^-  json
-  =/  files=(list @ta)  ?~(fil.b ~ ~(tap in ~(key by contents.u.fil.b)))
+  ::  files carry their blot (the stored rail's path); dir nodes carry a weir
+  ::  presence bool and their neck (the nexus source rail's path, ~ if none).
+  ::  all read straight from this deep peek — no extra peeks — so the sidebar
+  ::  can label a row without a per-directory round trip.
+  =/  conts=(map @ta [=sang:tarball gain=? bang=(unit tang)])
+    ?~(fil.b ~ contents.u.fil.b)
+  =/  files=(list json)
+    %+  turn  (sort ~(tap by conts) |=([[a=@ta *] [c=@ta *]] (aor a c)))
+    |=  [name=@ta =sang:tarball *]
+    ^-  json
+    =/  blot=path
+      ?:  (is-boom:tarball sang)  (rail-to-path:tarball p.sang)
+      (rail-to-path:tarball p:(need-sage:tarball sang))
+    (pairs:enjs:format ~[name+s+name blot+s+(crip (spud blot))])
+  =/  dirs=(map @t json)
+    %-  ~(run by dir.b)
+    |=  kid=ball:tarball
+    ^-  json
+    =/  has-weir=?  ?~(fil.kid %.n ?=(^ weir.u.fil.kid))
+    =/  neck=json
+      ?~  fil.kid  ~
+      ?~  neck.u.fil.kid  ~
+      s+(crip (spud (rail-to-path:tarball u.neck.u.fil.kid)))
+    =/  sub=json  (tree-json kid)
+    ?>  ?=([%o *] sub)
+    o+(~(gas by p.sub) ~[weir+b+has-weir neck+neck])
   %-  pairs:enjs:format
-  :~  ['dirs' o+`(map @t json)`(~(run by dir.b) tree-json)]
-      ['files' a+(turn files |=(n=@ta s+n))]
+  :~  ['dirs' o+dirs]
+      ['files' a+files]
   ==
 ::
 ::  +listing-json: the dir listing as data — everything the browse app shows,
 ::  one child object per subdir and grub. Pure given its inputs (the mime
 ::  conversions ride the prefetched tube map, via gen:tarball).
+::
+++  built-status
+  ::  the build kind (%vase/%tang/%mime) of a .hoon source file inside a
+  ::  code namespace, or ~ when it is not a code-governed .hoon. The one-bit
+  ::  summary the listing shows; the file view (?info) carries the detail.
+  |=  [dir=path name=@ta]
+  =/  m  (fiber:fiber:nexus ,(unit @tas))
+  ^-  form:m
+  =/  t=tape  (trip name)
+  =/  len=@ud  (lent t)
+  ?.  &((gth len 5) =(".hoon" (slag (sub len 5) t)))
+    (pure:m ~)
+  ;<  own=(unit fold:tarball)  bind:m  (owner:cs [dir name])
+  ?~  own  (pure:m ~)
+  ;<  =built:nexus  bind:m  (get-code-full:io [%& %& dir (crip (scag (sub len 5) t))])
+  (pure:m `-.built)
 ::
 ++  listing-json
   |=  $:  pax=path
@@ -989,9 +1044,19 @@
           blot-urls=(map rail:tarball (unit tape))
           dir-weir=(unit weir:nexus)
           necks=(map @ta kid-info)
+          builds=(map @ta @tas)
       ==
   ^-  json
   =/  str  |=(t=tape `json`s+(crip t))
+  =/  weir-to-json
+    |=  w=(unit weir:nexus)
+    ^-  json
+    ?~  w  ~
+    =/  cat
+      |=  roads=(set road:tarball)
+      ^-  json
+      a+(turn ~(tap in roads) |=(r=road:tarball `json`s+(crip (road-to-form r))))
+    (pairs:enjs:format ~[['write' (cat make.u.w)] ['poke' (cat poke.u.w)] ['read' (cat peek.u.w)]])
   =/  neck-display=tape
     ?~  fil.b  "-"
     ?~  neck.u.fil.b  "-"
@@ -1011,6 +1076,9 @@
       (sort ~(tap by dir.b) |=([[a=@ta *] [b=@ta *]] (aor a b)))
     |=  [name=@ta kid=ball:tarball]
     ^-  json
+    ::  a directory's weir lives in ITS PARENT's ject, so read it from this
+    ::  (parent) ball's entry for the child, not the child's own peek.
+    =/  kid-weir=json  ?~(fil.kid ~ (weir-to-json weir.u.fil.kid))
     =/  kid=(unit kid-info)  (~(get by necks) name)
     =/  neck-json=json
       ?~  kid  ~
@@ -1029,7 +1097,7 @@
       ?~  kid-wave  ~
       ?~  fil.u.kid-wave  ~
       (str (en:datetime-local:iso-8601 da.fold.u.fil.u.kid-wave))
-    (pairs:enjs:format ~[['name' s+`@t`name] ['kind' s+'dir'] ['neck' neck-json] ['neck-url' neck-url-json] ['bang' kid-bang] ['modified' dir-mod]])
+    (pairs:enjs:format ~[['name' s+`@t`name] ['kind' s+'dir'] ['neck' neck-json] ['neck-url' neck-url-json] ['bang' kid-bang] ['weir' kid-weir] ['modified' dir-mod]])
   =/  files=(list json)
     %+  turn
       (sort ~(tap by file-contents) |=([[a=@ta *] [b=@ta *]] (aor a b)))
@@ -1082,19 +1150,10 @@
         ['size' (numb:enjs:format p.q.mime)]
         ['binary' b+=(p.mime /application/x-urb-jam)]
         ['bang' ?~(bang ~ (str (render-tang u.bang)))]
+        ['built' =/(g (~(get by builds) name) ?~(g ~ s+u.g))]
         ['modified' (mtime name)]
     ==
-  =/  weir-json=json
-    ?~  dir-weir  ~
-    =/  cat
-      |=  roads=(set road:tarball)
-      ^-  json
-      a+(turn ~(tap in roads) |=(r=road:tarball `json`s+(crip (road-to-form r))))
-    %-  pairs:enjs:format
-    :~  ['write' (cat make.u.dir-weir)]
-        ['poke' (cat poke.u.dir-weir)]
-        ['read' (cat peek.u.dir-weir)]
-    ==
+  =/  weir-json=json  (weir-to-json dir-weir)
   =/  nexus-bang=json
     ?~  fil.b  ~
     ?~  bang.u.fil.b  ~

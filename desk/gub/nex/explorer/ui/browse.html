@@ -83,7 +83,8 @@
     .finder-dl { display: inline-block; margin: 24px; color: #0969da; }
 
     /* modal internals */
-    .m-title { margin: 0 0 12px; font-size: 15px; }
+    .m-title { margin: 0 0 12px; font-size: 15px; overflow-wrap: anywhere; }
+    #w-path { word-break: break-all; }
     .m-sec { margin-bottom: 14px; }
     .m-sec h4 { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: #8b949e; margin: 0 0 6px; }
     .m-row { display: flex; gap: 6px; align-items: center; margin-bottom: 6px; flex-wrap: wrap; }
@@ -101,7 +102,7 @@
     .w-k { flex: none; width: 40px; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: #8b949e; padding-top: 4px; }
     .w-roads { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; min-height: 24px; }
     .w-none { color: #8b949e; font-size: 12px; padding-top: 2px; }
-    .weir-road { display: inline-flex; align-items: center; gap: 5px; background: #f6f8fa; border: 1px solid #e2e7ee; border-radius: 6px; padding: 2px 4px 2px 9px; font: 11px ui-monospace, SFMono-Regular, Menlo, monospace; color: #8250df; }
+    .weir-road { display: inline-flex; align-items: center; gap: 5px; max-width: 100%; background: #f6f8fa; border: 1px solid #e2e7ee; border-radius: 6px; padding: 2px 4px 2px 9px; font: 11px ui-monospace, SFMono-Regular, Menlo, monospace; color: #8250df; overflow-wrap: anywhere; word-break: break-all; }
     .weir-road button { all: unset; cursor: pointer; color: #8b949e; padding: 0 5px; border-radius: 4px; line-height: 1.2; }
     .weir-road button:hover { background: #ffebe9; color: #cf222e; }
     #m-weir-clear { color: #cf222e; border-color: #ffcecb; }
@@ -142,7 +143,10 @@
     <div slot="start" id="finder-list">
       <div id="finder-lhead">
         <button id="finder-collapse" title="collapse sidebar">&#8676;</button>
-        <span class="ft-all"><button id="finder-tree-toggle" title="expand/collapse all"></button></span>
+        <span style="display:flex; gap:4px; align-items:center;">
+          <span class="ft-all"><button id="finder-badges-toggle" title="show/hide row badges"></button></span>
+          <span class="ft-all"><button id="finder-tree-toggle" title="expand/collapse all"></button></span>
+        </span>
       </div>
       <tree-view id="finder-tree"></tree-view>
     </div>
