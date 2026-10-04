@@ -1242,28 +1242,48 @@
     $(files t.files)
   ;<  ~  bind:m
     %+  over:io  (nex-road:io rail [%& (weld dir pax.i.files) name.i.files])
-    (code-bask name.i.files sang.i.files)
+    (code-bask name.i.files sang.i.files (lien pax.i.files is-bundle-dir))
   $(files t.files)
 ::  code-bole: a source tree (raw git mime) prepared as one bole for a
 ::  bulk make into a /code dir — every .hoon mime file rewritten to a
 ::  %hoon blot (build-code ignores a mime .hoon), the rest untouched.
 ::
+::  Except under a BUNDLE: a directory named bundle or *-bundle is source
+::  that is DATA to the nexus that /&-imports it (a tool bundle seeded
+::  into a tools nexus's own /code), not code of this namespace. The
+::  kernel's clay sync keeps those as mime (+is-bundle-dir there); a
+::  followed desk must too, or the bundle compiles here against the wrong
+::  subject and the /& directory import, which gathers only mimes, comes
+::  out empty — every agent in the desk then has no tools.
+::
 ++  code-bole
   |=  b=ball:tarball
   ^-  bole:tarball
-  (hoonify-bole (ball-to-bole:tarball b))
+  (hoonify-bole (ball-to-bole:tarball b) %.n)
+::
+++  is-bundle-dir
+  |=  seg=@ta
+  ^-  ?
+  =/  t=tape  (trip seg)
+  =/  len=@ud  (lent t)
+  ?|  =("bundle" t)
+      &((gth len 7) =("-bundle" (slag (sub len 7) t)))
+  ==
 ::
 ++  hoonify-bole
-  |=  bol=bole:tarball
+  |=  [bol=bole:tarball bundled=?]
   ^-  bole:tarball
-  =?  fil.bol  ?=(^ fil.bol)
+  =?  fil.bol  &(!bundled ?=(^ fil.bol))
     =/  p=pulp:tarball  u.fil.bol
     =.  contents.p
       %-  ~(urn by contents.p)
       |=  [name=@ta [=bask:tarball gain=?]]
       [(hoonify-bask name bask) gain]
     `p
-  bol(dir (~(run by dir.bol) hoonify-bole))
+  =/  kids=(map @ta bole:tarball)
+    %-  ~(urn by dir.bol)
+    |=([k=@ta kid=bole:tarball] (hoonify-bole kid |(bundled (is-bundle-dir k))))
+  bol(dir kids)
 ::
 ++  hoonify-bask
   |=  [name=@ta =bask:tarball]
@@ -1283,10 +1303,11 @@
 ::  passes through unchanged.
 ::
 ++  code-bask
-  |=  [name=@ta =sang:tarball]
+  |=  [name=@ta =sang:tarball bundled=?]
   ^-  bask:tarball
   =/  t=tape  (trip name)
-  ?.  ?&  (gth (lent t) 5)
+  ?.  ?&  !bundled
+          (gth (lent t) 5)
           =(".hoon" (slag (sub (lent t) 5) t))
           !=([/ %hoon] p.sang)
       ==
