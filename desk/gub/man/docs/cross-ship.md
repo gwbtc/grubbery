@@ -20,7 +20,7 @@ and offers `+peek-remote`, which builds the prefixed road from a plain
 one.
 
 ```live
-/grubbery/app/grubbery.hoon 3399-3409
+/grubbery/app/grubbery.hoon 3410-3421
 ```
 
 ```live
@@ -62,7 +62,7 @@ the wire and delivers it on the sender's own wire, indistinguishable from
 a local pack.
 
 ```live
-/grubbery/app/grubbery.hoon 3783-3801
+/grubbery/app/grubbery.hoon 3786-3808
 ```
 
 ```live
@@ -78,7 +78,7 @@ rail and wire, and sent as a load. The fiber suspends on its take as it
 would for a local peek; the answer comes from the discharge sweep.
 
 ```live
-/grubbery/app/grubbery.hoon 3623-3643
+/grubbery/app/grubbery.hoon 3642-3654
 ```
 
 ### The snap
@@ -149,7 +149,7 @@ caller may retry. `%none` from a peer means nothing at that lane.
 ```
 
 ```live
-/grubbery/app/grubbery.hoon 6989-7007
+/grubbery/app/grubbery.hoon 7012-7027
 ```
 
 > [!note] Wart: a miss discharges every peek at that ship

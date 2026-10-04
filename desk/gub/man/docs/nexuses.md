@@ -56,7 +56,7 @@ root `/code`; `X/code` governs everything under `X` and never `X` itself.
 from the built artifact.
 
 ```live
-/grubbery/app/grubbery.hoon 3279-3308
+/grubbery/app/grubbery.hoon 3290-3320
 ```
 
 A directory's neck is set by whoever makes the directory, as a field of
@@ -65,7 +65,7 @@ creates it. The directory's name is a convention that mirrors the neck
 and carries no meaning to the kernel.
 
 ```live
-/grubbery/lib/root.hoon 77-88
+/grubbery/lib/root.hoon 77-93
 ```
 
 The neck is stored in the directory's tree ject and read back from there,
@@ -73,7 +73,7 @@ so finding a rail's governing nexus is a walk up the born, not a
 materialization of the tree.
 
 ```live
-/grubbery/app/grubbery.hoon 2286-2301
+/grubbery/app/grubbery.hoon 2297-2314
 ```
 
 > [!note] Wart: `+ext-to-neck` has no callers
@@ -150,7 +150,7 @@ weir changes are recorded, subscriptions under any changed weir are
 re-checked, and the walk continues into the children.
 
 ```live
-/grubbery/app/grubbery.hoon 2844-2873
+/grubbery/app/grubbery.hoon 2855-2894
 ```
 
 ### Code first
@@ -162,7 +162,7 @@ is a namespace, not a nexus; the walk registers or rebuilds it and does
 not load it.
 
 ```live
-/grubbery/app/grubbery.hoon 2884-2941
+/grubbery/app/grubbery.hoon 2895-2952
 ```
 
 ### Then processes
@@ -189,7 +189,7 @@ respawned. This is how an edit to `nex/mirror.hoon` reaches every mirror
 instance without a reboot.
 
 ```live
-/grubbery/app/grubbery.hoon 5543-5595
+/grubbery/app/grubbery.hoon 5562-5621
 ```
 
 A fiber can ask for the same from inside: `+reload` sends a `%load` dart
@@ -201,7 +201,7 @@ shell uses it to rebirth an app after granting its permissions.
 ```
 
 ```live
-/grubbery/app/grubbery.hoon 3473-3481
+/grubbery/app/grubbery.hoon 3484-3491
 ```
 
 > [!note] Wart: the code-change reload prints four progress lines

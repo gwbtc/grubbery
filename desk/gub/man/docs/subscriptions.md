@@ -78,14 +78,14 @@ per grub name, the set of lanes.
 lane's kind selects the directory's watchers or one file's.
 
 ```live
-/grubbery/app/grubbery.hoon 3000-3007
+/grubbery/app/grubbery.hoon 3011-3018
 ```
 
 Every registration writes both indices, and every removal clears both, so
 the two never disagree.
 
 ```live
-/grubbery/app/grubbery.hoon 3078-3099
+/grubbery/app/grubbery.hoon 3089-3100
 ```
 
 ## Watching
@@ -115,7 +115,7 @@ the current versions of what it watches, and a fiber that keeps a lane
 always learns its state before any change to it.
 
 ```live
-/grubbery/app/grubbery.hoon 3505-3508
+/grubbery/app/grubbery.hoon 3516-3519
 ```
 
 ### drop: unregister, and the fell
@@ -129,7 +129,7 @@ afterward.
 ```
 
 ```live
-/grubbery/app/grubbery.hoon 3524-3525
+/grubbery/app/grubbery.hoon 3535-3536
 ```
 
 ### kept: what a grub is watching
@@ -144,7 +144,7 @@ answer.
 ```
 
 ```live
-/grubbery/app/grubbery.hoon 3609-3616
+/grubbery/app/grubbery.hoon 3620-3627
 ```
 
 ## Delivery
@@ -155,7 +155,7 @@ Every write to the tree ends in `+propagate`: rebuild the tree hashes above
 the written leaf, then `+notify` with the born as it was before the write.
 
 ```live
-/grubbery/app/grubbery.hoon 4667-4671
+/grubbery/app/grubbery.hoon 4686-4694
 ```
 
 `+notify` diffs old born against new with `+diff-born-state`, which compares
@@ -179,7 +179,7 @@ delivered to; a client channel gets a fact; a remote ship gets a poke; a
 local grub gets a `%news` input.
 
 ```live
-/grubbery/app/grubbery.hoon 3113-3187
+/grubbery/app/grubbery.hoon 3124-3201
 ```
 
 ### One news per write
@@ -276,7 +276,7 @@ recognizes that prefix and splits it into the ship and the lane as that ship
 sees it.
 
 ```live
-/grubbery/app/grubbery.hoon 3399-3410
+/grubbery/app/grubbery.hoon 3410-3421
 ```
 
 ### The subscriber's side
@@ -287,7 +287,7 @@ forwards a `%keep` load to the peer instead of enqueuing a news itself. The
 bond is the peer's to send.
 
 ```live
-/grubbery/app/grubbery.hoon 3494-3504
+/grubbery/app/grubbery.hoon 3505-3515
 ```
 
 > [!note] The bond depends on the peer
@@ -336,7 +336,7 @@ A `%drop` on a remote lane removes the local registration and forwards a
 intake comes back.
 
 ```live
-/grubbery/app/grubbery.hoon 3514-3523
+/grubbery/app/grubbery.hoon 3525-3534
 ```
 
 ```live
@@ -360,7 +360,7 @@ each registration from both indices. It is called from `+delete`, so a dead watc
 self-heal in delivery covers the case where one does.
 
 ```live
-/grubbery/app/grubbery.hoon 3102-3110
+/grubbery/app/grubbery.hoon 3113-3123
 ```
 
 ### On a weir change
@@ -371,7 +371,7 @@ both indices, and its watcher gets a `%fell` on the wire it kept with. The
 walk is `+audit-weir`; the per-subscription step is here.
 
 ```live
-/grubbery/app/grubbery.hoon 3242-3247
+/grubbery/app/grubbery.hoon 3253-3260
 ```
 
 ### Client channels

@@ -35,7 +35,10 @@ there, and the structure that wants to be there.
 1. **Scope.** Name the files and line ranges that back the phenomenon: the
    code a reader would have to read to see it happen. That list is the page's
    `scope` in the nav. If you can't draw the boundary, you don't have a topic
-   yet; you have two, or half of one.
+   yet; you have two, or half of one. Scopes may overlap: a lifecycle or an
+   invariant that threads several subsystems is its own topic, and its scope
+   names the arms along that thread even where other pages name some of them
+   too.
 2. **Joints.** Split the topic where it actually divides, and split each part
    the same way, until the shape of the whole shows from the headers alone.
    Test it: cover the body, read only the headers, ask whether the mechanism
@@ -102,6 +105,16 @@ An unexplained noun is a hole the reader falls into. The first time a type, arm,
 or concept appears, say what it is. For a big concept with its own home, link it
 rather than reprinting the explanation in every page that touches it.
 Reference over repetition.
+
+That rule bars one move: reprinting the *same* explanation on every page that
+brushes a concept. It does not bar a second telling that earns a different view.
+A concept met from a new altitude, or an invariant whose arc runs across
+subsystems, can hold its own page — the whole of it in one place — while each
+touching page keeps its local mention and links across. That overlap is the good
+kind: the content-addressed store saying a read in flight is an owner, Fibers
+saying a skipped take is re-offered, and a page on the read itself tracing the
+one reference cradle to grave are three cuts at one thing, not one explanation
+printed thrice. Redundancy pays when it buys a view the link cannot.
 
 A link is a promise that the target explains the thing. Never link a stub, or
 a page that exists but doesn't yet cover what you're citing it for: that is a

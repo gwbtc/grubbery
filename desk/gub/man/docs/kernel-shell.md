@@ -38,7 +38,7 @@ kernel's HTTP file API (see [The ball](#ball.md)). Everything else that
 answers a person runs in a nexus.
 
 ```live
-/grubbery/lib/root.hoon 113-129
+/grubbery/lib/root.hoon 96-111
 ```
 
 > [!note] Wart: the root nexus changes only with the kernel

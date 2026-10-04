@@ -35,7 +35,7 @@ parent's tree ject, on the entry that names the child, so the child cannot
 rewrite its own fence: that is a write to the parent, which is outside it.
 
 ```live
-/grubbery/app/grubbery.hoon 4619-4640
+/grubbery/app/grubbery.hoon 4638-4662
 ```
 
 Setting one is `+set-weir`: rewrite the parent's tree with the new entry,
@@ -44,7 +44,7 @@ subscription held by a grub under the fence, felling any the new weir
 would now refuse.
 
 ```live
-/grubbery/app/grubbery.hoon 4466-4507
+/grubbery/app/grubbery.hoon 4485-4527
 ```
 
 A fiber sets a weir with a `%sand` dart, which is a make-kind dart, so a
@@ -69,7 +69,7 @@ but not including the governor; the governor is reached, not passed
 through.
 
 ```live
-/grubbery/app/grubbery.hoon 4543-4575
+/grubbery/app/grubbery.hoon 4573-4595
 ```
 
 ### The walk
@@ -81,7 +81,7 @@ level it reads that directory's weir and folds the answer into a `$filt`:
 governor with no refusal is a pass.
 
 ```live
-/grubbery/app/grubbery.hoon 4577-4617
+/grubbery/app/grubbery.hoon 4596-4637
 ```
 
 One weir answers by resolving its roads against its own directory and
@@ -101,11 +101,11 @@ make, a poke, or a peek, and the climb is run. A dart with no destination,
 `%here` or `%kept`, crosses no boundary and is not filtered.
 
 ```live
-/grubbery/app/grubbery.hoon 3379-3397
+/grubbery/app/grubbery.hoon 3390-3409
 ```
 
 ```live
-/grubbery/app/grubbery.hoon 3346-3377
+/grubbery/app/grubbery.hoon 3357-3389
 ```
 
 A refused dart from a local grub becomes a `%veto` intake back to that
@@ -134,7 +134,7 @@ sandboxed nexus therefore sees the tree from its own root, which is why
 it names itself and its roads relatively.
 
 ```live
-/grubbery/app/grubbery.hoon 4509-4541
+/grubbery/app/grubbery.hoon 4528-4572
 ```
 
 ## When a weir changes
@@ -143,7 +143,7 @@ A weir is part of the parent's tree, so changing one bumps the parent's
 version like any write, and watchers of the parent hear about it.
 
 ```live
-/grubbery/app/grubbery.hoon 4448-4464
+/grubbery/app/grubbery.hoon 4467-4484
 ```
 
 Subscriptions held by grubs under the fence are re-checked as reads:
@@ -151,7 +151,7 @@ any the new weir refuses is felled, and the watcher gets a `%fell` on the
 wire it kept with.
 
 ```live
-/grubbery/app/grubbery.hoon 3250-3268
+/grubbery/app/grubbery.hoon 3261-3280
 ```
 
 > [!note] Roads relative to a nexus, not a directory

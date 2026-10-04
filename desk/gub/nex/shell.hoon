@@ -896,7 +896,7 @@
               (send-simple:srv eyre-id [[200 ~[['content-type' 'application/json']]] `bod])
             (pure:m ~)
           ;<  fv=view:nexus  bind:m
-            (peek:io (nex-road:io rail [%& (coll-docs c) `@ta`path.i.items]) ~)
+            (peek:io (nex-road:io rail (doc-lane c path.i.items)) ~)
           =/  txt=@t  (grub-text fv)
           =.  all
             %+  weld  all
@@ -1017,7 +1017,7 @@
               (send-simple:srv eyre-id [[200 ~[['content-type' 'application/json']]] `bod])
             (pure:m ~)
           ;<  fv=view:nexus  bind:m
-            (peek:io (nex-road:io rail [%& (coll-docs c) `@ta`path.i.items]) ~)
+            (peek:io (nex-road:io rail (doc-lane c path.i.items)) ~)
           =/  txt=@t  (grub-text fv)
           =/  snip=(unit @t)  (find-snippet txt q)
           =/  tmatch=?  !=(~ (find qlow (cass (trip title.i.items))))
@@ -1038,7 +1038,7 @@
           ::  mirror handbook dir — the same source coverage measures. No seed
           ::  fallback; a page absent from the mirror is a real 404.
           ;<  mv=view:nexus  bind:m
-            (peek:io (nex-road:io rail [%& (coll-docs c) `@ta`pax]) ~)
+            (peek:io (nex-road:io rail (doc-lane c pax)) ~)
           =/  mtxt=@t  (grub-text mv)
           ?:  =('' mtxt)
             ;<  ~  bind:m  (send-simple:srv eyre-id [[404 ~] `(as-octs:mimes:html 'Not found')])
@@ -2956,6 +2956,14 @@
   |=  c=path
   ^-  path
   (welp /docs/hb c)
+::  +doc-lane: one handbook page by its nav path. The path may carry
+::  directories (faults/x.md); every segment but the last is a dir under
+::  the collection's docs mirror, the last is the file.
+++  doc-lane
+  |=  [c=path doc=@t]
+  ^-  lane:tarball
+  =/  seg=path  (stab (cat 3 '/' doc))
+  [%& (welp (coll-docs c) (snip seg)) (rear seg)]
 ::  +mirror-jobs: the [dest src] copies that keep the mirror current — one per
 ::  source (its namespace dir → /docs/mirror/<name>/<tag>) plus the handbook
 ::  (its docs home → /docs/hb/<name>). do-mirror runs them; sync-keeps watches
@@ -3061,7 +3069,7 @@
   |-  ^-  form:m
   ?~  items  (pure:m (flop all))
   ;<  fv=view:nexus  bind:m
-    (peek:io (nex-road:io rail [%& (coll-docs c) `@ta`path.i.items]) ~)
+    (peek:io (nex-road:io rail (doc-lane c path.i.items)) ~)
   =/  txt=@t  (grub-text fv)
   =.  all
     %+  weld  all

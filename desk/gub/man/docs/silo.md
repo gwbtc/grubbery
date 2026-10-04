@@ -35,7 +35,7 @@ noun through the mark's validator into a vase, with the validation result
 cached by noun and compile key.
 
 ```live
-/grubbery/app/grubbery.hoon 2033-2068
+/grubbery/app/grubbery.hoon 2044-2078
 ```
 
 ## The two tables
@@ -81,16 +81,18 @@ on a child that is not there yet is silently nothing.
 ### A queued read
 
 A peek answers with a `$cite` naming the ject, not the content, and the
-content is resolved when the fiber consumes the answer. In between, the
-ject could be tombed out from under it, so the kernel bumps its reference
-when the answer is queued and `+hydrate` drops it after reading.
+content is resolved when the fiber consumes the answer. The answer waits as
+a queued [take](#fibers.md), and in between the ject could be tombed out from
+under it, so the kernel bumps its reference when the take is queued.
+`+hydrate` resolves the cite to content when the take is offered to the
+fiber, and drops the reference there.
 
 ```live
-/grubbery/app/grubbery.hoon 3675-3678
+/grubbery/app/grubbery.hoon 3686-3690
 ```
 
 ```live
-/grubbery/app/grubbery.hoon 4057-4058
+/grubbery/app/grubbery.hoon 4067-4069
 ```
 
 The same holds for a cross-ship peek once its content has arrived: the
@@ -99,6 +101,11 @@ discharged cite bumps, and hydration drops.
 ```live
 /grubbery/app/grubbery.hoon 843-883
 ```
+
+A skipped take is offered — and so hydrated — again on each wakeup, so the one
+bump can meet many drops. [A read in flight](#read-in-flight.md) follows this
+reference from answer to release, and the over-drop a skipped take currently
+suffers.
 
 > [!note] Wart: the `%file` cite bumps twice
 > The discharge above bumps a `%file` cite's ject in two consecutive
@@ -124,7 +131,7 @@ expires; release is the exact inverse.
 ```
 
 ```live
-/grubbery/app/grubbery.hoon 6993-7007
+/grubbery/app/grubbery.hoon 7012-7027
 ```
 
 `+snap-subset` cuts the silo down to a set of hashes for sending; the

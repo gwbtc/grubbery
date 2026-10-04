@@ -129,11 +129,11 @@ held; the bulk sites, dropping history, releasing a snap, rebuilding
 code, sweep the whole map.
 
 ```live
-/grubbery/app/grubbery.hoon 5278-5286
+/grubbery/app/grubbery.hoon 5297-5306
 ```
 
 ```live
-/grubbery/app/grubbery.hoon 5299-5318
+/grubbery/app/grubbery.hoon 5318-5337
 ```
 
 ### A whole tree
@@ -144,7 +144,7 @@ file is visible in the tree rather than lost. `+validate-ball` does the
 same over a tree already stored, through the cache.
 
 ```live
-/grubbery/app/grubbery.hoon 2337-2402
+/grubbery/app/grubbery.hoon 2348-2428
 ```
 
 ## Conversion
@@ -174,7 +174,7 @@ desk directly and seeds them into `bins` and the root namespace, so the
 first source files can be validated at all.
 
 ```live
-/grubbery/app/grubbery.hoon 5027-5057
+/grubbery/app/grubbery.hoon 5049-5092
 ```
 
 Every code namespace then gets the same four sources injected on every
@@ -183,7 +183,7 @@ bootstrap ones and are never replaced by a compiled copy, since every leaf
 written before the build records those keys.
 
 ```live
-/grubbery/app/grubbery.hoon 5224-5242
+/grubbery/app/grubbery.hoon 5246-5261
 ```
 
 ## When a mark changes
@@ -195,7 +195,7 @@ the cache. A mark edit is therefore a re-typing of its data, immediately,
 with the results in the tree.
 
 ```live
-/grubbery/app/grubbery.hoon 5396-5478
+/grubbery/app/grubbery.hoon 5415-5498
 ```
 
 > [!note] Wart: the foundational marks are never re-validated

@@ -50,7 +50,7 @@ namespace: `build-code-with`. It's eight numbered steps, and it's worth reading
 in full because it's the entire lifecycle of a build in one place:
 
 ```live
-/grubbery/app/grubbery.hoon 5172-5219
+/grubbery/app/grubbery.hoon 5195-5245
 ```
 
 Walking the steps: **(1)** get the namespace's source ball and force in the
@@ -75,7 +75,7 @@ closure, and reuses every keyed rail outside it — pulling each one's prior res
 straight from `bins`.
 
 ```live
-/grubbery/app/grubbery.hoon 5070-5120
+/grubbery/app/grubbery.hoon 5093-5146
 ```
 
 ## Reference counting
@@ -87,7 +87,7 @@ both never transiently drops to zero and gets evicted. A bin hits zero and is
 deleted only when nothing keys it any more.
 
 ```live
-/grubbery/app/grubbery.hoon 5002-5022
+/grubbery/app/grubbery.hoon 5025-5048
 ```
 
 ```

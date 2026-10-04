@@ -212,11 +212,11 @@ move to the new process's `skip`, so a fresh process is not fed messages
 meant for the old one until it is ready.
 
 ```live
-/grubbery/app/grubbery.hoon 3323-3345
+/grubbery/app/grubbery.hoon 3321-3356
 ```
 
 ```live
-/grubbery/app/grubbery.hoon 3903-3933
+/grubbery/app/grubbery.hoon 3898-3940
 ```
 
 ### One event
@@ -240,7 +240,7 @@ crashed process is queued without running, except a poke, which is nacked
 with the crash.
 
 ```live
-/grubbery/app/grubbery.hoon 3935-3996
+/grubbery/app/grubbery.hoon 3946-4007
 ```
 
 ### The step
@@ -253,7 +253,7 @@ state is validated against the file's mark by `+clam-output`, and a state
 that fails to validate is a `%fail` too.
 
 ```live
-/grubbery/app/grubbery.hoon 4108-4236
+/grubbery/app/grubbery.hoon 4128-4247
 ```
 
 The verbs, as the step handles them:
@@ -279,14 +279,14 @@ process from its spool with the error as the prod and enqueues an empty
 take so it starts again.
 
 ```live
-/grubbery/app/grubbery.hoon 4237-4321
+/grubbery/app/grubbery.hoon 4248-4332
 ```
 
 A poke's ack is a `%pack` take to the sender's rail. If the sender could
 not peek the target, a nack's tang is replaced by a generic one.
 
 ```live
-/grubbery/app/grubbery.hoon 2703-2712
+/grubbery/app/grubbery.hoon 2714-2722
 ```
 
 ### Restart
@@ -319,7 +319,7 @@ directory and every grub under it, then replaces every process below with
 `+stay`. A banged nexus spawns nothing until it is reloaded.
 
 ```live
-/grubbery/app/grubbery.hoon 2448-2477
+/grubbery/app/grubbery.hoon 2459-2488
 ```
 
 ### Reload
@@ -335,11 +335,11 @@ neck, and spawns every grub under it from that nexus's `+on-file`.
 ```
 
 ```live
-/grubbery/app/grubbery.hoon 2418-2438
+/grubbery/app/grubbery.hoon 2429-2449
 ```
 
 ```live
-/grubbery/app/grubbery.hoon 2948-2995
+/grubbery/app/grubbery.hoon 2953-3010
 ```
 
 This is the contract the nexus door states: a process recovers from its
@@ -355,5 +355,5 @@ outside, and `+delete` drops its subscriptions, tombs the file, and removes
 the proc from the pool.
 
 ```live
-/grubbery/app/grubbery.hoon 2658-2693
+/grubbery/app/grubbery.hoon 2669-2713
 ```

@@ -66,7 +66,7 @@ for each child, the child's ball, with the child's weir copied in from
 this directory's entry, since a directory's weir lives in its parent.
 
 ```live
-/grubbery/app/grubbery.hoon 2070-2115
+/grubbery/app/grubbery.hoon 2081-2127
 ```
 
 The shallow form resolves this directory's files and leaves each child as
@@ -74,7 +74,7 @@ an empty ball carrying only its weir. A directory listing costs the files
 at that level, not the whole subtree beneath.
 
 ```live
-/grubbery/app/grubbery.hoon 2162-2212
+/grubbery/app/grubbery.hoon 2176-2224
 ```
 
 > [!note] A shallow ball is indistinguishable from an empty one
@@ -88,11 +88,11 @@ its tree ject; a bole is materialized the same way when the kernel needs
 raw nouns rather than vases, as for a reload.
 
 ```live
-/grubbery/app/grubbery.hoon 2246-2259
+/grubbery/app/grubbery.hoon 2257-2271
 ```
 
 ```live
-/grubbery/app/grubbery.hoon 2117-2147
+/grubbery/app/grubbery.hoon 2160-2175
 ```
 
 ## Landing
@@ -104,7 +104,7 @@ deregisters any code namespace the bole removed, rebuilds any it changed,
 and notifies once.
 
 ```live
-/grubbery/app/grubbery.hoon 4740-4759
+/grubbery/app/grubbery.hoon 4768-4781
 ```
 
 `+sync-bole` is the landing. It recurses into every child named by the
@@ -115,14 +115,14 @@ process, and then builds the directory's tree ject from what settled. A
 level the bole leaves entirely empty is recorded as deleted.
 
 ```live
-/grubbery/app/grubbery.hoon 4803-4929
+/grubbery/app/grubbery.hoon 4822-4949
 ```
 
 `+ball-diff` names the rails that differ between two balls, by mark and
 noun; the build uses it to find what a landed bole changed.
 
 ```live
-/grubbery/app/grubbery.hoon 5128-5145
+/grubbery/app/grubbery.hoon 5147-5181
 ```
 
 ## The HTTP file API

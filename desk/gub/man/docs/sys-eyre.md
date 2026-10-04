@@ -114,7 +114,7 @@ The request grub's content is the ship and the request, in the
 smallest form: the request fiber reads its state and dispatches.
 
 ```live
-/grubbery/lib/root.hoon 118-128
+/grubbery/lib/root.hoon 105-110
 ```
 
 ## Answering

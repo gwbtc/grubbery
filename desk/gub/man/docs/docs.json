@@ -24,7 +24,7 @@
             "/grubbery/app/grubbery.hoon 1-11",
             "/grubbery/lib/root.hoon 36-49",
             "/grubbery/lib/root.hoon 77-89",
-            "/grubbery/lib/root.hoon 113-129",
+            "/grubbery/lib/root.hoon 96-111",
             "/grubbery/lib/root.hoon 4-9",
             "/grubbery/gub/nex/shell.hoon 1-13",
             "/grubbery/gub/nex/shell.hoon 38-46",
@@ -55,39 +55,56 @@
             "/grubbery/gub/nex/mirror.hoon",
             "/grubbery/app/grubbery.hoon 116-168",
             "/grubbery/app/grubbery.hoon 592-640",
-            "/grubbery/app/grubbery.hoon 2286-2301",
+            "/grubbery/app/grubbery.hoon 2297-2314",
             "/grubbery/app/grubbery.hoon 2775-2941",
             "/grubbery/app/grubbery.hoon 2942-2995",
             "/grubbery/app/grubbery.hoon 3279-3345",
-            "/grubbery/app/grubbery.hoon 3473-3481",
+            "/grubbery/app/grubbery.hoon 3484-3491",
             "/grubbery/app/grubbery.hoon 4369-4380",
-            "/grubbery/app/grubbery.hoon 5543-5595"
+            "/grubbery/app/grubbery.hoon 5562-5621"
           ]
         },
         {
           "title": "The namespace",
-          "path": "namespace.md",
-          "scope": [
-            "/grubbery/lib/grub.hoon",
-            "/grubbery/sur/grub.hoon",
-            "/grubbery/lib/tarball.hoon 5-12",
-            "/grubbery/lib/tarball.hoon 39-43",
-            "/grubbery/lib/nexus.hoon 35-46",
-            "/grubbery/lib/nexus.hoon 79-86",
-            "/grubbery/lib/nexus.hoon 404-459",
-            "/grubbery/lib/nexus.hoon 651-716",
-            "/grubbery/lib/nexus.hoon 969-1027",
-            "/grubbery/lib/fiberio.hoon 510-518",
-            "/grubbery/lib/fiberio.hoon 539-548",
-            "/grubbery/lib/fiberio.hoon 560-570",
-            "/grubbery/lib/fiberio.hoon 491-499",
-            "/grubbery/lib/fiberio.hoon 665-703",
-            "/grubbery/app/grubbery.hoon 644-674",
-            "/grubbery/app/grubbery.hoon 934-1038",
-            "/grubbery/app/grubbery.hoon 1503-1640",
-            "/grubbery/app/grubbery.hoon 2214-2245",
-            "/grubbery/app/grubbery.hoon 4330-4447",
-            "/grubbery/app/grubbery.hoon 4644-4731"
+          "kids": [
+            {
+              "title": "Overview",
+              "path": "namespace.md",
+              "scope": [
+                "/grubbery/lib/grub.hoon",
+                "/grubbery/sur/grub.hoon",
+                "/grubbery/lib/tarball.hoon 5-12",
+                "/grubbery/lib/tarball.hoon 39-43",
+                "/grubbery/lib/nexus.hoon 35-46",
+                "/grubbery/lib/nexus.hoon 79-86",
+                "/grubbery/lib/nexus.hoon 404-459",
+                "/grubbery/lib/nexus.hoon 651-716",
+                "/grubbery/lib/nexus.hoon 969-1027",
+                "/grubbery/lib/fiberio.hoon 510-518",
+                "/grubbery/lib/fiberio.hoon 539-548",
+                "/grubbery/lib/fiberio.hoon 560-570",
+                "/grubbery/lib/fiberio.hoon 491-499",
+                "/grubbery/lib/fiberio.hoon 665-703",
+                "/grubbery/app/grubbery.hoon 644-674",
+                "/grubbery/app/grubbery.hoon 934-1038",
+                "/grubbery/app/grubbery.hoon 1503-1640",
+                "/grubbery/app/grubbery.hoon 2240-2256",
+                "/grubbery/app/grubbery.hoon 4341-4466",
+                "/grubbery/app/grubbery.hoon 4663-4750"
+              ]
+            },
+            {
+              "title": "A read in flight",
+              "path": "read-in-flight.md",
+              "scope": [
+                "/grubbery/app/grubbery.hoon 843-883",
+                "/grubbery/app/grubbery.hoon 2738-2764",
+                "/grubbery/app/grubbery.hoon 3686-3690",
+                "/grubbery/app/grubbery.hoon 4067-4069",
+                "/grubbery/app/grubbery.hoon 4137-4141",
+                "/grubbery/app/grubbery.hoon 4198-4237"
+              ]
+            }
           ]
         },
         {
@@ -108,7 +125,7 @@
             "/grubbery/app/grubbery.hoon 2658-2774",
             "/grubbery/app/grubbery.hoon 2942-2995",
             "/grubbery/app/grubbery.hoon 3270-3278",
-            "/grubbery/app/grubbery.hoon 3323-3345",
+            "/grubbery/app/grubbery.hoon 3321-3356",
             "/grubbery/app/grubbery.hoon 3887-4329"
           ]
         },
@@ -124,11 +141,11 @@
             "/grubbery/gub/mar/json.hoon",
             "/grubbery/app/grubbery.hoon 1808-1811",
             "/grubbery/app/grubbery.hoon 1861-2012",
-            "/grubbery/app/grubbery.hoon 2337-2402",
-            "/grubbery/app/grubbery.hoon 5027-5057",
-            "/grubbery/app/grubbery.hoon 5224-5242",
-            "/grubbery/app/grubbery.hoon 5278-5322",
-            "/grubbery/app/grubbery.hoon 5396-5478"
+            "/grubbery/app/grubbery.hoon 2348-2428",
+            "/grubbery/app/grubbery.hoon 5049-5092",
+            "/grubbery/app/grubbery.hoon 5246-5261",
+            "/grubbery/app/grubbery.hoon 5297-5337",
+            "/grubbery/app/grubbery.hoon 5415-5498"
           ]
         },
         {
@@ -139,11 +156,11 @@
             "/grubbery/lib/tarball.hoon 39-43",
             "/grubbery/lib/tarball.hoon 58-82",
             "/grubbery/lib/tarball.hoon 607-917",
-            "/grubbery/app/grubbery.hoon 2070-2213",
+            "/grubbery/app/grubbery.hoon 2081-2224",
             "/grubbery/app/grubbery.hoon 2229-2281",
             "/grubbery/app/grubbery.hoon 2302-2336",
-            "/grubbery/app/grubbery.hoon 4740-4929",
-            "/grubbery/app/grubbery.hoon 5128-5145",
+            "/grubbery/app/grubbery.hoon 4768-4949",
+            "/grubbery/app/grubbery.hoon 5147-5181",
             "/grubbery/app/grubbery.hoon 5713-5731"
           ]
         },
@@ -159,10 +176,10 @@
             "/grubbery/app/grubbery.hoon 675-883",
             "/grubbery/app/grubbery.hoon 1299-1319",
             "/grubbery/app/grubbery.hoon 1743-1793",
-            "/grubbery/app/grubbery.hoon 2033-2068",
-            "/grubbery/app/grubbery.hoon 3675-3678",
-            "/grubbery/app/grubbery.hoon 4022-4059",
-            "/grubbery/app/grubbery.hoon 6993-7007"
+            "/grubbery/app/grubbery.hoon 2044-2078",
+            "/grubbery/app/grubbery.hoon 3686-3690",
+            "/grubbery/app/grubbery.hoon 4022-4069",
+            "/grubbery/app/grubbery.hoon 7012-7027"
           ]
         },
         {
@@ -183,9 +200,9 @@
             "/grubbery/app/grubbery.hoon 1335-1358",
             "/grubbery/app/grubbery.hoon 1464-1491",
             "/grubbery/app/grubbery.hoon 2996-3187",
-            "/grubbery/app/grubbery.hoon 3242-3249",
-            "/grubbery/app/grubbery.hoon 3491-3526",
-            "/grubbery/app/grubbery.hoon 3609-3617"
+            "/grubbery/app/grubbery.hoon 3253-3261",
+            "/grubbery/app/grubbery.hoon 3505-3540",
+            "/grubbery/app/grubbery.hoon 3620-3628"
           ]
         }
       ]
@@ -233,14 +250,14 @@
           "title": "Cross-ship",
           "path": "cross-ship.md",
           "scope": [
-            "/grubbery/app/grubbery.hoon 3399-3409",
+            "/grubbery/app/grubbery.hoon 3410-3421",
             "/grubbery/lib/fiberio.hoon 568-590",
             "/grubbery/lib/nexus.hoon 1213-1285",
             "/grubbery/app/grubbery.hoon 191-211",
             "/grubbery/app/grubbery.hoon 1039-1057",
-            "/grubbery/app/grubbery.hoon 3783-3801",
+            "/grubbery/app/grubbery.hoon 3786-3808",
             "/grubbery/app/grubbery.hoon 1176-1196",
-            "/grubbery/app/grubbery.hoon 3623-3643",
+            "/grubbery/app/grubbery.hoon 3642-3654",
             "/grubbery/app/grubbery.hoon 1058-1145",
             "/grubbery/lib/nexus.hoon 1277-1284",
             "/grubbery/app/grubbery.hoon 1359-1420",
@@ -249,7 +266,7 @@
             "/grubbery/app/grubbery.hoon 836-883",
             "/grubbery/lib/nexus.hoon 79-86",
             "/grubbery/app/grubbery.hoon 1421-1458",
-            "/grubbery/app/grubbery.hoon 6989-7007",
+            "/grubbery/app/grubbery.hoon 7012-7027",
             "/grubbery/app/grubbery.hoon 1335-1349",
             "/grubbery/app/grubbery.hoon 1467-1491"
           ]
@@ -276,31 +293,31 @@
           "title": "Code nexuses",
           "path": "code-nexuses.md",
           "scope": [
-            "/grubbery/app/grubbery.hoon 2911-2934",
-            "/grubbery/app/grubbery.hoon 2954-2962",
+            "/grubbery/app/grubbery.hoon 2931-2952",
+            "/grubbery/app/grubbery.hoon 2959-2975",
             "/grubbery/app/grubbery.hoon 151-166",
-            "/grubbery/app/grubbery.hoon 5616-5645",
-            "/grubbery/app/grubbery.hoon 5688-5704",
+            "/grubbery/app/grubbery.hoon 5666-5706",
+            "/grubbery/app/grubbery.hoon 5707-5726",
             "/grubbery/gub/nex/tools.hoon 154-169",
             "/grubbery/gub/nex/desk.hoon 1180-1196",
             "/grubbery/lib/tarball.hoon 141-156",
             "/grubbery/lib/tarball.hoon 157-187",
             "/grubbery/app/grubbery.hoon 1812-1852",
-            "/grubbery/app/grubbery.hoon 4728-4738",
+            "/grubbery/app/grubbery.hoon 4751-4767",
             "/grubbery/lib/nexus.hoon 10-34",
             "/grubbery/app/grubbery.hoon 5176-5223",
             "/grubbery/app/grubbery.hoon 5006-5026",
-            "/grubbery/app/grubbery.hoon 4739-4761",
-            "/grubbery/app/grubbery.hoon 4763-4799",
-            "/grubbery/app/grubbery.hoon 2884-2909",
-            "/grubbery/app/grubbery.hoon 5551-5583",
-            "/grubbery/app/grubbery.hoon 3718-3754",
-            "/grubbery/app/grubbery.hoon 4083-4105",
+            "/grubbery/app/grubbery.hoon 4768-4781",
+            "/grubbery/app/grubbery.hoon 4782-4821",
+            "/grubbery/app/grubbery.hoon 2895-2930",
+            "/grubbery/app/grubbery.hoon 5562-5621",
+            "/grubbery/app/grubbery.hoon 3729-3766",
+            "/grubbery/app/grubbery.hoon 4094-4118",
             "/grubbery/lib/fiberio.hoon 1038-1066",
             "/grubbery/lib/fiberio.hoon 1109-1157",
             "/grubbery/gub/nex/tools.hoon 83-101",
             "/grubbery/gub/lib/tool-bundle/tools/check-bin.hoon 67-75",
-            "/grubbery/app/grubbery.hoon 3755-3768"
+            "/grubbery/app/grubbery.hoon 3767-3785"
           ]
         },
         {
@@ -324,7 +341,7 @@
               "scope": [
                 "/grubbery/lib/nexus.hoon 133-157",
                 "/grubbery/lib/root.hoon 50-54",
-                "/grubbery/lib/root.hoon 118-128",
+                "/grubbery/lib/root.hoon 105-110",
                 "/grubbery/app/grubbery.hoon 174-183",
                 "/grubbery/app/grubbery.hoon 357-363",
                 "/grubbery/app/grubbery.hoon 3824-3828",
@@ -601,7 +618,7 @@
             "/grubbery/gub/nex/git/repo.hoon 290-336",
             "/grubbery/gub/nex/git/repo.hoon 256-289",
             "/grubbery/gub/nex/git/repo.hoon 337-427",
-            "/grubbery/gub/nex/git/repo.hoon 1026-1061",
+            "/grubbery/gub/nex/git/repo.hoon 973-1011",
             "/grubbery/gub/nex/git/repo.hoon 788-828",
             "/grubbery/gub/nex/git/repo.hoon 428-496",
             "/grubbery/gub/nex/git/repo.hoon 84-122",
@@ -681,6 +698,138 @@
         {
           "title": "Installing desks",
           "path": "installing-desks.md"
+        }
+      ]
+    },
+    {
+      "title": "Faults",
+      "kids": [
+        {
+          "title": "Overview",
+          "path": "faults.md"
+        },
+        {
+          "title": "Fibers",
+          "kids": [
+            {
+              "title": "A consumed take comes back when the fiber is banged",
+              "path": "faults/veto-parked-fiber-not-revived.md",
+              "scope": [
+                "/grubbery/app/grubbery.hoon 4304-4336",
+                "/grubbery/app/grubbery.hoon 2485-2500"
+              ]
+            },
+            {
+              "title": "A deterministically failing fiber wedges the ship",
+              "path": "faults/failing-fiber-wedges-ship.md",
+              "scope": [
+                "/grubbery/app/grubbery.hoon 4248-4332",
+                "/grubbery/app/grubbery.hoon 1494-1502"
+              ]
+            },
+            {
+              "title": "Dropping a remote subscription parks the fiber forever",
+              "path": "faults/remote-drop-never-fell.md",
+              "scope": [
+                "/grubbery/app/grubbery.hoon 3521-3545",
+                "/grubbery/lib/fiberio.hoon 839-863"
+              ]
+            }
+          ]
+        },
+        {
+          "title": "The content-addressed store",
+          "kids": [
+            {
+              "title": "A skipped peek take over-drops its silo ref",
+              "path": "faults/skipped-take-over-drops-ref.md",
+              "scope": [
+                "/grubbery/app/grubbery.hoon 4018-4118",
+                "/grubbery/app/grubbery.hoon 2748-2766",
+                "/grubbery/app/grubbery.hoon 4198-4237"
+              ]
+            },
+            {
+              "title": "A remote file peek leaks a ject ref",
+              "path": "faults/remote-file-peek-leaks-ref.md",
+              "scope": [
+                "/grubbery/app/grubbery.hoon 4018-4118"
+              ]
+            },
+            {
+              "title": "Re-culling an already-culled spur crashes the event",
+              "path": "faults/recull-crashes-event.md",
+              "scope": [
+                "/grubbery/app/grubbery.hoon 7578-7584",
+                "/grubbery/app/grubbery.hoon 7627-7652"
+              ]
+            }
+          ]
+        },
+        {
+          "title": "Desks",
+          "kids": [
+            {
+              "title": "One unreadable bill entry loses the whole install",
+              "path": "faults/bill-entry-loses-install.md",
+              "scope": [
+                "/grubbery/gub/nex/desk.hoon 545-611"
+              ]
+            },
+            {
+              "title": "A desk following an unreachable source parks forever",
+              "path": "faults/unreachable-source-parks-desk.md",
+              "scope": [
+                "/grubbery/lib/fiberio.hoon 832-849",
+                "/grubbery/gub/nex/desk.hoon 150-162"
+              ]
+            },
+            {
+              "title": "Nested registrants evict and strip each other",
+              "path": "faults/nested-registrants-evict.md",
+              "scope": [
+                "/grubbery/app/grubbery.hoon 7742-7800",
+                "/grubbery/app/grubbery.hoon 7965-7978"
+              ]
+            },
+            {
+              "title": "A neck-less /desk/code wedges an app forever",
+              "path": "faults/neckless-code-dir.md",
+              "scope": [
+                "/grubbery/gub/nex/desk.hoon 510-544",
+                "/grubbery/gub/nex/desk.hoon 545-611",
+                "/grubbery/gub/nex/desk.hoon 641-677"
+              ]
+            },
+            {
+              "title": "Stock mirrors never poll github",
+              "path": "faults/stock-mirrors-never-poll.md",
+              "scope": [
+                "/grubbery/gub/nex/shell.hoon 1916-1975"
+              ]
+            }
+          ]
+        },
+        {
+          "title": "The shell",
+          "kids": [
+            {
+              "title": "The permissions page answers only after it has done all its work",
+              "path": "faults/permissions-page-slow.md",
+              "scope": [
+                "/grubbery/gub/nex/shell.hoon 440-470"
+              ]
+            }
+          ]
+        },
+        {
+          "title": "Logging",
+          "kids": [
+            {
+              "title": "Routine traces drown the warnings",
+              "path": "faults/routine-traces-drown-warnings.md"
+            }
+          ]
         }
       ]
     }

@@ -150,7 +150,7 @@ until it finishes, then culled. The repo's configured account rides
 along.
 
 ```live
-/grubbery/gub/nex/git/repo.hoon 1026-1061
+/grubbery/gub/nex/git/repo.hoon 973-1011
 ```
 
 ```live

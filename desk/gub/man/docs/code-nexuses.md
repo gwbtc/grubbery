@@ -17,11 +17,11 @@ walk registers or rebuilds a directory carrying it rather than loading it,
 and the spawn walk starts no processes under it.
 
 ```live
-/grubbery/app/grubbery.hoon 2911-2934
+/grubbery/app/grubbery.hoon 2931-2952
 ```
 
 ```live
-/grubbery/app/grubbery.hoon 2954-2962
+/grubbery/app/grubbery.hoon 2959-2975
 ```
 
 Root `/code` is in the genesis tree, an empty stub under the root nexus,
@@ -39,11 +39,11 @@ ending in `-bundle` is data to whatever imports it, not code of this
 namespace, and is stored as mime untouched.
 
 ```live
-/grubbery/app/grubbery.hoon 5616-5645
+/grubbery/app/grubbery.hoon 5666-5706
 ```
 
 ```live
-/grubbery/app/grubbery.hoon 5688-5704
+/grubbery/app/grubbery.hoon 5707-5726
 ```
 
 Any nexus can lay out a `/code` of its own the same way, as a `%fall`
@@ -89,7 +89,7 @@ is inside: the nearest registered `/code` at or above it. Governance is
 for readers; ownership is for writes.
 
 ```live
-/grubbery/app/grubbery.hoon 4728-4738
+/grubbery/app/grubbery.hoon 4751-4767
 ```
 
 ## The index
@@ -116,11 +116,11 @@ directories under changed nexuses. The compiler and the reuse set are
 [The build system](#build-overview.md)'s subject.
 
 ```live
-/grubbery/app/grubbery.hoon 5176-5223
+/grubbery/app/grubbery.hoon 5195-5245
 ```
 
 ```live
-/grubbery/app/grubbery.hoon 5006-5026
+/grubbery/app/grubbery.hoon 5025-5048
 ```
 
 > [!note] Wart: every artifact is stored as a raw vase
@@ -143,11 +143,11 @@ by the namespace each is inside, and builds each such namespace once with
 exactly those rails.
 
 ```live
-/grubbery/app/grubbery.hoon 4739-4761
+/grubbery/app/grubbery.hoon 4768-4781
 ```
 
 ```live
-/grubbery/app/grubbery.hoon 4763-4799
+/grubbery/app/grubbery.hoon 4782-4821
 ```
 
 The reload walk covers the two cases a write cannot: a namespace that
@@ -158,7 +158,7 @@ already compiled against the current subject. An unchanged subject is a
 comparison of one hash, so an ordinary restart builds nothing.
 
 ```live
-/grubbery/app/grubbery.hoon 2884-2909
+/grubbery/app/grubbery.hoon 2895-2930
 ```
 
 ### When a rebuild reloads
@@ -173,7 +173,7 @@ list, and a directory governed by a nearer namespace that has not yet
 built is left alone.
 
 ```live
-/grubbery/app/grubbery.hoon 5551-5583
+/grubbery/app/grubbery.hoon 5562-5621
 ```
 
 The one caller that asks the build not to cascade is the boot walk,
@@ -199,11 +199,11 @@ destination through `+owner-code`, the namespace the path is inside, so a
 fiber reads the namespace it names, not the one that governs it.
 
 ```live
-/grubbery/app/grubbery.hoon 3718-3754
+/grubbery/app/grubbery.hoon 3729-3766
 ```
 
 ```live
-/grubbery/app/grubbery.hoon 4083-4105
+/grubbery/app/grubbery.hoon 4094-4118
 ```
 
 The library wraps the dart: `+get-code` for a vase or nothing,
@@ -244,5 +244,5 @@ error or a confirmation.
 > ever release it. The branch should go.
 
 ```live
-/grubbery/app/grubbery.hoon 3755-3768
+/grubbery/app/grubbery.hoon 3767-3785
 ```

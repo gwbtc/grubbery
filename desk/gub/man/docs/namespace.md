@@ -135,7 +135,7 @@ validates it, and stores it: validated as a vase, or unvalidated as a boom.
 Then it spawns the grub's process.
 
 ```live
-/grubbery/app/grubbery.hoon 4383-4423
+/grubbery/app/grubbery.hoon 4341-4442
 ```
 
 Every store goes through `+record`, which hashes the noun, writes the leaf
@@ -144,11 +144,11 @@ into the store, and puts the new revision in the history. Then
 This pair is the tail of every write, whatever made it.
 
 ```live
-/grubbery/app/grubbery.hoon 4692-4731
+/grubbery/app/grubbery.hoon 4711-4750
 ```
 
 ```live
-/grubbery/app/grubbery.hoon 4667-4671
+/grubbery/app/grubbery.hoon 4686-4694
 ```
 
 A directory is made from a `$bole`, a tree of basks, and landed as one
@@ -158,7 +158,7 @@ once. A `%cull` of a directory is the same with an empty bole; a cull of a
 file tombs it and removes its process.
 
 ```live
-/grubbery/app/grubbery.hoon 4425-4447
+/grubbery/app/grubbery.hoon 4443-4466
 ```
 
 > [!note] Convention: record and cache in sibling grubs
@@ -176,7 +176,7 @@ chain to the stored leaf and returns its sang, or `~` when there is nothing
 there.
 
 ```live
-/grubbery/app/grubbery.hoon 2214-2245
+/grubbery/app/grubbery.hoon 2240-2256
 ```
 
 A historical revision is reached by `$case`: an exact revision number, or
@@ -204,6 +204,11 @@ a revision by case.
 ```live
 /grubbery/lib/fiberio.hoon 560-570
 ```
+
+A peek's answer is carried as a cite naming the ject, and resolved to content
+only when the fiber consumes it; across that gap the read owns a reference to
+the ject. [A read in flight](#read-in-flight.md) follows that one reference
+from the answer to its release.
 
 ## From outside
 
