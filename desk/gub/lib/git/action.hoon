@@ -120,9 +120,16 @@
     (cold [%stash-list ~] ;~(plug (jest 'stash') (plus ace) (jest 'list')))
     (cold [%stash ~] (jest 'stash'))
     (cold [%pull ~] (jest 'pull'))
-    ::  commit -m "msg" | --message "msg"
-    %+  cook  |=(m=@t [%commit m])
+    ::  commit -m "msg" [-m "more" ...] | --message "msg". Git's
+    ::  convention: each -m is a paragraph, joined by a blank line, so the
+    ::  first is the subject and the rest the body. A quoted value may
+    ::  also span lines itself.
+    %+  cook
+      |=  ms=(list @t)
+      ^-  git-command
+      [%commit (rap 3 (join (crip "\0a\0a") ms))]
     ;~  pfix  (jest 'commit')  (plus ace)
+      %+  most  (plus ace)
       ;~  pose
         ;~(pfix ;~(plug hep (just 'm') (plus ace)) txt-val)
         ;~(pfix (jest '--message') ;~(pose ;~(pfix tis txt-val) ;~(pfix (plus ace) txt-val)))

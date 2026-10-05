@@ -23,6 +23,14 @@
 ++  test-commit-bare  |.((chk [~ %commit 'hi'] 'commit -m hi'))
 ++  test-commit-long  |.((chk [~ %commit 'foo'] 'commit --message "foo"'))
 ++  test-commit-long-eq  |.((chk [~ %commit 'bar'] 'commit --message=bar'))
+::  commit — a body: repeated -m joins paragraphs with a blank line (git's
+::  convention), and a quoted value may itself span lines
+++  test-commit-paragraphs
+  |.((chk [~ %commit (crip "subject\0a\0abody")] 'commit -m "subject" -m "body"'))
+++  test-commit-three-paragraphs
+  |.((chk [~ %commit (crip "a\0a\0ab\0a\0ac")] 'commit -m "a" -m "b" -m c'))
+++  test-commit-multiline-quoted
+  |.((chk [~ %commit (crip "subject\0a\0abody line")] (crip "commit -m \"subject\0a\0abody line\"")))
 ::  add — all vs selective
 ++  test-add-all  |.((chk [~ %add ~] 'add'))
 ++  test-add-paths  |.((chk [~ %add ~['foo.txt' 'lib/bar.hoon']] 'add foo.txt lib/bar.hoon'))

@@ -31,8 +31,9 @@
   ++  val-ud  dem:ag
   ++  val-t
     ;~  pose
-      ::  "double quoted" (git/shell convention)
-      (ifix [doq doq] (boss 256 (star ;~(less doq prn))))
+      ::  "double quoted" (git/shell convention); may span lines, so a
+      ::  commit message can carry a body
+      (ifix [doq doq] (boss 256 (star ;~(less doq ;~(pose prn (just `@`10))))))
       ::  'single quoted'
       (ifix [soq soq] (boss 256 (star qit)))
       ::  unescaped cord
