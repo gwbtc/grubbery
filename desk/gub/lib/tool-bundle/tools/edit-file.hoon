@@ -65,8 +65,12 @@
       (pure:m [%error 'old_string cannot be empty'])
     ==
   ::  Write back converted to the ORIGINAL blot — the runtime tubes
-  ::  mime to the target blot and validates at the destination.
-  =/  new-mime=^mime  [/text/plain (as-octs:mimes:html (crip p.result))]
+  ::  mime to the target blot and validates at the destination. The
+  ::  media type is the file's own (a .css stays text/css, a .js stays
+  ::  application/javascript): a raw mime grub served over HTTP is only
+  ::  as good as its type, and a stylesheet re-typed text/plain is one
+  ::  the browser refuses.
+  =/  new-mime=^mime  [p.mime (as-octs:mimes:html (crip p.result))]
   =/  road=road:tarball  [%& %& pax grub-name]
   ;<  ~  bind:m  (over-as:io road [[/ %mime] new-mime] original-blot)
   (pure:m [%text (crip "Edited {(trip file-path)}/{(trip file-name)}")])
