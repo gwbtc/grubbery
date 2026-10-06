@@ -28,16 +28,21 @@
   (pure:m `p.u.h)
 ::  +here-abs: this fiber's absolute rail, without a %here walk. Reads the
 ::  app root from grant.json (here) and welds the caller's own nexus-
-::  relative rail onto it. Falls back to the trustless %here walk only when
-::  there's no grant yet — an unapproved app runs unrestricted, so the walk
-::  succeeds. Lets a granted app register / self-address with NO peek /: it
-::  reads where the shell already told it it is, instead of climbing to root.
+::  relative rail onto it. A granted app self-addresses with NO peek /: it
+::  reads where the shell already told it it is, instead of climbing to
+::  root. No grant.json means the app is not approved (or its grant was
+::  dropped): the fiber fails saying so and waits for the restart the
+::  grant brings. There is no fallback to the privileged walk; that walk
+::  (get-here-abs) is deprecated and a sandboxed app cannot make it.
 ::
 ++  here-abs
   |=  rel=rail:tarball
   =/  m  (fiber:fiber:nexus ,rail:tarball)
   ^-  form:m
   ;<  base=(unit @t)  bind:m  (here rel)
-  ?~  base  get-here-abs:io
+  ?~  base
+    |=  input:fiber:nexus
+    :+  ~  q.state
+    [%fail ~[leaf+"no grant.json: this app is not approved on Permits, or its grant was dropped; it restarts when granted"]]
   (pure:m [(weld `path`(stab u.base) path.rel) name.rel])
 --

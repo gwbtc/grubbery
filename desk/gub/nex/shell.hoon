@@ -394,6 +394,9 @@
         ::  follower, so there is no change-news to catch — and an ask
         ::  still pending across a reload deserves the re-ping anyway.
         ;<  ~  bind:m  (notify-if-unsettled rail u.ap)
+        ::  a reload drops grant.json (an app's on-load never lists it);
+        ::  an approved app must not read as unapproved after one
+        ;<  ~  bind:m  (regrant-if-dropped rail u.ap)
         |-
         ;<  ~  bind:m  take-any-news
         ;<  live=?  bind:m  (peek-exists:io [%& %| u.ap])
@@ -3403,6 +3406,30 @@
   ;<  *  bind:m  (notify-app rail app)
   ;<  ~  bind:m  (mark-notified rail app ask)
   (pure:m ~)
+::  +regrant-if-dropped: a reload drops every file an app's on-load does
+::  not list, grant.json among them, and an approved app then reads as
+::  unapproved: here-abs fails, since a sandboxed app cannot walk to
+::  root. At the follower's rise, an app that is approved but has no
+::  grant.json gets its recorded grant applied again. Idempotent: the
+::  sand is a total replacement and grant.json a rewrite.
+::
+++  regrant-if-dropped
+  |=  [rail=rail:tarball ap=path]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  ;<  approved=(map @t json)  bind:m  (read-approved rail)
+  =/  app=@t  (crip (spud ap))
+  =/  entry=(unit json)  (~(get by approved) app)
+  ?~  entry  (pure:m ~)
+  ?.  ?=(%o -.u.entry)  (pure:m ~)
+  ?.  =('granted' (fall (jget u.entry 'verdict') ''))  (pure:m ~)
+  ;<  gv=view:nexus  bind:m  (peek:io [%& %& ap %'grant.json'] ~)
+  ?:  ?=([%file *] gv)  (pure:m ~)
+  =/  picks=json    (fall (~(get by p.u.entry) 'bindings') [%o ~])
+  =/  granted=json  (fall (~(get by p.u.entry) 'declared') [%o ~])
+  ;<  hidden=json  bind:m  (read-hidden rail)
+  ;<  now=@da  bind:m  get-time:io
+  (do-approve-weir rail app picks granted hidden now)
 ::  +build-asks: materialize the pending-asks view into /permit/asks.json so
 ::  the UI fetches a ready grub instead of re-running read-app-weirs +
 ::  alias-menu marking on every request. Same diff-then-write discipline as
