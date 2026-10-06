@@ -436,6 +436,13 @@
 ::
 :: version history for files and directories
 ::
+::  A pace with no jobe is an absence: the rail was gone at that cass.
+::  %tomb is no longer minted locally (a replaced or dropped pace is
+::  deleted; absence is the terminal state) and survives only as a type
+::  for histories written before state 9 and for the farm's remote
+::  protocol. TODO: reintroduce a tomb that carries the hash of what it
+::  replaced, as remote scry's does, so a history can say "this cass was
+::  X and was dropped" and a remote holder of X can verify it.
 +$  pace
   $%  [%firm p=(unit jobe)]
       [%temp p=(unit jobe)]
@@ -484,6 +491,16 @@
   --
 ::
 +$  born  (axal [fold=hist file=(map @ta hist)])
+::  +$peak: born's shadow. Born's skeleton with every hist collapsed to
+::  its high-water cass: the top number every rail ever written has
+::  reached. Raised with every write, never deleted. Numbering lives
+::  here; born is history, and a born record may be dropped at any time
+::  (a directory of short-lived grubs, one per HTTP request, stays
+::  small) while a re-creation still numbers after everything that rail
+::  was ever called. [rail cass] never rebinds. Destroy everything about
+::  a name except what number comes next.
+::
++$  peak  (axal [fold=(unit cass:clay) file=(map @ta cass:clay)])
 ::  jobe/nobe: same atom as lobe:clay, but the alias says which
 ::  silo store the hash names. Pace and cite lobes are always
 ::  jobes; leaf content and bangs are always nobes. Use the alias
@@ -675,10 +692,11 @@
     [%.n born silo]
   =/  [* new-silo=^silo]
     (~(put-ject si silo) [%tree tree])
-  ::  Tombstone previous %temp fold entry
+  ::  the previous %temp fold entry goes (delete, not tomb): a dir's
+  ::  fold hist is otherwise one entry per structural change, forever
   =/  [tombed-silo=^silo tombed-fold=hist]
     ?~  fold-cas  [new-silo fold.node]
-    (~(tomb-temp si new-silo) fold.node u.fold-cas)
+    (~(drop-temp si new-silo) fold.node u.fold-cas)
   =.  silo  tombed-silo
   =/  old-fold=cass:clay  (fall fold-cas [0 now])
   =/  new-fold=cass:clay
@@ -696,14 +714,10 @@
 ::    - top of hist = current version; (top:hist fold) / (top:hist file)
 ::
 ::  Invariants:
-::    - A gained grub's born record is never deleted. It is the
-::      high-water mark that keeps version numbering monotonic across
-::      a delete and a later re-creation, which is what page history
-::      reads. An un-gained grub has no history to order, so its
-::      record goes when the grub does. Keeping it would leave every
-::      request fiber ever run sitting in its directory, and both the
-::      tree walk and the born diff scan that directory on every
-::      later write.
+::    - [rail cass] never rebinds. Numbering lives in $peak, raised
+::      with every write; a record here is history and may be dropped
+::      (a cull to peak drops it, so a directory of request fibers does
+::      not grow forever). +init starts a re-creation above the peak.
 ::    - Sack hist bumps IFF content changes
 ::    - Tote hist bumps on any descendant change (fold)
 ::    - Weir cass bumps on weir change at that directory
@@ -733,8 +747,7 @@
     =/  node=[fold=hist file=(map @ta hist)]
       (fall (~(get of old) path.here) default-node)
     (~(put of old) path.here node(file (~(put by file.node) name.here sok)))
-  ::  Drop a file's hist entirely. Only ever called for a grub that was
-  ::  never gained, so there is no ordering high-water mark to lose.
+  ::  Drop a file's hist entirely. Its numbering lives on in $peak.
   ::
   ++  del
     |=  here=rail:tarball
@@ -762,16 +775,39 @@
     =/  nex-da=@da
       ?:((lth da.cass now) now +(da.cass))
     [+(ud.cass) nex-da]
-  ::  Init born for new file — reuse existing hist if present (re-creation)
+  ::  Init born for new file — reuse existing hist if present (re-creation);
+  ::  else start above the rail's peak if it has one, else at zero
   ::
   ++  init
-    |=  here=rail:tarball
+    |=  [here=rail:tarball mark=(unit cass:clay)]
     ^-  born
     =/  existing=(unit hist)  (get here)
-    ?~  existing
-      =/  zero=cass:clay  [0 now]
-      (put here [[zero [[%temp ~] ~]] ~ ~])
-    (put here u.existing)
+    ?^  existing  (put here u.existing)
+    =/  first=cass:clay
+      ?~  mark  [0 now]
+      (next-cass u.mark)
+    (put here [[first [[%temp ~] ~]] ~ ~])
+  --
+::  +pk: Pure operations on peak (born's shadow of dropped records)
+::
+++  pk
+  |_  =peak
+  ++  get-file
+    |=  here=rail:tarball
+    ^-  (unit cass:clay)
+    =/  node=(unit [fold=(unit cass:clay) file=(map @ta cass:clay)])
+      (~(get of peak) path.here)
+    ?~  node  ~
+    (~(get by file.u.node) name.here)
+  ::  record a file's top cass; a rail only ever rises
+  ++  put-file
+    |=  [here=rail:tarball =cass:clay]
+    ^-  ^peak
+    =/  node=[fold=(unit cass:clay) file=(map @ta cass:clay)]
+      (fall (~(get of peak) path.here) [~ ~])
+    =/  cur=(unit cass:clay)  (~(get by file.node) name.here)
+    ?:  &(?=(^ cur) (gte ud.u.cur ud.cass))  peak
+    (~(put of peak) path.here node(file (~(put by file.node) name.here cass)))
   --
 ::  +si: Pure operations on silo (content-addressed object store)
 ::
@@ -1022,10 +1058,14 @@
     ::  drop old ject ref (cascades to drop old bang noun ref)
     =.  mid-silo  (~(drop-ject si mid-silo) old-lobe)
     `[new-jobe mid-silo]
-  ::  Tombstone previous %temp entry in hist, dropping silo refs.
-  ::  %firm entries are left untouched.
+  ::  +drop-temp: a %temp pace that is being replaced is deleted, not
+  ::  tombed. A hist then holds only readable paces, so a hot file does
+  ::  not carry its whole write count as tomb entries. Absence at a cass
+  ::  is terminal exactly as a tomb was: content goes to gone, never to
+  ::  other content, and the number is never reused (the new pace is
+  ::  always above it). A %firm pace is history and stays.
   ::
-  ++  tomb-temp
+  ++  drop-temp
     |=  [=hist prev-cas=cass:clay]
     ^-  [^silo ^hist]
     =/  prev-pace=(unit pace:^hist)  (get-pace:^hist hist prev-cas)
@@ -1034,7 +1074,7 @@
     =.  silo
       ?~  p.u.prev-pace  silo
       (~(drop-ject si silo) u.p.u.prev-pace)
-    [silo (put-pace:^hist hist prev-cas [%tomb ~])]
+    [silo +:(del:hon:^hist hist prev-cas)]
   ::  Record a noun: insert into silo, update hist.
   ::  Returns [lobe new-silo new-hist].
   ::
@@ -1080,10 +1120,12 @@
       silo(nouns (~(put by nouns.silo) noun-lobe [0 noun]))
     =/  [ject-lobe=jobe newer-silo=^silo]
       (~(put-ject si new-silo) [%leaf noun-lobe [blot ckey ns] gain prev-bang])
-    =/  [tombed-silo=^silo tombed-hist=^hist]
-      (~(tomb-temp si newer-silo) hist file-cass)
+    ::  the pace this one replaces goes if it was %temp (delete, not
+    ::  tomb); a %firm one is kept history
+    =/  [dropped-silo=^silo dropped-hist=^hist]
+      (~(drop-temp si newer-silo) hist file-cass)
     =/  =pace:^hist  ?:(gain [%firm `ject-lobe] [%temp `ject-lobe])
-    [noun-lobe tombed-silo (put-pace:^hist tombed-hist cass pace)]
+    [noun-lobe dropped-silo (put-pace:^hist dropped-hist cass pace)]
   --
 ::  +stamp-mtimes: no-op (metadata removed from content)
 ::

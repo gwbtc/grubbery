@@ -55,7 +55,9 @@
 /=  t-  /tests/loader
 |%
 +$  versioned-state
-  $%  state-7:migrations
+  $%  state-9:migrations
+      state-8:migrations
+      state-7:migrations
       state-6:migrations
       state-5:migrations
       state-4:migrations
@@ -117,7 +119,7 @@
 ::  reference, and it only changes with the agent itself.
 ::
 =/  sut-hash=@uv  (sham q:sut)
-=|  state-7:migrations
+=|  state-9:migrations
 =*  state  -
 ::
 =<
@@ -142,34 +144,43 @@
   |=  old-state=vase
   ^-  (quip card _this)
   =/  old  !<(versioned-state old-state)
-  ?:  ?=(%7 -.old)
+  ?:  ?=(%9 -.old)
     =.  state  old
     =^  start-cards  state
       abet:cold-start:hc
     [start-cards this]
-  ::  below %7: funnel up to a %6 value, running the one-time skip-queue
-  ::  correction (+fsr-pool, #80) where %6 is crossed, then become %7
-  ::  (conns into agent state, one-time born sweep).
-  =/  as-6=state-6:migrations
-    ?:  ?=(%6 -.old)  old
-    =/  to-4=(unit state-4:migrations)
-      ?-  -.old
-        %0  `(state-3-to-4:migrations (state-2-to-3:migrations (state-1-to-2:migrations (state-0-to-1:migrations old))))
-        %1  `(state-3-to-4:migrations (state-2-to-3:migrations (state-1-to-2:migrations old)))
-        %2  `(state-3-to-4:migrations (state-2-to-3:migrations old))
-        %3  `(state-3-to-4:migrations old)
-        %4  `old
-        %5  ~
-      ==
-    =/  as-5=state-5:migrations
-      ?~  to-4  ?>(?=(%5 -.old) old)
-      ~>  %slog.[0 leaf+"grubbery: migrating state {<-.old>} -> %5"]
-      (state-4-to-5:migrations u.to-4)
-    =/  six=state-6:migrations  (state-5-to-6:migrations as-5)
-    =/  fsr=[pool:nexus silo:nexus]  (fsr-pool:hc pool.six silo.six)
-    six(pool -.fsr, silo +.fsr)
-  ~>  %slog.[0 leaf+"grubbery: migrating state {<-.old>} -> %7"]
-  =.  state  (state-6-to-7:migrations as-6)
+  ::  below %9: funnel up to a %7 value (the skip-queue correction,
+  ::  +fsr-pool #80, where %6 is crossed; conns into agent state and the
+  ::  born sweep at %7), then %8 (peak, born's shadow), then %9 (the
+  ::  dead-entry sweep and peak seeded from born).
+  =/  as-8=state-8:migrations
+    ?:  ?=(%8 -.old)  old
+    =/  as-7=state-7:migrations
+      ?:  ?=(%7 -.old)  old
+      =/  as-6=state-6:migrations
+        ?:  ?=(%6 -.old)  old
+        =/  to-4=(unit state-4:migrations)
+          ?-  -.old
+            %0  `(state-3-to-4:migrations (state-2-to-3:migrations (state-1-to-2:migrations (state-0-to-1:migrations old))))
+            %1  `(state-3-to-4:migrations (state-2-to-3:migrations (state-1-to-2:migrations old)))
+            %2  `(state-3-to-4:migrations (state-2-to-3:migrations old))
+            %3  `(state-3-to-4:migrations old)
+            %4  `old
+            %5  ~
+          ==
+        =/  as-5=state-5:migrations
+          ?~  to-4  ?>(?=(%5 -.old) old)
+          ~>  %slog.[0 leaf+"grubbery: migrating state {<-.old>} -> %5"]
+          (state-4-to-5:migrations u.to-4)
+        =/  six=state-6:migrations  (state-5-to-6:migrations as-5)
+        =/  fsr=[pool:nexus silo:nexus]  (fsr-pool:hc pool.six silo.six)
+        six(pool -.fsr, silo +.fsr)
+      ~>  %slog.[0 leaf+"grubbery: migrating state {<-.old>} -> %7"]
+      (state-6-to-7:migrations as-6)
+    ~>  %slog.[0 leaf+"grubbery: migrating state {<-.old>} -> %8"]
+    (state-7-to-8:migrations as-7)
+  ~>  %slog.[0 leaf+"grubbery: migrating state {<-.old>} -> %9"]
+  =.  state  (state-8-to-9:migrations as-8)
   =^  start-cards  state
     abet:cold-start:hc
   [start-cards this]
@@ -1621,7 +1632,11 @@
   =?  spins  is-start
     (~(put by spins) here +((~(gut by spins) here 0)))
   $
-::  Drop hist entries matching a lose spec, decrementing silo refs
+::  Drop hist entries matching a lose spec: the entries are DELETED and
+::  their silo refs released. Absence at a cass is the terminal state; a
+::  dropped top gets a fresh absence above it so the file reads as gone
+::  at a new number. (A tomb that carries the hash of what was dropped,
+::  the way remote scry's does, is a later addition; see roadmap.)
 ::
 ++  drop-hist
   |=  [here=rail:tarball =lose:nexus]
@@ -1637,7 +1652,7 @@
       |-
       ?~  kept  new-hist
       $(kept t.kept, new-hist (put:hon:hist:nexus new-hist key.i.kept val.i.kept))
-    =.  born  (~(put bo:nexus now.bowl born) here new-hist)
+    =.  this  (put-born here new-hist)
     =.  vale  (gc-vale-cache vale bins)
     this
   =/  drop=?
@@ -1659,19 +1674,18 @@
       ?:  ?=(%tomb -.pv)  silo
       ?~  p.pv  silo
       (~(drop-ject si:nexus silo) u.p.pv)
-    ::  if tombstoning the top, append a new [%temp ~] wavefront
-    =/  new-kept  [[key.i.entries [[%tomb ~] ~]] kept]
+    ::  the entry goes; if it was the top, a new absence above it
     ?.  =(key.i.entries (need (top:hist:nexus sk)))
-      $(entries t.entries, kept new-kept)
+      $(entries t.entries)
     =/  new-cass=cass:clay
       (~(next-cass bo:nexus now.bowl born) key.i.entries)
-    $(entries t.entries, kept [[new-cass [[%temp ~] ~]] new-kept])
+    $(entries t.entries, kept [[new-cass [[%temp ~] ~]] kept])
   $(entries t.entries, kept [i.entries kept])
-::  Drop fold hist entries matching a lose spec: tombstone them and
-::  clear their tags, decrementing silo refs (which frees the entry's
-::  merkle tree if nothing else owns it). The live top entry is never
-::  tombstoned — the current tree must survive — but a matched top is
-::  DEMOTED: pace back to %temp, tags cleared, lobe and refs intact.
+::  Drop fold hist entries matching a lose spec: the entries are DELETED,
+::  their silo refs released (which frees the entry's merkle tree if
+::  nothing else owns it). The live top entry is never deleted — the
+::  current tree must survive — but a matched top is DEMOTED: pace back
+::  to %temp, tags cleared, lobe and refs intact.
 ::  Metadata + silo only: the current pace lobe is untouched, so no
 ::  rollup — write the node back directly.
 ::
@@ -1723,7 +1737,7 @@
     ?:  ?=(%tomb -.pv)  silo
     ?~  p.pv  silo
     (~(drop-ject si:nexus silo) u.p.pv)
-  $(entries t.entries, kept [[key.i.entries [[%tomb ~] ~]] kept])
+  $(entries t.entries)
 ::  Set gain flag on a lane: single file or recursive on directory.
 ::  For files, rewrites the leaf ject with the new gain flag.
 ::  For directories, recurses into all descendant files.
@@ -1759,7 +1773,7 @@
     =/  =pace:hist:nexus  ?:(flag [%firm `new-jobe] [%temp `new-jobe])
     =/  new-hist=hist:nexus
       (put-pace:hist:nexus u.fh key.u.got pace)
-    =.  born  (~(put bo:nexus now.bowl born) here new-hist)
+    =.  this  (put-born here new-hist)
     this
       %|
     ::  Directory: recurse into all files in subtree
@@ -1792,12 +1806,12 @@
     ?:  =(tags tags.val.u.got)  this
     =/  new-hist=hist:nexus
       (put:hon:hist:nexus u.fh key.u.got val.u.got(tags (~(uni in tags.val.u.got) tags)))
-    =.  born  (~(put bo:nexus now.bowl born) here new-hist)
+    =.  this  (put-born here new-hist)
     this
       %temp
     =/  new-hist=hist:nexus
       (put:hon:hist:nexus u.fh key.u.got [[%firm p.pace.val.u.got] tags])
-    =.  born  (~(put bo:nexus now.bowl born) here new-hist)
+    =.  this  (put-born here new-hist)
     this
   ==
 ::  Promote current fold hist entry to %firm at a path.
@@ -1859,7 +1873,7 @@
     ?~(cp ~ `cass.u.cp)
   ?~  target  this
   =/  new-hist=hist:nexus  (tag:hist:nexus u.fh u.target tags)
-  =.  born  (~(put bo:nexus now.bowl born) here new-hist)
+  =.  this  (put-born here new-hist)
   this
 ::  Find all [rail cass] pairs in a subtree whose hist contains a lobe
 ::
@@ -2636,7 +2650,7 @@
   =/  new-sok=hist:nexus
     (put-pace:hist:nexus u.sok new-cass [%temp `new-jobe])
   =.  silo  new-silo
-  =.  born  (~(put bo:nexus now.bowl born) here new-sok)
+  =.  this  (put-born here new-sok)
   =/  old-born=born:nexus  born
   =.  this  (record-trees path.here)
   (notify old-born)
@@ -2768,7 +2782,7 @@
     =/  new-sok=hist:nexus
       (put-pace:hist:nexus sok new-cass [%temp `lobe.u.cleared])
     =.  silo  silo.u.cleared
-    =.  born  (~(put bo:nexus now.bowl born) here new-sok)
+    =.  this  (put-born here new-sok)
     $(files t.files)
   ::  Recurse into subdirectories
   =/  kids=(list [name=@ta kid=born:nexus])  ~(tap by dir.bor)
@@ -2787,7 +2801,11 @@
   ?:  ?=(^ bang.pip)  &
   ?~  pax  |
   $(pax (snip `path`pax))
-::  Delete a file from pool and ball (NOT born - it's a high-water mark)
+::  Delete a file from pool, ball and born. History is for things that
+::  exist: the record goes with the grub, and only its number remains,
+::  in peak, where every write already put it. A later grub at this
+::  rail numbers after it. Gain governs what a hist retains in life
+::  (firm vs temp), not what survives death: nothing does.
 ::
 ++  delete
   |=  [dir=path name=@ta]
@@ -2807,20 +2825,11 @@
     =/  file-cass=cass:clay  (need (top:hist:nexus u.sok))
     ::  Capture the leaf being tombed so its vale entry can follow it
     =/  prev-leaf=(unit leaf:nexus)  (hist-leaf u.sok file-cass)
-    ::  an un-gained grub leaves nothing behind. one HTTP request makes
-    ::  and culls a grub under the nexus's requests dir, so a record kept
-    ::  here is a record every later request in that dir walks past.
-    ?.  (lookup-gain [dir name])
-      =.  silo  (~(drop-hist si:nexus silo) u.sok)
-      =.  born  (~(del bo:nexus now.bowl born) [dir name])
-      =.  vale  (gc-vale-prev prev-leaf)
-      this
-    =/  [tombed-silo=silo:nexus tombed-hist=hist:nexus]
-      (~(tomb-temp si:nexus silo) u.sok file-cass)
-    =/  new-cass=cass:clay  (~(next-cass bo:nexus now.bowl born) file-cass)
-    =/  new-sok=hist:nexus  (put-pace:hist:nexus tombed-hist new-cass [%temp ~])
-    =.  silo  tombed-silo
-    =.  born  (~(put bo:nexus now.bowl born) [dir name] new-sok)
+    ::  one HTTP request makes and culls a grub under the nexus's
+    ::  requests dir; a record kept here would be a record every later
+    ::  request in that dir walks past. The number is already in peak.
+    =.  silo  (~(drop-hist si:nexus silo) u.sok)
+    =.  born  (~(del bo:nexus now.bowl born) [dir name])
     =.  vale  (gc-vale-prev prev-leaf)
     this
   =.  this  (propagate old-born [dir name])
@@ -4837,10 +4846,32 @@
   ^-  (unit cass:clay)
   (~(get-dir-cass bo:nexus now.bowl born) dir)
 ::
+::  peak is born's shadow: the high-water cass of every rail ever
+::  written, raised with every write (+put-born) and never deleted. A
+::  born record may then be dropped at any time; a re-creation starts
+::  above the peak, so [rail cass] never rebinds.
 ++  init-born
   |=  here=rail:tarball
   ^+  this
-  this(born (~(init bo:nexus now.bowl born) here))
+  =/  mark=(unit cass:clay)  (~(get-file pk:nexus peak) here)
+  =.  born  (~(init bo:nexus now.bowl born) here mark)
+  (raise-peak here)
+::  +put-born: the one way a file's hist is written. The peak is raised
+::  to the hist's top in the same step, so the mark exists before any
+::  record there is to lose.
+++  put-born
+  |=  [here=rail:tarball sok=hist:nexus]
+  ^+  this
+  =.  born  (~(put bo:nexus now.bowl born) here sok)
+  (raise-peak here)
+++  raise-peak
+  |=  here=rail:tarball
+  ^+  this
+  =/  sok=(unit hist:nexus)  (get-born here)
+  ?~  sok  this
+  =/  top=(unit cass:clay)  (top:hist:nexus u.sok)
+  ?~  top  this
+  this(peak (~(put-file pk:nexus peak) here u.top))
 ::
 ::  +propagate: repair ancestors and notify, after a leaf mutation
 ::
@@ -4901,7 +4932,7 @@
     (~(record si:nexus silo) raw p.bask marc-ckey marc-ns gain new-cass file-cass sok)
   =.  silo  new-silo
   =.  vale  (gc-vale-prev prev-leaf)
-  =.  born  (~(put bo:nexus now.bowl born) here new-sok)
+  =.  this  (put-born here new-sok)
   ::  Populate vale cache so reads never miss
   ?:  =(marc-ckey 0v0)  this
   =/  entry  (~(get by bins) marc-ckey)
@@ -5044,7 +5075,7 @@
       $(to-delete t.to-delete)
     =/  new-cass=cass:clay  (next-cass:boo u.file-cas)
     =/  new-sok=hist:nexus  (put-pace:hist:nexus u.sok new-cass [%temp ~])
-    =.  born  (~(put bo:nexus now.bowl born) [here i.to-delete] new-sok)
+    =.  this  (put-born [here i.to-delete] new-sok)
     ::  Nack queued inputs and remove process for deleted file
     =/  del-rail=rail:tarball  [here i.to-delete]
     =/  old-pipe=pipe:nexus  (fall (~(get of pool) here) *pipe:nexus)

@@ -264,7 +264,7 @@
   ::  Init creates hist seeded with [[%temp ~] ~] at [0 now]
   =/  now=@da  ~2024.1.1
   =/  b  (make-bo now)
-  =/  new-born=born:nexus  (init:b [/a/b %file])
+  =/  new-born=born:nexus  (init:b [/a/b %file] ~)
   =/  b2  (make-bo-with now new-born)
   =/  sok=(unit hist:nexus)  (get:b2 [/a/b %file])
   ;:  weld
@@ -301,9 +301,9 @@
   ::  Two files in same dir have independent sacks
   =/  now=@da  ~2024.1.1
   =/  b  (make-bo now)
-  =/  born1=born:nexus  (init:b [/a %file1])
+  =/  born1=born:nexus  (init:b [/a %file1] ~)
   =/  b2  (make-bo-with now born1)
-  =/  born2=born:nexus  (init:b2 [/a %file2])
+  =/  born2=born:nexus  (init:b2 [/a %file2] ~)
   =/  b3  (make-bo-with now born2)
   ::  Both files init'd, both at ver 0
   =/  sok1=(unit hist:nexus)  (get:b3 [/a %file1])
@@ -313,6 +313,23 @@
     %+  expect-eq  !>(`@ud`0)  !>((ver:hist:nexus (need sok2)))
   ==
 ::
+::
+++  test-bo-init-above-peak
+  ::  a re-creation at a rail whose record was dropped to peak numbers
+  ::  after the peak: [rail cass] never rebinds
+  =/  now=@da  ~2024.1.1
+  =/  b  (make-bo now)
+  =/  =peak:nexus  (~(put-file pk:nexus *peak:nexus) [/a %file] [7 ~2023.1.1])
+  =/  mark=(unit cass:clay)  (~(get-file pk:nexus peak) [/a %file])
+  =/  new-born=born:nexus  (init:b [/a %file] mark)
+  =/  sok=(unit hist:nexus)  (~(get bo:nexus now new-born) [/a %file])
+  ;:  weld
+    %+  expect-eq  !>(`(unit cass:clay)``[7 ~2023.1.1])  !>(mark)
+    %+  expect-eq  !>(`@ud`8)  !>((ver:hist:nexus (need sok)))
+    ::  a lower mark never lowers a peak
+    =/  same=peak:nexus  (~(put-file pk:nexus peak) [/a %file] [3 ~2023.1.1])
+    %+  expect-eq  !>(`(unit cass:clay)``[7 ~2023.1.1])  !>((~(get-file pk:nexus same) [/a %file]))
+  ==
 ::
 ++  test-bo-next-cass-future-da
   ::  next-cass uses +(da.cass) when da.cass >= now
@@ -554,8 +571,9 @@
   %+  expect-eq
     !>  `@ud`0
   !>  ~(wyt by nouns.silo3)
-++  test-si-record-temp-tombs-previous
-  ::  temp entries get tombed on next write — only latest survives
+++  test-si-record-temp-deletes-previous
+  ::  a replaced temp pace is deleted, not tombed: a hist holds only
+  ::  readable paces, and absence at the old cass is the terminal state
   =/  page1=bask:tarball  [[/ %txt] 'alpha']
   =/  page2=bask:tarball  [[/ %txt] 'bravo']
   =/  cass1=cass:clay  [1 ~2024.1.1]
@@ -566,13 +584,13 @@
   =/  [lobe2=nobe:nexus silo2=silo:nexus hist2=_hist]
     (~(record si:nexus silo1) q.page2 p.page2 0v0 / %.n cass2 cass1 hist1)
   ;:  weld
-    ::  Hist still has 2 entries (tomb + live)
+    ::  Hist has 1 entry: the live one
     %+  expect-eq
-      !>  `@ud`2
+      !>  `@ud`1
     !>  (lent (tap:hon:hist:nexus hist2))
-    ::  First entry is tombed
+    ::  The old cass is gone from the hist
     =/  old-pace=(unit pace:hist:nexus)  (get-pace:hist:nexus hist2 cass1)
-    %+  expect-eq  !>(%.y)  !>(?=([~ %tomb *] old-pace))
+    %+  expect-eq  !>(%.n)  !>(?=(^ old-pace))
     ::  Second entry is live temp
     =/  new-pace=(unit pace:hist:nexus)  (get-pace:hist:nexus hist2 cass2)
     %+  expect-eq  !>(%.y)  !>(?=([~ %temp [~ @]] new-pace))
@@ -618,8 +636,8 @@
   =/  [lobe3=nobe:nexus silo3=silo:nexus hist3=_hist]
     (~(record si:nexus silo2) q.page3 p.page3 0v0 / %.n [3 ~2024.1.3] [2 ~2024.1.2] hist2)
   ;:  weld
-    ::  3 hist entries total (2 tombs + 1 live)
-    %+  expect-eq  !>(`@ud`3)  !>((lent (tap:hon:hist:nexus hist3)))
+    ::  1 hist entry: each replaced temp pace was deleted, not tombed
+    %+  expect-eq  !>(`@ud`1)  !>((lent (tap:hon:hist:nexus hist3)))
     ::  Only 1 noun in silo (the latest)
     %+  expect-eq  !>(`@ud`1)  !>(~(wyt by nouns.silo3))
     ::  drop-hist on the 1 live entry cleans up
@@ -816,7 +834,7 @@
   =/  node  (need (get-node born3 /))
   ;:  weld
     %+  expect-eq  !>(`@ud`2)  !>((ver:hist:nexus fold.node))
-  ::  1 tree in silo (old tree tombed by tomb-temp)
+  ::  1 tree in silo (the old temp tree entry was deleted, drop-temp)
     %+  expect-eq  !>(`@ud`1)  !>(~(wyt by jects.silo2))
   ==
 ::

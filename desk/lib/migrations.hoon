@@ -457,6 +457,139 @@
 ::  the source (+cull drops an un-gained grub's record), and this clears
 ::  what already piled up.
 ::
+::  state-8: peak, born's shadow. Born's skeleton with every history
+::  collapsed to its highest cass, raised on every write and never
+::  deleted: numbering lives here, so a born record is history and may
+::  be dropped. Starts empty: every rail re-created before its first
+::  write under %8 numbers from zero once more (the one rebind this
+::  chain allows, at the crossing).
+::
++$  state-8
+  $:  %8
+      =born:nexus
+      =peak:nexus
+      =silo:nexus
+      =subs:nexus
+      =pool:nexus
+      =code:nexus
+      =bins:nexus
+      =vale:nexus
+      =remo:nexus
+      =upki:nexus
+      =last:nexus
+      conns=(map @ta binding:eyre)
+  ==
+::  state-9: same shape as %8. The crossing is a one-time sweep: every
+::  history loses the dead entries the old write path left behind (a
+::  tomb per replaced temp pace, one absence per reload-deletion), and
+::  peak is seeded from born so every rail that exists today has its
+::  mark before any record of it can be dropped. Under %8 writes a
+::  rail's number only reached peak on its next write; a rail last
+::  written before %8 and culled after would have numbered from zero.
+::
++$  state-9
+  $:  %9
+      =born:nexus
+      =peak:nexus
+      =silo:nexus
+      =subs:nexus
+      =pool:nexus
+      =code:nexus
+      =bins:nexus
+      =vale:nexus
+      =remo:nexus
+      =upki:nexus
+      =last:nexus
+      conns=(map @ta binding:eyre)
+  ==
+++  state-8-to-9
+  |=  old=state-8
+  ^-  state-9
+  :*  %9
+      (sweep-dead-born born.old)
+      (seed-peak born.old peak.old)
+      silo.old  subs.old  pool.old  code.old
+      bins.old  vale.old  remo.old  upki.old  last.old
+      conns.old
+  ==
+::  +sweep-dead-born: drop every dead entry below the top of each file
+::  and fold history. Dead = a tomb, or an absence (a pace with no
+::  content); neither points at a ject, so no silo ref is released. The
+::  top entry stays whatever it is: it is the rail's current state.
+::
+++  sweep-dead-born
+  |=  bon=born:nexus
+  ^-  born:nexus
+  =?  fil.bon  ?=(^ fil.bon)
+    :-  ~
+    %=  u.fil.bon
+      fold  (sweep-hist fold.u.fil.bon)
+      file  (~(run by file.u.fil.bon) sweep-hist)
+    ==
+  bon(dir (~(run by dir.bon) |=(kid=born:nexus ^$(bon kid))))
+::
+++  sweep-hist
+  |=  sk=hist:nexus
+  ^-  hist:nexus
+  =/  top=(unit cass:clay)  (top:hist:nexus sk)
+  ?~  top  sk
+  %+  gas:hon:hist:nexus  *hist:nexus
+  %+  skim  (tap:hon:hist:nexus sk)
+  |=  [key=cass:clay val=entry:hist:nexus]
+  ?:  =(key u.top)  %.y
+  ?:  ?=(%tomb -.pace.val)  %.n
+  ?=(^ p.pace.val)
+::  +seed-peak: born collapsed to its high-water casses, merged over the
+::  peak as it stands (a peak only ever rises).
+::
+++  seed-peak
+  |=  [bon=born:nexus pk=peak:nexus]
+  ^-  peak:nexus
+  =/  here=(unit [fold=(unit cass:clay) file=(map @ta cass:clay)])
+    ?~  fil.bon  ~
+    :-  ~
+    :-  (top:hist:nexus fold.u.fil.bon)
+    %-  ~(rep by file.u.fil.bon)
+    |=  [[nom=@ta sk=hist:nexus] out=(map @ta cass:clay)]
+    =/  t=(unit cass:clay)  (top:hist:nexus sk)
+    ?~  t  out
+    (~(put by out) nom u.t)
+  =/  merged=(unit [fold=(unit cass:clay) file=(map @ta cass:clay)])
+    ?~  here  fil.pk
+    ?~  fil.pk  here
+    :-  ~
+    :-  (max-cass fold.u.here fold.u.fil.pk)
+    %-  ~(rep by file.u.here)
+    |=  [[nom=@ta c=cass:clay] out=_file.u.fil.pk]
+    =/  cur=(unit cass:clay)  (~(get by out) nom)
+    ?:  &(?=(^ cur) (gte ud.u.cur ud.c))  out
+    (~(put by out) nom c)
+  =/  kids=(set @ta)  (~(uni in ~(key by dir.bon)) ~(key by dir.pk))
+  :-  merged
+  %-  ~(gas by *(map @ta peak:nexus))
+  %+  turn  ~(tap in kids)
+  |=  k=@ta
+  :-  k
+  %+  seed-peak
+    (fall (~(get by dir.bon) k) *born:nexus)
+  (fall (~(get by dir.pk) k) *peak:nexus)
+::
+++  max-cass
+  |=  [a=(unit cass:clay) b=(unit cass:clay)]
+  ^-  (unit cass:clay)
+  ?~  a  b
+  ?~  b  a
+  ?:((gte ud.u.a ud.u.b) a b)
+::
+++  state-7-to-8
+  |=  old=state-7
+  ^-  state-8
+  :*  %8
+      born.old  *peak:nexus
+      silo.old  subs.old  pool.old  code.old
+      bins.old  vale.old  remo.old  upki.old  last.old
+      conns.old
+  ==
 ++  state-6-to-7
   |=  old=state-6
   ^-  state-7
