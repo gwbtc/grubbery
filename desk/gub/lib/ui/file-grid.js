@@ -138,6 +138,12 @@ class FileGrid extends HTMLElement {
     const rows = free ? Math.max(1, Math.floor((innerHeight - 44 - 24) / 104)) : 0;
     const sorted = this.#sorted();
 
+    // empty state — a genuinely empty directory reads as empty, not broken
+    if (!sorted.length) {
+      this.#grid.innerHTML = '<div class="loading"><span class="d">◆</span> empty directory</div>';
+      return;
+    }
+
     sorted.forEach((item, i) => {
       const el = document.createElement('div');
       el.className = 'icon';

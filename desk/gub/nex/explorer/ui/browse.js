@@ -5,15 +5,27 @@
 // client-side for dirs, normal for files.
 const $ = (id) => document.getElementById(id);
 const PREFIX = '/grubbery/ball';
+// SCOPE: the explorer opened at a root. ?scope=/apps/foo/projects makes
+// that directory "/" for the crumbs, the tab titles and the parent link,
+// and the scope's tabs persist on their own. An app page is the explorer
+// scoped at the app's root (a clanker collection, a repo's working tree);
+// an element page is the explorer scoped at the element. The namespace
+// paths underneath are unchanged: every request still goes to the real
+// /grubbery/ball url, nothing is folded or hidden.
+const SCOPE = ((new URLSearchParams(location.search)).get('scope') || '').replace(/\/+$/, '');
+const ROOT = PREFIX + SCOPE;
+// a path as the scope shows it: relative to ROOT inside the scope, to the
+// namespace root otherwise (a symlink can resolve outside the scope)
+const rel = (p) => (p === ROOT || p.startsWith(ROOT + '/')) ? (p.slice(ROOT.length) || '/') : (p.slice(PREFIX.length) || '/');
+const withScope = (p) => SCOPE ? p + '?scope=' + encodeURIComponent(SCOPE) : p;
 let here = location.pathname;
-let dirPath = here.slice(PREFIX.length) || '/';
+let dirPath = rel(here);
 
 function nav(p, push) {
   here = p;
-  dirPath = p.slice(PREFIX.length) || '/';
-  dirViewPath = p; // the directory tab follows the breadcrumbs
-  if (push !== false) history.pushState(null, '', p);
-  document.title = dirPath;
+  dirPath = rel(p);
+  if (push !== false) history.pushState(null, '', withScope(p));
+  document.title = SCOPE ? (SCOPE.slice(SCOPE.lastIndexOf('/') + 1) + (dirPath === '/' ? '' : ' ' + dirPath)) : dirPath;
   renderCrumbs();
   if (view === 'list') ft.showLoading(); else fg.showLoading();
   load();
@@ -210,8 +222,11 @@ function getChildren(path) {
   })));
 }
 finderTree.getChildren = getChildren;
-finderTree.onOpenDir = (item, path) => showDirView(path);
-finderTree.onOpenFile = (item, path) => openTab(path);
+// the sidebar is the launcher: a click opens (or focuses) a tab for that
+// item. Navigation WITHIN a tab (its listing rows, crumbs, back/fwd) stays
+// in the tab — see navigateTab.
+finderTree.onOpenDir = (item, path) => openOrFocusTab(path, 'dir');
+finderTree.onOpenFile = (item, path) => openOrFocusTab(path, 'file');
 finderTree.decorateRow = (row, item, path) => {
   // item.__dir is the directory this item actually lives in —
   // handleAction posts there, not to the page's current root
@@ -286,155 +301,324 @@ updateBadgesToggleLabel();
 // persist across directory navigation (and across reloads, via
 // localStorage): opening a file adds or focuses a tab, it doesn't replace
 // whatever else is already open.
-const TABS_KEY = 'explorer-tabs';
+const TABS_KEY = 'explorer-tabs' + SCOPE;   // a scope keeps its own tabs
 const finderTabs = $('finder-tabs');
-const finderDir = $('finder-dir');  // tab 0, fixed: the directory view
-const dirFt = $('finder-dir-ft');
-const openFiles = new Map(); // path -> { panel, fv }
 let activeTabPath = null;
-let dirViewPath = here; // what the directory tab shows: follows nav, retargets on sidebar clicks
-// the tab-group's children are NOT all tabs — #finder-dir (the directory
-// view) lives in there too, with no tab-label. tab-group's own indices only
-// count labelled panels, so anything that indexes or persists tabs must go
-// through this, never finderTabs.children directly.
+
+// a split-view tab is a uniform "location tab": a panel carrying its current
+// path and its own history {stack:[{path,kind}], idx}, with a ◀▶ chrome bar
+// above a body that renders either a dir listing (<file-table>) or a FileView,
+// chosen by the location's kind. navigateTab is the single sink every nav
+// source funnels through; there is no longer a fixed directory tab.
 const tabPanels = () => [...finderTabs.children].filter((p) => p.hasAttribute('tab-label'));
+const activePanel = () => tabPanels().find((p) => !p.hidden) || tabPanels()[0] || null;
 
 // reflect the active tab onto its tree row (cheap — no re-render)
 function markActiveInTree(path) {
   activeTabPath = path;
   finderTree.markActive(path);
 }
-
-function selectPath(path) {
-  const panels = tabPanels();
-  const idx = panels.findIndex(p => p.dataset.path === path);
+function selectPanel(panel) {
+  const idx = tabPanels().indexOf(panel);
   if (idx >= 0) finderTabs.select(idx);
-  markActiveInTree(path);
+}
+function tabLabel(path, kind) {
+  const disp = rel(path);
+  const base = disp === '/' ? '/' : disp.slice(disp.lastIndexOf('/') + 1);
+  return kind === 'dir' ? (base === '/' ? '/' : base + '/') : base;
 }
 
-// persisted: the open FILE tabs (the directory tab is always there, never
-// persisted) and which is active — '' meaning the directory tab
+// a dir listing inside a tab: the list view's columns, but the name link and
+// row navigation drive navigateTab on THIS tab rather than a page load
+function makeDirTable(panel) {
+  const t = document.createElement('file-table');
+  t.style.height = '100%';
+  t.columns = ft.columns.map((c) => c.key !== 'name' ? c : Object.assign({}, c, {
+    link: (item) => (t.__dir || '').replace(/\/$/, '') + '/' + item.name,
+  }));
+  t.actions = ft.actions;
+  t.addEventListener('ft-navigate', (e) => {
+    const { item, href } = e.detail;
+    if (item) navigateTab(panel, href, item.kind);
+  });
+  t.addEventListener('ft-action', handleAction);
+  return t;
+}
+// a dir listing as the desktop/icon grid instead of rows
+function makeDirGrid(panel, path) {
+  const g = document.createElement('file-grid');
+  g.style.height = '100%';
+  g.baseHref = path;
+  g.actions = ft.actions;
+  g.addEventListener('ft-navigate', (e) => {
+    const { item, href } = e.detail;
+    if (item) navigateTab(panel, href, item.kind);
+  });
+  g.addEventListener('ft-action', handleAction);
+  return g;
+}
+function dirModeDefault() {
+  try { return localStorage.getItem('explorer-dir-mode') === 'grid' ? 'grid' : 'table'; } catch (_) { return 'table'; }
+}
+// active/idle look for a tab's view-mode buttons — mirrors the top bar's
+// #view-toggle .on state (blue) vs the plain bordered button
+function styleModeBtn(btn, active) {
+  btn.style.background = active ? '#ddf4ff' : '#fff';
+  btn.style.borderColor = active ? '#54aeff' : '#d0d7de';
+  btn.style.color = active ? '#0969da' : '#24292f';
+  btn.style.fontWeight = active ? '600' : '400';
+}
+// clickable path breadcrumbs for a dir tab — each segment navigates THIS tab
+// (and so lands in its history), the way the old top-bar crumbs did the page
+function buildCrumbs(panel, path) {
+  const wrap = panel._crumbs;
+  wrap.textContent = '';
+  const mk = (label, p) => {
+    const a = document.createElement('a');
+    a.textContent = label; a.href = p;
+    a.style.cssText = 'color:#57606a;text-decoration:none;padding:1px 3px;border-radius:4px;white-space:nowrap';
+    a.addEventListener('mouseenter', () => { a.style.background = '#eaeef2'; });
+    a.addEventListener('mouseleave', () => { a.style.background = ''; });
+    a.addEventListener('click', (e) => { e.preventDefault(); navigateTab(panel, p, 'dir'); });
+    return a;
+  };
+  const sep = () => { const s = document.createElement('span'); s.textContent = '/'; s.style.color = '#c0c7d0'; return s; };
+  const base = (path === ROOT || path.startsWith(ROOT + '/')) ? ROOT : PREFIX;
+  wrap.appendChild(mk('/', base));
+  let acc = base;
+  (path.slice(base.length) || '').split('/').filter(Boolean).forEach((s, i) => {
+    acc += '/' + s;
+    if (i > 0) wrap.appendChild(sep()); // the root crumb already shows the first '/'
+    wrap.appendChild(mk(s, acc));
+  });
+}
+
+// the single navigation sink: point `panel` at `path` (dir or file), render
+// it, and — unless replaying back/forward — push onto the tab's own history
+async function navigateTab(panel, path, kind, push = true) {
+  const h = panel._hist;
+  if (push && !(h.idx >= 0 && h.stack[h.idx] && h.stack[h.idx].path === path)) {
+    h.stack = h.stack.slice(0, h.idx + 1);
+    h.stack.push({ path, kind });
+    h.idx = h.stack.length - 1;
+  }
+  panel.dataset.path = path;
+  panel._rendered = true;
+  panel.setAttribute('tab-label', tabLabel(path, kind));
+  panel.setAttribute('tab-title', rel(path));
+  finderTabs.refresh();
+  panel._back.disabled = h.idx <= 0;
+  panel._fwd.disabled = h.idx >= h.stack.length - 1;
+  panel._back.style.opacity = panel._back.disabled ? '.3' : '';
+  panel._fwd.style.opacity = panel._fwd.disabled ? '.3' : '';
+  if (panel._fv) { panel._fv.destroy(); panel._fv = null; }
+  panel._body.textContent = '';
+  if (kind === 'dir') {
+    // chrome: clickable breadcrumbs + the rows/desktop view icons
+    buildCrumbs(panel, path);
+    panel._modeWrap.style.display = '';
+    styleModeBtn(panel._modeRows, panel._dirMode === 'table');
+    styleModeBtn(panel._modeGrid, panel._dirMode === 'grid');
+    const view = panel._dirMode === 'grid' ? makeDirGrid(panel, path) : makeDirTable(panel);
+    if (panel._dirMode !== 'grid') view.__dir = path;
+    panel._body.appendChild(view);
+    view.showLoading();
+    try {
+      const r = await fetch(path + '?list=1');
+      if (!r.ok) throw new Error(r.status);
+      const d = await r.json();
+      if (panel.dataset.path !== path) return; // moved on while in flight
+      d.children.forEach((c) => { c.__dir = path; }); // handleAction posts there
+      view.items = d.children;
+    } catch (e) { toast('listing failed: ' + e, true); }
+  } else {
+    // a file: FileView carries its own crumbs; wire them to navigate in-tab
+    panel._crumbs.textContent = '';
+    const n = document.createElement('span');
+    n.textContent = path.slice(path.lastIndexOf('/') + 1);
+    n.style.cssText = 'color:#8b949e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:1px 3px';
+    panel._crumbs.appendChild(n);
+    panel._modeWrap.style.display = 'none';
+    const opts = { url: path, wrapKey: 'explorer-wrap', onNavigate: (u) => navigateTab(panel, u, 'dir') };
+    // a registered viewer for this file's mark becomes FileView's first
+    // pane (the file itself stays one click away in Source)
+    const viewer = await viewerFor(path);
+    if (panel.dataset.path !== path) return; // moved on while in flight
+    if (viewer) opts.viewer = viewer;
+    panel._fv = window.FileView.mount(panel._body, opts);
+  }
+  if (!panel.hidden) markActiveInTree(path);
+  saveTabs();
+}
+
+// the viewer registry: the explorer's viewers.json maps a mark (blot name,
+// no leading slash) to a script url. The script registers itself as
+// window.Viewers[mark] = { label, mount(root, opts) -> { destroy() } }, the
+// same contract as FileView; FileView shows it as the file's first pane.
+// Loaded lazily, once, the first time a file of that mark is opened; a mark
+// with no entry (or a script that fails) just gets the usual panes. The
+// script runs with this page's reach, so only this ship's own routes are
+// loaded: a /grubbery/... path, never another origin. Explicit config, no
+// discovery.
+const VIEWERS_URL = '/grubbery/ball/apps/explorer.explorer/viewers.json?raw=1';
+let viewersConf = null;      // mark -> script url
+const viewerLoads = {};      // script url -> Promise
+async function viewerFor(path) {
+  try {
+    if (!viewersConf) viewersConf = await fetch(VIEWERS_URL).then((r) => (r.ok ? r.json() : {})).catch(() => ({}));
+    if (!viewersConf || !Object.keys(viewersConf).length) return null;
+    const info = await fetch(path + '?info=1').then((r) => r.json());
+    const mark = ((info && info.blot) || '').replace(/^\//, '');
+    const src = mark && viewersConf[mark];
+    if (!src) return null;
+    if (typeof src !== 'string' || !/^\/grubbery\/[^\s]*$/.test(src)) { toast('viewer for ' + mark + ' refused: not a /grubbery/ path', true); return null; }
+    window.Viewers = window.Viewers || {};
+    if (!window.Viewers[mark]) {
+      if (!viewerLoads[src]) viewerLoads[src] = new Promise((res, rej) => {
+        const s = document.createElement('script');
+        s.src = src; s.onload = res; s.onerror = () => rej(new Error('viewer failed to load: ' + src));
+        document.head.appendChild(s);
+      });
+      await viewerLoads[src];
+    }
+    return window.Viewers[mark] || null;
+  } catch (e) { toast('viewer: ' + e.message, true); return null; }
+}
+
+// build a tab's chrome + body; its initial location renders lazily (on first
+// select) so restoring N tabs doesn't fire N listings/FileViews up front
+function mountTabPanel(path, kind) {
+  const panel = document.createElement('div');
+  panel.dataset.path = path;
+  panel.setAttribute('tab-label', tabLabel(path, kind));
+  panel.setAttribute('tab-title', rel(path));
+  panel.style.cssText = 'height:100%;display:flex;flex-direction:column;min-height:0';
+  const bar = document.createElement('div');
+  bar.style.cssText = 'flex:none;display:flex;align-items:center;gap:2px;padding:3px 8px;border-bottom:1px solid #eaeef2;background:#fafbfc';
+  const mkbtn = (t) => { const b = document.createElement('button'); b.textContent = t; b.style.cssText = 'all:unset;cursor:pointer;padding:1px 7px;border-radius:5px;color:#57606a;font-size:12px'; return b; };
+  const back = mkbtn('◀'); back.title = 'back';
+  const fwd = mkbtn('▶'); fwd.title = 'forward';
+  const crumbs = document.createElement('div');
+  crumbs.style.cssText = 'display:flex;align-items:center;gap:1px;margin-left:4px;flex:1;min-width:0;overflow:hidden;font:600 11px ui-monospace,SFMono-Regular,Menlo,monospace';
+  // the same two view icons as the top bar: rows (☰) vs desktop (▦)
+  const modeWrap = document.createElement('span');
+  modeWrap.style.cssText = 'display:inline-flex;gap:2px;flex:none';
+  const viewBtn = (glyph, title) => {
+    const b = document.createElement('button');
+    b.textContent = glyph; b.title = title;
+    b.style.cssText = 'all:unset;cursor:pointer;padding:2px 9px;border-radius:6px;font-size:12px;border:1px solid #d0d7de;background:#fff;color:#24292f;line-height:1.4';
+    return b;
+  };
+  const modeRows = viewBtn('☰', 'row view');
+  const modeGrid = viewBtn('▦', 'desktop view');
+  modeWrap.append(modeRows, modeGrid);
+  bar.append(back, fwd, crumbs, modeWrap);
+  const body = document.createElement('div');
+  body.style.cssText = 'flex:1;min-height:0;min-width:0;overflow:auto';
+  panel.append(bar, body);
+  panel._hist = { stack: [], idx: -1 };
+  panel._back = back; panel._fwd = fwd; panel._crumbs = crumbs;
+  panel._modeWrap = modeWrap; panel._modeRows = modeRows; panel._modeGrid = modeGrid; panel._body = body;
+  panel._fv = null; panel._rendered = false; panel._init = { path, kind };
+  panel._dirMode = dirModeDefault();
+  const setMode = (m) => {
+    panel._dirMode = m;
+    try { localStorage.setItem('explorer-dir-mode', m); } catch (_) {}
+    const cur = panel._hist.stack[panel._hist.idx];
+    if (cur && cur.kind === 'dir') navigateTab(panel, cur.path, 'dir', false);
+  };
+  modeRows.addEventListener('click', () => setMode('table'));
+  modeGrid.addEventListener('click', () => setMode('grid'));
+  back.addEventListener('click', () => {
+    const hh = panel._hist; if (hh.idx <= 0) return; hh.idx -= 1;
+    const e = hh.stack[hh.idx]; navigateTab(panel, e.path, e.kind, false);
+  });
+  fwd.addEventListener('click', () => {
+    const hh = panel._hist; if (hh.idx >= hh.stack.length - 1) return; hh.idx += 1;
+    const e = hh.stack[hh.idx]; navigateTab(panel, e.path, e.kind, false);
+  });
+  finderTabs.appendChild(panel);
+  return panel;
+}
+function ensureRendered(panel) {
+  if (!panel || panel._rendered) return;
+  const i = panel._init; navigateTab(panel, i.path, i.kind, true);
+}
+function openInNewTab(path, kind) {
+  mountTabPanel(path, kind);
+  finderTabs.refresh();
+  const panel = tabPanels()[tabPanels().length - 1];
+  const settle = () => { selectPanel(panel); ensureRendered(panel); saveTabs(); };
+  settle(); queueMicrotask(settle);
+}
+// open a tab for `path`, or focus the one already showing it — the sidebar's
+// launch behavior (so clicking around the tree builds up tabs, not replaces)
+function openOrFocusTab(path, kind) {
+  const existing = tabPanels().find((p) => p.dataset.path === path);
+  if (existing) { selectPanel(existing); return; }
+  openInNewTab(path, kind);
+}
+
 function saveTabs() {
   const panels = tabPanels();
-  const activePanel = panels.find(p => !p.hidden);
+  const act = panels.find((p) => !p.hidden);
   try {
     localStorage.setItem(TABS_KEY, JSON.stringify({
-      paths: panels.map(p => p.dataset.path).filter(Boolean),
-      active: activePanel === finderDir ? '' : (activePanel && activePanel.dataset.path),
+      tabs: panels.map((p) => ({ path: p.dataset.path, kind: (p._hist.stack[p._hist.idx] || p._init || {}).kind || 'dir' })),
+      active: act ? panels.indexOf(act) : 0,
     }));
   } catch (_) {}
 }
 
-function mountTab(path) {
-  const name = path.slice(path.lastIndexOf('/') + 1) || path;
-  const panel = document.createElement('div');
-  panel.setAttribute('tab-label', name);
-  panel.setAttribute('tab-title', path.slice(PREFIX.length) || path);
-  panel.dataset.path = path;
-  panel.style.height = '100%';
-  finderTabs.appendChild(panel);
-  // the FileView itself mounts lazily, on first selection — a FileView
-  // fires two requests (?info=1, ?raw=1) the moment it mounts, and on a
-  // pier that serializes requests, restoring N persisted tabs eagerly costs
-  // 2N round trips before the page is usable
-  openFiles.set(path, { panel, fv: null });
-  return panel;
-}
-function ensureMounted(path) {
-  const entry = openFiles.get(path);
-  if (!entry || entry.fv) return;
-  entry.fv = window.FileView.mount(entry.panel, { url: path, wrapKey: 'explorer-wrap' });
-}
-
-function openTab(path) {
-  const isNew = !openFiles.has(path);
-  if (isNew) mountTab(path);
+finderTabs.addEventListener('tg-close', (e) => {
+  const panel = e.detail.panel;
+  if (panel._fv) panel._fv.destroy();
+  panel.remove();
   finderTabs.refresh();
-  const settle = () => { selectPath(path); saveTabs(); };
-  settle();
-  // appendChild above queues a native slotchange that tab-group's own
-  // listener rebuilds on asynchronously, defaulting back to tab 0 (nothing
-  // here is `persist`ed) — that clobbers the select() just above. Re-assert
-  // it once that settles.
-  if (isNew) queueMicrotask(settle);
-}
-
-function closeTab(path) {
-  const entry = openFiles.get(path);
-  if (!entry) return;
-  if (entry.fv) entry.fv.destroy();
-  entry.panel.remove();
-  openFiles.delete(path);
-  finderTabs.refresh();
-  const stillActive = tabPanels().find(p => !p.hidden);
-  markActiveInTree(stillActive ? stillActive.dataset.path : null);
+  if (!tabPanels().length) { seedTab(here); return; } // never leave zero tabs
+  const act = activePanel();
+  if (act) { ensureRendered(act); markActiveInTree(act.dataset.path); }
   saveTabs();
-}
-
-finderTabs.addEventListener('tg-close', (e) => closeTab(e.detail.panel.dataset.path));
+});
 finderTabs.addEventListener('tg-change', (e) => {
   const panel = tabPanels()[e.detail.index];
-  if (panel) ensureMounted(panel.dataset.path);
-  markActiveInTree(panel ? panel.dataset.path : null);
+  if (!panel) return;
+  ensureRendered(panel);
+  markActiveInTree(panel.dataset.path);
   saveTabs();
 });
 
-// restore persisted tabs on load (independent of which view is active —
-// mounting is cheap and they should be there the moment you switch to cols)
+function seedTab(path) {
+  mountTabPanel(path, 'dir');
+  finderTabs.refresh();
+  const panel = tabPanels()[tabPanels().length - 1];
+  const settle = () => { selectPanel(panel); ensureRendered(panel); };
+  settle(); queueMicrotask(settle);
+}
+
+// restore persisted tabs (or seed one at `here`); only the active tab renders
+// now, the rest on first select — keeps N tabs from firing N fetches up front
 (function restoreTabs() {
   let saved;
   try { saved = JSON.parse(localStorage.getItem(TABS_KEY) || 'null'); } catch (_) { saved = null; }
-  // a bad persisted entry must never take the whole page down with it —
-  // this runs at module top level, an exception here aborts everything
-  const paths = (saved && Array.isArray(saved.paths) ? saved.paths : []).filter((p) => typeof p === 'string');
-  if (!paths.length) return; // tab-group's own rebuild selects tab 0: the directory tab
-  for (const path of paths) mountTab(path);
+  const tabs = (saved && Array.isArray(saved.tabs) ? saved.tabs : []).filter((t) => t && typeof t.path === 'string');
+  if (!tabs.length) { seedTab(here); return; }
+  tabs.forEach((t) => mountTabPanel(t.path, t.kind || 'dir'));
   finderTabs.refresh();
-  // only the active tab's FileView mounts now (the others on first click);
-  // '' = the directory tab was active
-  if (saved.active === '') { finderTabs.select(0); return; }
-  const active = paths.includes(saved.active) ? saved.active : paths[0];
-  selectPath(active);
-  // belt and braces: the appendChilds above queued a native slotchange
-  // whose rebuild keeps the current selection, but re-assert once it settles
-  queueMicrotask(() => selectPath(active));
+  const panels = tabPanels();
+  const ai = (typeof saved.active === 'number' && saved.active >= 0 && saved.active < panels.length) ? saved.active : 0;
+  const settle = () => { finderTabs.select(ai); ensureRendered(tabPanels()[ai]); };
+  settle(); queueMicrotask(settle);
 })();
 
-// ---- directory view: tab 0, fixed. Shows a directory's listing (the same
-// <file-table> the list view uses, scoped to that directory). It follows
-// the breadcrumbs (nav() retargets it to `here`) and clicking a directory
-// in the sidebar retargets it to that one and selects it. No page
-// navigation from the sidebar — `here` only moves via the breadcrumbs. A
-// dir row in the listing drills further in; a file row opens a tab.
-dirFt.columns = ft.columns.map((c) => c.key !== 'name' ? c : Object.assign({}, c, {
-  link: (item) => dirViewPath.replace(/\/$/, '') + '/' + item.name,
-}));
-dirFt.actions = ft.actions;
-dirFt.addEventListener('ft-navigate', (e) => {
-  const { item, href } = e.detail;
-  if (!item) return;
-  if (item.kind === 'dir') showDirView(href); else openTab(href);
-});
-dirFt.addEventListener('ft-action', handleAction);
-// select=false refreshes what the tab shows without stealing the selection
-// (a nav or an action changed things while a file tab is up front)
-async function showDirView(path, select = true) {
-  dirViewPath = path;
-  const disp = path.slice(PREFIX.length) || '/';
-  finderDir.setAttribute('tab-label', disp === '/' ? '/' : disp.slice(disp.lastIndexOf('/') + 1) + '/');
-  finderDir.setAttribute('tab-title', disp);
-  finderTabs.refresh(); // attr edits don't fire slotchange; keeps the selection
-  if (select) { finderTabs.select(0); markActiveInTree(null); }
-  dirFt.showLoading();
-  let d;
-  try {
-    const r = await fetch(path + '?list=1');
-    if (!r.ok) throw new Error(r.status);
-    d = await r.json();
-  } catch (e) { toast('listing failed: ' + e, true); return; }
-  if (dirViewPath !== path) return; // moved on while this was in flight
-  d.children.forEach((c) => { c.__dir = path; }); // handleAction posts there
-  dirFt.items = d.children;
+// refresh the active tab's listing in place after an action changed data —
+// re-render its current dir location without pushing history (a file tab
+// refreshes through its own FileView)
+function refreshActiveTab() {
+  const panel = activePanel();
+  if (!panel || !panel._rendered) return;
+  const cur = panel._hist.stack[panel._hist.idx];
+  if (cur && cur.kind === 'dir') navigateTab(panel, cur.path, 'dir', false);
 }
 
 // ---- view toggle ----
@@ -458,6 +642,11 @@ vList.addEventListener('click', () => setView('list'));
 vGrid.addEventListener('click', () => setView('grid'));
 vCols.addEventListener('click', () => setView('cols'));
 $('finder-collapse').addEventListener('click', () => finder.toggle());
+$('finder-new-tab').addEventListener('click', () => {
+  const a = activePanel();
+  const cur = a && a._hist.stack[a._hist.idx];
+  openInNewTab(a ? a.dataset.path : here, (cur && cur.kind) || 'dir');
+});
 setView(view);
 
 // ---- navigation (shared by both views) ----
@@ -483,7 +672,7 @@ function handleAction(e) {
   // item's OWN directory (that's what the server-side handler resolves
   // bare names against), never blindly to the page's current root.
   const itemDir = item.__dir || here;
-  const itemDirDisp = itemDir.slice(PREFIX.length) || '/';
+  const itemDirDisp = rel(itemDir);
   const base = itemDir.replace(/\/$/, '') + '/' + item.name;
   if (item.kind === 'dir') {
     switch (action) {
@@ -523,7 +712,7 @@ fg.addEventListener('ft-action', handleAction);
 
 // ---- fetch + render ----
 renderCrumbs();
-document.title = dirPath;
+document.title = SCOPE ? (SCOPE.slice(SCOPE.lastIndexOf('/') + 1) + (dirPath === '/' ? '' : ' ' + dirPath)) : dirPath;
 
 async function load() {
   try {
@@ -536,12 +725,13 @@ async function load() {
   }
   renderChips();
   renderBang();
-  ft.parentHref = dirPath !== '/' ? PREFIX + (dirPath.split('/').slice(0, -1).join('/') || '') : null;
+  // the way up stops at the scope's root
+  ft.parentHref = dirPath !== '/' ? here.slice(0, here.lastIndexOf('/')) : null;
   ft.items = data.children;
   fg.baseHref = here;
   fg.items = data.children;
   renderFinderTree(); // re-points the tree at the new root; drops stale caches
-  showDirView(dirViewPath, false); // refresh tab 0: follows nav, and an action may have changed it
+  refreshActiveTab(); // an action may have changed the active tab's listing
   renderManage();
   if ($('weir-modal').hasAttribute('open')) weirRefresh();
 }
@@ -550,9 +740,11 @@ function renderCrumbs() {
   const c = $('crumbs');
   c.textContent = '';
   const segs = dirPath === '/' ? [] : dirPath.slice(1).split('/');
+  const base = (here === ROOT || here.startsWith(ROOT + '/')) ? ROOT : PREFIX;
   const a = document.createElement('a');
-  a.href = PREFIX;
-  a.textContent = '/';
+  a.href = base;
+  // a scoped root shows its own name as the root crumb
+  a.textContent = base === ROOT && SCOPE ? SCOPE.slice(SCOPE.lastIndexOf('/') + 1) + '/' : '/';
   a.dataset.nav = '1';
   c.appendChild(a);
   let acc = '';
@@ -565,7 +757,7 @@ function renderCrumbs() {
       c.appendChild(sp);
     } else {
       const l = document.createElement('a');
-      l.href = PREFIX + acc;
+      l.href = base + acc;
       l.textContent = s + '/';
       l.dataset.nav = '1';
       c.appendChild(l);
@@ -770,7 +962,7 @@ function openModal(id, focus, targetDir) {
   const label = CREATE_TITLES[id];
   if (label) {
     $(id).querySelector('.m-title').textContent = createTarget === here
-      ? label : label + ' in ' + (createTarget.slice(PREFIX.length) || '/');
+      ? label : label + ' in ' + rel(createTarget);
   }
   $(id).show();
   if (focus) { $(focus).focus(); }

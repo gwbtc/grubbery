@@ -144,6 +144,7 @@
       <div id="finder-lhead">
         <button id="finder-collapse" title="collapse sidebar">&#8676;</button>
         <span style="display:flex; gap:4px; align-items:center;">
+          <span class="ft-all"><button id="finder-new-tab" title="open a new tab">+ tab</button></span>
           <span class="ft-all"><button id="finder-badges-toggle" title="show/hide row badges"></button></span>
           <span class="ft-all"><button id="finder-tree-toggle" title="expand/collapse all"></button></span>
         </span>
@@ -151,12 +152,9 @@
       <tree-view id="finder-tree"></tree-view>
     </div>
     <div slot="end" id="finder-preview">
-      <tab-group id="finder-tabs" closable>
-        <!-- tab 0, fixed (no ×): the directory view. Shows the page's own
-             directory until a sidebar directory is clicked, then that one;
-             browse.js retargets its label/title. Follows the breadcrumbs. -->
-        <div id="finder-dir" tab-label="/" tab-title="/" tab-fixed tab-icon="folder"><file-table id="finder-dir-ft"></file-table></div>
-      </tab-group>
+      <!-- tabs are seeded by browse.js: each is a uniform location tab (a dir
+           listing or a FileView) carrying its own ◀▶ history. -->
+      <tab-group id="finder-tabs" closable></tab-group>
     </div>
   </split-view>
   <div id="status"></div>

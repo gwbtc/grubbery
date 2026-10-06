@@ -58,6 +58,7 @@
     '.fv #status{font:11px ui-monospace,monospace;color:#57606a;max-width:40ch;overflow:hidden;text-overflow:ellipsis;white-space:pre}' +
     '.fv #status.err{color:#cf222e;white-space:pre-wrap}' +
     '.fv #text-view,.fv #mime-view{flex:1;min-height:0;min-width:0;overflow:auto}' +
+    '.fv #view-pane{flex:1;min-height:0;min-width:0;overflow:auto;display:flex;flex-direction:column}' +
     '.fv .edwrap,.fv #src-display{height:100%;min-width:0;overflow:auto}' +
     // the Wrap toggle drives the editor AND the highlighted display identically
     '.fv.wrap #ed,.fv.wrap #text-view pre,.fv.wrap #text-view code{white-space:pre-wrap!important;overflow-wrap:anywhere}' +
@@ -99,6 +100,7 @@
 
   var MARKUP =
     '<div id="bar">' +
+      '<button id="tab-view" style="display:none"></button>' +
       '<button id="tab-text" style="display:none">Source</button>' +
       '<button id="tab-mime" style="display:none">Preview</button>' +
       '<button id="tab-build" style="display:none">Build</button>' +
@@ -134,7 +136,10 @@
       '</div>' +
     '</div>' +
     '<div id="mime-view" style="display:none"></div>' +
-    '<pre id="build-view" style="display:none"></pre>';
+    '<pre id="build-view" style="display:none"></pre>' +
+    // the host's own pane for this file's mark (opts.viewer): a chat log's
+    // chat, a run's trace. The file stays one click away in Source.
+    '<div id="view-pane" style="display:none"></div>';
 
   var styled = false;
   function injectStyle() {
@@ -208,8 +213,11 @@
     }
 
     var ed = $('ed'), edwrap = $('edwrap'), display = $('src-display'), src = $('src');
-    var textView = $('text-view'), mimeView = $('mime-view'), buildView = $('build-view');
-    var tabText = $('tab-text'), tabMime = $('tab-mime'), tabBuild = $('tab-build');
+    var textView = $('text-view'), mimeView = $('mime-view'), buildView = $('build-view'), viewPane = $('view-pane');
+    var tabText = $('tab-text'), tabMime = $('tab-mime'), tabBuild = $('tab-build'), tabView = $('tab-view');
+    // opts.viewer = { label, mount(root, opts) -> { destroy() } }: a pane the
+    // host adds for this file's mark, shown first; mounted on first show
+    var viewer = opts.viewer || null, viewerHandle = null;
     var editBtn = $('edit'), saveBtn = $('save'), liveBtn = $('live'), wrapBtn = $('wrap');
     var status = $('status'), tools = $('tools'), mimeInput = $('mime-input');
 
@@ -238,7 +246,13 @@
       var base = opts.crumbBase || '/grubbery/ball';
       var rel = here.indexOf(base) === 0 ? here.slice(base.length) : here.replace('/grubbery/ball', '');
       var parts = rel.split('/').filter(Boolean);
-      var mk = function (t, href) { var a = document.createElement('a'); a.href = href; a.textContent = t; return a; };
+      var mk = function (t, href) {
+        var a = document.createElement('a'); a.href = href; a.textContent = t;
+        // a host (e.g. an explorer tab) can take over crumb clicks to navigate
+        // in place + in its own history instead of a full page load
+        if (opts.onNavigate) a.addEventListener('click', function (e) { e.preventDefault(); opts.onNavigate(href); });
+        return a;
+      };
       var acc = base;
       wrap.appendChild(mk('/', acc));
       parts.slice(0, -1).forEach(function (s) { acc += '/' + s; wrap.appendChild(mk(s + '/', acc)); });
@@ -326,22 +340,31 @@
       textView.style.display = which === 'text' ? '' : 'none';
       mimeView.style.display = which === 'mime' ? '' : 'none';
       buildView.style.display = which === 'build' ? '' : 'none';
+      viewPane.style.display = which === 'view' ? '' : 'none';
       tabText.classList.toggle('on', which === 'text');
       tabMime.classList.toggle('on', which === 'mime');
       tabBuild.classList.toggle('on', which === 'build');
+      tabView.classList.toggle('on', which === 'view');
       tools.style.display = which === 'text' ? '' : 'none';
+      $('mime-row').style.display = which === 'view' ? 'none' : '';
       if (which === 'mime' && !mimeRendered) { renderMime(); mimeRendered = true; }
       if (which === 'build' && !buildRendered) { renderBuild(); buildRendered = true; }
+      if (which === 'view' && viewer && !viewerHandle) {
+        try { viewerHandle = viewer.mount(viewPane, { url: here, onNavigate: opts.onNavigate }) || { destroy: function () {} }; }
+        catch (e) { viewPane.textContent = 'viewer failed: ' + e; }
+      }
     }
     function setupPanes() {
       var previewable = !!effectiveKind() || !texty;
       tabText.addEventListener('click', function () { show('text'); });
       tabMime.addEventListener('click', function () { show('mime'); });
       tabBuild.addEventListener('click', function () { show('build'); });
-      var showTabs = previewable || buildStatus;
+      tabView.addEventListener('click', function () { show('view'); });
+      var showTabs = previewable || buildStatus || viewer;
       tabText.style.display = showTabs ? '' : 'none';
       tabMime.style.display = showTabs ? '' : 'none';
-      if (!previewable) show('text'); else show('mime');
+      if (viewer) { tabView.textContent = viewer.label || 'View'; tabView.style.display = ''; }
+      if (viewer) show('view'); else if (!previewable) show('text'); else show('mime');
     }
 
     function setupWrap() {
@@ -494,7 +517,10 @@
 
     return {
       setUrl: function (u) { mount(root, Object.assign({}, opts, { url: u })); },
-      destroy: function () { errOverlay.remove(); root.innerHTML = ''; }
+      destroy: function () {
+        if (viewerHandle && viewerHandle.destroy) { try { viewerHandle.destroy(); } catch (_) {} }
+        errOverlay.remove(); root.innerHTML = '';
+      }
     };
   }
 

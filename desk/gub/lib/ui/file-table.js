@@ -222,8 +222,19 @@ class FileTable extends HTMLElement {
       if (this.#actionsFn) tr.appendChild(this.#td('acts', ''));
       this.#rows.appendChild(tr);
     }
-    for (const item of this.#sorted())
+    const rows = this.#sorted();
+    for (const item of rows)
       this.#rows.appendChild(this.#row(item));
+    // empty state — so a genuinely empty directory reads as empty, not broken
+    if (!rows.length) {
+      const tr = document.createElement('tr');
+      tr.className = 'loading';
+      const td = document.createElement('td');
+      td.colSpan = this.#columns.length + (this.#actionsFn ? 1 : 0);
+      td.textContent = 'empty directory';
+      tr.appendChild(td);
+      this.#rows.appendChild(tr);
+    }
   }
 
   #row(item) {
