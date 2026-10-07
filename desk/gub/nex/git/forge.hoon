@@ -14,9 +14,17 @@
 ::  /repos/      the repo instances
 ::
 /<  git-act  /lib/git/action.hoon
+/<  dc  /lib/doc-coverage.hoon
+::  git-repo/git-transport/load-repo: load a repo's store from its /data and
+::  read a file's slice at a pinned commit, to compute live-block freshness.
+/<  git-repo  /lib/git/repository.hoon
+/<  git-transport  /lib/git/transport.hoon
+/<  load-repo  /lib/git/load-repo.hoon
 /&  icon        forge/icon.svg
 /&  forge-html  forge/index.html
 /&  forge-js    forge/app.js
+/&  forge-reader-html  forge/docs-reader.html
+/&  forge-reader-js  forge/docs-reader.js
 /&  forge-css   forge/style.css
 /&  todo        /lib/todo.md
 ::  the self-hosting development flow, materialized like TODO.md
@@ -72,6 +80,8 @@
           [%over %& [/ %'icon.svg'] [[/ %mime] icon]]
           [%over %& [/ %'index.html'] [[/ %mime] forge-html]]
           [%over %& [/ %'app.js'] [[/ %mime] forge-js]]
+          [%over %& [/ %'docs-reader.html'] [[/ %mime] forge-reader-html]]
+          [%over %& [/ %'docs-reader.js'] [[/ %mime] forge-reader-js]]
           ::  the nexus backlog, materialized like README — browsable at root
           [%over %& [/ %'TODO.md'] [[/ %mime] todo]]
           ::  the ratchet: how grubbery develops itself from in-ship
@@ -159,6 +169,74 @@
             =/  got  (mule |.(!<(mime (need-vase:tarball sang.fv))))
             ?:(?=(%| -.got) '' `@t`q.q.p.got)
           (send-json rail eyre-id (pairs:enjs:format ~[['text' s+txt]]))
+        ::  per-repo handbook, path-segment style: /repo/<name>/docs is the
+        ::  reader page; /repo/<name>/docs/<endpoint> are its data routes:
+        ::  nav.json + coverage.json (read from the data nexus's precomputed
+        ::  ui/ grubs), page (markdown + its resolved live blocks in one json),
+        ::  and slice (the exact lines of a file at a pinned commit).
+        ?:  ?=([%repo @ %docs *] suffix)
+          ::  the url carries the SHORT repo name (as the workspace does); the
+          ::  docs arms key by the full instance dir <name>.git_repo
+          =/  seg=tape  (trip i.t.suffix)
+          =/  repo=@ta
+            ?:  =(".git_repo" (slag ?:((gth (lent seg) 9) (sub (lent seg) 9) 0) seg))
+              i.t.suffix
+            (cat 3 i.t.suffix '.git_repo')
+          ?+    t.t.t.suffix
+            (respond rail eyre-id 404 'not found')
+              ~
+            ;<  fv=view:nexus  bind:m
+              (peek:io (nex-road:io rail [%& / %'docs-reader.html']) `[/ %mime])
+            ?.  ?=([%file *] fv)  (respond rail eyre-id 404 'reader missing')
+            ;<  ~  bind:m  (send-simple:s eyre-id (mime-response:http-utils !<(mime (need-vase:tarball sang.fv))))
+            (pure:m ~)
+            ::  nav + coverage are read from the data nexus's precomputed ui/
+            ::  grubs (the git trick) — no per-request fold or source reads.
+              [%'nav.json' ~]
+            ;<  nav=(unit json)  bind:m
+              (peek-as:io (nex-road:io rail [%& /repos/[repo]/data/ui %'docs-nav.json']) ,json)
+            ?~  nav  (send-json rail eyre-id [%a ~])
+            (send-json rail eyre-id (annotate-nav:dc u.nav))
+              [%'coverage.json' ~]
+            =/  sec=@t  (fall (quay-get args 'section') '')
+            ;<  nav=(unit json)  bind:m
+              (peek-as:io (nex-road:io rail [%& /repos/[repo]/data/ui %'docs-nav.json']) ,json)
+            ;<  cs=(unit cov-state:dc)  bind:m
+              (peek-as:io (nex-road:io rail [%& /repos/[repo]/data/ui %'docs-covstate']) ,cov-state:dc)
+            ?:  |(?=(~ nav) ?=(~ cs))  (send-json rail eyre-id ~)
+            (send-json rail eyre-id (render-coverage:dc u.cs u.nav sec %.y))
+            ::  a handbook page as {markdown, blocks}: the raw .md from the
+            ::  checkout at .grubbery/docs/<page>, plus its live blocks already
+            ::  resolved (lines at the pinned commit, short commit, status) from
+            ::  the data nexus's cached docs-blocks.json — so the browser renders
+            ::  the page in ONE fetch, with no per-block store load.
+              [%page ~]
+            =/  page=@t  (fall (quay-get args 'path') '')
+            ;<  txt=@t  bind:m  (docs-page rail repo `path`~[%'.grubbery' %docs] page)
+            ;<  bl=(unit json)  bind:m
+              (peek-as:io (nex-road:io rail [%& /repos/[repo]/data/ui %'docs-blocks.json']) ,json)
+            =/  blocks=json
+              ?.  ?=([~ %o *] bl)  [%a ~]
+              (fall (~(get by p.u.bl) page) [%a ~])
+            (send-json rail eyre-id (pairs:enjs:format ~[['markdown' s+txt] ['blocks' blocks]]))
+            ::  render FROM THE PINNED COMMIT: the exact [from..to] lines of a
+            ::  live block's file as of its `commit`, read from the git object
+            ::  store via +blob-at-commit — the browser displays what the ship
+            ::  returns, no client slicing. `file` is the file's real repo path,
+            ::  so there is no alias. No `commit` = at HEAD (the heatmap's view).
+              [%slice ~]
+            =/  file=@t  (fall (quay-get args 'file') '')
+            =/  commit=(unit @t)  (quay-get args 'commit')
+            =/  from=@ud  (fall (biff (quay-get args 'from') |=(a=@t (rush a dem))) 1)
+            =/  to=@ud    (fall (biff (quay-get args 'to') |=(a=@t (rush a dem))) 0)
+            ;<  eff=(unit @t)  bind:m  (resolve-commit rail repo commit)
+            ;<  store=(unit repository:git-repo)  bind:m
+              (load-repo-from-ns:load-repo rail /repos/[repo]/data)
+            =/  span=(unit (list @t))  (pin-span-at store eff file from to)
+            =/  txt=@t  ?~(span '' (of-wain:format u.span))
+            ;<  ~  bind:m  (send-simple:s eyre-id (mime-response:http-utils [/text/plain (as-octs:mimes:html txt)]))
+            (pure:m ~)
+          ==
         ::  page URLs serve the shell; anything else is a static file
         =/  filename=@ta
           ?~  suffix  'index.html'
@@ -265,6 +343,56 @@
   ?~  kids  fils
   %+  weld  ^$(ball +.i.kids, here (snoc here -.i.kids))
   $(kids t.kids)
+::  ---- handbook: pages + pinned slices (coverage is computed in the data
+::  nexus on-load; see +build-docs-coverage there — forge only reads ui/) ----
+::  +resolve-commit: the commit a /slice renders at — the pinned `commit` when
+::  present, else the repo's current HEAD (from its data nexus's current.json).
+::  A pinned block names its commit; the coverage heatmap passes none and gets
+::  HEAD, where coverage is measured.
+++  resolve-commit
+  |=  [=rail:tarball repo=@ta commit=(unit @t)]
+  =/  m  (fiber:fiber:nexus ,(unit @t))
+  ^-  form:m
+  ?^  commit  (pure:m commit)
+  ;<  cur=(unit json)  bind:m
+    (peek-as:io (nex-road:io rail [%& /repos/[repo]/data/ui %'current.json']) ,json)
+  ?~  cur  (pure:m ~)
+  ?.  ?=([%o *] u.cur)  (pure:m ~)
+  =/  h  (~(get by p.u.cur) 'hash')
+  (pure:m ?.(?=([~ %s *] h) ~ `p.u.h))
+::  +pin-span-at: the EXACT lines [from..to] of `file` AS OF `commit`, read from
+::  the git object store via +blob-at-commit — the render-from-pin primitive the
+::  /slice endpoint serves. `file` is the file's real repo path ("/desk/..."),
+::  so it maps straight to a tree path with no alias. ~ when the anchor floats
+::  (no commit), the store is missing, the commit/path is absent there, or the
+::  range falls outside the file.
+++  pin-span-at
+  |=  $:  store=(unit repository:git-repo)  commit=(unit @t)
+          file=@t  from=@ud  to=@ud
+      ==
+  ^-  (unit (list @t))
+  ?~  commit  ~
+  ?~  store   ~
+  =/  ch=(unit @ux)  (rust (trip u.commit) parse-hash-sha-1:git-transport)
+  ?~  ch  ~
+  =/  blob=(unit octs)  (blob-at-commit:~(. git-repo u.store) u.ch (stab file))
+  ?~  blob  ~
+  =/  lines=(list @t)  (to-wain:format q.u.blob)
+  =/  total=@ud  (lent lines)
+  ?:  =(0 total)  ~
+  =/  hi=@ud  (min total ?:(=(0 to) total to))
+  ?:  (gth from hi)  ~
+  `(swag [(dec from) +((sub hi from))] lines)
+::  +docs-page: a handbook page's raw markdown, read from the checkout.
+++  docs-page
+  |=  [=rail:tarball repo=@ta prose=path page=@t]
+  =/  m  (fiber:fiber:nexus ,@t)
+  ^-  form:m
+  =/  pax=(unit [dir=path name=@ta])  (parse-src-path page)
+  ?~  pax  (pure:m '')
+  =/  fdir=path  :(weld /repos/[repo]/data/tree prose dir.u.pax)
+  ;<  fv=view:nexus  bind:m  (peek:io (nex-road:io rail [%& fdir name.u.pax]) ~)
+  (pure:m ?.(?=([%file *] fv) '' (sang-text:dc sang.fv)))
 ::  +gather-repos: every instance under /repos as a card — config plus
 ::  the current.json its data nexus maintains
 ::

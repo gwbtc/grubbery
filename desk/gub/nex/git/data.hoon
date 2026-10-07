@@ -50,6 +50,7 @@
 /<  git-pack  /lib/git/pack.hoon
 /<  git-repo  /lib/git/repository.hoon
 /<  git-transport  /lib/git/transport.hoon
+/<  dc  /lib/doc-coverage.hoon
 /&  man  ../../man/git/data/readme.md
 =<  ^-  nexus:nexus
     |%
@@ -132,7 +133,7 @@
         =/  tree-ball=ball:tarball  (files-to-ball files)
         =.  ball  ball(dir (~(put by dir.ball) 'tree' tree-ball))
         =.  ball  (write-tree-head ball (print-hash-sha-1:git-transport commit-hash))
-        =.  ball  (write-ui-outputs ball sto commit-hash parsed-head head-idx parent-tree-hash)
+        =.  ball  (write-ui-outputs ball repo commit-hash parsed-head head-idx parent-tree-hash)
         ~?  dbg  ["%git/data: stashed at" (scag 7 stash-hex)]
         ball
       ::
@@ -189,7 +190,7 @@
         ::  clear request
         =.  ball  (~(del ba:tarball ball) / %'stash-pop-request.sig')
         ::  build UI outputs — status will show stash diff against HEAD
-        =.  ball  (write-ui-outputs ball sto commit-hash parsed-head head-idx head-tree-hash)
+        =.  ball  (write-ui-outputs ball repo commit-hash parsed-head head-idx head-tree-hash)
         ~?  dbg  ["%git/data: popped stash" (scag 7 (print-hash-sha-1:git-transport u.stash-hash))]
         ball
       ::
@@ -331,7 +332,7 @@
               =(`head-text (read-tree-head ball))
           ==
         =/  idx=(map path [hash:git-repo mtime=@t])  (read-index ball)
-        =.  ball  (write-ui-outputs ball sto commit-hash parsed-head idx tree.com)
+        =.  ball  (write-ui-outputs ball repo commit-hash parsed-head idx tree.com)
         ball
       ~?  dbg  ["%git/data: checkout" (scag 7 head-text)]
       =/  get-tree=$-(@ux (unit tree-dir:git-repo))
@@ -350,7 +351,7 @@
       ::  write tree into ball BEFORE computing status
       =.  ball  ball(dir (~(put by dir.ball) 'tree' tree-ball))
       =.  ball  (write-tree-head ball head-text)
-      =.  ball  (write-ui-outputs ball sto commit-hash parsed-head idx tree.com)
+      =.  ball  (write-ui-outputs ball repo commit-hash parsed-head idx tree.com)
       ball
     ::
     ++  on-file
@@ -1095,13 +1096,15 @@
 ::
 ++  write-ui-outputs
   |=  $:  =ball:tarball
-          sto=_store:~(. git-repo *repository:git-repo)
+          repo=repository:git-repo
           head-hash=hash:git-repo
           parsed-head=(unit [branch=(unit @t) hash=@ux])
           idx=(map path [hash:git-repo mtime=@t])
           head-tree-hash=hash:git-repo
       ==
   ^-  ball:tarball
+  =/  gr   ~(. git-repo repo)
+  =/  sto  store:gr
   =/  branch-name=@t  (fall ?~(parsed-head ~ branch.u.parsed-head) '')
   =/  log-start=hash:git-repo
     ?~  parsed-head  head-hash
@@ -1129,7 +1132,124 @@
     (~(put ba:tarball ball) [/ui %'status.json'] [[/ %json] %& !>(status)])
   =.  ball
     (~(put ba:tarball ball) [/ui %'stash.json'] [[/ %json] %& !>(stash)])
+  ::  handbook coverage — the git trick: a repo that carries .grubbery/docs/
+  ::  gets its coverage/drift folded ONCE here, from HEAD + the pinned commits,
+  ::  and cached as sibling ui/ grubs. Forge reads docs-covstate and renders any
+  ::  view purely (no per-request fold, no source reads). Absent docs → skip.
+  =/  docs=(unit [nav=json cs=cov-state:dc blocks=json])  (build-docs-coverage gr head-hash)
+  ?~  docs  ball
+  =.  ball
+    (~(put ba:tarball ball) [/ui %'docs-nav.json'] [[/ %json] %& !>(nav.u.docs)])
+  =.  ball
+    (~(put ba:tarball ball) [/ui %'docs-covstate'] [[/ %noun] %& !>(cs.u.docs)])
+  =.  ball
+    (~(put ba:tarball ball) [/ui %'docs-blocks.json'] [[/ %json] %& !>(blocks.u.docs)])
   ball
+::
+::  +build-docs-coverage: fold a repo's handbook coverage from the object store.
+::  A repo opts in by carrying `.grubbery/docs/docs.json` (nav + ignore). Each
+::  live block in a page .md is "<path>@<commit> <from-to>"; the path is the
+::  file's real repo-relative path, so no alias is needed. finfo is the HEAD
+::  line map of the whole checkout; each anchor's pin-span is its exact lines at
+::  its commit (blob-at-commit). ~ when the repo has no handbook.
+++  build-docs-coverage
+  |=  [gr=_~(. git-repo *repository:git-repo) head-hash=hash:git-repo]
+  ^-  (unit [nav=json cs=cov-state:dc blocks=json])
+  =/  sto  store:gr
+  =/  dj=(unit octs)  (blob-at-commit:gr head-hash ~[%'.grubbery' %docs %'docs.json'])
+  ?~  dj  ~
+  =/  mani=(unit json)  (de:json:html q.u.dj)
+  ?~  mani  ~
+  ?.  ?=([%o *] u.mani)  ~
+  =/  ignore=(list @t)  (json-strs:dc (~(get by p.u.mani) 'ignore'))
+  =/  nav=json  (fall (~(get by p.u.mani) 'nav') [%a ~])
+  ::  finfo: every file at HEAD, keyed by its real repo path (e.g.
+  ::  "/desk/app/grubbery.hoon") -> its lines.
+  =/  head-com=(unit commit:git-repo)  (get-commit:sto head-hash)
+  ?~  head-com  ~
+  ::  the HEAD each block's freshness is computed AGAINST (short form), so the
+  ::  reader can always say "fresh/drifted vs <this commit>".
+  =/  head-short=@t  (crip (scag 7 (print-hash-sha-1:git-transport head-hash)))
+  =/  get-tree=$-(@ux (unit tree-dir:git-repo))  |=(h=@ux (get-tree:sto h))
+  =/  get-blob=$-(@ux (unit octs))  |=(h=@ux (get-blob:sto h))
+  =/  files=(list [path octs])  (checkout:git-transport get-tree get-blob tree.u.head-com)
+  =/  finfo=(map @t (list @t))
+    %-  malt
+    %+  turn  files
+    |=  [p=path o=octs]
+    ^-  [@t (list @t)]
+    [(crip (spud p)) (to-wain:format q.o)]
+  ::  anchors: parse each page's live fences; resolve each to its pinned slice.
+  =/  items=(list [path=@t title=@t])  (nav-items:dc nav)
+  =/  anchors=(list [doc=@t file=@t commit=(unit @t) from=@ud to=@ud pin-span=(unit (list @t))])
+    %-  zing
+    %+  turn  items
+    |=  [pth=@t ttl=@t]
+    ^-  (list [doc=@t file=@t commit=(unit @t) from=@ud to=@ud pin-span=(unit (list @t))])
+    =/  mdpath=path  (weld `path`~[%'.grubbery' %docs] (stab (crip "/{(trip pth)}")))
+    =/  mdb=(unit octs)  (blob-at-commit:gr head-hash mdpath)
+    ?~  mdb  ~
+    =/  md=@t  (of-wain:format (to-wain:format q.u.mdb))
+    %+  turn  (parse-anchors:dc md)
+    |=  [f=@t c=(unit @t) fr=@ud to=@ud]
+    ^-  [doc=@t file=@t commit=(unit @t) from=@ud to=@ud pin-span=(unit (list @t))]
+    [pth f c fr to (pin-span-at gr c f fr to)]
+  =/  cs=cov-state:dc  (fold-coverage:dc finfo anchors ignore)
+  ::  resolved live blocks per page, in document order: the display lines (the
+  ::  slice AT the pinned commit), the short commit, and fresh/drifted/gone — so
+  ::  forge serves a page's blocks ready-made and the browser does no per-block
+  ::  store load or source fetch at render time.
+  =/  bmap=(map @t (list json))
+    %+  roll  anchors
+    |=  $:  a=[doc=@t file=@t commit=(unit @t) from=@ud to=@ud pin-span=(unit (list @t))]
+            acc=(map @t (list json))
+        ==
+    =/  hl=(unit (list @t))
+      =/  ls=(unit (list @t))  (~(get by finfo) file.a)
+      ?~  ls  ~
+      ?:  (gth from.a (lent u.ls))  ~
+      =/  hi=@ud  (min (lent u.ls) ?:(=(0 to.a) (lent u.ls) to.a))
+      `(swag [(dec from.a) +((sub hi from.a))] u.ls)
+    =/  status=@t
+      ?~  hl  'gone'
+      ?:  |(?=(~ pin-span.a) =(u.hl u.pin-span.a))  'fresh'
+      'drifted'
+    =/  disp=(list @t)  (fall pin-span.a (fall hl ~))
+    =/  blk=json
+      %-  pairs:enjs:format
+      :~  ['file' s+file.a]
+          ['commit' ?~(commit.a ~ s+u.commit.a)]
+          ['short' ?~(commit.a ~ s+(crip (scag 7 (trip u.commit.a))))]
+          ['from' (numb:enjs:format from.a)]
+          ['to' (numb:enjs:format to.a)]
+          ['status' s+status]
+          ['head' s+head-short]
+          ['lines' [%a (turn disp |=(l=@t `json`s+l))]]
+      ==
+    (~(put by acc) doc.a [blk (fall (~(get by acc) doc.a) ~)])
+  =/  blocks=json
+    :-  %o
+    %-  ~(run by bmap)
+    |=(l=(list json) `json`[%a (flop l)])
+  `[nav cs blocks]
+::  +pin-span-at: the EXACT lines of [from..to] of `file` at `commit`, read from
+::  the object store via blob-at-commit — what fold-coverage compares against
+::  the HEAD slice. `file` is a real repo path ("/desk/app/x.hoon"). ~ when the
+::  anchor floats, the commit/path is absent there, or the range is out of range.
+++  pin-span-at
+  |=  [gr=_~(. git-repo *repository:git-repo) commit=(unit @t) file=@t from=@ud to=@ud]
+  ^-  (unit (list @t))
+  ?~  commit  ~
+  =/  ch=(unit @ux)  (rust (trip u.commit) parse-hash-sha-1:git-transport)
+  ?~  ch  ~
+  =/  blob=(unit octs)  (blob-at-commit:gr u.ch (stab file))
+  ?~  blob  ~
+  =/  lines=(list @t)  (to-wain:format q.u.blob)
+  =/  total=@ud  (lent lines)
+  ?:  =(0 total)  ~
+  =/  hi=@ud  (min total ?:(=(0 to) total to))
+  ?:  (gth from hi)  ~
+  `(swag [(dec from) +((sub hi from))] lines)
 ::
 ::  +build-current: build current.json with HEAD, branch, and remote tracking info
 ::
