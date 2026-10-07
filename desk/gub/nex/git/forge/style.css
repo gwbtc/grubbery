@@ -25,70 +25,19 @@ body { font-family: Inter, sans-serif; background: white; color: #111; overflow:
 .chip { font-size: 11px; font-weight: 700; color: #6947b8; background: #ede7fa; border-radius: 6px; padding: 2px 8px; font-family: monospace; }
 .empty { color: #999; font-size: 13px; padding: 14px 12px; }
 
-/* ── body: sidebar + workspace ── */
-/* #main (vertical) wraps the body + console; #body (horizontal) is its top
-   pane. Both are <split-view>; the handle hairline (--sv-border) draws the
-   dividers that used to be the sidebar border-right and console border-top. */
+/* ── body: the repo pane (working tree) over the console ── */
+/* #main (vertical) is a <split-view>: the repo pane on top, the console
+   below; the handle hairline (--sv-border) draws the divider. */
 #main { flex: 1; min-height: 0; --sv-border: #ddd; }
-#body { height: 100%; min-height: 0; --sv-border: #ddd; }
 /* keep splits hidden until their module upgrades (no flash of stacked panes) */
 split-view:not(:defined) { visibility: hidden; }
-#sidebar { height: 100%; overflow-y: auto; display: flex; flex-direction: column; }
-.sb-head { font-size: 11px; font-weight: 700; color: #888; text-transform: uppercase; letter-spacing: 0.05em; padding: 10px 12px 4px; display: flex; align-items: center; }
-.ft-all { margin-left: auto; }
-.ft-all button {
-  all: unset; cursor: pointer; padding: 1px 4px; border-radius: 4px;
-  font-size: 10px; font-weight: 500; letter-spacing: 0.02em;
-  color: #a0a6ae; text-transform: lowercase; white-space: nowrap;
-}
-.ft-all button:hover { color: #1a1a1a; background: #eee; }
-.repo-item { padding: 7px 12px; cursor: pointer; font-size: 13px; }
-.repo-item:hover { background: #f5f5f5; }
-.repo-item.sel { background: #f4f2f8; font-weight: 600; }
-.ri-sub { font-size: 11px; color: #999; font-family: monospace; }
-/* sidebar tree — <tree-view> (lib/ui/tree-view.js), no overrides: this is
-   the component's own look, unchanged, same as explorer's sidebar — same
-   component, same interaction model (right-click for actions; see the
-   document-level contextmenu wiring below), scoped to this repo only
-   (no onOpenDir — a directory has nowhere to navigate to outside the repo). */
-#sb-list { display: block; }
-#sb-list:not(:defined) { display: none; }
-
-/* ── workspace: tabs + editor ── */
-#workspace { height: 100%; min-width: 0; display: flex; flex-direction: column; }
-/* ed-tabs is the shared <tab-group> — same component as explorer's cols
-   view, themed to the editor's existing light strip look instead of its
-   GitHub-light defaults. Each open file is a slotted panel (height:100%
-   from tab-group's own ::slotted rule) hosting a cached <FileView>. */
-#ed-tabs {
-  position: absolute; inset: 0;
-  background: #fff;
-  font-family: monospace;
-  --tg-border: #ddd; --tg-font-size: 12px;
-  --tg-tab-color: #888; --tg-tab-hover: #111; --tg-tab-active: #111;
-  --tg-accent: #3d3a45;
-}
-/* was #24292e (a pre-FileView dark editor bg) — FileView's own chrome is
-   house-light, and the old dark color was now showing through behind the
-   tab strip, which lives inside ed-wrap now instead of a separate sibling */
-#ed-wrap { flex: 1; min-height: 0; position: relative; background: #fff; }
-/* tab 0's directory view: the kit <file-table>, scrolling inside its panel */
-#ed-dir { height: 100%; overflow: auto; }
-#ed-dir-ft { --ft-header-top: 0; }
-#ed-body { position: absolute; inset: 0; }
-#ed-hl, #ed-ta { position: absolute; inset: 0; padding: 12px 14px; font-family: 'SF Mono', Menlo, monospace; font-size: 12.5px; line-height: 1.5; white-space: pre; overflow: auto; tab-size: 2; }
-#ed-hl { pointer-events: none; color: #e1e4e8; }
-#ed-hl pre { margin: 0; background: transparent !important; font: inherit; }
-#ed-hl code { font: inherit; }
-#ed-ta { background: transparent; color: transparent; caret-color: #fff; border: none; outline: none; resize: none; }
-
-/* ── source | preview toggle ── */
-#ed-view { display: flex; margin: 0 8px; }
-.ed-vtab { appearance: none; background: none; border: 1px solid #d0d7de; font: inherit; font-size: 11px; color: #57606a; padding: 3px 10px; cursor: pointer; }
-.ed-vtab:first-child { border-radius: 6px 0 0 6px; }
-.ed-vtab:last-child { border-radius: 0 6px 6px 0; border-left: none; }
-.ed-vtab.active { background: #3d3a45; color: #fff; border-color: #3d3a45; }
-/* the shared FileView fills each tab's own panel; its chrome/styles live in file-view.js */
+/* the working tree IS the explorer: an <namespace-explorer> fills #repo-explorer
+   in its finder view (its own tree, tabs, FileView, menus and styles —
+   see explorer/ui/browse.js); forge gives it the pane's height, no more */
+#repo-pane { height: 100%; min-height: 0; display: flex; flex-direction: column; }
+#repo-explorer { flex: 1; min-height: 0; }
+#repo-explorer > namespace-explorer { height: 100%; }
+#repo-explorer > namespace-explorer:not(:defined) { display: none; }
 
 /* ── console panel ── */
 /* #console is now the bottom pane of the #main vertical split (sized/resized
@@ -209,9 +158,6 @@ modal-dialog:not(:defined) { display: none; }   /* no flash before upgrade */
 #json-head { display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; border-bottom: 1px solid #ddd; }
 #json-title { font-size: 13px; font-weight: 600; font-family: monospace; }
 #json-pre { overflow: auto; padding: 12px 14px; font-size: 12px; font-family: 'SF Mono', Menlo, monospace; margin: 0; }
-#ed-save:disabled { opacity: 0.45; cursor: default; }
-.tab-root { font-size: 9px; font-weight: 700; color: #6947b8; background: #ede7fa; border-radius: 4px; padding: 1px 4px; }
-#sb-tree { margin-bottom: 4px; }
 
 /* ── mode tabs ── */
 #mode-tabs { display: flex; gap: 2px; background: #f0f0f0; border-radius: 8px; padding: 2px; }
@@ -261,7 +207,3 @@ modal-dialog:not(:defined) { display: none; }   /* no flash before upgrade */
 .rr-x { visibility: hidden; color: #bbb; text-align: center; border-radius: 4px; }
 .repo-row:hover .rr-x { visibility: visible; }
 .rr-x:hover { color: #c0392b; background: #fbe9e9; }
-
-#ed-tang { position: absolute; left: 0; right: 0; bottom: 0; max-height: 38%; overflow: auto; margin: 0; padding: 12px 16px; border-top: 2px solid #7a3b3b; background: #2d1e1e; color: #e89b93; font: 12px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; word-break: break-word; z-index: 5; }
-
-/* tools sandbox (weir) panel */

@@ -1,10 +1,11 @@
 <!doctype html>
 <!--
-  explorer browse app — the static shell for directory views. Served for
-  every dir URL a browser asks for (?list / ?download bypass); one file,
-  all state fetched from <dir>?list=1 and rendered by browse.js. Kit
-  components (modal-dialog, drop-menu, file-table, file-grid) do the
-  widgets. The file page is view.html, on the same pattern.
+  explorer browse page — one full-size <namespace-explorer> (browse.js), the
+  explorer as a web component. Served for every dir URL a browser
+  asks for (?list / ?download bypass), and by apps that mount the explorer at
+  their own route (they inject window.EXPLORER_MOUNT ahead of the scripts).
+  All state is fetched from <dir>?list=1 and rendered by the explorer; kit
+  components do the widgets. The file page is view.html, on the same pattern.
 -->
 <html>
 <head>
@@ -17,230 +18,29 @@
     body { font: 13px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #1f2328; background: #fff; margin: 0; padding-bottom: 48px; }
     a { color: #0969da; text-decoration: none; }
     a:hover { text-decoration: underline; }
-    modal-dialog:not(:defined), drop-menu:not(:defined), file-grid:not(:defined) { display: none; }
-
-    /* body > … on purpose: the mounted FileView (light DOM, not shadow) has
-       its OWN #bar / #crumbs / #status inside it. An unscoped #bar rule
-       made its bar sticky + z-indexed too, and being later in the DOM it
-       painted over this bar's own dropdowns. */
-    body > #bar { position: sticky; top: 0; height: 38px; display: flex; align-items: center; gap: 8px; padding: 0 14px; background: #f6f8fa; border-bottom: 1px solid #d0d7de; z-index: 20; min-width: max-content; }
-    body > #bar > #crumbs { display: flex; align-items: center; gap: 2px; font: 600 13px ui-monospace, SFMono-Regular, Menlo, monospace; }
-    body > #bar > #crumbs a { color: #57606a; padding: 2px 4px; border-radius: 5px; }
-    body > #bar > #crumbs a:hover { color: #24292f; background: #eaeef2; text-decoration: none; }
-    body > #bar > #crumbs .here { color: #24292f; padding: 2px 4px; }
-    .grow { flex: 1; }
-    #chips { display: inline-flex; align-items: center; gap: 7px; }
-    .chip { display: inline-flex; align-items: center; gap: 5px; background: #eef1f4; border: 1px solid #e2e7ee; border-radius: 6px; padding: 2px 8px; white-space: nowrap; }
-    .chip.click { cursor: pointer; }
-    .chip.click:hover { border-color: #d0d7de; background: #e2e7ee; }
-    .chip.locked { cursor: not-allowed; }
-    .chip .k { font-size: 10px; text-transform: uppercase; letter-spacing: .05em; color: #8b949e; }
-    .chip .v { font: 11px ui-monospace, SFMono-Regular, Menlo, monospace; color: #24292f; }
-    .chip .v a { font: inherit; }
-    .chip.warn .v { color: #bc4c00; font-weight: 600; }
-    body > #bar button:not(.mi), .btn { all: unset; cursor: pointer; padding: 4px 12px; border-radius: 7px; font-size: 12px; color: #24292f; border: 1px solid #d0d7de; background: #fff; }
-    body > #bar button:not(.mi):hover, .btn:hover { background: #f6f8fa; }
-
-    #bang { margin: 12px 20px; padding: 10px 14px; background: #fff8f8; border: 1px solid #ffcecb; border-radius: 8px; cursor: pointer; color: #cf222e; }
-    #bang:hover { background: #ffebe9; }
-    .dload { display: inline-block; animation: dpulse 1.1s ease-in-out infinite; }
-    @keyframes dpulse { 50% { opacity: .2; } }
-    body > #status { position: fixed; bottom: 14px; left: 50%; transform: translateX(-50%); background: #24292f; color: #fff; font-size: 12px; padding: 7px 16px; border-radius: 8px; box-shadow: 0 8px 24px rgba(31,35,40,.25); display: none; max-width: 70vw; white-space: pre-wrap; z-index: 50; }
-    body > #status.err { background: #cf222e; }
-
-    file-table { margin: 0 20px; --ft-header-top: auto; }
-    file-table:not(:defined) { display: none; }
-    /* the list-view table keeps its intrinsic width (page scrolls for it); the
-       body itself does NOT, so the finder's editor content can't inflate it */
-    #ft { min-width: max-content; }
-    file-grid { margin: 8px 16px; }
-    #view-toggle button.on { background: #ddf4ff; border-color: #54aeff; color: #0969da; font-weight: 600; }
-
-    /* finder view: listing on the left, a read-only quick-look on the right */
-    #finder { height: calc(100vh - 38px); }
-    #finder-list { height: 100%; overflow: auto; }
-    #finder-lhead { position: sticky; top: 0; z-index: 2; display: flex; align-items: center; justify-content: space-between; gap: 4px; padding: 4px 6px; background: #fff; border-bottom: 1px solid #eaeef2; }
-    #finder-collapse { all: unset; cursor: pointer; padding: 1px 9px; border-radius: 6px; color: #57606a; font-size: 15px; line-height: 1.2; }
-    #finder-collapse:hover { background: #eaeef2; color: #24292f; }
-    .ft-all button { all: unset; cursor: pointer; padding: 2px 8px; border-radius: 6px; font-size: 11px; color: #57606a; }
-    .ft-all button:hover { color: #24292f; background: #eaeef2; }
-    /* <tree-view> is shadow DOM — its own defaults already match this
-       look, so no --tv-* overrides are needed here (see lib/ui/tree-view.js) */
-    #finder-tree { display: block; padding: 4px 4px 10px; }
-    #finder-tree:not(:defined) { display: none; }
-    #finder-preview { height: 100%; overflow: hidden; background: #fff; display: flex; flex-direction: column; }
-    #finder-tabs { flex: 1; min-height: 0; }
-    #finder-tabs[hidden] { display: none; }
-    #finder-preview .finder-empty { flex: 1; }
-    #finder-tabs [tab-label] { overflow: auto; }
-    #finder-dir { height: 100%; overflow: auto; }
-    #finder-dir-ft { margin: 0; min-width: max-content; }
-    .finder-pbody { flex: 1; min-height: 0; overflow: auto; }
-    .finder-head { position: sticky; top: 0; z-index: 1; display: flex; align-items: center; gap: 10px; padding: 8px 16px; background: #f6f8fa; border-bottom: 1px solid #d0d7de; font: 600 12px ui-monospace, SFMono-Regular, Menlo, monospace; color: #24292f; white-space: nowrap; }
-    .finder-head a { font: inherit; color: #0969da; }
-    .finder-src { margin: 0; padding: 14px 18px; font: 12.5px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; overflow-wrap: anywhere; color: #24292f; }
-    .finder-empty { padding: 48px 24px; text-align: center; color: #9aa0a6; }
-    .finder-dl { display: inline-block; margin: 24px; color: #0969da; }
-
-    /* modal internals */
-    .m-title { margin: 0 0 12px; font-size: 15px; overflow-wrap: anywhere; }
-    #w-path { word-break: break-all; }
-    .m-sec { margin-bottom: 14px; }
-    .m-sec h4 { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: #8b949e; margin: 0 0 6px; }
-    .m-row { display: flex; gap: 6px; align-items: center; margin-bottom: 6px; flex-wrap: wrap; }
-    .m-row input[type="text"] { flex: 1; min-width: 120px; font: 12px ui-monospace, Menlo, monospace; padding: 5px 9px; border: 1px solid #d0d7de; border-radius: 7px; outline: none; }
-    .m-row input[type="text"]:focus { border-color: #0969da; }
-    .picked { flex: 1; font-size: 12px; color: #8b949e; font-style: italic; }
-    .m-row select { font-size: 12px; padding: 4px 6px; border: 1px solid #d0d7de; border-radius: 7px; background: #fff; }
-    .m-row button, .m-actions button { all: unset; cursor: pointer; padding: 4px 12px; border-radius: 7px; font-size: 12px; border: 1px solid #d0d7de; color: #24292f; }
-    .m-row button:hover, .m-actions button:hover { background: #f6f8fa; }
-    .m-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
-    .m-actions button.primary { background: #0969da; border-color: #0969da; color: #fff; }
-    .m-actions button.primary:hover { background: #0857b8; }
-    #m-weir-roads { display: flex; flex-direction: column; gap: 9px; margin: 6px 0 16px; }
-    .w-cat { display: flex; align-items: flex-start; gap: 12px; }
-    .w-k { flex: none; width: 40px; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: #8b949e; padding-top: 4px; }
-    .w-roads { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; min-height: 24px; }
-    .w-none { color: #8b949e; font-size: 12px; padding-top: 2px; }
-    .weir-road { display: inline-flex; align-items: center; gap: 5px; max-width: 100%; background: #f6f8fa; border: 1px solid #e2e7ee; border-radius: 6px; padding: 2px 4px 2px 9px; font: 11px ui-monospace, SFMono-Regular, Menlo, monospace; color: #8250df; overflow-wrap: anywhere; word-break: break-all; }
-    .weir-road button { all: unset; cursor: pointer; color: #8b949e; padding: 0 5px; border-radius: 4px; line-height: 1.2; }
-    .weir-road button:hover { background: #ffebe9; color: #cf222e; }
-    #m-weir-clear { color: #cf222e; border-color: #ffcecb; }
-    #m-weir-clear:hover { background: #fff8f8; }
-    .w-plus { all: unset; cursor: pointer; width: 20px; height: 20px; display: grid; place-items: center; border-radius: 6px; border: 1px dashed #d0d7de; color: #8b949e; font-size: 13px; }
-    .w-plus:hover { background: #eef1f4; color: #24292f; border-style: solid; }
-    .w-inline { font: 11px ui-monospace, SFMono-Regular, Menlo, monospace; padding: 3px 8px; border: 1px solid #0969da; border-radius: 6px; outline: none; width: 160px; }
-    #boom-text { white-space: pre-wrap; font: 12px/1.5 ui-monospace, Menlo, monospace; max-height: 60vh; overflow: auto; background: #fff8f8; padding: 10px; border-radius: 8px; margin: 0; }
+    /* the finder view is a fixed page: the explorer fills the window exactly
+       and only its panes scroll (the list view keeps the page-scroll and
+       its bottom padding). The explorer marks <body> cols itself (page: true). */
+    body.cols { height: 100vh; overflow: hidden; padding-bottom: 0; }
+    body.cols > namespace-explorer { height: 100%; }
   </style>
 </head>
 <body>
-  <div id="bar">
-    <div id="crumbs"></div>
-    <span class="grow"></span>
-    <span id="chips"></span>
-    <span id="view-toggle" style="display:inline-flex; gap:2px;">
-      <button id="v-list" class="on" title="list view">&#9776;</button>
-      <button id="v-grid" title="grid view">&#9638;</button>
-      <button id="v-cols" title="finder view">&#9707;</button>
-    </span>
-    <drop-menu align="end" id="manage-menu">
-      <button slot="trigger" id="manage-btn" title="manage this directory">manage &#9662;</button>
-      <button class="mi" id="mi-folder">New folder&hellip;</button>
-      <button class="mi" id="mi-nexus">New nexus&hellip;</button>
-      <button class="mi" id="mi-file">New file&hellip;</button>
-      <button class="mi" id="mi-symlink">New symlink&hellip;</button>
-      <button class="mi" id="mi-upload">Upload files&hellip;</button>
-      <button class="mi" id="mi-upload-dir">Upload directory&hellip;</button>
-      <button class="mi" id="mi-download">Download as tarball</button>
-      <button class="mi" id="mi-reload" style="display:none">Reload nexus</button>
-    </drop-menu>
-  </div>
-  <div id="bang" style="display:none"></div>
-  <file-table id="ft"></file-table>
-  <file-grid id="fg" style="display:none"></file-grid>
-  <split-view id="finder" orientation="horizontal" primary="start"
-              size="300px" min="180" max="560" persist="explorer-finder" style="display:none">
-    <div slot="start" id="finder-list">
-      <div id="finder-lhead">
-        <button id="finder-collapse" title="collapse sidebar">&#8676;</button>
-        <span style="display:flex; gap:4px; align-items:center;">
-          <span class="ft-all"><button id="finder-new-tab" title="open a new tab">+ tab</button></span>
-          <span class="ft-all"><button id="finder-badges-toggle" title="show/hide row badges"></button></span>
-          <span class="ft-all"><button id="finder-tree-toggle" title="expand/collapse all"></button></span>
-        </span>
-      </div>
-      <tree-view id="finder-tree"></tree-view>
-    </div>
-    <div slot="end" id="finder-preview">
-      <!-- tabs are seeded by browse.js: each is a uniform location tab (a dir
-           listing or a FileView) carrying its own ◀▶ history. -->
-      <tab-group id="finder-tabs" closable></tab-group>
-    </div>
-  </split-view>
-  <div id="status"></div>
-  <drop-menu id="ctx-menu" style="position:fixed; display:none; z-index:50;">
-    <button slot="trigger" style="display:none"></button>
-    <button class="mi" data-ctx="folder">New folder&hellip;</button>
-    <button class="mi" data-ctx="nexus">New nexus&hellip;</button>
-    <button class="mi" data-ctx="file">New file&hellip;</button>
-    <button class="mi" data-ctx="symlink">New symlink&hellip;</button>
-    <button class="mi" data-ctx="upload">Upload files&hellip;</button>
-    <button class="mi" data-ctx="upload-dir">Upload directory&hellip;</button>
-  </drop-menu>
-
-  <modal-dialog id="folder-modal">
-    <h3 class="m-title">new folder</h3>
-    <div class="m-row"><input type="text" id="m-folder" placeholder="folder-name"></div>
-    <div class="m-actions"><button class="primary" id="m-folder-go">create</button></div>
-  </modal-dialog>
-
-  <modal-dialog id="nexus-modal">
-    <h3 class="m-title">new nexus</h3>
-    <div class="m-row"><input type="text" id="m-nexus-name" placeholder="folder-name"></div>
-    <div class="m-row"><input type="text" id="m-nexus-neck" placeholder="neck path (e.g. /tools, /wallet/account)"></div>
-    <div class="m-actions"><button class="primary" id="m-nexus-go">create</button></div>
-  </modal-dialog>
-
-  <modal-dialog id="file-modal">
-    <h3 class="m-title">new file</h3>
-    <div class="m-row"><input type="text" id="m-file-name" placeholder="filename.ext"></div>
-    <div class="m-row"><input type="text" id="m-file-blot" placeholder="mark path (e.g. /hoon, /json) — optional"></div>
-    <div class="m-actions"><button class="primary" id="m-file-go">create</button></div>
-  </modal-dialog>
-
-  <modal-dialog id="symlink-modal">
-    <h3 class="m-title">new symlink</h3>
-    <div class="m-row"><input type="text" id="m-link" placeholder="link-name"></div>
-    <div class="m-row"><input type="text" id="m-target" placeholder="target-path"></div>
-    <div class="m-actions"><button class="primary" id="m-link-go">create</button></div>
-  </modal-dialog>
-
-  <modal-dialog id="upload-modal">
-    <h3 class="m-title">upload files</h3>
-    <div class="m-row">
-      <button id="m-files-pick">choose files&hellip;</button>
-      <span class="picked" id="m-files-n">nothing chosen</span>
-      <input type="file" id="m-files" multiple hidden>
-    </div>
-    <div class="m-actions"><button class="primary" id="m-files-go">upload</button></div>
-  </modal-dialog>
-
-  <modal-dialog id="upload-dir-modal">
-    <h3 class="m-title">upload directory</h3>
-    <div class="m-row">
-      <button id="m-dir-pick">choose directory&hellip;</button>
-      <span class="picked" id="m-dir-n">nothing chosen</span>
-      <input type="file" id="m-dir" webkitdirectory directory hidden>
-    </div>
-    <div class="m-actions"><button class="primary" id="m-dir-go">upload</button></div>
-  </modal-dialog>
-
-  <modal-dialog id="weir-modal" style="--md-width: 480px">
-    <h3 class="m-title">sandbox <span id="w-path" style="font: 600 13px ui-monospace, Menlo, monospace; color: #57606a"></span></h3>
-    <div id="m-weir-roads"></div>
-    <div class="m-actions" style="justify-content: flex-start">
-      <button id="m-weir-make" style="display:none">restrict this directory</button>
-      <button id="m-weir-clear" style="display:none">clear weir</button>
-    </div>
-  </modal-dialog>
-
-  <modal-dialog id="ask-modal">
-    <h3 class="m-title" id="ask-title"></h3>
-    <div class="m-row"><input type="text" id="ask-input"></div>
-    <div class="m-actions">
-      <button class="primary" id="ask-go">ok</button>
-    </div>
-  </modal-dialog>
-
-  <modal-dialog id="boom-modal" style="--md-width: 640px">
-    <h3 class="m-title" style="color:#cf222e">crash details</h3>
-    <pre id="boom-text"></pre>
-  </modal-dialog>
+  <namespace-explorer id="explorer"></namespace-explorer>
 
   <!-- one request for every component + the file viewer (welded in
        explorer.hoon's on-load), classic so it runs before browse.js, which
        is a module and therefore deferred -->
   <script src="/grubbery/ball/apps/explorer.explorer/kit.js"></script>
   <script type="module" src="/grubbery/ball/apps/explorer.explorer/browse.js"></script>
+  <script type="module">
+    // the explorer is the page here: it owns the url, the title and the favicon
+    document.getElementById('explorer').mount({
+      url: location.pathname,
+      scope: new URLSearchParams(location.search).get('scope') || '',
+      mount: window.EXPLORER_MOUNT || null,
+      page: true,
+    });
+  </script>
 </body>
 </html>

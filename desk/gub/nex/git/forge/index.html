@@ -26,33 +26,25 @@
       <div id="tb-actions"></div>
     </div>
     <split-view id="main" orientation="vertical" primary="end" size="230" min="90" max="500" persist="forge-console">
-    <split-view id="body" slot="start" orientation="horizontal" primary="start" size="240" min="160" max="480" persist="forge-sidebar">
-      <div id="sidebar" slot="start">
-        <div class="sb-head" id="sb-head"></div>
-        <tree-view id="sb-list"></tree-view>
-      </div>
-      <div id="workspace" slot="end">
-        <div id="ed-wrap" style="display:none">
-          <tab-group id="ed-tabs" closable style="display:none">
-            <!-- tab 0, fixed (no ×): the directory view — the repo root until
-                 a sidebar directory is clicked, then that one. app.js
-                 retargets its label/title. Never above the repo. -->
-            <div id="ed-dir" tab-label="/" tab-title="/" tab-fixed tab-icon="folder"><file-table id="ed-dir-ft"></file-table></div>
-          </tab-group>
+    <div id="repo-pane" slot="start">
+      <!-- the working tree is the explorer: one <namespace-explorer> (the
+           explorer's browse.js, a web component) mounted here per selected
+           repo, rooted at that repo's data/tree, in its finder view — tree
+           on the left, tabs with FileView on the right. app.js mounts it;
+           nothing about browsing or editing files is forge's own. -->
+      <div id="repo-explorer" style="display:none"></div>
+      <div id="landing" style="display:none">
+        <div id="landing-head">
+          <div class="run-head">repos <span id="landing-count"></span></div>
+          <button id="edit-defaults" class="hdr-btn">defaults</button>
+          <button id="new-repo" class="hdr-btn primary">+ repo</button>
         </div>
-        <div id="landing" style="display:none">
-          <div id="landing-head">
-            <div class="run-head">repos <span id="landing-count"></span></div>
-            <button id="edit-defaults" class="hdr-btn">defaults</button>
-            <button id="new-repo" class="hdr-btn primary">+ repo</button>
-          </div>
-          <tab-group id="landing-tabs" persist="forge-landing">
-            <div tab-label="repos"><div id="landing-grid"></div></div>
-            <div tab-label="stock"><div id="stock-grid"></div></div>
-          </tab-group>
-        </div>
+        <tab-group id="landing-tabs" persist="forge-landing">
+          <div tab-label="repos"><div id="landing-grid"></div></div>
+          <div tab-label="stock"><div id="stock-grid"></div></div>
+        </tab-group>
       </div>
-    </split-view>
+    </div>
     <div id="console" slot="end">
       <div id="con-bar">
         <button class="con-tab active" data-panel="status">status</button>
@@ -117,28 +109,16 @@
       <button id="d-save" class="hdr-btn primary">save</button>
     </div>
   </modal-dialog>
-  <!-- sidebar file row context menu — right-click, same interaction model
-       as explorer's own row actions, scoped to what the server supports -->
-  <drop-menu id="sb-ctx" style="position:fixed; display:none; z-index:50;">
-    <button slot="trigger" style="display:none"></button>
-    <!-- items are built per right-click by app.js (rowActions) -->
-  </drop-menu>
-  <div id="json-back">
-    <div id="json-modal">
-      <div id="json-head"><span id="json-title"></span><button class="hdr-btn" id="json-close">close</button></div>
-      <pre id="json-pre"></pre>
-    </div>
-  </div>
-  <!-- classic, not module: the bundle is plain concatenated component
-       source (see forge.hoon's "weld" comment), no import/export. A module
-       script defers until after all classic scripts below it have already
-       run — app.js's synchronous boot (applyUrl→openFile) can call
-       tab-group's methods before the element upgrades. Loading it as a
-       normal classic script keeps it in document order, before app.js. -->
-  <script src="/grubbery/forge/components.js"></script>
-  <script src="/grubbery/forge/marked.min.js"></script>
-  <script src="/grubbery/forge/file-preview.js"></script>
-  <script src="/grubbery/forge/file-view.js"></script>
+
+  <!-- the explorer's kit (every component + marked + FilePreview + FileView,
+       one request) and its <namespace-explorer> component. kit.js is classic so the
+       custom elements exist before anything below; browse.js is a module
+       (deferred), so app.js waits for <namespace-explorer> to be defined before
+       it boots. forge's own components.js / file-view.js / marked are NOT
+       loaded here: the kit defines the same elements and define() is not
+       idempotent. -->
+  <script src="/grubbery/ball/apps/explorer.explorer/kit.js"></script>
+  <script type="module" src="/grubbery/ball/apps/explorer.explorer/browse.js"></script>
   <script src="/grubbery/forge/app.js"></script>
 </body>
 </html>
