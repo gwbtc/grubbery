@@ -1,0 +1,837 @@
+{
+  "ignore": [
+    "/desk/tests",
+    "/desk/lib/wasm",
+    "/desk/desk.bill",
+    "/desk/desk.docket-0",
+    "/desk/sys.kelvin",
+    "/desk/sur/wasm",
+    "/desk/sur/spider.hoon",
+    "/desk/sur/docket.hoon"
+  ],
+  "nav": [
+    {
+      "title": "Introduction",
+      "path": "intro.md"
+    },
+    {
+      "title": "Core model",
+      "kids": [
+        {
+          "title": "The kernel and the shell",
+          "path": "kernel-shell.md",
+          "scope": [
+            "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 1-11",
+            "/desk/lib/root.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 36-49",
+            "/desk/lib/root.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 77-89",
+            "/desk/lib/root.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 96-111",
+            "/desk/lib/root.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 4-9",
+            "/desk/gub/nex/shell.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 1-13",
+            "/desk/gub/nex/shell.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 38-46",
+            "/desk/gub/nex/shell.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 61-81",
+            "/desk/gub/nex/shell.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 100-135",
+            "/desk/gub/nex/shell.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 156-161",
+            "/desk/gub/nex/shell.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 437-447",
+            "/desk/gub/nex/github.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 26-48",
+            "/desk/gub/nex/shell.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 2597-2637",
+            "/desk/gub/nex/notifications.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 1-13",
+            "/desk/lib/fiberio.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 1711-1738",
+            "/desk/gub/nex/notifications.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 47-68",
+            "/desk/gub/nex/shell.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 82-99"
+          ]
+        },
+        {
+          "title": "Nexuses",
+          "path": "nexuses.md",
+          "scope": [
+            "/desk/lib/nexus.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 79-132",
+            "/desk/lib/nexus.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 1396-1420",
+            "/desk/lib/loader.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290",
+            "/desk/lib/root.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290",
+            "/desk/lib/tarball.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 5-6",
+            "/desk/lib/tarball.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 140-187",
+            "/desk/lib/tarball.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 300-320",
+            "/desk/lib/fiberio.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 811-829",
+            "/desk/gub/nex/mirror.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290",
+            "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 116-168",
+            "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 592-640",
+            "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 2297-2314",
+            "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 2775-2941",
+            "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 2942-2995",
+            "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 3279-3345",
+            "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 3484-3491",
+            "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 4369-4380",
+            "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 5562-5621"
+          ]
+        },
+        {
+          "title": "The namespace",
+          "kids": [
+            {
+              "title": "Overview",
+              "path": "namespace.md",
+              "scope": [
+                "/desk/lib/grub.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290",
+                "/desk/sur/grub.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290",
+                "/desk/lib/tarball.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 5-12",
+                "/desk/lib/tarball.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 39-43",
+                "/desk/lib/nexus.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 35-46",
+                "/desk/lib/nexus.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 79-86",
+                "/desk/lib/nexus.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 404-459",
+                "/desk/lib/nexus.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 651-716",
+                "/desk/lib/nexus.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 969-1027",
+                "/desk/lib/fiberio.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 510-518",
+                "/desk/lib/fiberio.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 539-548",
+                "/desk/lib/fiberio.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 560-570",
+                "/desk/lib/fiberio.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 491-499",
+                "/desk/lib/fiberio.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 665-703",
+                "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 644-674",
+                "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 934-1038",
+                "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 1503-1640",
+                "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 2240-2256",
+                "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 4341-4466",
+                "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 4663-4750"
+              ]
+            },
+            {
+              "title": "A read in flight",
+              "path": "read-in-flight.md",
+              "scope": [
+                "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 843-883",
+                "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 2738-2764",
+                "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 3686-3690",
+                "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 4067-4069",
+                "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 4137-4141",
+                "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 4198-4237"
+              ]
+            }
+          ]
+        },
+        {
+          "title": "Fibers",
+          "path": "fibers.md",
+          "scope": [
+            "/desk/lib/nexus.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 104-132",
+            "/desk/lib/nexus.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 241-392",
+            "/desk/lib/nexus.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 1331-1337",
+            "/desk/lib/nexus.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 1412-1419",
+            "/desk/lib/fiberio.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 1-828",
+            "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 116-122",
+            "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 1494-1500",
+            "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 1803-1805",
+            "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 2418-2444",
+            "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 2448-2535",
+            "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 2536-2657",
+            "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 2658-2774",
+            "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 2942-2995",
+            "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 3270-3278",
+            "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 3321-3356",
+            "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 3887-4329"
+          ]
+        },
+        {
+          "title": "Marks",
+          "path": "marks.md",
+          "scope": [
+            "/desk/lib/marks.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290",
+            "/desk/lib/tarball.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 5-36",
+            "/desk/lib/tarball.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 263-299",
+            "/desk/lib/nexus.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 465-472",
+            "/desk/lib/nexus.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 492",
+            "/desk/gub/mar/json.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290",
+            "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 1808-1811",
+            "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 1861-2012",
+            "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 2348-2428",
+            "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 5049-5092",
+            "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 5246-5261",
+            "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 5297-5337",
+            "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 5415-5498"
+          ]
+        },
+        {
+          "title": "The ball",
+          "path": "ball.md",
+          "scope": [
+            "/desk/lib/ball-api.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290",
+            "/desk/lib/tarball.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 39-43",
+            "/desk/lib/tarball.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 58-82",
+            "/desk/lib/tarball.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 607-917",
+            "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 2081-2224",
+            "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 2229-2281",
+            "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 2302-2336",
+            "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 4768-4949",
+            "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 5147-5181",
+            "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 5713-5731"
+          ]
+        },
+        {
+          "title": "The content-addressed store",
+          "path": "silo.md",
+          "scope": [
+            "/desk/lib/nexus.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 460-531",
+            "/desk/lib/nexus.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 532-650",
+            "/desk/lib/nexus.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 651-716",
+            "/desk/lib/nexus.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 717-1028",
+            "/desk/lib/nexus.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 1281-1284",
+            "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 675-883",
+            "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 1299-1319",
+            "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 1743-1793",
+            "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 2044-2078",
+            "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 3686-3690",
+            "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 4022-4069",
+            "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 7012-7027"
+          ]
+        },
+        {
+          "title": "Subscriptions",
+          "path": "subscriptions.md",
+          "scope": [
+            "/desk/lib/nexus.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 76-78",
+            "/desk/lib/nexus.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 393-403",
+            "/desk/lib/nexus.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 1035-1168",
+            "/desk/lib/nexus.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 1226-1230",
+            "/desk/lib/nexus.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 1276-1278",
+            "/desk/lib/fiberio.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 205-226",
+            "/desk/lib/fiberio.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 829-876",
+            "/desk/lib/fiberio.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 1784-1810",
+            "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 906-925",
+            "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 972-989",
+            "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 1148-1162",
+            "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 1335-1358",
+            "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 1464-1491",
+            "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 2996-3187",
+            "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 3253-3261",
+            "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 3505-3540",
+            "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 3620-3628"
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Subsystems",
+      "kids": [
+        {
+          "title": "Sandboxing & weirs",
+          "path": "weirs.md",
+          "scope": [
+            "/desk/lib/nexus.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 47-73",
+            "/desk/lib/nexus.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 1338-1395",
+            "/desk/lib/nexus.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 1443-1469",
+            "/desk/lib/nexus.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 1547-1557",
+            "/desk/lib/tarball.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 44-63",
+            "/desk/lib/tarball.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 189-262",
+            "/desk/lib/fiberio.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 645-663",
+            "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 1979-1989",
+            "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 3240-3277",
+            "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 3346-3397",
+            "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 3411-3490",
+            "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 3527-3608",
+            "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 4448-4640"
+          ]
+        },
+        {
+          "title": "Usergroups",
+          "path": "usergroups.md",
+          "scope": [
+            "/desk/lib/nexus.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 225-233",
+            "/desk/lib/fiberio.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 2020-2082",
+            "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 884-891",
+            "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 6098-6333",
+            "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 6924-6929",
+            "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 7718-7972",
+            "/desk/gub/mar/usergroups.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290",
+            "/desk/gub/mar/usergroups/registry.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290",
+            "/desk/gub/mar/usergroups/registry-action.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290",
+            "/desk/gub/mar/ships.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290",
+            "/desk/gub/mar/weir.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290"
+          ]
+        },
+        {
+          "title": "Cross-ship",
+          "path": "cross-ship.md",
+          "scope": [
+            "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 3410-3421",
+            "/desk/lib/fiberio.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 568-590",
+            "/desk/lib/nexus.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 1213-1285",
+            "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 191-211",
+            "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 1039-1057",
+            "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 3786-3808",
+            "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 1176-1196",
+            "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 3642-3654",
+            "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 1058-1145",
+            "/desk/lib/nexus.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 1277-1284",
+            "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 1359-1420",
+            "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 1197-1221",
+            "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 1222-1294",
+            "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 836-883",
+            "/desk/lib/nexus.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 79-86",
+            "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 1421-1458",
+            "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 7012-7027",
+            "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 1335-1349",
+            "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 1467-1491"
+          ]
+        },
+        {
+          "title": "HTTP serving",
+          "path": "http-serving.md",
+          "scope": [
+            "/desk/lib/fiberio.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 1895-1924",
+            "/desk/lib/fiberio.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 1982-2004",
+            "/desk/gub/nex/github.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 55-61",
+            "/desk/gub/nex/github.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 74-80",
+            "/desk/gub/nex/github.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 488-521",
+            "/desk/lib/fiberio.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 1950-1981",
+            "/desk/gub/lib/nexus-web.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 99-123",
+            "/desk/lib/server.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 76-159",
+            "/desk/gub/nex/github.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 46-53",
+            "/desk/gub/nex/github.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 536-554",
+            "/desk/lib/http-utils.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 67-79",
+            "/desk/lib/http-utils.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 123-165"
+          ]
+        },
+        {
+          "title": "Code nexuses",
+          "path": "code-nexuses.md",
+          "scope": [
+            "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 2931-2952",
+            "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 2959-2975",
+            "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 151-166",
+            "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 5666-5706",
+            "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 5707-5726",
+            "/desk/gub/nex/tools.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 154-169",
+            "/desk/gub/nex/desk.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 1180-1196",
+            "/desk/lib/tarball.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 141-156",
+            "/desk/lib/tarball.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 157-187",
+            "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 1812-1852",
+            "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 4751-4767",
+            "/desk/lib/nexus.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 10-34",
+            "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 5176-5223",
+            "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 5006-5026",
+            "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 4768-4781",
+            "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 4782-4821",
+            "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 2895-2930",
+            "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 5562-5621",
+            "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 3729-3766",
+            "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 4094-4118",
+            "/desk/lib/fiberio.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 1038-1066",
+            "/desk/lib/fiberio.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 1109-1157",
+            "/desk/gub/nex/tools.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 83-101",
+            "/desk/gub/lib/tool-bundle/tools/check-bin.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 67-75",
+            "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 3767-3785"
+          ]
+        },
+        {
+          "title": "The Urbit kernel interface (/sys)",
+          "kids": [
+            {
+              "title": "Overview",
+              "path": "sys.md",
+              "scope": [
+                "/desk/lib/root.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 50-76",
+                "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 621-640",
+                "/desk/lib/nexus.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 150-167",
+                "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 3802-3839",
+                "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 6826-6834",
+                "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 465-576"
+              ]
+            },
+            {
+              "title": "/sys/eyre",
+              "path": "sys-eyre.md",
+              "scope": [
+                "/desk/lib/nexus.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 133-157",
+                "/desk/lib/root.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 50-54",
+                "/desk/lib/root.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 105-110",
+                "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 174-183",
+                "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 357-363",
+                "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 3824-3828",
+                "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 6336-6536",
+                "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 7121-7193",
+                "/desk/lib/fiberio.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 1883-2004",
+                "/desk/lib/server.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 64-75",
+                "/desk/gub/mar/server-state.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290",
+                "/desk/gub/mar/eyre-action.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290",
+                "/desk/gub/mar/http-request.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290"
+              ]
+            },
+            {
+              "title": "/sys/behn",
+              "path": "sys-behn.md",
+              "scope": [
+                "/desk/lib/nexus.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 158-162",
+                "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 6932-6967",
+                "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 7009-7043",
+                "/desk/lib/fiberio.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 1346-1401",
+                "/desk/lib/fiberio.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 1409-1464"
+              ]
+            },
+            {
+              "title": "/sys/iris",
+              "path": "sys-iris.md",
+              "scope": [
+                "/desk/lib/nexus.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 163-167",
+                "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 7273-7316",
+                "/desk/lib/fiberio.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 1587-1610",
+                "/desk/lib/fiberio.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 1690-1705"
+              ]
+            },
+            {
+              "title": "/sys/iris/ws",
+              "path": "sys-ws.md",
+              "scope": [
+                "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 7317-7361",
+                "/desk/lib/nexus.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 168-198",
+                "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 7377-7421",
+                "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 7453-7488",
+                "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 7490-7522",
+                "/desk/lib/fiberio.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 1612-1688"
+              ]
+            },
+            {
+              "title": "/sys/clay",
+              "path": "sys-clay.md",
+              "scope": [
+                "/desk/lib/nexus.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 234-239",
+                "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 4948-5002",
+                "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 5750-5769",
+                "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 7046-7072",
+                "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 7074-7101",
+                "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 7102-7135",
+                "/desk/lib/fiberio.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 989-1030"
+              ]
+            },
+            {
+              "title": "/sys/gall",
+              "path": "sys-gall.md",
+              "scope": [
+                "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 7196-7254",
+                "/desk/lib/fiberio.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 1307-1329",
+                "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 5821-5843",
+                "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 5892-5941",
+                "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 5942-5984"
+              ]
+            },
+            {
+              "title": "/sys/lick",
+              "path": "sys-lick.md",
+              "scope": [
+                "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 5985-6001",
+                "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 6013-6041",
+                "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 6042-6067",
+                "/desk/lib/fiberio.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 1237-1304"
+              ]
+            },
+            {
+              "title": "/sys/dill",
+              "path": "sys-dill.md",
+              "scope": [
+                "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 5770-5798",
+                "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 472-483",
+                "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 6856-6860",
+                "/desk/lib/fiberio.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 1031-1037"
+              ]
+            },
+            {
+              "title": "/sys/jael",
+              "path": "sys-jael.md",
+              "scope": [
+                "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 5799-5820",
+                "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 498-508"
+              ]
+            },
+            {
+              "title": "/sys/bowl",
+              "path": "sys-bowl.md",
+              "scope": [
+                "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 7705-7719",
+                "/desk/lib/fiberio.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 1467-1519",
+                "/desk/lib/fiberio.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 1521-1543"
+              ]
+            },
+            {
+              "title": "/sys/push",
+              "path": "sys-push.md",
+              "scope": [
+                "/desk/lib/nexus.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 209-224",
+                "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 6538-6547",
+                "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 6567-6651",
+                "/desk/lib/fiberio.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 1706-1709",
+                "/desk/lib/fiberio.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 1740-1752"
+              ]
+            },
+            {
+              "title": "/sys/ames",
+              "path": "sys-ames.md",
+              "scope": [
+                "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 884-891",
+                "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 6112-6122",
+                "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 6162-6179",
+                "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 6924-6928"
+              ]
+            },
+            {
+              "title": "/sys/scry",
+              "kids": [
+                {
+                  "title": "Local scry",
+                  "path": "local-scry.md",
+                  "scope": [
+                    "/desk/lib/fiberio.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 877-898",
+                    "/desk/lib/fiberio.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 991-1013"
+                  ]
+                },
+                {
+                  "title": "Remote scry",
+                  "path": "remote-scry.md",
+                  "scope": [
+                    "/desk/lib/fiberio.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 899-988",
+                    "/desk/lib/nexus.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 199-208",
+                    "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 6883-6908",
+                    "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 7557-7666",
+                    "/base/sys/lull.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 4019-4027",
+                    "/base/sys/vane/gall.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 1447-1456",
+                    "/base/sys/vane/gall.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 1459-1483",
+                    "/base/sys/vane/gall.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 1489-1512",
+                    "/base/sys/vane/ames.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 4351-4360",
+                    "/base/sys/lull.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 895-898",
+                    "/base/sys/lull.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 1055",
+                    "/base/sys/vane/ames.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 5643-5677",
+                    "/base/sys/vane/ames.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 5696-5741",
+                    "/base/sys/hoon.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 13782",
+                    "/base/sys/arvo.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 56",
+                    "/base/sys/arvo.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 38-48",
+                    "/base/sys/lull.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 3696-3700",
+                    "/base/sys/lull.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 3706-3713",
+                    "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 541-562",
+                    "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 7686-7703"
+                  ]
+                }
+              ]
+            },
+            {
+              "title": "/sys/link",
+              "path": "sys-link.md",
+              "scope": [
+                "/desk/lib/root.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 69-71",
+                "/desk/gub/nex/shell.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 2748-2763",
+                "/desk/gub/nex/shell.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 3188-3228",
+                "/desk/lib/fiberio.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 2083-2171"
+              ]
+            }
+          ]
+        },
+        {
+          "title": "The build system",
+          "kids": [
+            {
+              "title": "Overview",
+              "path": "build-overview.md"
+            },
+            {
+              "title": "The compiler",
+              "path": "build-compiler.md",
+              "scope": [
+                "/desk/lib/build.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290"
+              ]
+            },
+            {
+              "title": "Storage & scopes",
+              "path": "build-storage.md",
+              "scope": [
+                "/desk/lib/nexus.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 5-34",
+                "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 72-102",
+                "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 1815-1852",
+                "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 5006-5026",
+                "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 5074-5124",
+                "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 5176-5223"
+              ]
+            },
+            {
+              "title": "The substrate",
+              "path": "build-substrate.md",
+              "scope": [
+                "/desk/lib/tarball.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290",
+                "/desk/lib/loader.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "/gub: batteries included",
+      "kids": [
+        {
+          "title": "Overview",
+          "path": "gub.md"
+        },
+        {
+          "title": "Permissions",
+          "path": "permissions.md",
+          "scope": [
+            "/desk/gub/nex/shell.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 61-85",
+            "/desk/gub/nex/shell.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 255-300",
+            "/desk/gub/nex/shell.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 304-318",
+            "/desk/gub/nex/shell.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 371-420",
+            "/desk/gub/nex/shell.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 453-466",
+            "/desk/gub/nex/shell.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 620-725",
+            "/desk/gub/nex/shell.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 2253-2300",
+            "/desk/gub/nex/shell.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 2328-2480",
+            "/desk/gub/nex/shell.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 2608-2716",
+            "/desk/gub/nex/shell.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 3067-3105",
+            "/desk/gub/nex/shell.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 3156-3271",
+            "/desk/gub/nex/shell.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 3273-3329",
+            "/desk/gub/nex/shell.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 3338-3429",
+            "/desk/gub/nex/shell.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 3437-3627",
+            "/desk/lib/root.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 4-9",
+            "/desk/lib/root.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 42-49",
+            "/desk/gub/nex/desk.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 586-592"
+          ]
+        },
+        {
+          "title": "Desks",
+          "path": "desks.md",
+          "scope": [
+            "/desk/gub/nex/desk.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290",
+            "/desk/gub/nex/shell.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 1843-1936",
+            "/desk/lib/root.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 21-33",
+            "/desk/gub/mar/desk/snap.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290"
+          ]
+        },
+        {
+          "title": "Forge and the git nexuses",
+          "path": "forge.md",
+          "scope": [
+            "/desk/gub/nex/git/forge.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 60-82",
+            "/desk/gub/nex/git/repo.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 22-45",
+            "/desk/gub/nex/git/data.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 1-11",
+            "/desk/gub/nex/git/data.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 13-47",
+            "/desk/gub/nex/git/repo.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 898-924",
+            "/desk/gub/nex/git/data.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 56-78",
+            "/desk/gub/nex/git/data.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 310-350",
+            "/desk/gub/nex/git/data.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 370-386",
+            "/desk/gub/nex/git/data.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 352-368",
+            "/desk/gub/nex/git/data.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 240-308",
+            "/desk/gub/lib/git/action.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 1-53",
+            "/desk/gub/nex/git/repo.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 47-83",
+            "/desk/gub/nex/git/repo.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 136-157",
+            "/desk/gub/nex/git/repo.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 290-336",
+            "/desk/gub/nex/git/repo.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 256-289",
+            "/desk/gub/nex/git/repo.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 337-427",
+            "/desk/gub/nex/git/repo.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 973-1011",
+            "/desk/gub/nex/git/repo.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 788-828",
+            "/desk/gub/nex/git/repo.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 428-496",
+            "/desk/gub/nex/git/repo.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 84-122",
+            "/desk/gub/nex/git/forge.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 100-138",
+            "/desk/gub/nex/git/forge.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 269-346",
+            "/desk/gub/nex/git/forge.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 347-389",
+            "/desk/gub/nex/git/forge.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 178-190",
+            "/desk/gub/nex/git/forge/tool-bundle/tools/git-cmd.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 1-23",
+            "/desk/gub/nex/shell.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 1874-1899",
+            "/desk/gub/nex/shell.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 1900-1956"
+          ]
+        },
+        {
+          "title": "The tools nexus",
+          "path": "tools.md",
+          "scope": [
+            "/desk/gub/lib/tools.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 90-105",
+            "/desk/gub/nex/mcp.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 362-374",
+            "/desk/gub/nex/mcp.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 398-404",
+            "/desk/gub/lib/tools.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 106-134",
+            "/desk/gub/nex/tools.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 1-21",
+            "/desk/gub/nex/tools.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 155-169",
+            "/desk/gub/lib/tools.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 7-24",
+            "/desk/gub/lib/tools.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 39-52",
+            "/desk/gub/lib/tools.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 65-68",
+            "/desk/gub/lib/tools.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 169-186",
+            "/desk/gub/lib/tool-bundle/tools/create-folder.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290",
+            "/desk/gub/nex/tools.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 77-110",
+            "/desk/gub/nex/tools.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 178-200",
+            "/desk/gub/nex/mcp.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 227-259",
+            "/desk/gub/nex/tools.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 201-220",
+            "/desk/gub/nex/tools.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 221-256",
+            "/desk/gub/nex/tools.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 61-78",
+            "/desk/gub/nex/tools.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 122-151",
+            "/desk/gub/nex/mcp.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 515-550",
+            "/desk/gub/nex/mcp.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 19-42"
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Documentation principles",
+      "kids": [
+        {
+          "title": "Documenting the codebase",
+          "path": "direction.md"
+        },
+        {
+          "title": "The writing standard",
+          "path": "writing-standard.md"
+        },
+        {
+          "title": "TODO & future topics",
+          "path": "roadmap.md"
+        }
+      ]
+    },
+    {
+      "title": "Tutorials",
+      "kids": [
+        {
+          "title": "Your first nexus",
+          "path": "hello-nexus.md"
+        },
+        {
+          "title": "Serving a web page",
+          "path": "serving-a-page.md"
+        },
+        {
+          "title": "Talking to external APIs",
+          "path": "talking-to-apis.md"
+        },
+        {
+          "title": "Adding MCP tools",
+          "path": "adding-mcp-tools.md"
+        },
+        {
+          "title": "Installing desks",
+          "path": "installing-desks.md"
+        }
+      ]
+    },
+    {
+      "title": "Faults",
+      "kids": [
+        {
+          "title": "Overview",
+          "path": "faults.md"
+        },
+        {
+          "title": "Fibers",
+          "kids": [
+            {
+              "title": "A consumed take comes back when the fiber is banged",
+              "path": "faults/veto-parked-fiber-not-revived.md",
+              "scope": [
+                "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 4304-4336",
+                "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 2485-2500"
+              ]
+            },
+            {
+              "title": "A deterministically failing fiber wedges the ship",
+              "path": "faults/failing-fiber-wedges-ship.md",
+              "scope": [
+                "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 4248-4332",
+                "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 1494-1502"
+              ]
+            },
+            {
+              "title": "Dropping a remote subscription parks the fiber forever",
+              "path": "faults/remote-drop-never-fell.md",
+              "scope": [
+                "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 3521-3545",
+                "/desk/lib/fiberio.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 839-863"
+              ]
+            }
+          ]
+        },
+        {
+          "title": "The content-addressed store",
+          "kids": [
+            {
+              "title": "A skipped peek take over-drops its silo ref",
+              "path": "faults/skipped-take-over-drops-ref.md",
+              "scope": [
+                "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 4018-4118",
+                "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 2748-2766",
+                "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 4198-4237"
+              ]
+            },
+            {
+              "title": "A remote file peek leaks a ject ref",
+              "path": "faults/remote-file-peek-leaks-ref.md",
+              "scope": [
+                "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 4018-4118"
+              ]
+            },
+            {
+              "title": "Re-culling an already-culled spur crashes the event",
+              "path": "faults/recull-crashes-event.md",
+              "scope": [
+                "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 7578-7584",
+                "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 7627-7652"
+              ]
+            }
+          ]
+        },
+        {
+          "title": "Desks",
+          "kids": [
+            {
+              "title": "One unreadable bill entry loses the whole install",
+              "path": "faults/bill-entry-loses-install.md",
+              "scope": [
+                "/desk/gub/nex/desk.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 545-611"
+              ]
+            },
+            {
+              "title": "A desk following an unreachable source parks forever",
+              "path": "faults/unreachable-source-parks-desk.md",
+              "scope": [
+                "/desk/lib/fiberio.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 832-849",
+                "/desk/gub/nex/desk.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 150-162"
+              ]
+            },
+            {
+              "title": "Nested registrants evict and strip each other",
+              "path": "faults/nested-registrants-evict.md",
+              "scope": [
+                "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 7742-7800",
+                "/desk/app/grubbery.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 7965-7978"
+              ]
+            },
+            {
+              "title": "A neck-less /desk/code wedges an app forever",
+              "path": "faults/neckless-code-dir.md",
+              "scope": [
+                "/desk/gub/nex/desk.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 510-544",
+                "/desk/gub/nex/desk.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 545-611",
+                "/desk/gub/nex/desk.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 641-677"
+              ]
+            },
+            {
+              "title": "Stock mirrors never poll github",
+              "path": "faults/stock-mirrors-never-poll.md",
+              "scope": [
+                "/desk/gub/nex/shell.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 1916-1975"
+              ]
+            }
+          ]
+        },
+        {
+          "title": "The shell",
+          "kids": [
+            {
+              "title": "The permissions page answers only after it has done all its work",
+              "path": "faults/permissions-page-slow.md",
+              "scope": [
+                "/desk/gub/nex/shell.hoon@f1d4c77d9ca3745156c78fb5e99648e8ee4e4290 440-470"
+              ]
+            }
+          ]
+        },
+        {
+          "title": "Logging",
+          "kids": [
+            {
+              "title": "Routine traces drown the warnings",
+              "path": "faults/routine-traces-drown-warnings.md"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
