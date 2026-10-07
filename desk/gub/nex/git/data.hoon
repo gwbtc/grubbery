@@ -294,23 +294,18 @@
         =.  ball  (write-tree-head ball new-head-text)
         ::  clear commit request
         =.  ball  (~(del ba:tarball ball) / %'commit-request.json')
-        ::  rebuild outputs with new HEAD
-        =/  ref-labels=(map hash:git-repo (list @t))  (build-ref-labels ball)
-        =/  new-commits=json  (build-commit-log sto new-hash.u.commit-result 50 ref-labels)
-        =/  branches=json  (build-branch-list ball)
-        =/  new-hex=@t  (crip new-head-text)
-        =/  new-current=json  (build-current ball new-hex branch-name)
-        ::  after commit, HEAD tree = index, so staged is clean
-        =/  new-status=json  (build-status ball full-idx idx)
-        =.  ball
-          (~(put ba:tarball ball) [/ui %'commits.json'] [[/ %json] %& !>(new-commits)])
-        =.  ball
-          (~(put ba:tarball ball) [/ui %'branches.json'] [[/ %json] %& !>(branches)])
-        =.  ball
-          (~(put ba:tarball ball) [/ui %'current.json'] [[/ %json] %& !>(new-current)])
-        =.  ball
-          (~(put ba:tarball ball) [/ui %'status.json'] [[/ %json] %& !>(new-status)])
-        ball
+        ::  rebuild ALL derived views (commits/branches/current/status AND the
+        ::  docs coverage) against the new HEAD through the one +write-ui-outputs
+        ::  every other HEAD-moving path uses — no bespoke copy here, so a view
+        ::  added to write-ui-outputs (docs, future CI status) can't be missed
+        ::  on the commit path. new-parsed-head is this branch at the new hash;
+        ::  the tree is the commit we just made.
+        =/  new-com=commit:git-repo  (got-commit:sto new-hash.u.commit-result)
+        %-  write-ui-outputs
+        :*  ball  repo  new-hash.u.commit-result
+            `[branch.u.parsed-head new-hash.u.commit-result]
+            full-idx  tree.new-com
+        ==
       ::
       ::  === normal checkout ===
       ::
