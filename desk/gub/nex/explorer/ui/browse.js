@@ -12,20 +12,42 @@ const PREFIX = '/grubbery/ball';
 // an element page is the explorer scoped at the element. The namespace
 // paths underneath are unchanged: every request still goes to the real
 // /grubbery/ball url, nothing is folded or hidden.
-const SCOPE = ((new URLSearchParams(location.search)).get('scope') || '').replace(/\/+$/, '');
+// MOUNT: an app serving this shell at its own route. The page declares
+// window.EXPLORER_MOUNT = {route, root, title, icon, viewers} before this
+// script: urls under `route` are namespace paths under `root`, so
+// /grubbery/clanker/x is the explorer rooted at the clanker collection,
+// showing x. Same scope rules as ?scope=, with the route's url form kept
+// in history. `viewers` (optional) is an endpoint of the app's that says,
+// per file, which pane it opens in (see viewerFor): its own files, in its
+// own shell, open in its own panes. The plain explorer has no viewers; a
+// file means a pane only where the mounting app says so.
+const MOUNT = (window.EXPLORER_MOUNT && window.EXPLORER_MOUNT.route && window.EXPLORER_MOUNT.root) ? window.EXPLORER_MOUNT : null;
+const SCOPE = (MOUNT ? MOUNT.root : ((new URLSearchParams(location.search)).get('scope') || '')).replace(/\/+$/, '');
 const ROOT = PREFIX + SCOPE;
+const SCOPE_NAME = MOUNT && MOUNT.title ? MOUNT.title : SCOPE.slice(SCOPE.lastIndexOf('/') + 1);
 // a path as the scope shows it: relative to ROOT inside the scope, to the
 // namespace root otherwise (a symlink can resolve outside the scope)
 const rel = (p) => (p === ROOT || p.startsWith(ROOT + '/')) ? (p.slice(ROOT.length) || '/') : (p.slice(PREFIX.length) || '/');
-const withScope = (p) => SCOPE ? p + '?scope=' + encodeURIComponent(SCOPE) : p;
-let here = location.pathname;
+// the url for a namespace path, and back: the mount's route form inside
+// the scope, the ball url (with ?scope=) otherwise
+const toUrl = (p) => {
+  if (MOUNT && (p === ROOT || p.startsWith(ROOT + '/'))) return MOUNT.route.replace(/\/+$/, '') + p.slice(ROOT.length);
+  return SCOPE && !MOUNT ? p + '?scope=' + encodeURIComponent(SCOPE) : p;
+};
+const fromUrl = (u) => {
+  if (!MOUNT) return u;
+  const route = MOUNT.route.replace(/\/+$/, '');
+  if (u === route || u.startsWith(route + '/')) return ROOT + u.slice(route.length).replace(/\/+$/, '');
+  return u;
+};
+let here = fromUrl(location.pathname);
 let dirPath = rel(here);
 
 function nav(p, push) {
   here = p;
   dirPath = rel(p);
-  if (push !== false) history.pushState(null, '', withScope(p));
-  document.title = SCOPE ? (SCOPE.slice(SCOPE.lastIndexOf('/') + 1) + (dirPath === '/' ? '' : ' ' + dirPath)) : dirPath;
+  if (push !== false) history.pushState(null, '', toUrl(p));
+  document.title = SCOPE ? (SCOPE_NAME + (dirPath === '/' ? '' : ' ' + dirPath)) : dirPath;
   renderCrumbs();
   if (view === 'list') ft.showLoading(); else fg.showLoading();
   load();
@@ -36,7 +58,7 @@ document.addEventListener('click', (e) => {
   e.preventDefault();
   nav(new URL(a.href).pathname);
 });
-window.addEventListener('popstate', () => nav(location.pathname, false));
+window.addEventListener('popstate', () => nav(fromUrl(location.pathname), false));
 
 let data = null;
 const ft = $('ft');
@@ -417,20 +439,46 @@ async function navigateTab(panel, path, kind, push = true) {
     // chrome: clickable breadcrumbs + the rows/desktop view icons
     buildCrumbs(panel, path);
     panel._modeWrap.style.display = '';
-    styleModeBtn(panel._modeRows, panel._dirMode === 'table');
-    styleModeBtn(panel._modeGrid, panel._dirMode === 'grid');
-    const view = panel._dirMode === 'grid' ? makeDirGrid(panel, path) : makeDirTable(panel);
-    if (panel._dirMode !== 'grid') view.__dir = path;
-    panel._body.appendChild(view);
-    view.showLoading();
+    // the listing first: it also says which nexus this dir runs (its
+    // neck), which the app's viewer endpoint is told
+    let d = null;
     try {
       const r = await fetch(path + '?list=1');
       if (!r.ok) throw new Error(r.status);
-      const d = await r.json();
-      if (panel.dataset.path !== path) return; // moved on while in flight
+      d = await r.json();
+    } catch (e) { toast('listing failed: ' + e, true); }
+    if (panel.dataset.path !== path) return; // moved on while in flight
+    const neckDisp = d && d.nexus && typeof d.nexus.display === 'string' ? d.nexus.display : '-';
+    const neck = neckDisp === '-' ? '' : neckDisp;
+    // the app's pane for this dir, if it has one: a third mode, shown
+    // first unless this tab has chosen rows or desktop by hand
+    const viewer = await viewerFor(path, 'dir', neck);
+    if (panel.dataset.path !== path) return; // moved on while in flight
+    panel._dirViewer = viewer;
+    panel._modeView.style.display = viewer ? '' : 'none';
+    if (viewer) panel._modeView.textContent = viewer.label || 'View';
+    let mode = panel._dirMode;
+    if (viewer && !panel._modeChosen) mode = 'view';
+    if (!viewer && mode === 'view') mode = dirModeDefault();
+    styleModeBtn(panel._modeRows, mode === 'table');
+    styleModeBtn(panel._modeGrid, mode === 'grid');
+    styleModeBtn(panel._modeView, mode === 'view');
+    if (mode === 'view') {
+      // a dir pane navigates this tab to a dir by default, or to a file
+      // when it says so: onNavigate(url, 'file')
+      try { panel._fv = viewer.mount(panel._body, { url: path, onNavigate: (u, k) => navigateTab(panel, u, k === 'file' ? 'file' : 'dir') }) || { destroy() {} }; }
+      catch (e) { panel._body.textContent = 'viewer failed: ' + e; }
+      if (!panel.hidden) markActiveInTree(path);
+      saveTabs();
+      return;
+    }
+    const view = mode === 'grid' ? makeDirGrid(panel, path) : makeDirTable(panel);
+    if (mode !== 'grid') view.__dir = path;
+    panel._body.appendChild(view);
+    if (d) {
       d.children.forEach((c) => { c.__dir = path; }); // handleAction posts there
       view.items = d.children;
-    } catch (e) { toast('listing failed: ' + e, true); }
+    } else view.showLoading();
   } else {
     // a file: FileView carries its own crumbs; wire them to navigate in-tab
     panel._crumbs.textContent = '';
@@ -439,10 +487,11 @@ async function navigateTab(panel, path, kind, push = true) {
     n.style.cssText = 'color:#8b949e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:1px 3px';
     panel._crumbs.appendChild(n);
     panel._modeWrap.style.display = 'none';
-    const opts = { url: path, wrapKey: 'explorer-wrap', onNavigate: (u) => navigateTab(panel, u, 'dir') };
+    // under a scope the header crumb starts at the scope's root, like the tree
+    const opts = { url: path, wrapKey: 'explorer-wrap', crumbBase: ROOT, onNavigate: (u) => navigateTab(panel, u, 'dir') };
     // a registered viewer for this file's mark becomes FileView's first
     // pane (the file itself stays one click away in Source)
-    const viewer = await viewerFor(path);
+    const viewer = await viewerFor(path, 'file');
     if (panel.dataset.path !== path) return; // moved on while in flight
     if (viewer) opts.viewer = viewer;
     panel._fv = window.FileView.mount(panel._body, opts);
@@ -451,29 +500,47 @@ async function navigateTab(panel, path, kind, push = true) {
   saveTabs();
 }
 
-// the viewer registry: the explorer's viewers.json maps a mark (blot name,
-// no leading slash) to a script url. The script registers itself as
-// window.Viewers[mark] = { label, mount(root, opts) -> { destroy() } }, the
-// same contract as FileView; FileView shows it as the file's first pane.
-// Loaded lazily, once, the first time a file of that mark is opened; a mark
-// with no entry (or a script that fails) just gets the usual panes. The
-// script runs with this page's reach, so only this ship's own routes are
-// loaded: a /grubbery/... path, never another origin. Explicit config, no
-// discovery.
-const VIEWERS_URL = '/grubbery/ball/apps/explorer.explorer/viewers.json?raw=1';
-let viewersConf = null;      // mark -> script url
+// viewers: the mount's `viewers` is the url of an endpoint the app serves.
+// When a path opens in a tab, it is asked with the path relative to the
+// mount root, its kind (file|dir), a file's blot and a dir's neck
+// (?path=…&kind=…&blot=…&neck=…) and answers {view, script, args?} or an empty
+// body: the app decides, in its own code, which of its paths open in
+// which pane, and hands the pane whatever context it needs as `args`
+// (the pane never has to parse the tree's shape out of a url). The
+// script registers itself as
+// window.Viewers[view] = { label, mount(root, opts) -> { destroy() } },
+// the same contract as FileView, with opts = {url, args, onNavigate}. A
+// file's pane is FileView's first pane; a dir's pane is a third mode of
+// the dir tab beside rows and desktop. Loaded lazily, once; a path the
+// app declines (or a script that fails) just gets the usual view. A pane
+// is about the path it opens on: that is a convention the app keeps, not
+// a rule the shell enforces. The script runs with this page's reach, so
+// only this ship's own routes are loaded: a /grubbery/... path, never
+// another origin.
+const VIEWERS = (MOUNT && typeof MOUNT.viewers === 'string' && /^\/grubbery\/[^\s]*$/.test(MOUNT.viewers)) ? MOUNT.viewers : null;
 const viewerLoads = {};      // script url -> Promise
-async function viewerFor(path) {
+async function viewerFor(path, kind, neck) {
   try {
-    if (!viewersConf) viewersConf = await fetch(VIEWERS_URL).then((r) => (r.ok ? r.json() : {})).catch(() => ({}));
-    if (!viewersConf || !Object.keys(viewersConf).length) return null;
-    const info = await fetch(path + '?info=1').then((r) => r.json());
-    const mark = ((info && info.blot) || '').replace(/^\//, '');
-    const src = mark && viewersConf[mark];
-    if (!src) return null;
-    if (typeof src !== 'string' || !/^\/grubbery\/[^\s]*$/.test(src)) { toast('viewer for ' + mark + ' refused: not a /grubbery/ path', true); return null; }
+    if (!VIEWERS) return null;
+    const rel = path === ROOT ? '' : path.startsWith(ROOT + '/') ? path.slice(ROOT.length) : null;
+    if (rel === null) return null; // outside the mount: not the app's path
+    let blot = '';
+    if (kind !== 'dir') {
+      const info = await fetch(path + '?info=1').then((r) => r.json());
+      blot = ((info && info.blot) || '').replace(/^\//, '');
+    }
+    // a dir is told by its neck (the nexus it runs, '' when plain), a file by its blot
+    const q = '?path=' + encodeURIComponent(rel) + '&kind=' + (kind === 'dir' ? 'dir' : 'file') +
+      '&blot=' + encodeURIComponent(blot) + '&neck=' + encodeURIComponent(kind === 'dir' ? (neck || '') : '');
+    const r = await fetch(VIEWERS + q, { cache: 'no-store' });
+    if (!r.ok) return null;
+    const text = await r.text();
+    const rule = text.trim() ? JSON.parse(text) : null;
+    if (!rule || typeof rule !== 'object') return null;
+    const src = rule.script, view = rule.view;
+    if (typeof view !== 'string' || typeof src !== 'string' || !/^\/grubbery\/[^\s]*$/.test(src)) { toast('viewer refused: needs a view name and a /grubbery/ script', true); return null; }
     window.Viewers = window.Viewers || {};
-    if (!window.Viewers[mark]) {
+    if (!window.Viewers[view]) {
       if (!viewerLoads[src]) viewerLoads[src] = new Promise((res, rej) => {
         const s = document.createElement('script');
         s.src = src; s.onload = res; s.onerror = () => rej(new Error('viewer failed to load: ' + src));
@@ -481,7 +548,11 @@ async function viewerFor(path) {
       });
       await viewerLoads[src];
     }
-    return window.Viewers[mark] || null;
+    const v = window.Viewers[view];
+    if (!v || typeof v.mount !== 'function') return null;
+    // the app's args ride along with the pane; a mount passes them through
+    const args = (rule.args && typeof rule.args === 'object') ? rule.args : {};
+    return { label: v.label, mount: (root, opts) => v.mount(root, Object.assign({}, opts, { args })) };
   } catch (e) { toast('viewer: ' + e.message, true); return null; }
 }
 
@@ -511,24 +582,28 @@ function mountTabPanel(path, kind) {
   };
   const modeRows = viewBtn('☰', 'row view');
   const modeGrid = viewBtn('▦', 'desktop view');
-  modeWrap.append(modeRows, modeGrid);
+  // the app's own pane for a dir, when the mount answers one (label set then)
+  const modeView = viewBtn('View', 'the app\'s view of this directory');
+  modeView.style.display = 'none';
+  modeWrap.append(modeView, modeRows, modeGrid);
   bar.append(back, fwd, crumbs, modeWrap);
   const body = document.createElement('div');
   body.style.cssText = 'flex:1;min-height:0;min-width:0;overflow:auto';
   panel.append(bar, body);
   panel._hist = { stack: [], idx: -1 };
   panel._back = back; panel._fwd = fwd; panel._crumbs = crumbs;
-  panel._modeWrap = modeWrap; panel._modeRows = modeRows; panel._modeGrid = modeGrid; panel._body = body;
+  panel._modeWrap = modeWrap; panel._modeRows = modeRows; panel._modeGrid = modeGrid; panel._modeView = modeView; panel._body = body;
   panel._fv = null; panel._rendered = false; panel._init = { path, kind };
-  panel._dirMode = dirModeDefault();
+  panel._dirMode = dirModeDefault(); panel._modeChosen = false; panel._dirViewer = null;
   const setMode = (m) => {
-    panel._dirMode = m;
-    try { localStorage.setItem('explorer-dir-mode', m); } catch (_) {}
+    panel._dirMode = m; panel._modeChosen = true;
+    if (m !== 'view') { try { localStorage.setItem('explorer-dir-mode', m); } catch (_) {} }
     const cur = panel._hist.stack[panel._hist.idx];
     if (cur && cur.kind === 'dir') navigateTab(panel, cur.path, 'dir', false);
   };
   modeRows.addEventListener('click', () => setMode('table'));
   modeGrid.addEventListener('click', () => setMode('grid'));
+  modeView.addEventListener('click', () => setMode('view'));
   back.addEventListener('click', () => {
     const hh = panel._hist; if (hh.idx <= 0) return; hh.idx -= 1;
     const e = hh.stack[hh.idx]; navigateTab(panel, e.path, e.kind, false);
@@ -712,7 +787,12 @@ fg.addEventListener('ft-action', handleAction);
 
 // ---- fetch + render ----
 renderCrumbs();
-document.title = SCOPE ? (SCOPE.slice(SCOPE.lastIndexOf('/') + 1) + (dirPath === '/' ? '' : ' ' + dirPath)) : dirPath;
+document.title = SCOPE ? (SCOPE_NAME + (dirPath === '/' ? '' : ' ' + dirPath)) : dirPath;
+// a mounting app's shell wears that app's icon, not the explorer's
+if (MOUNT && typeof MOUNT.icon === 'string' && /^\/grubbery\/[^\s]*$/.test(MOUNT.icon)) {
+  const link = document.querySelector('link[rel="icon"]');
+  if (link) link.href = MOUNT.icon;
+}
 
 async function load() {
   try {
@@ -744,7 +824,7 @@ function renderCrumbs() {
   const a = document.createElement('a');
   a.href = base;
   // a scoped root shows its own name as the root crumb
-  a.textContent = base === ROOT && SCOPE ? SCOPE.slice(SCOPE.lastIndexOf('/') + 1) + '/' : '/';
+  a.textContent = base === ROOT && SCOPE ? SCOPE_NAME + '/' : '/';
   a.dataset.nav = '1';
   c.appendChild(a);
   let acc = '';

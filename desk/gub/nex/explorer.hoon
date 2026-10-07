@@ -91,11 +91,6 @@
           [%over %& [/ %'icon.svg'] [[/ %mime] icon]]
           [%fall %& [/ %'main.sig'] [[/ %sig] ~]]
           [%fall %| /requests empty-dir:loader]
-          ::  viewers.json: the viewer registry, mark -> script url. A file
-          ::  whose blot is a key opens in that script's viewer instead of
-          ::  FileView (a chat log in a chat pane, say). Explicit config,
-          ::  edited here; an app that ships a viewer documents its entry.
-          [%fall %& [/ %'viewers.json'] [[/ %json] [%o ~]]]
           [%over %& [/ %'README.md'] [[/ %mime] man]]
           [%over %& [/ %'hoon-grammar.json'] [[/ %mime] gram]]
           [%over %& [/ %'view.js'] [[/ %mime] view-js]]
