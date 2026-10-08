@@ -239,8 +239,10 @@ function parseRange(r) {
   return { from: from, to: isNaN(to) ? from : to };
 }
 
+// resolves once the code is in the element (highlighted, or plain when the
+// highlighter is unavailable), so a caller can wait for the layout to settle
 function highlightInto(el, path, code) {
-  ensureShiki().then(function (hl) {
+  return ensureShiki().then(function (hl) {
     if (!hl) { var p = document.createElement('pre'); p.textContent = code; el.innerHTML = ''; el.appendChild(p); return; }
     try {
       el.innerHTML = hl.codeToHtml(code, { lang: langFor(path), theme: 'github-light' });
@@ -266,6 +268,26 @@ function loadCoverage() {
     .then(function (r) { return r.ok ? r.json() : { files: [] }; })
     .then(function (c) { cov = c || { files: [] }; covLoaded = true; return cov; })
     .catch(function () { cov = { files: [] }; covLoaded = true; return cov; });
+}
+// the commit(s) a file's coverage is pinned at: the distinct pins of the
+// blocks that cite it (short). One pin is the usual case; several when
+// different pages pinned the file at different commits.
+function filePins(f) {
+  var seen = {}, out = [];
+  (f.anchors || []).forEach(function (a) {
+    if (a.status === 'gone' || !a.commit) return;
+    var s = a.commit.slice(0, 7);
+    if (!seen[s]) { seen[s] = true; out.push(s); }
+  });
+  return out;
+}
+// "<pin> " as a muted prefix before a file name: the commit the file's
+// coverage is AT (its blocks' pin), which is what the file view shows
+function pinStamp(f) {
+  var pins = filePins(f);
+  var s = el('span', 'cov-head', pins.length ? pins[0] + (pins.length > 1 ? '+' + (pins.length - 1) : '') + ' ' : '');
+  if (pins.length) s.title = 'coverage pinned at ' + pins.join(', ');
+  return s;
 }
 // the per-section coverage summaries the sidebar dashboard renders. One read
 // of the whole coverage.json (which carries `sections`), cached until the
@@ -317,21 +339,34 @@ function anchorStatus(doc, file, range) {
 // file+line to expand and scroll to once the coverage view has rendered.
 var pendingScroll = null;
 var covFocus = null;
-function rangeStr(r) { return r ? (r.from + '-' + r.to) : 'all'; }
+// a block's range key, the same spelling coverage uses for its chips: "from-to",
+// or "all" for a whole-file block (which the ship encodes as to: 0)
+function rangeStr(r) { return (r && r.to) ? (r.from + '-' + r.to) : 'all'; }
 function flashEl(e) { var o = e.style.boxShadow; e.style.transition = 'box-shadow .2s'; e.style.boxShadow = '0 0 0 3px #ffd98a'; setTimeout(function () { e.style.boxShadow = o; }, 1400); }
-function scrollToBlock() {
+// bring the pending block into view. Called twice per arrival: once as soon
+// as the blocks are mounted (so the jump is immediate), and again with
+// settled=true once every block's code has been highlighted — the bodies
+// above the target grow when their code lands, which would otherwise push
+// it back out of view. The target keeps a marked outline (.live-focus)
+// until the next page renders; a flash was gone before the layout settled.
+function scrollToBlock(settled) {
   if (!pendingScroll) return;
   var ws = document.querySelectorAll('.live-wrap');
   for (var i = 0; i < ws.length; i++) {
     if (ws[i].dataset.file === pendingScroll.file && ws[i].dataset.range === pendingScroll.range) {
-      ws[i].scrollIntoView({ block: 'center' }); flashEl(ws[i]); pendingScroll = null; return;
+      ws[i].classList.add('live-focus');
+      ws[i].scrollIntoView({ block: 'start' });
+      if (settled) pendingScroll = null;
+      return;
     }
   }
+  if (settled) pendingScroll = null;   // no such block on this page: stop looking
 }
 function goToDoc(doc, file, rstr) {
   if (typeof closeHeatmapModal === 'function') closeHeatmapModal();
   pendingScroll = { file: file, range: rstr };
-  if (decodeURIComponent(location.hash.slice(1)) === CUR + '/' + doc) scrollToBlock();
+  // the page is already up (its blocks highlighted): one settled jump
+  if (decodeURIComponent(location.hash.slice(1)) === CUR + '/' + doc) scrollToBlock(true);
   else location.hash = hashFor(doc);   // hashchange -> openDoc -> runUpgrade -> scrollToBlock
 }
 // jump from a live block in a doc to that span in Coverage: open the block's
@@ -391,6 +426,7 @@ function runUpgrade() {
   var doc = decodeURIComponent(location.hash.slice(1)).slice(CUR.length).replace(/^\//, '');
   var resolved = blocksCache[doc] || [];
   var blocks = DOC.querySelectorAll('pre > code.language-live');
+  var settles = [];   // one promise per block body, resolved when its code is in
   for (var i = 0; i < blocks.length; i++) {
     (function (code, blk) {
       // prefer the ship's resolved block; fall back to parsing the fence ref.
@@ -436,7 +472,7 @@ function runUpgrade() {
       pre.replaceWith(host);
       // the lines were resolved on the ship AT THE PINNED COMMIT — just display.
       if (blk && blk.lines) {
-        highlightInto(body, path, blk.lines.join('\n'));
+        settles.push(highlightInto(body, path, blk.lines.join('\n')));
         head.appendChild(statusBadge(blk.status, blk.head, short));
       } else {
         body.textContent = 'could not load ' + path;
@@ -444,7 +480,10 @@ function runUpgrade() {
       }
     })(blocks[i], resolved[i]);
   }
-  scrollToBlock();  // if we arrived here to focus a specific block
+  // arrived here to focus a specific block: jump now, and again once every
+  // block's code is in and the page has its final height
+  scrollToBlock(false);
+  Promise.all(settles).then(function () { requestAnimationFrame(function () { scrollToBlock(true); }); });
 }
 
 function markActive(path) {
@@ -772,6 +811,7 @@ function coverageStyles() {
     '.cov-row{display:grid;grid-template-columns:1fr 84px 108px 108px 20px;gap:12px;align-items:center;padding:9px 4px;border-bottom:1px solid #f2f4f6;cursor:pointer}' +
     '.cov-row:hover{background:#fafbfc}.cov-row.cov-gap{cursor:default}.cov-row.cov-gap .cov-file{color:#a40e26}' +
     '.cov-file{font:12.5px ui-monospace,monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}' +
+    '.cov-head{color:#8b949e}' +
     '.cov-act{color:#b0b6bd;text-align:center;font-size:14px;cursor:pointer;user-select:none}.cov-act:hover{color:#57606a}' +
     '.cov-tgt{display:flex;justify-content:space-between;align-items:center;padding:6px 4px;border-bottom:1px solid #f2f4f6;font:12.5px ui-monospace,monospace}' +
     '.cov-sec{margin:22px 0 2px;font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:#57606a}' +
@@ -794,6 +834,16 @@ function coverageStyles() {
     '.cov-src .ln{display:block;padding:0 10px;white-space:pre;color:#8a929c;border-left:2px solid transparent}' +
     '.cov-src .ln.on{background:#e6f4ea;color:#1f2328;box-shadow:inset 3px 0 #1a7f37}' +
     '.cov-src .ln.dr{background:#fff4e0;box-shadow:inset 3px 0 #9a6700}' +
+    // segment boundaries: a rule where a block starts, alternating tint for
+    // abutting blocks, and a label on each block\'s first line naming its doc
+    '.cov-src .ln.a-top{border-top:1px solid #9ccfae}' +
+    '.cov-src .ln.a-bot{border-bottom:1px solid #9ccfae}' +
+    '.cov-src .ln.on.alt{background:#d9eee0}' +
+    '.cov-src .ln.dr.a-top,.cov-src .ln.dr.a-bot{border-color:#e8c97a}' +
+    '.cov-src .ln .a-lab{float:right;font:10px/1.6 ui-monospace,monospace;color:#1a7f37;background:#fff;border:1px solid #bfe0c9;border-radius:4px;padding:0 6px;margin-left:12px;cursor:pointer}' +
+    '.cov-src .ln .a-lab:hover{background:#e6f4ea}' +
+    '.cov-src .ln.dr .a-lab{color:#9a6700;border-color:#f0dcae}' +
+    '.cov-src .ln .a-lab.more{color:#57606a;border-color:#d0d7de}' +
     // scope outline: dim lines outside a section\'s scope, bracket those inside it
     '.cov-src .ln.sc-out{opacity:.32}' +
     '.cov-src .ln.sc{border-left-color:#8b93e6}' +
@@ -855,15 +905,30 @@ function coverageStyles() {
 
 // one file's heatmap: covered lines (from ship-computed ranges) lit, drifted
 // spans amber, source pulled lazily from the mirror (local, one fetch).
-function renderHeatmap(f) {
+function renderHeatmap(f, focusLine) {
   var wrap = el('div', 'cov-heat');
-  var coveredSet = {}, driftSet = {}, lineDoc = {};
+  var coveredSet = {}, driftSet = {}, lineAnchors = {};
   (f.ranges || []).forEach(function (r) { for (var n = r[0]; n <= r[1]; n++) coveredSet[n] = true; });
-  (f.anchors || []).forEach(function (a) {
-    if (a.status === 'gone') return;
-    var hi = a.to === 0 ? f.total : a.to;
-    for (var n = a.from; n <= hi; n++) { if (a.status === 'drifted') driftSet[n] = true; lineDoc[n] = a; }
+  // every block (anchor) touching each line, in document order; blocks may
+  // abut or overlap, so a line can belong to several
+  var live = (f.anchors || []).filter(function (a) { return a.status !== 'gone'; });
+  live.forEach(function (a, idx) {
+    a._idx = idx;
+    a._hi = a.to === 0 ? f.total : a.to;
+    for (var n = a.from; n <= a._hi; n++) {
+      if (a.status === 'drifted') driftSet[n] = true;
+      (lineAnchors[n] = lineAnchors[n] || []).push(a);
+    }
   });
+  // the block a line "belongs" to for tint and click: the narrowest one
+  // touching it (the most specific when blocks overlap)
+  function ownerOf(n) {
+    var as = lineAnchors[n] || [];
+    var best = null;
+    as.forEach(function (a) { if (!best || (a._hi - a.from) < (best._hi - best.from)) best = a; });
+    return best;
+  }
+  function jump(an) { var rs = an.to === 0 ? 'all' : (an.from + '-' + an.to); goToDoc(an.doc, f.file, rs); }
   var slices = el('div', 'cov-slices');
   slices.appendChild(el('span', 'cov-slices-lab', 'Referenced by'));
   (f.anchors || []).forEach(function (a) {
@@ -881,9 +946,14 @@ function renderHeatmap(f) {
   (f.scope || []).forEach(function (r) { for (var n = r[0]; n <= r[1]; n++) scopeSet[n] = true; });
   var src = el('div', 'cov-src'); src.appendChild(codeSkeleton(10));
   wrap.appendChild(src);
-  // the heatmap highlights coverage over the current file, so it reads the
-  // whole file at HEAD — /slice with no commit (the ship resolves HEAD).
-  fetch(withC(BASE + '/slice?file=' + encodeURIComponent(f.file)), { cache: 'no-store' })
+  // the file AT ITS COVERAGE'S PIN: the blocks' line ranges are at their
+  // pinned commit, so the source is read at that commit and the painted
+  // ranges are the lines the blocks actually cite. With blocks pinned at
+  // several commits the first pin is shown (its own blocks align; the
+  // others' chips still open their page). No pins: HEAD.
+  var pins = filePins(f);
+  var at = pins.length ? (f.anchors || []).filter(function (a) { return a.commit && a.commit.slice(0, 7) === pins[0]; })[0].commit : '';
+  fetch(withC(BASE + '/slice?file=' + encodeURIComponent(f.file) + (at ? '&commit=' + encodeURIComponent(at) : '')), { cache: 'no-store' })
     .then(function (r) { return r.ok ? r.text() : ''; })
     .then(function (text) {
       src.textContent = '';
@@ -907,17 +977,39 @@ function renderHeatmap(f) {
             if (!scopeSet[n + 1]) cls += ' sc-bot';
           } else cls += ' sc-out';
         }
-        var d = el('span', cls, (n + '  ').slice(0, 4) + '  ' + line + '\n');
+        var a = ownerOf(n);
+        // boundaries: a rule where any block starts or ends, and alternate
+        // tint by block so two abutting blocks read as two
+        var starts = (lineAnchors[n] || []).filter(function (x) { return x.from === n; });
+        var ends = (lineAnchors[n] || []).filter(function (x) { return x._hi === n; });
+        if (starts.length) cls += ' a-top';
+        if (ends.length) cls += ' a-bot';
+        if (a && (a._idx % 2)) cls += ' alt';
+        var d = el('span', cls, (n + '  ').slice(0, 4) + '  ' + line);
         d.dataset.line = n;
-        var a = lineDoc[n];
         if (a) {
           d.style.cursor = 'pointer';
-          d.title = 'covered by ' + a.doc + ' — click to open';
-          (function (an) { var rs = an.to === 0 ? 'all' : (an.from + '-' + an.to); d.onclick = function () { goToDoc(an.doc, f.file, rs); }; })(a);
+          d.title = 'covered by ' + a.doc + ' (' + a.from + '–' + a._hi + ') — click to open';
+          (function (an) { d.onclick = function () { jump(an); }; })(a);
         }
+        // on a block's first line, a label naming the doc it belongs to
+        // (one per block starting here; overlapping blocks each get theirs)
+        starts.forEach(function (an) {
+          var lab = el('span', 'a-lab', an.doc + ' · ' + an.from + '–' + an._hi);
+          lab.title = 'open this block in ' + an.doc;
+          (function (x) { lab.onclick = function (e) { e.stopPropagation(); jump(x); }; })(an);
+          d.appendChild(lab);
+        });
+        d.appendChild(document.createTextNode('\n'));
         pre.appendChild(d);
       });
       src.appendChild(pre);
+      // arrived from a doc's block: focus its first line once the source is
+      // actually here (the fetch decides when, not a timer)
+      if (focusLine) {
+        var ln = pre.querySelector('.ln[data-line="' + focusLine + '"]');
+        if (ln) { ln.scrollIntoView({ block: 'center' }); flashEl(ln); }
+      }
     })
     .catch(function () { src.textContent = 'could not load mirrored source'; });
   return wrap;
@@ -936,21 +1028,19 @@ function showHeatmapModal(f, focusLine) {
   var ov = el('div', 'cov-modal'); ov.id = 'cov-modal';
   var panel = el('div', 'cov-modal-panel');
   var hdr = el('div', 'cov-modal-hdr');
-  var title = el('div', 'cov-modal-file', f.file); title.title = f.file;
+  var title = el('div', 'cov-modal-file'); title.title = f.file;
+  title.appendChild(pinStamp(f));
+  title.appendChild(document.createTextNode(f.file));
   var meta = el('span', 'cov-modal-meta', (f.total ? Math.round(100 * pct(f)) + '%' : '—') + ' · ' + f.covered + '/' + f.total + ' lines' + (f.extra ? ' · extra credit' : ''));
   var close = el('button', 'cov-modal-x', '×'); close.title = 'close (Esc)'; close.onclick = closeHeatmapModal;
   hdr.append(title, meta, close);
   var body = el('div', 'cov-modal-body');
-  body.appendChild(renderHeatmap(f));
+  body.appendChild(renderHeatmap(f, focusLine));
   panel.append(hdr, body); ov.appendChild(panel);
   ov.onclick = function (e) { if (e.target === ov) closeHeatmapModal(); };
   covModalEsc = function (e) { if (e.key === 'Escape') closeHeatmapModal(); };
   document.addEventListener('keydown', covModalEsc);
   document.body.appendChild(ov);
-  if (focusLine) setTimeout(function () {
-    var ln = body.querySelector('.ln[data-line="' + focusLine + '"]');
-    if (ln) { ln.scrollIntoView({ block: 'center' }); flashEl(ln); }
-  }, 450);
 }
 
 // one file's coverage row: bar, percent, freshness flags, click-to-expand.
@@ -963,7 +1053,9 @@ function fileRow(f, label, showScope) {
   var gap = !f.covered && !f.extra;
   var row = el('div', 'cov-row' + (gap ? ' cov-gap' : '') + (f.extra ? ' cov-extra' : ''));
   row.dataset.file = f.file;
-  var nm = el('div', 'cov-file', label || f.file); nm.title = f.file;
+  var nm = el('div', 'cov-file'); nm.title = f.file;
+  nm.appendChild(pinStamp(f));
+  nm.appendChild(document.createTextNode(label || f.file));
   // when a file is in scope only for certain line ranges (a section), show them
   if (showScope && f.scope && f.scope.length) {
     var rt = el('span', 'cov-file-rng', ' ' + rangeText(f.scope));
@@ -1022,7 +1114,8 @@ function fillOverall(overall, c, nFiles) {
   if (c.totalLines) {
     overall.append(el('b', null, Math.round(100 * (c.coveredLines || 0) / c.totalLines) + '%'),
       el('span', null, (c.coveredLines || 0) + ' / ' + c.totalLines + ' lines · ' + nFiles + ' files · '),
-      el('span', null, (c.fresh || 0) + ' fresh, ' + (c.drifted || 0) + ' drifted, ' + (c.gone || 0) + ' gone'));
+      el('span', null, (c.fresh || 0) + ' fresh, ' + (c.drifted || 0) + ' drifted, ' + (c.gone || 0) + ' gone'),
+      el('span', null, c.head ? ' · vs HEAD ' + c.head : ''));
   } else {
     overall.append(el('span', null, 'No coverage yet.'));
   }

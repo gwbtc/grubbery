@@ -235,7 +235,10 @@
   }
 
   /* live code embeds (real source, shiki-highlighted) */
-  .live-wrap { margin: 18px 0; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  .live-wrap { margin: 18px 0; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; scroll-margin-top: 72px; }
+  /* the block a coverage link brought you to: marked until the next page */
+  .live-wrap.live-focus { border-color: #d4a72c; box-shadow: 0 0 0 3px #fff1c2; }
+  .live-wrap.live-focus > .live-head { background: #fff8dc; }
   .live-head {
     font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--muted);
     background: var(--sidebar); padding: 7px 14px; border-bottom: 1px solid var(--line);

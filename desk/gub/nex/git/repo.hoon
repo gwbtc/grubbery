@@ -269,9 +269,13 @@
   ;<  clean=?  bind:m  working-tree-clean
   ?.  clean  (pure:m [%error 'working tree is dirty — commit or stash first'])
   ;<  ref-hash=@t  bind:m  (resolve-ref name)
-  ::  a matching branch → attached checkout
+  ::  a matching branch → attached checkout. The branch becomes the TRACKED
+  ::  ref too (config.json "ref"): +op-pull checks out ref.cfg whenever new
+  ::  objects arrive, so a checkout that left ref behind was undone by the
+  ::  next poll (a handbook on develop vanished when ref still said main).
   ?.  =('' ref-hash)
     ;<  ~  bind:m  (do-checkout (crip "ref: refs/heads/{(trip name)}"))
+    ;<  ~  bind:m  (track-ref name)
     (pure:m [%ok (crip "switched to {(trip name)}")])
   ::  not a branch → try the arg as a full commit hash (detached HEAD)
   =/  parsed=(unit @ux)  (rust (trip name) parse-hash-sha-1:git-transport)
@@ -282,6 +286,21 @@
     (pure:m [%error (crip "commit not found: {(scag 7 (trip name))}")])
   ;<  ~  bind:m  (do-checkout name)
   (pure:m [%ok (crip "checked out {(scag 7 (trip name))} (detached)")])
+::  +track-ref: record a branch as the one pulls follow (config.json "ref").
+::
+++  track-ref
+  |=  name=@t
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  ;<  cfg-rd=road:tarball  bind:m
+    (ancestor-road:io [/git %repo] [%& / %'config.json'])
+  ;<  cv=view:nexus  bind:m  (peek:io cfg-rd `[/ %json])
+  =/  obj=(map @t json)
+    ?.  ?=([%file *] cv)  ~
+    =/  j=(unit json)  (mole |.(!<(json (need-vase:tarball sang.cv))))
+    ?:  &(?=(^ j) ?=([%o *] u.j))  p.u.j
+    ~
+  (over:io cfg-rd [[/ %json] o+(~(put by obj) 'ref' s+name)])
 ::  +do-checkout: write HEAD to a value and reload the data nexus.
 ::
 ++  do-checkout

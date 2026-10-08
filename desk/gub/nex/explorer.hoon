@@ -20,7 +20,9 @@
 /&  browse-html  explorer/ui/browse.html
 /&  browse-js    explorer/ui/browse.js
 /&  view-html    explorer/ui/view.html
-/&  marked-js  shell/marked.min.js
+::  the explorer's own copy: importing the shell's tied the explorer's build
+::  to the shell's files, and every page that embeds the explorer with it
+/&  marked-js  explorer/marked.min.js
 /&  cm-js      /lib/cm/codemirror.min.js
 /&  cm-css     /lib/cm/codemirror.min.css
 /&  cm-vim     /lib/cm/vim.min.js
@@ -1062,7 +1064,14 @@
   ^-  form:m
   ;<  own=(unit fold:tarball)  bind:m  (owner:cs [dir %$])
   ?~  own  (pure:m ~)
-  ;<  tree=(unit (axal (map @ta built:nexus)))  bind:m  (code-tree-soft dir)
+  ::  under a deadline: a reply that never comes (a dart the kernel dropped
+  ::  or crashed on) must not hang the listing, and with it every page that
+  ::  waits on the explorer behind the browser's connection cap
+  ;<  timed=(unit (unit (axal (map @ta built:nexus))))  bind:m
+    %^  (with-timeout:io ,(unit (axal (map @ta built:nexus))))  /code-tree  ~s3
+    (code-tree-soft dir)
+  ?~  timed  (pure:m ~)
+  =/  tree=(unit (axal (map @ta built:nexus)))  u.timed
   ?~  tree  (pure:m ~)
   =/  counts=[ok=@ud fail=@ud]
     =|  acc=[ok=@ud fail=@ud]

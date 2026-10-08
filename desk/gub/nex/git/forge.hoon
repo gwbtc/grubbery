@@ -208,7 +208,18 @@
             ;<  cs=(unit cov-state:dc)  bind:m
               (peek-as:io (nex-road:io rail [%& /repos/[repo]/data/ui %'docs-covstate']) ,cov-state:dc)
             ?:  |(?=(~ nav) ?=(~ cs))  (send-json rail eyre-id ~)
-            (send-json rail eyre-id (render-coverage:dc u.cs u.nav sec %.y))
+            ::  the view is OF HEAD: name the commit it was measured against,
+            ::  so the reader can stamp every file with it (a pinned block's
+            ::  lines are at its pin; the file view is at this commit)
+            ;<  cur=(unit json)  bind:m
+              (peek-as:io (nex-road:io rail [%& /repos/[repo]/data/ui %'current.json']) ,json)
+            =/  head=@t
+              ?~  cur  ''
+              =/  h=@t  (jstr u.cur 'hash')
+              (crip (scag 7 (trip h)))
+            =/  out=json  (render-coverage:dc u.cs u.nav sec %.y)
+            =?  out  ?=([%o *] out)  [%o (~(put by p.out) 'head' s+head)]
+            (send-json rail eyre-id out)
             ::  /chat → the repo's clanker (its agent, in the clanker collection
             ::  at forge/<repo>.clanker: bundle "repo", tools that read this
             ::  checkout, a weir reaching the working tree) and the `docs` chat
