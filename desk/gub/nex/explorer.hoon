@@ -419,7 +419,19 @@
       ?~  names  (pure:m acc)
       ;<  bs=(unit @tas)  bind:m  (built-status tree-path i.names)
       $(names t.names, acc ?~(bs acc (~(put by acc) i.names u.bs)))
-    =/  jon=json  (listing-json tree-path ball ball-wave now conversions own-url blot-urls dir-weir necks builds)
+    ::  per-directory build status: how many artifacts under each child
+    ::  dir compiled and how many failed, so a failure anywhere below shows
+    ::  at every level above it and can be drilled down to
+    ;<  dir-builds=(map @ta [ok=@ud fail=@ud])  bind:m
+      =/  m  (fiber:fiber:nexus ,(map @ta [ok=@ud fail=@ud]))
+      ^-  form:m
+      =/  subs=(list @ta)  ~(tap in ~(key by dir.ball))
+      =|  acc=(map @ta [ok=@ud fail=@ud])
+      |-  ^-  form:m
+      ?~  subs  (pure:m acc)
+      ;<  counts=(unit [ok=@ud fail=@ud])  bind:m  (built-counts (snoc tree-path i.subs))
+      $(subs t.subs, acc ?~(counts acc (~(put by acc) i.subs u.counts)))
+    =/  jon=json  (listing-json tree-path ball ball-wave now conversions own-url blot-urls dir-weir necks builds dir-builds)
     ;<  ~  bind:m  (send-json eyre-id 200 jon)
     (pure:m ~)
   ::  File view — ball is the parent directory
@@ -1039,6 +1051,69 @@
   ?~  own  (pure:m ~)
   ;<  =built:nexus  bind:m  (get-code-full:io [%& %& dir (crip (scag (sub len 5) t))])
   (pure:m `-.built)
+::  +built-counts: the artifacts under a directory inside a code namespace,
+::  counted: how many compiled (%vase) and how many failed (%tang). One
+::  %code dart on the directory answers the whole subtree. ~ when the dir
+::  is not code-governed, or holds no artifact yet (nothing built there is
+::  nothing to say). Conversions (%mime) are neither.
+++  built-counts
+  |=  dir=path
+  =/  m  (fiber:fiber:nexus ,(unit [ok=@ud fail=@ud]))
+  ^-  form:m
+  ;<  own=(unit fold:tarball)  bind:m  (owner:cs [dir %$])
+  ?~  own  (pure:m ~)
+  ;<  tree=(unit (axal (map @ta built:nexus)))  bind:m  (code-tree-soft dir)
+  ?~  tree  (pure:m ~)
+  =/  counts=[ok=@ud fail=@ud]
+    =|  acc=[ok=@ud fail=@ud]
+    =/  nodes=(list (map @ta built:nexus))  (count-nodes u.tree)
+    |-  ^-  [ok=@ud fail=@ud]
+    ?~  nodes  acc
+    =.  acc
+      %+  roll  ~(val by i.nodes)
+      |=  [b=built:nexus a=_acc]
+      ?-  -.b
+        %vase  a(ok +(ok.a))
+        %tang  a(fail +(fail.a))
+        %mime  a
+      ==
+    $(nodes t.nodes)
+  ?:  =(0 (add ok.counts fail.counts))  (pure:m ~)
+  (pure:m `counts)
+::  +code-tree-soft: the %code dart on a directory, answered ~ when the
+::  kernel says no (no code nexus there) or a weir vetoes it, instead of
+::  waiting on a reply that never comes (the io's get-code-tree skips a
+::  %| answer).
+++  code-tree-soft
+  |=  dir=path
+  =/  m  (fiber:fiber:nexus ,(unit (axal (map @ta built:nexus))))
+  ^-  form:m
+  ;<  =wire  bind:m  (nonce:io /code-tree)
+  ;<  ~  bind:m  (send-dart:io %node wire [%& %| dir] %code ~)
+  |=  input:fiber:nexus
+  :+  ~  q.state
+  ?+  in  [%skip ~]
+      ~  [%wait ~]
+      [~ %veto *]  [%done ~]
+      [~ %code * *]
+    ?.  =(wire wire.u.in)  [%skip ~]
+    ?.  ?=(%& -.res.u.in)  [%done ~]
+    [%done `p.res.u.in]
+  ==
+::  +count-nodes: every node's artifact map in an axal, flattened.
+++  count-nodes
+  |=  tree=(axal (map @ta built:nexus))
+  ^-  (list (map @ta built:nexus))
+  =/  todo=(list (axal (map @ta built:nexus)))  ~[tree]
+  =|  out=(list (map @ta built:nexus))
+  |-  ^-  (list (map @ta built:nexus))
+  ?~  todo  out
+  =/  t=(axal (map @ta built:nexus))  i.todo
+  =/  kids=(list (axal (map @ta built:nexus)))  ~(val by dir.t)
+  %=  $
+    todo  (weld kids t.todo)
+    out   ?~(fil.t out [u.fil.t out])
+  ==
 ::
 ++  listing-json
   |=  $:  pax=path
@@ -1051,6 +1126,7 @@
           dir-weir=(unit weir:nexus)
           necks=(map @ta kid-info)
           builds=(map @ta @tas)
+          dir-builds=(map @ta [ok=@ud fail=@ud])
       ==
   ^-  json
   =/  str  |=(t=tape `json`s+(crip t))
@@ -1103,7 +1179,12 @@
       ?~  kid-wave  ~
       ?~  fil.u.kid-wave  ~
       (str (en:datetime-local:iso-8601 da.fold.u.fil.u.kid-wave))
-    (pairs:enjs:format ~[['name' s+`@t`name] ['kind' s+'dir'] ['neck' neck-json] ['neck-url' neck-url-json] ['bang' kid-bang] ['weir' kid-weir] ['modified' dir-mod]])
+    ::  the subtree's build tally, {ok, fail}, when it holds artifacts
+    =/  dir-built=json
+      =/  c  (~(get by dir-builds) name)
+      ?~  c  ~
+      (pairs:enjs:format ~[['ok' (numb:enjs:format ok.u.c)] ['fail' (numb:enjs:format fail.u.c)]])
+    (pairs:enjs:format ~[['name' s+`@t`name] ['kind' s+'dir'] ['neck' neck-json] ['neck-url' neck-url-json] ['bang' kid-bang] ['weir' kid-weir] ['built' dir-built] ['modified' dir-mod]])
   =/  files=(list json)
     %+  turn
       (sort ~(tap by file-contents) |=([[a=@ta *] [b=@ta *]] (aor a b)))

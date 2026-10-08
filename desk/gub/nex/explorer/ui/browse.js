@@ -177,12 +177,44 @@ function setup(root, opts) {
     },
     {
       key: 'built', label: 'Build', cls: 'mono',
-      // ✓ compiled, ✗ build error, blank for non-code or non-hoon. Click the
-      // file (its name) to open the viewer's Build tab for the detail/tang.
-      format: (v) => v === 'vase' ? '✓' : v === 'tang' ? '✗' : '',
+      // files: ✓ compiled, ✗ build error, blank for non-code or non-hoon.
+      // Click the file (its name) to open the viewer's Build tab for the
+      // detail/tang. Directories: a tally of the artifacts below them,
+      // "✓ 12" when all compiled, "✗ 2 · ✓ 10" when some failed — a
+      // failure anywhere below shows at every level, so open the dir to
+      // drill down to it. Blank when nothing below has been built.
+      format: (v, item) => {
+        if (item.kind === 'dir') {
+          if (!v || typeof v !== 'object') return '';
+          return v.fail ? '✗ ' + v.fail + ' · ✓ ' + v.ok : '✓ ' + v.ok;
+        }
+        return v === 'vase' ? '✓' : v === 'tang' ? '✗' : '';
+      },
       decorate: (cell, item) => {
-        if (item.built === 'vase') { cell.style.color = '#116329'; }
-        else if (item.built === 'tang') {
+        const v = item.built;
+        if (item.kind === 'dir') {
+          if (!v || typeof v !== 'object') return;
+          // each count in its own color: the ✗ tally red and bold, the ✓
+          // tally green, whatever the mix
+          cell.textContent = '';
+          if (v.fail) {
+            const bad = document.createElement('span');
+            bad.textContent = '✗ ' + v.fail;
+            bad.style.color = '#cf222e'; bad.style.fontWeight = '700';
+            cell.appendChild(bad);
+            cell.appendChild(document.createTextNode(' · '));
+            cell.title = v.fail + ' build error' + (v.fail === 1 ? '' : 's') + ' below — open the directory to find them';
+          } else {
+            cell.title = v.ok + ' artifact' + (v.ok === 1 ? '' : 's') + ' below, all compiled';
+          }
+          const good = document.createElement('span');
+          good.textContent = '✓ ' + v.ok;
+          good.style.color = '#116329';
+          cell.appendChild(good);
+          return;
+        }
+        if (v === 'vase') { cell.style.color = '#116329'; }
+        else if (v === 'tang') {
           cell.style.color = '#cf222e'; cell.style.fontWeight = '700';
           cell.title = 'build error — open the file for the tang';
         }
