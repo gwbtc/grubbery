@@ -836,14 +836,15 @@ function coverageStyles() {
     '.cov-src .ln.dr{background:#fff4e0;box-shadow:inset 3px 0 #9a6700}' +
     // segment boundaries: a rule where a block starts, alternating tint for
     // abutting blocks, and a label on each block\'s first line naming its doc
-    '.cov-src .ln.a-top{border-top:1px solid #9ccfae}' +
+    '.cov-src .ln.a-top{border-top:0}' +
     '.cov-src .ln.a-bot{border-bottom:1px solid #9ccfae}' +
     '.cov-src .ln.on.alt{background:#d9eee0}' +
     '.cov-src .ln.dr.a-top,.cov-src .ln.dr.a-bot{border-color:#e8c97a}' +
-    '.cov-src .ln .a-lab{float:right;font:10px/1.6 ui-monospace,monospace;color:#1a7f37;background:#fff;border:1px solid #bfe0c9;border-radius:4px;padding:0 6px;margin-left:12px;cursor:pointer}' +
-    '.cov-src .ln .a-lab:hover{background:#e6f4ea}' +
-    '.cov-src .ln.dr .a-lab{color:#9a6700;border-color:#f0dcae}' +
-    '.cov-src .ln .a-lab.more{color:#57606a;border-color:#d0d7de}' +
+    '.cov-src .a-hdr{display:block;padding:4px 10px 3px 14px;background:#f3faf5;border-top:1px solid #9ccfae;white-space:normal;line-height:1.3}' +
+    '.cov-src .a-hdr.dr{background:#fffaf0;border-top-color:#e8c97a}' +
+    '.cov-src .a-lab{display:inline-block;font:10px/1.6 ui-monospace,monospace;color:#1a7f37;background:#fff;border:1px solid #bfe0c9;border-radius:4px;padding:0 6px;margin:0 6px 0 0;cursor:pointer}' +
+    '.cov-src .a-lab:hover{background:#e6f4ea}' +
+    '.cov-src .a-hdr.dr .a-lab{color:#9a6700;border-color:#f0dcae}' +
     // scope outline: dim lines outside a section\'s scope, bracket those inside it
     '.cov-src .ln.sc-out{opacity:.32}' +
     '.cov-src .ln.sc{border-left-color:#8b93e6}' +
@@ -992,14 +993,20 @@ function renderHeatmap(f, focusLine) {
           d.title = 'covered by ' + a.doc + ' (' + a.from + '–' + a._hi + ') — click to open';
           (function (an) { d.onclick = function () { jump(an); }; })(a);
         }
-        // on a block's first line, a label naming the doc it belongs to
-        // (one per block starting here; overlapping blocks each get theirs)
-        starts.forEach(function (an) {
-          var lab = el('span', 'a-lab', an.doc + ' · ' + an.from + '–' + an._hi);
-          lab.title = 'open this block in ' + an.doc;
-          (function (x) { lab.onclick = function (e) { e.stopPropagation(); jump(x); }; })(an);
-          d.appendChild(lab);
-        });
+        // where a block starts, its own header row above the first line
+        // (one label per block starting here; overlapping blocks each get
+        // theirs) — a row of its own, so it never sits over code
+        if (starts.length) {
+          var hdr = el('span', 'a-hdr' + (a && a.status === 'drifted' ? ' dr' : ''));
+          starts.forEach(function (an) {
+            var lab = el('span', 'a-lab', an.doc + ' · ' + an.from + '–' + an._hi);
+            lab.title = 'open this block in ' + an.doc;
+            (function (x) { lab.onclick = function (e) { e.stopPropagation(); jump(x); }; })(an);
+            hdr.appendChild(lab);
+          });
+          hdr.appendChild(document.createTextNode('\n'));
+          pre.appendChild(hdr);
+        }
         d.appendChild(document.createTextNode('\n'));
         pre.appendChild(d);
       });
