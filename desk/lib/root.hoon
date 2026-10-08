@@ -76,11 +76,11 @@
         [%fall %& [/sys/scry %'main.scry-state'] [[/ %scry-state] *scry-state:nexus]]
         ::  child nexuses
         ::
-        [%fall %| /apps/'tiles.tiles' [`[`[/ %tiles] ~ %.n ~] ~]]
+        ::  the shell: the one bootstrap nexus, the user's interface to the
+        ::  kernel. Its home page's local tiles live inside it (/tiles).
         [%fall %| /apps/'shell.shell' [`[`[/ %shell] ~ %.n ~] ~]]
         [%fall %| /apps/'explorer.explorer' [`[`[/ %explorer] ~ %.n ~] ~]]
         [%fall %| /apps/'mcp.mcp' [`[`[/ %mcp] ~ %.n ~] ~]]
-        [%fall %| /apps/'peers.peers' [`[`[/ %peers] ~ %.n ~] ~]]
         [%fall %| /apps/'notifications.notifications' [`[`[/ %notifications] ~ %.n ~] ~]]
         ::
         ::  forge: the UI over git repo instances, housing them at
@@ -91,6 +91,22 @@
         ::  shell's sync-defaults pipeline now.
         ::
         [%fall %| /apps/'github.github' [`[`[/ %github] ~ %.n ~] ~]]
+        ::  /sys/link built-in names: the apps that ship with grubbery claim
+        ::  their discovery names HERE, next to where the apps are declared, so
+        ::  @github/@forge/… resolve the instant the tree loads — no shell scan,
+        ::  no approval, no first-boot race. Each dest.lanes points at the app's
+        ::  own root (a %| dir lane). The shell registers only the names USER
+        ::  DESKS claim; these shipped names are a fact of the base tree.
+        [%fall %| /sys/link/explorer [`[~ ~ %.n ~] ~]]
+        [%fall %& [/sys/link/explorer %'dest.lanes'] [[/ %lanes] ~[`lane:tarball`[%| /apps/'explorer.explorer']]]]
+        [%fall %| /sys/link/mcp [`[~ ~ %.n ~] ~]]
+        [%fall %& [/sys/link/mcp %'dest.lanes'] [[/ %lanes] ~[`lane:tarball`[%| /apps/'mcp.mcp']]]]
+        [%fall %| /sys/link/notifications [`[~ ~ %.n ~] ~]]
+        [%fall %& [/sys/link/notifications %'dest.lanes'] [[/ %lanes] ~[`lane:tarball`[%| /apps/'notifications.notifications']]]]
+        [%fall %| /sys/link/forge [`[~ ~ %.n ~] ~]]
+        [%fall %& [/sys/link/forge %'dest.lanes'] [[/ %lanes] ~[`lane:tarball`[%| /apps/'forge.git_forge']]]]
+        [%fall %| /sys/link/github [`[~ ~ %.n ~] ~]]
+        [%fall %& [/sys/link/github %'dest.lanes'] [[/ %lanes] ~[`lane:tarball`[%| /apps/'github.github']]]]
     ==
 ::
 ++  on-file

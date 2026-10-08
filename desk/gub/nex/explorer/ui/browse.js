@@ -24,6 +24,9 @@
 // Light DOM on purpose: FileView and the app panes mount into the normal
 // document, inject their own styles, and the kit components stay reachable.
 const PREFIX = '/grubbery/ball';
+// this ship's own routes, the only places a mount may load a pane script or
+// ask for viewers from: the kernel's /grubbery/... and the shell's /apps/grubbery/...
+const OWN_ROUTE = /^\/(grubbery|apps\/grubbery)\/[^\s]*$/;
 
 function setup(root, opts) {
   const $ = (id) => root.querySelector('#' + id);
@@ -542,7 +545,7 @@ function setup(root, opts) {
   // a rule the explorer enforces. The script runs with this page's reach, so
   // only this ship's own routes are loaded: a /grubbery/... path, never
   // another origin.
-  const VIEWERS = (MOUNT && typeof MOUNT.viewers === 'string' && /^\/grubbery\/[^\s]*$/.test(MOUNT.viewers)) ? MOUNT.viewers : null;
+  const VIEWERS = (MOUNT && typeof MOUNT.viewers === 'string' && OWN_ROUTE.test(MOUNT.viewers)) ? MOUNT.viewers : null;
   const viewerLoads = {};      // script url -> Promise
   async function viewerFor(path, kind, neck) {
     try {
@@ -563,7 +566,7 @@ function setup(root, opts) {
       const rule = text.trim() ? JSON.parse(text) : null;
       if (!rule || typeof rule !== 'object') return null;
       const src = rule.script, view = rule.view;
-      if (typeof view !== 'string' || typeof src !== 'string' || !/^\/grubbery\/[^\s]*$/.test(src)) { toast('viewer refused: needs a view name and a /grubbery/ script', true); return null; }
+      if (typeof view !== 'string' || typeof src !== 'string' || !OWN_ROUTE.test(src)) { toast('viewer refused: needs a view name and a script on this ship', true); return null; }
       window.Viewers = window.Viewers || {};
       if (!window.Viewers[view]) {
         if (!viewerLoads[src]) viewerLoads[src] = new Promise((res, rej) => {
@@ -818,7 +821,7 @@ function setup(root, opts) {
   renderCrumbs();
   setTitle();
   // a mounting app's explorer wears that app's icon, not the explorer app's
-  if (PAGE && MOUNT && typeof MOUNT.icon === 'string' && /^\/grubbery\/[^\s]*$/.test(MOUNT.icon)) {
+  if (PAGE && MOUNT && typeof MOUNT.icon === 'string' && OWN_ROUTE.test(MOUNT.icon)) {
     const link = document.querySelector('link[rel="icon"]');
     if (link) link.href = MOUNT.icon;
   }

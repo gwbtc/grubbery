@@ -1,4 +1,4 @@
-var API='/grubbery/api';var BALL='apps/tiles.tiles';
+var API='/grubbery/api';var BALL='apps/shell.shell'; // local tiles live in the shell's own root
   // inbox bell: landscape-style notifications panel over the tiles
   var NBALL = 'apps/notifications.notifications';
   var bellNotes = [];

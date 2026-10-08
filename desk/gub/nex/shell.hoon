@@ -17,6 +17,8 @@
 /<  app-css        shell/style.css
 /<  permits-html   shell/permits.html
 /<  home-html      shell/home.html
+::  peers: the usergroups panes of the explorer mounted on /sys/ames
+/&  peers-js       shell/peers.js
 /<  docs-html      shell/docs.html
 /<  docs-js        shell/docs.js
 /<  chat-js        shell/chat.js
@@ -138,6 +140,14 @@
           [%over %& [/ %'app.js'] [[/ %mime] app-js]]
           [%over %& [/ %'style.css'] [[/ %mime] app-css]]
           [%over %& [/ %'permits.html'] [[/ %mime] permits-html]]
+          [%over %& [/ %'peers.js'] [[/ %mime] peers-js]]
+          ::  local tiles: the home page's own launcher entries, one subdir
+          ::  /tiles/<name>/ holding tile.json (apps declare theirs in their
+          ::  own root's tile.json). %fall: seeded once with Landscape, then
+          ::  the user's, edited from the home page.
+          [%fall %| /tiles empty-dir:loader]
+          [%fall %| /tiles/landscape empty-dir:loader]
+          [%fall %& [/tiles/landscape %'tile.json'] [[/ %json] landscape-tile]]
           ::  docs-agent: the docs chatbot as a CONTAINED, sandboxed nexus
           ::  (neck [/ %docs-agent], code at nex/docs-agent.hoon). The
           ::  SANDBOX is the weir WE set on it here (kernel-enforced): the
@@ -458,6 +468,19 @@
         =/  prefix=path  /grubbery/tiles
         =/  site=path  site:(parse-url:http-utils url.request.req)
         =/  suffix=path  (slag (lent prefix) site)
+        ::  POST /apps/grubbery/peers/{create,members,permissions}: the three
+        ::  writes the peers panes need. Reads are the explorer's; these are
+        ::  the registry's (a ships mark, the usergroups registry poke).
+        ?:  &(=('POST' method.request.req) ?=([%peers @ ~] suffix))
+          =/  jon=json
+            %+  fall  (de:json:html ?~(body.request.req '' q.u.body.request.req))
+            *json
+          ;<  err=(unit @t)  bind:m  (peers-write i.t.suffix jon)
+          ?^  err
+            ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html u.err)])
+            (pure:m ~)
+          ;<  ~  bind:m  (send-simple:srv eyre-id [[200 ~[['content-type' 'application/json']]] `(as-octs:mimes:html '{"ok":true}')])
+          (pure:m ~)
         ::  POST /apps/grubbery/permits → a user permission action, applied
         ::  directly (we are already gated to src==our, the authenticated
         ::  user). Writes the authoritative component grubs — permit/approved/
@@ -800,6 +823,35 @@
           ;<  ~  bind:m
             (send-simple:srv eyre-id [[200 ~[['content-type' 'image/svg+xml']]] `bod])
           (pure:m ~)
+        ::  === peers: the explorer mounted on /sys/ames, with panes ===
+        ::  /apps/grubbery/peers.js → the panes (groups, group)
+        ?:  ?=([%'peers.js' ~] suffix)
+          =/  bod=octs  q.peers-js
+          ;<  ~  bind:m
+            (send-simple:srv eyre-id [[200 ~[['content-type' 'application/javascript']]] `bod])
+          (pure:m ~)
+        ::  /apps/grubbery/peers.json → every usergroup folded from its files
+        ?:  ?=([%'peers.json' ~] suffix)
+          ;<  groups=json  bind:m  peers-groups
+          =/  bod=octs  (as-octs:mimes:html (en:json:html groups))
+          ;<  ~  bind:m
+            (send-simple:srv eyre-id [[200 ~[['content-type' 'application/json']]] `bod])
+          (pure:m ~)
+        ::  /apps/grubbery/peers-viewer?path=&kind= → which pane a path under
+        ::  /sys/ames opens in (the explorer asks per tab; see +peers-viewer)
+        ?:  ?=([%'peers-viewer' ~] suffix)
+          =/  args=(map @t @t)  (malt args:(parse-url:http-utils url.request.req))
+          =/  pax=path  (fall (rush (fall (~(get by args) 'path') '') stap) /)
+          =/  pick=(unit json)  (peers-viewer pax =(`'dir' (~(get by args) 'kind')))
+          =/  bod=octs  (as-octs:mimes:html ?~(pick '' (en:json:html u.pick)))
+          ;<  ~  bind:m
+            (send-simple:srv eyre-id [[200 ~[['content-type' 'application/json']]] `bod])
+          (pure:m ~)
+        ::  /apps/grubbery/peers[/<path>] → the explorer's browse page, mounted
+        ::  here and rooted at /sys/ames: the ships and usergroups directories,
+        ::  browsed like anything else, with the panes above on the groups.
+        ?:  ?=([%peers *] suffix)
+          (serve-explorer-page eyre-id peers-mount)
         ::  /apps/grubbery/docs → the handbook reader shell
         ?:  ?=([%docs ~] suffix)
           ;<  ~  bind:m  (send-simple:srv eyre-id (mime-response:http-utils docs-html))
@@ -1274,6 +1326,199 @@
 ::
 ++  dbg  ^-(? |)
 ++  srv  ~(. http-res:io [%| 1 %& ~ %'main.sig'])
+::  === peers: usergroups + ships as the explorer mounted on /sys/ames ===
+::  The page is the explorer's browse page with one declaration injected:
+::  route /apps/grubbery/peers, root /sys/ames, and a viewer endpoint.
+::  +peers-viewer answers it: the usergroups directory opens in the groups
+::  pane, each <name>.grp directory in its group pane (peers.js). The
+::  panes read /peers.json and write through +peers-write; everything else
+::  (the ships listing, the raw who.ships / how.weir, delete) is the
+::  explorer's. A group /a/b is stored at /sys/ames/usergroups/a/b.grp.
+++  peers-mount
+  ^-  json
+  %-  pairs:enjs:format
+  :~  ['route' s+'/apps/grubbery/peers']
+      ['root' s+'/sys/ames']
+      ['title' s+'peers']
+      ['icon' s+'/apps/grubbery/icon.svg']
+      ['viewers' s+'/apps/grubbery/peers-viewer']
+  ==
+::  +serve-explorer-page: the explorer's browse page with a mount
+::  declaration ahead of its scripts, the way a mounting app serves it.
+++  serve-explorer-page
+  |=  [eyre-id=@ta mount=json]
+  =/  m  (fiber:fiber:nexus ,~)
+  ^-  form:m
+  ;<  fv=view:nexus  bind:m
+    (peek:io [%& %& /apps/'explorer.explorer' %'browse.html'] `[/ %mime])
+  ?.  ?=([%file *] fv)
+    ;<  ~  bind:m  (send-simple:srv eyre-id [[404 ~] `(as-octs:mimes:html 'the explorer has no browse.html')])
+    (pure:m ~)
+  =/  page=tape  (trip q.q:!<(mime (need-vase:tarball sang.fv)))
+  =/  decl=tape
+    "<script>window.EXPLORER_MOUNT = {(trip (en:json:html mount))};</script>\0a"
+  =/  marker=tape  "<script src=\"/grubbery/ball/apps/explorer.explorer/kit.js\""
+  =/  at=(unit @ud)  (find marker page)
+  =/  out=tape
+    ?~  at  (weld decl page)
+    :(weld (scag u.at page) decl (slag u.at page))
+  ;<  ~  bind:m
+    (send-simple:srv eyre-id [[200 ~[['content-type' 'text/html']]] `(as-octs:mimes:html (crip out))])
+  (pure:m ~)
+::  +peers-viewer: the pane for a path relative to /sys/ames, dirs only
+++  peers-viewer
+  |=  [pax=path dir=?]
+  ^-  (unit json)
+  ?.  dir  ~
+  =/  script=json  s+'/apps/grubbery/peers.js'
+  ?:  =(/usergroups pax)
+    `(pairs:enjs:format ~[['view' s+'groups'] ['script' script] ['args' [%o ~]]])
+  ?.  ?=([%usergroups @ *] pax)  ~
+  =/  grp=(unit path)  (peers-group-of t.pax)
+  ?~  grp  ~
+  :-  ~
+  %-  pairs:enjs:format
+  :~  ['view' s+'group']
+      ['script' script]
+      ['args' (pairs:enjs:format ~[['group' s+(spat u.grp)] ['dir' s+(spat pax)]])]
+  ==
+::  +peers-group-of: /a/b.grp -> `/a/b; a last segment without .grp is a
+::  category directory, not a group
+++  peers-group-of
+  |=  rel=path
+  ^-  (unit path)
+  ?~  rel  ~
+  =/  last=tape  (trip (rear rel))
+  =/  len=@ud  (lent last)
+  ?.  &((gth len 4) =(".grp" (slag (sub len 4) last)))  ~
+  `(snoc (snip `path`rel) (crip (scag (sub len 4) last)))
+::  +peers-storage: where a group's files live
+++  peers-storage
+  |=  grp=path
+  ^-  path
+  ?~  grp  /sys/ames/usergroups
+  (weld /sys/ames/usergroups (snoc (snip `path`grp) (cat 3 (rear grp) '.grp')))
+::  +peers-find: every group under a directory, recursing through
+::  category directories; the group's name is its path of stems
+++  peers-find
+  |=  [pax=path ug=ball:tarball]
+  ^-  (list [name=path grp=ball:tarball])
+  =/  kids=(list [@ta ball:tarball])  ~(tap by dir.ug)
+  =|  acc=(list [name=path grp=ball:tarball])
+  |-
+  ?~  kids  acc
+  =/  [kid-name=@ta kid=ball:tarball]  i.kids
+  =/  stem=(unit path)  (peers-group-of ~[kid-name])
+  ?^  stem
+    $(kids t.kids, acc [[(weld pax u.stem) kid] acc])
+  $(kids t.kids, acc (weld acc ^$(pax (snoc pax kid-name), ug kid)))
+::  +peers-groups: every usergroup as json: name, dir (relative to
+::  /sys/ames), public, members, and its make/poke/peek roads as text
+++  peers-groups
+  =/  m  (fiber:fiber:nexus ,json)
+  ^-  form:m
+  ;<  ug=view:nexus  bind:m  (peek:io [%& %| /sys/ames/usergroups] ~)
+  ?.  ?=([%ball *] ug)  (pure:m a+~)
+  =/  found=(list [name=path grp=ball:tarball])  (peers-find / ball.ug)
+  =/  roads  |=(s=(set road:tarball) ^-(json a+(turn ~(tap in s) |=(r=road:tarball s+(crip (peers-road-text r))))))
+  %-  pure:m
+  :-  %a
+  %+  murn  found
+  |=  [name=path grp=ball:tarball]
+  ^-  (unit json)
+  =/  who=(unit sang:tarball)  (~(get ba:tarball grp) [/ %'who.ships'])
+  =/  how=(unit sang:tarball)  (~(get ba:tarball grp) [/ %'how.weir'])
+  ?~  who  ~
+  =/  who-res  (mule |.(!<((set @p) (need-vase:tarball u.who))))
+  =/  members=(set @p)  ?:(?=(%| -.who-res) ~ p.who-res)
+  =/  =weir:nexus
+    ?~  how  *weir:nexus
+    =/  res  (mule |.(!<(weir:nexus (need-vase:tarball u.how))))
+    ?:(?=(%| -.res) *weir:nexus p.res)
+  :-  ~
+  %-  pairs:enjs:format
+  :~  ['name' s+(spat name)]
+      ['dir' s+(spat (slag 2 (peers-storage name)))]
+      ['public' b+=(/public name)]
+      ['members' a+(turn (sort ~(tap in members) aor) |=(p=@p s+(scot %p p)))]
+      ['make' (roads make.weir)]
+      ['poke' (roads poke.weir)]
+      ['peek' (roads peek.weir)]
+  ==
+::  +peers-write: the panes' three writes. ~ on success, an error text
+::  otherwise.
+++  peers-write
+  |=  [what=@ta jon=json]
+  =/  m  (fiber:fiber:nexus ,(unit @t))
+  ^-  form:m
+  =/  jarr
+    |=  k=@t
+    ^-  (list @t)
+    ?.  ?=([%o *] jon)  ~
+    =/  v  (~(get by p.jon) k)
+    ?.  ?=([~ %a *] v)  ~
+    (murn p.u.v |=(x=json ?:(?=([%s *] x) `p.x ~)))
+  ?+    what  (pure:m `'unknown peers action')
+      %create
+    =/  grp=(unit path)  (rush (jstr jon 'name') stap)
+    ?~  grp  (pure:m `'name must be a path like /friends')
+    ?~  u.grp  (pure:m `'name must be a path like /friends')
+    =/  dir=path  (peers-storage u.grp)
+    ;<  ~  bind:m  (make:io [%& %& dir %'who.ships'] |+[[[/ %ships] *(set @p)] ~])
+    ;<  ~  bind:m  (make:io [%& %& dir %'how.weir'] |+[[[/ %weir] *weir:nexus] ~])
+    (pure:m ~)
+      %members
+    =/  grp=(unit path)  (rush (jstr jon 'group') stap)
+    ?~  grp  (pure:m `'group required')
+    =/  ships=(set @p)  (~(gas in *(set @p)) (murn (jarr 'ships') |=(t=@t (slaw %p t))))
+    ;<  ~  bind:m  (over:io [%& %& (peers-storage u.grp) %'who.ships'] [[/ %ships] ships])
+    (pure:m ~)
+      %permissions
+    ::  TODO: this does nothing today. %how only accepts roads from a
+    ::  REGISTERED sender, scoped to that sender's own prefix (see the
+    ::  registry in app/grubbery.hoon); a request fiber is no registrant,
+    ::  and the shell's own registrant may only grant under
+    ::  /apps/shell.shell. The old peers page used the same poke and was
+    ::  rejected the same way, silently. Group permissions are really
+    ::  delegated grants, each app granting into its own subtree. Decide:
+    ::  make the pane's permissions read-only (grants keep coming from
+    ::  apps), or let the shell, as the capability broker, write how.weir
+    ::  directly for the user and recompute, past the registrant scoping.
+    =/  grp=(unit path)  (rush (jstr jon 'group') stap)
+    ?~  grp  (pure:m `'group required')
+    =/  =weir:nexus
+      :*  (silt (turn (jarr 'make') peers-parse-road))
+          (silt (turn (jarr 'poke') peers-parse-road))
+          (silt (turn (jarr 'peek') peers-parse-road))
+      ==
+    ;<  ~  bind:m  (reg-how:io u.grp weir)
+    (pure:m ~)
+  ==
+::  a road as the panes show it: /dir/ for a subtree, /dir/file.ext for a grub
+++  peers-parse-road
+  |=  t=@t
+  ^-  road:tarball
+  =/  pax=path  (fall (rush t stap) /)
+  ?~  pax  [%& %| /]
+  =/  last=tape  (trip (rear pax))
+  ?~  (find "." last)
+    [%& %| pax]
+  [%& %& (snip `path`pax) (rear pax)]
+++  peers-road-text
+  |=  =road:tarball
+  ^-  tape
+  ?-  -.road
+      %&
+    ?-  -.p.road
+      %&  "{(spud path.p.p.road)}/{(trip name.p.p.road)}"
+      %|  (spud p.p.road)
+    ==
+      %|
+    ?-  -.q.p.road
+      %&  "{(spud path.p.q.p.road)}/{(trip name.p.q.p.road)}"
+      %|  (spud p.q.p.road)
+    ==
+  ==
 ::  coll-of: the collection a request is scoped to — the `c` query param (a
 ::  collection name). Absent, we fall back to the first registered collection,
 ::  so a bare request still resolves the default. Returns the one-segment path.
@@ -2669,14 +2914,23 @@
       href=@t
   ==
 ::
+::  the seed local tile
+++  landscape-tile
+  ^-  json
+  %-  pairs:enjs:format
+  :~  title+s+'Landscape'
+      info+s+'Tlon'
+      color+s+'#1a1a1a'
+      href+s+'/apps/landscape'
+      image+s+'https://upload.wikimedia.org/wikipedia/commons/thumb/f/fe/Urbit_Logo.svg/3840px-Urbit_Logo.svg.png'
+  ==
 ::  each local tile is its own subdir /tiles/<name>/ holding tile.json
-::  (and optionally icon.svg); the tile's name is the subdir name.
+::  (and optionally icon.svg); the tile's name is the subdir name. They
+::  live in the shell's own root.
 ++  read-local-tiles
   =/  m  (fiber:fiber:nexus ,(list tile))
   ^-  form:m
-  ;<  tl=(unit lane:tarball)  bind:m  (resolve-link:io '@tiles')
-  ?.  ?=([~ %| *] tl)  (pure:m ~)
-  =/  tiles-root=path  p.u.tl
+  =/  tiles-root=path  /apps/'shell.shell'
   ;<  =view:nexus  bind:m  (peek:io [%& %| (weld tiles-root /tiles)] ~)
   ?.  ?=([%ball *] view)
     (pure:m ~)
@@ -2718,8 +2972,6 @@
   ?~  roots  (pure:m (flop acc))
   =/  root=path  i.roots
   =/  leaf=@ta  (rear root)
-  ?:  =('tiles.tiles' leaf)
-    $(roots t.roots)
   =/  slug=@ta  (app-slug leaf)
   ;<  kid-view=view:nexus  bind:m
     (peek:io [%& %& [root %'tile.json']] `[/ %json])
@@ -2767,20 +3019,18 @@
 ++  app-roots
   =/  m  (fiber:fiber:nexus ,(list path))
   ^-  form:m
-  ::  built-in apps: every direct child of /apps (no neck check needed)
-  ;<  av=view:nexus  bind:m  (peek-shallow:io [%& %| /apps] ~)
-  =/  builtins=(list path)
-    ?.  ?=([%ball *] av)  ~
-    (turn ~(tap in ~(key by dir.ball.av)) |=(k=@ta /apps/[k]))
-  ::  desk apps: each child of /desks is a desk wrapper; its real apps
-  ::  are the children of /desk/data (what apply-bill creates).
+  ::  USER DESKS ONLY. The shell manages discovery + approval for apps the
+  ::  user chose to install; built-ins are the trusted tier — they declare
+  ::  their /sys/link names in root.hoon and run open, so the shell never
+  ::  scans /apps root, follows them, or asks about them. Each desk wrapper's
+  ::  real apps are the children of its /desk/data (what apply-bill creates).
   ;<  dv=view:nexus  bind:m
     (peek-shallow:io [%& %| /apps/'shell.shell'/desks] ~)
-  ?.  ?=([%ball *] dv)  (pure:m builtins)
+  ?.  ?=([%ball *] dv)  (pure:m ~)
   =/  desks=(list @ta)  ~(tap in ~(key by dir.ball.dv))
   =|  out=(list path)
   |-  ^-  form:m
-  ?~  desks  (pure:m (weld builtins (flop out)))
+  ?~  desks  (pure:m (flop out))
   ;<  sv=view:nexus  bind:m
     (peek-shallow:io [%& %| /apps/'shell.shell'/desks/[i.desks]/desk/data] ~)
   =/  subs=(list path)
@@ -3312,7 +3562,18 @@
   =/  m  (fiber:fiber:nexus ,~)
   ^-  form:m
   ;<  menus=(map @t (list json))  bind:m  read-app-aliases
-  =/  entries=(list [nm=@t opts=(list json)])  ~(tap by menus)
+  ;<  approved=(map @t json)  bind:m  (read-approved rail)
+  ::  a desk earns its /sys/link name only once the user approves it — being
+  ::  reachable by name is a capability, gated like a road. Drop every opt
+  ::  whose app isn't approved, and any name left with no approved claimant.
+  ::  (Built-in names aren't here at all; root.hoon seeds those directly.)
+  =/  entries=(list [nm=@t opts=(list json)])
+    %+  murn  ~(tap by menus)
+    |=  [nm=@t opts=(list json)]
+    ^-  (unit [@t (list json)])
+    =/  keep=(list json)
+      (skim opts |=(o=json (~(has by approved) (fall (jget o 'path') ''))))
+    ?~(keep ~ `[nm keep])
   =/  want=(set path)  (silt (turn entries |=([nm=@t *] (link-dir nm))))
   |-  ^-  form:m
   ?~  entries
