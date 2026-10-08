@@ -148,6 +148,11 @@
           [%fall %| /tiles empty-dir:loader]
           [%fall %| /tiles/landscape empty-dir:loader]
           [%fall %& [/tiles/landscape %'tile.json'] [[/ %json] landscape-tile]]
+          ::  hidden-tiles.json: the user's launcher preference — the set of
+          ::  tile names hidden from the home grid, toggled from the UI. This
+          ::  replaces the old hardcoded hidden set (any tile can be hidden or
+          ::  shown now); seeded empty.
+          [%fall %& [/ %'hidden-tiles.json'] [[/ %json] [%a ~]]]
           ::  docs-agent: the docs chatbot as a CONTAINED, sandboxed nexus
           ::  (neck [/ %docs-agent], code at nex/docs-agent.hoon). The
           ::  SANDBOX is the weir WE set on it here (kernel-enforced): the
@@ -563,6 +568,25 @@
           =/  code=@ud  ?~(err 200 500)
           ;<  ~  bind:m  (send-simple:srv eyre-id [[code ~] `(as-octs:mimes:html ?~(err 'ok' 'failed'))])
           (pure:m ~)
+        ::  POST /visibility {name, hidden}: hide or show a tile by name. The
+        ::  hidden set is the user's own launcher preference (replaces the old
+        ::  hardcoded set) — any tile can be toggled from the home page.
+        ?:  &(=('POST' method.request.req) ?=([%visibility ~] suffix))
+          =/  jon=json
+            %+  fall  (de:json:html ?~(body.request.req '' q.u.body.request.req))
+            *json
+          =/  name=@t  (fall (jget jon 'name') '')
+          =/  hide=?  &(?=([%o *] jon) =([~ %b %.y] (~(get by p.jon) 'hidden')))
+          ?:  =('' name)
+            ;<  ~  bind:m  (send-simple:srv eyre-id [[400 ~] `(as-octs:mimes:html 'name required')])
+            (pure:m ~)
+          ;<  cur=(set @t)  bind:m  (read-hidden-tiles rail)
+          =/  next=(set @t)  ?:(hide (~(put in cur) name) (~(del in cur) name))
+          ;<  ~  bind:m
+            %+  over:io  (nex-road:io rail [%& / %'hidden-tiles.json'])
+            [[/ %json] [%a (turn ~(tap in next) |=(n=@t s+n))]]
+          ;<  ~  bind:m  (send-simple:srv eyre-id [[200 ~] `(as-octs:mimes:html 'ok')])
+          (pure:m ~)
         ::  POST /desks/peers {add|del: ship}: forward to our own peers.json
         ::  fiber (folded in from the retired /desks nexus).
         ?:  &(=('POST' method.request.req) ?=([%desks %peers ~] suffix))
@@ -654,7 +678,8 @@
         ::  /grubbery/tiles/tiles.json → all tile data
         ?:  ?=([%'tiles.json' ~] suffix)
           ;<  tiles=(list [tile (unit path)])  bind:m  read-all-tiles
-          =/  =json  (tiles-to-json tiles)
+          ;<  hidden=(set @t)  bind:m  (read-hidden-tiles rail)
+          =/  =json  (tiles-to-json tiles hidden)
           =/  body=octs  (as-octs:mimes:html (en:json:html json))
           ;<  ~  bind:m
             (send-simple:srv eyre-id [[200 ['content-type' 'application/json'] ~] `body])
@@ -4144,9 +4169,6 @@
     `r
   [%o (~(put by p.ask) 'unresolved' [%a (turn bad |=(r=@t s+r))])]
 ::
-++  hidden-tiles
-  ^-  (set path)
-  (sy ~[/apps/'github.github'])
 ++  read-all-tiles
   =/  m  (fiber:fiber:nexus ,(list [tile root=(unit path)]))
   ^-  form:m
@@ -4170,13 +4192,6 @@
     ?.  ?=([%apps @ta ~] r)  |
     =/  leaf=@ta  i.t.r
     (lien leaves |=(l=@ta =(l leaf)))
-  ::  infrastructure the shell itself depends on is not a launcher app:
-  ::  github is how desks get their code. Its instance stays; its tile
-  ::  does not.
-  =.  app-pairs
-    %+  skip  app-pairs
-    |=  [* r=path]
-    (~(has in hidden-tiles) r)
   ::  local tiles have no app root (not uninstallable); app tiles carry
   ::  theirs so the UI can offer uninstall.
   =/  merged=(list [tile (unit path)])
@@ -4188,7 +4203,7 @@
   (pure:m (sort merged |=([a=[tile *] b=[tile *]] (aor name.-.a name.-.b))))
 ::
 ++  tiles-to-json
-  |=  tiles=(list [t=tile root=(unit path)])
+  |=  [tiles=(list [t=tile root=(unit path)]) hidden=(set @t)]
   ^-  json
   :-  %a
   %+  turn  tiles
@@ -4201,5 +4216,16 @@
       image+s+image.t
       href+s+href.t
       root+?~(root ~ s+(crip (spud u.root)))
+      hidden+b+(~(has in hidden) name.t)
   ==
+::  +read-hidden-tiles: the user's hidden-tile preference — the set of tile
+::  names suppressed from the home grid, from /hidden-tiles.json. ~ = none.
+++  read-hidden-tiles
+  |=  rail=rail:tarball
+  =/  m  (fiber:fiber:nexus ,(set @t))
+  ^-  form:m
+  ;<  hv=(unit json)  bind:m
+    (peek-as:io (nex-road:io rail [%& / %'hidden-tiles.json']) ,json)
+  ?.  ?=([~ %a *] hv)  (pure:m ~)
+  (pure:m (silt (murn p.u.hv |=(j=json ?:(?=([%s *] j) `p.j ~)))))
 --

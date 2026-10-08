@@ -155,3 +155,5 @@
 .stock-badge.ok { background: #ece7fa; color: #6947b8; }
 .stock-badge.no { background: #f2f4f7; color: #9aa4b3; }
 .stock-foot { margin-top: 16px; padding-top: 14px; border-top: 1px solid #eee; display: flex; justify-content: flex-end; }
+/* the header "Hidden" view toggle, highlighted while the hidden view is open */
+#hidden-btn.active { background: #ece7fa; color: #6947b8; }

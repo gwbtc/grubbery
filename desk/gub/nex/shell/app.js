@@ -175,62 +175,86 @@ var API='/grubbery/api';var BALL='apps/shell.shell'; // local tiles live in the 
   var isNew = false;
   var tileData = {};
 
+  function buildTile(t) {
+    var d = document.createElement('div');
+    d.className = t.image ? 'tile has-img' : 'tile';
+    d.dataset.tile = t.name;
+    var bg = document.createElement('div');
+    bg.className = 'tile-bg';
+    bg.style.background = t.color || '#333';
+    d.appendChild(bg);
+    if (t.image) {
+      var img = document.createElement('img');
+      img.className = 'tile-img';
+      img.src = t.image;
+      img.onload = function() { this.closest('.tile').classList.add('loaded'); };
+      img.onerror = function() { this.style.display='none'; this.closest('.tile').classList.add('loaded'); };
+      d.appendChild(img);
+    }
+    var lbl = document.createElement('div');
+    lbl.className = 'tile-label';
+    var ttl = document.createElement('div');
+    ttl.className = 'tile-title';
+    ttl.textContent = t.title || '';
+    lbl.appendChild(ttl);
+    if (t.info) {
+      var desc = document.createElement('div');
+      desc.className = 'tile-desc';
+      desc.textContent = t.info;
+      lbl.appendChild(desc);
+    }
+    d.appendChild(lbl);
+    var acts = document.createElement('div');
+    acts.className = 'tile-actions';
+    var btn = document.createElement('button');
+    btn.className = 'tile-edit';
+    btn.textContent = 'view';
+    btn.onclick = function(e) { e.preventDefault(); e.stopPropagation(); viewTile(d, t.name); };
+    acts.appendChild(btn);
+    d.appendChild(acts);
+    if (t.href) {
+      var a = document.createElement('a');
+      a.className = 'tile-link';
+      a.href = t.href;
+      a.target = '_blank';
+      d.appendChild(a);
+    }
+    return d;
+  }
+
+  // hidden tiles are kept entirely out of the home grid. A header "Hidden · N"
+  // button switches the grid to a hidden-only view, where each tile's view
+  // modal offers "unhide". The button hides itself when nothing is hidden.
+  var showingHidden = false;
+  var allTiles = [];
+  function toggleHiddenView() { showingHidden = !showingHidden; paintTiles(); }
+  function updateHiddenBtn(n) {
+    var b = document.getElementById('hidden-btn');
+    if (!b) return;
+    b.style.display = (n || showingHidden) ? '' : 'none';
+    b.textContent = showingHidden ? '← Home' : ('Hidden · ' + n);
+    b.classList.toggle('active', showingHidden);
+  }
+  function paintTiles() {
+    var loading = document.getElementById('loading-tile');
+    var visible = allTiles.filter(function(t) { return !t.hidden; });
+    var hidden = allTiles.filter(function(t) { return t.hidden; });
+    if (showingHidden && !hidden.length) showingHidden = false;
+    var list = showingHidden ? hidden : visible;
+    tilesDiv.innerHTML = '';
+    if (!list.length) {
+      tilesDiv.innerHTML = '<div class="empty">' + (showingHidden ? 'no hidden tiles' : 'no tiles yet') + '</div>';
+    } else {
+      list.forEach(function(t) { tilesDiv.appendChild(buildTile(t)); });
+      if (loading && !showingHidden) tilesDiv.appendChild(loading);
+    }
+    updateHiddenBtn(hidden.length);
+  }
   function renderTiles(tiles) {
     tileData = {};
     tiles.forEach(function(t) { tileData[t.name] = t; });
-    var loading = document.getElementById('loading-tile');
-    tilesDiv.innerHTML = '';
-    if (!tiles.length) {
-      tilesDiv.innerHTML = '<div class="empty">no tiles yet</div>';
-    } else {
-      tiles.forEach(function(t) {
-        var d = document.createElement('div');
-        d.className = t.image ? 'tile has-img' : 'tile';
-        d.dataset.tile = t.name;
-        var bg = document.createElement('div');
-        bg.className = 'tile-bg';
-        bg.style.background = t.color || '#333';
-        d.appendChild(bg);
-        if (t.image) {
-          var img = document.createElement('img');
-          img.className = 'tile-img';
-          img.src = t.image;
-          img.onload = function() { this.closest('.tile').classList.add('loaded'); };
-          img.onerror = function() { this.style.display='none'; this.closest('.tile').classList.add('loaded'); };
-          d.appendChild(img);
-        }
-        var lbl = document.createElement('div');
-        lbl.className = 'tile-label';
-        var ttl = document.createElement('div');
-        ttl.className = 'tile-title';
-        ttl.textContent = t.title || '';
-        lbl.appendChild(ttl);
-        if (t.info) {
-          var desc = document.createElement('div');
-          desc.className = 'tile-desc';
-          desc.textContent = t.info;
-          lbl.appendChild(desc);
-        }
-        d.appendChild(lbl);
-        var acts = document.createElement('div');
-        acts.className = 'tile-actions';
-        var btn = document.createElement('button');
-        btn.className = 'tile-edit';
-        btn.textContent = 'view';
-        btn.onclick = function(e) { e.preventDefault(); e.stopPropagation(); viewTile(d, t.name); };
-        acts.appendChild(btn);
-        d.appendChild(acts);
-        if (t.href) {
-          var a = document.createElement('a');
-          a.className = 'tile-link';
-          a.href = t.href;
-          a.target = '_blank';
-          d.appendChild(a);
-        }
-        tilesDiv.appendChild(d);
-      });
-      if (loading) tilesDiv.appendChild(loading);
-    }
+    allTiles = tiles;
+    paintTiles();
   }
 
   function uninstallTile(t, tiles) {
@@ -318,6 +342,25 @@ var API='/grubbery/api';var BALL='apps/shell.shell'; // local tiles live in the 
         deleteTile(name);
       };
     }
+    // hide / unhide this tile from the home grid (a user preference, stored
+    // ship-side in hidden-tiles.json — any tile can be toggled)
+    var hb = document.getElementById('edit-hide');
+    if (!hb) {
+      hb = document.createElement('button');
+      hb.id = 'edit-hide';
+      hb.className = 'tile-edit';
+      document.getElementById('edit-save').parentNode.appendChild(hb);
+    }
+    hb.style.display = '';
+    hb.textContent = t.hidden ? 'unhide' : 'hide';
+    hb.onclick = function() {
+      editBack.classList.remove('open');
+      fetch('/grubbery/tiles/visibility', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name: name, hidden: !t.hidden })
+      }).then(function() { loadTiles(); });
+    };
     editBack.classList.add('open');
   }
 
